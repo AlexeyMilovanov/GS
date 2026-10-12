@@ -143,11 +143,58 @@ def realizedContexts (τ : Substitution P) : Set (P.Form × Set (PlacedTile P)) 
   {N | ∃ (n : ℕ) (p : P.Form), ∃ A ∈ τ.supertile n p,
     N = (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))}
 
+open Pointwise
+
+private def finite_neighbourhoods_CrownContexts (τ : Substitution P) (k : ℕ) :
+    Set (P.Form × Set (PlacedTile P)) :=
+  {N | ∃ K, τ.IsAllowedCrown K ∧ ∃ S ⊆ τ.decomposeIter k K, ∃ A ∈ S,
+    N = (A.form, translateSet (-A.anchor) S)}
+
+/-- Step 6 of the blueprint proof of `finite_neighbourhoods`: orders n < k
+have finitely many possibilities directly. -/
+private lemma finite_neighbourhoods_step6 (τ : Substitution P) (k : ℕ) :
+    {N | ∃ (n : ℕ) (hn : n < k) (p : P.Form), ∃ A ∈ τ.supertile n p,
+      N = (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))}.Finite := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `finite_neighbourhoods`: there are finitely
+many allowed crowns and each has a finite kth image, with finitely many selected
+subpatches and distinguished tiles. -/
+private lemma finite_neighbourhoods_step5 (τ : Substitution P) (h : τ.FLC) (k : ℕ) :
+    (finite_neighbourhoods_CrownContexts τ k).Finite := by
+  sorry
+
+/-- Steps 1 to 4 of the blueprint proof of `finite_neighbourhoods`: all neighbourhood
+supports have bounded diameter, so there is k such that in supertiles of order n >= k,
+the neighbourhood is covered by a full pointed crown of order n-k, which implies
+the context belongs to CrownContexts. -/
+private lemma finite_neighbourhoods_step1to4 (τ : Substitution P) (h : τ.FLC) :
+    ∃ k : ℕ, ∀ (n : ℕ) (hn : k ≤ n) (p : P.Form) (A : PlacedTile P)
+      (hA : A ∈ τ.supertile n p),
+      (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A)) ∈
+        finite_neighbourhoods_CrownContexts τ k := by
+  sorry
+
 /-- `lem:finite-neighbourhoods`: under FLC there are finitely many tile
 neighbourhoods in supertiles, up to translation. -/
 theorem finite_neighbourhoods (τ : Substitution P) (h : τ.FLC) :
     (realizedContexts τ).Finite := by
-  sorry
+  obtain ⟨k, hk⟩ := finite_neighbourhoods_step1to4 τ h
+  have H1 := finite_neighbourhoods_step6 τ k
+  have H2 := finite_neighbourhoods_step5 τ h k
+  have Hsub : realizedContexts τ ⊆
+      {N | ∃ (n : ℕ) (_ : n < k) (p : P.Form), ∃ A ∈ τ.supertile n p,
+        N = (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))} ∪
+      finite_neighbourhoods_CrownContexts τ k := by
+    intro N hN
+    rcases hN with ⟨n, p, A, hA, rfl⟩
+    by_cases hnk : n < k
+    · left
+      exact ⟨n, hnk, p, A, hA, rfl⟩
+    · right
+      push_neg at hnk
+      exact hk n hnk p A hA
+  exact Set.Finite.subset (Set.Finite.union H1 H2) Hsub
 
 /-! ## `def:clones`, step 2: genuine-corner clones -/
 

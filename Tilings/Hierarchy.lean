@@ -59,9 +59,67 @@ variable (τ : Substitution P)
 
 /-- `lem:finiteparents` (supports): the support of the supertile `τ^n p`
 (anchored at the origin) is `θ^n • B_p`. -/
+private lemma iterate_support_translateSet (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier, mem_iUnion,
+    mem_image, mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [←add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [←add_assoc] using hx
+
+private lemma iterate_support_decomposeTile (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [decomposeTile]
+  rw [iterate_support_translateSet, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [mem_vadd_set_iff_neg_vadd_mem, mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc τ.θ • A.anchor + τ.θ • y = τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma iterate_support_decompose (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [decompose, support]
+  rw [smul_set_iUnion₂]
+  ext x
+  simp only [mem_iUnion]
+  constructor
+  · rintro ⟨A, ⟨B, hB, hA⟩, hx⟩
+    refine ⟨B, hB, ?_⟩
+    have h : x ∈ support (τ.decomposeTile B) := by
+      simp only [support, mem_iUnion]
+      exact ⟨A, hA, hx⟩
+    rw [iterate_support_decomposeTile] at h
+    exact h
+  · rintro ⟨A, hA, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rw [iterate_support_decomposeTile]
+      exact hx
+    simp only [support, mem_iUnion] at h
+    rcases h with ⟨B, hB, hx'⟩
+    exact ⟨B, ⟨A, hA, hB⟩, hx'⟩
+
 theorem iterate_support (n : ℕ) (p : P.Form) :
     support (τ.supertile n p) = (τ.θ ^ n) • (P.disk p).carrier := by
-  sorry
+  induction' n with n ih
+  · dsimp [supertile, decomposeIter, support, PlacedTile.carrier]
+    ext x
+    simp
+  · change support (τ.decompose (τ.supertile n p)) = τ.θ ^ (n + 1) • (P.disk p).carrier
+    rw [iterate_support_decompose]
+    rw [ih, smul_smul, pow_succ']
 
 private lemma decomposeTile_inv_eq (B : PlacedTile P) :
     {A : PlacedTile P | B ∈ τ.decomposeTile A} =

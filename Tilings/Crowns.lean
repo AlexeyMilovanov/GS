@@ -176,7 +176,12 @@ def genuineMacroCorners (M : MacroPatch P) : Set Pt :=
 /-- A supertile is finite. -/
 theorem supertile_finite (τ : Substitution P) (n : ℕ) (p : P.Form) :
     (τ.supertile n p).Finite := by
-  sorry
+  induction' n with n ih
+  · exact finite_singleton (⟨p, 0⟩ : PlacedTile P)
+  · change (τ.decompose (τ.decomposeIter n {⟨p, 0⟩})).Finite
+    apply Finite.biUnion ih
+    intro A _
+    exact Finite.image _ (τ.rule A.form).finite
 
 /-- A supertile has pairwise disjoint interiors. -/
 theorem supertile_disjoint (τ : Substitution P) (n : ℕ) (p : P.Form) :

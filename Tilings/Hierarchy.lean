@@ -300,12 +300,42 @@ private lemma exists_composition_step1_parents (τ : Substitution P) {T : PlaneT
       T.tiles ⊆ τ.decompose T' := by
   sorry
 
+/-- Step 1 of the blueprint proof of `exists_composition_step2_disjoint`: supertiles have
+disjoint interiors. -/
+private lemma exists_composition_step2_disjoint_supertile (τ : Substitution P) (n : ℕ)
+    (p : P.Form) :
+    DisjointInteriors (τ.supertile n p) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `exists_composition_step2_disjoint`: translation
+preserves disjoint interiors. -/
+private lemma exists_composition_step2_disjoint_translate_inv {v : Pt} {S : Set (PlacedTile P)}
+    (h : DisjointInteriors (translateSet v S)) : DisjointInteriors S := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `exists_composition_step2_disjoint`: a patch that
+occurs in a set with disjoint interiors has disjoint interiors. -/
+private lemma exists_composition_step2_disjoint_of_occurs {F S : Set (PlacedTile P)}
+    (h_occ : OccursIn F S) (hS : DisjointInteriors S) : DisjointInteriors F := by
+  rcases h_occ with ⟨v, hv⟩
+  exact exists_composition_step2_disjoint_translate_inv (hS.subset hv)
+
 /-- Step 2 of the blueprint proof of `exists_composition`: a parent assignment whose finite
 patches occur in supertiles must have disjoint interiors. -/
 private lemma exists_composition_step2_disjoint (τ : Substitution P) (T' : Set (PlacedTile P))
     (h_subst : ∀ F' ⊆ T', F'.Finite → ∃ (n : ℕ) (p : P.Form), OccursIn F' (τ.supertile n p)) :
     DisjointInteriors T' := by
-  sorry
+  intro A hA B hB hne
+  have hF : {A, B} ⊆ T' := by
+    intro X hX
+    rcases hX with rfl | rfl
+    · exact hA
+    · exact hB
+  have hFin : ({A, B} : Set (PlacedTile P)).Finite := finite_singleton B |>.insert A
+  rcases h_subst {A, B} hF hFin with ⟨n, p, h_occ⟩
+  have hDisj := exists_composition_step2_disjoint_of_occurs h_occ
+    (exists_composition_step2_disjoint_supertile τ n p)
+  exact hDisj (mem_insert A _) (mem_insert_of_mem _ (mem_singleton _)) hne
 
 /-- Step 3 of the blueprint proof of `exists_composition`: no extra child can occur in
 the decomposition because the plane is already covered by `T` with disjoint interiors,

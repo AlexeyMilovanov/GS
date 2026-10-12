@@ -221,7 +221,10 @@ private lemma whole_side_ports_step1_parent_length (m : ℕ) (A : G.P'.Form)
     (a : Fin (G.P'.disk A).n) :
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 =
       (τ.θ ^ m) * dist ((G.P'.disk A).vertex a) ((G.P'.disk A).vertex (finRotate _ a)) := by
-  sorry
+  dsimp [parentSide]
+  rw [dist_smul₀]
+  have h : 0 < τ.θ := by linarith [τ.one_lt]
+  rw [Real.norm_eq_abs, abs_of_pos (pow_pos h m)]
 
 /-- Step 2 of the blueprint proof of `whole_side_ports`: the length of the parent
 side is bounded by the number of inside edges times D plus the omitted length 2D. -/

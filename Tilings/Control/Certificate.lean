@@ -393,6 +393,15 @@ structure MacroCertificate (P : Protoset) extends MacroData P where
   initial port is an inner side of the template. -/
   g4_path_inner : ∀ α d i, toMacroData.IsGenuinePath α d i →
     ∀ (n : ℕ) (o : toMacroData.SideOcc), (path α d i)[n + 1]? = some o → toMacroData.IsInner o
+  /-- (G4, review addition, 12 October 2026) Paths are sequences of geometric
+  sides, so a genuine path contains both occurrences of every inner side it
+  uses, the terminal print excepted (the path records it in its small owner
+  only).  Without this clause the third cell `A_i(d)` would sit on one
+  occurrence of a crossed side and `0` on its partner, and `lift_hierarchy`
+  fails (Aristotle, project 7fa31fe7). -/
+  g4_path_partner : ∀ α d i, toMacroData.IsGenuinePath α d i →
+    ∀ o ∈ path α d i, toMacroData.IsInner o → ¬ toMacroData.IsPrint o →
+      partner o ∈ path α d i
   /-- (G4) Every path uses marked sides only. -/
   g4_path_marked : ∀ α d i, toMacroData.IsGenuinePath α d i →
     ∀ o ∈ path α d i, toMacroData.IsMarked o

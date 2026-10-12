@@ -18,7 +18,7 @@ Statements of the blueprint nodes of `models.tex` and two nodes of
 All proofs except `FiniteMap.exists_idempotent_iterate` are `sorry`.
 -/
 
-open Set Pointwise
+open Set Pointwise Metric
 
 noncomputable section
 
@@ -32,11 +32,80 @@ variable {P : Protoset}
 
 namespace PlaneTiling
 
+/-- Step 1 of the blueprint proof of `locallyFinite`: Choose an open disk in the interior of
+each form. The minimum of these finitely many positive radii is $r>0$. -/
+private lemma locallyFinite_step1_radii :
+    ∃ (c : P.Form → Pt) (r : ℝ), 0 < r ∧
+      ∀ p : P.Form, ball (c p) r ⊆ interior (P.disk p).carrier := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `locallyFinite`: the maximum of the form diameters
+is $D<\infty$. -/
+private lemma locallyFinite_step2_diameter :
+    ∃ D : ℝ, ∀ p : P.Form, Bornology.IsBounded (P.disk p).carrier ∧
+      ∀ x y, x ∈ (P.disk p).carrier → y ∈ (P.disk p).carrier → dist x y ≤ D := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `locallyFinite`: If a tile meets a compact set $K$,
+its chosen interior disk centre lies in the closed $D$-neighbourhood of $K$. -/
+private lemma locallyFinite_step3_centres (T : PlaneTiling P) (K : Set Pt)
+    (c : P.Form → Pt) (D : ℝ)
+    (hc : ∀ p : P.Form, c p ∈ interior (P.disk p).carrier)
+    (hD : ∀ p : P.Form, ∀ x y, x ∈ (P.disk p).carrier → y ∈ (P.disk p).carrier → dist x y ≤ D) :
+    ∀ A ∈ T.tiles, (A.carrier ∩ K).Nonempty →
+      ∃ x ∈ K, dist (A.anchor +ᵥ c A.form) x ≤ D := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `locallyFinite`: Centres belonging to distinct tiles
+are at distance at least $2r$, since their open interior disks are disjoint. -/
+private lemma locallyFinite_step4_separated (T : PlaneTiling P)
+    (c : P.Form → Pt) (r : ℝ) (hr : 0 < r)
+    (hball : ∀ p : P.Form, ball (c p) r ⊆ interior (P.disk p).carrier) :
+    ∀ A B, A ∈ T.tiles → B ∈ T.tiles → A ≠ B →
+      2 * r ≤ dist (A.anchor +ᵥ c A.form) (B.anchor +ᵥ c B.form) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `locallyFinite`: A compact metric set has only
+finitely many $2r$-separated points, by a finite cover with disks of radius $r/2$.
+Here stated as: a set of $2r$-separated points in a closed $D$-neighbourhood of a
+compact set is finite. -/
+private lemma locallyFinite_step5_compact (K : Set Pt) (hK : IsCompact K)
+    (D r : ℝ) (hr : 0 < r) (S : Set Pt) (hS_prox : ∀ A ∈ S, ∃ x ∈ K, dist A x ≤ D)
+    (hS_sep : ∀ A B, A ∈ S → B ∈ S → A ≠ B → 2 * r ≤ dist A B) :
+    S.Finite := by
+  sorry
+
 /-- `lem:localfinite` (local finiteness): every compact set meets only
 finitely many tiles of a plane tiling by a finite protoset. -/
 theorem locallyFinite (T : PlaneTiling P) {K : Set Pt} (hK : IsCompact K) :
     {A ∈ T.tiles | (A.carrier ∩ K).Nonempty}.Finite := by
-  sorry
+  obtain ⟨c, r, hr, hball⟩ := locallyFinite_step1_radii (P := P)
+  obtain ⟨D, hD⟩ := locallyFinite_step2_diameter (P := P)
+  have hc : ∀ p : P.Form, c p ∈ interior (P.disk p).carrier := fun p =>
+    hball p (by rw [mem_ball, dist_self]; exact hr)
+  let f := fun A : PlacedTile P => A.anchor +ᵥ c A.form
+  let S := f '' {A ∈ T.tiles | (A.carrier ∩ K).Nonempty}
+  have hS_prox : ∀ X ∈ S, ∃ x ∈ K, dist X x ≤ D := by
+    intro X hX
+    rcases hX with ⟨A, hA, rfl⟩
+    exact locallyFinite_step3_centres T K c D hc (fun p => (hD p).2) A hA.1 hA.2
+  have hS_sep : ∀ X Y, X ∈ S → Y ∈ S → X ≠ Y → 2 * r ≤ dist X Y := by
+    intro X Y hX hY hne
+    rcases hX with ⟨A, hA, rfl⟩
+    rcases hY with ⟨B, hB, rfl⟩
+    have hAB : A ≠ B := by
+      rintro rfl
+      exact hne rfl
+    exact locallyFinite_step4_separated T c r hr hball A B hA.1 hB.1 hAB
+  have S_fin : S.Finite := locallyFinite_step5_compact K hK D r hr S hS_prox hS_sep
+  have h_inj : {A ∈ T.tiles | (A.carrier ∩ K).Nonempty}.InjOn f := by
+    intro A hA B hB h_eq
+    by_contra h_neq
+    have h_dist : 2 * r ≤ dist (f A) (f B) :=
+      locallyFinite_step4_separated T c r hr hball A B hA.1 hB.1 h_neq
+    have h_dist2 : dist (f A) (f B) = 0 := by rw [h_eq, dist_self]
+    linarith
+  exact Finite.of_finite_image S_fin h_inj
 
 /-- `lem:localfinite` (countability): a plane tiling has countably many tiles. -/
 theorem countable (T : PlaneTiling P) : T.tiles.Countable := by

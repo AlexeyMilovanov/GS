@@ -228,6 +228,34 @@ theorem boundary_header_constant (c : MacroCertificate P) (hH : c.Hereditary)
     ∃ h : HeaderKernel.Header c.Typ c.Side, CommonHeader c K h := by
   sorry
 
+/-- Step 1 of the blueprint proof of `reconstructed_header_eq`: proving normality. -/
+private lemma reconstructed_header_eq_isNormal (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
+    IsNormal c (reconstruct c K h.1) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_header_eq`: proving identity-correctness. -/
+private lemma reconstructed_header_eq_isIdentityCorrect (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
+    IsIdentityCorrect c (reconstruct c K h.1) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `reconstructed_header_eq`: proving exact header. -/
+private lemma reconstructed_header_eq_headerOf (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
+    headerOf c (reconstruct c K h.1) = h := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `reconstructed_header_eq`: inner sides are nontrivial. -/
+private lemma reconstructed_header_eq_innerActive (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
+    InnerActive c (reconstruct c K h.1) := by
+  sorry
+
 /-- `lem:comp/reconstruction`: the reconstructed parent `D` of type `t` (with
 `D_i(d)` the third cell of port `i` on `σ'd`) is normal and
 identity-correct, `H(D) = h`, and every inner side of `D` is nontrivial. -/
@@ -235,8 +263,11 @@ theorem reconstructed_header_eq (c : MacroCertificate P) (hH : c.Hereditary)
     (K : ColouredBlock c) (hK : BlockContext c K)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
     IsNormal c (reconstruct c K h.1) ∧ IsIdentityCorrect c (reconstruct c K h.1) ∧
-      headerOf c (reconstruct c K h.1) = h ∧ InnerActive c (reconstruct c K h.1) := by
-  sorry
+      headerOf c (reconstruct c K h.1) = h ∧ InnerActive c (reconstruct c K h.1) :=
+  ⟨reconstructed_header_eq_isNormal c hH K hK h hh,
+   reconstructed_header_eq_isIdentityCorrect c hH K hK h hh,
+   reconstructed_header_eq_headerOf c hH K hK h hh,
+   reconstructed_header_eq_innerActive c hH K hK h hh⟩
 
 /-- `lem:comp/signals`: every nonprint third signal on `P_i(d)` equals
 `D_i(d)`, and the noncentral (small) owner of the print of `d` has first four

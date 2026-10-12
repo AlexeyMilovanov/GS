@@ -196,7 +196,14 @@ theorem GenuineCornerClone.finite_of_flc (h : τ.FLC) : Finite (GenuineCornerClo
 
 /-- Every form has its singleton (order-zero) clone. -/
 theorem exists_clone_of_form (p : P.Form) : ∃ c : GenuineCornerClone τ, c.form = p := by
-  sorry
+  let A : PlacedTile P := ⟨p, 0⟩
+  have hA : A ∈ τ.supertile 0 p := by rfl
+  let c : GenuineCornerClone τ := {
+    form := p
+    context := translateSet (-A.anchor) (neighbourhood (τ.supertile 0 p) A)
+    realized := ⟨0, p, A, hA, rfl⟩
+  }
+  exact ⟨c, rfl⟩
 
 /-- The clone protoset (finite under FLC). -/
 def cloneProtoset (h : τ.FLC) : Protoset where

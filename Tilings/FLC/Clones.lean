@@ -404,9 +404,39 @@ theorem refinedSubstitution_commutes (h : τ.FLC)
       τ.decompose ((cloneDecoration τ h).projTile '' S) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `refinedSubstitution_sts`: On overlapping sides
+of clone-supertile members, endpoints and further cuts are genuine vertices of underlying
+incident carriers visible in both contexts. Thus the sets of listed vertices on the
+intersection of two overlapping sides are the same. -/
+private lemma refinedSubstitution_sts_step1_visible_vertices (h : τ.FLC)
+    (n : ℕ) (c : (cloneProtoset τ h).Form)
+    (A B : PlacedTile (cloneProtoset τ h))
+    (hA : A ∈ (refinedSubstitution τ h).supertile n c)
+    (hB : B ∈ (refinedSubstitution τ h).supertile n c)
+    (i : Fin ((cloneProtoset τ h).disk A.form).n)
+    (j : Fin ((cloneProtoset τ h).disk B.form).n)
+    (h_overlap : OverlapPos (A.side i) (B.side j)) :
+    A.vertexSet ∩ (A.side i ∩ B.side j) = B.vertexSet ∩ (A.side i ∩ B.side j) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `refinedSubstitution_sts`: Since the resulting
+subdivision agrees on both sides (the sets of listed vertices on the intersection are
+the same), overlapping sides must be exactly equal, proving clone-supertiles STS. -/
+private lemma refinedSubstitution_sts_step2_sides_eq (h : τ.FLC)
+    (A B : PlacedTile (cloneProtoset τ h))
+    (i : Fin ((cloneProtoset τ h).disk A.form).n)
+    (j : Fin ((cloneProtoset τ h).disk B.form).n)
+    (h_overlap : OverlapPos (A.side i) (B.side j))
+    (h_same_verts : A.vertexSet ∩ (A.side i ∩ B.side j) = B.vertexSet ∩ (A.side i ∩ B.side j)) :
+    A.side i = B.side j := by
+  sorry
+
 /-- `lem:clone-sts`: the clone substitution has STS. -/
 theorem refinedSubstitution_sts (h : τ.FLC) : (refinedSubstitution τ h).STS := by
-  sorry
+  intro n c A hA B hB i j h_overlap
+  have h_same_verts :=
+    refinedSubstitution_sts_step1_visible_vertices _ h n c A B hA hB i j h_overlap
+  exact refinedSubstitution_sts_step2_sides_eq _ h A B i j h_overlap h_same_verts
 
 /-- `lem:clone-sts`: the clone substitution has hereditary listed sides. -/
 theorem refinedSubstitution_hereditary (h : τ.FLC) :

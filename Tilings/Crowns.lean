@@ -578,10 +578,25 @@ theorem supertile_finite (τ : Substitution P) (n : ℕ) (p : P.Form) :
     intro A _
     exact Finite.image _ (τ.rule A.form).finite
 
+/-- Step 1 of the blueprint proof of `supertile_disjoint`: decomposition
+preserves disjoint interiors. -/
+private lemma supertile_disjoint_step1_decompose (τ : Substitution P) (S : Set (PlacedTile P))
+    (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := sorry
+
 /-- A supertile has pairwise disjoint interiors. -/
 theorem supertile_disjoint (τ : Substitution P) (n : ℕ) (p : P.Form) :
     DisjointInteriors (τ.supertile n p) := by
-  sorry
+  induction n with
+  | zero => 
+    intro x hx y hy hne
+    simp [supertile, decomposeIter] at hx hy
+    rcases hx with rfl
+    rcases hy with rfl
+    contradiction
+  | succ n ih => 
+    have h : τ.supertile (n + 1) p = τ.decompose (τ.supertile n p) := rfl
+    rw [h]
+    exact supertile_disjoint_step1_decompose τ (τ.supertile n p) ih
 
 /-- The support of a supertile in the `MacroPatch` normal form. -/
 theorem supertile_support_eq (τ : Substitution P) (n : ℕ) (p : P.Form) :

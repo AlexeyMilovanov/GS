@@ -2776,7 +2776,27 @@ private lemma fingerprintSeparation_step1_size (F : FingerprintData) (K0 : ℕ)
     (h_orig_le : ∀ u, F.kind u = .original → Multiset.card (F.ordinary u) ≤ K0)
     (h_small_ge : ∀ t, F.kind t = .small → K0 + 2 ≤ Multiset.card (F.ordinary t)) :
     ∀ t u, F.kind t = .original → F.kind u = .small →
-    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := sorry
+    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := by
+  intro t u ht hu
+  rw [Set.disjoint_left]
+  intro f hf1 hf2
+  unfold FingerprintData.possibleFingerprints at hf1 hf2
+  rw [ht] at hf1
+  rw [hu] at hf2
+  simp only [Set.mem_singleton_iff] at hf1
+  simp only [Set.mem_setOf_eq] at hf2
+  rcases hf2 with ⟨X, hX, hf2⟩
+  have C1 : Multiset.card f ≤ 2 * K0 := by
+    rw [hf1]
+    unfold FingerprintData.baseFingerprint
+    simp
+    linarith [h_orig_le t ht]
+  have C2 : 2 * K0 + 4 ≤ Multiset.card f := by
+    rw [hf2]
+    unfold FingerprintData.baseFingerprint
+    simp
+    linarith [h_small_ge u hu]
+  omega
 
 /-- Step 2 of the blueprint proof of `fingerprintSeparation`: Types in different
 templates have disjoint possible fingerprints. -/

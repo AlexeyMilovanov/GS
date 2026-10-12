@@ -555,6 +555,18 @@ private lemma uniformSectorRadius_step3_catalogue_separation {𝒞 : Set (Set (P
     refine ⟨hd_pos d hdD, fun K hK A hA w hw hne => ?_⟩
     exact hd_min _ ⟨K, hK, A, hA, w, hw, hne, rfl⟩
 
+/-- Step 1 of the blueprint proof of `uniformSectorRadius_step4_translation`:
+Translations preserve the radius conclusion. -/
+private lemma uniformSectorRadius_step4_translation_step1_rad {K : Set (PlacedTile P)} {r : ℝ}
+    (h_rad : ∀ A ∈ K, A.carrier ∩ ball 0 r = localCone A.carrier 0 ∩ ball 0 r) (v : Pt) :
+    support (translateSet v K) ∩ ball v r = Omega (translateSet v K) v ∩ ball v r := by sorry
+
+/-- Step 2 of the blueprint proof of `uniformSectorRadius_step4_translation`:
+Translations preserve the vertex separation conclusion. -/
+private lemma uniformSectorRadius_step4_translation_step2_sep {K : Set (PlacedTile P)} {δ : ℝ}
+    (h_sep : ∀ A ∈ K, ∀ w ∈ A.vertexSet, w ≠ 0 → δ ≤ dist w 0) (v : Pt) :
+    ∀ A ∈ translateSet v K, ∀ w ∈ A.vertexSet, w ≠ v → δ ≤ dist w v := by sorry
+
 /-- Step 4 of the blueprint proof of `uniformSectorRadius`: Translations preserve the
 conclusions. -/
 private lemma uniformSectorRadius_step4_translation {K : Set (PlacedTile P)} {r δ : ℝ}
@@ -562,7 +574,10 @@ private lemma uniformSectorRadius_step4_translation {K : Set (PlacedTile P)} {r 
     (h_sep : ∀ A ∈ K, ∀ w ∈ A.vertexSet, w ≠ (0 : Pt) → δ ≤ dist w (0 : Pt)) :
     ∀ v : Pt,
       support (translateSet v K) ∩ ball v r = Omega (translateSet v K) v ∩ ball v r ∧
-      ∀ A ∈ translateSet v K, ∀ w ∈ A.vertexSet, w ≠ v → δ ≤ dist w v := by sorry
+      ∀ A ∈ translateSet v K, ∀ w ∈ A.vertexSet, w ≠ v → δ ≤ dist w v := by
+  intro v
+  exact ⟨uniformSectorRadius_step4_translation_step1_rad h_rad v,
+         uniformSectorRadius_step4_translation_step2_sep h_sep v⟩
 
 /-- `lem:sector-radius`: uniform sector radius `r_*` and vertex separation
 `δ_*` for a finite catalogue. -/

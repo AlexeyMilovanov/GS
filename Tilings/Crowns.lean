@@ -1310,6 +1310,33 @@ theorem closedConvexHullDiameter (S : Set Pt) :
 
 /-! ## `lem:crown-cover-plane`, `lem:crown-cover-supertile` -/
 
+/-- Step 1 of the blueprint proof of `uniformCrownCoverPlane`: If `H` (the closed convex
+hull of `S`) comes within `d/2` of a tile vertex `v`, and `diam S < d/2`, then all of `H`
+(and thus `S`) is within distance `d` of `v`. The complete crown at `v` covers `B(v, d)`
+and therefore covers `S`. -/
+private lemma uniformCrownCoverPlane_step1_close {𝒞 : Set (Set (PlacedTile P))}
+    (h𝒞 : IsCatalogue 𝒞) :
+    ∃ d : ℝ, 0 < d ∧ ∀ T : PlaneTiling P, AllCrownsIn 𝒞 T.tiles →
+      ∀ S : Set Pt, Bornology.IsBounded S → diam S < d / 2 →
+        ∀ H : Set Pt, H = closedConvexHull ℝ S →
+        ∀ v : Pt, IsVertexOf T.tiles v →
+        (∃ x ∈ H, dist x v < d / 2) →
+        S ⊆ support (crown T.tiles v) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `uniformCrownCoverPlane`: Otherwise `H` stays at
+distance at least `d/2` from every vertex. The structural lemma covers `H` using tiles
+meeting `H` or opposite tiles, and their common vertex will have a crown containing `H`
+and thus `S`. -/
+private lemma uniformCrownCoverPlane_step2_far {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞)
+    (d : ℝ) (hd : 0 < d) :
+    ∃ η : ℝ, 0 < η ∧ ∀ T : PlaneTiling P, AllCrownsIn 𝒞 T.tiles →
+      ∀ S : Set Pt, Bornology.IsBounded S → diam S < η →
+        ∀ H : Set Pt, H = closedConvexHull ℝ S →
+        (∀ x ∈ H, ∀ v, IsVertexOf T.tiles v → d / 2 ≤ dist x v) →
+        ∃ v, IsVertexOf T.tiles v ∧ S ⊆ support (crown T.tiles v) := by
+  sorry
+
 /-- `lem:crown-cover-plane`: there is `ε > 0` such that, in every plane tiling
 whose full pointed crowns are represented in the catalogue, every bounded set
 of diameter `< ε` lies in the support of one full crown. -/
@@ -1317,7 +1344,17 @@ theorem uniformCrownCoverPlane {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCata
     ∃ ε : ℝ, 0 < ε ∧ ∀ T : PlaneTiling P, AllCrownsIn 𝒞 T.tiles →
       ∀ S : Set Pt, Bornology.IsBounded S → diam S < ε →
         ∃ v, IsVertexOf T.tiles v ∧ S ⊆ support (crown T.tiles v) := by
-  sorry
+  obtain ⟨d, hd_pos, h_close⟩ := uniformCrownCoverPlane_step1_close h𝒞
+  obtain ⟨η, hη_pos, h_far⟩ := uniformCrownCoverPlane_step2_far h𝒞 d hd_pos
+  use min (d / 2) η
+  refine ⟨lt_min (half_pos hd_pos) hη_pos, fun T hT S hS_bound hS_diam => ?_⟩
+  let H := closedConvexHull ℝ S
+  by_cases h : ∃ x ∈ H, ∃ v, IsVertexOf T.tiles v ∧ dist x v < d / 2
+  · rcases h with ⟨x, hx, v, hv, hxv⟩
+    exact ⟨v, hv,
+      h_close T hT S hS_bound (hS_diam.trans_le (min_le_left _ _)) H rfl v hv ⟨x, hx, hxv⟩⟩
+  · push_neg at h
+    refine h_far T hT S hS_bound (hS_diam.trans_le (min_le_right _ _)) H rfl h
 
 /-- `lem:crown-cover-supertile`: there is `ε > 0` such that for every macro
 patch whose full pointed crowns (including incomplete boundary crowns) are

@@ -345,6 +345,55 @@ def cloneProtoset (h : τ.FLC) : Protoset where
   decEq := Classical.decEq _
   disk := fun c => cloneDisk c
 
+/-- Step 1.1 of the blueprint proof of `childContext_realized`: `translateSet v (translateSet w S) = translateSet (v +ᵥ w) S`. -/
+private lemma childContext_realized_step1_shift_step1_translateSet_translateSet
+    {P : Protoset} (v w : Pt) (S : Set (PlacedTile P)) :
+    translateSet v (translateSet w S) = translateSet (v +ᵥ w) S := by
+  sorry
+
+/-- Step 1.2 of the blueprint proof of `childContext_realized`: `τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S)`. -/
+private lemma childContext_realized_step1_shift_step2_decompose_translateSet
+    {P : Protoset} {τ : Substitution P} (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S) := by
+  sorry
+
+/-- Step 1.3 of the blueprint proof of `childContext_realized`: `τ.supertile (n+1) p = τ.decompose (τ.supertile n p)`. -/
+private lemma childContext_realized_step1_shift_step3_supertile_succ
+    {P : Protoset} {τ : Substitution P} (n : ℕ) (p : P.Form) :
+    τ.supertile (n+1) p = τ.decompose (τ.supertile n p) := rfl
+
+/-- Step 1.4 of the blueprint proof of `childContext_realized`: Anchor arithmetic. -/
+private lemma childContext_realized_step1_shift_step4_anchor
+    {P : Protoset} {τ : Substitution P} (A B : PlacedTile P) :
+    -B.anchor +ᵥ τ.θ • -A.anchor = -(B.translate (τ.θ • A.anchor)).anchor := by
+  sorry
+
+/-- Step 1.5 of the blueprint proof of `childContext_realized`: Translate arithmetic. -/
+private lemma childContext_realized_step1_shift_step5_translate_eq
+    {P : Protoset} {τ : Substitution P} (A B : PlacedTile P) :
+    B.translate (-(τ.θ • -A.anchor)) = B.translate (τ.θ • A.anchor) := by
+  sorry
+
+/-- Step 1.6 of the blueprint proof of `childContext_realized`: `neighbourhood (translateSet v S) A = translateSet v (neighbourhood S (A.translate (-v)))` -/
+private lemma childContext_realized_step1_shift_step6_neighbourhood_translateSet
+    {P : Protoset} (v : Pt) (S : Set (PlacedTile P)) (A : PlacedTile P) :
+    neighbourhood (translateSet v S) A = translateSet v (neighbourhood S (A.translate (-v))) := by
+  sorry
+
+/-- Step 1.7 of the blueprint proof of `childContext_realized`: `τ.decompose (neighbourhood S A) = ...` -/
+private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood
+    {P : Protoset} {τ : Substitution P} (S : Set (PlacedTile P)) (A B : PlacedTile P)
+    (hB : B ∈ τ.decomposeTile A) :
+    neighbourhood (τ.decompose (neighbourhood S A)) B = neighbourhood (τ.decompose S) B := by
+  sorry
+
+/-- Step 1.8 of the blueprint proof of `childContext_realized`: `B ∈ τ.decomposeTile ⟨c.form, 0⟩ → B.translate (τ.θ • A.anchor) ∈ τ.decomposeTile A` -/
+private lemma childContext_realized_step1_shift_step8_translate_mem
+    {P : Protoset} {τ : Substitution P} (A B : PlacedTile P)
+    (hB : B ∈ τ.decomposeTile ⟨A.form, 0⟩) :
+    B.translate (τ.θ • A.anchor) ∈ τ.decomposeTile A := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `childContext_realized`: shifting contexts. -/
 private lemma childContext_realized_step1_shift {τ : Substitution P} (c : GenuineCornerClone τ)
     (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) (n : ℕ) (p : P.Form)
@@ -353,7 +402,18 @@ private lemma childContext_realized_step1_shift {τ : Substitution P} (c : Genui
     translateSet (-B.anchor) (neighbourhood (τ.decompose c.context) B) =
       translateSet (-(B.translate (τ.θ • A.anchor)).anchor)
         (neighbourhood (τ.supertile (n+1) p) (B.translate (τ.θ • A.anchor))) := by
-  have _ := hB; have _ := hform; have _ := hA; have _ := hctx; sorry
+  have _ := hA
+  rw [hctx, childContext_realized_step1_shift_step2_decompose_translateSet]
+  rw [childContext_realized_step1_shift_step6_neighbourhood_translateSet]
+  rw [childContext_realized_step1_shift_step1_translateSet_translateSet]
+  rw [childContext_realized_step1_shift_step3_supertile_succ]
+  rw [childContext_realized_step1_shift_step4_anchor]
+  rw [childContext_realized_step1_shift_step5_translate_eq]
+  congr 1
+  apply childContext_realized_step1_shift_step7_decompose_neighbourhood
+  apply childContext_realized_step1_shift_step8_translate_mem A B
+  rw [←hform]
+  exact hB
 
 /-- Step 2 of the blueprint proof of `childContext_realized`: the translated child tile belongs to
 the supertile of order n+1. -/

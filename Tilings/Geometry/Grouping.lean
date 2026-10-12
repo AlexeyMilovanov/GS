@@ -66,9 +66,104 @@ structure MeshConstants (P : Protoset) where
     γ ≤ dist ((P.disk p).vertex i) ((P.disk p).vertex (finRotate _ i))
   sides_le : ∀ p : P.Form, (P.disk p).n ≤ K0
 
+private lemma mesh_finRotate_ne_self {n : ℕ} (hn : 2 ≤ n) (i : Fin n) :
+    finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h1 : (1 : Fin (m + 1)) = 0 := by
+    have := congrArg (fun x => x - i) h
+    simpa using this
+  have : NeZero (m + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h1
+  omega
+
 /-- Mesh constants exist for every finite protoset. -/
 theorem MeshConstants.nonempty (P : Protoset) : Nonempty (MeshConstants P) := by
-  sorry
+  classical
+  by_cases hForm : Nonempty P.Form
+  · obtain ⟨p0⟩ := hForm
+    let diameters := Finset.univ.image (fun p : P.Form => Metric.diam (P.disk p).carrier)
+    have diameters_nonempty : diameters.Nonempty :=
+      ⟨Metric.diam (P.disk p0).carrier, Finset.mem_image_of_mem _ (Finset.mem_univ p0)⟩
+    let D := max 1 (diameters.max' diameters_nonempty)
+    have D_pos : 0 < D := lt_max_iff.mpr (Or.inl zero_lt_one)
+    have diam_le : ∀ p : P.Form, Metric.diam (P.disk p).carrier ≤ D := by
+      intro p
+      apply le_max_of_le_right
+      exact Finset.le_max' diameters _ (Finset.mem_image_of_mem _ (Finset.mem_univ p))
+    let areas := Finset.univ.image
+      (fun p : P.Form => (MeasureTheory.volume (P.disk p).carrier).toReal)
+    have areas_nonempty : areas.Nonempty :=
+      ⟨(MeasureTheory.volume (P.disk p0).carrier).toReal,
+        Finset.mem_image_of_mem _ (Finset.mem_univ p0)⟩
+    let a := areas.min' areas_nonempty
+    have a_pos : 0 < a := by
+      have ha_mem : a ∈ areas := Finset.min'_mem areas areas_nonempty
+      rcases Finset.mem_image.mp ha_mem with ⟨p, -, hp⟩
+      rw [← hp]
+      apply ENNReal.toReal_pos
+      · exact ((isOpen_interior.measure_pos MeasureTheory.volume (P.disk p).interior_nonempty).trans_le
+          (MeasureTheory.measure_mono interior_subset)).ne'
+      · exact (P.disk p).compact.measure_lt_top.ne
+    have area_ge : ∀ p : P.Form,
+        ENNReal.ofReal a ≤ MeasureTheory.volume (P.disk p).carrier := by
+      intro p
+      calc
+        ENNReal.ofReal a ≤ ENNReal.ofReal (MeasureTheory.volume (P.disk p).carrier).toReal :=
+          ENNReal.ofReal_le_ofReal
+            (Finset.min'_le areas _ (Finset.mem_image_of_mem _ (Finset.mem_univ p)))
+        _ = MeasureTheory.volume (P.disk p).carrier :=
+          ENNReal.ofReal_toReal (P.disk p).compact.measure_lt_top.ne
+    let sideLengths (p : P.Form) := Finset.univ.image
+      (fun i : Fin (P.disk p).n =>
+        dist ((P.disk p).vertex i) ((P.disk p).vertex (finRotate _ i)))
+    have sideLengths_nonempty (p : P.Form) : (sideLengths p).Nonempty := by
+      let i : Fin (P.disk p).n := ⟨0, by have := (P.disk p).three_le; omega⟩
+      exact ⟨dist ((P.disk p).vertex i) ((P.disk p).vertex (finRotate _ i)),
+        Finset.mem_image_of_mem _ (Finset.mem_univ i)⟩
+    let shortest (p : P.Form) := (sideLengths p).min' (sideLengths_nonempty p)
+    let shortestLengths := Finset.univ.image shortest
+    have shortestLengths_nonempty : shortestLengths.Nonempty :=
+      ⟨shortest p0, Finset.mem_image_of_mem _ (Finset.mem_univ p0)⟩
+    let γ := shortestLengths.min' shortestLengths_nonempty
+    have γ_pos : 0 < γ := by
+      have hγ_mem : γ ∈ shortestLengths :=
+        Finset.min'_mem shortestLengths shortestLengths_nonempty
+      rcases Finset.mem_image.mp hγ_mem with ⟨p, -, hp⟩
+      rw [← hp]
+      have hp_mem : shortest p ∈ sideLengths p :=
+        Finset.min'_mem (sideLengths p) (sideLengths_nonempty p)
+      rcases Finset.mem_image.mp hp_mem with ⟨i, -, hi⟩
+      rw [← hi]
+      rw [dist_pos]
+      intro h
+      have hi : i = finRotate (P.disk p).n i := (P.disk p).vertex_injective h
+      exact mesh_finRotate_ne_self (by have := (P.disk p).three_le; omega) i hi.symm
+    have side_ge : ∀ (p : P.Form) (i : Fin (P.disk p).n),
+        γ ≤ dist ((P.disk p).vertex i) ((P.disk p).vertex (finRotate _ i)) := by
+      intro p i
+      exact (Finset.min'_le shortestLengths (shortest p)
+        (Finset.mem_image_of_mem _ (Finset.mem_univ p))).trans
+          (Finset.min'_le (sideLengths p) _
+            (Finset.mem_image_of_mem _ (Finset.mem_univ i)))
+    let sideCounts := Finset.univ.image (fun p : P.Form => (P.disk p).n)
+    have sideCounts_nonempty : sideCounts.Nonempty :=
+      ⟨(P.disk p0).n, Finset.mem_image_of_mem _ (Finset.mem_univ p0)⟩
+    let K0 := sideCounts.max' sideCounts_nonempty
+    have sides_le : ∀ p : P.Form, (P.disk p).n ≤ K0 := by
+      intro p
+      exact Finset.le_max' sideCounts _ (Finset.mem_image_of_mem _ (Finset.mem_univ p))
+    exact ⟨⟨D, a, γ, K0, D_pos, a_pos, γ_pos, diam_le, area_ge, side_ge, sides_le⟩⟩
+  · refine ⟨⟨1, 1, 1, 0, zero_lt_one, zero_lt_one, zero_lt_one, ?_, ?_, ?_, ?_⟩⟩
+    · intro p
+      exact (hForm ⟨p⟩).elim
+    · intro p
+      exact (hForm ⟨p⟩).elim
+    · intro p
+      exact (hForm ⟨p⟩).elim
+    · intro p
+      exact (hForm ⟨p⟩).elim
 
 /-! ## The finite cellulation view of a patch (`def:mesh`) -/
 

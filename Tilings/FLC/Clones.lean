@@ -132,6 +132,23 @@ theorem coarse_frontier_eq :
       segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
   sorry
 
+/-- Step 1.1 of the blueprint proof of `coarse_simple_step1`: A fine segment that intersects the interior of a coarse segment must be contained in it. -/
+private lemma coarse_simple_step1_step1 (i : Fin D.genuineCount) (k : Fin D.n)
+    (h_int : ∃ x, x ∈ segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ∧ 
+      x ∈ segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) ∧
+      x ≠ D.coarseVertex i ∧ x ≠ D.coarseVertex (finRotate D.genuineCount i)) :
+    segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆ 
+      segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
+  sorry
+
+/-- Step 1.2 of the blueprint proof of `coarse_simple_step1`: The endpoints of a coarse segment belong to some fine segment contained in that coarse segment. -/
+private lemma coarse_simple_step1_step2 (i : Fin D.genuineCount) (x : Pt)
+    (h_end : x = D.coarseVertex i ∨ x = D.coarseVertex (finRotate D.genuineCount i)) :
+    ∃ k : Fin D.n, x ∈ segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ∧ 
+      segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+        segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `coarse_simple`: Every point on a coarse segment
 belongs to a fine segment that is contained within the same coarse segment. -/
 private lemma coarse_simple_step1 (i : Fin D.genuineCount) (x : Pt)
@@ -139,7 +156,16 @@ private lemma coarse_simple_step1 (i : Fin D.genuineCount) (x : Pt)
     ∃ k : Fin D.n, x ∈ segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ∧ 
       segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
         segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
-  sorry
+  by_cases h_end : x = D.coarseVertex i ∨ x = D.coarseVertex (finRotate D.genuineCount i)
+  · exact coarse_simple_step1_step2 D i x h_end
+  · push_neg at h_end
+    have hx_front : x ∈ frontier D.carrier := by
+      rw [D.coarse_frontier_eq]
+      exact Set.subset_iUnion _ i hx
+    rw [D.frontier_eq, Set.mem_iUnion] at hx_front
+    rcases hx_front with ⟨k, hk⟩
+    have h_sub := coarse_simple_step1_step1 D i k ⟨x, hk, hx, h_end⟩
+    exact ⟨k, hk, h_sub⟩
 
 /-- Step 1 of the blueprint proof of `coarse_simple_step2`: The fine segments `k1` and `k2` must be distinct. -/
 private lemma coarse_simple_step2_step1 (i j : Fin D.genuineCount) (hij : i ≠ j)

@@ -454,6 +454,28 @@ theorem refinedSubstitution_hereditary (h : τ.FLC) :
 
 /-! ## `lem:clone-substitution-lift`, `lem:clone-hierarchy-lift` -/
 
+/-- Step 1 of the blueprint proof of `substitution_clone_lift_iff_step1_proj_is_subst`: projection of a
+refined supertile is the original supertile. -/
+private lemma substitution_clone_lift_iff_step1_proj_is_subst_step1_supertile_proj {τ : Substitution P} (h : τ.FLC)
+    (n : ℕ) (c : (cloneProtoset τ h).Form) :
+    (cloneDecoration τ h).projTile '' ((refinedSubstitution τ h).supertile n c) = τ.supertile n ((cloneDecoration τ h).proj c) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `substitution_clone_lift_iff_step1_proj_is_subst`: finite subpatch of
+projection lifts to a finite subpatch. -/
+private lemma substitution_clone_lift_iff_step1_proj_is_subst_step2_finite_preimage {τ : Substitution P} (h : τ.FLC)
+    (T' : PlaneTiling (cloneProtoset τ h)) (F : Set (PlacedTile P))
+    (hF_sub : F ⊆ (cloneDecoration τ h).projTile '' T'.tiles) (hF_fin : F.Finite) :
+    ∃ F' ⊆ T'.tiles, (cloneDecoration τ h).projTile '' F' = F ∧ F'.Finite := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `substitution_clone_lift_iff_step1_proj_is_subst`: occurrences project
+to occurrences. -/
+private lemma substitution_clone_lift_iff_step1_proj_is_subst_step3_occurs_proj {τ : Substitution P} (h : τ.FLC)
+    (F' S' : Set (PlacedTile (cloneProtoset τ h))) (h_occ : OccursIn F' S') :
+    OccursIn ((cloneDecoration τ h).projTile '' F') ((cloneDecoration τ h).projTile '' S') := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `substitution_clone_lift_iff`: projection of a
 refined-substitution tiling is a substitution tiling (one direction of the iff). -/
 private theorem substitution_clone_lift_iff_step1_proj_is_subst {τ : Substitution P} (h : τ.FLC) (T : PlaneTiling P)
@@ -461,7 +483,31 @@ private theorem substitution_clone_lift_iff_step1_proj_is_subst {τ : Substituti
     (hT' : (refinedSubstitution τ h).IsSubstitutionTiling T')
     (h_proj : (cloneDecoration τ h).project T' = T) :
     τ.IsSubstitutionTiling T := by
-  sorry
+  intro F hF hFin
+  have h1 : T.tiles = (cloneDecoration τ h).projTile '' T'.tiles := by
+    have h1_proj : T.tiles = ((cloneDecoration τ h).project T').tiles := by
+      rw [← h_proj]
+    exact h1_proj
+  have H1 : F ⊆ (cloneDecoration τ h).projTile '' T'.tiles := by
+    rw [h1] at hF
+    exact hF
+  
+  have ⟨F', hF'_sub, hF'_eq, hF'_fin⟩ := substitution_clone_lift_iff_step1_proj_is_subst_step2_finite_preimage h T' F H1 hFin
+  
+  have hF'occurs : ∃ (n : ℕ) (c : (cloneProtoset τ h).Form), OccursIn F' ((refinedSubstitution τ h).supertile n c) :=
+    hT' F' hF'_sub hF'_fin
+    
+  rcases hF'occurs with ⟨n, c, h_occ⟩
+  
+  use n, (cloneDecoration τ h).proj c
+  
+  have h_occ_proj := substitution_clone_lift_iff_step1_proj_is_subst_step3_occurs_proj h F' ((refinedSubstitution τ h).supertile n c) h_occ
+  rw [hF'_eq] at h_occ_proj
+  
+  have h_supertile_eq := substitution_clone_lift_iff_step1_proj_is_subst_step1_supertile_proj h n c
+  
+  rw [h_supertile_eq] at h_occ_proj
+  exact h_occ_proj
 
 /-- Step 2 of the blueprint proof of `substitution_clone_lift_iff`: in the other direction,
 the lifted plane tiling constructed by labelling each tile with its actual full

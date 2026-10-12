@@ -1333,6 +1333,22 @@ def rootSeparationConstants (P : Protoset) : RootSeparation P :=
 
 /-! ## `lem:ray-bound` -/
 
+/-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay`: 
+reduce to `sInf` of `‖t a - s b‖`. -/
+private lemma distanceToReflexBoundaryRay_step1_infDist_eq (q a b : Pt) (t : ℝ) :
+    infDist (q + t • a) ((fun s : ℝ => q + s • b) '' Ici 0) =
+      sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay`: minimize the quadratic form. -/
+private lemma distanceToReflexBoundaryRay_step2_min_quad (a b : Pt) (ha : ‖a‖ = 1)
+    (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t) :
+    sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) =
+      if InnerProductGeometry.angle a b ≤ Real.pi / 2 then
+        t * Real.sin (InnerProductGeometry.angle a b)
+      else t := by
+  sorry
+
 /-- `lem:ray-bound`: for unit vectors `a, b` and `t > 0`, the distance from
 `q + t a` to the ray `q + ℝ_{≥0} b` is `t sin β` if `β = ∠(a, b) ≤ π/2` and
 `t` otherwise. -/
@@ -1342,7 +1358,8 @@ theorem distanceToReflexBoundaryRay (q a b : Pt) (ha : ‖a‖ = 1) (hb : ‖b�
       if InnerProductGeometry.angle a b ≤ Real.pi / 2 then
         t * Real.sin (InnerProductGeometry.angle a b)
       else t := by
-  sorry
+  rw [distanceToReflexBoundaryRay_step1_infDist_eq q a b t]
+  rw [distanceToReflexBoundaryRay_step2_min_quad a b ha hb ht]
 
 /-- `lem:ray-bound`, the form used later: if `0 < μ ≤ π/2` and `μ ≤ β`, the
 distance is at least `t sin μ`. -/

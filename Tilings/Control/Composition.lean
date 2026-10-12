@@ -220,13 +220,65 @@ theorem assembleMacrotemplates_of_legal (c : MacroCertificate P) (hH : c.Heredit
     Nonempty (MacroPartition c T) := by
   sorry
 
+
+/-- Step 1 of the blueprint proof of `boundary_header_constant`: a boundary tile is legal. -/
+private lemma boundary_header_constant_step1_legal (c : MacroCertificate P)
+    (K : ColouredBlock c) (hK : BlockContext c K) (t : c.Typ) (ht : c.owner t = K.α)
+    (i : c.Side t) (hi : c.IsBoundary (c.occ t i)) :
+    headerLegal c (K.tileOf t) := by
+  sorry
+
+
+/-- Step 2 of the blueprint proof of `boundary_header_constant`: the boundary cells of a single
+legal tile equal the header of any chosen legal parent, so it is a constant. -/
+private lemma boundary_header_constant_step2_header_eq (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K) (t : c.Typ) (ht : c.owner t = K.α)
+    (i : c.Side t) (hi : c.IsBoundary (c.occ t i)) :
+    ∃ h : HeaderKernel.Header c.Typ c.Side,
+      (∀ j : c.Side t, c.IsBoundary (c.occ t j) → K.col t j 3 = headerU c h) ∧
+      c.form h.1 = K.α := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `boundary_header_constant`: connectedness propagates equality
+to every boundary cell of the block. -/
+private lemma boundary_header_constant_step4_belt_eq (c : MacroCertificate P)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (u v : {t : c.Typ // c.IsBeltType K.α t})
+    (i : c.Side u.1) (hi : c.IsBoundary (c.occ u.1 i))
+    (j : c.Side v.1) (hj : c.IsBoundary (c.occ v.1 j)) :
+    K.col u.1 i 3 = K.col v.1 j 3 := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `boundary_header_constant`: any boundary side owner
+is part of the boundary belt type. -/
+private lemma boundary_header_constant_step5_is_belt_type (c : MacroCertificate P) (α : c.Q.Form)
+    (t : c.Typ) (ht : c.owner t = α) (i : c.Side t) (hi : c.IsBoundary (c.occ t i)) :
+    c.IsBeltType α t := by
+  sorry
+
 /-- `lem:comp/boundary-header`: in a proper finite coloured realization of
 `σ' α` whose noncentral tiles are legal, every boundary fourth cell carries
 the same header `h = (t, v)`, and `form t = α`. -/
 theorem boundary_header_constant (c : MacroCertificate P) (hH : c.Hereditary)
     (K : ColouredBlock c) (hK : BlockContext c K) :
     ∃ h : HeaderKernel.Header c.Typ c.Side, CommonHeader c K h := by
-  sorry
+  have h_ne := (c.g2_belt_connected K.α).nonempty
+  let u := Classical.choice h_ne
+  have hu_owner : c.owner u.1 = K.α := u.property.1
+  have hu_belt_own : c.IsBeltType (c.owner u.1) u.1 := by
+    rw [hu_owner]
+    exact u.property
+  obtain ⟨i, hi⟩ := c.g2_belt_edge u.1 hu_belt_own
+  obtain ⟨h, hh1, hh2⟩ := boundary_header_constant_step2_header_eq c hH K hK u.1 hu_owner i hi
+  use h
+  constructor
+  · exact hh2
+  · intro t j ht hj
+    have ht_belt : c.IsBeltType K.α t := boundary_header_constant_step5_is_belt_type c K.α t ht j hj
+    let v : {t : c.Typ // c.IsBeltType K.α t} := ⟨t, ht_belt⟩
+    have h_eq := boundary_header_constant_step4_belt_eq c K hK v u j hj i hi
+    rw [h_eq]
+    exact hh1 i hi
 
 /-- Step 1 of the blueprint proof of `reconstructed_header_eq`: proving normality. -/
 private lemma reconstructed_header_eq_isNormal (c : MacroCertificate P) (hH : c.Hereditary)

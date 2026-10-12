@@ -72,7 +72,16 @@ private lemma three_le_genuineCount_step2
       ⋃ i : Fin D.n, segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)))
     (h : Collinear ℝ D.vertexSet) :
     Collinear ℝ (frontier D.carrier) := by
-  sorry
+  rw [h_eq]
+  apply Collinear.subset (s₂ := convexHull ℝ D.vertexSet)
+  · apply iUnion_subset
+    intro i
+    apply segment_subset_convexHull
+    · exact mem_range_self i
+    · exact mem_range_self (finRotate D.n i)
+  · unfold Collinear at *
+    rw [← direction_affineSpan, affineSpan_convexHull, direction_affineSpan]
+    exact h
 
 /-- Step 3 of the blueprint proof of `three_le_genuineCount`: if the boundary of a
 regular closed set is contained in a line, its interior is empty. -/
@@ -502,3 +511,4 @@ end FLC
 end Tilings
 
 end
+

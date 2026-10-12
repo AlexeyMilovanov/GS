@@ -99,13 +99,40 @@ theorem coarse_frontier_eq :
       segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `coarse_simple`: Every point on a coarse segment
+belongs to a fine segment that is contained within the same coarse segment. -/
+private lemma coarse_simple_step1 (i : Fin D.genuineCount) (x : Pt)
+    (hx : x ∈ segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i))) :
+    ∃ k : Fin D.n, x ∈ segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ∧ 
+      segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+        segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `coarse_simple`: If two fine segments are contained
+in distinct coarse segments, their intersection (which is a subset of the fine segment
+endpoints due to fine simplicity) is an endpoint of both coarse segments. -/
+private lemma coarse_simple_step2 (i j : Fin D.genuineCount) (hij : i ≠ j)
+    (k1 k2 : Fin D.n) (x : Pt)
+    (h1 : segment ℝ (D.vertex k1) (D.vertex (finRotate D.n k1)) ⊆
+      segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)))
+    (h2 : segment ℝ (D.vertex k2) (D.vertex (finRotate D.n k2)) ⊆
+      segment ℝ (D.coarseVertex j) (D.coarseVertex (finRotate D.genuineCount j)))
+    (hx1 : x ∈ segment ℝ (D.vertex k1) (D.vertex (finRotate D.n k1)))
+    (hx2 : x ∈ segment ℝ (D.vertex k2) (D.vertex (finRotate D.n k2))) :
+    x ∈ ({D.coarseVertex i, D.coarseVertex (finRotate D.genuineCount i)} : Set Pt) ∩
+        {D.coarseVertex j, D.coarseVertex (finRotate D.genuineCount j)} := by
+  sorry
+
 /-- The merged sides still meet only at shared endpoints. -/
 theorem coarse_simple : ∀ i j : Fin D.genuineCount, i ≠ j →
     segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) ∩
         segment ℝ (D.coarseVertex j) (D.coarseVertex (finRotate D.genuineCount j)) ⊆
       ({D.coarseVertex i, D.coarseVertex (finRotate D.genuineCount i)} : Set Pt) ∩
         {D.coarseVertex j, D.coarseVertex (finRotate D.genuineCount j)} := by
-  sorry
+  intro i j hij x hx
+  have ⟨k1, hk1_x, hk1_sub⟩ := coarse_simple_step1 D i x hx.1
+  have ⟨k2, hk2_x, hk2_sub⟩ := coarse_simple_step1 D j x hx.2
+  exact coarse_simple_step2 D i j hij k1 k2 x hk1_sub hk2_sub hk1_x hk2_x
 
 /-- The coarsened disk: same carrier, only genuine listed vertices. -/
 def coarsen : PolygonalDisk where

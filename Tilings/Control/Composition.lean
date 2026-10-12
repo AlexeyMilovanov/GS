@@ -201,7 +201,11 @@ its endpoint on the macroboundary. -/
 private lemma boundary_side_of_outer_side_step4_end_mem (c : MacroCertificate P) (t : c.Typ)
     (k : c.Side t) (hk : c.IsOuter (c.occ t k)) :
     c.occEnd (c.occ t k) ∈ c.macroBoundary (c.owner t) := by
-  sorry
+  dsimp [MacroData.IsOuter] at hk
+  have h_mem : c.occEnd (c.occ t k) ∈ c.occSide (c.occ t k) := by
+    dsimp [MacroData.occEnd, MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side]
+    exact ⟨_, right_mem_segment ℝ _ _, rfl⟩
+  exact hk h_mem
 
 /-- Step 5 of the blueprint proof of `boundary_side_of_outer_side`: an inner side
 starting on the macroboundary is a boundary side. -/

@@ -461,6 +461,27 @@ given `σ'` hierarchy: every finite supertile `σ'^n X`, `X` a tile of level
 def HierarchySupertilesSTS (c : MacroCertificate P) (seq : ℕ → PlaneTiling c.Q) : Prop :=
   ∀ n, ∀ X ∈ (seq n).tiles, SideToSideSet (c.σ.decomposeIter n {X})
 
+/-- Step 1 of the blueprint proof of `lift_hierarchy`: construct the compatible legal
+decorations for the hierarchy. -/
+private lemma lift_hierarchy_step1_decorations (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hseq : ∀ n, c.σ.IsComposition (seq (n + 1)) (seq n))
+    (hsts : HierarchySupertilesSTS c seq) :
+    ∃ seq' : ℕ → PlaneTiling (typedDecoration c),
+      (∀ n, eraseSet c (seq' n).tiles = (seq n).tiles) ∧
+      (∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) ∧
+      (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `lift_hierarchy`: properness holds at level zero. -/
+private lemma lift_hierarchy_step2_proper (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) :
+    IsProper c (seq' 0) := by
+  sorry
+
 /-- `lem:lift-hierarchy`: with hereditary listed sides, an actual `σ'`
 hierarchy whose finite supertiles are side-to-side admits compatible legal
 decorations at every level under the repaired substitution, and its
@@ -473,7 +494,9 @@ theorem lift_hierarchy (c : MacroCertificate P) (hH : c.Hereditary)
       (∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) ∧
       (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) ∧
       IsProper c (seq' 0) := by
-  sorry
+  rcases lift_hierarchy_step1_decorations c hH seq hseq hsts with ⟨seq', herase, hexact, hleg⟩
+  exact ⟨seq', herase, hexact, hleg,
+    lift_hierarchy_step2_proper c hH seq hsts seq' herase hexact hleg⟩
 
 /-- `thm:comp/soundness`: with hereditary listed sides, erasing the colours
 of every proper legal tiling gives a `σ'`-hierarchical tiling; conversely

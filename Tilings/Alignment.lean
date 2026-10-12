@@ -226,13 +226,42 @@ private lemma whole_side_ports_step1_parent_length (m : ℕ) (A : G.P'.Form)
   have h : 0 < τ.θ := by linarith [τ.one_lt]
   rw [Real.norm_eq_abs, abs_of_pos (pow_pos h m)]
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound`: the length of the
+parent side is bounded by the total number of fine edges on it times D. -/
+private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
+    (τ : Substitution P) (G : GroupedFamily P) (M : MeshConstants P) (m : ℕ)
+    (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
+    dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
+      ({e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
+        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard : ℝ) * M.D := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound`: the number of fine
+edges on the parent side is bounded by the number of strictly inside fine edges plus 2. -/
+private lemma whole_side_ports_step2_length_bound_step2_omitted_count
+    (τ : Substitution P) (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
+    {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
+        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard ≤
+      (sidesInside τ G m A a).ncard + 2 := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `whole_side_ports`: the length of the parent
 side is bounded by the number of inside edges times D plus the omitted length 2D. -/
 private lemma whole_side_ports_step2_length_bound (M : MeshConstants P) (m : ℕ) (A : G.P'.Form)
     (a : Fin (G.P'.disk A).n) :
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
       ((sidesInside τ G m A a).ncard : ℝ) * M.D + 2 * M.D := by
-  sorry
+  have h1 := whole_side_ports_step2_length_bound_step1_all_edges_bound τ G M m A a
+  have h2 := whole_side_ports_step2_length_bound_step2_omitted_count τ G m A a
+  have h2r : ({e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
+      segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard : ℝ) ≤
+      ((sidesInside τ G m A a).ncard : ℝ) + 2 := by exact_mod_cast h2
+  have hd : 0 ≤ M.D := le_of_lt M.D_pos
+  have h3 : ({e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
+      segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard : ℝ) * M.D ≤
+      (((sidesInside τ G m A a).ncard : ℝ) + 2) * M.D := mul_le_mul_of_nonneg_right h2r hd
+  rw [add_mul] at h3
+  linarith
 
 /-- `lem:whole-ports` (count): the list of whole fine sides strictly inside
 `s a` has at least `(s|a| - 2D)/D` entries. -/

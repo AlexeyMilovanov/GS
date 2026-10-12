@@ -509,6 +509,26 @@ private theorem substitution_clone_lift_iff_step1_proj_is_subst {τ : Substituti
   rw [h_supertile_eq] at h_occ_proj
   exact h_occ_proj
 
+/-- Step 1 of the blueprint proof of `substitution_clone_lift_iff_step2_lift_is_subst`: there exists
+a lifted plane tiling constructed by labelling each tile with its actual full neighbourhood. -/
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift
+    {τ : Substitution P} (h : τ.FLC) (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T) :
+    ∃ T' : PlaneTiling (cloneProtoset τ h),
+      (cloneDecoration τ h).project T' = T ∧
+      ∀ A' ∈ T'.tiles, A'.form.context =
+        translateSet (-A'.anchor) (neighbourhood T.tiles ((cloneDecoration τ h).projTile A')) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `substitution_clone_lift_iff_step2_lift_is_subst`: this
+lifted plane tiling is substitutive. -/
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst
+    {τ : Substitution P} (h : τ.FLC) (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T)
+    (T' : PlaneTiling (cloneProtoset τ h)) (hProj : (cloneDecoration τ h).project T' = T)
+    (hLift : ∀ A' ∈ T'.tiles, A'.form.context =
+      translateSet (-A'.anchor) (neighbourhood T.tiles ((cloneDecoration τ h).projTile A'))) :
+    (refinedSubstitution τ h).IsSubstitutionTiling T' := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `substitution_clone_lift_iff`: in the other direction,
 the lifted plane tiling constructed by labelling each tile with its actual full
 neighbourhood is substitutive. -/
@@ -517,7 +537,9 @@ private theorem substitution_clone_lift_iff_step2_lift_is_subst {τ : Substituti
     ∃ T' : PlaneTiling (cloneProtoset τ h),
       (refinedSubstitution τ h).IsSubstitutionTiling T' ∧
         (cloneDecoration τ h).project T' = T := by
-  sorry
+  obtain ⟨T', hProj, hLift⟩ := substitution_clone_lift_iff_step2_lift_is_subst_step1_lift h T hT
+  have hS := substitution_clone_lift_iff_step2_lift_is_subst_step2_subst h T hT T' hProj hLift
+  exact ⟨T', hS, hProj⟩
 
 /-- `lem:clone-substitution-lift`: a plane tiling is a `τ`-substitution tiling
 iff it is the projection of a refined-substitution tiling. -/

@@ -71,6 +71,22 @@ theorem Grouping.hierarchy_lift_iff (τ : Substitution P) (GS : GroupedSubstitut
         GS.G.scatter (seq' 0).tiles = T.tiles := by
   sorry
 
+/-- Step 1 of the blueprint proof of `hierarchy_lift_sts`: lift the sequence. -/
+private lemma hierarchy_lift_sts_step1_lift (τ : Substitution P) (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩}) (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles) :
+    ∃ seq' : ℕ → PlaneTiling GS.G.P', (∀ n, GS.σ.IsComposition (seq' (n + 1)) (seq' n)) ∧
+      (∀ n, GS.G.scatter (seq' n).tiles = (seq n).tiles) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `hierarchy_lift_sts`: STS property is inherited. -/
+private lemma hierarchy_lift_sts_step2_sts (τ : Substitution P) (GS : GroupedSubstitution τ)
+    (seq : ℕ → PlaneTiling P) (seq' : ℕ → PlaneTiling GS.G.P')
+    (hscatter : ∀ n, GS.G.scatter (seq' n).tiles = (seq n).tiles)
+    (hsts : ∀ n, (seq n).SideToSide) :
+    ∀ n, (seq' n).SideToSide := by
+  sorry
+
 /-- `lem:grouping-lift` (STS levels): a `τ^k`-hierarchy all of whose levels
 are STS lifts to a grouped `σ`-hierarchy scattering level by level onto it,
 all of whose levels are STS. -/
@@ -80,7 +96,8 @@ theorem Grouping.hierarchy_lift_sts (τ : Substitution P) (GS : GroupedSubstitut
     (hsts : ∀ n, (seq n).SideToSide) :
     ∃ seq' : ℕ → PlaneTiling GS.G.P', (∀ n, GS.σ.IsComposition (seq' (n + 1)) (seq' n)) ∧
       (∀ n, GS.G.scatter (seq' n).tiles = (seq n).tiles) ∧ ∀ n, (seq' n).SideToSide := by
-  sorry
+  obtain ⟨seq', hcomp, hscat⟩ := hierarchy_lift_sts_step1_lift τ GS hsingle seq hseq
+  exact ⟨seq', hcomp, hscat, hierarchy_lift_sts_step2_sts τ GS seq seq' hscat hsts⟩
 
 /-! ## The hereditary STS core -/
 

@@ -378,7 +378,22 @@ theorem finite_parents (B : PlacedTile P) :
 around which the crown is taken, then a translated tile `A = B.translate (-w)` contains
 `0` as a vertex if and only if `w` is a vertex of `B`. -/
 private lemma finite_crowns_step1_vertex_step1_translate (B : PlacedTile P) (w : Pt) :
-    (0 : Pt) ∈ (B.translate (-w)).vertexSet ↔ w ∈ B.vertexSet := sorry
+    (0 : Pt) ∈ (B.translate (-w)).vertexSet ↔ w ∈ B.vertexSet := by
+  dsimp [PlacedTile.vertexSet]
+  simp [PlacedTile.vertex, PlacedTile.translate, vadd_eq_add]
+  constructor
+  · rintro ⟨y, hy⟩
+    use y
+    calc B.anchor + (P.disk B.form).vertex y
+      _ = w + (-w + B.anchor + (P.disk B.form).vertex y) := by abel
+      _ = w + 0 := by rw [hy]
+      _ = w := by abel
+  · rintro ⟨y, hy⟩
+    use y
+    calc -w + B.anchor + (P.disk B.form).vertex y
+      _ = -w + (B.anchor + (P.disk B.form).vertex y) := by abel
+      _ = -w + w := by rw [hy]
+      _ = 0 := by abel
 
 /-- Step 2 of the blueprint proof of `finite_crowns_step1_vertex`: in a side-to-side
 patch (like a supertile), if `w` is a vertex of some tile `C` in the patch and `w` lies

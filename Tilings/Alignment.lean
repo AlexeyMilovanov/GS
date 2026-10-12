@@ -115,6 +115,54 @@ def SchedulesAligned (m : ℕ) (T' : PlaneTiling G.P') : Prop :=
       placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e' →
         EndpointSchedule τ G m A.form e = EndpointSchedule τ G m A'.form e'
 
+/-- Step 1 of the blueprint proof of `schedule_intermediate_sts`:
+Equal schedules on shared whole outer fine sides force positively overlapping coarse listed sides
+on opposite macroblock boundaries, in the same layer tag, to have exactly the same endpoints. -/
+private theorem schedule_intermediate_sts_step1_boundary_align
+    (hτ : τ.STS) (m : ℕ) (T' : PlaneTiling G.P')
+    (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
+    (halign : SchedulesAligned τ G m T')
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (t : LayerTag m) (c d : Pt × Pt)
+    (hc : c ∈ layerSides τ G m A.form t) (hd : d ∈ layerSides τ G m A'.form t)
+    (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+      (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
+    placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `schedule_intermediate_sts`:
+Inside a block each original layer is already an STS supertile patch.
+Thus, to check STS for the parent level, we only need to compare sides that
+arise from opposite macroblock boundaries, which correspond to `top` layer sides. -/
+private theorem schedule_intermediate_sts_step2_parents_sts
+    (m : ℕ) (T' : PlaneTiling G.P')
+    (h_align : ∀ (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+       (c d : Pt × Pt)
+       (hc : c ∈ layerSides τ G m A.form .top) (hd : d ∈ layerSides τ G m A'.form .top),
+       OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+         (placedSeg ((τ.θ ^ m) • A'.anchor) d) →
+       placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d) :
+    SideToSideSet T'.tiles := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `schedule_intermediate_sts`:
+Inside a block each original layer is already an STS supertile patch.
+Thus, to check STS for any intermediate layer, we only need to compare sides that
+arise from opposite macroblock boundaries, which correspond to `level j` layer sides. -/
+private theorem schedule_intermediate_sts_step3_levels_sts
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (G.dissect α).tiles))
+    (m : ℕ) (T' : PlaneTiling G.P')
+    (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
+    (h_align : ∀ (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+       (j : Fin m) (c d : Pt × Pt)
+       (hc : c ∈ layerSides τ G m A.form (.level j))
+       (hd : d ∈ layerSides τ G m A'.form (.level j)),
+       OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+         (placedSeg ((τ.θ ^ m) • A'.anchor) d) →
+       placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d) :
+    ∀ j ≤ m, SideToSideSet (τ.decomposeIter j (G.scatter T'.tiles)) := by
+  sorry
+
 /-- `lem:alignment-tuple`: if the fine level `τ^m (Δ T')` of a grouped plane
 tiling is STS and schedules are aligned, then the grouped parents and every
 inserted original level `τ^j (Δ T')`, `j ≤ m`, are STS.  The hypothesis `hΔ`
@@ -126,7 +174,15 @@ theorem schedule_intermediate_sts (hτ : τ.STS)
     (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
     (halign : SchedulesAligned τ G m T') :
     SideToSideSet T'.tiles ∧ ∀ j ≤ m, SideToSideSet (τ.decomposeIter j (G.scatter T'.tiles)) := by
-  sorry
+  constructor
+  · apply schedule_intermediate_sts_step2_parents_sts τ G m T'
+    intro A A' hA hA' c d hc hd hoverlap
+    exact schedule_intermediate_sts_step1_boundary_align τ G hτ m T' hfine halign A A' hA hA'
+      .top c d hc hd hoverlap
+  · apply schedule_intermediate_sts_step3_levels_sts τ G hΔ m T' hfine
+    intro A A' hA hA' j c d hc hd hoverlap
+    exact schedule_intermediate_sts_step1_boundary_align τ G hτ m T' hfine halign A A' hA hA'
+      (.level j) c d hc hd hoverlap
 
 /-! ## Whole-side ports (`lem:whole-ports`) -/
 

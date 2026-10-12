@@ -11,3 +11,4 @@ import Tilings.Control.Regression
 import Tilings.Geometry.Grouping
 import Tilings.Alignment
 import Tilings.LocalRules
+import Tilings.StrictPresentation

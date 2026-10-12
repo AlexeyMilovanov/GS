@@ -225,6 +225,57 @@ theorem boundary_side_of_outer_side (c : MacroCertificate P) (hH : c.Hereditary)
   rw [boundary_side_of_outer_side_step3_endpoint c t k] at h_end_mem
   exact boundary_side_of_outer_side_step5_boundary c t _ hk_in h_end_mem
 
+/-- Step 1 of the blueprint proof of `headerLegal_properties`: a legal tile has a legal parent. -/
+private lemma headerLegal_properties_step1_parent (c : MacroCertificate P) (hH : c.Hereditary)
+    (A : DecTile c) (hA : headerLegal c A) :
+    ∃ C, headerLegal c C ∧ IsChildOf c C A := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `headerLegal_properties`: a legal tile is normal and
+identity-correct. -/
+private lemma headerLegal_properties_step2_normal_id (c : MacroCertificate P) (hH : c.Hereditary)
+    (A : DecTile c) (hA : headerLegal c A) :
+    IsNormal c A ∧ IsIdentityCorrect c A := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `headerLegal_properties`: every child of a legal parent is
+legal. -/
+private lemma headerLegal_properties_step3_child (c : MacroCertificate P) (hH : c.Hereditary)
+    (A : DecTile c) (hA : headerLegal c A) :
+    ∀ B, IsChildOf c A B → headerLegal c B := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `headerLegal_properties`: all boundary fourth cells of a legal
+tile equal one parent header. -/
+private lemma headerLegal_properties_step4_boundary (c : MacroCertificate P) (hH : c.Hereditary)
+    (A : DecTile c) (hA : headerLegal c A) :
+    ∃ C, headerLegal c C ∧ IsChildOf c C A ∧
+      ∀ i : c.Side A.typ, c.IsBoundary (c.occ A.typ i) → A.cell i 3 = headerU c (headerOf c C) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `headerLegal_properties`: third signals belonging to the same
+path are equal through a legal tile. -/
+private lemma headerLegal_properties_step5_path (c : MacroCertificate P) (hH : c.Hereditary)
+    (A : DecTile c) (hA : headerLegal c A) :
+    ∀ (d : Fin (c.Q.disk (c.owner A.typ)).n) (j : Fin 5) (i i' : c.Side A.typ),
+      c.occ A.typ i ∈ c.path (c.owner A.typ) d j → c.occ A.typ i' ∈ c.path (c.owner A.typ) d j →
+      ¬ c.IsPrint (c.occ A.typ i) → ¬ c.IsPrint (c.occ A.typ i') → A.cell i 2 = A.cell i' 2 := by
+  sorry
+
+/-- Step 6 of the blueprint proof of `headerLegal_properties`: every inner side of a legal tile is
+nontrivial. -/
+private lemma headerLegal_properties_step6_inner (c : MacroCertificate P) (hH : c.Hereditary)
+    (A : DecTile c) (hA : headerLegal c A) :
+    InnerActive c A := by
+  sorry
+
+/-- Step 7 of the blueprint proof of `headerLegal_properties`: on an outer side, triviality is
+equivalent to a zero fourth cell. -/
+private lemma headerLegal_properties_step7_outer (c : MacroCertificate P) (hH : c.Hereditary)
+    (A : DecTile c) (hA : headerLegal c A) :
+    ∀ i : c.Side A.typ, c.IsOuter (c.occ A.typ i) → (¬ IsNontrivial c A i ↔ A.cell i 3 = 0) := by
+  sorry
+
 /-- `lem:comp/legal-properties`: a legal tile has a legal parent, is normal
 and identity-correct; every child of a legal tile is legal; all boundary
 fourth cells equal the header of one legal parent; third signals of one path
@@ -242,7 +293,16 @@ theorem headerLegal_properties (c : MacroCertificate P) (hH : c.Hereditary)
       ¬ c.IsPrint (c.occ A.typ i) → ¬ c.IsPrint (c.occ A.typ i') → A.cell i 2 = A.cell i' 2) ∧
     InnerActive c A ∧
     (∀ i : c.Side A.typ, c.IsOuter (c.occ A.typ i) → (¬ IsNontrivial c A i ↔ A.cell i 3 = 0)) := by
-  sorry
+  exact ⟨
+    headerLegal_properties_step1_parent c hH A hA,
+    (headerLegal_properties_step2_normal_id c hH A hA).1,
+    (headerLegal_properties_step2_normal_id c hH A hA).2,
+    headerLegal_properties_step3_child c hH A hA,
+    headerLegal_properties_step4_boundary c hH A hA,
+    headerLegal_properties_step5_path c hH A hA,
+    headerLegal_properties_step6_inner c hH A hA,
+    headerLegal_properties_step7_outer c hH A hA
+  ⟩
 
 /-- `lem:comp/assembly`: a proper plane tiling of normal identity-correct
 typed tiles in which every inner side is nontrivial admits a partition into

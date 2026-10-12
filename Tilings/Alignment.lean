@@ -353,7 +353,17 @@ private lemma whole_side_ports_coincide_step4_ncard_eq (m : ℕ)
     (A A' : PlacedTile G.P') (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
     (f : sidesInside τ G m A.form a ≃ sidesInside τ G m A'.form a') :
     (sidesInside τ G m A.form a).ncard = (sidesInside τ G m A'.form a').ncard := by
-  sorry
+  exact Set.ncard_congr (fun e he => f ⟨e, he⟩) (fun e he => (f ⟨e, he⟩).2)
+    (fun e1 e2 he1 he2 h => by
+      have h1 : (f ⟨e1, he1⟩).1 = (f ⟨e2, he2⟩).1 := h
+      have h2 : f ⟨e1, he1⟩ = f ⟨e2, he2⟩ := Subtype.ext h1
+      have h3 : (⟨e1, he1⟩ : sidesInside τ G m A.form a) = ⟨e2, he2⟩ := Equiv.injective f h2
+      exact congrArg Subtype.val h3)
+    (fun e' he' => by
+      use (f.symm ⟨e', he'⟩).1
+      use (f.symm ⟨e', he'⟩).2
+      have h : f (f.symm ⟨e', he'⟩) = ⟨e', he'⟩ := Equiv.apply_symm_apply f ⟨e', he'⟩
+      exact congrArg Subtype.val h)
 
 /-- Step 5 of the blueprint proof of `whole_side_ports_coincide`: the chosen ports coincide
 because they are uniquely determined by the physical subdivision. -/

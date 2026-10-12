@@ -108,6 +108,43 @@ private lemma locallyFinite_step3_centres (T : PlaneTiling P) (K : Set Pt)
     exact interior_subset H
   · exact hy
 
+private lemma locallyFinite_step4_separated_step1_dist (x y : Pt) (r : ℝ) (h : Disjoint (ball x r) (ball y r)) : 2 * r ≤ dist x y := by
+  contrapose! h
+  let m : Pt := (1/2 : ℝ) • (x + y)
+  have hmx : dist m x = dist x y / 2 := by
+    rw [dist_eq_norm, dist_eq_norm x y]
+    have : (1/2 : ℝ) • (x + y) - x = (1/2 : ℝ) • (y - x) := by
+      calc (1/2 : ℝ) • (x + y) - x = (1/2 : ℝ) • x + (1/2 : ℝ) • y - x := by rw [smul_add]
+      _ = (1/2 : ℝ) • y + ((1/2 : ℝ) • x - x) := by abel
+      _ = (1/2 : ℝ) • y + (-(1/2 : ℝ) • x) := by
+        congr 1
+        calc (1/2 : ℝ) • x - x = (1/2 : ℝ) • x - (1 : ℝ) • x := by rw [one_smul]
+        _ = ((1/2 : ℝ) - 1) • x := by rw [sub_smul]
+        _ = -(1/2 : ℝ) • x := by norm_num
+      _ = (1/2 : ℝ) • y - (1/2 : ℝ) • x := by rw [neg_smul, sub_eq_add_neg]
+      _ = (1/2 : ℝ) • (y - x) := by rw [smul_sub]
+    rw [this, norm_smul, Real.norm_of_nonneg (by norm_num)]
+    have : ‖y - x‖ = ‖x - y‖ := norm_sub_rev y x
+    rw [this]
+    ring
+  have hmy : dist m y = dist x y / 2 := by
+    rw [dist_eq_norm, dist_eq_norm x y]
+    have : (1/2 : ℝ) • (x + y) - y = (1/2 : ℝ) • (x - y) := by
+      calc (1/2 : ℝ) • (x + y) - y = (1/2 : ℝ) • x + (1/2 : ℝ) • y - y := by rw [smul_add]
+      _ = (1/2 : ℝ) • x + ((1/2 : ℝ) • y - y) := by abel
+      _ = (1/2 : ℝ) • x + (-(1/2 : ℝ) • y) := by
+        congr 1
+        calc (1/2 : ℝ) • y - y = (1/2 : ℝ) • y - (1 : ℝ) • y := by rw [one_smul]
+        _ = ((1/2 : ℝ) - 1) • y := by rw [sub_smul]
+        _ = -(1/2 : ℝ) • y := by norm_num
+      _ = (1/2 : ℝ) • x - (1/2 : ℝ) • y := by rw [neg_smul, sub_eq_add_neg]
+      _ = (1/2 : ℝ) • (x - y) := by rw [smul_sub]
+    rw [this, norm_smul, Real.norm_of_nonneg (by norm_num)]
+    ring
+  have hmx_lt : dist m x < r := by linarith [hmx, h]
+  have hmy_lt : dist m y < r := by linarith [hmy, h]
+  exact not_disjoint_iff.mpr ⟨m, mem_ball.mpr hmx_lt, mem_ball.mpr hmy_lt⟩
+
 /-- Step 4 of the blueprint proof of `locallyFinite`: Centres belonging to distinct tiles
 are at distance at least $2r$, since their open interior disks are disjoint. -/
 private lemma locallyFinite_step4_separated (T : PlaneTiling P)
@@ -115,7 +152,45 @@ private lemma locallyFinite_step4_separated (T : PlaneTiling P)
     (hball : ∀ p : P.Form, ball (c p) r ⊆ interior (P.disk p).carrier) :
     ∀ A B, A ∈ T.tiles → B ∈ T.tiles → A ≠ B →
       2 * r ≤ dist (A.anchor +ᵥ c A.form) (B.anchor +ᵥ c B.form) := by
-  sorry
+  intro A B hA hB hne
+  have _ := hr
+  have h1 : ball (A.anchor +ᵥ c A.form) r ⊆ interior A.carrier := by
+    have hc : A.carrier = A.anchor +ᵥ (P.disk A.form).carrier := rfl
+    rw [hc, interior_vadd]
+    intro x hx
+    rcases mem_ball.mp hx with hx_dist
+    rw [mem_vadd_set_iff_neg_vadd_mem]
+    have h_in_ball : -A.anchor +ᵥ x ∈ ball (c A.form) r := by
+      rw [mem_ball, dist_eq_norm] at *
+      have : -A.anchor + x - c A.form = x - (A.anchor + c A.form) := by
+        abel
+      have h_vadd_1 : -A.anchor +ᵥ x = -A.anchor + x := by rfl
+      have h_vadd_2 : A.anchor +ᵥ c A.form = A.anchor + c A.form := by rfl
+      rw [h_vadd_1, h_vadd_2] at *
+      rw [this]
+      exact hx_dist
+    exact hball A.form h_in_ball
+  have h2 : ball (B.anchor +ᵥ c B.form) r ⊆ interior B.carrier := by
+    have hc : B.carrier = B.anchor +ᵥ (P.disk B.form).carrier := rfl
+    rw [hc, interior_vadd]
+    intro x hx
+    rcases mem_ball.mp hx with hx_dist
+    rw [mem_vadd_set_iff_neg_vadd_mem]
+    have h_in_ball : -B.anchor +ᵥ x ∈ ball (c B.form) r := by
+      rw [mem_ball, dist_eq_norm] at *
+      have : -B.anchor + x - c B.form = x - (B.anchor + c B.form) := by
+        abel
+      have h_vadd_1 : -B.anchor +ᵥ x = -B.anchor + x := by rfl
+      have h_vadd_2 : B.anchor +ᵥ c B.form = B.anchor + c B.form := by rfl
+      rw [h_vadd_1, h_vadd_2] at *
+      rw [this]
+      exact hx_dist
+    exact hball B.form h_in_ball
+  have h3 : Disjoint (interior A.carrier) (interior B.carrier) := by
+    exact T.disjoint hA hB hne
+  have h4 : Disjoint (ball (A.anchor +ᵥ c A.form) r) (ball (B.anchor +ᵥ c B.form) r) := by
+    exact h3.mono h1 h2
+  exact locallyFinite_step4_separated_step1_dist _ _ _ h4
 
 /-- Step 5 of the blueprint proof of `locallyFinite`: A compact metric set has only
 finitely many $2r$-separated points, by a finite cover with disks of radius $r/2$.

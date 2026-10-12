@@ -178,11 +178,28 @@ theorem finite_parents (B : PlacedTile P) :
     intro _
     exact finite_singleton _
 
+/-- Step 1 of the blueprint proof of `finite_crowns`: in an allowed pointed crown
+under STS, the origin is a listed vertex of every tile in the crown. This follows
+from the fact that in a side-to-side patch, a vertex cannot lie strictly inside
+a tile side with an incident open sector, nor in the interior. -/
+private lemma finite_crowns_step1_vertex (h : τ.STS) (K : Set (PlacedTile P))
+    (hK : τ.IsAllowedCrown K) (A : PlacedTile P) (hA : A ∈ K) :
+    0 ∈ A.vertexSet := sorry
+
+/-- Step 2 of the blueprint proof of `finite_crowns`: there are only finitely many
+placed tiles that have the origin as a listed vertex, because a tile is fixed by
+its form and the listed vertex identified with the centre. -/
+private lemma finite_crowns_step2_finite_tiles :
+    {A : PlacedTile P | 0 ∈ A.vertexSet}.Finite := sorry
+
 /-- `lem:sts-flc`: under STS the allowed pointed crowns form a finite set
 (they are normalized to centre `0`, i.e. taken up to translation).
 This is the manifest name of the fact stated in `Main.lean` as `STS.flc`. -/
 theorem STS.finite_crowns (h : τ.STS) : τ.FLC := by
-  sorry
+  have H_sub : ∀ K, τ.IsAllowedCrown K → K ⊆ {A : PlacedTile P | 0 ∈ A.vertexSet} :=
+    fun K hK A hA => finite_crowns_step1_vertex τ h K hK A hA
+  have H_fin : {K | τ.IsAllowedCrown K} ⊆ 𝒫 {A : PlacedTile P | 0 ∈ A.vertexSet} := H_sub
+  exact (finite_crowns_step2_finite_tiles (P := P)).powerset.subset H_fin
 
 end Substitution
 

@@ -2665,6 +2665,46 @@ def Separates : Prop :=
 
 end FingerprintData
 
+/-- Step 1 of the blueprint proof of `fingerprintSeparation`: An original and a small type
+cannot have equal fingerprints. -/
+private lemma fingerprintSeparation_step1_size (F : FingerprintData) (K0 : ℕ)
+    (h_orig_le : ∀ u, F.kind u = .original → Multiset.card (F.ordinary u) ≤ K0)
+    (h_small_ge : ∀ t, F.kind t = .small → K0 + 2 ≤ Multiset.card (F.ordinary t)) :
+    ∀ t u, F.kind t = .original → F.kind u = .small →
+    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := sorry
+
+/-- Step 2 of the blueprint proof of `fingerprintSeparation`: Types in different
+templates have disjoint possible fingerprints. -/
+private lemma fingerprintSeparation_step2_templates (F : FingerprintData)
+    (h_tmpl : ∀ t, ∀ v ∈ F.ordinary t, F.template v = F.template t)
+    (h_orig_ne : ∀ u, F.kind u = .original → F.ordinary u ≠ 0)
+    (h_small_ge : ∀ t, F.kind t = .small → 2 ≤ Multiset.card (F.ordinary t)) :
+    ∀ t u, F.kind t ≠ .central → F.kind u ≠ .central → F.template t ≠ F.template u →
+    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := sorry
+
+/-- Step 3 of the blueprint proof of `fingerprintSeparation`: Two original types
+in the same template cannot have equal fingerprints. -/
+private lemma fingerprintSeparation_step3_orig (F : FingerprintData)
+    (h_symm : ∀ u v, F.kind u = .original → F.kind v = .original →
+      (F.ordinary u).count v = (F.ordinary v).count u)
+    (h_adj_symm : ∀ u v, F.adj u v → F.adj v u)
+    (h_adj_orig : ∀ u w, F.kind u = .original → (F.adj u w ↔ w ∈ F.ordinary u))
+    (h_conn : ∀ t w, F.template t = F.template w → Relation.ReflTransGen F.adj t w)
+    (h_three : ∀ t, ∃ a b, a ≠ t ∧ b ≠ t ∧ a ≠ b ∧
+      F.template a = F.template t ∧ F.template b = F.template t) :
+    ∀ u v, F.kind u = .original → F.kind v = .original → u ≠ v → F.template u = F.template v →
+    Disjoint (F.possibleFingerprints u) (F.possibleFingerprints v) := sorry
+
+/-- Step 4 of the blueprint proof of `fingerprintSeparation`: Two small types
+in the same template cannot have equal fingerprints. -/
+private lemma fingerprintSeparation_step4_small (F : FingerprintData)
+    (h_private : ∀ t u, F.kind t = .small → F.kind u = .small → t ≠ u →
+      F.template t = F.template u →
+      3 ≤ Multiset.card ((F.ordinary t).filter
+        (fun v => F.kind v = .original ∧ v ∉ F.ordinary u))) :
+    ∀ t u, F.kind t = .small → F.kind u = .small → t ≠ u → F.template t = F.template u →
+    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := sorry
+
 /-- `lem:fingerprint`: under (G1) (neighbours in the same template, symmetric
 original adjacency counts, connected template dual graphs with at least three
 children), with original types having nonempty fingerprints of at most `K0`
@@ -2689,7 +2729,25 @@ theorem fingerprintSeparation (F : FingerprintData) (K0 : ℕ)
       3 ≤ Multiset.card ((F.ordinary t).filter
         (fun v => F.kind v = .original ∧ v ∉ F.ordinary u))) :
     F.Separates := by
-  sorry
+  intro t u ht hu htu
+  by_cases h_tmpl_eq : F.template t = F.template u
+  · rcases hkt : F.kind t with _ | _ | _
+    · rcases hku : F.kind u with _ | _ | _
+      · exact fingerprintSeparation_step3_orig F h_symm h_adj_symm h_adj_orig h_conn
+          h_three t u hkt hku htu h_tmpl_eq
+      · exact fingerprintSeparation_step1_size F K0 h_orig_le h_small_ge t u hkt hku
+      · contradiction
+    · rcases hku : F.kind u with _ | _ | _
+      · exact (fingerprintSeparation_step1_size F K0 h_orig_le h_small_ge u t hku hkt).symm
+      · exact fingerprintSeparation_step4_small F h_private t u hkt hku htu h_tmpl_eq
+      · contradiction
+    · contradiction
+  · apply fingerprintSeparation_step2_templates F h_tmpl h_orig_ne
+    · intro x hx
+      exact le_trans (by omega) (h_small_ge x hx)
+    · exact ht
+    · exact hu
+    · exact h_tmpl_eq
 
 /-! ## Grouped families and grouped substitutions -/
 

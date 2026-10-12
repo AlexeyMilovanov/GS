@@ -310,12 +310,34 @@ private lemma whole_side_ports_distinct_step2_index {L : ℕ} (h : 6 ≤ L) :
     unfold portIndex
     fin_cases r <;> (dsimp; omega)
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: the set of inside sides is finite. -/
+private lemma whole_side_ports_distinct_step3_rank_step1_finite (τ : Substitution P)
+    (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) : (sidesInside τ G m A a).Finite := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: `sideKey` is injective on the inside sides. -/
+private lemma whole_side_ports_distinct_step3_rank_step2_inj (τ : Substitution P)
+    (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) : (sidesInside τ G m A a).InjOn (sideKey (parentDir τ G m A a)) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: an abstract lemma showing that any rank is attained. -/
+private lemma whole_side_ports_distinct_step3_rank_step3_exists (X : Set (Pt × Pt))
+    (h_fin : X.Finite) (u : Pt) (k : ℕ) (hk1 : 1 ≤ k) (hk2 : k ≤ X.ncard)
+    (h_inj : X.InjOn (sideKey u)) :
+    ∃ e ∈ X, rankIn X u e = k := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `whole_side_ports_distinct`: every rank from 1 to `L`
 is attained by some fine side. -/
 private lemma whole_side_ports_distinct_step3_rank (m : ℕ) (A : G.P'.Form)
     (a : Fin (G.P'.disk A).n) (k : ℕ) (hk1 : 1 ≤ k) (hk2 : k ≤ (sidesInside τ G m A a).ncard) :
     ∃ e ∈ sidesInside τ G m A a, rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e = k := by
-  sorry
+  exact whole_side_ports_distinct_step3_rank_step3_exists (sidesInside τ G m A a)
+    (whole_side_ports_distinct_step3_rank_step1_finite τ G m A a)
+    (parentDir τ G m A a) k hk1 hk2
+    (whole_side_ports_distinct_step3_rank_step2_inj τ G m A a)
 
 /-- `lem:whole-ports` (distinctness): for large `s` the five quantile ports
 exist and are distinct. -/

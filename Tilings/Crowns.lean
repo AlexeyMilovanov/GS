@@ -502,7 +502,7 @@ theorem supertile_disjoint (τ : Substitution P) (n : ℕ) (p : P.Form) :
 /-- The support of a supertile in the `MacroPatch` normal form. -/
 theorem supertile_support_eq (τ : Substitution P) (n : ℕ) (p : P.Form) :
     support (τ.supertile n p) = (0 : Pt) +ᵥ (τ.θ ^ n) • (P.disk p).carrier := by
-  sorry
+  rw [τ.iterate_support n p, zero_vadd]
 
 /-- The supertile `τ^n p` as a macro patch. -/
 def supertileMacro (τ : Substitution P) (n : ℕ) (p : P.Form) : MacroPatch P where

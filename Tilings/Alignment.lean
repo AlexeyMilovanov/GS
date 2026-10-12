@@ -258,7 +258,13 @@ is injective on `Fin 5` and its values are in `1..L`. -/
 private lemma whole_side_ports_distinct_step2_index {L : ℕ} (h : 6 ≤ L) :
     Function.Injective (portIndex L) ∧
       ∀ r : Fin 5, 1 ≤ portIndex L r ∧ portIndex L r ≤ L := by
-  sorry
+  constructor
+  · intro a b hab
+    unfold portIndex at hab
+    fin_cases a <;> fin_cases b <;> (try rfl) <;> (dsimp at hab; omega)
+  · intro r
+    unfold portIndex
+    fin_cases r <;> (dsimp; omega)
 
 /-- Step 3 of the blueprint proof of `whole_side_ports_distinct`: every rank from 1 to `L`
 is attained by some fine side. -/
@@ -427,6 +433,7 @@ theorem strict_schedule_composition (hτ : τ.STS)
       ∀ j ≤ Sys.GS.k, SideToSideSet
         (τ.decomposeIter j (Sys.GS.G.scatter (Sys.dec.toDecoration.projTile '' T''.tiles))) := by
   sorry
+
 
 end Alignment
 

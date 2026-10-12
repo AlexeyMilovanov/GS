@@ -187,6 +187,27 @@ theorem whole_side_ports (M : MeshConstants P) (m : ℕ) (A : G.P'.Form)
   rw [div_le_iff₀ hd, sub_le_iff_le_add]
   linarith
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_distinct`: for large `m`, the number of
+fine sides strictly inside `s a` is at least 6. -/
+private lemma whole_side_ports_distinct_step1_growth :
+    ∃ m₀ : ℕ, ∀ m ≥ m₀, ∀ (A : G.P'.Form) (a : Fin (G.P'.disk A).n),
+      6 ≤ (sidesInside τ G m A a).ncard := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_distinct`: if `L ≥ 6`, then `portIndex L`
+is injective on `Fin 5` and its values are in `1..L`. -/
+private lemma whole_side_ports_distinct_step2_index {L : ℕ} (h : 6 ≤ L) :
+    Function.Injective (portIndex L) ∧
+      ∀ r : Fin 5, 1 ≤ portIndex L r ∧ portIndex L r ≤ L := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `whole_side_ports_distinct`: every rank from 1 to `L`
+is attained by some fine side. -/
+private lemma whole_side_ports_distinct_step3_rank (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) (k : ℕ) (hk1 : 1 ≤ k) (hk2 : k ≤ (sidesInside τ G m A a).ncard) :
+    ∃ e ∈ sidesInside τ G m A a, rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e = k := by
+  sorry
+
 /-- `lem:whole-ports` (distinctness): for large `s` the five quantile ports
 exist and are distinct. -/
 theorem whole_side_ports_distinct :
@@ -195,7 +216,34 @@ theorem whole_side_ports_distinct :
         ∀ r, port τ G m A a r ∈ sidesInside τ G m A a ∧
           rankIn (sidesInside τ G m A a) (parentDir τ G m A a) (port τ G m A a r) =
             portIndex (sidesInside τ G m A a).ncard r := by
-  sorry
+  obtain ⟨m₀, hm₀⟩ := whole_side_ports_distinct_step1_growth (τ := τ) (G := G)
+  use m₀
+  intro m hm A a
+  have hL : 6 ≤ (sidesInside τ G m A a).ncard := hm₀ m hm A a
+  have h2 := whole_side_ports_distinct_step2_index hL
+  have H_exist : ∀ r, ∃ e ∈ sidesInside τ G m A a,
+      rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e =
+        portIndex (sidesInside τ G m A a).ncard r := by
+    intro r
+    have h_bounds := h2.2 r
+    exact whole_side_ports_distinct_step3_rank (τ := τ) (G := G) m A a
+      (portIndex (sidesInside τ G m A a).ncard r) h_bounds.1 h_bounds.2
+  have H_spec : ∀ r, port τ G m A a r ∈ sidesInside τ G m A a ∧
+      rankIn (sidesInside τ G m A a) (parentDir τ G m A a) (port τ G m A a r) =
+        portIndex (sidesInside τ G m A a).ncard r := by
+    intro r
+    have H_ex := H_exist r
+    have H_eps := Classical.epsilon_spec H_ex
+    exact H_eps
+  refine ⟨?_, H_spec⟩
+  intro r1 r2 hr
+  have hr1 := H_spec r1
+  have hr2 := H_spec r2
+  rw [hr] at hr1
+  have h_eq : portIndex (sidesInside τ G m A a).ncard r1 =
+      portIndex (sidesInside τ G m A a).ncard r2 := by
+    rw [←hr1.2, ←hr2.2]
+  exact h2.1 h_eq
 
 /-- `lem:whole-ports` (coincidence): in a grouped plane tiling with STS fine
 level and aligned schedules, physically coincident parent sides have the same

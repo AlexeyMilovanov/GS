@@ -2778,15 +2778,58 @@ theorem existsRoutingAfterPower (τ : Substitution P) (hτ : τ.STS) (M : MeshCo
 
 /-! ## Existence of the macrocertificate (`lem:certificate-exists`) -/
 
+/-- A macrocertificate *represents* the substitution `τ` at the power `m`
+(the content of `lem:certificate-exists` beyond (G1)–(G7)): its scattering
+`Δ` makes the grouped forms `C.Q` a grouped family of `τ` in which every
+original form is available as a singleton group, the grouped substitution
+`σ' = C.σ` has expansion `θ^m` and satisfies `Δ σ' α = τ^m Δ α`, and
+hereditary listed sides of `τ` make the macrotemplate system hereditary.
+Without these clauses the empty certificate satisfies (G1)–(G7) vacuously
+(Aristotle, project 1691ce37, 12 October 2026). -/
+structure MacroCertificate.Represents (C : MacroCertificate P) (τ : Substitution P) (m : ℕ) :
+    Prop where
+  m_pos : 0 < m
+  θ_eq : C.σ.θ = τ.θ ^ m
+  compat : ∀ α, (⋃ A ∈ (C.σ.rule α).tiles, translateSet A.anchor (C.Δ A.form).tiles) =
+    τ.decomposeIter m (C.Δ α).tiles
+  sts : ∀ α, SideToSideSet (C.Δ α).tiles
+  dualConnected : ∀ α, DualConnected (C.Δ α).tiles
+  side_whole : ∀ α (i : Fin (C.Q.disk α).n), ∃ A ∈ (C.Δ α).tiles, HasEdge A ((C.Q.disk α).side i)
+  vertex_retained : ∀ α v, Substitution.IsVertexOf (C.Δ α).tiles v →
+    v ∈ frontier (C.Q.disk α).carrier → v ∈ (C.Q.disk α).vertexSet
+  singleton : ∀ p : P.Form, ∃ α, (C.Δ α).tiles = {⟨p, 0⟩}
+  hereditary : τ.HereditarySides → C.Hereditary
+
+/-- The grouped family underlying a representing certificate. -/
+def MacroCertificate.Represents.groupedFamily {C : MacroCertificate P} {τ : Substitution P}
+    {m : ℕ} (h : C.Represents τ m) : GroupedFamily P where
+  P' := C.Q
+  dissect := C.Δ
+  support_eq := C.scatter_support
+  sts := h.sts
+  dualConnected := h.dualConnected
+  side_whole := h.side_whole
+  vertex_retained := h.vertex_retained
+
+/-- The grouped substitution for `τ^m` underlying a representing certificate
+(the input of `lem:grouping-lift`). -/
+def MacroCertificate.Represents.groupedSubstitution {C : MacroCertificate P} {τ : Substitution P}
+    {m : ℕ} (h : C.Represents τ m) : GroupedSubstitution τ where
+  G := h.groupedFamily
+  k := m
+  k_pos := h.m_pos
+  σ := C.σ
+  θ_eq := h.θ_eq
+  compat := h.compat
+
 /-- `lem:certificate-exists`: for every STS polygonal substitution `τ` there
-are a finite grouped family `P'` (the forms `C.Q`), a scattering map
-`Δ = C.Δ`, a power `m > 0` and a grouped substitution `σ' = C.σ` of
-expansion `θ^m` with `Δ σ' α = τ^m Δ α` for all `α`, together with the
-macrocertificate properties (G1)–(G7) (the fields of `MacroCertificate`). -/
+are a macrocertificate `C` with the properties (G1)–(G7) and a power `m > 0`
+such that `C` represents `τ` at the power `m`: a finite grouped family
+`P'` (the forms `C.Q`) containing every original form as a singleton group,
+a scattering map `Δ = C.Δ`, and a grouped substitution `σ' = C.σ` of
+expansion `θ^m` with `Δ σ' α = τ^m Δ α` for all `α`. -/
 theorem existsMacroCertificate (τ : Substitution P) (h : τ.STS) :
-    ∃ (C : MacroCertificate P) (m : ℕ), 0 < m ∧ C.σ.θ = τ.θ ^ m ∧
-      ∀ α, (⋃ A ∈ (C.σ.rule α).tiles, translateSet A.anchor (C.Δ A.form).tiles) =
-        τ.decomposeIter m (C.Δ α).tiles := by
+    ∃ (C : MacroCertificate P) (m : ℕ), C.Represents τ m := by
   sorry
 
 end Geometry

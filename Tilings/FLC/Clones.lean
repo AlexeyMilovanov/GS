@@ -59,11 +59,35 @@ def genuineEnum : Fin D.genuineCount ≃o D.genuineIdx := D.genuineIdx.orderIsoO
 /-- The `i`-th genuine vertex. -/
 def coarseVertex (i : Fin D.genuineCount) : Pt := D.vertex (D.genuineEnum i).1
 
+/-- Step 1 of the blueprint proof of `three_le_genuineCount_step1`:
+If the vertices are not collinear, then the number of extreme points of their convex hull is at least 3. -/
+private lemma three_le_genuineCount_step1_step1_extreme_points_lower_bound
+    (h : ¬ Collinear ℝ D.vertexSet) :
+    3 ≤ (extremePoints ℝ (convexHull ℝ D.vertexSet)).ncard := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `three_le_genuineCount_step1`:
+Every extreme point of the convex hull of the vertices is a genuine vertex. -/
+private lemma three_le_genuineCount_step1_step2_extreme_points_subset_genuine :
+    extremePoints ℝ (convexHull ℝ D.vertexSet) ⊆ D.vertex '' D.genuineIdx := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `three_le_genuineCount`: if there are at most 2
 genuine corners, the vertices are collinear. -/
 private lemma three_le_genuineCount_step1 (h : D.genuineCount < 3) :
     Collinear ℝ D.vertexSet := by
-  sorry
+  by_contra h_not_collinear
+  have h1 := three_le_genuineCount_step1_step1_extreme_points_lower_bound D h_not_collinear
+  have h2 := three_le_genuineCount_step1_step2_extreme_points_subset_genuine D
+  have h_fin_genuine : (D.genuineIdx : Set (Fin D.n)).Finite := D.genuineIdx.finite_toSet
+  have h_fin_image : (D.vertex '' D.genuineIdx).Finite := h_fin_genuine.image D.vertex
+  have h3 : (extremePoints ℝ (convexHull ℝ D.vertexSet)).ncard ≤
+      (D.vertex '' D.genuineIdx).ncard :=
+    ncard_le_ncard h2 h_fin_image
+  have h4 : (D.vertex '' D.genuineIdx).ncard ≤ (D.genuineIdx : Set (Fin D.n)).ncard :=
+    ncard_image_le h_fin_genuine
+  have h5 : (D.genuineIdx : Set (Fin D.n)).ncard = D.genuineCount := ncard_coe_finset D.genuineIdx
+  omega
 
 /-- Step 2 of the blueprint proof of `three_le_genuineCount`: if the vertices are
 collinear, the boundary of the carrier is contained in a line. -/

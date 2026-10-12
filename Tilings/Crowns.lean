@@ -501,11 +501,36 @@ def SectorRadiusProperty (𝒞 : Set (Set (PlacedTile P))) (r δ : ℝ) : Prop :
     support (translateSet v K) ∩ ball v r = Omega (translateSet v K) v ∩ ball v r ∧
     ∀ A ∈ translateSet v K, ∀ w ∈ A.vertexSet, w ≠ v → δ ≤ dist w v
 
+
+/-- Step 2 of the blueprint proof of `uniformSectorRadius`: For a finite catalogue, there is a
+uniform radius `r_* > 0`. -/
+private lemma uniformSectorRadius_step2_catalogue_radius {𝒞 : Set (Set (PlacedTile P))}
+    (h𝒞 : IsCatalogue 𝒞) : ∃ r : ℝ, 0 < r ∧ ∀ K ∈ 𝒞, ∀ A ∈ K,
+      A.carrier ∩ ball (0 : Pt) r = localCone A.carrier 0 ∩ ball (0 : Pt) r := by sorry
+
+/-- Step 3 of the blueprint proof of `uniformSectorRadius`: For a finite catalogue, there is a
+uniform vertex separation `δ_* > 0`. -/
+private lemma uniformSectorRadius_step3_catalogue_separation {𝒞 : Set (Set (PlacedTile P))}
+    (h𝒞 : IsCatalogue 𝒞) : ∃ δ : ℝ, 0 < δ ∧ ∀ K ∈ 𝒞, ∀ A ∈ K, ∀ w ∈ A.vertexSet,
+      w ≠ (0 : Pt) → δ ≤ dist w (0 : Pt) := by sorry
+
+/-- Step 4 of the blueprint proof of `uniformSectorRadius`: Translations preserve the
+conclusions. -/
+private lemma uniformSectorRadius_step4_translation {K : Set (PlacedTile P)} {r δ : ℝ}
+    (h_rad : ∀ A ∈ K, A.carrier ∩ ball (0 : Pt) r = localCone A.carrier 0 ∩ ball (0 : Pt) r)
+    (h_sep : ∀ A ∈ K, ∀ w ∈ A.vertexSet, w ≠ (0 : Pt) → δ ≤ dist w (0 : Pt)) :
+    ∀ v : Pt,
+      support (translateSet v K) ∩ ball v r = Omega (translateSet v K) v ∩ ball v r ∧
+      ∀ A ∈ translateSet v K, ∀ w ∈ A.vertexSet, w ≠ v → δ ≤ dist w v := by sorry
+
 /-- `lem:sector-radius`: uniform sector radius `r_*` and vertex separation
 `δ_*` for a finite catalogue. -/
 theorem uniformSectorRadius {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞) :
     ∃ r : ℝ, 0 < r ∧ ∃ δ : ℝ, 0 < δ ∧ SectorRadiusProperty 𝒞 r δ := by
-  sorry
+  obtain ⟨r, hr, hrad⟩ := uniformSectorRadius_step2_catalogue_radius h𝒞
+  obtain ⟨δ, hδ, hsep⟩ := uniformSectorRadius_step3_catalogue_separation h𝒞
+  refine ⟨r, hr, δ, hδ, fun K hK v => ?_⟩
+  exact uniformSectorRadius_step4_translation (hrad K hK) (hsep K hK) v
 
 /-! ## Macro patches and their geometric boundary (`def:macro-boundary`) -/
 

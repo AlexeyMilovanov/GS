@@ -349,6 +349,25 @@ theorem refinedSubstitution_hereditary (h : τ.FLC) :
 
 /-! ## `lem:clone-substitution-lift`, `lem:clone-hierarchy-lift` -/
 
+/-- Step 1 of the blueprint proof of `substitution_clone_lift_iff`: projection of a
+refined-substitution tiling is a substitution tiling (one direction of the iff). -/
+private theorem substitution_clone_lift_iff_step1_proj_is_subst {τ : Substitution P} (h : τ.FLC) (T : PlaneTiling P)
+    (T' : PlaneTiling (cloneProtoset τ h))
+    (hT' : (refinedSubstitution τ h).IsSubstitutionTiling T')
+    (h_proj : (cloneDecoration τ h).project T' = T) :
+    τ.IsSubstitutionTiling T := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `substitution_clone_lift_iff`: in the other direction,
+the lifted plane tiling constructed by labelling each tile with its actual full
+neighbourhood is substitutive. -/
+private theorem substitution_clone_lift_iff_step2_lift_is_subst {τ : Substitution P} (h : τ.FLC) (T : PlaneTiling P)
+    (hT : τ.IsSubstitutionTiling T) :
+    ∃ T' : PlaneTiling (cloneProtoset τ h),
+      (refinedSubstitution τ h).IsSubstitutionTiling T' ∧
+        (cloneDecoration τ h).project T' = T := by
+  sorry
+
 /-- `lem:clone-substitution-lift`: a plane tiling is a `τ`-substitution tiling
 iff it is the projection of a refined-substitution tiling. -/
 theorem substitution_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
@@ -356,7 +375,10 @@ theorem substitution_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
       ∃ T' : PlaneTiling (cloneProtoset τ h),
         (refinedSubstitution τ h).IsSubstitutionTiling T' ∧
           (cloneDecoration τ h).project T' = T := by
-  sorry
+  constructor
+  · exact substitution_clone_lift_iff_step2_lift_is_subst h T
+  · rintro ⟨T', hT', hProj⟩
+    exact substitution_clone_lift_iff_step1_proj_is_subst h T T' hT' hProj
 
 /-- `lem:clone-hierarchy-lift`: a plane tiling is `τ`-hierarchical iff it is
 the projection of a refined-substitution hierarchical tiling. -/

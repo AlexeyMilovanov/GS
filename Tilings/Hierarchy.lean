@@ -37,7 +37,35 @@ each form. The minimum of these finitely many positive radii is $r>0$. -/
 private lemma locallyFinite_step1_radii :
     ∃ (c : P.Form → Pt) (r : ℝ), 0 < r ∧
       ∀ p : P.Form, ball (c p) r ⊆ interior (P.disk p).carrier := by
-  sorry
+  have H : ∀ p : P.Form, ∃ x r, 0 < r ∧ ball x r ⊆ interior (P.disk p).carrier := by
+    intro p
+    have h_ne : (interior (P.disk p).carrier).Nonempty := (P.disk p).interior_nonempty
+    obtain ⟨x, hx⟩ := h_ne
+    have h_open : IsOpen (interior (P.disk p).carrier) := isOpen_interior
+    rw [Metric.isOpen_iff] at h_open
+    obtain ⟨r, hr, hsub⟩ := h_open x hx
+    exact ⟨x, r, hr, hsub⟩
+  choose c r hr hsub using H
+  by_cases h_ne : Nonempty P.Form
+  · have h_univ_ne : (Finset.univ : Finset P.Form).Nonempty := Finset.univ_nonempty
+    obtain ⟨p0, _, hmin⟩ := Finset.exists_min_image (Finset.univ : Finset P.Form) r h_univ_ne
+    use c, r p0
+    constructor
+    · exact hr p0
+    · intro p
+      have h_le : r p0 ≤ r p := hmin p (Finset.mem_univ p)
+      intro y hy
+      have h_dist : dist y (c p) < r p := by
+        calc dist y (c p) < r p0 := hy
+          _ ≤ r p := h_le
+      have h_ball : y ∈ ball (c p) (r p) := by exact h_dist
+      exact hsub p h_ball
+  · use (fun _ => (0:Pt)), 1
+    constructor
+    · exact zero_lt_one
+    · intro p
+      exfalso
+      exact h_ne ⟨p⟩
 
 /-- Step 2 of the blueprint proof of `locallyFinite`: the maximum of the form diameters
 is $D<\infty$. -/

@@ -115,6 +115,45 @@ def SchedulesAligned (m : ℕ) (T' : PlaneTiling G.P') : Prop :=
       placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e' →
         EndpointSchedule τ G m A.form e = EndpointSchedule τ G m A'.form e'
 
+/-- Step 1 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align`:
+There exist whole fine outer sides of `A` and `A'` that coincide and positively overlap
+the coarse sides `c` and `d`. -/
+private lemma schedule_intermediate_sts_step1_boundary_align_step1_fine_sides
+    (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (T' : PlaneTiling G.P')
+    (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (t : LayerTag m) (c d : Pt × Pt)
+    (hc : c ∈ layerSides τ G m A.form t) (hd : d ∈ layerSides τ G m A'.form t)
+    (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+      (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
+    ∃ (e : Pt × Pt) (he : e ∈ fineOuterSides τ G m A.form)
+      (e' : Pt × Pt) (he' : e' ∈ fineOuterSides τ G m A'.form),
+      placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e' ∧
+      OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2) ∧
+      OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align`:
+Equal schedules on coinciding fine outer sides, together with the fact that `c` and `d`
+positively overlap, force their corresponding schedule atoms to have the same `p, q` coordinates,
+which means `c` and `d` have exactly the same endpoints in space. -/
+private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints
+    (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (A A' : PlacedTile G.P')
+    (t : LayerTag m) (c d : Pt × Pt)
+    (hc : c ∈ layerSides τ G m A.form t) (hd : d ∈ layerSides τ G m A'.form t)
+    (e e' : Pt × Pt)
+    (he : e ∈ fineOuterSides τ G m A.form) (he' : e' ∈ fineOuterSides τ G m A'.form)
+    (heq : placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e')
+    (hov_c : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2))
+    (hov_d : OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2))
+    (h_sch : EndpointSchedule τ G m A.form e t = EndpointSchedule τ G m A'.form e' t)
+    (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+      (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
+    placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `schedule_intermediate_sts`:
 Equal schedules on shared whole outer fine sides force positively overlapping coarse listed sides
 on opposite macroblock boundaries, in the same layer tag, to have exactly the same endpoints. -/
@@ -128,7 +167,15 @@ private theorem schedule_intermediate_sts_step1_boundary_align
     (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
       (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
     placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d := by
-  sorry
+  have _ := hτ
+  obtain ⟨e, he, e', he', heq, hov_c, hov_d⟩ :=
+    schedule_intermediate_sts_step1_boundary_align_step1_fine_sides τ G m T' hfine A A' hA hA' t c d
+      hc hd hoverlap
+  have h_sch : EndpointSchedule τ G m A.form e t = EndpointSchedule τ G m A'.form e' t := by
+    have h_sch_eq := halign A hA A' hA' e he e' he' heq
+    exact congr_fun h_sch_eq t
+  exact schedule_intermediate_sts_step1_boundary_align_step2_endpoints τ G m A A' t c d hc hd e e'
+    he he' heq hov_c hov_d h_sch hoverlap
 
 /-- Step 2 of the blueprint proof of `schedule_intermediate_sts`:
 Inside a block each original layer is already an STS supertile patch.

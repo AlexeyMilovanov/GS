@@ -176,12 +176,54 @@ def OpposingMacroside (c : MacroCertificate P) {T : PlaneTiling (typedDecoration
 
 /-! ## Statements -/
 
+/-- Step 1 of the blueprint proof of `boundary_side_of_outer_side`: By (G1) the type
+has an inner side. -/
+private lemma boundary_side_of_outer_side_step1_inner (c : MacroCertificate P) (t : c.Typ) :
+    ∃ j : c.Side t, c.IsInner (c.occ t j) :=
+  c.g1_inner_side t
+
+/-- Step 2 of the blueprint proof of `boundary_side_of_outer_side`: Walk around its
+boundary polygon from an outer side; the first side that is not outer starts at the
+endpoint of the last outer side. This lemma states there is a pair of consecutive
+sides where the first is outer and the second is inner. -/
+private lemma boundary_side_of_outer_side_step2_transition (c : MacroCertificate P) (t : c.Typ)
+    (i : c.Side t) (hi : c.IsOuter (c.occ t i)) (j : c.Side t) (hj : c.IsInner (c.occ t j)) :
+    ∃ k : c.Side t, c.IsOuter (c.occ t k) ∧ c.IsInner (c.occ t (finRotate _ k)) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `boundary_side_of_outer_side`: the endpoint of a
+side is the start of the next side. -/
+private lemma boundary_side_of_outer_side_step3_endpoint (c : MacroCertificate P) (t : c.Typ)
+    (k : c.Side t) : c.occEnd (c.occ t k) = c.occStart (c.occ t (finRotate _ k)) := rfl
+
+/-- Step 4 of the blueprint proof of `boundary_side_of_outer_side`: an outer side has
+its endpoint on the macroboundary. -/
+private lemma boundary_side_of_outer_side_step4_end_mem (c : MacroCertificate P) (t : c.Typ)
+    (k : c.Side t) (hk : c.IsOuter (c.occ t k)) :
+    c.occEnd (c.occ t k) ∈ c.macroBoundary (c.owner t) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `boundary_side_of_outer_side`: an inner side
+starting on the macroboundary is a boundary side. -/
+private lemma boundary_side_of_outer_side_step5_boundary (c : MacroCertificate P) (t : c.Typ)
+    (k' : c.Side t) (h_in : c.IsInner (c.occ t k'))
+    (h_start : c.occStart (c.occ t k') ∈ c.macroBoundary (c.owner t)) :
+    c.IsBoundary (c.occ t k') := by
+  dsimp [MacroData.IsBoundary]
+  exact ⟨h_in, Or.inl h_start⟩
+
 /-- `lem:comp/outer-boundary`: in a macrotemplate every child type with an
 outer side also has a boundary side. -/
 theorem boundary_side_of_outer_side (c : MacroCertificate P) (hH : c.Hereditary)
     (t : c.Typ) (i : c.Side t) (hi : c.IsOuter (c.occ t i)) :
     ∃ j : c.Side t, c.IsBoundary (c.occ t j) := by
-  sorry
+  have _ := hH
+  obtain ⟨j, hj⟩ := boundary_side_of_outer_side_step1_inner c t
+  obtain ⟨k, hk_out, hk_in⟩ := boundary_side_of_outer_side_step2_transition c t i hi j hj
+  use finRotate _ k
+  have h_end_mem := boundary_side_of_outer_side_step4_end_mem c t k hk_out
+  rw [boundary_side_of_outer_side_step3_endpoint c t k] at h_end_mem
+  exact boundary_side_of_outer_side_step5_boundary c t _ hk_in h_end_mem
 
 /-- `lem:comp/legal-properties`: a legal tile has a legal parent, is normal
 and identity-correct; every child of a legal tile is legal; all boundary

@@ -63,11 +63,62 @@ theorem iterate_support (n : ℕ) (p : P.Form) :
     support (τ.supertile n p) = (τ.θ ^ n) • (P.disk p).carrier := by
   sorry
 
+private lemma decomposeTile_inv_eq (B : PlacedTile P) :
+    {A : PlacedTile P | B ∈ τ.decomposeTile A} =
+    ⋃ (p : P.Form) (C ∈ (τ.rule p).tiles) (_h : C.form = B.form),
+       { (⟨p, τ.θ⁻¹ • (B.anchor -ᵥ C.anchor)⟩ : PlacedTile P) } := by
+  ext A
+  simp only [decomposeTile, translateSet, PlacedTile.translate, mem_setOf_eq, mem_image, mem_iUnion,
+    mem_singleton_iff]
+  constructor
+  · rintro ⟨C, hC, hB⟩
+    use A.form, C, hC
+    have h1 : C.form = B.form := by rw [← hB]
+    use h1
+    have h2 : τ.θ • A.anchor +ᵥ C.anchor = B.anchor := congrArg PlacedTile.anchor hB
+    have h3 : τ.θ • A.anchor = B.anchor -ᵥ C.anchor := by rw [← h2, vadd_vsub]
+    have h4 : τ.θ⁻¹ • τ.θ • A.anchor = τ.θ⁻¹ • (B.anchor -ᵥ C.anchor) := congrArg (τ.θ⁻¹ • ·) h3
+    have h5 : τ.θ ≠ 0 := by linarith [τ.one_lt]
+    have h6 : A.anchor = τ.θ⁻¹ • (B.anchor -ᵥ C.anchor) := by
+      rw [← h4]
+      exact (inv_smul_smul₀ h5 A.anchor).symm
+    cases A
+    dsimp at h6 ⊢
+    subst h6
+    rfl
+  · rintro ⟨p, C, hC, h1, h2⟩
+    have hp : p = A.form := congrArg PlacedTile.form h2.symm
+    subst hp
+    use C, hC
+    have h3 : A.anchor = τ.θ⁻¹ • (B.anchor -ᵥ C.anchor) := congrArg PlacedTile.anchor h2
+    cases B with
+    | mk form anchor =>
+      dsimp at h1
+      subst h1
+      have ht : { form := C.form, anchor := τ.θ • A.anchor +ᵥ C.anchor : PlacedTile P } =
+          { form := C.form, anchor := anchor } := by
+        congr 1
+        dsimp at h3 ⊢
+        rw [h3]
+        have h5 : τ.θ ≠ 0 := by linarith [τ.one_lt]
+        have h6 : (τ.θ • τ.θ⁻¹ • (anchor -ᵥ C.anchor : Pt) : Pt) = anchor -ᵥ C.anchor :=
+          smul_inv_smul₀ h5 _
+        exact Eq.trans (congrArg (· +ᵥ C.anchor) h6) (vsub_vadd anchor C.anchor)
+      exact ht
+
 /-- `lem:finiteparents` (finite parents): a fixed placed child has only
 finitely many possible placed parents under `τ`. -/
 theorem finite_parents (B : PlacedTile P) :
     {A : PlacedTile P | B ∈ τ.decomposeTile A}.Finite := by
-  sorry
+  rw [decomposeTile_inv_eq]
+  apply finite_iUnion
+  intro p
+  apply Finite.biUnion
+  · exact (τ.rule p).finite
+  · intro C _
+    apply finite_iUnion
+    intro _
+    exact finite_singleton _
 
 /-- `lem:sts-flc`: under STS the allowed pointed crowns form a finite set
 (they are normalized to centre `0`, i.e. taken up to translation).

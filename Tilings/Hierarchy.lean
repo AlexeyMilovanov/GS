@@ -190,7 +190,20 @@ private lemma finite_crowns_step1_vertex (h : τ.STS) (K : Set (PlacedTile P))
 placed tiles that have the origin as a listed vertex, because a tile is fixed by
 its form and the listed vertex identified with the centre. -/
 private lemma finite_crowns_step2_finite_tiles :
-    {A : PlacedTile P | 0 ∈ A.vertexSet}.Finite := sorry
+    {A : PlacedTile P | 0 ∈ A.vertexSet}.Finite := by
+  let f : (Σ p : P.Form, Fin (P.disk p).n) → PlacedTile P :=
+    fun ⟨p, i⟩ => ⟨p, - (P.disk p).vertex i⟩
+  have H : {A : PlacedTile P | 0 ∈ A.vertexSet} ⊆ range f := by
+    rintro ⟨p, a⟩ h
+    simp only [mem_setOf_eq, PlacedTile.vertexSet, mem_range] at h
+    rcases h with ⟨i, hi⟩
+    use ⟨p, i⟩
+    dsimp [f]
+    congr
+    dsimp [PlacedTile.vertex] at hi
+    have hi2 : a + (P.disk p).vertex i = 0 := hi
+    exact (eq_neg_iff_add_eq_zero.mpr hi2).symm
+  apply Set.Finite.subset (Set.finite_range f) H
 
 /-- `lem:sts-flc`: under STS the allowed pointed crowns form a finite set
 (they are normalized to centre `0`, i.e. taken up to translation).

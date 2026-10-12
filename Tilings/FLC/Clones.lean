@@ -59,9 +59,35 @@ def genuineEnum : Fin D.genuineCount ≃o D.genuineIdx := D.genuineIdx.orderIsoO
 /-- The `i`-th genuine vertex. -/
 def coarseVertex (i : Fin D.genuineCount) : Pt := D.vertex (D.genuineEnum i).1
 
+/-- Step 1 of the blueprint proof of `three_le_genuineCount`: if there are at most 2
+genuine corners, the vertices are collinear. -/
+private lemma three_le_genuineCount_step1 (h : D.genuineCount < 3) :
+    Collinear ℝ D.vertexSet := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `three_le_genuineCount`: if the vertices are
+collinear, the boundary of the carrier is contained in a line. -/
+private lemma three_le_genuineCount_step2
+    (h_eq : frontier D.carrier =
+      ⋃ i : Fin D.n, segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)))
+    (h : Collinear ℝ D.vertexSet) :
+    Collinear ℝ (frontier D.carrier) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `three_le_genuineCount`: if the boundary of a
+regular closed set is contained in a line, its interior is empty. -/
+private lemma three_le_genuineCount_step3 (h_reg : closure (interior D.carrier) = D.carrier)
+    (h : Collinear ℝ (frontier D.carrier)) :
+    ¬ (interior D.carrier).Nonempty := by
+  sorry
+
 /-- A simple polygon has at least three genuine corners. -/
 theorem three_le_genuineCount : 3 ≤ D.genuineCount := by
-  sorry
+  by_contra h
+  push_neg at h
+  exact three_le_genuineCount_step3 D D.regular_closed
+    (three_le_genuineCount_step2 D D.frontier_eq (three_le_genuineCount_step1 D h))
+    D.interior_nonempty
 
 theorem coarseVertex_injective : Function.Injective D.coarseVertex := by
   intro a b hab

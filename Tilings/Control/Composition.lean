@@ -302,13 +302,36 @@ theorem path_and_print_recovery (c : MacroCertificate P) (hH : c.Hereditary)
   exact ⟨path_and_print_recovery_step1_signals c hH K hK h hh,
     path_and_print_recovery_step2_prints c hH K hK h hh⟩
 
+/-- Step 1 of the blueprint proof of `macroblock_is_decomposition`: noncentral tiles have
+the required colours as a child of `D`. -/
+private lemma macroblock_is_decomposition_noncentral (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
+    (ht_owner : c.owner t = K.α) (ht_nc : t ≠ c.central K.α) :
+    IsChildOf c (reconstruct c K h.1) (K.tileOf t) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `macroblock_is_decomposition`: the central tile has all
+the required child cells and is an exact child of `D`. -/
+private lemma macroblock_is_decomposition_central (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
+    (ht_owner : c.owner t = K.α) (ht_c : t = c.central K.α) :
+    IsChildOf c (reconstruct c K h.1) (K.tileOf t) := by
+  sorry
+
 /-- `lem:comp/exact`: the finite patch `M` is an exact member of
 `σ̂ D` for the reconstructed parent `D`. -/
 theorem macroblock_is_decomposition (c : MacroCertificate P) (hH : c.Hereditary)
     (K : ColouredBlock c) (hK : BlockContext c K)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
     IsExactBlockOf c K (reconstruct c K h.1) := by
-  sorry
+  constructor
+  · exact hh.1
+  · intro t ht_owner
+    by_cases ht : t = c.central K.α
+    · exact macroblock_is_decomposition_central c hH K hK h hh t ht_owner ht
+    · exact macroblock_is_decomposition_noncentral c hH K hK h hh t ht_owner ht
 
 /-- `lem:comp/cyclic-legal`: if the centre `A` of `M` is legal and the type
 `t` of `D` is cyclic, then `D = A` and `D` is legal. -/

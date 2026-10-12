@@ -269,6 +269,25 @@ theorem reconstructed_header_eq (c : MacroCertificate P) (hH : c.Hereditary)
    reconstructed_header_eq_headerOf c hH K hK h hh,
    reconstructed_header_eq_innerActive c hH K hK h hh⟩
 
+/-- Step 1 of the blueprint proof of `path_and_print_recovery`: every nonprint third signal
+on `P_i(d)` equals `D_i(d)`. -/
+private lemma path_and_print_recovery_step1_signals (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
+    ∀ (d : c.Side h.1) (j : Fin 5) (o : c.SideOcc), o ∈ c.path (c.form h.1) d j →
+      ¬ c.IsPrint o → K.col o.1 o.2 2 = (reconstruct c K h.1).cell d j := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `path_and_print_recovery`: the noncentral (small)
+owner of the print of `d` has first four cells `D_1(d), …, D_4(d)` on that print. -/
+private lemma path_and_print_recovery_step2_prints (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
+    ∀ d : c.Side h.1, c.marked (c.form h.1) d → ∀ k : Fin 5, k ≠ 4 →
+      K.col (c.partner (c.printOcc (c.form h.1) d)).1 (c.partner (c.printOcc (c.form h.1) d)).2 k =
+        (reconstruct c K h.1).cell d k := by
+  sorry
+
 /-- `lem:comp/signals`: every nonprint third signal on `P_i(d)` equals
 `D_i(d)`, and the noncentral (small) owner of the print of `d` has first four
 cells `D_1(d), …, D_4(d)` on that print. -/
@@ -280,7 +299,8 @@ theorem path_and_print_recovery (c : MacroCertificate P) (hH : c.Hereditary)
     (∀ d : c.Side h.1, c.marked (c.form h.1) d → ∀ k : Fin 5, k ≠ 4 →
       K.col (c.partner (c.printOcc (c.form h.1) d)).1 (c.partner (c.printOcc (c.form h.1) d)).2 k =
         (reconstruct c K h.1).cell d k) := by
-  sorry
+  exact ⟨path_and_print_recovery_step1_signals c hH K hK h hh,
+    path_and_print_recovery_step2_prints c hH K hK h hh⟩
 
 /-- `lem:comp/exact`: the finite patch `M` is an exact member of
 `σ̂ D` for the reconstructed parent `D`. -/

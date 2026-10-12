@@ -296,12 +296,63 @@ private lemma finite_neighbourhoods_step6 (τ : Substitution P) (k : ℕ) :
       N = (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))}.Finite := by
   sorry
 
+private lemma finite_neighbourhoods_step5_decomposeTile_finite (τ : Substitution P)
+    (A : PlacedTile P) : (τ.decomposeTile A).Finite :=
+  Set.Finite.image _ (τ.rule A.form).finite
+
+private lemma finite_neighbourhoods_step5_decompose_finite (τ : Substitution P)
+    {S : Set (PlacedTile P)} (hS : S.Finite) : (τ.decompose S).Finite :=
+  Set.Finite.biUnion hS (fun A _ => finite_neighbourhoods_step5_decomposeTile_finite τ A)
+
+private lemma finite_neighbourhoods_step5_decomposeIter_finite (τ : Substitution P) (n : ℕ)
+    {S : Set (PlacedTile P)} (hS : S.Finite) : (τ.decomposeIter n S).Finite := by
+  induction' n with n ih
+  · exact hS
+  · exact finite_neighbourhoods_step5_decompose_finite τ ih
+
 /-- Step 5 of the blueprint proof of `finite_neighbourhoods`: there are finitely
 many allowed crowns and each has a finite kth image, with finitely many selected
 subpatches and distinguished tiles. -/
 private lemma finite_neighbourhoods_step5 (τ : Substitution P) (h : τ.FLC) (k : ℕ) :
     (finite_neighbourhoods_CrownContexts τ k).Finite := by
-  sorry
+  have H1 : {K | τ.IsAllowedCrown K}.Finite := h
+  let f : Set (PlacedTile P) → Set (P.Form × Set (PlacedTile P)) :=
+    fun K => {N | ∃ S ⊆ τ.decomposeIter k K, ∃ A ∈ S, N = (A.form, translateSet (-A.anchor) S)}
+  have h_subset : finite_neighbourhoods_CrownContexts τ k ⊆ ⋃ K ∈ {K | τ.IsAllowedCrown K}, f K :=
+    by
+      rintro N ⟨K, hK, S, hS, A, hA, rfl⟩
+      simp only [Set.mem_iUnion, Set.mem_setOf_eq]
+      exact ⟨K, hK, S, hS, A, hA, rfl⟩
+  apply Set.Finite.subset _ h_subset
+  apply Set.Finite.biUnion H1
+  intro K hK
+  have hCat : Crowns.IsCatalogue (Crowns.pointedCatalogue τ) :=
+    Crowns.isCatalogue_pointedCatalogue τ h
+  have hK_fin : K.Finite := (hCat.2 K hK).1
+  have h_dec_fin : (τ.decomposeIter k K).Finite :=
+    finite_neighbourhoods_step5_decomposeIter_finite τ k hK_fin
+  have h_pow_fin : {S | S ⊆ τ.decomposeIter k K}.Finite := Set.Finite.finite_subsets h_dec_fin
+  let g : Set (PlacedTile P) → Set (P.Form × Set (PlacedTile P)) :=
+    fun S => {N | ∃ A ∈ S, N = (A.form, translateSet (-A.anchor) S)}
+  have h_f_subset : f K ⊆ ⋃ S ∈ {S | S ⊆ τ.decomposeIter k K}, g S := by
+    rintro N ⟨S, hS, A, hA, rfl⟩
+    simp only [Set.mem_iUnion, Set.mem_setOf_eq]
+    exact ⟨S, hS, A, hA, rfl⟩
+  apply Set.Finite.subset _ h_f_subset
+  apply Set.Finite.biUnion h_pow_fin
+  intro S hS
+  have hS_fin : S.Finite := Set.Finite.subset h_dec_fin hS
+  let p : PlacedTile P → P.Form × Set (PlacedTile P) :=
+    fun A => (A.form, translateSet (-A.anchor) S)
+  have h_g_eq : g S = p '' S := by
+    ext N
+    constructor
+    · rintro ⟨A, hA, rfl⟩
+      exact ⟨A, hA, rfl⟩
+    · rintro ⟨A, hA, rfl⟩
+      exact ⟨A, hA, rfl⟩
+  rw [h_g_eq]
+  exact Set.Finite.image p hS_fin
 
 /-- Steps 1 to 4 of the blueprint proof of `finite_neighbourhoods`: all neighbourhood
 supports have bounded diameter, so there is k such that in supertiles of order n >= k,

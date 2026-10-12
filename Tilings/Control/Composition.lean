@@ -529,6 +529,31 @@ theorem lift_hierarchy (c : MacroCertificate P) (hH : c.Hereditary)
   exact ⟨seq', herase, hexact, hleg,
     lift_hierarchy_step2_proper c hH seq hsts seq' herase hexact hleg⟩
 
+/-- Step 1 of the blueprint proof of `projects_to_hierarchy`: repeated composition
+yields a hierarchical tiling. -/
+private lemma projects_to_hierarchy_step1_soundness (c : MacroCertificate P) (hH : c.Hereditary) :
+    ∀ T : PlaneTiling (typedDecoration c), IsProper c T →
+      (∀ X ∈ T.tiles, headerLegal c (tileDec X)) →
+      ∃ T₀ : PlaneTiling c.Q, T₀.tiles = eraseSet c T.tiles ∧ c.σ.IsHierarchical T₀ := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `projects_to_hierarchy`: lifting an actual
+hierarchy gives a legal decorated proper tiling. -/
+private lemma projects_to_hierarchy_step2_completeness (c : MacroCertificate P)
+    (hH : c.Hereditary) :
+    ∀ T₀ : PlaneTiling c.Q,
+      (∃ seq : ℕ → PlaneTiling c.Q, seq 0 = T₀ ∧
+        (∀ n, c.σ.IsComposition (seq (n + 1)) (seq n)) ∧ HierarchySupertilesSTS c seq) →
+      ∃ T : PlaneTiling (typedDecoration c), IsProper c T ∧
+        (∀ X ∈ T.tiles, headerLegal c (tileDec X)) ∧ eraseSet c T.tiles = T₀.tiles := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `projects_to_hierarchy`: finiteness of the
+legal decorated tile alphabet. -/
+private lemma projects_to_hierarchy_step3_finite (c : MacroCertificate P) (hH : c.Hereditary) :
+    {A : DecTile c | headerLegal c A}.Finite := by
+  sorry
+
 /-- `thm:comp/soundness`: with hereditary listed sides, erasing the colours
 of every proper legal tiling gives a `σ'`-hierarchical tiling; conversely
 every `σ'` hierarchy with side-to-side finite supertiles is the erasure of a
@@ -543,7 +568,9 @@ theorem projects_to_hierarchy (c : MacroCertificate P) (hH : c.Hereditary) :
       ∃ T : PlaneTiling (typedDecoration c), IsProper c T ∧
         (∀ X ∈ T.tiles, headerLegal c (tileDec X)) ∧ eraseSet c T.tiles = T₀.tiles) ∧
     {A : DecTile c | headerLegal c A}.Finite := by
-  sorry
+  exact ⟨projects_to_hierarchy_step1_soundness c hH,
+         projects_to_hierarchy_step2_completeness c hH,
+         projects_to_hierarchy_step3_finite c hH⟩
 
 end Planned
 

@@ -2179,6 +2179,34 @@ section AllowedHierarchy
 
 open Substitution Crowns
 
+/-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive`:
+Given a finite patch $F\subset T$, choose $k$ with $\theta^{-km}\operatorname{diam}|F|<\varepsilon$.
+The inverse-scaled support is covered by a crown $C$ of $T_{km}$.
+All the level-zero tiles of $F$ belong to descendants of this crown:
+coverage by the descendants and disjoint interiors give actual tile
+inclusion, not only support inclusion, by Lemma `lem:covered-tile-belongs`. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius
+    (τ : Substitution P) (hflc : τ.FLC) (m : ℕ) (hm : 0 < m)
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ k, (τ.pow m hm).IsComposition (seq (k + 1)) (seq k))
+    (hcrown : ∀ k (w : Pt), IsVertexOf (seq k).tiles w →
+      τ.IsAllowedCrown (translateSet (-w) (crown (seq k).tiles w)))
+    (F : Set (PlacedTile P)) (hF : F ⊆ (seq 0).tiles) (hF_fin : F.Finite) :
+    ∃ k : ℕ, ∃ w : Pt, IsVertexOf (seq k).tiles w ∧
+      F ⊆ τ.decomposeIter (k * m) (crown (seq k).tiles w) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive`:
+The allowed crown $C$ occurs in some supertile $S$. Thus $F \subset \tau^{km}S$,
+which is a supertile. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile
+    (τ : Substitution P) (F : Set (PlacedTile P)) (km : ℕ)
+    (w : Pt) (C : Set (PlacedTile P))
+    (hF : F ⊆ τ.decomposeIter km C)
+    (h_allowed : τ.IsAllowedCrown (translateSet (-w) C)) :
+    ∃ (n : ℕ) (p : P.Form), OccursIn F (τ.supertile n p) := by
+  sorry
+
 /-- `lem:allowed-hierarchy`: if `τ` has FLC and `T = seq 0, seq 1, …` is a
 `τ^m`-hierarchy (`seq k` plays the role of `T_{km}`) all of whose full
 pointed crowns, at every level and every listed vertex, are `τ`-allowed,
@@ -2189,7 +2217,9 @@ theorem allowed_crowns_hierarchy_is_substitutive (τ : Substitution P) (hflc : �
     (hcrown : ∀ k (w : Pt), IsVertexOf (seq k).tiles w →
       τ.IsAllowedCrown (translateSet (-w) (crown (seq k).tiles w))) :
     τ.IsSubstitutionTiling (seq 0) := by
-  sorry
+  intro F hF hF_fin
+  rcases allowed_crowns_hierarchy_is_substitutive_step1_radius τ hflc m hm seq hseq hcrown F hF hF_fin with ⟨k, w, hw, hF_sub⟩
+  exact allowed_crowns_hierarchy_is_substitutive_step2_supertile τ F (k * m) w (crown (seq k).tiles w) hF_sub (hcrown k w hw)
 
 end AllowedHierarchy
 

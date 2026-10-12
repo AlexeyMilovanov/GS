@@ -40,7 +40,14 @@ theorem locallyFinite (T : PlaneTiling P) {K : Set Pt} (hK : IsCompact K) :
 
 /-- `lem:localfinite` (countability): a plane tiling has countably many tiles. -/
 theorem countable (T : PlaneTiling P) : T.tiles.Countable := by
-  sorry
+  have H_disj : T.tiles.PairwiseDisjoint (fun A => interior A.carrier) := T.disjoint
+  have H_open : ∀ A ∈ T.tiles, IsOpen (interior A.carrier) := fun A _ => isOpen_interior
+  have H_nonempty : ∀ A ∈ T.tiles, (interior A.carrier).Nonempty := by
+    intro A _
+    have hc : A.carrier = A.anchor +ᵥ (P.disk A.form).carrier := rfl
+    rw [hc, interior_vadd]
+    exact (P.disk A.form).interior_nonempty.image (A.anchor +ᵥ ·)
+  exact H_disj.countable_of_isOpen H_open H_nonempty
 
 end PlaneTiling
 

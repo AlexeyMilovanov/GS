@@ -285,14 +285,31 @@ variable (dec : Decoration P)
 /-- Projection of a placed decorated tile. -/
 def projTile (A : PlacedTile dec.P') : PlacedTile P := ⟨dec.proj A.form, A.anchor⟩
 
+private lemma project_projTile_carrier (A : PlacedTile dec.P') :
+    (dec.projTile A).carrier = A.carrier := by
+  dsimp [PlacedTile.carrier, projTile]
+  rw [dec.carrier_eq]
+
 /-- Projection of a plane tiling. -/
 def project (T : PlaneTiling dec.P') : PlaneTiling P where
   tiles := dec.projTile '' T.tiles
   cover := by
     have := T.cover
-    sorry
+    dsimp [support] at this ⊢
+    rw [biUnion_image]
+    simp_rw [project_projTile_carrier]
+    exact this
   disjoint := by
-    sorry
+    have hd := T.disjoint
+    rintro X ⟨A, hA, rfl⟩ Y ⟨B, hB, rfl⟩ hne
+    have hd_AB : Disjoint (interior A.carrier) (interior B.carrier) := by
+      by_cases h : A = B
+      · subst h
+        exact (hne rfl).elim
+      · exact hd hA hB h
+    change Disjoint (interior (dec.projTile A).carrier) (interior (dec.projTile B).carrier)
+    rw [project_projTile_carrier, project_projTile_carrier]
+    exact hd_AB
 
 end Decoration
 

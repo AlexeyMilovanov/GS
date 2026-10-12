@@ -257,13 +257,36 @@ theorem finite_parents (B : PlacedTile P) :
     intro _
     exact finite_singleton _
 
+/-- Step 1 of the blueprint proof of `finite_crowns_step1_vertex`: if `w` is the vertex
+around which the crown is taken, then a translated tile `A = B.translate (-w)` contains
+`0` as a vertex if and only if `w` is a vertex of `B`. -/
+private lemma finite_crowns_step1_vertex_step1_translate (B : PlacedTile P) (w : Pt) :
+    (0 : Pt) ∈ (B.translate (-w)).vertexSet ↔ w ∈ B.vertexSet := sorry
+
+/-- Step 2 of the blueprint proof of `finite_crowns_step1_vertex`: in a side-to-side
+patch (like a supertile), if `w` is a vertex of some tile `C` in the patch and `w` lies
+in the closed carrier of another tile `B` in the patch, then `w` must be a vertex of `B`. -/
+private lemma finite_crowns_step1_vertex_step2_sts {τ : Substitution P} (h : τ.STS) (n : ℕ)
+    (p : P.Form) (C : PlacedTile P) (hC : C ∈ τ.supertile n p) (w : Pt) (hwC : w ∈ C.vertexSet)
+    (B : PlacedTile P) (hB : B ∈ τ.supertile n p) (hwB : w ∈ B.carrier) :
+    w ∈ B.vertexSet := sorry
+
 /-- Step 1 of the blueprint proof of `finite_crowns`: in an allowed pointed crown
 under STS, the origin is a listed vertex of every tile in the crown. This follows
 from the fact that in a side-to-side patch, a vertex cannot lie strictly inside
 a tile side with an incident open sector, nor in the interior. -/
 private lemma finite_crowns_step1_vertex (h : τ.STS) (K : Set (PlacedTile P))
     (hK : τ.IsAllowedCrown K) (A : PlacedTile P) (hA : A ∈ K) :
-    0 ∈ A.vertexSet := sorry
+    0 ∈ A.vertexSet := by
+  rcases hK with ⟨n, p, w, h_vert, rfl⟩
+  dsimp [translateSet] at hA
+  rcases hA with ⟨B, hB_crown, rfl⟩
+  dsimp [crown] at hB_crown
+  rcases hB_crown with ⟨hB_supertile, hB_carrier⟩
+  rw [finite_crowns_step1_vertex_step1_translate]
+  rcases h_vert with ⟨C, hC_supertile, hC_vert⟩
+  exact finite_crowns_step1_vertex_step2_sts h n p C hC_supertile w hC_vert B hB_supertile
+    hB_carrier
 
 /-- Step 2 of the blueprint proof of `finite_crowns`: there are only finitely many
 placed tiles that have the origin as a listed vertex, because a tile is fixed by

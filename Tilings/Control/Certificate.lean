@@ -376,6 +376,14 @@ structure MacroCertificate (P : Protoset) extends MacroData P where
   /-- (G4) The noncentral owner of a print is a small child. -/
   g4_print_small : ∀ α d, marked α d →
     kind (form (partner (toMacroData.printOcc α d)).1) = .small
+  /-- (G4/G6, review addition, 12 October 2026) In its small owner the print
+  is the unique special side of that owner: the only side of a small type
+  whose cells are copied from the parent, so that the fingerprint exception
+  of (G6) covers exactly it.  Without this clause a small type could carry a
+  nonspecial print with unconstrained copied cells, two distinct noncentral
+  parents could agree on everything visible in their common central child,
+  and `lem:comp/noncentral-legal` fails (found by codex). -/
+  g4_print_special : ∀ α d, marked α d → special (partner (toMacroData.printOcc α d))
   /-- (G4) A genuine path starts at its port. -/
   g4_path_head : ∀ α d i, toMacroData.IsGenuinePath α d i →
     (path α d i).head? = toMacroData.port α d i

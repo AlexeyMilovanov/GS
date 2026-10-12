@@ -426,10 +426,69 @@ theorem polygonLocalCone (D : PolygonalDisk) {v : Pt} (hv : v ∈ D.carrier) :
   · rintro ⟨hxc, hxr⟩
     exact ⟨(hlocal x hxr).mpr hxc, hxr⟩
 
+private lemma polygonLocalCone_tile_localCone_vadd
+    (c : Pt) (B : Set Pt) (v : Pt) :
+    localCone (c +ᵥ B) (c + v) = c +ᵥ localCone B v := by
+  ext x
+  simp only [localCone, mem_setOf_eq, mem_vadd_set_iff_neg_vadd_mem,
+    vadd_eq_add]
+  have hpoint : ∀ t : ℝ,
+      -c + (c + v + t • (x - (c + v))) = v + t • (-c + x - v) := by
+    intro t
+    abel_nf
+  constructor
+  · rintro ⟨r, hr, h⟩
+    exact ⟨r, hr, fun t ht => hpoint t ▸ h t ht⟩
+  · rintro ⟨r, hr, h⟩
+    exact ⟨r, hr, fun t ht => (hpoint t).symm ▸ h t ht⟩
+
+private lemma polygonLocalCone_tile_polygonLocalCone_vadd
+    (c : Pt) (B : Set Pt) (v : Pt) (r : ℝ) :
+    B ∩ ball v r = localCone B v ∩ ball v r ↔
+      (c +ᵥ B) ∩ ball (c + v) r =
+        localCone (c +ᵥ B) (c + v) ∩ ball (c + v) r := by
+  rw [polygonLocalCone_tile_localCone_vadd, ← vadd_eq_add]
+  have hball : ball (c +ᵥ v) r = c +ᵥ ball v r := by
+    ext x
+    simp only [mem_ball, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add]
+    have hdist : dist x (c + v) = dist (-c + x) v := by
+      rw [dist_eq_norm, dist_eq_norm]
+      have hsub : x - (c + v) = -c + x - v := by
+        abel_nf
+      rw [hsub]
+    exact Iff.of_eq (congrArg (fun y => y < r) hdist)
+  rw [hball]
+  have hinj : Function.Injective (fun x : Pt => c +ᵥ x) :=
+    add_right_injective c
+  have hB : c +ᵥ B = (fun x => c +ᵥ x) '' B := by rfl
+  have hrball : c +ᵥ ball v r = (fun x => c +ᵥ x) '' ball v r := by rfl
+  have hcone : c +ᵥ localCone B v =
+      (fun x => c +ᵥ x) '' localCone B v := by
+    rfl
+  rw [hB, hrball, hcone, ← image_inter hinj, ← image_inter hinj]
+  exact ⟨fun h => by rw [h], fun h => hinj.image_injective h⟩
+
 /-- `lem:polygon-local-cone` for placed tiles. -/
 theorem polygonLocalCone_tile (A : PlacedTile P) {v : Pt} (hv : v ∈ A.carrier) :
     ∃ r : ℝ, 0 < r ∧ A.carrier ∩ ball v r = localCone A.carrier v ∩ ball v r := by
-  sorry
+  have hv' : -A.anchor + v ∈ (P.disk A.form).carrier := by
+    have h : v ∈ A.anchor +ᵥ (P.disk A.form).carrier := hv
+    rwa [mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add] at h
+  obtain ⟨r, hr, heq⟩ := polygonLocalCone (P.disk A.form) hv'
+  use r, hr
+  have hv_eq : v = A.anchor + (-A.anchor + v) := by
+    abel_nf
+  have hrewrite :
+      A.carrier ∩ ball v r = localCone A.carrier v ∩ ball v r ↔
+        A.carrier ∩ ball (A.anchor + (-A.anchor + v)) r =
+          localCone A.carrier (A.anchor + (-A.anchor + v)) ∩
+            ball (A.anchor + (-A.anchor + v)) r := by
+    rw [← hv_eq]
+  rw [hrewrite, PlacedTile.carrier]
+  have htranslate := polygonLocalCone_tile_polygonLocalCone_vadd
+    A.anchor (P.disk A.form).carrier (-A.anchor + v) r
+  rw [← htranslate]
+  exact heq
 
 /-! ## `lem:sector-radius` -/
 

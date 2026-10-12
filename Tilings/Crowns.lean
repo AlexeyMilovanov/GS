@@ -673,11 +673,842 @@ def supertileMacro (τ : Substitution P) (n : ℕ) (p : P.Form) : MacroPatch P w
 
 /-! ## `lem:macrocorner` -/
 
+private def macroPerp (d : Pt) : Pt := !₂[-d 1, d 0]
+
+private lemma macroPerp_inner (d : Pt) : inner ℝ (macroPerp d) d = 0 := by
+  simp [macroPerp, PiLp.inner_apply, Fin.sum_univ_two]
+  ring
+
+private lemma macroPerp_ne_zero {d : Pt} (hd : d ≠ 0) : macroPerp d ≠ 0 := by
+  intro h
+  apply hd
+  have h0 := congrFun (congrArg (fun v : Pt => (v : Fin 2 → ℝ)) h) 0
+  have h1 := congrFun (congrArg (fun v : Pt => (v : Fin 2 → ℝ)) h) 1
+  simp [macroPerp] at h0 h1
+  ext i
+  fin_cases i <;> simp [h0, h1]
+
+private lemma macro_preconn_sub {s H : Set Pt} (hH : IsPreconnected H)
+    (hf : Disjoint H (frontier s)) :
+    H ⊆ interior s ∨ H ⊆ (closure s)ᶜ := by
+  refine hH.subset_or_subset isOpen_interior isClosed_closure.isOpen_compl ?_ ?_
+  · exact disjoint_compl_right.mono_left (interior_subset.trans subset_closure)
+  · intro y hy
+    by_cases h1 : y ∈ interior s
+    · exact Or.inl h1
+    · right
+      intro h2
+      exact hf.ne_of_mem hy ⟨h2, h1⟩ rfl
+
+private lemma macro_segment_compact (x y : Pt) :
+    IsCompact (segment ℝ x y) := by
+  rw [segment_eq_image']
+  exact isCompact_Icc.image (by fun_prop)
+
+private lemma macro_halfdisk (Q : PolygonalDisk) {x : Pt}
+    (hx : x ∈ frontier Q.carrier) (hv : x ∉ Q.vertexSet) :
+    ∃ (i : Fin Q.n) (ε : ℝ) (d n : Pt),
+      0 < ε ∧ d ≠ 0 ∧ n ≠ 0 ∧ inner ℝ n d = 0 ∧
+      (∀ s : ℝ, |s| < ε → x + s • d ∈ Q.side i) ∧
+      (∀ y, dist y x < ε → 0 < inner ℝ n (y - x) →
+        y ∈ interior Q.carrier) := by
+  have hx' := hx
+  rw [Q.frontier_eq, mem_iUnion] at hx'
+  obtain ⟨i, hxi⟩ := hx'
+  set v := Q.vertex i with hvdef
+  set w := Q.vertex (finRotate Q.n i) with hwdef
+  have hxv : x ≠ v := fun h => hv ⟨i, h.symm⟩
+  have hxw : x ≠ w := fun h => hv ⟨finRotate Q.n i, h.symm⟩
+  rw [segment_eq_image'] at hxi
+  obtain ⟨t, ⟨ht0, ht1⟩, hxt⟩ := hxi
+  set d := w - v with hd
+  have hd0 : d ≠ 0 := by
+    intro h
+    apply hxv
+    rw [← hxt, h]
+    simp
+  have ht0' : t ≠ 0 := by
+    rintro rfl
+    apply hxv
+    rw [← hxt]
+    simp
+  have ht1' : t ≠ 1 := by
+    rintro rfl
+    apply hxw
+    rw [← hxt]
+    simp [hd]
+  have htpos : 0 < t := lt_of_le_of_ne ht0 (Ne.symm ht0')
+  have htlt : t < 1 := lt_of_le_of_ne ht1 ht1'
+  set O : Set Pt :=
+    ⋃ j ∈ ({j | j ≠ i} : Set (Fin Q.n)), Q.side j with hO
+  have hOc : IsClosed O := by
+    apply Set.Finite.isClosed_biUnion (Set.toFinite _)
+    intro j _
+    exact (macro_segment_compact _ _).isClosed
+  have hxO : x ∉ O := by
+    simp only [hO, mem_iUnion, mem_setOf_eq, not_exists]
+    intro j hj hxj
+    have hxi2 : x ∈ Q.side i := by
+      rw [PolygonalDisk.side, segment_eq_image']
+      exact ⟨t, ⟨ht0, ht1⟩, hxt⟩
+    have := Q.simple i j (Ne.symm hj) ⟨hxi2, hxj⟩
+    rcases this.1 with h | h
+    · exact hxv h
+    · exact hxw h
+  obtain ⟨ε₁, hε₁, hε₁O⟩ :=
+    Metric.isOpen_iff.mp hOc.isOpen_compl x hxO
+  have hfr : ∀ y, dist y x < ε₁ → y ∈ frontier Q.carrier →
+      ∃ θ : ℝ, y = v + θ • d := by
+    intro y hy hyf
+    rw [Q.frontier_eq, mem_iUnion] at hyf
+    obtain ⟨j, hj⟩ := hyf
+    by_cases hji : j = i
+    · subst hji
+      rw [segment_eq_image'] at hj
+      obtain ⟨θ, _, hθ⟩ := hj
+      exact ⟨θ, hθ.symm⟩
+    · exfalso
+      have : y ∈ O := by
+        simp only [hO, mem_iUnion, mem_setOf_eq]
+        exact ⟨j, hji, hj⟩
+      exact hε₁O (Metric.mem_ball.mpr hy) this
+  set n₀ := macroPerp d with hn₀
+  have hn₀d : inner ℝ n₀ d = 0 := macroPerp_inner d
+  have hn₀ne : n₀ ≠ 0 := macroPerp_ne_zero hd0
+  have hline : ∀ θ : ℝ, inner ℝ n₀ (v + θ • d - x) = 0 := by
+    intro θ
+    rw [← hxt]
+    have : v + θ • d - (v + t • d) = (θ - t) • d := by
+      rw [sub_smul]
+      abel
+    rw [this, inner_smul_right, hn₀d, mul_zero]
+  set ε := min ε₁ (min t (1 - t)) with hε
+  have hεpos : 0 < ε := lt_min hε₁ (lt_min htpos (by linarith))
+  have hxcl : x ∈ closure (interior Q.carrier) := by
+    rw [Q.regular_closed]
+    exact Q.compact.isClosed.frontier_subset hx
+  obtain ⟨z0, hz0i, hz0x⟩ :=
+    Metric.mem_closure_iff.mp hxcl (ε / 2) (by linarith)
+  obtain ⟨δ0, hδ0, hδ0b⟩ :=
+    Metric.isOpen_iff.mp isOpen_interior z0 hz0i
+  have hz : ∃ z ∈ interior Q.carrier, dist z x < ε ∧
+      inner ℝ n₀ (z - x) ≠ 0 := by
+    by_cases hz0 : inner ℝ n₀ (z0 - x) = 0
+    · have hnpos : 0 < ‖n₀‖ := norm_pos_iff.mpr hn₀ne
+      set δ := min δ0 (ε / 2) / (2 * ‖n₀‖) with hδ
+      have hmin : 0 < min δ0 (ε / 2) :=
+        lt_min hδ0 (by linarith)
+      have hδpos : 0 < δ := div_pos hmin (by positivity)
+      have hnorm : ‖δ • n₀‖ = min δ0 (ε / 2) / 2 := by
+        rw [norm_smul, Real.norm_of_nonneg hδpos.le, hδ]
+        field_simp
+      refine ⟨z0 + δ • n₀, hδ0b ?_, ?_, ?_⟩
+      · rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, hnorm]
+        have := min_le_left δ0 (ε / 2)
+        linarith
+      · calc
+          dist (z0 + δ • n₀) x ≤
+              dist (z0 + δ • n₀) z0 + dist z0 x :=
+            dist_triangle _ _ _
+          _ < ε := by
+            rw [dist_eq_norm, add_sub_cancel_left, hnorm, dist_comm]
+            have := min_le_right δ0 (ε / 2)
+            linarith
+      · have : z0 + δ • n₀ - x = (z0 - x) + δ • n₀ := by
+          abel
+        rw [this, inner_add_right, hz0, inner_smul_right,
+          real_inner_self_eq_norm_sq]
+        positivity
+    · exact ⟨z0, hz0i, by rw [dist_comm]; linarith, hz0⟩
+  obtain ⟨z, hzi, hzx, hzn⟩ := hz
+  have hsign : ∃ n : Pt, n ≠ 0 ∧ inner ℝ n d = 0 ∧
+      0 < inner ℝ n (z - x) ∧
+      ∀ θ : ℝ, inner ℝ n (v + θ • d - x) = 0 := by
+    rcases lt_or_gt_of_ne hzn with h | h
+    · refine ⟨-n₀, neg_ne_zero.mpr hn₀ne, ?_, ?_, ?_⟩
+      · rw [inner_neg_left, hn₀d, neg_zero]
+      · rw [inner_neg_left]
+        linarith
+      · intro θ
+        rw [inner_neg_left, hline, neg_zero]
+    · exact ⟨n₀, hn₀ne, hn₀d, h, hline⟩
+  obtain ⟨n, hn0, hnd, hnz, hnline⟩ := hsign
+  refine ⟨i, ε, d, n, hεpos, hd0, hn0, hnd, ?_, ?_⟩
+  · intro s hs
+    rw [PolygonalDisk.side, segment_eq_image']
+    have hs1 : |s| < t :=
+      lt_of_lt_of_le hs ((min_le_right _ _).trans (min_le_left _ _))
+    have hs2 : |s| < 1 - t :=
+      lt_of_lt_of_le hs ((min_le_right _ _).trans (min_le_right _ _))
+    refine ⟨t + s, ⟨?_, ?_⟩, ?_⟩
+    · have := neg_abs_le s
+      linarith
+    · have := le_abs_self s
+      linarith
+    · show v + (t + s) • d = x + s • d
+      rw [← hxt, add_smul]
+      simp only
+      abel
+  · set H : Set Pt :=
+      Metric.ball x ε ∩ {y | 0 < inner ℝ n (y - x)} with hH
+    have hHconv : Convex ℝ H := by
+      apply (convex_ball x ε).inter
+      intro a ha b hb α β hα hβ hαβ
+      simp only [mem_setOf_eq] at ha hb ⊢
+      have : α • a + β • b - x =
+          α • (a - x) + β • (b - x) := by
+        calc
+          α • a + β • b - x =
+              α • a + β • b - (α + β) • x := by
+            rw [hαβ, one_smul]
+          _ = α • (a - x) + β • (b - x) := by
+            rw [add_smul, smul_sub, smul_sub]
+            abel
+      rw [this, inner_add_right, inner_smul_right, inner_smul_right]
+      rcases hα.eq_or_lt with h | h
+      · subst h
+        simp at hαβ
+        subst hαβ
+        simpa using hb
+      · have := mul_pos h ha
+        nlinarith
+    have hHdisj : Disjoint H (frontier Q.carrier) := by
+      rw [Set.disjoint_left]
+      rintro y ⟨hy1, hy2⟩ hyf
+      have hy1' : dist y x < ε₁ :=
+        lt_of_lt_of_le (Metric.mem_ball.mp hy1) (min_le_left _ _)
+      obtain ⟨θ, rfl⟩ := hfr y hy1' hyf
+      simp only [mem_setOf_eq] at hy2
+      rw [hnline θ] at hy2
+      exact lt_irrefl _ hy2
+    rcases macro_preconn_sub hHconv.isPreconnected hHdisj with h | h
+    · intro y hy hyn
+      exact h ⟨Metric.mem_ball.mpr hy, hyn⟩
+    · exfalso
+      exact h ⟨Metric.mem_ball.mpr hzx, hnz⟩
+        (subset_closure (interior_subset hzi))
+
+private lemma macro_parallel {n a b : Pt} (hn : n ≠ 0) (hb : b ≠ 0)
+    (ha0 : inner ℝ n a = 0) (hb0 : inner ℝ n b = 0) :
+    ∃ c : ℝ, a = c • b := by
+  simp only [PiLp.inner_apply, Fin.sum_univ_two, RCLike.inner_apply,
+    conj_trivial] at ha0 hb0
+  have hcross : a 0 * b 1 = a 1 * b 0 := by
+    by_cases h0 : n 0 = 0
+    · have h1 : n 1 ≠ 0 := by
+        intro h1
+        apply hn
+        ext i
+        fin_cases i <;> simp [h0, h1]
+      have e1 : a 1 = 0 := by
+        rw [h0] at ha0
+        simp at ha0
+        rcases ha0 with h | h <;> simp_all
+      have e2 : b 1 = 0 := by
+        rw [h0] at hb0
+        simp at hb0
+        rcases hb0 with h | h <;> simp_all
+      rw [e1, e2]
+      ring
+    · have : n 0 * (a 0 * b 1 - a 1 * b 0) = 0 := by
+        linear_combination b 1 * ha0 - a 1 * hb0
+      rcases mul_eq_zero.mp this with h | h
+      · exact absurd h h0
+      · linarith
+  by_cases hb0' : b 0 = 0
+  · have hb1 : b 1 ≠ 0 := by
+      intro h1
+      apply hb
+      ext i
+      fin_cases i <;> simp [hb0', h1]
+    refine ⟨a 1 / b 1, ?_⟩
+    ext i
+    fin_cases i
+    · simp only [Fin.zero_eta, Fin.isValue, PiLp.smul_apply, smul_eq_mul]
+      rw [hb0'] at hcross ⊢
+      have : a 0 = 0 := by
+        have := hcross
+        simp at this
+        rcases this with h | h
+        · exact h
+        · exact absurd h hb1
+      rw [this]
+      ring
+    · simp only [Fin.mk_one, Fin.isValue, PiLp.smul_apply, smul_eq_mul]
+      field_simp
+  · refine ⟨a 0 / b 0, ?_⟩
+    ext i
+    fin_cases i
+    · simp only [Fin.zero_eta, Fin.isValue, PiLp.smul_apply, smul_eq_mul]
+      field_simp
+    · simp only [Fin.mk_one, Fin.isValue, PiLp.smul_apply, smul_eq_mul]
+      field_simp
+      linarith
+
+private lemma macro_tile_regular (A : PlacedTile P) :
+    closure (interior A.carrier) = A.carrier := by
+  unfold PlacedTile.carrier
+  rw [interior_vadd, closure_vadd, (P.disk A.form).regular_closed]
+
+private lemma macro_halfdisk_tile (A : PlacedTile P) {x : Pt}
+    (hx : x ∈ A.carrier) (hint : x ∉ interior A.carrier)
+    (hv : x ∉ A.vertexSet) :
+    ∃ (i : Fin (P.disk A.form).n) (ε : ℝ) (d n : Pt),
+      0 < ε ∧ d ≠ 0 ∧ n ≠ 0 ∧ inner ℝ n d = 0 ∧
+      (∀ s : ℝ, |s| < ε → x + s • d ∈ A.side i) ∧
+      (∀ y, dist y x < ε → 0 < inner ℝ n (y - x) →
+        y ∈ interior A.carrier) := by
+  set Q := P.disk A.form
+  have hx' : -A.anchor + x ∈ frontier Q.carrier := by
+    unfold PlacedTile.carrier at hx hint
+    rw [interior_vadd, mem_vadd_set_iff_neg_vadd_mem] at hint
+    rw [mem_vadd_set_iff_neg_vadd_mem] at hx
+    rw [Q.compact.isClosed.frontier_eq]
+    exact ⟨hx, hint⟩
+  have hv' : -A.anchor + x ∉ Q.vertexSet := by
+    rintro ⟨k, hk⟩
+    apply hv
+    refine ⟨k, ?_⟩
+    simp only [PlacedTile.vertex, vadd_eq_add]
+    rw [hk]
+    abel
+  obtain ⟨i, ε, d, n, hε, hd, hn, hnd, hs, hy⟩ :=
+    macro_halfdisk Q hx' hv'
+  refine ⟨i, ε, d, n, hε, hd, hn, hnd, ?_, ?_⟩
+  · intro s hs'
+    have := hs s hs'
+    unfold PlacedTile.side
+    rw [mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add]
+    convert this using 1
+    all_goals abel
+  · intro y hyx hyn
+    unfold PlacedTile.carrier
+    rw [interior_vadd, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add]
+    apply hy
+    · rw [dist_eq_norm] at hyx ⊢
+      convert hyx using 2
+      all_goals abel
+    · convert hyn using 2
+      all_goals abel
+
+private lemma macro_tiles_share_local_side {A B : PlacedTile P}
+    (hd : Disjoint (interior A.carrier) (interior B.carrier))
+    {x : Pt} (hxA : x ∈ A.carrier) (hxB : x ∈ B.carrier)
+    (hvA : x ∉ A.vertexSet) (hvB : x ∉ B.vertexSet) :
+    ∃ i j, x ∈ A.side i ∧ x ∈ B.side j ∧
+      OverlapPos (A.side i) (B.side j) := by
+  have hnotint : ∀ {A B : PlacedTile P},
+      Disjoint (interior A.carrier) (interior B.carrier) →
+      x ∈ B.carrier → x ∉ interior A.carrier := by
+    intro A B hd hxB hxA
+    rw [← macro_tile_regular B, mem_closure_iff_nhds] at hxB
+    obtain ⟨z, hz1, hz2⟩ :=
+      hxB _ (isOpen_interior.mem_nhds hxA)
+    exact Set.disjoint_left.mp hd hz1 hz2
+  obtain ⟨i, ε₁, d₁, n₁, hε₁, hd₁, hn₁, hnd₁, hs₁, hy₁⟩ :=
+    macro_halfdisk_tile A hxA (hnotint hd hxB) hvA
+  obtain ⟨j, ε₂, d₂, n₂, hε₂, hd₂, hn₂, hnd₂, hs₂, hy₂⟩ :=
+    macro_halfdisk_tile B hxB (hnotint hd.symm hxA) hvB
+  have key : inner ℝ n₂ d₁ = 0 := by
+    by_contra hne
+    obtain ⟨w, hw2, hw1⟩ :
+        ∃ w : Pt, 0 < inner ℝ n₂ w ∧ inner ℝ n₁ w = 0 := by
+      rcases lt_or_gt_of_ne hne with h | h
+      · exact ⟨-d₁, by rw [inner_neg_right]; linarith,
+          by rw [inner_neg_right, hnd₁, neg_zero]⟩
+      · exact ⟨d₁, h, hnd₁⟩
+    set τ := (|inner ℝ n₂ n₁| + 1) / inner ℝ n₂ w with hτ
+    set u := n₁ + τ • w with hu
+    have hu2 : 0 < inner ℝ n₂ u := by
+      rw [hu, inner_add_right, inner_smul_right, hτ,
+        div_mul_cancel₀ _ hw2.ne']
+      have := neg_abs_le (inner ℝ n₂ n₁)
+      linarith
+    have hu1 : 0 < inner ℝ n₁ u := by
+      rw [hu, inner_add_right, inner_smul_right, hw1, mul_zero,
+        add_zero, real_inner_self_eq_norm_sq]
+      have := norm_pos_iff.mpr hn₁
+      positivity
+    have hu0 : u ≠ 0 := by
+      rintro h
+      rw [h, inner_zero_right] at hu1
+      exact lt_irrefl _ hu1
+    have hunorm : 0 < ‖u‖ := norm_pos_iff.mpr hu0
+    set δ := min ε₁ ε₂ / (2 * ‖u‖) with hδ
+    have hδpos : 0 < δ :=
+      div_pos (lt_min hε₁ hε₂) (by positivity)
+    have hdist : dist (x + δ • u) x = min ε₁ ε₂ / 2 := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_of_nonneg hδpos.le, hδ]
+      field_simp
+    have h1 : x + δ • u ∈ interior A.carrier := by
+      apply hy₁ _ (by rw [hdist]; have := min_le_left ε₁ ε₂; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]
+      positivity
+    have h2 : x + δ • u ∈ interior B.carrier := by
+      apply hy₂ _ (by rw [hdist]; have := min_le_right ε₁ ε₂; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]
+      positivity
+    exact Set.disjoint_left.mp hd h1 h2
+  obtain ⟨c, hc⟩ := macro_parallel hn₂ hd₂ key hnd₂
+  have hc0 : c ≠ 0 := by
+    rintro rfl
+    apply hd₁
+    rw [hc, zero_smul]
+  have hcpos : 0 < |c| := abs_pos.mpr hc0
+  set s₀ := min ε₁ (ε₂ / |c|) / 2 with hs₀
+  have hs₀pos : 0 < s₀ := by
+    have : 0 < min ε₁ (ε₂ / |c|) :=
+      lt_min hε₁ (div_pos hε₂ hcpos)
+    positivity
+  have hxi : x ∈ A.side i := by
+    simpa using hs₁ 0 (by simpa using hε₁)
+  have hxj : x ∈ B.side j := by
+    simpa using hs₂ 0 (by simpa using hε₂)
+  refine ⟨i, j, hxi, hxj,
+    x + (-s₀) • d₁, x + s₀ • d₁, ?_, ?_⟩
+  · intro h
+    have : (2 * s₀) • d₁ = 0 := by
+      have h' := congrArg (fun z => z - x) h
+      simp only [add_sub_cancel_left] at h'
+      have e : (2 * s₀) • d₁ =
+          s₀ • d₁ - (-s₀) • d₁ := by
+        rw [neg_smul, sub_neg_eq_add, ← add_smul, two_mul]
+      rw [e, h', sub_self]
+    rcases smul_eq_zero.mp this with h | h
+    · linarith
+    · exact hd₁ h
+  · rw [segment_eq_image']
+    rintro _ ⟨θ, ⟨hθ0, hθ1⟩, rfl⟩
+    have he :
+        x + (-s₀) • d₁ +
+            θ • (x + s₀ • d₁ - (x + (-s₀) • d₁)) =
+          x + ((2 * θ - 1) * s₀) • d₁ := by
+      rw [add_sub_add_left_eq_sub, ← sub_smul]
+      rw [smul_smul, add_assoc, ← add_smul]
+      congr 2
+      ring
+    simp only
+    rw [he]
+    have hab : |(2 * θ - 1) * s₀| ≤ s₀ := by
+      rw [abs_mul, abs_of_pos hs₀pos]
+      have : |2 * θ - 1| ≤ 1 :=
+        abs_le.mpr ⟨by linarith, by linarith⟩
+      nlinarith [abs_nonneg (2 * θ - 1)]
+    have hm1 := min_le_left ε₁ (ε₂ / |c|)
+    have hm2 := min_le_right ε₁ (ε₂ / |c|)
+    refine ⟨hs₁ _ (by linarith), ?_⟩
+    rw [hc, smul_smul]
+    apply hs₂
+    rw [abs_mul]
+    calc
+      |(2 * θ - 1) * s₀| * |c| ≤ s₀ * |c| := by gcongr
+      _ < ε₂ / |c| * |c| := by
+        gcongr
+        linarith
+      _ = ε₂ := div_mul_cancel₀ _ hcpos.ne'
+
+private lemma macro_tile_side_eq (A : PlacedTile P)
+    (i : Fin (P.disk A.form).n) :
+    A.side i = segment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+  simp [PlacedTile.side, PolygonalDisk.side, PlacedTile.vertex, vadd_segment]
+
+private lemma macro_tile_closed (A : PlacedTile P) : IsClosed A.carrier := by
+  unfold PlacedTile.carrier
+  exact (P.disk A.form).compact.isClosed.vadd _
+
+private lemma macro_tile_frontier_eq (A : PlacedTile P) :
+    frontier A.carrier = ⋃ i, A.side i := by
+  unfold PlacedTile.carrier PlacedTile.side
+  rw [frontier, interior_vadd, closure_vadd, ← Set.vadd_set_sdiff,
+    ← frontier, (P.disk A.form).frontier_eq, Set.vadd_set_iUnion]
+  simp only [PolygonalDisk.side]
+
+private lemma macro_tile_local_side (A : PlacedTile P) {q : Pt}
+    (hq : q ∈ frontier A.carrier) (hv : q ∉ A.vertexSet) :
+    ∃ (i : Fin (P.disk A.form).n) (r : ℝ), 0 < r ∧ q ∈ A.side i ∧
+      ∀ z ∈ ball q r, z ∈ frontier A.carrier → z ∈ A.side i := by
+  rw [macro_tile_frontier_eq, mem_iUnion] at hq
+  obtain ⟨i, hqi⟩ := hq
+  have hqopen : q ∈ openSegment ℝ (A.vertex i)
+      (A.vertex (finRotate _ i)) := by
+    rw [macro_tile_side_eq] at hqi
+    apply mem_openSegment_of_ne_left_right
+    · intro h
+      exact hv ⟨i, h⟩
+    · intro h
+      exact hv ⟨finRotate _ i, h⟩
+    · exact hqi
+  let O : Set Pt := ⋃ j ∈ ({j | j ≠ i} : Set (Fin (P.disk A.form).n)),
+    A.side j
+  have hOc : IsClosed O := by
+    apply Set.Finite.isClosed_biUnion (Set.toFinite _)
+    intro j _
+    rw [macro_tile_side_eq]
+    exact (macro_segment_compact _ _).isClosed
+  have hqO : q ∉ O := by
+    intro h
+    simp only [O, mem_iUnion, mem_setOf_eq] at h
+    obtain ⟨j, hji, hqj⟩ := h
+    rw [macro_tile_side_eq] at hqj
+    have hs := (P.disk A.form).simple i j (Ne.symm hji)
+    have hqroot : -A.anchor + q ∈
+        segment ℝ ((P.disk A.form).vertex i)
+          ((P.disk A.form).vertex (finRotate _ i)) := by
+      change -A.anchor + q ∈ (P.disk A.form).side i
+      unfold PlacedTile.side at hqi
+      simpa [vadd_eq_add] using
+        (mem_vadd_set_iff_neg_vadd_mem.mp hqi)
+    have hqroot' : -A.anchor + q ∈
+        segment ℝ ((P.disk A.form).vertex j)
+          ((P.disk A.form).vertex (finRotate _ j)) := by
+      change -A.anchor + q ∈ (P.disk A.form).side j
+      have hqjSide : q ∈ A.side j := by
+        rw [macro_tile_side_eq]
+        exact hqj
+      unfold PlacedTile.side at hqjSide
+      simpa [vadd_eq_add] using
+        (mem_vadd_set_iff_neg_vadd_mem.mp hqjSide)
+    have hend := hs ⟨hqroot, hqroot'⟩
+    rcases hend.1 with h | h
+    · apply hv
+      exact ⟨i,
+        by simpa [PlacedTile.vertex] using (congrArg (A.anchor + ·) h).symm⟩
+    · apply hv
+      rw [Set.mem_singleton_iff] at h
+      exact ⟨finRotate _ i,
+        by simpa [PlacedTile.vertex] using (congrArg (A.anchor + ·) h).symm⟩
+  obtain ⟨r, hr, hrO⟩ := Metric.isOpen_iff.mp hOc.isOpen_compl q hqO
+  have hqiSide : q ∈ A.side i := by
+    rw [macro_tile_side_eq]
+    exact openSegment_subset_segment ℝ _ _ hqopen
+  refine ⟨i, r, hr, hqiSide, ?_⟩
+  intro z hzr hzf
+  rw [macro_tile_frontier_eq, mem_iUnion] at hzf
+  obtain ⟨j, hzj⟩ := hzf
+  by_cases hji : j = i
+  · simpa [hji] using hzj
+  · apply (hrO hzr).elim
+    exact Set.mem_iUnion₂.mpr ⟨j, hji, hzj⟩
+
+private lemma macro_tile_side_unique (A : PlacedTile P) {q : Pt}
+    (hv : q ∉ A.vertexSet) {i j : Fin (P.disk A.form).n}
+    (hqi : q ∈ A.side i) (hqj : q ∈ A.side j) : i = j := by
+  by_contra hij
+  have hqiRoot : -A.anchor + q ∈ (P.disk A.form).side i := by
+    unfold PlacedTile.side at hqi
+    simpa [vadd_eq_add] using
+      (mem_vadd_set_iff_neg_vadd_mem.mp hqi)
+  have hqjRoot : -A.anchor + q ∈ (P.disk A.form).side j := by
+    unfold PlacedTile.side at hqj
+    simpa [vadd_eq_add] using
+      (mem_vadd_set_iff_neg_vadd_mem.mp hqj)
+  have hs := (P.disk A.form).simple i j hij ⟨hqiRoot, hqjRoot⟩
+  rcases hs.1 with h | h
+  · apply hv
+    exact ⟨i,
+      by simpa [PlacedTile.vertex] using (congrArg (A.anchor + ·) h).symm⟩
+  · rw [Set.mem_singleton_iff] at h
+    apply hv
+    exact ⟨finRotate _ i,
+      by simpa [PlacedTile.vertex] using (congrArg (A.anchor + ·) h).symm⟩
+
+private lemma macro_tile_side_subset_frontier (A : PlacedTile P)
+    (i : Fin (P.disk A.form).n) : A.side i ⊆ frontier A.carrier := by
+  rw [macro_tile_frontier_eq]
+  exact subset_iUnion (fun j => A.side j) i
+
+private lemma macro_finite_pos_lower {X : Type*} {S : Set X}
+    (hS : S.Finite) (r : X → ℝ) (hr : ∀ x ∈ S, 0 < r x) :
+    ∃ δ : ℝ, 0 < δ ∧ ∀ x ∈ S, δ ≤ r x := by
+  induction S, hS using Set.Finite.induction_on with
+  | empty => exact ⟨1, zero_lt_one, by simp⟩
+  | @insert a S ha hS ih =>
+      obtain ⟨δ, hδ, hδle⟩ := ih (fun x hx => hr x (Set.mem_insert_of_mem a hx))
+      refine ⟨min δ (r a), lt_min hδ (hr a (Set.mem_insert a S)), ?_⟩
+      intro x hx
+      rcases Set.mem_insert_iff.mp hx with rfl | hx
+      · exact min_le_right _ _
+      · exact (min_le_left _ _).trans (hδle x hx)
+
+private lemma macro_support_closed (M : MacroPatch P) :
+    IsClosed (support M.tiles) := by
+  exact M.finite.isClosed_biUnion fun A _ => macro_tile_closed A
+
+private lemma macro_map_frontier (M : MacroPatch P) {x : Pt}
+    (hx : x ∈ frontier (P.disk M.root).carrier) :
+    M.map x ∈ frontier (support M.tiles) := by
+  have hspos : 0 < M.θ ^ M.j := pow_pos (lt_trans zero_lt_one M.one_lt) _
+  have hs : M.θ ^ M.j ≠ 0 := hspos.ne'
+  rw [M.support_eq, frontier, interior_vadd, closure_vadd,
+    interior_smul₀ hs, closure_smul₀ (M.θ ^ M.j) (P.disk M.root).carrier,
+    ← Set.vadd_set_sdiff, ← Set.smul_set_sdiff₀ hs, ← frontier]
+  exact Set.vadd_mem_vadd_set (Set.smul_mem_smul_set hx)
+
+private lemma macro_point_on_common_line {a b q z p R : Pt} {t : ℝ}
+    (hq : q ∈ segment ℝ a b) (hz : z ∈ segment ℝ a b)
+    (hp : p ∈ segment ℝ a b) (hpq : p ≠ q) (ht : 0 < t)
+    (hzR : z = q + t • (R - q)) :
+    ∃ c : ℝ, R = q + c • (p - q) := by
+  rw [crown_mem_segment_iff] at hq hz hp
+  obtain ⟨α, _, _, hq⟩ := hq
+  obtain ⟨γ, _, _, hz⟩ := hz
+  obtain ⟨β, _, _, hp⟩ := hp
+  let d := b - a
+  have hpform : p - q = (β - α) • d := by
+    dsimp only [d]
+    rw [hp, hq]
+    module
+  have hzform : z - q = (γ - α) • d := by
+    dsimp only [d]
+    rw [hz, hq]
+    module
+  have hba : β - α ≠ 0 := by
+    intro h
+    apply hpq
+    rw [sub_eq_zero.mp h] at hp
+    exact hp.trans hq.symm
+  have htform : t • (R - q) = (γ - α) • d := by
+    rw [← hzform, hzR, add_sub_cancel_left]
+  have hRq : R - q = t⁻¹ • ((γ - α) • d) := by
+    have h := congrArg (fun w : Pt => t⁻¹ • w) htform
+    simpa [inv_smul_smul₀ ht.ne'] using h
+  refine ⟨(γ - α) / (t * (β - α)), ?_⟩
+  have heq : R - q =
+      ((γ - α) / (t * (β - α))) • (p - q) := by
+    rw [hRq, hpform, smul_smul, smul_smul]
+    congr 1
+    field_simp
+  simpa [add_comm] using sub_eq_iff_eq_add.mp heq
+
 /-- `lem:macrocorner`: every genuine macro corner is a listed vertex of at
 least one child tile. -/
 theorem macrocornerIsChildVertex (M : MacroPatch P) {q : Pt}
     (hq : q ∈ genuineMacroCorners M) : IsVertexOf M.tiles q := by
-  sorry
+  classical
+  rw [genuineMacroCorners, PolygonalDisk.genuineCorners] at hq
+  obtain ⟨v, ⟨k, hk, rfl⟩, rfl⟩ := hq
+  let D := P.disk M.root
+  change D.IsGenuineVertex k at hk
+  let q := M.map (D.vertex k)
+  change IsVertexOf M.tiles q
+  by_contra hvertex
+  rw [IsVertexOf] at hvertex
+  push_neg at hvertex
+  have hvfront : D.vertex k ∈ frontier D.carrier := by
+    rw [D.frontier_eq]
+    exact Set.mem_iUnion.mpr
+      ⟨k, left_mem_segment ℝ (D.vertex k) (D.vertex (finRotate D.n k))⟩
+  have hqfront : q ∈ frontier (support M.tiles) :=
+    macro_map_frontier M hvfront
+  have hradius : ∀ A : PlacedTile P, ∃ r : ℝ, 0 < r ∧
+      (A ∈ M.tiles → ∀ z ∈ ball q r, z ∈ A.carrier →
+        z ∉ interior A.carrier →
+        ∃ i, q ∈ A.side i ∧ z ∈ A.side i) := by
+    intro A
+    by_cases hA : A ∈ M.tiles
+    · by_cases hqA : q ∈ A.carrier
+      · have hqAi : q ∉ interior A.carrier := by
+          intro h
+          exact hqfront.2 (interior_mono
+            (fun x hx => Set.mem_iUnion₂.mpr ⟨A, hA, hx⟩) h)
+        have hqAf : q ∈ frontier A.carrier := by
+          rw [frontier, (macro_tile_closed A).closure_eq]
+          exact ⟨hqA, hqAi⟩
+        obtain ⟨i, r, hr, hqi, hlocal⟩ :=
+          macro_tile_local_side A hqAf (hvertex A hA)
+        refine ⟨r, hr, fun _ z hz hzA hzi => ⟨i, hqi, hlocal z hz ?_⟩⟩
+        rw [frontier, (macro_tile_closed A).closure_eq]
+        exact ⟨hzA, hzi⟩
+      · obtain ⟨r, hr, hball⟩ :=
+          Metric.isOpen_iff.mp (macro_tile_closed A).isOpen_compl q hqA
+        refine ⟨r, hr, fun _ z hz hzA _ => ?_⟩
+        exact (hball hz hzA).elim
+    · exact ⟨1, zero_lt_one, fun h => (hA h).elim⟩
+  choose rad hradpos hrad using hradius
+  obtain ⟨δ, hδ, hδle⟩ :=
+    macro_finite_pos_lower M.finite rad (fun A hA => hradpos A)
+  have hedge : ∀ rroot : Pt, rroot ≠ D.vertex k →
+      segment ℝ (D.vertex k) rroot ⊆ frontier D.carrier →
+      ∃ A ∈ M.tiles, ∃ (i : Fin (P.disk A.form).n) (t : ℝ) (z : Pt),
+        0 < t ∧ z = q + t • (M.map rroot - q) ∧
+        q ∈ A.side i ∧ z ∈ A.side i := by
+    intro rroot hrne hrside
+    have hscale : M.θ ^ M.j ≠ 0 :=
+      (pow_pos (lt_trans zero_lt_one M.one_lt) _).ne'
+    have hmapne : M.map rroot ≠ q := by
+      intro h
+      apply hrne
+      apply smul_right_injective Pt hscale
+      change M.offset + (M.θ ^ M.j) • rroot =
+        M.offset + (M.θ ^ M.j) • D.vertex k at h
+      exact add_left_cancel h
+    have hnorm : 0 < ‖M.map rroot - q‖ :=
+      norm_pos_iff.mpr (sub_ne_zero.mpr hmapne)
+    let t : ℝ := min (1 / 2) (δ / (2 * ‖M.map rroot - q‖))
+    have ht : 0 < t :=
+      lt_min (by norm_num) (div_pos hδ (by positivity))
+    have htone : t < 1 :=
+      lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+    let xroot := D.vertex k + t • (rroot - D.vertex k)
+    let z := M.map xroot
+    have hxseg : xroot ∈ segment ℝ (D.vertex k) rroot :=
+      crown_mem_segment_iff.mpr ⟨t, ht.le, htone.le, rfl⟩
+    have hzfront : z ∈ frontier (support M.tiles) :=
+      macro_map_frontier M (hrside hxseg)
+    have hzsupport : z ∈ support M.tiles :=
+      (macro_support_closed M).frontier_subset hzfront
+    have hzrel : z = q + t • (M.map rroot - q) := by
+      dsimp only [z, xroot, q, MacroPatch.map]
+      module
+    have hzdist : dist z q < δ := by
+      rw [hzrel, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_of_nonneg ht.le]
+      have htle : t ≤ δ / (2 * ‖M.map rroot - q‖) :=
+        min_le_right _ _
+      calc
+        t * ‖M.map rroot - q‖ ≤
+            (δ / (2 * ‖M.map rroot - q‖)) *
+              ‖M.map rroot - q‖ := by gcongr
+        _ = δ / 2 := by field_simp
+        _ < δ := by linarith
+    rw [support, mem_iUnion] at hzsupport
+    obtain ⟨A, hzsupport⟩ := hzsupport
+    rw [mem_iUnion] at hzsupport
+    obtain ⟨hA, hzA⟩ := hzsupport
+    have hzi : z ∉ interior A.carrier := by
+      intro h
+      apply hzfront.2
+      exact interior_mono
+        (fun x hx => Set.mem_iUnion₂.mpr ⟨A, hA, hx⟩) h
+    obtain ⟨i, hqi, hziSide⟩ := hrad A hA z
+      (Metric.ball_subset_ball (hδle A hA) hzdist) hzA hzi
+    exact ⟨A, hA, i, t, z, ht, hzrel, hqi, hziSide⟩
+  let kp : Fin D.n := (finRotate D.n).symm k
+  have hkprot : finRotate D.n kp = k := Equiv.apply_symm_apply _ k
+  have hkpn : D.vertex kp ≠ D.vertex k := by
+    intro h
+    have heq : kp = k := D.vertex_injective h
+    have hbad := crown_finRotate_ne_self (n := D.n)
+      (by have := D.three_le; omega) kp
+    apply hbad
+    rw [hkprot, heq]
+  have hkn : D.vertex (finRotate D.n k) ≠ D.vertex k := by
+    intro h
+    exact crown_finRotate_ne_self (n := D.n)
+      (by have := D.three_le; omega) k
+      (D.vertex_injective h)
+  have hprev : segment ℝ (D.vertex k) (D.vertex kp) ⊆ frontier D.carrier := by
+    intro x hx
+    rw [D.frontier_eq]
+    apply Set.mem_iUnion.mpr
+    refine ⟨kp, ?_⟩
+    rw [hkprot, segment_symm]
+    exact hx
+  have hnext : segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+      frontier D.carrier := by
+    rw [D.frontier_eq]
+    exact subset_iUnion
+      (fun i => segment ℝ (D.vertex i) (D.vertex (finRotate D.n i))) k
+  obtain ⟨A₁, hA₁, i₁, t₁, z₁, ht₁, hz₁, hq₁, hzi₁⟩ :=
+    hedge (D.vertex kp) hkpn hprev
+  obtain ⟨A₂, hA₂, i₂, t₂, z₂, ht₂, hz₂, hq₂, hzi₂⟩ :=
+    hedge (D.vertex (finRotate D.n k)) hkn hnext
+  have hcommon : ∃ p : Pt, p ≠ q ∧ p ∈ A₁.side i₁ ∧ p ∈ A₂.side i₂ := by
+    by_cases hAeq : A₁ = A₂
+    · subst A₂
+      have hi : i₁ = i₂ :=
+        macro_tile_side_unique A₁ (hvertex A₁ hA₁) hq₁ hq₂
+      subst i₂
+      refine ⟨z₁, ?_, hzi₁, hzi₁⟩
+      intro h
+      have hdiff : M.map (D.vertex kp) - q ≠ 0 := by
+        rw [sub_ne_zero]
+        intro heq
+        apply hkpn
+        apply smul_right_injective Pt
+          ((pow_pos (lt_trans zero_lt_one M.one_lt) M.j).ne')
+        change M.offset + (M.θ ^ M.j) • D.vertex kp =
+          M.offset + (M.θ ^ M.j) • D.vertex k at heq
+        exact add_left_cancel heq
+      rw [h] at hz₁
+      have hzero : t₁ • (M.map (D.vertex kp) - q) = 0 := by
+        simpa using (congrArg (fun w : Pt => w - q) hz₁).symm
+      rcases smul_eq_zero.mp hzero with htzero | hzero
+      · exact ht₁.ne' htzero
+      · exact hdiff hzero
+    · obtain ⟨j₁, j₂, hqj₁, hqj₂, x, y, hxy, hseg⟩ :=
+        macro_tiles_share_local_side (M.disjoint hA₁ hA₂ hAeq)
+          ((macro_tile_closed A₁).frontier_subset
+            (macro_tile_side_subset_frontier A₁ i₁ hq₁))
+          ((macro_tile_closed A₂).frontier_subset
+            (macro_tile_side_subset_frontier A₂ i₂ hq₂))
+          (hvertex A₁ hA₁) (hvertex A₂ hA₂)
+      have hj₁ : j₁ = i₁ :=
+        macro_tile_side_unique A₁ (hvertex A₁ hA₁) hqj₁ hq₁
+      have hj₂ : j₂ = i₂ :=
+        macro_tile_side_unique A₂ (hvertex A₂ hA₂) hqj₂ hq₂
+      subst j₁
+      subst j₂
+      by_cases hxq : x = q
+      · refine ⟨y, ?_, hseg (right_mem_segment ℝ x y) |>.1,
+          hseg (right_mem_segment ℝ x y) |>.2⟩
+        intro hyq
+        exact hxy (hxq.trans hyq.symm)
+      · exact ⟨x, hxq, (hseg (left_mem_segment ℝ x y)).1,
+          (hseg (left_mem_segment ℝ x y)).2⟩
+  obtain ⟨p, hpq, hp₁, hp₂⟩ := hcommon
+  rw [macro_tile_side_eq] at hq₁ hzi₁ hp₁ hq₂ hzi₂ hp₂
+  obtain ⟨c₁, hc₁⟩ :=
+    macro_point_on_common_line hq₁ hzi₁ hp₁ hpq ht₁ hz₁
+  obtain ⟨c₂, hc₂⟩ :=
+    macro_point_on_common_line hq₂ hzi₂ hp₂ hpq ht₂ hz₂
+  have hscale : M.θ ^ M.j ≠ 0 :=
+    (pow_pos (lt_trans zero_lt_one M.one_lt) M.j).ne'
+  have hpull : ∀ (r : Pt) (c : ℝ),
+      M.map r = q + c • (p - q) →
+      r = c • ((M.θ ^ M.j)⁻¹ • (p - q)) + D.vertex k := by
+    intro r c hc
+    have hc' : (M.θ ^ M.j) • (r - D.vertex k) =
+        c • (p - q) := by
+      dsimp only [q, MacroPatch.map] at hc
+      have hc0 : (M.θ ^ M.j) • r =
+          (M.θ ^ M.j) • D.vertex k + c • (p - q) := by
+        have hcReassoc : M.offset + (M.θ ^ M.j) • r =
+            M.offset + ((M.θ ^ M.j) • D.vertex k +
+              c • (p - q)) := by
+          simpa [add_assoc] using hc
+        exact add_left_cancel hcReassoc
+      rw [smul_sub]
+      apply sub_eq_iff_eq_add.mpr
+      simpa [add_comm] using hc0
+    have hsub : r - D.vertex k =
+        c • ((M.θ ^ M.j)⁻¹ • (p - q)) := by
+      calc
+        r - D.vertex k = 1 • (r - D.vertex k) :=
+          (one_smul ℝ (r - D.vertex k)).symm
+        _ = ((M.θ ^ M.j)⁻¹ * (M.θ ^ M.j)) •
+            (r - D.vertex k) := by
+          simp [inv_mul_cancel₀ hscale]
+        _ = (M.θ ^ M.j)⁻¹ •
+            ((M.θ ^ M.j) • (r - D.vertex k)) := by
+          rw [smul_smul]
+        _ = (M.θ ^ M.j)⁻¹ • (c • (p - q)) := by rw [hc']
+        _ = c • ((M.θ ^ M.j)⁻¹ • (p - q)) := by
+          rw [smul_smul, smul_smul]
+          congr 1
+          ring
+    simpa [add_comm] using sub_eq_iff_eq_add.mp hsub
+  apply hk
+  rw [collinear_iff_of_mem (show D.vertex k ∈
+    ({D.vertex kp, D.vertex k, D.vertex (finRotate D.n k)} : Set Pt) by simp)]
+  refine ⟨(M.θ ^ M.j)⁻¹ • (p - q), ?_⟩
+  intro x hx
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx
+  rcases hx with rfl | rfl | rfl
+  · exact ⟨c₁, hpull _ _ hc₁⟩
+  · exact ⟨0, by simp⟩
+  · exact ⟨c₂, hpull _ _ hc₂⟩
 
 /-! ## `lem:endpoint-gap` -/
 

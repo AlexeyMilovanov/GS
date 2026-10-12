@@ -460,6 +460,52 @@ private lemma macroblock_is_decomposition_noncentral (c : MacroCertificate P) (h
     IsChildOf c (reconstruct c K h.1) (K.tileOf t) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `macroblock_is_decomposition_central`: owner matches. -/
+private lemma macroblock_is_decomposition_central_step1_owner (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
+    (ht_owner : c.owner t = K.α) (ht_c : t = c.central K.α) :
+    c.owner (K.tileOf t).typ = c.form (reconstruct c K h.1).typ := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `macroblock_is_decomposition_central`: prints are correct. -/
+private lemma macroblock_is_decomposition_central_step2_prints (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
+    (ht_owner : c.owner t = K.α) (ht_c : t = c.central K.α) :
+    ∀ i : c.Side (K.tileOf t).typ,
+      ∀ d : c.Side (reconstruct c K h.1).typ,
+        c.IsPrintOf (c.form (reconstruct c K h.1).typ) d (c.occ (K.tileOf t).typ i) →
+        (∀ k : Fin 5, k ≠ 4 → (K.tileOf t).cell i k = (reconstruct c K h.1).cell d k) ∧
+        (K.tileOf t).cell i 4 = identU c (c.edge (c.occ (K.tileOf t).typ i)) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `macroblock_is_decomposition_central`: nonprints. -/
+private lemma macroblock_is_decomposition_central_step3_nonprints (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
+    (ht_owner : c.owner t = K.α) (ht_c : t = c.central K.α) :
+    ∀ i : c.Side (K.tileOf t).typ,
+      ¬ c.IsPrint (c.occ (K.tileOf t).typ i) →
+        (K.tileOf t).cell i 0 = prescribedFirst c (c.occ (K.tileOf t).typ i) ∧
+        (K.tileOf t).cell i 1 = 0 ∧
+        (K.tileOf t).cell i 4 = 0 ∧
+        (∀ (d : c.Side (reconstruct c K h.1).typ) (j : Fin 5),
+          c.occ (K.tileOf t).typ i ∈ c.path (c.form (reconstruct c K h.1).typ) d j →
+            (K.tileOf t).cell i 2 = (reconstruct c K h.1).cell d j) ∧
+        ((∀ (d : c.Side (reconstruct c K h.1).typ) (j : Fin 5),
+            c.occ (K.tileOf t).typ i ∉ c.path (c.form (reconstruct c K h.1).typ) d j) →
+          (K.tileOf t).cell i 2 = 0) ∧
+        (c.IsOuter (c.occ (K.tileOf t).typ i) → ∀ d : c.Side (reconstruct c K h.1).typ,
+          c.occ (K.tileOf t).typ i ∈ c.outerList (c.form (reconstruct c K h.1).typ) d →
+            (K.tileOf t).cell i 3 = if zA c (reconstruct c K h.1) d = true then 0
+              else rankU c (c.rankOf (c.form (reconstruct c K h.1).typ) d (c.occ (K.tileOf t).typ i))) ∧
+        (c.IsBoundary (c.occ (K.tileOf t).typ i) →
+          (K.tileOf t).cell i 3 = headerU c (headerOf c (reconstruct c K h.1))) ∧
+        (c.IsInner (c.occ (K.tileOf t).typ i) → ¬ c.IsBoundary (c.occ (K.tileOf t).typ i) →
+          (K.tileOf t).cell i 3 = botU c) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `macroblock_is_decomposition`: the central tile has all
 the required child cells and is an exact child of `D`. -/
 private lemma macroblock_is_decomposition_central (c : MacroCertificate P) (hH : c.Hereditary)
@@ -467,7 +513,9 @@ private lemma macroblock_is_decomposition_central (c : MacroCertificate P) (hH :
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
     (ht_owner : c.owner t = K.α) (ht_c : t = c.central K.α) :
     IsChildOf c (reconstruct c K h.1) (K.tileOf t) := by
-  sorry
+  exact ⟨macroblock_is_decomposition_central_step1_owner c hH K hK h hh t ht_owner ht_c, fun i =>
+    ⟨macroblock_is_decomposition_central_step2_prints c hH K hK h hh t ht_owner ht_c i,
+     macroblock_is_decomposition_central_step3_nonprints c hH K hK h hh t ht_owner ht_c i⟩⟩
 
 /-- `lem:comp/exact`: the finite patch `M` is an exact member of
 `σ̂ D` for the reconstructed parent `D`. -/

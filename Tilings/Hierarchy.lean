@@ -476,7 +476,37 @@ private lemma exists_composition_step2_disjoint_supertile (τ : Substitution P) 
 preserves disjoint interiors. -/
 private lemma exists_composition_step2_disjoint_translate_inv {v : Pt} {S : Set (PlacedTile P)}
     (h : DisjointInteriors (translateSet v S)) : DisjointInteriors S := by
-  sorry
+  intro A hA B hB hne
+  have h_trans : A.translate v ∈ translateSet v S := mem_image_of_mem _ hA
+  have h_trans' : B.translate v ∈ translateSet v S := mem_image_of_mem _ hB
+  have hne' : A.translate v ≠ B.translate v := by
+    intro hc
+    apply hne
+    cases A with | mk form anchor =>
+    cases B with | mk form' anchor' =>
+    injection hc with hform hanchor
+    subst hform
+    congr
+    dsimp at hanchor
+    exact add_left_cancel hanchor
+  have hd := h h_trans h_trans' hne'
+  have heq1 : (A.translate v).carrier = v +ᵥ A.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add,
+      neg_add_rev]
+    rw [← add_assoc]
+  have heq2 : (B.translate v).carrier = v +ᵥ B.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add,
+      neg_add_rev]
+    rw [← add_assoc]
+  dsimp [Function.onFun] at hd
+  dsimp [Function.onFun]
+  rw [heq1, heq2] at hd
+  rw [interior_vadd, interior_vadd] at hd
+  have hinj : Function.Injective (v +ᵥ ·) := add_right_injective v
+  have H : Disjoint ((v +ᵥ ·) '' interior A.carrier) ((v +ᵥ ·) '' interior B.carrier) := hd
+  exact (disjoint_image_iff hinj).mp H
 
 /-- Step 3 of the blueprint proof of `exists_composition_step2_disjoint`: a patch that
 occurs in a set with disjoint interiors has disjoint interiors. -/

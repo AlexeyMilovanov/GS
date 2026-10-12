@@ -377,7 +377,19 @@ theorem pointedFLCOfFLC (τ : Substitution P) (h : UnpointedFLC τ) : τ.FLC := 
 /-- Under (pointed) FLC the allowed crowns form a catalogue. -/
 theorem isCatalogue_pointedCatalogue (τ : Substitution P) (h : τ.FLC) :
     IsCatalogue (pointedCatalogue τ) := by
-  sorry
+  refine ⟨h, fun K hK => ?_⟩
+  rcases hK with ⟨n, p, w, _hw, rfl⟩
+  constructor
+  · apply Set.Finite.image
+    exact (supertile_finite τ n p).subset (fun x hx => hx.1)
+  · rintro A ⟨B, hB, rfl⟩
+    have hwB : w ∈ B.carrier := hB.2
+    show (0 : Pt) ∈ (B.translate (-w)).carrier
+    have : (B.translate (-w)).carrier = -w +ᵥ B.carrier := by
+      dsimp [PlacedTile.carrier, PlacedTile.translate]
+      rw [← vadd_assoc, vadd_eq_add]
+    rw [this]
+    exact ⟨w, hwB, by simp [vadd_eq_add]⟩
 
 /-! ## `thm:corrected-crown-cover` -/
 

@@ -392,18 +392,6 @@ end Patch
 
 /-! ## `lem:allowed-hierarchy` -/
 
-/-- `lem:allowed-hierarchy`: if `τ` has FLC and `T = seq 0, seq 1, …` is a
-`τ^m`-hierarchy (`seq k` plays the role of `T_{km}`) all of whose full
-pointed crowns, at every level and every listed vertex, are `τ`-allowed,
-then `T` is a `τ`-substitution tiling. -/
-theorem allowed_crowns_hierarchy_is_substitutive (τ : Substitution P) (hflc : τ.FLC)
-    (m : ℕ) (hm : 0 < m) (seq : ℕ → PlaneTiling P)
-    (hseq : ∀ k, (τ.pow m hm).IsComposition (seq (k + 1)) (seq k))
-    (hcrown : ∀ k (w : Pt), IsVertexOf (seq k).tiles w →
-      τ.IsAllowedCrown (translateSet (-w) (crown (seq k).tiles w))) :
-    τ.IsSubstitutionTiling (seq 0) := by
-  sorry
-
 end Tilings
 
 end

@@ -81,12 +81,52 @@ end Substitution
 
 namespace SubstitutionTiling
 
+/-- Step 1 of the blueprint proof of `exists_composition`: by thinning a sequence
+of parent covers using the finite-parent lemma (or by Kőnig's lemma on a finite inverse
+system), there exists a global parent assignment `T'` whose decomposition covers `T`
+and whose finite patches occur in supertiles. -/
+private lemma exists_composition_step1_parents (τ : Substitution P) {T : PlaneTiling P}
+    (hT : τ.IsSubstitutionTiling T) :
+    ∃ T' : Set (PlacedTile P),
+      (∀ F' ⊆ T', F'.Finite → ∃ (n : ℕ) (p : P.Form), OccursIn F' (τ.supertile n p)) ∧
+      T.tiles ⊆ τ.decompose T' := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `exists_composition`: a parent assignment whose finite
+patches occur in supertiles must have disjoint interiors. -/
+private lemma exists_composition_step2_disjoint (τ : Substitution P) (T' : Set (PlacedTile P))
+    (h_subst : ∀ F' ⊆ T', F'.Finite → ∃ (n : ℕ) (p : P.Form), OccursIn F' (τ.supertile n p)) :
+    DisjointInteriors T' := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `exists_composition`: no extra child can occur in
+the decomposition because the plane is already covered by `T` with disjoint interiors,
+so the decomposition is exactly `T`. -/
+private lemma exists_composition_step3_decompose_eq (τ : Substitution P) {T : PlaneTiling P}
+    (T' : Set (PlacedTile P))
+    (h_disj : DisjointInteriors T') (h_cov : T.tiles ⊆ τ.decompose T') :
+    τ.decompose T' = T.tiles := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `exists_composition`: scaling gives coverage of the
+parent plane, so `T'` covers the plane. -/
+private lemma exists_composition_step4_cover (τ : Substitution P) (T' : Set (PlacedTile P))
+    {T : PlaneTiling P} (h_decomp : τ.decompose T' = T.tiles) :
+    support T' = univ := by
+  sorry
+
 /-- `lem:substitution-hierarchy`: every substitution plane tiling has a
 composition which is again a substitution plane tiling. -/
 theorem exists_composition (τ : Substitution P) {T : PlaneTiling P}
     (hT : τ.IsSubstitutionTiling T) :
     ∃ T' : PlaneTiling P, τ.IsComposition T' T ∧ τ.IsSubstitutionTiling T' := by
-  sorry
+  rcases exists_composition_step1_parents τ hT with ⟨T'_set, h_subst, h_subset⟩
+  have h_disj := exists_composition_step2_disjoint τ T'_set h_subst
+  have h_decomp := exists_composition_step3_decompose_eq τ T'_set h_disj h_subset
+  have h_cov := exists_composition_step4_cover τ T'_set h_decomp
+  let T' : PlaneTiling P := ⟨T'_set, h_cov, h_disj⟩
+  use T'
+  exact ⟨h_decomp, h_subst⟩
 
 end SubstitutionTiling
 

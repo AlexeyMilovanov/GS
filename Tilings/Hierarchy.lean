@@ -292,13 +292,101 @@ end FiniteMap
 
 namespace Patch
 
+private lemma mem_of_carrier_subset_union_interior_biUnion_empty {α : Type*}
+    [TopologicalSpace α] {ι : Type*} {t : ι → Set α}
+    (u : Finset ι) (hc : ∀ i ∈ u, IsClosed (t i)) (hi : ∀ i ∈ u, interior (t i) = ∅) :
+    interior (⋃ i ∈ u, t i) = ∅ := by
+  classical
+  induction' u using Finset.induction_on with i u hin ih
+  · simp
+  · rw [Finset.set_biUnion_insert]
+    rw [union_comm]
+    rw [interior_union_isClosed_of_interior_empty]
+    · apply ih
+      · intro j hj; apply hc; apply Finset.mem_insert_of_mem hj
+      · intro j hj; apply hi; apply Finset.mem_insert_of_mem hj
+    · apply Set.Finite.isClosed_biUnion u.finite_toSet
+      intro j hj; apply hc; apply Finset.mem_insert_of_mem hj
+    · apply hi
+      apply Finset.mem_insert_self
+
+private lemma mem_of_carrier_subset_union_empty_interior_of_subset_union_frontier
+    {α : Type*} [TopologicalSpace α] {s : Set α} {ι : Type*} {t : ι → Set α}
+    (u : Finset ι) (h_nonempty : (interior s).Nonempty)
+    (h_subset : s ⊆ ⋃ i ∈ u, t i)
+    (h_disj : ∀ i ∈ u, Disjoint (interior s) (interior (t i)))
+    (hc : ∀ i ∈ u, IsClosed (t i)) :
+    False := by
+  have h_int_s : interior s ⊆ ⋃ i ∈ u, frontier (t i) := by
+    intro x hx
+    have h_in : x ∈ ⋃ i ∈ u, t i := h_subset (interior_subset hx)
+    simp only [mem_iUnion, exists_prop] at h_in ⊢
+    rcases h_in with ⟨i, hi, hxi⟩
+    use i, hi
+    have h_not_int : x ∉ interior (t i) := by
+      intro h_int
+      have : x ∈ interior s ∩ interior (t i) := ⟨hx, h_int⟩
+      have hd := h_disj i hi
+      rw [disjoint_iff_inter_eq_empty] at hd
+      rw [hd] at this
+      exact this
+    exact ⟨subset_closure hxi, h_not_int⟩
+  have h_empty_int : interior (⋃ i ∈ u, frontier (t i)) = ∅ := by
+    apply mem_of_carrier_subset_union_interior_biUnion_empty
+    · intro i hi
+      exact isClosed_frontier
+    · intro i hi
+      have h1 := interior_frontier (hc i hi)
+      exact h1
+  have h_int_s_int : interior (interior s) ⊆ interior (⋃ i ∈ u, frontier (t i)) := by
+    apply interior_mono
+    exact h_int_s
+  rw [interior_interior] at h_int_s_int
+  rw [h_empty_int] at h_int_s_int
+  have : interior s = ∅ := subset_empty_iff.mp h_int_s_int
+  rw [this] at h_nonempty
+  exact Set.not_nonempty_empty h_nonempty
+
+private lemma mem_of_carrier_subset_union_isClosed_carrier {P : Protoset}
+    (A : PlacedTile P) : IsClosed A.carrier := by
+  dsimp [PlacedTile.carrier]
+  apply IsCompact.isClosed
+  exact IsCompact.vadd A.anchor (P.disk A.form).compact
+
+private lemma mem_of_carrier_subset_union_interior_nonempty_carrier {P : Protoset}
+    (A : PlacedTile P) : (interior A.carrier).Nonempty := by
+  have hn := (P.disk A.form).interior_nonempty
+  dsimp [PlacedTile.carrier]
+  rw [interior_vadd]
+  exact Set.Nonempty.image (fun x => A.anchor +ᵥ x) hn
+
 /-- `lem:covered-tile-belongs`: if a tile `X` has interior disjoint from the
 interior of every tile of the finite patch `F` other than `X`, and the carrier
 of `X` is covered by the support of `F`, then `X ∈ F`. -/
 theorem mem_of_carrier_subset_union (F : Patch P) (X : PlacedTile P)
     (hdisj : ∀ A ∈ F.tiles, A ≠ X → Disjoint (interior X.carrier) (interior A.carrier))
     (hsub : X.carrier ⊆ support F.tiles) : X ∈ F.tiles := by
-  sorry
+  by_contra h_not_in
+  have h_disj' : ∀ A ∈ F.tiles, Disjoint (interior X.carrier) (interior A.carrier) := by
+    intro A hA
+    have : A ≠ X := by rintro rfl; contradiction
+    exact hdisj A hA this
+  have h_fin := F.finite
+  have h_sub_fin : X.carrier ⊆ ⋃ i ∈ h_fin.toFinset, i.carrier := by
+    intro x hx
+    have h_in : x ∈ support F.tiles := hsub hx
+    simp only [support, mem_iUnion, exists_prop] at h_in ⊢
+    rcases h_in with ⟨A, hA, hAx⟩
+    use A
+    have hA_u : A ∈ h_fin.toFinset := (Set.Finite.mem_toFinset h_fin).mpr hA
+    exact ⟨hA_u, hAx⟩
+  have hc : ∀ i ∈ h_fin.toFinset, IsClosed i.carrier :=
+    fun i hi => mem_of_carrier_subset_union_isClosed_carrier i
+  have h_disj_fin : ∀ i ∈ h_fin.toFinset, Disjoint (interior X.carrier) (interior i.carrier) :=
+    fun i hi => h_disj' i ((Set.Finite.mem_toFinset h_fin).mp hi)
+  have hn := mem_of_carrier_subset_union_interior_nonempty_carrier X
+  exact mem_of_carrier_subset_union_empty_interior_of_subset_union_frontier h_fin.toFinset hn
+    h_sub_fin h_disj_fin hc
 
 end Patch
 

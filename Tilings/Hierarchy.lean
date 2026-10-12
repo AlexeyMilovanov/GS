@@ -72,7 +72,21 @@ is $D<\infty$. -/
 private lemma locallyFinite_step2_diameter :
     ∃ D : ℝ, ∀ p : P.Form, Bornology.IsBounded (P.disk p).carrier ∧
       ∀ x y, x ∈ (P.disk p).carrier → y ∈ (P.disk p).carrier → dist x y ≤ D := by
-  sorry
+  have H1 : ∀ p : P.Form, Bornology.IsBounded (P.disk p).carrier := fun p =>
+    (P.disk p).compact.isBounded
+  have H2 : ∀ p : P.Form, ∃ D : ℝ, ∀ x, x ∈ (P.disk p).carrier → ∀ y, y ∈ (P.disk p).carrier → dist x y ≤ D := fun p =>
+    Metric.isBounded_iff.mp (H1 p)
+  choose d hd using H2
+  by_cases h_emp : IsEmpty P.Form
+  · exact ⟨0, fun p => (h_emp.false p).elim⟩
+  · haveI : Nonempty P.Form := not_isEmpty_iff.mp h_emp
+    have h_s : (Finset.univ : Finset P.Form).Nonempty := Finset.univ_nonempty
+    let D_max := Finset.max' (Finset.image d Finset.univ) (Finset.Nonempty.image h_s d)
+    use D_max
+    intro p
+    refine ⟨H1 p, fun x y hx hy => ?_⟩
+    have hd_le : d p ≤ D_max := Finset.le_max' _ _ (Finset.mem_image_of_mem d (Finset.mem_univ p))
+    exact le_trans (hd p x hx y hy) hd_le
 
 /-- Step 3 of the blueprint proof of `locallyFinite`: If a tile meets a compact set $K$,
 its chosen interior disk centre lies in the closed $D$-neighbourhood of $K$. -/

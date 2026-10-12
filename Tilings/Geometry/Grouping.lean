@@ -3244,7 +3244,57 @@ private lemma fingerprintSeparation_step4_small (F : FingerprintData)
       3 ≤ Multiset.card ((F.ordinary t).filter
         (fun v => F.kind v = .original ∧ v ∉ F.ordinary u))) :
     ∀ t u, F.kind t = .small → F.kind u = .small → t ≠ u → F.template t = F.template u →
-    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := sorry
+    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := by
+  intro t u hkt hku htu htmpl
+  rw [Set.disjoint_iff_forall_ne]
+  intro f hf g hg heq
+  subst heq
+  simp only [FingerprintData.possibleFingerprints, hkt, hku, Set.mem_setOf_eq] at hf hg
+  rcases hf with ⟨X, hX, rfl⟩
+  rcases hg with ⟨Y, hY, heq⟩
+  let P := fun v => F.kind v = TypeKind.original ∧ v ∉ F.ordinary u
+  have h_P_f : Multiset.card (Multiset.filter P (F.baseFingerprint t + X)) =
+               Multiset.card (Multiset.filter P (F.baseFingerprint u + Y)) := by
+    rw [heq]
+  simp only [Multiset.filter_add, Multiset.card_add] at h_P_f
+  have h_P_t : Multiset.filter P (F.baseFingerprint t) = Multiset.filter P (F.ordinary t) := by
+    rw [FingerprintData.baseFingerprint, Multiset.filter_add]
+    have : Multiset.filter P (Multiset.replicate (Multiset.card (F.ordinary t)) t) = 0 := by
+      apply Multiset.filter_eq_nil.mpr
+      intro x hx
+      simp only [Multiset.mem_replicate] at hx
+      rcases hx with ⟨_, rfl⟩
+      intro h
+      have := h.1
+      rw [hkt] at this
+      contradiction
+    rw [this, add_zero]
+  have h_P_u : Multiset.filter P (F.baseFingerprint u) = 0 := by
+    rw [FingerprintData.baseFingerprint, Multiset.filter_add]
+    have h1 : Multiset.filter P (F.ordinary u) = 0 := by
+      apply Multiset.filter_eq_nil.mpr
+      intro x hx h
+      have := h.2
+      contradiction
+    have h2 : Multiset.filter P (Multiset.replicate (Multiset.card (F.ordinary u)) u) = 0 := by
+      apply Multiset.filter_eq_nil.mpr
+      intro x hx
+      simp only [Multiset.mem_replicate] at hx
+      rcases hx with ⟨_, rfl⟩
+      intro h
+      have := h.1
+      rw [hku] at this
+      contradiction
+    rw [h1, h2, add_zero]
+  rw [h_P_t, h_P_u] at h_P_f
+  simp only [Multiset.card_zero, zero_add] at h_P_f
+  have h_le_Y : Multiset.card (Multiset.filter P Y) ≤ 2 := by
+    have : Multiset.card (Multiset.filter P Y) ≤ Multiset.card Y := Multiset.card_le_card (Multiset.filter_le P Y)
+    omega
+  have h_ge_X : 3 ≤ Multiset.card (Multiset.filter P (F.ordinary t)) := by
+    have := h_private t u hkt hku htu htmpl
+    omega
+  omega
 
 /-- `lem:fingerprint`: under (G1) (neighbours in the same template, symmetric
 original adjacency counts, connected template dual graphs with at least three

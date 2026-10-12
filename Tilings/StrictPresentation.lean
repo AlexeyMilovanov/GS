@@ -69,6 +69,27 @@ theorem exists_strict_schedule_system (τ : Substitution P) (hτ : τ.STS) :
       Sys.HasCompositions ∧ Sys.Complete := by
   sorry
 
+/-- Step 1 of the blueprint proof of `sts_hierarchical_of_strict_proper`: repeatedly
+apply strict schedule composition to obtain an infinite sequence of proper compositions. -/
+private lemma sts_hierarchical_of_strict_proper_step1_seq {P : Protoset} {τ : Substitution P}
+    (Sys : StrictScheduleSystem τ) (hcomp : Sys.HasCompositions) {T : PlaneTiling Sys.dec.P'}
+    (hT : Sys.dec.Proper T) :
+    ∃ seq : ℕ → PlaneTiling Sys.dec.P', seq 0 = T ∧ ∀ n, Sys.dec.Proper (seq n) ∧
+      Sys.σc.IsComposition (seq (n + 1)) (seq n) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `sts_hierarchical_of_strict_proper`: at each step
+insert the original levels, which are STS by schedule alignment, yielding an infinite original
+STS hierarchy. -/
+private lemma sts_hierarchical_of_strict_proper_step2_sts {P : Protoset} {τ : Substitution P}
+    (hτ : τ.STS) (Sys : StrictScheduleSystem τ)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles))
+    (seq : ℕ → PlaneTiling Sys.dec.P') (h_proper : ∀ n, Sys.dec.Proper (seq n))
+    (h_comp : ∀ n, Sys.σc.IsComposition (seq (n + 1)) (seq n)) {S : PlaneTiling P}
+    (hS : S.tiles = Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq 0)).tiles) :
+    τ.IsSideToSideHierarchical S := by
+  sorry
+
 /-- `lem:strict-sound` (soundness half of `thm:sts-stshierarchy`): the
 scattering of the projection of a proper strict coloured plane tiling is a
 side-to-side `τ`-hierarchical plane tiling (iterate `lem:schedule-compose`
@@ -80,7 +101,11 @@ theorem sts_hierarchical_of_strict_proper {τ : Substitution P} (hτ : τ.STS)
     {S : PlaneTiling P}
     (hS : S.tiles = Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles) :
     τ.IsSideToSideHierarchical S := by
-  sorry
+  obtain ⟨seq, hseq0, hseq⟩ := sts_hierarchical_of_strict_proper_step1_seq Sys hcomp hT
+  have hproper : ∀ n, Sys.dec.Proper (seq n) := fun n => (hseq n).1
+  have hcomp_seq : ∀ n, Sys.σc.IsComposition (seq (n + 1)) (seq n) := fun n => (hseq n).2
+  apply sts_hierarchical_of_strict_proper_step2_sts hτ Sys hΔ seq hproper hcomp_seq
+  rwa [hseq0]
 
 /-- `lem:strict-complete` (completeness half of `thm:sts-stshierarchy`): every
 side-to-side `τ`-hierarchical plane tiling is the scattering of the projection

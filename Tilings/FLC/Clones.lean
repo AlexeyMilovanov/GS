@@ -275,7 +275,20 @@ private lemma childContext_realized_step2_A_prime {τ : Substitution P} (c : Gen
     (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) (n : ℕ) (p : P.Form)
     (A : PlacedTile P) (hform : c.form = A.form) (hA : A ∈ τ.supertile n p) :
     B.translate (τ.θ • A.anchor) ∈ τ.supertile (n+1) p := by
-  have _ := hB; have _ := hform; have _ := hA; sorry
+  have H : τ.supertile (n+1) p = ⋃ X ∈ τ.supertile n p, τ.decomposeTile X := rfl
+  rw [H]
+  simp only [Set.mem_iUnion, exists_prop]
+  use A, hA
+  have h_dec : τ.decomposeTile A = translateSet (τ.θ • A.anchor) (τ.rule A.form).tiles := rfl
+  rw [h_dec]
+  have h_dec2 : τ.decomposeTile ⟨c.form, 0⟩ = translateSet (τ.θ • (0:Pt)) (τ.rule c.form).tiles := rfl
+  rw [h_dec2] at hB
+  rw [smul_zero] at hB
+  have hts0 : translateSet (0:Pt) (τ.rule c.form).tiles = (τ.rule c.form).tiles := by
+    ext X; simp [translateSet, PlacedTile.translate]
+  rw [hts0] at hB
+  rw [← hform]
+  exact ⟨B, hB, rfl⟩
 
 /-- A child `B` of the selected tile receives the context `(τ S_A)_B`, which is
 again realized. -/

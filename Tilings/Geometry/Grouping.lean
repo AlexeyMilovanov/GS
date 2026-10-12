@@ -2526,6 +2526,162 @@ theorem plAnnulusRouting (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.ca
 
 /-! ## Inside- and outside-anchored groupings -/
 
+/-! ### Helpers for `regularGrouping` -/
+
+private lemma rg_coord_sub_le (x y : Pt) (i : Fin 2) : |x i - y i| ≤ dist x y := by
+  have := PiLp.norm_apply_le (x - y) i
+  rw [Real.norm_eq_abs, PiLp.sub_apply] at this
+  rwa [dist_eq_norm]
+
+private lemma rg_mkPt0 (x y : ℝ) : mkPt x y 0 = x := by simp [mkPt]
+
+private lemma rg_mkPt1 (x y : ℝ) : mkPt x y 1 = y := by simp [mkPt]
+
+private lemma rg_square_mono {c : Pt} {h h' : ℝ} (hh : h ≤ h') : square c h ⊆ square c h' :=
+  fun _ hx => ⟨hx.1.trans hh, hx.2.trans hh⟩
+
+private lemma rg_binf_mono {r s : ℝ} (h : r ≤ s) : Binf r ⊆ Binf s :=
+  fun _ hx => ⟨hx.1.trans h, hx.2.trans h⟩
+
+private lemma rg_clamp {a h r : ℝ} (hh : 0 ≤ h) (hr : 0 ≤ r) (ha : |a| ≤ h + r) :
+    |max (-h) (min h a)| ≤ h ∧ |a - max (-h) (min h a)| ≤ r := by
+  rw [abs_le] at ha
+  rw [abs_le, abs_le]
+  refine ⟨⟨?_, ?_⟩, ?_, ?_⟩ <;> simp only [min_def, max_def] <;> split_ifs <;> linarith
+
+private lemma rg_square_add {c : Pt} {h r : ℝ} (hh : 0 ≤ h) (hr : 0 ≤ r) :
+    square c (h + r) ⊆ square c h + Binf r := by
+  intro x hx
+  obtain ⟨h0, h0'⟩ := rg_clamp hh hr hx.1
+  obtain ⟨h1, h1'⟩ := rg_clamp hh hr hx.2
+  refine Set.mem_add.2 ⟨mkPt (c 0 + max (-h) (min h (x 0 - c 0))) (c 1 + max (-h) (min h (x 1 - c 1))),
+    ?_, x - mkPt (c 0 + max (-h) (min h (x 0 - c 0))) (c 1 + max (-h) (min h (x 1 - c 1))), ?_, by abel⟩
+  · refine ⟨?_, ?_⟩ <;> simp only [rg_mkPt0, rg_mkPt1, add_sub_cancel_left] <;> assumption
+  · refine ⟨?_, ?_⟩ <;> simp only [PiLp.sub_apply, rg_mkPt0, rg_mkPt1]
+    · rw [show x 0 - (c 0 + max (-h) (min h (x 0 - c 0))) = (x 0 - c 0) - max (-h) (min h (x 0 - c 0)) by ring]
+      exact h0'
+    · rw [show x 1 - (c 1 + max (-h) (min h (x 1 - c 1))) = (x 1 - c 1) - max (-h) (min h (x 1 - c 1)) by ring]
+      exact h1'
+
+private lemma rg_ball_subset_square (c : Pt) (h : ℝ) : Metric.ball c h ⊆ square c h := by
+  intro x hx
+  rw [Metric.mem_ball] at hx
+  exact ⟨(rg_coord_sub_le x c 0).trans hx.le, (rg_coord_sub_le x c 1).trans hx.le⟩
+
+private lemma rg_center_mem_interior {c : Pt} {h : ℝ} (hh : 0 < h) : c ∈ interior (square c h) :=
+  interior_mono (rg_ball_subset_square c h) (by rw [Metric.isOpen_ball.interior_eq]; exact Metric.mem_ball_self hh)
+
+private lemma rg_square_convex (c : Pt) (h : ℝ) : Convex ℝ (square c h) := by
+  intro x hx y hy a b ha hb hab
+  have key : ∀ i : Fin 2, |x i - c i| ≤ h → |y i - c i| ≤ h → |(a • x + b • y) i - c i| ≤ h := by
+    intro i hxi hyi
+    have e : (a • x + b • y) i - c i = a * (x i - c i) + b * (y i - c i) := by
+      simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+      linear_combination (c i) * hab
+    rw [e]
+    calc |a * (x i - c i) + b * (y i - c i)| ≤ |a * (x i - c i)| + |b * (y i - c i)| := abs_add_le _ _
+      _ = a * |x i - c i| + b * |y i - c i| := by rw [abs_mul, abs_mul, abs_of_nonneg ha, abs_of_nonneg hb]
+      _ ≤ a * h + b * h := by gcongr
+      _ = h := by linear_combination h * hab
+  exact ⟨key 0 hx.1 hy.1, key 1 hx.2 hy.2⟩
+
+private lemma rg_square_closed (c : Pt) (h : ℝ) : IsClosed (square c h) := by
+  have h0 : Continuous fun x : Pt => x 0 := PiLp.continuous_apply 2 _ 0
+  have h1 : Continuous fun x : Pt => x 1 := PiLp.continuous_apply 2 _ 1
+  exact (isClosed_le ((h0.sub continuous_const).abs) continuous_const).inter
+    (isClosed_le ((h1.sub continuous_const).abs) continuous_const)
+
+private lemma rg_square_subset_closure_interior {c : Pt} {h : ℝ} (hh : 0 < h) :
+    square c h ⊆ closure (interior (square c h)) := by
+  rw [(rg_square_convex c h).closure_interior_eq_closure_of_nonempty_interior
+    ⟨c, rg_center_mem_interior hh⟩, (rg_square_closed c h).closure_eq]
+
+private lemma rg_seg_coord {a b z : Pt} (hz : z ∈ segment ℝ a b) {i : Fin 2} (hab : a i = b i) :
+    z i = a i := by
+  obtain ⟨t, -, -, rfl⟩ := mem_segment_iff'.1 hz
+  simp [hab]
+
+private lemma rg_far_mem {O : Set Pt} {c : Pt} {R : ℝ} (hR : 0 ≤ R) (hO : (square c R)ᶜ ⊆ O) {x : Pt}
+    (hx : x ∉ square c R) : x ∈ connectedComponentIn O (mkPt (c 0 + (R + 1)) (c 1 + (R + 1))) := by
+  set p := mkPt (c 0 + (R + 1)) (c 1 + (R + 1)) with hp
+  suffices hT : ∃ T : Set Pt, IsPreconnected T ∧ x ∈ T ∧ p ∈ T ∧ T ⊆ (square c R)ᶜ by
+    obtain ⟨T, hT, hxT, hpT, hTs⟩ := hT
+    have h1 := hT.subset_connectedComponentIn hxT (hTs.trans hO) hpT
+    rw [← connectedComponentIn_eq h1]
+    exact mem_connectedComponentIn (hO hx)
+  have hR1 : R < |R + 1| := by rw [abs_of_pos (by linarith)]; linarith
+  simp only [square, Set.mem_setOf_eq, not_and_or, not_le] at hx
+  rcases hx with hx | hx
+  · set x' := mkPt (x 0) (c 1 + (R + 1))
+    refine ⟨segment ℝ x x' ∪ segment ℝ x' p, (convex_segment _ _).isPreconnected.union x'
+      (right_mem_segment ℝ _ _) (left_mem_segment ℝ _ _) (convex_segment _ _).isPreconnected,
+      Or.inl (left_mem_segment ℝ _ _), Or.inr (right_mem_segment ℝ _ _), ?_⟩
+    rintro z (hz | hz) hzs
+    · have := rg_seg_coord hz (i := 0) (by simp [x', rg_mkPt0])
+      exact absurd hzs.1 (by rw [this]; exact not_le.2 hx)
+    · have := rg_seg_coord hz (i := 1) (by simp [x', p, rg_mkPt1])
+      exact absurd hzs.2 (by rw [this]; simp only [x', rg_mkPt1, add_sub_cancel_left]; exact not_le.2 hR1)
+  · set x' := mkPt (c 0 + (R + 1)) (x 1)
+    refine ⟨segment ℝ x x' ∪ segment ℝ x' p, (convex_segment _ _).isPreconnected.union x'
+      (right_mem_segment ℝ _ _) (left_mem_segment ℝ _ _) (convex_segment _ _).isPreconnected,
+      Or.inl (left_mem_segment ℝ _ _), Or.inr (right_mem_segment ℝ _ _), ?_⟩
+    rintro z (hz | hz) hzs
+    · have := rg_seg_coord hz (i := 1) (by simp [x', rg_mkPt1])
+      exact absurd hzs.2 (by rw [this]; exact not_le.2 hx)
+    · have := rg_seg_coord hz (i := 0) (by simp [x', p, rg_mkPt0])
+      exact absurd hzs.1 (by rw [this]; simp only [x', rg_mkPt0, add_sub_cancel_left]; exact not_le.2 hR1)
+
+private lemma rg_tile_coord (M : MeshConstants P) (A : PlacedTile P) {x y : Pt} (hx : x ∈ A.carrier)
+    (hy : y ∈ A.carrier) (i : Fin 2) : |x i - y i| ≤ M.D := by
+  refine (rg_coord_sub_le x y i).trans ((Metric.dist_le_diam_of_mem (tileDisk A).compact.isBounded hx hy).trans ?_)
+  have : Metric.diam A.carrier = Metric.diam (P.disk A.form).carrier := by
+    rw [PlacedTile.carrier]; exact diam_vadd _ _
+  show Metric.diam A.carrier ≤ M.D
+  rw [this]; exact M.diam_le _
+
+private lemma rg_halfplane_convex (σ : ℝ) (d a : Pt) : Convex ℝ {x : Pt | σ * jcr d (x - a) < 0} := by
+  intro x hx y hy s t hs ht hst
+  obtain rfl : t = 1 - s := by linarith
+  simp only [Set.mem_setOf_eq] at hx hy ⊢
+  have e : σ * jcr d (s • x + (1 - s) • y - a) = s * (σ * jcr d (x - a)) + (1 - s) * (σ * jcr d (y - a)) := by
+    simp only [jcr, PiLp.sub_apply, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]; ring
+  rw [e]
+  rcases hs.lt_or_eq with hs' | hs'
+  · nlinarith
+  · subst hs'; simp only [zero_mul, zero_add, sub_zero, one_mul]; exact hy
+
+/-- `JSetup.bedge_sides`, also recording the closed half-disk inside the face -/
+private lemma rg_bedge_sides {S G : Set (PlacedTile P)} (H : JSetup S G) {A : PlacedTile P}
+    (hA : A ∈ G) (i : Fin (P.disk A.form).n)
+    (hbe : ∀ A' ∈ G, A' ≠ A → ¬ HasEdge A' (A.side i)) {q : Pt}
+    (hq : q ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i))) :
+    ∃ r > 0, ∃ σ : ℝ, ∀ x ∈ Metric.ball q r,
+      (σ * jcr (A.vertex (finRotate _ i) - A.vertex i) (x - A.vertex i) < 0 → x ∉ support G) ∧
+      (0 ≤ σ * jcr (A.vertex (finRotate _ i) - A.vertex i) (x - A.vertex i) → x ∈ A.carrier) := by
+  classical
+  obtain ⟨r, hr, σ, -, hch⟩ := tile_halfdisk A i hq
+  set K' := ⋃ A' ∈ G \ {A}, A'.carrier with hK'
+  have hK'c : IsClosed K' := (H.fin.diff).isClosed_biUnion (fun D _ => tile_isClosed D)
+  have hqK' : q ∉ K' := by
+    intro h
+    simp only [hK', Set.mem_iUnion] at h
+    obtain ⟨A', ⟨hA'G, hA'A⟩, hqA'⟩ := h
+    have hne : A ≠ A' := fun h => hA'A (h ▸ rfl)
+    obtain ⟨j, hj⟩ := H.partner hA (H.sub hA'G) hne i hq hqA'
+    exact hbe A' hA'G (Ne.symm hne) ⟨j, hj⟩
+  obtain ⟨ρ, hρ, hρK⟩ := Metric.isOpen_iff.1 hK'c.isOpen_compl q hqK'
+  refine ⟨min r ρ, lt_min hr hρ, σ, fun x hx => ⟨fun h => ?_, fun h => ?_⟩⟩
+  · intro hxG
+    obtain ⟨A', hA'G, hxA'⟩ := mem_support_iff'.1 hxG
+    by_cases hAA : A' = A
+    · subst hAA
+      have := ((hch x (Metric.ball_subset_ball (min_le_left _ _) hx)).2.1).1 hxA'
+      linarith
+    · apply hρK (Metric.ball_subset_ball (min_le_right _ _) hx)
+      simp only [hK', Set.mem_iUnion]
+      exact ⟨A', ⟨hA'G, hAA⟩, hxA'⟩
+  · exact ((hch x (Metric.ball_subset_ball (min_le_left _ _) hx)).2.1).2 h
+
 /-- `lem:regular-grouping`: a finite STS patch of mesh `D` covering `Ω`, and a
 square `Q` with `Q + B∞(3D) ⊂ int Ω`.  There is a group `L` of complete faces,
 a polygonal disk with connected face-dual graph, with
@@ -2535,7 +2691,267 @@ theorem regularGrouping (M : MeshConstants P) (S : Patch P) (Ω : PolygonalDisk)
     (c : Pt) (h : ℝ) (hh : 0 < h) (hQ : square c h + Binf (3 * M.D) ⊆ interior Ω.carrier) :
     ∃ L : FaceGroup S.tiles, square c h ⊆ L.carrier ∧ L.carrier ⊆ square c h + Binf M.D ∧
       L.InsideAnchored (square c h) := by
-  sorry
+  classical
+  have hD := M.D_pos
+  have hdisj := S.disjoint
+  set Q := square c h with hQdef
+  set R := h + M.D with hRdef
+  set Q' := square c R with hQ'def
+  set U₀ : Set (PlacedTile P) := {A ∈ S.tiles | (interior A.carrier ∩ interior Q).Nonempty} with hU₀
+  set U := support U₀ with hUdef
+  set O := Uᶜ with hOdef
+  set p := mkPt (c 0 + (R + 1)) (c 1 + (R + 1)) with hpdef
+  set W := connectedComponentIn O p with hWdef
+  set G : Set (PlacedTile P) := {A ∈ S.tiles | ¬ interior A.carrier ⊆ W} with hGdef
+  have hU₀S : U₀ ⊆ S.tiles := fun A hA => hA.1
+  have hU₀fin : U₀.Finite := S.finite.subset hU₀S
+  have hUc : IsClosed U := support_isClosed hU₀fin
+  have hOo : IsOpen O := hUc.isOpen_compl
+  -- the faces meeting the open square stay in the buffer `Q'`
+  have hUQ' : U ⊆ Q' := by
+    intro x hx
+    obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+    obtain ⟨w, hwA, hwQ⟩ := hA.2
+    have hwQ' : w ∈ Q := interior_subset hwQ
+    have h0 := rg_tile_coord M A hxA (interior_subset hwA) 0
+    have h1 := rg_tile_coord M A hxA (interior_subset hwA) 1
+    refine ⟨?_, ?_⟩
+    · calc |x 0 - c 0| = |(x 0 - w 0) + (w 0 - c 0)| := by ring_nf
+        _ ≤ |x 0 - w 0| + |w 0 - c 0| := abs_add_le _ _
+        _ ≤ R := by linarith [hwQ'.1]
+    · calc |x 1 - c 1| = |(x 1 - w 1) + (w 1 - c 1)| := by ring_nf
+        _ ≤ |x 1 - w 1| + |w 1 - c 1| := abs_add_le _ _
+        _ ≤ R := by linarith [hwQ'.2]
+  have hQ'B : Q' ⊆ Q + Binf M.D := rg_square_add hh.le hD.le
+  have hQ'Ω : Q' ⊆ interior (support S.tiles) := by
+    rw [hcov]
+    exact hQ'B.trans ((Set.add_subset_add_left (rg_binf_mono (by linarith))).trans hQ)
+  have hQQ' : Q ⊆ Q' := rg_square_mono (by linarith)
+  have hfar : ∀ x, x ∉ Q' → x ∈ W := fun x hx =>
+    rg_far_mem (by linarith) (fun y hy hyU => hy (hUQ' hyU)) hx
+  have hWc : Wᶜ ⊆ Q' := fun x hx => by_contra fun h' => hx (hfar x h')
+  have hpO : p ∈ O := by
+    intro hpU
+    have := (hUQ' hpU).2
+    rw [hpdef, rg_mkPt1, add_sub_cancel_left, abs_of_pos (by linarith)] at this
+    linarith
+  have hWO : W ⊆ O := connectedComponentIn_subset _ _
+  have hWo : IsOpen W := hOo.connectedComponentIn
+  have hUW : U ⊆ Wᶜ := fun x hx hxW => hWO hxW hx
+  -- frontiers of complementary components lie in `U`
+  have hfrU : ∀ y, frontier (connectedComponentIn O y) ⊆ U := by
+    intro y z hz
+    by_contra hzU
+    have hzo : IsOpen (connectedComponentIn O z) := hOo.connectedComponentIn
+    have hzz : z ∈ connectedComponentIn O z := mem_connectedComponentIn hzU
+    obtain ⟨x, hx1, hx2⟩ := mem_closure_iff.1 (frontier_subset_closure hz) _ hzo hzz
+    have : z ∈ connectedComponentIn O y := by
+      rw [connectedComponentIn_eq hx2, ← connectedComponentIn_eq hx1]; exact hzz
+    exact hz.2 (by rw [hOo.connectedComponentIn.interior_eq]; exact this)
+  have hdisjW : ∀ y ∈ O, y ∉ W → Disjoint (connectedComponentIn O y) W := by
+    intro y hyO hyW
+    rw [Set.disjoint_left]
+    intro w hw1 hw2
+    apply hyW
+    rw [hWdef, connectedComponentIn_eq hw2, ← connectedComponentIn_eq hw1]
+    exact mem_connectedComponentIn hyO
+  -- the closed square is covered by the selected faces
+  have hQU : Q ⊆ U := by
+    have hint : interior Q ⊆ U := by
+      intro y hy
+      obtain ⟨A, hA, hyA⟩ :=
+        mem_support_iff'.1 (interior_subset (hQ'Ω (hQQ' (interior_subset hy))))
+      have hyA' : y ∈ closure (interior A.carrier) := by rw [tile_regular]; exact hyA
+      obtain ⟨w, hw1, hw2⟩ := mem_closure_iff.1 hyA' _ isOpen_interior hy
+      exact carrier_subset_support (show A ∈ U₀ from ⟨hA, w, hw2, hw1⟩) hyA
+    exact (rg_square_subset_closure_interior hh).trans (closure_minimal hint hUc)
+  have hcQ : c ∈ interior Q := rg_center_mem_interior hh
+  have hU₀ne : U₀.Nonempty := by
+    obtain ⟨A, hA, -⟩ := mem_support_iff'.1 (hQU (interior_subset hcQ))
+    exact ⟨A, hA⟩
+  have H0 : JSetup S.tiles U₀ := ⟨hdisj, hsts, hU₀S, hU₀fin, hUQ'.trans hQ'Ω⟩
+  have hU₀G : U₀ ⊆ G := by
+    intro A hA
+    refine ⟨hA.1, fun hsub => ?_⟩
+    obtain ⟨a, ha⟩ := (tileDisk A).interior_nonempty
+    exact hUW (carrier_subset_support hA (interior_subset ha)) (hsub ha)
+  -- the filled region is the complement of the outer component
+  have hGW : support G = Wᶜ := by
+    ext x
+    constructor
+    · intro hx hxW
+      obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+      apply hA.2
+      have hxA' : x ∈ closure (interior A.carrier) := by rw [tile_regular]; exact hxA
+      obtain ⟨w, hwW, hwA⟩ := mem_closure_iff.1 hxA' W hWo hxW
+      by_cases hAU : A ∈ U₀
+      · exact absurd (carrier_subset_support hAU (interior_subset hwA)) (hWO hwW)
+      · have hAO : interior A.carrier ⊆ O := by
+          intro v hv hvU
+          obtain ⟨B, hB, hvB⟩ := mem_support_iff'.1 hvU
+          exact interior_not_mem_other hdisj hA.1 hB.1 (fun h' => hAU (h' ▸ hB)) hv hvB
+        have := (tileDisk A).interior_pathConnected.isConnected.isPreconnected.subset_connectedComponentIn
+          hwA hAO
+        rw [← connectedComponentIn_eq hwW] at this
+        exact this
+    · intro hx
+      by_cases hxc : x ∈ closure W
+      · have hxf : x ∈ frontier W := ⟨hxc, by rw [hWo.interior_eq]; exact hx⟩
+        obtain ⟨B, hB, hxB⟩ := mem_support_iff'.1 (hfrU p hxf)
+        exact carrier_subset_support (hU₀G hB) hxB
+      · obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 (interior_subset (hQ'Ω (hWc hx)))
+        by_cases hAG : interior A.carrier ⊆ W
+        · exact absurd (by rw [← tile_regular A] at hxA; exact closure_mono hAG hxA) hxc
+        · exact carrier_subset_support (show A ∈ G from ⟨hA, hAG⟩) hxA
+  have hGS : G ⊆ S.tiles := fun A hA => hA.1
+  have hGfin : G.Finite := S.finite.subset hGS
+  have hGne : G.Nonempty := hU₀ne.mono hU₀G
+  have hGcov : support G ⊆ interior (support S.tiles) := by rw [hGW]; exact hWc.trans hQ'Ω
+  have HG : JSetup S.tiles G := ⟨hdisj, hsts, hGS, hGfin, hGcov⟩
+  -- every bounded complementary component has a frontier point interior to the filled region
+  have hLstar : ∀ y ∈ O, y ∉ W → ∃ z ∈ frontier (connectedComponentIn O y), z ∈ interior Wᶜ := by
+    intro y hyO hyW
+    set C' := connectedComponentIn O y with hC'
+    have hC'o : IsOpen C' := hOo.connectedComponentIn
+    have hyC' : y ∈ C' := mem_connectedComponentIn hyO
+    have hC'W : Disjoint C' W := hdisjW y hyO hyW
+    have hC'Wc : closure C' ⊆ Wᶜ :=
+      closure_minimal (fun x hx hxW => Set.disjoint_left.1 hC'W hx hxW) hWo.isClosed_compl
+    obtain ⟨z, hz, hzv⟩ : ∃ z ∈ frontier C', z ∉ gVerts S.tiles := by
+      by_contra hcon
+      push_neg at hcon
+      have hpW : p ∈ W := mem_connectedComponentIn hpO
+      have hpC : p ∉ closure C' := fun h' => Set.disjoint_left.1 (hC'W.symm.closure_right hWo) hpW h'
+      apply open_minus_finite_split (W := Set.univ) (O1 := C') (O2 := (closure C')ᶜ) (Z := frontier C')
+        isOpen_univ isPreconnected_univ hC'o isClosed_closure.isOpen_compl
+        (Set.disjoint_left.2 fun x hx hx' => hx' (subset_closure hx))
+        ((gVerts_finite S.finite).subset hcon)
+      · intro x _
+        by_cases h1 : x ∈ C'
+        · exact Or.inl (Or.inl h1)
+        by_cases h2 : x ∈ closure C'
+        · exact Or.inr ⟨h2, by rw [hC'o.interior_eq]; exact h1⟩
+        · exact Or.inl (Or.inr h2)
+      · exact ⟨y, trivial, hyC'⟩
+      · exact ⟨p, trivial, hpC⟩
+    have hzU : z ∈ U := hfrU y hz
+    obtain ⟨B, hB, hzB⟩ := mem_support_iff'.1 hzU
+    refine ⟨z, hz, ?_⟩
+    by_cases hzi : z ∈ interior B.carrier
+    · exact interior_mono ((carrier_subset_support hB).trans hUW) hzi
+    have hzf : z ∈ frontier B.carrier := by
+      rw [mem_frontier_iff_of_closed (tile_isClosed B)]; exact ⟨hzB, hzi⟩
+    rw [tile_frontier_eq, Set.mem_iUnion] at hzf
+    obtain ⟨i, hzi'⟩ := hzf
+    have hzo : z ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate _ i)) := by
+      rw [tile_side_eq] at hzi'
+      refine mem_openSegment_of_ne_left_right ?_ ?_ hzi'
+      · intro h'; exact hzv (Set.mem_biUnion hB.1 ⟨i, h'⟩)
+      · intro h'; exact hzv (Set.mem_biUnion hB.1 ⟨_, h'⟩)
+    by_cases hbe : ∀ A' ∈ U₀, A' ≠ B → ¬ HasEdge A' (B.side i)
+    · obtain ⟨r, hr, σ, hch⟩ := rg_bedge_sides H0 hB i hbe hzo
+      set d := B.vertex (finRotate _ i) - B.vertex i with hd
+      set a := B.vertex i with ha
+      set Hm := Metric.ball z r ∩ {x : Pt | σ * jcr d (x - a) < 0} with hHm
+      obtain ⟨w, hwC, hwz⟩ := Metric.mem_closure_iff.1 (frontier_subset_closure hz) r hr
+      have hwb : w ∈ Metric.ball z r := by rw [Metric.mem_ball, dist_comm]; exact hwz
+      have hwH : w ∈ Hm := by
+        refine ⟨hwb, ?_⟩
+        by_contra hneg
+        replace hneg : 0 ≤ σ * jcr d (w - a) := not_lt.1 hneg
+        exact (connectedComponentIn_subset O y hwC) (carrier_subset_support hB ((hch w hwb).2 hneg))
+      have hHmO : Hm ⊆ O := fun x hx => (hch x hx.1).1 hx.2
+      have hHmC : Hm ⊆ C' := by
+        have := ((convex_ball z r).inter (rg_halfplane_convex σ d a)).isPreconnected.subset_connectedComponentIn
+          hwH hHmO
+        rwa [← connectedComponentIn_eq hwC] at this
+      rw [mem_interior_iff_mem_nhds]
+      refine Filter.mem_of_superset (Metric.ball_mem_nhds z hr) (fun x hx => ?_)
+      rcases le_or_gt 0 (σ * jcr d (x - a)) with h0 | h0
+      · exact hUW (carrier_subset_support hB ((hch x hx).2 h0))
+      · exact hC'Wc (subset_closure (hHmC ⟨hx, h0⟩))
+    · push_neg at hbe
+      obtain ⟨A', hA', hne, j, hj⟩ := hbe
+      exact interior_mono hUW (H0.partnered_open_in_U hB hA' hne i j hj hzo)
+  -- the interior of the filled region is connected
+  have hint : IsConnected (interior (support G)) := by
+    rw [hGW]
+    set V := interior Wᶜ with hV
+    have hVo : IsOpen V := isOpen_interior
+    obtain ⟨A0, hA0⟩ := hU₀ne
+    set X₀ := ⋃ A : U₀, (interior Q ∪ interior A.1.carrier) with hX₀
+    have hX₀c : IsPreconnected X₀ := by
+      apply isPreconnected_iUnion
+      · exact ⟨c, Set.mem_iInter.2 fun A => Or.inl hcQ⟩
+      · intro A
+        obtain ⟨w, hw1, hw2⟩ := A.2.2
+        exact IsPreconnected.union' ⟨w, hw2, hw1⟩ (rg_square_convex c h).interior.isPreconnected
+          (tileDisk A.1).interior_pathConnected.isConnected.isPreconnected
+    have hX₀V : X₀ ⊆ V := by
+      intro x hx
+      obtain ⟨A, hxA⟩ := Set.mem_iUnion.1 hx
+      rcases hxA with hx | hx
+      · exact interior_mono (hQU.trans hUW) hx
+      · exact interior_mono ((carrier_subset_support A.2).trans hUW) hx
+    have hcX : c ∈ X₀ := Set.mem_iUnion.2 ⟨⟨A0, hA0⟩, Or.inl hcQ⟩
+    set K := connectedComponentIn V c with hK
+    have hX₀K : X₀ ⊆ K := hX₀c.subset_connectedComponentIn hcX hX₀V
+    have hUcl : U ⊆ closure X₀ := by
+      intro y hy
+      obtain ⟨B, hB, hyB⟩ := mem_support_iff'.1 hy
+      rw [← tile_regular] at hyB
+      exact closure_mono (s := interior B.carrier) (t := X₀)
+        (fun x hx => Set.mem_iUnion.2 ⟨(⟨B, hB⟩ : U₀), Or.inr hx⟩) hyB
+    have hC1 : ∀ y ∈ V, y ∈ U → y ∈ K := by
+      intro y hyV hyU
+      obtain ⟨x, hx1, hx2⟩ :=
+        mem_closure_iff.1 (hUcl hyU) _ hVo.connectedComponentIn (mem_connectedComponentIn hyV)
+      rw [hK, connectedComponentIn_eq (hX₀K hx2), ← connectedComponentIn_eq hx1]
+      exact mem_connectedComponentIn hyV
+    have hVK : V ⊆ K := by
+      intro y hyV
+      by_cases hyU : y ∈ U
+      · exact hC1 y hyV hyU
+      have hyW : y ∉ W := interior_subset hyV
+      obtain ⟨z, hz, hzV⟩ := hLstar y hyU hyW
+      have hzK := hC1 z hzV (hfrU y hz)
+      obtain ⟨x, hx1, hx2⟩ := mem_closure_iff.1 (frontier_subset_closure hz) _ hVo.connectedComponentIn
+        (mem_connectedComponentIn hzV)
+      have hC'V : connectedComponentIn O y ⊆ V :=
+        interior_maximal (fun w hw hwW => Set.disjoint_left.1 (hdisjW y hyU hyW) hw hwW)
+          hOo.connectedComponentIn
+      have hxy : x ∈ connectedComponentIn V y :=
+        isPreconnected_connectedComponentIn.subset_connectedComponentIn (mem_connectedComponentIn hyU) hC'V hx2
+      rw [hK, connectedComponentIn_eq hzK, connectedComponentIn_eq hx1, ← connectedComponentIn_eq hxy]
+      exact mem_connectedComponentIn hyV
+    have hKV : K = V := Set.Subset.antisymm (connectedComponentIn_subset _ _) hVK
+    rw [← hKV]
+    exact isConnected_connectedComponentIn_iff.2 (hX₀V hcX)
+  have hcompl : IsConnected (support G)ᶜ := by
+    rw [hGW, compl_compl]; exact isConnected_connectedComponentIn_iff.2 hpO
+  obtain ⟨L, hL⟩ := polygonalJordanBoundary S.tiles hdisj hsts G hGS hGfin hGne hGcov hint hcompl
+  have hLc : L.carrier = Wᶜ := by rw [FaceGroup.carrier, L.carrier_eq, hL, hGW]
+  refine ⟨L, ?_, ?_, ?_⟩
+  · rw [hLc]; exact hQU.trans hUW
+  · rw [hLc]; exact hWc.trans hQ'B
+  · intro i
+    obtain ⟨A, hA, j, hAj⟩ := L.side_whole i
+    rw [hL] at hA
+    obtain ⟨q, hq⟩ : (openSegment ℝ (A.vertex j) (A.vertex (finRotate _ j))).Nonempty :=
+      ⟨_, mem_openSegment_iff'.2 ⟨1 / 2, by norm_num, by norm_num, rfl⟩⟩
+    have hqs : q ∈ L.disk.side i := hAj ▸ openSeg_mem_side A j hq
+    have hqf : q ∈ frontier L.disk.carrier := by
+      rw [L.disk.frontier_eq]; exact Set.mem_iUnion.2 ⟨i, hqs⟩
+    have hqU : q ∈ U := by
+      have e : L.disk.carrier = Wᶜ := hLc
+      rw [e, frontier_compl] at hqf
+      exact hfrU p hqf
+    obtain ⟨B, hB, hqB⟩ := mem_support_iff'.1 hqU
+    by_cases hAB : A = B
+    · subst hAB
+      exact ⟨A, by rw [hL]; exact hA, ⟨j, hAj⟩, hB.2⟩
+    · obtain ⟨k, hk⟩ := HG.partner hA hB.1 hAB j hq hqB
+      exact ⟨B, by rw [hL]; exact hU₀G hB, ⟨k, hk.trans hAj⟩, hB.2⟩
 
 /-- Step 1 of the blueprint proof of `outsideAnchoredGrouping`: defining `E`. -/
 private lemma outsideAnchoredGrouping_step1_E (M : MeshConstants P) (S : Patch P)

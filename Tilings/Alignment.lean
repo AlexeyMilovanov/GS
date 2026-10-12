@@ -245,6 +245,68 @@ theorem whole_side_ports_distinct :
     rw [←hr1.2, ←hr2.2]
   exact h2.1 h_eq
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_coincide`: the global canonical direction
+of the coincident parent sides is the same. -/
+private lemma whole_side_ports_coincide_step1_parentDir_eq (m : ℕ)
+    (A A' : PlacedTile G.P') (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
+    parentDir τ G m A.form a = parentDir τ G m A'.form a' := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
+whole-edge subdivision of their common support, so there is a bijection between their sides inside
+the parent side. -/
+private lemma whole_side_ports_coincide_step2_sidesInside_bijection (m : ℕ) (T' : PlaneTiling G.P')
+    (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
+    (halign : SchedulesAligned τ G m T')
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
+    ∃ f : sidesInside τ G m A.form a ≃ sidesInside τ G m A'.form a',
+      ∀ (e : sidesInside τ G m A.form a), placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
+        placedSeg ((τ.θ ^ m) • A'.anchor) (f e : Pt × Pt) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `whole_side_ports_coincide`: the bijection preserves the
+rank in the canonical direction. -/
+private lemma whole_side_ports_coincide_step3_rankIn_eq (m : ℕ)
+    (A A' : PlacedTile G.P') (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (f : sidesInside τ G m A.form a ≃ sidesInside τ G m A'.form a')
+    (hf : ∀ (e : sidesInside τ G m A.form a), placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (f e : Pt × Pt))
+    (hdir : parentDir τ G m A.form a = parentDir τ G m A'.form a')
+    (e : sidesInside τ G m A.form a) :
+    rankIn (sidesInside τ G m A.form a) (parentDir τ G m A.form a) (e : Pt × Pt) =
+      rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (f e : Pt × Pt) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `whole_side_ports_coincide`: a bijection between the sets
+implies they have the same cardinality. -/
+private lemma whole_side_ports_coincide_step4_ncard_eq (m : ℕ)
+    (A A' : PlacedTile G.P') (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (f : sidesInside τ G m A.form a ≃ sidesInside τ G m A'.form a') :
+    (sidesInside τ G m A.form a).ncard = (sidesInside τ G m A'.form a').ncard := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `whole_side_ports_coincide`: the chosen ports coincide
+because they are uniquely determined by the physical subdivision. -/
+private lemma whole_side_ports_coincide_step5_port_eq (m : ℕ)
+    (A A' : PlacedTile G.P') (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (f : sidesInside τ G m A.form a ≃ sidesInside τ G m A'.form a')
+    (hf : ∀ (e : sidesInside τ G m A.form a), placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (f e : Pt × Pt))
+    (hdir : parentDir τ G m A.form a = parentDir τ G m A'.form a')
+    (hcard : (sidesInside τ G m A.form a).ncard = (sidesInside τ G m A'.form a').ncard)
+    (hrank : ∀ (e : sidesInside τ G m A.form a),
+      rankIn (sidesInside τ G m A.form a) (parentDir τ G m A.form a) (e : Pt × Pt) =
+        rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (f e : Pt × Pt))
+    (r : Fin 5) :
+    placedSeg ((τ.θ ^ m) • A.anchor) (port τ G m A.form a r) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (port τ G m A'.form a' r) := by
+  sorry
+
 /-- `lem:whole-ports` (coincidence): in a grouped plane tiling with STS fine
 level and aligned schedules, physically coincident parent sides have the same
 physical port lists, numbered in the global direction. -/
@@ -257,7 +319,16 @@ theorem whole_side_ports_coincide (m : ℕ) (T' : PlaneTiling G.P')
       placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
     ∀ r, placedSeg ((τ.θ ^ m) • A.anchor) (port τ G m A.form a r) =
       placedSeg ((τ.θ ^ m) • A'.anchor) (port τ G m A'.form a' r) := by
-  sorry
+  intro r
+  have h1 := whole_side_ports_coincide_step1_parentDir_eq τ G m A A' a a' hside
+  have ⟨f, hf⟩ := whole_side_ports_coincide_step2_sidesInside_bijection τ G m T' hfine halign A A'
+    hA hA' a a' hside
+  have h2 : ∀ (e : sidesInside τ G m A.form a),
+      rankIn (sidesInside τ G m A.form a) (parentDir τ G m A.form a) (e : Pt × Pt) =
+      rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (f e : Pt × Pt) :=
+    fun e => whole_side_ports_coincide_step3_rankIn_eq τ G m A A' a a' f hf h1 e
+  have h3 := whole_side_ports_coincide_step4_ncard_eq τ G m A A' a a' f
+  exact whole_side_ports_coincide_step5_port_eq τ G m A A' a a' f hf h1 h3 h2 r
 
 /-! ## Strict schedule composition (`lem:schedule-compose`) -/
 

@@ -259,13 +259,43 @@ def cloneProtoset (h : τ.FLC) : Protoset where
   decEq := Classical.decEq _
   disk := fun c => cloneDisk c
 
+/-- Step 1 of the blueprint proof of `childContext_realized`: shifting contexts. -/
+private lemma childContext_realized_step1_shift {τ : Substitution P} (c : GenuineCornerClone τ)
+    (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) (n : ℕ) (p : P.Form)
+    (A : PlacedTile P) (hform : c.form = A.form) (hA : A ∈ τ.supertile n p)
+    (hctx : c.context = translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A)) :
+    translateSet (-B.anchor) (neighbourhood (τ.decompose c.context) B) =
+      translateSet (-(B.translate (τ.θ • A.anchor)).anchor)
+        (neighbourhood (τ.supertile (n+1) p) (B.translate (τ.θ • A.anchor))) := by
+  have _ := hB; have _ := hform; have _ := hA; have _ := hctx; sorry
+
+/-- Step 2 of the blueprint proof of `childContext_realized`: the translated child tile belongs to
+the supertile of order n+1. -/
+private lemma childContext_realized_step2_A_prime {τ : Substitution P} (c : GenuineCornerClone τ)
+    (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) (n : ℕ) (p : P.Form)
+    (A : PlacedTile P) (hform : c.form = A.form) (hA : A ∈ τ.supertile n p) :
+    B.translate (τ.θ • A.anchor) ∈ τ.supertile (n+1) p := by
+  have _ := hB; have _ := hform; have _ := hA; sorry
+
 /-- A child `B` of the selected tile receives the context `(τ S_A)_B`, which is
 again realized. -/
 theorem childContext_realized (c : GenuineCornerClone τ) (B : PlacedTile P)
     (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) :
     (B.form, translateSet (-B.anchor) (neighbourhood (τ.decompose c.context) B)) ∈
       realizedContexts τ := by
-  sorry
+  rcases c.realized with ⟨n, p, A, hA, hctx_eq⟩
+  have hform : c.form = A.form := congr_arg Prod.fst hctx_eq
+  have hctx : c.context =
+      translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A) :=
+    congr_arg Prod.snd hctx_eq
+  let A' := B.translate (τ.θ • A.anchor)
+  have hA' : A' ∈ τ.supertile (n+1) p := childContext_realized_step2_A_prime c B hB n p A hform hA
+  have hctx' : translateSet (-B.anchor) (neighbourhood (τ.decompose c.context) B) =
+    translateSet (-A'.anchor) (neighbourhood (τ.supertile (n+1) p) A') :=
+    childContext_realized_step1_shift c B hB n p A hform hA hctx
+  use n + 1, p, A', hA'
+  rw [hctx']
+  rfl
 
 /-- The child clone `(B, (τ S_A)_B)`. -/
 def childClone (c : GenuineCornerClone τ) (B : PlacedTile P)

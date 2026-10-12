@@ -465,12 +465,28 @@ private lemma exists_composition_step1_parents (τ : Substitution P) {T : PlaneT
       T.tiles ⊆ τ.decompose T' := by
   sorry
 
+/-- Step 1 of the blueprint proof of `exists_composition_step2_disjoint_supertile`: decomposition
+preserves disjoint interiors. -/
+private lemma exists_composition_step2_disjoint_supertile_step1_decompose (τ : Substitution P)
+    (S : Set (PlacedTile P)) (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `exists_composition_step2_disjoint`: supertiles have
 disjoint interiors. -/
 private lemma exists_composition_step2_disjoint_supertile (τ : Substitution P) (n : ℕ)
     (p : P.Form) :
     DisjointInteriors (τ.supertile n p) := by
-  sorry
+  induction n with
+  | zero =>
+    intro x hx y hy hne
+    simp [Substitution.supertile, Substitution.decomposeIter] at hx hy
+    rcases hx with rfl
+    rcases hy with rfl
+    contradiction
+  | succ n ih =>
+    have h : τ.supertile (n + 1) p = τ.decompose (τ.supertile n p) := rfl
+    rw [h]
+    exact exists_composition_step2_disjoint_supertile_step1_decompose τ (τ.supertile n p) ih
 
 /-- Step 2 of the blueprint proof of `exists_composition_step2_disjoint`: translation
 preserves disjoint interiors. -/

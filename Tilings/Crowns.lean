@@ -109,11 +109,322 @@ def AllCrownsIn (𝒞 : Set (Set (PlacedTile P))) (S : Set (PlacedTile P)) : Pro
 
 /-! ## `lem:polygon-local-cone` -/
 
+private lemma crown_mem_segment_iff {a b x : Pt} :
+    x ∈ segment ℝ a b ↔
+      ∃ t : ℝ, 0 ≤ t ∧ t ≤ 1 ∧ x = a + t • (b - a) := by
+  rw [segment_eq_image']
+  constructor
+  · rintro ⟨t, ⟨ht0, ht1⟩, rfl⟩
+    exact ⟨t, ht0, ht1, rfl⟩
+  · rintro ⟨t, ht0, ht1, rfl⟩
+    exact ⟨t, ⟨ht0, ht1⟩, rfl⟩
+
+private lemma crown_mem_openSegment_iff {a b x : Pt} :
+    x ∈ openSegment ℝ a b ↔
+      ∃ t : ℝ, 0 < t ∧ t < 1 ∧ x = a + t • (b - a) := by
+  rw [openSegment_eq_image']
+  constructor
+  · rintro ⟨t, ⟨ht0, ht1⟩, rfl⟩
+    exact ⟨t, ht0, ht1, rfl⟩
+  · rintro ⟨t, ht0, ht1, rfl⟩
+    exact ⟨t, ⟨ht0, ht1⟩, rfl⟩
+
+private lemma crown_smul_cancel {u : Pt} (hu : u ≠ 0) {s t : ℝ}
+    (h : s • u = t • u) : s = t := by
+  exact smul_left_injective ℝ hu h
+
+private lemma crown_finRotate_ne_self {n : ℕ} (hn : 2 ≤ n)
+    (i : Fin n) : finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h1 : (1 : Fin (m + 1)) = 0 := by
+    have := congrArg (fun x => x - i) h
+    simpa using this
+  have : NeZero (m + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h1
+  omega
+
+private lemma crown_endpoint_on_extended_segment {a b v y x : Pt}
+    (hab : a ≠ b) (hv : v ∈ segment ℝ a b) (hy : y ∈ segment ℝ a b)
+    (hvyx : y ∈ openSegment ℝ v x) (hx : x ∉ segment ℝ a b) :
+    (a ≠ v ∧ a ∈ segment ℝ v x) ∨
+      (b ≠ v ∧ b ∈ segment ℝ v x) := by
+  rw [crown_mem_segment_iff] at hv hy
+  rw [crown_mem_openSegment_iff] at hvyx
+  obtain ⟨s, hs0, hs1, rfl⟩ := hv
+  obtain ⟨u, hu0, hu1, hy⟩ := hy
+  obtain ⟨t, ht0, ht1, hyt⟩ := hvyx
+  let d := b - a
+  have hd : d ≠ 0 := sub_ne_zero.mpr hab.symm
+  have ht : t ≠ 0 := ne_of_gt ht0
+  have htx : x - (a + s • d) = t⁻¹ • (y - (a + s • d)) := by
+    rw [hyt, add_sub_cancel_left, inv_smul_smul₀ ht]
+  have hxform : x = a + (s + (u - s) / t) • d := by
+    rw [hy] at htx
+    dsimp only [d] at htx ⊢
+    rw [← sub_add_cancel x (a + s • (b - a)), htx]
+    rw [div_eq_mul_inv]
+    module
+  have hw : s + (u - s) / t < 0 ∨ 1 < s + (u - s) / t := by
+    by_cases h0 : 0 ≤ s + (u - s) / t
+    · by_cases h1 : s + (u - s) / t ≤ 1
+      · exfalso
+        apply hx
+        exact crown_mem_segment_iff.mpr
+          ⟨s + (u - s) / t, h0, h1, hxform⟩
+      · exact Or.inr (lt_of_not_ge h1)
+    · exact Or.inl (lt_of_not_ge h0)
+  rcases hw with hw | hw
+  · left
+    constructor
+    · intro hav
+      have hs : s = 0 := by
+        apply crown_smul_cancel hd
+        change a = a + s • d at hav
+        simpa using congrArg (fun z => z - a) hav.symm
+      subst s
+      have hdiv : 0 ≤ u / t := div_nonneg hu0 ht0.le
+      exact (not_lt_of_ge hdiv) (by simpa using hw)
+    · rw [hxform]
+      exact mem_segment_iff_wbtw.mpr (by
+        simpa [add_comm] using
+          (wbtw_smul_vadd_smul_vadd_of_nonneg_of_nonpos
+            (R := ℝ) a d hs0 hw.le))
+  · right
+    constructor
+    · intro hbv
+      have hs : s = 1 := by
+        apply crown_smul_cancel hd
+        rw [one_smul]
+        have := congrArg (fun z => z - a) hbv.symm
+        simpa [d] using this
+      subst s
+      have hdiv : (u - 1) / t ≤ 0 :=
+        div_nonpos_of_nonpos_of_nonneg (by linarith) ht0.le
+      nlinarith
+    · rw [hxform]
+      have hvform : a + s • d = b + (s - 1) • d := by
+        dsimp only [d]
+        module
+      have hxform' : a + (s + (u - s) / t) • d =
+          b + (s + (u - s) / t - 1) • d := by
+        dsimp only [d]
+        module
+      rw [hvform, hxform']
+      exact mem_segment_iff_wbtw.mpr (by
+        simpa [add_comm] using
+          (wbtw_smul_vadd_smul_vadd_of_nonpos_of_nonneg
+            (R := ℝ) b d (by linarith) (by linarith)))
+
+private lemma crown_isCompact_segment (a b : Pt) :
+    IsCompact (segment ℝ a b) := by
+  rw [segment_eq_image']
+  exact isCompact_Icc.image (by fun_prop)
+
+private lemma crown_frontier_subset_of_isClosed {A : Set Pt}
+    (hA : IsClosed A) : frontier A ⊆ A := by
+  exact frontier_subset_closure.trans_eq hA.closure_eq
+
+private lemma crown_sbtw_of_mem_openSegment {a b x : Pt} (hab : a ≠ b)
+    (hx : x ∈ openSegment ℝ a b) : Sbtw ℝ a x b := by
+  refine ⟨mem_segment_iff_wbtw.mp (openSegment_subset_segment ℝ a b hx), ?_, ?_⟩
+  · intro hxa
+    subst x
+    exact hab ((left_mem_openSegment_iff).mp hx)
+  · intro hxb
+    subst x
+    exact hab ((right_mem_openSegment_iff).mp hx)
+
+private lemma crown_mem_openSegment_of_sbtw {a b x : Pt}
+    (hx : Sbtw ℝ a x b) : x ∈ openSegment ℝ a b := by
+  exact mem_openSegment_of_ne_left_right hx.left_ne hx.right_ne
+    hx.wbtw.mem_segment
+
+private lemma crown_frontier_meets_segment {A : Set Pt} (hA : IsClosed A)
+    {p q : Pt} (hp : p ∈ A) (hq : q ∉ A) :
+    (segment ℝ p q ∩ frontier A).Nonempty := by
+  by_contra hne
+  rw [Set.not_nonempty_iff_eq_empty] at hne
+  have hsub : segment ℝ p q ⊆ interior A ∪ Aᶜ := by
+    intro z hz
+    by_cases hzA : z ∈ A
+    · left
+      by_contra hzi
+      have hzf : z ∈ frontier A := by
+        rw [frontier, hA.closure_eq]
+        exact ⟨hzA, hzi⟩
+      have : z ∈ segment ℝ p q ∩ frontier A := ⟨hz, hzf⟩
+      rwa [hne] at this
+    · exact Or.inr hzA
+  have hd : Disjoint (interior A) Aᶜ := by
+    rw [Set.disjoint_left]
+    exact fun _ hz hzA => hzA (interior_subset hz)
+  rcases (convex_segment p q).isPreconnected.subset_or_subset
+      isOpen_interior hA.isOpen_compl hd hsub with h | h
+  · exact hq (interior_subset (h (right_mem_segment ℝ p q)))
+  · exact h (left_mem_segment ℝ p q) hp
+
+private lemma crown_side_subset_carrier (D : PolygonalDisk)
+    (i : Fin D.n) : D.side i ⊆ D.carrier := by
+  apply (show D.side i ⊆ frontier D.carrier from ?_).trans
+    (crown_frontier_subset_of_isClosed D.compact.isClosed)
+  rw [D.frontier_eq]
+  exact subset_iUnion (fun j => D.side j) i
+
+private lemma crown_local_boundary (D : PolygonalDisk) {v : Pt} :
+    ∃ r : ℝ, 0 < r ∧
+      ∀ x ∈ ball v r, x ∈ frontier D.carrier →
+        ∃ i : Fin D.n, v ∈ D.side i ∧ x ∈ D.side i ∧
+          ∀ y ∈ ball v r, x ∈ openSegment ℝ v y → y ∈ D.side i := by
+  let K : Set Pt :=
+    (⋃ i ∈ {i : Fin D.n | v ∉ D.side i}, D.side i) ∪
+      (D.vertexSet \ {v})
+  have hKclosed : IsClosed K := by
+    apply IsClosed.union
+    · exact Set.Finite.isClosed_biUnion (Set.toFinite _)
+        (fun i _ => (crown_isCompact_segment _ _).isClosed)
+    · exact (Set.finite_range D.vertex).diff.isClosed
+  have hvK : v ∉ K := by
+    simp [K]
+  obtain ⟨r, hr, hrK⟩ := Metric.isOpen_iff.mp hKclosed.isOpen_compl v hvK
+  refine ⟨r, hr, ?_⟩
+  intro x hxr hxf
+  rw [D.frontier_eq] at hxf
+  obtain ⟨i, hxi⟩ := Set.mem_iUnion.mp hxf
+  have hvi : v ∈ D.side i := by
+    by_contra hvi
+    apply hrK hxr
+    left
+    exact Set.mem_iUnion₂.mpr ⟨i, hvi, hxi⟩
+  refine ⟨i, hvi, hxi, ?_⟩
+  intro y hyr hxy
+  by_contra hyi
+  obtain h | h := crown_endpoint_on_extended_segment
+    (show D.vertex i ≠ D.vertex (finRotate D.n i) from by
+      intro heq
+      have := D.vertex_injective heq
+      have hn : finRotate D.n i ≠ i :=
+        crown_finRotate_ne_self (by have := D.three_le; omega) i
+      exact hn this.symm)
+    hvi hxi hxy hyi
+  · apply hrK ((convex_ball v r).segment_subset (Metric.mem_ball_self hr) hyr h.2)
+    right
+    exact ⟨⟨i, rfl⟩, h.1⟩
+  · apply hrK ((convex_ball v r).segment_subset (Metric.mem_ball_self hr) hyr h.2)
+    right
+    exact ⟨⟨finRotate D.n i, rfl⟩, h.1⟩
+
+set_option maxHeartbeats 800000 in
+private lemma crown_local_cone_eq (D : PolygonalDisk) {v : Pt}
+    (hv : v ∈ D.carrier) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball v r,
+      (x ∈ D.carrier ↔ x ∈ localCone D.carrier v) := by
+  obtain ⟨r, hr, hboundary⟩ := crown_local_boundary D (v := v)
+  have hclosed : IsClosed D.carrier := D.compact.isClosed
+  have hfront := crown_frontier_subset_of_isClosed hclosed
+  refine ⟨r, hr, ?_⟩
+  intro x hxr
+  constructor
+  · intro hxD
+    refine ⟨1, zero_lt_one, ?_⟩
+    intro t ht
+    let z := v + t • (x - v)
+    have hzx : z ∈ openSegment ℝ v x :=
+      crown_mem_openSegment_iff.mpr ⟨t, ht.1, ht.2, rfl⟩
+    by_contra hzD
+    change z ∉ D.carrier at hzD
+    obtain ⟨y, hyseg, hyf⟩ :=
+      crown_frontier_meets_segment hclosed hxD hzD
+    have hzxr : z ∈ ball v r :=
+      (convex_ball v r).segment_subset (Metric.mem_ball_self hr) hxr
+        (openSegment_subset_segment ℝ v x hzx)
+    have hyr : y ∈ ball v r :=
+      (convex_ball v r).segment_subset hxr hzxr hyseg
+    obtain ⟨i, hvi, hyi, hext⟩ := hboundary y hyr hyf
+    have hxside : x ∈ D.side i := by
+      by_cases hyx : y = x
+      · simpa [hyx] using hyi
+      · apply hext x hxr
+        have hyz : y ≠ z := by
+          intro hyz'
+          subst y
+          apply hzD
+          exact hfront hyf
+        have hyopen : y ∈ openSegment ℝ z x := by
+          rw [segment_symm] at hyseg
+          exact mem_openSegment_of_ne_left_right (Ne.symm hyz) (Ne.symm hyx) hyseg
+        have hvx : v ≠ x := by
+          intro hvx
+          subst x
+          apply hzD
+          simpa [z] using hv
+        exact crown_mem_openSegment_of_sbtw
+          ((crown_sbtw_of_mem_openSegment hvx hzx).trans_right
+            (crown_sbtw_of_mem_openSegment (by
+              intro h
+              apply hzD
+              rw [h]
+              exact hxD) hyopen))
+    apply hzD
+    apply crown_side_subset_carrier D i
+    change z ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i))
+    change v ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hvi
+    change x ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hxside
+    exact (convex_segment (D.vertex i) (D.vertex (finRotate D.n i))).segment_subset
+      hvi hxside (openSegment_subset_segment ℝ v x hzx)
+  · rintro ⟨rho, hrho, hcone⟩
+    by_contra hxD
+    let t : ℝ := min (1 / 2) (rho / 2)
+    have ht0 : 0 < t := lt_min (by norm_num) (by positivity)
+    have ht1 : t < 1 := lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+    have htrho : t < rho :=
+      lt_of_le_of_lt (min_le_right _ _) (by linarith)
+    let z := v + t • (x - v)
+    have hzx : z ∈ openSegment ℝ v x :=
+      crown_mem_openSegment_iff.mpr ⟨t, ht0, ht1, rfl⟩
+    have hzD : z ∈ D.carrier := hcone t ⟨ht0, htrho⟩
+    obtain ⟨y, hyseg, hyf⟩ :=
+      crown_frontier_meets_segment hclosed hzD hxD
+    have hzxr : z ∈ ball v r :=
+      (convex_ball v r).segment_subset (Metric.mem_ball_self hr) hxr
+        (openSegment_subset_segment ℝ v x hzx)
+    have hyr : y ∈ ball v r :=
+      (convex_ball v r).segment_subset hzxr hxr hyseg
+    have hyx : y ≠ x := by
+      intro hyx'
+      subst y
+      exact hxD (hfront hyf)
+    have hvx : v ≠ x := by
+      intro hvx
+      exact hxD (hvx ▸ hv)
+    have hyopen : y ∈ openSegment ℝ v x := by
+      by_cases hyz : y = z
+      · simpa [hyz] using hzx
+      · have hyopen' : y ∈ openSegment ℝ z x :=
+          mem_openSegment_of_ne_left_right (Ne.symm hyz) (Ne.symm hyx) hyseg
+        exact crown_mem_openSegment_of_sbtw
+          ((crown_sbtw_of_mem_openSegment hvx hzx).trans_right
+            (crown_sbtw_of_mem_openSegment (by
+              intro h
+              apply hxD
+              rw [← h]
+              exact hzD) hyopen'))
+    obtain ⟨i, -, -, hext⟩ := hboundary y hyr hyf
+    exact hxD (crown_side_subset_carrier D i (hext x hxr hyopen))
+
 /-- `lem:polygon-local-cone`: a polygonal disk agrees with its local cone in a
 small ball around each of its points. -/
 theorem polygonLocalCone (D : PolygonalDisk) {v : Pt} (hv : v ∈ D.carrier) :
     ∃ r : ℝ, 0 < r ∧ D.carrier ∩ ball v r = localCone D.carrier v ∩ ball v r := by
-  sorry
+  obtain ⟨r, hr, hlocal⟩ := crown_local_cone_eq D hv
+  refine ⟨r, hr, ?_⟩
+  ext x
+  constructor
+  · rintro ⟨hxD, hxr⟩
+    exact ⟨(hlocal x hxr).mp hxD, hxr⟩
+  · rintro ⟨hxc, hxr⟩
+    exact ⟨(hlocal x hxr).mpr hxc, hxr⟩
 
 /-- `lem:polygon-local-cone` for placed tiles. -/
 theorem polygonLocalCone_tile (A : PlacedTile P) {v : Pt} (hv : v ∈ A.carrier) :

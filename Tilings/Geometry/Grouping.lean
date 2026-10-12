@@ -2537,6 +2537,59 @@ theorem regularGrouping (M : MeshConstants P) (S : Patch P) (Ω : PolygonalDisk)
       L.InsideAnchored (square c h) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `outsideAnchoredGrouping`: defining `E`. -/
+private lemma outsideAnchoredGrouping_step1_E (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier) :
+    ∃ E : Set Pt, IsConnected (interior E) ∧
+      (square c h + Binf (3 * M.D))ᶜ ⊆ interior E ∧
+      ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E := sorry
+
+/-- Step 2 of the blueprint proof of `outsideAnchoredGrouping`: defining `H_carrier`. -/
+private lemma outsideAnchoredGrouping_step2_H (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt) (hE_conn : IsConnected (interior E))
+    (hE_supset : (square c h + Binf (3 * M.D))ᶜ ⊆ interior E)
+    (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E) :
+    ∃ H_carrier : Set Pt, square c h + Binf (2 * M.D) ⊆ H_carrier ∧
+      H_carrier ⊆ square c h + Binf (3 * M.D) ∧
+      H_carrier = closure (connectedComponentIn (Eᶜ) c) ∧
+      IsConnected (interior H_carrier) ∧ IsConnected (H_carrierᶜ) := sorry
+
+private lemma outsideAnchoredGrouping_step3_FaceGroup (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt) (hE_conn : IsConnected (interior E))
+    (hE_supset : (square c h + Binf (3 * M.D))ᶜ ⊆ interior E)
+    (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E)
+    (H_carrier : Set Pt) (hH_sub : H_carrier ⊆ square c h + Binf (3 * M.D))
+    (hH_def : H_carrier = closure (connectedComponentIn (Eᶜ) c)) :
+    ∃ H : FaceGroup S.tiles, H.carrier = H_carrier := sorry
+
+private lemma outsideAnchoredGrouping_step4_anchor (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt)
+    (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E)
+    (H : FaceGroup S.tiles) (hH_sub : H.carrier ⊆ square c h + Binf (3 * M.D))
+    (hH_def : H.carrier = closure (connectedComponentIn (Eᶜ) c))
+    (hH_conn_int : IsConnected (interior H.carrier))
+    (hH_conn_comp : IsConnected (H.carrierᶜ)) :
+    H.OutsideAnchored (square c h + Binf (3 * M.D)) := sorry
+
 /-- `lem:outside-grouping`: with `Q₁ + B∞(10D) ⊂ int Ω` and `K₁ = Q₁ + B∞(3D)`
 there is a group `H` with `Q₁ + B∞(2D) ⊂ H ⊂ K₁`, outside-anchored at `K₁`,
 whose open complement is connected. -/
@@ -2547,7 +2600,20 @@ theorem outsideAnchoredGrouping (M : MeshConstants P) (S : Patch P) (Ω : Polygo
     ∃ H : FaceGroup S.tiles, square c h + Binf (2 * M.D) ⊆ H.carrier ∧
       H.carrier ⊆ square c h + Binf (3 * M.D) ∧
       H.OutsideAnchored (square c h + Binf (3 * M.D)) ∧ IsConnected (H.carrier)ᶜ := by
-  sorry
+  have s1 := outsideAnchoredGrouping_step1_E M S Ω hcov hsts c h hh hQ
+  rcases s1 with ⟨E, hE_conn, hE_supset, hE_faces⟩
+  have s2 := outsideAnchoredGrouping_step2_H M S Ω hcov hsts c h hh hQ E hE_conn
+    hE_supset hE_faces
+  rcases s2 with ⟨H_carrier, hH_supset, hH_subset, hH_def, hH_conn_int, hH_conn_comp⟩
+  have s3 := outsideAnchoredGrouping_step3_FaceGroup M S Ω hcov hsts c h hh hQ E hE_conn
+    hE_supset hE_faces H_carrier hH_subset hH_def
+  rcases s3 with ⟨H, hH_eq⟩
+  use H
+  rw [hH_eq]
+  refine ⟨hH_supset, hH_subset, ?_, hH_conn_comp⟩
+  rw [← hH_eq] at hH_subset hH_def hH_conn_int hH_conn_comp
+  exact outsideAnchoredGrouping_step4_anchor M S Ω hcov hsts c h hh hQ E hE_faces H
+    hH_subset hH_def hH_conn_int hH_conn_comp
 
 /-! ## Spokes and annular groups -/
 

@@ -1,0 +1,302 @@
+import Tilings.Crowns
+
+/-!
+# Genuine-corner collared clones (skeleton)
+
+Statements of the FLC-reduction nodes of `main.tex`:
+
+* `lem:finite-neighbourhoods` — `FLC.finite_neighbourhoods`
+* `def:clones`                — `FLC.coarsen`, `FLC.GenuineCornerClone`,
+                                 `FLC.cloneProtoset`, `FLC.refinedSubstitution`,
+                                 `FLC.cloneDecoration`
+* `lem:clone-sts`             — `FLC.refinedSubstitution_sts`,
+                                 `FLC.refinedSubstitution_hereditary`
+                                 (and `FLC.refinedSubstitution_commutes`)
+* `lem:clone-substitution-lift` — `FLC.substitution_clone_lift_iff`
+* `lem:clone-hierarchy-lift`  — `FLC.hierarchy_clone_lift_iff`
+* `lem:segment-rules`         — `FLC.forget_vertices_preserves_sofic`
+
+## Modelling choices
+
+* Neighbourhoods, contexts and clone vertices only depend on carriers and
+  on *genuine* corners, so clones are built directly over `P`: the clone
+  vertex set of `(A, S_A)` is the set of genuine corners of tiles of `S_A`
+  lying on `∂A` (the tile `A` itself is in `S_A`, so its own genuine corners
+  are included and its collinear dummy vertices are not).  This is the same
+  as first coarsening (`FLC.coarsen`) and then adding context corners.
+* A clone disk with a prescribed finite vertex set on the boundary is
+  obtained from a `sorry`'d existence lemma (`exists_cloneDisk`) by choice.
+* Contexts are normalized: the selected tile sits at anchor `0`.
+-/
+
+open Set Pointwise
+
+noncomputable section
+
+namespace Tilings
+
+open Substitution
+
+variable {P : Protoset}
+
+/-! ## Coarsening a polygonal disk: erase collinear listed vertices -/
+
+namespace PolygonalDisk
+
+variable (D : PolygonalDisk)
+
+open Classical in
+/-- Indices of the genuine listed vertices. -/
+def genuineIdx : Finset (Fin D.n) := Finset.univ.filter fun i => D.IsGenuineVertex i
+
+/-- Number of genuine listed vertices. -/
+def genuineCount : ℕ := D.genuineIdx.card
+
+/-- Increasing enumeration of the genuine listed vertices (this preserves the
+cyclic order). -/
+def genuineEnum : Fin D.genuineCount ≃o D.genuineIdx := D.genuineIdx.orderIsoOfFin rfl
+
+/-- The `i`-th genuine vertex. -/
+def coarseVertex (i : Fin D.genuineCount) : Pt := D.vertex (D.genuineEnum i).1
+
+/-- A simple polygon has at least three genuine corners. -/
+theorem three_le_genuineCount : 3 ≤ D.genuineCount := by
+  sorry
+
+theorem coarseVertex_injective : Function.Injective D.coarseVertex := by
+  intro a b hab
+  exact D.genuineEnum.injective (Subtype.ext (D.vertex_injective hab))
+
+/-- Merging collinear sides does not change the boundary. -/
+theorem coarse_frontier_eq :
+    frontier D.carrier = ⋃ i : Fin D.genuineCount,
+      segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
+  sorry
+
+/-- The merged sides still meet only at shared endpoints. -/
+theorem coarse_simple : ∀ i j : Fin D.genuineCount, i ≠ j →
+    segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) ∩
+        segment ℝ (D.coarseVertex j) (D.coarseVertex (finRotate D.genuineCount j)) ⊆
+      ({D.coarseVertex i, D.coarseVertex (finRotate D.genuineCount i)} : Set Pt) ∩
+        {D.coarseVertex j, D.coarseVertex (finRotate D.genuineCount j)} := by
+  sorry
+
+/-- The coarsened disk: same carrier, only genuine listed vertices. -/
+def coarsen : PolygonalDisk where
+  carrier := D.carrier
+  n := D.genuineCount
+  three_le := D.three_le_genuineCount
+  vertex := D.coarseVertex
+  vertex_injective := D.coarseVertex_injective
+  compact := D.compact
+  interior_nonempty := D.interior_nonempty
+  regular_closed := D.regular_closed
+  interior_pathConnected := D.interior_pathConnected
+  frontier_eq := D.coarse_frontier_eq
+  simple := D.coarse_simple
+
+end PolygonalDisk
+
+namespace FLC
+
+/-! ## `def:clones`, step 1: the coarsened protoset -/
+
+/-- `def:clones` (first step): erase collinear listed vertices, keeping each
+form label (forms with equal carriers stay distinct) and each carrier. -/
+def coarsen (P : Protoset) : Protoset where
+  Form := P.Form
+  fintype := P.fintype
+  decEq := P.decEq
+  disk := fun p => (P.disk p).coarsen
+
+/-- The coarsened copy of a placed tile. -/
+def coarsenTile (A : PlacedTile P) : PlacedTile (coarsen P) := ⟨A.form, A.anchor⟩
+
+theorem coarsenTile_carrier (A : PlacedTile P) : (coarsenTile A).carrier = A.carrier := rfl
+
+/-- The substitution `τ` read on the coarsened protoset. -/
+def coarsenSubstitution (τ : Substitution P) : Substitution (coarsen P) where
+  θ := τ.θ
+  one_lt := τ.one_lt
+  rule := fun p : P.Form =>
+    { tiles := coarsenTile '' (τ.rule p).tiles
+      finite := (τ.rule p).finite.image coarsenTile
+      disjoint := sorry }
+  support_eq := sorry
+
+/-- FLC survives coarsening. -/
+theorem coarsen_flc (τ : Substitution P) (h : τ.FLC) : (coarsenSubstitution τ).FLC := by
+  sorry
+
+/-! ## `lem:finite-neighbourhoods` -/
+
+/-- The neighbourhood of `A` in `S`: all tiles of `S` sharing a point with `A`
+(including `A` itself when `A ∈ S`). -/
+def neighbourhood (S : Set (PlacedTile P)) (A : PlacedTile P) : Set (PlacedTile P) :=
+  {B ∈ S | (A.carrier ∩ B.carrier).Nonempty}
+
+/-- Realized supertile neighbourhoods, normalized so that the selected tile
+has anchor `0`; the first component records the selected tile's form.  All
+orders `n` are included, in particular singleton order-zero contexts and
+incomplete boundary contexts. -/
+def realizedContexts (τ : Substitution P) : Set (P.Form × Set (PlacedTile P)) :=
+  {N | ∃ (n : ℕ) (p : P.Form), ∃ A ∈ τ.supertile n p,
+    N = (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))}
+
+/-- `lem:finite-neighbourhoods`: under FLC there are finitely many tile
+neighbourhoods in supertiles, up to translation. -/
+theorem finite_neighbourhoods (τ : Substitution P) (h : τ.FLC) :
+    (realizedContexts τ).Finite := by
+  sorry
+
+/-! ## `def:clones`, step 2: genuine-corner clones -/
+
+/-- `def:clones`: a clone is a form together with a realized (normalized)
+supertile neighbourhood context of a tile of that form. -/
+structure GenuineCornerClone (τ : Substitution P) where
+  form : P.Form
+  context : Set (PlacedTile P)
+  realized : (form, context) ∈ realizedContexts τ
+
+/-- Genuine corners of a placed tile. -/
+def tileGenuineCorners (B : PlacedTile P) : Set Pt :=
+  B.anchor +ᵥ (P.disk B.form).genuineCorners
+
+variable {τ : Substitution P}
+
+/-- The listed vertices of a clone disk: genuine corners of underlying context
+carriers (including the selected tile itself) lying on the boundary of the
+selected form.  Artificial clone vertices of neighbours are not added. -/
+def cloneVertexSet (c : GenuineCornerClone τ) : Set Pt :=
+  frontier (P.disk c.form).carrier ∩ ⋃ B ∈ c.context, tileGenuineCorners B
+
+/-- A polygonal disk with the carrier of the selected form and exactly the
+clone vertices as listed vertices exists. -/
+theorem exists_cloneDisk (c : GenuineCornerClone τ) :
+    ∃ D : PolygonalDisk, D.carrier = (P.disk c.form).carrier ∧ D.vertexSet = cloneVertexSet c := by
+  sorry
+
+/-- The clone disk. -/
+def cloneDisk (c : GenuineCornerClone τ) : PolygonalDisk :=
+  Classical.choose (exists_cloneDisk c)
+
+theorem cloneDisk_carrier (c : GenuineCornerClone τ) :
+    (cloneDisk c).carrier = (P.disk c.form).carrier :=
+  (Classical.choose_spec (exists_cloneDisk c)).1
+
+theorem cloneDisk_vertexSet (c : GenuineCornerClone τ) :
+    (cloneDisk c).vertexSet = cloneVertexSet c :=
+  (Classical.choose_spec (exists_cloneDisk c)).2
+
+variable (τ)
+
+/-- Under FLC there are finitely many clones. -/
+theorem GenuineCornerClone.finite_of_flc (h : τ.FLC) : Finite (GenuineCornerClone τ) := by
+  sorry
+
+/-- Every form has its singleton (order-zero) clone. -/
+theorem exists_clone_of_form (p : P.Form) : ∃ c : GenuineCornerClone τ, c.form = p := by
+  sorry
+
+/-- The clone protoset (finite under FLC). -/
+def cloneProtoset (h : τ.FLC) : Protoset where
+  Form := GenuineCornerClone τ
+  fintype := @Fintype.ofFinite _ (GenuineCornerClone.finite_of_flc τ h)
+  decEq := Classical.decEq _
+  disk := fun c => cloneDisk c
+
+/-- A child `B` of the selected tile receives the context `(τ S_A)_B`, which is
+again realized. -/
+theorem childContext_realized (c : GenuineCornerClone τ) (B : PlacedTile P)
+    (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) :
+    (B.form, translateSet (-B.anchor) (neighbourhood (τ.decompose c.context) B)) ∈
+      realizedContexts τ := by
+  sorry
+
+/-- The child clone `(B, (τ S_A)_B)`. -/
+def childClone (c : GenuineCornerClone τ) (B : PlacedTile P)
+    (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) : GenuineCornerClone τ :=
+  ⟨B.form, translateSet (-B.anchor) (neighbourhood (τ.decompose c.context) B),
+    childContext_realized τ c B hB⟩
+
+/-- The tiles of the refined rule patch of a clone. -/
+def refinedRule (h : τ.FLC) (c : GenuineCornerClone τ) :
+    Set (PlacedTile (cloneProtoset τ h)) :=
+  {X | ∃ (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩),
+    X = (⟨childClone τ c B hB, B.anchor⟩ : PlacedTile (cloneProtoset τ h))}
+
+/-- `def:clones`: the clone (refined) substitution. -/
+def refinedSubstitution (h : τ.FLC) : Substitution (cloneProtoset τ h) where
+  θ := τ.θ
+  one_lt := τ.one_lt
+  rule := fun c : GenuineCornerClone τ =>
+    { tiles := refinedRule τ h c
+      finite := sorry
+      disjoint := sorry }
+  support_eq := sorry
+
+/-- Forgetting clone labels: a carrier-preserving decoration of `P`. -/
+def cloneDecoration (h : τ.FLC) : Decoration P where
+  P' := cloneProtoset τ h
+  proj := fun c : GenuineCornerClone τ => c.form
+  surj := fun p => by
+    obtain ⟨c, hc⟩ := exists_clone_of_form τ p
+    exact ⟨c, hc⟩
+  carrier_eq := fun c : GenuineCornerClone τ => cloneDisk_carrier c
+
+/-! ## `lem:clone-sts` -/
+
+/-- `lem:clone-sts` (commutation): the clone substitution commutes with
+forgetting labels. -/
+theorem refinedSubstitution_commutes (h : τ.FLC)
+    (S : Set (PlacedTile (cloneProtoset τ h))) :
+    (cloneDecoration τ h).projTile '' ((refinedSubstitution τ h).decompose S) =
+      τ.decompose ((cloneDecoration τ h).projTile '' S) := by
+  sorry
+
+/-- `lem:clone-sts`: the clone substitution has STS. -/
+theorem refinedSubstitution_sts (h : τ.FLC) : (refinedSubstitution τ h).STS := by
+  sorry
+
+/-- `lem:clone-sts`: the clone substitution has hereditary listed sides. -/
+theorem refinedSubstitution_hereditary (h : τ.FLC) :
+    (refinedSubstitution τ h).HereditarySides := by
+  sorry
+
+/-! ## `lem:clone-substitution-lift`, `lem:clone-hierarchy-lift` -/
+
+/-- `lem:clone-substitution-lift`: a plane tiling is a `τ`-substitution tiling
+iff it is the projection of a refined-substitution tiling. -/
+theorem substitution_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
+    τ.IsSubstitutionTiling T ↔
+      ∃ T' : PlaneTiling (cloneProtoset τ h),
+        (refinedSubstitution τ h).IsSubstitutionTiling T' ∧
+          (cloneDecoration τ h).project T' = T := by
+  sorry
+
+/-- `lem:clone-hierarchy-lift`: a plane tiling is `τ`-hierarchical iff it is
+the projection of a refined-substitution hierarchical tiling. -/
+theorem hierarchy_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
+    τ.IsHierarchical T ↔
+      ∃ T' : PlaneTiling (cloneProtoset τ h),
+        (refinedSubstitution τ h).IsHierarchical T' ∧
+          (cloneDecoration τ h).project T' = T := by
+  sorry
+
+/-! ## `lem:segment-rules` -/
+
+/-- `lem:segment-rules`: a sofic presentation on decorated (e.g. clone) tiles,
+given either by an arbitrary bounded local rule or by the strict side rule on
+the refined listed sides, transfers through the carrier-preserving projection
+to a sofic presentation (finite decoration + bounded local rule) of the
+projected family on the original carriers.  Applied with
+`d = cloneDecoration τ h`. -/
+theorem forget_vertices_preserves_sofic (d : Decoration P) (G : Set (PlaneTiling d.P'))
+    (hG : IsSofic G ∨ IsSideToSideSofic G) : IsSofic (d.project '' G) := by
+  sorry
+
+end FLC
+
+end Tilings
+
+end

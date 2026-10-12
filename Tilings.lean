@@ -1,0 +1,13 @@
+import Tilings.Basic
+import Tilings.Main
+import Tilings.Hierarchy
+import Tilings.Crowns
+import Tilings.FLC.Clones
+import Tilings.HeaderKernel
+import Tilings.Control.Certificate
+import Tilings.Control.Decoration
+import Tilings.Control.Composition
+import Tilings.Control.Regression
+import Tilings.Geometry.Grouping
+import Tilings.Alignment
+import Tilings.LocalRules

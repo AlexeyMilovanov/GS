@@ -1,0 +1,72 @@
+LEAN 4.28 SKELETON — arXiv:2606.25005v2, corrected blueprint (12 Oct 2026)
+==========================================================================
+
+Toolchain: leanprover/lean4:v4.28.0, Mathlib v4.28.0 (rev 8f9d9cff6b).
+Build: `lake exe cache get && lake build` (8040 jobs; whole skeleton builds).
+Every theorem is a `sorry` statement unless noted; definitions are real.
+
+Module order (blueprint "Implementation boundaries"):
+  Tilings/Basic.lean            geometric model: Pt, PolygonalDisk (collinear
+                                vertices allowed), Protoset, PlacedTile, Patch,
+                                PlaneTiling (covers the plane), Substitution,
+                                supertiles, IsSubstitutionTiling, IsHierarchical,
+                                IsSideToSideHierarchical, crowns, IsAllowedCrown,
+                                FLC, STS, HereditarySides, LocalRule, Decoration,
+                                IsSofic, SideDecoration, IsSideToSideSofic.
+  Tilings/Main.lean             the five principal theorems (statements only)
+                                + STS.flc.
+  Tilings/Hierarchy.lean        local finiteness, countability, supports,
+                                finite parents, exists_composition (Lemma 1),
+                                hierarchical_power_iff, exists_idempotent_iterate
+                                (PROVED), STS.finite_crowns, mem_of_carrier_subset_union
+                                (lem:covered-tile-belongs), allowed_crowns_hierarchy
+                                (Lemma 2).
+  Tilings/Crowns.lean           corrected crown-cover chapter: local cones,
+                                pointed catalogue, r_*, δ_*, genuine macro corners,
+                                endpoint gap, ν/λ/μ_*, ray bound, relative crown
+                                ball, trimmed-edge ball, exterior excursion,
+                                closedConvexHullDiameter (PROVED), plane and
+                                supertile cover, flcUniformCrownCover.
+  Tilings/FLC/Clones.lean       coarsening, finite neighbourhoods, genuine-corner
+                                clones, refined substitution, STS + heredity of
+                                clones, the two lifts, forget_vertices_preserves_sofic.
+  Tilings/HeaderKernel.lean     the compiled header kernel (all proofs real).
+  Tilings/Control/Certificate.lean   MacroData / MacroCertificate (G1)–(G7),
+                                incl. review additions (G3 orientation, G4
+                                inner-side clause, G7 marking discipline);
+                                Hereditary as a separate hypothesis.
+  Tilings/Control/Decoration.lean    tagged alphabet U, decorated tiles, normality,
+                                identity-correctness, header substitution (four-case
+                                fourth cell, print precedence), copy sources/origins,
+                                legality, nontrivial sides, flexible properness.
+  Tilings/Control/Composition.lean   the 15 composition statements incl.
+                                boundary_side_of_outer_side, alignment_complete
+                                (with mode uniformity), compose_legal_exists,
+                                lift_hierarchy, projects_to_hierarchy.
+  Tilings/Control/Regression.lean    the alignment counterexample and the old
+                                C_0/C_q exterior-flag counterexample (statements).
+  Tilings/Geometry/Grouping.lean     mesh constants, cellulation view, face groups,
+                                polygonalJordanBoundary and plAnnulusRouting (classical
+                                helpers, to be PROVED, never assumed), regular and
+                                outside grouping, spokes, quantitative sectors,
+                                fingerprint separation, routing, existsMacroCertificate.
+  Tilings/Alignment.lean        endpoint schedules W(A,e), schedule alignment,
+                                whole-side ports (⌈iL/6⌉), strict composition
+                                (STS half; the existence half is the strict instance
+                                of compose_legal_exists).
+  Tilings/LocalRules.lean       collar conversion (sofic + all STS ⇒ side-to-side
+                                sofic), glue dissection, grouping lift, the two
+                                hereditary-STS core theorems.
+
+Known modelling choices to review before proving (from the writers' reports):
+  * Decoration.project and Substitution.pow carry routine `sorry` obligations
+    in Basic.lean (coverage/disjointness of projections; finiteness of supertiles).
+  * Certificate: Hereditary is not a field; fifth cell of a print is local;
+    first cell of an outer side is 0; marking is per form; ranks are bounded.
+  * alignment_complete assumes mode uniformity for every other block.
+  * (G5) states "marked ordinary inner side" only for original types; the
+    noncentral-legal proof needs it for small types too — add to (G5)/(G6).
+  * Grouping.lean's GroupedFamily/Template overlap with MacroData; unify later.
+  * strict_schedule_composition states only the STS half.
+Acceptance: no sorry/axiom/admit/native_decide; main theorems proved only after
+existsMacroCertificate is instantiated.

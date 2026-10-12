@@ -159,13 +159,33 @@ def port (m : ℕ) (A : G.P'.Form) (a : Fin (G.P'.disk A).n) (r : Fin 5) : Pt ×
       rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e =
         portIndex (sidesInside τ G m A a).ncard r
 
+/-- Step 1 of the blueprint proof of `whole_side_ports`: the length of the parent
+side is the scaled length of the original side. -/
+private lemma whole_side_ports_step1_parent_length (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) :
+    dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 =
+      (τ.θ ^ m) * dist ((G.P'.disk A).vertex a) ((G.P'.disk A).vertex (finRotate _ a)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports`: the length of the parent
+side is bounded by the number of inside edges times D plus the omitted length 2D. -/
+private lemma whole_side_ports_step2_length_bound (M : MeshConstants P) (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) :
+    dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
+      ((sidesInside τ G m A a).ncard : ℝ) * M.D + 2 * M.D := by
+  sorry
+
 /-- `lem:whole-ports` (count): the list of whole fine sides strictly inside
 `s a` has at least `(s|a| - 2D)/D` entries. -/
 theorem whole_side_ports (M : MeshConstants P) (m : ℕ) (A : G.P'.Form)
     (a : Fin (G.P'.disk A).n) :
     ((τ.θ ^ m) * dist ((G.P'.disk A).vertex a) ((G.P'.disk A).vertex (finRotate _ a)) -
         2 * M.D) / M.D ≤ ((sidesInside τ G m A a).ncard : ℝ) := by
-  sorry
+  have h1 := whole_side_ports_step1_parent_length τ G m A a
+  have h2 := whole_side_ports_step2_length_bound τ G M m A a
+  have hd : 0 < M.D := M.D_pos
+  rw [div_le_iff₀ hd, sub_le_iff_le_add]
+  linarith
 
 /-- `lem:whole-ports` (distinctness): for large `s` the five quantile ports
 exist and are distinct. -/

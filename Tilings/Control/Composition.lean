@@ -503,6 +503,131 @@ theorem composed_proper (c : MacroCertificate P) (hH : c.Hereditary)
       IsExactComposition c T' T := by
   sorry
 
+/-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal`: 
+If a block is in the exact decomposition, it is a proper realization and all its
+noncentral tiles are legal. -/
+private lemma reconstructed_acyclic_legal_step1_block_context {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hex : IsExactComposition c T' T)
+    (j : part.ι) :
+    BlockContext c (part.block j) := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := T'; have _ := hex
+  sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_acyclic_legal`: 
+Every noncentral tile of `T'` is already legal. -/
+private lemma reconstructed_acyclic_legal_step2_noncentral {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ T'.tiles)
+    (hnc : ¬ c.IsCentral (tileDec Y).typ)
+    (hctx : ∀ j, BlockContext c (part.block j)) :
+    headerLegal c (tileDec Y) := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
+  have _ := hex; have _ := hY; have _ := hnc; have _ := hctx
+  sorry
+
+/-- Step 3 of the blueprint proof of `reconstructed_acyclic_legal`:
+Every cyclic tile of `T'` is already legal. -/
+private lemma reconstructed_acyclic_legal_step3_cyclic {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ T'.tiles)
+    (hcyc : c.IsCyclic (tileDec Y).typ)
+    (hctx : ∀ j, BlockContext c (part.block j)) :
+    headerLegal c (tileDec Y) := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
+  have _ := hex; have _ := hY; have _ := hcyc; have _ := hctx
+  sorry
+
+/-- Step 4 of the blueprint proof of `reconstructed_acyclic_legal`:
+Applying the full repaired reconstruction and exactness lemmas gives a normal
+parent $C$ of type $r$, with $D$ its central child. -/
+private lemma reconstructed_acyclic_legal_step4_parent {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
+    (hctx : ∀ j, BlockContext c (part.block j)) :
+    ∃ (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side),
+      CommonHeader c (part.block j) h ∧
+      tileDec X = reconstruct c (part.block j) (tileDec X).typ ∧
+      IsExactBlockOf c (part.block j) (reconstruct c (part.block j) h.1) ∧
+      IsNormal c (reconstruct c (part.block j) h.1) := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
+  have _ := hex; have _ := hX; have _ := hctx
+  sorry
+
+/-- Step 5 of the blueprint proof of `reconstructed_acyclic_legal`:
+The type $r$ of $C$ is noncentral. If it were central, it and its central
+child $t$ would have the same large form, making $t$ cyclic, contradicting
+the assumption on $D$. -/
+private lemma reconstructed_acyclic_legal_step5_parent_noncentral {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
+    (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
+    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c (part.block j) h)
+    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ) :
+    ¬ c.IsCentral h.1 := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
+  have _ := hex; have _ := hX; have _ := hcent; have _ := hcyc; have _ := hh; have _ := heq
+  sorry
+
+/-- Step 6 of the blueprint proof of `reconstructed_acyclic_legal`:
+The central acyclic reconstructed parent is legal because its ancestry
+chain reaches a noncentral type. -/
+private lemma reconstructed_acyclic_legal_step6_main {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
+    (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
+    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c (part.block j) h)
+    (h_parent_nc : ¬ c.IsCentral h.1)
+    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
+    (hctx : BlockContext c (part.block j))
+    (h_other_nc : ∀ Y ∈ T'.tiles, ¬ c.IsCentral (tileDec Y).typ → headerLegal c (tileDec Y))
+    (h_other_cyc : ∀ Y ∈ T'.tiles, c.IsCyclic (tileDec Y).typ → headerLegal c (tileDec Y)) :
+    headerLegal c (tileDec X) := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
+  have _ := hex; have _ := hX; have _ := hcent; have _ := hcyc; have _ := hh
+  have _ := h_parent_nc; have _ := heq; have _ := hctx; have _ := h_other_nc; have _ := h_other_cyc
+  sorry
+
 /-- `lem:comp/acyclic-legal`: every reconstructed parent of central acyclic
 type in `T'` is legal. -/
 theorem reconstructed_acyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
@@ -515,7 +640,22 @@ theorem reconstructed_acyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
     (hex : IsExactComposition c T' T) :
     ∀ X ∈ T'.tiles, c.IsCentral (tileDec X).typ → ¬ c.IsCyclic (tileDec X).typ →
       headerLegal c (tileDec X) := by
-  sorry
+  intro X hX hcent hcyc
+  have hctx : ∀ j, BlockContext c (part.block j) :=
+    reconstructed_acyclic_legal_step1_block_context c hH T hT hL part T' hex
+  have hparent := reconstructed_acyclic_legal_step4_parent c hH T hT hL part T' hrec hT' hN hex
+    X hX hctx
+  rcases hparent with ⟨j, h, hh, heq, _hexact, _hnorm⟩
+  have h_parent_nc := reconstructed_acyclic_legal_step5_parent_noncentral c hH T hT hL part T'
+    hrec hT' hN hex X hX hcent hcyc j h hh heq
+  have h_other_nc : ∀ Y ∈ T'.tiles, ¬ c.IsCentral (tileDec Y).typ → headerLegal c (tileDec Y) :=
+    fun Y hY hnc => reconstructed_acyclic_legal_step2_noncentral c hH T hT hL part T' hrec hT'
+      hN hex Y hY hnc hctx
+  have h_other_cyc : ∀ Y ∈ T'.tiles, c.IsCyclic (tileDec Y).typ → headerLegal c (tileDec Y) :=
+    fun Y hY hcyc' => reconstructed_acyclic_legal_step3_cyclic c hH T hT hL part T' hrec hT'
+      hN hex Y hY hcyc' hctx
+  exact reconstructed_acyclic_legal_step6_main c hH T hT hL part T' hrec hT' hN hex X hX hcent
+    hcyc j h hh h_parent_nc heq (hctx j) h_other_nc h_other_cyc
 
 /-- `thm:compose` (the repaired composition theorem): for a macrotemplate
 system with a certificate and hereditary listed sides, every proper legal

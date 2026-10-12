@@ -343,12 +343,38 @@ private lemma reconstructed_header_eq_headerOf (c : MacroCertificate P) (hH : c.
     headerOf c (reconstruct c K h.1) = h := by
   sorry
 
+/-- Step 4.1 of the blueprint proof of `reconstructed_header_eq_innerActive`:
+for prints, the fifth cell is nonzero. -/
+private lemma reconstructed_header_eq_innerActive_step1_print (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (i : c.Side h.1) (hi : c.IsInner (c.occ h.1 i)) (hp : c.IsPrint (c.occ h.1 i)) :
+    (reconstruct c K h.1).cell i 4 ≠ 0 := by
+  sorry
+
+/-- Step 4.2 of the blueprint proof of `reconstructed_header_eq_innerActive`:
+for nonprints, the fourth cell is nonzero. -/
+private lemma reconstructed_header_eq_innerActive_step2_nonprint (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (i : c.Side h.1) (hi : c.IsInner (c.occ h.1 i)) (hnp : ¬ c.IsPrint (c.occ h.1 i)) :
+    (reconstruct c K h.1).cell i 3 ≠ 0 := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `reconstructed_header_eq`: inner sides are nontrivial. -/
 private lemma reconstructed_header_eq_innerActive (c : MacroCertificate P) (hH : c.Hereditary)
     (K : ColouredBlock c) (hK : BlockContext c K)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
     InnerActive c (reconstruct c K h.1) := by
-  sorry
+  intro i hi
+  unfold IsNontrivial
+  by_cases hp : c.IsPrint (c.occ h.1 i)
+  · have h1 := reconstructed_header_eq_innerActive_step1_print c hH K hK h hh i hi hp
+    intro h_false
+    exact h1 h_false.2
+  · have h2 := reconstructed_header_eq_innerActive_step2_nonprint c hH K hK h hh i hi hp
+    intro h_false
+    exact h2 h_false.1
 
 /-- `lem:comp/reconstruction`: the reconstructed parent `D` of type `t` (with
 `D_i(d)` the third cell of port `i` on `σ'd`) is normal and

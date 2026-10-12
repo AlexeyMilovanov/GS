@@ -246,12 +246,27 @@ theorem whole_side_ports (M : MeshConstants P) (m : ℕ) (A : G.P'.Form)
   rw [div_le_iff₀ hd, sub_le_iff_le_add]
   linarith
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_distinct_step1_growth`: for large `m`,
+the algebraic lower bound is at least 6. -/
+private lemma whole_side_ports_distinct_step1_growth_step1_uniform_bound (M : MeshConstants P) :
+    ∃ m₀ : ℕ, ∀ m ≥ m₀, ∀ (A : G.P'.Form) (a : Fin (G.P'.disk A).n),
+      (6 : ℝ) ≤ ((τ.θ ^ m) * dist ((G.P'.disk A).vertex a) ((G.P'.disk A).vertex (finRotate _ a)) -
+        2 * M.D) / M.D := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_distinct`: for large `m`, the number of
 fine sides strictly inside `s a` is at least 6. -/
 private lemma whole_side_ports_distinct_step1_growth :
     ∃ m₀ : ℕ, ∀ m ≥ m₀, ∀ (A : G.P'.Form) (a : Fin (G.P'.disk A).n),
       6 ≤ (sidesInside τ G m A a).ncard := by
-  sorry
+  obtain ⟨M⟩ := MeshConstants.nonempty P
+  obtain ⟨m₀, hm₀⟩ := whole_side_ports_distinct_step1_growth_step1_uniform_bound (τ := τ) (G := G) M
+  use m₀
+  intro m hm A a
+  have h1 : (6 : ℝ) ≤ _ := hm₀ m hm A a
+  have h2 := whole_side_ports (τ := τ) (G := G) M m A a
+  have h3 : (6 : ℝ) ≤ ((sidesInside τ G m A a).ncard : ℝ) := le_trans h1 h2
+  exact_mod_cast h3
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_distinct`: if `L ≥ 6`, then `portIndex L`
 is injective on `Fin 5` and its values are in `1..L`. -/

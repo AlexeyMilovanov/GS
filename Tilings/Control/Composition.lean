@@ -603,6 +603,36 @@ private lemma alignment_complete_step1_macroside_eq (c : MacroCertificate P) (hH
       (part.block j').macroSide e = (part.block j).macroSide d := by
   sorry
 
+/-- Step 2a of the blueprint proof of `alignment_complete_step2_subdivision_eq`: The length of
+the child side subdivision is uniquely determined by the geometric macro side.
+Thus coinciding macro sides have subdivisions of the same length. -/
+private lemma alignment_complete_step2_subdivision_eq_step1_length (c : MacroCertificate P)
+    (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
+    (c.outerList (part.block j).α d).length = (c.outerList (part.block j').α e).length := by
+  sorry
+
+/-- Step 2b of the blueprint proof of `alignment_complete_step2_subdivision_eq`: Once the geometric
+macrosides coincide and their child side subdivisions have the same length,
+their child sides correspond exactly in geometry pointwise. -/
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise (c : MacroCertificate P)
+    (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d)
+    (hlen : (c.outerList (part.block j).α d).length = (c.outerList (part.block j').α e).length)
+    (k : ℕ) (hk : k < (c.outerList (part.block j).α d).length)
+    (hk' : k < (c.outerList (part.block j').α e).length) :
+    (part.block j).childSide ((c.outerList (part.block j).α d).get ⟨k, hk⟩) =
+    (part.block j').childSide ((c.outerList (part.block j').α e).get ⟨k, hk'⟩) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `alignment_complete`: Complete child-side
 matching identifies the whole ordered subdivision. Once the geometric
 macrosides coincide, the child sides of the two blocks correspond exactly in
@@ -616,7 +646,12 @@ private lemma alignment_complete_step2_subdivision_eq (c : MacroCertificate P) (
     (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
     List.Forall₂ (fun o o' => (part.block j).childSide o = (part.block j').childSide o')
       (c.outerList (part.block j).α d) (c.outerList (part.block j').α e) := by
-  sorry
+  rw [List.forall₂_iff_get]
+  have hlen := alignment_complete_step2_subdivision_eq_step1_length c hH T part j j' hneq d e
+    hrank hmode hmacro
+  refine ⟨hlen, fun k hk hk' => ?_⟩
+  exact alignment_complete_step2_subdivision_eq_step2_pointwise c hH T part j j' hneq d e hrank
+    hmode hmacro hlen k hk hk'
 
 /-- `lem:comp/alignment` (with the review's mode-uniformity hypothesis): in a
 plane partition into macroblocks, if every child side of the macroside `d`

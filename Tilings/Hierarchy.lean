@@ -54,7 +54,17 @@ private lemma locallyFinite_step3_centres (T : PlaneTiling P) (K : Set Pt)
     (hD : ∀ p : P.Form, ∀ x y, x ∈ (P.disk p).carrier → y ∈ (P.disk p).carrier → dist x y ≤ D) :
     ∀ A ∈ T.tiles, (A.carrier ∩ K).Nonempty →
       ∃ x ∈ K, dist (A.anchor +ᵥ c A.form) x ≤ D := by
-  sorry
+  intro A _ hK
+  rcases hK with ⟨x, hx_car, hx_K⟩
+  use x, hx_K
+  rw [PlacedTile.carrier] at hx_car
+  rcases hx_car with ⟨y, hy, hyx⟩
+  rw [← hyx]
+  rw [dist_vadd_cancel_left]
+  apply hD A.form
+  · have H := hc A.form
+    exact interior_subset H
+  · exact hy
 
 /-- Step 4 of the blueprint proof of `locallyFinite`: Centres belonging to distinct tiles
 are at distance at least $2r$, since their open interior disks are disjoint. -/

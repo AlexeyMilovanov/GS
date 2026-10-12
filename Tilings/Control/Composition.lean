@@ -322,12 +322,39 @@ theorem boundary_header_constant (c : MacroCertificate P) (hH : c.Hereditary)
     rw [h_eq]
     exact hh1 i hi
 
+/-- Step 1 of the blueprint proof of `reconstructed_header_eq_isNormal`: extracting the legal boundary parent tile. -/
+private lemma reconstructed_header_eq_isNormal_aux1 (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (d : c.Side h.1) (i : Fin 5) (hLoc : IsLocal c (c.occ h.1 d) i) :
+    ∃ (o : c.SideOcc) (ho : c.port (c.form h.1) d i = some o),
+      headerLegal c (K.tileOf o.1) ∧
+      (K.tileOf o.1).cell o.2 2 = K.col o.1 o.2 2 := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_header_eq_isNormal`: extracting normality from the legal parent tile. -/
+private lemma reconstructed_header_eq_isNormal_aux2 (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (d : c.Side h.1) (i : Fin 5) (hLoc : IsLocal c (c.occ h.1 d) i)
+    (o : c.SideOcc) (ho : c.port (c.form h.1) d i = some o)
+    (hLeg : headerLegal c (K.tileOf o.1)) :
+    (K.tileOf o.1).cell o.2 2 = prescribedCell c (c.occ h.1 d) i := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `reconstructed_header_eq`: proving normality. -/
 private lemma reconstructed_header_eq_isNormal (c : MacroCertificate P) (hH : c.Hereditary)
     (K : ColouredBlock c) (hK : BlockContext c K)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
     IsNormal c (reconstruct c K h.1) := by
-  sorry
+  intro d i hLoc
+  obtain ⟨o, ho, hLeg, hCol⟩ := reconstructed_header_eq_isNormal_aux1 c hH K hK h hh d i hLoc
+  have hPres := reconstructed_header_eq_isNormal_aux2 c hH K hK h hh d i hLoc o ho hLeg
+  change (match c.port (c.form h.1) d i with | some o => K.col o.1 o.2 2 | none => 0) = _
+  rw [ho]
+  change K.col o.1 o.2 2 = _
+  rw [← hCol]
+  exact hPres
 
 /-- Step 2 of the blueprint proof of `reconstructed_header_eq`: proving identity-correctness. -/
 private lemma reconstructed_header_eq_isIdentityCorrect (c : MacroCertificate P) (hH : c.Hereditary)

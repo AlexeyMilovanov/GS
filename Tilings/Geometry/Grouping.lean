@@ -2468,6 +2468,43 @@ def MatchingCyclicOrder (U Kout Kin : Set Pt) {k : ℕ} (x y : Fin k → Pt) : P
   ∃ γo γi : ℝ → Pt, IsLoopParam Kout γo ∧ IsLoopParam Kin γi ∧
     LoopsHomotopicIn U γo γi ∧ PointsInOrder γo x ∧ PointsInOrder γi y
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting`: Topological routing.
+In an annulus, points in matching cyclic order can be joined by pairwise disjoint simple
+continuous arcs. -/
+private lemma plAnnulusRouting_step1_topological (A C : PolygonalDisk)
+    (hC : C.carrier ⊆ interior A.carrier) {k : ℕ} (x y : Fin k → Pt)
+    (hx : ∀ i, x i ∈ frontier A.carrier) (hy : ∀ i, y i ∈ frontier C.carrier)
+    (hxi : Function.Injective x) (hyi : Function.Injective y)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) x y) :
+    ∃ γ : Fin k → ℝ → Pt,
+      (∀ i, Continuous (γ i)) ∧
+      (∀ i, γ i 0 = x i) ∧
+      (∀ i, γ i 1 = y i) ∧
+      (∀ i, ∀ t ∈ Set.Ioo (0:ℝ) 1, γ i t ∈ interior A.carrier \ C.carrier) ∧
+      (∀ i, Function.Injective (Set.restrict (Set.Icc (0:ℝ) 1) (γ i))) ∧
+      (∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0:ℝ) 1) (γ j '' Set.Icc (0:ℝ) 1)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting`: PL approximation.
+Any family of pairwise disjoint, simple continuous arcs in a polygonal domain
+connecting boundary points can be approximated by pairwise disjoint simple polygonal arcs. -/
+private lemma plAnnulusRouting_step2_plApprox (A C : PolygonalDisk)
+    (hC : C.carrier ⊆ interior A.carrier) {k : ℕ} (x y : Fin k → Pt)
+    (γ : Fin k → ℝ → Pt)
+    (hcont : ∀ i, Continuous (γ i))
+    (hend_x : ∀ i, γ i 0 = x i)
+    (hend_y : ∀ i, γ i 1 = y i)
+    (hin : ∀ i, ∀ t ∈ Set.Ioo (0:ℝ) 1, γ i t ∈ interior A.carrier \ C.carrier)
+    (hsimp : ∀ i, Function.Injective (Set.restrict (Set.Icc (0:ℝ) 1) (γ i)))
+    (hdisj : ∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0:ℝ) 1) (γ j '' Set.Icc (0:ℝ) 1)) :
+    ∃ α : Fin k → PolyArc, ∀ i,
+      (α i).IsSimple ∧ (α i).start = x i ∧ (α i).stop = y i ∧
+      (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (α i).carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧
+      ∀ j, j ≠ i → Disjoint (α i).carrier (α j).carrier := by
+  sorry
+
 /-- **PL annulus routing** (classical helper; must be proved, never assumed).
 In the polygonal annulus `A \ int C`, distinct outer points and distinct inner
 points in matching cyclic order are joined by pairwise disjoint simple
@@ -2483,7 +2520,9 @@ theorem plAnnulusRouting (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.ca
       (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
       (α i).carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧
       ∀ j, j ≠ i → Disjoint (α i).carrier (α j).carrier := by
-  sorry
+  obtain ⟨γ, hcont, hend_x, hend_y, hin, hsimp, hdisj⟩ :=
+    plAnnulusRouting_step1_topological A C hC x y hx hy hxi hyi horder
+  exact plAnnulusRouting_step2_plApprox A C hC x y γ hcont hend_x hend_y hin hsimp hdisj
 
 /-! ## Inside- and outside-anchored groupings -/
 

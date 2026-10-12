@@ -403,6 +403,34 @@ theorem reconstructed_noncentral_legal (c : MacroCertificate P) (hH : c.Heredita
     headerLegal c (reconstruct c K h.1) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `alignment_complete`: By tracing the
+coinciding segments and using the mode-uniformity hypothesis to prevent the
+opposing side from being longer, we find an opposing macroside `e` of block `j'`
+that exactly shares the geometric macroside segment. -/
+private lemma alignment_complete_step1_macroside_eq (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (j : part.ι) (d : Fin (c.Q.disk (part.block j).α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j' : part.ι, j' ≠ j → ∀ e, ModeUniform c (part.block j') e) :
+    ∃ (j' : part.ι) (hneq : j' ≠ j) (e : Fin (c.Q.disk (part.block j').α).n),
+      (part.block j').macroSide e = (part.block j).macroSide d := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `alignment_complete`: Complete child-side
+matching identifies the whole ordered subdivision. Once the geometric
+macrosides coincide, the child sides of the two blocks correspond exactly in
+order and geometry. -/
+private lemma alignment_complete_step2_subdivision_eq (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
+    List.Forall₂ (fun o o' => (part.block j).childSide o = (part.block j').childSide o')
+      (c.outerList (part.block j).α d) (c.outerList (part.block j').α e) := by
+  sorry
+
 /-- `lem:comp/alignment` (with the review's mode-uniformity hypothesis): in a
 plane partition into macroblocks, if every child side of the macroside `d`
 of block `j` has a complete opposing side with the same positive rank, and
@@ -414,7 +442,10 @@ theorem alignment_complete (c : MacroCertificate P) (hH : c.Hereditary)
     (hrank : RankMatched c part j d)
     (hmode : ∀ j' : part.ι, j' ≠ j → ∀ e, ModeUniform c (part.block j') e) :
     OpposingMacroside c part j d := by
-  sorry
+  obtain ⟨j', hneq, e, hmacro⟩ :=
+    alignment_complete_step1_macroside_eq c hH T part j d hrank hmode
+  refine ⟨j', hneq, e, hmacro, ?_⟩
+  exact alignment_complete_step2_subdivision_eq c hH T part j j' hneq d e hrank hmode hmacro
 
 /-- `lem:comp/proper`: for a proper legal plane tiling `T`, replacing each
 assembled macroblock by its reconstructed parent and scaling down gives a

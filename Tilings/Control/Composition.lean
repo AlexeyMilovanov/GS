@@ -268,7 +268,9 @@ private lemma boundary_header_constant_step1_legal (c : MacroCertificate P)
     (K : ColouredBlock c) (hK : BlockContext c K) (t : c.Typ) (ht : c.owner t = K.α)
     (i : c.Side t) (hi : c.IsBoundary (c.occ t i)) :
     headerLegal c (K.tileOf t) := by
-  sorry
+  apply hK.2 t ht
+  rintro rfl
+  exact (c.g2_central K.α i).2 hi
 
 
 /-- Step 2 of the blueprint proof of `boundary_header_constant`: the boundary cells of a single

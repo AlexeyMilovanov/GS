@@ -622,10 +622,670 @@ structure RootSeparation (P : Protoset) where
   μ_le_reflex : ∀ (p : P.Form) (q a b : Pt), (P.disk p).IsReflexCorner q a b →
     μ ≤ EuclideanGeometry.angle a q b
 
+private lemma crown_vertex_not_mem_open_side (D : PolygonalDisk)
+    (k i : Fin D.n) :
+    D.vertex k ∉ openSegment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+  intro hk
+  by_cases hki : k = i
+  · subst k
+    have hne : D.vertex i ≠ D.vertex (finRotate D.n i) := by
+      intro h
+      exact (crown_finRotate_ne_self (by have := D.three_le; omega) i)
+        (D.vertex_injective h).symm
+    exact hne ((left_mem_openSegment_iff).mp hk)
+  · have h := D.simple i k (Ne.symm hki)
+      ⟨openSegment_subset_segment ℝ _ _ hk,
+        left_mem_segment ℝ (D.vertex k) (D.vertex (finRotate D.n k))⟩
+    rcases h.1 with h | h
+    · have heq := left_mem_openSegment_iff.mp (h ▸ hk)
+      exact (crown_finRotate_ne_self (by have := D.three_le; omega) i)
+        (D.vertex_injective heq).symm
+    · rw [Set.mem_singleton_iff] at h
+      have heq := right_mem_openSegment_iff.mp (h ▸ hk)
+      exact (crown_finRotate_ne_self (by have := D.three_le; omega) i)
+        (D.vertex_injective heq).symm
+
+private lemma crown_side_through_vertex (D : PolygonalDisk)
+    (k i : Fin D.n) (hki : D.vertex k ∈ D.side i) :
+    k = i ∨ k = finRotate D.n i := by
+  by_contra h
+  push_neg at h
+  apply crown_vertex_not_mem_open_side D k i
+  change D.vertex k ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hki
+  exact mem_openSegment_of_ne_left_right
+    (fun hk => h.1 (D.vertex_injective hk.symm))
+    (fun hk => h.2 (D.vertex_injective hk.symm)) hki
+
+private lemma crown_exists_near_openSegment {a b : Pt} (hab : a ≠ b)
+    {r : ℝ} (hr : 0 < r) :
+    ∃ z ∈ ball a r, z ∈ openSegment ℝ a b := by
+  let t := min (1 / 2 : ℝ) (r / (2 * ‖b - a‖))
+  have hn : 0 < ‖b - a‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hab.symm)
+  have ht : 0 < t := lt_min (by norm_num) (div_pos hr (by positivity))
+  have ht1 : t < 1 := lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+  refine ⟨a + t • (b - a), ?_,
+    crown_mem_openSegment_iff.mpr ⟨t, ht, ht1, rfl⟩⟩
+  rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+    Real.norm_eq_abs, abs_of_pos ht]
+  have hle : t ≤ r / (2 * ‖b - a‖) := min_le_right _ _
+  calc
+    t * ‖b - a‖ ≤ (r / (2 * ‖b - a‖)) * ‖b - a‖ :=
+      mul_le_mul_of_nonneg_right hle hn.le
+    _ = r / 2 := by field_simp
+    _ < r := by linarith
+
+private lemma crown_angle_eq_zero_of_mem_side {q z z' : Pt}
+    {D : PolygonalDisk} {i : Fin D.n} (hq : q = D.vertex i ∨
+      q = D.vertex (finRotate D.n i)) (hz : z ∈ D.side i)
+    (hz' : z' ∈ D.side i) (hzq : z ≠ q) (hzq' : z' ≠ q) :
+    EuclideanGeometry.angle z q z' = 0 := by
+  rcases hq with rfl | rfl
+  · change z ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hz
+    change z' ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hz'
+    rw [crown_mem_segment_iff] at hz hz'
+    obtain ⟨s, hs0, -, rfl⟩ := hz
+    obtain ⟨t, ht0, -, rfl⟩ := hz'
+    have hs : 0 < s := hs0.lt_of_ne (by
+      intro hs
+      apply hzq
+      simp [hs])
+    have ht : 0 < t := ht0.lt_of_ne (by
+      intro ht
+      apply hzq'
+      simp [ht])
+    unfold EuclideanGeometry.angle
+    simp only [vsub_eq_sub, add_sub_cancel_left]
+    rw [InnerProductGeometry.angle_smul_left_of_pos _ _ hs,
+      InnerProductGeometry.angle_smul_right_of_pos _ _ ht]
+    exact InnerProductGeometry.angle_self
+      (sub_ne_zero.mpr (by
+        intro h
+        exact (crown_finRotate_ne_self (by have := D.three_le; omega) i)
+          (D.vertex_injective h)))
+  · change z ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hz
+    change z' ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hz'
+    rw [segment_symm] at hz hz'
+    rw [crown_mem_segment_iff] at hz hz'
+    obtain ⟨s, hs0, -, rfl⟩ := hz
+    obtain ⟨t, ht0, -, rfl⟩ := hz'
+    have hs : 0 < s := hs0.lt_of_ne (by
+      intro hs
+      apply hzq
+      simp [hs])
+    have ht : 0 < t := ht0.lt_of_ne (by
+      intro ht
+      apply hzq'
+      simp [ht])
+    unfold EuclideanGeometry.angle
+    simp only [vsub_eq_sub, add_sub_cancel_left]
+    rw [InnerProductGeometry.angle_smul_left_of_pos _ _ hs,
+      InnerProductGeometry.angle_smul_right_of_pos _ _ ht]
+    exact InnerProductGeometry.angle_self
+      (sub_ne_zero.mpr (by
+        intro h
+        exact (crown_finRotate_ne_self (by have := D.three_le; omega) i)
+          (D.vertex_injective h).symm))
+
+private lemma crown_other_endpoint_mem_line {q z x y : Pt}
+    {D : PolygonalDisk} {i : Fin D.n} (hq : q = D.vertex i ∨
+      q = D.vertex (finRotate D.n i)) (hz : z ∈ D.side i)
+    (hzq : z ≠ q) (hqline : q ∈ line[ℝ, x, y])
+    (hzline : z ∈ line[ℝ, x, y]) :
+    D.vertex i ∈ line[ℝ, x, y] ∧
+      D.vertex (finRotate D.n i) ∈ line[ℝ, x, y] := by
+  have hline : line[ℝ, q, z] ≤ line[ℝ, x, y] :=
+    affineSpan_pair_le_of_mem_of_mem hqline hzline
+  rcases hq with hq | hq
+  · subst q
+    refine ⟨hqline, hline ?_⟩
+    apply Wbtw.right_mem_affineSpan_of_left_ne
+    · change z ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hz
+      exact mem_segment_iff_wbtw.mp hz
+    · exact Ne.symm hzq
+  · subst q
+    refine ⟨hline ?_, hqline⟩
+    apply Wbtw.right_mem_affineSpan_of_left_ne
+    · change z ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) at hz
+      rw [segment_symm] at hz
+      exact mem_segment_iff_wbtw.mp hz
+    · exact Ne.symm hzq
+
+private lemma crown_genuineCorner_not_mem_geometricEdge (D : PolygonalDisk)
+    {q x y : Pt} (hq : D.IsGenuineCorner q)
+    (hxy : D.IsGeometricEdge x y) (hqx : q ≠ x) (hqy : q ≠ y) :
+    q ∉ segment ℝ x y := by
+  intro hqxy
+  obtain ⟨k, hk, rfl⟩ := hq
+  have hqopen : D.vertex k ∈ openSegment ℝ x y :=
+    mem_openSegment_of_ne_left_right (Ne.symm hqx) (Ne.symm hqy) hqxy
+  have hbase : Sbtw ℝ x (D.vertex k) y :=
+    crown_sbtw_of_mem_openSegment hxy.2.2.1 hqopen
+  obtain ⟨r, hr, hboundary⟩ := crown_local_boundary D (v := D.vertex k)
+  obtain ⟨z, hzr, hz⟩ := crown_exists_near_openSegment hbase.ne_left hr
+  obtain ⟨z', hz'r, hz'⟩ := crown_exists_near_openSegment hbase.ne_right hr
+  have hzxy : z ∈ segment ℝ x y :=
+    (convex_segment x y).segment_subset hqxy (left_mem_segment ℝ x y)
+      (openSegment_subset_segment ℝ _ _ hz)
+  have hz'xy : z' ∈ segment ℝ x y :=
+    (convex_segment x y).segment_subset hqxy (right_mem_segment ℝ x y)
+      (openSegment_subset_segment ℝ _ _ hz')
+  obtain ⟨i, hki, hzi, -⟩ := hboundary z hzr (hxy.2.2.2 hzxy)
+  obtain ⟨j, hkj, hzj, -⟩ := hboundary z' hz'r (hxy.2.2.2 hz'xy)
+  have hi := crown_side_through_vertex D k i hki
+  have hj := crown_side_through_vertex D k j hkj
+  have hzq : z ≠ D.vertex k :=
+    (crown_sbtw_of_mem_openSegment hbase.ne_left hz).ne_left
+  have hz'q : z' ≠ D.vertex k :=
+    (crown_sbtw_of_mem_openSegment hbase.ne_right hz').ne_left
+  have hij : i ≠ j := by
+    intro hij
+    subst j
+    have hzero := crown_angle_eq_zero_of_mem_side
+      (D := D) (i := i) (q := D.vertex k) (z := z) (z' := z')
+      (hi.elim (fun h => Or.inl (congrArg D.vertex h))
+        (fun h => Or.inr (congrArg D.vertex h))) hzi hzj hzq hz'q
+    have hxzq : Sbtw ℝ x z (D.vertex k) := by
+      rw [sbtw_comm]
+      exact crown_sbtw_of_mem_openSegment hbase.ne_left hz
+    have hqz'y : Sbtw ℝ (D.vertex k) z' y :=
+      crown_sbtw_of_mem_openSegment hbase.ne_right hz'
+    have hzqz' : Sbtw ℝ z (D.vertex k) z' :=
+      (hbase.trans_left_right hxzq).trans_right_left hqz'y
+    linarith [hzqz'.angle₁₂₃_eq_pi, Real.pi_pos]
+  have hqline : D.vertex k ∈ line[ℝ, x, y] :=
+    (mem_segment_iff_wbtw.mp hqxy).mem_affineSpan
+  have hzline : z ∈ line[ℝ, x, y] :=
+    (mem_segment_iff_wbtw.mp hzxy).mem_affineSpan
+  have hz'line : z' ∈ line[ℝ, x, y] :=
+    (mem_segment_iff_wbtw.mp hz'xy).mem_affineSpan
+  have hiend := crown_other_endpoint_mem_line (D := D) (i := i)
+    (q := D.vertex k) (z := z) (x := x) (y := y)
+    (hi.elim (fun h => Or.inl (congrArg D.vertex h))
+      (fun h => Or.inr (congrArg D.vertex h))) hzi hzq hqline hzline
+  have hjend := crown_other_endpoint_mem_line (D := D) (i := j)
+    (q := D.vertex k) (z := z') (x := x) (y := y)
+    (hj.elim (fun h => Or.inl (congrArg D.vertex h))
+      (fun h => Or.inr (congrArg D.vertex h))) hzj hz'q hqline hz'line
+  apply hk
+  rcases hi with hi | hi <;> rcases hj with hj | hj
+  · exact (hij (hi.symm.trans hj)).elim
+  · subst i
+    have hj' : j = (finRotate D.n).symm k := by
+      apply (finRotate D.n).injective
+      simpa using hj.symm
+    subst j
+    exact collinear_triple_of_mem_affineSpan_pair
+      (p₄ := x) (p₅ := y) hjend.1 hqline hiend.2
+  · subst j
+    have hi' : i = (finRotate D.n).symm k := by
+      apply (finRotate D.n).injective
+      simpa using hi.symm
+    subst i
+    exact collinear_triple_of_mem_affineSpan_pair
+      (p₄ := x) (p₅ := y) hiend.1 hqline hjend.2
+  · exfalso
+    apply hij
+    apply (finRotate D.n).injective
+    exact hi.symm.trans hj
+
+private lemma crown_reflex_angle_pos (D : PolygonalDisk) {q a b : Pt}
+    (h : D.IsReflexCorner q a b) :
+    0 < EuclideanGeometry.angle a q b := by
+  have hqa : q ≠ a := h.1.2.2.1
+  have hqb : q ≠ b := h.2.1.2.2.1
+  have hang0 : EuclideanGeometry.angle a q b ≠ 0 := by
+    intro hang
+    unfold EuclideanGeometry.angle at hang
+    obtain ⟨-, t, ht, hba⟩ := InnerProductGeometry.angle_eq_zero_iff.mp hang
+    change b - q = t • (a - q) at hba
+    have hnorma : 0 < ‖a - q‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hqa.symm)
+    have hnormb : ‖b - q‖ = t * ‖a - q‖ := by
+      rw [hba, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+    have hunit : ‖b - q‖⁻¹ • (b - q) = ‖a - q‖⁻¹ • (a - q) := by
+      rw [hba]
+      simp only [norm_smul, Real.norm_eq_abs, abs_of_pos ht, mul_inv, smul_smul]
+      congr 1
+      field_simp
+    obtain ⟨s, ⟨hs0, hslt⟩, hsout⟩ :=
+      h.2.2.2 (‖a - q‖ / 2) (by positivity)
+    apply hsout
+    rw [hunit, ← two_smul ℝ, smul_smul]
+    apply crown_frontier_subset_of_isClosed D.compact.isClosed
+    apply h.1.2.2.2
+    apply crown_mem_segment_iff.mpr
+    refine ⟨s * 2 * ‖a - q‖⁻¹, by positivity, ?_, ?_⟩
+    · calc
+        s * 2 * ‖a - q‖⁻¹ ≤ ‖a - q‖ * ‖a - q‖⁻¹ := by
+          apply mul_le_mul_of_nonneg_right (by linarith) (inv_nonneg.mpr hnorma.le)
+        _ = 1 := mul_inv_cancel₀ hnorma.ne'
+    · module
+  exact (EuclideanGeometry.angle_nonneg a q b).lt_of_ne hang0.symm
+
+private lemma crown_exists_point_segment_bound {q x y : Pt}
+    (hq : q ∉ segment ℝ x y) :
+    ∃ d : ℝ, 0 < d ∧ ∀ z ∈ segment ℝ x y, d ≤ dist q z := by
+  exact (crown_isCompact_segment x y).exists_forall_le'
+    (by fun_prop) (fun z hz => dist_pos.mpr (fun hzq => hq (hzq ▸ hz)))
+
+private lemma crown_exists_segment_segment_bound {x y x' y' : Pt}
+    (hdisj : Disjoint (segment ℝ x y) (segment ℝ x' y')) :
+    ∃ d : ℝ, 0 < d ∧ ∀ z ∈ segment ℝ x y,
+      ∀ z' ∈ segment ℝ x' y', d ≤ dist z z' := by
+  obtain ⟨d, hd, hdle⟩ :=
+    ((crown_isCompact_segment x y).prod (crown_isCompact_segment x' y')).exists_forall_le'
+      ((continuous_fst.dist continuous_snd).continuousOn) (fun z hz =>
+        dist_pos.mpr (fun heq => Set.disjoint_left.mp hdisj hz.1 (by
+          simpa [heq] using hz.2)))
+  exact ⟨d, hd, fun z hz z' hz' => hdle (z, z') ⟨hz, hz'⟩⟩
+
+private noncomputable def crownPointSegmentBound (q x y : Pt) : ℝ :=
+  by
+    classical
+    exact if h : q ∉ segment ℝ x y then
+      Classical.choose (crown_exists_point_segment_bound h)
+    else 1
+
+private lemma crownPointSegmentBound_pos (q x y : Pt) :
+    0 < crownPointSegmentBound q x y := by
+  classical
+  by_cases h : q ∉ segment ℝ x y
+  · simpa [crownPointSegmentBound, h] using
+      (Classical.choose_spec (crown_exists_point_segment_bound h)).1
+  · simp [crownPointSegmentBound, h]
+
+private lemma crownPointSegmentBound_le {q x y z : Pt}
+    (hq : q ∉ segment ℝ x y) (hz : z ∈ segment ℝ x y) :
+    crownPointSegmentBound q x y ≤ dist q z := by
+  classical
+  simpa [crownPointSegmentBound, hq] using
+    (Classical.choose_spec (crown_exists_point_segment_bound hq)).2 z hz
+
+private noncomputable def crownSegmentSegmentBound (x y x' y' : Pt) : ℝ :=
+  by
+    classical
+    exact if h : Disjoint (segment ℝ x y) (segment ℝ x' y') then
+      Classical.choose (crown_exists_segment_segment_bound h)
+    else 1
+
+private lemma crownSegmentSegmentBound_pos (x y x' y' : Pt) :
+    0 < crownSegmentSegmentBound x y x' y' := by
+  classical
+  by_cases h : Disjoint (segment ℝ x y) (segment ℝ x' y')
+  · simpa [crownSegmentSegmentBound, h] using
+      (Classical.choose_spec (crown_exists_segment_segment_bound h)).1
+  · simp [crownSegmentSegmentBound, h]
+
+private lemma crownSegmentSegmentBound_le {x y x' y' z z' : Pt}
+    (h : Disjoint (segment ℝ x y) (segment ℝ x' y'))
+    (hz : z ∈ segment ℝ x y) (hz' : z' ∈ segment ℝ x' y') :
+    crownSegmentSegmentBound x y x' y' ≤ dist z z' := by
+  classical
+  simpa [crownSegmentSegmentBound, h] using
+    (Classical.choose_spec (crown_exists_segment_segment_bound h)).2 z hz z' hz'
+
+private noncomputable def crownReflexAngleBound
+    (D : PolygonalDisk) (q a b : Pt) : ℝ :=
+  by
+    classical
+    exact if D.IsReflexCorner q a b then
+      min (Real.pi / 2) (EuclideanGeometry.angle a q b)
+    else Real.pi / 2
+
+private lemma crownReflexAngleBound_pos (D : PolygonalDisk) (q a b : Pt) :
+    0 < crownReflexAngleBound D q a b := by
+  classical
+  by_cases h : D.IsReflexCorner q a b
+  · simp only [crownReflexAngleBound, h, ↓reduceIte]
+    exact lt_min (by linarith [Real.pi_pos]) (crown_reflex_angle_pos D h)
+  · simp [crownReflexAngleBound, h, Real.pi_pos]
+
+private lemma crownReflexAngleBound_le_half_pi (D : PolygonalDisk) (q a b : Pt) :
+    crownReflexAngleBound D q a b ≤ Real.pi / 2 := by
+  classical
+  by_cases h : D.IsReflexCorner q a b
+  · simp [crownReflexAngleBound, h]
+  · simp [crownReflexAngleBound, h]
+
+private lemma crownReflexAngleBound_le {D : PolygonalDisk} {q a b : Pt}
+    (h : D.IsReflexCorner q a b) :
+    crownReflexAngleBound D q a b ≤ EuclideanGeometry.angle a q b := by
+  classical
+  simp [crownReflexAngleBound, h]
+
+private lemma crown_incident_indices_eq {D : PolygonalDisk}
+    {k i j l : Fin D.n} (hi : k = i ∨ k = finRotate D.n i)
+    (hj : k = j ∨ k = finRotate D.n j)
+    (hl : k = l ∨ k = finRotate D.n l) (hij : i ≠ j) (hil : i ≠ l) :
+    j = l := by
+  rcases hi with hi | hi
+  · rcases hj with hj | hj
+    · exact (hij (hi.symm.trans hj)).elim
+    · rcases hl with hl | hl
+      · exact (hil (hi.symm.trans hl)).elim
+      · exact (finRotate D.n).injective (hj.symm.trans hl)
+  · rcases hj with hj | hj
+    · rcases hl with hl | hl
+      · exact hj.symm.trans hl
+      · exact (hil ((finRotate D.n).injective (hi.symm.trans hl))).elim
+    · exact (hij ((finRotate D.n).injective (hi.symm.trans hj))).elim
+
+private lemma crown_collinear_of_shared_side {D : PolygonalDisk}
+    {x y x' y' z u v : Pt} {i : Fin D.n}
+    (hxy : x ≠ y) (hx'y' : x' ≠ y')
+    (hzxy : z ∈ openSegment ℝ x y)
+    (hzx'y' : z ∈ openSegment ℝ x' y')
+    (hu : u ∈ openSegment ℝ z x) (hv : v ∈ openSegment ℝ z x')
+    (hzi : z ∈ D.side i) (hui : u ∈ D.side i) (hvi : v ∈ D.side i) :
+    x' ∈ line[ℝ, x, y] ∧ y' ∈ line[ℝ, x, y] := by
+  let L := line[ℝ, D.vertex i, D.vertex (finRotate D.n i)]
+  have hmem : ∀ {w : Pt}, w ∈ D.side i → w ∈ L := by
+    intro w hw
+    exact (mem_segment_iff_wbtw.mp hw).mem_affineSpan
+  have hzL := hmem hzi
+  have huL := hmem hui
+  have hvL := hmem hvi
+  have hbase := crown_sbtw_of_mem_openSegment hxy hzxy
+  have hzx : z ≠ x := hbase.ne_left
+  have hzu : z ≠ u := (crown_sbtw_of_mem_openSegment hzx hu).left_ne
+  have hbase' := crown_sbtw_of_mem_openSegment hx'y' hzx'y'
+  have hzxp : z ≠ x' := hbase'.ne_left
+  have hzv : z ≠ v := (crown_sbtw_of_mem_openSegment hzxp hv).left_ne
+  have hxL : x ∈ L :=
+    (affineSpan_pair_le_of_mem_of_mem hzL huL)
+      ((crown_sbtw_of_mem_openSegment hzx hu).wbtw.right_mem_affineSpan_of_left_ne hzu)
+  have hyL : y ∈ L :=
+    (affineSpan_pair_le_of_mem_of_mem hxL hzL)
+      (hbase.wbtw.right_mem_affineSpan_of_left_ne hbase.left_ne)
+  have hx'L : x' ∈ L :=
+    (affineSpan_pair_le_of_mem_of_mem hzL hvL)
+      ((crown_sbtw_of_mem_openSegment hzxp hv).wbtw.right_mem_affineSpan_of_left_ne hzv)
+  have hy'L : y' ∈ L :=
+    (affineSpan_pair_le_of_mem_of_mem hx'L hzL)
+      (hbase'.wbtw.right_mem_affineSpan_of_left_ne hbase'.left_ne)
+  have hline : line[ℝ, x, y] = L :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne hxL hyL hxy
+  have hx'line : x' ∈ line[ℝ, x, y] := hline.symm ▸ hx'L
+  have hy'line : y' ∈ line[ℝ, x, y] := hline.symm ▸ hy'L
+  exact ⟨hx'line, hy'line⟩
+
+private lemma crown_interval_endpoint {r u s : ℝ} (hs0 : 0 < s) (hs1 : s < 1)
+    (hsru : s ∈ uIcc r u) :
+    r ∈ Icc (0 : ℝ) 1 ∨ u ∈ Icc (0 : ℝ) 1 ∨
+      0 ∈ uIcc r u ∨ 1 ∈ uIcc r u := by
+  by_cases hr : r ∈ Icc (0 : ℝ) 1
+  · exact Or.inl hr
+  by_cases hu : u ∈ Icc (0 : ℝ) 1
+  · exact Or.inr (Or.inl hu)
+  have hr' : r < 0 ∨ 1 < r := by
+    simp only [mem_Icc, not_and_or, not_le] at hr
+    rcases hr with hr | hr
+    · exact Or.inl hr
+    · exact Or.inr hr
+  have hu' : u < 0 ∨ 1 < u := by
+    simp only [mem_Icc, not_and_or, not_le] at hu
+    rcases hu with hu | hu
+    · exact Or.inl hu
+    · exact Or.inr hu
+  rw [mem_uIcc] at hsru
+  rcases hr' with hr' | hr' <;> rcases hu' with hu' | hu'
+  · rcases hsru with hsru | hsru <;> linarith
+  · exact Or.inr (Or.inr (Or.inl (mem_uIcc_of_le hr'.le (by linarith))))
+  · exact Or.inr (Or.inr (Or.inl (mem_uIcc_of_ge hu'.le (by linarith))))
+  · rcases hsru with hsru | hsru <;> linarith
+
+private lemma crown_endpoint_mem_of_collinear_intersection {x y x' y' z : Pt}
+    (hxy : x ≠ y) (hzxy : z ∈ openSegment ℝ x y)
+    (hzx'y' : z ∈ openSegment ℝ x' y')
+    (hx'line : x' ∈ line[ℝ, x, y]) (hy'line : y' ∈ line[ℝ, x, y]) :
+    x' ∈ segment ℝ x y ∨ y' ∈ segment ℝ x y ∨
+      x ∈ segment ℝ x' y' ∨ y ∈ segment ℝ x' y' := by
+  obtain ⟨s, hs0, hs1, hzs⟩ := crown_mem_openSegment_iff.mp hzxy
+  obtain ⟨t, ht0, ht1, hzt⟩ := crown_mem_openSegment_iff.mp hzx'y'
+  obtain ⟨r, hr⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hx'line
+  obtain ⟨u, hu⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hy'line
+  have hxr : x' = x + r • (y - x) := by
+    simpa [AffineMap.lineMap_apply, vsub_eq_sub, vadd_eq_add, add_comm] using hr.symm
+  have hyu : y' = x + u • (y - x) := by
+    simpa [AffineMap.lineMap_apply, vsub_eq_sub, vadd_eq_add, add_comm] using hu.symm
+  have hcoef : s = r + t * (u - r) := by
+    rw [hzs, hxr, hyu] at hzt
+    apply crown_smul_cancel (sub_ne_zero.mpr hxy.symm)
+    calc
+      s • (y - x) = (x + s • (y - x)) - x := by module
+      _ = (x + r • (y - x) +
+          t • (x + u • (y - x) - (x + r • (y - x)))) - x := by rw [hzt]
+      _ = (r + t * (u - r)) • (y - x) := by module
+  have hsru : s ∈ uIcc r u := by
+    rw [← segment_eq_uIcc, mem_segment_iff_wbtw]
+    refine ⟨t, ⟨ht0.le, ht1.le⟩, ?_⟩
+    rw [AffineMap.lineMap_apply, vsub_eq_sub]
+    change t * (u - r) + r = s
+    rw [hcoef]
+    ring
+  have hmap : ∀ {a : ℝ}, a ∈ segment ℝ r u →
+      x + a • (y - x) ∈ segment ℝ x' y' := by
+    intro a ha
+    obtain ⟨c, hc, hca⟩ := mem_segment_iff_wbtw.mp ha
+    apply crown_mem_segment_iff.mpr
+    refine ⟨c, hc.1, hc.2, ?_⟩
+    have hac : a = r + c * (u - r) := by
+      simpa [AffineMap.lineMap_apply, vsub_eq_sub, add_comm] using hca.symm
+    rw [hxr, hyu, hac]
+    module
+  rcases crown_interval_endpoint hs0 hs1 hsru with hr | hu | h0 | h1
+  · left
+    exact crown_mem_segment_iff.mpr ⟨r, hr.1, hr.2, hxr⟩
+  · right; left
+    exact crown_mem_segment_iff.mpr ⟨u, hu.1, hu.2, hyu⟩
+  · right; right; left
+    convert hmap (segment_eq_uIcc r u ▸ h0) using 1
+    module
+  · right; right; right
+    convert hmap (segment_eq_uIcc r u ▸ h1) using 1
+    module
+
+private lemma crown_geometricEdges_disjoint (D : PolygonalDisk)
+    {x y x' y' : Pt} (hxy : D.IsGeometricEdge x y)
+    (hx'y' : D.IsGeometricEdge x' y')
+    (hend : Disjoint ({x, y} : Set Pt) {x', y'}) :
+    Disjoint (segment ℝ x y) (segment ℝ x' y') := by
+  rw [Set.disjoint_left]
+  intro z hz hz'
+  have hends : x ≠ x' ∧ x ≠ y' ∧ y ≠ x' ∧ y ≠ y' := by
+    simpa [Set.disjoint_left, and_assoc] using hend
+  have hzx : z ≠ x := by
+    intro h
+    subst z
+    exact (crown_genuineCorner_not_mem_geometricEdge D hxy.1 hx'y'
+      hends.1 hends.2.1) hz'
+  have hzy : z ≠ y := by
+    intro h
+    subst z
+    exact (crown_genuineCorner_not_mem_geometricEdge D hxy.2.1 hx'y'
+      hends.2.2.1 hends.2.2.2) hz'
+  have hzx' : z ≠ x' := by
+    intro h
+    subst z
+    exact (crown_genuineCorner_not_mem_geometricEdge D hx'y'.1 hxy
+      (Ne.symm hends.1) (Ne.symm hends.2.2.1)) hz
+  have hzy' : z ≠ y' := by
+    intro h
+    subst z
+    exact (crown_genuineCorner_not_mem_geometricEdge D hx'y'.2.1 hxy
+      (Ne.symm hends.2.1) (Ne.symm hends.2.2.2)) hz
+  have hzopen : z ∈ openSegment ℝ x y :=
+    mem_openSegment_of_ne_left_right (Ne.symm hzx) (Ne.symm hzy) hz
+  have hzopen' : z ∈ openSegment ℝ x' y' :=
+    mem_openSegment_of_ne_left_right (Ne.symm hzx') (Ne.symm hzy') hz'
+  obtain ⟨r, hr, hboundary⟩ := crown_local_boundary D (v := z)
+  obtain ⟨u, hur, hu⟩ := crown_exists_near_openSegment hzx hr
+  obtain ⟨u', hu'r, hu'⟩ := crown_exists_near_openSegment hzy hr
+  obtain ⟨v, hvr, hv⟩ := crown_exists_near_openSegment hzx' hr
+  have huz : u ≠ z := (crown_sbtw_of_mem_openSegment hzx hu).ne_left
+  have hu'z : u' ≠ z := (crown_sbtw_of_mem_openSegment hzy hu').ne_left
+  have hvz : v ≠ z := (crown_sbtw_of_mem_openSegment hzx' hv).ne_left
+  have huEdge : u ∈ segment ℝ x y :=
+    (convex_segment x y).segment_subset hz (left_mem_segment ℝ x y)
+      (openSegment_subset_segment ℝ _ _ hu)
+  have hu'Edge : u' ∈ segment ℝ x y :=
+    (convex_segment x y).segment_subset hz (right_mem_segment ℝ x y)
+      (openSegment_subset_segment ℝ _ _ hu')
+  have hvEdge : v ∈ segment ℝ x' y' :=
+    (convex_segment x' y').segment_subset hz' (left_mem_segment ℝ x' y')
+      (openSegment_subset_segment ℝ _ _ hv)
+  obtain ⟨i, hzi, hui, -⟩ := hboundary u hur (hxy.2.2.2 huEdge)
+  obtain ⟨i', hzi', hu'i', -⟩ := hboundary u' hu'r (hxy.2.2.2 hu'Edge)
+  obtain ⟨j, hzj, hvj, -⟩ := hboundary v hvr (hx'y'.2.2.2 hvEdge)
+  have hlines : x' ∈ line[ℝ, x, y] ∧ y' ∈ line[ℝ, x, y] := by
+    by_cases hij : i = j
+    · subst j
+      exact crown_collinear_of_shared_side hxy.2.2.1 hx'y'.2.2.1
+        hzopen hzopen' hu hv hzi hui hvj
+    · have hs := D.simple i j hij ⟨hzi, hzj⟩
+      obtain ⟨k, hzk⟩ : ∃ k : Fin D.n, z = D.vertex k := by
+        rcases hs.1 with hs | hs
+        · exact ⟨i, hs⟩
+        · exact ⟨finRotate D.n i, hs⟩
+      subst z
+      have hi := crown_side_through_vertex D k i hzi
+      have hi' := crown_side_through_vertex D k i' hzi'
+      have hj := crown_side_through_vertex D k j hzj
+      have hii' : i ≠ i' := by
+        intro heq
+        subst i'
+        have hzero := crown_angle_eq_zero_of_mem_side
+          (D := D) (i := i) (q := D.vertex k) (z := u) (z' := u')
+          (hi.elim (fun h => Or.inl (congrArg D.vertex h))
+            (fun h => Or.inr (congrArg D.vertex h))) hui hu'i' huz hu'z
+        have hxu : Sbtw ℝ x u (D.vertex k) := by
+          rw [sbtw_comm]
+          exact crown_sbtw_of_mem_openSegment hzx hu
+        have hzu'y : Sbtw ℝ (D.vertex k) u' y :=
+          crown_sbtw_of_mem_openSegment hzy hu'
+        have huzu' : Sbtw ℝ u (D.vertex k) u' :=
+          ((crown_sbtw_of_mem_openSegment hxy.2.2.1 hzopen).trans_left_right hxu).trans_right_left hzu'y
+        linarith [huzu'.angle₁₂₃_eq_pi, Real.pi_pos]
+      have hi'j : i' = j := crown_incident_indices_eq hi hi' hj hii' hij
+      subst j
+      have hline := crown_collinear_of_shared_side hxy.2.2.1.symm hx'y'.2.2.1
+        (by rwa [openSegment_symm]) hzopen' hu' hv hzi' hu'i' hvj
+      simpa [Set.pair_comm] using hline
+  rcases crown_endpoint_mem_of_collinear_intersection hxy.2.2.1 hzopen hzopen'
+      hlines.1 hlines.2 with h | h | h | h
+  · exact (crown_genuineCorner_not_mem_geometricEdge D hx'y'.1 hxy
+      (Ne.symm hends.1) (Ne.symm hends.2.2.1)) h
+  · exact (crown_genuineCorner_not_mem_geometricEdge D hx'y'.2.1 hxy
+      (Ne.symm hends.2.1) (Ne.symm hends.2.2.2)) h
+  · exact (crown_genuineCorner_not_mem_geometricEdge D hxy.1 hx'y'
+      hends.1 hends.2.1) h
+  · exact (crown_genuineCorner_not_mem_geometricEdge D hxy.2.1 hx'y'
+      hends.2.2.1 hends.2.2.2) h
+
+private lemma crown_finset_min_pos {s : Finset ℝ} (hs : s.Nonempty)
+    (hpos : ∀ a ∈ s, 0 < a) :
+    0 < s.min' hs := hpos _ (Finset.min'_mem s hs)
+
 /-- Positive root separation constants exist (finite minima of distances
 between disjoint compact sets; `1` for empty collections). -/
 theorem exists_rootSeparation (P : Protoset) : Nonempty (RootSeparation P) := by
-  sorry
+  classical
+  let Iν := Σ p : P.Form,
+    Fin (P.disk p).n × Fin (P.disk p).n × Fin (P.disk p).n
+  let fν : Iν → ℝ := fun i => crownPointSegmentBound
+    ((P.disk i.1).vertex i.2.1)
+    ((P.disk i.1).vertex i.2.2.1) ((P.disk i.1).vertex i.2.2.2)
+  let sν : Finset ℝ := insert 1 (Finset.univ.image fν)
+  have hsν : sν.Nonempty := by simp [sν]
+  let ν := sν.min' hsν
+  have hνpos : 0 < ν := by
+    apply crown_finset_min_pos hsν
+    intro a ha
+    rw [Finset.mem_insert] at ha
+    rcases ha with rfl | ha
+    · norm_num
+    · obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp ha
+      exact crownPointSegmentBound_pos _ _ _
+  let Ilam := Σ p : P.Form,
+    Fin (P.disk p).n × Fin (P.disk p).n ×
+      Fin (P.disk p).n × Fin (P.disk p).n
+  let flam : Ilam → ℝ := fun i => crownSegmentSegmentBound
+    ((P.disk i.1).vertex i.2.1)
+    ((P.disk i.1).vertex i.2.2.1)
+    ((P.disk i.1).vertex i.2.2.2.1) ((P.disk i.1).vertex i.2.2.2.2)
+  let slam : Finset ℝ := insert 1 (Finset.univ.image flam)
+  have hslam : slam.Nonempty := by simp [slam]
+  let lam := slam.min' hslam
+  have hlampos : 0 < lam := by
+    apply crown_finset_min_pos hslam
+    intro a ha
+    rw [Finset.mem_insert] at ha
+    rcases ha with rfl | ha
+    · norm_num
+    · obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp ha
+      exact crownSegmentSegmentBound_pos _ _ _ _
+  let Iμ := Σ p : P.Form,
+    Fin (P.disk p).n × Fin (P.disk p).n × Fin (P.disk p).n
+  let fμ : Iμ → ℝ := fun i => crownReflexAngleBound (P.disk i.1)
+    ((P.disk i.1).vertex i.2.1)
+    ((P.disk i.1).vertex i.2.2.1) ((P.disk i.1).vertex i.2.2.2)
+  let sμ : Finset ℝ := insert (Real.pi / 2) (Finset.univ.image fμ)
+  have hsμ : sμ.Nonempty := by simp [sμ]
+  let μ := sμ.min' hsμ
+  have hμpos : 0 < μ := by
+    apply crown_finset_min_pos hsμ
+    intro a ha
+    rw [Finset.mem_insert] at ha
+    rcases ha with rfl | ha
+    · linarith [Real.pi_pos]
+    · obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp ha
+      exact crownReflexAngleBound_pos _ _ _ _
+  refine ⟨{
+    ν := ν
+    lam := lam
+    μ := μ
+    ν_pos := hνpos
+    lam_pos := hlampos
+    μ_pos := hμpos
+    μ_le := ?_
+    ν_le := ?_
+    lam_le := ?_
+    μ_le_reflex := ?_ }⟩
+  · exact Finset.min'_le sμ (Real.pi / 2) (by simp [sμ])
+  · intro p q x y hq hxy hqx hqy z hz
+    obtain ⟨qi, hqi, rfl⟩ := hq
+    obtain ⟨xi, hxi, rfl⟩ := hxy.1
+    obtain ⟨yi, hyi, rfl⟩ := hxy.2.1
+    let i : Iν := ⟨p, qi, xi, yi⟩
+    calc
+      ν ≤ fν i := Finset.min'_le sν (fν i) (by
+        apply Finset.mem_insert_of_mem
+        exact Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩)
+      _ = crownPointSegmentBound ((P.disk p).vertex qi)
+          ((P.disk p).vertex xi) ((P.disk p).vertex yi) := rfl
+      _ ≤ dist ((P.disk p).vertex qi) z := crownPointSegmentBound_le
+        (crown_genuineCorner_not_mem_geometricEdge (P.disk p)
+          ⟨qi, hqi, rfl⟩
+          ⟨⟨xi, hxi, rfl⟩, ⟨yi, hyi, rfl⟩, hxy.2.2⟩ hqx hqy) hz
+  · intro p x y x' y' hxy hx'y' hend z hz z' hz'
+    obtain ⟨xi, hxi, rfl⟩ := hxy.1
+    obtain ⟨yi, hyi, rfl⟩ := hxy.2.1
+    obtain ⟨xi', hxi', rfl⟩ := hx'y'.1
+    obtain ⟨yi', hyi', rfl⟩ := hx'y'.2.1
+    let i : Ilam := ⟨p, xi, yi, xi', yi'⟩
+    apply le_trans (Finset.min'_le slam (flam i) (by
+      apply Finset.mem_insert_of_mem
+      exact Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩))
+    apply crownSegmentSegmentBound_le
+      (crown_geometricEdges_disjoint (P.disk p) hxy hx'y' hend) hz hz'
+  · intro p q a b h
+    obtain ⟨qi, hqi, rfl⟩ := h.1.1
+    obtain ⟨ai, hai, rfl⟩ := h.1.2.1
+    obtain ⟨bi, hbi, rfl⟩ := h.2.1.2.1
+    let i : Iμ := ⟨p, qi, ai, bi⟩
+    apply le_trans (Finset.min'_le sμ (fμ i) (by
+      apply Finset.mem_insert_of_mem
+      exact Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩))
+    exact crownReflexAngleBound_le h
 
 /-- `def:crown-separation`: a fixed choice of root separation constants. -/
 def rootSeparationConstants (P : Protoset) : RootSeparation P :=

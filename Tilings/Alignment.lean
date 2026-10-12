@@ -386,6 +386,36 @@ private lemma whole_side_ports_coincide_step1_parentDir_eq (m : ℕ)
   sorry
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
+whole-edge subdivision of their common support... -/
+private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique
+    (m : ℕ) (T' : PlaneTiling G.P')
+    (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
+    (halign : SchedulesAligned τ G m T')
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
+    ∀ e : sidesInside τ G m A.form a, ∃! e' : sidesInside τ G m A'.form a',
+      placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (e' : Pt × Pt) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
+whole-edge subdivision of their common support... -/
+private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step2_exists_unique_rev
+    (m : ℕ) (T' : PlaneTiling G.P')
+    (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
+    (halign : SchedulesAligned τ G m T')
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
+    ∀ e' : sidesInside τ G m A'.form a', ∃! e : sidesInside τ G m A.form a,
+      placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (e' : Pt × Pt) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
 whole-edge subdivision of their common support, so there is a bijection between their sides inside
 the parent side. -/
 private lemma whole_side_ports_coincide_step2_sidesInside_bijection (m : ℕ) (T' : PlaneTiling G.P')
@@ -398,7 +428,25 @@ private lemma whole_side_ports_coincide_step2_sidesInside_bijection (m : ℕ) (T
     ∃ f : sidesInside τ G m A.form a ≃ sidesInside τ G m A'.form a',
       ∀ (e : sidesInside τ G m A.form a), placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
         placedSeg ((τ.θ ^ m) • A'.anchor) (f e : Pt × Pt) := by
-  sorry
+  have h1 := whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique τ G m T' hfine halign A A' hA hA' a a' hside
+  have h2 := whole_side_ports_coincide_step2_sidesInside_bijection_step2_exists_unique_rev τ G m T' hfine halign A A' hA hA' a a' hside
+  let f : sidesInside τ G m A.form a → sidesInside τ G m A'.form a' := fun e => Classical.choose (h1 e)
+  have hf : ∀ e : sidesInside τ G m A.form a, placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) = placedSeg ((τ.θ ^ m) • A'.anchor) (f e : Pt × Pt) :=
+    fun e => (Classical.choose_spec (h1 e)).1
+  let g : sidesInside τ G m A'.form a' → sidesInside τ G m A.form a := fun e' => Classical.choose (h2 e')
+  have hg : ∀ e' : sidesInside τ G m A'.form a', placedSeg ((τ.θ ^ m) • A.anchor) (g e' : Pt × Pt) = placedSeg ((τ.θ ^ m) • A'.anchor) (e' : Pt × Pt) :=
+    fun e' => (Classical.choose_spec (h2 e')).1
+  have left_inv : ∀ e : sidesInside τ G m A.form a, g (f e) = e := by
+    intro e
+    have h_eq : placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) = placedSeg ((τ.θ ^ m) • A'.anchor) (f e : Pt × Pt) := hf e
+    have H2 := (Classical.choose_spec (h2 (f e))).2
+    exact (H2 e h_eq).symm
+  have right_inv : ∀ e' : sidesInside τ G m A'.form a', f (g e') = e' := by
+    intro e'
+    have h_eq : placedSeg ((τ.θ ^ m) • A.anchor) (g e' : Pt × Pt) = placedSeg ((τ.θ ^ m) • A'.anchor) (e' : Pt × Pt) := hg e'
+    have H1 := (Classical.choose_spec (h1 (g e'))).2
+    exact (H1 e' h_eq).symm
+  exact ⟨⟨f, g, left_inv, right_inv⟩, hf⟩
 
 /-- Step 3 of the blueprint proof of `whole_side_ports_coincide`: the bijection preserves the
 rank in the canonical direction. -/

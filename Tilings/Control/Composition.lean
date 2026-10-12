@@ -865,6 +865,34 @@ private lemma lift_hierarchy_step1_decorations (c : MacroCertificate P) (hH : c.
       (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) := by
   sorry
 
+/-- Step 2.1 of the blueprint proof of `lift_hierarchy_step2_proper`: inner sides match. -/
+private lemma lift_hierarchy_step2_proper_step1_inner (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hInner : c.IsInner (c.occ (tileDec X).typ i))
+    (hNontriv : IsNontrivial c (tileDec X) i) :
+    ∃ Y ∈ (seq' 0).tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
+      sideOf c Y j = sideOf c X i ∧ ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
+  sorry
+
+/-- Step 2.2 of the blueprint proof of `lift_hierarchy_step2_proper`: outer sides match. -/
+private lemma lift_hierarchy_step2_proper_step2_outer (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (hNontriv : IsNontrivial c (tileDec X) i) :
+    ∃ Y ∈ (seq' 0).tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
+      sideOf c Y j = sideOf c X i ∧ ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `lift_hierarchy`: properness holds at level zero. -/
 private lemma lift_hierarchy_step2_proper (c : MacroCertificate P) (hH : c.Hereditary)
     (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
@@ -873,7 +901,12 @@ private lemma lift_hierarchy_step2_proper (c : MacroCertificate P) (hH : c.Hered
     (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
     (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) :
     IsProper c (seq' 0) := by
-  sorry
+  intro X hX i hNontriv
+  by_cases hOuter : c.IsOuter (c.occ (tileDec X).typ i)
+  · exact lift_hierarchy_step2_proper_step2_outer c hH seq hsts seq' herase hexact hleg X hX i
+      hOuter hNontriv
+  · exact lift_hierarchy_step2_proper_step1_inner c hH seq hsts seq' herase hexact hleg X hX i
+      hOuter hNontriv
 
 /-- `lem:lift-hierarchy`: with hereditary listed sides, an actual `σ'`
 hierarchy whose finite supertiles are side-to-side admits compatible legal

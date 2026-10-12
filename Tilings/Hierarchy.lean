@@ -321,7 +321,19 @@ parent plane, so `T'` covers the plane. -/
 private lemma exists_composition_step4_cover (τ : Substitution P) (T' : Set (PlacedTile P))
     {T : PlaneTiling P} (h_decomp : τ.decompose T' = T.tiles) :
     support T' = univ := by
-  sorry
+  have hscaled : univ = τ.θ • support T' := by
+    rw [← T.cover, ← h_decomp]
+    exact iterate_support_decompose τ T'
+  have hθ : τ.θ ≠ 0 := by
+    linarith [τ.one_lt]
+  ext x
+  simp only [mem_univ, iff_true]
+  have hx : τ.θ • x ∈ univ := mem_univ _
+  rw [hscaled] at hx
+  simp only [mem_smul_set] at hx
+  rcases hx with ⟨y, hy, hxy⟩
+  have hyx : y = x := smul_right_injective Pt hθ hxy
+  rwa [← hyx]
 
 /-- `lem:substitution-hierarchy`: every substitution plane tiling has a
 composition which is again a substitution plane tiling. -/

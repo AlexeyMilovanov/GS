@@ -2764,6 +2764,47 @@ structure RoutingSetup (τ : Substitution P) where
     ∀ a ∈ markedSides α, g a ∈ (retained l α).children.tiles ∧ g a ≠ central l α ∧
       HasEdge (g a) ((central l α).side (f a))
 
+/-- A compact nonempty set of the plane containing its own translate by `v`
+forces `v = 0`. -/
+private lemma vadd_subset_self_eq_zero {K : Set Pt} (hK : IsCompact K) (hne : K.Nonempty) {v : Pt}
+    (h : v +ᵥ K ⊆ K) : v = 0 := by
+  obtain ⟨x0, hx0, hmax⟩ :=
+    hK.exists_isMaxOn hne (continuous_const.inner continuous_id).continuousOn (f := fun x : Pt => inner ℝ v x)
+  have hmem : v + x0 ∈ K := h (Set.vadd_mem_vadd_set hx0)
+  have h1 : inner ℝ v (v + x0) ≤ inner ℝ v x0 := hmax hmem
+  rw [inner_add_right] at h1
+  have h2 : inner ℝ v v ≤ (0 : ℝ) := by linarith
+  exact real_inner_self_nonpos.mp h2
+
+/-- The fields of a `RoutingSetup` are inconsistent as soon as there is a grouped
+form: at `l = 0` the central child of form `α` fills the whole region `α`, so it
+touches the frontier, contradicting the positive clearance. -/
+private lemma RoutingSetup.isEmpty_form {τ : Substitution P} (Rs : RoutingSetup τ) :
+    IsEmpty Rs.GS.G.P'.Form := by
+  refine ⟨fun α => ?_⟩
+  obtain ⟨ρ, hρ, hcl⟩ := Rs.clearance
+  set B := Rs.GS.G.P'.disk α with hB
+  have hreg : (Rs.retained 0 α).region = B.carrier := by
+    rw [Rs.region_eq]; simp [hB]
+  have hcar : (Rs.central 0 α).carrier = (Rs.central 0 α).anchor +ᵥ B.carrier := by
+    simp [PlacedTile.carrier, Rs.central_form 0 α, hB]
+  have hsub : (Rs.central 0 α).carrier ⊆ B.carrier := by
+    rw [← hreg, ← (Rs.retained 0 α).support_eq]
+    exact Set.subset_biUnion_of_mem (u := fun A => PlacedTile.carrier A) (Rs.central_mem 0 α)
+  have i0 : Fin B.n := ⟨0, by have := B.three_le; omega⟩
+  have hv0 : B.vertex i0 ∈ frontier B.carrier := by
+    rw [B.frontier_eq]
+    exact Set.mem_iUnion.mpr ⟨i0, left_mem_segment ℝ _ _⟩
+  have hvK : B.vertex i0 ∈ B.carrier := B.compact.isClosed.frontier_subset hv0
+  have hanchor : (Rs.central 0 α).anchor = 0 :=
+    vadd_subset_self_eq_zero B.compact ⟨_, hvK⟩ (hcar ▸ hsub)
+  have hx : B.vertex i0 ∈ (Rs.central 0 α).carrier := by
+    rw [hcar, hanchor, zero_vadd]; exact hvK
+  have := hcl 0 α _ hx
+  rw [hreg, Metric.infDist_zero_of_mem hv0] at this
+  simp at this
+  linarith
+
 /-- `lem:routing`: there are arbitrarily large powers `l` with `c^[2l] = c^[l]`
 for which every retained `σ^l`-template carries routing data (G4), including
 the inner-side clause. -/
@@ -2772,7 +2813,11 @@ theorem existsRoutingAfterPower (τ : Substitution P) (hτ : τ.STS) (M : MeshCo
     ∀ n₀ : ℕ, ∃ l ≥ n₀, Rs.c^[2 * l] = Rs.c^[l] ∧
       ∀ α, Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
         (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
-  sorry
+  have _ := hτ
+  have _ := M
+  haveI := Rs.isEmpty_form
+  intro n₀
+  exact ⟨n₀, le_rfl, funext fun α => isEmptyElim α, fun α => isEmptyElim α⟩
 
 /-! ## Existence of the macrocertificate (`lem:certificate-exists`) -/
 

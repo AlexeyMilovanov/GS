@@ -512,7 +512,48 @@ private lemma uniformSectorRadius_step2_catalogue_radius {𝒞 : Set (Set (Place
 uniform vertex separation `δ_* > 0`. -/
 private lemma uniformSectorRadius_step3_catalogue_separation {𝒞 : Set (Set (PlacedTile P))}
     (h𝒞 : IsCatalogue 𝒞) : ∃ δ : ℝ, 0 < δ ∧ ∀ K ∈ 𝒞, ∀ A ∈ K, ∀ w ∈ A.vertexSet,
-      w ≠ (0 : Pt) → δ ≤ dist w (0 : Pt) := by sorry
+      w ≠ (0 : Pt) → δ ≤ dist w (0 : Pt) := by
+  let D : Set ℝ := {d | ∃ K ∈ 𝒞, ∃ A ∈ K, ∃ w ∈ A.vertexSet, w ≠ (0 : Pt) ∧ d = dist w (0 : Pt)}
+  have hD_fin : D.Finite := by
+    have h1 : 𝒞.Finite := h𝒞.1
+    let W : Set Pt := ⋃ K ∈ 𝒞, ⋃ A ∈ K, (A : PlacedTile P).vertexSet
+    have hW_fin : W.Finite := by
+      refine h1.biUnion fun K hK => ?_
+      have hK_fin : K.Finite := (h𝒞.2 K hK).1
+      refine hK_fin.biUnion fun A _ => ?_
+      exact finite_range _
+    have hD_sub : D ⊆ (fun w => dist w (0 : Pt)) '' W := by
+      rintro d ⟨K, hK, A, hA, w, hw, _, rfl⟩
+      refine ⟨w, ?_, rfl⟩
+      simp only [W, mem_iUnion]
+      exact ⟨K, hK, A, hA, hw⟩
+    exact hW_fin.image _ |>.subset hD_sub
+  have hd_pos : ∀ d ∈ D, 0 < (d : ℝ) := by
+    rintro d ⟨_, _, _, _, _, _, hne, rfl⟩
+    exact dist_pos.mpr hne
+  rcases eq_empty_or_nonempty D with hD_emp | hD_nemp
+  · use 1
+    refine ⟨by norm_num, fun K hK A hA w hw hne => ?_⟩
+    exfalso
+    have : dist w (0 : Pt) ∈ D := ⟨K, hK, A, hA, w, hw, hne, rfl⟩
+    rw [hD_emp] at this
+    exact this
+  · have ⟨d, hdD, hd_min⟩ : ∃ d ∈ D, ∀ d' ∈ D, d ≤ d' := by
+      let D_finset := hD_fin.toFinset
+      have hD_finset_nemp : D_finset.Nonempty := by
+        rw [Finite.toFinset_nonempty]
+        exact hD_nemp
+      use D_finset.min' hD_finset_nemp
+      refine ⟨?_, fun d' hd' => ?_⟩
+      · rw [← Finite.mem_toFinset]
+        exact Finset.min'_mem _ _
+      · have hd' : d' ∈ D_finset := by
+          rw [Finite.mem_toFinset]
+          exact hd'
+        exact Finset.min'_le _ _ hd'
+    use d
+    refine ⟨hd_pos d hdD, fun K hK A hA w hw hne => ?_⟩
+    exact hd_min _ ⟨K, hK, A, hA, w, hw, hne, rfl⟩
 
 /-- Step 4 of the blueprint proof of `uniformSectorRadius`: Translations preserve the
 conclusions. -/

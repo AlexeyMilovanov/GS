@@ -1327,13 +1327,51 @@ private lemma hierarchy_lift_sts_step1_lift (τ : Substitution P) (GS : GroupedS
       (∀ n, GS.G.scatter (seq' n).tiles = (seq n).tiles) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `hierarchy_lift_sts_step2_sts`: Overlapping grouped sides
+contain an overlapping pair of original sides. -/
+private lemma hierarchy_lift_sts_step2_sts_step1_overlap
+    (τ : Substitution P) (GS : GroupedSubstitution τ)
+    (A B : PlacedTile GS.G.P')
+    (i : Fin (GS.G.P'.disk A.form).n) (j : Fin (GS.G.P'.disk B.form).n)
+    (hover : OverlapPos (A.side i) (B.side j)) :
+    ∃ (a : PlacedTile P) (_ : a ∈ GS.G.scatterTile A)
+      (b : PlacedTile P) (_ : b ∈ GS.G.scatterTile B)
+      (k : Fin (P.disk a.form).n) (l : Fin (P.disk b.form).n),
+      OverlapPos (a.side k) (b.side l) ∧ a.side k ⊆ A.side i ∧ b.side l ⊆ B.side j := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `hierarchy_lift_sts_step2_sts`: Matching original sides
+on grouped sides force the grouped sides to be identical. -/
+private lemma hierarchy_lift_sts_step2_sts_step2_match
+    (τ : Substitution P) (GS : GroupedSubstitution τ)
+    (A B : PlacedTile GS.G.P')
+    (i : Fin (GS.G.P'.disk A.form).n) (j : Fin (GS.G.P'.disk B.form).n)
+    (hover : OverlapPos (A.side i) (B.side j))
+    (a : PlacedTile P) (ha : a ∈ GS.G.scatterTile A)
+    (b : PlacedTile P) (hb : b ∈ GS.G.scatterTile B)
+    (k : Fin (P.disk a.form).n) (l : Fin (P.disk b.form).n)
+    (h_sts : a.side k = b.side l)
+    (h_sub_a : a.side k ⊆ A.side i) (h_sub_b : b.side l ⊆ B.side j) :
+    A.side i = B.side j := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `hierarchy_lift_sts`: STS property is inherited. -/
 private lemma hierarchy_lift_sts_step2_sts (τ : Substitution P) (GS : GroupedSubstitution τ)
     (seq : ℕ → PlaneTiling P) (seq' : ℕ → PlaneTiling GS.G.P')
     (hscatter : ∀ n, GS.G.scatter (seq' n).tiles = (seq n).tiles)
     (hsts : ∀ n, (seq n).SideToSide) :
     ∀ n, (seq' n).SideToSide := by
-  sorry
+  intro n A hA B hB i j hover
+  obtain ⟨a, ha, b, hb, k, l, hover', hsuba, hsubb⟩ :=
+    hierarchy_lift_sts_step2_sts_step1_overlap τ GS A B i j hover
+  have ha' : a ∈ (seq n).tiles := by
+    rw [← hscatter n]
+    exact Set.mem_iUnion₂.mpr ⟨A, hA, ha⟩
+  have hb' : b ∈ (seq n).tiles := by
+    rw [← hscatter n]
+    exact Set.mem_iUnion₂.mpr ⟨B, hB, hb⟩
+  have h_eq : a.side k = b.side l := hsts n a ha' b hb' k l hover'
+  exact hierarchy_lift_sts_step2_sts_step2_match τ GS A B i j hover a ha b hb k l h_eq hsuba hsubb
 
 /-- `lem:grouping-lift` (STS levels): a `τ^k`-hierarchy all of whose levels
 are STS lifts to a grouped `σ`-hierarchy scattering level by level onto it,

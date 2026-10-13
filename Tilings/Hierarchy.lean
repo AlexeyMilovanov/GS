@@ -395,13 +395,53 @@ private lemma finite_crowns_step1_vertex_step1_translate (B : PlacedTile P) (w :
       _ = -w + w := by rw [hy]
       _ = 0 := by abel
 
+/-- Step 1 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: a vertex of a tile is in its carrier. -/
+private lemma finite_crowns_step1_vertex_step2_sts_step1_vertex_mem_carrier {τ : Substitution P}
+    (C : PlacedTile P) (v : Pt) (hv : v ∈ C.vertexSet) : v ∈ C.carrier := sorry
+
+/-- Step 2 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: two distinct tiles in a supertile have disjoint interiors. -/
+private lemma finite_crowns_step1_vertex_step2_sts_step2_disjoint {τ : Substitution P} (n : ℕ) (p : P.Form)
+    (C B : PlacedTile P) (hC : C ∈ τ.supertile n p) (hB : B ∈ τ.supertile n p) (hne : C ≠ B) :
+    Disjoint (interior C.carrier) (interior B.carrier) := sorry
+
+/-- Step 3 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: if a point is in
+the carrier of one tile, it cannot be in the interior of a disjoint tile. -/
+private lemma finite_crowns_step1_vertex_step2_sts_step3_not_interior {τ : Substitution P}
+    (C B : PlacedTile P) (w : Pt) (hwC : w ∈ C.carrier) (hd : Disjoint (interior C.carrier) (interior B.carrier)) :
+    w ∉ interior B.carrier := sorry
+
+/-- Step 4 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: if a point in a
+tile's carrier is not a vertex, it is either in the interior or strictly inside a side. -/
+private lemma finite_crowns_step1_vertex_step2_sts_step4_carrier_cases {τ : Substitution P}
+    (B : PlacedTile P) (w : Pt) (hwB : w ∈ B.carrier) (hvB : w ∉ B.vertexSet) :
+    w ∈ interior B.carrier ∨ ∃ j : Fin (P.disk B.form).n, w ∈ B.side j ∧ w ≠ B.vertex j ∧ w ≠ B.vertex (finRotate (P.disk B.form).n j) := sorry
+
+/-- Step 5 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: a vertex of one
+tile cannot lie strictly inside a side of another tile in a side-to-side patch. -/
+private lemma finite_crowns_step1_vertex_step2_sts_step5_vertex_not_strict_in_side {τ : Substitution P}
+    (n : ℕ) (p : P.Form) (h : τ.STS) (C B : PlacedTile P) (hC : C ∈ τ.supertile n p) (hB : B ∈ τ.supertile n p)
+    (w : Pt) (hwC : w ∈ C.vertexSet) (hd : Disjoint (interior C.carrier) (interior B.carrier))
+    (j : Fin (P.disk B.form).n) (hwj : w ∈ B.side j) (h1 : w ≠ B.vertex j) (h2 : w ≠ B.vertex (finRotate (P.disk B.form).n j)) :
+    False := sorry
+
 /-- Step 2 of the blueprint proof of `finite_crowns_step1_vertex`: in a side-to-side
 patch (like a supertile), if `w` is a vertex of some tile `C` in the patch and `w` lies
 in the closed carrier of another tile `B` in the patch, then `w` must be a vertex of `B`. -/
 private lemma finite_crowns_step1_vertex_step2_sts {τ : Substitution P} (h : τ.STS) (n : ℕ)
     (p : P.Form) (C : PlacedTile P) (hC : C ∈ τ.supertile n p) (w : Pt) (hwC : w ∈ C.vertexSet)
     (B : PlacedTile P) (hB : B ∈ τ.supertile n p) (hwB : w ∈ B.carrier) :
-    w ∈ B.vertexSet := sorry
+    w ∈ B.vertexSet := by
+  by_cases hne : C = B
+  · subst hne
+    exact hwC
+  · by_contra hvB
+    have hwC_car := @finite_crowns_step1_vertex_step2_sts_step1_vertex_mem_carrier _ τ C w hwC
+    have hd := finite_crowns_step1_vertex_step2_sts_step2_disjoint n p C B hC hB hne
+    have hnot_int := @finite_crowns_step1_vertex_step2_sts_step3_not_interior _ τ C B w hwC_car hd
+    have hcases := @finite_crowns_step1_vertex_step2_sts_step4_carrier_cases _ τ B w hwB hvB
+    rcases hcases with hint | ⟨j, hwj, h1, h2⟩
+    · exact hnot_int hint
+    · exact finite_crowns_step1_vertex_step2_sts_step5_vertex_not_strict_in_side n p h C B hC hB w hwC hd j hwj h1 h2
 
 /-- Step 1 of the blueprint proof of `finite_crowns`: in an allowed pointed crown
 under STS, the origin is a listed vertex of every tile in the crown. This follows

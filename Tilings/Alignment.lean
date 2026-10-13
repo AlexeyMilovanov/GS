@@ -3557,6 +3557,33 @@ private lemma whole_side_ports_coincide_step4_ncard_eq (m : ℕ)
       have h : f (f.symm ⟨e', he'⟩) = ⟨e', he'⟩ := Equiv.apply_symm_apply f ⟨e', he'⟩
       exact congrArg Subtype.val h)
 
+/-- Step 5 of the blueprint proof of `whole_side_ports_coincide_step5_port_eq`: the port has the defined rank. -/
+private lemma whole_side_ports_coincide_step5_port_eq_step1_port_rank (τ : Substitution P)
+    (G : Geometry.GroupedFamily P) (m : ℕ)
+    (A : G.P'.Form) (a : Fin (G.P'.disk A).n)
+    (hL : 5 ≤ (sidesInside τ G m A a).ncard) (r : Fin 5) :
+    rankIn (sidesInside τ G m A a) (parentDir τ G m A a) (port τ G m A a r) =
+      portIndex (sidesInside τ G m A a).ncard r := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `whole_side_ports_coincide_step5_port_eq`: the port belongs to the inside sides. -/
+private lemma whole_side_ports_coincide_step5_port_eq_step2_port_mem (τ : Substitution P)
+    (G : Geometry.GroupedFamily P) (m : ℕ)
+    (A : G.P'.Form) (a : Fin (G.P'.disk A).n)
+    (hL : 5 ≤ (sidesInside τ G m A a).ncard) (r : Fin 5) :
+    port τ G m A a r ∈ sidesInside τ G m A a := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `whole_side_ports_coincide_step5_port_eq`: rank is injective. -/
+private lemma whole_side_ports_coincide_step5_port_eq_step3_rank_inj (τ : Substitution P)
+    (G : Geometry.GroupedFamily P) (m : ℕ)
+    (A : G.P'.Form) (a : Fin (G.P'.disk A).n)
+    (e1 e2 : Pt × Pt) (he1 : e1 ∈ sidesInside τ G m A a) (he2 : e2 ∈ sidesInside τ G m A a)
+    (h : rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e1 =
+      rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e2) :
+    e1 = e2 := by
+  sorry
+
 /-- Step 5 of the blueprint proof of `whole_side_ports_coincide`: the chosen ports coincide
 because they are uniquely determined by the physical subdivision. -/
 private lemma whole_side_ports_coincide_step5_port_eq (m : ℕ)
@@ -3572,7 +3599,26 @@ private lemma whole_side_ports_coincide_step5_port_eq (m : ℕ)
     (hL : 5 ≤ (sidesInside τ G m A.form a).ncard) (r : Fin 5) :
     placedSeg ((τ.θ ^ m) • A.anchor) (port τ G m A.form a r) =
       placedSeg ((τ.θ ^ m) • A'.anchor) (port τ G m A'.form a' r) := by
-  sorry
+  have _ := hdir
+  have hport_mem := whole_side_ports_coincide_step5_port_eq_step2_port_mem τ G m A.form a hL r
+  have hport_rank := whole_side_ports_coincide_step5_port_eq_step1_port_rank τ G m A.form a hL r
+  have hL' : 5 ≤ (sidesInside τ G m A'.form a').ncard := by linarith
+  have hport_mem' := whole_side_ports_coincide_step5_port_eq_step2_port_mem τ G m A'.form a' hL' r
+  have hport_rank' := whole_side_ports_coincide_step5_port_eq_step1_port_rank τ G m A'.form a' hL' r
+  have H1 := hrank ⟨port τ G m A.form a r, hport_mem⟩
+  dsimp at H1
+  rw [hport_rank] at H1
+  rw [hcard] at H1
+  have H2 : rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (f ⟨port τ G m A.form a r, hport_mem⟩ : Pt × Pt) =
+    rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (port τ G m A'.form a' r) := by
+    rw [← H1]
+    exact hport_rank'.symm
+  have H3 := whole_side_ports_coincide_step5_port_eq_step3_rank_inj τ G m A'.form a'
+    (f ⟨port τ G m A.form a r, hport_mem⟩ : Pt × Pt) (port τ G m A'.form a' r)
+    (f ⟨port τ G m A.form a r, hport_mem⟩).2 hport_mem' H2
+  have Hf := hf ⟨port τ G m A.form a r, hport_mem⟩
+  rw [H3] at Hf
+  exact Hf
 
 /-- `lem:whole-ports` (coincidence): in a grouped plane tiling with STS fine
 level and aligned schedules, physically coincident parent sides have the same

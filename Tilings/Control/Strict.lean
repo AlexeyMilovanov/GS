@@ -2403,7 +2403,10 @@ private theorem strict_macroblock_is_decomposition_step1_noncentral_step1_owner
     (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
     (t : C.Typ) (ht_owner : C.owner t = K.α) (ht_nc : t ≠ C.central K.α) :
     C.owner t = C.form (strictReconstruct C hC K h.1).typ := by
-  sorry
+  have _ := hK
+  have _ := ht_nc
+  rw [ht_owner, ← hh.1]
+  rfl
 
 /-- Step 2 of the blueprint proof of `strict_macroblock_is_decomposition_step1_noncentral`: prints are correct. -/
 private theorem strict_macroblock_is_decomposition_step1_noncentral_step2_prints

@@ -76,7 +76,13 @@ private lemma sts_hierarchical_of_strict_proper_step1_seq {P : Protoset} {τ : S
     (hT : Sys.dec.Proper T) :
     ∃ seq : ℕ → PlaneTiling Sys.dec.P', seq 0 = T ∧ ∀ n, Sys.dec.Proper (seq n) ∧
       Sys.σc.IsComposition (seq (n + 1)) (seq n) := by
-  sorry
+  let seq_type := { T' : PlaneTiling Sys.dec.P' // Sys.dec.Proper T' }
+  let next (T' : seq_type) : seq_type :=
+    ⟨Classical.choose (hcomp T'.val T'.property), (Classical.choose_spec (hcomp T'.val T'.property)).1⟩
+  let seq_f : ℕ → seq_type := fun n => Nat.recOn n ⟨T, hT⟩ (fun _ T' => next T')
+  use fun n => (seq_f n).val
+  refine ⟨rfl, fun n => ?_⟩
+  exact ⟨(seq_f n).property, (Classical.choose_spec (hcomp (seq_f n).val (seq_f n).property)).2⟩
 
 /-- Step 2 of the blueprint proof of `sts_hierarchical_of_strict_proper`: at each step
 insert the original levels, which are STS by schedule alignment, yielding an infinite original

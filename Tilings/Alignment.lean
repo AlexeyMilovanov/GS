@@ -134,6 +134,43 @@ private lemma schedule_intermediate_sts_step1_boundary_align_step1_fine_sides
       OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align_step2_endpoints`:
+Equal schedules give the same atom through that point. -/
+private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints_step1_atom
+    (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (A A' : PlacedTile G.P')
+    (t : LayerTag m) (c d : Pt × Pt)
+    (hc : c ∈ layerSides τ G m A.form t) (hd : d ∈ layerSides τ G m A'.form t)
+    (e e' : Pt × Pt)
+    (he : e ∈ fineOuterSides τ G m A.form) (he' : e' ∈ fineOuterSides τ G m A'.form)
+    (heq : placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e')
+    (hov_c : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2))
+    (hov_d : OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2))
+    (h_sch : EndpointSchedule τ G m A.form e t = EndpointSchedule τ G m A'.form e' t)
+    (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+      (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
+    atom e c = atom e' d := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align_step2_endpoints`:
+The same two coordinates $p,q$ for its coarse containing side means $c,d$ have exactly the same endpoints. -/
+private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints_step2_eq
+    (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (A A' : PlacedTile G.P')
+    (t : LayerTag m) (c d : Pt × Pt)
+    (hc : c ∈ layerSides τ G m A.form t) (hd : d ∈ layerSides τ G m A'.form t)
+    (e e' : Pt × Pt)
+    (he : e ∈ fineOuterSides τ G m A.form) (he' : e' ∈ fineOuterSides τ G m A'.form)
+    (heq : placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e')
+    (hov_c : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2))
+    (hov_d : OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2))
+    (h_sch : EndpointSchedule τ G m A.form e t = EndpointSchedule τ G m A'.form e' t)
+    (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+      (placedSeg ((τ.θ ^ m) • A'.anchor) d))
+    (hatom : atom e c = atom e' d) :
+    placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align`:
 Equal schedules on coinciding fine outer sides, together with the fact that `c` and `d`
 positively overlap, force their corresponding schedule atoms to have the same `p, q` coordinates,
@@ -152,7 +189,8 @@ private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints
     (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
       (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
     placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d := by
-  sorry
+  have hatom := schedule_intermediate_sts_step1_boundary_align_step2_endpoints_step1_atom τ G m A A' t c d hc hd e e' he he' heq hov_c hov_d h_sch hoverlap
+  exact schedule_intermediate_sts_step1_boundary_align_step2_endpoints_step2_eq τ G m A A' t c d hc hd e e' he he' heq hov_c hov_d h_sch hoverlap hatom
 
 /-- Step 1 of the blueprint proof of `schedule_intermediate_sts`:
 Equal schedules on shared whole outer fine sides force positively overlapping coarse listed sides

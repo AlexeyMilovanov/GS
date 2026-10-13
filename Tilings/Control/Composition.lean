@@ -265,7 +265,33 @@ theorem boundary_side_of_outer_side (c : MacroCertificate P) (hH : c.Hereditary)
 private lemma headerLegal_properties_step1_parent (c : MacroCertificate P) (hH : c.Hereditary)
     (A : DecTile c) (hA : headerLegal c A) :
     ∃ C, headerLegal c C ∧ IsChildOf c C A := by
-  sorry
+  have _ := hH
+  rcases hA with ⟨ch, hch0, hR, hcell⟩
+  use ch 1
+  constructor
+  · use fun n => ch (n + 1)
+    refine ⟨rfl, fun n => hR (n + 1), ?_⟩
+    intro n i k hNE hNoOrig
+    apply hcell (n + 1) i k hNE
+    intro hOrig
+    apply hNoOrig
+    have h_ind : ∀ (m : ℕ) (j : c.Side (ch m).typ) (l : Fin 5),
+        HasOrigin c ch m j l → ∀ (n' : ℕ) (h : m = n' + 1),
+        HasOrigin c (fun x => ch (x + 1)) n' (cast (by rw [h]) j) l := by
+      intro m j l hOrig
+      induction hOrig with
+      | origin m' j' l' h_eq =>
+        intro n' hn'
+        subst hn'
+        exact HasOrigin.origin _ _ _ h_eq
+      | step m' j' l' d k' h_mem h_orig' ih =>
+        intro n' hn'
+        subst hn'
+        exact HasOrigin.step _ _ _ _ _ h_mem (ih (n' + 1) rfl)
+    have := h_ind (n + 1) i k hOrig n rfl
+    exact this
+  · rw [← hch0]
+    exact hR 0
 
 /-- Auxiliary step for `headerLegal_properties_step2_normal_id_step1_normal`: the print
 relation transports along an equality of owner forms. -/

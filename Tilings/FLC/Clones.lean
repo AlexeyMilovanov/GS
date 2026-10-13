@@ -5089,6 +5089,12 @@ private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step2_c
     dsimp [A', PlacedTile.translate]
     abel
 
+/-- Auxiliary: a plane tiling is determined by its tile set (the cover and
+disjointness proofs are irrelevant by proof irrelevance). -/
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step3_relabel_aux1
+    {T₁ T₂ : PlaneTiling P} (h : T₁.tiles = T₂.tiles) : T₁ = T₂ := by
+  cases T₁; cases T₂; cases h; rfl
+
 /-- Step 3 of the blueprint proof of
 `substitution_clone_lift_iff_step2_lift_is_subst_step1_lift`: form-compatible
 labels can be assembled into a plane tiling without changing carriers. -/
@@ -5100,7 +5106,63 @@ private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step3_r
       T'.tiles = {A' | ∃ A : T.tiles,
         A' = (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))} ∧
       (cloneDecoration τ h).project T' = T := by
-  sorry
+  have hcarrier : ∀ A : T.tiles,
+      (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h)).carrier = A.1.carrier := by
+    intro A
+    dsimp only [PlacedTile.carrier]
+    rw [show (cloneProtoset τ h).disk (label A) = cloneDisk (label A) from rfl,
+      cloneDisk_carrier (label A), hform A]
+  have hsupport_eq : support {A' : PlacedTile (cloneProtoset τ h) | ∃ A : T.tiles,
+      A' = (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))} = support T.tiles := by
+    ext x
+    simp only [support, Set.mem_iUnion₂]
+    constructor
+    · rintro ⟨A', ⟨A, rfl⟩, hxA'⟩
+      rw [hcarrier A] at hxA'
+      exact ⟨A.1, A.2, hxA'⟩
+    · rintro ⟨B, hB, hxB⟩
+      refine ⟨(⟨label ⟨B, hB⟩, B.anchor⟩ : PlacedTile (cloneProtoset τ h)), ⟨⟨B, hB⟩, rfl⟩, ?_⟩
+      rw [hcarrier ⟨B, hB⟩]
+      exact hxB
+  have hcover : support {A' : PlacedTile (cloneProtoset τ h) | ∃ A : T.tiles,
+      A' = (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))} = Set.univ := by
+    rw [hsupport_eq, T.cover]
+  have hdisjoint : DisjointInteriors {A' : PlacedTile (cloneProtoset τ h) | ∃ A : T.tiles,
+      A' = (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))} := by
+    intro A' hA' B' hB' hne
+    rcases hA' with ⟨A, rfl⟩
+    rcases hB' with ⟨B, rfl⟩
+    have hne' : A.1 ≠ B.1 := by
+      intro hc
+      apply hne
+      have hAB : A = B := Subtype.ext hc
+      rw [hAB]
+    have hd := T.disjoint A.2 B.2 hne'
+    dsimp only [Function.onFun] at hd ⊢
+    rw [hcarrier A, hcarrier B]
+    exact hd
+  refine ⟨⟨{A' : PlacedTile (cloneProtoset τ h) | ∃ A : T.tiles,
+      A' = (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))}, hcover, hdisjoint⟩, rfl, ?_⟩
+  have hproj : (cloneDecoration τ h).projTile '' {A' : PlacedTile (cloneProtoset τ h) |
+      ∃ A : T.tiles, A' = (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))} =
+      T.tiles := by
+    ext A''
+    constructor
+    · rintro ⟨A', ⟨A, rfl⟩, rfl⟩
+      have hA1 : (cloneDecoration τ h).projTile
+          (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h)) = A.1 := by
+        apply PlacedTile.ext
+        · exact hform A
+        · rfl
+      rw [hA1]
+      exact A.2
+    · intro hA''
+      refine ⟨(⟨label ⟨A'', hA''⟩, A''.anchor⟩ : PlacedTile (cloneProtoset τ h)),
+        ⟨⟨A'', hA''⟩, rfl⟩, ?_⟩
+      apply PlacedTile.ext
+      · exact hform ⟨A'', hA''⟩
+      · rfl
+  exact substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step3_relabel_aux1 hproj
 
 /-- Step 1 of the blueprint proof of `substitution_clone_lift_iff_step2_lift_is_subst`: there exists
 a lifted plane tiling constructed by labelling each tile with its actual full neighbourhood. -/

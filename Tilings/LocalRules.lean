@@ -1941,6 +1941,38 @@ private theorem dissection_preserves_sts_sofic_step1_local_rule
     ∃ R : LocalRule dec.P', ∀ T, R.Proper T ↔ dec.Proper T := by
   sorry
 
+/-- Step 1 of the blueprint proof of `dissection_preserves_sts_sofic_step2_scatter_sts`: within-group case using the grouped family's STS field. -/
+private lemma dissection_preserves_sts_sofic_step2_scatter_sts_step1_same_group
+    {P : Protoset}
+    (G : GroupedFamily P) (dec : SideDecoration G.P')
+    (T : PlaneTiling dec.P') (hT : dec.Proper T)
+    (A B : PlacedTile P) (A' : PlacedTile G.P')
+    (hA' : A' ∈ (dec.toDecoration.project T).tiles)
+    (hA : A ∈ G.scatterTile A')
+    (hB : B ∈ G.scatterTile A')
+    (i : Fin (P.disk A.form).n) (j : Fin (P.disk B.form).n)
+    (h_overlap : OverlapPos (A.side i) (B.side j)) :
+    A.side i = B.side j := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `dissection_preserves_sts_sofic_step2_scatter_sts`:
+    cross-group case using complete grouped sides and the STS property of the projected
+    decorated tiling. -/
+private lemma dissection_preserves_sts_sofic_step2_scatter_sts_step2_diff_group
+    {P : Protoset}
+    (G : GroupedFamily P) (dec : SideDecoration G.P')
+    (T : PlaneTiling dec.P') (hT : dec.Proper T)
+    (A B : PlacedTile P) (A' B' : PlacedTile G.P')
+    (hA' : A' ∈ (dec.toDecoration.project T).tiles)
+    (hB' : B' ∈ (dec.toDecoration.project T).tiles)
+    (h_neq : A' ≠ B')
+    (hA : A ∈ G.scatterTile A')
+    (hB : B ∈ G.scatterTile B')
+    (i : Fin (P.disk A.form).n) (j : Fin (P.disk B.form).n)
+    (h_overlap : OverlapPos (A.side i) (B.side j)) :
+    A.side i = B.side j := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `dissection_preserves_sts_sofic`: scattering
     a proper side-decoration tiling preserves the side-to-side property.  The
     within-group case uses the grouped family's STS field; the cross-group case
@@ -1950,7 +1982,14 @@ private theorem dissection_preserves_sts_sofic_step2_scatter_sts
     (G : GroupedFamily P) (dec : SideDecoration G.P')
     (T : PlaneTiling dec.P') (hT : dec.Proper T) :
     SideToSideSet (G.scatter (dec.toDecoration.project T).tiles) := by
-  sorry
+  intro A hA B hB i j hoverlap
+  simp only [GroupedFamily.scatter, Set.mem_iUnion] at hA hB
+  rcases hA with ⟨A', hA', hA⟩
+  rcases hB with ⟨B', hB', hB⟩
+  by_cases hAB : A' = B'
+  · rcases hAB with rfl
+    exact dissection_preserves_sts_sofic_step2_scatter_sts_step1_same_group G dec T hT A B A' hA' hA hB i j hoverlap
+  · exact dissection_preserves_sts_sofic_step2_scatter_sts_step2_diff_group G dec T hT A B A' B' hA' hB' hAB hA hB i j hoverlap
 
 /-- `lem:glues` (strict presentations): the same transfer for side-to-side
 sofic presentations; grouped sides are complete original sides, so exposed

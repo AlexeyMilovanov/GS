@@ -3141,11 +3141,54 @@ private lemma distanceToReflexBoundaryRay_step1_infDist_eq (q a b : Pt) (t : ℝ
   rw [distanceToReflexBoundaryRay_step1_infDist_eq_step1_trans q a b t]
   rw [distanceToReflexBoundaryRay_step1_infDist_eq_step2_sInf a b t]
 
+/-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad_step1_acute`: 
+lower bound for the distance. -/
+private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step1_lower (a b : Pt)
+    (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t)
+    (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
+    ∀ s : ℝ, t * Real.sin (InnerProductGeometry.angle a b) ≤ ‖t • a - s • b‖ := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad_step1_acute`: 
+the minimum is attained. -/
+private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step2_eq (a b : Pt)
+    (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t)
+    (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
+    ‖t • a - (t * Real.cos (InnerProductGeometry.angle a b)) • b‖ =
+      t * Real.sin (InnerProductGeometry.angle a b) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad_step1_acute`: 
+the attained point is nonnegative. -/
+private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step3_nonneg (a b : Pt)
+    (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t)
+    (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
+    0 ≤ t * Real.cos (InnerProductGeometry.angle a b) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad`: the acute case. -/
 private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute (a b : Pt) (ha : ‖a‖ = 1)
     (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t) (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
-    sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) = t * Real.sin (InnerProductGeometry.angle a b) := by
-  sorry
+    sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) =
+      t * Real.sin (InnerProductGeometry.angle a b) := by
+  apply csInf_eq_of_forall_ge_of_forall_gt_exists_lt
+  · exact ⟨t * Real.sin (InnerProductGeometry.angle a b), by
+      use t * Real.cos (InnerProductGeometry.angle a b)
+      constructor
+      · exact distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step3_nonneg a b ha hb ht h_ang
+      · exact distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step2_eq a b ha hb ht h_ang⟩
+  · rintro _ ⟨s, hs, rfl⟩
+    exact distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step1_lower a b ha hb ht h_ang s
+  · intro w hw
+    use t * Real.sin (InnerProductGeometry.angle a b)
+    constructor
+    · use t * Real.cos (InnerProductGeometry.angle a b)
+      have h1 := distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step3_nonneg
+        a b ha hb ht h_ang
+      have h2 := distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step2_eq
+        a b ha hb ht h_ang
+      exact ⟨h1, h2⟩
+    · exact hw
 
 /-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad`: the obtuse case. -/
 private lemma distanceToReflexBoundaryRay_step2_min_quad_step2_obtuse (a b : Pt) (ha : ‖a‖ = 1)

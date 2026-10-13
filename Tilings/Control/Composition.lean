@@ -671,6 +671,60 @@ private lemma reconstructed_noncentral_legal_step1_ancestor {P : Protoset}
   exact reconstructed_noncentral_legal_step1_ancestor_step2_min_n c hH K hK ch hch0 hch_child
     hleg hn
 
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step2_parent`: Delete these repetitions. The chain has length n ≤ 2. -/
+private lemma reconstructed_noncentral_legal_step2_parent_step1_n_eq_1_or_2 {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
+    (E_anc : DecTile c) (hE_leg : headerLegal c E_anc) (hE_nc : ¬ c.IsCentral E_anc.typ)
+    (n : ℕ) (ch : ℕ → DecTile c) (hch0 : ch 0 = K.centre)
+    (hch_child : ∀ i, IsChildOf c (ch (i + 1)) (ch i))
+    (hch_end : ch n = E_anc) (hch_cent : ∀ i < n, c.IsCentral (ch i).typ) :
+    ∃ (n' : ℕ) (ch' : ℕ → DecTile c),
+      ch' 0 = K.centre ∧
+      (∀ i < n', IsChildOf c (ch' (i + 1)) (ch' i)) ∧
+      ch' n' = E_anc ∧
+      (∀ i < n', c.IsCentral (ch' i).typ) ∧
+      (n' = 1 ∨ n' = 2) := by sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step2_parent`: Length two is impossible here. -/
+private lemma reconstructed_noncentral_legal_step2_parent_step2_not_n_eq_2 {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
+    (E_anc : DecTile c) (hE_leg : headerLegal c E_anc) (hE_nc : ¬ c.IsCentral E_anc.typ)
+    (n' : ℕ) (ch' : ℕ → DecTile c) (hch0 : ch' 0 = K.centre)
+    (hch_child : ∀ i < n', IsChildOf c (ch' (i + 1)) (ch' i))
+    (hch_end : ch' n' = E_anc) (hch_cent : ∀ i < n', c.IsCentral (ch' i).typ)
+    (hn'2 : n' = 2) :
+    False := by sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step2_parent`: Deduce that length is 1 and extract the parent. -/
+private lemma reconstructed_noncentral_legal_step2_parent_step3_n_eq_1 {P : Protoset}
+    (c : MacroCertificate P)
+    (K : ColouredBlock c)
+    (E_anc : DecTile c) (hE_leg : headerLegal c E_anc) (hE_nc : ¬ c.IsCentral E_anc.typ)
+    (n' : ℕ) (ch' : ℕ → DecTile c) (hch0 : ch' 0 = K.centre)
+    (hch_child : ∀ i < n', IsChildOf c (ch' (i + 1)) (ch' i))
+    (hch_end : ch' n' = E_anc) (hch_cent : ∀ i < n', c.IsCentral (ch' i).typ)
+    (hn' : n' = 1 ∨ n' = 2)
+    (hnot2 : n' ≠ 2) :
+    ∃ E, headerLegal c E ∧ ¬ c.IsCentral E.typ ∧ IsChildOf c E K.centre := by
+  have _ := hch_cent
+  have hn'1 : n' = 1 := by omega
+  subst hn'1
+  use ch' 1
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hch_end]
+    exact hE_leg
+  · rw [hch_end]
+    exact hE_nc
+  · have hc0 := hch_child 0 (by omega)
+    rw [hch0] at hc0
+    exact hc0
+
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal`: Choose a shortest
 central-child chain ending at such an ancestor. ... Thus `A` has a legal noncentral
 parent `E` immediately above it. -/
@@ -683,7 +737,13 @@ private lemma reconstructed_noncentral_legal_step2_parent {P : Protoset}
     (n : ℕ) (ch : ℕ → DecTile c) (hch0 : ch 0 = K.centre)
     (hch_child : ∀ i, IsChildOf c (ch (i + 1)) (ch i))
     (hch_end : ch n = E_anc) (hch_cent : ∀ i < n, c.IsCentral (ch i).typ) :
-    ∃ E, headerLegal c E ∧ ¬ c.IsCentral E.typ ∧ IsChildOf c E K.centre := by sorry
+    ∃ E, headerLegal c E ∧ ¬ c.IsCentral E.typ ∧ IsChildOf c E K.centre := by
+  obtain ⟨n', ch', hch'0, hch'_child, hch'_end, hch'_cent, hn'12⟩ :=
+    reconstructed_noncentral_legal_step2_parent_step1_n_eq_1_or_2 c hH K hK h hh hA hnc E_anc hE_leg hE_nc n ch hch0 hch_child hch_end hch_cent
+  have hnot2 : n' ≠ 2 := by
+    intro h2
+    exact reconstructed_noncentral_legal_step2_parent_step2_not_n_eq_2 c hH K hK h hh hA hnc E_anc hE_leg hE_nc n' ch' hch'0 hch'_child hch'_end hch'_cent h2
+  exact reconstructed_noncentral_legal_step2_parent_step3_n_eq_1 c K E_anc hE_leg hE_nc n' ch' hch'0 hch'_child hch'_end hch'_cent hn'12 hnot2
 
 /-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: The parents `E,D`
 have the same form. -/

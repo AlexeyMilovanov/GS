@@ -3758,13 +3758,46 @@ private lemma quantitativeAnnularGrouping_step9_faces (M : MeshConstants P) {S :
     F.faces.ncard ≤ ⌈4 * d ^ 2 / M.a⌉₊ := by
   sorry
 
+private lemma step10_polygonalDisk_side_injective (B : PolygonalDisk) : Function.Injective B.side := by
+  intro i j h
+  by_contra hij
+  have hab : B.vertex i ≠ B.vertex (finRotate B.n i) := fun he =>
+    mesh_finRotate_ne_self (by have := B.three_le; omega) i (B.vertex_injective he).symm
+  have hm : midpoint ℝ (B.vertex i) (B.vertex (finRotate B.n i)) ∈ B.side i :=
+    midpoint_mem_segment _ _
+  have hmj : midpoint ℝ (B.vertex i) (B.vertex (finRotate B.n i)) ∈ B.side j := h ▸ hm
+  have := (B.simple i j hij ⟨hm, hmj⟩).1
+  rcases this with h1 | h1
+  · exact hab ((midpoint_eq_left_iff ℝ).mp h1)
+  · exact hab ((midpoint_eq_right_iff ℝ).mp h1)
+
+private lemma step10_placedTile_side_congr {A A' : PlacedTile P} (k : Fin (P.disk A.form).n)
+    (k' : Fin (P.disk A'.form).n) (hA : A = A') (hk : (k : ℕ) = k') : A.side k = A'.side k' := by
+  subst hA
+  rw [Fin.ext hk]
+
 /-- Step 10 of the blueprint proof of `quantitativeAnnularGrouping`: "Retaining all original
 vertices proves the stated side bound" -- every listed side of a group is a whole listed side of
 one of its faces, and distinct listed sides of a polygonal disk are distinct, so a group has at
 most `K₀` listed sides per face. -/
 private lemma quantitativeAnnularGrouping_step10_sides (M : MeshConstants P)
     {S : Set (PlacedTile P)} (F : FaceGroup S) : F.disk.n ≤ M.K0 * F.faces.ncard := by
-  sorry
+  classical
+  choose A hA k hk using F.side_whole
+  let g : Fin F.disk.n → PlacedTile P × Fin M.K0 := fun i =>
+    (A i, ⟨k i, lt_of_lt_of_le (k i).isLt (M.sides_le _)⟩)
+  have hinj : Function.Injective g := by
+    intro i j hij
+    simp only [g, Prod.mk.injEq, Fin.mk.injEq] at hij
+    apply step10_polygonalDisk_side_injective
+    rw [← hk i, ← hk j]
+    exact step10_placedTile_side_congr _ _ hij.1 hij.2
+  have hcard := Finset.card_le_card_of_injOn g (s := Finset.univ)
+    (t := F.finite.toFinset ×ˢ (Finset.univ : Finset (Fin M.K0)))
+    (fun i _ => by simp [g, hA i]) hinj.injOn
+  rw [Finset.card_univ, Fintype.card_fin, Finset.card_product, Finset.card_univ, Fintype.card_fin,
+    ← Set.ncard_eq_toFinset_card _ F.finite] at hcard
+  linarith [hcard, mul_comm M.K0 F.faces.ncard]
 
 /-- `lem:quantitative-sector`: there are constants `C_sep, C_loc, C_len,
 C_err, C`, independent of `N`, of the substitution power and of the patch,

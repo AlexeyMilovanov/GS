@@ -651,6 +651,40 @@ private lemma childContext_realized_step1_shift_step6_neighbourhood_translateSet
       change (v + C.anchor) + d2 = C.anchor + d2 + v
       abel
 
+
+private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty_aux1
+    {P : Protoset} (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier, mem_iUnion,
+    mem_image, mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [←add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [←add_assoc] using hx
+
+private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty_aux2
+    {P : Protoset} {τ : Substitution P} (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty_aux1]
+  rw [τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [mem_vadd_set_iff_neg_vadd_mem, mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      rw [hx]
+      abel
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add, smul_neg, hx]
+
 /-- Step 1 of the blueprint proof of `childContext_realized_step1_shift_step7_decompose_neighbourhood`:
 If `B ∈ τ.decomposeTile A` and `C ∈ τ.decomposeTile D` intersect, then `A` and `D` intersect. -/
 private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty
@@ -658,7 +692,31 @@ private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood_st
     (hB : B ∈ τ.decomposeTile A) (hC : C ∈ τ.decomposeTile D)
     (h_int : (B.carrier ∩ C.carrier).Nonempty) :
     (A.carrier ∩ D.carrier).Nonempty := by
-  sorry
+  have h_B_supp : B.carrier ⊆ support (τ.decomposeTile A) := by
+    intros x hx
+    simp only [support, mem_iUnion, exists_prop]
+    exact ⟨B, hB, hx⟩
+  have h_C_supp : C.carrier ⊆ support (τ.decomposeTile D) := by
+    intros x hx
+    simp only [support, mem_iUnion, exists_prop]
+    exact ⟨C, hC, hx⟩
+  rw [childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty_aux2 A]
+    at h_B_supp
+  rw [childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty_aux2 D]
+    at h_C_supp
+  rcases h_int with ⟨x, hx_B, hx_C⟩
+  have hx_A := h_B_supp hx_B
+  have hx_D := h_C_supp hx_C
+  simp only [mem_smul_set] at hx_A hx_D
+  rcases hx_A with ⟨yA, hyA, hyA_eq⟩
+  rcases hx_D with ⟨yD, hyD, hyD_eq⟩
+  have heq : τ.θ • yA = τ.θ • yD := by rw [hyA_eq, hyD_eq]
+  have hy_eq : yA = yD := by
+    have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+    exact smul_right_injective _ hθ heq
+  refine ⟨yA, hyA, ?_⟩
+  rw [hy_eq]
+  exact hyD
 
 /-- Step 1.7 of the blueprint proof of `childContext_realized`: `τ.decompose (neighbourhood S A) = ...` -/
 private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood

@@ -2123,7 +2123,19 @@ private lemma dissection_preserves_sts_sofic_step2_scatter_sts_step1_same_group
     (i : Fin (P.disk A.form).n) (j : Fin (P.disk B.form).n)
     (h_overlap : OverlapPos (A.side i) (B.side j)) :
     A.side i = B.side j := by
-  sorry
+  have _ := hT; have _ := hA'
+  rcases hA with ⟨A₀, hA₀, rfl⟩
+  rcases hB with ⟨B₀, hB₀, rfl⟩
+  have h_overlap₀ : OverlapPos (A₀.side i) (B₀.side j) := by
+    rw [dissection_preserves_sts_sofic_step1_local_rule_side_translate,
+      dissection_preserves_sts_sofic_step1_local_rule_side_translate] at h_overlap
+    simpa [vadd_vadd] using
+      (dissection_preserves_sts_sofic_step1_local_rule_overlap_vadd
+        (-A'.anchor) h_overlap)
+  have hEq := G.sts A'.form A₀ hA₀ B₀ hB₀ i j h_overlap₀
+  rw [dissection_preserves_sts_sofic_step1_local_rule_side_translate,
+    dissection_preserves_sts_sofic_step1_local_rule_side_translate]
+  exact congrArg (fun s : Set Pt => A'.anchor +ᵥ s) hEq
 
 /-- Step 2 of the blueprint proof of `dissection_preserves_sts_sofic_step2_scatter_sts`:
     cross-group case using complete grouped sides and the STS property of the projected

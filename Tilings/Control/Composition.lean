@@ -266,12 +266,44 @@ private lemma headerLegal_properties_step5_path (c : MacroCertificate P) (hH : c
       ¬ c.IsPrint (c.occ A.typ i) → ¬ c.IsPrint (c.occ A.typ i') → A.cell i 2 = A.cell i' 2 := by
   sorry
 
+/-- Step 1 of the blueprint proof of `headerLegal_properties_step6_inner`: at a print, the fifth
+cell is a nonzero interface identity. -/
+private lemma headerLegal_properties_step6_inner_step1_print (c : MacroCertificate P)
+    (hH : c.Hereditary) (A : DecTile c) (hA : headerLegal c A) (i : c.Side A.typ)
+    (h_inner : c.IsInner (c.occ A.typ i)) (h_print : c.IsPrint (c.occ A.typ i)) :
+    IsNontrivial c A i := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `headerLegal_properties_step6_inner`: at a boundary side, the
+fourth cell is a nonzero header tag. -/
+private lemma headerLegal_properties_step6_inner_step2_nonprint_boundary (c : MacroCertificate P)
+    (hH : c.Hereditary) (A : DecTile c) (hA : headerLegal c A) (i : c.Side A.typ)
+    (h_inner : c.IsInner (c.occ A.typ i)) (h_nprint : ¬ c.IsPrint (c.occ A.typ i))
+    (h_bdry : c.IsBoundary (c.occ A.typ i)) :
+    IsNontrivial c A i := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `headerLegal_properties_step6_inner`: at any other inner side,
+the fourth cell is \bot. -/
+private lemma headerLegal_properties_step6_inner_step3_nonprint_nonboundary (c : MacroCertificate P)
+    (hH : c.Hereditary) (A : DecTile c) (hA : headerLegal c A) (i : c.Side A.typ)
+    (h_inner : c.IsInner (c.occ A.typ i)) (h_nprint : ¬ c.IsPrint (c.occ A.typ i))
+    (h_nbdry : ¬ c.IsBoundary (c.occ A.typ i)) :
+    IsNontrivial c A i := by
+  sorry
+
 /-- Step 6 of the blueprint proof of `headerLegal_properties`: every inner side of a legal tile is
 nontrivial. -/
 private lemma headerLegal_properties_step6_inner (c : MacroCertificate P) (hH : c.Hereditary)
     (A : DecTile c) (hA : headerLegal c A) :
     InnerActive c A := by
-  sorry
+  intro i hi
+  by_cases h_print : c.IsPrint (c.occ A.typ i)
+  · exact headerLegal_properties_step6_inner_step1_print c hH A hA i hi h_print
+  · by_cases h_bdry : c.IsBoundary (c.occ A.typ i)
+    · exact headerLegal_properties_step6_inner_step2_nonprint_boundary c hH A hA i hi h_print h_bdry
+    · exact headerLegal_properties_step6_inner_step3_nonprint_nonboundary c hH A hA i hi h_print
+        h_bdry
 
 /-- Step 7 of the blueprint proof of `headerLegal_properties`: on an outer side, triviality is
 equivalent to a zero fourth cell. -/

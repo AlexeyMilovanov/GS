@@ -413,7 +413,71 @@ private lemma finite_crowns_step1_vertex_step2_sts_step1_vertex_mem_carrier {τ 
 /-- Step 2 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: two distinct tiles in a supertile have disjoint interiors. -/
 private lemma finite_crowns_step1_vertex_step2_sts_step2_disjoint {τ : Substitution P} (n : ℕ) (p : P.Form)
     (C B : PlacedTile P) (hC : C ∈ τ.supertile n p) (hB : B ∈ τ.supertile n p) (hne : C ≠ B) :
-    Disjoint (interior C.carrier) (interior B.carrier) := sorry
+    Disjoint (interior C.carrier) (interior B.carrier) := by
+  induction n generalizing C B with
+  | zero =>
+      change C ∈ ({⟨p, 0⟩} : Set (PlacedTile P)) at hC
+      change B ∈ ({⟨p, 0⟩} : Set (PlacedTile P)) at hB
+      rw [mem_singleton_iff] at hC hB
+      subst C
+      subst B
+      exact (hne rfl).elim
+  | succ n ih =>
+      change C ∈ τ.decompose (τ.supertile n p) at hC
+      change B ∈ τ.decompose (τ.supertile n p) at hB
+      simp only [Substitution.decompose, mem_iUnion] at hC hB
+      rcases hC with ⟨A, hA, hCA⟩
+      rcases hB with ⟨D, hD, hBD⟩
+      by_cases hAD : A = D
+      · subst D
+        have hne' : C ≠ B := hne
+        rcases hCA with ⟨C₀, hC₀, rfl⟩
+        rcases hBD with ⟨B₀, hB₀, rfl⟩
+        have hne₀ : C₀ ≠ B₀ := by
+          intro h
+          apply hne'
+          rw [h]
+        have hd := (τ.rule A.form).disjoint hC₀ hB₀ hne₀
+        have heqC : (C₀.translate (τ.θ • A.anchor)).carrier =
+            (τ.θ • A.anchor) +ᵥ C₀.carrier := by
+          ext x
+          simp only [PlacedTile.carrier, PlacedTile.translate,
+            mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add, neg_add_rev]
+          rw [← add_assoc]
+        have heqB : (B₀.translate (τ.θ • A.anchor)).carrier =
+            (τ.θ • A.anchor) +ᵥ B₀.carrier := by
+          ext x
+          simp only [PlacedTile.carrier, PlacedTile.translate,
+            mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add, neg_add_rev]
+          rw [← add_assoc]
+        rw [heqC, heqB, interior_vadd, interior_vadd]
+        have hinj : Function.Injective (fun x : Pt => (τ.θ • A.anchor) + x) :=
+          add_right_injective _
+        have hd' := Set.disjoint_image_of_injective hinj hd
+        simpa only [vadd_eq_add] using hd'
+      · have hd := ih A D hA hD hAD
+        have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+        have hd' : Disjoint (interior (τ.θ • A.carrier))
+            (interior (τ.θ • D.carrier)) := by
+          rw [interior_smul₀ hθ, interior_smul₀ hθ]
+          exact Set.disjoint_image_of_injective (smul_right_injective Pt hθ) hd
+        have hCsub : interior C.carrier ⊆ interior (τ.θ • A.carrier) := by
+          apply interior_mono
+          intro x hx
+          have hx' : x ∈ support (τ.decomposeTile A) := by
+            simp only [support, mem_iUnion]
+            exact ⟨C, hCA, hx⟩
+          rw [iterate_support_decomposeTile] at hx'
+          exact hx'
+        have hBsub : interior B.carrier ⊆ interior (τ.θ • D.carrier) := by
+          apply interior_mono
+          intro x hx
+          have hx' : x ∈ support (τ.decomposeTile D) := by
+            simp only [support, mem_iUnion]
+            exact ⟨B, hBD, hx⟩
+          rw [iterate_support_decomposeTile] at hx'
+          exact hx'
+        exact hd'.mono hCsub hBsub
 
 /-- Step 3 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: if a point is in
 the carrier of one tile, it cannot be in the interior of a disjoint tile. -/

@@ -804,6 +804,43 @@ theorem alignment_complete (c : MacroCertificate P) (hH : c.Hereditary)
   refine ⟨j', hneq, e, hmacro, ?_⟩
   exact alignment_complete_step2_subdivision_eq c hH T part j j' hneq d e hrank hmode hmacro
 
+/-- Step 1 of the blueprint proof of `composed_proper`: reconstruction gives a plane tiling. -/
+private lemma composed_proper_step1_reconstruction (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T) :
+    ∃ T' : PlaneTiling (typedDecoration c), IsReconstruction c part T' := by
+  have _ := hH
+  sorry
+
+/-- Step 2 of the blueprint proof of `composed_proper`: exact repaired decomposition follows
+block by block. -/
+private lemma composed_proper_step2_exact (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T)
+    (T' : PlaneTiling (typedDecoration c)) (hrec : IsReconstruction c part T') :
+    IsExactComposition c T' T := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec
+  sorry
+
+/-- Step 3 of the blueprint proof of `composed_proper`: normality, identity-correctness,
+and activity of inner sides. -/
+private lemma composed_proper_step3_properties (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T)
+    (T' : PlaneTiling (typedDecoration c)) (hrec : IsReconstruction c part T') :
+    ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X) := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec
+  sorry
+
+/-- Step 4 of the blueprint proof of `composed_proper`: the resulting tiling is proper. -/
+private lemma composed_proper_step4_proper (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T)
+    (T' : PlaneTiling (typedDecoration c)) (hrec : IsReconstruction c part T') :
+    IsProper c T' := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec
+  sorry
+
 /-- `lem:comp/proper`: for a proper legal plane tiling `T`, replacing each
 assembled macroblock by its reconstructed parent and scaling down gives a
 proper tiling `T'` of normal identity-correct decorations with active inner
@@ -816,7 +853,12 @@ theorem composed_proper (c : MacroCertificate P) (hH : c.Hereditary)
       (∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
         InnerActive c (tileDec X)) ∧
       IsExactComposition c T' T := by
-  sorry
+  have ⟨part⟩ := assembleMacrotemplates_of_legal c hH T hT hL
+  have ⟨T', hrec⟩ := composed_proper_step1_reconstruction c hH T part
+  exact ⟨part, T', hrec,
+    composed_proper_step4_proper c hH T hT hL part T' hrec,
+    composed_proper_step3_properties c hH T hT hL part T' hrec,
+    composed_proper_step2_exact c hH T hT hL part T' hrec⟩
 
 /-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal`: 
 If a block is in the exact decomposition, it is a proper realization and all its

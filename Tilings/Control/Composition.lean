@@ -470,6 +470,564 @@ theorem headerLegal_properties (c : MacroCertificate P) (hH : c.Hereditary)
     headerLegal_properties_step7_outer c hH A hA
   ⟩
 
+private lemma asm_isCompact_segment (x y : Pt) : IsCompact (segment ℝ x y) := by
+  rw [segment_eq_image']
+  exact isCompact_Icc.image (by fun_prop)
+
+private lemma asm_frontier_vadd (a : Pt) (s : Set Pt) : frontier (a +ᵥ s) = a +ᵥ frontier s := by
+  rw [← Set.image_vadd, ← Set.image_vadd]
+  exact ((Homeomorph.vadd a).image_frontier s).symm
+
+private lemma asm_vadd_cancel {S : Set Pt} (hS : IsCompact S) (hne : S.Nonempty) {a b : Pt}
+    (h : a +ᵥ S = b +ᵥ S) : a = b := by
+  obtain ⟨x0, hx0, hmax⟩ := hS.exists_isMaxOn hne
+    ((continuous_id.inner continuous_const : Continuous fun x : Pt => inner ℝ x (a - b)).continuousOn)
+  have h1 : a +ᵥ x0 ∈ b +ᵥ S := h ▸ Set.vadd_mem_vadd_set hx0
+  obtain ⟨y, hy, hxy⟩ := h1
+  have hy' : y = (a - b) + x0 := by
+    simp only [vadd_eq_add] at hxy
+    rw [sub_add_eq_add_sub, ← hxy]
+    abel
+  have h2 := hmax hy
+  simp only [Set.mem_setOf_eq, id] at h2
+  rw [hy', inner_add_left, real_inner_self_eq_norm_sq] at h2
+  have h3 : ‖a - b‖ = 0 := by nlinarith [norm_nonneg (a - b)]
+  exact sub_eq_zero.mp (norm_eq_zero.mp h3)
+
+private lemma asm_half_disk (C : Set Pt) (hC : IsClosed C) (hreg : closure (interior C) = C)
+    (ℓ : Pt →L[ℝ] ℝ) (m : Pt) (hm : m ∈ C) (r : ℝ) (hr : 0 < r)
+    (hfr : ∀ x ∈ Metric.ball m r, x ∈ frontier C ↔ ℓ x = ℓ m) :
+    Metric.ball m r ∩ {x | ℓ m < ℓ x} ⊆ interior C ∨
+      Metric.ball m r ∩ {x | ℓ x < ℓ m} ⊆ interior C := by
+  have key : ∀ H : Set Pt, H ⊆ Metric.ball m r → Convex ℝ H → (∀ x ∈ H, ℓ x ≠ ℓ m) →
+      H ⊆ interior C ∨ H ⊆ Cᶜ := by
+    intro H hHb hHc hHl
+    apply hHc.isPreconnected.subset_or_subset isOpen_interior hC.isOpen_compl
+    · exact Disjoint.mono_left interior_subset disjoint_compl_right
+    · intro x hx
+      by_cases hxC : x ∈ C
+      · left
+        by_contra hni
+        exact hHl x hx ((hfr x (hHb hx)).1 ⟨subset_closure hxC, hni⟩)
+      · exact Or.inr hxC
+  have hP := key (Metric.ball m r ∩ {x | ℓ m < ℓ x}) inter_subset_left
+    ((convex_ball m r).inter (convex_halfSpace_gt ℓ.toLinearMap.isLinear _))
+    (fun x hx => ne_of_gt hx.2)
+  have hN := key (Metric.ball m r ∩ {x | ℓ x < ℓ m}) inter_subset_left
+    ((convex_ball m r).inter (convex_halfSpace_lt ℓ.toLinearMap.isLinear _))
+    (fun x hx => ne_of_lt hx.2)
+  rcases hP with hP | hP
+  · exact Or.inl hP
+  rcases hN with hN | hN
+  · exact Or.inr hN
+  exfalso
+  have hm' : m ∈ closure (interior C) := hreg.symm ▸ hm
+  obtain ⟨x, hxi, hxd⟩ := Metric.mem_closure_iff.1 hm' r hr
+  have hxb : x ∈ Metric.ball m r := by rw [Metric.mem_ball, dist_comm]; exact hxd
+  have hxC : x ∈ C := interior_subset hxi
+  have hxf : ℓ x ≠ ℓ m := fun he => ((hfr x hxb).2 he).2 hxi
+  rcases lt_or_gt_of_ne hxf with h | h
+  · exact hN ⟨hxb, h⟩ hxC
+  · exact hP ⟨hxb, h⟩ hxC
+
+private lemma asm_midpoint_ne {E F P Q : Pt} (hPQ : P ≠ Q) (h : segment ℝ E F = segment ℝ P Q) :
+    midpoint ℝ P Q ≠ E := by
+  intro hm
+  have hP : P ∈ segment ℝ E F := h ▸ left_mem_segment ℝ P Q
+  have hQ : Q ∈ segment ℝ E F := h ▸ right_mem_segment ℝ P Q
+  rw [segment_eq_image'] at hP hQ
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hP
+  obtain ⟨u, ⟨hu0, hu1⟩, rfl⟩ := hQ
+  have hE : midpoint ℝ (E + s • (F - E)) (E + u • (F - E)) = E := hm
+  rw [midpoint_eq_smul_add] at hE
+  have h3 : (s + u) • (F - E) = 0 := by
+    have h4 : (s + u) • (F - E) =
+        (2:ℝ) • ((⅟2 : ℝ) • (E + s • (F - E) + (E + u • (F - E)))) - (2:ℝ) • E := by
+      rw [smul_smul]; norm_num; rw [add_smul, two_smul]; abel
+    rw [h4, hE, sub_self]
+  rcases smul_eq_zero.1 h3 with h5 | h5
+  · have hs : s = 0 := by linarith
+    have hu : u = 0 := by linarith
+    subst hs hu; simp at hPQ
+  · simp [h5] at hPQ
+
+/-- A linear functional vanishing exactly on the direction `d`. -/
+private def asmNormal (d : Pt) : Pt →L[ℝ] ℝ :=
+  (d 0) • EuclideanSpace.proj (1 : Fin 2) - (d 1) • EuclideanSpace.proj (0 : Fin 2)
+
+private lemma asmNormal_apply (d x : Pt) : asmNormal d x = d 0 * x 1 - d 1 * x 0 := by
+  simp [asmNormal]
+
+private lemma asmNormal_segment {P Q x : Pt} (hx : x ∈ segment ℝ P Q) :
+    asmNormal (Q - P) x = asmNormal (Q - P) P := by
+  rw [segment_eq_image'] at hx
+  obtain ⟨t, -, rfl⟩ := hx
+  simp only [asmNormal_apply, PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]
+  ring
+
+private lemma asm_midpoint_apply (P Q : Pt) (i : Fin 2) : (midpoint ℝ P Q) i = (P i + Q i) / 2 := by
+  rw [midpoint_eq_smul_add]
+  simp only [PiLp.smul_apply, PiLp.add_apply, smul_eq_mul]
+  rw [invOf_eq_inv]; ring
+
+private lemma asm_ball_line_real (p0 p1 q0 q1 x0 x1 : ℝ) (hD : 0 < (q0 - p0) ^ 2 + (q1 - p1) ^ 2)
+    (hW : (x0 - (p0 + q0) / 2) ^ 2 + (x1 - (p1 + q1) / 2) ^ 2 < ((q0 - p0) ^ 2 + (q1 - p1) ^ 2) / 4)
+    (hl : (q0 - p0) * x1 - (q1 - p1) * x0 = (q0 - p0) * ((p1 + q1) / 2) - (q1 - p1) * ((p0 + q0) / 2)) :
+    ∃ θ : ℝ, 0 ≤ θ ∧ θ ≤ 1 ∧ x0 = p0 + θ * (q0 - p0) ∧ x1 = p1 + θ * (q1 - p1) := by
+  obtain ⟨d0, hd0⟩ : ∃ d0, d0 = q0 - p0 := ⟨_, rfl⟩
+  obtain ⟨d1, hd1⟩ : ∃ d1, d1 = q1 - p1 := ⟨_, rfl⟩
+  obtain ⟨w0, hw0⟩ : ∃ w0, w0 = x0 - (p0 + q0) / 2 := ⟨_, rfl⟩
+  obtain ⟨w1, hw1⟩ : ∃ w1, w1 = x1 - (p1 + q1) / 2 := ⟨_, rfl⟩
+  rw [← hd0, ← hd1] at hD hW
+  rw [← hw0, ← hw1] at hW
+  have hl' : d0 * w1 - d1 * w0 = 0 := by rw [hd0, hd1, hw0, hw1]; linear_combination hl
+  have hlag : (w0 * d0 + w1 * d1) ^ 2 + (d0 * w1 - d1 * w0) ^ 2 =
+      (w0 ^ 2 + w1 ^ 2) * (d0 ^ 2 + d1 ^ 2) := by ring
+  rw [hl'] at hlag
+  obtain ⟨t, ht⟩ : ∃ t, t = (w0 * d0 + w1 * d1) / (d0 ^ 2 + d1 ^ 2) := ⟨_, rfl⟩
+  have htD : t * (d0 ^ 2 + d1 ^ 2) = w0 * d0 + w1 * d1 := by
+    rw [ht]; field_simp
+  have ht2 : t ^ 2 * (d0 ^ 2 + d1 ^ 2) < (d0 ^ 2 + d1 ^ 2) / 4 := by
+    have : (t ^ 2 * (d0 ^ 2 + d1 ^ 2)) * (d0 ^ 2 + d1 ^ 2) = (w0 ^ 2 + w1 ^ 2) * (d0 ^ 2 + d1 ^ 2) := by
+      rw [← hlag, ← htD]; ring
+    have h5 : t ^ 2 * (d0 ^ 2 + d1 ^ 2) = w0 ^ 2 + w1 ^ 2 := mul_right_cancel₀ hD.ne' this
+    linarith
+  have ht3 : t ^ 2 < 1 / 4 := by
+    by_contra hc
+    push_neg at hc
+    nlinarith
+  have hwt0 : w0 * (d0 ^ 2 + d1 ^ 2) = t * d0 * (d0 ^ 2 + d1 ^ 2) := by
+    linear_combination (-d1) * hl' - d0 * htD
+  have hwt1 : w1 * (d0 ^ 2 + d1 ^ 2) = t * d1 * (d0 ^ 2 + d1 ^ 2) := by
+    linear_combination d0 * hl' - d1 * htD
+  have e0 := mul_right_cancel₀ hD.ne' hwt0
+  have e1 := mul_right_cancel₀ hD.ne' hwt1
+  refine ⟨1 / 2 + t, by nlinarith, by nlinarith, ?_, ?_⟩
+  · linear_combination -hw0 + e0 + t * hd0
+  · linear_combination -hw1 + e1 + t * hd1
+
+private lemma asm_ball_line {P Q x : Pt} (hPQ : P ≠ Q)
+    (hx : dist x (midpoint ℝ P Q) < dist P Q / 2)
+    (hl : asmNormal (Q - P) x = asmNormal (Q - P) (midpoint ℝ P Q)) : x ∈ segment ℝ P Q := by
+  rw [EuclideanSpace.dist_eq, EuclideanSpace.dist_eq] at hx
+  simp only [Fin.sum_univ_two, Real.dist_eq, sq_abs] at hx
+  rw [asmNormal_apply, asmNormal_apply] at hl
+  simp only [asm_midpoint_apply, PiLp.sub_apply] at hx hl
+  have hD : 0 < (Q 0 - P 0) ^ 2 + (Q 1 - P 1) ^ 2 := by
+    by_contra hcon
+    apply hPQ
+    have h0 : Q 0 - P 0 = 0 := by nlinarith [sq_nonneg (Q 0 - P 0), sq_nonneg (Q 1 - P 1)]
+    have h1 : Q 1 - P 1 = 0 := by nlinarith [sq_nonneg (Q 0 - P 0), sq_nonneg (Q 1 - P 1)]
+    ext i; fin_cases i
+    · simp only [Fin.zero_eta, Fin.isValue]; linarith
+    · simp only [Fin.mk_one, Fin.isValue]; linarith
+  have hW : (x 0 - (P 0 + Q 0) / 2) ^ 2 + (x 1 - (P 1 + Q 1) / 2) ^ 2 <
+      ((Q 0 - P 0) ^ 2 + (Q 1 - P 1) ^ 2) / 4 := by
+    have h1 := hx
+    rw [show (P 0 - Q 0) ^ 2 + (P 1 - Q 1) ^ 2 = (Q 0 - P 0) ^ 2 + (Q 1 - P 1) ^ 2 by ring] at h1
+    have h2 : Real.sqrt ((Q 0 - P 0) ^ 2 + (Q 1 - P 1) ^ 2) / 2 =
+        Real.sqrt (((Q 0 - P 0) ^ 2 + (Q 1 - P 1) ^ 2) / 4) := by
+      rw [Real.sqrt_div' _ (by norm_num : (0:ℝ) ≤ 4), show (4:ℝ) = 2 ^ 2 by norm_num,
+        Real.sqrt_sq (by norm_num : (0:ℝ) ≤ 2)]
+    rw [h2] at h1
+    exact (Real.sqrt_lt_sqrt_iff (by positivity)).1 h1
+  obtain ⟨θ, h0, h1, e0, e1⟩ := asm_ball_line_real (P 0) (P 1) (Q 0) (Q 1) (x 0) (x 1) hD hW hl
+  rw [segment_eq_image']
+  refine ⟨θ, ⟨h0, h1⟩, ?_⟩
+  ext i
+  fin_cases i
+  · simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul, Fin.zero_eta, Fin.isValue]
+    rw [e0]
+  · simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul, Fin.mk_one, Fin.isValue]
+    rw [e1]
+
+private lemma asm_local_frontier (B : PolygonalDisk) (k : Fin B.n) (m : Pt) (hm : m ∈ B.side k)
+    (h1 : m ≠ B.vertex k) (h2 : m ≠ B.vertex (finRotate B.n k)) :
+    ∃ r > 0, Metric.ball m r ∩ frontier B.carrier ⊆ B.side k := by
+  set U := ⋃ k' ∈ ({k}ᶜ : Set (Fin B.n)), B.side k' with hUdef
+  have hU : IsClosed U :=
+    Set.Finite.isClosed_biUnion (Set.toFinite _) (fun k' _ => (asm_isCompact_segment _ _).isClosed)
+  have hmU : m ∉ U := by
+    rw [hUdef]
+    simp only [Set.mem_iUnion]
+    rintro ⟨k', hk', hmk'⟩
+    have := B.simple k k' (Ne.symm hk') ⟨hm, hmk'⟩
+    rcases this.1 with h | h
+    · exact h1 h
+    · exact h2 h
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.1 hU.isOpen_compl m hmU
+  refine ⟨r, hr, ?_⟩
+  rintro x ⟨hxb, hxf⟩
+  rw [B.frontier_eq] at hxf
+  obtain ⟨k'', hk''⟩ := Set.mem_iUnion.1 hxf
+  by_cases hk : k'' = k
+  · subst hk; exact hk''
+  · exact absurd (Set.mem_biUnion (x := k'') hk hk'') (hball hxb)
+
+private lemma asm_side_sub_carrier (B : PolygonalDisk) (k : Fin B.n) : B.side k ⊆ frontier B.carrier := by
+  rw [B.frontier_eq]; exact Set.subset_iUnion (fun i => segment ℝ (B.vertex i) (B.vertex (finRotate B.n i))) k
+
+private lemma asm_finRotate_ne (n : ℕ) (hn : 3 ≤ n) (i : Fin n) : finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h' : (i + 1).val = i.val := congrArg Fin.val h
+  rw [Fin.val_add] at h'
+  have h1 : (1 : Fin (m + 1)).val = 1 := by
+    rw [Fin.val_one']; exact Nat.mod_eq_of_lt (by omega)
+  rw [h1] at h'
+  have := i.isLt
+  by_cases hi : i.val + 1 < m + 1
+  · rw [Nat.mod_eq_of_lt hi] at h'; omega
+  · have : i.val + 1 = m + 1 := by omega
+    rw [this, Nat.mod_self] at h'; omega
+
+private lemma asm_halves_nonempty (P Q : Pt) (hPQ : P ≠ Q) (r : ℝ) (hr : 0 < r) :
+    (Metric.ball (midpoint ℝ P Q) r ∩
+        {x | asmNormal (Q - P) (midpoint ℝ P Q) < asmNormal (Q - P) x}).Nonempty ∧
+      (Metric.ball (midpoint ℝ P Q) r ∩
+        {x | asmNormal (Q - P) x < asmNormal (Q - P) (midpoint ℝ P Q)}).Nonempty := by
+  set ℓ := asmNormal (Q - P)
+  set m := midpoint ℝ P Q
+  have hne : Q - P ≠ 0 := sub_ne_zero.mpr hPQ.symm
+  obtain ⟨w, hw⟩ : ∃ w : Pt, 0 < ℓ w := by
+    by_cases h0 : (Q - P) 0 = 0
+    · have h1 : (Q - P) 1 ≠ 0 := by
+        intro h1; apply hne; ext i; fin_cases i
+        · simpa using h0
+        · simpa using h1
+      refine ⟨(-(Q - P) 1) • EuclideanSpace.single (0 : Fin 2) (1 : ℝ), ?_⟩
+      rw [ℓ.map_smul]
+      simp only [ℓ, asmNormal_apply, EuclideanSpace.single_apply, smul_eq_mul]
+      simp only [Fin.isValue, one_ne_zero, ↓reduceIte]
+      nlinarith [sq_pos_of_ne_zero h1]
+    · refine ⟨((Q - P) 0) • EuclideanSpace.single (1 : Fin 2) (1 : ℝ), ?_⟩
+      rw [ℓ.map_smul]
+      simp only [ℓ, asmNormal_apply, EuclideanSpace.single_apply, smul_eq_mul]
+      simp only [Fin.isValue, ↓reduceIte, zero_ne_one]
+      nlinarith [sq_pos_of_ne_zero h0]
+  set c := r / (2 * (‖w‖ + 1)) with hc
+  have hc0 : 0 < c := by positivity
+  have hcw : c * ‖w‖ < r := by
+    rw [hc, div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+    nlinarith [norm_nonneg w]
+  constructor
+  · refine ⟨m + c • w, ?_, ?_⟩
+    · rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hc0.le]
+      exact hcw
+    · show ℓ m < ℓ (m + c • w)
+      rw [ℓ.map_add, ℓ.map_smul, smul_eq_mul]; nlinarith
+  · refine ⟨m - c • w, ?_, ?_⟩
+    · rw [Metric.mem_ball, dist_eq_norm, sub_sub_cancel_left, norm_neg, norm_smul,
+        Real.norm_of_nonneg hc0.le]
+      exact hcw
+    · show ℓ (m - c • w) < ℓ m
+      rw [ℓ.map_sub, ℓ.map_smul, smul_eq_mul]; nlinarith
+
+private lemma asm_tile_half (B : PolygonalDisk) (a : Pt) (k : Fin B.n) {P Q : Pt} (hPQ : P ≠ Q)
+    (hS : a +ᵥ B.side k = segment ℝ P Q) :
+    ∃ r > 0, ∀ r', 0 < r' → r' ≤ r →
+      Metric.ball (midpoint ℝ P Q) r' ∩
+          {x | asmNormal (Q - P) (midpoint ℝ P Q) < asmNormal (Q - P) x} ⊆ interior (a +ᵥ B.carrier) ∨
+        Metric.ball (midpoint ℝ P Q) r' ∩
+          {x | asmNormal (Q - P) x < asmNormal (Q - P) (midpoint ℝ P Q)} ⊆ interior (a +ᵥ B.carrier) := by
+  set m := midpoint ℝ P Q with hmdef
+  have hS' : segment ℝ (a +ᵥ B.vertex k) (a +ᵥ B.vertex (finRotate B.n k)) = segment ℝ P Q := by
+    rw [← vadd_segment]; exact hS
+  have hm1 : m ≠ a +ᵥ B.vertex k := asm_midpoint_ne hPQ hS'
+  have hm2 : m ≠ a +ᵥ B.vertex (finRotate B.n k) :=
+    asm_midpoint_ne hPQ ((segment_symm ℝ _ _).trans hS')
+  have hmS : m ∈ a +ᵥ B.side k := hS ▸ midpoint_mem_segment P Q
+  obtain ⟨y, hy, hya⟩ := hmS
+  have hy1 : y ≠ B.vertex k := fun h => hm1 (by rw [← hya, h])
+  have hy2 : y ≠ B.vertex (finRotate B.n k) := fun h => hm2 (by rw [← hya, h])
+  obtain ⟨r0, hr0, hloc⟩ := asm_local_frontier B k y hy hy1 hy2
+  have hdPQ : 0 < dist P Q := dist_pos.mpr hPQ
+  refine ⟨min r0 (dist P Q / 2), lt_min hr0 (by linarith), fun r' hr' hr'le => ?_⟩
+  have hBc : IsClosed B.carrier := B.compact.isClosed
+  apply asm_half_disk (a +ᵥ B.carrier) (hBc.vadd a)
+    (by rw [interior_vadd, closure_vadd, B.regular_closed]) (asmNormal (Q - P)) m
+    (by
+      rw [← hya]
+      exact Set.vadd_mem_vadd_set (hBc.frontier_subset (asm_side_sub_carrier B k hy)))
+    r' hr'
+  intro x hx
+  rw [asm_frontier_vadd]
+  constructor
+  · rintro ⟨z, hz, rfl⟩
+    have hzb : z ∈ Metric.ball y r0 := by
+      have hya' : a +ᵥ y = m := hya
+      rw [Metric.mem_ball, ← dist_vadd_cancel_left a z y, hya']
+      exact lt_of_lt_of_le (Metric.mem_ball.1 hx) ((min_le_left _ _).trans' hr'le)
+    have hzs : a +ᵥ z ∈ segment ℝ P Q := hS ▸ Set.vadd_mem_vadd_set (hloc ⟨hzb, hz⟩)
+    rw [asmNormal_segment hzs, asmNormal_segment (midpoint_mem_segment P Q)]
+  · intro hl
+    have hxs : x ∈ segment ℝ P Q := by
+      apply asm_ball_line hPQ _ hl
+      exact lt_of_lt_of_le (Metric.mem_ball.1 hx) (hr'le.trans (min_le_right _ _))
+    rw [← hS] at hxs
+    obtain ⟨z, hz, rfl⟩ := hxs
+    exact Set.vadd_mem_vadd_set (asm_side_sub_carrier B k hz)
+
+private lemma asm_no_three (B₁ B₂ B₃ : PolygonalDisk) (a₁ a₂ a₃ : Pt) (k₁ : Fin B₁.n) (k₂ : Fin B₂.n)
+    (k₃ : Fin B₃.n) (h₂ : a₂ +ᵥ B₂.side k₂ = a₁ +ᵥ B₁.side k₁) (h₃ : a₃ +ᵥ B₃.side k₃ = a₁ +ᵥ B₁.side k₁)
+    (d₁₂ : Disjoint (interior (a₁ +ᵥ B₁.carrier)) (interior (a₂ +ᵥ B₂.carrier)))
+    (d₁₃ : Disjoint (interior (a₁ +ᵥ B₁.carrier)) (interior (a₃ +ᵥ B₃.carrier)))
+    (d₂₃ : Disjoint (interior (a₂ +ᵥ B₂.carrier)) (interior (a₃ +ᵥ B₃.carrier))) : False := by
+  set P := a₁ +ᵥ B₁.vertex k₁
+  set Q := a₁ +ᵥ B₁.vertex (finRotate B₁.n k₁)
+  have hPQ : P ≠ Q := by
+    intro h
+    exact asm_finRotate_ne B₁.n B₁.three_le k₁ (B₁.vertex_injective (vadd_left_cancel a₁ h)).symm
+  have hS : a₁ +ᵥ B₁.side k₁ = segment ℝ P Q := vadd_segment ℝ a₁ _ _
+  obtain ⟨r₁, hr₁, H₁⟩ := asm_tile_half B₁ a₁ k₁ hPQ hS
+  obtain ⟨r₂, hr₂, H₂⟩ := asm_tile_half B₂ a₂ k₂ hPQ (h₂.trans hS)
+  obtain ⟨r₃, hr₃, H₃⟩ := asm_tile_half B₃ a₃ k₃ hPQ (h₃.trans hS)
+  set r := min r₁ (min r₂ r₃)
+  have hr : 0 < r := lt_min hr₁ (lt_min hr₂ hr₃)
+  obtain ⟨⟨xp, hxp⟩, ⟨xn, hxn⟩⟩ := asm_halves_nonempty P Q hPQ r hr
+  rcases H₁ r hr (min_le_left _ _) with A₁ | A₁ <;>
+  rcases H₂ r hr ((min_le_right _ _).trans (min_le_left _ _)) with A₂ | A₂ <;>
+  rcases H₃ r hr ((min_le_right _ _).trans (min_le_right _ _)) with A₃ | A₃
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxp) (A₂ hxp)
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxp) (A₂ hxp)
+  · exact Set.disjoint_left.1 d₁₃ (A₁ hxp) (A₃ hxp)
+  · exact Set.disjoint_left.1 d₂₃ (A₂ hxn) (A₃ hxn)
+  · exact Set.disjoint_left.1 d₂₃ (A₂ hxp) (A₃ hxp)
+  · exact Set.disjoint_left.1 d₁₃ (A₁ hxn) (A₃ hxn)
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxn) (A₂ hxn)
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxn) (A₂ hxn)
+
+private lemma asm_identU_ne_zero (c : MacroCertificate P) (e : c.EdgeId) : identU c e ≠ 0 := by
+  intro h; cases h
+
+private lemma asm_identU_inj (c : MacroCertificate P) {e e' : c.EdgeId} (h : identU c e = identU c e') :
+    e = e' := by
+  simp only [identU] at h
+  cases h; rfl
+
+private lemma asm_isLocal_four (c : MacroCertificate P) (o : c.SideOcc) : IsLocal c o 4 := by
+  by_cases hm : c.IsMarked o
+  · by_cases hs : c.special o ∨ c.IsPrint o
+    · exact Or.inr (Or.inl ⟨hm, hs, rfl⟩)
+    · push_neg at hs
+      exact Or.inr (Or.inr ⟨hm, ⟨hs.1, hs.2⟩, Or.inr rfl⟩)
+  · exact Or.inl hm
+
+private lemma asm_cell_four_print (c : MacroCertificate P) {A : DecTile c} (hA : IsNormal c A)
+    (i : c.Side A.typ) (hp : c.IsPrint (c.occ A.typ i)) : A.cell i 4 = identU c (c.edge (c.occ A.typ i)) := by
+  rw [hA i 4 (asm_isLocal_four c _)]
+  simp [prescribedCell, hp]
+
+private lemma asm_cell_four_nonprint (c : MacroCertificate P) {A : DecTile c} (hA : IsNormal c A)
+    (i : c.Side A.typ) (hp : ¬ c.IsPrint (c.occ A.typ i)) : A.cell i 4 = 0 := by
+  rw [hA i 4 (asm_isLocal_four c _)]
+  simp [prescribedCell, hp]
+
+private lemma asm_inner_of_occSide (c : MacroCertificate P) {o o' : c.SideOcc} (ho : c.IsInner o)
+    (hown : c.owner o'.1 = c.owner o.1) (hs : c.occSide o' = c.occSide o) : c.IsInner o' := by
+  unfold MacroData.IsInner MacroData.IsOuter at *
+  rwa [hs, hown]
+
+private lemma asm_print_inner (c : MacroCertificate P) {o : c.SideOcc} (hp : c.IsPrint o) : c.IsInner o := by
+  obtain ⟨d, hmk, ho | ho⟩ := hp
+  · rw [ho]; exact c.g4_print_inner _ d hmk
+  · have hin := c.g4_print_inner _ d hmk
+    obtain ⟨-, h2, h3⟩ := c.g1_partner _ hin
+    rw [ho]; exact asm_inner_of_occSide c hin h2 h3
+
+private lemma asm_cell_zero_outer (c : MacroCertificate P) {A : DecTile c} (hA : IsNormal c A)
+    (i : c.Side A.typ) (ho : c.IsOuter (c.occ A.typ i)) : A.cell i 0 = 0 := by
+  have hloc : IsLocal c (c.occ A.typ i) 0 := by
+    by_cases hm : c.IsMarked (c.occ A.typ i)
+    · exact Or.inr (Or.inr ⟨hm, ⟨fun hs => c.g6_special_inner _ hs ho,
+        fun hp => asm_print_inner c hp ho⟩, Or.inl rfl⟩)
+    · exact Or.inl hm
+  rw [hA i 0 hloc]
+  have hni : ¬ c.IsInner (c.occ A.typ i) := fun h => h ho
+  simp [prescribedCell, prescribedFirst, hni]
+
+private lemma asm_match (c : MacroCertificate P) {A B : DecTile c} (hA : IsNormal c A ∧ IsIdentityCorrect c A)
+    (hB : IsNormal c B ∧ IsIdentityCorrect c B) (i : c.Side A.typ) (j : c.Side B.typ)
+    (hi : c.IsInner (c.occ A.typ i)) (hc : ∀ k, B.cell j k = A.cell i k) :
+    c.IsInner (c.occ B.typ j) ∧ c.edge (c.occ B.typ j) = c.edge (c.occ A.typ i) := by
+  by_cases hp : c.IsPrint (c.occ A.typ i)
+  · have h4 : A.cell i 4 = identU c (c.edge (c.occ A.typ i)) := (hA.2 i).2 hp
+    by_cases hq : c.IsPrint (c.occ B.typ j)
+    · refine ⟨asm_print_inner c hq, asm_identU_inj c ?_⟩
+      rw [← asm_cell_four_print c hB.1 j hq, hc 4, h4]
+    · exfalso
+      have h5 := asm_cell_four_nonprint c hB.1 j hq
+      rw [hc 4, h4] at h5
+      exact asm_identU_ne_zero c _ h5
+  · have h0 : A.cell i 0 = identU c (c.edge (c.occ A.typ i)) := (hA.2 i).1 hi hp
+    have hq : ¬ c.IsPrint (c.occ B.typ j) := by
+      intro hq
+      have h5 := asm_cell_four_print c hB.1 j hq
+      rw [hc 4, asm_cell_four_nonprint c hA.1 i hp] at h5
+      exact asm_identU_ne_zero c _ h5.symm
+    have hin : c.IsInner (c.occ B.typ j) := by
+      intro ho
+      have h5 := asm_cell_zero_outer c hB.1 j ho
+      rw [hc 0, h0] at h5
+      exact asm_identU_ne_zero c _ h5
+    refine ⟨hin, asm_identU_inj c ?_⟩
+    rw [← (hB.2 j).1 hin hq, hc 0, h0]
+
+private lemma asm_tile_unique (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c))
+    {X Y : PlacedTile (typedDecoration c)} (hX : X ∈ T.tiles) (hY : Y ∈ T.tiles)
+    (ht : (tileDec X).typ = (tileDec Y).typ) (ha : X.anchor = Y.anchor) : X = Y := by
+  by_contra hne
+  have hd : Disjoint (interior X.carrier) (interior Y.carrier) := T.disjoint hX hY hne
+  have hXc : X.carrier = X.anchor +ᵥ (c.Q.disk (c.form (tileDec X).typ)).carrier := rfl
+  have hYc : Y.carrier = Y.anchor +ᵥ (c.Q.disk (c.form (tileDec Y).typ)).carrier := rfl
+  rw [hXc, hYc, ht, ha] at hd
+  obtain ⟨z, hz⟩ := (c.Q.disk (c.form (tileDec Y).typ)).interior_nonempty
+  have hz' : Y.anchor +ᵥ z ∈ interior (Y.anchor +ᵥ (c.Q.disk (c.form (tileDec Y).typ)).carrier) := by
+    rw [interior_vadd]; exact Set.vadd_mem_vadd_set hz
+  exact Set.disjoint_left.1 hd hz' hz'
+
+/-- The placed segment of a side occurrence translated by `a`. -/
+private def asmSide (c : MacroCertificate P) (a : Pt) (o : c.SideOcc) : Set Pt :=
+  a +ᵥ (c.Q.disk (c.form o.1)).side o.2
+
+private lemma asm_side_cancel (c : MacroCertificate P) {a b : Pt} {o : c.SideOcc}
+    (h : asmSide c a o = asmSide c b o) : a = b :=
+  asm_vadd_cancel (asm_isCompact_segment _ _) ⟨_, left_mem_segment ℝ _ _⟩ h
+
+private lemma asm_neighbour (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hN : ∀ X ∈ T.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    {X : PlacedTile (typedDecoration c)} (hX : X ∈ T.tiles) (i : c.Side (tileDec X).typ)
+    (hi : c.IsInner (c.occ (tileDec X).typ i)) :
+    ∃ Y ∈ T.tiles, (tileDec Y).typ = (c.partner (c.occ (tileDec X).typ i)).1 ∧
+      Y.anchor = X.anchor - c.anchor (tileDec X).typ + c.anchor (c.partner (c.occ (tileDec X).typ i)).1 := by
+  obtain ⟨hNX, hIX, hAX⟩ := hN X hX
+  obtain ⟨Y, hY, hYX, j, hside, hcell⟩ := hT X hX i (hAX i hi)
+  obtain ⟨hNY, hIY, -⟩ := hN Y hY
+  obtain ⟨hjin, hje⟩ := asm_match c ⟨hNX, hIX⟩ ⟨hNY, hIY⟩ i j hi hcell
+  have hside' : asmSide c Y.anchor (c.occ (tileDec Y).typ j) =
+      asmSide c X.anchor (c.occ (tileDec X).typ i) := hside
+  rcases c.g1_edge_unique _ _ hi hjin hje.symm with ho | ho
+  · exfalso
+    rw [ho] at hside'
+    have ha := asm_side_cancel c hside'
+    have ht : (tileDec Y).typ = (tileDec X).typ := congrArg Sigma.fst ho
+    exact hYX (asm_tile_unique c T hY hX ht ha)
+  · refine ⟨Y, hY, congrArg Sigma.fst ho, ?_⟩
+    rw [ho] at hside'
+    obtain ⟨-, -, hp3⟩ := c.g1_partner _ hi
+    have hp3' : asmSide c (c.anchor (c.partner (c.occ (tileDec X).typ i)).1)
+        (c.partner (c.occ (tileDec X).typ i)) =
+        asmSide c (c.anchor (tileDec X).typ) (c.occ (tileDec X).typ i) := hp3
+    apply asm_side_cancel c (o := c.partner (c.occ (tileDec X).typ i))
+    rw [hside']
+    unfold asmSide at hp3' ⊢
+    rw [← vadd_vadd, hp3', vadd_vadd, sub_add_cancel]
+
+private lemma asm_exists_cells {c : MacroCertificate P} {T : PlaneTiling (typedDecoration c)}
+    {Y : PlacedTile (typedDecoration c)} (hY : Y ∈ T.tiles) {t : c.Typ} {a : Pt}
+    (ht : (tileDec Y).typ = t) (ha : Y.anchor = a) :
+    ∃ f, (⟨⟨t, f⟩, a⟩ : PlacedTile (typedDecoration c)) ∈ T.tiles := by
+  obtain ⟨⟨ty, g⟩, ya⟩ := Y
+  change ty = t at ht
+  change ya = a at ha
+  subst ht ha
+  exact ⟨g, hY⟩
+
+private lemma asm_template_partner (c : MacroCertificate P) {s s' : c.Typ} (i : c.Side s) (j : c.Side s')
+    (hown : c.owner s' = c.owner s) (hne : s' ≠ s) (hi : c.IsInner (c.occ s i))
+    (hs : c.occSide (c.occ s' j) = c.occSide (c.occ s i)) : s' = (c.partner (c.occ s i)).1 := by
+  obtain ⟨hp1, hp2, hp3⟩ := c.g1_partner _ hi
+  by_contra hne'
+  have hmem : ∀ t, c.owner t = c.owner s →
+      (⟨c.form t, c.anchor t⟩ : PlacedTile c.Q) ∈ (c.σ.rule (c.owner s)).tiles := by
+    intro t ht; rw [c.rule_eq]; exact ⟨t, ht, rfl⟩
+  have hdisj : ∀ t t', c.owner t = c.owner s → c.owner t' = c.owner s → t ≠ t' →
+      Disjoint (interior (c.anchor t +ᵥ (c.Q.disk (c.form t)).carrier))
+        (interior (c.anchor t' +ᵥ (c.Q.disk (c.form t')).carrier)) := by
+    intro t t' ht ht' htt
+    have hne2 : (⟨c.form t, c.anchor t⟩ : PlacedTile c.Q) ≠ ⟨c.form t', c.anchor t'⟩ := by
+      intro h
+      injection h with h1 h2
+      exact htt (c.type_injective t t' (ht.trans ht'.symm) h1 h2)
+    exact (c.σ.rule (c.owner s)).disjoint (hmem t ht) (hmem t' ht') hne2
+  exact asm_no_three (c.Q.disk (c.form s)) (c.Q.disk (c.form s'))
+    (c.Q.disk (c.form (c.partner (c.occ s i)).1))
+    (c.anchor s) (c.anchor s') (c.anchor (c.partner (c.occ s i)).1) i j (c.partner (c.occ s i)).2 hs hp3
+    (hdisj _ _ rfl hown (Ne.symm hne)) (hdisj _ _ rfl hp2 (Ne.symm hp1)) (hdisj _ _ hown hp2 hne')
+
+private lemma asm_all_present (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hN : ∀ X ∈ T.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    {X : PlacedTile (typedDecoration c)} (hX : X ∈ T.tiles) (t : c.Typ)
+    (ht : c.owner t = c.owner (tileDec X).typ) :
+    ∃ f, (⟨⟨t, f⟩, (X.anchor - c.anchor (tileDec X).typ) + c.anchor t⟩ :
+      PlacedTile (typedDecoration c)) ∈ T.tiles := by
+  let Pres : {t : c.Typ // c.owner t = c.owner (tileDec X).typ} → Prop := fun u =>
+    ∃ f, (⟨⟨u.1, f⟩, (X.anchor - c.anchor (tileDec X).typ) + c.anchor u.1⟩ :
+      PlacedTile (typedDecoration c)) ∈ T.tiles
+  have step : ∀ u w, (c.innerGraph (c.owner (tileDec X).typ)).Adj u w → Pres u → Pres w := by
+    intro u w hadj hu
+    obtain ⟨f, hf⟩ := hu
+    rw [MacroData.innerGraph, SimpleGraph.fromRel_adj] at hadj
+    obtain ⟨hne, hR⟩ := hadj
+    have core : ∀ (i : c.Side u.1) (j : c.Side w.1), c.IsInner (c.occ u.1 i) →
+        c.occSide (c.occ w.1 j) = c.occSide (c.occ u.1 i) → Pres w := by
+      intro i j hi hs
+      have hw : w.1 = (c.partner (c.occ u.1 i)).1 :=
+        asm_template_partner c i j (w.2.trans u.2.symm) (fun h => hne (Subtype.ext h.symm)) hi hs
+      obtain ⟨Y, hY, hYt, hYa⟩ := asm_neighbour c T hT hN hf i hi
+      have hYa' : Y.anchor =
+          X.anchor - c.anchor (tileDec X).typ + c.anchor (c.partner (c.occ u.1 i)).1 := by
+        rw [hYa]
+        show X.anchor - c.anchor (tileDec X).typ + c.anchor u.1 - c.anchor u.1 +
+          c.anchor (c.partner (c.occ u.1 i)).1 = _
+        rw [add_sub_cancel_right]
+      obtain ⟨g, hg⟩ := asm_exists_cells (t := (c.partner (c.occ u.1 i)).1) hY hYt hYa'
+      show ∃ f, (⟨⟨w.1, f⟩, (X.anchor - c.anchor (tileDec X).typ) + c.anchor w.1⟩ :
+        PlacedTile (typedDecoration c)) ∈ T.tiles
+      rw [hw]
+      exact ⟨g, hg⟩
+    rcases hR with ⟨i, j, hi, hs⟩ | ⟨j, i, hj, hs⟩
+    · exact core i j hi hs.symm
+    · exact core i j (asm_inner_of_occSide c hj (u.2.trans w.2.symm) hs.symm) hs
+  have base : Pres ⟨(tileDec X).typ, rfl⟩ := by
+    refine ⟨(tileDec X).cell, ?_⟩
+    rw [sub_add_cancel]
+    exact hX
+  obtain ⟨w⟩ := (c.g1_connected (c.owner (tileDec X).typ)).preconnected ⟨(tileDec X).typ, rfl⟩ ⟨t, ht⟩
+  suffices H : ∀ u w' (p : (c.innerGraph (c.owner (tileDec X).typ)).Walk u w'), Pres u → Pres w' from
+    H _ _ w base
+  intro u w' p
+  induction p with
+  | nil => exact id
+  | cons h p ih => exact fun hu => ih (step _ _ h hu)
+
+open Classical in
+/-- The candidate block with parent form `α` and offset `v`, coloured by the tiles of `T`. -/
+private def asmBlock (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c)) (α : c.Q.Form) (v : Pt) :
+    ColouredBlock c where
+  α := α
+  v := v
+  col t := if h : ∃ f, (⟨⟨t, f⟩, v + c.anchor t⟩ : PlacedTile (typedDecoration c)) ∈ T.tiles
+    then h.choose else fun _ _ => 0
+
+/-- The candidate block of a tile. -/
+private def asmBlockOf (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c))
+    (X : PlacedTile (typedDecoration c)) : ColouredBlock c :=
+  asmBlock c T (c.owner (tileDec X).typ) (X.anchor - c.anchor (tileDec X).typ)
+
+private lemma asm_block_placed (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c)) (α : c.Q.Form)
+    (v : Pt) (t : c.Typ) (h : ∃ f, (⟨⟨t, f⟩, v + c.anchor t⟩ : PlacedTile (typedDecoration c)) ∈ T.tiles) :
+    (asmBlock c T α v).placed t ∈ T.tiles := by
+  have hcol : (asmBlock c T α v).col t = h.choose := by
+    simp only [asmBlock]
+    rw [dif_pos h]
+  show (⟨⟨t, (asmBlock c T α v).col t⟩, v + c.anchor t⟩ : PlacedTile (typedDecoration c)) ∈ T.tiles
+  rw [hcol]
+  exact h.choose_spec
+
 /-- `lem:comp/assembly`: a proper plane tiling of normal identity-correct
 typed tiles in which every inner side is nontrivial admits a partition into
 positioned `σ'` macrotemplates. -/
@@ -478,7 +1036,40 @@ theorem assembleMacrotemplates (c : MacroCertificate P) (hH : c.Hereditary)
     (hN : ∀ X ∈ T.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
       InnerActive c (tileDec X)) :
     Nonempty (MacroPartition c T) := by
-  sorry
+  -- The hereditary-sides hypothesis is not needed for the assembly.
+  have _ := hH
+  have hsub : ∀ X ∈ T.tiles, (asmBlockOf c T X).tiles ⊆ T.tiles := by
+    rintro X hX Z ⟨t, ht, rfl⟩
+    exact asm_block_placed c T _ _ t (asm_all_present c T hT hN hX t ht)
+  have hself : ∀ X ∈ T.tiles, X ∈ (asmBlockOf c T X).tiles := by
+    intro X hX
+    refine ⟨(tileDec X).typ, rfl, ?_⟩
+    have hmem := asm_block_placed c T (c.owner (tileDec X).typ) (X.anchor - c.anchor (tileDec X).typ)
+      (tileDec X).typ ⟨(tileDec X).cell, by rw [sub_add_cancel]; exact hX⟩
+    exact asm_tile_unique c T hX hmem rfl (by
+      show X.anchor = X.anchor - c.anchor (tileDec X).typ + c.anchor (tileDec X).typ
+      rw [sub_add_cancel])
+  have hblk : ∀ X Z, Z ∈ (asmBlockOf c T X).tiles → asmBlockOf c T Z = asmBlockOf c T X := by
+    rintro X Z ⟨t, ht, rfl⟩
+    change c.owner t = c.owner (tileDec X).typ at ht
+    show asmBlock c T (c.owner t) ((X.anchor - c.anchor (tileDec X).typ) + c.anchor t - c.anchor t) =
+      asmBlock c T (c.owner (tileDec X).typ) (X.anchor - c.anchor (tileDec X).typ)
+    rw [ht, add_sub_cancel_right]
+  refine ⟨{ ι := {K : ColouredBlock c // ∃ X ∈ T.tiles, K = asmBlockOf c T X},
+            block := Subtype.val,
+            disjoint := ?_,
+            cover := ?_ }⟩
+  · rintro ⟨K, X, hX, rfl⟩ ⟨K', X', hX', rfl⟩ hne
+    rw [Set.disjoint_left]
+    intro Z hZ hZ'
+    apply hne
+    exact Subtype.ext ((hblk X Z hZ).symm.trans (hblk X' Z hZ'))
+  · apply Set.Subset.antisymm
+    · intro Z hZ
+      obtain ⟨⟨K, X, hX, rfl⟩, hZK⟩ := Set.mem_iUnion.1 hZ
+      exact hsub X hX hZK
+    · intro X hX
+      exact Set.mem_iUnion.2 ⟨⟨asmBlockOf c T X, X, hX, rfl⟩, hself X hX⟩
 
 /-- `lem:comp/assembly` (final assertion): every proper legal plane tiling
 has such a partition. -/

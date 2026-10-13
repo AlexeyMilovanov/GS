@@ -4204,7 +4204,63 @@ private lemma projects_to_hierarchy_step1_soundness_step3_erase_composition
       T₀.tiles = eraseSet c T.tiles →
       IsExactComposition c T' T →
       c.σ.IsComposition T₀' T₀ := by
-  sorry
+  intro T' T T₀' T₀ h1 h2 h3
+  rw [Substitution.IsComposition]
+  rw [h1, h2]
+  unfold IsExactComposition at h3
+  unfold IsExactCompositionWith at h3
+  rcases h3 with ⟨blk, hblk, hT⟩
+  rw [hT]
+  unfold Substitution.decompose
+  unfold eraseSet
+  rw [Set.biUnion_image]
+  rw [Set.image_iUnion]
+  rw [Set.biUnion_eq_iUnion]
+  congr 1
+  ext X Z
+  have hX := hblk X
+  rcases hX with ⟨hblkX, hXv⟩
+  unfold IsExactBlockOfWith at hblkX
+  rcases hblkX with ⟨hblkX_form, hblkX_child⟩
+  unfold Substitution.decomposeTile
+  unfold erase
+  simp only [translateSet]
+  rw [c.rule_eq]
+  rw [ColouredBlock.tiles]
+  simp only [Set.mem_image, Set.mem_setOf_eq]
+  constructor
+  · intro h
+    rcases h with ⟨Z1, hZ1, hZ2⟩
+    rcases hZ1 with ⟨Z2, hZ2_1, hZ2_2⟩
+    use (blk X).placed Z2
+    constructor
+    · use Z2
+      constructor
+      · rw [← hblkX_form]
+        exact hZ2_1
+      · rfl
+    · rw [← hZ2_2] at hZ2
+      unfold ColouredBlock.placed
+      unfold ColouredBlock.tileOf
+      simp only [PlacedTile.translate, vadd_eq_add] at hZ2
+      rw [← hXv] at hZ2
+      exact hZ2
+  · intro h
+    rcases h with ⟨Z1, hZ1, hZ2⟩
+    rcases hZ1 with ⟨Z2, hZ2_1, hZ2_2⟩
+    use { form := c.form Z2, anchor := c.anchor Z2 }
+    constructor
+    · use Z2
+      constructor
+      · rw [hblkX_form]
+        exact hZ2_1
+      · rfl
+    · rw [hZ2_2] at hZ2
+      unfold ColouredBlock.placed at hZ2
+      unfold ColouredBlock.tileOf at hZ2
+      simp only [PlacedTile.translate, vadd_eq_add]
+      rw [hXv] at hZ2
+      exact hZ2
 
 /-- Step 1 of the blueprint proof of `projects_to_hierarchy`: repeated composition
 yields a hierarchical tiling. -/

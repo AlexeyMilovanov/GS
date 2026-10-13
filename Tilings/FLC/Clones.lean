@@ -486,7 +486,9 @@ private lemma childContext_realized_step1_shift_step3_supertile_succ
 private lemma childContext_realized_step1_shift_step4_anchor
     {P : Protoset} {τ : Substitution P} (A B : PlacedTile P) :
     -B.anchor +ᵥ τ.θ • -A.anchor = -(B.translate (τ.θ • A.anchor)).anchor := by
-  sorry
+  change -B.anchor + τ.θ • -A.anchor = -(τ.θ • A.anchor + B.anchor)
+  rw [smul_neg]
+  abel
 
 /-- Step 1.5 of the blueprint proof of `childContext_realized`: Translate arithmetic. -/
 private lemma childContext_realized_step1_shift_step5_translate_eq

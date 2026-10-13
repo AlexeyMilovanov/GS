@@ -64,7 +64,71 @@ If the vertices are not collinear, then the number of extreme points of their co
 private lemma three_le_genuineCount_step1_step1_extreme_points_lower_bound
     (h : ¬ Collinear ℝ D.vertexSet) :
     3 ≤ (extremePoints ℝ (convexHull ℝ D.vertexSet)).ncard := by
-  sorry
+  by_contra hcard
+  have hcard' : (extremePoints ℝ (convexHull ℝ D.vertexSet)).ncard < 3 := by
+    omega
+  have hVfin : D.vertexSet.Finite := Set.finite_range D.vertex
+  have hcomp : IsCompact (convexHull ℝ D.vertexSet) := hVfin.isCompact_convexHull
+  have hEfin : (extremePoints ℝ (convexHull ℝ D.vertexSet)).Finite :=
+    hVfin.subset extremePoints_convexHull_subset
+  let s := hEfin.toFinset
+  have hs_card : s.card < 3 := by
+    dsimp [s]
+    rw [← Set.ncard_eq_toFinset_card _ hEfin]
+    exact hcard'
+  have hEcol : Collinear ℝ (extremePoints ℝ (convexHull ℝ D.vertexSet)) := by
+    rw [← hEfin.coe_toFinset]
+    change Collinear ℝ (↑s : Set Pt)
+    have hs_card_le : s.card ≤ 2 := by omega
+    have hs_cases : s.card = 0 ∨ s.card = 1 ∨ s.card = 2 := by omega
+    rcases hs_cases with hs0 | hs1 | hs2
+    · have hs' : s = ∅ := Finset.card_eq_zero.mp hs0
+      rw [hs']
+      have hset : (↑(∅ : Finset Pt) : Set Pt) = ∅ := by
+        ext x
+        simp
+      rw [hset]
+      exact collinear_empty ℝ Pt
+    · obtain ⟨a, ha⟩ := Finset.card_eq_one.mp hs1
+      rw [ha]
+      have hset : (↑({a} : Finset Pt) : Set Pt) = {a} := by
+        ext x
+        simp
+      rw [hset]
+      exact collinear_singleton ℝ a
+    · obtain ⟨a, b, _, habs⟩ := Finset.card_eq_two.mp hs2
+      rw [habs]
+      have hset : (↑({a, b} : Finset Pt) : Set Pt) = {a, b} := by
+        ext x
+        simp
+      rw [hset]
+      exact collinear_pair ℝ a b
+  have hclosed : IsClosed (convexHull ℝ
+      (extremePoints ℝ (convexHull ℝ D.vertexSet))) := hEfin.isClosed_convexHull
+  have hclosure := closure_convexHull_extremePoints hcomp
+    (convex_convexHull ℝ D.vertexSet)
+  have hCE : convexHull ℝ (extremePoints ℝ (convexHull ℝ D.vertexSet)) =
+      convexHull ℝ D.vertexSet := by
+    calc
+      convexHull ℝ (extremePoints ℝ (convexHull ℝ D.vertexSet)) =
+          closure (convexHull ℝ (extremePoints ℝ (convexHull ℝ D.vertexSet))) :=
+        hclosed.closure_eq.symm
+      _ = convexHull ℝ D.vertexSet := hclosure
+  have hline : Collinear ℝ
+      (affineSpan ℝ (extremePoints ℝ (convexHull ℝ D.vertexSet)) : Set Pt) := by
+    rw [collinear_iff_rank_le_one, ← AffineSubspace.direction_eq_vectorSpan,
+      direction_affineSpan]
+    exact hEcol
+  apply h
+  apply Collinear.subset (s₂ := (affineSpan ℝ
+      (extremePoints ℝ (convexHull ℝ D.vertexSet)) : Set Pt))
+  · exact (subset_convexHull ℝ D.vertexSet).trans (by
+      intro x hx
+      have hx' : x ∈ convexHull ℝ (extremePoints ℝ (convexHull ℝ D.vertexSet)) := by
+        rw [hCE]
+        exact hx
+      exact convexHull_subset_affineSpan _ hx')
+  · exact hline
 
 /-- Step 2 of the blueprint proof of `three_le_genuineCount_step1`:
 Every extreme point of the convex hull of the vertices is a genuine vertex. -/

@@ -423,6 +423,24 @@ theorem whole_side_ports_distinct :
     rw [←hr1.2, ←hr2.2]
   exact h2.1 h_eq
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_coincide_step1_parentDir_eq`: if the placed
+segments are equal, their vector differences are either equal or opposite. -/
+private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff (m : ℕ)
+    (A A' : PlacedTile G.P') (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
+    (parentSide τ G m A.form a).2 - (parentSide τ G m A.form a).1 =
+      (parentSide τ G m A'.form a').2 - (parentSide τ G m A'.form a').1 ∨
+    (parentSide τ G m A.form a).2 - (parentSide τ G m A.form a).1 =
+      - ((parentSide τ G m A'.form a').2 - (parentSide τ G m A'.form a').1) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_coincide_step1_parentDir_eq`: the canonical
+direction of two vectors is the same if one is equal to or the opposite of the other. -/
+private lemma whole_side_ports_coincide_step1_parentDir_eq_step2_canonDir (v w : Pt)
+    (h : v = w ∨ v = -w) : canonDir v = canonDir w := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_coincide`: the global canonical direction
 of the coincident parent sides is the same. -/
 private lemma whole_side_ports_coincide_step1_parentDir_eq (m : ℕ)
@@ -430,7 +448,11 @@ private lemma whole_side_ports_coincide_step1_parentDir_eq (m : ℕ)
     (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
       placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
     parentDir τ G m A.form a = parentDir τ G m A'.form a' := by
-  sorry
+  dsimp [parentDir]
+  have h1 := whole_side_ports_coincide_step1_parentDir_eq_step1_diff τ G m A A' a a' hside
+  exact whole_side_ports_coincide_step1_parentDir_eq_step2_canonDir
+    ((parentSide τ G m A.form a).2 - (parentSide τ G m A.form a).1)
+    ((parentSide τ G m A'.form a').2 - (parentSide τ G m A'.form a').1) h1
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
 whole-edge subdivision of their common support... -/

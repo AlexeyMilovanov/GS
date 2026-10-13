@@ -3787,7 +3787,30 @@ private lemma quantitativeAnnularGrouping_step7_count {D : ℝ} (hD : 0 < D) {E 
     (hf : LipschitzWith 1 f) {a ℓ : ℝ}
     (hcov : ∀ s ∈ Icc a (a + ℓ), ∃ e ∈ E, ∃ p ∈ e, f p = s) :
     ℓ / D ≤ E.ncard := by
-  sorry
+  rcases le_or_gt ℓ 0 with hl | hl
+  · exact (div_nonpos_of_nonpos_of_nonneg hl hD.le).trans (Nat.cast_nonneg _)
+  have hsub : Icc a (a + ℓ) ⊆ ⋃ e ∈ hE.toFinset, f '' e := by
+    intro s hs
+    obtain ⟨e, he, p, hp, rfl⟩ := hcov s hs
+    exact mem_biUnion (hE.mem_toFinset.2 he) ⟨p, hp, rfl⟩
+  have hdi : ∀ e ∈ hE.toFinset, MeasureTheory.volume (f '' e) ≤ ENNReal.ofReal D := by
+    intro e he
+    refine (Real.volume_le_diam _).trans (Metric.ediam_le ?_)
+    rintro _ ⟨p, hp, rfl⟩ _ ⟨q, hq, rfl⟩
+    refine (hf.edist_le_mul p q).trans ?_
+    rw [ENNReal.coe_one, one_mul, edist_dist]
+    exact ENNReal.ofReal_le_ofReal (hdiam e (hE.mem_toFinset.1 he) p hp q hq)
+  have key : ENNReal.ofReal ℓ ≤ ENNReal.ofReal (hE.toFinset.card * D) := by
+    calc ENNReal.ofReal ℓ = MeasureTheory.volume (Icc a (a + ℓ)) := by
+          rw [Real.volume_Icc]; ring_nf
+      _ ≤ MeasureTheory.volume (⋃ e ∈ hE.toFinset, f '' e) := MeasureTheory.measure_mono hsub
+      _ ≤ ∑ e ∈ hE.toFinset, MeasureTheory.volume (f '' e) := MeasureTheory.measure_biUnion_finset_le _ _
+      _ ≤ ∑ e ∈ hE.toFinset, ENNReal.ofReal D := Finset.sum_le_sum hdi
+      _ = ENNReal.ofReal (hE.toFinset.card * D) := by
+          rw [Finset.sum_const, nsmul_eq_mul, ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast]
+  rw [ENNReal.ofReal_le_ofReal_iff (by positivity)] at key
+  rw [Set.ncard_eq_toFinset_card E hE, div_le_iff₀ hD]
+  exact key
 
 private lemma spp_coord_lip (A t s : ℝ) (hA : 0 ≤ A) (i : Fin 2) :
     |squarePerimeterPoint A t i - squarePerimeterPoint A s i| ≤ |t - s| := by

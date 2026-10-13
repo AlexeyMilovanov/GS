@@ -9932,7 +9932,26 @@ templates. -/
 private lemma fingerprintSeparation_step2_templates_step2_count (F : FingerprintData)
     [DecidableEq F.Tmpl]
     (h_tmpl : ∀ t, ∀ v ∈ F.ordinary t, F.template v = F.template t) :
-    ∀ t u, F.template t ≠ F.template u → Multiset.countP (fun v => F.template v = F.template t) (F.baseFingerprint u) = 0 := sorry
+    ∀ t u, F.template t ≠ F.template u → Multiset.countP (fun v => F.template v = F.template t) (F.baseFingerprint u) = 0 := by
+  intro t u htu
+  unfold FingerprintData.baseFingerprint
+  rw [Multiset.countP_add]
+  have h1 : Multiset.countP (fun v => F.template v = F.template t) (F.ordinary u) = 0 := by
+    rw [Multiset.countP_eq_zero]
+    intro v hv
+    have h_v_tmpl := h_tmpl u v hv
+    intro h_eq
+    apply htu
+    rw [← h_eq, h_v_tmpl]
+  have h2 : Multiset.countP (fun v => F.template v = F.template t)
+      (Multiset.replicate (Multiset.card (F.ordinary u)) u) = 0 := by
+    rw [Multiset.countP_eq_zero]
+    intro v hv
+    have h_eq_u := Multiset.eq_of_mem_replicate hv
+    intro h_eq
+    apply htu
+    rw [← h_eq, h_eq_u]
+  rw [h1, h2, add_zero]
 
 /-- Step 3 of the blueprint proof of `fingerprintSeparation_step2_templates`: The base
 fingerprint of `t` contains 2 * card (F.ordinary t) elements from its own template. -/

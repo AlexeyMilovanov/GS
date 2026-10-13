@@ -580,6 +580,14 @@ theorem whole_side_ports_distinct :
     rw [←hr1.2, ←hr2.2]
   exact h2.1 h_eq
 
+
+/-- Step 1 of the blueprint proof of `whole_side_ports_coincide_step1_parentDir_eq_step1_diff`:
+equal closed segments have equal or swapped endpoints. -/
+private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends
+    (a b c d : Pt) (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_coincide_step1_parentDir_eq`: if the placed
 segments are equal, their vector differences are either equal or opposite. -/
 private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff (m : ℕ)
@@ -590,7 +598,26 @@ private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff (m : ℕ)
       (parentSide τ G m A'.form a').2 - (parentSide τ G m A'.form a').1 ∨
     (parentSide τ G m A.form a).2 - (parentSide τ G m A.form a).1 =
       - ((parentSide τ G m A'.form a').2 - (parentSide τ G m A'.form a').1) := by
-  sorry
+  simp only [placedSeg] at hside
+  have h_ends := whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends _ _ _ _ hside
+  rcases h_ends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · left
+    have e : (((τ.θ ^ m) • A.anchor) + (parentSide τ G m A.form a).2) -
+        (((τ.θ ^ m) • A.anchor) + (parentSide τ G m A.form a).1) =
+        (((τ.θ ^ m) • A'.anchor) + (parentSide τ G m A'.form a').2) -
+        (((τ.θ ^ m) • A'.anchor) + (parentSide τ G m A'.form a').1) :=
+      congrArg₂ HSub.hSub h2 h1
+    simpa [add_sub_add_left_eq_sub] using e
+  · right
+    have e : (((τ.θ ^ m) • A.anchor) + (parentSide τ G m A.form a).2) -
+        (((τ.θ ^ m) • A.anchor) + (parentSide τ G m A.form a).1) =
+        (((τ.θ ^ m) • A'.anchor) + (parentSide τ G m A'.form a').1) -
+        (((τ.θ ^ m) • A'.anchor) + (parentSide τ G m A'.form a').2) :=
+      congrArg₂ HSub.hSub h2 h1
+    have h_sub_neg : ((parentSide τ G m A'.form a').1) - ((parentSide τ G m A'.form a').2) =
+        - (((parentSide τ G m A'.form a').2) - ((parentSide τ G m A'.form a').1)) := by abel
+    simp [add_sub_add_left_eq_sub] at e
+    rw [e, h_sub_neg]
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_coincide_step1_parentDir_eq`: the canonical
 direction of two vectors is the same if one is equal to or the opposite of the other. -/

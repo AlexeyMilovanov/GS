@@ -4434,6 +4434,73 @@ private lemma existsAnnularSpokes_step6_cut_step1_regions (A C : PolygonalDisk)
         (closure (W j) ∩ C.carrier).Nontrivial) := by
   sorry
 
+/-- Step 2a of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Uniqueness from topological connectedness. -/
+private lemma existsAnnularSpokes_step6_cut_step2_faces_unique
+    {C : Set Pt} {k : ℕ} (W : Fin k → Set Pt)
+    (hCne : C.Nonempty) (hCconn : IsPreconnected C)
+    (hWo : ∀ j, IsOpen (W j))
+    (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
+    (hCsub : C ⊆ ⋃ j, W j) : ∃! j, C ⊆ W j := by
+  have : ∃ j, (C ∩ W j).Nonempty := by
+    by_contra h
+    push_neg at h
+    have hCemp : C = ∅ := by
+      calc C = C ∩ ⋃ j, W j := by rw [inter_eq_left.mpr hCsub]
+           _ = ⋃ j, C ∩ W j := inter_iUnion _ _
+           _ = ⋃ j, (∅ : Set Pt) := by
+             congr 1; funext j; exact h j
+           _ = ∅ := iUnion_empty
+    exact hCne.ne_empty hCemp
+  rcases this with ⟨j, hj⟩
+  use j
+  constructor
+  · have hj2 : C ⊆ W j ∪ ⋃ (i : Fin k) (_ : i ≠ j), W i := by
+      intro x hx
+      have hxu := hCsub hx
+      simp only [mem_iUnion] at hxu ⊢
+      rcases hxu with ⟨i, hi⟩
+      by_cases hij : i = j
+      · exact Or.inl (hij ▸ hi)
+      · right
+        simp only [mem_iUnion, exists_prop]
+        exact ⟨i, hij, hi⟩
+    have hd : Disjoint (W j) (⋃ (i : Fin k) (_ : i ≠ j), W i) := by
+      simp only [disjoint_iUnion_right]
+      intro i hij
+      exact hWd j i hij.symm
+    have hWo_union : IsOpen (⋃ (i : Fin k) (_ : i ≠ j), W i) := by
+      apply isOpen_biUnion
+      intro i _
+      exact hWo i
+    exact hCconn.subset_left_of_subset_union (hWo j) hWo_union hd hj2 hj
+  · intro i hi
+    by_contra hij
+    have hd := hWd i j hij
+    have hx : hj.some ∈ W i ∩ W j := ⟨hi hj.some_mem.1, hj.some_mem.2⟩
+    have hd_emp : W i ∩ W j = ∅ := disjoint_iff_inter_eq_empty.mp hd
+    rw [hd_emp] at hx
+    exact hx
+
+/-- Step 2b of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Connectedness of interior of tile. -/
+private lemma existsAnnularSpokes_step6_cut_step2_faces_conn (A : PlacedTile P) :
+    IsPreconnected (interior A.carrier) := by sorry
+
+/-- Step 2c of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Nonemptiness of interior of tile. -/
+private lemma existsAnnularSpokes_step6_cut_step2_faces_ne (A : PlacedTile P) :
+    (interior A.carrier).Nonempty := by sorry
+
+/-- Step 2d of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Sub-H. -/
+private lemma existsAnnularSpokes_step6_cut_step2_faces_sub_H {S : Set (PlacedTile P)} (L H : FaceGroup S) {A : PlacedTile P}
+    (hA : A ∈ H.faces) : interior A.carrier ⊆ interior H.carrier := by sorry
+
+/-- Step 2e of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Avoid. -/
+private lemma existsAnnularSpokes_step6_cut_step2_faces_sub_avoid (S : Patch P) (L H : FaceGroup S.tiles)
+    {k : ℕ} (α : Fin k → PolyArc)
+    (hskel : ∀ j, (α j).IsSkeletal S.tiles)
+    {A : PlacedTile P} (hA : A ∈ H.faces) (hAL : A ∉ L.faces) :
+    Disjoint (interior A.carrier)
+      (L.carrier ∪ ⋃ j, (α j).carrier) := by sorry
+
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "All cuts use original
 edges, so the disks are unions of whole original faces."  The interior of a face of `H` that is
 not a face of `L` avoids `L` and the skeletal cuts, so it lies in exactly one of the regions of
@@ -4445,7 +4512,14 @@ private lemma existsAnnularSpokes_step6_cut_step2_faces (S : Patch P) (L H : Fac
     (hWU : ⋃ j, W j = interior H.carrier \ (L.carrier ∪ ⋃ j, (α j).carrier))
     {A : PlacedTile P} (hA : A ∈ H.faces) (hAL : A ∉ L.faces) :
     ∃! j, interior A.carrier ⊆ W j := by
-  sorry
+  have hint_conn := existsAnnularSpokes_step6_cut_step2_faces_conn A
+  have hint_ne := existsAnnularSpokes_step6_cut_step2_faces_ne A
+  have hsub_H := existsAnnularSpokes_step6_cut_step2_faces_sub_H L H hA
+  have havoid := existsAnnularSpokes_step6_cut_step2_faces_sub_avoid S L H α hskel hA hAL
+  have hsub : interior A.carrier ⊆ ⋃ j, W j := by
+    rw [hWU, subset_diff]
+    exact ⟨hsub_H, havoid⟩
+  exact existsAnnularSpokes_step6_cut_step2_faces_unique W hint_ne hint_conn hWo hWd hsub
 
 /-- Step 3 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "the disks are unions of
 whole original faces" -- the closure of each region of the cut annulus is the union of the

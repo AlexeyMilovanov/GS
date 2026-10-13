@@ -136,6 +136,18 @@ theorem sts_hierarchical_of_strict_proper {τ : Substitution P} (hτ : τ.STS)
   apply sts_hierarchical_of_strict_proper_step2_sts hτ Sys hΔ seq hproper hcomp_seq
   rwa [hseq0]
 
+/-- Step 1 of the blueprint proof of `exists_strict_proper_of_sts_hierarchical`:
+construct the subsequence of k-spaced original levels, which is sts and whose
+intermediate scattered levels are also original levels. -/
+private lemma exists_strict_proper_of_sts_hierarchical_step1_seq
+    {P : Protoset} {τ : Substitution P} (Sys : StrictScheduleSystem τ)
+    {S : PlaneTiling P} (hS : τ.IsSideToSideHierarchical S) :
+    ∃ seq : ℕ → PlaneTiling P,
+      seq 0 = S ∧
+      (∀ n, τ.decomposeIter Sys.GS.k (seq (n + 1)).tiles = (seq n).tiles) ∧
+      (∀ n, (seq n).SideToSide) ∧
+      (∀ (n j : ℕ), j ≤ Sys.GS.k → SideToSideSet (τ.decomposeIter j (seq (n + 1)).tiles)) := sorry
+
 /-- `lem:strict-complete` (completeness half of `thm:sts-stshierarchy`): every
 side-to-side `τ`-hierarchical plane tiling is the scattering of the projection
 of a proper strict coloured plane tiling (lift by `lem:grouping-lift`, then
@@ -146,7 +158,25 @@ theorem exists_strict_proper_of_sts_hierarchical {τ : Substitution P} (hτ : τ
     (hcompl : Sys.Complete) {S : PlaneTiling P} (hS : τ.IsSideToSideHierarchical S) :
     ∃ T : PlaneTiling Sys.dec.P', Sys.dec.Proper T ∧
       Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles = S.tiles := by
-  sorry
+  have _ := hτ
+  obtain ⟨seq, hseq0, hseq_decomp, hseq_sts, hseq_inter⟩ :=
+    exists_strict_proper_of_sts_hierarchical_step1_seq Sys hS
+  obtain ⟨seq', hseq'_comp, hseq'_scat, hseq'_sts⟩ :=
+    Grouping.hierarchy_lift_sts τ Sys.GS hsingle seq hseq_decomp hseq_sts
+  have h_inter : ∀ (n j : ℕ), j ≤ Sys.GS.k →
+      SideToSideSet (τ.decomposeIter j (Sys.GS.G.scatter (seq' (n + 1)).tiles)) := by
+    intro n j hj
+    rw [hseq'_scat]
+    exact hseq_inter n j hj
+  obtain ⟨T, hT_proper, hT_proj⟩ := hcompl seq' hseq'_comp hseq'_sts h_inter
+  use T, hT_proper
+  have h0 := hseq'_scat 0
+  rw [hseq0] at h0
+  change Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles = S.tiles
+  have h_proj2 : Sys.dec.project T = seq' 0 := hT_proj
+  change Sys.GS.G.scatter (Sys.dec.project T).tiles = S.tiles
+  rw [h_proj2]
+  exact h0
 
 end Alignment
 

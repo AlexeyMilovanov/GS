@@ -3118,6 +3118,28 @@ private lemma outsideAnchoredGrouping_step2_H (M : MeshConstants P) (S : Patch P
   · exact outsideAnchoredGrouping_step2_H_step4_conn_comp M S Ω hcov hsts c h hh hQ E hE_conn
       hE_supset hE_faces hE_def
 
+/-! The remaining step is the cellulation identification of the component closure. -/
+
+/-- Step 1 of the blueprint proof of `outsideAnchoredGrouping_step3_FaceGroup`: the closure
+of the component selected by `H_carrier` is the support of a finite nonempty set of complete
+faces of the patch, and this support lies in the interior of the covered polygonal disk. -/
+private lemma outsideAnchoredGrouping_step3_FaceGroup_step1_component_faces
+    (M : MeshConstants P) (S : Patch P) (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt) (hE_conn : IsConnected (interior E))
+    (hE_supset : (square c h + Binf (3 * M.D))ᶜ ⊆ interior E)
+    (hE_faces : ∀ F ∈ S.tiles,
+      (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E)
+    (hE_def : E = Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles,
+      ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier)
+    (H_carrier : Set Pt) (hH_sub : H_carrier ⊆ square c h + Binf (3 * M.D))
+    (hH_def : H_carrier = closure (connectedComponentIn (Eᶜ) c)) :
+    ∃ G : Set (PlacedTile P), G ⊆ S.tiles ∧ G.Finite ∧ G.Nonempty ∧
+      support G = H_carrier ∧ support G ⊆ interior Ω.carrier := sorry
+
 private lemma outsideAnchoredGrouping_step3_FaceGroup (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)
     (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
@@ -3130,7 +3152,32 @@ private lemma outsideAnchoredGrouping_step3_FaceGroup (M : MeshConstants P) (S :
     (hE_def : E = Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier)
     (H_carrier : Set Pt) (hH_sub : H_carrier ⊆ square c h + Binf (3 * M.D))
     (hH_def : H_carrier = closure (connectedComponentIn (Eᶜ) c)) :
-    ∃ H : FaceGroup S.tiles, H.carrier = H_carrier := sorry
+    ∃ H : FaceGroup S.tiles, H.carrier = H_carrier := by
+  have s2 := outsideAnchoredGrouping_step2_H M S Ω hcov hsts c h hh hQ E hE_conn
+    hE_supset hE_faces hE_def
+  rcases s2 with ⟨H', -, -, hH'_def, hH'_conn_int, hH'_conn_comp⟩
+  have hH_conn_int : IsConnected (interior H_carrier) := by
+    rw [hH_def, ← hH'_def]
+    exact hH'_conn_int
+  have hH_conn_comp : IsConnected H_carrierᶜ := by
+    rw [hH_def, ← hH'_def]
+    exact hH'_conn_comp
+  obtain ⟨G, hG_sub, hG_fin, hG_ne, hG_eq, hG_cov⟩ :=
+    outsideAnchoredGrouping_step3_FaceGroup_step1_component_faces M S Ω hcov hsts c h hh hQ E
+      hE_conn hE_supset hE_faces hE_def H_carrier hH_sub hH_def
+  have hG_cov' : support G ⊆ interior (support S.tiles) := by
+    rw [hcov]
+    exact hG_cov
+  have hG_conn_int : IsConnected (interior (support G)) := by
+    rw [hG_eq]
+    exact hH_conn_int
+  have hG_conn_comp : IsConnected (support G)ᶜ := by
+    rw [hG_eq]
+    exact hH_conn_comp
+  obtain ⟨H, hH_faces⟩ := polygonalJordanBoundary S.tiles S.disjoint hsts G hG_sub hG_fin hG_ne
+    hG_cov' hG_conn_int hG_conn_comp
+  refine ⟨H, ?_⟩
+  rw [FaceGroup.carrier, H.carrier_eq, hH_faces, hG_eq]
 
 private lemma outsideAnchoredGrouping_step4_anchor (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)

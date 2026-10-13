@@ -1566,7 +1566,27 @@ private lemma coarse_simple_step2_step2_internal_endpoint_propagates
       Set Pt)) :
     segment ℝ (D.vertex k2) (D.vertex (finRotate D.n k2)) ⊆
       segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
-  sorry
+  have _ := hk
+  have hx2seg : x ∈ segment ℝ (D.vertex k2) (D.vertex (finRotate D.n k2)) := by
+    rcases hx2 with hx2 | hx2
+    · rw [← hx2]
+      exact left_mem_segment ℝ _ _
+    · rw [Set.mem_singleton_iff] at hx2
+      rw [← hx2]
+      exact right_mem_segment ℝ _ _
+  have hx1seg : x ∈ segment ℝ (D.vertex k1) (D.vertex (finRotate D.n k1)) := by
+    rcases hx1 with hx1 | hx1
+    · rw [← hx1]
+      exact left_mem_segment ℝ _ _
+    · rw [Set.mem_singleton_iff] at hx1
+      rw [← hx1]
+      exact right_mem_segment ℝ _ _
+  apply coarse_simple_step1_step1 D i k2
+  refine ⟨x, hx2seg, h1 hx1seg, ?_, ?_⟩
+  · intro hxi
+    exact hx (Set.mem_insert_iff.mpr (Or.inl hxi))
+  · intro hxi
+    exact hx (Set.mem_insert_iff.mpr (Or.inr (Set.mem_singleton_iff.mpr hxi)))
 
 /-- Step 2 of the blueprint proof of `coarse_simple_step2_step2`: A nondegenerate
 fine side cannot be contained in two distinct coarse sides. -/

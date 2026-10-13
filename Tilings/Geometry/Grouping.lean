@@ -3749,6 +3749,34 @@ private lemma quantitativeAnnularGrouping_step8_diam (c : Pt) {N : ℕ} {R D : �
       Metric.diam (Metric.cthickening (20 * D) (idealTrapezoid c N R D (j : ℕ))) ≤ 7 * R := by
   sorry
 
+private lemma step9_volume_segment (x y : Pt) : MeasureTheory.volume (segment ℝ x y) = 0 := by
+  have hsub : segment ℝ x y ⊆ (affineSpan ℝ ({x, y} : Set Pt) : Set Pt) := by
+    rw [segment_eq_image_lineMap]
+    rintro _ ⟨t, -, rfl⟩
+    exact AffineMap.lineMap_mem_affineSpan_pair t x y
+  refine MeasureTheory.measure_mono_null hsub ?_
+  refine MeasureTheory.Measure.addHaar_affineSubspace _ _ ?_
+  intro htop
+  have h1 := (collinear_iff_finrank_le_one (k := ℝ) (s := ({x, y} : Set Pt))).1 (collinear_pair ℝ x y)
+  rw [← direction_affineSpan, htop, AffineSubspace.direction_top, finrank_top, finrank_euclideanSpace,
+    Fintype.card_fin] at h1
+  omega
+
+private lemma step9_volume_frontier (B : PolygonalDisk) : MeasureTheory.volume (frontier B.carrier) = 0 := by
+  rw [B.frontier_eq]
+  exact MeasureTheory.measure_iUnion_null fun i => step9_volume_segment _ _
+
+private lemma step9_volume_interior (B : PolygonalDisk) :
+    MeasureTheory.volume (interior B.carrier) = MeasureTheory.volume B.carrier := by
+  refine le_antisymm (MeasureTheory.measure_mono interior_subset) ?_
+  calc MeasureTheory.volume B.carrier ≤ MeasureTheory.volume (interior B.carrier ∪ frontier B.carrier) := by
+        refine MeasureTheory.measure_mono fun z hz => ?_
+        by_cases h : z ∈ interior B.carrier
+        · exact Or.inl h
+        · exact Or.inr ⟨subset_closure hz, h⟩
+    _ ≤ _ := MeasureTheory.measure_union_le _ _
+    _ = _ := by rw [step9_volume_frontier, add_zero]
+
 /-- Step 9 of the blueprint proof of `quantitativeAnnularGrouping`: "A square of side `14R`
 contains `S_j`, so disjoint constituent interiors of area at least `a` bound their number by
 `⌈196R²/a⌉`."  A group of faces whose region has diameter at most `d` has at most `⌈4d²/a⌉`
@@ -3756,7 +3784,46 @@ faces. -/
 private lemma quantitativeAnnularGrouping_step9_faces (M : MeshConstants P) {S : Patch P}
     (F : FaceGroup S.tiles) {d : ℝ} (hd : Metric.diam F.carrier ≤ d) :
     F.faces.ncard ≤ ⌈4 * d ^ 2 / M.a⌉₊ := by
-  sorry
+  classical
+  open MeasureTheory in
+  obtain ⟨x, hx⟩ := F.disk.interior_nonempty
+  have hxc : x ∈ F.carrier := interior_subset hx
+  have hd0 : 0 ≤ d := Metric.diam_nonneg.trans hd
+  have hball : F.carrier ⊆ Metric.closedBall x d := fun y hy =>
+    Metric.mem_closedBall.2 ((Metric.dist_le_diam_of_mem F.disk.compact.isBounded hy hxc).trans hd)
+  set t := F.finite.toFinset with ht
+  have hdisj : (↑t : Set (PlacedTile P)).PairwiseDisjoint (fun A => interior A.carrier) := by
+    rw [ht, Set.Finite.coe_toFinset]; exact S.disjoint.subset F.faces_sub
+  have hmeas := measure_biUnion_finset (μ := volume) hdisj (fun A _ => isOpen_interior.measurableSet)
+  have hvolA : ∀ A ∈ t, ENNReal.ofReal M.a ≤ volume (interior A.carrier) := by
+    intro A _
+    rw [PlacedTile.carrier, interior_vadd, measure_vadd, step9_volume_interior]
+    exact M.area_ge A.form
+  have hle : volume (⋃ A ∈ t, interior A.carrier) ≤ volume (Metric.closedBall x d) := by
+    apply measure_mono
+    intro z hz
+    simp only [Set.mem_iUnion] at hz
+    obtain ⟨A, hA, hzA⟩ := hz
+    refine hball ?_
+    show z ∈ F.disk.carrier
+    rw [F.carrier_eq]
+    exact Set.mem_biUnion (by simpa [ht] using hA) (interior_subset hzA)
+  rw [hmeas, EuclideanSpace.volume_closedBall_fin_two] at hle
+  have hsum : (t.card : ENNReal) * ENNReal.ofReal M.a ≤ ENNReal.ofReal (d ^ 2 * Real.pi) := by
+    calc (t.card : ENNReal) * ENNReal.ofReal M.a = ∑ A ∈ t, ENNReal.ofReal M.a := by
+          rw [Finset.sum_const, nsmul_eq_mul]
+      _ ≤ _ := Finset.sum_le_sum hvolA
+      _ ≤ _ := hle
+      _ = _ := by rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_pow hd0]
+  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (by positivity),
+    ENNReal.ofReal_le_ofReal_iff (by positivity)] at hsum
+  have hcard : F.faces.ncard = t.card := Set.ncard_eq_toFinset_card _ F.finite
+  rw [hcard]
+  have ha := M.a_pos
+  have : (t.card : ℝ) ≤ 4 * d ^ 2 / M.a := by
+    rw [le_div_iff₀ ha]
+    nlinarith [Real.pi_lt_four, sq_nonneg d]
+  exact_mod_cast this.trans (Nat.le_ceil _)
 
 private lemma step10_polygonalDisk_side_injective (B : PolygonalDisk) : Function.Injective B.side := by
   intro i j h

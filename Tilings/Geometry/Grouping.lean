@@ -4296,6 +4296,49 @@ private lemma existsAnnularSpokes_step5_crosscuts_step2_boundary_homotopy (A C :
       LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
+cyclic order is preserved for 3 crosscuts. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3
+    (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) (α : Fin 3 → PolyArc)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (hstart : Function.Injective (fun j => (α j).start))
+    (hstop : Function.Injective (fun j => (α j).stop))
+    {γo γi : ℝ → Pt} (hγo : IsLoopParam (frontier A.carrier) γo)
+    (hγi : IsLoopParam (frontier C.carrier) γi)
+    (hhom : LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi)
+    (hord : PointsInOrder γo fun j => (α j).stop) :
+    PointsInOrder γi fun j => (α j).start := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
+cyclic order is preserved if it is preserved for any 3 points. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_reduction
+    {k : ℕ} (x : Fin k → Pt) (γ : ℝ → Pt) {K : Set Pt} (hγ : IsLoopParam K γ) (hx_in : ∀ i, x i ∈ K)
+    (hx_inj : Function.Injective x)
+    (h3 : ∀ f : Fin 3 ↪ Fin k, StrictMono f → PointsInOrder γ (x ∘ f)) :
+    PointsInOrder γ x := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
+cyclic order is trivially preserved for `k < 3` points. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step3_small_k
+    {k : ℕ} (hk : k < 3) (x : Fin k → Pt) (γ : ℝ → Pt) {K : Set Pt} (hγ : IsLoopParam K γ)
+    (hx_in : ∀ i, x i ∈ K) (hx_inj : Function.Injective x) :
+    PointsInOrder γ x := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
+a subset of points in cyclic order is in cyclic order. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step4_sub_order
+    {k : ℕ} (x : Fin k → Pt) (γ : ℝ → Pt) (hord : PointsInOrder γ x)
+    {m : ℕ} (f : Fin m ↪ Fin k) (hf : StrictMono f) :
+    PointsInOrder γ (x ∘ f) := by
+  sorry
+
 /-- Step 5 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts`: disjoint crosscuts
 in an annulus transfer the cyclic order of their outer endpoints to their inner endpoints. -/
 private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer (A C : PolygonalDisk)
@@ -4311,7 +4354,35 @@ private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer (A C : Po
     (hhom : LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi)
     (hord : PointsInOrder γo fun j => (α j).stop) :
     PointsInOrder γi fun j => (α j).start := by
-  sorry
+  by_cases hk : k < 3
+  · apply existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step3_small_k hk _ _ hγi
+    · intro i
+      have h : (α i).start ∈ (α i).carrier ∩ frontier C.carrier := by
+        rw [hC i]
+        exact Set.mem_singleton _
+      exact h.2
+    · exact hstart
+  · apply existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_reduction _ _ hγi
+    · intro i
+      have h : (α i).start ∈ (α i).carrier ∩ frontier C.carrier := by
+        rw [hC i]
+        exact Set.mem_singleton _
+      exact h.2
+    · exact hstart
+    · intro f hf
+      have hord_sub := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step4_sub_order
+        _ _ hord f hf
+      let α' : Fin 3 → PolyArc := α ∘ f
+      have hin' : ∀ j, (α' j).carrier ⊆ A.carrier \ interior C.carrier := fun j => hin (f j)
+      have hC' : ∀ j, (α' j).carrier ∩ frontier C.carrier = {(α' j).start} := fun j => hC (f j)
+      have hA' : ∀ j, (α' j).carrier ∩ frontier A.carrier = {(α' j).stop} := fun j => hA (f j)
+      have hdisj' : ∀ i j, i ≠ j → Disjoint (α' i).carrier (α' j).carrier := by
+        intro i j hij
+        exact hdisj (f i) (f j) (f.injective.ne hij)
+      have hstart' : Function.Injective (fun j => (α' j).start) := hstart.comp f.injective
+      have hstop' : Function.Injective (fun j => (α' j).stop) := hstop.comp f.injective
+      exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3 A C hCA α' hin'
+        hC' hA' hdisj' hstart' hstop' hγo hγi hhom hord_sub
 
 /-- Step 5 of the blueprint proof of `existsAnnularSpokes`: "The separated tubes give disjoint
 arcs and distinct endpoints.  Disjoint arcs joining the two boundary components of an annulus

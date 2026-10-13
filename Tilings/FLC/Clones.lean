@@ -545,12 +545,28 @@ private lemma childContext_realized_step1_shift_step6_neighbourhood_translateSet
       change (v + C.anchor) + d2 = C.anchor + d2 + v
       abel
 
+/-- Step 1 of the blueprint proof of `childContext_realized_step1_shift_step7_decompose_neighbourhood`:
+If `B ∈ τ.decomposeTile A` and `C ∈ τ.decomposeTile D` intersect, then `A` and `D` intersect. -/
+private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty
+    {P : Protoset} {τ : Substitution P} (A B C D : PlacedTile P)
+    (hB : B ∈ τ.decomposeTile A) (hC : C ∈ τ.decomposeTile D)
+    (h_int : (B.carrier ∩ C.carrier).Nonempty) :
+    (A.carrier ∩ D.carrier).Nonempty := by
+  sorry
+
 /-- Step 1.7 of the blueprint proof of `childContext_realized`: `τ.decompose (neighbourhood S A) = ...` -/
 private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood
     {P : Protoset} {τ : Substitution P} (S : Set (PlacedTile P)) (A B : PlacedTile P)
     (hB : B ∈ τ.decomposeTile A) :
     neighbourhood (τ.decompose (neighbourhood S A)) B = neighbourhood (τ.decompose S) B := by
-  sorry
+  ext C
+  simp only [neighbourhood, decompose, mem_setOf_eq, mem_iUnion, exists_prop]
+  constructor
+  · rintro ⟨⟨D, ⟨hD_mem, hD_int⟩, hC_mem⟩, h_int⟩
+    exact ⟨⟨D, hD_mem, hC_mem⟩, h_int⟩
+  · rintro ⟨⟨D, hD_mem, hC_mem⟩, h_int⟩
+    refine ⟨⟨D, ⟨hD_mem, ?_⟩, hC_mem⟩, h_int⟩
+    exact childContext_realized_step1_shift_step7_decompose_neighbourhood_step1_nonempty A B C D hB hC_mem h_int
 
 /-- Step 1.8 of the blueprint proof of `childContext_realized`: `B ∈ τ.decomposeTile ⟨c.form, 0⟩ → B.translate (τ.θ • A.anchor) ∈ τ.decomposeTile A` -/
 private lemma childContext_realized_step1_shift_step8_translate_mem

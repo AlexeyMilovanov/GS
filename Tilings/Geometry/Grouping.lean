@@ -3013,7 +3013,12 @@ private lemma outsideAnchoredGrouping_step1_E_step2_faces (M : MeshConstants P) 
     (c : Pt) (h : ℝ) (hh : 0 < h)
     (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier) :
     ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
-      F.carrier ⊆ Ω.carrierᶜ ∪ ⋃ F' ∈ S.tiles, ⋃ _ : (interior F'.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F'.carrier := sorry
+      F.carrier ⊆ Ω.carrierᶜ ∪ ⋃ F' ∈ S.tiles, ⋃ _ : (interior F'.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F'.carrier := by
+  intro F hF hF_nonempty x hx
+  have _ := hcov; have _ := hsts; have _ := hh; have _ := hQ; have _ := M; have _ := Ω
+  apply Set.mem_union_right
+  simp only [Set.mem_iUnion, exists_prop]
+  exact ⟨F, hF, hF_nonempty, hx⟩
 
 /-- Step 3 of the blueprint proof of `outsideAnchoredGrouping_step1_E`: `\operatorname{int} E` is connected. -/
 private lemma outsideAnchoredGrouping_step1_E_step3_conn (M : MeshConstants P) (S : Patch P)

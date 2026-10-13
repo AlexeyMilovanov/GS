@@ -914,7 +914,43 @@ private lemma supertile_disjoint_step1_decompose_step1 (τ : Substitution P) (A 
 of the supports of decompositions of two disjoint tiles are disjoint. -/
 private lemma supertile_disjoint_step1_decompose_step2 (τ : Substitution P) (S : Set (PlacedTile P))
     (hS : DisjointInteriors S) (A B : PlacedTile P) (hA : A ∈ S) (hB : B ∈ S) (hne : A ≠ B) :
-    Disjoint (interior (support (τ.decomposeTile A))) (interior (support (τ.decomposeTile B))) := sorry
+    Disjoint (interior (support (τ.decomposeTile A))) (interior (support (τ.decomposeTile B))) := by
+  have htranslate : ∀ (v : Pt) (Q : Set (PlacedTile P)),
+      support (translateSet v Q) = v +ᵥ support Q := by
+    intro v Q
+    ext x
+    simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier,
+      mem_iUnion, mem_image, mem_vadd_set_iff_neg_vadd_mem]
+    constructor
+    · rintro ⟨C, ⟨D, hD, rfl⟩, hx⟩
+      exact ⟨D, hD, by simpa [← add_assoc] using hx⟩
+    · rintro ⟨C, hC, hx⟩
+      refine ⟨⟨C.form, v +ᵥ C.anchor⟩, ⟨C, hC, rfl⟩, ?_⟩
+      simpa [← add_assoc] using hx
+  have hsupport (C : PlacedTile P) :
+      support (τ.decomposeTile C) = τ.θ • C.carrier := by
+    dsimp [Substitution.decomposeTile]
+    rw [htranslate, τ.support_eq, PlacedTile.carrier]
+    ext x
+    simp only [mem_vadd_set_iff_neg_vadd_mem, mem_smul_set]
+    constructor
+    · rintro ⟨y, hy, hx⟩
+      refine ⟨C.anchor + y, ?_, ?_⟩
+      · simpa
+      · rw [smul_add]
+        calc τ.θ • C.anchor + τ.θ • y =
+            τ.θ • C.anchor + (-(τ.θ • C.anchor) + x) := by congr 1
+          _ = x := by abel
+    · rintro ⟨y, hy, rfl⟩
+      refine ⟨-C.anchor + y, ?_, ?_⟩
+      · simpa
+      · simp [smul_add]
+  have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+  rw [hsupport A, hsupport B, interior_smul₀ hθ, interior_smul₀ hθ]
+  rw [Set.disjoint_left]
+  intro x hxA hxB
+  rw [Set.mem_smul_set_iff_inv_smul_mem₀ hθ] at hxA hxB
+  exact (Set.disjoint_left.mp (hS hA hB hne)) hxA hxB
 
 /-- Step 3 of the blueprint proof of `supertile_disjoint_step1_decompose`: the interior of a tile is in the interior of the support of its decomposition. -/
 private lemma supertile_disjoint_step1_decompose_step3 (τ : Substitution P) (A : PlacedTile P)

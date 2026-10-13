@@ -2400,7 +2400,46 @@ private lemma reconstructed_noncentral_legal_step2_parent_step2_not_n_eq_2 {P : 
     (hch_child : ∀ i < n', IsChildOf c (ch' (i + 1)) (ch' i))
     (hch_end : ch' n' = E_anc) (hch_cent : ∀ i < n', c.IsCentral (ch' i).typ)
     (hn'2 : n' = 2) :
-    False := by sorry
+    False := by
+  have _ := hH
+  have _ := hK
+  have _ := hA
+  have _ := hE_leg
+  have _ := hch_end
+  have _ := hE_nc
+  subst hn'2
+  have hch_child0 : IsChildOf c (ch' 1) (ch' 0) := hch_child 0 (by decide)
+  have hcent1 : c.IsCentral (ch' 1).typ := hch_cent 1 (by decide)
+  
+  have H5 : (ch' 0).typ = c.central K.α := by
+    rw [hch0]
+    rfl
+    
+  have H6 : c.owner (ch' 0).typ = K.α := by
+    rw [H5]
+    exact c.g5_central_owner K.α
+
+  have H7 : c.form (ch' 1).typ = K.α := by
+    dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hch_child0
+    rw [← hch_child0.1, H6]
+
+  have H11 : c.kind (c.form (ch' 1).typ) = Geometry.FormKind.large := by
+    have H11_aux := (c.g5_large_iff (ch' 1).typ).mpr
+    dsimp [Geometry.MacroData.IsCentral] at hcent1
+    apply H11_aux
+    exact hcent1.symm
+
+  have HK_not_large : c.kind K.α ≠ Geometry.FormKind.large := by
+    have Hh_form : c.form h.1 = K.α := hh.1
+    rw [← Hh_form]
+    intro H
+    apply hnc
+    dsimp [Geometry.MacroData.IsCentral]
+    have Haux := (c.g5_large_iff h.1).mp H
+    exact Haux.symm
+    
+  rw [H7] at H11
+  exact HK_not_large H11
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step2_parent`: Deduce that length is 1 and extract the parent. -/
 private lemma reconstructed_noncentral_legal_step2_parent_step3_n_eq_1 {P : Protoset}

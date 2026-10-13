@@ -1,3 +1,4 @@
+import Mathlib.Analysis.Normed.Affine.AddTorsorBases
 import Tilings.Crowns
 
 /-!
@@ -171,12 +172,53 @@ private lemma three_le_genuineCount_step2
     rw [← direction_affineSpan, affineSpan_convexHull, direction_affineSpan]
     exact h
 
+/-- Step 1 of the blueprint proof of `three_le_genuineCount_step3`: an open subset of the Euclidean plane contained in a line must be empty. -/
+private lemma three_le_genuineCount_step3_step1_open_collinear_empty
+    {U : Set Pt} (hU : IsOpen U) (hc : Collinear ℝ U) : ¬ U.Nonempty := by
+  intro h_nonempty
+  have h_span := IsOpen.affineSpan_eq_top hU h_nonempty
+  have h_dir : (affineSpan ℝ U).direction = ⊤ := by
+    rw [h_span, AffineSubspace.direction_top]
+  have h_vec : vectorSpan ℝ U = ⊤ := by
+    rw [← direction_affineSpan, h_dir]
+  have h_finrank_top : Module.finrank ℝ (⊤ : Submodule ℝ Pt) = 2 := by
+    rw [finrank_top, finrank_euclideanSpace, Fintype.card_fin]
+  have hc' : Module.finrank ℝ (vectorSpan ℝ U) ≤ 1 := by
+    haveI : FiniteDimensional ℝ (vectorSpan ℝ U) := hc.finiteDimensional_vectorSpan
+    exact collinear_iff_finrank_le_one.mp hc
+  rw [h_vec] at hc'
+  omega
+
+/-- Step 2 of the blueprint proof of `three_le_genuineCount_step3`: a bounded open set
+whose boundary is contained in a line must itself be contained in that line. -/
+private lemma three_le_genuineCount_step3_step2_bounded_open_subset_line
+    {U : Set Pt} (hU : IsOpen U) (hbdd : Bornology.IsBounded U)
+    {L : Set Pt} (hL : Collinear ℝ L) (hfr : frontier U ⊆ L) : U ⊆ L := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `three_le_genuineCount`: if the boundary of a
 regular closed set is contained in a line, its interior is empty. -/
 private lemma three_le_genuineCount_step3 (h_reg : closure (interior D.carrier) = D.carrier)
     (h : Collinear ℝ (frontier D.carrier)) :
     ¬ (interior D.carrier).Nonempty := by
-  sorry
+  set U := interior D.carrier
+  have hU : IsOpen U := isOpen_interior
+  have hbdd : Bornology.IsBounded U :=
+    Bornology.IsBounded.subset D.compact.isBounded interior_subset
+  have h_closed : IsClosed D.carrier := D.compact.isClosed
+  have hfr_eq : frontier U = frontier D.carrier := by
+    have h_fr1 : frontier D.carrier = D.carrier \ U := h_closed.frontier_eq
+    have h_fr2 : frontier U = closure U \ U := by
+      have hd : closure U \ interior U = frontier U := closure_diff_interior U
+      rw [isOpen_interior.interior_eq] at hd
+      exact hd.symm
+    rw [h_reg] at h_fr2
+    rw [h_fr1, h_fr2]
+  have hfr : frontier U ⊆ frontier D.carrier := by rw [hfr_eq]
+  have h_subset : U ⊆ frontier D.carrier :=
+    three_le_genuineCount_step3_step2_bounded_open_subset_line hU hbdd h hfr
+  have hU_col : Collinear ℝ U := Collinear.subset h_subset h
+  exact three_le_genuineCount_step3_step1_open_collinear_empty hU hU_col
 
 /-- A simple polygon has at least three genuine corners. -/
 theorem three_le_genuineCount : 3 ≤ D.genuineCount := by

@@ -2227,6 +2227,47 @@ theorem refinedSubstitution_commutes (h : τ.FLC)
       τ.decompose ((cloneDecoration τ h).projTile '' S) := by
   sorry
 
+/-- Auxiliary: translation commutes with `frontier` on the plane. -/
+private lemma refinedSubstitution_sts_step1_visible_vertices_aux_frontier_vadd
+    (v : Pt) (s : Set Pt) : frontier (v +ᵥ s) = v +ᵥ frontier s := by
+  simp only [frontier, closure_vadd, interior_vadd, vadd_set_sdiff]
+
+/-- Auxiliary: every listed side of a placed tile lies in the frontier of its carrier. -/
+private lemma refinedSubstitution_sts_step1_visible_vertices_aux_side_subset_frontier
+    (A : PlacedTile P) (i : Fin (P.disk A.form).n) : A.side i ⊆ frontier A.carrier := by
+  have hD : (P.disk A.form).side i ⊆ frontier (P.disk A.form).carrier := by
+    rw [(P.disk A.form).frontier_eq]
+    exact Set.subset_iUnion (fun j => segment ℝ ((P.disk A.form).vertex j)
+      ((P.disk A.form).vertex (finRotate (P.disk A.form).n j))) i
+  show A.anchor +ᵥ (P.disk A.form).side i ⊆ frontier (A.anchor +ᵥ (P.disk A.form).carrier)
+  rw [refinedSubstitution_sts_step1_visible_vertices_aux_frontier_vadd]
+  exact image_mono hD
+
+/-- Auxiliary: the genuine corners recorded for a placed tile lie in its carrier. -/
+private lemma refinedSubstitution_sts_step1_visible_vertices_aux_genuineCorners_subset_carrier
+    (D : PlacedTile P) : tileGenuineCorners D ⊆ D.carrier := by
+  rintro y ⟨z, ⟨i, -, rfl⟩, rfl⟩
+  show D.anchor +ᵥ (P.disk D.form).vertex i ∈ D.anchor +ᵥ (P.disk D.form).carrier
+  refine ⟨(P.disk D.form).vertex i, ?_, rfl⟩
+  apply (P.disk D.form).compact.isClosed.frontier_subset
+  rw [(P.disk D.form).frontier_eq]
+  exact Set.mem_iUnion.mpr ⟨i, left_mem_segment ℝ _ _⟩
+
+/-- Step 1 of the blueprint proof of `refinedSubstitution_sts_step1_visible_vertices`:
+touching children have touching original parents, so the full one-ring context of a clone
+determines every child context; iterating the decomposition realizes a clone's own private
+witness context as the actual neighbourhood of a translated copy of a placed tile inside a
+single ambient supertile of `τ`, common to every clone tile of the same supertile order `n`
+on the same clone form `c`. -/
+private lemma refinedSubstitution_sts_step1_visible_vertices_step1_common_witness
+    (h : τ.FLC) (n : ℕ) (c : (cloneProtoset τ h).Form) :
+    ∃ (m : ℕ) (q : P.Form) (s : Pt), ∀ A ∈ (refinedSubstitution τ h).supertile n c,
+      ∃ Ahat : PlacedTile P, Ahat ∈ τ.supertile m q ∧ Ahat.form = A.form.form ∧
+        A.anchor = s +ᵥ Ahat.anchor ∧
+        A.vertexSet = s +ᵥ (frontier Ahat.carrier ∩
+          ⋃ D ∈ neighbourhood (τ.supertile m q) Ahat, tileGenuineCorners D) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `refinedSubstitution_sts`: On overlapping sides
 of clone-supertile members, endpoints and further cuts are genuine vertices of underlying
 incident carriers visible in both contexts. Thus the sets of listed vertices on the
@@ -2240,7 +2281,65 @@ private lemma refinedSubstitution_sts_step1_visible_vertices (h : τ.FLC)
     (j : Fin ((cloneProtoset τ h).disk B.form).n)
     (h_overlap : OverlapPos (A.side i) (B.side j)) :
     A.vertexSet ∩ (A.side i ∩ B.side j) = B.vertexSet ∩ (A.side i ∩ B.side j) := by
-  sorry
+  have _ := h_overlap
+  obtain ⟨m, q, s, hwit⟩ :=
+    refinedSubstitution_sts_step1_visible_vertices_step1_common_witness _ h n c
+  obtain ⟨Ahat, hAhatmem, hAhatform, hAanchor, hAvs⟩ := hwit A hA
+  obtain ⟨Bhat, hBhatmem, hBhatform, hBanchor, hBvs⟩ := hwit B hB
+  have hAcarrier : A.carrier = s +ᵥ Ahat.carrier := by
+    show A.anchor +ᵥ (cloneDisk A.form).carrier = s +ᵥ Ahat.carrier
+    rw [cloneDisk_carrier, ← hAhatform, hAanchor]
+    show (s +ᵥ Ahat.anchor) +ᵥ (P.disk Ahat.form).carrier =
+      s +ᵥ (Ahat.anchor +ᵥ (P.disk Ahat.form).carrier)
+    rw [vadd_vadd, vadd_eq_add]
+  have hBcarrier : B.carrier = s +ᵥ Bhat.carrier := by
+    show B.anchor +ᵥ (cloneDisk B.form).carrier = s +ᵥ Bhat.carrier
+    rw [cloneDisk_carrier, ← hBhatform, hBanchor]
+    show (s +ᵥ Bhat.anchor) +ᵥ (P.disk Bhat.form).carrier =
+      s +ᵥ (Bhat.anchor +ᵥ (P.disk Bhat.form).carrier)
+    rw [vadd_vadd, vadd_eq_add]
+  have hAside : A.side i ⊆ s +ᵥ frontier Ahat.carrier := by
+    have hh := refinedSubstitution_sts_step1_visible_vertices_aux_side_subset_frontier A i
+    rwa [hAcarrier, refinedSubstitution_sts_step1_visible_vertices_aux_frontier_vadd] at hh
+  have hBside : B.side j ⊆ s +ᵥ frontier Bhat.carrier := by
+    have hh := refinedSubstitution_sts_step1_visible_vertices_aux_side_subset_frontier B j
+    rwa [hBcarrier, refinedSubstitution_sts_step1_visible_vertices_aux_frontier_vadd] at hh
+  have hcore : ∀ p, p ∈ A.side i → p ∈ B.side j → (p ∈ A.vertexSet ↔ p ∈ B.vertexSet) := by
+    intro p hp1 hp2
+    have hyA : (-s +ᵥ p) ∈ frontier Ahat.carrier := by
+      have hh := hAside hp1
+      rwa [mem_vadd_set_iff_neg_vadd_mem] at hh
+    have hyB : (-s +ᵥ p) ∈ frontier Bhat.carrier := by
+      have hh := hBside hp2
+      rwa [mem_vadd_set_iff_neg_vadd_mem] at hh
+    have hyA' : (-s +ᵥ p) ∈ Ahat.carrier :=
+      (IsCompact.vadd Ahat.anchor (P.disk Ahat.form).compact).isClosed.frontier_subset hyA
+    have hyB' : (-s +ᵥ p) ∈ Bhat.carrier :=
+      (IsCompact.vadd Bhat.anchor (P.disk Bhat.form).compact).isClosed.frontier_subset hyB
+    rw [hAvs, hBvs, mem_vadd_set_iff_neg_vadd_mem, mem_vadd_set_iff_neg_vadd_mem]
+    simp only [mem_inter_iff, mem_iUnion₂]
+    constructor
+    · rintro ⟨-, D, hDmem, hyD⟩
+      have hDcarrier : (-s +ᵥ p) ∈ D.carrier :=
+        refinedSubstitution_sts_step1_visible_vertices_aux_genuineCorners_subset_carrier D hyD
+      have hDnbhdB : D ∈ neighbourhood (τ.supertile m q) Bhat := by
+        simp only [neighbourhood, mem_setOf_eq]
+        exact ⟨hDmem.1, -s +ᵥ p, hyB', hDcarrier⟩
+      exact ⟨hyB, D, hDnbhdB, hyD⟩
+    · rintro ⟨-, D, hDmem, hyD⟩
+      have hDcarrier : (-s +ᵥ p) ∈ D.carrier :=
+        refinedSubstitution_sts_step1_visible_vertices_aux_genuineCorners_subset_carrier D hyD
+      have hDnbhdA : D ∈ neighbourhood (τ.supertile m q) Ahat := by
+        simp only [neighbourhood, mem_setOf_eq]
+        exact ⟨hDmem.1, -s +ᵥ p, hyA', hDcarrier⟩
+      exact ⟨hyA, D, hDnbhdA, hyD⟩
+  ext p
+  simp only [mem_inter_iff]
+  constructor
+  · rintro ⟨hv, h1, h2⟩
+    exact ⟨(hcore p h1 h2).mp hv, h1, h2⟩
+  · rintro ⟨hv, h1, h2⟩
+    exact ⟨(hcore p h1 h2).mpr hv, h1, h2⟩
 
 /-- Step 1 of the blueprint proof of `refinedSubstitution_sts_step2_sides_eq`: the side endpoint intersections with the overlapping segments are equal. -/
 private lemma refinedSubstitution_sts_step2_sides_eq_step1_inter_eq (h : τ.FLC)

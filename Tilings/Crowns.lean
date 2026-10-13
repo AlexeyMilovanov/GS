@@ -4088,7 +4088,19 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step1_C_s
     (n : ℕ) (p : P.Form) (w' : Pt)
     (h_eq : translateSet (-w) C = translateSet (-w') (Tilings.Substitution.crown (τ.supertile n p) w')) :
     C ⊆ translateSet (w - w') (τ.supertile n p) := by
-  sorry
+  intro A hA
+  have hAw : A.translate (-w) ∈ translateSet (-w) C := ⟨A, hA, rfl⟩
+  rw [h_eq] at hAw
+  rcases hAw with ⟨B, hB, hBA⟩
+  refine ⟨B, hB.1, ?_⟩
+  apply PlacedTile.ext
+  · simpa [PlacedTile.translate] using congrArg PlacedTile.form hBA
+  · have hanchor := congrArg PlacedTile.anchor hBA
+    dsimp [PlacedTile.translate] at hanchor ⊢
+    calc
+      w - w' + B.anchor = w + (-w' + B.anchor) := by rw [sub_eq_add_neg, add_assoc]
+      _ = w + (-w + A.anchor) := by rw [hanchor]
+      _ = A.anchor := by abel
 
 /-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step2_supertile`:
 Show that decomposing `C` iteratively maintains the subset property for the decomposed supertile. -/
@@ -4145,4 +4157,3 @@ end AllowedHierarchy
 end Tilings
 
 end
-

@@ -4585,10 +4585,17 @@ theorem strict_opposing_macroside (hτ : τ.STS)
     exact ⟨o₃, ho₃, by simp only [som_mid_of_childSide C hC hs₃]⟩
 
 /-- Step 1 of the blueprint proof of `strict_composed_proper`: construct the plane tiling
-of reconstructed parents from an assembled strict macro-partition. -/
+of reconstructed parents from an assembled strict macro-partition.  Strict matching and
+legality of `T` are needed: a `StrictBlock` records only its form `α`, offset and colours, and
+the reconstructed parent must be a typed tile whose polygon is that of `α`, i.e. of a type `t`
+with `C.form t = α` (nothing in `MacroCertificate` makes `C.form` surjective).  With them every
+block is a `StrictBlockContext`, its boundary fourth cells carry a common header whose type has
+form `α` (`lem:comp/boundary-header`), and already the legality of one child gives a parent of
+form `α`. -/
 private theorem strict_composed_proper_step1_reconstruction (hτ : τ.STS)
     (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles))
-    (T : PlaneTiling (strictProtoset C hC)) (part : StrictMacroPartition C hC T) :
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) :
     ∃ T' : PlaneTiling (strictProtoset C hC),
       IsStrictReconstruction C hC part T' := by
   sorry
@@ -4642,7 +4649,7 @@ theorem strict_composed_proper (hτ : τ.STS)
         IsStrictIdentityCorrect C hC D) ∧
       (strictSubst C hC).IsComposition T' T := by
   obtain ⟨part⟩ := strict_assembleMacrotemplates_of_legal C hC T hT hL
-  obtain ⟨T', hrec⟩ := strict_composed_proper_step1_reconstruction C hC hτ hΔ T part
+  obtain ⟨T', hrec⟩ := strict_composed_proper_step1_reconstruction C hC hτ hΔ T hT hL part
   exact ⟨part, T', hrec,
     strict_composed_proper_step4_matched C hC hτ hΔ T hT hL part T' hrec,
     strict_composed_proper_step3_properties C hC hτ hΔ T hT hL part T' hrec,

@@ -2942,6 +2942,71 @@ theorem alignment_complete (c : MacroCertificate P) (hH : c.Hereditary)
   refine ⟨j', hneq, e, hmacro, ?_⟩
   exact alignment_complete_step2_subdivision_eq c hH T part hT hL j j' hneq d e hrank hmode hmacro
 
+private lemma recon_exists_interior_meet {ι : Type*} [Countable ι] (F : ι → Set Pt)
+    (hF : ∀ i, IsClosed (F i)) {U : Set Pt} (hU : IsOpen U) (hne : U.Nonempty)
+    (hsub : U ⊆ ⋃ i, F i) : ∃ i, (U ∩ interior (F i)).Nonempty := by
+  let G : Option ι → Set Pt := fun o => o.elim Uᶜ F
+  have hG : ∀ o, IsClosed (G o) := by
+    rintro (_ | i)
+    · exact hU.isClosed_compl
+    · exact hF i
+  have hcov : ⋃ o, G o = univ := by
+    refine eq_univ_of_forall fun x => ?_
+    by_cases hx : x ∈ U
+    · obtain ⟨i, hi⟩ := mem_iUnion.1 (hsub hx)
+      exact mem_iUnion.2 ⟨some i, hi⟩
+    · exact mem_iUnion.2 ⟨none, hx⟩
+  have hd := dense_iUnion_interior_of_closed hG hcov
+  obtain ⟨x, hxU, hx⟩ := hd.inter_open_nonempty U hU hne
+  obtain ⟨o, ho⟩ := mem_iUnion.1 hx
+  rcases o with _ | i
+  · exact absurd (interior_subset ho) (fun h => h hxU)
+  · exact ⟨i, x, hxU, ho⟩
+
+private lemma recon_isClosed_carrier {Q : Protoset} (A : PlacedTile Q) : IsClosed A.carrier := by
+  unfold PlacedTile.carrier
+  exact ((Q.disk A.form).compact.vadd A.anchor).isClosed
+
+private lemma recon_mem_support_block (c : MacroCertificate P) (K : ColouredBlock c) (x : Pt) :
+    x ∈ support K.tiles ↔ x - K.v ∈ c.σ.θ • (c.Q.disk K.α).carrier := by
+  rw [← c.σ.support_eq K.α, c.rule_eq K.α]
+  simp only [support, ColouredBlock.tiles, ColouredBlock.placed, ColouredBlock.tileOf,
+    PlacedTile.carrier, mem_iUnion, mem_image, mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨X, ⟨t, ht, rfl⟩, hx⟩
+    refine ⟨_, ⟨t, ht, rfl⟩, ?_⟩
+    rw [mem_vadd_set_iff_neg_vadd_mem] at hx ⊢
+    simpa [vadd_eq_add, add_comm, add_left_comm, add_assoc, sub_eq_add_neg] using hx
+  · rintro ⟨X, ⟨t, ht, rfl⟩, hx⟩
+    refine ⟨_, ⟨t, ht, rfl⟩, ?_⟩
+    rw [mem_vadd_set_iff_neg_vadd_mem] at hx ⊢
+    simpa [vadd_eq_add, add_comm, add_left_comm, add_assoc, sub_eq_add_neg] using hx
+
+private lemma recon_interior_meet_block (c : MacroCertificate P) (K : ColouredBlock c) {U : Set Pt}
+    (hU : IsOpen U) (hne : U.Nonempty) (hsub : U ⊆ support K.tiles) :
+    ∃ A ∈ K.tiles, (U ∩ interior A.carrier).Nonempty := by
+  obtain ⟨⟨t, ht⟩, hmeet⟩ := recon_exists_interior_meet
+    (fun s : {t : c.Typ // c.owner t = K.α} => (K.placed s.1).carrier)
+    (fun s => recon_isClosed_carrier _) hU hne (by
+      intro x hx
+      obtain ⟨A, hA, hxA⟩ := mem_iUnion₂.1 (hsub hx)
+      obtain ⟨t, ht, rfl⟩ := hA
+      exact mem_iUnion.2 ⟨⟨t, ht⟩, hxA⟩)
+  exact ⟨K.placed t, ⟨t, ht, rfl⟩, hmeet⟩
+
+private lemma recon_exists_type (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c))
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T) (j : part.ι) :
+    ∃ t : c.Typ, c.form t = (part.block j).α := by
+  have hmem : (part.block j).placed (c.central (part.block j).α) ∈ T.tiles := by
+    rw [← part.cover]
+    exact mem_iUnion.2 ⟨j, c.central (part.block j).α, c.g5_central_owner _, rfl⟩
+  obtain ⟨ch, h0, hR, -⟩ := hL _ hmem
+  refine ⟨(ch 1).typ, ?_⟩
+  have h := (hR 0).1
+  rw [h0] at h
+  rw [← h]
+  exact c.g5_central_owner _
+
 /-- Step 1 of the blueprint proof of `composed_proper`: reconstruction gives a plane tiling.
 ("Assembly partitions the plane into the macroblocks.  Their underlying polygons are scaled
 parent polygons, so replacing and scaling them preserves coverage and disjoint interiors.")
@@ -2952,8 +3017,52 @@ private lemma composed_proper_step1_reconstruction (c : MacroCertificate P) (hH 
     (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T) :
     ∃ T' : PlaneTiling (typedDecoration c), IsReconstruction c part T' := by
-  have _ := hH; have _ := hT; have _ := hL
-  sorry
+  have _ := hH; have _ := hT
+  choose t ht using recon_exists_type c T hL part
+  set θ := c.σ.θ with hθdef
+  have hθ : θ ≠ 0 := (zero_lt_one.trans c.σ.one_lt).ne'
+  let X : part.ι → PlacedTile (typedDecoration c) := fun j =>
+    ⟨reconstruct c (part.block j) (t j), θ⁻¹ • (part.block j).v⟩
+  have hcar : ∀ j x, x ∈ (X j).carrier ↔ θ • x ∈ support (part.block j).tiles := by
+    intro j x
+    rw [recon_mem_support_block, mem_smul_set_iff_inv_smul_mem₀ hθ]
+    simp only [PlacedTile.carrier, X, reconstruct, ht, mem_vadd_set_iff_neg_vadd_mem,
+      vadd_eq_add, smul_sub, inv_smul_smul₀ hθ]
+    rw [neg_add_eq_sub]
+  have hsupp : ∀ y, ∃ j, y ∈ support (part.block j).tiles := by
+    intro y
+    have hy : y ∈ support T.tiles := by rw [T.cover]; trivial
+    obtain ⟨A, hA, hyA⟩ := mem_iUnion₂.1 hy
+    rw [← part.cover] at hA
+    obtain ⟨j, hj⟩ := mem_iUnion.1 hA
+    exact ⟨j, mem_iUnion₂.2 ⟨A, hj, hyA⟩⟩
+  refine ⟨⟨range X, ?_, ?_⟩, ?_, ?_⟩
+  · refine eq_univ_of_forall fun x => ?_
+    obtain ⟨j, hj⟩ := hsupp (θ • x)
+    exact mem_iUnion₂.2 ⟨X j, mem_range_self j, (hcar j x).2 hj⟩
+  · rintro _ ⟨j, rfl⟩ _ ⟨k, rfl⟩ hjk
+    rw [Function.onFun, Set.disjoint_iff]
+    rintro y ⟨hyj, hyk⟩
+    have hjk' : j ≠ k := fun h => hjk (h ▸ rfl)
+    set W := θ • (interior (X j).carrier ∩ interior (X k).carrier) with hW
+    have hWo : IsOpen W := (isOpen_interior.inter isOpen_interior).smul₀ hθ
+    have hWj : W ⊆ support (part.block j).tiles := by
+      rintro _ ⟨z, hz, rfl⟩; exact (hcar j z).1 (interior_subset hz.1)
+    have hWk : W ⊆ support (part.block k).tiles := by
+      rintro _ ⟨z, hz, rfl⟩; exact (hcar k z).1 (interior_subset hz.2)
+    obtain ⟨A, hA, hWA⟩ := recon_interior_meet_block c _ hWo ⟨θ • y, y, ⟨hyj, hyk⟩, rfl⟩ hWj
+    obtain ⟨B, hB, z, ⟨-, hzA⟩, hzB⟩ := recon_interior_meet_block c _ (hWo.inter isOpen_interior) hWA
+      (inter_subset_left.trans hWk)
+    have hAT : A ∈ T.tiles := part.cover ▸ mem_iUnion.2 ⟨j, hA⟩
+    have hBT : B ∈ T.tiles := part.cover ▸ mem_iUnion.2 ⟨k, hB⟩
+    have hAB : A ≠ B := by
+      rintro rfl
+      exact Set.disjoint_left.1 (part.disjoint hjk') hA hB
+    exact Set.disjoint_left.1 (T.disjoint hAT hBT hAB) hzA hzB
+  · rintro _ ⟨j, rfl⟩
+    exact ⟨j, (smul_inv_smul₀ hθ _).symm, rfl⟩
+  · intro j
+    exact ⟨X j, mem_range_self j, (smul_inv_smul₀ hθ _).symm, rfl⟩
 
 /-- Step 2 of the blueprint proof of `composed_proper`: exact repaired decomposition follows
 block by block. -/

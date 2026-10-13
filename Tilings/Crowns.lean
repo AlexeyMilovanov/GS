@@ -908,7 +908,27 @@ theorem supertile_finite (τ : Substitution P) (n : ℕ) (p : P.Form) :
 
 /-- Step 1 of the blueprint proof of `supertile_disjoint_step1_decompose`: the decomposed tiles of a single tile have disjoint interiors. -/
 private lemma supertile_disjoint_step1_decompose_step1 (τ : Substitution P) (A : PlacedTile P) :
-    DisjointInteriors (τ.decomposeTile A) := sorry
+    DisjointInteriors (τ.decomposeTile A) := by
+  dsimp [Substitution.decomposeTile, translateSet]
+  intro T1 hT1 T2 hT2 hne
+  rcases hT1 with ⟨B1, hB1, rfl⟩
+  rcases hT2 with ⟨B2, hB2, rfl⟩
+  have hne' : B1 ≠ B2 := fun h => hne (by rw [h])
+  have hd := (τ.rule A.form).disjoint hB1 hB2 hne'
+  dsimp [Function.onFun] at hd ⊢
+  have heq1 : (B1.translate (τ.θ • A.anchor)).carrier = (τ.θ • A.anchor) +ᵥ B1.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add,
+      neg_add_rev]
+    rw [← add_assoc]
+  have heq2 : (B2.translate (τ.θ • A.anchor)).carrier = (τ.θ • A.anchor) +ᵥ B2.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add,
+      neg_add_rev]
+    rw [← add_assoc]
+  rw [heq1, heq2, interior_vadd, interior_vadd]
+  have hinj : Function.Injective ((τ.θ • A.anchor) +ᵥ · : Pt → Pt) := add_right_injective _
+  exact (disjoint_image_iff hinj).mpr hd
 
 /-- Step 2 of the blueprint proof of `supertile_disjoint_step1_decompose`: the interiors
 of the supports of decompositions of two disjoint tiles are disjoint. -/

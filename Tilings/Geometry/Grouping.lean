@@ -4174,9 +4174,274 @@ private lemma existsAnnularSpokes_step3_spoke (M : MeshConstants P) (S : Patch P
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step4_sort`: parametrize the polygonal
 boundary of the outer disk by a continuous period-one loop, injective on one
 period. -/
+private def polygonBoundaryIndex (B : PolygonalDisk) (t : ℝ) : Fin B.n :=
+  ⟨⌊(B.n : ℝ) * t⌋₊ % B.n, Nat.mod_lt _ (by have := B.three_le; omega)⟩
+
+private def polygonBoundaryBase (B : PolygonalDisk) (t : ℝ) : Pt :=
+  AffineMap.lineMap (B.vertex (polygonBoundaryIndex B t))
+    (B.vertex (finRotate B.n (polygonBoundaryIndex B t)))
+    ((B.n : ℝ) * t - ⌊(B.n : ℝ) * t⌋₊)
+
+private lemma polygonBoundaryIndex_on_halfOpen (B : PolygonalDisk) (i : Fin B.n) {t : ℝ}
+    (hlo : (i : ℝ) / B.n ≤ t) (hhi : t < ((i : ℕ) + 1 : ℝ) / B.n) :
+    polygonBoundaryIndex B t = i := by
+  have hnN : 0 < B.n := by have := B.three_le; omega
+  have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+  have ht0 : 0 ≤ (B.n : ℝ) * t := by
+    have : 0 ≤ t := le_trans (div_nonneg (by positivity) hn.le) hlo
+    positivity
+  have hfloor : ⌊(B.n : ℝ) * t⌋₊ = i := by
+    rw [Nat.floor_eq_iff ht0]
+    simpa [mul_comm] using And.intro ((div_le_iff₀ hn).1 hlo) ((lt_div_iff₀ hn).1 hhi)
+  apply Fin.ext
+  simp [polygonBoundaryIndex, hfloor, Nat.mod_eq_of_lt i.isLt]
+
+private lemma polygonBoundaryIndex_at_right (B : PolygonalDisk) (i : Fin B.n) :
+    polygonBoundaryIndex B (((i : ℕ) + 1 : ℝ) / B.n) = finRotate B.n i := by
+  have hnN : 0 < B.n := by have := B.three_le; omega
+  have hn : (B.n : ℝ) ≠ 0 := by exact_mod_cast hnN.ne'
+  apply Fin.ext
+  simp only [polygonBoundaryIndex]
+  rw [mul_div_cancel₀ _ hn]
+  have hfloor : ⌊((i : ℕ) : ℝ) + 1⌋₊ = i.val + 1 := by
+    rw [Nat.floor_eq_iff (by positivity)]
+    norm_num
+  rw [hfloor, finRotate_val']
+  by_cases hlast : i.val + 1 = B.n
+  · rw [if_pos hlast, hlast, Nat.mod_self]
+  · rw [if_neg hlast, Nat.mod_eq_of_lt (by omega)]
+
+private lemma polygonBoundaryBase_on_edge (B : PolygonalDisk) (i : Fin B.n) {t : ℝ}
+    (ht : t ∈ Icc ((i : ℝ) / B.n) (((i : ℕ) + 1 : ℝ) / B.n)) :
+    polygonBoundaryBase B t = AffineMap.lineMap (B.vertex i)
+      (B.vertex (finRotate B.n i)) ((B.n : ℝ) * t - i) := by
+  rcases lt_or_eq_of_le ht.2 with hhi | rfl
+  · have hidx := polygonBoundaryIndex_on_halfOpen B i ht.1 hhi
+    have hnN : 0 < B.n := by have := B.three_le; omega
+    have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+    have ht0 : 0 ≤ (B.n : ℝ) * t := by
+      have : 0 ≤ t := le_trans (div_nonneg (by positivity) hn.le) ht.1
+      positivity
+    have hfloor : ⌊(B.n : ℝ) * t⌋₊ = i := by
+      rw [Nat.floor_eq_iff ht0]
+      simpa [mul_comm] using And.intro ((div_le_iff₀ hn).1 ht.1) ((lt_div_iff₀ hn).1 hhi)
+    simp [polygonBoundaryBase, hidx, hfloor]
+  · have hnN : 0 < B.n := by have := B.three_le; omega
+    have hn : (B.n : ℝ) ≠ 0 := by exact_mod_cast hnN.ne'
+    have hmul : (B.n : ℝ) * (((i : ℕ) + 1 : ℝ) / B.n) = (i : ℕ) + 1 :=
+      mul_div_cancel₀ _ hn
+    rw [polygonBoundaryBase, polygonBoundaryIndex_at_right]
+    rw [hmul]
+    have hfloor : ⌊((i : ℕ) : ℝ) + 1⌋₊ = i.val + 1 := by
+      rw [Nat.floor_eq_iff (by positivity)]
+      norm_num
+    rw [hfloor]
+    simp
+
+private lemma polygonBoundaryBase_continuousOn (B : PolygonalDisk) :
+    ContinuousOn (polygonBoundaryBase B) (Icc 0 1) := by
+  let C : Fin B.n → Set ℝ := fun i =>
+    Icc ((i : ℝ) / B.n) (((i : ℕ) + 1 : ℝ) / B.n)
+  have hcover : Icc (0 : ℝ) 1 = ⋃ i, C i := by
+    apply Set.Subset.antisymm
+    · intro t ht
+      have hnN : 0 < B.n := by have := B.three_le; omega
+      have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+      by_cases ht1 : t = 1
+      · subst t
+        let i : Fin B.n := ⟨B.n - 1, by omega⟩
+        refine Set.mem_iUnion.2 ⟨i, ?_⟩
+        change ((B.n - 1 : ℕ) : ℝ) / B.n ≤ 1 ∧
+          1 ≤ (((B.n - 1 : ℕ) : ℝ) + 1) / B.n
+        constructor
+        · rw [div_le_one hn]
+          exact_mod_cast Nat.sub_le B.n 1
+        · rw [le_div_iff₀ hn]
+          norm_num
+          exact_mod_cast (Nat.sub_add_cancel hnN).ge
+      have htlt : t < 1 := lt_of_le_of_ne ht.2 ht1
+      have hnt0 : 0 ≤ (B.n : ℝ) * t := mul_nonneg hn.le ht.1
+      have hfl := Nat.floor_le hnt0
+      have hlt := Nat.lt_floor_add_one ((B.n : ℝ) * t)
+      have hfloor_lt : ⌊(B.n : ℝ) * t⌋₊ < B.n := by
+        rw [Nat.floor_lt hnt0]
+        simpa using mul_lt_mul_of_pos_left htlt hn
+      let i : Fin B.n := ⟨⌊(B.n : ℝ) * t⌋₊, hfloor_lt⟩
+      refine Set.mem_iUnion.2 ⟨i, ?_⟩
+      change (i : ℝ) / B.n ≤ t ∧ t ≤ ((i : ℕ) + 1 : ℝ) / B.n
+      constructor
+      · exact (div_le_iff₀ hn).2 (by simpa [i, mul_comm] using hfl)
+      · exact (le_div_iff₀ hn).2 (by simpa [i, mul_comm, add_comm] using hlt.le)
+    · rw [Set.iUnion_subset_iff]
+      intro i t ht
+      change 0 ≤ t ∧ t ≤ 1
+      have hnN : 0 < B.n := by have := B.three_le; omega
+      have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+      constructor
+      · exact (div_nonneg (by positivity) hn.le).trans ht.1
+      · calc
+          t ≤ ((i : ℕ) + 1 : ℝ) / B.n := ht.2
+          _ ≤ 1 := by rw [div_le_one hn]; exact_mod_cast i.isLt
+  rw [hcover]
+  refine (locallyFinite_of_finite C).continuousOn_iUnion (fun i => ?_) (fun i => ?_)
+  · exact isClosed_Icc
+  · apply ContinuousOn.congr
+      (AffineMap.lineMap_continuous.comp
+        (continuous_const.mul continuous_id |>.sub continuous_const)).continuousOn
+    intro t ht
+    exact polygonBoundaryBase_on_edge B i ht
+
+set_option maxHeartbeats 800000 in
 private lemma existsAnnularSpokes_step4_sort_step1_boundary_param (B : PolygonalDisk) :
     ∃ γ : ℝ → Pt, IsLoopParam (frontier B.carrier) γ := by
-  sorry
+  let γ : ℝ → Pt := polygonBoundaryBase B ∘ Int.fract
+  refine ⟨γ, ?_, ?_, ?_, ?_⟩
+  · apply (polygonBoundaryBase_continuousOn B).comp_fract''
+    have hnN : 0 < B.n := by have := B.three_le; omega
+    simp [polygonBoundaryBase, polygonBoundaryIndex]
+  · intro t
+    simp [γ, Function.comp_def, Int.fract_add_one]
+  · intro s hs t ht hst
+    have hγ (u : ℝ) (hu : u ∈ Ico (0 : ℝ) 1) : γ u = polygonBoundaryBase B u := by
+      simp [γ, Function.comp_def, Int.fract_eq_self.2 hu]
+    rw [hγ s hs, hγ t ht] at hst
+    let i := polygonBoundaryIndex B s
+    let j := polygonBoundaryIndex B t
+    have hnN : 0 < B.n := by have := B.three_le; omega
+    have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+    have hs0 : 0 ≤ (B.n : ℝ) * s := mul_nonneg hn.le hs.1
+    have ht0 : 0 ≤ (B.n : ℝ) * t := mul_nonneg hn.le ht.1
+    have hsi : ⌊(B.n : ℝ) * s⌋₊ < B.n := by
+      rw [Nat.floor_lt hs0]
+      simpa using (mul_lt_mul_of_pos_left hs.2 hn)
+    have htj : ⌊(B.n : ℝ) * t⌋₊ < B.n := by
+      rw [Nat.floor_lt ht0]
+      simpa using (mul_lt_mul_of_pos_left ht.2 hn)
+    have hi : i.val = ⌊(B.n : ℝ) * s⌋₊ := by
+      simp [i, polygonBoundaryIndex, Nat.mod_eq_of_lt hsi]
+    have hj : j.val = ⌊(B.n : ℝ) * t⌋₊ := by
+      simp [j, polygonBoundaryIndex, Nat.mod_eq_of_lt htj]
+    have hus : (B.n : ℝ) * s - i.val ∈ Ico (0 : ℝ) 1 := by
+      rw [hi]
+      exact ⟨sub_nonneg.2 (Nat.floor_le hs0), by
+        have := Nat.lt_floor_add_one ((B.n : ℝ) * s)
+        linarith⟩
+    have hut : (B.n : ℝ) * t - j.val ∈ Ico (0 : ℝ) 1 := by
+      rw [hj]
+      exact ⟨sub_nonneg.2 (Nat.floor_le ht0), by
+        have := Nat.lt_floor_add_one ((B.n : ℝ) * t)
+        linarith⟩
+    have hBs : polygonBoundaryBase B s = AffineMap.lineMap (B.vertex i)
+        (B.vertex (finRotate B.n i)) ((B.n : ℝ) * s - i.val) := by
+      simp [polygonBoundaryBase, i, hi]
+    have hBt : polygonBoundaryBase B t = AffineMap.lineMap (B.vertex j)
+        (B.vertex (finRotate B.n j)) ((B.n : ℝ) * t - j.val) := by
+      simp [polygonBoundaryBase, j, hj]
+    rw [hBs, hBt] at hst
+    by_cases hij : i = j
+    · rw [hij] at hst
+      have hne : B.vertex j ≠ B.vertex (finRotate B.n j) := pd_vertex_ne_next B j
+      have hu := AffineMap.lineMap_injective ℝ hne hst
+      nlinarith
+    · have hsseg : AffineMap.lineMap (B.vertex i) (B.vertex (finRotate B.n i))
+          ((B.n : ℝ) * s - i.val) ∈ segment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) := by
+        rw [segment_eq_image_lineMap]
+        exact ⟨_, ⟨hus.1, hus.2.le⟩, rfl⟩
+      have htseg : AffineMap.lineMap (B.vertex j) (B.vertex (finRotate B.n j))
+          ((B.n : ℝ) * t - j.val) ∈ segment ℝ (B.vertex j) (B.vertex (finRotate B.n j)) := by
+        rw [segment_eq_image_lineMap]
+        exact ⟨_, ⟨hut.1, hut.2.le⟩, rfl⟩
+      have hends := B.simple i j hij ⟨hsseg, hst ▸ htseg⟩
+      simp only [Set.mem_inter_iff, Set.mem_insert_iff, Set.mem_singleton_iff] at hends
+      have hne_i : B.vertex i ≠ B.vertex (finRotate B.n i) := pd_vertex_ne_next B i
+      have hne_j : B.vertex j ≠ B.vertex (finRotate B.n j) := pd_vertex_ne_next B j
+      have hleft_i : AffineMap.lineMap (B.vertex i) (B.vertex (finRotate B.n i))
+          ((B.n : ℝ) * s - i.val) = B.vertex i := by
+        rcases hends.1 with h | h
+        · exact h
+        · rw [AffineMap.lineMap_eq_right_iff] at h
+          exact False.elim ((ne_of_lt hus.2) (h.resolve_left hne_i))
+      have hleft_j : AffineMap.lineMap (B.vertex j) (B.vertex (finRotate B.n j))
+          ((B.n : ℝ) * t - j.val) = B.vertex j := by
+        rcases hends.2 with h | h
+        · exact hst.symm.trans h
+        · have h' := hst.symm.trans h
+          rw [AffineMap.lineMap_eq_right_iff] at h'
+          exact False.elim ((ne_of_lt hut.2) (h'.resolve_left hne_j))
+      exact (hij (B.vertex_injective (hleft_i.symm.trans (hst.trans hleft_j)))).elim
+  · rw [B.frontier_eq]
+    ext x
+    constructor
+    · rintro ⟨t, ht, rfl⟩
+      have hfract : Int.fract t = t := Int.fract_eq_self.2 ht
+      change polygonBoundaryBase B (Int.fract t) ∈ _
+      rw [hfract]
+      let i := polygonBoundaryIndex B t
+      have hnN : 0 < B.n := by have := B.three_le; omega
+      have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+      have ht0 : 0 ≤ (B.n : ℝ) * t := mul_nonneg hn.le ht.1
+      have hfi : ⌊(B.n : ℝ) * t⌋₊ < B.n := by
+        rw [Nat.floor_lt ht0]
+        simpa using mul_lt_mul_of_pos_left ht.2 hn
+      have hi : i.val = ⌊(B.n : ℝ) * t⌋₊ := by
+        simp [i, polygonBoundaryIndex, Nat.mod_eq_of_lt hfi]
+      apply Set.mem_iUnion.2
+      refine ⟨i, ?_⟩
+      have hbase : polygonBoundaryBase B t = AffineMap.lineMap (B.vertex i)
+          (B.vertex (finRotate B.n i)) ((B.n : ℝ) * t - i.val) := by
+        simp [polygonBoundaryBase, i, hi]
+      rw [hbase, segment_eq_image_lineMap]
+      refine ⟨(B.n : ℝ) * t - i.val, ?_, rfl⟩
+      rw [hi]
+      refine ⟨sub_nonneg.2 (Nat.floor_le ht0), ?_⟩
+      have := Nat.lt_floor_add_one ((B.n : ℝ) * t)
+      linarith
+    · rw [Set.mem_iUnion]
+      rintro ⟨i, hx⟩
+      rw [segment_eq_image_lineMap] at hx
+      obtain ⟨u, hu, rfl⟩ := hx
+      by_cases hu1 : u = 1
+      · let j := finRotate B.n i
+        refine ⟨(j : ℝ) / B.n, ?_, ?_⟩
+        · have hnN : 0 < B.n := by have := B.three_le; omega
+          have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+          exact ⟨div_nonneg (by positivity) hn.le, (div_lt_one hn).2 (by exact_mod_cast j.isLt)⟩
+        · have hjmem : (j : ℝ) / B.n ∈
+              Icc ((j : ℝ) / B.n) (((j : ℕ) + 1 : ℝ) / B.n) := by
+            constructor
+            · rfl
+            · have hnN : 0 < B.n := by have := B.three_le; omega
+              exact div_le_div_of_nonneg_right (by norm_num) (by exact_mod_cast hnN.le)
+          have hnN : 0 < B.n := by have := B.three_le; omega
+          have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+          simp only [γ, Function.comp_apply]
+          rw [Int.fract_eq_self.2 ⟨(div_nonneg (by positivity) hn.le).trans hjmem.1,
+            (div_lt_one hn).2 (by exact_mod_cast j.isLt)⟩]
+          rw [polygonBoundaryBase_on_edge B j hjmem, hu1]
+          rw [mul_div_cancel₀ _ hn.ne']
+          simp [j]
+      · let t := ((i : ℝ) + u) / B.n
+        have hnN : 0 < B.n := by have := B.three_le; omega
+        have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+        have htmem : t ∈ Icc ((i : ℝ) / B.n) (((i : ℕ) + 1 : ℝ) / B.n) := by
+          dsimp [t]
+          constructor <;> rw [div_le_div_iff_of_pos_right hn]
+          · linarith [hu.1]
+          · norm_num at hu1 ⊢
+            linarith [hu.2]
+        have htIco : t ∈ Ico (0 : ℝ) 1 := by
+          refine ⟨(div_nonneg (by positivity) hn.le).trans htmem.1, ?_⟩
+          rw [div_lt_one hn]
+          have hi : ((i : ℕ) : ℝ) + 1 ≤ B.n := by exact_mod_cast i.isLt
+          have hu' : u < 1 := lt_of_le_of_ne hu.2 hu1
+          linarith
+        refine ⟨t, htIco, ?_⟩
+        simp only [γ, Function.comp_apply]
+        rw [Int.fract_eq_self.2 htIco, polygonBoundaryBase_on_edge B i htmem]
+        congr 1
+        dsimp [t]
+        rw [mul_div_cancel₀ _ hn.ne']
+        ring
 
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step4_sort`: choose a cyclic starting
 point and re-index finitely many distinct points in the image of a simple loop

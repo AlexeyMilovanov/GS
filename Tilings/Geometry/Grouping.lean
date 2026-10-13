@@ -3424,6 +3424,22 @@ private lemma existsAnnularSpokes_step3_spoke (M : MeshConstants P) (S : Patch P
     · rintro rfl
       exact ⟨hstop, by rw [hsp]; exact hw'⟩
 
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step4_sort`: parametrize the polygonal
+boundary of the outer disk by a continuous period-one loop, injective on one
+period. -/
+private lemma existsAnnularSpokes_step4_sort_step1_boundary_param (B : PolygonalDisk) :
+    ∃ γ : ℝ → Pt, IsLoopParam (frontier B.carrier) γ := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step4_sort`: choose a cyclic starting
+point and re-index finitely many distinct points in the image of a simple loop
+in traversal order. -/
+private lemma existsAnnularSpokes_step4_sort_step2_reindex (γ : ℝ → Pt) {k : ℕ}
+    (x : Fin k → Pt) {K : Set Pt} (hγ : IsLoopParam K γ)
+    (hx : ∀ i, x i ∈ γ '' Ico (0 : ℝ) 1) (hxi : Function.Injective x) :
+    ∃ σ : Equiv.Perm (Fin k), PointsInOrder γ (x ∘ σ) := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `existsAnnularSpokes`: the stops of the spokes are distinct
 points of the polygonal cycle `∂H`, so after a re-indexing they appear in cyclic order along a
 parametrization of that cycle.  (Blueprint: "The index `j` of the `j`th cut disk is matched with
@@ -3432,7 +3448,14 @@ private lemma existsAnnularSpokes_step4_sort (B : PolygonalDisk) {k : ℕ} (x : 
     (hx : ∀ i, x i ∈ frontier B.carrier) (hxi : Function.Injective x) :
     ∃ γ : ℝ → Pt, ∃ σ : Equiv.Perm (Fin k), IsLoopParam (frontier B.carrier) γ ∧
       PointsInOrder γ (x ∘ σ) := by
-  sorry
+  obtain ⟨γ, hγ⟩ := existsAnnularSpokes_step4_sort_step1_boundary_param B
+  have himage : ∀ i, x i ∈ γ '' Ico (0 : ℝ) 1 := by
+    intro i
+    rw [hγ.2.2.2]
+    exact hx i
+  obtain ⟨σ, hσ⟩ := existsAnnularSpokes_step4_sort_step2_reindex γ x
+    hγ himage hxi
+  exact ⟨γ, σ, hγ, hσ⟩
 
 /-- Step 5 of the blueprint proof of `existsAnnularSpokes`: "The separated tubes give disjoint
 arcs and distinct endpoints.  Disjoint arcs joining the two boundary components of an annulus

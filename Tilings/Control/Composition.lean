@@ -787,7 +787,32 @@ equivalent to a zero fourth cell. -/
 private lemma headerLegal_properties_step7_outer (c : MacroCertificate P) (hH : c.Hereditary)
     (A : DecTile c) (hA : headerLegal c A) :
     ∀ i : c.Side A.typ, c.IsOuter (c.occ A.typ i) → (¬ IsNontrivial c A i ↔ A.cell i 3 = 0) := by
-  sorry
+  have _ := hH
+  have print_inner : ∀ {o : c.SideOcc}, c.IsPrint o → c.IsInner o := by
+    intro o hp
+    obtain ⟨d, hmk, ho | ho⟩ := hp
+    · rw [ho]
+      exact c.g4_print_inner _ d hmk
+    · have hin := c.g4_print_inner _ d hmk
+      obtain ⟨-, howner, hside⟩ := c.g1_partner _ hin
+      rw [ho]
+      unfold MacroData.IsInner MacroData.IsOuter at *
+      rwa [hside, howner]
+  intro i h_outer
+  have h_nprint : ¬ c.IsPrint (c.occ A.typ i) := by
+    intro h_print
+    exact print_inner h_print h_outer
+  rcases hA with ⟨ch, hch0, hch_succ, _⟩
+  have h_child : IsChildOf c (ch 1) A := by
+    have h := hch_succ 0
+    rw [hch0] at h
+    exact h
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at h_child
+  have h_fifth : A.cell i 4 = 0 :=
+    ((h_child.2 i).2 h_nprint).2.2.1
+  unfold IsNontrivial
+  rw [h_fifth]
+  simp
 
 /-- `lem:comp/legal-properties`: a legal tile has a legal parent, is normal
 and identity-correct; every child of a legal tile is legal; all boundary

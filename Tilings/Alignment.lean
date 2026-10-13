@@ -1784,6 +1784,111 @@ private theorem schedule_intermediate_sts_step2_parents_sts
   rw [heqA, heqA'] at heq
   exact (Set.image_injective.mpr (smul_right_injective Pt hs)) heq
 
+/-- Step 1 of the blueprint proof of `schedule_intermediate_sts_step3_levels_sts`:
+Decomposition of a scattered tiling is the union of the decompositions of its
+individual scattered parents, so every intermediate tile has a parent witness. -/
+private lemma schedule_intermediate_sts_step3_levels_sts_step1_scatter_membership
+    (m : ℕ) (T' : PlaneTiling G.P') (X : PlacedTile P)
+    (hX : X ∈ τ.decomposeIter m (G.scatter T'.tiles)) :
+    ∃ A ∈ T'.tiles, X ∈ τ.decomposeIter m (G.scatterTile A) := by
+  induction m generalizing X with
+  | zero =>
+    change X ∈ ⋃ A ∈ T'.tiles, G.scatterTile A at hX
+    rcases Set.mem_iUnion.1 hX with ⟨A, hX⟩
+    rcases Set.mem_iUnion.1 hX with ⟨hA, hXA⟩
+    exact ⟨A, hA, hXA⟩
+  | succ m ih =>
+    change X ∈ τ.decompose (τ.decomposeIter m (G.scatter T'.tiles)) at hX
+    simp only [Substitution.decompose, Set.mem_iUnion] at hX
+    rcases hX with ⟨Y, hY, hXY⟩
+    obtain ⟨A, hA, hYA⟩ := ih Y hY
+    refine ⟨A, hA, ?_⟩
+    change X ∈ τ.decompose (τ.decomposeIter m (G.scatterTile A))
+    simp only [Substitution.decompose, Set.mem_iUnion]
+    exact ⟨Y, hYA, hXY⟩
+
+/-- Step 2 of the blueprint proof of `schedule_intermediate_sts_step3_levels_sts`:
+Within one grouped parent, the translated and iterated dissected patch is
+side-to-side by the corresponding instance of `hΔ`. -/
+private theorem schedule_intermediate_sts_step3_levels_sts_step2_within_group
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (G.dissect α).tiles))
+    (j : ℕ) (A : PlacedTile G.P') :
+    SideToSideSet (τ.decomposeIter j (G.scatterTile A)) := by
+  have htranslate : ∀ (n : ℕ) (v : Pt) (S : Set (PlacedTile P)),
+      τ.decomposeIter n (translateSet v S) =
+        translateSet (τ.θ ^ n • v) (τ.decomposeIter n S) := by
+    have hdecompose : ∀ (v : Pt) (S : Set (PlacedTile P)),
+        τ.decompose (translateSet v S) =
+          translateSet (τ.θ • v) (τ.decompose S) := by
+      intro v S
+      ext X
+      simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+        Set.mem_iUnion, Set.mem_image, PlacedTile.translate, exists_prop]
+      constructor
+      · rintro ⟨_, ⟨A, hA, rfl⟩, Y, hY, rfl⟩
+        refine ⟨⟨Y.form, τ.θ • A.anchor +ᵥ Y.anchor⟩,
+          ⟨A, hA, Y, hY, rfl⟩, ?_⟩
+        simp only [vadd_eq_add, smul_add, add_assoc]
+      · rintro ⟨_, ⟨A, hA, Y, hY, rfl⟩, rfl⟩
+        refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, Y, hY, ?_⟩
+        simp only [vadd_eq_add, smul_add, add_assoc]
+    intro n
+    induction n with
+    | zero =>
+      intro v S
+      simp [Substitution.decomposeIter]
+    | succ n ih =>
+      intro v S
+      change τ.decompose (τ.decomposeIter n (translateSet v S)) =
+        translateSet (τ.θ ^ (n + 1) • v) (τ.decompose (τ.decomposeIter n S))
+      rw [ih, hdecompose, smul_smul, pow_succ']
+  change SideToSideSet
+    (τ.decomposeIter j (translateSet A.anchor (G.dissect A.form).tiles))
+  rw [htranslate j A.anchor (G.dissect A.form).tiles]
+  have hsts := hΔ A.form j
+  intro X hX Y hY i i' hXY
+  rcases hX with ⟨X₀, hX₀, rfl⟩
+  rcases hY with ⟨Y₀, hY₀, rfl⟩
+  have hsideX : (X₀.translate ((τ.θ ^ j) • A.anchor)).side i =
+      (τ.θ ^ j) • A.anchor +ᵥ X₀.side i := by
+    simp [PlacedTile.translate, PlacedTile.side, vadd_vadd]
+  have hsideY : (Y₀.translate ((τ.θ ^ j) • A.anchor)).side i' =
+      (τ.θ ^ j) • A.anchor +ᵥ Y₀.side i' := by
+    simp [PlacedTile.translate, PlacedTile.side, vadd_vadd]
+  have hXY₀ : OverlapPos (X₀.side i) (Y₀.side i') := by
+    obtain ⟨x, y, hxy, hseg⟩ := hXY
+    refine ⟨-((τ.θ ^ j) • A.anchor) +ᵥ x,
+      -((τ.θ ^ j) • A.anchor) +ᵥ y, by simpa using hxy, ?_⟩
+    rw [hsideX, hsideY] at hseg
+    rw [← vadd_segment]
+    rintro z ⟨w, hw, rfl⟩
+    exact ⟨by simpa [Set.mem_vadd_set_iff_neg_vadd_mem, add_assoc] using (hseg hw).1,
+      by simpa [Set.mem_vadd_set_iff_neg_vadd_mem, add_assoc] using (hseg hw).2⟩
+  have hEq := hsts X₀ hX₀ Y₀ hY₀ i i' hXY₀
+  rw [hsideX, hsideY]
+  exact congrArg (fun s : Set Pt => (τ.θ ^ j) • A.anchor +ᵥ s) hEq
+
+/-- Step 3 of the blueprint proof of `schedule_intermediate_sts_step3_levels_sts`:
+For distinct grouped parents, an overlapping intermediate side is a scaled
+`.level j` boundary side of each parent.  The displayed equalities identify
+those boundary sides with the scaled original sides. -/
+private theorem schedule_intermediate_sts_step3_levels_sts_step3_cross_group_boundary
+    (m : ℕ) (T' : PlaneTiling G.P') (j : Fin m)
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (hAA' : A ≠ A') (X Y : PlacedTile P)
+    (hX : X ∈ τ.decomposeIter (j : ℕ) (G.scatterTile A))
+    (hY : Y ∈ τ.decomposeIter (j : ℕ) (G.scatterTile A'))
+    (i : Fin (P.disk X.form).n) (i' : Fin (P.disk Y.form).n)
+    (hXY : OverlapPos (X.side i) (Y.side i')) :
+    ∃ c d,
+      c ∈ layerSides τ G m A.form (.level j) ∧
+      d ∈ layerSides τ G m A'.form (.level j) ∧
+      placedSeg ((τ.θ ^ m) • A.anchor) c =
+        (τ.θ ^ (m - (j : ℕ))) • X.side i ∧
+      placedSeg ((τ.θ ^ m) • A'.anchor) d =
+        (τ.θ ^ (m - (j : ℕ))) • Y.side i' := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `schedule_intermediate_sts`:
 Inside a block each original layer is already an STS supertile patch.
 Thus, to check STS for any intermediate layer, we only need to compare sides that
@@ -1800,7 +1905,41 @@ private theorem schedule_intermediate_sts_step3_levels_sts
          (placedSeg ((τ.θ ^ m) • A'.anchor) d) →
        placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d) :
     ∀ j ≤ m, SideToSideSet (τ.decomposeIter j (G.scatter T'.tiles)) := by
-  sorry
+  intro j hj
+  by_cases hjm : j = m
+  · subst j
+    exact hfine
+  have hjlt : j < m := lt_of_le_of_ne hj hjm
+  let j' : Fin m := ⟨j, hjlt⟩
+  intro X hX Y hY i i' hXY
+  obtain ⟨A, hA, hXA⟩ :=
+    schedule_intermediate_sts_step3_levels_sts_step1_scatter_membership
+      τ G j T' X hX
+  obtain ⟨A', hA', hYA⟩ :=
+    schedule_intermediate_sts_step3_levels_sts_step1_scatter_membership
+      τ G j T' Y hY
+  by_cases hAA' : A = A'
+  · subst A'
+    exact schedule_intermediate_sts_step3_levels_sts_step2_within_group τ G hΔ j A
+      X hXA Y hYA i i' hXY
+  obtain ⟨c, d, hc, hd, hcx, hdy⟩ :=
+    schedule_intermediate_sts_step3_levels_sts_step3_cross_group_boundary
+      τ G m T' j' A A' hA hA' hAA' X Y hXA hYA i i' hXY
+  have hs : τ.θ ^ (m - j) ≠ 0 :=
+    pow_ne_zero _ (ne_of_gt (lt_trans zero_lt_one τ.one_lt))
+  have hscaled :
+      OverlapPos ((τ.θ ^ (m - j)) • X.side i) ((τ.θ ^ (m - j)) • Y.side i') :=
+    schedule_intermediate_sts_step2_overlap_smul hs hXY
+  have hboundary :
+      OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+        (placedSeg ((τ.θ ^ m) • A'.anchor) d) := by
+    rw [hcx, hdy]
+    exact hscaled
+  have heq := h_align A A' hA hA' j' c d hc hd hboundary
+  have heq' :
+      (τ.θ ^ (m - j)) • X.side i = (τ.θ ^ (m - j)) • Y.side i' := by
+    exact hcx.symm.trans (heq.trans hdy)
+  exact (Set.image_injective.mpr (smul_right_injective Pt hs)) heq'
 
 /-- `lem:alignment-tuple`: if the fine level `τ^m (Δ T')` of a grouped plane
 tiling is STS and schedules are aligned, then the grouped parents and every

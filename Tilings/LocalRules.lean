@@ -2977,7 +2977,35 @@ private lemma hierarchy_lift_sts_step2_sts_step1_overlap
       (b : PlacedTile P) (_ : b ∈ GS.G.scatterTile B)
       (k : Fin (P.disk a.form).n) (l : Fin (P.disk b.form).n),
       OverlapPos (a.side k) (b.side l) ∧ a.side k ⊆ A.side i ∧ b.side l ⊆ B.side j := by
-  sorry
+  have _ := τ
+  obtain ⟨a₀, ha₀, hk⟩ := GS.G.side_whole A.form i
+  obtain ⟨b₀, hb₀, hl⟩ := GS.G.side_whole B.form j
+  obtain ⟨k, hk⟩ := hk
+  obtain ⟨l, hl⟩ := hl
+  let a : PlacedTile P := ⟨a₀.form, A.anchor + a₀.anchor⟩
+  let b : PlacedTile P := ⟨b₀.form, B.anchor + b₀.anchor⟩
+  have ha : a ∈ GS.G.scatterTile A := by
+    simp [GroupedFamily.scatterTile, translateSet, Set.mem_image]
+    exact ⟨a₀, ha₀, rfl⟩
+  have hb : b ∈ GS.G.scatterTile B := by
+    simp [GroupedFamily.scatterTile, translateSet, Set.mem_image]
+    exact ⟨b₀, hb₀, rfl⟩
+  use a, ha, b, hb, k, l
+  have hk' : a.side k = A.side i := by
+    dsimp [a, PlacedTile.side]
+    rw [add_vadd]
+    have h1 : a₀.anchor +ᵥ (P.disk a₀.form).side k = a₀.side k := rfl
+    rw [h1, hk]
+  have hl' : b.side l = B.side j := by
+    dsimp [b, PlacedTile.side]
+    rw [add_vadd]
+    have h1 : b₀.anchor +ᵥ (P.disk b₀.form).side l = b₀.side l := rfl
+    rw [h1, hl]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hk', hl']
+    exact hover
+  · rw [hk']
+  · rw [hl']
 
 /-- Step 1 of the blueprint proof of `hierarchy_lift_sts_step2_sts_step2_match`: If an original
 side in a grouped tile's scatter is a subset of the grouped side, they are equal. -/

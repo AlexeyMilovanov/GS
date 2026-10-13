@@ -2373,6 +2373,45 @@ private theorem strict_path_and_print_recovery_step1_signals
         K.col o.1 o.2 2 = (strictReconstruct C hC K h.1).cell d j := by
   sorry
 
+/-- Step 1 of the blueprint proof of `strict_path_and_print_recovery_step2_prints`: the
+penultimate side of the path is an ordinary side of the small owner. -/
+private lemma strict_path_and_print_recovery_step2_prints_step1_penultimate
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (d : C.Side h.1) (hd : C.marked (C.form h.1) d) (k : Fin 5) (hk : k ≠ 4) :
+    ∃ o, (C.path (C.form h.1) d k)[(C.path (C.form h.1) d k).length - 2]? = some o ∧
+      o.1 = (C.partner (C.printOcc (C.form h.1) d)).1 ∧ C.IsOrdinary o := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_path_and_print_recovery_step2_prints`: the
+penultimate side of the path transports the signal to the reconstructed parent cell. -/
+private lemma strict_path_and_print_recovery_step2_prints_step2_signal_transport
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (d : C.Side h.1) (hd : C.marked (C.form h.1) d) (k : Fin 5) (hk : k ≠ 4)
+    (o : C.SideOcc)
+    (ho : (C.path (C.form h.1) d k)[(C.path (C.form h.1) d k).length - 2]? = some o)
+    (ho_partner : o.1 = (C.partner (C.printOcc (C.form h.1) d)).1)
+    (ho_ord : C.IsOrdinary o) :
+    K.col o.1 o.2 2 = (strictReconstruct C hC K h.1).cell d k := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `strict_path_and_print_recovery_step2_prints`: the
+print clause copies the cell from the ordinary side. -/
+private lemma strict_path_and_print_recovery_step2_prints_step3_print_clause
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (d : C.Side h.1) (hd : C.marked (C.form h.1) d) (k : Fin 5) (hk : k ≠ 4)
+    (o : C.SideOcc)
+    (ho : (C.path (C.form h.1) d k)[(C.path (C.form h.1) d k).length - 2]? = some o)
+    (ho_partner : o.1 = (C.partner (C.printOcc (C.form h.1) d)).1)
+    (ho_ord : C.IsOrdinary o)
+    (F : StrictDecTile C hC) (hFo : C.owner o.1 = C.form F.typ)
+    (hX : K.tileOf o.1 = strictChild C hC F o.1) :
+    K.col (C.partner (C.printOcc (C.form h.1) d)).1 (C.partner (C.printOcc (C.form h.1) d)).2 k =
+      K.col o.1 o.2 2 := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `strict_path_and_print_recovery`: the noncentral
 owner of each marked print carries the first four reconstructed parent cells. -/
 private theorem strict_path_and_print_recovery_step2_prints
@@ -2382,7 +2421,42 @@ private theorem strict_path_and_print_recovery_step2_prints
       K.col (C.partner (C.printOcc (C.form h.1) d)).1
           (C.partner (C.printOcc (C.form h.1) d)).2 k =
         (strictReconstruct C hC K h.1).cell d k := by
-  sorry
+  intro d hd k hk
+  obtain ⟨o, ho, hop, hord⟩ :=
+    strict_path_and_print_recovery_step2_prints_step1_penultimate C hC K hK h hh d hd k hk
+  have htrans := strict_path_and_print_recovery_step2_prints_step2_signal_transport C hC K hK h hh
+    d hd k hk o ho hop hord
+  have hl_nc : o.1 ≠ C.central K.α := by
+    rw [hop]
+    have h_small := C.g4_print_small (C.form h.1) d hd
+    intro h_eq
+    have h_owner := C.g5_central_owner K.α
+    have heq1 : C.central K.α = C.central (C.owner (C.central K.α)) := by
+      rw [h_owner]
+    have h_large := (C.g5_large_iff (C.central K.α)).mpr heq1
+    rw [← h_eq] at h_large
+    rw [h_small] at h_large
+    contradiction
+  have h_owner : C.owner o.1 = K.α := by
+    rw [hop]
+    have hp_owner := C.g5_central_owner (C.form h.1)
+    have hp_partner :=
+      (C.g1_partner (C.printOcc (C.form h.1) d) (C.g4_print_inner (C.form h.1) d hd)).2.1
+    have h_eq : C.owner (C.partner (C.printOcc (C.form h.1) d)).1 = C.form h.1 := by
+      exact hp_partner.trans hp_owner
+    exact h_eq.trans hh.1
+  have hL := hK.2 o.1 h_owner hl_nc
+  obtain ⟨ch, hch0, hch_step, hch_origin⟩ := hL
+  have hc : IsStrictChildOf C hC (ch 1) (K.tileOf o.1) := by
+    have h_eq : ch 0 = K.tileOf o.1 := hch0
+    rw [← h_eq]
+    exact hch_step 0
+  have heq : C.owner o.1 = C.form (ch 1).typ := hc.1
+  have hcl := strict_path_and_print_recovery_step2_prints_step3_print_clause C hC K hK h hh
+    d hd k hk o ho hop hord (ch 1) heq hc.2
+  exact hcl.trans htrans
+
+
 
 /-- `lem:comp/signals` (strict variant): every nonprint third signal on `P_i(d)` equals
 `D_i(d)`, and the noncentral (small) owner of the print of `d` has first four cells

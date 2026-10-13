@@ -1925,6 +1925,236 @@ private lemma finite_neighbourhoods_step5 (τ : Substitution P) (h : τ.FLC) (k 
   rw [h_g_eq]
   exact Set.Finite.image p hS_fin
 
+private lemma finite_neighbourhoods_support_translate (v : Pt)
+    (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier,
+    Set.mem_iUnion, Set.mem_image, Set.mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [← add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [← add_assoc] using hx
+
+private lemma finite_neighbourhoods_translateSet_add (v u : Pt)
+    (S : Set (PlacedTile P)) :
+    translateSet v (translateSet u S) = translateSet (v + u) S := by
+  rw [translateSet, translateSet, translateSet, Set.image_image]
+  congr 1
+  funext A
+  apply PlacedTile.ext
+  · rfl
+  · simp [PlacedTile.translate, add_assoc]
+
+private lemma finite_neighbourhoods_decompose_translate (τ : Substitution P)
+    (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) =
+      translateSet (τ.θ • v) (τ.decompose S) := by
+  ext C
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨A₀, hA₀, rfl⟩, B, hB, rfl⟩
+    refine ⟨B.translate (τ.θ • A₀.anchor), ⟨A₀, hA₀, B, hB, rfl⟩, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+  · rintro ⟨C₀, ⟨A, hA, B, hB, rfl⟩, rfl⟩
+    refine ⟨A.translate v, ⟨A, hA, rfl⟩, B, hB, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+
+private lemma finite_neighbourhoods_decomposeIter_translate (τ : Substitution P)
+    (k : ℕ) (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decomposeIter k (translateSet v S) =
+      translateSet (τ.θ ^ k • v) (τ.decomposeIter k S) := by
+  induction k with
+  | zero => simp [Substitution.decomposeIter]
+  | succ k ih =>
+      change τ.decompose (τ.decomposeIter k (translateSet v S)) = _
+      rw [ih, finite_neighbourhoods_decompose_translate]
+      rw [pow_succ', mul_smul]
+      rfl
+
+private lemma finite_neighbourhoods_decompose_mono (τ : Substitution P)
+    {S T : Set (PlacedTile P)} (hST : S ⊆ T) :
+    τ.decompose S ⊆ τ.decompose T := by
+  intro A hA
+  simp only [Substitution.decompose, Set.mem_iUnion] at hA ⊢
+  rcases hA with ⟨B, hB, hAB⟩
+  exact ⟨B, hST hB, hAB⟩
+
+private lemma finite_neighbourhoods_decomposeIter_mono (τ : Substitution P)
+    (k : ℕ) {S T : Set (PlacedTile P)} (hST : S ⊆ T) :
+    τ.decomposeIter k S ⊆ τ.decomposeIter k T := by
+  induction k with
+  | zero => exact hST
+  | succ k ih => exact finite_neighbourhoods_decompose_mono τ ih
+
+private lemma finite_neighbourhoods_decomposeIter_add (τ : Substitution P)
+    (a b : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter (a + b) S = τ.decomposeIter b (τ.decomposeIter a S) := by
+  induction b with
+  | zero => simp [Substitution.decomposeIter]
+  | succ b ih =>
+      change τ.decomposeIter (a + b + 1) S =
+        τ.decompose (τ.decomposeIter b (τ.decomposeIter a S))
+      rw [show a + b + 1 = (a + b) + 1 by omega]
+      change τ.decompose (τ.decomposeIter (a + b) S) = _
+      rw [ih]
+
+private lemma finite_neighbourhoods_supertile_split (τ : Substitution P)
+    (a b : ℕ) (p : P.Form) :
+    τ.supertile (a + b) p = τ.decomposeIter b (τ.supertile a p) := by
+  exact finite_neighbourhoods_decomposeIter_add τ a b {⟨p, 0⟩}
+
+private lemma finite_neighbourhoods_decomposeIter_finite' (τ : Substitution P)
+    (k : ℕ) {S : Set (PlacedTile P)} (hS : S.Finite) :
+    (τ.decomposeIter k S).Finite := by
+  induction k with
+  | zero => exact hS
+  | succ k ih =>
+      exact Set.Finite.biUnion ih fun A _ =>
+        Set.Finite.image _ (τ.rule A.form).finite
+
+private lemma finite_neighbourhoods_support_decomposeTile (τ : Substitution P)
+    (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [finite_neighbourhoods_support_translate, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [Set.mem_vadd_set_iff_neg_vadd_mem, Set.mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc
+        τ.θ • A.anchor + τ.θ • y =
+            τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma finite_neighbourhoods_support_decompose (τ : Substitution P)
+    (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [Substitution.decompose, support]
+  rw [Set.smul_set_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨A, ⟨B, hB, hA⟩, hx⟩
+    refine ⟨B, hB, ?_⟩
+    have h : x ∈ support (τ.decomposeTile B) := by
+      simp only [support, Set.mem_iUnion]
+      exact ⟨A, hA, hx⟩
+    rwa [finite_neighbourhoods_support_decomposeTile] at h
+  · rintro ⟨A, hA, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rwa [finite_neighbourhoods_support_decomposeTile]
+    simp only [support, Set.mem_iUnion] at h
+    rcases h with ⟨B, hB, hx'⟩
+    exact ⟨B, ⟨A, hA, hB⟩, hx'⟩
+
+private lemma finite_neighbourhoods_support_decomposeIter (τ : Substitution P)
+    (k : ℕ) (S : Set (PlacedTile P)) :
+    support (τ.decomposeIter k S) = τ.θ ^ k • support S := by
+  induction k with
+  | zero => simp [Substitution.decomposeIter]
+  | succ k ih =>
+      change support (τ.decompose (τ.decomposeIter k S)) = _
+      rw [finite_neighbourhoods_support_decompose, ih, smul_smul, pow_succ']
+
+private lemma finite_neighbourhoods_self_mem {S : Set (PlacedTile P)}
+    {A : PlacedTile P} (hA : A ∈ S) : A ∈ neighbourhood S A := by
+  refine ⟨hA, ?_⟩
+  obtain ⟨x, hx⟩ := (P.disk A.form).interior_nonempty
+  have hx' : x ∈ (P.disk A.form).carrier := interior_subset hx
+  have hAx : A.anchor +ᵥ x ∈ A.carrier := by
+    change A.anchor +ᵥ x ∈ A.anchor +ᵥ (P.disk A.form).carrier
+    exact Set.mem_vadd_set.mpr ⟨x, hx', rfl⟩
+  exact ⟨A.anchor +ᵥ x, hAx, hAx⟩
+
+private lemma finite_neighbourhoods_neighbourhood_finite
+    {S : Set (PlacedTile P)} {A : PlacedTile P} (hS : S.Finite) :
+    (neighbourhood S A).Finite :=
+  hS.subset fun _ hB => hB.1
+
+private lemma finite_neighbourhoods_support_bounded
+    {S : Set (PlacedTile P)} (hS : S.Finite) :
+    Bornology.IsBounded (support S) := by
+  have h_eq : support S = ⋃ (A ∈ S), A.carrier := by
+    ext x
+    simp [support, PlacedTile.carrier]
+  rw [h_eq]
+  exact (hS.isCompact_biUnion fun A _ => by
+    dsimp [PlacedTile.carrier, PlacedTile.translate]
+    rw [← Set.image_vadd]
+    exact (P.disk A.form).compact.image (continuous_const_vadd A.anchor)).isBounded
+
+private lemma finite_neighbourhoods_diam_le (D : ℝ)
+    (hD : ∀ q : P.Form, Metric.diam (P.disk q).carrier ≤ D)
+    (S : Set (PlacedTile P)) (A : PlacedTile P) :
+    Metric.diam (support (neighbourhood S A)) ≤ 3 * D := by
+  have hD0 : 0 ≤ D :=
+    (Metric.diam_nonneg.trans (hD A.form))
+  apply Metric.diam_le_of_forall_dist_le (by positivity)
+  intro x hx z hz
+  simp only [support, Set.mem_iUnion] at hx hz
+  rcases hx with ⟨B, hB, hxB⟩
+  rcases hz with ⟨C, hC, hzC⟩
+  obtain ⟨y, hyA, hyB⟩ := hB.2
+  obtain ⟨w, hwA, hwC⟩ := hC.2
+  have hBA : Metric.diam B.carrier ≤ D := by
+    rw [PlacedTile.carrier, diam_vadd]
+    exact hD B.form
+  have hCA : Metric.diam C.carrier ≤ D := by
+    rw [PlacedTile.carrier, diam_vadd]
+    exact hD C.form
+  have hAA : Metric.diam A.carrier ≤ D := by
+    rw [PlacedTile.carrier, diam_vadd]
+    exact hD A.form
+  have hxy : dist x y ≤ D :=
+    (Metric.dist_le_diam_of_mem
+      (IsCompact.vadd B.anchor (P.disk B.form).compact).isBounded hxB hyB).trans hBA
+  have hyw : dist y w ≤ D :=
+    (Metric.dist_le_diam_of_mem
+      (IsCompact.vadd A.anchor (P.disk A.form).compact).isBounded hyA hwA).trans hAA
+  have hwz : dist w z ≤ D :=
+    (Metric.dist_le_diam_of_mem
+      (IsCompact.vadd C.anchor (P.disk C.form).compact).isBounded hwC hzC).trans hCA
+  calc
+    dist x z ≤ dist x y + dist y z := dist_triangle _ _ _
+    _ ≤ dist x y + (dist y w + dist w z) := by gcongr; exact dist_triangle _ _ _
+    _ ≤ 3 * D := by linarith
+
+private lemma finite_neighbourhoods_exists_scale (τ : Substitution P)
+    (ε D : ℝ) (hε : 0 < ε) (hD : 0 ≤ D) :
+    ∃ k : ℕ, (τ.θ ^ k)⁻¹ * D < ε := by
+  have hθ : 0 < τ.θ := lt_trans zero_lt_one τ.one_lt
+  have hq1 : τ.θ⁻¹ < 1 := (inv_lt_one₀ hθ).2 τ.one_lt
+  by_cases hD0 : D = 0
+  · exact ⟨0, by simp [hD0, hε]⟩
+  · have hDpos : 0 < D := lt_of_le_of_ne hD (Ne.symm hD0)
+    obtain ⟨k, hk⟩ := exists_pow_lt_of_lt_one (div_pos hε hDpos) hq1
+    refine ⟨k, ?_⟩
+    rw [← inv_pow]
+    exact (lt_div_iff₀ hDpos).mp hk
+
+/-- The frozen target statement names two proof-irrelevant witnesses. -/
+@[unused_variables_ignore_fn]
+private meta def finite_neighbourhoods_step1to4_ignoreUnused :
+    Lean.Linter.IgnoreFunction :=
+  fun stx _ _ => stx.getId == `hn || stx.getId == `hA
+
 /-- Steps 1 to 4 of the blueprint proof of `finite_neighbourhoods`: all neighbourhood
 supports have bounded diameter, so there is k such that in supertiles of order n >= k,
 the neighbourhood is covered by a full pointed crown of order n-k, which implies
@@ -1934,7 +2164,129 @@ private lemma finite_neighbourhoods_step1to4 (τ : Substitution P) (h : τ.FLC) 
       (_hA : A ∈ τ.supertile n p),
       (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A)) ∈
         finite_neighbourhoods_CrownContexts τ k := by
-  sorry
+  let D := ∑ q : P.Form, Metric.diam (P.disk q).carrier
+  have hD0 : 0 ≤ D := Finset.sum_nonneg fun (q : P.Form) _ =>
+    Metric.diam_nonneg (s := (P.disk q).carrier)
+  have hD : ∀ q : P.Form, Metric.diam (P.disk q).carrier ≤ D := by
+    intro q
+    dsimp [D]
+    exact Finset.single_le_sum
+      (fun (r : P.Form) (_ : r ∈ (Finset.univ : Finset P.Form)) =>
+        Metric.diam_nonneg (s := (P.disk r).carrier)) (Finset.mem_univ q)
+  have hcat := Crowns.isCatalogue_pointedCatalogue τ h
+  obtain ⟨ε, hε, hcover⟩ := Crowns.uniformCrownCoverSupertile hcat
+  obtain ⟨k, hk⟩ :=
+    finite_neighbourhoods_exists_scale τ ε (3 * D) hε (mul_nonneg (by positivity) hD0)
+  refine ⟨k, ?_⟩
+  intro n hn p A hA
+  let m := n - k
+  have hmk : m + k = n := Nat.sub_add_cancel hn
+  let N := neighbourhood (τ.supertile n p) A
+  have hNsub : N ⊆ τ.supertile n p := fun _ hB => hB.1
+  have hNfin : N.Finite :=
+    finite_neighbourhoods_neighbourhood_finite (Crowns.supertile_finite τ n p)
+  have hNbound : Bornology.IsBounded (support N) :=
+    finite_neighbourhoods_support_bounded hNfin
+  have hNdiam : Metric.diam (support N) ≤ 3 * D :=
+    finite_neighbourhoods_diam_le D hD (τ.supertile n p) A
+  let c : ℝ := (τ.θ ^ k)⁻¹
+  have hc0 : 0 ≤ c := by
+    dsimp [c]
+    exact inv_nonneg.mpr (pow_nonneg (le_of_lt (lt_trans zero_lt_one τ.one_lt)) k)
+  let X : Set Pt := (fun x => c • x) '' support N
+  have hLip : LipschitzWith ⟨c, hc0⟩ (fun x : Pt => c • x) := by
+    have hcNorm : ‖c‖₊ = ⟨c, hc0⟩ := by
+      ext
+      exact Real.norm_of_nonneg hc0
+    rw [← hcNorm]
+    exact lipschitzWith_smul c
+  have hXbound : Bornology.IsBounded X := hLip.isBounded_image hNbound
+  have hXdiam : Metric.diam X < ε := by
+    have hle := hLip.diam_image_le (support N) hNbound
+    have hle' : Metric.diam X ≤ c * Metric.diam (support N) := by
+      simpa [X] using hle
+    exact hle'.trans_lt ((mul_le_mul_of_nonneg_left hNdiam hc0).trans_lt hk)
+  let M := Crowns.supertileMacro τ m p
+  have hMcrowns : Crowns.AllCrownsIn (Crowns.pointedCatalogue τ) M.tiles := by
+    intro w hw
+    exact ⟨m, p, w, hw, rfl⟩
+  have hXsub : X ⊆ support M.tiles := by
+    rintro x ⟨y, hy, rfl⟩
+    have hy' : y ∈ support (τ.supertile n p) := by
+      simp only [support, Set.mem_iUnion] at hy ⊢
+      rcases hy with ⟨B, hB, hyB⟩
+      exact ⟨B, hNsub hB, hyB⟩
+    rw [τ.iterate_support n p] at hy'
+    rcases hy' with ⟨z, hz, rfl⟩
+    change c • (τ.θ ^ n • z) ∈ support (τ.supertile m p)
+    rw [τ.iterate_support m p]
+    refine ⟨z, hz, ?_⟩
+    rw [smul_smul, ← hmk, pow_add]
+    dsimp [c]
+    have hθk : τ.θ ^ k ≠ 0 := pow_ne_zero _ (ne_of_gt (lt_trans zero_lt_one τ.one_lt))
+    rw [mul_comm (τ.θ ^ m) (τ.θ ^ k), ← mul_assoc,
+      inv_mul_cancel₀ hθk, one_mul]
+  obtain ⟨v, hv, hcovInt⟩ := hcover M hMcrowns X hXbound hXdiam
+  have hcov : X ⊆ support (crown M.tiles v) := fun x hx => hcovInt ⟨hx, hXsub hx⟩
+  let C := crown (τ.supertile m p) v
+  have hCsub : C ⊆ τ.supertile m p := fun _ hB => hB.1
+  have hCfin : C.Finite :=
+    (Crowns.supertile_finite τ m p).subset hCsub
+  have hsupport : support N ⊆ support (τ.decomposeIter k C) := by
+    intro x hx
+    rw [finite_neighbourhoods_support_decomposeIter]
+    refine ⟨c • x, ?_, ?_⟩
+    · apply hcov
+      exact ⟨x, hx, rfl⟩
+    · dsimp [c]
+      rw [smul_smul, mul_inv_cancel₀, one_smul]
+      exact pow_ne_zero _ (ne_of_gt (lt_trans zero_lt_one τ.one_lt))
+  have hdescFin : (τ.decomposeIter k C).Finite :=
+    finite_neighbourhoods_decomposeIter_finite' τ k hCfin
+  have hdescSub : τ.decomposeIter k C ⊆ τ.supertile n p := by
+    rw [← hmk, finite_neighbourhoods_supertile_split]
+    exact finite_neighbourhoods_decomposeIter_mono τ k hCsub
+  let F : Patch P :=
+    { tiles := τ.decomposeIter k C
+      finite := hdescFin
+      disjoint := by
+        intro B hB E hE hBE
+        exact Crowns.supertile_disjoint τ n p (hdescSub hB) (hdescSub hE) hBE }
+  have hNdesc : N ⊆ τ.decomposeIter k C := by
+    intro B hB
+    apply Patch.mem_of_carrier_subset_union F B
+    · intro E hE hEB
+      exact Crowns.supertile_disjoint τ n p (hNsub hB) (hdescSub hE) hEB.symm
+    · intro x hx
+      apply hsupport
+      simp only [support, Set.mem_iUnion]
+      exact ⟨B, hB, hx⟩
+  let u : Pt := τ.θ ^ k • v
+  let K := translateSet (-v) C
+  let S' := translateSet (-u) N
+  let A' := A.translate (-u)
+  have hK : τ.IsAllowedCrown K := ⟨m, p, v, hv, rfl⟩
+  have hS' : S' ⊆ τ.decomposeIter k K := by
+    rw [finite_neighbourhoods_decomposeIter_translate]
+    intro B hB
+    rcases hB with ⟨B₀, hB₀, rfl⟩
+    refine ⟨B₀, hNdesc hB₀, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · dsimp [u]
+      simp only [PlacedTile.translate, vadd_eq_add, smul_neg]
+  have hA'N : A' ∈ S' := by
+    exact ⟨A, finite_neighbourhoods_self_mem hA, rfl⟩
+  refine ⟨K, hK, S', hS', A', hA'N, ?_⟩
+  apply Prod.ext
+  · rfl
+  · dsimp [A', S', u]
+    change translateSet (-A.anchor) N =
+      translateSet (-(A.translate (-(τ.θ ^ k • v))).anchor)
+        (translateSet (-(τ.θ ^ k • v)) N)
+    rw [finite_neighbourhoods_translateSet_add]
+    congr 1
+    simp [PlacedTile.translate]
 
 /-- `lem:finite-neighbourhoods`: under FLC there are finitely many tile
 neighbourhoods in supertiles, up to translation. -/

@@ -3324,7 +3324,17 @@ theorem distanceToReflexBoundaryRay_ge (q a b : Pt) (ha : ‖a‖ = 1) (hb : ‖
     {t μ : ℝ} (ht : 0 < t) (hμ0 : 0 < μ) (hμ : μ ≤ Real.pi / 2)
     (hβ : μ ≤ InnerProductGeometry.angle a b) :
     t * Real.sin μ ≤ infDist (q + t • a) ((fun s : ℝ => q + s • b) '' Ici 0) := by
-  sorry
+  rw [distanceToReflexBoundaryRay q a b ha hb ht]
+  split_ifs with h
+  · gcongr
+    apply Real.strictMonoOn_sin.monotoneOn
+    · exact ⟨by have := Real.pi_pos; linarith, hμ⟩
+    · exact ⟨by have := Real.pi_pos; linarith, h⟩
+    · exact hβ
+  · have h1 : Real.sin μ ≤ 1 := Real.sin_le_one μ
+    calc
+      t * Real.sin μ ≤ t * 1 := by gcongr
+      _ = t := mul_one t
 
 /-! ## `lem:relative-crown-ball` -/
 

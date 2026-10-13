@@ -2853,7 +2853,16 @@ variable (τ)
 
 /-- Under FLC there are finitely many clones. -/
 theorem GenuineCornerClone.finite_of_flc (h : τ.FLC) : Finite (GenuineCornerClone τ) := by
-  sorry
+  have h_fin : (realizedContexts τ).Finite := finite_neighbourhoods τ h
+  haveI : Finite (realizedContexts τ) := h_fin.to_subtype
+  exact Finite.of_injective (fun c => (⟨(c.form, c.context), c.realized⟩ : realizedContexts τ))
+    (fun c₁ c₂ h_eq => by
+      cases c₁
+      cases c₂
+      simp only [Subtype.mk.injEq, Prod.mk.injEq] at h_eq
+      rcases h_eq with ⟨h1, h2⟩
+      subst h1 h2
+      rfl)
 
 /-- Every form has its singleton (order-zero) clone. -/
 theorem exists_clone_of_form (p : P.Form) : ∃ c : GenuineCornerClone τ, c.form = p := by

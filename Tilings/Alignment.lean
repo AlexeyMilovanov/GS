@@ -1314,7 +1314,35 @@ private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts_ste
     {P : Protoset} {τ : Substitution P} (G : GroupedFamily P)
     (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (G.dissect α).tiles))
     (A : PlacedTile G.P') : SideToSideSet (G.scatterTile A) := by
-  sorry
+  change SideToSideSet (translateSet A.anchor (G.dissect A.form).tiles)
+  have hsts : SideToSideSet (G.dissect A.form).tiles := by
+    simpa [Substitution.decomposeIter] using hΔ A.form 0
+  intro X hX Y hY i j hXY
+  rcases hX with ⟨X₀, hX₀, rfl⟩
+  rcases hY with ⟨Y₀, hY₀, rfl⟩
+  have hsideX : (X₀.translate A.anchor).side i = A.anchor +ᵥ X₀.side i := by
+    change (A.anchor +ᵥ X₀.anchor) +ᵥ (P.disk X₀.form).side i =
+      A.anchor +ᵥ (X₀.anchor +ᵥ (P.disk X₀.form).side i)
+    rw [vadd_vadd]
+    simp only [vadd_eq_add]
+  have hsideY : (Y₀.translate A.anchor).side j = A.anchor +ᵥ Y₀.side j := by
+    change (A.anchor +ᵥ Y₀.anchor) +ᵥ (P.disk Y₀.form).side j =
+      A.anchor +ᵥ (Y₀.anchor +ᵥ (P.disk Y₀.form).side j)
+    rw [vadd_vadd]
+    simp only [vadd_eq_add]
+  have hXY' : OverlapPos (X₀.side i) (Y₀.side j) := by
+    obtain ⟨x, y, hxy, hseg⟩ := hXY
+    refine ⟨-A.anchor +ᵥ x, -A.anchor +ᵥ y, ?_, ?_⟩
+    · simpa using hxy
+    · rw [hsideX, hsideY] at hseg
+      rw [← vadd_segment]
+      rintro z ⟨w, hw, rfl⟩
+      exact ⟨by simpa [Set.mem_vadd_set_iff_neg_vadd_mem, add_assoc] using (hseg hw).1,
+        by simpa [Set.mem_vadd_set_iff_neg_vadd_mem, add_assoc] using (hseg hw).2⟩
+  have hEq := hsts X₀ hX₀ Y₀ hY₀ i j hXY'
+  change (X₀.translate A.anchor).side i = (Y₀.translate A.anchor).side j
+  rw [hsideX, hsideY]
+  exact congrArg (fun s : Set Pt => A.anchor +ᵥ s) hEq
 
 /-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts_step2_dissect_sts`:
 for distinct projected parents in a proper decorated tiling, any positively overlapping

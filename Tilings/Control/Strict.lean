@@ -1555,6 +1555,16 @@ private lemma strictLegal_properties_step4_boundary (B A : StrictDecTile C hC)
   have h_inner := hc.2 hp
   exact h_inner.2.2.2.2.2.2.1 h_bound
 
+/-- Step 1 of the blueprint proof of `strictLegal_properties_step5_path`: paths are invariant under form casting. -/
+private lemma strictLegal_properties_step5_path_step1_cast_path
+    {P : Protoset} {τ : Substitution P} {m : ℕ}
+    (C : MacroCertificate P) (hC : C.Represents τ m)
+    {F1 F2 : C.Q.Form} (h : F1 = F2) (d : Fin (C.Q.disk F1).n) (j : Fin 5) (occ : C.SideOcc) :
+    occ ∈ C.path F1 d j ↔ occ ∈ C.path F2 (cast (congrArg (fun F => Fin (C.Q.disk F).n) h) d) j := by
+  have _ := hC
+  subst h
+  rfl
+
 /-- Step 5 of the blueprint proof of `strictLegal_properties`: copied third cells on one path
 of a generated child all come from the same parent cell. -/
 private lemma strictLegal_properties_step5_path (B A : StrictDecTile C hC)
@@ -1564,7 +1574,30 @@ private lemma strictLegal_properties_step5_path (B A : StrictDecTile C hC)
       C.occ A.typ i' ∈ C.path (C.owner A.typ) d j →
       ¬ C.IsPrint (C.occ A.typ i) → ¬ C.IsPrint (C.occ A.typ i') →
       A.cell i 2 = A.cell i' 2 := by
-  sorry
+  dsimp [IsStrictChildOf] at hBA
+  intro d j i i' hi hi' hnp hnp'
+  have hd_eq := hBA.1
+  let d' : Fin (C.Q.disk (C.form B.typ)).n :=
+    cast (congrArg (fun F => Fin (C.Q.disk F).n) hd_eq) d
+  have hchild_i : ∀ k, A.cell i k = (strictChild C hC B A.typ).cell i k := by
+    intro k
+    obtain ⟨t, col⟩ := A
+    injection hBA.2 with _ hcol
+    exact congrFun (congrFun hcol i) k
+  have hchild_i' : ∀ k, A.cell i' k = (strictChild C hC B A.typ).cell i' k := by
+    intro k
+    obtain ⟨t, col⟩ := A
+    injection hBA.2 with _ hcol
+    exact congrFun (congrFun hcol i') k
+  have hi_cast : C.occ A.typ i ∈ C.path (C.form B.typ) d' j := by
+    rwa [← strictLegal_properties_step5_path_step1_cast_path C hC hd_eq d j]
+  have hi'_cast : C.occ A.typ i' ∈ C.path (C.form B.typ) d' j := by
+    rwa [← strictLegal_properties_step5_path_step1_cast_path C hC hd_eq d j]
+  have h1 : A.cell i 2 = B.cell d' j :=
+    (hchild_i 2).trans (((strictChild_cells C hC B A.typ hBA.1 i).2 hnp).2.2.2.1 d' j hi_cast)
+  have h2 : A.cell i' 2 = B.cell d' j :=
+    (hchild_i' 2).trans (((strictChild_cells C hC B A.typ hBA.1 i').2 hnp').2.2.2.1 d' j hi'_cast)
+  exact h1.trans h2.symm
 
 /-- `lem:comp/legal-properties` (strict variant): a legal tile has a legal parent, is strictly
 normal (in particular every outer fourth cell is its schedule tag, fixed by the type) and

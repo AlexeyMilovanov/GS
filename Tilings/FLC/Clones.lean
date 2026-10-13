@@ -1412,6 +1412,117 @@ private lemma coarse_simple_step2_step1_step1_mem_block (i : Fin D.genuineCount)
       rw [hnext_s] at hsq
       exact (clones_finRotate_sq_ne D.three_le _ hsq.symm).elim
 
+private lemma coarse_simple_step2_step1_step2_block_unique_aux
+    (i i' : Fin D.genuineCount) (r r' : ℕ) (k : Fin D.n)
+    (hii : i < i')
+    (hr : r < coarseLength D i) (hr' : r' < coarseLength D i')
+    (hk : k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 r)
+    (hk' : k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i').1 r') :
+    False := by
+  letI : NeZero D.genuineCount :=
+    ⟨by have := D.three_le_genuineCount; omega⟩
+  let hn : 0 < D.n := by have := D.three_le; omega
+  have hilast : i ≠ -1 := by
+    intro h
+    rw [h] at hii
+    have hi' := i'.isLt
+    rw [Fin.lt_def] at hii
+    rw [clones_fin_neg_one_val (by have := D.three_le_genuineCount; omega)] at hii
+    omega
+  have hi_next : i < finRotate D.genuineCount i :=
+    (lt_finRotate_iff_ne_neg_one i).2 hilast
+  have hnext_le : finRotate D.genuineCount i ≤ i' := by
+    apply Fin.le_iff_val_le_val.mpr
+    have hrot := clones_coe_finRotate_of_ne_neg_one
+      (by have := D.three_le_genuineCount; omega) i hilast
+    rw [hrot]
+    omega
+  have hab : (D.genuineEnum i).1 <
+      (D.genuineEnum (finRotate D.genuineCount i)).1 :=
+    D.genuineEnum.lt_iff_lt.mpr hi_next
+  have hr_dist : r < cyclicDist (D.genuineEnum i).1
+      (D.genuineEnum (finRotate D.genuineCount i)).1 := by
+    simpa [coarseLength] using hr
+  have hk_lower : (D.genuineEnum i).1 ≤ k := by
+    rw [hk]
+    by_cases hr0 : r = 0
+    · subst r
+      rw [cyclicIndex_zero hn]
+    · have hbetween := cyclicIndex_between hn hab (Nat.pos_of_ne_zero hr0) hr_dist
+      exact hbetween.1.le
+  have hk_upper : k < (D.genuineEnum (finRotate D.genuineCount i)).1 := by
+    rw [hk]
+    by_cases hr0 : r = 0
+    · subst r
+      rw [cyclicIndex_zero hn]
+      exact hab
+    · exact (cyclicIndex_between hn hab (Nat.pos_of_ne_zero hr0) hr_dist).2
+  have hb_le_a' : (D.genuineEnum (finRotate D.genuineCount i)).1 ≤
+      (D.genuineEnum i').1 := D.genuineEnum.monotone hnext_le
+  have hk_upper' : k < (D.genuineEnum i').1 := hk_upper.trans_le hb_le_a'
+  have hk'_eq : k = cyclicIndex hn (D.genuineEnum i').1 r' := by
+    simpa [hn] using hk'
+  by_cases hi_last : i' = -1
+  · have hrot_last : finRotate D.genuineCount i' = 0 := by
+      rw [hi_last]
+      exact clones_finRotate_neg_one
+        (by have := D.three_le_genuineCount; omega)
+    have hca : (D.genuineEnum (finRotate D.genuineCount i')).1 <
+        (D.genuineEnum i').1 := by
+      apply D.genuineEnum.lt_iff_lt.mpr
+      rw [hrot_last, hi_last]
+      rw [Fin.lt_def]
+      rw [clones_fin_neg_one_val (by have := D.three_le_genuineCount; omega)]
+      change 0 < D.genuineCount - 1
+      have := D.three_le_genuineCount
+      omega
+    have hca' : (D.genuineEnum (finRotate D.genuineCount i')).1 ≤
+        (D.genuineEnum i).1 := by
+      apply D.genuineEnum.monotone
+      rw [hrot_last]
+      exact Fin.zero_le _
+    have hr'_dist : r' < cyclicDist (D.genuineEnum i').1
+        (D.genuineEnum (finRotate D.genuineCount i')).1 := by
+      simpa [coarseLength] using hr'
+    by_cases hr'0 : r' = 0
+    · subst r'
+      have hkk : k = (D.genuineEnum i').1 := by
+        calc
+          k = cyclicIndex hn (D.genuineEnum i').1 0 := hk'_eq
+          _ = (D.genuineEnum i').1 := cyclicIndex_zero hn _
+      exact lt_irrefl _ (hkk ▸ hk_upper')
+    · have hwrap := cyclicIndex_between_wrap hn hca (Nat.pos_of_ne_zero hr'0) hr'_dist
+      rw [hrot_last] at hwrap
+      rcases hwrap with hbig | hsmall
+      · rw [← hk'_eq] at hbig
+        exact lt_irrefl _ (hbig.trans hk_upper')
+      · rw [← hk'_eq] at hsmall
+        have hca0 : (D.genuineEnum (0 : Fin D.genuineCount)).1 ≤
+            (D.genuineEnum i).1 := by
+          rw [hrot_last] at hca'
+          exact hca'
+        exact lt_irrefl _ (hsmall.trans_le (hca0.trans hk_lower))
+  · have hi'_next : i' < finRotate D.genuineCount i' :=
+      (lt_finRotate_iff_ne_neg_one i').2 hi_last
+    have hbc : (D.genuineEnum i').1 <
+        (D.genuineEnum (finRotate D.genuineCount i')).1 := by
+      apply D.genuineEnum.lt_iff_lt.mpr
+      exact hi'_next
+    have hr'_dist : r' < cyclicDist (D.genuineEnum i').1
+        (D.genuineEnum (finRotate D.genuineCount i')).1 := by
+      simpa [coarseLength] using hr'
+    by_cases hr'0 : r' = 0
+    · subst r'
+      have hkk : k = (D.genuineEnum i').1 := by
+        calc
+          k = cyclicIndex hn (D.genuineEnum i').1 0 := hk'_eq
+          _ = (D.genuineEnum i').1 := cyclicIndex_zero hn _
+      exact lt_irrefl _ (hkk ▸ hk_upper')
+    · have hbetween := cyclicIndex_between hn hbc (Nat.pos_of_ne_zero hr'0) hr'_dist
+      have hkle := hbetween.1
+      rw [← hk'_eq] at hkle
+      exact (not_lt_of_ge hk_upper'.le) hkle
+
 /-- Step 2 of the blueprint proof of `coarse_simple_step2_step1`: The coarse block (given by a
 genuine index `i` and an offset `r` below the block's length) containing a fine index `k` in its
 chain walk is unique. -/
@@ -1421,7 +1532,12 @@ private lemma coarse_simple_step2_step1_step2_block_unique
     (hk : k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 r)
     (hk' : k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i').1 r') :
     i = i' := by
-  sorry
+  by_contra hne
+  rcases lt_or_gt_of_ne hne with hii | hii
+  · exact (coarse_simple_step2_step1_step2_block_unique_aux D i i' r r' k hii
+      hr hr' hk hk').elim
+  · exact (coarse_simple_step2_step1_step2_block_unique_aux D i' i r' r k hii
+      hr' hr hk' hk).elim
 
 /-- Step 1 of the blueprint proof of `coarse_simple_step2`: The fine segments `k1` and `k2` must be distinct. -/
 private lemma coarse_simple_step2_step1 (i j : Fin D.genuineCount) (hij : i ≠ j)

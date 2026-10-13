@@ -3302,13 +3302,68 @@ def cloneDecoration (h : τ.FLC) : Decoration P where
 
 /-! ## `lem:clone-sts` -/
 
+private theorem refinedSubstitution_commutes_translateSet_eq {P : Protoset}
+    (v : Pt) (S : Set (PlacedTile P)) :
+    translateSet v S = (fun A => A.translate v) '' S := rfl
+
+private theorem refinedSubstitution_commutes_translate_zero_pt {P : Protoset}
+    (A : PlacedTile P) : A.translate 0 = A := by
+  change ⟨A.form, (0:Pt) +ᵥ A.anchor⟩ = A
+  rw [zero_vadd Pt A.anchor]
+
 /-- `lem:clone-sts` (commutation): the clone substitution commutes with
 forgetting labels. -/
 theorem refinedSubstitution_commutes (h : τ.FLC)
     (S : Set (PlacedTile (cloneProtoset τ h))) :
     (cloneDecoration τ h).projTile '' ((refinedSubstitution τ h).decompose S) =
       τ.decompose ((cloneDecoration τ h).projTile '' S) := by
-  sorry
+  ext B
+  simp only [Substitution.decompose, mem_image, mem_iUnion, exists_prop]
+  constructor
+  · rintro ⟨X, ⟨A, hA_S, hX_decA⟩, rfl⟩
+    simp only [Substitution.decomposeTile, refinedSubstitution_commutes_translateSet_eq,
+      refinedSubstitution, mem_image] at hX_decA
+    rcases hX_decA with ⟨Y, hY_rule, rfl⟩
+    simp only [refinedRule, mem_setOf_eq] at hY_rule
+    rcases hY_rule with ⟨B', hB'_dec, rfl⟩
+    simp only [Substitution.decomposeTile, refinedSubstitution_commutes_translateSet_eq,
+      smul_zero, mem_image] at hB'_dec
+    rcases hB'_dec with ⟨B'', hB''_rule, hB'_eq⟩
+    use (cloneDecoration τ h).projTile A
+    constructor
+    · exact ⟨A, hA_S, rfl⟩
+    · simp only [Substitution.decomposeTile, refinedSubstitution_commutes_translateSet_eq,
+        mem_image]
+      use B''
+      constructor
+      · exact hB''_rule
+      · simp only [Decoration.projTile, cloneDecoration, PlacedTile.translate, childClone]
+        subst hB'_eq
+        rw [refinedSubstitution_commutes_translate_zero_pt]
+  · rintro ⟨A_proj, ⟨A, hA_S, rfl⟩, hB_dec⟩
+    simp only [Substitution.decomposeTile, refinedSubstitution_commutes_translateSet_eq,
+      mem_image] at hB_dec
+    rcases hB_dec with ⟨B'', hB''_rule, rfl⟩
+    have hB'_dec : B'' ∈ τ.decomposeTile ⟨A.form.form, 0⟩ := by
+      simp only [Substitution.decomposeTile, refinedSubstitution_commutes_translateSet_eq,
+        smul_zero, mem_image]
+      use B''
+      exact ⟨hB''_rule, refinedSubstitution_commutes_translate_zero_pt B''⟩
+    use (⟨childClone τ A.form B'' hB'_dec, B''.anchor⟩ :
+      PlacedTile (cloneProtoset τ h)).translate (τ.θ • A.anchor)
+    constructor
+    · use A
+      constructor
+      · exact hA_S
+      · simp only [Substitution.decomposeTile, refinedSubstitution_commutes_translateSet_eq,
+          mem_image, refinedSubstitution]
+        use ⟨childClone τ A.form B'' hB'_dec, B''.anchor⟩
+        constructor
+        · simp only [refinedRule, mem_setOf_eq]
+          use B''
+          exact ⟨hB'_dec, rfl⟩
+        · rfl
+    · rfl
 
 /-- Auxiliary: translation commutes with `frontier` on the plane. -/
 private lemma refinedSubstitution_sts_step1_visible_vertices_aux_frontier_vadd

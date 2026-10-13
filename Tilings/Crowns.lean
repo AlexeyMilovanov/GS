@@ -3811,7 +3811,25 @@ private lemma uniformCrownCoverPlane_step1_close_step2_subset_ball {S H : Set Pt
     (hS_bound : Bornology.IsBounded S) (hS_diam : diam S < d / 2)
     (hH : H = closedConvexHull ℝ S) (hx : ∃ x ∈ H, dist x v < d / 2) :
     S ⊆ ball v d := by
-  sorry
+  rcases hx with ⟨x, hxH, hxv⟩
+  have hH_bound : Bornology.IsBounded H := by
+    rw [hH, closedConvexHull_eq_closure_convexHull]
+    exact (isBounded_convexHull.mpr hS_bound).closure
+  have hdist : ∀ s ∈ S, dist s x ≤ diam S := by
+    intro s hs
+    have hsH : s ∈ H := by
+      rw [hH]
+      exact (subset_closedConvexHull (𝕜 := ℝ) hs)
+    have hdist' := Metric.dist_le_diam_of_mem hH_bound hsH hxH
+    rw [hH, closedConvexHullDiameter] at hdist'
+    exact hdist'
+  intro s hs
+  rw [mem_ball]
+  have hsx : dist s x < d / 2 := (hdist s hs).trans_lt hS_diam
+  calc
+    dist s v ≤ dist s x + dist x v := dist_triangle _ _ _
+    _ < d / 2 + d / 2 := add_lt_add hsx hxv
+    _ = d := by ring
 
 /-- Step 1 of the blueprint proof of `uniformCrownCoverPlane`: If `H` (the closed convex
 hull of `S`) comes within `d/2` of a tile vertex `v`, and `diam S < d/2`, then all of `H`

@@ -3682,6 +3682,24 @@ private lemma quantitativeAnnularGrouping_step3_wedges {M : MeshConstants P} {S 
     x ∈ idealTrapezoid c N R M.D (j : ℕ) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_step4_tubes`: clipping.
+Blueprint: "If `x` lies in one of the tubes, clip its nearest radial-line point to the segment
+between infinity norms `A` and `h`.  The clipping moves it by at most `5√2 D`.  Its distance to
+the corresponding boundary segment of `T_j` is therefore less than `(1+√2)5D < 13D`."  For a
+single extended radial segment, through the `k`-th position `v_k` of `∂Q₀` (`k ≤ 4N`): a point
+of the square of half side `(N:ℝ)*R/2 + R + 3*D` about `c`, outside the interior of the square
+of half side `(N:ℝ)*R/2` about `c`, within `5D` of that extended radial segment, is within `13D`
+of some point `c + μ • v_k` with `μ` in the ideal range `[1, h/A]`
+(`A = (N:ℝ)*R/2`, `h = A + R + 3*D`). -/
+private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip (c : Pt) {N : ℕ} {R D : ℝ}
+    (hD : 0 < D) (hN : 2 ≤ N) (hR : 1000 * D ≤ R) (k : ℕ) (hk : k ≤ 4 * N) {x : Pt}
+    (hx : x ∈ square c ((N : ℝ) * R / 2 + R + 3 * D))
+    (hx' : x ∉ interior (square c ((N : ℝ) * R / 2)))
+    (hxr : x ∈ Metric.cthickening (5 * D) (existsAnnularSpokes_ray c N R D k)) :
+    ∃ μ ∈ Icc (1 : ℝ) (((N : ℝ) * R / 2 + R + 3 * D) / ((N : ℝ) * R / 2)),
+      dist x (c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) ((k : ℝ) * R)) ≤ 13 * D := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping`: localization in the tubes.
 Blueprint: "If `x` lies in one of the tubes, clip its nearest radial-line point to the segment
 between infinity norms `A` and `h`.  The clipping moves it by at most `5√2 D`.  Its distance to
@@ -3695,7 +3713,20 @@ private lemma quantitativeAnnularGrouping_step4_tubes (c : Pt) {N : ℕ} {R D : 
     (ht : x ∈ Metric.cthickening (5 * D) (existsAnnularSpokes_ray c N R D j) ∨
       x ∈ Metric.cthickening (5 * D) (existsAnnularSpokes_ray c N R D ((j : ℕ) + 1))) :
     x ∈ Metric.cthickening (13 * D) (idealTrapezoid c N R D (j : ℕ)) := by
-  sorry
+  have hR0 : 0 < R := by linarith
+  rcases ht with ht | ht
+  · obtain ⟨μ, hμ, hdist⟩ := quantitativeAnnularGrouping_step4_tubes_step1_clip c hD hN hR
+      (j : ℕ) (by have := j.isLt; omega) hx hx' ht
+    refine Metric.mem_cthickening_of_dist_le x
+      (c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R)) (13 * D) _ ?_ hdist
+    exact ⟨((j : ℕ) : ℝ) * R, ⟨le_refl _, by nlinarith⟩, μ, hμ, rfl⟩
+  · obtain ⟨μ, hμ, hdist⟩ := quantitativeAnnularGrouping_step4_tubes_step1_clip c hD hN hR
+      ((j : ℕ) + 1) (by have := j.isLt; omega) hx hx' ht
+    refine Metric.mem_cthickening_of_dist_le x
+      (c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) ((((j : ℕ) + 1 : ℕ) : ℝ) * R)) (13 * D) _
+      ?_ hdist
+    refine ⟨(((j : ℕ) + 1 : ℕ) : ℝ) * R, ⟨by push_cast; nlinarith, by push_cast; nlinarith⟩, μ,
+      hμ, rfl⟩
 
 /-- Step 5 of the blueprint proof of `quantitativeAnnularGrouping`: private outer edges along the
 middle half of the outer side of `T_j`.  Blueprint: "Take the middle half `J` of the outer edge

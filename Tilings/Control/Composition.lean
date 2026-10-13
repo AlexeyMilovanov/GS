@@ -663,6 +663,39 @@ private lemma reconstructed_noncentral_legal_step2_parent {P : Protoset}
     (hch_end : ch n = E_anc) (hch_cent : ∀ i < n, c.IsCentral (ch i).typ) :
     ∃ E, headerLegal c E ∧ ¬ c.IsCentral E.typ ∧ IsChildOf c E K.centre := by sorry
 
+/-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: The parents `E,D`
+have the same form. -/
+private lemma reconstructed_noncentral_legal_step3_eq_step1_form {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
+    (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
+    (hE_child : IsChildOf c E K.centre) :
+    c.form E.typ = c.form h.1 := by sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: E and D types agree. -/
+private lemma reconstructed_noncentral_legal_step3_eq_step2_type {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
+    (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
+    (hE_child : IsChildOf c E K.centre)
+    (h_form : c.form E.typ = c.form h.1) :
+    E.typ = h.1 := by sorry
+
+/-- Step 3 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: E and D agree. -/
+private lemma reconstructed_noncentral_legal_step3_eq_step3_eq {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
+    (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
+    (hE_child : IsChildOf c E K.centre)
+    (h_type : E.typ = h.1) :
+    E = reconstruct c K h.1 := by sorry
+
 /-- Step 3 of the blueprint proof of `reconstructed_noncentral_legal`: The parents `E,D`
 have the same form. ... Hence `E=D`, and `D` is legal. -/
 private lemma reconstructed_noncentral_legal_step3_eq {P : Protoset}
@@ -672,7 +705,10 @@ private lemma reconstructed_noncentral_legal_step3_eq {P : Protoset}
     (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
     (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
     (hE_child : IsChildOf c E K.centre) :
-    E = reconstruct c K h.1 := by sorry
+    E = reconstruct c K h.1 := by
+  have h1 := reconstructed_noncentral_legal_step3_eq_step1_form c hH K hK h hh hA hnc E hE_leg hE_nc hE_child
+  have h2 := reconstructed_noncentral_legal_step3_eq_step2_type c hH K hK h hh hA hnc E hE_leg hE_nc hE_child h1
+  exact reconstructed_noncentral_legal_step3_eq_step3_eq c hH K hK h hh hA hnc E hE_leg hE_nc hE_child h2
 
 /-- `lem:comp/noncentral-legal`: if the centre `A` is legal and `t` is
 noncentral, then `D` is legal. -/

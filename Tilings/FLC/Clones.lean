@@ -1022,7 +1022,129 @@ private lemma coarse_simple_step1_step1 (i : Fin D.genuineCount) (k : Fin D.n)
       x ≠ D.coarseVertex i ∧ x ≠ D.coarseVertex (finRotate D.genuineCount i)) :
     segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆ 
       segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
-  sorry
+  obtain ⟨x, hxk, hxi, hxi0, hxi1⟩ := h_int
+  have hchain := chain_segment_subset (w := coarseWalk D i) (a := 0)
+    (coarseLength_pos D i) (fun t ht => by
+      simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+  simp only [Nat.zero_add] at hchain
+  rw [coarseWalk_zero, coarseWalk_end] at hchain
+  rcases Set.mem_iUnion.mp (hchain hxi) with ⟨r, hr⟩
+  rcases Set.mem_iUnion.mp hr with ⟨hrm, hxr⟩
+  change r < coarseLength D i at hrm
+  let hn : 0 < D.n := by have := D.three_le; omega
+  let s := cyclicIndex hn (D.genuineEnum i).1 r
+  have hstep := coarseWalk_succ D i r
+  have hxr' : x ∈ segment ℝ (D.vertex s) (D.vertex (finRotate D.n s)) := by
+    rw [hstep] at hxr
+    simpa only [coarseWalk, s] using hxr
+  by_cases hks : k = s
+  · subst k
+    have hsub := chain_side_subset (w := coarseWalk D i) (a := 0) (r := r)
+      (coarseLength_pos D i) hrm (fun t ht => by
+        simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+    simp only [Nat.zero_add] at hsub
+    rw [coarseWalk_zero, coarseWalk_end] at hsub
+    have hbase : coarseWalk D i r = D.vertex s := by
+      simp only [coarseWalk, s]
+    rw [hbase, hstep] at hsub
+    exact hsub
+  have hmem := D.simple k s hks ⟨hxk, hxr'⟩
+  simp only [Set.mem_inter_iff, Set.mem_insert_iff, Set.mem_singleton_iff] at hmem
+  have hks_cases : k = (finRotate D.n).symm s ∨ k = finRotate D.n s := by
+    rcases hmem.1 with hk0 | hk1
+    · rcases hmem.2 with hs0 | hs1
+      · exfalso
+        apply hks
+        exact D.vertex_injective (hk0.symm.trans hs0)
+      · exact Or.inr (D.vertex_injective (hk0.symm.trans hs1))
+    · rcases hmem.2 with hs0 | hs1
+      · left
+        apply (finRotate D.n).injective
+        simpa using D.vertex_injective (hk1.symm.trans hs0)
+      · exfalso
+        apply hks
+        exact (finRotate D.n).injective (D.vertex_injective (hk1.symm.trans hs1))
+  rcases hks_cases with hkprev | hknext
+  · have hx0 : x = D.vertex s := by
+      rcases hmem.1 with hk0 | hk1
+      · rcases hmem.2 with hs0 | hs1
+        · exact (hks (D.vertex_injective (hk0.symm.trans hs0))).elim
+        · exfalso
+          apply clones_finRotate_sq_ne D.three_le s
+          have heq := D.vertex_injective (hk0.symm.trans hs1)
+          have heq' := congrArg (finRotate D.n) (hkprev.symm.trans heq)
+          simpa using heq'.symm
+      · rcases hmem.2 with hs0 | hs1
+        · exact hs0
+        · exfalso
+          apply hks
+          exact (finRotate D.n).injective (D.vertex_injective (hk1.symm.trans hs1))
+    have hr0 : r ≠ 0 := by
+      intro hr0
+      apply hxi0
+      calc
+        x = D.vertex s := hx0
+        _ = coarseWalk D i r := by simp only [coarseWalk, s]
+        _ = coarseWalk D i 0 := by rw [hr0]
+        _ = D.coarseVertex i := coarseWalk_zero D i
+    have hsub := chain_side_subset (w := coarseWalk D i) (a := 0) (r := r - 1)
+      (coarseLength_pos D i) (by omega) (fun t ht => by
+        simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+    simp only [Nat.zero_add] at hsub
+    rw [coarseWalk_zero, coarseWalk_end] at hsub
+    have hcyc : cyclicIndex hn (D.genuineEnum i).1 (r - 1) =
+        (finRotate D.n).symm s := by
+      have hsucc := cyclicIndex_succ hn (D.genuineEnum i).1 (r - 1)
+      rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero hr0)] at hsucc
+      apply (finRotate D.n).injective
+      simpa [s] using hsucc.symm
+    have hleft : coarseWalk D i (r - 1) = D.vertex k := by
+      simp [coarseWalk, s, hcyc, hkprev]
+    have hright : coarseWalk D i (r - 1 + 1) =
+        D.vertex (finRotate D.n k) := by
+      rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero hr0)]
+      simp [coarseWalk, s, hkprev]
+    rw [hleft, hright] at hsub
+    exact hsub
+  · have hx1 : x = D.vertex (finRotate D.n s) := by
+      rcases hmem.1 with hk0 | hk1
+      · rcases hmem.2 with hs0 | hs1
+        · exfalso
+          apply hks
+          exact D.vertex_injective (hk0.symm.trans hs0)
+        · exact hs1
+      · rcases hmem.2 with hs0 | hs1
+        · exfalso
+          apply clones_finRotate_sq_ne D.three_le s
+          have heq := D.vertex_injective (hk1.symm.trans hs0)
+          simpa [hknext] using heq
+        · exfalso
+          apply hks
+          exact (finRotate D.n).injective (D.vertex_injective (hk1.symm.trans hs1))
+    have hrm1 : r + 1 ≠ coarseLength D i := by
+      intro heq
+      apply hxi1
+      calc
+        x = D.vertex (finRotate D.n s) := hx1
+        _ = coarseWalk D i (r + 1) := by rw [hstep]
+        _ = coarseWalk D i (coarseLength D i) := by rw [heq]
+        _ = D.coarseVertex (finRotate D.genuineCount i) := coarseWalk_end D i
+    have hsub := chain_side_subset (w := coarseWalk D i) (a := 0) (r := r + 1)
+      (coarseLength_pos D i) (by omega) (fun t ht => by
+        simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+    simp only [Nat.zero_add] at hsub
+    rw [coarseWalk_zero, coarseWalk_end] at hsub
+    have hleft : coarseWalk D i (r + 1) = D.vertex k := by
+      simpa [s, hknext] using hstep
+    have hright : coarseWalk D i (r + 1 + 1) =
+        D.vertex (finRotate D.n k) := by
+      have hstep2 := coarseWalk_succ D i (r + 1)
+      have hsucc := cyclicIndex_succ hn (D.genuineEnum i).1 r
+      rw [show r + 1 + 1 = (r + 1) + 1 by omega] at hstep2
+      rw [hsucc] at hstep2
+      simpa [s, hknext] using hstep2
+    rw [hleft, hright] at hsub
+    exact hsub
 
 /-- Step 1.2 of the blueprint proof of `coarse_simple_step1`: The endpoints of a coarse segment belong to some fine segment contained in that coarse segment. -/
 private lemma coarse_simple_step1_step2 (i : Fin D.genuineCount) (x : Pt)

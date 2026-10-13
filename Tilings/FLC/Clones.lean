@@ -4751,7 +4751,11 @@ to occurrences. -/
 private lemma substitution_clone_lift_iff_step1_proj_is_subst_step3_occurs_proj {τ : Substitution P} (h : τ.FLC)
     (F' S' : Set (PlacedTile (cloneProtoset τ h))) (h_occ : OccursIn F' S') :
     OccursIn ((cloneDecoration τ h).projTile '' F') ((cloneDecoration τ h).projTile '' S') := by
-  sorry
+  rcases h_occ with ⟨v, hv⟩
+  refine ⟨v, ?_⟩
+  rintro _ ⟨_, ⟨A', hA', rfl⟩, rfl⟩
+  refine ⟨A'.translate v, hv ?_, rfl⟩
+  exact ⟨A', hA', rfl⟩
 
 /-- Step 1 of the blueprint proof of `substitution_clone_lift_iff`: projection of a
 refined-substitution tiling is a substitution tiling (one direction of the iff). -/

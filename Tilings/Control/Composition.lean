@@ -182,6 +182,36 @@ private lemma boundary_side_of_outer_side_step1_inner (c : MacroCertificate P) (
     ∃ j : c.Side t, c.IsInner (c.occ t j) :=
   c.g1_inner_side t
 
+/-- A cyclic index permutation has no fixed point when there are at least two
+indices. -/
+private theorem boundary_side_of_outer_side_step2_transition_finRotate_ne_self
+    {N : ℕ} (hN : 2 ≤ N) (x : Fin N) : finRotate N x ≠ x := by
+  obtain ⟨k, rfl⟩ : ∃ k, N = k + 1 + 1 := ⟨N - 2, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have := congrArg (· - x) h
+  simp at this
+
+/-- The cyclic predicate transition used in Step 2: a predicate holding at one
+index and failing at another changes from true to false at some successor. -/
+private theorem boundary_side_of_outer_side_step2_transition_exists_rotate_transition
+    {N : ℕ} (hN : 2 ≤ N) (p : Fin N → Prop) {i j : Fin N}
+    (hi : p i) (hj : ¬ p j) : ∃ k, p k ∧ ¬ p (finRotate N k) := by
+  obtain ⟨n, rfl⟩ : ∃ n, N = n + 2 := ⟨N - 2, by omega⟩
+  by_contra hcon
+  push_neg at hcon
+  have hall : ∀ r : ℕ, p ((finRotate (n + 2) ^ r) i) := by
+    intro r
+    induction r with
+    | zero => simpa using hi
+    | succ r ih =>
+      rw [pow_succ', Equiv.Perm.mul_apply]
+      exact hcon _ ih
+  obtain ⟨r, hr⟩ := isCycle_finRotate.exists_pow_eq
+    (boundary_side_of_outer_side_step2_transition_finRotate_ne_self (by omega) i)
+    (boundary_side_of_outer_side_step2_transition_finRotate_ne_self (by omega) j)
+  exact hj (hr ▸ hall r)
+
 /-- Step 2 of the blueprint proof of `boundary_side_of_outer_side`: Walk around its
 boundary polygon from an outer side; the first side that is not outer starts at the
 endpoint of the last outer side. This lemma states there is a pair of consecutive
@@ -189,7 +219,9 @@ sides where the first is outer and the second is inner. -/
 private lemma boundary_side_of_outer_side_step2_transition (c : MacroCertificate P) (t : c.Typ)
     (i : c.Side t) (hi : c.IsOuter (c.occ t i)) (j : c.Side t) (hj : c.IsInner (c.occ t j)) :
     ∃ k : c.Side t, c.IsOuter (c.occ t k) ∧ c.IsInner (c.occ t (finRotate _ k)) := by
-  sorry
+  exact boundary_side_of_outer_side_step2_transition_exists_rotate_transition
+    (by have := (c.Q.disk (c.form t)).three_le; omega)
+    (fun k => c.IsOuter (c.occ t k)) hi hj
 
 /-- Step 3 of the blueprint proof of `boundary_side_of_outer_side`: the endpoint of a
 side is the start of the next side. -/

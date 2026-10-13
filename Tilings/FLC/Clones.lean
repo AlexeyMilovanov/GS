@@ -501,7 +501,49 @@ private lemma childContext_realized_step1_shift_step5_translate_eq
 private lemma childContext_realized_step1_shift_step6_neighbourhood_translateSet
     {P : Protoset} (v : Pt) (S : Set (PlacedTile P)) (A : PlacedTile P) :
     neighbourhood (translateSet v S) A = translateSet v (neighbourhood S (A.translate (-v))) := by
-  sorry
+  ext B
+  simp only [neighbourhood, translateSet, Set.mem_setOf_eq, Set.mem_image]
+  constructor
+  · rintro ⟨⟨C, hC_in_S, rfl⟩, h_nonempty⟩
+    refine ⟨C, ⟨hC_in_S, ?_⟩, rfl⟩
+    rcases h_nonempty with ⟨p, hp_A, hp_Cv⟩
+    dsimp [PlacedTile.carrier, PlacedTile.translate] at hp_A hp_Cv ⊢
+    rcases hp_A with ⟨d1, hd1, hp_A_eq⟩
+    rcases hp_Cv with ⟨d2, hd2, hp_Cv_eq⟩
+    use p -ᵥ v
+    constructor
+    · use d1
+      refine ⟨hd1, ?_⟩
+      dsimp
+      rw [←hp_A_eq]
+      change (-v + A.anchor) + d1 = A.anchor + d1 - v
+      abel
+    · use d2
+      refine ⟨hd2, ?_⟩
+      dsimp
+      rw [←hp_Cv_eq]
+      change C.anchor + d2 = (v + C.anchor) + d2 - v
+      abel
+  · rintro ⟨C, ⟨hC_in_S, h_nonempty⟩, rfl⟩
+    refine ⟨⟨C, hC_in_S, rfl⟩, ?_⟩
+    rcases h_nonempty with ⟨p, hp_Av, hp_C⟩
+    dsimp [PlacedTile.carrier, PlacedTile.translate] at hp_Av hp_C ⊢
+    rcases hp_Av with ⟨d1, hd1, hp_Av_eq⟩
+    rcases hp_C with ⟨d2, hd2, hp_C_eq⟩
+    use p +ᵥ v
+    constructor
+    · use d1
+      refine ⟨hd1, ?_⟩
+      dsimp
+      rw [←hp_Av_eq]
+      change A.anchor + d1 = (-v + A.anchor) + d1 + v
+      abel
+    · use d2
+      refine ⟨hd2, ?_⟩
+      dsimp
+      rw [←hp_C_eq]
+      change (v + C.anchor) + d2 = C.anchor + d2 + v
+      abel
 
 /-- Step 1.7 of the blueprint proof of `childContext_realized`: `τ.decompose (neighbourhood S A) = ...` -/
 private lemma childContext_realized_step1_shift_step7_decompose_neighbourhood

@@ -315,6 +315,13 @@ structure MacroCertificate (P : Protoset) extends MacroData P where
   /-- (G1) The partner of the partner is the side itself. -/
   g1_partner_partner : ∀ o : toMacroData.SideOcc, toMacroData.IsInner o →
     partner (partner o) = o
+  /-- (G1, review addition, 13 October 2026) An inner side has exactly two
+  owners in its template: another occurrence of the same geometric side in the
+  same template is the partner (three distinct polygonal children cannot carry
+  one complete side; needed by `lem:comp/signals`, found by codex). -/
+  g1_side_unique : ∀ o o' : toMacroData.SideOcc, toMacroData.IsInner o →
+    owner o'.1 = owner o.1 → o'.1 ≠ o.1 →
+    toMacroData.occSide o' = toMacroData.occSide o → o' = partner o
   /-- (G1) The interface identifier is carried by both incident owners. -/
   g1_edge_partner : ∀ o : toMacroData.SideOcc, toMacroData.IsInner o →
     edge (partner o) = edge o

@@ -1560,7 +1560,47 @@ private lemma reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint_ste
     (hInner : c.IsInner (c.occ h.1 i)) (hNonprint : ¬ c.IsPrint (c.occ h.1 i))
     (o : c.SideOcc) (ho : c.port (c.form h.1) i 0 = some o) (hLeg : headerLegal c (K.tileOf o.1)) :
     K.col o.1 o.2 2 = identU c (c.edge (c.occ h.1 i)) := by
-  sorry
+  have _hK := hK
+  obtain ⟨hOwner, hOuter, -⟩ :=
+    (c.g3_outerList_mem (c.form h.1) i o).1 (List.mem_of_getElem? ho)
+  obtain ⟨ch, hChainZero, hChain, -⟩ := hLeg
+  let C : DecTile c := ch 1
+  have hChild : IsChildOf c C (K.tileOf o.1) := by
+    dsimp [C]
+    rw [← hChainZero]
+    exact hChain 0
+  have hCChild : IsChildOf c (ch 2) C := by
+    exact hChain 1
+  obtain ⟨j, hBoundary⟩ := boundary_side_of_outer_side c hH o.1 o.2 hOuter
+  have hNotPrint : ¬ c.IsPrint (c.occ o.1 j) := fun hp =>
+    headerLegal_properties_step4_boundary_step1_print_not_boundary c _ hp hBoundary
+  have hChild' := hChild
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hChild'
+  have hFromParent : K.col o.1 j 3 = headerU c (headerOf c C) := by
+    change (K.tileOf o.1).cell j 3 = headerU c (headerOf c C)
+    exact ((hChild'.2 j).2 hNotPrint).2.2.2.2.2.2.1 hBoundary
+  have hCommon : K.col o.1 j 3 = headerU c h :=
+    hh.2 o.1 j (hOwner.trans hh.1) hBoundary
+  have hHeader : headerOf c C = h :=
+    HeaderKernel.tagged_header_injective (hFromParent.symm.trans hCommon)
+  have hCType : C.typ = h.1 := congrArg Sigma.fst hHeader
+  have hPath : o ∈ c.path (c.form h.1) i 0 := by
+    by_cases hGenuine : c.IsGenuinePath (c.form h.1) i 0
+    · exact List.mem_of_mem_head? ((c.g4_path_head _ _ _ hGenuine).trans ho)
+    · rw [c.g4_path_trivial _ _ _ hGenuine, ho]
+      simp
+  have hPortNotPrint : ¬ c.IsPrint o := fun hp => asm_print_inner c hp hOuter
+  obtain ⟨tC, colC⟩ := C
+  change tC = h.1 at hCType
+  subst tC
+  have hPathValue : K.col o.1 o.2 2 = colC i 0 := by
+    change (K.tileOf o.1).cell o.2 2 = colC i 0
+    exact ((hChild'.2 o.2).2 hPortNotPrint).2.2.2.1 i 0 hPath
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hCChild
+  have hParentIdentity : colC i 0 = identU c (c.edge (c.occ h.1 i)) := by
+    rw [((hCChild.2 i).2 hNonprint).1]
+    simp [prescribedFirst, hInner]
+  exact hPathValue.trans hParentIdentity
 
 /-- Step 1 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect`: For an inner
 nonprint side `d`, the first cell of `D` is its prescribed identity. -/

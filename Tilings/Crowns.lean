@@ -4848,6 +4848,63 @@ theorem trimmedEdgeTwoTileBall {d : ℝ} (hd : 0 < d) :
 
 /-! ## `lem:exterior-excursion` -/
 
+/-- Step 1 of the blueprint proof of `noShortExteriorExcursion`: a failure of
+convexity produces two distinct points of `H` on the macro boundary whose open
+chord is an exterior excursion. -/
+private theorem noShortExteriorExcursion_step1_excursion
+    (M : MacroPatch P) {H : Set Pt} (hH : Convex ℝ H)
+    (hnconv : ¬ Convex ℝ (H ∩ support M.tiles)) :
+    ∃ E F : Pt, E ∈ H ∧ F ∈ H ∧ E ≠ F ∧
+      E ∈ frontier (support M.tiles) ∧ F ∈ frontier (support M.tiles) ∧
+      openSegment ℝ E F ⊆ (support M.tiles)ᶜ := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `noShortExteriorExcursion`: an exterior
+chord on the finite macro boundary either uses nonadjacent geometric edges or
+crosses the exterior wedge at adjacent edges.  In the latter case the common
+genuine corner is a child vertex and the endpoint angle is at least the root
+separation angle. -/
+private theorem noShortExteriorExcursion_step2_classify
+    (R : RootSeparation P) (M : MacroPatch P) {E F : Pt} (hEF : E ≠ F)
+    (hEfront : E ∈ frontier (support M.tiles))
+    (hFfront : F ∈ frontier (support M.tiles))
+    (hEnv : ∀ v, IsVertexOf M.tiles v → E ≠ v)
+    (hFnv : ∀ v, IsVertexOf M.tiles v → F ≠ v)
+    (hout : openSegment ℝ E F ⊆ (support M.tiles)ᶜ) :
+    (∃ a b a' b' : Pt,
+      (a, b) ∈ geometricMacroBoundary M ∧
+      (a', b') ∈ geometricMacroBoundary M ∧
+      Disjoint ({a, b} : Set Pt) {a', b'} ∧
+      E ∈ segment ℝ a b ∧ F ∈ segment ℝ a' b') ∨
+    (∃ q a b : Pt,
+      (q, a) ∈ geometricMacroBoundary M ∧
+      (q, b) ∈ geometricMacroBoundary M ∧ a ≠ b ∧
+      E ∈ segment ℝ q a ∧ F ∈ segment ℝ q b ∧
+      IsVertexOf M.tiles q ∧ R.μ ≤ EuclideanGeometry.angle E q F) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `noShortExteriorExcursion`: points on
+nonadjacent macro edges are separated by the root constant `λ`. -/
+private theorem noShortExteriorExcursion_step3_nonadjacent
+    (R : RootSeparation P) (M : MacroPatch P) {E F a b a' b' : Pt}
+    (hEedge : (a, b) ∈ geometricMacroBoundary M)
+    (hFedge : (a', b') ∈ geometricMacroBoundary M)
+    (hdisj : Disjoint ({a, b} : Set Pt) {a', b'})
+    (hEseg : E ∈ segment ℝ a b) (hFseg : F ∈ segment ℝ a' b') :
+    R.lam ≤ dist E F := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `noShortExteriorExcursion`: two points
+at distance at least `d/2` from a common vertex and separated by an angle at
+least `μ` are at mutual distance at least `d sin (μ/2)`. -/
+private theorem noShortExteriorExcursion_step4_adjacent_metric
+    {E F q : Pt} {d μ : ℝ} (hd : 0 < d) (hμ : 0 < μ)
+    (hμπ : μ ≤ Real.pi / 2) (hE : d / 2 ≤ dist E q)
+    (hF : d / 2 ≤ dist F q)
+    (hangle : μ ≤ EuclideanGeometry.angle E q F) :
+    d * Real.sin (μ / 2) ≤ dist E F := by
+  sorry
+
 /-- `lem:exterior-excursion`: a bounded convex set `H` of diameter less than
 `min {λ, d sin(μ_*/2)}` all of whose points are at distance `≥ d/2` from
 every child vertex meets the macro polygon in a convex set. -/
@@ -4856,7 +4913,36 @@ theorem noShortExteriorExcursion (R : RootSeparation P) {d : ℝ} (hd : 0 < d)
     (hdiam : diam H < min R.lam (d * Real.sin (R.μ / 2)))
     (hfar : ∀ x ∈ H, ∀ v, IsVertexOf M.tiles v → d / 2 ≤ dist x v) :
     Convex ℝ (H ∩ support M.tiles) := by
-  sorry
+  by_contra hnconv
+  obtain ⟨E, F, hEH, hFH, hEF, hEfront, hFfront, hout⟩ :=
+    noShortExteriorExcursion_step1_excursion M hH hnconv
+  have hEnv : ∀ v, IsVertexOf M.tiles v → E ≠ v := by
+    intro v hv hEv
+    have h := hfar E hEH v hv
+    rw [hEv, dist_self] at h
+    linarith
+  have hFnv : ∀ v, IsVertexOf M.tiles v → F ≠ v := by
+    intro v hv hFv
+    have h := hfar F hFH v hv
+    rw [hFv, dist_self] at h
+    linarith
+  obtain hcase := noShortExteriorExcursion_step2_classify R M hEF hEfront hFfront
+    hEnv hFnv hout
+  have hEFdiam : dist E F ≤ diam H := dist_le_diam_of_mem hb hEH hFH
+  rcases hcase with hnon | hadj
+  · obtain ⟨a, b, a', b', hEedge, hFedge, hdisj, hEseg, hFseg⟩ := hnon
+    have hlam := noShortExteriorExcursion_step3_nonadjacent R M hEedge hFedge
+      hdisj hEseg hFseg
+    have hltlam : diam H < R.lam := lt_of_lt_of_le hdiam (min_le_left _ _)
+    linarith
+  · obtain ⟨q, a, b, -, -, -, -, -, hqv, hangle⟩ := hadj
+    have hEq : d / 2 ≤ dist E q := hfar E hEH q hqv
+    have hFq : d / 2 ≤ dist F q := hfar F hFH q hqv
+    have hmetric := noShortExteriorExcursion_step4_adjacent_metric hd R.μ_pos R.μ_le
+      hEq hFq hangle
+    have hltshort : diam H < d * Real.sin (R.μ / 2) :=
+      lt_of_lt_of_le hdiam (min_le_right _ _)
+    linarith
 
 /-! ## `lem:crown-convexification` -/
 

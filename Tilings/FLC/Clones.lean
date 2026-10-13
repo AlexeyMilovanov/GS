@@ -505,11 +505,515 @@ theorem coarseVertex_injective : Function.Injective D.coarseVertex := by
   intro a b hab
   exact D.genuineEnum.injective (Subtype.ext (D.vertex_injective hab))
 
+private lemma clones_finRotate_ne_self {n : ℕ} (hn : 2 ≤ n)
+    (i : Fin n) : finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h1 : (1 : Fin (m + 1)) = 0 := by
+    have := congrArg (fun x => x - i) h
+    simpa using this
+  have : NeZero (m + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h1
+  omega
+
+private lemma clones_finRotate_sq_ne {n : ℕ} (hn : 3 ≤ n)
+    (i : Fin n) : finRotate n (finRotate n i) ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply, finRotate_succ_apply]
+  intro h
+  have h2 : (i + 1 + 1).val = i.val := by rw [h]
+  rw [Fin.val_add, Fin.val_add, Fin.val_one'] at h2
+  have hi := i.isLt
+  rcases Nat.lt_or_ge (i.val + 1) (m + 1) with h3 | h3
+  · rw [Nat.mod_eq_of_lt (show 1 < m + 1 by omega), Nat.mod_eq_of_lt h3] at h2
+    rcases Nat.lt_or_ge (i.val + 1 + 1) (m + 1) with h4 | h4
+    · rw [Nat.mod_eq_of_lt h4] at h2
+      omega
+    · rw [show i.val + 1 + 1 = m + 1 by omega, Nat.mod_self] at h2
+      omega
+  · rw [Nat.mod_eq_of_lt (show 1 < m + 1 by omega),
+      show i.val + 1 = m + 1 by omega, Nat.mod_self] at h2
+    rw [Nat.mod_eq_of_lt (show 0 + 1 < m + 1 by omega)] at h2
+    omega
+
+/-- A dummy vertex lies strictly between its two cyclic neighbours. -/
+private lemma dummy_sbtw (i : Fin D.n) (hi : ¬D.IsGenuineVertex i) :
+    Sbtw ℝ (D.vertex ((finRotate D.n).symm i)) (D.vertex i)
+      (D.vertex (finRotate D.n i)) := by
+  let p := (finRotate D.n).symm i
+  let q := finRotate D.n i
+  have hp_ne : p ≠ i := by
+    intro h
+    have := congrArg (finRotate D.n) h
+    exact clones_finRotate_ne_self (by have := D.three_le; omega) i
+      (by simpa [p, q] using this.symm)
+  have hi_ne : i ≠ q :=
+    (clones_finRotate_ne_self (by have := D.three_le; omega) i).symm
+  have hp_ne_q : p ≠ q := by
+    intro h
+    have := congrArg (finRotate D.n) h
+    exact clones_finRotate_sq_ne D.three_le i (by simpa [p, q] using this.symm)
+  have hvpi : D.vertex p ≠ D.vertex i := fun h => hp_ne (D.vertex_injective h)
+  have hviq : D.vertex i ≠ D.vertex q := fun h => hi_ne (D.vertex_injective h)
+  have hvpq : D.vertex p ≠ D.vertex q := fun h => hp_ne_q (D.vertex_injective h)
+  have hcol : Collinear ℝ ({D.vertex p, D.vertex i, D.vertex q} : Set Pt) := by
+    simpa [PolygonalDisk.IsGenuineVertex, p, q] using hi
+  rcases hcol.wbtw_or_wbtw_or_wbtw with h | h | h
+  · exact ⟨h, hvpi.symm, hviq⟩
+  · exfalso
+    have hs := D.simple p i hp_ne
+    have hp_next : finRotate D.n p = i := by simp [p]
+    have hmem := hs ⟨by simpa [hp_next, segment_symm] using h.mem_segment,
+      by exact right_mem_segment ℝ _ _⟩
+    simp only [Set.mem_inter_iff, Set.mem_insert_iff, Set.mem_singleton_iff] at hmem
+    rcases hmem.1 with hqp | hqi
+    · exact hvpq hqp.symm
+    · apply hviq
+      rw [← hp_next]
+      exact hqi.symm
+  · exfalso
+    have hs := D.simple p i hp_ne
+    have hp_next : finRotate D.n p = i := by simp [p]
+    have hmem := hs ⟨by exact left_mem_segment ℝ _ _,
+      by simpa [segment_symm] using h.mem_segment⟩
+    simp only [Set.mem_inter_iff, Set.mem_insert_iff, Set.mem_singleton_iff] at hmem
+    rcases hmem.2 with hpi | hpq
+    · exact hvpi hpi
+    · exact hvpq hpq
+
+private lemma sbtw_chain {w : ℕ → Pt} {a d : ℕ} (hd : 0 < d)
+    (hlocal : ∀ r, r < d →
+      Sbtw ℝ (w (a + r)) (w (a + r + 1)) (w (a + r + 2))) :
+    Sbtw ℝ (w a) (w (a + d)) (w (a + d + 1)) := by
+  induction d with
+  | zero => omega
+  | succ d ih =>
+      by_cases hd0 : d = 0
+      · subst d
+        simpa using hlocal 0 (by omega)
+      · have hprev := ih (by omega) (fun r hr => hlocal r (by omega))
+        have hlast := hlocal d (by omega)
+        simpa [Nat.add_assoc] using hprev.trans_expand_right hlast
+
+private lemma chain_wbtw {w : ℕ → Pt} {a m r : ℕ} (hm : 0 < m) (hr : r ≤ m)
+    (hlocal : ∀ t, t + 1 < m →
+      Sbtw ℝ (w (a + t)) (w (a + t + 1)) (w (a + t + 2))) :
+    Wbtw ℝ (w a) (w (a + r)) (w (a + m)) := by
+  induction m generalizing r with
+  | zero => omega
+  | succ m ih =>
+      by_cases hm0 : m = 0
+      · subst m
+        interval_cases r
+        · simp
+        · simp
+      · by_cases hrm : r ≤ m
+        · have hprev := ih (by omega) hrm (fun t ht => hlocal t (by omega))
+          have hlast := sbtw_chain (a := a) (d := m) (by omega)
+            (fun t ht => hlocal t (by omega))
+          exact hlast.wbtw.trans_left (by simpa using hprev)
+        · have : r = m + 1 := by omega
+          subst r
+          simp
+
+private lemma segment_split {a b c : Pt} (h : Wbtw ℝ a b c) :
+    segment ℝ a c ⊆ segment ℝ a b ∪ segment ℝ b c := by
+  rw [← insert_endpoints_openSegment]
+  rintro x (rfl | rfl | hx)
+  · exact Or.inl (left_mem_segment ℝ _ _)
+  · exact Or.inr (right_mem_segment ℝ _ _)
+  · have hbline : b ∈ Set.range (AffineMap.lineMap a c : ℝ → Pt) := by
+      rcases h with ⟨t, ht, hb⟩
+      exact ⟨t, hb⟩
+    have hs := openSegment_subset_union a c hbline hx
+    rcases hs with hb | hs
+    · subst x
+      exact Or.inl (right_mem_segment ℝ _ _)
+    · rcases hs with hx | hx
+      · exact Or.inl (openSegment_subset_segment ℝ _ _ hx)
+      · exact Or.inr (openSegment_subset_segment ℝ _ _ hx)
+
+private lemma chain_side_subset {w : ℕ → Pt} {a m r : ℕ} (hm : 0 < m)
+    (hr : r < m) (hlocal : ∀ t, t + 1 < m →
+      Sbtw ℝ (w (a + t)) (w (a + t + 1)) (w (a + t + 2))) :
+    segment ℝ (w (a + r)) (w (a + r + 1)) ⊆ segment ℝ (w a) (w (a + m)) := by
+  apply (convex_segment (w a) (w (a + m))).segment_subset
+  · exact (chain_wbtw (r := r) hm (by omega) hlocal).mem_segment
+  · exact (chain_wbtw (r := r + 1) hm (by omega) hlocal).mem_segment
+
+private lemma chain_segment_subset {w : ℕ → Pt} {a m : ℕ} (hm : 0 < m)
+    (hlocal : ∀ t, t + 1 < m →
+      Sbtw ℝ (w (a + t)) (w (a + t + 1)) (w (a + t + 2))) :
+    segment ℝ (w a) (w (a + m)) ⊆
+      ⋃ r ∈ {r : ℕ | r < m}, segment ℝ (w (a + r)) (w (a + r + 1)) := by
+  induction m with
+  | zero => omega
+  | succ m ih =>
+      by_cases hm0 : m = 0
+      · subst m
+        simp
+      · have hprev := ih (by omega) (fun t ht => hlocal t (by omega))
+        have hlast := sbtw_chain (a := a) (d := m) (by omega)
+          (fun t ht => hlocal t (by omega))
+        apply (segment_split hlast.wbtw).trans
+        rintro x (hx | hx)
+        · rcases Set.mem_iUnion.mp (hprev hx) with ⟨r, hr⟩
+          rcases Set.mem_iUnion.mp hr with ⟨hrm, hxr⟩
+          have hrm' : r < m := hrm
+          have hrm'' : r ∈ {r : ℕ | r < m + 1} := hrm'.trans (Nat.lt_succ_self m)
+          exact Set.mem_iUnion.mpr ⟨r, Set.mem_iUnion.mpr ⟨hrm'', hxr⟩⟩
+        · exact Set.mem_iUnion.mpr
+            ⟨m, Set.mem_iUnion.mpr ⟨(show m < m + 1 by omega), by simpa using hx⟩⟩
+
+private def cyclicIndex {n : ℕ} (hn : 0 < n) (a : Fin n) (k : ℕ) : Fin n :=
+  ⟨(a.val + k) % n, Nat.mod_lt _ hn⟩
+
+private def cyclicDist {n : ℕ} (a b : Fin n) : ℕ :=
+  if a.val ≤ b.val then b.val - a.val else n - a.val + b.val
+
+private lemma cyclicIndex_zero {n : ℕ} (hn : 0 < n) (a : Fin n) :
+    cyclicIndex hn a 0 = a := by
+  apply Fin.ext
+  simp [cyclicIndex, Nat.mod_eq_of_lt a.isLt]
+
+private lemma cyclicIndex_succ {n : ℕ} (hn : 0 < n) (a : Fin n) (k : ℕ) :
+    cyclicIndex hn a (k + 1) = finRotate n (cyclicIndex hn a k) := by
+  obtain ⟨n, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  apply Fin.ext
+  simp only [cyclicIndex, finRotate_succ_apply, Fin.val_add, Fin.val_one']
+  rw [Nat.add_mod_mod, Nat.mod_add_mod]
+  rw [Nat.add_assoc]
+
+private lemma cyclicDist_pos {n : ℕ} {a b : Fin n} (hab : a ≠ b) :
+    0 < cyclicDist a b := by
+  simp only [cyclicDist]
+  split_ifs with h
+  · have : a.val ≠ b.val := fun h' => hab (Fin.ext h')
+    omega
+  · have := a.isLt
+    omega
+
+private lemma cyclicIndex_dist {n : ℕ} (hn : 0 < n) (a b : Fin n) :
+    cyclicIndex hn a (cyclicDist a b) = b := by
+  apply Fin.ext
+  simp only [cyclicIndex, cyclicDist]
+  split_ifs with h
+  · rw [show a.val + (b.val - a.val) = b.val by omega,
+      Nat.mod_eq_of_lt b.isLt]
+  · rw [show a.val + (n - a.val + b.val) = n + b.val by omega,
+      Nat.add_mod_left, Nat.mod_eq_of_lt b.isLt]
+
+private lemma cyclicIndex_between {n : ℕ} (hn : 0 < n) {a b : Fin n}
+    (hab : a < b) {k : ℕ} (hk0 : 0 < k) (hk : k < cyclicDist a b) :
+    a < cyclicIndex hn a k ∧ cyclicIndex hn a k < b := by
+  have hle : a.val ≤ b.val := hab.le
+  have hm : cyclicDist a b = b.val - a.val := by simp [cyclicDist, hle]
+  rw [hm] at hk
+  have hsum : a.val + k < n := lt_trans (by omega) b.isLt
+  simp only [cyclicIndex, Fin.lt_def]
+  rw [Nat.mod_eq_of_lt hsum]
+  omega
+
+private lemma cyclicIndex_between_wrap {n : ℕ} (hn : 0 < n) {a b : Fin n}
+    (hba : b < a) {k : ℕ} (hk0 : 0 < k) (hk : k < cyclicDist a b) :
+    a < cyclicIndex hn a k ∨ cyclicIndex hn a k < b := by
+  have hnle : ¬a.val ≤ b.val := by omega
+  have hm : cyclicDist a b = n - a.val + b.val := by simp [cyclicDist, hnle]
+  rw [hm] at hk
+  by_cases hkn : a.val + k < n
+  · left
+    simp only [cyclicIndex, Fin.lt_def]
+    rw [Nat.mod_eq_of_lt hkn]
+    omega
+  · right
+    simp only [cyclicIndex, Fin.lt_def]
+    have hlt : a.val + k < n + n := by omega
+    rw [show a.val + k = n + (a.val + k - n) by omega, Nat.add_mod_left,
+      Nat.mod_eq_of_lt (by omega : a.val + k - n < n)]
+    omega
+
+private lemma clones_finRotate_neg_one {n : ℕ} (hn : 0 < n) [NeZero n] :
+    finRotate n (-1) = 0 := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [show (-1 : Fin (m + 1)) = Fin.last m by apply Fin.ext; simp,
+    finRotate_last]
+
+private lemma clones_fin_neg_one_val {n : ℕ} (hn : 0 < n) [NeZero n] :
+    ((-1 : Fin n) : ℕ) = n - 1 := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  simp
+
+private lemma clones_coe_finRotate_of_ne_neg_one {n : ℕ} (hn : 0 < n)
+    [NeZero n] (i : Fin n) (hi : i ≠ -1) : (finRotate n i).val = i.val + 1 := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  apply coe_finRotate_of_ne_last
+  intro hilast
+  apply hi
+  rw [hilast]
+  apply Fin.ext
+  simp
+
+private lemma genuineEnum_intermediate_dummy (i : Fin D.genuineCount) {k : ℕ}
+    (hk0 : 0 < k)
+    (hk : k < cyclicDist (D.genuineEnum i).1
+      (D.genuineEnum (finRotate D.genuineCount i)).1) :
+    ¬D.IsGenuineVertex
+      (cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 k) := by
+  classical
+  let a := (D.genuineEnum i).1
+  let b := (D.genuineEnum (finRotate D.genuineCount i)).1
+  let c := cyclicIndex (by have := D.three_le; omega) a k
+  intro hc
+  have hcmem : c ∈ D.genuineIdx := by simpa [genuineIdx] using hc
+  let sc : D.genuineIdx := ⟨c, hcmem⟩
+  let j := (D.genuineEnum).symm sc
+  have hej : D.genuineEnum j = sc := D.genuineEnum.apply_symm_apply sc
+  letI : NeZero D.genuineCount :=
+    ⟨by have := D.three_le_genuineCount; omega⟩
+  by_cases hilast : i = -1
+  · have hrot : finRotate D.genuineCount i = 0 := by
+      rw [hilast]
+      exact clones_finRotate_neg_one (by have := D.three_le_genuineCount; omega)
+    have hba : b < a := by
+      have hzero : (0 : Fin D.genuineCount) < i := by
+        rw [hilast, Fin.lt_def]
+        rw [clones_fin_neg_one_val (by have := D.three_le_genuineCount; omega)]
+        change 0 < D.genuineCount - 1
+        have := D.three_le_genuineCount
+        omega
+      apply D.genuineEnum.lt_iff_lt.mpr at hzero
+      simpa [a, b, hrot] using hzero
+    rcases cyclicIndex_between_wrap (by have := D.three_le; omega) hba hk0 hk with hac | hcb
+    · have hij : i < j := by
+        apply D.genuineEnum.lt_iff_lt.mp
+        rw [hej]
+        simpa [a, c] using hac
+      rw [hilast, Fin.lt_def] at hij
+      rw [clones_fin_neg_one_val (by have := D.three_le_genuineCount; omega)] at hij
+      omega
+    · have hji : j < (0 : Fin D.genuineCount) := by
+        apply D.genuineEnum.lt_iff_lt.mp
+        rw [hej]
+        simpa [b, c, hrot] using hcb
+      exact (Fin.not_lt_zero j) hji
+  · have hi_next : i < finRotate D.genuineCount i :=
+      (lt_finRotate_iff_ne_neg_one i).2 hilast
+    have hab : a < b := by
+      apply D.genuineEnum.lt_iff_lt.mpr at hi_next
+      simpa [a, b] using hi_next
+    obtain ⟨hac, hcb⟩ :=
+      cyclicIndex_between (by have := D.three_le; omega) hab hk0 hk
+    have hij : i < j := by
+      apply D.genuineEnum.lt_iff_lt.mp
+      rw [hej]
+      simpa [a, c] using hac
+    have hjnext : j < finRotate D.genuineCount i := by
+      apply D.genuineEnum.lt_iff_lt.mp
+      rw [hej]
+      simpa [b, c] using hcb
+    have hval := clones_coe_finRotate_of_ne_neg_one
+      (by have := D.three_le_genuineCount; omega) i hilast
+    omega
+
+private lemma cyclicIndex_sub {n : ℕ} (hn : 0 < n) {a s : Fin n} (has : a ≤ s) :
+    cyclicIndex hn a (s.val - a.val) = s := by
+  apply Fin.ext
+  simp only [cyclicIndex]
+  rw [show a.val + (s.val - a.val) = s.val by omega,
+    Nat.mod_eq_of_lt s.isLt]
+
+private lemma cyclicIndex_wrap {n : ℕ} (hn : 0 < n) {a s : Fin n} :
+    cyclicIndex hn a (n - a.val + s.val) = s := by
+  apply Fin.ext
+  simp only [cyclicIndex]
+  rw [show a.val + (n - a.val + s.val) = n + s.val by omega,
+    Nat.add_mod_left, Nat.mod_eq_of_lt s.isLt]
+
+private lemma original_index_in_coarse_block (s : Fin D.n) :
+    ∃ (i : Fin D.genuineCount) (r : ℕ),
+      r < cyclicDist (D.genuineEnum i).1
+        (D.genuineEnum (finRotate D.genuineCount i)).1 ∧
+      s = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 r := by
+  classical
+  letI : NeZero D.genuineCount :=
+    ⟨by have := D.three_le_genuineCount; omega⟩
+  let T := Finset.univ.filter fun i : Fin D.genuineCount => (D.genuineEnum i).1 ≤ s
+  by_cases hT : T.Nonempty
+  · let i := T.max' hT
+    have hiT : i ∈ T := T.max'_mem hT
+    have hais : (D.genuineEnum i).1 ≤ s := (Finset.mem_filter.mp hiT).2
+    by_cases hilast : i = -1
+    · have hrot : finRotate D.genuineCount i = 0 := by
+        rw [hilast]
+        exact clones_finRotate_neg_one (by have := D.three_le_genuineCount; omega)
+      have hba : (D.genuineEnum (finRotate D.genuineCount i)).1 <
+          (D.genuineEnum i).1 := by
+        have hzero : (0 : Fin D.genuineCount) < i := by
+          rw [hilast, Fin.lt_def,
+            clones_fin_neg_one_val (by have := D.three_le_genuineCount; omega)]
+          change 0 < D.genuineCount - 1
+          have := D.three_le_genuineCount
+          omega
+        apply D.genuineEnum.lt_iff_lt.mpr at hzero
+        simpa [hrot] using hzero
+      let r := s.val - (D.genuineEnum i).1.val
+      refine ⟨i, r, ?_, ?_⟩
+      · simp only [cyclicDist]
+        split_ifs with hle
+        · exact absurd hba (not_lt_of_ge hle)
+        · dsimp only [r]
+          have hs := s.isLt
+          omega
+      · exact (cyclicIndex_sub (by have := D.three_le; omega) hais).symm
+    · have hi_next : i < finRotate D.genuineCount i :=
+        (lt_finRotate_iff_ne_neg_one i).2 hilast
+      have hsb : s < (D.genuineEnum (finRotate D.genuineCount i)).1 := by
+        by_contra hnot
+        have hb : (D.genuineEnum (finRotate D.genuineCount i)).1 ≤ s := by omega
+        have hnextT : finRotate D.genuineCount i ∈ T := by
+          simp [T, hb]
+        have hle := T.le_max' (finRotate D.genuineCount i) hnextT
+        exact (not_lt_of_ge hle) hi_next
+      let r := s.val - (D.genuineEnum i).1.val
+      refine ⟨i, r, ?_, ?_⟩
+      · have hab : (D.genuineEnum i).1.val ≤
+            (D.genuineEnum (finRotate D.genuineCount i)).1.val := by
+          apply Fin.le_iff_val_le_val.mp
+          exact (D.genuineEnum.le_iff_le.mpr hi_next.le)
+        simp [r, cyclicDist, hab]
+        omega
+      · exact (cyclicIndex_sub (by have := D.three_le; omega) hais).symm
+  · let i : Fin D.genuineCount := -1
+    have hrot : finRotate D.genuineCount i = 0 :=
+      clones_finRotate_neg_one (by have := D.three_le_genuineCount; omega)
+    have hsb : s < (D.genuineEnum (finRotate D.genuineCount i)).1 := by
+      by_contra hnot
+      have hb : (D.genuineEnum (0 : Fin D.genuineCount)).1 ≤ s := by
+        simpa [hrot] using (show (D.genuineEnum (finRotate D.genuineCount i)).1 ≤ s by omega)
+      apply hT
+      refine ⟨0, ?_⟩
+      simp [T, hb]
+    have hba : (D.genuineEnum (finRotate D.genuineCount i)).1 <
+        (D.genuineEnum i).1 := by
+      have hzero : (0 : Fin D.genuineCount) < i := by
+        dsimp only [i]
+        rw [Fin.lt_def,
+          clones_fin_neg_one_val (by have := D.three_le_genuineCount; omega)]
+        change 0 < D.genuineCount - 1
+        have := D.three_le_genuineCount
+        omega
+      apply D.genuineEnum.lt_iff_lt.mpr at hzero
+      simpa [hrot] using hzero
+    have hsa : s < (D.genuineEnum i).1 := hsb.trans hba
+    let r := D.n - (D.genuineEnum i).1.val + s.val
+    refine ⟨i, r, ?_, ?_⟩
+    · simp only [cyclicDist]
+      split_ifs with hle
+      · exact absurd hba (not_lt_of_ge hle)
+      · dsimp only [r]
+        omega
+    · exact (cyclicIndex_wrap (by have := D.three_le; omega)).symm
+
+private def coarseLength (D : PolygonalDisk) (i : Fin D.genuineCount) : ℕ :=
+  cyclicDist (D.genuineEnum i).1
+    (D.genuineEnum (finRotate D.genuineCount i)).1
+
+private def coarseWalk (D : PolygonalDisk) (i : Fin D.genuineCount) (k : ℕ) : Pt :=
+  D.vertex (cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 k)
+
+private lemma coarseLength_pos (i : Fin D.genuineCount) : 0 < coarseLength D i := by
+  apply cyclicDist_pos
+  intro h
+  have he := D.genuineEnum.injective (Subtype.ext h)
+  exact clones_finRotate_ne_self (by have := D.three_le_genuineCount; omega) i he.symm
+
+private lemma coarseWalk_zero (i : Fin D.genuineCount) :
+    coarseWalk D i 0 = D.coarseVertex i := by
+  simp [coarseWalk, coarseVertex, cyclicIndex_zero]
+
+private lemma coarseWalk_end (i : Fin D.genuineCount) :
+    coarseWalk D i (coarseLength D i) =
+      D.coarseVertex (finRotate D.genuineCount i) := by
+  simp [coarseWalk, coarseLength, coarseVertex, cyclicIndex_dist]
+
+private lemma coarseWalk_succ (i : Fin D.genuineCount) (k : ℕ) :
+    coarseWalk D i (k + 1) =
+      D.vertex (finRotate D.n
+        (cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 k)) := by
+  rw [coarseWalk, cyclicIndex_succ]
+
+private lemma coarseWalk_local (i : Fin D.genuineCount) (t : ℕ)
+    (ht : t + 1 < coarseLength D i) :
+    Sbtw ℝ (coarseWalk D i t) (coarseWalk D i (t + 1))
+      (coarseWalk D i (t + 2)) := by
+  let hn : 0 < D.n := by have := D.three_le; omega
+  let a := (D.genuineEnum i).1
+  let c := cyclicIndex hn a (t + 1)
+  have hdummy : ¬D.IsGenuineVertex c := by
+    apply genuineEnum_intermediate_dummy D i (k := t + 1) (by omega)
+    simpa [coarseLength] using ht
+  have hs := dummy_sbtw D c hdummy
+  have hprev : (finRotate D.n).symm c = cyclicIndex hn a t := by
+    apply (finRotate D.n).injective
+    rw [Equiv.apply_symm_apply, ← cyclicIndex_succ]
+  have hnext : finRotate D.n c = cyclicIndex hn a (t + 2) := by
+    rw [cyclicIndex_succ hn a (t + 1)]
+  simpa [coarseWalk, hn, a, c, hprev, hnext] using hs
+
+private lemma original_side_subset_coarse (s : Fin D.n) :
+    ∃ i : Fin D.genuineCount,
+      segment ℝ (D.vertex s) (D.vertex (finRotate D.n s)) ⊆
+        segment ℝ (D.coarseVertex i)
+          (D.coarseVertex (finRotate D.genuineCount i)) := by
+  obtain ⟨i, r, hr, hs⟩ := original_index_in_coarse_block D s
+  refine ⟨i, ?_⟩
+  have hsub := chain_side_subset (w := coarseWalk D i) (a := 0)
+    (coarseLength_pos D i) hr (fun t ht => by
+      simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+  simp only [Nat.zero_add] at hsub
+  rw [coarseWalk_zero, coarseWalk_end] at hsub
+  have hstep := coarseWalk_succ D i r
+  have hbase : coarseWalk D i r = D.vertex s := by
+    simp only [coarseWalk]
+    rw [hs]
+  rw [hbase, hstep, ← hs] at hsub
+  exact hsub
+
+private lemma coarse_side_subset_frontier (i : Fin D.genuineCount) :
+    segment ℝ (D.coarseVertex i)
+        (D.coarseVertex (finRotate D.genuineCount i)) ⊆ frontier D.carrier := by
+  have hsub := chain_segment_subset (w := coarseWalk D i) (a := 0)
+    (coarseLength_pos D i) (fun t ht => by
+      simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+  simp only [Nat.zero_add] at hsub
+  rw [coarseWalk_zero, coarseWalk_end] at hsub
+  apply hsub.trans
+  intro x hx
+  rcases Set.mem_iUnion.mp hx with ⟨r, hr⟩
+  rcases Set.mem_iUnion.mp hr with ⟨hrlen, hxr⟩
+  rw [D.frontier_eq]
+  let s := cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 r
+  apply Set.mem_iUnion.mpr
+  refine ⟨s, ?_⟩
+  have hstep := coarseWalk_succ D i r
+  rw [hstep] at hxr
+  simpa only [coarseWalk, s] using hxr
+
 /-- Merging collinear sides does not change the boundary. -/
 theorem coarse_frontier_eq :
     frontier D.carrier = ⋃ i : Fin D.genuineCount,
       segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
-  sorry
+  apply Set.Subset.antisymm
+  · rw [D.frontier_eq]
+    apply Set.iUnion_subset
+    intro s
+    obtain ⟨i, hi⟩ := original_side_subset_coarse D s
+    exact hi.trans (Set.subset_iUnion (fun j =>
+      segment ℝ (D.coarseVertex j)
+        (D.coarseVertex (finRotate D.genuineCount j))) i)
+  · apply Set.iUnion_subset
+    exact coarse_side_subset_frontier D
 
 /-- Step 1.1 of the blueprint proof of `coarse_simple_step1`: A fine segment that intersects the interior of a coarse segment must be contained in it. -/
 private lemma coarse_simple_step1_step1 (i : Fin D.genuineCount) (k : Fin D.n)

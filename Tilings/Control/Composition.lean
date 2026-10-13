@@ -498,13 +498,26 @@ private lemma headerLegal_properties_step3_child (c : MacroCertificate P) (hH : 
               exact HasOrigin.step _ _ _ _ _ h_mem ih
           exact this _ _ _ h_orig_ch
 
+/-- Step 1 of the blueprint proof of `headerLegal_properties_step4_boundary`: a print side is
+strictly internal to its template and therefore cannot be a boundary side. -/
+private lemma headerLegal_properties_step4_boundary_step1_print_not_boundary
+    (c : MacroCertificate P) (o : c.SideOcc) (h_print : c.IsPrint o) :
+    ¬ c.IsBoundary o := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `headerLegal_properties`: all boundary fourth cells of a legal
 tile equal one parent header. -/
 private lemma headerLegal_properties_step4_boundary (c : MacroCertificate P) (hH : c.Hereditary)
     (A : DecTile c) (hA : headerLegal c A) :
     ∃ C, headerLegal c C ∧ IsChildOf c C A ∧
       ∀ i : c.Side A.typ, c.IsBoundary (c.occ A.typ i) → A.cell i 3 = headerU c (headerOf c C) := by
-  sorry
+  obtain ⟨C, hC, hCA⟩ := headerLegal_properties_step1_parent c hH A hA
+  refine ⟨C, hC, hCA, ?_⟩
+  intro i hi
+  have hnp : ¬ c.IsPrint (c.occ A.typ i) := fun hp =>
+    headerLegal_properties_step4_boundary_step1_print_not_boundary c _ hp hi
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hCA
+  exact (hCA.2 i).2 hnp |>.2.2.2.2.2.2.1 hi
 
 /-- Step 1 of the blueprint proof of `headerLegal_properties_step5_path`: paths are invariant under form casting. -/
 private lemma headerLegal_properties_step5_path_step1_cast_path (c : MacroCertificate P) (hH : c.Hereditary)

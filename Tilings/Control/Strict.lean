@@ -2415,6 +2415,30 @@ private theorem strict_macroblock_is_decomposition_step1_noncentral_step2_prints
         ∀ j : Fin 5, (K.tileOf t).cell i j = (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j := by
   sorry
 
+/-- Step 1 of the blueprint proof of `strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints`: nonprints are correct for origin cells. -/
+private lemma strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints_aux1_origin
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (t : C.Typ) (ht_owner : C.owner t = K.α) (ht_nc : t ≠ C.central K.α) :
+    ∀ i : C.Side t,
+      ¬ C.IsPrint (C.occ t i) →
+        ∀ j : Fin 5,
+        ¬ (copySource C (C.form (strictReconstruct C hC K h.1).typ) (C.occ t i) j).Nonempty →
+          (K.tileOf t).cell i j = (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints`: nonprints are correct for copied cells. -/
+private lemma strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints_aux2_copied
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (t : C.Typ) (ht_owner : C.owner t = K.α) (ht_nc : t ≠ C.central K.α) :
+    ∀ i : C.Side t,
+      ¬ C.IsPrint (C.occ t i) →
+        ∀ j : Fin 5,
+        (copySource C (C.form (strictReconstruct C hC K h.1).typ) (C.occ t i) j).Nonempty →
+          (K.tileOf t).cell i j = (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `strict_macroblock_is_decomposition_step1_noncentral`: nonprints are correct. -/
 private theorem strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints
     (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
@@ -2423,7 +2447,10 @@ private theorem strict_macroblock_is_decomposition_step1_noncentral_step3_nonpri
     ∀ i : C.Side t,
       ¬ C.IsPrint (C.occ t i) →
         ∀ j : Fin 5, (K.tileOf t).cell i j = (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j := by
-  sorry
+  intro i hnp j
+  by_cases hsource : (copySource C (C.form (strictReconstruct C hC K h.1).typ) (C.occ t i) j).Nonempty
+  · exact strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints_aux2_copied C hC K hK h hh t ht_owner ht_nc i hnp j hsource
+  · exact strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints_aux1_origin C hC K hK h hh t ht_owner ht_nc i hnp j hsource
 
 /-- Step 1 of the blueprint proof of `strict_macroblock_is_decomposition`: every noncentral
 tile in the block has the required strict child colours of the reconstructed parent. -/

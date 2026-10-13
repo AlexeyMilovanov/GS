@@ -2995,6 +2995,54 @@ private lemma outsideAnchoredGrouping_step1_E (M : MeshConstants P) (S : Patch P
   · exact outsideAnchoredGrouping_step1_E_step1_supset M S Ω hcov hsts c h hh hQ
   · exact outsideAnchoredGrouping_step1_E_step2_faces M S Ω hcov hsts c h hh hQ
 
+/-- Step 1 of the blueprint proof of `outsideAnchoredGrouping_step2_H`: lower inclusion. -/
+private lemma outsideAnchoredGrouping_step2_H_step1_lower (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt) (hE_conn : IsConnected (interior E))
+    (hE_supset : (square c h + Binf (3 * M.D))ᶜ ⊆ interior E)
+    (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E) :
+    square c h + Binf (2 * M.D) ⊆ closure (connectedComponentIn (Eᶜ) c) := sorry
+
+/-- Step 2 of the blueprint proof of `outsideAnchoredGrouping_step2_H`: upper inclusion. -/
+private lemma outsideAnchoredGrouping_step2_H_step2_upper (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt) (hE_conn : IsConnected (interior E))
+    (hE_supset : (square c h + Binf (3 * M.D))ᶜ ⊆ interior E)
+    (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E) :
+    closure (connectedComponentIn (Eᶜ) c) ⊆ square c h + Binf (3 * M.D) := sorry
+
+/-- Step 3 of the blueprint proof of `outsideAnchoredGrouping_step2_H`: interior connected. -/
+private lemma outsideAnchoredGrouping_step2_H_step3_conn_int (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt) (hE_conn : IsConnected (interior E))
+    (hE_supset : (square c h + Binf (3 * M.D))ᶜ ⊆ interior E)
+    (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E) :
+    IsConnected (interior (closure (connectedComponentIn (Eᶜ) c))) := sorry
+
+/-- Step 4 of the blueprint proof of `outsideAnchoredGrouping_step2_H`: complement connected. -/
+private lemma outsideAnchoredGrouping_step2_H_step4_conn_comp (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (E : Set Pt) (hE_conn : IsConnected (interior E))
+    (hE_supset : (square c h + Binf (3 * M.D))ᶜ ⊆ interior E)
+    (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ E) :
+    IsConnected (closure (connectedComponentIn (Eᶜ) c))ᶜ := sorry
+
 /-- Step 2 of the blueprint proof of `outsideAnchoredGrouping`: defining `H_carrier`. -/
 private lemma outsideAnchoredGrouping_step2_H (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)
@@ -3008,7 +3056,17 @@ private lemma outsideAnchoredGrouping_step2_H (M : MeshConstants P) (S : Patch P
     ∃ H_carrier : Set Pt, square c h + Binf (2 * M.D) ⊆ H_carrier ∧
       H_carrier ⊆ square c h + Binf (3 * M.D) ∧
       H_carrier = closure (connectedComponentIn (Eᶜ) c) ∧
-      IsConnected (interior H_carrier) ∧ IsConnected (H_carrierᶜ) := sorry
+      IsConnected (interior H_carrier) ∧ IsConnected (H_carrierᶜ) := by
+  use closure (connectedComponentIn (Eᶜ) c)
+  refine ⟨?_, ?_, rfl, ?_, ?_⟩
+  · exact outsideAnchoredGrouping_step2_H_step1_lower M S Ω hcov hsts c h hh hQ E hE_conn hE_supset
+      hE_faces
+  · exact outsideAnchoredGrouping_step2_H_step2_upper M S Ω hcov hsts c h hh hQ E hE_conn hE_supset
+      hE_faces
+  · exact outsideAnchoredGrouping_step2_H_step3_conn_int M S Ω hcov hsts c h hh hQ E hE_conn
+      hE_supset hE_faces
+  · exact outsideAnchoredGrouping_step2_H_step4_conn_comp M S Ω hcov hsts c h hh hQ E hE_conn
+      hE_supset hE_faces
 
 private lemma outsideAnchoredGrouping_step3_FaceGroup (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)

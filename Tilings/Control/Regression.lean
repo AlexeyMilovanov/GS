@@ -50,6 +50,7 @@ theorem alignment_fails_without_mode_uniformity :
     ¬ ∀ (P : Protoset) (c : MacroCertificate P), c.Hereditary →
       ∀ (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
         (j : part.ι) (d : Fin (c.Q.disk (part.block j).α).n),
+        IsProper c T → (∀ X ∈ T.tiles, headerLegal c (tileDec X)) →
         RankMatched c part j d → OpposingMacroside c part j d := by
   sorry
 

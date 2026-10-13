@@ -1163,6 +1163,7 @@ opposing side from being longer, we find an opposing macroside `e` of block `j'`
 that exactly shares the geometric macroside segment. -/
 private lemma alignment_complete_step1_macroside_eq (c : MacroCertificate P) (hH : c.Hereditary)
     (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
     (j : part.ι) (d : Fin (c.Q.disk (part.block j).α).n)
     (hrank : RankMatched c part j d)
     (hmode : ∀ j' : part.ι, j' ≠ j → ∀ e, ModeUniform c (part.block j') e) :
@@ -1175,6 +1176,7 @@ the child side subdivision is uniquely determined by the geometric macro side.
 Thus coinciding macro sides have subdivisions of the same length. -/
 private lemma alignment_complete_step2_subdivision_eq_step1_length (c : MacroCertificate P)
     (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
     (j j' : part.ι) (hneq : j' ≠ j)
     (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
     (hrank : RankMatched c part j d)
@@ -1188,6 +1190,7 @@ macrosides coincide and their child side subdivisions have the same length,
 their child sides correspond exactly in geometry pointwise. -/
 private lemma alignment_complete_step2_subdivision_eq_step2_pointwise (c : MacroCertificate P)
     (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
     (j j' : part.ι) (hneq : j' ≠ j)
     (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
     (hrank : RankMatched c part j d)
@@ -1206,6 +1209,7 @@ macrosides coincide, the child sides of the two blocks correspond exactly in
 order and geometry. -/
 private lemma alignment_complete_step2_subdivision_eq (c : MacroCertificate P) (hH : c.Hereditary)
     (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
     (j j' : part.ι) (hneq : j' ≠ j)
     (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
     (hrank : RankMatched c part j d)
@@ -1214,27 +1218,32 @@ private lemma alignment_complete_step2_subdivision_eq (c : MacroCertificate P) (
     List.Forall₂ (fun o o' => (part.block j).childSide o = (part.block j').childSide o')
       (c.outerList (part.block j).α d) (c.outerList (part.block j').α e) := by
   rw [List.forall₂_iff_get]
-  have hlen := alignment_complete_step2_subdivision_eq_step1_length c hH T part j j' hneq d e
+  have hlen := alignment_complete_step2_subdivision_eq_step1_length c hH T part hT hL j j' hneq d e
     hrank hmode hmacro
   refine ⟨hlen, fun k hk hk' => ?_⟩
-  exact alignment_complete_step2_subdivision_eq_step2_pointwise c hH T part j j' hneq d e hrank
+  exact alignment_complete_step2_subdivision_eq_step2_pointwise c hH T part hT hL j j' hneq d e hrank
     hmode hmacro hlen k hk hk'
 
 /-- `lem:comp/alignment` (with the review's mode-uniformity hypothesis): in a
-plane partition into macroblocks, if every child side of the macroside `d`
-of block `j` has a complete opposing side with the same positive rank, and
-every macroside of every other block is mode-uniform, then `d` has a
-complete opposing macroside with the same ordered subdivision. -/
+proper plane tiling of legal typed tiles (so that every outer fourth cell is
+zero or the generated rank of its side, review addition of 13 October 2026:
+without properness and legality a constant colouring satisfies the
+hypotheses on the three-block counterexample), partitioned into macroblocks,
+if every child side of the macroside `d` of block `j` has a complete opposing
+side with the same positive rank, and every macroside of every other block is
+mode-uniform, then `d` has a complete opposing macroside with the same
+ordered subdivision. -/
 theorem alignment_complete (c : MacroCertificate P) (hH : c.Hereditary)
     (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
     (j : part.ι) (d : Fin (c.Q.disk (part.block j).α).n)
     (hrank : RankMatched c part j d)
     (hmode : ∀ j' : part.ι, j' ≠ j → ∀ e, ModeUniform c (part.block j') e) :
     OpposingMacroside c part j d := by
   obtain ⟨j', hneq, e, hmacro⟩ :=
-    alignment_complete_step1_macroside_eq c hH T part j d hrank hmode
+    alignment_complete_step1_macroside_eq c hH T part hT hL j d hrank hmode
   refine ⟨j', hneq, e, hmacro, ?_⟩
-  exact alignment_complete_step2_subdivision_eq c hH T part j j' hneq d e hrank hmode hmacro
+  exact alignment_complete_step2_subdivision_eq c hH T part hT hL j j' hneq d e hrank hmode hmacro
 
 /-- Step 1 of the blueprint proof of `composed_proper`: reconstruction gives a plane tiling. -/
 private lemma composed_proper_step1_reconstruction (c : MacroCertificate P) (hH : c.Hereditary)

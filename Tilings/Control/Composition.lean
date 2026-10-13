@@ -422,12 +422,34 @@ private lemma reconstructed_header_eq_isNormal (c : MacroCertificate P) (hH : c.
   rw [← hCol]
   exact hPres
 
+/-- Step 1 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect`: For an inner
+nonprint side `d`, the first cell of `D` is its prescribed identity. -/
+private lemma reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (i : c.Side h.1)
+    (hInner : c.IsInner (c.occ h.1 i)) (hNonprint : ¬ c.IsPrint (c.occ h.1 i)) :
+    (reconstruct c K h.1).cell i 0 = identU c (c.edge (c.occ h.1 i)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect`: For a print, the fifth cell of `D` is its prescribed identity. -/
+private lemma reconstructed_header_eq_isIdentityCorrect_step2_print (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (i : c.Side h.1)
+    (hPrint : c.IsPrint (c.occ h.1 i)) :
+    (reconstruct c K h.1).cell i 4 = identU c (c.edge (c.occ h.1 i)) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `reconstructed_header_eq`: proving identity-correctness. -/
 private lemma reconstructed_header_eq_isIdentityCorrect (c : MacroCertificate P) (hH : c.Hereditary)
     (K : ColouredBlock c) (hK : BlockContext c K)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
     IsIdentityCorrect c (reconstruct c K h.1) := by
-  sorry
+  intro i
+  constructor
+  · intro hInner hNonprint
+    exact reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint c hH K hK h hh i hInner hNonprint
+  · intro hPrint
+    exact reconstructed_header_eq_isIdentityCorrect_step2_print c hH K hK h hh i hPrint
 
 /-- Step 3 of the blueprint proof of `reconstructed_header_eq`: proving exact header. -/
 private lemma reconstructed_header_eq_headerOf (c : MacroCertificate P) (hH : c.Hereditary)

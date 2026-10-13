@@ -520,11 +520,21 @@ private lemma finite_crowns_step1_vertex_step2_sts_step2_disjoint {τ : Substitu
           exact hx'
         exact hd'.mono hCsub hBsub
 
+private lemma finite_crowns_step1_vertex_step2_sts_step3_not_interior_aux1 (A : PlacedTile P) :
+    closure (interior A.carrier) = A.carrier := by
+  unfold PlacedTile.carrier
+  rw [interior_vadd, closure_vadd, (P.disk A.form).regular_closed]
+
 /-- Step 3 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: if a point is in
 the carrier of one tile, it cannot be in the interior of a disjoint tile. -/
 private lemma finite_crowns_step1_vertex_step2_sts_step3_not_interior {τ : Substitution P}
     (C B : PlacedTile P) (w : Pt) (hwC : w ∈ C.carrier) (hd : Disjoint (interior C.carrier) (interior B.carrier)) :
-    w ∉ interior B.carrier := sorry
+    w ∉ interior B.carrier := by
+  have _ := τ
+  have hclosed : Disjoint (closure (interior C.carrier)) (interior B.carrier) :=
+    hd.closure_left isOpen_interior
+  rw [← finite_crowns_step1_vertex_step2_sts_step3_not_interior_aux1 C] at hwC
+  exact Set.disjoint_left.mp hclosed hwC
 
 /-- Step 4 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: if a point in a
 tile's carrier is not a vertex, it is either in the interior or strictly inside a side. -/

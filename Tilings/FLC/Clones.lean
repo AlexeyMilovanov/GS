@@ -1220,7 +1220,197 @@ private lemma coarse_simple_step2_step1_step1_mem_block (i : Fin D.genuineCount)
       segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i))) :
     ∃ r, r < coarseLength D i ∧
       k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 r := by
-  sorry
+  classical
+  let hn : 0 < D.n := by have := D.three_le; omega
+  let hm : 0 < coarseLength D i := coarseLength_pos D i
+  have hm_lt : coarseLength D i < D.n := by
+    simp only [coarseLength, cyclicDist]
+    split_ifs <;> omega
+  have hcyc_inj : ∀ {u v : ℕ}, u < D.n → v < D.n →
+      cyclicIndex hn (D.genuineEnum i).1 u =
+        cyclicIndex hn (D.genuineEnum i).1 v → u = v := by
+    intro u v hu hv huv
+    have huv' := congrArg Fin.val huv
+    change ((D.genuineEnum i).1.val + u) % D.n =
+      ((D.genuineEnum i).1.val + v) % D.n at huv'
+    by_cases hu' : (D.genuineEnum i).1.val + u < D.n
+    · rw [Nat.mod_eq_of_lt hu'] at huv'
+      by_cases hv' : (D.genuineEnum i).1.val + v < D.n
+      · rw [Nat.mod_eq_of_lt hv'] at huv'
+        omega
+      · have hrepr : (D.genuineEnum i).1.val + v = D.n +
+            ((D.genuineEnum i).1.val + v - D.n) := by omega
+        rw [hrepr, Nat.add_mod_left,
+          Nat.mod_eq_of_lt (by have := (D.genuineEnum i).1.isLt; omega)] at huv'
+        omega
+    · by_cases hv' : (D.genuineEnum i).1.val + v < D.n
+      · rw [Nat.mod_eq_of_lt hv'] at huv'
+        have hrepr : (D.genuineEnum i).1.val + u = D.n +
+            ((D.genuineEnum i).1.val + u - D.n) := by omega
+        rw [hrepr, Nat.add_mod_left,
+          Nat.mod_eq_of_lt (by have := (D.genuineEnum i).1.isLt; omega)] at huv'
+        omega
+      · have hrepru : (D.genuineEnum i).1.val + u = D.n +
+            ((D.genuineEnum i).1.val + u - D.n) := by omega
+        have hreprv : (D.genuineEnum i).1.val + v = D.n +
+            ((D.genuineEnum i).1.val + v - D.n) := by omega
+        rw [hrepru, hreprv, Nat.add_mod_left, Nat.add_mod_left,
+          Nat.mod_eq_of_lt (by have := (D.genuineEnum i).1.isLt; omega),
+          Nat.mod_eq_of_lt (by have := (D.genuineEnum i).1.isLt; omega)] at huv'
+        omega
+  have hvertex : ∀ (q s : Fin D.n),
+      D.vertex q ∉ openSegment ℝ (D.vertex s) (D.vertex (finRotate D.n s)) := by
+    intro q s hq
+    by_cases hqs : q = s
+    · subst q
+      have hne : D.vertex s ≠ D.vertex (finRotate D.n s) := by
+        intro heq
+        exact clones_finRotate_ne_self (by have := D.three_le; omega) s
+          (D.vertex_injective heq).symm
+      exact hne ((left_mem_openSegment_iff).mp hq)
+    · have hs := D.simple s q (Ne.symm hqs)
+        ⟨openSegment_subset_segment ℝ _ _ hq,
+          left_mem_segment ℝ (D.vertex q) (D.vertex (finRotate D.n q))⟩
+      rcases hs.1 with hs0 | hs1
+      · have heq := left_mem_openSegment_iff.mp (hs0 ▸ hq)
+        exact clones_finRotate_ne_self (by have := D.three_le; omega) s
+          (D.vertex_injective heq).symm
+      · rw [Set.mem_singleton_iff] at hs1
+        have heq := right_mem_openSegment_iff.mp (hs1 ▸ hq)
+        exact clones_finRotate_ne_self (by have := D.three_le; omega) s
+          (D.vertex_injective heq).symm
+  have endpoint : ∀ (q : Fin D.n),
+      D.vertex q ∈ segment ℝ (D.coarseVertex i)
+        (D.coarseVertex (finRotate D.genuineCount i)) →
+      ∃ r, r ≤ coarseLength D i ∧ D.vertex q = coarseWalk D i r := by
+    intro q hq
+    have hchain := chain_segment_subset (w := coarseWalk D i) (a := 0)
+      hm (fun t ht => by
+        simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+    simp only [Nat.zero_add] at hchain
+    rw [coarseWalk_zero, coarseWalk_end] at hchain
+    rcases Set.mem_iUnion.mp (hchain hq) with ⟨r, hr⟩
+    rcases Set.mem_iUnion.mp hr with ⟨hrm, hqr⟩
+    change r < coarseLength D i at hrm
+    let s : Fin D.n := cyclicIndex hn (D.genuineEnum i).1 r
+    have hstep := coarseWalk_succ D i r
+    have hside : D.vertex q ∈ segment ℝ (D.vertex s)
+        (D.vertex (finRotate D.n s)) := by
+      rw [hstep] at hqr
+      simpa only [coarseWalk, s] using hqr
+    by_cases hleft : D.vertex q = D.vertex s
+    · refine ⟨r, le_of_lt hrm, ?_⟩
+      simpa [coarseWalk, s] using hleft
+    by_cases hright : D.vertex q = D.vertex (finRotate D.n s)
+    · refine ⟨r + 1, by omega, ?_⟩
+      exact hright.trans hstep.symm
+    · have hopen : D.vertex q ∈ openSegment ℝ (D.vertex s)
+          (D.vertex (finRotate D.n s)) :=
+        mem_openSegment_of_ne_left_right (Ne.symm hleft) (Ne.symm hright) hside
+      exact (hvertex q s hopen).elim
+  have hq0 := endpoint k (h (left_mem_segment ℝ _ _))
+  have hq1 := endpoint (finRotate D.n k) (h (right_mem_segment ℝ _ _))
+  rcases hq0 with ⟨r, hr, hkr⟩
+  rcases hq1 with ⟨r', hr', hknr⟩
+  have hrr : r ≠ r' := by
+    intro heq
+    have hfix : k = finRotate D.n k := D.vertex_injective (by
+      rw [hkr, hknr, heq])
+    exact clones_finRotate_ne_self (by have := D.three_le; omega) k hfix.symm
+  by_cases hlt : r < r'
+  · by_cases hgap : r + 1 < r'
+    · have hmidw := chain_wbtw (w := coarseWalk D i) (a := r)
+        (m := r' - r) (r := 1) (by omega) (by omega) (fun t ht => by
+          have ht' : r + t + 1 < coarseLength D i := by omega
+          simpa only [Nat.add_assoc] using coarseWalk_local D i (r + t) ht')
+      have hmid_ne_left : coarseWalk D i (r + 1) ≠ coarseWalk D i r := by
+        intro heq
+        have hstep := coarseWalk_succ D i r
+        have hfix : finRotate D.n (cyclicIndex hn (D.genuineEnum i).1 r) =
+            cyclicIndex hn (D.genuineEnum i).1 r := by
+          apply D.vertex_injective
+          calc
+            D.vertex (finRotate D.n (cyclicIndex hn (D.genuineEnum i).1 r)) =
+                coarseWalk D i (r + 1) := hstep.symm
+            _ = coarseWalk D i r := heq
+            _ = D.vertex (cyclicIndex hn (D.genuineEnum i).1 r) := by rfl
+        exact clones_finRotate_ne_self (by have := D.three_le; omega) _ hfix
+      have hmid_ne_right : coarseWalk D i (r + 1) ≠ coarseWalk D i r' :=
+        fun heq => by
+          have huv := hcyc_inj (u := r + 1) (v := r') (by omega) (by omega) (by
+            apply D.vertex_injective
+            simpa [coarseWalk] using heq)
+          omega
+      have hmid_seg : coarseWalk D i (r + 1) ∈
+          segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) := by
+        rw [hkr, hknr]
+        have hsum : r + (r' - r) = r' := by omega
+        simpa [hsum] using hmidw.mem_segment
+      have hmid_open : coarseWalk D i (r + 1) ∈
+          openSegment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) :=
+        mem_openSegment_of_ne_left_right
+          (by simpa [hkr] using hmid_ne_left.symm)
+          (by simpa [hknr] using hmid_ne_right.symm) hmid_seg
+      exact (hvertex (cyclicIndex hn (D.genuineEnum i).1 (r + 1))
+        k (by
+          simpa [coarseWalk] using hmid_open)).elim
+    · have heq : r' = r + 1 := by omega
+      refine ⟨r, ?_, ?_⟩
+      · omega
+      · apply D.vertex_injective
+        simpa [coarseWalk] using hkr
+  · have hgt : r' < r := by omega
+    by_cases hgap : r' + 1 < r
+    · have hmidw := chain_wbtw (w := coarseWalk D i) (a := r')
+        (m := r - r') (r := 1) (by omega) (by omega) (fun t ht => by
+          have ht' : r' + t + 1 < coarseLength D i := by omega
+          simpa only [Nat.add_assoc] using coarseWalk_local D i (r' + t) ht')
+      have hstep := coarseWalk_succ D i r'
+      have hmid_ne_right : coarseWalk D i (r' + 1) ≠ coarseWalk D i r' := by
+        intro heq
+        have hfix : finRotate D.n (cyclicIndex hn (D.genuineEnum i).1 r') =
+            cyclicIndex hn (D.genuineEnum i).1 r' := by
+          apply D.vertex_injective
+          calc
+            D.vertex (finRotate D.n (cyclicIndex hn (D.genuineEnum i).1 r')) =
+                coarseWalk D i (r' + 1) := hstep.symm
+            _ = coarseWalk D i r' := heq
+            _ = D.vertex (cyclicIndex hn (D.genuineEnum i).1 r') := by rfl
+        exact clones_finRotate_ne_self (by have := D.three_le; omega) _ hfix
+      have hmid_ne_left : coarseWalk D i (r' + 1) ≠ coarseWalk D i r :=
+        fun heq => by
+          have huv := hcyc_inj (u := r' + 1) (v := r) (by omega) (by omega) (by
+            apply D.vertex_injective
+            simpa [coarseWalk] using heq)
+          omega
+      have hmid_seg : coarseWalk D i (r' + 1) ∈
+          segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) := by
+        rw [hkr, hknr]
+        have hsum : r' + (r - r') = r := by omega
+        simpa [hsum] using hmidw.symm.mem_segment
+      have hmid_open : coarseWalk D i (r' + 1) ∈
+          openSegment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) := by
+        exact mem_openSegment_of_ne_left_right
+          (by simpa [hkr] using hmid_ne_left.symm)
+          (by simpa [hknr] using hmid_ne_right.symm) hmid_seg
+      exact (hvertex (cyclicIndex hn (D.genuineEnum i).1 (r' + 1))
+        k (by
+          simpa [coarseWalk] using hmid_open)).elim
+    · have heq : r = r' + 1 := by omega
+      have hk_eq : D.vertex k = coarseWalk D i (r' + 1) := by
+        rw [heq] at hkr
+        exact hkr
+      have hnext_eq : D.vertex (finRotate D.n k) = coarseWalk D i r' := hknr
+      have hsucc := coarseWalk_succ D i r'
+      have hk_s : k = finRotate D.n (cyclicIndex hn (D.genuineEnum i).1 r') := by
+        apply D.vertex_injective
+        rw [hk_eq, hsucc]
+      have hnext_s : finRotate D.n k = cyclicIndex hn (D.genuineEnum i).1 r' := by
+        apply D.vertex_injective
+        simpa [coarseWalk] using hnext_eq
+      have hsq := congrArg (finRotate D.n) hk_s
+      rw [hnext_s] at hsq
+      exact (clones_finRotate_sq_ne D.three_le _ hsq.symm).elim
 
 /-- Step 2 of the blueprint proof of `coarse_simple_step2_step1`: The coarse block (given by a
 genuine index `i` and an offset `r` below the block's length) containing a fine index `k` in its

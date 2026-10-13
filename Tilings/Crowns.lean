@@ -5144,6 +5144,121 @@ private lemma uniformCrownCoverSupertile_step2_case1
   intro y hy
   exact hcov.2 (hcov.1 ⟨hy.2, hS_ball hy.1⟩)
 
+/-! The remaining far case is split into numerical selection, convexification,
+and the local two-tile crown-selection argument. -/
+
+/-- Step 3 of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2`: choose the positive
+radius and edge-ball constants needed in the far case. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step1_constants
+    {r δ : ℝ} (hr : 0 < r) (hδ : 0 < δ) :
+    ∃ d η ε : ℝ, 0 < d ∧ 0 < η ∧ d = crownRadius r δ (rootSeparationConstants P) ∧
+    0 < ε ∧
+    ε ≤ crownRadius r δ (rootSeparationConstants P) / 2 ∧
+    ε ≤ η ∧ ε ≤ (rootSeparationConstants P).lam ∧
+    ε ≤ d * Real.sin ((rootSeparationConstants P).μ / 2) ∧
+    ∀ (A B : PlacedTile P),
+      Disjoint (interior A.carrier) (interior B.carrier) →
+      ∀ (i : Fin (P.disk A.form).n) (j : Fin (P.disk B.form).n) (e : Pt),
+        e ∈ A.side i → e ∈ B.side j →
+        Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+          B.vertex j, B.vertex (finRotate _ j)} : Set Pt) →
+        d / 2 ≤ dist e (A.vertex i) →
+        d / 2 ≤ dist e (A.vertex (finRotate _ i)) →
+        d / 2 ≤ dist e (B.vertex j) →
+        d / 2 ≤ dist e (B.vertex (finRotate _ j)) →
+        ball e η ⊆ A.carrier ∪ B.carrier := by
+  have hc : 0 < crownRadius r δ (rootSeparationConstants P) := by
+    dsimp [crownRadius]
+    set hR := rootSeparationConstants P
+    refine mul_pos (by positivity) (lt_min (lt_min hr hR.ν_pos)
+      (lt_min hR.lam_pos ?_))
+    refine mul_pos (lt_min hr hδ)
+      (Real.sin_pos_of_mem_Ioo ⟨hR.μ_pos,
+        hR.μ_le.trans_lt (by linarith [Real.pi_pos])⟩)
+  obtain ⟨η, hη, hη_ball⟩ := trimmedEdgeTwoTileBall hc
+  let d := crownRadius r δ (rootSeparationConstants P)
+  let ε := min (d / 2) (min η (min (rootSeparationConstants P).lam
+    (d * Real.sin ((rootSeparationConstants P).μ / 2))))
+  have hsin : 0 < Real.sin ((rootSeparationConstants P).μ / 2) := by
+    exact Real.sin_pos_of_mem_Ioo ⟨by linarith [(rootSeparationConstants P).μ_pos],
+      by linarith [Real.pi_pos, (rootSeparationConstants P).μ_le]
+        ⟩
+  refine ⟨d, η, ε, hc, hη, rfl, ?_, ?_, ?_, ?_, ?_, hη_ball⟩
+  · dsimp [ε]
+    exact lt_min (half_pos hc) (lt_min hη (lt_min
+      (rootSeparationConstants P).lam_pos
+      (by
+        dsimp [d]
+        exact mul_pos hc hsin)))
+  · dsimp [ε, d]
+    exact min_le_left _ _
+  · dsimp [ε]
+    exact le_trans (min_le_right _ _) (min_le_left _ _)
+  · dsimp [ε]
+    exact le_trans (min_le_right _ _)
+      (le_trans (min_le_right _ _) (min_le_left _ _))
+  · dsimp [ε]
+    exact le_trans (min_le_right _ _)
+      (le_trans (min_le_right _ _) (min_le_right _ _))
+
+/-- Step 3 of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2`: pass from a bounded set
+to its closed convex hull without increasing its diameter. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step2_hull
+    {S : Set Pt} {ε : ℝ} (hS_bound : Bornology.IsBounded S)
+    (hS_diam : diam S < ε) :
+    ∃ H : Set Pt, H = closedConvexHull ℝ S ∧ Convex ℝ H ∧
+      Bornology.IsBounded H ∧ diam H < ε ∧ S ⊆ H := by
+  refine ⟨closedConvexHull ℝ S, rfl, convex_closedConvexHull, ?_, ?_,
+    subset_closedConvexHull (𝕜 := ℝ)⟩
+  · rw [closedConvexHull_eq_closure_convexHull]
+    exact (isBounded_convexHull.mpr hS_bound).closure
+  · rw [closedConvexHullDiameter]
+    exact hS_diam
+
+/-- Step 3 of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2`: the exterior-excursion
+lemma makes the far convex hull intersect the macro support convexly. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step2_convex
+    {d ε : ℝ} (hd : 0 < d) (hε_lam : ε ≤ (rootSeparationConstants P).lam)
+    (hε_sin : ε ≤ d * Real.sin ((rootSeparationConstants P).μ / 2))
+    (M : MacroPatch P) {H : Set Pt} (hHconv : Convex ℝ H)
+    (hHbound : Bornology.IsBounded H) (hHdiam : diam H < ε)
+    (hfar : ∀ x ∈ H, ∀ v, IsVertexOf M.tiles v → d / 2 ≤ dist x v) :
+    Convex ℝ (H ∩ support M.tiles) := by
+  exact noShortExteriorExcursion (rootSeparationConstants P) hd M hHconv hHbound
+    (lt_min (hHdiam.trans_le hε_lam) (hHdiam.trans_le hε_sin)) hfar
+
+/-- Step 3 of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2`: after convexification and
+the exterior-excursion step, the trimmed two-tile argument selects one full
+crown covering the far region. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover
+    {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞)
+    {r δ d η : ℝ} (hr : 0 < r) (hδ : 0 < δ)
+    (hrδ : SectorRadiusProperty 𝒞 r δ) (hd : 0 < d) (hη : 0 < η)
+    (hη_ball : ∀ (A B : PlacedTile P),
+      Disjoint (interior A.carrier) (interior B.carrier) →
+      ∀ (i : Fin (P.disk A.form).n) (j : Fin (P.disk B.form).n) (e : Pt),
+        e ∈ A.side i → e ∈ B.side j →
+        Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+          B.vertex j, B.vertex (finRotate _ j)} : Set Pt) →
+        d / 2 ≤ dist e (A.vertex i) →
+        d / 2 ≤ dist e (A.vertex (finRotate _ i)) →
+        d / 2 ≤ dist e (B.vertex j) →
+        d / 2 ≤ dist e (B.vertex (finRotate _ j)) →
+        ball e η ⊆ A.carrier ∪ B.carrier)
+    (M : MacroPatch P) (hM : AllCrownsIn 𝒞 M.tiles) {H : Set Pt}
+    (hHconv : Convex ℝ H) (hHbound : Bornology.IsBounded H)
+    (hHdiam : diam H < η)
+    (hfar : ∀ x ∈ H, ∀ v, IsVertexOf M.tiles v →
+      d / 2 ≤ dist x v)
+    (hHregion : Convex ℝ (H ∩ support M.tiles)) :
+    ∃ v, IsVertexOf M.tiles v ∧
+      H ∩ support M.tiles ⊆ support (crown M.tiles v) := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `uniformCrownCoverSupertile`: convex hull stays far. -/
 private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2
     {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞)
@@ -5154,7 +5269,24 @@ private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2
     (∀ x ∈ closedConvexHull ℝ S, ∀ v, IsVertexOf M.tiles v →
       crownRadius r δ (rootSeparationConstants P) / 2 ≤ dist x v) →
     ∃ v, IsVertexOf M.tiles v ∧ S ∩ support M.tiles ⊆ support (crown M.tiles v) := by
-  sorry
+  obtain ⟨d, η, ε, hd, hη, hd_eq, hε, hε_crown, hε_eta, hε_lam, hε_sin,
+      hη_ball⟩ :=
+    uniformCrownCoverSupertile_step3_epsilon_and_case2_step1_constants hr hδ
+  refine ⟨ε, hε, hε_crown, ?_⟩
+  intro M hM S hS_bound hS_diam hfar
+  obtain ⟨H, hH, hHconv, hHbound, hHdiam, hSsub⟩ :=
+    uniformCrownCoverSupertile_step3_epsilon_and_case2_step2_hull hS_bound hS_diam
+  have hfar' : ∀ x ∈ H, ∀ v, IsVertexOf M.tiles v → d / 2 ≤ dist x v := by
+    simpa [hH, hd_eq] using hfar
+  have hHregion := uniformCrownCoverSupertile_step3_epsilon_and_case2_step2_convex
+    hd hε_lam hε_sin M hHconv hHbound hHdiam hfar'
+  obtain ⟨v, hv, hcover⟩ :=
+    uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover
+      h𝒞 hr hδ hrδ hd hη hη_ball M hM hHconv hHbound
+      (hHdiam.trans_le hε_eta) hfar' hHregion
+  refine ⟨v, hv, ?_⟩
+  intro x hx
+  exact hcover ⟨hSsub hx.1, hx.2⟩
 
 /-- `lem:crown-cover-supertile`: there is `ε > 0` such that for every macro
 patch whose full pointed crowns (including incomplete boundary crowns) are

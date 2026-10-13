@@ -1,4 +1,5 @@
 import Tilings.Geometry.Grouping
+import Tilings.Crowns
 import Mathlib.Analysis.SpecificLimits.Basic
 
 /-!
@@ -411,6 +412,380 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_fi
         segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.Finite :=
   (whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite_aux2 τ G m A).sep _
 
+private lemma omitted_count_support_translateSet (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier,
+    Set.mem_iUnion, Set.mem_image, Set.mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [← add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [← add_assoc] using hx
+
+private lemma omitted_count_support_decomposeTile (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [omitted_count_support_translateSet, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [Set.mem_vadd_set_iff_neg_vadd_mem, Set.mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc
+        τ.θ • A.anchor + τ.θ • y =
+            τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma omitted_count_support_decompose (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [Substitution.decompose, support]
+  rw [Set.smul_set_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨A, ⟨B, hB, hA⟩, hx⟩
+    refine ⟨B, hB, ?_⟩
+    have h : x ∈ support (τ.decomposeTile B) := by
+      simp only [support, Set.mem_iUnion]
+      exact ⟨A, hA, hx⟩
+    rwa [omitted_count_support_decomposeTile] at h
+  · rintro ⟨A, hA, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rwa [omitted_count_support_decomposeTile]
+    simp only [support, Set.mem_iUnion] at h
+    rcases h with ⟨B, hB, hxB⟩
+    exact ⟨B, ⟨A, hA, hB⟩, hxB⟩
+
+private lemma omitted_count_fineTiles_support (m : ℕ) (A : G.P'.Form) :
+    support (fineTiles τ G m A) = (τ.θ ^ m) • (G.P'.disk A).carrier := by
+  induction m with
+  | zero => simpa [fineTiles, Substitution.decomposeIter] using G.support_eq A
+  | succ m ih =>
+      change support (τ.decompose (τ.decomposeIter m (G.dissect A).tiles)) = _
+      rw [omitted_count_support_decompose]
+      change support (τ.decomposeIter m (G.dissect A).tiles) = _ at ih
+      rw [ih, smul_smul, pow_succ']
+
+private lemma omitted_count_decomposeTile_disjoint (A : PlacedTile P) :
+    DisjointInteriors (τ.decomposeTile A) := by
+  dsimp [Substitution.decomposeTile, translateSet]
+  intro T₁ hT₁ T₂ hT₂ hne
+  rcases hT₁ with ⟨B₁, hB₁, rfl⟩
+  rcases hT₂ with ⟨B₂, hB₂, rfl⟩
+  have hne' : B₁ ≠ B₂ := fun h => hne (by rw [h])
+  have hd := (τ.rule A.form).disjoint hB₁ hB₂ hne'
+  dsimp [Function.onFun] at hd ⊢
+  have heq₁ : (B₁.translate (τ.θ • A.anchor)).carrier =
+      (τ.θ • A.anchor) +ᵥ B₁.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, Set.mem_vadd_set_iff_neg_vadd_mem,
+      vadd_eq_add, neg_add_rev]
+    rw [← add_assoc]
+  have heq₂ : (B₂.translate (τ.θ • A.anchor)).carrier =
+      (τ.θ • A.anchor) +ᵥ B₂.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, Set.mem_vadd_set_iff_neg_vadd_mem,
+      vadd_eq_add, neg_add_rev]
+    rw [← add_assoc]
+  rw [heq₁, heq₂, interior_vadd, interior_vadd]
+  have hinj : Function.Injective ((τ.θ • A.anchor) +ᵥ · : Pt → Pt) := add_right_injective _
+  exact (Set.disjoint_image_iff hinj).mpr hd
+
+private lemma omitted_count_decompose_disjoint (S : Set (PlacedTile P))
+    (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := by
+  intro T₁ hT₁ T₂ hT₂ hne
+  dsimp [Substitution.decompose] at hT₁ hT₂
+  simp only [Set.mem_iUnion, exists_prop] at hT₁ hT₂
+  rcases hT₁ with ⟨A, hA, hT₁A⟩
+  rcases hT₂ with ⟨B, hB, hT₂B⟩
+  by_cases hAB : A = B
+  · subst hAB
+    exact omitted_count_decomposeTile_disjoint τ A hT₁A hT₂B hne
+  · have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+    have hscaled : Disjoint (interior (τ.θ • A.carrier)) (interior (τ.θ • B.carrier)) := by
+      rw [interior_smul₀ hθ, interior_smul₀ hθ]
+      exact (Set.disjoint_image_iff (smul_right_injective Pt hθ)).mpr (hS hA hB hAB)
+    apply hscaled.mono
+    · apply interior_mono
+      intro x hx
+      rw [← omitted_count_support_decomposeTile τ A]
+      exact Set.mem_iUnion₂.2 ⟨T₁, hT₁A, hx⟩
+    · apply interior_mono
+      intro x hx
+      rw [← omitted_count_support_decomposeTile τ B]
+      exact Set.mem_iUnion₂.2 ⟨T₂, hT₂B, hx⟩
+
+private lemma omitted_count_fineTiles_disjoint (m : ℕ) (A : G.P'.Form) :
+    DisjointInteriors (fineTiles τ G m A) := by
+  induction m with
+  | zero => simpa [fineTiles, Substitution.decomposeIter] using (G.dissect A).disjoint
+  | succ m ih =>
+      exact omitted_count_decompose_disjoint τ _ ih
+
+private lemma omitted_count_finRotate_ne_self {n : ℕ} (hn : 2 ≤ n) (i : Fin n) :
+    finRotate n i ≠ i := by
+  obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h₁ : (1 : Fin (k + 1)) = 0 := by
+    have h₂ := congrArg (fun x => x - i) h
+    simpa using h₂
+  have : NeZero (k + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h₁
+  omega
+
+private lemma omitted_count_tile_vertex_ne_next (B : PlacedTile P)
+    (i : Fin (P.disk B.form).n) : B.vertex i ≠ B.vertex (finRotate _ i) := by
+  intro h
+  have h' := (vadd_left_cancel_iff B.anchor).mp h
+  have hi := (P.disk B.form).vertex_injective h'
+  exact omitted_count_finRotate_ne_self (by have := (P.disk B.form).three_le; omega) i hi.symm
+
+private lemma omitted_count_parent_endpoints_ne (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) :
+    (parentSide τ G m A a).1 ≠ (parentSide τ G m A a).2 := by
+  dsimp [parentSide]
+  intro h
+  have h' := smul_right_injective Pt (pow_ne_zero _ (by linarith [τ.one_lt])) h
+  exact (G.P'.disk A).vertex_injective.ne
+    (Ne.symm (omitted_count_finRotate_ne_self
+      (by have := (G.P'.disk A).three_le; omega) a)) h'
+
+private lemma omitted_count_endpoint_of_subsegment {p q x y : Pt} (hpq : p ≠ q)
+    (hsub : segment ℝ x y ⊆ segment ℝ p q)
+    (hp : p ∈ segment ℝ x y) : p = x ∨ p = y := by
+  have hx : Wbtw ℝ p x q := mem_segment_iff_wbtw.mp (hsub (left_mem_segment ℝ x y))
+  have hy : Wbtw ℝ p y q := mem_segment_iff_wbtw.mp (hsub (right_mem_segment ℝ x y))
+  have hsame : SameRay ℝ (x -ᵥ p) (y -ᵥ p) := by
+    apply hx.sameRay_vsub_left.trans hy.sameRay_vsub_left.symm
+    intro hqp
+    exact False.elim (hpq (sub_eq_zero.mp hqp).symm)
+  have hp' : Wbtw ℝ x p y := mem_segment_iff_wbtw.mp hp
+  rcases wbtw_total_of_sameRay_vsub_left hsame with h | h
+  · exact Or.inl (hp'.swap_left_iff.mp h).symm
+  · exact Or.inr (hp'.symm.swap_left_iff.mp h).symm
+
+private lemma omitted_count_common_open_from_endpoint {p q r s : Pt} (hpq : p ≠ q)
+    (hrp : r ≠ p) (hsp : s ≠ p) (hr : r ∈ segment ℝ p q)
+    (hs : s ∈ segment ℝ p q) :
+    ∃ z, z ∈ openSegment ℝ p r ∧ z ∈ openSegment ℝ p s := by
+  have hpr : Wbtw ℝ p r q := mem_segment_iff_wbtw.mp hr
+  have hps : Wbtw ℝ p s q := mem_segment_iff_wbtw.mp hs
+  have hsame : SameRay ℝ (r -ᵥ p) (s -ᵥ p) := by
+    apply hpr.sameRay_vsub_left.trans hps.sameRay_vsub_left.symm
+    intro hqp
+    exact False.elim (hpq (sub_eq_zero.mp hqp).symm)
+  rcases wbtw_total_of_sameRay_vsub_left hsame with hrs | hsr
+  · let z := AffineMap.lineMap p r (1 / 2 : ℝ)
+    have hzpr : z ∈ openSegment ℝ p r :=
+      lineMap_mem_openSegment (𝕜 := ℝ) p r (by norm_num)
+    have hzp : z ≠ p := by
+      intro hzp
+      rw [hzp] at hzpr
+      exact hrp (left_mem_openSegment_iff.mp hzpr).symm
+    have hzr : z ≠ r := by
+      intro hzr
+      rw [hzr] at hzpr
+      exact hrp (right_mem_openSegment_iff.mp hzpr).symm
+    have hzstrict : Sbtw ℝ p z r :=
+      ⟨mem_segment_iff_wbtw.mp (openSegment_subset_segment ℝ p r hzpr),
+        hzp, hzr⟩
+    have hzps := hrs.trans_sbtw_left hzstrict
+    exact ⟨z, hzpr, mem_openSegment_of_ne_left_right hzps.left_ne hzps.right_ne
+      hzps.wbtw.mem_segment⟩
+  · let z := AffineMap.lineMap p s (1 / 2 : ℝ)
+    have hzps : z ∈ openSegment ℝ p s :=
+      lineMap_mem_openSegment (𝕜 := ℝ) p s (by norm_num)
+    have hzp : z ≠ p := by
+      intro hzp
+      rw [hzp] at hzps
+      exact hsp (left_mem_openSegment_iff.mp hzps).symm
+    have hzs : z ≠ s := by
+      intro hzs
+      rw [hzs] at hzps
+      exact hsp (right_mem_openSegment_iff.mp hzps).symm
+    have hzstrict : Sbtw ℝ p z s :=
+      ⟨mem_segment_iff_wbtw.mp (openSegment_subset_segment ℝ p s hzps),
+        hzp, hzs⟩
+    have hzpr := hsr.trans_sbtw_left hzstrict
+    exact ⟨z, mem_openSegment_of_ne_left_right hzpr.left_ne hzpr.right_ne
+      hzpr.wbtw.mem_segment, hzps⟩
+
+private lemma omitted_count_common_open {p q x y u v : Pt} (hpq : p ≠ q)
+    (hxy : x ≠ y) (huv : u ≠ v)
+    (hsub₁ : segment ℝ x y ⊆ segment ℝ p q)
+    (hsub₂ : segment ℝ u v ⊆ segment ℝ p q)
+    (hp₁ : p ∈ segment ℝ x y) (hp₂ : p ∈ segment ℝ u v) :
+    ∃ z, z ∈ openSegment ℝ x y ∧ z ∈ openSegment ℝ u v := by
+  have hx := hsub₁ (left_mem_segment ℝ x y)
+  have hy := hsub₁ (right_mem_segment ℝ x y)
+  have hu := hsub₂ (left_mem_segment ℝ u v)
+  have hv := hsub₂ (right_mem_segment ℝ u v)
+  rcases omitted_count_endpoint_of_subsegment hpq hsub₁ hp₁ with hpx | hpy <;>
+    rcases omitted_count_endpoint_of_subsegment hpq hsub₂ hp₂ with hpu | hpv
+  · subst x; subst u
+    exact omitted_count_common_open_from_endpoint hpq hxy.symm huv.symm hy hv
+  · subst x; subst v
+    simpa [openSegment_symm] using
+      omitted_count_common_open_from_endpoint hpq hxy.symm huv hy hu
+  · subst y; subst u
+    simpa [openSegment_symm] using
+      omitted_count_common_open_from_endpoint hpq hxy huv.symm hx hv
+  · subst y; subst v
+    simpa [openSegment_symm] using
+      omitted_count_common_open_from_endpoint hpq hxy huv hx hu
+
+private lemma omitted_count_collinear_of_segment_subset {p q x y u v : Pt}
+    (h₁ : segment ℝ x y ⊆ segment ℝ p q)
+    (h₂ : segment ℝ u v ⊆ segment ℝ p q) :
+    Collinear ℝ ({x, y, u, v} : Set Pt) := by
+  rw [collinear_iff_of_mem (show x ∈ ({x, y, u, v} : Set Pt) by simp)]
+  refine ⟨q - p, ?_⟩
+  have hform : ∀ {z : Pt}, z ∈ segment ℝ p q →
+      ∃ t : ℝ, z = t • (q - p) + p := by
+    intro z hz
+    rcases hz with ⟨a, b, ha, hb, hab, rfl⟩
+    refine ⟨b, ?_⟩
+    have haeq : a = 1 - b := by linarith
+    rw [haeq]
+    module
+  have hx := h₁ (left_mem_segment ℝ x y)
+  obtain ⟨tx, htx⟩ := hform hx
+  intro z hz
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hz
+  have hzseg : z ∈ segment ℝ p q := by
+    rcases hz with h | h | h | h
+    · exact h ▸ hx
+    · exact h ▸ h₁ (right_mem_segment ℝ x y)
+    · exact h ▸ h₂ (left_mem_segment ℝ u v)
+    · exact h ▸ h₂ (right_mem_segment ℝ u v)
+  obtain ⟨tz, htz⟩ := hform hzseg
+  refine ⟨tz - tx, ?_⟩
+  change z = (tz - tx) • (q - p) + x
+  calc
+    z = tz • (q - p) + p := htz
+    _ = (tz - tx) • (q - p) + (tx • (q - p) + p) := by module
+    _ = (tz - tx) • (q - p) + x := by rw [← htx]
+
+private lemma omitted_count_tile_side_eq (B : PlacedTile P)
+    (i : Fin (P.disk B.form).n) :
+    B.side i = segment ℝ (B.vertex i) (B.vertex (finRotate _ i)) := by
+  simp [PlacedTile.side, PolygonalDisk.side, PlacedTile.vertex, vadd_segment]
+
+private lemma omitted_count_open_ne_left {x y z : Pt} (hxy : x ≠ y)
+    (hz : z ∈ openSegment ℝ x y) : z ≠ x := by
+  intro h
+  rw [h] at hz
+  exact hxy (left_mem_openSegment_iff.mp hz)
+
+private lemma omitted_count_open_ne_right {x y z : Pt} (hxy : x ≠ y)
+    (hz : z ∈ openSegment ℝ x y) : z ≠ y := by
+  intro h
+  rw [h] at hz
+  exact hxy (right_mem_openSegment_iff.mp hz)
+
+private lemma omitted_count_same_tile_side_index (B : PlacedTile P)
+    (i j : Fin (P.disk B.form).n) (z : Pt)
+    (hi : z ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate _ i)))
+    (hj : z ∈ segment ℝ (B.vertex j) (B.vertex (finRotate _ j))) : i = j := by
+  have hi' := hi
+  have hj' := hj
+  change z ∈ openSegment ℝ
+    (B.anchor +ᵥ (P.disk B.form).vertex i)
+    (B.anchor +ᵥ (P.disk B.form).vertex (finRotate _ i)) at hi'
+  change z ∈ segment ℝ
+    (B.anchor +ᵥ (P.disk B.form).vertex j)
+    (B.anchor +ᵥ (P.disk B.form).vertex (finRotate _ j)) at hj'
+  rw [← vadd_openSegment, Set.mem_vadd_set_iff_neg_vadd_mem] at hi'
+  rw [← vadd_segment, Set.mem_vadd_set_iff_neg_vadd_mem] at hj'
+  by_contra hij
+  have hs := (P.disk B.form).simple i j hij
+    ⟨openSegment_subset_segment ℝ _ _ hi', hj'⟩
+  have hne : (P.disk B.form).vertex i ≠
+      (P.disk B.form).vertex (finRotate _ i) :=
+    (P.disk B.form).vertex_injective.ne
+      (Ne.symm (omitted_count_finRotate_ne_self
+        (by have := (P.disk B.form).three_le; omega) i))
+  rcases hs.1 with h | h
+  · rw [h] at hi'
+    exact hne (left_mem_openSegment_iff.mp hi')
+  · rw [Set.mem_singleton_iff] at h
+    rw [h] at hi'
+    exact hne (right_mem_openSegment_iff.mp hi')
+
+set_option maxHeartbeats 800000 in
+private lemma omitted_count_edge_unique_at_endpoint
+    (m : ℕ) (A : G.P'.Form) (p q : Pt) (e f : Pt × Pt) (hpq : p ≠ q)
+    (he : e ∈ fineOuterSides τ G m A) (hf : f ∈ fineOuterSides τ G m A)
+    (hesub : segment ℝ e.1 e.2 ⊆ segment ℝ p q)
+    (hfsub : segment ℝ f.1 f.2 ⊆ segment ℝ p q)
+    (hpₑ : p ∈ segment ℝ e.1 e.2) (hp_f : p ∈ segment ℝ f.1 f.2) : e = f := by
+  obtain ⟨B, hB, i, heq, hefront⟩ := he
+  obtain ⟨C, hC, j, hfeq, hffront⟩ := hf
+  subst e
+  subst f
+  have hBi := omitted_count_tile_vertex_ne_next B i
+  have hCj := omitted_count_tile_vertex_ne_next C j
+  obtain ⟨z, hzB, hzC⟩ := omitted_count_common_open
+    hpq hBi hCj hesub hfsub hpₑ hp_f
+  have hBC : B = C := by
+    by_contra hBC
+    have hdisj : Disjoint (interior B.carrier) (interior C.carrier) :=
+      omitted_count_fineTiles_disjoint τ G m A hB hC hBC
+    have hzBi : z ∈ B.side i := by
+      rw [omitted_count_tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hzB
+    have hzCj : z ∈ C.side j := by
+      rw [omitted_count_tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hzC
+    have hcol : Collinear ℝ ({B.vertex i, B.vertex (finRotate _ i),
+        C.vertex j, C.vertex (finRotate _ j)} : Set Pt) :=
+      omitted_count_collinear_of_segment_subset hesub hfsub
+    have hzBi₁ : z ≠ B.vertex i := omitted_count_open_ne_left hBi hzB
+    have hzBi₂ : z ≠ B.vertex (finRotate _ i) := omitted_count_open_ne_right hBi hzB
+    have hzCj₁ : z ≠ C.vertex j := omitted_count_open_ne_left hCj hzC
+    have hzCj₂ : z ≠ C.vertex (finRotate _ j) := omitted_count_open_ne_right hCj hzC
+    let δ := min (dist z (B.vertex i))
+      (min (dist z (B.vertex (finRotate _ i)))
+        (min (dist z (C.vertex j)) (dist z (C.vertex (finRotate _ j)))))
+    have hδ : 0 < δ := by
+      dsimp [δ]
+      exact lt_min (dist_pos.mpr hzBi₁)
+        (lt_min (dist_pos.mpr hzBi₂) (lt_min (dist_pos.mpr hzCj₁) (dist_pos.mpr hzCj₂)))
+    have hhalf : (2 * δ) / 2 = δ := by ring
+    obtain ⟨η, hη, hball⟩ :=
+      Crowns.trimmedEdgeTwoTileBall (P := P) (d := 2 * δ) (by positivity)
+    have hcover : Metric.ball z η ⊆ B.carrier ∪ C.carrier := by
+      apply hball B C hdisj i j z hzBi hzCj hcol
+      all_goals rw [hhalf]
+      · exact min_le_left _ _
+      · exact (min_le_right _ _).trans (min_le_left _ _)
+      · exact (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_left _ _))
+      · exact (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
+    have hballRegion : Metric.ball z η ⊆ parentRegion τ G m A := by
+      intro x hx
+      rw [parentRegion, ← omitted_count_fineTiles_support τ G]
+      rcases hcover hx with hxB | hxC
+      · exact Set.mem_iUnion₂.2 ⟨B, hB, hxB⟩
+      · exact Set.mem_iUnion₂.2 ⟨C, hC, hxC⟩
+    have hzint : z ∈ interior (parentRegion τ G m A) := by
+      rw [mem_interior_iff_mem_nhds]
+      exact Filter.mem_of_superset (Metric.ball_mem_nhds z hη) hballRegion
+    exact (hefront (openSegment_subset_segment ℝ _ _ hzB)).2 hzint
+  subst C
+  have hij := omitted_count_same_tile_side_index B i j z hzB
+    (openSegment_subset_segment ℝ _ _ hzC)
+  subst j
+  rfl
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound`: the length of the
 parent side is bounded by the total number of fine edges on it times D. -/
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
@@ -439,7 +814,59 @@ private lemma whole_side_ports_step2_length_bound_step2_omitted_count
     {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
         segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard ≤
       (sidesInside τ G m A a).ncard + 2 := by
-  sorry
+  let p := (parentSide τ G m A a).1
+  let q := (parentSide τ G m A a).2
+  let S := {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆ segment ℝ p q}
+  let I := sidesInside τ G m A a
+  let L := {e ∈ S | p ∈ segment ℝ e.1 e.2}
+  let R := {e ∈ S | q ∈ segment ℝ e.1 e.2}
+  have hpq : p ≠ q := omitted_count_parent_endpoints_ne τ G m A a
+  have hSfin : S.Finite := by
+    apply (whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite τ G m A a).subset
+    intro e he
+    exact he
+  have hIfin : I.Finite := by
+    apply hSfin.subset
+    rintro e ⟨he, heopen⟩
+    exact ⟨he, heopen.trans (openSegment_subset_segment ℝ p q)⟩
+  have hLfin : L.Finite := hSfin.sep _
+  have hRfin : R.Finite := hSfin.sep _
+  have hL : L.ncard ≤ 1 := by
+    rw [Set.ncard_le_one hLfin]
+    intro e he f hf
+    exact omitted_count_edge_unique_at_endpoint τ G m A p q e f hpq
+      he.1.1 hf.1.1 he.1.2 hf.1.2 he.2 hf.2
+  have hR : R.ncard ≤ 1 := by
+    rw [Set.ncard_le_one hRfin]
+    intro e he f hf
+    apply omitted_count_edge_unique_at_endpoint τ G m A q p e f hpq.symm
+    · exact he.1.1
+    · exact hf.1.1
+    · simpa [segment_symm] using he.1.2
+    · simpa [segment_symm] using hf.1.2
+    · exact he.2
+    · exact hf.2
+  have hsub : S ⊆ I ∪ (L ∪ R) := by
+    intro e he
+    by_cases heopen : segment ℝ e.1 e.2 ⊆ openSegment ℝ p q
+    · exact Or.inl ⟨he.1, heopen⟩
+    · rw [Set.not_subset] at heopen
+      obtain ⟨z, hz, hzopen⟩ := heopen
+      have hzparent := he.2 hz
+      rw [← insert_endpoints_openSegment] at hzparent
+      simp only [Set.mem_insert_iff] at hzparent
+      rcases hzparent with hzp | hzq | hzopen'
+      · exact Or.inr (Or.inl ⟨he, hzp ▸ hz⟩)
+      · exact Or.inr (Or.inr ⟨he, hzq ▸ hz⟩)
+      · exact False.elim (hzopen hzopen')
+  have hUnionFin : (I ∪ (L ∪ R)).Finite := hIfin.union (hLfin.union hRfin)
+  change S.ncard ≤ I.ncard + 2
+  calc
+    S.ncard ≤ (I ∪ (L ∪ R)).ncard := Set.ncard_le_ncard hsub hUnionFin
+    _ ≤ I.ncard + (L ∪ R).ncard := Set.ncard_union_le I (L ∪ R)
+    _ ≤ I.ncard + (L.ncard + R.ncard) :=
+      Nat.add_le_add_left (Set.ncard_union_le L R) I.ncard
+    _ ≤ I.ncard + 2 := by omega
 
 /-- Step 2 of the blueprint proof of `whole_side_ports`: the length of the parent
 side is bounded by the number of inside edges times D plus the omitted length 2D. -/

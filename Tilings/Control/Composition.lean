@@ -1670,6 +1670,148 @@ theorem reconstructed_header_eq (c : MacroCertificate P) (hH : c.Hereditary)
    reconstructed_header_eq_headerOf c hH K hK h hh,
    reconstructed_header_eq_innerActive c hH K hK h hh⟩
 
+/-- A fixed vector cancels in set vadd (used to compare placed and unplaced side
+segments). -/
+private lemma path_and_print_recovery_step1_signals_aux_vadd_cancel (a : Pt) {S T : Set Pt}
+    (h : a +ᵥ S = a +ᵥ T) : S = T := by
+  have hinj : Function.Injective (fun x : Pt => a +ᵥ x) := by
+    intro x y hxy
+    simpa using hxy
+  rw [← Set.image_vadd, ← Set.image_vadd] at h
+  exact (Set.image_eq_image hinj).mp h
+
+/-- A placed child side is the block offset `v` added to the unplaced side. -/
+private lemma path_and_print_recovery_step1_signals_aux_childSide (c : MacroCertificate P)
+    (K : ColouredBlock c) (o : c.SideOcc) :
+    K.childSide o = K.v +ᵥ c.occSide o := by
+  show (K.v + c.anchor o.1) +ᵥ (c.Q.disk (c.form o.1)).side o.2 =
+    K.v +ᵥ (c.anchor o.1 +ᵥ (c.Q.disk (c.form o.1)).side o.2)
+  rw [add_vadd]
+
+/-- Step 1 of the blueprint proof of `path_and_print_recovery_step1_signals`: a print
+occurrence on a genuine path is the path's own terminal print. -/
+private lemma path_and_print_recovery_step1_signals_aux1 (c : MacroCertificate P)
+    {α : c.Q.Form} {d : Fin (c.Q.disk α).n} {j : Fin 5} (hG : c.IsGenuinePath α d j)
+    {o : c.SideOcc} (ho : o ∈ c.path α d j) (hp : c.IsPrint o) :
+    o = c.partner (c.printOcc α d) := by
+  have hown : c.owner o.1 = α := c.g4_path_owner α d j o ho
+  have hp' : ∃ e : Fin (c.Q.disk α).n, c.IsPrintOf α e o := by
+    unfold MacroData.IsPrint at hp
+    rwa [hown] at hp
+  obtain ⟨e, hme, hcase⟩ := hp'
+  rcases hcase with rfl | rfl
+  · exact absurd rfl (c.g4_path_not_central α d j hG _ ho)
+  · by_cases hde : e = d
+    · rw [hde]
+    · exfalso
+      have hlast : (c.path α e 0).getLast? = some (c.partner (c.printOcc α e)) :=
+        c.g4_path_last α e 0 ⟨hme, by decide⟩
+      rw [List.getLast?_eq_getElem?] at hlast
+      have hterm : c.partner (c.printOcc α e) ∈ c.path α e 0 :=
+        List.mem_of_getElem? hlast
+      have hne' : (d, j) ≠ (e, (0 : Fin 5)) := fun heq => hde (congrArg Prod.fst heq).symm
+      obtain ⟨hde', -⟩ := c.g4_path_disjoint α d e j 0 hne' _ ho hterm
+      exact hde hde'.symm
+
+/-- Step 2 of the blueprint proof of `path_and_print_recovery_step1_signals`: only the
+final position of a genuine path can carry a print occurrence. -/
+private lemma path_and_print_recovery_step1_signals_aux2 (c : MacroCertificate P)
+    {α : c.Q.Form} {d : Fin (c.Q.disk α).n} {j : Fin 5} (hG : c.IsGenuinePath α d j)
+    {n : ℕ} (hn : n + 1 < (c.path α d j).length) {o : c.SideOcc}
+    (ho : (c.path α d j)[n]? = some o) : ¬ c.IsPrint o := by
+  intro hp
+  have hmem : o ∈ c.path α d j := List.mem_of_getElem? ho
+  have heq := path_and_print_recovery_step1_signals_aux1 c hG hmem hp
+  have hlast : (c.path α d j).getLast? = some o := by
+    rw [heq]; exact c.g4_path_last α d j hG
+  rw [List.getLast?_eq_getElem?] at hlast
+  have hnodup := c.g4_path_nodup α d j
+  have hne := (List.nodup_iff_getElem?_ne_getElem?).1 hnodup n ((c.path α d j).length - 1)
+    (by omega) (by omega)
+  exact hne (ho.trans hlast.symm)
+
+/-- Step 3 of the blueprint proof of `path_and_print_recovery_step1_signals`: consecutive
+nonprint occurrences of a path carry equal third signals, whether they share a tile or are
+partner occurrences of a common inner side. -/
+private lemma path_and_print_recovery_step1_signals_aux3 (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    {α : c.Q.Form} (hα : α = K.α) {d : Fin (c.Q.disk α).n} {j : Fin 5}
+    (hG : c.IsGenuinePath α d j) {o o' : c.SideOcc}
+    (hmem : o ∈ c.path α d j) (hmem' : o' ∈ c.path α d j)
+    (hchain : o.1 = o'.1 ∨ (c.IsInner o ∧ o' = c.partner o))
+    (hnp : ¬ c.IsPrint o) (hnp' : ¬ c.IsPrint o') :
+    K.col o.1 o.2 2 = K.col o'.1 o'.2 2 := by
+  rcases hchain with hsame | ⟨hinner, hpartner⟩
+  · obtain ⟨t, i⟩ := o
+    subst hsame
+    have hown : c.owner o'.1 = α := c.g4_path_owner α d j (c.occ o'.1 i) hmem
+    have hnc : o'.1 ≠ c.central α := c.g4_path_not_central α d j hG (c.occ o'.1 i) hmem
+    have hownK : c.owner o'.1 = K.α := hown.trans hα
+    have hncK : o'.1 ≠ c.central K.α := by rw [← hα]; exact hnc
+    have hlegal : headerLegal c (K.tileOf o'.1) := hK.2 o'.1 hownK hncK
+    have heqF : α = c.owner o'.1 := hown.symm
+    have hcast : c.occ o'.1 i ∈ c.path (c.owner o'.1)
+        (cast (congrArg (fun F => Fin (c.Q.disk F).n) heqF) d) j :=
+      (headerLegal_properties_step5_path_step1_cast_path c hH heqF d j (c.occ o'.1 i)).1 hmem
+    have hcast' : c.occ o'.1 o'.2 ∈ c.path (c.owner o'.1)
+        (cast (congrArg (fun F => Fin (c.Q.disk F).n) heqF) d) j :=
+      (headerLegal_properties_step5_path_step1_cast_path c hH heqF d j (c.occ o'.1 o'.2)).1 hmem'
+    exact headerLegal_properties_step5_path c hH (K.tileOf o'.1) hlegal _ j i o'.2 hcast hcast'
+      hnp hnp'
+  · subst hpartner
+    have hown : c.owner o.1 = α := c.g4_path_owner α d j o hmem
+    have hnc : o.1 ≠ c.central α := c.g4_path_not_central α d j hG o hmem
+    have hlegal : headerLegal c (K.tileOf o.1) := hK.2 o.1 (hown.trans hα) (by
+      rw [← hα]; exact hnc)
+    have hNontriv : IsNontrivial c (K.tileOf o.1) o.2 :=
+      headerLegal_properties_step6_inner c hH (K.tileOf o.1) hlegal o.2 hinner
+    obtain ⟨t2, j2, hown2, hne2, hside2, hcol2⟩ :=
+      hK.1 o.1 o.2 (hown.trans hα) hinner hNontriv
+    have hsideEq : c.occSide (c.occ t2 j2) = c.occSide o := by
+      have e1 := path_and_print_recovery_step1_signals_aux_childSide c K (c.occ t2 j2)
+      have e2 := path_and_print_recovery_step1_signals_aux_childSide c K o
+      rw [e1, e2] at hside2
+      exact path_and_print_recovery_step1_signals_aux_vadd_cancel K.v hside2
+    have heqOcc : (c.occ t2 j2 : c.SideOcc) = c.partner o :=
+      c.g1_side_unique o (c.occ t2 j2) hinner (hown2.trans (hown.trans hα).symm) hne2 hsideEq
+    have hcolEq : K.col t2 j2 2 = K.col (c.partner o).1 (c.partner o).2 2 :=
+      congrArg (fun (p : c.SideOcc) => K.col p.1 p.2 2) heqOcc
+    exact (hcol2 2).symm.trans hcolEq
+
+/-- Step 4 of the blueprint proof of `path_and_print_recovery_step1_signals`: induction
+along a genuine path, from the port to an arbitrary nonprint position. -/
+private lemma path_and_print_recovery_step1_signals_aux4 (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    {α : c.Q.Form} (hα : α = K.α) {d : Fin (c.Q.disk α).n} {j : Fin 5}
+    (hG : c.IsGenuinePath α d j) :
+    ∀ n : ℕ, ∀ o : c.SideOcc, (c.path α d j)[n]? = some o → ¬ c.IsPrint o →
+      K.col o.1 o.2 2 =
+        (match c.port α d j with | some o0 => K.col o0.1 o0.2 2 | none => 0 : U c) := by
+  intro n
+  induction n with
+  | zero =>
+    intro o ho _
+    have hhead : (c.path α d j).head? = c.port α d j := c.g4_path_head α d j hG
+    have h0 : (c.path α d j)[0]? = c.port α d j := by
+      rw [← List.head?_eq_getElem?]; exact hhead
+    rw [ho] at h0
+    rw [← h0]
+  | succ n ih =>
+    intro o' ho' hnp'
+    obtain ⟨hlt1, -⟩ := (List.getElem?_eq_some_iff).1 ho'
+    have hlt0 : n < (c.path α d j).length := by omega
+    obtain ⟨o, ho⟩ : ∃ o, (c.path α d j)[n]? = some o :=
+      ⟨(c.path α d j)[n], List.getElem?_eq_some_iff.mpr ⟨hlt0, rfl⟩⟩
+    have hnp : ¬ c.IsPrint o := path_and_print_recovery_step1_signals_aux2 c hG hlt1 ho
+    have heqD := ih o ho hnp
+    have hmem : o ∈ c.path α d j := List.mem_of_getElem? ho
+    have hmem' : o' ∈ c.path α d j := List.mem_of_getElem? ho'
+    have hchain := c.g4_path_chain α d j n o o' ho ho'
+    have heq2 := path_and_print_recovery_step1_signals_aux3 c hH K hK hα hG hmem hmem' hchain
+      hnp hnp'
+    rw [← heq2]
+    exact heqD
+
 /-- Step 1 of the blueprint proof of `path_and_print_recovery`: every nonprint third signal
 on `P_i(d)` equals `D_i(d)`. -/
 private lemma path_and_print_recovery_step1_signals (c : MacroCertificate P)
@@ -1677,7 +1819,16 @@ private lemma path_and_print_recovery_step1_signals (c : MacroCertificate P)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
     ∀ (d : c.Side h.1) (j : Fin 5) (o : c.SideOcc), o ∈ c.path (c.form h.1) d j →
       ¬ c.IsPrint o → K.col o.1 o.2 2 = (reconstruct c K h.1).cell d j := by
-  sorry
+  intro d j o ho hnp
+  show K.col o.1 o.2 2 = match c.port (c.form h.1) d j with
+    | some o0 => K.col o0.1 o0.2 2 | none => 0
+  by_cases hG : c.IsGenuinePath (c.form h.1) d j
+  · obtain ⟨n, hlt, hn⟩ := List.getElem_of_mem ho
+    have ho2 : (c.path (c.form h.1) d j)[n]? = some o :=
+      List.getElem?_eq_some_iff.mpr ⟨hlt, hn⟩
+    exact path_and_print_recovery_step1_signals_aux4 c hH K hK hh.1 hG n o ho2 hnp
+  · rw [c.g4_path_trivial (c.form h.1) d j hG, Option.mem_toList] at ho
+    rw [ho]
 
 /-- Step 2 of the blueprint proof of `path_and_print_recovery`: the noncentral (small)
 owner of the print of `d` has first four cells `D_1(d), …, D_4(d)` on that print. -/

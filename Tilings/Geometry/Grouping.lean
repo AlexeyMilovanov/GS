@@ -3770,6 +3770,64 @@ private lemma quantitativeAnnularGrouping_step7_count {D : ℝ} (hD : 0 < D) {E 
     ℓ / D ≤ E.ncard := by
   sorry
 
+private lemma spp_coord_lip (A t s : ℝ) (hA : 0 ≤ A) (i : Fin 2) :
+    |squarePerimeterPoint A t i - squarePerimeterPoint A s i| ≤ |t - s| := by
+  fin_cases i <;>
+  · simp only [squarePerimeterPoint]
+    split_ifs <;> simp [mkPt] <;>
+      rcases abs_cases (t - s) with ⟨h1, _⟩ | ⟨h1, _⟩ <;> rw [h1, abs_le] <;> constructor <;> linarith
+
+private lemma spp_coord_bound (A t : ℝ) (hA : 0 ≤ A) (ht0 : 0 ≤ t) (ht : t ≤ 8 * A) (i : Fin 2) :
+    |squarePerimeterPoint A t i| ≤ A := by
+  fin_cases i <;>
+  · simp only [squarePerimeterPoint]
+    split_ifs <;> simp [mkPt] <;> rw [abs_le] <;> constructor <;> linarith
+
+private lemma step8_dist_le (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D)
+    (hN : 2 ≤ N) (hR : 1000 * D ≤ R) (j : Fin (4 * N)) {x y : Pt}
+    (hx : x ∈ idealTrapezoid c N R D (j : ℕ)) (hy : y ∈ idealTrapezoid c N R D (j : ℕ)) :
+    dist x y ≤ 2 * (3 * R + 6 * D) := by
+  obtain ⟨t, ⟨ht1, ht2⟩, μ, ⟨hμ1, hμ2⟩, rfl⟩ := hx
+  obtain ⟨s, ⟨hs1, hs2⟩, ν, ⟨hν1, hν2⟩, rfl⟩ := hy
+  set A : ℝ := (N : ℝ) * R / 2 with hAdef
+  set l : ℝ := (A + R + 3 * D) / A with hldef
+  have hR0 : 0 < R := by linarith
+  have hN2 : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hAR : R ≤ A := by rw [hAdef]; nlinarith
+  have hA0 : 0 < A := by linarith
+  have hlA : l * A = A + R + 3 * D := by rw [hldef]; field_simp
+  have hj : ((j : ℕ) : ℝ) + 1 ≤ 4 * N := by
+    have := j.isLt; exact_mod_cast (show (j : ℕ) + 1 ≤ 4 * N by omega)
+  have hj0 : (0 : ℝ) ≤ (j : ℕ) := Nat.cast_nonneg _
+  have h8 : ((j : ℝ) + 1) * R ≤ 8 * A := by rw [hAdef]; nlinarith
+  have hts : |t - s| ≤ R := by rw [abs_le]; constructor <;> nlinarith
+  have hcoord : ∀ i : Fin 2, |(c + μ • squarePerimeterPoint A t) i - (c + ν • squarePerimeterPoint A s) i|
+      ≤ 3 * R + 6 * D := by
+    intro i
+    have e : (c + μ • squarePerimeterPoint A t) i - (c + ν • squarePerimeterPoint A s) i =
+        μ * (squarePerimeterPoint A t i - squarePerimeterPoint A s i) + (μ - ν) * squarePerimeterPoint A s i := by
+      simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]; ring
+    rw [e]
+    have h1 := spp_coord_lip A t s hA0.le i
+    have h2 := spp_coord_bound A s hA0.le (by nlinarith) (by nlinarith) i
+    have hμν : |μ - ν| ≤ l - 1 := by rw [abs_le]; constructor <;> linarith
+    calc _ ≤ |μ * (squarePerimeterPoint A t i - squarePerimeterPoint A s i)| + |(μ - ν) * squarePerimeterPoint A s i| :=
+          abs_add_le _ _
+      _ = μ * |squarePerimeterPoint A t i - squarePerimeterPoint A s i| + |μ - ν| * |squarePerimeterPoint A s i| := by
+          rw [abs_mul, abs_mul, abs_of_pos (by linarith : (0:ℝ) < μ)]
+      _ ≤ l * R + (l - 1) * A := by
+          gcongr <;> linarith
+      _ ≤ 3 * R + 6 * D := by nlinarith
+  rw [EuclideanSpace.dist_eq, Fin.sum_univ_two]
+  have h0 := hcoord 0
+  have h1 := hcoord 1
+  rw [Real.sqrt_le_left (by positivity)]
+  · rw [Real.dist_eq, Real.dist_eq]
+    have := sq_abs ((c + μ • squarePerimeterPoint A t) 0 - (c + ν • squarePerimeterPoint A s) 0)
+    have := sq_abs ((c + μ • squarePerimeterPoint A t) 1 - (c + ν • squarePerimeterPoint A s) 1)
+    nlinarith [abs_nonneg ((c + μ • squarePerimeterPoint A t) 0 - (c + ν • squarePerimeterPoint A s) 0),
+      abs_nonneg ((c + μ • squarePerimeterPoint A t) 1 - (c + ν • squarePerimeterPoint A s) 1)]
+
 /-- Step 8 of the blueprint proof of `quantitativeAnnularGrouping`: "Since `λ ≤ 2 + 3D/R`, each
 ideal trapezoid has span at most `5R` along its square side and at most `2R` across it ...
 hence diameter less than `6R`.  Localization gives `diam S_j ≤ 7R`."  The closed
@@ -3778,7 +3836,13 @@ private lemma quantitativeAnnularGrouping_step8_diam (c : Pt) {N : ℕ} {R D : �
     (hN : 2 ≤ N) (hR : 1000 * D ≤ R) (j : Fin (4 * N)) :
     Bornology.IsBounded (Metric.cthickening (20 * D) (idealTrapezoid c N R D (j : ℕ))) ∧
       Metric.diam (Metric.cthickening (20 * D) (idealTrapezoid c N R D (j : ℕ))) ≤ 7 * R := by
-  sorry
+  have hT : Bornology.IsBounded (idealTrapezoid c N R D (j : ℕ)) :=
+    Metric.isBounded_iff.2 ⟨_, fun x hx y hy => step8_dist_le c hD hN hR j hx hy⟩
+  refine ⟨hT.cthickening, ?_⟩
+  have hd : Metric.diam (idealTrapezoid c N R D (j : ℕ)) ≤ 2 * (3 * R + 6 * D) :=
+    Metric.diam_le_of_forall_dist_le (by linarith) fun x hx y hy => step8_dist_le c hD hN hR j hx hy
+  have := Metric.diam_cthickening_le (idealTrapezoid c N R D (j : ℕ)) (by linarith : (0:ℝ) ≤ 20 * D)
+  linarith
 
 private lemma step9_volume_segment (x y : Pt) : MeasureTheory.volume (segment ℝ x y) = 0 := by
   have hsub : segment ℝ x y ⊆ (affineSpan ℝ ({x, y} : Set Pt) : Set Pt) := by

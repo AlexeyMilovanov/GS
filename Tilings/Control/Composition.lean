@@ -558,7 +558,17 @@ private lemma headerLegal_properties_step6_inner_step2_nonprint_boundary (c : Ma
     (h_inner : c.IsInner (c.occ A.typ i)) (h_nprint : ¬ c.IsPrint (c.occ A.typ i))
     (h_bdry : c.IsBoundary (c.occ A.typ i)) :
     IsNontrivial c A i := by
-  sorry
+  have _ := h_inner
+  have _ := hH
+  rcases hA with ⟨ch, hch0, hch_succ, _⟩
+  have hchild : IsChildOf c (ch 1) A := by
+    rw [← hch0]
+    exact hch_succ 0
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hchild
+  have hi : A.cell i 3 = headerU c (headerOf c (ch 1)) :=
+    (hchild.2 i).2 h_nprint |>.2.2.2.2.2.2.1 h_bdry
+  intro htriv
+  exact HeaderKernel.tagged_header_ne_zero (headerOf c (ch 1)) (hi ▸ htriv.1)
 
 /-- Step 3 of the blueprint proof of `headerLegal_properties_step6_inner`: at any other inner side,
 the fourth cell is \bot. -/

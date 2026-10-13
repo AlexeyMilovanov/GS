@@ -577,7 +577,17 @@ private lemma headerLegal_properties_step6_inner_step3_nonprint_nonboundary (c :
     (h_inner : c.IsInner (c.occ A.typ i)) (h_nprint : ¬ c.IsPrint (c.occ A.typ i))
     (h_nbdry : ¬ c.IsBoundary (c.occ A.typ i)) :
     IsNontrivial c A i := by
-  sorry
+  have _ := hH
+  rcases hA with ⟨ch, hch0, hch_child, _⟩
+  have h_child_A : IsChildOf c (ch 1) A := by
+    have h1 := hch_child 0
+    rw [hch0] at h1
+    exact h1
+  have h_cell3 : A.cell i 3 = botU c :=
+    ((h_child_A.2 i).2 h_nprint).2.2.2.2.2.2.2 h_inner h_nbdry
+  have hne : botU c ≠ 0 := fun h => by cases h
+  rintro ⟨h3, -⟩
+  exact hne (h_cell3.symm.trans h3)
 
 /-- Step 6 of the blueprint proof of `headerLegal_properties`: every inner side of a legal tile is
 nontrivial. -/

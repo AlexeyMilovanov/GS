@@ -1,4 +1,5 @@
 import Tilings.Basic
+import Tilings.Hierarchy
 
 /-!
 # The five principal theorems (statements only)
@@ -47,8 +48,8 @@ theorem flc_hierarchy_sofic (h : τ.FLC) :
   sorry
 
 /-- `lem:sts-flc`: STS implies FLC. -/
-theorem STS.flc (h : τ.STS) : τ.FLC := by
-  sorry
+theorem STS.flc (h : τ.STS) : τ.FLC :=
+  STS.finite_crowns τ h
 
 /-- Theorem 1(c) follows from Theorem 2(b) and `STS.flc`; recorded as the
 intended dependency. -/

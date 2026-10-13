@@ -1340,6 +1340,16 @@ private lemma hierarchy_lift_sts_step2_sts_step1_overlap
       OverlapPos (a.side k) (b.side l) ∧ a.side k ⊆ A.side i ∧ b.side l ⊆ B.side j := by
   sorry
 
+/-- Step 1 of the blueprint proof of `hierarchy_lift_sts_step2_sts_step2_match`: If an original
+side in a grouped tile's scatter is a subset of the grouped side, they are equal. -/
+private lemma hierarchy_lift_sts_step2_sts_step2_match_step1_eq
+    (τ : Substitution P) (GS : GroupedSubstitution τ)
+    (A : PlacedTile GS.G.P') (i : Fin (GS.G.P'.disk A.form).n)
+    (a : PlacedTile P) (ha : a ∈ GS.G.scatterTile A) (k : Fin (P.disk a.form).n)
+    (h_sub : a.side k ⊆ A.side i) :
+    A.side i = a.side k := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `hierarchy_lift_sts_step2_sts`: Matching original sides
 on grouped sides force the grouped sides to be identical. -/
 private lemma hierarchy_lift_sts_step2_sts_step2_match
@@ -1353,7 +1363,10 @@ private lemma hierarchy_lift_sts_step2_sts_step2_match
     (h_sts : a.side k = b.side l)
     (h_sub_a : a.side k ⊆ A.side i) (h_sub_b : b.side l ⊆ B.side j) :
     A.side i = B.side j := by
-  sorry
+  have _ := hover
+  have eq_A : A.side i = a.side k := hierarchy_lift_sts_step2_sts_step2_match_step1_eq τ GS A i a ha k h_sub_a
+  have eq_B : B.side j = b.side l := hierarchy_lift_sts_step2_sts_step2_match_step1_eq τ GS B j b hb l h_sub_b
+  rw [eq_A, eq_B, h_sts]
 
 /-- Step 2 of the blueprint proof of `hierarchy_lift_sts`: STS property is inherited. -/
 private lemma hierarchy_lift_sts_step2_sts (τ : Substitution P) (GS : GroupedSubstitution τ)

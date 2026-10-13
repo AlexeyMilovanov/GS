@@ -557,9 +557,192 @@ private lemma uniformSectorRadius_step3_catalogue_separation {𝒞 : Set (Set (P
 
 /-- Step 1 of the blueprint proof of `uniformSectorRadius_step4_translation`:
 Translations preserve the radius conclusion. -/
+private lemma uniformSectorRadius_step4_translation_step1_rad_carrier
+    (A : PlacedTile P) (v : Pt) :
+    (A.translate v).carrier = (v +ᵥ ·) '' A.carrier := by
+  dsimp [PlacedTile.carrier, PlacedTile.translate]
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    use A.anchor +ᵥ y
+    refine ⟨⟨y, hy, rfl⟩, ?_⟩
+    change v +ᵥ (A.anchor +ᵥ y) = (v + A.anchor) +ᵥ y
+    exact (vadd_assoc v A.anchor y).symm
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    use z
+    refine ⟨hz, ?_⟩
+    change (v + A.anchor) +ᵥ z = v +ᵥ (A.anchor +ᵥ z)
+    exact vadd_assoc v A.anchor z
+
+private lemma uniformSectorRadius_step4_translation_step1_rad_localCone
+    (A : Set Pt) (v w : Pt) :
+    localCone ((w +ᵥ ·) '' A) (w + v) = (w +ᵥ ·) '' localCone A v := by
+  dsimp [localCone]
+  ext x
+  simp only [mem_setOf_eq, mem_image]
+  constructor
+  · rintro ⟨r, hr, h⟩
+    use -w + x
+    refine ⟨?_, by abel⟩
+    use r
+    refine ⟨hr, ?_⟩
+    intro t ht
+    have ht' := h t ht
+    rcases ht' with ⟨y, hy, hy'⟩
+    change w + y = w + v + t • (x - (w + v)) at hy'
+    have : y = v + t • (-w + x - v) := by
+      calc y = -w + (w + y) := by abel
+        _ = -w + (w + v + t • (x - (w + v))) := by rw [hy']
+        _ = v + t • (-w + x - v) := by
+          have H : x - (w + v) = -w + x - v := by abel
+          rw [H]
+          abel
+    rw [← this]
+    exact hy
+  · rintro ⟨y, ⟨r, hr, h⟩, rfl⟩
+    use r
+    refine ⟨hr, ?_⟩
+    intro t ht
+    have ht' := h t ht
+    use v + t • (y - v)
+    refine ⟨ht', ?_⟩
+    change w + (v + t • (y - v)) = w + v + t • (w + y - (w + v))
+    have H : w + y - (w + v) = y - v := by abel
+    rw [H]
+    abel
+
+private lemma uniformSectorRadius_step4_translation_step1_rad_Omega
+    (K : Set (PlacedTile P)) (v : Pt) :
+    Omega (translateSet v K) v = (v +ᵥ ·) '' Omega K 0 := by
+  simp only [Omega, translateSet, image_iUnion]
+  ext x
+  simp only [mem_iUnion, mem_image]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    rw [uniformSectorRadius_step4_translation_step1_rad_carrier B v] at hx
+    use B, hB
+    have H : localCone ((v +ᵥ ·) '' B.carrier) v = (v +ᵥ ·) '' localCone B.carrier 0 := by
+      have h1 := uniformSectorRadius_step4_translation_step1_rad_localCone B.carrier 0 v
+      simp only [add_zero] at h1
+      exact h1
+    rw [H] at hx
+    exact hx
+  · rintro ⟨A, hA, ⟨y, hy, rfl⟩⟩
+    use A.translate v
+    refine ⟨⟨A, hA, rfl⟩, ?_⟩
+    rw [uniformSectorRadius_step4_translation_step1_rad_carrier A v]
+    have H : localCone ((v +ᵥ ·) '' A.carrier) v = (v +ᵥ ·) '' localCone A.carrier 0 := by
+      have h1 := uniformSectorRadius_step4_translation_step1_rad_localCone A.carrier 0 v
+      simp only [add_zero] at h1
+      exact h1
+    rw [H]
+    exact ⟨y, hy, rfl⟩
+
+private lemma uniformSectorRadius_step4_translation_step1_rad_ball
+    (r : ℝ) (v : Pt) :
+    ball v r = (v +ᵥ ·) '' ball 0 r := by
+  ext x
+  simp only [mem_ball, mem_image]
+  constructor
+  · intro h
+    use -v + x
+    refine ⟨?_, ?_⟩
+    · have H : dist (-v + x) 0 = dist x v := by
+        rw [dist_eq_norm, dist_eq_norm]
+        have h1 : -v + x - 0 = x - v := by abel
+        rw [h1]
+      rwa [H]
+    · exact add_neg_cancel_left v x
+  · rintro ⟨y, hy, rfl⟩
+    have H : dist (v +ᵥ y) v = dist y 0 := by
+      rw [dist_eq_norm, dist_eq_norm]
+      have h1 : (v +ᵥ y) - v = y - 0 := by
+        change v + y - v = y - 0
+        abel
+      rw [h1]
+    rwa [H]
+
+private lemma uniformSectorRadius_step4_translation_step1_rad_support
+    (K : Set (PlacedTile P)) (v : Pt) :
+    support (translateSet v K) = (v +ᵥ ·) '' support K := by
+  dsimp [support, translateSet]
+  ext x
+  simp only [mem_iUnion, mem_image]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    rw [uniformSectorRadius_step4_translation_step1_rad_carrier B v] at hx
+    rcases hx with ⟨y, hy, rfl⟩
+    use y
+    refine ⟨⟨B, hB, hy⟩, rfl⟩
+  · rintro ⟨y, ⟨B, hB, hy⟩, rfl⟩
+    use B.translate v
+    refine ⟨⟨B, hB, rfl⟩, ?_⟩
+    rw [uniformSectorRadius_step4_translation_step1_rad_carrier B v]
+    use y
+    exact ⟨hy, rfl⟩
+
 private lemma uniformSectorRadius_step4_translation_step1_rad {K : Set (PlacedTile P)} {r : ℝ}
     (h_rad : ∀ A ∈ K, A.carrier ∩ ball 0 r = localCone A.carrier 0 ∩ ball 0 r) (v : Pt) :
-    support (translateSet v K) ∩ ball v r = Omega (translateSet v K) v ∩ ball v r := by sorry
+    support (translateSet v K) ∩ ball v r = Omega (translateSet v K) v ∩ ball v r := by
+  rw [uniformSectorRadius_step4_translation_step1_rad_support K v]
+  rw [uniformSectorRadius_step4_translation_step1_rad_Omega K v]
+  rw [uniformSectorRadius_step4_translation_step1_rad_ball r v]
+  have H : (v +ᵥ ·) '' support K ∩ (v +ᵥ ·) '' ball 0 r = (v +ᵥ ·) '' (support K ∩ ball 0 r) := by
+    ext x
+    simp only [mem_inter_iff, mem_image]
+    constructor
+    · rintro ⟨⟨y1, hy1, hy1_eq⟩, ⟨y2, hy2, hy2_eq⟩⟩
+      have h_eq : y1 = y2 := by
+        have H_inj : v + y1 = v + y2 := by
+          change v + y1 = x at hy1_eq
+          change v + y2 = x at hy2_eq
+          calc v + y1 = x := hy1_eq
+            _ = v + y2 := hy2_eq.symm
+        exact add_left_cancel H_inj
+      use y1
+      refine ⟨⟨hy1, ?_⟩, hy1_eq⟩
+      rw [h_eq]
+      exact hy2
+    · rintro ⟨y, ⟨hy1, hy2⟩, hy_eq⟩
+      exact ⟨⟨y, hy1, hy_eq⟩, ⟨y, hy2, hy_eq⟩⟩
+  have H2 : (v +ᵥ ·) '' Omega K 0 ∩ (v +ᵥ ·) '' ball 0 r = (v +ᵥ ·) '' (Omega K 0 ∩ ball 0 r) := by
+    ext x
+    simp only [mem_inter_iff, mem_image]
+    constructor
+    · rintro ⟨⟨y1, hy1, hy1_eq⟩, ⟨y2, hy2, hy2_eq⟩⟩
+      have h_eq : y1 = y2 := by
+        have H_inj : v + y1 = v + y2 := by
+          change v + y1 = x at hy1_eq
+          change v + y2 = x at hy2_eq
+          calc v + y1 = x := hy1_eq
+            _ = v + y2 := hy2_eq.symm
+        exact add_left_cancel H_inj
+      use y1
+      refine ⟨⟨hy1, ?_⟩, hy1_eq⟩
+      rw [h_eq]
+      exact hy2
+    · rintro ⟨y, ⟨hy1, hy2⟩, hy_eq⟩
+      exact ⟨⟨y, hy1, hy_eq⟩, ⟨y, hy2, hy_eq⟩⟩
+  rw [H, H2]
+  congr 1
+  dsimp [support, Omega]
+  ext x
+  simp only [mem_inter_iff, mem_iUnion]
+  constructor
+  · rintro ⟨⟨A, hA, hx⟩, hball⟩
+    have H_rad := h_rad A hA
+    have hx_cone : x ∈ localCone A.carrier 0 := by
+      have : x ∈ A.carrier ∩ ball 0 r := ⟨hx, hball⟩
+      rw [H_rad] at this
+      exact this.1
+    refine ⟨⟨A, hA, hx_cone⟩, hball⟩
+  · rintro ⟨⟨A, hA, hx⟩, hball⟩
+    have H_rad := h_rad A hA
+    have hx_carrier : x ∈ A.carrier := by
+      have : x ∈ localCone A.carrier 0 ∩ ball 0 r := ⟨hx, hball⟩
+      rw [← H_rad] at this
+      exact this.1
+    refine ⟨⟨A, hA, hx_carrier⟩, hball⟩
 
 /-- Step 2 of the blueprint proof of `uniformSectorRadius_step4_translation`:
 Translations preserve the vertex separation conclusion. -/

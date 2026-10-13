@@ -3234,6 +3234,32 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius
     F hF hF_fin k w hw h_supp
   exact ⟨k, w, hw, h_inc⟩
 
+/-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step2_supertile`:
+Show that the crown `C` is a subset of the translated supertile. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step1_C_subset
+    (τ : Substitution P) (w : Pt) (C : Set (PlacedTile P))
+    (n : ℕ) (p : P.Form) (w' : Pt)
+    (h_eq : translateSet (-w) C = translateSet (-w') (Tilings.Substitution.crown (τ.supertile n p) w')) :
+    C ⊆ translateSet (w - w') (τ.supertile n p) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step2_supertile`:
+Show that decomposing `C` iteratively maintains the subset property for the decomposed supertile. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_decompose_subset
+    (τ : Substitution P) (C : Set (PlacedTile P))
+    (n km : ℕ) (p : P.Form) (v : Pt)
+    (hC : C ⊆ translateSet v (τ.supertile n p)) :
+    τ.decomposeIter km C ⊆ translateSet (τ.θ^km • v) (τ.supertile (n + km) p) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step2_supertile`:
+Conclude that if `F` is a subset of the translated supertile, it occurs in it. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step3_occurs
+    (τ : Substitution P) (F : Set (PlacedTile P)) (km : ℕ) (n : ℕ) (p : P.Form) (v : Pt)
+    (hF : F ⊆ translateSet v (τ.supertile (n + km) p)) :
+    OccursIn F (τ.supertile (n + km) p) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive`:
 The allowed crown $C$ occurs in some supertile $S$. Thus $F \subset \tau^{km}S$,
 which is a supertile. -/
@@ -3243,7 +3269,15 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile
     (hF : F ⊆ τ.decomposeIter km C)
     (h_allowed : τ.IsAllowedCrown (translateSet (-w) C)) :
     ∃ (n : ℕ) (p : P.Form), OccursIn F (τ.supertile n p) := by
-  sorry
+  rcases h_allowed with ⟨n, p, w', hw', h_eq⟩
+  have hC : C ⊆ translateSet (w - w') (τ.supertile n p) :=
+    allowed_crowns_hierarchy_is_substitutive_step2_supertile_step1_C_subset τ w C n p w' h_eq
+  have hC_dec : τ.decomposeIter km C ⊆ translateSet (τ.θ^km • (w - w')) (τ.supertile (n + km) p) :=
+    allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_decompose_subset τ C n km p (w - w') hC
+  have hF_sub : F ⊆ translateSet (τ.θ^km • (w - w')) (τ.supertile (n + km) p) :=
+    Set.Subset.trans hF hC_dec
+  use (n + km), p
+  exact allowed_crowns_hierarchy_is_substitutive_step2_supertile_step3_occurs τ F km n p (τ.θ^km • (w - w')) hF_sub
 
 /-- `lem:allowed-hierarchy`: if `τ` has FLC and `T = seq 0, seq 1, …` is a
 `τ^m`-hierarchy (`seq k` plays the role of `T_{km}`) all of whose full

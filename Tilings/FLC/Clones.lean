@@ -3163,6 +3163,123 @@ def refinedRule (h : τ.FLC) (c : GenuineCornerClone τ) :
     Set (PlacedTile (cloneProtoset τ h)) :=
   {X | ∃ (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩),
     X = (⟨childClone τ c B hB, B.anchor⟩ : PlacedTile (cloneProtoset τ h))}
+private lemma refinedSubstitution_carrier_eq (h : τ.FLC) (c : GenuineCornerClone τ)
+    (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) :
+    (⟨childClone τ c B hB, B.anchor⟩ : PlacedTile (cloneProtoset τ h)).carrier = B.carrier := by
+  dsimp [PlacedTile.carrier]
+  congr 1
+  exact cloneDisk_carrier _
+
+private lemma support_translateSet (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  dsimp [support, translateSet, PlacedTile.translate, PlacedTile.carrier]
+  ext x
+  simp only [mem_iUnion, mem_image, mem_vadd_set, vadd_eq_add]
+  constructor
+  · rintro ⟨A', ⟨A, hA, rfl⟩, y, hy, rfl⟩
+    refine ⟨y + A.anchor, ⟨A, hA, y, hy, add_comm _ _⟩, ?_⟩
+    change v + (y + A.anchor) = (v + A.anchor) + y
+    rw [add_assoc, add_comm y A.anchor, ← add_assoc]
+  · rintro ⟨z, ⟨A, hA, y, hy, rfl⟩, rfl⟩
+    refine ⟨_, ⟨A, hA, rfl⟩, y, hy, ?_⟩
+    change (v + A.anchor) + y = v + (A.anchor + y)
+    exact (add_assoc (v:Pt) A.anchor y)
+
+private lemma disjointInteriors_translate (v : Pt) (S : Set (PlacedTile P))
+    (hd : DisjointInteriors S) : DisjointInteriors (translateSet v S) := by
+  intro A hA B hB hAB
+  simp only [translateSet, mem_image] at hA hB
+  rcases hA with ⟨A', hA', rfl⟩
+  rcases hB with ⟨B', hB', rfl⟩
+  have hne : A' ≠ B' := by
+    rintro rfl
+    exact hAB rfl
+  have hd' := hd hA' hB' hne
+  dsimp [Function.onFun] at hd' ⊢
+  have h_carrA : (A'.translate v).carrier = v +ᵥ A'.carrier := by
+    dsimp [PlacedTile.translate, PlacedTile.carrier]
+    ext x
+    simp only [mem_vadd_set, vadd_eq_add]
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      refine ⟨y + A'.anchor, ⟨y, hy, add_comm _ _⟩, by abel⟩
+    · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+      exact ⟨z, hz, by abel⟩
+  have h_carrB : (B'.translate v).carrier = v +ᵥ B'.carrier := by
+    dsimp [PlacedTile.translate, PlacedTile.carrier]
+    ext x
+    simp only [mem_vadd_set, vadd_eq_add]
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      refine ⟨y + B'.anchor, ⟨y, hy, add_comm _ _⟩, by abel⟩
+    · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+      exact ⟨z, hz, by abel⟩
+  rw [h_carrA, h_carrB]
+  rw [interior_vadd, interior_vadd]
+  exact disjoint_image_of_injective (AddAction.injective v) hd'
+
+private lemma refinedSubstitution_disjoint (h : τ.FLC) (c : GenuineCornerClone τ) :
+    DisjointInteriors (refinedRule τ h c) := by
+  intro X hX Y hY hXY
+  simp only [refinedRule, mem_setOf_eq] at hX hY
+  rcases hX with ⟨B_X, hB_X, rfl⟩
+  rcases hY with ⟨B_Y, hB_Y, rfl⟩
+  have hcX := @refinedSubstitution_carrier_eq P τ h c B_X hB_X
+  have hcY := @refinedSubstitution_carrier_eq P τ h c B_Y hB_Y
+  dsimp [Function.onFun]
+  rw [hcX, hcY]
+  have hne : B_X ≠ B_Y := by
+    rintro rfl
+    exact hXY rfl
+  have hd : DisjointInteriors (τ.decomposeTile ⟨c.form, 0⟩) := by
+    dsimp [decomposeTile]
+    exact disjointInteriors_translate _ _ (τ.rule c.form).disjoint
+  exact hd hB_X hB_Y hne
+
+private lemma refinedSubstitution_finite (h : τ.FLC) (c : GenuineCornerClone τ) :
+    (refinedRule τ h c).Finite := by
+  let f : {B : PlacedTile P // B ∈ τ.decomposeTile ⟨c.form, 0⟩} → PlacedTile (cloneProtoset τ h) :=
+    fun ⟨B, hB⟩ => ⟨childClone τ c B hB, B.anchor⟩
+  have h_eq : refinedRule τ h c = range f := by
+    ext X
+    simp only [refinedRule, mem_setOf_eq, mem_range, Subtype.exists]
+    constructor
+    · rintro ⟨B, hB, rfl⟩
+      exact ⟨B, hB, rfl⟩
+    · rintro ⟨B, hB, rfl⟩
+      exact ⟨B, hB, rfl⟩
+  rw [h_eq]
+  have h_fin : (τ.decomposeTile ⟨c.form, (0 : Pt)⟩).Finite := by
+    dsimp [decomposeTile]
+    exact (τ.rule c.form).finite.image _
+  haveI : Fintype {B : PlacedTile P // B ∈ τ.decomposeTile ⟨c.form, 0⟩} := h_fin.fintype
+  exact finite_range f
+
+private lemma refinedSubstitution_support_eq (h : τ.FLC) (c : GenuineCornerClone τ) :
+    support (refinedRule τ h c) = τ.θ • ((cloneProtoset τ h).disk c).carrier := by
+  have h_supp : support (refinedRule τ h c) = support (τ.decomposeTile ⟨c.form, 0⟩) := by
+    dsimp [support]
+    ext x
+    simp only [mem_iUnion, refinedRule, mem_setOf_eq, exists_prop]
+    constructor
+    · rintro ⟨_, ⟨B, hB, rfl⟩, hX⟩
+      have H1 := @refinedSubstitution_carrier_eq P τ h c B hB
+      exact ⟨B, hB, H1 ▸ hX⟩
+    · rintro ⟨B, hB, hB'⟩
+      have H2 := @refinedSubstitution_carrier_eq P τ h c B hB
+      exact ⟨_, ⟨B, hB, rfl⟩, H2.symm ▸ hB'⟩
+  rw [h_supp]
+  have h_decomp : support (τ.decomposeTile ⟨c.form, (0:Pt)⟩) = τ.θ • (P.disk c.form).carrier := by
+    dsimp [decomposeTile]
+    have h_rule := τ.support_eq c.form
+    rw [support_translateSet]
+    rw [h_rule]
+    change τ.θ • (0:Pt) +ᵥ _ = _
+    rw [smul_zero, zero_vadd]
+  rw [h_decomp]
+  congr 1
+  exact (cloneDisk_carrier c).symm
+
 
 /-- `def:clones`: the clone (refined) substitution. -/
 def refinedSubstitution (h : τ.FLC) : Substitution (cloneProtoset τ h) where
@@ -3170,9 +3287,9 @@ def refinedSubstitution (h : τ.FLC) : Substitution (cloneProtoset τ h) where
   one_lt := τ.one_lt
   rule := fun c : GenuineCornerClone τ =>
     { tiles := refinedRule τ h c
-      finite := sorry
-      disjoint := sorry }
-  support_eq := sorry
+      finite := @refinedSubstitution_finite P τ h c
+      disjoint := @refinedSubstitution_disjoint P τ h c }
+  support_eq := @refinedSubstitution_support_eq P τ h
 
 /-- Forgetting clone labels: a carrier-preserving decoration of `P`. -/
 def cloneDecoration (h : τ.FLC) : Decoration P where

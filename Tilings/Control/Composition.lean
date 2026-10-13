@@ -2328,7 +2328,63 @@ private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_centra
         c.IsPrint (c.occ (ch (n + 1)).typ d) ∧ (ch (n + 1)).cell d 0 ≠ 0)
     (n : ℕ) (i : c.Side (ch n).typ) (hp : c.IsPrint (c.occ (ch n).typ i))
     (hnz : (ch n).cell i 0 ≠ 0) : ¬ HasOrigin c ch n i 0 := by
-  sorry
+  intro h
+  have H : ∀ (m : ℕ) (j : c.Side (ch m).typ) (l : Fin 5), HasOrigin c ch m j l →
+    l = 0 → c.IsPrint (c.occ (ch m).typ j) → (ch m).cell j 0 ≠ 0 → False := by
+    intro m j l ho
+    induction ho with
+    | origin m j l h_eq =>
+      intro hl hp hnz
+      subst hl
+      have ⟨d, hd, hp_d, hnz_d⟩ := hstep m j hp hnz
+      have h_nonempty : (copySource c (c.form (ch (m + 1)).typ) (c.occ (ch m).typ j) 0).Nonempty :=
+        ⟨(d, 0), hd⟩
+      have h_empty : copySource c (c.form (ch (m + 1)).typ) (c.occ (ch m).typ j) 0 = ∅ := h_eq
+      rw [h_empty] at h_nonempty
+      exact Set.not_nonempty_empty h_nonempty
+    | step m j l d l' h_mem h_orig ih =>
+      intro hl hp hnz
+      subst hl
+      have h_mem' : (d, l') ∈ copySource c (c.form (ch (m + 1)).typ) (c.occ (ch m).typ j) 0 := h_mem
+      dsimp [copySource] at h_mem'
+      rcases h_mem' with ⟨h_print, h_not_4, h_eq2⟩ | ⟨h_not_print, h_eq_2, h_path⟩
+      · subst h_eq2
+        have ⟨d_step, hmem_step, hp_d_step, hnz_d_step⟩ := hstep m j hp hnz
+        have hd_eq : d = d_step := by
+          dsimp [copySource] at hmem_step
+          rcases hmem_step with ⟨h_print_step, _, _⟩ | ⟨h_not_print_step, _, _⟩
+          · have h1 : c.IsPrintOf (c.form (ch (m + 1)).typ) d (c.occ (ch m).typ j) := h_print
+            have h2 : c.IsPrintOf (c.form (ch (m + 1)).typ) d_step (c.occ (ch m).typ j) :=
+              h_print_step
+            rcases h1 with ⟨hm, h1⟩
+            rcases h2 with ⟨hm', h1'⟩
+            have hin := c.g4_print_inner (c.form (ch (m + 1)).typ) d hm
+            have hin' := c.g4_print_inner (c.form (ch (m + 1)).typ) d_step hm'
+            have hp1 := (c.g1_partner _ hin).1
+            have hp' := (c.g1_partner _ hin').1
+            have key : c.printOcc (c.form (ch (m + 1)).typ) d =
+              c.printOcc (c.form (ch (m + 1)).typ) d_step → d = d_step := by
+              intro he
+              apply c.g4_print_injective (c.form (ch (m + 1)).typ) d d_step hm hm'
+              unfold Geometry.MacroData.printOcc at he
+              exact eq_of_heq (Sigma.mk.inj he).2
+            rcases h1 with h1 | h1 <;> rcases h1' with h2' | h2'
+            · exact key (h1.symm.trans h2')
+            · exact absurd (congrArg Sigma.fst (h1.symm.trans h2')) (fun h => hp' h.symm)
+            · exact absurd (congrArg Sigma.fst (h1.symm.trans h2').symm) (fun h => hp1 h.symm)
+            · have h_eq := c.g1_partner_partner _ hin
+              have h_eq_part : c.partner (c.occ (ch m).typ j) =
+                c.printOcc (c.form (ch (m + 1)).typ) d := by
+                rw [h1, h_eq]
+              have h_eq2_part : c.partner (c.occ (ch m).typ j) =
+                c.printOcc (c.form (ch (m + 1)).typ) d_step := by
+                rw [h2', c.g1_partner_partner _ hin']
+              exact key (h_eq_part.symm.trans h_eq2_part)
+          · exact absurd hp h_not_print_step
+        subst hd_eq
+        exact ih rfl hp_d_step hnz_d_step
+      · exact absurd hp h_not_print
+  exact H n i 0 h rfl hp hnz
 
 /-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
 A legality chain of `A` with only central types would copy the marked first cell forever,

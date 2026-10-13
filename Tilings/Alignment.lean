@@ -428,12 +428,35 @@ private lemma whole_side_ports_distinct_step3_rank_step2_inj (τ : Substitution 
   have hkey := whole_side_ports_distinct_step3_rank_step2_inj_step2_key_ne τ G m A a e1 e2 h1 h2 hdisj
   exact hkey heq
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step3_exists`: construct a strictly sorted list of elements of `X`. -/
+private lemma whole_side_ports_distinct_step3_rank_step3_exists_step1_sorted_list
+    (X : Set (Pt × Pt)) (h_fin : X.Finite) (u : Pt) (h_inj : X.InjOn (sideKey u)) :
+    ∃ l : List (Pt × Pt), l.length = X.ncard ∧ (∀ x, x ∈ l ↔ x ∈ X) ∧ l.Pairwise (fun e1 e2 => sideKey u e1 < sideKey u e2) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step3_exists`:
+the set of elements in `X` with strictly smaller sideKey than the k-th element has size k-1. -/
+private lemma whole_side_ports_distinct_step3_rank_step3_exists_step2_rank (X : Set (Pt × Pt)) (u : Pt) (l : List (Pt × Pt))
+    (hl_mem : ∀ x, x ∈ l ↔ x ∈ X) (hl_pw : l.Pairwise (fun e1 e2 => sideKey u e1 < sideKey u e2))
+    (k : ℕ) (hk : k - 1 < l.length) :
+    {e' ∈ X | sideKey u e' < sideKey u (l.get ⟨k - 1, hk⟩)}.ncard = k - 1 := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: an abstract lemma showing that any rank is attained. -/
 private lemma whole_side_ports_distinct_step3_rank_step3_exists (X : Set (Pt × Pt))
     (h_fin : X.Finite) (u : Pt) (k : ℕ) (hk1 : 1 ≤ k) (hk2 : k ≤ X.ncard)
     (h_inj : X.InjOn (sideKey u)) :
     ∃ e ∈ X, rankIn X u e = k := by
-  sorry
+  obtain ⟨l, hl_len, hl_mem, hl_pw⟩ := whole_side_ports_distinct_step3_rank_step3_exists_step1_sorted_list X h_fin u h_inj
+  have hk_lt : k - 1 < l.length := by omega
+  use l.get ⟨k - 1, hk_lt⟩
+  constructor
+  · rw [← hl_mem]
+    exact List.get_mem _ _
+  · have h_rank : rankIn X u (l.get ⟨k - 1, hk_lt⟩) = {e' ∈ X | sideKey u e' < sideKey u (l.get ⟨k - 1, hk_lt⟩)}.ncard + 1 := rfl
+    rw [h_rank]
+    rw [whole_side_ports_distinct_step3_rank_step3_exists_step2_rank X u l hl_mem hl_pw k hk_lt]
+    omega
 
 /-- Step 3 of the blueprint proof of `whole_side_ports_distinct`: every rank from 1 to `L`
 is attained by some fine side. -/

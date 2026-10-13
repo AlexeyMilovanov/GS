@@ -3064,7 +3064,39 @@ private lemma outsideAnchoredGrouping_step2_H_step2_upper (M : MeshConstants P) 
     (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
       F.carrier ⊆ E)
     (hE_def : E = Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier) :
-    closure (connectedComponentIn (Eᶜ) c) ⊆ square c h + Binf (3 * M.D) := sorry
+    closure (connectedComponentIn (Eᶜ) c) ⊆ square c h + Binf (3 * M.D) := by
+  have _ := hcov
+  have _ := hsts
+  have _ := hQ
+  have _ := hE_conn
+  have _ := hE_faces
+  have _ := hE_def
+  have hcc : connectedComponentIn (Eᶜ) c ⊆ square c h + Binf (3 * M.D) := by
+    intro x hx
+    by_contra hxQ
+    exact absurd (interior_subset (hE_supset hxQ)) (connectedComponentIn_subset _ _ hx)
+  have hDnn : (0 : ℝ) ≤ 3 * M.D := by linarith [M.D_pos]
+  have hsum : square c h + Binf (3 * M.D) ⊆ square c (h + 3 * M.D) := by
+    rintro x ⟨u, hu, v, hv, rfl⟩
+    refine ⟨?_, ?_⟩
+    · simp only [PiLp.add_apply]
+      calc
+        |u 0 + v 0 - c 0| = |(u 0 - c 0) + v 0| := by congr 1; ring_nf
+        _ ≤ |u 0 - c 0| + |v 0| := abs_add_le _ _
+        _ ≤ h + 3 * M.D := add_le_add hu.1 hv.1
+    · simp only [PiLp.add_apply]
+      calc
+        |u 1 + v 1 - c 1| = |(u 1 - c 1) + v 1| := by congr 1; ring_nf
+        _ ≤ |u 1 - c 1| + |v 1| := abs_add_le _ _
+        _ ≤ h + 3 * M.D := add_le_add hu.2 hv.2
+  have hclosed : IsClosed (square c h + Binf (3 * M.D)) := by
+    have heq : square c h + Binf (3 * M.D) = square c (h + 3 * M.D) :=
+      Set.Subset.antisymm hsum (rg_square_add hh.le hDnn)
+    rw [heq]
+    exact rg_square_closed c (h + 3 * M.D)
+  calc closure (connectedComponentIn (Eᶜ) c)
+      ⊆ closure (square c h + Binf (3 * M.D)) := closure_mono hcc
+    _ = square c h + Binf (3 * M.D) := hclosed.closure_eq
 
 /-- Step 3 of the blueprint proof of `outsideAnchoredGrouping_step2_H`: interior connected. -/
 private lemma outsideAnchoredGrouping_step2_H_step3_conn_int (M : MeshConstants P) (S : Patch P)

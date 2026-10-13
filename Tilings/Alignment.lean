@@ -1,4 +1,5 @@
 import Tilings.Geometry.Grouping
+import Mathlib.Analysis.SpecificLimits.Basic
 
 /-!
 # Endpoint schedules and whole-side ports (statements only)
@@ -476,7 +477,26 @@ private lemma whole_side_ports_distinct_step1_growth_step1_uniform_bound (M : Me
     ∃ m₀ : ℕ, ∀ m ≥ m₀, ∀ (A : G.P'.Form) (a : Fin (G.P'.disk A).n),
       (6 : ℝ) ≤ ((τ.θ ^ m) * dist ((G.P'.disk A).vertex a) ((G.P'.disk A).vertex (finRotate _ a)) -
         2 * M.D) / M.D := by
-  sorry
+  have hpow : Filter.Tendsto (fun m : ℕ => τ.θ ^ m) Filter.atTop Filter.atTop :=
+    tendsto_pow_atTop_atTop_of_one_lt τ.one_lt
+  obtain ⟨M'⟩ := MeshConstants.nonempty G.P'
+  have hlim : Filter.Tendsto (fun m : ℕ => (τ.θ ^ m) * M'.γ) Filter.atTop Filter.atTop :=
+    Filter.Tendsto.atTop_mul_const M'.γ_pos hpow
+  obtain ⟨m₀, hm₀⟩ := (Filter.tendsto_atTop_atTop.mp hlim) (8 * M.D)
+  use m₀
+  intro m hm A a
+  have hm1 : 8 * M.D ≤ (τ.θ ^ m) * M'.γ := hm₀ m hm
+  have hside := M'.side_ge A a
+  have hm2 : (τ.θ ^ m) * M'.γ ≤
+      (τ.θ ^ m) * dist ((G.P'.disk A).vertex a)
+        ((G.P'.disk A).vertex (finRotate _ a)) := by
+    apply mul_le_mul_of_nonneg_left hside
+    exact pow_nonneg (le_of_lt (lt_trans zero_lt_one τ.one_lt)) m
+  have hbound : 8 * M.D ≤
+      (τ.θ ^ m) * dist ((G.P'.disk A).vertex a)
+        ((G.P'.disk A).vertex (finRotate _ a)) := hm1.trans hm2
+  rw [le_div_iff₀ M.D_pos]
+  linarith
 
 /-- Step 1 of the blueprint proof of `whole_side_ports_distinct`: for large `m`, the number of
 fine sides strictly inside `s a` is at least 6. -/

@@ -5764,6 +5764,66 @@ private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cov
     ⟨0, by have := (P.disk A.form).three_le; omega⟩
   exact ⟨A.vertex i, A, hA, ⟨i, rfl⟩⟩
 
+/-- Auxiliary step of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit`: if two
+segments `pq` and `rs` overlap with positive length, their four endpoints are collinear. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit_aux1
+    {p q r s x y : Pt} (hxy : x ≠ y)
+    (hx1 : x ∈ segment ℝ p q) (hy1 : y ∈ segment ℝ p q)
+    (hx2 : x ∈ segment ℝ r s) (hy2 : y ∈ segment ℝ r s) :
+    Collinear ℝ ({p, q, r, s} : Set Pt) := by
+  have hxp : x ∈ line[ℝ, p, q] := (mem_segment_iff_wbtw.mp hx1).mem_affineSpan
+  have hyp : y ∈ line[ℝ, p, q] := (mem_segment_iff_wbtw.mp hy1).mem_affineSpan
+  have hxr : x ∈ line[ℝ, r, s] := (mem_segment_iff_wbtw.mp hx2).mem_affineSpan
+  have hyr : y ∈ line[ℝ, r, s] := (mem_segment_iff_wbtw.mp hy2).mem_affineSpan
+  have hcolA : Collinear ℝ ({x, y, p, q} : Set Pt) :=
+    collinear_insert_insert_of_mem_affineSpan_pair hxp hyp
+  have hcolB : Collinear ℝ ({x, y, r, s} : Set Pt) :=
+    collinear_insert_insert_of_mem_affineSpan_pair hxr hyr
+  have hpxy : p ∈ line[ℝ, x, y] :=
+    hcolA.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hqxy : q ∈ line[ℝ, x, y] :=
+    hcolA.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hrxy : r ∈ line[ℝ, x, y] :=
+    hcolB.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hsxy : s ∈ line[ℝ, x, y] :=
+    hcolB.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hline : Collinear ℝ (↑(line[ℝ, x, y]) : Set Pt) := by
+    show Module.rank ℝ (vectorSpan ℝ (↑(line[ℝ, x, y]) : Set Pt)) ≤ 1
+    rw [← AffineSubspace.direction_eq_vectorSpan, direction_affineSpan]
+    exact collinear_pair ℝ x y
+  refine hline.subset ?_
+  intro z hz
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hz
+  rcases hz with rfl | rfl | rfl | rfl
+  · exact hpxy
+  · exact hqxy
+  · exact hrxy
+  · exact hsxy
+
+/-- Auxiliary step of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit`: if a ray from
+`a` towards `b` lies in a closed set `S` for every parameter in `(t0, 1]` and `t0 < 1`, the point
+at parameter `t0` lies in `S` too (it is a limit of points of `S`). -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit_aux2
+    {S : Set Pt} (hS : IsClosed S) {a b : Pt} (hab : a ≠ b) {t0 : ℝ} (ht0 : t0 < 1)
+    (h : ∀ t : ℝ, t0 < t → t ≤ 1 → a + t • (b - a) ∈ S) :
+    a + t0 • (b - a) ∈ S := by
+  rw [← hS.closure_eq, Metric.mem_closure_iff]
+  intro ε hε
+  have hnorm : 0 < ‖b - a‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hab.symm)
+  set δ := min ((1 - t0) / 2) (ε / (2 * ‖b - a‖)) with hδ_def
+  have hδpos : 0 < δ := lt_min (by linarith) (by positivity)
+  have hδ1 : δ ≤ (1 - t0) / 2 := min_le_left _ _
+  refine ⟨a + (t0 + δ) • (b - a), h (t0 + δ) (by linarith) (by linarith), ?_⟩
+  rw [dist_comm, dist_eq_norm]
+  have heq : a + (t0 + δ) • (b - a) - (a + t0 • (b - a)) = δ • (b - a) := by module
+  rw [heq, norm_smul, Real.norm_of_nonneg hδpos.le]
+  have hδ2 : δ ≤ ε / (2 * ‖b - a‖) := min_le_right _ _
+  calc δ * ‖b - a‖ ≤ ε / (2 * ‖b - a‖) * ‖b - a‖ := by gcongr
+    _ = ε / 2 := by field_simp
+    _ < ε := by linarith
+
 /-- Step 1 of the blueprint proof of
 `uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover`: if a
 nonempty convex far region is not contained in one tile, an exit point lies in
@@ -5784,7 +5844,98 @@ private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cov
       d / 2 ≤ dist e (A.vertex (finRotate _ i)) ∧
       d / 2 ≤ dist e (B.vertex j) ∧
       d / 2 ≤ dist e (B.vertex (finRotate _ j)) := by
-  sorry
+  obtain ⟨p, hpW⟩ := hWnonempty
+  have hpsupp : p ∈ support M.tiles := hWsub hpW
+  rw [support, mem_iUnion₂] at hpsupp
+  obtain ⟨A, hA, hpA⟩ := hpsupp
+  have hAW : ¬ W ⊆ A.carrier := hNoTile A hA
+  rw [Set.not_subset] at hAW
+  obtain ⟨q, hqW, hqA⟩ := hAW
+  have hpq : p ≠ q := fun h => hqA (h ▸ hpA)
+  set S : Set ℝ := {t : ℝ | t ∈ Set.Icc (0 : ℝ) 1 ∧ p + t • (q - p) ∈ A.carrier} with hS_def
+  have hSclosed : IsClosed S := isClosed_Icc.inter ((macro_tile_closed A).preimage (by fun_prop))
+  have hSne : S.Nonempty := ⟨0, ⟨le_refl 0, zero_le_one⟩, by simpa using hpA⟩
+  have hSbdd : BddAbove S := ⟨1, fun t ht => ht.1.2⟩
+  have ht0S : sSup S ∈ S := hSclosed.csSup_mem hSne hSbdd
+  set t0 := sSup S with ht0_def
+  obtain ⟨ht0_mem, ht0A⟩ := ht0S
+  have ht0_lt1 : t0 < 1 := by
+    rcases eq_or_lt_of_le ht0_mem.2 with h | h
+    · exfalso
+      apply hqA
+      have hqeq : q = p + t0 • (q - p) := by rw [h]; module
+      rw [hqeq]
+      exact ht0A
+    · exact h
+  have hnotA : ∀ t : ℝ, t0 < t → t ≤ 1 → p + t • (q - p) ∉ A.carrier := by
+    intro t ht0t ht1 hmem
+    have htS : t ∈ S := ⟨⟨by linarith [ht0_mem.1], ht1⟩, hmem⟩
+    have hle : t ≤ sSup S := le_csSup hSbdd htS
+    rw [← ht0_def] at hle
+    linarith
+  have heW : p + t0 • (q - p) ∈ W := by
+    have hseg : p + t0 • (q - p) ∈ segment ℝ p q :=
+      crown_mem_segment_iff.mpr ⟨t0, ht0_mem.1, ht0_mem.2, rfl⟩
+    exact (hWconv.segment_subset hpW hqW) hseg
+  have hCclosed : IsClosed (support (M.tiles \ {A})) :=
+    M.finite.diff.isClosed_biUnion (fun A' _ => macro_tile_closed A')
+  have hAB_in : ∀ t : ℝ, t0 < t → t ≤ 1 → p + t • (q - p) ∈ support (M.tiles \ {A}) := by
+    intro t ht0t ht1
+    have hseg : p + t • (q - p) ∈ segment ℝ p q :=
+      crown_mem_segment_iff.mpr ⟨t, by linarith [ht0_mem.1], ht1, rfl⟩
+    have hWmem : p + t • (q - p) ∈ W := (hWconv.segment_subset hpW hqW) hseg
+    have hsupp : p + t • (q - p) ∈ support M.tiles := hWsub hWmem
+    rw [support, mem_iUnion₂] at hsupp
+    obtain ⟨A', hA', hA'mem⟩ := hsupp
+    have hA'neA : A' ≠ A := by
+      intro h
+      apply hnotA t ht0t ht1
+      rw [← h]
+      exact hA'mem
+    rw [support, mem_iUnion₂]
+    exact ⟨A', Set.mem_diff_singleton.mpr ⟨hA', hA'neA⟩, hA'mem⟩
+  have heC : p + t0 • (q - p) ∈ support (M.tiles \ {A}) :=
+    uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit_aux2
+      hCclosed hpq ht0_lt1 hAB_in
+  set e := p + t0 • (q - p) with he_def
+  rw [support, mem_iUnion₂] at heC
+  obtain ⟨B, hBdiff, heB⟩ := heC
+  have hB : B ∈ M.tiles := (Set.mem_diff_singleton.mp hBdiff).1
+  have hBneA : B ≠ A := (Set.mem_diff_singleton.mp hBdiff).2
+  have hvA : e ∉ A.vertexSet := by
+    rintro ⟨k, hk⟩
+    have hvertex : IsVertexOf M.tiles (A.vertex k) := ⟨A, hA, ⟨k, rfl⟩⟩
+    have hd2 := hfar _ heW _ hvertex
+    rw [hk, dist_self] at hd2
+    linarith
+  have hvB : e ∉ B.vertexSet := by
+    rintro ⟨k, hk⟩
+    have hvertex : IsVertexOf M.tiles (B.vertex k) := ⟨B, hB, ⟨k, rfl⟩⟩
+    have hd2 := hfar _ heW _ hvertex
+    rw [hk, dist_self] at hd2
+    linarith
+  have hdisjAB : Disjoint (interior A.carrier) (interior B.carrier) :=
+    M.disjoint hA hB (Ne.symm hBneA)
+  obtain ⟨i, j, heAi, heBj, hoverlap⟩ :=
+    macro_tiles_share_local_side hdisjAB ht0A heB hvA hvB
+  obtain ⟨x, y, hxy, hsub⟩ := hoverlap
+  have hxAi : x ∈ A.side i := (hsub (left_mem_segment ℝ x y)).1
+  have hyAi : y ∈ A.side i := (hsub (right_mem_segment ℝ x y)).1
+  have hxBj : x ∈ B.side j := (hsub (left_mem_segment ℝ x y)).2
+  have hyBj : y ∈ B.side j := (hsub (right_mem_segment ℝ x y)).2
+  rw [macro_tile_side_eq] at hxAi hyAi hxBj hyBj
+  have hcol : Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+      B.vertex j, B.vertex (finRotate _ j)} : Set Pt) :=
+    uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit_aux1
+      hxy hxAi hyAi hxBj hyBj
+  have hAi_far : d / 2 ≤ dist e (A.vertex i) := hfar e heW (A.vertex i) ⟨A, hA, ⟨i, rfl⟩⟩
+  have hArot_far : d / 2 ≤ dist e (A.vertex (finRotate _ i)) :=
+    hfar e heW _ ⟨A, hA, ⟨finRotate _ i, rfl⟩⟩
+  have hBj_far : d / 2 ≤ dist e (B.vertex j) := hfar e heW _ ⟨B, hB, ⟨j, rfl⟩⟩
+  have hBrot_far : d / 2 ≤ dist e (B.vertex (finRotate _ j)) :=
+    hfar e heW _ ⟨B, hB, ⟨finRotate _ j, rfl⟩⟩
+  exact ⟨A, B, i, j, e, hA, hB, hdisjAB, heW, heAi, heBj, hcol,
+    hAi_far, hArot_far, hBj_far, hBrot_far⟩
 
 /-- Step 2 of the blueprint proof of
 `uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover`: an

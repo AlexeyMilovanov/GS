@@ -454,6 +454,127 @@ end Substitution
 
 namespace SubstitutionTiling
 
+private lemma exists_composition_step1_parents_translate_child (τ : Substitution P)
+    (A B : PlacedTile P) (v : Pt) :
+    B.translate (τ.θ • v) ∈ τ.decomposeTile A ↔
+      B ∈ τ.decomposeTile (A.translate (-v)) := by
+  simp only [Substitution.decomposeTile, translateSet, mem_image]
+  constructor
+  · rintro ⟨C, hC, hCB⟩
+    refine ⟨C, hC, ?_⟩
+    apply PlacedTile.ext
+    · simpa [PlacedTile.translate] using congrArg PlacedTile.form hCB
+    · have ha := congrArg PlacedTile.anchor hCB
+      dsimp [PlacedTile.translate] at ha ⊢
+      rw [smul_add, smul_neg]
+      calc
+        -(τ.θ • v) + τ.θ • A.anchor + C.anchor =
+            -(τ.θ • v) + (τ.θ • A.anchor + C.anchor) := by abel
+        _ = -(τ.θ • v) + (τ.θ • v + B.anchor) := congrArg _ ha
+        _ = B.anchor := by abel
+  · rintro ⟨C, hC, hCB⟩
+    refine ⟨C, hC, ?_⟩
+    apply PlacedTile.ext
+    · simpa [PlacedTile.translate] using congrArg PlacedTile.form hCB
+    · have ha := congrArg PlacedTile.anchor hCB
+      dsimp [PlacedTile.translate] at ha ⊢
+      rw [smul_add, smul_neg] at ha
+      calc
+        τ.θ • A.anchor + C.anchor =
+            τ.θ • v + (-(τ.θ • v) + τ.θ • A.anchor + C.anchor) := by abel
+        _ = τ.θ • v + B.anchor := congrArg _ ha
+
+private lemma exists_composition_step1_parents_two_tiles (T : PlaneTiling P) :
+    T.tiles.Nontrivial := by
+  have hne : T.tiles.Nonempty := by
+    have hzero : (0 : Pt) ∈ support T.tiles := by rw [T.cover]; exact mem_univ _
+    simp only [support, mem_iUnion] at hzero
+    rcases hzero with ⟨A, hA, _⟩
+    exact ⟨A, hA⟩
+  by_contra htriv
+  rw [Set.not_nontrivial_iff] at htriv
+  obtain ⟨A, hA⟩ := hne
+  have hsub : T.tiles ⊆ {A} := by
+    intro B hB
+    rw [mem_singleton_iff]
+    exact htriv hB hA
+  have hsupp : support T.tiles ⊆ A.carrier := by
+    intro x hx
+    simp only [support, mem_iUnion] at hx
+    rcases hx with ⟨B, hB, hxB⟩
+    simpa [htriv hB hA] using hxB
+  have hcarrier : A.carrier = univ := by
+    apply eq_univ_of_univ_subset
+    rw [← T.cover]
+    exact hsupp
+  have hcompact : IsCompact A.carrier := by
+    exact IsCompact.vadd A.anchor (P.disk A.form).compact
+  exact hcompact.ne_univ hcarrier
+
+private lemma exists_composition_step1_parents_finite_cover (τ : Substitution P)
+    {T : PlaneTiling P} (hT : τ.IsSubstitutionTiling T)
+    (F : Set (PlacedTile P)) (hF : F ⊆ T.tiles) (hFfin : F.Finite) :
+    ∃ F' : Set (PlacedTile P), F'.Finite ∧
+      (∃ (n : ℕ) (p : P.Form), OccursIn F' (τ.supertile n p)) ∧
+      F ⊆ τ.decompose F' := by
+  obtain ⟨B, hBT, C, hCT, hBC⟩ := exists_composition_step1_parents_two_tiles T
+  let G : Set (PlacedTile P) := insert B (insert C F)
+  have hG : G ⊆ T.tiles := by
+    intro D hD
+    rcases hD with (rfl | hD)
+    · exact hBT
+    rcases hD with (rfl | hD)
+    · exact hCT
+    · exact hF hD
+  have hGfin : G.Finite := (hFfin.insert C).insert B
+  obtain ⟨n, p, v, hv⟩ := hT G hG hGfin
+  cases n with
+  | zero =>
+      have hBv := hv (mem_image_of_mem (fun A => A.translate v) (mem_insert B _))
+      have hCv := hv (mem_image_of_mem (fun A => A.translate v)
+        (mem_insert_of_mem B (mem_insert C F)))
+      simp only [Substitution.supertile, Substitution.decomposeIter] at hBv hCv
+      exfalso
+      apply hBC
+      have heq : B.translate v = C.translate v := hBv.trans hCv.symm
+      cases B with
+      | mk bf ba =>
+        cases C with
+        | mk cf ca =>
+          injection heq with hf ha
+          subst hf
+          congr
+          exact add_left_cancel ha
+  | succ n =>
+      have hparents : ∀ D ∈ F, ∃ A ∈ τ.supertile n p,
+          D.translate v ∈ τ.decomposeTile A := by
+        intro D hDF
+        have hDv : D.translate v ∈ τ.supertile (n + 1) p :=
+          hv (mem_image_of_mem (fun A => A.translate v)
+            (mem_insert_of_mem B (mem_insert_of_mem C hDF)))
+        change D.translate v ∈ τ.decompose (τ.supertile n p) at hDv
+        simp only [Substitution.decompose, mem_iUnion] at hDv
+        rcases hDv with ⟨A, hAS, hAD⟩
+        exact ⟨A, hAS, hAD⟩
+      choose A hAS hAD using hparents
+      let w : Pt := τ.θ⁻¹ • v
+      let F' : Set (PlacedTile P) :=
+        range (fun D : F => (A D.1 D.2).translate (-w))
+      refine ⟨F', ?_, ?_, ?_⟩
+      · letI := hFfin.fintype
+        exact Set.finite_range _
+      · refine ⟨n, p, w, ?_⟩
+        rintro X ⟨Y, hY, rfl⟩
+        rcases hY with ⟨D, rfl⟩
+        simpa [PlacedTile.translate, w] using hAS D.1 D.2
+      · intro D hDF
+        simp only [Substitution.decompose, mem_iUnion]
+        refine ⟨(A D hDF).translate (-w), ⟨?_, ?_⟩⟩
+        · exact ⟨⟨D, hDF⟩, rfl⟩
+        · apply (exists_composition_step1_parents_translate_child τ (A D hDF) D w).mp
+          have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+          simpa [w, smul_smul, hθ] using hAD D hDF
+
 /-- Step 1 of the blueprint proof of `exists_composition`: by thinning a sequence
 of parent covers using the finite-parent lemma (or by Kőnig's lemma on a finite inverse
 system), there exists a global parent assignment `T'` whose decomposition covers `T`
@@ -463,7 +584,86 @@ private lemma exists_composition_step1_parents (τ : Substitution P) {T : PlaneT
     ∃ T' : Set (PlacedTile P),
       (∀ F' ⊆ T', F'.Finite → ∃ (n : ℕ) (p : P.Form), OccursIn F' (τ.supertile n p)) ∧
       T.tiles ⊆ τ.decompose T' := by
-  sorry
+  classical
+  let I := Finset T.tiles
+  let childSet : I → Set (PlacedTile P) := fun i => Subtype.val '' (i : Set T.tiles)
+  have hchildSet_sub (i : I) : childSet i ⊆ T.tiles := by
+    rintro _ ⟨B, _, rfl⟩
+    exact B.2
+  have hchildSet_fin (i : I) : (childSet i).Finite := by
+    exact i.finite_toSet.image Subtype.val
+  have hcover (i : I) :
+      ∃ Q : Set (PlacedTile P), Q.Finite ∧
+        (∃ (n : ℕ) (p : P.Form), OccursIn Q (τ.supertile n p)) ∧
+        childSet i ⊆ τ.decompose Q :=
+    exists_composition_step1_parents_finite_cover τ hT (childSet i)
+      (hchildSet_sub i) (hchildSet_fin i)
+  choose Q hQfin hQocc hQcov using hcover
+  have hparent_exists (B : T.tiles) (i : I) (hBi : B ∈ i) :
+      ∃ A ∈ Q i, B.1 ∈ τ.decomposeTile A := by
+    have hBdec : B.1 ∈ τ.decompose (Q i) := hQcov i ⟨B, hBi, rfl⟩
+    simp only [Substitution.decompose, mem_iUnion] at hBdec
+    rcases hBdec with ⟨A, hAQ, hBA⟩
+    exact ⟨A, hAQ, hBA⟩
+  let singletonIndex : T.tiles → I := fun B => {B}
+  have hparent_default (B : T.tiles) :
+      ∃ A ∈ Q (singletonIndex B), B.1 ∈ τ.decomposeTile A := by
+    apply hparent_exists B (singletonIndex B)
+    exact Finset.mem_singleton_self B
+  let parent : (B : T.tiles) → I → {A : PlacedTile P // B.1 ∈ τ.decomposeTile A} :=
+    fun B i => if hBi : B ∈ i then
+      ⟨(hparent_exists B i hBi).choose, (hparent_exists B i hBi).choose_spec.2⟩
+    else
+      ⟨(hparent_default B).choose, (hparent_default B).choose_spec.2⟩
+  have hparent_mem (B : T.tiles) (i : I) (hBi : B ∈ i) :
+      (parent B i).1 ∈ Q i := by
+    simp only [parent, dif_pos hBi]
+    exact (hparent_exists B i hBi).choose_spec.1
+  let U : Ultrafilter I := Ultrafilter.of Filter.atTop
+  have hparent_const (B : T.tiles) :
+      ∃ A : {A : PlacedTile P // B.1 ∈ τ.decomposeTile A},
+        ∀ᶠ i in U, parent B i = A := by
+    letI : Finite {A : PlacedTile P // B.1 ∈ τ.decomposeTile A} :=
+      (τ.finite_parents B.1).to_subtype
+    apply (Ultrafilter.eventually_exists_iff (f := U)).mp
+    exact Filter.Eventually.of_forall fun i => ⟨parent B i, rfl⟩
+  choose selected hselected using hparent_const
+  let selectedTile : T.tiles → PlacedTile P := fun B => (selected B).1
+  let T' : Set (PlacedTile P) := range selectedTile
+  refine ⟨T', ?_, ?_⟩
+  · intro F' hF'T' hF'fin
+    letI := hF'fin.fintype
+    have hpreimage (X : F') : ∃ B : T.tiles, selectedTile B = X.1 := hF'T' X.2
+    choose source hsource using hpreimage
+    let E : Set T.tiles := range source
+    have hEfin : E.Finite := Set.finite_range source
+    have h_eventually_mem (B : T.tiles) : ∀ᶠ i : I in (U : Filter I), B ∈ i := by
+      have h_atTop : ∀ᶠ i : I in Filter.atTop, B ∈ i := by
+        apply Filter.eventually_atTop.2
+        exact ⟨{B}, fun i hi => hi (Finset.mem_singleton_self B)⟩
+      exact h_atTop.filter_mono (Ultrafilter.of_le Filter.atTop)
+    have h_eventually_Q : ∀ᶠ i in U, ∀ B ∈ E, selectedTile B ∈ Q i := by
+      apply (hEfin.eventually_all).2
+      intro B hBE
+      filter_upwards [hselected B, h_eventually_mem B] with i hsel hBi
+      change (selected B).1 ∈ Q i
+      rw [← hsel]
+      exact hparent_mem B i hBi
+    obtain ⟨i, hi⟩ := h_eventually_Q.exists
+    obtain ⟨n, p, v, hv⟩ := hQocc i
+    refine ⟨n, p, v, ?_⟩
+    intro X hX
+    rcases hX with ⟨Y, hYF', rfl⟩
+    have hsourceE : source ⟨Y, hYF'⟩ ∈ E := ⟨⟨Y, hYF'⟩, rfl⟩
+    have hYQ : Y ∈ Q i := by
+      have hs := hi (source ⟨Y, hYF'⟩) hsourceE
+      rw [hsource ⟨Y, hYF'⟩] at hs
+      exact hs
+    exact hv (mem_image_of_mem (fun A => A.translate v) hYQ)
+  · intro B hBT
+    let b : T.tiles := ⟨B, hBT⟩
+    simp only [Substitution.decompose, mem_iUnion]
+    exact ⟨selectedTile b, ⟨⟨b, rfl⟩, (selected b).2⟩⟩
 
 /-- Step 1 of the blueprint proof of `exists_composition_step2_disjoint_supertile`: decomposition
 preserves disjoint interiors. -/

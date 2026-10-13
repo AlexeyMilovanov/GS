@@ -1342,6 +1342,24 @@ theorem strict_path_and_print_recovery (K : StrictBlock C hC) (hK : StrictBlockC
         (strictReconstruct C hC K h.1).cell d k) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `strict_macroblock_is_decomposition`: every noncentral
+tile in the block has the required strict child colours of the reconstructed parent. -/
+private theorem strict_macroblock_is_decomposition_step1_noncentral
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (t : C.Typ) (ht_owner : C.owner t = K.α) (ht_nc : t ≠ C.central K.α) :
+    IsStrictChildOf C hC (strictReconstruct C hC K h.1) (K.tileOf t) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_macroblock_is_decomposition`: the central tile
+has the required strict child colours of the reconstructed parent. -/
+private theorem strict_macroblock_is_decomposition_step2_central
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (t : C.Typ) (ht_owner : C.owner t = K.α) (ht_c : t = C.central K.α) :
+    IsStrictChildOf C hC (strictReconstruct C hC K h.1) (K.tileOf t) := by
+  sorry
+
 /-- `lem:comp/exact` (strict variant): the block is the strict decomposition of its
 reconstructed parent.  Legal boundary witnesses identify the template, so the generated
 schedules `W(α, e)` of its outer sides agree with the decomposition of `D`, independently of
@@ -1350,7 +1368,11 @@ theorem strict_macroblock_is_decomposition (K : StrictBlock C hC)
     (hK : StrictBlockContext C hC K) (h : HeaderKernel.Header C.Typ C.Side)
     (hh : StrictCommonHeader C hC K h) :
     IsStrictExactBlockOf C hC K (strictReconstruct C hC K h.1) := by
-  sorry
+  refine ⟨hh.1, ?_⟩
+  intro t ht_owner
+  by_cases ht_c : t = C.central K.α
+  · exact strict_macroblock_is_decomposition_step2_central C hC K hK h hh t ht_owner ht_c
+  · exact strict_macroblock_is_decomposition_step1_noncentral C hC K hK h hh t ht_owner ht_c
 
 /-- `lem:comp/cyclic-legal` (strict variant): if the centre of the block is legal and the type
 of `D` is cyclic, then `D` is the centre and is legal. -/

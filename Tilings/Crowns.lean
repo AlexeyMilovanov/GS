@@ -4976,6 +4976,34 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step1_C_s
       _ = w + (-w + A.anchor) := by rw [hanchor]
       _ = A.anchor := by abel
 
+private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_decompose_translate
+    (τ : Substitution P) (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S) := by
+  ext C
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨A₀, hA₀, rfl⟩, B, hB, rfl⟩
+    refine ⟨B.translate (τ.θ • A₀.anchor), ⟨A₀, hA₀, B, hB, rfl⟩, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+  · rintro ⟨C₀, ⟨A, hA, B, hB, rfl⟩, rfl⟩
+    refine ⟨A.translate v, ⟨A, hA, rfl⟩, B, hB, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_decompose_mono
+    (τ : Substitution P) {S T : Set (PlacedTile P)} (hST : S ⊆ T) :
+    τ.decompose S ⊆ τ.decompose T := by
+  intro A hA
+  simp only [Substitution.decompose, Set.mem_iUnion] at hA ⊢
+  rcases hA with ⟨B, hB, hAB⟩
+  exact ⟨B, hST hB, hAB⟩
+
 /-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step2_supertile`:
 Show that decomposing `C` iteratively maintains the subset property for the decomposed supertile. -/
 private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_decompose_subset
@@ -4983,7 +5011,18 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_dec
     (n km : ℕ) (p : P.Form) (v : Pt)
     (hC : C ⊆ translateSet v (τ.supertile n p)) :
     τ.decomposeIter km C ⊆ translateSet (τ.θ^km • v) (τ.supertile (n + km) p) := by
-  sorry
+  induction km with
+  | zero =>
+      simpa [Substitution.decomposeIter, Substitution.supertile] using hC
+  | succ km ih =>
+      change τ.decompose (τ.decomposeIter km C) ⊆
+        translateSet (τ.θ ^ (Nat.succ km) • v)
+          (τ.supertile (n + Nat.succ km) p)
+      apply Set.Subset.trans
+        (allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_decompose_mono τ ih)
+      rw [allowed_crowns_hierarchy_is_substitutive_step2_supertile_step2_decompose_translate]
+      rw [pow_succ', mul_smul]
+      rfl
 
 /-- Step 3 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step2_supertile`:
 Conclude that if `F` is a subset of the translated supertile, it occurs in it. -/

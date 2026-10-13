@@ -154,6 +154,294 @@ private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints_ste
     atom e c = atom e' d := by
   sorry
 
+/-- A point on the affine line of a nondegenerate segment is recovered from
+its canonical coordinate. -/
+private lemma boundary_align_frame_reconstruct
+    (x y z : Pt) (hxy : x ≠ y)
+    (hz : z ∈ affineSpan ℝ ({x, y} : Set Pt)) :
+    frameOrigin x y + segCoord x y z • canonDir (y - x) = z := by
+  obtain ⟨r, hr⟩ := (mem_affineSpan_pair_iff_exists_lineMap_eq).1 hz
+  rw [AffineMap.lineMap_apply] at hr
+  have hv : y - x ≠ 0 := sub_ne_zero.mpr hxy.symm
+  have hn : 0 < ‖y - x‖ := norm_pos_iff.mpr hv
+  have hnorm : ‖y - x‖ ^ 2 = (y - x) 0 ^ 2 + (y - x) 1 ^ 2 := by
+    rw [EuclideanSpace.norm_sq_eq]
+    simp
+  have hsub0 : (y - x) 0 = y 0 - x 0 := by rfl
+  have hsub1 : (y - x) 1 = y 1 - x 1 := by rfl
+  by_cases hdir : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)
+  · rw [← hr]
+    simp only [frameOrigin, canonDir, hdir, if_true, coord, segCoord]
+    simp only [vadd_eq_add, vsub_eq_sub]
+    dsimp
+    ext i
+    fin_cases i <;> simp
+    all_goals field_simp [ne_of_gt hn]
+    all_goals rw [hnorm]
+    all_goals rw [hsub0, hsub1]
+    all_goals ring
+  · rw [← hr]
+    simp only [frameOrigin, canonDir, hdir, if_false, coord, segCoord]
+    simp only [vadd_eq_add, vsub_eq_sub]
+    dsimp
+    ext i
+    fin_cases i <;> simp
+    all_goals field_simp [ne_of_gt hn]
+    all_goals rw [hnorm]
+    all_goals rw [hsub0, hsub1]
+    all_goals ring
+
+private lemma boundary_align_overlap_span
+    {a b x y : Pt}
+    (h : OverlapPos (segment ℝ a b) (segment ℝ x y)) :
+    affineSpan ℝ ({a, b} : Set Pt) = affineSpan ℝ ({x, y} : Set Pt) := by
+  obtain ⟨u, v, huv, huvsub⟩ := h
+  have hmem {r s : Pt} {z : Pt} (hz : z ∈ segment ℝ r s) :
+      z ∈ affineSpan ℝ ({r, s} : Set Pt) := by
+    rw [segment_eq_image'] at hz
+    obtain ⟨q, hq, rfl⟩ := hz
+    change r + q • (s - r) ∈ affineSpan ℝ ({r, s} : Set Pt)
+    simpa [vadd_eq_add, vsub_eq_sub, add_comm] using
+      (smul_vsub_vadd_mem_affineSpan_pair q r s)
+  have huv_ab : affineSpan ℝ ({u, v} : Set Pt) = affineSpan ℝ ({a, b} : Set Pt) :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne (hmem (huvsub (left_mem_segment ℝ u v)).1)
+      (hmem (huvsub (right_mem_segment ℝ u v)).1) huv
+  have huv_xy : affineSpan ℝ ({u, v} : Set Pt) = affineSpan ℝ ({x, y} : Set Pt) :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne (hmem (huvsub (left_mem_segment ℝ u v)).2)
+      (hmem (huvsub (right_mem_segment ℝ u v)).2) huv
+  exact huv_ab.symm.trans huv_xy
+
+private lemma boundary_align_mem_segment
+    {a b x : Pt} :
+    x ∈ segment ℝ a b ↔ ∃ r : ℝ, 0 ≤ r ∧ r ≤ 1 ∧ x = a + r • (b - a) := by
+  rw [segment_eq_image']
+  constructor
+  · rintro ⟨r, hr, rfl⟩
+    exact ⟨r, hr.1, hr.2, rfl⟩
+  · rintro ⟨r, hr0, hr1, rfl⟩
+    exact ⟨r, ⟨hr0, hr1⟩, rfl⟩
+
+private lemma boundary_align_smul_cancel
+    {u : Pt} (hu : u ≠ 0) {r s : ℝ} (h : r • u = s • u) : r = s := by
+  exact smul_left_injective ℝ hu h
+
+private lemma boundary_align_segment_endpoints
+    {a b c d : Pt} (hab : a ≠ b) (h : segment ℝ a b = segment ℝ c d) :
+    (c = a ∧ d = b) ∨ (c = b ∧ d = a) := by
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [boundary_align_mem_segment] at hc hd ha hb
+  obtain ⟨r, hr0, hr1, rfl⟩ := hc
+  obtain ⟨s, hs0, hs1, rfl⟩ := hd
+  obtain ⟨u, hu0, hu1, hu⟩ := ha
+  obtain ⟨v, hv0, hv1, hv⟩ := hb
+  have hne : b - a ≠ 0 := sub_ne_zero.mpr hab.symm
+  have hk0 : a + r • (b - a) + u •
+      (a + s • (b - a) - (a + r • (b - a))) =
+      a + (r + u * (s - r)) • (b - a) := by module
+  have hk1 : a + r • (b - a) + v •
+      (a + s • (b - a) - (a + r • (b - a))) =
+      a + (r + v * (s - r)) • (b - a) := by module
+  have hzero : (0 : ℝ) • (b - a) = (r + u * (s - r)) • (b - a) := by
+    rw [zero_smul]
+    exact (add_eq_left.mp (hu.trans hk0).symm).symm
+  have hone : (1 : ℝ) • (b - a) = (r + v * (s - r)) • (b - a) := by
+    rw [one_smul]
+    have h' : a + (b - a) = a + (r + v * (s - r)) • (b - a) := by
+      calc
+        a + (b - a) = b := by abel
+        _ = a + r • (b - a) + v •
+            (a + s • (b - a) - (a + r • (b - a))) := hv
+        _ = a + (r + v * (s - r)) • (b - a) := hk1
+    exact add_left_cancel h'
+  have hz := boundary_align_smul_cancel hne hzero
+  have ho := boundary_align_smul_cancel hne hone
+  have hk : (r = 0 ∧ s = 1) ∨ (r = 1 ∧ s = 0) := by
+    have h1 : r * (1 - u) = 0 := by
+      nlinarith [mul_nonneg hr0 (sub_nonneg.mpr hu1), mul_nonneg hu0 hs0]
+    have h2 : u * s = 0 := by
+      nlinarith [mul_nonneg hr0 (sub_nonneg.mpr hu1), mul_nonneg hu0 hs0]
+    rcases mul_eq_zero.mp h1 with h1 | h1
+    · subst h1
+      have : v * s = 1 := by linarith
+      left
+      refine ⟨rfl, ?_⟩
+      nlinarith
+    · have huone : u = 1 := by linarith
+      subst huone
+      have hs : s = 0 := by linarith
+      subst hs
+      right
+      refine ⟨?_, rfl⟩
+      nlinarith
+  rcases hk with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · left
+    constructor <;> simp
+  · right
+    constructor <;> simp
+
+private lemma boundary_align_canonDir_neg (v : Pt) : canonDir (-v) = canonDir v := by
+  rcases lt_trichotomy (v 0) 0 with hv0 | hv0 | hv0
+  · have hn : 0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1) := by
+      left
+      simpa using neg_pos.mpr hv0
+    have hp : ¬(0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)) := by
+      rintro (h | ⟨h, _⟩) <;> linarith
+    unfold canonDir
+    rw [if_pos hn, if_neg hp, norm_neg]
+    module
+  · rcases lt_trichotomy (v 1) 0 with hv1 | hv1 | hv1
+    · have hn : 0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1) := by
+        right
+        exact ⟨by simpa using congrArg Neg.neg hv0, by simpa using neg_pos.mpr hv1⟩
+      have hp : ¬(0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)) := by
+        rintro (h | ⟨_, h⟩) <;> linarith
+      unfold canonDir
+      rw [if_pos hn, if_neg hp, norm_neg]
+      module
+    · have hz : v = 0 := by
+        ext i
+        fin_cases i
+        · simpa using hv0
+        · simpa using hv1
+      subst v
+      simp [canonDir]
+    · have hp : 0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1) := by
+        exact Or.inr ⟨hv0, hv1⟩
+      have hn : ¬(0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1)) := by
+        rintro (h | ⟨_, h⟩)
+        · change 0 < -(v 0) at h
+          linarith
+        · change 0 < -(v 1) at h
+          linarith
+      unfold canonDir
+      rw [if_neg hn, if_pos hp, norm_neg]
+      module
+  · have hp : 0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1) := Or.inl hv0
+    have hn : ¬(0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1)) := by
+      rintro (h | ⟨h, _⟩)
+      · change 0 < -(v 0) at h
+        linarith
+      · change -(v 0) = 0 at h
+        linarith
+    unfold canonDir
+    rw [if_neg hn, if_pos hp, norm_neg]
+    module
+
+private lemma boundary_align_frameOrigin_swap (x y : Pt) :
+    frameOrigin y x = frameOrigin x y := by
+  rcases lt_trichotomy (x 0) (y 0) with h0 | h0 | h0
+  · have hp : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1) := by
+      left
+      change 0 < y 0 - x 0
+      linarith
+    have hn : ¬(0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1)) := by
+      push_neg
+      constructor
+      · change x 0 - y 0 ≤ 0
+        linarith
+      · intro h
+        change x 0 - y 0 = 0 at h
+        linarith
+    unfold frameOrigin
+    rw [if_neg hn, if_pos hp]
+  · rcases lt_trichotomy (x 1) (y 1) with h1 | h1 | h1
+    · have hp : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1) := by
+        right
+        constructor
+        · change y 0 - x 0 = 0
+          linarith
+        · change 0 < y 1 - x 1
+          linarith
+      have hn : ¬(0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1)) := by
+        push_neg
+        constructor
+        · change x 0 - y 0 ≤ 0
+          linarith
+        · intro _
+          change x 1 - y 1 ≤ 0
+          linarith
+      unfold frameOrigin
+      rw [if_neg hn, if_pos hp]
+    · have hxy : x = y := by
+        ext i
+        fin_cases i
+        · exact h0
+        · exact h1
+      subst y
+      rfl
+    · have hn : 0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1) := by
+        right
+        constructor
+        · change x 0 - y 0 = 0
+          linarith
+        · change 0 < x 1 - y 1
+          linarith
+      have hp : ¬(0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)) := by
+        push_neg
+        constructor
+        · change y 0 - x 0 ≤ 0
+          linarith
+        · intro _
+          change y 1 - x 1 ≤ 0
+          linarith
+      unfold frameOrigin
+      rw [if_pos hn, if_neg hp]
+  · have hn : 0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1) := by
+      left
+      change 0 < x 0 - y 0
+      linarith
+    have hp : ¬(0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)) := by
+      push_neg
+      constructor
+      · change y 0 - x 0 ≤ 0
+        linarith
+      · intro h
+        change y 0 - x 0 = 0 at h
+        linarith
+    unfold frameOrigin
+    rw [if_pos hn, if_neg hp]
+
+private lemma boundary_align_overlap_ne
+    {a b c d : Pt} (h : OverlapPos (segment ℝ a b) (segment ℝ c d)) :
+    a ≠ b ∧ c ≠ d := by
+  obtain ⟨x, y, hxy, hsub⟩ := h
+  constructor
+  · intro hab
+    subst b
+    have hx : x = a := by
+      have hx' := (hsub (left_mem_segment ℝ x y)).1
+      simpa only [segment_same, mem_singleton_iff] using hx'
+    have hy : y = a := by
+      have hy' := (hsub (right_mem_segment ℝ x y)).1
+      simpa only [segment_same, mem_singleton_iff] using hy'
+    exact hxy (hx.trans hy.symm)
+  · intro hcd
+    subst d
+    have hx : x = c := by
+      have hx' := (hsub (left_mem_segment ℝ x y)).2
+      simpa only [segment_same, mem_singleton_iff] using hx'
+    have hy : y = c := by
+      have hy' := (hsub (right_mem_segment ℝ x y)).2
+      simpa only [segment_same, mem_singleton_iff] using hy'
+    exact hxy (hx.trans hy.symm)
+
+private lemma boundary_align_frameOrigin_add (v x y : Pt) :
+    frameOrigin (v + x) (v + y) = v + frameOrigin x y := by
+  have hd : v + y - (v + x) = y - x := by abel
+  simp only [frameOrigin, hd]
+  split_ifs <;> rfl
+
+private lemma boundary_align_segment_eq_coord_bounds
+    (z w o u : Pt) (r s : ℝ)
+    (hz : o + r • u = z) (hw : o + s • u = w) :
+    segment ℝ z w = segment ℝ (o + min r s • u) (o + max r s • u) := by
+  rcases le_total r s with hrs | hsr
+  · rw [min_eq_left hrs, max_eq_right hrs, hz, hw]
+  · rw [min_eq_right hsr, max_eq_left hsr, hz, hw, segment_symm]
+
 /-- Step 2 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align_step2_endpoints`:
 The same two coordinates $p,q$ for its coarse containing side means $c,d$ have exactly the same endpoints. -/
 private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints_step2_eq
@@ -171,7 +459,115 @@ private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints_ste
       (placedSeg ((τ.θ ^ m) • A'.anchor) d))
     (hatom : atom e c = atom e' d) :
     placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d := by
-  sorry
+  have _ := hc
+  have _ := hd
+  have _ := he
+  have _ := he'
+  have _ := h_sch
+  have _ := hoverlap
+  let va : Pt := (τ.θ ^ m) • A.anchor
+  let vb : Pt := (τ.θ ^ m) • A'.anchor
+  have he_ne : e.1 ≠ e.2 := (boundary_align_overlap_ne hov_c).2
+  have he'_ne : e'.1 ≠ e'.2 := (boundary_align_overlap_ne hov_d).2
+  have hE_ne : va + e.1 ≠ va + e.2 := by
+    intro h
+    exact he_ne (add_left_cancel h)
+  have hends :
+      (vb + e'.1 = va + e.1 ∧ vb + e'.2 = va + e.2) ∨
+        (vb + e'.1 = va + e.2 ∧ vb + e'.2 = va + e.1) := by
+    apply boundary_align_segment_endpoints hE_ne
+    simpa only [placedSeg, va, vb] using heq
+  have hO : va + frameOrigin e.1 e.2 = vb + frameOrigin e'.1 e'.2 := by
+    rw [← boundary_align_frameOrigin_add, ← boundary_align_frameOrigin_add]
+    rcases hends with hends | hends
+    · rw [hends.1, hends.2]
+    · rw [hends.1, hends.2, boundary_align_frameOrigin_swap]
+  have hD : canonDir (e.2 - e.1) = canonDir (e'.2 - e'.1) := by
+    rcases hends with hends | hends
+    · have hv : e'.2 - e'.1 = e.2 - e.1 := by
+        have hg := congrArg₂ (fun x y : Pt => x - y) hends.2 hends.1
+        calc
+          e'.2 - e'.1 = (vb + e'.2) - (vb + e'.1) := by abel
+          _ = (va + e.2) - (va + e.1) := hg
+          _ = e.2 - e.1 := by abel
+      rw [hv]
+    · have hv : e'.2 - e'.1 = -(e.2 - e.1) := by
+        have hg := congrArg₂ (fun x y : Pt => x - y) hends.2 hends.1
+        calc
+          e'.2 - e'.1 = (vb + e'.2) - (vb + e'.1) := by abel
+          _ = (va + e.1) - (va + e.2) := hg
+          _ = -(e.2 - e.1) := by abel
+      rw [hv]
+      exact (boundary_align_canonDir_neg (e.2 - e.1)).symm
+  have hp :
+      min (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) =
+        min (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) := by
+    have h := congrArg (fun z : ℝ × ℝ × ℝ × ℝ => z.2.2.1) hatom
+    simpa only [atom] using h
+  have hq :
+      max (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) =
+        max (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) := by
+    have h := congrArg (fun z : ℝ × ℝ × ℝ × ℝ => z.2.2.2) hatom
+    simpa only [atom] using h
+  have hspan_c := boundary_align_overlap_span hov_c
+  have hspan_d := boundary_align_overlap_span hov_d
+  have hc1_line : c.1 ∈ affineSpan ℝ ({e.1, e.2} : Set Pt) := by
+    rw [← hspan_c]
+    exact subset_affineSpan ℝ ({c.1, c.2} : Set Pt) (by simp)
+  have hc2_line : c.2 ∈ affineSpan ℝ ({e.1, e.2} : Set Pt) := by
+    rw [← hspan_c]
+    exact subset_affineSpan ℝ ({c.1, c.2} : Set Pt) (by simp)
+  have hd1_line : d.1 ∈ affineSpan ℝ ({e'.1, e'.2} : Set Pt) := by
+    rw [← hspan_d]
+    exact subset_affineSpan ℝ ({d.1, d.2} : Set Pt) (by simp)
+  have hd2_line : d.2 ∈ affineSpan ℝ ({e'.1, e'.2} : Set Pt) := by
+    rw [← hspan_d]
+    exact subset_affineSpan ℝ ({d.1, d.2} : Set Pt) (by simp)
+  have hc1 := boundary_align_frame_reconstruct e.1 e.2 c.1 he_ne hc1_line
+  have hc2 := boundary_align_frame_reconstruct e.1 e.2 c.2 he_ne hc2_line
+  have hd1 := boundary_align_frame_reconstruct e'.1 e'.2 d.1 he'_ne hd1_line
+  have hd2 := boundary_align_frame_reconstruct e'.1 e'.2 d.2 he'_ne hd2_line
+  have hc1g :
+      va + frameOrigin e.1 e.2 + segCoord e.1 e.2 c.1 • canonDir (e.2 - e.1) = va + c.1 := by
+    calc
+      _ = va + (frameOrigin e.1 e.2 +
+          segCoord e.1 e.2 c.1 • canonDir (e.2 - e.1)) := by abel
+      _ = va + c.1 := congrArg (va + ·) hc1
+  have hc2g :
+      va + frameOrigin e.1 e.2 + segCoord e.1 e.2 c.2 • canonDir (e.2 - e.1) = va + c.2 := by
+    calc
+      _ = va + (frameOrigin e.1 e.2 +
+          segCoord e.1 e.2 c.2 • canonDir (e.2 - e.1)) := by abel
+      _ = va + c.2 := congrArg (va + ·) hc2
+  have hd1g :
+      vb + frameOrigin e'.1 e'.2 + segCoord e'.1 e'.2 d.1 • canonDir (e'.2 - e'.1) = vb + d.1 := by
+    calc
+      _ = vb + (frameOrigin e'.1 e'.2 +
+          segCoord e'.1 e'.2 d.1 • canonDir (e'.2 - e'.1)) := by abel
+      _ = vb + d.1 := congrArg (vb + ·) hd1
+  have hd2g :
+      vb + frameOrigin e'.1 e'.2 + segCoord e'.1 e'.2 d.2 • canonDir (e'.2 - e'.1) = vb + d.2 := by
+    calc
+      _ = vb + (frameOrigin e'.1 e'.2 +
+          segCoord e'.1 e'.2 d.2 • canonDir (e'.2 - e'.1)) := by abel
+      _ = vb + d.2 := congrArg (vb + ·) hd2
+  change segment ℝ (va + c.1) (va + c.2) = segment ℝ (vb + d.1) (vb + d.2)
+  calc
+    segment ℝ (va + c.1) (va + c.2) =
+        segment ℝ
+          (va + frameOrigin e.1 e.2 +
+            min (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) • canonDir (e.2 - e.1))
+          (va + frameOrigin e.1 e.2 +
+            max (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) • canonDir (e.2 - e.1)) :=
+      boundary_align_segment_eq_coord_bounds _ _ _ _ _ _ hc1g hc2g
+    _ = segment ℝ
+          (vb + frameOrigin e'.1 e'.2 +
+            min (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) • canonDir (e'.2 - e'.1))
+          (vb + frameOrigin e'.1 e'.2 +
+            max (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) • canonDir (e'.2 - e'.1)) := by
+      rw [hO, hD, hp, hq]
+    _ = segment ℝ (vb + d.1) (vb + d.2) :=
+      (boundary_align_segment_eq_coord_bounds _ _ _ _ _ _ hd1g hd2g).symm
 
 /-- Step 2 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align`:
 Equal schedules on coinciding fine outer sides, together with the fact that `c` and `d`

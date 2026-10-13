@@ -4853,6 +4853,70 @@ theorem closedConvexHullDiameter (S : Set Pt) :
 
 /-! ## `lem:crown-cover-plane`, `lem:crown-cover-supertile` -/
 
+/-- Auxiliary step of the blueprint proof of
+`uniformCrownCoverPlane_step1_close_step1_crown_covers_ball`: at a vertex `v` of a plane
+tiling, the local cones of the tiles containing `v` (the full crown there) cover the whole
+plane. -/
+private lemma uniformCrownCoverPlane_step1_close_step1_crown_covers_ball_aux1
+    (T : PlaneTiling P) {v : Pt} (hv : IsVertexOf T.tiles v) :
+    Omega (crown T.tiles v) v = Set.univ := by
+  obtain ⟨A₀, hA₀T, hvA₀⟩ := hv
+  have hvA₀c : v ∈ A₀.carrier := gap_vertex_mem_carrier A₀ hvA₀
+  have hA₀crown : A₀ ∈ crown T.tiles v := ⟨hA₀T, hvA₀c⟩
+  have hS_fin : {A ∈ T.tiles | (A.carrier ∩ closedBall v 1).Nonempty}.Finite :=
+    T.locallyFinite (isCompact_closedBall v 1)
+  obtain ⟨ρ₀, hρ₀, hprop⟩ :=
+    gap_near_vertex {A ∈ T.tiles | (A.carrier ∩ closedBall v 1).Nonempty} hS_fin v
+  have hd : 0 < min ρ₀ 1 := lt_min hρ₀ one_pos
+  have hball_sub : ball v (min ρ₀ 1) ⊆ Omega (crown T.tiles v) v := by
+    intro y hy
+    have hyT : y ∈ support T.tiles := by rw [T.cover]; exact mem_univ y
+    rw [support, mem_iUnion₂] at hyT
+    obtain ⟨A, hAT, hyA⟩ := hyT
+    have hy1 : y ∈ closedBall v 1 :=
+      ball_subset_closedBall (ball_subset_ball (min_le_right ρ₀ 1) hy)
+    have hAmem : A ∈ {A ∈ T.tiles | (A.carrier ∩ closedBall v 1).Nonempty} :=
+      ⟨hAT, ⟨y, hyA, hy1⟩⟩
+    have hyS : y ∈ support {A ∈ T.tiles | (A.carrier ∩ closedBall v 1).Nonempty} := by
+      rw [support, mem_iUnion₂]
+      exact ⟨A, hAmem, hyA⟩
+    have hyb : y ∈ ball v ρ₀ := ball_subset_ball (min_le_left ρ₀ 1) hy
+    obtain ⟨A', hA'crown, hyA'⟩ := hprop y hyb hyS
+    rw [Omega, mem_iUnion₂]
+    exact ⟨A', ⟨hA'crown.1.1, hA'crown.2⟩, hyA'⟩
+  apply Set.eq_univ_of_forall
+  intro z
+  by_cases hzv : z = v
+  · subst hzv
+    rw [Omega, mem_iUnion₂]
+    refine ⟨A₀, hA₀crown, 1, one_pos, fun t _ => ?_⟩
+    simpa using hvA₀c
+  · have hzvpos : 0 < dist z v := dist_pos.mpr hzv
+    have hzvne : dist z v ≠ 0 := hzvpos.ne'
+    have hc : (0 : ℝ) < min ρ₀ 1 / (2 * dist z v) := by positivity
+    set w : Pt := v + (min ρ₀ 1 / (2 * dist z v)) • (z - v) with hw_def
+    have hwdist : dist w v = min ρ₀ 1 / 2 := by
+      rw [hw_def, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_of_nonneg hc.le, ← dist_eq_norm]
+      field_simp
+    have hwball : w ∈ ball v (min ρ₀ 1) := by
+      rw [mem_ball, hwdist]; linarith
+    have hwmem : w ∈ Omega (crown T.tiles v) v := hball_sub hwball
+    rw [Omega, mem_iUnion₂] at hwmem
+    obtain ⟨A, hAcrown, hwA⟩ := hwmem
+    have ht : (0 : ℝ) < 2 * dist z v / min ρ₀ 1 := by positivity
+    have hzA : z ∈ localCone A.carrier v := by
+      have hscaled := gap_cone_scale hwA ht
+      have heq : v + (2 * dist z v / min ρ₀ 1) • (w - v) = z := by
+        rw [hw_def, add_sub_cancel_left, smul_smul]
+        have hcoef : 2 * dist z v / min ρ₀ 1 * (min ρ₀ 1 / (2 * dist z v)) = 1 := by
+          field_simp
+        rw [hcoef, one_smul]
+        abel
+      rwa [heq] at hscaled
+    rw [Omega, mem_iUnion₂]
+    exact ⟨A, hAcrown, hzA⟩
+
 /-- Step 1 of the blueprint proof of `uniformCrownCoverPlane_step1_close`: In a plane tiling,
 the support of a crown at `v` represented in the catalogue covers a ball of uniform radius `d`
 around `v`. -/
@@ -4860,7 +4924,15 @@ private lemma uniformCrownCoverPlane_step1_close_step1_crown_covers_ball {𝒞 :
     ∃ d : ℝ, 0 < d ∧ ∀ T : PlaneTiling P, AllCrownsIn 𝒞 T.tiles →
       ∀ v : Pt, IsVertexOf T.tiles v →
         ball v d ⊆ support (crown T.tiles v) := by
-  sorry
+  obtain ⟨r, hr, δ, hδ, hrδ⟩ := uniformSectorRadius h𝒞
+  refine ⟨r, hr, fun T hT v hv => ?_⟩
+  have hK : translateSet (-v) (crown T.tiles v) ∈ 𝒞 := hT v hv
+  obtain ⟨hsupp, -⟩ := hrδ (translateSet (-v) (crown T.tiles v)) hK v
+  simp only [gap_translateSet_neg] at hsupp
+  rw [uniformCrownCoverPlane_step1_close_step1_crown_covers_ball_aux1 T hv, univ_inter] at hsupp
+  intro y hy
+  have hy' : y ∈ support (crown T.tiles v) ∩ ball v r := by rw [hsupp]; exact hy
+  exact hy'.1
 
 /-- Step 2 of the blueprint proof of `uniformCrownCoverPlane_step1_close`: If the closed convex hull
   `H` of `S` has a point within `d/2` of `v`, and the diameter of `S` is less than `d/2`, then `S`

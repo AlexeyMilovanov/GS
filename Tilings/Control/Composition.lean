@@ -305,6 +305,14 @@ private lemma headerLegal_properties_step4_boundary (c : MacroCertificate P) (hH
       ∀ i : c.Side A.typ, c.IsBoundary (c.occ A.typ i) → A.cell i 3 = headerU c (headerOf c C) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `headerLegal_properties_step5_path`: paths are invariant under form casting. -/
+private lemma headerLegal_properties_step5_path_step1_cast_path (c : MacroCertificate P) (hH : c.Hereditary)
+    {F1 F2 : c.Q.Form} (h : F1 = F2) (d : Fin (c.Q.disk F1).n) (j : Fin 5) (occ : c.SideOcc) :
+    occ ∈ c.path F1 d j ↔ occ ∈ c.path F2 (cast (congrArg (fun F => Fin (c.Q.disk F).n) h) d) j := by
+  have _ := hH
+  subst h
+  rfl
+
 /-- Step 5 of the blueprint proof of `headerLegal_properties`: third signals belonging to the same
 path are equal through a legal tile. -/
 private lemma headerLegal_properties_step5_path (c : MacroCertificate P) (hH : c.Hereditary)
@@ -312,7 +320,27 @@ private lemma headerLegal_properties_step5_path (c : MacroCertificate P) (hH : c
     ∀ (d : Fin (c.Q.disk (c.owner A.typ)).n) (j : Fin 5) (i i' : c.Side A.typ),
       c.occ A.typ i ∈ c.path (c.owner A.typ) d j → c.occ A.typ i' ∈ c.path (c.owner A.typ) d j →
       ¬ c.IsPrint (c.occ A.typ i) → ¬ c.IsPrint (c.occ A.typ i') → A.cell i 2 = A.cell i' 2 := by
-  sorry
+  intro d j i i' hi hi' hnp hnp'
+  rcases hA with ⟨ch, hch0, hch_child, _⟩
+  have h_child_A : IsChildOf c (ch 1) A := by
+    have h1 := hch_child 0
+    rw [hch0] at h1
+    exact h1
+  have hd_eq : c.owner A.typ = c.form (ch 1).typ := h_child_A.1
+  let d_cast : Fin (c.Q.disk (c.form (ch 1).typ)).n := cast (congrArg (fun F => Fin (c.Q.disk F).n) hd_eq) d
+  have h1 : A.cell i 2 = (ch 1).cell d_cast j := by
+    have h_child_A_with_i := h_child_A.2 i
+    have h_np_i := (h_child_A_with_i.2 hnp).2.2.2.1 d_cast j
+    have hi_cast : c.occ A.typ i ∈ c.path (c.form (ch 1).typ) d_cast j := by
+      rwa [← headerLegal_properties_step5_path_step1_cast_path c hH hd_eq d j]
+    exact h_np_i hi_cast
+  have h2 : A.cell i' 2 = (ch 1).cell d_cast j := by
+    have h_child_A_with_i' := h_child_A.2 i'
+    have h_np_i' := (h_child_A_with_i'.2 hnp').2.2.2.1 d_cast j
+    have hi_cast' : c.occ A.typ i' ∈ c.path (c.form (ch 1).typ) d_cast j := by
+      rwa [← headerLegal_properties_step5_path_step1_cast_path c hH hd_eq d j]
+    exact h_np_i' hi_cast'
+  rw [h1, h2]
 
 /-- Step 1 of the blueprint proof of `headerLegal_properties_step6_inner`: at a print, the fifth
 cell is a nonzero interface identity. -/

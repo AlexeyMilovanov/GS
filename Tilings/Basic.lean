@@ -210,15 +210,87 @@ def IsSideToSideHierarchical (T : PlaneTiling P) : Prop :=
   ∃ seq : ℕ → PlaneTiling P, seq 0 = T ∧ (∀ n, τ.IsComposition (seq (n + 1)) (seq n)) ∧
     ∀ n, (seq n).SideToSide
 
+
+private lemma pow_finite (m : ℕ) (p : P.Form) : (τ.supertile m p).Finite := by
+  induction' m with n ih
+  · exact Set.finite_singleton (⟨p, 0⟩ : PlacedTile P)
+  · change (τ.decompose (τ.decomposeIter n {⟨p, 0⟩})).Finite
+    apply Set.Finite.biUnion ih
+    intro A _
+    exact Set.Finite.image _ (τ.rule A.form).finite
+
+private lemma pow_iterate_support_translateSet (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier, Set.mem_iUnion,
+    Set.mem_image, Set.mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [←add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [←add_assoc] using hx
+
+private lemma pow_iterate_support_decomposeTile (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [decomposeTile]
+  rw [pow_iterate_support_translateSet, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [Set.mem_vadd_set_iff_neg_vadd_mem, Set.mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc τ.θ • A.anchor + τ.θ • y = τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma pow_iterate_support_decompose (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [decompose, support]
+  rw [Set.smul_set_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨A, ⟨B, hB, hA⟩, hx⟩
+    refine ⟨B, hB, ?_⟩
+    have h : x ∈ support (τ.decomposeTile B) := by
+      simp only [support, Set.mem_iUnion]
+      exact ⟨A, hA, hx⟩
+    rw [pow_iterate_support_decomposeTile] at h
+    exact h
+  · rintro ⟨A, hA, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rw [pow_iterate_support_decomposeTile]
+      exact hx
+    simp only [support, Set.mem_iUnion] at h
+    rcases h with ⟨B, hB, hx'⟩
+    exact ⟨B, ⟨A, hA, hB⟩, hx'⟩
+
+private lemma pow_support_eq (m : ℕ) (p : P.Form) :
+    support (τ.supertile m p) = τ.θ ^ m • (P.disk p).carrier := by
+  induction' m with n ih
+  · dsimp [supertile, decomposeIter, support, PlacedTile.carrier]
+    ext x
+    simp
+  · change support (τ.decompose (τ.supertile n p)) = τ.θ ^ (n + 1) • (P.disk p).carrier
+    rw [pow_iterate_support_decompose]
+    rw [ih, smul_smul, pow_succ']
+
 /-- The power `τ^m` as a substitution (`lem:hierarchy-step`). -/
 noncomputable def pow (m : ℕ) (hm : 0 < m) : Substitution P where
   θ := τ.θ ^ m
   one_lt := one_lt_pow₀ τ.one_lt hm.ne'
   rule := fun p =>
     { tiles := τ.supertile m p
-      finite := sorry
+      finite := pow_finite τ m p
       disjoint := sorry }
-  support_eq := sorry
+  support_eq := pow_support_eq τ m
+
 
 /-! ### Crowns, FLC, STS (`def:crown`, `def:flc`, `def:sts`) -/
 

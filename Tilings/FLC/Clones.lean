@@ -453,7 +453,23 @@ def cloneProtoset (h : τ.FLC) : Protoset where
 private lemma childContext_realized_step1_shift_step1_translateSet_translateSet
     {P : Protoset} (v w : Pt) (S : Set (PlacedTile P)) :
     translateSet v (translateSet w S) = translateSet (v +ᵥ w) S := by
-  sorry
+  ext x
+  simp only [translateSet, Set.mem_image]
+  constructor
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    use z, hz
+    apply PlacedTile.ext
+    · rfl
+    · dsimp [PlacedTile.translate, VAdd.vadd]
+      abel
+  · rintro ⟨y, hy, rfl⟩
+    use y.translate w
+    constructor
+    · use y, hy
+    · apply PlacedTile.ext
+      · rfl
+      · dsimp [PlacedTile.translate, VAdd.vadd]
+        abel
 
 /-- Step 1.2 of the blueprint proof of `childContext_realized`: `τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S)`. -/
 private lemma childContext_realized_step1_shift_step2_decompose_translateSet

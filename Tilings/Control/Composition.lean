@@ -2366,6 +2366,99 @@ theorem reconstructed_noncentral_legal (c : MacroCertificate P) (hH : c.Heredita
   have h_eq := reconstructed_noncentral_legal_step3_eq c hH K hK h hh hA hnc E hE_leg hE_nc hE_child
   rwa [← h_eq]
 
+/-- Step 1 of the blueprint proof of `alignment_complete_step1_macroside_eq`: Rank
+matching and legality find a different block and a rank-one child side on one
+of its macrosides that coincides with the first listed child side of `d`. -/
+private lemma alignment_complete_step1_macroside_eq_step1_rank_one (c : MacroCertificate P)
+    (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j : part.ι) (d : Fin (c.Q.disk (part.block j).α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j' : part.ι, j' ≠ j → ∀ e, ModeUniform c (part.block j') e) :
+    ∃ (j' : part.ι) (_hneq : j' ≠ j)
+      (e : Fin (c.Q.disk (part.block j').α).n),
+      ∃ (o₀ o : c.SideOcc),
+        (c.outerList (part.block j).α d).head? = some o₀ ∧
+        o₀ ∈ c.outerList (part.block j).α d ∧
+        o ∈ c.outerList (part.block j').α e ∧
+        c.rankIn (part.block j').α e o = 1 ∧
+        IsRankU c ((part.block j').col o.1 o.2 3) ∧
+        (part.block j').childSide o = (part.block j).childSide o₀ ∧
+        (part.block j').col o.1 o.2 3 = (part.block j).col o₀.1 o₀.2 3 := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `alignment_complete_step1_macroside_eq`: An
+ opposing macroside cannot end inside a completely matched child segment or
+ between consecutive segments, so all listed sides of `d` stay on the same `e`.
+ -/
+private lemma alignment_complete_step1_macroside_eq_step2_same_opposing_macroside
+    (c : MacroCertificate P) (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (hfirst : ∃ (o₀ o : c.SideOcc),
+      (c.outerList (part.block j).α d).head? = some o₀ ∧
+      o₀ ∈ c.outerList (part.block j).α d ∧
+      o ∈ c.outerList (part.block j').α e ∧
+      c.rankIn (part.block j').α e o = 1 ∧
+      IsRankU c ((part.block j').col o.1 o.2 3) ∧
+      (part.block j').childSide o = (part.block j).childSide o₀ ∧
+      (part.block j').col o.1 o.2 3 = (part.block j).col o₀.1 o₀.2 3) :
+    ∀ o ∈ c.outerList (part.block j).α d, ∃ o' ∈ c.outerList (part.block j').α e,
+      (part.block j').childSide o' = (part.block j).childSide o ∧
+      c.rankIn (part.block j').α e o' = c.rankIn (part.block j).α d o ∧
+      (part.block j').col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3 := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `alignment_complete_step1_macroside_eq`: If
+ the trace reaches every child of `d`, mode-uniformity prevents the opposing
+ macroside `e` from having a further ranked child beyond the end of `d`. -/
+private lemma alignment_complete_step1_macroside_eq_step3_not_longer
+    (c : MacroCertificate P) (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (htrace : ∀ o ∈ c.outerList (part.block j).α d,
+      ∃ o' ∈ c.outerList (part.block j').α e,
+        (part.block j').childSide o' = (part.block j).childSide o ∧
+        c.rankIn (part.block j').α e o' = c.rankIn (part.block j).α d o ∧
+        (part.block j').col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3) :
+    (c.outerList (part.block j').α e).length ≤
+      (c.outerList (part.block j).α d).length := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `alignment_complete_step1_macroside_eq`:
+ Once the trace is fixed and the opposing side is not longer, coverage and
+ disjoint interiors force both endpoints to agree, hence the macrosides agree.
+ -/
+private lemma alignment_complete_step1_macroside_eq_step4_endpoints
+    (c : MacroCertificate P) (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (htrace : ∀ o ∈ c.outerList (part.block j).α d,
+      ∃ o' ∈ c.outerList (part.block j').α e,
+        (part.block j').childSide o' = (part.block j).childSide o ∧
+        c.rankIn (part.block j').α e o' = c.rankIn (part.block j).α d o ∧
+        (part.block j').col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3)
+    (hlen : (c.outerList (part.block j').α e).length ≤
+      (c.outerList (part.block j).α d).length) :
+    (part.block j').macroSide e = (part.block j).macroSide d := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `alignment_complete`: By tracing the
 coinciding segments and using the mode-uniformity hypothesis to prevent the
 opposing side from being longer, we find an opposing macroside `e` of block `j'`
@@ -2378,7 +2471,16 @@ private lemma alignment_complete_step1_macroside_eq (c : MacroCertificate P) (hH
     (hmode : ∀ j' : part.ι, j' ≠ j → ∀ e, ModeUniform c (part.block j') e) :
     ∃ (j' : part.ι) (_hneq : j' ≠ j) (e : Fin (c.Q.disk (part.block j').α).n),
       (part.block j').macroSide e = (part.block j).macroSide d := by
-  sorry
+  obtain ⟨j', hneq, e, o₀, o, hfirst, ho₀, ho, hrank_one, hpositive, hside, hcell⟩ :=
+    alignment_complete_step1_macroside_eq_step1_rank_one c hH T part hT hL j d hrank hmode
+  have htrace := alignment_complete_step1_macroside_eq_step2_same_opposing_macroside c hH T part
+    hT hL j j' hneq d e hrank hmode
+    ⟨o₀, o, hfirst, ho₀, ho, hrank_one, hpositive, hside, hcell⟩
+  have hlen := alignment_complete_step1_macroside_eq_step3_not_longer c hH T part hT hL j j'
+    hneq d e hrank hmode htrace
+  refine ⟨j', hneq, e, ?_⟩
+  exact alignment_complete_step1_macroside_eq_step4_endpoints c hH T part hT hL j j' hneq d e
+    hrank hmode htrace hlen
 
 /-- Step 2a of the blueprint proof of `alignment_complete_step2_subdivision_eq`: The length of
 the child side subdivision is uniquely determined by the geometric macro side.

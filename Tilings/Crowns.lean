@@ -2258,6 +2258,18 @@ private lemma distanceToReflexBoundaryRay_step1_infDist_eq (q a b : Pt) (t : ℝ
   rw [distanceToReflexBoundaryRay_step1_infDist_eq_step1_trans q a b t]
   rw [distanceToReflexBoundaryRay_step1_infDist_eq_step2_sInf a b t]
 
+/-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad`: the acute case. -/
+private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute (a b : Pt) (ha : ‖a‖ = 1)
+    (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t) (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
+    sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) = t * Real.sin (InnerProductGeometry.angle a b) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad`: the obtuse case. -/
+private lemma distanceToReflexBoundaryRay_step2_min_quad_step2_obtuse (a b : Pt) (ha : ‖a‖ = 1)
+    (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t) (h_ang : ¬ (InnerProductGeometry.angle a b ≤ Real.pi / 2)) :
+    sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) = t := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay`: minimize the quadratic form. -/
 private lemma distanceToReflexBoundaryRay_step2_min_quad (a b : Pt) (ha : ‖a‖ = 1)
     (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t) :
@@ -2265,7 +2277,15 @@ private lemma distanceToReflexBoundaryRay_step2_min_quad (a b : Pt) (ha : ‖a�
       if InnerProductGeometry.angle a b ≤ Real.pi / 2 then
         t * Real.sin (InnerProductGeometry.angle a b)
       else t := by
-  sorry
+  have H : (fun s : ℝ => ‖t • a - s • b‖) '' Ici 0 = (fun s : ℝ => ‖t • a - s • b‖) '' Ici (0:ℝ) := rfl
+  rw [H]
+  split_ifs with h
+  · have H1 : (fun s : ℝ => ‖t • a - s • b‖) '' Ici (0:ℝ) = (fun s : ℝ => ‖t • a - s • b‖) '' Ici 0 := rfl
+    rw [H1]
+    exact distanceToReflexBoundaryRay_step2_min_quad_step1_acute a b ha hb ht h
+  · have H2 : (fun s : ℝ => ‖t • a - s • b‖) '' Ici (0:ℝ) = (fun s : ℝ => ‖t • a - s • b‖) '' Ici 0 := rfl
+    rw [H2]
+    exact distanceToReflexBoundaryRay_step2_min_quad_step2_obtuse a b ha hb ht h
 
 /-- `lem:ray-bound`: for unit vectors `a, b` and `t > 0`, the distance from
 `q + t a` to the ray `q + ℝ_{≥0} b` is `t sin β` if `β = ∠(a, b) ≤ π/2` and

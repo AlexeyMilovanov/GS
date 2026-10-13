@@ -3151,7 +3151,39 @@ private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute (a b : Pt) 
 private lemma distanceToReflexBoundaryRay_step2_min_quad_step2_obtuse (a b : Pt) (ha : ‖a‖ = 1)
     (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t) (h_ang : ¬ (InnerProductGeometry.angle a b ≤ Real.pi / 2)) :
     sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) = t := by
-  sorry
+  have hθ : Real.pi / 2 < InnerProductGeometry.angle a b := lt_of_not_ge h_ang
+  have hcos : Real.cos (InnerProductGeometry.angle a b) < 0 :=
+    Real.cos_neg_of_pi_div_two_lt_of_lt hθ
+      (by linarith [InnerProductGeometry.angle_le_pi a b, Real.pi_pos])
+  have hinner : inner ℝ a b = Real.cos (InnerProductGeometry.angle a b) := by
+    simpa [ha, hb] using
+      (InnerProductGeometry.cos_angle_mul_norm_mul_norm a b).symm
+  apply le_antisymm
+  · refine csInf_le (by
+      refine ⟨0, ?_⟩
+      rintro y ⟨s, hs, rfl⟩
+      exact norm_nonneg _) ⟨0, by simp, ?_⟩
+    change ‖t • a - 0 • b‖ = t
+    rw [zero_smul, sub_zero, norm_smul, Real.norm_of_nonneg ht.le, ha]
+    ring
+  · refine le_csInf ?_ ?_
+    · exact ⟨t, by
+        refine ⟨0, by simp, ?_⟩
+        change ‖t • a - 0 • b‖ = t
+        rw [zero_smul, sub_zero, norm_smul, Real.norm_of_nonneg ht.le, ha]
+        ring⟩
+    · rintro y ⟨s, hs, rfl⟩
+      have hsq := norm_sub_sq_real (t • a) (s • b)
+      rw [norm_smul, norm_smul, Real.norm_of_nonneg ht.le,
+        Real.norm_of_nonneg hs, inner_smul_left, inner_smul_right,
+        hinner, ha, hb] at hsq
+      simp at hsq
+      have hnonneg : 0 ≤ ‖t • a - s • b‖ := norm_nonneg _
+      have hs0 : 0 ≤ s := hs
+      have hprod : t * (s * Real.cos (InnerProductGeometry.angle a b)) ≤ 0 := by
+        rw [← mul_assoc]
+        exact mul_nonpos_of_nonneg_of_nonpos (mul_nonneg ht.le hs0) hcos.le
+      nlinarith
 
 /-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay`: minimize the quadratic form. -/
 private lemma distanceToReflexBoundaryRay_step2_min_quad (a b : Pt) (ha : ‖a‖ = 1)

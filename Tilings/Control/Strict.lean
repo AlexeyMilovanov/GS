@@ -3460,6 +3460,49 @@ theorem strict_opposing_macroside (hτ : τ.STS)
     subst hdd
     exact ⟨o₃, ho₃, by simp only [som_mid_of_childSide C hC hs₃]⟩
 
+/-- Step 1 of the blueprint proof of `strict_composed_proper`: construct the plane tiling
+of reconstructed parents from an assembled strict macro-partition. -/
+private theorem strict_composed_proper_step1_reconstruction (hτ : τ.STS)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles))
+    (T : PlaneTiling (strictProtoset C hC)) (part : StrictMacroPartition C hC T) :
+    ∃ T' : PlaneTiling (strictProtoset C hC),
+      IsStrictReconstruction C hC part T' := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_composed_proper`: each assembled block is an
+exact strict decomposition of its reconstructed parent. -/
+private theorem strict_composed_proper_step2_exact (hτ : τ.STS)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles))
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC))
+    (hrec : IsStrictReconstruction C hC part T') :
+    (strictSubst C hC).IsComposition T' T := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `strict_composed_proper`: reconstructed parents are
+normal and identity-correct. -/
+private theorem strict_composed_proper_step3_properties (hτ : τ.STS)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles))
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC))
+    (hrec : IsStrictReconstruction C hC part T') :
+    ∀ X ∈ T'.tiles, ∃ D, X.form = StrictForm.typed D ∧ IsStrictNormal C hC D ∧
+      IsStrictIdentityCorrect C hC D := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `strict_composed_proper`: equal parent sides are
+strictly matched, using `strict_opposing_macroside` and the numbered ports. -/
+private theorem strict_composed_proper_step4_matched (hτ : τ.STS)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles))
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC))
+    (hrec : IsStrictReconstruction C hC part T') :
+    IsStrictMatched C hC T' := by
+  sorry
+
 /-- `lem:comp/proper` (strict variant, `lem:schedule-compose`): for a strictly matched plane
 tiling of legal tiles, replacing each assembled macroblock by its reconstructed parent and
 scaling down gives a strictly matched tiling of normal identity-correct typed tiles of which
@@ -3474,7 +3517,12 @@ theorem strict_composed_proper (hτ : τ.STS)
       (∀ X ∈ T'.tiles, ∃ D, X.form = StrictForm.typed D ∧ IsStrictNormal C hC D ∧
         IsStrictIdentityCorrect C hC D) ∧
       (strictSubst C hC).IsComposition T' T := by
-  sorry
+  obtain ⟨part⟩ := strict_assembleMacrotemplates_of_legal C hC T hT hL
+  obtain ⟨T', hrec⟩ := strict_composed_proper_step1_reconstruction C hC hτ hΔ T part
+  exact ⟨part, T', hrec,
+    strict_composed_proper_step4_matched C hC hτ hΔ T hT hL part T' hrec,
+    strict_composed_proper_step3_properties C hC hτ hΔ T hT hL part T' hrec,
+    strict_composed_proper_step2_exact C hC hτ hΔ T hT hL part T' hrec⟩
 
 /-- The cell of a strict tile indexed by the value of a side index (zero out of range). -/
 private def acycCellv (X : StrictDecTile C hC) (v : ℕ) (k : Fin 5) : SU C hC :=

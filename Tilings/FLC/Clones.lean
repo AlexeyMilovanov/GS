@@ -1978,11 +1978,512 @@ selected form.  Artificial clone vertices of neighbours are not added. -/
 def cloneVertexSet (c : GenuineCornerClone τ) : Set Pt :=
   frontier (P.disk c.form).carrier ∩ ⋃ B ∈ c.context, tileGenuineCorners B
 
+private lemma cloneVertexSet_finite (c : GenuineCornerClone τ) :
+    (cloneVertexSet c).Finite := by
+  rcases c.realized with ⟨n, p, A, hA, hcontext⟩
+  have hcontext_finite : c.context.Finite := by
+    have hc := congrArg Prod.snd hcontext
+    change c.context = translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A) at hc
+    rw [hc]
+    apply Set.Finite.image
+    exact (Crowns.supertile_finite τ n p).subset fun _ h => h.1
+  apply Set.Finite.inter_of_right
+  apply Set.Finite.biUnion hcontext_finite
+  intro B _
+  apply ((Set.finite_range (P.disk B.form).vertex).image fun x => B.anchor +ᵥ x).subset
+  rintro _ ⟨x, ⟨i, hi, rfl⟩, rfl⟩
+  refine ⟨(P.disk B.form).vertex i, ?_, rfl⟩
+  exact ⟨i, rfl⟩
+
+private lemma genuineCorners_subset_cloneVertexSet (c : GenuineCornerClone τ) :
+    (P.disk c.form).genuineCorners ⊆ cloneVertexSet c := by
+  rcases c.realized with ⟨n, p, A, hA, hcontext⟩
+  have hform := congrArg Prod.fst hcontext
+  have hcontext' := congrArg Prod.snd hcontext
+  change c.form = A.form at hform
+  change c.context = translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A) at hcontext'
+  intro q hq
+  constructor
+  · rw [(P.disk c.form).frontier_eq]
+    rcases hq with ⟨i, hi, rfl⟩
+    exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+  · rw [hcontext']
+    let B : PlacedTile P := ⟨A.form, 0⟩
+    apply Set.mem_iUnion.2 ⟨B, ?_⟩
+    apply Set.mem_iUnion.2 ⟨?_, ?_⟩
+    · obtain ⟨x, hx⟩ := (P.disk A.form).interior_nonempty
+      exact ⟨A, ⟨hA, ⟨A.anchor +ᵥ x,
+        ⟨⟨x, interior_subset hx, rfl⟩, ⟨x, interior_subset hx, rfl⟩⟩⟩⟩, by
+          apply PlacedTile.ext
+          · rfl
+          · change -A.anchor + A.anchor = 0
+            simp⟩
+    · rw [hform] at hq
+      simpa [B, tileGenuineCorners] using hq
+
+private def polygonalDiskReindex (D : PolygonalDisk) (e : Equiv.Perm (Fin D.n))
+    (he : ∀ i, e (finRotate D.n i) = finRotate D.n (e i)) : PolygonalDisk where
+  carrier := D.carrier
+  n := D.n
+  three_le := D.three_le
+  vertex := D.vertex ∘ e
+  vertex_injective := D.vertex_injective.comp e.injective
+  compact := D.compact
+  interior_nonempty := D.interior_nonempty
+  regular_closed := D.regular_closed
+  interior_pathConnected := D.interior_pathConnected
+  frontier_eq := by
+    rw [D.frontier_eq]
+    ext x
+    constructor
+    · intro hx
+      rcases Set.mem_iUnion.1 hx with ⟨i, hi⟩
+      apply Set.mem_iUnion.2 ⟨e.symm i, ?_⟩
+      simpa [Function.comp_apply, he] using hi
+    · intro hx
+      rcases Set.mem_iUnion.1 hx with ⟨i, hi⟩
+      apply Set.mem_iUnion.2 ⟨e i, ?_⟩
+      simpa [Function.comp_apply, he] using hi
+  simple := by
+    intro i j hij
+    simpa [Function.comp_apply, he] using D.simple (e i) (e j) (fun h => hij (e.injective h))
+
+private lemma polygonalDiskReindex_vertexSet (D : PolygonalDisk) (e : Equiv.Perm (Fin D.n))
+    (he : ∀ i, e (finRotate D.n i) = finRotate D.n (e i)) :
+    (polygonalDiskReindex D e he).vertexSet = D.vertexSet := by
+  apply Set.Subset.antisymm
+  · rintro _ ⟨i, rfl⟩
+    exact ⟨e i, rfl⟩
+  · rintro _ ⟨i, rfl⟩
+    exact ⟨e.symm i, by simp [polygonalDiskReindex]⟩
+
+private lemma segment_split {a b q : Pt} (hq : q ∈ segment ℝ a b) :
+    segment ℝ a b = segment ℝ a q ∪ segment ℝ q b := by
+  apply Set.Subset.antisymm
+  · intro x hx
+    rw [← insert_endpoints_openSegment] at hx
+    rcases hx with hx | hx | hx
+    · subst x
+      exact Or.inl (left_mem_segment ℝ _ _)
+    · subst x
+      exact Or.inr (right_mem_segment ℝ _ _)
+    · have hline : q ∈ Set.range (AffineMap.lineMap a b : ℝ → Pt) := by
+        rw [segment_eq_image_lineMap] at hq
+        rcases hq with ⟨t, ht, rfl⟩
+        exact ⟨t, rfl⟩
+      rcases openSegment_subset_union a b hline hx with hx | hx
+      · rcases hx with rfl
+        exact Or.inl (right_mem_segment ℝ _ _)
+      · rcases hx with hx | hx
+        · exact Or.inl (openSegment_subset_segment ℝ _ _ hx)
+        · exact Or.inr (openSegment_subset_segment ℝ _ _ hx)
+  · exact union_subset
+      ((convex_segment a b).segment_subset (left_mem_segment ℝ _ _) hq)
+      ((convex_segment a b).segment_subset hq (right_mem_segment ℝ _ _))
+
+private lemma finRotate_succ_ne_zero {n : ℕ} (hn : 0 < n) (k : Fin n)
+    (h : finRotate n k ≠ ⟨0, hn⟩) :
+    finRotate (n + 1) k.succ = (finRotate n k).succ := by
+  cases n with
+  | zero => omega
+  | succ n =>
+    have hk : k ≠ Fin.last n := by
+      intro hk
+      apply h
+      subst k
+      exact finRotate_last
+    have hks : k.succ ≠ Fin.last (n + 1) := by
+      intro hks
+      apply hk
+      apply Fin.ext
+      have := congrArg Fin.val hks
+      simp only [Fin.val_succ, Fin.val_last] at this ⊢
+      omega
+    apply Fin.ext
+    rw [coe_finRotate, if_neg hks, Fin.val_succ, Fin.val_succ, coe_finRotate, if_neg hk]
+
+private lemma finRotate_succ_eq_zero {n : ℕ} (hn : 0 < n) (k : Fin n)
+    (h : finRotate n k = ⟨0, hn⟩) :
+    finRotate (n + 1) k.succ = (0 : Fin (n + 1)) := by
+  ext
+  have hv := congrArg Fin.val h
+  cases n with
+  | zero => omega
+  | succ n =>
+    have hk : k = Fin.last n :=
+      (finRotate (n + 1)).injective (h.trans finRotate_last.symm)
+    subst k
+    have he : (Fin.last n).succ = Fin.last (n + 1) := Fin.ext rfl
+    rw [he, finRotate_last]
+
+private lemma finCons_one {n : ℕ} (hn : 0 < n) {X : Type} (q : X) (v : Fin n → X) :
+    (@Fin.cons n (fun _ => X) q v) (1 : Fin (n + 1)) = v ⟨0, hn⟩ := by
+  have he : (1 : Fin (n + 1)) = Fin.succ ⟨0, hn⟩ := by
+    apply Fin.ext
+    norm_num [Fin.val_succ]
+    exact hn
+  rw [he, Fin.cons_succ]
+
+private def polygonalDiskZero (D : PolygonalDisk) : Fin D.n :=
+  ⟨0, lt_of_lt_of_le (by omega) D.three_le⟩
+
+private def polygonalDiskClosing (D : PolygonalDisk) : Fin D.n :=
+  (finRotate D.n).symm (polygonalDiskZero D)
+
+private lemma polygonalDisk_finRotate_ne_self (D : PolygonalDisk) (i : Fin D.n) :
+    finRotate D.n i ≠ i := by
+  generalize hn : D.n = n at i
+  have hn3 : 3 ≤ n := hn ▸ D.three_le
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h1 : (1 : Fin (m + 1)) = 0 := by
+    have := congrArg (fun x => x - i) h
+    simpa using this
+  have : NeZero (m + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h1
+  omega
+
+private lemma polygonalDisk_vertex_ne_next (D : PolygonalDisk) (i : Fin D.n) :
+    D.vertex i ≠ D.vertex (finRotate D.n i) := by
+  intro h
+  exact polygonalDisk_finRotate_ne_self D i (D.vertex_injective h).symm
+
+private lemma polygonalDisk_eq_side_of_open_mem (D : PolygonalDisk) {i j : Fin D.n} {q : Pt}
+    (hq : q ∈ openSegment ℝ (D.vertex i) (D.vertex (finRotate D.n i)))
+    (hq' : q ∈ segment ℝ (D.vertex j) (D.vertex (finRotate D.n j))) : j = i := by
+  by_contra hji
+  have h := D.simple i j (Ne.symm hji) ⟨openSegment_subset_segment ℝ _ _ hq, hq'⟩
+  have hab := polygonalDisk_vertex_ne_next D i
+  rcases h.1 with h1 | h1
+  · rw [h1] at hq
+    exact hab (left_mem_openSegment_iff.mp hq)
+  · rw [Set.mem_singleton_iff] at h1
+    rw [h1] at hq
+    exact hab (right_mem_openSegment_iff.mp hq)
+
+private lemma polygonalDisk_vertex_not_openSide (D : PolygonalDisk) (k i : Fin D.n) :
+    D.vertex k ∉ openSegment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+  intro h
+  have hk := polygonalDisk_eq_side_of_open_mem D h (left_mem_segment ℝ _ _)
+  subst hk
+  exact polygonalDisk_vertex_ne_next D k (left_mem_openSegment_iff.mp h)
+
+set_option maxHeartbeats 800000 in
+private def polygonalDiskInsertClosing (D : PolygonalDisk) (q : Pt)
+    (hq : q ∈ openSegment ℝ
+      (D.vertex (polygonalDiskClosing D)) (D.vertex (polygonalDiskZero D))) : PolygonalDisk where
+  carrier := D.carrier
+  n := D.n + 1
+  three_le := by
+    have := D.three_le
+    omega
+  vertex := Fin.cons q D.vertex
+  vertex_injective := Fin.cons_injective_of_injective
+    (fun h => by
+      rcases h with ⟨i, hi⟩
+      apply polygonalDisk_vertex_not_openSide D i (polygonalDiskClosing D)
+      simpa [polygonalDiskClosing, polygonalDiskZero] using hi ▸ hq)
+    D.vertex_injective
+  compact := D.compact
+  interior_nonempty := D.interior_nonempty
+  regular_closed := D.regular_closed
+  interior_pathConnected := D.interior_pathConnected
+  frontier_eq := by
+    have hn : 0 < D.n := lt_of_lt_of_le (by omega) D.three_le
+    let z : Fin D.n := ⟨0, hn⟩
+    let l : Fin D.n := (finRotate D.n).symm z
+    have hl : finRotate D.n l = z := (finRotate D.n).apply_symm_apply z
+    have hq' : q ∈ segment ℝ (D.vertex l) (D.vertex z) :=
+      openSegment_subset_segment ℝ _ _ hq
+    rw [D.frontier_eq]
+    ext x
+    constructor
+    · intro hx
+      rcases Set.mem_iUnion.1 hx with ⟨k, hkx⟩
+      by_cases hk : finRotate D.n k = z
+      · have hkl : k = l := (finRotate D.n).injective (hk.trans hl.symm)
+        subst k
+        rw [hl] at hkx
+        rw [segment_split hq'] at hkx
+        rcases hkx with hkx | hkx
+        · apply Set.mem_iUnion.2 ⟨l.succ, ?_⟩
+          rw [finRotate_succ_eq_zero hn l hl, Fin.cons_succ, Fin.cons_zero]
+          exact hkx
+        · apply Set.mem_iUnion.2 ⟨0, ?_⟩
+          rw [finRotate_apply_zero, Fin.cons_zero, finCons_one hn]
+          exact hkx
+      · apply Set.mem_iUnion.2 ⟨k.succ, ?_⟩
+        rw [finRotate_succ_ne_zero hn k hk, Fin.cons_succ, Fin.cons_succ]
+        exact hkx
+    · intro hx
+      rcases Set.mem_iUnion.1 hx with ⟨j, hjx⟩
+      induction j using Fin.cases with
+      | zero =>
+        rw [finRotate_apply_zero, Fin.cons_zero, finCons_one hn] at hjx
+        apply Set.mem_iUnion.2 ⟨l, ?_⟩
+        simpa [hl] using (convex_segment (D.vertex l) (D.vertex z)).segment_subset hq'
+          (right_mem_segment ℝ _ _) hjx
+      | succ k =>
+        by_cases hk : finRotate D.n k = z
+        · rw [finRotate_succ_eq_zero hn k hk, Fin.cons_succ, Fin.cons_zero] at hjx
+          apply Set.mem_iUnion.2 ⟨k, ?_⟩
+          have hqk : q ∈ segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) := by
+            rw [hk]
+            have hkl : k = l := (finRotate D.n).injective (hk.trans hl.symm)
+            simpa [hkl] using hq'
+          exact (convex_segment (D.vertex k) (D.vertex (finRotate D.n k))).segment_subset
+            (left_mem_segment ℝ _ _) hqk hjx
+        · rw [finRotate_succ_ne_zero hn k hk, Fin.cons_succ, Fin.cons_succ] at hjx
+          exact Set.mem_iUnion.2 ⟨k, hjx⟩
+  simple := by
+    have hn : 0 < D.n := lt_of_lt_of_le (by omega) D.three_le
+    let z : Fin D.n := ⟨0, hn⟩
+    let l : Fin D.n := (finRotate D.n).symm z
+    have hl : finRotate D.n l = z := (finRotate D.n).apply_symm_apply z
+    have hq0 : q ∈ openSegment ℝ (D.vertex l) (D.vertex z) := by
+      simpa [l, z, polygonalDiskClosing, polygonalDiskZero] using hq
+    have hlz : D.vertex l ≠ D.vertex z := by
+      simpa [hl] using polygonalDisk_vertex_ne_next D l
+    have hs : Sbtw ℝ (D.vertex l) q (D.vertex z) := by
+      refine ⟨mem_segment_iff_wbtw.mp (openSegment_subset_segment ℝ _ _ hq0), ?_, ?_⟩
+      · intro e
+        apply hlz
+        exact left_mem_openSegment_iff.mp (e ▸ hq0)
+      · intro e
+        apply hlz.symm
+        exact (right_mem_openSegment_iff.mp (e ▸ hq0)).symm
+    have hnotLeft : D.vertex l ∉ segment ℝ q (D.vertex z) := by
+      exact fun h => hs.not_swap_left (mem_segment_iff_wbtw.mp h)
+    have hnotRight : D.vertex z ∉ segment ℝ (D.vertex l) q := by
+      exact fun h => hs.not_swap_right (mem_segment_iff_wbtw.mp h)
+    intro i j hij
+    induction i using Fin.cases with
+    | zero =>
+      induction j using Fin.cases with
+      | zero => exact (hij rfl).elim
+      | succ k =>
+        rw [finRotate_apply_zero, Fin.cons_zero, finCons_one hn]
+        by_cases hk : finRotate D.n k = z
+        · have hkl : k = l := (finRotate D.n).injective (hk.trans hl.symm)
+          subst k
+          rw [finRotate_succ_eq_zero hn l hl, Fin.cons_succ, Fin.cons_zero]
+          intro x hx
+          have hxq : x = q := by
+            have h1 := mem_segment_iff_wbtw.mp hx.1
+            have h2 := mem_segment_iff_wbtw.mp hx.2
+            exact (h1.swap_left_iff.mp (hs.wbtw.trans_left_right h2)).symm
+          subst x
+          simp
+        · rw [finRotate_succ_ne_zero hn k hk, Fin.cons_succ, Fin.cons_succ]
+          intro x hx
+          have hlk : l ≠ k := fun e => hk (e ▸ hl)
+          have hxold : x ∈ segment ℝ (D.vertex l) (D.vertex (finRotate D.n l)) := by
+            simpa [hl] using (convex_segment (D.vertex l) (D.vertex z)).segment_subset
+              (mem_segment_iff_wbtw.mpr hs.wbtw) (right_mem_segment ℝ _ _) hx.1
+          have hold := D.simple l k hlk ⟨hxold, hx.2⟩
+          have hxl : x = D.vertex z := by
+            rcases hold.1 with h | h
+            · exact (hnotLeft (h ▸ hx.1)).elim
+            · simpa [hl] using h
+          subst x
+          exact ⟨Or.inr rfl, hold.2⟩
+    | succ k =>
+      induction j using Fin.cases with
+      | zero =>
+        rw [finRotate_apply_zero, Fin.cons_zero, finCons_one hn]
+        by_cases hk : finRotate D.n k = z
+        · have hkl : k = l := (finRotate D.n).injective (hk.trans hl.symm)
+          subst k
+          rw [finRotate_succ_eq_zero hn l hl, Fin.cons_succ, Fin.cons_zero]
+          intro x hx
+          have hxq : x = q := by
+            have h1 := mem_segment_iff_wbtw.mp hx.2
+            have h2 := mem_segment_iff_wbtw.mp hx.1
+            exact (h1.swap_left_iff.mp (hs.wbtw.trans_left_right h2)).symm
+          subst x
+          simp
+        · rw [finRotate_succ_ne_zero hn k hk, Fin.cons_succ, Fin.cons_succ]
+          intro x hx
+          have hkl : k ≠ l := fun e => hk (e ▸ hl)
+          have hxold : x ∈ segment ℝ (D.vertex l) (D.vertex (finRotate D.n l)) := by
+            simpa [hl] using (convex_segment (D.vertex l) (D.vertex z)).segment_subset
+              (mem_segment_iff_wbtw.mpr hs.wbtw) (right_mem_segment ℝ _ _) hx.2
+          have hold := D.simple k l hkl ⟨hx.1, hxold⟩
+          have hxl : x = D.vertex z := by
+            rcases hold.2 with h | h
+            · exact (hnotLeft (h ▸ hx.2)).elim
+            · simpa [hl] using h
+          subst x
+          exact ⟨hold.1, Or.inr rfl⟩
+      | succ m =>
+        have hkm : k ≠ m := fun e => hij (congrArg Fin.succ e)
+        by_cases hk : finRotate D.n k = z <;>
+          by_cases hm : finRotate D.n m = z
+        · exact (hkm ((finRotate D.n).injective (hk.trans hm.symm))).elim
+        · rw [finRotate_succ_eq_zero hn k hk, finRotate_succ_ne_zero hn m hm]
+          simp only [Fin.cons_succ, Fin.cons_zero]
+          intro x hx
+          have hkl : k = l := (finRotate D.n).injective (hk.trans hl.symm)
+          have hqk : q ∈ segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) := by
+            simpa [hkl, hl] using mem_segment_iff_wbtw.mpr hs.wbtw
+          have hold := D.simple k m hkm ⟨
+            (convex_segment (D.vertex k) (D.vertex (finRotate D.n k))).segment_subset
+              (left_mem_segment ℝ _ _) hqk hx.1, hx.2⟩
+          have hxk : x = D.vertex k := by
+            rcases hold.1 with h | h
+            · exact h
+            · rw [Set.mem_singleton_iff] at h
+              have hh : D.vertex (finRotate D.n k) ∈ segment ℝ (D.vertex k) q := h ▸ hx.1
+              exact (hnotRight (by simpa [hkl, hl] using hh)).elim
+          subst x
+          exact ⟨by simp, hold.2⟩
+        · rw [finRotate_succ_ne_zero hn k hk, finRotate_succ_eq_zero hn m hm]
+          simp only [Fin.cons_succ, Fin.cons_zero]
+          intro x hx
+          have hml : m = l := (finRotate D.n).injective (hm.trans hl.symm)
+          have hqm : q ∈ segment ℝ (D.vertex m) (D.vertex (finRotate D.n m)) := by
+            simpa [hml, hl] using mem_segment_iff_wbtw.mpr hs.wbtw
+          have hold := D.simple k m hkm ⟨hx.1,
+            (convex_segment (D.vertex m) (D.vertex (finRotate D.n m))).segment_subset
+              (left_mem_segment ℝ _ _) hqm hx.2⟩
+          have hxm : x = D.vertex m := by
+            rcases hold.2 with h | h
+            · exact h
+            · rw [Set.mem_singleton_iff] at h
+              have hh : D.vertex (finRotate D.n m) ∈ segment ℝ (D.vertex m) q := h ▸ hx.2
+              exact (hnotRight (by simpa [hml, hl] using hh)).elim
+          subst x
+          exact ⟨hold.1, by simp⟩
+        · rw [finRotate_succ_ne_zero hn k hk, finRotate_succ_ne_zero hn m hm]
+          simpa only [Fin.cons_succ] using D.simple k m hkm
+
+private lemma polygonalDiskInsertClosing_vertexSet (D : PolygonalDisk) (q : Pt)
+    (hq : q ∈ openSegment ℝ
+      (D.vertex (polygonalDiskClosing D)) (D.vertex (polygonalDiskZero D))) :
+    (polygonalDiskInsertClosing D q hq).vertexSet = insert q D.vertexSet := by
+  change Set.range (Fin.cons q D.vertex) = insert q (Set.range D.vertex)
+  ext x
+  constructor
+  · rintro ⟨j, rfl⟩
+    induction j using Fin.cases with
+    | zero => exact Set.mem_insert _ _
+    | succ i =>
+      apply Set.mem_insert_of_mem
+      refine ⟨i, ?_⟩
+      change D.vertex i = (@Fin.cons D.n (fun _ => Pt) q D.vertex) i.succ
+      exact (@Fin.cons_succ D.n (fun _ => Pt) q D.vertex i).symm
+  · intro hx
+    rcases hx with h | ⟨i, hi⟩
+    · refine ⟨(0 : Fin (D.n + 1)), ?_⟩
+      change (@Fin.cons D.n (fun _ => Pt) q D.vertex) 0 = x
+      rw [Fin.cons_zero]
+      exact h.symm
+    · refine ⟨i.succ, ?_⟩
+      change (@Fin.cons D.n (fun _ => Pt) q D.vertex) i.succ = x
+      rw [Fin.cons_succ]
+      exact hi
+
+private lemma exists_polygonalDisk_insert (D : PolygonalDisk) {q : Pt}
+    (hqf : q ∈ frontier D.carrier) (hqv : q ∉ D.vertexSet) :
+    ∃ D' : PolygonalDisk, D'.carrier = D.carrier ∧ D'.vertexSet = insert q D.vertexSet := by
+  rw [D.frontier_eq] at hqf
+  rcases Set.mem_iUnion.1 hqf with ⟨i, hi⟩
+  have hiOpen : q ∈ openSegment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+    apply mem_openSegment_of_ne_left_right
+    · intro e
+      exact hqv ⟨i, e⟩
+    · intro e
+      exact hqv ⟨finRotate D.n i, e⟩
+    · exact hi
+  let l := polygonalDiskClosing D
+  let e : Equiv.Perm (Fin D.n) := finCycle (i - l)
+  have he : ∀ j, e (finRotate D.n j) = finRotate D.n (e j) := by
+    intro j
+    rw [show e = (finRotate D.n)^[((i - l) : Fin D.n).val] by
+      exact finCycle_eq_finRotate_iterate]
+    exact ((Function.Commute.refl (finRotate D.n)).iterate_left _).eq j
+  have heli : e l = i := by
+    simp only [e, finCycle_apply]
+    haveI : NeZero D.n := ⟨by have := D.three_le; omega⟩
+    rw [add_comm]
+    exact sub_add_cancel i l
+  let E := polygonalDiskReindex D e he
+  have hE : q ∈ openSegment ℝ
+      (E.vertex (polygonalDiskClosing E)) (E.vertex (polygonalDiskZero E)) := by
+    change q ∈ openSegment ℝ (D.vertex (e (polygonalDiskClosing D)))
+      (D.vertex (e (polygonalDiskZero D)))
+    rw [show polygonalDiskClosing D = l from rfl, heli]
+    have hz : polygonalDiskZero D = finRotate D.n l := by
+      exact ((finRotate D.n).apply_symm_apply (polygonalDiskZero D)).symm
+    rw [hz, he, heli]
+    exact hiOpen
+  refine ⟨polygonalDiskInsertClosing E q hE, rfl, ?_⟩
+  rw [polygonalDiskInsertClosing_vertexSet]
+  exact congrArg (insert q) (polygonalDiskReindex_vertexSet D e he)
+
+private lemma exists_polygonalDisk_refineFinset (D : PolygonalDisk) (s : Finset Pt)
+    (hs : ∀ q ∈ s, q ∈ frontier D.carrier) :
+    ∃ E : PolygonalDisk, E.carrier = D.carrier ∧ E.vertexSet = D.vertexSet ∪ (s : Set Pt) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => exact ⟨D, rfl, by simp⟩
+  | @insert q s hqs ih =>
+    obtain ⟨E, hEc, hEv⟩ := ih (fun x hx => hs x (Finset.mem_insert_of_mem hx))
+    by_cases hqE : q ∈ E.vertexSet
+    · refine ⟨E, hEc, ?_⟩
+      rw [hEv]
+      ext x
+      simp only [Finset.coe_insert, Set.mem_union, Set.mem_insert_iff, Finset.mem_coe]
+      constructor
+      · intro hx
+        exact hx.imp_right (Or.inr ·)
+      · rintro (hx | rfl | hx)
+        · exact Or.inl hx
+        · have ht := hqE
+          rw [hEv] at ht
+          exact ht
+        · exact Or.inr hx
+    · obtain ⟨E', hE'c, hE'v⟩ := exists_polygonalDisk_insert E
+          (hEc ▸ hs q (Finset.mem_insert_self q s)) hqE
+      refine ⟨E', hE'c.trans hEc, ?_⟩
+      rw [hE'v, hEv]
+      ext x
+      simp
+
+private lemma coarsen_vertexSet (D : PolygonalDisk) : D.coarsen.vertexSet = D.genuineCorners := by
+  classical
+  ext q
+  constructor
+  · rintro ⟨j, rfl⟩
+    have hj := (D.genuineEnum j).2
+    simp only [PolygonalDisk.genuineIdx, Finset.mem_filter, Finset.mem_univ, true_and] at hj
+    exact ⟨(D.genuineEnum j).1, hj, rfl⟩
+  · rintro ⟨i, hi, rfl⟩
+    change D.IsGenuineVertex i at hi
+    have himem : i ∈ D.genuineIdx := by simp [PolygonalDisk.genuineIdx, hi]
+    obtain ⟨j, hj⟩ := D.genuineEnum.surjective ⟨i, himem⟩
+    refine ⟨j, ?_⟩
+    exact congrArg (fun x : D.genuineIdx => D.vertex x.1) hj
+
 /-- A polygonal disk with the carrier of the selected form and exactly the
 clone vertices as listed vertices exists. -/
 theorem exists_cloneDisk (c : GenuineCornerClone τ) :
     ∃ D : PolygonalDisk, D.carrier = (P.disk c.form).carrier ∧ D.vertexSet = cloneVertexSet c := by
-  sorry
+  classical
+  let S := (cloneVertexSet_finite c).toFinset
+  have hS : ∀ q ∈ S, q ∈ frontier (P.disk c.form).coarsen.carrier := by
+    intro q hq
+    exact ((Set.Finite.mem_toFinset (cloneVertexSet_finite c)).mp hq).1
+  obtain ⟨D, hDc, hDv⟩ := exists_polygonalDisk_refineFinset (P.disk c.form).coarsen S hS
+  refine ⟨D, hDc, ?_⟩
+  rw [hDv, coarsen_vertexSet]
+  have hSeq : (S : Set Pt) = cloneVertexSet c := by
+    ext q
+    exact Set.Finite.mem_toFinset (cloneVertexSet_finite c)
+  rw [hSeq]
+  apply Set.union_eq_right.2
+  exact genuineCorners_subset_cloneVertexSet c
 
 /-- The clone disk. -/
 def cloneDisk (c : GenuineCornerClone τ) : PolygonalDisk :=

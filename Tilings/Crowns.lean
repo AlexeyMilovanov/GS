@@ -565,7 +565,31 @@ private lemma uniformSectorRadius_step4_translation_step1_rad {K : Set (PlacedTi
 Translations preserve the vertex separation conclusion. -/
 private lemma uniformSectorRadius_step4_translation_step2_sep {K : Set (PlacedTile P)} {δ : ℝ}
     (h_sep : ∀ A ∈ K, ∀ w ∈ A.vertexSet, w ≠ 0 → δ ≤ dist w 0) (v : Pt) :
-    ∀ A ∈ translateSet v K, ∀ w ∈ A.vertexSet, w ≠ v → δ ≤ dist w v := by sorry
+    ∀ A ∈ translateSet v K, ∀ w ∈ A.vertexSet, w ≠ v → δ ≤ dist w v := by
+  intro A hA w hw hne
+  dsimp [translateSet] at hA
+  rcases hA with ⟨B, hB, rfl⟩
+  dsimp [PlacedTile.translate, PlacedTile.vertexSet, PlacedTile.vertex] at hw ⊢
+  rcases hw with ⟨i, rfl⟩
+  have hwB : (B.vertex i) ∈ B.vertexSet := by
+    dsimp [PlacedTile.vertexSet]
+    exact Set.mem_range_self i
+  have h_vert_eq :
+      ({ form := B.form, anchor := v + B.anchor } : PlacedTile P).vertex i = v + B.vertex i := by
+    dsimp [PlacedTile.vertex]
+    abel
+  rw [h_vert_eq] at hne ⊢
+  have hne' : B.vertex i ≠ 0 := by
+    intro h
+    apply hne
+    rw [h, add_zero]
+  have H := h_sep B hB (B.vertex i) hwB hne'
+  have H2 : dist (v + B.vertex i) v = dist (B.vertex i) 0 := by
+    rw [dist_eq_norm, dist_eq_norm]
+    have : v + B.vertex i - v = B.vertex i - 0 := by abel
+    rw [this]
+  rw [H2]
+  exact H
 
 /-- Step 4 of the blueprint proof of `uniformSectorRadius`: Translations preserve the
 conclusions. -/

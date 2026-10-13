@@ -785,7 +785,58 @@ private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff (m : ℕ)
 direction of two vectors is the same if one is equal to or the opposite of the other. -/
 private lemma whole_side_ports_coincide_step1_parentDir_eq_step2_canonDir (v w : Pt)
     (h : v = w ∨ v = -w) : canonDir v = canonDir w := by
-  sorry
+  rcases h with h | h
+  · subst v
+    rfl
+  · subst v
+    by_cases hv : 0 < w 0 ∨ (w 0 = 0 ∧ 0 < w 1)
+    · unfold canonDir
+      have hleft : ¬(0 < (-w) 0 ∨ ((-w) 0 = 0 ∧ 0 < (-w) 1)) := by
+        intro hleft
+        rcases hv with hv0 | ⟨hv0, hv1⟩
+        · rcases hleft with hleft0 | ⟨hleft0, hleft1⟩
+          · change 0 < -w 0 at hleft0
+            linarith
+          · change -w 0 = 0 at hleft0
+            linarith
+        · rcases hleft with hleft0 | ⟨hleft0, hleft1⟩
+          · change 0 < -w 0 at hleft0
+            linarith
+          · change -w 0 = 0 at hleft0
+            change 0 < -w 1 at hleft1
+            linarith
+      rw [if_neg hleft, if_pos hv, norm_neg, smul_neg]
+      simp
+    · by_cases hneg : 0 < (-w) 0 ∨ ((-w) 0 = 0 ∧ 0 < (-w) 1)
+      · unfold canonDir
+        rw [if_neg hv, if_pos hneg, norm_neg, smul_neg]
+      · unfold canonDir
+        rw [if_neg hv, if_neg hneg, norm_neg]
+        have hw0 : w 0 = 0 := by
+          by_contra hw0
+          rcases lt_or_gt_of_ne hw0 with hw0 | hw0
+          · have : 0 < (-w) 0 := by
+              change 0 < -w 0
+              linarith
+            exact hneg (Or.inl this)
+          · exact hv (Or.inl hw0)
+        have hw1 : w 1 = 0 := by
+          by_contra hw1
+          rcases lt_or_gt_of_ne hw1 with hw1 | hw1
+          · have : 0 < (-w) 1 := by
+              change 0 < -w 1
+              linarith
+            have hz : (-w) 0 = 0 := by
+              rw [PiLp.neg_apply, hw0, neg_zero]
+            exact hneg (Or.inr ⟨hz, this⟩)
+          · exact hv (Or.inr ⟨hw0, hw1⟩)
+        have : w = 0 := by
+          ext i
+          fin_cases i
+          · exact hw0
+          · exact hw1
+        rw [this]
+        simp
 
 /-- Step 1 of the blueprint proof of `whole_side_ports_coincide`: the global canonical direction
 of the coincident parent sides is the same. -/

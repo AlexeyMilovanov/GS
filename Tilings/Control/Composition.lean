@@ -4165,7 +4165,34 @@ private lemma projects_to_hierarchy_step1_soundness_step2_erase
     (c : MacroCertificate P) :
     ∀ T : PlaneTiling (typedDecoration c),
       ∃ T₀ : PlaneTiling c.Q, T₀.tiles = eraseSet c T.tiles := by
-  sorry
+  intro T
+  have Hcov : support (eraseSet c T.tiles) = Set.univ := by
+    rw [← T.cover]
+    ext x
+    simp only [support, eraseSet, Set.mem_iUnion, Set.mem_image]
+    constructor
+    · rintro ⟨_, ⟨A, hA, rfl⟩, hx⟩
+      use A, hA
+      exact hx
+    · rintro ⟨A, hA, hx⟩
+      use erase c A
+      refine ⟨⟨A, hA, rfl⟩, hx⟩
+  have Hdisj : DisjointInteriors (eraseSet c T.tiles) := by
+    intros A hA B hB hNeq
+    simp only [eraseSet, Set.mem_image] at hA hB
+    rcases hA with ⟨A', hA', rfl⟩
+    rcases hB with ⟨B', hB', rfl⟩
+    have hNeq' : A' ≠ B' := by
+      intro h
+      subst h
+      contradiction
+    have H := T.disjoint hA' hB' hNeq'
+    exact H
+  use {
+    tiles := eraseSet c T.tiles,
+    cover := Hcov,
+    disjoint := Hdisj
+  }
 
 /-- Step 3 of the blueprint proof of `projects_to_hierarchy_step1_soundness`: erasure commutes
 with composition. -/

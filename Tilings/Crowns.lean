@@ -4862,6 +4862,59 @@ private lemma noShortExteriorExcursion_step1_excursion_step1_witness
   exact ⟨x, y, z, hx, hy,
     mem_openSegment_of_ne_left_right (by aesop) (by aesop) hz, hznot⟩
 
+/-- The component of an open subset of a real interval containing an interior
+point is bounded by points of the complement (possibly the interval's own
+endpoints). -/
+private lemma noShortExteriorExcursion_step1_excursion_step2_interval
+    {T : Set ℝ} (hTopen : IsOpen T) {a b c : ℝ}
+    (ha : a ∉ T) (hb : b ∉ T) (hc : c ∈ T) (hac : a < c) (hcb : c < b) :
+    ∃ p q : ℝ, a ≤ p ∧ p < c ∧ c < q ∧ q ≤ b ∧
+      p ∉ T ∧ q ∉ T ∧ Ioo p q ⊆ T ∧ p ∈ closure T ∧ q ∈ closure T := by
+  let A : Set ℝ := Icc a c ∩ Tᶜ
+  have hAcl : IsClosed A := isClosed_Icc.inter hTopen.isClosed_compl
+  have haA : a ∈ A := ⟨⟨le_rfl, hac.le⟩, ha⟩
+  have hAbdd : BddAbove A := ⟨c, fun _ hr => hr.1.2⟩
+  let p := sSup A
+  have hpA : p ∈ A := by
+    exact hAcl.csSup_mem ⟨a, haA⟩ hAbdd
+  have hap : a ≤ p := hpA.1.1
+  have hpc : p < c := lt_of_le_of_ne hpA.1.2 fun h => hpA.2 (h ▸ hc)
+  have hpcT : Ioo p c ⊆ T := by
+    intro r hr
+    by_contra hrT
+    have hrA : r ∈ A :=
+      ⟨⟨hap.trans hr.1.le, hr.2.le⟩, hrT⟩
+    exact (not_le_of_gt hr.1) (le_csSup hAbdd hrA)
+  have hpcl : p ∈ closure T := by
+    apply closure_mono hpcT
+    rw [closure_Ioo hpc.ne]
+    exact left_mem_Icc.mpr hpc.le
+  let B : Set ℝ := Icc c b ∩ Tᶜ
+  have hBcl : IsClosed B := isClosed_Icc.inter hTopen.isClosed_compl
+  have hbB : b ∈ B := ⟨⟨hcb.le, le_rfl⟩, hb⟩
+  have hBbdd : BddBelow B := ⟨c, fun _ hr => hr.1.1⟩
+  let q := sInf B
+  have hqB : q ∈ B := by
+    exact hBcl.csInf_mem ⟨b, hbB⟩ hBbdd
+  have hqb : q ≤ b := hqB.1.2
+  have hcq : c < q := lt_of_le_of_ne hqB.1.1 fun h => hqB.2 (h.symm ▸ hc)
+  have hcqT : Ioo c q ⊆ T := by
+    intro r hr
+    by_contra hrT
+    have hrB : r ∈ B :=
+      ⟨⟨hr.1.le, hr.2.le.trans hqb⟩, hrT⟩
+    exact (not_le_of_gt hr.2) (csInf_le hBbdd hrB)
+  have hqcl : q ∈ closure T := by
+    apply closure_mono hcqT
+    rw [closure_Ioo hcq.ne]
+    exact right_mem_Icc.mpr hcq.le
+  refine ⟨p, q, hap, hpc, hcq, hqb, hpA.2, hqB.2, ?_, hpcl, hqcl⟩
+  intro r hr
+  rcases lt_trichotomy r c with hrc | rfl | hcr
+  · exact hpcT ⟨hr.1, hrc⟩
+  · exact hc
+  · exact hcqT ⟨hcr, hr.2⟩
+
 /-- Step 2 of the blueprint proof of `noShortExteriorExcursion_step1_excursion`:
 for a closed set, a segment whose endpoints lie in the set and which has an
 interior point outside it contains a nonempty open exterior excursion between
@@ -4872,7 +4925,69 @@ private lemma noShortExteriorExcursion_step1_excursion_step2_first_excursion
     ∃ E F : Pt, E ∈ segment ℝ x y ∧ F ∈ segment ℝ x y ∧ E ≠ F ∧
       E ∈ frontier S ∧ F ∈ frontier S ∧
       openSegment ℝ E F ⊆ Sᶜ := by
-  sorry
+  obtain ⟨t, ht0, ht1, hzt⟩ := crown_mem_openSegment_iff.mp hz
+  let f : ℝ → Pt := fun s => x + s • (y - x)
+  let T : Set ℝ := f ⁻¹' Sᶜ
+  have hcont : Continuous f := by
+    dsimp [f]
+    fun_prop
+  have hTopen : IsOpen T := hSclosed.isOpen_compl.preimage hcont
+  have h0T : (0 : ℝ) ∉ T := by
+    simpa [T, f] using hx
+  have h1T : (1 : ℝ) ∉ T := by
+    simpa [T, f] using hy
+  have htT : t ∈ T := by
+    have hft : f t = z := by simpa [f] using hzt.symm
+    simpa [T, hft] using hzout
+  obtain ⟨p, q, hp0, hpt, htq, hq1, hpT, hqT, hpqT, hpcl, hqcl⟩ :=
+    noShortExteriorExcursion_step1_excursion_step2_interval
+      hTopen h0T h1T htT ht0 ht1
+  let E : Pt := f p
+  let F : Pt := f q
+  have hxy : x ≠ y := by
+    intro hxy
+    subst y
+    have : z = x := by
+      rw [hzt]
+      simp
+    exact hzout (this ▸ hx)
+  have hEseg : E ∈ segment ℝ x y := by
+    rw [crown_mem_segment_iff]
+    exact ⟨p, hp0, (hpt.trans ht1).le, rfl⟩
+  have hFseg : F ∈ segment ℝ x y := by
+    rw [crown_mem_segment_iff]
+    exact ⟨q, (ht0.trans htq).le, hq1, rfl⟩
+  have hEF : E ≠ F := by
+    intro hEF
+    have hpq : p = q := by
+      apply crown_smul_cancel (sub_ne_zero.mpr hxy.symm)
+      have := congrArg (fun w : Pt => w - x) hEF
+      simpa [E, F, f] using this
+    linarith
+  have hES : E ∈ S := by
+    simpa [E, T] using hpT
+  have hFS : F ∈ S := by
+    simpa [F, T] using hqT
+  have hmap : MapsTo f T Sᶜ := fun _ hs => hs
+  have hEcl : E ∈ closure Sᶜ := by
+    simpa [E] using map_mem_closure hcont hpcl hmap
+  have hFcl : F ∈ closure Sᶜ := by
+    simpa [F] using map_mem_closure hcont hqcl hmap
+  have hEfront : E ∈ frontier S := by
+    rw [frontier_eq_closure_inter_closure]
+    exact ⟨subset_closure hES, hEcl⟩
+  have hFfront : F ∈ frontier S := by
+    rw [frontier_eq_closure_inter_closure]
+    exact ⟨subset_closure hFS, hFcl⟩
+  refine ⟨E, F, hEseg, hFseg, hEF, hEfront, hFfront, ?_⟩
+  intro w hw
+  obtain ⟨u, hu0, hu1, huw⟩ := crown_mem_openSegment_iff.mp hw
+  have hwu : w = f (p + u * (q - p)) := by
+    rw [huw]
+    dsimp [E, F, f]
+    module
+  rw [hwu]
+  exact hpqT ⟨by nlinarith, by nlinarith⟩
 
 /-- Step 1 of the blueprint proof of `noShortExteriorExcursion`: a failure of
 convexity produces two distinct points of `H` on the macro boundary whose open

@@ -1028,6 +1028,49 @@ private lemma whole_side_ports_distinct_step3_rank_step2_inj_step1_disjoint (τ 
     (hne : e1 ≠ e2) : Disjoint (openSegment ℝ e1.1 e1.2) (openSegment ℝ e2.1 e2.2) := by
   sorry
 
+private lemma whole_side_ports_distinct_key_coefficient_ne (v : Pt) (hv : v ≠ 0) :
+    canonDir v 0 * v 0 + canonDir v 1 * v 1 ≠ 0 := by
+  have hsquares : v 0 * v 0 + v 1 * v 1 ≠ 0 := by
+    intro h
+    have h0 : v 0 = 0 := by nlinarith [sq_nonneg (v 0), sq_nonneg (v 1)]
+    have h1 : v 1 = 0 := by nlinarith [sq_nonneg (v 0), sq_nonneg (v 1)]
+    apply hv
+    ext i
+    fin_cases i <;> assumption
+  unfold canonDir
+  split_ifs
+  · simp only [PiLp.smul_apply, smul_eq_mul]
+    rw [show ‖v‖⁻¹ * v 0 * v 0 + ‖v‖⁻¹ * v 1 * v 1 =
+        ‖v‖⁻¹ * (v 0 * v 0 + v 1 * v 1) by ring]
+    exact mul_ne_zero (inv_ne_zero (norm_ne_zero_iff.mpr hv)) hsquares
+  · simp only [PiLp.neg_apply, PiLp.smul_apply, smul_eq_mul]
+    rw [show -(‖v‖⁻¹ * v 0) * v 0 + -(‖v‖⁻¹ * v 1) * v 1 =
+        -‖v‖⁻¹ * (v 0 * v 0 + v 1 * v 1) by ring]
+    exact mul_ne_zero (neg_ne_zero.mpr (inv_ne_zero (norm_ne_zero_iff.mpr hv))) hsquares
+
+private lemma whole_side_ports_distinct_key_injective_on_segment {p q z1 z2 : Pt}
+    (hpq : p ≠ q) (hz1 : z1 ∈ segment ℝ p q) (hz2 : z2 ∈ segment ℝ p q)
+    (hcoord : coord 0 (canonDir (q - p)) z1 = coord 0 (canonDir (q - p)) z2) :
+    z1 = z2 := by
+  rw [segment_eq_image'] at hz1 hz2
+  obtain ⟨t1, -, rfl⟩ := hz1
+  obtain ⟨t2, -, rfl⟩ := hz2
+  have hv : q - p ≠ 0 := sub_ne_zero.mpr hpq.symm
+  have hcoef := whole_side_ports_distinct_key_coefficient_ne (q - p) hv
+  have haffine (t : ℝ) :
+      coord 0 (canonDir (q - p)) (p + t • (q - p)) =
+        coord 0 (canonDir (q - p)) p +
+          t * (canonDir (q - p) 0 * (q - p) 0 +
+            canonDir (q - p) 1 * (q - p) 1) := by
+    unfold coord
+    simp only [PiLp.zero_apply, PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply,
+      sub_zero, smul_eq_mul]
+    ring
+  have ht : t1 = t2 := by
+    rw [haffine, haffine] at hcoord
+    exact mul_right_cancel₀ hcoef (add_left_cancel hcoord)
+  rw [ht]
+
 /-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step2_inj`: sides with disjoint interiors have distinct sideKeys. -/
 private lemma whole_side_ports_distinct_step3_rank_step2_inj_step2_key_ne (τ : Substitution P)
     (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
@@ -1035,7 +1078,43 @@ private lemma whole_side_ports_distinct_step3_rank_step2_inj_step2_key_ne (τ : 
     (h1 : e1 ∈ sidesInside τ G m A a) (h2 : e2 ∈ sidesInside τ G m A a)
     (hdisj : Disjoint (openSegment ℝ e1.1 e1.2) (openSegment ℝ e2.1 e2.2)) :
     sideKey (parentDir τ G m A a) e1 ≠ sideKey (parentDir τ G m A a) e2 := by
-  sorry
+  intro hkey
+  let z1 : Pt := (1 / 2 : ℝ) • (e1.1 + e1.2)
+  let z2 : Pt := (1 / 2 : ℝ) • (e2.1 + e2.2)
+  have hz1seg : z1 ∈ segment ℝ e1.1 e1.2 := by
+    rw [segment_eq_image']
+    refine ⟨1 / 2, ⟨by norm_num, by norm_num⟩, ?_⟩
+    dsimp [z1]
+    module
+  have hz2seg : z2 ∈ segment ℝ e2.1 e2.2 := by
+    rw [segment_eq_image']
+    refine ⟨1 / 2, ⟨by norm_num, by norm_num⟩, ?_⟩
+    dsimp [z2]
+    module
+  have hz1parent : z1 ∈ segment ℝ (parentSide τ G m A a).1
+      (parentSide τ G m A a).2 :=
+    (openSegment_subset_segment ℝ _ _) (h1.2 hz1seg)
+  have hz2parent : z2 ∈ segment ℝ (parentSide τ G m A a).1
+      (parentSide τ G m A a).2 :=
+    (openSegment_subset_segment ℝ _ _) (h2.2 hz2seg)
+  have hcoord : coord 0 (parentDir τ G m A a) z1 =
+      coord 0 (parentDir τ G m A a) z2 := by
+    simpa [sideKey, z1, z2] using hkey
+  have hz : z1 = z2 := by
+    apply whole_side_ports_distinct_key_injective_on_segment
+      (omitted_count_parent_endpoints_ne τ G m A a) hz1parent hz2parent
+    simpa [parentDir] using hcoord
+  have hz1open : z1 ∈ openSegment ℝ e1.1 e1.2 := by
+    rw [openSegment_eq_image']
+    refine ⟨1 / 2, ⟨by norm_num, by norm_num⟩, ?_⟩
+    dsimp [z1]
+    module
+  have hz2open : z2 ∈ openSegment ℝ e2.1 e2.2 := by
+    rw [openSegment_eq_image']
+    refine ⟨1 / 2, ⟨by norm_num, by norm_num⟩, ?_⟩
+    dsimp [z2]
+    module
+  exact Set.disjoint_left.1 hdisj hz1open (hz ▸ hz2open)
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: `sideKey` is injective on the inside sides. -/
 private lemma whole_side_ports_distinct_step3_rank_step2_inj (τ : Substitution P)

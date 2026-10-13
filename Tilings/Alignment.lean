@@ -914,6 +914,44 @@ private lemma whole_side_ports_coincide_step2_sidesInside_bijection (m : ℕ) (T
     exact (H1 e' h_eq).symm
   exact ⟨⟨f, g, left_inv, right_inv⟩, hf⟩
 
+/-- Equal translated segments have equal translated midpoints. -/
+private lemma whole_side_ports_coincide_step3_rankIn_eq_midpoint
+    (v w : Pt) (e e' : Pt × Pt) (h : placedSeg v e = placedSeg w e') :
+    v + (1 / 2 : ℝ) • (e.1 + e.2) = w + (1 / 2 : ℝ) • (e'.1 + e'.2) := by
+  unfold placedSeg at h
+  rcases whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends
+      (v + e.1) (v + e.2) (w + e'.1) (w + e'.2) h with hends | hends
+  · rcases hends with ⟨h1, h2⟩
+    calc
+      v + (1 / 2 : ℝ) • (e.1 + e.2) =
+          (1 / 2 : ℝ) • ((v + e.1) + (v + e.2)) := by module
+      _ = (1 / 2 : ℝ) • ((w + e'.1) + (w + e'.2)) := by rw [h1, h2]
+      _ = w + (1 / 2 : ℝ) • (e'.1 + e'.2) := by module
+  · rcases hends with ⟨h1, h2⟩
+    calc
+      v + (1 / 2 : ℝ) • (e.1 + e.2) =
+          (1 / 2 : ℝ) • ((v + e.1) + (v + e.2)) := by module
+      _ = (1 / 2 : ℝ) • ((w + e'.2) + (w + e'.1)) := by rw [h1, h2]
+      _ = w + (1 / 2 : ℝ) • (e'.1 + e'.2) := by module
+
+/-- Translation of a segment adds a constant to its key in any fixed direction. -/
+private lemma whole_side_ports_coincide_step3_rankIn_eq_key
+    (u v w : Pt) (e e' : Pt × Pt) (h : placedSeg v e = placedSeg w e') :
+    sideKey u e + coord 0 u v = sideKey u e' + coord 0 u w := by
+  have hmid := whole_side_ports_coincide_step3_rankIn_eq_midpoint v w e e' h
+  have hcoord := congrArg (coord 0 u) hmid
+  simp [sideKey, coord, mul_add] at hcoord ⊢
+  linarith
+
+/-- Equal translated segment families have the same strict side-key order. -/
+private lemma whole_side_ports_coincide_step3_rankIn_eq_order
+    (v w u : Pt) (e1 e2 e1' e2' : Pt × Pt)
+    (h1 : placedSeg v e1 = placedSeg w e1') (h2 : placedSeg v e2 = placedSeg w e2') :
+    sideKey u e1 < sideKey u e2 ↔ sideKey u e1' < sideKey u e2' := by
+  have hk1 := whole_side_ports_coincide_step3_rankIn_eq_key u v w e1 e1' h1
+  have hk2 := whole_side_ports_coincide_step3_rankIn_eq_key u v w e2 e2' h2
+  constructor <;> intro hlt <;> linarith
+
 /-- Step 3 of the blueprint proof of `whole_side_ports_coincide`: the bijection preserves the
 rank in the canonical direction. -/
 private lemma whole_side_ports_coincide_step3_rankIn_eq (m : ℕ)
@@ -925,7 +963,34 @@ private lemma whole_side_ports_coincide_step3_rankIn_eq (m : ℕ)
     (e : sidesInside τ G m A.form a) :
     rankIn (sidesInside τ G m A.form a) (parentDir τ G m A.form a) (e : Pt × Pt) =
       rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (f e : Pt × Pt) := by
-  sorry
+  unfold rankIn
+  congr 1
+  apply Set.ncard_congr (fun x hx => (f ⟨x, hx.1⟩ : Pt × Pt))
+  · intro x hx
+    refine ⟨(f ⟨x, hx.1⟩).2, ?_⟩
+    rw [← hdir]
+    exact (whole_side_ports_coincide_step3_rankIn_eq_order
+      ((τ.θ ^ m) • A.anchor) ((τ.θ ^ m) • A'.anchor)
+      (parentDir τ G m A.form a) x (e : Pt × Pt) (f ⟨x, hx.1⟩ : Pt × Pt)
+      (f e : Pt × Pt) (hf ⟨x, hx.1⟩) (hf e)).1 hx.2
+  · intro x y hx hy hxy
+    have hfeq : f ⟨x, hx.1⟩ = f ⟨y, hy.1⟩ := Subtype.ext hxy
+    have heq : (⟨x, hx.1⟩ : sidesInside τ G m A.form a) = ⟨y, hy.1⟩ := f.injective hfeq
+    exact congrArg Subtype.val heq
+  · intro y hy
+    let y' : sidesInside τ G m A'.form a' := ⟨y, hy.1⟩
+    let x' : sidesInside τ G m A.form a := f.symm y'
+    refine ⟨(x' : Pt × Pt), ?_, ?_⟩
+    · refine ⟨x'.2, ?_⟩
+      rw [← hdir] at hy
+      have horder := whole_side_ports_coincide_step3_rankIn_eq_order
+        ((τ.θ ^ m) • A.anchor) ((τ.θ ^ m) • A'.anchor)
+        (parentDir τ G m A.form a) (x' : Pt × Pt) (e : Pt × Pt)
+        (f x' : Pt × Pt) (f e : Pt × Pt) (hf x') (hf e)
+      apply horder.2
+      simpa [x', y'] using hy.2
+    · have happly : f x' = y' := Equiv.apply_symm_apply f y'
+      exact congrArg Subtype.val happly
 
 /-- Step 4 of the blueprint proof of `whole_side_ports_coincide`: a bijection between the sets
 implies they have the same cardinality. -/

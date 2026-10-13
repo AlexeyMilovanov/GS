@@ -1449,6 +1449,46 @@ theorem exists_boundary_side_of_outer (t : C.Typ) (i : C.Side t)
     exact ⟨_, right_mem_segment ℝ _ _, rfl⟩
   exact ⟨finRotate _ k, hk', Or.inl (hk hmem)⟩
 
+/-- Step 1 of the blueprint proof of `strictLegal_properties`: deleting the first tile of
+an infinite strict legality chain yields a legal strict parent of the given tile. -/
+private lemma strictLegal_properties_step1_parent (A : StrictDecTile C hC)
+    (hA : StrictLegal C hC A) :
+    ∃ B, StrictLegal C hC B ∧ IsStrictChildOf C hC B A := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strictLegal_properties`: the generated child clauses
+force strict normality and identity-correctness of a child of any parent. -/
+private lemma strictLegal_properties_step2_child_normal (B A : StrictDecTile C hC)
+    (hBA : IsStrictChildOf C hC B A) :
+    IsStrictNormal C hC A ∧ IsStrictIdentityCorrect C hC A := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `strictLegal_properties`: prepend a strict child to an
+infinite legality chain, shifting origins through the old chain. -/
+private lemma strictLegal_properties_step3_child_legal (A : StrictDecTile C hC)
+    (hA : StrictLegal C hC A) :
+    ∀ B, IsStrictChildOf C hC A B → StrictLegal C hC B := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `strictLegal_properties`: a boundary fourth cell of a
+generated child is the header of its parent. -/
+private lemma strictLegal_properties_step4_boundary (B A : StrictDecTile C hC)
+    (hBA : IsStrictChildOf C hC B A) :
+    ∀ i : C.Side A.typ, C.IsBoundary (C.occ A.typ i) →
+      A.cell i 3 = headerSU C hC (strictHeaderOf C hC B) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `strictLegal_properties`: copied third cells on one path
+of a generated child all come from the same parent cell. -/
+private lemma strictLegal_properties_step5_path (B A : StrictDecTile C hC)
+    (hBA : IsStrictChildOf C hC B A) :
+    ∀ (d : Fin (C.Q.disk (C.owner A.typ)).n) (j : Fin 5) (i i' : C.Side A.typ),
+      C.occ A.typ i ∈ C.path (C.owner A.typ) d j →
+      C.occ A.typ i' ∈ C.path (C.owner A.typ) d j →
+      ¬ C.IsPrint (C.occ A.typ i) → ¬ C.IsPrint (C.occ A.typ i') →
+      A.cell i 2 = A.cell i' 2 := by
+  sorry
+
 /-- `lem:comp/legal-properties` (strict variant): a legal tile has a legal parent, is strictly
 normal (in particular every outer fourth cell is its schedule tag, fixed by the type) and
 identity-correct; every child of a legal tile is legal; all boundary fourth cells equal the
@@ -1464,7 +1504,12 @@ theorem strictLegal_properties (A : StrictDecTile C hC) (hA : StrictLegal C hC A
       C.occ A.typ i ∈ C.path (C.owner A.typ) d j → C.occ A.typ i' ∈ C.path (C.owner A.typ) d j →
       ¬ C.IsPrint (C.occ A.typ i) → ¬ C.IsPrint (C.occ A.typ i') →
       A.cell i 2 = A.cell i' 2) := by
-  sorry
+  obtain ⟨B, hB, hBA⟩ := strictLegal_properties_step1_parent C hC A hA
+  have hnormal := strictLegal_properties_step2_child_normal C hC B A hBA
+  refine ⟨⟨B, hB, hBA⟩, hnormal.1, hnormal.2,
+    strictLegal_properties_step3_child_legal C hC A hA, ?_, ?_⟩
+  · exact ⟨B, hB, hBA, strictLegal_properties_step4_boundary C hC B A hBA⟩
+  · exact strictLegal_properties_step5_path C hC B A hBA
 
 private theorem strict_assembleMacrotemplates_identNeZero (e : C.EdgeId) :
     identSU C hC e ≠ 0 := by

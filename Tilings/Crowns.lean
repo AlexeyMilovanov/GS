@@ -5164,6 +5164,41 @@ private lemma uniformCrownCoverPlane_step1_close {𝒞 : Set (Set (PlacedTile P)
   have h2 := hd_prop T hT v hv
   exact Set.Subset.trans h1 h2
 
+/-- Step 1 of the blueprint proof of `uniformCrownCoverPlane_step2_far`: if a tile `A` meets
+a convex set `H` without containing it, the segment from a point of `A ∩ H` to a point of
+`H \ A` exits `A`'s carrier at a point of one of its listed sides that lies in `H`. -/
+private lemma uniformCrownCoverPlane_step2_far_step1_exit_point (A : PlacedTile P) {H : Set Pt}
+    (hH : Convex ℝ H) {p q : Pt} (hpA : p ∈ A.carrier) (hpH : p ∈ H) (hqH : q ∈ H)
+    (hqA : q ∉ A.carrier) :
+    ∃ (i : Fin (P.disk A.form).n) (e : Pt), e ∈ A.side i ∧ e ∈ H := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `uniformCrownCoverPlane_step2_far`: near a point `e` of a
+listed side of a tile `A` of a plane tiling `T` that is not one of that side's two endpoints,
+disjoint interiors together with the tiles covering the whole plane force a second tile `B`
+with an edge through `e` collinear with `A`'s edge, on the opposite side. -/
+private lemma uniformCrownCoverPlane_step2_far_step2_opposite_tile
+    (T : PlaneTiling P) {A : PlacedTile P} (hA : A ∈ T.tiles) (i : Fin (P.disk A.form).n)
+    {e : Pt} (hei : e ∈ A.side i) (hne1 : e ≠ A.vertex i) (hne2 : e ≠ A.vertex (finRotate _ i)) :
+    ∃ (B : PlacedTile P) (j : Fin (P.disk B.form).n), B ∈ T.tiles ∧
+      Disjoint (interior A.carrier) (interior B.carrier) ∧ e ∈ B.side j ∧
+      Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+        B.vertex j, B.vertex (finRotate _ j)} : Set Pt) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `uniformCrownCoverPlane_step2_far`: if sides of two tiles
+`A` and `B` meet at a common point `e` and the four endpoints of those sides are collinear,
+one of those four endpoints lies in both carriers. -/
+private lemma uniformCrownCoverPlane_step2_far_step3_shared_vertex
+    {A B : PlacedTile P} (i : Fin (P.disk A.form).n) (j : Fin (P.disk B.form).n) {e : Pt}
+    (hei : e ∈ A.side i) (hej : e ∈ B.side j)
+    (hcol : Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+      B.vertex j, B.vertex (finRotate _ j)} : Set Pt)) :
+    ∃ v, (v = A.vertex i ∨ v = A.vertex (finRotate _ i) ∨
+            v = B.vertex j ∨ v = B.vertex (finRotate _ j)) ∧
+      v ∈ A.carrier ∧ v ∈ B.carrier := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `uniformCrownCoverPlane`: Otherwise `H` stays at
 distance at least `d/2` from every vertex. The structural lemma covers `H` using tiles
 meeting `H` or opposite tiles, and their common vertex will have a crown containing `H`
@@ -5175,7 +5210,94 @@ private lemma uniformCrownCoverPlane_step2_far {𝒞 : Set (Set (PlacedTile P))}
         ∀ H : Set Pt, H = closedConvexHull ℝ S →
         (∀ x ∈ H, ∀ v, IsVertexOf T.tiles v → d / 2 ≤ dist x v) →
         ∃ v, IsVertexOf T.tiles v ∧ S ⊆ support (crown T.tiles v) := by
-  sorry
+  have _ := h𝒞
+  obtain ⟨η, hη, hball⟩ := trimmedEdgeTwoTileBall (P := P) hd
+  refine ⟨η, hη, ?_⟩
+  intro T hT S hS_bound hS_diam H hH hfar
+  have hH_bound : Bornology.IsBounded H := by
+    rw [hH, closedConvexHull_eq_closure_convexHull]
+    exact (isBounded_convexHull.mpr hS_bound).closure
+  have hH_diam : diam H < η := by rw [hH, closedConvexHullDiameter]; exact hS_diam
+  have hSH : S ⊆ H := by rw [hH]; exact subset_closedConvexHull (𝕜 := ℝ)
+  have hHconv : Convex ℝ H := by
+    rw [hH, closedConvexHull_eq_closure_convexHull]
+    exact (convex_convexHull ℝ S).closure
+  have htiles_ne : T.tiles.Nonempty := by
+    by_contra hempty
+    rw [Set.not_nonempty_iff_eq_empty] at hempty
+    have hsupp : support T.tiles = ∅ := by rw [hempty, support]; simp
+    rw [T.cover] at hsupp
+    exact Set.univ_nonempty.ne_empty hsupp
+  by_cases hcase : ∃ A ∈ T.tiles, H ⊆ A.carrier
+  · obtain ⟨A, hA, hAH⟩ := hcase
+    have hn3 : 3 ≤ (P.disk A.form).n := (P.disk A.form).three_le
+    let i0 : Fin (P.disk A.form).n := ⟨0, by omega⟩
+    have hvA : A.vertex i0 ∈ A.vertexSet := ⟨i0, rfl⟩
+    have hvIs : IsVertexOf T.tiles (A.vertex i0) := ⟨A, hA, hvA⟩
+    have hvCarrier : A.vertex i0 ∈ A.carrier := gap_vertex_mem_carrier A hvA
+    have hAcrown : A ∈ crown T.tiles (A.vertex i0) := ⟨hA, hvCarrier⟩
+    refine ⟨A.vertex i0, hvIs, hSH.trans (hAH.trans ?_)⟩
+    intro x hx
+    rw [support, mem_iUnion₂]
+    exact ⟨A, hAcrown, hx⟩
+  · push_neg at hcase
+    have hHne : H.Nonempty := by
+      rcases Set.eq_empty_or_nonempty H with hHempty | hHne
+      · exfalso
+        obtain ⟨A₀, hA₀⟩ := htiles_ne
+        have hHe : H ⊆ A₀.carrier := by rw [hHempty]; exact Set.empty_subset _
+        exact hcase A₀ hA₀ hHe
+      · exact hHne
+    obtain ⟨p, hpH⟩ := hHne
+    have hpcover : p ∈ support T.tiles := by rw [T.cover]; exact mem_univ p
+    rw [support, mem_iUnion₂] at hpcover
+    obtain ⟨A, hA, hpA⟩ := hpcover
+    have hAH' : ¬ H ⊆ A.carrier := hcase A hA
+    rw [Set.not_subset] at hAH'
+    obtain ⟨q, hqH, hqA⟩ := hAH'
+    obtain ⟨i, e, hei, heH⟩ :=
+      uniformCrownCoverPlane_step2_far_step1_exit_point A hHconv hpA hpH hqH hqA
+    have he1 : e ≠ A.vertex i := by
+      intro heq
+      have hc := hfar e heH (A.vertex i) ⟨A, hA, ⟨i, rfl⟩⟩
+      rw [heq, dist_self] at hc
+      linarith
+    have he2 : e ≠ A.vertex (finRotate _ i) := by
+      intro heq
+      have hc := hfar e heH (A.vertex (finRotate _ i)) ⟨A, hA, ⟨finRotate _ i, rfl⟩⟩
+      rw [heq, dist_self] at hc
+      linarith
+    obtain ⟨B, j, hB, hdisj, hej, hcol⟩ :=
+      uniformCrownCoverPlane_step2_far_step2_opposite_tile T hA i hei he1 he2
+    have hA1 : d / 2 ≤ dist e (A.vertex i) := hfar e heH (A.vertex i) ⟨A, hA, ⟨i, rfl⟩⟩
+    have hA2 : d / 2 ≤ dist e (A.vertex (finRotate _ i)) :=
+      hfar e heH (A.vertex (finRotate _ i)) ⟨A, hA, ⟨finRotate _ i, rfl⟩⟩
+    have hB1 : d / 2 ≤ dist e (B.vertex j) := hfar e heH (B.vertex j) ⟨B, hB, ⟨j, rfl⟩⟩
+    have hB2 : d / 2 ≤ dist e (B.vertex (finRotate _ j)) :=
+      hfar e heH (B.vertex (finRotate _ j)) ⟨B, hB, ⟨finRotate _ j, rfl⟩⟩
+    have hballAB := hball A B hdisj i j e hei hej hcol hA1 hA2 hB1 hB2
+    have hHball : H ⊆ ball e η := by
+      intro x hx
+      rw [mem_ball]
+      calc dist x e ≤ diam H := Metric.dist_le_diam_of_mem hH_bound hx heH
+        _ < η := hH_diam
+    have hHAB : H ⊆ A.carrier ∪ B.carrier := hHball.trans hballAB
+    obtain ⟨v, hv4, hvA, hvB⟩ :=
+      uniformCrownCoverPlane_step2_far_step3_shared_vertex i j hei hej hcol
+    have hvIs : IsVertexOf T.tiles v := by
+      rcases hv4 with h | h | h | h
+      · exact ⟨A, hA, by rw [h]; exact Set.mem_range_self i⟩
+      · exact ⟨A, hA, by rw [h]; exact Set.mem_range_self (finRotate _ i)⟩
+      · exact ⟨B, hB, by rw [h]; exact Set.mem_range_self j⟩
+      · exact ⟨B, hB, by rw [h]; exact Set.mem_range_self (finRotate _ j)⟩
+    have hAcrown : A ∈ crown T.tiles v := ⟨hA, hvA⟩
+    have hBcrown : B ∈ crown T.tiles v := ⟨hB, hvB⟩
+    refine ⟨v, hvIs, hSH.trans ?_⟩
+    intro x hx
+    rw [support, mem_iUnion₂]
+    rcases hHAB hx with hxA | hxB
+    · exact ⟨A, hAcrown, hxA⟩
+    · exact ⟨B, hBcrown, hxB⟩
 
 /-- `lem:crown-cover-plane`: there is `ε > 0` such that, in every plane tiling
 whose full pointed crowns are represented in the catalogue, every bounded set

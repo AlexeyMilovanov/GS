@@ -5082,6 +5082,44 @@ private lemma noShortExteriorExcursion_step2_classify_aux6 (M : MacroPatch P) (x
   rw [h1, h2, InnerProductGeometry.angle_smul_left_of_pos _ _ hc,
     InnerProductGeometry.angle_smul_right_of_pos _ _ hc]
 
+private lemma noShortExteriorExcursion_side_ray_start {q w A x y : Pt} {c : ℝ}
+    (hc : 0 < c) (hA : A ≠ 0) (hx : x = q + c • A)
+    (hxs : x ∈ segment ℝ q w) (hys : y ∈ segment ℝ q w) :
+    ∃ t : ℝ, 0 ≤ t ∧ y - q = t • A := by
+  rw [crown_mem_segment_iff] at hxs hys
+  obtain ⟨s, hs0, -, hs⟩ := hxs
+  obtain ⟨t, ht0, -, rfl⟩ := hys
+  have hspos : 0 < s := by
+    rcases eq_or_lt_of_le hs0 with rfl | hspos
+    · simp only [zero_smul, add_zero] at hs
+      have : c • A = 0 := by rw [hx] at hs; simpa using congrArg (fun z => z - q) hs
+      exact (hA ((smul_eq_zero.mp this).resolve_left hc.ne')).elim
+    · exact hspos
+  refine ⟨t * c / s, by positivity, ?_⟩
+  have hcs : c • A = s • (w - q) := by
+    rw [hx] at hs
+    simpa using congrArg (fun z => z - q) hs
+  rw [show q + t • (w - q) - q = t • (w - q) by abel]
+  have hd : w - q = (c / s) • A := by
+    apply smul_right_injective Pt hspos.ne'
+    change s • (w - q) = s • ((c / s) • A)
+    rw [smul_smul, show s * (c / s) = c by field_simp, hcs]
+  rw [hd, smul_smul]
+  congr 1
+  ring
+
+private lemma noShortExteriorExcursion_side_ray {q u w A x y : Pt} {c : ℝ}
+    (hc : 0 < c) (hA : A ≠ 0) (hq : q = u ∨ q = w)
+    (hx : x = q + c • A) (hxs : x ∈ segment ℝ u w)
+    (hys : y ∈ segment ℝ u w) :
+    ∃ t : ℝ, 0 ≤ t ∧ y - q = t • A := by
+  rcases hq with rfl | rfl
+  · exact noShortExteriorExcursion_side_ray_start hc hA hx hxs hys
+  · apply noShortExteriorExcursion_side_ray_start hc hA hx
+    · simpa [segment_symm] using hxs
+    · simpa [segment_symm] using hys
+
+set_option maxHeartbeats 1200000 in
 /-- Step 1 of the blueprint proof of `noShortExteriorExcursion_step2_classify`: if two
 geometric edges of a polygonal disk share a genuine corner `q`, and the open chord
 between a relative-interior point of each edge lies entirely outside the disk, then
@@ -5092,7 +5130,347 @@ private theorem noShortExteriorExcursion_step2_classify_step1_reflexCorner
     (hv : v ∈ openSegment ℝ q a) (hz : z ∈ openSegment ℝ q b)
     (hout : ∀ p ∈ openSegment ℝ v z, p ∉ D.carrier) :
     D.IsReflexCorner q a b := by
-  sorry
+  have hDcl : IsClosed D.carrier := D.compact.isClosed
+  have hedge : ∀ {x y : Pt}, D.IsGeometricEdge x y → segment ℝ x y ⊆ D.carrier :=
+    fun h => h.2.2.2.trans hDcl.frontier_subset
+  obtain ⟨t1, ht10, ht11, hveq⟩ := crown_mem_openSegment_iff.mp hv
+  obtain ⟨t2, ht20, ht21, hzeq⟩ := crown_mem_openSegment_iff.mp hz
+  set A := v - q with hA
+  set B := z - q with hB
+  have hAt : A = t1 • (a - q) := by rw [hA, hveq, add_sub_cancel_left]
+  have hBt : B = t2 • (b - q) := by rw [hB, hzeq, add_sub_cancel_left]
+  have haq : a - q = t1⁻¹ • A := by
+    rw [hAt, smul_smul, inv_mul_cancel₀ ht10.ne', one_smul]
+  have hbq : b - q = t2⁻¹ • B := by
+    rw [hBt, smul_smul, inv_mul_cancel₀ ht20.ne', one_smul]
+  have hA0 : A ≠ 0 := by
+    intro h
+    rw [h, smul_zero] at haq
+    exact hqa.2.2.1 (sub_eq_zero.mp haq).symm
+  have hB0 : B ≠ 0 := by
+    intro h
+    rw [h, smul_zero] at hbq
+    exact hqb.2.2.1 (sub_eq_zero.mp hbq).symm
+  have hvA : v = q + A := by rw [hA]; abel
+  have hzB : z = q + B := by rw [hB]; abel
+  have hinA : ∀ s : ℝ, 0 ≤ s → s ≤ 1 → q + s • A ∈ segment ℝ q a := by
+    intro s hs0 hs1
+    rw [crown_mem_segment_iff]
+    refine ⟨s * t1, by positivity, by nlinarith, ?_⟩
+    rw [hAt, smul_smul]
+  have hinB : ∀ s : ℝ, 0 ≤ s → s ≤ 1 → q + s • B ∈ segment ℝ q b := by
+    intro s hs0 hs1
+    rw [crown_mem_segment_iff]
+    refine ⟨s * t2, by positivity, by nlinarith, ?_⟩
+    rw [hBt, smul_smul]
+  have hqD : q ∈ D.carrier := hedge hqa (left_mem_segment ℝ q a)
+  have hout' : ∀ l : ℝ, 0 < l → l < 1 → q + (1 - l) • A + l • B ∉ D.carrier := by
+    intro l hl0 hl1
+    apply hout
+    rw [crown_mem_openSegment_iff]
+    refine ⟨l, hl0, hl1, ?_⟩
+    rw [hvA, hzB]
+    module
+  have hnotsub : ∀ {x y : Pt}, D.IsGeometricEdge x y → v ∈ segment ℝ x y →
+      z ∈ segment ℝ x y → False := by
+    intro x y hxy hvx hzx
+    apply hout' (1 / 2) (by norm_num) (by norm_num)
+    apply hedge hxy
+    apply (convex_segment x y).segment_subset hvx hzx
+    rw [crown_mem_segment_iff]
+    refine ⟨1 / 2, by norm_num, by norm_num, ?_⟩
+    rw [hvA, hzB]
+    module
+  have hind : ∀ α β : ℝ, α • A + β • B = 0 → α = 0 ∧ β = 0 := by
+    intro α β h
+    by_cases hβ : β = 0
+    · subst hβ
+      rw [zero_smul, add_zero, smul_eq_zero] at h
+      rcases h with h | h
+      · exact ⟨h, rfl⟩
+      · exact absurd h hA0
+    · exfalso
+      set κ := -α / β with hκ
+      have hBκ : B = κ • A := by
+        have h2 : β • B = (-α) • A := by
+          rw [neg_smul, ← sub_eq_zero, sub_neg_eq_add, add_comm]
+          exact h
+        rw [hκ, div_eq_inv_mul, mul_smul, ← h2, smul_smul,
+          inv_mul_cancel₀ hβ, one_smul]
+      have hκ0 : κ ≠ 0 := by
+        intro h0
+        rw [h0, zero_smul] at hBκ
+        exact hB0 hBκ
+      rcases lt_or_gt_of_ne hκ0 with hκn | hκp
+      · apply hout' (1 / (1 - κ)) (by apply div_pos one_pos; linarith)
+          (by rw [div_lt_one (by linarith)]; linarith)
+        convert hqD using 1
+        rw [hBκ, smul_smul, add_assoc, ← add_smul]
+        have h1k : (1 : ℝ) - κ ≠ 0 := by intro h'; linarith
+        have : 1 - 1 / (1 - κ) + 1 / (1 - κ) * κ = 0 := by
+          field_simp
+          ring
+        rw [this, zero_smul, add_zero]
+      · by_cases hκ1 : κ ≤ 1
+        · refine hnotsub hqa ?_ ?_
+          · have := hinA 1 zero_le_one le_rfl
+            rwa [one_smul, ← hvA] at this
+          · have := hinA κ hκp.le hκ1
+            rwa [← hBκ, ← hzB] at this
+        · push_neg at hκ1
+          refine hnotsub hqb ?_ ?_
+          · have := hinB κ⁻¹ (inv_nonneg.mpr hκp.le) (inv_le_one_of_one_le₀ hκ1.le)
+            rwa [hBκ, smul_smul, inv_mul_cancel₀ hκ0, one_smul, ← hvA] at this
+          · have := hinB 1 zero_le_one le_rfl
+            rwa [one_smul, ← hzB] at this
+  have hvz : 0 < dist v z := by
+    rw [dist_pos]
+    intro h
+    have hh := hind 1 (-1) (by rw [hA, hB, h]; simp)
+    norm_num at hh
+  set m0 := macroPerp A with hm0
+  have hm00 : m0 ≠ 0 := macroPerp_ne_zero hA0
+  have hm0A : inner ℝ m0 A = 0 := macroPerp_inner A
+  have hm0B : inner ℝ m0 B ≠ 0 := by
+    intro h0
+    obtain ⟨c, hc⟩ := macro_parallel hm00 hA0 h0 hm0A
+    have hh := hind (-c) 1 (by rw [hc]; module)
+    norm_num at hh
+  obtain ⟨m, hm0', hmA, hmB⟩ :
+      ∃ m : Pt, m ≠ 0 ∧ inner ℝ m A = 0 ∧ 0 < inner ℝ m B := by
+    rcases lt_or_gt_of_ne hm0B with hneg | hpos
+    · refine ⟨-m0, neg_ne_zero.mpr hm00, ?_, ?_⟩
+      · rw [inner_neg_left, hm0A, neg_zero]
+      · rw [inner_neg_left]
+        linarith
+    · exact ⟨m0, hm00, hm0A, hpos⟩
+  have hma : inner ℝ m (a - q) = 0 := by rw [haq, inner_smul_right, hmA, mul_zero]
+  have hnotSide : ¬ GapSide D v m := by
+    rintro ⟨ε, hε, hside⟩
+    set l := min (1 / 2 : ℝ) (ε / (2 * dist v z)) with hl
+    have hl0 : 0 < l := lt_min (by norm_num) (by positivity)
+    have hl1 : l < 1 := lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+    have hdist : dist (v + l • (z - v)) v < ε := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hl0.le,
+        ← dist_eq_norm]
+      have hle := min_le_right (1 / 2 : ℝ) (ε / (2 * dist v z))
+      calc
+        l * dist z v ≤ ε / (2 * dist v z) * dist v z := by rw [dist_comm]; gcongr
+        _ = ε / 2 := by field_simp
+        _ < ε := by linarith
+    have hinner : 0 < inner ℝ m (v + l • (z - v) - v) := by
+      rw [add_sub_cancel_left, inner_smul_right]
+      have : inner ℝ m (z - v) = inner ℝ m B := by
+        have hzv : z - v = B - A := by rw [hA, hB]; abel
+        rw [hzv, inner_sub_right, hmA, sub_zero]
+      rw [this]
+      positivity
+    exact hout _ (crown_mem_openSegment_iff.mpr ⟨l, hl0, hl1, rfl⟩)
+      (interior_subset (hside _ (Metric.mem_ball.mpr hdist) hinner))
+  obtain ⟨hSideNegV, hOutV⟩ : GapSide D v (-m) ∧ GapOut D v m := by
+    rcases gap_dichotomy D hqa.2.2.1 hqa.2.2.2 hv hm0' hma with hcase | hcase
+    · exact (hnotSide hcase.1).elim
+    · exact hcase
+  obtain ⟨k, hk, rfl⟩ := hqa.1
+  obtain ⟨ρ, hρ, hboundary⟩ := crown_local_boundary D (v := D.vertex k)
+  have hAn : 0 < ‖A‖ := norm_pos_iff.mpr hA0
+  have hBn : 0 < ‖B‖ := norm_pos_iff.mpr hB0
+  set c := min (1 / 2 : ℝ) (ρ / (4 * (‖A‖ + ‖B‖))) with hc
+  have hc0 : 0 < c := lt_min (by norm_num) (by positivity)
+  have hc1 : c < 1 := lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+  have hcρ : c ≤ ρ / (4 * (‖A‖ + ‖B‖)) := min_le_right _ _
+  have hcAρ : c * ‖A‖ < ρ := by
+    calc
+      c * ‖A‖ ≤ (ρ / (4 * (‖A‖ + ‖B‖))) * ‖A‖ := by gcongr
+      _ < ρ := by
+        rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity : 0 < 4 * (‖A‖ + ‖B‖))]
+        nlinarith
+  have hcBρ : c * ‖B‖ < ρ := by
+    calc
+      c * ‖B‖ ≤ (ρ / (4 * (‖A‖ + ‖B‖))) * ‖B‖ := by gcongr
+      _ < ρ := by
+        rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity : 0 < 4 * (‖A‖ + ‖B‖))]
+        nlinarith
+  have hxAb : D.vertex k + c • A ∈ ball (D.vertex k) ρ := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hc0.le]
+    exact hcAρ
+  have hxBb : D.vertex k + c • B ∈ ball (D.vertex k) ρ := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hc0.le]
+    exact hcBρ
+  obtain ⟨i, hki, hxAi, -⟩ := hboundary _ hxAb
+    (hqa.2.2.2 (hinA c hc0.le hc1.le))
+  obtain ⟨j, hkj, hxBj, -⟩ := hboundary _ hxBb
+    (hqb.2.2.2 (hinB c hc0.le hc1.le))
+  have hi := crown_side_through_vertex D k i hki
+  have hj := crown_side_through_vertex D k j hkj
+  have hAi : ∀ y ∈ D.side i, ∃ t : ℝ, 0 ≤ t ∧ y - D.vertex k = t • A := by
+    intro y hy
+    apply noShortExteriorExcursion_side_ray hc0 hA0
+      (hi.elim (fun h => Or.inl (congrArg D.vertex h))
+        (fun h => Or.inr (congrArg D.vertex h))) rfl hxAi hy
+  have hBj : ∀ y ∈ D.side j, ∃ t : ℝ, 0 ≤ t ∧ y - D.vertex k = t • B := by
+    intro y hy
+    apply noShortExteriorExcursion_side_ray hc0 hB0
+      (hj.elim (fun h => Or.inl (congrArg D.vertex h))
+        (fun h => Or.inr (congrArg D.vertex h))) rfl hxBj hy
+  have hij : i ≠ j := by
+    intro hij
+    subst j
+    obtain ⟨t, -, ht⟩ := hAi _ hxBj
+    have hh := hind (-t) c (by
+      have heq : c • B = t • A := by
+        simpa using ht
+      rw [heq]
+      module)
+    exact hc0.ne' hh.2
+  set T : Set Pt :=
+    {p : Pt | ∃ α β : ℝ, 0 < α ∧ 0 < β ∧ α + β < 1 ∧
+      p = D.vertex k + α • (c • A) + β • (c • B)} with hT
+  have hTconv : Convex ℝ T := rcb_tri_convex (D.vertex k) (c • A) (c • B)
+  have hTball : T ⊆ ball (D.vertex k) ρ := by
+    rintro p ⟨α, β, hα, hβ, hαβ, rfl⟩
+    rw [mem_ball, dist_eq_norm]
+    have heq : D.vertex k + α • (c • A) + β • (c • B) - D.vertex k =
+        (α * c) • A + (β * c) • B := by module
+    rw [heq]
+    calc
+      ‖(α * c) • A + (β * c) • B‖ ≤
+          ‖(α * c) • A‖ + ‖(β * c) • B‖ := norm_add_le _ _
+      _ = α * c * ‖A‖ + β * c * ‖B‖ := by
+        rw [norm_smul, norm_smul, Real.norm_of_nonneg (mul_nonneg hα.le hc0.le),
+          Real.norm_of_nonneg (mul_nonneg hβ.le hc0.le)]
+      _ ≤ (α + β) * (c * (‖A‖ + ‖B‖)) := by
+        have hcross : 0 ≤ α * c * ‖B‖ + β * c * ‖A‖ := by positivity
+        calc
+          α * c * ‖A‖ + β * c * ‖B‖ ≤
+              α * c * ‖A‖ + β * c * ‖B‖ +
+                (α * c * ‖B‖ + β * c * ‖A‖) := by linarith
+          _ = (α + β) * (c * (‖A‖ + ‖B‖)) := by ring
+      _ < ρ := by
+        have hcsum : c * (‖A‖ + ‖B‖) ≤ ρ / 4 := by
+          calc
+            c * (‖A‖ + ‖B‖) ≤
+                (ρ / (4 * (‖A‖ + ‖B‖))) * (‖A‖ + ‖B‖) := by gcongr
+            _ = ρ / 4 := by field_simp
+        nlinarith
+  have hTdisj : Disjoint T (frontier D.carrier) := by
+    rw [Set.disjoint_left]
+    rintro p ⟨α, β, hα, hβ, hαβ, hp⟩ hpF
+    obtain ⟨l, hkl, hpl, -⟩ := hboundary p (hTball ⟨α, β, hα, hβ, hαβ, hp⟩) hpF
+    have hl := crown_side_through_vertex D k l hkl
+    by_cases hil : i = l
+    · subst l
+      obtain ⟨t, -, ht⟩ := hAi p hpl
+      have heqt : (α * c) • A + (β * c) • B = t • A := by
+        rw [hp] at ht
+        calc
+          (α * c) • A + (β * c) • B =
+              D.vertex k + α • (c • A) + β • (c • B) - D.vertex k := by module
+          _ = t • A := ht
+      have hh := hind (α * c - t) (β * c) (by
+        calc
+          (α * c - t) • A + (β * c) • B =
+              ((α * c) • A + (β * c) • B) - t • A := by module
+          _ = 0 := sub_eq_zero.mpr heqt)
+      exact (mul_pos hβ hc0).ne' hh.2
+    · have hjl : j = l := crown_incident_indices_eq hi hj hl hij hil
+      subst l
+      obtain ⟨t, -, ht⟩ := hBj p hpl
+      have heqt : (α * c) • A + (β * c) • B = t • B := by
+        rw [hp] at ht
+        calc
+          (α * c) • A + (β * c) • B =
+              D.vertex k + α • (c • A) + β • (c • B) - D.vertex k := by module
+          _ = t • B := ht
+      have hh := hind (α * c) (β * c - t) (by
+        calc
+          (α * c) • A + (β * c - t) • B =
+              ((α * c) • A + (β * c) • B) - t • B := by module
+          _ = 0 := sub_eq_zero.mpr heqt)
+      exact (mul_pos hα hc0).ne' hh.1
+  set tp := c / 2 * t1 with htp
+  have htp0 : 0 < tp := by positivity
+  have htp1 : tp < 1 := by
+    have hc2 : c / 2 < 1 := by linarith
+    exact (mul_lt_of_lt_one_right (by positivity : 0 < c / 2) ht11).trans hc2
+  set p := D.vertex k + (c / 2) • A with hp
+  have hpform : p = D.vertex k + tp • (a - D.vertex k) := by
+    rw [hp, htp, hAt]
+    module
+  have hpopen : p ∈ openSegment ℝ (D.vertex k) a := by
+    rw [crown_mem_openSegment_iff]
+    exact ⟨tp, htp0, htp1, hpform⟩
+  have hmna : inner ℝ (-m) (a - D.vertex k) = 0 := by rw [inner_neg_left, hma, neg_zero]
+  have hSideNegP : GapSide D p (-m) := by
+    have hstart : GapSide D (D.vertex k + t1 • (a - D.vertex k)) (-m) := by
+      rwa [← hveq]
+    have hh := gap_side_const D hqa.2.2.1 hqa.2.2.2 (neg_ne_zero.mpr hm0') hmna
+      ⟨ht10, ht11⟩ ⟨htp0, htp1⟩ hstart
+    rwa [← hpform] at hh
+  have hOutP : GapOut D p m := by
+    rcases gap_dichotomy D hqa.2.2.1 hqa.2.2.2 hpopen hm0' hma with hcase | hcase
+    · exact (gap_side_out_false (neg_ne_zero.mpr hm0') hSideNegP hcase.2).elim
+    · exact hcase.2
+  obtain ⟨ε, hε, hOut⟩ := hOutP
+  set d := min (c / 4) (ε / (2 * ‖B‖)) with hd
+  have hd0 : 0 < d := lt_min (by positivity) (by positivity)
+  have hdc : d / c < 1 / 2 := by
+    have hle := min_le_left (c / 4) (ε / (2 * ‖B‖))
+    rw [div_lt_iff₀ hc0]
+    nlinarith
+  have hdp : p + d • B ∈ ball p ε := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hd0.le]
+    have hle := min_le_right (c / 4) (ε / (2 * ‖B‖))
+    calc
+      d * ‖B‖ ≤ ε / (2 * ‖B‖) * ‖B‖ := by gcongr
+      _ = ε / 2 := by field_simp
+      _ < ε := by linarith
+  have hdinner : 0 < inner ℝ m (p + d • B - p) := by
+    rw [add_sub_cancel_left, inner_smul_right]
+    positivity
+  have hseedOut : p + d • B ∉ D.carrier := hOut _ hdp hdinner
+  have hseedT : p + d • B ∈ T := by
+    refine ⟨1 / 2, d / c, by norm_num, div_pos hd0 hc0, by linarith, ?_⟩
+    rw [hp]
+    have hdcancel : d / c * c = d := by field_simp
+    simp only [smul_smul, hdcancel]
+    module
+  have hText : T ⊆ (closure D.carrier)ᶜ := by
+    rcases macro_preconn_sub hTconv.isPreconnected hTdisj with hin | hext
+    · exact (hseedOut (interior_subset (hin hseedT))).elim
+    · exact hext
+  refine ⟨hqa, hqb, hab, fun r hr => ?_⟩
+  set na := ‖a - D.vertex k‖ with hna
+  set nb := ‖b - D.vertex k‖ with hnb
+  have hna0 : 0 < na := norm_pos_iff.mpr (sub_ne_zero.mpr hqa.2.2.1.symm)
+  have hnb0 : 0 < nb := norm_pos_iff.mpr (sub_ne_zero.mpr hqb.2.2.1.symm)
+  set ka := na⁻¹ * t1⁻¹ with hka
+  set kb := nb⁻¹ * t2⁻¹ with hkb
+  have hka0 : 0 < ka := by positivity
+  have hkb0 : 0 < kb := by positivity
+  set s := min (r / 2) (c / (2 * (ka + kb))) with hs
+  have hs0 : 0 < s := lt_min (by linarith) (by positivity)
+  have hsr : s < r := lt_of_le_of_lt (min_le_left _ _) (by linarith)
+  refine ⟨s, ⟨hs0, hsr⟩, ?_⟩
+  have hmem : D.vertex k +
+      s • (na⁻¹ • (a - D.vertex k) + nb⁻¹ • (b - D.vertex k)) ∈ T := by
+    refine ⟨s * ka / c, s * kb / c, by positivity, by positivity, ?_, ?_⟩
+    · have hle := min_le_right (r / 2) (c / (2 * (ka + kb)))
+      rw [← add_div]
+      have hsum : s * ka + s * kb = s * (ka + kb) := by ring
+      rw [hsum, div_lt_one hc0]
+      have hh := (le_div_iff₀ (by positivity : 0 < 2 * (ka + kb))).mp hle
+      nlinarith
+    · rw [haq, hbq, hka, hkb]
+      have hcancela : s * (na⁻¹ * t1⁻¹) / c * c = s * (na⁻¹ * t1⁻¹) := by field_simp
+      have hcancelb : s * (nb⁻¹ * t2⁻¹) / c * c = s * (nb⁻¹ * t2⁻¹) := by field_simp
+      simp only [smul_smul, hcancela, hcancelb]
+      module
+  intro hD
+  exact hText hmem (subset_closure hD)
 
 /-- Step 2 of the blueprint proof of `noShortExteriorExcursion`: an exterior
 chord on the finite macro boundary either uses nonadjacent geometric edges or

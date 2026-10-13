@@ -3246,7 +3246,47 @@ particular `L ⊂ Q₀ + B∞(D)` lies in the interior of `H ⊃ Q₁ + B∞(2D)
 `H ⊂ Q₁ + B∞(3D)` lies in `int (Q₁ + B∞(10D)) ⊂ int Ω`. -/
 private lemma existsAnnularSpokes_step1_nest (c : Pt) {a r b s : ℝ} (h : a + r < b + s)
     (hb : 0 ≤ b) (hs : 0 ≤ s) : square c a + Binf r ⊆ interior (square c b + Binf s) := by
-  sorry
+  have hsum : square c a + Binf r ⊆ square c (a + r) := by
+    rintro x ⟨u, hu, v, hv, rfl⟩
+    refine ⟨?_, ?_⟩
+    · simp only [PiLp.add_apply]
+      calc
+        |u 0 + v 0 - c 0| = |(u 0 - c 0) + v 0| := by
+          congr 1
+          ring_nf
+        _ ≤ |u 0 - c 0| + |v 0| := abs_add_le _ _
+        _ ≤ a + r := add_le_add hu.1 hv.1
+    · simp only [PiLp.add_apply]
+      calc
+        |u 1 + v 1 - c 1| = |(u 1 - c 1) + v 1| := by
+          congr 1
+          ring_nf
+        _ ≤ |u 1 - c 1| + |v 1| := abs_add_le _ _
+        _ ≤ a + r := add_le_add hu.2 hv.2
+  have hinner : square c (a + r) ⊆ interior (square c (b + s)) := by
+    intro x hx
+    rw [mem_interior_iff_mem_nhds, Metric.mem_nhds_iff]
+    refine ⟨(b + s - (a + r)) / 2, by linarith, ?_⟩
+    intro y hy
+    rw [Metric.mem_ball] at hy
+    have hy0 : |y 0 - x 0| ≤ dist y x := rg_coord_sub_le y x 0
+    have hy1 : |y 1 - x 1| ≤ dist y x := rg_coord_sub_le y x 1
+    refine ⟨?_, ?_⟩
+    · calc
+        |y 0 - c 0| = |(y 0 - x 0) + (x 0 - c 0)| := by
+          congr 1
+          ring_nf
+        _ ≤ |y 0 - x 0| + |x 0 - c 0| := abs_add_le _ _
+        _ ≤ dist y x + (a + r) := add_le_add hy0 hx.1
+        _ ≤ b + s := (by linarith)
+    · calc
+        |y 1 - c 1| = |(y 1 - x 1) + (x 1 - c 1)| := by
+          congr 1
+          ring_nf
+        _ ≤ |y 1 - x 1| + |x 1 - c 1| := abs_add_le _ _
+        _ ≤ dist y x + (a + r) := add_le_add hy1 hx.2
+        _ ≤ b + s := (by linarith)
+  exact hsum.trans (hinner.trans (interior_mono (rg_square_add hb hs)))
 
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes`: "Draw the radial segments from the
 square centre through these positions to the corresponding positions of `K₁ = Q₁ + B∞(3D)`.

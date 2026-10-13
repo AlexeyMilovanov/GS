@@ -195,7 +195,101 @@ collinear set has a nonzero ray disjoint from that set. -/
 private lemma three_le_genuineCount_step3_step2_bounded_open_subset_line_step1_disjoint_ray
     {L : Set Pt} (hL : Collinear ℝ L) {p : Pt} (hp : p ∉ L) :
     ∃ v : Pt, v ≠ 0 ∧ ∀ t : ℝ, 0 ≤ t → p + t • v ∉ L := by
-  sorry
+  rcases Set.eq_empty_or_nonempty L with rfl | hLne
+  · let e : Pt := EuclideanSpace.single 0 1
+    refine ⟨e, ?_, fun t ht => by simp⟩
+    intro he
+    change EuclideanSpace.single 0 (1 : ℝ) = 0 at he
+    exact one_ne_zero (EuclideanSpace.single_eq_zero_iff.mp he)
+  · obtain ⟨q, hq⟩ := hLne
+    obtain ⟨a, ha⟩ := (collinear_iff_of_mem hq).mp hL
+    by_cases ha0 : a = 0
+    · let v : Pt := p - q
+      refine ⟨v, ?_, ?_⟩
+      · intro hv
+        apply hp
+        rw [sub_eq_zero.mp hv]
+        exact hq
+      · intro t ht hx
+        obtain ⟨r, hr⟩ := ha _ hx
+        rw [ha0, smul_zero, zero_vadd] at hr
+        have heq : p + t • (p - q) = q := by simpa [v] using hr
+        have hzero : (1 + t) • (p - q) = 0 := by
+          calc
+            (1 + t) • (p - q) = p + t • (p - q) - q := by module
+            _ = 0 := sub_eq_zero.mpr heq
+        have hscalar : (1 + t : ℝ) ≠ 0 := by linarith
+        have hpq : p - q = 0 := (smul_eq_zero.mp hzero).resolve_left hscalar
+        exact hp (sub_eq_zero.mp hpq ▸ hq)
+    · let w : Pt := EuclideanSpace.single 0 (a 1) -
+        EuclideanSpace.single 1 (a 0)
+      let det : Pt → ℝ := fun x => x 0 * a 1 - x 1 * a 0
+      have hw0 : w 0 = a 1 := by simp [w, EuclideanSpace.single_apply]
+      have hw1 : w 1 = -(a 0) := by simp [w, EuclideanSpace.single_apply]
+      have ha_coords : a 0 ≠ 0 ∨ a 1 ≠ 0 := by
+        by_contra h
+        push_neg at h
+        apply ha0
+        ext i
+        fin_cases i
+        · exact h.1
+        · exact h.2
+      have hdetw : 0 < a 1 * a 1 + a 0 * a 0 := by
+        rcases ha_coords with h0 | h1
+        · nlinarith [sq_pos_of_ne_zero h0, sq_nonneg (a 1)]
+        · nlinarith [sq_pos_of_ne_zero h1, sq_nonneg (a 0)]
+      have hwne : w ≠ 0 := by
+        intro hw
+        have hw0' : a 1 = 0 := by simpa [hw] using hw0.symm
+        have hw1' : a 0 = 0 := by simpa [hw] using hw1.symm
+        apply ha0
+        ext i
+        fin_cases i
+        · exact hw1'
+        · exact hw0'
+      have hdet : 0 ≤ det (p - q) ∨ det (p - q) < 0 := by
+        by_cases h : 0 ≤ det (p - q)
+        · exact Or.inl h
+        · exact Or.inr (lt_of_not_ge h)
+      rcases hdet with hdet | hdet
+      · refine ⟨w, ?_, ?_⟩
+        · exact hwne
+        · intro t ht hx
+          obtain ⟨r, hr⟩ := ha _ hx
+          rw [vadd_eq_add] at hr
+          have hvec : p - q + t • w = r • a := by
+            calc
+              p - q + t • w = (p + t • w) - q := by module
+              _ = (r • a + q) - q := by rw [← hr]
+              _ = r • a := by module
+          have hdet_eq := congrArg det hvec
+          by_cases ht0 : t = 0
+          · apply hp
+            rw [ht0] at hx
+            simpa using hx
+          · have htpos : 0 < t := lt_of_le_of_ne ht (Ne.symm ht0)
+            dsimp [det] at hdet_eq
+            rw [hw0, hw1] at hdet_eq
+            dsimp [det] at hdet
+            ring_nf at hdet_eq
+            nlinarith
+      · let v : Pt := -w
+        refine ⟨v, ?_, ?_⟩
+        · exact neg_ne_zero.mpr hwne
+        · intro t ht hx
+          obtain ⟨r, hr⟩ := ha _ hx
+          rw [vadd_eq_add] at hr
+          have hvec : p - q + t • (-w) = r • a := by
+            calc
+              p - q + t • (-w) = (p + t • v) - q := by simp [v]; module
+              _ = (r • a + q) - q := by rw [← hr]
+              _ = r • a := by module
+          have hdet_eq := congrArg det hvec
+          dsimp [det] at hdet_eq
+          rw [hw0, hw1] at hdet_eq
+          dsimp [det] at hdet
+          ring_nf at hdet_eq
+          nlinarith
 
 /-- Step 2 of the blueprint proof of
 three_le_genuineCount_step3_step2_bounded_open_subset_line: a bounded set

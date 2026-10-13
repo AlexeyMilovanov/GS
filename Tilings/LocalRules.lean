@@ -1286,6 +1286,627 @@ def Geometry.GroupedFamily.scatterFamily (G : GroupedFamily P) (F' : Set (PlaneT
     Set (PlaneTiling P) :=
   {T | ∃ T' ∈ F', G.scatter T'.tiles = T.tiles}
 
+/-! ### Finite constituent tags for `dissection_preserves_sofic` -/
+
+private noncomputable def dissection_preserves_sofic_children (G : GroupedFamily P)
+    (dec : Decoration G.P') (q : dec.P'.Form) : Finset (PlacedTile P) :=
+  (G.dissect (dec.proj q)).finite.toFinset
+
+private abbrev dissection_preserves_sofic_Active (G : GroupedFamily P)
+    (dec : Decoration G.P') :=
+  Σ q : dec.P'.Form, {B // B ∈ dissection_preserves_sofic_children G dec q}
+
+private abbrev dissection_preserves_sofic_Form (G : GroupedFamily P)
+    (dec : Decoration G.P') :=
+  P.Form ⊕ dissection_preserves_sofic_Active G dec
+
+/-- The active forms remember a decorated macro-form and one constituent position.
+The left summand supplies inert forms, making the projection surjective. -/
+private noncomputable def dissection_preserves_sofic_dec (G : GroupedFamily P)
+    (dec : Decoration G.P') : Decoration P where
+  P' :=
+    { Form := dissection_preserves_sofic_Form G dec
+      fintype := Fintype.ofFinite _
+      decEq := Classical.decEq _
+      disk := fun
+        | .inl p => P.disk p
+        | .inr a => P.disk a.2.1.form }
+  proj := fun
+    | .inl p => p
+    | .inr a => a.2.1.form
+  surj := fun p => ⟨.inl p, rfl⟩
+  carrier_eq := fun
+    | .inl _ => rfl
+    | .inr _ => rfl
+
+private def dissection_preserves_sofic_parent (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    (X : PlacedTile (dissection_preserves_sofic_dec G dec).P') :
+    Option (PlacedTile dec.P') :=
+  match X.form with
+  | .inl _ => none
+  | .inr a => some ⟨a.1, X.anchor - a.2.1.anchor⟩
+
+private def dissection_preserves_sofic_liftTile (G : GroupedFamily P)
+    (dec : Decoration G.P') (A : PlacedTile dec.P')
+    (B : {B // B ∈ dissection_preserves_sofic_children G dec A.form}) :
+    PlacedTile (dissection_preserves_sofic_dec G dec).P' :=
+  ⟨.inr ⟨A.form, B⟩, A.anchor + B.1.anchor⟩
+
+private def dissection_preserves_sofic_liftSet (G : GroupedFamily P)
+    (dec : Decoration G.P') (S : Set (PlacedTile dec.P')) :
+    Set (PlacedTile (dissection_preserves_sofic_dec G dec).P') :=
+  ⋃ A ∈ S, range (dissection_preserves_sofic_liftTile G dec A)
+
+private def dissection_preserves_sofic_parentSet (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    (S : Set (PlacedTile (dissection_preserves_sofic_dec G dec).P')) :
+    Set (PlacedTile dec.P') :=
+  {A | ∃ X ∈ S, dissection_preserves_sofic_parent G dec X = some A}
+
+private def dissection_preserves_sofic_size (G : GroupedFamily P) : ℝ :=
+  (∑ p : P.Form, max 0 (Metric.diam (P.disk p).carrier)) +
+    ∑ q : G.P'.Form, max 0 (Metric.diam (G.P'.disk q).carrier)
+
+private def dissection_preserves_sofic_badPair (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    (S : Set (PlacedTile (dissection_preserves_sofic_dec G dec).P')) : Prop :=
+  ∃ X ∈ S, ∃ Y ∈ S, ∃ A B,
+    dissection_preserves_sofic_parent G dec X = some A ∧
+      dissection_preserves_sofic_parent G dec Y = some B ∧ A ≠ B ∧
+      (interior A.carrier ∩ B.carrier).Nonempty ∧ S = {X, Y}
+
+private def dissection_preserves_sofic_forbidden (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P') :
+    Set (Set (PlacedTile (dissection_preserves_sofic_dec G dec).P')) :=
+  {S | dissection_preserves_sofic_badPair G dec S ∨
+    (∃ X, X.form.isLeft ∧ S = {X}) ∨
+    (∃ F ∈ R.forbidden, S.Finite ∧
+      (∀ X ∈ S, ∃ A, dissection_preserves_sofic_parent G dec X = some A) ∧
+      dissection_preserves_sofic_parentSet G dec S = F)}
+
+private lemma dissection_preserves_sofic_children_mem (G : GroupedFamily P)
+    (dec : Decoration G.P') (q : dec.P'.Form) (B : PlacedTile P) :
+    B ∈ dissection_preserves_sofic_children G dec q ↔
+      B ∈ (G.dissect (dec.proj q)).tiles := by
+  simp [dissection_preserves_sofic_children]
+
+private lemma dissection_preserves_sofic_parent_liftTile (G : GroupedFamily P)
+    (dec : Decoration G.P') (A : PlacedTile dec.P')
+    (B : {B // B ∈ dissection_preserves_sofic_children G dec A.form}) :
+    dissection_preserves_sofic_parent G dec
+      (dissection_preserves_sofic_liftTile G dec A B) = some A := by
+  simp [dissection_preserves_sofic_parent, dissection_preserves_sofic_liftTile]
+
+private lemma dissection_preserves_sofic_parent_translate (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    (X : PlacedTile (dissection_preserves_sofic_dec G dec).P') (v : Pt) :
+    dissection_preserves_sofic_parent G dec (X.translate v) =
+      (dissection_preserves_sofic_parent G dec X).map fun A => A.translate v := by
+  rcases X with ⟨q, x⟩
+  rcases q with p | a
+  · rfl
+  · simp only [dissection_preserves_sofic_parent, PlacedTile.translate, Option.map_some]
+    apply congrArg some
+    apply PlacedTile.ext
+    · rfl
+    · simp only [vadd_eq_add]
+      abel
+
+private lemma dissection_preserves_sofic_carrier_translate {Q : Protoset}
+    (A : PlacedTile Q) (v : Pt) : (A.translate v).carrier = v +ᵥ A.carrier := by
+  simp only [PlacedTile.translate, PlacedTile.carrier, Set.ext_iff,
+    mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add]
+  intro y
+  constructor <;> intro hy
+  · convert hy using 1
+    all_goals abel
+  · convert hy using 1
+    all_goals abel
+
+private lemma dissection_preserves_sofic_child_carrier_subset (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    {X : PlacedTile (dissection_preserves_sofic_dec G dec).P'} {A : PlacedTile dec.P'}
+    (hXA : dissection_preserves_sofic_parent G dec X = some A) :
+    X.carrier ⊆ A.carrier := by
+  rcases X with ⟨q, x⟩
+  rcases q with p | a
+  · simp [dissection_preserves_sofic_parent] at hXA
+  · rcases a with ⟨q, B, hB⟩
+    simp only [dissection_preserves_sofic_parent, Option.some.injEq] at hXA
+    subst A
+    intro y hy
+    have hBc : B.carrier ⊆ (G.P'.disk (dec.proj q)).carrier := by
+      rw [← G.support_eq]
+      exact fun z hz => Set.mem_biUnion
+        ((dissection_preserves_sofic_children_mem G dec q B).mp hB) hz
+    change y ∈ x +ᵥ (P.disk B.form).carrier at hy
+    rw [mem_vadd_set_iff_neg_vadd_mem] at hy
+    have hz := hBc (show B.anchor +ᵥ (-x +ᵥ y) ∈ B.carrier by
+      exact vadd_mem_vadd_set hy)
+    rw [PlacedTile.carrier, dec.carrier_eq]
+    rw [mem_vadd_set_iff_neg_vadd_mem]
+    convert hz using 1
+    all_goals simp only [vadd_eq_add]
+    all_goals abel
+
+private lemma dissection_preserves_sofic_parent_diam_le (G : GroupedFamily P)
+    (dec : Decoration G.P') (A : PlacedTile dec.P') :
+    Metric.diam A.carrier ≤ dissection_preserves_sofic_size G := by
+  have hq : Metric.diam (G.P'.disk (dec.proj A.form)).carrier ≤
+      dissection_preserves_sofic_size G := by
+    apply le_trans (le_max_right 0 _)
+    unfold dissection_preserves_sofic_size
+    apply le_trans (Finset.single_le_sum (s := Finset.univ)
+      (f := fun q : G.P'.Form => max 0 (Metric.diam (G.P'.disk q).carrier))
+      (fun q _ => le_max_left 0 _) (Finset.mem_univ _))
+    exact le_add_of_nonneg_left (Finset.sum_nonneg fun p _ => le_max_left 0 _)
+  rw [PlacedTile.carrier, dec.carrier_eq, diam_vadd]
+  exact hq
+
+private lemma dissection_preserves_sofic_badPair_bounded (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    {S : Set (PlacedTile (dissection_preserves_sofic_dec G dec).P')}
+    (hS : dissection_preserves_sofic_badPair G dec S) :
+    Metric.diam (support S) ≤ 2 * dissection_preserves_sofic_size G := by
+  obtain ⟨X, hX, Y, hY, A, B, hXA, hYB, -, hAB, rfl⟩ := hS
+  have hsub : support ({X, Y} : Set _) ⊆ A.carrier ∪ B.carrier := by
+    intro z hz
+    simp only [support, Set.mem_iUnion, exists_prop, mem_insert_iff, mem_singleton_iff] at hz
+    rcases hz with ⟨Z, hZ, hz⟩
+    rcases hZ with rfl | rfl
+    · exact Or.inl (dissection_preserves_sofic_child_carrier_subset G dec hXA hz)
+    · exact Or.inr (dissection_preserves_sofic_child_carrier_subset G dec hYB hz)
+  have hAc : IsCompact A.carrier := cc_tile_compact A
+  have hBc : IsCompact B.carrier := cc_tile_compact B
+  obtain ⟨z, hzA, hzB⟩ := hAB
+  calc
+    Metric.diam (support ({X, Y} : Set _)) ≤ Metric.diam (A.carrier ∪ B.carrier) :=
+      Metric.diam_mono hsub (hAc.union hBc).isBounded
+    _ ≤ Metric.diam A.carrier + Metric.diam B.carrier :=
+      Metric.diam_union' ⟨z, interior_subset hzA, hzB⟩
+    _ ≤ 2 * dissection_preserves_sofic_size G := by
+      have hA := dissection_preserves_sofic_parent_diam_le G dec A
+      have hB := dissection_preserves_sofic_parent_diam_le G dec B
+      linarith
+
+private lemma dissection_preserves_sofic_inert_bounded (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    (X : PlacedTile (dissection_preserves_sofic_dec G dec).P')
+    (hX : X.form.isLeft) :
+    Metric.diam (support ({X} : Set _)) ≤ dissection_preserves_sofic_size G := by
+  rcases X with ⟨q, x⟩
+  rcases q with p | a
+  · have hp : Metric.diam (P.disk p).carrier ≤ dissection_preserves_sofic_size G := by
+      apply le_trans (le_max_right 0 _)
+      unfold dissection_preserves_sofic_size
+      apply le_add_of_le_of_nonneg
+      · apply Finset.single_le_sum (s := Finset.univ)
+          (f := fun p : P.Form => max 0 (Metric.diam (P.disk p).carrier))
+        · intro p _
+          exact le_max_left 0 _
+        · exact Finset.mem_univ _
+      · exact Finset.sum_nonneg fun q _ => le_max_left 0 _
+    simpa only [support, biUnion_singleton, PlacedTile.carrier,
+      dissection_preserves_sofic_dec, diam_vadd] using hp
+  · simp at hX
+
+private lemma dissection_preserves_sofic_active_support_subset (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    {S : Set (PlacedTile (dissection_preserves_sofic_dec G dec).P')}
+    (hactive : ∀ X ∈ S, ∃ A, dissection_preserves_sofic_parent G dec X = some A) :
+    support S ⊆ support (dissection_preserves_sofic_parentSet G dec S) := by
+  intro z hz
+  simp only [support, Set.mem_iUnion, exists_prop] at hz ⊢
+  obtain ⟨X, hXS, hzX⟩ := hz
+  obtain ⟨A, hXA⟩ := hactive X hXS
+  exact ⟨A, ⟨X, hXS, hXA⟩,
+    dissection_preserves_sofic_child_carrier_subset G dec hXA hzX⟩
+
+private noncomputable def dissection_preserves_sofic_rule (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P') :
+    LocalRule (dissection_preserves_sofic_dec G dec).P' where
+  forbidden := dissection_preserves_sofic_forbidden G dec R
+  D := max R.D (2 * dissection_preserves_sofic_size G)
+  bounded := by
+    intro S hS
+    simp only [dissection_preserves_sofic_forbidden, mem_setOf_eq] at hS
+    rcases hS with hbad | hinert | hpull
+    · exact ⟨by
+        obtain ⟨X, -, Y, -, A, B, -, -, -, -, rfl⟩ := hbad
+        exact Set.toFinite _,
+        (dissection_preserves_sofic_badPair_bounded G dec hbad).trans
+          (le_max_right _ _)⟩
+    · obtain ⟨X, hX, rfl⟩ := hinert
+      have hsize : 0 ≤ dissection_preserves_sofic_size G := by
+        unfold dissection_preserves_sofic_size
+        positivity
+      exact ⟨Set.finite_singleton X,
+        (dissection_preserves_sofic_inert_bounded G dec X hX).trans
+          ((show dissection_preserves_sofic_size G ≤
+            2 * dissection_preserves_sofic_size G by linarith).trans (le_max_right _ _))⟩
+    · obtain ⟨F, hFR, hSfin, hactive, hparent⟩ := hpull
+      refine ⟨hSfin, ?_⟩
+      apply (Metric.diam_mono
+        (dissection_preserves_sofic_active_support_subset G dec hactive) ?_).trans
+      · rw [hparent]
+        exact (R.bounded F hFR).2.trans (le_max_left _ _)
+      · rw [hparent]
+        exact ((R.bounded F hFR).1.isCompact_biUnion fun A _ => cc_tile_compact A).isBounded
+
+private lemma dissection_preserves_sofic_mem_liftSet (G : GroupedFamily P)
+    (dec : Decoration G.P') (S : Set (PlacedTile dec.P'))
+    (X : PlacedTile (dissection_preserves_sofic_dec G dec).P') :
+    X ∈ dissection_preserves_sofic_liftSet G dec S ↔
+      ∃ A ∈ S, ∃ B, X = dissection_preserves_sofic_liftTile G dec A B := by
+  simp only [dissection_preserves_sofic_liftSet, Set.mem_iUnion, mem_range]
+  aesop
+
+private lemma dissection_preserves_sofic_liftTile_carrier (G : GroupedFamily P)
+    (dec : Decoration G.P') (A : PlacedTile dec.P')
+    (B : {B // B ∈ dissection_preserves_sofic_children G dec A.form}) :
+    (dissection_preserves_sofic_liftTile G dec A B).carrier = A.anchor +ᵥ B.1.carrier := by
+  simp only [dissection_preserves_sofic_liftTile, PlacedTile.carrier,
+    dissection_preserves_sofic_dec, vadd_eq_add, Set.ext_iff, mem_vadd_set_iff_neg_vadd_mem]
+  intro y
+  constructor <;> intro hy
+  · convert hy using 1
+    all_goals abel
+  · convert hy using 1
+    all_goals abel
+
+private lemma dissection_preserves_sofic_support_liftSet (G : GroupedFamily P)
+    (dec : Decoration G.P') (S : Set (PlacedTile dec.P')) :
+    support (dissection_preserves_sofic_liftSet G dec S) = support S := by
+  ext y
+  simp only [support, Set.mem_iUnion, exists_prop]
+  constructor
+  · rintro ⟨X, hX, hyX⟩
+    obtain ⟨A, hAS, B, rfl⟩ :=
+      (dissection_preserves_sofic_mem_liftSet G dec S X).mp hX
+    exact ⟨A, hAS, dissection_preserves_sofic_child_carrier_subset G dec
+      (dissection_preserves_sofic_parent_liftTile G dec A B) hyX⟩
+  · rintro ⟨A, hAS, hyA⟩
+    rw [PlacedTile.carrier, dec.carrier_eq, ← G.support_eq,
+      mem_vadd_set_iff_neg_vadd_mem] at hyA
+    simp only [support, Set.mem_iUnion, exists_prop] at hyA
+    obtain ⟨B, hB, hyB⟩ := hyA
+    let B' : {B // B ∈ dissection_preserves_sofic_children G dec A.form} :=
+      ⟨B, (dissection_preserves_sofic_children_mem G dec A.form B).mpr hB⟩
+    refine ⟨dissection_preserves_sofic_liftTile G dec A B',
+      (dissection_preserves_sofic_mem_liftSet G dec S _).mpr ⟨A, hAS, B', rfl⟩, ?_⟩
+    rw [dissection_preserves_sofic_liftTile_carrier]
+    rw [mem_vadd_set_iff_neg_vadd_mem]
+    exact hyB
+
+private lemma dissection_preserves_sofic_liftTile_injective (G : GroupedFamily P)
+    (dec : Decoration G.P') {A C : PlacedTile dec.P'}
+    {B : {B // B ∈ dissection_preserves_sofic_children G dec A.form}}
+    {D : {B // B ∈ dissection_preserves_sofic_children G dec C.form}}
+    (h : dissection_preserves_sofic_liftTile G dec A B =
+      dissection_preserves_sofic_liftTile G dec C D) : A = C ∧ B.1 = D.1 := by
+  have hp := congrArg (dissection_preserves_sofic_parent G dec) h
+  rw [dissection_preserves_sofic_parent_liftTile,
+    dissection_preserves_sofic_parent_liftTile] at hp
+  have hAC := Option.some.inj hp
+  subst C
+  have hf := congrArg PlacedTile.form h
+  have hs : (⟨A.form, B⟩ : dissection_preserves_sofic_Active G dec) = ⟨A.form, D⟩ :=
+    Sum.inr.inj hf
+  exact ⟨rfl, congrArg (fun a => a.2.1) hs⟩
+
+private noncomputable def dissection_preserves_sofic_lift (G : GroupedFamily P)
+    (dec : Decoration G.P') (T : PlaneTiling dec.P') :
+    PlaneTiling (dissection_preserves_sofic_dec G dec).P' where
+  tiles := dissection_preserves_sofic_liftSet G dec T.tiles
+  cover := by rw [dissection_preserves_sofic_support_liftSet, T.cover]
+  disjoint := by
+    intro X hX Y hY hXY
+    obtain ⟨A, hAT, B, rfl⟩ :=
+      (dissection_preserves_sofic_mem_liftSet G dec T.tiles X).mp hX
+    obtain ⟨C, hCT, D, rfl⟩ :=
+      (dissection_preserves_sofic_mem_liftSet G dec T.tiles Y).mp hY
+    by_cases hAC : A = C
+    · subst C
+      have hBD : B.1 ≠ D.1 := fun h => hXY (by
+        have h' : B = D := Subtype.ext h
+        subst D
+        rfl)
+      have hd := (G.dissect (dec.proj A.form)).disjoint
+        ((dissection_preserves_sofic_children_mem G dec A.form B).mp B.2)
+        ((dissection_preserves_sofic_children_mem G dec A.form D).mp D.2) hBD
+      unfold Function.onFun at hd ⊢
+      change Disjoint (interior B.1.carrier) (interior D.1.carrier) at hd
+      change Disjoint
+        (interior (dissection_preserves_sofic_liftTile G dec A B).carrier)
+        (interior (dissection_preserves_sofic_liftTile G dec A D).carrier)
+      rw [dissection_preserves_sofic_liftTile_carrier,
+        dissection_preserves_sofic_liftTile_carrier, interior_vadd, interior_vadd]
+      rw [Set.disjoint_left]
+      intro z hzB hzD
+      rw [mem_vadd_set_iff_neg_vadd_mem] at hzB hzD
+      exact Set.disjoint_left.mp hd hzB hzD
+    · have hd := T.disjoint hAT hCT hAC
+      exact hd.mono
+        (interior_mono (dissection_preserves_sofic_child_carrier_subset G dec
+          (dissection_preserves_sofic_parent_liftTile G dec A B)))
+        (interior_mono (dissection_preserves_sofic_child_carrier_subset G dec
+          (dissection_preserves_sofic_parent_liftTile G dec C D)))
+
+private lemma dissection_preserves_sofic_parent_of_mem_liftSet (G : GroupedFamily P)
+    (dec : Decoration G.P') {S : Set (PlacedTile dec.P')}
+    {X : PlacedTile (dissection_preserves_sofic_dec G dec).P'} {A : PlacedTile dec.P'}
+    (hX : X ∈ dissection_preserves_sofic_liftSet G dec S)
+    (hXA : dissection_preserves_sofic_parent G dec X = some A) : A ∈ S := by
+  obtain ⟨C, hCS, B, rfl⟩ :=
+    (dissection_preserves_sofic_mem_liftSet G dec S X).mp hX
+  rw [dissection_preserves_sofic_parent_liftTile] at hXA
+  exact Option.some.inj hXA ▸ hCS
+
+private lemma dissection_preserves_sofic_no_cross {Q : Protoset}
+    (T : PlaneTiling Q) {A B : PlacedTile Q} (hA : A ∈ T.tiles) (hB : B ∈ T.tiles)
+    (hne : A ≠ B) : Disjoint (interior A.carrier) B.carrier := by
+  rw [Set.disjoint_left]
+  intro z hzA hzB
+  rw [← cc_tile_regular B, mem_closure_iff_nhds] at hzB
+  obtain ⟨y, hyB, hyA⟩ := hzB _ (isOpen_interior.mem_nhds hzA)
+  exact Set.disjoint_left.mp (T.disjoint hA hB hne) hyB hyA
+
+private lemma dissection_preserves_sofic_lift_proper (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P') (T : PlaneTiling dec.P')
+    (hT : R.Proper T) :
+    (dissection_preserves_sofic_rule G dec R).Proper
+      (dissection_preserves_sofic_lift G dec T) := by
+  intro S hS hocc
+  simp only [dissection_preserves_sofic_rule, dissection_preserves_sofic_forbidden,
+    mem_setOf_eq] at hS
+  obtain ⟨v, hv⟩ := hocc
+  rcases hS with hbad | hinert | hpull
+  · obtain ⟨X, hXS, Y, hYS, A, B, hXA, hYB, hAB, hinter, -⟩ := hbad
+    have hXt := hv (cc_translate_mem v hXS)
+    have hYt := hv (cc_translate_mem v hYS)
+    have hpat := dissection_preserves_sofic_parent_translate G dec X v
+    have hpbt := dissection_preserves_sofic_parent_translate G dec Y v
+    rw [hXA] at hpat
+    rw [hYB] at hpbt
+    have hAt : A.translate v ∈ T.tiles :=
+      dissection_preserves_sofic_parent_of_mem_liftSet G dec hXt hpat
+    have hBt : B.translate v ∈ T.tiles :=
+      dissection_preserves_sofic_parent_of_mem_liftSet G dec hYt hpbt
+    have hne : A.translate v ≠ B.translate v := by
+      intro heq
+      have := congrArg (fun Z : PlacedTile dec.P' => Z.translate (-v)) heq
+      apply hAB
+      simpa only [cc_translate_translate, neg_add_cancel, cc_translate_zero] using this
+    have hdisj := dissection_preserves_sofic_no_cross T hAt hBt hne
+    obtain ⟨z, hzA, hzB⟩ := hinter
+    have hzAt : v +ᵥ z ∈ interior (A.translate v).carrier := by
+      rw [dissection_preserves_sofic_carrier_translate, interior_vadd]
+      exact vadd_mem_vadd_set hzA
+    have hzBt : v +ᵥ z ∈ (B.translate v).carrier := by
+      rw [dissection_preserves_sofic_carrier_translate]
+      exact vadd_mem_vadd_set hzB
+    exact Set.disjoint_left.mp hdisj hzAt hzBt
+  · obtain ⟨X, hleft, rfl⟩ := hinert
+    have hmem := hv (cc_translate_mem v (Set.mem_singleton X))
+    obtain ⟨A, -, B, heq⟩ :=
+      (dissection_preserves_sofic_mem_liftSet G dec T.tiles (X.translate v)).mp hmem
+    have hf := congrArg PlacedTile.form heq
+    rcases X with ⟨q, x⟩
+    rcases q with p | a
+    · simp [PlacedTile.translate, dissection_preserves_sofic_liftTile] at hf
+    · simp at hleft
+  · obtain ⟨F, hFR, -, -, hparent⟩ := hpull
+    apply hT F hFR
+    refine ⟨v, ?_⟩
+    intro A hA
+    rw [cc_mem_translateSet] at hA
+    have hAF : A.translate (-v) ∈ F := hA
+    rw [← hparent] at hAF
+    obtain ⟨X, hXS, hXA⟩ := hAF
+    have hXt := hv (cc_translate_mem v hXS)
+    have hp := dissection_preserves_sofic_parent_translate G dec X v
+    rw [hXA] at hp
+    have hmem := dissection_preserves_sofic_parent_of_mem_liftSet G dec hXt hp
+    simpa only [cc_translate_translate, add_neg_cancel, cc_translate_zero] using hmem
+
+private lemma dissection_preserves_sofic_proper_active (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P')
+    (T : PlaneTiling (dissection_preserves_sofic_dec G dec).P')
+    (hT : (dissection_preserves_sofic_rule G dec R).Proper T) {X} (hX : X ∈ T.tiles) :
+    ∃ A, dissection_preserves_sofic_parent G dec X = some A := by
+  rcases X with ⟨q, x⟩
+  rcases q with p | a
+  · exfalso
+    apply hT ({⟨.inl p, x⟩} : Set _) (by
+      simp only [dissection_preserves_sofic_rule, dissection_preserves_sofic_forbidden,
+        mem_setOf_eq]
+      exact Or.inr (Or.inl ⟨⟨.inl p, x⟩, rfl, rfl⟩))
+    exact ⟨0, by simpa [cc_translateSet_zero] using hX⟩
+  · exact ⟨⟨a.1, x - a.2.1.anchor⟩, rfl⟩
+
+private lemma dissection_preserves_sofic_proper_parents_disjoint (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P')
+    (T : PlaneTiling (dissection_preserves_sofic_dec G dec).P')
+    (hT : (dissection_preserves_sofic_rule G dec R).Proper T) :
+    DisjointInteriors (dissection_preserves_sofic_parentSet G dec T.tiles) := by
+  intro A hA B hB hAB
+  obtain ⟨X, hXT, hXA⟩ := hA
+  obtain ⟨Y, hYT, hYB⟩ := hB
+  unfold Function.onFun
+  rw [Set.disjoint_left]
+  intro z hzA hzB
+  apply hT ({X, Y} : Set _) (by
+    simp only [dissection_preserves_sofic_rule, dissection_preserves_sofic_forbidden,
+      mem_setOf_eq]
+    left
+    exact ⟨X, mem_insert X {Y}, Y, mem_insert_of_mem X (mem_singleton Y),
+      A, B, hXA, hYB, hAB, ⟨z, hzA, interior_subset hzB⟩, rfl⟩)
+  exact ⟨0, by
+    rw [cc_translateSet_zero]
+    exact insert_subset hXT (singleton_subset_iff.mpr hYT)⟩
+
+private noncomputable def dissection_preserves_sofic_parentTiling (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P')
+    (T : PlaneTiling (dissection_preserves_sofic_dec G dec).P')
+    (hT : (dissection_preserves_sofic_rule G dec R).Proper T) : PlaneTiling dec.P' where
+  tiles := dissection_preserves_sofic_parentSet G dec T.tiles
+  cover := by
+    apply Set.Subset.antisymm (subset_univ _)
+    rw [← T.cover]
+    exact dissection_preserves_sofic_active_support_subset G dec
+      (fun X hX => dissection_preserves_sofic_proper_active G dec R T hT hX)
+  disjoint := dissection_preserves_sofic_proper_parents_disjoint G dec R T hT
+
+private lemma dissection_preserves_sofic_parentTiling_proper (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P')
+    (T : PlaneTiling (dissection_preserves_sofic_dec G dec).P')
+    (hT : (dissection_preserves_sofic_rule G dec R).Proper T) :
+    R.Proper (dissection_preserves_sofic_parentTiling G dec R T hT) := by
+  intro F hFR hocc
+  obtain ⟨v, hv⟩ := hocc
+  have hpick : ∀ A ∈ F, ∃ X ∈ T.tiles,
+      dissection_preserves_sofic_parent G dec X = some (A.translate v) := by
+    intro A hAF
+    have hAv := hv (cc_translate_mem v hAF)
+    exact hAv
+  let pick : ↥F → PlacedTile (dissection_preserves_sofic_dec G dec).P' :=
+    fun A => Classical.choose (hpick A.1 A.2)
+  have hpickT : ∀ A : ↥F, pick A ∈ T.tiles :=
+    fun A => (Classical.choose_spec (hpick A.1 A.2)).1
+  have hpickParent : ∀ A : ↥F,
+      dissection_preserves_sofic_parent G dec (pick A) = some (A.1.translate v) :=
+    fun A => (Classical.choose_spec (hpick A.1 A.2)).2
+  letI : Fintype ↥F := (R.bounded F hFR).1.fintype
+  let S : Set (PlacedTile (dissection_preserves_sofic_dec G dec).P') :=
+    (fun A : ↥F => (pick A).translate (-v)) '' univ
+  have hSfin : S.Finite := Set.finite_univ.image _
+  have hSactive : ∀ X ∈ S,
+      ∃ A, dissection_preserves_sofic_parent G dec X = some A := by
+    rintro X ⟨A, -, rfl⟩
+    refine ⟨A.1, ?_⟩
+    rw [dissection_preserves_sofic_parent_translate, hpickParent A]
+    simp only [Option.map_some, Option.some.injEq]
+    rw [cc_translate_translate, neg_add_cancel, cc_translate_zero]
+  have hSparent : dissection_preserves_sofic_parentSet G dec S = F := by
+    ext A
+    constructor
+    · rintro ⟨X, ⟨C, -, rfl⟩, hpar⟩
+      rw [dissection_preserves_sofic_parent_translate, hpickParent C] at hpar
+      have heq : C.1 = A := by
+        simpa only [cc_translate_translate, neg_add_cancel, cc_translate_zero] using
+          Option.some.inj hpar
+      exact heq ▸ C.2
+    · intro hAF
+      let A' : ↥F := ⟨A, hAF⟩
+      refine ⟨(pick A').translate (-v), ⟨A', mem_univ _, rfl⟩, ?_⟩
+      rw [dissection_preserves_sofic_parent_translate, hpickParent A']
+      simp only [Option.map_some, Option.some.injEq]
+      rw [cc_translate_translate, neg_add_cancel, cc_translate_zero]
+  apply hT S (by
+    simp only [dissection_preserves_sofic_rule, dissection_preserves_sofic_forbidden,
+      mem_setOf_eq]
+    exact Or.inr (Or.inr ⟨F, hFR, hSfin, hSactive, hSparent⟩))
+  refine ⟨v, ?_⟩
+  rintro X ⟨Y, ⟨A, -, rfl⟩, rfl⟩
+  simpa only [cc_translate_translate, add_neg_cancel, cc_translate_zero] using hpickT A
+
+private lemma dissection_preserves_sofic_active_eq_liftTile (G : GroupedFamily P)
+    (dec : Decoration G.P')
+    {X : PlacedTile (dissection_preserves_sofic_dec G dec).P'} {A : PlacedTile dec.P'}
+    (hXA : dissection_preserves_sofic_parent G dec X = some A) :
+    ∃ B, X = dissection_preserves_sofic_liftTile G dec A B := by
+  rcases X with ⟨q, x⟩
+  rcases q with p | a
+  · simp [dissection_preserves_sofic_parent] at hXA
+  · rcases a with ⟨q, B, hB⟩
+    simp only [dissection_preserves_sofic_parent, Option.some.injEq] at hXA
+    subst A
+    let B' : {B // B ∈ dissection_preserves_sofic_children G dec q} := ⟨B, hB⟩
+    refine ⟨B', ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [dissection_preserves_sofic_liftTile]
+      abel
+
+private lemma dissection_preserves_sofic_tiles_subset_lift (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P')
+    (T : PlaneTiling (dissection_preserves_sofic_dec G dec).P')
+    (hT : (dissection_preserves_sofic_rule G dec R).Proper T) :
+    T.tiles ⊆ dissection_preserves_sofic_liftSet G dec
+      (dissection_preserves_sofic_parentSet G dec T.tiles) := by
+  intro X hXT
+  obtain ⟨A, hXA⟩ := dissection_preserves_sofic_proper_active G dec R T hT hXT
+  obtain ⟨B, rfl⟩ := dissection_preserves_sofic_active_eq_liftTile G dec hXA
+  apply (dissection_preserves_sofic_mem_liftSet G dec _ _).mpr
+  exact ⟨A, ⟨_, hXT, hXA⟩, B, rfl⟩
+
+private lemma dissection_preserves_sofic_tiling_maximal {Q : Protoset}
+    (T₁ T₂ : PlaneTiling Q) (hsub : T₁.tiles ⊆ T₂.tiles) : T₁.tiles = T₂.tiles := by
+  apply Set.Subset.antisymm hsub
+  intro Y hY
+  obtain ⟨y, hy⟩ := (Q.disk Y.form).interior_nonempty
+  have hyY : Y.anchor +ᵥ y ∈ interior Y.carrier := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact vadd_mem_vadd_set hy
+  have hcov : Y.anchor +ᵥ y ∈ support T₁.tiles := by rw [T₁.cover]; trivial
+  simp only [support, Set.mem_iUnion, exists_prop] at hcov
+  obtain ⟨X, hX, hyX⟩ := hcov
+  by_cases hXY : X = Y
+  · exact hXY ▸ hX
+  · have hd := dissection_preserves_sofic_no_cross T₂ hY (hsub hX) (Ne.symm hXY)
+    exact (Set.disjoint_left.mp hd hyY hyX).elim
+
+private lemma dissection_preserves_sofic_PlaneTiling_ext {Q : Protoset}
+    {T₁ T₂ : PlaneTiling Q} (h : T₁.tiles = T₂.tiles) : T₁ = T₂ := by
+  cases T₁
+  cases T₂
+  congr
+
+private lemma dissection_preserves_sofic_tiling_eq_lift (G : GroupedFamily P)
+    (dec : Decoration G.P') (R : LocalRule dec.P')
+    (T : PlaneTiling (dissection_preserves_sofic_dec G dec).P')
+    (hT : (dissection_preserves_sofic_rule G dec R).Proper T) :
+    T = dissection_preserves_sofic_lift G dec
+      (dissection_preserves_sofic_parentTiling G dec R T hT) := by
+  apply dissection_preserves_sofic_PlaneTiling_ext
+  exact dissection_preserves_sofic_tiling_maximal
+    T _ (dissection_preserves_sofic_tiles_subset_lift G dec R T hT)
+
+private lemma dissection_preserves_sofic_project_liftTile (G : GroupedFamily P)
+    (dec : Decoration G.P') (A : PlacedTile dec.P')
+    (B : {B // B ∈ dissection_preserves_sofic_children G dec A.form}) :
+    (dissection_preserves_sofic_dec G dec).projTile
+      (dissection_preserves_sofic_liftTile G dec A B) = B.1.translate A.anchor := by
+  apply PlacedTile.ext
+  · rfl
+  · rfl
+
+private lemma dissection_preserves_sofic_project_lift (G : GroupedFamily P)
+    (dec : Decoration G.P') (T : PlaneTiling dec.P') :
+    ((dissection_preserves_sofic_dec G dec).project
+      (dissection_preserves_sofic_lift G dec T)).tiles =
+      G.scatter (dec.project T).tiles := by
+  ext X
+  constructor
+  · rintro ⟨Y, hY, rfl⟩
+    obtain ⟨A, hAT, B, rfl⟩ :=
+      (dissection_preserves_sofic_mem_liftSet G dec T.tiles Y).mp hY
+    rw [dissection_preserves_sofic_project_liftTile]
+    simp only [GroupedFamily.scatter, GroupedFamily.scatterTile, Set.mem_iUnion]
+    refine ⟨dec.projTile A, ⟨A, hAT, rfl⟩, ?_⟩
+    exact cc_translate_mem A.anchor
+      ((dissection_preserves_sofic_children_mem G dec A.form B).mp B.2)
+  · simp only [GroupedFamily.scatter, GroupedFamily.scatterTile, Set.mem_iUnion]
+    rintro ⟨A, ⟨C, hCT, rfl⟩, B, hB, rfl⟩
+    let B' : {B // B ∈ dissection_preserves_sofic_children G dec C.form} :=
+      ⟨B, (dissection_preserves_sofic_children_mem G dec C.form B).mpr hB⟩
+    refine ⟨dissection_preserves_sofic_liftTile G dec C B', ?_, ?_⟩
+    · exact (dissection_preserves_sofic_mem_liftSet G dec T.tiles _).mpr
+        ⟨C, hCT, B', rfl⟩
+    · rw [dissection_preserves_sofic_project_liftTile]
+      rfl
+
 /-- `lem:glues` (generic presentations): the grouped forms are finite
 connected unions of original tiles with connected dual graphs (fields of
 `GroupedFamily`).  A sofic presentation of a family of grouped plane tilings
@@ -1293,7 +1914,24 @@ transfers, via unique glue colours on internal constituent sides and inert
 decorations for surjectivity, to a sofic presentation of its scattering. -/
 theorem Decoration.dissection_preserves_sofic (G : GroupedFamily P)
     {F' : Set (PlaneTiling G.P')} (h : IsSofic F') : IsSofic (G.scatterFamily F') := by
-  sorry
+  obtain ⟨dec, R, hF⟩ := h
+  refine ⟨dissection_preserves_sofic_dec G dec,
+    dissection_preserves_sofic_rule G dec R, fun T => ?_⟩
+  constructor
+  · rintro ⟨T', hT'F, hscatter⟩
+    obtain ⟨T'', hproper, hproject⟩ := (hF T').mp hT'F
+    refine ⟨dissection_preserves_sofic_lift G dec T'',
+      dissection_preserves_sofic_lift_proper G dec R T'' hproper, ?_⟩
+    apply dissection_preserves_sofic_PlaneTiling_ext
+    rw [dissection_preserves_sofic_project_lift, hproject, hscatter]
+  · rintro ⟨Tdec, hproper, hproject⟩
+    let T'' := dissection_preserves_sofic_parentTiling G dec R Tdec hproper
+    have hT''proper : R.Proper T'' :=
+      dissection_preserves_sofic_parentTiling_proper G dec R Tdec hproper
+    refine ⟨dec.project T'', (hF _).mpr ⟨T'', hT''proper, rfl⟩, ?_⟩
+    rw [← dissection_preserves_sofic_project_lift G dec T'']
+    have heq := dissection_preserves_sofic_tiling_eq_lift G dec R Tdec hproper
+    rw [← heq, hproject]
 
 /-- `lem:glues` (strict presentations): the same transfer for side-to-side
 sofic presentations; grouped sides are complete original sides, so exposed

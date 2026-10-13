@@ -2423,6 +2423,27 @@ private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n_find_min
   have hni := h2 i hi
   exact of_not_not hni
 
+private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n_hasOrigin_shift_aux {P : Protoset}
+    (c : MacroCertificate P) (ch : ℕ → DecTile c) (m N : ℕ)
+    (i : c.Side (ch N).typ) (k : Fin 5)
+    (h : HasOrigin c ch N i k) :
+    ∀ n, (hn : N = m + n) → HasOrigin c (fun x => ch (m + x)) n (cast (by rw [hn]) i) k := by
+  induction h with
+  | origin N' i' k' he =>
+    intro n hn
+    cases hn
+    apply HasOrigin.origin
+    exact he
+  | step N' i' k' d k'' hc ho ih =>
+    intro n hn
+    cases hn
+    have H : (m + n + 1) = m + (n + 1) := by omega
+    apply @HasOrigin.step _ c (fun x => ch (m + x)) n i' k' (cast (by rw [H]) d) k''
+    · have h_eq : (m + n + 1) = m + (n + 1) := H
+      cases h_eq
+      exact hc
+    · exact (ih (n + 1) H)
+
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
 Shift the origin. -/
 private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n_hasOrigin_shift {P : Protoset}
@@ -2430,7 +2451,9 @@ private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n_hasOrigi
     (i : c.Side (ch (m + n)).typ) k :
       HasOrigin c ch (m + n) i k →
       HasOrigin c (fun x => ch (m + x)) n i k := by
-  sorry
+  intro h
+  have h_aux := reconstructed_noncentral_legal_step1_ancestor_step2_min_n_hasOrigin_shift_aux c ch m (m + n) i k h n rfl
+  exact h_aux
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
 Therefore the chain reaches a legal noncentral ancestor. -/

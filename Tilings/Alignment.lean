@@ -1252,6 +1252,26 @@ private theorem strict_schedule_composition_step2_fine_sts_step1_reduce {P : Pro
   funext X
   exact strict_schedule_composition_step2_fine_sts_step1_reduce_tile Sys X
 
+/-- Step 1 of the blueprint proof of `strict_schedule_composition_step2_fine_sts_step2_dissect_sts`:
+within a single grouped parent, the translated dissected patch is side-to-side by the
+level-zero instance of the hypotheses on the dissected patches. -/
+private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step1_within_group
+    {P : Protoset} {τ : Substitution P} (G : GroupedFamily P)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (G.dissect α).tiles))
+    (A : PlacedTile G.P') : SideToSideSet (G.scatterTile A) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts_step2_dissect_sts`:
+for distinct projected parents in a proper decorated tiling, any positively overlapping
+sides of their dissected tiles are equal. -/
+private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group
+    {P : Protoset} (G : GroupedFamily P) (dec : SideDecoration G.P')
+    (T : PlaneTiling dec.P') (hp : dec.Proper T) :
+    ∀ A ∈ dec.toDecoration.project T, ∀ B ∈ dec.toDecoration.project T, A ≠ B →
+      ∀ X ∈ G.scatterTile A, ∀ Y ∈ G.scatterTile B,
+        ∀ i j, OverlapPos (X.side i) (Y.side j) → X.side i = Y.side j := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts`: dissecting a
 proper strict coloured tiling preserves side-to-sideness. Within one grouped tile the dissect is
 STS by `hΔ` (the `j = 0` case); across two distinct tiles of the (side-to-side, by `hp`) projected
@@ -1262,7 +1282,21 @@ private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts {P 
     (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles))
     (T : PlaneTiling Sys.dec.P') (hp : Sys.dec.Proper T) :
     SideToSideSet (Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles) := by
-  sorry
+  have hwithin :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step1_within_group
+      Sys.GS.G hΔ
+  have hcross :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group
+      Sys.GS.G Sys.dec T hp
+  intro X hX Y hY i j hXY
+  rcases Set.mem_iUnion.1 hX with ⟨A, hX⟩
+  rcases Set.mem_iUnion.1 hX with ⟨hA, hXA⟩
+  rcases Set.mem_iUnion.1 hY with ⟨B, hY⟩
+  rcases Set.mem_iUnion.1 hY with ⟨hB, hYB⟩
+  by_cases hAB : A = B
+  · subst B
+    exact hwithin A X hXA Y hYB i j hXY
+  · exact hcross A hA B hB hAB X hXA Y hYB i j hXY
 
 /-- Step 2 of the blueprint proof of `strict_schedule_composition`: the scattered projected
 composition is STS at the fine level (rule_proj, θ_eq, GroupedSubstitution.compat reduce it to T,

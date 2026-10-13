@@ -581,7 +581,20 @@ private lemma childContext_realized_step1_shift_step1_translateSet_translateSet
 private lemma childContext_realized_step1_shift_step2_decompose_translateSet
     {P : Protoset} {τ : Substitution P} (v : Pt) (S : Set (PlacedTile P)) :
     τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S) := by
-  sorry
+  have hstep : ∀ B : PlacedTile P,
+      τ.decomposeTile (B.translate v) = translateSet (τ.θ • v) (τ.decomposeTile B) := by
+    intro B
+    show translateSet (τ.θ • (v +ᵥ B.anchor)) (τ.rule B.form).tiles =
+        translateSet (τ.θ • v) (translateSet (τ.θ • B.anchor) (τ.rule B.form).tiles)
+    rw [childContext_realized_step1_shift_step1_translateSet_translateSet]
+    congr 1
+    change τ.θ • (v + B.anchor) = τ.θ • v + τ.θ • B.anchor
+    rw [smul_add]
+  show (⋃ A ∈ translateSet v S, τ.decomposeTile A) =
+      (fun A : PlacedTile P => A.translate (τ.θ • v)) '' ⋃ B ∈ S, τ.decomposeTile B
+  rw [show translateSet v S = (fun A : PlacedTile P => A.translate v) '' S from rfl,
+    Set.biUnion_image, Set.image_iUnion₂]
+  exact Set.iUnion₂_congr fun B _ => hstep B
 
 /-- Step 1.3 of the blueprint proof of `childContext_realized`: `τ.supertile (n+1) p = τ.decompose (τ.supertile n p)`. -/
 private lemma childContext_realized_step1_shift_step3_supertile_succ

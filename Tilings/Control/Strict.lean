@@ -1090,6 +1090,283 @@ theorem strict_composed_proper (hτ : τ.STS)
       (strictSubst C hC).IsComposition T' T := by
   sorry
 
+/-- The cell of a strict tile indexed by the value of a side index (zero out of range). -/
+private def acycCellv (X : StrictDecTile C hC) (v : ℕ) (k : Fin 5) : SU C hC :=
+  if h : v < (C.Q.disk (C.form X.typ)).n then X.cell ⟨v, h⟩ k else 0
+
+private theorem acycCellv_side (X : StrictDecTile C hC) (i : C.Side X.typ) (k : Fin 5) :
+    acycCellv C hC X i.val k = X.cell i k := by
+  unfold acycCellv
+  rw [dif_pos i.isLt]
+
+private theorem acyc_identSU_ne_zero (e : C.EdgeId) : identSU C hC e ≠ 0 := by
+  intro h; cases h
+
+private theorem acyc_identSU_inj {e e' : C.EdgeId} (h : identSU C hC e = identSU C hC e') :
+    e = e' := by
+  simp only [identSU] at h
+  cases h; rfl
+
+private theorem acyc_large_of_central {s : C.Typ} (hs : C.IsCentral s) :
+    C.kind (C.form s) = .large :=
+  (C.g5_large_iff s).2 hs.symm
+
+private theorem acyc_owner_not_large {s : C.Typ} (hs : C.IsCentral s) (ha : ¬ C.IsCyclic s) :
+    C.kind (C.owner s) ≠ .large := by
+  intro hl
+  apply ha
+  have h1 := C.g5_central_fixes_large _ hl
+  rw [hs] at h1
+  show C.central (C.form s) = s
+  rw [h1]
+  exact hs
+
+private theorem acyc_central_sides {s : C.Typ} (hs : C.IsCentral s) (i : C.Side s) :
+    ¬ C.IsOuter (C.occ s i) ∧ ¬ C.IsBoundary (C.occ s i) := by
+  have h := C.g2_central (C.owner s)
+  rw [hs] at h
+  exact h i
+
+private theorem acyc_isPrint_iff {s : C.Typ} {β : C.Q.Form} (hs : C.owner s = β) (i : C.Side s) :
+    C.IsPrint (C.occ s i) ↔ ∃ d : Fin (C.Q.disk β).n, C.IsPrintOf β d (C.occ s i) := by
+  subst hs
+  rfl
+
+private theorem acyc_not_on_path {s : C.Typ} {β : C.Q.Form} (hs : C.owner s = β) (i : C.Side s)
+    (hm : ¬ C.IsMarked (C.occ s i)) (d : Fin (C.Q.disk β).n) (j : Fin 5) :
+    C.occ s i ∉ C.path β d j := by
+  subst hs
+  intro hmem
+  by_cases hg : C.IsGenuinePath (C.owner s) d j
+  · exact hm (C.g7_marking _ (Or.inr (Or.inr (Or.inr ⟨d, j, hg, hmem⟩))))
+  · rw [C.g4_path_trivial _ d j hg, Option.mem_toList] at hmem
+    have hmem' : C.occ s i ∈ C.outerList _ d := List.mem_iff_getElem?.mpr ⟨_, hmem⟩
+    exact hm (C.g7_marking _ (Or.inl ((C.g3_outerList_mem _ d _).1 hmem').2.1))
+
+private theorem acyc_isPrint_of_cyclic {s : C.Typ} (hcyc : C.central (C.form s) = s)
+    (hl : C.kind (C.form s) = .large) (d : C.Side s) (hd : C.marked (C.form s) d) :
+    C.IsPrint (C.occ s d) := by
+  have hown : C.owner s = C.form s := by
+    have := C.g5_central_owner (C.form s)
+    rw [hcyc] at this
+    exact this
+  have hval := C.g5_print_id_large (C.form s) d hl hd
+  rw [acyc_isPrint_iff C hown]
+  refine ⟨d, hd, Or.inl ?_⟩
+  show (⟨s, d⟩ : C.SideOcc) = ⟨C.central (C.form s), C.print (C.form s) d⟩
+  generalize C.print (C.form s) d = p at hval
+  revert p
+  rw [hcyc]
+  intro p hp
+  exact Sigma.ext rfl (heq_of_eq (Fin.ext hp.symm))
+
+private theorem acyc_marked_cast {β β' : C.Q.Form} (h : β = β') (d : Fin (C.Q.disk β).n)
+    (hd : C.marked β d) : C.marked β' (Fin.cast (congrArg (fun u => (C.Q.disk u).n) h) d) := by
+  subst h
+  exact hd
+
+private theorem acyc_child_copy (Q' : StrictDecTile C hC) (s : C.Typ)
+    (hs : C.central (C.form Q'.typ) = s) (hl : C.kind (C.form Q'.typ) = .large)
+    (d : C.Side Q'.typ) (hd : C.marked (C.form Q'.typ) d) (k : Fin 5) (hk : k ≠ 4) :
+    acycCellv C hC (strictChild C hC Q' s) d.val k = Q'.cell d k := by
+  subst hs
+  have hown := C.g5_central_owner (C.form Q'.typ)
+  have hval := C.g5_print_id_large (C.form Q'.typ) d hl hd
+  have hc := ((strictChild_cells C hC Q' _ hown (C.print (C.form Q'.typ) d)).1 d
+    ⟨hd, Or.inl rfl⟩).1 k hk
+  rw [← hc, ← acycCellv_side]
+  rw [hval]
+
+private theorem acyc_child_normal (Q' : StrictDecTile C hC) (s : C.Typ)
+    (hs : C.owner s = C.form Q'.typ) :
+    IsStrictNormal C hC (strictChild C hC Q' s) ∧
+      IsStrictIdentityCorrect C hC (strictChild C hC Q' s) := by
+  have hcells := strictChild_cells C hC Q' s hs
+  have key : ∀ (i : C.Side s) (k : Fin 5), IsStrictLocal C (C.occ s i) k →
+      (strictChild C hC Q' s).cell i k = strictPrescribedCell C hC (C.occ s i) k := by
+    intro i k hloc
+    by_cases hp : C.IsPrint (C.occ s i)
+    · obtain ⟨d, hd⟩ := (acyc_isPrint_iff C hs i).1 hp
+      have hin := isInner_of_isPrintOf C hd
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, ⟨-, hnp⟩, -⟩) | ⟨hout, -⟩
+      · exact absurd (C.g7_marking _ (Or.inr (Or.inr (Or.inl hp)))) hnm
+      · rw [((hcells i).1 d hd).2]
+        simp [strictPrescribedCell, hp]
+      · exact absurd hp hnp
+      · exact absurd hout hin
+    · obtain ⟨h0, h1, h4, -, hno, hout, -, hib⟩ := (hcells i).2 hp
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, -, rfl | rfl⟩) | ⟨hout', rfl⟩
+      · have hnout : ¬ C.IsOuter (C.occ s i) := fun h => hnm (C.g7_marking _ (Or.inl h))
+        have hnb : ¬ C.IsBoundary (C.occ s i) := fun h => hnm (C.g7_marking _ (Or.inr (Or.inl h)))
+        have hnpath := acyc_not_on_path C hs i hnm
+        obtain rfl | rfl | rfl | rfl | rfl : k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 := by
+          fin_cases k <;> simp
+        · rw [h0]; simp [strictPrescribedCell]
+        · rw [h1]; simp [strictPrescribedCell]
+        · rw [hno hnpath]; simp [strictPrescribedCell]
+        · rw [hib hnout hnb]
+          simp [strictPrescribedCell, hnout, hnb, hp]
+          exact fun h => absurd hnout h
+        · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [h0]; simp [strictPrescribedCell]
+      · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [hout hout']; simp [strictPrescribedCell, hout']
+  refine ⟨key, fun i => ⟨fun hin hnp => ?_, fun hp => ?_⟩⟩
+  · exact ((hcells i).2 hnp).1.trans (if_pos hin)
+  · obtain ⟨d, hd⟩ := (acyc_isPrint_iff C hs i).1 hp
+    exact ((hcells i).1 d hd).2
+
+
+private theorem acyc_no_origin (f : ℕ → DecTile C)
+    (hown : ∀ n, C.owner (f n).typ = C.form (f (n + 1)).typ)
+    (hall : ∀ n, C.central (C.form (f (n + 1)).typ) = (f (n + 1)).typ ∧
+      C.kind (C.form (f (n + 1)).typ) = .large)
+    (n : ℕ) (i : C.Side (f n).typ) (k : Fin 5) (h : HasOrigin C f n i k) :
+    C.IsPrint (C.occ (f n).typ i) → k ≠ 4 → False := by
+  induction h with
+  | origin n i k hempty =>
+    intro hp hk
+    obtain ⟨e, he⟩ := (acyc_isPrint_iff C (hown n) i).1 hp
+    have hmem : (e, k) ∈ copySource C (C.form (f (n + 1)).typ) (C.occ (f n).typ i) k :=
+      Or.inl ⟨he, hk, rfl⟩
+    rw [hempty] at hmem
+    exact hmem
+  | step n i k d k' hmem _ ih =>
+    intro hp hk
+    rcases hmem with ⟨hpd, hk4, rfl⟩ | ⟨hnp, -, -⟩
+    · exact ih (acyc_isPrint_of_cyclic C (hall n).1 (hall n).2 d hpd.1) hk4
+    · exact hnp hp
+
+private theorem acyc_origin_shift (f : ℕ → DecTile C) (a : ℕ) :
+    ∀ (N : ℕ) (i : C.Side (f N).typ) (k : Fin 5), HasOrigin C f N i k →
+      ∀ (n : ℕ) (hN : a + n = N),
+        HasOrigin C (fun l => f (a + l)) n (by subst hN; exact i) k := by
+  intro N i k h
+  induction h with
+  | origin N i k hempty =>
+    intro n hN
+    subst hN
+    exact HasOrigin.origin (ch := fun l => f (a + l)) n i k hempty
+  | step N i k d k' hmem _ ih =>
+    intro n hN
+    subst hN
+    exact HasOrigin.step (ch := fun l => f (a + l)) n i k d k' hmem (ih (n + 1) rfl)
+
+private theorem acyc_exists_good_side (s s' : C.Typ) (hf : C.form s' = C.form s)
+    (hs : C.IsCentral s) (hsa : ¬ C.IsCyclic s) (hs' : C.IsCentral s') (hsa' : ¬ C.IsCyclic s') :
+    ∃ d : C.Side s, C.marked (C.form s) d ∧ ¬ C.IsPrint (C.occ s d) ∧
+      ¬ C.IsPrint (C.occ s' (Fin.cast (congrArg (fun u => (C.Q.disk u).n) hf.symm) d)) := by
+  classical
+  have hP : ∀ u : C.Typ, C.IsCentral u → ¬ C.IsCyclic u →
+      (Finset.univ.filter fun i : C.Side u => C.IsPrint (C.occ u i)).card ≤ C.Qmax := by
+    intro u hu hua
+    have hlu := acyc_large_of_central C hu
+    have hnl := acyc_owner_not_large C hu hua
+    let g : Fin (C.Q.disk (C.owner u)).n → C.Side u := fun e =>
+      Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hu) (C.print (C.owner u) e)
+    calc _ ≤ ((Finset.univ.filter fun e => C.marked (C.owner u) e).image g).card := by
+          apply Finset.card_le_card
+          intro i hi
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi
+          obtain ⟨e, hm, ho⟩ := hi
+          rcases ho with ho | ho
+          · refine Finset.mem_image.2 ⟨e, by simpa using hm, ?_⟩
+            apply Fin.ext
+            have := congrArg (fun o : C.SideOcc => o.2.val) ho
+            simp only [g, Fin.val_cast]
+            exact this.symm
+          · exfalso
+            have h1 := congrArg Sigma.fst ho
+            have h2 := C.g4_print_small _ e hm
+            rw [← h1] at h2
+            change C.kind (C.form u) = .small at h2
+            rw [hlu] at h2
+            cases h2
+      _ ≤ (Finset.univ.filter fun e => C.marked (C.owner u) e).card := Finset.card_image_le
+      _ ≤ C.Qmax := by
+          have := C.g5_card_marked_small _ hnl
+          rw [Nat.card_eq_fintype_card, Fintype.card_subtype] at this
+          exact this
+  have hM : (Finset.univ.filter fun d : C.Side s => C.marked (C.form s) d).card = 4 * C.N := by
+    have := C.g5_card_marked_large _ (acyc_large_of_central C hs)
+    rw [Nat.card_eq_fintype_card, Fintype.card_subtype] at this
+    exact this
+  have hn : (C.Q.disk (C.form s)).n = (C.Q.disk (C.form s')).n :=
+    congrArg (fun u => (C.Q.disk u).n) hf.symm
+  have hP' : (Finset.univ.filter fun d : C.Side s =>
+      C.IsPrint (C.occ s' (Fin.cast hn d))).card ≤ C.Qmax := by
+    refine le_trans (Finset.card_le_card_of_injOn (Fin.cast hn) ?_ ?_) (hP s' hs' hsa')
+    · intro d hd
+      simpa using hd
+    · intro a _ b _ h
+      exact Fin.cast_injective _ h
+  by_contra hcon
+  have hsub : (Finset.univ.filter fun d : C.Side s => C.marked (C.form s) d) ⊆
+      (Finset.univ.filter fun i : C.Side s => C.IsPrint (C.occ s i)) ∪
+      (Finset.univ.filter fun d : C.Side s => C.IsPrint (C.occ s' (Fin.cast hn d))) := by
+    intro d hd
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union] at hd ⊢
+    by_contra h2
+    push_neg at h2
+    exact hcon ⟨d, hd, h2.1, h2.2⟩
+  have := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
+  have h3 := C.g5_three_Q_lt
+  have h4 := hP s hs hsa
+  omega
+
+private theorem acyc_ident (X Y : StrictDecTile C hC) (hXc : C.IsCentral X.typ)
+    (hXa : ¬ C.IsCyclic X.typ) (hYc : C.IsCentral Y.typ) (hYa : ¬ C.IsCyclic Y.typ)
+    (hf : C.form Y.typ = C.form X.typ)
+    (hXN : IsStrictNormal C hC X) (hXI : IsStrictIdentityCorrect C hC X)
+    (hYN : IsStrictNormal C hC Y) (hYI : IsStrictIdentityCorrect C hC Y)
+    (hcell : ∀ d : C.Side X.typ, C.marked (C.form X.typ) d → ∀ k : Fin 5, k ≠ 4 →
+      acycCellv C hC Y d.val k = X.cell d k) : Y = X := by
+  obtain ⟨d, hdm, hdX, hdY⟩ := acyc_exists_good_side C X.typ Y.typ hf hXc hXa hYc hYa
+  have hinX : C.IsInner (C.occ X.typ d) := (acyc_central_sides C hXc d).1
+  have hinY := (acyc_central_sides C hYc
+    (Fin.cast (congrArg (fun u => (C.Q.disk u).n) hf.symm) d)).1
+  have e1 := (hXI d).1 hinX hdX
+  have e2 := (hYI _).1 hinY hdY
+  have e3 := hcell d hdm 0 (by decide)
+  rw [← acycCellv_side] at e2
+  rw [Fin.val_cast] at e2
+  rw [e2, e1] at e3
+  have hedge := acyc_identSU_inj C hC e3
+  have htyp : Y.typ = X.typ := by
+    rcases C.g1_edge_unique _ _ hinX hinY hedge.symm with h | h
+    · exact congrArg Sigma.fst h
+    · exfalso
+      have h1 : Y.typ = (C.partner (C.occ X.typ d)).1 := congrArg Sigma.fst h
+      obtain ⟨hne, hown, -⟩ := C.g1_partner _ hinX
+      apply hne
+      rw [← h1]
+      calc Y.typ = C.central (C.owner Y.typ) := hYc.symm
+        _ = C.central (C.owner X.typ) := by rw [h1, hown]
+        _ = X.typ := hXc
+  obtain ⟨tX, cX⟩ := X
+  obtain ⟨tY, cY⟩ := Y
+  simp only at htyp
+  subst htyp
+  congr
+  funext i k
+  by_cases hk : C.marked (C.form tY) i ∧ k ≠ 4
+  · have := hcell i hk.1 k hk.2
+    rw [acycCellv_side C hC ⟨tY, cY⟩ i] at this
+    exact this
+  · have hloc : IsStrictLocal C (C.occ tY i) k := by
+      by_cases hm : C.marked (C.form tY) i
+      · have hk4 : k = 4 := by
+          by_contra h4
+          exact hk ⟨hm, h4⟩
+        by_cases hsp : C.special (C.occ tY i) ∨ C.IsPrint (C.occ tY i)
+        · exact Or.inl (Or.inr (Or.inl ⟨hm, hsp, hk4⟩))
+        · push_neg at hsp
+          exact Or.inl (Or.inr (Or.inr ⟨hm, hsp, Or.inr hk4⟩))
+      · exact Or.inl (Or.inl hm)
+    exact (hYN i k hloc).trans (hXN i k hloc).symm
+
+
 /-- `lem:comp/acyclic-legal` (strict variant): every reconstructed parent of central acyclic
 type is legal (second-scale fingerprint argument, `L - Q > 2Q`). -/
 theorem strict_reconstructed_acyclic_legal (T : PlaneTiling (strictProtoset C hC))
@@ -1101,7 +1378,108 @@ theorem strict_reconstructed_acyclic_legal (T : PlaneTiling (strictProtoset C hC
     (hex : (strictSubst C hC).IsComposition T' T) :
     ∀ X ∈ T'.tiles, ∀ D, X.form = StrictForm.typed D → C.IsCentral D.typ →
       ¬ C.IsCyclic D.typ → StrictLegal C hC D := by
-  sorry
+  have _ := And.intro hT (And.intro hrec hT')
+  intro X hX D hXD hcent hacyc
+  obtain ⟨D', hD', hDN, hDI⟩ := hN X hX
+  rw [hXD] at hD'
+  cases hD'
+  have hlα : C.kind (C.form D.typ) = .large := acyc_large_of_central C hcent
+  have hcf : C.form (C.central (C.form D.typ)) = C.form D.typ := C.g5_central_fixes_large _ hlα
+  have hco : C.owner (C.central (C.form D.typ)) = C.form D.typ := C.g5_central_owner _
+  obtain ⟨v, hAT⟩ : ∃ v : Pt, (⟨StrictForm.typed (strictChild C hC D (C.central (C.form D.typ))), v⟩ :
+      PlacedTile (strictProtoset C hC)) ∈ T.tiles := by
+    refine ⟨C.σ.θ • X.anchor +ᵥ C.anchor (C.central (C.form D.typ)), ?_⟩
+    rw [← hex]
+    refine Set.mem_biUnion hX ?_
+    show _ ∈ translateSet _ ((strictSubst C hC).rule X.form).tiles
+    rw [hXD]
+    exact ⟨_, ⟨C.central _, hco, rfl⟩, rfl⟩
+  obtain ⟨ch, h0, hch, hleg⟩ : StrictLegal C hC (strictChild C hC D (C.central (C.form D.typ))) :=
+    hL _ hAT
+  have h0typ : (ch 0).typ = C.central (C.form D.typ) := by rw [h0]; rfl
+  have hex1 : ∃ n, (ch (n + 1)).typ ≠ C.central (C.form D.typ) := by
+    by_contra hall
+    push_neg at hall
+    have hall' : ∀ n, C.central (C.form (ch (n + 1)).typ) = (ch (n + 1)).typ ∧
+        C.kind (C.form (ch (n + 1)).typ) = .large := by
+      intro n
+      rw [hall n, hcf]
+      exact ⟨rfl, hlα⟩
+    obtain ⟨d0, hd0m, hd0p, -⟩ := acyc_exists_good_side C D.typ D.typ rfl hcent hacyc hcent hacyc
+    have hne : D.cell d0 0 ≠ 0 := by
+      rw [(hDI d0).1 (acyc_central_sides C hcent d0).1 hd0p]
+      exact acyc_identSU_ne_zero C hC _
+    have hA0 : (strictChild C hC D (C.central (C.form D.typ))).cell (C.print (C.form D.typ) d0) 0 =
+        D.cell d0 0 :=
+      ((strictChild_cells C hC D _ hco (C.print _ d0)).1 d0 ⟨hd0m, Or.inl rfl⟩).1 0 (by decide)
+    have hz : ∀ i : C.Side (ch 0).typ, C.IsPrint (C.occ (ch 0).typ i) → (ch 0).cell i 0 = 0 := by
+      intro i hp
+      apply hleg 0 i 0
+      · obtain ⟨e, he⟩ := (acyc_isPrint_iff C (hch 0).1 i).1 hp
+        exact ⟨(e, 0), Or.inl ⟨he, by decide, rfl⟩⟩
+      · intro ho
+        exact acyc_no_origin C (fun l => typeShadow C hC (ch l)) (fun n => (hch n).1) hall' 0 i 0 ho
+          hp (by decide)
+    rw [h0] at hz
+    have hpA : C.IsPrint (C.occ (C.central (C.form D.typ)) (C.print (C.form D.typ) d0)) :=
+      (acyc_isPrint_iff C hco _).2 ⟨d0, hd0m, Or.inl rfl⟩
+    exact hne (hA0 ▸ hz _ hpA)
+  classical
+  have hn0 : (ch (Nat.find hex1 + 1)).typ ≠ C.central (C.form D.typ) := Nat.find_spec hex1
+  have hlt : ∀ j ≤ Nat.find hex1, (ch j).typ = C.central (C.form D.typ) := by
+    intro j hj
+    cases j with
+    | zero => exact h0typ
+    | succ j =>
+      by_contra h
+      exact Nat.find_min hex1 (by omega : j < Nat.find hex1) h
+  have hstep : ∀ j, (ch j).typ = C.central (C.form D.typ) → ∀ d : C.Side D.typ,
+      C.marked (C.form D.typ) d → ∀ k : Fin 5, k ≠ 4 →
+      acycCellv C hC (ch j) d.val k = acycCellv C hC (ch (j + 1)) d.val k := by
+    intro j hj d hd k hk
+    have hf : C.form (ch (j + 1)).typ = C.form D.typ := by rw [← (hch j).1, hj, hco]
+    have hs' : C.central (C.form (ch (j + 1)).typ) = (ch j).typ := by rw [hf, hj]
+    have hl' : C.kind (C.form (ch (j + 1)).typ) = .large := by rw [hf]; exact hlα
+    have hd' := acyc_marked_cast C hf.symm d hd
+    have := acyc_child_copy C hC (ch (j + 1)) (ch j).typ hs' hl' _ hd' k hk
+    rw [← acycCellv_side, Fin.val_cast] at this
+    rw [(hch j).2]
+    exact this
+  have htr : ∀ j ≤ Nat.find hex1, ∀ d : C.Side D.typ, C.marked (C.form D.typ) d →
+      ∀ k : Fin 5, k ≠ 4 → acycCellv C hC (ch j) d.val k = D.cell d k := by
+    intro j
+    induction j with
+    | zero =>
+      intro _ d hd k hk
+      rw [h0]
+      exact acyc_child_copy C hC D _ rfl hlα d hd k hk
+    | succ j ih =>
+      intro hj d hd k hk
+      rw [← ih (by omega) d hd k hk]
+      exact (hstep j (hlt j (by omega)) d hd k hk).symm
+  have hYf : C.form (ch (Nat.find hex1 + 1)).typ = C.form D.typ := by
+    rw [← (hch _).1, hlt _ le_rfl, hco]
+  have hYc : C.IsCentral (ch (Nat.find hex1 + 1)).typ :=
+    ((C.g5_large_iff _).1 (by rw [hYf]; exact hlα)).symm
+  have hYa : ¬ C.IsCyclic (ch (Nat.find hex1 + 1)).typ := by
+    intro h
+    apply hn0
+    unfold MacroData.IsCyclic at h
+    rw [hYf] at h
+    exact h.symm
+  have hYN := acyc_child_normal C hC (ch (Nat.find hex1 + 1 + 1)) (ch (Nat.find hex1 + 1)).typ
+    (hch _).1
+  rw [← (hch _).2] at hYN
+  have hcellY : ∀ d : C.Side D.typ, C.marked (C.form D.typ) d → ∀ k : Fin 5, k ≠ 4 →
+      acycCellv C hC (ch (Nat.find hex1 + 1)) d.val k = D.cell d k := by
+    intro d hd k hk
+    rw [← htr _ le_rfl d hd k hk]
+    exact (hstep _ (hlt _ le_rfl) d hd k hk).symm
+  have hYD := acyc_ident C hC D (ch (Nat.find hex1 + 1)) hcent hacyc hYc hYa hYf hDN hDI hYN.1
+    hYN.2 hcellY
+  refine ⟨fun n => ch (Nat.find hex1 + 1 + n), hYD, fun n => hch (Nat.find hex1 + 1 + n),
+    fun n i k hne hno => hleg (Nat.find hex1 + 1 + n) i k hne (fun ho => hno ?_)⟩
+  exact acyc_origin_shift C (fun l => typeShadow C hC (ch l)) (Nat.find hex1 + 1) _ i k ho n rfl
 
 /-- **`lem:schedule-compose`, existence half** (strict analogue of `thm:compose`): every strictly
 matched plane tiling of legal typed tiles has a strictly matched exact composition by legal

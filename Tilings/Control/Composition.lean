@@ -874,6 +874,40 @@ theorem reconstructed_cyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
     (hA : headerLegal c K.centre) (hcyc : c.IsCyclic h.1) :
     reconstruct c K h.1 = K.centre ∧ headerLegal c (reconstruct c K h.1) := by
   sorry
+/-- Step 1: the central centre `A = ch 0` has a print side carrying a nonzero copied first cell
+(the noncentral parent's marked identity), by the separating certificate. -/
+private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step1_base
+    {P : Protoset} (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hnc : ¬ c.IsCentral h.1) (ch : ℕ → DecTile c) (hch0 : ch 0 = K.centre) :
+    ∃ i : c.Side (ch 0).typ, c.IsPrint (c.occ (ch 0).typ i) ∧ (ch 0).cell i 0 ≠ 0 := by
+  sorry
+
+/-- Step 2: when the parent `ch (n+1)` is central (large, so its print map is the identity on
+marked sides), a print side of `ch n` with nonzero first cell copies it from a print side of
+`ch (n+1)` that again has a nonzero first cell. -/
+private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step2_propagate
+    {P : Protoset} (c : MacroCertificate P) (ch : ℕ → DecTile c)
+    (hch_child : ∀ i, IsChildOf c (ch (i + 1)) (ch i))
+    (hall : ∀ n, c.IsCentral (ch n).typ)
+    (n : ℕ) (i : c.Side (ch n).typ) (hp : c.IsPrint (c.occ (ch n).typ i))
+    (hnz : (ch n).cell i 0 ≠ 0) :
+    ∃ d : c.Side (ch (n + 1)).typ,
+      (d, (0 : Fin 5)) ∈ copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) 0 ∧
+      c.IsPrint (c.occ (ch (n + 1)).typ d) ∧ (ch (n + 1)).cell d 0 ≠ 0 := by
+  sorry
+
+/-- Step 3: a nonzero print cell that, at every level, copies from such a cell again (Step 2) never reaches an origin — the infinite descent. -/
+private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step3_no_origin
+    {P : Protoset} (c : MacroCertificate P) (ch : ℕ → DecTile c)
+    (hstep : ∀ (n : ℕ) (i : c.Side (ch n).typ), c.IsPrint (c.occ (ch n).typ i) →
+      (ch n).cell i 0 ≠ 0 → ∃ d : c.Side (ch (n + 1)).typ,
+        (d, (0 : Fin 5)) ∈ copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) 0 ∧
+        c.IsPrint (c.occ (ch (n + 1)).typ d) ∧ (ch (n + 1)).cell d 0 ≠ 0)
+    (n : ℕ) (i : c.Side (ch n).typ) (hp : c.IsPrint (c.occ (ch n).typ i))
+    (hnz : (ch n).cell i 0 ≠ 0) : ¬ HasOrigin c ch n i 0 := by
+  sorry
 
 /-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
 A legality chain of `A` with only central types would copy the marked first cell forever,
@@ -887,7 +921,16 @@ private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_centra
     (hleg : ∀ (n : ℕ) (i : c.Side (ch n).typ) (k : Fin 5),
       (copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) k).Nonempty →
       ¬ HasOrigin c ch n i k → (ch n).cell i k = 0) :
-    ∃ n, ¬ c.IsCentral (ch n).typ := by sorry
+    ∃ n, ¬ c.IsCentral (ch n).typ := by
+  by_contra hall
+  push_neg at hall
+  have ⟨i₀, hp, hnz⟩ := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step1_base c hH K hK h hh hnc ch hch0
+  have hstep := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step2_propagate c ch hch_child hall
+  have hno := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step3_no_origin c ch hstep 0 i₀ hp hnz
+  have ⟨d, hd_mem, _, _⟩ := hstep 0 i₀ hp hnz
+  have hcs_nonempty : (copySource c (c.form (ch 1).typ) (c.occ (ch 0).typ i₀) 0).Nonempty := ⟨(d, 0), hd_mem⟩
+  have hz := hleg 0 i₀ 0 hcs_nonempty hno
+  exact hnz hz
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
 Choose a shortest central-child chain ending at such an ancestor. -/

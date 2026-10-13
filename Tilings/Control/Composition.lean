@@ -2743,6 +2743,34 @@ private lemma alignment_complete_step1_macroside_eq_step3_not_longer
       (c.outerList (part.block j).α d).length := by
   sorry
 
+/-- Step 1 of the blueprint proof of
+`alignment_complete_step1_macroside_eq_step4_endpoints`: express a translated
+macroside as the union of the translated outer child sides listed on it. -/
+private lemma alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
+    (c : MacroCertificate P) (hH : c.Hereditary) (K : ColouredBlock c)
+    (d : Fin (c.Q.disk K.α).n) :
+    K.macroSide d = ⋃ o ∈ c.outerList K.α d, K.childSide o := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`alignment_complete_step1_macroside_eq_step4_endpoints`: a forward trace of
+the ordered outer-side lists, together with the non-longer bound, is also
+surjective onto the opposing list. -/
+private lemma alignment_complete_step1_macroside_eq_step4_endpoints_step2_trace_surjective
+    (c : MacroCertificate P) (K K' : ColouredBlock c)
+    (d : Fin (c.Q.disk K.α).n) (e : Fin (c.Q.disk K'.α).n)
+    (htrace : ∀ o ∈ c.outerList K.α d,
+      ∃ o' ∈ c.outerList K'.α e,
+        K'.childSide o' = K.childSide o ∧
+        c.rankIn K'.α e o' = c.rankIn K.α d o ∧
+        K'.col o'.1 o'.2 3 = K.col o.1 o.2 3)
+    (hlen : (c.outerList K'.α e).length ≤ (c.outerList K.α d).length) :
+    ∀ o' ∈ c.outerList K'.α e, ∃ o ∈ c.outerList K.α d,
+      K'.childSide o' = K.childSide o ∧
+      c.rankIn K'.α e o' = c.rankIn K.α d o ∧
+      K'.col o'.1 o'.2 3 = K.col o.1 o.2 3 := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `alignment_complete_step1_macroside_eq`:
  Once the trace is fixed and the opposing side is not longer, coverage and
  disjoint interiors force both endpoints to agree, hence the macrosides agree.
@@ -2764,7 +2792,35 @@ private lemma alignment_complete_step1_macroside_eq_step4_endpoints
     (hlen : (c.outerList (part.block j').α e).length ≤
       (c.outerList (part.block j).α d).length) :
     (part.block j').macroSide e = (part.block j).macroSide d := by
-  sorry
+  have _ := T
+  have _ := hT
+  have _ := hL
+  have _ := hneq
+  have _ := hrank
+  have _ := hmode
+  have hforward := htrace
+  have hreverse :=
+    alignment_complete_step1_macroside_eq_step4_endpoints_step2_trace_surjective
+      c (part.block j) (part.block j') d e htrace hlen
+  rw [alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
+    c hH (part.block j') e,
+    alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
+      c hH (part.block j) d]
+  apply Set.Subset.antisymm
+  · intro x hx
+    obtain ⟨o', ho'⟩ := Set.mem_iUnion.1 hx
+    obtain ⟨ho'mem, hx⟩ := Set.mem_iUnion.1 ho'
+    obtain ⟨o, homem, hside, _, _⟩ := hreverse o' ho'mem
+    refine Set.mem_iUnion.2 ⟨o, Set.mem_iUnion.2 ⟨homem, ?_⟩⟩
+    rw [← hside]
+    exact hx
+  · intro x hx
+    obtain ⟨o, ho⟩ := Set.mem_iUnion.1 hx
+    obtain ⟨homem, hx⟩ := Set.mem_iUnion.1 ho
+    obtain ⟨o', ho'mem, hside, _, _⟩ := hforward o homem
+    refine Set.mem_iUnion.2 ⟨o', Set.mem_iUnion.2 ⟨ho'mem, ?_⟩⟩
+    rw [hside]
+    exact hx
 
 /-- Step 1 of the blueprint proof of `alignment_complete`: By tracing the
 coinciding segments and using the mode-uniformity hypothesis to prevent the

@@ -2486,6 +2486,33 @@ private lemma plAnnulusRouting_step1_topological (A C : PolygonalDisk)
       (∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0:ℝ) 1) (γ j '' Set.Icc (0:ℝ) 1)) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_step2_plApprox`: Separation of arcs.
+For a finite family of disjoint continuous paths, there exist disjoint open neighborhoods around each. -/
+private lemma plAnnulusRouting_step2_plApprox_step1_separation {k : ℕ}
+    (γ : Fin k → ℝ → Tilings.Pt)
+    (hcont : ∀ i, Continuous (γ i))
+    (hdisj : ∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0:ℝ) 1) (γ j '' Set.Icc (0:ℝ) 1)) :
+    ∃ U : Fin k → Set Tilings.Pt, (∀ i, IsOpen (U i)) ∧
+      (∀ i, γ i '' Set.Icc (0:ℝ) 1 ⊆ U i) ∧
+      (∀ i j, i ≠ j → Disjoint (U i) (U j)) := sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_step2_plApprox`: Single arc approximation.
+A single continuous arc disjoint from C can be PL-approximated within its neighborhood. -/
+private lemma plAnnulusRouting_step2_plApprox_step2_single (A C : Tilings.PolygonalDisk)
+    (hC : C.carrier ⊆ interior A.carrier) (x y : Tilings.Pt)
+    (γ : ℝ → Tilings.Pt)
+    (hcont : Continuous γ)
+    (hend_x : γ 0 = x)
+    (hend_y : γ 1 = y)
+    (hin : ∀ t ∈ Set.Ioo (0:ℝ) 1, γ t ∈ interior A.carrier \ C.carrier)
+    (hsimp : Function.Injective (Set.restrict (Set.Icc (0:ℝ) 1) γ))
+    (U : Set Tilings.Pt) (hU_open : IsOpen U) (hU_supset : γ '' Set.Icc (0:ℝ) 1 ⊆ U) :
+    ∃ α : Tilings.Geometry.PolyArc,
+      α.IsSimple ∧ α.start = x ∧ α.stop = y ∧
+      α.carrier ⊆ A.carrier \ interior C.carrier ∧
+      α.carrier \ {x, y} ⊆ interior A.carrier \ C.carrier ∧
+      α.carrier ⊆ U := sorry
+
 /-- Step 2 of the blueprint proof of `plAnnulusRouting`: PL approximation.
 Any family of pairwise disjoint, simple continuous arcs in a polygonal domain
 connecting boundary points can be approximated by pairwise disjoint simple polygonal arcs. -/
@@ -2503,7 +2530,24 @@ private lemma plAnnulusRouting_step2_plApprox (A C : PolygonalDisk)
       (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
       (α i).carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧
       ∀ j, j ≠ i → Disjoint (α i).carrier (α j).carrier := by
-  sorry
+  obtain ⟨U, hU_open, hU_supset, hU_disj⟩ :=
+    plAnnulusRouting_step2_plApprox_step1_separation γ hcont hdisj
+  have h_ex : ∀ i, ∃ α : PolyArc,
+      (α).IsSimple ∧ (α).start = x i ∧ (α).stop = y i ∧
+      (α).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (α).carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧
+      (α).carrier ⊆ U i := by
+    intro i
+    exact plAnnulusRouting_step2_plApprox_step2_single A C hC (x i) (y i) (γ i)
+      (hcont i) (hend_x i) (hend_y i) (hin i) (hsimp i) (U i) (hU_open i) (hU_supset i)
+  choose α hα using h_ex
+  use α
+  intro i
+  obtain ⟨hsimp_i, hstart_i, hstop_i, hcarr_i, hcarr_int_i, hU_i⟩ := hα i
+  refine ⟨hsimp_i, hstart_i, hstop_i, hcarr_i, hcarr_int_i, ?_⟩
+  intro j hneq
+  have hU_disj_ij := hU_disj i j hneq.symm
+  exact hU_disj_ij.mono hU_i (hα j).2.2.2.2.2
 
 /-- **PL annulus routing** (classical helper; must be proved, never assumed).
 In the polygonal annulus `A \ int C`, distinct outer points and distinct inner

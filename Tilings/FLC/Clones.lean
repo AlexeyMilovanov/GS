@@ -840,6 +840,196 @@ theorem hierarchy_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
 
 /-! ## `lem:segment-rules` -/
 
+/-- Compose two carrier-preserving finite decorations. -/
+private def composeDecoration (d : Decoration P) (e : Decoration d.P') : Decoration P where
+  P' := e.P'
+  proj := d.proj ∘ e.proj
+  surj := d.surj.comp e.surj
+  carrier_eq := fun q => (e.carrier_eq q).trans (d.carrier_eq (e.proj q))
+
+/-- Projection through a composite decoration is iterated projection. -/
+private lemma composeDecoration_project (d : Decoration P) (e : Decoration d.P')
+    (T : PlaneTiling e.P') :
+    (composeDecoration d e).project T = d.project (e.project T) := by
+  cases T with
+  | mk tiles cover disjoint =>
+      simp only [Decoration.project]
+      rw [PlaneTiling.mk.injEq]
+      ext A
+      simp [Decoration.projTile, composeDecoration]
+
+/-- Composing the presenting decoration with a carrier-preserving projection
+transfers any bounded local rule without changing its forbidden patches. -/
+private lemma projection_preserves_sofic (d : Decoration P) (G : Set (PlaneTiling d.P'))
+    (hG : IsSofic G) : IsSofic (d.project '' G) := by
+  obtain ⟨e, R, h⟩ := hG
+  refine ⟨composeDecoration d e, R, fun T => ⟨?_, ?_⟩⟩
+  · rintro ⟨U, hU, rfl⟩
+    obtain ⟨V, hR, hVU⟩ := (h U).mp hU
+    refine ⟨V, hR, ?_⟩
+    rw [composeDecoration_project, hVU]
+  · rintro ⟨V, hR, hVT⟩
+    have he : e.project V ∈ G := (h _).mpr ⟨V, hR, rfl⟩
+    refine ⟨e.project V, he, ?_⟩
+    rw [← composeDecoration_project]
+    exact hVT
+
+/-- Every listed side of a polygonal disk lies in its carrier. -/
+private lemma disk_side_subset_for_rule (D : PolygonalDisk) (i : Fin D.n) :
+    D.side i ⊆ D.carrier := by
+  apply (show D.side i ⊆ frontier D.carrier from ?_).trans D.compact.isClosed.frontier_subset
+  rw [D.frontier_eq]
+  exact Set.subset_iUnion (fun j => segment ℝ (D.vertex j) (D.vertex (finRotate D.n j))) i
+
+/-- Every listed side of a placed tile lies in its carrier. -/
+private lemma tile_side_subset_for_rule (A : PlacedTile P) (i : Fin (P.disk A.form).n) :
+    A.side i ⊆ A.carrier := by
+  exact image_mono (disk_side_subset_for_rule (P.disk A.form) i)
+
+/-- A listed side has an endpoint and hence is nonempty. -/
+private lemma tile_side_nonempty_for_rule (A : PlacedTile P) (i : Fin (P.disk A.form).n) :
+    (A.side i).Nonempty := by
+  refine ⟨A.vertex i, ?_⟩
+  exact ⟨(P.disk A.form).vertex i, left_mem_segment ℝ _ _, rfl⟩
+
+/-- The two possible local failures of a side decoration on a pair of tiles. -/
+private def SideRuleBad (dec : SideDecoration P) (A B : PlacedTile dec.P') : Prop :=
+  ∃ (i : Fin (dec.P'.disk A.form).n) (j : Fin (dec.P'.disk B.form).n),
+    (OverlapPos (A.side i) (B.side j) ∧ A.side i ≠ B.side j) ∨
+      (A ≠ B ∧ A.side i = B.side j ∧ dec.colour A.form i ≠ dec.colour B.form j)
+
+/-- A pair witnessing a side-rule failure has intersecting carriers. -/
+private lemma bad_carriers_meet (dec : SideDecoration P) (A B : PlacedTile dec.P')
+    (h : SideRuleBad dec A B) : (A.carrier ∩ B.carrier).Nonempty := by
+  obtain ⟨i, j, hbad | hbad⟩ := h
+  · obtain ⟨⟨x, y, hxy, hseg⟩, hne⟩ := hbad
+    have hx := hseg (left_mem_segment ℝ x y)
+    exact ⟨x, tile_side_subset_for_rule A i hx.1, tile_side_subset_for_rule B j hx.2⟩
+  · obtain ⟨hne, heq, hcol⟩ := hbad
+    obtain ⟨x, hx⟩ := tile_side_nonempty_for_rule A i
+    exact ⟨x, tile_side_subset_for_rule A i hx, tile_side_subset_for_rule B j (heq ▸ hx)⟩
+
+/-- The side matching condition as a bounded local rule of forbidden pairs. -/
+private def sideLocalRule (dec : SideDecoration P) : LocalRule dec.P' where
+  forbidden := {F | ∃ A B, F = {A, B} ∧ SideRuleBad dec A B}
+  D := 2 * ∑ q : dec.P'.Form, Metric.diam (dec.P'.disk q).carrier
+  bounded := by
+    rintro F ⟨A, B, rfl, hbad⟩
+    refine ⟨Set.toFinite {A, B}, ?_⟩
+    have hmeet : (A.carrier ∩ B.carrier).Nonempty := bad_carriers_meet dec A B hbad
+    have hA : Metric.diam A.carrier ≤ ∑ q : dec.P'.Form, Metric.diam (dec.P'.disk q).carrier := by
+      rw [PlacedTile.carrier, diam_vadd]
+      exact Finset.single_le_sum (f := fun q : dec.P'.Form => Metric.diam (dec.P'.disk q).carrier)
+        (fun _ _ => Metric.diam_nonneg) (Finset.mem_univ A.form)
+    have hB : Metric.diam B.carrier ≤ ∑ q : dec.P'.Form, Metric.diam (dec.P'.disk q).carrier := by
+      rw [PlacedTile.carrier, diam_vadd]
+      exact Finset.single_le_sum (f := fun q : dec.P'.Form => Metric.diam (dec.P'.disk q).carrier)
+        (fun _ _ => Metric.diam_nonneg) (Finset.mem_univ B.form)
+    have hu := Metric.diam_union' hmeet
+    rw [show support ({A, B} : Set (PlacedTile dec.P')) = A.carrier ∪ B.carrier by simp [support]]
+    calc
+      Metric.diam (A.carrier ∪ B.carrier) ≤ Metric.diam A.carrier + Metric.diam B.carrier := hu
+      _ ≤ _ := by linarith
+
+private lemma translate_tile_zero (A : PlacedTile P) : A.translate 0 = A := by
+  apply PlacedTile.ext <;> simp [PlacedTile.translate]
+
+private lemma translate_tile_injective (v : Pt) :
+    Function.Injective (fun A : PlacedTile P => A.translate v) := by
+  intro A B h
+  have h' := congrArg (fun X : PlacedTile P => X.translate (-v)) h
+  have hp : A.form = B.form ∧ A.anchor = B.anchor := by
+    simpa [PlacedTile.translate] using h'
+  exact PlacedTile.ext hp.1 hp.2
+
+private lemma side_translate_for_rule (A : PlacedTile P) (v : Pt)
+    (i : Fin (P.disk A.form).n) : (A.translate v).side i = v +ᵥ A.side i := by
+  show (v +ᵥ A.anchor) +ᵥ _ = v +ᵥ (A.anchor +ᵥ _)
+  rw [vadd_vadd]
+  rfl
+
+private lemma vadd_set_injective (v : Pt) : Function.Injective (fun s : Set Pt => v +ᵥ s) := by
+  intro s t h
+  ext x
+  have hx := Set.ext_iff.mp h (v +ᵥ x)
+  rwa [vadd_mem_vadd_set_iff, vadd_mem_vadd_set_iff] at hx
+
+private lemma overlap_vadd (v : Pt) {s t : Set Pt} (h : OverlapPos s t) :
+    OverlapPos (v +ᵥ s) (v +ᵥ t) := by
+  obtain ⟨x, y, hxy, hseg⟩ := h
+  refine ⟨v +ᵥ x, v +ᵥ y, fun h => hxy (add_left_cancel h), ?_⟩
+  rw [← vadd_segment]
+  rintro z ⟨w, hw, rfl⟩
+  exact ⟨⟨w, (hseg hw).1, rfl⟩, ⟨w, (hseg hw).2, rfl⟩⟩
+
+/-- Side-rule failure is invariant under translating both tiles. -/
+private lemma sideRuleBad_translate (dec : SideDecoration P) (A B : PlacedTile dec.P')
+    (v : Pt) (h : SideRuleBad dec A B) : SideRuleBad dec (A.translate v) (B.translate v) := by
+  obtain ⟨i, j, hbad | hbad⟩ := h
+  · refine ⟨i, j, Or.inl ⟨?_, ?_⟩⟩
+    · rw [side_translate_for_rule, side_translate_for_rule]
+      exact overlap_vadd v hbad.1
+    · rw [side_translate_for_rule, side_translate_for_rule]
+      exact fun heq => hbad.2 (vadd_set_injective v heq)
+  · refine ⟨i, j, Or.inr ⟨?_, ?_, hbad.2.2⟩⟩
+    · intro heq
+      exact hbad.1 (translate_tile_injective v heq)
+    rw [side_translate_for_rule, side_translate_for_rule, hbad.2.1]
+
+private lemma translate_set_zero (S : Set (PlacedTile P)) : translateSet 0 S = S := by
+  ext A
+  constructor
+  · rintro ⟨B, hB, rfl⟩
+    simpa [translate_tile_zero] using hB
+  · intro hA
+    exact ⟨A, hA, translate_tile_zero A⟩
+
+/-- The forbidden-pair local rule is equivalent to the strict side rule on plane tilings. -/
+private lemma sideLocalRule_proper_iff (dec : SideDecoration P) (T : PlaneTiling dec.P') :
+    (sideLocalRule dec).Proper T ↔ dec.Proper T := by
+  constructor
+  · intro h
+    constructor
+    · intro A hA B hB i j hover
+      by_contra hne
+      apply h {A, B} ⟨A, B, rfl, i, j, Or.inl ⟨hover, hne⟩⟩
+      refine ⟨0, ?_⟩
+      rw [translate_set_zero]
+      intro X hX
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hX
+      rcases hX with rfl | rfl
+      · exact hA
+      · exact hB
+    · intro A hA B hB hAB i j hsides
+      by_contra hcol
+      apply h {A, B} ⟨A, B, rfl, i, j, Or.inr ⟨hAB, hsides, hcol⟩⟩
+      refine ⟨0, ?_⟩
+      rw [translate_set_zero]
+      intro X hX
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hX
+      rcases hX with rfl | rfl
+      · exact hA
+      · exact hB
+  · rintro ⟨hsts, hcol⟩ F ⟨A, B, rfl, hbad⟩ ⟨v, hv⟩
+    have hAv : A.translate v ∈ T.tiles := hv (by simp [translateSet])
+    have hBv : B.translate v ∈ T.tiles := hv (by simp [translateSet])
+    obtain ⟨i, j, hbad | hbad⟩ := sideRuleBad_translate dec A B v hbad
+    · exact hbad.2 (hsts _ hAv _ hBv i j hbad.1)
+    · exact hbad.2.2 (hcol _ hAv _ hBv hbad.1 i j hbad.2.1)
+
+/-- A strict side-to-side presentation is a bounded-local-rule presentation. -/
+private lemma sideToSideSofic_isSofic (G : Set (PlaneTiling P))
+    (hG : IsSideToSideSofic G) : IsSofic G := by
+  obtain ⟨dec, h⟩ := hG
+  refine ⟨dec.toDecoration, sideLocalRule dec, ?_⟩
+  intro T
+  rw [h T]
+  constructor
+  · rintro ⟨T', hT', rfl⟩
+    exact ⟨T', (sideLocalRule_proper_iff dec T').mpr hT', rfl⟩
+  · rintro ⟨T', hT', rfl⟩
+    exact ⟨T', (sideLocalRule_proper_iff dec T').mp hT', rfl⟩
+
 /-- `lem:segment-rules`: a sofic presentation on decorated (e.g. clone) tiles,
 given either by an arbitrary bounded local rule or by the strict side rule on
 the refined listed sides, transfers through the carrier-preserving projection
@@ -848,11 +1038,11 @@ projected family on the original carriers.  Applied with
 `d = cloneDecoration τ h`. -/
 theorem forget_vertices_preserves_sofic (d : Decoration P) (G : Set (PlaneTiling d.P'))
     (hG : IsSofic G ∨ IsSideToSideSofic G) : IsSofic (d.project '' G) := by
-  sorry
+  apply projection_preserves_sofic d G
+  exact hG.elim id (sideToSideSofic_isSofic G)
 
 end FLC
 
 end Tilings
 
 end
-

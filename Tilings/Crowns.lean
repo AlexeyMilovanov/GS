@@ -2989,6 +2989,24 @@ theorem closedConvexHullDiameter (S : Set Pt) :
 
 /-! ## `lem:crown-cover-plane`, `lem:crown-cover-supertile` -/
 
+/-- Step 1 of the blueprint proof of `uniformCrownCoverPlane_step1_close`: In a plane tiling,
+the support of a crown at `v` represented in the catalogue covers a ball of uniform radius `d`
+around `v`. -/
+private lemma uniformCrownCoverPlane_step1_close_step1_crown_covers_ball {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞) :
+    ∃ d : ℝ, 0 < d ∧ ∀ T : PlaneTiling P, AllCrownsIn 𝒞 T.tiles →
+      ∀ v : Pt, IsVertexOf T.tiles v →
+        ball v d ⊆ support (crown T.tiles v) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `uniformCrownCoverPlane_step1_close`: If the closed convex hull
+  `H` of `S` has a point within `d/2` of `v`, and the diameter of `S` is less than `d/2`, then `S`
+  is strictly contained in the ball of radius `d` around `v`. -/
+private lemma uniformCrownCoverPlane_step1_close_step2_subset_ball {S H : Set Pt} {v : Pt} {d : ℝ}
+    (hS_bound : Bornology.IsBounded S) (hS_diam : diam S < d / 2)
+    (hH : H = closedConvexHull ℝ S) (hx : ∃ x ∈ H, dist x v < d / 2) :
+    S ⊆ ball v d := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `uniformCrownCoverPlane`: If `H` (the closed convex
 hull of `S`) comes within `d/2` of a tile vertex `v`, and `diam S < d/2`, then all of `H`
 (and thus `S`) is within distance `d` of `v`. The complete crown at `v` covers `B(v, d)`
@@ -3001,7 +3019,12 @@ private lemma uniformCrownCoverPlane_step1_close {𝒞 : Set (Set (PlacedTile P)
         ∀ v : Pt, IsVertexOf T.tiles v →
         (∃ x ∈ H, dist x v < d / 2) →
         S ⊆ support (crown T.tiles v) := by
-  sorry
+  obtain ⟨d, hd, hd_prop⟩ := uniformCrownCoverPlane_step1_close_step1_crown_covers_ball h𝒞
+  use d, hd
+  intro T hT S hS_bound hS_diam H hH v hv hx
+  have h1 := uniformCrownCoverPlane_step1_close_step2_subset_ball hS_bound hS_diam hH hx
+  have h2 := hd_prop T hT v hv
+  exact Set.Subset.trans h1 h2
 
 /-- Step 2 of the blueprint proof of `uniformCrownCoverPlane`: Otherwise `H` stays at
 distance at least `d/2` from every vertex. The structural lemma covers `H` using tiles

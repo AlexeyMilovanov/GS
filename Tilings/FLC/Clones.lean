@@ -1247,6 +1247,32 @@ private lemma coarse_simple_step2_step1 (i j : Fin D.genuineCount) (hij : i ≠ 
   obtain ⟨r', hr', hk'⟩ := coarse_simple_step2_step1_step1_mem_block D j k1 h2
   exact hij (coarse_simple_step2_step1_step2_block_unique D i j r r' k1 hr hr' hk hk')
 
+/-- Step 1 of the blueprint proof of `coarse_simple_step2_step2`: An internal
+fine endpoint has both incident fine sides in the same coarse side. -/
+private lemma coarse_simple_step2_step2_internal_endpoint_propagates
+    (i : Fin D.genuineCount) (k1 k2 : Fin D.n) (x : Pt)
+    (h1 : segment ℝ (D.vertex k1) (D.vertex (finRotate D.n k1)) ⊆
+      segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)))
+    (hx1 : x ∈ ({D.vertex k1, D.vertex (finRotate D.n k1)} : Set Pt))
+    (hx2 : x ∈ ({D.vertex k2, D.vertex (finRotate D.n k2)} : Set Pt))
+    (hk : k1 ≠ k2)
+    (hx : x ∉ ({D.coarseVertex i, D.coarseVertex (finRotate D.genuineCount i)} :
+      Set Pt)) :
+    segment ℝ (D.vertex k2) (D.vertex (finRotate D.n k2)) ⊆
+      segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `coarse_simple_step2_step2`: A nondegenerate
+fine side cannot be contained in two distinct coarse sides. -/
+private lemma coarse_simple_step2_step2_distinct_coarse_sides_no_common_fine_side
+    (i j : Fin D.genuineCount) (hij : i ≠ j) (k : Fin D.n)
+    (h1 : segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+      segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)))
+    (h2 : segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+      segment ℝ (D.coarseVertex j) (D.coarseVertex (finRotate D.genuineCount j))) :
+    False := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `coarse_simple_step2`: If `x` is a fine endpoint in both fine segments, it is a coarse endpoint. -/
 private lemma coarse_simple_step2_step2 (i j : Fin D.genuineCount) (hij : i ≠ j)
     (k1 k2 : Fin D.n) (x : Pt)
@@ -1258,7 +1284,26 @@ private lemma coarse_simple_step2_step2 (i j : Fin D.genuineCount) (hij : i ≠ 
         {D.vertex k2, D.vertex (finRotate D.n k2)}) :
     x ∈ ({D.coarseVertex i, D.coarseVertex (finRotate D.genuineCount i)} : Set Pt) ∩
         {D.coarseVertex j, D.coarseVertex (finRotate D.genuineCount j)} := by
-  sorry
+  have hk : k1 ≠ k2 := coarse_simple_step2_step1 D i j hij k1 k2 h1 h2
+  have hx1 : x ∈ ({D.vertex k1, D.vertex (finRotate D.n k1)} : Set Pt) :=
+    hx_fine.1
+  have hx2 : x ∈ ({D.vertex k2, D.vertex (finRotate D.n k2)} : Set Pt) :=
+    hx_fine.2
+  have hxi : x ∈ ({D.coarseVertex i, D.coarseVertex (finRotate D.genuineCount i)} :
+      Set Pt) := by
+    by_contra hxi
+    have h2i := coarse_simple_step2_step2_internal_endpoint_propagates D i k1 k2 x
+      h1 hx1 hx2 hk hxi
+    exact coarse_simple_step2_step2_distinct_coarse_sides_no_common_fine_side D i j hij k2
+      h2i h2
+  have hxj : x ∈ ({D.coarseVertex j, D.coarseVertex (finRotate D.genuineCount j)} :
+      Set Pt) := by
+    by_contra hxj
+    have h1j := coarse_simple_step2_step2_internal_endpoint_propagates D j k2 k1 x
+      h2 hx2 hx1 hk.symm hxj
+    exact coarse_simple_step2_step2_distinct_coarse_sides_no_common_fine_side D j i hij.symm k1
+      h1j h1
+  exact ⟨hxi, hxj⟩
 
 /-- Step 2 of the blueprint proof of `coarse_simple`: If two fine segments are contained
 in distinct coarse segments, their intersection (which is a subset of the fine segment

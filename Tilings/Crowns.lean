@@ -4897,6 +4897,88 @@ private theorem noShortExteriorExcursion_step1_excursion
   · exact hH.segment_subset hx.1 hy.1 hEx
   · exact hH.segment_subset hx.1 hy.1 hFx
 
+/-- Auxiliary lemma for `noShortExteriorExcursion_step2_classify`: a point of the
+macro frontier corresponds to a point of the root frontier under `M.map`. -/
+private lemma noShortExteriorExcursion_step2_classify_aux1 (M : MacroPatch P) (p : Pt) :
+    p ∈ frontier (P.disk M.root).carrier ↔ M.map p ∈ frontier (support M.tiles) := by
+  have hs : M.θ ^ M.j ≠ 0 := (pow_pos (lt_trans zero_lt_one M.one_lt) _).ne'
+  have hcl : closure (support M.tiles) =
+      M.offset +ᵥ (M.θ ^ M.j) • closure (P.disk M.root).carrier := by
+    rw [M.support_eq, closure_vadd, closure_smul₀ (M.θ ^ M.j) (P.disk M.root).carrier]
+  have hin : interior (support M.tiles) =
+      M.offset +ᵥ (M.θ ^ M.j) • interior (P.disk M.root).carrier := by
+    rw [M.support_eq, interior_vadd, interior_smul₀ hs]
+  have hfr : frontier (support M.tiles) =
+      M.offset +ᵥ (M.θ ^ M.j) • frontier (P.disk M.root).carrier := by
+    simp only [frontier]
+    rw [hcl, hin, ← Set.vadd_set_sdiff, ← Set.smul_set_sdiff₀ hs]
+  rw [hfr, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add,
+    Set.mem_smul_set_iff_inv_smul_mem₀ hs]
+  simp only [MacroPatch.map, neg_add_cancel_left, inv_smul_smul₀ hs]
+
+/-- Auxiliary lemma for `noShortExteriorExcursion_step2_classify`: every point of the
+macro frontier is `M.map` of a point of the root frontier. -/
+private lemma noShortExteriorExcursion_step2_classify_aux2 (M : MacroPatch P) {x : Pt}
+    (hx : x ∈ frontier (support M.tiles)) :
+    ∃ v, v ∈ frontier (P.disk M.root).carrier ∧ M.map v = x := by
+  have hs : M.θ ^ M.j ≠ 0 := (pow_pos (lt_trans zero_lt_one M.one_lt) _).ne'
+  have hmap : M.map ((M.θ ^ M.j)⁻¹ • (x - M.offset)) = x := by
+    simp only [MacroPatch.map, smul_smul, mul_inv_cancel₀ hs, one_smul]
+    abel
+  exact ⟨(M.θ ^ M.j)⁻¹ • (x - M.offset),
+    (noShortExteriorExcursion_step2_classify_aux1 M _).mpr (by rw [hmap]; exact hx), hmap⟩
+
+/-- Auxiliary lemma for `noShortExteriorExcursion_step2_classify`: `M.map` sends segments
+to segments. -/
+private lemma noShortExteriorExcursion_step2_classify_aux3 (M : MacroPatch P) {x y z : Pt}
+    (hz : z ∈ segment ℝ x y) : M.map z ∈ segment ℝ (M.map x) (M.map y) := by
+  rw [crown_mem_segment_iff] at hz ⊢
+  obtain ⟨t, ht0, ht1, rfl⟩ := hz
+  exact ⟨t, ht0, ht1, by simp only [MacroPatch.map]; module⟩
+
+/-- Auxiliary lemma for `noShortExteriorExcursion_step2_classify`: `M.map` sends open
+segments to open segments. -/
+private lemma noShortExteriorExcursion_step2_classify_aux4 (M : MacroPatch P) {x y z : Pt}
+    (hz : z ∈ openSegment ℝ x y) : M.map z ∈ openSegment ℝ (M.map x) (M.map y) := by
+  rw [crown_mem_openSegment_iff] at hz ⊢
+  obtain ⟨t, ht0, ht1, rfl⟩ := hz
+  exact ⟨t, ht0, ht1, by simp only [MacroPatch.map]; module⟩
+
+/-- Auxiliary lemma for `noShortExteriorExcursion_step2_classify`: `M.map` is injective. -/
+private lemma noShortExteriorExcursion_step2_classify_aux5 (M : MacroPatch P) :
+    Function.Injective M.map := by
+  intro x y hxy
+  have hs : M.θ ^ M.j ≠ 0 := (pow_pos (lt_trans zero_lt_one M.one_lt) _).ne'
+  apply smul_right_injective Pt hs
+  change M.offset + (M.θ ^ M.j) • x = M.offset + (M.θ ^ M.j) • y at hxy
+  exact add_left_cancel hxy
+
+/-- Auxiliary lemma for `noShortExteriorExcursion_step2_classify`: `M.map`, a positive
+homothety composed with a translation, preserves angles. -/
+private lemma noShortExteriorExcursion_step2_classify_aux6 (M : MacroPatch P) (x y z : Pt) :
+    EuclideanGeometry.angle (M.map x) (M.map y) (M.map z) = EuclideanGeometry.angle x y z := by
+  have hc : 0 < M.θ ^ M.j := pow_pos (lt_trans zero_lt_one M.one_lt) _
+  show InnerProductGeometry.angle (M.map x - M.map y) (M.map z - M.map y) =
+      InnerProductGeometry.angle (x - y) (z - y)
+  have h1 : M.map x - M.map y = (M.θ ^ M.j) • (x - y) := by
+    simp only [MacroPatch.map]; module
+  have h2 : M.map z - M.map y = (M.θ ^ M.j) • (z - y) := by
+    simp only [MacroPatch.map]; module
+  rw [h1, h2, InnerProductGeometry.angle_smul_left_of_pos _ _ hc,
+    InnerProductGeometry.angle_smul_right_of_pos _ _ hc]
+
+/-- Step 1 of the blueprint proof of `noShortExteriorExcursion_step2_classify`: if two
+geometric edges of a polygonal disk share a genuine corner `q`, and the open chord
+between a relative-interior point of each edge lies entirely outside the disk, then
+`q` is a reflex corner of the two edges (the convex wedge between them is exterior). -/
+private theorem noShortExteriorExcursion_step2_classify_step1_reflexCorner
+    (D : PolygonalDisk) {q a b v z : Pt}
+    (hqa : D.IsGeometricEdge q a) (hqb : D.IsGeometricEdge q b) (hab : a ≠ b)
+    (hv : v ∈ openSegment ℝ q a) (hz : z ∈ openSegment ℝ q b)
+    (hout : ∀ p ∈ openSegment ℝ v z, p ∉ D.carrier) :
+    D.IsReflexCorner q a b := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `noShortExteriorExcursion`: an exterior
 chord on the finite macro boundary either uses nonadjacent geometric edges or
 crosses the exterior wedge at adjacent edges.  In the latter case the common
@@ -4919,7 +5001,92 @@ private theorem noShortExteriorExcursion_step2_classify
       (q, b) ∈ geometricMacroBoundary M ∧ a ≠ b ∧
       E ∈ segment ℝ q a ∧ F ∈ segment ℝ q b ∧
       IsVertexOf M.tiles q ∧ R.μ ≤ EuclideanGeometry.angle E q F) := by
-  sorry
+  have _ := hEF
+  set D := P.disk M.root with hD
+  have hDcl : IsClosed D.carrier := D.compact.isClosed
+  obtain ⟨v', hv'F, hv'E⟩ := noShortExteriorExcursion_step2_classify_aux2 M hEfront
+  obtain ⟨z', hz'F, hz'E⟩ := noShortExteriorExcursion_step2_classify_aux2 M hFfront
+  have hv'nc : ¬ D.IsGenuineCorner v' := by
+    intro hv'
+    exact hEnv E (macrocornerIsChildVertex M ⟨v', hv', hv'E⟩) rfl
+  have hz'nc : ¬ D.IsGenuineCorner z' := by
+    intro hz'
+    exact hFnv F (macrocornerIsChildVertex M ⟨z', hz', hz'E⟩) rfl
+  obtain ⟨a, b, hab_edge, hv'ab⟩ := rcb_frontier_mem_geometricEdge D hv'F
+  obtain ⟨a', b', hab'_edge, hz'ab'⟩ := rcb_frontier_mem_geometricEdge D hz'F
+  have hv'a : v' ≠ a := by intro h; apply hv'nc; rw [h]; exact hab_edge.1
+  have hv'b : v' ≠ b := by intro h; apply hv'nc; rw [h]; exact hab_edge.2.1
+  have hz'a' : z' ≠ a' := by intro h; apply hz'nc; rw [h]; exact hab'_edge.1
+  have hz'b' : z' ≠ b' := by intro h; apply hz'nc; rw [h]; exact hab'_edge.2.1
+  have hv'o : v' ∈ openSegment ℝ a b :=
+    mem_openSegment_of_ne_left_right (Ne.symm hv'a) (Ne.symm hv'b) hv'ab
+  have hz'o : z' ∈ openSegment ℝ a' b' :=
+    mem_openSegment_of_ne_left_right (Ne.symm hz'a') (Ne.symm hz'b') hz'ab'
+  have hout_root : ∀ p ∈ openSegment ℝ v' z', p ∉ D.carrier := by
+    intro p hp hpD
+    have hpE : M.map p ∈ openSegment ℝ E F := by
+      rw [← hv'E, ← hz'E]
+      exact noShortExteriorExcursion_step2_classify_aux4 M hp
+    have hpS : M.map p ∈ support M.tiles := (rcb_mem_disk_iff M p).mp hpD
+    exact hout hpE hpS
+  by_cases hdisj : Disjoint ({a, b} : Set Pt) {a', b'}
+  · left
+    refine ⟨M.map a, M.map b, M.map a', M.map b', ⟨a, b, hab_edge, rfl⟩,
+      ⟨a', b', hab'_edge, rfl⟩, ?_, ?_, ?_⟩
+    · rw [← Set.image_pair M.map a b, ← Set.image_pair M.map a' b']
+      exact (Set.disjoint_image_iff (noShortExteriorExcursion_step2_classify_aux5 M)).mpr hdisj
+    · rw [← hv'E]; exact noShortExteriorExcursion_step2_classify_aux3 M hv'ab
+    · rw [← hz'E]; exact noShortExteriorExcursion_step2_classify_aux3 M hz'ab'
+  · right
+    rw [Set.not_disjoint_iff] at hdisj
+    obtain ⟨u, hu1, hu2⟩ := hdisj
+    simp only [mem_insert_iff, mem_singleton_iff] at hu1 hu2
+    obtain ⟨p0, hup0, hv'up0⟩ : ∃ p0, D.IsGeometricEdge u p0 ∧ v' ∈ openSegment ℝ u p0 := by
+      rcases hu1 with h | h
+      · refine ⟨b, by rw [h]; exact hab_edge, by rw [h]; exact hv'o⟩
+      · refine ⟨a, by rw [h]; exact rcb_geometricEdge_symm hab_edge,
+          by rw [h, openSegment_symm]; exact hv'o⟩
+    obtain ⟨r0, hur0, hz'ur0⟩ : ∃ r0, D.IsGeometricEdge u r0 ∧ z' ∈ openSegment ℝ u r0 := by
+      rcases hu2 with h | h
+      · refine ⟨b', by rw [h]; exact hab'_edge, by rw [h]; exact hz'o⟩
+      · refine ⟨a', by rw [h]; exact rcb_geometricEdge_symm hab'_edge,
+          by rw [h, openSegment_symm]; exact hz'o⟩
+    by_cases hpr : p0 = r0
+    · exfalso
+      subst hpr
+      have hmidopen : v' + (1 / 2 : ℝ) • (z' - v') ∈ openSegment ℝ v' z' :=
+        crown_mem_openSegment_iff.mpr ⟨1 / 2, by norm_num, by norm_num, rfl⟩
+      have hmidseg : v' + (1 / 2 : ℝ) • (z' - v') ∈ segment ℝ u p0 := by
+        apply (convex_segment u p0).segment_subset
+          (openSegment_subset_segment ℝ u p0 hv'up0)
+          (openSegment_subset_segment ℝ u p0 hz'ur0)
+        exact crown_mem_segment_iff.mpr ⟨1 / 2, by norm_num, by norm_num, rfl⟩
+      have hmidcarrier : v' + (1 / 2 : ℝ) • (z' - v') ∈ D.carrier :=
+        (hup0.2.2.2.trans hDcl.frontier_subset) hmidseg
+      exact hout_root _ hmidopen hmidcarrier
+    · have hrefl : D.IsReflexCorner u p0 r0 :=
+        noShortExteriorExcursion_step2_classify_step1_reflexCorner D hup0 hur0 hpr hv'up0
+          hz'ur0 hout_root
+      have hμ : R.μ ≤ EuclideanGeometry.angle p0 u r0 := R.μ_le_reflex M.root u p0 r0 hrefl
+      obtain ⟨t1, ht10, ht11, hv'eq⟩ := crown_mem_openSegment_iff.mp hv'up0
+      obtain ⟨t2, ht20, ht21, hz'eq⟩ := crown_mem_openSegment_iff.mp hz'ur0
+      have hang : R.μ ≤ EuclideanGeometry.angle v' u z' := by
+        show R.μ ≤ InnerProductGeometry.angle (v' - u) (z' - u)
+        rw [hv'eq, hz'eq, add_sub_cancel_left, add_sub_cancel_left,
+          InnerProductGeometry.angle_smul_left_of_pos _ _ ht10,
+          InnerProductGeometry.angle_smul_right_of_pos _ _ ht20]
+        exact hμ
+      refine ⟨M.map u, M.map p0, M.map r0, ⟨u, p0, hup0, rfl⟩, ⟨u, r0, hur0, rfl⟩,
+        fun h => hpr (noShortExteriorExcursion_step2_classify_aux5 M h), ?_, ?_,
+        macrocornerIsChildVertex M ⟨u, hup0.1, rfl⟩, ?_⟩
+      · rw [← hv'E]
+        exact noShortExteriorExcursion_step2_classify_aux3 M
+          (openSegment_subset_segment ℝ u p0 hv'up0)
+      · rw [← hz'E]
+        exact noShortExteriorExcursion_step2_classify_aux3 M
+          (openSegment_subset_segment ℝ u r0 hz'ur0)
+      · rw [← hv'E, ← hz'E, noShortExteriorExcursion_step2_classify_aux6]
+        exact hang
 
 /-- Step 3 of the blueprint proof of `noShortExteriorExcursion`: points on
 nonadjacent macro edges are separated by the root constant `λ`. -/

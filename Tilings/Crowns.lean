@@ -5131,13 +5131,84 @@ private lemma pointedFLCOfFLC_step1_choose_finite_patches (P : Protoset) (τ : S
   choose f hf using key
   exact ⟨f, hf⟩
 
+private lemma pointedFLCOfFLC_step2_finite_centres_translate_vertex_iff
+  (A : PlacedTile P) (v x : Pt) :
+    x ∈ (A.translate v).vertexSet ↔ x - v ∈ A.vertexSet := by
+  dsimp [PlacedTile.vertexSet, PlacedTile.vertex, PlacedTile.translate]
+  constructor
+  · rintro ⟨i, hi⟩
+    refine ⟨i, ?_⟩
+    simp only [PlacedTile.vertex, vadd_eq_add] at hi ⊢
+    change A.anchor + (P.disk A.form).vertex i = x - v
+    calc
+      A.anchor + (P.disk A.form).vertex i = -v +
+          (v + A.anchor + (P.disk A.form).vertex i) := by abel
+      _ = -v + x := by rw [hi]
+      _ = x - v := by abel
+  · rintro ⟨i, hi⟩
+    refine ⟨i, ?_⟩
+    simp only [PlacedTile.vertex, vadd_eq_add] at hi ⊢
+    change A.anchor + (P.disk A.form).vertex i = x - v at hi
+    calc
+      v + A.anchor + (P.disk A.form).vertex i =
+          v + (A.anchor + (P.disk A.form).vertex i) := by abel
+      _ = v + (x - v) := by rw [hi]
+      _ = x := by abel
+
 /-- Step 2 of the blueprint proof of `pointedFLCOfFLC`:
 A crown centre is a listed vertex of at least one of its tiles, so each chosen patch has only finitely many possible centres. -/
 private lemma pointedFLCOfFLC_step2_finite_centres (P : Protoset) (τ : Substitution P)
   (h : UnpointedFLC τ) (f : Set (PlacedTile P) → Pt)
   (hf : ∀ K ∈ {K | τ.IsAllowedCrown K}, ∃ K' ∈ Classical.choose h, K = translateSet (f K) K') :
   ∀ K' ∈ Classical.choose h, {u | ∃ K ∈ {K | τ.IsAllowedCrown K}, f K = u ∧ K = translateSet u K'}.Finite := by
-  sorry
+  intro K' hK'
+  have _ := h
+  have _ := hf
+  have _ := hK'
+  by_cases hnonempty :
+      {u | ∃ K ∈ {K | τ.IsAllowedCrown K}, f K = u ∧ K = translateSet u K'}.Nonempty
+  · obtain ⟨u₀, K₀, hK₀, hfu₀, hK₀_eq⟩ := hnonempty
+    have hK₀fin : K₀.Finite := by
+      rcases hK₀ with ⟨n, p, w, hw, rfl⟩
+      apply Set.Finite.image
+      exact (supertile_finite τ n p).subset (fun A hA => hA.1)
+    have hK'fin : K'.Finite := by
+      rw [← gap_translateSet_neg K' (-u₀)]
+      simp only [neg_neg]
+      rw [← hK₀_eq]
+      exact hK₀fin.image _
+    have hfin : {u : Pt | ∃ B ∈ K', -u ∈ B.vertexSet}.Finite := by
+      apply Set.Finite.subset
+        (Set.Finite.biUnion hK'fin (fun B _ =>
+          (Set.finite_range B.vertex).image (fun v : Pt => -v)))
+      intro u hu
+      rcases hu with ⟨B, hB, huB⟩
+      refine Set.mem_iUnion.mpr ⟨B, Set.mem_iUnion.mpr ⟨hB, ?_⟩⟩
+      exact ⟨-u, huB, by simp⟩
+    apply hfin.subset
+    intro u hu
+    rcases hu with ⟨K, hK, hfu, hK_eq⟩
+    rcases hK with ⟨n, p, w, hw, rfl⟩
+    rcases hw with ⟨A, hA, hwA⟩
+    have hAw : w ∈ A.carrier := gap_vertex_mem_carrier A hwA
+    have hAcrown : A ∈ crown (τ.supertile n p) w := ⟨hA, hAw⟩
+    have hA0 : 0 ∈ (A.translate (-w)).vertexSet := by
+      exact (pointedFLCOfFLC_step2_finite_centres_translate_vertex_iff A (-w) 0).mpr
+        (by simpa using hwA)
+    have hA_mem : A.translate (-w) ∈ translateSet (-w)
+        (crown (τ.supertile n p) w) := ⟨A, hAcrown, rfl⟩
+    rw [hK_eq] at hA_mem
+    rcases hA_mem with ⟨B, hB, hBA⟩
+    refine ⟨B, hB, ?_⟩
+    have hBA' : B.translate u = A.translate (-w) := hBA
+    have hB0 : 0 ∈ (B.translate u).vertexSet := by
+      rw [hBA']
+      exact hA0
+    have hBu :=
+      (pointedFLCOfFLC_step2_finite_centres_translate_vertex_iff B u 0).mp hB0
+    simpa using hBu
+  · rw [Set.not_nonempty_iff_eq_empty.mp hnonempty]
+    exact Set.finite_empty
 
 /-- `lem:pointed-flc`: finitely many unpointed translation classes of allowed
 crowns give finitely many pointed ones. -/

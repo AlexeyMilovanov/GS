@@ -3347,6 +3347,28 @@ private lemma fingerprintSeparation_step1_size (F : FingerprintData) (K0 : ℕ)
     linarith [h_small_ge u hu]
   omega
 
+/-- Step 1 of the blueprint proof of `fingerprintSeparation_step2_templates`: A possible
+fingerprint of `t` (noncentral) is its base fingerprint plus some elements, bounded
+differently if original or small. -/
+private lemma fingerprintSeparation_step2_templates_step1_X (F : FingerprintData) :
+    ∀ t f, F.kind t ≠ .central → f ∈ F.possibleFingerprints t →
+    ∃ X : Multiset F.Tag, (F.kind t = .small → Multiset.card X ≤ 2) ∧ (F.kind t = .original → X = 0) ∧ f = F.baseFingerprint t + X := sorry
+
+/-- Step 2 of the blueprint proof of `fingerprintSeparation_step2_templates`: The base
+fingerprint of `u` contains no elements from the template of `t` if they have different
+templates. -/
+private lemma fingerprintSeparation_step2_templates_step2_count (F : FingerprintData)
+    [DecidableEq F.Tmpl]
+    (h_tmpl : ∀ t, ∀ v ∈ F.ordinary t, F.template v = F.template t) :
+    ∀ t u, F.template t ≠ F.template u → Multiset.countP (fun v => F.template v = F.template t) (F.baseFingerprint u) = 0 := sorry
+
+/-- Step 3 of the blueprint proof of `fingerprintSeparation_step2_templates`: The base
+fingerprint of `t` contains 2 * card (F.ordinary t) elements from its own template. -/
+private lemma fingerprintSeparation_step2_templates_step3_count_self (F : FingerprintData)
+    [DecidableEq F.Tmpl]
+    (h_tmpl : ∀ t, ∀ v ∈ F.ordinary t, F.template v = F.template t) :
+    ∀ t, Multiset.countP (fun v => F.template v = F.template t) (F.baseFingerprint t) = 2 * Multiset.card (F.ordinary t) := sorry
+
 /-- Step 2 of the blueprint proof of `fingerprintSeparation`: Types in different
 templates have disjoint possible fingerprints. -/
 private lemma fingerprintSeparation_step2_templates (F : FingerprintData)
@@ -3354,7 +3376,83 @@ private lemma fingerprintSeparation_step2_templates (F : FingerprintData)
     (h_orig_ne : ∀ u, F.kind u = .original → F.ordinary u ≠ 0)
     (h_small_ge : ∀ t, F.kind t = .small → 2 ≤ Multiset.card (F.ordinary t)) :
     ∀ t u, F.kind t ≠ .central → F.kind u ≠ .central → F.template t ≠ F.template u →
-    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := sorry
+    Disjoint (F.possibleFingerprints t) (F.possibleFingerprints u) := by
+  intro t u ht hu htu
+  rw [Set.disjoint_iff]
+  rintro f ⟨hft, hfu⟩
+  have hf_t := fingerprintSeparation_step2_templates_step1_X F t f ht hft
+  have hf_u := fingerprintSeparation_step2_templates_step1_X F u f hu hfu
+  rcases hf_t with ⟨X, hX_cond, hX_zero, hf_t_eq⟩
+  rcases hf_u with ⟨Y, hY_cond, hY_zero, hf_u_eq⟩
+  
+  letI : DecidableEq F.Tmpl := Classical.decEq F.Tmpl
+
+  have hf_count_t : Multiset.countP (fun v => F.template v = F.template t) f =
+      2 * Multiset.card (F.ordinary t) +
+        Multiset.countP (fun v => F.template v = F.template t) X := by
+    rw [hf_t_eq, Multiset.countP_add]
+    have h1 := fingerprintSeparation_step2_templates_step3_count_self F h_tmpl t
+    rw [h1]
+
+  have hf_count_u : Multiset.countP (fun v => F.template v = F.template t) f = Multiset.countP (fun v => F.template v = F.template t) Y := by
+    rw [hf_u_eq, Multiset.countP_add]
+    have h1 := fingerprintSeparation_step2_templates_step2_count F h_tmpl t u htu
+    rw [h1, zero_add]
+
+  have h_eq : 2 * Multiset.card (F.ordinary t) +
+        Multiset.countP (fun v => F.template v = F.template t) X =
+      Multiset.countP (fun v => F.template v = F.template t) Y := by
+    rw [← hf_count_t, hf_count_u]
+
+  have h_Y_le : Multiset.countP (fun v => F.template v = F.template t) Y ≤ 2 := by
+    have h1 : Multiset.countP (fun v => F.template v = F.template t) Y ≤ Multiset.card Y := Multiset.countP_le_card _ _
+    rcases hku : F.kind u with _ | _ | _
+    · have hY_eq_0 := hY_zero hku
+      rw [hY_eq_0, Multiset.countP_zero]
+      exact Nat.zero_le 2
+    · have hY_le_2 := hY_cond hku
+      linarith
+    · contradiction
+
+  rcases hkt : F.kind t with _ | _ | _
+  · have h_ne : F.ordinary t ≠ 0 := h_orig_ne t hkt
+    have h_pos : 1 ≤ Multiset.card (F.ordinary t) := Multiset.card_pos.mpr h_ne
+    
+    have hf_count_u_u : Multiset.countP (fun v => F.template v = F.template u) f = Multiset.countP (fun v => F.template v = F.template u) X := by
+      rw [hf_t_eq, Multiset.countP_add]
+      have h1 : Multiset.countP (fun v => F.template v = F.template u) (F.baseFingerprint t) = 0 := by
+        apply fingerprintSeparation_step2_templates_step2_count F h_tmpl u t htu.symm
+      rw [h1, zero_add]
+      
+    have hf_count_u_u2 : Multiset.countP (fun v => F.template v = F.template u) f =
+        2 * Multiset.card (F.ordinary u) +
+          Multiset.countP (fun v => F.template v = F.template u) Y := by
+      rw [hf_u_eq, Multiset.countP_add]
+      have h1 := fingerprintSeparation_step2_templates_step3_count_self F h_tmpl u
+      rw [h1]
+
+    have h_eq2 : Multiset.countP (fun v => F.template v = F.template u) X =
+        2 * Multiset.card (F.ordinary u) +
+          Multiset.countP (fun v => F.template v = F.template u) Y := by
+      rw [← hf_count_u_u, hf_count_u_u2]
+
+    have hX_eq_0 := hX_zero hkt
+    rw [hX_eq_0, Multiset.countP_zero] at h_eq2
+    
+    rcases hku : F.kind u with _ | _ | _
+    · have h_ne_u : F.ordinary u ≠ 0 := h_orig_ne u hku
+      have h_pos_u : 1 ≤ Multiset.card (F.ordinary u) := Multiset.card_pos.mpr h_ne_u
+      have h_non_neg_Y : 0 ≤ Multiset.countP (fun v => F.template v = F.template u) Y := Nat.zero_le _
+      linarith
+    · have h_ge2_u : 2 ≤ Multiset.card (F.ordinary u) := h_small_ge u hku
+      have h_non_neg_Y : 0 ≤ Multiset.countP (fun v => F.template v = F.template u) Y := Nat.zero_le _
+      linarith
+    · contradiction
+    
+  · have h_ge2 : 2 ≤ Multiset.card (F.ordinary t) := h_small_ge t hkt
+    have h_non_neg : 0 ≤ Multiset.countP (fun v => F.template v = F.template t) X := Nat.zero_le _
+    linarith
+  · contradiction
 
 /-- Step 3 of the blueprint proof of `fingerprintSeparation`: Two original types
 in the same template cannot have equal fingerprints. -/

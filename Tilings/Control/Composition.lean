@@ -267,12 +267,97 @@ private lemma headerLegal_properties_step1_parent (c : MacroCertificate P) (hH :
     ∃ C, headerLegal c C ∧ IsChildOf c C A := by
   sorry
 
+/-- Auxiliary step for `headerLegal_properties_step2_normal_id_step1_normal`: the print
+relation transports along an equality of owner forms. -/
+private lemma headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print
+    (c : MacroCertificate P) {F1 F2 : c.Q.Form} (heq : F1 = F2)
+    (d : Fin (c.Q.disk F1).n) (o : c.SideOcc) :
+    c.IsPrintOf F1 d o ↔
+      c.IsPrintOf F2 (cast (congrArg (fun F => Fin (c.Q.disk F).n) heq) d) o := by
+  subst heq
+  rfl
+
+/-- Auxiliary step for `headerLegal_properties_step2_normal_id_step1_normal`: every side
+occurrence listed on a path (genuine or trivial) is marked. -/
+private lemma headerLegal_properties_step2_normal_id_step1_normal_aux_path_marked
+    (c : MacroCertificate P) {α : c.Q.Form} {d : Fin (c.Q.disk α).n} {j : Fin 5}
+    {o : c.SideOcc} (ho : o ∈ c.path α d j) : c.IsMarked o := by
+  by_cases hg : c.IsGenuinePath α d j
+  · exact c.g4_path_marked α d j hg o ho
+  · rw [c.g4_path_trivial α d j hg, Option.mem_toList] at ho
+    have hmem : o ∈ c.outerList α d := List.mem_iff_getElem?.mpr ⟨_, ho⟩
+    exact c.g7_marking o (Or.inl ((c.g3_outerList_mem α d o).1 hmem).2.1)
+
 /-- Step 1 of the blueprint proof of `headerLegal_properties_step2_normal_id`:
 a legal tile is normal. -/
 private lemma headerLegal_properties_step2_normal_id_step1_normal (c : MacroCertificate P)
     (A : DecTile c) (C : DecTile c) (h : IsChildOf c C A) :
     IsNormal c A := by
-  sorry
+  intro i k hLoc
+  by_cases hp : c.IsPrint (c.occ A.typ i)
+  · have hmarked : c.IsMarked (c.occ A.typ i) :=
+      c.g7_marking _ (Or.inr (Or.inr (Or.inl hp)))
+    have hk4 : k = 4 := by
+      rcases hLoc with h1 | h2 | h3
+      · exact absurd hmarked h1
+      · exact h2.2.2
+      · exact absurd hp h3.2.1.2
+    subst hk4
+    have hpres : prescribedCell c (c.occ A.typ i) 4 = identU c (c.edge (c.occ A.typ i)) := by
+      unfold prescribedCell
+      simp [hp]
+    obtain ⟨d0, hd0⟩ := hp
+    have hd : c.IsPrintOf (c.form C.typ)
+        (cast (congrArg (fun F => Fin (c.Q.disk F).n) h.1) d0) (c.occ A.typ i) :=
+      (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print c h.1 d0
+        (c.occ A.typ i)).1 hd0
+    have hcl := ((h.2 i).1 _ hd).2
+    show A.cell i 4 = prescribedCell c (c.occ A.typ i) 4
+    rw [hpres]
+    exact hcl
+  · have hnc := (h.2 i).2 hp
+    have h0 := hnc.1
+    have h1 := hnc.2.1
+    have h4 := hnc.2.2.1
+    have hpath := hnc.2.2.2.1
+    have hnopath := hnc.2.2.2.2.1
+    have houter := hnc.2.2.2.2.2.1
+    have hbdry := hnc.2.2.2.2.2.2.1
+    have hinner := hnc.2.2.2.2.2.2.2
+    fin_cases k
+    · show A.cell i 0 = prescribedCell c (c.occ A.typ i) 0
+      simpa [prescribedCell] using h0
+    · show A.cell i 1 = prescribedCell c (c.occ A.typ i) 1
+      simpa [prescribedCell] using h1
+    · show A.cell i 2 = prescribedCell c (c.occ A.typ i) 2
+      have hum : ¬ c.IsMarked (c.occ A.typ i) := by
+        rcases hLoc with h' | h' | h'
+        · exact h'
+        · exact absurd h'.2.2 (by decide)
+        · rcases h'.2.2 with h2 | h2
+          · exact absurd h2 (by decide)
+          · exact absurd h2 (by decide)
+      have hnp : ∀ (d : c.Side C.typ) (j : Fin 5), c.occ A.typ i ∉ c.path (c.form C.typ) d j :=
+        fun d j hin => hum
+          (headerLegal_properties_step2_normal_id_step1_normal_aux_path_marked c hin)
+      simpa [prescribedCell] using hnopath hnp
+    · show A.cell i 3 = prescribedCell c (c.occ A.typ i) 3
+      have hum : ¬ c.IsMarked (c.occ A.typ i) := by
+        rcases hLoc with h' | h' | h'
+        · exact h'
+        · exact absurd h'.2.2 (by decide)
+        · rcases h'.2.2 with h2 | h2
+          · exact absurd h2 (by decide)
+          · exact absurd h2 (by decide)
+      have hNotOuter : ¬ c.IsOuter (c.occ A.typ i) :=
+        fun hout => hum (c.g7_marking _ (Or.inl hout))
+      have hin : c.IsInner (c.occ A.typ i) := hNotOuter
+      have hNotBdry : ¬ c.IsBoundary (c.occ A.typ i) :=
+        fun hb => hum (c.g7_marking _ (Or.inr (Or.inl hb)))
+      have := hinner hin hNotBdry
+      simpa [prescribedCell, hin, hNotBdry, hp] using this
+    · show A.cell i 4 = prescribedCell c (c.occ A.typ i) 4
+      simpa [prescribedCell, hp] using h4
 
 /-- Step 2 of the blueprint proof of `headerLegal_properties_step2_normal_id`:
 a legal tile is identity-correct. -/

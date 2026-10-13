@@ -3025,6 +3025,67 @@ section AllowedHierarchy
 
 open Substitution Crowns
 
+/-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
+There exists an `ε > 0` bounding the diameter for uniform crown covers. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step1_epsilon
+    (τ : Substitution P) (hflc : τ.FLC) :
+    ∃ ε : ℝ, 0 < ε ∧
+      ∀ T : PlaneTiling P,
+        (∀ v, IsVertexOf T.tiles v → τ.IsAllowedCrown (translateSet (-v) (crown T.tiles v))) →
+        ∀ S : Set Pt, Bornology.IsBounded S → Metric.diam S < ε →
+          ∃ v, IsVertexOf T.tiles v ∧ S ⊆ support (crown T.tiles v) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
+Since the patch `F` is finite, its support is bounded and has a finite diameter.
+Thus we can choose an integer `k` such that `θ^{-km} * diam(support F) < ε`. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step2_k
+    (τ : Substitution P) (ε : ℝ) (hε : 0 < ε)
+    (F : Set (PlacedTile P)) (hF_fin : F.Finite) (m : ℕ) :
+    ∃ k : ℕ, (τ.θ ^ (k * m))⁻¹ * Metric.diam (support F) < ε := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
+By the choice of `k`, the inverse-scaled support of `F` is covered by a crown `C` of `seq k`
+(playing the role of `T_{km}`). -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover
+    (τ : Substitution P) (m : ℕ) (seq : ℕ → PlaneTiling P)
+    (hcrown : ∀ k (w : Pt), IsVertexOf (seq k).tiles w →
+      τ.IsAllowedCrown (translateSet (-w) (crown (seq k).tiles w)))
+    (F : Set (PlacedTile P)) (k : ℕ)
+    (ε : ℝ) (h_cover : ∀ T : PlaneTiling P,
+        (∀ v, IsVertexOf T.tiles v → τ.IsAllowedCrown (translateSet (-v) (crown T.tiles v))) →
+        ∀ S : Set Pt, Bornology.IsBounded S → Metric.diam S < ε →
+          ∃ v, IsVertexOf T.tiles v ∧ S ⊆ support (crown T.tiles v))
+    (hk : (τ.θ ^ (k * m))⁻¹ * Metric.diam (support F) < ε)
+    (hF_fin : F.Finite) :
+    ∃ w : Pt, IsVertexOf (seq k).tiles w ∧
+      (fun x => (τ.θ ^ (k * m))⁻¹ • x) '' support F ⊆ support (crown (seq k).tiles w) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
+Because the inverse-scaled support of `F` is covered by a crown of `seq k`,
+the actual support of `F` is covered by the support of the descendant patch `τ^{km} C`. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
+    (τ : Substitution P) (m : ℕ) (hm : 0 < m) (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ k, (τ.pow m hm).IsComposition (seq (k + 1)) (seq k))
+    (F : Set (PlacedTile P)) (hF : F ⊆ (seq 0).tiles) (k : ℕ)
+    (w : Pt) (hw : IsVertexOf (seq k).tiles w)
+    (h_cover : (fun x => (τ.θ ^ (k * m))⁻¹ • x) '' support F ⊆ support (crown (seq k).tiles w)) :
+    support F ⊆ support (τ.decomposeIter (k * m) (crown (seq k).tiles w)) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
+Coverage by the descendants and disjoint interiors give actual tile inclusion,
+not only support inclusion, by Lemma `lem:covered-tile-belongs`. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile
+    (τ : Substitution P) (m : ℕ) (seq : ℕ → PlaneTiling P)
+    (F : Set (PlacedTile P)) (hF : F ⊆ (seq 0).tiles) (hF_fin : F.Finite)
+    (k : ℕ) (w : Pt) (hw : IsVertexOf (seq k).tiles w)
+    (h_supp : support F ⊆ support (τ.decomposeIter (k * m) (crown (seq k).tiles w))) :
+    F ⊆ τ.decomposeIter (k * m) (crown (seq k).tiles w) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive`:
 Given a finite patch $F\subset T$, choose $k$ with $\theta^{-km}\operatorname{diam}|F|<\varepsilon$.
 The inverse-scaled support is covered by a crown $C$ of $T_{km}$.
@@ -3040,7 +3101,18 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius
     (F : Set (PlacedTile P)) (hF : F ⊆ (seq 0).tiles) (hF_fin : F.Finite) :
     ∃ k : ℕ, ∃ w : Pt, IsVertexOf (seq k).tiles w ∧
       F ⊆ τ.decomposeIter (k * m) (crown (seq k).tiles w) := by
-  sorry
+  obtain ⟨ε, hε_pos, h_cover⟩ :=
+    allowed_crowns_hierarchy_is_substitutive_step1_radius_step1_epsilon τ hflc
+  obtain ⟨k, hk⟩ :=
+    allowed_crowns_hierarchy_is_substitutive_step1_radius_step2_k τ ε hε_pos F hF_fin m
+  obtain ⟨w, hw, h_cover_w⟩ :=
+    allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover τ m seq hcrown F k ε h_cover
+      hk hF_fin
+  have h_supp := allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp τ m hm seq
+    hseq F hF k w hw h_cover_w
+  have h_inc := allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile τ m seq
+    F hF hF_fin k w hw h_supp
+  exact ⟨k, w, hw, h_inc⟩
 
 /-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive`:
 The allowed crown $C$ occurs in some supertile $S$. Thus $F \subset \tau^{km}S$,

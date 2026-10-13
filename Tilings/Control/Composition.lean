@@ -1419,7 +1419,8 @@ private lemma reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint (c 
 /-- Step 2.1 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect_step2_print`: For a print, its fifth cell is local. -/
 private lemma reconstructed_header_eq_isIdentityCorrect_step2_print_step1_isLocal (c : MacroCertificate P) (o : c.SideOcc) (hPrint : c.IsPrint o) :
     IsLocal c o 4 := by
-  sorry
+  have _ := hPrint
+  exact asm_isLocal_four c o
 
 /-- Step 2.2 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect_step2_print`:
 For a print, its fifth prescribed cell is the exact interface identity. -/

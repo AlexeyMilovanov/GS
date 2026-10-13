@@ -1406,6 +1406,47 @@ private lemma reconstructed_header_eq_isNormal (c : MacroCertificate P) (hH : c.
   rw [← hCol]
   exact hPres
 
+/-- Step 1 of the blueprint proof of
+`reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint`: the first port of a parent
+side `i` of type `h.1` is an outer child side owned by the block `K`, hence (not being the
+central child of `K.α`) legal. -/
+private lemma reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint_step1_port
+    (c : MacroCertificate P) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (i : c.Side h.1) :
+    ∃ o : c.SideOcc, c.port (c.form h.1) i 0 = some o ∧ headerLegal c (K.tileOf o.1) := by
+  have h5 := c.g3_five_le (c.form h.1) i
+  have hidx : MacroData.portRank (c.outerList (c.form h.1) i).length 0 - 1 <
+      (c.outerList (c.form h.1) i).length := by
+    unfold MacroData.portRank
+    omega
+  obtain ⟨o, ho⟩ : ∃ o : c.SideOcc, (c.outerList (c.form h.1) i)[MacroData.portRank
+      (c.outerList (c.form h.1) i).length 0 - 1] = o := ⟨_, rfl⟩
+  refine ⟨o, ?_, ?_⟩
+  · show (c.outerList (c.form h.1) i)[MacroData.portRank
+      (c.outerList (c.form h.1) i).length 0 - 1]? = some o
+    rw [List.getElem?_eq_some_iff]
+    exact ⟨hidx, ho⟩
+  · have hmem : o ∈ c.outerList (c.form h.1) i := ho ▸ List.getElem_mem hidx
+    obtain ⟨hown, hout, _⟩ := (c.g3_outerList_mem (c.form h.1) i o).1 hmem
+    have hown' : c.owner o.1 = K.α := hown.trans hh.1
+    obtain ⟨t, j⟩ := o
+    refine hK.2 t hown' ?_
+    rintro rfl
+    exact (c.g2_central K.α j).1 hout
+
+/-- Step 2 of the blueprint proof of
+`reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint`: for an inner nonprint side
+`i` of type `h.1`, a legal parent of the first-port tile found in step 1 has `h.1` as the type
+of that port owner's template, so the child clauses of the repaired substitution force the
+port's third cell to carry forward the prescribed identity of `i`. -/
+private lemma reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint_step2_value
+    (c : MacroCertificate P) (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (i : c.Side h.1)
+    (hInner : c.IsInner (c.occ h.1 i)) (hNonprint : ¬ c.IsPrint (c.occ h.1 i))
+    (o : c.SideOcc) (ho : c.port (c.form h.1) i 0 = some o) (hLeg : headerLegal c (K.tileOf o.1)) :
+    K.col o.1 o.2 2 = identU c (c.edge (c.occ h.1 i)) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect`: For an inner
 nonprint side `d`, the first cell of `D` is its prescribed identity. -/
 private lemma reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint (c : MacroCertificate P) (hH : c.Hereditary)
@@ -1413,7 +1454,13 @@ private lemma reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint (c 
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (i : c.Side h.1)
     (hInner : c.IsInner (c.occ h.1 i)) (hNonprint : ¬ c.IsPrint (c.occ h.1 i)) :
     (reconstruct c K h.1).cell i 0 = identU c (c.edge (c.occ h.1 i)) := by
-  sorry
+  obtain ⟨o, ho, hLeg⟩ :=
+    reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint_step1_port c K hK h hh i
+  have hval := reconstructed_header_eq_isIdentityCorrect_step1_inner_nonprint_step2_value
+    c hH K hK h hh i hInner hNonprint o ho hLeg
+  change (match c.port (c.form h.1) i 0 with | some o => K.col o.1 o.2 2 | none => 0) = _
+  rw [ho]
+  exact hval
 
 
 /-- Step 2.1 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect_step2_print`: For a print, its fifth cell is local. -/

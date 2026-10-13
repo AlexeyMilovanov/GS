@@ -704,6 +704,27 @@ private lemma refinedSubstitution_sts_step1_visible_vertices (h : τ.FLC)
     A.vertexSet ∩ (A.side i ∩ B.side j) = B.vertexSet ∩ (A.side i ∩ B.side j) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `refinedSubstitution_sts_step2_sides_eq`: the side endpoint intersections with the overlapping segments are equal. -/
+private lemma refinedSubstitution_sts_step2_sides_eq_step1_inter_eq (h : τ.FLC)
+    (A B : PlacedTile (cloneProtoset τ h))
+    (i : Fin ((cloneProtoset τ h).disk A.form).n)
+    (j : Fin ((cloneProtoset τ h).disk B.form).n)
+    (h_same_verts : A.vertexSet ∩ (A.side i ∩ B.side j) = B.vertexSet ∩ (A.side i ∩ B.side j)) :
+    {A.vertex i, A.vertex (finRotate _ i)} ∩ B.side j = {B.vertex j, B.vertex (finRotate _ j)} ∩ A.side i := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `refinedSubstitution_sts_step2_sides_eq`: if the side
+endpoint intersections with the overlapping segments are equal, and the segments overlap with
+positive length, then the segments are identical. -/
+private lemma refinedSubstitution_sts_step2_sides_eq_step2_segment_eq (h : τ.FLC)
+    (A B : PlacedTile (cloneProtoset τ h))
+    (i : Fin ((cloneProtoset τ h).disk A.form).n)
+    (j : Fin ((cloneProtoset τ h).disk B.form).n)
+    (h_overlap : OverlapPos (A.side i) (B.side j))
+    (h_inter_eq : {A.vertex i, A.vertex (finRotate _ i)} ∩ B.side j = {B.vertex j, B.vertex (finRotate _ j)} ∩ A.side i) :
+    A.side i = B.side j := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `refinedSubstitution_sts`: Since the resulting
 subdivision agrees on both sides (the sets of listed vertices on the intersection are
 the same), overlapping sides must be exactly equal, proving clone-supertiles STS. -/
@@ -714,7 +735,8 @@ private lemma refinedSubstitution_sts_step2_sides_eq (h : τ.FLC)
     (h_overlap : OverlapPos (A.side i) (B.side j))
     (h_same_verts : A.vertexSet ∩ (A.side i ∩ B.side j) = B.vertexSet ∩ (A.side i ∩ B.side j)) :
     A.side i = B.side j := by
-  sorry
+  exact refinedSubstitution_sts_step2_sides_eq_step2_segment_eq τ h A B i j h_overlap
+    (refinedSubstitution_sts_step2_sides_eq_step1_inter_eq τ h A B i j h_same_verts)
 
 /-- `lem:clone-sts`: the clone substitution has STS. -/
 theorem refinedSubstitution_sts (h : τ.FLC) : (refinedSubstitution τ h).STS := by

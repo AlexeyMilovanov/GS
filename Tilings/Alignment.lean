@@ -401,11 +401,32 @@ private lemma whole_side_ports_distinct_step3_rank_step1_finite (τ : Substituti
     (a : Fin (G.P'.disk A).n) : (sidesInside τ G m A a).Finite := by
   sorry
 
+/-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step2_inj`: the interiors of distinct inside sides are disjoint. -/
+private lemma whole_side_ports_distinct_step3_rank_step2_inj_step1_disjoint (τ : Substitution P)
+    (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) (e1 e2 : Pt × Pt)
+    (h1 : e1 ∈ sidesInside τ G m A a) (h2 : e2 ∈ sidesInside τ G m A a)
+    (hne : e1 ≠ e2) : Disjoint (openSegment ℝ e1.1 e1.2) (openSegment ℝ e2.1 e2.2) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step2_inj`: sides with disjoint interiors have distinct sideKeys. -/
+private lemma whole_side_ports_distinct_step3_rank_step2_inj_step2_key_ne (τ : Substitution P)
+    (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
+    (a : Fin (G.P'.disk A).n) (e1 e2 : Pt × Pt)
+    (h1 : e1 ∈ sidesInside τ G m A a) (h2 : e2 ∈ sidesInside τ G m A a)
+    (hdisj : Disjoint (openSegment ℝ e1.1 e1.2) (openSegment ℝ e2.1 e2.2)) :
+    sideKey (parentDir τ G m A a) e1 ≠ sideKey (parentDir τ G m A a) e2 := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: `sideKey` is injective on the inside sides. -/
 private lemma whole_side_ports_distinct_step3_rank_step2_inj (τ : Substitution P)
     (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
     (a : Fin (G.P'.disk A).n) : (sidesInside τ G m A a).InjOn (sideKey (parentDir τ G m A a)) := by
-  sorry
+  intro e1 h1 e2 h2 heq
+  by_contra hne
+  have hdisj := whole_side_ports_distinct_step3_rank_step2_inj_step1_disjoint τ G m A a e1 e2 h1 h2 hne
+  have hkey := whole_side_ports_distinct_step3_rank_step2_inj_step2_key_ne τ G m A a e1 e2 h1 h2 hdisj
+  exact hkey heq
 
 /-- Step 3 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: an abstract lemma showing that any rank is attained. -/
 private lemma whole_side_ports_distinct_step3_rank_step3_exists (X : Set (Pt × Pt))

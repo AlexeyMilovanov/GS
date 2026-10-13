@@ -4848,6 +4848,32 @@ theorem trimmedEdgeTwoTileBall {d : ℝ} (hd : 0 < d) :
 
 /-! ## `lem:exterior-excursion` -/
 
+/-- Step 1 of the blueprint proof of `noShortExteriorExcursion_step1_excursion`:
+failure of convexity supplies a segment with endpoints in the set and an open
+interior point outside it. -/
+private lemma noShortExteriorExcursion_step1_excursion_step1_witness
+    {S : Set Pt} (hS : ¬ Convex ℝ S) :
+    ∃ x y z : Pt, x ∈ S ∧ y ∈ S ∧ z ∈ openSegment ℝ x y ∧ z ∉ S := by
+  rw [convex_iff_segment_subset] at hS
+  push_neg at hS
+  obtain ⟨x, hx, y, hy, hseg⟩ := hS
+  rw [not_subset] at hseg
+  obtain ⟨z, hz, hznot⟩ := hseg
+  exact ⟨x, y, z, hx, hy,
+    mem_openSegment_of_ne_left_right (by aesop) (by aesop) hz, hznot⟩
+
+/-- Step 2 of the blueprint proof of `noShortExteriorExcursion_step1_excursion`:
+for a closed set, a segment whose endpoints lie in the set and which has an
+interior point outside it contains a nonempty open exterior excursion between
+two distinct frontier points. -/
+private lemma noShortExteriorExcursion_step1_excursion_step2_first_excursion
+    {S : Set Pt} (hSclosed : IsClosed S) {x y z : Pt}
+    (hx : x ∈ S) (hy : y ∈ S) (hz : z ∈ openSegment ℝ x y) (hzout : z ∉ S) :
+    ∃ E F : Pt, E ∈ segment ℝ x y ∧ F ∈ segment ℝ x y ∧ E ≠ F ∧
+      E ∈ frontier S ∧ F ∈ frontier S ∧
+      openSegment ℝ E F ⊆ Sᶜ := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `noShortExteriorExcursion`: a failure of
 convexity produces two distinct points of `H` on the macro boundary whose open
 chord is an exterior excursion. -/
@@ -4857,7 +4883,19 @@ private theorem noShortExteriorExcursion_step1_excursion
     ∃ E F : Pt, E ∈ H ∧ F ∈ H ∧ E ≠ F ∧
       E ∈ frontier (support M.tiles) ∧ F ∈ frontier (support M.tiles) ∧
       openSegment ℝ E F ⊆ (support M.tiles)ᶜ := by
-  sorry
+  obtain ⟨x, y, z, hx, hy, hz, hzout⟩ :=
+    noShortExteriorExcursion_step1_excursion_step1_witness hnconv
+  have hzH : z ∈ H :=
+    hH.segment_subset hx.1 hy.1 (openSegment_subset_segment ℝ x y hz)
+  have hzout' : z ∉ support M.tiles := by
+    intro hzsupport
+    exact hzout ⟨hzH, hzsupport⟩
+  obtain ⟨E, F, hEx, hFx, hEF, hEfront, hFfront, hout⟩ :=
+    noShortExteriorExcursion_step1_excursion_step2_first_excursion
+      (S := support M.tiles) (macro_support_closed M) hx.2 hy.2 hz hzout'
+  refine ⟨E, F, ?_, ?_, hEF, hEfront, hFfront, hout⟩
+  · exact hH.segment_subset hx.1 hy.1 hEx
+  · exact hH.segment_subset hx.1 hy.1 hFx
 
 /-- Step 2 of the blueprint proof of `noShortExteriorExcursion`: an exterior
 chord on the finite macro boundary either uses nonadjacent geometric edges or

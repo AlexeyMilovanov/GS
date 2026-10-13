@@ -2953,6 +2953,32 @@ theorem regularGrouping (M : MeshConstants P) (S : Patch P) (Ω : PolygonalDisk)
     · obtain ⟨k, hk⟩ := HG.partner hA hB.1 hAB j hq hqB
       exact ⟨B, by rw [hL]; exact hU₀G hB, ⟨k, hk.trans hAj⟩, hB.2⟩
 
+/-- Step 1 of the blueprint proof of `outsideAnchoredGrouping_step1_E`: `K_1^c \subseteq \operatorname{int} E`. -/
+private lemma outsideAnchoredGrouping_step1_E_step1_supset (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier) :
+    (square c h + Binf (3 * M.D))ᶜ ⊆
+      interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier) := sorry
+
+/-- Step 2 of the blueprint proof of `outsideAnchoredGrouping_step1_E`: every selected face belongs to `E`. -/
+private lemma outsideAnchoredGrouping_step1_E_step2_faces (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier) :
+    ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
+      F.carrier ⊆ Ω.carrierᶜ ∪ ⋃ F' ∈ S.tiles, ⋃ _ : (interior F'.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F'.carrier := sorry
+
+/-- Step 3 of the blueprint proof of `outsideAnchoredGrouping_step1_E`: `\operatorname{int} E` is connected. -/
+private lemma outsideAnchoredGrouping_step1_E_step3_conn (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk)
+    (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) (h : ℝ) (hh : 0 < h)
+    (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier) :
+    IsConnected (interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier)) := sorry
+
 /-- Step 1 of the blueprint proof of `outsideAnchoredGrouping`: defining `E`. -/
 private lemma outsideAnchoredGrouping_step1_E (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)
@@ -2962,7 +2988,12 @@ private lemma outsideAnchoredGrouping_step1_E (M : MeshConstants P) (S : Patch P
     ∃ E : Set Pt, IsConnected (interior E) ∧
       (square c h + Binf (3 * M.D))ᶜ ⊆ interior E ∧
       ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
-      F.carrier ⊆ E := sorry
+      F.carrier ⊆ E := by
+  use Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier
+  refine ⟨?_, ?_, ?_⟩
+  · exact outsideAnchoredGrouping_step1_E_step3_conn M S Ω hcov hsts c h hh hQ
+  · exact outsideAnchoredGrouping_step1_E_step1_supset M S Ω hcov hsts c h hh hQ
+  · exact outsideAnchoredGrouping_step1_E_step2_faces M S Ω hcov hsts c h hh hQ
 
 /-- Step 2 of the blueprint proof of `outsideAnchoredGrouping`: defining `H_carrier`. -/
 private lemma outsideAnchoredGrouping_step2_H (M : MeshConstants P) (S : Patch P)

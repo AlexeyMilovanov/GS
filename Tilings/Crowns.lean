@@ -5803,7 +5803,20 @@ private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cov
     (hBj : d / 2 ≤ dist e (B.vertex j))
     (hBrot : d / 2 ≤ dist e (B.vertex (finRotate _ j))) :
     ∃ v, IsVertexOf M.tiles v ∧ A ∈ crown M.tiles v ∧ B ∈ crown M.tiles v := by
-  sorry
+  have _ := hdisj
+  have _ := hAi
+  have _ := hArot
+  have _ := hBj
+  have _ := hBrot
+  obtain ⟨v, hv, hvA, hvB⟩ :=
+    uniformCrownCoverPlane_step2_far_step3_shared_vertex i j hei hej hcol
+  have hvM : IsVertexOf M.tiles v := by
+    rcases hv with h | h | h | h
+    · exact ⟨A, hA, by rw [h]; exact Set.mem_range_self i⟩
+    · exact ⟨A, hA, by rw [h]; exact Set.mem_range_self (finRotate _ i)⟩
+    · exact ⟨B, hB, by rw [h]; exact Set.mem_range_self j⟩
+    · exact ⟨B, hB, by rw [h]; exact Set.mem_range_self (finRotate _ j)⟩
+  exact ⟨v, hvM, ⟨hA, hvA⟩, ⟨hB, hvB⟩⟩
 
 /-- Step 3 of the blueprint proof of
 `uniformCrownCoverSupertile_step3_epsilon_and_case2`: after convexification and

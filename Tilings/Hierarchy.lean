@@ -989,6 +989,46 @@ private lemma exists_composition_step2_disjoint (τ : Substitution P) (T' : Set 
     (exists_composition_step2_disjoint_supertile τ n p)
   exact hDisj (mem_insert A _) (mem_insert_of_mem _ (mem_singleton _)) hne
 
+private lemma exists_composition_step3_interior_biUnion_empty {α : Type*}
+    [TopologicalSpace α] {ι : Type*} {t : ι → Set α}
+    (u : Finset ι) (hc : ∀ i ∈ u, IsClosed (t i)) (hi : ∀ i ∈ u, interior (t i) = ∅) :
+    interior (⋃ i ∈ u, t i) = ∅ := by
+  classical
+  induction' u using Finset.induction_on with i u hin ih
+  · simp
+  · rw [Finset.set_biUnion_insert, union_comm]
+    rw [interior_union_isClosed_of_interior_empty]
+    · exact ih (fun j hj => hc j (Finset.mem_insert_of_mem hj))
+        (fun j hj => hi j (Finset.mem_insert_of_mem hj))
+    · exact Set.Finite.isClosed_biUnion u.finite_toSet
+        (fun j hj => hc j (Finset.mem_insert_of_mem hj))
+    · exact hi i (Finset.mem_insert_self i u)
+
+private lemma exists_composition_step3_not_subset_finite_union {α : Type*}
+    [TopologicalSpace α] {s : Set α} {ι : Type*} {t : ι → Set α}
+    (u : Finset ι) (h_nonempty : (interior s).Nonempty)
+    (h_subset : s ⊆ ⋃ i ∈ u, t i)
+    (h_disj : ∀ i ∈ u, Disjoint (interior s) (interior (t i)))
+    (hc : ∀ i ∈ u, IsClosed (t i)) : False := by
+  have h_int_s : interior s ⊆ ⋃ i ∈ u, frontier (t i) := by
+    intro x hx
+    have h_in : x ∈ ⋃ i ∈ u, t i := h_subset (interior_subset hx)
+    simp only [mem_iUnion, exists_prop] at h_in ⊢
+    rcases h_in with ⟨i, hi, hxi⟩
+    refine ⟨i, hi, subset_closure hxi, ?_⟩
+    intro h_int
+    exact Set.disjoint_left.mp (h_disj i hi) hx h_int
+  have h_empty_int : interior (⋃ i ∈ u, frontier (t i)) = ∅ := by
+    apply exists_composition_step3_interior_biUnion_empty
+    · exact fun _ _ => isClosed_frontier
+    · exact fun i hi => interior_frontier (hc i hi)
+  have h_int_s_int : interior (interior s) ⊆ interior (⋃ i ∈ u, frontier (t i)) :=
+    interior_mono h_int_s
+  rw [interior_interior, h_empty_int] at h_int_s_int
+  have h_empty : interior s = ∅ := subset_empty_iff.mp h_int_s_int
+  rw [h_empty] at h_nonempty
+  exact Set.not_nonempty_empty h_nonempty
+
 /-- Step 3 of the blueprint proof of `exists_composition`: no extra child can occur in
 the decomposition because the plane is already covered by `T` with disjoint interiors,
 so the decomposition is exactly `T`. -/
@@ -996,7 +1036,39 @@ private lemma exists_composition_step3_decompose_eq (τ : Substitution P) {T : P
     (T' : Set (PlacedTile P))
     (h_disj : DisjointInteriors T') (h_cov : T.tiles ⊆ τ.decompose T') :
     τ.decompose T' = T.tiles := by
-  sorry
+  apply le_antisymm
+  · intro A hA
+    by_contra hAT
+    have h_decomp_disj : DisjointInteriors (τ.decompose T') :=
+      exists_composition_step2_disjoint_supertile_step1_decompose τ T' h_disj
+    let S : Set (PlacedTile P) := {B ∈ T.tiles | (B.carrier ∩ A.carrier).Nonempty}
+    have hA_compact : IsCompact A.carrier := IsCompact.vadd A.anchor (P.disk A.form).compact
+    have hS_fin : S.Finite := T.locallyFinite hA_compact
+    have hA_sub : A.carrier ⊆ ⋃ B ∈ hS_fin.toFinset, B.carrier := by
+      intro x hx
+      have hx_support : x ∈ support T.tiles := by rw [T.cover]; exact mem_univ x
+      simp only [support, mem_iUnion, exists_prop] at hx_support
+      rcases hx_support with ⟨B, hBT, hxB⟩
+      have hBS : B ∈ S := ⟨hBT, ⟨x, hxB, hx⟩⟩
+      simp only [mem_iUnion, exists_prop]
+      exact ⟨B, (Set.Finite.mem_toFinset hS_fin).mpr hBS, hxB⟩
+    have hA_ne : (interior A.carrier).Nonempty := by
+      rw [PlacedTile.carrier, interior_vadd]
+      exact (P.disk A.form).interior_nonempty.image (A.anchor +ᵥ·)
+    have h_closed : ∀ B ∈ hS_fin.toFinset, IsClosed B.carrier := by
+      intro B _
+      exact (IsCompact.vadd B.anchor (P.disk B.form).compact).isClosed
+    have h_int_disj : ∀ B ∈ hS_fin.toFinset,
+        Disjoint (interior A.carrier) (interior B.carrier) := by
+      intro B hB
+      have hBS : B ∈ S := (Set.Finite.mem_toFinset hS_fin).mp hB
+      have hAB : A ≠ B := by
+        rintro rfl
+        exact hAT hBS.1
+      exact h_decomp_disj hA (h_cov hBS.1) hAB
+    exact exists_composition_step3_not_subset_finite_union hS_fin.toFinset hA_ne hA_sub
+      h_int_disj h_closed
+  · exact h_cov
 
 /-- Step 4 of the blueprint proof of `exists_composition`: scaling gives coverage of the
 parent plane, so `T'` covers the plane. -/

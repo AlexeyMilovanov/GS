@@ -281,6 +281,72 @@ private lemma pow_support_eq (m : ℕ) (p : P.Form) :
     rw [pow_iterate_support_decompose]
     rw [ih, smul_smul, pow_succ']
 
+private lemma pow_disjoint_translate {v : Pt} {S : Set (PlacedTile P)}
+    (h : DisjointInteriors S) : DisjointInteriors (translateSet v S) := by
+  intro A hA B hB hne
+  dsimp [translateSet] at hA hB
+  rcases hA with ⟨A', hA', rfl⟩
+  rcases hB with ⟨B', hB', rfl⟩
+  have hne' : A' ≠ B' := by
+    intro hc
+    apply hne
+    rw [hc]
+  have hd := h hA' hB' hne'
+  have heq1 : (A'.translate v).carrier = v +ᵥ A'.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem,
+      vadd_eq_add, neg_add_rev]
+    rw [← add_assoc]
+  have heq2 : (B'.translate v).carrier = v +ᵥ B'.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem,
+      vadd_eq_add, neg_add_rev]
+    rw [← add_assoc]
+  dsimp [Function.onFun] at hd ⊢
+  rw [heq1, heq2, interior_vadd, interior_vadd]
+  exact (disjoint_image_iff (add_right_injective v)).mpr hd
+
+private lemma pow_disjoint_decompose (τ : Substitution P) (S : Set (PlacedTile P))
+    (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := by
+  have hθ : τ.θ ≠ 0 := (zero_lt_one.trans τ.one_lt).ne'
+  have key : ∀ {X X' : PlacedTile P}, X ∈ τ.decomposeTile X' →
+      interior X.carrier ⊆ τ.θ • interior X'.carrier := by
+    intro X X' hX
+    rw [← interior_smul₀ hθ]
+    refine interior_mono ?_
+    rw [← pow_iterate_support_decomposeTile]
+    exact Set.subset_biUnion_of_mem hX
+  intro A hA B hB hne
+  simp only [decompose, Set.mem_iUnion, exists_prop] at hA hB
+  obtain ⟨A', hA', hAmem⟩ := hA
+  obtain ⟨B', hB', hBmem⟩ := hB
+  dsimp [Function.onFun]
+  by_cases hAB : A' = B'
+  · subst hAB
+    have h_rule_disj := (τ.rule A'.form).disjoint
+    have h_trans_disj := pow_disjoint_translate h_rule_disj
+      (v := τ.θ • A'.anchor)
+    change DisjointInteriors (τ.decomposeTile A') at h_trans_disj
+    exact h_trans_disj hAmem hBmem hne
+  · have hd : Disjoint (interior A'.carrier) (interior B'.carrier) :=
+      hS hA' hB' hAB
+    have hd' : Disjoint (τ.θ • interior A'.carrier) (τ.θ • interior B'.carrier) :=
+      (disjoint_image_iff (smul_right_injective _ hθ)).mpr hd
+    exact hd'.mono (key hAmem) (key hBmem)
+
+private lemma pow_disjoint_supertile (τ : Substitution P) (n : ℕ) (p : P.Form) :
+    DisjointInteriors (τ.supertile n p) := by
+  induction n with
+  | zero =>
+    intro x hx y hy hne
+    simp [Substitution.supertile, Substitution.decomposeIter] at hx hy
+    rcases hx with rfl
+    rcases hy with rfl
+    contradiction
+  | succ n ih =>
+    change DisjointInteriors (τ.decompose (τ.supertile n p))
+    exact pow_disjoint_decompose τ (τ.supertile n p) ih
+
 /-- The power `τ^m` as a substitution (`lem:hierarchy-step`). -/
 noncomputable def pow (m : ℕ) (hm : 0 < m) : Substitution P where
   θ := τ.θ ^ m
@@ -288,7 +354,7 @@ noncomputable def pow (m : ℕ) (hm : 0 < m) : Substitution P where
   rule := fun p =>
     { tiles := τ.supertile m p
       finite := pow_finite τ m p
-      disjoint := sorry }
+      disjoint := pow_disjoint_supertile τ m p }
   support_eq := pow_support_eq τ m
 
 

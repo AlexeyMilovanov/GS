@@ -4889,7 +4889,12 @@ private lemma uniformCrownCoverSupertile_step1_radius
     {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞) :
     ∃ r δ : ℝ, 0 < r ∧ 0 < δ ∧ SectorRadiusProperty 𝒞 r δ ∧
     0 < crownRadius r δ (rootSeparationConstants P) := by
-  sorry
+  obtain ⟨r, hr, δ, hδ, hrδ⟩ := uniformSectorRadius h𝒞
+  use r, δ, hr, hδ, hrδ
+  dsimp [crownRadius]
+  set hR := rootSeparationConstants P
+  refine mul_pos (by positivity) (lt_min (lt_min hr hR.ν_pos) (lt_min hR.lam_pos ?_))
+  refine mul_pos (lt_min hr hδ) (Real.sin_pos_of_mem_Ioo ⟨hR.μ_pos, hR.μ_le.trans_lt (by linarith [Real.pi_pos])⟩)
 
 /-- Step 2 of the blueprint proof of `uniformCrownCoverSupertile`: convex hull near a child. -/
 private lemma uniformCrownCoverSupertile_step2_case1

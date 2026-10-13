@@ -131,11 +131,100 @@ private lemma three_le_genuineCount_step1_step1_extreme_points_lower_bound
       exact convexHull_subset_affineSpan _ hx')
   · exact hline
 
+/-- `finRotate` has no fixed point on `Fin N` when `2 ≤ N`: a helper for
+`three_le_genuineCount_step1_step2_extreme_points_subset_genuine`. -/
+private lemma three_le_genuineCount_step1_step2_extreme_points_subset_genuine_aux1
+    {N : ℕ} (hN : 2 ≤ N) (x : Fin N) : finRotate N x ≠ x := by
+  obtain ⟨k, rfl⟩ : ∃ k, N = k + 1 + 1 := ⟨N - 2, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have := congrArg (· - x) h
+  simp at this
+
+/-- `finRotate` composed with itself has no fixed point on `Fin N` when `3 ≤ N`: a
+helper for `three_le_genuineCount_step1_step2_extreme_points_subset_genuine`. -/
+private lemma three_le_genuineCount_step1_step2_extreme_points_subset_genuine_aux2
+    {m : ℕ} (hm : 3 ≤ m) (k : Fin m) : finRotate m (finRotate m k) ≠ k := by
+  obtain ⟨m, rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
+  rw [finRotate_succ_apply, finRotate_succ_apply]
+  intro h
+  have h2 : (k + 1 + 1).val = k.val := by rw [h]
+  rw [Fin.val_add, Fin.val_add, Fin.val_one'] at h2
+  have hk := k.isLt
+  rcases Nat.lt_or_ge (k.val + 1) (m + 1) with h3 | h3
+  · rw [Nat.mod_eq_of_lt (show 1 < m + 1 by omega), Nat.mod_eq_of_lt h3] at h2
+    rcases Nat.lt_or_ge (k.val + 1 + 1) (m + 1) with h4 | h4
+    · rw [Nat.mod_eq_of_lt h4] at h2; omega
+    · rw [show k.val + 1 + 1 = m + 1 by omega, Nat.mod_self] at h2; omega
+  · rw [Nat.mod_eq_of_lt (show 1 < m + 1 by omega), show k.val + 1 = m + 1 by omega,
+      Nat.mod_self] at h2
+    rw [Nat.mod_eq_of_lt (show 0 + 1 < m + 1 by omega)] at h2; omega
+
 /-- Step 2 of the blueprint proof of `three_le_genuineCount_step1`:
 Every extreme point of the convex hull of the vertices is a genuine vertex. -/
 private lemma three_le_genuineCount_step1_step2_extreme_points_subset_genuine :
     extremePoints ℝ (convexHull ℝ D.vertexSet) ⊆ D.vertex '' D.genuineIdx := by
-  sorry
+  intro x hx
+  obtain ⟨i, rfl⟩ := extremePoints_convexHull_subset hx
+  by_contra hcon
+  have hcol : Collinear ℝ ({D.vertex ((finRotate D.n).symm i), D.vertex i,
+      D.vertex (finRotate D.n i)} : Set Pt) := by
+    have hnotgen : i ∉ D.genuineIdx := fun h => hcon ⟨i, h, rfl⟩
+    simpa [PolygonalDisk.genuineIdx, Finset.mem_filter, PolygonalDisk.IsGenuineVertex,
+      not_not] using hnotgen
+  set j : Fin D.n := (finRotate D.n).symm i with hjdef
+  have hjn : finRotate D.n j = i := by rw [hjdef]; exact Equiv.apply_symm_apply _ i
+  have hn2 : 2 ≤ D.n := by have := D.three_le; omega
+  have hn3 : 3 ≤ D.n := D.three_le
+  have hji : j ≠ i := by
+    intro h
+    apply three_le_genuineCount_step1_step2_extreme_points_subset_genuine_aux1 hn2 i
+    rw [h] at hjn
+    exact hjn
+  have hri : finRotate D.n i ≠ i :=
+    three_le_genuineCount_step1_step2_extreme_points_subset_genuine_aux1 hn2 i
+  have hjr : j ≠ finRotate D.n i := by
+    intro h
+    apply three_le_genuineCount_step1_step2_extreme_points_subset_genuine_aux2 hn3 i
+    rw [h] at hjn
+    exact hjn
+  have hpq : D.vertex j ≠ D.vertex i := fun h => hji (D.vertex_injective h)
+  have hqr : D.vertex i ≠ D.vertex (finRotate D.n i) :=
+    fun h => hri (D.vertex_injective h).symm
+  have hpr : D.vertex j ≠ D.vertex (finRotate D.n i) := fun h => hjr (D.vertex_injective h)
+  have hpC : D.vertex j ∈ convexHull ℝ D.vertexSet := subset_convexHull ℝ D.vertexSet ⟨j, rfl⟩
+  have hrC : D.vertex (finRotate D.n i) ∈ convexHull ℝ D.vertexSet :=
+    subset_convexHull ℝ D.vertexSet ⟨finRotate D.n i, rfl⟩
+  have hsimple := D.simple j i hji
+  rw [hjn] at hsimple
+  rcases hcol.wbtw_or_wbtw_or_wbtw with h1 | h2 | h3
+  · have hqseg : D.vertex i ∈ segment ℝ (D.vertex j) (D.vertex (finRotate D.n i)) :=
+      h1.mem_segment
+    have hqopen := mem_openSegment_of_ne_left_right hpq hqr.symm hqseg
+    exact hpq (hx.2 hpC hrC hqopen)
+  · have hrseg : D.vertex (finRotate D.n i) ∈ segment ℝ (D.vertex i) (D.vertex j) :=
+      h2.mem_segment
+    have hrj : D.vertex (finRotate D.n i) ∈ segment ℝ (D.vertex j) (D.vertex i) := by
+      rw [segment_symm]; exact hrseg
+    have hri' : D.vertex (finRotate D.n i) ∈
+        segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) :=
+      right_mem_segment ℝ (D.vertex i) (D.vertex (finRotate D.n i))
+    have hmem := hsimple ⟨hrj, hri'⟩
+    simp only [Set.mem_inter_iff, Set.mem_insert_iff, Set.mem_singleton_iff] at hmem
+    rcases hmem.1 with hc | hc
+    · exact hpr hc.symm
+    · exact hqr hc.symm
+  · have hpseg : D.vertex j ∈ segment ℝ (D.vertex (finRotate D.n i)) (D.vertex i) :=
+      h3.mem_segment
+    have hpi : D.vertex j ∈ segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+      rw [segment_symm]; exact hpseg
+    have hpj : D.vertex j ∈ segment ℝ (D.vertex j) (D.vertex i) :=
+      left_mem_segment ℝ (D.vertex j) (D.vertex i)
+    have hmem := hsimple ⟨hpj, hpi⟩
+    simp only [Set.mem_inter_iff, Set.mem_insert_iff, Set.mem_singleton_iff] at hmem
+    rcases hmem.2 with hc | hc
+    · exact hpq hc
+    · exact hpr hc
 
 /-- Step 1 of the blueprint proof of `three_le_genuineCount`: if there are at most 2
 genuine corners, the vertices are collinear. -/

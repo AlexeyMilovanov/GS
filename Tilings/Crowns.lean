@@ -6604,7 +6604,14 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step1_epsilo
         (∀ v, IsVertexOf T.tiles v → τ.IsAllowedCrown (translateSet (-v) (crown T.tiles v))) →
         ∀ S : Set Pt, Bornology.IsBounded S → Metric.diam S < ε →
           ∃ v, IsVertexOf T.tiles v ∧ S ⊆ support (crown T.tiles v) := by
-  sorry
+  have hc : IsCatalogue (pointedCatalogue τ) := isCatalogue_pointedCatalogue τ hflc
+  obtain ⟨ε, hε_pos, hcover⟩ := uniformCrownCoverPlane hc
+  use ε, hε_pos
+  intro T hcrown S hS_b hS_diam
+  have h_all : AllCrownsIn (pointedCatalogue τ) T.tiles := by
+    intro v hv
+    exact hcrown v hv
+  exact hcover T h_all S hS_b hS_diam
 
 /-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 Since the patch `F` is finite, its support is bounded and has a finite diameter.

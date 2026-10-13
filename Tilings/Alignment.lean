@@ -525,11 +525,73 @@ private lemma whole_side_ports_distinct_step2_index {L : ℕ} (h : 6 ≤ L) :
     unfold portIndex
     fin_cases r <;> (dsimp; omega)
 
+private lemma whole_side_ports_distinct_step3_rank_step1_finite_decomposeTile
+    (τ : Substitution P) (A : PlacedTile P) : (τ.decomposeTile A).Finite := by
+  unfold Substitution.decomposeTile
+  apply Set.Finite.image
+  exact (τ.rule A.form).finite
+
+private lemma whole_side_ports_distinct_step3_rank_step1_finite_decompose
+    (τ : Substitution P) (S : Set (PlacedTile P)) (h : S.Finite) :
+    (τ.decompose S).Finite := by
+  unfold Substitution.decompose
+  apply Set.Finite.biUnion h
+  intro A _
+  exact whole_side_ports_distinct_step3_rank_step1_finite_decomposeTile τ A
+
+private lemma whole_side_ports_distinct_step3_rank_step1_finite_decomposeIter
+    (τ : Substitution P) (n : ℕ) (S : Set (PlacedTile P)) (h : S.Finite) :
+    (τ.decomposeIter n S).Finite := by
+  induction' n with n ih
+  · exact h
+  · unfold Substitution.decomposeIter
+    dsimp
+    exact whole_side_ports_distinct_step3_rank_step1_finite_decompose
+      τ (τ.decomposeIter n S) ih
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: the set of inside sides is finite. -/
 private lemma whole_side_ports_distinct_step3_rank_step1_finite (τ : Substitution P)
     (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
     (a : Fin (G.P'.disk A).n) : (sidesInside τ G m A a).Finite := by
-  sorry
+  have _ := a
+  have h1 : sidesInside τ G m A a ⊆ fineOuterSides τ G m A := by
+    intro e he
+    unfold sidesInside at he
+    exact he.1
+  apply Set.Finite.subset _ h1
+  unfold fineOuterSides
+  have h_tiles : (fineTiles τ G m A).Finite := by
+    unfold fineTiles
+    apply whole_side_ports_distinct_step3_rank_step1_finite_decomposeIter
+    exact (G.dissect A).finite
+  have h2 :
+      {e | ∃ B ∈ fineTiles τ G m A, ∃ i : Fin (P.disk B.form).n,
+        e = (B.vertex i, B.vertex (finRotate _ i)) ∧
+          segment ℝ e.1 e.2 ⊆ frontier (parentRegion τ G m A)} ⊆
+        ⋃ B ∈ fineTiles τ G m A,
+          {e | ∃ i : Fin (P.disk B.form).n,
+            e = (B.vertex i, B.vertex (finRotate _ i))} := by
+    intro e he
+    simp only [mem_iUnion, mem_setOf_eq]
+    rcases he with ⟨B, hB, i, heq, _⟩
+    use B, hB, i
+  apply Set.Finite.subset _ h2
+  apply Set.Finite.biUnion h_tiles
+  intro B _
+  have h3 :
+      {e | ∃ i : Fin (P.disk B.form).n,
+        e = (B.vertex i, B.vertex (finRotate _ i))} =
+        (fun i => (B.vertex i, B.vertex (finRotate _ i))) '' univ := by
+    ext e
+    simp only [mem_setOf_eq, mem_image, mem_univ, true_and]
+    constructor
+    · rintro ⟨i, hi⟩
+      use i, hi.symm
+    · rintro ⟨i, hi⟩
+      use i, hi.symm
+  rw [h3]
+  apply Set.Finite.image
+  exact finite_univ
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step2_inj`: the interiors of distinct inside sides are disjoint. -/
 private lemma whole_side_ports_distinct_step3_rank_step2_inj_step1_disjoint (τ : Substitution P)

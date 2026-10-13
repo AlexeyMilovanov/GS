@@ -3810,6 +3810,10 @@ structure MacroCertificate.Represents (C : MacroCertificate P) (τ : Substitutio
   vertex_retained : ∀ α v, Substitution.IsVertexOf (C.Δ α).tiles v →
     v ∈ frontier (C.Q.disk α).carrier → v ∈ (C.Q.disk α).vertexSet
   singleton : ∀ p : P.Form, ∃ α, (C.Δ α).tiles = {⟨p, 0⟩}
+  /-- Every grouped form is a group of tiles of a supertile (the groups are formed inside the
+  STS cellulations `τ^k α`). -/
+  inside_supertile : ∀ α, ∃ (n : ℕ) (p : P.Form) (v : Pt),
+    translateSet v (C.Δ α).tiles ⊆ τ.supertile n p
   hereditary : τ.HereditarySides → C.Hereditary
 
 /-- The grouped family underlying a representing certificate. -/

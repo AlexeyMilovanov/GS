@@ -1,5 +1,6 @@
 import Tilings.Alignment
 import Tilings.LocalRules
+import Tilings.Control.Strict
 
 /-!
 # Strict presentation of an STS substitution (`thm:sts-stshierarchy`)
@@ -28,27 +29,6 @@ namespace Alignment
 
 variable {P : Protoset}
 
-/-- Existence half of `lem:schedule-compose`: every proper strict coloured
-plane tiling has an exact proper coloured composition. -/
-def StrictScheduleSystem.HasCompositions {τ : Substitution P} (Sys : StrictScheduleSystem τ) :
-    Prop :=
-  ∀ T : PlaneTiling Sys.dec.P', Sys.dec.Proper T →
-    ∃ T'' : PlaneTiling Sys.dec.P', Sys.dec.Proper T'' ∧ Sys.σc.IsComposition T'' T
-
-/-- Completeness of the strict presentation (`thm:sts-stshierarchy`, "origin
-chains give legal tiles"): every grouped `σ'`-hierarchy whose levels and whose
-scattered intermediate original levels (the levels `τ^j Δ (seq' (n+1))`,
-`0 ≤ j ≤ k`, between consecutive grouped levels; nothing below the bottom level
-`seq' 0` is assumed, codex 13 October 2026) are all side-to-side is the
-projection of a proper strict coloured plane tiling. -/
-def StrictScheduleSystem.Complete {τ : Substitution P} (Sys : StrictScheduleSystem τ) : Prop :=
-  ∀ seq' : ℕ → PlaneTiling Sys.GS.G.P',
-    (∀ n, Sys.GS.σ.IsComposition (seq' (n + 1)) (seq' n)) →
-    (∀ n, (seq' n).SideToSide) →
-    (∀ n, ∀ j ≤ Sys.GS.k,
-      SideToSideSet (τ.decomposeIter j (Sys.GS.G.scatter (seq' (n + 1)).tiles))) →
-    ∃ T : PlaneTiling Sys.dec.P', Sys.dec.Proper T ∧ Sys.dec.toDecoration.project T = seq' 0
-
 /-- `lem:strict-projection`: the projection of a coloured composition is a
 grouped composition (`rule_proj` and `θ_eq` of the strict schedule system). -/
 theorem StrictScheduleSystem.isComposition_project {τ : Substitution P}
@@ -70,7 +50,8 @@ theorem exists_strict_schedule_system (τ : Substitution P) (hτ : τ.STS) :
       (∀ p : P.Form, ∃ α, (Sys.GS.G.dissect α).tiles = {⟨p, 0⟩}) ∧
       (∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles)) ∧
       Sys.HasCompositions ∧ Sys.Complete := by
-  sorry
+  obtain ⟨C, m, hC⟩ := existsMacroCertificate τ hτ
+  exact Planned.Strict.exists_strict_schedule_system_of_certificate τ hτ C m hC
 
 /-- Step 1 of the blueprint proof of `sts_hierarchical_of_strict_proper`: repeatedly
 apply strict schedule composition to obtain an infinite sequence of proper compositions. -/

@@ -1001,6 +1001,26 @@ theorem strict_schedule_composition (hτ : τ.STS)
   have hfine := strict_schedule_composition_step2_fine_sts hτ Sys hΔ T T'' hp hcomp
   simpa only [Decoration.project] using schedule_intermediate_sts τ Sys.GS.G hτ hΔ Sys.GS.k (Sys.dec.toDecoration.project T'') hfine halign
 
+/-- Existence half of `lem:schedule-compose`: every proper strict coloured
+plane tiling has an exact proper coloured composition. -/
+def StrictScheduleSystem.HasCompositions {τ : Substitution P} (Sys : StrictScheduleSystem τ) :
+    Prop :=
+  ∀ T : PlaneTiling Sys.dec.P', Sys.dec.Proper T →
+    ∃ T'' : PlaneTiling Sys.dec.P', Sys.dec.Proper T'' ∧ Sys.σc.IsComposition T'' T
+
+/-- Completeness of the strict presentation (`thm:sts-stshierarchy`, "origin
+chains give legal tiles"): every grouped `σ'`-hierarchy whose levels and whose
+scattered intermediate original levels (the levels `τ^j Δ (seq' (n+1))`,
+`0 ≤ j ≤ k`, between consecutive grouped levels; nothing below the bottom level
+`seq' 0` is assumed, codex 13 October 2026) are all side-to-side is the
+projection of a proper strict coloured plane tiling. -/
+def StrictScheduleSystem.Complete {τ : Substitution P} (Sys : StrictScheduleSystem τ) : Prop :=
+  ∀ seq' : ℕ → PlaneTiling Sys.GS.G.P',
+    (∀ n, Sys.GS.σ.IsComposition (seq' (n + 1)) (seq' n)) →
+    (∀ n, (seq' n).SideToSide) →
+    (∀ n, ∀ j ≤ Sys.GS.k,
+      SideToSideSet (τ.decomposeIter j (Sys.GS.G.scatter (seq' (n + 1)).tiles))) →
+    ∃ T : PlaneTiling Sys.dec.P', Sys.dec.Proper T ∧ Sys.dec.toDecoration.project T = seq' 0
 
 end Alignment
 

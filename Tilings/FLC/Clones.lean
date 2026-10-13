@@ -557,9 +557,20 @@ private lemma childContext_realized_step1_shift_step8_translate_mem
     {P : Protoset} {τ : Substitution P} (A B : PlacedTile P)
     (hB : B ∈ τ.decomposeTile ⟨A.form, 0⟩) :
     B.translate (τ.θ • A.anchor) ∈ τ.decomposeTile A := by
-  sorry
+  dsimp [Substitution.decomposeTile, translateSet] at *
+  rcases hB with ⟨C, hC, hCeq⟩
+  use C
+  refine ⟨hC, ?_⟩
+  dsimp
+  rw [← hCeq]
+  dsimp [PlacedTile.translate]
+  ext
+  · rfl
+  · simp
 
 /-- Step 1 of the blueprint proof of `childContext_realized`: shifting contexts. -/
+
+
 private lemma childContext_realized_step1_shift {τ : Substitution P} (c : GenuineCornerClone τ)
     (B : PlacedTile P) (hB : B ∈ τ.decomposeTile ⟨c.form, 0⟩) (n : ℕ) (p : P.Form)
     (A : PlacedTile P) (hform : c.form = A.form) (hA : A ∈ τ.supertile n p)

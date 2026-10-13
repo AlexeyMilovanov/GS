@@ -730,6 +730,28 @@ structure StrictScheduleSystem (τ : Substitution P) where
     (i' : Fin (dec.P'.disk q').n), dec.colour q i = dec.colour q' i' →
       outerSchedule q i = outerSchedule q' i'
 
+/-- Step 1 of the blueprint proof of `strict_schedule_composition`: boundary-edge lifting — every
+fine outer side is the projection of an outer side of a coloured rule child, so
+schedule_spec/schedule_colour + properness give aligned schedules. -/
+private theorem strict_schedule_composition_step1_aligned {P : Protoset} {τ : Substitution P} (hτ : τ.STS)
+    (Sys : StrictScheduleSystem τ)
+    (T T'' : PlaneTiling Sys.dec.P') (hp : Sys.dec.Proper T)
+    (hcomp : Sys.σc.IsComposition T'' T) :
+    SchedulesAligned τ Sys.GS.G Sys.GS.k (Sys.dec.toDecoration.project T'') := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_schedule_composition`: the scattered projected
+composition is STS at the fine level (rule_proj, θ_eq, GroupedSubstitution.compat reduce it to T,
+then dissect preserves STS via hΔ). -/
+private theorem strict_schedule_composition_step2_fine_sts {P : Protoset} {τ : Substitution P} (hτ : τ.STS)
+    (Sys : StrictScheduleSystem τ)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles))
+    (T T'' : PlaneTiling Sys.dec.P') (hp : Sys.dec.Proper T)
+    (hcomp : Sys.σc.IsComposition T'' T) :
+    SideToSideSet (τ.decomposeIter Sys.GS.k
+      (Sys.GS.G.scatter (Sys.dec.toDecoration.project T'').tiles)) := by
+  sorry
+
 /-- `lem:schedule-compose` (STS part): if a proper strict coloured tiling `T`
 is the decomposition of a coloured tiling `T''`, then the grouped parents of
 `T''` and all scattered intermediate original levels are STS.  The existence
@@ -743,7 +765,9 @@ theorem strict_schedule_composition (hτ : τ.STS)
     SideToSideSet (Sys.dec.toDecoration.projTile '' T''.tiles) ∧
       ∀ j ≤ Sys.GS.k, SideToSideSet
         (τ.decomposeIter j (Sys.GS.G.scatter (Sys.dec.toDecoration.projTile '' T''.tiles))) := by
-  sorry
+  have halign := strict_schedule_composition_step1_aligned hτ Sys T T'' hp hcomp
+  have hfine := strict_schedule_composition_step2_fine_sts hτ Sys hΔ T T'' hp hcomp
+  simpa only [Decoration.project] using schedule_intermediate_sts τ Sys.GS.G hτ hΔ Sys.GS.k (Sys.dec.toDecoration.project T'') hfine halign
 
 
 end Alignment

@@ -558,7 +558,69 @@ private lemma whole_side_ports_distinct_step3_rank_step3_exists_step2_rank (X : 
     (hl_mem : ∀ x, x ∈ l ↔ x ∈ X) (hl_pw : l.Pairwise (fun e1 e2 => sideKey u e1 < sideKey u e2))
     (k : ℕ) (hk : k - 1 < l.length) :
     {e' ∈ X | sideKey u e' < sideKey u (l.get ⟨k - 1, hk⟩)}.ncard = k - 1 := by
-  sorry
+  let n := k - 1
+  let z := l.get ⟨n, hk⟩
+  have hnodup : l.Nodup := (List.nodup_iff_pairwise_ne).2 (hl_pw.imp fun h hab =>
+    (ne_of_lt h) (congrArg (sideKey u) hab))
+  have hmem_take : ∀ x, x ∈ l.take n → sideKey u x < sideKey u z := by
+    intro x hx
+    have hx' : x ∈ l := List.mem_of_mem_take hx
+    obtain ⟨i, hxi⟩ := List.get_of_mem hx'
+    have hidx : List.idxOf x l < n := (List.mem_take_iff_idxOf_lt hx').mp hx
+    rw [← hxi, List.get_idxOf hnodup] at hidx
+    rw [← hxi]
+    exact List.pairwise_iff_get.1 hl_pw i ⟨n, hk⟩ (by simpa using hidx)
+  have hset : {e' ∈ X | sideKey u e' < sideKey u z} = {x | x ∈ l.take n} := by
+    ext x
+    constructor
+    · intro hx
+      have hxl : x ∈ l := (hl_mem x).2 hx.1
+      obtain ⟨i, hxi⟩ := List.get_of_mem hxl
+      have hidx : List.idxOf x l = i := by
+        rw [← hxi, List.get_idxOf hnodup]
+      have hin : i < n := by
+        by_contra hnot
+        have hcases : n ≤ i := Nat.le_of_not_gt hnot
+        rcases hcases.eq_or_lt with heq | hni
+        · have hieq : i = ⟨n, hk⟩ := Fin.ext heq.symm
+          have hxz : sideKey u x = sideKey u z := by
+            rw [← hxi, hieq]
+          exact (lt_irrefl _ (hxz ▸ hx.2))
+        · have hzx := List.pairwise_iff_get.1 hl_pw ⟨n, hk⟩ i hni
+          have hzx' : sideKey u z < sideKey u x := by
+            change sideKey u (l.get ⟨n, hk⟩) < sideKey u x
+            rw [hxi] at hzx
+            exact hzx
+          exact (not_lt_of_ge (le_of_lt hzx')) hx.2
+      change x ∈ l.take n
+      rw [List.mem_take_iff_idxOf_lt hxl, hidx]
+      exact hin
+    · intro hx
+      exact ⟨(hl_mem x).1 (List.mem_of_mem_take hx), hmem_take x hx⟩
+  have hcard : {x | x ∈ l.take n}.ncard = n := by
+    apply Set.ncard_eq_of_bijective
+      (fun i hi => l.get ⟨i, lt_of_lt_of_le hi (Nat.le_of_lt hk)⟩)
+    · intro x hx
+      have hxl : x ∈ l := List.mem_of_mem_take hx
+      obtain ⟨i, hxi⟩ := List.get_of_mem hxl
+      have hidx : List.idxOf x l = i := by
+        rw [← hxi, List.get_idxOf hnodup]
+      have hin : i < n := by
+        rw [← hidx]
+        exact (List.mem_take_iff_idxOf_lt hxl).mp hx
+      refine ⟨i, hin, ?_⟩
+      simpa using hxi
+    · intro i hi
+      change l.get ⟨i, lt_of_lt_of_le hi (Nat.le_of_lt hk)⟩ ∈ l.take n
+      rw [List.mem_take_iff_idxOf_lt (List.get_mem l _), List.get_idxOf hnodup]
+      exact hi
+    · intro i j hi hj hij
+      have hfin : (⟨i, lt_of_lt_of_le hi (Nat.le_of_lt hk)⟩ : Fin l.length) =
+          ⟨j, lt_of_lt_of_le hj (Nat.le_of_lt hk)⟩ :=
+        (List.nodup_iff_injective_get.mp hnodup) hij
+      exact congrArg Fin.val hfin
+  rw [hset]
+  simpa [n] using hcard
 
 /-- Step 3 of the blueprint proof of `whole_side_ports_distinct_step3_rank`: an abstract lemma showing that any rank is attained. -/
 private lemma whole_side_ports_distinct_step3_rank_step3_exists (X : Set (Pt × Pt))

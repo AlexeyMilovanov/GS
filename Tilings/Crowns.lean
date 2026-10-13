@@ -3011,6 +3011,38 @@ theorem uniformCrownCoverPlane {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCata
   · push_neg at h
     refine h_far T hT S hS_bound (hS_diam.trans_le (min_le_right _ _)) H rfl h
 
+/-- Step 1 of the blueprint proof of `uniformCrownCoverSupertile`: obtaining sector bounds. -/
+private lemma uniformCrownCoverSupertile_step1_radius
+    {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞) :
+    ∃ r δ : ℝ, 0 < r ∧ 0 < δ ∧ SectorRadiusProperty 𝒞 r δ ∧
+    0 < crownRadius r δ (rootSeparationConstants P) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `uniformCrownCoverSupertile`: convex hull near a child. -/
+private lemma uniformCrownCoverSupertile_step2_case1
+    {𝒞 : Set (Set (PlacedTile P))} {r δ : ℝ} (hr : 0 < r) (hδ : 0 < δ)
+    (hrδ : SectorRadiusProperty 𝒞 r δ)
+    (M : MacroPatch P) (hM : AllCrownsIn 𝒞 M.tiles)
+    {S : Set Pt} (hS_bound : Bornology.IsBounded S)
+    {ε : ℝ} (hε_d : ε ≤ crownRadius r δ (rootSeparationConstants P) / 2)
+    (hdiam : diam S < ε) (v : Pt) (hv : IsVertexOf M.tiles v)
+    (h_near : ∃ x ∈ closedConvexHull ℝ S,
+      dist x v < crownRadius r δ (rootSeparationConstants P) / 2) :
+    S ∩ support M.tiles ⊆ support (crown M.tiles v) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `uniformCrownCoverSupertile`: convex hull stays far. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2
+    {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞)
+    {r δ : ℝ} (hr : 0 < r) (hδ : 0 < δ) (hrδ : SectorRadiusProperty 𝒞 r δ) :
+    ∃ ε : ℝ, 0 < ε ∧ ε ≤ crownRadius r δ (rootSeparationConstants P) / 2 ∧
+    ∀ (M : MacroPatch P) (hM : AllCrownsIn 𝒞 M.tiles)
+    {S : Set Pt} (hS_bound : Bornology.IsBounded S), diam S < ε →
+    (∀ x ∈ closedConvexHull ℝ S, ∀ v, IsVertexOf M.tiles v →
+      crownRadius r δ (rootSeparationConstants P) / 2 ≤ dist x v) →
+    ∃ v, IsVertexOf M.tiles v ∧ S ∩ support M.tiles ⊆ support (crown M.tiles v) := by
+  sorry
+
 /-- `lem:crown-cover-supertile`: there is `ε > 0` such that for every macro
 patch whose full pointed crowns (including incomplete boundary crowns) are
 represented, every bounded `S` of diameter `< ε` has `S ∩ R` inside the
@@ -3019,7 +3051,20 @@ theorem uniformCrownCoverSupertile {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : Is
     ∃ ε : ℝ, 0 < ε ∧ ∀ M : MacroPatch P, AllCrownsIn 𝒞 M.tiles →
       ∀ S : Set Pt, Bornology.IsBounded S → diam S < ε →
         ∃ v, IsVertexOf M.tiles v ∧ S ∩ support M.tiles ⊆ support (crown M.tiles v) := by
-  sorry
+  obtain ⟨r, δ, hr, hδ, hrδ, hd_pos⟩ := uniformCrownCoverSupertile_step1_radius h𝒞
+  obtain ⟨ε, hε_pos, hε_d, h_far_case⟩ :=
+    uniformCrownCoverSupertile_step3_epsilon_and_case2 h𝒞 hr hδ hrδ
+  use ε, hε_pos
+  intro M hM S hS_bound hdiam
+  by_cases h_near : ∃ x ∈ closedConvexHull ℝ S, ∃ v, IsVertexOf M.tiles v ∧
+    dist x v < crownRadius r δ (rootSeparationConstants P) / 2
+  · rcases h_near with ⟨x, hx, v, hv, hdist⟩
+    have h_subset := uniformCrownCoverSupertile_step2_case1
+      hr hδ hrδ M hM hS_bound hε_d hdiam v hv ⟨x, hx, hdist⟩
+    exact ⟨v, hv, h_subset⟩
+  · push_neg at h_near
+    have _ := hd_pos
+    exact h_far_case M hM hS_bound hdiam h_near
 
 /-! ## `lem:pointed-flc` -/
 

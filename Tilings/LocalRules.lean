@@ -1933,13 +1933,49 @@ theorem Decoration.dissection_preserves_sofic (G : GroupedFamily P)
     have heq := dissection_preserves_sofic_tiling_eq_lift G dec R Tdec hproper
     rw [← heq, hproject]
 
+/-- Step 1 of the blueprint proof of `dissection_preserves_sts_sofic`: encode
+    the finite side-matching conditions of a side decoration by a bounded local
+    rule, so its proper tilings are exactly its side-proper tilings. -/
+private theorem dissection_preserves_sts_sofic_step1_local_rule
+    (dec : SideDecoration P) :
+    ∃ R : LocalRule dec.P', ∀ T, R.Proper T ↔ dec.Proper T := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `dissection_preserves_sts_sofic`: scattering
+    a proper side-decoration tiling preserves the side-to-side property.  The
+    within-group case uses the grouped family's STS field; the cross-group case
+    uses complete grouped sides and the side-to-side property of the projected
+    decorated tiling. -/
+private theorem dissection_preserves_sts_sofic_step2_scatter_sts
+    (G : GroupedFamily P) (dec : SideDecoration G.P')
+    (T : PlaneTiling dec.P') (hT : dec.Proper T) :
+    SideToSideSet (G.scatter (dec.toDecoration.project T).tiles) := by
+  sorry
+
 /-- `lem:glues` (strict presentations): the same transfer for side-to-side
 sofic presentations; grouped sides are complete original sides, so exposed
 colours stay on whole original sides. -/
 theorem Decoration.dissection_preserves_sts_sofic (G : GroupedFamily P)
     {F' : Set (PlaneTiling G.P')} (h : IsSideToSideSofic F') :
     IsSideToSideSofic (G.scatterFamily F') := by
-  sorry
+  obtain ⟨dec, hdec⟩ := h
+  obtain ⟨R, hR⟩ := dissection_preserves_sts_sofic_step1_local_rule dec
+  have hsofic : IsSofic F' :=
+    ⟨dec.toDecoration, R, fun T' => by
+      constructor
+      · intro hT'
+        obtain ⟨T, hproper, hproject⟩ := (hdec T').mp hT'
+        exact ⟨T, (hR T).mpr hproper, hproject⟩
+      · rintro ⟨T, hproper, hproject⟩
+        exact (hdec T').mpr ⟨T, (hR T).mp hproper, hproject⟩⟩
+  apply LocalRule.side_presentation_of_sts_sofic
+    (Decoration.dissection_preserves_sofic G hsofic)
+  intro T hT
+  obtain ⟨T', hT'F, hscatter⟩ := hT
+  obtain ⟨Tdec, hproper, hproject⟩ := (hdec T').mp hT'F
+  change SideToSideSet T.tiles
+  rw [← hscatter, ← hproject]
+  exact dissection_preserves_sts_sofic_step2_scatter_sts G dec Tdec hproper
 
 /-! ## Compatible grouped hierarchy lift (`lem:grouping-lift`) -/
 

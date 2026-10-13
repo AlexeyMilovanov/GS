@@ -603,6 +603,35 @@ theorem reconstructed_cyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
     reconstruct c K h.1 = K.centre ∧ headerLegal c (reconstruct c K h.1) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
+A legality chain of `A` with only central types would copy the marked first cell forever,
+reaching a contradiction. -/
+private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hnc : ¬ c.IsCentral h.1) (ch : ℕ → DecTile c) (hch0 : ch 0 = K.centre)
+    (hch_child : ∀ i, IsChildOf c (ch (i + 1)) (ch i))
+    (hleg : ∀ (n : ℕ) (i : c.Side (ch n).typ) (k : Fin 5),
+      (copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) k).Nonempty →
+      ¬ HasOrigin c ch n i k → (ch n).cell i k = 0) :
+    ∃ n, ¬ c.IsCentral (ch n).typ := by sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
+Therefore the chain reaches a legal noncentral ancestor. -/
+private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (ch : ℕ → DecTile c) (hch0 : ch 0 = K.centre)
+    (hch_child : ∀ i, IsChildOf c (ch (i + 1)) (ch i))
+    (hleg : ∀ (n : ℕ) (i : c.Side (ch n).typ) (k : Fin 5),
+      (copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) k).Nonempty →
+      ¬ HasOrigin c ch n i k → (ch n).cell i k = 0)
+    (hn : ∃ n, ¬ c.IsCentral (ch n).typ) :
+    ∃ E, headerLegal c E ∧ ¬ c.IsCentral E.typ ∧
+      ∃ n, ∃ ch' : ℕ → DecTile c, ch' 0 = K.centre ∧ (∀ i, IsChildOf c (ch' (i + 1)) (ch' i)) ∧
+        ch' n = E ∧ ∀ i < n, c.IsCentral (ch' i).typ := by sorry
+
 /-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal`: A legality chain
 of `A` with only central types would copy the marked first cell forever ... Therefore the
 chain reaches a legal noncentral ancestor. -/
@@ -613,7 +642,12 @@ private lemma reconstructed_noncentral_legal_step1_ancestor {P : Protoset}
     (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1) :
     ∃ E, headerLegal c E ∧ ¬ c.IsCentral E.typ ∧
       ∃ n, ∃ ch : ℕ → DecTile c, ch 0 = K.centre ∧ (∀ i, IsChildOf c (ch (i + 1)) (ch i)) ∧
-        ch n = E ∧ ∀ i < n, c.IsCentral (ch i).typ := by sorry
+        ch n = E ∧ ∀ i < n, c.IsCentral (ch i).typ := by
+  have ⟨ch, hch0, hch_child, hleg⟩ := hA
+  have hn := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central c hH K hK h hh hnc
+    ch hch0 hch_child hleg
+  exact reconstructed_noncentral_legal_step1_ancestor_step2_min_n c hH K hK ch hch0 hch_child
+    hleg hn
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal`: Choose a shortest
 central-child chain ending at such an ancestor. ... Thus `A` has a legal noncentral
@@ -650,7 +684,8 @@ theorem reconstructed_noncentral_legal (c : MacroCertificate P) (hH : c.Heredita
   obtain ⟨E_anc, hE_anc_leg, hE_anc_nc, n, ch, hch0, hch_child, hch_end, hch_cent⟩ :=
     reconstructed_noncentral_legal_step1_ancestor c hH K hK h hh hA hnc
   obtain ⟨E, hE_leg, hE_nc, hE_child⟩ :=
-    reconstructed_noncentral_legal_step2_parent c hH K hK h hh hA hnc E_anc hE_anc_leg hE_anc_nc n ch hch0 hch_child hch_end hch_cent
+    reconstructed_noncentral_legal_step2_parent c hH K hK h hh hA hnc E_anc hE_anc_leg hE_anc_nc
+      n ch hch0 hch_child hch_end hch_cent
   have h_eq := reconstructed_noncentral_legal_step3_eq c hH K hK h hh hA hnc E hE_leg hE_nc hE_child
   rwa [← h_eq]
 

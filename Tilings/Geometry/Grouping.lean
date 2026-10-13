@@ -3457,6 +3457,63 @@ private lemma existsAnnularSpokes_step4_sort (B : PolygonalDisk) {k : ℕ} (x : 
     hγ himage hxi
   exact ⟨γ, σ, hγ, hσ⟩
 
+/-- Step 5 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts`: the disjointness
+of the crosscuts forces both endpoint maps to be injective. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step1_endpoints (A C : PolygonalDisk)
+    {k : ℕ} (α : Fin k → PolyArc)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier) :
+    Function.Injective (fun j => (α j).start) ∧
+      Function.Injective (fun j => (α j).stop) := by
+  have hstart : ∀ j, (α j).start ∈ (α j).carrier ∩ frontier C.carrier := by
+    intro j
+    rw [hC j]
+    exact Set.mem_singleton _
+  have hstop : ∀ j, (α j).stop ∈ (α j).carrier ∩ frontier A.carrier := by
+    intro j
+    rw [hA j]
+    exact Set.mem_singleton _
+  constructor
+  · intro i j hij
+    change (α i).start = (α j).start at hij
+    by_contra hne
+    exact Set.disjoint_left.1 (hdisj i j hne) (hstart i).1 (by
+      rw [hij]
+      exact (hstart j).1)
+  · intro i j hij
+    change (α i).stop = (α j).stop at hij
+    by_contra hne
+    exact Set.disjoint_left.1 (hdisj i j hne) (hstop i).1 (by
+      rw [hij]
+      exact (hstop j).1)
+
+/-- Step 5 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts`: choose the inner
+boundary parametrization with the orientation freely homotopic to the given outer one. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step2_boundary_homotopy (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {γo : ℝ → Pt}
+    (hγo : IsLoopParam (frontier A.carrier) γo) :
+    ∃ γi : ℝ → Pt, IsLoopParam (frontier C.carrier) γi ∧
+      LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts`: disjoint crosscuts
+in an annulus transfer the cyclic order of their outer endpoints to their inner endpoints. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (α : Fin k → PolyArc)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (hstart : Function.Injective (fun j => (α j).start))
+    (hstop : Function.Injective (fun j => (α j).stop))
+    {γo γi : ℝ → Pt} (hγo : IsLoopParam (frontier A.carrier) γo)
+    (hγi : IsLoopParam (frontier C.carrier) γi)
+    (hhom : LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi)
+    (hord : PointsInOrder γo fun j => (α j).stop) :
+    PointsInOrder γi fun j => (α j).start := by
+  sorry
+
 /-- Step 5 of the blueprint proof of `existsAnnularSpokes`: "The separated tubes give disjoint
 arcs and distinct endpoints.  Disjoint arcs joining the two boundary components of an annulus
 have compatible cyclic endpoint order."  In the polygonal annulus `A \ int C`, if pairwise
@@ -3473,7 +3530,13 @@ private lemma existsAnnularSpokes_step5_crosscuts (A C : PolygonalDisk)
     (hord : PointsInOrder γo fun j => (α j).stop) :
     MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
       (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start) := by
-  sorry
+  obtain ⟨γi, hγi, hhom⟩ :=
+    existsAnnularSpokes_step5_crosscuts_step2_boundary_homotopy A C hCA hγo
+  obtain ⟨hstart, hstop⟩ :=
+    existsAnnularSpokes_step5_crosscuts_step1_endpoints A C α hC hA hdisj
+  have hinner := existsAnnularSpokes_step5_crosscuts_step3_order_transfer A C hCA α hin hC hA
+    hdisj hstart hstop hγo hγi hhom hord
+  exact ⟨γo, γi, hγo, hγi, hhom, hord, hinner⟩
 
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "Cutting a polygonal
 annulus along such `4N` arcs gives `4N` disks, one between each successive pair; this is a

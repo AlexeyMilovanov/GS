@@ -189,12 +189,102 @@ private lemma three_le_genuineCount_step3_step1_open_collinear_empty
   rw [h_vec] at hc'
   omega
 
-/-- Step 2 of the blueprint proof of `three_le_genuineCount_step3`: a bounded open set
+/-- Step 1 of the blueprint proof of
+three_le_genuineCount_step3_step2_bounded_open_subset_line: a point outside a
+collinear set has a nonzero ray disjoint from that set. -/
+private lemma three_le_genuineCount_step3_step2_bounded_open_subset_line_step1_disjoint_ray
+    {L : Set Pt} (hL : Collinear ℝ L) {p : Pt} (hp : p ∉ L) :
+    ∃ v : Pt, v ≠ 0 ∧ ∀ t : ℝ, 0 ≤ t → p + t • v ∉ L := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+three_le_genuineCount_step3_step2_bounded_open_subset_line: a bounded set
+cannot contain a whole nonzero ray starting at one of its points. -/
+private lemma three_le_genuineCount_step3_step2_bounded_open_subset_line_step2_ray_endpoint
+    {U : Set Pt} (hbdd : Bornology.IsBounded U) {p v : Pt}
+    (hp : p ∈ U) (hv : v ≠ 0) :
+    ∃ t : ℝ, 0 ≤ t ∧ p + t • v ∉ U := by
+  obtain ⟨r, hr⟩ := hbdd.subset_closedBall p
+  have hr0 : 0 ≤ r := by
+    have h := hr hp
+    rw [Metric.mem_closedBall, dist_self] at h
+    exact h
+  let t : ℝ := r / ‖v‖ + 1
+  have hvnorm : 0 < ‖v‖ := norm_pos_iff.mpr hv
+  have ht : 0 ≤ t := by
+    dsimp [t]
+    positivity
+  refine ⟨t, ht, ?_⟩
+  intro hpt
+  have hclosed := hr hpt
+  rw [Metric.mem_closedBall] at hclosed
+  have hdist : dist (p + t • v) p = ‖t • v‖ := by
+    rw [dist_eq_norm]
+    congr 1
+    abel
+  rw [hdist, norm_smul, Real.norm_of_nonneg ht] at hclosed
+  dsimp [t] at hclosed
+  rw [add_mul, div_mul_cancel₀ r (ne_of_gt hvnorm), one_mul] at hclosed
+  linarith
+
+/-- Step 3 of the blueprint proof of
+three_le_genuineCount_step3_step2_bounded_open_subset_line: a segment from
+an open-set point to an exterior point meets the frontier. -/
+private lemma three_le_genuineCount_step3_step2_bounded_open_subset_line_step3_frontier_meets_segment
+    {U : Set Pt} (hU : IsOpen U) {p q : Pt} (hp : p ∈ U) (hq : q ∉ U) :
+    (segment ℝ p q ∩ frontier U).Nonempty := by
+  by_contra hne
+  rw [Set.not_nonempty_iff_eq_empty] at hne
+  have hsub : segment ℝ p q ⊆ U ∪ interior Uᶜ := by
+    intro z hz
+    by_cases hzU : z ∈ U
+    · exact Or.inl hzU
+    · right
+      by_contra hzi
+      have hzf : z ∈ frontier U := by
+        rw [hU.frontier_eq, closure_eq_compl_interior_compl]
+        exact ⟨hzi, hzU⟩
+      have hz' : z ∈ segment ℝ p q ∩ frontier U := ⟨hz, hzf⟩
+      rwa [hne] at hz'
+  have hd : Disjoint U (interior Uᶜ) := by
+    rw [Set.disjoint_left]
+    intro z hzU hzUc
+    exact (interior_subset hzUc) hzU
+  rcases (convex_segment p q).isPreconnected.subset_or_subset
+      hU isOpen_interior hd hsub with h | h
+  · exact hq (h (right_mem_segment ℝ p q))
+  · exact (interior_subset (h (left_mem_segment ℝ p q))) hp
+
+/-- Step 2 of the blueprint proof of three_le_genuineCount_step3: a bounded open set
 whose boundary is contained in a line must itself be contained in that line. -/
 private lemma three_le_genuineCount_step3_step2_bounded_open_subset_line
     {U : Set Pt} (hU : IsOpen U) (hbdd : Bornology.IsBounded U)
     {L : Set Pt} (hL : Collinear ℝ L) (hfr : frontier U ⊆ L) : U ⊆ L := by
-  sorry
+  intro p hp
+  by_contra hpL
+  obtain ⟨v, hv, hvL⟩ :=
+    three_le_genuineCount_step3_step2_bounded_open_subset_line_step1_disjoint_ray hL hpL
+  obtain ⟨t, ht, hq⟩ :=
+    three_le_genuineCount_step3_step2_bounded_open_subset_line_step2_ray_endpoint hbdd hp hv
+  let q : Pt := p + t • v
+  have hq' : q ∉ U := by
+    simpa [q] using hq
+  obtain ⟨z, hzseg, hzfr⟩ :=
+    three_le_genuineCount_step3_step2_bounded_open_subset_line_step3_frontier_meets_segment
+      hU hp hq'
+  rw [segment_eq_image' ℝ p q] at hzseg
+  rcases hzseg with ⟨s, hs, hsz⟩
+  have hst : 0 ≤ s * t := mul_nonneg hs.1 ht
+  apply hvL (s * t) hst
+  have hzp : z = p + (s * t) • v := by
+    calc
+      z = p + s • (q - p) := hsz.symm
+      _ = p + (s * t) • v := by
+        dsimp [q]
+        congr 1
+        module
+  rw [← hzp]
+  exact hfr hzfr
 
 /-- Step 3 of the blueprint proof of `three_le_genuineCount`: if the boundary of a
 regular closed set is contained in a line, its interior is empty. -/

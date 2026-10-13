@@ -343,13 +343,37 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step2_ed
   rw [PlacedTile.vertex, PlacedTile.vertex, dist_vadd]
   exact hd
 
+private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite_aux1
+    (τ : Substitution P) (n : ℕ) {S : Set (PlacedTile P)} (hS : S.Finite) :
+    (τ.decomposeIter n S).Finite := by
+  induction n with
+  | zero => exact hS
+  | succ n ih =>
+    change (τ.decompose (τ.decomposeIter n S)).Finite
+    apply Set.Finite.biUnion ih
+    intro A _
+    exact Set.Finite.image _ (τ.rule A.form).finite
+
+private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite_aux2
+    (τ : Substitution P) (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form) :
+    (fineOuterSides τ G m A).Finite := by
+  have hfine : (fineTiles τ G m A).Finite :=
+    whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite_aux1 τ m
+      (G.dissect A).finite
+  have hsub : fineOuterSides τ G m A ⊆
+      ⋃ B ∈ fineTiles τ G m A, Set.range (fun i : Fin (P.disk B.form).n =>
+        ((B.vertex i, B.vertex (finRotate _ i)) : Pt × Pt)) := by
+    rintro e ⟨B, hB, i, hei, -⟩
+    exact Set.mem_biUnion hB ⟨i, hei.symm⟩
+  exact (Set.Finite.biUnion hfine fun B _ => Set.finite_range _).subset hsub
+
 /-- Step 3 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: the set of fine edges on the parent side is finite. -/
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite
     (τ : Substitution P) (G : GroupedFamily P) (m : ℕ)
     (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
     {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
-        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.Finite := by
-  sorry
+        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.Finite :=
+  (whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite_aux2 τ G m A).sep _
 
 /-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound`: the length of the
 parent side is bounded by the total number of fine edges on it times D. -/

@@ -1597,7 +1597,9 @@ private lemma coarse_simple_step2_step2_distinct_coarse_sides_no_common_fine_sid
     (h2 : segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
       segment ℝ (D.coarseVertex j) (D.coarseVertex (finRotate D.genuineCount j))) :
     False := by
-  sorry
+  obtain ⟨r, hr, hk⟩ := coarse_simple_step2_step1_step1_mem_block D i k h1
+  obtain ⟨r', hr', hk'⟩ := coarse_simple_step2_step1_step1_mem_block D j k h2
+  exact hij (coarse_simple_step2_step1_step2_block_unique D i j r r' k hr hr' hk hk')
 
 /-- Step 2 of the blueprint proof of `coarse_simple_step2`: If `x` is a fine endpoint in both fine segments, it is a coarse endpoint. -/
 private lemma coarse_simple_step2_step2 (i j : Fin D.genuineCount) (hij : i ≠ j)

@@ -919,7 +919,17 @@ private lemma supertile_disjoint_step1_decompose_step2 (τ : Substitution P) (S 
 /-- Step 3 of the blueprint proof of `supertile_disjoint_step1_decompose`: the interior of a tile is in the interior of the support of its decomposition. -/
 private lemma supertile_disjoint_step1_decompose_step3 (τ : Substitution P) (A : PlacedTile P)
     (T : PlacedTile P) (hT : T ∈ τ.decomposeTile A) :
-    interior T.carrier ⊆ interior (support (τ.decomposeTile A)) := sorry
+    interior T.carrier ⊆ interior (support (τ.decomposeTile A)) := by
+  apply interior_mono
+  dsimp [Substitution.decomposeTile, translateSet] at hT
+  rcases hT with ⟨B, hB, rfl⟩
+  dsimp [PlacedTile.translate, PlacedTile.carrier, support]
+  intro x hx
+  let C : PlacedTile P := B.translate (τ.θ • A.anchor)
+  refine mem_iUnion.2 ⟨C, mem_iUnion.2 ⟨?_, ?_⟩⟩
+  · dsimp [C, Substitution.decomposeTile, translateSet]
+    exact ⟨B, hB, rfl⟩
+  · simpa [C, PlacedTile.translate] using hx
 
 /-- Step 4 of the blueprint proof of `supertile_disjoint_step1_decompose`: for two tiles T1 and T2
   from the decomposition of A and B, their interiors are disjoint. -/

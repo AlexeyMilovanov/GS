@@ -2466,6 +2466,207 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
     _ = (h_fin.toFinset.card : ℝ) * M.D := by
       rw [Finset.sum_const, nsmul_eq_mul]
 
+/-- Step 2's endpoint uniqueness substep: two overlapping fine outer sides that both contain
+the same endpoint of the parent side coincide. -/
+private lemma whole_side_ports_step2_length_bound_step2_omitted_count_edge_unique_at_endpoint
+    (τ : Substitution P) (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form)
+    (p q : Pt) (e f : Pt × Pt) (hpq : p ≠ q)
+    (he : e ∈ fineOuterSides τ G m A) (hf : f ∈ fineOuterSides τ G m A)
+    (heov : OverlapPos (segment ℝ e.1 e.2) (segment ℝ p q))
+    (hfov : OverlapPos (segment ℝ f.1 f.2) (segment ℝ p q))
+    (hpe : p ∈ segment ℝ e.1 e.2) (hpf : p ∈ segment ℝ f.1 f.2) : e = f := by
+  have hcommon : OverlapPos (segment ℝ e.1 e.2) (segment ℝ f.1 f.2) := by
+    obtain ⟨x, y, hxy, hxe⟩ := heov
+    obtain ⟨u, v, huv, hxf⟩ := hfov
+    have hex : ∃ r, r ≠ p ∧ r ∈ segment ℝ e.1 e.2 ∧ r ∈ segment ℝ p q := by
+      by_cases hxp : x = p
+      · refine ⟨y, ?_, (hxe (right_mem_segment ℝ x y)).1,
+          (hxe (right_mem_segment ℝ x y)).2⟩
+        intro hyp
+        exact hxy (hxp.trans hyp.symm)
+      · exact ⟨x, hxp, (hxe (left_mem_segment ℝ x y)).1,
+          (hxe (left_mem_segment ℝ x y)).2⟩
+    have hfu : ∃ s, s ≠ p ∧ s ∈ segment ℝ f.1 f.2 ∧ s ∈ segment ℝ p q := by
+      by_cases hup : u = p
+      · refine ⟨v, ?_, (hxf (right_mem_segment ℝ u v)).1,
+          (hxf (right_mem_segment ℝ u v)).2⟩
+        intro hpv
+        exact huv (hup.trans hpv.symm)
+      · exact ⟨u, hup, (hxf (left_mem_segment ℝ u v)).1,
+          (hxf (left_mem_segment ℝ u v)).2⟩
+    obtain ⟨r, hrp, hre, hrpq⟩ := hex
+    obtain ⟨s, hsp, hsf, hspq⟩ := hfu
+    obtain ⟨z, hzpr, hzps⟩ := omitted_count_common_open_from_endpoint hpq hrp hsp hrpq hspq
+    have hpr_e : segment ℝ p r ⊆ segment ℝ e.1 e.2 :=
+      (convex_segment _ _).segment_subset hpe hre
+    have hps_f : segment ℝ p s ⊆ segment ℝ f.1 f.2 :=
+      (convex_segment _ _).segment_subset hpf hsf
+    have hpz_r : segment ℝ p z ⊆ segment ℝ p r :=
+      (convex_segment _ _).segment_subset (left_mem_segment ℝ p r)
+        (openSegment_subset_segment ℝ _ _ hzpr)
+    have hpz_s : segment ℝ p z ⊆ segment ℝ p s :=
+      (convex_segment _ _).segment_subset (left_mem_segment ℝ p s)
+        (openSegment_subset_segment ℝ _ _ hzps)
+    refine ⟨p, z, (omitted_count_open_ne_left hrp.symm hzpr).symm, ?_⟩
+    intro w hw
+    exact ⟨hpr_e (hpz_r hw), hps_f (hpz_s hw)⟩
+  obtain ⟨B, hB, i, heq, hefront⟩ := he
+  obtain ⟨C, hC, j, hfeq, hffront⟩ := hf
+  have hR : ∀ D ∈ fineTiles τ G m A, D.carrier ⊆ parentRegion τ G m A := by
+    intro D hD x hx
+    rw [parentRegion, ← omitted_count_fineTiles_support τ G m A]
+    exact Set.mem_iUnion₂.2 ⟨D, hD, hx⟩
+  have hfront : B.side i ⊆ frontier (parentRegion τ G m A) := by
+    rw [omitted_count_tile_side_eq]
+    simpa [heq] using hefront
+  have hBC := sa1_frontier_tiles_eq (fineTiles τ G m A)
+    (omitted_count_fineTiles_disjoint τ G m A) (parentRegion τ G m A) hR hB hC i j hfront
+    (by
+      rw [omitted_count_tile_side_eq, omitted_count_tile_side_eq]
+      simpa [heq, hfeq] using hcommon)
+  subst C
+  have hside : OverlapPos (B.side i) (B.side j) := by
+    rw [omitted_count_tile_side_eq, omitted_count_tile_side_eq]
+    simpa [heq, hfeq] using hcommon
+  have hij := sa1_same_tile_side B i j hside
+  subst j
+  rw [heq, hfeq]
+
+private lemma whole_side_ports_step2_length_bound_step2_omitted_count_overlap_inside_or_endpoint
+    {p q x y : Pt} (hpq : p ≠ q)
+    (hov : OverlapPos (segment ℝ x y) (segment ℝ p q)) :
+    segment ℝ x y ⊆ openSegment ℝ p q ∨ p ∈ segment ℝ x y ∨ q ∈ segment ℝ x y := by
+  have hspan := sa1_ba_overlap_span hov
+  obtain ⟨u, v, huv, huvsub⟩ := hov
+  have hline : ∀ z ∈ affineSpan ℝ ({p, q} : Set Pt),
+      ∃ r : ℝ, z = p + r • (q - p) := by
+    intro z hz
+    obtain ⟨r, hr⟩ := (mem_affineSpan_pair_iff_exists_lineMap_eq).1 hz
+    rw [AffineMap.lineMap_apply] at hr
+    exact ⟨r, by simpa [vsub_eq_sub, vadd_eq_add, add_comm] using hr.symm⟩
+  have hpoint : ∀ {a b t : ℝ}, a < b → a ≤ t → t ≤ b →
+      p + t • (q - p) ∈ segment ℝ (p + a • (q - p)) (p + b • (q - p)) := by
+    intro a b t hab hat htb
+    rw [segment_eq_image']
+    let r := (t - a) / (b - a)
+    have hr0 : 0 ≤ r := by
+      dsimp [r]
+      exact div_nonneg (sub_nonneg.mpr hat) (le_of_lt (sub_pos.mpr hab))
+    have hr1 : r ≤ 1 := by
+      dsimp [r]
+      apply (div_le_iff₀ (sub_pos.mpr hab)).2
+      linarith
+    refine ⟨r, ⟨hr0, hr1⟩, ?_⟩
+    dsimp [r]
+    have hden : b - a ≠ 0 := ne_of_gt (sub_pos.mpr hab)
+    have hscalar : a + (t - a) / (b - a) * (b - a) = t := by
+      field_simp [hden]
+      ring
+    calc
+      (p + a • (q - p)) + r • ((p + b • (q - p)) - (p + a • (q - p))) =
+          p + (a + (t - a) / (b - a) * (b - a)) • (q - p) := by
+        dsimp [r]
+        module
+      _ = p + t • (q - p) := by rw [hscalar]
+  have hpd : q - p ≠ 0 := sub_ne_zero.mpr hpq.symm
+  have hxline : x ∈ affineSpan ℝ ({p, q} : Set Pt) := by
+    rw [← hspan]
+    exact left_mem_affineSpan_pair ℝ x y
+  have hyline : y ∈ affineSpan ℝ ({p, q} : Set Pt) := by
+    rw [← hspan]
+    exact right_mem_affineSpan_pair ℝ x y
+  obtain ⟨rx, hrx⟩ := hline x hxline
+  obtain ⟨ry, hry⟩ := hline y hyline
+  have hmem_scalar : ∀ {a b t : ℝ}, a ≤ t → t ≤ b →
+      p + t • (q - p) ∈ segment ℝ (p + a • (q - p)) (p + b • (q - p)) := by
+    intro a b t hat htb
+    by_cases hab : a < b
+    · exact hpoint hab hat htb
+    · have hba : b ≤ a := le_of_not_gt hab
+      have h : a = b := le_antisymm (le_trans hat htb) hba
+      subst h
+      have ht : t = a := le_antisymm htb hat
+      subst t
+      rw [segment_same]
+      rfl
+  by_cases hpE : p ∈ segment ℝ x y
+  · exact Or.inr (Or.inl hpE)
+  by_cases hqE : q ∈ segment ℝ x y
+  · exact Or.inr (Or.inr hqE)
+  have huP : u ∈ segment ℝ p q := (huvsub (left_mem_segment ℝ u v)).2
+  obtain ⟨t, ht0, ht1, hut⟩ := (sa1_ba_mem_segment).1 huP
+  have huE : u ∈ segment ℝ x y := (huvsub (left_mem_segment ℝ u v)).1
+  rw [segment_eq_image'] at huE
+  obtain ⟨s, hs, hus⟩ := huE
+  have hscalar : t = rx + s * (ry - rx) := by
+    have heq : p + t • (q - p) = p + (rx + s * (ry - rx)) • (q - p) := by
+      calc
+        p + t • (q - p) = u := hut.symm
+        _ = x + s • (y - x) := hus.symm
+        _ = p + (rx + s * (ry - rx)) • (q - p) := by rw [hrx, hry]; module
+    exact sa1_ba_smul_cancel hpd (add_left_cancel heq)
+  have hbetween : (rx ≤ t ∧ t ≤ ry) ∨ (ry ≤ t ∧ t ≤ rx) := by
+    by_cases hxy' : rx ≤ ry
+    · left
+      constructor <;> nlinarith [hs.1, hs.2]
+    · right
+      have hyx : ry ≤ rx := le_of_not_ge hxy'
+      constructor <;> nlinarith [hs.1, hs.2]
+  have hzero : ¬ ((rx ≤ 0 ∧ 0 ≤ ry) ∨ (ry ≤ 0 ∧ 0 ≤ rx)) := by
+    rintro (h | h)
+    · exact hpE (by simpa [hrx, hry] using hmem_scalar h.1 h.2)
+    · exact hpE (by simpa [hrx, hry, segment_symm] using hmem_scalar h.1 h.2)
+  have hone : ¬ ((rx ≤ 1 ∧ 1 ≤ ry) ∨ (ry ≤ 1 ∧ 1 ≤ rx)) := by
+    rintro (h | h)
+    · exact hqE (by simpa [hrx, hry] using hmem_scalar h.1 h.2)
+    · exact hqE (by simpa [hrx, hry, segment_symm] using hmem_scalar h.1 h.2)
+  have hrx0 : 0 < rx := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hzero (Or.inl ⟨not_lt.mp h', le_trans ht0 h.2⟩)
+    · by_contra h'
+      exact hzero (Or.inr ⟨h.1.trans (le_trans h.2 (not_lt.mp h')),
+        le_trans ht0 h.2⟩)
+  have hry0 : 0 < ry := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hzero (Or.inl ⟨h.1.trans (le_trans h.2 (not_lt.mp h')),
+        le_trans ht0 h.2⟩)
+    · by_contra h'
+      exact hzero (Or.inr ⟨not_lt.mp h', le_trans ht0 h.2⟩)
+  have hrx1 : rx < 1 := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hone (Or.inl ⟨le_trans h.1 ht1,
+        le_trans (not_lt.mp h') (le_trans h.1 h.2)⟩)
+    · by_contra h'
+      exact hone (Or.inr ⟨le_trans h.1 ht1, not_lt.mp h'⟩)
+  have hry1 : ry < 1 := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hone (Or.inl ⟨le_trans h.1 ht1, not_lt.mp h'⟩)
+    · by_contra h'
+      exact hone (Or.inr ⟨le_trans h.1 ht1,
+        le_trans (not_lt.mp h') (le_trans h.1 h.2)⟩)
+  left
+  intro z hz
+  rw [segment_eq_image'] at hz
+  obtain ⟨r, hr, hzr⟩ := hz
+  rw [openSegment_eq_image']
+  refine ⟨rx + r * (ry - rx), ?_, ?_⟩
+  · constructor
+    · nlinarith [mul_nonneg (sub_nonneg.mpr hr.2) (le_of_lt hrx0),
+        mul_nonneg hr.1 (le_of_lt hry0)]
+    · nlinarith [mul_nonneg (sub_nonneg.mpr hr.2) (sub_nonneg.mpr (le_of_lt hrx1)),
+        mul_nonneg hr.1 (sub_nonneg.mpr (le_of_lt hry1))]
+  · rw [hrx, hry] at hzr
+    symm
+    change z = p + (rx + r * (ry - rx)) • (q - p)
+    calc
+      z = (p + rx • (q - p)) + r • ((p + ry • (q - p)) -
+        (p + rx • (q - p))) := hzr.symm
+      _ = p + (rx + r * (ry - rx)) • (q - p) := by module
+
 /-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound`: among the fine
 outer sides overlapping the parent side positively, at most two are not strictly inside it
 (one may cross or touch each endpoint). -/
@@ -2474,7 +2675,58 @@ private lemma whole_side_ports_step2_length_bound_step2_omitted_count
     {e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
         (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard ≤
       (sidesInside τ G m A a).ncard + 2 := by
-  sorry
+  let p := (parentSide τ G m A a).1
+  let q := (parentSide τ G m A a).2
+  let S := {e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2) (segment ℝ p q)}
+  let I := sidesInside τ G m A a
+  let L := {e ∈ S | p ∈ segment ℝ e.1 e.2}
+  let R := {e ∈ S | q ∈ segment ℝ e.1 e.2}
+  have hpq : p ≠ q := omitted_count_parent_endpoints_ne τ G m A a
+  have hSfin : S.Finite := by
+    simpa [S, p, q] using
+      (whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite τ G m A a)
+  have hIfin : I.Finite := by
+    apply hSfin.subset
+    rintro e ⟨hefine, heopen⟩
+    have hefine' := hefine
+    obtain ⟨B, hB, i, heq, -⟩ := hefine'
+    refine ⟨hefine, ?_⟩
+    refine ⟨e.1, e.2, ?_, ?_⟩
+    · rw [heq]
+      exact omitted_count_tile_vertex_ne_next B i
+    · intro z hz
+      exact ⟨hz, openSegment_subset_segment ℝ _ _ (heopen hz)⟩
+  have hLfin : L.Finite := hSfin.sep _
+  have hRfin : R.Finite := hSfin.sep _
+  have hL : L.ncard ≤ 1 := by
+    rw [Set.ncard_le_one hLfin]
+    intro e he f hf
+    exact whole_side_ports_step2_length_bound_step2_omitted_count_edge_unique_at_endpoint
+      τ G m A p q e f hpq he.1.1 hf.1.1 he.1.2 hf.1.2 he.2 hf.2
+  have hR : R.ncard ≤ 1 := by
+    rw [Set.ncard_le_one hRfin]
+    intro e he f hf
+    apply whole_side_ports_step2_length_bound_step2_omitted_count_edge_unique_at_endpoint
+      τ G m A q p e f hpq.symm he.1.1 hf.1.1
+    · simpa [segment_symm] using he.1.2
+    · simpa [segment_symm] using hf.1.2
+    · exact he.2
+    · exact hf.2
+  have hsub : S ⊆ I ∪ (L ∪ R) := by
+    intro e he
+    rcases whole_side_ports_step2_length_bound_step2_omitted_count_overlap_inside_or_endpoint
+        hpq he.2 with heopen | hzp | hzq
+    · exact Or.inl ⟨he.1, heopen⟩
+    · exact Or.inr (Or.inl ⟨he, hzp⟩)
+    · exact Or.inr (Or.inr ⟨he, hzq⟩)
+  have hUnionFin : (I ∪ (L ∪ R)).Finite := hIfin.union (hLfin.union hRfin)
+  change S.ncard ≤ I.ncard + 2
+  calc
+    S.ncard ≤ (I ∪ (L ∪ R)).ncard := Set.ncard_le_ncard hsub hUnionFin
+    _ ≤ I.ncard + (L ∪ R).ncard := Set.ncard_union_le I (L ∪ R)
+    _ ≤ I.ncard + (L.ncard + R.ncard) :=
+      Nat.add_le_add_left (Set.ncard_union_le L R) I.ncard
+    _ ≤ I.ncard + 2 := by omega
 
 /-- Step 2 of the blueprint proof of `whole_side_ports`: the length of the parent
 side is bounded by the number of inside edges times D plus the omitted length 2D. -/

@@ -397,7 +397,18 @@ private lemma finite_crowns_step1_vertex_step1_translate (B : PlacedTile P) (w :
 
 /-- Step 1 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: a vertex of a tile is in its carrier. -/
 private lemma finite_crowns_step1_vertex_step2_sts_step1_vertex_mem_carrier {τ : Substitution P}
-    (C : PlacedTile P) (v : Pt) (hv : v ∈ C.vertexSet) : v ∈ C.carrier := sorry
+    (C : PlacedTile P) (v : Pt) (hv : v ∈ C.vertexSet) : v ∈ C.carrier := by
+  have _ := τ
+  rcases hv with ⟨i, rfl⟩
+  apply vadd_mem_vadd_set
+  apply (show segment ℝ ((P.disk C.form).vertex i)
+      ((P.disk C.form).vertex (finRotate (P.disk C.form).n i)) ⊆
+      frontier (P.disk C.form).carrier from by
+    rw [(P.disk C.form).frontier_eq]
+    exact subset_iUnion (fun j => segment ℝ ((P.disk C.form).vertex j)
+      ((P.disk C.form).vertex (finRotate (P.disk C.form).n j))) i).trans
+    (P.disk C.form).compact.isClosed.frontier_subset
+  exact left_mem_segment ℝ _ _
 
 /-- Step 2 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: two distinct tiles in a supertile have disjoint interiors. -/
 private lemma finite_crowns_step1_vertex_step2_sts_step2_disjoint {τ : Substitution P} (n : ℕ) (p : P.Form)

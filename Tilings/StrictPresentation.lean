@@ -36,7 +36,46 @@ theorem StrictScheduleSystem.isComposition_project {τ : Substitution P}
     (h : Sys.σc.IsComposition T'' T) :
     Sys.GS.σ.IsComposition (Sys.dec.toDecoration.project T'')
       (Sys.dec.toDecoration.project T) := by
-  sorry
+  have htile (A : PlacedTile Sys.dec.P') :
+      Sys.GS.σ.decomposeTile (Sys.dec.toDecoration.projTile A) =
+        Sys.dec.toDecoration.projTile '' Sys.σc.decomposeTile A := by
+    have hrule := Sys.rule_proj A.form
+    dsimp [Substitution.decomposeTile, translateSet]
+    ext B
+    simp only [Set.mem_image]
+    constructor
+    · rintro ⟨C, hC, rfl⟩
+      change C ∈ (Sys.GS.σ.rule (Sys.dec.proj A.form)).tiles at hC
+      rw [← hrule] at hC
+      rcases hC with ⟨D, hD, rfl⟩
+      refine ⟨D.translate (Sys.σc.θ • A.anchor), ⟨D, hD, rfl⟩, ?_⟩
+      rcases D with ⟨fD, aD⟩
+      rcases A with ⟨fA, aA⟩
+      dsimp [Decoration.projTile, PlacedTile.translate]
+      rw [Sys.θ_eq]
+    · rintro ⟨C, ⟨D, hD, rfl⟩, rfl⟩
+      refine ⟨Sys.dec.toDecoration.projTile D, ?_, ?_⟩
+      · change Sys.dec.toDecoration.projTile D ∈
+          (Sys.GS.σ.rule (Sys.dec.proj A.form)).tiles
+        rw [← hrule]
+        exact ⟨D, hD, rfl⟩
+      · rcases D with ⟨fD, aD⟩
+        rcases A with ⟨fA, aA⟩
+        dsimp [Decoration.projTile, PlacedTile.translate]
+        rw [Sys.θ_eq]
+  dsimp [Substitution.IsComposition] at h ⊢
+  change Sys.GS.σ.decompose (Sys.dec.toDecoration.projTile '' T''.tiles) =
+    Sys.dec.toDecoration.projTile '' T.tiles
+  rw [← h]
+  dsimp [Substitution.decompose]
+  have hleft :
+      (⋃ A ∈ Sys.dec.toDecoration.projTile '' T''.tiles, Sys.GS.σ.decomposeTile A) =
+        ⋃ A ∈ T''.tiles, Sys.GS.σ.decomposeTile (Sys.dec.toDecoration.projTile A) := by
+    ext B
+    simp
+  rw [hleft]
+  simp_rw [htile]
+  rw [Set.image_iUnion₂]
 
 /-- `lem:strict-presentation`: for every STS substitution there is a strict
 schedule system (the strict typed decoration of the certificate of

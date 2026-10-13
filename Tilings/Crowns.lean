@@ -5373,7 +5373,33 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step2_k
     (τ : Substitution P) (ε : ℝ) (hε : 0 < ε)
     (F : Set (PlacedTile P)) (hF_fin : F.Finite) (m : ℕ) (hm : 0 < m) :
     ∃ k : ℕ, (τ.θ ^ (k * m))⁻¹ * Metric.diam (support F) < ε := by
-  sorry
+  have _ := hF_fin
+  let D := Metric.diam (support F)
+  have hD : 0 ≤ D := Metric.diam_nonneg
+  have hD1 : 0 < D + 1 := by linarith
+  have hθm : 1 < τ.θ ^ m := one_lt_pow₀ τ.one_lt (Nat.ne_of_gt hm)
+  have hθm_pos : 0 < τ.θ ^ m := pow_pos (lt_trans zero_lt_one τ.one_lt) m
+  have hq_pos : 0 < (τ.θ ^ m)⁻¹ :=
+    inv_pos.mpr hθm_pos
+  have hq_lt : (τ.θ ^ m)⁻¹ < 1 := (inv_lt_one₀ hθm_pos).2 hθm
+  have hx_pos : 0 < ε / (D + 1) := div_pos hε hD1
+  obtain ⟨k, hk⟩ := exists_pow_lt_of_lt_one hx_pos hq_lt
+  refine ⟨k, ?_⟩
+  have hq_nonneg : 0 ≤ ((τ.θ ^ m)⁻¹) ^ k := (pow_nonneg hq_pos.le k)
+  have hD_le : D ≤ D + 1 := by linarith
+  have hmul_le : ((τ.θ ^ m)⁻¹) ^ k * D ≤
+      ((τ.θ ^ m)⁻¹) ^ k * (D + 1) :=
+    mul_le_mul_of_nonneg_left hD_le hq_nonneg
+  have hmul_lt : ((τ.θ ^ m)⁻¹) ^ k * (D + 1) <
+      (ε / (D + 1)) * (D + 1) :=
+    mul_lt_mul_of_pos_right hk hD1
+  have hratio : (ε / (D + 1)) * (D + 1) = ε := by
+    field_simp
+  have hpow : τ.θ ^ (k * m) = (τ.θ ^ m) ^ k := by
+    rw [Nat.mul_comm, pow_mul]
+  change (τ.θ ^ (k * m))⁻¹ * D < ε
+  rw [hpow, ← inv_pow]
+  exact hmul_le.trans_lt (hmul_lt.trans_eq hratio)
 
 
 private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step1_bounded

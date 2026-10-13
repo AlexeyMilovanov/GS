@@ -1696,6 +1696,33 @@ def coarsenTile (A : PlacedTile P) : PlacedTile (coarsen P) := ⟨A.form, A.anch
 
 theorem coarsenTile_carrier (A : PlacedTile P) : (coarsenTile A).carrier = A.carrier := rfl
 
+private lemma coarsenSubstitution_disjoint (τ : Substitution P) (p : P.Form) :
+    DisjointInteriors (coarsenTile '' (τ.rule p).tiles) := by
+  dsimp [DisjointInteriors, Set.PairwiseDisjoint, Set.Pairwise, Function.onFun]
+  rintro _ ⟨A, hA, rfl⟩ _ ⟨B, hB, rfl⟩ hAB
+  have h1 : (coarsenTile A).carrier = A.carrier := coarsenTile_carrier A
+  have h2 : (coarsenTile B).carrier = B.carrier := coarsenTile_carrier B
+  rw [h1, h2]
+  apply (τ.rule p).disjoint hA hB
+  intro hab
+  apply hAB
+  rw [hab]
+
+private lemma coarsenSubstitution_support_eq (τ : Substitution P) (p : P.Form) :
+    support (coarsenTile '' (τ.rule p).tiles) = τ.θ • ((coarsen P).disk p).carrier := by
+  have : support (coarsenTile '' (τ.rule p).tiles) = support (τ.rule p).tiles := by
+    dsimp [support]
+    apply Set.ext
+    simp only [Set.mem_iUnion, Set.mem_image]
+    intro x
+    constructor
+    · rintro ⟨_, ⟨A, hA, rfl⟩, hx⟩
+      exact ⟨A, hA, hx⟩
+    · rintro ⟨A, hA, hx⟩
+      exact ⟨_, ⟨A, hA, rfl⟩, hx⟩
+  rw [this, τ.support_eq]
+  rfl
+
 /-- The substitution `τ` read on the coarsened protoset. -/
 def coarsenSubstitution (τ : Substitution P) : Substitution (coarsen P) where
   θ := τ.θ
@@ -1703,8 +1730,8 @@ def coarsenSubstitution (τ : Substitution P) : Substitution (coarsen P) where
   rule := fun p : P.Form =>
     { tiles := coarsenTile '' (τ.rule p).tiles
       finite := (τ.rule p).finite.image coarsenTile
-      disjoint := sorry }
-  support_eq := sorry
+      disjoint := coarsenSubstitution_disjoint τ p }
+  support_eq := coarsenSubstitution_support_eq τ
 
 /-- FLC survives coarsening. -/
 theorem coarsen_flc (τ : Substitution P) (h : τ.FLC) : (coarsenSubstitution τ).FLC := by

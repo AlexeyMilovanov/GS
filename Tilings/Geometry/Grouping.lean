@@ -3210,6 +3210,343 @@ structure AnnularGrouping (M : MeshConstants P) (S : Set (PlacedTile P)) (c : Pt
   H_anchor : H.OutsideAnchored (square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D))
   spokes : SpokeSystem S L H N
 
+/-! ### Helpers for `existsAnnularSpokes` -/
+
+/-- The point at arclength parameter `t` on the boundary of the square `[-A, A]²`, starting at
+the corner `(A, -A)` and running counterclockwise (a private copy of `squarePerimeterPoint`,
+which is declared after `existsAnnularSpokes`; the two definitions are definitionally equal). -/
+private def existsAnnularSpokes_pos (A t : ℝ) : Pt :=
+  if t ≤ 2 * A then mkPt A (-A + t)
+  else if t ≤ 4 * A then mkPt (A - (t - 2 * A)) A
+  else if t ≤ 6 * A then mkPt (-A) (A - (t - 4 * A))
+  else mkPt (-A + (t - 6 * A)) (-A)
+
+/-- The `j`-th extended radial segment: the part of the ray from the centre `c` through the
+`j`-th length-`R` position `v_j` of `∂Q₀` (`Q₀ = square c (NR/2)`, `v_j` at arclength `jR`)
+between infinity norms `NR/2 - 3D` and `NR/2 + R + 6D` from `c`, i.e. the radial segment from
+`∂Q₀` to `∂K₁` (`K₁ = square c (NR/2 + R + 3D)`) extended by `3D` past both squares. -/
+private def existsAnnularSpokes_ray (c : Pt) (N : ℕ) (R D : ℝ) (j : ℕ) : Set Pt :=
+  segment ℝ
+    (c + (((N : ℝ) * R / 2 - 3 * D) / ((N : ℝ) * R / 2)) •
+      existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))
+    (c + (((N : ℝ) * R / 2 + R + 6 * D) / ((N : ℝ) * R / 2)) •
+      existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))
+
+/-- `existsAnnularSpokes_skelEdgeIn S Z u w`: the segment `[u, w]` is a complete listed side of
+a tile of `S` (an edge of the original skeleton) and lies in `Z`.  Walks in the skeleton are
+chains of this relation (`Relation.ReflTransGen`). -/
+private def existsAnnularSpokes_skelEdgeIn (S : Set (PlacedTile P)) (Z : Set Pt) (u w : Pt) :
+    Prop :=
+  (∃ A ∈ S, HasEdge A (segment ℝ u w)) ∧ segment ℝ u w ⊆ Z
+
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes`: "Take concentric squares `Q₀, Q₁`
+... with the margin required above."  Square buffers are nested with room to spare:
+`square c a + B∞(r) ⊂ int (square c b + B∞(s))` whenever `a + r < b + s` (`b, s ≥ 0`).  In
+particular `L ⊂ Q₀ + B∞(D)` lies in the interior of `H ⊃ Q₁ + B∞(2D)`, and
+`H ⊂ Q₁ + B∞(3D)` lies in `int (Q₁ + B∞(10D)) ⊂ int Ω`. -/
+private lemma existsAnnularSpokes_step1_nest (c : Pt) {a r b s : ℝ} (h : a + r < b + s)
+    (hb : 0 ≤ b) (hs : 0 ≤ s) : square c a + Binf r ⊆ interior (square c b + Binf s) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes`: "Draw the radial segments from the
+square centre through these positions to the corresponding positions of `K₁ = Q₁ + B∞(3D)`.
+In the square annulus, successive radial segments have separation at least a universal positive
+multiple of `R` ... Extending each segment a bounded number of mesh diameters past the two
+cycles preserves disjoint tubes when `R/D` is sufficiently large."  For `N ≥ 2` and
+`R ≥ 100 D` the closed `D`-neighbourhoods of two distinct extended radial segments
+(`existsAnnularSpokes_ray`) are disjoint. -/
+private lemma existsAnnularSpokes_step2_tubes (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D)
+    (hN : 2 ≤ N) (hR : 100 * D ≤ R) {i j : Fin (4 * N)} (hij : i ≠ j) :
+    Disjoint (Metric.cthickening D (existsAnnularSpokes_ray c N R D i))
+      (Metric.cthickening D (existsAnnularSpokes_ray c N R D j)) := by
+  sorry
+
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "Follow the finite
+sequence of original faces crossed by one extended segment.  Consecutive faces share a side or
+vertex, and every face boundary is a connected polygonal cycle.  Their boundary graphs form a
+connected finite graph, all of whose edges lie within `D` of the segment.  It meets both `∂L`
+and `∂H`."  Concretely: there is a walk along original edges, each within `D` of the `j`-th
+extended radial segment and inside `int Ω`, from a vertex in `int L` (a vertex of a face
+containing the inner end of the segment, at infinity norm `NR/2 - 3D`; that face lies in
+`int Q₀`) to a vertex outside `H` (a vertex of a face containing the outer end, at infinity
+norm `NR/2 + R + 6D`; that face lies outside `K₁ ⊃ H`). -/
+private lemma existsAnnularSpokes_step3_spoke_step1_walk (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk) (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 100 * M.D ≤ R)
+    (hΩ : square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (L H : FaceGroup S.tiles) (hL : square c ((N : ℝ) * R / 2) ⊆ L.carrier)
+    (hH : H.carrier ⊆ square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D)) (j : Fin (4 * N)) :
+    ∃ u w, u ∈ interior L.carrier ∧ w ∉ H.carrier ∧
+      Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles
+        (Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j) ∩ interior Ω.carrier))
+        u w := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "take the part from its
+last point on `∂L` to its first subsequent point on `∂H`.  The part lies in the annulus and has
+no other point on either cycle.  Planarity of the skeleton ensures that an edge cannot cross a
+cycle without meeting it at a vertex."  A skeletal walk with edges in `Z ⊆ int (support S)`
+from a point of `int L` to a point outside `H` contains a sub-walk from a vertex `u'` of `∂L`
+to a vertex `w'` of `∂H` all of whose edges lie in `Z` and, apart from `u'` and `w'`, in
+`int H \ L`. -/
+private lemma existsAnnularSpokes_step3_spoke_step2_cut (S : Patch P)
+    (hsts : SideToSideSet S.tiles) (L H : FaceGroup S.tiles)
+    (hLH : L.carrier ⊆ interior H.carrier) {Z : Set Pt} (hZ : Z ⊆ interior (support S.tiles))
+    {u w : Pt} (hu : u ∈ interior L.carrier) (hw : w ∉ H.carrier)
+    (hwalk : Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) u w) :
+    ∃ u' w', u' ∈ frontier L.carrier ∧ w' ∈ frontier H.carrier ∧
+      Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles
+        (Z ∩ (interior H.carrier \ L.carrier ∪ {u', w'}))) u' w' := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "Select a graph path,
+erase loops".  A skeletal walk between two distinct points, with edges in
+`Z ⊆ int (support S)`, yields a simple skeletal polygonal arc with the same endpoints inside `Z`
+(by the side-to-side property, two distinct original edges inside the covered region meet at
+most in a common endpoint). -/
+private lemma existsAnnularSpokes_step3_spoke_step3_erase (S : Patch P)
+    (hsts : SideToSideSet S.tiles) {Z : Set Pt} (hZ : Z ⊆ interior (support S.tiles))
+    {u w : Pt} (huw : u ≠ w)
+    (hwalk : Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) u w) :
+    ∃ α : PolyArc, α.IsSimple ∧ α.IsSkeletal S.tiles ∧ α.start = u ∧ α.stop = w ∧
+      α.carrier ⊆ Z := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsAnnularSpokes`: "Follow the finite sequence of
+original faces crossed by one extended segment ... Select a graph path, erase loops, and take
+the part from its last point on `∂L` to its first subsequent point on `∂H`.  The part lies in
+the annulus and has no other point on either cycle."  For each of the `4N` extended radial
+segments there is a simple skeletal arc in `H \ int L`, meeting `∂L` only at its start and `∂H`
+only at its stop, within `D` of the segment. -/
+private lemma existsAnnularSpokes_step3_spoke (M : MeshConstants P) (S : Patch P)
+    (Ω : PolygonalDisk) (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
+    (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 100 * M.D ≤ R)
+    (hΩ : square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D) ⊆ interior Ω.carrier)
+    (L H : FaceGroup S.tiles) (hL : square c ((N : ℝ) * R / 2) ⊆ L.carrier)
+    (hLu : L.carrier ⊆ square c ((N : ℝ) * R / 2) + Binf M.D)
+    (hHl : square c ((N : ℝ) * R / 2 + R) + Binf (2 * M.D) ⊆ H.carrier)
+    (hHu : H.carrier ⊆ square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D)) (j : Fin (4 * N)) :
+    ∃ α : PolyArc, α.IsSimple ∧ α.IsSkeletal S.tiles ∧
+      α.carrier ⊆ H.carrier \ interior L.carrier ∧
+      α.carrier ∩ frontier L.carrier = {α.start} ∧ α.carrier ∩ frontier H.carrier = {α.stop} ∧
+      α.carrier ⊆ Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j) := by
+  have hD := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hb : 0 ≤ (N : ℝ) * R / 2 + R :=
+    add_nonneg (div_nonneg (mul_nonneg (Nat.cast_nonneg N) hR0.le) zero_le_two) hR0.le
+  have hnest : square c ((N : ℝ) * R / 2) + Binf M.D ⊆
+      interior (square c ((N : ℝ) * R / 2 + R) + Binf (2 * M.D)) :=
+    existsAnnularSpokes_step1_nest c (by linarith) hb (by linarith)
+  have hLH : L.carrier ⊆ interior H.carrier := hLu.trans (hnest.trans (interior_mono hHl))
+  obtain ⟨u, w, hu, hw, hwalk⟩ :=
+    existsAnnularSpokes_step3_spoke_step1_walk M S Ω hcov hsts c hN hR hΩ L H hL hHu j
+  have hZ : Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j) ∩ interior Ω.carrier ⊆
+      interior (support S.tiles) := by
+    rw [hcov]
+    exact Set.inter_subset_right
+  obtain ⟨u', w', hu', hw', hwalk'⟩ :=
+    existsAnnularSpokes_step3_spoke_step2_cut S hsts L H hLH hZ hu hw hwalk
+  have hfL : frontier L.carrier ⊆ L.carrier := L.disk.compact.isClosed.frontier_subset
+  have hfH : frontier H.carrier ⊆ H.carrier := H.disk.compact.isClosed.frontier_subset
+  have hu'H : u' ∈ interior H.carrier := hLH (hfL hu')
+  have hne : u' ≠ w' := fun h => hw'.2 (h ▸ hu'H)
+  obtain ⟨α, hsimp, hskel, hst, hsp, hsub⟩ :=
+    existsAnnularSpokes_step3_spoke_step3_erase S hsts (Set.inter_subset_left.trans hZ) hne
+      hwalk'
+  have hstart : α.start ∈ α.carrier := Set.mem_iUnion.2 ⟨0, left_mem_segment ℝ _ _⟩
+  have hstop : α.stop ∈ α.carrier := Set.mem_iUnion.2 ⟨Fin.last _, right_mem_segment ℝ _ _⟩
+  have hmem : ∀ x ∈ α.carrier, (x ∈ interior H.carrier ∧ x ∉ L.carrier) ∨ x = u' ∨ x = w' :=
+    fun x hx => (hsub hx).2
+  refine ⟨α, hsimp, hskel, ?_, ?_, ?_, fun x hx => (hsub hx).1.1⟩
+  · intro x hx
+    rcases hmem x hx with ⟨h1, h2⟩ | rfl | rfl
+    · exact ⟨interior_subset h1, fun h => h2 (interior_subset h)⟩
+    · exact ⟨interior_subset hu'H, hu'.2⟩
+    · exact ⟨hfH hw', fun h => hw'.2 (hLH (interior_subset h))⟩
+  · ext x
+    simp only [Set.mem_inter_iff, Set.mem_singleton_iff]
+    constructor
+    · rintro ⟨hx, hxf⟩
+      rcases hmem x hx with ⟨-, h2⟩ | rfl | rfl
+      · exact absurd (hfL hxf) h2
+      · exact hst.symm
+      · exact absurd (hLH (hfL hxf)) hw'.2
+    · rintro rfl
+      exact ⟨hstart, by rw [hst]; exact hu'⟩
+  · ext x
+    simp only [Set.mem_inter_iff, Set.mem_singleton_iff]
+    constructor
+    · rintro ⟨hx, hxf⟩
+      rcases hmem x hx with ⟨h1, -⟩ | rfl | rfl
+      · exact absurd h1 hxf.2
+      · exact absurd hu'H hxf.2
+      · exact hsp.symm
+    · rintro rfl
+      exact ⟨hstop, by rw [hsp]; exact hw'⟩
+
+/-- Step 4 of the blueprint proof of `existsAnnularSpokes`: the stops of the spokes are distinct
+points of the polygonal cycle `∂H`, so after a re-indexing they appear in cyclic order along a
+parametrization of that cycle.  (Blueprint: "The index `j` of the `j`th cut disk is matched with
+the ideal sector `T_j` only in the next lemma"; here any cyclic labelling will do.) -/
+private lemma existsAnnularSpokes_step4_sort (B : PolygonalDisk) {k : ℕ} (x : Fin k → Pt)
+    (hx : ∀ i, x i ∈ frontier B.carrier) (hxi : Function.Injective x) :
+    ∃ γ : ℝ → Pt, ∃ σ : Equiv.Perm (Fin k), IsLoopParam (frontier B.carrier) γ ∧
+      PointsInOrder γ (x ∘ σ) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `existsAnnularSpokes`: "The separated tubes give disjoint
+arcs and distinct endpoints.  Disjoint arcs joining the two boundary components of an annulus
+have compatible cyclic endpoint order."  In the polygonal annulus `A \ int C`, if pairwise
+disjoint polygonal arcs, each meeting `∂C` only at its start and `∂A` only at its stop, have
+their stops in cyclic order along a parametrization `γo` of `∂A`, then their starts are in the
+same cyclic order along a parametrization of `∂C` freely homotopic to `γo` in the annulus. -/
+private lemma existsAnnularSpokes_step5_crosscuts (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (α : Fin k → PolyArc)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier) {γo : ℝ → Pt}
+    (hγo : IsLoopParam (frontier A.carrier) γo)
+    (hord : PointsInOrder γo fun j => (α j).stop) :
+    MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start) := by
+  sorry
+
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "Cutting a polygonal
+annulus along such `4N` arcs gives `4N` disks, one between each successive pair; this is a
+direct polygonal Jordan argument, or the elementary polygonal annulus theorem ... Their inner
+boundary arcs have distinct endpoints and positive length."  Planar form: removing `k ≥ 2`
+pairwise disjoint simple polygonal cross-cuts of the annulus `A \ int C`, in matching cyclic
+order, from the open annulus `int A \ C` leaves `k` connected open regions; the `j`-th has the
+cross-cuts `j` and `j + 1` in its closure, its closure has connected complement, and its
+closure meets `C` in a connected set with more than one point. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (hk : 2 ≤ k) (α : Fin k → PolyArc)
+    (hsimple : ∀ j, (α j).IsSimple)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start)) :
+    ∃ W : Fin k → Set Pt, (∀ j, IsOpen (W j)) ∧ (∀ j, IsConnected (W j)) ∧
+      (∀ i j, i ≠ j → Disjoint (W i) (W j)) ∧
+      ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier) ∧
+      (∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j)) ∧
+      (∀ j, IsConnected (closure (W j))ᶜ) ∧
+      (∀ j, IsConnected (closure (W j) ∩ C.carrier) ∧
+        (closure (W j) ∩ C.carrier).Nontrivial) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "All cuts use original
+edges, so the disks are unions of whole original faces."  The interior of a face of `H` that is
+not a face of `L` avoids `L` and the skeletal cuts, so it lies in exactly one of the regions of
+the cut annulus. -/
+private lemma existsAnnularSpokes_step6_cut_step2_faces (S : Patch P) (L H : FaceGroup S.tiles)
+    {k : ℕ} (α : Fin k → PolyArc) (hskel : ∀ j, (α j).IsSkeletal S.tiles)
+    (W : Fin k → Set Pt) (hWo : ∀ j, IsOpen (W j))
+    (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
+    (hWU : ⋃ j, W j = interior H.carrier \ (L.carrier ∪ ⋃ j, (α j).carrier))
+    {A : PlacedTile P} (hA : A ∈ H.faces) (hAL : A ∉ L.faces) :
+    ∃! j, interior A.carrier ⊆ W j := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "the disks are unions of
+whole original faces" -- the closure of each region of the cut annulus is the union of the
+faces of `H`, not in `L`, whose interiors it contains. -/
+private lemma existsAnnularSpokes_step6_cut_step3_closure (S : Patch P)
+    (L H : FaceGroup S.tiles) {k : ℕ} (α : Fin k → PolyArc)
+    (hskel : ∀ j, (α j).IsSkeletal S.tiles) (W : Fin k → Set Pt) (hWo : ∀ j, IsOpen (W j))
+    (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
+    (hWU : ⋃ j, W j = interior H.carrier \ (L.carrier ∪ ⋃ j, (α j).carrier)) (j : Fin k) :
+    closure (W j) = support {A | A ∈ H.faces ∧ A ∉ L.faces ∧ interior A.carrier ⊆ W j} := by
+  sorry
+
+/-- Step 6 of the blueprint proof of `existsAnnularSpokes`: "Cutting a polygonal annulus along
+such `4N` arcs gives `4N` disks, one between each successive pair ... All cuts use original
+edges, so the disks are unions of whole original faces.  Their inner boundary arcs have distinct
+endpoints and positive length.  Their face-dual graphs are connected by the generic-path
+argument used in Lemma `lem:regular-grouping`."  Given `4N` spokes with all the spoke
+properties, the pieces exist (each a `FaceGroup`, through `polygonalJordanBoundary`). -/
+private lemma existsAnnularSpokes_step6_cut (S : Patch P) (hsts : SideToSideSet S.tiles)
+    (L H : FaceGroup S.tiles) (hLH : L.carrier ⊆ interior H.carrier)
+    (hHS : H.carrier ⊆ interior (support S.tiles)) {N : ℕ} (hN : 1 ≤ N)
+    (α : Fin (4 * N) → PolyArc) (hsimple : ∀ j, (α j).IsSimple)
+    (hskel : ∀ j, (α j).IsSkeletal S.tiles)
+    (hin : ∀ j, (α j).carrier ⊆ H.carrier \ interior L.carrier)
+    (hmL : ∀ j, (α j).carrier ∩ frontier L.carrier = {(α j).start})
+    (hmH : ∀ j, (α j).carrier ∩ frontier H.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (horder : MatchingCyclicOrder (H.carrier \ interior L.carrier) (frontier H.carrier)
+      (frontier L.carrier) (fun j => (α j).stop) (fun j => (α j).start)) :
+    ∃ T : SpokeSystem S.tiles L H N, T.spoke = α := by
+  classical
+  obtain ⟨W, hWo, hWc, hWd, hWU, hWb, hWco, hWct⟩ :=
+    existsAnnularSpokes_step6_cut_step1_regions H.disk L.disk hLH (by omega) α hsimple hin hmL
+      hmH hdisj horder
+  set G : Fin (4 * N) → Set (PlacedTile P) :=
+    fun j => {A | A ∈ H.faces ∧ A ∉ L.faces ∧ interior A.carrier ⊆ W j}
+  have hcl : ∀ j, closure (W j) = support (G j) := fun j =>
+    existsAnnularSpokes_step6_cut_step3_closure S L H α hskel W hWo hWd hWU j
+  have hGS : ∀ j, G j ⊆ S.tiles := fun j _ hA => H.faces_sub hA.1
+  have hex : ∀ j, ∃ F : FaceGroup S.tiles, F.faces = G j := by
+    intro j
+    refine polygonalJordanBoundary S.tiles S.disjoint hsts (G j) (hGS j)
+      (S.finite.subset (hGS j)) ?_ ?_ ?_ ?_
+    · obtain ⟨x, hx⟩ := (hWc j).nonempty
+      have hx' : x ∈ support (G j) := by
+        rw [← hcl j]
+        exact subset_closure hx
+      obtain ⟨A, hA, -⟩ := mem_support_iff'.1 hx'
+      exact ⟨A, hA⟩
+    · intro x hx
+      obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+      apply hHS
+      show x ∈ H.disk.carrier
+      rw [H.carrier_eq]
+      exact mem_support_iff'.2 ⟨A, hA.1, hxA⟩
+    · rw [← hcl j]
+      exact (hWc j).subset_closure (interior_maximal subset_closure (hWo j)) interior_subset
+    · rw [← hcl j]
+      exact hWco j
+  choose F hF using hex
+  have hcar : ∀ j, (F j).carrier = closure (W j) := by
+    intro j
+    show (F j).disk.carrier = _
+    rw [(F j).carrier_eq, hF j, hcl j]
+  refine ⟨
+    { spoke := α
+      simple := hsimple
+      skeletal := hskel
+      in_annulus := hin
+      meets_L := hmL
+      meets_H := hmH
+      disjoint := hdisj
+      order := horder
+      piece := F
+      piece_partition := ?_
+      piece_between := ?_
+      contact_connected := ?_
+      contact_nondegenerate := ?_ }, rfl⟩
+  · intro A _
+    simp only [hF]
+    constructor
+    · rintro ⟨hAH, hAL⟩
+      obtain ⟨j, hj, huniq⟩ :=
+        existsAnnularSpokes_step6_cut_step2_faces S L H α hskel W hWo hWd hWU hAH hAL
+      exact ⟨j, ⟨hAH, hAL, hj⟩, fun i hi => huniq i hi.2.2⟩
+    · rintro ⟨j, hj, -⟩
+      exact ⟨hj.1, hj.2.1⟩
+  · intro j
+    rw [hcar j]
+    exact hWb j
+  · intro j
+    rw [hcar j]
+    exact (hWct j).1
+  · intro j
+    rw [hcar j]
+    exact (hWct j).2
+
 /-- `lem:annular-spokes`: for `N ≥ 2` and `R` large compared with `D`, any
 inside-anchored `L` and outside-anchored `H` as above admit `4N` disjoint
 simple skeletal spokes in matching cyclic order, cutting the annulus into `4N`
@@ -3228,7 +3565,46 @@ theorem existsAnnularSpokes (M : MeshConstants P) :
           H.carrier ⊆ square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D) →
           H.OutsideAnchored (square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D)) →
           Nonempty (SpokeSystem S.tiles L H N) := by
-  sorry
+  have hD := M.D_pos
+  refine ⟨100, by norm_num, ?_⟩
+  intro S Ω hcov hsts c N R hN hR hΩ L H hL hLu _ hHl hHu _
+  have hR0 : 0 < R := by linarith
+  have hb : 0 ≤ (N : ℝ) * R / 2 + R :=
+    add_nonneg (div_nonneg (mul_nonneg (Nat.cast_nonneg N) hR0.le) zero_le_two) hR0.le
+  have hnest1 : square c ((N : ℝ) * R / 2) + Binf M.D ⊆
+      interior (square c ((N : ℝ) * R / 2 + R) + Binf (2 * M.D)) :=
+    existsAnnularSpokes_step1_nest c (by linarith) hb (by linarith)
+  have hnest2 : square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D) ⊆
+      interior (square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D)) :=
+    existsAnnularSpokes_step1_nest c (by linarith) hb (by linarith)
+  have hLH : L.carrier ⊆ interior H.carrier := hLu.trans (hnest1.trans (interior_mono hHl))
+  have hHS : H.carrier ⊆ interior (support S.tiles) := by
+    rw [hcov]
+    exact hHu.trans (hnest2.trans ((interior_mono hΩ).trans interior_interior.subset))
+  choose α hα using fun j : Fin (4 * N) =>
+    existsAnnularSpokes_step3_spoke M S Ω hcov hsts c hN hR hΩ L H hL hLu hHl hHu j
+  have hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier := fun _ _ hij =>
+    (existsAnnularSpokes_step2_tubes c hD hN hR hij).mono (hα _).2.2.2.2.2 (hα _).2.2.2.2.2
+  have hstop : ∀ j, (α j).stop ∈ (α j).carrier ∩ frontier H.carrier := fun j => by
+    rw [(hα j).2.2.2.2.1]
+    exact Set.mem_singleton _
+  have hinj : Function.Injective fun j => (α j).stop := by
+    intro i j hij
+    have hij' : (α i).stop = (α j).stop := hij
+    by_contra hne
+    refine Set.disjoint_left.1 (hdisj i j hne) (hstop i).1 ?_
+    rw [hij']
+    exact (hstop j).1
+  obtain ⟨γo, σ, hγo, hord⟩ :=
+    existsAnnularSpokes_step4_sort H.disk (fun j => (α j).stop) (fun j => (hstop j).2) hinj
+  have horder := existsAnnularSpokes_step5_crosscuts H.disk L.disk hLH (fun j => α (σ j))
+    (fun j => (hα (σ j)).2.2.1) (fun j => (hα (σ j)).2.2.2.1) (fun j => (hα (σ j)).2.2.2.2.1)
+    (fun i j hij => hdisj _ _ (σ.injective.ne hij)) hγo hord
+  obtain ⟨T, -⟩ := existsAnnularSpokes_step6_cut S hsts L H hLH hHS (by omega)
+    (fun j => α (σ j)) (fun j => (hα (σ j)).1) (fun j => (hα (σ j)).2.1)
+    (fun j => (hα (σ j)).2.2.1) (fun j => (hα (σ j)).2.2.2.1) (fun j => (hα (σ j)).2.2.2.2.1)
+    (fun i j hij => hdisj _ _ (σ.injective.ne hij)) horder
+  exact ⟨T⟩
 
 /-! ## Quantitative sector localization (`lem:quantitative-sector`) -/
 
@@ -3257,6 +3633,139 @@ def privateOuterEdges {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt} {N
     ∃ F ∈ S, F ∉ G.H.faces ∧ HasEdge F e ∧
       ∀ t, t ≠ j → Disjoint F.carrier (G.spokes.piece t).carrier}
 
+/-! ### Helpers for `quantitativeAnnularGrouping` -/
+
+/-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping`: the outer spoke endpoints lie
+along `∂H` in the order of the ideal positions.  Blueprint: "The outer endpoint `w_j` satisfies
+`h - D ≤ ‖w_j‖∞ ≤ h`, giving similarly `|w_j - λ v_j| < 4D` ... Use the outside-anchored face at
+`w_j` to reach `q_j ∉ K₁` ... The endpoint boxes are separated by at least `R - 10D`", and
+(`lem:annular-spokes`) "each wall crosses `∂L` exactly once, and pigeonhole over the ideal
+wedges fixes the correspondence".  Points of `∂H`, the `j`-th within `D` of the `j`-th extended
+radial segment, appear in the index order along a parametrization of `∂H` (outside anchoring
+excludes long backtracking of `∂H` inside its band of width `D`). -/
+private lemma quantitativeAnnularGrouping_step1_outerOrder {M : MeshConstants P} {S : Patch P}
+    (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R) (H : FaceGroup S.tiles)
+    (hHl : square c ((N : ℝ) * R / 2 + R) + Binf (2 * M.D) ⊆ H.carrier)
+    (hHu : H.carrier ⊆ square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D))
+    (hHa : H.OutsideAnchored (square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D)))
+    (w : Fin (4 * N) → Pt) (hw : ∀ j, w j ∈ frontier H.carrier)
+    (hwr : ∀ j : Fin (4 * N), w j ∈ Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j)) :
+    ∃ γo : ℝ → Pt, IsLoopParam (frontier H.carrier) γo ∧ PointsInOrder γo w := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `quantitativeAnnularGrouping`: an annular group lies in
+`H \ int L`, hence ("for a point `x ∈ int K₁ \ Q₀`") between `∂Q₀` and `∂K₁`: in the square of
+half side `NR/2 + R + 3D` and outside the open square of half side `NR/2`. -/
+private lemma quantitativeAnnularGrouping_step2_band {M : MeshConstants P} {S : Patch P}
+    {c : Pt} {N : ℕ} {R : ℝ} (G : AnnularGrouping M S.tiles c N R) (j : Fin (4 * N)) {x : Pt}
+    (hx : x ∈ (G.spokes.piece j).carrier) :
+    x ∈ square c ((N : ℝ) * R / 2 + R + 3 * M.D) ∧ x ∉ interior (square c ((N : ℝ) * R / 2)) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping`: localization away from the
+tubes.  Blueprint: "Use the inside-anchored face at `u_j` to join it through that face's
+interior to `p_j ∈ int Q₀` ... We obtain proper simple walls `W_j` from zero to infinity,
+pairwise disjoint except at zero ... For a point `x ∈ int K₁ \ Q₀` outside the two `5D` radial
+tubes, truncate `W_j, W_{j+1}` on a sufficiently large circle and close them along that circle
+... Winding number is unchanged, so the actual and ideal wedge labels agree away from the
+tubes.  This proves localization there."  A point of the `j`-th annular group outside the
+`5D`-neighbourhoods of the `j`-th and `(j+1)`-st extended radial segments lies in the ideal
+trapezoid `T_j`. -/
+private lemma quantitativeAnnularGrouping_step3_wedges {M : MeshConstants P} {S : Patch P}
+    (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R)
+    (G : AnnularGrouping M S.tiles c N R)
+    (hspk : ∀ j, (G.spokes.spoke j).carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j))
+    (j : Fin (4 * N)) {x : Pt} (hx : x ∈ (G.spokes.piece j).carrier)
+    (hxj : x ∉ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D j))
+    (hxj' : x ∉ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D ((j : ℕ) + 1))) :
+    x ∈ idealTrapezoid c N R M.D (j : ℕ) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping`: localization in the tubes.
+Blueprint: "If `x` lies in one of the tubes, clip its nearest radial-line point to the segment
+between infinity norms `A` and `h`.  The clipping moves it by at most `5√2 D`.  Its distance to
+the corresponding boundary segment of `T_j` is therefore less than `(1+√2)5D < 13D`."  A point
+between `∂Q₀` and `∂K₁` within `5D` of the `j`-th or `(j+1)`-st extended radial segment is
+within `13D` of `T_j`. -/
+private lemma quantitativeAnnularGrouping_step4_tubes (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D)
+    (hN : 2 ≤ N) (hR : 1000 * D ≤ R) (j : Fin (4 * N)) {x : Pt}
+    (hx : x ∈ square c ((N : ℝ) * R / 2 + R + 3 * D))
+    (hx' : x ∉ interior (square c ((N : ℝ) * R / 2)))
+    (ht : x ∈ Metric.cthickening (5 * D) (existsAnnularSpokes_ray c N R D j) ∨
+      x ∈ Metric.cthickening (5 * D) (existsAnnularSpokes_ray c N R D ((j : ℕ) + 1))) :
+    x ∈ Metric.cthickening (13 * D) (idealTrapezoid c N R D (j : ℕ)) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `quantitativeAnnularGrouping`: private outer edges along the
+middle half of the outer side of `T_j`.  Blueprint: "Take the middle half `J` of the outer edge
+of `T_j`; its length is `λR/2 ≥ R/2`.  Its distance to every other ideal trapezoid is at least
+`R/(4√2)` ... The inward normal from each `y ∈ J` meets `∂H` within its first `D` of length ...
+That intersection has distance at least `R/(4√2) - 21D > D` from every other `S_t`.  Its
+outside original face, of diameter at most `D`, cannot meet another small group.  Thus `e` is
+an ordinary marked private edge of `S_j`."  With `f` the coordinate along the side of `∂K₁`
+carrying the outer edge of `T_j` (a `1`-Lipschitz function), every value in an interval of
+length `R/2` is attained by `f` on some private outer edge of the `j`-th group. -/
+private lemma quantitativeAnnularGrouping_step5_privateHit {M : MeshConstants P} {S : Patch P}
+    (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R)
+    (G : AnnularGrouping M S.tiles c N R)
+    (hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ)))
+    (j : Fin (4 * N)) :
+    ∃ f : Pt → ℝ, LipschitzWith 1 f ∧ ∃ a : ℝ,
+      ∀ s ∈ Icc a (a + R / 2), ∃ e ∈ privateOuterEdges G j, ∃ p ∈ e, f p = s := by
+  sorry
+
+/-- Step 6 of the blueprint proof of `quantitativeAnnularGrouping`: "each has projected length
+at most `D`" -- the private outer edges of a group are finitely many listed sides of its faces,
+each of diameter at most `D`. -/
+private lemma quantitativeAnnularGrouping_step6_privateFinite {M : MeshConstants P}
+    {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ} (G : AnnularGrouping M S.tiles c N R)
+    (j : Fin (4 * N)) :
+    (privateOuterEdges G j).Finite ∧
+      ∀ e ∈ privateOuterEdges G j, ∀ p ∈ e, ∀ q ∈ e, dist p q ≤ M.D := by
+  sorry
+
+/-- Step 7 of the blueprint proof of `quantitativeAnnularGrouping`: "The projections of these
+private edges cover `J` apart from finitely many points, and each has projected length at most
+`D`.  There are consequently at least `|J|/D ≥ R/(2D)` distinct private edge occurrences."
+Counting form: if every value in an interval of length `ℓ` is attained by a `1`-Lipschitz
+function on one of finitely many sets of diameter at most `D`, there are at least `ℓ / D`
+sets. -/
+private lemma quantitativeAnnularGrouping_step7_count {D : ℝ} (hD : 0 < D) {E : Set (Set Pt)}
+    (hE : E.Finite) (hdiam : ∀ e ∈ E, ∀ p ∈ e, ∀ q ∈ e, dist p q ≤ D) {f : Pt → ℝ}
+    (hf : LipschitzWith 1 f) {a ℓ : ℝ}
+    (hcov : ∀ s ∈ Icc a (a + ℓ), ∃ e ∈ E, ∃ p ∈ e, f p = s) :
+    ℓ / D ≤ E.ncard := by
+  sorry
+
+/-- Step 8 of the blueprint proof of `quantitativeAnnularGrouping`: "Since `λ ≤ 2 + 3D/R`, each
+ideal trapezoid has span at most `5R` along its square side and at most `2R` across it ...
+hence diameter less than `6R`.  Localization gives `diam S_j ≤ 7R`."  The closed
+`20D`-neighbourhood of an ideal trapezoid is bounded, of diameter at most `7R`. -/
+private lemma quantitativeAnnularGrouping_step8_diam (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D)
+    (hN : 2 ≤ N) (hR : 1000 * D ≤ R) (j : Fin (4 * N)) :
+    Bornology.IsBounded (Metric.cthickening (20 * D) (idealTrapezoid c N R D (j : ℕ))) ∧
+      Metric.diam (Metric.cthickening (20 * D) (idealTrapezoid c N R D (j : ℕ))) ≤ 7 * R := by
+  sorry
+
+/-- Step 9 of the blueprint proof of `quantitativeAnnularGrouping`: "A square of side `14R`
+contains `S_j`, so disjoint constituent interiors of area at least `a` bound their number by
+`⌈196R²/a⌉`."  A group of faces whose region has diameter at most `d` has at most `⌈4d²/a⌉`
+faces. -/
+private lemma quantitativeAnnularGrouping_step9_faces (M : MeshConstants P) {S : Patch P}
+    (F : FaceGroup S.tiles) {d : ℝ} (hd : Metric.diam F.carrier ≤ d) :
+    F.faces.ncard ≤ ⌈4 * d ^ 2 / M.a⌉₊ := by
+  sorry
+
+/-- Step 10 of the blueprint proof of `quantitativeAnnularGrouping`: "Retaining all original
+vertices proves the stated side bound" -- every listed side of a group is a whole listed side of
+one of its faces, and distinct listed sides of a polygonal disk are distinct, so a group has at
+most `K₀` listed sides per face. -/
+private lemma quantitativeAnnularGrouping_step10_sides (M : MeshConstants P)
+    {S : Set (PlacedTile P)} (F : FaceGroup S) : F.disk.n ≤ M.K0 * F.faces.ncard := by
+  sorry
+
 /-- `lem:quantitative-sector`: there are constants `C_sep, C_loc, C_len,
 C_err, C`, independent of `N`, of the substitution power and of the patch,
 such that for `R ≥ C_sep D` the groupings can be chosen with every annular
@@ -3276,7 +3785,99 @@ theorem quantitativeAnnularGrouping (M : MeshConstants P) :
           (∀ j : Fin (4 * N), Metric.diam (G.spokes.piece j).carrier ≤ C * R) ∧
           (∀ j : Fin (4 * N),
               (G.spokes.piece j).disk.n ≤ M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊) := by
-  sorry
+  refine ⟨1000, 20, 2, 0, 7, by norm_num, by norm_num, by norm_num, le_rfl, by norm_num, ?_⟩
+  intro S Ω hcov hsts c N R hN hR hΩ
+  have hD := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hN2 : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA0 : 0 < (N : ℝ) * R / 2 := by nlinarith
+  have hb : 0 ≤ (N : ℝ) * R / 2 + R := by linarith
+  have hnest0 : square c ((N : ℝ) * R / 2) + Binf (3 * M.D) ⊆
+      interior (square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D)) :=
+    existsAnnularSpokes_step1_nest c (by linarith) hb (by linarith)
+  have hnest1 : square c ((N : ℝ) * R / 2) + Binf M.D ⊆
+      interior (square c ((N : ℝ) * R / 2 + R) + Binf (2 * M.D)) :=
+    existsAnnularSpokes_step1_nest c (by linarith) hb (by linarith)
+  have hnest2 : square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D) ⊆
+      interior (square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D)) :=
+    existsAnnularSpokes_step1_nest c (by linarith) hb (by linarith)
+  have hΩi : interior (square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D)) ⊆ interior Ω.carrier :=
+    (interior_mono hΩ).trans interior_interior.subset
+  -- the inside-anchored group `L` and the outside-anchored group `H`
+  obtain ⟨L, hL1, hL2, hL3⟩ :=
+    regularGrouping M S Ω hcov hsts c ((N : ℝ) * R / 2) hA0 (hnest0.trans hΩi)
+  obtain ⟨H, hH1, hH2, hH3, -⟩ :=
+    outsideAnchoredGrouping M S Ω hcov hsts c ((N : ℝ) * R / 2 + R) (by linarith) hΩ
+  have hLH : L.carrier ⊆ interior H.carrier := hL2.trans (hnest1.trans (interior_mono hH1))
+  have hHS : H.carrier ⊆ interior (support S.tiles) := by
+    rw [hcov]
+    exact hH2.trans (hnest2.trans hΩi)
+  -- spokes along the extended radial segments
+  have hR100 : 100 * M.D ≤ R := by linarith
+  choose α hα using fun j : Fin (4 * N) =>
+    existsAnnularSpokes_step3_spoke M S Ω hcov hsts c hN hR100 hΩ L H hL1 hL2 hH1 hH2 j
+  have hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier := fun _ _ hij =>
+    (existsAnnularSpokes_step2_tubes c hD hN hR100 hij).mono (hα _).2.2.2.2.2 (hα _).2.2.2.2.2
+  have hstop : ∀ j, (α j).stop ∈ (α j).carrier ∩ frontier H.carrier := fun j => by
+    rw [(hα j).2.2.2.2.1]
+    exact Set.mem_singleton _
+  obtain ⟨γo, hγo, hord⟩ := quantitativeAnnularGrouping_step1_outerOrder c hN hR H hH1 hH2 hH3
+    (fun j => (α j).stop) (fun j => (hstop j).2) (fun j => (hα j).2.2.2.2.2 (hstop j).1)
+  have horder := existsAnnularSpokes_step5_crosscuts H.disk L.disk hLH α
+    (fun j => (hα j).2.2.1) (fun j => (hα j).2.2.2.1) (fun j => (hα j).2.2.2.2.1) hdisj hγo hord
+  obtain ⟨T, hT⟩ := existsAnnularSpokes_step6_cut S hsts L H hLH hHS (by omega) α
+    (fun j => (hα j).1) (fun j => (hα j).2.1) (fun j => (hα j).2.2.1)
+    (fun j => (hα j).2.2.2.1) (fun j => (hα j).2.2.2.2.1) hdisj horder
+  let G : AnnularGrouping M S.tiles c N R :=
+    { L := L
+      H := H
+      L_lower := hL1
+      L_upper := hL2
+      L_anchor := hL3
+      H_lower := hH1
+      H_upper := hH2
+      H_anchor := hH3
+      spokes := T }
+  have hspk : ∀ j, (G.spokes.spoke j).carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j) := by
+    intro j
+    show (T.spoke j).carrier ⊆ _
+    rw [hT]
+    exact (hα j).2.2.2.2.2
+  -- localization
+  have hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ)) := by
+    intro j x hx
+    obtain ⟨hx1, hx2⟩ := quantitativeAnnularGrouping_step2_band G j hx
+    by_cases ht : x ∈ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D j) ∨
+        x ∈ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D ((j : ℕ) + 1))
+    · exact Metric.cthickening_mono (by linarith) _
+        (quantitativeAnnularGrouping_step4_tubes c hD hN hR j hx1 hx2 ht)
+    · exact Metric.self_subset_cthickening _
+        (quantitativeAnnularGrouping_step3_wedges c hN hR G hspk j hx (not_or.1 ht).1
+          (not_or.1 ht).2)
+  -- diameter
+  have hdiam : ∀ j : Fin (4 * N), Metric.diam (G.spokes.piece j).carrier ≤ 7 * R := by
+    intro j
+    obtain ⟨hbd, hd⟩ := quantitativeAnnularGrouping_step8_diam c hD hN hR j
+    exact (Metric.diam_mono (hloc j) hbd).trans hd
+  refine ⟨G, hloc, ?_, hdiam, ?_⟩
+  · -- private outer edges
+    intro j
+    obtain ⟨f, hf, a, hcovJ⟩ := quantitativeAnnularGrouping_step5_privateHit c hN hR G hloc j
+    obtain ⟨hfin, hdi⟩ := quantitativeAnnularGrouping_step6_privateFinite G j
+    have hcount := quantitativeAnnularGrouping_step7_count hD hfin hdi hf hcovJ
+    have hfl : (⌊R / (2 * M.D)⌋₊ : ℝ) ≤ R / (2 * M.D) :=
+      Nat.floor_le (div_nonneg hR0.le (by linarith))
+    have heq : R / 2 / M.D = R / (2 * M.D) := by rw [div_div]
+    linarith
+  · -- side bound
+    intro j
+    have h1 := quantitativeAnnularGrouping_step10_sides M (G.spokes.piece j)
+    have h2 := quantitativeAnnularGrouping_step9_faces M (G.spokes.piece j) (hdiam j)
+    have h3 : 4 * (7 * R) ^ 2 / M.a = 4 * 7 ^ 2 * R ^ 2 / M.a := by ring
+    rw [h3] at h2
+    exact h1.trans (Nat.mul_le_mul_left _ h2)
 
 /-! ## The fingerprint criterion (`lem:fingerprint`) -/
 

@@ -4635,6 +4635,2069 @@ def privateOuterEdges {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt} {N
 
 /-! ### Helpers for `quantitativeAnnularGrouping` -/
 
+/-- hat function -/
+private def qoHat (n k : ℕ) (s : ℝ) : ℝ := max 0 (1 - |(n : ℝ) * s - k|)
+
+private lemma qoHat_cont (n k : ℕ) : Continuous (qoHat n k) := by
+  unfold qoHat; fun_prop
+
+private lemma qoHat_zero {n k : ℕ} {s : ℝ} (h : 1 ≤ |(n : ℝ) * s - k|) : qoHat n k s = 0 := by
+  unfold qoHat; rw [max_eq_left]; linarith
+
+private def qoIdx (B : PolygonalDisk) (k : ℕ) : Fin B.n :=
+  ⟨k % B.n, Nat.mod_lt _ (by have := B.three_le; omega)⟩
+
+/-- piecewise-linear parametrization of the boundary on `[0,1]` -/
+private def qoG (B : PolygonalDisk) (s : ℝ) : Pt :=
+  ∑ k ∈ Finset.range (B.n + 1), qoHat B.n k s • B.vertex (qoIdx B k)
+
+private lemma qoG_cont (B : PolygonalDisk) : Continuous (qoG B) := by
+  unfold qoG
+  exact continuous_finset_sum _ fun k _ => (qoHat_cont _ _).smul continuous_const
+
+private lemma qoG_piece (B : PolygonalDisk) {k : ℕ} (hk : k < B.n) {s : ℝ}
+    (hs1 : (k : ℝ) ≤ B.n * s) (hs2 : B.n * s ≤ k + 1) :
+    qoG B s = B.vertex (qoIdx B k) + ((B.n : ℝ) * s - k) • (B.vertex (qoIdx B (k + 1)) - B.vertex (qoIdx B k)) := by
+  unfold qoG
+  rw [Finset.sum_eq_add_of_mem k (k + 1) (by simp; omega) (by simp; omega) (by omega)]
+  · have h1 : qoHat B.n k s = 1 - (B.n * s - k) := by
+      unfold qoHat; rw [abs_of_nonneg (by linarith)]; rw [max_eq_right (by linarith)]
+    have h2 : qoHat B.n (k + 1) s = B.n * s - k := by
+      unfold qoHat; push_cast; rw [abs_of_nonpos (by linarith)]; rw [max_eq_right (by linarith)]; ring
+    rw [h1, h2]; module
+  · intro j _ hj
+    rw [qoHat_zero, zero_smul]
+    rcases Nat.lt_or_gt_of_ne hj.1 with h | h
+    · have : (j : ℝ) + 1 ≤ k := by exact_mod_cast h
+      rw [abs_of_nonneg (by linarith)]; linarith
+    · have : (k : ℝ) + 2 ≤ j := by
+        have : k + 2 ≤ j := by omega
+        exact_mod_cast this
+      rw [abs_of_nonpos (by linarith)]; linarith
+
+private lemma qoIdx_succ (B : PolygonalDisk) (k : ℕ) (hk : k < B.n) :
+    qoIdx B (k + 1) = finRotate B.n (qoIdx B k) := by
+  apply Fin.ext
+  rw [finRotate_val']
+  simp only [qoIdx, Nat.mod_eq_of_lt hk]
+  split_ifs with h
+  · rw [h, Nat.mod_self]
+  · rw [Nat.mod_eq_of_lt (by omega)]
+
+private lemma qoIdx_val (B : PolygonalDisk) (i : Fin B.n) : qoIdx B i.val = i := by
+  apply Fin.ext; simp [qoIdx, Nat.mod_eq_of_lt i.isLt]
+
+private lemma qoG_zero (B : PolygonalDisk) : qoG B 0 = B.vertex (qoIdx B 0) := by
+  have hn : 0 < B.n := by have := B.three_le; omega
+  rw [qoG_piece B hn (by simp) (by simp)]; simp
+
+private lemma qoG_one (B : PolygonalDisk) : qoG B 1 = B.vertex (qoIdx B 0) := by
+  have hn : 0 < B.n := by have := B.three_le; omega
+  rw [qoG_piece B (k := B.n - 1) (by omega) (by rw [Nat.cast_sub (by omega)]; simp)
+    (by rw [Nat.cast_sub (by omega)]; simp)]
+  have : B.n - 1 + 1 = B.n := by omega
+  rw [this, Nat.cast_sub (by omega)]
+  have e : qoIdx B B.n = qoIdx B 0 := by apply Fin.ext; simp [qoIdx]
+  rw [e]; simp
+
+/-- the boundary loop -/
+private def qoLoop (B : PolygonalDisk) (t : ℝ) : Pt := qoG B (Int.fract t)
+
+/-- every `s ∈ [0,1)` lies in a piece -/
+private lemma qo_piece_of (B : PolygonalDisk) {s : ℝ} (h0 : 0 ≤ s) (h1 : s < 1) :
+    ∃ k < B.n, (k : ℝ) ≤ B.n * s ∧ B.n * s < k + 1 := by
+  have hn : (0 : ℝ) < B.n := by have := B.three_le; exact_mod_cast (show 0 < B.n by omega)
+  refine ⟨⌊(B.n : ℝ) * s⌋₊, ?_, Nat.floor_le (by positivity), Nat.lt_floor_add_one _⟩
+  have : (B.n : ℝ) * s < B.n := by nlinarith
+  exact (Nat.floor_lt (by positivity)).2 this
+
+private lemma qoG_mem_side (B : PolygonalDisk) {k : ℕ} (hk : k < B.n) {s : ℝ}
+    (hs1 : (k : ℝ) ≤ B.n * s) (hs2 : B.n * s ≤ k + 1) :
+    qoG B s ∈ B.side (qoIdx B k) := by
+  rw [qoG_piece B hk hs1 hs2, PolygonalDisk.side, ← qoIdx_succ B k hk]
+  rw [segment_eq_image']
+  exact ⟨_, ⟨by linarith, by linarith⟩, rfl⟩
+
+private lemma qoLoop_isLoopParam (B : PolygonalDisk) : IsLoopParam (frontier B.carrier) (qoLoop B) := by
+  have hn : (0 : ℝ) < B.n := by have := B.three_le; exact_mod_cast (show 0 < B.n by omega)
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · have := ContinuousOn.comp_fract (s := id) (f := fun (_ : ℝ) u => qoG B u)
+      ((qoG_cont B).comp continuous_snd).continuousOn continuous_id (fun _ => by simp only; rw [qoG_zero, qoG_one])
+    exact this
+  · intro t; simp [qoLoop]
+  · intro s hs s' hs' heq
+    simp only [qoLoop, Int.fract_eq_self.2 hs, Int.fract_eq_self.2 hs'] at heq
+    obtain ⟨k, hk, hk1, hk2⟩ := qo_piece_of B hs.1 hs.2
+    obtain ⟨k', hk', hk1', hk2'⟩ := qo_piece_of B hs'.1 hs'.2
+    rw [qoG_piece B hk hk1 hk2.le, qoG_piece B hk' hk1' hk2'.le] at heq
+    rw [qoIdx_succ B k hk, qoIdx_succ B k' hk'] at heq
+    have hne := pd_vertex_ne_next B
+    by_cases hkk : k = k'
+    · subst hkk
+      have h3 := sub_eq_zero.2 heq
+      rw [show B.vertex (qoIdx B k) + ((B.n : ℝ) * s - k) • (B.vertex (finRotate B.n (qoIdx B k)) - B.vertex (qoIdx B k)) -
+        (B.vertex (qoIdx B k) + ((B.n : ℝ) * s' - k) • (B.vertex (finRotate B.n (qoIdx B k)) - B.vertex (qoIdx B k)))
+        = ((B.n : ℝ) * (s - s')) • (B.vertex (finRotate B.n (qoIdx B k)) - B.vertex (qoIdx B k)) by module] at h3
+      rcases smul_eq_zero.1 h3 with h4 | h4
+      · rcases mul_eq_zero.1 h4 with h5 | h5
+        · linarith
+        · linarith
+      · exact absurd (sub_eq_zero.1 h4).symm (hne _)
+    · exfalso
+      set x := B.vertex (qoIdx B k) + ((B.n : ℝ) * s - k) • (B.vertex (finRotate B.n (qoIdx B k)) - B.vertex (qoIdx B k))
+      have hik : qoIdx B k ≠ qoIdx B k' := by
+        intro h; apply hkk
+        have := congrArg Fin.val h; simpa [qoIdx, Nat.mod_eq_of_lt hk, Nat.mod_eq_of_lt hk'] using this
+      have hx1 : x ∈ segment ℝ (B.vertex (qoIdx B k)) (B.vertex (finRotate B.n (qoIdx B k))) := by
+        rw [segment_eq_image']; exact ⟨_, ⟨by linarith, by linarith⟩, rfl⟩
+      have hx2 : x ∈ segment ℝ (B.vertex (qoIdx B k')) (B.vertex (finRotate B.n (qoIdx B k'))) := by
+        rw [heq, segment_eq_image']; exact ⟨_, ⟨by linarith, by linarith⟩, rfl⟩
+      have hs := B.simple _ _ hik ⟨hx1, hx2⟩
+      -- x is not the second endpoint of its own side
+      have key : ∀ (j : Fin B.n) (τ : ℝ), τ < 1 →
+          B.vertex j + τ • (B.vertex (finRotate B.n j) - B.vertex j) ≠ B.vertex (finRotate B.n j) := by
+        intro j τ hτ h
+        have : (1 - τ) • (B.vertex (finRotate B.n j) - B.vertex j) = 0 := by
+          rw [show (1 - τ) • (B.vertex (finRotate B.n j) - B.vertex j) = B.vertex (finRotate B.n j) -
+            (B.vertex j + τ • (B.vertex (finRotate B.n j) - B.vertex j)) by module, h, sub_self]
+        rcases smul_eq_zero.1 this with h1 | h1
+        · linarith
+        · exact hne j (sub_eq_zero.1 h1).symm
+      have hxa : x = B.vertex (qoIdx B k) := by
+        rcases hs.1 with h | h
+        · exact h
+        · exact absurd h (key _ _ (by linarith))
+      have hxb : x = B.vertex (qoIdx B k') := by
+        rcases hs.2 with h | h
+        · exact h
+        · rw [heq] at h; exact absurd h (key _ _ (by linarith))
+      exact hik (B.vertex_injective (hxa.symm.trans hxb))
+  · rw [B.frontier_eq]
+    ext x
+    simp only [mem_image, mem_iUnion]
+    constructor
+    · rintro ⟨s, hs, rfl⟩
+      obtain ⟨k, hk, hk1, hk2⟩ := qo_piece_of B hs.1 hs.2
+      refine ⟨qoIdx B k, ?_⟩
+      simp only [qoLoop, Int.fract_eq_self.2 hs]
+      exact qoG_mem_side B hk hk1 hk2.le
+    · rintro ⟨i, hi⟩
+      rw [segment_eq_image'] at hi
+      obtain ⟨τ, hτ, rfl⟩ := hi
+      have hiv : (i.val : ℝ) + 1 ≤ B.n := by exact_mod_cast i.isLt
+      rcases hτ.2.lt_or_eq with hτ1 | hτ1
+      · refine ⟨(i.val + τ) / B.n, ⟨by have := hτ.1; positivity, ?_⟩, ?_⟩
+        · rw [div_lt_one hn]; linarith
+        · simp only [qoLoop]
+          rw [Int.fract_eq_self.2 ⟨by have := hτ.1; positivity, by rw [div_lt_one hn]; linarith⟩]
+          rw [qoG_piece B i.isLt (by field_simp; linarith [hτ.1]) (by field_simp; linarith), qoIdx_succ B _ i.isLt,
+            qoIdx_val]
+          congr 2; field_simp; ring
+      · subst hτ1
+        set j := finRotate B.n i
+        refine ⟨j.val / B.n, ⟨by positivity, by rw [div_lt_one hn]; exact_mod_cast j.isLt⟩, ?_⟩
+        simp only [qoLoop]
+        rw [Int.fract_eq_self.2 ⟨by positivity, by rw [div_lt_one hn]; exact_mod_cast j.isLt⟩]
+        rw [qoG_piece B j.isLt (by field_simp; rfl) (by field_simp; linarith), qoIdx_val]
+        have : (B.n : ℝ) * (j.val / B.n) - j.val = 0 := by field_simp; ring
+        rw [this, zero_smul, add_zero]
+        module
+
+private lemma qo_loop_fract {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ) (x : ℝ) :
+    γ (Int.fract x) = γ x := by
+  have := hγ.2.1.sub_int_mul_eq (x := x) ⌊x⌋
+  rw [mul_one] at this; rw [Int.fract]; exact this
+
+private lemma qo_loop_eq_iff {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ) (x y : ℝ) :
+    γ x = γ y ↔ Int.fract x = Int.fract y := by
+  constructor
+  · intro h
+    rw [← qo_loop_fract hγ x, ← qo_loop_fract hγ y] at h
+    exact hγ.2.2.1 ⟨Int.fract_nonneg x, Int.fract_lt_one x⟩ ⟨Int.fract_nonneg y, Int.fract_lt_one y⟩ h
+  · intro h; rw [← qo_loop_fract hγ x, ← qo_loop_fract hγ y, h]
+
+private lemma qo_loop_mem {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ) (x : ℝ) : γ x ∈ K := by
+  rw [← qo_loop_fract hγ x, ← hγ.2.2.2]
+  exact ⟨_, ⟨Int.fract_nonneg x, Int.fract_lt_one x⟩, rfl⟩
+
+private lemma qo_loop_of_eq {K : Set Pt} {γ γ' : ℝ → Pt} (hγ : IsLoopParam K γ) (hc : Continuous γ')
+    (hp : Function.Periodic γ' 1) (h : ∀ x y, γ' x = γ' y → ∃ z : ℤ, x - y = z)
+    (hsurj : ∀ x, ∃ y, γ' y = γ x) (hmem : ∀ x, ∃ y, γ y = γ' x) : IsLoopParam K γ' := by
+  have frac' : ∀ x, γ' (Int.fract x) = γ' x := by
+    intro x
+    have := hp.sub_int_mul_eq (x := x) ⌊x⌋
+    rw [mul_one] at this; rw [Int.fract]; exact this
+  refine ⟨hc, hp, ?_, ?_⟩
+  · intro x hx y hy hxy
+    obtain ⟨z, hz⟩ := h x y hxy
+    have h1 : (z : ℝ) < 1 := by rw [← hz]; linarith [hx.2, hy.1]
+    have h2 : (-1 : ℝ) < z := by rw [← hz]; linarith [hx.1, hy.2]
+    have : z = 0 := by
+      have h3 : z < 1 := by exact_mod_cast h1
+      have h4 : -1 < z := by exact_mod_cast h2
+      omega
+    rw [this, Int.cast_zero, sub_eq_zero] at hz; exact hz
+  · ext z
+    constructor
+    · rintro ⟨x, -, rfl⟩
+      obtain ⟨y, hy⟩ := hmem x
+      rw [← hy]; exact qo_loop_mem hγ y
+    · intro hz
+      rw [← hγ.2.2.2] at hz
+      obtain ⟨x, -, rfl⟩ := hz
+      obtain ⟨y, hy⟩ := hsurj x
+      exact ⟨Int.fract y, ⟨Int.fract_nonneg y, Int.fract_lt_one y⟩, by rw [frac', hy]⟩
+
+private lemma qo_loop_shift {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ) (s : ℝ) :
+    IsLoopParam K (fun t => γ (t + s)) :=
+  qo_loop_of_eq hγ (hγ.1.comp (continuous_add_right s))
+    (fun t => by show γ (t + 1 + s) = γ (t + s); rw [add_right_comm, hγ.2.1])
+    (fun x y hxy => by
+      obtain ⟨z, hz⟩ := Int.fract_eq_fract.1 ((qo_loop_eq_iff hγ _ _).1 hxy)
+      exact ⟨z, by rw [← hz]; ring⟩) (fun x => ⟨x - s, by simp⟩) (fun x => ⟨x + s, rfl⟩)
+
+private lemma qo_loop_neg {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ) :
+    IsLoopParam K (fun t => γ (-t)) := by
+  refine qo_loop_of_eq hγ (hγ.1.comp continuous_neg) (fun t => ?_) (fun x y hxy => ?_)
+    (fun x => ⟨-x, by simp⟩) (fun x => ⟨-x, rfl⟩)
+  · show γ (-(t + 1)) = γ (-t)
+    rw [show -(t + 1) = -t - 1 by ring]
+    exact hγ.2.1.sub_eq _
+  · obtain ⟨z, hz⟩ := Int.fract_eq_fract.1 ((qo_loop_eq_iff hγ _ _).1 hxy)
+    exact ⟨-z, by push_cast; rw [← hz]; ring⟩
+
+/-- the combinatorial core: positions in `[0,1)` satisfying the per-`b` dichotomy are ordered -/
+private lemma qo_comb {k : ℕ} (hk : 4 ≤ k) (t : Fin k → ℝ)
+    (hcase : ∀ b : Fin k, 3 ≤ b.val →
+      ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t i < t b) ∧
+          (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t b < t i)) ∨
+      ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t b < t i) ∧
+          (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t i < t b))) :
+    ((∀ i j : Fin k, 2 ≤ i.val → i.val < j.val → t i < t j) ∧ (∀ i : Fin k, 2 ≤ i.val → t i < t ⟨0, by omega⟩)) ∨
+    ((∀ i j : Fin k, 2 ≤ i.val → i.val < j.val → t j < t i) ∧ (∀ i : Fin k, 2 ≤ i.val → t ⟨0, by omega⟩ < t i)) := by
+  set b3 : Fin k := ⟨3, by omega⟩
+  set bl : Fin k := ⟨k - 1, by omega⟩
+  set z : Fin k := ⟨0, by omega⟩
+  -- all cases agree with the case at `3`
+  have agree1 : ∀ b : Fin k, 3 ≤ b.val →
+      ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t i < t b) ∧
+          (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t b < t i)) →
+      ∀ b' : Fin k, 3 ≤ b'.val → ((∀ i : Fin k, 2 ≤ i.val → i.val < b'.val → t i < t b') ∧
+          (∀ i : Fin k, (b'.val < i.val ∨ i.val = 0) → t b' < t i)) := by
+    intro b hb hI b' hb'
+    rcases hcase b' hb' with h | h
+    · exact h
+    · exfalso
+      rcases lt_trichotomy b.val b'.val with hl | he | hl
+      · have := hI.2 b' (Or.inl hl); have := h.1 b (by omega) hl; linarith
+      · have hbb : b = b' := Fin.ext he
+        subst hbb
+        have := hI.2 z (Or.inr rfl); have := h.2 z (Or.inr rfl); linarith
+      · have := hI.1 b' (by omega) hl; have := h.2 b (Or.inl hl); linarith
+  have agree2 : ∀ b : Fin k, 3 ≤ b.val →
+      ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t b < t i) ∧
+          (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t i < t b)) →
+      ∀ b' : Fin k, 3 ≤ b'.val → ((∀ i : Fin k, 2 ≤ i.val → i.val < b'.val → t b' < t i) ∧
+          (∀ i : Fin k, (b'.val < i.val ∨ i.val = 0) → t i < t b')) := by
+    intro b hb hI b' hb'
+    rcases hcase b' hb' with h | h
+    · exfalso
+      rcases lt_trichotomy b.val b'.val with hl | he | hl
+      · have := hI.2 b' (Or.inl hl); have := h.1 b (by omega) hl; linarith
+      · have hbb : b = b' := Fin.ext he
+        subst hbb
+        have := hI.2 z (Or.inr rfl); have := h.2 z (Or.inr rfl); linarith
+      · have := hI.1 b' (by omega) hl; have := h.2 b (Or.inl hl); linarith
+    · exact h
+  rcases hcase b3 (le_refl 3) with h3 | h3
+  · left
+    have hall := agree1 b3 (le_refl _) h3
+    refine ⟨fun i j hi hij => ?_, fun i hi => ?_⟩
+    · exact (hall j (by omega)).1 i hi hij
+    · by_cases hi3 : 3 ≤ i.val
+      · exact (hall i hi3).2 z (Or.inr rfl)
+      · have := (hall b3 le_rfl).1 i hi (by simp [b3]; omega)
+        have := (hall b3 le_rfl).2 z (Or.inr rfl)
+        linarith
+  · right
+    have hall := agree2 b3 (le_refl _) h3
+    refine ⟨fun i j hi hij => ?_, fun i hi => ?_⟩
+    · exact (hall j (by omega)).1 i hi hij
+    · by_cases hi3 : 3 ≤ i.val
+      · exact (hall i hi3).2 z (Or.inr rfl)
+      · have := (hall b3 le_rfl).1 i hi (by simp [b3]; omega)
+        have := (hall b3 le_rfl).2 z (Or.inr rfl)
+        linarith
+
+/-- from ordered positions to `PointsInOrder` -/
+private lemma qo_pointsInOrder {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ) {k : ℕ} (hk : 4 ≤ k)
+    (w : Fin k → Pt) (t : Fin k → ℝ) (ht : ∀ i, t i ∈ Ico (0 : ℝ) 1) (htw : ∀ i, γ (t i) = w i)
+    (h1max : ∀ i : Fin k, i.val ≠ 1 → t i < t ⟨1, by omega⟩)
+    (hcase : ∀ b : Fin k, 3 ≤ b.val →
+      ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t i < t b) ∧
+          (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t b < t i)) ∨
+      ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t b < t i) ∧
+          (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t i < t b))) :
+    ∃ γo : ℝ → Pt, IsLoopParam K γo ∧ PointsInOrder γo w := by
+  set z : Fin k := ⟨0, by omega⟩
+  set o : Fin k := ⟨1, by omega⟩
+  have hz1 : t z < t o := h1max z (by simp [z])
+  rcases qo_comb hk t hcase with ⟨hinc, h0⟩ | ⟨hdec, h0⟩
+  · refine ⟨γ, hγ, fun i => if i.val < 2 then t i - 1 else t i, ?_, ?_, ?_⟩
+    · intro i j hij
+      have hij' : i.val < j.val := hij
+      simp only
+      split_ifs with hi hj hj
+      · have hi0 : i = z := Fin.ext (by simp [z]; omega)
+        have hj1 : j = o := Fin.ext (by simp [o]; omega)
+        rw [hi0, hj1]; linarith
+      · linarith [(ht i).2, (ht j).1]
+      · omega
+      · exact hinc i j (by omega) hij'
+    · intro i j
+      have hmin : ∀ l : Fin k, t z - 1 ≤ (if l.val < 2 then t l - 1 else t l) := by
+        intro l
+        split_ifs with hl
+        · by_cases hl0 : l.val = 0
+          · rw [show l = z from Fin.ext (by simp [z, hl0])]
+          · rw [show l = o from Fin.ext (by simp [o]; omega)]; linarith
+        · linarith [(ht l).1, (ht z).2]
+      have hmax : ∀ l : Fin k, (if l.val < 2 then t l - 1 else t l) < t z := by
+        intro l
+        split_ifs with hl
+        · linarith [(ht l).2, (ht z).1]
+        · exact h0 l (by omega)
+      linarith [hmin i, hmax j]
+    · intro i
+      simp only
+      split_ifs
+      · rw [show t i - 1 = t i + (-1 : ℤ) * 1 by push_cast; ring, hγ.2.1.int_mul, htw]
+      · exact htw i
+  · refine ⟨fun x => γ (-x), qo_loop_neg hγ, fun i => if i.val = 0 then -t i - 1 else -t i, ?_, ?_, ?_⟩
+    · intro i j hij
+      have hij' : i.val < j.val := hij
+      simp only
+      split_ifs with hi hj hj
+      · omega
+      · by_cases hj1 : j.val = 1
+        · rw [show i = z from Fin.ext (by simp [z, hi]), show j = o from Fin.ext (by simp [o, hj1])]
+          linarith [(ht o).2, (ht z).1]
+        · rw [show i = z from Fin.ext (by simp [z, hi])]
+          linarith [h0 j (by omega), (ht j).2, (ht z).1]
+      · omega
+      · by_cases hi1 : i.val = 1
+        · have := h1max j (by omega)
+          rw [show i = o from Fin.ext (by simp [o, hi1])]; linarith
+        · have := hdec i j (by omega) hij'; linarith
+    · intro i j
+      have hmin : ∀ l : Fin k, -t z - 1 ≤ (if l.val = 0 then -t l - 1 else -t l) := by
+        intro l
+        split_ifs with hl
+        · rw [show l = z from Fin.ext (by simp [z, hl])]
+        · linarith [(ht l).2, (ht z).1]
+      have hmax : ∀ l : Fin k, (if l.val = 0 then -t l - 1 else -t l) < -t z := by
+        intro l
+        split_ifs with hl
+        · rw [show l = z from Fin.ext (by simp [z, hl])]; linarith
+        · by_cases hl1 : l.val = 1
+          · have := (ht o).2; rw [show l = o from Fin.ext (by simp [o, hl1])]
+            have := h0 ⟨2, by omega⟩ (le_refl _)
+            have := h1max ⟨2, by omega⟩ (by simp)
+            linarith
+          · have := h0 l (by omega); linarith
+      linarith [hmin i, hmax j]
+    · intro i
+      simp only
+      split_ifs
+      · rw [show -(-t i - 1) = t i + (1 : ℤ) * 1 by push_cast; ring, hγ.2.1.int_mul, htw]
+      · rw [neg_neg]; exact htw i
+
+/-- the open polygonal chain through a list of points -/
+private def qoChain : List Pt → Set Pt
+  | a :: b :: l => segment ℝ a b ∪ qoChain (b :: l)
+  | _ => ∅
+
+/-- the closed polygon through a list of points, as a vertex function -/
+private def qoV (l : List Pt) : Fin l.length → Pt := fun k => l[k.val]
+
+private lemma qoChain_seg : ∀ (m : List Pt) (i : ℕ) (h : i + 1 < m.length),
+    segment ℝ (m[i]'(by omega)) (m[i + 1]) ⊆ qoChain m
+  | [], _, h => by simp at h
+  | [_], _, h => by simp at h
+  | a :: b :: l, 0, _ => by simp [qoChain]
+  | a :: b :: l, i + 1, h => by
+    simp only [qoChain, List.getElem_cons_succ]
+    exact (qoChain_seg (b :: l) i (by simp at h ⊢; omega)).trans subset_union_right
+
+private lemma qoChain_append : ∀ (l₁ : List Pt) (a b : Pt) (l₂ : List Pt),
+    qoChain (l₁ ++ a :: b :: l₂) = qoChain (l₁ ++ [a]) ∪ segment ℝ a b ∪ qoChain (b :: l₂)
+  | [], a, b, l₂ => by simp [qoChain]
+  | [x], a, b, l₂ => by simp [qoChain, union_assoc]
+  | x :: y :: l₁, a, b, l₂ => by
+    have := qoChain_append (y :: l₁) a b l₂
+    simp only [List.cons_append] at this ⊢
+    simp only [qoChain, this, union_assoc]
+
+private lemma qoChain_single (a : Pt) : qoChain [a] = ∅ := rfl
+
+private lemma qoChain_pair (a b : Pt) : qoChain [a, b] = segment ℝ a b := by simp [qoChain]
+
+private lemma qoChain_subset_of_seg : ∀ (m : List Pt) (U : Set Pt),
+    (∀ i (h : i + 1 < m.length), segment ℝ (m[i]'(by omega)) (m[i + 1]) ⊆ U) → qoChain m ⊆ U
+  | [], _, _ => by simp [qoChain]
+  | [_], _, _ => by simp [qoChain]
+  | a :: b :: l, U, h => by
+    simp only [qoChain, union_subset_iff]
+    refine ⟨h 0 (by simp), qoChain_subset_of_seg (b :: l) U fun i hi => ?_⟩
+    have := h (i + 1) (by simp at hi ⊢; omega)
+    simpa using this
+
+private lemma qoV_rot_lt (l : List Pt) (k : Fin l.length) (h : k.val + 1 < l.length) :
+    qoV l (finRotate _ k) = l[k.val + 1] := by
+  have : finRotate l.length k = ⟨k.val + 1, h⟩ := Fin.ext (by rw [finRotate_val']; simp; omega)
+  rw [this]; rfl
+
+private lemma qoV_rot_last (l : List Pt) (k : Fin l.length) (h : k.val + 1 = l.length) :
+    qoV l (finRotate _ k) = l[0]'(by omega) := by
+  have : finRotate l.length k = ⟨0, by omega⟩ := Fin.ext (by rw [finRotate_val']; simp; omega)
+  rw [this]; rfl
+
+private lemma qo_getLastD_eq (a : Pt) (l : List Pt) : (a :: l)[l.length]'(by simp) = l.getLastD a := by
+  induction l generalizing a with
+  | nil => simp
+  | cons b l ih => simp only [List.length_cons, List.getElem_cons_succ, List.getLastD_cons]; exact ih b
+
+private lemma qo_polyCurve_subset (a : Pt) (l : List Pt) :
+    polyCurve (qoV (a :: l)) ⊆ qoChain (a :: l) ∪ segment ℝ (l.getLastD a) a := by
+  intro x hx
+  obtain ⟨k, hk⟩ := mem_iUnion.1 hx
+  by_cases h : k.val + 1 = (a :: l).length
+  · right
+    rw [qoV_rot_last _ k h] at hk
+    have hk' : k.val = l.length := by simp at h; omega
+    have e1 : qoV (a :: l) k = l.getLastD a := by
+      rcases k with ⟨kv, hkv⟩
+      simp only at hk'
+      subst hk'
+      exact qo_getLastD_eq a l
+    rw [e1] at hk
+    simpa using hk
+  · left
+    rw [qoV_rot_lt _ k (by omega)] at hk
+    exact qoChain_seg (a :: l) k.val (by omega) hk
+
+private lemma qo_getElem_midL (l₁ : List Pt) (a b : Pt) (l₂ : List Pt) (i : ℕ) (hi : i < l₁.length + 1) :
+    (l₁ ++ a :: b :: l₂)[i]'(by simp; omega) = (l₁ ++ [a])[i]'(by simp; omega) := by
+  rw [List.getElem_append, List.getElem_append]
+  split_ifs with h
+  · rfl
+  · have : i - l₁.length = 0 := by omega
+    simp [this]
+
+private lemma qo_getElem_midR (l₁ : List Pt) (a b : Pt) (l₂ : List Pt) (i : ℕ) (hi : l₁.length + 1 ≤ i)
+    (hi2 : i < l₁.length + l₂.length + 2) :
+    (l₁ ++ a :: b :: l₂)[i]'(by simp; omega) = (b :: l₂)[i - l₁.length - 1]'(by simp; omega) := by
+  rw [List.getElem_append_right (by omega)]
+  obtain ⟨j, hj⟩ : ∃ j, i - l₁.length = j + 1 := ⟨i - l₁.length - 1, by omega⟩
+  simp only [hj, List.getElem_cons_succ, Nat.add_sub_cancel]
+
+/-- the jump of the winding function across an edge of a list polygon -/
+private lemma qo_wind_jump (l₁ : List Pt) (a b : Pt) (l₂ : List Pt) {q : Pt} (hab : a ≠ b)
+    (hq : q ∈ openSegment ℝ a b) (h1 : q ∉ qoChain (l₁ ++ [a])) (h2 : q ∉ qoChain (b :: l₂))
+    (h3 : q ∉ segment ℝ (l₂.getLastD b) (l₁.headD a)) :
+    ∀ᶠ t in nhdsWithin (0 : ℝ) (Ioi 0), wind (qoV (l₁ ++ a :: b :: l₂)) (q + t • jrot (b - a)) -
+      wind (qoV (l₁ ++ a :: b :: l₂)) (q + (-t) • jrot (b - a)) = 2 * Real.pi := by
+  have hlen : (l₁ ++ a :: b :: l₂).length = l₁.length + l₂.length + 2 := by simp; omega
+  have hk0 : qoV (l₁ ++ a :: b :: l₂) ⟨l₁.length, by omega⟩ = a := by simp [qoV]
+  have hk1' : qoV (l₁ ++ a :: b :: l₂) (finRotate _ ⟨l₁.length, by omega⟩) = b := by
+    rw [qoV_rot_lt _ _ (by simp only [List.length_append, List.length_cons]; omega)]
+    rw [qo_getElem_midR _ _ _ _ _ (le_refl _) (by omega)]
+    simp
+  have := wind_jump (c := qoV (l₁ ++ a :: b :: l₂)) ⟨l₁.length, by omega⟩ (by rw [hk0, hk1']; exact hab)
+    (by rw [hk0, hk1']; exact hq) ?_
+  · rw [hk0, hk1'] at this; exact this
+  intro k hk hqk
+  have hkne : k.val ≠ l₁.length := fun h => hk (Fin.ext h)
+  rcases k with ⟨kv, hkl⟩
+  simp only at hkne
+  by_cases hlast : kv + 1 = (l₁ ++ a :: b :: l₂).length
+  · rw [qoV_rot_last _ _ hlast] at hqk
+    apply h3
+    have e1 : qoV (l₁ ++ a :: b :: l₂) ⟨kv, hkl⟩ = l₂.getLastD b := by
+      have hkv : kv = l₁.length + 1 + l₂.length := by omega
+      subst hkv
+      simp only [qoV]
+      rw [qo_getElem_midR _ _ _ _ _ (by omega) (by omega)]
+      have : l₁.length + 1 + l₂.length - l₁.length - 1 = l₂.length := by omega
+      simp only [this]
+      exact qo_getLastD_eq b l₂
+    have e2 : (l₁ ++ a :: b :: l₂)[0]'(by omega) = l₁.headD a := by
+      cases l₁ <;> simp
+    rw [e1, e2] at hqk; exact hqk
+  · rw [qoV_rot_lt _ _ (by simp only; omega)] at hqk
+    simp only [qoV] at hqk
+    rcases Nat.lt_or_gt_of_ne hkne with hlt | hgt
+    · apply h1
+      refine qoChain_seg (l₁ ++ [a]) kv (by simp; omega) ?_
+      rw [qo_getElem_midL _ _ _ _ _ (by omega), qo_getElem_midL _ _ _ _ _ (by omega)] at hqk
+      exact hqk
+    · apply h2
+      refine qoChain_seg (b :: l₂) (kv - l₁.length - 1) (by simp; omega) ?_
+      rw [qo_getElem_midR _ _ _ _ _ (by omega) (by omega), qo_getElem_midR _ _ _ _ _ (by omega) (by omega)] at hqk
+      have : kv + 1 - l₁.length - 1 = kv - l₁.length - 1 + 1 := by omega
+      simp only [this] at hqk
+      exact hqk
+
+private lemma qoChain_snoc : ∀ (a : Pt) (m : List Pt) (z : Pt),
+    qoChain (a :: m ++ [z]) = qoChain (a :: m) ∪ segment ℝ (m.getLastD a) z
+  | a, [], z => by simp [qoChain]
+  | a, b :: m, z => by
+    have := qoChain_snoc b m z
+    simp only [List.cons_append] at this ⊢
+    simp only [qoChain, this, List.getLastD_cons, union_assoc]
+
+/-- polygonal paths in open connected sets -/
+private lemma qo_polyPath {U : Set Pt} (hU : IsOpen U) (hc : IsPreconnected U) {x y : Pt}
+    (hx : x ∈ U) (hy : y ∈ U) : ∃ m : List Pt, qoChain (x :: m ++ [y]) ⊆ U := by
+  set V := {z : Pt | ∃ m : List Pt, qoChain (x :: m ++ [z]) ⊆ U} with hV
+  have ext : ∀ z ∈ V, ∀ z', segment ℝ z z' ⊆ U → z' ∈ V := by
+    rintro z ⟨m, hm⟩ z' hzz
+    refine ⟨m ++ [z], ?_⟩
+    rw [show x :: (m ++ [z]) ++ [z'] = x :: (m ++ [z]) ++ [z'] from rfl, qoChain_snoc]
+    refine union_subset (by simpa using hm) ?_
+    have : (m ++ [z]).getLastD x = z := by simp [List.getLastD_eq_getLast?]
+    rw [this]; exact hzz
+  have hball : ∀ z ∈ U, ∃ r > 0, Metric.ball z r ⊆ U := fun z hz => Metric.isOpen_iff.1 hU z hz
+  have hsegball : ∀ (z : Pt) (r : ℝ) (z' : Pt), z' ∈ Metric.ball z r → segment ℝ z z' ⊆ Metric.ball z r :=
+    fun z r z' hz' => (convex_ball z r).segment_subset (Metric.mem_ball_self (by
+      have := Metric.mem_ball.1 hz'; have := dist_nonneg (x := z') (y := z); linarith)) hz'
+  have hu : IsOpen {z | z ∈ U ∧ z ∈ V} := by
+    rw [Metric.isOpen_iff]
+    rintro z ⟨hzU, hzV⟩
+    obtain ⟨r, hr, hrU⟩ := hball z hzU
+    exact ⟨r, hr, fun z' hz' => ⟨hrU hz', ext z hzV z' ((hsegball z r z' hz').trans hrU)⟩⟩
+  have hv : IsOpen {z | z ∈ U ∧ z ∉ V} := by
+    rw [Metric.isOpen_iff]
+    rintro z ⟨hzU, hzV⟩
+    obtain ⟨r, hr, hrU⟩ := hball z hzU
+    refine ⟨r, hr, fun z' hz' => ⟨hrU hz', fun hz'V => hzV (ext z' hz'V z ?_)⟩⟩
+    rw [segment_symm]; exact (hsegball z r z' hz').trans hrU
+  have hxV : x ∈ V := ⟨[], by simp [qoChain, hx]⟩
+  have := hc.subset_left_of_subset_union hu hv
+    (by rw [Set.disjoint_left]; rintro z ⟨-, h1⟩ ⟨-, h2⟩; exact h2 h1)
+    (fun z hz => by by_cases h : z ∈ V; exacts [Or.inl ⟨hz, h⟩, Or.inr ⟨hz, h⟩]) ⟨x, hx, hx, hxV⟩
+  exact (this hy).2
+
+private lemma qo_pos_L2 {ρ u u' M : ℝ} 
+    (h0 : |existsAnnularSpokes_pos ρ u 0 - existsAnnularSpokes_pos ρ u' 0| ≤ M)
+    (h1 : |existsAnnularSpokes_pos ρ u 1 - existsAnnularSpokes_pos ρ u' 1| ≤ M) :
+    |u - u'| ≤ 2 * M ∨ 8 * ρ - |u - u'| ≤ 2 * M := by
+  unfold existsAnnularSpokes_pos at h0 h1
+  rw [abs_le] at h0 h1
+  obtain ⟨h0a, h0b⟩ := h0
+  obtain ⟨h1a, h1b⟩ := h1
+  rcases le_total u u' with h | h
+  · rw [abs_of_nonpos (by linarith)]
+    split_ifs at h0a h0b h1a h1b <;> simp only [rg_mkPt0, rg_mkPt1] at h0a h0b h1a h1b <;>
+      first | (left; linarith) | (right; linarith) |
+        (rcases le_total (u - u') (4 * ρ) with h' | h' <;> rcases le_total (u' - u) (4 * ρ) with h'' | h'' <;>
+          first | (left; linarith) | (right; linarith))
+  · rw [abs_of_nonneg (by linarith)]
+    split_ifs at h0a h0b h1a h1b <;> simp only [rg_mkPt0, rg_mkPt1] at h0a h0b h1a h1b <;>
+      first | (left; linarith) | (right; linarith) |
+        (rcases le_total (u - u') (4 * ρ) with h' | h' <;> rcases le_total (u' - u) (4 * ρ) with h'' | h'' <;>
+          first | (left; linarith) | (right; linarith))
+
+/-- the four outward axis directions -/
+private def qoD : Fin 4 → Pt
+  | 0 => mkPt 1 0
+  | 1 => mkPt 0 1
+  | 2 => mkPt (-1) 0
+  | 3 => mkPt 0 (-1)
+
+/-- the coordinate along the `k`-th direction -/
+private def qoCo (k : Fin 4) (x : Pt) : ℝ := x 0 * qoD k 0 + x 1 * qoD k 1
+
+private lemma qoD_jrot (k : Fin 4) : jrot (qoD k) = qoD (k + 1) := by
+  fin_cases k <;> apply pt_ext <;> simp [qoD, mkPt]
+
+private lemma qoD_add_two (k : Fin 4) : qoD (k + 2) = - qoD k := by
+  fin_cases k <;> apply pt_ext <;> simp [qoD, mkPt]
+
+private lemma qoCo_add (k : Fin 4) (x y : Pt) : qoCo k (x + y) = qoCo k x + qoCo k y := by
+  simp [qoCo]; ring
+
+private lemma qoCo_sub (k : Fin 4) (x y : Pt) : qoCo k (x - y) = qoCo k x - qoCo k y := by
+  simp [qoCo]; ring
+
+private lemma qoCo_smul (k : Fin 4) (a : ℝ) (x : Pt) : qoCo k (a • x) = a * qoCo k x := by
+  simp [qoCo]; ring
+
+private lemma qoCo_self (k : Fin 4) : qoCo k (qoD k) = 1 := by
+  fin_cases k <;> simp [qoCo, qoD, mkPt]
+
+private lemma qoCo_next (k : Fin 4) : qoCo k (qoD (k + 1)) = 0 := by
+  fin_cases k <;> simp [qoCo, qoD, mkPt]
+
+private lemma qoCo_next' (k : Fin 4) : qoCo (k + 1) (qoD k) = 0 := by
+  fin_cases k <;> simp [qoCo, qoD, mkPt]
+
+private lemma qoCo_add_two (k : Fin 4) (x : Pt) : qoCo (k + 2) x = - qoCo k x := by
+  fin_cases k <;> simp [qoCo, qoD, mkPt]
+
+private lemma qo_decomp (k : Fin 4) (x : Pt) : x = qoCo k x • qoD k + qoCo (k + 1) x • qoD (k + 1) := by
+  fin_cases k <;> apply pt_ext <;> simp [qoCo, qoD, mkPt]
+
+private lemma qo_abs_coord_le (k : Fin 4) (x : Pt) (r : ℝ) (h0 : |x 0| ≤ r) (h1 : |x 1| ≤ r) :
+    |qoCo k x| ≤ r := by
+  fin_cases k <;> simp [qoCo, qoD, mkPt] <;> assumption
+
+private lemma qo_square_iff (c x : Pt) (r : ℝ) : x ∈ square c r ↔ ∀ k : Fin 4, qoCo k (x - c) ≤ r := by
+  constructor
+  · intro hx k
+    exact (le_abs_self _).trans (qo_abs_coord_le k (x - c) r (by simpa using hx.1) (by simpa using hx.2))
+  · intro h
+    have h0 := h 0; have h1 := h 1; have h2 := h 2; have h3 := h 3
+    simp [qoCo, qoD, mkPt] at h0 h1 h2 h3
+    exact ⟨abs_le.2 ⟨by linarith, by linarith⟩, abs_le.2 ⟨by linarith, by linarith⟩⟩
+
+/-- the boundary point on side `k` -/
+private lemma qo_pos_side (k : Fin 4) {ρ τ : ℝ} (hρ : 0 < ρ) (h1 : -ρ ≤ τ) (h2 : τ ≤ ρ) :
+    existsAnnularSpokes_pos ρ (2 * ρ * (k : ℕ) + ρ + τ) = ρ • qoD k + τ • qoD (k + 1) := by
+  fin_cases k <;> unfold existsAnnularSpokes_pos <;> norm_num <;>
+    split_ifs <;> apply pt_ext <;> simp [qoD, mkPt] <;> first | (exfalso; linarith) | linarith
+
+/-- on one side, the perimeter map is affine -/
+private lemma qo_pos_side' (k : Fin 4) {ρ s : ℝ} (hρ : 0 < ρ) (h1 : 2 * ρ * (k : ℕ) ≤ s)
+    (h2 : s ≤ 2 * ρ * (k : ℕ) + 2 * ρ) :
+    existsAnnularSpokes_pos ρ s = ρ • qoD k + (s - 2 * ρ * (k : ℕ) - ρ) • qoD (k + 1) := by
+  rw [← qo_pos_side k hρ (by linarith) (by linarith)]; congr 1; ring
+
+private lemma qo_pos_seg (k : Fin 4) {ρ s s' : ℝ} (hρ : 0 < ρ) (h1 : 2 * ρ * (k : ℕ) ≤ s) (hss : s ≤ s')
+    (h2 : s' ≤ 2 * ρ * (k : ℕ) + 2 * ρ) :
+    segment ℝ (existsAnnularSpokes_pos ρ s) (existsAnnularSpokes_pos ρ s') ⊆
+      existsAnnularSpokes_pos ρ '' Icc s s' := by
+  intro x hx
+  rw [segment_eq_image'] at hx
+  obtain ⟨θ, hθ, rfl⟩ := hx
+  refine ⟨s + θ * (s' - s), ⟨by nlinarith [hθ.1], by nlinarith [hθ.2]⟩, ?_⟩
+  rw [qo_pos_side' k hρ h1 (by linarith), qo_pos_side' k hρ (by linarith) h2,
+    qo_pos_side' k hρ (by nlinarith [hθ.1]) (by nlinarith [hθ.2])]
+  module
+
+private lemma qo_pos_sub (k : Fin 4) {ρ s s' : ℝ} (hρ : 0 < ρ) (h1 : 2 * ρ * (k : ℕ) ≤ s) (h1' : 2 * ρ * (k : ℕ) ≤ s')
+    (h2 : s ≤ 2 * ρ * (k : ℕ) + 2 * ρ) (h2' : s' ≤ 2 * ρ * (k : ℕ) + 2 * ρ) :
+    existsAnnularSpokes_pos ρ s' - existsAnnularSpokes_pos ρ s = (s' - s) • qoD (k + 1) := by
+  rw [qo_pos_side' k hρ h1 h2, qo_pos_side' k hρ h1' h2']
+  module
+
+private lemma qo_pos_scale {A ρ t : ℝ} (hA : 0 < A) (hρ : 0 < ρ) :
+    (ρ / A) • existsAnnularSpokes_pos A t = existsAnnularSpokes_pos ρ (ρ / A * t) := by
+  have key : ∀ c : ℝ, (t ≤ c * A ↔ ρ / A * t ≤ c * ρ) := by
+    intro c
+    rw [show c * ρ = ρ / A * (c * A) by field_simp]
+    exact (mul_le_mul_iff_of_pos_left (div_pos hρ hA)).symm
+  unfold existsAnnularSpokes_pos
+  simp only [key 2, key 4, key 6]
+  split_ifs <;> apply pt_ext <;> simp [mkPt] <;> field_simp
+
+private lemma qo_pos_bound {A t : ℝ} (hA : 0 < A) (h0 : 0 ≤ t) (h8 : t ≤ 8 * A) :
+    |existsAnnularSpokes_pos A t 0| ≤ A ∧ |existsAnnularSpokes_pos A t 1| ≤ A ∧
+      (|existsAnnularSpokes_pos A t 0| = A ∨ |existsAnnularSpokes_pos A t 1| = A) := by
+  unfold existsAnnularSpokes_pos
+  split_ifs <;> simp only [rg_mkPt0, rg_mkPt1] <;>
+    refine ⟨abs_le.2 ⟨by linarith, by linarith⟩, abs_le.2 ⟨by linarith, by linarith⟩, ?_⟩ <;>
+    first | (left; rw [abs_of_pos (by linarith)]) | (left; rw [abs_of_neg (by linarith)]; ring) |
+      (right; rw [abs_of_pos (by linarith)]) | (right; rw [abs_of_neg (by linarith)]; ring)
+
+private lemma qoChain_append_sub : ∀ (l₁ l₂ : List Pt) (d : Pt),
+    qoChain (l₁ ++ l₂) ⊆ qoChain l₁ ∪ segment ℝ (l₁.getLastD d) (l₂.headD d) ∪ qoChain l₂
+  | [], l₂, d => fun x hx => Or.inr hx
+  | [a], [], d => by simp [qoChain]
+  | [a], b :: l₂, d => by
+    intro x hx
+    simp only [List.cons_append, List.nil_append, qoChain] at hx
+    rcases hx with hx | hx
+    · exact Or.inl (Or.inr (by simpa using hx))
+    · exact Or.inr hx
+  | a :: b :: l₁, l₂, d => by
+    intro x hx
+    simp only [List.cons_append, qoChain] at hx
+    rcases hx with hx | hx
+    · exact Or.inl (Or.inl (Or.inl hx))
+    · have := qoChain_append_sub (b :: l₁) l₂ d (by simpa using hx)
+      simp only [List.getLastD_cons] at this ⊢
+      rcases this with (h | h) | h
+      · exact Or.inl (Or.inl (Or.inr h))
+      · exact Or.inl (Or.inr h)
+      · exact Or.inr h
+
+private lemma qoChain_reverse : ∀ (l : List Pt), qoChain l.reverse = qoChain l
+  | [] => rfl
+  | [a] => rfl
+  | a :: b :: l => by
+    have ih := qoChain_reverse (b :: l)
+    rw [List.reverse_cons, List.reverse_cons]
+    have := qoChain_append l.reverse b a []
+    simp only [List.append_assoc, List.cons_append, List.nil_append] at this ⊢
+    rw [this, show l.reverse ++ [b] = (b :: l).reverse by simp, ih]
+    simp [qoChain, segment_symm, union_comm]
+
+/-- points of the big square boundary -/
+private def qoPc (c : Pt) (ρ u : ℝ) : Pt := c + existsAnnularSpokes_pos ρ u
+
+/-- two parameters on a common side -/
+private def qoGood (ρ x y : ℝ) : Prop :=
+  x = y ∨ ∃ k : Fin 4, 2 * ρ * (k : ℕ) ≤ x ∧ x ≤ y ∧ y ≤ 2 * ρ * (k : ℕ) + 2 * ρ
+
+private def qoSG (ρ : ℝ) : ℝ → List ℝ → Prop
+  | _, [] => True
+  | x, y :: l => x ≤ y ∧ qoGood ρ x y ∧ qoSG ρ y l
+
+private lemma qo_pos_inj {ρ u u' : ℝ} (hu : 0 ≤ u) (hu8 : u < 8 * ρ) (hu' : 0 ≤ u') (hu8' : u' < 8 * ρ)
+    (h : existsAnnularSpokes_pos ρ u = existsAnnularSpokes_pos ρ u') : u = u' := by
+  have := qo_pos_L2 (ρ := ρ) (u := u) (u' := u') (M := 0) (by rw [h]; simp) (by rw [h]; simp)
+  rcases this with h1 | h1
+  · have := abs_nonneg (u - u')
+    have h2 : |u - u'| = 0 := by linarith
+    linarith [abs_eq_zero.1 h2]
+  · exfalso
+    have : |u - u'| < 8 * ρ := abs_lt.2 ⟨by linarith, by linarith⟩
+    linarith
+
+private lemma qoPc_inj {c : Pt} {ρ u u' : ℝ} (hu : 0 ≤ u) (hu8 : u < 8 * ρ) (hu' : 0 ≤ u') (hu8' : u' < 8 * ρ)
+    (h : qoPc c ρ u = qoPc c ρ u') : u = u' :=
+  qo_pos_inj hu hu8 hu' hu8' (add_left_cancel h)
+
+private lemma qo_seg_good {c : Pt} {ρ x y : ℝ} (hρ : 0 < ρ) (hxy : x ≤ y) (h : qoGood ρ x y) :
+    segment ℝ (qoPc c ρ x) (qoPc c ρ y) ⊆ qoPc c ρ '' Icc x y := by
+  rcases h with rfl | ⟨k, h1, -, h2⟩
+  · simp only [segment_same, singleton_subset_iff]; exact ⟨x, ⟨le_rfl, le_rfl⟩, rfl⟩
+  · intro z hz
+    simp only [qoPc] at hz
+    rw [← vadd_eq_add, ← vadd_eq_add, ← vadd_segment] at hz
+    obtain ⟨z', hz', rfl⟩ := hz
+    obtain ⟨u, hu, hu'⟩ := qo_pos_seg k hρ h1 hxy h2 hz'
+    exact ⟨u, hu, by simp [qoPc, hu']⟩
+
+private lemma qoSG_le_last {ρ : ℝ} : ∀ (y : ℝ) (L : List ℝ), qoSG ρ y L → y ≤ L.getLastD y
+  | y, [], _ => by simp
+  | y, z :: L, h => by simp only [List.getLastD_cons]; exact h.1.trans (qoSG_le_last z L h.2.2)
+
+private lemma qo_arc_chain {c : Pt} {ρ : ℝ} (hρ : 0 < ρ) : ∀ (x0 : ℝ) (L : List ℝ), qoSG ρ x0 L →
+    qoChain ((x0 :: L).map (qoPc c ρ)) ⊆ qoPc c ρ '' Icc x0 (L.getLastD x0)
+  | x0, [], _ => by simp [qoChain]
+  | x0, y :: L, ⟨hxy, hg, hL⟩ => by
+    have ih := qo_arc_chain (c := c) hρ y L hL
+    have hyl : y ≤ L.getLastD y := qoSG_le_last y L hL
+    simp only [List.map_cons, qoChain, List.getLastD_cons] at ih ⊢
+    refine union_subset ((qo_seg_good hρ hxy hg).trans (image_mono (Icc_subset_Icc le_rfl hyl)))
+      (ih.trans (image_mono (Icc_subset_Icc hxy le_rfl)))
+
+private lemma qo_arc_split {c : Pt} {ρ : ℝ} (hρ : 0 < ρ) : ∀ (x0 : ℝ) (L : List ℝ), qoSG ρ x0 L → 0 ≤ x0 →
+    L.getLastD x0 < 8 * ρ → ∀ v, x0 < v → v < L.getLastD x0 → v ∉ L →
+    ∃ (l₁ l₂ : List Pt) (s s' : ℝ) (k : Fin 4), (x0 :: L).map (qoPc c ρ) = l₁ ++ qoPc c ρ s :: qoPc c ρ s' :: l₂ ∧
+      s < v ∧ v < s' ∧ 2 * ρ * (k : ℕ) ≤ s ∧ s' ≤ 2 * ρ * (k : ℕ) + 2 * ρ ∧
+      qoPc c ρ v ∉ qoChain (l₁ ++ [qoPc c ρ s]) ∧ qoPc c ρ v ∉ qoChain (qoPc c ρ s' :: l₂)
+  | x0, [], _, _, _, v, h1, h2, _ => by simp at h2; linarith
+  | x0, y :: L, ⟨hxy, hg, hL⟩, h0, h8, v, h1, h2, hv => by
+    have hyl : y ≤ L.getLastD y := qoSG_le_last y L hL
+    simp only [List.getLastD_cons] at h8 h2
+    have hvy : v ≠ y := fun h => hv (h ▸ List.mem_cons_self)
+    rcases lt_or_gt_of_ne hvy with hlt | hgt
+    · rcases hg with heq | ⟨k, hk1, -, hk2⟩
+      · exact absurd heq (by linarith)
+      refine ⟨[], L.map (qoPc c ρ), x0, y, k, by simp, h1, hlt, hk1, hk2, by simp [qoChain], ?_⟩
+      intro hmem
+      have := qo_arc_chain (c := c) hρ y L hL
+      simp only [List.map_cons] at this
+      obtain ⟨u, hu, hu'⟩ := this hmem
+      have := qoPc_inj (by linarith [hu.1]) (by linarith [hu.2]) (by linarith) (by linarith) hu'
+      linarith [hu.1]
+    · obtain ⟨l₁, l₂, s, s', k, heq, hs, hs', hk1, hk2, hn1, hn2⟩ :=
+        qo_arc_split hρ y L hL (by linarith) h8 v hgt h2 (fun h => hv (List.mem_cons_of_mem _ h))
+      refine ⟨qoPc c ρ x0 :: l₁, l₂, s, s', k, by simp only [List.map_cons] at heq ⊢; rw [heq]; rfl,
+        hs, hs', hk1, hk2, ?_, hn2⟩
+      intro hmem
+      have hmap : (y :: L).map (qoPc c ρ) = l₁ ++ qoPc c ρ s :: qoPc c ρ s' :: l₂ := heq
+      have hl1 : (l₁ ++ [qoPc c ρ s]).headD (qoPc c ρ x0) = qoPc c ρ y := by
+        cases l₁ with
+        | nil => simp only [List.map_cons, List.nil_append, List.cons.injEq] at hmap; simp [hmap.1]
+        | cons a l => simp only [List.map_cons, List.cons_append, List.cons.injEq] at hmap; simp [hmap.1]
+      have : qoChain (qoPc c ρ x0 :: (l₁ ++ [qoPc c ρ s])) ⊆
+          segment ℝ (qoPc c ρ x0) (qoPc c ρ y) ∪ qoChain (l₁ ++ [qoPc c ρ s]) := by
+        have := qoChain_append_sub [qoPc c ρ x0] (l₁ ++ [qoPc c ρ s]) (qoPc c ρ x0)
+        simp only [List.singleton_append, qoChain_single, empty_union, hl1] at this
+        exact this
+      rcases this (by simpa using hmem) with h | h
+      · obtain ⟨u, hu, hu'⟩ := qo_seg_good hρ hxy hg h
+        have := qoPc_inj (by linarith [hu.1]) (by linarith [hu.2]) (by linarith) (by linarith) hu'
+        linarith [hu.2]
+      · exact hn1 h
+
+private lemma qo_int_disj {S : Patch P} (H : FaceGroup S.tiles) {F : PlacedTile P} (hF : F ∈ S.tiles)
+    (hFH : F ∉ H.faces) : Disjoint (interior F.carrier) H.carrier := by
+  rw [Set.disjoint_left]
+  intro x hxF hxH
+  change x ∈ H.disk.carrier at hxH
+  rw [H.carrier_eq] at hxH
+  simp only [support, mem_iUnion] at hxH
+  obtain ⟨A, hA, hxA⟩ := hxH
+  rw [← tile_regular A] at hxA
+  obtain ⟨y, hyF, hyA⟩ := mem_closure_iff_nhds.1 hxA _ (isOpen_interior.mem_nhds hxF)
+  have hne : F ≠ A := fun h => hFH (h ▸ hA)
+  exact Set.disjoint_left.1 (S.disjoint hF (H.faces_sub hA) hne) hyF hyA
+
+private lemma qo_tile_sq (M : MeshConstants P) (F : PlacedTile P) {x y : Pt} (hx : x ∈ F.carrier)
+    (hy : y ∈ F.carrier) : y ∈ square x M.D :=
+  ⟨by rw [abs_sub_comm]; exact rg_tile_coord M F hx hy 0, by rw [abs_sub_comm]; exact rg_tile_coord M F hx hy 1⟩
+
+private lemma qo_sq_trans {x y z : Pt} {r s : ℝ} (h1 : y ∈ square x r) (h2 : z ∈ square y s) : z ∈ square x (r + s) := by
+  refine ⟨?_, ?_⟩
+  · have := abs_sub_le (z 0) (y 0) (x 0); linarith [h1.1, h2.1]
+  · have := abs_sub_le (z 1) (y 1) (x 1); linarith [h1.2, h2.2]
+
+private lemma qo_sq_symm {x y : Pt} {r : ℝ} (h : y ∈ square x r) : x ∈ square y r :=
+  ⟨by rw [abs_sub_comm]; exact h.1, by rw [abs_sub_comm]; exact h.2⟩
+
+private lemma qo_sq_of_dist {x y : Pt} {r : ℝ} (h : dist x y ≤ r) : y ∈ square x r :=
+  ⟨by rw [abs_sub_comm]; exact (rg_coord_sub_le x y 0).trans h, by rw [abs_sub_comm]; exact (rg_coord_sub_le x y 1).trans h⟩
+
+private lemma qo_sum_sub_square (c : Pt) (a r : ℝ) : square c a + Binf r ⊆ square c (a + r) := by
+  intro x hx
+  obtain ⟨s, hs, b, hb, rfl⟩ := Set.mem_add.1 hx
+  refine ⟨?_, ?_⟩
+  · simp only [PiLp.add_apply]
+    have := abs_add_le (s 0 - c 0) (b 0)
+    rw [show s 0 + b 0 - c 0 = s 0 - c 0 + b 0 by ring]; linarith [hs.1, hb.1]
+  · simp only [PiLp.add_apply]
+    have := abs_add_le (s 1 - c 1) (b 1)
+    rw [show s 1 + b 1 - c 1 = s 1 - c 1 + b 1 by ring]; linarith [hs.2, hb.2]
+
+/-- the band containing `∂H` -/
+private lemma qo_band {S : Patch P} (H : FaceGroup S.tiles) {c : Pt} {a d : ℝ} (ha : 0 ≤ a) (hd : 0 ≤ d)
+    (hHl : square c a + Binf (2 * d) ⊆ H.carrier) (hHu : H.carrier ⊆ square c a + Binf (3 * d))
+    {x : Pt} (hx : x ∈ frontier H.carrier) :
+    x ∈ square c (a + 3 * d) ∧ (a + 2 * d ≤ |x 0 - c 0| ∨ a + 2 * d ≤ |x 1 - c 1|) := by
+  have hcl : IsClosed H.carrier := H.disk.compact.isClosed
+  have hxH : x ∈ H.carrier := hcl.frontier_subset hx
+  refine ⟨qo_sum_sub_square c a (3 * d) (hHu hxH), ?_⟩
+  by_contra hcon
+  push_neg at hcon
+  have hopen : IsOpen {y : Pt | |y 0 - c 0| < a + 2 * d ∧ |y 1 - c 1| < a + 2 * d} := by
+    have h0 : Continuous fun y : Pt => y 0 := PiLp.continuous_apply 2 _ 0
+    have h1 : Continuous fun y : Pt => y 1 := PiLp.continuous_apply 2 _ 1
+    exact (isOpen_lt ((h0.sub continuous_const).abs) continuous_const).inter
+      (isOpen_lt ((h1.sub continuous_const).abs) continuous_const)
+  have hsub : {y : Pt | |y 0 - c 0| < a + 2 * d ∧ |y 1 - c 1| < a + 2 * d} ⊆ H.carrier := by
+    intro y hy
+    exact hHl (rg_square_add ha (by linarith) ⟨hy.1.le, hy.2.le⟩)
+  have : x ∈ interior H.carrier := interior_maximal hsub hopen hcon
+  exact hx.2 this
+
+/-- an outside-anchored face at a boundary point -/
+private lemma qo_outer_face {S : Patch P} (H : FaceGroup S.tiles) {K : Set Pt} (hHa : H.OutsideAnchored K)
+    {x : Pt} (hx : x ∈ frontier H.carrier) :
+    ∃ m : Fin H.disk.n, x ∈ H.disk.side m ∧ ∃ F ∈ S.tiles, F ∉ H.faces ∧ HasEdge F (H.disk.side m) ∧
+      x ∈ F.carrier ∧ (interior F.carrier ∩ Kᶜ).Nonempty := by
+  change x ∈ frontier H.disk.carrier at hx
+  rw [H.disk.frontier_eq] at hx
+  obtain ⟨m, hm⟩ := mem_iUnion.1 hx
+  obtain ⟨F, hF, hFH, hE, hne⟩ := hHa m
+  refine ⟨m, hm, F, hF, hFH, hE, ?_, hne⟩
+  obtain ⟨i, hi⟩ := hE
+  exact tile_side_subset F i (hi ▸ hm)
+
+/-- a point outside a square is beyond one of its four sides -/
+private lemma qo_exists_dir {c z : Pt} {r : ℝ} (hz : z ∉ square c r) : ∃ k : Fin 4, r < qoCo k (z - c) := by
+  rw [qo_square_iff] at hz
+  push_neg at hz
+  exact hz
+
+private lemma qo_coords_lt (k : Fin 4) (v : Pt) {r : ℝ} (h1 : |qoCo k v| < r) (h2 : |qoCo (k + 1) v| < r) :
+    |v 0| < r ∧ |v 1| < r := by
+  fin_cases k <;> simp [qoCo, qoD, mkPt] at h1 h2 ⊢ <;> first | exact ⟨h1, h2⟩ | exact ⟨h2, h1⟩
+
+private lemma qoCo_abs_le_of_sq {c x : Pt} {r : ℝ} (hx : x ∈ square c r) (k : Fin 4) : |qoCo k (x - c)| ≤ r :=
+  qo_abs_coord_le k (x - c) r (by simpa using hx.1) (by simpa using hx.2)
+
+/-- the escape point of `z` in direction `k` onto the boundary of `square c ρ` -/
+private def qoEsc (c : Pt) (ρ : ℝ) (k : Fin 4) (z : Pt) : Pt := z + (ρ - qoCo k (z - c)) • qoD k
+
+/-- its perimeter parameter -/
+private def qoU (c : Pt) (ρ : ℝ) (k : Fin 4) (z : Pt) : ℝ := 2 * ρ * (k : ℕ) + ρ + qoCo (k + 1) (z - c)
+
+private lemma qo_esc_eq {c z : Pt} {ρ : ℝ} (hρ : 0 < ρ) (k : Fin 4) (h : |qoCo (k + 1) (z - c)| ≤ ρ) :
+    qoEsc c ρ k z = qoPc c ρ (qoU c ρ k z) := by
+  rw [abs_le] at h
+  unfold qoEsc qoPc qoU
+  rw [qo_pos_side k hρ h.1 h.2]
+  have := qo_decomp k (z - c)
+  rw [show z = c + (z - c) by abel, this]
+  have e1 : qoCo k (c + (qoCo k (z - c) • qoD k + qoCo (k + 1) (z - c) • qoD (k + 1)) - c) = qoCo k (z - c) := by
+    rw [show c + (qoCo k (z - c) • qoD k + qoCo (k + 1) (z - c) • qoD (k + 1)) - c =
+      qoCo k (z - c) • qoD k + qoCo (k + 1) (z - c) • qoD (k + 1) by abel, qoCo_add, qoCo_smul, qoCo_smul,
+      qoCo_self, qoCo_next]; ring
+  have e2 : qoCo (k + 1) (c + (qoCo k (z - c) • qoD k + qoCo (k + 1) (z - c) • qoD (k + 1)) - c) =
+      qoCo (k + 1) (z - c) := by
+    rw [show c + (qoCo k (z - c) • qoD k + qoCo (k + 1) (z - c) • qoD (k + 1)) - c =
+      qoCo k (z - c) • qoD k + qoCo (k + 1) (z - c) • qoD (k + 1) by abel, qoCo_add, qoCo_smul, qoCo_smul,
+      qoCo_self, qoCo_next']; ring
+  rw [e1, e2]
+  module
+
+private lemma qoCo_ray (k : Fin 4) (c z : Pt) (s : ℝ) : qoCo k (z + s • qoD k - c) = qoCo k (z - c) + s := by
+  rw [show z + s • qoD k - c = (z - c) + s • qoD k by abel, qoCo_add, qoCo_smul, qoCo_self]; ring
+
+private lemma qoCo_ray' (k : Fin 4) (c z : Pt) (s : ℝ) : qoCo (k + 1) (z + s • qoD k - c) = qoCo (k + 1) (z - c) := by
+  rw [show z + s • qoD k - c = (z - c) + s • qoD k by abel, qoCo_add, qoCo_smul, qoCo_next']; ring
+
+private lemma qo_pos_mem_bd {c : Pt} {ρ u : ℝ} (hρ : 0 < ρ) (h0 : 0 ≤ u) (h8 : u ≤ 8 * ρ) :
+    |qoPc c ρ u 0 - c 0| = ρ ∨ |qoPc c ρ u 1 - c 1| = ρ := by
+  have := (qo_pos_bound hρ h0 h8).2.2
+  simpa [qoPc] using this
+
+private lemma qo_pos_mem_sq {c : Pt} {ρ u : ℝ} (hρ : 0 < ρ) (h0 : 0 ≤ u) (h8 : u ≤ 8 * ρ) :
+    qoPc c ρ u ∈ square c ρ := by
+  have := qo_pos_bound hρ h0 h8
+  exact ⟨by simpa [qoPc] using this.1, by simpa [qoPc] using this.2.1⟩
+
+private lemma qoChain_join : ∀ (l₁ : List Pt) (x : Pt) (l₂ : List Pt),
+    qoChain (l₁ ++ x :: l₂) = qoChain (l₁ ++ [x]) ∪ qoChain (x :: l₂)
+  | [], x, l₂ => by simp [qoChain]
+  | [a], x, l₂ => by simp [qoChain]
+  | a :: b :: l₁, x, l₂ => by
+    have := qoChain_join (b :: l₁) x l₂
+    simp only [List.cons_append] at this ⊢
+    simp only [qoChain, this, union_assoc]
+
+private lemma qo_sq_far {c : Pt} {ρ a b r1 r2 : ℝ} {x : Pt} (h1 : x ∈ square (qoPc c ρ a) r1)
+    (h2 : x ∈ square (qoPc c ρ b) r2) : |a - b| ≤ 2 * (r1 + r2) ∨ 8 * ρ - |a - b| ≤ 2 * (r1 + r2) := by
+  have h := qo_sq_trans h2 (qo_sq_symm h1)
+  have := qo_pos_L2 (ρ := ρ) (u := a) (u' := b) (M := r1 + r2) ?_ ?_
+  · exact this
+  · have := h.1; simp only [qoPc, PiLp.add_apply] at this
+    rw [show c 0 + existsAnnularSpokes_pos ρ a 0 - (c 0 + existsAnnularSpokes_pos ρ b 0) =
+      existsAnnularSpokes_pos ρ a 0 - existsAnnularSpokes_pos ρ b 0 by ring] at this
+    linarith
+  · have := h.2; simp only [qoPc, PiLp.add_apply] at this
+    rw [show c 1 + existsAnnularSpokes_pos ρ a 1 - (c 1 + existsAnnularSpokes_pos ρ b 1) =
+      existsAnnularSpokes_pos ρ a 1 - existsAnnularSpokes_pos ρ b 1 by ring] at this
+    linarith
+
+private lemma qoPc_not_mem_sq {c : Pt} {ρ h u : ℝ} (hρ : 0 < ρ) (hh : h < ρ) (h0 : 0 ≤ u) (h8 : u ≤ 8 * ρ) :
+    qoPc c ρ u ∉ square c h := by
+  intro hm
+  rcases qo_pos_mem_bd (c := c) hρ h0 h8 with h' | h' <;> [linarith [hm.1]; linarith [hm.2]]
+
+/-- clamped corner parameters of the arc -/
+private def qoCl (ρ ua ub : ℝ) (j : ℕ) : ℝ := max ua (min (2 * ρ * j) ub)
+
+private lemma qoCl_good {ρ ua ub : ℝ} (hρ : 0 < ρ) (j : ℕ) (hj : j < 4) :
+    qoGood ρ (qoCl ρ ua ub j) (qoCl ρ ua ub (j + 1)) := by
+  unfold qoCl qoGood
+  push_cast
+  by_cases h1 : ub < 2 * ρ * j
+  · left
+    rw [min_eq_right h1.le, min_eq_right (by nlinarith [h1] : ub ≤ 2 * ρ * ((j : ℝ) + 1))]
+  by_cases h2 : 2 * ρ * ((j : ℝ) + 1) < ua
+  · left
+    have e1 := min_le_left (2 * ρ * ((j : ℝ) + 1)) ub
+    have e2 := min_le_left (2 * ρ * (j : ℝ)) ub
+    rw [max_eq_left (by nlinarith), max_eq_left (by nlinarith)]
+  push_neg at h1 h2
+  right
+  refine ⟨⟨j, hj⟩, ?_, ?_, ?_⟩
+  · exact le_max_of_le_right (le_min le_rfl h1)
+  · exact max_le_max le_rfl (min_le_min (by nlinarith) le_rfl)
+  · exact max_le (by linarith) (min_le_left _ _ |>.trans (by linarith))
+
+private lemma qoCl_mono {ρ ua ub : ℝ} (hρ : 0 < ρ) (j : ℕ) : qoCl ρ ua ub j ≤ qoCl ρ ua ub (j + 1) := by
+  unfold qoCl; push_cast
+  exact max_le_max le_rfl (min_le_min (by nlinarith) le_rfl)
+
+private lemma qoCl_zero {ρ ua ub : ℝ} (h0 : 0 ≤ ua) : qoCl ρ ua ub 0 = ua := by
+  unfold qoCl; simp only [CharP.cast_eq_zero, mul_zero]
+  exact max_eq_left ((min_le_left _ _).trans h0)
+
+private lemma qoCl_four {ρ ua ub : ℝ} (hab : ua ≤ ub) (h8 : ub ≤ 8 * ρ) : qoCl ρ ua ub 4 = ub := by
+  unfold qoCl; push_cast
+  rw [min_eq_right (by linarith), max_eq_right hab]
+
+private lemma qoCl_mem {ρ ua ub : ℝ} (j : ℕ) (hab : ua ≤ ub) :
+    qoCl ρ ua ub j = ua ∨ qoCl ρ ua ub j = ub ∨ qoCl ρ ua ub j = 2 * ρ * j := by
+  unfold qoCl
+  rcases le_total (2 * ρ * j) ub with h | h
+  · rw [min_eq_left h]
+    rcases le_total ua (2 * ρ * j) with h' | h'
+    · right; right; exact max_eq_right h'
+    · left; exact max_eq_left h'
+  · rw [min_eq_right h, max_eq_right hab]; right; left; rfl
+
+private def qoArcL (ρ ua ub : ℝ) : List ℝ := [qoCl ρ ua ub 1, qoCl ρ ua ub 2, qoCl ρ ua ub 3, qoCl ρ ua ub 4]
+
+private lemma qoArc_SG {ρ ua ub : ℝ} (hρ : 0 < ρ) : qoSG ρ (qoCl ρ ua ub 0) (qoArcL ρ ua ub) := by
+  simp only [qoArcL, qoSG]
+  exact ⟨qoCl_mono hρ 0, qoCl_good hρ 0 (by norm_num), qoCl_mono hρ 1, qoCl_good hρ 1 (by norm_num),
+    qoCl_mono hρ 2, qoCl_good hρ 2 (by norm_num), qoCl_mono hρ 3, qoCl_good hρ 3 (by norm_num), trivial⟩
+
+private lemma qo_getLastD_app : ∀ (l : List Pt) (x : Pt) (m : List Pt) (d : Pt), (l ++ x :: m).getLastD d = m.getLastD x
+  | [], x, m, d => by rw [List.nil_append, List.getLastD_cons]
+  | a :: l, x, m, d => by
+    rw [List.cons_append, List.getLastD_cons]; exact qo_getLastD_app l x m a
+
+private lemma qo_head_split : ∀ (x : Pt) (L l₁ : List Pt) (y : Pt) (rest : List Pt), x :: L = l₁ ++ y :: rest →
+    ∃ m, l₁ ++ [y] = x :: m
+  | x, L, [], y, rest, h => ⟨[], by simp at h ⊢; exact h.1.symm⟩
+  | x, L, a :: l₁, y, rest, h => ⟨l₁ ++ [y], by simp at h ⊢; exact h.1.symm⟩
+
+private lemma qo_last_split : ∀ (l₁ : List Pt) (y : Pt) (l₂ L : List Pt) (x : Pt), l₁ ++ y :: l₂ = L ++ [x] →
+    ∃ m, y :: l₂ = m ++ [x]
+  | [], y, l₂, L, x, h => ⟨L, by simpa using h⟩
+  | a :: l₁, y, l₂, [], x, h => by simp at h
+  | a :: l₁, y, l₂, b :: L, x, h => by
+    simp only [List.cons_append, List.cons.injEq] at h
+    exact qo_last_split l₁ y l₂ L x h.2
+
+private lemma qo_no_corner {ρ : ℝ} (hρ : 0 < ρ) (k j : ℕ) (h1 : 2 * ρ * k < 2 * ρ * j) (h2 : 2 * ρ * j < 2 * ρ * k + 2 * ρ) :
+    False := by
+  have a : (k : ℝ) < j := lt_of_mul_lt_mul_left h1 (by positivity)
+  have b : (j : ℝ) < k + 1 := lt_of_mul_lt_mul_left (by linarith : 2 * ρ * (j : ℝ) < 2 * ρ * (k + 1)) (by positivity)
+  have a' : k < j := by exact_mod_cast a
+  have b' : j < k + 1 := by exact_mod_cast b
+  omega
+
+private lemma qo_same_side {ρ u : ℝ} (hρ : 0 < ρ) (k k' : Fin 4) (h1 : 2 * ρ * (k : ℕ) < u) (h2 : u < 2 * ρ * (k : ℕ) + 2 * ρ)
+    (h1' : 2 * ρ * (k' : ℕ) ≤ u) (h2' : u ≤ 2 * ρ * (k' : ℕ) + 2 * ρ) : k' = k := by
+  have a : ((k' : ℕ) : ℝ) < (k : ℕ) + 1 :=
+    lt_of_mul_lt_mul_left (by linarith : 2 * ρ * ((k' : ℕ) : ℝ) < 2 * ρ * ((k : ℕ) + 1)) (by positivity)
+  have b : ((k : ℕ) : ℝ) < (k' : ℕ) + 1 :=
+    lt_of_mul_lt_mul_left (by linarith : 2 * ρ * ((k : ℕ) : ℝ) < 2 * ρ * ((k' : ℕ) + 1)) (by positivity)
+  have a' : (k' : ℕ) < (k : ℕ) + 1 := by exact_mod_cast a
+  have b' : (k : ℕ) < (k' : ℕ) + 1 := by exact_mod_cast b
+  exact Fin.ext (by omega)
+
+private lemma qo_jrot_smul (a : ℝ) (v : Pt) : jrot (a • v) = a • jrot v := by
+  apply pt_ext <;> simp [jrot_apply0, jrot_apply1]
+
+/-- the separating polygon -/
+private def qoLam (c : Pt) (ρ ua ub : ℝ) (pa : Pt) (la lb : List Pt) (pb : Pt) (lm : List Pt) : List Pt :=
+  pa :: (la ++ ((qoCl ρ ua ub 0 :: qoArcL ρ ua ub).map (qoPc c ρ) ++ (lb ++ pb :: lm)))
+
+private lemma qoLam_curve {c : Pt} {ρ ua ub : ℝ} (hρ : 0 < ρ) (hua : 0 ≤ ua) (hab : ua < ub) (hub : ub < 8 * ρ)
+    (pa : Pt) (la lb : List Pt) (pb : Pt) (lm : List Pt) :
+    polyCurve (qoV (qoLam c ρ ua ub pa la lb pb lm)) ⊆ qoChain (pa :: la ++ [qoPc c ρ ua]) ∪
+      qoPc c ρ '' Icc ua ub ∪ qoChain (qoPc c ρ ub :: lb ++ [pb]) ∪ qoChain (pb :: lm ++ [pa]) := by
+  have h0 := qoCl_zero (ρ := ρ) (ub := ub) hua
+  have h4 := qoCl_four (ρ := ρ) hab.le hub.le
+  have harc := qo_arc_chain (c := c) hρ _ _ (qoArc_SG (ua := ua) (ub := ub) hρ)
+  simp only [qoArcL, List.getLastD_cons, List.getLastD_nil, h0, h4] at harc
+  have hM := qoChain_snoc pb lm pa
+  intro x hx
+  have := qo_polyCurve_subset _ _ hx
+  unfold qoLam at this
+  rw [show la ++ ((qoCl ρ ua ub 0 :: qoArcL ρ ua ub).map (qoPc c ρ) ++ (lb ++ pb :: lm)) =
+      la ++ qoPc c ρ ua :: ([qoPc c ρ (qoCl ρ ua ub 1), qoPc c ρ (qoCl ρ ua ub 2), qoPc c ρ (qoCl ρ ua ub 3)] ++
+        qoPc c ρ ub :: (lb ++ pb :: lm)) by simp [qoArcL, h0, h4]] at this
+  rw [qo_getLastD_app, qo_getLastD_app, qo_getLastD_app, ← List.cons_append] at this
+  set a1 := qoPc c ρ ua
+  set bU := qoPc c ρ ub
+  set mid := [qoPc c ρ (qoCl ρ ua ub 1), qoPc c ρ (qoCl ρ ua ub 2), qoPc c ρ (qoCl ρ ua ub 3)]
+  have E1 := qoChain_join (pa :: la) a1 (mid ++ bU :: (lb ++ pb :: lm))
+  have E2 : qoChain (a1 :: (mid ++ bU :: (lb ++ pb :: lm))) = qoChain (a1 :: mid ++ [bU]) ∪
+      qoChain (bU :: (lb ++ pb :: lm)) := qoChain_join (a1 :: mid) bU (lb ++ pb :: lm)
+  have E3 : qoChain (bU :: (lb ++ pb :: lm)) = qoChain (bU :: lb ++ [pb]) ∪ qoChain (pb :: lm) :=
+    qoChain_join (bU :: lb) pb lm
+  rw [E1, E2, E3] at this
+  have harc' : qoChain (a1 :: mid ++ [bU]) ⊆ qoPc c ρ '' Icc ua ub := by
+    refine subset_trans ?_ harc; simp [a1, bU, mid]
+  rw [hM]
+  rcases this with ((h | h | h | h) | h)
+  · exact Or.inl (Or.inl (Or.inl h))
+  · exact Or.inl (Or.inl (Or.inr (harc' h)))
+  · exact Or.inl (Or.inr h)
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr h)
+
+private lemma qoD_ne (k : Fin 4) : qoD k ≠ 0 := by
+  intro h; have := qoCo_self k; rw [h] at this; simp [qoCo] at this
+
+private lemma qoLam_jump {c : Pt} {ρ ua ub : ℝ} (hρ : 0 < ρ) (hua : 0 ≤ ua) (hab : ua < ub) (hub : ub < 8 * ρ)
+    (pa : Pt) (la lb : List Pt) (pb : Pt) (lm : List Pt) (k : Fin 4) {u : ℝ} (hu1 : 2 * ρ * (k : ℕ) < u)
+    (hu2 : u < 2 * ρ * (k : ℕ) + 2 * ρ) (hu : u ∈ Ioo ua ub)
+    (hA : qoPc c ρ u ∉ qoChain (pa :: la ++ [qoPc c ρ ua])) (hB : qoPc c ρ u ∉ qoChain (qoPc c ρ ub :: lb ++ [pb]))
+    (hM : qoPc c ρ u ∉ qoChain (pb :: lm ++ [pa])) :
+    ∃ δ > 0, ∀ᶠ t in nhdsWithin (0 : ℝ) (Ioi 0),
+      wind (qoV (qoLam c ρ ua ub pa la lb pb lm)) (qoPc c ρ u + (-(t * δ)) • qoD k) -
+        wind (qoV (qoLam c ρ ua ub pa la lb pb lm)) (qoPc c ρ u + (t * δ) • qoD k) = 2 * Real.pi := by
+  have h0 := qoCl_zero (ρ := ρ) (ub := ub) hua
+  have h4 := qoCl_four (ρ := ρ) hab.le hub.le
+  set P := qoPc c ρ with hP
+  have hlast : (qoArcL ρ ua ub).getLastD (qoCl ρ ua ub 0) = ub := by simp [qoArcL, h4]
+  have hnot : u ∉ qoArcL ρ ua ub := by
+    intro hmem
+    have key : ∀ j : ℕ, u ≠ qoCl ρ ua ub j := by
+      intro j hj
+      rcases qoCl_mem (ρ := ρ) j hab.le with h | h | h
+      · rw [h] at hj; exact absurd hj (ne_of_gt hu.1)
+      · rw [h] at hj; exact absurd hj (ne_of_lt hu.2)
+      · rw [h] at hj; exact qo_no_corner hρ (k : ℕ) j (by linarith) (by linarith)
+    simp only [qoArcL, List.mem_cons, List.not_mem_nil, or_false] at hmem
+    rcases hmem with h | h | h | h <;> exact key _ h
+  obtain ⟨l₁, l₂, s, s', k', heq, hsu, hus', hk1, hk2, hn1, hn2⟩ := qo_arc_split (c := c) hρ _ _ (qoArc_SG hρ)
+    (by rw [h0]; exact hua) (by rw [hlast]; exact hub) u (by rw [h0]; exact hu.1) (by rw [hlast]; exact hu.2) hnot
+  have hk' : k' = k := qo_same_side hρ k k' hu1 hu2 (by linarith) (by linarith)
+  rw [hk'] at hk1 hk2
+  rw [← hP] at heq hn1 hn2
+  have hΛ : qoLam c ρ ua ub pa la lb pb lm = (pa :: la ++ l₁) ++ P s :: P s' :: (l₂ ++ (lb ++ pb :: lm)) := by
+    unfold qoLam; rw [heq]; simp
+  have heq' : P (qoCl ρ ua ub 0) :: (qoArcL ρ ua ub).map P = l₁ ++ P s :: P s' :: l₂ := by
+    rw [← heq]; rfl
+  obtain ⟨m, hm⟩ := qo_head_split _ _ l₁ (P s) (P s' :: l₂) heq'
+  have heq2 : (l₁ ++ [P s]) ++ P s' :: l₂ = [P ua, P (qoCl ρ ua ub 1), P (qoCl ρ ua ub 2), P (qoCl ρ ua ub 3)] ++
+      [P ub] := by
+    rw [List.append_assoc, List.singleton_append, ← heq']; simp [qoArcL, h0, h4]
+  obtain ⟨m', hm'⟩ := qo_last_split _ _ _ _ _ heq2
+  have hsub : P s' - P s = (s' - s) • qoD (k + 1) := by
+    simp only [hP, qoPc]
+    rw [show c + existsAnnularSpokes_pos ρ s' - (c + existsAnnularSpokes_pos ρ s) =
+      existsAnnularSpokes_pos ρ s' - existsAnnularSpokes_pos ρ s by abel]
+    exact qo_pos_sub k hρ hk1 (by linarith) (by linarith) hk2
+  have hsubu : P u - P s = (u - s) • qoD (k + 1) := by
+    simp only [hP, qoPc]
+    rw [show c + existsAnnularSpokes_pos ρ u - (c + existsAnnularSpokes_pos ρ s) =
+      existsAnnularSpokes_pos ρ u - existsAnnularSpokes_pos ρ s by abel]
+    exact qo_pos_sub k hρ hk1 (by linarith) (by linarith) (by linarith)
+  have hab' : P s ≠ P s' := by
+    intro h
+    have : (s' - s) • qoD (k + 1) = 0 := by rw [← hsub, h, sub_self]
+    rcases smul_eq_zero.1 this with h' | h'
+    · linarith
+    · exact qoD_ne _ h'
+  have hq : P u ∈ openSegment ℝ (P s) (P s') := by
+    rw [openSegment_eq_image']
+    refine ⟨(u - s) / (s' - s), ⟨div_pos (by linarith) (by linarith), (div_lt_one (by linarith)).2 (by linarith)⟩, ?_⟩
+    simp only
+    rw [hsub, smul_smul, div_mul_cancel₀ _ (by linarith : s' - s ≠ 0), ← hsubu]; abel
+  have h1 : P u ∉ qoChain ((pa :: la ++ l₁) ++ [P s]) := by
+    rw [List.append_assoc, hm, qoChain_join, ← hm]
+    rintro (h | h)
+    · exact hA (by rw [h0] at h; exact h)
+    · exact hn1 h
+  have h2 : P u ∉ qoChain (P s' :: (l₂ ++ (lb ++ pb :: lm))) := by
+    rw [show P s' :: (l₂ ++ (lb ++ pb :: lm)) = m' ++ P ub :: (lb ++ pb :: lm) by
+      rw [← List.cons_append, hm']; simp, qoChain_join,
+      show qoChain (P ub :: (lb ++ pb :: lm)) = qoChain (P ub :: lb ++ [pb]) ∪ qoChain (pb :: lm) from
+        qoChain_join (P ub :: lb) pb lm, ← hm']
+    rintro (h | h | h)
+    · exact hn2 h
+    · exact hB h
+    · exact hM (by rw [qoChain_snoc]; exact Or.inl h)
+  have h3 : P u ∉ segment ℝ ((l₂ ++ (lb ++ pb :: lm)).getLastD (P s')) ((pa :: la ++ l₁).headD (P s)) := by
+    rw [← List.append_assoc, qo_getLastD_app]
+    intro h
+    exact hM (by rw [qoChain_snoc]; exact Or.inr (by simpa using h))
+  refine ⟨s' - s, by linarith, ?_⟩
+  have J := qo_wind_jump _ _ _ _ hab' hq h1 h2 h3
+  rw [← hΛ, hsub, qo_jrot_smul, qoD_jrot, show k + 1 + 1 = k + 2 by rw [add_assoc]; rfl, qoD_add_two] at J
+  refine J.mono fun t ht => ?_
+  rw [← ht, show t • (s' - s) • -qoD k = -(t * (s' - s)) • qoD k by module,
+    show -t • (s' - s) • -qoD k = (t * (s' - s)) • qoD k by module]
+
+private lemma qo_core {c : Pt} {ρ h r e : ℝ} (hρ : 0 < ρ) (hh : h < ρ) (he : 0 ≤ e) {Hc : Set Pt} (hHs : Hc ⊆ square c h)
+    {pa pb : Pt} (hpa : pa ∈ Hc) (hpb : pb ∈ Hc) {ua ub : ℝ} (hua : 0 ≤ ua) (hab : ua < ub) (hub : ub < 8 * ρ)
+    (la lb lm : List Pt)
+    (hA : qoChain (pa :: la ++ [qoPc c ρ ua]) ⊆ insert pa ((square c ρ ∩ square (qoPc c ρ ua) r) \ Hc))
+    (hB : qoChain (qoPc c ρ ub :: lb ++ [pb]) ⊆ insert pb ((square c ρ ∩ square (qoPc c ρ ub) r) \ Hc))
+    (hM : qoChain (pb :: lm ++ [pa]) ⊆ insert pa (insert pb (interior Hc))) :
+    ∃ W : ℝ,
+      (∀ x ∈ Hc, x ∉ interior Hc → x ≠ pa → x ≠ pb → x ∉ polyCurve (qoV (qoLam c ρ ua ub pa la lb pb lm))) ∧
+      (∀ x ∉ Hc, |x 0 - c 0| < ρ → |x 1 - c 1| < ρ → x ∉ square (qoPc c ρ ua) r → x ∉ square (qoPc c ρ ub) r →
+        x ∉ polyCurve (qoV (qoLam c ρ ua ub pa la lb pb lm))) ∧
+      ∀ (z : Pt) (k : Fin 4), h < qoCo k (z - c) → qoCo k (z - c) < ρ → |qoCo (k + 1) (z - c)| < ρ →
+        z ∈ square (qoPc c ρ (qoU c ρ k z)) e →
+        2 * (e + r) < |qoU c ρ k z - ua| → 2 * (e + r) < 8 * ρ - |qoU c ρ k z - ua| →
+        2 * (e + r) < |qoU c ρ k z - ub| → 2 * (e + r) < 8 * ρ - |qoU c ρ k z - ub| →
+        (qoU c ρ k z ∉ Icc ua ub → wind (qoV (qoLam c ρ ua ub pa la lb pb lm)) z = W) ∧
+        (qoU c ρ k z ∈ Ioo ua ub → wind (qoV (qoLam c ρ ua ub pa la lb pb lm)) z ≠ W) := by
+  set V := qoV (qoLam c ρ ua ub pa la lb pb lm) with hV
+  have hcur := qoLam_curve (c := c) hρ hua hab hub pa la lb pb lm
+  rw [← hV] at hcur
+  have hh0 : 0 ≤ h := (abs_nonneg _).trans (hHs hpa).1
+  have hHρ : Hc ⊆ square c ρ := fun x hx => ⟨(hHs hx).1.trans hh.le, (hHs hx).2.trans hh.le⟩
+  have harcB : ∀ v ∈ Icc ua ub, qoPc c ρ v ∉ square c h := fun v hv =>
+    qoPc_not_mem_sq hρ hh (by linarith [hv.1]) (by linarith [hv.2])
+  have hsq : polyCurve V ⊆ square c ρ := by
+    intro x hx
+    rcases hcur hx with ((h1 | h1) | h1) | h1
+    · rcases hA h1 with rfl | h2
+      · exact hHρ hpa
+      · exact h2.1.1
+    · obtain ⟨v, hv, rfl⟩ := h1; exact qo_pos_mem_sq hρ (by linarith [hv.1]) (by linarith [hv.2])
+    · rcases hB h1 with rfl | h2
+      · exact hHρ hpb
+      · exact h2.1.1
+    · rcases hM h1 with rfl | rfl | h2
+      · exact hHρ hpa
+      · exact hHρ hpb
+      · exact hHρ (interior_subset h2)
+  have hgen : ∀ x ∉ Hc, |x 0 - c 0| < ρ → |x 1 - c 1| < ρ → x ∉ square (qoPc c ρ ua) r →
+      x ∉ square (qoPc c ρ ub) r → x ∉ polyCurve V := by
+    intro x hx h0 h1 hxa hxb hxc
+    rcases hcur hxc with ((h2 | h2) | h2) | h2
+    · rcases hA h2 with rfl | h3
+      · exact hx hpa
+      · exact hxa h3.1.2
+    · obtain ⟨v, hv, rfl⟩ := h2
+      rcases qo_pos_mem_bd (c := c) (u := v) hρ (by linarith [hv.1]) (by linarith [hv.2]) with h3 | h3 <;> linarith
+    · rcases hB h2 with rfl | h3
+      · exact hx hpb
+      · exact hxb h3.1.2
+    · rcases hM h2 with rfl | rfl | h3
+      · exact hx hpa
+      · exact hx hpb
+      · exact hx (interior_subset h3)
+  set far := mkPt (c 0 + (ρ + 1)) (c 1 + (ρ + 1)) with hfar_def
+  have hfar : ∀ y ∉ square c ρ, wind V y = wind V far := by
+    intro y hy
+    have hO : (square c ρ)ᶜ ⊆ (polyCurve V)ᶜ := compl_subset_compl.2 hsq
+    have hy' := rg_far_mem hρ.le hO hy
+    have hfO : far ∈ (polyCurve V)ᶜ := by
+      apply hO
+      intro hm
+      have := hm.1
+      rw [hfar_def, rg_mkPt0, show c 0 + (ρ + 1) - c 0 = ρ + 1 by ring, abs_of_pos (by linarith)] at this
+      linarith
+    exact wind_const_of_preconnected isPreconnected_connectedComponentIn
+      (fun x hx => connectedComponentIn_subset _ _ hx) hy' (mem_connectedComponentIn hfO)
+  refine ⟨wind V far, ?_, hgen, ?_⟩
+  · intro x hx hxi hxa hxb hxc
+    rcases hcur hxc with ((h1 | h1) | h1) | h1
+    · rcases hA h1 with h2 | h2
+      · exact hxa h2
+      · exact h2.2 hx
+    · obtain ⟨v, hv, rfl⟩ := h1; exact harcB v hv (hHs hx)
+    · rcases hB h1 with h2 | h2
+      · exact hxb h2
+      · exact h2.2 hx
+    · rcases hM h1 with h2 | h2 | h2
+      · exact hxa h2
+      · exact hxb h2
+      · exact hxi h2
+  intro z k hk1 hk2 hk3 hz f1 f2 f3 f4
+  set u := qoU c ρ k z with hu_def
+  set s0 := ρ - qoCo k (z - c) with hs0_def
+  have hs0 : 0 < s0 := by linarith
+  set ray : ℝ → Pt := fun t => z + t • qoD k with hray
+  have hq : qoPc c ρ u = ray s0 := (qo_esc_eq hρ k hk3.le).symm
+  have hk3' := abs_lt.1 hk3
+  have hk4 : ((k : ℕ) : ℝ) ≤ 3 := by exact_mod_cast (by omega : (k : ℕ) ≤ 3)
+  have hu1 : 2 * ρ * (k : ℕ) < u := by rw [hu_def, qoU]; linarith
+  have hu2 : u < 2 * ρ * (k : ℕ) + 2 * ρ := by rw [hu_def, qoU]; linarith
+  have hu8 : u < 8 * ρ := by nlinarith
+  have hu0 : 0 < u := by nlinarith [(by positivity : (0 : ℝ) ≤ (k : ℕ))]
+  have hPu : qoPc c ρ u ∈ square (qoPc c ρ u) e := by simp [square, he]
+  have hseg : ∀ t ∈ Icc 0 s0, ray t ∈ square (qoPc c ρ u) e := by
+    intro t ht
+    have := (rg_square_convex (qoPc c ρ u) e).add_smul_sub_mem hz hPu
+      ⟨div_nonneg ht.1 hs0.le, (div_le_one hs0).2 ht.2⟩
+    rw [hq] at this ⊢
+    convert this using 1
+    simp only [hray]
+    rw [show z + s0 • qoD k - z = s0 • qoD k by abel, smul_smul, div_mul_cancel₀ _ hs0.ne']
+  have hfA : ∀ x ∈ square (qoPc c ρ u) e, x ∉ square (qoPc c ρ ua) r := fun x h1 h2 => by
+    rcases qo_sq_far h1 h2 with h3 | h3 <;> linarith
+  have hfB : ∀ x ∈ square (qoPc c ρ u) e, x ∉ square (qoPc c ρ ub) r := fun x h1 h2 => by
+    rcases qo_sq_far h1 h2 with h3 | h3 <;> linarith
+  have hin : ∀ t, 0 ≤ t → t < s0 → ray t ∉ polyCurve V := by
+    intro t ht0 ht1
+    have hc1 : qoCo k (ray t - c) = qoCo k (z - c) + t := qoCo_ray k c z t
+    have hc2 : qoCo (k + 1) (ray t - c) = qoCo (k + 1) (z - c) := qoCo_ray' k c z t
+    have hlt := qo_coords_lt k (ray t - c) (r := ρ) (abs_lt.2 ⟨by linarith, by linarith⟩) (by rw [hc2]; exact hk3)
+    simp only [PiLp.sub_apply] at hlt
+    refine hgen _ ?_ hlt.1 hlt.2 (hfA _ (hseg t ⟨ht0, ht1.le⟩)) (hfB _ (hseg t ⟨ht0, ht1.le⟩))
+    intro hm
+    have := (qo_square_iff c _ h).1 (hHs hm) k
+    linarith
+  have hout : ∀ t, s0 < t → ray t ∉ square c ρ := by
+    intro t ht hm
+    have := (qo_square_iff c _ ρ).1 hm k
+    rw [qoCo_ray] at this
+    linarith
+  have hsw : ∀ t1, 0 ≤ t1 → (∀ t ∈ Icc 0 t1, ray t ∉ polyCurve V) → wind V z = wind V (ray t1) := by
+    intro t1 ht1 hav
+    have hcont : Continuous ray := continuous_const.add (continuous_id.smul continuous_const)
+    have h0 : ray 0 = z := by simp [hray]
+    rw [← h0]
+    exact wind_const_of_preconnected (isPreconnected_Icc.image ray hcont.continuousOn)
+      (by rintro _ ⟨t, ht, rfl⟩; exact hav t ht) ⟨0, ⟨le_rfl, ht1⟩, rfl⟩ ⟨t1, ⟨ht1, le_rfl⟩, rfl⟩
+  have hqHc : qoPc c ρ u ∉ Hc := fun hm => qoPc_not_mem_sq hρ hh hu0.le hu8.le (hHs hm)
+  have hqA : qoPc c ρ u ∉ qoChain (pa :: la ++ [qoPc c ρ ua]) := by
+    intro h1
+    rcases hA h1 with h2 | h2
+    · exact hqHc (h2 ▸ hpa)
+    · exact hfA _ hPu h2.1.2
+  have hqB : qoPc c ρ u ∉ qoChain (qoPc c ρ ub :: lb ++ [pb]) := by
+    intro h1
+    rcases hB h1 with h2 | h2
+    · exact hqHc (h2 ▸ hpb)
+    · exact hfB _ hPu h2.1.2
+  have hqM : qoPc c ρ u ∉ qoChain (pb :: lm ++ [pa]) := by
+    intro h1
+    rcases hM h1 with h2 | h2 | h2
+    · exact hqHc (h2 ▸ hpa)
+    · exact hqHc (h2 ▸ hpb)
+    · exact hqHc (interior_subset h2)
+  constructor
+  · intro hnot
+    have hqnot : qoPc c ρ u ∉ polyCurve V := by
+      intro h1
+      rcases hcur h1 with ((h2 | h2) | h2) | h2
+      · exact hqA h2
+      · obtain ⟨v, hv, hv'⟩ := h2
+        have hs1 : qoPc c ρ u ∈ square (qoPc c ρ v) 0 := by rw [← hv']; simp [square]
+        have hs2 : qoPc c ρ u ∈ square (qoPc c ρ u) 0 := by simp [square]
+        have hlt : |v - u| < 8 * ρ := abs_lt.2 ⟨by linarith [hv.1], by linarith [hv.2]⟩
+        rcases qo_sq_far hs1 hs2 with h3 | h3
+        · have : v = u := by
+            have := abs_nonneg (v - u)
+            have h4 : |v - u| = 0 := by linarith
+            linarith [abs_eq_zero.1 h4]
+          exact hnot (this ▸ hv)
+        · linarith
+      · exact hqB h2
+      · exact hqM h2
+    rw [hsw (s0 + 1) (by linarith) ?_]
+    · exact hfar _ (hout _ (by linarith))
+    intro t ht
+    rcases lt_trichotomy t s0 with h1 | h1 | h1
+    · exact hin t ht.1 h1
+    · rw [h1, ← hq]; exact hqnot
+    · exact fun hm => hout t h1 (hsq hm)
+  · intro hIoo
+    obtain ⟨δ, hδ, J⟩ := qoLam_jump (c := c) hρ hua hab hub pa la lb pb lm k hu1 hu2 hIoo hqA hqB hqM
+    have ev : ∀ᶠ t in nhdsWithin (0 : ℝ) (Ioi 0), t * δ < s0 := by
+      have : Filter.Tendsto (fun t : ℝ => t * δ) (nhds 0) (nhds 0) := by
+        have := ((continuous_id.mul continuous_const).tendsto (0 : ℝ) : Filter.Tendsto (fun t : ℝ => t * δ) _ _)
+        simpa using this
+      exact (this.mono_left nhdsWithin_le_nhds) (Iio_mem_nhds hs0)
+    obtain ⟨t, ht1, ht2, ht3⟩ := (J.and (ev.and self_mem_nhdsWithin)).exists
+    have ht3' : 0 < t := ht3
+    have e1 : qoPc c ρ u + (-(t * δ)) • qoD k = ray (s0 - t * δ) := by
+      rw [hq]; simp only [hray]; rw [sub_eq_add_neg, add_smul, add_assoc]
+    have e2 : qoPc c ρ u + (t * δ) • qoD k = ray (s0 + t * δ) := by
+      rw [hq]; simp only [hray]; rw [add_smul, add_assoc]
+    have htd := mul_pos ht3' hδ
+    rw [e1, e2, hfar (ray (s0 + t * δ)) (hout _ (by linarith))] at ht1
+    rw [hsw (s0 - t * δ) (by linarith) (fun t' ht' => hin t' ht'.1 (by linarith [ht'.2]))]
+    intro heq
+    rw [heq, sub_self] at ht1
+    linarith [Real.pi_pos]
+
+private lemma qo_halfdisk_pick {U : Set Pt} {p a d : Pt} (hd : d ≠ 0) {r : ℝ} (hr : 0 < r) {σ : ℝ} (hσ : σ = 1 ∨ σ = -1)
+    (hp : jcr d (p - a) = 0) (hU : ∀ x ∈ Metric.ball p r, x ∈ U ↔ 0 < σ * jcr d (x - a)) :
+    ∃ y ∈ U, segment ℝ p y ⊆ insert p U := by
+  obtain ⟨y, hy, hlt⟩ := exists_near_off_line a hd p hσ hr
+  rw [hp, mul_zero] at hlt
+  have key : ∀ θ : ℝ, 0 < θ → θ ≤ 1 → p + θ • (y - p) ∈ U := by
+    intro θ h0 h1
+    have hb : p + θ • (y - p) ∈ Metric.ball p r := by
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+        abs_of_pos h0, ← dist_eq_norm, dist_comm]
+      calc θ * dist p y ≤ 1 * dist p y := by gcongr
+        _ < r := by linarith
+    have e : jcr d (p + θ • (y - p) - a) = jcr d (p - a) + θ * (jcr d (y - a) - jcr d (p - a)) := by
+      simp only [jcr, PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]; ring
+    rw [hU _ hb, e, hp]
+    nlinarith
+  refine ⟨y, by simpa using key 1 one_pos le_rfl, ?_⟩
+  intro x hx
+  rw [segment_eq_image'] at hx
+  obtain ⟨θ, hθ, rfl⟩ := hx
+  rcases eq_or_lt_of_le hθ.1 with h | h
+  · left; rw [← h]; simp
+  · right; exact key θ h hθ.2
+
+private lemma qo_open_pick_H (B : PolygonalDisk) (m : Fin B.n) {p : Pt}
+    (hp : p ∈ openSegment ℝ (B.vertex m) (B.vertex (finRotate B.n m))) :
+    ∃ y ∈ interior B.carrier, segment ℝ p y ⊆ insert p (interior B.carrier) := by
+  obtain ⟨r, hr, σ, hσ, hball⟩ := pd_halfdisk B m hp
+  have hd : B.vertex (finRotate B.n m) - B.vertex m ≠ 0 := sub_ne_zero.2 (pd_vertex_ne_next B m).symm
+  have hpl := ((hball p (Metric.mem_ball_self hr)).1).1 (openSegment_subset_segment _ _ _ hp)
+  exact qo_halfdisk_pick hd hr hσ hpl fun x hx => (hball x hx).2.2
+
+private lemma qo_open_pick_F (F : PlacedTile P) {a b p : Pt} (hab : a ≠ b) (hE : HasEdge F (segment ℝ a b))
+    (hp : p ∈ openSegment ℝ a b) :
+    ∃ y ∈ interior F.carrier, segment ℝ p y ⊆ insert p (interior F.carrier) := by
+  obtain ⟨i, hi⟩ := hE
+  rw [tile_side_eq] at hi
+  have hp' : p ∈ openSegment ℝ (F.vertex i) (F.vertex (finRotate _ i)) := by
+    rcases seg_endpoints hab hi.symm with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]; exact hp
+    · rw [h1, h2, openSegment_symm]; exact hp
+  obtain ⟨r, hr, σ, hσ, hball⟩ := tile_halfdisk F i hp'
+  have hd : F.vertex (finRotate _ i) - F.vertex i ≠ 0 := sub_ne_zero.2 (tile_vertex_ne_next F i).symm
+  have hpl := ((hball p (Metric.mem_ball_self hr)).1).1
+    (by rw [tile_side_eq]; exact openSegment_subset_segment _ _ _ hp')
+  exact qo_halfdisk_pick hd hr hσ hpl fun x hx => (hball x hx).2.2
+
+private lemma qo_ray_sq (z : Pt) (s : ℝ) (k : Fin 4) : z ∈ square (z + s • qoD k) |s| := by
+  fin_cases k <;> simp [square, qoD, mkPt]
+
+private lemma qo_sq_mono {x y : Pt} {r r' : ℝ} (h : y ∈ square x r) (hr : r ≤ r') : y ∈ square x r' :=
+  ⟨h.1.trans hr, h.2.trans hr⟩
+
+/-- escape data at a boundary point of `H` -/
+private lemma qo_escape {M : MeshConstants P} {S : Patch P} (H : FaceGroup S.tiles) {c : Pt} {a : ℝ} (ha : 0 ≤ a)
+    (hHl : square c a + Binf (2 * M.D) ⊆ H.carrier) (hHu : H.carrier ⊆ square c a + Binf (3 * M.D))
+    (hHa : H.OutsideAnchored (square c a + Binf (3 * M.D))) {x : Pt} (hx : x ∈ frontier H.carrier)
+    (m : Fin H.disk.n) (hxm : x ∈ H.disk.side m) :
+    ∃ F ∈ S.tiles, F ∉ H.faces ∧ HasEdge F (H.disk.side m) ∧ x ∈ F.carrier ∧ ∃ z ∈ interior F.carrier, ∃ k : Fin 4,
+      a + 3 * M.D < qoCo k (z - c) ∧ qoCo k (z - c) < a + 5 * M.D ∧ |qoCo (k + 1) (z - c)| < a + 5 * M.D ∧
+      z ∈ square x M.D ∧ z ∈ square (qoPc c (a + 5 * M.D) (qoU c (a + 5 * M.D) k z)) (2 * M.D) := by
+  have hD := M.D_pos
+  obtain ⟨F, hF, hFH, hE, hne⟩ := hHa m
+  have hxF : x ∈ F.carrier := by
+    obtain ⟨i, hi⟩ := hE; exact tile_side_subset F i (hi ▸ hxm)
+  refine ⟨F, hF, hFH, hE, hxF, ?_⟩
+  obtain ⟨z, hzF, hzK⟩ := hne
+  have hzs : z ∉ square c (a + 3 * M.D) := fun h => hzK (rg_square_add ha (by linarith) h)
+  obtain ⟨k, hk⟩ := qo_exists_dir hzs
+  have hzx : z ∈ square x M.D := qo_tile_sq M F hxF (interior_subset hzF)
+  have hxc : x ∈ square c (a + 3 * M.D) := (qo_band H ha hD.le hHl hHu hx).1
+  have hzc : z ∈ square c (a + 3 * M.D + M.D) := qo_sq_trans hxc hzx
+  have hb : ∀ j, |qoCo j (z - c)| ≤ a + 3 * M.D + M.D := qoCo_abs_le_of_sq hzc
+  have hb1 := hb (k + 1)
+  have hbk := (abs_le.1 (hb k)).2
+  refine ⟨z, hzF, k, hk, by linarith, by linarith, hzx, ?_⟩
+  rw [← qo_esc_eq (by linarith) k (by linarith)]
+  unfold qoEsc
+  refine qo_sq_mono (qo_ray_sq z _ k) ?_
+  rw [abs_of_pos (by linarith)]; linarith
+
+/-- the outer gadget at a cut point -/
+private lemma qo_gadget {M : MeshConstants P} {S : Patch P} (H : FaceGroup S.tiles) {c : Pt} {a : ℝ} (ha : 0 ≤ a)
+    (hHl : square c a + Binf (2 * M.D) ⊆ H.carrier) (hHu : H.carrier ⊆ square c a + Binf (3 * M.D))
+    (hHa : H.OutsideAnchored (square c a + Binf (3 * M.D))) {p : Pt} (m : Fin H.disk.n)
+    (hp : p ∈ openSegment ℝ (H.disk.vertex m) (H.disk.vertex (finRotate _ m))) :
+    ∃ (la : List Pt) (z : Pt) (k : Fin 4), |qoCo (k + 1) (z - c)| < a + 5 * M.D ∧ z ∈ square p M.D ∧
+      z ∈ square (qoPc c (a + 5 * M.D) (qoU c (a + 5 * M.D) k z)) (2 * M.D) ∧
+      qoChain (p :: la ++ [qoPc c (a + 5 * M.D) (qoU c (a + 5 * M.D) k z)]) ⊆
+        insert p ((square c (a + 5 * M.D) ∩ square (qoPc c (a + 5 * M.D) (qoU c (a + 5 * M.D) k z)) (3 * M.D)) \
+          H.carrier) := by
+  have hD := M.D_pos
+  have hpm : p ∈ H.disk.side m := openSegment_subset_segment _ _ _ hp
+  have hpf : p ∈ frontier H.carrier := by
+    change p ∈ frontier H.disk.carrier
+    rw [H.disk.frontier_eq]; exact mem_iUnion.2 ⟨m, hpm⟩
+  obtain ⟨F, hF, hFH, hE, hpF, z, hzF, k, hk1, hk2, hk3, hzp, hzu⟩ := qo_escape H ha hHl hHu hHa hpf m hpm
+  obtain ⟨y, hyF, hyseg⟩ := qo_open_pick_F F (pd_vertex_ne_next H.disk m) hE hp
+  obtain ⟨Q, hQ⟩ := qo_polyPath isOpen_interior (tileDisk F).interior_pathConnected.isConnected.isPreconnected hyF hzF
+  refine ⟨y :: Q ++ [z], z, k, hk3, hzp, hzu, ?_⟩
+  set ρ := a + 5 * M.D with hρ_def
+  set U := qoPc c ρ (qoU c ρ k z) with hU_def
+  have hpc : p ∈ square c (a + 3 * M.D) := (qo_band H ha hD.le hHl hHu hpf).1
+  have hHs : H.carrier ⊆ square c (a + 3 * M.D) := hHu.trans (qo_sum_sub_square c a _)
+  have hintF : interior F.carrier ⊆ (square c ρ ∩ square U (3 * M.D)) \ H.carrier := by
+    intro x hx
+    have hxF := interior_subset hx
+    refine ⟨⟨qo_sq_mono (qo_sq_trans hpc (qo_tile_sq M F hpF hxF)) (by linarith), ?_⟩,
+      fun h => Set.disjoint_left.1 (qo_int_disj H hF hFH) hx h⟩
+    have := qo_sq_trans hzu (qo_tile_sq M F (interior_subset hzF) hxF)
+    exact qo_sq_mono this (by linarith)
+  have hk4 : ((k : ℕ) : ℝ) ≤ 3 := by exact_mod_cast (by omega : (k : ℕ) ≤ 3)
+  have hk0 : (0 : ℝ) ≤ ((k : ℕ) : ℝ) := by positivity
+  have hk3' := abs_lt.1 hk3
+  have hUeq : U = z + (ρ - qoCo k (z - c)) • qoD k := (qo_esc_eq (by linarith) k hk3.le).symm
+  have hUc : U ∈ square c ρ := qo_pos_mem_sq (by linarith) (by unfold qoU; nlinarith) (by unfold qoU; nlinarith)
+  have hzc : z ∈ square c ρ := (hintF hzF).1.1
+  have hray : segment ℝ z U ⊆ (square c ρ ∩ square U (3 * M.D)) \ H.carrier := by
+    intro w hw
+    refine ⟨⟨(rg_square_convex c ρ).segment_subset hzc hUc hw,
+      (rg_square_convex U _).segment_subset (qo_sq_mono hzu (by linarith)) (by simp [square]; linarith) hw⟩, ?_⟩
+    intro hwH
+    rw [segment_eq_image'] at hw
+    obtain ⟨θ, hθ, rfl⟩ := hw
+    have h1 := (qo_square_iff c _ _).1 (hHs hwH) k
+    beta_reduce at h1
+    rw [hUeq, show z + θ • (z + (ρ - qoCo k (z - c)) • qoD k - z) = z + (θ * (ρ - qoCo k (z - c))) • qoD k by
+      rw [add_sub_cancel_left, smul_smul], qoCo_ray] at h1
+    nlinarith [hθ.1]
+  have hch : qoChain (p :: (y :: Q ++ [z]) ++ [U]) = segment ℝ p y ∪ (qoChain (y :: Q ++ [z]) ∪ segment ℝ z U) := by
+    have := qoChain_snoc y (Q ++ [z]) U
+    rw [List.getLastD_concat] at this
+    have e : qoChain (y :: ((Q ++ [z]) ++ [U])) = qoChain (y :: Q ++ [z]) ∪ segment ℝ z U := this
+    show segment ℝ p y ∪ qoChain (y :: ((Q ++ [z]) ++ [U])) = _
+    rw [e]
+  rw [hch]
+  refine union_subset (hyseg.trans (insert_subset_insert (hintF))) (union_subset ?_ ?_)
+  · exact hQ.trans (hintF.trans (subset_insert _ _))
+  · exact hray.trans (subset_insert _ _)
+
+private lemma qo_sep {M : MeshConstants P} {S : Patch P} (H : FaceGroup S.tiles) {c : Pt} {a : ℝ} (ha : 0 ≤ a)
+    (hHl : square c a + Binf (2 * M.D) ⊆ H.carrier) (hHu : H.carrier ⊆ square c a + Binf (3 * M.D))
+    (hHa : H.OutsideAnchored (square c a + Binf (3 * M.D))) {pa pb : Pt} (ma mb : Fin H.disk.n)
+    (hpa : pa ∈ openSegment ℝ (H.disk.vertex ma) (H.disk.vertex (finRotate _ ma)))
+    (hpb : pb ∈ openSegment ℝ (H.disk.vertex mb) (H.disk.vertex (finRotate _ mb))) :
+    ∃ ua ub : ℝ, qoPc c (a + 5 * M.D) ua ∈ square pa (3 * M.D) ∧ qoPc c (a + 5 * M.D) ub ∈ square pb (3 * M.D) ∧
+      0 < ua ∧ ua < 8 * (a + 5 * M.D) ∧ 0 < ub ∧ ub < 8 * (a + 5 * M.D) ∧
+      (ua < ub → ∃ (f : Pt → ℝ) (W : ℝ),
+        (∀ T ⊆ frontier H.carrier, IsPreconnected T → pa ∉ T → pb ∉ T → ∀ x ∈ T, ∀ y ∈ T, f x = f y) ∧
+        ∀ x ∈ frontier H.carrier, x ≠ pa → x ≠ pb → ∀ F ∈ S.tiles, F ∉ H.faces → x ∈ F.carrier →
+          ∀ z ∈ interior F.carrier, ∀ k : Fin 4, a + 3 * M.D < qoCo k (z - c) → qoCo k (z - c) < a + 5 * M.D →
+          |qoCo (k + 1) (z - c)| < a + 5 * M.D → z ∈ square x M.D →
+          z ∈ square (qoPc c (a + 5 * M.D) (qoU c (a + 5 * M.D) k z)) (2 * M.D) →
+          12 * M.D < |qoU c (a + 5 * M.D) k z - ua| →
+          12 * M.D < 8 * (a + 5 * M.D) - |qoU c (a + 5 * M.D) k z - ua| →
+          12 * M.D < |qoU c (a + 5 * M.D) k z - ub| →
+          12 * M.D < 8 * (a + 5 * M.D) - |qoU c (a + 5 * M.D) k z - ub| →
+          (qoU c (a + 5 * M.D) k z ∉ Icc ua ub → f x = W) ∧ (qoU c (a + 5 * M.D) k z ∈ Ioo ua ub → f x ≠ W)) := by
+  have hD := M.D_pos
+  set ρ := a + 5 * M.D with hρ_def
+  have hρ : 0 < ρ := by linarith
+  have bnd : ∀ (k : Fin 4) (z : Pt), |qoCo (k + 1) (z - c)| < ρ → 0 < qoU c ρ k z ∧ qoU c ρ k z < 8 * ρ := by
+    intro k z hk
+    have hk4 : ((k : ℕ) : ℝ) ≤ 3 := by exact_mod_cast (by omega : (k : ℕ) ≤ 3)
+    have hk0 : (0 : ℝ) ≤ ((k : ℕ) : ℝ) := by positivity
+    have := abs_lt.1 hk
+    unfold qoU; constructor <;> nlinarith
+  obtain ⟨la, za, ka, hka, hzpa, hzua, hcha⟩ := qo_gadget H ha hHl hHu hHa ma hpa
+  obtain ⟨lb0, zb, kb, hkb, hzpb, hzub, hchb⟩ := qo_gadget H ha hHl hHu hHa mb hpb
+  refine ⟨qoU c ρ ka za, qoU c ρ kb zb, qo_sq_mono (qo_sq_trans hzpa (qo_sq_symm hzua)) (by linarith),
+    qo_sq_mono (qo_sq_trans hzpb (qo_sq_symm hzub)) (by linarith), (bnd ka za hka).1, (bnd ka za hka).2,
+    (bnd kb zb hkb).1, (bnd kb zb hkb).2, fun hab => ?_⟩
+  set ua := qoU c ρ ka za
+  set ub := qoU c ρ kb zb
+  have hHs : H.carrier ⊆ square c (a + 3 * M.D) := hHu.trans (qo_sum_sub_square c a _)
+  have hcl : IsClosed H.carrier := H.disk.compact.isClosed
+  have hfr : ∀ {x}, x ∈ openSegment ℝ (H.disk.vertex ma) (H.disk.vertex (finRotate _ ma)) ∨
+      x ∈ openSegment ℝ (H.disk.vertex mb) (H.disk.vertex (finRotate _ mb)) → x ∈ H.carrier := by
+    intro x hx
+    apply hcl.frontier_subset
+    change x ∈ frontier H.disk.carrier
+    rw [H.disk.frontier_eq]
+    rcases hx with hx | hx
+    · exact mem_iUnion.2 ⟨ma, openSegment_subset_segment _ _ _ hx⟩
+    · exact mem_iUnion.2 ⟨mb, openSegment_subset_segment _ _ _ hx⟩
+  obtain ⟨ya, hya, hsega⟩ := qo_open_pick_H H.disk ma hpa
+  obtain ⟨yb, hyb, hsegb⟩ := qo_open_pick_H H.disk mb hpb
+  obtain ⟨Pm, hPm⟩ := qo_polyPath isOpen_interior H.disk.interior_pathConnected.isConnected.isPreconnected hyb hya
+  have hM : qoChain (pb :: (yb :: Pm ++ [ya]) ++ [pa]) ⊆ insert pa (insert pb (interior H.carrier)) := by
+    have := qoChain_snoc yb (Pm ++ [ya]) pa
+    rw [List.getLastD_concat] at this
+    have e : qoChain (yb :: ((Pm ++ [ya]) ++ [pa])) = qoChain (yb :: Pm ++ [ya]) ∪ segment ℝ ya pa := this
+    show segment ℝ pb yb ∪ qoChain (yb :: ((Pm ++ [ya]) ++ [pa])) ⊆ _
+    rw [e]
+    refine union_subset ?_ (union_subset ?_ ?_)
+    · exact hsegb.trans (insert_subset_insert (subset_insert _ _)) |>.trans (insert_comm _ _ _).subset
+    · exact hPm.trans ((subset_insert _ _).trans (subset_insert _ _))
+    · rw [segment_symm]; exact hsega.trans (insert_subset_insert (subset_insert _ _))
+  have hB : qoChain (qoPc c ρ ub :: lb0.reverse ++ [pb]) ⊆
+      insert pb ((square c ρ ∩ square (qoPc c ρ ub) (3 * M.D)) \ H.carrier) := by
+    rw [show qoPc c ρ ub :: lb0.reverse ++ [pb] = (pb :: lb0 ++ [qoPc c ρ ub]).reverse by simp, qoChain_reverse]
+    exact hchb
+  obtain ⟨W, hfront, hgen, hz⟩ := qo_core (c := c) (ρ := ρ) (h := a + 3 * M.D) (r := 3 * M.D) (e := 3 * M.D)
+    hρ (by linarith) (by linarith) hHs (hfr (Or.inl hpa)) (hfr (Or.inr hpb)) (bnd ka za hka).1.le hab
+    (bnd kb zb hkb).2 la lb0.reverse (yb :: Pm ++ [ya]) hcha hB hM
+  refine ⟨wind (qoV (qoLam c ρ ua ub pa la lb0.reverse pb (yb :: Pm ++ [ya]))), W, ?_, ?_⟩
+  · intro T hTs hT hpaT hpbT x hx y hy
+    refine wind_const_of_preconnected hT (fun x hx => ?_) hx hy
+    exact hfront x (hcl.frontier_subset (hTs hx)) (hTs hx).2 (fun h => hpaT (h ▸ hx)) (fun h => hpbT (h ▸ hx))
+  · intro x hx hxa hxb F hF hFH hxF z hzF k hk1 hk2 hk3 hzx hzu f1 f2 f3 f4
+    have hxc : x ∈ square c (a + 3 * M.D) := hHs (hcl.frontier_subset hx)
+    have hpre : IsPreconnected (insert x (interior F.carrier)) := by
+      refine (tileDisk F).interior_pathConnected.isConnected.isPreconnected.subset_closure
+        (subset_insert _ _) ?_
+      rw [show interior (tileDisk F).carrier = interior F.carrier from rfl, tile_regular]
+      exact insert_subset hxF interior_subset
+    have hwz : wind (qoV (qoLam c ρ ua ub pa la lb0.reverse pb (yb :: Pm ++ [ya]))) x =
+        wind (qoV (qoLam c ρ ua ub pa la lb0.reverse pb (yb :: Pm ++ [ya]))) z := by
+      refine wind_const_of_preconnected hpre ?_ (mem_insert _ _) (mem_insert_of_mem _ hzF)
+      intro y hy
+      rcases hy with rfl | hy
+      · exact hfront y (hcl.frontier_subset hx) hx.2 hxa hxb
+      · have hyF := interior_subset hy
+        have hyc : y ∈ square c (a + 3 * M.D + M.D) := qo_sq_trans hxc (qo_tile_sq M F hxF hyF)
+        have hyu := qo_sq_trans hzu (qo_tile_sq M F (interior_subset hzF) hyF)
+        refine hgen y (fun h => Set.disjoint_left.1 (qo_int_disj H hF hFH) hy h)
+          (lt_of_le_of_lt hyc.1 (by linarith)) (lt_of_le_of_lt hyc.2 (by linarith)) ?_ ?_
+        · intro h; rcases qo_sq_far hyu h with h' | h' <;> linarith
+        · intro h; rcases qo_sq_far hyu h with h' | h' <;> linarith
+    rw [hwz]
+    exact hz z k hk1 hk2 hk3 (qo_sq_mono hzu (by linarith)) (by linarith) (by linarith) (by linarith) (by linarith)
+
+private lemma qo_near_ideal {c : Pt} {N : ℕ} {R D a : ℝ} (hA : 0 < (N : ℝ) * R / 2) (hD : 0 < D)
+    (haA : a = (N : ℝ) * R / 2 + R) (hR : 0 ≤ R) (h3 : 3 * D ≤ (N : ℝ) * R / 2)
+    {x : Pt} (hx1 : x ∈ square c (a + 3 * D)) (hx2 : a + 2 * D ≤ |x 0 - c 0| ∨ a + 2 * D ≤ |x 1 - c 1|)
+    (j : ℕ) (hj : (j : ℝ) * R ≤ 8 * ((N : ℝ) * R / 2)) {D' : ℝ} (hD' : 0 ≤ D')
+    (hxr : x ∈ Metric.cthickening D' (existsAnnularSpokes_ray c N R D j)) :
+    x ∈ square (qoPc c (a + 5 * D) ((a + 5 * D) / ((N : ℝ) * R / 2) * ((j : ℝ) * R))) (3 * D + 2 * D') := by
+  set A := (N : ℝ) * R / 2 with hAdef
+  set ρ := a + 5 * D with hρdef
+  have hρ : 0 < ρ := by rw [hρdef, haA]; linarith
+  have hcpt : IsCompact (existsAnnularSpokes_ray c N R D j) := by
+    unfold existsAnnularSpokes_ray; rw [← convexHull_pair]; exact (Set.toFinite _).isCompact_convexHull
+  obtain ⟨r, hr, hxr'⟩ := hcpt.exists_infEDist_eq_edist ⟨_, left_mem_segment ℝ _ _⟩ x
+  have hdist : dist x r ≤ D' := by
+    rw [← edist_le_ofReal hD', ← hxr']; exact Metric.mem_cthickening_iff.1 hxr
+  obtain ⟨μ, hμ0, -, hμ⟩ := existsAnnularSpokes_step2_tubes_rayMem hR hD.le hA hr
+  have hμ0' : 0 ≤ μ := le_trans (div_nonneg (by linarith) hA.le) hμ0
+  set v := existsAnnularSpokes_pos A ((j : ℝ) * R) with hv
+  have hvb := qo_pos_bound hA (by positivity) hj
+  rw [← hv] at hvb
+  have hT : qoPc c ρ (ρ / A * ((j : ℝ) * R)) = c + (ρ / A) • v := by
+    unfold qoPc; rw [← qo_pos_scale hA hρ]
+  have hxr2 := qo_sq_of_dist (dist_comm x r ▸ hdist)
+  have hr0 : r 0 = c 0 + μ * v 0 := by rw [hμ]; simp
+  have hr1 : r 1 = c 1 + μ * v 1 := by rw [hμ]; simp
+  have hxa := hxr2.1; have hxb := hxr2.2
+  rw [hr0] at hxa; rw [hr1] at hxb
+  have hc0 := hx1.1; have hc1 := hx1.2
+  have hav0 : |μ * v 0| = μ * |v 0| := by rw [abs_mul, abs_of_nonneg hμ0']
+  have hav1 : |μ * v 1| = μ * |v 1| := by rw [abs_mul, abs_of_nonneg hμ0']
+  have up : μ * A ≤ ρ - 2 * D + D' := by
+    rcases hvb.2.2 with h | h
+    · have := abs_sub_abs_le_abs_sub (μ * v 0) (x 0 - c 0)
+      rw [show μ * v 0 - (x 0 - c 0) = -(x 0 - (c 0 + μ * v 0)) by ring, abs_neg, hav0, h] at this
+      linarith
+    · have := abs_sub_abs_le_abs_sub (μ * v 1) (x 1 - c 1)
+      rw [show μ * v 1 - (x 1 - c 1) = -(x 1 - (c 1 + μ * v 1)) by ring, abs_neg, hav1, h] at this
+      linarith
+  have lo : ρ - 3 * D - D' ≤ μ * A := by
+    rcases hx2 with h | h
+    · have := abs_sub_abs_le_abs_sub (x 0 - c 0) (μ * v 0)
+      rw [show x 0 - c 0 - μ * v 0 = x 0 - (c 0 + μ * v 0) by ring, hav0] at this
+      nlinarith [hvb.1]
+    · have := abs_sub_abs_le_abs_sub (x 1 - c 1) (μ * v 1)
+      rw [show x 1 - c 1 - μ * v 1 = x 1 - (c 1 + μ * v 1) by ring, hav1] at this
+      nlinarith [hvb.2.1]
+  have key : ∀ t : ℝ, |t| ≤ A → |(μ - ρ / A) * t| ≤ 3 * D + D' := by
+    intro t ht
+    rw [abs_mul]
+    have e : |μ - ρ / A| * A = |μ * A - ρ| := by
+      rw [← abs_of_pos hA, ← abs_mul, abs_of_pos hA]; congr 1; field_simp
+    have : |μ * A - ρ| ≤ 3 * D + D' := abs_le.2 ⟨by linarith, by linarith⟩
+    calc |μ - ρ / A| * |t| ≤ |μ - ρ / A| * A := by gcongr
+      _ ≤ 3 * D + D' := by linarith
+  rw [hT]
+  refine ⟨?_, ?_⟩
+  · simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+    have := key (v 0) hvb.1
+    rw [show x 0 - (c 0 + ρ / A * v 0) = (x 0 - (c 0 + μ * v 0)) + (μ - ρ / A) * v 0 by ring]
+    linarith [abs_add_le (x 0 - (c 0 + μ * v 0)) ((μ - ρ / A) * v 0)]
+  · simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+    have := key (v 1) hvb.2.1
+    rw [show x 1 - (c 1 + ρ / A * v 1) = (x 1 - (c 1 + μ * v 1)) + (μ - ρ / A) * v 1 by ring]
+    linarith [abs_add_le (x 1 - (c 1 + μ * v 1)) ((μ - ρ / A) * v 1)]
+
+private lemma qo_cut_pick (B : PolygonalDisk) {γ : ℝ → Pt} (hγ : IsLoopParam (frontier B.carrier) γ) (t δ : ℝ)
+    (hδ : 0 < δ) : ∃ s ∈ Ioo t (t + δ), ∃ m, γ s ∈ openSegment ℝ (B.vertex m) (B.vertex (finRotate _ m)) := by
+  by_contra hcon
+  push_neg at hcon
+  set δ' := min δ 1
+  have hδ' : 0 < δ' := lt_min hδ one_pos
+  have hmaps : MapsTo γ (Ioo t (t + δ')) (range B.vertex) := by
+    intro s hs
+    have hs' : s ∈ Ioo t (t + δ) := ⟨hs.1, by linarith [hs.2, min_le_left δ 1]⟩
+    have hm := qo_loop_mem hγ s
+    rw [B.frontier_eq] at hm
+    obtain ⟨m, hm⟩ := mem_iUnion.1 hm
+    by_contra hv
+    exact hcon s hs' m (mem_openSegment_of_ne_left_right (fun h => hv ⟨m, h⟩) (fun h => hv ⟨_, h⟩) hm)
+  obtain ⟨x, hx, y, hy, hxy, he⟩ := (Ioo_infinite (by linarith : t < t + δ')).exists_ne_map_eq_of_mapsTo hmaps
+    (finite_range _)
+  rw [qo_loop_eq_iff hγ, Int.fract_eq_fract] at he
+  obtain ⟨z, hz⟩ := he
+  have h1 : (z : ℝ) < 1 := by
+    have := min_le_right δ 1; linarith [hx.1, hx.2, hy.1, hy.2]
+  have h2 : (-1 : ℝ) < z := by
+    have := min_le_right δ 1; linarith [hx.1, hx.2, hy.1, hy.2]
+  have : z = 0 := by
+    have a1 : z < 1 := by exact_mod_cast h1
+    have a2 : -1 < z := by exact_mod_cast h2
+    omega
+  rw [this, Int.cast_zero, sub_eq_zero] at hz
+  exact hxy hz
+
+/-- the winding dichotomy forces one of the two cyclic configurations -/
+private lemma qo_case_of_wind {Fr : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam Fr γ) {k : ℕ} (t : Fin k → ℝ)
+    (ht : ∀ i, t i ∈ Ico (0 : ℝ) 1) (hpos : ∀ i : Fin k, i.val ≠ 1 → 0 < t i) (b : Fin k) (hb : 3 ≤ b.val)
+    {s : ℝ} (hbs : t b < s) (hs1 : s < 1) (hsep : ∀ i, i ≠ b → t i ≠ s ∧ (t i < s ↔ t i < t b))
+    (f : Pt → ℝ) (W : ℝ)
+    (hf : ∀ T ⊆ Fr, IsPreconnected T → γ 0 ∉ T → γ s ∉ T → ∀ x ∈ T, ∀ y ∈ T, f x = f y)
+    (h1 : ∀ i : Fin k, 2 ≤ i.val → i.val < b.val → f (γ (t i)) ≠ W)
+    (h2 : ∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → f (γ (t i)) = W) :
+    ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t i < t b) ∧
+        (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t b < t i)) ∨
+      ((∀ i : Fin k, 2 ≤ i.val → i.val < b.val → t b < t i) ∧
+        (∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → t i < t b)) := by
+  have hs0 : 0 < s := lt_of_le_of_lt (ht b).1 hbs
+  have hsub : ∀ {I : Set ℝ}, I ⊆ Ico 0 1 → γ '' I ⊆ Fr := by
+    intro I hI; rw [← hγ.2.2.2]; exact image_mono hI
+  have hnot : ∀ {I : Set ℝ} {x : ℝ}, I ⊆ Ico 0 1 → x ∈ Ico (0 : ℝ) 1 → x ∉ I → γ x ∉ γ '' I := by
+    rintro I x hI hx hxI ⟨y, hy, hyx⟩
+    exact hxI (hγ.2.2.1 (hI hy) hx hyx ▸ hy)
+  have h01 : (0 : ℝ) ∈ Ico (0 : ℝ) 1 := ⟨le_rfl, one_pos⟩
+  have hs01 : s ∈ Ico (0 : ℝ) 1 := ⟨hs0.le, hs1⟩
+  have I1 : Ioo 0 s ⊆ Ico (0 : ℝ) 1 := fun x hx => ⟨hx.1.le, hx.2.trans hs1⟩
+  have I2 : Ioo s 1 ⊆ Ico (0 : ℝ) 1 := fun x hx => ⟨hs0.le.trans hx.1.le, hx.2⟩
+  have c1 := hf _ (hsub I1) (isPreconnected_Ioo.image _ hγ.1.continuousOn)
+    (hnot I1 h01 (fun h => lt_irrefl _ h.1)) (hnot I1 hs01 (fun h => lt_irrefl _ h.2))
+  have c2 := hf _ (hsub I2) (isPreconnected_Ioo.image _ hγ.1.continuousOn)
+    (hnot I2 h01 (fun h => by linarith [h.1])) (hnot I2 hs01 (fun h => lt_irrefl _ h.1))
+  -- same side implies same value
+  have same : ∀ i j : Fin k, i.val ≠ 1 → j.val ≠ 1 → i ≠ b → j ≠ b → (t i < s ↔ t j < s) →
+      f (γ (t i)) = f (γ (t j)) := by
+    intro i j hi hj hib hjb hiff
+    rcases lt_or_gt_of_ne (hsep i hib).1 with hi' | hi'
+    · exact c1 _ ⟨t i, ⟨hpos i hi, hi'⟩, rfl⟩ _ ⟨t j, ⟨hpos j hj, hiff.1 hi'⟩, rfl⟩
+    · have hj' : s < t j := lt_of_le_of_ne (not_lt.1 fun h => absurd (hiff.2 h) (not_lt.2 hi'.le))
+        (hsep j hjb).1.symm
+      exact c2 _ ⟨t i, ⟨hi', (ht i).2⟩, rfl⟩ _ ⟨t j, ⟨hj', (ht j).2⟩, rfl⟩
+  have hk : 4 ≤ k := by have := b.isLt; omega
+  set i0 : Fin k := ⟨0, by omega⟩
+  set i2 : Fin k := ⟨2, by omega⟩
+  have hi0b : i0 ≠ b := fun h => by have := congrArg Fin.val h; simp [i0] at this; omega
+  have hi2b : i2 ≠ b := fun h => by have := congrArg Fin.val h; simp [i2] at this; omega
+  have hW0 : f (γ (t i0)) = W := h2 i0 (Or.inr rfl)
+  have hW2 : f (γ (t i2)) ≠ W := h1 i2 le_rfl (by simp [i2]; omega)
+  have ne1 : ∀ i : Fin k, 2 ≤ i.val → i.val ≠ 1 := fun i h => by omega
+  have ne1' : ∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → i.val ≠ 1 := fun i h => by omega
+  have neb : ∀ i : Fin k, i.val < b.val → i ≠ b := fun i h e => by rw [e] at h; omega
+  have neb' : ∀ i : Fin k, (b.val < i.val ∨ i.val = 0) → i ≠ b := fun i h e => by rw [e] at h; omega
+  -- t i vs t b comparisons through s
+  have tb_ne : ∀ i, i ≠ b → t i ≠ t b := by
+    intro i hib e
+    have := (hsep i hib).2
+    rw [e] at this
+    exact lt_irrefl _ (this.1 hbs)
+  have lt_iff : ∀ i, i ≠ b → (t i < t b ↔ t i < s) := fun i hib => (hsep i hib).2.symm
+  have gt_iff : ∀ i, i ≠ b → (t b < t i ↔ ¬ t i < s) := by
+    intro i hib
+    rw [← lt_iff i hib]
+    exact ⟨fun h => not_lt.2 h.le, fun h => lt_of_le_of_ne (not_lt.1 h) (tb_ne i hib).symm⟩
+  have h02 : ¬ ((t i0 < s) ↔ (t i2 < s)) := by
+    intro hiff
+    exact hW2 ((same i2 i0 (by simp [i2]) (by simp [i0]) hi2b hi0b hiff.symm).trans hW0)
+  by_cases hA : t i0 < s
+  · right
+    have h2s : ¬ t i2 < s := fun h => h02 ⟨fun _ => h, fun _ => hA⟩
+    refine ⟨fun i hi hib => ?_, fun i hi => ?_⟩
+    · rw [gt_iff i (neb i hib)]
+      intro his
+      exact h1 i hi hib ((same i i0 (ne1 i hi) (by simp [i0]) (neb i hib) hi0b ⟨fun _ => hA, fun _ => his⟩).trans hW0)
+    · rw [lt_iff i (neb' i hi)]
+      by_contra his
+      exact hW2 ((same i2 i (by simp [i2]) (ne1' i hi) hi2b (neb' i hi)
+        ⟨fun h => absurd h h2s, fun h => absurd h his⟩).trans (h2 i hi))
+  · left
+    have h2s : t i2 < s := by by_contra h; exact h02 ⟨fun h' => absurd h' hA, fun h' => absurd h' h⟩
+    refine ⟨fun i hi hib => ?_, fun i hi => ?_⟩
+    · rw [lt_iff i (neb i hib)]
+      by_contra his
+      exact h1 i hi hib ((same i i0 (ne1 i hi) (by simp [i0]) (neb i hib) hi0b
+        ⟨fun h => absurd h his, fun h => absurd h hA⟩).trans hW0)
+    · rw [gt_iff i (neb' i hi)]
+      intro his
+      exact hW2 ((same i2 i (by simp [i2]) (ne1' i hi) hi2b (neb' i hi) ⟨fun _ => his, fun _ => h2s⟩).trans
+        (h2 i hi))
+
+private lemma qo_cut_near (B : PolygonalDisk) {γ : ℝ → Pt} (hγ : IsLoopParam (frontier B.carrier) γ) (t : ℝ) {D δ0 : ℝ}
+    (hD : 0 < D) (hδ0 : 0 < δ0) : ∃ s ∈ Ioo t (t + δ0), dist (γ s) (γ t) < D ∧
+      ∃ m, γ s ∈ openSegment ℝ (B.vertex m) (B.vertex (finRotate _ m)) := by
+  obtain ⟨ε, hε, hball⟩ := Metric.continuous_iff.1 hγ.1 t D hD
+  obtain ⟨s, hs, hm⟩ := qo_cut_pick B hγ t (min δ0 ε) (lt_min hδ0 hε)
+  refine ⟨s, ⟨hs.1, hs.2.trans_le (by linarith [min_le_left δ0 ε])⟩, hball s ?_, hm⟩
+  rw [Real.dist_eq, abs_of_pos (by linarith [hs.1])]
+  linarith [hs.2, min_le_right δ0 ε]
+
+private lemma qo_fin_pos {n : ℕ} (f : Fin n → ℝ) (Q : Fin n → Prop) (h : ∀ i, Q i → 0 < f i) :
+    ∃ δ > 0, δ ≤ 1 ∧ ∀ i, Q i → δ ≤ f i := by
+  classical
+  by_cases hne : (Finset.univ.filter Q).Nonempty
+  · obtain ⟨i0, hi0, hmin⟩ := Finset.exists_min_image _ f hne
+    refine ⟨min (f i0) 1, lt_min (h i0 (Finset.mem_filter.1 hi0).2) one_pos, min_le_right _ _,
+      fun i hi => (min_le_left _ _).trans (hmin i (Finset.mem_filter.2 ⟨Finset.mem_univ _, hi⟩))⟩
+  · refine ⟨1, one_pos, le_rfl, fun i hi => absurd ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ _, hi⟩⟩ hne⟩
+
+private lemma qo_close_norm {ρ L M u ι : ℝ} (hu0 : 0 < u) (hu8 : u < 8 * ρ) (hi1 : L ≤ ι) (hi2 : ι ≤ 8 * ρ - L)
+    (hL : M < L) (h : |u - ι| ≤ M ∨ 8 * ρ - |u - ι| ≤ M) : |u - ι| ≤ M := by
+  rcases h with h | h
+  · exact h
+  · exfalso
+    rcases le_total 0 (u - ι) with h' | h'
+    · rw [abs_of_nonneg h'] at h; linarith
+    · rw [abs_of_nonpos h'] at h; linarith
+
+private lemma qo_fract_eq {x : ℝ} {z : ℤ} (h1 : (z : ℝ) ≤ x) (h2 : x < z + 1) : Int.fract x = x - z := by
+  rw [Int.fract, Int.floor_eq_iff.2 ⟨h1, h2⟩]
+
+private lemma qo_mulL {L : ℝ} (hL : 0 ≤ L) {i j : ℕ} (h : i + 1 ≤ j) : (i : ℝ) * L + L ≤ j * L := by
+  have : (i : ℝ) + 1 ≤ j := by exact_mod_cast h
+  nlinarith
+
+private lemma qo_far_pos {M ρ d : ℝ} (hM : 0 ≤ M) (h1 : M < d) (h2 : d < 8 * ρ - M) : M < |d| ∧ M < 8 * ρ - |d| := by
+  rw [abs_of_pos (by linarith)]; exact ⟨h1, by linarith⟩
+
+private lemma qo_far_neg {M ρ d : ℝ} (hM : 0 ≤ M) (h1 : M < -d) (h2 : -d < 8 * ρ - M) : M < |d| ∧ M < 8 * ρ - |d| := by
+  rw [abs_of_neg (by linarith)]; exact ⟨h1, by linarith⟩
+
+set_option maxHeartbeats 1000000 in
+private theorem qo_main {M : MeshConstants P} {S : Patch P}
+    (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R) (H : FaceGroup S.tiles)
+    (hHl : square c ((N : ℝ) * R / 2 + R) + Binf (2 * M.D) ⊆ H.carrier)
+    (hHu : H.carrier ⊆ square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D))
+    (hHa : H.OutsideAnchored (square c ((N : ℝ) * R / 2 + R) + Binf (3 * M.D)))
+    (w : Fin (4 * N) → Pt) (hw : ∀ j, w j ∈ frontier H.carrier)
+    (hwr : ∀ j : Fin (4 * N), w j ∈ Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j)) :
+    ∃ γo : ℝ → Pt, IsLoopParam (frontier H.carrier) γo ∧ PointsInOrder γo w := by
+  have hD := M.D_pos
+  set D := M.D with hDdef
+  set A := (N : ℝ) * R / 2 with hAdef
+  set a := A + R with hadef
+  set ρ := a + 5 * D with hρdef
+  set L := ρ / A * R with hLdef
+  have hR0 : 0 < R := by linarith
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hAR : R ≤ A := by rw [hAdef]; nlinarith
+  have hApos : 0 < A := by linarith
+  have ha : 0 ≤ a := by linarith
+  have hρA : A ≤ ρ := by linarith
+  have hLR : R ≤ L := by
+    rw [hLdef]
+    have : 1 ≤ ρ / A := (one_le_div hApos).2 hρA
+    nlinarith
+  have hK8 : ((4 * N : ℕ) : ℝ) * L = 8 * ρ := by
+    rw [hLdef]; push_cast; field_simp; rw [hAdef]; ring
+  have hι : ∀ j : ℕ, (a + 5 * D) / A * ((j : ℝ) * R) = j * L := by intro j; rw [hLdef]; ring
+  have hjL : ∀ j : Fin (4 * N), (j : ℝ) * L + L ≤ 8 * ρ := fun j => hK8 ▸ qo_mulL (by linarith) j.isLt
+  have hband : ∀ x ∈ frontier H.carrier, x ∈ square c (a + 3 * D) ∧
+      (a + 2 * D ≤ |x 0 - c 0| ∨ a + 2 * D ≤ |x 1 - c 1|) := fun x hx => qo_band H ha hD.le hHl hHu hx
+  have hnear : ∀ j : Fin (4 * N), w j ∈ square (qoPc c ρ ((j : ℕ) * L)) (5 * D) := by
+    intro j
+    have hj : ((j : ℕ) : ℝ) * R ≤ 8 * A := by
+      have : ((j : ℕ) : ℝ) ≤ 4 * N := by exact_mod_cast (by omega : (j : ℕ) ≤ 4 * N)
+      rw [hAdef]; nlinarith
+    have := qo_near_ideal hApos hD rfl hR0.le (by linarith) (hband _ (hw j)).1 (hband _ (hw j)).2 j hj hD.le (hwr j)
+    rw [hι] at this
+    convert this using 2; ring
+  -- escape data at the given points
+  have hesc : ∀ j : Fin (4 * N), ∃ F ∈ S.tiles, F ∉ H.faces ∧ w j ∈ F.carrier ∧ ∃ z ∈ interior F.carrier,
+      ∃ k : Fin 4, a + 3 * D < qoCo k (z - c) ∧ qoCo k (z - c) < ρ ∧ |qoCo (k + 1) (z - c)| < ρ ∧
+        z ∈ square (w j) D ∧ z ∈ square (qoPc c ρ (qoU c ρ k z)) (2 * D) := by
+    intro j
+    have hm := hw j
+    change w j ∈ frontier H.disk.carrier at hm
+    rw [H.disk.frontier_eq] at hm
+    obtain ⟨m, hm⟩ := mem_iUnion.1 hm
+    obtain ⟨F, hF, hFH, -, hwF, hrest⟩ := qo_escape H ha hHl hHu hHa (hw j) m hm
+    exact ⟨F, hF, hFH, hwF, hrest⟩
+  choose F hF hFH hwF z hz k hk1 hk2 hk3 hzw hzu using hesc
+  set u : Fin (4 * N) → ℝ := fun j => qoU c ρ (k j) (z j) with hudef
+  have hu08 : ∀ j, 0 < u j ∧ u j < 8 * ρ := by
+    intro j
+    have hk4 : ((k j : ℕ) : ℝ) ≤ 3 := by exact_mod_cast (by omega : (k j : ℕ) ≤ 3)
+    have hk0 : (0 : ℝ) ≤ ((k j : ℕ) : ℝ) := by positivity
+    have := abs_lt.1 (hk3 j)
+    simp only [hudef, qoU]; constructor <;> nlinarith
+  have hclose : ∀ j : Fin (4 * N), |u j - (j : ℕ) * L| ≤ 16 * D ∨ 8 * ρ - |u j - (j : ℕ) * L| ≤ 16 * D := by
+    intro j
+    have h1 : qoPc c ρ (u j) ∈ square (qoPc c ρ ((j : ℕ) * L)) (5 * D + D + 2 * D) :=
+      qo_sq_trans (qo_sq_trans (hnear j) (hzw j)) (qo_sq_symm (hzu j))
+    have h0 : qoPc c ρ (u j) ∈ square (qoPc c ρ (u j)) 0 := by simp [square]
+    have := qo_sq_far h0 h1
+    rcases this with h | h
+    · left; linarith
+    · right; linarith
+  have hu1 : ∀ j : Fin (4 * N), 1 ≤ (j : ℕ) → |u j - (j : ℕ) * L| ≤ 16 * D := by
+    intro j hj
+    have : (1 : ℝ) ≤ (j : ℕ) := by exact_mod_cast hj
+    exact qo_close_norm (ρ := ρ) (L := L) (M := 16 * D) (u := u j) (ι := (j : ℕ) * L) (hu08 j).1 (hu08 j).2
+      (by nlinarith) (by linarith [hjL j]) (by linarith) (hclose j)
+  have hK4 : 4 ≤ 4 * N := by omega
+  set o : Fin (4 * N) := ⟨1, by omega⟩ with ho
+  set i0 : Fin (4 * N) := ⟨0, by omega⟩ with hi0
+  have hu0 : u i0 ≤ 16 * D ∨ 8 * ρ - 16 * D ≤ u i0 := by
+    have := hclose i0
+    have e : ((i0 : ℕ) : ℝ) * L = 0 := by simp [hi0]
+    rw [e, sub_zero, abs_of_pos (hu08 i0).1] at this
+    rcases this with h | h
+    · left; exact h
+    · right; linarith
+  -- distinctness
+  have hwinj : ∀ i j : Fin (4 * N), w i = w j → i = j := by
+    intro i j hij
+    by_contra hne
+    have h1 := hnear i
+    rw [hij] at h1
+    have := qo_sq_far h1 (hnear j)
+    rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with hlt | hlt
+    · have e1 := qo_mulL (L := L) (by linarith) hlt
+      have e2 := hjL j
+      rw [abs_of_nonpos (by linarith)] at this
+      rcases this with h | h <;> nlinarith
+    · have e1 := qo_mulL (L := L) (by linarith) hlt
+      have e2 := hjL i
+      rw [abs_of_nonneg (by linarith)] at this
+      rcases this with h | h <;> nlinarith
+  -- the loop and the parameters of the points
+  have hγ : IsLoopParam (frontier H.carrier) (qoLoop H.disk) := qoLoop_isLoopParam H.disk
+  set γ := qoLoop H.disk with hγdef
+  have ht0e : ∀ j, ∃ t ∈ Ico (0 : ℝ) 1, γ t = w j := by
+    intro j; have := hw j; rw [← hγ.2.2.2] at this; exact this
+  choose t0 ht0 hγt0 using ht0e
+  have hfr0 : ∀ i j, i ≠ j → 0 < Int.fract (t0 i - t0 j) := by
+    intro i j hij
+    refine lt_of_le_of_ne (Int.fract_nonneg _) (fun h => hij (hwinj i j ?_))
+    rw [← hγt0, ← hγt0, qo_loop_eq_iff hγ, Int.fract_eq_fract]
+    refine ⟨⌊t0 i - t0 j⌋, ?_⟩
+    have := Int.floor_add_fract (t0 i - t0 j)
+    rw [← h] at this; linarith
+  obtain ⟨δ₁, hδ₁, hδ₁1, hδ₁f⟩ := qo_fin_pos (fun i => Int.fract (t0 i - t0 o)) (· ≠ o) (fun i hi => hfr0 i o hi)
+  obtain ⟨s₁, hs₁, hds₁, ma, hpa⟩ := qo_cut_near H.disk hγ (t0 o) hD hδ₁
+  have hγ₁ : IsLoopParam (frontier H.carrier) (fun t => γ (t + s₁)) := qo_loop_shift hγ s₁
+  set γ₁ : ℝ → Pt := fun t => γ (t + s₁) with hγ₁def
+  set t₁ : Fin (4 * N) → ℝ := fun i => Int.fract (t0 i - s₁) with ht₁def
+  have ht₁ : ∀ i, t₁ i ∈ Ico (0 : ℝ) 1 := fun i => ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+  have hγt₁ : ∀ i, γ₁ (t₁ i) = w i := by
+    intro i
+    rw [ht₁def]; simp only []
+    rw [qo_loop_fract hγ₁, hγ₁def]; simp only [sub_add_cancel]; exact hγt0 i
+  set e₁ := s₁ - t0 o with he₁
+  have he₁0 : 0 < e₁ := by linarith [hs₁.1]
+  have he₁1 : e₁ < δ₁ := by linarith [hs₁.2]
+  have ht₁o : t₁ o = 1 - e₁ := by
+    simp only [ht₁def]
+    rw [show t0 o - s₁ = -e₁ by ring, qo_fract_eq (z := -1) (by push_cast; linarith) (by push_cast; linarith)]
+    push_cast; ring
+  have ht₁i : ∀ i, i ≠ o → t₁ i = Int.fract (t0 i - t0 o) - e₁ := by
+    intro i hi
+    have hf := hδ₁f i hi
+    have hf1 := Int.fract_lt_one (t0 i - t0 o)
+    simp only [ht₁def]
+    rw [show t0 i - s₁ = ⌊t0 i - t0 o⌋ + (Int.fract (t0 i - t0 o) - e₁) by
+      rw [he₁]; have := Int.floor_add_fract (t0 i - t0 o); linarith]
+    rw [qo_fract_eq (z := ⌊t0 i - t0 o⌋) (by linarith) (by linarith)]
+    ring
+  have h1max : ∀ i : Fin (4 * N), i.val ≠ 1 → t₁ i < t₁ o := by
+    intro i hi
+    have hio : i ≠ o := fun h => hi (by rw [h])
+    rw [ht₁i i hio, ht₁o]; linarith [Int.fract_lt_one (t0 i - t0 o)]
+  have hpos : ∀ i : Fin (4 * N), i.val ≠ 1 → 0 < t₁ i := by
+    intro i hi
+    have hio : i ≠ o := fun h => hi (by rw [h])
+    rw [ht₁i i hio]; linarith [hδ₁f i hio]
+  have ht₁inj : ∀ i j, t₁ i = t₁ j → i = j := by
+    intro i j h; apply hwinj; rw [← hγt₁, ← hγt₁, h]
+  have hpa' : γ₁ 0 ∈ openSegment ℝ (H.disk.vertex ma) (H.disk.vertex (finRotate _ ma)) := by
+    simp only [hγ₁def, zero_add]; exact hpa
+  have hdpa : dist (γ₁ 0) (w o) < D := by
+    simp only [hγ₁def, zero_add]; rw [← hγt0 o]; exact hds₁
+  have hoL : ((o : ℕ) : ℝ) * L = L := by simp [ho]
+  have hL1000 : 1000 * D ≤ L := by linarith
+  have h8L : 8 * L ≤ 8 * ρ := by
+    rw [← hK8]; push_cast; nlinarith
+  have hcase : ∀ b : Fin (4 * N), 3 ≤ b.val →
+      ((∀ i : Fin (4 * N), 2 ≤ i.val → i.val < b.val → t₁ i < t₁ b) ∧
+          (∀ i : Fin (4 * N), (b.val < i.val ∨ i.val = 0) → t₁ b < t₁ i)) ∨
+      ((∀ i : Fin (4 * N), 2 ≤ i.val → i.val < b.val → t₁ b < t₁ i) ∧
+          (∀ i : Fin (4 * N), (b.val < i.val ∨ i.val = 0) → t₁ i < t₁ b)) := by
+    intro b hb3
+    obtain ⟨δb, hδb, -, hδbf⟩ := qo_fin_pos (fun i => t₁ i - t₁ b) (fun i => t₁ b < t₁ i)
+      (fun i hi => sub_pos.2 hi)
+    have hbo' : t₁ b < t₁ o := h1max b (by omega)
+    have hδbo := hδbf o hbo'
+    obtain ⟨sb, hsb, hdsb, mb, hpb⟩ := qo_cut_near H.disk hγ₁ (t₁ b) hD hδb
+    have hs1 : sb < 1 := by simp only at hδbo; linarith [hsb.2, (ht₁ o).2]
+    have hsep : ∀ i, i ≠ b → t₁ i ≠ sb ∧ (t₁ i < sb ↔ t₁ i < t₁ b) := by
+      intro i hib
+      rcases lt_trichotomy (t₁ i) (t₁ b) with h | h | h
+      · exact ⟨by linarith [hsb.1], ⟨fun _ => h, fun _ => by linarith [hsb.1]⟩⟩
+      · exact absurd (ht₁inj i b h) hib
+      · have := hδbf i h
+        simp only at this
+        exact ⟨by linarith [hsb.2], ⟨fun h' => by linarith [hsb.2], fun h' => by linarith⟩⟩
+    obtain ⟨ua, ub, hua, hub, hua0, hua8, hub0, hub8, hsep'⟩ := qo_sep H ha hHl hHu hHa ma mb hpa' hpb
+    have hdpb : dist (γ₁ sb) (w b) < D := by rw [← hγt₁ b]; exact hdsb
+    have h0a : qoPc c ρ ua ∈ square (qoPc c ρ ua) 0 := by simp [square]
+    have h0b : qoPc c ρ ub ∈ square (qoPc c ρ ub) 0 := by simp [square]
+    have hua' : |ua - L| ≤ 18 * D := by
+      have h1 : qoPc c ρ ua ∈ square (qoPc c ρ ((o : ℕ) * L)) (5 * D + D + 3 * D) :=
+        qo_sq_trans (qo_sq_trans (hnear o) (qo_sq_of_dist (by rw [dist_comm]; exact hdpa.le))) hua
+      rw [hoL] at h1
+      have := qo_sq_far h0a h1
+      refine qo_close_norm (ρ := ρ) (L := L) hua0 hua8 le_rfl ?_ (by linarith) (by
+        rcases this with h | h
+        · left; linarith
+        · right; linarith)
+      linarith
+    have hb1 : (1 : ℝ) * L + L ≤ (b : ℕ) * L := by
+      have := qo_mulL (L := L) (by linarith) (show 1 + 1 ≤ (b : ℕ) by omega); simpa using this
+    have hub' : |ub - (b : ℕ) * L| ≤ 18 * D := by
+      have h1 : qoPc c ρ ub ∈ square (qoPc c ρ ((b : ℕ) * L)) (5 * D + D + 3 * D) :=
+        qo_sq_trans (qo_sq_trans (hnear b) (qo_sq_of_dist (by rw [dist_comm]; exact hdpb.le))) hub
+      have := qo_sq_far h0b h1
+      exact qo_close_norm (ρ := ρ) (L := L) hub0 hub8 (by linarith) (by linarith [hjL b]) (by linarith) (by
+        rcases this with h | h
+        · left; linarith
+        · right; linarith)
+    have hb2 : (2 : ℝ) * L + L ≤ (b : ℕ) * L := by
+      have := qo_mulL (L := L) (by linarith) (show 2 + 1 ≤ (b : ℕ) by omega); simpa using this
+    have hua2 := abs_le.1 hua'
+    have hub2 := abs_le.1 hub'
+    have hab : ua < ub := by linarith
+    obtain ⟨f, W, hf, hval⟩ := hsep' hab
+    have hne_a : ∀ i : Fin (4 * N), i.val ≠ 1 → w i ≠ γ₁ 0 := by
+      intro i hi h
+      rw [← hγt₁ i] at h
+      have := hγ₁.2.2.1 (ht₁ i) ⟨le_rfl, one_pos⟩ h
+      exact absurd this (hpos i hi).ne'
+    have hne_b : ∀ i : Fin (4 * N), i ≠ b → w i ≠ γ₁ sb := by
+      intro i hi h
+      rw [← hγt₁ i] at h
+      exact (hsep i hi).1 (hγ₁.2.2.1 (ht₁ i) ⟨hsb.1.le.trans' (ht₁ b).1, hs1⟩ h)
+    have hD0 : (0 : ℝ) ≤ 12 * D := by linarith
+    refine qo_case_of_wind hγ₁ t₁ ht₁ hpos b hb3 hsb.1 hs1 hsep f W hf ?_ ?_
+    · intro i hi2 hib
+      have hib' : i ≠ b := fun h => by rw [h] at hib; omega
+      have hi := abs_le.1 (hu1 i (by omega))
+      have e1 := qo_mulL (L := L) (by linarith) (show 1 + 1 ≤ (i : ℕ) by omega)
+      have e2 := qo_mulL (L := L) (by linarith) (show (i : ℕ) + 1 ≤ (b : ℕ) by omega)
+      have e3 := hjL b
+      simp only [Nat.cast_one] at e1
+      have fa := qo_far_pos (ρ := ρ) (d := u i - ua) hD0 (by linarith) (by linarith)
+      have fb := qo_far_neg (ρ := ρ) (d := u i - ub) hD0 (by linarith) (by linarith)
+      rw [hγt₁ i]
+      exact (hval (w i) (hw i) (hne_a i (by omega)) (hne_b i hib') (F i) (hF i) (hFH i) (hwF i) (z i) (hz i) (k i)
+        (hk1 i) (hk2 i) (hk3 i) (hzw i) (hzu i) fa.1 fa.2 fb.1 fb.2).2 ⟨by linarith, by linarith⟩
+    · intro i hi
+      have hib' : i ≠ b := fun h => by rw [h] at hi; omega
+      rw [hγt₁ i]
+      rcases hi with hi | hi
+      · have hu := abs_le.1 (hu1 i (by omega))
+        have e2 := qo_mulL (L := L) (by linarith) (show (b : ℕ) + 1 ≤ (i : ℕ) by omega)
+        have e3 := hjL i
+        have fa := qo_far_pos (ρ := ρ) (d := u i - ua) hD0 (by linarith) (by linarith)
+        have fb := qo_far_pos (ρ := ρ) (d := u i - ub) hD0 (by linarith) (by linarith)
+        exact (hval (w i) (hw i) (hne_a i (by omega)) (hne_b i hib') (F i) (hF i) (hFH i) (hwF i) (z i) (hz i)
+          (k i) (hk1 i) (hk2 i) (hk3 i) (hzw i) (hzu i) fa.1 fa.2 fb.1 fb.2).1 (fun h => by linarith [h.2])
+      · have hii : i = i0 := Fin.ext hi
+        have e3 := hjL b
+        have hb8 := hu08 i
+        rw [hii] at hb8 ⊢
+        rcases hu0 with h | h
+        · have fa := qo_far_neg (ρ := ρ) (d := u i0 - ua) hD0 (by linarith) (by linarith)
+          have fb := qo_far_neg (ρ := ρ) (d := u i0 - ub) hD0 (by linarith) (by linarith)
+          exact (hval (w i0) (hw i0) (hne_a i0 (by simp [hi0])) (hne_b i0 (hii ▸ hib')) (F i0) (hF i0) (hFH i0)
+            (hwF i0) (z i0) (hz i0) (k i0) (hk1 i0) (hk2 i0) (hk3 i0) (hzw i0) (hzu i0) fa.1 fa.2 fb.1 fb.2).1
+            (fun h' => by linarith [h'.1])
+        · have fa := qo_far_pos (ρ := ρ) (d := u i0 - ua) hD0 (by linarith) (by linarith)
+          have fb := qo_far_pos (ρ := ρ) (d := u i0 - ub) hD0 (by linarith) (by linarith)
+          exact (hval (w i0) (hw i0) (hne_a i0 (by simp [hi0])) (hne_b i0 (hii ▸ hib')) (F i0) (hF i0) (hFH i0)
+            (hwF i0) (z i0) (hz i0) (k i0) (hk1 i0) (hk2 i0) (hk3 i0) (hzw i0) (hzu i0) fa.1 fa.2 fb.1 fb.2).1
+            (fun h' => by linarith [h'.2])
+  exact qo_pointsInOrder hγ₁ hK4 w t₁ ht₁ hγt₁ h1max hcase
+
 /-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping`: the outer spoke endpoints lie
 along `∂H` in the order of the ideal positions.  Blueprint: "The outer endpoint `w_j` satisfies
 `h - D ≤ ‖w_j‖∞ ≤ h`, giving similarly `|w_j - λ v_j| < 4D` ... Use the outside-anchored face at
@@ -4651,7 +6714,7 @@ private lemma quantitativeAnnularGrouping_step1_outerOrder {M : MeshConstants P}
     (w : Fin (4 * N) → Pt) (hw : ∀ j, w j ∈ frontier H.carrier)
     (hwr : ∀ j : Fin (4 * N), w j ∈ Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j)) :
     ∃ γo : ℝ → Pt, IsLoopParam (frontier H.carrier) γo ∧ PointsInOrder γo w := by
-  sorry
+  exact qo_main c hN hR H hHl hHu hHa w hw hwr
 
 /-- Step 2 of the blueprint proof of `quantitativeAnnularGrouping`: an annular group lies in
 `H \ int L`, hence ("for a point `x ∈ int K₁ \ Q₀`") between `∂Q₀` and `∂K₁`: in the square of

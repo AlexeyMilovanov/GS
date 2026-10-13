@@ -2017,6 +2017,37 @@ private theorem substitution_clone_lift_iff_step1_proj_is_subst {τ : Substituti
   rw [h_supertile_eq] at h_occ_proj
   exact h_occ_proj
 
+/-- Step 1 of the blueprint proof of
+`substitution_clone_lift_iff_step2_lift_is_subst_step1_lift`: every tile has a finite
+neighbourhood in a plane tiling. -/
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step1_neighbourhood_finite
+    {P : Protoset} (T : PlaneTiling P) (A : PlacedTile P) (hA : A ∈ T.tiles) :
+    (neighbourhood T.tiles A).Finite := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`substitution_clone_lift_iff_step2_lift_is_subst_step1_lift`: a finite tile
+neighbourhood occurs in a supertile and therefore supplies a realized clone context. -/
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step2_context_realized
+    {τ : Substitution P} (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T)
+    (A : PlacedTile P) (hA : A ∈ T.tiles) (hN : (neighbourhood T.tiles A).Finite) :
+    ∃ c : GenuineCornerClone τ, c.form = A.form ∧
+      c.context = translateSet (-A.anchor) (neighbourhood T.tiles A) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of
+`substitution_clone_lift_iff_step2_lift_is_subst_step1_lift`: form-compatible
+labels can be assembled into a plane tiling without changing carriers. -/
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step3_relabel
+    {τ : Substitution P} (h : τ.FLC) (T : PlaneTiling P)
+    (label : T.tiles → GenuineCornerClone τ)
+    (hform : ∀ A : T.tiles, (label A).form = A.1.form) :
+    ∃ T' : PlaneTiling (cloneProtoset τ h),
+      T'.tiles = {A' | ∃ A : T.tiles,
+        A' = (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))} ∧
+      (cloneDecoration τ h).project T' = T := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `substitution_clone_lift_iff_step2_lift_is_subst`: there exists
 a lifted plane tiling constructed by labelling each tile with its actual full neighbourhood. -/
 private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift
@@ -2025,7 +2056,27 @@ private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift
       (cloneDecoration τ h).project T' = T ∧
       ∀ A' ∈ T'.tiles, A'.form.context =
         translateSet (-A'.anchor) (neighbourhood T.tiles ((cloneDecoration τ h).projTile A')) := by
-  sorry
+  let hreal : ∀ A : T.tiles, ∃ c : GenuineCornerClone τ, c.form = A.1.form ∧
+      c.context = translateSet (-A.1.anchor) (neighbourhood T.tiles A.1) := fun A =>
+    substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step2_context_realized T hT A.1 A.2
+      (substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step1_neighbourhood_finite T A.1 A.2)
+  let label : T.tiles → GenuineCornerClone τ := fun A => (hreal A).choose
+  have hform : ∀ A : T.tiles, (label A).form = A.1.form := by
+    intro A
+    exact (hreal A).choose_spec.1
+  obtain ⟨T', htiles, hproj⟩ :=
+    substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step3_relabel h T label hform
+  refine ⟨T', hproj, ?_⟩
+  intro A' hA'
+  rw [htiles] at hA'
+  rcases hA' with ⟨A, rfl⟩
+  have hprojTile : (cloneDecoration τ h).projTile
+      (⟨label A, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h)) = A.1 := by
+    apply PlacedTile.ext
+    · exact hform A
+    · rfl
+  rw [hprojTile]
+  exact (hreal A).choose_spec.2
 
 /-- Step 2 of the blueprint proof of `substitution_clone_lift_iff_step2_lift_is_subst`: this
 lifted plane tiling is substitutive. -/

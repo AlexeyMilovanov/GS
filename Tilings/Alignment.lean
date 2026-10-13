@@ -1406,6 +1406,188 @@ private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts_ste
   rw [hsideX, hsideY]
   exact congrArg (fun s : Set Pt => A.anchor +ᵥ s) hEq
 
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_finite
+    {x y : Pt} (hxy : x ≠ y) {n : ℕ}
+    (s : Fin n → Set Pt) (hsub : segment ℝ x y ⊆ ⋃ i, s i)
+    (hconv : ∀ i, Convex ℝ (s i)) : ∃ i, OverlapPos (segment ℝ x y) (s i) := by
+  by_contra h
+  push_neg at h
+  have hss : ∀ i : Fin n, Set.Subsingleton (segment ℝ x y ∩ s i) := by
+    intro i p hp q hq
+    by_contra hpq
+    have hseg : segment ℝ p q ⊆ segment ℝ x y ∩ s i :=
+      (convex_segment _ _).inter (hconv i) |>.segment_subset hp hq
+    exact (h i) ⟨p, q, hpq, hseg⟩
+  have hfin : (⋃ i : Fin n, segment ℝ x y ∩ s i).Finite := by
+    simpa using
+      (Set.toFinite (Set.univ : Set (Fin n))).biUnion (fun i _ => (hss i).finite)
+  have hseg : segment ℝ x y ⊆ ⋃ i : Fin n, segment ℝ x y ∩ s i := by
+    intro z hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 (hsub hz)
+    exact Set.mem_iUnion.2 ⟨i, hz, hi⟩
+  letI : Infinite (Set.Ioo (0 : ℝ) 1) := Set.Ioo.infinite (by norm_num)
+  have hinf : (segment ℝ x y).Infinite := by
+    apply Set.infinite_of_injective_forall_mem
+      (f := fun t : Set.Ioo (0 : ℝ) 1 => AffineMap.lineMap x y t.1)
+    · intro a b hab
+      apply Subtype.ext
+      exact (AffineMap.lineMap_injective ℝ hxy) hab
+    · intro t
+      rw [segment_eq_image_lineMap]
+      exact ⟨t.1, Set.mem_Icc.mpr ⟨le_of_lt t.2.1, le_of_lt t.2.2⟩, rfl⟩
+  exact hinf (hfin.subset hseg)
+
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_side_carrier
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) :
+    X.side i ⊆ X.carrier := by
+  have hfront :
+      (P.disk X.form).side i ⊆ frontier (P.disk X.form).carrier := by
+    rw [(P.disk X.form).frontier_eq]
+    exact Set.subset_iUnion (fun j => (P.disk X.form).side j) i
+  have hcar : frontier (P.disk X.form).carrier ⊆ (P.disk X.form).carrier :=
+    (P.disk X.form).compact.isClosed.frontier_subset
+  intro z hz
+  change z ∈ X.anchor +ᵥ (P.disk X.form).side i at hz
+  change z ∈ X.anchor +ᵥ (P.disk X.form).carrier
+  rw [mem_vadd_set_iff_neg_vadd_mem] at hz ⊢
+  exact hcar (hfront hz)
+
+private lemma strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_regular
+    (A : PlacedTile G.P') : closure (interior A.carrier) = A.carrier := by
+  unfold PlacedTile.carrier
+  rw [interior_vadd, closure_vadd, (G.P'.disk A.form).regular_closed]
+
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_frontier
+    (A : PlacedTile G.P') :
+    frontier A.carrier = ⋃ i : Fin (G.P'.disk A.form).n, A.side i := by
+  have hclosed : IsClosed A.carrier := by
+    rw [←
+      strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_regular G A]
+    exact isClosed_closure
+  ext z
+  constructor
+  · intro hz
+    rw [hclosed.frontier_eq] at hz
+    have hcar : z ∈ A.carrier := hz.1
+    have hint : z ∉ interior A.carrier := hz.2
+    rw [PlacedTile.carrier] at hcar
+    rw [PlacedTile.carrier, interior_vadd] at hint
+    rw [mem_vadd_set_iff_neg_vadd_mem] at hcar hint
+    have hz' : -A.anchor +ᵥ z ∈ frontier (G.P'.disk A.form).carrier := by
+      rw [(G.P'.disk A.form).compact.isClosed.frontier_eq]
+      exact ⟨hcar, hint⟩
+    rw [(G.P'.disk A.form).frontier_eq] at hz'
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 hz'
+    exact Set.mem_iUnion.2 ⟨i, by
+      change z ∈ A.anchor +ᵥ (G.P'.disk A.form).side i
+      rw [mem_vadd_set_iff_neg_vadd_mem]
+      exact hi⟩
+  · intro hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 hz
+    rw [hclosed.frontier_eq]
+    constructor
+    · exact
+        strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_side_carrier
+          A i hi
+    · intro hzi
+      rw [PlacedTile.side, PolygonalDisk.side] at hi
+      rw [PlacedTile.carrier, interior_vadd] at hzi
+      rw [mem_vadd_set_iff_neg_vadd_mem] at hi hzi
+      have hfront :
+          (G.P'.disk A.form).side i ⊆ frontier (G.P'.disk A.form).carrier := by
+        rw [(G.P'.disk A.form).frontier_eq]
+        exact Set.subset_iUnion (fun j => (G.P'.disk A.form).side j) i
+      exact Set.disjoint_left.mp disjoint_interior_frontier hzi (hfront hi)
+
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_carrier
+    (G : GroupedFamily P) (A : PlacedTile G.P')
+    (X : PlacedTile P) (hX : X ∈ G.scatterTile A) : X.carrier ⊆ A.carrier := by
+  rcases hX with ⟨X₀, hX₀, rfl⟩
+  have hbase : X₀.carrier ⊆ (G.P'.disk A.form).carrier := by
+    intro z hz
+    rw [← G.support_eq A.form]
+    exact Set.mem_iUnion.2 ⟨X₀, Set.mem_iUnion.2 ⟨hX₀, hz⟩⟩
+  intro z hz
+  change z ∈ (A.anchor +ᵥ X₀.anchor) +ᵥ (P.disk X₀.form).carrier at hz
+  change z ∈ A.anchor +ᵥ (G.P'.disk A.form).carrier
+  have hz' : z ∈ A.anchor +ᵥ (X₀.anchor +ᵥ (P.disk X₀.form).carrier) := by
+    simpa only [vadd_vadd] using hz
+  obtain ⟨w, hw, rfl⟩ := hz'
+  obtain ⟨w₀, hw₀, rfl⟩ := hw
+  exact ⟨X₀.anchor +ᵥ w₀, hbase ⟨w₀, hw₀, rfl⟩, by simp [vadd_eq_add]⟩
+
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_translate
+    (X : PlacedTile P) (v : Pt) (i : Fin (P.disk X.form).n) :
+    (X.translate v).side i = v +ᵥ X.side i := by
+  simp [PlacedTile.translate, PlacedTile.side, vadd_vadd]
+
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_overlap
+    (X Y : PlacedTile P) (v : Pt)
+    (i : Fin (P.disk X.form).n) (j : Fin (P.disk Y.form).n)
+    (h : OverlapPos ((X.translate v).side i) ((Y.translate v).side j)) :
+    OverlapPos (X.side i) (Y.side j) := by
+  obtain ⟨x, y, hxy, hseg⟩ := h
+  refine ⟨-v +ᵥ x, -v +ᵥ y, ?_, ?_⟩
+  · simpa using hxy
+  · rw [
+      strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_translate,
+      strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_translate]
+      at hseg
+    intro z hz
+    have hz' : v +ᵥ z ∈ segment ℝ x y := by
+      rw [segment_eq_image'] at hz
+      obtain ⟨t, ht, rfl⟩ := hz
+      rw [segment_eq_image']
+      exact ⟨t, ht, by simp only [vadd_eq_add]; abel⟩
+    have hz'' := hseg hz'
+    exact ⟨by simpa [Set.mem_vadd_set_iff_neg_vadd_mem] using hz''.1,
+      by simpa [Set.mem_vadd_set_iff_neg_vadd_mem] using hz''.2⟩
+
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_side_eq
+    {D E : PolygonalDisk} (hd : D = E) (i : Fin E.n) :
+    D.side (Fin.cast (congrArg (fun Q : PolygonalDisk => Q.n) hd).symm i) = E.side i := by
+  cases hd
+  rfl
+
+private lemma
+strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_project
+    {P : Protoset} (dec : SideDecoration P) (T : PlaneTiling dec.P')
+    (hT : T.SideToSide) : SideToSideSet (dec.toDecoration.project T).tiles := by
+  intro A hA B hB i j h
+  rcases hA with ⟨A', hA', rfl⟩
+  rcases hB with ⟨B', hB', rfl⟩
+  let hdA := dec.disk_eq A'.form
+  let hdB := dec.disk_eq B'.form
+  let i' : Fin (dec.P'.disk A'.form).n :=
+    Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdA).symm i
+  let j' : Fin (dec.P'.disk B'.form).n :=
+    Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdB).symm j
+  have hi : A'.side i' = (dec.toDecoration.projTile A').side i := by
+    change A'.anchor +ᵥ (dec.P'.disk A'.form).side i' =
+      A'.anchor +ᵥ (P.disk (dec.proj A'.form)).side i
+    exact congrArg (fun s : Set Pt => A'.anchor +ᵥ s)
+      (strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_side_eq
+        hdA i)
+  have hj : B'.side j' = (dec.toDecoration.projTile B').side j := by
+    change B'.anchor +ᵥ (dec.P'.disk B'.form).side j' =
+      B'.anchor +ᵥ (P.disk (dec.proj B'.form)).side j
+    exact congrArg (fun s : Set Pt => B'.anchor +ᵥ s)
+      (strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_side_eq
+        hdB j)
+  have h' : OverlapPos (A'.side i') (B'.side j') := by
+    rw [hi, hj]
+    exact h
+  have heq := hT A' hA' B' hB' i' j' h'
+  rw [hi, hj] at heq
+  exact heq
+
 /-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts_step2_dissect_sts`:
 for distinct projected parents in a proper decorated tiling, any positively overlapping
 sides of their dissected tiles are equal. -/
@@ -1415,7 +1597,128 @@ private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts_ste
     ∀ A ∈ dec.toDecoration.project T, ∀ B ∈ dec.toDecoration.project T, A ≠ B →
       ∀ X ∈ G.scatterTile A, ∀ Y ∈ G.scatterTile B,
         ∀ i j, OverlapPos (X.side i) (Y.side j) → X.side i = Y.side j := by
-  sorry
+  intro A hA B hB hAB X hX Y hY i j hXY
+  have hregA :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_regular G A
+  have hregB :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_regular G B
+  have hclosedA : IsClosed A.carrier := by
+    rw [← hregA]
+    exact isClosed_closure
+  have hclosedB : IsClosed B.carrier := by
+    rw [← hregB]
+    exact isClosed_closure
+  have hsideX :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_side_carrier
+      X i
+  have hsideY :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_side_carrier
+      Y j
+  have hXA :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_carrier
+      G A X hX
+  have hYB :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_carrier
+      G B Y hY
+  obtain ⟨x, y, hxy, hseg⟩ := hXY
+  have hfrontA : segment ℝ x y ⊆ frontier A.carrier := by
+    intro z hz
+    have hzA : z ∈ A.carrier := hXA (hsideX (hseg hz).1)
+    have hzB : z ∈ B.carrier := hYB (hsideY (hseg hz).2)
+    rw [hclosedA.frontier_eq]
+    refine ⟨hzA, ?_⟩
+    intro hzint
+    rw [← hregB, Metric.mem_closure_iff] at hzB
+    obtain ⟨ε, hε, hεB⟩ := Metric.isOpen_iff.1 isOpen_interior z hzint
+    obtain ⟨w, hwB, hzw⟩ := hzB ε hε
+    have hwA : w ∈ interior A.carrier := hεB (by
+      rw [Metric.mem_ball, dist_comm]
+      exact hzw)
+    exact Set.disjoint_left.mp
+      ((dec.toDecoration.project T).disjoint hA hB hAB) hwA hwB
+  have hfrontB : segment ℝ x y ⊆ frontier B.carrier := by
+    intro z hz
+    have hzA : z ∈ A.carrier := hXA (hsideX (hseg hz).1)
+    have hzB : z ∈ B.carrier := hYB (hsideY (hseg hz).2)
+    rw [hclosedB.frontier_eq]
+    refine ⟨hzB, ?_⟩
+    intro hzint
+    rw [← hregA, Metric.mem_closure_iff] at hzA
+    obtain ⟨ε, hε, hεA⟩ := Metric.isOpen_iff.1 isOpen_interior z hzint
+    obtain ⟨w, hwA, hzw⟩ := hzA ε hε
+    have hwB : w ∈ interior B.carrier := hεA (by
+      rw [Metric.mem_ball, dist_comm]
+      exact hzw)
+    exact Set.disjoint_left.mp
+      ((dec.toDecoration.project T).disjoint hA hB hAB).symm hwB hwA
+  have hunionA : segment ℝ x y ⊆ ⋃ p : Fin (G.P'.disk A.form).n, A.side p := by
+    rw [←
+      strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_frontier G A]
+    exact hfrontA
+  obtain ⟨p, hpA⟩ :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_finite
+        hxy (fun p : Fin (G.P'.disk A.form).n => A.side p)
+      hunionA (fun p => by
+        change Convex ℝ (A.anchor +ᵥ (G.P'.disk A.form).side p)
+        exact (convex_segment _ _).vadd A.anchor)
+  obtain ⟨u, v, huv, huvsub⟩ := hpA
+  have hfrontBuv : segment ℝ u v ⊆ frontier B.carrier := by
+    intro z hz
+    exact hfrontB (huvsub hz).1
+  have hunionBuv : segment ℝ u v ⊆ ⋃ q : Fin (G.P'.disk B.form).n, B.side q := by
+    rw [←
+      strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_frontier G B]
+    exact hfrontBuv
+  obtain ⟨q, hq⟩ :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_finite
+        huv (fun q : Fin (G.P'.disk B.form).n => B.side q)
+      hunionBuv (fun q => by
+        change Convex ℝ (B.anchor +ᵥ (G.P'.disk B.form).side q)
+        exact (convex_segment _ _).vadd B.anchor)
+  obtain ⟨C, hC, k, hk⟩ := G.side_whole A.form p
+  obtain ⟨D, hD, l, hl⟩ := G.side_whole B.form q
+  have hCp : (C.translate A.anchor).side k = A.side p := by
+    simpa [PlacedTile.translate, PlacedTile.side, vadd_vadd] using
+      congrArg (fun s : Set Pt => A.anchor +ᵥ s) hk
+  have hDl : (D.translate B.anchor).side l = B.side q := by
+    simpa [PlacedTile.translate, PlacedTile.side, vadd_vadd] using
+      congrArg (fun s : Set Pt => B.anchor +ᵥ s) hl
+  have hXC : OverlapPos (X.side i) ((C.translate A.anchor).side k) := by
+    refine ⟨u, v, huv, ?_⟩
+    intro z hz
+    exact ⟨(hseg (huvsub hz).1).1, hCp ▸ (huvsub hz).2⟩
+  have hYD : OverlapPos (Y.side j) ((D.translate B.anchor).side l) := by
+    obtain ⟨r, s, hrs, hrssub⟩ := hq
+    refine ⟨r, s, hrs, ?_⟩
+    intro z hz
+    exact ⟨(hseg (huvsub (hrssub hz).1).1).2, hDl ▸ (hrssub hz).2⟩
+  obtain ⟨X₀, hX₀, rfl⟩ := hX
+  obtain ⟨Y₀, hY₀, rfl⟩ := hY
+  have hXC₀ :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_overlap
+      X₀ C A.anchor i k hXC
+  have hYD₀ :=
+    strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_overlap
+      Y₀ D B.anchor j l hYD
+  have hXeq := G.sts A.form X₀ hX₀ C hC i k hXC₀
+  have hYeq := G.sts B.form Y₀ hY₀ D hD j l hYD₀
+  have hXparent : (X₀.translate A.anchor).side i = A.side p := by
+    rw [strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_translate,
+      hXeq]
+    simpa [PlacedTile.translate, PlacedTile.side, vadd_vadd] using hCp
+  have hYparent : (Y₀.translate B.anchor).side j = B.side q := by
+    rw [strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_translate,
+      hYeq]
+    simpa [PlacedTile.translate, PlacedTile.side, vadd_vadd] using hDl
+  have hpq : A.side p = B.side q := by
+    have hproj :=
+      strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group_project
+        dec T hp.1
+    apply hproj A hA B hB p q
+    obtain ⟨r, s, hrs, hrssub⟩ := hq
+    exact ⟨r, s, hrs, fun z hz =>
+      ⟨(huvsub (hrssub hz).1).2, (hrssub hz).2⟩⟩
+  exact hXparent.trans (hpq.trans hYparent.symm)
 
 /-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts`: dissecting a
 proper strict coloured tiling preserves side-to-sideness. Within one grouped tile the dissect is

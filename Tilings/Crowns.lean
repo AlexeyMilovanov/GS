@@ -6848,7 +6848,134 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
     positivity
 
 #print axioms allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decompose_translate
+    (σ : Substitution P) (v : Pt) (S : Set (PlacedTile P)) :
+    σ.decompose (translateSet v S) = translateSet (σ.θ • v) (σ.decompose S) := by
+  ext A
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    PlacedTile.translate, Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨B, ⟨C, hC, rfl⟩, D, hD, rfl⟩
+    refine ⟨D.translate (σ.θ • C.anchor), ⟨C, hC, D, hD, ?_⟩, ?_⟩
+    · apply PlacedTile.ext
+      · rfl
+      · simp [PlacedTile.translate]
+    · apply PlacedTile.ext
+      · rfl
+      · change σ.θ • v + (σ.θ • C.anchor + D.anchor) =
+          σ.θ • (v + C.anchor) + D.anchor
+        rw [smul_add]
+        abel
+  · rintro ⟨B, ⟨C, hC, D, hD, rfl⟩, rfl⟩
+    refine ⟨C.translate v, ⟨C, hC, rfl⟩, D, hD, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · change σ.θ • (v + C.anchor) + D.anchor =
+        σ.θ • v + (σ.θ • C.anchor + D.anchor)
+      rw [smul_add]
+      abel
 
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decompose_iUnion
+    (σ : Substitution P) {ι : Sort*} (S : ι → Set (PlacedTile P)) :
+    σ.decompose (⋃ i, S i) = ⋃ i, σ.decompose (S i) := by
+  ext A
+  simp only [Substitution.decompose, Set.mem_iUnion]
+  constructor
+  · rintro ⟨i, ⟨j, hji⟩, hA⟩
+    exact ⟨j, i, hji, hA⟩
+  · rintro ⟨i, j, hji, hA⟩
+    exact ⟨j, ⟨i, hji⟩, hA⟩
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decomposeIter_iUnion
+    (σ : Substitution P) (n : ℕ) {ι : Sort*} (S : ι → Set (PlacedTile P)) :
+    σ.decomposeIter n (⋃ i, S i) = ⋃ i, σ.decomposeIter n (S i) := by
+  induction n with
+  | zero =>
+      rfl
+  | succ n ih =>
+      change σ.decompose (σ.decomposeIter n (⋃ i, S i)) = _
+      rw [ih, allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decompose_iUnion]
+      rfl
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_step1_pow
+    (τ : Substitution P) (m : ℕ) (hm : 0 < m) (S : Set (PlacedTile P)) :
+    (τ.pow m hm).decompose S = τ.decomposeIter m S := by
+  have h_iter_translate : ∀ (n : ℕ) (v : Pt) (S : Set (PlacedTile P)),
+      τ.decomposeIter n (translateSet v S) =
+        translateSet ((τ.θ ^ n) • v) (τ.decomposeIter n S) := by
+    intro n
+    induction n with
+    | zero =>
+        intro v S
+        simp [Substitution.decomposeIter]
+    | succ n ih =>
+        intro v S
+        change τ.decompose (τ.decomposeIter n (translateSet v S)) = _
+        rw [ih,
+          allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decompose_translate]
+        congr 1
+        rw [pow_succ', mul_smul]
+  have h_singleton (A : PlacedTile P) :
+      ({A} : Set (PlacedTile P)) = translateSet A.anchor {⟨A.form, 0⟩} := by
+    ext B
+    simp [translateSet, PlacedTile.translate, PlacedTile.ext_iff]
+  let I := {A : PlacedTile P // A ∈ S}
+  have hS : S = ⋃ A : I, ({A.1} : Set (PlacedTile P)) := by
+    ext A
+    simp [I]
+  rw [hS]
+  calc
+    (τ.pow m hm).decompose (⋃ A : I, ({A.1} : Set (PlacedTile P))) =
+        ⋃ A : I, (τ.pow m hm).decompose ({A.1} : Set (PlacedTile P)) :=
+      allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decompose_iUnion
+        (τ.pow m hm) (ι := I)
+        (fun A : I => ({A.1} : Set (PlacedTile P)))
+    _ = ⋃ A : I, τ.decomposeIter m ({A.1} : Set (PlacedTile P)) := by
+      apply iUnion_congr
+      intro A
+      rw [h_singleton,
+        allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decompose_translate,
+        h_iter_translate]
+      congr 1
+      ext B
+      simp [Substitution.decompose, Substitution.decomposeTile, Substitution.pow,
+        Substitution.supertile, translateSet, PlacedTile.translate]
+    _ = τ.decomposeIter m (⋃ A : I, ({A.1} : Set (PlacedTile P))) :=
+      (allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decomposeIter_iUnion
+        τ m (ι := I) (fun A : I => ({A.1} : Set (PlacedTile P)))).symm
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_step2_chain
+    (τ : Substitution P) (m : ℕ) (hm : 0 < m) (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ k, (τ.pow m hm).IsComposition (seq (k + 1)) (seq k)) :
+    ∀ k, τ.decomposeIter (k * m) (seq k).tiles = (seq 0).tiles := by
+  have hpow := allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_step1_pow
+    τ m hm
+  have h_iter_add : ∀ (a b : ℕ) (S : Set (PlacedTile P)),
+      τ.decomposeIter (a + b) S = τ.decomposeIter a (τ.decomposeIter b S) := by
+    intro a
+    induction a with
+    | zero =>
+        intro b S
+        simp [Substitution.decomposeIter]
+    | succ a ih =>
+        intro b S
+        rw [show a + 1 + b = (a + b) + 1 by omega]
+        change τ.decompose (τ.decomposeIter (a + b) S) = _
+        rw [ih]
+        rfl
+  intro k
+  induction k with
+  | zero =>
+      simp [Substitution.decomposeIter]
+  | succ k ih =>
+      rw [Nat.succ_mul, h_iter_add, ← hpow, hseq k, ih]
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_step3_finite
+    (T : PlaneTiling P) (w : Pt) :
+    (crown T.tiles w).Finite := by
+  apply Set.Finite.subset (T.locallyFinite (isCompact_closedBall w 1))
+  intro A hA
+  exact ⟨hA.1, ⟨w, hA.2, mem_closedBall_self (by norm_num)⟩⟩
 
 /-- Step 5 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 Coverage by the descendants and disjoint interiors give actual tile inclusion,
@@ -6862,7 +6989,67 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile
     (k : ℕ) (w : Pt) (hw : IsVertexOf (seq k).tiles w)
     (h_supp : support F ⊆ support (τ.decomposeIter (k * m) (crown (seq k).tiles w))) :
     F ⊆ τ.decomposeIter (k * m) (crown (seq k).tiles w) := by
-  sorry
+  have _ := hF_fin
+  have _ := hw
+  have hchain := allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_step2_chain
+    τ m hm seq hseq
+  have h_iter_mono : ∀ (n : ℕ) {S T : Set (PlacedTile P)}, S ⊆ T →
+      τ.decomposeIter n S ⊆ τ.decomposeIter n T := by
+    intro n
+    induction n with
+    | zero =>
+        intro S T hST
+        exact hST
+    | succ n ih =>
+        intro S T hST
+        change τ.decompose (τ.decomposeIter n S) ⊆
+          τ.decompose (τ.decomposeIter n T)
+        intro A hA
+        simp only [Substitution.decompose, Set.mem_iUnion] at hA ⊢
+        rcases hA with ⟨B, hB, hAB⟩
+        refine ⟨B, ?_, hAB⟩
+        exact ih (S := S) (T := T) hST hB
+  let D := τ.decomposeIter (k * m) (crown (seq k).tiles w)
+  have h_crown_sub : crown (seq k).tiles w ⊆ (seq k).tiles := by
+    intro A hA
+    exact hA.1
+  have hD_sub : D ⊆ (seq 0).tiles := by
+    dsimp [D]
+    rw [← hchain k]
+    exact h_iter_mono _ (S := crown (seq k).tiles w) (T := (seq k).tiles) h_crown_sub
+  have hD_fin : D.Finite := by
+    have h_crown_fin :=
+      allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_step3_finite
+        (seq k) w
+    have h_iter_fin : ∀ (n : ℕ) {S : Set (PlacedTile P)}, S.Finite →
+        (τ.decomposeIter n S).Finite := by
+      intro n
+      induction n with
+      | zero =>
+          intro S hS
+          exact hS
+      | succ n ih =>
+          intro S hS
+          change (τ.decompose (τ.decomposeIter n S)).Finite
+          apply Set.Finite.biUnion (ih hS)
+          intro A _
+          exact Set.Finite.image _ (τ.rule A.form).finite
+    exact h_iter_fin _ h_crown_fin
+  have hD_disj : DisjointInteriors D := by
+    intro A hA B hB hne
+    exact (seq 0).disjoint (hD_sub hA) (hD_sub hB) hne
+  let D_patch : Patch P := ⟨D, hD_fin, hD_disj⟩
+  intro A hA
+  have hA_seq : A ∈ (seq 0).tiles := hF hA
+  have hA_support : A.carrier ⊆ support D := by
+    intro x hx
+    apply h_supp
+    simp only [support, Set.mem_iUnion]
+    exact ⟨A, hA, hx⟩
+  apply Patch.mem_of_carrier_subset_union D_patch A
+  · intro B hB hBA
+    exact (seq 0).disjoint hA_seq (hD_sub hB) hBA.symm
+  · exact hA_support
 
 /-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive`:
 Given a finite patch $F\subset T$, choose $k$ with $\theta^{-km}\operatorname{diam}|F|<\varepsilon$.

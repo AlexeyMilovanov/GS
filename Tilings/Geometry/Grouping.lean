@@ -7761,7 +7761,33 @@ fingerprint of `t` (noncentral) is its base fingerprint plus some elements, boun
 differently if original or small. -/
 private lemma fingerprintSeparation_step2_templates_step1_X (F : FingerprintData) :
     ∀ t f, F.kind t ≠ .central → f ∈ F.possibleFingerprints t →
-    ∃ X : Multiset F.Tag, (F.kind t = .small → Multiset.card X ≤ 2) ∧ (F.kind t = .original → X = 0) ∧ f = F.baseFingerprint t + X := sorry
+    ∃ X : Multiset F.Tag, (F.kind t = .small → Multiset.card X ≤ 2) ∧ (F.kind t = .original → X = 0) ∧ f = F.baseFingerprint t + X := by
+  intro t f ht_not_central hf
+  unfold FingerprintData.possibleFingerprints at hf
+  rcases hk : F.kind t with _ | _ | _
+  · -- original
+    rw [hk] at hf
+    simp only [Set.mem_singleton_iff] at hf
+    use 0
+    refine ⟨?_, ?_, ?_⟩
+    · intro h
+      contradiction
+    · intro _
+      rfl
+    · rw [hf, add_zero]
+  · -- small
+    rw [hk] at hf
+    simp only [Set.mem_setOf_eq] at hf
+    rcases hf with ⟨X, hX_card, hX_eq⟩
+    use X
+    refine ⟨?_, ?_, ?_⟩
+    · intro _
+      exact hX_card
+    · intro h
+      contradiction
+    · exact hX_eq
+  · -- central
+    exact False.elim (ht_not_central hk)
 
 /-- Step 2 of the blueprint proof of `fingerprintSeparation_step2_templates`: The base
 fingerprint of `u` contains no elements from the template of `t` if they have different

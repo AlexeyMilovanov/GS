@@ -311,6 +311,31 @@ private lemma whole_side_ports_step1_parent_length (m : ℕ) (A : G.P'.Form)
   have h : 0 < τ.θ := by linarith [τ.one_lt]
   rw [Real.norm_eq_abs, abs_of_pos (pow_pos h m)]
 
+/-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: sum of lengths of fine edges on the parent side. -/
+private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step1_sum_lengths
+    (τ : Substitution P) (G : GroupedFamily P) (m : ℕ)
+    (A : G.P'.Form) (a : Fin (G.P'.disk A).n)
+    (h_fin : {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
+        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.Finite) :
+    dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
+      ∑ e ∈ h_fin.toFinset, dist e.1 e.2 := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: bound the length of each edge. -/
+private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step2_edge_bound
+    (τ : Substitution P) (G : GroupedFamily P) (M : MeshConstants P) (m : ℕ)
+    (A : G.P'.Form) (e : Pt × Pt) (he : e ∈ fineOuterSides τ G m A) :
+    dist e.1 e.2 ≤ M.D := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: the set of fine edges on the parent side is finite. -/
+private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite
+    (τ : Substitution P) (G : GroupedFamily P) (m : ℕ)
+    (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
+    {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
+        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.Finite := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound`: the length of the
 parent side is bounded by the total number of fine edges on it times D. -/
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
@@ -319,7 +344,18 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
       ({e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
         segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard : ℝ) * M.D := by
-  sorry
+  have h_fin := whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite τ G m A a
+  rw [Set.ncard_eq_toFinset_card _ h_fin]
+  calc dist (parentSide τ G m A a).1 (parentSide τ G m A a).2
+    _ ≤ ∑ e ∈ h_fin.toFinset, dist e.1 e.2 :=
+      whole_side_ports_step2_length_bound_step1_all_edges_bound_step1_sum_lengths τ G m A a h_fin
+    _ ≤ ∑ e ∈ h_fin.toFinset, M.D := by
+      apply Finset.sum_le_sum
+      intro e he
+      have he2 := h_fin.mem_toFinset.mp he
+      exact whole_side_ports_step2_length_bound_step1_all_edges_bound_step2_edge_bound τ G M m A e he2.1
+    _ = (h_fin.toFinset.card : ℝ) * M.D := by
+      rw [Finset.sum_const, nsmul_eq_mul]
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound`: the number of fine
 edges on the parent side is bounded by the number of strictly inside fine edges plus 2. -/

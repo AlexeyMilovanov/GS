@@ -1152,7 +1152,46 @@ private lemma coarse_simple_step1_step2 (i : Fin D.genuineCount) (x : Pt)
     ∃ k : Fin D.n, x ∈ segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ∧ 
       segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
         segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i)) := by
-  sorry
+  rcases h_end with rfl | rfl
+  · let k : Fin D.n := (D.genuineEnum i).1
+    refine ⟨k, ?_, ?_⟩
+    · exact left_mem_segment ℝ _ _
+    · have hsub := chain_side_subset (w := coarseWalk D i) (a := 0) (r := 0)
+        (m := coarseLength D i) (coarseLength_pos D i)
+        (by simpa using coarseLength_pos D i)
+        (fun t ht => by
+          simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+      have hsub' : segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+          segment ℝ (D.coarseVertex i)
+            (D.coarseVertex (finRotate D.genuineCount i)) := by
+        simpa [k, coarseWalk_zero, coarseWalk_succ, cyclicIndex_zero,
+          coarseWalk_end] using hsub
+      exact hsub'
+  · let m : ℕ := coarseLength D i
+    let k : Fin D.n := cyclicIndex (by have := D.three_le; omega)
+      (D.genuineEnum i).1 (m - 1)
+    have hm : 0 < m := coarseLength_pos D i
+    have hlast := coarseWalk_succ D i (m - 1)
+    have hlast' : coarseWalk D i m = D.vertex (finRotate D.n k) := by
+      simpa [m, k, Nat.sub_add_cancel hm] using hlast
+    have hlast'' : D.vertex (finRotate D.n k) =
+        D.coarseVertex (finRotate D.genuineCount i) := by
+      rw [← hlast', coarseWalk_end]
+    have hsub := chain_side_subset (w := coarseWalk D i) (a := 0) (r := m - 1)
+      (m := m) hm (by omega)
+      (fun t ht => by
+        simpa only [Nat.zero_add] using coarseWalk_local D i t ht)
+    refine ⟨k, ?_, ?_⟩
+    · rw [← hlast', ← coarseWalk_end]
+      exact right_mem_segment ℝ _ _
+    · have hfirst : coarseWalk D i (m - 1) = D.vertex k := by
+        rfl
+      have hsub' : segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+          segment ℝ (D.coarseVertex i)
+            (D.coarseVertex (finRotate D.genuineCount i)) := by
+        simpa [hfirst, Nat.sub_add_cancel hm, hlast', coarseWalk_zero,
+          coarseWalk_end, hlast''] using hsub
+      exact hsub'
 
 /-- Step 1 of the blueprint proof of `coarse_simple`: Every point on a coarse segment
 belongs to a fine segment that is contained within the same coarse segment. -/

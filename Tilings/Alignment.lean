@@ -686,12 +686,69 @@ theorem whole_side_ports_distinct :
   exact h2.1 h_eq
 
 
+private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends_aux1
+    {a b x : Pt} : x ∈ segment ℝ a b ↔ ∃ t : ℝ, 0 ≤ t ∧ t ≤ 1 ∧ x = a + t • (b - a) := by
+  rw [segment_eq_image']
+  constructor
+  · rintro ⟨t, ⟨h0, h1⟩, rfl⟩; exact ⟨t, h0, h1, rfl⟩
+  · rintro ⟨t, h0, h1, rfl⟩; exact ⟨t, ⟨h0, h1⟩, rfl⟩
+
+private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends_aux2
+    {u : Pt} (hu : u ≠ 0) {s t : ℝ} (h : s • u = t • u) : s = t :=
+  smul_left_injective ℝ hu h
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_coincide_step1_parentDir_eq_step1_diff`:
 equal closed segments have equal or swapped endpoints. -/
 private lemma whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends
     (a b c d : Pt) (h : segment ℝ a b = segment ℝ c d) :
     (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
-  sorry
+  by_cases hab : a = b
+  · subst hab
+    have hca : c ∈ segment ℝ a a := h ▸ left_mem_segment ℝ c d
+    have hda : d ∈ segment ℝ a a := h ▸ right_mem_segment ℝ c d
+    rw [segment_same] at hca hda
+    exact Or.inl ⟨hca.symm, hda.symm⟩
+  · have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+    have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+    have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+    rw [whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends_aux1] at hc hd ha hb
+    obtain ⟨s, hs0, hs1, rfl⟩ := hc
+    obtain ⟨t, ht0, ht1, rfl⟩ := hd
+    obtain ⟨α, ha0, ha1, hα⟩ := ha
+    obtain ⟨β, hb0, hb1, hβ⟩ := hb
+    have hu : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+    have k1 : a + s • (b - a) + α • (a + t • (b - a) - (a + s • (b - a))) =
+        a + (s + α * (t - s)) • (b - a) := by module
+    have k2 : a + s • (b - a) + β • (a + t • (b - a) - (a + s • (b - a))) =
+        a + (s + β * (t - s)) • (b - a) := by module
+    rw [k1] at hα
+    rw [k2] at hβ
+    have e1 : (0 : ℝ) • (b - a) = (s + α * (t - s)) • (b - a) := by
+      rw [zero_smul]; exact (add_eq_left.1 hα.symm).symm
+    have e2 : (1 : ℝ) • (b - a) = (s + β * (t - s)) • (b - a) := by
+      rw [one_smul]
+      have : a + (b - a) = a + (s + β * (t - s)) • (b - a) := by rw [← hβ]; abel
+      exact add_left_cancel this
+    have f1 := whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends_aux2 hu e1
+    have f2 := whole_side_ports_coincide_step1_parentDir_eq_step1_diff_step1_ends_aux2 hu e2
+    have key : (s = 0 ∧ t = 1) ∨ (s = 1 ∧ t = 0) := by
+      have h3 : s * (1 - α) = 0 := by
+        nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+      have h4 : α * t = 0 := by
+        nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+      rcases mul_eq_zero.1 h3 with h3 | h3
+      · subst h3
+        have : β * t = 1 := by linarith
+        left; refine ⟨rfl, ?_⟩; nlinarith
+      · have hα1 : α = 1 := by linarith
+        subst hα1
+        have ht : t = 0 := by linarith
+        subst ht
+        right; refine ⟨?_, rfl⟩; nlinarith
+    rcases key with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · left; constructor <;> simp
+    · right; constructor <;> simp
 
 /-- Step 1 of the blueprint proof of `whole_side_ports_coincide_step1_parentDir_eq`: if the placed
 segments are equal, their vector differences are either equal or opposite. -/

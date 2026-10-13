@@ -3147,7 +3147,24 @@ private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step1_lower
     (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t)
     (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
     ∀ s : ℝ, t * Real.sin (InnerProductGeometry.angle a b) ≤ ‖t • a - s • b‖ := by
-  sorry
+  intro s
+  have hθle : InnerProductGeometry.angle a b ≤ Real.pi :=
+    le_trans h_ang (by linarith [Real.pi_pos])
+  have hsin : 0 ≤ Real.sin (InnerProductGeometry.angle a b) :=
+    Real.sin_nonneg_of_nonneg_of_le_pi (InnerProductGeometry.angle_nonneg a b) hθle
+  have hinner : inner ℝ a b = Real.cos (InnerProductGeometry.angle a b) := by
+    simpa [ha, hb] using
+      (InnerProductGeometry.cos_angle_mul_norm_mul_norm a b).symm
+  have hsq := norm_sub_sq_real (t • a) (s • b)
+  rw [norm_smul, norm_smul, Real.norm_of_nonneg ht.le, ha, hb,
+    inner_smul_left, inner_smul_right, hinner, Real.norm_eq_abs] at hsq
+  simp at hsq
+  have hkey : (t * Real.sin (InnerProductGeometry.angle a b)) ^ 2 ≤
+      ‖t • a - s • b‖ ^ 2 := by
+    rw [hsq]
+    nlinarith [sq_nonneg (s - t * Real.cos (InnerProductGeometry.angle a b)),
+      Real.sin_sq_add_cos_sq (InnerProductGeometry.angle a b)]
+  exact (pow_le_pow_iff_left₀ (mul_nonneg ht.le hsin) (norm_nonneg _) two_ne_zero).mp hkey
 
 /-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad_step1_acute`: 
 the minimum is attained. -/

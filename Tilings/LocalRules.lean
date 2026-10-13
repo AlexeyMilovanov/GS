@@ -1947,6 +1947,748 @@ theorem Decoration.dissection_preserves_sts_sofic (G : GroupedFamily P)
 def Grouping.IsPowerHierarchy (τ : Substitution P) (k : ℕ) (T : PlaneTiling P) : Prop :=
   ∃ seq : ℕ → PlaneTiling P, seq 0 = T ∧ ∀ n, τ.decomposeIter k (seq (n + 1)).tiles = (seq n).tiles
 
+/-! ### Compactness helpers for `hierarchy_lift_iff` -/
+
+private lemma hierarchy_lift_iff_decomposeTile_carrier (τ : Substitution P)
+    (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [cc_support_translate, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [mem_vadd_set_iff_neg_vadd_mem, mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc
+        τ.θ • A.anchor + τ.θ • y = τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by
+          congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma hierarchy_lift_iff_decompose_support (τ : Substitution P)
+    (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [Substitution.decompose, support]
+  rw [smul_set_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨C, ⟨A, hAS, hCA⟩, hx⟩
+    refine ⟨A, hAS, ?_⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      simp only [support, Set.mem_iUnion]
+      exact ⟨C, hCA, hx⟩
+    rw [hierarchy_lift_iff_decomposeTile_carrier] at h
+    exact h
+  · rintro ⟨A, hAS, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rw [hierarchy_lift_iff_decomposeTile_carrier]
+      exact hx
+    simp only [support, Set.mem_iUnion] at h
+    rcases h with ⟨C, hC, hx'⟩
+    exact ⟨C, ⟨A, hAS, hC⟩, hx'⟩
+
+private noncomputable def hierarchy_lift_iff_decomposeTiling (τ : Substitution P)
+    (T : PlaneTiling P) : PlaneTiling P where
+  tiles := τ.decompose T.tiles
+  cover := by
+    rw [hierarchy_lift_iff_decompose_support, T.cover]
+    have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+    ext x
+    constructor
+    · intro
+      trivial
+    · intro
+      exact ⟨τ.θ⁻¹ • x, trivial, by simp [hθ]⟩
+  disjoint := by
+    intro C hC D hD hCD
+    simp only [Substitution.decompose, Set.mem_iUnion] at hC hD
+    obtain ⟨A, hAT, hCA⟩ := hC
+    obtain ⟨B, hBT, hDB⟩ := hD
+    by_cases hAB : A = B
+    · subst B
+      simp only [Substitution.decomposeTile, translateSet, Set.mem_image] at hCA hDB
+      obtain ⟨C₀, hC₀, rfl⟩ := hCA
+      obtain ⟨D₀, hD₀, hDeq⟩ := hDB
+      subst D
+      have hC₀D₀ : C₀ ≠ D₀ := by
+        intro h
+        apply hCD
+        rw [h]
+      have hd := (τ.rule A.form).disjoint hC₀ hD₀ hC₀D₀
+      dsimp [Function.onFun] at hd ⊢
+      rw [dissection_preserves_sofic_carrier_translate,
+        dissection_preserves_sofic_carrier_translate, interior_vadd, interior_vadd]
+      exact disjoint_image_of_injective (add_right_injective (τ.θ • A.anchor)) hd
+    · have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+      have hCsub : interior C.carrier ⊆ interior (τ.θ • A.carrier) := by
+        apply interior_maximal
+        · have hsub : C.carrier ⊆ support (τ.decomposeTile A) := by
+            intro x hx
+            simp only [support, Set.mem_iUnion]
+            exact ⟨C, hCA, hx⟩
+          rw [hierarchy_lift_iff_decomposeTile_carrier] at hsub
+          exact interior_subset.trans hsub
+        · exact isOpen_interior
+      have hDsub : interior D.carrier ⊆ interior (τ.θ • B.carrier) := by
+        apply interior_maximal
+        · have hsub : D.carrier ⊆ support (τ.decomposeTile B) := by
+            intro x hx
+            simp only [support, Set.mem_iUnion]
+            exact ⟨D, hDB, hx⟩
+          rw [hierarchy_lift_iff_decomposeTile_carrier] at hsub
+          exact interior_subset.trans hsub
+        · exact isOpen_interior
+      apply (disjoint_image_of_injective (smul_right_injective Pt hθ)
+        (T.disjoint hAT hBT hAB)).mono
+      · simpa only [interior_smul₀ hθ] using hCsub
+      · simpa only [interior_smul₀ hθ] using hDsub
+
+private def hierarchy_lift_iff_decomposeIterTiling (τ : Substitution P) :
+    ℕ → PlaneTiling P → PlaneTiling P
+  | 0, T => T
+  | n + 1, T => hierarchy_lift_iff_decomposeTiling τ
+      (hierarchy_lift_iff_decomposeIterTiling τ n T)
+
+private lemma hierarchy_lift_iff_decomposeIterTiling_tiles (τ : Substitution P)
+    (n : ℕ) (T : PlaneTiling P) :
+    (hierarchy_lift_iff_decomposeIterTiling τ n T).tiles =
+      τ.decomposeIter n T.tiles := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      change τ.decompose (hierarchy_lift_iff_decomposeIterTiling τ n T).tiles = _
+      rw [ih]
+      rfl
+
+private lemma hierarchy_lift_iff_scatterTile_support (G : GroupedFamily P)
+    (A : PlacedTile G.P') : support (G.scatterTile A) = A.carrier := by
+  rw [GroupedFamily.scatterTile, cc_support_translate, G.support_eq]
+  rfl
+
+private lemma hierarchy_lift_iff_scatter_support (G : GroupedFamily P)
+    (S : Set (PlacedTile G.P')) : support (G.scatter S) = support S := by
+  ext x
+  simp only [GroupedFamily.scatter, support, Set.mem_iUnion]
+  constructor
+  · rintro ⟨B, ⟨A, hAS, hBA⟩, hxB⟩
+    refine ⟨A, hAS, ?_⟩
+    rw [← hierarchy_lift_iff_scatterTile_support G A]
+    simp only [support, Set.mem_iUnion]
+    exact ⟨B, hBA, hxB⟩
+  · rintro ⟨A, hAS, hxA⟩
+    rw [← hierarchy_lift_iff_scatterTile_support G A] at hxA
+    simp only [support, Set.mem_iUnion] at hxA
+    rcases hxA with ⟨B, hBA, hxB⟩
+    exact ⟨B, ⟨A, hAS, hBA⟩, hxB⟩
+
+private lemma hierarchy_lift_iff_scatter_translate (G : GroupedFamily P)
+    (v : Pt) (S : Set (PlacedTile G.P')) :
+    G.scatter (translateSet v S) = translateSet v (G.scatter S) := by
+  ext B
+  simp only [GroupedFamily.scatter, GroupedFamily.scatterTile, translateSet,
+    Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨A₀, hA₀, rfl⟩, C, hC, rfl⟩
+    refine ⟨C.translate A₀.anchor, ⟨A₀, hA₀, C, hC, rfl⟩, ?_⟩
+    simp [PlacedTile.translate, add_assoc]
+  · rintro ⟨B₀, ⟨A, hAS, C, hC, rfl⟩, rfl⟩
+    refine ⟨A.translate v, ⟨A, hAS, rfl⟩, C, hC, ?_⟩
+    simp [PlacedTile.translate, add_assoc]
+
+private lemma hierarchy_lift_iff_decompose_translate (τ : Substitution P)
+    (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S) := by
+  ext C
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨A₀, hA₀, rfl⟩, B, hB, rfl⟩
+    refine ⟨B.translate (τ.θ • A₀.anchor), ⟨A₀, hA₀, B, hB, rfl⟩, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+  · rintro ⟨C₀, ⟨A, hAS, B, hB, rfl⟩, rfl⟩
+    refine ⟨A.translate v, ⟨A, hAS, rfl⟩, B, hB, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+
+private lemma hierarchy_lift_iff_decomposeIter_translate (τ : Substitution P)
+    (n : ℕ) (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decomposeIter n (translateSet v S) =
+      translateSet (τ.θ ^ n • v) (τ.decomposeIter n S) := by
+  induction n with
+  | zero => simp [Substitution.decomposeIter]
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (translateSet v S)) = _
+      rw [ih, hierarchy_lift_iff_decompose_translate]
+      rw [pow_succ', mul_smul]
+      rfl
+
+private lemma hierarchy_lift_iff_decomposeIter_iUnion₂ (τ : Substitution P)
+    {ι : Type*} (n : ℕ) (s : Set ι) (f : ι → Set (PlacedTile P)) :
+    τ.decomposeIter n (⋃ i ∈ s, f i) = ⋃ i ∈ s, τ.decomposeIter n (f i) := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (⋃ i ∈ s, f i)) = _
+      rw [ih]
+      ext C
+      simp only [Substitution.decompose, Set.mem_iUnion]
+      constructor
+      · rintro ⟨B, ⟨i, hi, hB⟩, hCB⟩
+        refine ⟨i, hi, ?_⟩
+        change C ∈ τ.decompose (τ.decomposeIter n (f i))
+        simp only [Substitution.decompose, Set.mem_iUnion]
+        exact ⟨B, hB, hCB⟩
+      · rintro ⟨i, hi, hC⟩
+        change C ∈ τ.decompose (τ.decomposeIter n (f i)) at hC
+        simp only [Substitution.decompose, Set.mem_iUnion] at hC
+        rcases hC with ⟨B, hB, hCB⟩
+        exact ⟨B, ⟨i, hi, hB⟩, hCB⟩
+
+private lemma hierarchy_lift_iff_scatter_decomposeTile (τ : Substitution P)
+    (GS : GroupedSubstitution τ) (A : PlacedTile GS.G.P') :
+    GS.G.scatter (GS.σ.decomposeTile A) =
+      τ.decomposeIter GS.k (GS.G.scatterTile A) := by
+  rw [Substitution.decomposeTile, hierarchy_lift_iff_scatter_translate,
+    GS.θ_eq, GS.compat, GroupedFamily.scatterTile,
+    hierarchy_lift_iff_decomposeIter_translate]
+
+private lemma hierarchy_lift_iff_scatter_decompose (τ : Substitution P)
+    (GS : GroupedSubstitution τ) (S : Set (PlacedTile GS.G.P')) :
+    GS.G.scatter (GS.σ.decompose S) =
+      τ.decomposeIter GS.k (GS.G.scatter S) := by
+  change GS.G.scatter (GS.σ.decompose S) =
+    τ.decomposeIter GS.k (⋃ A ∈ S, GS.G.scatterTile A)
+  rw [hierarchy_lift_iff_decomposeIter_iUnion₂]
+  ext B
+  simp only [Substitution.decompose, GroupedFamily.scatter, Set.mem_iUnion]
+  constructor
+  · rintro ⟨C, ⟨A, hAS, hCA⟩, hBC⟩
+    refine ⟨A, hAS, ?_⟩
+    rw [← hierarchy_lift_iff_scatter_decomposeTile τ GS A]
+    simp only [GroupedFamily.scatter, Set.mem_iUnion]
+    exact ⟨C, hCA, hBC⟩
+  · rintro ⟨A, hAS, hBA⟩
+    rw [← hierarchy_lift_iff_scatter_decomposeTile τ GS A] at hBA
+    simp only [GroupedFamily.scatter, Set.mem_iUnion] at hBA
+    rcases hBA with ⟨C, hC, hBC⟩
+    exact ⟨C, ⟨A, hAS, hC⟩, hBC⟩
+
+private noncomputable def hierarchy_lift_iff_singleForm {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩}) :
+    P.Form → GS.G.P'.Form := fun p => (hsingle p).choose
+
+private lemma hierarchy_lift_iff_singleForm_spec {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩}) (p : P.Form) :
+    (GS.G.dissect (hierarchy_lift_iff_singleForm GS hsingle p)).tiles = {⟨p, 0⟩} :=
+  (hsingle p).choose_spec
+
+private noncomputable def hierarchy_lift_iff_singleTile {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (A : PlacedTile P) : PlacedTile GS.G.P' :=
+  ⟨hierarchy_lift_iff_singleForm GS hsingle A.form, A.anchor⟩
+
+private lemma hierarchy_lift_iff_singleTile_scatter {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (A : PlacedTile P) :
+    GS.G.scatterTile (hierarchy_lift_iff_singleTile GS hsingle A) = {A} := by
+  simp only [GroupedFamily.scatterTile, hierarchy_lift_iff_singleTile,
+    hierarchy_lift_iff_singleForm_spec, translateSet, Set.image_singleton]
+  congr 1
+  apply PlacedTile.ext
+  · rfl
+  · simp [PlacedTile.translate]
+
+private lemma hierarchy_lift_iff_singleTile_injective {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩}) :
+    Function.Injective (hierarchy_lift_iff_singleTile GS hsingle) := by
+  intro A B hAB
+  have h := congrArg GS.G.scatterTile hAB
+  rw [hierarchy_lift_iff_singleTile_scatter, hierarchy_lift_iff_singleTile_scatter] at h
+  exact Set.singleton_eq_singleton_iff.mp h
+
+private lemma hierarchy_lift_iff_singleTile_carrier {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (A : PlacedTile P) :
+    (hierarchy_lift_iff_singleTile GS hsingle A).carrier = A.carrier := by
+  rw [← hierarchy_lift_iff_scatterTile_support,
+    hierarchy_lift_iff_singleTile_scatter]
+  simp [support]
+
+private noncomputable def hierarchy_lift_iff_singleTiling {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (T : PlaneTiling P) : PlaneTiling GS.G.P' where
+  tiles := hierarchy_lift_iff_singleTile GS hsingle '' T.tiles
+  cover := by
+    calc
+      support (hierarchy_lift_iff_singleTile GS hsingle '' T.tiles) = support T.tiles := by
+        ext x
+        simp only [support, Set.mem_iUnion, Set.mem_image]
+        constructor
+        · rintro ⟨B, ⟨A, hAT, rfl⟩, hxB⟩
+          exact ⟨A, hAT, by rwa [hierarchy_lift_iff_singleTile_carrier] at hxB⟩
+        · rintro ⟨A, hAT, hxA⟩
+          exact ⟨hierarchy_lift_iff_singleTile GS hsingle A, ⟨A, hAT, rfl⟩, by
+            rwa [hierarchy_lift_iff_singleTile_carrier]⟩
+      _ = Set.univ := T.cover
+  disjoint := by
+    rintro A ⟨A₀, hA₀, rfl⟩ B ⟨B₀, hB₀, rfl⟩ hAB
+    have hA₀B₀ : A₀ ≠ B₀ := fun h => hAB (congrArg _ h)
+    dsimp [Function.onFun]
+    rw [hierarchy_lift_iff_singleTile_carrier, hierarchy_lift_iff_singleTile_carrier]
+    exact T.disjoint hA₀ hB₀ hA₀B₀
+
+private lemma hierarchy_lift_iff_singleTiling_scatter {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (T : PlaneTiling P) :
+    GS.G.scatter (hierarchy_lift_iff_singleTiling GS hsingle T).tiles = T.tiles := by
+  ext A
+  simp only [hierarchy_lift_iff_singleTiling, GroupedFamily.scatter, Set.mem_iUnion,
+    Set.mem_image]
+  constructor
+  · rintro ⟨B, ⟨C, hCT, rfl⟩, hAB⟩
+    rw [hierarchy_lift_iff_singleTile_scatter] at hAB
+    rw [Set.mem_singleton_iff] at hAB
+    simpa [hAB] using hCT
+  · intro hAT
+    exact ⟨hierarchy_lift_iff_singleTile GS hsingle A, ⟨A, hAT, rfl⟩, by
+      rw [hierarchy_lift_iff_singleTile_scatter]
+      rfl⟩
+
+private lemma hierarchy_lift_iff_finiteHeight_scatter (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n d : ℕ) :
+    GS.G.scatter
+        (hierarchy_lift_iff_decomposeIterTiling GS.σ d
+          (hierarchy_lift_iff_singleTiling GS hsingle (seq (n + d)))).tiles =
+      (seq n).tiles := by
+  induction d generalizing n with
+  | zero =>
+      simpa using hierarchy_lift_iff_singleTiling_scatter GS hsingle (seq n)
+  | succ d ih =>
+      change GS.G.scatter
+          (GS.σ.decompose
+            (hierarchy_lift_iff_decomposeIterTiling GS.σ d
+              (hierarchy_lift_iff_singleTiling GS hsingle (seq (n + (d + 1))))).tiles) = _
+      rw [hierarchy_lift_iff_scatter_decompose]
+      have hind := ih (n + 1)
+      have htop : n + (d + 1) = n + 1 + d := by omega
+      rw [htop, hind]
+      exact hseq n
+
+private noncomputable def hierarchy_lift_iff_approx {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P) (H n : ℕ) : PlaneTiling GS.G.P' :=
+  if n ≤ H then
+    hierarchy_lift_iff_decomposeIterTiling GS.σ (H - n)
+      (hierarchy_lift_iff_singleTiling GS hsingle (seq H))
+  else
+    hierarchy_lift_iff_singleTiling GS hsingle (seq n)
+
+private lemma hierarchy_lift_iff_approx_scatter (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (H n : ℕ) :
+    GS.G.scatter (hierarchy_lift_iff_approx GS hsingle seq H n).tiles = (seq n).tiles := by
+  by_cases hnH : n ≤ H
+  · rw [hierarchy_lift_iff_approx, if_pos hnH]
+    have hH : H = n + (H - n) := by omega
+    conv_lhs =>
+      congr
+      rw [hH]
+    simpa only [Nat.add_sub_cancel_left] using
+      hierarchy_lift_iff_finiteHeight_scatter τ GS hsingle seq hseq n (H - n)
+  · rw [hierarchy_lift_iff_approx, if_neg hnH]
+    exact hierarchy_lift_iff_singleTiling_scatter GS hsingle (seq n)
+
+private lemma hierarchy_lift_iff_approx_comp {τ : Substitution P}
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P) (H n : ℕ) (hnH : n + 1 ≤ H) :
+    GS.σ.decompose (hierarchy_lift_iff_approx GS hsingle seq H (n + 1)).tiles =
+      (hierarchy_lift_iff_approx GS hsingle seq H n).tiles := by
+  have hnH' : n ≤ H := by omega
+  rw [hierarchy_lift_iff_approx, if_pos hnH, hierarchy_lift_iff_approx, if_pos hnH']
+  rw [hierarchy_lift_iff_decomposeIterTiling_tiles,
+    hierarchy_lift_iff_decomposeIterTiling_tiles]
+  have hsub : H - n = (H - (n + 1)) + 1 := by omega
+  rw [hsub]
+  rfl
+
+private lemma hierarchy_lift_iff_scatter_owner_unique (G : GroupedFamily P)
+    (T : PlaneTiling G.P') {B : PlacedTile P} {A C : PlacedTile G.P'}
+    (hAT : A ∈ T.tiles) (hCT : C ∈ T.tiles)
+    (hBA : B ∈ G.scatterTile A) (hBC : B ∈ G.scatterTile C) : A = C := by
+  by_contra hAC
+  have hBAsub : B.carrier ⊆ A.carrier := by
+    rw [← hierarchy_lift_iff_scatterTile_support G A]
+    intro x hx
+    simp only [support, Set.mem_iUnion]
+    exact ⟨B, hBA, hx⟩
+  have hBCsub : B.carrier ⊆ C.carrier := by
+    rw [← hierarchy_lift_iff_scatterTile_support G C]
+    intro x hx
+    simp only [support, Set.mem_iUnion]
+    exact ⟨B, hBC, hx⟩
+  have hiA : interior B.carrier ⊆ interior A.carrier :=
+    interior_maximal (interior_subset.trans hBAsub) isOpen_interior
+  have hiC : interior B.carrier ⊆ interior C.carrier :=
+    interior_maximal (interior_subset.trans hBCsub) isOpen_interior
+  obtain ⟨x, hx⟩ := (P.disk B.form).interior_nonempty
+  have hxB : B.anchor +ᵥ x ∈ interior B.carrier := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact vadd_mem_vadd_set hx
+  exact Set.disjoint_left.mp (T.disjoint hAT hCT hAC) (hiA hxB) (hiC hxB)
+
+private lemma hierarchy_lift_iff_scatter_parents_finite (G : GroupedFamily P)
+    (B : PlacedTile P) : {A : PlacedTile G.P' | B ∈ G.scatterTile A}.Finite := by
+  let choices : Set (PlacedTile G.P') :=
+    ⋃ α : G.P'.Form, ⋃ C ∈ (G.dissect α).tiles,
+      ({⟨α, B.anchor - C.anchor⟩} : Set (PlacedTile G.P'))
+  have hchoices : choices.Finite := by
+    apply Set.finite_iUnion
+    intro α
+    apply Set.Finite.biUnion (G.dissect α).finite
+    intro C hC
+    exact Set.finite_singleton _
+  apply hchoices.subset
+  intro A hBA
+  simp only [GroupedFamily.scatterTile, translateSet, Set.mem_image] at hBA
+  obtain ⟨C, hC, hCB⟩ := hBA
+  simp only [choices, Set.mem_iUnion, Set.mem_singleton_iff]
+  refine ⟨A.form, C, hC, ?_⟩
+  have hanchor : A.anchor = B.anchor - C.anchor := by
+    have h := congrArg PlacedTile.anchor hCB
+    simp only [PlacedTile.translate, vadd_eq_add] at h
+    rw [← h]
+    abel
+  exact PlacedTile.ext rfl hanchor
+
+private noncomputable def hierarchy_lift_iff_owner (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (H n : ℕ) (B : (seq n).tiles) : PlacedTile GS.G.P' :=
+  (show ∃ A ∈ (hierarchy_lift_iff_approx GS hsingle seq H n).tiles,
+      B.1 ∈ GS.G.scatterTile A by
+    have hB : B.1 ∈ GS.G.scatter (hierarchy_lift_iff_approx GS hsingle seq H n).tiles := by
+      rw [hierarchy_lift_iff_approx_scatter τ GS hsingle seq hseq H n]
+      exact B.2
+    simp only [GroupedFamily.scatter, Set.mem_iUnion] at hB
+    rcases hB with ⟨A, hA, hBA⟩
+    exact ⟨A, hA, hBA⟩).choose
+
+private lemma hierarchy_lift_iff_owner_mem (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (H n : ℕ) (B : (seq n).tiles) :
+    hierarchy_lift_iff_owner τ GS hsingle seq hseq H n B ∈
+      (hierarchy_lift_iff_approx GS hsingle seq H n).tiles :=
+  (show ∃ A ∈ (hierarchy_lift_iff_approx GS hsingle seq H n).tiles,
+      B.1 ∈ GS.G.scatterTile A by
+    have hB : B.1 ∈ GS.G.scatter (hierarchy_lift_iff_approx GS hsingle seq H n).tiles := by
+      rw [hierarchy_lift_iff_approx_scatter τ GS hsingle seq hseq H n]
+      exact B.2
+    simp only [GroupedFamily.scatter, Set.mem_iUnion] at hB
+    rcases hB with ⟨A, hA, hBA⟩
+    exact ⟨A, hA, hBA⟩).choose_spec.1
+
+private lemma hierarchy_lift_iff_owner_scatter (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (H n : ℕ) (B : (seq n).tiles) :
+    B.1 ∈ GS.G.scatterTile (hierarchy_lift_iff_owner τ GS hsingle seq hseq H n B) :=
+  (show ∃ A ∈ (hierarchy_lift_iff_approx GS hsingle seq H n).tiles,
+      B.1 ∈ GS.G.scatterTile A by
+    have hB : B.1 ∈ GS.G.scatter (hierarchy_lift_iff_approx GS hsingle seq H n).tiles := by
+      rw [hierarchy_lift_iff_approx_scatter τ GS hsingle seq hseq H n]
+      exact B.2
+    simp only [GroupedFamily.scatter, Set.mem_iUnion] at hB
+    rcases hB with ⟨A, hA, hBA⟩
+    exact ⟨A, hA, hBA⟩).choose_spec.2
+
+private noncomputable def hierarchy_lift_iff_heightFilter : Ultrafilter ℕ :=
+  Ultrafilter.of Filter.atTop
+
+private lemma hierarchy_lift_iff_owner_eventually_constant (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) (B : (seq n).tiles) :
+    ∃ A : PlacedTile GS.G.P',
+      ∀ᶠ H in hierarchy_lift_iff_heightFilter,
+        hierarchy_lift_iff_owner τ GS hsingle seq hseq H n B = A := by
+  let candidates := {A : PlacedTile GS.G.P' | B.1 ∈ GS.G.scatterTile A}
+  letI : Finite candidates := (hierarchy_lift_iff_scatter_parents_finite GS.G B.1).to_subtype
+  let owner : ℕ → candidates := fun H =>
+    ⟨hierarchy_lift_iff_owner τ GS hsingle seq hseq H n B,
+      hierarchy_lift_iff_owner_scatter τ GS hsingle seq hseq H n B⟩
+  have hconst : ∃ A : candidates,
+      ∀ᶠ H in hierarchy_lift_iff_heightFilter, owner H = A := by
+    apply (Ultrafilter.eventually_exists_iff (f := hierarchy_lift_iff_heightFilter)).mp
+    exact Filter.Eventually.of_forall fun H => ⟨owner H, rfl⟩
+  obtain ⟨A, hA⟩ := hconst
+  exact ⟨A.1, hA.mono fun H h => congrArg Subtype.val h⟩
+
+private noncomputable def hierarchy_lift_iff_selectedOwner (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) (B : (seq n).tiles) : PlacedTile GS.G.P' :=
+  (hierarchy_lift_iff_owner_eventually_constant τ GS hsingle seq hseq n B).choose
+
+private lemma hierarchy_lift_iff_selectedOwner_eventually (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) (B : (seq n).tiles) :
+    ∀ᶠ H in hierarchy_lift_iff_heightFilter,
+      hierarchy_lift_iff_owner τ GS hsingle seq hseq H n B =
+        hierarchy_lift_iff_selectedOwner τ GS hsingle seq hseq n B :=
+  (hierarchy_lift_iff_owner_eventually_constant τ GS hsingle seq hseq n B).choose_spec
+
+private lemma hierarchy_lift_iff_selectedOwner_scatter (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) (B : (seq n).tiles) :
+    B.1 ∈ GS.G.scatterTile
+      (hierarchy_lift_iff_selectedOwner τ GS hsingle seq hseq n B) := by
+  obtain ⟨H, hH⟩ :=
+    (hierarchy_lift_iff_selectedOwner_eventually τ GS hsingle seq hseq n B).exists
+  rw [← hH]
+  exact hierarchy_lift_iff_owner_scatter τ GS hsingle seq hseq H n B
+
+private noncomputable def hierarchy_lift_iff_selectedTiles (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) : Set (PlacedTile GS.G.P') :=
+  Set.range (hierarchy_lift_iff_selectedOwner τ GS hsingle seq hseq n)
+
+private lemma hierarchy_lift_iff_selected_scatter (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) :
+    GS.G.scatter (hierarchy_lift_iff_selectedTiles τ GS hsingle seq hseq n) =
+      (seq n).tiles := by
+  ext B
+  simp only [GroupedFamily.scatter, hierarchy_lift_iff_selectedTiles,
+    Set.mem_iUnion, Set.mem_range]
+  constructor
+  · rintro ⟨A, ⟨C, rfl⟩, hBA⟩
+    obtain ⟨H, hH⟩ :=
+      (hierarchy_lift_iff_selectedOwner_eventually τ GS hsingle seq hseq n C).exists
+    have hAmem := hierarchy_lift_iff_owner_mem τ GS hsingle seq hseq H n C
+    rw [hH] at hAmem
+    have hB : B ∈ GS.G.scatter (hierarchy_lift_iff_approx GS hsingle seq H n).tiles := by
+      simp only [GroupedFamily.scatter, Set.mem_iUnion]
+      exact ⟨_, hAmem, hBA⟩
+    rw [hierarchy_lift_iff_approx_scatter τ GS hsingle seq hseq H n] at hB
+    exact hB
+  · intro hB
+    let B' : (seq n).tiles := ⟨B, hB⟩
+    exact ⟨hierarchy_lift_iff_selectedOwner τ GS hsingle seq hseq n B',
+      ⟨B', rfl⟩,
+      hierarchy_lift_iff_selectedOwner_scatter τ GS hsingle seq hseq n B'⟩
+
+private noncomputable def hierarchy_lift_iff_selectedTiling (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) : PlaneTiling GS.G.P' where
+  tiles := hierarchy_lift_iff_selectedTiles τ GS hsingle seq hseq n
+  cover := by
+    rw [← hierarchy_lift_iff_scatter_support,
+      hierarchy_lift_iff_selected_scatter τ GS hsingle seq hseq n, (seq n).cover]
+  disjoint := by
+    rintro A ⟨B, rfl⟩ C ⟨D, rfl⟩ hAC
+    have hB := hierarchy_lift_iff_selectedOwner_eventually τ GS hsingle seq hseq n B
+    have hD := hierarchy_lift_iff_selectedOwner_eventually τ GS hsingle seq hseq n D
+    obtain ⟨H, hHB, hHD⟩ := (hB.and hD).exists
+    have hBm := hierarchy_lift_iff_owner_mem τ GS hsingle seq hseq H n B
+    have hDm := hierarchy_lift_iff_owner_mem τ GS hsingle seq hseq H n D
+    have hne : hierarchy_lift_iff_owner τ GS hsingle seq hseq H n B ≠
+        hierarchy_lift_iff_owner τ GS hsingle seq hseq H n D := by
+      intro h
+      apply hAC
+      rw [← hHB, ← hHD, h]
+    have hd := (hierarchy_lift_iff_approx GS hsingle seq H n).disjoint hBm hDm hne
+    rwa [hHB, hHD] at hd
+
+private lemma hierarchy_lift_iff_scatterTile_nonempty (G : GroupedFamily P)
+    (A : PlacedTile G.P') : (G.scatterTile A).Nonempty := by
+  obtain ⟨x, hx⟩ := (G.P'.disk A.form).interior_nonempty
+  have hxA : A.anchor +ᵥ x ∈ A.carrier := by
+    exact vadd_mem_vadd_set (interior_subset hx)
+  rw [← hierarchy_lift_iff_scatterTile_support G A] at hxA
+  simp only [support, Set.mem_iUnion] at hxA
+  rcases hxA with ⟨B, hBA, _⟩
+  exact ⟨B, hBA⟩
+
+private lemma hierarchy_lift_iff_eventually_height (m : ℕ) :
+    ∀ᶠ H : ℕ in hierarchy_lift_iff_heightFilter, m ≤ H := by
+  have h : ∀ᶠ H : ℕ in Filter.atTop, m ≤ H := by
+    apply Filter.eventually_atTop.2
+    exact ⟨m, fun H hH => hH⟩
+  exact h.filter_mono (Ultrafilter.of_le Filter.atTop)
+
+private lemma hierarchy_lift_iff_selected_comp_subset (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) :
+    GS.σ.decompose (hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq (n + 1)).tiles ⊆
+      (hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq n).tiles := by
+  intro C hC
+  simp only [hierarchy_lift_iff_selectedTiling, Substitution.decompose,
+    Set.mem_iUnion] at hC
+  obtain ⟨A, hA, hCA⟩ := hC
+  simp only [hierarchy_lift_iff_selectedTiles, Set.mem_range] at hA
+  obtain ⟨E, rfl⟩ := hA
+  obtain ⟨B, hBC⟩ := hierarchy_lift_iff_scatterTile_nonempty GS.G C
+  have hBseq : B ∈ (seq n).tiles := by
+    have hB : B ∈ GS.G.scatter
+        (GS.σ.decompose
+          (hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq (n + 1)).tiles) := by
+      simp only [GroupedFamily.scatter, Set.mem_iUnion]
+      exact ⟨C, by
+        simp only [Substitution.decompose, Set.mem_iUnion]
+        exact ⟨hierarchy_lift_iff_selectedOwner τ GS hsingle seq hseq (n + 1) E,
+          ⟨E, rfl⟩, hCA⟩, hBC⟩
+    rw [hierarchy_lift_iff_scatter_decompose] at hB
+    change B ∈ τ.decomposeIter GS.k
+      (GS.G.scatter (hierarchy_lift_iff_selectedTiles τ GS hsingle seq hseq (n + 1))) at hB
+    rw [hierarchy_lift_iff_selected_scatter τ GS hsingle seq hseq (n + 1), hseq n] at hB
+    exact hB
+  let B' : (seq n).tiles := ⟨B, hBseq⟩
+  have hEA := hierarchy_lift_iff_selectedOwner_eventually τ GS hsingle seq hseq (n + 1) E
+  have hEB := hierarchy_lift_iff_selectedOwner_eventually τ GS hsingle seq hseq n B'
+  have hEH := hierarchy_lift_iff_eventually_height (n + 1)
+  obtain ⟨H, hHA, hHB, hnH⟩ := (hEA.and (hEB.and hEH)).exists
+  have hAmem := hierarchy_lift_iff_owner_mem τ GS hsingle seq hseq H (n + 1) E
+  rw [hHA] at hAmem
+  have hCmem : C ∈ (hierarchy_lift_iff_approx GS hsingle seq H n).tiles := by
+    rw [← hierarchy_lift_iff_approx_comp GS hsingle seq H n hnH]
+    simp only [Substitution.decompose, Set.mem_iUnion]
+    exact ⟨hierarchy_lift_iff_selectedOwner τ GS hsingle seq hseq (n + 1) E,
+      hAmem, hCA⟩
+  have hBmem := hierarchy_lift_iff_owner_mem τ GS hsingle seq hseq H n B'
+  have hBscat := hierarchy_lift_iff_owner_scatter τ GS hsingle seq hseq H n B'
+  have hownC := hierarchy_lift_iff_scatter_owner_unique GS.G
+    (hierarchy_lift_iff_approx GS hsingle seq H n) hBmem hCmem hBscat hBC
+  simp only [hierarchy_lift_iff_selectedTiling, hierarchy_lift_iff_selectedTiles,
+    Set.mem_range]
+  exact ⟨B', hHB.symm.trans hownC⟩
+
+private lemma hierarchy_lift_iff_selected_comp (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles)
+    (n : ℕ) :
+    GS.σ.IsComposition
+      (hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq (n + 1))
+      (hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq n) := by
+  exact dissection_preserves_sofic_tiling_maximal
+    (hierarchy_lift_iff_decomposeTiling GS.σ
+      (hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq (n + 1)))
+    (hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq n)
+    (hierarchy_lift_iff_selected_comp_subset τ GS hsingle seq hseq n)
+
+private lemma hierarchy_lift_iff_liftSequence (τ : Substitution P)
+    (GS : GroupedSubstitution τ)
+    (hsingle : ∀ p : P.Form, ∃ α, (GS.G.dissect α).tiles = {⟨p, 0⟩})
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles) :
+    ∃ seq' : ℕ → PlaneTiling GS.G.P',
+      (∀ n, GS.σ.IsComposition (seq' (n + 1)) (seq' n)) ∧
+      ∀ n, GS.G.scatter (seq' n).tiles = (seq n).tiles := by
+  exact ⟨hierarchy_lift_iff_selectedTiling τ GS hsingle seq hseq,
+    hierarchy_lift_iff_selected_comp τ GS hsingle seq hseq,
+    hierarchy_lift_iff_selected_scatter τ GS hsingle seq hseq⟩
+
+private noncomputable def hierarchy_lift_iff_scatterTiling (G : GroupedFamily P)
+    (T : PlaneTiling G.P') : PlaneTiling P where
+  tiles := G.scatter T.tiles
+  cover := by
+    rw [hierarchy_lift_iff_scatter_support, T.cover]
+  disjoint := by
+    intro B hB C hC hBC
+    simp only [GroupedFamily.scatter, Set.mem_iUnion] at hB hC
+    obtain ⟨A, hAT, hBA⟩ := hB
+    obtain ⟨D, hDT, hCD⟩ := hC
+    by_cases hAD : A = D
+    · subst D
+      simp only [GroupedFamily.scatterTile, translateSet, Set.mem_image] at hBA hCD
+      obtain ⟨B₀, hB₀, rfl⟩ := hBA
+      obtain ⟨C₀, hC₀, hCeq⟩ := hCD
+      subst C
+      have hB₀C₀ : B₀ ≠ C₀ := by
+        intro h
+        apply hBC
+        rw [h]
+      have hd := (G.dissect A.form).disjoint hB₀ hC₀ hB₀C₀
+      dsimp [Function.onFun] at hd ⊢
+      rw [dissection_preserves_sofic_carrier_translate,
+        dissection_preserves_sofic_carrier_translate, interior_vadd, interior_vadd]
+      exact disjoint_image_of_injective (add_right_injective A.anchor) hd
+    · have hBsub : interior B.carrier ⊆ interior A.carrier := by
+        apply interior_maximal
+        · apply interior_subset.trans
+          rw [← hierarchy_lift_iff_scatterTile_support G A]
+          intro x hx
+          simp only [support, Set.mem_iUnion]
+          exact ⟨B, hBA, hx⟩
+        · exact isOpen_interior
+      have hCsub : interior C.carrier ⊆ interior D.carrier := by
+        apply interior_maximal
+        · apply interior_subset.trans
+          rw [← hierarchy_lift_iff_scatterTile_support G D]
+          intro x hx
+          simp only [support, Set.mem_iUnion]
+          exact ⟨C, hCD, hx⟩
+        · exact isOpen_interior
+      exact (T.disjoint hAT hDT hAD).mono hBsub hCsub
+
 /-- `lem:grouping-lift`: when every original form is available as a
 singleton group, original `τ^k`-hierarchies are exactly the scatterings of
 grouped `σ`-hierarchies. -/
@@ -1955,7 +2697,21 @@ theorem Grouping.hierarchy_lift_iff (τ : Substitution P) (GS : GroupedSubstitut
     Grouping.IsPowerHierarchy τ GS.k T ↔
       ∃ seq' : ℕ → PlaneTiling GS.G.P', (∀ n, GS.σ.IsComposition (seq' (n + 1)) (seq' n)) ∧
         GS.G.scatter (seq' 0).tiles = T.tiles := by
-  sorry
+  constructor
+  · rintro ⟨seq, hseq0, hseq⟩
+    obtain ⟨seq', hcomp, hscatter⟩ :=
+      hierarchy_lift_iff_liftSequence τ GS hsingle seq hseq
+    refine ⟨seq', hcomp, ?_⟩
+    rw [hscatter 0, hseq0]
+  · rintro ⟨seq', hcomp, hscatter⟩
+    let seq : ℕ → PlaneTiling P := fun n => hierarchy_lift_iff_scatterTiling GS.G (seq' n)
+    refine ⟨seq, ?_, ?_⟩
+    · apply dissection_preserves_sofic_PlaneTiling_ext
+      exact hscatter
+    · intro n
+      change τ.decomposeIter GS.k (GS.G.scatter (seq' (n + 1)).tiles) =
+        GS.G.scatter (seq' n).tiles
+      rw [← hierarchy_lift_iff_scatter_decompose τ GS, hcomp n]
 
 /-- Step 1 of the blueprint proof of `hierarchy_lift_sts`: lift the sequence. -/
 private lemma hierarchy_lift_sts_step1_lift (τ : Substitution P) (GS : GroupedSubstitution τ)
@@ -1963,7 +2719,7 @@ private lemma hierarchy_lift_sts_step1_lift (τ : Substitution P) (GS : GroupedS
     (hseq : ∀ n, τ.decomposeIter GS.k (seq (n + 1)).tiles = (seq n).tiles) :
     ∃ seq' : ℕ → PlaneTiling GS.G.P', (∀ n, GS.σ.IsComposition (seq' (n + 1)) (seq' n)) ∧
       (∀ n, GS.G.scatter (seq' n).tiles = (seq n).tiles) := by
-  sorry
+  exact hierarchy_lift_iff_liftSequence τ GS hsingle seq hseq
 
 /-- Step 1 of the blueprint proof of `hierarchy_lift_sts_step2_sts`: Overlapping grouped sides
 contain an overlapping pair of original sides. -/

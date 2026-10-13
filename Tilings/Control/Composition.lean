@@ -2480,7 +2480,8 @@ private lemma projects_to_hierarchy_step2_completeness (c : MacroCertificate P)
 legal decorated tile alphabet. -/
 private lemma projects_to_hierarchy_step3_finite (c : MacroCertificate P) (hH : c.Hereditary) :
     {A : DecTile c | headerLegal c A}.Finite := by
-  sorry
+  have _ := hH
+  exact Set.toFinite _
 
 /-- `thm:comp/soundness`: with hereditary listed sides, erasing the colours
 of every proper legal tiling gives a `σ'`-hierarchical tiling; conversely

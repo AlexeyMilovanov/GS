@@ -4331,6 +4331,2035 @@ private lemma quantitativeAnnularGrouping_step2_band {M : MeshConstants P} {S : 
         ((G.spokes.piece j).faces_sub hA) (G.L.faces_sub hB)
         (fun h : A = B => hBA h.symm) hyA hyB
 
+/-- periodic perimeter point -/
+private def sw3P (A t : ℝ) : Pt := squarePerimeterPoint A (8 * A * Int.fract (t / (8 * A)))
+
+private lemma sw3_V0 (A t : ℝ) : squarePerimeterPoint A t 0 =
+    if t ≤ 2 * A then A else if t ≤ 4 * A then A - (t - 2 * A) else if t ≤ 6 * A then -A
+    else -A + (t - 6 * A) := by
+  unfold squarePerimeterPoint; split_ifs <;> simp [mkPt]
+
+private lemma sw3_V1 (A t : ℝ) : squarePerimeterPoint A t 1 =
+    if t ≤ 2 * A then -A + t else if t ≤ 4 * A then A else if t ≤ 6 * A then A - (t - 4 * A)
+    else -A := by
+  unfold squarePerimeterPoint; split_ifs <;> simp [mkPt]
+
+private lemma sw3P_eq {A t : ℝ} (hA : 0 < A) (h0 : 0 ≤ t) (h1 : t < 8 * A) :
+    sw3P A t = squarePerimeterPoint A t := by
+  unfold sw3P
+  have h8 : 0 < 8 * A := by linarith
+  have : Int.fract (t / (8 * A)) = t / (8 * A) := by
+    rw [Int.fract_eq_self]; constructor
+    · positivity
+    · rw [div_lt_one h8]; exact h1
+  rw [this]; congr 1; field_simp
+
+private lemma sw3P_add_int {A : ℝ} (t : ℝ) (k : ℤ) : sw3P A (t + k * (8 * A)) = sw3P A t := by
+  unfold sw3P
+  rcases eq_or_ne A 0 with rfl | hA
+  · simp
+  have h8 : (8 * A) ≠ 0 := by positivity
+  rw [show (t + k * (8 * A)) / (8 * A) = t / (8 * A) + k by field_simp, Int.fract_add_intCast]
+
+private lemma sw3P_periodic {A : ℝ} (t : ℝ) : sw3P A (t + 8 * A) = sw3P A t := by
+  have := sw3P_add_int (A := A) t 1
+  simpa using this
+
+private lemma sw3P_reduce {A : ℝ} (hA : 0 < A) (t : ℝ) :
+    ∃ u, 0 ≤ u ∧ u < 8 * A ∧ ∃ k : ℤ, t = u + k * (8 * A) := by
+  have h8 : 0 < 8 * A := by linarith
+  refine ⟨8 * A * Int.fract (t / (8 * A)), by have := Int.fract_nonneg (t / (8 * A)); positivity,
+    ?_, ⌊t / (8 * A)⌋, ?_⟩
+  · have := Int.fract_lt_one (t / (8 * A)); nlinarith
+  · rw [Int.fract]; field_simp; ring
+
+private lemma sw3P_coord0 {A t : ℝ} (hA : 0 < A) (h0 : 0 ≤ t) (h1 : t < 8 * A) :
+    sw3P A t 0 = if t ≤ 2 * A then A else if t ≤ 4 * A then A - (t - 2 * A) else if t ≤ 6 * A then -A
+      else -A + (t - 6 * A) := by
+  rw [sw3P_eq hA h0 h1, sw3_V0]
+
+private lemma sw3P_coord1 {A t : ℝ} (hA : 0 < A) (h0 : 0 ≤ t) (h1 : t < 8 * A) :
+    sw3P A t 1 = if t ≤ 2 * A then -A + t else if t ≤ 4 * A then A else if t ≤ 6 * A then A - (t - 4 * A)
+      else -A := by
+  rw [sw3P_eq hA h0 h1, sw3_V1]
+
+private lemma sw3_pt_ext {u v : Pt} (h0 : u 0 = v 0) (h1 : u 1 = v 1) : u = v := pt_ext h0 h1
+
+private lemma sw3P_rot {A : ℝ} (hA : 0 < A) (t : ℝ) : sw3P A (t + 2 * A) = jrot (sw3P A t) := by
+  obtain ⟨u, hu0, hu1, k, rfl⟩ := sw3P_reduce hA t
+  rw [show u + k * (8 * A) + 2 * A = (u + 2 * A) + k * (8 * A) by ring, sw3P_add_int,
+    sw3P_add_int]
+  have hj0 : ∀ v : Pt, jrot v 0 = -(v 1) := fun v => by simp [jrot]
+  have hj1 : ∀ v : Pt, jrot v 1 = v 0 := fun v => by simp [jrot]
+  by_cases hu : u + 2 * A < 8 * A
+  · apply sw3_pt_ext
+    · rw [hj0, sw3P_coord0 hA (by linarith) hu, sw3P_coord1 hA hu0 hu1]
+      split_ifs <;> linarith
+    · rw [hj1, sw3P_coord1 hA (by linarith) hu, sw3P_coord0 hA hu0 hu1]
+      split_ifs <;> linarith
+  · push_neg at hu
+    have := sw3P_add_int (A := A) (u + 2 * A - 8 * A) 1
+    rw [show u + 2 * A - 8 * A + ((1 : ℤ) : ℝ) * (8 * A) = u + 2 * A by push_cast; ring] at this
+    rw [this]
+    apply sw3_pt_ext
+    · rw [hj0, sw3P_coord0 hA (by linarith) (by linarith), sw3P_coord1 hA hu0 hu1]
+      split_ifs <;> linarith
+    · rw [hj1, sw3P_coord1 hA (by linarith) (by linarith), sw3P_coord0 hA hu0 hu1]
+      split_ifs <;> linarith
+
+private lemma sw3_jcr_jrot (u v : Pt) : jcr (jrot u) (jrot v) = jcr u v := by
+  simp [jcr, jrot]; ring
+
+private lemma sw3P_jcr_base {A u d : ℝ} (hA : 0 < A) (hu0 : 0 ≤ u) (hu1 : u < 2 * A) (hd0 : 0 ≤ d)
+    (hd1 : d ≤ 4 * A) : A / 2 * min d (4 * A - d) ≤ jcr (sw3P A u) (sw3P A (u + d)) := by
+  have h1 : u + d < 8 * A := by linarith
+  unfold jcr
+  rw [sw3P_coord0 hA hu0 (by linarith), sw3P_coord1 hA hu0 (by linarith),
+    sw3P_coord0 hA (by linarith) h1, sw3P_coord1 hA (by linarith) h1]
+  rcases le_total d (2 * A) with hd | hd
+  · rw [min_eq_left (by linarith)]
+    split_ifs <;> nlinarith [sq_nonneg ((u + d - 2 * A) - (2 * A - u)),
+      mul_nonneg hd0 (by linarith : (0:ℝ) ≤ 2 * A - d)]
+  · rw [min_eq_right (by linarith)]
+    split_ifs <;> nlinarith [sq_nonneg ((u + d - 2 * A) - (2 * A - u)),
+      mul_nonneg (by linarith : (0:ℝ) ≤ 4 * A - d) (by linarith : (0:ℝ) ≤ d - 2 * A)]
+
+private lemma sw3P_jcr {A : ℝ} (hA : 0 < A) (s : ℝ) {d : ℝ} (hd0 : 0 ≤ d) (hd1 : d ≤ 4 * A) :
+    A / 2 * min d (4 * A - d) ≤ jcr (sw3P A s) (sw3P A (s + d)) := by
+  obtain ⟨u, hu0, hu1, k, rfl⟩ := sw3P_reduce hA s
+  rw [show u + k * (8 * A) + d = (u + d) + k * (8 * A) by ring, sw3P_add_int, sw3P_add_int]
+  have step : ∀ v : ℝ, A / 2 * min d (4 * A - d) ≤ jcr (sw3P A v) (sw3P A (v + d)) →
+      A / 2 * min d (4 * A - d) ≤ jcr (sw3P A (v + 2 * A)) (sw3P A (v + 2 * A + d)) := by
+    intro v hv
+    rw [show v + 2 * A + d = (v + d) + 2 * A by ring, sw3P_rot hA, sw3P_rot hA, sw3_jcr_jrot]
+    exact hv
+  by_cases h2 : u < 2 * A
+  · exact sw3P_jcr_base hA hu0 h2 hd0 hd1
+  by_cases h4 : u < 4 * A
+  · have := step (u - 2 * A) (sw3P_jcr_base hA (by linarith) (by linarith) hd0 hd1)
+    simpa using this
+  by_cases h6 : u < 6 * A
+  · have := step _ (step (u - 4 * A) (sw3P_jcr_base hA (by linarith) (by linarith) hd0 hd1))
+    rw [show u - 4 * A + 2 * A + 2 * A = u by ring] at this; exact this
+  · have := step _ (step _ (step (u - 6 * A) (sw3P_jcr_base hA (by linarith) (by linarith) hd0 hd1)))
+    rw [show u - 6 * A + 2 * A + 2 * A + 2 * A = u by ring] at this; exact this
+
+private lemma sw3P_bounds {A : ℝ} (hA : 0 < A) (t : ℝ) :
+    |sw3P A t 0| ≤ A ∧ |sw3P A t 1| ≤ A ∧ (|sw3P A t 0| = A ∨ |sw3P A t 1| = A) := by
+  obtain ⟨u, hu0, hu1, k, rfl⟩ := sw3P_reduce hA t
+  rw [sw3P_add_int, sw3P_coord0 hA hu0 hu1, sw3P_coord1 hA hu0 hu1]
+  split_ifs
+  · refine ⟨by rw [abs_of_pos hA], abs_le.2 ⟨by linarith, by linarith⟩, Or.inl (abs_of_pos hA)⟩
+  · refine ⟨abs_le.2 ⟨by linarith, by linarith⟩, by rw [abs_of_pos hA], Or.inr (abs_of_pos hA)⟩
+  · refine ⟨by rw [abs_neg, abs_of_pos hA], abs_le.2 ⟨by linarith, by linarith⟩,
+      Or.inl (by rw [abs_neg, abs_of_pos hA])⟩
+  · refine ⟨abs_le.2 ⟨by linarith, by linarith⟩, by rw [abs_neg, abs_of_pos hA],
+      Or.inr (by rw [abs_neg, abs_of_pos hA])⟩
+
+private lemma sw3P_normsq {A : ℝ} (hA : 0 < A) (t : ℝ) :
+    A ^ 2 ≤ sw3P A t 0 ^ 2 + sw3P A t 1 ^ 2 ∧ sw3P A t 0 ^ 2 + sw3P A t 1 ^ 2 ≤ 2 * A ^ 2 := by
+  obtain ⟨h0, h1, h2⟩ := sw3P_bounds hA t
+  have a0 := sq_abs (sw3P A t 0)
+  have a1 := sq_abs (sw3P A t 1)
+  have b0 : |sw3P A t 0| ^ 2 ≤ A ^ 2 := pow_le_pow_left₀ (abs_nonneg _) h0 2
+  have b1 : |sw3P A t 1| ^ 2 ≤ A ^ 2 := pow_le_pow_left₀ (abs_nonneg _) h1 2
+  constructor
+  · rcases h2 with h | h
+    · rw [← a0, h]; nlinarith [sq_nonneg (sw3P A t 1)]
+    · rw [← a1, h]; nlinarith [sq_nonneg (sw3P A t 0)]
+  · rw [← a0, ← a1]; linarith
+
+private lemma sw3P_norm_le {A : ℝ} (hA : 0 < A) (t : ℝ) : ‖sw3P A t‖ ≤ 2 * A := by
+  have h := (sw3P_normsq hA t).2
+  have hn : ‖sw3P A t‖ ^ 2 = sw3P A t 0 ^ 2 + sw3P A t 1 ^ 2 := norm_sq_pt _
+  nlinarith [norm_nonneg (sw3P A t)]
+
+private lemma sw3P_norm_ge {A : ℝ} (hA : 0 < A) (t : ℝ) : A ≤ ‖sw3P A t‖ := by
+  have h := (sw3P_normsq hA t).1
+  have hn : ‖sw3P A t‖ ^ 2 = sw3P A t 0 ^ 2 + sw3P A t 1 ^ 2 := norm_sq_pt _
+  nlinarith [norm_nonneg (sw3P A t)]
+
+/-- inner product via rotation -/
+private lemma sw3P_inner {A : ℝ} (hA : 0 < A) (s : ℝ) {d : ℝ} (hd0 : 2 * A ≤ d) (hd1 : d ≤ 6 * A) :
+    sw3P A s 0 * sw3P A (s + d) 0 + sw3P A s 1 * sw3P A (s + d) 1 ≤
+      -(A / 2 * min (d - 2 * A) (6 * A - d)) := by
+  have h := sw3P_jcr hA (s + 2 * A) (d := d - 2 * A) (by linarith) (by linarith)
+  rw [show s + 2 * A + (d - 2 * A) = s + d by ring, sw3P_rot hA,
+    show 4 * A - (d - 2 * A) = 6 * A - d by ring] at h
+  simp only [jcr, jrot] at h
+  simp at h
+  linarith
+
+/-- sup-norm -/
+private def sw3N (u : Pt) : ℝ := max |u 0| |u 1|
+
+private lemma sw3N_smul (σ : ℝ) (u : Pt) : sw3N (σ • u) = |σ| * sw3N u := by
+  simp [sw3N, abs_mul, mul_max_of_nonneg _ _ (abs_nonneg σ)]
+
+private lemma sw3N_add_le (u v : Pt) : sw3N (u + v) ≤ sw3N u + sw3N v := by
+  simp only [sw3N, PiLp.add_apply]
+  refine max_le ((abs_add_le _ _).trans (add_le_add (le_max_left _ _) (le_max_left _ _)))
+    ((abs_add_le _ _).trans (add_le_add (le_max_right _ _) (le_max_right _ _)))
+
+private lemma sw3N_le_norm (u : Pt) : sw3N u ≤ ‖u‖ := by
+  have h0 := PiLp.norm_apply_le u 0
+  have h1 := PiLp.norm_apply_le u 1
+  rw [Real.norm_eq_abs] at h0 h1
+  exact max_le h0 h1
+
+private lemma sw3N_sub_le (u v : Pt) : sw3N u - sw3N v ≤ sw3N (u - v) := by
+  have := sw3N_add_le (u - v) v
+  simp at this; linarith
+
+private lemma sw3N_sw3P {A : ℝ} (hA : 0 < A) (t : ℝ) : sw3N (sw3P A t) = A := by
+  obtain ⟨h0, h1, h2⟩ := sw3P_bounds hA t
+  unfold sw3N
+  rcases h2 with h | h
+  · rw [h]; exact max_eq_left h1
+  · rw [h]; exact max_eq_right h0
+
+private lemma sw3N_nonneg (u : Pt) : 0 ≤ sw3N u := le_max_of_le_left (abs_nonneg _)
+
+private lemma sw3_mem_square_iff {c x : Pt} {h : ℝ} : x ∈ square c h ↔ sw3N (x - c) ≤ h := by
+  simp [square, sw3N]
+
+/-- surjectivity of the perimeter parametrization -/
+private lemma sw3P_surj {A : ℝ} (hA : 0 < A) (u : Pt) (hu : sw3N u = A) :
+    ∃ τ, 0 ≤ τ ∧ τ < 8 * A ∧ sw3P A τ = u := by
+  have h0 : |u 0| ≤ A := hu ▸ le_max_left _ _
+  have h1 : |u 1| ≤ A := hu ▸ le_max_right _ _
+  have h2 : |u 0| = A ∨ |u 1| = A := by
+    unfold sw3N at hu
+    rcases le_total |u 0| |u 1| with h | h
+    · rw [max_eq_right h] at hu; exact Or.inr hu
+    · rw [max_eq_left h] at hu; exact Or.inl hu
+  rw [abs_le] at h0 h1
+  by_cases ha : u 0 = A ∧ u 1 < A
+  · refine ⟨u 1 + A, by linarith, by linarith, ?_⟩
+    apply sw3_pt_ext
+    · rw [sw3P_coord0 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+    · rw [sw3P_coord1 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+  by_cases hb : u 1 = A ∧ -A < u 0
+  · refine ⟨3 * A - u 0, by linarith, by linarith, ?_⟩
+    apply sw3_pt_ext
+    · rw [sw3P_coord0 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+    · rw [sw3P_coord1 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+  by_cases hc : u 0 = -A ∧ -A < u 1
+  · refine ⟨5 * A - u 1, by linarith, by linarith, ?_⟩
+    apply sw3_pt_ext
+    · rw [sw3P_coord0 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+    · rw [sw3P_coord1 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+  have hd : u 1 = -A ∧ u 0 < A := by
+    rcases h2 with h | h
+    · rcases abs_eq hA.le |>.1 h with h' | h'
+      · refine ⟨?_, ?_⟩
+        · by_contra hne; exact ha ⟨h', lt_of_le_of_ne h1.2 (by
+            intro h''; exact hb ⟨h'', by linarith⟩)⟩
+        · exfalso; by_cases hh : u 1 = A
+          · exact hb ⟨hh, by linarith⟩
+          · exact ha ⟨h', lt_of_le_of_ne h1.2 hh⟩
+      · refine ⟨?_, by linarith⟩
+        by_contra hne
+        exact hc ⟨h', lt_of_le_of_ne h1.1 (fun h'' => hne h''.symm)⟩
+    · rcases abs_eq hA.le |>.1 h with h' | h'
+      · exfalso
+        by_cases hh : u 0 = -A
+        · exact hc ⟨hh, by linarith⟩
+        · exact hb ⟨h', lt_of_le_of_ne h0.1 (fun h'' => hh h''.symm)⟩
+      · refine ⟨h', lt_of_le_of_ne h0.2 ?_⟩
+        intro hh; exact ha ⟨hh, by linarith⟩
+  refine ⟨7 * A + u 0, by linarith, by linarith, ?_⟩
+  apply sw3_pt_ext
+  · rw [sw3P_coord0 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+  · rw [sw3P_coord1 hA (by linarith) (by linarith)]; split_ifs <;> linarith
+
+private lemma sw3_dist_eq (x c : Pt) (l : ℝ) (V : Pt) : dist x (c + l • V) = ‖x - c - l • V‖ := by
+  rw [dist_eq_norm]; congr 1; abel
+
+/-- the shadow lemma -/
+private lemma sw3_shadow {A R D : ℝ} (hA : 0 < A) (hD : 0 < D) (hAD : 12 * D ≤ A) (hR : 0 ≤ R)
+    {V : Pt} (hV : sw3N V = A) {c x y : Pt} {l' σ' σ : ℝ}
+    (hx1 : A ≤ sw3N (x - c)) (hx2 : sw3N (x - c) ≤ A + R + 3 * D)
+    (hfar : ∀ l, (A - 3 * D) / A ≤ l → l ≤ (A + R + 6 * D) / A → 3 * D < dist x (c + l • V))
+    (hl1 : (A - 3 * D) / A ≤ l') (hl2 : l' ≤ (A + R + 6 * D) / A)
+    (hy : dist y (c + l' • V) ≤ 2 * D)
+    (hσ' : 1 ≤ σ') (hσ : 1 ≤ σ) (hyy : σ = 1 ∨ A + R + 3 * D - 4 * D ≤ sw3N (y - c))
+    (heq : c + σ' • (x - c) = c + σ • (y - c)) : False := by
+  set ρ := σ / σ' with hρ
+  have hσ'0 : 0 < σ' := by linarith
+  have hρ0 : 0 < ρ := div_pos (by linarith) hσ'0
+  have hxc : x - c = ρ • (y - c) := by
+    have h1 : σ' • (x - c) = σ • (y - c) := add_left_cancel heq
+    have : x - c = σ'⁻¹ • (σ • (y - c)) := by rw [← h1, smul_smul, inv_mul_cancel₀ hσ'0.ne', one_smul]
+    rw [this, smul_smul]; congr 1; rw [hρ]; field_simp
+  set e := y - (c + l' • V) with he
+  have hye : y - c = l' • V + e := by rw [he]; abel
+  have hen : ‖e‖ ≤ 2 * D := by rw [he, ← dist_eq_norm]; exact hy
+  have hxe : x - c = (ρ * l') • V + ρ • e := by rw [hxc, hye, smul_add, smul_smul]
+  have hdist : dist x (c + (ρ * l') • V) = ρ * ‖e‖ := by
+    rw [sw3_dist_eq, show x - c - (ρ * l') • V = ρ • e by rw [hxe]; abel, norm_smul,
+      Real.norm_eq_abs, abs_of_pos hρ0]
+  have hl1pos : 0 < (A - 3 * D) / A := div_pos (by linarith) hA
+  have hl'0 : 0 < l' := lt_of_lt_of_le hl1pos hl1
+  have hNe : sw3N (ρ • e) ≤ ρ * ‖e‖ := by
+    rw [sw3N_smul, abs_of_pos hρ0]; exact mul_le_mul_of_nonneg_left (sw3N_le_norm e) hρ0.le
+  have hNV : sw3N ((ρ * l') • V) = ρ * l' * A := by
+    rw [sw3N_smul, hV, abs_of_pos (mul_pos hρ0 hl'0)]
+  have hup : sw3N (x - c) ≤ ρ * l' * A + ρ * ‖e‖ := by
+    rw [hxe]; exact (sw3N_add_le _ _).trans (by rw [hNV]; linarith)
+  have hlow : ρ * l' * A - ρ * ‖e‖ ≤ sw3N (x - c) := by
+    have := sw3N_sub_le ((ρ * l') • V) (-(ρ • e))
+    rw [sub_neg_eq_add, ← hxe, hNV, show -(ρ • e) = (-ρ) • e by rw [neg_smul], sw3N_smul,
+      abs_neg, abs_of_pos hρ0] at this
+    have h2 : ρ * sw3N e ≤ ρ * ‖e‖ := mul_le_mul_of_nonneg_left (sw3N_le_norm e) hρ0.le
+    linarith
+  rcases le_or_gt ρ 1 with hρ1 | hρ1
+  · have hb : ρ * ‖e‖ ≤ 2 * D := by nlinarith [norm_nonneg e]
+    have := hfar (ρ * l') ?_ ?_
+    · rw [hdist] at this; linarith
+    · rw [div_le_iff₀ hA]; linarith
+    · nlinarith [mul_le_mul_of_nonneg_right hρ1 hl'0.le]
+  · have hσ1 : σ ≠ 1 := by
+      intro h; rw [hρ, h] at hρ1; rw [lt_div_iff₀ hσ'0] at hρ1; linarith
+    have hyc := hyy.resolve_left hσ1
+    have hNx : sw3N (x - c) = ρ * sw3N (y - c) := by rw [hxc, sw3N_smul, abs_of_pos hρ0]
+    have h1 : ρ * (A + R + 3 * D - 4 * D) ≤ A + R + 3 * D := by
+      have := mul_le_mul_of_nonneg_left hyc hρ0.le
+      linarith
+    have hρ15 : ρ ≤ 3 / 2 := by
+      by_contra hc; push_neg at hc
+      have : 3 / 2 * (A + R + 3 * D - 4 * D) < ρ * (A + R + 3 * D - 4 * D) :=
+        mul_lt_mul_of_pos_right hc (by linarith)
+      linarith
+    have hb : ρ * ‖e‖ ≤ 3 * D := by
+      have := mul_le_mul hρ15 hen (norm_nonneg e) (by norm_num)
+      linarith
+    have := hfar (ρ * l') ?_ ?_
+    · rw [hdist] at this; linarith
+    · nlinarith [mul_le_mul_of_nonneg_right hρ1.le hl'0.le]
+    · rw [le_div_iff₀ hA]; linarith
+
+private lemma sw3_jcr_le (u v : Pt) : |jcr u v| ≤ ‖u‖ * ‖v‖ := by
+  have h := existsAnnularSpokes_step2_tubes_jcrSq u v
+  rw [← norm_sq_pt, ← norm_sq_pt] at h
+  have : jcr u v ^ 2 ≤ (‖u‖ * ‖v‖) ^ 2 := by rw [mul_pow]; exact h
+  exact abs_le_of_sq_le_sq' this (by positivity) |> fun h => abs_le.2 h
+
+private lemma sw3_inner_le (u v : Pt) : |u 0 * v 0 + u 1 * v 1| ≤ ‖u‖ * ‖v‖ := by
+  have h := abs_real_inner_le_norm u v
+  have he : inner ℝ u v = u 0 * v 0 + u 1 * v 1 := by
+    simp [PiLp.inner_apply, Fin.sum_univ_two, mul_comm]
+  rwa [he] at h
+
+private lemma sw3P_int_shift {A R : ℝ} {N : ℕ} (h8 : 8 * A = 4 * N * R) (a q : ℤ) :
+    sw3P A (((a + 4 * N * q : ℤ) : ℝ) * R) = sw3P A (a * R) := by
+  have := sw3P_add_int (A := A) (a * R) q
+  rw [← this]; congr 1; push_cast; rw [h8]; ring
+
+private lemma sw3P_jcr_int {A R : ℝ} {N : ℕ} (hA : 0 < A) (hR : 0 < R) (h8 : 8 * A = 4 * N * R)
+    {a b : ℤ} (h1 : 1 ≤ b - a) (h2 : b - a ≤ 2 * N - 1) :
+    A * R / 2 ≤ jcr (sw3P A (a * R)) (sw3P A (b * R)) := by
+  have h1' : (1 : ℝ) ≤ (b : ℝ) - a := by exact_mod_cast h1
+  have h2' : (b : ℝ) - a ≤ 2 * N - 1 := by exact_mod_cast h2
+  have hd0 : R ≤ ((b : ℝ) - a) * R := by nlinarith
+  have hd1 : ((b : ℝ) - a) * R ≤ 4 * A - R := by nlinarith
+  have := sw3P_jcr hA (a * R) (d := ((b : ℝ) - a) * R) (by linarith) (by linarith)
+  rw [show (a : ℝ) * R + ((b : ℝ) - a) * R = b * R by ring] at this
+  have hm : R ≤ min (((b : ℝ) - a) * R) (4 * A - ((b : ℝ) - a) * R) := le_min hd0 (by linarith)
+  nlinarith
+
+private lemma sw3P_sep {A R : ℝ} {N : ℕ} (hA : 0 < A) (hR : 0 < R) (hRA : R ≤ A) (h8 : 8 * A = 4 * N * R)
+    (hN : 1 ≤ N) {a t : ℤ} (hdiv : ¬ ((4 * N : ℤ) ∣ t - a)) (c : Pt) {l l' : ℝ}
+    (hl : 1 / 2 ≤ l) (hl' : 1 / 2 ≤ l') :
+    R / 8 ≤ dist (c + l' • sw3P A (t * R)) (c + l • sw3P A (a * R)) := by
+  set r := (t - a) % (4 * N : ℤ) with hr
+  have h4N : (0 : ℤ) < 4 * N := by positivity
+  have hr0 : 0 ≤ r := Int.emod_nonneg _ h4N.ne'
+  have hr1 : r < 4 * N := Int.emod_lt_of_pos _ h4N
+  have hrne : r ≠ 0 := by
+    intro h; exact hdiv (Int.dvd_of_emod_eq_zero h)
+  have hr0' : 1 ≤ r := by omega
+  have ht : t = a + r + 4 * N * ((t - a) / (4 * N)) := by
+    have := Int.emod_add_mul_ediv (t - a) (4 * N); rw [← hr] at this; linarith
+  have hVt : sw3P A (t * R) = sw3P A (a * R + r * R) := by
+    rw [ht, sw3P_int_shift h8]; push_cast; ring_nf
+  set Va := sw3P A (a * R)
+  set Vt := sw3P A (t * R)
+  have hdist : dist (c + l' • Vt) (c + l • Va) = ‖l' • Vt - l • Va‖ := by
+    rw [dist_eq_norm]; congr 1; abel
+  rw [hdist]
+  have hVa2 : ‖Va‖ ≤ 2 * A := sw3P_norm_le hA _
+  have hVa1 : A ≤ ‖Va‖ := sw3P_norm_ge hA _
+  have hr0R : (1 : ℝ) ≤ r := by exact_mod_cast hr0'
+  have hr1R : (r : ℝ) ≤ 4 * N - 1 := by
+    have : r ≤ 4 * N - 1 := by omega
+    exact_mod_cast this
+  have hd0 : R ≤ (r : ℝ) * R := by nlinarith
+  have hd1 : (r : ℝ) * R ≤ 8 * A - R := by nlinarith
+  set w := l' • Vt - l • Va with hw
+  have hwn := norm_nonneg w
+  -- jcr route
+  have jcr_route : A * R / 2 ≤ |jcr Va Vt| → R / 8 ≤ ‖w‖ := by
+    intro hj
+    have h1 : jcr Va w = l' * jcr Va Vt := by
+      rw [hw, jcr_sub_right, jcr_smul_right, jcr_smul_right, jcr_self]; ring
+    have h2 := sw3_jcr_le Va w
+    rw [h1, abs_mul, abs_of_pos (by linarith : (0:ℝ) < l')] at h2
+    have h3 : l' * (A * R / 2) ≤ ‖Va‖ * ‖w‖ := le_trans (mul_le_mul_of_nonneg_left hj (by linarith)) h2
+    have h4 : ‖Va‖ * ‖w‖ ≤ 2 * A * ‖w‖ := mul_le_mul_of_nonneg_right hVa2 hwn
+    have h5 : 1 / 2 * (A * R / 2) ≤ l' * (A * R / 2) := mul_le_mul_of_nonneg_right hl' (by positivity)
+    by_contra hcon; push_neg at hcon
+    have : 2 * A * ‖w‖ < 2 * A * (R / 8) := mul_lt_mul_of_pos_left hcon (by positivity)
+    linarith
+  rcases le_total ((r : ℝ) * R) (3 * A) with hc | hc
+  · apply jcr_route
+    have := sw3P_jcr hA (a * R) (d := (r : ℝ) * R) (by linarith) (by linarith)
+    rw [← hVt] at this
+    have hm : R ≤ min ((r : ℝ) * R) (4 * A - (r : ℝ) * R) := le_min hd0 (by linarith)
+    have h2 := mul_le_mul_of_nonneg_left hm (by positivity : (0:ℝ) ≤ A / 2)
+    have h3 : 0 ≤ A * R := by positivity
+    rw [abs_of_nonneg (by linarith)]; linarith
+  rcases le_total ((r : ℝ) * R) (5 * A) with hc' | hc'
+  · have hin := sw3P_inner hA (a * R) (d := (r : ℝ) * R) (by linarith) (by linarith)
+    rw [← hVt] at hin
+    have hm : A ≤ min ((r : ℝ) * R - 2 * A) (6 * A - (r : ℝ) * R) := le_min (by linarith) (by linarith)
+    have hin' : Va 0 * Vt 0 + Va 1 * Vt 1 ≤ -(A ^ 2 / 2) := by
+      have := mul_le_mul_of_nonneg_left hm (by positivity : (0:ℝ) ≤ A / 2)
+      nlinarith
+    have hVsq : ‖Va‖ ^ 2 = Va 0 ^ 2 + Va 1 ^ 2 := norm_sq_pt _
+    have hip : Va 0 * w 0 + Va 1 * w 1 = l' * (Va 0 * Vt 0 + Va 1 * Vt 1) - l * ‖Va‖ ^ 2 := by
+      rw [hVsq, hw]; simp only [PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]; ring
+    have hcs := sw3_inner_le Va w
+    have hA2 : A ^ 2 ≤ ‖Va‖ ^ 2 := pow_le_pow_left₀ hA.le hVa1 2
+    have e1 : l' * (Va 0 * Vt 0 + Va 1 * Vt 1) ≤ l' * (-(A ^ 2 / 2)) :=
+      mul_le_mul_of_nonneg_left hin' (by linarith)
+    have e2 : l' * (-(A ^ 2 / 2)) ≤ 1 / 2 * (-(A ^ 2 / 2)) :=
+      mul_le_mul_of_nonpos_right hl' (by have := sq_nonneg A; linarith)
+    have e3 : 1 / 2 * A ^ 2 ≤ l * ‖Va‖ ^ 2 := mul_le_mul hl hA2 (by positivity) (by linarith)
+    have hval : Va 0 * w 0 + Va 1 * w 1 ≤ -(3 * A ^ 2 / 4) := by rw [hip]; linarith
+    have hipabs : 3 * A ^ 2 / 4 ≤ |Va 0 * w 0 + Va 1 * w 1| := by
+      rw [abs_of_nonpos (by have := sq_nonneg A; linarith)]; linarith
+    have h4 : ‖Va‖ * ‖w‖ ≤ 2 * A * ‖w‖ := mul_le_mul_of_nonneg_right hVa2 hwn
+    by_contra hcon; push_neg at hcon
+    have : 2 * A * ‖w‖ < 2 * A * (R / 8) := mul_lt_mul_of_pos_left hcon (by positivity)
+    have hAR : A * R ≤ A ^ 2 := by rw [sq]; exact mul_le_mul_of_nonneg_left hRA hA.le
+    have := pow_pos hA 2
+    linarith
+  · apply jcr_route
+    have hVa' : Va = sw3P A (t * R + (8 * A - (r : ℝ) * R)) := by
+      have hq : (t : ℝ) = a + r + 4 * N * (((t - a) / (4 * N) : ℤ) : ℝ) := by
+        exact_mod_cast ht
+      change sw3P A (a * R) = _
+      rw [← sw3P_int_shift h8 a ((t - a) / (4 * N) + 1)]; congr 1; push_cast; rw [hq]
+      linear_combination (-1 : ℝ) * h8
+    have := sw3P_jcr hA (t * R) (d := 8 * A - (r : ℝ) * R) (by linarith) (by linarith)
+    rw [← hVa'] at this
+    have hm : R ≤ min (8 * A - (r : ℝ) * R) (4 * A - (8 * A - (r : ℝ) * R)) :=
+      le_min (by linarith) (by linarith)
+    rw [jcr_anti] at this
+    have h2 := mul_le_mul_of_nonneg_left hm (by positivity : (0:ℝ) ≤ A / 2)
+    have h3 : 0 ≤ A * R := by positivity
+    rw [abs_of_nonpos (by linarith)]; linarith
+
+private lemma sw3_arg_div_of_re_pos {z w : ℂ} (hz : 0 < z.re) (hw : 0 < w.re) :
+    Complex.arg (w / z) = Complex.arg w - Complex.arg z := by
+  have hz0 : z ≠ 0 := fun h => by simp [h] at hz
+  have hw0 : w ≠ 0 := fun h => by simp [h] at hw
+  have h1 : |Complex.arg z| < Real.pi / 2 := Complex.abs_arg_lt_pi_div_two_iff.2 (Or.inl hz)
+  have h2 : |Complex.arg w| < Real.pi / 2 := Complex.abs_arg_lt_pi_div_two_iff.2 (Or.inl hw)
+  rw [abs_lt] at h1 h2
+  have hzpi : Complex.arg z ≠ Real.pi := by linarith
+  rw [div_eq_mul_inv, Complex.arg_mul hw0 (inv_ne_zero hz0), Complex.arg_inv, if_neg hzpi]
+  · ring
+  · rw [Complex.arg_inv, if_neg hzpi]; constructor <;> linarith
+
+private lemma sw3_wind_zero_of_re {m : ℕ} {c : Fin m → Pt} {p : Pt} (ω : ℂ)
+    (h : ∀ k, 0 < (ω * (toC (c k) - toC p)).re) : wind c p = 0 := by
+  rcases Nat.eq_zero_or_pos m with hm | hm
+  · subst hm; simp [wind]
+  have hω : ω ≠ 0 := by
+    intro h0
+    have := h ⟨0, hm⟩; simp [h0] at this
+  unfold wind
+  have key : ∀ k, Complex.arg (segRatio (c k) (c (finRotate m k)) p) =
+      Complex.arg (ω * (toC (c (finRotate m k)) - toC p)) - Complex.arg (ω * (toC (c k) - toC p)) := by
+    intro k
+    rw [← sw3_arg_div_of_re_pos (h k) (h _)]
+    congr 1
+    unfold segRatio
+    rw [mul_div_mul_left _ _ hω]
+  simp_rw [key]
+  rw [Finset.sum_sub_distrib, Equiv.sum_comp (finRotate m)
+    (fun k => Complex.arg (ω * (toC (c k) - toC p)))]
+  ring
+
+private lemma sw3_wind_zero_coord {m : ℕ} {c : Fin m → Pt} {p : Pt} (i : Fin 2) (σ : ℝ)
+    (h : ∀ k, 0 < σ * (c k - p) i) : wind c p = 0 := by
+  fin_cases i
+  · apply sw3_wind_zero_of_re (σ : ℂ)
+    intro k
+    have := h k
+    simp only [Fin.zero_eta, PiLp.sub_apply] at this
+    simp [toC, Complex.mul_re]; linarith
+  · apply sw3_wind_zero_of_re (-(σ : ℂ) * Complex.I)
+    intro k
+    have := h k
+    simp only [Fin.mk_one, PiLp.sub_apply] at this
+    simp [toC, Complex.mul_re]; linarith
+
+open Filter Topology in
+private lemma sw3_wind_cross {m : ℕ} {c : Fin m → Pt} (k0 : Fin m) {q d : Pt}
+    (hab0 : c k0 ≠ c (finRotate m k0))
+    (hq : q ∈ openSegment ℝ (c k0) (c (finRotate m k0)))
+    (hother : ∀ k ≠ k0, q ∉ segment ℝ (c k) (c (finRotate m k)))
+    (hd : jcr (c (finRotate m k0) - c k0) d ≠ 0) :
+    ∃ ε0 : ℝ, 0 < ε0 ∧ ∀ ε : ℝ, 0 < ε → ε < ε0 → |wind c (q + ε • d) - wind c (q - ε • d)| = 2 * Real.pi := by
+  set a := c k0 with ha
+  set b := c (finRotate m k0) with hb
+  set v := b - a with hv
+  -- step 1
+  have hclosed : IsClosed (⋃ k ∈ (Finset.univ.erase k0 : Finset (Fin m)),
+      segment ℝ (c k) (c (finRotate m k))) :=
+    isClosed_biUnion_finset (fun k _ => (isCompact_segment_pt _ _).isClosed)
+  have hqnot : q ∉ ⋃ k ∈ (Finset.univ.erase k0 : Finset (Fin m)),
+      segment ℝ (c k) (c (finRotate m k)) := by
+    simp only [mem_iUnion, not_exists]
+    intro k hk; exact hother k (Finset.ne_of_mem_erase hk)
+  obtain ⟨r, hr0, hrball⟩ := Metric.isOpen_iff.1 hclosed.isOpen_compl q hqnot
+  have hstep1 : ∀ z ∈ Metric.ball q r, z ∈ polyCurve c → jcr v (z - a) = 0 := by
+    intro z hz hzc
+    obtain ⟨k, hk⟩ := mem_iUnion.1 hzc
+    by_cases hkk : k = k0
+    · subst hkk; exact jcr_zero_of_mem_segment hk
+    · exfalso; apply hrball hz
+      exact mem_biUnion (Finset.mem_erase.2 ⟨hkk, Finset.mem_univ _⟩) hk
+  have hqline : jcr v (q - a) = 0 := jcr_zero_of_mem_segment (openSegment_subset_segment _ _ _ hq)
+  -- step 2
+  have hstep2 : ∀ s : ℝ, ∀ z ∈ Metric.ball q r, ∀ z' ∈ Metric.ball q r, 0 < s * jcr v (z - a) →
+      0 < s * jcr v (z' - a) → wind c z = wind c z' := by
+    intro s z hz z' hz' h1 h2
+    apply wind_const_of_preconnected (convex_segment z z').isPreconnected _
+      (left_mem_segment ℝ z z') (right_mem_segment ℝ z z')
+    intro y hy hyc
+    have hyb : y ∈ Metric.ball q r := (convex_ball q r).segment_subset hz hz' hy
+    have h0 := hstep1 y hyb hyc
+    obtain ⟨θ, hθ0, hθ1, rfl⟩ := mem_segment_iff'.1 hy
+    have : jcr v (z + θ • (z' - z) - a) = (1 - θ) * jcr v (z - a) + θ * jcr v (z' - a) := by
+      rw [show z + θ • (z' - z) - a = (1 - θ) • (z - a) + θ • (z' - a) by
+        simp only [sub_smul, one_smul, smul_sub]; abel]
+      rw [jcr_add_right, jcr_smul_right, jcr_smul_right]
+    rw [this] at h0
+    have : 0 < s * ((1 - θ) * jcr v (z - a) + θ * jcr v (z' - a)) := by
+      rcases eq_or_lt_of_le hθ1 with h | h
+      · subst h; simpa using h2
+      · have e : s * ((1 - θ) * jcr v (z - a) + θ * jcr v (z' - a)) =
+            (1 - θ) * (s * jcr v (z - a)) + θ * (s * jcr v (z' - a)) := by ring
+        rw [e]; have := mul_pos (by linarith : (0:ℝ) < 1 - θ) h1
+        nlinarith [mul_nonneg hθ0 h2.le]
+    rw [h0, mul_zero] at this; exact lt_irrefl _ this
+  -- step 3
+  have hjump := wind_jump k0 hab0 hq hother
+  set n := jrot v with hn
+  have hvne : v ≠ 0 := by rw [hv]; exact sub_ne_zero.2 (Ne.symm hab0)
+  have hvpos : 0 < ‖v‖ ^ 2 := by have := norm_pos_iff.2 hvne; positivity
+  have hsmall : ∀ᶠ t in 𝓝[>] (0:ℝ), t * (‖n‖ + 1) < r := by
+    have : Tendsto (fun t : ℝ => t * (‖n‖ + 1)) (𝓝[>] 0) (𝓝 0) := by
+      have h : Tendsto (fun t : ℝ => t * (‖n‖ + 1)) (𝓝 0) (𝓝 (0 * (‖n‖ + 1))) :=
+        tendsto_id.mul tendsto_const_nhds
+      rw [zero_mul] at h; exact h.mono_left nhdsWithin_le_nhds
+    exact this.eventually (gt_mem_nhds hr0)
+  obtain ⟨t, ⟨htj, hts⟩, htpos⟩ :=
+    ((hjump.and hsmall).and self_mem_nhdsWithin).exists
+  have htpos' : (0:ℝ) < t := htpos
+  have hball_t : ∀ σ : ℝ, (σ = 1 ∨ σ = -1) → q + (σ * t) • n ∈ Metric.ball q r := by
+    intro σ hσ
+    rw [Metric.mem_ball, dist_eq_norm, show q + (σ * t) • n - q = (σ * t) • n by abel, norm_smul,
+      Real.norm_eq_abs, abs_mul]
+    rcases hσ with rfl | rfl <;> simp [abs_of_pos htpos'] <;> nlinarith [norm_nonneg n]
+  have hjcr_t : ∀ σ : ℝ, jcr v (q + (σ * t) • n - a) = σ * t * ‖v‖ ^ 2 := by
+    intro σ
+    rw [show q + (σ * t) • n - a = (q - a) + (σ * t) • n by abel, jcr_add_right, jcr_smul_right,
+      hqline, hn, jcr_jrot]; ring
+  refine ⟨r / (‖d‖ + 1), by positivity, ?_⟩
+  intro ε hε0 hε1
+  have hball_e : ∀ σ : ℝ, (σ = 1 ∨ σ = -1) → q + (σ * ε) • d ∈ Metric.ball q r := by
+    intro σ hσ
+    rw [Metric.mem_ball, dist_eq_norm, show q + (σ * ε) • d - q = (σ * ε) • d by abel, norm_smul,
+      Real.norm_eq_abs, abs_mul]
+    rw [lt_div_iff₀ (by positivity)] at hε1
+    rcases hσ with rfl | rfl <;> simp [abs_of_pos hε0] <;> nlinarith [norm_nonneg d]
+  have hjcr_e : ∀ σ : ℝ, jcr v (q + (σ * ε) • d - a) = σ * ε * jcr v d := by
+    intro σ
+    rw [show q + (σ * ε) • d - a = (q - a) + (σ * ε) • d by abel, jcr_add_right, jcr_smul_right,
+      hqline]; ring
+  have e1 : q + ε • d = q + ((1:ℝ) * ε) • d := by rw [one_mul]
+  have e2 : q - ε • d = q + ((-1:ℝ) * ε) • d := by rw [neg_one_mul, neg_smul, sub_eq_add_neg]
+  have f1 : q + t • n = q + ((1:ℝ) * t) • n := by rw [one_mul]
+  have f2 : q + (-t) • n = q + ((-1:ℝ) * t) • n := by rw [neg_one_mul]
+  rw [f1, f2] at htj
+  rw [e1, e2]
+  have hvt := mul_pos htpos' hvpos
+  rcases lt_or_gt_of_ne hd with hneg | hpos
+  · have hεj := mul_pos hε0 (neg_pos.2 hneg)
+    have w1 := hstep2 (-1) _ (hball_e 1 (Or.inl rfl)) _ (hball_t (-1) (Or.inr rfl))
+      (by rw [hjcr_e]; linarith) (by rw [hjcr_t]; linarith)
+    have w2 := hstep2 1 _ (hball_e (-1) (Or.inr rfl)) _ (hball_t 1 (Or.inl rfl))
+      (by rw [hjcr_e]; linarith) (by rw [hjcr_t]; linarith)
+    rw [w1, w2, show wind c (q + ((-1:ℝ) * t) • n) - wind c (q + ((1:ℝ) * t) • n) =
+      -(wind c (q + ((1:ℝ) * t) • n) - wind c (q + ((-1:ℝ) * t) • n)) by ring, htj, abs_neg,
+      abs_of_pos (by positivity)]
+  · have hεj := mul_pos hε0 hpos
+    have w1 := hstep2 1 _ (hball_e 1 (Or.inl rfl)) _ (hball_t 1 (Or.inl rfl))
+      (by rw [hjcr_e]; linarith) (by rw [hjcr_t]; linarith)
+    have w2 := hstep2 (-1) _ (hball_e (-1) (Or.inr rfl)) _ (hball_t (-1) (Or.inr rfl))
+      (by rw [hjcr_e]; linarith) (by rw [hjcr_t]; linarith)
+    rw [w1, w2, htj, abs_of_pos (by positivity)]
+
+/-- polygonal path in an open preconnected set -/
+private lemma sw3_poly_path {U : Set Pt} (hUo : IsOpen U) (hUc : IsPreconnected U) {x y : Pt}
+    (hx : x ∈ U) (hy : y ∈ U) :
+    ∃ l : List Pt, l.head? = some x ∧ l.getLast? = some y ∧
+      l.IsChain (fun a b => segment ℝ a b ⊆ U) := by
+  set S := {z | ∃ l : List Pt, l.head? = some x ∧ l.getLast? = some z ∧
+      l.IsChain (fun a b => segment ℝ a b ⊆ U)} with hS
+  have ext : ∀ z ∈ S, ∀ w, segment ℝ z w ⊆ U → w ∈ S := by
+    rintro z ⟨l, hl1, hl2, hl3⟩ w hzw
+    refine ⟨l ++ [w], ?_, by simp, ?_⟩
+    · cases l with
+      | nil => simp at hl1
+      | cons a l => simpa using hl1
+    · refine hl3.append (List.isChain_singleton w) ?_
+      intro a ha b hb
+      rw [hl2] at ha; simp at ha hb; subst ha; subst hb; exact hzw
+  have hSo : IsOpen (S ∩ U) := by
+    rw [Metric.isOpen_iff]
+    rintro z ⟨hzS, hzU⟩
+    obtain ⟨r, hr, hrU⟩ := Metric.isOpen_iff.1 hUo z hzU
+    refine ⟨r, hr, fun w hw => ⟨ext z hzS w ?_, hrU hw⟩⟩
+    exact (convex_ball z r).segment_subset (Metric.mem_ball_self hr) hw |>.trans hrU
+  have hVo : IsOpen (U \ S) := by
+    rw [Metric.isOpen_iff]
+    rintro z ⟨hzU, hzS⟩
+    obtain ⟨r, hr, hrU⟩ := Metric.isOpen_iff.1 hUo z hzU
+    refine ⟨r, hr, fun w hw => ⟨hrU hw, fun hwS => hzS (ext w hwS z ?_)⟩⟩
+    exact (convex_ball z r).segment_subset hw (Metric.mem_ball_self hr) |>.trans hrU
+  have hxS : x ∈ S := ⟨[x], rfl, rfl, List.isChain_singleton x⟩
+  have hsub := hUc.subset_left_of_subset_union hSo hVo
+    (Set.disjoint_left.2 fun z hz hz' => hz'.2 hz.1)
+    (fun z hz => by by_cases h : z ∈ S; exacts [Or.inl ⟨h, hz⟩, Or.inr ⟨hz, h⟩])
+    ⟨x, hx, hxS, hx⟩
+  exact (hsub hy).1
+
+/-- the closed polygon through the points of a list -/
+private def sw3poly (l : List Pt) : Fin l.length → Pt := fun k => l.get k
+
+private lemma sw3_poly_seg_sub {l : List Pt} {T : Set Pt}
+    (hchain : l.IsChain (fun a b => segment ℝ a b ⊆ T))
+    (k : Fin l.length) (hk : k.val + 1 < l.length) :
+    segment ℝ (sw3poly l k) (sw3poly l (finRotate _ k)) ⊆ T := by
+  have hf : (finRotate _ k).val = k.val + 1 := by rw [finRotate_val', if_neg (by omega)]
+  have e2 : sw3poly l (finRotate _ k) = l[k.val + 1] := by
+    simp only [sw3poly, List.get_eq_getElem, hf]
+  rw [e2]; exact hchain.getElem k.val hk
+
+private lemma sw3_poly_last {l : List Pt} (hl : 0 < l.length) :
+    sw3poly l ⟨l.length - 1, by omega⟩ = l[l.length - 1] ∧
+      sw3poly l (finRotate _ ⟨l.length - 1, by omega⟩) = l[0] := by
+  refine ⟨rfl, ?_⟩
+  have hf : (finRotate _ (⟨l.length - 1, by omega⟩ : Fin l.length)).val = 0 := by
+    rw [finRotate_val', if_pos (by simp; omega)]
+  simp only [sw3poly, List.get_eq_getElem, hf]
+
+private lemma sw3_poly_other {l : List Pt} {T : Set Pt} (hl : 0 < l.length)
+    (hchain : l.IsChain (fun a b => segment ℝ a b ⊆ T))
+    (k : Fin l.length) (hk : k ≠ ⟨l.length - 1, by omega⟩) :
+    segment ℝ (sw3poly l k) (sw3poly l (finRotate _ k)) ⊆ T := by
+  apply sw3_poly_seg_sub hchain k
+  have : k.val ≠ l.length - 1 := fun h => hk (Fin.ext h)
+  omega
+
+private lemma sw3_wind_far {m : ℕ} (cc : Fin m → Pt) {c y : Pt} (hy : y ≠ c) :
+    ∃ σ0 : ℝ, 1 ≤ σ0 ∧ ∀ σ, σ0 ≤ σ → wind cc (c + σ • (y - c)) = 0 := by
+  set u := y - c with hu
+  have hu0 : u ≠ 0 := sub_ne_zero.2 hy
+  have hν : 0 < sw3N u := by
+    by_contra h; push_neg at h
+    have h0 : |u 0| ≤ 0 := (le_max_left _ _).trans h
+    have h1 : |u 1| ≤ 0 := (le_max_right _ _).trans h
+    exact hu0 (pt_ext (by simpa using h0) (by simpa using h1))
+  obtain ⟨i, hi⟩ : ∃ i : Fin 2, |u i| = sw3N u := by
+    unfold sw3N
+    rcases le_total |u 0| |u 1| with h | h
+    · exact ⟨1, (max_eq_right h).symm⟩
+    · exact ⟨0, (max_eq_left h).symm⟩
+  set s : ℝ := if 0 < u i then 1 else -1 with hs
+  have hsu : s * u i = sw3N u := by
+    rw [← hi, hs]; split_ifs with h
+    · rw [one_mul, abs_of_pos h]
+    · push_neg at h; rw [abs_of_nonpos h]; ring
+  have hsabs : |s| = 1 := by rw [hs]; split_ifs <;> simp
+  set M := ∑ k, sw3N (cc k - c) with hM
+  have hMk : ∀ k, sw3N (cc k - c) ≤ M := fun k =>
+    Finset.single_le_sum (f := fun k => sw3N (cc k - c)) (fun k _ => sw3N_nonneg _)
+      (Finset.mem_univ k)
+  have hM0 : 0 ≤ M := Finset.sum_nonneg (fun k _ => sw3N_nonneg _)
+  refine ⟨1 + M / sw3N u, by have := div_nonneg hM0 hν.le; linarith, ?_⟩
+  intro σ hσ
+  apply sw3_wind_zero_coord i (-s)
+  intro k
+  have hσν : sw3N u + M ≤ σ * sw3N u := by
+    have := mul_le_mul_of_nonneg_right hσ hν.le
+    rw [add_mul, div_mul_cancel₀ _ hν.ne', one_mul] at this; exact this
+  have hck : |(cc k - c) i| ≤ sw3N (cc k - c) := by
+    fin_cases i
+    · exact le_max_left _ _
+    · exact le_max_right _ _
+  have e : -s * (cc k - (c + σ • u)) i = σ * (s * u i) - s * (cc k - c) i := by
+    simp only [PiLp.sub_apply, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]; ring
+  rw [e, hsu]
+  have : s * (cc k - c) i ≤ |(cc k - c) i| := by
+    calc s * (cc k - c) i ≤ |s * (cc k - c) i| := le_abs_self _
+      _ = |(cc k - c) i| := by rw [abs_mul, hsabs, one_mul]
+  linarith [hMk k]
+
+private lemma sw3_wind_ray_zero {m : ℕ} (cc : Fin m → Pt) {c y : Pt} (hy : y ≠ c) {σ1 : ℝ}
+    (havoid : ∀ σ : ℝ, σ1 ≤ σ → c + σ • (y - c) ∉ polyCurve cc) :
+    wind cc (c + σ1 • (y - c)) = 0 := by
+  obtain ⟨σ0, hσ0, hfar⟩ := sw3_wind_far cc hy
+  set f : ℝ → Pt := fun σ => c + σ • (y - c)
+  have hf : Continuous f := by fun_prop
+  have hS : IsPreconnected (f '' Ici σ1) := (isPreconnected_Ici).image f hf.continuousOn
+  have := wind_const_of_preconnected hS (by rintro _ ⟨σ, hσ, rfl⟩; exact havoid σ hσ)
+    (mem_image_of_mem f (self_mem_Ici)) (mem_image_of_mem f (show max σ0 σ1 ∈ Ici σ1 from le_max_right σ0 σ1))
+  rw [this]; exact hfar _ (le_max_left _ _)
+
+private lemma sw3_wind_ray_cross {m : ℕ} (cc : Fin m → Pt) (k0 : Fin m) {c y : Pt} (hy : y ≠ c) {σs : ℝ}
+    (hσs : 1 < σs) (hab0 : cc k0 ≠ cc (finRotate m k0))
+    (hq : c + σs • (y - c) ∈ openSegment ℝ (cc k0) (cc (finRotate m k0)))
+    (hother : ∀ k ≠ k0, ∀ σ : ℝ, 1 ≤ σ → c + σ • (y - c) ∉ segment ℝ (cc k) (cc (finRotate m k)))
+    (hk0 : ∀ σ : ℝ, 1 ≤ σ → σ ≠ σs → c + σ • (y - c) ∉ segment ℝ (cc k0) (cc (finRotate m k0)))
+    (hd : jcr (cc (finRotate m k0) - cc k0) (y - c) ≠ 0) : wind cc y ≠ 0 := by
+  set u := y - c with hu
+  set q := c + σs • u with hqdef
+  have hother' : ∀ k ≠ k0, q ∉ segment ℝ (cc k) (cc (finRotate m k)) :=
+    fun k hk => hother k hk σs hσs.le
+  obtain ⟨ε0, hε0, hcross⟩ := sw3_wind_cross k0 hab0 hq hother' hd
+  set ε := min (ε0 / 2) ((σs - 1) / 2) with hε
+  have hεpos : 0 < ε := lt_min (by linarith) (by linarith)
+  have hεlt : ε < ε0 := lt_of_le_of_lt (min_le_left _ _) (by linarith)
+  have hεs : ε ≤ (σs - 1) / 2 := min_le_right _ _
+  have havoid : ∀ σ : ℝ, 1 ≤ σ → σ ≠ σs → c + σ • u ∉ polyCurve cc := by
+    intro σ hσ hne hc
+    obtain ⟨k, hk⟩ := mem_iUnion.1 hc
+    by_cases hkk : k = k0
+    · subst hkk; exact hk0 σ hσ hne hk
+    · exact hother k hkk σ hσ hk
+  have e1 : q + ε • u = c + (σs + ε) • u := by rw [hqdef, add_smul]; abel
+  have e2 : q - ε • u = c + (σs - ε) • u := by rw [hqdef, sub_smul]; abel
+  have hz : wind cc (q + ε • u) = 0 := by
+    rw [e1]
+    exact sw3_wind_ray_zero cc hy (fun σ hσ => havoid σ (by linarith) (by linarith))
+  have hw : wind cc (q - ε • u) = wind cc y := by
+    rw [e2]
+    set f : ℝ → Pt := fun σ => c + σ • u
+    have hf : Continuous f := by fun_prop
+    have hS : IsPreconnected (f '' Icc 1 (σs - ε)) := (isPreconnected_Icc).image f hf.continuousOn
+    have := wind_const_of_preconnected hS
+      (by rintro _ ⟨σ, hσ, rfl⟩; exact havoid σ hσ.1 (by linarith [hσ.2]))
+      (mem_image_of_mem f (show σs - ε ∈ Icc 1 (σs - ε) from ⟨by linarith, le_rfl⟩))
+      (mem_image_of_mem f (show (1:ℝ) ∈ Icc 1 (σs - ε) from ⟨le_rfl, by linarith⟩))
+    rw [this]; simp [f, hu]
+  have := hcross ε hεpos hεlt
+  rw [hz, hw, zero_sub, abs_neg] at this
+  intro h0; rw [h0, abs_zero] at this
+  have := Real.pi_pos; linarith
+
+private lemma sw3_tile_unique {S : Set (PlacedTile P)} (hdisj : DisjointInteriors S) {A C : PlacedTile P}
+    (hA : A ∈ S) (hC : C ∈ S) {z : Pt} (hzA : z ∈ interior A.carrier) (hzC : z ∈ C.carrier) :
+    C = A := by
+  by_contra hne
+  have hz : z ∈ closure (interior C.carrier) := by rw [tile_regular]; exact hzC
+  obtain ⟨w, hw1, hw2⟩ := mem_closure_iff.1 hz _ isOpen_interior hzA
+  exact interiors_disjoint hdisj hA hC (Ne.symm hne) hw1 hw2
+
+private lemma sw3_polyCurve_closed {m : ℕ} (cc : Fin m → Pt) : IsClosed (polyCurve cc) :=
+  isClosed_iUnion_of_finite (fun _ => (isCompact_segment_pt _ _).isClosed)
+
+/-- winding number is constant along the face chain of a dual-connected group avoiding the
+curve -/
+private lemma sw3_wind_chain {S : Set (PlacedTile P)} (hdisj : DisjointInteriors S)
+    {G : Set (PlacedTile P)} (hG : G ⊆ S) (hconn : DualConnected G) {m : ℕ} (cc : Fin m → Pt)
+    (hcurve : ∀ z ∈ polyCurve cc, z ∉ interior (support G) ∨ ∃ C ∈ S, C ∉ G ∧ z ∈ C.carrier)
+    {A B : PlacedTile P} (hA : A ∈ G) (hB : B ∈ G) {x y : Pt} (hx : x ∈ interior A.carrier)
+    (hy : y ∈ interior B.carrier) : wind cc x = wind cc y := by
+  -- interiors avoid the curve
+  have hint : ∀ A ∈ G, ∀ z ∈ interior A.carrier, z ∉ polyCurve cc := by
+    intro A hA z hz hzc
+    rcases hcurve z hzc with h | ⟨C, hC, hCG, hzC⟩
+    · exact h (interior_mono (carrier_subset_support hA) hz)
+    · exact hCG (sw3_tile_unique hdisj (hG hA) hC hz hzC ▸ hA)
+  -- constant on each interior
+  have hconst : ∀ A ∈ G, ∀ z ∈ interior A.carrier, ∀ z' ∈ interior A.carrier,
+      wind cc z = wind cc z' := by
+    intro A hA z hz z' hz'
+    exact wind_const_of_preconnected (tileDisk A).interior_pathConnected.isConnected.isPreconnected
+      (hint A hA) hz hz'
+  -- across a shared side
+  have hstep : ∀ X ∈ G, ∀ Y ∈ G, SharesSide X Y → ∀ z ∈ interior X.carrier,
+      ∀ z' ∈ interior Y.carrier, wind cc z = wind cc z' := by
+    intro X hX Y hY ⟨hne, e, ⟨i, hi⟩, ⟨i', hi'⟩⟩ z hz z' hz'
+    set q := midpoint ℝ (X.vertex i) (X.vertex (finRotate _ i)) with hq
+    have hqo : q ∈ openSegment ℝ (X.vertex i) (X.vertex (finRotate _ i)) :=
+      mem_openSegment_of_ne_left_right (by
+        intro h; exact tile_vertex_ne_next X i (by
+          rw [hq, eq_comm, midpoint_eq_left_iff] at h; exact h)) (by
+        intro h; exact tile_vertex_ne_next X i (by
+          rw [hq, eq_comm, midpoint_eq_right_iff] at h; exact h))
+        (by rw [hq]; exact midpoint_mem_segment _ _)
+    obtain ⟨r, hr, σ, hσ, hball⟩ := two_sides hdisj (hG hX) (hG hY) hne i i' (hi'.trans hi.symm) hqo
+    set a := X.vertex i
+    set v := X.vertex (finRotate _ i) - a with hv
+    have hvne : v ≠ 0 := sub_ne_zero.2 (tile_vertex_ne_next X i).symm
+    -- every tile containing q is X or Y
+    have hXY : ∀ C ∈ S, q ∈ C.carrier → C = X ∨ C = Y := by
+      intro C hC hqC
+      have hqcl : q ∈ closure (interior C.carrier) := by rw [tile_regular]; exact hqC
+      obtain ⟨w, hw1, hw2⟩ := mem_closure_iff.1 hqcl _ Metric.isOpen_ball (Metric.mem_ball_self hr)
+      obtain ⟨ρ, hρ, hρsub⟩ := Metric.isOpen_iff.1 (isOpen_interior.inter Metric.isOpen_ball) w ⟨hw2, hw1⟩
+      obtain ⟨w', hw'1, hw'2⟩ := exists_near_off_line a hvne w (τ := σ) hσ hρ
+      have hw'in := hρsub (by rw [Metric.mem_ball, dist_comm]; exact hw'1)
+      rcases lt_trichotomy (σ * jcr v (w - a)) 0 with h | h | h
+      · -- w itself is on the negative side
+        right; exact sw3_tile_unique hdisj (hG hY) hC ((hball w hw1).2.1 h) (interior_subset hw2)
+      · left
+        rw [h] at hw'2
+        exact sw3_tile_unique hdisj (hG hX) hC ((hball w' hw'in.2).1 hw'2) (interior_subset hw'in.1)
+      · left; exact sw3_tile_unique hdisj (hG hX) hC ((hball w hw1).1 h) (interior_subset hw2)
+    have hqint : q ∈ interior (support G) := by
+      rw [mem_interior]
+      refine ⟨Metric.ball q r, ?_, Metric.isOpen_ball, Metric.mem_ball_self hr⟩
+      intro w hw
+      rcases le_or_gt 0 (σ * jcr v (w - a)) with h | h
+      · exact carrier_subset_support hX ((hball w hw).2.2 h)
+      · exact carrier_subset_support hY (interior_subset ((hball w hw).2.1 h))
+    have hqnc : q ∉ polyCurve cc := by
+      intro hqc
+      rcases hcurve q hqc with h | ⟨C, hC, hCG, hqC⟩
+      · exact h hqint
+      · rcases hXY C hC hqC with rfl | rfl <;> contradiction
+    obtain ⟨r', hr', hr'sub⟩ := Metric.isOpen_iff.1 (sw3_polyCurve_closed cc).isOpen_compl q hqnc
+    have hball_const : ∀ w ∈ Metric.ball q r', ∀ w' ∈ Metric.ball q r', wind cc w = wind cc w' :=
+      fun w hw w' hw' => wind_const_of_preconnected (convex_ball q r').isPreconnected
+        (fun u hu => hr'sub hu) hw hw'
+    have hqX : q ∈ closure (interior X.carrier) := by
+      rw [tile_regular]; exact (tile_side_subset X i) (by
+        rw [tile_side_eq]; exact openSegment_subset_segment _ _ _ hqo)
+    have hqY : q ∈ closure (interior Y.carrier) := by
+      rw [tile_regular]; exact (tile_side_subset Y i') (by
+        rw [hi', ← hi, tile_side_eq]; exact openSegment_subset_segment _ _ _ hqo)
+    obtain ⟨w1, hw1b, hw1X⟩ := mem_closure_iff.1 hqX _ Metric.isOpen_ball (Metric.mem_ball_self hr')
+    obtain ⟨w2, hw2b, hw2Y⟩ := mem_closure_iff.1 hqY _ Metric.isOpen_ball (Metric.mem_ball_self hr')
+    rw [hconst X hX z hz w1 hw1X, hball_const w1 hw1b w2 hw2b, hconst Y hY w2 hw2Y z' hz']
+  -- induction along the chain
+  have key : ∀ B, Relation.ReflTransGen (fun X Y => X ∈ G ∧ Y ∈ G ∧ SharesSide X Y) A B →
+      B ∈ G → ∀ y ∈ interior B.carrier, wind cc x = wind cc y := by
+    intro B hrel
+    induction hrel with
+    | refl => intro _ y hy; exact hconst A hA x hx y hy
+    | tail _ hYZ ih =>
+      intro hZ y hy
+      obtain ⟨hY, -, hsh⟩ := hYZ
+      obtain ⟨w, hw⟩ := (tileDisk _).interior_nonempty
+      rw [ih hY w hw]
+      exact hstep _ hY _ hZ hsh w hw y hy
+  exact key B (hconn A hA B hB) hB y hy
+
+private lemma sw3_cramer {Va Vb : Pt} (hJ : jcr Va Vb ≠ 0) (u : Pt) :
+    u = (jcr u Vb / jcr Va Vb) • Va + (jcr Va u / jcr Va Vb) • Vb := by
+  apply pt_ext
+  · simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+    field_simp
+    simp only [jcr] at hJ ⊢; ring
+  · simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+    field_simp
+    simp only [jcr] at hJ ⊢; ring
+
+/-- a point of the closing segment, seen from `c` -/
+private lemma sw3_closing_jcr {c Va Vb z : Pt} {Λa Λb : ℝ}
+    (hz : z ∈ segment ℝ (c + Λa • Va) (c + Λb • Vb)) :
+    ∃ θ : ℝ, 0 ≤ θ ∧ θ ≤ 1 ∧ jcr Va (z - c) = θ * Λb * jcr Va Vb ∧
+      jcr (z - c) Vb = (1 - θ) * Λa * jcr Va Vb := by
+  obtain ⟨θ, h0, h1, rfl⟩ := mem_segment_iff'.1 hz
+  refine ⟨θ, h0, h1, ?_, ?_⟩ <;>
+  · simp only [jcr, PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]; ring
+
+private lemma sw3_core_zero {Γ : List Pt} {T : Set Pt} (hΓ : 0 < Γ.length) {c Va Vb s : Pt}
+    {Λa Λb : ℝ} (hΛa : 0 < Λa) (hΛb : 0 < Λb) (hJ : 0 < jcr Va Vb)
+    (hlast : Γ[Γ.length - 1] = c + Λa • Va) (hfirst : Γ[0] = c + Λb • Vb)
+    (hchain : Γ.IsChain (fun a b => segment ℝ a b ⊆ T))
+    (hs : s ≠ c) (hT : ∀ σ : ℝ, 1 ≤ σ → c + σ • (s - c) ∉ T)
+    (hcone : jcr Va (s - c) < 0 ∨ jcr (s - c) Vb < 0) : wind (sw3poly Γ) s = 0 := by
+  have h := sw3_wind_ray_zero (sw3poly Γ) hs (σ1 := 1) ?_
+  · simpa using h
+  intro σ hσ hz
+  obtain ⟨k, hk⟩ := mem_iUnion.1 hz
+  by_cases hkk : k = ⟨Γ.length - 1, by omega⟩
+  · subst hkk
+    obtain ⟨e1, e2⟩ := sw3_poly_last hΓ
+    rw [e1, e2, hlast, hfirst] at hk
+    obtain ⟨θ, h0, h1, ha, hb⟩ := sw3_closing_jcr hk
+    simp only [add_sub_cancel_left, jcr_smul_right, jcr_smul_left] at ha hb
+    rcases hcone with h | h
+    · have : σ * jcr Va (s - c) < 0 := mul_neg_of_pos_of_neg (by linarith) h
+      have : 0 ≤ θ * Λb * jcr Va Vb := by positivity
+      linarith
+    · have : σ * jcr (s - c) Vb < 0 := mul_neg_of_pos_of_neg (by linarith) h
+      have : 0 ≤ (1 - θ) * Λa * jcr Va Vb := mul_nonneg (mul_nonneg (by linarith) hΛa.le) hJ.le
+      linarith
+  · exact hT σ hσ (sw3_poly_other hΓ hchain k hkk hk)
+
+private lemma sw3_core_cross {Γ : List Pt} {T : Set Pt} (hΓ : 0 < Γ.length) {c Va Vb x : Pt}
+    {Λa Λb : ℝ} (hΛa : 0 < Λa) (hΛb : 0 < Λb) (hJ : 0 < jcr Va Vb)
+    (hlast : Γ[Γ.length - 1] = c + Λa • Va) (hfirst : Γ[0] = c + Λb • Vb)
+    (hchain : Γ.IsChain (fun a b => segment ℝ a b ⊆ T))
+    (hx : x ≠ c) (hT : ∀ σ : ℝ, 1 ≤ σ → c + σ • (x - c) ∉ T)
+    (hα : 0 < jcr (x - c) Vb) (hβ : 0 < jcr Va (x - c))
+    (hbiga : 2 * jcr (x - c) Vb < Λa * jcr Va Vb) (hbigb : 2 * jcr Va (x - c) < Λb * jcr Va Vb) :
+    wind (sw3poly Γ) x ≠ 0 := by
+  obtain ⟨J, hJdef⟩ : ∃ J, J = jcr Va Vb := ⟨_, rfl⟩
+  rw [← hJdef] at hJ hbiga hbigb
+  obtain ⟨a1, b1, hxc, hjxb, hjax⟩ : ∃ a1 b1 : ℝ, x - c = a1 • Va + b1 • Vb ∧
+      jcr (x - c) Vb = a1 * J ∧ jcr Va (x - c) = b1 * J := by
+    refine ⟨jcr (x - c) Vb / J, jcr Va (x - c) / J, ?_, by field_simp, by field_simp⟩
+    rw [hJdef]; exact sw3_cramer (hJdef ▸ hJ.ne') (x - c)
+  rw [hjxb] at hα hbiga; rw [hjax] at hβ hbigb
+  have ha1p : 0 < a1 := pos_of_mul_pos_left hα hJ.le
+  have hb1p : 0 < b1 := pos_of_mul_pos_left hβ hJ.le
+  have ha1s : a1 / Λa < 1 / 2 := by
+    rw [div_lt_iff₀ hΛa]; nlinarith
+  have hb1s : b1 / Λb < 1 / 2 := by
+    rw [div_lt_iff₀ hΛb]; nlinarith
+  obtain ⟨ss, hss⟩ : ∃ ss, ss = a1 / Λa + b1 / Λb := ⟨_, rfl⟩
+  have hss0 : 0 < ss := by rw [hss]; positivity
+  obtain ⟨σs, hσs⟩ : ∃ σs, σs = 1 / ss := ⟨_, rfl⟩
+  have hσs1 : 1 < σs := by rw [hσs, lt_div_iff₀ hss0]; linarith
+  have hsum : σs * ss = 1 := by rw [hσs]; field_simp
+  set k0 : Fin Γ.length := ⟨Γ.length - 1, by omega⟩
+  obtain ⟨e1, e2⟩ := sw3_poly_last hΓ
+  -- uniqueness of the crossing parameter
+  have huniq : ∀ σ : ℝ, 1 ≤ σ → c + σ • (x - c) ∈ segment ℝ (c + Λa • Va) (c + Λb • Vb) →
+      σ = σs := by
+    intro σ hσ hz
+    obtain ⟨θ, h0, h1, ha, hb⟩ := sw3_closing_jcr hz
+    simp only [add_sub_cancel_left, jcr_smul_right, jcr_smul_left] at ha hb
+    rw [hjax, ← hJdef] at ha; rw [hjxb, ← hJdef] at hb
+    have ha' : σ * b1 = θ * Λb := mul_right_cancel₀ hJ.ne' (show σ * b1 * J = θ * Λb * J by linarith)
+    have hb' : σ * a1 = (1 - θ) * Λa := mul_right_cancel₀ hJ.ne' (show σ * a1 * J = (1 - θ) * Λa * J by linarith)
+    have : σ * ss = 1 := by
+      rw [hss, mul_add, mul_div_assoc', mul_div_assoc', hb', ha']
+      field_simp; ring
+    have := mul_right_cancel₀ hss0.ne' (this.trans hsum.symm)
+    exact this
+  have hab0 : c + Λa • Va ≠ c + Λb • Vb := by
+    intro h
+    have := congrArg (fun z => jcr Va (z - c)) h
+    simp only [add_sub_cancel_left, jcr_smul_right, jcr_self, mul_zero, ← hJdef] at this
+    have : 0 < Λb * J := mul_pos hΛb hJ
+    linarith
+  apply sw3_wind_ray_cross (sw3poly Γ) k0 hx hσs1
+  · rw [e1, e2, hlast, hfirst]; exact hab0
+  · rw [e1, e2, hlast, hfirst]
+    rw [mem_openSegment_iff']
+    have h1 : σs * b1 / Λb * Λb = σs * b1 := by field_simp
+    have h2 : Λa * (1 - σs * b1 / Λb) = σs * a1 := by
+      rw [hss] at hsum; field_simp at hsum ⊢; linarith
+    have hlt : σs * b1 / Λb < 1 := by
+      have : 0 < σs * a1 := by positivity
+      by_contra hc; push_neg at hc
+      have : Λa * (1 - σs * b1 / Λb) ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hΛa.le (by linarith)
+      linarith
+    refine ⟨σs * b1 / Λb, by positivity, hlt, ?_⟩
+    rw [hxc]
+    apply pt_ext <;>
+    · simp only [PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+      linear_combination (-(Va _)) * h2 - (Vb _) * h1
+  · intro k hk σ hσ hz
+    exact hT σ hσ (sw3_poly_other hΓ hchain k hk hz)
+  · intro σ hσ hne hz
+    rw [e1, e2, hlast, hfirst] at hz
+    exact hne (huniq σ hσ hz)
+  · rw [e1, e2, hlast, hfirst]
+    have : jcr (c + Λb • Vb - (c + Λa • Va)) (x - c) = -(Λb * a1 + Λa * b1) * J := by
+      rw [hxc, hJdef]; simp only [jcr, PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply,
+        smul_eq_mul]; ring
+    rw [this]
+    have : 0 < (Λb * a1 + Λa * b1) * J := by positivity
+    linarith
+
+private lemma sw3_tile_dist_le (M : MeshConstants P) (F : PlacedTile P) {z z' : Pt} (hz : z ∈ F.carrier)
+    (hz' : z' ∈ F.carrier) : dist z z' ≤ M.D := by
+  obtain ⟨u, hu, rfl⟩ := Set.mem_vadd_set.1 hz
+  obtain ⟨u', hu', rfl⟩ := Set.mem_vadd_set.1 hz'
+  rw [dist_vadd_cancel_left]
+  exact (Metric.dist_le_diam_of_mem (P.disk F.form).compact.isBounded hu hu').trans
+    (M.diam_le F.form)
+
+private lemma sw3_square_add_sub (c : Pt) (a r : ℝ) : square c a + Binf r ⊆ square c (a + r) := by
+  intro z hz
+  obtain ⟨s, hs, b, hb, rfl⟩ := Set.mem_add.1 hz
+  refine ⟨?_, ?_⟩
+  · simp only [PiLp.add_apply]
+    calc |s 0 + b 0 - c 0| = |(s 0 - c 0) + b 0| := by ring_nf
+      _ ≤ |s 0 - c 0| + |b 0| := abs_add_le _ _
+      _ ≤ a + r := add_le_add hs.1 hb.1
+  · simp only [PiLp.add_apply]
+    calc |s 1 + b 1 - c 1| = |(s 1 - c 1) + b 1| := by ring_nf
+      _ ≤ |s 1 - c 1| + |b 1| := abs_add_le _ _
+      _ ≤ a + r := add_le_add hs.2 hb.2
+
+private lemma sw3_interior_square {c z : Pt} {a : ℝ} (hz : z ∈ interior (square c a)) :
+    sw3N (z - c) < a := by
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 isOpen_interior z hz
+  have key : ∀ i : Fin 2, |z i - c i| < a := by
+    intro i
+    set s : ℝ := if 0 ≤ z i - c i then 1 else -1 with hs
+    have hsabs : s * (z i - c i) = |z i - c i| := by
+      rw [hs]; split_ifs with h
+      · rw [one_mul, abs_of_nonneg h]
+      · push_neg at h; rw [abs_of_neg h]; ring
+    have hs2 : |s| = 1 := by rw [hs]; split_ifs <;> simp
+    set e : Pt := (s * (ε / 2)) • (EuclideanSpace.single i (1 : ℝ)) with he
+    have hen : ‖e‖ = ε / 2 := by
+      rw [he, norm_smul, EuclideanSpace.norm_single, norm_one, mul_one, Real.norm_eq_abs, abs_mul,
+        hs2, one_mul, abs_of_pos (by positivity)]
+    have hmem : z + e ∈ square c a := interior_subset (hball (by
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, hen]; linarith))
+    have hi : |(z + e) i - c i| ≤ a := by
+      fin_cases i
+      · exact hmem.1
+      · exact hmem.2
+    have hei : e i = s * (ε / 2) := by simp [he]
+    rw [PiLp.add_apply, hei] at hi
+    have : |z i + s * (ε / 2) - c i| = |z i - c i| + ε / 2 := by
+      rw [show z i + s * (ε / 2) - c i = s * (s * (z i - c i) + ε / 2) by
+        have : s * s = 1 := by rw [hs]; split_ifs <;> norm_num
+        linear_combination (-(z i - c i)) * this]
+      rw [abs_mul, hs2, one_mul, hsabs, abs_of_nonneg (by positivity)]
+    linarith
+  exact max_lt (key 0) (key 1)
+
+private lemma sw3_mem_interior_square {c z : Pt} {a : ℝ} (hz : sw3N (z - c) < a) :
+    z ∈ interior (square c a) := by
+  have hopen : IsOpen {w : Pt | |w 0 - c 0| < a ∧ |w 1 - c 1| < a} := by
+    have h0 : Continuous fun w : Pt => w 0 := PiLp.continuous_apply 2 _ 0
+    have h1 : Continuous fun w : Pt => w 1 := PiLp.continuous_apply 2 _ 1
+    exact (isOpen_lt ((h0.sub continuous_const).abs) continuous_const).inter
+      (isOpen_lt ((h1.sub continuous_const).abs) continuous_const)
+  refine interior_maximal (show {w : Pt | |w 0 - c 0| < a ∧ |w 1 - c 1| < a} ⊆ square c a from
+    fun w hw => ⟨hw.1.le, hw.2.le⟩) hopen ?_
+  exact ⟨lt_of_le_of_lt (le_max_left _ _) hz, lt_of_le_of_lt (le_max_right _ _) hz⟩
+
+/-- entering a tile through one of its sides -/
+private lemma sw3_tile_entry (F : PlacedTile P) (i : Fin (P.disk F.form).n) {u p : Pt}
+    (hu : u ∈ F.side i) (hp : p ∈ interior F.carrier) :
+    ∃ l : List Pt, l.head? = some u ∧ l.getLast? = some p ∧
+      l.IsChain (fun x y => segment ℝ x y ⊆ {z | z ∈ F.side i ∨ z ∈ interior F.carrier}) := by
+  set a := F.vertex i
+  set b := F.vertex (finRotate _ i)
+  have hab : a ≠ b := tile_vertex_ne_next F i
+  set m := midpoint ℝ a b with hm
+  have hmo : m ∈ openSegment ℝ a b :=
+    mem_openSegment_of_ne_left_right (by
+        intro h; exact hab (by rw [hm, eq_comm, midpoint_eq_left_iff] at h; exact h)) (by
+        intro h; exact hab (by rw [hm, eq_comm, midpoint_eq_right_iff] at h; exact h))
+      (by rw [hm]; exact midpoint_mem_segment _ _)
+  obtain ⟨r, hr, σ, hσ, hch⟩ := tile_halfdisk F i hmo
+  have hd : b - a ≠ 0 := sub_ne_zero.2 hab.symm
+  obtain ⟨y, hy, hyc⟩ := exists_near_off_line a hd m hσ hr
+  have hmline : jcr (b - a) (m - a) = 0 := jcr_zero_of_mem_segment (openSegment_subset_segment _ _ _ hmo)
+  rw [hmline, mul_zero] at hyc
+  have hyb : y ∈ Metric.ball m r := by rw [Metric.mem_ball, dist_comm]; exact hy
+  have hyint : y ∈ interior F.carrier := ((hch y hyb).2.2).2 hyc
+  have hside : F.side i = segment ℝ a b := tile_side_eq F i
+  -- the segment from `m` to `y`
+  have hmy : segment ℝ m y ⊆ {z | z ∈ F.side i ∨ z ∈ interior F.carrier} := by
+    intro z hz
+    obtain ⟨θ, hθ0, hθ1, rfl⟩ := mem_segment_iff'.1 hz
+    rcases eq_or_lt_of_le hθ0 with h | h
+    · left; subst h; rw [zero_smul, add_zero, hside]; exact openSegment_subset_segment _ _ _ hmo
+    · right
+      have hzb : m + θ • (y - m) ∈ Metric.ball m r :=
+        (convex_ball m r).segment_subset (Metric.mem_ball_self hr) hyb (mem_segment_iff'.2 ⟨θ, hθ0, hθ1, rfl⟩)
+      apply ((hch _ hzb).2.2).2
+      have : jcr (b - a) (m + θ • (y - m) - a) = θ * jcr (b - a) (y - a) := by
+        rw [show m + θ • (y - m) - a = (m - a) + θ • ((y - a) - (m - a)) by module, jcr_add_right,
+          jcr_smul_right, hmline, jcr_sub_right, hmline]; ring
+      rw [this]
+      have := mul_pos h hyc
+      linarith [show σ * (θ * jcr (b - a) (y - a)) = θ * (σ * jcr (b - a) (y - a)) by ring]
+  -- the segment from `u` to `m` lies in the side
+  have hum : segment ℝ u m ⊆ F.side i := by
+    rw [hside] at hu ⊢
+    exact (convex_segment a b).segment_subset hu (openSegment_subset_segment _ _ _ hmo)
+  -- polygonal path inside the interior
+  obtain ⟨l, hl1, hl2, hl3⟩ := sw3_poly_path isOpen_interior
+    (tileDisk F).interior_pathConnected.isConnected.isPreconnected hyint hp
+  refine ⟨u :: m :: l, rfl, ?_, ?_⟩
+  · cases l with
+    | nil => simp at hl1
+    | cons a' l' => simpa using hl2
+  · rw [List.isChain_cons_cons]
+    refine ⟨fun z hz => Or.inl (hum hz), ?_⟩
+    cases l with
+    | nil => simp at hl1
+    | cons a' l' =>
+      simp only [List.head?_cons, Option.some.injEq] at hl1
+      subst hl1
+      rw [List.isChain_cons_cons]
+      exact ⟨hmy, hl3.imp (fun x y h => h.trans (fun z hz => Or.inr hz))⟩
+
+private lemma sw3_chain_join {R : Pt → Pt → Prop} {l1 l2 : List Pt} {x y z : Pt}
+    (h1 : l1.head? = some x) (h1' : l1.getLast? = some y) (h2 : l2.head? = some y)
+    (h2' : l2.getLast? = some z) (c1 : l1.IsChain R) (c2 : l2.IsChain R) (hy : R y y) :
+    (l1 ++ l2).head? = some x ∧ (l1 ++ l2).getLast? = some z ∧ (l1 ++ l2).IsChain R := by
+  refine ⟨by rw [List.head?_append, h1]; rfl, by rw [List.getLast?_append, h2']; rfl, ?_⟩
+  refine c1.append c2 ?_
+  intro a ha b hb
+  rw [h1'] at ha; rw [h2] at hb
+  simp only [Option.mem_def, Option.some.injEq] at ha hb
+  subst ha; subst hb; exact hy
+
+private lemma sw3_ray_near {c : Pt} {N : ℕ} {R D : ℝ} (hR : 0 ≤ R) (hD : 0 ≤ D)
+    (hA : 0 < (N : ℝ) * R / 2) {k : ℕ} {z : Pt} {δ : ℝ} (hδ : 0 ≤ δ)
+    (hz : z ∈ Metric.cthickening δ (existsAnnularSpokes_ray c N R D k)) :
+    ∃ l, ((N : ℝ) * R / 2 - 3 * D) / ((N : ℝ) * R / 2) ≤ l ∧
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * D) / ((N : ℝ) * R / 2) ∧
+      dist z (c + l • squarePerimeterPoint ((N : ℝ) * R / 2) ((k : ℝ) * R)) ≤ δ := by
+  have hz' := hz
+  unfold existsAnnularSpokes_ray at hz'
+  rw [(isCompact_segment_pt _ _).cthickening_eq_biUnion_closedBall hδ] at hz'
+  simp only [mem_iUnion, Metric.mem_closedBall] at hz'
+  obtain ⟨p, hp, hzp⟩ := hz'
+  obtain ⟨l, hl1, hl2, rfl⟩ := existsAnnularSpokes_step2_tubes_rayMem (k := k) hR hD hA hp
+  exact ⟨l, hl1, hl2, hzp⟩
+
+/-- the shadow of a radial direction -/
+private def sw3Shadow (c V : Pt) (A R D : ℝ) (z : Pt) : Prop :=
+  ∃ y : Pt, ∃ σ l : ℝ, (A - 3 * D) / A ≤ l ∧ l ≤ (A + R + 6 * D) / A ∧ dist y (c + l • V) ≤ 2 * D ∧
+    1 ≤ σ ∧ (σ = 1 ∨ A + R + 3 * D - 4 * D ≤ sw3N (y - c)) ∧ z = c + σ • (y - c)
+
+private lemma sw3Shadow_self {c V z : Pt} {A R D l : ℝ} (hl1 : (A - 3 * D) / A ≤ l)
+    (hl2 : l ≤ (A + R + 6 * D) / A) (hz : dist z (c + l • V) ≤ 2 * D) : sw3Shadow c V A R D z :=
+  ⟨z, 1, l, hl1, hl2, hz, le_rfl, Or.inl rfl, by simp⟩
+
+private lemma sw3_spoke_list (α : PolyArc) :
+    (List.ofFn α.pt).head? = some α.start ∧ (List.ofFn α.pt).getLast? = some α.stop ∧
+      (List.ofFn α.pt).IsChain (fun x y => segment ℝ x y ⊆ α.carrier) := by
+  refine ⟨by simp [List.ofFn_succ, PolyArc.start], ?_, ?_⟩
+  · rw [List.getLast?_eq_getElem?, List.getElem?_ofFn]
+    simp [PolyArc.stop, Fin.last]
+  · rw [List.isChain_iff_getElem]
+    intro i hi
+    simp only [List.length_ofFn] at hi
+    simp only [List.getElem_ofFn]
+    intro z hz
+    refine mem_iUnion.2 ⟨⟨i, by omega⟩, ?_⟩
+    simpa [PolyArc.seg] using hz
+
+private lemma sw3_inner_part {S : Set (PlacedTile P)} (L : FaceGroup S) {Q : Set Pt}
+    (hanc : L.InsideAnchored Q) {u : Pt} (hu : u ∈ frontier L.carrier) :
+    ∃ F ∈ L.faces, u ∈ F.carrier ∧ ∃ p0, p0 ∈ interior Q ∧ ∃ l : List Pt, l.head? = some p0 ∧
+      l.getLast? = some u ∧ l.IsChain (fun x y => segment ℝ x y ⊆ F.carrier) := by
+  unfold FaceGroup.carrier at hu
+  rw [L.disk.frontier_eq] at hu
+  obtain ⟨k, hk⟩ := mem_iUnion.1 hu
+  obtain ⟨F, hF, ⟨i, hi⟩, p0, hp1, hp2⟩ := hanc k
+  have hui : u ∈ F.side i := by rw [hi]; exact hk
+  obtain ⟨l, h1, h2, h3⟩ := sw3_tile_entry F i hui hp1
+  refine ⟨F, hF, tile_side_subset F i hui, p0, hp2, l.reverse, by rw [List.head?_reverse, h2], by rw [List.getLast?_reverse, h1], ?_⟩
+  rw [List.isChain_reverse]
+  refine h3.imp (fun x y h => ?_)
+  rw [segment_symm]
+  intro z hz
+  rcases h hz with h' | h'
+  · exact tile_side_subset F i h'
+  · exact interior_subset h'
+
+private lemma sw3_outer_part {S : Set (PlacedTile P)} (H : FaceGroup S) {K : Set Pt}
+    (hanc : H.OutsideAnchored K) {w : Pt} (hw : w ∈ frontier H.carrier) :
+    ∃ F ∈ S, F ∉ H.faces ∧ w ∈ F.carrier ∧ ∃ q, q ∉ K ∧ q ∈ F.carrier ∧ ∃ l : List Pt, l.head? = some w ∧
+      l.getLast? = some q ∧ l.IsChain (fun x y => segment ℝ x y ⊆ F.carrier) := by
+  unfold FaceGroup.carrier at hw
+  rw [H.disk.frontier_eq] at hw
+  obtain ⟨k, hk⟩ := mem_iUnion.1 hw
+  obtain ⟨F, hFS, hFH, ⟨i, hi⟩, q, hq1, hq2⟩ := hanc k
+  have hwi : w ∈ F.side i := by rw [hi]; exact hk
+  obtain ⟨l, h1, h2, h3⟩ := sw3_tile_entry F i hwi hq1
+  refine ⟨F, hFS, hFH, tile_side_subset F i hwi, q, hq2, interior_subset hq1, l, h1, h2, h3.imp (fun x y h => ?_)⟩
+  intro z hz
+  rcases h hz with h' | h'
+  · exact tile_side_subset F i h'
+  · exact interior_subset h'
+
+private lemma sw3_radial_part {c V q : Pt} {A R D lq Λ0 : ℝ} (hA : 0 < A) (hD : 0 ≤ D) (hDA : D ≤ A)
+    (hR : 0 ≤ R) (hl1 : (A - 3 * D) / A ≤ lq) (hl2 : lq ≤ (A + R + 6 * D) / A) (hlq : 0 < lq)
+    (hq : dist q (c + lq • V) ≤ 2 * D) (hqh : A + R + 3 * D < sw3N (q - c)) :
+    ∃ Λ, Λ0 ≤ Λ ∧ ∃ l : List Pt, l.head? = some q ∧ l.getLast? = some (c + Λ • V) ∧
+      l.IsChain (fun x y => segment ℝ x y ⊆ {z | A + R + 3 * D < sw3N (z - c) ∧ sw3Shadow c V A R D z}) := by
+  set Λ' := max 2 (Λ0 / lq) with hΛ'
+  have hΛ'2 : 2 ≤ Λ' := le_max_left _ _
+  have hΛ'3 : Λ0 / lq ≤ Λ' := le_max_right _ _
+  refine ⟨Λ' * lq, by rwa [div_le_iff₀ hlq] at hΛ'3, [q, c + Λ' • (q - c), c + (Λ' * lq) • V], rfl, rfl, ?_⟩
+  simp only [List.isChain_cons_cons, List.isChain_singleton, and_true]
+  constructor
+  · intro z hz
+    obtain ⟨θ, h0, h1, rfl⟩ := mem_segment_iff'.1 hz
+    have e : q + θ • (c + Λ' • (q - c) - q) = c + (1 + θ * (Λ' - 1)) • (q - c) := by module
+    have hσ : 1 ≤ 1 + θ * (Λ' - 1) := by nlinarith
+    rw [e]
+    refine ⟨?_, q, 1 + θ * (Λ' - 1), lq, hl1, hl2, hq, hσ, Or.inr (by linarith), rfl⟩
+    rw [add_sub_cancel_left, sw3N_smul, abs_of_pos (by linarith)]
+    nlinarith [sw3N_nonneg (q - c)]
+  · intro z hz
+    obtain ⟨θ, h0, h1, rfl⟩ := mem_segment_iff'.1 hz
+    set y := q + θ • (c + lq • V - q) with hy
+    have e : c + Λ' • (q - c) + θ • (c + (Λ' * lq) • V - (c + Λ' • (q - c))) = c + Λ' • (y - c) := by
+      rw [hy]; module
+    have hyd : dist y (c + lq • V) ≤ 2 * D := by
+      have : y - (c + lq • V) = (1 - θ) • (q - (c + lq • V)) := by rw [hy]; module
+      rw [dist_eq_norm, this, norm_smul, Real.norm_eq_abs, abs_of_nonneg (by linarith), ← dist_eq_norm]
+      nlinarith [dist_nonneg (x := q) (y := c + lq • V)]
+    have hyq : sw3N (y - q) ≤ 2 * D := by
+      have : y - q = θ • (c + lq • V - q) := by rw [hy]; abel
+      refine (sw3N_le_norm _).trans ?_
+      rw [this, norm_smul, Real.norm_eq_abs, abs_of_nonneg h0, ← dist_eq_norm, dist_comm]
+      nlinarith [dist_nonneg (x := q) (y := c + lq • V)]
+    have hyc : sw3N (q - c) - 2 * D ≤ sw3N (y - c) := by
+      have := sw3N_sub_le (q - c) (q - y)
+      have h2 : sw3N (q - y) = sw3N (y - q) := by
+        rw [show q - y = (-1 : ℝ) • (y - q) by module, sw3N_smul]; simp
+      rw [show q - c - (q - y) = y - c by abel] at this
+      linarith
+    rw [e]
+    refine ⟨?_, y, Λ', lq, hl1, hl2, hyd, by linarith, Or.inr (by linarith), rfl⟩
+    rw [add_sub_cancel_left, sw3N_smul, abs_of_pos (by linarith)]
+    nlinarith
+
+private lemma sw3_wall {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S.tiles c N R)
+    (hspk : ∀ j, (G.spokes.spoke j).carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j))
+    (i : Fin (4 * N)) (Bad : Pt → Prop) (hL : ∀ F ∈ G.L.faces, ∀ z ∈ F.carrier, Bad z)
+    (hSp : ∀ z ∈ (G.spokes.spoke i).carrier, Bad z)
+    (hF : ∀ F ∈ S.tiles, F ∉ G.H.faces → ∀ z ∈ F.carrier, Bad z)
+    (hH : ∀ z, (N : ℝ) * R / 2 + R + 3 * M.D < sw3N (z - c) → Bad z) (Λ0 : ℝ) :
+    ∃ p0 : Pt, ∃ Λ : ℝ, ∃ l : List Pt, Λ0 ≤ Λ ∧ p0 ∈ interior (square c ((N : ℝ) * R / 2)) ∧
+      l.head? = some p0 ∧
+      l.getLast? = some (c + Λ • squarePerimeterPoint ((N : ℝ) * R / 2) (((i : ℕ) : ℝ) * R)) ∧
+      l.IsChain (fun x y => segment ℝ x y ⊆ {z | Bad z ∧ (z ∈ interior (square c ((N : ℝ) * R / 2)) ∨
+        sw3Shadow c (squarePerimeterPoint ((N : ℝ) * R / 2) (((i : ℕ) : ℝ) * R)) ((N : ℝ) * R / 2) R M.D z)}) := by
+  set A := (N : ℝ) * R / 2 with hAdef
+  set D := M.D with hDdef
+  set V := squarePerimeterPoint A (((i : ℕ) : ℝ) * R) with hV
+  set T := {z | Bad z ∧ (z ∈ interior (square c A) ∨ sw3Shadow c V A R D z)} with hT
+  have hD : 0 < D := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < A := by rw [hAdef]; positivity
+  have hAR : R ≤ A := by rw [hAdef]; nlinarith
+  set α := G.spokes.spoke i with hα
+  have hu : α.start ∈ α.carrier ∩ frontier G.L.carrier := by
+    rw [G.spokes.meets_L i]; rfl
+  have hw : α.stop ∈ α.carrier ∩ frontier G.H.carrier := by
+    rw [G.spokes.meets_H i]; rfl
+  obtain ⟨F, hF1, huF, p0, hp0, l1, h11, h12, h13⟩ := sw3_inner_part G.L G.L_anchor hu.2
+  obtain ⟨h21, h22, h23⟩ := sw3_spoke_list α
+  obtain ⟨F', hF'S, hF'H, hwF, q, hqK, hqF, l3, h31, h32, h33⟩ := sw3_outer_part G.H G.H_anchor hw.2
+  obtain ⟨lu, hlu1, hlu2, hlu⟩ := sw3_ray_near hR0.le hD.le hA (le_of_lt hD) (hspk i hu.1)
+  obtain ⟨lw, hlw1, hlw2, hlw⟩ := sw3_ray_near hR0.le hD.le hA (le_of_lt hD) (hspk i hw.1)
+  have hq3 : A + R + 3 * D < sw3N (q - c) := by
+    by_contra hc
+    push_neg at hc
+    apply hqK
+    refine rg_square_add (by linarith) (by linarith) ?_
+    rw [sw3_mem_square_iff]; exact hc
+  have hqw : dist q (c + lw • V) ≤ 2 * D := by
+    have := sw3_tile_dist_le M F' hqF hwF
+    linarith [dist_triangle q α.stop (c + lw • V)]
+  have hlw0 : 0 < lw := lt_of_lt_of_le (div_pos (by linarith) hA) hlw1
+  obtain ⟨Λ, hΛ, l4, h41, h42, h43⟩ := sw3_radial_part (Λ0 := Λ0) hA hD.le (by linarith) hR0.le hlw1 hlw2
+    hlw0 hqw hq3
+  have hT1 : ∀ z ∈ F.carrier, z ∈ T := by
+    intro z hz
+    refine ⟨hL F hF1 z hz, Or.inr (sw3Shadow_self hlu1 hlu2 ?_)⟩
+    have := sw3_tile_dist_le M F hz huF
+    linarith [dist_triangle z α.start (c + lu • V)]
+  have hT2 : ∀ z ∈ α.carrier, z ∈ T := by
+    intro z hz
+    obtain ⟨l, hl1, hl2, hl⟩ := sw3_ray_near hR0.le hD.le hA (le_of_lt hD) (hspk i hz)
+    exact ⟨hSp z hz, Or.inr (sw3Shadow_self hl1 hl2 (by linarith))⟩
+  have hT3 : ∀ z ∈ F'.carrier, z ∈ T := by
+    intro z hz
+    refine ⟨hF F' hF'S hF'H z hz, Or.inr (sw3Shadow_self hlw1 hlw2 ?_)⟩
+    have := sw3_tile_dist_le M F' hz hwF
+    linarith [dist_triangle z α.stop (c + lw • V)]
+  have hT4 : ∀ z ∈ {z | A + R + 3 * D < sw3N (z - c) ∧ sw3Shadow c V A R D z}, z ∈ T :=
+    fun z hz => ⟨hH z hz.1, Or.inr hz.2⟩
+  have hseg : ∀ y ∈ T, segment ℝ y y ⊆ T := fun y hy => by rw [segment_same]; simpa using hy
+  obtain ⟨j1, j2, j3⟩ := sw3_chain_join h11 h12 h21 h22 (h13.imp (fun x y h => h.trans hT1))
+    (h23.imp (fun x y h => h.trans hT2)) (hseg _ (hT2 _ hu.1))
+  obtain ⟨k1, k2, k3⟩ := sw3_chain_join j1 j2 h31 h32 j3 (h33.imp (fun x y h => h.trans hT3))
+    (hseg _ (hT2 _ hw.1))
+  obtain ⟨m1, m2, m3⟩ := sw3_chain_join k1 k2 h41 h42 k3 (h43.imp (fun x y h => h.trans hT4))
+    (hseg _ (hT3 _ hqF))
+  exact ⟨p0, Λ, _, hΛ, hp0, m1, m2, m3⟩
+
+private lemma sw3_piece_ne {S : Set (PlacedTile P)} {L H : FaceGroup S} {N : ℕ} (sp : SpokeSystem S L H N)
+    {m j : Fin (4 * N)} (hmj : m ≠ j) {C : PlacedTile P} (hCm : C ∈ (sp.piece m).faces) :
+    C ∉ (sp.piece j).faces := by
+  intro hCj
+  have hCS : C ∈ S := (sp.piece m).faces_sub hCm
+  have h1 := sp.piece_sub m hCm
+  obtain ⟨k, -, hk⟩ := (sp.piece_partition C hCS).1 ⟨h1.1, h1.2⟩
+  exact hmj ((hk m hCm).trans (hk j hCj).symm)
+
+private lemma sw3_spoke_bad {S : Set (PlacedTile P)} {L H : FaceGroup S} {N : ℕ} (hN : 2 ≤ N)
+    (sp : SpokeSystem S L H N) (i j : Fin (4 * N)) {z : Pt} (hz : z ∈ (sp.spoke i).carrier) :
+    ∃ C ∈ S, C ∉ (sp.piece j).faces ∧ z ∈ C.carrier := by
+  set i' := (finRotate (4 * N)).symm i with hi'
+  have hrot : finRotate (4 * N) i' = i := by rw [hi']; simp
+  have hne : i ≠ i' := by
+    intro h
+    exact mesh_finRotate_ne_self (by omega) i' (hrot.trans h)
+  have hzi : z ∈ (sp.piece i).carrier := (sp.piece_between i).1 hz
+  have hzi' : z ∈ (sp.piece i').carrier := (sp.piece_between i').2 (by rw [hrot]; exact hz)
+  obtain ⟨m, hm, hzm⟩ : ∃ m, m ≠ j ∧ z ∈ (sp.piece m).carrier := by
+    by_cases h : i = j
+    · exact ⟨i', fun h' => hne (h.trans h'.symm), hzi'⟩
+    · exact ⟨i, h, hzi⟩
+  unfold FaceGroup.carrier at hzm
+  rw [(sp.piece m).carrier_eq, mem_support_iff'] at hzm
+  obtain ⟨C, hC, hzC⟩ := hzm
+  exact ⟨C, (sp.piece m).faces_sub hC, sw3_piece_ne sp hm hC, hzC⟩
+
+private lemma sw3_closing_far {c Va Vb z : Pt} {A Λa Λb Λ0 : ℝ} (hA : 0 < A) (hΛ0 : 0 ≤ Λ0)
+    (ha : Λ0 ≤ Λa) (hb : Λ0 ≤ Λb) (hVa : sw3N Va = A) (hVb : sw3N Vb = A)
+    (hin : 0 ≤ Va 0 * Vb 0 + Va 1 * Vb 1) (hz : z ∈ segment ℝ (c + Λa • Va) (c + Λb • Vb)) :
+    Λ0 * A / 2 ≤ sw3N (z - c) := by
+  obtain ⟨θ, h0, h1, rfl⟩ := mem_segment_iff'.1 hz
+  have e0 : (c + Λa • Va + θ • (c + Λb • Vb - (c + Λa • Va)) - c) 0 = (1 - θ) * Λa * Va 0 + θ * Λb * Vb 0 := by
+    simp only [PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]; ring
+  have e1 : (c + Λa • Va + θ • (c + Λb • Vb - (c + Λa • Va)) - c) 1 = (1 - θ) * Λa * Va 1 + θ * Λb * Vb 1 := by
+    simp only [PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]; ring
+  set w := c + Λa • Va + θ • (c + Λb • Vb - (c + Λa • Va)) - c
+  have hna : A ^ 2 ≤ Va 0 ^ 2 + Va 1 ^ 2 := by
+    rw [← hVa]; unfold sw3N
+    rcases le_total |Va 0| |Va 1| with h | h
+    · rw [max_eq_right h, sq_abs]; nlinarith
+    · rw [max_eq_left h, sq_abs]; nlinarith
+  have hnb : A ^ 2 ≤ Vb 0 ^ 2 + Vb 1 ^ 2 := by
+    rw [← hVb]; unfold sw3N
+    rcases le_total |Vb 0| |Vb 1| with h | h
+    · rw [max_eq_right h, sq_abs]; nlinarith
+    · rw [max_eq_left h, sq_abs]; nlinarith
+  have hw2 : w 0 ^ 2 + w 1 ^ 2 ≤ 2 * sw3N w ^ 2 := by
+    unfold sw3N
+    have := le_max_left |w 0| |w 1|
+    have := le_max_right |w 0| |w 1|
+    have h0' : w 0 ^ 2 ≤ max |w 0| |w 1| ^ 2 := by rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) (by assumption) 2
+    have h1' : w 1 ^ 2 ≤ max |w 0| |w 1| ^ 2 := by rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) (by assumption) 2
+    linarith
+  have hΛa : 0 ≤ Λa := by linarith
+  have hΛb : 0 ≤ Λb := by linarith
+  have key : (Λ0 * A) ^ 2 / 2 ≤ w 0 ^ 2 + w 1 ^ 2 := by
+    rw [e0, e1]
+    have ha2 : ((1 - θ) * Λ0) ^ 2 * A ^ 2 ≤ ((1 - θ) * Λa) ^ 2 * (Va 0 ^ 2 + Va 1 ^ 2) := by
+      apply mul_le_mul _ hna (by positivity) (by positivity)
+      exact pow_le_pow_left₀ (by nlinarith) (by nlinarith) 2
+    have hb2 : (θ * Λ0) ^ 2 * A ^ 2 ≤ (θ * Λb) ^ 2 * (Vb 0 ^ 2 + Vb 1 ^ 2) := by
+      apply mul_le_mul _ hnb (by positivity) (by positivity)
+      exact pow_le_pow_left₀ (by nlinarith) (by nlinarith) 2
+    have hc : 0 ≤ ((1 - θ) * Λa) * (θ * Λb) * (Va 0 * Vb 0 + Va 1 * Vb 1) :=
+      mul_nonneg (mul_nonneg (mul_nonneg (by linarith) hΛa) (mul_nonneg h0 hΛb)) hin
+    have hθ : 1 / 2 ≤ (1 - θ) ^ 2 + θ ^ 2 := by
+      have := sq_nonneg (2 * θ - 1)
+      linarith [show (2 * θ - 1) ^ 2 = 2 * ((1 - θ) ^ 2 + θ ^ 2) - 1 by ring]
+    have h3 : (Λ0 * A) ^ 2 / 2 ≤ ((1 - θ) ^ 2 + θ ^ 2) * (Λ0 * A) ^ 2 := by
+      have := mul_le_mul_of_nonneg_right hθ (sq_nonneg (Λ0 * A))
+      linarith
+    have hid : ((1 - θ) * Λa * Va 0 + θ * Λb * Vb 0) ^ 2 + ((1 - θ) * Λa * Va 1 + θ * Λb * Vb 1) ^ 2 =
+        ((1 - θ) * Λa) ^ 2 * (Va 0 ^ 2 + Va 1 ^ 2) + (θ * Λb) ^ 2 * (Vb 0 ^ 2 + Vb 1 ^ 2) +
+          2 * (((1 - θ) * Λa) * (θ * Λb) * (Va 0 * Vb 0 + Va 1 * Vb 1)) := by ring
+    have h4 : ((1 - θ) ^ 2 + θ ^ 2) * (Λ0 * A) ^ 2 =
+        ((1 - θ) * Λ0) ^ 2 * A ^ 2 + (θ * Λ0) ^ 2 * A ^ 2 := by ring
+    rw [hid]
+    linarith
+  have hs : (Λ0 * A / 2) ^ 2 ≤ sw3N w ^ 2 := by
+    have : (Λ0 * A / 2) ^ 2 = (Λ0 * A) ^ 2 / 2 / 2 := by ring
+    linarith
+  by_contra hc
+  push_neg at hc
+  have : sw3N w ^ 2 < (Λ0 * A / 2) ^ 2 := pow_lt_pow_left₀ hc (sw3N_nonneg w) two_ne_zero
+  linarith
+
+private lemma sw3_list_last {l : List Pt} {v : Pt} (h : l.getLast? = some v) :
+    ∃ hl : 0 < l.length, l[l.length - 1] = v := by
+  rw [List.getLast?_eq_getElem?, List.getElem?_eq_some_iff] at h
+  obtain ⟨h1, h2⟩ := h
+  exact ⟨by omega, h2⟩
+
+private lemma sw3_list_head {l : List Pt} {v : Pt} (h : l.head? = some v) :
+    ∃ hl : 0 < l.length, l[0] = v := by
+  rw [List.head?_eq_getElem?, List.getElem?_eq_some_iff] at h
+  obtain ⟨h1, h2⟩ := h
+  exact ⟨h1, h2⟩
+
+private lemma sw3_spp_N {N : ℕ} {R : ℝ} (hR : 0 < R) (hN : 1 ≤ N) (k : Fin (4 * N)) :
+    sw3N (squarePerimeterPoint ((N : ℝ) * R / 2) (((k : ℕ) : ℝ) * R)) = (N : ℝ) * R / 2 := by
+  have hN' : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hk : ((k : ℕ) : ℝ) + 1 ≤ 4 * N := by exact_mod_cast k.isLt
+  rw [← sw3P_eq hA (by positivity) (by nlinarith), sw3N_sw3P hA]
+
+private lemma sw3_ray_avoid {c x V : Pt} {A R D : ℝ} (hA : 0 < A) (hD : 0 < D) (hAD : 12 * D ≤ A) (hR : 0 ≤ R)
+    (hV : sw3N V = A) (hx1 : A ≤ sw3N (x - c)) (hx2 : sw3N (x - c) ≤ A + R + 3 * D)
+    (hfar : ∀ l, (A - 3 * D) / A ≤ l → l ≤ (A + R + 6 * D) / A → 3 * D < dist x (c + l • V))
+    {σ : ℝ} (hσ : 1 ≤ σ) :
+    c + σ • (x - c) ∉ interior (square c A) ∧ ¬ sw3Shadow c V A R D (c + σ • (x - c)) := by
+  constructor
+  · intro h
+    have := sw3_interior_square h
+    rw [add_sub_cancel_left, sw3N_smul, abs_of_pos (by linarith)] at this
+    nlinarith
+  · rintro ⟨y, σ2, l, hl1, hl2, hy, hσ2, hyy, heq⟩
+    exact sw3_shadow hA hD hAD hR hV hx1 hx2 hfar hl1 hl2 hy hσ hσ2 hyy heq
+
+private lemma sw3_contra {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S.tiles c N R)
+    (hspk : ∀ j, (G.spokes.spoke j).carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j))
+    (j a b : Fin (4 * N))
+    (hJ : 0 < jcr (squarePerimeterPoint ((N : ℝ) * R / 2) (((a : ℕ) : ℝ) * R))
+      (squarePerimeterPoint ((N : ℝ) * R / 2) (((b : ℕ) : ℝ) * R)))
+    (hin : 0 ≤ squarePerimeterPoint ((N : ℝ) * R / 2) (((a : ℕ) : ℝ) * R) 0 *
+        squarePerimeterPoint ((N : ℝ) * R / 2) (((b : ℕ) : ℝ) * R) 0 +
+      squarePerimeterPoint ((N : ℝ) * R / 2) (((a : ℕ) : ℝ) * R) 1 *
+        squarePerimeterPoint ((N : ℝ) * R / 2) (((b : ℕ) : ℝ) * R) 1)
+    {x s : Pt} {X Y : PlacedTile P} (hX : X ∈ (G.spokes.piece j).faces)
+    (hY : Y ∈ (G.spokes.piece j).faces) (hxX : x ∈ interior X.carrier) (hsY : s ∈ interior Y.carrier)
+    (hx1 : (N : ℝ) * R / 2 ≤ sw3N (x - c)) (hx2 : sw3N (x - c) ≤ (N : ℝ) * R / 2 + R + 3 * M.D)
+    (hxa : ∀ l, ((N : ℝ) * R / 2 - 3 * M.D) / ((N : ℝ) * R / 2) ≤ l →
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * M.D) / ((N : ℝ) * R / 2) →
+      3 * M.D < dist x (c + l • squarePerimeterPoint ((N : ℝ) * R / 2) (((a : ℕ) : ℝ) * R)))
+    (hxb : ∀ l, ((N : ℝ) * R / 2 - 3 * M.D) / ((N : ℝ) * R / 2) ≤ l →
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * M.D) / ((N : ℝ) * R / 2) →
+      3 * M.D < dist x (c + l • squarePerimeterPoint ((N : ℝ) * R / 2) (((b : ℕ) : ℝ) * R)))
+    (hα : 0 < jcr (x - c) (squarePerimeterPoint ((N : ℝ) * R / 2) (((b : ℕ) : ℝ) * R)))
+    (hβ : 0 < jcr (squarePerimeterPoint ((N : ℝ) * R / 2) (((a : ℕ) : ℝ) * R)) (x - c))
+    (hs1 : (N : ℝ) * R / 2 ≤ sw3N (s - c)) (hs2 : sw3N (s - c) ≤ (N : ℝ) * R / 2 + R + 3 * M.D)
+    (hsa : ∀ l, ((N : ℝ) * R / 2 - 3 * M.D) / ((N : ℝ) * R / 2) ≤ l →
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * M.D) / ((N : ℝ) * R / 2) →
+      3 * M.D < dist s (c + l • squarePerimeterPoint ((N : ℝ) * R / 2) (((a : ℕ) : ℝ) * R)))
+    (hsb : ∀ l, ((N : ℝ) * R / 2 - 3 * M.D) / ((N : ℝ) * R / 2) ≤ l →
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * M.D) / ((N : ℝ) * R / 2) →
+      3 * M.D < dist s (c + l • squarePerimeterPoint ((N : ℝ) * R / 2) (((b : ℕ) : ℝ) * R)))
+    (hcone : jcr (squarePerimeterPoint ((N : ℝ) * R / 2) (((a : ℕ) : ℝ) * R)) (s - c) < 0 ∨
+      jcr (s - c) (squarePerimeterPoint ((N : ℝ) * R / 2) (((b : ℕ) : ℝ) * R)) < 0) : False := by
+  set A := (N : ℝ) * R / 2 with hAdef
+  set D := M.D with hDdef
+  set Va := squarePerimeterPoint A (((a : ℕ) : ℝ) * R) with hVa
+  set Vb := squarePerimeterPoint A (((b : ℕ) : ℝ) * R) with hVb
+  set J := jcr Va Vb with hJdef
+  have hD : 0 < D := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < A := by rw [hAdef]; positivity
+  have hAR : R ≤ A := by rw [hAdef]; nlinarith
+  have hAD : 12 * D ≤ A := by linarith
+  have hNa : sw3N Va = A := sw3_spp_N hR0 (by omega) a
+  have hNb : sw3N Vb = A := sw3_spp_N hR0 (by omega) b
+  set pj := G.spokes.piece j with hpj
+  set Bad : Pt → Prop := fun z => z ∉ interior (support pj.faces) ∨
+    ∃ C ∈ S.tiles, C ∉ pj.faces ∧ z ∈ C.carrier with hBad
+  have hsupp : ∀ z ∈ support pj.faces, sw3N (z - c) ≤ A + R + 3 * D := by
+    intro z hz
+    obtain ⟨C, hC, hzC⟩ := mem_support_iff'.1 hz
+    have hzH : z ∈ G.H.carrier := by
+      unfold FaceGroup.carrier; rw [G.H.carrier_eq]
+      exact carrier_subset_support (G.spokes.piece_sub j hC).1 hzC
+    rw [← sw3_mem_square_iff]
+    exact sw3_square_add_sub c _ _ (G.H_upper hzH)
+  have hL : ∀ F ∈ G.L.faces, ∀ z ∈ F.carrier, Bad z := fun F hF z hz =>
+    Or.inr ⟨F, G.L.faces_sub hF, fun h => (G.spokes.piece_sub j h).2 hF, hz⟩
+  have hF : ∀ F ∈ S.tiles, F ∉ G.H.faces → ∀ z ∈ F.carrier, Bad z := fun F hF hFH z hz =>
+    Or.inr ⟨F, hF, fun h => hFH (G.spokes.piece_sub j h).1, hz⟩
+  have hH : ∀ z, A + R + 3 * D < sw3N (z - c) → Bad z := fun z hz =>
+    Or.inl (fun h => by linarith [hsupp z (interior_subset h)])
+  set jx := jcr (x - c) Vb
+  set jy := jcr Va (x - c)
+  set Λ0 := 2 * (A + R + 3 * D) / A + 1 + 2 * (jx + jy) / J with hΛ0
+  have hΛ0a : 2 * (A + R + 3 * D) / A * A = 2 * (A + R + 3 * D) := div_mul_cancel₀ _ hA.ne'
+  have hΛ0b : 2 * (jx + jy) / J * J = 2 * (jx + jy) := div_mul_cancel₀ _ hJ.ne'
+  have hΛ0p : 1 ≤ Λ0 := by
+    have : 0 ≤ 2 * (A + R + 3 * D) / A := by positivity
+    have : 0 ≤ 2 * (jx + jy) / J := div_nonneg (by linarith) hJ.le
+    linarith
+  obtain ⟨pa, Λa, la, hΛa, hpa, ha1, ha2, ha3⟩ := sw3_wall hN hR G hspk a Bad hL
+    (fun z hz => Or.inr (sw3_spoke_bad hN G.spokes a j hz)) hF hH Λ0
+  obtain ⟨pb, Λb, lb, hΛb, hpb, hb1, hb2, hb3⟩ := sw3_wall hN hR G hspk b Bad hL
+    (fun z hz => Or.inr (sw3_spoke_bad hN G.spokes b j hz)) hF hH Λ0
+  set T : Set Pt := {z | Bad z ∧ ((z ∈ interior (square c A) ∨ sw3Shadow c Va A R D z) ∨
+    (z ∈ interior (square c A) ∨ sw3Shadow c Vb A R D z))} with hT
+  set Γ := lb.reverse ++ la with hΓ
+  have hQL : ∀ z ∈ interior (square c A), Bad z := by
+    intro z hz
+    have hzL := G.L_lower (interior_subset hz)
+    unfold FaceGroup.carrier at hzL; rw [G.L.carrier_eq] at hzL
+    obtain ⟨F, hF', hzF⟩ := mem_support_iff'.1 hzL
+    exact hL F hF' z hzF
+  have hchain : Γ.IsChain (fun x y => segment ℝ x y ⊆ T) := by
+    refine List.IsChain.append ?_ (ha3.imp (fun x y h => h.trans (fun z hz => ⟨hz.1, Or.inl hz.2⟩))) ?_
+    · rw [List.isChain_reverse]
+      refine hb3.imp (fun x y h => ?_)
+      rw [segment_symm]
+      exact h.trans (fun z hz => ⟨hz.1, Or.inr hz.2⟩)
+    · intro x hx y hy
+      rw [List.getLast?_reverse, hb1] at hx
+      rw [ha1] at hy
+      simp only [Option.mem_def, Option.some.injEq] at hx hy
+      subst hx; subst hy
+      intro z hz
+      have hz' : z ∈ interior (square c A) := (rg_square_convex c A).interior.segment_subset hpb hpa hz
+      exact ⟨hQL z hz', Or.inl (Or.inl hz')⟩
+  have hlast : ∃ hl : 0 < Γ.length, Γ[Γ.length - 1] = c + Λa • Va := by
+    apply sw3_list_last
+    rw [hΓ, List.getLast?_append, ha2]; rfl
+  have hfirst : ∃ hl : 0 < Γ.length, Γ[0] = c + Λb • Vb := by
+    apply sw3_list_head
+    rw [hΓ, List.head?_append, List.head?_reverse, hb2]; rfl
+  obtain ⟨hΓl, hlast⟩ := hlast
+  obtain ⟨_, hfirst⟩ := hfirst
+  have hΛa0 : 0 < Λa := by linarith
+  have hΛb0 : 0 < Λb := by linarith
+  have hΛ0J : Λ0 * J = 2 * (A + R + 3 * D) / A * J + J + 2 * (jx + jy) := by
+    rw [← hΛ0b, hΛ0]; ring
+  have hΛ0A : Λ0 * A = 2 * (A + R + 3 * D) + A + 2 * (jx + jy) / J * A := by
+    rw [← hΛ0a, hΛ0]; ring
+  have hJaJ : Λ0 * J ≤ Λa * J := mul_le_mul_of_nonneg_right hΛa hJ.le
+  have hJbJ : Λ0 * J ≤ Λb * J := mul_le_mul_of_nonneg_right hΛb hJ.le
+  have hpos1 : 0 ≤ 2 * (A + R + 3 * D) / A * J := mul_nonneg (by positivity) hJ.le
+  have hpos2 : 0 ≤ 2 * (jx + jy) / J * A := mul_nonneg (div_nonneg (by linarith) hJ.le) hA.le
+  have hxc : x ≠ c := by
+    intro h; rw [h, sub_self] at hx1
+    have : sw3N (0 : Pt) = 0 := by simp [sw3N]
+    linarith
+  have hsc : s ≠ c := by
+    intro h; rw [h, sub_self] at hs1
+    have : sw3N (0 : Pt) = 0 := by simp [sw3N]
+    linarith
+  have hTx : ∀ σ : ℝ, 1 ≤ σ → c + σ • (x - c) ∉ T := by
+    rintro σ hσ ⟨-, hm⟩
+    have h1 := sw3_ray_avoid hA hD hAD hR0.le hNa hx1 hx2 hxa hσ
+    have h2 := sw3_ray_avoid hA hD hAD hR0.le hNb hx1 hx2 hxb hσ
+    tauto
+  have hTs : ∀ σ : ℝ, 1 ≤ σ → c + σ • (s - c) ∉ T := by
+    rintro σ hσ ⟨-, hm⟩
+    have h1 := sw3_ray_avoid hA hD hAD hR0.le hNa hs1 hs2 hsa hσ
+    have h2 := sw3_ray_avoid hA hD hAD hR0.le hNb hs1 hs2 hsb hσ
+    tauto
+  have hwx := sw3_core_cross hΓl hΛa0 hΛb0 hJ hlast hfirst hchain hxc hTx hα hβ (by linarith) (by linarith)
+  have hws := sw3_core_zero hΓl hΛa0 hΛb0 hJ hlast hfirst hchain hsc hTs hcone
+  have hcurve : ∀ z ∈ polyCurve (sw3poly Γ), Bad z := by
+    intro z hz
+    obtain ⟨k, hk⟩ := mem_iUnion.1 hz
+    by_cases hkk : k = ⟨Γ.length - 1, by omega⟩
+    · subst hkk
+      obtain ⟨e1, e2⟩ := sw3_poly_last hΓl
+      rw [e1, e2, hlast, hfirst] at hk
+      have := sw3_closing_far hA (by linarith) hΛa hΛb hNa hNb hin hk
+      exact hH z (by linarith)
+    · exact (sw3_poly_other hΓl hchain k hkk hk).1
+  have := sw3_wind_chain S.disjoint pj.faces_sub pj.dualConnected (sw3poly Γ) hcurve hX hY hxX hsY
+  exact hwx (this.trans hws)
+
+private lemma sw3_spp_eq {A t : ℝ} (hA : 0 < A) (h0 : 0 ≤ t) (h1 : t ≤ 8 * A) :
+    squarePerimeterPoint A t = sw3P A t := by
+  rcases lt_or_eq_of_le h1 with h | h
+  · exact (sw3P_eq hA h0 h).symm
+  · subst h
+    have := sw3P_periodic (A := A) 0
+    rw [zero_add] at this
+    rw [this, sw3P_eq hA le_rfl (by linarith)]
+    unfold squarePerimeterPoint
+    rw [if_neg (by linarith), if_neg (by linarith), if_neg (by linarith), if_pos (by linarith)]
+    congr 1 <;> ring
+
+private lemma sw3_fin_of_int {N : ℕ} {R : ℝ} (hR : 0 < R) (hN : 1 ≤ N) (m : ℤ) :
+    ∃ i : Fin (4 * N), squarePerimeterPoint ((N : ℝ) * R / 2) (((i : ℕ) : ℝ) * R) =
+      sw3P ((N : ℝ) * R / 2) ((m : ℝ) * R) := by
+  have h4N : (0 : ℤ) < 4 * N := by positivity
+  have hr0 : 0 ≤ m % (4 * N : ℤ) := Int.emod_nonneg _ h4N.ne'
+  have hr1 : m % (4 * N : ℤ) < 4 * N := Int.emod_lt_of_pos _ h4N
+  refine ⟨⟨(m % (4 * N : ℤ)).toNat, by omega⟩, ?_⟩
+  have hN' : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hcast : (((m % (4 * N : ℤ)).toNat : ℕ) : ℝ) = ((m % (4 * N : ℤ) : ℤ) : ℝ) := by
+    rw [← Int.cast_natCast, Int.toNat_of_nonneg hr0]
+  simp only
+  rw [hcast]
+  have hr1' : ((m % (4 * N : ℤ) : ℤ) : ℝ) + 1 ≤ 4 * N := by exact_mod_cast hr1
+  have hr0' : (0 : ℝ) ≤ ((m % (4 * N : ℤ) : ℤ) : ℝ) := by exact_mod_cast hr0
+  rw [sw3_spp_eq hA (by positivity) (by nlinarith)]
+  have h8 : 8 * ((N : ℝ) * R / 2) = 4 * N * R := by ring
+  have e : m % (4 * N : ℤ) = m + 4 * N * (-(m / (4 * N : ℤ))) := by
+    rw [Int.emod_def]; ring
+  rw [e, sw3P_int_shift h8]
+
+private lemma sw3_jcr_pos {A : ℝ} (hA : 0 < A) (s : ℝ) {d : ℝ} (hd0 : 0 < d) (hd1 : d ≤ 2 * A) :
+    0 < jcr (sw3P A s) (sw3P A (s + d)) := by
+  have h := sw3P_jcr hA s hd0.le (by linarith)
+  have : 0 < min d (4 * A - d) := lt_min hd0 (by linarith)
+  have : 0 < A / 2 * min d (4 * A - d) := by positivity
+  linarith
+
+private lemma sw3_inner_nonneg {A : ℝ} (hA : 0 < A) (s : ℝ) {d : ℝ} (hd0 : 0 ≤ d) (hd1 : d ≤ 2 * A) :
+    0 ≤ sw3P A s 0 * sw3P A (s + d) 0 + sw3P A s 1 * sw3P A (s + d) 1 := by
+  have h := sw3P_jcr hA s (d := d + 2 * A) (by linarith) (by linarith)
+  rw [show s + (d + 2 * A) = (s + d) + 2 * A by ring, sw3P_rot hA] at h
+  have e : jcr (sw3P A s) (jrot (sw3P A (s + d))) =
+      sw3P A s 0 * sw3P A (s + d) 0 + sw3P A s 1 * sw3P A (s + d) 1 := by
+    simp [jcr, jrot]
+  rw [e] at h
+  have : 0 ≤ min (d + 2 * A) (4 * A - (d + 2 * A)) := le_min (by linarith) (by linarith)
+  have : 0 ≤ A / 2 * min (d + 2 * A) (4 * A - (d + 2 * A)) := by positivity
+  linarith
+
+private lemma sw3_ray_mem {c V : Pt} {lo hi l : ℝ} (hlh : lo < hi) (h1 : lo ≤ l) (h2 : l ≤ hi) :
+    c + l • V ∈ segment ℝ (c + lo • V) (c + hi • V) := by
+  rw [mem_segment_iff']
+  refine ⟨(l - lo) / (hi - lo), div_nonneg (by linarith) (by linarith),
+    (div_le_one (by linarith)).2 (by linarith), ?_⟩
+  have : (l - lo) / (hi - lo) * (hi - lo) = l - lo := div_mul_cancel₀ _ (by linarith)
+  rw [show c + hi • V - (c + lo • V) = (hi - lo) • V by module, smul_smul, this]
+  module
+
+private lemma sw3_far_of_not_cthick {c x : Pt} {N : ℕ} {R D δ : ℝ} (hR : 0 < R) (hD : 0 < D) (hN : 1 ≤ N)
+    (j : ℕ) (hj : j ≤ 4 * N) (hx : x ∉ Metric.cthickening δ (existsAnnularSpokes_ray c N R D j)) :
+    ∀ l, ((N : ℝ) * R / 2 - 3 * D) / ((N : ℝ) * R / 2) ≤ l →
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * D) / ((N : ℝ) * R / 2) →
+      δ < dist x (c + l • sw3P ((N : ℝ) * R / 2) (((j : ℤ) : ℝ) * R)) := by
+  intro l h1 h2
+  have hN' : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hj' : (j : ℝ) ≤ 4 * N := by exact_mod_cast hj
+  by_contra h
+  push_neg at h
+  apply hx
+  refine Metric.mem_cthickening_of_dist_le x _ δ _ ?_ h
+  unfold existsAnnularSpokes_ray
+  have e : existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+      sw3P ((N : ℝ) * R / 2) (((j : ℤ) : ℝ) * R) := by
+    rw [Int.cast_natCast]
+    exact sw3_spp_eq hA (by positivity) (by nlinarith)
+  rw [e]
+  exact sw3_ray_mem (div_lt_div_of_pos_right (by linarith) hA) h1 h2
+
+private lemma sw3_not_dvd {n m : ℤ} (h1 : 1 ≤ m) (h2 : m < n) : ¬ n ∣ m := fun h => by
+  have := Int.le_of_dvd (by omega) h; omega
+
+private lemma sw3_near_excl {c x : Pt} {A R D : ℝ} {N : ℕ} (hA : 0 < A) (hR : 0 < R) (hRA : R ≤ A)
+    (h8 : 8 * A = 4 * N * R) (hN : 1 ≤ N) (h64 : 64 * D < R) {m m' : ℤ}
+    (hdiv : ¬ (4 * N : ℤ) ∣ m - m') {l l' : ℝ} (hl : 1 / 2 ≤ l) (hl' : 1 / 2 ≤ l')
+    (h1 : dist x (c + l • sw3P A ((m : ℝ) * R)) ≤ 4 * D)
+    (h2 : dist x (c + l' • sw3P A ((m' : ℝ) * R)) ≤ 4 * D) : False := by
+  have := sw3P_sep hA hR hRA h8 hN hdiv c hl' hl
+  have := dist_triangle_left (c + l • sw3P A ((m : ℝ) * R)) (c + l' • sw3P A ((m' : ℝ) * R)) x
+  linarith
+
+private lemma sw3_sep_far {c s : Pt} {A R D : ℝ} {N : ℕ} (hA : 0 < A) (hR : 0 < R) (hRA : R ≤ A)
+    (h8 : 8 * A = 4 * N * R) (hN : 1 ≤ N) (h40 : 40 * D < R) {t a : ℤ}
+    (hdiv : ¬ (4 * N : ℤ) ∣ t - a) {l' : ℝ} (hl' : 1 / 2 ≤ l')
+    (hs : dist s (c + l' • sw3P A ((t : ℝ) * R)) ≤ 2 * D) {l : ℝ} (hl : 1 / 2 ≤ l) :
+    3 * D < dist s (c + l • sw3P A ((a : ℝ) * R)) := by
+  have := sw3P_sep hA hR hRA h8 hN hdiv c hl hl'
+  have := dist_triangle_left (c + l' • sw3P A ((t : ℝ) * R)) (c + l • sw3P A ((a : ℝ) * R)) s
+  linarith
+
+private lemma sw3_cone {c s : Pt} {A R D : ℝ} {N : ℕ} (hA : 0 < A) (hR : 0 < R)
+    (h8 : 8 * A = 4 * N * R) (hD : 0 ≤ D) (h16 : 32 * D < R) {a b t : ℤ} (hab1 : 1 ≤ b - a)
+    (hab2 : b - a ≤ 2) (ht1 : b + 1 ≤ t) (ht2 : t ≤ a + 4 * N - 1) {l' : ℝ} (hl' : 1 / 2 ≤ l')
+    (hs : dist s (c + l' • sw3P A ((t : ℝ) * R)) ≤ 2 * D) :
+    jcr (sw3P A ((a : ℝ) * R)) (s - c) < 0 ∨ jcr (s - c) (sw3P A ((b : ℝ) * R)) < 0 := by
+  set e := s - c - l' • sw3P A ((t : ℝ) * R) with he
+  have hen : ‖e‖ ≤ 2 * D := by
+    rw [he, show s - c - l' • sw3P A ((t : ℝ) * R) = s - (c + l' • sw3P A ((t : ℝ) * R)) by abel,
+      ← dist_eq_norm]; exact hs
+  have hsc : s - c = l' • sw3P A ((t : ℝ) * R) + e := by rw [he]; abel
+  have hkey : ∀ u v : Pt, A * R / 2 ≤ jcr u v → ‖u‖ ≤ 2 * A →
+      l' * jcr u v + jcr u e > 0 := by
+    intro u v huv hu
+    have h1 : 1 / 2 * (A * R / 2) ≤ l' * jcr u v :=
+      mul_le_mul hl' huv (by positivity) (by linarith)
+    have h2 := sw3_jcr_le u e
+    have h3 : ‖u‖ * ‖e‖ ≤ 2 * A * (2 * D) := mul_le_mul hu hen (norm_nonneg _) (by linarith)
+    have h4 : A * (32 * D) < A * R := mul_lt_mul_of_pos_left h16 hA
+    have := (abs_le.1 h2).1
+    have : 0 ≤ A * D := by positivity
+    linarith
+  have hkey2 : ∀ u v : Pt, A * R / 2 ≤ jcr v u → ‖u‖ ≤ 2 * A →
+      l' * jcr u v + jcr u e < 0 := by
+    intro u v huv hu
+    have h1 : 1 / 2 * (A * R / 2) ≤ l' * jcr v u :=
+      mul_le_mul hl' huv (by positivity) (by linarith)
+    have h2 := sw3_jcr_le u e
+    have h3 : ‖u‖ * ‖e‖ ≤ 2 * A * (2 * D) := mul_le_mul hu hen (norm_nonneg _) (by linarith)
+    have h4 : A * (32 * D) < A * R := mul_lt_mul_of_pos_left h16 hA
+    have := (abs_le.1 h2).2
+    have : 0 ≤ A * D := by positivity
+    rw [jcr_anti v u]
+    linarith
+  rcases le_or_gt (t - b) (2 * N - 1) with h | h
+  · right
+    have hj := sw3P_jcr_int hA hR h8 (a := b) (b := t) (by omega) h
+    have := hkey _ _ hj (sw3P_norm_le hA _)
+    rw [hsc, jcr_anti, jcr_add_right, jcr_smul_right]
+    linarith
+  · left
+    have hj := sw3P_jcr_int hA hR h8 (a := t) (b := a + 4 * N * 1) (by omega) (by omega)
+    have e1 := sw3P_int_shift h8 a 1
+    rw [e1] at hj
+    have := hkey2 _ _ hj (sw3P_norm_le hA _)
+    rw [hsc, jcr_add_right, jcr_smul_right]
+    exact this
+
+private lemma sw3_pick (n j a b : ℤ) (h : (b + 1 ≤ j ∧ j ≤ a + n - 1) ∨ (b + 1 ≤ j + 1 ∧ j + 1 ≤ a + n - 1) ∨
+    (b + 1 ≤ j + n ∧ j + n ≤ a + n - 1) ∨ (b + 1 ≤ j + 1 + n ∧ j + 1 + n ≤ a + n - 1) ∨
+    (b + 1 ≤ j - n ∧ j - n ≤ a + n - 1) ∨ (b + 1 ≤ j + 1 - n ∧ j + 1 - n ≤ a + n - 1)) :
+    ∃ t q : ℤ, (t = j + n * q ∨ t = j + 1 + n * q) ∧ b + 1 ≤ t ∧ t ≤ a + n - 1 := by
+  rcases h with h | h | h | h | h | h
+  · exact ⟨_, 0, Or.inl (by ring), h⟩
+  · exact ⟨_, 0, Or.inr (by ring), h⟩
+  · exact ⟨_, 1, Or.inl (by ring), h⟩
+  · exact ⟨_, 1, Or.inr (by ring), h⟩
+  · exact ⟨_, -1, Or.inl (by ring), h⟩
+  · exact ⟨_, -1, Or.inr (by ring), h⟩
+
+private lemma sw3_perturb {X : PlacedTile P} {x : Pt} (hx : x ∈ X.carrier) {U : Set Pt} (hU : IsOpen U)
+    (hxU : x ∈ U) : ∃ z ∈ interior X.carrier, z ∈ U := by
+  rw [← tile_regular X] at hx
+  obtain ⟨z, hzU, hz⟩ := mem_closure_iff.1 hx U hU hxU
+  exact ⟨z, hz, hzU⟩
+
+private lemma sw3_face_band {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S.tiles c N R) (j : Fin (4 * N)) {X : PlacedTile P}
+    (hX : X ∈ (G.spokes.piece j).faces) {z : Pt} (hz : z ∈ X.carrier) :
+    sw3N (z - c) ≤ (N : ℝ) * R / 2 + R + 3 * M.D ∧
+      (z ∈ interior X.carrier → (N : ℝ) * R / 2 ≤ sw3N (z - c)) := by
+  constructor
+  · have hzH : z ∈ G.H.carrier := by
+      unfold FaceGroup.carrier; rw [G.H.carrier_eq]
+      exact carrier_subset_support (G.spokes.piece_sub j hX).1 hz
+    rw [← sw3_mem_square_iff]
+    exact sw3_square_add_sub c _ _ (G.H_upper hzH)
+  · intro hzi
+    by_contra h
+    push_neg at h
+    have hzL := G.L_lower (sw3_mem_square_iff.2 h.le)
+    unfold FaceGroup.carrier at hzL; rw [G.L.carrier_eq] at hzL
+    obtain ⟨C, hC, hzC⟩ := mem_support_iff'.1 hzL
+    have hXS := (G.spokes.piece j).faces_sub hX
+    have := sw3_tile_unique S.disjoint hXS (G.L.faces_sub hC) hzi hzC
+    subst this
+    exact (G.spokes.piece_sub j hX).2 hC
+
+private lemma sw3_point_band {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S.tiles c N R) (j : Fin (4 * N)) {X : PlacedTile P}
+    (hX : X ∈ (G.spokes.piece j).faces) {x : Pt} (hx : x ∈ X.carrier) :
+    (N : ℝ) * R / 2 ≤ sw3N (x - c) := by
+  by_contra h
+  push_neg at h
+  obtain ⟨z, hz, hzU⟩ := sw3_perturb hx isOpen_interior (sw3_mem_interior_square h)
+  have h1 := (sw3_face_band G j hX (interior_subset hz)).2 hz
+  have h2 := sw3_interior_square hzU
+  linarith
+
+private lemma sw3_cont_jcr1 (c V : Pt) : Continuous fun z : Pt => jcr (z - c) V := by
+  have h0 : Continuous fun w : Pt => w 0 := PiLp.continuous_apply 2 _ 0
+  have h1 : Continuous fun w : Pt => w 1 := PiLp.continuous_apply 2 _ 1
+  unfold jcr
+  simp only [PiLp.sub_apply]
+  fun_prop
+
+private lemma sw3_cont_jcr2 (c V : Pt) : Continuous fun z : Pt => jcr V (z - c) := by
+  have h0 : Continuous fun w : Pt => w 0 := PiLp.continuous_apply 2 _ 0
+  have h1 : Continuous fun w : Pt => w 1 := PiLp.continuous_apply 2 _ 1
+  unfold jcr
+  simp only [PiLp.sub_apply]
+  fun_prop
+
+private lemma sw3_s_exists {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ}
+    (hR0 : 0 < R) (hN : 1 ≤ N) (G : AnnularGrouping M S.tiles c N R)
+    (hspk : ∀ j, (G.spokes.spoke j).carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j))
+    (j t : Fin (4 * N)) (ht : (G.spokes.spoke t).carrier ⊆ (G.spokes.piece j).carrier) :
+    ∃ Y ∈ (G.spokes.piece j).faces, ∃ s ∈ interior Y.carrier, ∃ l : ℝ,
+      ((N : ℝ) * R / 2 - 3 * M.D) / ((N : ℝ) * R / 2) ≤ l ∧
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * M.D) / ((N : ℝ) * R / 2) ∧
+      dist s (c + l • squarePerimeterPoint ((N : ℝ) * R / 2) (((t : ℕ) : ℝ) * R)) ≤ 2 * M.D := by
+  have hD := M.D_pos
+  have hN' : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hu : (G.spokes.spoke t).start ∈ (G.spokes.spoke t).carrier ∩ frontier G.L.carrier := by
+    rw [G.spokes.meets_L t]; rfl
+  obtain ⟨l, hl1, hl2, hl⟩ := sw3_ray_near hR0.le hD.le hA hD.le (hspk t hu.1)
+  have hz := ht hu.1
+  unfold FaceGroup.carrier at hz; rw [(G.spokes.piece j).carrier_eq] at hz
+  obtain ⟨Y, hY, hzY⟩ := mem_support_iff'.1 hz
+  obtain ⟨s, hs, hsb⟩ := sw3_perturb hzY Metric.isOpen_ball (Metric.mem_ball_self hD)
+  refine ⟨Y, hY, s, hs, l, hl1, hl2, ?_⟩
+  have := dist_triangle s (G.spokes.spoke t).start (c + l • squarePerimeterPoint ((N : ℝ) * R / 2) (((t : ℕ) : ℝ) * R))
+  rw [Metric.mem_ball] at hsb
+  linarith
+
+private lemma sw3_spp_fin {N : ℕ} {R : ℝ} (hR : 0 < R) (hN : 1 ≤ N) (j : Fin (4 * N)) :
+    squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R) =
+      sw3P ((N : ℝ) * R / 2) ((((j : ℕ) : ℤ) : ℝ) * R) := by
+  have hN' : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hk : ((j : ℕ) : ℝ) + 1 ≤ 4 * N := by exact_mod_cast j.isLt
+  rw [Int.cast_natCast, sw3_spp_eq hA (by positivity) (by nlinarith)]
+
+private lemma sw3_spp_rot {N : ℕ} {R : ℝ} (hR : 0 < R) (hN : 1 ≤ N) (j : Fin (4 * N)) :
+    squarePerimeterPoint ((N : ℝ) * R / 2) (((finRotate (4 * N) j : ℕ) : ℝ) * R) =
+      sw3P ((N : ℝ) * R / 2) (((((j : ℕ) : ℤ) + 1 : ℤ) : ℝ) * R) := by
+  have hN' : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have h8 : 8 * ((N : ℝ) * R / 2) = 4 * N * R := by ring
+  rw [sw3_spp_fin hR hN, finRotate_val']
+  split_ifs with h
+  · have e : (((j : ℕ) : ℤ) + 1 : ℤ) = 0 + 4 * N * 1 := by omega
+    rw [e, sw3P_int_shift h8]; simp
+  · push_cast; rfl
+
+private lemma sw3_lo_half {A D : ℝ} (hA : 0 < A) (h : 6 * D ≤ A) : 1 / 2 ≤ (A - 3 * D) / A := by
+  rw [le_div_iff₀ hA]; linarith
+
+private lemma sw3_final {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S.tiles c N R)
+    (hspk : ∀ j, (G.spokes.spoke j).carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j))
+    (j : Fin (4 * N)) {x : Pt} {X : PlacedTile P} (hX : X ∈ (G.spokes.piece j).faces)
+    (hxX : x ∈ X.carrier) {a b t q : ℤ} (hab1 : 1 ≤ b - a) (hab2 : b - a ≤ 2) (ht1 : b + 1 ≤ t)
+    (ht2 : t ≤ a + 4 * N - 1) (htj : t = ((j : ℕ) : ℤ) + 4 * N * q ∨ t = ((j : ℕ) : ℤ) + 1 + 4 * N * q)
+    (hxa : ∀ l, ((N : ℝ) * R / 2 - 3 * M.D) / ((N : ℝ) * R / 2) ≤ l →
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * M.D) / ((N : ℝ) * R / 2) →
+      4 * M.D < dist x (c + l • sw3P ((N : ℝ) * R / 2) ((a : ℝ) * R)))
+    (hxb : ∀ l, ((N : ℝ) * R / 2 - 3 * M.D) / ((N : ℝ) * R / 2) ≤ l →
+      l ≤ ((N : ℝ) * R / 2 + R + 6 * M.D) / ((N : ℝ) * R / 2) →
+      4 * M.D < dist x (c + l • sw3P ((N : ℝ) * R / 2) ((b : ℝ) * R)))
+    (hα : 0 < jcr (x - c) (sw3P ((N : ℝ) * R / 2) ((b : ℝ) * R)))
+    (hβ : 0 < jcr (sw3P ((N : ℝ) * R / 2) ((a : ℝ) * R)) (x - c)) : False := by
+  set A := (N : ℝ) * R / 2 with hAdef
+  set D := M.D with hDdef
+  have hD : 0 < D := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hN1 : 1 ≤ N := by omega
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < A := by rw [hAdef]; positivity
+  have hAR : R ≤ A := by rw [hAdef]; nlinarith
+  have h8 : 8 * A = 4 * N * R := by rw [hAdef]; ring
+  have hlo := sw3_lo_half hA (show 6 * D ≤ A by linarith)
+  set Va := sw3P A ((a : ℝ) * R) with hVa
+  set Vb := sw3P A ((b : ℝ) * R) with hVb
+  obtain ⟨af, haf⟩ := sw3_fin_of_int hR0 hN1 a
+  obtain ⟨bf, hbf⟩ := sw3_fin_of_int hR0 hN1 b
+  -- perturbation of `x`
+  set U : Set Pt := {z | 0 < jcr (z - c) Vb} ∩ {z | 0 < jcr Va (z - c)} ∩ Metric.ball x (D / 2) with hU
+  have hUo : IsOpen U :=
+    ((isOpen_lt continuous_const (sw3_cont_jcr1 c Vb)).inter
+      (isOpen_lt continuous_const (sw3_cont_jcr2 c Va))).inter Metric.isOpen_ball
+  obtain ⟨x', hx'X, ⟨⟨hx'1, hx'2⟩, hx'3⟩⟩ := sw3_perturb hxX hUo ⟨⟨hα, hβ⟩, Metric.mem_ball_self (by linarith)⟩
+  rw [Metric.mem_ball] at hx'3
+  -- the test spoke
+  obtain ⟨tf, htf, htfe⟩ : ∃ tf : Fin (4 * N), (G.spokes.spoke tf).carrier ⊆ (G.spokes.piece j).carrier ∧
+      squarePerimeterPoint A (((tf : ℕ) : ℝ) * R) = sw3P A ((t : ℝ) * R) := by
+    rcases htj with h | h
+    · refine ⟨j, (G.spokes.piece_between j).1, ?_⟩
+      rw [sw3_spp_fin hR0 hN1, h, sw3P_int_shift h8]
+    · refine ⟨finRotate (4 * N) j, (G.spokes.piece_between j).2, ?_⟩
+      rw [sw3_spp_rot hR0 hN1, h, sw3P_int_shift h8]
+  obtain ⟨Y, hY, s, hsY, l', hl'1, hl'2, hs⟩ := sw3_s_exists hR0 hN1 G hspk j tf htf
+  rw [htfe] at hs
+  have hbfa : sw3P A ((b : ℝ) * R) = sw3P A ((a : ℝ) * R + ((b : ℝ) - a) * R) := by ring_nf
+  have hba1 : (1 : ℝ) ≤ (b : ℝ) - a := by exact_mod_cast hab1
+  have hba2 : (b : ℝ) - a ≤ 2 := by exact_mod_cast hab2
+  refine sw3_contra hN hR G hspk j af bf ?_ ?_ hX hY hx'X hsY ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+  all_goals try simp only [haf, hbf]
+  · rw [hbfa]; exact sw3_jcr_pos hA _ (by nlinarith) (by nlinarith)
+  · rw [hbfa]; exact sw3_inner_nonneg hA _ (by nlinarith) (by nlinarith)
+  · exact (sw3_face_band G j hX (interior_subset hx'X)).2 hx'X
+  · exact (sw3_face_band G j hX (interior_subset hx'X)).1
+  · intro l h1 h2
+    have := hxa l h1 h2
+    have := dist_triangle x x' (c + l • Va)
+    rw [dist_comm] at hx'3
+    linarith
+  · intro l h1 h2
+    have := hxb l h1 h2
+    have := dist_triangle x x' (c + l • Vb)
+    rw [dist_comm] at hx'3
+    linarith
+  · exact hx'1
+  · exact hx'2
+  · exact (sw3_face_band G j hY (interior_subset hsY)).2 hsY
+  · exact (sw3_face_band G j hY (interior_subset hsY)).1
+  · intro l h1 h2
+    exact sw3_sep_far hA hR0 hAR h8 hN1 (by linarith) (sw3_not_dvd (by omega) (by omega))
+      (hlo.trans hl'1) hs (hlo.trans h1)
+  · intro l h1 h2
+    exact sw3_sep_far hA hR0 hAR h8 hN1 (by linarith) (sw3_not_dvd (by omega) (by omega))
+      (hlo.trans hl'1) hs (hlo.trans h1)
+  · exact sw3_cone hA hR0 h8 hD.le (by linarith) hab1 hab2 ht1 ht2 (hlo.trans hl'1) hs
+
+private lemma sw3_jcr_x1 {A μ τ s : ℝ} (hA : 0 < A) (hμ : 0 < μ) (hd0 : 0 < τ - s) (hd1 : τ - s ≤ 2 * A)
+    {c x : Pt} (hx : x = c + μ • sw3P A τ) : 0 < jcr (sw3P A s) (x - c) := by
+  rw [hx, add_sub_cancel_left, jcr_smul_right]
+  have := sw3_jcr_pos hA s hd0 hd1
+  rw [show s + (τ - s) = τ by ring] at this
+  positivity
+
+private lemma sw3_jcr_x2 {A μ τ s : ℝ} (hA : 0 < A) (hμ : 0 < μ) (hd0 : 0 < s - τ) (hd1 : s - τ ≤ 2 * A)
+    {c x : Pt} (hx : x = c + μ • sw3P A τ) : 0 < jcr (x - c) (sw3P A s) := by
+  rw [hx, add_sub_cancel_left, jcr_smul_left]
+  have := sw3_jcr_pos hA τ hd0 hd1
+  rw [show τ + (s - τ) = s by ring] at this
+  positivity
+
+private lemma sw3_main {M : MeshConstants P} {S : Patch P}
+    (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R)
+    (G : AnnularGrouping M S.tiles c N R)
+    (hspk : ∀ j, (G.spokes.spoke j).carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j))
+    (j : Fin (4 * N)) {x : Pt} (hx : x ∈ (G.spokes.piece j).carrier)
+    (hxj : x ∉ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D j))
+    (hxj' : x ∉ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D ((j : ℕ) + 1))) :
+    x ∈ idealTrapezoid c N R M.D (j : ℕ) := by
+  have hD : 0 < M.D := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hN1 : 1 ≤ N := by omega
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hAR : R ≤ (N : ℝ) * R / 2 := by nlinarith
+  have h8 : 8 * ((N : ℝ) * R / 2) = 4 * N * R := by ring
+  have hlo := sw3_lo_half hA (show 6 * M.D ≤ (N : ℝ) * R / 2 by linarith)
+  -- the face containing `x`
+  have hx' := hx
+  unfold FaceGroup.carrier at hx'; rw [(G.spokes.piece j).carrier_eq] at hx'
+  obtain ⟨X, hX, hxX⟩ := mem_support_iff'.1 hx'
+  have hx1 := sw3_point_band G j hX hxX
+  have hx2 := (sw3_face_band G j hX hxX).1
+  set A := (N : ℝ) * R / 2 with hAdef
+  set D := M.D with hDdef
+  set n := sw3N (x - c) with hn
+  have hn0 : 0 < n := by linarith
+  set μ := n / A with hμ
+  have hμ1 : 1 ≤ μ := by rw [hμ, le_div_iff₀ hA]; linarith
+  have hμ2 : μ ≤ (A + R + 3 * D) / A := div_le_div_of_nonneg_right hx2 hA.le
+  have hμlo : (A - 3 * D) / A ≤ μ := le_trans (by rw [div_le_one hA]; linarith) hμ1
+  have hμhi : μ ≤ (A + R + 6 * D) / A := hμ2.trans (div_le_div_of_nonneg_right (by linarith) hA.le)
+  set u := (A / n) • (x - c) with hu
+  have hun : sw3N u = A := by
+    rw [hu, sw3N_smul, abs_of_pos (by positivity), div_mul_cancel₀ _ hn0.ne']
+  obtain ⟨τ, hτ0, hτ1, hτu⟩ := sw3P_surj hA u hun
+  have hxeq : x = c + μ • sw3P A τ := by
+    rw [hτu, hu, smul_smul, hμ, show n / A * (A / n) = 1 by field_simp, one_smul]; abel
+  have hjlt : ((j : ℕ) : ℝ) + 1 ≤ 4 * N := by exact_mod_cast j.isLt
+  by_cases hτ : ((j : ℕ) : ℝ) * R ≤ τ ∧ τ ≤ (((j : ℕ) : ℝ) + 1) * R
+  · refine ⟨τ, hτ, μ, ⟨hμ1, hμ2⟩, ?_⟩
+    rw [sw3_spp_eq hA hτ0 hτ1.le]; exact hxeq
+  exfalso
+  set k := ⌊τ / R⌋ with hk
+  have hkτ : (k : ℝ) * R ≤ τ := by
+    have := Int.floor_le (τ / R); rwa [le_div_iff₀ hR0] at this
+  have hτk : τ < ((k : ℝ) + 1) * R := by
+    have := Int.lt_floor_add_one (τ / R); rwa [div_lt_iff₀ hR0] at this
+  have hk0 : 0 ≤ k := Int.floor_nonneg.2 (div_nonneg hτ0 hR0.le)
+  have hk1 : k < 4 * N := by
+    have h1 : (k : ℝ) < 4 * N := by
+      by_contra h; push_neg at h
+      have : 4 * (N : ℝ) * R ≤ (k : ℝ) * R := mul_le_mul_of_nonneg_right h hR0.le
+      linarith
+    exact_mod_cast h1
+  have hj0 : (0 : ℤ) ≤ ((j : ℕ) : ℤ) := by positivity
+  have hj1 : ((j : ℕ) : ℤ) < 4 * N := by exact_mod_cast j.isLt
+  have hkj : k ≠ ((j : ℕ) : ℤ) := by
+    intro h
+    apply hτ
+    have h' : (k : ℝ) = ((j : ℕ) : ℝ) := by rw [h]; push_cast; rfl
+    rw [← h']
+    exact ⟨hkτ, hτk.le⟩
+  have hfj := sw3_far_of_not_cthick hR0 hD hN1 (j : ℕ) (by omega) hxj
+  have hfj1 := sw3_far_of_not_cthick hR0 hD hN1 ((j : ℕ) + 1) (by omega) hxj'
+  have ecast : ((((j : ℕ) + 1 : ℕ) : ℤ) : ℝ) = (((((j : ℕ) : ℤ) + 1 : ℤ)) : ℝ) := by push_cast; ring
+  rw [ecast] at hfj1
+  set Near : ℤ → Prop := fun m => ∃ l, (A - 3 * D) / A ≤ l ∧ l ≤ (A + R + 6 * D) / A ∧
+    dist x (c + l • sw3P A ((m : ℝ) * R)) ≤ 4 * D with hNear
+  have hfar_of : ∀ m, ¬ Near m → ∀ l, (A - 3 * D) / A ≤ l → l ≤ (A + R + 6 * D) / A →
+      4 * D < dist x (c + l • sw3P A ((m : ℝ) * R)) := by
+    intro m hm l h1 h2
+    by_contra h; push_neg at h
+    exact hm ⟨l, h1, h2, h⟩
+  have hexcl : ∀ m m', Near m → Near m' → ¬ (4 * N : ℤ) ∣ m - m' → False := by
+    rintro m m' ⟨l, h1, -, hl⟩ ⟨l', h1', -, hl'⟩ hdiv
+    exact sw3_near_excl hA hR0 hAR h8 hN1 (by linarith) hdiv (hlo.trans h1) (hlo.trans h1') hl hl'
+  have hne_j : ∀ m, Near m → ∀ q : ℤ, m ≠ ((j : ℕ) : ℤ) + 4 * N * q := by
+    rintro m ⟨l, h1, h2, hl⟩ q hmq
+    have := hfj l h1 h2
+    rw [hmq, sw3P_int_shift h8] at hl
+    linarith
+  have hne_j1 : ∀ m, Near m → ∀ q : ℤ, m ≠ (((j : ℕ) : ℤ) + 1) + 4 * N * q := by
+    rintro m ⟨l, h1, h2, hl⟩ q hmq
+    have := hfj1 l h1 h2
+    rw [hmq, sw3P_int_shift h8] at hl
+    linarith
+  have hon : τ = (k : ℝ) * R → Near k := by
+    intro h
+    refine ⟨μ, hμlo, hμhi, ?_⟩
+    rw [hxeq, ← h, dist_self]; linarith
+  have hμ0 : 0 < μ := by linarith
+  have h4N : (8 : ℤ) ≤ 4 * N := by omega
+  by_cases hNk : Near k
+  · -- near the `k`-th ray: the wedge `[k - 1, k + 1]`
+    have hk1' := hne_j k hNk 0
+    have hk2' := hne_j1 k hNk 0
+    have hk3' := hne_j1 k hNk (-1)
+    obtain ⟨t, q, htq, ht1, ht2⟩ := sw3_pick (4 * N) ((j : ℕ) : ℤ) (k - 1) (k + 1) (by omega)
+    refine sw3_final hN hR G hspk j hX hxX (a := k - 1) (b := k + 1) (by omega) (by omega) ht1 ht2 htq
+      (hfar_of _ (fun h => hexcl k (k - 1) hNk h (sw3_not_dvd (by omega) (by omega))))
+      (hfar_of _ (fun h => hexcl (k + 1) k h hNk (sw3_not_dvd (by omega) (by omega)))) ?_ ?_
+    · exact sw3_jcr_x2 hA hμ0 (by push_cast; linarith) (by push_cast; linarith) hxeq
+    · exact sw3_jcr_x1 hA hμ0 (by push_cast; linarith) (by push_cast; linarith) hxeq
+  by_cases hNk1 : Near (k + 1)
+  · -- near the `(k+1)`-st ray: the wedge `[k, k + 2]`
+    have hk1' := hne_j (k + 1) hNk1 0
+    have hk2' := hne_j (k + 1) hNk1 1
+    have hτk' : τ ≠ (k : ℝ) * R := fun h => hNk (hon h)
+    have hτk2 : (k : ℝ) * R < τ := lt_of_le_of_ne hkτ (Ne.symm hτk')
+    obtain ⟨t, q, htq, ht1, ht2⟩ := sw3_pick (4 * N) ((j : ℕ) : ℤ) k (k + 2) (by omega)
+    refine sw3_final hN hR G hspk j hX hxX (a := k) (b := k + 2) (by omega) (by omega) ht1 ht2 htq
+      (hfar_of _ hNk)
+      (hfar_of _ (fun h => hexcl (k + 2) (k + 1) h hNk1 (sw3_not_dvd (by omega) (by omega)))) ?_ ?_
+    · exact sw3_jcr_x2 hA hμ0 (by push_cast; linarith) (by push_cast; linarith) hxeq
+    · exact sw3_jcr_x1 hA hμ0 (by linarith) (by linarith) hxeq
+  · -- far from both rays: the wedge `[k, k + 1]`
+    have hτk' : τ ≠ (k : ℝ) * R := fun h => hNk (hon h)
+    have hτk2 : (k : ℝ) * R < τ := lt_of_le_of_ne hkτ (Ne.symm hτk')
+    obtain ⟨t, q, htq, ht1, ht2⟩ := sw3_pick (4 * N) ((j : ℕ) : ℤ) k (k + 1) (by omega)
+    refine sw3_final hN hR G hspk j hX hxX (a := k) (b := k + 1) (by omega) (by omega) ht1 ht2 htq
+      (hfar_of _ hNk) (hfar_of _ hNk1) ?_ ?_
+    · exact sw3_jcr_x2 hA hμ0 (by push_cast; linarith) (by push_cast; linarith) hxeq
+    · exact sw3_jcr_x1 hA hμ0 (by linarith) (by linarith) hxeq
+
 /-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping`: localization away from the
 tubes.  Blueprint: "Use the inside-anchored face at `u_j` to join it through that face's
 interior to `p_j ∈ int Q₀` ... We obtain proper simple walls `W_j` from zero to infinity,
@@ -4349,7 +6378,7 @@ private lemma quantitativeAnnularGrouping_step3_wedges {M : MeshConstants P} {S 
     (hxj : x ∉ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D j))
     (hxj' : x ∉ Metric.cthickening (5 * M.D) (existsAnnularSpokes_ray c N R M.D ((j : ℕ) + 1))) :
     x ∈ idealTrapezoid c N R M.D (j : ℕ) := by
-  sorry
+  exact sw3_main c hN hR G hspk j hx hxj hxj'
 
 /-- Step 1 of the blueprint proof of
 `quantitativeAnnularGrouping_step4_tubes_step1_clip`: extract a point of the

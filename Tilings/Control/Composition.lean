@@ -1115,7 +1115,32 @@ is part of the boundary belt type. -/
 private lemma boundary_header_constant_step5_is_belt_type (c : MacroCertificate P) (α : c.Q.Form)
     (t : c.Typ) (ht : c.owner t = α) (i : c.Side t) (hi : c.IsBoundary (c.occ t i)) :
     c.IsBeltType α t := by
-  sorry
+  dsimp [MacroData.IsBeltType]
+  refine ⟨ht, ?_⟩
+  dsimp [MacroData.IsBoundary] at hi
+  rcases hi with ⟨_, h | h⟩
+  · use c.occStart (c.occ t i)
+    refine ⟨?_, by rw [← ht]; exact h⟩
+    have h_mem_frontier : (c.Q.disk (c.form t)).vertex i ∈
+        frontier (c.Q.disk (c.form t)).carrier := by
+      rw [(c.Q.disk (c.form t)).frontier_eq]
+      simp only [mem_iUnion]
+      exact ⟨i, left_mem_segment ℝ _ _⟩
+    have h_closed : IsClosed (c.Q.disk (c.form t)).carrier := by
+      rw [← (c.Q.disk (c.form t)).regular_closed]
+      exact isClosed_closure
+    exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
+  · use c.occEnd (c.occ t i)
+    refine ⟨?_, by rw [← ht]; exact h⟩
+    have h_mem_frontier : (c.Q.disk (c.form t)).vertex (finRotate _ i) ∈
+        frontier (c.Q.disk (c.form t)).carrier := by
+      rw [(c.Q.disk (c.form t)).frontier_eq]
+      simp only [mem_iUnion]
+      exact ⟨i, right_mem_segment ℝ _ _⟩
+    have h_closed : IsClosed (c.Q.disk (c.form t)).carrier := by
+      rw [← (c.Q.disk (c.form t)).regular_closed]
+      exact isClosed_closure
+    exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
 
 /-- `lem:comp/boundary-header`: in a proper finite coloured realization of
 `σ' α` whose noncentral tiles are legal, every boundary fourth cell carries

@@ -2450,7 +2450,12 @@ neighbourhood in a plane tiling. -/
 private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step1_neighbourhood_finite
     {P : Protoset} (T : PlaneTiling P) (A : PlacedTile P) (hA : A ∈ T.tiles) :
     (neighbourhood T.tiles A).Finite := by
-  sorry
+  have _ := hA
+  have hcompact : IsCompact A.carrier := IsCompact.vadd A.anchor (P.disk A.form).compact
+  apply Set.Finite.subset (T.locallyFinite hcompact)
+  intro B hB
+  rw [neighbourhood] at hB
+  exact ⟨hB.1, by simpa [Set.inter_comm] using hB.2⟩
 
 /-- Step 2 of the blueprint proof of
 `substitution_clone_lift_iff_step2_lift_is_subst_step1_lift`: a finite tile

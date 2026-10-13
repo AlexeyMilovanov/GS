@@ -3179,6 +3179,105 @@ private lemma outsideAnchoredGrouping_step3_FaceGroup (M : MeshConstants P) (S :
   refine ⟨H, ?_⟩
   rw [FaceGroup.carrier, H.carrier_eq, hH_faces, hG_eq]
 
+private lemma JSetup.boundary_partner {S G : Set (PlacedTile P)} (J : JSetup S G)
+    (hS_fin : S.Finite) {A : PlacedTile P} (hA : A ∈ G)
+    (i : Fin (P.disk A.form).n) {q : Pt}
+    (hq : q ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)))
+    (hq_frontier : q ∈ frontier (support G)) :
+    ∃ F ∈ S, F ∉ G ∧ ∃ j, F.side j = A.side i := by
+  have hboundary : ∀ A' ∈ G, A' ≠ A → ¬ HasEdge A' (A.side i) := by
+    intro A' hA' hA'A ⟨j, hj⟩
+    exact hq_frontier.2 (J.partnered_open_in_U hA hA' hA'A i j hj hq)
+  obtain ⟨r, hr, σ, hσ, hside⟩ := J.bedge_sides hA i hboundary hq
+  have hq_support : q ∈ interior (support S) :=
+    J.cov (carrier_subset_support hA (tile_side_subset A i (openSeg_mem_side A i hq)))
+  obtain ⟨ρ, hρ, hρ_support⟩ := Metric.isOpen_iff.1 isOpen_interior q hq_support
+  have hclosed : IsClosed (support (S \ G)) :=
+    support_isClosed (show (S \ G).Finite from hS_fin.diff)
+  have hq_closure : q ∈ closure (support (S \ G)) := by
+    rw [Metric.mem_closure_iff]
+    intro ε hε
+    have hd : A.vertex (finRotate _ i) - A.vertex i ≠ 0 :=
+      sub_ne_zero.2 (tile_vertex_ne_next A i).symm
+    have hnegσ : -σ = 1 ∨ -σ = -1 := by
+      rcases hσ with hσ | hσ <;> rw [hσ] <;> norm_num
+    obtain ⟨y, hy, hycross⟩ :=
+      exists_near_off_line (A.vertex i) hd q hnegσ (lt_min hε (lt_min hr hρ))
+    have hqcross : jcr (A.vertex (finRotate _ i) - A.vertex i) (q - A.vertex i) = 0 :=
+      jcr_zero_of_mem_segment (openSegment_subset_segment ℝ _ _ hq)
+    have hyball_r : y ∈ Metric.ball q r := by
+      rw [Metric.mem_ball, dist_comm]
+      exact lt_of_lt_of_le hy (min_le_right _ _ |>.trans (min_le_left _ _))
+    have hyball_ρ : y ∈ Metric.ball q ρ := by
+      rw [Metric.mem_ball, dist_comm]
+      exact lt_of_lt_of_le hy (min_le_right _ _ |>.trans (min_le_right _ _))
+    have hy_not : y ∉ support G := (hside y hyball_r).2 (by rw [hqcross, mul_zero] at hycross; linarith)
+    obtain ⟨F, hFS, hyF⟩ := mem_support_iff'.1 (interior_subset (hρ_support hyball_ρ))
+    have hFG : F ∉ G := fun h => hy_not (carrier_subset_support h hyF)
+    refine ⟨y, carrier_subset_support (show F ∈ S \ G from ⟨hFS, hFG⟩) hyF, ?_⟩
+    exact lt_of_lt_of_le hy (min_le_left _ _)
+  have hq_diff : q ∈ support (S \ G) := by
+    rw [← hclosed.closure_eq]
+    exact hq_closure
+  obtain ⟨F, ⟨hFS, hFG⟩, hqF⟩ := mem_support_iff'.1 hq_diff
+  have hAF : A ≠ F := fun h => hFG (h ▸ hA)
+  have hq_not_vertex : q ∉ F.vertexSet := fun h => J.no_vertex hA hFS i hq h
+  obtain ⟨j, hj⟩ := tile_partner J.disj J.sts (J.sub hA) hFS hAF i hq hqF hq_not_vertex
+  exact ⟨F, hFS, hFG, j, hj⟩
+
+private lemma side_partner_unique {S : Set (PlacedTile P)} (hdisj : DisjointInteriors S)
+    {A B C : PlacedTile P} (hA : A ∈ S) (hB : B ∈ S) (hC : C ∈ S)
+    (hAB : A ≠ B) (hAC : A ≠ C) (i : Fin (P.disk A.form).n)
+    (j : Fin (P.disk B.form).n) (k : Fin (P.disk C.form).n)
+    (hj : B.side j = A.side i) (hk : C.side k = A.side i) : B = C := by
+  by_contra hBC
+  let q := A.vertex i + (1 / 2 : ℝ) • (A.vertex (finRotate _ i) - A.vertex i)
+  have hq : q ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)) :=
+    mem_openSegment_iff'.2 ⟨1 / 2, by norm_num, by norm_num, rfl⟩
+  obtain ⟨r, hr, σ, hσ, hsB⟩ := two_sides hdisj hA hB hAB i j hj hq
+  obtain ⟨r', hr', σ', hσ', hsC⟩ := two_sides hdisj hA hC hAC i k hk hq
+  let d := A.vertex (finRotate _ i) - A.vertex i
+  have hd : d ≠ 0 := sub_ne_zero.2 (tile_vertex_ne_next A i).symm
+  have hqcross : jcr d (q - A.vertex i) = 0 := by
+    dsimp [q, d]
+    rw [add_sub_cancel_left, jcr_smul_right, jcr_self, mul_zero]
+  have hσσ' : σ' = σ := by
+    by_contra hne
+    have heq : σ' = -σ := by
+      rcases hσ with rfl | rfl
+      · rcases hσ' with rfl | rfl
+        · exact (hne rfl).elim
+        · norm_num
+      · rcases hσ' with rfl | rfl
+        · norm_num
+        · exact (hne rfl).elim
+    obtain ⟨y, hy, hycross⟩ := exists_near_off_line (A.vertex i) hd q hσ (lt_min hr hr')
+    have hyr : y ∈ Metric.ball q r := by
+      rw [Metric.mem_ball, dist_comm]
+      exact lt_of_lt_of_le hy (min_le_left _ _)
+    have hyr' : y ∈ Metric.ball q r' := by
+      rw [Metric.mem_ball, dist_comm]
+      exact lt_of_lt_of_le hy (min_le_right _ _)
+    have hpos : 0 < σ * jcr d (y - A.vertex i) := by
+      rw [hqcross, mul_zero] at hycross
+      exact hycross
+    exact interiors_disjoint hdisj hA hC hAC ((hsB y hyr).1 hpos)
+      ((hsC y hyr').2.1 (by rw [heq]; linarith))
+  have hnegσ : -σ = 1 ∨ -σ = -1 := by
+    rcases hσ with hσ | hσ <;> rw [hσ] <;> norm_num
+  obtain ⟨y, hy, hycross⟩ := exists_near_off_line (A.vertex i) hd q hnegσ (lt_min hr hr')
+  have hyr : y ∈ Metric.ball q r := by
+    rw [Metric.mem_ball, dist_comm]
+    exact lt_of_lt_of_le hy (min_le_left _ _)
+  have hyr' : y ∈ Metric.ball q r' := by
+    rw [Metric.mem_ball, dist_comm]
+    exact lt_of_lt_of_le hy (min_le_right _ _)
+  have hneg : σ * jcr d (y - A.vertex i) < 0 := by
+    rw [hqcross, mul_zero] at hycross
+    linarith
+  exact interiors_disjoint hdisj hB hC hBC ((hsB y hyr).2.1 hneg)
+    ((hsC y hyr').2.1 (by rw [hσσ']; exact hneg))
+
 private lemma outsideAnchoredGrouping_step4_anchor (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)
     (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
@@ -3192,7 +3291,110 @@ private lemma outsideAnchoredGrouping_step4_anchor (M : MeshConstants P) (S : Pa
     (hH_def : H.carrier = closure (connectedComponentIn (Eᶜ) c))
     (hH_conn_int : IsConnected (interior H.carrier))
     (hH_conn_comp : IsConnected (H.carrierᶜ)) :
-    H.OutsideAnchored (square c h + Binf (3 * M.D)) := sorry
+    H.OutsideAnchored (square c h + Binf (3 * M.D)) := by
+  classical
+  have hD_pos : 0 < M.D := by
+    by_cases hall : 0 < h ∧ IsConnected (interior H.carrier) ∧ IsConnected (H.carrierᶜ)
+    · exact M.D_pos
+    · exact (hall ⟨hh, hH_conn_int, hH_conn_comp⟩).elim
+  have hbuffer : square c h + Binf (3 * M.D) ⊆
+      square c h + Binf (10 * M.D) :=
+    Set.add_subset_add_left (rg_binf_mono (by nlinarith [hD_pos]))
+  have hfaces_cov : support H.faces ⊆ interior (support S.tiles) := by
+    rw [← H.carrier_eq, hcov]
+    exact hH_sub.trans (hbuffer.trans hQ)
+  let J : JSetup S.tiles H.faces :=
+    ⟨S.disjoint, hsts, H.faces_sub, H.finite, hfaces_cov⟩
+  intro i
+  obtain ⟨A, hAH, j, hAj⟩ := H.side_whole i
+  let q := A.vertex j + (1 / 2 : ℝ) • (A.vertex (finRotate _ j) - A.vertex j)
+  have hq : q ∈ openSegment ℝ (A.vertex j) (A.vertex (finRotate _ j)) := by
+    exact mem_openSegment_iff'.2 ⟨1 / 2, by norm_num, by norm_num, rfl⟩
+  have hq_side : q ∈ H.disk.side i := by
+    rw [← hAj]
+    exact openSeg_mem_side A j hq
+  have hq_frontier_disk : q ∈ frontier H.disk.carrier := by
+    rw [H.disk.frontier_eq]
+    exact Set.mem_iUnion.2 ⟨i, hq_side⟩
+  have hq_frontier : q ∈ frontier (support H.faces) := by
+    rw [← H.carrier_eq]
+    exact hq_frontier_disk
+  obtain ⟨F, hFS, hFH, k, hk⟩ := J.boundary_partner S.finite hAH j hq hq_frontier
+  refine ⟨F, hFS, hFH, ⟨k, hk.trans hAj⟩, ?_⟩
+  by_contra hF_not_selected
+  have hAF : A ≠ F := fun h => hFH (h ▸ hAH)
+  have hA_not_selected :
+      ¬ (interior A.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty := by
+    intro hA_selected
+    have hAE : A.carrier ⊆ E := hE_faces A (H.faces_sub hAH) hA_selected
+    obtain ⟨z, hzA⟩ := (tileDisk A).interior_nonempty
+    have hAH_carrier : A.carrier ⊆ H.carrier := by
+      intro x hx
+      change x ∈ H.disk.carrier
+      rw [H.carrier_eq]
+      exact carrier_subset_support hAH hx
+    have hzH : z ∈ interior H.carrier := interior_mono hAH_carrier hzA
+    have hz_closure : z ∈ closure (connectedComponentIn (Eᶜ) c) := by
+      rw [← hH_def]
+      exact interior_subset hzH
+    obtain ⟨x, hxA, hx_component⟩ :=
+      mem_closure_iff.1 hz_closure (interior A.carrier) isOpen_interior hzA
+    exact (connectedComponentIn_subset (Eᶜ) c hx_component) (hAE (interior_subset hxA))
+  let T : Set (PlacedTile P) :=
+    {D | D ∈ S.tiles ∧ (interior D.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty}
+  have hT_fin : T.Finite := S.finite.subset (fun D hD => hD.1)
+  have hT_closed : IsClosed (support T) := support_isClosed hT_fin
+  have hq_not_selected_support : q ∉ support T := by
+    intro hqT
+    obtain ⟨D, ⟨hDS, hD_selected⟩, hqD⟩ := mem_support_iff'.1 hqT
+    by_cases hDA : D = A
+    · exact hA_not_selected (hDA ▸ hD_selected)
+    have hqD_not_vertex : q ∉ D.vertexSet := fun hv => J.no_vertex hAH hDS j hq hv
+    obtain ⟨l, hl⟩ := tile_partner S.disjoint hsts (H.faces_sub hAH) hDS (Ne.symm hDA) j hq hqD hqD_not_vertex
+    have hFD : F = D :=
+      side_partner_unique S.disjoint (H.faces_sub hAH) hFS hDS hAF (Ne.symm hDA) j k l hk hl
+    exact hF_not_selected (hFD ▸ hD_selected)
+  have hqH : q ∈ H.carrier := by
+    change q ∈ H.disk.carrier
+    exact pd_frontier_subset_carrier H.disk hq_frontier_disk
+  have hqOmega : q ∈ interior Ω.carrier := hQ (hbuffer (hH_sub hqH))
+  obtain ⟨rΩ, hrΩ, hrΩ_sub⟩ := Metric.isOpen_iff.1 isOpen_interior q hqOmega
+  obtain ⟨rT, hrT, hrT_sub⟩ := Metric.isOpen_iff.1 hT_closed.isOpen_compl q hq_not_selected_support
+  let r := min rΩ rT
+  have hr : 0 < r := lt_min hrΩ hrT
+  have hball_Ec : Metric.ball q r ⊆ Eᶜ := by
+    intro x hx hxE
+    rw [hE_def] at hxE
+    rcases hxE with hxΩ | hx_selected
+    · exact hxΩ (interior_subset (hrΩ_sub (Metric.ball_subset_ball (min_le_left _ _) hx)))
+    · simp only [Set.mem_iUnion] at hx_selected
+      obtain ⟨D, hDS, hD_selected, hxD⟩ := hx_selected
+      exact (hrT_sub (Metric.ball_subset_ball (min_le_right _ _) hx))
+        (carrier_subset_support (show D ∈ T from ⟨hDS, hD_selected⟩) hxD)
+  have hq_component_closure : q ∈ closure (connectedComponentIn (Eᶜ) c) := by
+    rw [← hH_def]
+    exact hqH
+  obtain ⟨x, hx_ball, hx_component⟩ :=
+    mem_closure_iff.1 hq_component_closure (Metric.ball q r) Metric.isOpen_ball (Metric.mem_ball_self hr)
+  have hqF : q ∈ F.carrier := tile_side_subset F k (by rw [hk]; exact openSeg_mem_side A j hq)
+  have hqF_closure : q ∈ closure (interior F.carrier) := by
+    rw [tile_regular]
+    exact hqF
+  obtain ⟨y, hy_ball, hyF⟩ :=
+    mem_closure_iff.1 hqF_closure (Metric.ball q r) Metric.isOpen_ball (Metric.mem_ball_self hr)
+  have hball_component : Metric.ball q r ⊆ connectedComponentIn (Eᶜ) x :=
+    (convex_ball q r).isPreconnected.subset_connectedComponentIn hx_ball hball_Ec
+  have hy_component : y ∈ connectedComponentIn (Eᶜ) c := by
+    rw [connectedComponentIn_eq hx_component]
+    exact hball_component hy_ball
+  have hyH : y ∈ H.carrier := by
+    rw [hH_def]
+    exact subset_closure hy_component
+  change y ∈ H.disk.carrier at hyH
+  rw [H.carrier_eq] at hyH
+  obtain ⟨D, hDH, hyD⟩ := mem_support_iff'.1 hyH
+  exact interior_not_mem_other S.disjoint hFS (H.faces_sub hDH)
+    (fun h => hFH (h ▸ hDH)) hyF hyD
 
 /-- `lem:outside-grouping`: with `Q₁ + B∞(10D) ⊂ int Ω` and `K₁ = Q₁ + B∞(3D)`
 there is a group `H` with `Q₁ + B∞(2D) ⊂ H ⊂ K₁`, outside-anchored at `K₁`,

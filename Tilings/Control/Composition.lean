@@ -986,7 +986,20 @@ private lemma reconstructed_noncentral_legal_step3_eq_step1_form {P : Protoset}
     (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
     (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
     (hE_child : IsChildOf c E K.centre) :
-    c.form E.typ = c.form h.1 := by sorry
+    c.form E.typ = c.form h.1 := by
+  have _ := hH
+  have _ := hK
+  have _ := hA
+  have _ := hnc
+  have _ := hE_leg
+  have _ := hE_nc
+  have h1 : c.owner K.centre.typ = c.form E.typ := hE_child.1
+  have h2 : c.form h.1 = K.α := hh.1
+  have h3 : K.centre.typ = c.central K.α := rfl
+  have h4 : c.owner (c.central K.α) = K.α := c.g5_central_owner K.α
+  rw [h3] at h1
+  rw [h4] at h1
+  rw [← h1, h2]
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: E and D types agree. -/
 private lemma reconstructed_noncentral_legal_step3_eq_step2_type {P : Protoset}

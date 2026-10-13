@@ -326,7 +326,22 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step2_ed
     (τ : Substitution P) (G : GroupedFamily P) (M : MeshConstants P) (m : ℕ)
     (A : G.P'.Form) (e : Pt × Pt) (he : e ∈ fineOuterSides τ G m A) :
     dist e.1 e.2 ≤ M.D := by
-  sorry
+  obtain ⟨B, -, i, he1, -⟩ := he
+  have hmem : ∀ j : Fin (P.disk B.form).n, (P.disk B.form).vertex j ∈ (P.disk B.form).carrier := by
+    intro j
+    have hfr : (P.disk B.form).vertex j ∈ frontier (P.disk B.form).carrier := by
+      rw [PolygonalDisk.frontier_eq]
+      exact mem_iUnion.mpr ⟨j, left_mem_segment ℝ _ _⟩
+    have hclosed : IsClosed (P.disk B.form).carrier := (P.disk B.form).compact.isClosed
+    rw [← hclosed.closure_eq]
+    exact frontier_subset_closure hfr
+  have hbdd : Bornology.IsBounded (P.disk B.form).carrier := (P.disk B.form).compact.isBounded
+  have hd : dist ((P.disk B.form).vertex i) ((P.disk B.form).vertex (finRotate _ i)) ≤ M.D :=
+    (Metric.dist_le_diam_of_mem hbdd (hmem i) (hmem (finRotate _ i))).trans (M.diam_le _)
+  rw [he1]
+  show dist (B.vertex i) (B.vertex (finRotate _ i)) ≤ M.D
+  rw [PlacedTile.vertex, PlacedTile.vertex, dist_vadd]
+  exact hd
 
 /-- Step 3 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: the set of fine edges on the parent side is finite. -/
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite

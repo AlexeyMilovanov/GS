@@ -658,10 +658,47 @@ theorem supertile_finite (τ : Substitution P) (n : ℕ) (p : P.Form) :
     intro A _
     exact Finite.image _ (τ.rule A.form).finite
 
+/-- Step 1 of the blueprint proof of `supertile_disjoint_step1_decompose`: the decomposed tiles of a single tile have disjoint interiors. -/
+private lemma supertile_disjoint_step1_decompose_step1 (τ : Substitution P) (A : PlacedTile P) :
+    DisjointInteriors (τ.decomposeTile A) := sorry
+
+/-- Step 2 of the blueprint proof of `supertile_disjoint_step1_decompose`: the interiors
+of the supports of decompositions of two disjoint tiles are disjoint. -/
+private lemma supertile_disjoint_step1_decompose_step2 (τ : Substitution P) (S : Set (PlacedTile P))
+    (hS : DisjointInteriors S) (A B : PlacedTile P) (hA : A ∈ S) (hB : B ∈ S) (hne : A ≠ B) :
+    Disjoint (interior (support (τ.decomposeTile A))) (interior (support (τ.decomposeTile B))) := sorry
+
+/-- Step 3 of the blueprint proof of `supertile_disjoint_step1_decompose`: the interior of a tile is in the interior of the support of its decomposition. -/
+private lemma supertile_disjoint_step1_decompose_step3 (τ : Substitution P) (A : PlacedTile P)
+    (T : PlacedTile P) (hT : T ∈ τ.decomposeTile A) :
+    interior T.carrier ⊆ interior (support (τ.decomposeTile A)) := sorry
+
+/-- Step 4 of the blueprint proof of `supertile_disjoint_step1_decompose`: for two tiles T1 and T2
+  from the decomposition of A and B, their interiors are disjoint. -/
+private lemma supertile_disjoint_step1_decompose_step4 (τ : Substitution P) (S : Set (PlacedTile P))
+    (hS : DisjointInteriors S) (A B : PlacedTile P) (hA : A ∈ S) (hB : B ∈ S) (hne : A ≠ B)
+    (T1 : PlacedTile P) (h1 : T1 ∈ τ.decomposeTile A)
+    (T2 : PlacedTile P) (h2 : T2 ∈ τ.decomposeTile B) :
+    Disjoint (interior T1.carrier) (interior T2.carrier) := by
+  have h_disj := supertile_disjoint_step1_decompose_step2 τ S hS A B hA hB hne
+  have h_sub1 := supertile_disjoint_step1_decompose_step3 τ A T1 h1
+  have h_sub2 := supertile_disjoint_step1_decompose_step3 τ B T2 h2
+  exact h_disj.mono h_sub1 h_sub2
+
 /-- Step 1 of the blueprint proof of `supertile_disjoint`: decomposition
 preserves disjoint interiors. -/
 private lemma supertile_disjoint_step1_decompose (τ : Substitution P) (S : Set (PlacedTile P))
-    (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := sorry
+    (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := by
+  intro T1 hT1 T2 hT2 hne
+  dsimp [Substitution.decompose] at hT1 hT2
+  simp only [mem_iUnion, exists_prop] at hT1 hT2
+  rcases hT1 with ⟨A, hA, hT1A⟩
+  rcases hT2 with ⟨B, hB, hT2B⟩
+  by_cases hAB : A = B
+  · subst hAB
+    have h1 := supertile_disjoint_step1_decompose_step1 τ A
+    exact h1 hT1A hT2B hne
+  · exact supertile_disjoint_step1_decompose_step4 τ S hS A B hA hB hAB T1 hT1A T2 hT2B
 
 /-- A supertile has pairwise disjoint interiors. -/
 theorem supertile_disjoint (τ : Substitution P) (n : ℕ) (p : P.Form) :
@@ -3321,3 +3358,4 @@ end AllowedHierarchy
 end Tilings
 
 end
+

@@ -3755,7 +3755,26 @@ private lemma quantitativeAnnularGrouping_step6_privateFinite {M : MeshConstants
     (j : Fin (4 * N)) :
     (privateOuterEdges G j).Finite ∧
       ∀ e ∈ privateOuterEdges G j, ∀ p ∈ e, ∀ q ∈ e, dist p q ≤ M.D := by
-  sorry
+  constructor
+  · apply (G.spokes.piece j).finite.biUnion (fun A _ => Set.finite_range A.side) |>.subset
+    rintro e ⟨⟨A, hA, hAe⟩, -⟩
+    rcases hAe with ⟨i, rfl⟩
+    exact Set.mem_biUnion hA ⟨i, rfl⟩
+  · intro e he p hp q hq
+    rcases he.1 with ⟨A, hA, hAe⟩
+    rcases hAe with ⟨i, hi⟩
+    have hpA : p ∈ A.carrier := by
+      apply tile_side_subset A i
+      rw [hi]
+      exact hp
+    have hqA : q ∈ A.carrier := by
+      apply tile_side_subset A i
+      rw [hi]
+      exact hq
+    have hdiam : Metric.diam A.carrier ≤ M.D := by
+      rw [PlacedTile.carrier, diam_vadd]
+      exact M.diam_le A.form
+    exact (Metric.dist_le_diam_of_mem (tileDisk A).compact.isBounded hpA hqA).trans hdiam
 
 /-- Step 7 of the blueprint proof of `quantitativeAnnularGrouping`: "The projections of these
 private edges cover `J` apart from finitely many points, and each has projected length at most

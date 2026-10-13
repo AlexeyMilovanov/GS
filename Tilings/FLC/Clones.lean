@@ -3559,6 +3559,178 @@ private lemma refinedSubstitution_sts_step2_sides_eq_step1_inter_eq (h : τ.FLC)
         A i hAx.1 hAx.2.1
     exact ⟨hend, hAx.2.2⟩
 
+private lemma refinedSubstitution_sts_step2_sides_eq_step2_segment_eq_aux_scalar {r s u v : ℝ}
+    (h0 : segment ℝ (0 : ℝ) 1 ⊆ segment ℝ r s ∩ segment ℝ u v)
+    (heq : ({r, s} : Set ℝ) ∩ segment ℝ u v = {u, v} ∩ segment ℝ r s) :
+    segment ℝ r s = segment ℝ u v := by
+  have hrs : r ≤ s ∨ s ≤ r := le_total r s
+  have huv : u ≤ v ∨ v ≤ u := le_total u v
+  have hrs_set : ({r, s} : Set ℝ) = {min r s, max r s} := by
+    rcases hrs with hrs | hrs
+    · simp [min_eq_left hrs, max_eq_right hrs]
+    · simp [min_eq_right hrs, max_eq_left hrs, Set.pair_comm]
+  have huv_set : ({u, v} : Set ℝ) = {min u v, max u v} := by
+    rcases huv with huv | huv
+    · simp [min_eq_left huv, max_eq_right huv]
+    · simp [min_eq_right huv, max_eq_left huv, Set.pair_comm]
+  simp only [segment_eq_Icc'] at h0 ⊢
+  norm_num at h0
+  rw [hrs_set, huv_set] at heq
+  simp only [segment_eq_Icc'] at heq
+  let l := min r s
+  let R := max r s
+  let p := min u v
+  let q := max u v
+  change Icc l R = Icc p q
+  change ({l, R} : Set ℝ) ∩ Icc p q = {p, q} ∩ Icc l R at heq
+  have h0' : Icc 0 1 ⊆ Icc l R ∩ Icc p q := by
+    intro z hz
+    exact ⟨h0.1 hz, h0.2 hz⟩
+  have hl0 : l ≤ 0 := (h0' (by simp)).1.1
+  have hp0 : p ≤ 0 := (h0' (by simp)).2.1
+  have h1R : 1 ≤ R := (h0' (by simp)).1.2
+  have h1q : 1 ≤ q := (h0' (by simp)).2.2
+  have hlp : l = p := by
+    by_contra hne
+    rcases lt_or_gt_of_ne hne with hlt | hgt
+    · have hp_mem : p ∈ Icc l R := ⟨by linarith, by linarith⟩
+      have hp_end : p ∈ ({p, q} : Set ℝ) := by simp
+      have hp' : p ∈ ({l, R} : Set ℝ) ∩ Icc p q := by
+        rw [heq]
+        exact ⟨hp_end, hp_mem⟩
+      rcases (by simpa using hp'.1 : p = l ∨ p = R) with h | h <;> linarith
+    · have hl_mem : l ∈ Icc p q := ⟨by linarith, by linarith⟩
+      have hl_end : l ∈ ({l, R} : Set ℝ) := by simp
+      have hl' : l ∈ ({p, q} : Set ℝ) ∩ Icc l R := by
+        rw [← heq]
+        exact ⟨hl_end, hl_mem⟩
+      rcases (by simpa using hl'.1 : l = p ∨ l = q) with h | h <;> linarith
+  have hRq : R = q := by
+    by_contra hne
+    rcases lt_or_gt_of_ne hne with hlt | hgt
+    · have hR_mem : R ∈ Icc p q := ⟨by linarith, by linarith⟩
+      have hR_end : R ∈ ({l, R} : Set ℝ) := by simp
+      have hR' : R ∈ ({p, q} : Set ℝ) ∩ Icc l R := by
+        rw [← heq]
+        exact ⟨hR_end, hR_mem⟩
+      rcases (by simpa using hR'.1 : R = p ∨ R = q) with h | h <;> linarith
+    · have hq_mem : q ∈ Icc l R := ⟨by linarith, by linarith⟩
+      have hq_end : q ∈ ({p, q} : Set ℝ) := by simp
+      have hq' : q ∈ ({l, R} : Set ℝ) ∩ Icc p q := by
+        rw [heq]
+        exact ⟨hq_end, hq_mem⟩
+      rcases (by simpa using hq'.1 : q = l ∨ q = R) with h | h <;> linarith
+  simp [hlp, hRq]
+
+private lemma
+    refinedSubstitution_sts_step2_sides_eq_step2_segment_eq_aux_segment {a b c d : Pt}
+    (h_overlap : OverlapPos (segment ℝ a b) (segment ℝ c d))
+    (h_inter_eq : ({a, b} : Set Pt) ∩ segment ℝ c d = {c, d} ∩ segment ℝ a b) :
+    segment ℝ a b = segment ℝ c d := by
+  rcases h_overlap with ⟨x, y, hxy, hxy_sub⟩
+  have hxa : x ∈ segment ℝ a b := (hxy_sub (left_mem_segment ℝ x y)).1
+  have hya : y ∈ segment ℝ a b := (hxy_sub (right_mem_segment ℝ x y)).1
+  have hxc : x ∈ segment ℝ c d := (hxy_sub (left_mem_segment ℝ x y)).2
+  have hyc : y ∈ segment ℝ c d := (hxy_sub (right_mem_segment ℝ x y)).2
+  have hline : line[ℝ, x, y] = line[ℝ, a, b] := by
+    exact affineSpan_pair_eq_of_mem_of_mem_of_ne
+      (mem_segment_iff_wbtw.mp hxa).mem_affineSpan
+      (mem_segment_iff_wbtw.mp hya).mem_affineSpan hxy
+  have hline' : line[ℝ, x, y] = line[ℝ, c, d] := by
+    exact affineSpan_pair_eq_of_mem_of_mem_of_ne
+      (mem_segment_iff_wbtw.mp hxc).mem_affineSpan
+      (mem_segment_iff_wbtw.mp hyc).mem_affineSpan hxy
+  let f : ℝ →ᵃ[ℝ] Pt := AffineMap.lineMap x y
+  have hf : Function.Injective f := AffineMap.lineMap_injective ℝ hxy
+  have ha_line : a ∈ line[ℝ, x, y] := by
+    rw [hline]
+    exact left_mem_affineSpan_pair ℝ _ _
+  have hb_line : b ∈ line[ℝ, x, y] := by
+    rw [hline]
+    exact right_mem_affineSpan_pair ℝ _ _
+  have hc_line : c ∈ line[ℝ, x, y] := by
+    rw [hline']
+    exact left_mem_affineSpan_pair ℝ _ _
+  have hd_line : d ∈ line[ℝ, x, y] := by
+    rw [hline']
+    exact right_mem_affineSpan_pair ℝ _ _
+  obtain ⟨r, hr⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp ha_line
+  obtain ⟨s, hs⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hb_line
+  obtain ⟨u, hu⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hc_line
+  obtain ⟨v, hv⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hd_line
+  have hfrs : f '' (segment ℝ r s) = segment ℝ a b := by
+    rw [← hr, ← hs, image_segment]
+  have hfuv : f '' (segment ℝ u v) = segment ℝ c d := by
+    rw [← hu, ← hv, image_segment]
+  have hseg_mem_ab (t : ℝ) : f t ∈ segment ℝ a b ↔ t ∈ segment ℝ r s := by
+    constructor
+    · intro ht
+      rcases hfrs.symm ▸ ht with ⟨q, hq, heq⟩
+      exact hf heq |>.symm ▸ hq
+    · intro ht
+      exact hfrs ▸ ⟨t, ht, rfl⟩
+  have hseg_mem_cd (t : ℝ) : f t ∈ segment ℝ c d ↔ t ∈ segment ℝ u v := by
+    constructor
+    · intro ht
+      rcases hfuv.symm ▸ ht with ⟨q, hq, heq⟩
+      exact hf heq |>.symm ▸ hq
+    · intro ht
+      exact hfuv ▸ ⟨t, ht, rfl⟩
+  have hend_ab (t : ℝ) : f t ∈ ({a, b} : Set Pt) ↔ t ∈ ({r, s} : Set ℝ) := by
+    constructor
+    · intro ht
+      rcases ht with ht | ht
+      · left
+        exact hf (hr ▸ ht) |>.symm ▸ rfl
+      · right
+        exact hf (hs ▸ ht) |>.symm ▸ rfl
+    · intro ht
+      rcases ht with ht | ht
+      · left
+        exact hr ▸ congrArg f ht
+      · right
+        exact hs ▸ congrArg f ht
+  have hend_cd (t : ℝ) : f t ∈ ({c, d} : Set Pt) ↔ t ∈ ({u, v} : Set ℝ) := by
+    constructor
+    · intro ht
+      rcases ht with ht | ht
+      · left
+        exact hf (hu ▸ ht) |>.symm ▸ rfl
+      · right
+        exact hf (hv ▸ ht) |>.symm ▸ rfl
+    · intro ht
+      rcases ht with ht | ht
+      · left
+        exact hu ▸ congrArg f ht
+      · right
+        exact hv ▸ congrArg f ht
+  have h0 : segment ℝ (0 : ℝ) 1 ⊆ segment ℝ r s ∩ segment ℝ u v := by
+    intro t ht
+    rw [segment_eq_Icc (by norm_num)] at ht
+    have hft : f t ∈ segment ℝ x y := by
+      rw [segment_eq_image_lineMap]
+      exact ⟨t, ht, rfl⟩
+    have hft' := hxy_sub hft
+    exact ⟨hseg_mem_ab t |>.mp hft'.1, hseg_mem_cd t |>.mp hft'.2⟩
+  have heq : ({r, s} : Set ℝ) ∩ segment ℝ u v = {u, v} ∩ segment ℝ r s := by
+    ext t
+    constructor
+    · intro ht
+      have hft : f t ∈ ({a, b} : Set Pt) ∩ segment ℝ c d :=
+        ⟨hend_ab t |>.mpr ht.1, hseg_mem_cd t |>.mpr ht.2⟩
+      have hft' := h_inter_eq ▸ hft
+      exact ⟨hend_cd t |>.mp hft'.1, hseg_mem_ab t |>.mp hft'.2⟩
+    · intro ht
+      have hft : f t ∈ ({c, d} : Set Pt) ∩ segment ℝ a b :=
+        ⟨hend_cd t |>.mpr ht.1, hseg_mem_ab t |>.mpr ht.2⟩
+      have hft' := h_inter_eq ▸ hft
+      exact ⟨hend_ab t |>.mp hft'.1, hseg_mem_cd t |>.mp hft'.2⟩
+  have hscalar := refinedSubstitution_sts_step2_sides_eq_step2_segment_eq_aux_scalar h0 heq
+  calc
+    segment ℝ a b = f '' segment ℝ r s := hfrs.symm
+    _ = f '' segment ℝ u v := congrArg (fun z => f '' z) hscalar
+    _ = segment ℝ c d := hfuv
+
 /-- Step 2 of the blueprint proof of `refinedSubstitution_sts_step2_sides_eq`: if the side
 endpoint intersections with the overlapping segments are equal, and the segments overlap with
 positive length, then the segments are identical. -/
@@ -3569,7 +3741,13 @@ private lemma refinedSubstitution_sts_step2_sides_eq_step2_segment_eq (h : τ.FL
     (h_overlap : OverlapPos (A.side i) (B.side j))
     (h_inter_eq : {A.vertex i, A.vertex (finRotate _ i)} ∩ B.side j = {B.vertex j, B.vertex (finRotate _ j)} ∩ A.side i) :
     A.side i = B.side j := by
-  sorry
+  have _ := h
+  have hAi : A.side i = segment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+    simp [PlacedTile.side, PolygonalDisk.side, PlacedTile.vertex, vadd_segment]
+  have hBj : B.side j = segment ℝ (B.vertex j) (B.vertex (finRotate _ j)) := by
+    simp [PlacedTile.side, PolygonalDisk.side, PlacedTile.vertex, vadd_segment]
+  rw [hAi, hBj] at h_overlap h_inter_eq ⊢
+  exact refinedSubstitution_sts_step2_sides_eq_step2_segment_eq_aux_segment h_overlap h_inter_eq
 
 /-- Step 2 of the blueprint proof of `refinedSubstitution_sts`: Since the resulting
 subdivision agrees on both sides (the sets of listed vertices on the intersection are

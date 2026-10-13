@@ -1573,6 +1573,436 @@ theorem macrocornerIsChildVertex (M : MacroPatch P) {q : Pt}
 
 /-! ## `lem:endpoint-gap` -/
 
+private lemma gap_inner_zero_of_mem_segment {u w p y x d m : Pt}
+    (hp : p ∈ segment ℝ u w) (hy : y ∈ segment ℝ u w) (hx : x ∈ segment ℝ u w)
+    {s : ℝ} (hs : s ≠ 0) (hd : d ≠ 0) (hxp : x = p + s • d) (hmd : inner ℝ m d = 0) :
+    inner ℝ m (y - p) = 0 := by
+  rw [crown_mem_segment_iff] at hp hy hx
+  obtain ⟨t₁, -, -, rfl⟩ := hp
+  obtain ⟨t₂, -, -, rfl⟩ := hy
+  obtain ⟨t₃, -, -, h3⟩ := hx
+  have key : (t₃ - t₁) • (w - u) = s • d := by
+    rw [hxp] at h3
+    have h4 : u + t₁ • (w - u) + s • d - (u + t₁ • (w - u)) = u + t₃ • (w - u) - (u + t₁ • (w - u)) := by
+      rw [h3]
+    rw [add_sub_cancel_left] at h4
+    rw [h4]
+    module
+  have h1 : (t₃ - t₁) * inner ℝ m (w - u) = 0 := by
+    rw [← inner_smul_right, key, inner_smul_right, hmd, mul_zero]
+  have ht : t₃ - t₁ ≠ 0 := by
+    intro h
+    rw [h, zero_smul] at key
+    exact smul_ne_zero hs hd key.symm
+  have h2 : inner ℝ m (w - u) = 0 := (mul_eq_zero.mp h1).resolve_left ht
+  have : u + t₂ • (w - u) - (u + t₁ • (w - u)) = (t₂ - t₁) • (w - u) := by module
+  rw [this, inner_smul_right, h2, mul_zero]
+
+private lemma gap_endpoint_two_sided_left {u w e : Pt}
+    (h1 : u + e ∈ segment ℝ u w) (h2 : u - e ∈ segment ℝ u w) : e = 0 := by
+  rw [crown_mem_segment_iff] at h1 h2
+  obtain ⟨t, ht0, -, h1⟩ := h1
+  obtain ⟨t', ht0', -, h2⟩ := h2
+  have he : e = t • (w - u) := add_left_cancel h1
+  have he' : -e = t' • (w - u) := by
+    rw [sub_eq_add_neg] at h2
+    exact add_left_cancel h2
+  have hsum : (t + t') • (w - u) = 0 := by
+    rw [add_smul, ← he, ← he', add_neg_cancel]
+  rcases smul_eq_zero.mp hsum with h | h
+  · have : t = 0 := by linarith
+    rw [he, this, zero_smul]
+  · rw [he, h, smul_zero]
+
+private lemma gap_endpoint_two_sided {u w p e : Pt} (hp : p = u ∨ p = w)
+    (h1 : p + e ∈ segment ℝ u w) (h2 : p - e ∈ segment ℝ u w) : e = 0 := by
+  rcases hp with rfl | rfl
+  · exact gap_endpoint_two_sided_left h1 h2
+  · rw [segment_symm] at h1 h2
+    exact gap_endpoint_two_sided_left h1 h2
+
+private lemma gap_side_index {D : PolygonalDisk} {k j : Fin D.n}
+    (h : D.vertex k ∈ ({D.vertex j, D.vertex (finRotate D.n j)} : Set Pt)) :
+    j = k ∨ finRotate D.n j = k := by
+  rcases h with h | h
+  · exact Or.inl (D.vertex_injective h).symm
+  · exact Or.inr (D.vertex_injective (Set.mem_singleton_iff.mp h)).symm
+
+private lemma gap_frontier_on_line (D : PolygonalDisk) {a b p m : Pt} (hab : a ≠ b)
+    (hseg : segment ℝ a b ⊆ frontier D.carrier) (hp : p ∈ openSegment ℝ a b)
+    (hmd : inner ℝ m (b - a) = 0) :
+    ∃ ε > 0, ∀ y ∈ ball p ε, y ∈ frontier D.carrier → inner ℝ m (y - p) = 0 := by
+  obtain ⟨r, hr, hloc⟩ := crown_local_boundary D (v := p)
+  refine ⟨r, hr, fun y hy hyf => ?_⟩
+  by_contra hne
+  obtain ⟨t, ht0, ht1, rfl⟩ := crown_mem_openSegment_iff.mp hp
+  have hd : b - a ≠ 0 := sub_ne_zero.mpr hab.symm
+  have hdn : 0 < ‖b - a‖ := norm_pos_iff.mpr hd
+  set s := min (min t (1 - t) / 2) (r / (2 * ‖b - a‖)) with hs_def
+  have hmin : 0 < min t (1 - t) := lt_min ht0 (by linarith)
+  have hs : 0 < s := lt_min (by positivity) (by positivity)
+  have hs1 : s ≤ min t (1 - t) / 2 := min_le_left _ _
+  have hs2 : s ≤ r / (2 * ‖b - a‖) := min_le_right _ _
+  have hst : s ≤ t / 2 := hs1.trans (by have := min_le_left t (1 - t); linarith)
+  have hst' : s ≤ (1 - t) / 2 := hs1.trans (by have := min_le_right t (1 - t); linarith)
+  have hsd : ‖s • (b - a)‖ < r := by
+    rw [norm_smul, Real.norm_of_nonneg hs.le]
+    calc s * ‖b - a‖ ≤ r / (2 * ‖b - a‖) * ‖b - a‖ := by gcongr
+      _ = r / 2 := by field_simp
+      _ < r := by linarith
+  have hplus : a + t • (b - a) + s • (b - a) ∈ segment ℝ a b :=
+    crown_mem_segment_iff.mpr ⟨t + s, by linarith, by linarith, by module⟩
+  have hminus : a + t • (b - a) - s • (b - a) ∈ segment ℝ a b :=
+    crown_mem_segment_iff.mpr ⟨t - s, by linarith, by linarith, by module⟩
+  have hbp : a + t • (b - a) + s • (b - a) ∈ ball (a + t • (b - a)) r := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left]; exact hsd
+  have hbm : a + t • (b - a) - s • (b - a) ∈ ball (a + t • (b - a)) r := by
+    rw [mem_ball, dist_eq_norm, sub_sub_cancel_left, norm_neg]; exact hsd
+  obtain ⟨i, hpi, hyi, -⟩ := hloc y hy hyf
+  obtain ⟨j₁, hpj₁, hxj₁, -⟩ := hloc _ hbp (hseg hplus)
+  obtain ⟨j₂, hpj₂, hxj₂, -⟩ := hloc _ hbm (hseg hminus)
+  have hij₁ : i ≠ j₁ := by
+    rintro rfl
+    exact hne (gap_inner_zero_of_mem_segment hpi hyi hxj₁ hs.ne' hd rfl hmd)
+  have hij₂ : i ≠ j₂ := by
+    rintro rfl
+    exact hne (gap_inner_zero_of_mem_segment hpi hyi hxj₂ (neg_ne_zero.mpr hs.ne') hd
+      (by rw [neg_smul, sub_eq_add_neg]) hmd)
+  have hs₁ := D.simple i j₁ hij₁ ⟨hpi, hpj₁⟩
+  have hs₂ := D.simple i j₂ hij₂ ⟨hpi, hpj₂⟩
+  obtain ⟨k, hk⟩ : ∃ k, D.vertex k = a + t • (b - a) := by
+    rcases hs₁.1 with h | h
+    · exact ⟨i, h.symm⟩
+    · exact ⟨_, (Set.mem_singleton_iff.mp h).symm⟩
+  rw [← hk] at hs₁ hs₂
+  have hi := gap_side_index hs₁.1
+  have hj₁ := gap_side_index hs₁.2
+  have hj₂ := gap_side_index hs₂.2
+  have hj : j₁ = j₂ := by
+    have hinj := (finRotate D.n).injective
+    rcases hi with rfl | hi
+    · rcases hj₁ with h1 | h1
+      · exact absurd h1.symm hij₁
+      rcases hj₂ with h2 | h2
+      · exact absurd h2.symm hij₂
+      exact hinj (h1.trans h2.symm)
+    · rcases hj₁ with h1 | h1
+      · rcases hj₂ with h2 | h2
+        · exact h1.trans h2.symm
+        · exact absurd (hinj (hi.trans h2.symm)) hij₂
+      · exact absurd (hinj (hi.trans h1.symm)) hij₁
+  subst hj
+  have hpend : a + t • (b - a) = D.vertex j₁ ∨ a + t • (b - a) = D.vertex (finRotate D.n j₁) := by
+    rcases hs₁.2 with h | h
+    · exact Or.inl (hk.symm.trans h)
+    · exact Or.inr (hk.symm.trans (Set.mem_singleton_iff.mp h))
+  have := gap_endpoint_two_sided hpend hxj₁ hxj₂
+  exact smul_ne_zero hs.ne' hd this
+
+private def GapSide (D : PolygonalDisk) (p m : Pt) : Prop :=
+  ∃ ε > 0, ∀ y ∈ ball p ε, 0 < inner ℝ m (y - p) → y ∈ interior D.carrier
+
+private def GapOut (D : PolygonalDisk) (p m : Pt) : Prop :=
+  ∃ ε > 0, ∀ y ∈ ball p ε, 0 < inner ℝ m (y - p) → y ∉ D.carrier
+
+private lemma gap_push_off {O : Set Pt} (hO : IsOpen O) {p z m : Pt} {ε : ℝ} (hm : m ≠ 0)
+    (hz : z ∈ O) (hzp : z ∈ ball p ε) :
+    ∃ z' ∈ O, z' ∈ ball p ε ∧ inner ℝ m (z - p) < inner ℝ m (z' - p) := by
+  obtain ⟨η, hη, hsub⟩ := Metric.isOpen_iff.mp (hO.inter isOpen_ball) z ⟨hz, hzp⟩
+  have hmn : 0 < ‖m‖ := norm_pos_iff.mpr hm
+  set τ := η / (2 * ‖m‖)
+  have hτ : 0 < τ := by positivity
+  have hz' : z + τ • m ∈ ball z η := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hτ.le]
+    have : τ * ‖m‖ = η / 2 := by simp only [τ]; field_simp
+    rw [this]; linarith
+  obtain ⟨h1, h2⟩ := hsub hz'
+  refine ⟨_, h1, h2, ?_⟩
+  have : z + τ • m - p = (z - p) + τ • m := by abel
+  rw [this, inner_add_right, inner_smul_right, real_inner_self_eq_norm_sq]
+  have : 0 < τ * ‖m‖ ^ 2 := by positivity
+  linarith
+
+private lemma gap_side_out_false {D : PolygonalDisk} {p m : Pt} (hm : m ≠ 0)
+    (h1 : GapSide D p m) (h2 : GapOut D p m) : False := by
+  obtain ⟨ε₁, hε₁, h1⟩ := h1
+  obtain ⟨ε₂, hε₂, h2⟩ := h2
+  obtain ⟨z, -, hz, hlt⟩ := gap_push_off isOpen_univ hm (mem_univ p)
+    (mem_ball_self (lt_min hε₁ hε₂))
+  rw [sub_self, inner_zero_right] at hlt
+  exact h2 z (ball_subset_ball (min_le_right _ _) hz) hlt
+    (interior_subset (h1 z (ball_subset_ball (min_le_left _ _) hz) hlt))
+
+private lemma gap_halfdisk_convex (p m : Pt) (ε : ℝ) :
+    Convex ℝ {y | y ∈ ball p ε ∧ 0 < inner ℝ m (y - p)} := by
+  refine (convex_ball p ε).inter ?_
+  intro x hx y hy a b ha hb hab
+  have hx : 0 < inner ℝ m (x - p) := hx
+  have hy : 0 < inner ℝ m (y - p) := hy
+  show 0 < inner ℝ m (a • x + b • y - p)
+  have : a • x + b • y - p = a • (x - p) + b • (y - p) := by
+    have hp : p = (a + b) • p := by rw [hab, one_smul]
+    conv_lhs => rw [hp]
+    module
+  rw [this, inner_add_right, inner_smul_right, inner_smul_right]
+  rcases ha.lt_or_eq with ha | ha
+  · nlinarith
+  · subst ha
+    have hb1 : b = 1 := by linarith
+    subst hb1
+    simpa using hy
+
+private lemma gap_dichotomy (D : PolygonalDisk) {a b p m : Pt} (hab : a ≠ b)
+    (hseg : segment ℝ a b ⊆ frontier D.carrier) (hp : p ∈ openSegment ℝ a b)
+    (hm : m ≠ 0) (hmd : inner ℝ m (b - a) = 0) :
+    (GapSide D p m ∧ GapOut D p (-m)) ∨ (GapSide D p (-m) ∧ GapOut D p m) := by
+  obtain ⟨ε, hε, hA⟩ := gap_frontier_on_line D hab hseg hp hmd
+  have hclosed : IsClosed D.carrier := D.compact.isClosed
+  have half : ∀ m' : Pt, (m' = m ∨ m' = -m) →
+      ({y | y ∈ ball p ε ∧ 0 < inner ℝ m' (y - p)} ⊆ interior D.carrier ∨
+        {y | y ∈ ball p ε ∧ 0 < inner ℝ m' (y - p)} ⊆ D.carrierᶜ) := by
+    intro m' hm'
+    have key := macro_preconn_sub (s := D.carrier) (gap_halfdisk_convex p m' ε).isPreconnected ?_
+    · rwa [hclosed.closure_eq] at key
+    refine Set.disjoint_left.mpr fun y hy hyf => ?_
+    obtain ⟨hyb, hy⟩ := hy
+    have := hA y hyb hyf
+    rcases hm' with rfl | rfl
+    · linarith
+    · rw [inner_neg_left] at hy; linarith
+  have hpf : p ∈ frontier D.carrier := hseg (openSegment_subset_segment _ _ _ hp)
+  have hm' : -m ≠ 0 := neg_ne_zero.mpr hm
+  rcases half m (Or.inl rfl) with h1 | h1 <;> rcases half (-m) (Or.inr rfl) with h2 | h2
+  · exfalso
+    have hpc : p ∈ closure D.carrierᶜ := by rw [closure_compl]; exact hpf.2
+    obtain ⟨z, hz, hzp⟩ := Metric.mem_closure_iff.mp hpc ε hε
+    have hzb : z ∈ ball p ε := by rw [mem_ball, dist_comm]; exact hzp
+    rcases lt_trichotomy 0 (inner ℝ m (z - p)) with h | h | h
+    · exact hz (interior_subset (h1 ⟨hzb, h⟩))
+    · obtain ⟨z', hz', hz'b, hlt⟩ := gap_push_off hclosed.isOpen_compl hm hz hzb
+      rw [← h] at hlt
+      exact hz' (interior_subset (h1 ⟨hz'b, hlt⟩))
+    · exact hz (interior_subset (h2 ⟨hzb, by rw [inner_neg_left]; linarith⟩))
+  · exact Or.inl ⟨⟨ε, hε, fun y hy hy' => h1 ⟨hy, hy'⟩⟩, ⟨ε, hε, fun y hy hy' => h2 ⟨hy, hy'⟩⟩⟩
+  · exact Or.inr ⟨⟨ε, hε, fun y hy hy' => h2 ⟨hy, hy'⟩⟩, ⟨ε, hε, fun y hy hy' => h1 ⟨hy, hy'⟩⟩⟩
+  · exfalso
+    have hpD : p ∈ closure (interior D.carrier) := by
+      rw [D.regular_closed]; exact hclosed.frontier_subset hpf
+    obtain ⟨z, hz, hzp⟩ := Metric.mem_closure_iff.mp hpD ε hε
+    have hzb : z ∈ ball p ε := by rw [mem_ball, dist_comm]; exact hzp
+    rcases lt_trichotomy 0 (inner ℝ m (z - p)) with h | h | h
+    · exact h1 ⟨hzb, h⟩ (interior_subset hz)
+    · obtain ⟨z', hz', hz'b, hlt⟩ := gap_push_off isOpen_interior hm hz hzb
+      rw [← h] at hlt
+      exact h1 ⟨hz'b, hlt⟩ (interior_subset hz')
+    · exact h2 ⟨hzb, by rw [inner_neg_left]; linarith⟩ (interior_subset hz)
+
+private lemma gap_shift {Q : Pt → Prop} {p p' m : Pt} {ε : ℝ}
+    (h : ∀ y ∈ ball p ε, 0 < inner ℝ m (y - p) → Q y) (hpp : dist p' p < ε / 2)
+    (hmpp : inner ℝ m (p' - p) = 0) :
+    ∀ y ∈ ball p' (ε / 2), 0 < inner ℝ m (y - p') → Q y := by
+  intro y hy hy'
+  apply h y
+  · rw [mem_ball] at hy ⊢
+    linarith [dist_triangle y p' p]
+  · have : y - p = (y - p') + (p' - p) := by abel
+    rw [this, inner_add_right, hmpp, add_zero]; exact hy'
+
+private lemma gap_side_const (D : PolygonalDisk) {a b m : Pt} (hab : a ≠ b)
+    (hseg : segment ℝ a b ⊆ frontier D.carrier) (hm : m ≠ 0) (hmd : inner ℝ m (b - a) = 0)
+    {t₁ t₂ : ℝ} (ht₁ : t₁ ∈ Ioo (0 : ℝ) 1) (ht₂ : t₂ ∈ Ioo (0 : ℝ) 1)
+    (h : GapSide D (a + t₁ • (b - a)) m) : GapSide D (a + t₂ • (b - a)) m := by
+  classical
+  have hdn : 0 < ‖b - a‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hab.symm)
+  let f : ℝ → Bool := fun t => decide (GapSide D (a + t • (b - a)) m)
+  have hdist : ∀ t t' : ℝ, dist (a + t' • (b - a)) (a + t • (b - a)) = |t' - t| * ‖b - a‖ := by
+    intro t t'
+    rw [dist_eq_norm, show a + t' • (b - a) - (a + t • (b - a)) = (t' - t) • (b - a) by module,
+      norm_smul, Real.norm_eq_abs]
+  have hinn : ∀ t t' : ℝ, inner ℝ m (a + t' • (b - a) - (a + t • (b - a))) = 0 := by
+    intro t t'
+    rw [show a + t' • (b - a) - (a + t • (b - a)) = (t' - t) • (b - a) by module,
+      inner_smul_right, hmd, mul_zero]
+  have hloc : ∀ t ∈ Ioo (0 : ℝ) 1, ∃ η > 0, ∀ t', dist t' t < η → f t' = f t := by
+    intro t ht
+    have hp : a + t • (b - a) ∈ openSegment ℝ a b :=
+      crown_mem_openSegment_iff.mpr ⟨t, ht.1, ht.2, rfl⟩
+    rcases gap_dichotomy D hab hseg hp hm hmd with ⟨⟨ε, hε, hS⟩, -⟩ | ⟨-, ⟨ε, hε, hO⟩⟩
+    · refine ⟨ε / (2 * ‖b - a‖), by positivity, fun t' ht' => ?_⟩
+      have hd' : dist (a + t' • (b - a)) (a + t • (b - a)) < ε / 2 := by
+        rw [hdist, ← Real.dist_eq]
+        calc dist t' t * ‖b - a‖ < ε / (2 * ‖b - a‖) * ‖b - a‖ := by gcongr
+          _ = ε / 2 := by field_simp
+      have h1 : GapSide D (a + t' • (b - a)) m := ⟨ε / 2, by positivity, gap_shift hS hd' (hinn _ _)⟩
+      have h2 : GapSide D (a + t • (b - a)) m := ⟨ε, hε, hS⟩
+      simp only [f, h1, h2]
+    · refine ⟨ε / (2 * ‖b - a‖), by positivity, fun t' ht' => ?_⟩
+      have hd' : dist (a + t' • (b - a)) (a + t • (b - a)) < ε / 2 := by
+        rw [hdist, ← Real.dist_eq]
+        calc dist t' t * ‖b - a‖ < ε / (2 * ‖b - a‖) * ‖b - a‖ := by gcongr
+          _ = ε / 2 := by field_simp
+      have h1 : ¬ GapSide D (a + t' • (b - a)) m := fun h1 =>
+        gap_side_out_false hm h1 ⟨ε / 2, by positivity, gap_shift hO hd' (hinn _ _)⟩
+      have h2 : ¬ GapSide D (a + t • (b - a)) m := fun h2 =>
+        gap_side_out_false hm h2 ⟨ε, hε, hO⟩
+      simp only [f, h1, h2]
+  have hcont : ContinuousOn f (Ioo 0 1) := by
+    intro t ht
+    obtain ⟨η, hη, hη'⟩ := hloc t ht
+    refine (ContinuousAt.congr (f := fun _ => f t) continuousAt_const ?_).continuousWithinAt
+    filter_upwards [Metric.ball_mem_nhds t hη] with t' ht' using (hη' t' ht').symm
+  have := isPreconnected_Ioo.constant hcont ht₁ ht₂
+  simp only [f, decide_eq_decide] at this
+  exact this.mp h
+
+private lemma gap_cone_scale {A : Set Pt} {c w : Pt} (hw : w ∈ localCone A c) {lam : ℝ}
+    (hl : 0 < lam) : c + lam • (w - c) ∈ localCone A c := by
+  obtain ⟨ρ, hρ, h⟩ := hw
+  refine ⟨ρ / lam, div_pos hρ hl, fun t ht => ?_⟩
+  have := h (t * lam) ⟨mul_pos ht.1 hl, (lt_div_iff₀ hl).mp ht.2⟩
+  rw [add_sub_cancel_left, smul_smul]
+  exact this
+
+private lemma gap_core (D : PolygonalDisk) {a b p : Pt} (hab : a ≠ b)
+    (hseg : segment ℝ a b ⊆ frontier D.carrier) (hp : p ∈ openSegment ℝ a b) :
+    ∃ ε > 0, ∀ y ∈ ball p ε, y ∈ interior D.carrier → y ∈ localCone D.carrier a := by
+  obtain ⟨t, ht0, ht1, rfl⟩ := crown_mem_openSegment_iff.mp hp
+  have hd : b - a ≠ 0 := sub_ne_zero.mpr hab.symm
+  have hdn : 0 < ‖b - a‖ := norm_pos_iff.mpr hd
+  obtain ⟨m, hm, hmd, hS, hO⟩ : ∃ m : Pt, m ≠ 0 ∧ inner ℝ m (b - a) = 0 ∧
+      GapSide D (a + t • (b - a)) m ∧ GapOut D (a + t • (b - a)) (-m) := by
+    rcases gap_dichotomy D hab hseg hp (macroPerp_ne_zero hd) (macroPerp_inner _) with
+      ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · exact ⟨_, macroPerp_ne_zero hd, macroPerp_inner _, h1, h2⟩
+    · refine ⟨-macroPerp (b - a), neg_ne_zero.mpr (macroPerp_ne_zero hd), ?_, h1, ?_⟩
+      · rw [inner_neg_left, macroPerp_inner, neg_zero]
+      · rwa [neg_neg]
+  have haD : a ∈ D.carrier :=
+    D.compact.isClosed.frontier_subset (hseg (left_mem_segment ℝ a b))
+  obtain ⟨ρ, hρ, hloc⟩ := polygonLocalCone D haD
+  set t₀ := min (t / 2) (ρ / (4 * ‖b - a‖)) with ht₀_def
+  have ht₀ : 0 < t₀ := lt_min (by linarith) (by positivity)
+  have ht₀t : t₀ ≤ t / 2 := min_le_left _ _
+  have ht₀ρ : t₀ ≤ ρ / (4 * ‖b - a‖) := min_le_right _ _
+  have hS₀ : GapSide D (a + t₀ • (b - a)) m :=
+    gap_side_const D hab hseg hm hmd ⟨ht0, ht1⟩ ⟨ht₀, by linarith⟩ hS
+  obtain ⟨ε₀, hε₀, hS₀⟩ := hS₀
+  obtain ⟨ε₁, hε₁, hO⟩ := hO
+  set lam := t / t₀ with hlam_def
+  have hlam : 0 < lam := div_pos ht0 ht₀
+  refine ⟨min ε₁ (lam * min ε₀ (ρ / 2)), by positivity, fun y hy hyint => ?_⟩
+  have hy₁ : y ∈ ball (a + t • (b - a)) ε₁ := ball_subset_ball (min_le_left _ _) hy
+  have hpos : 0 < inner ℝ m (y - (a + t • (b - a))) := by
+    rcases lt_trichotomy 0 (inner ℝ m (y - (a + t • (b - a)))) with h | h | h
+    · exact h
+    · exfalso
+      obtain ⟨z', hz', hz'b, hlt⟩ := gap_push_off isOpen_interior (neg_ne_zero.mpr hm) hyint hy₁
+      rw [inner_neg_left, ← h, neg_zero] at hlt
+      exact hO z' hz'b hlt (interior_subset hz')
+    · exfalso
+      exact hO y hy₁ (by rw [inner_neg_left]; linarith) (interior_subset hyint)
+  set w := a + lam⁻¹ • (y - a) with hw_def
+  have hlt0 : lam⁻¹ * t = t₀ := by rw [hlam_def]; field_simp
+  have hw_eq : w - (a + t₀ • (b - a)) = lam⁻¹ • (y - (a + t • (b - a))) := by
+    rw [hw_def, ← hlt0]; module
+  have hyd : dist y (a + t • (b - a)) < lam * min ε₀ (ρ / 2) :=
+    lt_of_lt_of_le hy (min_le_right _ _)
+  have hwdist : dist w (a + t₀ • (b - a)) < min ε₀ (ρ / 2) := by
+    rw [dist_eq_norm, hw_eq, norm_smul, Real.norm_of_nonneg (inv_pos.mpr hlam).le, ← dist_eq_norm]
+    rw [inv_mul_lt_iff₀ hlam]; exact hyd
+  have hwin : 0 < inner ℝ m (w - (a + t₀ • (b - a))) := by
+    rw [hw_eq, inner_smul_right]; exact mul_pos (inv_pos.mpr hlam) hpos
+  have hwD : w ∈ D.carrier :=
+    interior_subset (hS₀ w (lt_of_lt_of_le hwdist (min_le_left _ _)) hwin)
+  have hwa : w ∈ ball a ρ := by
+    rw [mem_ball]
+    have h1 : dist (a + t₀ • (b - a)) a ≤ ρ / 4 := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht₀.le]
+      calc t₀ * ‖b - a‖ ≤ ρ / (4 * ‖b - a‖) * ‖b - a‖ := by gcongr
+        _ = ρ / 4 := by field_simp
+    have h2 : dist w (a + t₀ • (b - a)) < ρ / 2 := lt_of_lt_of_le hwdist (min_le_right _ _)
+    linarith [dist_triangle w (a + t₀ • (b - a)) a]
+  have hwC : w ∈ localCone D.carrier a := by
+    have : w ∈ D.carrier ∩ ball a ρ := ⟨hwD, hwa⟩
+    rw [hloc] at this
+    exact this.1
+  have hyw : y = a + lam • (w - a) := by
+    rw [hw_def, add_sub_cancel_left, smul_smul, mul_inv_cancel₀ hlam.ne', one_smul,
+      add_sub_cancel]
+  rw [hyw]
+  exact gap_cone_scale hwC hlam
+
+private lemma gap_macro_core (M : MacroPatch P) {a b p : Pt} (hab : a ≠ b)
+    (hseg : segment ℝ a b ⊆ frontier (P.disk M.root).carrier) (hp : p ∈ openSegment ℝ a b) :
+    ∃ ε > 0, ∀ y ∈ ball (M.map p) ε, y ∈ interior (support M.tiles) →
+      y ∈ localCone (support M.tiles) (M.map a) := by
+  obtain ⟨ε, hε, h⟩ := gap_core _ hab hseg hp
+  have hc : 0 < M.θ ^ M.j := pow_pos (lt_trans zero_lt_one M.one_lt) _
+  refine ⟨M.θ ^ M.j * ε, by positivity, fun y hy hyint => ?_⟩
+  rw [M.support_eq, interior_vadd, interior_smul₀ hc.ne'] at hyint
+  obtain ⟨_, ⟨z, hz, rfl⟩, rfl⟩ := hyint
+  have hzd : dist z p < ε := by
+    change dist (M.offset +ᵥ M.θ ^ M.j • z) (M.map p) < M.θ ^ M.j * ε at hy
+    rw [dist_eq_norm] at hy
+    have : (M.offset +ᵥ M.θ ^ M.j • z) - M.map p = (M.θ ^ M.j) • (z - p) := by
+      simp only [MacroPatch.map, vadd_eq_add]; module
+    rw [this, norm_smul, Real.norm_of_nonneg hc.le, ← dist_eq_norm] at hy
+    exact lt_of_mul_lt_mul_left hy hc.le
+  obtain ⟨ρ, hρ, hcone⟩ := h z hzd hz
+  refine ⟨ρ, hρ, fun t ht => ?_⟩
+  rw [M.support_eq]
+  refine Set.mem_vadd_set.mpr ⟨(M.θ ^ M.j) • (a + t • (z - a)),
+    Set.smul_mem_smul_set (hcone t ht), ?_⟩
+  simp only [MacroPatch.map, vadd_eq_add]
+  module
+
+private lemma gap_near_vertex (S : Set (PlacedTile P)) (hS : S.Finite) (q : Pt) :
+    ∃ ρ > 0, ∀ y ∈ ball q ρ, y ∈ support S → ∃ A ∈ crown S q, y ∈ localCone A.carrier q := by
+  have hrad : ∀ A : PlacedTile P, ∃ ρ > 0, ∀ y ∈ ball q ρ, y ∈ A.carrier →
+      q ∈ A.carrier ∧ y ∈ localCone A.carrier q := by
+    intro A
+    by_cases hqA : q ∈ A.carrier
+    · obtain ⟨ρ, hρ, h⟩ := polygonLocalCone_tile A hqA
+      refine ⟨ρ, hρ, fun y hy hyA => ⟨hqA, ?_⟩⟩
+      have : y ∈ A.carrier ∩ ball q ρ := ⟨hyA, hy⟩
+      rw [h] at this
+      exact this.1
+    · obtain ⟨ρ, hρ, hb⟩ := Metric.isOpen_iff.mp (macro_tile_closed A).isOpen_compl q hqA
+      exact ⟨ρ, hρ, fun y hy hyA => absurd hyA (hb hy)⟩
+  choose rad hradpos hrad using hrad
+  obtain ⟨ρ, hρ, hle⟩ := macro_finite_pos_lower hS rad (fun A _ => hradpos A)
+  refine ⟨ρ, hρ, fun y hy hyS => ?_⟩
+  rw [support, mem_iUnion₂] at hyS
+  obtain ⟨A, hA, hyA⟩ := hyS
+  obtain ⟨hqA, hc⟩ := hrad A y (ball_subset_ball (hle A hA) hy) hyA
+  exact ⟨A, ⟨hA, hqA⟩, hc⟩
+
+private lemma gap_interior_frontier_union {S : Set (PlacedTile P)} (hS : S.Finite) :
+    interior (⋃ A ∈ S, frontier A.carrier) = ∅ := by
+  induction S, hS using Set.Finite.induction_on with
+  | empty => simp
+  | @insert A S hA hS ih =>
+    rw [Set.biUnion_insert, interior_union_isClosed_of_interior_empty isClosed_frontier ih,
+      interior_frontier (macro_tile_closed A)]
+
+private lemma gap_translateSet_neg (S : Set (PlacedTile P)) (q : Pt) :
+    translateSet q (translateSet (-q) S) = S := by
+  rw [translateSet, translateSet, Set.image_image]
+  convert Set.image_id S using 2
+  ext A
+  · rfl
+  · simp [PlacedTile.translate]
+
+private lemma gap_vertex_mem_carrier (A : PlacedTile P) {v : Pt} (hv : v ∈ A.vertexSet) :
+    v ∈ A.carrier := by
+  obtain ⟨i, rfl⟩ := hv
+  apply (macro_tile_closed A).frontier_subset
+  rw [macro_tile_frontier_eq]
+  refine mem_iUnion.mpr ⟨i, ?_⟩
+  rw [macro_tile_side_eq]
+  exact left_mem_segment ℝ _ _
+
+
 /-- `lem:endpoint-gap`: with `h = min r_* δ_*`, a child vertex in the relative
 interior of a geometric macro edge incident to the genuine macro corner `q`
 is at distance at least `h` from `q`. -/
@@ -1582,7 +2012,88 @@ theorem incidentMacroEdgeVertexGap {𝒞 : Set (Set (PlacedTile P))} {r δ : ℝ
     (hqx : (q, x) ∈ geometricMacroBoundary M ∨ (x, q) ∈ geometricMacroBoundary M)
     {v : Pt} (hv : IsVertexOf M.tiles v) (hvx : v ∈ openSegment ℝ q x) :
     min r δ ≤ dist v q := by
-  sorry
+  classical
+  have _hpos : 0 < min r δ := lt_min hr hδ
+  by_contra hlt
+  push_neg at hlt
+  obtain ⟨a, b, hab, hseg, hga, rfl, rfl⟩ : ∃ a b, a ≠ b ∧
+      segment ℝ a b ⊆ frontier (P.disk M.root).carrier ∧ (P.disk M.root).IsGenuineCorner a ∧
+      q = M.map a ∧ x = M.map b := by
+    rcases hqx with ⟨a, b, ⟨ha, hb, hne, hs⟩, he⟩ | ⟨a, b, ⟨ha, hb, hne, hs⟩, he⟩
+    · simp only [Prod.mk.injEq] at he
+      exact ⟨a, b, hne, hs, ha, he.1, he.2⟩
+    · simp only [Prod.mk.injEq] at he
+      exact ⟨b, a, hne.symm, segment_symm ℝ a b ▸ hs, hb, he.2, he.1⟩
+  have hc : 0 < M.θ ^ M.j := pow_pos (lt_trans zero_lt_one M.one_lt) _
+  obtain ⟨t, ht0, ht1, hvt⟩ := crown_mem_openSegment_iff.mp hvx
+  have hp : a + t • (b - a) ∈ openSegment ℝ a b :=
+    crown_mem_openSegment_iff.mpr ⟨t, ht0, ht1, rfl⟩
+  have hvp : v = M.map (a + t • (b - a)) := by
+    rw [hvt]; simp only [MacroPatch.map]; module
+  have hvq : v ≠ M.map a := by
+    intro h
+    rw [h] at hvx
+    have hmap := left_mem_openSegment_iff.mp hvx
+    apply hab
+    apply smul_right_injective Pt hc.ne'
+    exact add_left_cancel hmap
+  have hqv : IsVertexOf M.tiles (M.map a) := macrocornerIsChildVertex M ⟨a, hga, rfl⟩
+  obtain ⟨hsupp, hsep⟩ := hrδ _ (hM _ hqv) (M.map a)
+  rw [gap_translateSet_neg] at hsupp hsep
+  obtain ⟨B, hB, hvB⟩ := hv
+  have hqB : M.map a ∈ B.carrier := by
+    by_contra hqB
+    obtain ⟨ρ, hρ, hnear⟩ := gap_near_vertex M.tiles M.finite (M.map a)
+    obtain ⟨ε₁, hε₁, hcore⟩ := gap_macro_core M hab hseg hp
+    rw [← hvp] at hcore
+    set ε := min ε₁ (r - dist v (M.map a)) with hε_def
+    have hε : 0 < ε := lt_min hε₁ (by linarith [min_le_left r δ])
+    have hsub : interior B.carrier ∩ ball v ε ⊆
+        ⋃ A ∈ crown M.tiles (M.map a), frontier A.carrier := by
+      rintro y ⟨hyB, hyv⟩
+      have hyR : y ∈ interior (support M.tiles) :=
+        interior_mono (subset_biUnion_of_mem (u := fun A : PlacedTile P => A.carrier) hB) hyB
+      obtain ⟨ρ', hρ', hcone⟩ := hcore y (ball_subset_ball (min_le_left _ _) hyv) hyR
+      set s := min (ρ' / 2) (ρ / (2 * (dist y (M.map a) + 1))) with hs_def
+      have hs : 0 < s := lt_min (by positivity) (by positivity)
+      have hy'R := hcone s ⟨hs, lt_of_le_of_lt (min_le_left _ _) (half_lt_self hρ')⟩
+      have hy'ball : M.map a + s • (y - M.map a) ∈ ball (M.map a) ρ := by
+        rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs.le,
+          ← dist_eq_norm]
+        have h1 : s ≤ ρ / (2 * (dist y (M.map a) + 1)) := min_le_right _ _
+        have h2 : 0 ≤ dist y (M.map a) := dist_nonneg
+        calc s * dist y (M.map a) ≤ ρ / (2 * (dist y (M.map a) + 1)) * (dist y (M.map a) + 1) := by
+              gcongr; linarith
+          _ = ρ / 2 := by field_simp
+          _ < ρ := half_lt_self hρ
+      obtain ⟨A, hAK, hAc⟩ := hnear _ hy'ball hy'R
+      have hyA : y ∈ localCone A.carrier (M.map a) := by
+        have := gap_cone_scale hAc (inv_pos.mpr hs)
+        rwa [add_sub_cancel_left, smul_smul, inv_mul_cancel₀ hs.ne', one_smul,
+          add_sub_cancel] at this
+      have hyball_r : y ∈ ball (M.map a) r := by
+        rw [mem_ball]
+        have h1 : dist y v < ε := by rw [← mem_ball]; exact hyv
+        have h2 : ε ≤ r - dist v (M.map a) := min_le_right _ _
+        linarith [dist_triangle y v (M.map a)]
+      have hyOmega : y ∈ Omega (crown M.tiles (M.map a)) (M.map a) ∩ ball (M.map a) r :=
+        ⟨mem_iUnion₂.mpr ⟨A, hAK, hyA⟩, hyball_r⟩
+      rw [← hsupp] at hyOmega
+      obtain ⟨A', hA'K, hyA'⟩ := mem_iUnion₂.mp hyOmega.1
+      refine mem_iUnion₂.mpr ⟨A', hA'K, ?_⟩
+      have hne : A' ≠ B := fun h => hqB (h ▸ hA'K.2)
+      rw [frontier, (macro_tile_closed A').closure_eq]
+      exact ⟨hyA', fun hyA'i => Set.disjoint_left.mp (M.disjoint hA'K.1 hB hne) hyA'i hyB⟩
+    have hvBc : v ∈ closure (interior B.carrier) := by
+      rw [macro_tile_regular B]; exact gap_vertex_mem_carrier B hvB
+    obtain ⟨z, hz, hzv⟩ := Metric.mem_closure_iff.mp hvBc ε hε
+    have hint : interior B.carrier ∩ ball v ε ⊆
+        interior (⋃ A ∈ crown M.tiles (M.map a), frontier A.carrier) :=
+      interior_maximal hsub (isOpen_interior.inter isOpen_ball)
+    rw [gap_interior_frontier_union (M.finite.subset (fun A hA => hA.1))] at hint
+    exact hint ⟨hz, by rw [mem_ball, dist_comm]; exact hzv⟩
+  have := hsep B ⟨hB, hqB⟩ v hvB hvq
+  linarith [min_le_right r δ]
 
 /-! ## `def:crown-separation` -/
 

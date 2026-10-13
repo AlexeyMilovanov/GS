@@ -552,7 +552,12 @@ private lemma macroblock_is_decomposition_central_step1_owner (c : MacroCertific
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
     (ht_owner : c.owner t = K.α) (ht_c : t = c.central K.α) :
     c.owner (K.tileOf t).typ = c.form (reconstruct c K h.1).typ := by
-  sorry
+  have _ := hH
+  have _ := hK
+  have _ := ht_c
+  dsimp [reconstruct, ColouredBlock.tileOf]
+  rw [ht_owner]
+  exact hh.left.symm
 
 /-- Step 2 of the blueprint proof of `macroblock_is_decomposition_central`: prints are correct. -/
 private lemma macroblock_is_decomposition_central_step2_prints (c : MacroCertificate P)

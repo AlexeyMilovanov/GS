@@ -5428,7 +5428,81 @@ private lemma uniformCrownCoverPlane_step2_far_step3_shared_vertex
     ∃ v, (v = A.vertex i ∨ v = A.vertex (finRotate _ i) ∨
             v = B.vertex j ∨ v = B.vertex (finRotate _ j)) ∧
       v ∈ A.carrier ∧ v ∈ B.carrier := by
-  sorry
+  have hsideA : A.side i ⊆ A.carrier := by
+    intro x hx
+    exact (macro_tile_closed A).frontier_subset
+      (macro_tile_side_subset_frontier A i hx)
+  have hsideB : B.side j ⊆ B.carrier := by
+    intro x hx
+    exact (macro_tile_closed B).frontier_subset
+      (macro_tile_side_subset_frontier B j hx)
+  have hAne : A.vertex i ≠ A.vertex (finRotate _ i) :=
+    trimmed_tile_vertex_ne_next A i
+  by_cases heA1 : e = A.vertex i
+  · refine ⟨A.vertex i, Or.inl rfl, gap_vertex_mem_carrier A ⟨i, rfl⟩, ?_⟩
+    rw [← heA1]
+    exact hsideB hej
+  by_cases heA2 : e = A.vertex (finRotate _ i)
+  · refine ⟨A.vertex (finRotate _ i), Or.inr (Or.inl rfl),
+      gap_vertex_mem_carrier A ⟨finRotate _ i, rfl⟩, ?_⟩
+    rw [← heA2]
+    exact hsideB hej
+  by_cases heB1 : e = B.vertex j
+  · refine ⟨B.vertex j, Or.inr (Or.inr (Or.inl rfl)), ?_,
+      gap_vertex_mem_carrier B ⟨j, rfl⟩⟩
+    rw [← heB1]
+    exact hsideA hei
+  by_cases heB2 : e = B.vertex (finRotate _ j)
+  · refine ⟨B.vertex (finRotate _ j), Or.inr (Or.inr (Or.inr rfl)), ?_,
+      gap_vertex_mem_carrier B ⟨finRotate _ j, rfl⟩⟩
+    rw [← heB2]
+    exact hsideA hei
+  have hA1 : A.vertex i ≠ e := by
+    intro h
+    exact heA1 h.symm
+  have hA2 : A.vertex (finRotate _ i) ≠ e := by
+    intro h
+    exact heA2 h.symm
+  have hB1 : B.vertex j ≠ e := by
+    intro h
+    exact heB1 h.symm
+  have hB2 : B.vertex (finRotate _ j) ≠ e := by
+    intro h
+    exact heB2 h.symm
+  have heAopen : e ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+    apply mem_openSegment_of_ne_left_right hA1 hA2
+    rw [← trimmed_tile_side_eq A i]
+    exact hei
+  have heBopen : e ∈ openSegment ℝ (B.vertex j) (B.vertex (finRotate _ j)) := by
+    apply mem_openSegment_of_ne_left_right hB1 hB2
+    rw [← trimmed_tile_side_eq B j]
+    exact hej
+  have hline1 : B.vertex j ∈ line[ℝ, A.vertex i, A.vertex (finRotate _ i)] :=
+    hcol.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hAne
+  have hline2 : B.vertex (finRotate _ j) ∈
+      line[ℝ, A.vertex i, A.vertex (finRotate _ i)] :=
+    hcol.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hAne
+  rcases crown_endpoint_mem_of_collinear_intersection hAne heAopen heBopen hline1 hline2 with
+    h | h | h | h
+  · refine ⟨B.vertex j, Or.inr (Or.inr (Or.inl rfl)), ?_,
+      gap_vertex_mem_carrier B ⟨j, rfl⟩⟩
+    apply hsideA
+    rw [trimmed_tile_side_eq A i]
+    exact h
+  · refine ⟨B.vertex (finRotate _ j), Or.inr (Or.inr (Or.inr rfl)), ?_,
+      gap_vertex_mem_carrier B ⟨finRotate _ j, rfl⟩⟩
+    apply hsideA
+    rw [trimmed_tile_side_eq A i]
+    exact h
+  · refine ⟨A.vertex i, Or.inl rfl, gap_vertex_mem_carrier A ⟨i, rfl⟩, ?_⟩
+    apply hsideB
+    rw [trimmed_tile_side_eq B j]
+    exact h
+  · refine ⟨A.vertex (finRotate _ i), Or.inr (Or.inl rfl),
+      gap_vertex_mem_carrier A ⟨finRotate _ i, rfl⟩, ?_⟩
+    apply hsideB
+    rw [trimmed_tile_side_eq B j]
+    exact h
 
 /-- Step 2 of the blueprint proof of `uniformCrownCoverPlane`: Otherwise `H` stays at
 distance at least `d/2` from every vertex. The structural lemma covers `H` using tiles

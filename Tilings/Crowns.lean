@@ -4989,10 +4989,39 @@ def UnpointedFLC (τ : Substitution P) : Prop :=
     ∀ (n : ℕ) (p : P.Form) (w : Pt), IsVertexOf (τ.supertile n p) w →
       ∃ K ∈ 𝒦, ∃ u : Pt, crown (τ.supertile n p) w = translateSet u K
 
+/-- Step 1 of the blueprint proof of `pointedFLCOfFLC`:
+Choose one finite patch for each unpointed translation class. -/
+private lemma pointedFLCOfFLC_step1_choose_finite_patches (P : Protoset) (τ : Substitution P)
+  (h : UnpointedFLC τ) :
+  ∃ f : Set (PlacedTile P) → Pt, ∀ K ∈ {K | τ.IsAllowedCrown K},
+    ∃ K' ∈ Classical.choose h, K = translateSet (f K) K' := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `pointedFLCOfFLC`:
+A crown centre is a listed vertex of at least one of its tiles, so each chosen patch has only finitely many possible centres. -/
+private lemma pointedFLCOfFLC_step2_finite_centres (P : Protoset) (τ : Substitution P)
+  (h : UnpointedFLC τ) (f : Set (PlacedTile P) → Pt)
+  (hf : ∀ K ∈ {K | τ.IsAllowedCrown K}, ∃ K' ∈ Classical.choose h, K = translateSet (f K) K') :
+  ∀ K' ∈ Classical.choose h, {u | ∃ K ∈ {K | τ.IsAllowedCrown K}, f K = u ∧ K = translateSet u K'}.Finite := by
+  sorry
+
 /-- `lem:pointed-flc`: finitely many unpointed translation classes of allowed
 crowns give finitely many pointed ones. -/
 theorem pointedFLCOfFLC (τ : Substitution P) (h : UnpointedFLC τ) : τ.FLC := by
-  sorry
+  dsimp [FLC]
+  obtain ⟨f, hf⟩ := pointedFLCOfFLC_step1_choose_finite_patches P τ h
+  have h1 : {K | τ.IsAllowedCrown K} ⊆
+      ⋃ K' ∈ Classical.choose h, (fun u => translateSet u K') ''
+        {u | ∃ K ∈ {K | τ.IsAllowedCrown K}, f K = u ∧ K = translateSet u K'} := by
+    intro K hK
+    rcases hf K hK with ⟨K', hK', hKeq⟩
+    rw [Set.mem_iUnion₂]
+    exact ⟨K', hK', f K, ⟨K, hK, rfl, hKeq⟩, hKeq.symm⟩
+  apply Set.Finite.subset _ h1
+  apply Set.Finite.biUnion (Classical.choose_spec h).1
+  intro K' hK'
+  apply Set.Finite.image
+  exact pointedFLCOfFLC_step2_finite_centres P τ h f hf K' hK'
 
 /-- Under (pointed) FLC the allowed crowns form a catalogue. -/
 theorem isCatalogue_pointedCatalogue (τ : Substitution P) (h : τ.FLC) :

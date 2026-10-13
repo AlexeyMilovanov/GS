@@ -5092,13 +5092,34 @@ def UnpointedFLC (τ : Substitution P) : Prop :=
     ∀ (n : ℕ) (p : P.Form) (w : Pt), IsVertexOf (τ.supertile n p) w →
       ∃ K ∈ 𝒦, ∃ u : Pt, crown (τ.supertile n p) w = translateSet u K
 
+private lemma pointedFLCOfFLC_step1_choose_finite_patches_translateSet_add
+    (S : Set (PlacedTile P)) (u v : Pt) :
+    translateSet v (translateSet u S) = translateSet (v + u) S := by
+  rw [translateSet, translateSet, translateSet, Set.image_image]
+  congr 1
+  funext A
+  simp [PlacedTile.translate, vadd_eq_add, add_assoc]
+
 /-- Step 1 of the blueprint proof of `pointedFLCOfFLC`:
 Choose one finite patch for each unpointed translation class. -/
 private lemma pointedFLCOfFLC_step1_choose_finite_patches (P : Protoset) (τ : Substitution P)
   (h : UnpointedFLC τ) :
   ∃ f : Set (PlacedTile P) → Pt, ∀ K ∈ {K | τ.IsAllowedCrown K},
     ∃ K' ∈ Classical.choose h, K = translateSet (f K) K' := by
-  sorry
+  classical
+  have hcov := (Classical.choose_spec h).2
+  have key : ∀ K : Set (PlacedTile P), ∃ v : Pt,
+      τ.IsAllowedCrown K → ∃ K' ∈ Classical.choose h, K = translateSet v K' := by
+    intro K
+    by_cases hK : τ.IsAllowedCrown K
+    · obtain ⟨n, p, w, hvw, hKeq⟩ := hK
+      obtain ⟨K', hK'mem, u, hueq⟩ := hcov n p w hvw
+      refine ⟨-w + u, fun _ => ⟨K', hK'mem, ?_⟩⟩
+      rw [hKeq, hueq]
+      exact pointedFLCOfFLC_step1_choose_finite_patches_translateSet_add K' u (-w)
+    · exact ⟨0, fun h' => absurd h' hK⟩
+  choose f hf using key
+  exact ⟨f, hf⟩
 
 /-- Step 2 of the blueprint proof of `pointedFLCOfFLC`:
 A crown centre is a listed vertex of at least one of its tiles, so each chosen patch has only finitely many possible centres. -/

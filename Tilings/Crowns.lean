@@ -3220,7 +3220,12 @@ private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step3_nonne
     (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) {t : ℝ} (ht : 0 < t)
     (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
     0 ≤ t * Real.cos (InnerProductGeometry.angle a b) := by
-  sorry
+  have _ := ha
+  have _ := hb
+  have hcos : 0 ≤ Real.cos (InnerProductGeometry.angle a b) :=
+    Real.cos_nonneg_of_neg_pi_div_two_le_of_le
+      (by linarith [InnerProductGeometry.angle_nonneg a b]) h_ang
+  exact mul_nonneg ht.le hcos
 
 /-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad`: the acute case. -/
 private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute (a b : Pt) (ha : ‖a‖ = 1)

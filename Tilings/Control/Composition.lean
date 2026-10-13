@@ -549,7 +549,33 @@ private lemma headerLegal_properties_step6_inner_step1_print (c : MacroCertifica
     (hH : c.Hereditary) (A : DecTile c) (hA : headerLegal c A) (i : c.Side A.typ)
     (h_inner : c.IsInner (c.occ A.typ i)) (h_print : c.IsPrint (c.occ A.typ i)) :
     IsNontrivial c A i := by
-  sorry
+  have _ := hH
+  have _ := h_inner
+  rcases hA with ⟨ch, hch0, hch_succ, _⟩
+  have h_child : IsChildOf c (ch 1) A := by
+    have h := hch_succ 0
+    rw [hch0] at h
+    exact h
+  rcases h_print with ⟨d, hd⟩
+  let d' : c.Side (ch 1).typ :=
+    cast (congrArg (fun F => Fin (c.Q.disk F).n) h_child.1) d
+  have transport_print : ∀ {F G : c.Q.Form} (e : F = G)
+      (d : Fin (c.Q.disk F).n),
+      c.IsPrintOf F d (c.occ A.typ i) →
+        c.IsPrintOf G (cast (congrArg (fun F => Fin (c.Q.disk F).n) e) d)
+          (c.occ A.typ i) := by
+    intro F G e d h
+    cases e
+    exact h
+  have hd' : c.IsPrintOf (c.form (ch 1).typ) d' (c.occ A.typ i) := by
+    exact transport_print h_child.1 d hd
+  have h_fifth : A.cell i 4 = identU c (c.edge (c.occ A.typ i)) :=
+    ((h_child.2 i).1 d' hd').2
+  unfold IsNontrivial
+  intro h_zero
+  have h_ident : identU c (c.edge (c.occ A.typ i)) = 0 :=
+    h_fifth.symm.trans h_zero.2
+  exact (by cases h_ident)
 
 /-- Step 2 of the blueprint proof of `headerLegal_properties_step6_inner`: at a boundary side, the
 fourth cell is a nonzero header tag. -/

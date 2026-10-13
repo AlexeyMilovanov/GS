@@ -4892,7 +4892,52 @@ private theorem noShortExteriorExcursion_step3_nonadjacent
     (hdisj : Disjoint ({a, b} : Set Pt) {a', b'})
     (hEseg : E ∈ segment ℝ a b) (hFseg : F ∈ segment ℝ a' b') :
     R.lam ≤ dist E F := by
-  sorry
+  rcases hEedge with ⟨x, y, hxy, hEedge⟩
+  rcases hFedge with ⟨x', y', hx'y', hFedge⟩
+  have ha : a = M.map x := congrArg Prod.fst hEedge
+  have hb : b = M.map y := congrArg Prod.snd hEedge
+  have ha' : a' = M.map x' := congrArg Prod.fst hFedge
+  have hb' : b' = M.map y' := congrArg Prod.snd hFedge
+  subst a
+  subst b
+  subst a'
+  subst b'
+  have hdisj' : Disjoint ({x, y} : Set Pt) {x', y'} := by
+    rw [Set.disjoint_left] at hdisj ⊢
+    intro z hz hz'
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hz hz'
+    rcases hz with rfl | rfl <;> rcases hz' with rfl | rfl
+    all_goals apply hdisj (a := M.map z) <;> simp
+  rw [segment_eq_image'] at hEseg hFseg
+  obtain ⟨t, ht, hE⟩ := hEseg
+  obtain ⟨t', ht', hF⟩ := hFseg
+  let z := x + t • (y - x)
+  let z' := x' + t' • (y' - x')
+  have hz : z ∈ segment ℝ x y := by
+    exact crown_mem_segment_iff.mpr ⟨t, ht.1, ht.2, rfl⟩
+  have hz' : z' ∈ segment ℝ x' y' := by
+    exact crown_mem_segment_iff.mpr ⟨t', ht'.1, ht'.2, rfl⟩
+  have hEz : M.map z = E := by
+    calc
+      M.map z = M.map x + t • (M.map y - M.map x) := by
+        dsimp [z, MacroPatch.map]
+        module
+      _ = E := hE
+  have hFz : M.map z' = F := by
+    calc
+      M.map z' = M.map x' + t' • (M.map y' - M.map x') := by
+        dsimp [z', MacroPatch.map]
+        module
+      _ = F := hF
+  have hroot := R.lam_le M.root x y x' y' hxy hx'y' hdisj' z hz z' hz'
+  have hc : 1 ≤ M.θ ^ M.j := one_le_pow₀ M.one_lt.le
+  have hdist : dist E F = (M.θ ^ M.j) * dist z z' := by
+    rw [← hEz, ← hFz, rcb_map_dist]
+  rw [hdist]
+  have hscale : dist z z' ≤ (M.θ ^ M.j) * dist z z' := by
+    simpa only [one_mul] using
+      mul_le_mul_of_nonneg_right hc (dist_nonneg : 0 ≤ dist z z')
+  exact hroot.trans hscale
 
 /-- Step 4 of the blueprint proof of `noShortExteriorExcursion`: two points
 at distance at least `d/2` from a common vertex and separated by an angle at

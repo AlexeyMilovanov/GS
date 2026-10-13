@@ -4986,7 +4986,68 @@ private theorem noShortExteriorExcursion_step4_adjacent_metric
     (hF : d / 2 ≤ dist F q)
     (hangle : μ ≤ EuclideanGeometry.angle E q F) :
     d * Real.sin (μ / 2) ≤ dist E F := by
-  sorry
+  let A : Pt := E - q
+  let B : Pt := F - q
+  let θ : ℝ := InnerProductGeometry.angle A B
+  let a : ℝ := ‖A‖
+  let b : ℝ := ‖B‖
+  have hA : d / 2 ≤ a := by
+    dsimp [a, A]
+    simpa [dist_eq_norm] using hE
+  have hB : d / 2 ≤ b := by
+    dsimp [b, B]
+    simpa [dist_eq_norm] using hF
+  have hθ : μ ≤ θ := by
+    dsimp [θ, A, B]
+    simpa [EuclideanGeometry.angle] using hangle
+  have hθ0 : 0 ≤ θ := by
+    dsimp [θ]
+    exact InnerProductGeometry.angle_nonneg _ _
+  have hθpi : θ ≤ Real.pi := by
+    dsimp [θ]
+    exact InnerProductGeometry.angle_le_pi _ _
+  have hcosμ1 : Real.cos μ ≤ 1 := Real.cos_le_one μ
+  have hcos : Real.cos θ ≤ Real.cos μ := by
+    apply (Real.strictAntiOn_cos.le_iff_ge ⟨hθ0, hθpi⟩
+      ⟨hμ.le, by linarith [Real.pi_pos]⟩).2
+    exact hθ
+  have hinner : inner ℝ A B = Real.cos θ * (a * b) := by
+    dsimp [θ, a, b]
+    exact (InnerProductGeometry.cos_angle_mul_norm_mul_norm A B).symm
+  have hsq : ‖A - B‖ ^ 2 = a ^ 2 - 2 * (Real.cos θ * (a * b)) + b ^ 2 := by
+    rw [norm_sub_sq_real A B, hinner]
+  have hhalf : Real.sin (μ / 2) ^ 2 = (1 - Real.cos μ) / 2 := by
+    have hh := Real.sin_sq_eq_half_sub (μ / 2)
+    rw [show 2 * (μ / 2) = μ by ring] at hh
+    nlinarith [hh]
+  have hs : 0 ≤ Real.sin (μ / 2) := Real.sin_nonneg_of_nonneg_of_le_pi (by linarith)
+    (by linarith [Real.pi_pos])
+  have hquad : d ^ 2 * (1 - Real.cos μ) / 2 ≤
+      a ^ 2 + b ^ 2 - 2 * a * b * Real.cos μ := by
+    let x := a - d / 2
+    let y := b - d / 2
+    have hx : 0 ≤ x := by dsimp [x]; linarith
+    have hy : 0 ≤ y := by dsimp [y]; linarith
+    have hxy : 0 ≤ x * y := mul_nonneg hx hy
+    have hc : 0 ≤ 1 - Real.cos μ := sub_nonneg.mpr hcosμ1
+    have hfirst : 0 ≤ (x - y) ^ 2 + 2 * (1 - Real.cos μ) * (x * y) := by
+      exact add_nonneg (sq_nonneg _) (mul_nonneg (mul_nonneg (by norm_num) hc) hxy)
+    have hsecond : 0 ≤ d * (1 - Real.cos μ) * (x + y) := by
+      exact mul_nonneg (mul_nonneg hd.le hc) (add_nonneg hx hy)
+    dsimp [x, y] at hfirst hsecond ⊢
+    nlinarith
+  have hab : 0 ≤ a * b := mul_nonneg (norm_nonneg _) (norm_nonneg _)
+  have hsqbound : (d * Real.sin (μ / 2)) ^ 2 ≤ ‖A - B‖ ^ 2 := by
+    rw [hsq]
+    nlinarith [hquad, hhalf, mul_nonneg hab (sub_nonneg.mpr hcos)]
+  have hnorm : d * Real.sin (μ / 2) ≤ ‖A - B‖ :=
+    (pow_le_pow_iff_left₀ (mul_nonneg hd.le hs) (norm_nonneg _) two_ne_zero).mp hsqbound
+  have hdist : ‖A - B‖ = dist E F := by
+    dsimp [A, B]
+    rw [dist_eq_norm]
+    congr 1
+    abel
+  rwa [hdist] at hnorm
 
 /-- `lem:exterior-excursion`: a bounded convex set `H` of diameter less than
 `min {λ, d sin(μ_*/2)}` all of whose points are at distance `≥ d/2` from

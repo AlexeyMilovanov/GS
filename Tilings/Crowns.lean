@@ -5036,6 +5036,80 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step2_k
     ∃ k : ℕ, (τ.θ ^ (k * m))⁻¹ * Metric.diam (support F) < ε := by
   sorry
 
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step1_bounded
+    {P : Protoset} (F : Set (PlacedTile P)) (hF_fin : F.Finite) :
+    Bornology.IsBounded (support F) := by
+  have h_eq : support F = ⋃ (t ∈ F), t.carrier := by
+    ext x
+    simp [support, PlacedTile.carrier]
+  rw [h_eq]
+  exact (hF_fin.isCompact_biUnion (fun t _ => by
+    dsimp [PlacedTile.carrier, PlacedTile.translate]
+    rw [← Set.image_vadd]
+    exact (P.disk t.form).compact.image (continuous_const_vadd t.anchor)
+  )).isBounded
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step2_diam
+    (c : ℝ) (hc : 0 ≤ c) (S : Set Pt) (h_bound : Bornology.IsBounded S) :
+    Metric.diam ((fun x => c • x) '' S) = c * Metric.diam S := by
+  have : ‖c‖₊ = ⟨c, hc⟩ := by ext; exact Real.norm_of_nonneg hc
+  have hl : LipschitzWith ⟨c, hc⟩ (fun x : Pt => c • x) := by
+    rw [← this]
+    exact lipschitzWith_smul c
+  rcases eq_or_lt_of_le hc with rfl | hc_pos
+  · rcases Set.eq_empty_or_nonempty S with rfl | ⟨x, hx⟩
+    · simp
+    · have h_eq : (fun (a : Pt) => (0 : ℝ) • a) '' S = {0} := by
+        ext y
+        simp only [zero_smul, Set.mem_image, Set.mem_singleton_iff]
+        constructor
+        · rintro ⟨a, _ha, rfl⟩; rfl
+        · rintro rfl; exact ⟨x, hx, rfl⟩
+      rw [h_eq]
+      simp
+  · apply le_antisymm
+    · exact hl.diam_image_le S h_bound
+    · have hl_inv : LipschitzWith ⟨c⁻¹, inv_nonneg.mpr hc⟩ (fun x : Pt => c⁻¹ • x) := by
+        have : ‖c⁻¹‖₊ = ⟨c⁻¹, inv_nonneg.mpr hc⟩ := by
+          ext; exact Real.norm_of_nonneg (inv_nonneg.mpr hc)
+        rw [← this]
+        exact lipschitzWith_smul c⁻¹
+      have h_bound_inv : Bornology.IsBounded ((fun x => c • x) '' S) := (hl.isBounded_image h_bound)
+      have h2 := hl_inv.diam_image_le ((fun x => c • x) '' S) h_bound_inv
+      have h_eq : (fun (x : Pt) => c⁻¹ • x) '' ((fun (x : Pt) => c • x) '' S) = S := by
+        ext y
+        simp only [Set.mem_image]
+        constructor
+        · rintro ⟨y1, ⟨y2, hy2, rfl⟩, rfl⟩
+          rw [← mul_smul, inv_mul_cancel₀ (ne_of_gt hc_pos), one_smul]
+          exact hy2
+        · rintro hy
+          have h_inv : c⁻¹ * c = 1 := inv_mul_cancel₀ (ne_of_gt hc_pos)
+          exact ⟨c • y, ⟨y, hy, rfl⟩, by rw [← mul_smul, h_inv, one_smul]⟩
+      rw [h_eq] at h2
+      have h3 := mul_le_mul_of_nonneg_left h2 (le_of_lt hc_pos)
+      have hc_coe : (NNReal.toReal ⟨c⁻¹, inv_nonneg.mpr hc⟩) = c⁻¹ := rfl
+      rw [hc_coe, ← mul_assoc, mul_inv_cancel₀ (ne_of_gt hc_pos), one_mul] at h3
+      exact h3
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step3_bounded
+    {P : Protoset} (τ : Substitution P) (m : ℕ) (k : ℕ) (F : Set (PlacedTile P))
+    (hF_fin : F.Finite) :
+    Bornology.IsBounded ((fun x => (τ.θ ^ (k * m))⁻¹ • x) '' support F) := by
+  have h_pos : 0 ≤ (τ.θ ^ (k * m))⁻¹ := by
+    apply inv_nonneg.mpr
+    apply pow_nonneg
+    exact le_of_lt (lt_trans zero_lt_one τ.one_lt)
+  have hl : LipschitzWith ⟨(τ.θ ^ (k * m))⁻¹, h_pos⟩ (fun x : Pt => (τ.θ ^ (k * m))⁻¹ • x) := by
+    have h_norm : ‖(τ.θ ^ (k * m))⁻¹‖₊ = ⟨(τ.θ ^ (k * m))⁻¹, h_pos⟩ := by
+      ext; exact Real.norm_of_nonneg h_pos
+    rw [← h_norm]
+    exact lipschitzWith_smul (τ.θ ^ (k * m))⁻¹
+  have h_bound :=
+    allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step1_bounded F hF_fin
+  exact hl.isBounded_image h_bound
+
 /-- Step 3 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 By the choice of `k`, the inverse-scaled support of `F` is covered by a crown `C` of `seq k`
 (playing the role of `T_{km}`). -/
@@ -5052,7 +5126,22 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover
     (hF_fin : F.Finite) :
     ∃ w : Pt, IsVertexOf (seq k).tiles w ∧
       (fun x => (τ.θ ^ (k * m))⁻¹ • x) '' support F ⊆ support (crown (seq k).tiles w) := by
-  sorry
+  let S := (fun x => (τ.θ ^ (k * m))⁻¹ • x) '' support F
+  have hS_bound : Bornology.IsBounded S :=
+    allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step3_bounded τ m k F hF_fin
+  have h_pos : 0 ≤ (τ.θ ^ (k * m))⁻¹ := by
+    apply inv_nonneg.mpr
+    apply pow_nonneg
+    exact le_of_lt (lt_trans zero_lt_one τ.one_lt)
+  have hS_diam : Metric.diam S < ε := by
+    have h_bound :=
+      allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step1_bounded F hF_fin
+    have h_diam_eq := allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover_step2_diam
+      (τ.θ ^ (k * m))⁻¹ h_pos (support F) h_bound
+    rw [h_diam_eq]
+    exact hk
+  rcases h_cover (seq k) (hcrown k) S hS_bound hS_diam with ⟨v, hv, h_subset⟩
+  exact ⟨v, hv, h_subset⟩
 
 /-- Step 4 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 Because the inverse-scaled support of `F` is covered by a crown of `seq k`,

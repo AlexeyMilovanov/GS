@@ -3070,7 +3070,174 @@ private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift_step2_c
     (A : PlacedTile P) (hA : A ∈ T.tiles) (hN : (neighbourhood T.tiles A).Finite) :
     ∃ c : GenuineCornerClone τ, c.form = A.form ∧
       c.context = translateSet (-A.anchor) (neighbourhood T.tiles A) := by
-  sorry
+  let K₀ : Set Pt := ⋃ p : P.Form, (P.disk p).carrier
+  have hK₀ : IsCompact K₀ := by
+    have hK₀' : IsCompact (⋃ p ∈ (Set.univ : Set P.Form), (P.disk p).carrier) :=
+      Set.Finite.isCompact_biUnion (Set.finite_univ) (fun p _ => (P.disk p).compact)
+    simpa [K₀] using hK₀'
+  obtain ⟨R, hR⟩ := hK₀.isBounded.subset_closedBall (0 : Pt)
+  have hshape : ∀ (p : P.Form) (x : Pt), x ∈ (P.disk p).carrier → dist x 0 ≤ R := by
+    intro p x hx
+    apply Metric.mem_closedBall.mp
+    apply hR
+    exact mem_iUnion.2 ⟨p, hx⟩
+  have hR_nonneg : 0 ≤ R := by
+    obtain ⟨x, hx⟩ := (P.disk A.form).interior_nonempty
+    exact le_trans dist_nonneg (hshape A.form x (interior_subset hx))
+  have hplaced : ∀ (B : PlacedTile P) (x : Pt), x ∈ B.carrier →
+      dist x B.anchor ≤ R := by
+    intro B x hx
+    rw [PlacedTile.carrier, Set.mem_vadd_set_iff_neg_vadd_mem] at hx
+    have h := hshape B.form (-B.anchor +ᵥ x) hx
+    simpa [PlacedTile.carrier, dist_eq_norm, vadd_eq_add, sub_eq_add_neg,
+      add_comm, add_left_comm, add_assoc] using h
+  let K : Set Pt := Metric.closedBall A.anchor (3 * R)
+  have hKcompact : IsCompact K := isCompact_closedBall _ _
+  let G : Set (PlacedTile P) := {B ∈ T.tiles | (B.carrier ∩ K).Nonempty}
+  have hGfin : G.Finite := by
+    exact T.locallyFinite hKcompact
+  have hNG : neighbourhood T.tiles A ⊆ G := by
+    intro B hB
+    change B ∈ T.tiles ∧ (B.carrier ∩ K).Nonempty
+    refine ⟨hB.1, ?_⟩
+    rcases hB.2 with ⟨x, hxA, hxB⟩
+    refine ⟨x, hxB, Metric.mem_closedBall.mpr ?_⟩
+    exact le_trans (hplaced A x hxA) (by nlinarith [hR_nonneg])
+  let F : Set (PlacedTile P) := G ∪ neighbourhood T.tiles A
+  have hFfin : F.Finite := hGfin.union hN
+  have hFsub : F ⊆ T.tiles := by
+    intro B hB
+    rcases hB with hB | hB
+    · exact hB.1
+    · exact hB.1
+  have hFG : F ⊆ G := by
+    intro B hB
+    rcases hB with hB | hB
+    · exact hB
+    · exact hNG hB
+  obtain ⟨n, p, v, hv⟩ := hT F hFsub hFfin
+  let A' : PlacedTile P := A.translate v
+  have hAG : A ∈ G := by
+    change A ∈ T.tiles ∧ (A.carrier ∩ K).Nonempty
+    refine ⟨hA, ?_⟩
+    obtain ⟨x, hx⟩ := (P.disk A.form).interior_nonempty
+    have hxA : A.anchor +ᵥ x ∈ A.carrier := by
+      exact Set.vadd_mem_vadd_set (interior_subset hx)
+    refine ⟨A.anchor +ᵥ x, hxA, Metric.mem_closedBall.mpr ?_⟩
+    exact le_trans (hplaced A (A.anchor +ᵥ x) hxA) (by nlinarith [hR_nonneg])
+  have hA' : A' ∈ τ.supertile n p := by
+    apply hv
+    exact ⟨A, Or.inl hAG, rfl⟩
+  have hcarrier_translate (B : PlacedTile P) (w : Pt) :
+      (B.translate w).carrier = w +ᵥ B.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate,
+      Set.mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add, neg_add_rev]
+    rw [← add_assoc]
+  have hinter (B C : PlacedTile P) (w : Pt) :
+      ((B.translate w).carrier ∩ (C.translate w).carrier).Nonempty ↔
+        (B.carrier ∩ C.carrier).Nonempty := by
+    rw [hcarrier_translate B w, hcarrier_translate C w]
+    constructor
+    · rintro ⟨x, hxB, hxC⟩
+      exact ⟨-w +ᵥ x, (Set.mem_vadd_set_iff_neg_vadd_mem.mp hxB),
+        (Set.mem_vadd_set_iff_neg_vadd_mem.mp hxC)⟩
+    · rintro ⟨x, hxB, hxC⟩
+      exact ⟨w +ᵥ x, Set.vadd_mem_vadd_set hxB, Set.vadd_mem_vadd_set hxC⟩
+  let F' : Patch P :=
+    { tiles := translateSet v F
+      finite := by
+        change ((fun B => B.translate v) '' F).Finite
+        exact hFfin.image (fun B => B.translate v)
+      disjoint := by
+        intro B hB C hC hne
+        rcases hB with ⟨B₀, hB₀, rfl⟩
+        rcases hC with ⟨C₀, hC₀, rfl⟩
+        change Disjoint (interior (B₀.translate v).carrier)
+          (interior (C₀.translate v).carrier)
+        have hne₀ : B₀ ≠ C₀ := by
+          intro h
+          apply hne
+          rw [h]
+        have hd := T.disjoint (hFsub hB₀) (hFsub hC₀) hne₀
+        have hB_eq : (B₀.translate v).carrier = v +ᵥ B₀.carrier :=
+          hcarrier_translate B₀ v
+        have hC_eq : (C₀.translate v).carrier = v +ᵥ C₀.carrier :=
+          hcarrier_translate C₀ v
+        rw [hB_eq, hC_eq, interior_vadd, interior_vadd]
+        exact (disjoint_image_iff (add_right_injective v)).mpr hd }
+  have hbuffer (B : PlacedTile P) (hB : B ∈ τ.supertile n p)
+      (hBA : (A'.carrier ∩ B.carrier).Nonempty) : B ∈ F'.tiles := by
+    apply Patch.mem_of_carrier_subset_union F' B
+    · intro C hC hne
+      change C ∈ translateSet v F at hC
+      exact (Crowns.supertile_disjoint τ n p) hB (hv hC) hne.symm
+    · intro y hy
+      change y ∈ support (translateSet v F)
+      simp only [support, Set.mem_iUnion]
+      rcases hBA with ⟨x, hxA, hxB⟩
+      have hyA : dist y A'.anchor ≤ 3 * R := by
+        calc
+          dist y A'.anchor ≤ dist y x + dist x A'.anchor := dist_triangle _ _ _
+          _ ≤ dist y B.anchor + dist B.anchor x + dist x A'.anchor := by
+            have htri : dist y x ≤ dist y B.anchor + dist B.anchor x :=
+              dist_triangle y B.anchor x
+            exact add_le_add htri (le_refl _)
+          _ ≤ R + R + R := by
+            have hBx : dist B.anchor x ≤ R := by
+              simpa [dist_comm] using hplaced B x hxB
+            nlinarith [hplaced B y hy, hBx, hplaced A' x hxA]
+          _ = 3 * R := by ring
+      have hyK : -v +ᵥ y ∈ K := by
+        apply Metric.mem_closedBall.mpr
+        calc
+          dist (-v +ᵥ y) A.anchor = dist (-v +ᵥ y) (-v +ᵥ A'.anchor) := by
+            simp [A', PlacedTile.translate, vadd_eq_add]
+          _ = dist y A'.anchor := dist_vadd_cancel_left (-v) y A'.anchor
+          _ ≤ 3 * R := hyA
+      have hycover : -v +ᵥ y ∈ support T.tiles := by
+        rw [T.cover]
+        exact Set.mem_univ _
+      simp only [support, Set.mem_iUnion] at hycover
+      rcases hycover with ⟨C, hCT, hyC⟩
+      have hCF : C ∈ F := by
+        change C ∈ G ∪ neighbourhood T.tiles A
+        exact Or.inl ⟨hCT, ⟨-v +ᵥ y, hyC, hyK⟩⟩
+      refine ⟨C.translate v, ⟨C, hCF, rfl⟩, ?_⟩
+      have hy' : v +ᵥ (-v +ᵥ y) = y := by simp
+      rw [hcarrier_translate]
+      rw [← hy']
+      exact Set.vadd_mem_vadd_set hyC
+  have hneigh : neighbourhood (τ.supertile n p) A' =
+      translateSet v (neighbourhood T.tiles A) := by
+    ext B
+    constructor
+    · intro hB
+      have hBF : B ∈ F'.tiles := hbuffer B hB.1 hB.2
+      rcases hBF with ⟨C, hCF, rfl⟩
+      change C ∈ F at hCF
+      refine ⟨C, ?_, rfl⟩
+      change C ∈ T.tiles ∧ (A.carrier ∩ C.carrier).Nonempty
+      refine ⟨hFsub hCF, ?_⟩
+      apply (hinter A C v).mp
+      simpa [A'] using hB.2
+    · rintro ⟨C, hC, rfl⟩
+      have hCF : C ∈ F := Or.inl (hNG hC)
+      have hCS : C.translate v ∈ τ.supertile n p := hv ⟨C, hCF, rfl⟩
+      refine ⟨hCS, ?_⟩
+      exact (hinter A C v).mpr hC.2
+  let c : GenuineCornerClone τ :=
+    { form := A'.form
+      context := translateSet (-A'.anchor) (neighbourhood (τ.supertile n p) A')
+      realized := ⟨n, p, A', hA', rfl⟩ }
+  refine ⟨c, ?_, ?_⟩
+  · rfl
+  · change translateSet (-A'.anchor) (neighbourhood (τ.supertile n p) A') = _
+    rw [hneigh]
+    rw [childContext_realized_step1_shift_step1_translateSet_translateSet]
+    congr 1
+    dsimp [A', PlacedTile.translate]
+    abel
 
 /-- Step 3 of the blueprint proof of
 `substitution_clone_lift_iff_step2_lift_is_subst_step1_lift`: form-compatible

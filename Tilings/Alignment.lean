@@ -551,6 +551,699 @@ private lemma schedule_intermediate_sts_step1_boundary_align_step1_fine_sides
     exact ⟨e, he, e', he', heq,
       fs1_overlap_of_placed huv fun z hz => ⟨(hI (hsub hz).1).1, (hsub hz).2⟩,
       fs1_overlap_of_placed huv fun z hz => ⟨(hI (hsub hz).1).2, heq ▸ (hsub hz).2⟩⟩
+/-- Copy of the frame reconstruction: a point on the affine line of a nondegenerate segment is recovered from
+its canonical coordinate. -/
+private lemma sa1_ba_frame_reconstruct
+    (x y z : Pt) (hxy : x ≠ y)
+    (hz : z ∈ affineSpan ℝ ({x, y} : Set Pt)) :
+    frameOrigin x y + segCoord x y z • canonDir (y - x) = z := by
+  obtain ⟨r, hr⟩ := (mem_affineSpan_pair_iff_exists_lineMap_eq).1 hz
+  rw [AffineMap.lineMap_apply] at hr
+  have hv : y - x ≠ 0 := sub_ne_zero.mpr hxy.symm
+  have hn : 0 < ‖y - x‖ := norm_pos_iff.mpr hv
+  have hnorm : ‖y - x‖ ^ 2 = (y - x) 0 ^ 2 + (y - x) 1 ^ 2 := by
+    rw [EuclideanSpace.norm_sq_eq]
+    simp
+  have hsub0 : (y - x) 0 = y 0 - x 0 := by rfl
+  have hsub1 : (y - x) 1 = y 1 - x 1 := by rfl
+  by_cases hdir : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)
+  · rw [← hr]
+    simp only [frameOrigin, canonDir, hdir, if_true, coord, segCoord]
+    simp only [vadd_eq_add, vsub_eq_sub]
+    dsimp
+    ext i
+    fin_cases i <;> simp
+    all_goals field_simp [ne_of_gt hn]
+    all_goals rw [hnorm]
+    all_goals rw [hsub0, hsub1]
+    all_goals ring
+  · rw [← hr]
+    simp only [frameOrigin, canonDir, hdir, if_false, coord, segCoord]
+    simp only [vadd_eq_add, vsub_eq_sub]
+    dsimp
+    ext i
+    fin_cases i <;> simp
+    all_goals field_simp [ne_of_gt hn]
+    all_goals rw [hnorm]
+    all_goals rw [hsub0, hsub1]
+    all_goals ring
+
+private lemma sa1_ba_overlap_span
+    {a b x y : Pt}
+    (h : OverlapPos (segment ℝ a b) (segment ℝ x y)) :
+    affineSpan ℝ ({a, b} : Set Pt) = affineSpan ℝ ({x, y} : Set Pt) := by
+  obtain ⟨u, v, huv, huvsub⟩ := h
+  have hmem {r s : Pt} {z : Pt} (hz : z ∈ segment ℝ r s) :
+      z ∈ affineSpan ℝ ({r, s} : Set Pt) := by
+    rw [segment_eq_image'] at hz
+    obtain ⟨q, hq, rfl⟩ := hz
+    change r + q • (s - r) ∈ affineSpan ℝ ({r, s} : Set Pt)
+    simpa [vadd_eq_add, vsub_eq_sub, add_comm] using
+      (smul_vsub_vadd_mem_affineSpan_pair q r s)
+  have huv_ab : affineSpan ℝ ({u, v} : Set Pt) = affineSpan ℝ ({a, b} : Set Pt) :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne (hmem (huvsub (left_mem_segment ℝ u v)).1)
+      (hmem (huvsub (right_mem_segment ℝ u v)).1) huv
+  have huv_xy : affineSpan ℝ ({u, v} : Set Pt) = affineSpan ℝ ({x, y} : Set Pt) :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne (hmem (huvsub (left_mem_segment ℝ u v)).2)
+      (hmem (huvsub (right_mem_segment ℝ u v)).2) huv
+  exact huv_ab.symm.trans huv_xy
+
+private lemma sa1_ba_mem_segment
+    {a b x : Pt} :
+    x ∈ segment ℝ a b ↔ ∃ r : ℝ, 0 ≤ r ∧ r ≤ 1 ∧ x = a + r • (b - a) := by
+  rw [segment_eq_image']
+  constructor
+  · rintro ⟨r, hr, rfl⟩
+    exact ⟨r, hr.1, hr.2, rfl⟩
+  · rintro ⟨r, hr0, hr1, rfl⟩
+    exact ⟨r, ⟨hr0, hr1⟩, rfl⟩
+
+private lemma sa1_ba_smul_cancel
+    {u : Pt} (hu : u ≠ 0) {r s : ℝ} (h : r • u = s • u) : r = s := by
+  exact smul_left_injective ℝ hu h
+
+private lemma sa1_ba_segment_endpoints
+    {a b c d : Pt} (hab : a ≠ b) (h : segment ℝ a b = segment ℝ c d) :
+    (c = a ∧ d = b) ∨ (c = b ∧ d = a) := by
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [sa1_ba_mem_segment] at hc hd ha hb
+  obtain ⟨r, hr0, hr1, rfl⟩ := hc
+  obtain ⟨s, hs0, hs1, rfl⟩ := hd
+  obtain ⟨u, hu0, hu1, hu⟩ := ha
+  obtain ⟨v, hv0, hv1, hv⟩ := hb
+  have hne : b - a ≠ 0 := sub_ne_zero.mpr hab.symm
+  have hk0 : a + r • (b - a) + u •
+      (a + s • (b - a) - (a + r • (b - a))) =
+      a + (r + u * (s - r)) • (b - a) := by module
+  have hk1 : a + r • (b - a) + v •
+      (a + s • (b - a) - (a + r • (b - a))) =
+      a + (r + v * (s - r)) • (b - a) := by module
+  have hzero : (0 : ℝ) • (b - a) = (r + u * (s - r)) • (b - a) := by
+    rw [zero_smul]
+    exact (add_eq_left.mp (hu.trans hk0).symm).symm
+  have hone : (1 : ℝ) • (b - a) = (r + v * (s - r)) • (b - a) := by
+    rw [one_smul]
+    have h' : a + (b - a) = a + (r + v * (s - r)) • (b - a) := by
+      calc
+        a + (b - a) = b := by abel
+        _ = a + r • (b - a) + v •
+            (a + s • (b - a) - (a + r • (b - a))) := hv
+        _ = a + (r + v * (s - r)) • (b - a) := hk1
+    exact add_left_cancel h'
+  have hz := sa1_ba_smul_cancel hne hzero
+  have ho := sa1_ba_smul_cancel hne hone
+  have hk : (r = 0 ∧ s = 1) ∨ (r = 1 ∧ s = 0) := by
+    have h1 : r * (1 - u) = 0 := by
+      nlinarith [mul_nonneg hr0 (sub_nonneg.mpr hu1), mul_nonneg hu0 hs0]
+    have h2 : u * s = 0 := by
+      nlinarith [mul_nonneg hr0 (sub_nonneg.mpr hu1), mul_nonneg hu0 hs0]
+    rcases mul_eq_zero.mp h1 with h1 | h1
+    · subst h1
+      have : v * s = 1 := by linarith
+      left
+      refine ⟨rfl, ?_⟩
+      nlinarith
+    · have huone : u = 1 := by linarith
+      subst huone
+      have hs : s = 0 := by linarith
+      subst hs
+      right
+      refine ⟨?_, rfl⟩
+      nlinarith
+  rcases hk with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · left
+    constructor <;> simp
+  · right
+    constructor <;> simp
+
+private lemma sa1_ba_canonDir_neg (v : Pt) : canonDir (-v) = canonDir v := by
+  rcases lt_trichotomy (v 0) 0 with hv0 | hv0 | hv0
+  · have hn : 0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1) := by
+      left
+      simpa using neg_pos.mpr hv0
+    have hp : ¬(0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)) := by
+      rintro (h | ⟨h, _⟩) <;> linarith
+    unfold canonDir
+    rw [if_pos hn, if_neg hp, norm_neg]
+    module
+  · rcases lt_trichotomy (v 1) 0 with hv1 | hv1 | hv1
+    · have hn : 0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1) := by
+        right
+        exact ⟨by simpa using congrArg Neg.neg hv0, by simpa using neg_pos.mpr hv1⟩
+      have hp : ¬(0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)) := by
+        rintro (h | ⟨_, h⟩) <;> linarith
+      unfold canonDir
+      rw [if_pos hn, if_neg hp, norm_neg]
+      module
+    · have hz : v = 0 := by
+        ext i
+        fin_cases i
+        · simpa using hv0
+        · simpa using hv1
+      subst v
+      simp [canonDir]
+    · have hp : 0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1) := by
+        exact Or.inr ⟨hv0, hv1⟩
+      have hn : ¬(0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1)) := by
+        rintro (h | ⟨_, h⟩)
+        · change 0 < -(v 0) at h
+          linarith
+        · change 0 < -(v 1) at h
+          linarith
+      unfold canonDir
+      rw [if_neg hn, if_pos hp, norm_neg]
+      module
+  · have hp : 0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1) := Or.inl hv0
+    have hn : ¬(0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1)) := by
+      rintro (h | ⟨h, _⟩)
+      · change 0 < -(v 0) at h
+        linarith
+      · change -(v 0) = 0 at h
+        linarith
+    unfold canonDir
+    rw [if_neg hn, if_pos hp, norm_neg]
+    module
+
+private lemma sa1_ba_frameOrigin_swap (x y : Pt) :
+    frameOrigin y x = frameOrigin x y := by
+  rcases lt_trichotomy (x 0) (y 0) with h0 | h0 | h0
+  · have hp : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1) := by
+      left
+      change 0 < y 0 - x 0
+      linarith
+    have hn : ¬(0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1)) := by
+      push_neg
+      constructor
+      · change x 0 - y 0 ≤ 0
+        linarith
+      · intro h
+        change x 0 - y 0 = 0 at h
+        linarith
+    unfold frameOrigin
+    rw [if_neg hn, if_pos hp]
+  · rcases lt_trichotomy (x 1) (y 1) with h1 | h1 | h1
+    · have hp : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1) := by
+        right
+        constructor
+        · change y 0 - x 0 = 0
+          linarith
+        · change 0 < y 1 - x 1
+          linarith
+      have hn : ¬(0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1)) := by
+        push_neg
+        constructor
+        · change x 0 - y 0 ≤ 0
+          linarith
+        · intro _
+          change x 1 - y 1 ≤ 0
+          linarith
+      unfold frameOrigin
+      rw [if_neg hn, if_pos hp]
+    · have hxy : x = y := by
+        ext i
+        fin_cases i
+        · exact h0
+        · exact h1
+      subst y
+      rfl
+    · have hn : 0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1) := by
+        right
+        constructor
+        · change x 0 - y 0 = 0
+          linarith
+        · change 0 < x 1 - y 1
+          linarith
+      have hp : ¬(0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)) := by
+        push_neg
+        constructor
+        · change y 0 - x 0 ≤ 0
+          linarith
+        · intro _
+          change y 1 - x 1 ≤ 0
+          linarith
+      unfold frameOrigin
+      rw [if_pos hn, if_neg hp]
+  · have hn : 0 < (x - y) 0 ∨ ((x - y) 0 = 0 ∧ 0 < (x - y) 1) := by
+      left
+      change 0 < x 0 - y 0
+      linarith
+    have hp : ¬(0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)) := by
+      push_neg
+      constructor
+      · change y 0 - x 0 ≤ 0
+        linarith
+      · intro h
+        change y 0 - x 0 = 0 at h
+        linarith
+    unfold frameOrigin
+    rw [if_pos hn, if_neg hp]
+
+private lemma sa1_ba_overlap_ne
+    {a b c d : Pt} (h : OverlapPos (segment ℝ a b) (segment ℝ c d)) :
+    a ≠ b ∧ c ≠ d := by
+  obtain ⟨x, y, hxy, hsub⟩ := h
+  constructor
+  · intro hab
+    subst b
+    have hx : x = a := by
+      have hx' := (hsub (left_mem_segment ℝ x y)).1
+      simpa only [segment_same, mem_singleton_iff] using hx'
+    have hy : y = a := by
+      have hy' := (hsub (right_mem_segment ℝ x y)).1
+      simpa only [segment_same, mem_singleton_iff] using hy'
+    exact hxy (hx.trans hy.symm)
+  · intro hcd
+    subst d
+    have hx : x = c := by
+      have hx' := (hsub (left_mem_segment ℝ x y)).2
+      simpa only [segment_same, mem_singleton_iff] using hx'
+    have hy : y = c := by
+      have hy' := (hsub (right_mem_segment ℝ x y)).2
+      simpa only [segment_same, mem_singleton_iff] using hy'
+    exact hxy (hx.trans hy.symm)
+
+private lemma sa1_ba_frameOrigin_add (v x y : Pt) :
+    frameOrigin (v + x) (v + y) = v + frameOrigin x y := by
+  have hd : v + y - (v + x) = y - x := by abel
+  simp only [frameOrigin, hd]
+  split_ifs <;> rfl
+
+private lemma sa1_ba_segment_eq_coord_bounds
+    (z w o u : Pt) (r s : ℝ)
+    (hz : o + r • u = z) (hw : o + s • u = w) :
+    segment ℝ z w = segment ℝ (o + min r s • u) (o + max r s • u) := by
+  rcases le_total r s with hrs | hsr
+  · rw [min_eq_left hrs, max_eq_right hrs, hz, hw]
+  · rw [min_eq_right hsr, max_eq_left hsr, hz, hw, segment_symm]
+
+/-- Equal atoms on coinciding fine sides give coinciding placed coarse sides
+(the argument of `step2_eq`, with arbitrary translations). -/
+private lemma sa1_atom_placed_eq {va vb : Pt} {c d e e' : Pt × Pt}
+    (heq : placedSeg va e = placedSeg vb e')
+    (hov_c : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2))
+    (hov_d : OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2))
+    (hatom : atom e c = atom e' d) :
+    placedSeg va c = placedSeg vb d := by
+  have he_ne : e.1 ≠ e.2 := (sa1_ba_overlap_ne hov_c).2
+  have he'_ne : e'.1 ≠ e'.2 := (sa1_ba_overlap_ne hov_d).2
+  have hE_ne : va + e.1 ≠ va + e.2 := by
+    intro h
+    exact he_ne (add_left_cancel h)
+  have hends :
+      (vb + e'.1 = va + e.1 ∧ vb + e'.2 = va + e.2) ∨
+        (vb + e'.1 = va + e.2 ∧ vb + e'.2 = va + e.1) := by
+    apply sa1_ba_segment_endpoints hE_ne
+    simpa only [placedSeg] using heq
+  have hO : va + frameOrigin e.1 e.2 = vb + frameOrigin e'.1 e'.2 := by
+    rw [← sa1_ba_frameOrigin_add, ← sa1_ba_frameOrigin_add]
+    rcases hends with hends | hends
+    · rw [hends.1, hends.2]
+    · rw [hends.1, hends.2, sa1_ba_frameOrigin_swap]
+  have hD : canonDir (e.2 - e.1) = canonDir (e'.2 - e'.1) := by
+    rcases hends with hends | hends
+    · have hv : e'.2 - e'.1 = e.2 - e.1 := by
+        have hg := congrArg₂ (fun x y : Pt => x - y) hends.2 hends.1
+        calc
+          e'.2 - e'.1 = (vb + e'.2) - (vb + e'.1) := by abel
+          _ = (va + e.2) - (va + e.1) := hg
+          _ = e.2 - e.1 := by abel
+      rw [hv]
+    · have hv : e'.2 - e'.1 = -(e.2 - e.1) := by
+        have hg := congrArg₂ (fun x y : Pt => x - y) hends.2 hends.1
+        calc
+          e'.2 - e'.1 = (vb + e'.2) - (vb + e'.1) := by abel
+          _ = (va + e.1) - (va + e.2) := hg
+          _ = -(e.2 - e.1) := by abel
+      rw [hv]
+      exact (sa1_ba_canonDir_neg (e.2 - e.1)).symm
+  have hp :
+      min (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) =
+        min (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) := by
+    have h := congrArg (fun z : ℝ × ℝ × ℝ × ℝ => z.2.2.1) hatom
+    simpa only [atom] using h
+  have hq :
+      max (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) =
+        max (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) := by
+    have h := congrArg (fun z : ℝ × ℝ × ℝ × ℝ => z.2.2.2) hatom
+    simpa only [atom] using h
+  have hspan_c := sa1_ba_overlap_span hov_c
+  have hspan_d := sa1_ba_overlap_span hov_d
+  have hc1_line : c.1 ∈ affineSpan ℝ ({e.1, e.2} : Set Pt) := by
+    rw [← hspan_c]
+    exact subset_affineSpan ℝ ({c.1, c.2} : Set Pt) (by simp)
+  have hc2_line : c.2 ∈ affineSpan ℝ ({e.1, e.2} : Set Pt) := by
+    rw [← hspan_c]
+    exact subset_affineSpan ℝ ({c.1, c.2} : Set Pt) (by simp)
+  have hd1_line : d.1 ∈ affineSpan ℝ ({e'.1, e'.2} : Set Pt) := by
+    rw [← hspan_d]
+    exact subset_affineSpan ℝ ({d.1, d.2} : Set Pt) (by simp)
+  have hd2_line : d.2 ∈ affineSpan ℝ ({e'.1, e'.2} : Set Pt) := by
+    rw [← hspan_d]
+    exact subset_affineSpan ℝ ({d.1, d.2} : Set Pt) (by simp)
+  have hc1 := sa1_ba_frame_reconstruct e.1 e.2 c.1 he_ne hc1_line
+  have hc2 := sa1_ba_frame_reconstruct e.1 e.2 c.2 he_ne hc2_line
+  have hd1 := sa1_ba_frame_reconstruct e'.1 e'.2 d.1 he'_ne hd1_line
+  have hd2 := sa1_ba_frame_reconstruct e'.1 e'.2 d.2 he'_ne hd2_line
+  have hc1g :
+      va + frameOrigin e.1 e.2 + segCoord e.1 e.2 c.1 • canonDir (e.2 - e.1) = va + c.1 := by
+    calc
+      _ = va + (frameOrigin e.1 e.2 +
+          segCoord e.1 e.2 c.1 • canonDir (e.2 - e.1)) := by abel
+      _ = va + c.1 := congrArg (va + ·) hc1
+  have hc2g :
+      va + frameOrigin e.1 e.2 + segCoord e.1 e.2 c.2 • canonDir (e.2 - e.1) = va + c.2 := by
+    calc
+      _ = va + (frameOrigin e.1 e.2 +
+          segCoord e.1 e.2 c.2 • canonDir (e.2 - e.1)) := by abel
+      _ = va + c.2 := congrArg (va + ·) hc2
+  have hd1g :
+      vb + frameOrigin e'.1 e'.2 + segCoord e'.1 e'.2 d.1 • canonDir (e'.2 - e'.1) = vb + d.1 := by
+    calc
+      _ = vb + (frameOrigin e'.1 e'.2 +
+          segCoord e'.1 e'.2 d.1 • canonDir (e'.2 - e'.1)) := by abel
+      _ = vb + d.1 := congrArg (vb + ·) hd1
+  have hd2g :
+      vb + frameOrigin e'.1 e'.2 + segCoord e'.1 e'.2 d.2 • canonDir (e'.2 - e'.1) = vb + d.2 := by
+    calc
+      _ = vb + (frameOrigin e'.1 e'.2 +
+          segCoord e'.1 e'.2 d.2 • canonDir (e'.2 - e'.1)) := by abel
+      _ = vb + d.2 := congrArg (vb + ·) hd2
+  change segment ℝ (va + c.1) (va + c.2) = segment ℝ (vb + d.1) (vb + d.2)
+  calc
+    segment ℝ (va + c.1) (va + c.2) =
+        segment ℝ
+          (va + frameOrigin e.1 e.2 +
+            min (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) • canonDir (e.2 - e.1))
+          (va + frameOrigin e.1 e.2 +
+            max (segCoord e.1 e.2 c.1) (segCoord e.1 e.2 c.2) • canonDir (e.2 - e.1)) :=
+      sa1_ba_segment_eq_coord_bounds _ _ _ _ _ _ hc1g hc2g
+    _ = segment ℝ
+          (vb + frameOrigin e'.1 e'.2 +
+            min (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) • canonDir (e'.2 - e'.1))
+          (vb + frameOrigin e'.1 e'.2 +
+            max (segCoord e'.1 e'.2 d.1) (segCoord e'.1 e'.2 d.2) • canonDir (e'.2 - e'.1)) := by
+      rw [hO, hD, hp, hq]
+    _ = segment ℝ (vb + d.1) (vb + d.2) :=
+      (sa1_ba_segment_eq_coord_bounds _ _ _ _ _ _ hd1g hd2g).symm
+
+private lemma sa1_segment_isClosed (p q : Pt) : IsClosed (segment ℝ p q) := by
+  rw [segment_eq_image_lineMap]
+  exact (isCompact_Icc.image AffineMap.lineMap_continuous).isClosed
+
+private lemma sa1_segment_smul (s : ℝ) (p q : Pt) :
+    segment ℝ (s • p) (s • q) = s • segment ℝ p q := by
+  let f : Pt →ᵃ[ℝ] Pt := (LinearMap.lsmul ℝ Pt s).toAffineMap
+  exact (image_segment ℝ f _ _).symm
+
+private lemma sa1_overlap_unscale {s : ℝ} (hs : s ≠ 0) {p q p' q' : Pt}
+    (h : OverlapPos (segment ℝ (s • p) (s • q)) (segment ℝ (s • p') (s • q'))) :
+    OverlapPos (segment ℝ p q) (segment ℝ p' q') := by
+  obtain ⟨x, y, hxy, hsub⟩ := h
+  refine ⟨s⁻¹ • x, s⁻¹ • y, fun h' => hxy ?_, ?_⟩
+  · simpa [smul_smul, hs] using congrArg (s • ·) h'
+  · rw [sa1_segment_smul]
+    rintro _ ⟨w, hw, rfl⟩
+    obtain ⟨h1, h2⟩ := hsub hw
+    rw [sa1_segment_smul] at h1 h2
+    obtain ⟨w1, hw1, rfl⟩ := h1
+    obtain ⟨w2, hw2, he⟩ := h2
+    have : w2 = w1 := smul_right_injective Pt hs he
+    subst this
+    show s⁻¹ • s • w2 ∈ _
+    rw [inv_smul_smul₀ hs]
+    exact ⟨hw1, hw2⟩
+
+private lemma sa1_overlap_false {p q p' q' : Pt} (hov : OverlapPos (segment ℝ p q) (segment ℝ p' q'))
+    (hs : segment ℝ p q ∩ segment ℝ p' q' ⊆ ({p, q} : Set Pt) ∩ {p', q'}) : False := by
+  obtain ⟨x, y, hxy, hsub⟩ := hov
+  exact fs1_segment_infinite hxy
+    ((((Set.finite_singleton q).insert p).inter_of_left _).subset (hsub.trans hs))
+
+private lemma sa1_placed_simple (B : PlacedTile P) {i j : Fin (P.disk B.form).n} (hij : i ≠ j) {z : Pt}
+    (hi : z ∈ B.side i) (hj : z ∈ B.side j) : z = B.vertex i ∨ z = B.vertex (finRotate _ i) := by
+  simp only [PlacedTile.side, PolygonalDisk.side] at hi hj
+  obtain ⟨z0, hz0, rfl⟩ := hi
+  obtain ⟨z1, hz1, he⟩ := hj
+  have : z1 = z0 := vadd_left_cancel _ he
+  subst this
+  have h := ((P.disk B.form).simple i j hij ⟨hz0, hz1⟩).1
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at h
+  rcases h with rfl | rfl
+  · left; rfl
+  · right; rfl
+
+private lemma sa1_same_tile_side (B : PlacedTile P) (i j : Fin (P.disk B.form).n)
+    (h : OverlapPos (B.side i) (B.side j)) : i = j := by
+  by_contra hij
+  rw [fs1_tile_side_eq, fs1_tile_side_eq] at h
+  refine sa1_overlap_false h ?_
+  rintro z ⟨hz1, hz2⟩
+  rw [← fs1_tile_side_eq] at hz1 hz2
+  refine ⟨?_, ?_⟩
+  · rcases sa1_placed_simple B hij hz1 hz2 with rfl | rfl <;> simp
+  · rcases sa1_placed_simple B (Ne.symm hij) hz2 hz1 with rfl | rfl <;> simp
+
+/-- The cross product with `w`, a continuous linear functional vanishing on `w`. -/
+private def sa1_cross (w : Pt) : Pt →L[ℝ] ℝ :=
+  w 0 • EuclideanSpace.proj (1 : Fin 2) - w 1 • EuclideanSpace.proj (0 : Fin 2)
+
+private lemma sa1_cross_apply (w p : Pt) : sa1_cross w p = w 0 * p 1 - w 1 * p 0 := by
+  simp [sa1_cross]
+
+private lemma sa1_cross_on_segment {a b x y p : Pt} (hx : x ∈ segment ℝ a b) (hy : y ∈ segment ℝ a b)
+    (hp : p ∈ segment ℝ a b) : sa1_cross (y - x) p = sa1_cross (y - x) x := by
+  rw [segment_eq_image'] at hx hy hp
+  obtain ⟨r, -, rfl⟩ := hx
+  obtain ⟨s, -, rfl⟩ := hy
+  obtain ⟨t, -, rfl⟩ := hp
+  simp only [sa1_cross_apply, PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+  ring
+
+private lemma sa1_tendsto (p n : Pt) :
+    Filter.Tendsto (fun δ : ℝ => p + δ • n) (nhdsWithin 0 (Set.Ioi 0)) (nhds p) := by
+  have : Filter.Tendsto (fun δ : ℝ => p + δ • n) (nhds 0) (nhds (p + (0 : ℝ) • n)) :=
+    (continuous_const.add (continuous_id.smul continuous_const)).tendsto 0
+  simpa using this.mono_left nhdsWithin_le_nhds
+
+private lemma sa1_eventually {U : Set Pt} (hU : IsOpen U) {p : Pt} (hp : p ∈ U) (n : Pt) :
+    ∀ᶠ δ in nhdsWithin (0 : ℝ) (Set.Ioi 0), p + δ • n ∈ U ∧ 0 < δ :=
+  ((sa1_tendsto p n).eventually (hU.mem_nhds hp)).and self_mem_nhdsWithin
+
+private lemma sa1_half {C U : Set Pt} (hC : IsClosed C) (hU : IsOpen U) (hUc : Convex ℝ U)
+    (g : Pt →L[ℝ] ℝ) (k : ℝ) {n : Pt} (hn : 0 < g n) {z : Pt} (hz : z ∈ U)
+    (hzC : z ∈ closure (interior C)) (hfr : ∀ p ∈ U, p ∈ frontier C → g p = k) :
+    U ∩ {p | k < g p} ⊆ interior C ∨ U ∩ {p | g p < k} ⊆ interior C := by
+  have hsplit : ∀ H ⊆ U, IsPreconnected H → (∀ p ∈ H, g p ≠ k) → H ⊆ interior C ∨ H ⊆ Cᶜ := by
+    intro H hHU hH hHk
+    refine hH.subset_or_subset isOpen_interior hC.isOpen_compl ?_ ?_
+    · exact Set.disjoint_left.mpr fun p hp hpc => hpc (interior_subset hp)
+    · intro p hp
+      by_cases hpi : p ∈ interior C
+      · exact Or.inl hpi
+      · right
+        intro hpC
+        exact hHk p hp (hfr p (hHU hp) ⟨subset_closure hpC, hpi⟩)
+  have hconvP : Convex ℝ (U ∩ {p | k < g p}) := hUc.inter (convex_halfSpace_gt g.toLinearMap.isLinear k)
+  have hconvM : Convex ℝ (U ∩ {p | g p < k}) := hUc.inter (convex_halfSpace_lt g.toLinearMap.isLinear k)
+  rcases hsplit _ Set.inter_subset_left hconvP.isPreconnected (fun p hp => ne_of_gt hp.2) with h1 | h1
+  · exact Or.inl h1
+  rcases hsplit _ Set.inter_subset_left hconvM.isPreconnected (fun p hp => ne_of_lt hp.2) with h2 | h2
+  · exact Or.inr h2
+  exfalso
+  obtain ⟨p, hpU, hpi⟩ := mem_closure_iff.mp hzC U hU hz
+  have hpC : p ∈ C := interior_subset hpi
+  have hgp : g p = k := by
+    by_contra hne
+    rcases lt_or_gt_of_ne hne with hlt | hgt
+    · exact h2 ⟨hpU, hlt⟩ hpC
+    · exact h1 ⟨hpU, hgt⟩ hpC
+  obtain ⟨δ, hδU, hδ⟩ := (sa1_eventually (hU.inter isOpen_interior) ⟨hpU, hpi⟩ n).exists
+  refine h1 ⟨hδU.1, ?_⟩ (interior_subset hδU.2)
+  show k < g (p + δ • n)
+  rw [map_add, map_smul, hgp, smul_eq_mul]
+  nlinarith
+
+/-- Two tiles of a family with disjoint interiors inside a region `R` cannot have
+positively overlapping sides on the frontier of `R`, unless they are the same tile. -/
+private lemma sa1_frontier_tiles_eq (S : Set (PlacedTile P)) (hS : DisjointInteriors S) (R : Set Pt)
+    (hR : ∀ B ∈ S, B.carrier ⊆ R) {B1 B2 : PlacedTile P} (h1 : B1 ∈ S) (h2 : B2 ∈ S)
+    (i1 : Fin (P.disk B1.form).n) (i2 : Fin (P.disk B2.form).n)
+    (hf1 : B1.side i1 ⊆ frontier R) (hov : OverlapPos (B1.side i1) (B2.side i2)) : B1 = B2 := by
+  by_contra hne
+  obtain ⟨x, y, hxy, hsub⟩ := hov
+  obtain ⟨z, hzxy, hzF⟩ := ((fs1_segment_infinite hxy).diff (Set.toFinite ({B1.vertex i1,
+    B1.vertex (finRotate _ i1), B2.vertex i2, B2.vertex (finRotate _ i2)} : Set Pt))).nonempty
+  have hz1 : z ∈ B1.side i1 := (hsub hzxy).1
+  have hz2 : z ∈ B2.side i2 := (hsub hzxy).2
+  set g := sa1_cross (y - x) with hg
+  set k := g x with hk
+  have hl : ∀ (B : PlacedTile P) (i : Fin (P.disk B.form).n), segment ℝ x y ⊆ B.side i →
+      ∀ p ∈ B.side i, g p = k := by
+    intro B i hxyB p hp
+    rw [fs1_tile_side_eq] at hxyB hp
+    exact sa1_cross_on_segment (hxyB (left_mem_segment ℝ x y)) (hxyB (right_mem_segment ℝ x y)) hp
+  have hl1 := hl B1 i1 fun w hw => (hsub hw).1
+  have hl2 := hl B2 i2 fun w hw => (hsub hw).2
+  have hK : ∀ (B : PlacedTile P) (i : Fin (P.disk B.form).n), z ∈ B.side i → z ≠ B.vertex i →
+      z ≠ B.vertex (finRotate _ i) →
+      ∃ r > 0, ∀ p ∈ Metric.ball z r, p ∈ frontier B.carrier → p ∈ B.side i := by
+    intro B i hzi hza hzb
+    let K := ⋃ j ∈ ({i}ᶜ : Set (Fin (P.disk B.form).n)), B.side j
+    have hKc : IsClosed K := (Set.toFinite _).isClosed_biUnion fun j _ => by
+      rw [fs1_tile_side_eq]; exact sa1_segment_isClosed _ _
+    have hzK : z ∉ K := by
+      simp only [K, Set.mem_iUnion]
+      rintro ⟨j, hj, hzj⟩
+      rcases sa1_placed_simple B (Set.mem_compl_singleton_iff.mp hj).symm hzi hzj with h | h
+      exacts [hza h, hzb h]
+    obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hKc.isOpen_compl z hzK
+    refine ⟨r, hr, fun p hp hpf => ?_⟩
+    rw [fs1_frontier_carrier, Set.mem_iUnion] at hpf
+    obtain ⟨j, hj⟩ := hpf
+    by_cases hji : j = i
+    · subst hji; exact hj
+    · exact absurd (Set.mem_biUnion (x := j) (Set.mem_compl_singleton_iff.mpr hji) hj) (hball hp)
+  obtain ⟨r1, hr1, hb1⟩ := hK B1 i1 hz1 (fun h => hzF (by simp [h])) (fun h => hzF (by simp [h]))
+  obtain ⟨r2, hr2, hb2⟩ := hK B2 i2 hz2 (fun h => hzF (by simp [h])) (fun h => hzF (by simp [h]))
+  set U := Metric.ball z (min r1 r2) with hUdef
+  have hU : IsOpen U := Metric.isOpen_ball
+  have hzU : z ∈ U := Metric.mem_ball_self (lt_min hr1 hr2)
+  have hw : y - x ≠ 0 := sub_ne_zero.mpr hxy.symm
+  set n : Pt := !₂[-((y - x) 1), (y - x) 0] with hndef
+  have hn : 0 < g n := by
+    rw [hg, sa1_cross_apply]
+    have h0 : n 0 = -((y - x) 1) := by simp [hndef]
+    have h1' : n 1 = (y - x) 0 := by simp [hndef]
+    rw [h0, h1']
+    have : (y - x) 0 ≠ 0 ∨ (y - x) 1 ≠ 0 := by
+      by_contra h
+      push_neg at h
+      apply hw
+      ext i
+      fin_cases i
+      · simpa using h.1
+      · simpa using h.2
+    rcases this with h | h
+    · nlinarith [mul_self_pos.mpr h, mul_self_nonneg ((y - x) 1)]
+    · nlinarith [mul_self_pos.mpr h, mul_self_nonneg ((y - x) 0)]
+  have hgz : g z = k := hl1 z hz1
+  have half1 := sa1_half (fs1_carrier_closed B1) hU (convex_ball _ _) g k hn hzU
+    (by rw [fs1_closure_interior_carrier]; exact fs1_side_subset_carrier B1 i1 hz1)
+    (fun p hp hpf => hl1 p (hb1 p (Metric.ball_subset_ball (min_le_left _ _) hp) hpf))
+  have half2 := sa1_half (fs1_carrier_closed B2) hU (convex_ball _ _) g k hn hzU
+    (by rw [fs1_closure_interior_carrier]; exact fs1_side_subset_carrier B2 i2 hz2)
+    (fun p hp hpf => hl2 p (hb2 p (Metric.ball_subset_ball (min_le_right _ _) hp) hpf))
+  have hdisj : Disjoint (interior B1.carrier) (interior B2.carrier) := hS h1 h2 hne
+  obtain ⟨δ, hδU, hδ⟩ := (sa1_eventually hU hzU n).exists
+  obtain ⟨δ', hδU', hδ'⟩ := (sa1_eventually hU hzU (-n)).exists
+  have hP : z + δ • n ∈ U ∩ {p | k < g p} := by
+    refine ⟨hδU, ?_⟩
+    show k < g (z + δ • n)
+    rw [map_add, map_smul, hgz, smul_eq_mul]
+    nlinarith
+  have hM : z + δ' • (-n) ∈ U ∩ {p | g p < k} := by
+    refine ⟨hδU', ?_⟩
+    show g (z + δ' • (-n)) < k
+    rw [map_add, map_smul, map_neg, hgz, smul_eq_mul]
+    nlinarith
+  have hcl : ∀ p ∈ U, g p = k → p ∈ closure (U ∩ {p | k < g p}) := by
+    intro p hp hgp
+    refine mem_closure_of_tendsto (sa1_tendsto p n) ?_
+    filter_upwards [sa1_eventually hU hp n] with δ hδ
+    refine ⟨hδ.1, ?_⟩
+    show k < g (p + δ • n)
+    rw [map_add, map_smul, hgp, smul_eq_mul]
+    nlinarith [hδ.2]
+  have hopp : ∀ (C1 C2 : Set Pt), IsClosed C1 → C1 ⊆ R → C2 ⊆ R →
+      U ∩ {p | k < g p} ⊆ interior C1 → U ∩ {p | g p < k} ⊆ interior C2 → False := by
+    intro C1 C2 hC1 hC1R hC2R hP1 hM2
+    have hUR : U ⊆ R := by
+      intro p hp
+      rcases lt_trichotomy (g p) k with hlt | heq | hgt
+      · exact hC2R (interior_subset (hM2 ⟨hp, hlt⟩))
+      · exact hC1R (hC1.closure_subset_iff.mpr (hP1.trans interior_subset) (hcl p hp heq))
+      · exact hC1R (interior_subset (hP1 ⟨hp, hgt⟩))
+    exact (hf1 hz1).2 (interior_maximal hUR hU hzU)
+  rcases half1 with h1P | h1M <;> rcases half2 with h2P | h2M
+  · exact Set.disjoint_left.mp hdisj (h1P hP) (h2P hP)
+  · exact hopp _ _ (fs1_carrier_closed B1) (hR B1 h1) (hR B2 h2) h1P h2M
+  · exact hopp _ _ (fs1_carrier_closed B2) (hR B2 h2) (hR B1 h1) h2P h1M
+  · exact Set.disjoint_left.mp hdisj (h1M hM) (h2M hM)
+
+private lemma sa1_disjoint_decompose (S : Set (PlacedTile P)) (hS : DisjointInteriors S) :
+    DisjointInteriors (τ.decompose S) := by
+  intro C1 hC1 C2 hC2 hne
+  simp only [Substitution.decompose, Set.mem_iUnion] at hC1 hC2
+  obtain ⟨B1, hB1, hC1⟩ := hC1
+  obtain ⟨B2, hB2, hC2⟩ := hC2
+  show Disjoint (interior C1.carrier) (interior C2.carrier)
+  have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+  have hsub : ∀ B C, C ∈ τ.decomposeTile B → interior C.carrier ⊆ τ.θ • interior B.carrier := by
+    intro B C hC
+    rw [← interior_smul₀ hθ, ← fs1_support_decomposeTile τ B]
+    exact interior_mono (Set.subset_biUnion_of_mem (u := fun B => B.carrier) hC)
+  by_cases hB : B1 = B2
+  · subst hB
+    simp only [Substitution.decomposeTile, translateSet, Set.mem_image] at hC1 hC2
+    obtain ⟨R1, hR1, rfl⟩ := hC1
+    obtain ⟨R2, hR2, rfl⟩ := hC2
+    have hR : R1 ≠ R2 := fun h => hne (h ▸ rfl)
+    have hd : Disjoint (interior R1.carrier) (interior R2.carrier) := (τ.rule B1.form).disjoint hR1 hR2 hR
+    rw [fs1_translate_carrier, fs1_translate_carrier, interior_vadd, interior_vadd,
+      ← Set.image_vadd, ← Set.image_vadd]
+    exact (Set.disjoint_image_iff (fun a b h => vadd_left_cancel (τ.θ • B1.anchor) h)).mpr hd
+  · refine Disjoint.mono (hsub B1 C1 hC1) (hsub B2 C2 hC2) ?_
+    rw [← Set.image_smul, ← Set.image_smul]
+    exact (Set.disjoint_image_iff (smul_right_injective Pt hθ)).mpr (hS hB1 hB2 hB)
+
+private lemma sa1_disjoint_iter (n : ℕ) (S : Set (PlacedTile P)) (hS : DisjointInteriors S) :
+    DisjointInteriors (τ.decomposeIter n S) := by
+  induction n with
+  | zero => exact hS
+  | succ n ih => exact sa1_disjoint_decompose τ _ ih
+
+/-- Two listed sides of the same layer that overlap with positive length are equal. -/
+private lemma sa1_layer_eq (m : ℕ) (α : G.P'.Form) (t : LayerTag m) (c c' : Pt × Pt)
+    (hc : c ∈ layerSides τ G m α t) (hc' : c' ∈ layerSides τ G m α t)
+    (hov : OverlapPos (segment ℝ c.1 c.2) (segment ℝ c'.1 c'.2)) : c = c' := by
+  have hθm : τ.θ ^ m ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+  cases t with
+  | top =>
+    obtain ⟨a, rfl⟩ := hc
+    obtain ⟨b, rfl⟩ := hc'
+    simp only [parentSide] at hov
+    have h := sa1_overlap_unscale hθm hov
+    by_cases hab : a = b
+    · rw [hab]
+    · exact (sa1_overlap_false h ((G.P'.disk α).simple a b hab)).elim
+  | level j =>
+    obtain ⟨B, hB, i, rfl, hfr⟩ := hc
+    obtain ⟨B', hB', i', rfl, -⟩ := hc'
+    have hs : τ.θ ^ (m - (j : ℕ)) ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+    have h := sa1_overlap_unscale hs hov
+    rw [← fs1_tile_side_eq, ← fs1_tile_side_eq] at h
+    have hfr' : B.side i ⊆ frontier (parentRegion τ G (j : ℕ) α) := by
+      have hθj : τ.θ ^ (j : ℕ) ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+      rw [fs1_tile_side_eq]
+      simp only at hfr
+      rw [sa1_segment_smul, parentRegion, fs1_frontier_smul hθm] at hfr
+      rw [parentRegion, fs1_frontier_smul hθj]
+      have hpow : τ.θ ^ m = τ.θ ^ (m - (j : ℕ)) * τ.θ ^ (j : ℕ) := by
+        rw [← pow_add, Nat.sub_add_cancel j.isLt.le]
+      rw [hpow, mul_smul] at hfr
+      exact (smul_set_subset_smul_set_iff₀ hs).mp hfr
+    have hBB := sa1_frontier_tiles_eq _ (sa1_disjoint_iter τ _ _ (G.dissect α).disjoint)
+      (parentRegion τ G (j : ℕ) α) (fun B hB => by
+        rw [← fs1_fineTiles_support]
+        exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hB)
+      hB hB' i i' hfr' h
+    subst hBB
+    have := sa1_same_tile_side B i i' h
+    subst this
+    rfl
 
 /-- Step 1 of the blueprint proof of `schedule_intermediate_sts_step1_boundary_align_step2_endpoints`:
 Equal schedules give the same atom through that point. -/
@@ -568,7 +1261,19 @@ private lemma schedule_intermediate_sts_step1_boundary_align_step2_endpoints_ste
     (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
       (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
     atom e c = atom e' d := by
-  sorry
+  have _ := he
+  have _ := he'
+  have _ := hov_d
+  have hmem : atom e c ∈ EndpointSchedule τ G m A.form e t := ⟨c, hc, hov_c, rfl⟩
+  rw [h_sch] at hmem
+  obtain ⟨d', hd', hov_d', hat⟩ := hmem
+  have hpl : placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d' :=
+    sa1_atom_placed_eq heq hov_c hov_d' hat
+  have hdd : d' = d := by
+    apply sa1_layer_eq τ G m A'.form t d' d hd' hd
+    obtain ⟨x, y, hxy, hsub⟩ := hoverlap
+    exact fs1_overlap_of_placed hxy (fun z hz => ⟨hpl ▸ (hsub hz).1, (hsub hz).2⟩)
+  rw [hat, hdd]
 
 /-- A point on the affine line of a nondegenerate segment is recovered from
 its canonical coordinate. -/

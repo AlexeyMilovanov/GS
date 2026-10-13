@@ -1521,7 +1521,39 @@ private lemma reconstructed_header_eq_isNormal_aux1 (c : MacroCertificate P)
     ∃ (o : c.SideOcc) (_ho : c.port (c.form h.1) d i = some o),
       headerLegal c (K.tileOf o.1) ∧
       (K.tileOf o.1).cell o.2 2 = K.col o.1 o.2 2 := by
-  sorry
+  have _ := hH
+  have _ := hLoc
+  have h_len := c.g3_five_le (c.form h.1) d
+  set L := (c.outerList (c.form h.1) d).length
+  have h1 : i.val ≤ 4 := by omega
+  have h2 : (i.val + 1) * L ≤ 5 * L := Nat.mul_le_mul_right L (by omega)
+  have h_bound : (((i.val + 1) * L + 5) / 6) - 1 < L := by omega
+  obtain ⟨o, ho⟩ : ∃ o, c.port (c.form h.1) d i = some o := by
+    unfold Geometry.MacroData.port Geometry.MacroData.portRank
+    exact ⟨_, List.getElem?_eq_getElem h_bound⟩
+  use o, ho
+  have ho_mem : o ∈ c.outerList (c.form h.1) d := by
+    unfold Geometry.MacroData.port at ho
+    exact List.mem_of_getElem? ho
+  have ho_outer : c.IsOuter o := (c.g3_outerList_mem (c.form h.1) d o).mp ho_mem |>.2.1
+  have ho_owner : c.owner o.1 = c.form h.1 := (c.g3_outerList_mem (c.form h.1) d o).mp ho_mem |>.1
+  have h_not_cen : o.1 ≠ c.central K.α := by
+    intro h_eq
+    have h_cen := c.g2_central K.α (cast (by rw [h_eq]) o.2)
+    have ho_eq : o = c.occ (c.central K.α) (cast (by rw [h_eq]) o.2) := by
+      rcases o with ⟨t, j⟩
+      dsimp at h_eq
+      subst h_eq
+      rfl
+    rw [← ho_eq] at h_cen
+    exact h_cen.1 ho_outer
+  have ho_legal : headerLegal c (K.tileOf o.1) := by
+    apply hK.2 o.1
+    · rw [ho_owner, hh.1]
+    · exact h_not_cen
+  constructor
+  · exact ho_legal
+  · rfl
 
 /-- Step 2 of the blueprint proof of `reconstructed_header_eq_isNormal`: extracting normality from the legal parent tile. -/
 private lemma reconstructed_header_eq_isNormal_aux2 (c : MacroCertificate P)

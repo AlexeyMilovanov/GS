@@ -2742,7 +2742,51 @@ private lemma hierarchy_lift_sts_step2_sts_step2_match_step1_eq
     (a : PlacedTile P) (ha : a ∈ GS.G.scatterTile A) (k : Fin (P.disk a.form).n)
     (h_sub : a.side k ⊆ A.side i) :
     A.side i = a.side k := by
-  sorry
+  have _ := τ
+  obtain ⟨c, hc, l, hcl⟩ := GS.G.side_whole A.form i
+  simp only [GroupedFamily.scatterTile, translateSet, Set.mem_image] at ha
+  obtain ⟨a₀, ha₀, rfl⟩ := ha
+  change Fin (P.disk a₀.form).n at k
+  have rotate_ne : ∀ {n : ℕ}, 2 ≤ n → ∀ k : Fin n, finRotate n k ≠ k := by
+    intro n hn k
+    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+    rw [finRotate_succ_apply]
+    intro h
+    have h1 : (1 : Fin (m + 1)) = 0 := by
+      have := congrArg (fun x => x - k) h
+      simpa using this
+    have : NeZero (m + 1) := ⟨by omega⟩
+    rw [Fin.one_eq_zero_iff] at h1
+    omega
+  have hnext : finRotate (P.disk a₀.form).n k ≠ k :=
+    rotate_ne (by have := (P.disk a₀.form).three_le; omega) k
+  have hab : a₀.vertex k ≠ a₀.vertex (finRotate _ k) := by
+    intro h
+    have h' : (P.disk a₀.form).vertex k =
+        (P.disk a₀.form).vertex (finRotate _ k) := by
+      simpa [PlacedTile.vertex] using h
+    exact hnext ((P.disk a₀.form).vertex_injective h'.symm)
+  have h_sub0 : a₀.side k ⊆ (GS.G.P'.disk A.form).side i := by
+    intro x hx
+    have hx'' : A.anchor +ᵥ x ∈ A.anchor +ᵥ a₀.side k := vadd_mem_vadd_set hx
+    have hx' : (A.anchor +ᵥ x) ∈ (a₀.translate A.anchor).side k := by
+      simpa [PlacedTile.translate, PlacedTile.side, add_vadd] using hx''
+    have hx_sub := h_sub hx'
+    change A.anchor +ᵥ x ∈ A.anchor +ᵥ (GS.G.P'.disk A.form).side i at hx_sub
+    rw [mem_vadd_set_iff_neg_vadd_mem] at hx_sub
+    simpa using hx_sub
+  have hover : OverlapPos (a₀.side k) (c.side l) := by
+    refine ⟨a₀.vertex k, a₀.vertex (finRotate _ k), hab, ?_⟩
+    rw [hcl]
+    intro x hx
+    have hx' : x ∈ a₀.side k := by
+      simpa [PlacedTile.side, PolygonalDisk.side, PlacedTile.vertex, vadd_segment]
+        using hx
+    exact ⟨hx', h_sub0 hx'⟩
+  have heq : a₀.side k = c.side l := GS.G.sts A.form a₀ ha₀ c hc k l hover
+  have hwhole : a₀.side k = (GS.G.P'.disk A.form).side i := heq.trans hcl
+  have hwhole' := congrArg (fun s : Set Pt => A.anchor +ᵥ s) hwhole
+  simpa [PlacedTile.side, PlacedTile.translate, add_vadd] using hwhole'.symm
 
 /-- Step 2 of the blueprint proof of `hierarchy_lift_sts_step2_sts`: Matching original sides
 on grouped sides force the grouped sides to be identical. -/

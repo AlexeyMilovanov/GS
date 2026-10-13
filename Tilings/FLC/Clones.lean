@@ -4705,13 +4705,46 @@ private lemma substitution_clone_lift_iff_step1_proj_is_subst_step1_supertile_pr
     rw [h_comm]
     rw [ih]
 
+private lemma substitution_clone_lift_iff_step1_proj_is_subst_step2_finite_preimage_aux
+    {α β : Type*} {f : α → β} {s : Set α} {t : Set β}
+    (ht_sub : t ⊆ f '' s) (ht_fin : t.Finite) :
+    ∃ s' ⊆ s, f '' s' = t ∧ s'.Finite := by
+  choose g hg using fun x (hx : x ∈ t) => (ht_sub hx)
+  let s' := {a | ∃ (x : β) (hx : x ∈ t), g x hx = a}
+  use s'
+  refine ⟨?_, ?_, ?_⟩
+  · intro a ha
+    rcases ha with ⟨x, hx, rfl⟩
+    exact (hg x hx).1
+  · ext y
+    simp only [Set.mem_image]
+    constructor
+    · rintro ⟨a, ⟨x, hx, rfl⟩, rfl⟩
+      rw [(hg x hx).2]
+      exact hx
+    · intro hy
+      use g y hy
+      refine ⟨?_, (hg y hy).2⟩
+      use y, hy
+  · have H : s' = (fun (x : t) => g x.1 x.2) '' Set.univ := by
+      ext a
+      simp only [Set.mem_image, Set.mem_univ, true_and]
+      constructor
+      · rintro ⟨x, hx, rfl⟩
+        use ⟨x, hx⟩
+      · rintro ⟨⟨x, hx⟩, rfl⟩
+        use x, hx
+    rw [H]
+    have h_fin_t : Fintype t := ht_fin.fintype
+    exact Set.toFinite _
+
 /-- Step 2 of the blueprint proof of `substitution_clone_lift_iff_step1_proj_is_subst`: finite subpatch of
 projection lifts to a finite subpatch. -/
 private lemma substitution_clone_lift_iff_step1_proj_is_subst_step2_finite_preimage {τ : Substitution P} (h : τ.FLC)
     (T' : PlaneTiling (cloneProtoset τ h)) (F : Set (PlacedTile P))
     (hF_sub : F ⊆ (cloneDecoration τ h).projTile '' T'.tiles) (hF_fin : F.Finite) :
     ∃ F' ⊆ T'.tiles, (cloneDecoration τ h).projTile '' F' = F ∧ F'.Finite := by
-  sorry
+  exact substitution_clone_lift_iff_step1_proj_is_subst_step2_finite_preimage_aux hF_sub hF_fin
 
 /-- Step 3 of the blueprint proof of `substitution_clone_lift_iff_step1_proj_is_subst`: occurrences project
 to occurrences. -/

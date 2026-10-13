@@ -200,7 +200,48 @@ private lemma locallyFinite_step5_compact (K : Set Pt) (hK : IsCompact K)
     (D r : ℝ) (hr : 0 < r) (S : Set Pt) (hS_prox : ∀ A ∈ S, ∃ x ∈ K, dist A x ≤ D)
     (hS_sep : ∀ A B, A ∈ S → B ∈ S → A ≠ B → 2 * r ≤ dist A B) :
     S.Finite := by
-  sorry
+  let cthick := Metric.cthickening (max D 0) K
+  have h_bound : Bornology.IsBounded cthick := Bornology.IsBounded.cthickening hK.isBounded
+  have h_closed : IsClosed cthick := Metric.isClosed_cthickening
+  have h_comp : IsCompact cthick := isCompact_iff_isClosed_bounded.mpr ⟨h_closed, h_bound⟩
+  have h_sub : S ⊆ cthick := by
+    intro x hx
+    obtain ⟨y, hyK, hyD⟩ := hS_prox x hx
+    apply Metric.mem_cthickening_of_dist_le x y (max D 0) K hyK
+    exact le_trans hyD (le_max_left D 0)
+  have h_compS : TotallyBounded S := TotallyBounded.subset h_sub h_comp.totallyBounded
+  obtain ⟨T, hT_fin, hT_cover⟩ := (Metric.totallyBounded_iff.mp h_compS) r hr
+  have H : ∀ x : S, ∃ y ∈ T, dist (x : Pt) y < r := by
+    intro x
+    have hx' := hT_cover x.2
+    rw [Set.mem_iUnion] at hx'
+    rcases hx' with ⟨y, hy⟩
+    rw [Set.mem_iUnion] at hy
+    rcases hy with ⟨hyT, hy_ball⟩
+    use y, hyT
+    exact hy_ball
+  let f : S → T := fun x => ⟨Classical.choose (H x), (Classical.choose_spec (H x)).1⟩
+  have hf_inj : f.Injective := by
+    intro x y hxy
+    have h_neq : (x : Pt) = y := by
+      by_contra h_neq
+      have h1 := (Classical.choose_spec (H x)).2
+      have h2 := (Classical.choose_spec (H y)).2
+      have heq : Classical.choose (H x) = Classical.choose (H y) := by
+        have hxy_f : f x = f y := hxy
+        exact congrArg Subtype.val hxy_f
+      rw [heq] at h1
+      have H_dist_lt : dist (x : Pt) y < 2 * r := by
+        calc
+          dist (x : Pt) y ≤ dist (x : Pt) (Classical.choose (H y)) + dist (Classical.choose (H y)) (y : Pt) := dist_triangle _ _ _
+          _ < r + r := add_lt_add h1 (by rw [dist_comm]; exact h2)
+          _ = 2 * r := by ring
+      have H_dist_ge : 2 * r ≤ dist (x : Pt) y := hS_sep x y x.2 y.2 h_neq
+      linarith
+    exact Subtype.ext h_neq
+  haveI : Finite T := hT_fin.to_subtype
+  haveI : Finite S := Finite.of_injective f hf_inj
+  exact Set.toFinite S
 
 /-- `lem:localfinite` (local finiteness): every compact set meets only
 finitely many tiles of a plane tiling by a finite protoset. -/

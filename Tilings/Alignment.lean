@@ -1422,7 +1422,71 @@ private lemma whole_side_ports_distinct_step3_rank_step2_inj_step1_disjoint (τ 
     (a : Fin (G.P'.disk A).n) (e1 e2 : Pt × Pt)
     (h1 : e1 ∈ sidesInside τ G m A a) (h2 : e2 ∈ sidesInside τ G m A a)
     (hne : e1 ≠ e2) : Disjoint (openSegment ℝ e1.1 e1.2) (openSegment ℝ e2.1 e2.2) := by
-  sorry
+  rw [Set.disjoint_left]
+  intro z hz1 hz2
+  exfalso
+  apply hne
+  have hsub1 : segment ℝ e1.1 e1.2 ⊆
+      segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2 :=
+    (h1.2.trans (openSegment_subset_segment ℝ _ _))
+  have hsub2 : segment ℝ e2.1 e2.2 ⊆
+      segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2 :=
+    (h2.2.trans (openSegment_subset_segment ℝ _ _))
+  obtain ⟨B, hB, i, heq1, hfront1⟩ := h1.1
+  obtain ⟨C, hC, j, heq2, hfront2⟩ := h2.1
+  subst e1
+  subst e2
+  have hBi := omitted_count_tile_vertex_ne_next B i
+  have hCj := omitted_count_tile_vertex_ne_next C j
+  have hBC : B = C := by
+    by_contra hBC
+    have hdisj : Disjoint (interior B.carrier) (interior C.carrier) :=
+      omitted_count_fineTiles_disjoint τ G m A hB hC hBC
+    have hzBi : z ∈ B.side i := by
+      rw [omitted_count_tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hz1
+    have hzCj : z ∈ C.side j := by
+      rw [omitted_count_tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hz2
+    have hcol : Collinear ℝ ({B.vertex i, B.vertex (finRotate _ i),
+        C.vertex j, C.vertex (finRotate _ j)} : Set Pt) :=
+      omitted_count_collinear_of_segment_subset hsub1 hsub2
+    have hzBi₁ : z ≠ B.vertex i := omitted_count_open_ne_left hBi hz1
+    have hzBi₂ : z ≠ B.vertex (finRotate _ i) := omitted_count_open_ne_right hBi hz1
+    have hzCj₁ : z ≠ C.vertex j := omitted_count_open_ne_left hCj hz2
+    have hzCj₂ : z ≠ C.vertex (finRotate _ j) := omitted_count_open_ne_right hCj hz2
+    let δ := min (dist z (B.vertex i))
+      (min (dist z (B.vertex (finRotate _ i)))
+        (min (dist z (C.vertex j)) (dist z (C.vertex (finRotate _ j)))))
+    have hδ : 0 < δ := by
+      dsimp [δ]
+      exact lt_min (dist_pos.mpr hzBi₁)
+        (lt_min (dist_pos.mpr hzBi₂) (lt_min (dist_pos.mpr hzCj₁) (dist_pos.mpr hzCj₂)))
+    have hhalf : (2 * δ) / 2 = δ := by ring
+    obtain ⟨η, hη, hball⟩ :=
+      Crowns.trimmedEdgeTwoTileBall (P := P) (d := 2 * δ) (by positivity)
+    have hcover : Metric.ball z η ⊆ B.carrier ∪ C.carrier := by
+      apply hball B C hdisj i j z hzBi hzCj hcol
+      all_goals rw [hhalf]
+      · exact min_le_left _ _
+      · exact (min_le_right _ _).trans (min_le_left _ _)
+      · exact (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_left _ _))
+      · exact (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
+    have hballRegion : Metric.ball z η ⊆ parentRegion τ G m A := by
+      intro x hx
+      rw [parentRegion, ← omitted_count_fineTiles_support τ G]
+      rcases hcover hx with hxB | hxC
+      · exact Set.mem_iUnion₂.2 ⟨B, hB, hxB⟩
+      · exact Set.mem_iUnion₂.2 ⟨C, hC, hxC⟩
+    have hzint : z ∈ interior (parentRegion τ G m A) := by
+      rw [mem_interior_iff_mem_nhds]
+      exact Filter.mem_of_superset (Metric.ball_mem_nhds z hη) hballRegion
+    exact (hfront1 (openSegment_subset_segment ℝ _ _ hz1)).2 hzint
+  subst C
+  have hij := omitted_count_same_tile_side_index B i j z hz1
+    (openSegment_subset_segment ℝ _ _ hz2)
+  subst j
+  rfl
 
 private lemma whole_side_ports_distinct_key_coefficient_ne (v : Pt) (hv : v ≠ 0) :
     canonDir v 0 * v 0 + canonDir v 1 * v 1 ≠ 0 := by

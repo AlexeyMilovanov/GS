@@ -4940,6 +4940,431 @@ theorem strict_actual_schedules_aligned (T' : PlaneTiling C.Q) (hT' : T'.SideToS
     have hat := strict_actual_schedules_aligned_step2_atom_eq C A' A e' e d c heq.symm hcd hov' hov
     exact ⟨c, hc, hov, hat⟩
 
+private structure StrictTypeChain (C : MacroCertificate P) where
+  X : ℕ → Type
+  par : ∀ n, X n → X (n + 1)
+  typ : ∀ n, X n → C.Typ
+  adm : ∀ n x, C.owner (typ n x) = C.form (typ (n + 1) (par n x))
+
+private def stcState {C : MacroCertificate P} (H : StrictTypeChain C) :=
+  Σ n, Σ x : H.X n, C.Side (H.typ n x) × Fin 5
+
+open Classical in
+private def stcSource {C : MacroCertificate P} (H : StrictTypeChain C) (n : ℕ) (x : H.X n)
+    (i : C.Side (H.typ n x)) (k : Fin 5) :
+    Option (C.Side (H.typ (n + 1) (H.par n x)) × Fin 5) :=
+  if h : (copySource C (C.form (H.typ (n + 1) (H.par n x)))
+      (C.occ (H.typ n x) i) k).Nonempty then some h.some else none
+
+private def stcStep {C : MacroCertificate P} (H : StrictTypeChain C) : stcState H → Option (stcState H)
+  | ⟨n, x, i, k⟩ => (stcSource H n x i k).map fun p =>
+      ⟨n + 1, H.par n x, p.1, p.2⟩
+
+private def stcIter {C : MacroCertificate P} (H : StrictTypeChain C) : ℕ → stcState H → Option (stcState H)
+  | 0, s => some s
+  | j + 1, s => (stcStep H s).bind (stcIter H j)
+
+private lemma stcIter_add {C : MacroCertificate P} (H : StrictTypeChain C)
+    (j l : ℕ) (s : stcState H) :
+    stcIter H (j + l) s = (stcIter H j s).bind (stcIter H l) := by
+  induction j generalizing s with
+  | zero => simp [stcIter]
+  | succ j ih =>
+    rw [show j + 1 + l = (j + l) + 1 by omega]
+    simp only [stcIter, ih, Option.bind_assoc]
+
+private lemma stcIter_origin_unique {C : MacroCertificate P} (H : StrictTypeChain C) {j j' : ℕ}
+    {s a b : stcState H} (ha : stcIter H j s = some a) (ha' : stcStep H a = none)
+    (hb : stcIter H j' s = some b) (hb' : stcStep H b = none) : a = b := by
+  have key : ∀ {u v : ℕ} {a b : stcState H}, u ≤ v → stcIter H u s = some a →
+      stcStep H a = none → stcIter H v s = some b → a = b := by
+    intro u v a b huv hua hstop hub
+    obtain ⟨l, rfl⟩ := Nat.exists_eq_add_of_le huv
+    rw [stcIter_add, hua] at hub
+    cases l with
+    | zero => simpa [stcIter] using hub
+    | succ l => simp [stcIter, hstop] at hub
+  rcases le_total j j' with h | h
+  · exact key h ha ha' hb
+  · exact (key h hb hb' ha).symm
+
+private def stcTerminates {C : MacroCertificate P} (H : StrictTypeChain C) (s : stcState H) : Prop :=
+  ∃ j a, stcIter H j s = some a ∧ stcStep H a = none
+
+private def stcHeader (C : MacroCertificate P) (hC : C.Represents τ m)
+    (H : StrictTypeChain C) (n : ℕ) (x : H.X n) : SU C hC :=
+  headerSU C hC ⟨H.typ (n + 1) (H.par n x), fun _ => false⟩
+
+private def stcOrigin (C : MacroCertificate P) (hC : C.Represents τ m)
+    (H : StrictTypeChain C) : stcState H → SU C hC
+  | ⟨n, x, i, k⟩ => strictGenCell C hC (C.form (H.typ (n + 1) (H.par n x)))
+      (stcHeader C hC H n x) (C.occ (H.typ n x) i) k
+
+open Classical in
+private def stcValue (C : MacroCertificate P) (hC : C.Represents τ m)
+    (H : StrictTypeChain C) (s : stcState H) : SU C hC :=
+  if h : stcTerminates H s then stcOrigin C hC H h.choose_spec.choose else 0
+
+private lemma stcValue_stop {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (s : stcState H)
+    (hs : stcStep H s = none) :
+    stcValue C hC H s = stcOrigin C hC H s := by
+  have h : stcTerminates H s := ⟨0, s, rfl, hs⟩
+  unfold stcValue
+  rw [dif_pos h]
+  congr 1
+  exact stcIter_origin_unique H (j' := 0) h.choose_spec.choose_spec.1
+    h.choose_spec.choose_spec.2 rfl hs
+
+private lemma stcValue_step {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (s s' : stcState H)
+    (hs : stcStep H s = some s') : stcValue C hC H s = stcValue C hC H s' := by
+  have hiff : stcTerminates H s ↔ stcTerminates H s' := by
+    constructor
+    · rintro ⟨j, a, ha, ha'⟩
+      cases j with
+      | zero =>
+        simp only [stcIter, Option.some.injEq] at ha
+        subst ha
+        rw [hs] at ha'
+        cases ha'
+      | succ j => exact ⟨j, a, by simpa [stcIter, hs] using ha, ha'⟩
+    · rintro ⟨j, a, ha, ha'⟩
+      exact ⟨j + 1, a, by simpa [stcIter, hs] using ha, ha'⟩
+  unfold stcValue
+  by_cases h : stcTerminates H s
+  · have h' := hiff.1 h
+    rw [dif_pos h, dif_pos h']
+    congr 1
+    apply stcIter_origin_unique H (j := h.choose + 0) (s := s)
+    · simpa using h.choose_spec.choose_spec.1
+    · exact h.choose_spec.choose_spec.2
+    · show stcIter H (h'.choose + 1) s = _
+      simpa [stcIter, hs] using h'.choose_spec.choose_spec.1
+    · exact h'.choose_spec.choose_spec.2
+  · rw [dif_neg h, dif_neg (fun h' => h (hiff.2 h'))]
+
+private def stcTile (C : MacroCertificate P) (hC : C.Represents τ m)
+    (H : StrictTypeChain C) (n : ℕ) (x : H.X n) : StrictDecTile C hC :=
+  ⟨H.typ n x, fun i k => stcValue C hC H ⟨n, x, i, k⟩⟩
+
+private lemma stcTile_copy {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (n : ℕ) (x : H.X n)
+    (i : C.Side (H.typ n x)) (k : Fin 5)
+    (hne : (copySource C (C.form (H.typ (n + 1) (H.par n x)))
+      (C.occ (H.typ n x) i) k).Nonempty) :
+    (stcTile C hC H n x).cell i k =
+      (stcTile C hC H (n + 1) (H.par n x)).cell hne.some.1 hne.some.2 := by
+  apply stcValue_step
+  simp [stcStep, stcSource, hne]
+
+private lemma stcTile_origin {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (n : ℕ) (x : H.X n)
+    (i : C.Side (H.typ n x)) (k : Fin 5)
+    (hempty : ¬ (copySource C (C.form (H.typ (n + 1) (H.par n x)))
+      (C.occ (H.typ n x) i) k).Nonempty) :
+    (stcTile C hC H n x).cell i k = stcOrigin C hC H ⟨n, x, i, k⟩ := by
+  apply stcValue_stop
+  simp [stcStep, stcSource, hempty]
+
+private lemma schedU_ne_zero {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (o : C.SideOcc) : schedU C hC o ≠ 0 := by
+  intro h
+  cases h
+
+private lemma stcTile_outer {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (n : ℕ) (x : H.X n)
+    (i : C.Side (H.typ n x)) (ho : C.IsOuter (C.occ (H.typ n x) i)) :
+    (stcTile C hC H n x).cell i 3 = schedU C hC (C.occ (H.typ n x) i) := by
+  rw [stcTile_origin]
+  · simp only [stcOrigin, strictGenCell]
+    have hnp : ¬ ∃ d, C.IsPrintOf (C.form (H.typ (n + 1) (H.par n x))) d
+        (C.occ (H.typ n x) i) := fun ⟨_, hd⟩ => isInner_of_isPrintOf C hd ho
+    rw [if_neg hnp, if_neg (by decide), if_pos ho]
+    simp only [if_true]
+  · rintro ⟨p, hp | hp⟩
+    · exact isInner_of_isPrintOf C hp.1 ho
+    · exact absurd hp.2.1 (by decide)
+
+private lemma stcHeader_eq {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (n : ℕ) (x : H.X n) :
+    stcHeader C hC H n x =
+      headerSU C hC (strictHeaderOf C hC (stcTile C hC H (n + 1) (H.par n x))) := by
+  unfold stcHeader headerSU
+  congr 1
+  unfold strictHeaderOf
+  dsimp only [stcTile]
+  unfold HeaderKernel.makeHeader
+  congr 1
+  funext d
+  unfold HeaderKernel.zeroMode
+  by_cases ho : C.outerB (H.typ (n + 1) (H.par n x)) d = true
+  · have ho' : C.IsOuter (C.occ (H.typ (n + 1) (H.par n x)) d) := by
+      simpa [MacroData.outerB] using ho
+    rw [ho]
+    simp only [Bool.true_and]
+    have hv : stcValue C hC H ⟨n + 1, H.par n x, d, 3⟩ ≠ 0 := by
+      change (stcTile C hC H (n + 1) (H.par n x)).cell d 3 ≠ 0
+      rw [stcTile_outer H (n + 1) (H.par n x) d ho']
+      exact schedU_ne_zero _
+    simp [hv]
+  · simp [ho]
+
+private lemma stcTile_child {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (n : ℕ) (x : H.X n) :
+    IsStrictChildOf C hC (stcTile C hC H (n + 1) (H.par n x))
+      (stcTile C hC H n x) := by
+  refine ⟨H.adm n x, ?_⟩
+  dsimp only [stcTile, strictChild, strictGen]
+  congr 1
+  funext i k
+  split_ifs with hs
+  · exact stcTile_copy H n x i k hs
+  · change (stcTile C hC H n x).cell i k = _
+    rw [stcTile_origin H n x i k hs, stcOrigin, stcHeader_eq]
+    rfl
+
+private def stcAncestor {C : MacroCertificate P} (H : StrictTypeChain C) (n : ℕ) (x : H.X n) :
+    (j : ℕ) → H.X (n + j)
+  | 0 => x
+  | j + 1 => H.par (n + j) (stcAncestor H n x j)
+
+private lemma stc_hasOrigin {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (n : ℕ) (x : H.X n) :
+    ∀ (j l : ℕ) (i : C.Side (H.typ (n + l) (stcAncestor H n x l)))
+      (k : Fin 5) (a : stcState H),
+      stcIter H j ⟨n + l, stcAncestor H n x l, i, k⟩ = some a →
+      stcStep H a = none →
+      HasOrigin C (fun j => typeShadow C hC (stcTile C hC H (n + j)
+        (stcAncestor H n x j))) l i k := by
+  intro j
+  induction j with
+  | zero =>
+    intro l i k a ha ha'
+    simp only [stcIter, Option.some.injEq] at ha
+    subst ha
+    apply HasOrigin.origin
+    apply Set.not_nonempty_iff_eq_empty.mp
+    intro hne
+    have hne' : (copySource C (C.form (H.typ (n + l + 1)
+        (H.par (n + l) (stcAncestor H n x l))))
+        (C.occ (H.typ (n + l) (stcAncestor H n x l)) i) k).Nonempty := by
+      simpa [typeShadow, stcTile, stcAncestor, Nat.add_assoc] using hne
+    simp [stcStep, stcSource, hne'] at ha'
+  | succ j ih =>
+    intro l i k a ha ha'
+    by_cases hne : (copySource C (C.form (H.typ (n + l + 1)
+        (H.par (n + l) (stcAncestor H n x l))))
+        (C.occ (H.typ (n + l) (stcAncestor H n x l)) i) k).Nonempty
+    · simp only [stcIter, stcStep, stcSource, dif_pos hne, Option.map_some,
+        Option.bind_some] at ha
+      have horigin := ih (l + 1) hne.some.1 hne.some.2 a ha ha'
+      have hmem := hne.some_mem
+      simpa [typeShadow, stcTile, stcAncestor, Nat.add_assoc] using
+        (HasOrigin.step (ch := fun j => typeShadow C hC (stcTile C hC H (n + j)
+          (stcAncestor H n x j))) l i k hne.some.1 hne.some.2 hmem horigin)
+    · simp [stcIter, stcStep, stcSource, hne] at ha
+
+private lemma stcTile_legal {C : MacroCertificate P} {τ : Substitution P} {m : ℕ}
+    {hC : C.Represents τ m} (H : StrictTypeChain C) (n : ℕ) (x : H.X n) :
+    StrictLegal C hC (stcTile C hC H n x) := by
+  refine ⟨fun j => stcTile C hC H (n + j) (stcAncestor H n x j), rfl,
+    fun j => stcTile_child H (n + j) (stcAncestor H n x j), ?_⟩
+  intro j i k _ hno
+  show stcValue C hC H ⟨n + j, stcAncestor H n x j, i, k⟩ = 0
+  unfold stcValue
+  rw [dif_neg]
+  rintro ⟨l, a, ha, ha'⟩
+  exact hno (stc_hasOrigin H n x l j i k a ha ha')
+
+private lemma strict_parent_exists (C : MacroCertificate P) {T' T : PlaneTiling C.Q}
+    (h : C.σ.IsComposition T' T) {Z : PlacedTile C.Q} (hZ : Z ∈ T.tiles) :
+    ∃ Y ∈ T'.tiles, ∃ t, C.owner t = Y.form ∧
+      Z = ⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ := by
+  rw [← h] at hZ
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet, C.rule_eq,
+    Set.mem_iUnion, Set.mem_image, Set.mem_setOf_eq] at hZ
+  obtain ⟨Y, hY, _, ⟨t, ht, rfl⟩, rfl⟩ := hZ
+  exact ⟨Y, hY, t, ht, rfl⟩
+
+private lemma strict_child_mem (C : MacroCertificate P) {T' T : PlaneTiling C.Q}
+    (h : C.σ.IsComposition T' T) {Y : PlacedTile C.Q} (hY : Y ∈ T'.tiles) {t : C.Typ}
+    (ht : C.owner t = Y.form) :
+    (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q) ∈ T.tiles := by
+  rw [← h]
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet, C.rule_eq,
+    Set.mem_iUnion, Set.mem_image, Set.mem_setOf_eq]
+  exact ⟨Y, hY, _, ⟨t, ht, rfl⟩, rfl⟩
+
+private lemma strict_child_carrier_subset (C : MacroCertificate P) {Y : PlacedTile C.Q} {t : C.Typ}
+    (ht : C.owner t = Y.form) :
+    (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q).carrier ⊆
+      C.σ.θ • Y.carrier := by
+  have hmem : (⟨C.form t, C.anchor t⟩ : PlacedTile C.Q) ∈ (C.σ.rule Y.form).tiles := by
+    rw [C.rule_eq]
+    exact ⟨t, ht, rfl⟩
+  have hsub : (⟨C.form t, C.anchor t⟩ : PlacedTile C.Q).carrier ⊆
+      C.σ.θ • (C.Q.disk Y.form).carrier := by
+    rw [← C.σ.support_eq]
+    exact Set.subset_biUnion_of_mem (u := fun A => A.carrier) hmem
+  intro z hz
+  simp only [PlacedTile.carrier, Set.mem_vadd_set] at hz
+  obtain ⟨w, hw, rfl⟩ := hz
+  have hw' : C.anchor t +ᵥ w ∈ C.σ.θ • (C.Q.disk Y.form).carrier :=
+    hsub (Set.vadd_mem_vadd_set hw)
+  obtain ⟨u, hu, hu'⟩ := Set.mem_smul_set.1 hw'
+  refine Set.mem_smul_set.2 ⟨Y.anchor +ᵥ u, Set.vadd_mem_vadd_set hu, ?_⟩
+  simp only [vadd_eq_add, smul_add] at hu' ⊢
+  rw [hu']
+  abel
+
+private lemma strict_parent_unique (C : MacroCertificate P) (T' : PlaneTiling C.Q)
+    {Y Y' : PlacedTile C.Q} (hY : Y ∈ T'.tiles) (hY' : Y' ∈ T'.tiles) {t t' : C.Typ}
+    (ht : C.owner t = Y.form) (ht' : C.owner t' = Y'.form)
+    (he : (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q) =
+      ⟨C.form t', C.σ.θ • Y'.anchor +ᵥ C.anchor t'⟩) : Y = Y' ∧ t = t' := by
+  have hθ : C.σ.θ ≠ 0 := by
+    have := C.σ.one_lt
+    positivity
+  have hYY : Y = Y' := by
+    by_contra hne
+    set Z : PlacedTile C.Q := ⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ with hZ
+    have h1 := strict_child_carrier_subset C ht
+    have h2 := strict_child_carrier_subset C ht'
+    rw [← he] at h2
+    obtain ⟨z, hz⟩ := (C.Q.disk (C.form t)).interior_nonempty
+    have hzi : (C.σ.θ • Y.anchor +ᵥ C.anchor t) +ᵥ z ∈ interior Z.carrier := by
+      simp only [Z, PlacedTile.carrier]
+      rw [interior_vadd]
+      exact Set.vadd_mem_vadd_set hz
+    have i1 := interior_mono h1 hzi
+    have i2 := interior_mono h2 hzi
+    rw [interior_smul₀ hθ] at i1 i2
+    obtain ⟨w, hw, hw'⟩ := Set.mem_smul_set.1 i1
+    obtain ⟨w', hw2, hw2'⟩ := Set.mem_smul_set.1 i2
+    have hww : w = w' := smul_right_injective _ hθ (hw'.trans hw2'.symm)
+    subst hww
+    exact Set.disjoint_left.1 (T'.disjoint hY hY' hne) hw hw2
+  subst hYY
+  refine ⟨rfl, C.type_injective t t' (ht.trans ht'.symm) (congrArg PlacedTile.form he) ?_⟩
+  have ha := congrArg PlacedTile.anchor he
+  simpa using ha
+
+private def strictLiftTiling (C : MacroCertificate P) (hC : C.Represents τ m)
+    (T : PlaneTiling C.Q) (f : T.tiles → StrictDecTile C hC)
+    (hf : ∀ Z, C.form (f Z).typ = Z.1.form) : PlaneTiling (strictProtoset C hC) where
+  tiles := Set.range fun Z =>
+    (⟨StrictForm.typed (f Z), Z.1.anchor⟩ : PlacedTile (strictProtoset C hC))
+  cover := by
+    rw [Set.eq_univ_iff_forall]
+    intro z
+    have hz : z ∈ support T.tiles := by rw [T.cover]; exact Set.mem_univ z
+    simp only [support, Set.mem_iUnion] at hz ⊢
+    obtain ⟨Z, hZ, hz⟩ := hz
+    refine ⟨_, ⟨⟨Z, hZ⟩, rfl⟩, ?_⟩
+    simpa only [PlacedTile.carrier, strictProtoset, StrictForm.proj, hf] using hz
+  disjoint := by
+    rintro _ ⟨Z, rfl⟩ _ ⟨Z', rfl⟩ hne
+    simp only [Function.onFun, PlacedTile.carrier, StrictForm.proj, hf]
+    apply T.disjoint Z.2 Z'.2
+    intro he
+    apply hne
+    rw [Subtype.ext he]
+
+private def strictLiftChain (C : MacroCertificate P) (seq : ℕ → PlaneTiling C.Q)
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles)
+    (typ : ∀ n, (seq n).tiles → C.Typ)
+    (hspec : ∀ n Z, C.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨C.form (typ n Z), C.σ.θ • (par n Z).1.anchor +ᵥ C.anchor (typ n Z)⟩) :
+    StrictTypeChain C where
+  X n := (seq n).tiles
+  par := par
+  typ := typ
+  adm n Z := (hspec n Z).1.trans (congrArg PlacedTile.form (hspec (n + 1) (par n Z)).2)
+
+private lemma strict_planeTiling_ext {Q : Protoset} {T U : PlaneTiling Q}
+    (h : T.tiles = U.tiles) : T = U := by
+  cases T
+  cases U
+  congr
+
+private lemma strictLift_main (C : MacroCertificate P) (hC : C.Represents τ m)
+    (seq : ℕ → PlaneTiling C.Q) (hseq : ∀ n, C.σ.IsComposition (seq (n + 1)) (seq n))
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles)
+    (typ : ∀ n, (seq n).tiles → C.Typ)
+    (hspec : ∀ n Z, C.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨C.form (typ n Z), C.σ.θ • (par n Z).1.anchor +ᵥ C.anchor (typ n Z)⟩) :
+    ∃ seq'' : ℕ → PlaneTiling (strictProtoset C hC),
+      (∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq n) ∧
+      (∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n)) ∧
+      (∀ n, AllStrictLegal C hC (seq'' n)) := by
+  let H := strictLiftChain C seq par typ hspec
+  have hform : ∀ n (Z : (seq n).tiles), C.form (stcTile C hC H n Z).typ = Z.1.form :=
+    fun n Z => (congrArg PlacedTile.form (hspec n Z).2).symm
+  have hchild : ∀ n (Y : (seq (n + 1)).tiles) (t : C.Typ) (ht : C.owner t = Y.1.form),
+      ∃ Z : (seq n).tiles, par n Z = Y ∧ typ n Z = t ∧
+        Z.1 = ⟨C.form t, C.σ.θ • Y.1.anchor +ᵥ C.anchor t⟩ := by
+    intro n Y t ht
+    let Z : (seq n).tiles := ⟨_, strict_child_mem C (hseq n) Y.2 ht⟩
+    obtain ⟨h1, h2⟩ := strict_parent_unique C (seq (n + 1)) (par n Z).2 Y.2
+      (hspec n Z).1 ht ((hspec n Z).2.symm.trans rfl)
+    exact ⟨Z, Subtype.ext h1, h2, rfl⟩
+  let lift : ℕ → PlaneTiling (strictProtoset C hC) := fun n =>
+    strictLiftTiling C hC (seq n) (stcTile C hC H n) (hform n)
+  refine ⟨lift, ?_, ?_, ?_⟩
+  · intro n
+    apply strict_planeTiling_ext
+    ext W
+    constructor
+    · rintro ⟨_, ⟨Z, rfl⟩, rfl⟩
+      convert Z.2 using 1
+      exact PlacedTile.ext (hform n Z) rfl
+    · intro hW
+      refine ⟨_, ⟨⟨W, hW⟩, rfl⟩, ?_⟩
+      exact PlacedTile.ext (hform n ⟨W, hW⟩) rfl
+  · intro n
+    unfold Substitution.IsComposition Substitution.decompose
+    ext W
+    simp only [Set.mem_iUnion]
+    constructor
+    · rintro ⟨X, hX, hWX⟩
+      obtain ⟨Zp, rfl⟩ := hX
+      change W ∈ translateSet _ (strictChildren C hC _ _ _) at hWX
+      obtain ⟨V, hV, rfl⟩ := hWX
+      obtain ⟨t, ht, rfl⟩ := hV
+      have ht' : C.owner t = Zp.1.form := ht.trans (hform (n + 1) Zp)
+      obtain ⟨Z, hp, htyp, hZ⟩ := hchild n Zp t ht'
+      refine ⟨Z, ?_⟩
+      apply PlacedTile.ext
+      · simp only [PlacedTile.translate, StrictForm.typed.injEq]
+        rw [← htyp, ← hp]
+        exact (stcTile_child H n Z).2
+      · simp only [PlacedTile.translate]
+        rw [hZ]
+        rfl
+    · rintro ⟨Z, rfl⟩
+      let X : PlacedTile (strictProtoset C hC) :=
+        ⟨.typed (stcTile C hC H (n + 1) (par n Z)), (par n Z).1.anchor⟩
+      refine ⟨X, ⟨par n Z, rfl⟩, ?_⟩
+      change _ ∈ translateSet _ (strictChildren C hC _ _ _)
+      let V : PlacedTile (strictProtoset C hC) :=
+        ⟨.typed (stcTile C hC H n Z), C.anchor (typ n Z)⟩
+      refine ⟨V, ?_, ?_⟩
+      · change (⟨.typed (stcTile C hC H n Z), C.anchor (typ n Z)⟩ :
+          PlacedTile (strictProtoset C hC)) ∈ strictChildren C hC _ _ _
+        refine ⟨typ n Z, ?_, ?_⟩
+        · exact (hspec n Z).1.trans (hform (n + 1) (par n Z)).symm
+        · apply PlacedTile.ext
+          · simp only [StrictForm.typed.injEq]
+            exact (stcTile_child H n Z).2.symm
+          · rfl
+      · apply PlacedTile.ext
+        · rfl
+        · simp only [X, V, PlacedTile.translate, strictSubst]
+          rw [(hspec n Z).2]
+  · rintro n _ ⟨Z, rfl⟩
+    exact stcTile_legal H n Z
+
 /-- `lem:strict-presentation` (completeness, "origin chains give legal tiles"): every grouped
 `σ'`-hierarchy lifts to compatible legal strict decorations (types from the positions in the
 parent templates; generated cells fixed; a copied cell takes the value of the origin of its
@@ -4950,7 +5375,15 @@ theorem strict_lift_decorations (seq' : ℕ → PlaneTiling C.Q)
       (∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq' n) ∧
       (∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n)) ∧
       (∀ n, AllStrictLegal C hC (seq'' n)) := by
-  sorry
+  classical
+  have hpar : ∀ n (Z : (seq' n).tiles),
+      ∃ Y : (seq' (n + 1)).tiles, ∃ t, C.owner t = Y.1.form ∧
+        Z.1 = ⟨C.form t, C.σ.θ • Y.1.anchor +ᵥ C.anchor t⟩ := by
+    intro n Z
+    obtain ⟨Y, hY, t, ht, he⟩ := strict_parent_exists C (hseq n) Z.2
+    exact ⟨⟨Y, hY⟩, t, ht, he⟩
+  choose par typ hspec using hpar
+  exact strictLift_main C hC seq' hseq par typ hspec
 
 /-- `lem:strict-presentation` (completeness, matching): if the grouped levels and the scattered
 intermediate levels between consecutive grouped levels are side-to-side, the bottom level of a

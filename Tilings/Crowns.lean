@@ -2220,12 +2220,43 @@ def rootSeparationConstants (P : Protoset) : RootSeparation P :=
 
 /-! ## `lem:ray-bound` -/
 
+/-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay_step1_infDist_eq`:
+translation invariance of infDist. -/
+private lemma distanceToReflexBoundaryRay_step1_infDist_eq_step1_trans (q a b : Pt) (t : ℝ) :
+    infDist (q + t • a) ((fun s : ℝ => q + s • b) '' Ici 0) =
+      infDist (t • a) ((fun s : ℝ => s • b) '' Ici 0) := by
+  have hIsom : Isometry (fun (x : Pt) => x + q) := IsometryEquiv.addRight q |>.isometry
+  have hImg : (fun s : ℝ => q + s • b) '' Ici 0 = (fun (x : Pt) => x + q) '' ((fun s : ℝ => s • b) '' Ici 0) := by
+    ext x
+    simp only [mem_image]
+    constructor
+    · rintro ⟨s, hs, rfl⟩
+      use s • b
+      refine ⟨⟨s, hs, rfl⟩, ?_⟩
+      abel
+    · rintro ⟨y, ⟨s, hs, rfl⟩, rfl⟩
+      use s
+      refine ⟨hs, ?_⟩
+      abel
+  rw [hImg]
+  have hEq : q + t • a = (fun (x : Pt) => x + q) (t • a) := by abel
+  rw [hEq]
+  exact infDist_image hIsom
+
+/-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay_step1_infDist_eq`:
+infDist equals sInf of distances. -/
+private lemma distanceToReflexBoundaryRay_step1_infDist_eq_step2_sInf (a b : Pt) (t : ℝ) :
+    infDist (t • a) ((fun s : ℝ => s • b) '' Ici 0) =
+      sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay`: 
 reduce to `sInf` of `‖t a - s b‖`. -/
 private lemma distanceToReflexBoundaryRay_step1_infDist_eq (q a b : Pt) (t : ℝ) :
     infDist (q + t • a) ((fun s : ℝ => q + s • b) '' Ici 0) =
       sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) := by
-  sorry
+  rw [distanceToReflexBoundaryRay_step1_infDist_eq_step1_trans q a b t]
+  rw [distanceToReflexBoundaryRay_step1_infDist_eq_step2_sInf a b t]
 
 /-- Step 2 of the blueprint proof of `distanceToReflexBoundaryRay`: minimize the quadratic form. -/
 private lemma distanceToReflexBoundaryRay_step2_min_quad (a b : Pt) (ha : ‖a‖ = 1)

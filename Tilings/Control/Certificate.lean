@@ -457,6 +457,12 @@ structure MacroCertificate (P : Protoset) extends MacroData P where
   g6_special_small : ∀ o : toMacroData.SideOcc, special o → kind (form o.1) = .small
   /-- (G6) A small type has a unique special side. -/
   g6_special_unique : ∀ t, kind (form t) = .small → ∃! i, special (toMacroData.occ t i)
+  /-- (G6, review addition, 13 October 2026) The special side of a small type
+  is an inner side (in the construction, the side it shares with the central
+  child).  Without it an outer special side could carry unconstrained copied
+  cells and imitate an inner identity across a fault line, and the assembly
+  of macrotemplates fails (found by codex). -/
+  g6_special_inner : ∀ o : toMacroData.SideOcc, special o → toMacroData.IsInner o
   /-- (G6) The possible fingerprint multisets of two distinct noncentral
   types are disjoint. -/
   g6_fingerprint : ∀ t t', t ≠ t' → ¬ toMacroData.IsCentral t → ¬ toMacroData.IsCentral t' →

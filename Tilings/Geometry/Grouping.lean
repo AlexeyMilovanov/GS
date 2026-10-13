@@ -3712,7 +3712,7 @@ grouping construction guarantees: uniform normalized clearance of the central
 child, at least four private outer edges of every small neighbour, and an
 injective cyclically ordered choice of print slots on distinct small
 neighbours. -/
-structure RoutingSetup (τ : Substitution P) where
+structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
   GS : GroupedSubstitution τ
   c : GS.G.P'.Form → GS.G.P'.Form
   markedSides : ∀ α : GS.G.P'.Form, Finset (Fin (GS.G.P'.disk α).n)
@@ -3729,11 +3729,40 @@ structure RoutingSetup (τ : Substitution P) where
   template is the form itself) -/
   clearance : ∃ ρ : ℝ, 0 < ρ ∧ ∀ l α, 0 < l → ∀ x ∈ (central l α).carrier,
     ρ * τ.θ ^ (GS.k * l) ≤ Metric.infDist x (frontier (retained l α).region)
-  small_private : ∀ l α, 0 < l → ∀ X ∈ (retained l α).children.tiles, X ≠ central l α →
-    SharesSide X (central l α) →
-    4 ≤ {e | HasEdge X e ∧ ∃ Y ∈ (retained l α).children.tiles, (∃ p, Y.form = Sum.inr p) ∧
-      HasEdge Y e ∧ ∀ Z ∈ (retained l α).children.tiles, Z ≠ X →
-        (∃ β, Z.form = Sum.inl β) → Disjoint Y.carrier Z.carrier}.ncard
+  /-- The annular grouping of each retained template (`lem:quantitative-sector`,
+  review addition of 13 October 2026): the central child scatters to the
+  inside-anchored group `L`, the small neighbours scatter to the `4N` annular
+  groups (pieces) between `L` and the outside-anchored group `H`, whose
+  boundary edges adjoin faces reaching the exterior of `K₁ = Q₁ + B∞(3D)`.
+  Without this structure the private faces of a small neighbour could sit in
+  cavities closed off by fewer than four sides, and four disjoint paths cannot
+  exist (Aristotle, project ccb3975c). -/
+  N : GS.G.P'.Form → ℕ
+  R : GS.G.P'.Form → ℝ
+  centre : ℕ → GS.G.P'.Form → Pt
+  N_two : ∀ α, 2 ≤ N α
+  /-- `R ≥ 10000 (K₀ + 3) D`: the collars and radial rays of distinct private
+  edges are separated by more than `10 D` outside `K₁` (`lem:routing`). -/
+  R_large : ∀ α, 10000 * ((M.K0 : ℝ) + 3) * M.D ≤ R α
+  annulus : ∀ l α, 0 < l →
+    AnnularGrouping M (GS.G.mixedScatter (retained l α).children.tiles) (centre l α) (N α) (R α)
+  annulus_inside : ∀ l α (hl : 0 < l),
+    square (centre l α) ((N α : ℝ) * R α / 2 + R α) + Binf (10 * M.D) ⊆
+      interior (retained l α).region
+  central_scatter : ∀ l α (hl : 0 < l),
+    GS.G.mixedScatterTile (central l α) = (annulus l α hl).L.faces
+  small_scatter : ∀ l α (hl : 0 < l), ∀ X ∈ (retained l α).children.tiles, X ≠ central l α →
+    (∃ β, X.form = Sum.inl β) →
+      ∃ j, GS.G.mixedScatterTile X = ((annulus l α hl).spokes.piece j).faces
+  piece_child : ∀ l α (hl : 0 < l) (j : Fin (4 * N α)),
+    ∃ X ∈ (retained l α).children.tiles, X ≠ central l α ∧
+      GS.G.mixedScatterTile X = ((annulus l α hl).spokes.piece j).faces
+  /-- Four private outer edges of every annular group in separated windows
+  (`lem:routing`: windows at relative parameters `0.30, 0.43, 0.57, 0.70` of
+  the outer boundary), pairwise at distance at least `R / 10`. -/
+  windows : ∀ l α (hl : 0 < l) (j : Fin (4 * N α)), ∃ e : Fin 4 → Set Pt,
+    (∀ i, e i ∈ privateOuterEdges (annulus l α hl) j) ∧
+      ∀ i i', i ≠ i' → ∀ x ∈ e i, ∀ y ∈ e i', R α / 10 ≤ dist x y
   print_slots : ∀ l α, 0 < l → ∃ (f : Fin (GS.G.P'.disk α).n → Fin (GS.G.mixed.disk (central l α).form).n)
     (g : Fin (GS.G.P'.disk α).n → PlacedTile GS.G.mixed),
     Set.InjOn f (markedSides α : Set _) ∧ Set.InjOn g (markedSides α : Set _) ∧
@@ -3745,7 +3774,7 @@ structure RoutingSetup (τ : Substitution P) where
 for which every retained `σ^l`-template carries routing data (G4), including
 the inner-side clause. -/
 theorem existsRoutingAfterPower (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P)
-    (Rs : RoutingSetup τ) :
+    (Rs : RoutingSetup τ M) :
     ∀ n₀ : ℕ, ∃ l ≥ n₀, 0 < l ∧ Rs.c^[2 * l] = Rs.c^[l] ∧
       ∀ α, Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
         (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by

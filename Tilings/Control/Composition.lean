@@ -2807,11 +2807,17 @@ theorem alignment_complete (c : MacroCertificate P) (hH : c.Hereditary)
   refine ⟨j', hneq, e, hmacro, ?_⟩
   exact alignment_complete_step2_subdivision_eq c hH T part hT hL j j' hneq d e hrank hmode hmacro
 
-/-- Step 1 of the blueprint proof of `composed_proper`: reconstruction gives a plane tiling. -/
+/-- Step 1 of the blueprint proof of `composed_proper`: reconstruction gives a plane tiling.
+("Assembly partitions the plane into the macroblocks.  Their underlying polygons are scaled
+parent polygons, so replacing and scaling them preserves coverage and disjoint interiors.")
+Properness and legality of `T` make every block a `BlockContext`, so `boundary_header_constant`
+gives each block a common header whose type has the block's form; the reconstructed parent of
+that type has the scaled-down block polygon. -/
 private lemma composed_proper_step1_reconstruction (c : MacroCertificate P) (hH : c.Hereditary)
-    (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T) :
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T) :
     ∃ T' : PlaneTiling (typedDecoration c), IsReconstruction c part T' := by
-  have _ := hH
+  have _ := hH; have _ := hT; have _ := hL
   sorry
 
 /-- Step 2 of the blueprint proof of `composed_proper`: exact repaired decomposition follows
@@ -2857,7 +2863,7 @@ theorem composed_proper (c : MacroCertificate P) (hH : c.Hereditary)
         InnerActive c (tileDec X)) ∧
       IsExactComposition c T' T := by
   have ⟨part⟩ := assembleMacrotemplates_of_legal c hH T hT hL
-  have ⟨T', hrec⟩ := composed_proper_step1_reconstruction c hH T part
+  have ⟨T', hrec⟩ := composed_proper_step1_reconstruction c hH T hT hL part
   exact ⟨part, T', hrec,
     composed_proper_step4_proper c hH T hT hL part T' hrec,
     composed_proper_step3_properties c hH T hT hL part T' hrec,
@@ -3027,101 +3033,67 @@ private lemma reconstructed_acyclic_legal_step3_cyclic {P : Protoset}
   have _ := hex; have _ := hY; have _ := hcyc; have _ := hctx
   sorry
 
-/-- Step 4 of the blueprint proof of `reconstructed_acyclic_legal`:
-Applying the full repaired reconstruction and exactness lemmas gives a normal
-parent $C$ of type $r$, with $D$ its central child. -/
+/-- Step 4 of the blueprint proof of `reconstructed_acyclic_legal`: "Let `D` be such a parent,
+of type `t`, and let `A` be its original legal central child."  By exactness of the composition
+(`hex`, `lem:comp/exact`), the child of `D = tileDec X` of the central type of its form is a
+tile of `T`, hence legal, and it is a child of `D` under the repaired substitution.  (The
+second-level parent `C` of type `r` of the blueprint enters the argument only through its
+form, which is the owner form of `t`: see step 5.) -/
 private lemma reconstructed_acyclic_legal_step4_parent {P : Protoset}
-    (c : MacroCertificate P) (hH : c.Hereditary)
-    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
-    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
-    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
-    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
-    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
-      InnerActive c (tileDec X))
-    (hex : IsExactComposition c T' T)
-    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
-    (hctx : ∀ j, BlockContext c (part.block j)) :
-    ∃ (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side),
-      CommonHeader c (part.block j) h ∧
-      tileDec X = reconstruct c (part.block j) (tileDec X).typ ∧
-      IsExactBlockOf c (part.block j) (reconstruct c (part.block j) h.1) ∧
-      IsNormal c (reconstruct c (part.block j) h.1) := by
-  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
-  have _ := hex; have _ := hX; have _ := hctx
-  sorry
+    (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c))
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (T' : PlaneTiling (typedDecoration c))
+    (hex : IsExactComposition c T' T) (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles) :
+    ∃ A : DecTile c, IsChildOf c (tileDec X) A ∧ A.typ = c.central (c.form (tileDec X).typ) ∧
+      headerLegal c A := by
+  obtain ⟨blk, hblk, hcov⟩ := hex
+  obtain ⟨⟨hform, hchild⟩, -⟩ := hblk ⟨X, hX⟩
+  refine ⟨(blk ⟨X, hX⟩).tileOf (c.central (blk ⟨X, hX⟩).α),
+    hchild _ (c.g5_central_owner _), congrArg c.central hform.symm, ?_⟩
+  have hmem : (blk ⟨X, hX⟩).placed (c.central (blk ⟨X, hX⟩).α) ∈ T.tiles := by
+    rw [hcov]
+    exact Set.mem_iUnion.2 ⟨⟨X, hX⟩, c.central _, c.g5_central_owner _, rfl⟩
+  exact hL _ hmem
 
 /-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step5_parent_noncentral`:
-If the type `r` of `C` were central, it and its central child `t` would have the same large form. -/
-private lemma reconstructed_acyclic_legal_step5_parent_noncentral_step1_same_large_form {P : Protoset}
-    (c : MacroCertificate P) (hH : c.Hereditary)
-    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
-    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
-    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
-    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
-    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
-      InnerActive c (tileDec X))
-    (hex : IsExactComposition c T' T)
-    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
-    (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
-    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
-    (hh : CommonHeader c (part.block j) h)
-    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
-    (h_parent_cent : c.IsCentral h.1) :
-    c.form h.1 = c.form (tileDec X).typ := by sorry
+"If it were central, its large form would be fixed by the central-child form map.  It and its
+central child `t` would have the same large form": if the owner form of the central type `t`
+(the form of the parent `C`) were large, then `form t = owner t`. -/
+private lemma reconstructed_acyclic_legal_step5_parent_noncentral_step1_same_large_form
+    {P : Protoset} (c : MacroCertificate P) {t : c.Typ} (hcent : c.IsCentral t)
+    (h_large : c.kind (c.owner t) = .large) : c.form t = c.owner t := by
+  have h1 := c.g5_central_fixes_large _ h_large
+  rw [hcent] at h1
+  exact h1
 
 /-- Step 2 of the blueprint proof of `reconstructed_acyclic_legal_step5_parent_noncentral`:
-If `r` and `t` have the same large form, then `t` is cyclic. -/
-private lemma reconstructed_acyclic_legal_step5_parent_noncentral_step2_cyclic {P : Protoset}
-    (c : MacroCertificate P) (hH : c.Hereditary)
-    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
-    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
-    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
-    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
-    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
-      InnerActive c (tileDec X))
-    (hex : IsExactComposition c T' T)
-    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
-    (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
-    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
-    (hh : CommonHeader c (part.block j) h)
-    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
-    (h_parent_cent : c.IsCentral h.1)
-    (h_same_form : c.form h.1 = c.form (tileDec X).typ) :
-    c.IsCyclic (tileDec X).typ := by sorry
+"and hence the same central child type, making `t` cyclic": a central type whose form is its
+owner form is cyclic. -/
+private lemma reconstructed_acyclic_legal_step5_parent_noncentral_step2_cyclic
+    {P : Protoset} (c : MacroCertificate P) {t : c.Typ} (hcent : c.IsCentral t)
+    (h_same_form : c.form t = c.owner t) : c.IsCyclic t := by
+  show c.central (c.form t) = t
+  rw [h_same_form]
+  exact hcent
 
-/-- Step 5 of the blueprint proof of `reconstructed_acyclic_legal`:
-The type $r$ of $C$ is noncentral. If it were central, it and its central
-child $t$ would have the same large form, making $t$ cyclic, contradicting
-the assumption on $D$. -/
+/-- Step 5 of the blueprint proof of `reconstructed_acyclic_legal`: "The type `r` is
+noncentral.  If it were central, its large form would be fixed by the central-child form map.
+It and its central child `t` would have the same large form, and hence the same central child
+type, making `t` cyclic.  This contradicts the assumption on `D`."  The parent `C` of `D` has
+form `owner t`, and by `g5_large_iff` its type `r` is noncentral exactly when this form is not
+large; the step is therefore the statement that the owner form of the central acyclic type `t`
+is not large. -/
 private lemma reconstructed_acyclic_legal_step5_parent_noncentral {P : Protoset}
-    (c : MacroCertificate P) (hH : c.Hereditary)
-    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
-    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
-    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
-    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
-    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
-      InnerActive c (tileDec X))
-    (hex : IsExactComposition c T' T)
-    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
-    (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
-    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
-    (hh : CommonHeader c (part.block j) h)
-    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ) :
-    ¬ c.IsCentral h.1 := by
-  intro h_parent_cent
-  have h_same_form :=
-    reconstructed_acyclic_legal_step5_parent_noncentral_step1_same_large_form c hH T hT hL part T'
-      hrec hT' hN hex X hX hcent hcyc j h hh heq h_parent_cent
-  have h_is_cyclic :=
-    reconstructed_acyclic_legal_step5_parent_noncentral_step2_cyclic c hH T hT hL part T'
-      hrec hT' hN hex X hX hcent hcyc j h hh heq h_parent_cent h_same_form
-  exact hcyc h_is_cyclic
+    (c : MacroCertificate P) {t : c.Typ} (hcent : c.IsCentral t) (hcyc : ¬ c.IsCyclic t) :
+    c.kind (c.owner t) ≠ .large := by
+  intro h_large
+  exact hcyc (reconstructed_acyclic_legal_step5_parent_noncentral_step2_cyclic c hcent
+    (reconstructed_acyclic_legal_step5_parent_noncentral_step1_same_large_form c hcent h_large))
 
 /-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step6_main`:
 The origin argument from the noncentral legality lemma shows that a legal
-ancestry chain of `A` reaches a noncentral type. Removing cyclic repetitions
-and checking forms gives length exactly two: `A <- E <- F`, where `E, F` are
-legal, `F` is noncentral, `E` is central, and `E, D` have the same form. -/
+ancestry chain of `A` (the legal central child of `D = tileDec X`, step 4) reaches a noncentral
+type. Removing cyclic repetitions and checking forms gives length exactly two: `A <- E <- F`,
+where `E, F` are legal, `F` is noncentral, `E` is central, and `E, D` have the same form. -/
 private lemma reconstructed_acyclic_legal_step6_main_step1_chain {P : Protoset}
     (c : MacroCertificate P) (hH : c.Hereditary)
     (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
@@ -3133,15 +3105,13 @@ private lemma reconstructed_acyclic_legal_step6_main_step1_chain {P : Protoset}
     (hex : IsExactComposition c T' T)
     (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
     (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
-    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
-    (hh : CommonHeader c (part.block j) h)
-    (h_parent_nc : ¬ c.IsCentral h.1)
-    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
-    (hctx : BlockContext c (part.block j))
+    (A : DecTile c) (hXA : IsChildOf c (tileDec X) A)
+    (hAtyp : A.typ = c.central (c.form (tileDec X).typ)) (hAleg : headerLegal c A)
+    (hown : c.kind (c.owner (tileDec X).typ) ≠ .large)
     (h_other_nc : ∀ Y ∈ T'.tiles, ¬ c.IsCentral (tileDec Y).typ → headerLegal c (tileDec Y))
     (h_other_cyc : ∀ Y ∈ T'.tiles, c.IsCyclic (tileDec Y).typ → headerLegal c (tileDec Y)) :
     ∃ E F : DecTile c,
-      IsChildOf c E ((part.block j).tileOf (c.central (part.block j).α)) ∧
+      IsChildOf c E A ∧
       IsChildOf c F E ∧
       headerLegal c E ∧
       headerLegal c F ∧
@@ -3153,7 +3123,10 @@ private lemma reconstructed_acyclic_legal_step6_main_step1_chain {P : Protoset}
 The parents `E, D` have the same form and agree in their marked first-four
 fields through `A`. A counting argument on the occurrences of `t` in their
 identities, using $L-Q > 2Q$, implies that `E` also has type `t`. Normal
-local cells and the marked copied cells then identify `E = D`. -/
+local cells and the marked copied cells then identify `E = D`.  Here `D = tileDec X` and `E`
+are both parents of the central child `A` of `D`; at most `Q` sides of `t` are prints because
+the owner form of `t` (the form of the parent `C`) is not large (`hown`, step 5), and `E` is
+acyclic because its parent `F` is noncentral. -/
 private lemma reconstructed_acyclic_legal_step6_main_step2_eq {P : Protoset}
     (c : MacroCertificate P) (hH : c.Hereditary)
     (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
@@ -3165,15 +3138,13 @@ private lemma reconstructed_acyclic_legal_step6_main_step2_eq {P : Protoset}
     (hex : IsExactComposition c T' T)
     (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
     (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
-    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
-    (hh : CommonHeader c (part.block j) h)
-    (h_parent_nc : ¬ c.IsCentral h.1)
-    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
-    (hctx : BlockContext c (part.block j))
+    (A : DecTile c) (hXA : IsChildOf c (tileDec X) A)
+    (hAtyp : A.typ = c.central (c.form (tileDec X).typ)) (hAleg : headerLegal c A)
+    (hown : c.kind (c.owner (tileDec X).typ) ≠ .large)
     (h_other_nc : ∀ Y ∈ T'.tiles, ¬ c.IsCentral (tileDec Y).typ → headerLegal c (tileDec Y))
     (h_other_cyc : ∀ Y ∈ T'.tiles, c.IsCyclic (tileDec Y).typ → headerLegal c (tileDec Y))
     (E F : DecTile c)
-    (hE_child : IsChildOf c E ((part.block j).tileOf (c.central (part.block j).α)))
+    (hE_child : IsChildOf c E A)
     (hF_child : IsChildOf c F E)
     (hE_legal : headerLegal c E)
     (hF_legal : headerLegal c F)
@@ -3181,45 +3152,7 @@ private lemma reconstructed_acyclic_legal_step6_main_step2_eq {P : Protoset}
     (hF_nc : ¬ c.IsCentral F.typ)
     (hE_form : c.form E.typ = c.form (tileDec X).typ) :
     E = tileDec X := by
-  have _ := hH
-  have _ := hT
-  have _ := hL
-  have _ := hrec
-  have _ := hT'
-  have _ := hN
-  have _ := hex
-  have _ := X
-  have _ := hX
-  have _ := hcent
-  have _ := hcyc
-  have _ := j
-  have _ := heq
-  have _ := hctx
-  have _ := h_other_nc
-  have _ := h_other_cyc
-  have _ := F
-  have _ := hF_child
-  have _ := hE_legal
-  have _ := hF_legal
-  have _ := hF_nc
-  have _ := hE_form
-  have h1 : c.owner ((part.block j).tileOf (c.central (part.block j).α)).typ =
-      c.form E.typ := hE_child.1
-  have h2 : c.form h.1 = (part.block j).α := hh.1
-  have h3 : ((part.block j).tileOf (c.central (part.block j).α)).typ =
-      c.central (part.block j).α := rfl
-  have h4 : c.owner (c.central (part.block j).α) = (part.block j).α :=
-    c.g5_central_owner _
-  rw [h3] at h1
-  rw [h4] at h1
-  have hlargeE : c.kind (c.form E.typ) = .large :=
-    (c.g5_large_iff E.typ).2 hE_cent.symm
-  have hlargeH : c.kind (c.form h.1) = .large := by
-    rw [h2, h1]
-    exact hlargeE
-  have hcentralH : h.1 = c.central (c.owner h.1) :=
-    (c.g5_large_iff h.1).1 hlargeH
-  exact (h_parent_nc hcentralH.symm).elim
+  sorry
 
 /-- Step 6 of the blueprint proof of `reconstructed_acyclic_legal`:
 The central acyclic reconstructed parent is legal because its ancestry
@@ -3235,19 +3168,17 @@ private lemma reconstructed_acyclic_legal_step6_main {P : Protoset}
     (hex : IsExactComposition c T' T)
     (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
     (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
-    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
-    (hh : CommonHeader c (part.block j) h)
-    (h_parent_nc : ¬ c.IsCentral h.1)
-    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
-    (hctx : BlockContext c (part.block j))
+    (A : DecTile c) (hXA : IsChildOf c (tileDec X) A)
+    (hAtyp : A.typ = c.central (c.form (tileDec X).typ)) (hAleg : headerLegal c A)
+    (hown : c.kind (c.owner (tileDec X).typ) ≠ .large)
     (h_other_nc : ∀ Y ∈ T'.tiles, ¬ c.IsCentral (tileDec Y).typ → headerLegal c (tileDec Y))
     (h_other_cyc : ∀ Y ∈ T'.tiles, c.IsCyclic (tileDec Y).typ → headerLegal c (tileDec Y)) :
     headerLegal c (tileDec X) := by
   obtain ⟨E, F, hE_child, hF_child, hE_legal, hF_legal, hE_cent, hF_nc, hE_form⟩ :=
     reconstructed_acyclic_legal_step6_main_step1_chain c hH T hT hL part T' hrec hT' hN hex
-      X hX hcent hcyc j h hh h_parent_nc heq hctx h_other_nc h_other_cyc
+      X hX hcent hcyc A hXA hAtyp hAleg hown h_other_nc h_other_cyc
   have hE_eq_D := reconstructed_acyclic_legal_step6_main_step2_eq c hH T hT hL part T' hrec hT'
-    hN hex X hX hcent hcyc j h hh h_parent_nc heq hctx h_other_nc h_other_cyc E F hE_child hF_child
+    hN hex X hX hcent hcyc A hXA hAtyp hAleg hown h_other_nc h_other_cyc E F hE_child hF_child
     hE_legal hF_legal hE_cent hF_nc hE_form
   rwa [← hE_eq_D]
 
@@ -3266,11 +3197,8 @@ theorem reconstructed_acyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
   intro X hX hcent hcyc
   have hctx : ∀ j, BlockContext c (part.block j) :=
     reconstructed_acyclic_legal_step1_block_context c hH T hT hL part T' hex
-  have hparent := reconstructed_acyclic_legal_step4_parent c hH T hT hL part T' hrec hT' hN hex
-    X hX hctx
-  rcases hparent with ⟨j, h, hh, heq, _hexact, _hnorm⟩
-  have h_parent_nc := reconstructed_acyclic_legal_step5_parent_noncentral c hH T hT hL part T'
-    hrec hT' hN hex X hX hcent hcyc j h hh heq
+  obtain ⟨A, hXA, hAtyp, hAleg⟩ := reconstructed_acyclic_legal_step4_parent c T hL T' hex X hX
+  have hown := reconstructed_acyclic_legal_step5_parent_noncentral c hcent hcyc
   have h_other_nc : ∀ Y ∈ T'.tiles, ¬ c.IsCentral (tileDec Y).typ → headerLegal c (tileDec Y) :=
     fun Y hY hnc => reconstructed_acyclic_legal_step2_noncentral c hH T hT hL part T' hrec hT'
       hN hex Y hY hnc hctx
@@ -3278,7 +3206,7 @@ theorem reconstructed_acyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
     fun Y hY hcyc' => reconstructed_acyclic_legal_step3_cyclic c hH T hT hL part T' hrec hT'
       hN hex Y hY hcyc' hctx
   exact reconstructed_acyclic_legal_step6_main c hH T hT hL part T' hrec hT' hN hex X hX hcent
-    hcyc j h hh h_parent_nc heq (hctx j) h_other_nc h_other_cyc
+    hcyc A hXA hAtyp hAleg hown h_other_nc h_other_cyc
 
 /-- `thm:compose` (the repaired composition theorem): for a macrotemplate
 system with a certificate and hereditary listed sides, every proper legal

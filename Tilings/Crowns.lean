@@ -6965,7 +6965,26 @@ theorem flcUniformCrownCover (τ : Substitution P) (h : τ.FLC) :
       (∀ (n : ℕ) (p : P.Form) (S : Set Pt), Bornology.IsBounded S → diam S < ε →
         ∃ v, IsVertexOf (τ.supertile n p) v ∧
           S ∩ support (τ.supertile n p) ⊆ support (crown (τ.supertile n p) v)) := by
-  sorry
+  have hCat := isCatalogue_pointedCatalogue τ h
+  rcases uniformCrownCoverPlane hCat with ⟨ε1, hε1_pos, hPlane⟩
+  rcases uniformCrownCoverSupertile hCat with ⟨ε2, hε2_pos, hSuper⟩
+  use min ε1 ε2
+  refine ⟨lt_min hε1_pos hε2_pos, ?_, ?_⟩
+  · intro T hT S hS_bound hS_diam
+    apply hPlane T
+    · intro v hv
+      exact hT v hv
+    · exact hS_bound
+    · exact lt_of_lt_of_le hS_diam (min_le_left ε1 ε2)
+  · intro n p S hS_bound hS_diam
+    have hAll : AllCrownsIn (pointedCatalogue τ)
+        (supertileMacro τ n p).tiles := by
+      intro v hv
+      unfold Represented pointedCatalogue
+      simp only [mem_setOf_eq]
+      exact ⟨n, p, v, hv, rfl⟩
+    exact hSuper (supertileMacro τ n p) hAll S hS_bound
+      (lt_of_lt_of_le hS_diam (min_le_right ε1 ε2))
 
 end Crowns
 

@@ -485,12 +485,36 @@ private def finite_neighbourhoods_CrownContexts (τ : Substitution P) (k : ℕ) 
   {N | ∃ K, τ.IsAllowedCrown K ∧ ∃ S ⊆ τ.decomposeIter k K, ∃ A ∈ S,
     N = (A.form, translateSet (-A.anchor) S)}
 
+/-- The frozen statement below names its proof-irrelevant bound witness. -/
+@[unused_variables_ignore_fn]
+private meta def finite_neighbourhoods_step6_ignoreUnused : Lean.Linter.IgnoreFunction :=
+  fun stx stack _ => stx.getId == `hn &&
+    stack.matches [``Lean.binderIdent, `null, ``Lean.bracketedExplicitBinders,
+      `null, ``Lean.explicitBinders]
+
 /-- Step 6 of the blueprint proof of `finite_neighbourhoods`: orders n < k
 have finitely many possibilities directly. -/
 private lemma finite_neighbourhoods_step6 (τ : Substitution P) (k : ℕ) :
     {N | ∃ (n : ℕ) (hn : n < k) (p : P.Form), ∃ A ∈ τ.supertile n p,
       N = (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))}.Finite := by
-  sorry
+  have h_eq : {N | ∃ (n : ℕ) (hn : n < k) (p : P.Form), ∃ A ∈ τ.supertile n p,
+      N = (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))} =
+      ⋃ (n ∈ {m : ℕ | m < k}) (p : P.Form),
+        (fun A => (A.form,
+          translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A))) '' τ.supertile n p := by
+    ext N
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_image, exists_prop]
+    constructor
+    · rintro ⟨n, hn, p, A, hA, rfl⟩
+      exact ⟨n, hn, p, A, hA, rfl⟩
+    · rintro ⟨n, hn, p, A, hA, rfl⟩
+      exact ⟨n, hn, p, A, hA, rfl⟩
+  rw [h_eq]
+  apply Set.Finite.biUnion (Set.finite_lt_nat k)
+  intro n _hn
+  refine Set.finite_iUnion ?_
+  intro p
+  exact Set.Finite.image _ (Crowns.supertile_finite τ n p)
 
 private lemma finite_neighbourhoods_step5_decomposeTile_finite (τ : Substitution P)
     (A : PlacedTile P) : (τ.decomposeTile A).Finite :=

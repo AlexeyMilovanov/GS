@@ -2606,6 +2606,24 @@ private lemma reconstructed_acyclic_legal_step1_block_context {P : Protoset}
   · intro t ht htc
     apply hL (K.placed t) (hmem t ht)
 
+/-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step2_noncentral`:
+Recover the common header of the block that reconstructs a noncentral tile. -/
+private lemma reconstructed_acyclic_legal_step2_noncentral_step1_common_header
+    {P : Protoset} (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ T'.tiles)
+    (j : part.ι) (hj : (part.block j).v = c.σ.θ • Y.anchor)
+    (heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ)
+    (hctx : BlockContext c (part.block j)) :
+    CommonHeader c (part.block j) (headerOf c (tileDec Y)) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `reconstructed_acyclic_legal`: 
 Every noncentral tile of `T'` is already legal. -/
 private lemma reconstructed_acyclic_legal_step2_noncentral {P : Protoset}
@@ -2621,9 +2639,21 @@ private lemma reconstructed_acyclic_legal_step2_noncentral {P : Protoset}
     (hnc : ¬ c.IsCentral (tileDec Y).typ)
     (hctx : ∀ j, BlockContext c (part.block j)) :
     headerLegal c (tileDec Y) := by
-  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
-  have _ := hex; have _ := hY; have _ := hnc; have _ := hctx
-  sorry
+  obtain ⟨j, hj, heq⟩ := hrec.1 Y hY
+  have hh := reconstructed_acyclic_legal_step2_noncentral_step1_common_header c hH T hT hL part T'
+    hrec hT' hN hex Y hY j hj heq (hctx j)
+  have hA : headerLegal c (part.block j).centre := by
+    have hmem : (part.block j).placed (c.central (part.block j).α) ∈ T.tiles := by
+      rw [← part.cover]
+      refine Set.mem_iUnion.2 ⟨j, ?_⟩
+      change ∃ t, c.owner t = (part.block j).α ∧
+        (part.block j).placed (c.central (part.block j).α) = (part.block j).placed t
+      exact ⟨c.central (part.block j).α, c.g5_central_owner _, rfl⟩
+    exact hL _ hmem
+  have hleg := reconstructed_noncentral_legal c hH (part.block j) (hctx j)
+    (headerOf c (tileDec Y)) hh hA hnc
+  rw [heq]
+  exact hleg
 
 /-- Step 3 of the blueprint proof of `reconstructed_acyclic_legal`:
 Every cyclic tile of `T'` is already legal. -/

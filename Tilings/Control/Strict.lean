@@ -1466,17 +1466,328 @@ theorem strictLegal_properties (A : StrictDecTile C hC) (hA : StrictLegal C hC A
       A.cell i 2 = A.cell i' 2) := by
   sorry
 
-/-- `lem:comp/assembly` (strict variant): a strictly matched plane tiling of normal
-identity-correct typed tiles admits a partition into positioned `σ'` macrotemplates.  Inner
-identities force the neighbours exactly as in the flexible proof; strict matching replaces
-the nontrivial-side rule (every side has a coincident side, and a schedule fourth cell with
-fifth cell zero can match only another outer side). -/
+private theorem strict_assembleMacrotemplates_identNeZero (e : C.EdgeId) :
+    identSU C hC e ≠ 0 := by
+  simp [identSU]
+
+private theorem strict_assembleMacrotemplates_identInj {e e' : C.EdgeId}
+    (h : identSU C hC e = identSU C hC e') : e = e' := by
+  simpa [identSU] using h
+
+private theorem strict_assembleMacrotemplates_isLocalFour (o : C.SideOcc) :
+    IsStrictLocal C o 4 := by
+  apply Or.inl
+  by_cases hm : C.IsMarked o
+  · by_cases hs : C.special o ∨ C.IsPrint o
+    · exact Or.inr (Or.inl ⟨hm, hs, rfl⟩)
+    · push_neg at hs
+      exact Or.inr (Or.inr ⟨hm, ⟨hs.1, hs.2⟩, Or.inr rfl⟩)
+  · exact Or.inl hm
+
+private theorem strict_assembleMacrotemplates_cellFourPrint {A : StrictDecTile C hC}
+    (hA : IsStrictNormal C hC A) (i : C.Side A.typ) (hp : C.IsPrint (C.occ A.typ i)) :
+    A.cell i 4 = identSU C hC (C.edge (C.occ A.typ i)) := by
+  rw [hA i 4 (strict_assembleMacrotemplates_isLocalFour C _)]
+  simp [strictPrescribedCell, hp]
+
+private theorem strict_assembleMacrotemplates_cellFourNonprint {A : StrictDecTile C hC}
+    (hA : IsStrictNormal C hC A) (i : C.Side A.typ) (hp : ¬ C.IsPrint (C.occ A.typ i)) :
+    A.cell i 4 = 0 := by
+  rw [hA i 4 (strict_assembleMacrotemplates_isLocalFour C _)]
+  simp [strictPrescribedCell, hp]
+
+private theorem strict_assembleMacrotemplates_printInner {o : C.SideOcc} (hp : C.IsPrint o) :
+    C.IsInner o := by
+  obtain ⟨d, hd⟩ := hp
+  exact isInner_of_isPrintOf C hd
+
+private theorem strict_assembleMacrotemplates_cellZeroOuter {A : StrictDecTile C hC}
+    (hA : IsStrictNormal C hC A) (i : C.Side A.typ) (ho : C.IsOuter (C.occ A.typ i)) :
+    A.cell i 0 = 0 := by
+  have hloc : IsStrictLocal C (C.occ A.typ i) 0 := by
+    apply Or.inl
+    by_cases hm : C.IsMarked (C.occ A.typ i)
+    · exact Or.inr (Or.inr ⟨hm, ⟨fun hs => C.g6_special_inner _ hs ho,
+        fun hp => strict_assembleMacrotemplates_printInner C hp ho⟩, Or.inl rfl⟩)
+    · exact Or.inl hm
+  rw [hA _ 0 hloc]
+  have hni : ¬ C.IsInner (C.occ A.typ i) := fun h => h ho
+  simp [strictPrescribedCell, hni]
+
+private theorem strict_assembleMacrotemplates_match {A B : StrictDecTile C hC}
+    (hA : IsStrictNormal C hC A ∧ IsStrictIdentityCorrect C hC A)
+    (hB : IsStrictNormal C hC B ∧ IsStrictIdentityCorrect C hC B)
+    (i : C.Side A.typ) (j : C.Side B.typ) (hi : C.IsInner (C.occ A.typ i))
+    (hc : ∀ k, B.cell j k = A.cell i k) :
+    C.IsInner (C.occ B.typ j) ∧ C.edge (C.occ B.typ j) = C.edge (C.occ A.typ i) := by
+  by_cases hp : C.IsPrint (C.occ A.typ i)
+  · have h4 : A.cell i 4 = identSU C hC (C.edge (C.occ A.typ i)) := (hA.2 i).2 hp
+    by_cases hq : C.IsPrint (C.occ B.typ j)
+    · refine ⟨strict_assembleMacrotemplates_printInner C hq,
+        strict_assembleMacrotemplates_identInj C hC ?_⟩
+      rw [← strict_assembleMacrotemplates_cellFourPrint C hC hB.1 j hq, hc 4, h4]
+    · exfalso
+      have h5 := strict_assembleMacrotemplates_cellFourNonprint C hC hB.1 j hq
+      rw [hc 4, h4] at h5
+      exact strict_assembleMacrotemplates_identNeZero C hC _ h5
+  · have h0 : A.cell i 0 = identSU C hC (C.edge (C.occ A.typ i)) := (hA.2 i).1 hi hp
+    have hq : ¬ C.IsPrint (C.occ B.typ j) := by
+      intro hq
+      have h5 := strict_assembleMacrotemplates_cellFourPrint C hC hB.1 j hq
+      rw [hc 4, strict_assembleMacrotemplates_cellFourNonprint C hC hA.1 i hp] at h5
+      exact strict_assembleMacrotemplates_identNeZero C hC _ h5.symm
+    have hin : C.IsInner (C.occ B.typ j) := by
+      intro ho
+      have h5 := strict_assembleMacrotemplates_cellZeroOuter C hC hB.1 j ho
+      rw [hc 0, h0] at h5
+      exact strict_assembleMacrotemplates_identNeZero C hC _ h5
+    refine ⟨hin, strict_assembleMacrotemplates_identInj C hC ?_⟩
+    rw [← (hB.2 j).1 hin hq, hc 0, h0]
+
+private theorem strict_assembleMacrotemplates_isCompactSegment (x y : Pt) :
+    IsCompact (segment ℝ x y) := by
+  rw [segment_eq_image']
+  exact isCompact_Icc.image (by fun_prop)
+
+private theorem strict_assembleMacrotemplates_vaddCancel {S : Set Pt} (hS : IsCompact S)
+    (hne : S.Nonempty) {a b : Pt} (h : a +ᵥ S = b +ᵥ S) : a = b := by
+  obtain ⟨x0, hx0, hmax⟩ := hS.exists_isMaxOn hne
+    ((continuous_id.inner continuous_const :
+      Continuous fun x : Pt => inner ℝ x (a - b)).continuousOn)
+  have h1 : a +ᵥ x0 ∈ b +ᵥ S := h ▸ Set.vadd_mem_vadd_set hx0
+  obtain ⟨y, hy, hxy⟩ := h1
+  have hy' : y = (a - b) + x0 := by
+    simp only [vadd_eq_add] at hxy
+    rw [sub_add_eq_add_sub, ← hxy]
+    abel
+  have h2 := hmax hy
+  simp only [Set.mem_setOf_eq, id] at h2
+  rw [hy', inner_add_left, real_inner_self_eq_norm_sq] at h2
+  have h3 : ‖a - b‖ = 0 := by nlinarith [norm_nonneg (a - b)]
+  exact sub_eq_zero.mp (norm_eq_zero.mp h3)
+
+/-- The placed segment of a side occurrence translated by `a` (strict variant). -/
+private def strict_assembleMacrotemplates_side (a : Pt) (o : C.SideOcc) : Set Pt :=
+  a +ᵥ (C.Q.disk (C.form o.1)).side o.2
+
+private theorem strict_assembleMacrotemplates_sideCancel {a b : Pt} {o : C.SideOcc}
+    (h : strict_assembleMacrotemplates_side C a o =
+      strict_assembleMacrotemplates_side C b o) : a = b :=
+  strict_assembleMacrotemplates_vaddCancel
+    (strict_assembleMacrotemplates_isCompactSegment _ _) ⟨_, left_mem_segment ℝ _ _⟩ h
+
+private theorem strict_assembleMacrotemplates_innerOfOccSide {o o' : C.SideOcc}
+    (ho : C.IsInner o) (hown : C.owner o'.1 = C.owner o.1) (hs : C.occSide o' = C.occSide o) :
+    C.IsInner o' := by
+  unfold MacroData.IsInner MacroData.IsOuter at *
+  rwa [hs, hown]
+
+private theorem strict_assembleMacrotemplates_partner {s s' : C.Typ} (i : C.Side s)
+    (j : C.Side s') (hown : C.owner s' = C.owner s) (hne : s' ≠ s)
+    (hi : C.IsInner (C.occ s i)) (hs : C.occSide (C.occ s' j) = C.occSide (C.occ s i)) :
+    s' = (C.partner (C.occ s i)).1 :=
+  congrArg Sigma.fst (C.g1_side_unique (C.occ s i) (C.occ s' j) hi hown hne hs)
+
+private theorem strict_assembleMacrotemplates_tileUnique
+    {T : PlaneTiling (strictProtoset C hC)} {X Y : PlacedTile (strictProtoset C hC)}
+    (hX : X ∈ T.tiles) (hY : Y ∈ T.tiles) {A B : StrictDecTile C hC}
+    (hXA : X.form = StrictForm.typed A) (hYB : Y.form = StrictForm.typed B)
+    (ht : A.typ = B.typ) (ha : X.anchor = Y.anchor) : X = Y := by
+  by_contra hne
+  have hd : Disjoint (interior X.carrier) (interior Y.carrier) := T.disjoint hX hY hne
+  have hXc : X.carrier = X.anchor +ᵥ (C.Q.disk (C.form A.typ)).carrier := by
+    simp only [PlacedTile.carrier, hXA, StrictForm.proj]
+  have hYc : Y.carrier = Y.anchor +ᵥ (C.Q.disk (C.form A.typ)).carrier := by
+    simp only [PlacedTile.carrier, hYB, StrictForm.proj, ht]
+  rw [hXc, hYc, ha] at hd
+  obtain ⟨z, hz⟩ := (C.Q.disk (C.form A.typ)).interior_nonempty
+  have hz' : Y.anchor +ᵥ z ∈ interior (Y.anchor +ᵥ (C.Q.disk (C.form A.typ)).carrier) := by
+    rw [interior_vadd]; exact Set.vadd_mem_vadd_set hz
+  exact Set.disjoint_left.1 hd hz' hz'
+
+private theorem strict_assembleMacrotemplates_neighbour
+    {T : PlaneTiling (strictProtoset C hC)} (hT : IsStrictMatched C hC T)
+    (hN : ∀ X ∈ T.tiles, ∃ A, X.form = StrictForm.typed A ∧ IsStrictNormal C hC A ∧
+      IsStrictIdentityCorrect C hC A) {A : StrictDecTile C hC} {a : Pt}
+    (hX : (⟨StrictForm.typed A, a⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles)
+    (i : C.Side A.typ) (hi : C.IsInner (C.occ A.typ i)) :
+    ∃ B : StrictDecTile C hC, B.typ = (C.partner (C.occ A.typ i)).1 ∧
+      (⟨StrictForm.typed B, a - C.anchor A.typ + C.anchor (C.partner (C.occ A.typ i)).1⟩ :
+        PlacedTile (strictProtoset C hC)) ∈ T.tiles := by
+  obtain ⟨A0, hXA0, hNA, hIA⟩ := hN _ hX
+  have hXA0' : StrictForm.typed A = StrictForm.typed A0 := hXA0
+  have hAA0 : A = A0 := by injection hXA0'
+  subst hAA0
+  obtain ⟨Y, hY, hYX, j, hside⟩ := exists_coincident_side T hT.1 hX i
+  obtain ⟨B0, hYB0, hNB, hIB⟩ := hN Y hY
+  obtain ⟨Yf, Ya⟩ := Y
+  have hYB0' : Yf = StrictForm.typed B0 := hYB0
+  subst hYB0'
+  have hside' : strict_assembleMacrotemplates_side C Ya (C.occ B0.typ j) =
+      strict_assembleMacrotemplates_side C a (C.occ A.typ i) := hside
+  have hcell : ∀ k, B0.cell j k = A.cell i k := by
+    have heq := hT.2 A B0 a Ya hX hY (fun h => hYX h.symm) i j hside'.symm
+    exact fun k => (congrFun heq k).symm
+  obtain ⟨hjin, hje⟩ :=
+    strict_assembleMacrotemplates_match C hC ⟨hNA, hIA⟩ ⟨hNB, hIB⟩ i j hi hcell
+  rcases C.g1_edge_unique _ _ hi hjin hje.symm with ho | ho
+  · exfalso
+    have ht : B0.typ = A.typ := congrArg Sigma.fst ho
+    rw [ho] at hside'
+    have ha := strict_assembleMacrotemplates_sideCancel C hside'
+    exact hYX (strict_assembleMacrotemplates_tileUnique C hC hY hX rfl rfl ht ha)
+  · refine ⟨B0, congrArg Sigma.fst ho, ?_⟩
+    rw [ho] at hside'
+    obtain ⟨-, -, hp3⟩ := C.g1_partner _ hi
+    have hp3' : strict_assembleMacrotemplates_side C
+        (C.anchor (C.partner (C.occ A.typ i)).1) (C.partner (C.occ A.typ i)) =
+        strict_assembleMacrotemplates_side C (C.anchor A.typ) (C.occ A.typ i) := hp3
+    have hYa : Ya = a - C.anchor A.typ + C.anchor (C.partner (C.occ A.typ i)).1 := by
+      apply strict_assembleMacrotemplates_sideCancel C (o := C.partner (C.occ A.typ i))
+      rw [hside']
+      unfold strict_assembleMacrotemplates_side at hp3' ⊢
+      rw [← vadd_vadd, hp3', vadd_vadd, sub_add_cancel]
+    rw [← hYa]
+    exact hY
+
+private theorem strict_assembleMacrotemplates_allPresent
+    {T : PlaneTiling (strictProtoset C hC)} (hT : IsStrictMatched C hC T)
+    (hN : ∀ X ∈ T.tiles, ∃ A, X.form = StrictForm.typed A ∧ IsStrictNormal C hC A ∧
+      IsStrictIdentityCorrect C hC A) {A : StrictDecTile C hC} {a : Pt}
+    (hX : (⟨StrictForm.typed A, a⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles)
+    (t : C.Typ) (ht : C.owner t = C.owner A.typ) :
+    ∃ f : C.Side t → Fin 5 → SU C hC,
+      (⟨StrictForm.typed ⟨t, f⟩, (a - C.anchor A.typ) + C.anchor t⟩ :
+        PlacedTile (strictProtoset C hC)) ∈ T.tiles := by
+  let Pres : {s : C.Typ // C.owner s = C.owner A.typ} → Prop := fun u =>
+    ∃ f : C.Side u.1 → Fin 5 → SU C hC,
+      (⟨StrictForm.typed ⟨u.1, f⟩, (a - C.anchor A.typ) + C.anchor u.1⟩ :
+        PlacedTile (strictProtoset C hC)) ∈ T.tiles
+  have step : ∀ u w, (C.innerGraph (C.owner A.typ)).Adj u w → Pres u → Pres w := by
+    intro u w hadj hu
+    obtain ⟨f, hf⟩ := hu
+    rw [MacroData.innerGraph, SimpleGraph.fromRel_adj] at hadj
+    obtain ⟨hne, hR⟩ := hadj
+    have core : ∀ (p : C.Side u.1) (q : C.Side w.1), C.IsInner (C.occ u.1 p) →
+        C.occSide (C.occ w.1 q) = C.occSide (C.occ u.1 p) → Pres w := by
+      intro p q hp hs
+      have hw : w.1 = (C.partner (C.occ u.1 p)).1 :=
+        strict_assembleMacrotemplates_partner C p q (w.2.trans u.2.symm)
+          (fun h => hne (Subtype.ext h.symm)) hp hs
+      obtain ⟨B, hBt, hB⟩ := strict_assembleMacrotemplates_neighbour C hC hT hN hf p hp
+      obtain ⟨Btyp, Bcell⟩ := B
+      have hBt' : Btyp = w.1 := hBt.trans hw.symm
+      subst hBt'
+      refine ⟨Bcell, ?_⟩
+      dsimp only at hB
+      rw [← hw] at hB
+      have heq : (a - C.anchor A.typ) + C.anchor u.1 - C.anchor u.1 +
+          C.anchor w.1 = (a - C.anchor A.typ) + C.anchor w.1 := by
+        rw [add_sub_cancel_right]
+      rwa [heq] at hB
+    rcases hR with ⟨p, q, hp, hs⟩ | ⟨q, p, hq, hs⟩
+    · exact core p q hp hs.symm
+    · exact core p q
+        (strict_assembleMacrotemplates_innerOfOccSide C hq (u.2.trans w.2.symm) hs.symm) hs
+  have base : Pres ⟨A.typ, rfl⟩ := ⟨A.cell, by rw [sub_add_cancel]; exact hX⟩
+  obtain ⟨w⟩ := (C.g1_connected (C.owner A.typ)).preconnected ⟨A.typ, rfl⟩ ⟨t, ht⟩
+  suffices H : ∀ u w' (p : (C.innerGraph (C.owner A.typ)).Walk u w'), Pres u → Pres w' from
+    H _ _ w base
+  intro u w' p
+  induction p with
+  | nil => exact id
+  | cons h p ih => exact fun hu => ih (step _ _ h hu)
+
+open Classical in
+/-- The candidate strict block with parent form `α` and offset `v`, coloured by `T`. -/
+private def strict_assembleMacrotemplates_block (T : PlaneTiling (strictProtoset C hC))
+    (α : C.Q.Form) (v : Pt) : StrictBlock C hC where
+  α := α
+  v := v
+  col t := if h : ∃ f : C.Side t → Fin 5 → SU C hC,
+      (⟨StrictForm.typed ⟨t, f⟩, v + C.anchor t⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles
+    then h.choose else fun _ _ => 0
+
+private theorem strict_assembleMacrotemplates_blockPlaced
+    {T : PlaneTiling (strictProtoset C hC)} (α : C.Q.Form) (v : Pt) (t : C.Typ)
+    (h : ∃ f : C.Side t → Fin 5 → SU C hC,
+      (⟨StrictForm.typed ⟨t, f⟩, v + C.anchor t⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles) :
+    (strict_assembleMacrotemplates_block C hC T α v).placed t ∈ T.tiles := by
+  have hcol : (strict_assembleMacrotemplates_block C hC T α v).col t = h.choose := by
+    simp only [strict_assembleMacrotemplates_block]
+    rw [dif_pos h]
+  show (⟨StrictForm.typed ⟨t, (strict_assembleMacrotemplates_block C hC T α v).col t⟩,
+    v + C.anchor t⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles
+  rw [hcol]
+  exact h.choose_spec
 theorem strict_assembleMacrotemplates (T : PlaneTiling (strictProtoset C hC))
     (hT : IsStrictMatched C hC T)
     (hN : ∀ X ∈ T.tiles, ∃ A, X.form = StrictForm.typed A ∧ IsStrictNormal C hC A ∧
       IsStrictIdentityCorrect C hC A) :
     Nonempty (StrictMacroPartition C hC T) := by
-  sorry
+  have hsub : ∀ X (hX : X ∈ T.tiles) (A : StrictDecTile C hC), X.form = StrictForm.typed A →
+      (strict_assembleMacrotemplates_block C hC T (C.owner A.typ)
+        (X.anchor - C.anchor A.typ)).tiles ⊆ T.tiles := by
+    rintro X hX A hXA Z ⟨t, ht, rfl⟩
+    have ht' : C.owner t = C.owner A.typ := ht
+    have hX' : (⟨StrictForm.typed A, X.anchor⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles := by
+      rw [← hXA]; exact hX
+    exact strict_assembleMacrotemplates_blockPlaced C hC _ _ t
+      (strict_assembleMacrotemplates_allPresent C hC hT hN hX' t ht')
+  have hself : ∀ X (hX : X ∈ T.tiles) (A : StrictDecTile C hC), X.form = StrictForm.typed A →
+      X ∈ (strict_assembleMacrotemplates_block C hC T (C.owner A.typ)
+        (X.anchor - C.anchor A.typ)).tiles := by
+    intro X hX A hXA
+    refine ⟨A.typ, rfl, ?_⟩
+    have hmem := strict_assembleMacrotemplates_blockPlaced C hC (C.owner A.typ)
+      (X.anchor - C.anchor A.typ) A.typ ⟨A.cell, by
+        rw [sub_add_cancel]
+        show (⟨StrictForm.typed A, X.anchor⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles
+        rw [← hXA]; exact hX⟩
+    exact strict_assembleMacrotemplates_tileUnique C hC hX hmem hXA rfl rfl
+      (by show X.anchor = (X.anchor - C.anchor A.typ) + C.anchor A.typ; rw [sub_add_cancel])
+  have hblk : ∀ X (hX : X ∈ T.tiles) (A : StrictDecTile C hC), X.form = StrictForm.typed A →
+      ∀ Z ∈ (strict_assembleMacrotemplates_block C hC T (C.owner A.typ)
+        (X.anchor - C.anchor A.typ)).tiles,
+      ∀ B : StrictDecTile C hC, Z.form = StrictForm.typed B →
+      strict_assembleMacrotemplates_block C hC T (C.owner B.typ) (Z.anchor - C.anchor B.typ) =
+        strict_assembleMacrotemplates_block C hC T (C.owner A.typ)
+          (X.anchor - C.anchor A.typ) := by
+    rintro X hX A hXA Z ⟨t, ht, rfl⟩ B hZB
+    have ht' : C.owner t = C.owner A.typ := ht
+    have hZB' : StrictForm.typed (⟨t, (strict_assembleMacrotemplates_block C hC T
+        (C.owner A.typ) (X.anchor - C.anchor A.typ)).col t⟩ : StrictDecTile C hC) =
+        StrictForm.typed B := hZB
+    have hBeq : (⟨t, (strict_assembleMacrotemplates_block C hC T (C.owner A.typ)
+        (X.anchor - C.anchor A.typ)).col t⟩ : StrictDecTile C hC) = B := by
+      injection hZB'
+    rw [← hBeq]
+    show strict_assembleMacrotemplates_block C hC T (C.owner t)
+        ((X.anchor - C.anchor A.typ) + C.anchor t - C.anchor t) =
+      strict_assembleMacrotemplates_block C hC T (C.owner A.typ) (X.anchor - C.anchor A.typ)
+    rw [ht', add_sub_cancel_right]
+  refine ⟨{ ι := {K : StrictBlock C hC // ∃ X ∈ T.tiles, ∃ A : StrictDecTile C hC,
+              X.form = StrictForm.typed A ∧
+              K = strict_assembleMacrotemplates_block C hC T (C.owner A.typ)
+                (X.anchor - C.anchor A.typ)},
+            block := Subtype.val,
+            disjoint := ?_,
+            cover := ?_ }⟩
+  · rintro ⟨K, X, hX, A, hXA, rfl⟩ ⟨K', X', hX', A', hXA', rfl⟩ hne
+    rw [Set.disjoint_left]
+    intro Z hZ hZ'
+    apply hne
+    obtain ⟨B, hZB, -, -⟩ := hN Z (hsub X hX A hXA hZ)
+    exact Subtype.ext ((hblk X hX A hXA Z hZ B hZB).symm.trans
+      (hblk X' hX' A' hXA' Z hZ' B hZB))
+  · apply Set.Subset.antisymm
+    · intro Z hZ
+      obtain ⟨⟨K, X, hX, A, hXA, rfl⟩, hZK⟩ := Set.mem_iUnion.1 hZ
+      exact hsub X hX A hXA hZK
+    · intro X hX
+      obtain ⟨A, hXA, -, -⟩ := hN X hX
+      exact Set.mem_iUnion.2 ⟨⟨strict_assembleMacrotemplates_block C hC T (C.owner A.typ)
+        (X.anchor - C.anchor A.typ), X, hX, A, hXA, rfl⟩, hself X hX A hXA⟩
 
 /-- `lem:comp/assembly` (strict variant, final assertion): every strictly matched plane tiling
 of legal typed tiles has such a partition. -/

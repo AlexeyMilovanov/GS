@@ -890,6 +890,29 @@ private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_centra
     ∃ n, ¬ c.IsCentral (ch n).typ := by sorry
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
+Choose a shortest central-child chain ending at such an ancestor. -/
+private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n_find_min {P : Protoset}
+    (c : MacroCertificate P) (ch : ℕ → DecTile c)
+    (hn : ∃ n, ¬ c.IsCentral (ch n).typ) :
+    ∃ m, ¬ c.IsCentral (ch m).typ ∧ ∀ i < m, c.IsCentral (ch i).typ := by
+  have : DecidablePred (fun n => ¬ c.IsCentral (ch n).typ) := Classical.decPred _
+  have hX := Nat.findX hn
+  use hX.1
+  rcases hX.2 with ⟨h1, h2⟩
+  refine ⟨h1, fun i hi => ?_⟩
+  have hni := h2 i hi
+  exact of_not_not hni
+
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
+Shift the origin. -/
+private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n_hasOrigin_shift {P : Protoset}
+    (c : MacroCertificate P) (ch : ℕ → DecTile c) (m n : ℕ)
+    (i : c.Side (ch (m + n)).typ) k :
+      HasOrigin c ch (m + n) i k →
+      HasOrigin c (fun x => ch (m + x)) n i k := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
 Therefore the chain reaches a legal noncentral ancestor. -/
 private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n {P : Protoset}
     (c : MacroCertificate P) (hH : c.Hereditary)
@@ -902,7 +925,28 @@ private lemma reconstructed_noncentral_legal_step1_ancestor_step2_min_n {P : Pro
     (hn : ∃ n, ¬ c.IsCentral (ch n).typ) :
     ∃ E, headerLegal c E ∧ ¬ c.IsCentral E.typ ∧
       ∃ n, ∃ ch' : ℕ → DecTile c, ch' 0 = K.centre ∧ (∀ i, IsChildOf c (ch' (i + 1)) (ch' i)) ∧
-        ch' n = E ∧ ∀ i < n, c.IsCentral (ch' i).typ := by sorry
+        ch' n = E ∧ ∀ i < n, c.IsCentral (ch' i).typ := by
+  have _ := hH; have _ := hK
+  rcases reconstructed_noncentral_legal_step1_ancestor_step2_min_n_find_min c ch hn with ⟨m, hnm, hcent⟩
+  use ch m
+  constructor
+  · refine ⟨fun x => ch (m + x), ?_, ?_, ?_⟩
+    · exact rfl
+    · intro i
+      have heq : m + (i + 1) = m + i + 1 := by omega
+      have hc := hch_child (m + i)
+      rwa [← heq] at hc
+    · intro n i k hNonempty hNoOrig
+      dsimp at hNonempty hNoOrig ⊢
+      have heq : m + (n + 1) = m + n + 1 := by omega
+      have hNonempty' : (copySource c (c.form (ch (m + n + 1)).typ) (c.occ (ch (m + n)).typ i) k).Nonempty := by
+        rwa [← heq]
+      have hNoOrig' : ¬ HasOrigin c ch (m + n) i k := by
+        intro h
+        apply hNoOrig
+        exact reconstructed_noncentral_legal_step1_ancestor_step2_min_n_hasOrigin_shift c ch m n i k h
+      exact hleg (m + n) i k hNonempty' hNoOrig'
+  · refine ⟨hnm, m, ch, hch0, hch_child, rfl, hcent⟩
 
 /-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal`: A legality chain
 of `A` with only central types would copy the marked first cell forever ... Therefore the

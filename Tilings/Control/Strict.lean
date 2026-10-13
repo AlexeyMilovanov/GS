@@ -1847,12 +1847,92 @@ theorem strict_assembleMacrotemplates_of_legal (T : PlaneTiling (strictProtoset 
     have hA := strictLegal_properties C hC A (hL _ hX)
     exact ⟨A, rfl, hA.2.1, hA.2.2.1⟩
 
+/-- Step 1 of the blueprint proof of `strict_boundary_header_constant`: a boundary tile is
+legal. -/
+private lemma strict_boundary_header_constant_step1_legal (K : StrictBlock C hC)
+    (hK : StrictBlockContext C hC K) (t : C.Typ) (ht : C.owner t = K.α)
+    (i : C.Side t) (hi : C.IsBoundary (C.occ t i)) :
+    StrictLegal C hC (K.tileOf t) := by
+  apply hK.2 t ht
+  rintro rfl
+  exact (C.g2_central K.α i).2 hi
+
+/-- Step 2 of the blueprint proof of `strict_boundary_header_constant`: the boundary cells of a
+single legal tile equal the header of any chosen legal parent, so it is a constant. -/
+private lemma strict_boundary_header_constant_step2_header_eq (K : StrictBlock C hC)
+    (hK : StrictBlockContext C hC K) (t : C.Typ) (ht : C.owner t = K.α)
+    (i : C.Side t) (hi : C.IsBoundary (C.occ t i)) :
+    ∃ h : HeaderKernel.Header C.Typ C.Side,
+      (∀ j : C.Side t, C.IsBoundary (C.occ t j) → K.col t j 3 = headerSU C hC h) ∧
+      C.form h.1 = K.α := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `strict_boundary_header_constant`: any boundary side owner
+is part of the boundary belt type. -/
+private lemma strict_boundary_header_constant_step3_is_belt_type (α : C.Q.Form)
+    (t : C.Typ) (ht : C.owner t = α) (i : C.Side t) (hi : C.IsBoundary (C.occ t i)) :
+    C.IsBeltType α t := by
+  dsimp [MacroData.IsBeltType]
+  refine ⟨ht, ?_⟩
+  dsimp [MacroData.IsBoundary] at hi
+  rcases hi with ⟨_, h | h⟩
+  · use C.occStart (C.occ t i)
+    refine ⟨?_, by rw [← ht]; exact h⟩
+    have h_mem_frontier : (C.Q.disk (C.form t)).vertex i ∈
+        frontier (C.Q.disk (C.form t)).carrier := by
+      rw [(C.Q.disk (C.form t)).frontier_eq]
+      simp only [mem_iUnion]
+      exact ⟨i, left_mem_segment ℝ _ _⟩
+    have h_closed : IsClosed (C.Q.disk (C.form t)).carrier := by
+      rw [← (C.Q.disk (C.form t)).regular_closed]
+      exact isClosed_closure
+    exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
+  · use C.occEnd (C.occ t i)
+    refine ⟨?_, by rw [← ht]; exact h⟩
+    have h_mem_frontier : (C.Q.disk (C.form t)).vertex (finRotate _ i) ∈
+        frontier (C.Q.disk (C.form t)).carrier := by
+      rw [(C.Q.disk (C.form t)).frontier_eq]
+      simp only [mem_iUnion]
+      exact ⟨i, right_mem_segment ℝ _ _⟩
+    have h_closed : IsClosed (C.Q.disk (C.form t)).carrier := by
+      rw [← (C.Q.disk (C.form t)).regular_closed]
+      exact isClosed_closure
+    exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
+
+/-- Step 4 of the blueprint proof of `strict_boundary_header_constant`: connectedness
+propagates equality to every boundary cell of the block. -/
+private lemma strict_boundary_header_constant_step4_belt_eq (K : StrictBlock C hC)
+    (hK : StrictBlockContext C hC K)
+    (u v : {t : C.Typ // C.IsBeltType K.α t})
+    (i : C.Side u.1) (hi : C.IsBoundary (C.occ u.1 i))
+    (j : C.Side v.1) (hj : C.IsBoundary (C.occ v.1 j)) :
+    K.col u.1 i 3 = K.col v.1 j 3 := by
+  sorry
+
 /-- `lem:comp/boundary-header` (strict variant): in a strictly matched finite realization of
 `σ' α` whose noncentral tiles are legal, every boundary fourth cell carries the same header
 `h = (t, v)`, and `form t = α`. -/
 theorem strict_boundary_header_constant (K : StrictBlock C hC) (hK : StrictBlockContext C hC K) :
     ∃ h : HeaderKernel.Header C.Typ C.Side, StrictCommonHeader C hC K h := by
-  sorry
+  have h_ne := (C.g2_belt_connected K.α).nonempty
+  let u := Classical.choice h_ne
+  have hu_owner : C.owner u.1 = K.α := u.property.1
+  have hu_belt_own : C.IsBeltType (C.owner u.1) u.1 := by
+    rw [hu_owner]
+    exact u.property
+  obtain ⟨i, hi⟩ := C.g2_belt_edge u.1 hu_belt_own
+  obtain ⟨h, hh1, hh2⟩ :=
+    strict_boundary_header_constant_step2_header_eq C hC K hK u.1 hu_owner i hi
+  use h
+  constructor
+  · exact hh2
+  · intro t j ht hj
+    have ht_belt : C.IsBeltType K.α t :=
+      strict_boundary_header_constant_step3_is_belt_type C K.α t ht j hj
+    let v : {t : C.Typ // C.IsBeltType K.α t} := ⟨t, ht_belt⟩
+    have h_eq := strict_boundary_header_constant_step4_belt_eq C hC K hK v u j hj i hi
+    rw [h_eq]
+    exact hh1 i hi
 
 private theorem rhe_isPrint_iff {s : C.Typ} {β : C.Q.Form} (hs : C.owner s = β) (i : C.Side s) :
     C.IsPrint (C.occ s i) ↔ ∃ d : Fin (C.Q.disk β).n, C.IsPrintOf β d (C.occ s i) := by

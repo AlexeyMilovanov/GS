@@ -5519,6 +5519,69 @@ private lemma uniformCrownCoverPlane_step2_far_step1_exit_point (A : PlacedTile 
   rw [macro_tile_frontier_eq, mem_iUnion] at heFront
   exact ⟨heFront.choose, e, heFront.choose_spec, heH⟩
 
+private lemma uniformCrownCoverPlane_overlap_collinear {p q r s x y : Pt}
+    (hxy : x ≠ y) (hx1 : x ∈ segment ℝ p q) (hy1 : y ∈ segment ℝ p q)
+    (hx2 : x ∈ segment ℝ r s) (hy2 : y ∈ segment ℝ r s) :
+    Collinear ℝ ({p, q, r, s} : Set Pt) := by
+  have hxp : x ∈ line[ℝ, p, q] := (mem_segment_iff_wbtw.mp hx1).mem_affineSpan
+  have hyp : y ∈ line[ℝ, p, q] := (mem_segment_iff_wbtw.mp hy1).mem_affineSpan
+  have hxr : x ∈ line[ℝ, r, s] := (mem_segment_iff_wbtw.mp hx2).mem_affineSpan
+  have hyr : y ∈ line[ℝ, r, s] := (mem_segment_iff_wbtw.mp hy2).mem_affineSpan
+  have hpq : Collinear ℝ ({x, y, p, q} : Set Pt) :=
+    collinear_insert_insert_of_mem_affineSpan_pair hxp hyp
+  have hrs : Collinear ℝ ({x, y, r, s} : Set Pt) :=
+    collinear_insert_insert_of_mem_affineSpan_pair hxr hyr
+  have hp : p ∈ line[ℝ, x, y] :=
+    hpq.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hq : q ∈ line[ℝ, x, y] :=
+    hpq.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hr : r ∈ line[ℝ, x, y] :=
+    hrs.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hs : s ∈ line[ℝ, x, y] :=
+    hrs.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy
+  have hline : Collinear ℝ (↑(line[ℝ, x, y]) : Set Pt) := by
+    show Module.rank ℝ (vectorSpan ℝ (↑(line[ℝ, x, y]) : Set Pt)) ≤ 1
+    rw [← AffineSubspace.direction_eq_vectorSpan, direction_affineSpan]
+    exact collinear_pair ℝ x y
+  refine hline.subset ?_
+  intro z hz
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hz
+  rcases hz with rfl | rfl | rfl | rfl
+  · exact hp
+  · exact hq
+  · exact hr
+  · exact hs
+
+private lemma uniformCrownCoverPlane_endpoint_between {c d p e : Pt} (hcd : c ≠ d)
+    (hp : p ∈ openSegment ℝ c d) (heline : e ∈ line[ℝ, c, d])
+    (he : e ∉ segment ℝ c d) :
+    c ∈ openSegment ℝ e p ∨ d ∈ openSegment ℝ p e := by
+  have hcol : Collinear ℝ ({c, d, e} : Set Pt) := by
+    refine (collinear_insert_of_mem_affineSpan_pair heline).subset ?_
+    intro z hz
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hz ⊢
+    rcases hz with rfl | rfl | rfl <;> simp
+  have hcpd : Sbtw ℝ c p d := crown_sbtw_of_mem_openSegment hcd hp
+  rcases hcol.wbtw_or_wbtw_or_wbtw with hcde | hdec | hecd
+  · have hde : d ≠ e := by
+      intro h
+      apply he
+      rw [← h]
+      exact right_mem_segment ℝ c d
+    have hcde' : Sbtw ℝ c d e := ⟨hcde, hcd.symm, hde⟩
+    exact Or.inr (crown_mem_openSegment_of_sbtw (hcde'.trans_left_right hcpd))
+  · exfalso
+    apply he
+    rw [segment_symm]
+    exact hdec.mem_segment
+  · have hce : c ≠ e := by
+      intro h
+      apply he
+      rw [← h]
+      exact left_mem_segment ℝ c d
+    have hecd' : Sbtw ℝ e c d := ⟨hecd, hce, hcd⟩
+    exact Or.inl (crown_mem_openSegment_of_sbtw (hecd'.trans_right_left hcpd))
+
 /-- Step 2 of the blueprint proof of `uniformCrownCoverPlane_step2_far`: near a point `e` of a
 listed side of a tile `A` of a plane tiling `T` that is not one of that side's two endpoints,
 disjoint interiors together with the tiles covering the whole plane force a second tile `B`
@@ -5530,7 +5593,142 @@ private lemma uniformCrownCoverPlane_step2_far_step2_opposite_tile
       Disjoint (interior A.carrier) (interior B.carrier) ∧ e ∈ B.side j ∧
       Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
         B.vertex j, B.vertex (finRotate _ j)} : Set Pt) := by
-  sorry
+  classical
+  have heopen : e ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+    apply mem_openSegment_of_ne_left_right hne1.symm hne2.symm
+    rwa [← macro_tile_side_eq A i]
+  let F : Set (PlacedTile P) :=
+    {B ∈ T.tiles | (B.carrier ∩ closedBall e 1).Nonempty}
+  have hFfin : F.Finite := T.locallyFinite (isCompact_closedBall e 1)
+  have heAcarrier : e ∈ A.carrier :=
+    (macro_tile_closed A).frontier_subset (macro_tile_side_subset_frontier A i hei)
+  have hAF : A ∈ F := ⟨hA, ⟨e, heAcarrier, mem_closedBall_self (by norm_num)⟩⟩
+  let V : Set Pt := ⋃ B ∈ F, B.vertexSet
+  have hVfin : V.Finite := by
+    apply hFfin.biUnion
+    intro B hB
+    exact Set.finite_range B.vertex
+  have hVclosed : IsClosed (V \ {e}) :=
+    (hVfin.diff : (V \ {e}).Finite).isClosed
+  have heVcompl : e ∈ (V \ {e})ᶜ := by simp
+  obtain ⟨δ, hδ, hδball⟩ := Metric.isOpen_iff.mp hVclosed.isOpen_compl e heVcompl
+  obtain ⟨p, hpball, hpep⟩ := crown_exists_near_openSegment hne1
+    (lt_min hδ (by norm_num : (0 : ℝ) < 1 / 4))
+  have hpδ : p ∈ ball e δ := ball_subset_ball (min_le_left δ (1 / 4)) hpball
+  have hpquarter : p ∈ ball e (1 / 4) :=
+    ball_subset_ball (min_le_right δ (1 / 4)) hpball
+  have hpne : p ≠ e := (crown_sbtw_of_mem_openSegment hne1 hpep).ne_left
+  have hpV : p ∉ V := by
+    intro hp
+    exact hδball hpδ ⟨hp, by simpa using hpne⟩
+  have hpAi : p ∈ A.side i := by
+    have hconv : Convex ℝ (A.side i) := by
+      rw [macro_tile_side_eq]
+      exact convex_segment _ _
+    exact hconv.segment_subset hei (by
+      rw [macro_tile_side_eq]
+      exact left_mem_segment ℝ _ _) (openSegment_subset_segment ℝ _ _ hpep)
+  have hpAcarrier : p ∈ A.carrier :=
+    (macro_tile_closed A).frontier_subset (macro_tile_side_subset_frontier A i hpAi)
+  have hpfront : p ∈ frontier A.carrier := macro_tile_side_subset_frontier A i hpAi
+  have hpcompl : p ∈ closure A.carrierᶜ := by
+    rw [frontier_eq_closure_inter_closure] at hpfront
+    exact hpfront.2
+  have hFCclosed : IsClosed (support (F \ {A})) :=
+    (hFfin.diff : (F \ {A}).Finite).isClosed_biUnion fun B _ => macro_tile_closed B
+  have hpFC : p ∈ support (F \ {A}) := by
+    rw [← hFCclosed.closure_eq, Metric.mem_closure_iff]
+    intro ε hε
+    obtain ⟨y, hyout, hypy⟩ := Metric.mem_closure_iff.mp hpcompl (min ε (1 / 2))
+      (lt_min hε (by norm_num))
+    have hycover : y ∈ support T.tiles := by rw [T.cover]; exact mem_univ y
+    rw [support, mem_iUnion₂] at hycover
+    obtain ⟨B, hBT, hyB⟩ := hycover
+    have hBA : B ≠ A := fun h => hyout (h ▸ hyB)
+    have hypy' : dist y p < 1 / 2 := by
+      rw [dist_comm]
+      exact hypy.trans_le (min_le_right _ _)
+    have hpe' : dist p e < 1 / 4 := by simpa [Metric.mem_ball] using hpquarter
+    have hye : dist y e ≤ 1 := by
+      calc
+        dist y e ≤ dist y p + dist p e := dist_triangle _ _ _
+        _ ≤ 1 := by linarith
+    have hBF : B ∈ F := ⟨hBT, ⟨y, hyB, by simpa [mem_closedBall] using hye⟩⟩
+    refine ⟨y, ?_, hypy.trans_le (min_le_left _ _)⟩
+    rw [support, mem_iUnion₂]
+    exact ⟨B, Set.mem_diff_singleton.mpr ⟨hBF, hBA⟩, hyB⟩
+  rw [support, mem_iUnion₂] at hpFC
+  obtain ⟨B, hBFdiff, hpBcarrier⟩ := hpFC
+  have hBF : B ∈ F := (Set.mem_diff_singleton.mp hBFdiff).1
+  have hBA : B ≠ A := (Set.mem_diff_singleton.mp hBFdiff).2
+  have hBT : B ∈ T.tiles := hBF.1
+  have hpAvertex : p ∉ A.vertexSet := by
+    intro hp
+    apply hpV
+    exact mem_iUnion₂.mpr ⟨A, hAF, hp⟩
+  have hpBvertex : p ∉ B.vertexSet := by
+    intro hp
+    apply hpV
+    exact mem_iUnion₂.mpr ⟨B, hBF, hp⟩
+  have hdisj : Disjoint (interior A.carrier) (interior B.carrier) :=
+    T.disjoint hA hBT hBA.symm
+  obtain ⟨k, j, hpk, hpj, hoverlap⟩ :=
+    macro_tiles_share_local_side hdisj hpAcarrier hpBcarrier hpAvertex hpBvertex
+  have hki : k = i := macro_tile_side_unique A hpAvertex hpk hpAi
+  subst k
+  obtain ⟨x, y, hxy, hxySides⟩ := hoverlap
+  have hcol : Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+      B.vertex j, B.vertex (finRotate _ j)} : Set Pt) := by
+    apply uniformCrownCoverPlane_overlap_collinear hxy
+    · rw [← macro_tile_side_eq A i]
+      exact (hxySides (left_mem_segment ℝ x y)).1
+    · rw [← macro_tile_side_eq A i]
+      exact (hxySides (right_mem_segment ℝ x y)).1
+    · rw [← macro_tile_side_eq B j]
+      exact (hxySides (left_mem_segment ℝ x y)).2
+    · rw [← macro_tile_side_eq B j]
+      exact (hxySides (right_mem_segment ℝ x y)).2
+  have hBne : B.vertex j ≠ B.vertex (finRotate _ j) := trimmed_tile_vertex_ne_next B j
+  have hpBopen : p ∈ openSegment ℝ (B.vertex j) (B.vertex (finRotate _ j)) := by
+    apply mem_openSegment_of_ne_left_right
+    · intro h
+      exact hpBvertex ⟨j, h⟩
+    · intro h
+      exact hpBvertex ⟨finRotate _ j, h⟩
+    · rwa [← macro_tile_side_eq B j]
+  have hAne : A.vertex i ≠ A.vertex (finRotate _ i) := trimmed_tile_vertex_ne_next A i
+  have hcA : B.vertex j ∈ line[ℝ, A.vertex i, A.vertex (finRotate _ i)] :=
+    hcol.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hAne
+  have hdA : B.vertex (finRotate _ j) ∈
+      line[ℝ, A.vertex i, A.vertex (finRotate _ i)] :=
+    hcol.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hAne
+  have hlines : line[ℝ, B.vertex j, B.vertex (finRotate _ j)] =
+      line[ℝ, A.vertex i, A.vertex (finRotate _ i)] :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne hcA hdA hBne
+  have heAline : e ∈ line[ℝ, A.vertex i, A.vertex (finRotate _ i)] :=
+    (mem_segment_iff_wbtw.mp (macro_tile_side_eq A i ▸ hei)).mem_affineSpan
+  have heBline : e ∈ line[ℝ, B.vertex j, B.vertex (finRotate _ j)] := by
+    rw [hlines]
+    exact heAline
+  have heBj : e ∈ B.side j := by
+    rw [macro_tile_side_eq]
+    by_contra he
+    rcases uniformCrownCoverPlane_endpoint_between hBne hpBopen heBline he with hc | hd
+    · have hcball : B.vertex j ∈ ball e δ :=
+        (convex_ball e δ).segment_subset (mem_ball_self hδ) hpδ
+          (openSegment_subset_segment ℝ e p hc)
+      have hcV : B.vertex j ∈ V := mem_iUnion₂.mpr ⟨B, hBF, ⟨j, rfl⟩⟩
+      exact hδball hcball ⟨hcV, by
+        simpa using (crown_sbtw_of_mem_openSegment (by
+          exact fun h => hpne h.symm) hc).ne_left⟩
+    · have hdball : B.vertex (finRotate _ j) ∈ ball e δ :=
+        (convex_ball e δ).segment_subset hpδ (mem_ball_self hδ)
+          (openSegment_subset_segment ℝ p e hd)
+      have hdV : B.vertex (finRotate _ j) ∈ V :=
+        mem_iUnion₂.mpr ⟨B, hBF, ⟨finRotate _ j, rfl⟩⟩
+      exact hδball hdball ⟨hdV, by
+        simpa using (crown_sbtw_of_mem_openSegment hpne hd).ne_right⟩
+  exact ⟨B, j, hBT, hdisj, heBj, hcol⟩
 
 /-- Step 3 of the blueprint proof of `uniformCrownCoverPlane_step2_far`: if sides of two tiles
 `A` and `B` meet at a common point `e` and the four endpoints of those sides are collinear,

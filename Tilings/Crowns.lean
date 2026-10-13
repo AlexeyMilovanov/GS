@@ -3114,7 +3114,24 @@ infDist equals sInf of distances. -/
 private lemma distanceToReflexBoundaryRay_step1_infDist_eq_step2_sInf (a b : Pt) (t : ℝ) :
     infDist (t • a) ((fun s : ℝ => s • b) '' Ici 0) =
       sInf ((fun s : ℝ => ‖t • a - s • b‖) '' Ici 0) := by
-  sorry
+  have hne : ((fun s : ℝ => s • b) '' Ici 0).Nonempty :=
+    (nonempty_Ici : (Ici (0 : ℝ)).Nonempty).image _
+  have hdne :
+      ((fun y : Pt => dist (t • a) y) '' ((fun s : ℝ => s • b) '' Ici 0)).Nonempty :=
+    hne.image _
+  have hglb := Metric.isGLB_infDist (x := t • a) hne
+  have hset :
+      (fun y : Pt => dist (t • a) y) '' ((fun s : ℝ => s • b) '' Ici 0) =
+        (fun s : ℝ => ‖t • a - s • b‖) '' Ici 0 := by
+    ext x
+    simp only [mem_image]
+    constructor
+    · rintro ⟨y, ⟨s, hs, rfl⟩, rfl⟩
+      exact ⟨s, hs, by rw [dist_eq_norm]⟩
+    · rintro ⟨s, hs, rfl⟩
+      exact ⟨s • b, ⟨s, hs, rfl⟩, by rw [dist_eq_norm]⟩
+  rw [← hset]
+  exact (hglb.csInf_eq hdne).symm
 
 /-- Step 1 of the blueprint proof of `distanceToReflexBoundaryRay`: 
 reduce to `sInf` of `‖t a - s b‖`. -/

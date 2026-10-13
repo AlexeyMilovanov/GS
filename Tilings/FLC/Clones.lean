@@ -1733,9 +1733,86 @@ def coarsenSubstitution (τ : Substitution P) : Substitution (coarsen P) where
       disjoint := coarsenSubstitution_disjoint τ p }
   support_eq := coarsenSubstitution_support_eq τ
 
+private lemma coarsenTile_translate (A : PlacedTile P) (v : Pt) :
+    coarsenTile (A.translate v) = (coarsenTile A).translate v := rfl
+
+private lemma coarsen_translateSet (S : Set (PlacedTile P)) (v : Pt) :
+    translateSet v (coarsenTile '' S) = coarsenTile '' translateSet v S := by
+  ext B
+  simp only [translateSet, Set.mem_image]
+  constructor
+  · rintro ⟨C, ⟨A, hA, rfl⟩, rfl⟩
+    exact ⟨A.translate v, ⟨A, hA, rfl⟩, (coarsenTile_translate A v).symm⟩
+  · rintro ⟨C, ⟨A, hA, rfl⟩, rfl⟩
+    exact ⟨coarsenTile A, ⟨A, hA, rfl⟩, coarsenTile_translate A v⟩
+
+private lemma coarsen_decomposeTile (τ : Substitution P) (A : PlacedTile P) :
+    (coarsenSubstitution τ).decomposeTile (coarsenTile A) =
+      coarsenTile '' τ.decomposeTile A := by
+  exact coarsen_translateSet (τ.rule A.form).tiles (τ.θ • A.anchor)
+
+private lemma coarsen_decompose (τ : Substitution P) (S : Set (PlacedTile P)) :
+    (coarsenSubstitution τ).decompose (coarsenTile '' S) =
+      coarsenTile '' τ.decompose S := by
+  ext B
+  simp only [Substitution.decompose, Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨C, ⟨A, hA, rfl⟩, hB⟩
+    rw [coarsen_decomposeTile] at hB
+    rcases hB with ⟨D, hD, rfl⟩
+    exact ⟨D, ⟨A, hA, hD⟩, rfl⟩
+  · rintro ⟨D, ⟨A, hA, hD⟩, rfl⟩
+    exact ⟨coarsenTile A, ⟨A, hA, rfl⟩, by
+      rw [coarsen_decomposeTile]
+      exact Set.mem_image_of_mem coarsenTile hD⟩
+
+private lemma coarsen_supertile (τ : Substitution P) (n : ℕ) (p : P.Form) :
+    (coarsenSubstitution τ).supertile n p = coarsenTile '' τ.supertile n p := by
+  induction n with
+  | zero =>
+      ext A
+      simp [Substitution.supertile, Substitution.decomposeIter, coarsenTile]
+  | succ n ih =>
+      change (coarsenSubstitution τ).decompose ((coarsenSubstitution τ).supertile n p) =
+        coarsenTile '' τ.decompose (τ.supertile n p)
+      rw [ih, coarsen_decompose]
+
+private lemma coarsen_crown (S : Set (PlacedTile P)) (w : Pt) :
+    crown (coarsenTile '' S) w = coarsenTile '' crown S w := by
+  ext B
+  simp only [crown, Set.mem_setOf_eq, Set.mem_image]
+  constructor
+  · rintro ⟨⟨A, hA, rfl⟩, hw⟩
+    exact ⟨A, ⟨hA, by simpa only [coarsenTile_carrier] using hw⟩, rfl⟩
+  · rintro ⟨A, ⟨hA, hw⟩, rfl⟩
+    exact ⟨⟨A, hA, rfl⟩, by simpa only [coarsenTile_carrier] using hw⟩
+
+private lemma coarsenTile_vertexSet_subset (A : PlacedTile P) :
+    (coarsenTile A).vertexSet ⊆ A.vertexSet := by
+  rintro w ⟨i, rfl⟩
+  exact ⟨((P.disk A.form).genuineEnum i).1, rfl⟩
+
+private lemma coarsen_isVertexOf (S : Set (PlacedTile P)) (w : Pt)
+    (h : IsVertexOf (coarsenTile '' S) w) : IsVertexOf S w := by
+  rcases h with ⟨B, ⟨A, hA, rfl⟩, hw⟩
+  exact ⟨A, hA, coarsenTile_vertexSet_subset A hw⟩
+
+private lemma coarsen_allowedCrown (τ : Substitution P)
+    (K : Set (PlacedTile (coarsen P))) (h : (coarsenSubstitution τ).IsAllowedCrown K) :
+    ∃ K' : Set (PlacedTile P), τ.IsAllowedCrown K' ∧ K = coarsenTile '' K' := by
+  rcases h with ⟨n, p, w, hw, rfl⟩
+  refine ⟨translateSet (-w) (crown (τ.supertile n p) w), ?_, ?_⟩
+  · refine ⟨n, p, w, ?_, rfl⟩
+    rw [coarsen_supertile] at hw
+    exact coarsen_isVertexOf (τ.supertile n p) w hw
+  · rw [coarsen_supertile, coarsen_crown, coarsen_translateSet]
+
 /-- FLC survives coarsening. -/
 theorem coarsen_flc (τ : Substitution P) (h : τ.FLC) : (coarsenSubstitution τ).FLC := by
-  sorry
+  apply Set.Finite.subset (h.image (Set.image coarsenTile))
+  rintro K hK
+  rcases coarsen_allowedCrown τ K hK with ⟨K', hK', rfl⟩
+  exact Set.mem_image_of_mem (Set.image coarsenTile) hK'
 
 /-! ## `lem:finite-neighbourhoods` -/
 

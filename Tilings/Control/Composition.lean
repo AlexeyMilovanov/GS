@@ -1251,13 +1251,61 @@ theorem lift_hierarchy (c : MacroCertificate P) (hH : c.Hereditary)
   exact ⟨seq', herase, hexact, hleg,
     lift_hierarchy_step2_proper c hH seq hsts seq' herase hexact hleg⟩
 
+/-- Step 1 of the blueprint proof of `projects_to_hierarchy_step1_soundness`: repeated composition
+yields a sequence of decorated tilings. -/
+private lemma projects_to_hierarchy_step1_soundness_step1_composition
+    (c : MacroCertificate P) (hH : c.Hereditary) :
+    ∀ T : PlaneTiling (typedDecoration c), IsProper c T →
+      (∀ X ∈ T.tiles, headerLegal c (tileDec X)) →
+      ∃ seq : ℕ → PlaneTiling (typedDecoration c),
+        seq 0 = T ∧
+        (∀ n, IsProper c (seq n)) ∧
+        (∀ n, ∀ X ∈ (seq n).tiles, headerLegal c (tileDec X)) ∧
+        (∀ n, IsExactComposition c (seq (n + 1)) (seq n)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `projects_to_hierarchy_step1_soundness`: erasure of a valid
+decorated tiling gives an undecorated tiling. -/
+private lemma projects_to_hierarchy_step1_soundness_step2_erase
+    (c : MacroCertificate P) :
+    ∀ T : PlaneTiling (typedDecoration c),
+      ∃ T₀ : PlaneTiling c.Q, T₀.tiles = eraseSet c T.tiles := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `projects_to_hierarchy_step1_soundness`: erasure commutes
+with composition. -/
+private lemma projects_to_hierarchy_step1_soundness_step3_erase_composition
+    (c : MacroCertificate P) :
+    ∀ T' T : PlaneTiling (typedDecoration c),
+    ∀ T₀' T₀ : PlaneTiling c.Q,
+      T₀'.tiles = eraseSet c T'.tiles →
+      T₀.tiles = eraseSet c T.tiles →
+      IsExactComposition c T' T →
+      c.σ.IsComposition T₀' T₀ := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `projects_to_hierarchy`: repeated composition
 yields a hierarchical tiling. -/
 private lemma projects_to_hierarchy_step1_soundness (c : MacroCertificate P) (hH : c.Hereditary) :
     ∀ T : PlaneTiling (typedDecoration c), IsProper c T →
       (∀ X ∈ T.tiles, headerLegal c (tileDec X)) →
       ∃ T₀ : PlaneTiling c.Q, T₀.tiles = eraseSet c T.tiles ∧ c.σ.IsHierarchical T₀ := by
-  sorry
+  intro T hT hL
+  have ⟨seq, hseq0, hseqP, hseqL, hseqC⟩ :=
+    projects_to_hierarchy_step1_soundness_step1_composition c hH T hT hL
+  have hseq_erase : ∀ n, ∃ T0 : PlaneTiling c.Q, T0.tiles = eraseSet c (seq n).tiles :=
+    fun n ↦ projects_to_hierarchy_step1_soundness_step2_erase c (seq n)
+  have ⟨seq0, hseq0_tiles⟩ := Classical.axiomOfChoice hseq_erase
+  use seq0 0
+  constructor
+  · rw [hseq0_tiles 0, hseq0]
+  · use seq0
+    constructor
+    · rfl
+    · intro n
+      exact projects_to_hierarchy_step1_soundness_step3_erase_composition c
+        (seq (n + 1)) (seq n) (seq0 (n + 1)) (seq0 n)
+        (hseq0_tiles (n + 1)) (hseq0_tiles n) (hseqC n)
 
 /-- Step 2 of the blueprint proof of `projects_to_hierarchy`: lifting an actual
 hierarchy gives a legal decorated proper tiling. -/

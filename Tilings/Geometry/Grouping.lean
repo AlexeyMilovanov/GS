@@ -3438,6 +3438,9 @@ structure SpokeSystem (S : Set (PlacedTile P)) (L H : FaceGroup S) (N : ℕ) whe
     (frontier L.carrier) (fun j => (spoke j).stop) (fun j => (spoke j).start)
   piece : Fin (4 * N) → FaceGroup S
   piece_partition : ∀ A ∈ S, (A ∈ H.faces ∧ A ∉ L.faces) ↔ ∃! j, A ∈ (piece j).faces
+  /-- every piece is made of faces of `H` that are not faces of `L` (with `piece_partition`:
+  the pieces partition the faces of `H \ L`, and no piece contains any other face) -/
+  piece_sub : ∀ j, (piece j).faces ⊆ H.faces \ L.faces
   piece_between : ∀ j,
     (spoke j).carrier ⊆ (piece j).carrier ∧
       (spoke (finRotate (4 * N) j)).carrier ⊆ (piece j).carrier
@@ -4057,6 +4060,7 @@ private lemma existsAnnularSpokes_step6_cut (S : Patch P) (hsts : SideToSideSet 
       order := horder
       piece := F
       piece_partition := ?_
+      piece_sub := ?_
       piece_between := ?_
       contact_connected := ?_
       contact_nondegenerate := ?_ }, rfl⟩
@@ -4069,6 +4073,9 @@ private lemma existsAnnularSpokes_step6_cut (S : Patch P) (hsts : SideToSideSet 
       exact ⟨j, ⟨hAH, hAL, hj⟩, fun i hi => huniq i hi.2.2⟩
     · rintro ⟨j, hj, -⟩
       exact ⟨hj.1, hj.2.1⟩
+  · intro j A hA
+    rw [hF j] at hA
+    exact ⟨hA.1, hA.2.1⟩
   · intro j
     rw [hcar j]
     exact hWb j

@@ -1473,7 +1473,8 @@ private lemma reconstructed_header_eq_isIdentityCorrect_step2_print_step1_isLoca
 For a print, its fifth prescribed cell is the exact interface identity. -/
 private lemma reconstructed_header_eq_isIdentityCorrect_step2_print_step2_prescribed (c : MacroCertificate P) (o : c.SideOcc) (hPrint : c.IsPrint o) :
     prescribedCell c o 4 = identU c (c.edge o) := by
-  sorry
+  unfold prescribedCell
+  simp [hPrint]
 
 /-- Step 2 of the blueprint proof of `reconstructed_header_eq_isIdentityCorrect`: For a print, the fifth cell of `D` is its prescribed identity. -/
 private lemma reconstructed_header_eq_isIdentityCorrect_step2_print (c : MacroCertificate P) (hH : c.Hereditary)

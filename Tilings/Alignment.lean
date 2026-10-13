@@ -2161,6 +2161,369 @@ structure StrictScheduleSystem (τ : Substitution P) where
     (i' : Fin (dec.P'.disk q').n), dec.colour q i = dec.colour q' i' →
       outerSchedule q i = outerSchedule q' i'
 
+private lemma strict_schedule_composition_endpointSchedule_swap
+    (τ : Substitution P) (G : GroupedFamily P) (m : ℕ)
+    (A : G.P'.Form) (x y : Pt) :
+    EndpointSchedule τ G m A (x, y) = EndpointSchedule τ G m A (y, x) := by
+  have hcoord : ∀ z, segCoord y x z = segCoord x y z := by
+    intro z
+    unfold segCoord
+    rw [boundary_align_frameOrigin_swap]
+    have hsub : x - y = -(y - x) := by abel
+    rw [hsub, boundary_align_canonDir_neg]
+  funext t
+  ext r
+  simp only [EndpointSchedule, Set.mem_setOf_eq]
+  constructor <;> rintro ⟨c, hc, hov, rfl⟩
+  · refine ⟨c, hc, ?_, ?_⟩
+    · simpa [segment_symm] using hov
+    · simp only [atom, hcoord, dist_comm]
+  · refine ⟨c, hc, ?_, ?_⟩
+    · simpa [segment_symm] using hov
+    · simp only [atom, hcoord, dist_comm]
+
+private lemma strict_schedule_composition_step1_side_carrier
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) : X.side i ⊆ X.carrier := by
+  have hfront : (P.disk X.form).side i ⊆ frontier (P.disk X.form).carrier := by
+    rw [(P.disk X.form).frontier_eq]
+    exact Set.subset_iUnion (fun j => (P.disk X.form).side j) i
+  intro z hz
+  change z ∈ X.anchor +ᵥ (P.disk X.form).side i at hz
+  change z ∈ X.anchor +ᵥ (P.disk X.form).carrier
+  rw [mem_vadd_set_iff_neg_vadd_mem] at hz ⊢
+  exact (P.disk X.form).compact.isClosed.frontier_subset (hfront hz)
+
+private lemma strict_schedule_composition_step1_regular
+    (A : PlacedTile P) : closure (interior A.carrier) = A.carrier := by
+  unfold PlacedTile.carrier
+  rw [interior_vadd, closure_vadd, (P.disk A.form).regular_closed]
+
+private lemma strict_schedule_composition_step1_frontier
+    (A : PlacedTile P) : frontier A.carrier = ⋃ i : Fin (P.disk A.form).n, A.side i := by
+  have hclosed : IsClosed A.carrier := by
+    rw [← strict_schedule_composition_step1_regular A]
+    exact isClosed_closure
+  ext z
+  constructor
+  · intro hz
+    rw [hclosed.frontier_eq] at hz
+    have hcar := hz.1
+    have hint := hz.2
+    rw [PlacedTile.carrier, mem_vadd_set_iff_neg_vadd_mem] at hcar
+    rw [PlacedTile.carrier, interior_vadd,
+      mem_vadd_set_iff_neg_vadd_mem] at hint
+    have hz' : -A.anchor +ᵥ z ∈ frontier (P.disk A.form).carrier := by
+      rw [(P.disk A.form).compact.isClosed.frontier_eq]
+      exact ⟨hcar, hint⟩
+    rw [(P.disk A.form).frontier_eq] at hz'
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 hz'
+    exact Set.mem_iUnion.2 ⟨i, by
+      change z ∈ A.anchor +ᵥ (P.disk A.form).side i
+      rw [mem_vadd_set_iff_neg_vadd_mem]
+      exact hi⟩
+  · intro hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 hz
+    rw [hclosed.frontier_eq]
+    refine ⟨strict_schedule_composition_step1_side_carrier A i hi, ?_⟩
+    intro hzi
+    rw [PlacedTile.side, PolygonalDisk.side] at hi
+    rw [PlacedTile.carrier, interior_vadd] at hzi
+    rw [mem_vadd_set_iff_neg_vadd_mem] at hi hzi
+    have hfront : (P.disk A.form).side i ⊆ frontier (P.disk A.form).carrier := by
+      rw [(P.disk A.form).frontier_eq]
+      exact Set.subset_iUnion (fun j => (P.disk A.form).side j) i
+    exact Set.disjoint_left.mp disjoint_interior_frontier hzi (hfront hi)
+
+private lemma strict_schedule_composition_step1_carrier
+    (G : GroupedFamily P) (A : PlacedTile G.P')
+    (X : PlacedTile P) (hX : X ∈ G.scatterTile A) : X.carrier ⊆ A.carrier := by
+  rcases hX with ⟨X₀, hX₀, rfl⟩
+  have hbase : X₀.carrier ⊆ (G.P'.disk A.form).carrier := by
+    intro z hz
+    rw [← G.support_eq A.form]
+    exact Set.mem_iUnion.2 ⟨X₀, Set.mem_iUnion.2 ⟨hX₀, hz⟩⟩
+  intro z hz
+  change z ∈ (A.anchor +ᵥ X₀.anchor) +ᵥ (P.disk X₀.form).carrier at hz
+  change z ∈ A.anchor +ᵥ (G.P'.disk A.form).carrier
+  have hz' : z ∈ A.anchor +ᵥ (X₀.anchor +ᵥ (P.disk X₀.form).carrier) := by
+    simpa only [vadd_vadd] using hz
+  obtain ⟨w, hw, rfl⟩ := hz'
+  obtain ⟨w₀, hw₀, rfl⟩ := hw
+  exact ⟨X₀.anchor +ᵥ w₀, hbase ⟨w₀, hw₀, rfl⟩, by simp [vadd_eq_add]⟩
+
+private lemma strict_schedule_composition_step1_finite_cover
+    {x y : Pt} (hxy : x ≠ y) {n : ℕ}
+    (s : Fin n → Set Pt) (hsub : segment ℝ x y ⊆ ⋃ i, s i)
+    (hconv : ∀ i, Convex ℝ (s i)) : ∃ i, OverlapPos (segment ℝ x y) (s i) := by
+  by_contra h
+  push_neg at h
+  have hss : ∀ i : Fin n, Set.Subsingleton (segment ℝ x y ∩ s i) := by
+    intro i p hp q hq
+    by_contra hpq
+    have hpqsub : segment ℝ p q ⊆ segment ℝ x y ∩ s i :=
+      (convex_segment _ _).inter (hconv i) |>.segment_subset hp hq
+    exact (h i) ⟨p, q, hpq, hpqsub⟩
+  have hfin : (⋃ i : Fin n, segment ℝ x y ∩ s i).Finite := by
+    simpa using
+      (Set.toFinite (Set.univ : Set (Fin n))).biUnion (fun i _ => (hss i).finite)
+  have hseg : segment ℝ x y ⊆ ⋃ i : Fin n, segment ℝ x y ∩ s i := by
+    intro z hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 (hsub hz)
+    exact Set.mem_iUnion.2 ⟨i, hz, hi⟩
+  letI : Infinite (Set.Ioo (0 : ℝ) 1) := Set.Ioo.infinite (by norm_num)
+  have hinf : (segment ℝ x y).Infinite := by
+    apply Set.infinite_of_injective_forall_mem
+      (f := fun t : Set.Ioo (0 : ℝ) 1 => AffineMap.lineMap x y t.1)
+    · intro a b hab
+      apply Subtype.ext
+      exact (AffineMap.lineMap_injective ℝ hxy) hab
+    · intro t
+      rw [segment_eq_image_lineMap]
+      exact ⟨t.1, Set.mem_Icc.mpr ⟨le_of_lt t.2.1, le_of_lt t.2.2⟩, rfl⟩
+  exact hinf (hfin.subset hseg)
+
+private lemma strict_schedule_composition_step1_translate_side
+    (X : PlacedTile P) (v : Pt) (i : Fin (P.disk X.form).n) :
+    (X.translate v).side i = v +ᵥ X.side i := by
+  simp [PlacedTile.translate, PlacedTile.side, vadd_vadd]
+
+private lemma strict_schedule_composition_step1_translate_overlap
+    (X Y : PlacedTile P) (v : Pt)
+    (i : Fin (P.disk X.form).n) (j : Fin (P.disk Y.form).n)
+    (h : OverlapPos ((X.translate v).side i) ((Y.translate v).side j)) :
+    OverlapPos (X.side i) (Y.side j) := by
+  obtain ⟨x, y, hxy, hseg⟩ := h
+  refine ⟨-v +ᵥ x, -v +ᵥ y, by simpa using hxy, ?_⟩
+  rw [strict_schedule_composition_step1_translate_side,
+    strict_schedule_composition_step1_translate_side] at hseg
+  intro z hz
+  have hz' : v +ᵥ z ∈ segment ℝ x y := by
+    rw [segment_eq_image'] at hz ⊢
+    obtain ⟨t, ht, rfl⟩ := hz
+    exact ⟨t, ht, by simp only [vadd_eq_add]; abel⟩
+  have hz'' := hseg hz'
+  exact ⟨by simpa [Set.mem_vadd_set_iff_neg_vadd_mem] using hz''.1,
+    by simpa [Set.mem_vadd_set_iff_neg_vadd_mem] using hz''.2⟩
+
+private lemma strict_schedule_composition_step1_side_eq
+    {D E : PolygonalDisk} (hd : D = E) (i : Fin E.n) :
+    D.side (Fin.cast (congrArg (fun Q : PolygonalDisk => Q.n) hd).symm i) =
+      E.side i := by
+  cases hd
+  rfl
+
+private theorem strict_schedule_composition_step1_boundary_lifting
+    {P : Protoset} {τ : Substitution P} (Sys : StrictScheduleSystem τ)
+    (T T'' : PlaneTiling Sys.dec.P')
+    (hcomp : Sys.σc.IsComposition T'' T)
+    (A : PlacedTile Sys.GS.G.P')
+    (hA : A ∈ (Sys.dec.toDecoration.project T'').tiles)
+    (e : Pt × Pt) (he : e ∈ fineOuterSides τ Sys.GS.G Sys.GS.k A.form) :
+    ∃ (q : PlacedTile Sys.dec.P') (_hq : q ∈ T''.tiles)
+      (Y : PlacedTile Sys.dec.P') (_hY : Y ∈ (Sys.σc.rule q.form).tiles)
+      (i : Fin (Sys.dec.P'.disk Y.form).n),
+      Sys.dec.toDecoration.projTile q = A ∧
+      Y.side i ⊆ frontier (Sys.σc.θ • (Sys.dec.P'.disk q.form).carrier) ∧
+      (e = (Y.vertex i, Y.vertex (finRotate _ i)) ∨
+        e = (Y.vertex (finRotate _ i), Y.vertex i)) ∧
+      Y.translate (Sys.σc.θ • q.anchor) ∈ T.tiles ∧
+      placedSeg ((τ.θ ^ Sys.GS.k) • A.anchor) e =
+        (Y.translate (Sys.σc.θ • q.anchor)).side i := by
+  rcases hA with ⟨q, hq, rfl⟩
+  rcases he with ⟨B, hB, j, rfl, hBfront⟩
+  have hB' : B ∈ Sys.GS.G.scatter
+      (Sys.GS.σ.rule (Sys.dec.proj q.form)).tiles := by
+    rw [Sys.GS.compat]
+    exact hB
+  rcases Set.mem_iUnion.1 hB' with ⟨X, hB'⟩
+  rcases Set.mem_iUnion.1 hB' with ⟨hX, hBX⟩
+  have hX' : X ∈ Sys.dec.toDecoration.projTile ''
+      (Sys.σc.rule q.form).tiles := by
+    rw [Sys.rule_proj]
+    exact hX
+  rcases hX' with ⟨Y, hY, rfl⟩
+  let X := Sys.dec.toDecoration.projTile Y
+  have hBcarrier : B.carrier ⊆ X.carrier :=
+    strict_schedule_composition_step1_carrier Sys.GS.G X B hBX
+  have hXparent : X.carrier ⊆
+      parentRegion τ Sys.GS.G Sys.GS.k (Sys.dec.proj q.form) := by
+    intro z hz
+    rw [parentRegion, ← Sys.GS.θ_eq, ← Sys.GS.σ.support_eq]
+    exact Set.mem_iUnion.2 ⟨X, Set.mem_iUnion.2 ⟨hX, hz⟩⟩
+  have hBside : B.side j ⊆ frontier X.carrier := by
+    intro z hz
+    have hzB :=
+      strict_schedule_composition_step1_side_carrier B j hz
+    have hzX := hBcarrier hzB
+    have hzseg : z ∈ segment ℝ (B.vertex j) (B.vertex (finRotate _ j)) := by
+      rw [← omitted_count_tile_side_eq B j]
+      exact hz
+    have hzfront := hBfront hzseg
+    have hclosed : IsClosed X.carrier := by
+      rw [← strict_schedule_composition_step1_regular X]
+      exact isClosed_closure
+    rw [hclosed.frontier_eq]
+    refine ⟨hzX, ?_⟩
+    intro hzint
+    exact Set.disjoint_left.mp disjoint_interior_frontier
+      (interior_mono hXparent hzint) hzfront
+  have hBunion : B.side j ⊆ ⋃ i : Fin (Sys.GS.G.P'.disk X.form).n, X.side i := by
+    rw [← strict_schedule_composition_step1_frontier]
+    exact hBside
+  obtain ⟨i, hover⟩ :=
+    strict_schedule_composition_step1_finite_cover
+      (omitted_count_tile_vertex_ne_next B j) (fun i => X.side i) (by
+        rw [← omitted_count_tile_side_eq B j]
+        exact hBunion)
+      (fun i => by
+        change Convex ℝ (X.anchor +ᵥ (Sys.GS.G.P'.disk X.form).side i)
+        exact (convex_segment _ _).vadd X.anchor)
+  obtain ⟨C, hC, l, hCl⟩ := Sys.GS.G.side_whole X.form i
+  have hCX : (C.translate X.anchor).side l = X.side i := by
+    simpa [PlacedTile.translate, PlacedTile.side, vadd_vadd] using
+      congrArg (fun s : Set Pt => X.anchor +ᵥ s) hCl
+  have hover' : OverlapPos (B.side j) ((C.translate X.anchor).side l) := by
+    rw [hCX, omitted_count_tile_side_eq]
+    exact hover
+  rcases hBX with ⟨B₀, hB₀, rfl⟩
+  have hover₀ :=
+    strict_schedule_composition_step1_translate_overlap B₀ C X.anchor j l hover'
+  have heq₀ : B₀.side j = C.side l :=
+    Sys.GS.G.sts X.form B₀ hB₀ C hC j l hover₀
+  have heq : (B₀.translate X.anchor).side j = X.side i := by
+    rw [strict_schedule_composition_step1_translate_side, heq₀]
+    simpa [PlacedTile.translate, PlacedTile.side, vadd_vadd] using hCX
+  let hd := Sys.dec.disk_eq Y.form
+  let i' : Fin (Sys.dec.P'.disk Y.form).n :=
+    Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hd).symm i
+  have hYi : Y.side i' = X.side i := by
+    change Y.anchor +ᵥ (Sys.dec.P'.disk Y.form).side i' =
+      Y.anchor +ᵥ (Sys.GS.G.P'.disk (Sys.dec.proj Y.form)).side i
+    exact congrArg (fun s : Set Pt => Y.anchor +ᵥ s)
+      (strict_schedule_composition_step1_side_eq hd i)
+  have hside : (B₀.translate X.anchor).side j = Y.side i' := heq.trans hYi.symm
+  have hends :
+      (Y.vertex i' = (B₀.translate X.anchor).vertex j ∧
+        Y.vertex (finRotate _ i') = (B₀.translate X.anchor).vertex (finRotate _ j)) ∨
+      (Y.vertex i' = (B₀.translate X.anchor).vertex (finRotate _ j) ∧
+        Y.vertex (finRotate _ i') = (B₀.translate X.anchor).vertex j) := by
+    apply boundary_align_segment_endpoints
+      (omitted_count_tile_vertex_ne_next (B₀.translate X.anchor) j)
+    simpa only [omitted_count_tile_side_eq] using hside
+  have horient :
+      ((B₀.translate X.anchor).vertex j,
+          (B₀.translate X.anchor).vertex (finRotate _ j)) =
+          (Y.vertex i', Y.vertex (finRotate _ i')) ∨
+      ((B₀.translate X.anchor).vertex j,
+          (B₀.translate X.anchor).vertex (finRotate _ j)) =
+          (Y.vertex (finRotate _ i'), Y.vertex i') := by
+    rcases hends with hends | hends
+    · exact Or.inl (Prod.ext hends.1.symm hends.2.symm)
+    · exact Or.inr (Prod.ext hends.2.symm hends.1.symm)
+  refine ⟨q, hq, Y, hY, i', rfl, ?_, horient, ?_, ?_⟩
+  · rw [← hside]
+    intro z hz
+    have hzseg : z ∈ segment ℝ
+        ((B₀.translate X.anchor).vertex j)
+        ((B₀.translate X.anchor).vertex (finRotate _ j)) := by
+      rw [← omitted_count_tile_side_eq]
+      exact hz
+    have hzfront := hBfront hzseg
+    simpa [parentRegion, Sys.θ_eq, Sys.GS.θ_eq, Sys.dec.disk_eq] using hzfront
+  · rw [← hcomp]
+    exact Set.mem_iUnion.2 ⟨q, Set.mem_iUnion.2 ⟨hq, ⟨Y, hY, rfl⟩⟩⟩
+  · rw [Sys.θ_eq, Sys.GS.θ_eq]
+    dsimp [X] at hside ⊢
+    let v := (τ.θ ^ Sys.GS.k) • q.anchor
+    change placedSeg v
+      ((B₀.translate (Sys.dec.toDecoration.projTile Y).anchor).vertex j,
+        (B₀.translate (Sys.dec.toDecoration.projTile Y).anchor).vertex
+          (finRotate _ j)) = (Y.translate v).side i'
+    calc
+      placedSeg v
+          ((B₀.translate (Sys.dec.toDecoration.projTile Y).anchor).vertex j,
+            (B₀.translate (Sys.dec.toDecoration.projTile Y).anchor).vertex
+              (finRotate _ j)) =
+          v +ᵥ (B₀.translate (Sys.dec.toDecoration.projTile Y).anchor).side j := by
+            simp [placedSeg, omitted_count_tile_side_eq, vadd_segment]
+      _ = v +ᵥ Y.side i' := congrArg (fun s : Set Pt => v +ᵥ s) hside
+      _ = (Y.translate v).side i' :=
+        (strict_schedule_composition_step1_translate_side Y v i').symm
+
+private lemma strict_schedule_composition_step1_same_tile_colour
+    (dec : SideDecoration P) (Z Z' : PlacedTile dec.P') (hZZ : Z = Z')
+    (i : Fin (dec.P'.disk Z.form).n) (i' : Fin (dec.P'.disk Z'.form).n)
+    (hside : Z.side i = Z'.side i') :
+    dec.colour Z.form i = dec.colour Z'.form i' := by
+  subst Z'
+  let z := AffineMap.lineMap (Z.vertex i) (Z.vertex (finRotate _ i)) (1 / 2 : ℝ)
+  have hzopen : z ∈ openSegment ℝ (Z.vertex i) (Z.vertex (finRotate _ i)) :=
+    lineMap_mem_openSegment (𝕜 := ℝ) _ _ (by norm_num)
+  have hzside : z ∈ Z.side i' := by
+    rw [← hside, omitted_count_tile_side_eq]
+    exact openSegment_subset_segment ℝ _ _ hzopen
+  have hzseg : z ∈ segment ℝ (Z.vertex i') (Z.vertex (finRotate _ i')) := by
+    rw [← omitted_count_tile_side_eq Z i']
+    exact hzside
+  have hii := omitted_count_same_tile_side_index Z i i' z hzopen hzseg
+  subst i'
+  rfl
+
+private theorem strict_schedule_composition_step1_schedule_transfer
+    {P : Protoset} {τ : Substitution P} (Sys : StrictScheduleSystem τ)
+    (T : PlaneTiling Sys.dec.P') (hp : Sys.dec.Proper T)
+    (A A' : PlacedTile Sys.GS.G.P') (e e' : Pt × Pt)
+    (q q' : PlacedTile Sys.dec.P') (Y Y' : PlacedTile Sys.dec.P')
+    (i : Fin (Sys.dec.P'.disk Y.form).n)
+    (i' : Fin (Sys.dec.P'.disk Y'.form).n)
+    (hproj : Sys.dec.toDecoration.projTile q = A)
+    (hproj' : Sys.dec.toDecoration.projTile q' = A')
+    (hY : Y ∈ (Sys.σc.rule q.form).tiles)
+    (hY' : Y' ∈ (Sys.σc.rule q'.form).tiles)
+    (hfront : Y.side i ⊆ frontier (Sys.σc.θ • (Sys.dec.P'.disk q.form).carrier))
+    (hfront' : Y'.side i' ⊆
+      frontier (Sys.σc.θ • (Sys.dec.P'.disk q'.form).carrier))
+    (horient : e = (Y.vertex i, Y.vertex (finRotate _ i)) ∨
+      e = (Y.vertex (finRotate _ i), Y.vertex i))
+    (horient' : e' = (Y'.vertex i', Y'.vertex (finRotate _ i')) ∨
+      e' = (Y'.vertex (finRotate _ i'), Y'.vertex i'))
+    (hT : Y.translate (Sys.σc.θ • q.anchor) ∈ T.tiles)
+    (hT' : Y'.translate (Sys.σc.θ • q'.anchor) ∈ T.tiles)
+    (hside : (Y.translate (Sys.σc.θ • q.anchor)).side i =
+      (Y'.translate (Sys.σc.θ • q'.anchor)).side i') :
+    EndpointSchedule τ Sys.GS.G Sys.GS.k A.form e =
+      EndpointSchedule τ Sys.GS.G Sys.GS.k A'.form e' := by
+  have hform : Sys.dec.proj q.form = A.form :=
+    congrArg PlacedTile.form hproj
+  have hform' : Sys.dec.proj q'.form = A'.form :=
+    congrArg PlacedTile.form hproj'
+  have hs := Sys.schedule_spec q.form Y hY i hfront
+  have hs' := Sys.schedule_spec q'.form Y' hY' i' hfront'
+  rw [hform] at hs
+  rw [hform'] at hs'
+  have hsched : Sys.outerSchedule Y.form i =
+      some (EndpointSchedule τ Sys.GS.G Sys.GS.k A.form e) := by
+    rcases horient with rfl | rfl
+    · exact hs
+    · rw [← strict_schedule_composition_endpointSchedule_swap] at hs
+      exact hs
+  have hsched' : Sys.outerSchedule Y'.form i' =
+      some (EndpointSchedule τ Sys.GS.G Sys.GS.k A'.form e') := by
+    rcases horient' with rfl | rfl
+    · exact hs'
+    · rw [← strict_schedule_composition_endpointSchedule_swap] at hs'
+      exact hs'
+  have hcolour : Sys.dec.colour Y.form i = Sys.dec.colour Y'.form i' := by
+    let Z := Y.translate (Sys.σc.θ • q.anchor)
+    let Z' := Y'.translate (Sys.σc.θ • q'.anchor)
+    by_cases hne : Z ≠ Z'
+    · exact hp.2 Z hT Z' hT' hne i i' hside
+    · exact strict_schedule_composition_step1_same_tile_colour
+        Sys.dec Z Z' (not_ne_iff.mp hne) i i' hside
+  have hout := Sys.schedule_colour Y.form Y'.form i i' hcolour
+  rw [hsched, hsched'] at hout
+  exact Option.some.inj hout
+
 /-- Step 1 of the blueprint proof of `strict_schedule_composition`: boundary-edge lifting — every
 fine outer side is the projection of an outer side of a coloured rule child, so
 schedule_spec/schedule_colour + properness give aligned schedules. -/
@@ -2169,7 +2532,20 @@ private theorem strict_schedule_composition_step1_aligned {P : Protoset} {τ : S
     (T T'' : PlaneTiling Sys.dec.P') (hp : Sys.dec.Proper T)
     (hcomp : Sys.σc.IsComposition T'' T) :
     SchedulesAligned τ Sys.GS.G Sys.GS.k (Sys.dec.toDecoration.project T'') := by
-  sorry
+  have _ := hτ
+  intro A hA A' hA' e he e' he' hseg
+  obtain ⟨q, _, Y, hY, i, hproj, hfront, horient, hT, hphys⟩ :=
+    strict_schedule_composition_step1_boundary_lifting
+      Sys T T'' hcomp A hA e he
+  obtain ⟨q', _, Y', hY', i', hproj', hfront', horient', hT', hphys'⟩ :=
+    strict_schedule_composition_step1_boundary_lifting
+      Sys T T'' hcomp A' hA' e' he'
+  have hside : (Y.translate (Sys.σc.θ • q.anchor)).side i =
+      (Y'.translate (Sys.σc.θ • q'.anchor)).side i' := by
+    rw [← hphys, hseg, hphys']
+  exact strict_schedule_composition_step1_schedule_transfer
+    Sys T hp A A' e e' q q' Y Y' i i' hproj hproj' hY hY' hfront hfront'
+    horient horient' hT hT' hside
 
 private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_translate
     (τ : Substitution P) (v : Pt) (S : Set (PlacedTile P)) :

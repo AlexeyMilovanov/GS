@@ -1211,6 +1211,28 @@ private lemma coarse_simple_step1 (i : Fin D.genuineCount) (x : Pt)
     have h_sub := coarse_simple_step1_step1 D i k ⟨x, hk, hx, h_end⟩
     exact ⟨k, hk, h_sub⟩
 
+/-- Step 1 of the blueprint proof of `coarse_simple_step2_step1`: A fine segment contained in
+a coarse segment `i` is one of the fine sides of the chain walk from `D.coarseVertex i` to
+`D.coarseVertex (finRotate D.genuineCount i)`, i.e. its starting index is `cyclicIndex` of the
+starting genuine index by some offset `r` within the coarse block's length. -/
+private lemma coarse_simple_step2_step1_step1_mem_block (i : Fin D.genuineCount) (k : Fin D.n)
+    (h : segment ℝ (D.vertex k) (D.vertex (finRotate D.n k)) ⊆
+      segment ℝ (D.coarseVertex i) (D.coarseVertex (finRotate D.genuineCount i))) :
+    ∃ r, r < coarseLength D i ∧
+      k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 r := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `coarse_simple_step2_step1`: The coarse block (given by a
+genuine index `i` and an offset `r` below the block's length) containing a fine index `k` in its
+chain walk is unique. -/
+private lemma coarse_simple_step2_step1_step2_block_unique
+    (i i' : Fin D.genuineCount) (r r' : ℕ) (k : Fin D.n)
+    (hr : r < coarseLength D i) (hr' : r' < coarseLength D i')
+    (hk : k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i).1 r)
+    (hk' : k = cyclicIndex (by have := D.three_le; omega) (D.genuineEnum i').1 r') :
+    i = i' := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `coarse_simple_step2`: The fine segments `k1` and `k2` must be distinct. -/
 private lemma coarse_simple_step2_step1 (i j : Fin D.genuineCount) (hij : i ≠ j)
     (k1 k2 : Fin D.n)
@@ -1219,7 +1241,11 @@ private lemma coarse_simple_step2_step1 (i j : Fin D.genuineCount) (hij : i ≠ 
     (h2 : segment ℝ (D.vertex k2) (D.vertex (finRotate D.n k2)) ⊆
       segment ℝ (D.coarseVertex j) (D.coarseVertex (finRotate D.genuineCount j))) :
     k1 ≠ k2 := by
-  sorry
+  intro heq
+  subst heq
+  obtain ⟨r, hr, hk⟩ := coarse_simple_step2_step1_step1_mem_block D i k1 h1
+  obtain ⟨r', hr', hk'⟩ := coarse_simple_step2_step1_step1_mem_block D j k1 h2
+  exact hij (coarse_simple_step2_step1_step2_block_unique D i j r r' k1 hr hr' hk hk')
 
 /-- Step 2 of the blueprint proof of `coarse_simple_step2`: If `x` is a fine endpoint in both fine segments, it is a coarse endpoint. -/
 private lemma coarse_simple_step2_step2 (i j : Fin D.genuineCount) (hij : i ≠ j)

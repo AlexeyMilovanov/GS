@@ -3479,6 +3479,33 @@ private lemma refinedSubstitution_sts_step1_visible_vertices (h : τ.FLC)
   · rintro ⟨hv, h1, h2⟩
     exact ⟨(hcore p h1 h2).mpr hv, h1, h2⟩
 
+/-- A listed vertex lying on a listed side is one of that side's endpoints. -/
+private theorem refinedSubstitution_sts_step2_sides_eq_step1_inter_eq_endpoint_of_vertex_mem_side
+    {Q : Protoset} (B : PlacedTile Q) (j : Fin (Q.disk B.form).n) {x : Pt}
+    (hxv : x ∈ B.vertexSet) (hxs : x ∈ B.side j) :
+    x ∈ ({B.vertex j, B.vertex (finRotate _ j)} : Set Pt) := by
+  rcases hxv with ⟨k, rfl⟩
+  by_cases hkj : k = j
+  · subst k
+    simp
+  · have hsidek : B.vertex k ∈ B.side k := by
+      unfold PlacedTile.side PlacedTile.vertex PolygonalDisk.side
+      exact ⟨_, left_mem_segment ℝ _ _, rfl⟩
+    have hs := (Q.disk B.form).simple j k (Ne.symm hkj)
+    have hs' : B.vertex k ∈
+        ({B.vertex j, B.vertex (finRotate _ j)} : Set Pt) ∩
+          {B.vertex k, B.vertex (finRotate _ k)} := by
+      have hrootj : (Q.disk B.form).vertex k ∈ (Q.disk B.form).side j := by
+        simpa [PlacedTile.vertex, PlacedTile.side, PolygonalDisk.side, vadd_eq_add] using hxs
+      have hrootk : (Q.disk B.form).vertex k ∈ (Q.disk B.form).side k := by
+        simpa [PlacedTile.vertex, PlacedTile.side, PolygonalDisk.side, vadd_eq_add] using hsidek
+      have hroot : (Q.disk B.form).vertex k ∈
+          (Q.disk B.form).side j ∩ (Q.disk B.form).side k := by
+        exact ⟨hrootj, hrootk⟩
+      have hend := hs hroot
+      simpa [PlacedTile.vertex, vadd_eq_add] using hend
+    exact hs'.1
+
 /-- Step 1 of the blueprint proof of `refinedSubstitution_sts_step2_sides_eq`: the side endpoint intersections with the overlapping segments are equal. -/
 private lemma refinedSubstitution_sts_step2_sides_eq_step1_inter_eq (h : τ.FLC)
     (A B : PlacedTile (cloneProtoset τ h))
@@ -3486,7 +3513,51 @@ private lemma refinedSubstitution_sts_step2_sides_eq_step1_inter_eq (h : τ.FLC)
     (j : Fin ((cloneProtoset τ h).disk B.form).n)
     (h_same_verts : A.vertexSet ∩ (A.side i ∩ B.side j) = B.vertexSet ∩ (A.side i ∩ B.side j)) :
     {A.vertex i, A.vertex (finRotate _ i)} ∩ B.side j = {B.vertex j, B.vertex (finRotate _ j)} ∩ A.side i := by
-  sorry
+  have _h := h
+  ext x
+  constructor
+  · intro hx
+    have hAx : x ∈ A.vertexSet ∩ (A.side i ∩ B.side j) := by
+      refine ⟨?_, ?_, hx.2⟩
+      · simp only [PlacedTile.vertexSet, mem_range]
+        rcases hx.1 with hx | hx
+        · exact ⟨i, hx.symm⟩
+        · exact ⟨finRotate _ i, hx.symm⟩
+      · rcases hx.1 with hx | hx
+        · subst x
+          unfold PlacedTile.side PlacedTile.vertex PolygonalDisk.side
+          exact ⟨_, left_mem_segment ℝ _ _, rfl⟩
+        · subst x
+          unfold PlacedTile.side PlacedTile.vertex PolygonalDisk.side
+          exact ⟨_, right_mem_segment ℝ _ _, rfl⟩
+    have hBx : x ∈ B.vertexSet ∩ (A.side i ∩ B.side j) := by
+      rw [← h_same_verts]
+      exact hAx
+    have hend :=
+      refinedSubstitution_sts_step2_sides_eq_step1_inter_eq_endpoint_of_vertex_mem_side
+        B j hBx.1 hBx.2.2
+    exact ⟨hend, hBx.2.1⟩
+  · intro hx
+    have hBx : x ∈ B.vertexSet ∩ (A.side i ∩ B.side j) := by
+      refine ⟨?_, hx.2, ?_⟩
+      · simp only [PlacedTile.vertexSet, mem_range]
+        rcases hx.1 with hx | hx
+        · exact ⟨j, hx.symm⟩
+        · exact ⟨finRotate _ j, hx.symm⟩
+      · rcases hx.1 with hx | hx
+        · subst x
+          unfold PlacedTile.side PlacedTile.vertex PolygonalDisk.side
+          exact ⟨_, left_mem_segment ℝ _ _, rfl⟩
+        · subst x
+          unfold PlacedTile.side PlacedTile.vertex PolygonalDisk.side
+          exact ⟨_, right_mem_segment ℝ _ _, rfl⟩
+    have hAx : x ∈ A.vertexSet ∩ (A.side i ∩ B.side j) := by
+      rw [h_same_verts]
+      exact hBx
+    have hend :=
+      refinedSubstitution_sts_step2_sides_eq_step1_inter_eq_endpoint_of_vertex_mem_side
+        A i hAx.1 hAx.2.1
+    exact ⟨hend, hAx.2.2⟩
 
 /-- Step 2 of the blueprint proof of `refinedSubstitution_sts_step2_sides_eq`: if the side
 endpoint intersections with the overlapping segments are equal, and the segments overlap with

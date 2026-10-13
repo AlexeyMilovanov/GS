@@ -4799,6 +4799,42 @@ section Completeness
 
 variable (C : MacroCertificate P) (hC : C.Represents τ m)
 
+/-- Step 1 of the blueprint proof of `strict_actual_schedules_aligned`: at a
+shared whole fine side, a positively overlapping boundary side in one layer
+has the single neighbouring boundary side in the other parent. -/
+private theorem strict_actual_schedules_aligned_step1_crossing_side
+    (T' : PlaneTiling C.Q) (hT' : T'.SideToSide)
+    (hlev : ∀ j ≤ m,
+      SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter T'.tiles)))
+    (A A' : PlacedTile C.Q) (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (e e' : Pt × Pt)
+    (he : e ∈ Alignment.fineOuterSides τ hC.groupedFamily m A.form)
+    (he' : e' ∈ Alignment.fineOuterSides τ hC.groupedFamily m A'.form)
+    (heq : Alignment.placedSeg ((τ.θ ^ m) • A.anchor) e =
+      Alignment.placedSeg ((τ.θ ^ m) • A'.anchor) e')
+    (t : Alignment.LayerTag m) (c : Pt × Pt)
+    (hc : c ∈ Alignment.layerSides τ hC.groupedFamily m A.form t)
+    (hov : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2)) :
+    ∃ d, d ∈ Alignment.layerSides τ hC.groupedFamily m A'.form t ∧
+      OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) ∧
+      Alignment.placedSeg ((τ.θ ^ m) • A.anchor) c =
+        Alignment.placedSeg ((τ.θ ^ m) • A'.anchor) d := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_actual_schedules_aligned`: once
+the two layer sides and the two fine sides are physically coincident, their
+positive overlaps have equal endpoint coordinates in the common frame. -/
+private theorem strict_actual_schedules_aligned_step2_atom_eq
+    (A A' : PlacedTile C.Q) (e e' c d : Pt × Pt)
+    (heq : Alignment.placedSeg ((τ.θ ^ m) • A.anchor) e =
+      Alignment.placedSeg ((τ.θ ^ m) • A'.anchor) e')
+    (hcd : Alignment.placedSeg ((τ.θ ^ m) • A.anchor) c =
+      Alignment.placedSeg ((τ.θ ^ m) • A'.anchor) d)
+    (hov : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2))
+    (hov' : OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2)) :
+    Alignment.atom e c = Alignment.atom e' d := by
+  sorry
+
 /-- `lem:strict-presentation` (completeness, schedules): in an actual grouped level `T'` that is
 side-to-side and whose scattered intermediate original levels `τ^j Δ T'`, `j ≤ m`, are
 side-to-side, coincident whole fine outer sides of two parents carry equal schedules (a
@@ -4807,7 +4843,22 @@ neighbouring block). -/
 theorem strict_actual_schedules_aligned (T' : PlaneTiling C.Q) (hT' : T'.SideToSide)
     (hlev : ∀ j ≤ m, SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter T'.tiles))) :
     Alignment.SchedulesAligned τ hC.groupedFamily m T' := by
-  sorry
+  intro A hA A' hA' e he e' he' heq
+  funext t
+  ext r
+  constructor
+  · intro hr
+    rcases hr with ⟨c, hc, hov, rfl⟩
+    obtain ⟨d, hd, hov', hcd⟩ := strict_actual_schedules_aligned_step1_crossing_side C hC T'
+      hT' hlev A A' hA hA' e e' he he' heq t c hc hov
+    have hat := strict_actual_schedules_aligned_step2_atom_eq C A A' e e' c d heq hcd hov hov'
+    exact ⟨d, hd, hov', hat⟩
+  · intro hr
+    rcases hr with ⟨d, hd, hov', rfl⟩
+    obtain ⟨c, hc, hov, hcd⟩ := strict_actual_schedules_aligned_step1_crossing_side C hC T'
+      hT' hlev A' A hA' hA e' e he' he heq.symm t d hd hov'
+    have hat := strict_actual_schedules_aligned_step2_atom_eq C A' A e' e d c heq.symm hcd hov' hov
+    exact ⟨c, hc, hov, hat⟩
 
 /-- `lem:strict-presentation` (completeness, "origin chains give legal tiles"): every grouped
 `σ'`-hierarchy lifts to compatible legal strict decorations (types from the positions in the

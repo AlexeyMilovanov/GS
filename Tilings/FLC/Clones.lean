@@ -5522,6 +5522,479 @@ theorem substitution_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
   · rintro ⟨T', hT', hProj⟩
     exact substitution_clone_lift_iff_step1_proj_is_subst h T T' hT' hProj
 
+private lemma hierarchy_clone_lift_support_translateSet (v : Pt)
+    (S : Set (PlacedTile P)) : support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier, mem_iUnion,
+    mem_image, mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [← add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [← add_assoc] using hx
+
+private lemma hierarchy_clone_lift_support_decomposeTile (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [hierarchy_clone_lift_support_translateSet, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [mem_vadd_set_iff_neg_vadd_mem, mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      change τ.θ • y = -(τ.θ • A.anchor) + x at hx
+      rw [hx]
+      abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma hierarchy_clone_lift_parent_unique {T' : PlaneTiling P}
+    {B : PlacedTile P}
+    {A D : PlacedTile P} (hAT : A ∈ T'.tiles) (hDT : D ∈ T'.tiles)
+    (hBA : B ∈ τ.decomposeTile A) (hBD : B ∈ τ.decomposeTile D) : A = D := by
+  by_contra hAD
+  have hBne : (interior B.carrier).Nonempty := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact (P.disk B.form).interior_nonempty.image (B.anchor +ᵥ ·)
+  have hBA_sub : B.carrier ⊆ τ.θ • A.carrier := by
+    rw [← hierarchy_clone_lift_support_decomposeTile (P := P) (τ := τ) A]
+    intro x hx
+    simp only [support, mem_iUnion]
+    exact ⟨B, hBA, hx⟩
+  have hBD_sub : B.carrier ⊆ τ.θ • D.carrier := by
+    rw [← hierarchy_clone_lift_support_decomposeTile (P := P) (τ := τ) D]
+    intro x hx
+    simp only [support, mem_iUnion]
+    exact ⟨B, hBD, hx⟩
+  have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+  have hdisj : Disjoint (interior (τ.θ • A.carrier)) (interior (τ.θ • D.carrier)) := by
+    rw [interior_smul₀ hθ, interior_smul₀ hθ]
+    exact (Set.disjoint_image_iff (smul_right_injective Pt hθ)).mpr
+      (T'.disjoint hAT hDT hAD)
+  obtain ⟨x, hx⟩ := hBne
+  exact Set.disjoint_left.1 hdisj (interior_mono hBA_sub hx) (interior_mono hBD_sub hx)
+
+private def hierarchyCloneLabel (A : PlacedTile P) :=
+  {c : GenuineCornerClone τ // c.form = A.form}
+
+private noncomputable def hierarchyCloneSingletonLabel (A : PlacedTile P) :
+    hierarchyCloneLabel (τ := τ) A :=
+  ⟨(exists_clone_of_form τ A.form).choose, (exists_clone_of_form τ A.form).choose_spec⟩
+
+private lemma hierarchy_clone_lift_proj_injOn (h : τ.FLC)
+    (T' : PlaneTiling (cloneProtoset τ h)) :
+    T'.tiles.InjOn (cloneDecoration τ h).projTile := by
+  intro A hA B hB heq
+  by_contra hAB
+  have hd := T'.disjoint hA hB hAB
+  have hcar : A.carrier = B.carrier := by
+    have hf := congrArg PlacedTile.form heq
+    have ha := congrArg PlacedTile.anchor heq
+    dsimp [Decoration.projTile] at hf ha
+    dsimp [PlacedTile.carrier]
+    change A.anchor +ᵥ (cloneDisk A.form).carrier =
+      B.anchor +ᵥ (cloneDisk B.form).carrier
+    rw [cloneDisk_carrier, cloneDisk_carrier]
+    change A.form.form = B.form.form at hf
+    rw [hf, ha]
+  dsimp [Function.onFun] at hd
+  rw [hcar] at hd
+  have hne : (interior B.carrier).Nonempty := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact ((cloneProtoset τ h).disk B.form).interior_nonempty.image (B.anchor +ᵥ ·)
+  obtain ⟨x, hx⟩ := hne
+  exact Set.disjoint_left.1 hd hx hx
+
+private lemma hierarchy_clone_lift_projTile_carrier (h : τ.FLC)
+    (A : PlacedTile (cloneProtoset τ h)) :
+    ((cloneDecoration τ h).projTile A).carrier = A.carrier := by
+  dsimp [Decoration.projTile, PlacedTile.carrier]
+  change A.anchor +ᵥ (P.disk A.form.form).carrier =
+    A.anchor +ᵥ (cloneDisk A.form).carrier
+  rw [cloneDisk_carrier]
+
+private lemma hierarchy_clone_lift_rule_proj_injective (h : τ.FLC)
+    (A : PlacedTile (cloneProtoset τ h)) :
+    Set.InjOn (cloneDecoration τ h).projTile
+      ((refinedSubstitution τ h).decomposeTile A) := by
+  intro X hX Y hY hXY
+  simp only [Substitution.decomposeTile, translateSet, mem_image] at hX hY
+  rcases hX with ⟨X₀, hX₀, rfl⟩
+  rcases hY with ⟨Y₀, hY₀, rfl⟩
+  change X₀ ∈ refinedRule τ h A.form at hX₀
+  change Y₀ ∈ refinedRule τ h A.form at hY₀
+  rcases hX₀ with ⟨BX, hBX, rfl⟩
+  rcases hY₀ with ⟨BY, hBY, rfl⟩
+  have hbase : BX = BY := by
+    apply PlacedTile.ext
+    · have hf := congrArg PlacedTile.form hXY
+      exact hf
+    · have ha := congrArg PlacedTile.anchor hXY
+      dsimp [Decoration.projTile, PlacedTile.translate, refinedSubstitution] at ha ⊢
+      exact add_left_cancel ha
+  subst BY
+  rfl
+
+private lemma hierarchy_clone_lift_decompose_proj_injective (h : τ.FLC)
+    {T₁ : PlaneTiling P}
+    (L₁ : PlaneTiling (cloneProtoset τ h))
+    (hproj : (cloneDecoration τ h).project L₁ = T₁) :
+    Set.InjOn (cloneDecoration τ h).projTile
+      ((refinedSubstitution τ h).decompose L₁.tiles) := by
+  intro X hX Y hY hXY
+  simp only [Substitution.decompose, mem_iUnion] at hX hY
+  rcases hX with ⟨A, hAL, hXA⟩
+  rcases hY with ⟨D, hDL, hYD⟩
+  have hchild (E : PlacedTile (cloneProtoset τ h))
+      (Z : PlacedTile (cloneProtoset τ h))
+      (hZE : Z ∈ (refinedSubstitution τ h).decomposeTile E) :
+      (cloneDecoration τ h).projTile Z ∈
+        τ.decomposeTile ((cloneDecoration τ h).projTile E) := by
+    have hz : (cloneDecoration τ h).projTile Z ∈
+        (cloneDecoration τ h).projTile ''
+          ((refinedSubstitution τ h).decompose ({E} : Set _)) := by
+      apply Set.mem_image_of_mem
+      simp only [Substitution.decompose, mem_iUnion]
+      exact ⟨E, mem_singleton E, hZE⟩
+    have hc := refinedSubstitution_commutes τ h ({E} : Set _)
+    rw [hc] at hz
+    simpa [Substitution.decompose] using hz
+  have hAT : (cloneDecoration τ h).projTile A ∈ T₁.tiles := by
+    rw [← congrArg PlaneTiling.tiles hproj]
+    exact Set.mem_image_of_mem _ hAL
+  have hDT : (cloneDecoration τ h).projTile D ∈ T₁.tiles := by
+    rw [← congrArg PlaneTiling.tiles hproj]
+    exact Set.mem_image_of_mem _ hDL
+  have hADproj : (cloneDecoration τ h).projTile A =
+      (cloneDecoration τ h).projTile D :=
+    hierarchy_clone_lift_parent_unique (τ := τ) (T' := T₁)
+      (B := (cloneDecoration τ h).projTile X)
+      (A := (cloneDecoration τ h).projTile A)
+      (D := (cloneDecoration τ h).projTile D) hAT hDT (hchild A X hXA) <| by
+      rw [hXY]
+      exact hchild D Y hYD
+  have hAD : A = D := hierarchy_clone_lift_proj_injOn τ h L₁ hAL hDL hADproj
+  subst D
+  exact hierarchy_clone_lift_rule_proj_injective τ h A hXA hYD hXY
+
+private noncomputable def hierarchyCloneDecompose (h : τ.FLC)
+    {T₁ T₀ : PlaneTiling P} (hcomp : τ.IsComposition T₁ T₀)
+    (L₁ : PlaneTiling (cloneProtoset τ h))
+    (hproj : (cloneDecoration τ h).project L₁ = T₁) :
+    PlaneTiling (cloneProtoset τ h) where
+  tiles := (refinedSubstitution τ h).decompose L₁.tiles
+  cover := by
+    have htiles : (cloneDecoration τ h).projTile ''
+        ((refinedSubstitution τ h).decompose L₁.tiles) = T₀.tiles := by
+      rw [refinedSubstitution_commutes]
+      rw [show (cloneDecoration τ h).projTile '' L₁.tiles = T₁.tiles by
+        exact congrArg PlaneTiling.tiles hproj]
+      exact hcomp
+    apply eq_univ_of_forall
+    intro x
+    have hx : x ∈ support T₀.tiles := by rw [T₀.cover]; exact mem_univ x
+    simp only [support, mem_iUnion] at hx ⊢
+    rcases hx with ⟨B, hBT, hxB⟩
+    rw [← htiles] at hBT
+    rcases hBT with ⟨A, hA, rfl⟩
+    refine ⟨A, hA, ?_⟩
+    rwa [← hierarchy_clone_lift_projTile_carrier τ h]
+  disjoint := by
+    intro A hA B hB hAB
+    have hinj := hierarchy_clone_lift_decompose_proj_injective τ h L₁ hproj
+    have hpne : (cloneDecoration τ h).projTile A ≠
+        (cloneDecoration τ h).projTile B := fun hp => hAB (hinj hA hB hp)
+    have htiles : (cloneDecoration τ h).projTile ''
+        ((refinedSubstitution τ h).decompose L₁.tiles) = T₀.tiles := by
+      rw [refinedSubstitution_commutes]
+      rw [show (cloneDecoration τ h).projTile '' L₁.tiles = T₁.tiles by
+        exact congrArg PlaneTiling.tiles hproj]
+      exact hcomp
+    have hd := T₀.disjoint (by rw [← htiles]; exact Set.mem_image_of_mem _ hA)
+      (by rw [← htiles]; exact Set.mem_image_of_mem _ hB) hpne
+    dsimp [Function.onFun] at hd ⊢
+    rwa [hierarchy_clone_lift_projTile_carrier, hierarchy_clone_lift_projTile_carrier] at hd
+
+private lemma hierarchy_clone_lift_planeTiling_eq {Q : Protoset}
+    {S T : PlaneTiling Q} (h : S.tiles = T.tiles) : S = T := by
+  cases S
+  cases T
+  cases h
+  rfl
+
+private theorem hierarchyCloneDecompose_project (h : τ.FLC)
+    {T₁ T₀ : PlaneTiling P} (hcomp : τ.IsComposition T₁ T₀)
+    (L₁ : PlaneTiling (cloneProtoset τ h))
+    (hproj : (cloneDecoration τ h).project L₁ = T₁) :
+    (cloneDecoration τ h).project (hierarchyCloneDecompose τ h hcomp L₁ hproj) = T₀ := by
+  apply hierarchy_clone_lift_planeTiling_eq
+  change (cloneDecoration τ h).projTile ''
+    ((refinedSubstitution τ h).decompose L₁.tiles) = T₀.tiles
+  rw [refinedSubstitution_commutes]
+  rw [show (cloneDecoration τ h).projTile '' L₁.tiles = T₁.tiles by
+    exact congrArg PlaneTiling.tiles hproj]
+  exact hcomp
+
+private noncomputable def hierarchyCloneRelabel (h : τ.FLC) (T : PlaneTiling P)
+    (label : ∀ A : T.tiles, hierarchyCloneLabel (τ := τ) A.1) :
+    PlaneTiling (cloneProtoset τ h) where
+  tiles := (fun A : T.tiles =>
+    (⟨(label A).1, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h))) '' univ
+  cover := by
+    apply eq_univ_of_forall
+    intro x
+    have hx : x ∈ support T.tiles := by rw [T.cover]; exact mem_univ x
+    simp only [support, mem_iUnion] at hx ⊢
+    rcases hx with ⟨A, hAT, hxA⟩
+    let a : T.tiles := ⟨A, hAT⟩
+    refine ⟨⟨(label a).1, A.anchor⟩, ⟨a, mem_univ a, rfl⟩, ?_⟩
+    dsimp [PlacedTile.carrier]
+    change x ∈ A.anchor +ᵥ (cloneDisk (label a).1).carrier
+    rw [cloneDisk_carrier, (label a).2]
+    exact hxA
+  disjoint := by
+    rintro _ ⟨A, _, rfl⟩ _ ⟨B, _, rfl⟩ hne
+    have hAB : A.1 ≠ B.1 := by
+      intro hab
+      have hsub : A = B := Subtype.ext hab
+      subst B
+      apply hne
+      rfl
+    have hd := T.disjoint A.2 B.2 hAB
+    dsimp [Function.onFun, PlacedTile.carrier] at hd ⊢
+    change Disjoint
+      (interior (A.1.anchor +ᵥ (cloneDisk (label A).1).carrier))
+      (interior (B.1.anchor +ᵥ (cloneDisk (label B).1).carrier))
+    rwa [cloneDisk_carrier, cloneDisk_carrier, (label A).2, (label B).2]
+
+private theorem hierarchyCloneRelabel_project (h : τ.FLC) (T : PlaneTiling P)
+    (label : ∀ A : T.tiles, hierarchyCloneLabel (τ := τ) A.1) :
+    (cloneDecoration τ h).project (hierarchyCloneRelabel τ h T label) = T := by
+  apply hierarchy_clone_lift_planeTiling_eq
+  apply Set.Subset.antisymm
+  · rintro B ⟨_, ⟨A, _, rfl⟩, rfl⟩
+    have heq : (cloneDecoration τ h).projTile
+        (⟨(label A).1, A.1.anchor⟩ : PlacedTile (cloneProtoset τ h)) = A.1 := by
+      apply PlacedTile.ext
+      · exact (label A).2
+      · rfl
+    rw [heq]
+    exact A.2
+  · intro A hAT
+    let a : T.tiles := ⟨A, hAT⟩
+    refine ⟨(⟨(label a).1, A.anchor⟩ : PlacedTile (cloneProtoset τ h)), ?_, ?_⟩
+    · exact ⟨a, mem_univ a, rfl⟩
+    · apply PlacedTile.ext
+      · exact (label a).2
+      · rfl
+
+private noncomputable def hierarchyFiniteLift (h : τ.FLC)
+    (seq : ℕ → PlaneTiling P) (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n))
+    (N n : ℕ) :
+    {L : PlaneTiling (cloneProtoset τ h) // (cloneDecoration τ h).project L = seq n} :=
+  if n < N then
+    let upper := hierarchyFiniteLift h seq hseq N (n + 1)
+    ⟨hierarchyCloneDecompose τ h (hseq n) upper.1 upper.2,
+      hierarchyCloneDecompose_project τ h (hseq n) upper.1 upper.2⟩
+  else
+    let label := fun A : (seq n).tiles => hierarchyCloneSingletonLabel (τ := τ) A.1
+    ⟨hierarchyCloneRelabel τ h (seq n) label,
+      hierarchyCloneRelabel_project τ h (seq n) label⟩
+termination_by N - n
+decreasing_by omega
+
+private theorem hierarchyFiniteLift_composition (h : τ.FLC)
+    (seq : ℕ → PlaneTiling P) (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n))
+    {N n : ℕ} (hn : n < N) :
+    (refinedSubstitution τ h).IsComposition
+      (hierarchyFiniteLift τ h seq hseq N (n + 1)).1
+      (hierarchyFiniteLift τ h seq hseq N n).1 := by
+  change (refinedSubstitution τ h).decompose
+      (hierarchyFiniteLift τ h seq hseq N (n + 1)).1.tiles =
+    (hierarchyFiniteLift τ h seq hseq N n).1.tiles
+  conv_rhs => rw [hierarchyFiniteLift]
+  rw [if_pos hn]
+  rfl
+
+private theorem hierarchyCloneLiftedTile_exists (h : τ.FLC) (T : PlaneTiling P)
+    (L : PlaneTiling (cloneProtoset τ h))
+    (hproj : (cloneDecoration τ h).project L = T) (A : T.tiles) :
+    ∃ X ∈ L.tiles, (cloneDecoration τ h).projTile X = A.1 := by
+  have htiles := congrArg PlaneTiling.tiles hproj
+  change (cloneDecoration τ h).projTile '' L.tiles = T.tiles at htiles
+  change A.1 ∈ (cloneDecoration τ h).projTile '' L.tiles
+  rw [htiles]
+  exact A.2
+
+private noncomputable def hierarchyCloneLiftedLabel (h : τ.FLC) (T : PlaneTiling P)
+    (L : PlaneTiling (cloneProtoset τ h))
+    (hproj : (cloneDecoration τ h).project L = T) (A : T.tiles) :
+    hierarchyCloneLabel (τ := τ) A.1 := by
+  let X := (hierarchyCloneLiftedTile_exists τ h T L hproj A).choose
+  refine ⟨X.form, ?_⟩
+  have heq := (hierarchyCloneLiftedTile_exists τ h T L hproj A).choose_spec.2
+  exact congrArg PlacedTile.form heq
+
+private theorem hierarchyCloneLiftedLabel_mem (h : τ.FLC) (T : PlaneTiling P)
+    (L : PlaneTiling (cloneProtoset τ h))
+    (hproj : (cloneDecoration τ h).project L = T) (A : T.tiles) :
+    (⟨(hierarchyCloneLiftedLabel τ h T L hproj A).1, A.1.anchor⟩ :
+      PlacedTile (cloneProtoset τ h)) ∈ L.tiles := by
+  let X := (hierarchyCloneLiftedTile_exists τ h T L hproj A).choose
+  have hX := (hierarchyCloneLiftedTile_exists τ h T L hproj A).choose_spec
+  convert hX.1 using 1
+  apply PlacedTile.ext
+  · rfl
+  · exact (congrArg PlacedTile.anchor hX.2).symm
+
+private noncomputable def hierarchyFiniteLabel (h : τ.FLC)
+    (seq : ℕ → PlaneTiling P) (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n))
+    (N n : ℕ) (A : (seq n).tiles) : hierarchyCloneLabel (τ := τ) A.1 :=
+  hierarchyCloneLiftedLabel τ h (seq n) (hierarchyFiniteLift τ h seq hseq N n).1
+    (hierarchyFiniteLift τ h seq hseq N n).2 A
+
+private def hierarchyCloneUltrafilter : Ultrafilter ℕ :=
+  Ultrafilter.of Filter.atTop
+
+private theorem hierarchySelectedLabel_exists (h : τ.FLC)
+    (seq : ℕ → PlaneTiling P) (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n))
+    (n : ℕ) (A : (seq n).tiles) :
+    ∃ c : hierarchyCloneLabel (τ := τ) A.1,
+      ∀ᶠ N in hierarchyCloneUltrafilter,
+        hierarchyFiniteLabel τ h seq hseq N n A = c := by
+  letI : Finite (GenuineCornerClone τ) := GenuineCornerClone.finite_of_flc τ h
+  letI : Finite (hierarchyCloneLabel (τ := τ) A.1) :=
+    Finite.of_injective Subtype.val Subtype.val_injective
+  apply (Ultrafilter.eventually_exists_iff (f := hierarchyCloneUltrafilter)).mp
+  exact Filter.Eventually.of_forall fun N => ⟨hierarchyFiniteLabel τ h seq hseq N n A, rfl⟩
+
+private noncomputable def hierarchySelectedLabel (h : τ.FLC)
+    (seq : ℕ → PlaneTiling P) (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n))
+    (n : ℕ) (A : (seq n).tiles) : hierarchyCloneLabel (τ := τ) A.1 :=
+  (hierarchySelectedLabel_exists τ h seq hseq n A).choose
+
+private theorem hierarchySelectedLabel_eventually (h : τ.FLC)
+    (seq : ℕ → PlaneTiling P) (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n))
+    (n : ℕ) (A : (seq n).tiles) :
+    ∀ᶠ N in hierarchyCloneUltrafilter,
+      hierarchyFiniteLabel τ h seq hseq N n A = hierarchySelectedLabel τ h seq hseq n A :=
+  (hierarchySelectedLabel_exists τ h seq hseq n A).choose_spec
+
+private theorem hierarchyClone_rule_projects (h : τ.FLC)
+    (A X : PlacedTile (cloneProtoset τ h))
+    (hX : X ∈ (refinedSubstitution τ h).decomposeTile A) :
+    (cloneDecoration τ h).projTile X ∈
+      τ.decomposeTile ((cloneDecoration τ h).projTile A) := by
+  have hx : (cloneDecoration τ h).projTile X ∈
+      (cloneDecoration τ h).projTile ''
+        ((refinedSubstitution τ h).decompose ({A} : Set _)) := by
+    apply Set.mem_image_of_mem
+    simp only [Substitution.decompose, mem_iUnion]
+    exact ⟨A, mem_singleton A, hX⟩
+  rw [refinedSubstitution_commutes] at hx
+  simpa [Substitution.decompose] using hx
+
+private theorem hierarchySelected_composition (h : τ.FLC)
+    (seq : ℕ → PlaneTiling P) (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n))
+    (n : ℕ) :
+    (refinedSubstitution τ h).IsComposition
+      (hierarchyCloneRelabel τ h (seq (n + 1))
+        (hierarchySelectedLabel τ h seq hseq (n + 1)))
+      (hierarchyCloneRelabel τ h (seq n)
+        (hierarchySelectedLabel τ h seq hseq n)) := by
+  let L₁ := hierarchyCloneRelabel τ h (seq (n + 1))
+    (hierarchySelectedLabel τ h seq hseq (n + 1))
+  let L₀ := hierarchyCloneRelabel τ h (seq n)
+    (hierarchySelectedLabel τ h seq hseq n)
+  change (refinedSubstitution τ h).decompose L₁.tiles = L₀.tiles
+  have hsub : (refinedSubstitution τ h).decompose L₁.tiles ⊆ L₀.tiles := by
+    intro X hX
+    simp only [Substitution.decompose, mem_iUnion] at hX
+    rcases hX with ⟨A', hA'L, hXA'⟩
+    change A' ∈ (fun A : (seq (n + 1)).tiles =>
+      (⟨(hierarchySelectedLabel τ h seq hseq (n + 1) A).1, A.1.anchor⟩ :
+        PlacedTile (cloneProtoset τ h))) '' univ at hA'L
+    rcases hA'L with ⟨A, _, rfl⟩
+    have hBT : (cloneDecoration τ h).projTile X ∈ (seq n).tiles := by
+      rw [← hseq n]
+      simp only [Substitution.decompose, mem_iUnion]
+      refine ⟨A.1, A.2, ?_⟩
+      have hrule := hierarchyClone_rule_projects τ h _ X hXA'
+      have hpA : (cloneDecoration τ h).projTile
+          (⟨(hierarchySelectedLabel τ h seq hseq (n + 1) A).1, A.1.anchor⟩ :
+            PlacedTile (cloneProtoset τ h)) = A.1 := by
+        apply PlacedTile.ext
+        · exact (hierarchySelectedLabel τ h seq hseq (n + 1) A).2
+        · rfl
+      rwa [hpA] at hrule
+    let B : (seq n).tiles := ⟨(cloneDecoration τ h).projTile X, hBT⟩
+    have hlarge : ∀ᶠ N in hierarchyCloneUltrafilter, n < N := by
+      have hat : ∀ᶠ N in Filter.atTop, n < N := by
+        apply Filter.eventually_atTop.2
+        exact ⟨n + 1, fun N hN => by omega⟩
+      exact hat.filter_mono (Ultrafilter.of_le Filter.atTop)
+    have hev := ((hierarchySelectedLabel_eventually τ h seq hseq (n + 1) A).and
+      (hierarchySelectedLabel_eventually τ h seq hseq n B)).and hlarge
+    obtain ⟨N, ⟨hNA, hNB⟩, hnN⟩ := hev.exists
+    let F₁ := (hierarchyFiniteLift τ h seq hseq N (n + 1)).1
+    let F₀ := (hierarchyFiniteLift τ h seq hseq N n).1
+    let AF : PlacedTile (cloneProtoset τ h) :=
+      ⟨(hierarchyFiniteLabel τ h seq hseq N (n + 1) A).1, A.1.anchor⟩
+    have hAF : AF ∈ F₁.tiles := by
+      exact hierarchyCloneLiftedLabel_mem τ h (seq (n + 1)) F₁
+        (hierarchyFiniteLift τ h seq hseq N (n + 1)).2 A
+    have hparent : (⟨(hierarchySelectedLabel τ h seq hseq (n + 1) A).1,
+        A.1.anchor⟩ : PlacedTile (cloneProtoset τ h)) = AF := by
+      apply PlacedTile.ext
+      · exact congrArg Subtype.val hNA.symm
+      · rfl
+    have hXF : X ∈ (refinedSubstitution τ h).decompose F₁.tiles := by
+      simp only [Substitution.decompose, mem_iUnion]
+      exact ⟨AF, hAF, hparent ▸ hXA'⟩
+    have hcompF := hierarchyFiniteLift_composition τ h seq hseq hnN
+    change (refinedSubstitution τ h).decompose F₁.tiles = F₀.tiles at hcompF
+    rw [hcompF] at hXF
+    let BF : PlacedTile (cloneProtoset τ h) :=
+      ⟨(hierarchyFiniteLabel τ h seq hseq N n B).1, B.1.anchor⟩
+    have hBF : BF ∈ F₀.tiles := by
+      exact hierarchyCloneLiftedLabel_mem τ h (seq n) F₀
+        (hierarchyFiniteLift τ h seq hseq N n).2 B
+    have hprojXB : (cloneDecoration τ h).projTile X =
+        (cloneDecoration τ h).projTile BF := by
+      apply PlacedTile.ext
+      · exact (hierarchyFiniteLabel τ h seq hseq N n B).2.symm
+      · rfl
+    have hXBF : X = BF := hierarchy_clone_lift_proj_injOn τ h F₀ hXF hBF hprojXB
+    rw [hXBF]
+    change BF ∈ (fun C : (seq n).tiles =>
+      (⟨(hierarchySelectedLabel τ h seq hseq n C).1, C.1.anchor⟩ :
+        PlacedTile (cloneProtoset τ h))) '' univ
+    refine ⟨B, mem_univ B, ?_⟩
+    apply PlacedTile.ext
+    · exact congrArg Subtype.val hNB.symm
+    · rfl
+  apply Set.Subset.antisymm hsub
+  intro Z hZ
+  have himages : (cloneDecoration τ h).projTile ''
+      ((refinedSubstitution τ h).decompose L₁.tiles) =
+      (cloneDecoration τ h).projTile '' L₀.tiles := by
+    rw [refinedSubstitution_commutes]
+    rw [show (cloneDecoration τ h).projTile '' L₁.tiles = (seq (n + 1)).tiles by
+      exact congrArg PlaneTiling.tiles (hierarchyCloneRelabel_project τ h (seq (n + 1)) _)]
+    rw [hseq n]
+    exact (congrArg PlaneTiling.tiles (hierarchyCloneRelabel_project τ h (seq n) _)).symm
+  have hzimage := Set.mem_image_of_mem (cloneDecoration τ h).projTile hZ
+  rw [← himages] at hzimage
+  rcases hzimage with ⟨X, hX, hp⟩
+  have hXL : X ∈ L₀.tiles := hsub hX
+  have hXZ : X = Z := hierarchy_clone_lift_proj_injOn τ h L₀ hXL hZ hp
+  rwa [hXZ] at hX
+
 /-- `lem:clone-hierarchy-lift`: a plane tiling is `τ`-hierarchical iff it is
 the projection of a refined-substitution hierarchical tiling. -/
 theorem hierarchy_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
@@ -5529,7 +6002,25 @@ theorem hierarchy_clone_lift_iff (h : τ.FLC) (T : PlaneTiling P) :
       ∃ T' : PlaneTiling (cloneProtoset τ h),
         (refinedSubstitution τ h).IsHierarchical T' ∧
           (cloneDecoration τ h).project T' = T := by
-  sorry
+  constructor
+  · rintro ⟨seq, hseq₀, hseq⟩
+    let seq' : ℕ → PlaneTiling (cloneProtoset τ h) := fun n =>
+      hierarchyCloneRelabel τ h (seq n) (hierarchySelectedLabel τ h seq hseq n)
+    refine ⟨seq' 0, ⟨seq', rfl, ?_⟩, ?_⟩
+    · exact hierarchySelected_composition τ h seq hseq
+    · exact (hierarchyCloneRelabel_project τ h (seq 0) _).trans hseq₀
+  · rintro ⟨T', ⟨seq', hseq₀, hseq⟩, hproj⟩
+    refine ⟨fun n => (cloneDecoration τ h).project (seq' n), ?_, ?_⟩
+    · change (cloneDecoration τ h).project (seq' 0) = T
+      rw [hseq₀, hproj]
+    · intro n
+      have hn := hseq n
+      change (refinedSubstitution τ h).decompose (seq' (n + 1)).tiles =
+        (seq' n).tiles at hn
+      change τ.decompose ((cloneDecoration τ h).projTile '' (seq' (n + 1)).tiles) =
+        (cloneDecoration τ h).projTile '' (seq' n).tiles
+      rw [← refinedSubstitution_commutes]
+      rw [hn]
 
 /-! ## `lem:segment-rules` -/
 

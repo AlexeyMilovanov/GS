@@ -235,12 +235,34 @@ private lemma headerLegal_properties_step1_parent (c : MacroCertificate P) (hH :
     ∃ C, headerLegal c C ∧ IsChildOf c C A := by
   sorry
 
+/-- Step 1 of the blueprint proof of `headerLegal_properties_step2_normal_id`:
+a legal tile is normal. -/
+private lemma headerLegal_properties_step2_normal_id_step1_normal (c : MacroCertificate P)
+    (A : DecTile c) (C : DecTile c) (h : IsChildOf c C A) :
+    IsNormal c A := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `headerLegal_properties_step2_normal_id`:
+a legal tile is identity-correct. -/
+private lemma headerLegal_properties_step2_normal_id_step2_identity (c : MacroCertificate P)
+    (A : DecTile c) (C : DecTile c) (h : IsChildOf c C A) :
+    IsIdentityCorrect c A := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `headerLegal_properties`: a legal tile is normal and
 identity-correct. -/
 private lemma headerLegal_properties_step2_normal_id (c : MacroCertificate P) (hH : c.Hereditary)
     (A : DecTile c) (hA : headerLegal c A) :
     IsNormal c A ∧ IsIdentityCorrect c A := by
-  sorry
+  have _ := hH
+  rcases hA with ⟨ch, hch_init, hch_succ, _⟩
+  have h_succ_0 := hch_succ 0
+  have h_succ_0' : IsChildOf c (ch 1) A := by
+    rw [←hch_init]
+    exact h_succ_0
+  exact ⟨headerLegal_properties_step2_normal_id_step1_normal c A (ch 1) h_succ_0',
+    headerLegal_properties_step2_normal_id_step2_identity c A (ch 1) h_succ_0'⟩
+
 
 /-- Step 1 of the blueprint proof of `headerLegal_properties_step3_child`: A copied cell in the
 new first tile either reaches an origin there, or reaches the corresponding parent cell. If the

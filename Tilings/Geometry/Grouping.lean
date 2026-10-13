@@ -3682,6 +3682,47 @@ private lemma quantitativeAnnularGrouping_step3_wedges {M : MeshConstants P} {S 
     x ∈ idealTrapezoid c N R M.D (j : ℕ) := by
   sorry
 
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_step4_tubes_step1_clip`: extract a point of the
+extended radial segment at the thickening radius. -/
+private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step1_witness
+    (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D) {k : ℕ} {x : Pt}
+    (hxr : x ∈ Metric.cthickening (5 * D)
+      (existsAnnularSpokes_ray c N R D k)) :
+    ∃ y ∈ existsAnnularSpokes_ray c N R D k, dist x y ≤ 5 * D := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`quantitativeAnnularGrouping_step4_tubes_step1_clip`: normalize an extended
+radial segment and record the square-boundary properties of its direction. -/
+private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step2_ray_geometry
+    (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D) (hN : 2 ≤ N)
+    (hR : 1000 * D ≤ R) (k : ℕ) (hk : k ≤ 4 * N) {y : Pt}
+    (hy : y ∈ existsAnnularSpokes_ray c N R D k) :
+    ∃ v : Pt,
+      v = squarePerimeterPoint ((N : ℝ) * R / 2) ((k : ℝ) * R) ∧
+      y ∈ segment ℝ
+        (c + (((N : ℝ) * R / 2 - 3 * D) / ((N : ℝ) * R / 2)) • v)
+        (c + (((N : ℝ) * R / 2 + R + 6 * D) / ((N : ℝ) * R / 2)) • v) ∧
+      |v 0| ≤ (N : ℝ) * R / 2 ∧ |v 1| ≤ (N : ℝ) * R / 2 ∧
+      (|v 0| = (N : ℝ) * R / 2 ∨ |v 1| = (N : ℝ) * R / 2) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_step4_tubes_step1_clip`: the standalone square
+clipping estimate for a point close to an extended radial segment. -/
+private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step3_square_clip
+    (c : Pt) {A R D : ℝ} (hD : 0 < D) (hA : 0 < A) (hR : 1000 * D ≤ R)
+    (v x y : Pt) (hv : |v 0| ≤ A ∧ |v 1| ≤ A)
+    (hvb : |v 0| = A ∨ |v 1| = A)
+    (hy : y ∈ segment ℝ (c + ((A - 3 * D) / A) • v)
+      (c + ((A + R + 6 * D) / A) • v))
+    (hx : x ∈ square c (A + R + 3 * D))
+    (hx' : x ∉ interior (square c A)) (hxy : dist x y ≤ 5 * D) :
+    ∃ μ ∈ Icc (1 : ℝ) ((A + R + 3 * D) / A),
+      dist x (c + μ • v) ≤ 13 * D := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_step4_tubes`: clipping.
 Blueprint: "If `x` lies in one of the tubes, clip its nearest radial-line point to the segment
 between infinity norms `A` and `h`.  The clipping moves it by at most `5√2 D`.  Its distance to
@@ -3698,7 +3739,17 @@ private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip (c : Pt) {N : �
     (hxr : x ∈ Metric.cthickening (5 * D) (existsAnnularSpokes_ray c N R D k)) :
     ∃ μ ∈ Icc (1 : ℝ) (((N : ℝ) * R / 2 + R + 3 * D) / ((N : ℝ) * R / 2)),
       dist x (c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) ((k : ℝ) * R)) ≤ 13 * D := by
-  sorry
+  have hR0 : 0 < R := by nlinarith
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  obtain ⟨y, hy, hxy⟩ :=
+    quantitativeAnnularGrouping_step4_tubes_step1_clip_step1_witness c hD hxr
+  obtain ⟨v, hv_eq, hy_seg, hv0, hv1, hvb⟩ :=
+    quantitativeAnnularGrouping_step4_tubes_step1_clip_step2_ray_geometry c hD hN hR k hk hy
+  obtain ⟨μ, hμ, hdist⟩ :=
+    quantitativeAnnularGrouping_step4_tubes_step1_clip_step3_square_clip c hD hA hR v x y
+      ⟨hv0, hv1⟩ hvb hy_seg hx hx' hxy
+  rw [hv_eq] at hdist
+  exact ⟨μ, hμ, hdist⟩
 
 /-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping`: localization in the tubes.
 Blueprint: "If `x` lies in one of the tubes, clip its nearest radial-line point to the segment

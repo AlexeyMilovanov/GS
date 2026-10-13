@@ -279,7 +279,28 @@ a legal tile is identity-correct. -/
 private lemma headerLegal_properties_step2_normal_id_step2_identity (c : MacroCertificate P)
     (A : DecTile c) (C : DecTile c) (h : IsChildOf c C A) :
     IsIdentityCorrect c A := by
-  sorry
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at h
+  intro i
+  constructor
+  · intro h_inner h_nonprint
+    have h_nonprint_i := (h.2 i).2 h_nonprint
+    rw [h_nonprint_i.1]
+    simp [prescribedFirst, h_inner]
+  · intro h_print
+    rcases h_print with ⟨d, h_print_of⟩
+    have transport_print : ∀ {F G : c.Q.Form} (e : F = G)
+        (d : Fin (c.Q.disk F).n),
+        c.IsPrintOf F d (c.occ A.typ i) →
+          c.IsPrintOf G (cast (congrArg (fun F => Fin (c.Q.disk F).n) e) d)
+            (c.occ A.typ i) := by
+      intro F G e d h_print_of
+      cases e
+      exact h_print_of
+    let d' : c.Side C.typ :=
+      cast (congrArg (fun F => Fin (c.Q.disk F).n) h.1) d
+    have h_print_of' : c.IsPrintOf (c.form C.typ) d' (c.occ A.typ i) := by
+      exact transport_print h.1 d h_print_of
+    exact ((h.2 i).1 d' h_print_of').2
 
 /-- Step 2 of the blueprint proof of `headerLegal_properties`: a legal tile is normal and
 identity-correct. -/

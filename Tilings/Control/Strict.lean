@@ -1470,13 +1470,33 @@ private lemma strictLegal_properties_step3_child_legal (A : StrictDecTile C hC)
     ∀ B, IsStrictChildOf C hC A B → StrictLegal C hC B := by
   sorry
 
+/-- Step 1 of the blueprint proof of `strictLegal_properties_step4_boundary`: a print side is
+strictly internal to its template and therefore cannot be a boundary side. -/
+private lemma strictLegal_properties_step4_boundary_step1_print_not_boundary
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc) (h_print : C.IsPrint o) :
+    ¬ C.IsBoundary o := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `strictLegal_properties`: a boundary fourth cell of a
 generated child is the header of its parent. -/
 private lemma strictLegal_properties_step4_boundary (B A : StrictDecTile C hC)
     (hBA : IsStrictChildOf C hC B A) :
     ∀ i : C.Side A.typ, C.IsBoundary (C.occ A.typ i) →
       A.cell i 3 = headerSU C hC (strictHeaderOf C hC B) := by
-  sorry
+  intro i h_bound
+  have h_owner := hBA.1
+  have h_child := hBA.2
+  have h_child_cell : ∀ k, A.cell i k = (strictChild C hC B A.typ).cell i k := by
+    intro k
+    obtain ⟨t, col⟩ := A
+    injection h_child with htyp hcol
+    exact congrFun (congrFun hcol i) k
+  rw [h_child_cell 3]
+  have hc := strictChild_cells C hC B A.typ h_owner i
+  have hp : ¬ C.IsPrint (C.occ A.typ i) := fun hp =>
+    strictLegal_properties_step4_boundary_step1_print_not_boundary C (C.occ A.typ i) hp h_bound
+  have h_inner := hc.2 hp
+  exact h_inner.2.2.2.2.2.2.1 h_bound
 
 /-- Step 5 of the blueprint proof of `strictLegal_properties`: copied third cells on one path
 of a generated child all come from the same parent cell. -/

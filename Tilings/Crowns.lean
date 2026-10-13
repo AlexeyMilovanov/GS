@@ -5328,10 +5328,75 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover
 /-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp`:
 The support of `k` iterations of decomposition on a set of tiles `S`
 is the support of `S` scaled by `θ^k`. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter_aux0
+    (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier,
+    Set.mem_iUnion, Set.mem_image, Set.mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [← add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [← add_assoc] using hx
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter_aux2
+    (τ : Substitution P) (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter_aux0,
+    τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [Set.mem_vadd_set_iff_neg_vadd_mem, Set.mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc
+        τ.θ • A.anchor + τ.θ • y =
+            τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter_aux3
+    (τ : Substitution P) (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [Substitution.decompose, support]
+  rw [Set.smul_set_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨A, ⟨B, hB, hA⟩, hx⟩
+    refine ⟨B, hB, ?_⟩
+    have h : x ∈ support (τ.decomposeTile B) := by
+      simp only [support, Set.mem_iUnion]
+      exact ⟨A, hA, hx⟩
+    rw [allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter_aux2]
+      at h
+    exact h
+  · rintro ⟨A, hA, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rw [allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter_aux2]
+      exact hx
+    simp only [support, Set.mem_iUnion] at h
+    rcases h with ⟨B, hB, hx'⟩
+    exact ⟨B, ⟨A, hA, hB⟩, hx'⟩
+
 private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter
     (τ : Substitution P) (k : ℕ) (S : Set (PlacedTile P)) :
     support (τ.decomposeIter k S) = τ.θ ^ k • support S := by
-  sorry
+  induction k with
+  | zero => simp [Substitution.decomposeIter]
+  | succ k ih =>
+      change support (τ.decompose (τ.decomposeIter k S)) =
+        τ.θ ^ (k + 1) • support S
+      rw [allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter_aux3,
+        ih, smul_smul, pow_succ']
 
 /-- Step 4 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 Because the inverse-scaled support of `F` is covered by a crown of `seq k`,

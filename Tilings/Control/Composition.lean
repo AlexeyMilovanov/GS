@@ -1662,7 +1662,83 @@ private lemma reconstructed_header_eq_headerOf (c : MacroCertificate P) (hH : c.
     (K : ColouredBlock c) (hK : BlockContext c K)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
     headerOf c (reconstruct c K h.1) = h := by
-  sorry
+  rcases h with ⟨t, v⟩
+  unfold headerOf HeaderKernel.makeHeader
+  congr 1
+  funext d
+  let i : Fin 5 := 3
+  have h5 := c.g3_five_le (c.form t) d
+  have hidx : MacroData.portRank (c.outerList (c.form t) d).length i - 1 <
+      (c.outerList (c.form t) d).length := by
+    dsimp [i]
+    unfold MacroData.portRank
+    omega
+  obtain ⟨o, ho⟩ : ∃ o : c.SideOcc,
+      (c.outerList (c.form t) d)[MacroData.portRank
+        (c.outerList (c.form t) d).length i - 1] = o := ⟨_, rfl⟩
+  have hport : c.port (c.form t) d i = some o := by
+    show (c.outerList (c.form t) d)[MacroData.portRank
+      (c.outerList (c.form t) d).length i - 1]? = some o
+    rw [List.getElem?_eq_some_iff]
+    exact ⟨hidx, ho⟩
+  have hmem : o ∈ c.outerList (c.form t) d := ho ▸ List.getElem_mem hidx
+  obtain ⟨hown, hout, -⟩ := (c.g3_outerList_mem (c.form t) d o).1 hmem
+  have howner : c.owner o.1 = K.α := hown.trans (by exact (show c.form t = K.α from hh.1))
+  have hLeg : headerLegal c (K.tileOf o.1) := by
+    obtain ⟨u, j⟩ := o
+    apply hK.2 u howner
+    rintro rfl
+    exact (c.g2_central K.α j).1 hout
+  obtain ⟨ch, hChainZero, hChain, -⟩ := hLeg
+  let C : DecTile c := ch 1
+  have hChild : IsChildOf c C (K.tileOf o.1) := by
+    dsimp [C]
+    rw [← hChainZero]
+    exact hChain 0
+  obtain ⟨j, hj⟩ := boundary_side_of_outer_side c hH o.1 o.2 hout
+  have hNotPrint : ¬ c.IsPrint (c.occ o.1 j) := fun hp =>
+    headerLegal_properties_step4_boundary_step1_print_not_boundary c _ hp hj
+  have hFromParent : K.col o.1 j 3 = headerU c (headerOf c C) := by
+    change (K.tileOf o.1).cell j 3 = headerU c (headerOf c C)
+    have hChild' := hChild
+    dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hChild'
+    exact ((hChild'.2 j).2 hNotPrint).2.2.2.2.2.2.1 hj
+  have hCommon : K.col o.1 j 3 = headerU c ⟨t, v⟩ :=
+    hh.2 o.1 j howner hj
+  have hHeader : headerOf c C = ⟨t, v⟩ :=
+    HeaderKernel.tagged_header_injective (hFromParent.symm.trans hCommon)
+  obtain ⟨tC, colC⟩ := C
+  have hHeader' : (⟨tC, HeaderKernel.zeroMode c.outerB tC (fun q => colC q 3)⟩ :
+      HeaderKernel.Header c.Typ c.Side) = ⟨t, v⟩ := by
+    simpa [headerOf, HeaderKernel.makeHeader, fourthVec] using hHeader
+  obtain ⟨hType, hMode⟩ := Sigma.mk.inj_iff.mp hHeader'
+  subst tC
+  have hPath : o ∈ c.path (c.form t) d i := by
+    by_cases hGenuine : c.IsGenuinePath (c.form t) d i
+    · exact List.mem_of_mem_head? ((c.g4_path_head _ _ _ hGenuine).trans hport)
+    · rw [c.g4_path_trivial _ _ _ hGenuine, hport]
+      simp
+  have hPortNotPrint : ¬ c.IsPrint o := fun hp => asm_print_inner c hp hout
+  have hThird : K.col o.1 o.2 2 = colC d 3 := by
+    have hChild' := hChild
+    dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hChild'
+    change (K.tileOf o.1).cell o.2 2 = colC d 3
+    exact ((hChild'.2 o.2).2 hPortNotPrint).2.2.2.1 d i hPath
+  have hFourth : (reconstruct c K t).cell d 3 = colC d 3 := by
+    have hport3 : c.port (c.form t) d 3 = some o := by
+      simpa [i] using hport
+    change (match c.port (c.form t) d 3 with
+      | some o => K.col o.1 o.2 2
+      | none => 0) = colC d 3
+    rw [hport3]
+    exact hThird
+  have hMode' : HeaderKernel.zeroMode c.outerB t (fun q => colC q 3) d = v d :=
+    congrFun (eq_of_heq hMode) d
+  change HeaderKernel.zeroMode c.outerB t (fun q => (reconstruct c K t).cell q 3) d = v d
+  unfold HeaderKernel.zeroMode at hMode' ⊢
+  change (c.outerB t d && decide ((reconstruct c K t).cell d 3 = 0)) = v d
+  rw [hFourth]
+  exact hMode'
 
 /-- Step 4.1 of the blueprint proof of `reconstructed_header_eq_innerActive`:
 for prints, the fifth cell is nonzero. -/

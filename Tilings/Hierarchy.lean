@@ -489,7 +489,30 @@ private lemma finite_crowns_step1_vertex_step2_sts_step3_not_interior {τ : Subs
 tile's carrier is not a vertex, it is either in the interior or strictly inside a side. -/
 private lemma finite_crowns_step1_vertex_step2_sts_step4_carrier_cases {τ : Substitution P}
     (B : PlacedTile P) (w : Pt) (hwB : w ∈ B.carrier) (hvB : w ∉ B.vertexSet) :
-    w ∈ interior B.carrier ∨ ∃ j : Fin (P.disk B.form).n, w ∈ B.side j ∧ w ≠ B.vertex j ∧ w ≠ B.vertex (finRotate (P.disk B.form).n j) := sorry
+    w ∈ interior B.carrier ∨ ∃ j : Fin (P.disk B.form).n, w ∈ B.side j ∧ w ≠ B.vertex j ∧ w ≠ B.vertex (finRotate (P.disk B.form).n j) := by
+  have _ := τ.one_lt
+  by_cases hint : w ∈ interior B.carrier
+  · exact Or.inl hint
+  · right
+    have hclosed : IsClosed B.carrier := by
+      unfold PlacedTile.carrier
+      exact (P.disk B.form).compact.isClosed.vadd _
+    have hwfront : w ∈ frontier B.carrier := by
+      rw [hclosed.frontier_eq]
+      exact ⟨hwB, hint⟩
+    have hfront : frontier B.carrier =
+        ⋃ i : Fin (P.disk B.form).n, B.side i := by
+      unfold PlacedTile.carrier PlacedTile.side
+      rw [frontier, interior_vadd, closure_vadd, ← Set.vadd_set_sdiff,
+        ← frontier, (P.disk B.form).frontier_eq, Set.vadd_set_iUnion]
+      simp only [PolygonalDisk.side]
+    rw [hfront, mem_iUnion] at hwfront
+    obtain ⟨j, hwj⟩ := hwfront
+    refine ⟨j, hwj, ?_, ?_⟩
+    · intro h
+      exact hvB ⟨j, h.symm⟩
+    · intro h
+      exact hvB ⟨finRotate (P.disk B.form).n j, h.symm⟩
 
 /-- Step 5 of the blueprint proof of `finite_crowns_step1_vertex_step2_sts`: a vertex of one
 tile cannot lie strictly inside a side of another tile in a side-to-side patch. -/

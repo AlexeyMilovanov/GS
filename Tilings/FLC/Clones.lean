@@ -476,7 +476,8 @@ private lemma childContext_realized_step1_shift_step4_anchor
 private lemma childContext_realized_step1_shift_step5_translate_eq
     {P : Protoset} {τ : Substitution P} (A B : PlacedTile P) :
     B.translate (-(τ.θ • -A.anchor)) = B.translate (τ.θ • A.anchor) := by
-  sorry
+  congr 1
+  simp only [neg_neg, smul_neg]
 
 /-- Step 1.6 of the blueprint proof of `childContext_realized`: `neighbourhood (translateSet v S) A = translateSet v (neighbourhood S (A.translate (-v)))` -/
 private lemma childContext_realized_step1_shift_step6_neighbourhood_translateSet

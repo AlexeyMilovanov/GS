@@ -803,11 +803,63 @@ private lemma exists_composition_step1_parents (τ : Substitution P) {T : PlaneT
     simp only [Substitution.decompose, mem_iUnion]
     exact ⟨selectedTile b, ⟨⟨b, rfl⟩, (selected b).2⟩⟩
 
+private lemma exists_composition_step2_disjoint_supertile_step1_decompose_translate {v : Pt}
+    {S : Set (PlacedTile P)} (h : DisjointInteriors S) : DisjointInteriors (translateSet v S) := by
+  intro A hA B hB hne
+  dsimp [translateSet] at hA hB
+  rcases hA with ⟨A', hA', rfl⟩
+  rcases hB with ⟨B', hB', rfl⟩
+  have hne' : A' ≠ B' := by
+    intro hc
+    apply hne
+    rw [hc]
+  have hd := h hA' hB' hne'
+  have heq1 : (A'.translate v).carrier = v +ᵥ A'.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add,
+      neg_add_rev]
+    rw [← add_assoc]
+  have heq2 : (B'.translate v).carrier = v +ᵥ B'.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add,
+      neg_add_rev]
+    rw [← add_assoc]
+  dsimp [Function.onFun] at hd
+  dsimp [Function.onFun]
+  rw [heq1, heq2]
+  rw [interior_vadd, interior_vadd]
+  have hinj : Function.Injective (v +ᵥ ·) := add_right_injective v
+  exact (disjoint_image_iff hinj).mpr hd
+
 /-- Step 1 of the blueprint proof of `exists_composition_step2_disjoint_supertile`: decomposition
 preserves disjoint interiors. -/
 private lemma exists_composition_step2_disjoint_supertile_step1_decompose (τ : Substitution P)
     (S : Set (PlacedTile P)) (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := by
-  sorry
+  have hθ : τ.θ ≠ 0 := (zero_lt_one.trans τ.one_lt).ne'
+  have key : ∀ {X X' : PlacedTile P}, X ∈ τ.decomposeTile X' →
+      interior X.carrier ⊆ τ.θ • interior X'.carrier := by
+    intro X X' hX
+    rw [← interior_smul₀ hθ]
+    refine interior_mono ?_
+    rw [← iterate_support_decomposeTile]
+    exact Set.subset_biUnion_of_mem hX
+  intro A hA B hB hne
+  simp only [decompose, mem_iUnion, exists_prop] at hA hB
+  obtain ⟨A', hA', hAmem⟩ := hA
+  obtain ⟨B', hB', hBmem⟩ := hB
+  dsimp [Function.onFun]
+  by_cases hAB : A' = B'
+  · subst hAB
+    have h_rule_disj := (τ.rule A'.form).disjoint
+    have h_trans_disj :=
+      exists_composition_step2_disjoint_supertile_step1_decompose_translate
+      h_rule_disj (v := τ.θ • A'.anchor)
+    change DisjointInteriors (τ.decomposeTile A') at h_trans_disj
+    exact h_trans_disj hAmem hBmem hne
+  · have hd : Disjoint (interior A'.carrier) (interior B'.carrier) := hS hA' hB' hAB
+    have hd' : Disjoint (τ.θ • interior A'.carrier) (τ.θ • interior B'.carrier) :=
+      (disjoint_image_iff (smul_right_injective _ hθ)).mpr hd
+    exact hd'.mono (key hAmem) (key hBmem)
 
 /-- Step 1 of the blueprint proof of `exists_composition_step2_disjoint`: supertiles have
 disjoint interiors. -/

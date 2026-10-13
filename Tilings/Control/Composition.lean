@@ -1588,7 +1588,40 @@ private lemma reconstructed_header_eq_isNormal_aux2 (c : MacroCertificate P)
     (o : c.SideOcc) (ho : c.port (c.form h.1) d i = some o)
     (hLeg : headerLegal c (K.tileOf o.1)) :
     (K.tileOf o.1).cell o.2 2 = prescribedCell c (c.occ h.1 d) i := by
-  sorry
+  have _ := hK
+  have _ := hLoc
+  obtain ⟨hOwner, hOuter, -⟩ :=
+    (c.g3_outerList_mem (c.form h.1) d o).1 (List.mem_of_getElem? ho)
+  obtain ⟨C, hCLeg, hChild⟩ :=
+    headerLegal_properties_step1_parent c hH (K.tileOf o.1) hLeg
+  obtain ⟨j, hBoundary⟩ := boundary_side_of_outer_side c hH o.1 o.2 hOuter
+  have hNotPrint : ¬ c.IsPrint (c.occ o.1 j) := fun hp =>
+    headerLegal_properties_step4_boundary_step1_print_not_boundary c _ hp hBoundary
+  have hChild' := hChild
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hChild'
+  have hFromParent : K.col o.1 j 3 = headerU c (headerOf c C) := by
+    change (K.tileOf o.1).cell j 3 = headerU c (headerOf c C)
+    exact ((hChild'.2 j).2 hNotPrint).2.2.2.2.2.2.1 hBoundary
+  have hCommon : K.col o.1 j 3 = headerU c h :=
+    hh.2 o.1 j (hOwner.trans hh.1) hBoundary
+  have hHeader : headerOf c C = h :=
+    HeaderKernel.tagged_header_injective (hFromParent.symm.trans hCommon)
+  obtain ⟨tC, colC⟩ := C
+  have hCType : tC = h.1 := congrArg Sigma.fst hHeader
+  subst tC
+  have hPath : o ∈ c.path (c.form h.1) d i := by
+    by_cases hGenuine : c.IsGenuinePath (c.form h.1) d i
+    · exact List.mem_of_mem_head? ((c.g4_path_head _ _ _ hGenuine).trans ho)
+    · rw [c.g4_path_trivial _ _ _ hGenuine, ho]
+      simp
+  have hPortNotPrint : ¬ c.IsPrint o := fun hp => asm_print_inner c hp hOuter
+  have hPathValue : K.col o.1 o.2 2 = colC d i := by
+    change (K.tileOf o.1).cell o.2 2 = colC d i
+    exact ((hChild'.2 o.2).2 hPortNotPrint).2.2.2.1 d i hPath
+  have hParentValue :=
+    (headerLegal_properties_step2_normal_id c hH ⟨h.1, colC⟩ hCLeg).1 d i hLoc
+  change colC d i = _ at hParentValue
+  exact hPathValue.trans hParentValue
 
 /-- Step 1 of the blueprint proof of `reconstructed_header_eq`: proving normality. -/
 private lemma reconstructed_header_eq_isNormal (c : MacroCertificate P) (hH : c.Hereditary)

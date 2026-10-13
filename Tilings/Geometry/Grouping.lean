@@ -3335,18 +3335,175 @@ private lemma existsAnnularSpokes_step1_nest (c : Pt) {a r b s : ℝ} (h : a + r
         _ ≤ b + s := (by linarith)
   exact hsum.trans (hinner.trans (interior_mono (rg_square_add hb hs)))
 
-/-- Step 2 of the blueprint proof of `existsAnnularSpokes`: "Draw the radial segments from the
-square centre through these positions to the corresponding positions of `K₁ = Q₁ + B∞(3D)`.
-In the square annulus, successive radial segments have separation at least a universal positive
-multiple of `R` ... Extending each segment a bounded number of mesh diameters past the two
-cycles preserves disjoint tubes when `R/D` is sufficiently large."  For `N ≥ 2` and
-`R ≥ 100 D` the closed `D`-neighbourhoods of two distinct extended radial segments
-(`existsAnnularSpokes_ray`) are disjoint. -/
+/-- Technical bound for `existsAnnularSpokes_step2_tubes`: a boundary position
+`existsAnnularSpokes_pos A t` (for `t` in the arclength range `[0, 8A]` of one full lap) has
+coordinate vector of Euclidean norm at most `A√2`. -/
+private lemma existsAnnularSpokes_step2_tubes_normLe {A t : ℝ} (h0 : 0 ≤ t) (h8 : t ≤ 8 * A) :
+    (existsAnnularSpokes_pos A t 0) ^ 2 + (existsAnnularSpokes_pos A t 1) ^ 2 ≤ 2 * A ^ 2 := by
+  unfold existsAnnularSpokes_pos
+  split_ifs <;> simp [mkPt] <;> nlinarith
+
+/-- Technical bound for `existsAnnularSpokes_step2_tubes`: a boundary position
+`existsAnnularSpokes_pos A t` has coordinate vector of Euclidean norm at least `A` (one of its
+two coordinates is exactly `±A`). -/
+private lemma existsAnnularSpokes_step2_tubes_normGe (A t : ℝ) :
+    A ^ 2 ≤ (existsAnnularSpokes_pos A t 0) ^ 2 + (existsAnnularSpokes_pos A t 1) ^ 2 := by
+  unfold existsAnnularSpokes_pos
+  split_ifs <;> simp [mkPt] <;>
+    nlinarith [sq_nonneg (t - A), sq_nonneg (3 * A - t), sq_nonneg (5 * A - t),
+      sq_nonneg (t - 7 * A)]
+
+/-- Technical parametrization for `existsAnnularSpokes_step2_tubes`: every point of the `k`-th
+extended radial segment is `c + μ • v_k` for some `μ` in the segment's ideal range of homothety
+factors, `v_k` the `k`-th boundary position of `∂Q₀`. -/
+private lemma existsAnnularSpokes_step2_tubes_rayMem {c : Pt} {N : ℕ} {R D : ℝ} (hR : 0 ≤ R)
+    (hD : 0 ≤ D) (hA : 0 < (N : ℝ) * R / 2) {k : ℕ} {p : Pt}
+    (hp : p ∈ existsAnnularSpokes_ray c N R D k) :
+    ∃ μ : ℝ, ((N : ℝ) * R / 2 - 3 * D) / ((N : ℝ) * R / 2) ≤ μ ∧
+      μ ≤ ((N : ℝ) * R / 2 + R + 6 * D) / ((N : ℝ) * R / 2) ∧
+      p = c + μ • existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((k : ℝ) * R) := by
+  unfold existsAnnularSpokes_ray at hp
+  set A := (N : ℝ) * R / 2 with hAeq
+  obtain ⟨t, ht0, ht1, hpe⟩ := mem_segment_iff'.1 hp
+  have hk21 : (A - 3 * D) / A ≤ (A + R + 6 * D) / A := by
+    rw [div_le_div_iff_of_pos_right hA]
+    nlinarith
+  refine ⟨(A - 3 * D) / A + t * ((A + R + 6 * D) / A - (A - 3 * D) / A), by nlinarith,
+    by nlinarith, ?_⟩
+  rw [hpe]
+  module
+
+/-- Lagrange's identity bound for `existsAnnularSpokes_step2_tubes`: the cross product `jcr u v`
+is bounded by the product of the two Euclidean norms. -/
+private lemma existsAnnularSpokes_step2_tubes_jcrSq (u v : Pt) :
+    jcr u v ^ 2 ≤ (u 0 ^ 2 + u 1 ^ 2) * (v 0 ^ 2 + v 1 ^ 2) := by
+  simp only [jcr]
+  nlinarith [sq_nonneg (u 0 * v 0 + u 1 * v 1)]
+
+/-- Elementary real-analysis fact for `existsAnnularSpokes_step2_tubes`: comparing squares of
+nonnegative reals compares the reals. -/
+private lemma existsAnnularSpokes_step2_tubes_sqLt {a b : ℝ} (_ha : 0 ≤ a) (hb : 0 ≤ b)
+    (h : a ^ 2 < b ^ 2) : a < b := by
+  by_contra hcon
+  push_neg at hcon
+  nlinarith [mul_self_le_mul_self hb hcon]
+
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step2_tubes`: "In the square annulus,
+successive radial segments have separation at least a universal positive multiple of `R`.  This
+follows by considering a straight side and the two sides adjacent to a corner."  For `N ≥ 2` and
+distinct `i, j < 4N`, the two boundary positions `v_i, v_j` of `∂Q₀` (`existsAnnularSpokes_pos`
+at arclength `iR` resp. `jR`) are either antipodal (`v_j = -v_i`, which happens exactly when `i`
+and `j` differ by `2N`) or their cross product has magnitude at least `(NR/2) * R`. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N) (hij : i ≠ j) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+      - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+    (N : ℝ) * R / 2 * R ≤
+      |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+        (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step2_tubes`: "Extending each segment a
+bounded number of mesh diameters past the two cycles preserves disjoint tubes when `R/D` is
+sufficiently large."  For `N ≥ 2` and `R ≥ 100 D`, any point of the `i`-th extended radial
+segment and any point of the `j`-th extended radial segment, for distinct `i j`, are at distance
+more than `2D`. -/
+private lemma existsAnnularSpokes_step2_tubes_step2_separation (c : Pt) {N : ℕ} {R D : ℝ}
+    (hD : 0 < D) (hN : 2 ≤ N) (hR : 100 * D ≤ R) {i j : Fin (4 * N)} (hij : i ≠ j)
+    {p q : Pt} (hp : p ∈ existsAnnularSpokes_ray c N R D i)
+    (hq : q ∈ existsAnnularSpokes_ray c N R D j) :
+    2 * D < dist p q := by
+  have hR0 : 0 < R := by linarith
+  have hN' : (2 : ℝ) ≤ (N : ℝ) := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hAR : R ≤ (N : ℝ) * R / 2 := by nlinarith
+  obtain ⟨μp, hμp1, hμp2, hpeq⟩ := existsAnnularSpokes_step2_tubes_rayMem hR0.le hD.le hA hp
+  obtain ⟨μq, hμq1, hμq2, hqeq⟩ := existsAnnularSpokes_step2_tubes_rayMem hR0.le hD.le hA hq
+  set A := (N : ℝ) * R / 2 with hAeq
+  clear_value A
+  have hμp0 : (97 : ℝ) / 100 ≤ μp := by
+    have h1 : (97 : ℝ) / 100 ≤ (A - 3 * D) / A := by rw [le_div_iff₀ hA]; nlinarith
+    linarith [h1.trans hμp1]
+  have hμq0 : (97 : ℝ) / 100 ≤ μq := by
+    have h1 : (97 : ℝ) / 100 ≤ (A - 3 * D) / A := by rw [le_div_iff₀ hA]; nlinarith
+    linarith [h1.trans hμq1]
+  set vi := existsAnnularSpokes_pos A (((i : ℕ) : ℝ) * R) with hvi
+  set vj := existsAnnularSpokes_pos A (((j : ℕ) : ℝ) * R) with hvj
+  clear_value vi vj
+  have hij' : (i : ℕ) ≠ (j : ℕ) := fun h => hij (Fin.ext h)
+  have hpq0 : p 0 - q 0 = μp * vi 0 - μq * vj 0 := by
+    rw [hpeq, hqeq]; simp [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+  have hpq1 : p 1 - q 1 = μp * vi 1 - μq * vj 1 := by
+    rw [hpeq, hqeq]; simp [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+  have hdsq : dist p q ^ 2 = (μp * vi 0 - μq * vj 0) ^ 2 + (μp * vi 1 - μq * vj 1) ^ 2 := by
+    rw [EuclideanSpace.dist_sq_eq, Fin.sum_univ_two, Real.dist_eq, Real.dist_eq, sq_abs, sq_abs,
+      hpq0, hpq1]
+  rcases existsAnnularSpokes_step2_tubes_step1_baseSep hN hR0 i.isLt j.isLt hij' with hanti | hcross
+  · have hanti' : vj = -vi := by rw [hvj, hvi, hAeq]; exact hanti
+    have hviq : dist p q ^ 2 = (μp + μq) ^ 2 * (vi 0 ^ 2 + vi 1 ^ 2) := by
+      rw [hdsq, hanti']; simp only [PiLp.neg_apply]; ring
+    have hvinorm := existsAnnularSpokes_step2_tubes_normGe A (((i : ℕ) : ℝ) * R)
+    rw [← hvi] at hvinorm
+    have hsum : (194 : ℝ) / 100 ≤ μp + μq := by linarith
+    have hprod : ((194 : ℝ) / 100) ^ 2 * A ^ 2 ≤ (μp + μq) ^ 2 * (vi 0 ^ 2 + vi 1 ^ 2) :=
+      mul_le_mul (pow_le_pow_left₀ (by norm_num) hsum 2) hvinorm (sq_nonneg A) (sq_nonneg (μp + μq))
+    have hA2 : R ^ 2 ≤ A ^ 2 := pow_le_pow_left₀ hR0.le hAR 2
+    have hD2 : D ^ 2 ≤ (R / 100) ^ 2 := pow_le_pow_left₀ hD.le (by linarith) 2
+    have hfinal : (2 * D) ^ 2 < dist p q ^ 2 := by
+      rw [hviq]
+      nlinarith only [hprod, hA2, hD2, mul_pos hR0 hR0]
+    exact existsAnnularSpokes_step2_tubes_sqLt (by linarith) dist_nonneg hfinal
+  · set d : Pt := μp • vi - μq • vj with hddef
+    clear_value d
+    have hjcrd : jcr vi d = -μq * jcr vi vj := by
+      rw [hddef, jcr_sub_right, jcr_smul_right, jcr_smul_right, jcr_self]; ring
+    have hcross' : A * R ≤ |jcr vi vj| := by rw [hvi, hvj, hAeq]; exact hcross
+    have he1 : μq * (A * R) ≤ μq * |jcr vi vj| :=
+      mul_le_mul_of_nonneg_left hcross' (by linarith : (0 : ℝ) ≤ μq)
+    have he2 : (97 : ℝ) / 100 * (A * R) ≤ μq * (A * R) :=
+      mul_le_mul_of_nonneg_right hμq0 (by positivity : (0 : ℝ) ≤ A * R)
+    have h1 : (97 : ℝ) / 100 * (A * R) ≤ |jcr vi d| := by
+      rw [hjcrd, abs_mul, abs_neg, abs_of_nonneg (by linarith : (0 : ℝ) ≤ μq)]
+      linarith [he1, he2]
+    have hX2 : ((97 : ℝ) / 100 * (A * R)) ^ 2 ≤ jcr vi d ^ 2 := by
+      have hle := pow_le_pow_left₀ (by positivity) h1 2
+      rwa [sq_abs] at hle
+    have h3 := existsAnnularSpokes_step2_tubes_jcrSq vi d
+    have hit0 : (0 : ℝ) ≤ ((i : ℕ) : ℝ) * R := by positivity
+    have hib : (i : ℕ) + 1 ≤ 4 * N := i.isLt
+    have hib' : (((i : ℕ) : ℝ)) + 1 ≤ 4 * (N : ℝ) := by exact_mod_cast hib
+    have hRA8 : ((i : ℕ) : ℝ) * R ≤ (4 * (N : ℝ)) * R :=
+      mul_le_mul_of_nonneg_right (by linarith : ((i : ℕ) : ℝ) ≤ 4 * (N : ℝ)) hR0.le
+    have hit8 : ((i : ℕ) : ℝ) * R ≤ 8 * A := by rw [hAeq]; linarith only [hRA8]
+    have h4 := existsAnnularSpokes_step2_tubes_normLe hit0 hit8
+    rw [← hvi] at h4
+    have hd0 : d 0 = μp * vi 0 - μq * vj 0 := by
+      rw [hddef]; simp [PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+    have hd1 : d 1 = μp * vi 1 - μq * vj 1 := by
+      rw [hddef]; simp [PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+    have h5 : ((97 : ℝ) / 100 * (A * R)) ^ 2 ≤ 2 * A ^ 2 * (d 0 ^ 2 + d 1 ^ 2) :=
+      hX2.trans (h3.trans (by nlinarith only [h4, sq_nonneg (d 0), sq_nonneg (d 1)]))
+    have hA2 : R ^ 2 ≤ A ^ 2 := pow_le_pow_left₀ hR0.le hAR 2
+    have hD2 : D ^ 2 ≤ (R / 100) ^ 2 := pow_le_pow_left₀ hD.le (by linarith) 2
+    have hfinal : (2 * D) ^ 2 < dist p q ^ 2 := by
+      rw [hdsq, ← hd0, ← hd1]
+      nlinarith only [h5, hA2, hD2, hA, mul_pos hR0 hR0]
+    exact existsAnnularSpokes_step2_tubes_sqLt (by linarith) dist_nonneg hfinal
+
 private lemma existsAnnularSpokes_step2_tubes (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D)
     (hN : 2 ≤ N) (hR : 100 * D ≤ R) {i j : Fin (4 * N)} (hij : i ≠ j) :
     Disjoint (Metric.cthickening D (existsAnnularSpokes_ray c N R D i))
       (Metric.cthickening D (existsAnnularSpokes_ray c N R D j)) := by
-  sorry
+  have hci : IsCompact (existsAnnularSpokes_ray c N R D i) := isCompact_segment_pt _ _
+  have hcj : IsCompact (existsAnnularSpokes_ray c N R D j) := isCompact_segment_pt _ _
+  rw [hci.cthickening_eq_biUnion_closedBall hD.le, hcj.cthickening_eq_biUnion_closedBall hD.le,
+    Set.disjoint_iUnion₂_left]
+  intro p hp
+  rw [Set.disjoint_iUnion₂_right]
+  intro q hq
+  exact Metric.closedBall_disjoint_closedBall (by
+    have := existsAnnularSpokes_step2_tubes_step2_separation c hD hN hR hij hp hq
+    linarith)
 
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "Follow the finite
 sequence of original faces crossed by one extended segment.  Consecutive faces share a side or

@@ -1199,6 +1199,45 @@ private lemma reconstructed_acyclic_legal_step4_parent {P : Protoset}
   have _ := hex; have _ := hX; have _ := hctx
   sorry
 
+/-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step5_parent_noncentral`:
+If the type `r` of `C` were central, it and its central child `t` would have the same large form. -/
+private lemma reconstructed_acyclic_legal_step5_parent_noncentral_step1_same_large_form {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
+    (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
+    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c (part.block j) h)
+    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
+    (h_parent_cent : c.IsCentral h.1) :
+    c.form h.1 = c.form (tileDec X).typ := by sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_acyclic_legal_step5_parent_noncentral`:
+If `r` and `t` have the same large form, then `t` is cyclic. -/
+private lemma reconstructed_acyclic_legal_step5_parent_noncentral_step2_cyclic {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ T'.tiles)
+    (hcent : c.IsCentral (tileDec X).typ) (hcyc : ¬ c.IsCyclic (tileDec X).typ)
+    (j : part.ι) (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c (part.block j) h)
+    (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
+    (h_parent_cent : c.IsCentral h.1)
+    (h_same_form : c.form h.1 = c.form (tileDec X).typ) :
+    c.IsCyclic (tileDec X).typ := by sorry
+
 /-- Step 5 of the blueprint proof of `reconstructed_acyclic_legal`:
 The type $r$ of $C$ is noncentral. If it were central, it and its central
 child $t$ would have the same large form, making $t$ cyclic, contradicting
@@ -1218,9 +1257,14 @@ private lemma reconstructed_acyclic_legal_step5_parent_noncentral {P : Protoset}
     (hh : CommonHeader c (part.block j) h)
     (heq : tileDec X = reconstruct c (part.block j) (tileDec X).typ) :
     ¬ c.IsCentral h.1 := by
-  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
-  have _ := hex; have _ := hX; have _ := hcent; have _ := hcyc; have _ := hh; have _ := heq
-  sorry
+  intro h_parent_cent
+  have h_same_form :=
+    reconstructed_acyclic_legal_step5_parent_noncentral_step1_same_large_form c hH T hT hL part T'
+      hrec hT' hN hex X hX hcent hcyc j h hh heq h_parent_cent
+  have h_is_cyclic :=
+    reconstructed_acyclic_legal_step5_parent_noncentral_step2_cyclic c hH T hT hL part T'
+      hrec hT' hN hex X hX hcent hcyc j h hh heq h_parent_cent h_same_form
+  exact hcyc h_is_cyclic
 
 /-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step6_main`:
 The origin argument from the noncentral legality lemma shows that a legal

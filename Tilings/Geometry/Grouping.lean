@@ -3884,7 +3884,59 @@ private lemma existsAnnularSpokes_step4_sort_step2_reindex (γ : ℝ → Pt) {k 
     (x : Fin k → Pt) {K : Set Pt} (hγ : IsLoopParam K γ)
     (hx : ∀ i, x i ∈ γ '' Ico (0 : ℝ) 1) (hxi : Function.Injective x) :
     ∃ σ : Equiv.Perm (Fin k), PointsInOrder γ (x ∘ σ) := by
-  sorry
+  have _ := hγ
+  have Ht : ∀ i, ∃ t ∈ Ico (0:ℝ) 1, γ t = x i := by
+    intro i
+    rcases hx i with ⟨t, ht, H⟩
+    exact ⟨t, ht, H⟩
+  choose t ht hEq using Ht
+  have HtInj : Function.Injective t := by
+    intro i j hij
+    have H : x i = x j := by
+      rw [← hEq i, ← hEq j, hij]
+    exact hxi H
+  let s := Finset.image t Finset.univ
+  have hcard : s.card = k := by
+    rw [Finset.card_image_of_injective Finset.univ HtInj, Finset.card_univ, Fintype.card_fin]
+  let e := Finset.orderIsoOfFin s hcard
+  let t_equiv : Fin k ≃ s := Equiv.ofBijective (fun i => ⟨t i, by simp [s]⟩) (by
+    constructor
+    · intro i j hij
+      apply HtInj
+      exact Subtype.ext_iff.mp hij
+    · intro ⟨y, hy⟩
+      simp [s] at hy
+      rcases hy with ⟨i, hi⟩
+      use i
+      ext
+      exact hi
+  )
+  let σ := e.toEquiv.trans t_equiv.symm
+  use σ
+  dsimp [PointsInOrder]
+  use (t ∘ σ)
+  refine ⟨?_, ?_, ?_⟩
+  · intro i j hij
+    have h1 : e i < e j := e.strictMono hij
+    have h2 : (e i).val < (e j).val := h1
+    have h3 : t (σ i) = (e i).val := by
+      dsimp [σ]
+      have h4 := t_equiv.apply_symm_apply (e i)
+      exact congrArg Subtype.val h4
+    have h5 : t (σ j) = (e j).val := by
+      dsimp [σ]
+      have h6 := t_equiv.apply_symm_apply (e j)
+      exact congrArg Subtype.val h6
+    dsimp
+    rw [h3, h5]
+    exact h2
+  · intro i j
+    have h_tj : (t ∘ σ) j < 1 := (ht (σ j)).2
+    have h_ti : 0 ≤ (t ∘ σ) i := (ht (σ i)).1
+    linarith
+  · intro i
+    dsimp
+    rw [hEq]
 
 /-- Step 4 of the blueprint proof of `existsAnnularSpokes`: the stops of the spokes are distinct
 points of the polygonal cycle `∂H`, so after a re-indexing they appear in cyclic order along a

@@ -37,13 +37,16 @@ def StrictScheduleSystem.HasCompositions {τ : Substitution P} (Sys : StrictSche
 
 /-- Completeness of the strict presentation (`thm:sts-stshierarchy`, "origin
 chains give legal tiles"): every grouped `σ'`-hierarchy whose levels and whose
-scattered intermediate original levels are all side-to-side is the projection
-of a proper strict coloured plane tiling. -/
+scattered intermediate original levels (the levels `τ^j Δ (seq' (n+1))`,
+`0 ≤ j ≤ k`, between consecutive grouped levels; nothing below the bottom level
+`seq' 0` is assumed, codex 13 October 2026) are all side-to-side is the
+projection of a proper strict coloured plane tiling. -/
 def StrictScheduleSystem.Complete {τ : Substitution P} (Sys : StrictScheduleSystem τ) : Prop :=
   ∀ seq' : ℕ → PlaneTiling Sys.GS.G.P',
     (∀ n, Sys.GS.σ.IsComposition (seq' (n + 1)) (seq' n)) →
     (∀ n, (seq' n).SideToSide) →
-    (∀ n, ∀ j ≤ Sys.GS.k, SideToSideSet (τ.decomposeIter j (Sys.GS.G.scatter (seq' n).tiles))) →
+    (∀ n, ∀ j ≤ Sys.GS.k,
+      SideToSideSet (τ.decomposeIter j (Sys.GS.G.scatter (seq' (n + 1)).tiles))) →
     ∃ T : PlaneTiling Sys.dec.P', Sys.dec.Proper T ∧ Sys.dec.toDecoration.project T = seq' 0
 
 /-- `lem:strict-projection`: the projection of a coloured composition is a

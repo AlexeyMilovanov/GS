@@ -1972,6 +1972,29 @@ private lemma path_and_print_recovery_step1_signals (c : MacroCertificate P)
   · rw [c.g4_path_trivial (c.form h.1) d j hG, Option.mem_toList] at ho
     rw [ho]
 
+/-- Step 1 of the blueprint proof of `path_and_print_recovery_step2_prints`: the parent `C` agrees with `D` on the cell `k`. -/
+private lemma path_and_print_recovery_step2_prints_step1_parent_cell (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (d : c.Side h.1) (hd : c.marked (c.form h.1) d)
+    (C : DecTile c) (hC : IsChildOf c C (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1))
+    (h_form : c.form h.1 = c.form C.typ)
+    (k : Fin 5) (hk : k ≠ 4) :
+    C.cell (cast (by change Fin (c.Q.disk (c.form h.1)).n = Fin (c.Q.disk (c.form C.typ)).n; rw [h_form]) d) k = (reconstruct c K h.1).cell d k := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `path_and_print_recovery_step2_prints`: the small child tile inherits the cell `k` from its parent `C`. -/
+private lemma path_and_print_recovery_step2_prints_step2_print (c : MacroCertificate P)
+    (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (d : c.Side h.1) (hd : c.marked (c.form h.1) d)
+    (C : DecTile c) (hC : IsChildOf c C (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1))
+    (h_form : c.form h.1 = c.form C.typ)
+    (k : Fin 5) (hk : k ≠ 4) :
+    (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1).cell (c.partner (c.printOcc (c.form h.1) d)).2 k =
+      C.cell (cast (by change Fin (c.Q.disk (c.form h.1)).n = Fin (c.Q.disk (c.form C.typ)).n; rw [h_form]) d) k := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `path_and_print_recovery`: the noncentral (small)
 owner of the print of `d` has first four cells `D_1(d), …, D_4(d)` on that print. -/
 private lemma path_and_print_recovery_step2_prints (c : MacroCertificate P)
@@ -1980,7 +2003,37 @@ private lemma path_and_print_recovery_step2_prints (c : MacroCertificate P)
     ∀ d : c.Side h.1, c.marked (c.form h.1) d → ∀ k : Fin 5, k ≠ 4 →
       K.col (c.partner (c.printOcc (c.form h.1) d)).1 (c.partner (c.printOcc (c.form h.1) d)).2 k =
         (reconstruct c K h.1).cell d k := by
-  sorry
+  intro d hd k hk
+  have h_owner1 : c.owner (c.printOcc (c.form h.1) d).1 = c.form h.1 := c.g5_central_owner _
+  have h_inner := c.g4_print_inner _ _ hd
+  have h_owner2 : c.owner (c.partner (c.printOcc (c.form h.1) d)).1 = c.form h.1 :=
+    (c.g1_partner _ h_inner).2.1.trans h_owner1
+  have h_owner : c.owner (c.partner (c.printOcc (c.form h.1) d)).1 = K.α :=
+    h_owner2.trans hh.1
+  have h_nc : (c.partner (c.printOcc (c.form h.1) d)).1 ≠ c.central K.α := by
+    intro h_eq
+    have h_small := c.g4_print_small _ _ hd
+    have h_large : c.kind (c.form (c.central K.α)) = .large := by
+      rw [c.g5_large_iff, c.g5_central_owner K.α]
+    rw [h_eq] at h_small
+    cases h_small.symm.trans h_large
+  have h_legal := hK.2 _ h_owner h_nc
+  rcases h_legal with ⟨ch, h_ch0, h_ch, h_origin⟩
+  let C := ch 1
+  have hC : IsChildOf c C (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1) := by
+    have h1 := h_ch 0
+    rw [h_ch0] at h1
+    exact h1
+  have h_form : c.form h.1 = c.form C.typ := by
+    have h_own := hC.1
+    change c.owner (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1).typ = c.form C.typ at h_own
+    dsimp [ColouredBlock.tileOf] at h_own
+    rw [← h_own]
+    exact h_owner2.symm
+  have eq1 := path_and_print_recovery_step2_prints_step2_print c hH K hK h hh d hd C hC h_form k hk
+  have eq2 := path_and_print_recovery_step2_prints_step1_parent_cell c hH K hK h hh d hd C hC h_form k hk
+  change (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1).cell (c.partner (c.printOcc (c.form h.1) d)).2 k = _
+  rw [eq1, eq2]
 
 /-- `lem:comp/signals`: every nonprint third signal on `P_i(d)` equals
 `D_i(d)`, and the noncentral (small) owner of the print of `d` has first four

@@ -6539,9 +6539,12 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
 
 /-- Step 5 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 Coverage by the descendants and disjoint interiors give actual tile inclusion,
-not only support inclusion, by Lemma `lem:covered-tile-belongs`. -/
+not only support inclusion, by Lemma `lem:covered-tile-belongs`.  The composition
+hypothesis `hseq` makes the decomposed crown a subpatch of `seq 0`; without it the
+statement fails (unrelated `seq 0` and `seq k`). -/
 private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile
-    (τ : Substitution P) (m : ℕ) (seq : ℕ → PlaneTiling P)
+    (τ : Substitution P) (m : ℕ) (hm : 0 < m) (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ k, (τ.pow m hm).IsComposition (seq (k + 1)) (seq k))
     (F : Set (PlacedTile P)) (hF : F ⊆ (seq 0).tiles) (hF_fin : F.Finite)
     (k : ℕ) (w : Pt) (hw : IsVertexOf (seq k).tiles w)
     (h_supp : support F ⊆ support (τ.decomposeIter (k * m) (crown (seq k).tiles w))) :
@@ -6572,8 +6575,8 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius
       hk hF_fin
   have h_supp := allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp τ m hm seq
     hseq F hF k w hw h_cover_w
-  have h_inc := allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile τ m seq
-    F hF hF_fin k w hw h_supp
+  have h_inc := allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile τ m hm seq
+    hseq F hF hF_fin k w hw h_supp
   exact ⟨k, w, hw, h_inc⟩
 
 /-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step2_supertile`:

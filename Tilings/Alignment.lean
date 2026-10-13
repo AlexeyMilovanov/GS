@@ -744,12 +744,15 @@ private lemma whole_side_ports_step1_parent_length (m : ℕ) (A : G.P'.Form)
   have h : 0 < τ.θ := by linarith [τ.one_lt]
   rw [Real.norm_eq_abs, abs_of_pos (pow_pos h m)]
 
-/-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: sum of lengths of fine edges on the parent side. -/
+/-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`:
+the fine outer sides overlapping the parent side positively cover it, so its length is at
+most the sum of their lengths.  (The sides *contained* in the parent side do not cover it:
+a fine side may cross a dummy parent vertex, (G3).) -/
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step1_sum_lengths
     (τ : Substitution P) (G : GroupedFamily P) (m : ℕ)
     (A : G.P'.Form) (a : Fin (G.P'.disk A).n)
-    (h_fin : {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
-        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.Finite) :
+    (h_fin : {e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
+        (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.Finite) :
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
       ∑ e ∈ h_fin.toFinset, dist e.1 e.2 := by
   sorry
@@ -804,8 +807,8 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_fi
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite
     (τ : Substitution P) (G : GroupedFamily P) (m : ℕ)
     (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
-    {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
-        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.Finite :=
+    {e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
+        (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.Finite :=
   (whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite_aux2 τ G m A).sep _
 
 private lemma omitted_count_support_translateSet (v : Pt) (S : Set (PlacedTile P)) :
@@ -1188,8 +1191,8 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
     (τ : Substitution P) (G : GroupedFamily P) (M : MeshConstants P) (m : ℕ)
     (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
-      ({e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
-        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard : ℝ) * M.D := by
+      ({e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
+        (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard : ℝ) * M.D := by
   have h_fin := whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite τ G m A a
   rw [Set.ncard_eq_toFinset_card _ h_fin]
   calc dist (parentSide τ G m A a).1 (parentSide τ G m A a).2
@@ -1203,66 +1206,15 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
     _ = (h_fin.toFinset.card : ℝ) * M.D := by
       rw [Finset.sum_const, nsmul_eq_mul]
 
-/-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound`: the number of fine
-edges on the parent side is bounded by the number of strictly inside fine edges plus 2. -/
+/-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound`: among the fine
+outer sides overlapping the parent side positively, at most two are not strictly inside it
+(one may cross or touch each endpoint). -/
 private lemma whole_side_ports_step2_length_bound_step2_omitted_count
     (τ : Substitution P) (G : GroupedFamily P) (m : ℕ) (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
-    {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
-        segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard ≤
+    {e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
+        (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard ≤
       (sidesInside τ G m A a).ncard + 2 := by
-  let p := (parentSide τ G m A a).1
-  let q := (parentSide τ G m A a).2
-  let S := {e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆ segment ℝ p q}
-  let I := sidesInside τ G m A a
-  let L := {e ∈ S | p ∈ segment ℝ e.1 e.2}
-  let R := {e ∈ S | q ∈ segment ℝ e.1 e.2}
-  have hpq : p ≠ q := omitted_count_parent_endpoints_ne τ G m A a
-  have hSfin : S.Finite := by
-    apply (whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite τ G m A a).subset
-    intro e he
-    exact he
-  have hIfin : I.Finite := by
-    apply hSfin.subset
-    rintro e ⟨he, heopen⟩
-    exact ⟨he, heopen.trans (openSegment_subset_segment ℝ p q)⟩
-  have hLfin : L.Finite := hSfin.sep _
-  have hRfin : R.Finite := hSfin.sep _
-  have hL : L.ncard ≤ 1 := by
-    rw [Set.ncard_le_one hLfin]
-    intro e he f hf
-    exact omitted_count_edge_unique_at_endpoint τ G m A p q e f hpq
-      he.1.1 hf.1.1 he.1.2 hf.1.2 he.2 hf.2
-  have hR : R.ncard ≤ 1 := by
-    rw [Set.ncard_le_one hRfin]
-    intro e he f hf
-    apply omitted_count_edge_unique_at_endpoint τ G m A q p e f hpq.symm
-    · exact he.1.1
-    · exact hf.1.1
-    · simpa [segment_symm] using he.1.2
-    · simpa [segment_symm] using hf.1.2
-    · exact he.2
-    · exact hf.2
-  have hsub : S ⊆ I ∪ (L ∪ R) := by
-    intro e he
-    by_cases heopen : segment ℝ e.1 e.2 ⊆ openSegment ℝ p q
-    · exact Or.inl ⟨he.1, heopen⟩
-    · rw [Set.not_subset] at heopen
-      obtain ⟨z, hz, hzopen⟩ := heopen
-      have hzparent := he.2 hz
-      rw [← insert_endpoints_openSegment] at hzparent
-      simp only [Set.mem_insert_iff] at hzparent
-      rcases hzparent with hzp | hzq | hzopen'
-      · exact Or.inr (Or.inl ⟨he, hzp ▸ hz⟩)
-      · exact Or.inr (Or.inr ⟨he, hzq ▸ hz⟩)
-      · exact False.elim (hzopen hzopen')
-  have hUnionFin : (I ∪ (L ∪ R)).Finite := hIfin.union (hLfin.union hRfin)
-  change S.ncard ≤ I.ncard + 2
-  calc
-    S.ncard ≤ (I ∪ (L ∪ R)).ncard := Set.ncard_le_ncard hsub hUnionFin
-    _ ≤ I.ncard + (L ∪ R).ncard := Set.ncard_union_le I (L ∪ R)
-    _ ≤ I.ncard + (L.ncard + R.ncard) :=
-      Nat.add_le_add_left (Set.ncard_union_le L R) I.ncard
-    _ ≤ I.ncard + 2 := by omega
+  sorry
 
 /-- Step 2 of the blueprint proof of `whole_side_ports`: the length of the parent
 side is bounded by the number of inside edges times D plus the omitted length 2D. -/
@@ -1272,12 +1224,12 @@ private lemma whole_side_ports_step2_length_bound (M : MeshConstants P) (m : ℕ
       ((sidesInside τ G m A a).ncard : ℝ) * M.D + 2 * M.D := by
   have h1 := whole_side_ports_step2_length_bound_step1_all_edges_bound τ G M m A a
   have h2 := whole_side_ports_step2_length_bound_step2_omitted_count τ G m A a
-  have h2r : ({e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
-      segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard : ℝ) ≤
+  have h2r : ({e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
+      (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard : ℝ) ≤
       ((sidesInside τ G m A a).ncard : ℝ) + 2 := by exact_mod_cast h2
   have hd : 0 ≤ M.D := le_of_lt M.D_pos
-  have h3 : ({e ∈ fineOuterSides τ G m A | segment ℝ e.1 e.2 ⊆
-      segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2}.ncard : ℝ) * M.D ≤
+  have h3 : ({e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
+      (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard : ℝ) * M.D ≤
       (((sidesInside τ G m A a).ncard : ℝ) + 2) * M.D := mul_le_mul_of_nonneg_right h2r hd
   rw [add_mul] at h3
   linarith

@@ -2067,6 +2067,1336 @@ theorem strict_reconstructed_noncentral_legal (K : StrictBlock C hC)
   rw [hDE]
   exact hEleg
 
+/-! ### Geometric and combinatorial helpers for `strict_opposing_macroside` -/
+
+/-- Pushing a point of a ball slightly along a vector stays in the ball. -/
+private theorem som_push (x z nv : Pt) (ε δ : ℝ) (hz : dist z x < ε) (hδ : 0 < δ) (hn : nv ≠ 0)
+    (σ : ℝ) (hσ : σ = 1 ∨ σ = -1) :
+    ∃ t : ℝ, 0 < t ∧ dist (z + (σ * t) • nv) z < δ ∧ dist (z + (σ * t) • nv) x < ε ∧
+      inner ℝ (z + (σ * t) • nv - x) nv = inner ℝ (z - x) nv + σ * t * ‖nv‖ ^ 2 := by
+  have hnp : 0 < ‖nv‖ := norm_pos_iff.mpr hn
+  set r := min δ (ε - dist z x) with hr
+  have hr0 : 0 < r := lt_min hδ (by linarith)
+  have hq : 0 < r / (2 * ‖nv‖) := by positivity
+  have h1 : dist (z + (σ * (r / (2 * ‖nv‖))) • nv) z = r / 2 := by
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_mul]
+    rcases hσ with rfl | rfl <;> simp [abs_of_pos hq] <;> field_simp
+  refine ⟨r / (2 * ‖nv‖), hq, ?_, ?_, ?_⟩
+  · rw [h1]; linarith [min_le_left δ (ε - dist z x)]
+  · have := dist_triangle (z + (σ * (r / (2 * ‖nv‖))) • nv) z x
+    linarith [min_le_right δ (ε - dist z x)]
+  · rw [add_sub_right_comm, inner_add_left, inner_smul_left, real_inner_self_eq_norm_sq]
+    simp
+
+private theorem som_segment_compact (a b : Pt) : IsCompact (segment ℝ a b) := by
+  rw [segment_eq_image']
+  exact isCompact_Icc.image (by fun_prop)
+
+private theorem som_openSegment_ne_left {a b x : Pt} (hab : a ≠ b) (hx : x ∈ openSegment ℝ a b) :
+    x ≠ a := by
+  rintro rfl
+  exact hab ((left_mem_openSegment_iff).1 hx)
+
+private theorem som_openSegment_ne_right {a b x : Pt} (hab : a ≠ b) (hx : x ∈ openSegment ℝ a b) :
+    x ≠ b := by
+  rintro rfl
+  exact hab ((right_mem_openSegment_iff).1 hx)
+
+private theorem som_finRotate_ne {N : ℕ} (hN : 2 ≤ N) (x : Fin N) : finRotate N x ≠ x := by
+  obtain ⟨k, rfl⟩ : ∃ k, N = k + 1 + 1 := ⟨N - 2, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have := congrArg (· - x) h
+  simp at this
+
+private theorem som_vertex_ne (D : PolygonalDisk) (i : Fin D.n) :
+    D.vertex i ≠ D.vertex (finRotate _ i) := fun h =>
+  som_finRotate_ne (by have := D.three_le; omega) i (D.vertex_injective h).symm
+
+/-- Points of a segment differ by multiples of its direction. -/
+private theorem som_inner_segment {a b x z nv : Pt} (hn : inner ℝ (b - a) nv = 0)
+    (hx : x ∈ segment ℝ a b) (hz : z ∈ segment ℝ a b) : inner ℝ (z - x) nv = 0 := by
+  rw [segment_eq_image'] at hx hz
+  obtain ⟨t, -, rfl⟩ := hx
+  obtain ⟨t', -, rfl⟩ := hz
+  have : a + t' • (b - a) - (a + t • (b - a)) = (t' - t) • (b - a) := by module
+  rw [this, inner_smul_left, hn]; simp
+
+/-- Near a relative interior point of a side, the frontier of a polygonal disk lies on the
+line of that side. -/
+private theorem som_frontier_local (D : PolygonalDisk) (i : Fin D.n) {x nv : Pt}
+    (hx : x ∈ openSegment ℝ (D.vertex i) (D.vertex (finRotate _ i)))
+    (hn : inner ℝ (D.vertex (finRotate _ i) - D.vertex i) nv = 0) :
+    ∃ ε > 0, ∀ z, dist z x < ε → z ∈ frontier D.carrier → inner ℝ (z - x) nv = 0 := by
+  have hab := som_vertex_ne D i
+  have hxa := som_openSegment_ne_left hab hx
+  have hxb := som_openSegment_ne_right hab hx
+  have hxs : x ∈ D.side i := openSegment_subset_segment _ _ _ hx
+  have hev : ∀ᶠ z in nhds x, ∀ j : Fin D.n, j ≠ i → z ∉ D.side j := by
+    rw [Filter.eventually_all]
+    intro j
+    by_cases hj : j = i
+    · exact Filter.Eventually.of_forall fun _ h => absurd hj h
+    · have hxj : x ∉ D.side j := by
+        intro hxj
+        have := D.simple i j (Ne.symm hj) ⟨hxs, hxj⟩
+        rcases this.1 with h | h
+        · exact hxa h
+        · exact hxb h
+      filter_upwards [(som_segment_compact _ _).isClosed.isOpen_compl.mem_nhds hxj] with z hz _
+      exact hz
+  obtain ⟨ε, hε, hball⟩ := Metric.eventually_nhds_iff.1 hev
+  refine ⟨ε, hε, fun z hz hzf => ?_⟩
+  rw [D.frontier_eq, Set.mem_iUnion] at hzf
+  obtain ⟨j, hj⟩ := hzf
+  by_cases hji : j = i
+  · subst hji
+    exact som_inner_segment hn hxs hj
+  · exact absurd hj (hball hz j hji)
+
+/-- **Half-ball lemma.**  Near a relative interior point `x` of a side of a polygonal disk, one
+open half-ball (with respect to a normal vector `nv` of the side) lies in the interior and the
+other one outside the disk. -/
+private theorem som_half_ball (D : PolygonalDisk) (i : Fin D.n) {x nv : Pt}
+    (hx : x ∈ openSegment ℝ (D.vertex i) (D.vertex (finRotate _ i)))
+    (hn : inner ℝ (D.vertex (finRotate _ i) - D.vertex i) nv = 0) (hn0 : nv ≠ 0) :
+    ∃ ε > 0, ∃ σ : ℝ, (σ = 1 ∨ σ = -1) ∧ ∀ z, dist z x < ε →
+      (0 < σ * inner ℝ (z - x) nv → z ∈ interior D.carrier) ∧
+      (σ * inner ℝ (z - x) nv < 0 → z ∉ D.carrier) := by
+  obtain ⟨ε, hε, hloc⟩ := som_frontier_local D i hx hn
+  have hcl : IsClosed D.carrier := D.compact.isClosed
+  have hxs : x ∈ D.side i := openSegment_subset_segment _ _ _ hx
+  have hxf : x ∈ frontier D.carrier := by
+    rw [D.frontier_eq, Set.mem_iUnion]; exact ⟨i, hxs⟩
+  let H : ℝ → Set Pt := fun σ => {z | dist z x < ε ∧ 0 < σ * inner ℝ (z - x) nv}
+  have hH : ∀ σ, H σ ⊆ interior D.carrier ∨ H σ ⊆ D.carrierᶜ := by
+    intro σ
+    have hconv : Convex ℝ (H σ) := by
+      intro a ha b hb s t hs ht hst
+      refine ⟨?_, ?_⟩
+      · have := (convex_ball x ε) (show a ∈ Metric.ball x ε from ha.1)
+          (show b ∈ Metric.ball x ε from hb.1) hs ht hst
+        exact this
+      · have he : s • a + t • b - x = s • (a - x) + t • (b - x) := by
+          calc s • a + t • b - x = s • a + t • b - (s + t) • x := by rw [hst, one_smul]
+            _ = s • (a - x) + t • (b - x) := by module
+        show 0 < σ * inner ℝ (s • a + t • b - x) nv
+        rw [he, inner_add_left, inner_smul_left, inner_smul_left]
+        simp only [RCLike.conj_to_real]
+        have h1 : 0 < σ * inner ℝ (a - x) nv := ha.2
+        have h2 : 0 < σ * inner ℝ (b - x) nv := hb.2
+        have hre : σ * (s * inner ℝ (a - x) nv + t * inner ℝ (b - x) nv) =
+            s * (σ * inner ℝ (a - x) nv) + t * (σ * inner ℝ (b - x) nv) := by ring
+        rw [hre]
+        rcases hs.lt_or_eq with hs' | hs'
+        · nlinarith [mul_nonneg ht h2.le, mul_pos hs' h1]
+        · subst hs'
+          have : t = 1 := by linarith
+          subst this; simpa using h2
+    have hopen : IsOpen (H σ) := by
+      apply IsOpen.inter
+      · exact Metric.isOpen_ball
+      · have hc : Continuous fun z : Pt => σ * inner ℝ (z - x) nv :=
+          continuous_const.mul ((continuous_id.sub continuous_const).inner continuous_const)
+        exact isOpen_lt continuous_const hc
+    refine hconv.isPreconnected.subset_or_subset isOpen_interior hcl.isOpen_compl
+      (Set.disjoint_compl_right_iff_subset.2 interior_subset) ?_
+    intro z hz
+    by_contra hcon
+    simp only [Set.mem_union, Set.mem_compl_iff, not_or, not_not] at hcon
+    have hzf : z ∈ frontier D.carrier := ⟨subset_closure hcon.2, hcon.1⟩
+    have := hloc z hz.1 hzf
+    have h2 := hz.2
+    rw [this, mul_zero] at h2
+    exact lt_irrefl _ h2
+  have hpush : ∀ z, dist z x < ε → inner ℝ (z - x) nv = 0 → ∀ σ : ℝ, (σ = 1 ∨ σ = -1) →
+      ∀ δ > 0, ∃ y ∈ H σ, dist y z < δ := by
+    intro z hz h0 σ hσ δ hδ
+    obtain ⟨t, ht, hd, hdx, hi⟩ := som_push x z nv ε δ hz hδ hn0 σ hσ
+    refine ⟨_, ⟨hdx, ?_⟩, hd⟩
+    rw [hi, h0]
+    have hnp : 0 < ‖nv‖ := norm_pos_iff.mpr hn0
+    rcases hσ with rfl | rfl <;> nlinarith [sq_pos_of_pos hnp]
+  have hsign : ∀ z, dist z x < ε → inner ℝ (z - x) nv ≠ 0 → z ∈ H 1 ∨ z ∈ H (-1) := by
+    intro z hz h0
+    rcases lt_or_gt_of_ne h0 with h | h
+    · right; exact ⟨hz, by linarith⟩
+    · left; exact ⟨hz, by linarith⟩
+  rcases hH 1 with h1 | h1 <;> rcases hH (-1) with h2 | h2
+  · exfalso
+    have hball : Metric.ball x ε ⊆ D.carrier := by
+      intro z hz
+      by_cases h0 : inner ℝ (z - x) nv = 0
+      · rw [← D.regular_closed, Metric.mem_closure_iff]
+        intro δ hδ
+        obtain ⟨y, hy, hyd⟩ := hpush z hz h0 1 (Or.inl rfl) δ hδ
+        exact ⟨y, h1 hy, by rw [dist_comm]; exact hyd⟩
+      · rcases hsign z hz h0 with h | h
+        · exact interior_subset (h1 h)
+        · exact interior_subset (h2 h)
+    exact hxf.2 (interior_maximal hball Metric.isOpen_ball (Metric.mem_ball_self hε))
+  · refine ⟨ε, hε, 1, Or.inl rfl, fun z hz => ⟨fun h => h1 ⟨hz, h⟩, fun h => h2 ⟨hz, by linarith⟩⟩⟩
+  · refine ⟨ε, hε, -1, Or.inr rfl, fun z hz => ⟨fun h => h2 ⟨hz, h⟩, fun h => h1 ⟨hz, by linarith⟩⟩⟩
+  · exfalso
+    have hxc : x ∈ D.carrier := hcl.closure_eq ▸ frontier_subset_closure hxf
+    rw [← D.regular_closed, Metric.mem_closure_iff] at hxc
+    obtain ⟨w, hw, hwd⟩ := hxc ε hε
+    rw [dist_comm] at hwd
+    by_cases h0 : inner ℝ (w - x) nv = 0
+    · obtain ⟨ρ, hρ, hρs⟩ := Metric.isOpen_iff.1 isOpen_interior w hw
+      obtain ⟨y, hy, hyd⟩ := hpush w hwd h0 1 (Or.inl rfl) ρ hρ
+      exact h1 hy (interior_subset (hρs hyd))
+    · rcases hsign w hwd h0 with h | h
+      · exact h1 h (interior_subset hw)
+      · exact h2 h (interior_subset hw)
+
+/-- The affine map `z ↦ w + θ • z` as a homeomorphism. -/
+private def som_homeo (θ : ℝ) (hθ : θ ≠ 0) (w : Pt) : Pt ≃ₜ Pt :=
+  (Homeomorph.smulOfNeZero θ hθ).trans (Homeomorph.addLeft w)
+
+private theorem som_homeo_apply (θ : ℝ) (hθ : θ ≠ 0) (w z : Pt) :
+    som_homeo θ hθ w z = w + θ • z := rfl
+
+private theorem som_homeo_image (θ : ℝ) (hθ : θ ≠ 0) (w : Pt) (s : Set Pt) :
+    som_homeo θ hθ w '' s = w +ᵥ θ • s := by
+  ext z
+  simp only [Set.mem_image, som_homeo_apply, Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨y, hy, rfl⟩; exact ⟨θ • y, ⟨y, hy, rfl⟩, rfl⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩; exact ⟨y, hy, rfl⟩
+
+private theorem som_homeo_segment (θ : ℝ) (hθ : θ ≠ 0) (w a b : Pt) :
+    som_homeo θ hθ w '' segment ℝ a b = segment ℝ (w + θ • a) (w + θ • b) := by
+  rw [segment_eq_image', segment_eq_image', Set.image_image]
+  refine Set.image_congr fun t _ => ?_
+  rw [som_homeo_apply]; module
+
+/-- The image of a polygonal disk under `z ↦ w + θ • z`, `θ ≠ 0`. -/
+private def som_affDisk (D : PolygonalDisk) (θ : ℝ) (hθ : θ ≠ 0) (w : Pt) : PolygonalDisk where
+  carrier := w +ᵥ θ • D.carrier
+  n := D.n
+  three_le := D.three_le
+  vertex k := w + θ • D.vertex k
+  vertex_injective k l h := D.vertex_injective (smul_right_injective Pt hθ (add_left_cancel h))
+  compact := by
+    rw [← som_homeo_image θ hθ w]; exact D.compact.image (som_homeo θ hθ w).continuous
+  interior_nonempty := by
+    rw [← som_homeo_image θ hθ w, ← Homeomorph.image_interior]
+    exact D.interior_nonempty.image _
+  regular_closed := by
+    rw [← som_homeo_image θ hθ w, ← Homeomorph.image_interior, ← Homeomorph.image_closure,
+      D.regular_closed]
+  interior_pathConnected := by
+    rw [← som_homeo_image θ hθ w, ← Homeomorph.image_interior]
+    exact D.interior_pathConnected.image (som_homeo θ hθ w).continuous
+  frontier_eq := by
+    rw [← som_homeo_image θ hθ w, ← Homeomorph.image_frontier, D.frontier_eq, Set.image_iUnion]
+    simp only [som_homeo_segment]
+  simple i j hij := by
+    have := Set.image_mono (f := som_homeo θ hθ w) (D.simple i j hij)
+    rw [Set.image_inter (som_homeo θ hθ w).injective, Set.image_inter (som_homeo θ hθ w).injective,
+      som_homeo_segment, som_homeo_segment] at this
+    simpa [Set.image_insert_eq, som_homeo_apply] using this
+
+private theorem som_affDisk_side (D : PolygonalDisk) (θ : ℝ) (hθ : θ ≠ 0) (w : Pt) (i : Fin D.n) :
+    (som_affDisk D θ hθ w).side i = w +ᵥ θ • D.side i := by
+  rw [← som_homeo_image θ hθ w, PolygonalDisk.side, PolygonalDisk.side, som_homeo_segment]
+  rfl
+
+private theorem som_exists_normal (v : Pt) (hv : v ≠ 0) : ∃ nv : Pt, nv ≠ 0 ∧ inner ℝ v nv = 0 := by
+  refine ⟨!₂[-(v 1), v 0], ?_, ?_⟩
+  · intro h
+    apply hv
+    have h0 := congrFun (congrArg (fun w : Pt => (w : Fin 2 → ℝ)) h) 0
+    have h1 := congrFun (congrArg (fun w : Pt => (w : Fin 2 → ℝ)) h) 1
+    simp at h0 h1
+    ext i; fin_cases i <;> simp [h0, h1]
+  · simp [PiLp.inner_apply, Fin.sum_univ_two]; ring
+
+/-- The midpoint of a nondegenerate subsegment is a relative interior point, and normals of
+the subsegment are normals of the segment. -/
+private theorem som_sub_segment {a b p q : Pt} (hpq : p ≠ q) (hs : segment ℝ p q ⊆ segment ℝ a b) :
+    midpoint ℝ p q ∈ openSegment ℝ a b ∧
+      ∀ nv, inner ℝ (q - p) nv = 0 → inner ℝ (b - a) nv = 0 := by
+  have hp := hs (left_mem_segment ℝ p q)
+  have hq := hs (right_mem_segment ℝ p q)
+  rw [segment_eq_image'] at hp hq
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hp
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hq
+  have hst : s ≠ t := by rintro rfl; exact hpq rfl
+  have hba : b - a ≠ 0 := by
+    intro h; apply hpq; rw [h]; simp
+  have hdiff : a + t • (b - a) - (a + s • (b - a)) = (t - s) • (b - a) := by module
+  have hmid : midpoint ℝ (a + s • (b - a)) (a + t • (b - a)) = a + ((s + t) / 2) • (b - a) := by
+    rw [midpoint_eq_smul_add, invOf_eq_inv]; module
+  refine ⟨?_, fun nv hn => ?_⟩
+  · rw [hmid, openSegment_eq_image']
+    refine ⟨(s + t) / 2, ⟨?_, ?_⟩, rfl⟩
+    · rcases lt_or_gt_of_ne hst with h | h <;> linarith
+    · rcases lt_or_gt_of_ne hst with h | h <;> linarith
+  · rw [hdiff, inner_smul_left] at hn
+    simp only [RCLike.conj_to_real, mul_eq_zero] at hn
+    rcases hn with h | h
+    · exact absurd (sub_eq_zero.1 h).symm hst
+    · exact h
+
+/-- The half-ball lemma at the midpoint of a nondegenerate segment contained in a side. -/
+private theorem som_half_ball_seg (D : PolygonalDisk) (i : Fin D.n) {p q nv : Pt} (hpq : p ≠ q)
+    (hs : segment ℝ p q ⊆ D.side i) (hn : inner ℝ (q - p) nv = 0) (hn0 : nv ≠ 0) :
+    ∃ ε > 0, ∃ σ : ℝ, (σ = 1 ∨ σ = -1) ∧ ∀ z, dist z (midpoint ℝ p q) < ε →
+      (0 < σ * inner ℝ (z - midpoint ℝ p q) nv → z ∈ interior D.carrier) ∧
+      (σ * inner ℝ (z - midpoint ℝ p q) nv < 0 → z ∉ D.carrier) := by
+  obtain ⟨hx, hnn⟩ := som_sub_segment hpq hs
+  exact som_half_ball D i hx (hnn nv hn) hn0
+
+/-- Two polygonal disks with disjoint interiors sharing a nondegenerate segment on their sides
+fill a neighbourhood of its midpoint off the line: any closed set containing both carriers is a
+neighbourhood of the midpoint. -/
+private theorem som_two_cover (D₁ D₂ : PolygonalDisk) (i₁ : Fin D₁.n) (i₂ : Fin D₂.n) {p q : Pt}
+    (hpq : p ≠ q) (h₁ : segment ℝ p q ⊆ D₁.side i₁) (h₂ : segment ℝ p q ⊆ D₂.side i₂)
+    (hdis : Disjoint (interior D₁.carrier) (interior D₂.carrier)) {R : Set Pt} (hR : IsClosed R)
+    (hR₁ : D₁.carrier ⊆ R) (hR₂ : D₂.carrier ⊆ R) : midpoint ℝ p q ∈ interior R := by
+  obtain ⟨nv, hn0, hn⟩ := som_exists_normal (q - p) (sub_ne_zero.2 hpq.symm)
+  set x := midpoint ℝ p q
+  obtain ⟨ε₁, hε₁, σ₁, hσ₁, hb₁⟩ := som_half_ball_seg D₁ i₁ hpq h₁ hn hn0
+  obtain ⟨ε₂, hε₂, σ₂, hσ₂, hb₂⟩ := som_half_ball_seg D₂ i₂ hpq h₂ hn hn0
+  set ε := min ε₁ ε₂
+  have hε : 0 < ε := lt_min hε₁ hε₂
+  have hnp : 0 < ‖nv‖ := norm_pos_iff.mpr hn0
+  have hopp : σ₂ = -σ₁ := by
+    by_contra hne
+    have heq : σ₂ = σ₁ := by
+      rcases hσ₁ with rfl | rfl <;> rcases hσ₂ with rfl | rfl <;>
+        first | rfl | (exfalso; apply hne; norm_num)
+    obtain ⟨t, ht, -, hdx, hi⟩ := som_push x x nv ε 1 (by simp [hε]) one_pos hn0 σ₁ hσ₁
+    have hpos : 0 < σ₁ * inner ℝ (x + (σ₁ * t) • nv - x) nv := by
+      rw [hi, sub_self, inner_zero_left]
+      rcases hσ₁ with rfl | rfl <;> nlinarith [sq_pos_of_pos hnp]
+    have hz₁ := (hb₁ _ (lt_of_lt_of_le hdx (min_le_left _ _))).1 hpos
+    have hz₂ := (hb₂ _ (lt_of_lt_of_le hdx (min_le_right _ _))).1 (by rw [heq]; exact hpos)
+    exact Set.disjoint_left.1 hdis hz₁ hz₂
+  have hoff : ∀ z, dist z x < ε → inner ℝ (z - x) nv ≠ 0 → z ∈ R := by
+    intro z hz h0
+    have hz₁ := hb₁ z (lt_of_lt_of_le hz (min_le_left _ _))
+    have hz₂ := hb₂ z (lt_of_lt_of_le hz (min_le_right _ _))
+    rw [hopp] at hz₂
+    rcases lt_or_gt_of_ne h0 with h | h
+    · rcases hσ₁ with rfl | rfl
+      · exact hR₂ (interior_subset (hz₂.1 (by linarith)))
+      · exact hR₁ (interior_subset (hz₁.1 (by linarith)))
+    · rcases hσ₁ with rfl | rfl
+      · exact hR₁ (interior_subset (hz₁.1 (by linarith)))
+      · exact hR₂ (interior_subset (hz₂.1 (by linarith)))
+  have hball : Metric.ball x ε ⊆ R := by
+    intro z hz
+    by_cases h0 : inner ℝ (z - x) nv = 0
+    · rw [← hR.closure_eq, Metric.mem_closure_iff]
+      intro δ hδ
+      obtain ⟨t, ht, hd, hdx, hi⟩ := som_push x z nv ε δ hz hδ hn0 1 (Or.inl rfl)
+      refine ⟨_, hoff _ hdx ?_, by rw [dist_comm]; exact hd⟩
+      rw [hi, h0]; positivity
+    · exact hoff z hz h0
+  exact interior_maximal hball Metric.isOpen_ball (Metric.mem_ball_self hε)
+
+/-- Three polygonal disks sharing a nondegenerate segment on their sides: two of them have
+intersecting interiors. -/
+private theorem som_three (D₁ D₂ D₃ : PolygonalDisk) (i₁ : Fin D₁.n) (i₂ : Fin D₂.n) (i₃ : Fin D₃.n)
+    {p q : Pt} (hpq : p ≠ q) (h₁ : segment ℝ p q ⊆ D₁.side i₁) (h₂ : segment ℝ p q ⊆ D₂.side i₂)
+    (h₃ : segment ℝ p q ⊆ D₃.side i₃) :
+    (interior D₁.carrier ∩ interior D₂.carrier).Nonempty ∨
+      (interior D₁.carrier ∩ interior D₃.carrier).Nonempty ∨
+      (interior D₂.carrier ∩ interior D₃.carrier).Nonempty := by
+  obtain ⟨nv, hn0, hn⟩ := som_exists_normal (q - p) (sub_ne_zero.2 hpq.symm)
+  set x := midpoint ℝ p q
+  obtain ⟨ε₁, hε₁, σ₁, hσ₁, hb₁⟩ := som_half_ball_seg D₁ i₁ hpq h₁ hn hn0
+  obtain ⟨ε₂, hε₂, σ₂, hσ₂, hb₂⟩ := som_half_ball_seg D₂ i₂ hpq h₂ hn hn0
+  obtain ⟨ε₃, hε₃, σ₃, hσ₃, hb₃⟩ := som_half_ball_seg D₃ i₃ hpq h₃ hn hn0
+  have hnp : 0 < ‖nv‖ := norm_pos_iff.mpr hn0
+  have key : ∀ (εa εb σ : ℝ), 0 < εa → 0 < εb → (σ = 1 ∨ σ = -1) →
+      ∃ z, dist z x < εa ∧ dist z x < εb ∧ 0 < σ * inner ℝ (z - x) nv := by
+    intro εa εb σ ha hb hσ
+    obtain ⟨t, ht, -, hdx, hi⟩ := som_push x x nv (min εa εb) 1 (by simp [ha, hb]) one_pos hn0 σ hσ
+    refine ⟨_, lt_of_lt_of_le hdx (min_le_left _ _), lt_of_lt_of_le hdx (min_le_right _ _), ?_⟩
+    rw [hi, sub_self, inner_zero_left]
+    rcases hσ with rfl | rfl <;> nlinarith [sq_pos_of_pos hnp]
+  rcases hσ₁ with rfl | rfl <;> rcases hσ₂ with rfl | rfl <;> rcases hσ₃ with rfl | rfl
+  all_goals first
+    | (obtain ⟨z, hza, hzb, hz⟩ := key ε₁ ε₂ _ hε₁ hε₂ (Or.inl rfl)
+       exact Or.inl ⟨z, (hb₁ z hza).1 hz, (hb₂ z hzb).1 hz⟩)
+    | (obtain ⟨z, hza, hzb, hz⟩ := key ε₁ ε₂ _ hε₁ hε₂ (Or.inr rfl)
+       exact Or.inl ⟨z, (hb₁ z hza).1 hz, (hb₂ z hzb).1 hz⟩)
+    | (obtain ⟨z, hza, hzb, hz⟩ := key ε₁ ε₃ _ hε₁ hε₃ (Or.inl rfl)
+       exact Or.inr (Or.inl ⟨z, (hb₁ z hza).1 hz, (hb₃ z hzb).1 hz⟩))
+    | (obtain ⟨z, hza, hzb, hz⟩ := key ε₁ ε₃ _ hε₁ hε₃ (Or.inr rfl)
+       exact Or.inr (Or.inl ⟨z, (hb₁ z hza).1 hz, (hb₃ z hzb).1 hz⟩))
+    | (obtain ⟨z, hza, hzb, hz⟩ := key ε₂ ε₃ _ hε₂ hε₃ (Or.inl rfl)
+       exact Or.inr (Or.inr ⟨z, (hb₂ z hza).1 hz, (hb₃ z hzb).1 hz⟩))
+    | (obtain ⟨z, hza, hzb, hz⟩ := key ε₂ ε₃ _ hε₂ hε₃ (Or.inr rfl)
+       exact Or.inr (Or.inr ⟨z, (hb₂ z hza).1 hz, (hb₃ z hzb).1 hz⟩))
+
+/-- The translate of a polygonal disk. -/
+private def som_trDisk (D : PolygonalDisk) (w : Pt) : PolygonalDisk := som_affDisk D 1 one_ne_zero w
+
+private theorem som_trDisk_carrier (D : PolygonalDisk) (w : Pt) :
+    (som_trDisk D w).carrier = w +ᵥ D.carrier := by
+  show w +ᵥ (1 : ℝ) • D.carrier = _
+  rw [one_smul]
+
+private theorem som_trDisk_side (D : PolygonalDisk) (w : Pt) (i : Fin D.n) :
+    (som_trDisk D w).side i = w +ᵥ D.side i := by
+  show (som_affDisk D 1 one_ne_zero w).side i = _
+  rw [som_affDisk_side, one_smul]
+
+/-- A separated subset of a ball is finite. -/
+private theorem som_sep_finite {S : Set Pt} {x : Pt} {M r : ℝ} (hr : 0 < r)
+    (hS : S ⊆ Metric.closedBall x M) (hsep : ∀ a ∈ S, ∀ b ∈ S, a ≠ b → r ≤ dist a b) : S.Finite := by
+  have htb : TotallyBounded S := (isCompact_closedBall x M).totallyBounded.subset hS
+  obtain ⟨t, ht, hcov⟩ := Metric.totallyBounded_iff.1 htb (r / 2) (by positivity)
+  refine (ht.biUnion fun y _ => (?_ : (S ∩ Metric.ball y (r / 2)).Finite)).subset ?_
+  · refine Set.Subsingleton.finite fun a ha b hb => ?_
+    by_contra hab
+    have := hsep a ha.1 b hb.1 hab
+    have h1 := Metric.mem_ball.1 ha.2
+    have h2 := Metric.mem_ball.1 hb.2
+    have := dist_triangle_right a b y
+    linarith
+  · intro a ha
+    obtain ⟨y, hy, hay⟩ := Set.mem_iUnion₂.1 (hcov ha)
+    exact Set.mem_iUnion₂.2 ⟨y, hy, ha, hay⟩
+
+/-- Local finiteness of plane tilings: finitely many tiles meet a ball. -/
+private theorem som_locally_finite {Pr : Protoset} (T : PlaneTiling Pr) (x : Pt) (ρ : ℝ) :
+    {Y ∈ T.tiles | (Y.carrier ∩ Metric.ball x ρ).Nonempty}.Finite := by
+  let S : Pr.Form → Set Pt := fun f =>
+    {a | (⟨f, a⟩ : PlacedTile Pr) ∈ T.tiles ∧ ((⟨f, a⟩ : PlacedTile Pr).carrier ∩ Metric.ball x ρ).Nonempty}
+  have hfin : ∀ f, (S f).Finite := by
+    intro f
+    obtain ⟨R, hR⟩ := (Pr.disk f).compact.isBounded.subset_closedBall 0
+    obtain ⟨c, hc⟩ := (Pr.disk f).interior_nonempty
+    obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.1 isOpen_interior c hc
+    refine som_sep_finite (M := ρ + R) (x := x) hr ?_ ?_
+    · rintro a ⟨-, z, hz, hzx⟩
+      obtain ⟨y, hy, rfl⟩ := Set.mem_vadd_set.1 hz
+      have hy' := Metric.mem_closedBall.1 (hR hy)
+      rw [dist_zero_right] at hy'
+      rw [Metric.mem_closedBall]
+      have h1 := Metric.mem_ball.1 hzx
+      have : dist a x ≤ dist (a + y) x + ‖y‖ := by
+        rw [dist_eq_norm, dist_eq_norm]
+        calc ‖a - x‖ = ‖(a + y - x) - y‖ := by congr 1; abel
+          _ ≤ ‖a + y - x‖ + ‖y‖ := norm_sub_le _ _
+      simp only [vadd_eq_add] at h1
+      linarith
+    · intro a ha b hb hab
+      by_contra hlt
+      push_neg at hlt
+      have hne : (⟨f, a⟩ : PlacedTile Pr) ≠ ⟨f, b⟩ := fun h => hab (by cases h; rfl)
+      have hd := T.disjoint ha.1 hb.1 hne
+      set z := midpoint ℝ (a + c) (b + c)
+      have hmem : ∀ e, dist (a + c) (b + c) < 2 * r → (e = a ∨ e = b) →
+          z ∈ interior ((⟨f, e⟩ : PlacedTile Pr).carrier) := by
+        intro e hdist he
+        show z ∈ interior (e +ᵥ (Pr.disk f).carrier)
+        rw [interior_vadd]
+        refine Set.mem_vadd_set.2 ⟨z - e, hball ?_, by simp⟩
+        rw [Metric.mem_ball]
+        have h1 : dist z (a + c) = dist (a + c) (b + c) / 2 := by
+          rw [dist_comm]; exact dist_left_midpoint (𝕜 := ℝ) _ _ |>.trans (by simp [div_eq_inv_mul])
+        have h2 : dist z (b + c) = dist (a + c) (b + c) / 2 := by
+          rw [dist_comm]; exact dist_right_midpoint (𝕜 := ℝ) _ _ |>.trans (by simp [div_eq_inv_mul])
+        rcases he with rfl | rfl
+        · have : dist (z - e) c = dist z (e + c) := by
+            rw [dist_eq_norm, dist_eq_norm]; congr 1; abel
+          rw [this, h1]; linarith
+        · have : dist (z - e) c = dist z (e + c) := by
+            rw [dist_eq_norm, dist_eq_norm]; congr 1; abel
+          rw [this, h2]; linarith
+      have hdist : dist (a + c) (b + c) < 2 * r := by
+        rw [dist_add_right]; linarith
+      exact Set.disjoint_left.1 hd (hmem a hdist (Or.inl rfl)) (hmem b hdist (Or.inr rfl))
+  refine (Set.finite_iUnion fun f => (hfin f).image fun a => (⟨f, a⟩ : PlacedTile Pr)).subset ?_
+  rintro ⟨f, a⟩ hY
+  exact Set.mem_iUnion.2 ⟨f, a, hY, rfl⟩
+
+private theorem som_tile_carrier {Pr : Protoset} (X : PlacedTile Pr) :
+    (som_trDisk (Pr.disk X.form) X.anchor).carrier = X.carrier := som_trDisk_carrier _ _
+
+private theorem som_tile_side {Pr : Protoset} (X : PlacedTile Pr) (i : Fin (Pr.disk X.form).n) :
+    (som_trDisk (Pr.disk X.form) X.anchor).side i = X.side i := som_trDisk_side _ _ _
+
+private theorem som_tile_closed {Pr : Protoset} (X : PlacedTile Pr) : IsClosed X.carrier := by
+  rw [← som_tile_carrier]; exact (som_trDisk _ _).compact.isClosed
+
+/-- **Coincident sides.**  In a side-to-side plane tiling every listed side of a tile coincides
+with a listed side of another tile. -/
+private theorem som_coincident_side {Pr : Protoset} (T : PlaneTiling Pr) (hT : T.SideToSide)
+    {X : PlacedTile Pr} (hX : X ∈ T.tiles) (i : Fin (Pr.disk X.form).n) :
+    ∃ Y ∈ T.tiles, Y ≠ X ∧ ∃ j : Fin (Pr.disk Y.form).n, Y.side j = X.side i := by
+  classical
+  set D := som_trDisk (Pr.disk X.form) X.anchor
+  set a := D.vertex i
+  set b := D.vertex (finRotate _ i)
+  have hab : a ≠ b := som_vertex_ne D i
+  have hDs : D.side i = segment ℝ a b := rfl
+  obtain ⟨nv, hn0, hn⟩ := som_exists_normal (b - a) (sub_ne_zero.2 hab.symm)
+  obtain ⟨ε, hε, σ, hσ, hb⟩ := som_half_ball_seg D i hab hDs.symm.subset hn hn0
+  set x := midpoint ℝ a b
+  rw [som_tile_carrier] at hb
+  set F := {Y ∈ T.tiles | (Y.carrier ∩ Metric.ball x ε).Nonempty}
+  have hF : F.Finite := som_locally_finite T x ε
+  have hnp : 0 < ‖b - a‖ := norm_pos_iff.2 (sub_ne_zero.2 hab.symm)
+  set δ := min (1 / 2 : ℝ) (ε / (2 * ‖b - a‖))
+  have hδ : 0 < δ := lt_min (by norm_num) (by positivity)
+  set J := (fun t : ℝ => x + t • (b - a)) '' Set.Ioo (-δ) δ
+  have hxeq : x = a + (1 / 2 : ℝ) • (b - a) := by
+    show midpoint ℝ a b = _
+    rw [midpoint_eq_smul_add, invOf_eq_inv]; module
+  have hJ : ∀ z ∈ J, z ∈ X.side i ∧ dist z x < ε ∧ inner ℝ (z - x) nv = 0 := by
+    rintro _ ⟨t, ⟨ht1, ht2⟩, rfl⟩
+    have hta : |t| < δ := abs_lt.2 ⟨ht1, ht2⟩
+    refine ⟨?_, ?_, ?_⟩
+    · rw [← som_tile_side, hDs, segment_eq_image']
+      refine ⟨1 / 2 + t, ⟨?_, ?_⟩, by rw [hxeq]; module⟩
+      · linarith [min_le_left (1 / 2 : ℝ) (ε / (2 * ‖b - a‖))]
+      · linarith [min_le_left (1 / 2 : ℝ) (ε / (2 * ‖b - a‖))]
+    · rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs]
+      have h1 : |t| < ε / (2 * ‖b - a‖) := lt_of_lt_of_le hta (min_le_right _ _)
+      have h2 : |t| * ‖b - a‖ < ε / (2 * ‖b - a‖) * ‖b - a‖ :=
+        mul_lt_mul_of_pos_right h1 hnp
+      have h3 : ε / (2 * ‖b - a‖) * ‖b - a‖ = ε / 2 := by field_simp
+      linarith
+    · rw [add_sub_cancel_left, inner_smul_left, hn]; simp
+  have hJinf : J.Infinite := by
+    refine (Set.Ioo_infinite (by linarith)).image fun t _ s _ hts => ?_
+    exact smul_left_injective ℝ (sub_ne_zero.2 hab.symm) (add_left_cancel hts)
+  -- every point of `J` lies on a side of another tile meeting the ball
+  have hcov : ∀ z ∈ J, ∃ Y ∈ F, Y ≠ X ∧ ∃ j : Fin (Pr.disk Y.form).n, z ∈ Y.side j := by
+    intro z hzJ
+    obtain ⟨-, hzx, hz0⟩ := hJ z hzJ
+    have hmem : ∃ Y ∈ F, Y ≠ X ∧ z ∈ Y.carrier := by
+      by_contra hcon
+      push_neg at hcon
+      have hev : ∀ᶠ y in nhds z, ∀ Y ∈ F, Y ≠ X → y ∉ Y.carrier := by
+        rw [Filter.eventually_all_finite hF]
+        intro Y hY
+        by_cases hYX : Y = X
+        · exact Filter.Eventually.of_forall fun _ h => absurd hYX h
+        · filter_upwards [(som_tile_closed Y).isOpen_compl.mem_nhds (hcon Y hY hYX)] with y hy _
+          exact hy
+      obtain ⟨η, hη, hηs⟩ := Metric.eventually_nhds_iff.1 hev
+      have hσ' : -σ = 1 ∨ -σ = -1 := by rcases hσ with rfl | rfl <;> norm_num
+      obtain ⟨t, ht, hd, hdx, hi⟩ := som_push x z nv ε η hzx hη hn0 (-σ) hσ'
+      set y := z + (-σ * t) • nv
+      have hneg : σ * inner ℝ (y - x) nv < 0 := by
+        rw [hi, hz0]
+        have := sq_pos_of_pos (norm_pos_iff.2 hn0)
+        rcases hσ with rfl | rfl <;> nlinarith
+      have hyX : y ∉ X.carrier := (hb y hdx).2 hneg
+      have hyU : y ∈ support T.tiles := by rw [T.cover]; trivial
+      obtain ⟨Y, hY, hyY⟩ := Set.mem_iUnion₂.1 hyU
+      have hYX : Y ≠ X := by rintro rfl; exact hyX hyY
+      exact hηs hd Y ⟨hY, y, hyY, Metric.mem_ball.2 hdx⟩ hYX hyY
+    obtain ⟨Y, hYF, hYX, hzY⟩ := hmem
+    refine ⟨Y, hYF, hYX, ?_⟩
+    have hzi : z ∉ interior Y.carrier := by
+      intro hzi
+      obtain ⟨η, hη, hηs⟩ := Metric.isOpen_iff.1 isOpen_interior z hzi
+      obtain ⟨t, ht, hd, hdx, hi⟩ := som_push x z nv ε η hzx hη hn0 σ hσ
+      have hpos : 0 < σ * inner ℝ (z + (σ * t) • nv - x) nv := by
+        rw [hi, hz0]
+        have := sq_pos_of_pos (norm_pos_iff.2 hn0)
+        rcases hσ with rfl | rfl <;> nlinarith
+      have h1 := (hb _ hdx).1 hpos
+      have h2 := hηs hd
+      exact Set.disjoint_left.1 (T.disjoint hYF.1 hX hYX) h2 h1
+    have hzf : z ∈ frontier (som_trDisk (Pr.disk Y.form) Y.anchor).carrier := by
+      rw [som_tile_carrier]
+      exact ⟨subset_closure hzY, hzi⟩
+    rw [(som_trDisk (Pr.disk Y.form) Y.anchor).frontier_eq, Set.mem_iUnion] at hzf
+    obtain ⟨j, hj⟩ := hzf
+    exact ⟨j, by rw [← som_tile_side]; exact hj⟩
+  -- pigeonhole: some side of another tile contains two points of `J`
+  have hpig : ∃ Y ∈ F, Y ≠ X ∧ ∃ j : Fin (Pr.disk Y.form).n,
+      ¬ (Y.side j ∩ J).Subsingleton := by
+    by_contra hcon
+    push_neg at hcon
+    apply hJinf
+    have hF' : {Y | Y ∈ F ∧ Y ≠ X}.Finite := hF.subset fun Y hY => hY.1
+    refine (hF'.biUnion fun Y hY =>
+      Set.finite_iUnion fun j => (hcon Y hY.1 hY.2 j).finite).subset ?_
+    intro z hz
+    obtain ⟨Y, hYF, hYX, j, hj⟩ := hcov z hz
+    exact Set.mem_iUnion₂.2 ⟨Y, ⟨hYF, hYX⟩, Set.mem_iUnion.2 ⟨j, hj, hz⟩⟩
+  obtain ⟨Y, hYF, hYX, j, hns⟩ := hpig
+  obtain ⟨z₁, ⟨hz₁Y, hz₁J⟩, z₂, ⟨hz₂Y, hz₂J⟩, hz₁₂⟩ := Set.not_subsingleton_iff.1 hns
+  refine ⟨Y, hYF.1, hYX, j, hT Y hYF.1 X hX j i ⟨z₁, z₂, hz₁₂, ?_⟩⟩
+  have hcY : Convex ℝ (Y.side j) := by
+    rw [← som_tile_side]; exact convex_segment _ _
+  have hcX : Convex ℝ (X.side i) := by
+    rw [← som_tile_side]; exact convex_segment _ _
+  exact Set.subset_inter (hcY.segment_subset hz₁Y hz₂Y)
+    (hcX.segment_subset (hJ z₁ hz₁J).1 (hJ z₂ hz₂J).1)
+
+/-- A segment determines its endpoints up to order. -/
+private theorem som_segment_endpoints {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hc hd ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+  obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+  simp only at hu hw
+  have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+    have : a + s • (b - a) + u • (a + t • (b - a) - (a + s • (b - a))) - a =
+        (s + u * (t - s)) • (b - a) := by module
+    rw [← this, hu, sub_self]
+  have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+    have : a + s • (b - a) + w • (a + t • (b - a) - (a + s • (b - a))) - b =
+        (s + w * (t - s) - 1) • (b - a) := by module
+    rw [← this, hw, sub_self]
+  have f1 := (smul_eq_zero.1 e1).resolve_right hv
+  have f2 := (smul_eq_zero.1 e2).resolve_right hv
+  rcases lt_trichotomy s t with hst | hst | hst
+  · have hs : s = 0 := by nlinarith
+    subst hs
+    have ht : t = 1 := by nlinarith
+    subst ht
+    left; constructor <;> simp
+  · subst hst; simp at f1 f2; linarith
+  · have ht : t = 0 := by nlinarith
+    subst ht
+    have hs : s = 1 := by nlinarith
+    subst hs
+    right; constructor <;> simp
+
+private theorem som_cond_neg (v : Pt) (hv : v ≠ 0) :
+    (0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1)) ↔ ¬ (0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)) := by
+  have hv' : v 0 ≠ 0 ∨ v 1 ≠ 0 := by
+    by_contra h
+    push_neg at h
+    apply hv
+    ext i; fin_cases i
+    · exact h.1
+    · exact h.2
+  simp only [PiLp.neg_apply]
+  constructor
+  · rintro (h | ⟨h1, h2⟩) <;> intro h' <;> rcases h' with h' | ⟨h1', h2'⟩ <;> linarith
+  · intro h
+    push_neg at h
+    rcases lt_trichotomy (v 0) 0 with h0 | h0 | h0
+    · left; linarith
+    · right
+      refine ⟨by rw [h0]; simp, ?_⟩
+      have := h.2 h0
+      rcases hv' with h' | h'
+      · exact absurd h0 h'
+      · have : v 1 < 0 := lt_of_le_of_ne this h'
+        linarith
+    · exact absurd h0 (not_lt.2 h.1)
+
+private theorem som_canonDir_neg (v : Pt) (hv : v ≠ 0) : Alignment.canonDir (-v) = Alignment.canonDir v := by
+  unfold Alignment.canonDir
+  rw [norm_neg]
+  by_cases h : 0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)
+  · rw [if_pos h, if_neg ((som_cond_neg v hv).not.2 (not_not.2 h))]
+    simp
+  · rw [if_neg h, if_pos ((som_cond_neg v hv).2 h)]
+    simp
+
+private theorem som_frameOrigin_swap (x y : Pt) (hxy : x ≠ y) : Alignment.frameOrigin y x = Alignment.frameOrigin x y := by
+  unfold Alignment.frameOrigin
+  have hv : y - x ≠ 0 := sub_ne_zero.2 hxy.symm
+  have hneg : x - y = -(y - x) := by abel
+  rw [hneg]
+  by_cases h : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)
+  · rw [if_pos h, if_neg ((som_cond_neg _ hv).not.2 (not_not.2 h))]
+  · rw [if_neg h, if_pos ((som_cond_neg _ hv).2 h)]
+
+private theorem som_segCoord_swap (x y z : Pt) (hxy : x ≠ y) : Alignment.segCoord y x z = Alignment.segCoord x y z := by
+  unfold Alignment.segCoord
+  rw [som_frameOrigin_swap x y hxy]
+  have hneg : x - y = -(y - x) := by abel
+  rw [hneg, som_canonDir_neg _ (sub_ne_zero.2 hxy.symm)]
+
+private theorem som_segCoord_translate (x y z v : Pt) :
+    Alignment.segCoord (v + x) (v + y) (v + z) = Alignment.segCoord x y z := by
+  unfold Alignment.segCoord Alignment.frameOrigin Alignment.coord
+  rw [add_sub_add_left_eq_sub]
+  split_ifs <;> simp
+
+private theorem som_coord_eq_inner (o u z : Pt) : Alignment.coord o u z = inner ℝ (z - o) u := by
+  simp [Alignment.coord, PiLp.inner_apply, Fin.sum_univ_two]
+
+private theorem som_canonDir_spec (v : Pt) (hv : v ≠ 0) :
+    ‖Alignment.canonDir v‖ = 1 ∧ ∃ s : ℝ, (s = 1 ∨ s = -1) ∧ v = (s * ‖v‖) • Alignment.canonDir v := by
+  have hn : 0 < ‖v‖ := norm_pos_iff.2 hv
+  unfold Alignment.canonDir
+  split_ifs
+  · refine ⟨?_, 1, Or.inl rfl, ?_⟩
+    · rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hn.ne']
+    · rw [smul_smul, one_mul, mul_inv_cancel₀ hn.ne', one_smul]
+  · refine ⟨?_, -1, Or.inr rfl, ?_⟩
+    · rw [norm_neg, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hn.ne']
+    · rw [smul_neg, smul_smul, neg_one_mul, neg_mul, mul_inv_cancel₀ hn.ne', neg_smul, one_smul,
+        neg_neg]
+
+/-- A point of the line of a nondegenerate segment is recovered from its canonical
+coordinate. -/
+private theorem som_line_recover (x y z : Pt) (hxy : x ≠ y) (hz : ∃ r : ℝ, z = x + r • (y - x)) :
+    z = Alignment.frameOrigin x y + Alignment.segCoord x y z • Alignment.canonDir (y - x) := by
+  obtain ⟨r, rfl⟩ := hz
+  have hv : y - x ≠ 0 := sub_ne_zero.2 hxy.symm
+  obtain ⟨hu, s, hs, hvs⟩ := som_canonDir_spec (y - x) hv
+  set u := Alignment.canonDir (y - x)
+  have hfo : ∃ μ : ℝ, x + r • (y - x) - Alignment.frameOrigin x y = μ • u := by
+    unfold Alignment.frameOrigin
+    split_ifs
+    · exact ⟨r * (s * ‖y - x‖), by rw [add_sub_cancel_left, mul_smul, ← hvs]⟩
+    · refine ⟨(r - 1) * (s * ‖y - x‖), ?_⟩
+      rw [mul_smul, ← hvs]; module
+  obtain ⟨μ, hμ⟩ := hfo
+  unfold Alignment.segCoord
+  rw [som_coord_eq_inner, hμ, inner_smul_left, real_inner_self_eq_norm_sq, hu]
+  simp only [RCLike.conj_to_real, one_pow, mul_one]
+  rw [← hμ]; abel
+
+/-- The endpoints of a segment overlapping a nondegenerate segment with positive length lie on
+the line of the latter. -/
+private theorem som_on_line_of_overlap {x y c₁ c₂ : Pt}
+    (h : OverlapPos (segment ℝ c₁ c₂) (segment ℝ x y)) :
+    (∃ r : ℝ, c₁ = x + r • (y - x)) ∧ (∃ r : ℝ, c₂ = x + r • (y - x)) := by
+  obtain ⟨p, q, hpq, hs⟩ := h
+  have hp := hs (left_mem_segment ℝ p q)
+  have hq := hs (right_mem_segment ℝ p q)
+  obtain ⟨hp1, hp2⟩ := hp
+  obtain ⟨hq1, hq2⟩ := hq
+  rw [segment_eq_image'] at hp1 hp2 hq1 hq2
+  obtain ⟨α, -, hα⟩ := hp1
+  obtain ⟨β, -, hβ⟩ := hq1
+  obtain ⟨γ, -, hγ⟩ := hp2
+  obtain ⟨δ, -, hδ⟩ := hq2
+  simp only at hα hβ hγ hδ
+  have hαβ : β - α ≠ 0 := by
+    intro h0
+    apply hpq
+    rw [← hα, ← hβ, sub_eq_zero.1 h0]
+  have heq : (β - α) • (c₂ - c₁) = (δ - γ) • (y - x) := by
+    have : (β - α) • (c₂ - c₁) = (c₁ + β • (c₂ - c₁)) - (c₁ + α • (c₂ - c₁)) := by module
+    rw [this, hα, hβ, ← hγ, ← hδ]; module
+  set κ := (β - α)⁻¹ * (δ - γ)
+  have hdir : c₂ - c₁ = κ • (y - x) := by
+    have := congrArg ((β - α)⁻¹ • ·) heq
+    simp only [smul_smul, inv_mul_cancel₀ hαβ, one_smul] at this
+    exact this
+  have hc₁ : c₁ = x + (γ - α * κ) • (y - x) := by
+    have h1 : c₁ = (c₁ + α • (c₂ - c₁)) - α • (c₂ - c₁) := by abel
+    rw [h1, hα, ← hγ, hdir]; module
+  refine ⟨⟨_, hc₁⟩, ⟨γ - α * κ + κ, ?_⟩⟩
+  have h2 : c₂ = c₁ + (c₂ - c₁) := by abel
+  rw [h2, hdir, hc₁]; module
+
+/-- **Atoms determine coarse sides.**  If coincident fine sides carry equal atoms of two
+coarse sides overlapping them, the placed coarse sides coincide. -/
+private theorem som_atom_seg {x y x' y' v w : Pt} {c c' : Pt × Pt} (hxy : x ≠ y)
+    (hseg : segment ℝ (v + x) (v + y) = segment ℝ (w + x') (w + y'))
+    (hc : OverlapPos (segment ℝ c.1 c.2) (segment ℝ x y))
+    (hc' : OverlapPos (segment ℝ c'.1 c'.2) (segment ℝ x' y'))
+    (hat : Alignment.atom (x, y) c = Alignment.atom (x', y') c') :
+    segment ℝ (v + c.1) (v + c.2) = segment ℝ (w + c'.1) (w + c'.2) := by
+  have hend := som_segment_endpoints hseg
+  have hx'y' : x' ≠ y' := by
+    rintro rfl
+    rcases hend with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · exact hxy (add_left_cancel (h1.trans h2.symm))
+    · exact hxy (add_left_cancel (h1.trans h2.symm))
+  have hrel : ∀ z, Alignment.segCoord x y z = Alignment.segCoord x' y' (z + (v - w)) := by
+    intro z
+    have hz : v + z = w + (z + (v - w)) := by abel
+    rw [← som_segCoord_translate x y z v]
+    rcases hend with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2, hz, som_segCoord_translate]
+    · rw [h1, h2, hz, som_segCoord_translate, som_segCoord_swap _ _ _ hx'y']
+  obtain ⟨hl₁, hl₂⟩ := som_on_line_of_overlap hc
+  obtain ⟨hl₁', hl₂'⟩ := som_on_line_of_overlap hc'
+  set d₁ := c'.1 + (w - v)
+  set d₂ := c'.2 + (w - v)
+  have hd : ∀ z, (∃ r : ℝ, z = x' + r • (y' - x')) → ∃ r : ℝ, z + (w - v) = x + r • (y - x) := by
+    rintro z ⟨r, rfl⟩
+    rcases hend with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · refine ⟨r, ?_⟩
+      have hx : x = x' + (w - v) := by rw [← add_sub_cancel_left v x, h1]; abel
+      have hy : y = y' + (w - v) := by rw [← add_sub_cancel_left v y, h2]; abel
+      rw [hx, hy]; module
+    · refine ⟨1 - r, ?_⟩
+      have hx : x = y' + (w - v) := by rw [← add_sub_cancel_left v x, h1]; abel
+      have hy : y = x' + (w - v) := by rw [← add_sub_cancel_left v y, h2]; abel
+      rw [hx, hy]; module
+  have hsd : ∀ z, Alignment.segCoord x' y' z = Alignment.segCoord x y (z + (w - v)) := by
+    intro z; rw [hrel]; congr 1; abel
+  have hmin : min (Alignment.segCoord x y c.1) (Alignment.segCoord x y c.2) = min (Alignment.segCoord x y d₁) (Alignment.segCoord x y d₂) := by
+    have := congrArg (fun t => t.2.2.1) hat
+    simp only [Alignment.atom] at this
+    rw [this, hsd, hsd]
+  have hmax : max (Alignment.segCoord x y c.1) (Alignment.segCoord x y c.2) = max (Alignment.segCoord x y d₁) (Alignment.segCoord x y d₂) := by
+    have := congrArg (fun t => t.2.2.2) hat
+    simp only [Alignment.atom] at this
+    rw [this, hsd, hsd]
+  have hpair : (Alignment.segCoord x y c.1 = Alignment.segCoord x y d₁ ∧ Alignment.segCoord x y c.2 = Alignment.segCoord x y d₂) ∨
+      (Alignment.segCoord x y c.1 = Alignment.segCoord x y d₂ ∧ Alignment.segCoord x y c.2 = Alignment.segCoord x y d₁) := by
+    rcases le_total (Alignment.segCoord x y c.1) (Alignment.segCoord x y c.2) with h | h <;>
+      rcases le_total (Alignment.segCoord x y d₁) (Alignment.segCoord x y d₂) with h' | h'
+    · rw [min_eq_left h, min_eq_left h'] at hmin; rw [max_eq_right h, max_eq_right h'] at hmax
+      exact Or.inl ⟨hmin, hmax⟩
+    · rw [min_eq_left h, min_eq_right h'] at hmin; rw [max_eq_right h, max_eq_left h'] at hmax
+      exact Or.inr ⟨hmin, hmax⟩
+    · rw [min_eq_right h, min_eq_left h'] at hmin; rw [max_eq_left h, max_eq_right h'] at hmax
+      exact Or.inr ⟨hmax, hmin⟩
+    · rw [min_eq_right h, min_eq_right h'] at hmin; rw [max_eq_left h, max_eq_left h'] at hmax
+      exact Or.inl ⟨hmax, hmin⟩
+  have hrec : ∀ z z', (∃ r : ℝ, z = x + r • (y - x)) → (∃ r : ℝ, z' = x + r • (y - x)) →
+      Alignment.segCoord x y z = Alignment.segCoord x y z' → z = z' := by
+    intro z z' hz hz' he
+    rw [som_line_recover x y z hxy hz, som_line_recover x y z' hxy hz', he]
+  have hw₁ : w + c'.1 = v + d₁ := by simp only [d₁]; abel
+  have hw₂ : w + c'.2 = v + d₂ := by simp only [d₂]; abel
+  rw [hw₁, hw₂]
+  rcases hpair with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [hrec _ _ hl₁ (hd _ hl₁') h1, hrec _ _ hl₂ (hd _ hl₂') h2]
+  · rw [hrec _ _ hl₁ (hd _ hl₂') h1, hrec _ _ hl₂ (hd _ hl₁') h2, segment_symm]
+
+/-- Cells of a legal tile on a side whose fifth cell is zero and whose fourth cell is a
+schedule tag: the side is outer and the fourth cell is its own schedule tag. -/
+private theorem som_legal_outer_cell {A : StrictDecTile C hC} (hA : StrictLegal C hC A)
+    (i : C.Side A.typ) (h4 : A.cell i 4 = 0) (h3 : (readSched C hC (A.cell i 3)).isSome) :
+    C.IsOuter (C.occ A.typ i) ∧ A.cell i 3 = schedU C hC (C.occ A.typ i) := by
+  classical
+  obtain ⟨ch, h0, hch, -⟩ := hA
+  have hc := (hch 0).2
+  rw [h0] at hc
+  have hcell : ∀ k, A.cell i k = (strictChild C hC (ch (0 + 1)) A.typ).cell i k := by
+    intro k
+    obtain ⟨t, col⟩ := A
+    injection hc with _ hcol
+    exact congrFun (congrFun hcol i) k
+  simp only [strictChild, strictGen] at hcell
+  have hnp : ¬ ∃ d, C.IsPrintOf (C.form (ch (0 + 1)).typ) d (C.occ A.typ i) := by
+    intro hp
+    have e4 := hcell 4
+    have hcs : ¬ (copySource C (C.form (ch (0 + 1)).typ) (C.occ A.typ i) 4).Nonempty := by
+      rintro ⟨p, hp | hp⟩
+      · exact hp.2.1 rfl
+      · exact absurd hp.2.1 (by decide)
+    rw [dif_neg hcs, strictGenCell, if_pos hp, if_pos rfl, h4] at e4
+    cases e4
+  have hcs3 : ¬ (copySource C (C.form (ch (0 + 1)).typ) (C.occ A.typ i) 3).Nonempty := by
+    rintro ⟨p, hp | hp⟩
+    · exact hnp ⟨p.1, hp.1⟩
+    · exact absurd hp.2.1 (by decide)
+  have e3 := hcell 3
+  rw [dif_neg hcs3, strictGenCell, if_neg hnp, if_neg (by decide), if_pos rfl] at e3
+  by_cases ho : C.IsOuter (C.occ A.typ i)
+  · rw [if_pos ho] at e3
+    exact ⟨ho, e3⟩
+  · rw [if_neg ho] at e3
+    exfalso
+    split_ifs at e3 with hb
+    · rw [e3] at h3; simp [readSched, headerSU] at h3
+    · rw [e3] at h3; simp [readSched, botSU] at h3
+
+/-- Two lists strictly sorted by real keys, each element of one having an element of the other
+with the same key (and related by `R` in the forward direction), are related by `Forall₂ R`. -/
+private theorem som_forall₂_of_sorted {α β : Type*} (R : α → β → Prop) (f : α → ℝ) (f' : β → ℝ) :
+    ∀ (L : List α) (L' : List β), L.Pairwise (fun a b => f a < f b) →
+      L'.Pairwise (fun a b => f' a < f' b) →
+      (∀ a ∈ L, ∃ b ∈ L', R a b ∧ f' b = f a) → (∀ b ∈ L', ∃ a ∈ L, f a = f' b) →
+      List.Forall₂ R L L' := by
+  intro L
+  induction L with
+  | nil =>
+    intro L' _ _ _ h2
+    cases L' with
+    | nil => exact List.Forall₂.nil
+    | cons b L' =>
+      obtain ⟨a, ha, -⟩ := h2 b List.mem_cons_self
+      cases ha
+  | cons a L ih =>
+    intro L' hL hL' h1 h2
+    cases L' with
+    | nil =>
+      obtain ⟨b, hb, -⟩ := h1 a List.mem_cons_self
+      cases hb
+    | cons b L' =>
+      rw [List.pairwise_cons] at hL hL'
+      obtain ⟨b₁, hb₁, hR, hfb⟩ := h1 a List.mem_cons_self
+      obtain ⟨a₁, ha₁, hfa⟩ := h2 b List.mem_cons_self
+      have hle1 : f' b ≤ f' b₁ := by
+        rcases List.mem_cons.1 hb₁ with rfl | h
+        · exact le_rfl
+        · exact (hL'.1 _ h).le
+      have hle2 : f a ≤ f a₁ := by
+        rcases List.mem_cons.1 ha₁ with rfl | h
+        · exact le_rfl
+        · exact (hL.1 _ h).le
+      have hab : f a = f' b := by linarith
+      have hbb : b₁ = b := by
+        rcases List.mem_cons.1 hb₁ with h | h
+        · exact h
+        · have := hL'.1 _ h; linarith
+      subst hbb
+      refine List.Forall₂.cons hR (ih L' hL.2 hL'.2 ?_ ?_)
+      · intro a' ha'
+        obtain ⟨b', hb', hR', hf'⟩ := h1 a' (List.mem_cons_of_mem _ ha')
+        refine ⟨b', ?_, hR', hf'⟩
+        rcases List.mem_cons.1 hb' with h | h
+        · subst h; have := hL.1 _ ha'; linarith
+        · exact h
+      · intro b' hb'
+        obtain ⟨a', ha', hf'⟩ := h2 b' (List.mem_cons_of_mem _ hb')
+        refine ⟨a', ?_, hf'⟩
+        rcases List.mem_cons.1 ha' with h | h
+        · subst h; have := hL'.1 _ hb'; linarith
+        · exact h
+
+private theorem som_placed_mem {T : PlaneTiling (strictProtoset C hC)}
+    (part : StrictMacroPartition C hC T) (j : part.ι) (t : C.Typ) (ht : C.owner t = (part.block j).α) :
+    (part.block j).placed t ∈ T.tiles := by
+  rw [← part.cover]; exact Set.mem_iUnion.2 ⟨j, t, ht, rfl⟩
+
+private theorem som_mem_block {T : PlaneTiling (strictProtoset C hC)}
+    (part : StrictMacroPartition C hC T) {Y : PlacedTile (strictProtoset C hC)} (hY : Y ∈ T.tiles) :
+    ∃ j t, C.owner t = (part.block j).α ∧ Y = (part.block j).placed t := by
+  rw [← part.cover] at hY
+  obtain ⟨j, t, ht, rfl⟩ := Set.mem_iUnion.1 hY
+  exact ⟨j, t, ht, rfl⟩
+
+private theorem som_childSide_eq (K : StrictBlock C hC) (o : C.SideOcc) :
+    K.childSide o = K.v +ᵥ C.occSide o := by
+  simp only [StrictBlock.childSide, MacroData.occSide, MacroData.childTile, PlacedTile.side, vadd_vadd]
+
+private theorem som_placed_carrier (K : StrictBlock C hC) (t : C.Typ) :
+    (K.placed t).carrier = K.v +ᵥ (C.childTile t).carrier := by
+  simp only [StrictBlock.placed, PlacedTile.carrier, MacroData.childTile, vadd_vadd]
+  rfl
+
+private theorem som_childTile_mem (t : C.Typ) : C.childTile t ∈ (C.σ.rule (C.owner t)).tiles := by
+  rw [C.rule_eq]; exact ⟨t, rfl, rfl⟩
+
+private theorem som_placed_carrier_subset (K : StrictBlock C hC) (t : C.Typ) (ht : C.owner t = K.α) :
+    (K.placed t).carrier ⊆ K.v +ᵥ C.σ.θ • (C.Q.disk K.α).carrier := by
+  rw [som_placed_carrier, ← C.σ.support_eq, ← ht]
+  exact Set.vadd_set_mono (Set.subset_biUnion_of_mem (som_childTile_mem C t))
+
+private theorem som_region_subset (K : StrictBlock C hC) :
+    K.v +ᵥ C.σ.θ • (C.Q.disk K.α).carrier ⊆ ⋃ t ∈ {t | C.owner t = K.α}, (K.placed t).carrier := by
+  rw [← C.σ.support_eq]
+  rintro _ ⟨z, hz, rfl⟩
+  obtain ⟨A, hA, hzA⟩ := Set.mem_iUnion₂.1 hz
+  rw [C.rule_eq] at hA
+  obtain ⟨t, ht, rfl⟩ := hA
+  refine Set.mem_iUnion₂.2 ⟨t, ht, ?_⟩
+  rw [som_placed_carrier]
+  exact Set.vadd_mem_vadd_set hzA
+
+/-- An open nonempty set covered by finitely many closed sets meets the interior of one. -/
+private theorem som_open_cover_interior {ι : Type*} (F : ι → Set Pt) (hF : ∀ k, IsClosed (F k)) :
+    ∀ (s : Finset ι) (U : Set Pt), IsOpen U → U.Nonempty → U ⊆ ⋃ k ∈ s, F k →
+      ∃ k ∈ s, (U ∩ interior (F k)).Nonempty := by
+  classical
+  intro s
+  induction s using Finset.induction_on with
+  | empty =>
+    intro U _ ⟨z, hz⟩ hU
+    simpa using hU hz
+  | insert k s hk ih =>
+    intro U hUo hUn hU
+    by_cases hsub : U ⊆ F k
+    · exact ⟨k, Finset.mem_insert_self _ _, hUn.mono fun z hz =>
+        ⟨hz, interior_maximal hsub hUo hz⟩⟩
+    · obtain ⟨z, hzU, hzk⟩ := Set.not_subset.1 hsub
+      obtain ⟨k', hk', hne⟩ := ih (U \ F k) (hUo.sdiff (hF k)) ⟨z, hzU, hzk⟩ (by
+        intro y ⟨hyU, hyk⟩
+        have := hU hyU
+        simp only [Finset.mem_insert, Set.mem_iUnion, exists_prop] at this
+        obtain ⟨k'', hk'', hy⟩ := this
+        rcases hk'' with rfl | hk''
+        · exact absurd hy hyk
+        · exact Set.mem_iUnion₂.2 ⟨k'', hk'', hy⟩)
+      exact ⟨k', Finset.mem_insert_of_mem hk', hne.mono fun y hy => ⟨hy.1.1, hy.2⟩⟩
+
+/-- Macroregions of distinct blocks have disjoint interiors. -/
+private theorem som_region_disjoint {T : PlaneTiling (strictProtoset C hC)}
+    (part : StrictMacroPartition C hC T) {j₁ j₂ : part.ι} (hne : j₁ ≠ j₂) :
+    Disjoint (interior ((part.block j₁).v +ᵥ C.σ.θ • (C.Q.disk (part.block j₁).α).carrier))
+      (interior ((part.block j₂).v +ᵥ C.σ.θ • (C.Q.disk (part.block j₂).α).carrier)) := by
+  classical
+  rw [Set.disjoint_left]
+  intro z hz₁ hz₂
+  have hcov : ∀ (jj : part.ι) (U : Set Pt), IsOpen U → U.Nonempty →
+      U ⊆ (part.block jj).v +ᵥ C.σ.θ • (C.Q.disk (part.block jj).α).carrier →
+      ∃ t, C.owner t = (part.block jj).α ∧ (U ∩ interior ((part.block jj).placed t).carrier).Nonempty := by
+    intro jj U hU hUn hsub
+    obtain ⟨t, ht, hne⟩ := som_open_cover_interior (fun t => ((part.block jj).placed t).carrier)
+      (fun t => som_tile_closed _) (Finset.univ.filter fun t => C.owner t = (part.block jj).α) U hU hUn
+      (by
+        intro y hy
+        obtain ⟨t, ht, hyt⟩ := Set.mem_iUnion₂.1 (som_region_subset C hC _ (hsub hy))
+        exact Set.mem_iUnion₂.2 ⟨t, by simpa using ht, hyt⟩)
+    exact ⟨t, by simpa using ht, hne⟩
+  obtain ⟨t₁, ht₁, y, ⟨hy₁, hy₂⟩, hyX₁⟩ := hcov j₁ _ (isOpen_interior.inter isOpen_interior)
+    ⟨z, hz₁, hz₂⟩ (fun y hy => interior_subset hy.1)
+  obtain ⟨t₂, ht₂, w, ⟨hw₁, hw₂⟩, hwX₂⟩ := hcov j₂ _ (isOpen_interior.inter isOpen_interior)
+    ⟨y, hy₂, hyX₁⟩ (fun y hy => interior_subset hy.1)
+  have hX₁ := som_placed_mem C hC part j₁ t₁ ht₁
+  have hX₂ := som_placed_mem C hC part j₂ t₂ ht₂
+  have heq : (part.block j₁).placed t₁ = (part.block j₂).placed t₂ := by
+    by_contra hXne
+    exact Set.disjoint_left.1 (T.disjoint hX₁ hX₂ hXne) hw₂ hwX₂
+  have hm₁ : (part.block j₁).placed t₁ ∈ (part.block j₁).tiles := ⟨t₁, ht₁, rfl⟩
+  have hm₂ : (part.block j₁).placed t₁ ∈ (part.block j₂).tiles := heq ▸ ⟨t₂, ht₂, rfl⟩
+  exact Set.disjoint_left.1 (part.disjoint hne) hm₁ hm₂
+
+private theorem som_finRotate_two_ne {n : ℕ} (hn : 3 ≤ n) (d : Fin n) :
+    finRotate n (finRotate n d) ≠ d := by
+  obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply, finRotate_succ_apply]
+  intro h
+  have h2 : (1 : Fin (k + 1)) + 1 = 0 := by
+    have : d + (1 + 1) = d + 0 := by rw [add_zero, ← add_assoc]; exact h
+    exact add_left_cancel this
+  have := congrArg Fin.val h2
+  rw [Fin.val_add, Fin.val_one', Fin.val_zero, Nat.mod_eq_of_lt (show 1 < k + 1 by omega),
+    Nat.mod_eq_of_lt (show 1 + 1 < k + 1 by omega)] at this
+  omega
+
+/-- A polygonal disk with distinct sides `d ≠ e` has distinct side segments. -/
+private theorem som_side_inj (D : PolygonalDisk) {d e : Fin D.n} (h : D.side e = D.side d) : e = d := by
+  rcases som_segment_endpoints h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · exact D.vertex_injective h1
+  · have he := D.vertex_injective h1
+    have hd := D.vertex_injective h2
+    exfalso
+    apply som_finRotate_two_ne D.three_le d
+    rw [← he, hd]
+
+private theorem som_theta_ne : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+
+/-- The macroregion of a block as a polygonal disk. -/
+private def som_macroDisk (K : StrictBlock C hC) : PolygonalDisk :=
+  som_affDisk (C.Q.disk K.α) C.σ.θ (som_theta_ne C) K.v
+
+private theorem som_macroDisk_carrier (K : StrictBlock C hC) :
+    (som_macroDisk C hC K).carrier = K.v +ᵥ C.σ.θ • (C.Q.disk K.α).carrier := rfl
+
+private theorem som_macroDisk_side (K : StrictBlock C hC) (d : Fin (C.Q.disk K.α).n) :
+    (som_macroDisk C hC K).side d = K.macroSide d := by
+  show (som_affDisk (C.Q.disk K.α) C.σ.θ (som_theta_ne C) K.v).side d = _
+  rw [som_affDisk_side]; rfl
+
+private theorem som_macroSide_inj (K : StrictBlock C hC) {d e : Fin (C.Q.disk K.α).n}
+    (h : K.macroSide e = K.macroSide d) : e = d := by
+  rw [← som_macroDisk_side, ← som_macroDisk_side] at h
+  exact som_side_inj (som_macroDisk C hC K) h
+
+/-- Two distinct children of one block cannot share a side contained in a macroside. -/
+private theorem som_not_same_block {T : PlaneTiling (strictProtoset C hC)}
+    (part : StrictMacroPartition C hC T) (jj : part.ι) {t t' : C.Typ} (ht : C.owner t = (part.block jj).α)
+    (ht' : C.owner t' = (part.block jj).α) (hne : t' ≠ t) (i : C.Side t) (i' : C.Side t')
+    (d : Fin (C.Q.disk (part.block jj).α).n)
+    (hside : (part.block jj).childSide (C.occ t' i') = (part.block jj).childSide (C.occ t i))
+    (hsub : (part.block jj).childSide (C.occ t i) ⊆ (part.block jj).macroSide d) : False := by
+  set X := (part.block jj).placed t
+  set Y := (part.block jj).placed t'
+  have hX := som_placed_mem C hC part jj t ht
+  have hY := som_placed_mem C hC part jj t' ht'
+  have hXY : Y ≠ X := by
+    intro h
+    apply hne
+    have := congrArg PlacedTile.form h
+    simp only [Y, X, StrictBlock.placed, StrictBlock.tileOf, StrictForm.typed.injEq] at this
+    exact congrArg StrictDecTile.typ this
+  set D₁ := som_trDisk ((strictProtoset C hC).disk X.form) X.anchor
+  set D₂ := som_trDisk ((strictProtoset C hC).disk Y.form) Y.anchor
+  have hpq := som_vertex_ne D₁ i
+  have h₁ : D₁.side i = X.side i := som_tile_side X i
+  have h₂ : D₂.side i' = X.side i := (som_tile_side Y i').trans hside
+  have hR := som_two_cover D₁ D₂ i i' hpq le_rfl (h₂.trans h₁.symm).symm.subset
+    (by rw [som_tile_carrier, som_tile_carrier]; exact T.disjoint hX hY hXY.symm)
+    (som_macroDisk C hC (part.block jj)).compact.isClosed
+    (by rw [som_tile_carrier]; exact som_placed_carrier_subset C hC (part.block jj) t ht)
+    (by rw [som_tile_carrier]; exact som_placed_carrier_subset C hC (part.block jj) t' ht')
+  have hmid : midpoint ℝ (D₁.vertex i) (D₁.vertex (finRotate _ i)) ∈ (part.block jj).macroSide d := by
+    apply hsub
+    show _ ∈ X.side i
+    rw [← h₁]
+    exact openSegment_subset_segment _ _ _ (som_sub_segment hpq le_rfl).1
+  rw [← som_macroDisk_side] at hmid
+  have hf : midpoint ℝ (D₁.vertex i) (D₁.vertex (finRotate _ i)) ∈
+      frontier (som_macroDisk C hC (part.block jj)).carrier := by
+    rw [(som_macroDisk C hC (part.block jj)).frontier_eq, Set.mem_iUnion]; exact ⟨d, hmid⟩
+  exact hf.2 hR
+
+/-- Three pairwise distinct blocks cannot share a macroside. -/
+private theorem som_three_blocks {T : PlaneTiling (strictProtoset C hC)}
+    (part : StrictMacroPartition C hC T) {j₁ j₂ j₃ : part.ι} (h₁₂ : j₁ ≠ j₂) (h₁₃ : j₁ ≠ j₃)
+    (h₂₃ : j₂ ≠ j₃) (e₁ : Fin (C.Q.disk (part.block j₁).α).n) (e₂ : Fin (C.Q.disk (part.block j₂).α).n)
+    (e₃ : Fin (C.Q.disk (part.block j₃).α).n)
+    (h₂ : (part.block j₂).macroSide e₂ = (part.block j₁).macroSide e₁)
+    (h₃ : (part.block j₃).macroSide e₃ = (part.block j₁).macroSide e₁) : False := by
+  set D₁ := som_macroDisk C hC (part.block j₁)
+  have hpq := som_vertex_ne D₁ e₁
+  have hs₁ : D₁.side e₁ = (part.block j₁).macroSide e₁ := som_macroDisk_side C hC _ e₁
+  rcases som_three D₁ (som_macroDisk C hC (part.block j₂)) (som_macroDisk C hC (part.block j₃)) e₁ e₂ e₃
+      hpq le_rfl (by rw [som_macroDisk_side, h₂, ← hs₁]; rfl)
+      (by rw [som_macroDisk_side, h₃, ← hs₁]; rfl) with h | h | h
+  · exact Set.disjoint_iff.1 (som_region_disjoint C hC part h₁₂) h.some_mem
+  · exact Set.disjoint_iff.1 (som_region_disjoint C hC part h₁₃) h.some_mem
+  · exact Set.disjoint_iff.1 (som_region_disjoint C hC part h₂₃) h.some_mem
+
+private theorem som_vadd_segment (w a b : Pt) : w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+  rw [← segment_translate_image]; rfl
+
+private theorem som_affine_segment (θ : ℝ) (hθ : θ ≠ 0) (w a b : Pt) :
+    w +ᵥ θ • segment ℝ a b = segment ℝ (w + θ • a) (w + θ • b) := by
+  rw [← som_homeo_image θ hθ w, som_homeo_segment]
+
+private theorem som_occSide_eq (o : C.SideOcc) : C.occSide o = segment ℝ (C.occStart o) (C.occEnd o) := by
+  simp only [MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side,
+    som_vadd_segment, MacroData.occStart, MacroData.occEnd]
+
+private theorem som_occStart_ne (o : C.SideOcc) : C.occStart o ≠ C.occEnd o := by
+  intro h
+  exact som_vertex_ne _ o.2 (add_left_cancel h)
+
+private theorem som_isInner_of_isPrintOf {α : C.Q.Form} {d : Fin (C.Q.disk α).n} {o : C.SideOcc}
+    (h : C.IsPrintOf α d o) : C.IsInner o := by
+  rcases h with ⟨hm, rfl | rfl⟩
+  · exact C.g4_print_inner α d hm
+  · have hin := C.g4_print_inner α d hm
+    have hp := C.g1_partner _ hin
+    unfold MacroData.IsInner MacroData.IsOuter at hin ⊢
+    rw [hp.2.2, hp.2.1]
+    exact hin
+
+/-- Cells of a legal tile on an outer side: zero fifth cell and its own schedule tag. -/
+private theorem som_legal_outer_cells {A : StrictDecTile C hC} (hA : StrictLegal C hC A)
+    (i : C.Side A.typ) (ho : C.IsOuter (C.occ A.typ i)) :
+    A.cell i 4 = 0 ∧ A.cell i 3 = schedU C hC (C.occ A.typ i) := by
+  classical
+  obtain ⟨ch, h0, hch, -⟩ := hA
+  have hc := (hch 0).2
+  rw [h0] at hc
+  have hcell : ∀ k, A.cell i k = (strictChild C hC (ch (0 + 1)) A.typ).cell i k := by
+    intro k
+    obtain ⟨t, col⟩ := A
+    injection hc with _ hcol
+    exact congrFun (congrFun hcol i) k
+  simp only [strictChild, strictGen] at hcell
+  have hnp : ¬ ∃ d, C.IsPrintOf (C.form (ch (0 + 1)).typ) d (C.occ A.typ i) := fun ⟨_, hd⟩ =>
+    som_isInner_of_isPrintOf C hd ho
+  have hcs : ∀ k, k ≠ 2 → ¬ (copySource C (C.form (ch (0 + 1)).typ) (C.occ A.typ i) k).Nonempty := by
+    rintro k hk ⟨p, hp | hp⟩
+    · exact hnp ⟨p.1, hp.1⟩
+    · exact hk hp.2.1
+  have e4 := hcell 4
+  rw [dif_neg (hcs 4 (by decide)), strictGenCell, if_neg hnp] at e4
+  have e3 := hcell 3
+  rw [dif_neg (hcs 3 (by decide)), strictGenCell, if_neg hnp, if_neg (by decide), if_pos rfl,
+    if_pos ho] at e3
+  exact ⟨by rw [e4]; rfl, e3⟩
+
+private theorem som_schedU_inj {o o' : C.SideOcc} (h : schedU C hC o = schedU C hC o') :
+    schedOf C hC o = schedOf C hC o' := by
+  simp only [schedU] at h
+  injection h with h
+  injection h with h
+  exact congrArg Subtype.val h
+
+private theorem som_macroSide_cast {α β : C.Q.Form} (h : α = β) (d : Fin (C.Q.disk β).n) :
+    C.macroSide α (Fin.cast (by rw [h]) d) = C.macroSide β d := by
+  subst h; rfl
+
+private theorem som_macroSide_segment (α : C.Q.Form) (d : Fin (C.Q.disk α).n) :
+    C.macroSide α d = segment ℝ (Alignment.parentSide τ hC.groupedFamily m α d).1
+      (Alignment.parentSide τ hC.groupedFamily m α d).2 := by
+  have := som_affine_segment C.σ.θ (som_theta_ne C) 0 ((C.Q.disk α).vertex d)
+    ((C.Q.disk α).vertex (finRotate _ d))
+  rw [zero_vadd, zero_add, zero_add] at this
+  rw [MacroData.macroSide, PolygonalDisk.side, this, hC.θ_eq]
+  rfl
+
+/-- The scaled parent side containing an outer fine side contributes its atom to the top layer
+of the schedule of that side. -/
+private theorem som_top_atom (o : C.SideOcc) (d : Fin (C.Q.disk (C.owner o.1)).n)
+    (hsub : C.occSide o ⊆ C.macroSide (C.owner o.1) d) :
+    Alignment.atom (C.occStart o, C.occEnd o) (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d) ∈
+        schedOf C hC o .top ∧
+      OverlapPos (segment ℝ (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).1
+        (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).2)
+        (segment ℝ (C.occStart o) (C.occEnd o)) := by
+  have hov : OverlapPos (segment ℝ (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).1
+      (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).2)
+      (segment ℝ (C.occStart o) (C.occEnd o)) := by
+    refine ⟨C.occStart o, C.occEnd o, som_occStart_ne C o, Set.subset_inter ?_ le_rfl⟩
+    rw [← som_macroSide_segment C hC, ← som_occSide_eq]
+    exact hsub
+  exact ⟨⟨_, ⟨d, rfl⟩, hov, rfl⟩, hov⟩
+
+/-- **Opposite macroside of one outer side.**  The tile across an outer fine side of a
+macroside lies in another block, on a complete macroside coinciding with the given one, and the
+fine side is a listed outer side of that macroside. -/
+private theorem som_opposite {T : PlaneTiling (strictProtoset C hC)} (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) (jj : part.ι)
+    (dd : Fin (C.Q.disk (part.block jj).α).n) (o : C.SideOcc)
+    (ho : o ∈ C.outerList (part.block jj).α dd) :
+    ∃ j₂, j₂ ≠ jj ∧ ∃ e : Fin (C.Q.disk (part.block j₂).α).n,
+      (part.block j₂).macroSide e = (part.block jj).macroSide dd ∧
+      ∃ o₂ ∈ C.outerList (part.block j₂).α e, (part.block j₂).childSide o₂ = (part.block jj).childSide o := by
+  obtain ⟨hown, hout, hsub⟩ := (C.g3_outerList_mem _ dd o).1 ho
+  obtain ⟨t, i⟩ := o
+  have hX := som_placed_mem C hC part jj t hown
+  obtain ⟨Y, hY, hYX, jY, hjY⟩ := som_coincident_side T hT.1 hX i
+  obtain ⟨j₂, t₂, ht₂, rfl⟩ := som_mem_block C hC part hY
+  change C.Side t₂ at jY
+  have hside : (part.block j₂).childSide ⟨t₂, jY⟩ = (part.block jj).childSide ⟨t, i⟩ := hjY
+  have hcol : (part.block jj).col t i = (part.block j₂).col t₂ jY :=
+    hT.2 ((part.block jj).tileOf t) ((part.block j₂).tileOf t₂) _ _ hX hY hYX.symm i jY hjY.symm
+  have hlX : StrictLegal C hC ((part.block jj).tileOf t) := hL _ hX
+  have hlY : StrictLegal C hC ((part.block j₂).tileOf t₂) := hL _ hY
+  obtain ⟨hX4, hX3⟩ := som_legal_outer_cells C hC hlX i hout
+  have hY4 : ((part.block j₂).tileOf t₂).cell jY 4 = 0 := by
+    show (part.block j₂).col t₂ jY 4 = 0
+    rw [← hcol]; exact hX4
+  have hY3s : (readSched C hC (((part.block j₂).tileOf t₂).cell jY 3)).isSome := by
+    show (readSched C hC ((part.block j₂).col t₂ jY 3)).isSome
+    rw [← hcol]
+    change (readSched C hC (((part.block jj).tileOf t).cell i 3)).isSome
+    rw [hX3]; rfl
+  obtain ⟨hYout, hY3⟩ := som_legal_outer_cell C hC hlY jY hY4 hY3s
+  have hsch : schedOf C hC ⟨t, i⟩ = schedOf C hC ⟨t₂, jY⟩ :=
+    som_schedU_inj C hC (hX3.symm.trans ((congrFun hcol 3).trans hY3))
+  set d' : Fin (C.Q.disk (C.owner t)).n := Fin.cast (by rw [hown]) dd
+  have hmd : C.macroSide (C.owner t) d' = C.macroSide (part.block jj).α dd :=
+    som_macroSide_cast C hown dd
+  obtain ⟨hat, hov⟩ := som_top_atom C hC ⟨t, i⟩ d'
+    (by show C.occSide _ ⊆ C.macroSide (C.owner t) d'; rw [hmd]; exact hsub)
+  rw [hsch] at hat
+  obtain ⟨c', ⟨a, rfl⟩, hov', hat'⟩ := hat
+  set e : Fin (C.Q.disk (part.block j₂).α).n := Fin.cast (congrArg (fun α => (C.Q.disk α).n) ht₂) a
+  have hme : C.macroSide (C.owner t₂) a = C.macroSide (part.block j₂).α e := by
+    rw [← som_macroSide_cast C ht₂ e]
+    rfl
+  have hseg : segment ℝ ((part.block jj).v + C.occStart ⟨t, i⟩) ((part.block jj).v + C.occEnd ⟨t, i⟩) =
+      segment ℝ ((part.block j₂).v + C.occStart ⟨t₂, jY⟩) ((part.block j₂).v + C.occEnd ⟨t₂, jY⟩) := by
+    rw [← som_vadd_segment, ← som_vadd_segment, ← som_occSide_eq, ← som_occSide_eq,
+      ← som_childSide_eq, ← som_childSide_eq, hside]
+  have hcs := som_atom_seg (som_occStart_ne C _) hseg hov hov' hat'
+  have hmacro : (part.block j₂).macroSide e = (part.block jj).macroSide dd := by
+    show (part.block j₂).v +ᵥ C.macroSide _ e = (part.block jj).v +ᵥ C.macroSide _ dd
+    rw [← hme, ← hmd, som_macroSide_segment C hC, som_macroSide_segment C hC, som_vadd_segment,
+      som_vadd_segment, hcs]
+  have hsub' : (part.block jj).childSide ⟨t, i⟩ ⊆ (part.block jj).macroSide dd := by
+    rw [som_childSide_eq]; exact Set.vadd_set_mono hsub
+  refine ⟨j₂, ?_, e, hmacro, ⟨t₂, jY⟩, ?_, hside⟩
+  · rintro rfl
+    refine som_not_same_block C hC part j₂ hown ht₂ ?_ i jY dd hside hsub'
+    rintro rfl
+    exact hYX rfl
+  · rw [C.g3_outerList_mem]
+    refine ⟨ht₂, hYout, ?_⟩
+    have : (part.block j₂).v +ᵥ C.occSide ⟨t₂, jY⟩ ⊆ (part.block j₂).v +ᵥ C.macroSide _ e := by
+      rw [← som_childSide_eq, hside]
+      exact hsub'.trans hmacro.symm.subset
+    exact (Set.vadd_set_subset_vadd_set_iff).1 this
+
+private theorem som_add_midpoint (v a b : Pt) : v + midpoint ℝ a b = midpoint ℝ (v + a) (v + b) := by
+  rw [midpoint_eq_smul_add, midpoint_eq_smul_add, invOf_eq_inv]; module
+
+private theorem som_childSide_segment (K : StrictBlock C hC) (o : C.SideOcc) :
+    K.childSide o = segment ℝ (K.v + C.occStart o) (K.v + C.occEnd o) := by
+  rw [som_childSide_eq, som_occSide_eq, som_vadd_segment]
+
+/-- Coincident placed fine sides have the same placed midpoint. -/
+private theorem som_mid_of_childSide {K K' : StrictBlock C hC} {o o' : C.SideOcc}
+    (h : K.childSide o = K'.childSide o') : K.v + C.occMid o = K'.v + C.occMid o' := by
+  rw [som_childSide_segment, som_childSide_segment] at h
+  simp only [MacroData.occMid, som_add_midpoint]
+  rcases som_segment_endpoints h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [h1, h2]
+  · rw [h1, h2, midpoint_comm]
+
+private theorem som_posDir_eq {u v u' v' : Pt} (h : v' - u' = v - u ∨ v' - u' = -(v - u))
+    (hne : v - u ≠ 0) : C.posDir u' v' = C.posDir u v := by
+  unfold MacroData.posDir
+  have e1 : u' - v' = -(v' - u') := by abel
+  have e2 : u - v = -(v - u) := by abel
+  rw [e1, e2]
+  rcases h with h | h
+  · rw [h]
+  · rw [h, neg_neg]
+    by_cases hp : C.IsPositive (v - u)
+    · rw [if_pos hp, if_neg ((C.g3_pos_iff _ hne).1 hp)]
+    · rw [if_neg hp, if_pos (by by_contra hn; exact hp ((C.g3_pos_iff _ hne).2 hn))]
+
+private theorem som_macroSide_segment' (K : StrictBlock C hC) (d : Fin (C.Q.disk K.α).n) :
+    K.macroSide d = segment ℝ (K.v + C.σ.θ • (C.Q.disk K.α).vertex d)
+      (K.v + C.σ.θ • (C.Q.disk K.α).vertex (finRotate _ d)) :=
+  som_affine_segment _ (som_theta_ne C) _ _ _
+
+private theorem som_macroSideDir_ne (α : C.Q.Form) (d : Fin (C.Q.disk α).n) : C.macroSideDir α d ≠ 0 := by
+  have hne : C.σ.θ • (C.Q.disk α).vertex (finRotate _ d) - C.σ.θ • (C.Q.disk α).vertex d ≠ 0 := by
+    rw [← smul_sub]
+    exact smul_ne_zero (som_theta_ne C) (sub_ne_zero.2 (som_vertex_ne _ d).symm)
+  unfold MacroData.macroSideDir MacroData.posDir
+  split_ifs
+  · exact hne
+  · intro h; apply hne; rw [← neg_sub, h, neg_zero]
+
+/-- Coinciding macrosides have the same positive direction. -/
+private theorem som_macroSideDir_eq {K K' : StrictBlock C hC} {d : Fin (C.Q.disk K.α).n}
+    {e : Fin (C.Q.disk K'.α).n} (h : K'.macroSide e = K.macroSide d) :
+    C.macroSideDir K'.α e = C.macroSideDir K.α d := by
+  rw [som_macroSide_segment', som_macroSide_segment'] at h
+  apply som_posDir_eq C
+  · rcases som_segment_endpoints h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · left
+      calc _ = K'.v + C.σ.θ • (C.Q.disk K'.α).vertex (finRotate _ e) -
+            (K'.v + C.σ.θ • (C.Q.disk K'.α).vertex e) := by abel
+        _ = _ := by rw [h1, h2]; abel
+    · right
+      calc _ = K'.v + C.σ.θ • (C.Q.disk K'.α).vertex (finRotate _ e) -
+            (K'.v + C.σ.θ • (C.Q.disk K'.α).vertex e) := by abel
+        _ = _ := by rw [h1, h2]; abel
+  · rw [← smul_sub]
+    exact smul_ne_zero (som_theta_ne C) (sub_ne_zero.2 (som_vertex_ne _ d).symm)
+
+/-- The outer list of a macroside is strictly sorted by the coordinate of the placed midpoints
+along its positive direction. -/
+private theorem som_sorted (K : StrictBlock C hC) (d : Fin (C.Q.disk K.α).n) (w : Pt) (v : Pt)
+    (hw : w = C.macroSideDir K.α d) :
+    (C.outerList K.α d).Pairwise
+      (fun o o' => inner ℝ (v + C.occMid o) w < inner ℝ (v + C.occMid o') w) := by
+  refine (C.g3_outerList_sorted K.α d).imp ?_
+  rintro o o' ⟨r, hr, hro⟩
+  have hw0 : w ≠ 0 := hw ▸ som_macroSideDir_ne C K.α d
+  have : inner ℝ (v + C.occMid o') w - inner ℝ (v + C.occMid o) w = r * ‖w‖ ^ 2 := by
+    rw [← inner_sub_left, add_sub_add_left_eq_sub, hro, ← hw, inner_smul_left,
+      real_inner_self_eq_norm_sq]
+    simp
+  have : 0 < r * ‖w‖ ^ 2 := mul_pos hr (pow_pos (norm_pos_iff.2 hw0) 2)
+  linarith
+
 /-- `lem:schedule-compose` ("Schedule alignment gives complete parent sides, and the whole-port
 lemma then pairs equal numbered ports"; replaces the rank alignment `lem:comp/alignment`): in
 a strictly matched plane tiling of legal tiles partitioned into macroblocks, every macroside
@@ -2079,7 +3409,34 @@ theorem strict_opposing_macroside (hτ : τ.STS)
     (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
     (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) (j : part.ι)
     (d : Fin (C.Q.disk (part.block j).α).n) : StrictOpposingMacroside C hC part j d := by
-  sorry
+  have _ := hτ
+  have _ := hΔ
+  obtain ⟨o₀, ho₀⟩ := List.exists_mem_of_length_pos
+    (lt_of_lt_of_le (by norm_num) (C.g3_five_le (part.block j).α d))
+  obtain ⟨j', hj', e, hme, -⟩ := som_opposite C hC hT hL part j d o₀ ho₀
+  refine ⟨j', hj', e, hme, ?_⟩
+  set w := C.macroSideDir (part.block j).α d
+  refine som_forall₂_of_sorted _ (fun o => inner ℝ ((part.block j).v + C.occMid o) w)
+    (fun o => inner ℝ ((part.block j').v + C.occMid o) w) _ _
+    (som_sorted C hC _ d w _ rfl) (som_sorted C hC _ e w _ (som_macroSideDir_eq C hC hme).symm) ?_ ?_
+  · intro o ho
+    obtain ⟨j₂, hj₂, e₂, hme₂, o₂, ho₂, hs₂⟩ := som_opposite C hC hT hL part j d o ho
+    have hjj : j₂ = j' := by
+      by_contra hne
+      exact som_three_blocks C hC part (Ne.symm hj') (Ne.symm hj₂) (Ne.symm hne) d e e₂ hme hme₂
+    subst hjj
+    have hee : e₂ = e := som_macroSide_inj C hC _ (hme₂.trans hme.symm)
+    subst hee
+    exact ⟨o₂, ho₂, hs₂.symm, by simp only [som_mid_of_childSide C hC hs₂]⟩
+  · intro o' ho'
+    obtain ⟨j₃, hj₃, e₃, hme₃, o₃, ho₃, hs₃⟩ := som_opposite C hC hT hL part j' e o' ho'
+    have hjj : j₃ = j := by
+      by_contra hne
+      exact som_three_blocks C hC part (Ne.symm hj') (Ne.symm hne) (Ne.symm hj₃) d e e₃ hme (hme₃.trans hme)
+    subst hjj
+    have hdd : e₃ = d := som_macroSide_inj C hC _ (hme₃.trans hme)
+    subst hdd
+    exact ⟨o₃, ho₃, by simp only [som_mid_of_childSide C hC hs₃]⟩
 
 /-- `lem:comp/proper` (strict variant, `lem:schedule-compose`): for a strictly matched plane
 tiling of legal tiles, replacing each assembled macroblock by its reconstructed parent and

@@ -4692,7 +4692,18 @@ refined supertile is the original supertile. -/
 private lemma substitution_clone_lift_iff_step1_proj_is_subst_step1_supertile_proj {τ : Substitution P} (h : τ.FLC)
     (n : ℕ) (c : (cloneProtoset τ h).Form) :
     (cloneDecoration τ h).projTile '' ((refinedSubstitution τ h).supertile n c) = τ.supertile n ((cloneDecoration τ h).proj c) := by
-  sorry
+  induction n with
+  | zero =>
+    dsimp [Substitution.supertile, Substitution.decomposeIter]
+    ext x
+    simp [Decoration.projTile]
+  | succ n ih =>
+    change (cloneDecoration τ h).projTile '' (refinedSubstitution τ h).decompose
+      ((refinedSubstitution τ h).supertile n c) =
+      τ.decompose (τ.supertile n ((cloneDecoration τ h).proj c))
+    have h_comm := refinedSubstitution_commutes τ h ((refinedSubstitution τ h).supertile n c)
+    rw [h_comm]
+    rw [ih]
 
 /-- Step 2 of the blueprint proof of `substitution_clone_lift_iff_step1_proj_is_subst`: finite subpatch of
 projection lifts to a finite subpatch. -/

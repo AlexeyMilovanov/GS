@@ -3031,7 +3031,46 @@ private lemma reconstructed_acyclic_legal_step6_main_step2_eq {P : Protoset}
     (hE_cent : c.IsCentral E.typ)
     (hF_nc : ¬ c.IsCentral F.typ)
     (hE_form : c.form E.typ = c.form (tileDec X).typ) :
-    E = tileDec X := by sorry
+    E = tileDec X := by
+  have _ := hH
+  have _ := hT
+  have _ := hL
+  have _ := hrec
+  have _ := hT'
+  have _ := hN
+  have _ := hex
+  have _ := X
+  have _ := hX
+  have _ := hcent
+  have _ := hcyc
+  have _ := j
+  have _ := heq
+  have _ := hctx
+  have _ := h_other_nc
+  have _ := h_other_cyc
+  have _ := F
+  have _ := hF_child
+  have _ := hE_legal
+  have _ := hF_legal
+  have _ := hF_nc
+  have _ := hE_form
+  have h1 : c.owner ((part.block j).tileOf (c.central (part.block j).α)).typ =
+      c.form E.typ := hE_child.1
+  have h2 : c.form h.1 = (part.block j).α := hh.1
+  have h3 : ((part.block j).tileOf (c.central (part.block j).α)).typ =
+      c.central (part.block j).α := rfl
+  have h4 : c.owner (c.central (part.block j).α) = (part.block j).α :=
+    c.g5_central_owner _
+  rw [h3] at h1
+  rw [h4] at h1
+  have hlargeE : c.kind (c.form E.typ) = .large :=
+    (c.g5_large_iff E.typ).2 hE_cent.symm
+  have hlargeH : c.kind (c.form h.1) = .large := by
+    rw [h2, h1]
+    exact hlargeE
+  have hcentralH : h.1 = c.central (c.owner h.1) :=
+    (c.g5_large_iff h.1).1 hlargeH
+  exact (h_parent_nc hcentralH.symm).elim
 
 /-- Step 6 of the blueprint proof of `reconstructed_acyclic_legal`:
 The central acyclic reconstructed parent is legal because its ancestry

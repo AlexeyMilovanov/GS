@@ -1011,6 +1011,292 @@ theorem strict_boundary_header_constant (K : StrictBlock C hC) (hK : StrictBlock
     ∃ h : HeaderKernel.Header C.Typ C.Side, StrictCommonHeader C hC K h := by
   sorry
 
+private theorem rhe_isPrint_iff {s : C.Typ} {β : C.Q.Form} (hs : C.owner s = β) (i : C.Side s) :
+    C.IsPrint (C.occ s i) ↔ ∃ d : Fin (C.Q.disk β).n, C.IsPrintOf β d (C.occ s i) := by
+  subst hs
+  rfl
+
+private theorem rhe_not_on_path {s : C.Typ} {β : C.Q.Form} (hs : C.owner s = β) (i : C.Side s)
+    (hm : ¬ C.IsMarked (C.occ s i)) (d : Fin (C.Q.disk β).n) (j : Fin 5) :
+    C.occ s i ∉ C.path β d j := by
+  subst hs
+  intro hmem
+  by_cases hg : C.IsGenuinePath (C.owner s) d j
+  · exact hm (C.g7_marking _ (Or.inr (Or.inr (Or.inr ⟨d, j, hg, hmem⟩))))
+  · rw [C.g4_path_trivial _ d j hg, Option.mem_toList] at hmem
+    have hmem' : C.occ s i ∈ C.outerList _ d := List.mem_iff_getElem?.mpr ⟨_, hmem⟩
+    exact hm (C.g7_marking _ (Or.inl ((C.g3_outerList_mem _ d _).1 hmem').2.1))
+
+
+private theorem rhe_child_normal (Q' : StrictDecTile C hC) (s : C.Typ)
+    (hs : C.owner s = C.form Q'.typ) :
+    IsStrictNormal C hC (strictChild C hC Q' s) ∧
+      IsStrictIdentityCorrect C hC (strictChild C hC Q' s) := by
+  have hcells := strictChild_cells C hC Q' s hs
+  have key : ∀ (i : C.Side s) (k : Fin 5), IsStrictLocal C (C.occ s i) k →
+      (strictChild C hC Q' s).cell i k = strictPrescribedCell C hC (C.occ s i) k := by
+    intro i k hloc
+    by_cases hp : C.IsPrint (C.occ s i)
+    · obtain ⟨d, hd⟩ := (rhe_isPrint_iff C hs i).1 hp
+      have hin := isInner_of_isPrintOf C hd
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, ⟨-, hnp⟩, -⟩) | ⟨hout, -⟩
+      · exact absurd (C.g7_marking _ (Or.inr (Or.inr (Or.inl hp)))) hnm
+      · rw [((hcells i).1 d hd).2]
+        simp [strictPrescribedCell, hp]
+      · exact absurd hp hnp
+      · exact absurd hout hin
+    · obtain ⟨h0, h1, h4, -, hno, hout, -, hib⟩ := (hcells i).2 hp
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, -, rfl | rfl⟩) | ⟨hout', rfl⟩
+      · have hnout : ¬ C.IsOuter (C.occ s i) := fun h => hnm (C.g7_marking _ (Or.inl h))
+        have hnb : ¬ C.IsBoundary (C.occ s i) := fun h => hnm (C.g7_marking _ (Or.inr (Or.inl h)))
+        have hnpath := rhe_not_on_path C hs i hnm
+        obtain rfl | rfl | rfl | rfl | rfl : k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 := by
+          fin_cases k <;> simp
+        · rw [h0]; simp [strictPrescribedCell]
+        · rw [h1]; simp [strictPrescribedCell]
+        · rw [hno hnpath]; simp [strictPrescribedCell]
+        · rw [hib hnout hnb]
+          simp [strictPrescribedCell, hnout, hnb, hp]
+          exact fun h => absurd hnout h
+        · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [h0]; simp [strictPrescribedCell]
+      · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [hout hout']; simp [strictPrescribedCell, hout']
+  refine ⟨key, fun i => ⟨fun hin hnp => ?_, fun hp => ?_⟩⟩
+  · exact ((hcells i).2 hnp).1.trans (if_pos hin)
+  · obtain ⟨d, hd⟩ := (rhe_isPrint_iff C hs i).1 hp
+    exact ((hcells i).1 d hd).2
+
+/-- The cell of a strict tile indexed by the value of a side index (zero out of range). -/
+private def rhe_cellv (X : StrictDecTile C hC) (v : ℕ) (k : Fin 5) : SU C hC :=
+  if h : v < (C.Q.disk (C.form X.typ)).n then X.cell ⟨v, h⟩ k else 0
+
+private theorem rhe_cellv_side (X : StrictDecTile C hC) (i : C.Side X.typ) (k : Fin 5) :
+    rhe_cellv C hC X i.val k = X.cell i k := by
+  unfold rhe_cellv
+  rw [dif_pos i.isLt]
+
+/-- Equal nondegenerate segments have the same endpoints. -/
+private theorem rhe_seg_endpoints
+    {a b c d : Pt} (hab : a ≠ b) (h : segment ℝ a b = segment ℝ c d) :
+    (c = a ∧ d = b) ∨ (c = b ∧ d = a) := by
+  have mem_segment_iff' {x y z : Pt} :
+      z ∈ segment ℝ x y ↔ ∃ t : ℝ, 0 ≤ t ∧ t ≤ 1 ∧ z = x + t • (y - x) := by
+    rw [segment_eq_image']
+    constructor
+    · rintro ⟨t, ⟨ht0, ht1⟩, rfl⟩
+      exact ⟨t, ht0, ht1, rfl⟩
+    · rintro ⟨t, ht0, ht1, rfl⟩
+      exact ⟨t, ⟨ht0, ht1⟩, rfl⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [mem_segment_iff'] at hc hd ha hb
+  obtain ⟨s, hs0, hs1, rfl⟩ := hc
+  obtain ⟨t, ht0, ht1, rfl⟩ := hd
+  obtain ⟨α, ha0, ha1, hα⟩ := ha
+  obtain ⟨β, hb0, hb1, hβ⟩ := hb
+  have hu : b - a ≠ 0 := sub_ne_zero.2 hab.symm
+  have k1 : a + s • (b - a) + α • (a + t • (b - a) - (a + s • (b - a))) =
+      a + (s + α * (t - s)) • (b - a) := by module
+  have k2 : a + s • (b - a) + β • (a + t • (b - a) - (a + s • (b - a))) =
+      a + (s + β * (t - s)) • (b - a) := by module
+  rw [k1] at hα
+  rw [k2] at hβ
+  have e1 : (0 : ℝ) • (b - a) = (s + α * (t - s)) • (b - a) := by
+    rw [zero_smul]
+    exact (add_eq_left.1 hα.symm).symm
+  have e2 : (1 : ℝ) • (b - a) = (s + β * (t - s)) • (b - a) := by
+    rw [one_smul]
+    have h' : a + (b - a) = a + (s + β * (t - s)) • (b - a) := by
+      rw [← hβ]
+      abel
+    exact add_left_cancel h'
+  have f1 := smul_left_injective ℝ hu e1
+  have f2 := smul_left_injective ℝ hu e2
+  have key : (s = 0 ∧ t = 1) ∨ (s = 1 ∧ t = 0) := by
+    have h3 : s * (1 - α) = 0 := by
+      nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+    have h4 : α * t = 0 := by
+      nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+    rcases mul_eq_zero.1 h3 with h3 | h3
+    · subst h3
+      have h' : β * t = 1 := by linarith
+      left
+      refine ⟨rfl, ?_⟩
+      nlinarith
+    · have hα1 : α = 1 := by linarith
+      subst hα1
+      have ht : t = 0 := by linarith
+      subst ht
+      right
+      refine ⟨?_, rfl⟩
+      nlinarith
+  rcases key with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · left
+    constructor <;> simp
+  · right
+    constructor <;> simp
+
+/-- A print side is
+strictly internal to its template and therefore cannot be a boundary side. -/
+private theorem rhe_print_not_boundary (o : C.SideOcc) (h_print : C.IsPrint o) :
+    ¬ C.IsBoundary o := by
+  obtain ⟨d, hpd⟩ := h_print
+  let α : C.Q.Form := C.owner o.1
+  change C.marked α d ∧ (o = C.printOcc α d ∨ o = C.partner (C.printOcc α d)) at hpd
+  rcases hpd with ⟨hmarked, hprint | hpartner⟩
+  · rw [hprint]
+    exact (C.g2_central α (C.print α d)).2
+  · have hprint_inner := C.g4_print_inner α d hmarked
+    obtain ⟨_hneq, howner, hside⟩ := C.g1_partner (C.printOcc α d) hprint_inner
+    intro hboundary
+    rw [hpartner] at hboundary
+    unfold MacroData.IsBoundary at hboundary
+    have howner_print : C.owner (C.printOcc α d).1 = α := by
+      change C.owner (C.central α) = α
+      exact C.g5_central_owner α
+    rw [howner, howner_print] at hboundary
+    have hboundary_print : C.IsBoundary (C.printOcc α d) := by
+      unfold MacroData.IsBoundary
+      rw [howner_print]
+      refine ⟨hprint_inner, ?_⟩
+      have hne : C.occStart (C.printOcc α d) ≠ C.occEnd (C.printOcc α d) := by
+        intro hend
+        have hvertex :
+            (C.Q.disk (C.form (C.printOcc α d).1)).vertex (C.printOcc α d).2 =
+              (C.Q.disk (C.form (C.printOcc α d).1)).vertex
+                (finRotate _ (C.printOcc α d).2) := by
+          exact vadd_left_cancel (C.anchor (C.printOcc α d).1) hend
+        have hindex := (C.Q.disk (C.form (C.printOcc α d).1)).vertex_injective hvertex
+        exact finRotate_ne_self
+          (by have := (C.Q.disk (C.form (C.printOcc α d).1)).three_le; omega)
+          (C.printOcc α d).2 hindex.symm
+      have hside' :
+          segment ℝ (C.occStart (C.printOcc α d)) (C.occEnd (C.printOcc α d)) =
+            segment ℝ (C.occStart (C.partner (C.printOcc α d)))
+              (C.occEnd (C.partner (C.printOcc α d))) := by
+        simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+          PolygonalDisk.side, MacroData.occStart, MacroData.occEnd, vadd_segment] using hside.symm
+      have hends :=
+        rhe_seg_endpoints hne hside'
+      rcases hboundary.2 with hstart | hend
+      · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+        · left
+          rw [← h1]
+          exact hstart
+        · right
+          rw [← h1]
+          exact hstart
+      · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+        · right
+          rw [← h2]
+          exact hend
+        · left
+          rw [← h2]
+          exact hend
+    exact (C.g2_central α (C.print α d)).2 hboundary_print
+
+/-- A legal tile is the child of a normal identity-correct parent. -/
+private theorem rhe_parent (X : StrictDecTile C hC) (hX : StrictLegal C hC X) :
+    ∃ F : StrictDecTile C hC, C.owner X.typ = C.form F.typ ∧ X = strictChild C hC F X.typ ∧
+      IsStrictNormal C hC F ∧ IsStrictIdentityCorrect C hC F := by
+  obtain ⟨ch, h0, hch, -⟩ := hX
+  subst h0
+  have hN := rhe_child_normal C hC (ch (1 + 1)) (ch 1).typ (hch 1).1
+  rw [← (hch 1).2] at hN
+  exact ⟨ch 1, (hch 0).1, (hch 0).2, hN⟩
+
+/-- The cells of a block tile which is the child of `F`. -/
+private theorem rhe_tile_cell (K : StrictBlock C hC) (s : C.Typ) (F : StrictDecTile C hC)
+    (hX : K.tileOf s = strictChild C hC F s) (i : C.Side s) (k : Fin 5) :
+    K.col s i k = (strictChild C hC F s).cell i k := by
+  have h2 : (⟨s, K.col s⟩ : StrictDecTile C hC) = ⟨s, (strictChild C hC F s).cell⟩ := hX
+  have h3 := eq_of_heq (StrictDecTile.mk.inj h2).2
+  rw [h3]
+
+/-- A nonprint side on the path `P_j(d)` carries the parent cell `(d, j)` as third cell. -/
+private theorem rhe_child_path (Q' : StrictDecTile C hC) (β : C.Q.Form) (hβ : C.form Q'.typ = β)
+    (s : C.Typ) (hs : C.owner s = β) (i : C.Side s) (hnp : ¬ C.IsPrint (C.occ s i))
+    (d : Fin (C.Q.disk β).n) (j : Fin 5) (hmem : C.occ s i ∈ C.path β d j) :
+    (strictChild C hC Q' s).cell i 2 = rhe_cellv C hC Q' d.val j := by
+  subst hβ
+  rw [((strictChild_cells C hC Q' s hs i).2 hnp).2.2.2.1 d j hmem, rhe_cellv_side]
+
+
+/-- Every port exists ((G3): every outer list has at least five entries). -/
+private theorem rhe_port_some (β : C.Q.Form) (d : Fin (C.Q.disk β).n) (k : Fin 5) :
+    ∃ o, C.port β d k = some o := by
+  unfold MacroData.port
+  have h5 := C.g3_five_le β d
+  have hr : MacroData.portRank (C.outerList β d).length k ≤ (C.outerList β d).length := by
+    unfold MacroData.portRank
+    have : (k.val + 1) * (C.outerList β d).length ≤ 5 * (C.outerList β d).length :=
+      Nat.mul_le_mul_right _ (by omega)
+    omega
+  exact ⟨_, List.getElem?_eq_getElem (by omega)⟩
+
+/-- The reconstructed cell `(d, k)` is the third cell of the port `k` of `d`. -/
+private theorem rhe_recon_port (K : StrictBlock C hC) (t : C.Typ) (β : C.Q.Form)
+    (hβ : C.form t = β) (d : Fin (C.Q.disk β).n) (k : Fin 5) (o : C.SideOcc)
+    (ho : C.port β d k = some o) :
+    rhe_cellv C hC (strictReconstruct C hC K t) d.val k = K.col o.1 o.2 2 := by
+  subst hβ
+  rw [rhe_cellv_side C hC (strictReconstruct C hC K t) d]
+  simp [strictReconstruct, ho]
+
+
+/-- The parent of a block tile with an outer side has the common header. -/
+private theorem rhe_header_eq (K : StrictBlock C hC) (h : HeaderKernel.Header C.Typ C.Side)
+    (hh : StrictCommonHeader C hC K h) (s : C.Typ) (hs : C.owner s = K.α) (i0 : C.Side s)
+    (hout : C.IsOuter (C.occ s i0)) (F : StrictDecTile C hC) (hown : C.owner s = C.form F.typ)
+    (hX : K.tileOf s = strictChild C hC F s) : strictHeaderOf C hC F = h := by
+  obtain ⟨j, hj⟩ := exists_boundary_side_of_outer C s i0 hout
+  have hnp : ¬ C.IsPrint (C.occ s j) := fun hp => rhe_print_not_boundary C _ hp hj
+  have e1 := hh.2 s j hs hj
+  rw [rhe_tile_cell C hC K s F hX, ((strictChild_cells C hC F s hown j).2 hnp).2.2.2.2.2.2.1 hj]
+    at e1
+  simp only [headerSU] at e1
+  injection e1
+
+/-- Each reconstructed cell is the corresponding cell of a normal identity-correct tile of the
+header type whose header is the common header. -/
+private theorem rhe_recon_cell (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (i : C.Side h.1) (k : Fin 5) :
+    ∃ c : C.Side h.1 → Fin 5 → SU C hC, IsStrictNormal C hC ⟨h.1, c⟩ ∧
+      IsStrictIdentityCorrect C hC ⟨h.1, c⟩ ∧ strictHeaderOf C hC ⟨h.1, c⟩ = h ∧
+      (strictReconstruct C hC K h.1).cell i k = c i k := by
+  have htf : C.form h.1 = K.α := hh.1
+  obtain ⟨o, ho⟩ := rhe_port_some C K.α (Fin.cast (congrArg (fun u => (C.Q.disk u).n) htf) i) k
+  have hrec := rhe_recon_port C hC K h.1 K.α htf _ k o ho
+  obtain ⟨hown, hout, -⟩ := (C.g3_outerList_mem _ _ _).1 (List.mem_of_getElem? ho)
+  have hnc : o.1 ≠ C.central K.α := by
+    obtain ⟨s, j⟩ := o
+    rintro rfl
+    exact (C.g2_central K.α j).1 hout
+  have hmemP : o ∈ C.path K.α (Fin.cast (congrArg (fun u => (C.Q.disk u).n) htf) i) k := by
+    by_cases hg : C.IsGenuinePath K.α (Fin.cast (congrArg (fun u => (C.Q.disk u).n) htf) i) k
+    · exact List.mem_of_mem_head? ((C.g4_path_head _ _ _ hg).trans ho)
+    · rw [C.g4_path_trivial _ _ _ hg, ho]
+      simp
+  have hnp : ¬ C.IsPrint o := fun ⟨_, hp⟩ => isInner_of_isPrintOf C hp hout
+  obtain ⟨F, hFown, hX, hFN, hFI⟩ := rhe_parent C hC _ (hK.2 o.1 hown hnc)
+  have hFh : strictHeaderOf C hC F = h := rhe_header_eq C hC K h hh o.1 hown o.2 hout F hFown hX
+  have hFt : F.typ = h.1 := by rw [← hFh]; rfl
+  have hval : K.col o.1 o.2 2 =
+      rhe_cellv C hC F (Fin.cast (congrArg (fun u => (C.Q.disk u).n) htf) i).val k := by
+    rw [rhe_tile_cell C hC K o.1 F hX]
+    exact rhe_child_path C hC F K.α (hFown.symm.trans hown) o.1 hown o.2 hnp _ k hmemP
+  obtain ⟨tF, cF⟩ := F
+  simp only at hFt
+  subst hFt
+  refine ⟨cF, hFN, hFI, hFh, ?_⟩
+  exact (rhe_cellv_side C hC (strictReconstruct C hC K h.1) i k).symm.trans
+    ((hrec.trans hval).trans (rhe_cellv_side C hC ⟨h.1, cF⟩ i k))
+
 /-- `lem:comp/reconstruction` (strict variant): the reconstructed parent `D` of type `t` (with
 `D_i(d)` the third cell of port `i` on `σ'd`) is strictly normal (its outer fourth cells, read
 from port `4`, are the schedule tags of its type) and identity-correct, and `H(D) = h`. -/
@@ -1019,7 +1305,30 @@ theorem strict_reconstructed_header_eq (K : StrictBlock C hC) (hK : StrictBlockC
     IsStrictNormal C hC (strictReconstruct C hC K h.1) ∧
       IsStrictIdentityCorrect C hC (strictReconstruct C hC K h.1) ∧
       strictHeaderOf C hC (strictReconstruct C hC K h.1) = h := by
-  sorry
+  refine ⟨fun i k hloc => ?_, fun i => ⟨fun hin hnp => ?_, fun hp => ?_⟩, ?_⟩
+  · obtain ⟨c, hN, -, -, he⟩ := rhe_recon_cell C hC K hK h hh i k
+    rw [he]
+    exact hN i k hloc
+  · obtain ⟨c, -, hI, -, he⟩ := rhe_recon_cell C hC K hK h hh i 0
+    rw [he]
+    exact (hI i).1 hin hnp
+  · obtain ⟨c, -, hI, -, he⟩ := rhe_recon_cell C hC K hK h hh i 4
+    rw [he]
+    exact (hI i).2 hp
+  · obtain ⟨t, z⟩ := h
+    have key : ∀ d : C.Side t, ∃ c : C.Side t → Fin 5 → SU C hC,
+        HeaderKernel.zeroMode C.outerB t (fun d' => c d' 3) = z ∧
+          (strictReconstruct C hC K t).cell d 3 = c d 3 := by
+      intro d
+      obtain ⟨c, -, -, hH, he⟩ := rhe_recon_cell C hC K hK ⟨t, z⟩ hh d 3
+      exact ⟨c, eq_of_heq (Sigma.mk.inj hH).2, he⟩
+    show (⟨t, HeaderKernel.zeroMode C.outerB t (fun d => (strictReconstruct C hC K t).cell d 3)⟩ :
+      HeaderKernel.Header C.Typ C.Side) = ⟨t, z⟩
+    congr 1
+    funext d
+    obtain ⟨c, hz, he⟩ := key d
+    rw [← hz]
+    simp only [HeaderKernel.zeroMode, he]
 
 /-- `lem:comp/signals` (strict variant): every nonprint third signal on `P_i(d)` equals
 `D_i(d)`, and the noncentral (small) owner of the print of `d` has first four cells

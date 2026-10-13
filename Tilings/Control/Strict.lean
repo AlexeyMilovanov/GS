@@ -1449,12 +1449,69 @@ theorem exists_boundary_side_of_outer (t : C.Typ) (i : C.Side t)
     exact ⟨_, right_mem_segment ℝ _ _, rfl⟩
   exact ⟨finRotate _ k, hk', Or.inl (hk hmem)⟩
 
+private lemma strictLegal_properties_step1_parent_HasOrigin_shift_mp (ch : ℕ → StrictDecTile C hC) :
+    ∀ ch' n i k, HasOrigin C ch' n i k → ∀ hch' : ch' = (fun l => typeShadow C hC (ch (l + 1))),
+    HasOrigin C (fun l => typeShadow C hC (ch l)) (n + 1) (by subst hch'; exact i) k := by
+  intro ch' n i k h
+  induction h with
+  | origin n' i' k' heq =>
+    intro hch'
+    subst hch'
+    exact HasOrigin.origin _ _ _ heq
+  | step n' i' k' d k'' hmem horig ih =>
+    intro hch'
+    subst hch'
+    exact HasOrigin.step _ _ _ _ _ hmem (ih rfl)
+
+private lemma strictLegal_properties_step1_parent_HasOrigin_shift_mpr
+    (ch : ℕ → StrictDecTile C hC) :
+    ∀ ch' n i k, HasOrigin C ch' n i k → ∀ hch' : ch' = (fun l => typeShadow C hC (ch l)),
+    ∀ n0 : ℕ, ∀ hn0 : n = n0 + 1,
+    HasOrigin C (fun l => typeShadow C hC (ch (l + 1))) n0
+      (by subst hn0; subst hch'; exact i) k := by
+  intro ch' n i k h
+  induction h with
+  | origin n' i' k' heq =>
+    intro hch' n0 hn0
+    subst hn0 hch'
+    exact HasOrigin.origin _ _ _ heq
+  | step n' i' k' d k'' hmem horig ih =>
+    intro hch' n0 hn0
+    subst hn0 hch'
+    exact HasOrigin.step _ _ _ _ _ hmem (ih rfl _ rfl)
+
+private lemma strictLegal_properties_step1_parent_HasOrigin_shift_aux (ch : ℕ → StrictDecTile C hC)
+    (n : ℕ) (i : C.Side (ch (n + 1)).typ) (k : Fin 5) :
+    HasOrigin C (fun l => typeShadow C hC (ch (l + 1))) n i k ↔
+    HasOrigin C (fun l => typeShadow C hC (ch l)) (n + 1) i k := by
+  constructor
+  · intro h
+    exact strictLegal_properties_step1_parent_HasOrigin_shift_mp C hC ch _ _ _ _ h rfl
+  · intro h
+    exact strictLegal_properties_step1_parent_HasOrigin_shift_mpr C hC ch _ _ _ _ h rfl _ rfl
+
+private lemma strictLegal_properties_step1_parent_HasOrigin_shift (ch : ℕ → StrictDecTile C hC)
+    (n : ℕ) (i : C.Side (ch (n + 1)).typ) (k : Fin 5) :
+    StrictHasOrigin C hC (fun l => ch (l + 1)) n i k ↔ StrictHasOrigin C hC ch (n + 1) i k := by
+  dsimp [StrictHasOrigin]
+  exact strictLegal_properties_step1_parent_HasOrigin_shift_aux C hC ch n i k
+
 /-- Step 1 of the blueprint proof of `strictLegal_properties`: deleting the first tile of
 an infinite strict legality chain yields a legal strict parent of the given tile. -/
 private lemma strictLegal_properties_step1_parent (A : StrictDecTile C hC)
     (hA : StrictLegal C hC A) :
     ∃ B, StrictLegal C hC B ∧ IsStrictChildOf C hC B A := by
-  sorry
+  obtain ⟨ch, hch0, hchild, hleg⟩ := hA
+  use ch 1
+  constructor
+  · use (fun n => ch (n + 1))
+    refine ⟨rfl, fun n => hchild (n + 1), ?_⟩
+    intro n i k hcs hno
+    apply hleg (n + 1) i k hcs
+    intro h
+    exact hno ((strictLegal_properties_step1_parent_HasOrigin_shift C hC ch n i k).mpr h)
+  · rw [← hch0]
+    exact hchild 0
 
 /-- Step 2 of the blueprint proof of `strictLegal_properties`: the generated child clauses
 force strict normality and identity-correctness of a child of any parent. -/

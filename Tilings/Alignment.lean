@@ -503,11 +503,54 @@ private lemma whole_side_ports_distinct_step3_rank_step2_inj (τ : Substitution 
   have hkey := whole_side_ports_distinct_step3_rank_step2_inj_step2_key_ne τ G m A a e1 e2 h1 h2 hdisj
   exact hkey heq
 
+/-- Helper for `whole_side_ports_distinct_step3_rank_step3_exists_step1_sorted_list`: strong
+induction on the cardinality of `X`, repeatedly peeling off the element of least `sideKey`. -/
+private lemma whole_side_ports_distinct_step3_rank_step3_exists_step1_sorted_list_aux1 :
+    ∀ n : ℕ, ∀ X : Set (Pt × Pt), X.Finite → X.ncard = n → ∀ u : Pt,
+      X.InjOn (sideKey u) →
+      ∃ l : List (Pt × Pt), l.length = X.ncard ∧ (∀ x, x ∈ l ↔ x ∈ X) ∧
+        l.Pairwise (fun e1 e2 => sideKey u e1 < sideKey u e2) := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro X hXfin hXcard u hInj
+    rcases X.eq_empty_or_nonempty with rfl | hXne
+    · exact ⟨[], by simp, by simp, List.Pairwise.nil⟩
+    · obtain ⟨a, haX, hamin⟩ := Set.exists_min_image X (sideKey u) hXfin hXne
+      have hX'card : (X \ {a}).ncard = X.ncard - 1 := Set.ncard_diff_singleton_of_mem haX
+      have hcardpos : 0 < X.ncard := (Set.ncard_pos hXfin).mpr hXne
+      have hlt : X.ncard - 1 < n := by omega
+      obtain ⟨l', hl'len, hl'mem, hl'pw⟩ :=
+        ih (X.ncard - 1) hlt (X \ {a}) (hXfin.subset Set.diff_subset) hX'card u
+          (hInj.mono Set.diff_subset)
+      refine ⟨a :: l', ?_, ?_, ?_⟩
+      · simp only [List.length_cons]
+        omega
+      · intro x
+        rw [List.mem_cons]
+        constructor
+        · rintro (rfl | hx)
+          · exact haX
+          · exact ((hl'mem x).mp hx).1
+        · intro hx
+          rcases eq_or_ne x a with rfl | hne
+          · exact Or.inl rfl
+          · exact Or.inr ((hl'mem x).mpr ⟨hx, hne⟩)
+      · rw [List.pairwise_cons]
+        refine ⟨fun b hb => ?_, hl'pw⟩
+        have hbX' : b ∈ X \ {a} := (hl'mem b).mp hb
+        have hba : b ≠ a := by simpa using hbX'.2
+        have hle : sideKey u a ≤ sideKey u b := hamin b hbX'.1
+        rcases hle.lt_or_eq with hlt' | heq
+        · exact hlt'
+        · exact absurd (hInj haX hbX'.1 heq) hba.symm
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step3_exists`: construct a strictly sorted list of elements of `X`. -/
 private lemma whole_side_ports_distinct_step3_rank_step3_exists_step1_sorted_list
     (X : Set (Pt × Pt)) (h_fin : X.Finite) (u : Pt) (h_inj : X.InjOn (sideKey u)) :
-    ∃ l : List (Pt × Pt), l.length = X.ncard ∧ (∀ x, x ∈ l ↔ x ∈ X) ∧ l.Pairwise (fun e1 e2 => sideKey u e1 < sideKey u e2) := by
-  sorry
+    ∃ l : List (Pt × Pt), l.length = X.ncard ∧ (∀ x, x ∈ l ↔ x ∈ X) ∧ l.Pairwise (fun e1 e2 => sideKey u e1 < sideKey u e2) :=
+  whole_side_ports_distinct_step3_rank_step3_exists_step1_sorted_list_aux1 X.ncard X h_fin rfl u
+    h_inj
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_distinct_step3_rank_step3_exists`:
 the set of elements in `X` with strictly smaller sideKey than the k-th element has size k-1. -/

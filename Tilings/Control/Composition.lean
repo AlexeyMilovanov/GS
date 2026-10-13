@@ -1388,6 +1388,44 @@ private lemma lift_hierarchy_step2_proper_step1_inner (c : MacroCertificate P) (
       sideOf c Y j = sideOf c X i ∧ ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
   sorry
 
+/-- Step 1 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer`:
+For an outer side with nonzero fourth cell, its ancestor side becomes inner at a finite level.
+Both overlapping sides therefore belong to one finite higher supertile.
+The assumed STS property makes their descendant sides coincide completely. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile (c : MacroCertificate P)
+    (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (hNontriv : IsNontrivial c (tileDec X) i) :
+    ∃ Y ∈ (seq' 0).tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
+      sideOf c Y j = sideOf c X i := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer`:
+Their copied cells either reach the same shared origin, or matching origins on a shared side,
+or both have no origin and are zero. The third cell of an outer side is nonzero only when
+that side is a port. The coincident side of a port is the port of the same number of the
+opposing block. Hence their full colours agree. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells (c : MacroCertificate P)
+    (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (hNontriv : IsNontrivial c (tileDec X) i)
+    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ (seq' 0).tiles) (hNeq : Y ≠ X)
+    (j : c.Side (tileDec Y).typ) (hCoincide : sideOf c Y j = sideOf c X i) :
+    ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
+  sorry
+
 /-- Step 2.2 of the blueprint proof of `lift_hierarchy_step2_proper`: outer sides match. -/
 private lemma lift_hierarchy_step2_proper_step2_outer (c : MacroCertificate P) (hH : c.Hereditary)
     (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
@@ -1400,7 +1438,10 @@ private lemma lift_hierarchy_step2_proper_step2_outer (c : MacroCertificate P) (
     (hNontriv : IsNontrivial c (tileDec X) i) :
     ∃ Y ∈ (seq' 0).tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
       sideOf c Y j = sideOf c X i ∧ ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
-  sorry
+  rcases lift_hierarchy_step2_proper_step2_outer_step1_supertile c hH seq hsts seq' herase hexact
+    hleg X hX i hOuter hNontriv with ⟨Y, hY, hNeq, j, hCoincide⟩
+  exact ⟨Y, hY, hNeq, j, hCoincide, lift_hierarchy_step2_proper_step2_outer_step2_cells c hH seq
+    hsts seq' herase hexact hleg X hX i hOuter hNontriv Y hY hNeq j hCoincide⟩
 
 /-- Step 2 of the blueprint proof of `lift_hierarchy`: properness holds at level zero. -/
 private lemma lift_hierarchy_step2_proper (c : MacroCertificate P) (hH : c.Hereditary)

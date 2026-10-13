@@ -5194,6 +5194,242 @@ private lemma substitution_clone_lift_iff_step2_lift_is_subst_step1_lift
   rw [hprojTile]
   exact (hreal A).choose_spec.2
 
+private def substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope
+    (F : Set (PlacedTile P)) : Set Pt :=
+  ⋃ A ∈ F, ⋃ p : P.Form,
+    A.carrier - (P.disk p).carrier + (P.disk p).carrier
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope_compact
+    (F : Set (PlacedTile P)) (hF : F.Finite) :
+    IsCompact (substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope F) := by
+  apply hF.isCompact_biUnion
+  intro A _
+  apply isCompact_iUnion
+  intro p
+  simpa only [PlacedTile.carrier, vadd_eq_add, sub_eq_add_neg] using
+    ((IsCompact.vadd A.anchor (P.disk A.form).compact).add (P.disk p).compact.neg).add
+      (P.disk p).compact
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_carrier_subset_envelope
+    (F : Set (PlacedTile P)) {A : PlacedTile P} (hA : A ∈ F) {C : PlacedTile P}
+    (hAC : (A.carrier ∩ C.carrier).Nonempty) :
+    C.carrier ⊆ substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope F := by
+  rintro z hz
+  rcases hAC with ⟨x, hxA, hxC⟩
+  rcases hxC with ⟨y, hy, hxy⟩
+  rcases hz with ⟨w, hw, hzw⟩
+  simp only [substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope,
+    Set.mem_iUnion]
+  refine ⟨A, hA, C.form, ?_⟩
+  refine ⟨x - y, ⟨x, hxA, y, hy, rfl⟩, w, hw, ?_⟩
+  change x - y + w = z
+  rw [← hxy, ← hzw]
+  simp only [vadd_eq_add]
+  abel
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_carrier_subset_envelope_self
+    (F : Set (PlacedTile P)) {A : PlacedTile P} (hA : A ∈ F) :
+    A.carrier ⊆ substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope F := by
+  apply substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_carrier_subset_envelope F hA
+  rcases (P.disk A.form).interior_nonempty with ⟨x, hx⟩
+  have hx' : A.anchor +ᵥ x ∈ A.carrier := by
+    exact vadd_mem_vadd_set (interior_subset hx)
+  exact ⟨A.anchor +ᵥ x, hx', hx'⟩
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_carrier
+    (A : PlacedTile P) (v : Pt) : (A.translate v).carrier = v +ᵥ A.carrier := by
+  ext x
+  simp only [PlacedTile.carrier, PlacedTile.translate, Set.mem_vadd_set_iff_neg_vadd_mem,
+    vadd_eq_add]
+  constructor <;> intro hx
+  · convert hx using 1
+    abel
+  · convert hx using 1
+    abel
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_neg
+    (A : PlacedTile P) (v : Pt) : (A.translate v).translate (-v) = A := by
+  ext <;> simp [PlacedTile.translate]
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_injective
+    (v : Pt) : Function.Injective (fun A : PlacedTile P => A.translate v) := by
+  intro A B hAB
+  have h := congrArg (fun C : PlacedTile P => C.translate (-v)) hAB
+  simpa only [substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_neg] using h
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_inter
+    (A B : PlacedTile P) (v : Pt) :
+    ((A.translate v).carrier ∩ (B.translate v).carrier).Nonempty ↔
+      (A.carrier ∩ B.carrier).Nonempty := by
+  rw [substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_carrier,
+    substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_carrier]
+  constructor
+  · rintro ⟨x, ⟨a, ha, hax⟩, ⟨b, hb, hbx⟩⟩
+    refine ⟨a, ha, ?_⟩
+    have : v +ᵥ a = v +ᵥ b := hax.trans hbx.symm
+    change v + a = v + b at this
+    have hab : a = b := add_left_cancel this
+    rw [hab]
+    exact hb
+  · rintro ⟨x, hxA, hxB⟩
+    exact ⟨v +ᵥ x, ⟨x, hxA, rfl⟩, x, hxB, rfl⟩
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_disjoint_of_translate
+    (A B : PlacedTile P) (v : Pt)
+    (h : Disjoint (interior (A.translate v).carrier) (interior (B.translate v).carrier)) :
+    Disjoint (interior A.carrier) (interior B.carrier) := by
+  rw [Set.disjoint_left] at h ⊢
+  intro x hxA hxB
+  apply h
+  · rw [substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_carrier,
+      interior_vadd]
+    exact vadd_mem_vadd_set hxA
+  · rw [substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_carrier,
+      interior_vadd]
+    exact vadd_mem_vadd_set hxB
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_collared_occurrence
+    {τ : Substitution P} (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T)
+    (F : Set (PlacedTile P)) (hF : F ⊆ T.tiles) (hFin : F.Finite) :
+    ∃ (n : ℕ) (p : P.Form) (v : Pt),
+      translateSet v F ⊆ τ.supertile n p ∧
+      ∀ A ∈ F, neighbourhood (τ.supertile n p) (A.translate v) =
+        translateSet v (neighbourhood T.tiles A) := by
+  let K := substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope F
+  let G : Set (PlacedTile P) := {A ∈ T.tiles | (A.carrier ∩ K).Nonempty}
+  let E := F ∪ G
+  have hK : IsCompact K :=
+    substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_envelope_compact F hFin
+  have hGFin : G.Finite := T.locallyFinite hK
+  have hEFin : E.Finite := hFin.union hGFin
+  have hE : E ⊆ T.tiles := by
+    rintro A (hAF | hAG)
+    · exact hF hAF
+    · exact hAG.1
+  obtain ⟨n, p, v, hOcc⟩ := hT E hE hEFin
+  refine ⟨n, p, v, ?_, ?_⟩
+  · rintro A ⟨B, hBF, rfl⟩
+    exact hOcc ⟨B, Or.inl hBF, rfl⟩
+  intro A hAF
+  ext C
+  simp only [neighbourhood, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨hCS, hInt⟩
+    let C₀ := C.translate (-v)
+    have hCeq : C₀.translate v = C := by
+      ext <;> simp [C₀, PlacedTile.translate]
+    have hInt₀ : (A.carrier ∩ C₀.carrier).Nonempty := by
+      rw [← substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_inter A C₀ v]
+      rwa [hCeq]
+    have hC₀K : C₀.carrier ⊆ K :=
+      substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_carrier_subset_envelope F hAF hInt₀
+    let Gpatch : Patch P :=
+      { tiles := G
+        finite := hGFin
+        disjoint := fun X hX Y hY hXY => T.disjoint hX.1 hY.1 hXY }
+    have hC₀sub : C₀.carrier ⊆ support G := by
+      intro x hx
+      have hxK : x ∈ K := hC₀K hx
+      have hxT : x ∈ support T.tiles := by rw [T.cover]; exact Set.mem_univ x
+      simp only [support, Set.mem_iUnion, exists_prop] at hxT ⊢
+      rcases hxT with ⟨D, hDT, hxD⟩
+      exact ⟨D, ⟨hDT, ⟨x, hxD, hxK⟩⟩, hxD⟩
+    have hC₀disj : ∀ D ∈ G, D ≠ C₀ →
+        Disjoint (interior C₀.carrier) (interior D.carrier) := by
+      intro D hDG hDC
+      have hDvS : D.translate v ∈ τ.supertile n p := by
+        apply hOcc
+        exact ⟨D, Or.inr hDG, rfl⟩
+      have hne : C ≠ D.translate v := by
+        intro hEq
+        apply hDC
+        apply substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_injective v
+        exact hEq.symm.trans hCeq.symm
+      have hd := Crowns.supertile_disjoint τ n p hCS hDvS hne
+      rw [← hCeq] at hd
+      exact substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_disjoint_of_translate
+        C₀ D v hd
+    have hC₀G : C₀ ∈ G := Patch.mem_of_carrier_subset_union Gpatch C₀ hC₀disj hC₀sub
+    refine ⟨C₀, ⟨hC₀G.1, hInt₀⟩, ?_⟩
+    exact hCeq
+  · rintro ⟨D, ⟨hDT, hInt⟩, rfl⟩
+    have hAK : A.carrier ⊆ K :=
+      substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_carrier_subset_envelope_self F hAF
+    have hDK : (D.carrier ∩ K).Nonempty := by
+      rcases hInt with ⟨x, hxA, hxD⟩
+      exact ⟨x, hxD, hAK hxA⟩
+    have hDG : D ∈ G := ⟨hDT, hDK⟩
+    constructor
+    · apply hOcc
+      exact ⟨D, Or.inr hDG, rfl⟩
+    · exact
+        (substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_translate_inter A D v).2 hInt
+
+private def substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone
+    (τ : Substitution P) (p : P.Form) : GenuineCornerClone τ :=
+  let A : PlacedTile P := ⟨p, 0⟩
+  { form := p
+    context := translateSet (-A.anchor) (neighbourhood (τ.supertile 0 p) A)
+    realized := ⟨0, p, A, by rfl, rfl⟩ }
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_refined_context
+    {τ : Substitution P} (h : τ.FLC) (p : P.Form) (n : ℕ)
+    (X : PlacedTile (cloneProtoset τ h))
+    (hX : X ∈ (refinedSubstitution τ h).supertile n
+      (substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone τ p)) :
+    X.form.context = translateSet (-X.anchor)
+      (neighbourhood (τ.supertile n p) ((cloneDecoration τ h).projTile X)) := by
+  induction n generalizing X with
+  | zero =>
+      have hEq : X = ⟨substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone τ p, 0⟩ := by
+        simpa [Substitution.supertile, Substitution.decomposeIter] using hX
+      subst X
+      rfl
+  | succ n ih =>
+      change X ∈ (refinedSubstitution τ h).decompose
+        ((refinedSubstitution τ h).supertile n
+          (substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone τ p)) at hX
+      simp only [Substitution.decompose, Set.mem_iUnion, exists_prop] at hX
+      rcases hX with ⟨Y, hY, hXY⟩
+      change X ∈ translateSet ((refinedSubstitution τ h).θ • Y.anchor)
+        ((refinedSubstitution τ h).rule Y.form).tiles at hXY
+      rcases hXY with ⟨Z, hZ, rfl⟩
+      change Z ∈ refinedRule τ h Y.form at hZ
+      rcases hZ with ⟨B, hB, rfl⟩
+      have hA : (cloneDecoration τ h).projTile Y ∈ τ.supertile n p := by
+        have hmem : (cloneDecoration τ h).projTile Y ∈
+            (cloneDecoration τ h).projTile ''
+              ((refinedSubstitution τ h).supertile n
+                (substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone τ p)) :=
+          ⟨Y, hY, rfl⟩
+        rw [substitution_clone_lift_iff_step1_proj_is_subst_step1_supertile_proj] at hmem
+        exact hmem
+      have hshift := childContext_realized_step1_shift Y.form B hB n p
+        ((cloneDecoration τ h).projTile Y) rfl hA (ih Y hY)
+      simpa [refinedSubstitution, cloneDecoration, Decoration.projTile, childClone,
+        PlacedTile.translate] using hshift
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_normalize_translate
+    {P Q : Protoset} (A : PlacedTile P) (v : Pt) (S : Set (PlacedTile Q)) :
+    translateSet (-(A.translate v).anchor) (translateSet v S) =
+      translateSet (-A.anchor) S := by
+  rw [childContext_realized_step1_shift_step1_translateSet_translateSet]
+  congr 1
+  change -(v + A.anchor) + v = -A.anchor
+  abel
+
+private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_clone_ext
+    {τ : Substitution P} {c d : GenuineCornerClone τ} (hForm : c.form = d.form)
+    (hContext : c.context = d.context) : c = d := by
+  cases c with
+  | mk cf cc cr =>
+      cases d with
+      | mk df dc dr =>
+          dsimp at hForm hContext
+          subst df
+          subst dc
+          rfl
+
 /-- Step 2 of the blueprint proof of `substitution_clone_lift_iff_step2_lift_is_subst`: this
 lifted plane tiling is substitutive. -/
 private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst
@@ -5202,7 +5438,65 @@ private lemma substitution_clone_lift_iff_step2_lift_is_subst_step2_subst
     (hLift : ∀ A' ∈ T'.tiles, A'.form.context =
       translateSet (-A'.anchor) (neighbourhood T.tiles ((cloneDecoration τ h).projTile A'))) :
     (refinedSubstitution τ h).IsSubstitutionTiling T' := by
-  sorry
+  intro F' hF' hFin'
+  let F := (cloneDecoration τ h).projTile '' F'
+  have hF : F ⊆ T.tiles := by
+    rintro A ⟨A', hA', rfl⟩
+    have hmem : (cloneDecoration τ h).projTile A' ∈
+        ((cloneDecoration τ h).project T').tiles := ⟨A', hF' hA', rfl⟩
+    rw [hProj] at hmem
+    exact hmem
+  have hFin : F.Finite := hFin'.image _
+  obtain ⟨n, p, v, hOcc, hNeighbour⟩ :=
+    substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_collared_occurrence
+      T hT F hF hFin
+  refine ⟨n,
+    substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone τ p, v, ?_⟩
+  rintro X ⟨A', hA'F, rfl⟩
+  have hA'T : A' ∈ T'.tiles := hF' hA'F
+  have hAF : (cloneDecoration τ h).projTile A' ∈ F := ⟨A', hA'F, rfl⟩
+  have hAv : ((cloneDecoration τ h).projTile A').translate v ∈ τ.supertile n p := by
+    apply hOcc
+    exact ⟨(cloneDecoration τ h).projTile A', hAF, rfl⟩
+  have hmem : (cloneDecoration τ h).projTile (A'.translate v) ∈
+      (cloneDecoration τ h).projTile ''
+        ((refinedSubstitution τ h).supertile n
+          (substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone τ p)) := by
+    rw [substitution_clone_lift_iff_step1_proj_is_subst_step1_supertile_proj]
+    exact hAv
+  rcases hmem with ⟨Y, hY, hProjY⟩
+  have hAnchor : Y.anchor = (A'.translate v).anchor :=
+    congrArg (fun Z : PlacedTile P => Z.anchor) hProjY
+  have hForm : Y.form.form = A'.form.form :=
+    congrArg (fun Z : PlacedTile P => Z.form) hProjY
+  have hContext : Y.form.context = A'.form.context := by
+    calc
+      Y.form.context = translateSet (-Y.anchor)
+          (neighbourhood (τ.supertile n p) ((cloneDecoration τ h).projTile Y)) :=
+        substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_refined_context h p n Y hY
+      _ = translateSet (-(A'.translate v).anchor)
+          (neighbourhood (τ.supertile n p)
+            (((cloneDecoration τ h).projTile A').translate v)) := by
+        rw [hAnchor, hProjY]
+        rfl
+      _ = translateSet (-(A'.translate v).anchor)
+          (translateSet v
+            (neighbourhood T.tiles ((cloneDecoration τ h).projTile A'))) := by
+        rw [hNeighbour _ hAF]
+      _ = translateSet (-A'.anchor)
+          (neighbourhood T.tiles ((cloneDecoration τ h).projTile A')) :=
+        substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_normalize_translate
+          A' v _
+      _ = A'.form.context := (hLift A' hA'T).symm
+  have hEq : Y = A'.translate v := by
+    apply PlacedTile.ext
+    · exact substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_clone_ext hForm hContext
+    · exact hAnchor
+  change A'.translate v ∈
+    (refinedSubstitution τ h).supertile n
+      (substitution_clone_lift_iff_step2_lift_is_subst_step2_subst_singletonClone τ p)
+  rw [← hEq]
+  exact hY
 
 /-- Step 2 of the blueprint proof of `substitution_clone_lift_iff`: in the other direction,
 the lifted plane tiling constructed by labelling each tile with its actual full

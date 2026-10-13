@@ -242,12 +242,60 @@ private lemma headerLegal_properties_step2_normal_id (c : MacroCertificate P) (h
     IsNormal c A ∧ IsIdentityCorrect c A := by
   sorry
 
+/-- Step 1 of the blueprint proof of `headerLegal_properties_step3_child`: A copied cell in the
+new first tile either reaches an origin there, or reaches the corresponding parent cell. If the
+source chain is infinite, the parent's legality forces its value, and hence the child's value, to
+be zero. -/
+private lemma headerLegal_properties_step3_child_step1_zero (c : MacroCertificate P)
+    (hH : c.Hereditary)
+    (A B : DecTile c) (hB : IsChildOf c A B)
+    (ch : ℕ → DecTile c) (hch0 : ch 0 = A)
+    (hch_orig : ∀ n i k, (copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) k).Nonempty →
+      ¬ HasOrigin c ch n i k → (ch n).cell i k = 0) :
+    ∀ (i : c.Side B.typ) (k : Fin 5),
+      (copySource c (c.form (ch 0).typ) (c.occ B.typ i) k).Nonempty →
+      ¬ HasOrigin c (fun n => match n with | 0 => B | n + 1 => ch n) 0 i k →
+      B.cell i k = 0 := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `headerLegal_properties`: every child of a legal parent is
 legal. -/
 private lemma headerLegal_properties_step3_child (c : MacroCertificate P) (hH : c.Hereditary)
     (A : DecTile c) (hA : headerLegal c A) :
     ∀ B, IsChildOf c A B → headerLegal c B := by
-  sorry
+  intro B hB
+  dsimp [headerLegal, IsLegalWith] at *
+  rcases hA with ⟨ch, hch0, hch_rel, hch_orig⟩
+  let new_ch := fun n => match n with
+    | 0 => B
+    | n + 1 => ch n
+  use new_ch
+  constructor
+  · rfl
+  · constructor
+    · intro n
+      cases n
+      · dsimp [new_ch]
+        rw [hch0]
+        exact hB
+      · dsimp [new_ch]
+        exact hch_rel _
+    · intro n i k h_nonempty h_no_origin
+      cases n
+      · exact headerLegal_properties_step3_child_step1_zero c hH A B hB ch hch0 hch_orig i k h_nonempty h_no_origin
+      · dsimp [new_ch] at h_nonempty h_no_origin ⊢
+        apply hch_orig
+        · exact h_nonempty
+        · intro h_orig_ch
+          apply h_no_origin
+          have : ∀ m j l, HasOrigin c ch m j l → HasOrigin c new_ch (m + 1) j l := by
+            intro m j l h_orig
+            induction h_orig
+            case origin m' j' l' h_eq =>
+              exact HasOrigin.origin _ _ _ h_eq
+            case step m' j' l' d l'' h_mem h_orig ih =>
+              exact HasOrigin.step _ _ _ _ _ h_mem ih
+          exact this _ _ _ h_orig_ch
 
 /-- Step 4 of the blueprint proof of `headerLegal_properties`: all boundary fourth cells of a legal
 tile equal one parent header. -/

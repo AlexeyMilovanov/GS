@@ -5035,7 +5035,13 @@ private lemma uniformCrownCoverSupertile_step2_case1
     (h_near : ∃ x ∈ closedConvexHull ℝ S,
       dist x v < crownRadius r δ (rootSeparationConstants P) / 2) :
     S ∩ support M.tiles ⊆ support (crown M.tiles v) := by
-  sorry
+  have hS_diam : diam S < crownRadius r δ (rootSeparationConstants P) / 2 :=
+    hdiam.trans_le hε_d
+  have hS_ball : S ⊆ ball v (crownRadius r δ (rootSeparationConstants P)) :=
+    uniformCrownCoverPlane_step1_close_step2_subset_ball hS_bound hS_diam rfl h_near
+  have hcov := uniformRelativeCrownBall hr hδ hrδ (rootSeparationConstants P) M hM hv
+  intro y hy
+  exact hcov.2 (hcov.1 ⟨hy.2, hS_ball hy.1⟩)
 
 /-- Step 3 of the blueprint proof of `uniformCrownCoverSupertile`: convex hull stays far. -/
 private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2

@@ -5399,7 +5399,10 @@ private lemma uniformCrownCoverPlane_step2_far_step1_exit_point (A : PlacedTile 
     (hH : Convex ℝ H) {p q : Pt} (hpA : p ∈ A.carrier) (hpH : p ∈ H) (hqH : q ∈ H)
     (hqA : q ∉ A.carrier) :
     ∃ (i : Fin (P.disk A.form).n) (e : Pt), e ∈ A.side i ∧ e ∈ H := by
-  sorry
+  obtain ⟨e, heSeg, heFront⟩ := crown_frontier_meets_segment (macro_tile_closed A) hpA hqA
+  have heH : e ∈ H := hH.segment_subset hpH hqH heSeg
+  rw [macro_tile_frontier_eq, mem_iUnion] at heFront
+  exact ⟨heFront.choose, e, heFront.choose_spec, heH⟩
 
 /-- Step 2 of the blueprint proof of `uniformCrownCoverPlane_step2_far`: near a point `e` of a
 listed side of a tile `A` of a plane tiling `T` that is not one of that side's two endpoints,

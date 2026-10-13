@@ -849,21 +849,25 @@ private lemma whole_side_ports_coincide_step5_port_eq (m : ℕ)
     (hrank : ∀ (e : sidesInside τ G m A.form a),
       rankIn (sidesInside τ G m A.form a) (parentDir τ G m A.form a) (e : Pt × Pt) =
         rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (f e : Pt × Pt))
-    (r : Fin 5) :
+    (hL : 5 ≤ (sidesInside τ G m A.form a).ncard) (r : Fin 5) :
     placedSeg ((τ.θ ^ m) • A.anchor) (port τ G m A.form a r) =
       placedSeg ((τ.θ ^ m) • A'.anchor) (port τ G m A'.form a' r) := by
   sorry
 
 /-- `lem:whole-ports` (coincidence): in a grouped plane tiling with STS fine
 level and aligned schedules, physically coincident parent sides have the same
-physical port lists, numbered in the global direction. -/
+physical port lists, numbered in the global direction.
+The parent side must contain at least five whole fine sides (`L ≥ 5`, "for
+sufficiently large `L`" in the blueprint; review addition of 13 October 2026:
+with `L < 5` the ports are junk and the conclusion can fail). -/
 theorem whole_side_ports_coincide (m : ℕ) (T' : PlaneTiling G.P')
     (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
     (halign : SchedulesAligned τ G m T')
     (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
     (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
     (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
-      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a')) :
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a'))
+    (hL : 5 ≤ (sidesInside τ G m A.form a).ncard) :
     ∀ r, placedSeg ((τ.θ ^ m) • A.anchor) (port τ G m A.form a r) =
       placedSeg ((τ.θ ^ m) • A'.anchor) (port τ G m A'.form a' r) := by
   intro r
@@ -875,7 +879,7 @@ theorem whole_side_ports_coincide (m : ℕ) (T' : PlaneTiling G.P')
       rankIn (sidesInside τ G m A'.form a') (parentDir τ G m A'.form a') (f e : Pt × Pt) :=
     fun e => whole_side_ports_coincide_step3_rankIn_eq τ G m A A' a a' f hf h1 e
   have h3 := whole_side_ports_coincide_step4_ncard_eq τ G m A A' a a' f
-  exact whole_side_ports_coincide_step5_port_eq τ G m A A' a a' f hf h1 h3 h2 r
+  exact whole_side_ports_coincide_step5_port_eq τ G m A A' a a' f hf h1 h3 h2 hL r
 
 /-! ## Strict schedule composition (`lem:schedule-compose`) -/
 

@@ -5214,7 +5214,7 @@ Since the patch `F` is finite, its support is bounded and has a finite diameter.
 Thus we can choose an integer `k` such that `θ^{-km} * diam(support F) < ε`. -/
 private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step2_k
     (τ : Substitution P) (ε : ℝ) (hε : 0 < ε)
-    (F : Set (PlacedTile P)) (hF_fin : F.Finite) (m : ℕ) :
+    (F : Set (PlacedTile P)) (hF_fin : F.Finite) (m : ℕ) (hm : 0 < m) :
     ∃ k : ℕ, (τ.θ ^ (k * m))⁻¹ * Metric.diam (support F) < ε := by
   sorry
 
@@ -5456,7 +5456,7 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius
   obtain ⟨ε, hε_pos, h_cover⟩ :=
     allowed_crowns_hierarchy_is_substitutive_step1_radius_step1_epsilon τ hflc
   obtain ⟨k, hk⟩ :=
-    allowed_crowns_hierarchy_is_substitutive_step1_radius_step2_k τ ε hε_pos F hF_fin m
+    allowed_crowns_hierarchy_is_substitutive_step1_radius_step2_k τ ε hε_pos F hF_fin m hm
   obtain ⟨w, hw, h_cover_w⟩ :=
     allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover τ m seq hcrown F k ε h_cover
       hk hF_fin

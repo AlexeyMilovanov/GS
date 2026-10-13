@@ -6694,6 +6694,27 @@ private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step1_witness
 /-- Step 2 of the blueprint proof of
 `quantitativeAnnularGrouping_step4_tubes_step1_clip`: normalize an extended
 radial segment and record the square-boundary properties of its direction. -/
+private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step2_ray_geometry_aux
+    (A t : ℝ) (h0 : 0 ≤ t) (h8 : t ≤ 8 * A) :
+    let v := squarePerimeterPoint A t;
+    |v 0| ≤ A ∧ |v 1| ≤ A ∧ (|v 0| = A ∨ |v 1| = A) := by
+  intro v
+  have _ := h0; have _ := h8
+  have hA : 0 ≤ A := by linarith
+  dsimp [v, squarePerimeterPoint]
+  split_ifs with h1 h2 h3
+  · refine ⟨by simp [mkPt, abs_of_nonneg hA], ?_, by left; simp [mkPt, abs_of_nonneg hA]⟩
+    simp [mkPt]; exact abs_le.mpr ⟨by linarith, by linarith⟩
+  · refine ⟨?_, by simp [mkPt, abs_of_nonneg hA], by right; simp [mkPt, abs_of_nonneg hA]⟩
+    simp [mkPt]; exact abs_le.mpr ⟨by linarith, by linarith⟩
+  · refine ⟨by simp [mkPt, abs_of_nonneg hA], ?_, by left; simp [mkPt, abs_of_nonneg hA]⟩
+    simp [mkPt]; exact abs_le.mpr ⟨by linarith, by linarith⟩
+  · refine ⟨?_, by simp [mkPt, abs_of_nonneg hA], by right; simp [mkPt, abs_of_nonneg hA]⟩
+    simp [mkPt]; exact abs_le.mpr ⟨by linarith, by linarith⟩
+
+private lemma existsAnnularSpokes_pos_eq_squarePerimeterPoint (A t : ℝ) :
+    existsAnnularSpokes_pos A t = squarePerimeterPoint A t := rfl
+
 private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step2_ray_geometry
     (c : Pt) {N : ℕ} {R D : ℝ} (hD : 0 < D) (hN : 2 ≤ N)
     (hR : 1000 * D ≤ R) (k : ℕ) (hk : k ≤ 4 * N) {y : Pt}
@@ -6705,7 +6726,21 @@ private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step2_ray_geome
         (c + (((N : ℝ) * R / 2 + R + 6 * D) / ((N : ℝ) * R / 2)) • v) ∧
       |v 0| ≤ (N : ℝ) * R / 2 ∧ |v 1| ≤ (N : ℝ) * R / 2 ∧
       (|v 0| = (N : ℝ) * R / 2 ∨ |v 1| = (N : ℝ) * R / 2) := by
-  sorry
+  have _ := hD; have _ := hN; have _ := hR
+  use squarePerimeterPoint ((N : ℝ) * R / 2) ((k : ℝ) * R)
+  have hk0 : 0 ≤ (k : ℝ) * R := mul_nonneg (by positivity) (by linarith)
+  have hk8 : (k : ℝ) * R ≤ 8 * ((N : ℝ) * R / 2) := by
+    have h1 : (k : ℝ) ≤ 4 * (N : ℝ) := by exact_mod_cast hk
+    have h2 : 0 ≤ R := by linarith
+    calc
+      (k : ℝ) * R ≤ (4 * (N : ℝ)) * R := mul_le_mul_of_nonneg_right h1 h2
+      _ = 8 * ((N : ℝ) * R / 2) := by ring
+  have hprops := quantitativeAnnularGrouping_step4_tubes_step1_clip_step2_ray_geometry_aux
+    ((N : ℝ) * R / 2) ((k : ℝ) * R) hk0 hk8
+  refine ⟨rfl, ?_, hprops.1, hprops.2.1, hprops.2.2⟩
+  unfold existsAnnularSpokes_ray at hy
+  rw [existsAnnularSpokes_pos_eq_squarePerimeterPoint] at hy
+  exact hy
 
 /-- Step 3 of the blueprint proof of
 `quantitativeAnnularGrouping_step4_tubes_step1_clip`: the standalone square

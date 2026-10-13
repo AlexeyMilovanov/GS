@@ -1106,13 +1106,267 @@ end SubstitutionTiling
 
 /-! ## `lem:hierarchy-step` -/
 
+private lemma hierarchical_power_decompose_translate (τ : Substitution P) (v : Pt)
+    (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S) := by
+  ext A
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    PlacedTile.translate, mem_iUnion, mem_image]
+  constructor
+  · rintro ⟨B, ⟨C, hC, rfl⟩, D, hD, rfl⟩
+    refine ⟨D.translate (τ.θ • C.anchor), ⟨C, hC, D, hD, ?_⟩, ?_⟩
+    · apply PlacedTile.ext
+      · rfl
+      · simp [PlacedTile.translate]
+    · apply PlacedTile.ext
+      · rfl
+      · change τ.θ • v + (τ.θ • C.anchor + D.anchor) =
+          τ.θ • (v + C.anchor) + D.anchor
+        rw [smul_add]
+        abel
+  · rintro ⟨B, ⟨C, hC, D, hD, rfl⟩, rfl⟩
+    refine ⟨C.translate v, ⟨C, hC, rfl⟩, D, hD, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · change τ.θ • (v + C.anchor) + D.anchor =
+        τ.θ • v + (τ.θ • C.anchor + D.anchor)
+      rw [smul_add]
+      abel
+
+private lemma hierarchical_power_decompose_iUnion (τ : Substitution P)
+    {ι : Sort*} (S : ι → Set (PlacedTile P)) :
+    τ.decompose (⋃ i, S i) = ⋃ i, τ.decompose (S i) := by
+  ext A
+  simp only [Substitution.decompose, mem_iUnion]
+  constructor
+  · rintro ⟨B, ⟨i, hB⟩, hA⟩
+    exact ⟨i, B, hB, hA⟩
+  · rintro ⟨i, B, hB, hA⟩
+    exact ⟨B, ⟨i, hB⟩, hA⟩
+
+private lemma hierarchical_power_iter_iUnion (τ : Substitution P) (n : ℕ)
+    {ι : Sort*} (S : ι → Set (PlacedTile P)) :
+    τ.decomposeIter n (⋃ i, S i) = ⋃ i, τ.decomposeIter n (S i) := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (⋃ i, S i)) = _
+      rw [ih, hierarchical_power_decompose_iUnion]
+      rfl
+
+private lemma hierarchical_power_iter_translate (τ : Substitution P) (n : ℕ)
+    (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decomposeIter n (translateSet v S) =
+      translateSet ((τ.θ ^ n) • v) (τ.decomposeIter n S) := by
+  induction n with
+  | zero => simp [Substitution.decomposeIter]
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (translateSet v S)) = _
+      rw [ih, hierarchical_power_decompose_translate]
+      congr 1
+      rw [pow_succ', mul_smul]
+
+private lemma hierarchical_power_singleton_translate (A : PlacedTile P) :
+    ({A} : Set (PlacedTile P)) = translateSet A.anchor {⟨A.form, 0⟩} := by
+  ext B
+  simp [translateSet, PlacedTile.translate, PlacedTile.ext_iff]
+
+private lemma hierarchical_power_decompose_eq_iter (τ : Substitution P) (m : ℕ)
+    (hm : 0 < m) (S : Set (PlacedTile P)) :
+    (τ.pow m hm).decompose S = τ.decomposeIter m S := by
+  rw [show S = ⋃ A ∈ S, ({A} : Set (PlacedTile P)) by ext; simp]
+  rw [hierarchical_power_decompose_iUnion, hierarchical_power_iter_iUnion]
+  apply iUnion_congr
+  intro A
+  rw [hierarchical_power_decompose_iUnion, hierarchical_power_iter_iUnion]
+  apply iUnion_congr
+  intro hA
+  rw [hierarchical_power_singleton_translate]
+  rw [hierarchical_power_decompose_translate]
+  rw [hierarchical_power_iter_translate]
+  congr 1
+  ext B
+  simp [Substitution.decompose, Substitution.decomposeTile, Substitution.pow,
+    Substitution.supertile, translateSet, PlacedTile.translate]
+
+private lemma hierarchical_power_decompose_disjoint (τ : Substitution P)
+    (S : Set (PlacedTile P)) (hS : DisjointInteriors S) :
+    DisjointInteriors (τ.decompose S) := by
+  intro A hA B hB hAB
+  simp only [Substitution.decompose, mem_iUnion] at hA hB
+  rcases hA with ⟨X, hX, hAX⟩
+  rcases hB with ⟨Y, hY, hBY⟩
+  simp only [Substitution.decomposeTile, translateSet, mem_image] at hAX hBY
+  rcases hAX with ⟨C, hC, rfl⟩
+  rcases hBY with ⟨D, hD, rfl⟩
+  by_cases hXY : X = Y
+  · subst Y
+    have hCD : C ≠ D := by
+      intro h
+      subst D
+      exact hAB rfl
+    have hdisj := (τ.rule X.form).disjoint hC hD hCD
+    have hcarrier (E : PlacedTile P) (v : Pt) :
+        (E.translate v).carrier = v +ᵥ E.carrier := by
+      dsimp [PlacedTile.carrier, PlacedTile.translate]
+      rw [← vadd_assoc, vadd_eq_add]
+    dsimp [Function.onFun] at hdisj ⊢
+    rw [hcarrier, hcarrier, interior_vadd, interior_vadd]
+    rw [Set.disjoint_left] at hdisj ⊢
+    intro z hzC hzD
+    apply hdisj
+    · rwa [mem_vadd_set_iff_neg_vadd_mem] at hzC
+    · rwa [mem_vadd_set_iff_neg_vadd_mem] at hzD
+  · have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+    have hCX : interior (C.translate (τ.θ • X.anchor)).carrier ⊆
+        interior (τ.θ • X.carrier) := by
+      apply interior_maximal
+      · intro z hz
+        have hz' : z ∈ support (τ.decomposeTile X) := by
+          simp only [support, mem_iUnion]
+          refine ⟨C.translate (τ.θ • X.anchor), ?_, interior_subset hz⟩
+          simp only [Substitution.decomposeTile, translateSet, mem_image]
+          exact ⟨C, hC, rfl⟩
+        rwa [iterate_support_decomposeTile] at hz'
+      · exact isOpen_interior
+    have hDY : interior (D.translate (τ.θ • Y.anchor)).carrier ⊆
+        interior (τ.θ • Y.carrier) := by
+      apply interior_maximal
+      · intro z hz
+        have hz' : z ∈ support (τ.decomposeTile Y) := by
+          simp only [support, mem_iUnion]
+          refine ⟨D.translate (τ.θ • Y.anchor), ?_, interior_subset hz⟩
+          simp only [Substitution.decomposeTile, translateSet, mem_image]
+          exact ⟨D, hD, rfl⟩
+        rwa [iterate_support_decomposeTile] at hz'
+      · exact isOpen_interior
+    have hparents := hS hX hY hXY
+    dsimp [Function.onFun] at hparents
+    have hscaled : Disjoint (interior (τ.θ • X.carrier))
+        (interior (τ.θ • Y.carrier)) := by
+      rw [interior_smul₀ hθ, interior_smul₀ hθ]
+      rw [Set.disjoint_left] at hparents ⊢
+      intro z hzX hzY
+      apply hparents
+      · exact (Set.mem_smul_set_iff_inv_smul_mem₀ hθ _ _).mp hzX
+      · exact (Set.mem_smul_set_iff_inv_smul_mem₀ hθ _ _).mp hzY
+    exact hscaled.mono hCX hDY
+
+private def hierarchical_power_decompose_tiling (τ : Substitution P)
+    (T : PlaneTiling P) : PlaneTiling P where
+  tiles := τ.decompose T.tiles
+  cover := by
+    rw [iterate_support_decompose, T.cover]
+    exact Set.smul_set_univ₀ (by linarith [τ.one_lt])
+  disjoint := hierarchical_power_decompose_disjoint τ T.tiles T.disjoint
+
+private lemma hierarchical_power_decompose_tiling_tiles (τ : Substitution P)
+    (T : PlaneTiling P) :
+    (hierarchical_power_decompose_tiling τ T).tiles = τ.decompose T.tiles := rfl
+
+private lemma hierarchical_power_iter_tiling_tiles (τ : Substitution P) (n : ℕ)
+    (T : PlaneTiling P) :
+    ((hierarchical_power_decompose_tiling τ)^[n] T).tiles = τ.decomposeIter n T.tiles := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      rw [Function.iterate_succ_apply']
+      change τ.decompose (((hierarchical_power_decompose_tiling τ)^[n] T).tiles) = _
+      rw [ih]
+      rfl
+
+private lemma hierarchical_power_tiling_ext {T₁ T₂ : PlaneTiling P}
+    (h : T₁.tiles = T₂.tiles) : T₁ = T₂ := by
+  cases T₁
+  cases T₂
+  cases h
+  rfl
+
+private lemma hierarchical_power_chain (τ : Substitution P)
+    (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n)) (k n : ℕ) :
+    τ.decomposeIter k (seq (n + k)).tiles = (seq n).tiles := by
+  induction k generalizing n with
+  | zero => rfl
+  | succ k ih =>
+      change τ.decompose (τ.decomposeIter k (seq (n + (k + 1))).tiles) = _
+      rw [show n + (k + 1) = (n + 1) + k by omega, ih]
+      exact hseq n
+
 /-- `lem:hierarchy-step`: for `m > 0`, a plane tiling is `τ`-hierarchical
 iff it is `τ^m`-hierarchical.  (Side-to-side hierarchy is *not* claimed to
 transfer; that needs the alignment tuples.) -/
 theorem hierarchical_power_iff (τ : Substitution P) (m : ℕ) (hm : 0 < m)
     (T : PlaneTiling P) :
     τ.IsHierarchical T ↔ (τ.pow m hm).IsHierarchical T := by
-  sorry
+  constructor
+  · rintro ⟨seq, hzero, hseq⟩
+    refine ⟨fun n => seq (n * m), ?_, ?_⟩
+    · simpa using hzero
+    · intro n
+      change (τ.pow m hm).decompose (seq ((n + 1) * m)).tiles =
+        (seq (n * m)).tiles
+      rw [hierarchical_power_decompose_eq_iter]
+      rw [show (n + 1) * m = n * m + m by simp [Nat.add_mul]]
+      exact hierarchical_power_chain τ seq hseq m (n * m)
+  · rintro ⟨seq, hzero, hseq⟩
+    have hcoarse : ∀ q, τ.decomposeIter m (seq (q + 1)).tiles = (seq q).tiles := by
+      intro q
+      rw [← hierarchical_power_decompose_eq_iter τ m hm]
+      exact hseq q
+    let fine : ℕ → PlaneTiling P := fun n =>
+      ((hierarchical_power_decompose_tiling τ)^[m - n % m] (seq (n / m + 1)))
+    refine ⟨fine, ?_, ?_⟩
+    · apply hierarchical_power_tiling_ext
+      dsimp [fine]
+      rw [hierarchical_power_iter_tiling_tiles]
+      change τ.decomposeIter (m - 0 % m) (seq (0 / m + 1)).tiles = T.tiles
+      simpa [hzero] using hcoarse 0
+    · intro n
+      change τ.decompose (fine (n + 1)).tiles = (fine n).tiles
+      rw [show (fine (n + 1)).tiles =
+          τ.decomposeIter (m - (n + 1) % m) (seq ((n + 1) / m + 1)).tiles by
+        exact hierarchical_power_iter_tiling_tiles τ _ _]
+      rw [show (fine n).tiles =
+          τ.decomposeIter (m - n % m) (seq (n / m + 1)).tiles by
+        exact hierarchical_power_iter_tiling_tiles τ _ _]
+      by_cases hdvd : m ∣ n + 1
+      · have hdiv : (n + 1) / m = n / m + 1 := Nat.succ_div_of_dvd hdvd
+        have hmod : (n + 1) % m = 0 := Nat.mod_eq_zero_of_dvd hdvd
+        have hn := Nat.mod_add_div n m
+        have hn1 := Nat.mod_add_div (n + 1) m
+        rw [hmod, hdiv] at hn1
+        simp only [zero_add, mul_add, mul_one] at hn1
+        have hr : n % m + 1 = m := by omega
+        rw [hmod, hdiv]
+        change τ.decompose (τ.decomposeIter m (seq (n / m + 1 + 1)).tiles) = _
+        rw [hcoarse (n / m + 1)]
+        have hexp : m - n % m = 1 := by omega
+        rw [hexp]
+        rfl
+      · have hm_ne_one : m ≠ 1 := by
+          intro h
+          subst m
+          exact hdvd (one_dvd _)
+        have hm_one : 1 < m := by omega
+        have hr_lt : n % m + 1 < m := by
+          have hr := Nat.mod_lt n hm
+          by_contra hlt
+          have heq : n % m + 1 = m := by omega
+          apply hdvd
+          rw [Nat.dvd_iff_mod_eq_zero, Nat.add_mod]
+          rw [Nat.mod_eq_of_lt hm_one, heq, Nat.mod_self]
+        have hmod : (n + 1) % m = n % m + 1 := by
+          rw [Nat.add_mod, Nat.mod_eq_of_lt hm_one, Nat.mod_eq_of_lt hr_lt]
+        have hdiv : (n + 1) / m = n / m := Nat.succ_div_of_not_dvd hdvd
+        rw [hmod, hdiv]
+        have hr := Nat.mod_lt n hm
+        have hexp : m - (n % m + 1) + 1 = m - n % m := by omega
+        change τ.decompose (τ.decomposeIter (m - (n % m + 1))
+          (seq (n / m + 1)).tiles) = _
+        change τ.decomposeIter (m - (n % m + 1) + 1)
+          (seq (n / m + 1)).tiles = _
+        rw [hexp]
 
 /-! ## `lem:finite-idempotent` -/
 

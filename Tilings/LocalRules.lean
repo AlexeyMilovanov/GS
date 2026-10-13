@@ -1933,13 +1933,183 @@ theorem Decoration.dissection_preserves_sofic (G : GroupedFamily P)
     have heq := dissection_preserves_sofic_tiling_eq_lift G dec R Tdec hproper
     rw [← heq, hproject]
 
+/-- Step 1 helper: every listed side of a placed tile lies in its carrier. -/
+private lemma dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset
+    (A : PlacedTile P) (i : Fin (P.disk A.form).n) : A.side i ⊆ A.carrier := by
+  exact image_mono (by
+    apply (show (P.disk A.form).side i ⊆ frontier (P.disk A.form).carrier from ?_).trans
+      (P.disk A.form).compact.isClosed.frontier_subset
+    rw [(P.disk A.form).frontier_eq]
+    exact Set.subset_iUnion (fun j =>
+      segment ℝ ((P.disk A.form).vertex j)
+        ((P.disk A.form).vertex (finRotate _ j))) i)
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_tile_side_nonempty
+    (A : PlacedTile P) (i : Fin (P.disk A.form).n) : (A.side i).Nonempty := by
+  refine ⟨A.vertex i, ?_⟩
+  exact ⟨(P.disk A.form).vertex i, left_mem_segment ℝ _ _, rfl⟩
+
+private def dissection_preserves_sts_sofic_step1_local_rule_side_rule_bad
+    (dec : SideDecoration P) (A B : PlacedTile dec.P') : Prop :=
+  ∃ (i : Fin (dec.P'.disk A.form).n) (j : Fin (dec.P'.disk B.form).n),
+    (OverlapPos (A.side i) (B.side j) ∧ A.side i ≠ B.side j) ∨
+      (A ≠ B ∧ A.side i = B.side j ∧
+        dec.colour A.form i ≠ dec.colour B.form j)
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_bad_carriers_meet
+    (dec : SideDecoration P) (A B : PlacedTile dec.P')
+    (h : dissection_preserves_sts_sofic_step1_local_rule_side_rule_bad dec A B) :
+    (A.carrier ∩ B.carrier).Nonempty := by
+  obtain ⟨i, j, hbad | hbad⟩ := h
+  · obtain ⟨⟨x, y, hxy, hseg⟩, hne⟩ := hbad
+    have hx := hseg (left_mem_segment ℝ x y)
+    exact ⟨x,
+      dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset A i hx.1,
+      dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset B j hx.2⟩
+  · obtain ⟨hne, heq, hcol⟩ := hbad
+    obtain ⟨x, hx⟩ :=
+      dissection_preserves_sts_sofic_step1_local_rule_tile_side_nonempty A i
+    exact ⟨x,
+      dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset A i hx,
+      dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset B j (heq ▸ hx)⟩
+
+private def dissection_preserves_sts_sofic_step1_local_rule_local_rule
+    (dec : SideDecoration P) : LocalRule dec.P' where
+  forbidden := {F | ∃ A B, F = {A, B} ∧
+    dissection_preserves_sts_sofic_step1_local_rule_side_rule_bad dec A B}
+  D := 2 * ∑ q : dec.P'.Form, Metric.diam (dec.P'.disk q).carrier
+  bounded := by
+    rintro F ⟨A, B, rfl, hbad⟩
+    refine ⟨Set.toFinite {A, B}, ?_⟩
+    have hmeet :=
+      dissection_preserves_sts_sofic_step1_local_rule_bad_carriers_meet dec A B hbad
+    have hA : Metric.diam A.carrier ≤
+        ∑ q : dec.P'.Form, Metric.diam (dec.P'.disk q).carrier := by
+      rw [PlacedTile.carrier, diam_vadd]
+      exact Finset.single_le_sum
+        (f := fun q : dec.P'.Form => Metric.diam (dec.P'.disk q).carrier)
+        (fun _ _ => Metric.diam_nonneg) (Finset.mem_univ A.form)
+    have hB : Metric.diam B.carrier ≤
+        ∑ q : dec.P'.Form, Metric.diam (dec.P'.disk q).carrier := by
+      rw [PlacedTile.carrier, diam_vadd]
+      exact Finset.single_le_sum
+        (f := fun q : dec.P'.Form => Metric.diam (dec.P'.disk q).carrier)
+        (fun _ _ => Metric.diam_nonneg) (Finset.mem_univ B.form)
+    have hu := Metric.diam_union' hmeet
+    rw [show support ({A, B} : Set (PlacedTile dec.P')) = A.carrier ∪ B.carrier by
+      simp [support]]
+    calc
+      Metric.diam (A.carrier ∪ B.carrier) ≤ Metric.diam A.carrier + Metric.diam B.carrier := hu
+      _ ≤ _ := by linarith
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_translate_tile_zero
+    (A : PlacedTile P) : A.translate 0 = A := by
+  apply PlacedTile.ext <;> simp [PlacedTile.translate]
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_translate_tile_injective
+    (v : Pt) : Function.Injective (fun A : PlacedTile P => A.translate v) := by
+  intro A B h
+  have h' := congrArg (fun X : PlacedTile P => X.translate (-v)) h
+  have hp : A.form = B.form ∧ A.anchor = B.anchor := by
+    simpa [PlacedTile.translate] using h'
+  exact PlacedTile.ext hp.1 hp.2
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_side_translate
+    (A : PlacedTile P) (v : Pt) (i : Fin (P.disk A.form).n) :
+    (A.translate v).side i = v +ᵥ A.side i := by
+  show (v +ᵥ A.anchor) +ᵥ _ = v +ᵥ (A.anchor +ᵥ _)
+  rw [vadd_vadd]
+  rfl
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_vadd_set_injective
+    (v : Pt) : Function.Injective (fun s : Set Pt => v +ᵥ s) := by
+  intro s t h
+  ext x
+  have hx := Set.ext_iff.mp h (v +ᵥ x)
+  rwa [vadd_mem_vadd_set_iff, vadd_mem_vadd_set_iff] at hx
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_overlap_vadd
+    (v : Pt) {s t : Set Pt} (h : OverlapPos s t) :
+    OverlapPos (v +ᵥ s) (v +ᵥ t) := by
+  obtain ⟨x, y, hxy, hseg⟩ := h
+  refine ⟨v +ᵥ x, v +ᵥ y, fun h => hxy (add_left_cancel h), ?_⟩
+  rw [← vadd_segment]
+  rintro z ⟨w, hw, rfl⟩
+  exact ⟨⟨w, (hseg hw).1, rfl⟩, ⟨w, (hseg hw).2, rfl⟩⟩
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_side_rule_bad_translate
+    (dec : SideDecoration P) (A B : PlacedTile dec.P') (v : Pt)
+    (h : dissection_preserves_sts_sofic_step1_local_rule_side_rule_bad dec A B) :
+    dissection_preserves_sts_sofic_step1_local_rule_side_rule_bad dec
+      (A.translate v) (B.translate v) := by
+  obtain ⟨i, j, hbad | hbad⟩ := h
+  · refine ⟨i, j, Or.inl ⟨?_, ?_⟩⟩
+    · rw [dissection_preserves_sts_sofic_step1_local_rule_side_translate,
+        dissection_preserves_sts_sofic_step1_local_rule_side_translate]
+      exact dissection_preserves_sts_sofic_step1_local_rule_overlap_vadd v hbad.1
+    · rw [dissection_preserves_sts_sofic_step1_local_rule_side_translate,
+        dissection_preserves_sts_sofic_step1_local_rule_side_translate]
+      exact fun heq => hbad.2
+        (dissection_preserves_sts_sofic_step1_local_rule_vadd_set_injective v heq)
+  · refine ⟨i, j, Or.inr ⟨?_, ?_, hbad.2.2⟩⟩
+    · intro heq
+      exact hbad.1
+        (dissection_preserves_sts_sofic_step1_local_rule_translate_tile_injective v heq)
+    rw [dissection_preserves_sts_sofic_step1_local_rule_side_translate,
+      dissection_preserves_sts_sofic_step1_local_rule_side_translate, hbad.2.1]
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_translate_set_zero
+    (S : Set (PlacedTile P)) : translateSet 0 S = S := by
+  ext A
+  constructor
+  · rintro ⟨B, hB, rfl⟩
+    simpa [dissection_preserves_sts_sofic_step1_local_rule_translate_tile_zero] using hB
+  · intro hA
+    exact ⟨A, hA, dissection_preserves_sts_sofic_step1_local_rule_translate_tile_zero A⟩
+
+private lemma dissection_preserves_sts_sofic_step1_local_rule_proper_iff
+    (dec : SideDecoration P) (T : PlaneTiling dec.P') :
+    (dissection_preserves_sts_sofic_step1_local_rule_local_rule dec).Proper T ↔
+      dec.Proper T := by
+  constructor
+  · intro h
+    constructor
+    · intro A hA B hB i j hover
+      by_contra hne
+      apply h {A, B} ⟨A, B, rfl, i, j, Or.inl ⟨hover, hne⟩⟩
+      refine ⟨0, ?_⟩
+      rw [dissection_preserves_sts_sofic_step1_local_rule_translate_set_zero]
+      intro X hX
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hX
+      rcases hX with rfl | rfl
+      · exact hA
+      · exact hB
+    · intro A hA B hB hAB i j hsides
+      by_contra hcol
+      apply h {A, B} ⟨A, B, rfl, i, j, Or.inr ⟨hAB, hsides, hcol⟩⟩
+      refine ⟨0, ?_⟩
+      rw [dissection_preserves_sts_sofic_step1_local_rule_translate_set_zero]
+      intro X hX
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hX
+      rcases hX with rfl | rfl
+      · exact hA
+      · exact hB
+  · rintro ⟨hsts, hcol⟩ F ⟨A, B, rfl, hbad⟩ ⟨v, hv⟩
+    have hAv : A.translate v ∈ T.tiles := hv (by simp [translateSet])
+    have hBv : B.translate v ∈ T.tiles := hv (by simp [translateSet])
+    obtain ⟨i, j, hbad | hbad⟩ :=
+      dissection_preserves_sts_sofic_step1_local_rule_side_rule_bad_translate dec A B v hbad
+    · exact hbad.2 (hsts _ hAv _ hBv i j hbad.1)
+    · exact hbad.2.2 (hcol _ hAv _ hBv hbad.1 i j hbad.2.1)
+
 /-- Step 1 of the blueprint proof of `dissection_preserves_sts_sofic`: encode
     the finite side-matching conditions of a side decoration by a bounded local
     rule, so its proper tilings are exactly its side-proper tilings. -/
 private theorem dissection_preserves_sts_sofic_step1_local_rule
     (dec : SideDecoration P) :
     ∃ R : LocalRule dec.P', ∀ T, R.Proper T ↔ dec.Proper T := by
-  sorry
+  exact ⟨dissection_preserves_sts_sofic_step1_local_rule_local_rule dec,
+    fun T => dissection_preserves_sts_sofic_step1_local_rule_proper_iff dec T⟩
 
 /-- Step 1 of the blueprint proof of `dissection_preserves_sts_sofic_step2_scatter_sts`: within-group case using the grouped family's STS field. -/
 private lemma dissection_preserves_sts_sofic_step2_scatter_sts_step1_same_group

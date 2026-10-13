@@ -3728,6 +3728,352 @@ private lemma quantitativeAnnularGrouping_step4_tubes (c : Pt) {N : ℕ} {R D : 
     refine ⟨(((j : ℕ) + 1 : ℕ) : ℝ) * R, ⟨by push_cast; nlinarith, by push_cast; nlinarith⟩, μ,
       hμ, rfl⟩
 
+private lemma step5_spp0 {A t : ℝ} (h : t ≤ 2 * A) : squarePerimeterPoint A t = mkPt A (-A + t) := by
+  simp [squarePerimeterPoint, h]
+
+private lemma step5_spp1 {A t : ℝ} (h1 : 2 * A ≤ t) (h : t ≤ 4 * A) :
+    squarePerimeterPoint A t = mkPt (3 * A - t) A := by
+  unfold squarePerimeterPoint; split_ifs with h' <;> (congr 1 <;> linarith)
+
+private lemma step5_spp2 {A t : ℝ} (hA : 0 ≤ A) (h1 : 4 * A ≤ t) (h : t ≤ 6 * A) :
+    squarePerimeterPoint A t = mkPt (-A) (5 * A - t) := by
+  unfold squarePerimeterPoint; split_ifs with h' h'' <;> (congr 1 <;> linarith)
+
+private lemma step5_spp3 {A t : ℝ} (hA : 0 ≤ A) (h1 : 6 * A ≤ t) :
+    squarePerimeterPoint A t = mkPt (t - 7 * A) (-A) := by
+  unfold squarePerimeterPoint; split_ifs with h' h'' h''' <;> (congr 1 <;> linarith)
+
+private lemma step5_spp_bound {A t : ℝ} (h0 : 0 ≤ t) (h8 : t ≤ 8 * A) :
+    (squarePerimeterPoint A t 0) ^ 2 + (squarePerimeterPoint A t 1) ^ 2 ≤ 2 * A ^ 2 := by
+  unfold squarePerimeterPoint; split_ifs <;> simp [mkPt] <;> nlinarith
+
+private lemma step5_far (v w z q : Pt) (μ A R : ℝ) (hA : 0 < A) (hμ : 0 ≤ μ) (hR : 0 ≤ R)
+    (hv : v 0 ^ 2 + v 1 ^ 2 ≤ 2 * A ^ 2) (hw : w 0 ^ 2 + w 1 ^ 2 ≤ 2 * A ^ 2)
+    (h1 : A * R / 8 ≤ jcr v z) (h2 : A * R / 8 ≤ jcr z w)
+    (hq : jcr v q ≤ 0 ∨ jcr q w ≤ 0) :
+    R ^ 2 / 128 ≤ (z 0 - μ * q 0) ^ 2 + (z 1 - μ * q 1) ^ 2 := by
+  unfold jcr at *
+  set d0 := z 0 - μ * q 0
+  set d1 := z 1 - μ * q 1
+  have key : ∀ a b : ℝ, a ^ 2 + b ^ 2 ≤ 2 * A ^ 2 → A * R / 8 ≤ a * d1 - b * d0 →
+      R ^ 2 / 128 ≤ d0 ^ 2 + d1 ^ 2 := by
+    intro a b hab hc
+    have hl : (a * d1 - b * d0) ^ 2 ≤ (a ^ 2 + b ^ 2) * (d0 ^ 2 + d1 ^ 2) := by
+      nlinarith [sq_nonneg (a * d0 + b * d1)]
+    have hpos : 0 ≤ A * R / 8 := by positivity
+    have h3 : (A * R / 8) ^ 2 ≤ 2 * A ^ 2 * (d0 ^ 2 + d1 ^ 2) := by
+      calc (A * R / 8) ^ 2 ≤ (a * d1 - b * d0) ^ 2 := pow_le_pow_left₀ hpos hc 2
+        _ ≤ _ := hl
+        _ ≤ _ := mul_le_mul_of_nonneg_right hab (by positivity)
+    have hA2 : 0 < A ^ 2 := by positivity
+    nlinarith
+  rcases hq with hq | hq
+  · exact key (v 0) (v 1) hv (by simp only [d0, d1]; nlinarith)
+  · exact key (-w 0) (-w 1) (by nlinarith) (by simp only [d0, d1]; nlinarith)
+
+/-- Angular separation: a perimeter position outside `[u, u + R]` (all on one side of `∂Q₀`) lies
+weakly outside one of the two bounding rays through `u` and `u + R`. -/
+private lemma step5_sign (A R u τ : ℝ) (k : ℕ) (hk : k < 4) (hA : 0 < A) (hR : 0 < R)
+    (hu1 : 2 * k * A ≤ u) (hu2 : u + R ≤ 2 * (k + 1) * A) (hτ0 : 0 ≤ τ) (hτ8 : τ ≤ 8 * A)
+    (hτ : τ ≤ u ∨ u + R ≤ τ) :
+    jcr (squarePerimeterPoint A u) (squarePerimeterPoint A τ) ≤ 0 ∨ jcr (squarePerimeterPoint A τ) (squarePerimeterPoint A (u + R)) ≤ 0 := by
+  have hA' := hA.le
+  have hτc : τ ≤ 2 * A ∨ (2 * A ≤ τ ∧ τ ≤ 4 * A) ∨ (4 * A ≤ τ ∧ τ ≤ 6 * A) ∨ 6 * A ≤ τ := by
+    by_cases h1 : τ ≤ 2 * A
+    · exact Or.inl h1
+    by_cases h2 : τ ≤ 4 * A
+    · exact Or.inr (Or.inl ⟨by linarith, h2⟩)
+    by_cases h3 : τ ≤ 6 * A
+    · exact Or.inr (Or.inr (Or.inl ⟨by linarith, h3⟩))
+    exact Or.inr (Or.inr (Or.inr (by linarith)))
+  by_contra hne
+  rw [not_or, not_le, not_le] at hne
+  obtain ⟨hc1, hc2⟩ := hne
+  interval_cases k <;> norm_num at hu1 hu2
+  · rw [step5_spp0 (t := u) (by linarith)] at hc1
+    rw [step5_spp0 (t := u + R) (by linarith)] at hc2
+    rcases hτc with h | ⟨h, h'⟩ | ⟨h, h'⟩ | h
+    · rw [step5_spp0 h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp1 h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp2 hA' h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp3 hA' h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+  · rw [step5_spp1 (t := u) (by linarith) (by linarith)] at hc1
+    rw [step5_spp1 (t := u + R) (by linarith) (by linarith)] at hc2
+    rcases hτc with h | ⟨h, h'⟩ | ⟨h, h'⟩ | h
+    · rw [step5_spp0 h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp1 h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp2 hA' h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp3 hA' h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+  · rw [step5_spp2 (t := u) hA' (by linarith) (by linarith)] at hc1
+    rw [step5_spp2 (t := u + R) hA' (by linarith) (by linarith)] at hc2
+    rcases hτc with h | ⟨h, h'⟩ | ⟨h, h'⟩ | h
+    · rw [step5_spp0 h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp1 h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp2 hA' h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp3 hA' h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+  · rw [step5_spp3 (t := u) hA' (by linarith)] at hc1
+    rw [step5_spp3 (t := u + R) hA' (by linarith)] at hc2
+    rcases hτc with h | ⟨h, h'⟩ | ⟨h, h'⟩ | h
+    · rw [step5_spp0 h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp1 h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp2 hA' h h'] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+    · rw [step5_spp3 hA' h] at hc1 hc2
+      simp [jcr, mkPt] at hc1 hc2
+      rcases hτ with hτ | hτ <;> nlinarith
+
+/-- A point strictly inside the cone of `T_j` (by the cross-product margin `AR/8`) is at distance
+at least `22D` from every other ideal trapezoid. -/
+private lemma step5_farFromOthers {c : Pt} {N : ℕ} {R D : ℝ} (hN : 2 ≤ N) (hD : 0 < D)
+    (hR : 1000 * D ≤ R) (j : Fin (4 * N)) (k : ℕ) (hk : k < 4)
+    (hu1 : 2 * k * ((N : ℝ) * R / 2) ≤ ((j : ℕ) : ℝ) * R)
+    (hu2 : ((j : ℕ) : ℝ) * R + R ≤ 2 * (k + 1) * ((N : ℝ) * R / 2)) (p : Pt)
+    (h1 : (N : ℝ) * R / 2 * R / 8 ≤ jcr (squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R)) (p - c))
+    (h2 : (N : ℝ) * R / 2 * R / 8 ≤
+      jcr (p - c) (squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R + R)))
+    (t : Fin (4 * N)) (ht : t ≠ j) (q : Pt) (hq : q ∈ idealTrapezoid c N R D (t : ℕ)) :
+    22 * D ≤ dist p q := by
+  obtain ⟨τ, ⟨hτ1, hτ2⟩, μ, ⟨hμ1, -⟩, rfl⟩ := hq
+  have hRpos : 0 < R := by linarith
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have htN : ((t : ℕ) : ℝ) + 1 ≤ 4 * N := by
+    have := t.isLt; exact_mod_cast (show (t : ℕ) + 1 ≤ 4 * N by omega)
+  have hjN : ((j : ℕ) : ℝ) + 1 ≤ 4 * N := by
+    have := j.isLt; exact_mod_cast (show (j : ℕ) + 1 ≤ 4 * N by omega)
+  have hτ0 : 0 ≤ τ := le_trans (by positivity) hτ1
+  have hτ8 : τ ≤ 8 * ((N : ℝ) * R / 2) := by nlinarith
+  have hτ : τ ≤ ((j : ℕ) : ℝ) * R ∨ ((j : ℕ) : ℝ) * R + R ≤ τ := by
+    have : (t : ℕ) ≠ (j : ℕ) := fun h => ht (Fin.ext h)
+    rcases Nat.lt_or_gt_of_ne this with h | h
+    · left
+      have : ((t : ℕ) : ℝ) + 1 ≤ (j : ℕ) := by exact_mod_cast h
+      nlinarith
+    · right
+      have : ((j : ℕ) : ℝ) + 1 ≤ (t : ℕ) := by exact_mod_cast h
+      nlinarith
+  have hsign := step5_sign _ _ _ _ k hk hA hRpos hu1 hu2 hτ0 hτ8 hτ
+  have hv := step5_spp_bound (A := (N : ℝ) * R / 2) (t := ((j : ℕ) : ℝ) * R) (by positivity) (by nlinarith)
+  have hw := step5_spp_bound (A := (N : ℝ) * R / 2) (t := ((j : ℕ) : ℝ) * R + R) (by positivity)
+    (by nlinarith)
+  have key := step5_far _ _ (p - c) _ μ _ R hA (by linarith) hRpos.le hv hw h1 h2 hsign
+  have hd : dist p (c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) τ) ^ 2 =
+      ((p - c) 0 - μ * squarePerimeterPoint ((N : ℝ) * R / 2) τ 0) ^ 2 +
+        ((p - c) 1 - μ * squarePerimeterPoint ((N : ℝ) * R / 2) τ 1) ^ 2 := by
+    rw [EuclideanSpace.dist_eq, Real.sq_sqrt (by positivity), Fin.sum_univ_two]
+    simp [Real.dist_eq, sq_abs]
+    ring
+  have hdn := dist_nonneg (x := p) (y := c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) τ)
+  nlinarith
+
+private lemma step5_reduced {A R D y x s : ℝ} (hA : 0 < A) (hD : 0 < D) (hR : 1000 * D ≤ R)
+    (hRA : R ≤ A) (hy1 : -A ≤ y) (hy2 : y ≤ A - R) (hx1 : A + R + 2 * D ≤ x)
+    (hx2 : x ≤ A + R + 4 * D) (hs1 : y * (A + R + 2 * D) / A + R / 8 + 2 * D ≤ s)
+    (hs2 : s ≤ y * (A + R + 2 * D) / A + R / 8 + 2 * D + R / 2) :
+    A * R / 8 ≤ A * s - y * x ∧ A * R / 8 ≤ x * (y + R) - s * A ∧ |s| ≤ A + R + 2 * D := by
+  have e : y * (A + R + 2 * D) / A * A = y * (A + R + 2 * D) := by field_simp
+  have hs1' : y * (A + R + 2 * D) + A * (R / 8 + 2 * D) ≤ A * s := by nlinarith
+  have hs2' : A * s ≤ y * (A + R + 2 * D) + A * (R / 8 + 2 * D + R / 2) := by nlinarith
+  refine ⟨by nlinarith, by nlinarith, abs_le.2 ⟨?_, ?_⟩⟩
+  · nlinarith
+  · nlinarith
+
+private lemma step5_square_add_subset {c : Pt} {h r : ℝ} : square c h + Binf r ⊆ square c (h + r) := by
+  rintro _ ⟨a, ha, b, hb, rfl⟩
+  refine ⟨?_, ?_⟩
+  · simp only [PiLp.add_apply]
+    calc |a 0 + b 0 - c 0| = |(a 0 - c 0) + b 0| := by ring_nf
+      _ ≤ |a 0 - c 0| + |b 0| := abs_add_le _ _
+      _ ≤ h + r := add_le_add ha.1 hb.1
+  · simp only [PiLp.add_apply]
+    calc |a 1 + b 1 - c 1| = |(a 1 - c 1) + b 1| := by ring_nf
+      _ ≤ |a 1 - c 1| + |b 1| := abs_add_le _ _
+      _ ≤ h + r := add_le_add ha.2 hb.2
+
+private lemma step5_tile_dist_le (M : MeshConstants P) (A : PlacedTile P) {x y : Pt}
+    (hx : x ∈ A.carrier) (hy : y ∈ A.carrier) : dist x y ≤ M.D := by
+  obtain ⟨x', hx', rfl⟩ := hx
+  obtain ⟨y', hy', rfl⟩ := hy
+  simp only [vadd_eq_add, dist_add_left]
+  exact (Metric.dist_le_diam_of_mem (P.disk A.form).compact.isBounded hx' hy').trans (M.diam_le _)
+
+private lemma step5_frontier_hit {K : Set Pt} {γ : ℝ → Pt} (hγ : Continuous γ) {x0 x1 : ℝ}
+    (hx : x0 ≤ x1) (h0 : γ x0 ∈ K) (h1 : γ x1 ∉ K) :
+    ∃ x ∈ Icc x0 x1, γ x ∈ frontier K := by
+  have hpc : IsPreconnected (γ '' Icc x0 x1) := isPreconnected_Icc.image _ hγ.continuousOn
+  obtain ⟨_, ⟨x, hx, rfl⟩, hz1, hz2⟩ := isPreconnected_closed_iff.1 hpc (closure K) (closure Kᶜ)
+    isClosed_closure isClosed_closure
+    (fun z _ => by
+      by_cases hz : z ∈ K
+      · exact Or.inl (subset_closure hz)
+      · exact Or.inr (subset_closure hz))
+    ⟨γ x0, ⟨x0, left_mem_Icc.2 hx, rfl⟩, subset_closure h0⟩
+    ⟨γ x1, ⟨x1, right_mem_Icc.2 hx, rfl⟩, subset_closure h1⟩
+  refine ⟨x, hx, ?_⟩
+  rw [frontier_eq_closure_inter_closure]; exact ⟨hz1, hz2⟩
+
+/-- If a path crosses `∂H` while staying away from `L` and from the other ideal trapezoids, the
+crossing point lies on a private outer edge of the `j`-th group. -/
+private lemma step5_core {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S.tiles c N R)
+    (hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ)))
+    (j : Fin (4 * N)) (f : Pt → ℝ) (s : ℝ) (γ : ℝ → Pt) (hγ : Continuous γ) {x0 x1 : ℝ}
+    (hx : x0 ≤ x1) (h0 : γ x0 ∈ G.H.carrier) (h1 : γ x1 ∉ G.H.carrier)
+    (hfs : ∀ x ∈ Icc x0 x1, f (γ x) = s) (hL : ∀ x ∈ Icc x0 x1, γ x ∉ G.L.carrier)
+    (hfar : ∀ x ∈ Icc x0 x1, ∀ t : Fin (4 * N), t ≠ j → ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ),
+      22 * M.D ≤ dist (γ x) q) :
+    ∃ e ∈ privateOuterEdges G j, ∃ p ∈ e, f p = s := by
+  obtain ⟨x, hxI, hxf⟩ := step5_frontier_hit hγ hx h0 h1
+  have hfr : frontier G.H.carrier = ⋃ i, G.H.disk.side i := G.H.disk.frontier_eq
+  have hxf' := hxf
+  rw [hfr, mem_iUnion] at hxf'
+  obtain ⟨i, hi⟩ := hxf'
+  obtain ⟨A, hAH, iA, hA⟩ := G.H.side_whole i
+  obtain ⟨F, hFS, hFH, ⟨iF, hF⟩, -⟩ := G.H_anchor i
+  have hpA : γ x ∈ A.carrier := tile_side_subset A iA (hA ▸ hi)
+  have hpF : γ x ∈ F.carrier := tile_side_subset F iF (hF ▸ hi)
+  -- distance bound to the other trapezoids, in extended form
+  have hfarE : ∀ t : Fin (4 * N), t ≠ j → ∀ y, dist y (γ x) ≤ M.D →
+      y ∉ (G.spokes.piece t).carrier := by
+    intro t ht y hy hyt
+    have h1 := hloc t hyt
+    rw [Metric.mem_cthickening_iff] at h1
+    have h2 : ENNReal.ofReal (22 * M.D) ≤ Metric.infEDist (γ x) (idealTrapezoid c N R M.D (t : ℕ)) := by
+      rw [Metric.le_infEDist]
+      intro q hq
+      rw [edist_dist]
+      exact ENNReal.ofReal_le_ofReal (hfar x hxI t ht q hq)
+    have h3 := Metric.infEDist_le_infEDist_add_edist (x := γ x) (y := y)
+      (s := idealTrapezoid c N R M.D (t : ℕ))
+    rw [edist_dist, dist_comm] at h3
+    have h4 : ENNReal.ofReal (22 * M.D) ≤ ENNReal.ofReal (20 * M.D) + ENNReal.ofReal M.D :=
+      h2.trans (h3.trans (add_le_add h1 (ENNReal.ofReal_le_ofReal hy)))
+    rw [← ENNReal.ofReal_add (by linarith [M.D_pos]) M.D_pos.le] at h4
+    have := (ENNReal.ofReal_le_ofReal_iff (by linarith [M.D_pos])).1 h4
+    linarith [M.D_pos]
+  have hAj : A ∈ (G.spokes.piece j).faces := by
+    have hAL : A ∉ G.L.faces := by
+      intro hAL
+      apply hL x hxI
+      show γ x ∈ G.L.disk.carrier
+      rw [G.L.carrier_eq]
+      exact carrier_subset_support hAL hpA
+    obtain ⟨t, ht, -⟩ := (G.spokes.piece_partition A (G.H.faces_sub hAH)).1 ⟨hAH, hAL⟩
+    by_cases htj : t = j
+    · exact htj ▸ ht
+    · exfalso
+      apply hfarE t htj (γ x) (by simp [M.D_pos.le])
+      show γ x ∈ (G.spokes.piece t).disk.carrier
+      rw [(G.spokes.piece t).carrier_eq]
+      exact carrier_subset_support ht hpA
+  refine ⟨G.H.disk.side i, ⟨⟨A, hAj, iA, hA⟩, ?_, F, hFS, hFH, ⟨iF, hF⟩, ?_⟩, γ x, hi, hfs x hxI⟩
+  · rw [hfr]; exact subset_iUnion (fun i => G.H.disk.side i) i
+  · intro t ht
+    rw [Set.disjoint_left]
+    intro y hyF hyt
+    exact hfarE t ht y (step5_tile_dist_le M F hyF hpF) hyt
+
+/-- The side-independent part of step 5: given a coordinate system adapted to the side of `∂K₁`
+carrying `T_j`, every value of the side coordinate in the middle interval is hit. -/
+private lemma step5_side {M : MeshConstants P} {S : Patch P} {c : Pt} {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S.tiles c N R)
+    (hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ)))
+    (j : Fin (4 * N)) (k : ℕ) (hk : k < 4)
+    (hu1 : 2 * k * ((N : ℝ) * R / 2) ≤ ((j : ℕ) : ℝ) * R)
+    (hu2 : ((j : ℕ) : ℝ) * R + R ≤ 2 * (k + 1) * ((N : ℝ) * R / 2))
+    (y : ℝ) (hy1 : -((N : ℝ) * R / 2) ≤ y) (hy2 : y ≤ (N : ℝ) * R / 2 - R)
+    (f : Pt → ℝ) (g : ℝ → ℝ) (a : ℝ) (Z : ℝ → ℝ → Pt) (hZc : ∀ s, Continuous (Z s))
+    (hfZ : ∀ s x, f (Z s x) = s)
+    (hg : ∀ s ∈ Icc a (a + R / 2),
+      y * ((N : ℝ) * R / 2 + R + 2 * M.D) / ((N : ℝ) * R / 2) + R / 8 + 2 * M.D ≤ g s ∧
+      g s ≤ y * ((N : ℝ) * R / 2 + R + 2 * M.D) / ((N : ℝ) * R / 2) + R / 8 + 2 * M.D + R / 2)
+    (hgabs : ∀ s, |g s| = |s|)
+    (hZsq : ∀ s x, (|Z s x 0 - c 0| = |x| ∧ |Z s x 1 - c 1| = |s|) ∨
+      (|Z s x 0 - c 0| = |s| ∧ |Z s x 1 - c 1| = |x|))
+    (hcr1 : ∀ s x, jcr (squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R)) (Z s x - c) =
+      (N : ℝ) * R / 2 * g s - y * x)
+    (hcr2 : ∀ s x, jcr (Z s x - c) (squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R + R)) =
+      x * (y + R) - g s * ((N : ℝ) * R / 2)) :
+    ∀ s ∈ Icc a (a + R / 2), ∃ e ∈ privateOuterEdges G j, ∃ p ∈ e, f p = s := by
+  intro s hs
+  have hD := M.D_pos
+  have hRpos : 0 < R := by linarith
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hRA : R ≤ (N : ℝ) * R / 2 := by nlinarith
+  have red : ∀ x ∈ Icc ((N : ℝ) * R / 2 + R + 2 * M.D) ((N : ℝ) * R / 2 + R + 4 * M.D),
+      (N : ℝ) * R / 2 * R / 8 ≤ (N : ℝ) * R / 2 * g s - y * x ∧
+      (N : ℝ) * R / 2 * R / 8 ≤ x * (y + R) - g s * ((N : ℝ) * R / 2) ∧
+      |g s| ≤ (N : ℝ) * R / 2 + R + 2 * M.D := fun x hx =>
+    step5_reduced hA hD hR hRA hy1 hy2 hx.1 hx.2 (hg s hs).1 (hg s hs).2
+  have hsabs : |s| ≤ (N : ℝ) * R / 2 + R + 2 * M.D :=
+    hgabs s ▸ (red _ ⟨le_rfl, by linarith⟩).2.2
+  refine step5_core G hloc j f s (Z s) (hZc s) (x0 := (N : ℝ) * R / 2 + R + 2 * M.D)
+    (x1 := (N : ℝ) * R / 2 + R + 4 * M.D) (by linarith) ?_ ?_ (fun x _ => hfZ s x) ?_ ?_
+  · apply G.H_lower
+    apply rg_square_add (by positivity) (by positivity)
+    have hx0 : |(N : ℝ) * R / 2 + R + 2 * M.D| = (N : ℝ) * R / 2 + R + 2 * M.D := abs_of_pos (by positivity)
+    rcases hZsq s ((N : ℝ) * R / 2 + R + 2 * M.D) with ⟨h0, h1⟩ | ⟨h0, h1⟩
+    · exact ⟨h0.trans_le hx0.le, h1.trans_le hsabs⟩
+    · exact ⟨h0.trans_le hsabs, h1.trans_le hx0.le⟩
+  · intro hmem
+    have hsq := step5_square_add_subset (G.H_upper hmem)
+    have hx1 : |(N : ℝ) * R / 2 + R + 4 * M.D| = (N : ℝ) * R / 2 + R + 4 * M.D := abs_of_pos (by positivity)
+    rcases hZsq s ((N : ℝ) * R / 2 + R + 4 * M.D) with ⟨h0, -⟩ | ⟨-, h1⟩
+    · have := hsq.1; rw [h0, hx1] at this; linarith
+    · have := hsq.2; rw [h1, hx1] at this; linarith
+  · intro x hx hmem
+    have hsq := step5_square_add_subset (G.L_upper hmem)
+    have hxa : |x| = x := abs_of_pos (by linarith [hx.1])
+    rcases hZsq s x with ⟨h0, -⟩ | ⟨-, h1⟩
+    · have := hsq.1; rw [h0, hxa] at this; linarith [hx.1]
+    · have := hsq.2; rw [h1, hxa] at this; linarith [hx.1]
+  · intro x hx t ht q hq
+    exact step5_farFromOthers hN hD hR j k hk hu1 hu2 (Z s x) (by rw [hcr1]; exact (red x hx).1)
+      (by rw [hcr2]; exact (red x hx).2.1) t ht q hq
+
+private lemma step5_mkPt_continuous {f g : ℝ → ℝ} (hf : Continuous f) (hg : Continuous g) :
+    Continuous (fun x : ℝ => mkPt (f x) (g x)) := by
+  unfold mkPt
+  refine (PiLp.continuous_toLp 2 _).comp (continuous_pi fun i => ?_)
+  fin_cases i <;> simpa
+
+private lemma step5_coord_lipschitz (c : Pt) (i : Fin 2) : LipschitzWith 1 (fun p : Pt => p i - c i) :=
+  LipschitzWith.of_dist_le_mul fun p q => by
+    rw [Real.dist_eq, NNReal.coe_one, one_mul, show p i - c i - (q i - c i) = p i - q i by ring]
+    exact rg_coord_sub_le p q i
+
 /-- Step 5 of the blueprint proof of `quantitativeAnnularGrouping`: private outer edges along the
 middle half of the outer side of `T_j`.  Blueprint: "Take the middle half `J` of the outer edge
 of `T_j`; its length is `λR/2 ≥ R/2`.  Its distance to every other ideal trapezoid is at least
@@ -3745,7 +4091,68 @@ private lemma quantitativeAnnularGrouping_step5_privateHit {M : MeshConstants P}
     (j : Fin (4 * N)) :
     ∃ f : Pt → ℝ, LipschitzWith 1 f ∧ ∃ a : ℝ,
       ∀ s ∈ Icc a (a + R / 2), ∃ e ∈ privateOuterEdges G j, ∃ p ∈ e, f p = s := by
-  sorry
+  have hD := M.D_pos
+  have hRpos : 0 < R := by linarith
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  obtain ⟨k, hk, hk1, hk2⟩ : ∃ k, k < 4 ∧ k * N ≤ (j : ℕ) ∧ (j : ℕ) + 1 ≤ (k + 1) * N := by
+    refine ⟨(j : ℕ) / N, (Nat.div_lt_iff_lt_mul (by omega)).2 j.isLt, Nat.div_mul_le_self _ _, ?_⟩
+    have h1 := Nat.div_add_mod (j : ℕ) N
+    have h2 := Nat.mod_lt (j : ℕ) (show N > 0 by omega)
+    nlinarith
+  have hk1' : (k : ℝ) * N ≤ (j : ℕ) := by exact_mod_cast hk1
+  have hk2' : ((j : ℕ) : ℝ) + 1 ≤ ((k : ℝ) + 1) * N := by exact_mod_cast hk2
+  have hu1 : 2 * k * ((N : ℝ) * R / 2) ≤ ((j : ℕ) : ℝ) * R := by nlinarith
+  have hu2 : ((j : ℕ) : ℝ) * R + R ≤ 2 * (k + 1) * ((N : ℝ) * R / 2) := by nlinarith
+  set A := (N : ℝ) * R / 2 with hAdef
+  set u := ((j : ℕ) : ℝ) * R with hudef
+  interval_cases k <;> norm_num at hu1 hu2
+  · refine ⟨fun p => p 1 - c 1, step5_coord_lipschitz c 1,
+      ((-A + u) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D),
+      step5_side hN hR G hloc j 0 (by norm_num) (by push_cast; linarith) (by push_cast; linarith) (-A + u)
+        (by linarith) (by linarith) _ id _ (fun s x => c + mkPt x s)
+        (fun s => continuous_const.add (step5_mkPt_continuous continuous_id continuous_const))
+        (fun s x => by simp [mkPt]) (fun s hs => hs) (fun s => rfl)
+        (fun s x => Or.inl (by simp [mkPt])) (fun s x => ?_) (fun s x => ?_)⟩
+    · rw [step5_spp0 (t := u) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]; ring
+    · rw [step5_spp0 (t := u + R) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]; ring
+  · refine ⟨fun p => p 0 - c 0, step5_coord_lipschitz c 0,
+      (-((u - 3 * A) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D) - R / 2),
+      step5_side hN hR G hloc j 1 (by norm_num) (by push_cast; linarith) (by push_cast; linarith) (u - 3 * A)
+        (by linarith) (by linarith) _ (fun s => -s) _ (fun s x => c + mkPt s x)
+        (fun s => continuous_const.add (step5_mkPt_continuous continuous_const continuous_id))
+        (fun s x => by simp [mkPt]) (fun s hs => by
+          rw [hAdef] at hs ⊢; exact ⟨by linarith [hs.2], by linarith [hs.1]⟩) (fun s => abs_neg s)
+        (fun s x => Or.inr (by simp [mkPt])) (fun s x => ?_) (fun s x => ?_)⟩
+    · rw [step5_spp1 (t := u) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]; ring
+    · rw [step5_spp1 (t := u + R) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]; ring
+  · refine ⟨fun p => p 1 - c 1, step5_coord_lipschitz c 1,
+      (-((u - 5 * A) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D) - R / 2),
+      step5_side hN hR G hloc j 2 (by norm_num) (by push_cast; linarith) (by push_cast; linarith) (u - 5 * A)
+        (by linarith) (by linarith) _ (fun s => -s) _ (fun s x => c + mkPt (-x) s)
+        (fun s => continuous_const.add (step5_mkPt_continuous continuous_neg continuous_const))
+        (fun s x => by simp [mkPt]) (fun s hs => by
+          rw [hAdef] at hs ⊢; exact ⟨by linarith [hs.2], by linarith [hs.1]⟩) (fun s => abs_neg s)
+        (fun s x => Or.inl (by simp [mkPt])) (fun s x => ?_) (fun s x => ?_)⟩
+    · rw [step5_spp2 hA.le (t := u) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]; ring
+    · rw [step5_spp2 hA.le (t := u + R) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]; ring
+  · refine ⟨fun p => p 0 - c 0, step5_coord_lipschitz c 0,
+      ((u - 7 * A) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D),
+      step5_side hN hR G hloc j 3 (by norm_num) (by push_cast; linarith) (by push_cast; linarith) (u - 7 * A)
+        (by linarith) (by linarith) _ id _ (fun s x => c + mkPt s (-x))
+        (fun s => continuous_const.add (step5_mkPt_continuous continuous_const continuous_neg))
+        (fun s x => by simp [mkPt]) (fun s hs => hs) (fun s => rfl)
+        (fun s x => Or.inr (by simp [mkPt])) (fun s x => ?_) (fun s x => ?_)⟩
+    · rw [step5_spp3 hA.le (t := u) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]; ring
+    · rw [step5_spp3 hA.le (t := u + R) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]; ring
 
 /-- Step 6 of the blueprint proof of `quantitativeAnnularGrouping`: "each has projected length
 at most `D`" -- the private outer edges of a group are finitely many listed sides of its faces,

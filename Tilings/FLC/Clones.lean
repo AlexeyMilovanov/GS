@@ -673,8 +673,8 @@ supports have bounded diameter, so there is k such that in supertiles of order n
 the neighbourhood is covered by a full pointed crown of order n-k, which implies
 the context belongs to CrownContexts. -/
 private lemma finite_neighbourhoods_step1to4 (τ : Substitution P) (h : τ.FLC) :
-    ∃ k : ℕ, ∀ (n : ℕ) (hn : k ≤ n) (p : P.Form) (A : PlacedTile P)
-      (hA : A ∈ τ.supertile n p),
+    ∃ k : ℕ, ∀ (n : ℕ) (_hn : k ≤ n) (p : P.Form) (A : PlacedTile P)
+      (_hA : A ∈ τ.supertile n p),
       (A.form, translateSet (-A.anchor) (neighbourhood (τ.supertile n p) A)) ∈
         finite_neighbourhoods_CrownContexts τ k := by
   sorry

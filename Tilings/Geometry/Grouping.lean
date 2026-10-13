@@ -3754,7 +3754,7 @@ structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
   R_large : ∀ α, 10000 * ((M.K0 : ℝ) + 3) * M.D ≤ R α
   annulus : ∀ l α, 0 < l →
     AnnularGrouping M (GS.G.mixedScatter (retained l α).children.tiles) (centre l α) (N α) (R α)
-  annulus_inside : ∀ l α (hl : 0 < l),
+  annulus_inside : ∀ l α (_hl : 0 < l),
     square (centre l α) ((N α : ℝ) * R α / 2 + R α) + Binf (10 * M.D) ⊆
       interior (retained l α).region
   central_scatter : ∀ l α (hl : 0 < l),

@@ -5063,8 +5063,8 @@ private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2
     {𝒞 : Set (Set (PlacedTile P))} (h𝒞 : IsCatalogue 𝒞)
     {r δ : ℝ} (hr : 0 < r) (hδ : 0 < δ) (hrδ : SectorRadiusProperty 𝒞 r δ) :
     ∃ ε : ℝ, 0 < ε ∧ ε ≤ crownRadius r δ (rootSeparationConstants P) / 2 ∧
-    ∀ (M : MacroPatch P) (hM : AllCrownsIn 𝒞 M.tiles)
-    {S : Set Pt} (hS_bound : Bornology.IsBounded S), diam S < ε →
+    ∀ (M : MacroPatch P) (_hM : AllCrownsIn 𝒞 M.tiles)
+    {S : Set Pt} (_hS_bound : Bornology.IsBounded S), diam S < ε →
     (∀ x ∈ closedConvexHull ℝ S, ∀ v, IsVertexOf M.tiles v →
       crownRadius r δ (rootSeparationConstants P) / 2 ≤ dist x v) →
     ∃ v, IsVertexOf M.tiles v ∧ S ∩ support M.tiles ⊆ support (crown M.tiles v) := by

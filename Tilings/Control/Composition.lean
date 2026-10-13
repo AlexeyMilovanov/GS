@@ -1377,7 +1377,7 @@ private lemma reconstructed_header_eq_isNormal_aux1 (c : MacroCertificate P)
     (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
     (d : c.Side h.1) (i : Fin 5) (hLoc : IsLocal c (c.occ h.1 d) i) :
-    ∃ (o : c.SideOcc) (ho : c.port (c.form h.1) d i = some o),
+    ∃ (o : c.SideOcc) (_ho : c.port (c.form h.1) d i = some o),
       headerLegal c (K.tileOf o.1) ∧
       (K.tileOf o.1).cell o.2 2 = K.col o.1 o.2 2 := by
   sorry
@@ -2021,7 +2021,7 @@ private lemma alignment_complete_step1_macroside_eq (c : MacroCertificate P) (hH
     (j : part.ι) (d : Fin (c.Q.disk (part.block j).α).n)
     (hrank : RankMatched c part j d)
     (hmode : ∀ j' : part.ι, j' ≠ j → ∀ e, ModeUniform c (part.block j') e) :
-    ∃ (j' : part.ι) (hneq : j' ≠ j) (e : Fin (c.Q.disk (part.block j').α).n),
+    ∃ (j' : part.ι) (_hneq : j' ≠ j) (e : Fin (c.Q.disk (part.block j').α).n),
       (part.block j').macroSide e = (part.block j).macroSide d := by
   sorry
 

@@ -127,8 +127,8 @@ private lemma schedule_intermediate_sts_step1_boundary_align_step1_fine_sides
     (hc : c ∈ layerSides τ G m A.form t) (hd : d ∈ layerSides τ G m A'.form t)
     (hoverlap : OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
       (placedSeg ((τ.θ ^ m) • A'.anchor) d)) :
-    ∃ (e : Pt × Pt) (he : e ∈ fineOuterSides τ G m A.form)
-      (e' : Pt × Pt) (he' : e' ∈ fineOuterSides τ G m A'.form),
+    ∃ (e : Pt × Pt) (_he : e ∈ fineOuterSides τ G m A.form)
+      (e' : Pt × Pt) (_he' : e' ∈ fineOuterSides τ G m A'.form),
       placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e' ∧
       OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2) ∧
       OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) := by
@@ -215,20 +215,55 @@ private theorem schedule_intermediate_sts_step1_boundary_align
   exact schedule_intermediate_sts_step1_boundary_align_step2_endpoints τ G m A A' t c d hc hd e e'
     he he' heq hov_c hov_d h_sch hoverlap
 
+private lemma schedule_intermediate_sts_step2_smul_segment (s : ℝ) (x y : Pt) :
+    s • segment ℝ x y = segment ℝ (s • x) (s • y) := by
+  let f : Pt →ᵃ[ℝ] Pt := (LinearMap.lsmul ℝ Pt s).toAffineMap
+  change f '' segment ℝ x y = segment ℝ (f x) (f y)
+  exact image_segment ℝ f x y
+
+private lemma schedule_intermediate_sts_step2_overlap_smul {s : ℝ} (hs : s ≠ 0)
+    {u v : Set Pt} (h : OverlapPos u v) : OverlapPos (s • u) (s • v) := by
+  obtain ⟨x, y, hxy, hsegment⟩ := h
+  refine ⟨s • x, s • y, ?_, ?_⟩
+  · exact fun hxy' => hxy (smul_right_injective Pt hs hxy')
+  · rw [← schedule_intermediate_sts_step2_smul_segment, ← Set.smul_set_inter₀ hs]
+    exact Set.smul_set_mono hsegment
+
+private lemma schedule_intermediate_sts_step2_placedSeg
+    (m : ℕ) (A : PlacedTile G.P') (i : Fin (G.P'.disk A.form).n) :
+    placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form i) = (τ.θ ^ m) • A.side i := by
+  simp [placedSeg, parentSide, PlacedTile.side, PolygonalDisk.side, vadd_segment,
+    schedule_intermediate_sts_step2_smul_segment, smul_add]
+
 /-- Step 2 of the blueprint proof of `schedule_intermediate_sts`:
 Inside a block each original layer is already an STS supertile patch.
 Thus, to check STS for the parent level, we only need to compare sides that
 arise from opposite macroblock boundaries, which correspond to `top` layer sides. -/
 private theorem schedule_intermediate_sts_step2_parents_sts
     (m : ℕ) (T' : PlaneTiling G.P')
-    (h_align : ∀ (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (h_align : ∀ (A A' : PlacedTile G.P') (_hA : A ∈ T'.tiles) (_hA' : A' ∈ T'.tiles)
        (c d : Pt × Pt)
-       (hc : c ∈ layerSides τ G m A.form .top) (hd : d ∈ layerSides τ G m A'.form .top),
+       (_hc : c ∈ layerSides τ G m A.form .top) (_hd : d ∈ layerSides τ G m A'.form .top),
        OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
          (placedSeg ((τ.θ ^ m) • A'.anchor) d) →
        placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d) :
     SideToSideSet T'.tiles := by
-  sorry
+  intro A hA A' hA' i j hoverlap
+  let c := parentSide τ G m A.form i
+  let d := parentSide τ G m A'.form j
+  have hc : c ∈ layerSides τ G m A.form .top := ⟨i, rfl⟩
+  have hd : d ∈ layerSides τ G m A'.form .top := ⟨j, rfl⟩
+  have hs : τ.θ ^ m ≠ 0 := pow_ne_zero m (ne_of_gt (lt_trans zero_lt_one τ.one_lt))
+  have heqA := schedule_intermediate_sts_step2_placedSeg τ G m A i
+  have heqA' := schedule_intermediate_sts_step2_placedSeg τ G m A' j
+  have hoverlap' :
+      OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
+        (placedSeg ((τ.θ ^ m) • A'.anchor) d) := by
+    rw [heqA, heqA']
+    exact schedule_intermediate_sts_step2_overlap_smul hs hoverlap
+  have heq := h_align A A' hA hA' c d hc hd hoverlap'
+  rw [heqA, heqA'] at heq
+  exact (Set.image_injective.mpr (smul_right_injective Pt hs)) heq
 
 /-- Step 3 of the blueprint proof of `schedule_intermediate_sts`:
 Inside a block each original layer is already an STS supertile patch.
@@ -238,10 +273,10 @@ private theorem schedule_intermediate_sts_step3_levels_sts
     (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (G.dissect α).tiles))
     (m : ℕ) (T' : PlaneTiling G.P')
     (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
-    (h_align : ∀ (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (h_align : ∀ (A A' : PlacedTile G.P') (_hA : A ∈ T'.tiles) (_hA' : A' ∈ T'.tiles)
        (j : Fin m) (c d : Pt × Pt)
-       (hc : c ∈ layerSides τ G m A.form (.level j))
-       (hd : d ∈ layerSides τ G m A'.form (.level j)),
+       (_hc : c ∈ layerSides τ G m A.form (.level j))
+       (_hd : d ∈ layerSides τ G m A'.form (.level j)),
        OverlapPos (placedSeg ((τ.θ ^ m) • A.anchor) c)
          (placedSeg ((τ.θ ^ m) • A'.anchor) d) →
        placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d) :

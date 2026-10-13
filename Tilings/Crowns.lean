@@ -5030,7 +5030,12 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step2_supertile_step3_occ
     (τ : Substitution P) (F : Set (PlacedTile P)) (km : ℕ) (n : ℕ) (p : P.Form) (v : Pt)
     (hF : F ⊆ translateSet v (τ.supertile (n + km) p)) :
     OccursIn F (τ.supertile (n + km) p) := by
-  sorry
+  refine ⟨-v, ?_⟩
+  calc
+    translateSet (-v) F ⊆ translateSet (-v) (translateSet v (τ.supertile (n + km) p)) :=
+      image_mono hF
+    _ = τ.supertile (n + km) p := by
+      simpa using gap_translateSet_neg (τ.supertile (n + km) p) (-v)
 
 /-- Step 2 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive`:
 The allowed crown $C$ occurs in some supertile $S$. Thus $F \subset \tau^{km}S$,

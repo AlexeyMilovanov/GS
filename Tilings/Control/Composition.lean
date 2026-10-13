@@ -3363,6 +3363,174 @@ private lemma reconstructed_acyclic_legal_step6_main_step1_chain {P : Protoset}
       ¬ c.IsCentral F.typ ∧
       c.form E.typ = c.form (tileDec X).typ := by sorry
 
+private lemma step2_eq_central_no_outer (c : MacroCertificate P) {s : c.Typ} (hs : c.IsCentral s)
+    (i : c.Side s) : ¬ c.IsOuter (c.occ s i) ∧ ¬ c.IsBoundary (c.occ s i) := by
+  have h := c.g2_central (c.owner s)
+  unfold MacroData.IsCentral at hs
+  rw [hs] at h
+  exact h i
+
+private lemma step2_eq_central_large (c : MacroCertificate P) {s : c.Typ} (hs : c.IsCentral s) :
+    c.kind (c.form s) = .large :=
+  (c.g5_large_iff s).2 hs.symm
+
+open Classical in
+private lemma step2_eq_print_card (c : MacroCertificate P) {s : c.Typ} (hs : c.IsCentral s) :
+    (Finset.univ.filter (fun d : c.Side s => c.IsPrint (c.occ s d))).card ≤
+      Nat.card {e // c.marked (c.owner s) e} := by
+  rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
+  rw [← Finset.card_image_of_injective _ (sigma_mk_injective (i := s))]
+  refine le_trans (Finset.card_le_card ?_) (Finset.card_image_le
+    (f := c.printOcc (c.owner s)) (s := Finset.univ.filter (fun e => c.marked (c.owner s) e)))
+  intro o ho
+  simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and] at ho ⊢
+  obtain ⟨d, ⟨e, hm, h | h⟩, rfl⟩ := ho
+  · exact ⟨e, hm, h.symm⟩
+  · exfalso
+    have h1 := c.g4_print_small _ e hm
+    rw [← h] at h1
+    rw [step2_eq_central_large c hs] at h1
+    cases h1
+
+private lemma step2_eq_isPrintOf_congr (c : MacroCertificate P) {β γ : c.Q.Form} (h : β = γ)
+    (x : Fin (c.Q.disk β).n) (y : Fin (c.Q.disk γ).n) (hxy : x.val = y.val) (o : c.SideOcc) :
+    c.IsPrintOf β x o ↔ c.IsPrintOf γ y o := by
+  subst h
+  rw [Fin.ext hxy]
+
+private lemma step2_eq_identU_inj (c : MacroCertificate P) {e e' : c.EdgeId}
+    (h : identU c e = identU c e') : e = e' := by
+  simpa [identU] using h
+
+private lemma step2_eq_not_on_path (c : MacroCertificate P) {s : c.Typ} (hs : c.IsCentral s)
+    (i : c.Side s) (hm : ¬ c.IsMarked (c.occ s i)) (d : Fin (c.Q.disk (c.owner s)).n) (j : Fin 5) :
+    c.occ s i ∉ c.path (c.owner s) d j := by
+  intro hmem
+  by_cases hg : c.IsGenuinePath (c.owner s) d j
+  · exact hm (c.g7_marking _ (Or.inr (Or.inr (Or.inr ⟨d, j, hg, hmem⟩))))
+  · rw [c.g4_path_trivial _ _ _ hg] at hmem
+    have hp : c.port (c.owner s) d j = some (c.occ s i) := Option.mem_toList.1 hmem
+    unfold MacroData.port at hp
+    have hmem' := List.mem_of_getElem? hp
+    exact (step2_eq_central_no_outer c hs i).1 (((c.g3_outerList_mem _ _ _).1 hmem').2.1)
+
+private lemma step2_eq_cells (c : MacroCertificate P) (t : c.Typ) (cD cE : c.Side t → Fin 5 → U c)
+    (cA : c.Side (c.central (c.form t)) → Fin 5 → U c) (F : DecTile c) (hcent : c.IsCentral t)
+    (hnorm : IsNormal c ⟨t, cD⟩) (hXA : IsChildOf c ⟨t, cD⟩ ⟨c.central (c.form t), cA⟩)
+    (hE_child : IsChildOf c ⟨t, cE⟩ ⟨c.central (c.form t), cA⟩) (hF_child : IsChildOf c F ⟨t, cE⟩) :
+    cE = cD := by
+  funext i k
+  have hno := step2_eq_central_no_outer c hcent i
+  have hownF : c.owner t = c.form F.typ := hF_child.1
+  have h4 : cE i 4 = cD i 4 := by
+    have hloc : IsLocal c (c.occ t i) 4 := by
+      by_cases hm : c.IsMarked (c.occ t i)
+      · by_cases hsp : c.special (c.occ t i) ∨ c.IsPrint (c.occ t i)
+        · exact Or.inr (Or.inl ⟨hm, hsp, rfl⟩)
+        · push_neg at hsp
+          exact Or.inr (Or.inr ⟨hm, hsp, Or.inr rfl⟩)
+      · exact Or.inl hm
+    refine Eq.trans ?_ (hnorm i 4 hloc).symm
+    simp only [prescribedCell, Fin.reduceEq, if_false, if_true]
+    by_cases hp : c.IsPrint (c.occ t i)
+    · rw [if_pos hp]
+      obtain ⟨e, he⟩ := hp
+      exact ((hF_child.2 i).1 (Fin.cast (by rw [hownF]) e)
+        ((step2_eq_isPrintOf_congr c hownF e _ rfl _).1 he)).2
+    · rw [if_neg hp]
+      exact ((hF_child.2 i).2 hp).2.2.1
+  by_cases hk : k = 4
+  · subst hk
+    exact h4
+  by_cases hm : c.marked (c.form t) i
+  · exact (((hE_child.2 (c.print (c.form t) i)).1 i ⟨hm, Or.inl rfl⟩).1 k hk).symm.trans
+      (((hXA.2 _).1 i ⟨hm, Or.inl rfl⟩).1 k hk)
+  · have hp : ¬ c.IsPrint (c.occ t i) := fun h => hm (c.g7_marking _ (Or.inr (Or.inr (Or.inl h))))
+    obtain ⟨h0, h1, -, -, hnp, -, -, h3⟩ := (hF_child.2 i).2 hp
+    refine Eq.trans ?_ (hnorm i k (Or.inl hm)).symm
+    fin_cases k
+    · simpa [prescribedCell] using h0
+    · simpa [prescribedCell] using h1
+    · have hnot := step2_eq_not_on_path c hcent i hm
+      rw [hownF] at hnot
+      simpa [prescribedCell] using hnp hnot
+    · have h3' := h3 hno.1 hno.2
+      show cE i 3 = prescribedCell c (c.occ t i) 3
+      rw [prescribedCell, if_neg (by decide), if_pos rfl, if_pos ⟨hno.1, hno.2, hp⟩]
+      exact h3'
+    · exact absurd rfl hk
+
+private lemma step2_eq_core (c : MacroCertificate P) (D E A F : DecTile c)
+    (hcent : c.IsCentral D.typ) (hnorm : IsNormal c D) (hidc : IsIdentityCorrect c D)
+    (hXA : IsChildOf c D A) (hAtyp : A.typ = c.central (c.form D.typ))
+    (hown : c.kind (c.owner D.typ) ≠ .large)
+    (hE_child : IsChildOf c E A) (hF_child : IsChildOf c F E)
+    (hE_cent : c.IsCentral E.typ) (hF_nc : ¬ c.IsCentral F.typ)
+    (hE_form : c.form E.typ = c.form D.typ) : E = D := by
+  obtain ⟨t, cD⟩ := D
+  obtain ⟨t', cE⟩ := E
+  obtain ⟨a, cA⟩ := A
+  dsimp only at *
+  subst hAtyp
+  have hownE : c.owner t' = c.form F.typ := hF_child.1
+  have hQ' : c.kind (c.owner t') ≠ .large := by
+    rw [hownE]
+    exact fun h => hF_nc ((c.g5_large_iff _).1 h).symm
+  have hEt : t' = t := by
+    classical
+    have hn : (c.Q.disk (c.form t)).n = (c.Q.disk (c.form t')).n := by rw [hE_form]
+    let S1 := Finset.univ.filter (fun d : c.Side t => c.IsPrint (c.occ t d))
+    let S2 := (Finset.univ.filter (fun d : c.Side t' => c.IsPrint (c.occ t' d))).image
+      (Fin.cast hn.symm)
+    let M := Finset.univ.filter (fun d : c.Side t => c.marked (c.form t) d)
+    have hM : M.card = 4 * c.N := by
+      rw [← c.g5_card_marked_large _ (step2_eq_central_large c hcent), Nat.card_eq_fintype_card,
+        Fintype.card_subtype]
+    have h1 : S1.card ≤ c.Qmax :=
+      (step2_eq_print_card c hcent).trans (c.g5_card_marked_small _ hown)
+    have h2 : S2.card ≤ c.Qmax :=
+      Finset.card_image_le.trans ((step2_eq_print_card c hE_cent).trans
+        (c.g5_card_marked_small _ hQ'))
+    obtain ⟨d, hdM, hdS⟩ : ∃ d ∈ M, d ∉ S1 ∪ S2 := by
+      by_contra hcon
+      push_neg at hcon
+      have := Finset.card_le_card (fun x hx => hcon x hx)
+      have := Finset.card_union_le S1 S2
+      have := c.g5_three_Q_lt
+      omega
+    simp only [M, S1, S2, Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and,
+      Finset.mem_image, not_or] at hdM hdS
+    obtain ⟨hd1, hd2⟩ := hdS
+    set d' : c.Side t' := Fin.cast hn d with hd'
+    have hd2' : ¬ c.IsPrint (c.occ t' d') := fun h => hd2 ⟨d', h, by ext; simp [hd']⟩
+    have hin : c.IsInner (c.occ t d) := (step2_eq_central_no_outer c hcent d).1
+    have hin' : c.IsInner (c.occ t' d') := (step2_eq_central_no_outer c hE_cent d').1
+    have hD0 : cD d 0 = identU c (c.edge (c.occ t d)) := (hidc d).1 hin hd1
+    have hE0 : cE d' 0 = identU c (c.edge (c.occ t' d')) := by
+      have h := ((hF_child.2 d').2 hd2').1
+      rw [prescribedFirst, if_pos hin'] at h
+      exact h
+    have hAD : cA (c.print (c.form t) d) 0 = cD d 0 :=
+      ((hXA.2 (c.print (c.form t) d)).1 d ⟨hdM, Or.inl rfl⟩).1 0 (by decide)
+    have hAE : cA (c.print (c.form t) d) 0 = cE d' 0 :=
+      ((hE_child.2 (c.print (c.form t) d)).1 d'
+        ((step2_eq_isPrintOf_congr c hE_form.symm d d' rfl _).1 ⟨hdM, Or.inl rfl⟩)).1 0 (by decide)
+    have hedge : c.edge (c.occ t d) = c.edge (c.occ t' d') :=
+      step2_eq_identU_inj c (hD0.symm.trans (hAD.symm.trans (hAE.trans hE0)))
+    rcases c.g1_edge_unique _ _ hin hin' hedge with h | h
+    · exact congrArg Sigma.fst h
+    · exfalso
+      obtain ⟨hne, hown', -⟩ := c.g1_partner _ hin
+      have hp1 : (c.partner (c.occ t d)).1 = t' := (congrArg Sigma.fst h).symm
+      rw [hp1] at hne hown'
+      have e1 : c.central (c.owner t') = t' := hE_cent
+      have e2 : c.central (c.owner t) = t := hcent
+      have hne' : t' ≠ t := hne
+      have hown'' : c.owner t' = c.owner t := hown'
+      exact hne' (e1.symm.trans ((congrArg c.central hown'').trans e2))
+  subst hEt
+  exact congrArg (DecTile.mk _) (step2_eq_cells c _ cD cE cA F hcent hnorm hXA hE_child hF_child)
+
 /-- Step 2 of the blueprint proof of `reconstructed_acyclic_legal_step6_main`:
 The parents `E, D` have the same form and agree in their marked first-four
 fields through `A`. A counting argument on the occurrences of `t` in their
@@ -3396,7 +3564,11 @@ private lemma reconstructed_acyclic_legal_step6_main_step2_eq {P : Protoset}
     (hF_nc : ¬ c.IsCentral F.typ)
     (hE_form : c.form E.typ = c.form (tileDec X).typ) :
     E = tileDec X := by
-  sorry
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hex
+  have _ := hcyc; have _ := hAleg; have _ := h_other_nc; have _ := h_other_cyc
+  have _ := hE_legal; have _ := hF_legal
+  exact step2_eq_core c (tileDec X) E A F hcent (hN X hX).1 (hN X hX).2.1 hXA hAtyp hown hE_child
+    hF_child hE_cent hF_nc hE_form
 
 /-- Step 6 of the blueprint proof of `reconstructed_acyclic_legal`:
 The central acyclic reconstructed parent is legal because its ancestry

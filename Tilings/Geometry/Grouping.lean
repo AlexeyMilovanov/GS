@@ -4231,7 +4231,48 @@ private lemma quantitativeAnnularGrouping_step2_band {M : MeshConstants P} {S : 
     {c : Pt} {N : ℕ} {R : ℝ} (G : AnnularGrouping M S.tiles c N R) (j : Fin (4 * N)) {x : Pt}
     (hx : x ∈ (G.spokes.piece j).carrier) :
     x ∈ square c ((N : ℝ) * R / 2 + R + 3 * M.D) ∧ x ∉ interior (square c ((N : ℝ) * R / 2)) := by
-  sorry
+  have hxfaces : x ∈ support (G.spokes.piece j).faces := by
+    rw [← (G.spokes.piece j).carrier_eq]
+    exact hx
+  obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hxfaces
+  have hAH : A ∈ G.H.faces := (G.spokes.piece_sub j hA).1
+  have hxH : x ∈ G.H.carrier := by
+    change x ∈ G.H.disk.carrier
+    rw [G.H.carrier_eq]
+    exact mem_support_iff'.2 ⟨A, hAH, hxA⟩
+  constructor
+  · rcases G.H_upper hxH with ⟨u, hu, v, hv, rfl⟩
+    refine ⟨?_, ?_⟩
+    · simp only [PiLp.add_apply]
+      calc
+        |u 0 + v 0 - c 0| = |(u 0 - c 0) + v 0| := by ring_nf
+        _ ≤ |u 0 - c 0| + |v 0| := abs_add_le _ _
+        _ ≤ (N : ℝ) * R / 2 + R + 3 * M.D := by
+          linarith [hu.1, hv.1]
+    · simp only [PiLp.add_apply]
+      calc
+        |u 1 + v 1 - c 1| = |(u 1 - c 1) + v 1| := by ring_nf
+        _ ≤ |u 1 - c 1| + |v 1| := abs_add_le _ _
+        _ ≤ (N : ℝ) * R / 2 + R + 3 * M.D := by
+          linarith [hu.2, hv.2]
+  · intro hxQ
+    have hxLint : x ∈ interior G.L.carrier := interior_mono G.L_lower hxQ
+    obtain ⟨ε, hε, hεL⟩ := Metric.isOpen_iff.1 isOpen_interior x hxLint
+    have hxAcl : x ∈ closure (interior A.carrier) := by
+      rw [tile_regular]
+      exact hxA
+    obtain ⟨y, hyball, hyA⟩ := mem_closure_iff.1 hxAcl (Metric.ball x ε)
+      Metric.isOpen_ball (Metric.mem_ball_self hε)
+    have hyL : y ∈ G.L.carrier := interior_subset (hεL hyball)
+    have hyLfaces : y ∈ support G.L.faces := by
+      rw [← G.L.carrier_eq]
+      exact hyL
+    obtain ⟨B, hB, hyB⟩ := mem_support_iff'.1 hyLfaces
+    by_cases hBA : B = A
+    · exact (G.spokes.piece_sub j hA).2 (hBA ▸ hB)
+    · exact interior_not_mem_other S.disjoint
+        ((G.spokes.piece j).faces_sub hA) (G.L.faces_sub hB)
+        (fun h : A = B => hBA h.symm) hyA hyB
 
 /-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping`: localization away from the
 tubes.  Blueprint: "Use the inside-anchored face at `u_j` to join it through that face's

@@ -1088,6 +1088,30 @@ private theorem strict_schedule_composition_step1_aligned {P : Protoset} {τ : S
     SchedulesAligned τ Sys.GS.G Sys.GS.k (Sys.dec.toDecoration.project T'') := by
   sorry
 
+/-- Step 1 of the blueprint proof of `strict_schedule_composition_step2_fine_sts`: `rule_proj`,
+`θ_eq` and `GroupedSubstitution.compat` show that decomposing the scattered projection of the
+coloured composition `T''` exactly `Sys.GS.k` times lands on the scattered projection of `T`
+(the coloured rule children of each tile of `T''`, scattered and projected, are precisely the
+`Sys.GS.k`-fold decomposition of that tile's scattered projection). -/
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce {P : Protoset}
+    {τ : Substitution P} (Sys : StrictScheduleSystem τ)
+    (T T'' : PlaneTiling Sys.dec.P') (hcomp : Sys.σc.IsComposition T'' T) :
+    τ.decomposeIter Sys.GS.k (Sys.GS.G.scatter (Sys.dec.toDecoration.project T'').tiles) =
+      Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts`: dissecting a
+proper strict coloured tiling preserves side-to-sideness. Within one grouped tile the dissect is
+STS by `hΔ` (the `j = 0` case); across two distinct tiles of the (side-to-side, by `hp`) projected
+tiling, the grouped family's `side_whole`/`vertex_retained` structure forces any overlap of
+dissect pieces to come from an overlap of the whole parent sides, which coincide. -/
+private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts {P : Protoset}
+    {τ : Substitution P} (Sys : StrictScheduleSystem τ)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles))
+    (T : PlaneTiling Sys.dec.P') (hp : Sys.dec.Proper T) :
+    SideToSideSet (Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `strict_schedule_composition`: the scattered projected
 composition is STS at the fine level (rule_proj, θ_eq, GroupedSubstitution.compat reduce it to T,
 then dissect preserves STS via hΔ). -/
@@ -1098,7 +1122,9 @@ private theorem strict_schedule_composition_step2_fine_sts {P : Protoset} {τ : 
     (hcomp : Sys.σc.IsComposition T'' T) :
     SideToSideSet (τ.decomposeIter Sys.GS.k
       (Sys.GS.G.scatter (Sys.dec.toDecoration.project T'').tiles)) := by
-  sorry
+  have _ := hτ
+  rw [strict_schedule_composition_step2_fine_sts_step1_reduce Sys T T'' hcomp]
+  exact strict_schedule_composition_step2_fine_sts_step2_dissect_sts Sys hΔ T hp
 
 /-- `lem:schedule-compose` (STS part): if a proper strict coloured tiling `T`
 is the decomposition of a coloured tiling `T''`, then the grouped parents of

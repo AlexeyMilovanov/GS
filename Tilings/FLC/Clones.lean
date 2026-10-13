@@ -3391,6 +3391,107 @@ private lemma refinedSubstitution_sts_step1_visible_vertices_aux_genuineCorners_
   rw [(P.disk D.form).frontier_eq]
   exact Set.mem_iUnion.mpr ⟨i, left_mem_segment ℝ _ _⟩
 
+/-- Step 1 of the blueprint proof of
+`refinedSubstitution_sts_step1_visible_vertices_step1_common_witness`: iterating the
+child-context realization gives one ambient original supertile and one translation for
+all clone tiles in the refined supertile. -/
+private lemma refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step1_common_context
+    (h : τ.FLC) (n : ℕ) (c : (cloneProtoset τ h).Form) :
+    ∃ (m : ℕ) (q : P.Form) (s : Pt),
+      ∀ A ∈ (refinedSubstitution τ h).supertile n c,
+        ∃ Ahat : PlacedTile P, Ahat ∈ τ.supertile m q ∧
+          Ahat.form = A.form.form ∧ A.anchor = s +ᵥ Ahat.anchor ∧
+          A.form.context = translateSet (-Ahat.anchor)
+            (neighbourhood (τ.supertile m q) Ahat) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`refinedSubstitution_sts_step1_visible_vertices_step1_common_witness`: once the
+ambient neighbourhood is identified, unfold the clone vertex set and translate it. -/
+private lemma refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step2_vertex_set
+    (h : τ.FLC) (m : ℕ) (q : P.Form) (s : Pt)
+    (A : PlacedTile (cloneProtoset τ h)) (Ahat : PlacedTile P)
+    (hform : Ahat.form = A.form.form)
+    (hanchor : A.anchor = s +ᵥ Ahat.anchor)
+    (hctx : A.form.context = translateSet (-Ahat.anchor)
+      (neighbourhood (τ.supertile m q) Ahat)) :
+    A.vertexSet = s +ᵥ (frontier Ahat.carrier ∩
+      ⋃ D ∈ neighbourhood (τ.supertile m q) Ahat, tileGenuineCorners D) := by
+  have hvertex : A.vertexSet = A.anchor +ᵥ (cloneDisk A.form).vertexSet := by
+    ext x
+    constructor
+    · rintro ⟨i, rfl⟩
+      exact ⟨(cloneDisk A.form).vertex i, ⟨i, rfl⟩, rfl⟩
+    · rintro ⟨y, ⟨i, rfl⟩, rfl⟩
+      exact ⟨i, rfl⟩
+  have hcorner_translate (v : Pt) (D : PlacedTile P) :
+      tileGenuineCorners (D.translate v) = v +ᵥ tileGenuineCorners D := by
+    change (v +ᵥ D.anchor) +ᵥ (P.disk D.form).genuineCorners =
+      v +ᵥ (D.anchor +ᵥ (P.disk D.form).genuineCorners)
+    rw [vadd_vadd]
+    rfl
+  have hunion_translate (v : Pt) (S : Set (PlacedTile P)) :
+      (⋃ B ∈ translateSet v S, tileGenuineCorners B) =
+        ⋃ D ∈ S, tileGenuineCorners (D.translate v) := by
+    ext x
+    simp only [translateSet, Set.mem_iUnion, Set.mem_image]
+    constructor
+    · rintro ⟨B, ⟨D, hD, rfl⟩, hx⟩
+      exact ⟨D, hD, hx⟩
+    · rintro ⟨D, hD, hx⟩
+      exact ⟨D.translate v, ⟨D, hD, rfl⟩, hx⟩
+  have hunion :
+      (⋃ B ∈ A.form.context, tileGenuineCorners B) =
+        -Ahat.anchor +ᵥ
+          (⋃ D ∈ neighbourhood (τ.supertile m q) Ahat, tileGenuineCorners D) := by
+    rw [hctx, hunion_translate]
+    simp only [hcorner_translate, Set.vadd_set_iUnion₂]
+  have hcornerUnion :
+      Ahat.anchor +ᵥ (⋃ B ∈ A.form.context, tileGenuineCorners B) =
+        ⋃ D ∈ neighbourhood (τ.supertile m q) Ahat, tileGenuineCorners D := by
+    rw [hunion]
+    ext x
+    simp only [mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add]
+    constructor <;> intro hx
+    · simpa [add_assoc] using hx
+    · simpa [add_assoc] using hx
+  have hfrontier :
+      Ahat.anchor +ᵥ frontier (P.disk A.form.form).carrier = frontier Ahat.carrier := by
+    change Ahat.anchor +ᵥ frontier (P.disk A.form.form).carrier =
+      frontier (Ahat.anchor +ᵥ (P.disk Ahat.form).carrier)
+    rw [hform, refinedSubstitution_sts_step1_visible_vertices_aux_frontier_vadd]
+  have hinter (v : Pt) (X Y : Set Pt) :
+      v +ᵥ (X ∩ Y) = (v +ᵥ X) ∩ (v +ᵥ Y) := by
+    ext x
+    constructor
+    · rintro ⟨z, ⟨hzX, hzY⟩, rfl⟩
+      exact ⟨⟨z, hzX, rfl⟩, ⟨z, hzY, rfl⟩⟩
+    · rintro ⟨⟨z, hzX, rfl⟩, ⟨w, hzY, hw⟩⟩
+      have hzw : z = w := by
+        simpa using (congrArg (fun y => -v +ᵥ y) hw).symm
+      subst hzw
+      exact ⟨z, ⟨hzX, hzY⟩, rfl⟩
+  calc
+    A.vertexSet = A.anchor +ᵥ (cloneDisk A.form).vertexSet := hvertex
+    _ = A.anchor +ᵥ (frontier (P.disk A.form.form).carrier ∩
+        ⋃ B ∈ A.form.context, tileGenuineCorners B) := by
+      rw [cloneDisk_vertexSet, cloneVertexSet]
+    _ = (A.anchor +ᵥ frontier (P.disk A.form.form).carrier) ∩
+        (A.anchor +ᵥ (⋃ B ∈ A.form.context, tileGenuineCorners B)) :=
+      hinter A.anchor _ _
+    _ = (s +ᵥ (Ahat.anchor +ᵥ frontier (P.disk A.form.form).carrier)) ∩
+        (s +ᵥ (Ahat.anchor +ᵥ (⋃ B ∈ A.form.context, tileGenuineCorners B))) := by
+      rw [hanchor, vadd_vadd]
+      congr 1
+      rw [vadd_vadd]
+      rw [vadd_eq_add]
+    _ = s +ᵥ ((Ahat.anchor +ᵥ frontier (P.disk A.form.form).carrier) ∩
+        (Ahat.anchor +ᵥ (⋃ B ∈ A.form.context, tileGenuineCorners B))) :=
+      (hinter s _ _).symm
+    _ = s +ᵥ (frontier Ahat.carrier ∩
+        ⋃ D ∈ neighbourhood (τ.supertile m q) Ahat, tileGenuineCorners D) := by
+      rw [hfrontier, hcornerUnion]
+
 /-- Step 1 of the blueprint proof of `refinedSubstitution_sts_step1_visible_vertices`:
 touching children have touching original parents, so the full one-ring context of a clone
 determines every child context; iterating the decomposition realizes a clone's own private
@@ -3404,7 +3505,15 @@ private lemma refinedSubstitution_sts_step1_visible_vertices_step1_common_witnes
         A.anchor = s +ᵥ Ahat.anchor ∧
         A.vertexSet = s +ᵥ (frontier Ahat.carrier ∩
           ⋃ D ∈ neighbourhood (τ.supertile m q) Ahat, tileGenuineCorners D) := by
-  sorry
+  obtain ⟨m, q, s, hwit⟩ :=
+    refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step1_common_context
+      τ h n c
+  refine ⟨m, q, s, ?_⟩
+  intro A hA
+  obtain ⟨Ahat, hAhat, hform, hanchor, hctx⟩ := hwit A hA
+  exact ⟨Ahat, hAhat, hform, hanchor,
+    refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step2_vertex_set
+      τ h m q s A Ahat hform hanchor hctx⟩
 
 /-- Step 1 of the blueprint proof of `refinedSubstitution_sts`: On overlapping sides
 of clone-supertile members, endpoints and further cuts are genuine vertices of underlying

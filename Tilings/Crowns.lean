@@ -3173,7 +3173,26 @@ private lemma distanceToReflexBoundaryRay_step2_min_quad_step1_acute_step2_eq (a
     (h_ang : InnerProductGeometry.angle a b ≤ Real.pi / 2) :
     ‖t • a - (t * Real.cos (InnerProductGeometry.angle a b)) • b‖ =
       t * Real.sin (InnerProductGeometry.angle a b) := by
-  sorry
+  set θ := InnerProductGeometry.angle a b
+  have hθ0 : 0 ≤ θ := InnerProductGeometry.angle_nonneg a b
+  have hθpi : θ ≤ Real.pi := InnerProductGeometry.angle_le_pi a b
+  have hcos : 0 ≤ Real.cos θ := Real.cos_nonneg_of_mem_Icc ⟨by
+    linarith [Real.pi_pos], h_ang⟩
+  have hsin : 0 ≤ Real.sin θ :=
+    Real.sin_nonneg_of_nonneg_of_le_pi hθ0 hθpi
+  have hinner : inner ℝ a b = Real.cos θ := by
+    simpa [ha, hb] using
+      (InnerProductGeometry.cos_angle_mul_norm_mul_norm a b).symm
+  have hsq := norm_sub_sq_real (t • a) ((t * Real.cos θ) • b)
+  rw [norm_smul, norm_smul, Real.norm_of_nonneg ht.le,
+    Real.norm_of_nonneg (mul_nonneg ht.le hcos), inner_smul_left,
+    inner_smul_right, hinner, ha, hb] at hsq
+  simp at hsq
+  have hsq' : ‖t • a - (t * Real.cos θ) • b‖ ^ 2 = (t * Real.sin θ) ^ 2 := by
+    nlinarith [Real.sin_sq_add_cos_sq θ]
+  have hnorm : 0 ≤ ‖t • a - (t * Real.cos θ) • b‖ := norm_nonneg _
+  have hright : 0 ≤ t * Real.sin θ := mul_nonneg ht.le hsin
+  nlinarith
 
 /-- Step 3 of the blueprint proof of `distanceToReflexBoundaryRay_step2_min_quad_step1_acute`: 
 the attained point is nonnegative. -/

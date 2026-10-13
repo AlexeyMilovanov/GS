@@ -2128,6 +2128,27 @@ theorem strict_reconstructed_header_eq (K : StrictBlock C hC) (hK : StrictBlockC
     rw [← hz]
     simp only [HeaderKernel.zeroMode, he]
 
+/-- Step 1 of the blueprint proof of `strict_path_and_print_recovery`: every nonprint
+third signal on a path equals the corresponding reconstructed parent cell. -/
+private theorem strict_path_and_print_recovery_step1_signals
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h) :
+    ∀ (d : C.Side h.1) (j : Fin 5) (o : C.SideOcc),
+      o ∈ C.path (C.form h.1) d j → ¬ C.IsPrint o →
+        K.col o.1 o.2 2 = (strictReconstruct C hC K h.1).cell d j := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_path_and_print_recovery`: the noncentral
+owner of each marked print carries the first four reconstructed parent cells. -/
+private theorem strict_path_and_print_recovery_step2_prints
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h) :
+    ∀ d : C.Side h.1, C.marked (C.form h.1) d → ∀ k : Fin 5, k ≠ 4 →
+      K.col (C.partner (C.printOcc (C.form h.1) d)).1
+          (C.partner (C.printOcc (C.form h.1) d)).2 k =
+        (strictReconstruct C hC K h.1).cell d k := by
+  sorry
+
 /-- `lem:comp/signals` (strict variant): every nonprint third signal on `P_i(d)` equals
 `D_i(d)`, and the noncentral (small) owner of the print of `d` has first four cells
 `D_1(d), …, D_4(d)` on that print. -/
@@ -2138,7 +2159,8 @@ theorem strict_path_and_print_recovery (K : StrictBlock C hC) (hK : StrictBlockC
     (∀ d : C.Side h.1, C.marked (C.form h.1) d → ∀ k : Fin 5, k ≠ 4 →
       K.col (C.partner (C.printOcc (C.form h.1) d)).1 (C.partner (C.printOcc (C.form h.1) d)).2 k =
         (strictReconstruct C hC K h.1).cell d k) := by
-  sorry
+  exact ⟨strict_path_and_print_recovery_step1_signals C hC K hK h hh,
+    strict_path_and_print_recovery_step2_prints C hC K hK h hh⟩
 
 /-- Step 1 of the blueprint proof of `strict_macroblock_is_decomposition`: every noncentral
 tile in the block has the required strict child colours of the reconstructed parent. -/

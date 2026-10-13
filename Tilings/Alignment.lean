@@ -1088,6 +1088,146 @@ private theorem strict_schedule_composition_step1_aligned {P : Protoset} {τ : S
     SchedulesAligned τ Sys.GS.G Sys.GS.k (Sys.dec.toDecoration.project T'') := by
   sorry
 
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_translate
+    (τ : Substitution P) (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S) := by
+  ext X
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    Set.mem_iUnion, Set.mem_image, PlacedTile.translate, exists_prop]
+  constructor
+  · rintro ⟨_, ⟨A, hA, rfl⟩, Y, hY, rfl⟩
+    refine ⟨⟨Y.form, τ.θ • A.anchor +ᵥ Y.anchor⟩,
+      ⟨A, hA, Y, hY, rfl⟩, ?_⟩
+    simp only [vadd_eq_add, smul_add, add_assoc]
+  · rintro ⟨_, ⟨A, hA, Y, hY, rfl⟩, rfl⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, Y, hY, ?_⟩
+    simp only [vadd_eq_add, smul_add, add_assoc]
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_iter_translate
+    (τ : Substitution P) (j : ℕ) (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decomposeIter j (translateSet v S) =
+      translateSet (τ.θ ^ j • v) (τ.decomposeIter j S) := by
+  induction j with
+  | zero => simp [Substitution.decomposeIter]
+  | succ j ih =>
+    show τ.decompose (τ.decomposeIter j (translateSet v S)) =
+      translateSet (τ.θ ^ (j + 1) • v) (τ.decompose (τ.decomposeIter j S))
+    rw [ih, strict_schedule_composition_step2_fine_sts_step1_reduce_translate,
+      smul_smul, pow_succ']
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_iUnion
+    (τ : Substitution P) (n : ℕ) (ι : Type) (S : ι → Set (PlacedTile P)) :
+    τ.decomposeIter n (⋃ i, S i) = ⋃ i, τ.decomposeIter n (S i) := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    change τ.decompose (τ.decomposeIter n (⋃ i, S i)) = _
+    rw [ih]
+    simp [Substitution.decompose, Substitution.decomposeIter, Set.mem_iUnion]
+    rw [iUnion_comm]
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_biUnion
+    (τ : Substitution P) (n : ℕ) {α : Type} (S : Set α)
+    (f : α → Set (PlacedTile P)) :
+    τ.decomposeIter n (⋃ A ∈ S, f A) =
+      ⋃ A ∈ S, τ.decomposeIter n (f A) := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    change τ.decompose (τ.decomposeIter n (⋃ A ∈ S, f A)) = _
+    rw [ih]
+    simp [Substitution.decompose, Substitution.decomposeIter, Set.mem_iUnion]
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_scatterTile
+    (τ : Substitution P) (G : GroupedFamily P) (k : ℕ) (A : PlacedTile G.P') :
+    τ.decomposeIter k (G.scatterTile A) =
+      translateSet (τ.θ ^ k • A.anchor)
+        (τ.decomposeIter k (G.dissect A.form).tiles) := by
+  exact strict_schedule_composition_step2_fine_sts_step1_reduce_iter_translate
+    τ k A.anchor (G.dissect A.form).tiles
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_scatter
+    (τ : Substitution P) (G : GroupedFamily P) (k : ℕ)
+    (S : Set (PlacedTile G.P')) :
+    τ.decomposeIter k (G.scatter S) =
+      ⋃ A ∈ S, translateSet (τ.θ ^ k • A.anchor)
+        (τ.decomposeIter k (G.dissect A.form).tiles) := by
+  rw [show G.scatter S = ⋃ A ∈ S, G.scatterTile A by rfl]
+  rw [strict_schedule_composition_step2_fine_sts_step1_reduce_biUnion]
+  congr 1
+  funext A
+  rw [strict_schedule_composition_step2_fine_sts_step1_reduce_scatterTile]
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_scatter_translate
+    (G : GroupedFamily P) (v : Pt) (S : Set (PlacedTile G.P')) :
+    G.scatter (translateSet v S) = translateSet v (G.scatter S) := by
+  ext Z
+  simp only [GroupedFamily.scatter, GroupedFamily.scatterTile, translateSet,
+    Set.mem_iUnion, Set.mem_image, PlacedTile.translate]
+  constructor
+  · rintro ⟨i, ⟨x, hx, rfl⟩, y, hy, rfl⟩
+    refine ⟨⟨y.form, x.anchor +ᵥ y.anchor⟩, ⟨x, hx, y, hy, rfl⟩, ?_⟩
+    simp only [vadd_eq_add, add_assoc]
+  · rintro ⟨z, ⟨i, hi, y, hy, rfl⟩, rfl⟩
+    refine ⟨⟨i.form, v +ᵥ i.anchor⟩, ⟨i, hi, rfl⟩, y, hy, ?_⟩
+    simp only [vadd_eq_add, add_assoc]
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_project_tile
+    {P : Protoset} {τ : Substitution P} (Sys : StrictScheduleSystem τ)
+    (X : PlacedTile Sys.dec.P') :
+    Sys.dec.toDecoration.projTile '' Sys.σc.decomposeTile X =
+      translateSet (Sys.σc.θ • X.anchor)
+        (Sys.dec.toDecoration.projTile '' (Sys.σc.rule X.form).tiles) := by
+  ext Z
+  simp only [Substitution.decomposeTile, translateSet, Set.mem_image,
+    PlacedTile.translate]
+  constructor
+  · rintro ⟨Y, ⟨B, hB, rfl⟩, rfl⟩
+    refine ⟨Sys.dec.toDecoration.projTile B, ⟨B, hB, rfl⟩, ?_⟩
+    rfl
+  · rintro ⟨Y, ⟨B, hB, rfl⟩, rfl⟩
+    refine ⟨⟨B.form, Sys.σc.θ • X.anchor +ᵥ B.anchor⟩,
+      ⟨B, hB, rfl⟩, rfl⟩
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_tile
+    {P : Protoset} {τ : Substitution P} (Sys : StrictScheduleSystem τ)
+    (X : PlacedTile Sys.dec.P') :
+    τ.decomposeIter Sys.GS.k (Sys.GS.G.scatter
+      ({Sys.dec.toDecoration.projTile X} : Set (PlacedTile Sys.GS.G.P'))) =
+      Sys.GS.G.scatter (Sys.dec.toDecoration.projTile ''
+        (Sys.σc.decomposeTile X)) := by
+  have hsingle : Sys.GS.G.scatter
+      ({Sys.dec.toDecoration.projTile X} : Set (PlacedTile Sys.GS.G.P')) =
+      Sys.GS.G.scatterTile (Sys.dec.toDecoration.projTile X) := by
+    ext Z
+    simp [GroupedFamily.scatter]
+  rw [hsingle, strict_schedule_composition_step2_fine_sts_step1_reduce_scatterTile]
+  have hchild : Sys.GS.G.scatter (Sys.dec.toDecoration.projTile ''
+      (Sys.σc.decomposeTile X)) =
+      translateSet (Sys.σc.θ • X.anchor)
+        (Sys.GS.G.scatter (Sys.GS.σ.rule (Sys.dec.proj X.form)).tiles) := by
+    rw [strict_schedule_composition_step2_fine_sts_step1_reduce_project_tile,
+      strict_schedule_composition_step2_fine_sts_step1_reduce_scatter_translate,
+      Sys.rule_proj]
+  rw [hchild]
+  rw [Sys.θ_eq, Sys.GS.θ_eq, Sys.GS.compat]
+  rfl
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_image
+    {P : Protoset} (G : GroupedFamily P) {α : Type}
+    (f : α → PlacedTile G.P') (S : Set α) :
+    G.scatter (f '' S) = ⋃ x ∈ S, G.scatter {f x} := by
+  ext Z
+  simp [GroupedFamily.scatter]
+
+private theorem strict_schedule_composition_step2_fine_sts_step1_reduce_image_biUnion
+    {P : Protoset} (G : GroupedFamily P) {α : Type}
+    (f : α → PlacedTile G.P') (S : Set α) (U : α → Set α) :
+    G.scatter (f '' (⋃ x ∈ S, U x)) =
+      ⋃ x ∈ S, G.scatter (f '' U x) := by
+  ext Z
+  simp [GroupedFamily.scatter]
+
 /-- Step 1 of the blueprint proof of `strict_schedule_composition_step2_fine_sts`: `rule_proj`,
 `θ_eq` and `GroupedSubstitution.compat` show that decomposing the scattered projection of the
 coloured composition `T''` exactly `Sys.GS.k` times lands on the scattered projection of `T`
@@ -1098,7 +1238,19 @@ private theorem strict_schedule_composition_step2_fine_sts_step1_reduce {P : Pro
     (T T'' : PlaneTiling Sys.dec.P') (hcomp : Sys.σc.IsComposition T'' T) :
     τ.decomposeIter Sys.GS.k (Sys.GS.G.scatter (Sys.dec.toDecoration.project T'').tiles) =
       Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles := by
-  sorry
+  change τ.decomposeIter Sys.GS.k
+      (Sys.GS.G.scatter (Sys.dec.toDecoration.projTile '' T''.tiles)) =
+    Sys.GS.G.scatter (Sys.dec.toDecoration.projTile '' T.tiles)
+  rw [strict_schedule_composition_step2_fine_sts_step1_reduce_image,
+    strict_schedule_composition_step2_fine_sts_step1_reduce_biUnion]
+  rw [← hcomp]
+  rw [show Sys.σc.decompose T''.tiles =
+      ⋃ X ∈ T''.tiles, Sys.σc.decomposeTile X by rfl]
+  rw [strict_schedule_composition_step2_fine_sts_step1_reduce_image_biUnion]
+  apply congrArg (fun F : PlacedTile Sys.dec.P' → Set (PlacedTile P) =>
+    ⋃ X ∈ T''.tiles, F X)
+  funext X
+  exact strict_schedule_composition_step2_fine_sts_step1_reduce_tile Sys X
 
 /-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts`: dissecting a
 proper strict coloured tiling preserves side-to-sideness. Within one grouped tile the dissect is

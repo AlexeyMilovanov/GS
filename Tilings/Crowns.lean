@@ -506,7 +506,72 @@ def SectorRadiusProperty (𝒞 : Set (Set (PlacedTile P))) (r δ : ℝ) : Prop :
 uniform radius `r_* > 0`. -/
 private lemma uniformSectorRadius_step2_catalogue_radius {𝒞 : Set (Set (PlacedTile P))}
     (h𝒞 : IsCatalogue 𝒞) : ∃ r : ℝ, 0 < r ∧ ∀ K ∈ 𝒞, ∀ A ∈ K,
-      A.carrier ∩ ball (0 : Pt) r = localCone A.carrier 0 ∩ ball (0 : Pt) r := by sorry
+      A.carrier ∩ ball (0 : Pt) r = localCone A.carrier 0 ∩ ball (0 : Pt) r := by
+  let S : Set (PlacedTile P) := ⋃ K ∈ 𝒞, K
+  have hS_fin : S.Finite :=
+    Set.Finite.biUnion h𝒞.1 (fun K hK => (h𝒞.2 K hK).1)
+  have H : ∀ A ∈ S, ∃ r : ℝ, 0 < r ∧
+      A.carrier ∩ ball (0 : Pt) r =
+        localCone A.carrier 0 ∩ ball (0 : Pt) r := by
+    intro A hA
+    rw [Set.mem_iUnion₂] at hA
+    rcases hA with ⟨K, hK, hAK⟩
+    have hA0 : (0 : Pt) ∈ A.carrier := h𝒞.2 K hK |>.2 A hAK
+    exact polygonLocalCone_tile A hA0
+  choose f hf1 hf2 using H
+  by_cases hS : S.Nonempty
+  · let fs := hS_fin.toFinset
+    have hfs : fs.Nonempty := by
+      rwa [Set.Finite.toFinset_nonempty]
+    let f' (A : fs) : ℝ :=
+      f A.val (Set.Finite.mem_toFinset hS_fin |>.mp A.property)
+    have hf'_pos : ∀ A : fs, 0 < f' A := fun A => hf1 A.val _
+    use fs.attach.inf' (Finset.attach_nonempty_iff.mpr hfs) f'
+    constructor
+    · apply (Finset.lt_inf'_iff _).mpr
+      intro a _
+      exact hf'_pos a
+    · intro K hK A hA
+      have hAS : A ∈ S := Set.mem_iUnion₂.mpr ⟨K, hK, hA⟩
+      have hAfs : A ∈ fs :=
+        Set.Finite.mem_toFinset hS_fin |>.mpr hAS
+      have hle :
+          fs.attach.inf' (Finset.attach_nonempty_iff.mpr hfs) f' ≤
+            f A hAS := by
+        have Hmem : (⟨A, hAfs⟩ : fs) ∈ fs.attach :=
+          Finset.mem_attach _ _
+        exact Finset.inf'_le _ Hmem
+      have H2 : A.carrier ∩ ball (0 : Pt) (f A hAS) =
+          localCone A.carrier 0 ∩ ball (0 : Pt) (f A hAS) :=
+        hf2 A hAS
+      have H3 :
+          ball (0 : Pt)
+              (fs.attach.inf' (Finset.attach_nonempty_iff.mpr hfs) f') ⊆
+            ball (0 : Pt) (f A hAS) :=
+        ball_subset_ball hle
+      ext x
+      constructor
+      · rintro ⟨hx1, hx2⟩
+        have hx_in_big :
+            x ∈ A.carrier ∩ ball (0 : Pt) (f A hAS) :=
+          ⟨hx1, H3 hx2⟩
+        rw [H2] at hx_in_big
+        exact ⟨hx_in_big.1, hx2⟩
+      · rintro ⟨hx1, hx2⟩
+        have hx_in_big :
+            x ∈ localCone A.carrier 0 ∩ ball (0 : Pt) (f A hAS) :=
+          ⟨hx1, H3 hx2⟩
+        rw [← H2] at hx_in_big
+        exact ⟨hx_in_big.1, hx2⟩
+  · use 1
+    constructor
+    · linarith
+    · intro K hK A hA
+      exfalso
+      apply hS
+      use A
+      rw [Set.mem_iUnion₂]
+      exact ⟨K, hK, hA⟩
 
 /-- Step 3 of the blueprint proof of `uniformSectorRadius`: For a finite catalogue, there is a
 uniform vertex separation `δ_* > 0`. -/

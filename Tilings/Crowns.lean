@@ -5211,6 +5211,14 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step3_cover
   rcases h_cover (seq k) (hcrown k) S hS_bound hS_diam with ⟨v, hv, h_subset⟩
   exact ⟨v, hv, h_subset⟩
 
+/-- Step 1 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp`:
+The support of `k` iterations of decomposition on a set of tiles `S`
+is the support of `S` scaled by `θ^k`. -/
+private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter
+    (τ : Substitution P) (k : ℕ) (S : Set (PlacedTile P)) :
+    support (τ.decomposeIter k S) = τ.θ ^ k • support S := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 Because the inverse-scaled support of `F` is covered by a crown of `seq k`,
 the actual support of `F` is covered by the support of the descendant patch `τ^{km} C`. -/
@@ -5221,7 +5229,24 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
     (w : Pt) (hw : IsVertexOf (seq k).tiles w)
     (h_cover : (fun x => (τ.θ ^ (k * m))⁻¹ • x) '' support F ⊆ support (crown (seq k).tiles w)) :
     support F ⊆ support (τ.decomposeIter (k * m) (crown (seq k).tiles w)) := by
-  sorry
+  have _ := hseq
+  have _ := hF
+  have _ := hw
+  intro x hx
+  have h1 : (τ.θ ^ (k * m))⁻¹ • x ∈ support (crown (seq k).tiles w) := by
+    apply h_cover
+    exact Set.mem_image_of_mem _ hx
+  rw [allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp_iter]
+  use (τ.θ ^ (k * m))⁻¹ • x
+  constructor
+  · exact h1
+  · dsimp only
+    rw [smul_smul, mul_inv_cancel₀, one_smul]
+    have := τ.one_lt
+    positivity
+
+#print axioms allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
+
 
 /-- Step 5 of the blueprint proof of `allowed_crowns_hierarchy_is_substitutive_step1_radius`:
 Coverage by the descendants and disjoint interiors give actual tile inclusion,

@@ -402,6 +402,32 @@ private lemma headerLegal_properties_step2_normal_id (c : MacroCertificate P) (h
     headerLegal_properties_step2_normal_id_step2_identity c A (ch 1) h_succ_0'⟩
 
 
+/-- Helper for `headerLegal_properties_step3_child_step1_zero`: a copied cell of a child equals
+the corresponding source cell of the parent. -/
+private lemma headerLegal_properties_step3_child_step1_zero_aux_copy (c : MacroCertificate P)
+    (A B : DecTile c) (hB : IsChildOf c A B)
+    (i : c.Side B.typ) (k : Fin 5) (p : c.Side A.typ × Fin 5)
+    (hp : p ∈ copySource c (c.form A.typ) (c.occ B.typ i) k) :
+    B.cell i k = A.cell p.1 p.2 := by
+  obtain ⟨_, hi⟩ := hB
+  obtain ⟨hprint, hnonprint⟩ := hi i
+  rcases hp with ⟨hpr, hk4, hp2⟩ | ⟨hnp, hk2, hpath⟩
+  · obtain ⟨hall, _⟩ := hprint p.1 hpr
+    rw [hall k hk4, hp2]
+  · subst hk2
+    obtain ⟨_, _, _, hpatheq, _, _, _, _⟩ := hnonprint hnp
+    exact hpatheq p.1 p.2 hpath
+
+/-- Helper for `headerLegal_properties_step3_child_step1_zero`: prepending a first tile to a
+chain shifts origins of the tail chain into origins of the new chain. -/
+private lemma headerLegal_properties_step3_child_step1_zero_aux_shift (c : MacroCertificate P)
+    (D0 : DecTile c) (ch : ℕ → DecTile c) (m : ℕ)
+    (j : c.Side (ch m).typ) (l : Fin 5) (h_orig : HasOrigin c ch m j l) :
+    HasOrigin c (fun n => match n with | 0 => D0 | n + 1 => ch n) (m + 1) j l := by
+  induction h_orig with
+  | origin m' j' l' h_eq => exact HasOrigin.origin _ _ _ h_eq
+  | step m' j' l' d l'' h_mem h_orig' ih => exact HasOrigin.step _ _ _ _ _ h_mem ih
+
 /-- Step 1 of the blueprint proof of `headerLegal_properties_step3_child`: A copied cell in the
 new first tile either reaches an origin there, or reaches the corresponding parent cell. If the
 source chain is infinite, the parent's legality forces its value, and hence the child's value, to
@@ -416,7 +442,22 @@ private lemma headerLegal_properties_step3_child_step1_zero (c : MacroCertificat
       (copySource c (c.form (ch 0).typ) (c.occ B.typ i) k).Nonempty →
       ¬ HasOrigin c (fun n => match n with | 0 => B | n + 1 => ch n) 0 i k →
       B.cell i k = 0 := by
-  sorry
+  have _ := hH
+  subst hch0
+  intro i k hcs hno
+  obtain ⟨p, hp⟩ := hcs
+  have hno1 : ¬ HasOrigin c (fun n => match n with | 0 => B | n + 1 => ch n) 1 p.1 p.2 := by
+    intro h
+    exact hno (HasOrigin.step (ch := fun n => match n with | 0 => B | n + 1 => ch n) 0 i k
+      p.1 p.2 hp h)
+  have hno0 : ¬ HasOrigin c ch 0 p.1 p.2 := fun h =>
+    hno1 (headerLegal_properties_step3_child_step1_zero_aux_shift c B ch 0 p.1 p.2 h)
+  have hcell_eq : B.cell i k = (ch 0).cell p.1 p.2 :=
+    headerLegal_properties_step3_child_step1_zero_aux_copy c (ch 0) B hB i k p hp
+  rw [hcell_eq]
+  by_cases hNE : (copySource c (c.form (ch 1).typ) (c.occ (ch 0).typ p.1) p.2).Nonempty
+  · exact hch_orig 0 p.1 p.2 hNE hno0
+  · exact absurd (HasOrigin.origin (ch := ch) 0 p.1 p.2 (Set.not_nonempty_iff_eq_empty.mp hNE)) hno0
 
 /-- Step 3 of the blueprint proof of `headerLegal_properties`: every child of a legal parent is
 legal. -/

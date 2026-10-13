@@ -5496,6 +5496,71 @@ private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step2_convex
   exact noShortExteriorExcursion (rootSeparationConstants P) hd M hHconv hHbound
     (lt_min (hHdiam.trans_le hε_lam) (hHdiam.trans_le hε_sin)) hfar
 
+/-! The remaining local argument is split into the exit-point construction and the
+endpoint observation for the two tiles at that exit. -/
+
+/-- Step 0 of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover`: a
+macro patch has at least one listed child vertex. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step0_vertex
+    (M : MacroPatch P) : ∃ v, IsVertexOf M.tiles v := by
+  have hroot : (P.disk M.root).carrier.Nonempty :=
+    (P.disk M.root).interior_nonempty.mono interior_subset
+  obtain ⟨x, hx⟩ := hroot
+  have hsupp : (support M.tiles).Nonempty := by
+    rw [M.support_eq]
+    refine ⟨M.offset + (M.θ ^ M.j) • x, ?_⟩
+    rw [mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add]
+    refine Set.mem_smul_set.mpr ⟨x, hx, ?_⟩
+    abel
+  obtain ⟨v, hv⟩ := hsupp
+  rw [support, mem_iUnion₂] at hv
+  obtain ⟨A, hA, -⟩ := hv
+  let i : Fin (P.disk A.form).n :=
+    ⟨0, by have := (P.disk A.form).three_le; omega⟩
+  exact ⟨A.vertex i, A, hA, ⟨i, rfl⟩⟩
+
+/-- Step 1 of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover`: if a
+nonempty convex far region is not contained in one tile, an exit point lies in
+the relative interiors of two collinear tile sides, with all four endpoints
+still far away. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit
+    (M : MacroPatch P) {W : Set Pt} {d : ℝ}
+    (hWconv : Convex ℝ W) (hWnonempty : W.Nonempty)
+    (hWsub : W ⊆ support M.tiles)
+    (hNoTile : ∀ A ∈ M.tiles, ¬ W ⊆ A.carrier) (hd : 0 < d)
+    (hfar : ∀ x ∈ W, ∀ v, IsVertexOf M.tiles v → d / 2 ≤ dist x v) :
+    ∃ A B i j e, A ∈ M.tiles ∧ B ∈ M.tiles ∧
+      Disjoint (interior A.carrier) (interior B.carrier) ∧ e ∈ W ∧
+      e ∈ A.side i ∧ e ∈ B.side j ∧
+      Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+        B.vertex j, B.vertex (finRotate _ j)} : Set Pt) ∧
+      d / 2 ≤ dist e (A.vertex i) ∧
+      d / 2 ≤ dist e (A.vertex (finRotate _ i)) ∧
+      d / 2 ≤ dist e (B.vertex j) ∧
+      d / 2 ≤ dist e (B.vertex (finRotate _ j)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover`: an
+edge crossing supplied by Step 1 has an endpoint whose full patch crown
+contains both incident tiles. -/
+private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step2_endpoint
+    (M : MacroPatch P) {A B : PlacedTile P} {d : ℝ}
+    (hA : A ∈ M.tiles) (hB : B ∈ M.tiles)
+    (hdisj : Disjoint (interior A.carrier) (interior B.carrier))
+    {i : Fin (P.disk A.form).n} {j : Fin (P.disk B.form).n} {e : Pt}
+    (hei : e ∈ A.side i) (hej : e ∈ B.side j)
+    (hcol : Collinear ℝ ({A.vertex i, A.vertex (finRotate _ i),
+      B.vertex j, B.vertex (finRotate _ j)} : Set Pt))
+    (hAi : d / 2 ≤ dist e (A.vertex i))
+    (hArot : d / 2 ≤ dist e (A.vertex (finRotate _ i)))
+    (hBj : d / 2 ≤ dist e (B.vertex j))
+    (hBrot : d / 2 ≤ dist e (B.vertex (finRotate _ j))) :
+    ∃ v, IsVertexOf M.tiles v ∧ A ∈ crown M.tiles v ∧ B ∈ crown M.tiles v := by
+  sorry
+
 /-- Step 3 of the blueprint proof of
 `uniformCrownCoverSupertile_step3_epsilon_and_case2`: after convexification and
 the exterior-excursion step, the trimmed two-tile argument selects one full
@@ -5523,7 +5588,63 @@ private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cov
     (hHregion : Convex ℝ (H ∩ support M.tiles)) :
     ∃ v, IsVertexOf M.tiles v ∧
       H ∩ support M.tiles ⊆ support (crown M.tiles v) := by
-  sorry
+  have _ := h𝒞
+  have _ := hr
+  have _ := hδ
+  have _ := hrδ
+  have _ := hη
+  have _ := hM
+  have _ := hHconv
+  obtain ⟨v₀, hv₀⟩ :=
+    uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step0_vertex M
+  let W : Set Pt := H ∩ support M.tiles
+  by_cases hW : W.Nonempty
+  · have hWconv : Convex ℝ W := by
+      simpa [W] using hHregion
+    have hWsub : W ⊆ support M.tiles := fun x hx => hx.2
+    by_cases htile : ∃ A ∈ M.tiles, W ⊆ A.carrier
+    · obtain ⟨A, hA, hWA⟩ := htile
+      let i : Fin (P.disk A.form).n :=
+        ⟨0, by have := (P.disk A.form).three_le; omega⟩
+      let v := A.vertex i
+      have hvA : v ∈ A.vertexSet := by
+        exact ⟨i, rfl⟩
+      have hv : IsVertexOf M.tiles v := ⟨A, hA, hvA⟩
+      refine ⟨v, hv, ?_⟩
+      intro x hx
+      have hxA : x ∈ A.carrier := hWA hx
+      rw [support, mem_iUnion₂]
+      exact ⟨A, ⟨hA, gap_vertex_mem_carrier A hvA⟩, hxA⟩
+    · have hNoTile : ∀ A ∈ M.tiles, ¬ W ⊆ A.carrier := by
+        intro A hA hWA
+        exact htile ⟨A, hA, hWA⟩
+      have hfarW : ∀ x ∈ W, ∀ v, IsVertexOf M.tiles v →
+          d / 2 ≤ dist x v := by
+        intro x hx v hv
+        exact hfar x hx.1 v hv
+      obtain ⟨A, B, i, j, e, hA, hB, hdisj, heW, hei, hej, hcol,
+          hAi, hArot, hBj, hBrot⟩ :=
+        uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step1_exit
+          M hWconv hW hWsub hNoTile hd hfarW
+      obtain ⟨v, hv, hAcrown, hBcrown⟩ :=
+        uniformCrownCoverSupertile_step3_epsilon_and_case2_step3_crown_cover_step2_endpoint
+          M hA hB hdisj hei hej hcol hAi hArot hBj hBrot
+      have hball : ball e η ⊆ A.carrier ∪ B.carrier :=
+        hη_ball A B hdisj i j e hei hej hcol hAi hArot hBj hBrot
+      have hWball : W ⊆ ball e η := by
+        intro x hx
+        have hxe : dist x e ≤ diam H := dist_le_diam_of_mem hHbound hx.1 heW.1
+        exact mem_ball.mpr (hxe.trans_lt hHdiam)
+      refine ⟨v, hv, ?_⟩
+      intro x hx
+      have hxAB : x ∈ A.carrier ∪ B.carrier := hball (hWball ⟨hx.1, hx.2⟩)
+      rw [support, mem_iUnion₂]
+      rcases hxAB with hxA | hxB
+      · exact ⟨A, hAcrown, hxA⟩
+      · exact ⟨B, hBcrown, hxB⟩
+  · refine ⟨v₀, hv₀, ?_⟩
+    intro x hx
+    exact False.elim (hW ⟨x, hx⟩)
 
 /-- Step 3 of the blueprint proof of `uniformCrownCoverSupertile`: convex hull stays far. -/
 private lemma uniformCrownCoverSupertile_step3_epsilon_and_case2

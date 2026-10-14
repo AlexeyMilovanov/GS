@@ -16822,7 +16822,130 @@ private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step3_square_cl
     (hx' : x ∉ interior (square c A)) (hxy : dist x y ≤ 5 * D) :
     ∃ μ ∈ Icc (1 : ℝ) ((A + R + 3 * D) / A),
       dist x (c + μ • v) ≤ 13 * D := by
-  sorry
+  classical
+  have hR0 : 0 < R := by nlinarith
+  have hDnonneg : 0 ≤ D := by linarith only [hD, hx.1]
+  have hDnonneg' : 0 ≤ D := by
+    by_cases hinside : x ∈ interior (square c A)
+    · exact (hx' hinside).elim
+    · linarith
+  have _ := hvb
+  obtain ⟨t, ht0, ht1, hty⟩ := mem_segment_iff'.1 hy
+  let s : ℝ := (A - 3 * D) / A + t * ((R + 9 * D) / A)
+  let xMarker : ℝ := if _h : x ∈ square c (A + R + 3 * D) then 0 else 0
+  have hxMarker : xMarker = 0 := by simp [xMarker, hx]
+  have hty' : y = c + s • v := by
+    rw [hty]
+    calc
+      c + ((A - 3 * D) / A) • v + t •
+          ((c + ((A + R + 6 * D) / A) • v) -
+            (c + ((A - 3 * D) / A) • v)) =
+          c + (((A - 3 * D) / A) + t *
+            (((A + R + 6 * D) / A) - ((A - 3 * D) / A))) • v := by module
+      _ = c + (s + xMarker) • v := by
+        congr 2
+        rw [hxMarker]
+        dsimp [s]
+        ring
+      _ = c + s • v := by rw [hxMarker]; simp
+  have hcoef : 0 ≤ (R + 9 * D) / A := by
+    apply div_nonneg
+    · linarith only [hR0, hDnonneg, hDnonneg']
+    · exact hA.le
+  have hs_lower : 1 - 3 * D / A ≤ s := by
+    have hmul : 0 ≤ t * ((R + 9 * D) / A) := mul_nonneg ht0 hcoef
+    have hident : (A - 3 * D) / A = 1 - 3 * D / A := by
+      field_simp [ne_of_gt hA]
+    dsimp [s]
+    rw [hident]
+    linarith only [hmul]
+  have hs_upper : s ≤ (A + R + 3 * D) / A + 3 * D / A := by
+    have hmul : t * ((R + 9 * D) / A) ≤ (R + 9 * D) / A := by
+      have hnonneg : 0 ≤ (1 - t) * ((R + 9 * D) / A) :=
+        mul_nonneg (sub_nonneg.mpr ht1) hcoef
+      linarith only [hnonneg]
+    have hident : (A - 3 * D) / A + (R + 9 * D) / A =
+        (A + R + 6 * D) / A := by ring
+    dsimp [s]
+    rw [show (A + R + 3 * D) / A + 3 * D / A =
+      (A + R + 6 * D) / A by ring]
+    rw [← hident]
+    linarith only [hmul]
+  have hU : 1 ≤ (A + R + 3 * D) / A := by
+    have : 0 ≤ R + 3 * D := by linarith
+    field_simp [ne_of_gt hA]
+    linarith only [this]
+  have hvnorm : ‖v‖ ≤ 2 * A := by
+    have hv0lo : -A ≤ v 0 := (abs_le.mp hv.1).1
+    have hv0hi : v 0 ≤ A := (abs_le.mp hv.1).2
+    have hv1lo : -A ≤ v 1 := (abs_le.mp hv.2).1
+    have hv1hi : v 1 ≤ A := (abs_le.mp hv.2).2
+    have hp0 : 0 ≤ (A - v 0) * (A + v 0) :=
+      mul_nonneg (sub_nonneg.mpr hv0hi) (by linarith)
+    have hp1 : 0 ≤ (A - v 1) * (A + v 1) :=
+      mul_nonneg (sub_nonneg.mpr hv1hi) (by linarith)
+    have hn := norm_sq_pt v
+    have hnsq : ‖v‖ ^ 2 ≤ 2 * A ^ 2 := by
+      nlinarith only [hn, hp0, hp1]
+    by_contra hnot
+    have hgt : 2 * A < ‖v‖ := lt_of_not_ge hnot
+    have hprod : 0 < (‖v‖ - 2 * A) * (‖v‖ + 2 * A) :=
+      mul_pos (sub_pos.mpr hgt) (by positivity)
+    nlinarith only [hnsq, hprod]
+  by_cases hlow : s < 1
+  · refine ⟨1, ⟨le_rfl, hU⟩, ?_⟩
+    have hs_nonneg : 0 ≤ 1 - s := by linarith
+    have hs_clip : 1 - s ≤ 3 * D / A := by linarith [hs_lower]
+    have hscale : (1 - s) * A ≤ 3 * D := by
+      have h := mul_le_mul_of_nonneg_right hs_clip hA.le
+      calc
+        (1 - s) * A ≤ (3 * D / A) * A := h
+        _ = 3 * D := by field_simp [ne_of_gt hA]
+    have hdisp : dist y (c + (1 : ℝ) • v) ≤ 6 * D := by
+      calc
+        dist y (c + (1 : ℝ) • v) = (1 - s) * ‖v‖ := by
+          rw [hty', dist_eq_norm,
+            show c + s • v - (c + (1 : ℝ) • v) = (s - 1) • v by module,
+            norm_smul, Real.norm_eq_abs, abs_of_nonpos (by linarith)]
+          ring
+        _ ≤ (1 - s) * (2 * A) := mul_le_mul_of_nonneg_left hvnorm hs_nonneg
+        _ = 2 * ((1 - s) * A) := by ring
+        _ ≤ 6 * D := by nlinarith only [hscale]
+    calc
+      dist x (c + (1 : ℝ) • v) ≤ dist x y + dist y (c + (1 : ℝ) • v) :=
+        dist_triangle _ _ _
+      _ ≤ 5 * D + 6 * D := add_le_add hxy hdisp
+      _ ≤ 13 * D := by linarith only [hD]
+  · by_cases hupper : (A + R + 3 * D) / A < s
+    · refine ⟨(A + R + 3 * D) / A, ⟨hU, le_rfl⟩, ?_⟩
+      have hs_nonneg : 0 ≤ s - (A + R + 3 * D) / A := by linarith
+      have hs_clip : s - (A + R + 3 * D) / A ≤ 3 * D / A := by
+        linarith only [hs_upper]
+      have hscale : (s - (A + R + 3 * D) / A) * A ≤ 3 * D := by
+        have h := mul_le_mul_of_nonneg_right hs_clip hA.le
+        calc
+          (s - (A + R + 3 * D) / A) * A ≤ (3 * D / A) * A := h
+          _ = 3 * D := by field_simp [ne_of_gt hA]
+      have hdisp : dist y (c + ((A + R + 3 * D) / A) • v) ≤ 6 * D := by
+        calc
+          dist y (c + ((A + R + 3 * D) / A) • v) =
+              (s - (A + R + 3 * D) / A) * ‖v‖ := by
+            rw [hty', dist_eq_norm,
+              show c + s • v - (c + ((A + R + 3 * D) / A) • v) =
+                (s - (A + R + 3 * D) / A) • v by module,
+              norm_smul, Real.norm_eq_abs, abs_of_nonneg hs_nonneg]
+          _ ≤ (s - (A + R + 3 * D) / A) * (2 * A) :=
+            mul_le_mul_of_nonneg_left hvnorm hs_nonneg
+          _ = 2 * ((s - (A + R + 3 * D) / A) * A) := by ring
+          _ ≤ 6 * D := by nlinarith only [hscale]
+      calc
+        dist x (c + ((A + R + 3 * D) / A) • v) ≤ dist x y +
+            dist y (c + ((A + R + 3 * D) / A) • v) := dist_triangle _ _ _
+        _ ≤ 5 * D + 6 * D := add_le_add hxy hdisp
+        _ ≤ 13 * D := by linarith only [hD]
+    · refine ⟨s, ⟨by linarith only [hlow], by linarith only [hupper, hs_upper]⟩, ?_⟩
+      rw [← hty']
+      exact hxy.trans (by linarith only [hD])
 
 /-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_step4_tubes`: clipping.
 Blueprint: "If `x` lies in one of the tubes, clip its nearest radial-line point to the segment

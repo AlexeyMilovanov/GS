@@ -5731,6 +5731,61 @@ private lemma alignment_complete_step2_subdivision_eq_step1_length_step3_not_sho
   subst heq
   exact le_rfl
 
+private lemma alignment_complete_step2_subdivision_eq_step1_length_step4_not_longer_alternative_aux
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K K' : ColouredBlock c) (d : Fin (c.Q.disk K.α).n)
+    (e : Fin (c.Q.disk K'.α).n) (o : c.SideOcc)
+    (ho : o ∈ c.outerList K.α d)
+    (hmacro : K'.macroSide e = K.macroSide d) :
+    ∃ o' ∈ c.outerList K'.α e, ∃ P Q : Pt, P ≠ Q ∧
+      P ∈ K.childSide o ∧ P ∈ K'.childSide o' ∧
+      Q ∈ K.childSide o ∧ Q ∈ K'.childSide o' := by
+  classical
+  have hcover : K.childSide o ⊆ ⋃ o' ∈ c.outerList K'.α e, K'.childSide o' := by
+    intro x hx
+    have hsub := ((c.g3_outerList_mem K.α d o).1 ho).2.2
+    rw [ac2_childSide_vadd] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    have hy' : y ∈ c.macroSide K.α d := hsub hy
+    have hx' : K.v +ᵥ y ∈ K'.macroSide e := by
+      rw [hmacro]
+      exact Set.vadd_mem_vadd_set hy'
+    rw [alignment_complete_step1_macroside_eq_step4_endpoints_step1_union c hH K' e] at hx'
+    exact hx'
+  have hnon : ∃ o' ∈ c.outerList K'.α e,
+      ¬ (K.childSide o ∩ K'.childSide o').Subsingleton := by
+    by_contra h
+    have hnone : ∀ o' ∈ c.outerList K'.α e,
+        (K.childSide o ∩ K'.childSide o').Subsingleton := by
+      intro o' ho'
+      by_contra hns
+      exact h ⟨o', ho', hns⟩
+    have hfin : (K.childSide o).Finite := by
+      have hfin' :
+          (⋃ o' ∈ (c.outerList K'.α e).toFinset,
+            K.childSide o ∩ K'.childSide o').Finite := by
+        have hI :
+            ((c.outerList K'.α e).toFinset : Set c.SideOcc).Finite :=
+          Finset.finite_toSet _
+        refine hI.biUnion' ?_
+        intro o' ho'
+        exact (hnone o' (List.mem_toFinset.mp ho')).finite
+      apply hfin'.subset
+      intro x hx
+      have hx' := hcover hx
+      simp only [Set.mem_iUnion] at hx'
+      obtain ⟨o', ho', hxo'⟩ := hx'
+      exact Set.mem_iUnion.2 ⟨o', Set.mem_iUnion.2 ⟨
+        List.mem_toFinset.mpr ho', ⟨hx, hxo'⟩⟩⟩
+    apply hfin.not_infinite
+    rw [ac2_childSide_eq]
+    exact ac2_segment_infinite (by
+      intro hEq
+      exact ac2_occ_ends_ne c o (add_left_cancel hEq))
+  obtain ⟨o', ho', hns⟩ := hnon
+  obtain ⟨P, hP, Q, hQ, hPQ⟩ := Set.not_subsingleton_iff.mp hns
+  exact ⟨o', ho', P, Q, hPQ, hP.1, hP.2, hQ.1, hQ.2⟩
+
 /-- Step 4 of the blueprint proof of
 `alignment_complete_step2_subdivision_eq_step1_length`: At the other endpoint,
 the alternative opposing macroside cannot extend beyond the traced subdivision. -/
@@ -5753,7 +5808,111 @@ private lemma alignment_complete_step2_subdivision_eq_step1_length_step4_not_lon
     (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
     (c.outerList (part.block j').α e).length ≤
       (c.outerList (part.block j).α d).length := by
-  sorry
+  classical
+  have _ := hmacro₁
+  by_cases hjj : j' = j₁
+  · subst j'
+    have he : e = e₁ := by
+      by_contra hene
+      have hEq : (part.block j₁).macroSide e = (part.block j₁).macroSide e₁ :=
+        hmacro.trans hmacro₁.symm
+      have hsub : c.macroSide (part.block j₁).α e ⊆
+          c.macroSide (part.block j₁).α e₁ := by
+        intro x hx
+        have hx' : (part.block j₁).v +ᵥ x ∈ (part.block j₁).macroSide e := by
+          change (part.block j₁).v +ᵥ x ∈
+            (part.block j₁).v +ᵥ c.macroSide (part.block j₁).α e
+          exact Set.vadd_mem_vadd_set hx
+        rw [hEq] at hx'
+        change (part.block j₁).v +ᵥ x ∈
+          (part.block j₁).v +ᵥ c.macroSide (part.block j₁).α e₁ at hx'
+        exact Set.vadd_mem_vadd_set_iff.mp hx'
+      have hfin :
+          (c.macroSide (part.block j₁).α e ∩
+            c.macroSide (part.block j₁).α e₁).Finite := by
+        have hfin0 :
+            ((c.Q.disk (part.block j₁).α).side e ∩
+              (c.Q.disk (part.block j₁).α).side e₁).Finite :=
+          (Set.toFinite _).subset
+            ((c.Q.disk (part.block j₁).α).simple e e₁ hene)
+        have hfin1 :
+            (c.σ.θ • ((c.Q.disk (part.block j₁).α).side e ∩
+              (c.Q.disk (part.block j₁).α).side e₁)).Finite :=
+          hfin0.smul_set
+        rw [Set.smul_set_inter₀ (ac2_theta_ne c)] at hfin1
+        exact hfin1
+      have hinf : (c.macroSide (part.block j₁).α e).Infinite := by
+        rw [ac2_macroSide_eq]
+        exact ac2_segment_infinite (ac2_macro_ends_ne c _ _)
+      exact False.elim
+        ((hfin.subset (Set.subset_inter Set.Subset.rfl hsub)).not_infinite hinf)
+    subst e
+    exact alignment_complete_step1_macroside_eq_step3_not_longer c hH T part hT hL j j₁
+      hneq₁ d e₁ hrank hmode htrace
+  · exfalso
+    have hblk : ∀ (a b : part.ι) (t u : c.Typ),
+        c.owner t = (part.block a).α → c.owner u = (part.block b).α → a ≠ b →
+        (part.block a).placed t ≠ (part.block b).placed u := by
+      intro a b t u ht hu hab heq
+      exact Set.disjoint_left.1 (part.disjoint hab) ⟨t, ht, rfl⟩ (by
+        rw [heq]
+        exact ⟨u, hu, rfl⟩)
+    obtain ⟨o, ho⟩ := List.exists_mem_of_length_pos
+      (lt_of_lt_of_le (by norm_num) (c.g3_five_le (part.block j).α d))
+    obtain ⟨o₁, ho₁, hside, -, -⟩ := htrace o ho
+    obtain ⟨o', ho', P, Q, hPQ, hPo, hPo', hQo, hQo'⟩ :=
+      alignment_complete_step2_subdivision_eq_step1_length_step4_not_longer_alternative_aux
+        c hH (part.block j) (part.block j') d e o ho hmacro
+    have hown : c.owner o.1 = (part.block j).α :=
+      ((c.g3_outerList_mem _ _ _).1 ho).1
+    have hown₁ : c.owner o₁.1 = (part.block j₁).α :=
+      ((c.g3_outerList_mem _ _ _).1 ho₁).1
+    have hown' : c.owner o'.1 = (part.block j').α :=
+      ((c.g3_outerList_mem _ _ _).1 ho').1
+    have hX : (part.block j).placed o.1 ∈ T.tiles :=
+      part.cover ▸ Set.mem_iUnion.2 ⟨j, o.1, hown, rfl⟩
+    have hX₁ : (part.block j₁).placed o₁.1 ∈ T.tiles :=
+      part.cover ▸ Set.mem_iUnion.2 ⟨j₁, o₁.1, hown₁, rfl⟩
+    have hX' : (part.block j').placed o'.1 ∈ T.tiles :=
+      part.cover ▸ Set.mem_iUnion.2 ⟨j', o'.1, hown', rfl⟩
+    have hXne : (part.block j).placed o.1 ≠ (part.block j₁).placed o₁.1 :=
+      hblk j j₁ o.1 o₁.1 hown hown₁ (Ne.symm hneq₁)
+    have hX'ne : (part.block j).placed o.1 ≠ (part.block j').placed o'.1 :=
+      hblk j j' o.1 o'.1 hown hown' (Ne.symm hneq')
+    have hX₁'ne : (part.block j₁).placed o₁.1 ≠ (part.block j').placed o'.1 :=
+      hblk j₁ j' o₁.1 o'.1 hown₁ hown' (fun h => hjj h.symm)
+    have hdX₁ := ac2_tile_disjoint T hX hX₁ hXne
+    have hdX' := ac2_tile_disjoint T hX hX' hX'ne
+    have hdX₁' := ac2_tile_disjoint T hX₁ hX' hX₁'ne
+    have hP₁ : P ∈ (part.block j₁).childSide o₁ := by
+      rw [hside]
+      exact hPo
+    have hQ₁ : Q ∈ (part.block j₁).childSide o₁ := by
+      rw [hside]
+      exact hQo
+    have hsegX : segment ℝ P Q ⊆ (part.block j).childSide o := by
+      rw [ac2_childSide_eq] at hPo hQo ⊢
+      exact (convex_segment _ _).segment_subset hPo hQo
+    have hsegX₁ : segment ℝ P Q ⊆ (part.block j₁).childSide o₁ := by
+      rw [ac2_childSide_eq] at hP₁ hQ₁ ⊢
+      exact (convex_segment _ _).segment_subset hP₁ hQ₁
+    have hsegX' : segment ℝ P Q ⊆ (part.block j').childSide o' := by
+      rw [ac2_childSide_eq] at hPo' hQo' ⊢
+      exact (convex_segment _ _).segment_subset hPo' hQo'
+    apply ac2_no_three
+      (c.Q.disk (c.form o.1))
+      (c.Q.disk (c.form o₁.1))
+      (c.Q.disk (c.form o'.1))
+      ((part.block j).v + c.anchor o.1)
+      ((part.block j₁).v + c.anchor o₁.1)
+      ((part.block j').v + c.anchor o'.1)
+      o.2 o₁.2 o'.2 hPQ
+    · simpa [ColouredBlock.childSide] using hsegX
+    · simpa [ColouredBlock.childSide] using hsegX₁
+    · simpa [ColouredBlock.childSide] using hsegX'
+    · simpa [ColouredBlock.placed] using hdX₁
+    · simpa [ColouredBlock.placed] using hdX'
+    · simpa [ColouredBlock.placed] using hdX₁'
 
 /-- Step 2a of the blueprint proof of `alignment_complete_step2_subdivision_eq`: The length of
 the child side subdivision is uniquely determined by the geometric macro side.

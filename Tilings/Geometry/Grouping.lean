@@ -5431,7 +5431,62 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s3 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have hi_cases := existsAnnularSpokes_step2_tubes_pos_cases hR hi
+  have hj_cases := existsAnnularSpokes_step2_tubes_pos_cases hR hj
+  have _ := hN
+  have _ := hij
+  rcases hi_cases with _ | ⟨_, _, hi_val⟩ | _ | _
+  · omega
+  · rcases hj_cases with _ | _ | _ | ⟨_, hj_val⟩
+    · omega
+    · omega
+    · omega
+    · rw [hi_val, hj_val]
+      by_cases hanti : j = 2 * N + i
+      · left
+        rw [hanti]
+        dsimp [Pt, mkPt]
+        ext k
+        fin_cases k
+        all_goals dsimp
+        all_goals push_cast
+        all_goals ring
+      · right
+        dsimp [jcr]
+        rw [rg_mkPt0, rg_mkPt1, rg_mkPt0, rg_mkPt1]
+        have h_cross :
+            (3 * ((N : ℝ) * R / 2) - (i : ℝ) * R) * (-((N : ℝ) * R / 2)) -
+                ((N : ℝ) * R / 2) * ((j : ℝ) * R - 7 * ((N : ℝ) * R / 2)) =
+              (N : ℝ) * R / 2 *
+                (4 * ((N : ℝ) * R / 2) - (j : ℝ) * R + (i : ℝ) * R) := by
+          ring
+        rw [h_cross, abs_mul]
+        have hA : 0 < (N : ℝ) * R / 2 := by positivity
+        rw [abs_of_pos hA]
+        have h_factor :
+            4 * ((N : ℝ) * R / 2) - (j : ℝ) * R + (i : ℝ) * R =
+              (2 * (N : ℝ) - (j : ℝ) + (i : ℝ)) * R := by
+          ring
+        rw [h_factor, abs_mul, abs_of_pos hR]
+        have hz : 2 * (N : ℤ) - (j : ℤ) + (i : ℤ) ≠ 0 := by
+          intro hz
+          apply hanti
+          omega
+        have h_cast :
+            2 * (N : ℝ) - (j : ℝ) + (i : ℝ) =
+              ((2 * (N : ℤ) - (j : ℤ) + (i : ℤ) : ℤ) : ℝ) := by
+          push_cast
+          ring
+        rw [h_cast, ← Int.cast_abs]
+        have h_int : (1 : ℤ) ≤ |2 * (N : ℤ) - (j : ℤ) + (i : ℤ)| := by
+          exact Int.add_one_le_iff.mpr (abs_pos.mpr hz)
+        have h_real :
+            (1 : ℝ) ≤ ((|2 * (N : ℤ) - (j : ℤ) + (i : ℤ)| : ℤ) : ℝ) := by
+          exact_mod_cast h_int
+        apply mul_le_mul_of_nonneg_left _ hA.le
+        nlinarith [h_real]
+  · omega
+  · omega
 
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step2_tubes`: "In the square annulus,
 successive radial segments have separation at least a universal positive multiple of `R`.  This

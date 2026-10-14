@@ -4863,6 +4863,23 @@ private lemma existsAnnularSpokes_step3_spoke_step2_cut (S : Patch P)
         (Z ∩ (interior H.carrier \ L.carrier ∪ {u', w'}))) u' w' := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step3_spoke_step3_erase`: select a
+finite skeletal walk and erase its loops, retaining the endpoints and carrier containment. -/
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_loop_erase (S : Patch P)
+    {Z : Set Pt} {u w : Pt} (huw : u ≠ w)
+    (hwalk : Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) u w) :
+    ∃ α : PolyArc, Function.Injective α.pt ∧ α.IsSkeletal S.tiles ∧ α.start = u ∧
+      α.stop = w ∧ α.carrier ⊆ Z := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step3_spoke_step3_erase`: in the
+interior of a side-to-side support, an injective skeletal polygonal arc is simple. -/
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step2_side_to_side_simple
+    (S : Patch P) (hsts : SideToSideSet S.tiles) {Z : Set Pt}
+    (hZ : Z ⊆ interior (support S.tiles)) (α : PolyArc) (hinj : Function.Injective α.pt)
+    (hskel : α.IsSkeletal S.tiles) (hcarrier : α.carrier ⊆ Z) : α.IsSimple := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "Select a graph path,
 erase loops".  A skeletal walk between two distinct points, with edges in
 `Z ⊆ int (support S)`, yields a simple skeletal polygonal arc with the same endpoints inside `Z`
@@ -4874,7 +4891,11 @@ private lemma existsAnnularSpokes_step3_spoke_step3_erase (S : Patch P)
     (hwalk : Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) u w) :
     ∃ α : PolyArc, α.IsSimple ∧ α.IsSkeletal S.tiles ∧ α.start = u ∧ α.stop = w ∧
       α.carrier ⊆ Z := by
-  sorry
+  obtain ⟨α, hinj, hskel, hstart, hstop, hcarrier⟩ :=
+    existsAnnularSpokes_step3_spoke_step3_erase_step1_loop_erase S huw hwalk
+  refine ⟨α, ?_, hskel, hstart, hstop, hcarrier⟩
+  exact existsAnnularSpokes_step3_spoke_step3_erase_step2_side_to_side_simple S hsts hZ α
+    hinj hskel hcarrier
 
 /-- Step 3 of the blueprint proof of `existsAnnularSpokes`: "Follow the finite sequence of
 original faces crossed by one extended segment ... Select a graph path, erase loops, and take

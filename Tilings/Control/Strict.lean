@@ -3412,6 +3412,160 @@ private theorem strict_macroblock_is_decomposition_step1_noncentral
     · exact strict_macroblock_is_decomposition_step1_noncentral_step2_prints C hC K hK h hh t ht_owner ht_nc d hp j
     · exact strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints C hC K hK h hh t ht_owner ht_nc d hp j
 
+private lemma strict_central_isPrintOf_partner
+    {alpha : C.Q.Form} {d : Fin (C.Q.disk alpha).n} {o : C.SideOcc}
+    (hp : C.IsPrintOf alpha d o) : C.IsPrintOf alpha d (C.partner o) := by
+  rcases hp with ⟨hm, rfl | rfl⟩
+  · exact ⟨hm, Or.inr rfl⟩
+  · exact ⟨hm, Or.inl (C.g1_partner_partner _ (C.g4_print_inner alpha d hm))⟩
+
+private lemma strict_central_isPrint_of_partner {o : C.SideOcc} (hi : C.IsInner o) :
+    C.IsPrint (C.partner o) → C.IsPrint o := by
+  intro hp
+  change ∃ d, C.IsPrintOf (C.owner o.1) d o
+  change ∃ d, C.IsPrintOf (C.owner (C.partner o).1) d (C.partner o) at hp
+  rcases hp with ⟨d, hm, hcase⟩
+  have hown : C.owner (C.partner o).1 = C.owner o.1 := (C.g1_partner o hi).2.1
+  generalize C.owner (C.partner o).1 = alpha at d hm hcase hown
+  cases hown
+  use d
+  refine ⟨hm, ?_⟩
+  rcases hcase with hcase | hcase
+  · right
+    have heq := congrArg C.partner hcase
+    rw [C.g1_partner_partner o hi] at heq
+    exact heq
+  · left
+    have hpinner := C.g4_print_inner (C.owner o.1) d hm
+    have heq := congrArg C.partner hcase
+    rw [C.g1_partner_partner o hi, C.g1_partner_partner _ hpinner] at heq
+    exact heq
+
+private lemma strict_central_partner_not_boundary {o : C.SideOcc}
+    (hi : C.IsInner o) (hnb : ¬ C.IsBoundary o) : ¬ C.IsBoundary (C.partner o) := by
+  intro hb
+  apply hnb
+  refine ⟨hi, ?_⟩
+  obtain ⟨-, hown, hside⟩ := C.g1_partner o hi
+  have hne : C.occStart o ≠ C.occEnd o := by
+    intro heq
+    have hv := (C.Q.disk (C.form o.1)).vertex_injective (vadd_left_cancel (C.anchor o.1) heq)
+    exact finRotate_ne_self (by have := (C.Q.disk (C.form o.1)).three_le; omega) o.2 hv.symm
+  have hseg :
+      segment ℝ (C.occStart o) (C.occEnd o) =
+        segment ℝ (C.occStart (C.partner o)) (C.occEnd (C.partner o)) := by
+    simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+      PolygonalDisk.side, MacroData.occStart, MacroData.occEnd, vadd_segment] using hside.symm
+  have hends := rhe_seg_endpoints hne hseg
+  unfold MacroData.IsBoundary at hb
+  rw [hown] at hb
+  rcases hb.2 with hstart | hend
+  · rcases hends with ⟨hstart', -⟩ | ⟨hstart', -⟩
+    · left
+      rwa [← hstart']
+    · right
+      rwa [← hstart']
+  · rcases hends with ⟨-, hend'⟩ | ⟨-, hend'⟩
+    · right
+      rwa [← hend']
+    · left
+      rwa [← hend']
+
+private lemma strict_central_not_mem_path (alpha : C.Q.Form) (i : C.Side (C.central alpha)) :
+    ∀ d : Fin (C.Q.disk alpha).n, ∀ k : Fin 5,
+      C.occ (C.central alpha) i ∉ C.path alpha d k := by
+  intro d k hm
+  by_cases hg : C.IsGenuinePath alpha d k
+  · exact C.g4_path_not_central alpha d k hg _ hm rfl
+  · rw [C.g4_path_trivial alpha d k hg, Option.mem_toList] at hm
+    have hol : C.occ (C.central alpha) i ∈ C.outerList alpha d := by
+      unfold MacroData.port at hm
+      exact List.mem_of_getElem? hm
+    have hout := ((C.g3_outerList_mem alpha d _).1 hol).2.1
+    exact (C.g2_central alpha i).1 hout
+
+/-- The generated children on the two occurrences of a central interface have equal colours. -/
+private lemma strict_central_child_partner_cells
+    (A : StrictDecTile C hC) (alpha : C.Q.Form) (hform : C.form A.typ = alpha)
+    (i : C.Side (C.central alpha)) : ∀ k : Fin 5,
+      (strictChild C hC A (C.central alpha)).cell i k =
+        (strictChild C hC A (C.partner (C.occ (C.central alpha) i)).1).cell
+          (C.partner (C.occ (C.central alpha) i)).2 k := by
+  subst alpha
+  let o : C.SideOcc := C.occ (C.central (C.form A.typ)) i
+  let o' : C.SideOcc := C.partner o
+  have hi : C.IsInner o := (C.g2_central (C.form A.typ) i).1
+  have hp := C.g1_partner o hi
+  have hi' : C.IsInner o' := isInner_partner C hi
+  have hown : C.owner o'.1 = C.form A.typ := by
+    exact hp.2.1.trans (C.g5_central_owner (C.form A.typ))
+  have hc := strictChild_cells C hC A (C.central (C.form A.typ))
+    (C.g5_central_owner (C.form A.typ)) i
+  have hc' := strictChild_cells C hC A o'.1 hown o'.2
+  intro k
+  by_cases hprint : C.IsPrint o
+  · obtain ⟨d, hd⟩ :=
+      (rhe_isPrint_iff C (C.g5_central_owner (C.form A.typ)) i).mp hprint
+    have hd' : C.IsPrintOf (C.form A.typ) d o' := strict_central_isPrintOf_partner C hd
+    by_cases hk : k = 4
+    · subst k
+      rw [(hc.1 d hd).2, (hc'.1 d hd').2]
+      exact congrArg (identSU C hC) (C.g1_edge_partner o hi).symm
+    · exact ((hc.1 d hd).1 k hk).trans ((hc'.1 d hd').1 k hk).symm
+  · have hprint' : ¬ C.IsPrint o' := by
+      exact fun h => hprint (strict_central_isPrint_of_partner C hi h)
+    obtain ⟨h0, h1, h4, -, h2, -, -, h3⟩ := hc.2 hprint
+    obtain ⟨h0', h1', h4', -, h2', -, -, h3'⟩ := hc'.2 hprint'
+    obtain rfl | rfl | rfl | rfl | rfl : k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 := by
+      fin_cases k <;> simp
+    · rw [h0, h0', if_pos hi, if_pos hi', C.g1_edge_partner o hi]
+    · rw [h1, h1']
+    · have hno : ∀ d : C.Side A.typ, ∀ j : Fin 5, o ∉ C.path (C.form A.typ) d j :=
+        strict_central_not_mem_path C (C.form A.typ) i
+      have hno' : ∀ d : C.Side A.typ, ∀ j : Fin 5, o' ∉ C.path (C.form A.typ) d j := by
+        intro d j hm
+        by_cases hg : C.IsGenuinePath (C.form A.typ) d j
+        · have hm' := C.g4_path_partner (C.form A.typ) d j hg o' hm hi' hprint'
+          rw [C.g1_partner_partner o hi] at hm'
+          exact hno d j hm'
+        · rw [C.g4_path_trivial (C.form A.typ) d j hg, Option.mem_toList] at hm
+          have hol : o' ∈ C.outerList (C.form A.typ) d := by
+            unfold MacroData.port at hm
+            exact List.mem_of_getElem? hm
+          exact hi' (((C.g3_outerList_mem (C.form A.typ) d o').1 hol).2.1)
+      rw [h2 hno, h2' hno']
+    · have hnb : ¬ C.IsBoundary o := (C.g2_central (C.form A.typ) i).2
+      have hnb' : ¬ C.IsBoundary o' := strict_central_partner_not_boundary C hi hnb
+      rw [h3 hi hnb, h3' hi' hnb']
+    · rw [h4, h4']
+
+/-- Every central side has a legal noncentral partner whose colour is already identified. -/
+private lemma strict_central_known_partner
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
+    (t : C.Typ) (ht_owner : C.owner t = K.α) (ht_c : t = C.central K.α)
+    (i : C.Side t) :
+    ∃ (t' : C.Typ) (j : C.Side t'), C.owner t' = K.α ∧ t' ≠ C.central K.α ∧
+      C.occ t' j = C.partner (C.occ t i) ∧
+      (∀ k : Fin 5, (K.tileOf t).cell i k = (K.tileOf t').cell j k) ∧
+      IsStrictChildOf C hC (strictReconstruct C hC K h.1) (K.tileOf t') := by
+  have hi : C.IsInner (C.occ t i) := by
+    subst t
+    exact (C.g2_central K.α i).1
+  obtain ⟨t', j, hown, hne, hside, hcol⟩ := hK.1 t i ht_owner hi
+  have hocc : C.occSide (C.occ t' j) = C.occSide (C.occ t i) := by
+    rw [strict_path_and_print_recovery_step1_signals_aux_childSide C hC K (C.occ t' j),
+      strict_path_and_print_recovery_step1_signals_aux_childSide C hC K (C.occ t i)] at hside
+    exact strict_path_and_print_recovery_step1_signals_aux_vadd_cancel K.v hside
+  have heq : C.occ t' j = C.partner (C.occ t i) :=
+    C.g1_side_unique (C.occ t i) (C.occ t' j) hi (hown.trans ht_owner.symm) hne hocc
+  have hnc : t' ≠ C.central K.α := by
+    intro hc
+    apply hne
+    rw [hc, ← ht_c]
+  exact ⟨t', j, hown, hnc, heq, fun k => (hcol k).symm,
+    strict_macroblock_is_decomposition_step1_noncentral C hC K hK h hh t' hown hnc⟩
+
 /-- Step 2 of the blueprint proof of `strict_macroblock_is_decomposition`: the central tile
 has the required strict child colours of the reconstructed parent. -/
 private theorem strict_macroblock_is_decomposition_step2_central
@@ -3419,7 +3573,35 @@ private theorem strict_macroblock_is_decomposition_step2_central
     (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h)
     (t : C.Typ) (ht_owner : C.owner t = K.α) (ht_c : t = C.central K.α) :
     IsStrictChildOf C hC (strictReconstruct C hC K h.1) (K.tileOf t) := by
-  sorry
+  subst t
+  dsimp [IsStrictChildOf]
+  constructor
+  · change C.owner (C.central K.α) = C.form h.1
+    rw [ht_owner, ← hh.1]
+  · have ht : K.tileOf (C.central K.α) =
+        ⟨C.central K.α, (K.tileOf (C.central K.α)).cell⟩ := rfl
+    have hc : strictChild C hC (strictReconstruct C hC K h.1)
+        ((K.tileOf (C.central K.α)).typ) =
+          ⟨C.central K.α,
+            (strictChild C hC (strictReconstruct C hC K h.1) (C.central K.α)).cell⟩ := rfl
+    nth_rewrite 1 [ht]
+    nth_rewrite 1 [hc]
+    congr 1
+    funext i k
+    obtain ⟨t', j, -, -, heq, hcol, hchild⟩ :=
+      strict_central_known_partner C hC K hK h hh (C.central K.α) ht_owner rfl i
+    have htile : K.tileOf t' = strictChild C hC (strictReconstruct C hC K h.1) t' := hchild.2
+    have hpartner :
+        (strictChild C hC (strictReconstruct C hC K h.1) t').cell j k =
+          (strictChild C hC (strictReconstruct C hC K h.1)
+            (C.partner (C.occ (C.central K.α) i)).1).cell
+              (C.partner (C.occ (C.central K.α) i)).2 k := by
+      exact congrArg (fun o : C.SideOcc =>
+        (strictChild C hC (strictReconstruct C hC K h.1) o.1).cell o.2 k) heq
+    have hcentral := strict_central_child_partner_cells C hC
+      (strictReconstruct C hC K h.1) K.α hh.1 i k
+    exact (hcol k).trans ((rhe_tile_cell C hC K t' _ htile j k).trans
+      (hpartner.trans hcentral.symm))
 
 /-- `lem:comp/exact` (strict variant): the block is the strict decomposition of its
 reconstructed parent.  Legal boundary witnesses identify the template, so the generated

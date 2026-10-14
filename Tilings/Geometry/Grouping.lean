@@ -10876,16 +10876,331 @@ structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
       GS.G.mixedScatterTile X = ((annulus l α hl).spokes.piece j).faces
   /-- Four private outer edges of every annular group in separated windows
   (`lem:routing`: windows at relative parameters `0.30, 0.43, 0.57, 0.70` of
-  the outer boundary), pairwise at distance at least `R / 10`. -/
-  windows : ∀ l α (hl : 0 < l) (j : Fin (4 * N α)), ∃ e : Fin 4 → Set Pt,
-    (∀ i, e i ∈ privateOuterEdges (annulus l α hl) j) ∧
-      ∀ i i', i ≠ i' → ∀ x ∈ e i, ∀ y ∈ e i', R α / 10 ≤ dist x y
+  the middle outer interval of each group), all `4 · 4N` of them pairwise at
+  distance at least `R / 10`: the windows of one group are a multiple of `R`
+  apart, and the middle outer intervals of different groups are a multiple of
+  `R` apart (`lem:quantitative-sector`), so all collars and radial rays are
+  separated by more than `10 D` outside `K₁` (repair of 14 October 2026: the
+  separation between windows of different groups was missing). -/
+  windows : ∀ l α (hl : 0 < l), ∃ e : Fin (4 * N α) → Fin 4 → Set Pt,
+    (∀ j i, e j i ∈ privateOuterEdges (annulus l α hl) j) ∧
+      ∀ j i j' i', (j, i) ≠ (j', i') → ∀ x ∈ e j i, ∀ y ∈ e j' i', R α / 10 ≤ dist x y
   print_slots : ∀ l α, 0 < l → ∃ (f : Fin (GS.G.P'.disk α).n → Fin (GS.G.mixed.disk (central l α).form).n)
     (g : Fin (GS.G.P'.disk α).n → PlacedTile GS.G.mixed),
     Set.InjOn f (markedSides α : Set _) ∧ Set.InjOn g (markedSides α : Set _) ∧
     CyclicOrderPreservingOn (markedSides α) f ∧
     ∀ a ∈ markedSides α, g a ∈ (retained l α).children.tiles ∧ g a ≠ central l α ∧
       HasEdge (g a) ((central l α).side (f a))
+
+/-! ### Helpers for `existsRoutingAfterPower` -/
+
+/-- The ports of Step 2 of `lem:routing` for the retained template of `α` at the power `l`:
+five whole outer fine sides inside every scaled parent side, separated from one another and from
+the scaled parent vertices by `cp` times the expansion `θ^(kl)` ("their separation from one
+another and from the ends is bounded below ... after normalization this gives a positive lower
+bound depending only on the finite parent catalogue"). -/
+private structure existsRoutingAfterPower_PortData (τ : Substitution P) (M : MeshConstants P)
+    (Rs : RoutingSetup τ M) (l : ℕ) (α : Rs.GS.G.P'.Form) (cp : ℝ) where
+  port : Fin (Rs.GS.G.P'.disk α).n → Fin 5 → Set Pt
+  outer : ∀ _a _r, (Rs.retained l α).IsOuter (port _a _r) ∧
+    port _a _r ⊆ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side _a
+  injective : ∀ _a, Function.Injective (port _a)
+  separated : ∀ _a _r _b _s, (_a, _r) ≠ (_b, _s) → ∀ _x ∈ port _a _r, ∀ _y ∈ port _b _s,
+    cp * τ.θ ^ (Rs.GS.k * l) ≤ dist _x _y
+  corner : ∀ _a _r (_i : Fin (Rs.GS.G.P'.disk α).n), ∀ _x ∈ port _a _r,
+    cp * τ.θ ^ (Rs.GS.k * l) ≤ dist _x ((τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).vertex _i)
+
+/-- The entrances of Step 3 of `lem:routing` for the retained template of `α` at the power
+`l > 0`: for every marked side `a`, its print slot `printIdx a` on the central child, the print
+neighbour `neighbour a` (a retained annular group, the child scattering to the annular piece
+`piece a`), and four of its private outer edges `entry a i` in the windows of
+`RoutingSetup.windows`, each with its outside-anchored original face `face a i` and a point
+`point a i` of that face outside `K₁ = Q₁ + B∞(3D)`.  All entrances of all marked sides are
+pairwise at distance at least `R / 10`. -/
+private structure existsRoutingAfterPower_EntryData (τ : Substitution P) (M : MeshConstants P)
+    (Rs : RoutingSetup τ M) (l : ℕ) (α : Rs.GS.G.P'.Form) (hl : 0 < l) where
+  printIdx : Fin (Rs.GS.G.P'.disk α).n → Fin (Rs.GS.G.mixed.disk (Rs.central l α).form).n
+  neighbour : Fin (Rs.GS.G.P'.disk α).n → PlacedTile Rs.GS.G.mixed
+  piece : Fin (Rs.GS.G.P'.disk α).n → Fin (4 * Rs.N α)
+  entry : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → Set Pt
+  face : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PlacedTile Rs.GS.G.mixed
+  point : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → Pt
+  print_injOn : Set.InjOn printIdx (Rs.markedSides α : Set _)
+  print_cyclic : CyclicOrderPreservingOn (Rs.markedSides α) printIdx
+  neighbour_mem : ∀ _a ∈ Rs.markedSides α,
+    neighbour _a ∈ (Rs.retained l α).children.tiles ∧ neighbour _a ≠ Rs.central l α
+  neighbour_injOn : Set.InjOn neighbour (Rs.markedSides α : Set _)
+  neighbour_grouped : ∀ _a ∈ Rs.markedSides α, ∃ _β, (neighbour _a).form = Sum.inl _β
+  print_edge : ∀ _a ∈ Rs.markedSides α,
+    HasEdge (neighbour _a) ((Rs.central l α).side (printIdx _a))
+  piece_eq : ∀ _a ∈ Rs.markedSides α, Rs.GS.G.mixedScatterTile (neighbour _a) =
+    ((Rs.annulus l α hl).spokes.piece (piece _a)).faces
+  entry_private : ∀ _a ∈ Rs.markedSides α, ∀ _i,
+    entry _a _i ∈ privateOuterEdges (Rs.annulus l α hl) (piece _a)
+  entry_side : ∀ _a ∈ Rs.markedSides α, ∀ _i, HasEdge (neighbour _a) (entry _a _i)
+  face_mem : ∀ _a ∈ Rs.markedSides α, ∀ _i,
+    face _a _i ∈ (Rs.retained l α).children.tiles ∧ ∃ _p, (face _a _i).form = Sum.inr _p
+  face_edge : ∀ _a ∈ Rs.markedSides α, ∀ _i, HasEdge (face _a _i) (entry _a _i)
+  point_mem : ∀ _a ∈ Rs.markedSides α, ∀ _i, point _a _i ∈ interior (face _a _i).carrier
+  point_out : ∀ _a ∈ Rs.markedSides α, ∀ _i, point _a _i ∉
+    square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α) + Binf (3 * M.D)
+  separated : ∀ _a ∈ Rs.markedSides α, ∀ _b ∈ Rs.markedSides α, ∀ _i _j, (_a, _i) ≠ (_b, _j) →
+    ∀ _x ∈ entry _a _i, ∀ _y ∈ entry _b _j, Rs.R α / 10 ≤ dist _x _y
+
+/-- The continuous routes of Step 4 of `lem:routing`: for every marked side `a` and `i < 4`
+(after relabelling the four entrances of `a` by `perm a`, "Reverse the four entrance labels where
+the port numbering is opposite to counterclockwise boundary order") a polygonal arc from a point of
+the port `(a, i)` to the entrance point `point a (perm a i)`, inside the open region except at its
+start, avoiding the outside-anchored group `H`, with pairwise disjoint closed `2D`-tubes that also
+avoid every other port. -/
+private structure existsRoutingAfterPower_ArcData (τ : Substitution P) (M : MeshConstants P)
+    (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form) {cp : ℝ}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) where
+  perm : Fin (Rs.GS.G.P'.disk α).n → Equiv.Perm (Fin 4)
+  arc : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc
+  start_mem : ∀ _a ∈ Rs.markedSides α, ∀ _i, (arc _a _i).start ∈ ports.port _a _i.castSucc
+  stop_eq : ∀ _a ∈ Rs.markedSides α, ∀ _i, (arc _a _i).stop = entries.point _a (perm _a _i)
+  inside : ∀ _a ∈ Rs.markedSides α, ∀ _i,
+    (arc _a _i).carrier \ {(arc _a _i).start} ⊆ interior (Rs.retained l α).region
+  avoid_H : ∀ _a ∈ Rs.markedSides α, ∀ _i,
+    Disjoint (arc _a _i).carrier (Rs.annulus l α hl).H.carrier
+  tube_disjoint : ∀ _a ∈ Rs.markedSides α, ∀ _b ∈ Rs.markedSides α, ∀ _i _j, (_a, _i) ≠ (_b, _j) →
+    Disjoint (Metric.cthickening (2 * M.D) (arc _a _i).carrier)
+      (Metric.cthickening (2 * M.D) (arc _b _j).carrier)
+  tube_ports : ∀ _a ∈ Rs.markedSides α, ∀ _i _b _r, (_b, _r) ≠ (_a, _i.castSucc) →
+    Disjoint (Metric.cthickening (2 * M.D) (arc _a _i).carrier) (ports.port _b _r)
+
+/-- The discretization of one route (Step 5 of `lem:routing`): the port side `p` followed by the
+sides crossed in order, through the crossed children ending at the face `F` that contains the end
+of the arc `γ`; the `k`-th tile carries the sides `k` and `k + 1`.  Every crossed side is an inner
+side of the template within `2D` of `γ` and not contained in `H`; there are no repetitions. -/
+private structure existsRoutingAfterPower_RouteData (τ : Substitution P) (M : MeshConstants P)
+    (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form) (p : Set Pt)
+    (F : PlacedTile Rs.GS.G.mixed) (γ : PolyArc) where
+  sides : List (Set Pt)
+  tiles : List (PlacedTile Rs.GS.G.mixed)
+  head : sides.head? = some p
+  length_eq : tiles.length = sides.length
+  last_tile : tiles.getLast? = some F
+  step : ∀ (_k : ℕ) (_X : PlacedTile Rs.GS.G.mixed) (_e : Set Pt), tiles[_k]? = some _X →
+    sides[_k]? = some _e → _X ∈ (Rs.retained l α).children.tiles ∧ HasEdge _X _e
+  step_next : ∀ (_k : ℕ) (_X : PlacedTile Rs.GS.G.mixed) (_e : Set Pt), tiles[_k]? = some _X →
+    sides[_k + 1]? = some _e → HasEdge _X _e
+  cross : ∀ (_k : ℕ) (_X _Y : PlacedTile Rs.GS.G.mixed), tiles[_k]? = some _X →
+    tiles[_k + 1]? = some _Y → _X ≠ _Y
+  inner : ∀ _e ∈ sides.tail, (Rs.retained l α).IsInner _e
+  near : ∀ _e ∈ sides.tail, _e ⊆ Metric.cthickening (2 * M.D) γ.carrier ∧
+    (_e \ (Rs.annulus l α hl).H.carrier).Nonempty
+  nodup : sides.Nodup
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower`: "The finite idempotence lemma
+permits arbitrarily large suitable `l`." -/
+private lemma existsRoutingAfterPower_step1_idempotent (τ : Substitution P) (M : MeshConstants P)
+    (Rs : RoutingSetup τ M) :
+    ∀ _n₀ : ℕ, ∃ _l ≥ _n₀, 0 < _l ∧ Rs.c^[2 * _l] = Rs.c^[_l] := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower`: "Outside the retained central
+annulus every child is an original tile, so the mesh remains `D` ... A scaled parent declared side
+of length `sℓ` contains an ordered list of whole fine sides of cardinality `L ≥ sℓ/D - 2` ...
+Choose five ports by the sixth-quantiles `⌈iL/6⌉` ... Their separation from one another and from
+the ends is bounded below by `γ(⌊L/6⌋ - 1) - D`.  After normalization this gives a positive lower
+bound depending only on the finite parent catalogue.  Closed portions of different sides away from
+their endpoints also have positive mutual Euclidean separation."  One normalized constant `cp > 0`
+and one threshold serve every form and every larger power. -/
+private lemma existsRoutingAfterPower_step2_ports (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    ∃ _cp : ℝ, 0 < _cp ∧ ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α,
+      Nonempty (existsRoutingAfterPower_PortData τ M Rs _l _α _cp) := by
+  sorry
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: the print neighbour
+is a retained annular group.  A child sharing a side with the central child (which scatters to the
+inside-anchored group `L`) lies within `D` of `L`, hence in `H \ L`, hence in one annular piece; the
+child representing that piece (`RoutingSetup.piece_child`) has more than one face, because its four
+windows are more than `D` apart (`RoutingSetup.windows`, `R_large`); a single original child cannot
+overlap it, so the given child is that grouped child. -/
+private lemma existsRoutingAfterPower_step3_entries_step1_grouped (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    {X : PlacedTile Rs.GS.G.mixed} (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hXc : X ≠ Rs.central l α) {k : Fin (Rs.GS.G.mixed.disk (Rs.central l α).form).n}
+    (hk : HasEdge X ((Rs.central l α).side k)) : ∃ β, X.form = Sum.inl β := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "Its
+outside-anchored original face contains a point `q_i` outside `K₁`".  The outside face of a private
+outer edge (`H.OutsideAnchored`, the edge being a listed side of `H`) is an original child of the
+retained template, and its interior meets the exterior of `K₁ = Q₁ + B∞(3D)`. -/
+private lemma existsRoutingAfterPower_step3_entries_step2_outside (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    {j : Fin (4 * Rs.N α)} {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) :
+    ∃ (F : PlacedTile Rs.GS.G.mixed) (q : Pt), F ∈ (Rs.retained l α).children.tiles ∧
+      (∃ p, F.form = Sum.inr p) ∧ HasEdge F e ∧ q ∈ interior F.carrier ∧
+      q ∉ square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α) + Binf (3 * M.D) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "The entry and
+print belong to the same small group".  A private outer edge of an annular piece lies on the
+boundary of the retained child that scatters to that piece, and the listed sides of a group are
+its complete boundary original sides (`GroupedFamily.side_whole`, `vertex_retained`), so the edge
+is a listed side of that child. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    {j : Fin (4 * Rs.N α)} {X : PlacedTile Rs.GS.G.mixed}
+    (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hXj : Rs.GS.G.mixedScatterTile X = ((Rs.annulus l α hl).spokes.piece j).faces)
+    {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) : HasEdge X e := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "The windows are
+separated by a fixed multiple of `R`, so the four faces are distinct" -- the bookkeeping fact that
+distinct children of the retained template have distinct scatterings (the scattering of a child
+covers exactly its carrier, and the children have disjoint interiors), so distinct print
+neighbours lie in distinct annular pieces. -/
+private lemma existsRoutingAfterPower_step3_entries_step4_scatterInj (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (α : Rs.GS.G.P'.Form)
+    {X Y : PlacedTile Rs.GS.G.mixed} (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hY : Y ∈ (Rs.retained l α).children.tiles)
+    (hXY : Rs.GS.G.mixedScatterTile X = Rs.GS.G.mixedScatterTile Y) : X = Y := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower`: "In each selected small group's
+middle outer interval, choose four separated windows ... choose a private fine edge in each window.
+... Its outside-anchored original face contains a point `q_i` outside `K₁`".  The print slots and
+neighbours come from `RoutingSetup.print_slots`, the pieces from `small_scatter`, the windows from
+`RoutingSetup.windows`. -/
+private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : MeshConstants P)
+    (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form) :
+    Nonempty (existsRoutingAfterPower_EntryData τ M Rs l α hl) := by
+  classical
+  obtain ⟨f, g, hf, hg, hcyc, hfg⟩ := Rs.print_slots l α hl
+  have hgr : ∀ a ∈ Rs.markedSides α, ∃ β, (g a).form = Sum.inl β := fun a ha =>
+    existsRoutingAfterPower_step3_entries_step1_grouped τ M Rs l hl α (hfg a ha).1
+      (hfg a ha).2.1 (hfg a ha).2.2
+  have hN : 0 < 4 * Rs.N α := by
+    have := Rs.N_two α
+    omega
+  have hpc : ∀ a, ∃ j : Fin (4 * Rs.N α), a ∈ Rs.markedSides α →
+      Rs.GS.G.mixedScatterTile (g a) = ((Rs.annulus l α hl).spokes.piece j).faces := by
+    intro a
+    by_cases ha : a ∈ Rs.markedSides α
+    · obtain ⟨j, hj⟩ := Rs.small_scatter l α hl (g a) (hfg a ha).1 (hfg a ha).2.1 (hgr a ha)
+      exact ⟨j, fun _ => hj⟩
+    · exact ⟨⟨0, hN⟩, fun h => absurd h ha⟩
+  choose pc hpc using hpc
+  obtain ⟨E, hEpriv, hEsep⟩ := Rs.windows l α hl
+  have hout := fun j i =>
+    existsRoutingAfterPower_step3_entries_step2_outside τ M Rs l hl α (hEpriv j i)
+  choose F q hF using hout
+  exact ⟨{
+    printIdx := f
+    neighbour := g
+    piece := pc
+    entry := fun a i => E (pc a) i
+    face := fun a i => F (pc a) i
+    point := fun a i => q (pc a) i
+    print_injOn := hf
+    print_cyclic := hcyc
+    neighbour_mem := fun a ha => ⟨(hfg a ha).1, (hfg a ha).2.1⟩
+    neighbour_injOn := hg
+    neighbour_grouped := hgr
+    print_edge := fun a ha => (hfg a ha).2.2
+    piece_eq := fun a ha => hpc a ha
+    entry_private := fun a _ i => hEpriv (pc a) i
+    entry_side := fun a ha i => existsRoutingAfterPower_step3_entries_step3_listed τ M Rs l hl α
+      (hfg a ha).1 (hpc a ha) (hEpriv (pc a) i)
+    face_mem := fun a _ i => ⟨(hF (pc a) i).1, (hF (pc a) i).2.1⟩
+    face_edge := fun a _ i => (hF (pc a) i).2.2.1
+    point_mem := fun a _ i => (hF (pc a) i).2.2.2.1
+    point_out := fun a _ i => (hF (pc a) i).2.2.2.2
+    separated := by
+      intro a ha b hb i j hij x hx y hy
+      refine hEsep (pc a) i (pc b) j ?_ x hx y hy
+      intro h
+      obtain ⟨h1, h2⟩ := Prod.mk.inj h
+      apply hij
+      have hab : g a = g b := existsRoutingAfterPower_step3_entries_step4_scatterInj τ M Rs l α
+        (hfg a ha).1 (hfg b hb).1 (by rw [hpc a ha, hpc b hb, h1])
+      rw [hg ha hb hab, h2] }⟩
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower`: the wide routing.  "For a
+normalized centre `z ∈ K_A`, take the intermediate square `C_z = z + [-ρ/4, ρ/4]²` ... Its ordered
+outer port points and inner points `b_i(z)` admit disjoint simple polygonal arcs" (cut the annulus
+along a crosscut, `plAnnulusRouting`, prescribed inward-normal outer collars and outward-radial
+inner collars); "We now prove local stability of these bounds" (PL slides of the ports, the bump
+`H(x) = x + φ(x)(z' - z)` for the centre); "The centre and port parameter space is compact ...
+The subcover therefore gives a uniform `c₀ > 0` ... Choose `l` larger ... so that `c₀s > 100D` and
+the physical intermediate square contains the fixed central annulus.  Join each inner radial ray at
+its intermediate-square endpoint to the outer PL route" and continue along the radial ray and the
+collar through the outside-anchored face to the entrance point (`R ≥ 10000(K₀+3)D` separates
+the rays and collars by more than `10D` outside `K₁`).  The entrances of each marked side are
+relabelled to match the port order; the groups of different marked sides are in matching cyclic
+order because the prints are (`print_cyclic`) and each print lies on the contact arc of its piece. -/
+private lemma existsRoutingAfterPower_step4_routes (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ} (hcp : 0 < cp) :
+    ∃ _nRoutes : ℕ, ∀ _l ≥ _nRoutes, ∀ _hl : 0 < _l, ∀ _α,
+      ∀ _ports : existsRoutingAfterPower_PortData τ M Rs _l _α cp,
+      ∀ _entries : existsRoutingAfterPower_EntryData τ M Rs _l _α _hl,
+      Nonempty (existsRoutingAfterPower_ArcData τ M Rs _l _hl _α _ports _entries) := by
+  sorry
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize`: "Finally perturb
+the routes away from the finite original vertices and list their crossed faces.  Consecutive faces
+share whole sides.  Erase repeated-face loops while preserving the first port face and final
+outside-anchored face."  For one arc: the children near an arc avoiding `H` are original tiles of
+diameter at most `D`, so the faces crossed by a slightly perturbed copy of the arc, from the port
+child to the face containing its end, give a side path within `2D` of the arc. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route (τ : Substitution P)
+    (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l)
+    (α : Rs.GS.G.P'.Form) {p : Set Pt} (hp : (Rs.retained l α).IsOuter p)
+    {F : PlacedTile Rs.GS.G.mixed} (hF : F ∈ (Rs.retained l α).children.tiles)
+    (hFo : ∃ q, F.form = Sum.inr q) (γ : PolyArc) (hstart : γ.start ∈ p)
+    (hint : γ.carrier \ {γ.start} ⊆ interior (Rs.retained l α).region)
+    (hH : Disjoint γ.carrier (Rs.annulus l α hl).H.carrier) (hstop : γ.stop ∈ interior F.carrier) :
+    Nonempty (existsRoutingAfterPower_RouteData τ M Rs l hl α p F γ) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize`: "Begin the
+resulting side sequence with the port, end it with the private entry edge, and append the print.
+The entry and print belong to the same small group, hence are consecutive sides of a path in the
+paper's exact sense.  Different routes cannot cross the same original face: their `D` tubes are
+disjoint ... Thus every nonterminal side occurrence is used at most once.  The shared terminal
+print is exempt in both its central and small owners.  No central side is met earlier. ...  Every
+singleton port path remains disjoint from the genuine routes."  The bookkeeping that turns the
+discretized routes into the fields of `RoutingData` (marking every used side). -/
+private lemma existsRoutingAfterPower_step5_discretize_step2_assemble (τ : Substitution P)
+    (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l)
+    (α : Rs.GS.G.P'.Form) {cp : ℝ} (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl)
+    (routes : existsRoutingAfterPower_ArcData τ M Rs l hl α ports entries)
+    (rd : ∀ a, a ∈ Rs.markedSides α → ∀ i : Fin 4,
+      existsRoutingAfterPower_RouteData τ M Rs l hl α (ports.port a i.castSucc)
+        (entries.face a (routes.perm a i)) (routes.arc a i)) :
+    Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
+      (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `existsRoutingAfterPower`: "Finally perturb the routes away
+from the finite original vertices and list their crossed faces ... Begin the resulting side
+sequence with the port, end it with the private entry edge, and append the print."  Each route is
+discretized separately, then the routes are assembled into `RoutingData`. -/
+private lemma existsRoutingAfterPower_step5_discretize (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l)
+    (α : Rs.GS.G.P'.Form) {cp : ℝ} (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl)
+    (routes : existsRoutingAfterPower_ArcData τ M Rs l hl α ports entries) :
+    Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
+      (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
+  have hrd : ∀ a, a ∈ Rs.markedSides α → ∀ i : Fin 4,
+      existsRoutingAfterPower_RouteData τ M Rs l hl α (ports.port a i.castSucc)
+        (entries.face a (routes.perm a i)) (routes.arc a i) := fun a ha i =>
+    Classical.choice (existsRoutingAfterPower_step5_discretize_step1_route τ hτ M Rs l hl α
+      (ports.outer a i.castSucc).1 (entries.face_mem a ha _).1 (entries.face_mem a ha _).2
+      (routes.arc a i) (routes.start_mem a ha i) (routes.inside a ha i) (routes.avoid_H a ha i)
+      (by rw [routes.stop_eq a ha i]; exact entries.point_mem a ha _))
+  exact existsRoutingAfterPower_step5_discretize_step2_assemble τ hτ M Rs l hl α ports entries
+    routes hrd
 
 /-- `lem:routing`: there are arbitrarily large powers `l` with `c^[2l] = c^[l]`
 for which every retained `σ^l`-template carries routing data (G4), including
@@ -10895,7 +11210,19 @@ theorem existsRoutingAfterPower (τ : Substitution P) (hτ : τ.STS) (M : MeshCo
     ∀ n₀ : ℕ, ∃ l ≥ n₀, 0 < l ∧ Rs.c^[2 * l] = Rs.c^[l] ∧
       ∀ α, Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
         (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
-  sorry
+  obtain ⟨cp, hcp, nPorts, hPorts⟩ := existsRoutingAfterPower_step2_ports τ hτ M Rs
+  obtain ⟨nRoutes, hRoutes⟩ := existsRoutingAfterPower_step4_routes τ hτ M Rs hcp
+  intro n₀
+  obtain ⟨l, hl0, hl, hidem⟩ :=
+    existsRoutingAfterPower_step1_idempotent τ M Rs (max n₀ (max nPorts nRoutes))
+  refine ⟨l, le_trans (Nat.le_max_left _ _) hl0, hl, hidem, ?_⟩
+  intro α
+  have hlPorts : nPorts ≤ l := le_trans (le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) hl0
+  have hlRoutes : nRoutes ≤ l := le_trans (le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hl0
+  obtain ⟨ports⟩ := hPorts l hlPorts hl α
+  obtain ⟨entries⟩ := existsRoutingAfterPower_step3_entries τ M Rs l hl α
+  obtain ⟨routes⟩ := hRoutes l hlRoutes hl α ports entries
+  exact existsRoutingAfterPower_step5_discretize τ hτ M Rs l hl α ports entries routes
 
 /-! ## Existence of the macrocertificate (`lem:certificate-exists`) -/
 
@@ -10947,6 +11274,242 @@ def MacroCertificate.Represents.groupedSubstitution {C : MacroCertificate P} {τ
   θ_eq := h.θ_eq
   compat := h.compat
 
+/-! ### Helpers for `existsMacroCertificate` -/
+
+/-- The raw finite construction of `lem:certificate-exists`.  It is a sorried definition, to be
+filled in first; the property lemmas `existsMacroCertificate_step1_groupedFamily` ...
+`existsMacroCertificate_step9_g7` are about this one value and become provable once it is
+constructed.  Its intended value, in the noncircular order of the blueprint:
+1. fix mesh constants `M` of `P` (`MeshConstants.nonempty`); choose `R` with
+   `R ≥ Csep · D` (`quantitativeAnnularGrouping`) and `R ≥ 10000 (K₀ + 3) D`, then
+   `Q = K₀ ⌈4C²R²/a⌉`, then `N ≥ 2` with `4N > 3Q`, then `k` so large that every `τ^k α` contains
+   the squares `Q₀, Q₁` of `quantitativeAnnularGrouping` with their margin;
+2. group each fixed patch `τ^k α` (`α ∈ P`) into the inside-anchored group `L`, the outside-anchored
+   group `H` cut into the `4N` annular groups of `quantitativeAnnularGrouping`, and singleton groups
+   for all other tiles; the finitely many labelled groups (every original form included as a
+   singleton group) are the forms of `Q`, `Δ` scatters a group into its tiles, and `σ` scatters,
+   applies `τ^k` and regroups, so that `Δ σ = τ^k Δ`;
+3. with the central form map `c` and the resulting `RoutingSetup` (centres, annular groupings,
+   windows in the middle outer intervals, print slots), take `l > 0` from `existsRoutingAfterPower`
+   with `c^[2l] = c^[l]`; in every `σ^l`-template retain the central large group (form in the image
+   of `c^l`) and its `4N` annular small neighbours and scatter every other group; this is `σ'`,
+   and the first component is `m = k l`;
+4. the types are the positioned children of the retained templates, `central α` is the retained
+   centre, `kind` is large / small / original as in the grouping, `marked` is "every side not
+   belonging to the large central group, plus the prints", `print` and `special` come from the print
+   slots (the print in its small owner is its special side), `outerList` lists the whole outer fine
+   sides in the global supporting-line direction, `path` converts the `RoutingData` paths into side
+   occurrences (both owners of every crossed inner side, the print in its small owner only), and
+   `Qmax = Q`, with `N` as chosen and `rankBound` the largest outer-list length. -/
+private noncomputable def existsMacroCertificate_raw (τ : Substitution P) (h : τ.STS) :
+    ℕ × MacroData P := by
+  sorry
+
+/-- The grouped-family, substitution-compatibility and representation output of Step 1 of
+`lem:certificate-exists`: "Keep the finite labelled groups in `P'` ... Scattering a group and
+applying the grouped substitution ... gives `Δσ = τ^kΔ`." -/
+private structure existsMacroCertificate_RepresentationData (τ : Substitution P) (m : ℕ)
+    (D : MacroData P) : Prop where
+  m_pos : 0 < m
+  θ_eq : D.σ.θ = τ.θ ^ m
+  compat : ∀ _α, (⋃ A ∈ (D.σ.rule _α).tiles, translateSet A.anchor (D.Δ A.form).tiles) =
+    τ.decomposeIter m (D.Δ _α).tiles
+  scatter_support : ∀ _α, support (D.Δ _α).tiles = (D.Q.disk _α).carrier
+  sts : ∀ _α, SideToSideSet (D.Δ _α).tiles
+  dualConnected : ∀ _α, DualConnected (D.Δ _α).tiles
+  side_whole : ∀ _α (_i : Fin (D.Q.disk _α).n),
+    ∃ _A ∈ (D.Δ _α).tiles, HasEdge _A ((D.Q.disk _α).side _i)
+  vertex_retained : ∀ _α _v, Substitution.IsVertexOf (D.Δ _α).tiles _v →
+    _v ∈ frontier (D.Q.disk _α).carrier → _v ∈ (D.Q.disk _α).vertexSet
+  singleton : ∀ _p : P.Form, ∃ _α, (D.Δ _α).tiles = {⟨_p, 0⟩}
+  inside_supertile : ∀ _α, ∃ (_n : ℕ) (_p : P.Form) (_v : Pt),
+    translateSet _v (D.Δ _α).tiles ⊆ τ.supertile _n _p
+  hereditary : τ.HereditarySides → D.Hereditary
+
+/-- The template preamble of the blueprint construction, separated from (G1): the positioned
+types are exactly the children of the retained/scattered rule and every such template is STS. -/
+private structure existsMacroCertificate_TemplateData (D : MacroData P) : Prop where
+  rule_eq : ∀ _α, (D.σ.rule _α).tiles =
+    (fun _t => (⟨D.form _t, D.anchor _t⟩ : PlacedTile D.Q)) '' {_t | D.owner _t = _α}
+  type_injective : ∀ _t _t', D.owner _t = D.owner _t' → D.form _t = D.form _t' →
+    D.anchor _t = D.anchor _t' → _t = _t'
+  template_sts : ∀ _α, SideToSideSet (D.σ.rule _α).tiles
+
+/-- The (G1) output of Step 3 of `lem:certificate-exists`: disk cellulations with the retained
+centre and ring have connected inner-side dual graphs, at least three children, and the usual
+unique two-owner interface data. -/
+private structure existsMacroCertificate_G1Data (D : MacroData P) : Prop where
+  connected : ∀ _α, (D.innerGraph _α).Connected
+  three_le : ∀ _α, 3 ≤ Nat.card {_t : D.Typ // D.owner _t = _α}
+  inner_side : ∀ _t, ∃ _i, D.IsInner (D.occ _t _i)
+  partner : ∀ _o : D.SideOcc, D.IsInner _o →
+    (D.partner _o).1 ≠ _o.1 ∧ D.owner (D.partner _o).1 = D.owner _o.1 ∧
+      D.occSide (D.partner _o) = D.occSide _o
+  partner_partner : ∀ _o : D.SideOcc, D.IsInner _o → D.partner (D.partner _o) = _o
+  side_unique : ∀ _o _o' : D.SideOcc, D.IsInner _o → D.owner _o'.1 = D.owner _o.1 →
+    _o'.1 ≠ _o.1 → D.occSide _o' = D.occSide _o → _o' = D.partner _o
+  edge_partner : ∀ _o : D.SideOcc, D.IsInner _o → D.edge (D.partner _o) = D.edge _o
+  edge_unique : ∀ _o _o' : D.SideOcc, D.IsInner _o → D.IsInner _o' →
+    D.edge _o = D.edge _o' → _o' = _o ∨ _o' = D.partner _o
+  edgeTypes : ∀ _o : D.SideOcc, D.IsInner _o →
+    D.edgeTypes (D.edge _o) = (_o.1, (D.partner _o).1) ∨
+      D.edgeTypes (D.edge _o) = ((D.partner _o).1, _o.1)
+
+/-- The (G2) output of Step 4 of `lem:certificate-exists`: the boundary fan argument connects
+the belt, gives every belt type a boundary side, and the retained centre is strictly interior. -/
+private structure existsMacroCertificate_G2Data (D : MacroData P) : Prop where
+  belt_connected : ∀ _α, (D.beltGraph _α).Connected
+  belt_edge : ∀ _t, D.IsBeltType (D.owner _t) _t → ∃ _i, D.IsBoundary (D.occ _t _i)
+  central : ∀ _α _i, ¬ D.IsOuter (D.occ (D.central _α) _i) ∧
+    ¬ D.IsBoundary (D.occ (D.central _α) _i)
+
+/-- The (G3) output of Step 5 of `lem:certificate-exists`: the finite boundary intersections
+give globally oriented, sorted, bounded outer-side lists with at most two endpoint crossings and
+five whole sides available for ports. -/
+private structure existsMacroCertificate_G3Data (D : MacroData P) : Prop where
+  pos_iff : ∀ _v : Pt, _v ≠ 0 → (D.IsPositive _v ↔ ¬ D.IsPositive (-_v))
+  pos_smul : ∀ (_v : Pt) (_r : ℝ), 0 < _r → D.IsPositive _v → D.IsPositive (_r • _v)
+  outerList_mem : ∀ _α (_d : Fin (D.Q.disk _α).n) (_o : D.SideOcc),
+    _o ∈ D.outerList _α _d ↔ D.owner _o.1 = _α ∧ D.IsOuter _o ∧
+      D.occSide _o ⊆ D.macroSide _α _d
+  outerList_nodup : ∀ _α _d, (D.outerList _α _d).Nodup
+  outerList_sorted : ∀ _α _d, (D.outerList _α _d).Pairwise fun _o _o' =>
+    ∃ _r : ℝ, 0 < _r ∧ D.occMid _o' - D.occMid _o = _r • D.macroSideDir _α _d
+  crossing_le_two : ∀ _α (_d : Fin (D.Q.disk _α).n),
+    Set.ncard {_o : D.SideOcc | D.owner _o.1 = _α ∧ D.IsOuter _o ∧
+      OverlapPos (D.occSide _o) (D.macroSide _α _d) ∧
+      ¬ D.occSide _o ⊆ D.macroSide _α _d} ≤ 2
+  five_le : ∀ _α _d, 5 ≤ (D.outerList _α _d).length
+  length_le : ∀ _α _d, (D.outerList _α _d).length ≤ D.rankBound
+
+/-- The (G4) output of Step 6 of `lem:certificate-exists`: `lem:routing` is converted from
+geometric side paths to side occurrences, including both occurrences of crossed inner sides,
+the small-owner terminal print, and the global no-sharing clauses. -/
+private structure existsMacroCertificate_G4Data (D : MacroData P) : Prop where
+  print_injective : ∀ _α (_d _d' : Fin (D.Q.disk _α).n), D.marked _α _d → D.marked _α _d' →
+    D.print _α _d = D.print _α _d' → _d = _d'
+  print_cyclic : ∀ _α (_a _b _e : Fin (D.Q.disk _α).n), D.marked _α _a → D.marked _α _b →
+    D.marked _α _e → CycLt3 _a _b _e → CycLt3 (D.print _α _a) (D.print _α _b) (D.print _α _e)
+  print_inner : ∀ _α _d, D.marked _α _d → D.IsInner (D.printOcc _α _d)
+  print_small : ∀ _α _d, D.marked _α _d →
+    D.kind (D.form (D.partner (D.printOcc _α _d)).1) = .small
+  print_special : ∀ _α _d, D.marked _α _d → D.special (D.partner (D.printOcc _α _d))
+  path_head : ∀ _α _d _i, D.IsGenuinePath _α _d _i →
+    (D.path _α _d _i).head? = D.port _α _d _i
+  path_last : ∀ _α _d _i, D.IsGenuinePath _α _d _i →
+    (D.path _α _d _i).getLast? = some (D.partner (D.printOcc _α _d))
+  path_chain : ∀ _α _d _i (_n : ℕ) (_o _o' : D.SideOcc),
+    (D.path _α _d _i)[_n]? = some _o → (D.path _α _d _i)[_n + 1]? = some _o' →
+      _o.1 = _o'.1 ∨ (D.IsInner _o ∧ _o' = D.partner _o)
+  path_owner : ∀ _α _d _i (_o : D.SideOcc), _o ∈ D.path _α _d _i → D.owner _o.1 = _α
+  path_inner : ∀ _α _d _i, D.IsGenuinePath _α _d _i →
+    ∀ (_n : ℕ) (_o : D.SideOcc), (D.path _α _d _i)[_n + 1]? = some _o → D.IsInner _o
+  path_partner : ∀ _α _d _i, D.IsGenuinePath _α _d _i →
+    ∀ _o ∈ D.path _α _d _i, D.IsInner _o → ¬ D.IsPrint _o → D.partner _o ∈ D.path _α _d _i
+  path_marked : ∀ _α _d _i, D.IsGenuinePath _α _d _i →
+    ∀ _o ∈ D.path _α _d _i, D.IsMarked _o
+  path_not_central : ∀ _α _d _i, D.IsGenuinePath _α _d _i →
+    ∀ _o ∈ D.path _α _d _i, _o.1 ≠ D.central _α
+  path_penultimate : ∀ _α _d _i, D.IsGenuinePath _α _d _i →
+    ∀ _o : D.SideOcc, (D.path _α _d _i)[(D.path _α _d _i).length - 2]? = some _o →
+      _o.1 = (D.partner (D.printOcc _α _d)).1 ∧ D.IsOrdinary _o
+  path_trivial : ∀ _α _d _i, ¬ D.IsGenuinePath _α _d _i →
+    D.path _α _d _i = (D.port _α _d _i).toList
+  path_nodup : ∀ _α _d _i, (D.path _α _d _i).Nodup
+  path_disjoint : ∀ _α (_d _d' : Fin (D.Q.disk _α).n) (_i _i' : Fin 5),
+    (_d, _i) ≠ (_d', _i') → ∀ _o, _o ∈ D.path _α _d _i → _o ∈ D.path _α _d' _i' →
+      _d = _d' ∧ (_o = D.printOcc _α _d ∨ _o = D.partner (D.printOcc _α _d))
+
+/-- The (G5) output of Step 7 of `lem:certificate-exists`: idempotence fixes retained large
+central forms; the annular ring has `4N` marked sides and dominates the noncentral bound. -/
+private structure existsMacroCertificate_G5Data (D : MacroData P) : Prop where
+  central_owner : ∀ _α, D.owner (D.central _α) = _α
+  large_iff : ∀ _t, D.kind (D.form _t) = .large ↔ _t = D.central (D.owner _t)
+  central_fixes_large : ∀ _α, D.kind _α = .large → D.form (D.central _α) = _α
+  print_id_large : ∀ _α _d, D.kind _α = .large → D.marked _α _d →
+    (D.print _α _d).val = _d.val
+  card_marked_large : ∀ _α, D.kind _α = .large →
+    Nat.card {_d // D.marked _α _d} = 4 * D.N
+  card_marked_small : ∀ _α, D.kind _α ≠ .large →
+    Nat.card {_d // D.marked _α _d} ≤ D.Qmax
+  three_Q_lt : 3 * D.Qmax < 4 * D.N
+  original_marked : ∀ _t, D.kind (D.form _t) = .original →
+    ∃ _i, D.IsInner (D.occ _t _i) ∧ D.IsMarked (D.occ _t _i)
+
+/-- The (G6) output of Step 8 of `lem:certificate-exists`: prints are the unique inner special
+sides of small types, and the private-neighbour estimate feeds `fingerprintSeparation`. -/
+private structure existsMacroCertificate_G6Data (D : MacroData P) : Prop where
+  special_small : ∀ _o : D.SideOcc, D.special _o → D.kind (D.form _o.1) = .small
+  special_unique : ∀ _t, D.kind (D.form _t) = .small → ∃! _i, D.special (D.occ _t _i)
+  special_inner : ∀ _o : D.SideOcc, D.special _o → D.IsInner _o
+  fingerprint : ∀ _t _t', _t ≠ _t' → ¬ D.IsCentral _t → ¬ D.IsCentral _t' →
+    Disjoint (D.possibleFingerprints _t) (D.possibleFingerprints _t')
+
+/-- The (G7) output of Step 9 of `lem:certificate-exists`: "every side not belonging to the
+large central group, plus the prints" is marked, hence all outer, boundary, print and genuine
+path occurrences satisfy the marking discipline. -/
+private structure existsMacroCertificate_G7Data (D : MacroData P) : Prop where
+  marking : ∀ _o : D.SideOcc,
+    (D.IsOuter _o ∨ D.IsBoundary _o ∨ D.IsPrint _o ∨ D.OnGenuinePath _o) → D.IsMarked _o
+
+/-- Step 1 of the blueprint proof of `existsMacroCertificate`: construct the grouped family,
+scattering map and powered grouped substitution, including singleton original forms and the
+supertile-origin/hereditary clauses required by `Represents`. -/
+private lemma existsMacroCertificate_step1_groupedFamily (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_RepresentationData τ
+      (existsMacroCertificate_raw τ h).1 (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate`: the retained/scattered rules
+are finite STS polygonal templates and their positioned type tags enumerate the children. -/
+private lemma existsMacroCertificate_step2_templates (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_TemplateData (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate`: "Disk cellulations with at
+least the centre and its ring have connected inner-side duals and at least three children",
+with the two-owner and interface-identity consequences. -/
+private lemma existsMacroCertificate_step3_g1 (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_G1Data (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate`: boundary faces are connected
+through the complete finite fan at every macroboundary vertex, while the centre is interior. -/
+private lemma existsMacroCertificate_step4_g2 (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_G2Data (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate`: finite boundary interval
+intersections, global supporting-line orientation, five ports, and the finite rank bound give
+(G3), with no nested-cut assumption. -/
+private lemma existsMacroCertificate_step5_g3 (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_G3Data (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 6 of the blueprint proof of `existsMacroCertificate`: `lem:routing` supplies (G4),
+including inner paths, partner occurrences, the small-owner terminal print and disjointness. -/
+private lemma existsMacroCertificate_step6_g4 (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_G4Data (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate`: fixed central forms, identity
+prints for large parents, the retained ring, and `4N > 3Q` give (G5). -/
+private lemma existsMacroCertificate_step7_g5 (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_G5Data (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 8 of the blueprint proof of `existsMacroCertificate`: the quantitative private-neighbour
+estimate and `fingerprintSeparation` give the unique-special-side and fingerprint clauses (G6). -/
+private lemma existsMacroCertificate_step8_g6 (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_G6Data (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate`: the construction's marking rule
+marks every outer side, boundary side, print and genuine-path occurrence, proving (G7). -/
+private lemma existsMacroCertificate_step9_g7 (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_G7Data (existsMacroCertificate_raw τ h).2) := by
+  sorry
+
 /-- `lem:certificate-exists`: for every STS polygonal substitution `τ` there
 are a macrocertificate `C` with the properties (G1)–(G7) and a power `m > 0`
 such that `C` represents `τ` at the power `m`: a finite grouped family
@@ -10955,7 +11518,85 @@ a scattering map `Δ = C.Δ`, and a grouped substitution `σ' = C.σ` of
 expansion `θ^m` with `Δ σ' α = τ^m Δ α` for all `α`. -/
 theorem existsMacroCertificate (τ : Substitution P) (h : τ.STS) :
     ∃ (C : MacroCertificate P) (m : ℕ), C.Represents τ m := by
-  sorry
+  let m := (existsMacroCertificate_raw τ h).1
+  let D := (existsMacroCertificate_raw τ h).2
+  obtain ⟨rep⟩ := existsMacroCertificate_step1_groupedFamily τ h
+  obtain ⟨tmpl⟩ := existsMacroCertificate_step2_templates τ h
+  obtain ⟨g1⟩ := existsMacroCertificate_step3_g1 τ h
+  obtain ⟨g2⟩ := existsMacroCertificate_step4_g2 τ h
+  obtain ⟨g3⟩ := existsMacroCertificate_step5_g3 τ h
+  obtain ⟨g4⟩ := existsMacroCertificate_step6_g4 τ h
+  obtain ⟨g5⟩ := existsMacroCertificate_step7_g5 τ h
+  obtain ⟨g6⟩ := existsMacroCertificate_step8_g6 τ h
+  obtain ⟨g7⟩ := existsMacroCertificate_step9_g7 τ h
+  let C : MacroCertificate P :=
+    { D with
+      scatter_support := rep.scatter_support
+      rule_eq := tmpl.rule_eq
+      type_injective := tmpl.type_injective
+      template_sts := tmpl.template_sts
+      g1_connected := g1.connected
+      g1_three_le := g1.three_le
+      g1_inner_side := g1.inner_side
+      g1_partner := g1.partner
+      g1_partner_partner := g1.partner_partner
+      g1_side_unique := g1.side_unique
+      g1_edge_partner := g1.edge_partner
+      g1_edge_unique := g1.edge_unique
+      g1_edgeTypes := g1.edgeTypes
+      g2_belt_connected := g2.belt_connected
+      g2_belt_edge := g2.belt_edge
+      g2_central := g2.central
+      g3_pos_iff := g3.pos_iff
+      g3_pos_smul := g3.pos_smul
+      g3_outerList_mem := g3.outerList_mem
+      g3_outerList_nodup := g3.outerList_nodup
+      g3_outerList_sorted := g3.outerList_sorted
+      g3_crossing_le_two := g3.crossing_le_two
+      g3_five_le := g3.five_le
+      g3_length_le := g3.length_le
+      g4_print_injective := g4.print_injective
+      g4_print_cyclic := g4.print_cyclic
+      g4_print_inner := g4.print_inner
+      g4_print_small := g4.print_small
+      g4_print_special := g4.print_special
+      g4_path_head := g4.path_head
+      g4_path_last := g4.path_last
+      g4_path_chain := g4.path_chain
+      g4_path_owner := g4.path_owner
+      g4_path_inner := g4.path_inner
+      g4_path_partner := g4.path_partner
+      g4_path_marked := g4.path_marked
+      g4_path_not_central := g4.path_not_central
+      g4_path_penultimate := g4.path_penultimate
+      g4_path_trivial := g4.path_trivial
+      g4_path_nodup := g4.path_nodup
+      g4_path_disjoint := g4.path_disjoint
+      g5_central_owner := g5.central_owner
+      g5_large_iff := g5.large_iff
+      g5_central_fixes_large := g5.central_fixes_large
+      g5_print_id_large := g5.print_id_large
+      g5_card_marked_large := g5.card_marked_large
+      g5_card_marked_small := g5.card_marked_small
+      g5_three_Q_lt := g5.three_Q_lt
+      g5_original_marked := g5.original_marked
+      g6_special_small := g6.special_small
+      g6_special_unique := g6.special_unique
+      g6_special_inner := g6.special_inner
+      g6_fingerprint := g6.fingerprint
+      g7_marking := g7.marking }
+  refine ⟨C, m, ?_⟩
+  exact
+    { m_pos := rep.m_pos
+      θ_eq := rep.θ_eq
+      compat := rep.compat
+      sts := rep.sts
+      dualConnected := rep.dualConnected
+      side_whole := rep.side_whole
+      vertex_retained := rep.vertex_retained
+      singleton := rep.singleton
+      inside_supertile := rep.inside_supertile
+      hereditary := rep.hereditary }
 
 end Geometry
 

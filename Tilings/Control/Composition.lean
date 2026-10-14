@@ -2836,6 +2836,990 @@ private lemma alignment_complete_step1_macroside_eq_step1_rank_one (c : MacroCer
         (part.block j').col o.1 o.2 3 = (part.block j).col o₀.1 o₀.2 3 := by
   sorry
 
+/-! ### Lines and ordered segments -/
+
+private lemma ac2_normal_smul (a : ℝ) (w x : Pt) : asmNormal (a • w) x = a * asmNormal w x := by
+  simp only [asmNormal_apply, PiLp.smul_apply, smul_eq_mul]; ring
+
+private lemma ac2_normal_self (w : Pt) : asmNormal w w = 0 := by
+  simp only [asmNormal_apply]; ring
+
+/-- Points of a segment all have the same normal coordinate for the direction of any two of
+its points. -/
+private lemma ac2_normal_collinear {A B P Q x : Pt} (hP : P ∈ segment ℝ A B) (hQ : Q ∈ segment ℝ A B)
+    (hx : x ∈ segment ℝ A B) : asmNormal (Q - P) x = asmNormal (Q - P) P := by
+  rw [segment_eq_image'] at hP hQ hx
+  obtain ⟨s, -, rfl⟩ := hP
+  obtain ⟨u, -, rfl⟩ := hQ
+  obtain ⟨t, -, rfl⟩ := hx
+  simp only [asmNormal_apply, PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]
+  ring
+
+/-- The line through `A` with direction `w`. -/
+private def ac2Line (w A z : Pt) : Prop := asmNormal w z = asmNormal w A
+
+private lemma ac2_inner_self_pos {w : Pt} (hw : w ≠ 0) : 0 < inner ℝ w w := by
+  rw [real_inner_self_eq_norm_sq]; have := norm_pos_iff.2 hw; positivity
+
+private lemma ac2_line_param {w A z : Pt} (hw : w ≠ 0) (hz : ac2Line w A z) :
+    z = A + ((inner ℝ w z - inner ℝ w A) / inner ℝ w w) • w := by
+  have hpos := ac2_inner_self_pos hw
+  unfold ac2Line at hz
+  rw [asmNormal_apply, asmNormal_apply] at hz
+  have hww : inner ℝ w w = w 0 * w 0 + w 1 * w 1 := by
+    simp only [PiLp.inner_apply, Fin.sum_univ_two, RCLike.inner_apply, conj_trivial]
+  have hwz : inner ℝ w z - inner ℝ w A = w 0 * (z 0 - A 0) + w 1 * (z 1 - A 1) := by
+    simp only [PiLp.inner_apply, Fin.sum_univ_two, RCLike.inner_apply, conj_trivial]; ring
+  rw [hwz]
+  rw [hww] at hpos ⊢
+  have hD' := hpos.ne'
+  ext i
+  fin_cases i
+  · simp only [Fin.zero_eta, Fin.isValue, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+    rw [div_mul_eq_mul_div, add_div' _ _ _ hD', eq_div_iff hD']
+    linear_combination (-(w 1)) * hz
+  · simp only [Fin.mk_one, Fin.isValue, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]
+    rw [div_mul_eq_mul_div, add_div' _ _ _ hD', eq_div_iff hD']
+    linear_combination (w 0) * hz
+
+private lemma ac2_line_inj {w A z z' : Pt} (hw : w ≠ 0) (hz : ac2Line w A z) (hz' : ac2Line w A z')
+    (h : inner ℝ w z = inner ℝ w z') : z = z' := by
+  rw [ac2_line_param hw hz, ac2_line_param hw hz', h]
+
+private lemma ac2_line_exists (w A : Pt) (hw : w ≠ 0) (v : ℝ) :
+    ∃ z, ac2Line w A z ∧ inner ℝ w z = v := by
+  refine ⟨A + ((v - inner ℝ w A) / inner ℝ w w) • w, ?_, ?_⟩
+  · unfold ac2Line
+    rw [map_add, map_smul, ac2_normal_self, smul_zero, add_zero]
+  · rw [inner_add_right, inner_smul_right]
+    field_simp [(ac2_inner_self_pos hw).ne']
+    ring
+
+private lemma ac2_line_sub {w A z z' : Pt} (hw : w ≠ 0) (hz : ac2Line w A z) (hz' : ac2Line w A z') :
+    z' - z = ((inner ℝ w z' - inner ℝ w z) / inner ℝ w w) • w := by
+  have e1 := ac2_line_param hw hz
+  have e2 := ac2_line_param hw hz'
+  set c := (inner ℝ w z - inner ℝ w A) / inner ℝ w w with hc
+  set c' := (inner ℝ w z' - inner ℝ w A) / inner ℝ w w with hc'
+  have e : z' - z = (c' - c) • w := by
+    calc z' - z = (A + c' • w) - (A + c • w) := by rw [← e1, ← e2]
+      _ = (c' - c) • w := by rw [sub_smul]; abel
+  rw [e, hc, hc']
+  congr 1
+  have := (ac2_inner_self_pos hw).ne'
+  field_simp
+  ring
+
+private lemma ac2_line_segment_sub {w A P Q x : Pt} (hP : ac2Line w A P) (hQ : ac2Line w A Q)
+    (hx : x ∈ segment ℝ P Q) : ac2Line w A x := by
+  rw [segment_eq_image'] at hx
+  obtain ⟨t, -, rfl⟩ := hx
+  unfold ac2Line at *
+  rw [map_add, map_smul, map_sub, hP, hQ, sub_self, smul_zero, add_zero]
+
+/-- On a line, membership in a segment is membership of the coordinate in an interval. -/
+private lemma ac2_line_mem_segment {w A P Q z : Pt} (hw : w ≠ 0) (hP : ac2Line w A P)
+    (hQ : ac2Line w A Q) (hz : ac2Line w A z) :
+    z ∈ segment ℝ P Q ↔ inner ℝ w z ∈ uIcc (inner ℝ w P) (inner ℝ w Q) := by
+  constructor
+  · intro h
+    have := Set.mem_image_of_mem (fun x => inner ℝ w x) h
+    rw [← segment_eq_uIcc]
+    have himg : (fun x => inner ℝ w x) '' segment ℝ P Q = segment ℝ (inner ℝ w P) (inner ℝ w Q) :=
+      image_segment ℝ ((innerSL ℝ w).toLinearMap.toAffineMap) P Q
+    rw [himg] at this
+    exact this
+  · intro h
+    by_cases hPQ : inner ℝ w P = inner ℝ w Q
+    · rw [hPQ, Set.uIcc_self, Set.mem_singleton_iff] at h
+      rw [ac2_line_inj hw hz hQ h]
+      exact right_mem_segment ℝ P Q
+    · set θ := (inner ℝ w z - inner ℝ w P) / (inner ℝ w Q - inner ℝ w P)
+      have hne : inner ℝ w Q - inner ℝ w P ≠ 0 := sub_ne_zero.2 (Ne.symm hPQ)
+      have hθ : θ ∈ Icc (0:ℝ) 1 := by
+        rw [Set.mem_uIcc] at h
+        constructor
+        · rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+          · exact div_nonneg (by linarith) (by linarith)
+          · exact div_nonneg_of_nonpos (by linarith) (by linarith)
+        · rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+          · have hlt : inner ℝ w P < inner ℝ w Q := lt_of_le_of_ne (h1.trans h2) hPQ
+            rw [div_le_one (by linarith)]
+            linarith
+          · have hlt : inner ℝ w Q < inner ℝ w P := lt_of_le_of_ne (h1.trans h2) (Ne.symm hPQ)
+            rw [div_le_one_of_neg (by linarith)]
+            linarith
+      have hmem : P + θ • (Q - P) ∈ segment ℝ P Q := by
+        rw [segment_eq_image']; exact ⟨θ, hθ, rfl⟩
+      have heq : P + θ • (Q - P) = z := by
+        apply ac2_line_inj hw (ac2_line_segment_sub hP hQ hmem) hz
+        rw [inner_add_right, inner_smul_right, inner_sub_right]
+        simp only [θ]
+        field_simp
+        ring
+      rw [← heq]; exact hmem
+
+/-- A segment containing two distinct points of a line lies on that line (endpoints). -/
+private lemma ac2_line_of_segment {w A P Q U V : Pt} (hw : w ≠ 0) (hP : ac2Line w A P)
+    (hQ : ac2Line w A Q) (hPQ : P ≠ Q) (hPs : P ∈ segment ℝ U V) (hQs : Q ∈ segment ℝ U V)
+    {x : Pt} (hx : x ∈ segment ℝ U V) : ac2Line w A x := by
+  have h1 := ac2_normal_collinear hPs hQs hx
+  rw [ac2_line_sub hw hP hQ, ac2_normal_smul, ac2_normal_smul] at h1
+  have hc : (inner ℝ w Q - inner ℝ w P) / inner ℝ w w ≠ 0 := by
+    apply div_ne_zero _ (ac2_inner_self_pos hw).ne'
+    intro h
+    apply hPQ
+    exact ac2_line_inj hw hP hQ (by linarith)
+  unfold ac2Line
+  rw [mul_left_cancel₀ hc h1]
+  exact hP
+
+
+private lemma ac2_seg_interval {w A P Q : Pt} (hw : w ≠ 0) (hP : ac2Line w A P) (hQ : ac2Line w A Q)
+    (hPQ : P ≠ Q) : ∃ lo hi : ℝ, lo < hi ∧ ∀ z, ac2Line w A z →
+      (z ∈ segment ℝ P Q ↔ lo ≤ inner ℝ w z ∧ inner ℝ w z ≤ hi) := by
+  have hne : inner ℝ w P ≠ inner ℝ w Q := fun h => hPQ (ac2_line_inj hw hP hQ h)
+  rcases lt_or_gt_of_ne hne with h | h
+  · refine ⟨_, _, h, fun z hz => ?_⟩
+    rw [ac2_line_mem_segment hw hP hQ hz, Set.uIcc_of_le h.le, Set.mem_Icc]
+  · refine ⟨_, _, h, fun z hz => ?_⟩
+    rw [ac2_line_mem_segment hw hP hQ hz, Set.uIcc_of_ge h.le, Set.mem_Icc]
+
+/-- Two segments on a line which both end where a third one begins overlap. -/
+private lemma ac2_common_end {w A P1 Q1 P2 Q2 P0 Q0 : Pt} (hw : w ≠ 0)
+    (hP1 : ac2Line w A P1) (hQ1 : ac2Line w A Q1) (hP2 : ac2Line w A P2) (hQ2 : ac2Line w A Q2)
+    (hP0 : ac2Line w A P0) (hQ0 : ac2Line w A Q0) (h1 : P1 ≠ Q1) (h2 : P2 ≠ Q2) (h0 : P0 ≠ Q0)
+    (hm1 : (segment ℝ P1 Q1 ∩ segment ℝ P0 Q0).Nonempty)
+    (hm2 : (segment ℝ P2 Q2 ∩ segment ℝ P0 Q0).Nonempty)
+    (ho1 : ∀ x ∈ segment ℝ P1 Q1, ∀ y ∈ segment ℝ P0 Q0, inner ℝ w x ≤ inner ℝ w y)
+    (ho2 : ∀ x ∈ segment ℝ P2 Q2, ∀ y ∈ segment ℝ P0 Q0, inner ℝ w x ≤ inner ℝ w y) :
+    ∃ z1 z2, z1 ≠ z2 ∧ z1 ∈ segment ℝ P1 Q1 ∧ z1 ∈ segment ℝ P2 Q2 ∧
+      z2 ∈ segment ℝ P1 Q1 ∧ z2 ∈ segment ℝ P2 Q2 := by
+  obtain ⟨l1, u1, hl1, H1⟩ := ac2_seg_interval hw hP1 hQ1 h1
+  obtain ⟨l2, u2, hl2, H2⟩ := ac2_seg_interval hw hP2 hQ2 h2
+  obtain ⟨l0, u0, hl0, H0⟩ := ac2_seg_interval hw hP0 hQ0 h0
+  obtain ⟨z, hz1, hz0⟩ := hm1
+  obtain ⟨z', hz2, hz0'⟩ := hm2
+  have hzl := ac2_line_segment_sub hP1 hQ1 hz1
+  have hzl' := ac2_line_segment_sub hP2 hQ2 hz2
+  obtain ⟨x1, hx1, ex1⟩ := ac2_line_exists w A hw u1
+  obtain ⟨x2, hx2, ex2⟩ := ac2_line_exists w A hw u2
+  obtain ⟨y0, hy0, ey0⟩ := ac2_line_exists w A hw l0
+  have hx1m : x1 ∈ segment ℝ P1 Q1 := (H1 x1 hx1).2 ⟨by linarith, by linarith⟩
+  have hx2m : x2 ∈ segment ℝ P2 Q2 := (H2 x2 hx2).2 ⟨by linarith, by linarith⟩
+  have hy0m : y0 ∈ segment ℝ P0 Q0 := (H0 y0 hy0).2 ⟨by linarith, by linarith⟩
+  have a1 := ho1 x1 hx1m y0 hy0m
+  have a2 := ho2 x2 hx2m y0 hy0m
+  have b1 := (H1 z hzl).1 hz1
+  have b2 := (H2 z' hzl').1 hz2
+  have c1 := (H0 z hzl).1 hz0
+  have c2 := (H0 z' hzl').1 hz0'
+  rw [ex1, ey0] at a1
+  rw [ex2, ey0] at a2
+  obtain ⟨z1, hz1l, ez1⟩ := ac2_line_exists w A hw l0
+  obtain ⟨z2, hz2l, ez2⟩ := ac2_line_exists w A hw ((max l1 l2 + l0) / 2)
+  have hm : max l1 l2 < l0 := max_lt (by linarith) (by linarith)
+  refine ⟨z1, z2, ?_, (H1 z1 hz1l).2 ⟨?_, ?_⟩, (H2 z1 hz1l).2 ⟨?_, ?_⟩,
+    (H1 z2 hz2l).2 ⟨?_, ?_⟩, (H2 z2 hz2l).2 ⟨?_, ?_⟩⟩
+  · intro h; rw [h, ez2] at ez1; linarith
+  all_goals first
+    | (rw [ez1]; linarith)
+    | (rw [ez2]; have := le_max_left l1 l2; have := le_max_right l1 l2; linarith)
+
+private lemma ac2_midpoint_ne {E F P Q : Pt} (hPQ : P ≠ Q) (h : segment ℝ P Q ⊆ segment ℝ E F) :
+    midpoint ℝ P Q ≠ E := by
+  intro hm
+  have hP : P ∈ segment ℝ E F := h (left_mem_segment ℝ P Q)
+  have hQ : Q ∈ segment ℝ E F := h (right_mem_segment ℝ P Q)
+  rw [segment_eq_image'] at hP hQ
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hP
+  obtain ⟨u, ⟨hu0, hu1⟩, rfl⟩ := hQ
+  have hE : midpoint ℝ (E + s • (F - E)) (E + u • (F - E)) = E := hm
+  rw [midpoint_eq_smul_add] at hE
+  have h3 : (s + u) • (F - E) = 0 := by
+    have h4 : (s + u) • (F - E) =
+        (2:ℝ) • ((⅟2 : ℝ) • (E + s • (F - E) + (E + u • (F - E)))) - (2:ℝ) • E := by
+      rw [smul_smul]; norm_num; rw [add_smul, two_smul]; abel
+    rw [h4, hE, sub_self]
+  rcases smul_eq_zero.1 h3 with h5 | h5
+  · have hs : s = 0 := by linarith
+    have hu : u = 0 := by linarith
+    subst hs hu; simp at hPQ
+  · simp [h5] at hPQ
+
+/-- Half-disk property of a placed polygon at the midpoint of a subsegment of one of its sides. -/
+private lemma ac2_tile_half (B : PolygonalDisk) (a : Pt) (k : Fin B.n) {P Q : Pt} (hPQ : P ≠ Q)
+    (hS : segment ℝ P Q ⊆ a +ᵥ B.side k) :
+    ∃ r > 0, ∀ r', 0 < r' → r' ≤ r →
+      Metric.ball (midpoint ℝ P Q) r' ∩
+          {x | asmNormal (Q - P) (midpoint ℝ P Q) < asmNormal (Q - P) x} ⊆ interior (a +ᵥ B.carrier) ∨
+        Metric.ball (midpoint ℝ P Q) r' ∩
+          {x | asmNormal (Q - P) x < asmNormal (Q - P) (midpoint ℝ P Q)} ⊆ interior (a +ᵥ B.carrier) := by
+  set m := midpoint ℝ P Q with hmdef
+  have hS' : a +ᵥ B.side k = segment ℝ (a +ᵥ B.vertex k) (a +ᵥ B.vertex (finRotate B.n k)) := by
+    rw [← vadd_segment]; rfl
+  rw [hS'] at hS
+  have hm1 : m ≠ a +ᵥ B.vertex k := ac2_midpoint_ne hPQ hS
+  have hm2 : m ≠ a +ᵥ B.vertex (finRotate B.n k) :=
+    ac2_midpoint_ne hPQ (hS.trans (segment_symm ℝ _ _).subset)
+  have hmS : m ∈ a +ᵥ B.side k := hS'.symm ▸ hS (midpoint_mem_segment P Q)
+  obtain ⟨y, hy, hya⟩ := hmS
+  have hy1 : y ≠ B.vertex k := fun h => hm1 (by rw [← hya, h])
+  have hy2 : y ≠ B.vertex (finRotate B.n k) := fun h => hm2 (by rw [← hya, h])
+  obtain ⟨r0, hr0, hloc⟩ := asm_local_frontier B k y hy hy1 hy2
+  have hdPQ : 0 < dist P Q := dist_pos.mpr hPQ
+  refine ⟨min r0 (dist P Q / 2), lt_min hr0 (by linarith), fun r' hr' hr'le => ?_⟩
+  have hBc : IsClosed B.carrier := B.compact.isClosed
+  apply asm_half_disk (a +ᵥ B.carrier) (hBc.vadd a)
+    (by rw [interior_vadd, closure_vadd, B.regular_closed]) (asmNormal (Q - P)) m
+    (by
+      rw [← hya]
+      exact Set.vadd_mem_vadd_set (hBc.frontier_subset (asm_side_sub_carrier B k hy)))
+    r' hr'
+  intro x hx
+  rw [asm_frontier_vadd]
+  constructor
+  · rintro ⟨z, hz, rfl⟩
+    have hzb : z ∈ Metric.ball y r0 := by
+      have hya' : a +ᵥ y = m := hya
+      rw [Metric.mem_ball, ← dist_vadd_cancel_left a z y, hya']
+      exact lt_of_lt_of_le (Metric.mem_ball.1 hx) ((min_le_left _ _).trans' hr'le)
+    have hzs : a +ᵥ z ∈ segment ℝ (a +ᵥ B.vertex k) (a +ᵥ B.vertex (finRotate B.n k)) :=
+      hS' ▸ Set.vadd_mem_vadd_set (hloc ⟨hzb, hz⟩)
+    have hPs := hS (left_mem_segment ℝ P Q)
+    have hQs := hS (right_mem_segment ℝ P Q)
+    rw [ac2_normal_collinear hPs hQs hzs, ac2_normal_collinear hPs hQs (hS (midpoint_mem_segment P Q))]
+  · intro hl
+    have hxs : x ∈ segment ℝ P Q := by
+      apply asm_ball_line hPQ _ hl
+      exact lt_of_lt_of_le (Metric.mem_ball.1 hx) (hr'le.trans (min_le_right _ _))
+    have hxs' := hS hxs
+    rw [← hS'] at hxs'
+    obtain ⟨z, hz, rfl⟩ := hxs'
+    exact Set.vadd_mem_vadd_set (asm_side_sub_carrier B k hz)
+
+/-- Three polygons with pairwise disjoint interiors cannot share a common nondegenerate piece of
+one of their sides. -/
+private lemma ac2_no_three (B₁ B₂ B₃ : PolygonalDisk) (a₁ a₂ a₃ : Pt) (k₁ : Fin B₁.n) (k₂ : Fin B₂.n)
+    (k₃ : Fin B₃.n) {P Q : Pt} (hPQ : P ≠ Q) (h₁ : segment ℝ P Q ⊆ a₁ +ᵥ B₁.side k₁)
+    (h₂ : segment ℝ P Q ⊆ a₂ +ᵥ B₂.side k₂) (h₃ : segment ℝ P Q ⊆ a₃ +ᵥ B₃.side k₃)
+    (d₁₂ : Disjoint (interior (a₁ +ᵥ B₁.carrier)) (interior (a₂ +ᵥ B₂.carrier)))
+    (d₁₃ : Disjoint (interior (a₁ +ᵥ B₁.carrier)) (interior (a₃ +ᵥ B₃.carrier)))
+    (d₂₃ : Disjoint (interior (a₂ +ᵥ B₂.carrier)) (interior (a₃ +ᵥ B₃.carrier))) : False := by
+  obtain ⟨r₁, hr₁, H₁⟩ := ac2_tile_half B₁ a₁ k₁ hPQ h₁
+  obtain ⟨r₂, hr₂, H₂⟩ := ac2_tile_half B₂ a₂ k₂ hPQ h₂
+  obtain ⟨r₃, hr₃, H₃⟩ := ac2_tile_half B₃ a₃ k₃ hPQ h₃
+  set r := min r₁ (min r₂ r₃)
+  have hr : 0 < r := lt_min hr₁ (lt_min hr₂ hr₃)
+  obtain ⟨⟨xp, hxp⟩, ⟨xn, hxn⟩⟩ := asm_halves_nonempty P Q hPQ r hr
+  rcases H₁ r hr (min_le_left _ _) with A₁ | A₁ <;>
+  rcases H₂ r hr ((min_le_right _ _).trans (min_le_left _ _)) with A₂ | A₂ <;>
+  rcases H₃ r hr ((min_le_right _ _).trans (min_le_right _ _)) with A₃ | A₃
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxp) (A₂ hxp)
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxp) (A₂ hxp)
+  · exact Set.disjoint_left.1 d₁₃ (A₁ hxp) (A₃ hxp)
+  · exact Set.disjoint_left.1 d₂₃ (A₂ hxn) (A₃ hxn)
+  · exact Set.disjoint_left.1 d₂₃ (A₂ hxp) (A₃ hxp)
+  · exact Set.disjoint_left.1 d₁₃ (A₁ hxn) (A₃ hxn)
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxn) (A₂ hxn)
+  · exact Set.disjoint_left.1 d₁₂ (A₁ hxn) (A₂ hxn)
+
+
+private lemma ac2_segment_infinite {x y : Pt} (h : x ≠ y) : (segment ℝ x y).Infinite := by
+  rw [segment_eq_image_lineMap]
+  exact (Set.Icc_infinite zero_lt_one).image ((AffineMap.lineMap_injective ℝ h).injOn)
+
+private lemma ac2_smul_segment (θ : ℝ) (a b : Pt) : θ • segment ℝ a b = segment ℝ (θ • a) (θ • b) := by
+  rw [← Set.image_smul]; exact image_segment ℝ ((LinearMap.lsmul ℝ Pt θ).toAffineMap) a b
+
+private lemma ac2_theta_ne (c : MacroCertificate P) : c.σ.θ ≠ 0 := by
+  have := c.σ.one_lt; positivity
+
+private lemma ac2_macroSide_eq (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    c.macroSide α d = segment ℝ (c.σ.θ • (c.Q.disk α).vertex d)
+      (c.σ.θ • (c.Q.disk α).vertex (finRotate _ d)) :=
+  ac2_smul_segment _ _ _
+
+private lemma ac2_macro_ends_ne (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    c.σ.θ • (c.Q.disk α).vertex d ≠ c.σ.θ • (c.Q.disk α).vertex (finRotate _ d) := by
+  intro h
+  have h' := smul_right_injective Pt (ac2_theta_ne c) h
+  exact asm_finRotate_ne _ (c.Q.disk α).three_le d ((c.Q.disk α).vertex_injective h').symm
+
+private lemma ac2_macroBoundary_eq (c : MacroCertificate P) (α : c.Q.Form) :
+    c.macroBoundary α = c.σ.θ • frontier (c.Q.disk α).carrier := by
+  unfold MacroData.macroBoundary MacroData.macroRegion
+  have h := (Homeomorph.smulOfNeZero c.σ.θ (ac2_theta_ne c)).image_frontier (c.Q.disk α).carrier
+  have e : ⇑(Homeomorph.smulOfNeZero c.σ.θ (ac2_theta_ne c)) = fun x : Pt => c.σ.θ • x := rfl
+  rw [e, Set.image_smul, Set.image_smul] at h
+  exact h.symm
+
+private lemma ac2_macroSide_sub (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    c.macroSide α d ⊆ c.macroBoundary α := by
+  rw [ac2_macroBoundary_eq]
+  exact Set.smul_set_mono (asm_side_sub_carrier _ d)
+
+private lemma ac2_occSide_eq (c : MacroCertificate P) (o : c.SideOcc) :
+    c.occSide o = segment ℝ (c.occStart o) (c.occEnd o) := by
+  unfold MacroData.occSide MacroData.childTile PlacedTile.side PolygonalDisk.side
+  rw [vadd_segment]; rfl
+
+private lemma ac2_occ_ends_ne (c : MacroCertificate P) (o : c.SideOcc) : c.occStart o ≠ c.occEnd o := by
+  intro h
+  unfold MacroData.occStart MacroData.occEnd at h
+  exact asm_finRotate_ne _ (c.Q.disk (c.form o.1)).three_le o.2
+    ((c.Q.disk (c.form o.1)).vertex_injective (add_left_cancel h)).symm
+
+private lemma ac2_childTile_mem (c : MacroCertificate P) (t : c.Typ) :
+    c.childTile t ∈ (c.σ.rule (c.owner t)).tiles := by
+  rw [c.rule_eq]; exact ⟨t, rfl, rfl⟩
+
+/-- By heredity every point of a scaled parent side lies on a listed child side. -/
+private lemma ac2_list_cover (c : MacroCertificate P) (hH : c.Hereditary) (α : c.Q.Form)
+    (d : Fin (c.Q.disk α).n) {x : Pt} (hx : x ∈ c.macroSide α d) :
+    ∃ o ∈ c.outerList α d, x ∈ c.occSide o := by
+  have h2 := hH.2 α d
+  unfold MacroData.macroSide at hx
+  rw [h2] at hx
+  simp only [Set.mem_iUnion] at hx
+  obtain ⟨A, hA, jj, hsub, hxA⟩ := hx
+  rw [c.rule_eq] at hA
+  obtain ⟨t, ht, rfl⟩ := hA
+  refine ⟨⟨t, jj⟩, ?_, hxA⟩
+  rw [c.g3_outerList_mem]
+  refine ⟨ht, ?_, hsub⟩
+  show c.occSide ⟨t, jj⟩ ⊆ c.macroBoundary (c.owner t)
+  rw [ht]
+  exact hsub.trans (ac2_macroSide_sub c α d)
+
+/-- Two side occurrences of a common child type overlapping with positive length coincide. -/
+private lemma ac2_same_type_side (c : MacroCertificate P) {t : c.Typ} {i i' : c.Side t} {a : Pt}
+    {x y : Pt} (hxy : x ≠ y) (hx : x ∈ a +ᵥ (c.Q.disk (c.form t)).side i)
+    (hx' : x ∈ a +ᵥ (c.Q.disk (c.form t)).side i') (hy : y ∈ a +ᵥ (c.Q.disk (c.form t)).side i)
+    (hy' : y ∈ a +ᵥ (c.Q.disk (c.form t)).side i') : i = i' := by
+  by_contra hne
+  have hsub : segment ℝ x y ⊆ a +ᵥ ((c.Q.disk (c.form t)).side i ∩ (c.Q.disk (c.form t)).side i') := by
+    rw [Set.vadd_set_inter]
+    exact Convex.segment_subset (s := (a +ᵥ (c.Q.disk (c.form t)).side i) ∩
+      (a +ᵥ (c.Q.disk (c.form t)).side i'))
+      (((convex_segment _ _).vadd a).inter ((convex_segment _ _).vadd a)) ⟨hx, hx'⟩ ⟨hy, hy'⟩
+  have hfin : (a +ᵥ ((c.Q.disk (c.form t)).side i ∩ (c.Q.disk (c.form t)).side i')).Finite := by
+    apply Set.Finite.vadd_set
+    exact (Set.toFinite _).subset ((c.Q.disk (c.form t)).simple i i' hne)
+  exact (ac2_segment_infinite hxy) (hfin.subset hsub)
+
+/-- An outer child side lies in the list of some parent side (by heredity). -/
+private lemma ac2_outer_in_list (c : MacroCertificate P) (hH : c.Hereditary) (o : c.SideOcc)
+    (hout : c.IsOuter o) : ∃ f, o ∈ c.outerList (c.owner o.1) f := by
+  set α := c.owner o.1
+  by_contra hno
+  push_neg at hno
+  have hsub : ∀ f (A : PlacedTile c.Q), A ∈ (c.σ.rule α).tiles → ∀ jj : Fin (c.Q.disk A.form).n,
+      A.side jj ⊆ c.σ.θ • (c.Q.disk α).side f → (c.occSide o ∩ A.side jj).Subsingleton := by
+    intro f A hA jj hAs x hx y hy
+    by_contra hxy
+    have hov : OverlapPos (c.occSide o) (A.side jj) := by
+      refine ⟨x, y, hxy, ?_⟩
+      apply Convex.segment_subset _ hx hy
+      rw [ac2_occSide_eq]
+      unfold PlacedTile.side PolygonalDisk.side
+      rw [vadd_segment]
+      exact (convex_segment _ _).inter (convex_segment _ _)
+    have heq := c.template_sts α (c.childTile o.1) (ac2_childTile_mem c o.1) A hA o.2 jj hov
+    apply hno f
+    rw [c.g3_outerList_mem]
+    exact ⟨rfl, hout, by
+      show (c.childTile o.1).side o.2 ⊆ c.macroSide α f
+      rw [heq]; exact hAs⟩
+  have hcov : c.occSide o ⊆ ⋃ f, ⋃ A ∈ (c.σ.rule α).tiles, ⋃ jj : Fin (c.Q.disk A.form).n,
+      ⋃ (_ : A.side jj ⊆ c.σ.θ • (c.Q.disk α).side f), (c.occSide o ∩ A.side jj) := by
+    intro x hx
+    have hxb := hout hx
+    rw [ac2_macroBoundary_eq, (c.Q.disk α).frontier_eq, Set.smul_set_iUnion] at hxb
+    obtain ⟨f, hf⟩ := Set.mem_iUnion.1 hxb
+    have hf' : x ∈ c.σ.θ • (c.Q.disk α).side f := hf
+    rw [hH.2 α f] at hf'
+    simp only [Set.mem_iUnion] at hf' ⊢
+    obtain ⟨A, hA, jj, hAs, hxA⟩ := hf'
+    exact ⟨f, A, hA, jj, hAs, hx, hxA⟩
+  apply ac2_segment_infinite (ac2_occ_ends_ne c o)
+  rw [← ac2_occSide_eq]
+  refine Set.Finite.subset ?_ hcov
+  refine Set.finite_iUnion fun f => ?_
+  refine Set.Finite.biUnion (c.σ.rule α).finite fun A hA => ?_
+  refine Set.finite_iUnion fun jj => ?_
+  refine Set.finite_iUnion fun hAs => ?_
+  exact (hsub f A hA jj hAs).finite
+
+
+/-- An outer side lies in the list of at most one parent side. -/
+private lemma ac2_outerList_unique (c : MacroCertificate P) {α : c.Q.Form}
+    {d d' : Fin (c.Q.disk α).n} {o : c.SideOcc} (h : o ∈ c.outerList α d)
+    (h' : o ∈ c.outerList α d') : d = d' := by
+  by_contra hne
+  have h1 := ((c.g3_outerList_mem α d o).1 h).2.2
+  have h2 := ((c.g3_outerList_mem α d' o).1 h').2.2
+  have hsub : c.occSide o ⊆ c.σ.θ • (((c.Q.disk α).side d) ∩ ((c.Q.disk α).side d')) := by
+    rw [Set.smul_set_inter₀ (ac2_theta_ne c)]
+    exact Set.subset_inter h1 h2
+  have hfin : (c.σ.θ • (((c.Q.disk α).side d) ∩ ((c.Q.disk α).side d'))).Finite := by
+    apply Set.Finite.smul_set
+    exact (Set.toFinite _).subset ((c.Q.disk α).simple d d' hne)
+  apply (hfin.subset hsub).not_infinite
+  rw [ac2_occSide_eq]
+  exact ac2_segment_infinite (ac2_occ_ends_ne c o)
+
+/-- Two distinct listed sides of one parent side do not overlap with positive length. -/
+private lemma ac2_list_no_overlap (c : MacroCertificate P) {α : c.Q.Form} {d : Fin (c.Q.disk α).n}
+    {o o' : c.SideOcc} (ho : o ∈ c.outerList α d) (ho' : o' ∈ c.outerList α d) (hne : o ≠ o') :
+    ¬ OverlapPos (c.occSide o) (c.occSide o') := by
+  intro hov
+  obtain ⟨hown, hout, hsub⟩ := (c.g3_outerList_mem α d o).1 ho
+  obtain ⟨hown', -, -⟩ := (c.g3_outerList_mem α d o').1 ho'
+  by_cases ht : o.1 = o'.1
+  · obtain ⟨t, i⟩ := o
+    obtain ⟨t', i'⟩ := o'
+    simp only at ht
+    subst ht
+    have hi : i ≠ i' := fun h => hne (by rw [h])
+    obtain ⟨x, y, hxy, hs⟩ := hov
+    have hx := hs (left_mem_segment ℝ x y)
+    have hy := hs (right_mem_segment ℝ x y)
+    exact hi (ac2_same_type_side c hxy hx.1 hx.2 hy.1 hy.2)
+  · have hm1 := ac2_childTile_mem c o.1
+    have hm2 := ac2_childTile_mem c o'.1
+    rw [hown] at hm1
+    rw [hown'] at hm2
+    have heq : c.occSide o = c.occSide o' :=
+      c.template_sts α (c.childTile o.1) hm1 (c.childTile o'.1) hm2 o.2 o'.2 hov
+    have htile : c.childTile o.1 ≠ c.childTile o'.1 := by
+      intro h
+      apply ht
+      have hf : c.form o.1 = c.form o'.1 := congrArg PlacedTile.form h
+      have ha : c.anchor o.1 = c.anchor o'.1 := congrArg PlacedTile.anchor h
+      exact c.type_injective _ _ (hown.trans hown'.symm) hf ha
+    have hdisj : Disjoint (interior (c.childTile o.1).carrier) (interior (c.childTile o'.1).carrier) :=
+      (c.σ.rule α).disjoint hm1 hm2 htile
+    set Pp := c.occStart o
+    set Qq := c.occEnd o
+    have hPQ : Pp ≠ Qq := ac2_occ_ends_ne c o
+    have hS1 : segment ℝ Pp Qq ⊆ c.anchor o.1 +ᵥ (c.Q.disk (c.form o.1)).side o.2 := by
+      rw [← ac2_occSide_eq]; exact subset_rfl
+    have hS2 : segment ℝ Pp Qq ⊆ c.anchor o'.1 +ᵥ (c.Q.disk (c.form o'.1)).side o'.2 := by
+      rw [← ac2_occSide_eq, heq]; exact subset_rfl
+    obtain ⟨r₁, hr₁, H₁⟩ := ac2_tile_half _ _ _ hPQ hS1
+    obtain ⟨r₂, hr₂, H₂⟩ := ac2_tile_half _ _ _ hPQ hS2
+    have hdPQ : 0 < dist Pp Qq := dist_pos.mpr hPQ
+    set r := min (min r₁ r₂) (dist Pp Qq / 2)
+    have hr : 0 < r := lt_min (lt_min hr₁ hr₂) (by linarith)
+    have hr1 : r ≤ r₁ := (min_le_left _ _).trans (min_le_left _ _)
+    have hr2 : r ≤ r₂ := (min_le_left _ _).trans (min_le_right _ _)
+    obtain ⟨⟨xp, hxp⟩, ⟨xn, hxn⟩⟩ := asm_halves_nonempty Pp Qq hPQ r hr
+    set m := midpoint ℝ Pp Qq
+    set ℓ := asmNormal (Qq - Pp)
+    have hcar : ∀ t : c.Typ, c.owner t = α → (c.childTile t).carrier ⊆ c.σ.θ • (c.Q.disk α).carrier := by
+      intro t ht'
+      rw [← c.σ.support_eq α]
+      intro x hx
+      have hmem := ac2_childTile_mem c t
+      rw [ht'] at hmem
+      exact Set.mem_biUnion hmem hx
+    have hside1 : segment ℝ Pp Qq ⊆ (c.childTile o.1).carrier := by
+      refine hS1.trans ?_
+      exact Set.vadd_set_mono ((c.Q.disk (c.form o.1)).compact.isClosed.frontier_subset.trans' (asm_side_sub_carrier _ o.2))
+    have hmB : m ∈ c.macroBoundary α :=
+      (hsub.trans (ac2_macroSide_sub c α d)) (by rw [ac2_occSide_eq]; exact midpoint_mem_segment Pp Qq)
+    have key : ∀ (U V : Set Pt), U ⊆ c.σ.θ • (c.Q.disk α).carrier → V ⊆ c.σ.θ • (c.Q.disk α).carrier →
+        Metric.ball m r ∩ {x | ℓ m < ℓ x} ⊆ U → Metric.ball m r ∩ {x | ℓ x < ℓ m} ⊆ V → False := by
+      intro U V hU hV h1 h2
+      have hball : Metric.ball m r ⊆ c.σ.θ • (c.Q.disk α).carrier := by
+        intro x hx
+        rcases lt_trichotomy (ℓ x) (ℓ m) with h | h | h
+        · exact hV (h2 ⟨hx, h⟩)
+        · apply hcar o.1 hown
+          apply hside1
+          apply asm_ball_line hPQ _ h
+          exact lt_of_lt_of_le (Metric.mem_ball.1 hx) (min_le_right _ _)
+        · exact hU (h1 ⟨hx, h⟩)
+      have hint : m ∈ interior (c.σ.θ • (c.Q.disk α).carrier) :=
+        mem_interior_iff_mem_nhds.2 (Filter.mem_of_superset (Metric.ball_mem_nhds m hr) hball)
+      exact Set.disjoint_left.1 disjoint_interior_frontier hint hmB
+    rcases H₁ r hr hr1 with A₁ | A₁ <;> rcases H₂ r hr hr2 with A₂ | A₂
+    · exact Set.disjoint_left.1 hdisj (A₁ hxp) (A₂ hxp)
+    · exact key _ _ (interior_subset.trans (hcar o.1 hown)) (interior_subset.trans (hcar o'.1 hown')) A₁ A₂
+    · exact key _ _ (interior_subset.trans (hcar o'.1 hown')) (interior_subset.trans (hcar o.1 hown)) A₂ A₁
+    · exact Set.disjoint_left.1 hdisj (A₁ hxn) (A₂ hxn)
+
+
+private lemma ac2_line_self (w A : Pt) : ac2Line w A A := rfl
+
+private lemma ac2_normal_neg (v x : Pt) : asmNormal (-v) x = -asmNormal v x := by
+  simp only [asmNormal_apply, PiLp.neg_apply]; ring
+
+private lemma ac2_posDir (c : MacroCertificate P) {u v : Pt} (huv : u ≠ v) :
+    (c.posDir u v = v - u ∨ c.posDir u v = -(v - u)) ∧ c.IsPositive (c.posDir u v) := by
+  have hne : v - u ≠ 0 := sub_ne_zero.2 (Ne.symm huv)
+  unfold MacroData.posDir
+  split_ifs with h
+  · exact ⟨Or.inl rfl, h⟩
+  · refine ⟨Or.inr (neg_sub v u).symm, ?_⟩
+    have := (c.g3_pos_iff (u - v) (sub_ne_zero.2 huv)).2
+    rw [neg_sub] at this
+    exact this h
+
+/-- The scaled parent side lies on the line through its first vertex in its positive direction. -/
+private lemma ac2_macro_line (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    c.macroSideDir α d ≠ 0 ∧ c.IsPositive (c.macroSideDir α d) ∧
+      ∀ x ∈ c.macroSide α d, ac2Line (c.macroSideDir α d) (c.σ.θ • (c.Q.disk α).vertex d) x := by
+  have hne := ac2_macro_ends_ne c α d
+  obtain ⟨h1, h2⟩ := ac2_posDir c hne
+  have hw : c.macroSideDir α d ≠ 0 := by
+    unfold MacroData.macroSideDir
+    rcases h1 with h | h <;> rw [h]
+    · exact sub_ne_zero.2 (Ne.symm hne)
+    · exact neg_ne_zero.2 (sub_ne_zero.2 (Ne.symm hne))
+  refine ⟨hw, h2, fun x hx => ?_⟩
+  rw [ac2_macroSide_eq] at hx
+  refine ac2_line_segment_sub (ac2_line_self _ _) ?_ hx
+  unfold ac2Line
+  have hB : c.σ.θ • (c.Q.disk α).vertex (finRotate _ d) =
+      c.σ.θ • (c.Q.disk α).vertex d + (c.σ.θ • (c.Q.disk α).vertex (finRotate _ d) -
+        c.σ.θ • (c.Q.disk α).vertex d) := by abel
+  rw [hB, map_add]
+  unfold MacroData.macroSideDir
+  rcases h1 with h | h <;> rw [h]
+  · rw [ac2_normal_self, add_zero]
+  · rw [ac2_normal_neg, ac2_normal_neg, ac2_normal_self]; ring
+
+/-- Lower coordinate of a side occurrence along a direction. -/
+private def ac2Lo (c : MacroCertificate P) (w : Pt) (o : c.SideOcc) : ℝ :=
+  min (inner ℝ w (c.occStart o)) (inner ℝ w (c.occEnd o))
+
+/-- Upper coordinate of a side occurrence along a direction. -/
+private def ac2Hi (c : MacroCertificate P) (w : Pt) (o : c.SideOcc) : ℝ :=
+  max (inner ℝ w (c.occStart o)) (inner ℝ w (c.occEnd o))
+
+private lemma ac2_occ_interval (c : MacroCertificate P) {w A : Pt} (hw : w ≠ 0) (o : c.SideOcc)
+    (hs : ac2Line w A (c.occStart o)) (he : ac2Line w A (c.occEnd o)) :
+    ac2Lo c w o < ac2Hi c w o ∧ inner ℝ w (c.occMid o) = (ac2Lo c w o + ac2Hi c w o) / 2 ∧
+      ∀ z, ac2Line w A z → (z ∈ c.occSide o ↔ ac2Lo c w o ≤ inner ℝ w z ∧ inner ℝ w z ≤ ac2Hi c w o) := by
+  have hne : inner ℝ w (c.occStart o) ≠ inner ℝ w (c.occEnd o) :=
+    fun h => ac2_occ_ends_ne c o (ac2_line_inj hw hs he h)
+  have hmid : inner ℝ w (c.occMid o) = (inner ℝ w (c.occStart o) + inner ℝ w (c.occEnd o)) / 2 := by
+    unfold MacroData.occMid
+    rw [midpoint_eq_smul_add, inner_smul_right, inner_add_right, invOf_eq_inv]; ring
+  unfold ac2Lo ac2Hi
+  rw [ac2_occSide_eq]
+  rcases lt_or_gt_of_ne hne with h | h
+  · rw [min_eq_left h.le, max_eq_right h.le]
+    exact ⟨h, hmid, fun z hz => by rw [ac2_line_mem_segment hw hs he hz, Set.uIcc_of_le h.le, Set.mem_Icc]⟩
+  · rw [min_eq_right h.le, max_eq_left h.le]
+    refine ⟨h, by rw [hmid]; ring, fun z hz => ?_⟩
+    rw [ac2_line_mem_segment hw hs he hz, Set.uIcc_of_ge h.le, Set.mem_Icc]
+
+/-- The listed sides of a parent side are ordered as disjoint intervals along it. -/
+private lemma ac2_list_ordered (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    (c.outerList α d).Pairwise fun o o' =>
+      ac2Hi c (c.macroSideDir α d) o ≤ ac2Lo c (c.macroSideDir α d) o' := by
+  obtain ⟨hw, -, hline⟩ := ac2_macro_line c α d
+  set w := c.macroSideDir α d
+  set A := c.σ.θ • (c.Q.disk α).vertex d
+  have hon : ∀ o ∈ c.outerList α d, ∀ z ∈ c.occSide o, ac2Line w A z := fun o ho z hz =>
+    hline z (((c.g3_outerList_mem α d o).1 ho).2.2 hz)
+  have hint : ∀ o ∈ c.outerList α d, ac2Lo c w o < ac2Hi c w o ∧
+      inner ℝ w (c.occMid o) = (ac2Lo c w o + ac2Hi c w o) / 2 ∧
+      ∀ z, ac2Line w A z → (z ∈ c.occSide o ↔ ac2Lo c w o ≤ inner ℝ w z ∧ inner ℝ w z ≤ ac2Hi c w o) :=
+    fun o ho => ac2_occ_interval c hw o (hon o ho _ (by rw [ac2_occSide_eq]; exact left_mem_segment ℝ _ _))
+      (hon o ho _ (by rw [ac2_occSide_eq]; exact right_mem_segment ℝ _ _))
+  have hsorted := c.g3_outerList_sorted α d
+  have hnodup := c.g3_outerList_nodup α d
+  rw [List.pairwise_iff_getElem] at hsorted ⊢
+  intro i j hi hj hij
+  set o := (c.outerList α d)[i]
+  set o' := (c.outerList α d)[j]
+  have ho : o ∈ c.outerList α d := List.getElem_mem hi
+  have ho' : o' ∈ c.outerList α d := List.getElem_mem hj
+  have hne : o ≠ o' := by
+    intro h
+    have := (List.Nodup.getElem_inj_iff hnodup).1 h
+    omega
+  obtain ⟨r, hr, hrw⟩ := hsorted i j hi hj hij
+  obtain ⟨hlt1, hm1, hI1⟩ := hint o ho
+  obtain ⟨hlt2, hm2, hI2⟩ := hint o' ho'
+  have hmid : inner ℝ w (c.occMid o) < inner ℝ w (c.occMid o') := by
+    have : inner ℝ w (c.occMid o') - inner ℝ w (c.occMid o) = r * inner ℝ w w := by
+      rw [← inner_sub_right, hrw, inner_smul_right]
+    have := ac2_inner_self_pos hw
+    nlinarith
+  by_contra hcon
+  push_neg at hcon
+  apply ac2_list_no_overlap c ho ho' hne
+  set a := max (ac2Lo c w o) (ac2Lo c w o')
+  set b := min (ac2Hi c w o) (ac2Hi c w o')
+  have hab : a < b := by
+    apply max_lt <;> apply lt_min
+    · exact hlt1
+    · by_contra h; push_neg at h; linarith
+    · exact hcon
+    · exact hlt2
+  obtain ⟨z1, hz1, e1⟩ := ac2_line_exists w A hw a
+  obtain ⟨z2, hz2, e2⟩ := ac2_line_exists w A hw b
+  have ha1 := le_max_left (ac2Lo c w o) (ac2Lo c w o')
+  have ha2 := le_max_right (ac2Lo c w o) (ac2Lo c w o')
+  have hb1 := min_le_left (ac2Hi c w o) (ac2Hi c w o')
+  have hb2 := min_le_right (ac2Hi c w o) (ac2Hi c w o')
+  refine ⟨z1, z2, fun h => by rw [h, e2] at e1; linarith, ?_⟩
+  apply Convex.segment_subset ((by rw [ac2_occSide_eq]; exact convex_segment _ _ : Convex ℝ (c.occSide o)).inter
+    (by rw [ac2_occSide_eq]; exact convex_segment _ _ : Convex ℝ (c.occSide o')))
+  · exact ⟨(hI1 z1 hz1).2 ⟨by linarith, by linarith⟩, (hI2 z1 hz1).2 ⟨by linarith, by linarith⟩⟩
+  · exact ⟨(hI1 z2 hz2).2 ⟨by linarith, by linarith⟩, (hI2 z2 hz2).2 ⟨by linarith, by linarith⟩⟩
+
+/-- Consecutive listed sides of a parent side are adjacent and ordered along it. -/
+private lemma ac2_adjacent (c : MacroCertificate P) (hH : c.Hereditary) (α : c.Q.Form)
+    (d : Fin (c.Q.disk α).n) (i : ℕ) (hi : i + 1 < (c.outerList α d).length) :
+    (c.occSide (c.outerList α d)[i] ∩ c.occSide (c.outerList α d)[i + 1]).Nonempty ∧
+      ∀ x ∈ c.occSide (c.outerList α d)[i], ∀ y ∈ c.occSide (c.outerList α d)[i + 1],
+        inner ℝ (c.macroSideDir α d) x ≤ inner ℝ (c.macroSideDir α d) y := by
+  obtain ⟨hw, -, hline⟩ := ac2_macro_line c α d
+  set w := c.macroSideDir α d
+  set A := c.σ.θ • (c.Q.disk α).vertex d
+  have hon : ∀ o ∈ c.outerList α d, ∀ z ∈ c.occSide o, ac2Line w A z := fun o ho z hz =>
+    hline z (((c.g3_outerList_mem α d o).1 ho).2.2 hz)
+  have hint : ∀ o ∈ c.outerList α d, ac2Lo c w o < ac2Hi c w o ∧
+      inner ℝ w (c.occMid o) = (ac2Lo c w o + ac2Hi c w o) / 2 ∧
+      ∀ z, ac2Line w A z → (z ∈ c.occSide o ↔ ac2Lo c w o ≤ inner ℝ w z ∧ inner ℝ w z ≤ ac2Hi c w o) :=
+    fun o ho => ac2_occ_interval c hw o (hon o ho _ (by rw [ac2_occSide_eq]; exact left_mem_segment ℝ _ _))
+      (hon o ho _ (by rw [ac2_occSide_eq]; exact right_mem_segment ℝ _ _))
+  have hord := ac2_list_ordered c α d
+  rw [List.pairwise_iff_getElem] at hord
+  have hi0 : i < (c.outerList α d).length := by omega
+  set o := (c.outerList α d)[i]
+  set o' := (c.outerList α d)[i + 1]
+  have ho : o ∈ c.outerList α d := List.getElem_mem hi0
+  have ho' : o' ∈ c.outerList α d := List.getElem_mem hi
+  obtain ⟨hlt1, -, hI1⟩ := hint o ho
+  obtain ⟨hlt2, -, hI2⟩ := hint o' ho'
+  have hle : ac2Hi c w o ≤ ac2Lo c w o' := hord i (i + 1) hi0 hi (by omega)
+  have heq : ac2Hi c w o = ac2Lo c w o' := by
+    by_contra hne
+    have hlt : ac2Hi c w o < ac2Lo c w o' := lt_of_le_of_ne hle hne
+    obtain ⟨z, hz, ez⟩ := ac2_line_exists w A hw ((ac2Hi c w o + ac2Lo c w o') / 2)
+    obtain ⟨z1, hz1, e1⟩ := ac2_line_exists w A hw (ac2Hi c w o)
+    obtain ⟨z2, hz2, e2⟩ := ac2_line_exists w A hw (ac2Lo c w o')
+    have hz1m : z1 ∈ c.macroSide α d :=
+      ((c.g3_outerList_mem α d o).1 ho).2.2 ((hI1 z1 hz1).2 ⟨by linarith, by linarith⟩)
+    have hz2m : z2 ∈ c.macroSide α d :=
+      ((c.g3_outerList_mem α d o').1 ho').2.2 ((hI2 z2 hz2).2 ⟨by linarith, by linarith⟩)
+    have hAB := ac2_macroSide_eq c α d
+    have hBl : ac2Line w A (c.σ.θ • (c.Q.disk α).vertex (finRotate _ d)) :=
+      hline _ (by rw [hAB]; exact right_mem_segment ℝ _ _)
+    rw [hAB, ac2_line_mem_segment hw (ac2_line_self _ _) hBl hz1] at hz1m
+    rw [hAB, ac2_line_mem_segment hw (ac2_line_self _ _) hBl hz2] at hz2m
+    have hzm : z ∈ c.macroSide α d := by
+      rw [hAB, ac2_line_mem_segment hw (ac2_line_self _ _) hBl hz]
+      apply Set.ordConnected_uIcc.out hz1m hz2m
+      rw [e1, e2, ez]; constructor <;> linarith
+    obtain ⟨m, hm, hzm'⟩ := ac2_list_cover c hH α d hzm
+    obtain ⟨-, -, hIm⟩ := hint m hm
+    have hb := (hIm z hz).1 hzm'
+    rw [ez] at hb
+    obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem hm
+    obtain ⟨hltm, -, -⟩ := hint _ hm
+    rcases lt_trichotomy k i with h | h | h
+    · have := hord k i hk hi0 h
+      linarith
+    · subst h; linarith
+    · rcases lt_trichotomy k (i + 1) with h' | h' | h'
+      · omega
+      · subst h'; linarith
+      · have := hord (i + 1) k hi hk h'
+        linarith
+  constructor
+  · obtain ⟨z, hz, ez⟩ := ac2_line_exists w A hw (ac2Hi c w o)
+    exact ⟨z, (hI1 z hz).2 ⟨by linarith, by linarith⟩, (hI2 z hz).2 ⟨by linarith, by linarith⟩⟩
+  · intro x hx y hy
+    have h1 := ((hI1 x (hon o ho x hx)).1 hx).2
+    have h2 := ((hI2 y (hon o' ho' y hy)).1 hy).1
+    linarith
+
+
+private lemma ac2_rankU_ne_zero (c : MacroCertificate P) {u : U c} (h : IsRankU c u) : u ≠ 0 := by
+  obtain ⟨k, -, rfl⟩ := h
+  intro h'; cases h'
+
+private lemma ac2_rankU_inj (c : MacroCertificate P) {a b : Fin (c.rankBound + 1)}
+    (h : rankU c a = rankU c b) : a = b := by
+  unfold rankU at h
+  cases h; rfl
+
+private lemma ac2_rankOf_val (c : MacroCertificate P) {α : c.Q.Form} {d : Fin (c.Q.disk α).n}
+    {o : c.SideOcc} (ho : o ∈ c.outerList α d) :
+    (c.rankOf α d o).val = (c.outerList α d).idxOf o + 1 := by
+  have h1 : (c.outerList α d).idxOf o < (c.outerList α d).length := List.idxOf_lt_length_iff.2 ho
+  have h2 := c.g3_length_le α d
+  show min (c.rankIn α d o) c.rankBound = _
+  unfold MacroData.rankIn
+  omega
+
+/-- On a legal tile, a positive rank on a listed outer side is the rank of that side. -/
+private lemma ac2_rank_value (c : MacroCertificate P) (hH : c.Hereditary) {K : ColouredBlock c}
+    {t : c.Typ} (ht : c.owner t = K.α) (hleg : headerLegal c (K.tileOf t)) (i : c.Side t)
+    {f : Fin (c.Q.disk K.α).n} (hf : (⟨t, i⟩ : c.SideOcc) ∈ c.outerList K.α f)
+    (hr : IsRankU c (K.col t i 3)) : K.col t i 3 = rankU c (c.rankOf K.α f ⟨t, i⟩) := by
+  obtain ⟨A, -, hA⟩ := (headerLegal_properties c hH _ hleg).1
+  have hout : c.IsOuter (c.occ t i) := ((c.g3_outerList_mem K.α f _).1 hf).2.1
+  have hnp : ¬ c.IsPrint (c.occ t i) := fun hp => asm_print_inner c hp hout
+  have h := ((hA.2 i).2 hnp).2.2.2.2.2.1 hout
+  have hF : c.form A.typ = K.α := hA.1.symm.trans ht
+  have key : ∀ (F : c.Q.Form), F = K.α → (∀ d : Fin (c.Q.disk F).n, (⟨t, i⟩ : c.SideOcc) ∈ c.outerList F d →
+      K.col t i 3 = 0 ∨ K.col t i 3 = rankU c (c.rankOf F d ⟨t, i⟩)) →
+      K.col t i 3 = 0 ∨ K.col t i 3 = rankU c (c.rankOf K.α f ⟨t, i⟩) := by
+    intro F hF g
+    subst hF
+    exact g f hf
+  rcases key (c.form A.typ) hF (fun d hd => by
+      have := h d hd
+      split_ifs at this
+      · exact Or.inl this
+      · exact Or.inr this) with h0 | h0
+  · exact absurd h0 (ac2_rankU_ne_zero c hr)
+  · exact h0
+
+private lemma ac2_childSide_eq {c : MacroCertificate P} (K : ColouredBlock c) (o : c.SideOcc) :
+    K.childSide o = segment ℝ (K.v + c.occStart o) (K.v + c.occEnd o) := by
+  unfold ColouredBlock.childSide PolygonalDisk.side MacroData.occStart MacroData.occEnd
+  rw [vadd_segment]
+  simp only [vadd_eq_add, add_assoc]
+
+private lemma ac2_childSide_vadd {c : MacroCertificate P} (K : ColouredBlock c) (o : c.SideOcc) :
+    K.childSide o = K.v +ᵥ c.occSide o := by
+  rw [ac2_childSide_eq, ac2_occSide_eq, vadd_segment]; rfl
+
+private lemma ac2_macro_vadd {c : MacroCertificate P} (K : ColouredBlock c) (d : Fin (c.Q.disk K.α).n) :
+    K.macroSide d = segment ℝ (K.v + c.σ.θ • (c.Q.disk K.α).vertex d)
+      (K.v + c.σ.θ • (c.Q.disk K.α).vertex (finRotate _ d)) := by
+  unfold ColouredBlock.macroSide
+  rw [ac2_macroSide_eq, vadd_segment]; rfl
+
+private lemma ac2_line_vadd {w A x : Pt} (v : Pt) (h : ac2Line w A x) : ac2Line w (v + A) (v + x) := by
+  unfold ac2Line at *
+  rw [map_add, map_add, h]
+
+private lemma ac2_dir_pos (c : MacroCertificate P) {u v : Pt} {μ : ℝ} (hu : u ≠ 0) (hv : v ≠ 0)
+    (hpu : c.IsPositive u) (hpv : c.IsPositive v) (h : v = μ • u) : 0 < μ := by
+  rcases lt_trichotomy μ 0 with hμ | hμ | hμ
+  · exfalso
+    have h1 : c.IsPositive ((-μ⁻¹) • v) := c.g3_pos_smul v _ (by
+      have := inv_lt_zero.2 hμ; linarith) hpv
+    rw [h, smul_smul, neg_mul, inv_mul_cancel₀ hμ.ne, neg_smul, one_smul] at h1
+    exact ((c.g3_pos_iff u hu).1 hpu) h1
+  · exfalso
+    rw [hμ, zero_smul] at h
+    exact hv h
+  · exact hμ
+
+private lemma ac2_occ_eq_of_fst (c : MacroCertificate P) (K : ColouredBlock c) {o o' : c.SideOcc}
+    (h : o.1 = o'.1) {x y : Pt} (hxy : x ≠ y) (hx : x ∈ K.childSide o) (hx' : x ∈ K.childSide o')
+    (hy : y ∈ K.childSide o) (hy' : y ∈ K.childSide o') : o = o' := by
+  obtain ⟨t, i⟩ := o
+  obtain ⟨t', i'⟩ := o'
+  simp only at h
+  subst h
+  have := ac2_same_type_side c (i := i) (i' := i') (a := K.v + c.anchor t) hxy hx hx' hy hy'
+  subst this; rfl
+
+
+private lemma ac2_outer_in_list' (c : MacroCertificate P) (hH : c.Hereditary) (o : c.SideOcc)
+    (α : c.Q.Form) (hα : c.owner o.1 = α) (hout : c.IsOuter o) : ∃ f : Fin (c.Q.disk α).n, o ∈ c.outerList α f := by
+  subst hα; exact ac2_outer_in_list c hH o hout
+
+/-- A side whose five cells agree with those of a listed outer side of a legal tile is outer. -/
+private lemma ac2_opp_outer (c : MacroCertificate P) (hH : c.Hereditary) {A B : DecTile c}
+    (hA : headerLegal c A) (hB : headerLegal c B) (i : c.Side A.typ) (j : c.Side B.typ)
+    (hi : c.IsOuter (c.occ A.typ i)) (hc : ∀ k, B.cell j k = A.cell i k) : c.IsOuter (c.occ B.typ j) := by
+  have hNA := (headerLegal_properties c hH A hA).2.1
+  have hIB := (headerLegal_properties c hH B hB).2.2.1
+  have hA0 := asm_cell_zero_outer c hNA i hi
+  have hA4 := asm_cell_four_nonprint c hNA i (fun hp => asm_print_inner c hp hi)
+  by_contra hin
+  by_cases hp : c.IsPrint (c.occ B.typ j)
+  · have := (hIB j).2 hp
+    rw [hc 4, hA4] at this
+    exact asm_identU_ne_zero c _ this.symm
+  · have := (hIB j).1 hin hp
+    rw [hc 0, hA0] at this
+    exact asm_identU_ne_zero c _ this.symm
+
+private lemma ac2_tile_disjoint {c : MacroCertificate P} (T : PlaneTiling (typedDecoration c))
+    {X Y : PlacedTile (typedDecoration c)} (hX : X ∈ T.tiles) (hY : Y ∈ T.tiles) (hne : X ≠ Y) :
+    Disjoint (interior X.carrier) (interior Y.carrier) := T.disjoint hX hY hne
+
+private lemma ac2_step (c : MacroCertificate P) (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j) (d : Fin (c.Q.disk (part.block j).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n) (hrank : RankMatched c part j d) (k : ℕ)
+    (hk1 : k + 1 < (c.outerList (part.block j).α d).length)
+    (hk' : k < (c.outerList (part.block j').α e).length)
+    (hIH : (part.block j').childSide (c.outerList (part.block j').α e)[k] =
+      (part.block j).childSide (c.outerList (part.block j).α d)[k]) :
+    ∃ hk'' : k + 1 < (c.outerList (part.block j').α e).length,
+      (part.block j').childSide (c.outerList (part.block j').α e)[k + 1] =
+        (part.block j).childSide (c.outerList (part.block j).α d)[k + 1] := by
+  have hmemT : ∀ (jj : part.ι) (t : c.Typ), c.owner t = (part.block jj).α →
+      (part.block jj).placed t ∈ T.tiles := fun jj t ht => part.cover ▸ Set.mem_iUnion.2 ⟨jj, t, ht, rfl⟩
+  have hblk : ∀ (j1 j2 : part.ι) (t1 t2 : c.Typ), c.owner t1 = (part.block j1).α →
+      c.owner t2 = (part.block j2).α → (part.block j1).placed t1 = (part.block j2).placed t2 → j1 = j2 := by
+    intro j1 j2 t1 t2 h1 h2 heq
+    by_contra hne
+    exact Set.disjoint_left.1 (part.disjoint hne) ⟨t1, h1, rfl⟩ (by rw [heq]; exact ⟨t2, h2, rfl⟩)
+  have hk0 : k < (c.outerList (part.block j).α d).length := by omega
+  have hoo_mem := List.getElem_mem hk1
+  have hok_mem := List.getElem_mem hk0
+  have hel_mem := List.getElem_mem hk'
+  set oo := (c.outerList (part.block j).α d)[k + 1] with hoo
+  set ok := (c.outerList (part.block j).α d)[k] with hok
+  set el := (c.outerList (part.block j').α e)[k] with hel
+  obtain ⟨hoo_own, hoo_out, hoo_sub⟩ := (c.g3_outerList_mem _ _ _).1 hoo_mem
+  obtain ⟨hok_own, -, hok_sub⟩ := (c.g3_outerList_mem _ _ _).1 hok_mem
+  obtain ⟨hel_own, -, -⟩ := (c.g3_outerList_mem _ _ _).1 hel_mem
+  obtain ⟨hrk, -⟩ := hrank oo hoo_mem
+  have hX := hmemT j oo.1 hoo_own
+  have hntr : IsNontrivial c (tileDec ((part.block j).placed oo.1)) oo.2 :=
+    fun h => ac2_rankU_ne_zero c hrk h.1
+  obtain ⟨Z, hZ, hZX, jZ, hside, hcell⟩ := hT _ hX oo.2 hntr
+  have hZ' : Z ∈ ⋃ jj, (part.block jj).tiles := by rw [part.cover]; exact hZ
+  obtain ⟨j'', tZ, htZ, rfl⟩ := Set.mem_iUnion.1 hZ'
+  have hoz_out : c.IsOuter ⟨tZ, jZ⟩ := ac2_opp_outer c hH (hL _ hX) (hL _ hZ) oo.2 jZ hoo_out hcell
+  obtain ⟨f, hf⟩ := ac2_outer_in_list' c hH ⟨tZ, jZ⟩ (part.block j'').α htZ hoz_out
+  have hcol : (part.block j'').col tZ jZ 3 = (part.block j).col oo.1 oo.2 3 := hcell 3
+  have hv1 := ac2_rank_value c hH hoo_own (hL _ hX) oo.2 hoo_mem hrk
+  have hv2 := ac2_rank_value c hH htZ (hL _ hZ) jZ hf (hcol ▸ hrk)
+  have hidx : (c.outerList (part.block j'').α f).idxOf ⟨tZ, jZ⟩ = k + 1 := by
+    have h1 := congrArg Fin.val (ac2_rankU_inj c (hv2.symm.trans (hcol.trans hv1)))
+    rw [ac2_rankOf_val c hf, ac2_rankOf_val c hoo_mem] at h1
+    rw [hoo, List.Nodup.idxOf_getElem (c.g3_outerList_nodup _ _)] at h1
+    omega
+  have hzlt : k + 1 < (c.outerList (part.block j'').α f).length := by
+    have := List.idxOf_lt_length_iff.2 hf
+    omega
+  have hLfz : (c.outerList (part.block j'').α f)[k + 1] = ⟨tZ, jZ⟩ := by
+    have := List.getElem_idxOf (List.idxOf_lt_length_iff.2 hf)
+    simp only [hidx] at this
+    exact this
+  have hp_mem := List.getElem_mem (show k < (c.outerList (part.block j'').α f).length by omega)
+  set p := (c.outerList (part.block j'').α f)[k] with hp
+  obtain ⟨hp_own, -, hp_sub⟩ := (c.g3_outerList_mem _ _ _).1 hp_mem
+  obtain ⟨⟨b1, hb1a, hb1b⟩, hord1⟩ := ac2_adjacent c hH (part.block j).α d k hk1
+  obtain ⟨⟨b2, hb2a, hb2b⟩, hord2⟩ := ac2_adjacent c hH (part.block j'').α f k hzlt
+  rw [hLfz] at hb2b hord2
+  have hside' : (part.block j'').childSide ⟨tZ, jZ⟩ = (part.block j).childSide oo := hside
+  obtain ⟨hw, -, hline⟩ := ac2_macro_line c (part.block j).α d
+  set w := c.macroSideDir (part.block j).α d with hwdef
+  set A0 := (part.block j).v + c.σ.θ • (c.Q.disk (part.block j).α).vertex d with hA0
+  have hlineK : ∀ x ∈ c.macroSide (part.block j).α d, ac2Line w A0 ((part.block j).v + x) :=
+    fun x hx => ac2_line_vadd _ (hline x hx)
+  have hstart : ∀ o : c.SideOcc, c.occStart o ∈ c.occSide o := fun o => by
+    rw [ac2_occSide_eq]; exact left_mem_segment ℝ _ _
+  have hend : ∀ o : c.SideOcc, c.occEnd o ∈ c.occSide o := fun o => by
+    rw [ac2_occSide_eq]; exact right_mem_segment ℝ _ _
+  -- the side `s` of `oo`
+  have hPs := hlineK _ (hoo_sub (hstart oo))
+  have hQs := hlineK _ (hoo_sub (hend oo))
+  have hsne : (part.block j).v + c.occStart oo ≠ (part.block j).v + c.occEnd oo :=
+    fun h => ac2_occ_ends_ne c oo (add_left_cancel h)
+  -- the macroside `f` of block `j''` lies on the same line
+  have hsf : (part.block j).childSide oo ⊆ (part.block j'').macroSide f := by
+    rw [← hside', ac2_childSide_vadd]
+    exact Set.vadd_set_mono ((c.g3_outerList_mem _ _ _).1 hf).2.2
+  have hlineF : ∀ x ∈ (part.block j'').macroSide f, ac2Line w A0 x := by
+    intro x hx
+    rw [ac2_macro_vadd] at hx hsf
+    rw [ac2_childSide_eq] at hsf
+    exact ac2_line_of_segment hw hPs hQs hsne (hsf (left_mem_segment ℝ _ _))
+      (hsf (right_mem_segment ℝ _ _)) hx
+  have hlineK'' : ∀ x ∈ c.macroSide (part.block j'').α f, ac2Line w A0 ((part.block j'').v + x) :=
+    fun x hx => hlineF _ (Set.vadd_mem_vadd_set hx)
+  -- orientation of the macroside `f`
+  obtain ⟨hwf, hposf, -⟩ := ac2_macro_line c (part.block j'').α f
+  obtain ⟨-, hposw, -⟩ := ac2_macro_line c (part.block j).α d
+  obtain ⟨μ, hμ⟩ : ∃ μ : ℝ, c.macroSideDir (part.block j'').α f = μ • w := by
+    have hE1 := hlineF _ (by rw [ac2_macro_vadd]; exact left_mem_segment ℝ _ _)
+    have hE2 := hlineF _ (by rw [ac2_macro_vadd]; exact right_mem_segment ℝ _ _)
+    have hsub := ac2_line_sub hw hE1 hE2
+    rw [add_sub_add_left_eq_sub] at hsub
+    rcases (ac2_posDir c (ac2_macro_ends_ne c (part.block j'').α f)).1 with h | h
+    · exact ⟨_, by unfold MacroData.macroSideDir; rw [h, hsub]⟩
+    · exact ⟨-_, by unfold MacroData.macroSideDir; rw [h, hsub, neg_smul]⟩
+  have hμpos : 0 < μ := ac2_dir_pos c hw hwf hposw hposf hμ
+  have hinner_v : ∀ (v x : Pt), inner ℝ w (v + x) = inner ℝ w v + inner ℝ w x :=
+    fun v x => inner_add_right _ _ _
+  obtain ⟨z1, z2, hz12, hz1a, hz1b, hz2a, hz2b⟩ := ac2_common_end hw
+    (hlineK _ (hok_sub (hstart ok))) (hlineK _ (hok_sub (hend ok)))
+    (hlineK'' _ (hp_sub (hstart p))) (hlineK'' _ (hp_sub (hend p))) hPs hQs
+    (fun h => ac2_occ_ends_ne c ok (add_left_cancel h))
+    (fun h => ac2_occ_ends_ne c p (add_left_cancel h)) hsne
+    (by
+      rw [← ac2_childSide_eq, ← ac2_childSide_eq, ac2_childSide_vadd, ac2_childSide_vadd]
+      exact ⟨_, Set.vadd_mem_vadd_set hb1a, Set.vadd_mem_vadd_set hb1b⟩)
+    (by
+      rw [← ac2_childSide_eq, ← ac2_childSide_eq, ← hside', ac2_childSide_vadd, ac2_childSide_vadd]
+      exact ⟨_, Set.vadd_mem_vadd_set hb2a, Set.vadd_mem_vadd_set hb2b⟩)
+    (by
+      rw [← ac2_childSide_eq, ← ac2_childSide_eq, ac2_childSide_vadd, ac2_childSide_vadd]
+      rintro _ ⟨x, hx, rfl⟩ _ ⟨y, hy, rfl⟩
+      simp only [vadd_eq_add, hinner_v]
+      have := hord1 x hx y hy
+      linarith)
+    (by
+      rw [← ac2_childSide_eq, ← ac2_childSide_eq, ← hside', ac2_childSide_vadd, ac2_childSide_vadd]
+      rintro _ ⟨x, hx, rfl⟩ _ ⟨y, hy, rfl⟩
+      simp only [vadd_eq_add, hinner_v]
+      have := hord2 x hx y hy
+      rw [hμ, real_inner_smul_left, real_inner_smul_left] at this
+      have := le_of_mul_le_mul_left this hμpos
+      linarith)
+  rw [← ac2_childSide_eq] at hz1a hz1b hz2a hz2b
+  have hseg : ∀ (K : ColouredBlock c) (o : c.SideOcc), z1 ∈ K.childSide o → z2 ∈ K.childSide o →
+      segment ℝ z1 z2 ⊆ K.childSide o := fun K o h1 h2 => by
+    rw [ac2_childSide_eq] at h1 h2 ⊢
+    exact (convex_segment _ _).segment_subset h1 h2
+  have hXk := hmemT j ok.1 hok_own
+  have hYk := hmemT j' el.1 hel_own
+  have hPk := hmemT j'' p.1 hp_own
+  have hXY : (part.block j).placed ok.1 ≠ (part.block j').placed el.1 :=
+    fun h => hneq (hblk _ _ _ _ hok_own hel_own h).symm
+  by_cases hPX : (part.block j'').placed p.1 = (part.block j).placed ok.1
+  · exfalso
+    have hjj := hblk _ _ _ _ hp_own hok_own hPX
+    subst hjj
+    have hp1 : p.1 = ok.1 := congrArg (fun X => (tileDec X).typ) hPX
+    have hpok : p = ok := ac2_occ_eq_of_fst c _ hp1 hz12 hz1b hz1a hz2b hz2a
+    have hfd : f = d := ac2_outerList_unique c hp_mem (hpok ▸ hok_mem)
+    subst hfd
+    have : (⟨tZ, jZ⟩ : c.SideOcc) = oo := hLfz.symm
+    have htt : tZ = oo.1 := congrArg Sigma.fst this
+    exact hZX (by rw [htt])
+  by_cases hPY : (part.block j'').placed p.1 = (part.block j').placed el.1
+  · have hjj := hblk _ _ _ _ hp_own hel_own hPY
+    subst hjj
+    have hp1 : p.1 = el.1 := congrArg (fun X => (tileDec X).typ) hPY
+    have hpel : p = el := ac2_occ_eq_of_fst c _ hp1 hz12 hz1b (hIH ▸ hz1a) hz2b (hIH ▸ hz2a)
+    have hfe : f = e := ac2_outerList_unique c hp_mem (hpel ▸ hel_mem)
+    subst hfe
+    exact ⟨hzlt, by rw [hLfz]; exact hside'⟩
+  exfalso
+  have hz1e : z1 ∈ (part.block j').childSide el := by rw [hIH]; exact hz1a
+  have hz2e : z2 ∈ (part.block j').childSide el := by rw [hIH]; exact hz2a
+  have s1 : segment ℝ z1 z2 ⊆ ((part.block j).v + c.anchor ok.1) +ᵥ (c.Q.disk (c.form ok.1)).side ok.2 :=
+    hseg _ _ hz1a hz2a
+  have s2 : segment ℝ z1 z2 ⊆ ((part.block j').v + c.anchor el.1) +ᵥ (c.Q.disk (c.form el.1)).side el.2 :=
+    hseg _ _ hz1e hz2e
+  have s3 : segment ℝ z1 z2 ⊆ ((part.block j'').v + c.anchor p.1) +ᵥ (c.Q.disk (c.form p.1)).side p.2 :=
+    hseg _ _ hz1b hz2b
+  have d12 := ac2_tile_disjoint T hXk hYk hXY
+  have d13 := ac2_tile_disjoint T hXk hPk (Ne.symm hPX)
+  have d23 := ac2_tile_disjoint T hYk hPk (Ne.symm hPY)
+  exact ac2_no_three _ _ _ _ _ _ ok.2 el.2 p.2 hz12 s1 s2 s3 d12 d13 d23
 /-- Step 2 of the blueprint proof of `alignment_complete_step1_macroside_eq`: An
  opposing macroside cannot end inside a completely matched child segment or
  between consecutive segments, so all listed sides of `d` stay on the same `e`.
@@ -2861,7 +3845,59 @@ private lemma alignment_complete_step1_macroside_eq_step2_same_opposing_macrosid
       (part.block j').childSide o' = (part.block j).childSide o ∧
       c.rankIn (part.block j').α e o' = c.rankIn (part.block j).α d o ∧
       (part.block j').col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3 := by
-  sorry
+  obtain ⟨o₀, o₁, hhead, -, ho₁, hr1, hpos₁, hside₁, -⟩ := hfirst
+  have hclaim : ∀ k (hk : k < (c.outerList (part.block j).α d).length),
+      ∃ hk' : k < (c.outerList (part.block j').α e).length,
+        (part.block j').childSide (c.outerList (part.block j').α e)[k] =
+          (part.block j).childSide (c.outerList (part.block j).α d)[k] := by
+    intro k
+    induction k with
+    | zero =>
+      intro hk
+      have hidx : (c.outerList (part.block j').α e).idxOf o₁ = 0 := by
+        unfold MacroData.rankIn at hr1; omega
+      have hlt := List.idxOf_lt_length_iff.2 ho₁
+      refine ⟨by omega, ?_⟩
+      have h1 : (c.outerList (part.block j').α e)[0] = o₁ := by
+        have := List.getElem_idxOf hlt
+        simp only [hidx] at this
+        exact this
+      have h2 : (c.outerList (part.block j).α d)[0] = o₀ := by
+        rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hk] at hhead
+        exact Option.some.inj hhead
+      rw [h1, h2]
+      exact hside₁
+    | succ k ih =>
+      intro hk1
+      obtain ⟨hk', hIH⟩ := ih (by omega)
+      exact ac2_step c hH T part hT hL j j' hneq d e hrank k hk1 hk' hIH
+  have hall : ∀ o ∈ c.outerList (part.block j').α e, IsRankU c ((part.block j').col o.1 o.2 3) := by
+    rcases hmode j' hneq e with h | h
+    · exact h
+    · exact absurd (h o₁ ho₁) (ac2_rankU_ne_zero c hpos₁)
+  intro o ho
+  obtain ⟨k, hk, hko⟩ := List.getElem_of_mem ho
+  obtain ⟨hk', hS⟩ := hclaim k hk
+  have hmem' := List.getElem_mem hk'
+  set o' := (c.outerList (part.block j').α e)[k] with ho'
+  rw [hko] at hS
+  have hrankeq : c.rankIn (part.block j').α e o' = c.rankIn (part.block j).α d o := by
+    unfold MacroData.rankIn
+    rw [← hko, ho', List.Nodup.idxOf_getElem (c.g3_outerList_nodup _ _),
+      List.Nodup.idxOf_getElem (c.g3_outerList_nodup _ _)]
+  refine ⟨o', hmem', hS, hrankeq, ?_⟩
+  have hown := ((c.g3_outerList_mem _ _ _).1 ho).1
+  have hown' := ((c.g3_outerList_mem _ _ _).1 hmem').1
+  have hmemT : ∀ (jj : part.ι) (t : c.Typ), c.owner t = (part.block jj).α →
+      (part.block jj).placed t ∈ T.tiles := fun jj t ht => part.cover ▸ Set.mem_iUnion.2 ⟨jj, t, ht, rfl⟩
+  have hv1 := ac2_rank_value c hH hown (hL _ (hmemT j _ hown)) o.2 ho (hrank _ ho).1
+  have hv2 := ac2_rank_value c hH hown' (hL _ (hmemT j' _ hown')) o'.2 hmem' (hall _ hmem')
+  rw [hv1, hv2]
+  congr 1
+  apply Fin.ext
+  rw [ac2_rankOf_val c ho, ac2_rankOf_val c hmem']
+  unfold MacroData.rankIn at hrankeq
+  omega
 
 /-- Step 3 of the blueprint proof of `alignment_complete_step1_macroside_eq`: If
  the trace reaches every child of `d`, mode-uniformity prevents the opposing

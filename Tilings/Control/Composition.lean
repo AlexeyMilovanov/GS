@@ -2567,30 +2567,6 @@ theorem reconstructed_cyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
     (hA : headerLegal c K.centre) (hcyc : c.IsCyclic h.1) :
     reconstruct c K h.1 = K.centre ∧ headerLegal c (reconstruct c K h.1) := by
   sorry
-/-- Step 1: the central centre `A = ch 0` has a print side carrying a nonzero copied first cell
-(the noncentral parent's marked identity), by the separating certificate. -/
-private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step1_base
-    {P : Protoset} (c : MacroCertificate P) (hH : c.Hereditary)
-    (K : ColouredBlock c) (hK : BlockContext c K)
-    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
-    (hnc : ¬ c.IsCentral h.1) (ch : ℕ → DecTile c) (hch0 : ch 0 = K.centre) :
-    ∃ i : c.Side (ch 0).typ, c.IsPrint (c.occ (ch 0).typ i) ∧ (ch 0).cell i 0 ≠ 0 := by
-  sorry
-
-/-- Step 2: when the parent `ch (n+1)` is central (large, so its print map is the identity on
-marked sides), a print side of `ch n` with nonzero first cell copies it from a print side of
-`ch (n+1)` that again has a nonzero first cell. -/
-private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step2_propagate
-    {P : Protoset} (c : MacroCertificate P) (ch : ℕ → DecTile c)
-    (hch_child : ∀ i, IsChildOf c (ch (i + 1)) (ch i))
-    (hall : ∀ n, c.IsCentral (ch n).typ)
-    (n : ℕ) (i : c.Side (ch n).typ) (hp : c.IsPrint (c.occ (ch n).typ i))
-    (hnz : (ch n).cell i 0 ≠ 0) :
-    ∃ d : c.Side (ch (n + 1)).typ,
-      (d, (0 : Fin 5)) ∈ copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) 0 ∧
-      c.IsPrint (c.occ (ch (n + 1)).typ d) ∧ (ch (n + 1)).cell d 0 ≠ 0 := by
-  sorry
-
 /-- Step 3: a nonzero print cell that, at every level, copies from such a cell again (Step 2) never reaches an origin — the infinite descent. -/
 private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step3_no_origin
     {P : Protoset} (c : MacroCertificate P) (ch : ℕ → DecTile c)
@@ -2671,15 +2647,24 @@ private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_centra
       (copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) k).Nonempty →
       ¬ HasOrigin c ch n i k → (ch n).cell i k = 0) :
     ∃ n, ¬ c.IsCentral (ch n).typ := by
-  by_contra hall
-  push_neg at hall
-  have ⟨i₀, hp, hnz⟩ := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step1_base c hH K hK h hh hnc ch hch0
-  have hstep := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step2_propagate c ch hch_child hall
-  have hno := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step3_no_origin c ch hstep 0 i₀ hp hnz
-  have ⟨d, hd_mem, _, _⟩ := hstep 0 i₀ hp hnz
-  have hcs_nonempty : (copySource c (c.form (ch 1).typ) (c.occ (ch 0).typ i₀) 0).Nonempty := ⟨(d, 0), hd_mem⟩
-  have hz := hleg 0 i₀ 0 hcs_nonempty hno
-  exact hnz hz
+  -- the parent `ch 1` of the centre has the block form, which is not large because the
+  -- header type `h.1` of that form is noncentral (`g5_large_iff`)
+  have _ := hH; have _ := hK; have _ := hleg
+  refine ⟨1, fun hcent1 => ?_⟩
+  have H6 : c.owner (ch 0).typ = K.α := by
+    rw [hch0]
+    exact c.g5_central_owner K.α
+  have H7 : c.form (ch 1).typ = K.α := by
+    have hc := hch_child 0
+    dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hc
+    rw [← hc.1, H6]
+  have H11 : c.kind (c.form (ch 1).typ) = Geometry.FormKind.large :=
+    (c.g5_large_iff (ch 1).typ).mpr hcent1.symm
+  apply hnc
+  have Hl : c.kind (c.form h.1) = Geometry.FormKind.large := by
+    rw [hh.1, ← H7]
+    exact H11
+  exact ((c.g5_large_iff h.1).mp Hl).symm
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step1_ancestor`:
 Choose a shortest central-child chain ending at such an ancestor. -/
@@ -5418,50 +5403,6 @@ private lemma reconstructed_acyclic_legal_step1_block_context {P : Protoset}
   · intro t ht htc
     apply hL (K.placed t) (hmem t ht)
 
-/-- Step 1 of the blueprint proof of
-`reconstructed_acyclic_legal_step2_noncentral_step1_common_header`: the reconstructed tile
-has the type of the common header selected from the block. -/
-private lemma reconstructed_acyclic_legal_step2_noncentral_step1_common_header_step1_type
-    {P : Protoset} (c : MacroCertificate P) (hH : c.Hereditary)
-    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
-    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
-    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
-    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
-    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
-      InnerActive c (tileDec X))
-    (hex : IsExactComposition c T' T)
-    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ T'.tiles)
-    (j : part.ι) (hj : (part.block j).v = c.σ.θ • Y.anchor)
-    (heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ)
-    (hctx : BlockContext c (part.block j))
-    (h : HeaderKernel.Header c.Typ c.Side)
-    (hh : CommonHeader c (part.block j) h) :
-    (tileDec Y).typ = h.1 := by
-  sorry
-
-/-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step2_noncentral`:
-Recover the common header of the block that reconstructs a noncentral tile. -/
-private lemma reconstructed_acyclic_legal_step2_noncentral_step1_common_header
-    {P : Protoset} (c : MacroCertificate P) (hH : c.Hereditary)
-    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
-    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
-    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
-    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
-    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
-      InnerActive c (tileDec X))
-    (hex : IsExactComposition c T' T)
-    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ T'.tiles)
-    (j : part.ι) (hj : (part.block j).v = c.σ.θ • Y.anchor)
-    (heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ)
-    (hctx : BlockContext c (part.block j)) :
-    CommonHeader c (part.block j) (headerOf c (tileDec Y)) := by
-  obtain ⟨h, hh⟩ := boundary_header_constant c hH (part.block j) hctx
-  have htype := reconstructed_acyclic_legal_step2_noncentral_step1_common_header_step1_type
-    c hH T hT hL part T' hrec hT' hN hex Y hY j hj heq hctx h hh
-  have hheader := reconstructed_header_eq_headerOf c hH (part.block j) hctx h hh
-  rw [heq, htype, hheader]
-  exact hh
-
 /-- Step 2 of the blueprint proof of `reconstructed_acyclic_legal`: 
 Every noncentral tile of `T'` is already legal. -/
 private lemma reconstructed_acyclic_legal_step2_noncentral {P : Protoset}
@@ -5477,13 +5418,17 @@ private lemma reconstructed_acyclic_legal_step2_noncentral {P : Protoset}
     (hnc : ¬ c.IsCentral (tileDec Y).typ)
     (hctx : ∀ j, BlockContext c (part.block j)) :
     headerLegal c (tileDec Y) := by
-  obtain ⟨j, hj, h₀, _hh₀, heq₀⟩ := hrec.1 Y hY
+  have _ := hT; have _ := hT'; have _ := hN; have _ := hex
+  obtain ⟨j, -, h₀, hh₀, heq₀⟩ := hrec.1 Y hY
   have heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ := by
     have htyp : (tileDec Y).typ = h₀.1 := congrArg DecTile.typ heq₀
     rw [htyp]
     exact heq₀
-  have hh := reconstructed_acyclic_legal_step2_noncentral_step1_common_header c hH T hT hL part T'
-    hrec hT' hN hex Y hY j hj heq (hctx j)
+  -- the reconstruction witness carries the common header; `lem:comp/reconstruction` gives
+  -- `H(D) = h₀`
+  have hh : CommonHeader c (part.block j) (headerOf c (tileDec Y)) := by
+    rw [heq₀, reconstructed_header_eq_headerOf c hH (part.block j) (hctx j) h₀ hh₀]
+    exact hh₀
   have hA : headerLegal c (part.block j).centre := by
     have hmem : (part.block j).placed (c.central (part.block j).α) ∈ T.tiles := by
       rw [← part.cover]

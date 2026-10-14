@@ -3052,7 +3052,37 @@ private theorem strict_reconstructed_cyclic_legal_step2_marked_first_four
     ∀ i : C.Side A.typ, C.marked (C.form A.typ) i → ∀ k : Fin 5, k ≠ 4 →
       D.cell (Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hEq.symm) i) k =
         A.cell i k := by
-  sorry
+  obtain ⟨tD, cD⟩ := D
+  obtain ⟨tA, cA⟩ := A
+  dsimp only at hEq
+  subst tA
+  change C.central (C.form tD) = tD at hcyc
+  have hown : C.owner tD = C.form tD := by
+    have h := C.g5_central_owner (C.form tD)
+    rw [hcyc] at h
+    exact h
+  have hlarge : C.kind (C.form tD) = .large := by
+    apply (C.g5_large_iff tD).2
+    rw [hown]
+    exact hcyc.symm
+  intro i hm k hk
+  have hprint : C.IsPrintOf (C.form tD) i (C.occ tD i) := by
+    refine ⟨hm, Or.inl ?_⟩
+    have hp := C.g5_print_id_large (C.form tD) i hlarge hm
+    show (⟨tD, i⟩ : C.SideOcc) =
+      ⟨C.central (C.form tD), C.print (C.form tD) i⟩
+    generalize C.print (C.form tD) i = p at hp
+    revert p
+    rw [hcyc]
+    intro p hp
+    exact Sigma.ext rfl (heq_of_eq (Fin.ext hp.symm))
+  have hcopy : (strictChild C hC ⟨tD, cD⟩ tD).cell i k = cD i k :=
+    ((strictChild_cells C hC ⟨tD, cD⟩ tD hown i).1 i hprint).1 k hk
+  have h3 : cA = (strictChild C hC ⟨tD, cD⟩ tD).cell :=
+    eq_of_heq (StrictDecTile.mk.inj hDA.2).2
+  change cD i k = cA i k
+  rw [h3]
+  exact hcopy.symm
 
 /-- Step 3 of the blueprint proof of `strict_reconstructed_cyclic_legal`: the fifth cell on a
 marked side agrees because it is local on nonprints and the print identity is fixed. -/

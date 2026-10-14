@@ -7875,6 +7875,987 @@ private lemma lift_hierarchy_step2_proper_step1_inner (c : MacroCertificate P) (
   exact lift_hierarchy_step2_proper_step1_inner_step3_map c hH seq hsts seq' herase hexact hleg
     X hX i hInner hNontriv Z (blk_map Z) (hbe Z) blk_map hbu rfl hZ
 
+/-- Step 1 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`: "For an
+outer side with nonzero fourth cell": an outer side is no print, so its fifth cell is zero, and a
+nontrivial outer side therefore has a nonzero fourth cell. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step1_fourth_ne_zero
+    (c : MacroCertificate P) (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (hNontriv : IsNontrivial c (tileDec X) i) :
+    (tileDec X).cell i 3 ≠ 0 := by
+  obtain ⟨blk, hbe, hbu⟩ := hexact 0
+  have hXU : X ∈ ⋃ Z : (seq' 1).tiles, (blk Z).tiles := hbu ▸ hX
+  obtain ⟨Z, hZ⟩ := mem_iUnion.mp hXU
+  obtain ⟨t, ht, rfl⟩ := hZ
+  have hchild : IsChildOf c (tileDec Z.1) ((blk Z).tileOf t) := (hbe Z).1.2 t ht
+  have hnp : ¬ c.IsPrint (c.occ ((blk Z).tileOf t).typ i) := fun hp => asm_print_inner c hp hOuter
+  obtain ⟨-, -, h4, -⟩ := (hchild.2 i).2 hnp
+  intro h3
+  exact hNontriv ⟨h3, h4⟩
+
+/-- Step 2 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`: "its
+ancestor side becomes inner at a finite level" (the founded mode of the decorated hierarchy). -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step2_ancestor_inner
+    (c : MacroCertificate P) (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (hfounded : LiftFounded c seq')
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (h3 : (tileDec X).cell i 3 ≠ 0) :
+    ∃ m, ∃ Z ∈ (seq' m).tiles, ∃ d : c.Side (tileDec Z).typ,
+      c.IsInner (c.occ (tileDec Z).typ d) ∧ sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c Z d := by
+  obtain ⟨m, Z, hZ, d, hd, hsub⟩ := hfounded 0 X hX i hOuter h3
+  exact ⟨m, Z, by simpa using hZ, d, hd, hsub⟩
+
+/-- Step 3 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`:
+erasure commutes with one exact composition step: the decomposition of the erased level `n + 1`
+is the erased level `n`. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step3_decompose_eq
+    (c : MacroCertificate P) (seq : ℕ → PlaneTiling c.Q)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) (n : ℕ) :
+    c.σ.decompose (seq (n + 1)).tiles = (seq n).tiles := by
+  rw [← herase, ← herase]
+  obtain ⟨blk, hblk, hT⟩ := hexact n
+  ext B
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet, c.rule_eq,
+    eraseSet, Set.mem_iUnion, Set.mem_image, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨_, ⟨Y, hY, rfl⟩, _, ⟨t, ht, rfl⟩, rfl⟩
+    obtain ⟨⟨hf, -⟩, hv⟩ := hblk ⟨Y, hY⟩
+    refine ⟨(blk ⟨Y, hY⟩).placed t, ?_, ?_⟩
+    · rw [hT]
+      exact mem_iUnion.2 ⟨⟨Y, hY⟩, t, ht.trans hf, rfl⟩
+    · simp [erase, ColouredBlock.placed, ColouredBlock.tileOf, tileDec, PlacedTile.translate, hv]
+  · rintro ⟨X, hX, rfl⟩
+    rw [hT] at hX
+    obtain ⟨⟨Y, hY⟩, t, ht, rfl⟩ := mem_iUnion.1 hX
+    obtain ⟨⟨hf, -⟩, hv⟩ := hblk ⟨Y, hY⟩
+    refine ⟨erase c Y, ⟨Y, hY, rfl⟩, _, ⟨t, ht.trans hf.symm, rfl⟩, ?_⟩
+    simp [erase, ColouredBlock.placed, ColouredBlock.tileOf, tileDec, PlacedTile.translate, hv]
+
+/-- Step 4 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`: the
+finite supertile `σ'^n W` of a tile `W` of level `n` consists of tiles of level zero. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub
+    (c : MacroCertificate P) (seq : ℕ → PlaneTiling c.Q)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) :
+    ∀ n k, ∀ W ∈ (seq (k + n)).tiles, c.σ.decomposeIter n {W} ⊆ (seq k).tiles := by
+  intro n
+  induction n with
+  | zero => intro k W hW; simpa [Substitution.decomposeIter] using hW
+  | succ n ih =>
+    intro k W hW
+    have h := ih (k + 1) W (by rwa [show k + 1 + n = k + (n + 1) by omega])
+    show c.σ.decompose (c.σ.decomposeIter n {W}) ⊆ _
+    rw [← lift_hierarchy_step2_proper_step2_outer_step1_supertile_step3_decompose_eq c seq seq'
+      herase hexact k]
+    exact Set.biUnion_subset_biUnion_left h
+
+section LiftSupertileAux
+
+open Filter Topology
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a preconnected set avoiding the
+frontier of a closed set lies in its interior or its complement. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_half_side (R : Set Pt) (hRc : IsClosed R)
+    (H : Set Pt) (hH : IsPreconnected H)
+    (hfr : ∀ q ∈ H, q ∉ frontier R) : H ⊆ interior R ∨ H ⊆ Rᶜ := by
+  have hcov : H ⊆ interior R ∪ Rᶜ := by
+    intro q hq
+    by_cases h : q ∈ interior R
+    · exact Or.inl h
+    · right; intro hqR; exact hfr q hq ⟨subset_closure hqR, h⟩
+  by_cases hne : (H ∩ interior R).Nonempty
+  · left
+    exact hH.subset_left_of_subset_union isOpen_interior hRc.isOpen_compl
+      (disjoint_compl_right.mono_left interior_subset) hcov hne
+  · right
+    intro q hq
+    rcases hcov hq with h | h
+    · exact absurd ⟨q, hq, h⟩ hne
+    · exact h
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a nonempty open set is not
+contained in a line. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_line_nhds (f : Pt →L[ℝ] ℝ) (p u z : Pt)
+    (hu : f u ≠ 0) (hz : f (z - p) = 0)
+    (O : Set Pt) (hO : IsOpen O) (hzO : z ∈ O) :
+    ∃ q ∈ O, f (q - p) ≠ 0 := by
+  have hc : Tendsto (fun t : ℝ => z + t • u) (𝓝 0) (𝓝 z) := by
+    have : Continuous (fun t : ℝ => z + t • u) := by continuity
+    simpa using this.tendsto 0
+  have hev : ∀ᶠ t in 𝓝[≠] (0:ℝ), z + t • u ∈ O ∧ f (z + t • u - p) ≠ 0 := by
+    refine ((tendsto_nhdsWithin_of_tendsto_nhds hc).eventually (hO.mem_nhds hzO)).and ?_
+    filter_upwards [self_mem_nhdsWithin] with t ht
+    have : z + t • u - p = (z - p) + t • u := by abel
+    rw [this, map_add, map_smul, hz, smul_eq_mul]
+    simpa using And.intro ht hu
+  obtain ⟨t, ht1, ht2⟩ := hev.exists
+  exact ⟨_, ht1, ht2⟩
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): every point of an open set is a
+limit of points of that set off a given line. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_line_closure (f : Pt →L[ℝ] ℝ) (p u z : Pt)
+    (hu : f u ≠ 0)
+    (O : Set Pt) (hO : IsOpen O) (hzO : z ∈ O) :
+    z ∈ closure (O ∩ {q | f (q - p) ≠ 0}) := by
+  have hc : Tendsto (fun t : ℝ => z + t • u) (𝓝 0) (𝓝 z) := by
+    have : Continuous (fun t : ℝ => z + t • u) := by continuity
+    simpa using this.tendsto 0
+  have hc' := tendsto_nhdsWithin_of_tendsto_nhds (s := ({0}ᶜ : Set ℝ)) hc
+  apply mem_closure_of_tendsto hc'
+  have h1 := hc'.eventually (hO.mem_nhds hzO)
+  by_cases hz : f (z - p) = 0
+  · filter_upwards [h1, self_mem_nhdsWithin] with t ht ht0
+    refine ⟨ht, ?_⟩
+    show f (z + t • u - p) ≠ 0
+    have : z + t • u - p = (z - p) + t • u := by abel
+    rw [this, map_add, map_smul, hz, smul_eq_mul]
+    simpa using And.intro ht0 hu
+  · have hcf : Tendsto (fun t : ℝ => f (z + t • u - p)) (𝓝[≠] 0) (𝓝 (f (z - p))) := by
+      have : Continuous (fun t : ℝ => f (z + t • u - p)) := by fun_prop
+      have := this.tendsto 0
+      simp only [zero_smul, add_zero] at this
+      exact tendsto_nhdsWithin_of_tendsto_nhds this
+    filter_upwards [h1, hcf.eventually (isOpen_ne.mem_nhds hz)] with t ht ht'
+    exact ⟨ht, ht'⟩
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): near a point of a side, a regular
+closed region fills exactly one of the two half-discs. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_one_half (R : Set Pt) (hRc : IsClosed R)
+    (hRr : closure (interior R) = R) (p : Pt)
+    (hpR : p ∉ interior R) (hpR0 : p ∈ R) (f : Pt →L[ℝ] ℝ) (u : Pt) (hu : f u ≠ 0) (U : Set Pt) (hU : IsOpen U)
+    (hpU : p ∈ U) (hUfr : ∀ q ∈ U, q ∈ frontier R → f (q - p) = 0)
+    (Hp Hn : Set Pt) (hHp : Hp = U ∩ {q | 0 < f (q - p)}) (hHn : Hn = U ∩ {q | f (q - p) < 0})
+    (hcp : IsPreconnected Hp) (hcn : IsPreconnected Hn) :
+    (Hp ⊆ interior R ∧ Hn ⊆ Rᶜ) ∨ (Hn ⊆ interior R ∧ Hp ⊆ Rᶜ) := by
+  have hp' : ∀ q ∈ Hp, q ∉ frontier R := by
+    intro q hq hfr; rw [hHp] at hq; have := hUfr q hq.1 hfr; have h2 : 0 < f (q - p) := hq.2; linarith
+  have hn' : ∀ q ∈ Hn, q ∉ frontier R := by
+    intro q hq hfr; rw [hHn] at hq; have := hUfr q hq.1 hfr; have h2 : f (q - p) < 0 := hq.2; linarith
+  have hsplit : U ∩ {q | f (q - p) ≠ 0} ⊆ Hp ∪ Hn := by
+    rintro q ⟨hqU, hq⟩
+    rcases lt_or_gt_of_ne hq with h | h
+    · right; rw [hHn]; exact ⟨hqU, h⟩
+    · left; rw [hHp]; exact ⟨hqU, h⟩
+  rcases lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_half_side R hRc Hp hcp hp' with h1 | h1 <;>
+    rcases lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_half_side R hRc Hn hcn hn' with h2 | h2
+  · exfalso
+    apply hpR
+    have hUR : U ⊆ R := by
+      intro z hz
+      have := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_line_closure f p u z hu U hU hz
+      have hsub : U ∩ {q | f (q - p) ≠ 0} ⊆ R := fun q hq => by
+        rcases hsplit hq with h | h
+        · exact interior_subset (h1 h)
+        · exact interior_subset (h2 h)
+      exact hRc.closure_subset_iff.2 hsub this
+    exact interior_mono hUR (by rw [hU.interior_eq]; exact hpU)
+  · exact Or.inl ⟨h1, h2⟩
+  · exact Or.inr ⟨h2, h1⟩
+  · exfalso
+    have hcl : p ∈ closure (interior R) := by rw [hRr]; exact hpR0
+    obtain ⟨z, hzU, hzR⟩ := mem_closure_iff.1 hcl U hU hpU
+    have hout : ∀ q ∈ U ∩ interior R, f (q - p) = 0 := by
+      intro q ⟨hqU, hqR⟩
+      by_contra hq
+      rcases hsplit ⟨hqU, hq⟩ with h | h
+      · exact h1 h (interior_subset hqR)
+      · exact h2 h (interior_subset hqR)
+    obtain ⟨q, hq, hq'⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_line_nhds f p u z hu
+        (hout z ⟨hzU, hzR⟩) (U ∩ interior R)
+      (hU.inter isOpen_interior) ⟨hzU, hzR⟩
+    exact hq' (hout q hq)
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): two regular closed regions with
+disjoint interiors sharing a side near a point cover a neighbourhood of that point. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_two_regions (R R' : Set Pt) (hRc : IsClosed R)
+    (hRr : closure (interior R) = R)
+    (hR'c : IsClosed R') (hR'r : closure (interior R') = R')
+    (hdis : Disjoint (interior R) (interior R')) (p : Pt)
+    (hpR : p ∉ interior R) (hpR0 : p ∈ R) (hpR' : p ∉ interior R') (hpR'0 : p ∈ R')
+    (f : Pt →L[ℝ] ℝ) (u : Pt) (hu : f u ≠ 0)
+    (hR : ∀ᶠ q in 𝓝 p, q ∈ frontier R → f (q - p) = 0)
+    (hR' : ∀ᶠ q in 𝓝 p, q ∈ frontier R' → f (q - p) = 0) :
+    p ∈ interior (R ∪ R') := by
+  obtain ⟨ε, hε, hball⟩ := Metric.eventually_nhds_iff.1 (hR.and hR')
+  set U := Metric.ball p ε with hUdef
+  have hU : IsOpen U := Metric.isOpen_ball
+  have hpU : p ∈ U := Metric.mem_ball_self hε
+  have hhalf : ∀ s : ℝ, Convex ℝ {q : Pt | s * f p < s * f q} := by
+    intro s
+    have := convex_halfSpace_gt (𝕜 := ℝ) (s • f).toLinearMap.isLinear (s * f p)
+    simpa using this
+  have hcp : Convex ℝ (U ∩ {q | 0 < f (q - p)}) := by
+    refine (convex_ball p ε).inter ?_
+    convert hhalf 1 using 2; simp
+  have hcn : Convex ℝ (U ∩ {q | f (q - p) < 0}) := by
+    refine (convex_ball p ε).inter ?_
+    convert hhalf (-1) using 2; simp
+  have h1 := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_one_half R hRc hRr p hpR hpR0 f u hu U hU hpU
+      (fun q hq h => (hball hq).1 h) _ _ rfl rfl
+    hcp.isPreconnected hcn.isPreconnected
+  have h2 := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_one_half R' hR'c hR'r p hpR' hpR'0 f u hu U hU
+      hpU (fun q hq h => (hball hq).2 h) _ _ rfl
+    rfl hcp.isPreconnected hcn.isPreconnected
+  set t : ℝ := ε / (2 * (‖u‖ + 1)) with ht
+  have htpos : 0 < t := by positivity
+  have htu : ‖t • u‖ < ε := by
+    rw [norm_smul, Real.norm_of_nonneg htpos.le, ht]
+    rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+    nlinarith [norm_nonneg u]
+  have hmem1 : p + t • u ∈ U := by
+    rw [hUdef, Metric.mem_ball, dist_eq_norm]; simpa using htu
+  have hmem2 : p + (-t) • u ∈ U := by
+    rw [hUdef, Metric.mem_ball, dist_eq_norm]; simpa [norm_neg] using htu
+  have hf1 : f (p + t • u - p) = t * f u := by simp
+  have hf2 : f (p + (-t) • u - p) = -(t * f u) := by simp
+  have hexp : (U ∩ {q | 0 < f (q - p)}).Nonempty := by
+    rcases lt_or_gt_of_ne hu with h | h
+    · exact ⟨_, hmem2, show 0 < f (p + (-t) • u - p) by rw [hf2]; nlinarith⟩
+    · exact ⟨_, hmem1, show 0 < f (p + t • u - p) by rw [hf1]; positivity⟩
+  have hexn : (U ∩ {q | f (q - p) < 0}).Nonempty := by
+    rcases lt_or_gt_of_ne hu with h | h
+    · exact ⟨_, hmem1, show f (p + t • u - p) < 0 by rw [hf1]; nlinarith⟩
+    · exact ⟨_, hmem2, show f (p + (-t) • u - p) < 0 by rw [hf2]; nlinarith⟩
+  have hcov : U ∩ {q | f (q - p) ≠ 0} ⊆ R ∪ R' := by
+    rintro q ⟨hqU, hq⟩
+    have hsplit : q ∈ U ∩ {q | 0 < f (q - p)} ∨ q ∈ U ∩ {q | f (q - p) < 0} := by
+      rcases lt_or_gt_of_ne hq with h | h
+      · exact Or.inr ⟨hqU, h⟩
+      · exact Or.inl ⟨hqU, h⟩
+    rcases h1 with ⟨a1, a2⟩ | ⟨a1, a2⟩ <;> rcases h2 with ⟨b1, b2⟩ | ⟨b1, b2⟩
+    · obtain ⟨z, hz⟩ := hexp
+      exact absurd (hdis.ne_of_mem (a1 hz) (b1 hz) rfl) (by simp)
+    · rcases hsplit with h | h
+      · exact Or.inl (interior_subset (a1 h))
+      · exact Or.inr (interior_subset (b1 h))
+    · rcases hsplit with h | h
+      · exact Or.inr (interior_subset (b1 h))
+      · exact Or.inl (interior_subset (a1 h))
+    · obtain ⟨z, hz⟩ := hexn
+      exact absurd (hdis.ne_of_mem (a1 hz) (b1 hz) rfl) (by simp)
+  have hUsub : U ⊆ R ∪ R' := by
+    intro z hz
+    exact (hRc.union hR'c).closure_subset_iff.2 hcov
+        (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_line_closure f p u z hu U hU hz)
+  exact interior_mono hUsub (by rw [hU.interior_eq]; exact hpU)
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): near a point of a listed side
+which is not an endpoint, the frontier of a polygon is that side. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_poly_local (B : PolygonalDisk) (k : Fin B.n)
+    (p : Pt) (hp : p ∈ B.side k)
+    (h1 : p ≠ B.vertex k) (h2 : p ≠ B.vertex (finRotate B.n k)) :
+    ∀ᶠ q in 𝓝 p, q ∈ frontier B.carrier → q ∈ B.side k := by
+  have hclosed : IsClosed (⋃ j ∈ (Finset.univ.erase k : Finset (Fin B.n)), B.side j) := by
+    refine isClosed_biUnion_finset (fun j _ => ?_)
+    show IsClosed (segment ℝ _ _)
+    rw [segment_eq_image]
+    exact (isCompact_Icc.image (by fun_prop)).isClosed
+  have hnot : p ∉ ⋃ j ∈ (Finset.univ.erase k : Finset (Fin B.n)), B.side j := by
+    simp only [mem_iUnion, Finset.mem_erase, Finset.mem_univ, and_true, not_exists]
+    intro j hj hpj
+    have := B.simple k j (Ne.symm hj) ⟨hp, hpj⟩
+    rcases this.1 with h | h
+    · exact h1 h
+    · exact h2 h
+  filter_upwards [hclosed.isOpen_compl.mem_nhds hnot] with q hq hfr
+  rw [B.frontier_eq] at hfr
+  obtain ⟨j, hj⟩ := mem_iUnion.1 hfr
+  by_contra hk
+  have hjk : j ≠ k := fun h => hk (h ▸ hj)
+  exact hq (mem_iUnion₂.2 ⟨j, by simp [hjk], hj⟩)
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a nonzero linear functional
+vanishing along a nondegenerate segment. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_seg_functional (a b : Pt) (hab : a ≠ b) :
+    ∃ f : Pt →L[ℝ] ℝ, ∃ u : Pt, f u ≠ 0 ∧ ∀ q ∈ segment ℝ a b, ∀ p ∈ segment ℝ a b, f (q - p) = 0 := by
+  set w := b - a with hw
+  let f : Pt →L[ℝ] ℝ := (w 0) • (EuclideanSpace.proj (1 : Fin 2)) - (w 1) • (EuclideanSpace.proj (0 : Fin 2))
+  have hfw : f w = 0 := by
+    simp [f]; ring
+  have hseg : ∀ q ∈ segment ℝ a b, f (q - a) = 0 := by
+    intro q hq
+    rw [segment_eq_image'] at hq
+    obtain ⟨t, -, rfl⟩ := hq
+    simp only [add_sub_cancel_left, map_smul, smul_eq_mul]
+    rw [← hw, hfw, mul_zero]
+  refine ⟨f, ?_⟩
+  by_cases h0 : w 0 = 0
+  · have h1 : w 1 ≠ 0 := by
+      intro h1
+      apply hab
+      have : w = 0 := by
+        ext i; fin_cases i <;> simp [h0, h1]
+      rw [hw, sub_eq_zero] at this
+      exact this.symm
+    refine ⟨EuclideanSpace.single 0 1, ?_, ?_⟩
+    · simp [f, h1]
+    · intro q hq p hp
+      have : q - p = (q - a) - (p - a) := by abel
+      rw [this, map_sub, hseg q hq, hseg p hp, sub_zero]
+  · refine ⟨EuclideanSpace.single 1 1, ?_, ?_⟩
+    · simp [f, h0]
+    · intro q hq p hp
+      have : q - p = (q - a) - (p - a) := by abel
+      rw [this, map_sub, hseg q hq, hseg p hp, sub_zero]
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the local description of a
+frontier is transported by a homeomorphism. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_frontier_transfer (h : Pt ≃ₜ Pt)
+    (C K : Set Pt) (q : Pt)
+    (H : ∀ᶠ z in 𝓝 q, z ∈ frontier C → z ∈ K) :
+    ∀ᶠ w in 𝓝 (h q), w ∈ frontier (h '' C) → w ∈ h '' K := by
+  rw [← h.map_nhds_eq, Filter.eventually_map]
+  filter_upwards [H] with z hz hfr
+  rw [← h.image_frontier] at hfr
+  obtain ⟨y, hy, hyz⟩ := hfr
+  rw [h.injective hyz] at hy
+  exact ⟨z, hz hy, rfl⟩
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the midpoint of a nondegenerate
+subsegment is not an endpoint of the segment. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_midpoint_ne_endpoint (u v x y : Pt)
+    (hx : x ∈ segment ℝ u v) (hy : y ∈ segment ℝ u v)
+    (hxy : x ≠ y) : midpoint ℝ x y ≠ u ∧ midpoint ℝ x y ≠ v := by
+  rw [segment_eq_image'] at hx hy
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hx
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hy
+  have hst : s ≠ t := by rintro rfl; exact hxy rfl
+  have hm : midpoint ℝ (u + s • (v - u)) (u + t • (v - u)) = u + ((s + t) / 2) • (v - u) := by
+    rw [midpoint_eq_smul_add, invOf_eq_inv]; module
+  rw [hm]
+  have huv : v - u ≠ 0 := by
+    rintro h; apply hxy; rw [h]; simp
+  constructor
+  · intro h
+    have : ((s + t) / 2) • (v - u) = 0 := by
+      have := congrArg (fun z => z - u) h; simpa using this
+    rcases smul_eq_zero.1 this with h' | h'
+    · exact hst (by linarith)
+    · exact huv h'
+  · intro h
+    have : ((s + t) / 2 - 1) • (v - u) = 0 := by
+      rw [sub_smul, one_smul]
+      have := congrArg (fun z => z - u) h; simp only [add_sub_cancel_left] at this; rw [this]; abel
+    rcases smul_eq_zero.1 this with h' | h'
+    · exact hst (by linarith)
+    · exact huv h'
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a nondegenerate segment covered by
+finitely many convex sets overlaps one of them with positive length. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_pigeon_overlap {ι : Type*} (x y : Pt)
+    (hxy : x ≠ y) (I : Finset ι) (C : ι → Set Pt)
+    (hC : ∀ i, Convex ℝ (C i)) (hcov : segment ℝ x y ⊆ ⋃ i ∈ I, C i) :
+    ∃ i ∈ I, OverlapPos (segment ℝ x y) (C i) := by
+  have hinf : (segment ℝ x y).Infinite := by
+    rw [segment_eq_image']
+    refine (Set.Icc_infinite (zero_lt_one' ℝ)).image ?_
+    intro s _ t _ hst
+    have h : s • (y - x) = t • (y - x) := by simpa using hst
+    exact smul_left_injective ℝ (sub_ne_zero.2 hxy.symm) h
+  have hex : ∃ i ∈ I, (segment ℝ x y ∩ C i).Infinite := by
+    by_contra hno
+    push_neg at hno
+    apply hinf
+    have : segment ℝ x y = ⋃ i ∈ I, (segment ℝ x y ∩ C i) := by
+      ext z; constructor
+      · intro hz
+        obtain ⟨i, hi, hzi⟩ := mem_iUnion₂.1 (hcov hz)
+        exact mem_iUnion₂.2 ⟨i, hi, hz, hzi⟩
+      · intro hz
+        obtain ⟨i, _, hzi⟩ := mem_iUnion₂.1 hz
+        exact hzi.1
+    rw [this]
+    exact I.finite_toSet.biUnion (fun i hi => hno i hi)
+  obtain ⟨i, hi, hinf'⟩ := hex
+  obtain ⟨u, hu, v, hv, huv⟩ := hinf'.nontrivial
+  exact ⟨i, hi, u, v, huv, ((convex_segment x y).inter (hC i)).segment_subset hu hv⟩
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a nonempty open set covered by
+finitely many closed sets meets the interior of one of them. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_open_cover_interior {ι : Type*} (S : Finset ι)
+    (F : ι → Set Pt)
+    (hF : ∀ k, IsClosed (F k)) :
+    ∀ s : Set Pt, IsOpen s → s.Nonempty → s ⊆ ⋃ k ∈ S, F k → ∃ k ∈ S, (s ∩ interior (F k)).Nonempty := by
+  classical
+  induction S using Finset.induction_on with
+  | empty => intro s _ hne hcov; obtain ⟨x, hx⟩ := hne; simpa using hcov hx
+  | insert a S ha ih =>
+    intro s hs hne hcov
+    by_cases h : (s ∩ interior (F a)).Nonempty
+    · exact ⟨a, Finset.mem_insert_self _ _, h⟩
+    · have hne' : (s \ F a).Nonempty := by
+        by_contra h'
+        rw [Set.not_nonempty_iff_eq_empty, Set.diff_eq_empty] at h'
+        exact h (by rw [Set.inter_eq_left.2 (interior_maximal h' hs)]; exact hne)
+      obtain ⟨k, hk, hk'⟩ := ih (s \ F a) (hs.sdiff (hF a)) hne' (by
+        intro x hx
+        have := hcov hx.1
+        simp only [Finset.set_biUnion_insert, mem_union] at this
+        rcases this with h1 | h1
+        · exact absurd h1 hx.2
+        · exact h1)
+      exact ⟨k, Finset.mem_insert_of_mem hk, hk'.mono (inter_subset_inter_left _ diff_subset)⟩
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a placed tile is closed. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed
+    (A : PlacedTile P) : IsClosed A.carrier :=
+  ((P.disk A.form).compact.vadd _).isClosed
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a tile whose interior meets the
+interior of the support of a finite subfamily belongs to it. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_mem_of_interior_meet (T : Set (PlacedTile P))
+    (hT : DisjointInteriors T)
+    (F : Set (PlacedTile P)) (hF : F.Finite) (hFT : F ⊆ T) (X : PlacedTile P) (hX : X ∈ T)
+    (hmeet : (interior X.carrier ∩ interior (support F)).Nonempty) : X ∈ F := by
+  classical
+  obtain ⟨k, hk, hk'⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_open_cover_interior hF.toFinset
+      (fun A => A.carrier) lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed
+    (interior X.carrier ∩ interior (support F)) (isOpen_interior.inter isOpen_interior) hmeet (by
+      intro z hz
+      have := interior_subset hz.2
+      simpa [support] using this)
+  have hkF : k ∈ F := by simpa using hk
+  by_contra hXF
+  have hne : X ≠ k := fun h => hXF (h ▸ hkF)
+  obtain ⟨z, hz1, hz2⟩ := hk'
+  exact Set.disjoint_left.1 (hT hX (hFT hkF) hne) hz1.1 hz2
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the homeomorphism `x ↦ s • (v +
+x)`. -/
+private noncomputable def lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo (s : ℝ) (hs : s ≠ 0)
+    (v : Pt) : Pt ≃ₜ Pt :=
+  (Homeomorph.addLeft v).trans (Homeomorph.smulOfNeZero s hs)
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the image under `x ↦ s • (v + x)`.
+-/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo_image (s : ℝ) (hs : s ≠ 0) (v : Pt)
+    (S : Set Pt) :
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo s hs v '' S = s • (v +ᵥ S) := by
+  ext x; simp [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo, Set.mem_smul_set, Set.mem_vadd_set]
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a scaled placed tile is closed. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed (A : PlacedTile P)
+    (s : ℝ) : IsClosed (s • A.carrier) :=
+  (((P.disk A.form).compact.vadd _).smul s).isClosed
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a scaled placed tile is regular
+closed. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_regular (A : PlacedTile P) (s : ℝ)
+    (hs : s ≠ 0) :
+    closure (interior (s • A.carrier)) = s • A.carrier := by
+  rw [interior_smul₀ hs, closure_smul₀, PlacedTile.carrier, interior_vadd, closure_vadd,
+    (P.disk A.form).regular_closed]
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a scaled side lies in the frontier
+of the scaled tile. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier (A : PlacedTile P)
+    (s : ℝ) (hs : s ≠ 0) (k : Fin (P.disk A.form).n) :
+    s • A.side k ⊆ frontier (s • A.carrier) := by
+  rw [PlacedTile.side, PlacedTile.carrier, ← lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo_image
+      s hs, ← lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo_image s hs,
+    ← Homeomorph.image_frontier]
+  apply Set.image_mono
+  rw [(P.disk A.form).frontier_eq]
+  exact subset_iUnion (fun i : Fin (P.disk A.form).n =>
+    segment ℝ ((P.disk A.form).vertex i) ((P.disk A.form).vertex (finRotate _ i))) k
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a scaled side is a segment. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq (A : PlacedTile P) (s : ℝ)
+    (k : Fin (P.disk A.form).n) :
+    s • A.side k = segment ℝ (s • (A.anchor + (P.disk A.form).vertex k))
+      (s • (A.anchor + (P.disk A.form).vertex (finRotate _ k))) := by
+  rw [PlacedTile.side, PolygonalDisk.side, vadd_segment, ← Set.image_smul]
+  have := image_segment ℝ ((s • LinearMap.id : Pt →ₗ[ℝ] Pt).toAffineMap)
+    (A.anchor +ᵥ (P.disk A.form).vertex k) (A.anchor +ᵥ (P.disk A.form).vertex (finRotate _ k))
+  simpa using this
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): `finRotate` has no fixed point. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_finRotate_ne_self (n : ℕ) (h : 2 ≤ n)
+    (i : Fin n) : finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 2 := ⟨n - 2, by omega⟩
+  intro hc
+  have := congrArg Fin.val hc
+  rw [finRotate_succ_apply] at this
+  rcases Fin.eq_or_lt_of_le (Fin.le_last i) with h' | h'
+  · subst h'; simp at this
+  · rw [Fin.val_add_one_of_lt h'] at this; omega
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): scaling by a nonzero factor
+preserves disjointness. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_smul_disjoint (s : ℝ) (hs : s ≠ 0)
+    (U V : Set Pt) (h : Disjoint U V) :
+    Disjoint (s • U) (s • V) := by
+  rw [Set.disjoint_left]
+  rintro z ⟨a, ha, rfl⟩ ⟨b, hb, hab⟩
+  exact Set.disjoint_left.1 h ha (smul_right_injective Pt hs hab ▸ hb)
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): near a non-endpoint of a scaled
+side, the frontier of the scaled tile is that side. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_local (A : PlacedTile P) (s : ℝ)
+    (hs : s ≠ 0) (k : Fin (P.disk A.form).n) (p : Pt)
+    (hp : p ∈ s • A.side k) (h1 : p ≠ s • (A.anchor + (P.disk A.form).vertex k))
+    (h2 : p ≠ s • (A.anchor + (P.disk A.form).vertex (finRotate _ k))) :
+    ∀ᶠ q in 𝓝 p, q ∈ frontier (s • A.carrier) → q ∈ s • A.side k := by
+  have e1 : s • A.carrier = lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo s hs A.anchor ''
+      (P.disk A.form).carrier :=
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo_image s hs _ _).symm
+  have e2 : s • A.side k = lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo s hs A.anchor ''
+      (P.disk A.form).side k :=
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaleHomeo_image s hs _ _).symm
+  rw [e2] at hp
+  obtain ⟨p0, hp0, rfl⟩ := hp
+  rw [e1, e2]
+  refine lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_frontier_transfer _ _ _ p0
+      (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_poly_local _ k p0 hp0 ?_ ?_)
+  · rintro rfl; exact h1 rfl
+  · rintro rfl; exact h2 rfl
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the frontier of a placed tile is
+the union of its sides. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_frontier_sub
+    (B : PlacedTile P) : frontier B.carrier ⊆ ⋃ j, B.side j := by
+  have e : B.carrier = Homeomorph.addLeft B.anchor '' (P.disk B.form).carrier := by
+    ext x; constructor <;> rintro ⟨y, hy, rfl⟩ <;> exact ⟨y, hy, rfl⟩
+  rw [e, ← Homeomorph.image_frontier, (P.disk B.form).frontier_eq]
+  rintro _ ⟨z, hz, rfl⟩
+  obtain ⟨j, hj⟩ := mem_iUnion.1 hz
+  exact mem_iUnion.2 ⟨j, z, hj, rfl⟩
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a side of a placed tile lies in
+the tile. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_sub (B : PlacedTile P) (j : Fin
+    (P.disk B.form).n) : B.side j ⊆ B.carrier := by
+  have hsub : (P.disk B.form).side j ⊆ (P.disk B.form).carrier := by
+    intro x hx
+    apply (P.disk B.form).compact.isClosed.frontier_subset
+    rw [(P.disk B.form).frontier_eq]
+    exact mem_iUnion.2 ⟨j, hx⟩
+  exact Set.vadd_set_mono hsub
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a placed tile is regular closed.
+-/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular (B : PlacedTile P) : closure
+    (interior B.carrier) = B.carrier := by
+  rw [PlacedTile.carrier, interior_vadd, closure_vadd, (P.disk B.form).regular_closed]
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a placed tile has nonempty
+interior. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_interior_nonempty (B : PlacedTile P) :
+    (interior B.carrier).Nonempty := by
+  rw [PlacedTile.carrier, interior_vadd]
+  exact (P.disk B.form).interior_nonempty.vadd_set
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a side of a placed tile is a
+segment. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq (B : PlacedTile P) (j : Fin
+    (P.disk B.form).n) :
+    B.side j = segment ℝ (B.anchor + (P.disk B.form).vertex j)
+      (B.anchor + (P.disk B.form).vertex (finRotate _ j)) := by
+  rw [PlacedTile.side, PolygonalDisk.side, vadd_segment]; rfl
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the endpoints of a side of a
+placed tile are distinct. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne (B : PlacedTile P) (j : Fin
+    (P.disk B.form).n) :
+    B.anchor + (P.disk B.form).vertex j ≠ B.anchor + (P.disk B.form).vertex (finRotate _ j) := by
+  intro h
+  have := (P.disk B.form).vertex_injective (add_left_cancel h)
+  have h3 := (P.disk B.form).three_le
+  exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_finRotate_ne_self _ (by omega) j this.symm
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a side covered by a finite family
+of other tiles overlaps a side of one of them with positive length. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_cover_side_overlap (T0 : Set (PlacedTile P))
+    (hT0 : DisjointInteriors T0)
+    (F : Set (PlacedTile P)) (hF : F.Finite) (hFT : F ⊆ T0) (X0 : PlacedTile P) (hX0 : X0 ∈ T0)
+    (hX0F : X0 ∉ F) (i : Fin (P.disk X0.form).n) (hS : X0.side i ⊆ support F) :
+    ∃ B ∈ F, B ≠ X0 ∧ ∃ j : Fin (P.disk B.form).n, OverlapPos (X0.side i) (B.side j) := by
+  classical
+  let I : Finset (Σ B : PlacedTile P, Fin (P.disk B.form).n) :=
+    hF.toFinset.sigma (fun _ => Finset.univ)
+  have hcov : X0.side i ⊆ ⋃ b ∈ I, b.1.side b.2 := by
+    intro q hq
+    have hqF := hS hq
+    simp only [support, mem_iUnion] at hqF
+    obtain ⟨B, hB, hqB⟩ := hqF
+    have hBX : B ≠ X0 := fun h => hX0F (h ▸ hB)
+    have hqint : q ∉ interior B.carrier := by
+      intro hqi
+      have hq' : q ∈ closure (interior X0.carrier) := by
+        rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular]; exact
+            lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_sub X0 i hq
+      obtain ⟨z, hz1, hz2⟩ := mem_closure_iff.1 hq' _ isOpen_interior hqi
+      exact Set.disjoint_left.1 (hT0 (hFT hB) hX0 hBX) hz1 hz2
+    have hfr : q ∈ frontier B.carrier := ⟨subset_closure hqB, hqint⟩
+    obtain ⟨j, hj⟩ := mem_iUnion.1 (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_frontier_sub B hfr)
+    exact mem_iUnion₂.2 ⟨⟨B, j⟩, by simp [I, hB], hj⟩
+  rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq] at hcov
+  have hconv : ∀ b : (Σ B : PlacedTile P, Fin (P.disk B.form).n), Convex ℝ (b.1.side b.2) := by
+    intro b
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq]
+    exact convex_segment _ _
+  obtain ⟨b, hb, hov⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_pigeon_overlap _ _
+      (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne X0 i) I (fun b => b.1.side b.2)
+    hconv hcov
+  have hbF : b.1 ∈ F := by simpa [I] using hb
+  refine ⟨b.1, hbF, fun h => hX0F (h ▸ hbF), b.2, ?_⟩
+  rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq]; exact hov
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): support of a union. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_union (S S' : Set
+    (PlacedTile P)) : support (S ∪ S') = support S ∪ support S' := by
+  simp only [support]; exact Set.biUnion_union S S' _
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): support of a singleton. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_singleton
+    (A : PlacedTile P) : support {A} = A.carrier := by
+  simp [support]
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): support of a translate. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_translateSet (v : Pt) (S : Set
+    (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, mem_iUnion, mem_image, exists_prop, Set.vadd_set_iUnion₂]
+  constructor
+  · rintro ⟨_, ⟨A, hA, rfl⟩, hx⟩
+    refine ⟨A, hA, ?_⟩
+    simpa [PlacedTile.translate, PlacedTile.carrier, vadd_vadd] using hx
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨_, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [PlacedTile.translate, PlacedTile.carrier, vadd_vadd] using hx
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the decomposition of a tile covers
+the scaled tile. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeTile (τ : Substitution P)
+    (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  rw [Substitution.decomposeTile, lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_translateSet,
+      τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨A.anchor + y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨τ.θ • y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the decomposition of a set covers
+the scaled support. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decompose (τ : Substitution P)
+    (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  have : support (τ.decompose S) = ⋃ A ∈ S, support (τ.decomposeTile A) := by
+    ext x; simp [support, Substitution.decompose]
+  rw [this, support, Set.smul_set_iUnion₂]
+  simp_rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeTile]
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): unfolding the iterated
+decomposition. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_succ_eq (τ : Substitution P)
+    (m : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter (m + 1) S = τ.decompose (τ.decomposeIter m S) := rfl
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the `n`-th supertile covers the
+`θ^n`-scaled support. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeIter (τ : Substitution P)
+    (m : ℕ) (S : Set (PlacedTile P)) :
+    support (τ.decomposeIter m S) = (τ.θ ^ m) • support S := by
+  induction m with
+  | zero => simp [Substitution.decomposeIter]
+  | succ m ih => rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_succ_eq,
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decompose, ih, smul_smul, pow_succ']
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): the iterated decomposition,
+unfolded at the inside. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_succ_inner (τ : Substitution P)
+    (m : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter (m + 1) S = τ.decomposeIter m (τ.decompose S) := by
+  induction m with
+  | zero => rfl
+  | succ m ih => rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_succ_eq, ih]; rfl
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): monotonicity of the iterated
+decomposition. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_mono (τ : Substitution P)
+    (m : ℕ) {S S' : Set (PlacedTile P)} (h : S ⊆ S') :
+    τ.decomposeIter m S ⊆ τ.decomposeIter m S' := by
+  induction m with
+  | zero => exact h
+  | succ m ih => exact Set.biUnion_subset_biUnion_left ih
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): finite supertiles. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_finite (τ : Substitution P)
+    (m : ℕ) {S : Set (PlacedTile P)} (h : S.Finite) :
+    (τ.decomposeIter m S).Finite := by
+  induction m with
+  | zero => exact h
+  | succ m ih =>
+    exact ih.biUnion (fun A _ => ((τ.rule A.form).finite.image _))
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a tile of a supertile lies in the
+scaled parent. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_carrier_sub (τ : Substitution P)
+    (m : ℕ) (A B : PlacedTile P)
+    (hB : B ∈ τ.decomposeIter m {A}) : B.carrier ⊆ (τ.θ ^ m) • A.carrier := by
+  rw [← lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_singleton A, ←
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeIter]
+  exact Set.subset_biUnion_of_mem (u := fun A => A.carrier) hB
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`
+("both overlapping sides belong to one finite higher supertile"): a side lying in a common side of
+two neighbouring tiles of level `m` lies in a tile of one of their `m`-th supertiles and overlaps a
+side of a tile of the other one. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_generic_supertile (τ : Substitution P)
+    (T0 : Set (PlacedTile P)) (hT0 : DisjointInteriors T0)
+    (m : ℕ) (A A' : PlacedTile P) (hAA' : Disjoint (interior A.carrier) (interior A'.carrier))
+    (k : Fin (P.disk A.form).n) (k' : Fin (P.disk A'.form).n) (hkk : A.side k = A'.side k')
+    (hA0 : τ.decomposeIter m {A} ⊆ T0) (hA'0 : τ.decomposeIter m {A'} ⊆ T0)
+    (X0 : PlacedTile P) (hX0 : X0 ∈ T0) (i : Fin (P.disk X0.form).n)
+    (hsub : X0.side i ⊆ (τ.θ ^ m) • A.side k) :
+    (X0 ∈ τ.decomposeIter m {A} ∧ ∃ B ∈ τ.decomposeIter m {A'}, B ≠ X0 ∧
+        ∃ j : Fin (P.disk B.form).n, OverlapPos (X0.side i) (B.side j)) ∨
+      (X0 ∈ τ.decomposeIter m {A'} ∧ ∃ B ∈ τ.decomposeIter m {A}, B ≠ X0 ∧
+        ∃ j : Fin (P.disk B.form).n, OverlapPos (X0.side i) (B.side j)) := by
+  set s : ℝ := τ.θ ^ m with hsdef
+  have hs : s ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+  set F := τ.decomposeIter m {A}
+  set F' := τ.decomposeIter m {A'}
+  have hF : F.Finite := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_finite τ m
+      (Set.finite_singleton A)
+  have hF' : F'.Finite := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_finite τ m
+      (Set.finite_singleton A')
+  have hsF : support F = s • A.carrier := by rw
+      [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeIter,
+          lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_singleton]
+  have hsF' : support F' = s • A'.carrier := by rw
+      [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeIter,
+          lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_singleton]
+  have hdis : Disjoint (interior (s • A.carrier)) (interior (s • A'.carrier)) := by
+    rw [interior_smul₀ hs, interior_smul₀ hs]; exact
+        lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_smul_disjoint s hs _ _ hAA'
+  set x := X0.anchor + (P.disk X0.form).vertex i
+  set y := X0.anchor + (P.disk X0.form).vertex (finRotate _ i)
+  have hxy : x ≠ y := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne X0 i
+  have hS : X0.side i = segment ℝ x y := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq X0 i
+  set p := midpoint ℝ x y
+  have hpS : p ∈ X0.side i := by rw [hS]; exact midpoint_mem_segment x y
+  have hE : s • A.side k = segment ℝ (s • (A.anchor + (P.disk A.form).vertex k))
+      (s • (A.anchor + (P.disk A.form).vertex
+          (finRotate _ k))) := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq A s k
+  have hE' : s • A'.side k' = segment ℝ (s • (A'.anchor + (P.disk A'.form).vertex k'))
+      (s • (A'.anchor + (P.disk A'.form).vertex
+          (finRotate _ k'))) := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq A' s k'
+  have hEE : s • A.side k = s • A'.side k' := by rw [hkk]
+  have hxE : x ∈ s • A.side k := hsub (by rw [hS]; exact left_mem_segment ℝ x y)
+  have hyE : y ∈ s • A.side k := hsub (by rw [hS]; exact right_mem_segment ℝ x y)
+  have hpE : p ∈ s • A.side k := hsub hpS
+  have hne := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_midpoint_ne_endpoint _ _ x y (hE ▸ hxE)
+      (hE ▸ hyE) hxy
+  have hne' := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_midpoint_ne_endpoint _ _ x y
+      (hE' ▸ hEE ▸ hxE) (hE' ▸ hEE ▸ hyE) hxy
+  have hloc := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_local A s hs k p hpE hne.1 hne.2
+  have hloc' := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_local A' s hs k' p
+      (hEE ▸ hpE) hne'.1 hne'.2
+  have huv : s • (A.anchor + (P.disk A.form).vertex k) ≠
+      s • (A.anchor + (P.disk A.form).vertex (finRotate _ k)) := by
+    intro h; apply hxy
+    have hx' := hE ▸ hxE; have hy' := hE ▸ hyE
+    rw [h, segment_same] at hx' hy'
+    exact hx'.trans hy'.symm
+  obtain ⟨f, u, hu, hf⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_seg_functional _ _ huv
+  have hfr : ∀ᶠ q in 𝓝 p, q ∈ frontier (s • A.carrier) → f (q - p) = 0 := by
+    filter_upwards [hloc] with q hq hqf
+    exact hf q (hE ▸ hq hqf) p (hE ▸ hpE)
+  have hfr' : ∀ᶠ q in 𝓝 p, q ∈ frontier (s • A'.carrier) → f (q - p) = 0 := by
+    filter_upwards [hloc'] with q hq hqf
+    exact hf q (hE ▸ hEE ▸ hq hqf) p (hE ▸ hpE)
+  have hpfr : p ∈ frontier
+      (s • A.carrier) := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier A s hs k hpE
+  have hpfr' : p ∈ frontier
+      (s • A'.carrier) := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier A' s hs k'
+          (hEE ▸ hpE)
+  have hpint := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_two_regions _ _
+      (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A s)
+          (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_regular A s hs)
+              (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A' s)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_regular A' s hs) hdis p hpfr.2
+        ((lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A s).frontier_subset hpfr) hpfr'.2
+    ((lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A' s).frontier_subset hpfr') f u hu hfr hfr'
+  have hmeet : (interior X0.carrier ∩ interior (support (F ∪ F'))).Nonempty := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_union, hsF, hsF']
+    have hpX : p ∈ closure (interior X0.carrier) := by
+      rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular]; exact
+          lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_sub X0 i hpS
+    obtain ⟨z, hz1, hz2⟩ := mem_closure_iff.1 hpX _ isOpen_interior hpint
+    exact ⟨z, hz2, hz1⟩
+  have hX0FF := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_mem_of_interior_meet T0 hT0 (F ∪ F')
+      (hF.union hF') (Set.union_subset hA0 hA'0) X0
+    hX0 hmeet
+  have hnotboth : ¬ (X0 ∈ F ∧ X0 ∈ F') := by
+    rintro ⟨h1, h2⟩
+    obtain ⟨z, hz⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_interior_nonempty X0
+    have h1' := interior_mono
+        (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_carrier_sub τ m A X0 h1) hz
+    have h2' := interior_mono
+        (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_carrier_sub τ m A' X0 h2) hz
+    exact Set.disjoint_left.1 hdis h1' h2'
+  have hSE : X0.side i ⊆ s • A.carrier ∩ s • A'.carrier := by
+    intro q hq
+    have hq' := hsub hq
+    refine ⟨(lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A s).frontier_subset
+        (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier A s hs k hq'), ?_⟩
+    exact (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A' s).frontier_subset
+        (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier A' s hs k' (hEE ▸ hq'))
+  rcases hX0FF with h | h
+  · left
+    refine ⟨h, ?_⟩
+    exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_cover_side_overlap T0 hT0 F' hF' hA'0 X0 hX0
+        (fun h' => hnotboth ⟨h, h'⟩) i
+      (by rw [hsF']; exact fun q hq => (hSE hq).2)
+  · right
+    refine ⟨h, ?_⟩
+    exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_cover_side_overlap T0 hT0 F hF hA0 X0 hX0
+        (fun h' => hnotboth ⟨h', h⟩) i
+      (by rw [hsF]; exact fun q hq => (hSE hq).1)
+
+end LiftSupertileAux
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`: "Both
+overlapping sides therefore belong to one finite higher supertile": the erased tile `X` and another
+tile `B` whose side overlaps the side `i` of `X` with positive length both lie in one finite
+supertile `σ'^n W` of a tile `W` of level `n`. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_one_supertile
+    (c : MacroCertificate P)
+    (seq : ℕ → PlaneTiling c.Q) (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (m : ℕ) (Z : PlacedTile (typedDecoration c))
+    (hZ : Z ∈ (seq' m).tiles) (d : c.Side (tileDec Z).typ)
+    (hd : c.IsInner (c.occ (tileDec Z).typ d)) (hsub : sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c Z d) :
+    ∃ n, ∃ W ∈ (seq n).tiles, erase c X ∈ c.σ.decomposeIter n {W} ∧
+      ∃ B ∈ c.σ.decomposeIter n {W}, B ≠ erase c X ∧ ∃ j : Fin (c.Q.disk B.form).n,
+        OverlapPos (sideOf c X i) (B.side j) := by
+  obtain ⟨blk, hbe, hbu⟩ := hexact m
+  have hZU : Z ∈ ⋃ W : (seq' (m + 1)).tiles, (blk W).tiles := hbu ▸ hZ
+  obtain ⟨W', hW'⟩ := mem_iUnion.mp hZU
+  obtain ⟨s, hs, rfl⟩ := hW'
+  have hp := c.g1_partner ⟨s, d⟩ hd
+  set o' := c.partner ⟨s, d⟩ with ho'
+  have hZ' : (blk W').placed o'.1 ∈ (seq' m).tiles := hbu ▸ mem_iUnion.2 ⟨W', o'.1, hp.2.1.trans hs, rfl⟩
+  set A := erase c ((blk W').placed s) with hAdef
+  set A' := erase c ((blk W').placed o'.1) with hA'def
+  have hA : A ∈ (seq m).tiles := herase m ▸ ⟨_, hZ, rfl⟩
+  have hA' : A' ∈ (seq m).tiles := herase m ▸ ⟨_, hZ', rfl⟩
+  have hAne : A ≠ A' := by
+    intro h
+    have hf : c.form s = c.form o'.1 := congrArg PlacedTile.form h
+    have ha : (blk W').v + c.anchor s = (blk W').v + c.anchor o'.1 := congrArg PlacedTile.anchor h
+    exact hp.1 (c.type_injective _ _ hp.2.1 hf.symm (add_left_cancel ha).symm)
+  have hAA' : Disjoint (interior A.carrier) (interior A'.carrier) := (seq m).disjoint hA hA' hAne
+  have hkk : A.side d = A'.side o'.2 := by
+    show ((blk W').v + c.anchor s) +ᵥ (c.Q.disk (c.form s)).side d =
+      ((blk W').v + c.anchor o'.1) +ᵥ (c.Q.disk (c.form o'.1)).side o'.2
+    rw [add_vadd, add_vadd]
+    exact congrArg (fun S : Set Pt => (blk W').v +ᵥ S) hp.2.2.symm
+  have hsupA := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub c seq seq' herase hexact
+    m 0 A (by simpa using hA)
+  have hsupA' := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub c seq seq' herase hexact
+    m 0 A' (by simpa using hA')
+  have hX0 : erase c X ∈ (seq 0).tiles := herase 0 ▸ ⟨X, hX, rfl⟩
+  have hgen := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_generic_supertile c.σ (seq 0).tiles
+    (seq 0).disjoint m A A' hAA' d o'.2 hkk hsupA hsupA' (erase c X) hX0 i hsub
+  have hW : erase c W'.1 ∈ (seq (m + 1)).tiles := herase (m + 1) ▸ ⟨_, W'.2, rfl⟩
+  have hchild : ∀ t, c.owner t = (blk W').α → erase c ((blk W').placed t) ∈ c.σ.decompose {erase c W'.1} := by
+    intro t ht
+    obtain ⟨⟨hf, -⟩, hv⟩ := hbe W'
+    simp only [Substitution.decompose, Substitution.decomposeTile, translateSet, c.rule_eq, mem_iUnion,
+      mem_image, mem_singleton_iff, mem_setOf_eq, exists_prop]
+    refine ⟨_, rfl, _, ⟨t, ht.trans hf.symm, rfl⟩, ?_⟩
+    simp [erase, ColouredBlock.placed, ColouredBlock.tileOf, tileDec, PlacedTile.translate, hv]
+  have hsubW : ∀ B, B ∈ c.σ.decompose {erase c W'.1} →
+      c.σ.decomposeIter m {B} ⊆ c.σ.decomposeIter (m + 1) {erase c W'.1} := by
+    intro B hB
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_succ_inner]
+    exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_mono _ m
+      (Set.singleton_subset_iff.2 hB)
+  have hAW := hchild s hs
+  have hA'W := hchild o'.1 (hp.2.1.trans hs)
+  refine ⟨m + 1, erase c W'.1, hW, ?_⟩
+  rcases hgen with ⟨h1, B, hB, hBX, j, hov⟩ | ⟨h1, B, hB, hBX, j, hov⟩
+  · exact ⟨hsubW A hAW h1, B, hsubW A' hA'W hB, hBX, j, hov⟩
+  · exact ⟨hsubW A' hA'W h1, B, hsubW A hAW hB, hBX, j, hov⟩
+
+/-- Step 6 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step1_supertile`: "The
+assumed STS property makes their descendant sides coincide completely": the overlapping side of the
+other tile of the side-to-side supertile coincides with the side `i` of `X`. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step6_sts
+    (c : MacroCertificate P) (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (X : PlacedTile (typedDecoration c)) (i : c.Side (tileDec X).typ) (n : ℕ)
+    (W : PlacedTile c.Q) (hW : W ∈ (seq n).tiles) (hXW : erase c X ∈ c.σ.decomposeIter n {W})
+    (B : PlacedTile c.Q) (hB : B ∈ c.σ.decomposeIter n {W}) (hBX : B ≠ erase c X)
+    (j : Fin (c.Q.disk B.form).n) (hov : OverlapPos (sideOf c X i) (B.side j)) :
+    ∃ Y ∈ (seq' 0).tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
+      sideOf c Y j = sideOf c X i := by
+  have hsub := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub c seq seq'
+    herase hexact n 0 W (by simpa using hW)
+  have hB0 : B ∈ (seq 0).tiles := hsub hB
+  rw [← herase] at hB0
+  obtain ⟨Y, hY, rfl⟩ := hB0
+  have heq : (erase c X).side i = (erase c Y).side j :=
+    hsts n W hW (erase c X) hXW (erase c Y) hB i j hov
+  refine ⟨Y, hY, fun h => hBX (h ▸ rfl), j, heq.symm⟩
+
 /-- Step 1 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer`:
 For an outer side with nonzero fourth cell, its ancestor side becomes inner at a finite level.
 Both overlapping sides therefore belong to one finite higher supertile.
@@ -7892,7 +8873,17 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile (c : Macro
     (hNontriv : IsNontrivial c (tileDec X) i) :
     ∃ Y ∈ (seq' 0).tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
       sideOf c Y j = sideOf c X i := by
-  sorry
+  have _ := hH
+  have _ := hleg
+  have h3 := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step1_fourth_ne_zero c seq' hexact X hX i
+    hOuter hNontriv
+  obtain ⟨m, Z, hZ, d, hd, hsub⟩ :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step2_ancestor_inner c seq' hfounded X hX i hOuter h3
+  obtain ⟨n, W, hW, hXW, B, hB, hBX, j, hov⟩ :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_one_supertile c seq seq' herase hexact X hX i
+      m Z hZ d hd hsub
+  exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step6_sts c seq hsts seq' herase hexact X i n W hW
+    hXW B hB hBX j hov
 
 /-- Step 1 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells` ("their
 descendant sides coincide completely"): a nonempty open set covered by finitely many closed sets meets the interior of one of them. -/

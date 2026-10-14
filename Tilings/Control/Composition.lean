@@ -2326,7 +2326,48 @@ private lemma path_and_print_recovery_step2_prints_step1_parent_cell_step1_penul
     (d : c.Side h.1) (hd : c.marked (c.form h.1) d) (k : Fin 5) (hk : k ≠ 4) :
     ∃ o, (c.path (c.form h.1) d k)[(c.path (c.form h.1) d k).length - 2]? = some o ∧
       o.1 = (c.partner (c.printOcc (c.form h.1) d)).1 ∧ c.IsOrdinary o := by
-  sorry
+  have hg : c.IsGenuinePath (c.form h.1) d k := ⟨hd, by omega⟩
+  have ⟨p, hp⟩ : ∃ p, c.port (c.form h.1) d k = some p := by
+    unfold Geometry.MacroData.port
+    have h5 := c.g3_five_le _ d
+    have hr : Geometry.MacroData.portRank (c.outerList (c.form h.1) d).length k ≤ (c.outerList (c.form h.1) d).length := by
+      unfold Geometry.MacroData.portRank
+      have : (k.val + 1) * (c.outerList (c.form h.1) d).length ≤ 5 * (c.outerList (c.form h.1) d).length :=
+        Nat.mul_le_mul_right _ (by omega)
+      omega
+    exact ⟨_, List.getElem?_eq_getElem (by omega)⟩
+  have hhead := (c.g4_path_head _ _ _ hg).trans hp
+  have hlast := c.g4_path_last _ _ _ hg
+  have hpout : c.IsOuter p :=
+    ((c.g3_outerList_mem _ _ _).1 (List.mem_of_getElem? hp)).2.1
+  have hpin := c.g4_print_inner (c.form h.1) d hd
+  have hne : p ≠ c.partner (c.printOcc (c.form h.1) d) := by
+    intro e
+    have hinner_partner : c.IsInner (c.partner (c.printOcc (c.form h.1) d)) := by
+      have hp1 := c.g1_partner _ hpin
+      have hpout2 : c.IsOuter p := hpout
+      unfold Geometry.MacroData.IsInner Geometry.MacroData.IsOuter at hpin hpout2 ⊢
+      rw [hp1.2.2, hp1.2.1]
+      exact hpin
+    have hpout2 : c.IsOuter p := hpout
+    unfold Geometry.MacroData.IsInner Geometry.MacroData.IsOuter at hinner_partner hpout2
+    rw [e] at hpout2
+    exact hinner_partner hpout2
+  have hlen : 2 ≤ (c.path (c.form h.1) d k).length := by
+    generalize hpath : c.path (c.form h.1) d k = l
+    cases l with
+    | nil => simp [hpath] at hhead
+    | cons x l =>
+        cases l with
+        | nil =>
+            simp [hpath] at hhead hlast
+            exact absurd (hhead.symm.trans hlast) hne
+        | cons y l => simp
+  obtain ⟨o, ho⟩ : ∃ o, (c.path (c.form h.1) d k)[
+      (c.path (c.form h.1) d k).length - 2]? = some o :=
+    ⟨_, List.getElem?_eq_getElem (by omega)⟩
+  obtain ⟨hop, hord⟩ := c.g4_path_penultimate _ _ _ hg o ho
+  exact ⟨o, ho, hop, hord⟩
 
 /-- Step 2 of the blueprint proof of `path_and_print_recovery_step2_prints_step1_parent_cell`:
 the predecessor's third cell is the reconstructed parent cell. -/

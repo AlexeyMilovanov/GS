@@ -1871,8 +1871,12 @@ private theorem schedule_intermediate_sts_step3_levels_sts_step2_within_group
 /-- Step 3 of the blueprint proof of `schedule_intermediate_sts_step3_levels_sts`:
 For distinct grouped parents, an overlapping intermediate side is a scaled
 `.level j` boundary side of each parent.  The displayed equalities identify
-those boundary sides with the scaled original sides. -/
+those boundary sides with the scaled original sides.  The hypothesis `hΔ` (each original layer
+inside one block is STS) is needed: without it a level-`j` side of one block may continue into
+the interior of the block, so it is not a boundary side (codex's θ = 2 counterexample with a
+non-side-to-side L rule, 14 October 2026). -/
 private theorem schedule_intermediate_sts_step3_levels_sts_step3_cross_group_boundary
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (G.dissect α).tiles))
     (m : ℕ) (T' : PlaneTiling G.P') (j : Fin m)
     (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
     (hAA' : A ≠ A') (X Y : PlacedTile P)
@@ -1924,7 +1928,7 @@ private theorem schedule_intermediate_sts_step3_levels_sts
       X hXA Y hYA i i' hXY
   obtain ⟨c, d, hc, hd, hcx, hdy⟩ :=
     schedule_intermediate_sts_step3_levels_sts_step3_cross_group_boundary
-      τ G m T' j' A A' hA hA' hAA' X Y hXA hYA i i' hXY
+      τ G hΔ m T' j' A A' hA hA' hAA' X Y hXA hYA i i' hXY
   have hs : τ.θ ^ (m - j) ≠ 0 :=
     pow_ne_zero _ (ne_of_gt (lt_trans zero_lt_one τ.one_lt))
   have hscaled :

@@ -2216,6 +2216,34 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell1 (c : Mac
         (K.tileOf t).cell i 1 = 0 := by
   sorry
 
+private lemma macroblock_is_decomposition_central_step3_nonprints_cell4_aux_print_partner
+    (c : MacroCertificate P) {o : c.SideOcc} (ho : c.IsInner o) :
+    c.IsPrint (c.partner o) → c.IsPrint o := by
+  intro hp
+  change ∃ d, c.IsPrintOf (c.owner o.1) d o
+  change ∃ d, c.IsPrintOf (c.owner (c.partner o).1) d (c.partner o) at hp
+  rcases hp with ⟨d, hd, hp_or⟩
+  have hd_eq : c.owner (c.partner o).1 = c.owner o.1 := (c.g1_partner o ho).2.1
+  generalize H_owner_var : c.owner (c.partner o).1 = α at d hd hp_or hd_eq
+  cases hd_eq
+  use d
+  refine ⟨hd, ?_⟩
+  cases hp_or with
+  | inl h1 =>
+    right
+    have H_partner := c.g1_partner_partner o ho
+    have H2 := congrArg c.partner h1
+    rw [H_partner] at H2
+    exact H2
+  | inr h2 =>
+    left
+    have h_inner_print := c.g4_print_inner _ d hd
+    have H_partner := c.g1_partner_partner o ho
+    have H_partner2 := c.g1_partner_partner (c.printOcc _ d) h_inner_print
+    have H1 := congrArg c.partner h2
+    rw [H_partner, H_partner2] at H1
+    exact H1
+
 /-- Step 3 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 4 is 0. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell4 (c : MacroCertificate P)
     (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
@@ -2224,7 +2252,56 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell4 (c : Mac
     ∀ i : c.Side (K.tileOf t).typ,
       ¬ c.IsPrint (c.occ (K.tileOf t).typ i) →
         (K.tileOf t).cell i 4 = 0 := by
-  sorry
+  have _ := hh
+  intro i hnp
+  have ht_eq : (K.tileOf t).typ = c.central K.α := rfl.trans ht_c
+  have houter : ¬ c.IsOuter (c.occ (K.tileOf t).typ i) := by
+    cases ht_eq
+    exact (c.g2_central K.α i).1
+  have hinner : c.IsInner (c.occ (K.tileOf t).typ i) := houter
+
+  by_contra hcell4
+  have hnt : IsNontrivial c (K.tileOf t) i := by
+    intro hc
+    exact hcell4 hc.2
+    
+  rcases hK.1 t i ht_owner hinner hnt with ⟨t', j, hown', htne, hside, hcol⟩
+
+  have hocc : c.occSide (c.occ t' j) = c.occSide (c.occ (K.tileOf t).typ i) := by
+    have h1 := path_and_print_recovery_step1_signals_aux_childSide c K (c.occ t' j)
+    have h2 := path_and_print_recovery_step1_signals_aux_childSide c K (c.occ (K.tileOf t).typ i)
+    have hside2 : K.childSide (c.occ t' j) = K.childSide (c.occ (K.tileOf t).typ i) := hside
+    rw [hside2] at h1
+    rw [h2] at h1
+    exact (path_and_print_recovery_step1_signals_aux_vadd_cancel K.v h1).symm
+    
+  have h_partner : c.occ t' j = c.partner (c.occ (K.tileOf t).typ i) := by
+    have htne2 : (c.occ t' j).1 ≠ (c.occ (K.tileOf t).typ i).1 := by
+      change t' ≠ t
+      exact htne
+    have hown2 : c.owner (c.occ t' j).1 = c.owner (c.occ (K.tileOf t).typ i).1 := by
+      change c.owner t' = c.owner t
+      rw [hown', ht_owner]
+    exact c.g1_side_unique (c.occ (K.tileOf t).typ i) (c.occ t' j) hinner hown2 htne2 hocc
+
+  have hnp' : ¬ c.IsPrint (c.occ t' j) := by
+    intro h_print
+    rw [h_partner] at h_print
+    have h_print_orig := macroblock_is_decomposition_central_step3_nonprints_cell4_aux_print_partner c hinner h_print
+    exact hnp h_print_orig
+    
+  have hlegal_t' : headerLegal c (K.tileOf t') := by
+    apply hK.2 _ hown'
+    intro htc'
+    apply htne
+    rw [ht_c, htc']
+    
+  have hnormal : IsNormal c (K.tileOf t') := (headerLegal_properties_step2_normal_id c hH (K.tileOf t') hlegal_t').1
+  have H_cell4_t' : (K.tileOf t').cell j 4 = 0 := asm_cell_four_nonprint c hnormal j hnp'
+  
+  have H_match : (K.tileOf t').cell j 4 = (K.tileOf t).cell i 4 := hcol 4
+  rw [H_match] at H_cell4_t'
+  exact hcell4 H_cell4_t'
 
 /-- Step 4 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 2 on path matches parent. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell2_path (c : MacroCertificate P)

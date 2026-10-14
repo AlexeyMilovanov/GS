@@ -164,6 +164,17 @@ theorem sts_hierarchical_of_strict_proper {τ : Substitution P} (hτ : τ.STS)
   apply sts_hierarchical_of_strict_proper_step2_sts hτ Sys hΔ seq hproper hcomp_seq
   rwa [hseq0]
 
+private lemma exists_strict_proper_of_sts_hierarchical_step1_seq_power_chain
+    (τ : Substitution P) (seq : ℕ → PlaneTiling P)
+    (hseq : ∀ n, τ.IsComposition (seq (n + 1)) (seq n)) (k n : ℕ) :
+    τ.decomposeIter k (seq (n + k)).tiles = (seq n).tiles := by
+  induction k generalizing n with
+  | zero => rfl
+  | succ k ih =>
+    change τ.decompose (τ.decomposeIter k (seq (n + (k + 1))).tiles) = _
+    rw [show n + (k + 1) = (n + 1) + k by omega, ih]
+    exact hseq n
+
 /-- Step 1 of the blueprint proof of `exists_strict_proper_of_sts_hierarchical`:
 construct the subsequence of k-spaced original levels, which is sts and whose
 intermediate scattered levels are also original levels. -/
@@ -174,7 +185,37 @@ private lemma exists_strict_proper_of_sts_hierarchical_step1_seq
       seq 0 = S ∧
       (∀ n, τ.decomposeIter Sys.GS.k (seq (n + 1)).tiles = (seq n).tiles) ∧
       (∀ n, (seq n).SideToSide) ∧
-      (∀ (n j : ℕ), j ≤ Sys.GS.k → SideToSideSet (τ.decomposeIter j (seq (n + 1)).tiles)) := sorry
+      (∀ (n j : ℕ), j ≤ Sys.GS.k → SideToSideSet (τ.decomposeIter j (seq (n + 1)).tiles)) := by
+  obtain ⟨seq, h0, hcomp, hsts⟩ := hS
+  use fun n => seq (n * Sys.GS.k)
+  constructor
+  · rw [Nat.zero_mul]
+    exact h0
+  constructor
+  · intro n
+    have h := exists_strict_proper_of_sts_hierarchical_step1_seq_power_chain
+      τ seq hcomp Sys.GS.k (n * Sys.GS.k)
+    have hrw : n * Sys.GS.k + Sys.GS.k = (n + 1) * Sys.GS.k := by
+      rw [Nat.add_mul, Nat.one_mul]
+    rw [← hrw]
+    exact h
+  constructor
+  · intro n
+    exact hsts (n * Sys.GS.k)
+  · intro n j hj
+    have h1 := exists_strict_proper_of_sts_hierarchical_step1_seq_power_chain
+      τ seq hcomp j (n * Sys.GS.k + Sys.GS.k - j)
+    have h_eq : n * Sys.GS.k + Sys.GS.k - j + j = (n + 1) * Sys.GS.k := by
+      have hmul : n * Sys.GS.k + Sys.GS.k = (n + 1) * Sys.GS.k := by
+        rw [Nat.add_mul, Nat.one_mul]
+      rw [← hmul]
+      exact Nat.sub_add_cancel (by omega)
+    rw [h_eq] at h1
+    have h_sts : (seq (n * Sys.GS.k + Sys.GS.k - j)).SideToSide :=
+      hsts (n * Sys.GS.k + Sys.GS.k - j)
+    have h2 : SideToSideSet (seq (n * Sys.GS.k + Sys.GS.k - j)).tiles := h_sts
+    rw [← h1] at h2
+    exact h2
 
 /-- `lem:strict-complete` (completeness half of `thm:sts-stshierarchy`): every
 side-to-side `τ`-hierarchical plane tiling is the scattering of the projection

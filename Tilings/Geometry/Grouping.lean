@@ -3184,7 +3184,138 @@ private lemma outsideAnchoredGrouping_step1_E_step3_conn (M : MeshConstants P) (
     (hcov : support S.tiles = Ω.carrier) (hsts : SideToSideSet S.tiles)
     (c : Pt) (h : ℝ) (hh : 0 < h)
     (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier) :
-    IsConnected (interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier)) := sorry
+    IsConnected (interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles,
+      ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty,
+      F.carrier)) := by
+  let K : Set Pt := square c h + Binf (3 * M.D)
+  let R : ℝ := h + 3 * M.D
+  have hR : 0 ≤ R := by dsimp [R]; linarith [M.D_pos]
+  have hK_eq : K = square c R := by
+    dsimp [K, R]
+    exact Set.Subset.antisymm
+      outsideAnchoredGrouping_step1_E_step1_supset_step5_square_add_subset
+      (rg_square_add hh.le (by linarith [M.D_pos]))
+  let p := mkPt (c 0 + (R + 1)) (c 1 + (R + 1))
+  have hpK : p ∈ (square c R)ᶜ := by
+    change ¬ (|p 0 - c 0| ≤ R ∧ |p 1 - c 1| ≤ R)
+    intro hp
+    have hp1 := hp.2
+    simp only [p, rg_mkPt1, add_sub_cancel_left] at hp1
+    rw [abs_of_pos (by linarith [hR])] at hp1
+    linarith
+  have hKconn : IsConnected Kᶜ := by
+    rw [hK_eq]
+    have hsub : (square c R)ᶜ ⊆ connectedComponentIn (square c R)ᶜ p := by
+      intro x hx
+      exact rg_far_mem hR (fun y hy => hy) hx
+    have heq : connectedComponentIn (square c R)ᶜ p = (square c R)ᶜ :=
+      Set.Subset.antisymm (connectedComponentIn_subset _ _) hsub
+    rw [← heq]
+    exact isConnected_connectedComponentIn_iff.mpr hpK
+  have hKΩ : K ⊆ interior Ω.carrier := by
+    dsimp [K]
+    exact (Set.add_subset_add_left (rg_binf_mono (by linarith [M.D_pos]))).trans hQ
+  let U : Set Pt := Kᶜ ∪ ⋃ F ∈ S.tiles,
+    ⋃ _ : (interior F.carrier ∩ Kᶜ).Nonempty, interior F.carrier
+  have hUsub : U ⊆ interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles,
+      ⋃ _ : (interior F.carrier ∩ Kᶜ).Nonempty, F.carrier) := by
+    intro x hx
+    rcases hx with hx | hx
+    · exact outsideAnchoredGrouping_step1_E_step1_supset M S Ω hcov hsts c h hh hQ hx
+    · simp only [Set.mem_iUnion] at hx ⊢
+      obtain ⟨F, hF, hsel, hxF⟩ := hx
+      have hFint : interior F.carrier ⊆
+          interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles,
+            ⋃ _ : (interior F.carrier ∩ Kᶜ).Nonempty, F.carrier) := by
+        apply interior_mono
+        intro y hy
+        exact Set.mem_union_right _ (Set.mem_iUnion.2 ⟨F, Set.mem_iUnion.2 ⟨hF,
+          Set.mem_iUnion.2 ⟨hsel, hy⟩⟩⟩)
+      exact hFint hxF
+  have hUconn : IsConnected U := by
+    have hKmem : Kᶜ ⊆ U := by
+      intro x hx
+      change x ∈ Kᶜ ∪ ⋃ F ∈ S.tiles,
+        ⋃ _ : (interior F.carrier ∩ Kᶜ).Nonempty, interior F.carrier
+      exact Or.inl hx
+    have htile_mem : ∀ (F : PlacedTile P), F ∈ S.tiles →
+        (interior F.carrier ∩ Kᶜ).Nonempty → interior F.carrier ⊆ U := by
+      intro F hF hsel x hx
+      change x ∈ Kᶜ ∪ ⋃ F ∈ S.tiles,
+        ⋃ _ : (interior F.carrier ∩ Kᶜ).Nonempty, interior F.carrier
+      exact Or.inr (Set.mem_iUnion.2 ⟨F, Set.mem_iUnion.2 ⟨hF,
+        Set.mem_iUnion.2 ⟨hsel, hx⟩⟩⟩)
+    have hUpre : IsPreconnected U := by
+      apply isPreconnected_of_forall_pair
+      intro x hx y hy
+      rcases hx with hxK | hxF
+      · rcases hy with hyK | hyF
+        · exact ⟨Kᶜ, hKmem, hxK, hyK, hKconn.isPreconnected⟩
+        · simp only [Set.mem_iUnion] at hyF
+          obtain ⟨F, hF, hsel, hyF'⟩ := hyF
+          have hsel' := hsel
+          obtain ⟨z, hzF, hzK⟩ := hsel
+          let T := Kᶜ ∪ interior F.carrier
+          have hT : IsPreconnected T := IsPreconnected.union' ⟨z, hzK, hzF⟩
+            hKconn.isPreconnected
+            (tileDisk F).interior_pathConnected.isConnected.isPreconnected
+          refine ⟨T, ?_, ?_, ?_, hT⟩
+          · simpa [T] using union_subset hKmem (htile_mem F hF hsel')
+          · exact Set.mem_union_left _ hxK
+          · exact Set.mem_union_right _ hyF'
+      · rcases hy with hyK | hyF
+        · simp only [Set.mem_iUnion] at hxF
+          obtain ⟨F, hF, hsel, hxF'⟩ := hxF
+          have hsel' := hsel
+          obtain ⟨z, hzF, hzK⟩ := hsel
+          let T := Kᶜ ∪ interior F.carrier
+          have hT : IsPreconnected T := IsPreconnected.union' ⟨z, hzK, hzF⟩
+            hKconn.isPreconnected
+            (tileDisk F).interior_pathConnected.isConnected.isPreconnected
+          refine ⟨T, ?_, ?_, ?_, hT⟩
+          · simpa [T] using union_subset hKmem (htile_mem F hF hsel')
+          · exact Set.mem_union_right _ hxF'
+          · exact Set.mem_union_left _ hyK
+        · simp only [Set.mem_iUnion] at hxF hyF
+          obtain ⟨F, hF, hsel, hxF'⟩ := hxF
+          obtain ⟨G, hG, hselG, hyG'⟩ := hyF
+          have hsel' := hsel
+          have hselG' := hselG
+          obtain ⟨zF, hzF, hzFK⟩ := hsel
+          obtain ⟨zG, hzG, hzGK⟩ := hselG
+          let T := Kᶜ ∪ interior F.carrier ∪ interior G.carrier
+          have hTF : IsPreconnected (Kᶜ ∪ interior F.carrier) :=
+            IsPreconnected.union' ⟨zF, hzFK, hzF⟩ hKconn.isPreconnected
+              (tileDisk F).interior_pathConnected.isConnected.isPreconnected
+          have hT : IsPreconnected T := IsPreconnected.union'
+            ⟨zG, Or.inl hzGK, hzG⟩ hTF
+            (tileDisk G).interior_pathConnected.isConnected.isPreconnected
+          refine ⟨T, ?_, ?_, ?_, hT⟩
+          · simpa [T] using union_subset (union_subset hKmem (htile_mem F hF hsel'))
+              (htile_mem G hG hselG')
+          · exact Set.mem_union_left _ (Set.mem_union_right _ hxF')
+          · exact Set.mem_union_right _ hyG'
+    refine ⟨?_, hUpre⟩
+    exact ⟨p, Set.mem_union_left _ (by rw [hK_eq]; exact hpK)⟩
+  have hint_closure : interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles,
+      ⋃ _ : (interior F.carrier ∩ Kᶜ).Nonempty, F.carrier) ⊆ closure U := by
+    intro x hx
+    have hxE := interior_subset hx
+    rcases (show x ∈ Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles,
+        ⋃ _ : (interior F.carrier ∩ Kᶜ).Nonempty, F.carrier from hxE) with hxΩ | hxF
+    · have hxK : x ∈ Kᶜ := by
+        intro hxK
+        exact hxΩ (interior_subset (hKΩ hxK))
+      exact subset_closure (show x ∈ U from Set.mem_union_left _ hxK)
+    · simp only [Set.mem_iUnion] at hxF
+      obtain ⟨F, hF, hsel, hxF⟩ := hxF
+      have hclF : x ∈ closure (interior F.carrier) := by
+        rw [tile_regular]
+        exact hxF
+      exact closure_mono (fun y hy =>
+        show y ∈ U from Set.mem_union_right _ (Set.mem_iUnion.2 ⟨F,
+          Set.mem_iUnion.2 ⟨hF, Set.mem_iUnion.2 ⟨hsel, hy⟩⟩⟩)) hclF
+  exact hUconn.subset_closure hUsub hint_closure
 
 /-- Step 1 of the blueprint proof of `outsideAnchoredGrouping`: defining `E`. -/
 private lemma outsideAnchoredGrouping_step1_E (M : MeshConstants P) (S : Patch P)

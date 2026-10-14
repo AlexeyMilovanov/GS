@@ -3350,7 +3350,34 @@ private lemma strict_macroblock_is_decomposition_step1_noncentral_step3_nonprint
         ∀ j : Fin 5,
         (copySource C (C.form (strictReconstruct C hC K h.1).typ) (C.occ t i) j).Nonempty →
           (K.tileOf t).cell i j = (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j := by
-  sorry
+  intro i hnp j hsource
+  have _ := hK
+  have _ := ht_nc
+  have hown := strict_macroblock_is_decomposition_step1_noncentral_step1_owner
+    C hC K hK h hh t ht_owner ht_nc
+  have hnp' : ¬ ∃ d, C.IsPrintOf (C.form (strictReconstruct C hC K h.1).typ) d
+      (C.occ t i) := by
+    intro hp
+    apply hnp
+    unfold MacroData.IsPrint
+    rw [hown]
+    exact hp
+  have hcell : ∀ k, (strictChild C hC (strictReconstruct C hC K h.1) t).cell i k =
+      (open Classical in
+      if h' : (copySource C (C.form (strictReconstruct C hC K h.1).typ)
+        (C.occ t i) k).Nonempty then
+          (strictReconstruct C hC K h.1).cell h'.some.1 h'.some.2
+      else strictGenCell C hC (C.form (strictReconstruct C hC K h.1).typ)
+        (headerSU C hC (strictHeaderOf C hC (strictReconstruct C hC K h.1)))
+        (C.occ t i) k) := fun _ => rfl
+  change K.col t i j = _
+  rw [hcell, dif_pos hsource]
+  rcases hsource.some_mem with ⟨hp, -, -⟩ | ⟨-, hj, hpath⟩
+  · exact (hnp' ⟨_, hp⟩).elim
+  · change C.occ t i ∈ C.path (C.form h.1) hsource.some.1 hsource.some.2 at hpath
+    have hs := strict_path_and_print_recovery_step1_signals C hC K hK h hh
+      hsource.some.1 hsource.some.2 (C.occ t i) hpath hnp
+    simpa [hj] using hs
 
 /-- Step 3 of the blueprint proof of `strict_macroblock_is_decomposition_step1_noncentral`: nonprints are correct. -/
 private theorem strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints

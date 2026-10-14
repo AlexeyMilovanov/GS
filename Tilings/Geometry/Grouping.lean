@@ -10223,7 +10223,26 @@ fingerprint of `t` contains 2 * card (F.ordinary t) elements from its own templa
 private lemma fingerprintSeparation_step2_templates_step3_count_self (F : FingerprintData)
     [DecidableEq F.Tmpl]
     (h_tmpl : ∀ t, ∀ v ∈ F.ordinary t, F.template v = F.template t) :
-    ∀ t, Multiset.countP (fun v => F.template v = F.template t) (F.baseFingerprint t) = 2 * Multiset.card (F.ordinary t) := sorry
+    ∀ t, Multiset.countP (fun v => F.template v = F.template t) (F.baseFingerprint t) =
+      2 * Multiset.card (F.ordinary t) := by
+  intro t
+  unfold FingerprintData.baseFingerprint
+  rw [Multiset.countP_add]
+  have h_ordinary :
+      Multiset.countP (fun v => F.template v = F.template t) (F.ordinary t) =
+        Multiset.card (F.ordinary t) := by
+    apply Multiset.countP_eq_card.mpr
+    intro v hv
+    exact h_tmpl t v hv
+  have h_replicate :
+      Multiset.countP (fun v => F.template v = F.template t)
+          (Multiset.replicate (Multiset.card (F.ordinary t)) t) =
+        Multiset.card (Multiset.replicate (Multiset.card (F.ordinary t)) t) := by
+    apply Multiset.countP_eq_card.mpr
+    intro v hv
+    rw [Multiset.eq_of_mem_replicate hv]
+  rw [h_ordinary, h_replicate, Multiset.card_replicate]
+  omega
 
 /-- Step 2 of the blueprint proof of `fingerprintSeparation`: Types in different
 templates have disjoint possible fingerprints. -/

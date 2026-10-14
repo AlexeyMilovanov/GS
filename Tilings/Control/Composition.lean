@@ -1559,7 +1559,9 @@ private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_v
 
 private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_childSide
     (c : MacroCertificate P) (K : ColouredBlock c) (o : c.SideOcc) :
-    K.childSide o = K.v +ᵥ c.occSide o := sorry
+    K.childSide o = K.v +ᵥ c.occSide o := by
+  dsimp [ColouredBlock.childSide, MacroData.occSide, PlacedTile.side, MacroData.childTile, vadd_vadd]
+  rw [vadd_vadd]
 
 private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_boundary_active
     (c : MacroCertificate P) (A : DecTile c) (hA : headerLegal c A)

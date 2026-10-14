@@ -3557,7 +3557,29 @@ private lemma whole_side_ports_coincide_step5_port_eq_step2_port_mem (τ : Subst
     (A : G.P'.Form) (a : Fin (G.P'.disk A).n)
     (hL : 5 ≤ (sidesInside τ G m A a).ncard) (r : Fin 5) :
     port τ G m A a r ∈ sidesInside τ G m A a := by
-  sorry
+  have H_bounds : 1 ≤ portIndex (sidesInside τ G m A a).ncard r ∧ portIndex (sidesInside τ G m A a).ncard r ≤ (sidesInside τ G m A a).ncard := by
+    unfold portIndex
+    have : (r : ℕ) ≤ 4 := by omega
+    have hl : 5 ≤ (sidesInside τ G m A a).ncard := hL
+    set L := (sidesInside τ G m A a).ncard
+    have h1 : 1 ≤ (((r : ℕ) + 1) * L + 5) / 6 := by
+      have : 6 ≤ ((r : ℕ) + 1) * L + 5 := by
+        have : 1 * 5 ≤ ((r : ℕ) + 1) * L := Nat.mul_le_mul (by omega) hl
+        omega
+      omega
+    have h2 : (((r : ℕ) + 1) * L + 5) / 6 ≤ L := by
+      have : ((r : ℕ) + 1) * L + 5 ≤ 5 * L + 5 := Nat.add_le_add_right (Nat.mul_le_mul_right L (by omega)) 5
+      have : 5 * L + 5 ≤ 6 * L := by
+        have : 5 ≤ L := hl
+        omega
+      omega
+    exact ⟨h1, h2⟩
+  have H_exist : ∃ e, e ∈ sidesInside τ G m A a ∧ rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e = portIndex (sidesInside τ G m A a).ncard r := by
+    obtain ⟨e, he, hr⟩ := whole_side_ports_distinct_step3_rank τ G m A a (portIndex (sidesInside τ G m A a).ncard r) H_bounds.1 H_bounds.2
+    exact ⟨e, he, hr⟩
+  have H_eps := Classical.epsilon_spec H_exist
+  unfold port
+  exact H_eps.1
 
 
 

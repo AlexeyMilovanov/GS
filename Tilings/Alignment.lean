@@ -4120,7 +4120,14 @@ private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step2_exists
     ∀ e' : sidesInside τ G m A'.form a', ∃! e : sidesInside τ G m A.form a,
       placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
       placedSeg ((τ.θ ^ m) • A'.anchor) (e' : Pt × Pt) := by
-  sorry
+  intro e'
+  have H := whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique τ G m T' hfine halign A' A hA' hA a' a hside.symm e'
+  obtain ⟨e, he, huniq⟩ := H
+  use e
+  constructor
+  . exact he.symm
+  . intro y hy
+    exact huniq y hy.symm
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
 whole-edge subdivision of their common support, so there is a bijection between their sides inside

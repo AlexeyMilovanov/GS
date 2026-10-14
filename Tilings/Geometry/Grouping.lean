@@ -11714,6 +11714,108 @@ private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3
     PointsInOrder γi fun j => (α j).start := by
   sorry
 
+/-- Lift a unit-interval representative into the interval immediately after a chosen cut. -/
+private def existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift
+    (a b : ℝ) : ℝ :=
+  if a < b then b else b + 1
+
+/-- Cutting the unit circle at `a` gives a representative of every other point
+in the open interval `(a, a + 1)`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift_mem
+    {a b : ℝ} (ha : a ∈ Ico (0 : ℝ) 1) (hb : b ∈ Ico (0 : ℝ) 1)
+    (hab : a ≠ b) :
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift a b ∈
+      Ioo a (a + 1) := by
+  unfold existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift
+  by_cases h : a < b
+  · rw [if_pos h]
+    constructor
+    · exact h
+    · linarith [ha.1, hb.2]
+  · rw [if_neg h]
+    have hba : b < a := lt_of_le_of_ne (le_of_not_gt h) hab.symm
+    constructor <;> linarith [ha.2, hb.1]
+
+/-- A simple period-one loop is injective on any half-open interval of length one. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_shifted_inj
+    {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ) {a s t : ℝ}
+    (hs : s ∈ Ico a (a + 1)) (ht : t ∈ Ico a (a + 1))
+    (heq : γ s = γ t) : s = t := by
+  obtain ⟨m, hm⟩ := pg_param_eq hγ heq
+  have hm_lt : (m : ℝ) < 1 := by
+    rw [← hm]
+    linarith [hs.2, ht.1]
+  have hm_gt : (-1 : ℝ) < m := by
+    rw [← hm]
+    linarith [hs.1, ht.2]
+  have hm_lt' : m < 1 := by exact_mod_cast hm_lt
+  have hm_gt' : -1 < m := by exact_mod_cast hm_gt
+  have hm0 : m = 0 := by omega
+  rw [hm0, Int.cast_zero, sub_eq_zero] at hm
+  exact hm
+
+/-- The lifted representatives of the last two points of an ordered triple are
+linearly ordered after cutting the circle at the first point. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_triple
+    {K : Set Pt} {γ : ℝ → Pt} (hγ : IsLoopParam K γ)
+    {p q r : Pt} {a b c : ℝ}
+    (ha : a ∈ Ico (0 : ℝ) 1) (hb : b ∈ Ico (0 : ℝ) 1)
+    (hc : c ∈ Ico (0 : ℝ) 1) (hab : a ≠ b) (hac : a ≠ c)
+    (hpa : γ a = p) (hqb : γ b = q) (hrc : γ c = r)
+    (hord : PointsInOrder γ (fun i : Fin 3 => ![p, q, r] i)) :
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift a b <
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift a c := by
+  rcases hord with ⟨s, hsmono, hsbound, hsval⟩
+  have hs0 : γ (s 0) = p := by simpa using hsval 0
+  have hs1 : γ (s 1) = q := by simpa using hsval 1
+  have hs2 : γ (s 2) = r := by simpa using hsval 2
+  obtain ⟨m, hm⟩ := pg_param_eq hγ (hs0.trans hpa.symm)
+  have hs0_eq : s 0 = a + (m : ℝ) := by linarith
+  let s1 := s 1 - (m : ℝ)
+  let s2 := s 2 - (m : ℝ)
+  have hs01 : s 0 < s 1 := hsmono (by decide)
+  have hs12 : s 1 < s 2 := hsmono (by decide)
+  have hs20 : s 2 < s 0 + 1 := hsbound 0 2
+  have hs1_mem : s1 ∈ Ico a (a + 1) := by
+    constructor <;> dsimp [s1] <;> linarith
+  have hs2_mem : s2 ∈ Ico a (a + 1) := by
+    constructor <;> dsimp [s2] <;> linarith
+  have hlift_b :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift_mem ha hb hab
+  have hlift_c :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift_mem ha hc hac
+  have hs1_val : γ s1 = q := by
+    have hp := pg_periodic_int hγ.2.1 s1 m
+    have heq : s1 + (m : ℝ) = s 1 := by dsimp [s1]; ring
+    rw [heq] at hp
+    exact hp.symm.trans hs1
+  have hs2_val : γ s2 = r := by
+    have hp := pg_periodic_int hγ.2.1 s2 m
+    have heq : s2 + (m : ℝ) = s 2 := by dsimp [s2]; ring
+    rw [heq] at hp
+    exact hp.symm.trans hs2
+  have hlift_b_val :
+      γ (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift a b) = q := by
+    unfold existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift
+    split_ifs
+    · exact hqb
+    · exact (hγ.2.1 b).trans hqb
+  have hlift_c_val :
+      γ (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift a c) = r := by
+    unfold existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift
+    split_ifs
+    · exact hrc
+    · exact (hγ.2.1 c).trans hrc
+  have hs1_eq :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_shifted_inj hγ
+      hs1_mem ⟨hlift_b.1.le, hlift_b.2⟩ (hs1_val.trans hlift_b_val.symm)
+  have hs2_eq :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_shifted_inj hγ
+      hs2_mem ⟨hlift_c.1.le, hlift_c.2⟩ (hs2_val.trans hlift_c_val.symm)
+  rw [← hs1_eq, ← hs2_eq]
+  dsimp [s1, s2]
+  linarith
+
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
 cyclic order is preserved if it is preserved for any 3 points. -/
 private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_reduction
@@ -11721,7 +11823,97 @@ private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_red
     (hx_inj : Function.Injective x)
     (h3 : ∀ f : Fin 3 ↪ Fin k, StrictMono f → PointsInOrder γ (x ∘ f)) :
     PointsInOrder γ x := by
-  sorry
+  classical
+  by_cases hk0 : k = 0
+  · subst k
+    exact ⟨fun i => Fin.elim0 i, fun i => Fin.elim0 i,
+      fun i => Fin.elim0 i, fun i => Fin.elim0 i⟩
+  have hkpos : 0 < k := Nat.pos_of_ne_zero hk0
+  let z : Fin k := ⟨0, hkpos⟩
+  have hrep : ∀ i : Fin k, ∃ u : ℝ, u ∈ Ico (0 : ℝ) 1 ∧ γ u = x i := by
+    intro i
+    have hi : x i ∈ γ '' Ico (0 : ℝ) 1 := by
+      rw [hγ.2.2.2]
+      exact hx_in i
+    exact hi
+  choose u hu huval using hrep
+  have hune : ∀ i j : Fin k, i ≠ j → u i ≠ u j := by
+    intro i j hij heq
+    apply hij
+    apply hx_inj
+    rw [← huval i, ← huval j, heq]
+  let t : Fin k → ℝ := fun i =>
+    if i = z then u z
+    else existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift (u z) (u i)
+  have ht_mem : ∀ i, t i ∈ Ico (u z) (u z + 1) := by
+    intro i
+    by_cases hi : i = z
+    · simp only [t, hi, if_true, mem_Ico]
+      exact ⟨le_rfl, by linarith⟩
+    · simp only [t, hi, if_false]
+      have hmem := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift_mem
+        (hu z) (hu i) (hune z i fun h => hi h.symm)
+      exact ⟨hmem.1.le, hmem.2⟩
+  have ht_strict : StrictMono t := by
+    intro i j hij
+    by_cases hi : i = z
+    · have hj : j ≠ z := by
+        intro hj
+        subst i j
+        exact (lt_irrefl z hij).elim
+      simp only [t, hi, hj, if_true, if_false]
+      exact (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift_mem
+        (hu z) (hu j) (hune z j fun h => hj h.symm)).1
+    · have hi_pos : 0 < i.val := by
+        by_contra h
+        apply hi
+        apply Fin.ext
+        have hi0 : i.val = 0 := Nat.eq_zero_of_not_pos h
+        simpa [z] using hi0
+      have hj : j ≠ z := by
+        intro hjz
+        subst j
+        have hv : i.val < z.val := hij
+        change i.val < 0 at hv
+        exact (Nat.not_lt_zero i.val) hv
+      let f : Fin 3 → Fin k := fun a => ![z, i, j] a
+      have hf : StrictMono f := by
+        rw [Fin.strictMono_iff_lt_succ]
+        intro a
+        fin_cases a
+        · change z < i
+          exact hi_pos
+        · change i < j
+          exact hij
+      let fe : Fin 3 ↪ Fin k := ⟨f, hf.injective⟩
+      have hord : PointsInOrder γ (fun a : Fin 3 => ![x z, x i, x j] a) := by
+        have hord' := h3 fe hf
+        change PointsInOrder γ (x ∘ f) at hord'
+        have heq : (x ∘ f) = (fun a : Fin 3 => ![x z, x i, x j] a) := by
+          funext a
+          fin_cases a <;> simp [f]
+        rw [heq] at hord'
+        exact hord'
+      have horder :=
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_triple hγ
+          (hu z) (hu i) (hu j) (hune z i fun h => hi h.symm)
+          (hune z j fun h => hj h.symm)
+          (huval z) (huval i) (huval j) hord
+      simpa only [t, hi, hj, if_false] using horder
+  refine ⟨t, ht_strict, ?_, ?_⟩
+  · intro i j
+    have hi := ht_mem i
+    have hj := ht_mem j
+    exact hj.2.trans_le (add_le_add_left hi.1 1)
+  · intro i
+    by_cases hi : i = z
+    · simp only [t, hi, if_true]
+      exact huval z
+    · simp only [t, hi, if_false]
+      unfold existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift
+      split_ifs
+      · exact huval i
+      · exact (hγ.2.1 (u i)).trans (huval i)
 
 /-- Step 3 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
 cyclic order is trivially preserved for `k < 3` points. -/

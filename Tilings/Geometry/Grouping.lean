@@ -18376,6 +18376,37 @@ private lemma existsRoutingAfterPower_step1_idempotent (τ : Substitution P) (M 
       _ ≥ n₀ := le_max_left _ _
   · positivity
 
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports`: intra-side quantiles. -/
+private lemma existsRoutingAfterPower_step2_ports_step1_intra (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    ∃ _cp : ℝ, 0 < _cp ∧ ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α _a,
+      ∃ _port : Fin 5 → Set Pt,
+        (∀ _r, (Rs.retained _l _α).IsOuter (_port _r) ∧ _port _r ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
+        Function.Injective _port ∧
+        (∀ _r _s, _r ≠ _s → ∀ _x ∈ _port _r, ∀ _y ∈ _port _s, _cp * τ.θ ^ (Rs.GS.k * _l) ≤ dist _x _y) ∧
+        (∀ _r (_i : Fin (Rs.GS.G.P'.disk _α).n), ∀ _x ∈ _port _r,
+          _cp * τ.θ ^ (Rs.GS.k * _l) ≤
+            dist _x ((τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).vertex _i)) ∧
+        (∃ L : List (Set Pt), (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
+          L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+          ∀ r, L[MacroData.portRank L.length r - 1]? = some (_port r)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports`: inter-side separation. -/
+private lemma existsRoutingAfterPower_step2_ports_step2_inter (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    ∃ _cp : ℝ, 0 < _cp ∧ ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α _a _b, _a ≠ _b →
+      ∀ _port_a _port_b : Fin 5 → Set Pt,
+        (∃ L : List (Set Pt), (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
+          L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+          ∀ r, L[MacroData.portRank L.length r - 1]? = some (_port_a r)) →
+        (∃ L : List (Set Pt), (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _b) ∧
+          L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+          ∀ r, L[MacroData.portRank L.length r - 1]? = some (_port_b r)) →
+        ∀ _r _s, ∀ _x ∈ _port_a _r, ∀ _y ∈ _port_b _s,
+          _cp * τ.θ ^ (Rs.GS.k * _l) ≤ dist _x _y := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower`: "Outside the retained central
 annulus every child is an original tile, so the mesh remains `D` ... A scaled parent declared side
 of length `sℓ` contains an ordered list of whole fine sides of cardinality `L ≥ sℓ/D - 2` ...
@@ -18388,7 +18419,61 @@ private lemma existsRoutingAfterPower_step2_ports (τ : Substitution P) (hτ : �
     (M : MeshConstants P) (Rs : RoutingSetup τ M) :
     ∃ _cp : ℝ, 0 < _cp ∧ ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α,
       Nonempty (existsRoutingAfterPower_PortData τ M Rs _l _α _cp) := by
-  sorry
+  obtain ⟨cp1, hcp1, n1, hn1⟩ := existsRoutingAfterPower_step2_ports_step1_intra τ hτ M Rs
+  obtain ⟨cp2, hcp2, n2, hn2⟩ := existsRoutingAfterPower_step2_ports_step2_inter τ hτ M Rs
+  refine ⟨min cp1 cp2, lt_min hcp1 hcp2, max n1 n2, ?_⟩
+  intro l hl hlpos α
+  have hl1 : l ≥ n1 := le_trans (Nat.le_max_left _ _) hl
+  have hl2 : l ≥ n2 := le_trans (Nat.le_max_right _ _) hl
+  have h_intra := hn1 l hl1 hlpos α
+  have h_inter := hn2 l hl2 hlpos α
+  
+  have port_ex (a : Fin (Rs.GS.G.P'.disk α).n) := h_intra a
+  let port_fn := fun a => Classical.choose (port_ex a)
+  have port_spec (a : Fin (Rs.GS.G.P'.disk α).n) := Classical.choose_spec (port_ex a)
+  
+  have outer_cond : ∀ a r, (Rs.retained l α).IsOuter (port_fn a r) ∧ port_fn a r ⊆ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side a := by
+    intro a r
+    exact (port_spec a).1 r
+    
+  have inj_cond : ∀ a, Function.Injective (port_fn a) := by
+    intro a
+    exact (port_spec a).2.1
+    
+  have pos_theta : 0 ≤ τ.θ ^ (Rs.GS.k * l) := by
+    exact pow_nonneg (le_of_lt (lt_trans zero_lt_one τ.one_lt)) _
+
+  have sep_cond : ∀ a r b s, (a, r) ≠ (b, s) → ∀ x ∈ port_fn a r, ∀ y ∈ port_fn b s, (min cp1 cp2) * τ.θ ^ (Rs.GS.k * l) ≤ dist x y := by
+    intro a r b s hneq x hx y hy
+    by_cases hab : a = b
+    · subst hab
+      have hrs : r ≠ s := fun hrs => hneq (Prod.ext rfl hrs)
+      have H := (port_spec a).2.2.1 r s hrs x hx y hy
+      have H_min : (min cp1 cp2) * τ.θ ^ (Rs.GS.k * l) ≤ cp1 * τ.θ ^ (Rs.GS.k * l) := by
+        gcongr
+        exact min_le_left cp1 cp2
+      exact le_trans H_min H
+    · have H := h_inter a b hab (port_fn a) (port_fn b) (port_spec a).2.2.2.2 (port_spec b).2.2.2.2 r s x hx y hy
+      have H_min : (min cp1 cp2) * τ.θ ^ (Rs.GS.k * l) ≤ cp2 * τ.θ ^ (Rs.GS.k * l) := by
+        gcongr
+        exact min_le_right cp1 cp2
+      exact le_trans H_min H
+
+  have corner_cond : ∀ a r (i : Fin (Rs.GS.G.P'.disk α).n), ∀ x ∈ port_fn a r,
+      (min cp1 cp2) * τ.θ ^ (Rs.GS.k * l) ≤
+        dist x ((τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).vertex i) := by
+    intro a r i x hx
+    have H := (port_spec a).2.2.2.1 r i x hx
+    have H_min : (min cp1 cp2) * τ.θ ^ (Rs.GS.k * l) ≤ cp1 * τ.θ ^ (Rs.GS.k * l) := by
+      gcongr
+      exact min_le_left cp1 cp2
+    exact le_trans H_min H
+
+  have quant_cond : QuantilePorts (Rs.retained l α) (Rs.GS.G.P'.disk α) (τ.θ ^ (Rs.GS.k * l)) port_fn := by
+    intro a
+    exact (port_spec a).2.2.2.2
+
+  exact ⟨⟨port_fn, outer_cond, inj_cond, sep_cond, corner_cond, quant_cond⟩⟩
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: the print neighbour
 is a retained annular group.  A child sharing a side with the central child (which scatters to the

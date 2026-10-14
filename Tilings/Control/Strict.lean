@@ -5262,6 +5262,25 @@ private theorem scr_recon_carrier (K : StrictBlock C hC) (t : C.Typ) (ht : C.for
   · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
     exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add, smul_inv_smul₀ hθ]⟩
 
+/-- Step 1 of the blueprint proof of
+`strict_composed_proper_step1_reconstruction_step1_headers`: establish strict proper realization
+of each assembled block from strict matching and the partition. -/
+private theorem strict_composed_proper_step1_reconstruction_step1_headers_step1_proper
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (part : StrictMacroPartition C hC T) (j : part.ι) :
+    IsStrictProperRealization C hC (part.block j) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`strict_composed_proper_step1_reconstruction_step1_headers`: establish legality of every
+noncentral child from legality of the original tiling and the partition cover. -/
+private theorem strict_composed_proper_step1_reconstruction_step1_headers_step2_legal
+    (T : PlaneTiling (strictProtoset C hC)) (hL : AllStrictLegal C hC T)
+    (part : StrictMacroPartition C hC T) (j : part.ι) :
+    ∀ t, C.owner t = (part.block j).α → t ≠ C.central (part.block j).α →
+      StrictLegal C hC ((part.block j).tileOf t) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `strict_composed_proper_step1_reconstruction`: every block
 of the assembled strict partition of a strictly matched legal tiling has a common boundary header
 (`lem:comp/boundary-header`): the block is a `StrictBlockContext` (a strictly matched realization
@@ -5271,7 +5290,9 @@ private theorem strict_composed_proper_step1_reconstruction_step1_headers
     (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
     (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) (j : part.ι) :
     ∃ h : HeaderKernel.Header C.Typ C.Side, StrictCommonHeader C hC (part.block j) h := by
-  sorry
+  exact strict_boundary_header_constant C hC (part.block j) ⟨
+    strict_composed_proper_step1_reconstruction_step1_headers_step1_proper C hC T hT part j,
+    strict_composed_proper_step1_reconstruction_step1_headers_step2_legal C hC T hL part j⟩
 
 /-- Step 1 of the blueprint proof of `strict_composed_proper`: construct the plane tiling
 of reconstructed parents from an assembled strict macro-partition.  Strict matching and

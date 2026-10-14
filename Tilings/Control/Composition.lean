@@ -1870,6 +1870,36 @@ private lemma reconstructed_header_eq_innerActive_step1_print (c : MacroCertific
     (reconstruct c K h.1).cell i 4 ≠ 0 := by
   sorry
 
+private lemma reconstructed_header_eq_innerActive_step2_nonprint_step1_port_parent_aux_port
+    (c : MacroCertificate P) (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (i : c.Side h.1) :
+    ∃ o : c.SideOcc, c.port (c.form h.1) i 3 = some o ∧ headerLegal c (K.tileOf o.1) ∧
+      c.IsOuter o ∧ c.owner o.1 = K.α := by
+  have hl : 5 ≤ (c.outerList (c.form h.1) i).length := c.g3_five_le (c.form h.1) i
+  have hport : c.port (c.form h.1) i 3 = (c.outerList (c.form h.1) i)[MacroData.portRank (c.outerList (c.form h.1) i).length 3 - 1]? := rfl
+  have hidx : MacroData.portRank (c.outerList (c.form h.1) i).length 3 - 1 < (c.outerList (c.form h.1) i).length := by
+    unfold MacroData.portRank
+    omega
+  set o : c.SideOcc := (c.outerList (c.form h.1) i)[MacroData.portRank (c.outerList (c.form h.1) i).length 3 - 1]
+  use o
+  constructor
+  · rw [hport, List.getElem?_eq_getElem hidx]
+  · have hom : o ∈ c.outerList (c.form h.1) i := List.getElem_mem hidx
+    have hom_prop : c.owner o.1 = c.form h.1 ∧ c.IsOuter o ∧ c.occSide o ⊆ c.macroSide (c.form h.1) i :=
+      (c.g3_outerList_mem (c.form h.1) i o).mp hom
+    have ho_owner : c.owner o.1 = K.α := by
+      rw [hom_prop.1, hh.1]
+    have ho_not_central : o.1 ≠ c.central K.α := by
+      intro hc
+      obtain ⟨o_t, o_i⟩ := o
+      dsimp only at hc
+      subst hc
+      have hc_outer : ¬ c.IsOuter (c.occ (c.central K.α) o_i) := (c.g2_central K.α o_i).1
+      have h_outer : c.IsOuter (c.occ (c.central K.α) o_i) := hom_prop.2.1
+      exact hc_outer h_outer
+    exact ⟨hK.2 o.1 ho_owner ho_not_central, hom_prop.2.1, ho_owner⟩
+
 /-- Step 4.2.1 of the blueprint proof of `reconstructed_header_eq_innerActive_step2_nonprint`:
 find the fourth port, a legal child tile, and a legal parent C. -/
 private lemma reconstructed_header_eq_innerActive_step2_nonprint_step1_port_parent
@@ -1883,7 +1913,35 @@ private lemma reconstructed_header_eq_innerActive_step2_nonprint_step1_port_pare
       IsChildOf c ⟨h.1, colC⟩ (K.tileOf o.1) ∧
       headerLegal c ⟨h.1, colC⟩ ∧
       o ∈ c.path (c.form h.1) i 3 ∧ ¬ c.IsPrint o := by
-  sorry
+  have _ := hi
+  have _ := hnp
+  obtain ⟨o, hport, hleg, houter, howner⟩ := reconstructed_header_eq_innerActive_step2_nonprint_step1_port_parent_aux_port c K hK h hh i
+  have h_prop := headerLegal_properties c hH (K.tileOf o.1) hleg
+  obtain ⟨C, hC_leg, hC_child, hC_bound⟩ := h_prop.2.2.2.2.1
+  obtain ⟨j, hBoundary⟩ := boundary_side_of_outer_side c hH o.1 o.2 houter
+  have hFromParent : (K.tileOf o.1).cell j 3 = headerU c (headerOf c C) := hC_bound j hBoundary
+  have hCommon : (K.tileOf o.1).cell j 3 = headerU c h := hh.2 o.1 j howner hBoundary
+  have hHeader : headerOf c C = h := by
+    have heq : headerU c (headerOf c C) = headerU c h := by rw [← hFromParent, hCommon]
+    exact HeaderKernel.tagged_header_injective heq
+  obtain ⟨tC, colC⟩ := C
+  dsimp only [headerOf, HeaderKernel.makeHeader] at hHeader
+  have ht : tC = h.1 := congrArg Sigma.fst hHeader
+  subst ht
+  use o, colC
+  have hpath : o ∈ c.path (c.form h.1) i 3 := by
+    by_cases hgen : c.IsGenuinePath (c.form h.1) i 3
+    · have hhead := c.g4_path_head (c.form h.1) i 3 hgen
+      rw [hport] at hhead
+      have helem : (c.path (c.form h.1) i 3)[0]? = some o := by
+        rw [← List.head?_eq_getElem?]
+        exact hhead
+      exact List.mem_of_getElem? helem
+    · have htriv := c.g4_path_trivial (c.form h.1) i 3 hgen
+      rw [htriv, hport]
+      exact List.mem_cons_self
+  have hnp' : ¬ c.IsPrint o := fun hp => asm_print_inner c hp houter
+  exact ⟨hport, hleg, hC_child, hC_leg, hpath, hnp'⟩
 
 /-- Step 4.2.2 of the blueprint proof of `reconstructed_header_eq_innerActive_step2_nonprint`:
 the fourth cell of the parent is non-zero. -/

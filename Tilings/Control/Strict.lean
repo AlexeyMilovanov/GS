@@ -2192,6 +2192,17 @@ private lemma strict_boundary_header_constant_step3_is_belt_type (α : C.Q.Form)
       exact isClosed_closure
     exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
 
+/-- Step 1 of the blueprint proof of `strict_boundary_header_constant_step4_belt_eq_step1_adj`:
+adjacent belt types have a common boundary side where their fourth cells (index 3) agree. -/
+private lemma strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_sides
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (u v : {t : C.Typ // C.IsBeltType K.α t})
+    (hadj : (C.beltGraph K.α).Adj u v) :
+    ∃ (i_adj : C.Side u.1) (j_adj : C.Side v.1),
+      C.IsBoundary (C.occ u.1 i_adj) ∧ C.IsBoundary (C.occ v.1 j_adj) ∧
+      K.col u.1 i_adj 3 = K.col v.1 j_adj 3 := by
+  sorry
+
 /-- Step 4a of the blueprint proof of `strict_boundary_header_constant_step4_belt_eq`: adjacent
 boundary-belt types have equal boundary fourth cells. -/
 private lemma strict_boundary_header_constant_step4_belt_eq_step1_adj
@@ -2201,7 +2212,13 @@ private lemma strict_boundary_header_constant_step4_belt_eq_step1_adj
     (i : C.Side u.1) (hi : C.IsBoundary (C.occ u.1 i))
     (j : C.Side v.1) (hj : C.IsBoundary (C.occ v.1 j)) :
     K.col u.1 i 3 = K.col v.1 j 3 := by
-  sorry
+  obtain ⟨i_adj, j_adj, hi_adj, hj_adj, h_col⟩ :=
+    strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_sides C hC K hK u v hadj
+  obtain ⟨h_u, hh_u, -⟩ := strict_boundary_header_constant_step2_header_eq C hC K hK u.1 u.2.1 i hi
+  obtain ⟨h_v, hh_v, -⟩ := strict_boundary_header_constant_step2_header_eq C hC K hK v.1 v.2.1 j hj
+  have h1 : K.col u.1 i_adj 3 = headerSU C hC h_u := hh_u i_adj hi_adj
+  have h2 : K.col v.1 j_adj 3 = headerSU C hC h_v := hh_v j_adj hj_adj
+  rw [hh_u i hi, hh_v j hj, ← h1, ← h2, h_col]
 
 /-- Step 4b of the blueprint proof of `strict_boundary_header_constant_step4_belt_eq`: propagate
 a fixed boundary colour along belt-graph reachability. -/

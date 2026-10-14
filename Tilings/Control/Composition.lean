@@ -4385,7 +4385,80 @@ private lemma alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
     (c : MacroCertificate P) (hH : c.Hereditary) (K : ColouredBlock c)
     (d : Fin (c.Q.disk K.α).n) :
     K.macroSide d = ⋃ o ∈ c.outerList K.α d, K.childSide o := by
-  sorry
+  have hmacro : c.macroSide K.α d ⊆ c.macroBoundary K.α := by
+    have hθ : (c.σ.θ : ℝ) ≠ 0 := by linarith [c.σ.one_lt]
+    unfold MacroData.macroSide MacroData.macroBoundary MacroData.macroRegion
+    rw [frontier, interior_smul₀ hθ, closure_smul₀, ← Set.smul_set_sdiff₀ hθ, ← frontier,
+      (c.Q.disk K.α).frontier_eq, Set.smul_set_iUnion]
+    exact Set.subset_iUnion (fun i => c.macroSide K.α i) d
+  have hd := hH.2 K.α d
+  change c.macroSide K.α d = ⋃ (A ∈ (c.σ.rule K.α).tiles) (j : Fin (c.Q.disk A.form).n) (_ : A.side j ⊆ c.macroSide K.α d), A.side j at hd
+  have hunion : c.macroSide K.α d = ⋃ (o : c.SideOcc) (_ : c.owner o.1 = K.α) (_ : c.occSide o ⊆ c.macroSide K.α d), c.occSide o := by
+    apply Set.Subset.antisymm
+    · rintro x hx
+      rw [hd] at hx
+      simp only [Set.mem_iUnion] at hx ⊢
+      obtain ⟨A, hA, j, hj_subset, hx⟩ := hx
+      rw [c.rule_eq] at hA
+      simp only [Set.mem_image, Set.mem_setOf_eq] at hA
+      obtain ⟨t, ht, htA⟩ := hA
+      subst htA
+      exact ⟨⟨t, j⟩, ht, hj_subset, hx⟩
+    · rintro x hx
+      rw [hd]
+      simp only [Set.mem_iUnion] at hx ⊢
+      obtain ⟨o, ho, ho_subset, hx⟩ := hx
+      refine ⟨c.childTile o.1, ?_, o.2, ho_subset, hx⟩
+      rw [c.rule_eq]
+      simp only [Set.mem_image, Set.mem_setOf_eq]
+      exact ⟨o.1, ho, rfl⟩
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro hx
+    change x ∈ (fun y => K.v +ᵥ y) '' c.macroSide K.α d at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    rw [hunion] at hy
+    simp only [Set.mem_iUnion] at hy
+    obtain ⟨o, ho, ho_subset, hy⟩ := hy
+    have hOuter : c.IsOuter o := by
+      change c.occSide o ⊆ c.macroBoundary (c.owner o.1)
+      rw [ho]
+      exact Set.Subset.trans ho_subset hmacro
+    have hMem : o ∈ c.outerList K.α d := by
+      rw [c.g3_outerList_mem]
+      exact ⟨ho, hOuter, ho_subset⟩
+    refine ⟨o, hMem, ?_⟩
+    change K.v +ᵥ y ∈ K.childSide o
+    have hChild : K.childSide o = (fun y => K.v +ᵥ y) '' c.occSide o := by
+      dsimp [ColouredBlock.childSide, MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side]
+      ext z
+      constructor
+      · rintro ⟨w, hw, rfl⟩
+        refine ⟨c.anchor o.1 +ᵥ w, ⟨w, hw, rfl⟩, vadd_vadd K.v (c.anchor o.1) w⟩
+      · rintro ⟨_, ⟨w, hw, rfl⟩, rfl⟩
+        exact ⟨w, hw, (vadd_vadd K.v (c.anchor o.1) w).symm⟩
+    rw [hChild]
+    exact ⟨y, hy, rfl⟩
+  · rintro ⟨o, hoList, hx⟩
+    rw [c.g3_outerList_mem] at hoList
+    obtain ⟨hoOwner, _, hoSubset⟩ := hoList
+    have hChild : K.childSide o = (fun y => K.v +ᵥ y) '' c.occSide o := by
+      dsimp [ColouredBlock.childSide, MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side]
+      ext z
+      constructor
+      · rintro ⟨w, hw, rfl⟩
+        refine ⟨c.anchor o.1 +ᵥ w, ⟨w, hw, rfl⟩, vadd_vadd K.v (c.anchor o.1) w⟩
+      · rintro ⟨_, ⟨w, hw, rfl⟩, rfl⟩
+        exact ⟨w, hw, (vadd_vadd K.v (c.anchor o.1) w).symm⟩
+    rw [hChild] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    change K.v +ᵥ y ∈ K.macroSide d
+    change K.v +ᵥ y ∈ (fun y => K.v +ᵥ y) '' c.macroSide K.α d
+    refine ⟨y, ?_, rfl⟩
+    rw [hunion]
+    simp only [Set.mem_iUnion]
+    exact ⟨o, hoOwner, hoSubset, hy⟩
 
 private lemma trace_surj
     {α β : Type}

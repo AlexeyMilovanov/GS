@@ -4454,7 +4454,44 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s3s3 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have _ := hN
+  have _ := hi
+  have _ := hj
+  have _ := hi3
+  have _ := hj3
+  have ha3 := existsAnnularSpokes_step2_tubes_pos_cases hR hi
+  have hb3 := existsAnnularSpokes_step2_tubes_pos_cases hR hj
+  rcases ha3 with _ | _ | _ | ⟨-, eq_i⟩
+  · omega
+  · omega
+  · omega
+  rcases hb3 with _ | _ | _ | ⟨-, eq_j⟩
+  · omega
+  · omega
+  · omega
+  right
+  rw [eq_i, eq_j]
+  dsimp [jcr, mkPt]
+  have h1 : ((i : ℝ) * R - 7 * ((N : ℝ) * R / 2)) * (-((N : ℝ) * R / 2)) -
+            (-((N : ℝ) * R / 2)) * ((j : ℝ) * R - 7 * ((N : ℝ) * R / 2)) =
+            ((N : ℝ) * R / 2) * ((j : ℝ) - (i : ℝ)) * R := by ring
+  rw [h1]
+  rw [abs_mul, abs_mul]
+  have h2 : 0 < (N : ℝ) * R / 2 := mul_pos (by positivity) (by linarith)
+  rw [abs_of_pos h2, abs_of_pos hR]
+  have h3 : (1 : ℝ) ≤ ((j : ℝ) - (i : ℝ)) := by
+    have : i + 1 ≤ j := by omega
+    have h : (i : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast this
+    linarith
+  have h4 : 1 ≤ |((j : ℝ) - (i : ℝ))| := by
+    rw [abs_of_pos (by linarith)]
+    exact h3
+  have h5 : ((N : ℝ) * R / 2) * R ≤ ((N : ℝ) * R / 2) * |(j : ℝ) - (i : ℝ)| * R := by
+    calc
+      ((N : ℝ) * R / 2) * R = ((N : ℝ) * R / 2) * 1 * R := by ring
+      _ ≤ ((N : ℝ) * R / 2) * |(j : ℝ) - (i : ℝ)| * R := by
+        gcongr
+  exact h5
 
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1_helper_rect (x y A R : ℝ)
   (hx2 : x ≤ A)

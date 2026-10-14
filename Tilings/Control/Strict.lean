@@ -5407,7 +5407,92 @@ private theorem strict_actual_schedules_aligned_step2_atom_eq
     (hov : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2))
     (hov' : OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2)) :
     Alignment.atom e c = Alignment.atom e' d := by
-  sorry
+  have _ := hov
+  let va : Pt := (τ.θ ^ m) • A.anchor
+  let vb : Pt := (τ.θ ^ m) • A'.anchor
+  have overlap_right_ne : ∀ {a b c d : Pt},
+      OverlapPos (segment ℝ a b) (segment ℝ c d) → c ≠ d := by
+    intro a b c d h hcd
+    obtain ⟨x, y, hxy, hsub⟩ := h
+    subst d
+    have hx : x = c := by
+      have hx' := (hsub (left_mem_segment ℝ x y)).2
+      simpa only [segment_same, mem_singleton_iff] using hx'
+    have hy : y = c := by
+      have hy' := (hsub (right_mem_segment ℝ x y)).2
+      simpa only [segment_same, mem_singleton_iff] using hy'
+    exact hxy (hx.trans hy.symm)
+  have he'_ne : e'.1 ≠ e'.2 := overlap_right_ne hov'
+  have hends :
+      (va + e.1 = vb + e'.1 ∧ va + e.2 = vb + e'.2) ∨
+        (va + e.1 = vb + e'.2 ∧ va + e.2 = vb + e'.1) := by
+    apply som_segment_endpoints
+    simpa only [Alignment.placedSeg, va, vb] using heq
+  have hcd_ends :
+      (va + c.1 = vb + d.1 ∧ va + c.2 = vb + d.2) ∨
+        (va + c.1 = vb + d.2 ∧ va + c.2 = vb + d.1) := by
+    apply som_segment_endpoints
+    simpa only [Alignment.placedSeg, va, vb] using hcd
+  have hrel : ∀ z : Pt,
+      Alignment.segCoord e.1 e.2 z =
+        Alignment.segCoord e'.1 e'.2 (z + (va - vb)) := by
+    intro z
+    have hz : va + z = vb + (z + (va - vb)) := by abel
+    rw [← som_segCoord_translate e.1 e.2 z va]
+    rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2, hz, som_segCoord_translate]
+    · rw [h1, h2, hz, som_segCoord_translate,
+      som_segCoord_swap e'.1 e'.2 _ he'_ne]
+  have hshift : ∀ {x y : Pt}, va + x = vb + y → x + (va - vb) = y := by
+    intro x y h
+    calc
+      x + (va - vb) = (va + x) - vb := by abel
+      _ = (vb + y) - vb := by rw [h]
+      _ = y := by abel
+  have hpair :
+      (Alignment.segCoord e.1 e.2 c.1 = Alignment.segCoord e'.1 e'.2 d.1 ∧
+        Alignment.segCoord e.1 e.2 c.2 = Alignment.segCoord e'.1 e'.2 d.2) ∨
+      (Alignment.segCoord e.1 e.2 c.1 = Alignment.segCoord e'.1 e'.2 d.2 ∧
+        Alignment.segCoord e.1 e.2 c.2 = Alignment.segCoord e'.1 e'.2 d.1) := by
+    rcases hcd_ends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · left
+      constructor
+      · rw [hrel c.1, hshift h1]
+      · rw [hrel c.2, hshift h2]
+    · right
+      constructor
+      · rw [hrel c.1, hshift h1]
+      · rw [hrel c.2, hshift h2]
+  have hp :
+      min (Alignment.segCoord e.1 e.2 c.1) (Alignment.segCoord e.1 e.2 c.2) =
+        min (Alignment.segCoord e'.1 e'.2 d.1) (Alignment.segCoord e'.1 e'.2 d.2) := by
+    rcases hpair with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]
+    · rw [h1, h2, min_comm]
+  have hq :
+      max (Alignment.segCoord e.1 e.2 c.1) (Alignment.segCoord e.1 e.2 c.2) =
+        max (Alignment.segCoord e'.1 e'.2 d.1) (Alignment.segCoord e'.1 e'.2 d.2) := by
+    rcases hpair with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]
+    · rw [h1, h2, max_comm]
+  have hdist : dist e.1 e.2 = dist e'.1 e'.2 := by
+    have hdist_translate : ∀ (v x y : Pt), dist (v + x) (v + y) = dist x y := by
+      intro v x y
+      rw [dist_eq_norm_vsub, dist_eq_norm_vsub]
+      congr 1
+      simp only [vsub_eq_sub]
+      abel
+    rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · calc
+        dist e.1 e.2 = dist (va + e.1) (va + e.2) := (hdist_translate va _ _).symm
+        _ = dist (vb + e'.1) (vb + e'.2) := by rw [h1, h2]
+        _ = dist e'.1 e'.2 := hdist_translate vb _ _
+    · calc
+        dist e.1 e.2 = dist (va + e.1) (va + e.2) := (hdist_translate va _ _).symm
+        _ = dist (vb + e'.2) (vb + e'.1) := by rw [h1, h2]
+        _ = dist e'.1 e'.2 := by rw [dist_comm]; exact hdist_translate vb _ _
+  simp only [Alignment.atom]
+  rw [hp, hq, hdist]
 
 /-- `lem:strict-presentation` (completeness, schedules): in an actual grouped level `T'` that is
 side-to-side and whose scattered intermediate original levels `τ^j Δ T'`, `j ≤ m`, are

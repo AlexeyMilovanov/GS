@@ -2694,7 +2694,26 @@ private theorem strict_reconstructed_cyclic_legal_step4_unmarked_local
     ∀ i : C.Side A.typ, ¬ C.marked (C.form A.typ) i → ∀ k : Fin 5,
       D.cell (Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hEq.symm) i) k =
         A.cell i k := by
-  sorry
+  intro i hUnmarked k
+  let i' := Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hEq.symm) i
+  have hOccEq : C.occ D.typ i' = C.occ A.typ i := by
+    dsimp [i']
+    obtain ⟨tA, cA⟩ := A
+    obtain ⟨tD, cD⟩ := D
+    dsimp at hEq i ⊢
+    subst hEq
+    rfl
+  have hLocalA : IsStrictLocal C (C.occ A.typ i) k := by
+    left
+    unfold IsLocal
+    left
+    exact hUnmarked
+  have hLocalD : IsStrictLocal C (C.occ D.typ i') k := by
+    rw [hOccEq]
+    exact hLocalA
+  have hPresc : strictPrescribedCell C hC (C.occ D.typ i') k = strictPrescribedCell C hC (C.occ A.typ i) k := by
+    rw [hOccEq]
+  rw [hDN i' k hLocalD, hAN i k hLocalA, hPresc]
 
 /-- `lem:comp/cyclic-legal` (strict variant): if the centre of the block is legal and the type
 of `D` is cyclic, then `D` is the centre and is legal. -/

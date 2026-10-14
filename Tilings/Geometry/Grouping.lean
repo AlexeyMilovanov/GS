@@ -4687,7 +4687,51 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s0 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have _ := hN
+  have _ := hi
+  have _ := hj
+  right
+  set A := (N : ℝ) * R / 2
+  have hA : 0 ≤ A := by
+    dsimp [A]
+    positivity
+  have hi_le : (i : ℝ) * R ≤ 2 * A := by
+    have hi' : (i : ℝ) ≤ (N : ℝ) := by
+      exact_mod_cast hi0
+    dsimp [A]
+    exact (mul_le_mul_of_nonneg_right hi' hR.le).trans_eq (by ring)
+  have hj_le : (j : ℝ) * R ≤ 2 * A := by
+    have hj' : (j : ℝ) ≤ (N : ℝ) := by
+      exact_mod_cast hj0
+    dsimp [A]
+    exact (mul_le_mul_of_nonneg_right hj' hR.le).trans_eq (by ring)
+  have hi_pos :
+      existsAnnularSpokes_pos A ((i : ℝ) * R) = mkPt A (-A + (i : ℝ) * R) := by
+    unfold existsAnnularSpokes_pos
+    rw [if_pos hi_le]
+  have hj_pos :
+      existsAnnularSpokes_pos A ((j : ℝ) * R) = mkPt A (-A + (j : ℝ) * R) := by
+    unfold existsAnnularSpokes_pos
+    rw [if_pos hj_le]
+  rw [hi_pos, hj_pos]
+  have hcross :
+      jcr (mkPt A (-A + (i : ℝ) * R)) (mkPt A (-A + (j : ℝ) * R)) =
+        A * R * ((j : ℝ) - (i : ℝ)) := by
+    dsimp [jcr, mkPt]
+    ring
+  rw [hcross]
+  have hdiff : (1 : ℝ) ≤ (j : ℝ) - (i : ℝ) := by
+    have hij' : (i : ℝ) + 1 ≤ (j : ℝ) := by
+      exact_mod_cast hij
+    linarith
+  have hcoeff : 0 ≤ A * R := mul_nonneg hA hR.le
+  have hprod : 0 ≤ A * R * ((j : ℝ) - (i : ℝ)) := by
+    positivity
+  rw [abs_of_nonneg hprod]
+  calc
+    A * R = A * R * 1 := by ring
+    _ ≤ A * R * ((j : ℝ) - (i : ℝ)) :=
+      mul_le_mul_of_nonneg_left hdiff hcoeff
 
 /-- Step 1b of the blueprint proof: two marks on the second straight side. -/
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s1 {N : ℕ} {R : ℝ}

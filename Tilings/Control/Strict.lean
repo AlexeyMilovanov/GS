@@ -1523,7 +1523,70 @@ force strict normality and identity-correctness of a child of any parent. -/
 private lemma strictLegal_properties_step2_child_normal (B A : StrictDecTile C hC)
     (hBA : IsStrictChildOf C hC B A) :
     IsStrictNormal C hC A ∧ IsStrictIdentityCorrect C hC A := by
-  sorry
+  have hs : C.owner A.typ = C.form B.typ := hBA.1
+  have hchild : A = strictChild C hC B A.typ := hBA.2
+  have isPrint_iff : ∀ (β : C.Q.Form), C.owner A.typ = β → ∀ i : C.Side A.typ,
+      C.IsPrint (C.occ A.typ i) ↔
+        ∃ d : Fin (C.Q.disk β).n, C.IsPrintOf β d (C.occ A.typ i) := by
+    intro β hβ i
+    subst β
+    rfl
+  have not_on_path : ∀ (β : C.Q.Form), C.owner A.typ = β → ∀ (i : C.Side A.typ),
+      ¬ C.IsMarked (C.occ A.typ i) → ∀ (d : Fin (C.Q.disk β).n) (j : Fin 5),
+        C.occ A.typ i ∉ C.path β d j := by
+    intro β hβ i hm d j hmem
+    subst β
+    by_cases hg : C.IsGenuinePath (C.owner A.typ) d j
+    · exact hm (C.g7_marking _ (Or.inr (Or.inr (Or.inr ⟨d, j, hg, hmem⟩))))
+    · rw [C.g4_path_trivial _ d j hg, Option.mem_toList] at hmem
+      have hmem' : C.occ A.typ i ∈ C.outerList _ d :=
+        List.mem_iff_getElem?.mpr ⟨_, hmem⟩
+      exact hm (C.g7_marking _ (Or.inl ((C.g3_outerList_mem _ d _).1 hmem').2.1))
+  have hcells := strictChild_cells C hC B A.typ hs
+  have key : ∀ (i : C.Side A.typ) (k : Fin 5),
+      IsStrictLocal C (C.occ A.typ i) k →
+        (strictChild C hC B A.typ).cell i k =
+          strictPrescribedCell C hC (C.occ A.typ i) k := by
+    intro i k hloc
+    by_cases hp : C.IsPrint (C.occ A.typ i)
+    · obtain ⟨d, hd⟩ := (isPrint_iff (C.form B.typ) hs i).1 hp
+      have hin := isInner_of_isPrintOf C hd
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, ⟨-, hnp⟩, -⟩) | ⟨hout, -⟩
+      · exact absurd (C.g7_marking _ (Or.inr (Or.inr (Or.inl hp)))) hnm
+      · rw [((hcells i).1 d hd).2]
+        simp [strictPrescribedCell, hp]
+      · exact absurd hp hnp
+      · exact absurd hout hin
+    · obtain ⟨h0, h1, h4, -, hno, hout, -, hib⟩ := (hcells i).2 hp
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, -, rfl | rfl⟩) | ⟨hout', rfl⟩
+      · have hnout : ¬ C.IsOuter (C.occ A.typ i) :=
+          fun h => hnm (C.g7_marking _ (Or.inl h))
+        have hnb : ¬ C.IsBoundary (C.occ A.typ i) :=
+          fun h => hnm (C.g7_marking _ (Or.inr (Or.inl h)))
+        have hnpath := not_on_path (C.form B.typ) hs i hnm
+        obtain rfl | rfl | rfl | rfl | rfl :
+            k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 := by
+          fin_cases k <;> simp
+        · rw [h0]; simp [strictPrescribedCell]
+        · rw [h1]; simp [strictPrescribedCell]
+        · rw [hno hnpath]; simp [strictPrescribedCell]
+        · rw [hib hnout hnb]
+          simp [strictPrescribedCell, hnout, hnb, hp]
+          exact fun h => absurd hnout h
+        · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [h0]; simp [strictPrescribedCell]
+      · rw [h4]; simp [strictPrescribedCell, hp]
+      · rw [hout hout']; simp [strictPrescribedCell, hout']
+  have hgenerated :
+      IsStrictNormal C hC (strictChild C hC B A.typ) ∧
+        IsStrictIdentityCorrect C hC (strictChild C hC B A.typ) := by
+    refine ⟨key, fun i => ⟨fun hin hnp => ?_, fun hp => ?_⟩⟩
+    · exact ((hcells i).2 hnp).1.trans (if_pos hin)
+    · obtain ⟨d, hd⟩ := (isPrint_iff (C.form B.typ) hs i).1 hp
+      exact ((hcells i).1 d hd).2
+  rw [hchild]
+  exact hgenerated
 
 /-- Step 3 of the blueprint proof of `strictLegal_properties`: prepend a strict child to an
 infinite legality chain, shifting origins through the old chain. -/

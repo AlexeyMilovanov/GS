@@ -20476,6 +20476,34 @@ private lemma existsRoutingAfterPower_step1_idempotent (τ : Substitution P) (M 
       _ ≥ n₀ := le_max_left _ _
   · positivity
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step1_intra`:
+A scaled parent declared side contains an ordered list of whole fine sides of large enough
+cardinality to choose five distinct ports by the sixth-quantiles. -/
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_ports (τ : Substitution P)
+    (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α _a,
+    ∃ (L : List (Set Pt)) (_port : Fin 5 → Set Pt),
+      (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
+      L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+      (∀ r, L[MacroData.portRank L.length r - 1]? = some (_port r)) ∧
+      (∀ _r, (Rs.retained _l _α).IsOuter (_port _r) ∧ _port _r ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
+      Function.Injective _port := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step1_intra`:
+Their separation from one another and from the ends is bounded below by a positive
+normalized lower bound `cp` uniformly over all forms and large enough powers. -/
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance (τ : Substitution P)
+    (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    ∃ _cp : ℝ, 0 < _cp ∧ ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α _a,
+      ∀ L : List (Set Pt), (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) →
+      L.Nodup → L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) →
+      ∀ _port : Fin 5 → Set Pt, (∀ r, L[MacroData.portRank L.length r - 1]? = some (_port r)) →
+      (∀ _r _s, _r ≠ _s → ∀ _x ∈ _port _r, ∀ _y ∈ _port _s, _cp * τ.θ ^ (Rs.GS.k * _l) ≤ dist _x _y) ∧
+      (∀ _r (_i : Fin (Rs.GS.G.P'.disk _α).n), ∀ _x ∈ _port _r,
+        _cp * τ.θ ^ (Rs.GS.k * _l) ≤ dist _x ((τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).vertex _i)) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports`: intra-side quantiles. -/
 private lemma existsRoutingAfterPower_step2_ports_step1_intra (τ : Substitution P) (hτ : τ.STS)
     (M : MeshConstants P) (Rs : RoutingSetup τ M) :
@@ -20490,7 +20518,15 @@ private lemma existsRoutingAfterPower_step2_ports_step1_intra (τ : Substitution
         (∃ L : List (Set Pt), (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
           L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
           ∀ r, L[MacroData.portRank L.length r - 1]? = some (_port r)) := by
-  sorry
+  obtain ⟨n1, hn1⟩ := existsRoutingAfterPower_step2_ports_step1_intra_step1_ports τ hτ M Rs
+  obtain ⟨cp, hcp, n2, hn2⟩ := existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance τ hτ M Rs
+  refine ⟨cp, hcp, max n1 n2, ?_⟩
+  intro l hl hlpos α a
+  have hl1 : l ≥ n1 := le_trans (Nat.le_max_left _ _) hl
+  have hl2 : l ≥ n2 := le_trans (Nat.le_max_right _ _) hl
+  obtain ⟨L, port, hL1, hL2, hL3, hL4, hport1, hport2⟩ := hn1 l hl1 hlpos α a
+  have h_clearance := hn2 l hl2 hlpos α a L hL1 hL2 hL3 port hL4
+  refine ⟨port, hport1, hport2, h_clearance.1, h_clearance.2, L, hL1, hL2, hL3, hL4⟩
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step2_inter`: uniqueness of the quantile port list. -/
 private lemma existsRoutingAfterPower_step2_ports_step2_inter_step1_unique (τ : Substitution P) (hτ : τ.STS)

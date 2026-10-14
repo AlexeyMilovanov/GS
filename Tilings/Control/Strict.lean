@@ -2746,7 +2746,25 @@ private theorem strict_reconstructed_cyclic_legal_step3_marked_fifth
     ∀ i : C.Side A.typ, C.marked (C.form A.typ) i →
       D.cell (Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hEq.symm) i) 4 =
         A.cell i 4 := by
-  sorry
+  obtain ⟨tD, cD⟩ := D
+  obtain ⟨tA, cA⟩ := A
+  dsimp only at hEq
+  subst hEq
+  intro i hm
+  have h_locA : IsStrictLocal C (C.occ tD i) 4 := by
+    left; unfold IsLocal
+    by_cases hp : C.IsPrint (C.occ tD i)
+    · right; left; exact ⟨hm, Or.inr hp, rfl⟩
+    · by_cases hs : C.special (C.occ tD i)
+      · right; left; exact ⟨hm, Or.inl hs, rfl⟩
+      · right; right; exact ⟨hm, ⟨hs, hp⟩, Or.inr rfl⟩
+  have eqA := hAN i 4 h_locA
+  have eqD := hDN (Fin.cast rfl i) 4 (by exact h_locA)
+  change cD _ 4 = cA i 4
+  change cD _ 4 = _ at eqD
+  change cA i 4 = _ at eqA
+  rw [eqD, eqA]
+  rfl
 
 /-- Step 4 of the blueprint proof of `strict_reconstructed_cyclic_legal`: every cell on an
 unmarked side is local and therefore is determined by the common type. -/

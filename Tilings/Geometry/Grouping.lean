@@ -17700,6 +17700,46 @@ private lemma existsRoutingAfterPower_step4_routes (τ : Substitution P) (hτ : 
       Nonempty (existsRoutingAfterPower_ArcData τ M Rs _l _hl _α _ports _entries) := by
   sorry
 
+private structure existsRoutingAfterPower_step5_discretize_step1_route_RawData (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    (p : Set Pt) (F : PlacedTile Rs.GS.G.mixed) (γ : PolyArc) where
+  sides : List (Set Pt)
+  tiles : List (PlacedTile Rs.GS.G.mixed)
+  head : sides.head? = some p
+  length_eq : tiles.length = sides.length
+  last_tile : tiles.getLast? = some F
+  step : ∀ (_k : ℕ) (_X : PlacedTile Rs.GS.G.mixed) (_e : Set Pt), tiles[_k]? = some _X →
+    sides[_k]? = some _e → _X ∈ (Rs.retained l α).children.tiles ∧ HasEdge _X _e
+  step_next : ∀ (_k : ℕ) (_X : PlacedTile Rs.GS.G.mixed) (_e : Set Pt), tiles[_k]? = some _X →
+    sides[_k + 1]? = some _e → HasEdge _X _e
+  cross : ∀ (_k : ℕ) (_X _Y : PlacedTile Rs.GS.G.mixed), tiles[_k]? = some _X →
+    tiles[_k + 1]? = some _Y → _X ≠ _Y
+  inner : ∀ _e ∈ sides.tail, (Rs.retained l α).IsInner _e
+  near : ∀ _e ∈ sides.tail, _e ⊆ Metric.cthickening (2 * M.D) γ.carrier ∧
+    (_e \ (Rs.annulus l α hl).H.carrier).Nonempty
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route`: "Finally
+perturb the routes away from the finite original vertices and list their crossed faces.  Consecutive
+faces share whole sides." -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb
+    (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {p : Set Pt} (hp : (Rs.retained l α).IsOuter p)
+    {F : PlacedTile Rs.GS.G.mixed} (hF : F ∈ (Rs.retained l α).children.tiles)
+    (hFo : ∃ q, F.form = Sum.inr q) (γ : PolyArc) (hstart : γ.start ∈ p)
+    (hint : γ.carrier \ {γ.start} ⊆ interior (Rs.retained l α).region)
+    (hH : Disjoint γ.carrier (Rs.annulus l α hl).H.carrier) (hstop : γ.stop ∈ interior F.carrier) :
+    Nonempty (existsRoutingAfterPower_step5_discretize_step1_route_RawData τ M Rs l hl α p F γ) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route`: "Erase
+repeated-face loops while preserving the first port face and final outside-anchored face." -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step2_erase
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l)
+    (α : Rs.GS.G.P'.Form) (p : Set Pt) (F : PlacedTile Rs.GS.G.mixed) (γ : PolyArc)
+    (raw : existsRoutingAfterPower_step5_discretize_step1_route_RawData τ M Rs l hl α p F γ) :
+    Nonempty (existsRoutingAfterPower_RouteData τ M Rs l hl α p F γ) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize`: "Finally perturb
 the routes away from the finite original vertices and list their crossed faces.  Consecutive faces
 share whole sides.  Erase repeated-face loops while preserving the first port face and final
@@ -17714,7 +17754,9 @@ private lemma existsRoutingAfterPower_step5_discretize_step1_route (τ : Substit
     (hint : γ.carrier \ {γ.start} ⊆ interior (Rs.retained l α).region)
     (hH : Disjoint γ.carrier (Rs.annulus l α hl).H.carrier) (hstop : γ.stop ∈ interior F.carrier) :
     Nonempty (existsRoutingAfterPower_RouteData τ M Rs l hl α p F γ) := by
-  sorry
+  obtain ⟨raw⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb τ hτ M Rs l hl α
+    hp hF hFo γ hstart hint hH hstop
+  exact existsRoutingAfterPower_step5_discretize_step1_route_step2_erase τ M Rs l hl α p F γ raw
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize`: "Begin the
 resulting side sequence with the port, end it with the private entry edge, and append the print.

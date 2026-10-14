@@ -2407,6 +2407,38 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_boundary
           (K.tileOf t).cell i 3 = headerU c (headerOf c (reconstruct c K h.1))) := by
   sorry
 
+private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_inner_aux_boundary
+    (c : MacroCertificate P) {o : c.SideOcc} (ho : c.IsInner o)
+    (hnb : ¬ c.IsBoundary o) : ¬ c.IsBoundary (c.partner o) := by
+  intro hb
+  apply hnb
+  refine ⟨ho, ?_⟩
+  obtain ⟨-, hown, hside⟩ := c.g1_partner o ho
+  have hne : c.occStart o ≠ c.occEnd o := by
+    intro heq
+    have hv := (c.Q.disk (c.form o.1)).vertex_injective (add_left_cancel heq)
+    exact asm_finRotate_ne _ (c.Q.disk (c.form o.1)).three_le o.2 hv.symm
+  have hseg :
+      segment ℝ (c.occStart o) (c.occEnd o) =
+        segment ℝ (c.occStart (c.partner o)) (c.occEnd (c.partner o)) := by
+    simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+      PolygonalDisk.side, MacroData.occStart, MacroData.occEnd, vadd_segment] using hside.symm
+  have hends :=
+    headerLegal_properties_step4_boundary_step1_print_not_boundary_aux_endpoints hne hseg
+  unfold MacroData.IsBoundary at hb
+  rw [hown] at hb
+  rcases hb.2 with hstart | hend
+  · rcases hends with ⟨hstart', -⟩ | ⟨hstart', -⟩
+    · left
+      rwa [← hstart']
+    · right
+      rwa [← hstart']
+  · rcases hends with ⟨-, hend'⟩ | ⟨-, hend'⟩
+    · right
+      rwa [← hend']
+    · left
+      rwa [← hend']
+
 /-- Step 8 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 3 on remaining inner is bot. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_inner (c : MacroCertificate P)
     (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
@@ -2416,7 +2448,49 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_inner (c
       ¬ c.IsPrint (c.occ (K.tileOf t).typ i) →
         (c.IsInner (c.occ (K.tileOf t).typ i) → ¬ c.IsBoundary (c.occ (K.tileOf t).typ i) →
           (K.tileOf t).cell i 3 = botU c) := by
-  sorry
+  have _ := hh
+  intro i hnp hi hnb
+  let o : c.SideOcc := c.occ (K.tileOf t).typ i
+  let o' : c.SideOcc := c.partner o
+  have hp := c.g1_partner o hi
+  have hi' : c.IsInner o' := by
+    exact asm_inner_of_occSide c hi hp.2.1 hp.2.2
+  have hnb' : ¬ c.IsBoundary o' := by
+    exact macroblock_is_decomposition_central_step3_nonprints_cell3_inner_aux_boundary c hi hnb
+  have hnp' : ¬ c.IsPrint o' := by
+    intro hp'
+    exact hnp (macroblock_is_decomposition_central_step3_nonprints_cell4_aux_print_partner c hi hp')
+  have hown : c.owner o'.1 = K.α := by
+    exact hp.2.1.trans ht_owner
+  have hnc : o'.1 ≠ c.central K.α := by
+    intro hc
+    apply hp.1
+    rw [hc, ← ht_c]
+    rfl
+  have hlegal : headerLegal c (K.tileOf o'.1) := hK.2 o'.1 hown hnc
+  have hnt : IsNontrivial c (K.tileOf o'.1) o'.2 :=
+    headerLegal_properties_step6_inner c hH (K.tileOf o'.1) hlegal o'.2 hi'
+  have hcell : (K.tileOf o'.1).cell o'.2 3 = botU c := by
+    obtain ⟨ch, hch0, hch_succ, -⟩ := hlegal
+    have hchild : IsChildOf c (ch 1) (K.tileOf o'.1) := by
+      rw [← hch0]
+      exact hch_succ 0
+    dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hchild
+    exact ((hchild.2 o'.2).2 hnp').2.2.2.2.2.2.2 hi' hnb'
+  obtain ⟨t', j, hown', htne, hside, hcol⟩ := hK.1 o'.1 o'.2 hown hi' hnt
+  have hocc : c.occSide (c.occ t' j) = c.occSide o' := by
+    rw [path_and_print_recovery_step1_signals_aux_childSide c K (c.occ t' j),
+      path_and_print_recovery_step1_signals_aux_childSide c K o'] at hside
+    exact path_and_print_recovery_step1_signals_aux_vadd_cancel K.v hside
+  have heq : c.occ t' j = c.partner o' :=
+    c.g1_side_unique o' (c.occ t' j) hi' (hown'.trans hown.symm) htne hocc
+  have heq' : c.occ t' j = o := by
+    rw [heq]
+    exact c.g1_partner_partner o hi
+  have hcol3 : (K.tileOf t').cell j 3 = (K.tileOf o'.1).cell o'.2 3 := hcol 3
+  have hcenter := congrArg (fun q : c.SideOcc => K.col q.1 q.2 3) heq'.symm
+  change (K.tileOf t).cell i 3 = (K.tileOf t').cell j 3 at hcenter
+  exact hcenter.trans (hcol3.trans hcell)
 
 /-- Step 3 of the blueprint proof of `macroblock_is_decomposition_central`: nonprints. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints (c : MacroCertificate P)

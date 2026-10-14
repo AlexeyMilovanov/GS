@@ -1454,7 +1454,10 @@ theorem assembleMacrotemplates_of_legal (c : MacroCertificate P) (hH : c.Heredit
     (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) :
     Nonempty (MacroPartition c T) := by
-  sorry
+  apply assembleMacrotemplates c hH T hT
+  intro X hX
+  have h_props := headerLegal_properties c hH (tileDec X) (hL X hX)
+  exact ⟨h_props.2.1, h_props.2.2.1, h_props.2.2.2.2.2.2.1⟩
 
 
 /-- Step 1 of the blueprint proof of `boundary_header_constant`: a boundary tile is legal. -/

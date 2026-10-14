@@ -5482,7 +5482,24 @@ private theorem strict_composed_proper_step1_reconstruction_step1_headers_step1_
     (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
     (part : StrictMacroPartition C hC T) (j : part.ι) :
     IsStrictProperRealization C hC (part.block j) := by
-  sorry
+  refine fun t i ht hin => ?_
+  obtain ⟨hne, hown, hside⟩ := C.g1_partner (C.occ t i) hin
+  refine ⟨(C.partner (C.occ t i)).1, (C.partner (C.occ t i)).2,
+    hown.trans ht, hne, ?_, fun k => ?_⟩
+  · rw [som_childSide_eq, som_childSide_eq]
+    exact congrArg _ hside
+  · have hA := som_placed_mem C hC part j _ (hown.trans ht)
+    have hB := som_placed_mem C hC part j t ht
+    have hAB : (part.block j).placed (C.partner (C.occ t i)).1 ≠
+        (part.block j).placed t := by
+      intro h
+      apply hne
+      simp only [StrictBlock.placed, PlacedTile.mk.injEq, StrictForm.typed.injEq] at h
+      exact congrArg StrictDecTile.typ h.1
+    have hcol := hT.2 _ _ _ _ hA hB hAB (C.partner (C.occ t i)).2 i (by
+      exact (som_childSide_eq C hC _ _).trans
+        ((congrArg _ hside).trans (som_childSide_eq C hC _ (C.occ t i)).symm))
+    exact congrFun hcol k
 
 /-- Step 2 of the blueprint proof of
 `strict_composed_proper_step1_reconstruction_step1_headers`: establish legality of every

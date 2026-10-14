@@ -9424,7 +9424,23 @@ private lemma quantitativeAnnularGrouping_step4_tubes_step1_clip_step1_witness
     (hxr : x ∈ Metric.cthickening (5 * D)
       (existsAnnularSpokes_ray c N R D k)) :
     ∃ y ∈ existsAnnularSpokes_ray c N R D k, dist x y ≤ 5 * D := by
-  sorry
+  have Hc : IsCompact (existsAnnularSpokes_ray c N R D k) := by
+    rw [existsAnnularSpokes_ray]
+    rw [← convexHull_pair]
+    exact (Set.toFinite _).isCompact_convexHull
+  have Hne : (existsAnnularSpokes_ray c N R D k).Nonempty := by
+    rw [existsAnnularSpokes_ray]
+    exact ⟨_, left_mem_segment ℝ _ _⟩
+  obtain ⟨y, hy, hdist⟩ := IsCompact.exists_infDist_eq_dist Hc Hne x
+  use y, hy
+  rw [Metric.mem_cthickening_iff] at hxr
+  rw [← ENNReal.ofReal_le_ofReal_iff (by positivity)]
+  rw [← hdist]
+  have H : Metric.infEDist x (existsAnnularSpokes_ray c N R D k) = ENNReal.ofReal (Metric.infDist x (existsAnnularSpokes_ray c N R D k)) := by
+    rw [Metric.infDist]
+    exact (ENNReal.ofReal_toReal (Metric.infEDist_ne_top Hne)).symm
+  rw [← H]
+  exact hxr
 
 /-- Step 2 of the blueprint proof of
 `quantitativeAnnularGrouping_step4_tubes_step1_clip`: normalize an extended

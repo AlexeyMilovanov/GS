@@ -5725,6 +5725,96 @@ private theorem strict_composed_proper_step3_properties (hτ : τ.STS)
     (step3_blockContext C hC T hT hL part j) h hh
   exact ⟨_, hform, hN, hI⟩
 
+private theorem scps_segment_infinite {x y : Pt} (hxy : x ≠ y) : (segment ℝ x y).Infinite := by
+  rw [segment_eq_image_lineMap]
+  refine (Set.Icc_infinite (zero_lt_one' ℝ)).image ?_
+  exact (AffineMap.lineMap_injective ℝ hxy).injOn
+
+private theorem scps_disk_side_eq_of_overlap (D : PolygonalDisk) (d e : Fin D.n)
+    (hov : OverlapPos (D.side d) (D.side e)) : D.side d = D.side e := by
+  by_contra hde
+  obtain ⟨x, y, hxy, hsub⟩ := hov
+  have hf : (({D.vertex d, D.vertex (finRotate D.n d)} : Set Pt) ∩
+      {D.vertex e, D.vertex (finRotate D.n e)}).Finite :=
+    ((Set.finite_singleton (D.vertex (finRotate D.n d))).insert (D.vertex d)).inter_of_left _
+  exact scps_segment_infinite hxy
+    (hf.subset (hsub.trans (D.simple d e fun h => hde (congrArg D.side h))))
+
+private theorem scps_overlap_smul {s : ℝ} (hs : s ≠ 0) {U V : Set Pt}
+    (hov : OverlapPos U V) : OverlapPos (s • U) (s • V) := by
+  obtain ⟨x, y, hxy, hsub⟩ := hov
+  refine ⟨s • x, s • y, fun h => hxy (smul_right_injective Pt hs h), ?_⟩
+  let f : Pt →ᵃ[ℝ] Pt := (LinearMap.lsmul ℝ Pt s).toAffineMap
+  have hseg : s • segment ℝ x y = segment ℝ (s • x) (s • y) := by
+    change f '' segment ℝ x y = segment ℝ (f x) (f y)
+    exact image_segment ℝ f x y
+  rw [← hseg, ← Set.smul_set_inter₀ hs]
+  exact Set.smul_set_mono hsub
+
+private theorem scps_side_cast (C : MacroCertificate P) {α β : C.Q.Form} (η : α = β)
+    (i : Fin (C.Q.disk α).n) :
+    (C.Q.disk β).side (Fin.cast (congrArg (fun γ => (C.Q.disk γ).n) η) i) =
+      (C.Q.disk α).side i := by
+  subst β
+  rfl
+
+private theorem scps_reconstructed_side
+    {T : PlaneTiling (strictProtoset C hC)} (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC)) (hrec : IsStrictReconstruction C hC part T')
+    (X : PlacedTile (strictProtoset C hC)) (hX : X ∈ T'.tiles)
+    (i : Fin ((strictProtoset C hC).disk X.form).n) :
+    ∃ j : part.ι, ∃ d : Fin (C.Q.disk (part.block j).α).n,
+      (part.block j).macroSide d = C.σ.θ • X.side i := by
+  obtain ⟨j, hv, h, hh, hform⟩ := hrec.1 X hX
+  rcases X with ⟨q, a⟩
+  change q = StrictForm.typed (strictReconstruct C hC (part.block j) h.1) at hform
+  subst q
+  refine ⟨j, ?_⟩
+  let d : Fin (C.Q.disk (part.block j).α).n :=
+    Fin.cast (congrArg (fun γ => (C.Q.disk γ).n) hh.1) i
+  refine ⟨d, ?_⟩
+  unfold StrictBlock.macroSide MacroData.macroSide PlacedTile.side
+  rw [hv, scps_side_cast C hh.1 i]
+  ext z
+  simp only [Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+
+private theorem scps_opposed_macroSide_eq_of_overlap
+    {T : PlaneTiling (strictProtoset C hC)} (part : StrictMacroPartition C hC T)
+    {j j' : part.ι} {d : Fin (C.Q.disk (part.block j).α).n}
+    {e : Fin (C.Q.disk (part.block j').α).n} (hjj : j' ≠ j)
+    (hopp : StrictOpposingMacroside C hC part j d)
+    (hov : OverlapPos ((part.block j).macroSide d) ((part.block j').macroSide e)) :
+    (part.block j).macroSide d = (part.block j').macroSide e := by
+  obtain ⟨j₀, hj₀, e₀, heq, -⟩ := hopp
+  by_cases hj' : j' = j₀
+  · subst j'
+    have hov' : OverlapPos ((som_macroDisk C hC (part.block j₀)).side e₀)
+        ((som_macroDisk C hC (part.block j₀)).side e) := by
+      rwa [som_macroDisk_side, som_macroDisk_side, heq]
+    have hs := scps_disk_side_eq_of_overlap (som_macroDisk C hC (part.block j₀)) e₀ e hov'
+    rwa [som_macroDisk_side, som_macroDisk_side, heq] at hs
+  · obtain ⟨p, q, hpq, hsub⟩ := hov
+    have h₁ : segment ℝ p q ⊆ (som_macroDisk C hC (part.block j)).side d := by
+      rw [som_macroDisk_side]
+      exact fun z hz => (hsub hz).1
+    have h₂ : segment ℝ p q ⊆ (som_macroDisk C hC (part.block j₀)).side e₀ := by
+      rw [som_macroDisk_side, heq]
+      exact hsub.trans Set.inter_subset_left
+    have h₃ : segment ℝ p q ⊆ (som_macroDisk C hC (part.block j')).side e := by
+      rw [som_macroDisk_side]
+      exact fun z hz => (hsub hz).2
+    rcases som_three (som_macroDisk C hC (part.block j))
+        (som_macroDisk C hC (part.block j₀)) (som_macroDisk C hC (part.block j')) d e₀ e
+        hpq h₁ h₂ h₃ with h | h | h
+    · exact (Set.disjoint_iff.1 (som_region_disjoint C hC part hj₀.symm) h.some_mem).elim
+    · exact (Set.disjoint_iff.1 (som_region_disjoint C hC part hjj.symm) h.some_mem).elim
+    · exact (Set.disjoint_iff.1 (som_region_disjoint C hC part (Ne.symm hj')) h.some_mem).elim
+
 /-- Step 1 of the blueprint proof of `strict_composed_proper_step4_matched`: the geometric
 side-to-side part. -/
 private theorem strict_composed_proper_step4_matched_step1_sides (hτ : τ.STS)
@@ -5734,7 +5824,25 @@ private theorem strict_composed_proper_step4_matched_step1_sides (hτ : τ.STS)
     (T' : PlaneTiling (strictProtoset C hC))
     (hrec : IsStrictReconstruction C hC part T') :
     T'.SideToSide := by
-  sorry
+  intro X hX Y hY i k hov
+  obtain ⟨j, d, hXd⟩ := scps_reconstructed_side C hC part T' hrec X hX i
+  obtain ⟨j', e, hYe⟩ := scps_reconstructed_side C hC part T' hrec Y hY k
+  have hmacroOverlap : OverlapPos ((part.block j).macroSide d)
+      ((part.block j').macroSide e) := by
+    rw [hXd, hYe]
+    exact scps_overlap_smul (som_theta_ne C) hov
+  have hmacro : (part.block j).macroSide d = (part.block j').macroSide e := by
+    by_cases hjj : j' = j
+    · subst j'
+      have hov' : OverlapPos ((som_macroDisk C hC (part.block j)).side d)
+          ((som_macroDisk C hC (part.block j)).side e) := by
+        rwa [som_macroDisk_side, som_macroDisk_side]
+      simpa only [som_macroDisk_side] using
+        scps_disk_side_eq_of_overlap (som_macroDisk C hC (part.block j)) d e hov'
+    · exact scps_opposed_macroSide_eq_of_overlap C hC part hjj
+        (strict_opposing_macroside C hC hτ hΔ T hT hL part j d) hmacroOverlap
+  apply Set.image_injective.mpr (smul_right_injective Pt (som_theta_ne C))
+  exact hXd.symm.trans (hmacro.trans hYe)
 
 /-- Step 2 of the blueprint proof of `strict_composed_proper_step4_matched`: the numbered-port
 colour step. -/

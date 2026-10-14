@@ -5135,7 +5135,137 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s2 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have _ := hN
+  have _ := hi
+  have _ := hj
+  have _ := hij
+  have _ := hi1
+  have _ := hj2
+  have ha := existsAnnularSpokes_step2_tubes_pos_cases hR hi
+  have hb := existsAnnularSpokes_step2_tubes_pos_cases hR hj
+  rcases ha with _ | ⟨_, _, eq_i⟩ | _ | ⟨hi3, _⟩
+  · omega
+  · rcases hb with _ | _ | ⟨_, _, eq_j⟩ | ⟨hj3, _⟩
+    · omega
+    · omega
+    · right
+      rw [eq_i, eq_j]
+      let A : ℝ := (N : ℝ) * R / 2
+      let x : ℝ := 3 * A - (i : ℝ) * R
+      let y : ℝ := 5 * A - (j : ℝ) * R
+      dsimp [jcr, mkPt]
+      have hcross :
+          (3 * ((N : ℝ) * R / 2) - (i : ℝ) * R) *
+              (5 * ((N : ℝ) * R / 2) - (j : ℝ) * R) -
+            ((N : ℝ) * R / 2) * (-((N : ℝ) * R / 2)) = x * y + A * A := by
+        dsimp [x, y, A]
+        ring
+      rw [hcross]
+      change A * R ≤ |x * y + A * A|
+      by_cases hanti : j = 2 * N + i
+      · exfalso
+        omega
+      · have hA : 0 < A := by
+          dsimp [A]
+          positivity
+        have hAR : R ≤ A := by
+          dsimp [A]
+          have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+          nlinarith
+        have hi_low : N + 1 ≤ i := by omega
+        have hi_low' : (N : ℝ) + 1 ≤ (i : ℝ) := by
+          exact_mod_cast hi_low
+        have hiR_low : 2 * A + R ≤ (i : ℝ) * R := by
+          have h := mul_le_mul_of_nonneg_right hi_low' hR.le
+          dsimp [A]
+          nlinarith
+        have hi' : (i : ℝ) ≤ 2 * (N : ℝ) := by
+          exact_mod_cast hi1.2
+        have hiR_high : (i : ℝ) * R ≤ 4 * A := by
+          have h := mul_le_mul_of_nonneg_right hi' hR.le
+          dsimp [A]
+          nlinarith
+        have hj_low : 2 * N + 1 ≤ j := by omega
+        have hj_low' : 2 * (N : ℝ) + 1 ≤ (j : ℝ) := by
+          exact_mod_cast hj_low
+        have hjR_low : 4 * A + R ≤ (j : ℝ) * R := by
+          have h := mul_le_mul_of_nonneg_right hj_low' hR.le
+          dsimp [A]
+          nlinarith
+        have hj_high : j + 1 ≤ 3 * N + 1 := by omega
+        have hj_high' : (j : ℝ) + 1 ≤ 3 * (N : ℝ) + 1 := by
+          exact_mod_cast hj_high
+        have hjR_high : (j : ℝ) * R + R ≤ 6 * A + R := by
+          have h := mul_le_mul_of_nonneg_right hj_high' hR.le
+          dsimp [A]
+          nlinarith
+        have hx_le : x ≤ A - R := by
+          dsimp [x]
+          linarith only [hiR_low]
+        have hnegx_le : -x ≤ A := by
+          dsimp [x]
+          linarith only [hiR_high]
+        have hy_le : y ≤ A - R := by
+          dsimp [y]
+          linarith only [hjR_low]
+        have hnegy_le : -y ≤ A := by
+          dsimp [y]
+          linarith only [hjR_high, hR]
+        have hARdiff : 0 ≤ A - R := by linarith only [hAR]
+        have hprod : -A * (A - R) ≤ x * y := by
+          by_cases hx : 0 ≤ x
+          · by_cases hy : 0 ≤ y
+            · have hxy : 0 ≤ x * y := mul_nonneg hx hy
+              calc
+                -A * (A - R) = -(A * (A - R)) := by ring
+                _ ≤ 0 := neg_nonpos.mpr (mul_nonneg hA.le hARdiff)
+                _ ≤ x * y := hxy
+            · have hy' : y ≤ 0 := le_of_not_ge hy
+              have hny : 0 ≤ -y := neg_nonneg.mpr hy'
+              have hmul : x * (-y) ≤ (A - R) * A := by
+                calc
+                  x * (-y) ≤ (A - R) * (-y) :=
+                    mul_le_mul_of_nonneg_right hx_le hny
+                  _ ≤ (A - R) * A := mul_le_mul_of_nonneg_left hnegy_le hARdiff
+              calc
+                -A * (A - R) = -((A - R) * A) := by ring
+                _ ≤ -(x * (-y)) := neg_le_neg hmul
+                _ = x * y := by ring
+          · have hx' : x ≤ 0 := le_of_not_ge hx
+            by_cases hy : 0 ≤ y
+            · have hmul : (-x) * y ≤ A * (A - R) := by
+                calc
+                  (-x) * y ≤ A * y := mul_le_mul_of_nonneg_right hnegx_le hy
+                  _ ≤ A * (A - R) := mul_le_mul_of_nonneg_left hy_le hA.le
+              calc
+                -A * (A - R) = -(A * (A - R)) := by ring
+                _ ≤ -((-x) * y) := neg_le_neg hmul
+                _ = x * y := by ring
+            · have hy' : y ≤ 0 := le_of_not_ge hy
+              have hxy : 0 ≤ x * y := mul_nonneg_of_nonpos_of_nonpos hx' hy'
+              calc
+                -A * (A - R) = -(A * (A - R)) := by ring
+                _ ≤ 0 := neg_nonpos.mpr (mul_nonneg hA.le hARdiff)
+                _ ≤ x * y := hxy
+        have hE : A * R ≤ x * y + A * A := by
+          calc
+            A * R = A * A + (-A * (A - R)) := by ring
+            _ ≤ A * A + x * y := by
+              calc
+                A * A + (-A * (A - R)) = -A * (A - R) + A * A := by ring
+                _ ≤ x * y + A * A := add_le_add_left hprod (A * A)
+                _ = A * A + x * y := by ring
+            _ = x * y + A * A := by ring
+        have hE0 : 0 ≤ x * y + A * A := by
+          exact (mul_nonneg hA.le hR.le).trans hE
+        rw [abs_of_nonneg hE0]
+        exact hE
+    · have hj_le := hj2.2
+      omega
+  · have hj_le := hj2.2
+    omega
+  · have hi_le := hi1.2
+    omega
 
 /-- Step 1g of the blueprint proof: marks on the third and fourth adjacent sides. -/
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s2s3 {N : ℕ} {R : ℝ}

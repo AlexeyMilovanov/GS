@@ -6913,6 +6913,161 @@ theorem strict_reconstructed_acyclic_legal (T : PlaneTiling (strictProtoset C hC
     fun n i k hne hno => hleg (Nat.find hex1 + 1 + n) i k hne (fun ho => hno ?_)⟩
   exact acyc_origin_shift C (fun l => typeShadow C hC (ch l)) (Nat.find hex1 + 1) _ i k ho n rfl
 
+/-- Two typed tiles of a strictly matched tiling with the same anchor and the same type are
+equal (they share every side, so strict matching identifies their cells). -/
+private theorem sce_same_place (T : PlaneTiling (strictProtoset C hC))
+    (hT : IsStrictMatched C hC T) (A B : StrictDecTile C hC) (v : Pt) (hty : A.typ = B.typ)
+    (hA : (⟨.typed A, v⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles)
+    (hB : (⟨.typed B, v⟩ : PlacedTile (strictProtoset C hC)) ∈ T.tiles) : A = B := by
+  obtain ⟨t, cA⟩ := A
+  obtain ⟨t', cB⟩ := B
+  simp only at hty
+  subst hty
+  by_contra hne
+  apply hne
+  have hne' : (⟨.typed ⟨t, cA⟩, v⟩ : PlacedTile (strictProtoset C hC)) ≠ ⟨.typed ⟨t, cB⟩, v⟩ := by
+    intro h
+    apply hne
+    cases h
+    rfl
+  congr 1
+  funext i
+  exact hT.2 _ _ v v hA hB hne' i i rfl
+
+/-- The children of a tile of an exact composition are tiles of the decomposed tiling. -/
+private theorem sce_child_mem (T T' : PlaneTiling (strictProtoset C hC))
+    (hex : (strictSubst C hC).IsComposition T' T) {X : PlacedTile (strictProtoset C hC)}
+    (hX : X ∈ T'.tiles) {D : StrictDecTile C hC} (hXD : X.form = StrictForm.typed D) (t : C.Typ)
+    (ht : C.owner t = C.form D.typ) :
+    (⟨StrictForm.typed (strictChild C hC D t), C.σ.θ • X.anchor +ᵥ C.anchor t⟩ :
+      PlacedTile (strictProtoset C hC)) ∈ T.tiles := by
+  rw [← hex]
+  refine Set.mem_biUnion hX ?_
+  show _ ∈ translateSet _ ((strictSubst C hC).rule X.form).tiles
+  rw [hXD]
+  exact ⟨_, ⟨t, ht, rfl⟩, rfl⟩
+
+/-- The block of the partition containing the central child of a composed tile `D` is the
+strict decomposition of `D`. -/
+private theorem sce_block (T T' : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (part : StrictMacroPartition C hC T) (hex : (strictSubst C hC).IsComposition T' T)
+    {X : PlacedTile (strictProtoset C hC)} (hX : X ∈ T'.tiles) {D : StrictDecTile C hC}
+    (hXD : X.form = StrictForm.typed D) :
+    ∃ j, (part.block j).α = C.form D.typ ∧
+      ∀ t, C.owner t = C.form D.typ → (part.block j).tileOf t = strictChild C hC D t := by
+  have hco := C.g5_central_owner (C.form D.typ)
+  have hc := sce_child_mem C hC T T' hex hX hXD _ hco
+  rw [← part.cover] at hc
+  obtain ⟨j, hj⟩ := Set.mem_iUnion.1 hc
+  obtain ⟨s, hs, hsX⟩ := hj
+  simp only [StrictBlock.placed, PlacedTile.mk.injEq, StrictForm.typed.injEq] at hsX
+  obtain ⟨h1, h2⟩ := hsX
+  have hsc : s = C.central (C.form D.typ) := (congrArg StrictDecTile.typ h1).symm
+  subst hsc
+  have hv : (part.block j).v = C.σ.θ • X.anchor := by
+    rw [vadd_eq_add] at h2
+    exact (add_right_cancel h2).symm
+  have hα : (part.block j).α = C.form D.typ := hs.symm.trans hco
+  refine ⟨j, hα, fun t ht => ?_⟩
+  have hmK : (part.block j).placed t ∈ T.tiles := by
+    rw [← part.cover]
+    exact Set.mem_iUnion.2 ⟨j, t, ht.trans hα.symm, rfl⟩
+  have hmD := sce_child_mem C hC T T' hex hX hXD t ht
+  rw [vadd_eq_add, ← hv] at hmD
+  exact sce_same_place C hC T hT _ _ _ rfl hmK hmD
+
+/-- The reconstruction of the decomposition of `D` is `D`: port `k` of `d` is an outer
+nonprint side on the path `P_k(d)`, whose third cell is the copied parent cell `(d, k)`. -/
+private theorem sce_recon (K : StrictBlock C hC) (D : StrictDecTile C hC)
+    (hK : ∀ t, C.owner t = C.form D.typ → K.tileOf t = strictChild C hC D t) :
+    strictReconstruct C hC K D.typ = D := by
+  have hc : (strictReconstruct C hC K D.typ).cell = D.cell := by
+    funext d k
+    obtain ⟨o, ho⟩ := rhe_port_some C (C.form D.typ) d k
+    show (match C.port (C.form D.typ) d k with | some o => K.col o.1 o.2 2 | none => 0) = D.cell d k
+    rw [ho]
+    show K.col o.1 o.2 2 = D.cell d k
+    have hmem : o ∈ C.outerList (C.form D.typ) d := List.mem_of_getElem? ho
+    obtain ⟨hown, hout, -⟩ := (C.g3_outerList_mem _ d o).1 hmem
+    have hpath : o ∈ C.path (C.form D.typ) d k := by
+      by_cases hg : C.IsGenuinePath (C.form D.typ) d k
+      · have hh : (C.path (C.form D.typ) d k).head? = C.port (C.form D.typ) d k :=
+          C.g4_path_head _ d k hg
+        rw [ho] at hh
+        exact List.mem_of_head? hh
+      · have ht : C.path (C.form D.typ) d k = (C.port (C.form D.typ) d k).toList :=
+          C.g4_path_trivial _ d k hg
+        rw [ht, ho]
+        simp
+    have hnp : ¬ C.IsPrint o := fun ⟨_, he⟩ => isInner_of_isPrintOf C he hout
+    rw [rhe_tile_cell C hC K o.1 D (hK o.1 hown) o.2 2]
+    exact ((strictChild_cells C hC D o.1 hown o.2).2 hnp).2.2.2.1 d k hpath
+  have e : strictReconstruct C hC K D.typ = ⟨D.typ, (strictReconstruct C hC K D.typ).cell⟩ := rfl
+  rw [e, hc]
+
+/-- The decomposition of `D` carries the header of `D` on every boundary side. -/
+private theorem sce_header (K : StrictBlock C hC) (D : StrictDecTile C hC)
+    (hα : K.α = C.form D.typ)
+    (hK : ∀ t, C.owner t = C.form D.typ → K.tileOf t = strictChild C hC D t) :
+    StrictCommonHeader C hC K (strictHeaderOf C hC D) := by
+  refine ⟨hα.symm, fun t i ht hb => ?_⟩
+  have ht' : C.owner t = C.form D.typ := ht.trans hα
+  rw [rhe_tile_cell C hC K t D (hK t ht') i 3]
+  exact ((strictChild_cells C hC D t ht' i).2
+    (fun hp => rhe_print_not_boundary C _ hp hb)).2.2.2.2.2.2.1 hb
+
+/-- A block of a strictly matched tiling of legal tiles satisfies the standing situation of
+the finite control proof, and its centre is legal. -/
+private theorem sce_context (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (K : StrictBlock C hC)
+    (hmem : ∀ t, C.owner t = K.α → K.placed t ∈ T.tiles) :
+    StrictBlockContext C hC K ∧ StrictLegal C hC K.centre := by
+  have hleg : ∀ t, C.owner t = K.α → StrictLegal C hC (K.tileOf t) := fun t ht => hL _ (hmem t ht)
+  refine ⟨⟨fun t i ht hin => ?_, fun t ht _ => hleg t ht⟩, hleg _ (C.g5_central_owner K.α)⟩
+  obtain ⟨hne, hown, hside⟩ := C.g1_partner _ hin
+  have e : ∀ o' : C.SideOcc, K.childSide o' = K.v +ᵥ C.occSide o' := by
+    intro o'
+    simp only [StrictBlock.childSide, MacroData.occSide, MacroData.childTile, PlacedTile.side,
+      vadd_vadd]
+  have hcs : K.childSide (C.partner (C.occ t i)) = K.childSide (C.occ t i) := by
+    rw [e, e, hside]
+  refine ⟨(C.partner (C.occ t i)).1, (C.partner (C.occ t i)).2, hown.trans ht, hne, hcs,
+    fun k => ?_⟩
+  have hne' : K.placed (C.partner (C.occ t i)).1 ≠ K.placed t := by
+    intro h
+    exact hne (congrArg (fun X : PlacedTile (strictProtoset C hC) =>
+      match X.form with | .typed A => A.typ | .root _ => t) h)
+  exact congrFun (hT.2 _ _ _ _ (hmem _ (hown.trans ht)) (hmem t ht) hne' _ i hcs) k
+
+/-- A normal tile of cyclic type is its own central child (`lem:comp/cyclic-legal`): every
+marked side is a print, whose cells other than the fifth are copied, and all other cells are
+local. -/
+private theorem sce_cyclic_eq (D : StrictDecTile C hC) (hcyc : C.IsCyclic D.typ)
+    (hDN : IsStrictNormal C hC D) : strictChild C hC D D.typ = D := by
+  have hown : C.owner D.typ = C.form D.typ := by
+    have h := C.g5_central_owner (C.form D.typ)
+    rw [show C.central (C.form D.typ) = D.typ from hcyc] at h
+    exact h
+  have hl : C.kind (C.form D.typ) = .large :=
+    (C.g5_large_iff _).2 (by rw [hown]; exact hcyc.symm)
+  have hAN := (rhe_child_normal C hC D D.typ hown).1
+  have key : ∀ i k, (strictChild C hC D D.typ).cell i k = D.cell i k := by
+    intro i k
+    by_cases hm : C.marked (C.form D.typ) i
+    · by_cases hk : k = 4
+      · subst hk
+        have hp := acyc_isPrint_of_cyclic C hcyc hl i hm
+        have hloc : IsStrictLocal C (C.occ D.typ i) 4 :=
+          Or.inl (Or.inr (Or.inl ⟨hm, Or.inr hp, rfl⟩))
+        exact (hAN i 4 hloc).trans (hDN i 4 hloc).symm
+      · exact (acycCellv_side C hC (strictChild C hC D D.typ) i k).symm.trans
+          (acyc_child_copy C hC D D.typ hcyc hl i hm k hk)
+    · have hloc : IsStrictLocal C (C.occ D.typ i) k := Or.inl (Or.inl hm)
+      exact (hAN i k hloc).trans (hDN i k hloc).symm
+  have hc : (strictChild C hC D D.typ).cell = D.cell := funext fun i => funext fun k => key i k
+  have e : strictChild C hC D D.typ = ⟨D.typ, (strictChild C hC D D.typ).cell⟩ := rfl
+  rw [e, hc]
+
 /-- **`lem:schedule-compose`, existence half** (strict analogue of `thm:compose`): every strictly
 matched plane tiling of legal typed tiles has a strictly matched exact composition by legal
 typed tiles. -/
@@ -6922,7 +7077,30 @@ theorem strict_compose_exists (hτ : τ.STS)
     (hL : AllStrictLegal C hC T) :
     ∃ T' : PlaneTiling (strictProtoset C hC), IsStrictMatched C hC T' ∧
       AllStrictLegal C hC T' ∧ (strictSubst C hC).IsComposition T' T := by
-  sorry
+  obtain ⟨part, T', hrec, hT', hN, hex⟩ := strict_composed_proper C hC hτ hΔ T hT hL
+  refine ⟨T', hT', ?_, hex⟩
+  intro X hX
+  obtain ⟨D, hXD, hDN, -⟩ := hN X hX
+  rw [hXD]
+  show StrictLegal C hC D
+  by_cases hcyc : C.IsCyclic D.typ
+  · have hown : C.owner D.typ = C.form D.typ := by
+      have h := C.g5_central_owner (C.form D.typ)
+      rw [show C.central (C.form D.typ) = D.typ from hcyc] at h
+      exact h
+    have hA : StrictLegal C hC (strictChild C hC D D.typ) :=
+      hL _ (sce_child_mem C hC T T' hex hX hXD D.typ hown)
+    rwa [sce_cyclic_eq C hC D hcyc hDN] at hA
+  by_cases hcent : C.IsCentral D.typ
+  · exact strict_reconstructed_acyclic_legal C hC T hT hL part T' hrec hT' hN hex X hX D hXD hcent hcyc
+  obtain ⟨j, hα, hK⟩ := sce_block C hC T T' hT part hex hX hXD
+  have hmem : ∀ t, C.owner t = (part.block j).α → (part.block j).placed t ∈ T.tiles := by
+    intro t ht
+    rw [← part.cover]
+    exact Set.mem_iUnion.2 ⟨j, t, ht, rfl⟩
+  obtain ⟨hctx, hcen⟩ := sce_context C hC T hT hL _ hmem
+  have hleg := strict_reconstructed_noncentral_legal C hC _ hctx _ (sce_header C hC _ D hα hK) hcen hcent
+  rwa [show (strictHeaderOf C hC D).1 = D.typ from rfl, sce_recon C hC _ D hK] at hleg
 
 end Composition
 

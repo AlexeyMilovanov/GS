@@ -6375,6 +6375,58 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forw
       hside.symm
   rw [hmid]
 
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step3_backward_trace_list_bijection
+    {α β : Type*} (L₁ : List α) (L₂ : List β) (f₁ : α → ℝ) (f₂ : β → ℝ) (R : α → β → Prop)
+    (hs₁ : L₁.Pairwise (fun a b => f₁ a < f₁ b))
+    (hs₂ : L₂.Pairwise (fun a b => f₂ a < f₂ b))
+    (hlen : L₁.length = L₂.length)
+    (h_fwd : ∀ a ∈ L₁, ∃ b ∈ L₂, R a b ∧ f₂ b = f₁ a) :
+    ∀ b ∈ L₂, ∃ a ∈ L₁, R a b ∧ f₁ a = f₂ b := by
+  have hd1 : (L₁.map f₁).Pairwise (· < ·) := List.pairwise_map.mpr hs₁
+  have hd2 : (L₂.map f₂).Pairwise (· < ·) := List.pairwise_map.mpr hs₂
+  have hnodup1 : (L₁.map f₁).Nodup := List.Pairwise.imp (@ne_of_lt ℝ _) hd1
+  have hnodup2 : (L₂.map f₂).Nodup := List.Pairwise.imp (@ne_of_lt ℝ _) hd2
+  have hsub : (L₁.map f₁).toFinset ⊆ (L₂.map f₂).toFinset := by
+    intro x
+    rw [List.mem_toFinset, List.mem_toFinset]
+    intro hx
+    rw [List.mem_map] at hx
+    rcases hx with ⟨a, ha, rfl⟩
+    rcases h_fwd a ha with ⟨b, hb, _, hfeq⟩
+    rw [List.mem_map]
+    exact ⟨b, hb, hfeq⟩
+  have hcard1 : (L₁.map f₁).toFinset.card = L₁.length := by
+    rw [List.toFinset_card_of_nodup hnodup1, List.length_map]
+  have hcard2 : (L₂.map f₂).toFinset.card = L₂.length := by
+    rw [List.toFinset_card_of_nodup hnodup2, List.length_map]
+  have heqcard : (L₂.map f₂).toFinset.card = (L₁.map f₁).toFinset.card := by
+    rw [hcard2, hcard1, hlen]
+  have heq : (L₁.map f₁).toFinset = (L₂.map f₂).toFinset := Finset.eq_of_subset_of_card_le hsub (le_of_eq heqcard)
+  intro b hb
+  have hy : f₂ b ∈ (L₂.map f₂).toFinset := by
+    rw [List.mem_toFinset, List.mem_map]
+    exact ⟨b, hb, rfl⟩
+  have hx : f₂ b ∈ (L₁.map f₁).toFinset := by
+    rw [heq]
+    exact hy
+  rw [List.mem_toFinset, List.mem_map] at hx
+  rcases hx with ⟨a, ha, hfeq⟩
+  rcases h_fwd a ha with ⟨b', hb', hR, hfeq'⟩
+  have heq_f2 : f₂ b' = f₂ b := by
+    rw [hfeq', hfeq]
+  have h_inj2 : ∀ x y, x ∈ L₂ → y ∈ L₂ → f₂ x = f₂ y → x = y := by
+    intro x y hx hy heq
+    rcases List.mem_iff_get.mp hx with ⟨ix, rfl⟩
+    rcases List.mem_iff_get.mp hy with ⟨iy, rfl⟩
+    rcases lt_trichotomy ix.1 iy.1 with hlt | heq_idx | hgt
+    · have := List.pairwise_iff_get.mp hs₂ ix iy hlt
+      linarith
+    · apply congrArg; apply Fin.ext heq_idx
+    · have := List.pairwise_iff_get.mp hs₂ iy ix hgt
+      linarith
+  have heq_b : b' = b := h_inj2 b' b hb' hb heq_f2
+  exact ⟨a, ha, by rwa [← heq_b], hfeq⟩
+
 /-- Step 3 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
 Backward trace maps children on the opposing macroside correctly preserving geometry. -/
 private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step3_backward_trace
@@ -6392,7 +6444,20 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step3_back
       (part.block j).childSide o = (part.block j').childSide o' ∧
       @inner ℝ _ _ w ((part.block j).v + c.occMid o) =
         @inner ℝ _ _ w ((part.block j').v + c.occMid o') := by
-  sorry
+  intro w
+  have h_sorted := alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted c hH T part hT hL j j' hneq d e hrank hmode hmacro hlen
+  have h_fwd := alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace c hH T part hT hL j j' hneq d e hrank hmode hmacro hlen
+  apply alignment_complete_step2_subdivision_eq_step2_pointwise_step3_backward_trace_list_bijection
+    (c.outerList (part.block j).α d) (c.outerList (part.block j').α e)
+    (fun a => @inner ℝ _ _ w ((part.block j).v + c.occMid a))
+    (fun b => @inner ℝ _ _ w ((part.block j').v + c.occMid b))
+    (fun a b => (part.block j).childSide a = (part.block j').childSide b)
+  · exact h_sorted.1
+  · exact h_sorted.2
+  · exact hlen
+  · intro a ha
+    rcases h_fwd a ha with ⟨b, hb, hR, hfeq⟩
+    exact ⟨b, hb, hR, hfeq.symm⟩
 
 /-- Step 2b of the blueprint proof of `alignment_complete_step2_subdivision_eq`: Once the geometric
 macrosides coincide and their child side subdivisions have the same length,

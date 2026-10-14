@@ -5864,7 +5864,14 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forw
     {c : MacroCertificate P} {K K' : ColouredBlock c} {o o' : c.SideOcc}
     (h : K.childSide o = K'.childSide o') :
     K.v + c.occMid o = K'.v + c.occMid o' := by
-  sorry
+  rw [ac2_childSide_eq K o, ac2_childSide_eq K' o'] at h
+  have add_midpoint (v a b : Pt) :
+      v + midpoint ℝ a b = midpoint ℝ (v + a) (v + b) := by
+    rw [midpoint_eq_smul_add, midpoint_eq_smul_add, invOf_eq_inv]
+    module
+  unfold MacroData.occMid
+  rw [add_midpoint K.v, add_midpoint K'.v]
+  exact ac1r_midpoint_eq h
 
 private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace_aux_unique
     {c : MacroCertificate P} {T : PlaneTiling (typedDecoration c)}

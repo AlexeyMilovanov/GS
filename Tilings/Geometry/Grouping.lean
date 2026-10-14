@@ -2997,6 +2997,49 @@ theorem regularGrouping (M : MeshConstants P) (S : Patch P) (Ω : PolygonalDisk)
     · obtain ⟨k, hk⟩ := HG.partner hA hB.1 hAB j hq hqB
       exact ⟨B, by rw [hL]; exact hU₀G hB, ⟨k, hk.trans hAj⟩, hB.2⟩
 
+/-- The interior of a regular closed tile meets the complement of a closed set
+    whenever the tile itself contains a point of that complement. -/
+private lemma outsideAnchoredGrouping_step1_E_step1_supset_tile
+    (F : PlacedTile P) {K : Set Pt} (hK : IsClosed K) {x : Pt}
+    (hxF : x ∈ F.carrier) (hxK : x ∉ K) :
+    (interior F.carrier ∩ Kᶜ).Nonempty := by
+  by_contra hn
+  have hsub : interior F.carrier ⊆ K := by
+    intro y hy
+    by_contra hyK
+    exact hn ⟨y, hy, hyK⟩
+  have hcl : closure (interior F.carrier) ⊆ K := by
+    rw [← hK.closure_eq]
+    exact closure_mono hsub
+  have hxcl : x ∈ closure (interior F.carrier) := by
+    rw [tile_regular F]
+    exact hxF
+  exact hxK (hcl hxcl)
+
+private lemma outsideAnchoredGrouping_step1_E_step1_supset_step5_square_add_subset
+    {c : Pt} {h r : ℝ} : square c h + Binf r ⊆ square c (h + r) := by
+  rintro _ ⟨a, ha, b, hb, rfl⟩
+  refine ⟨?_, ?_⟩
+  · simp only [PiLp.add_apply]
+    calc |a 0 + b 0 - c 0| = |(a 0 - c 0) + b 0| := by ring_nf
+      _ ≤ |a 0 - c 0| + |b 0| := abs_add_le _ _
+      _ ≤ h + r := add_le_add ha.1 hb.1
+  · simp only [PiLp.add_apply]
+    calc |a 1 + b 1 - c 1| = |(a 1 - c 1) + b 1| := by ring_nf
+      _ ≤ |a 1 - c 1| + |b 1| := abs_add_le _ _
+      _ ≤ h + r := add_le_add ha.2 hb.2
+
+private lemma outsideAnchoredGrouping_step1_E_step1_supset_K1_closed
+    (M : MeshConstants P) (c : Pt) (h : ℝ) (hh : 0 < h) :
+    IsClosed (square c h + Binf (3 * M.D)) := by
+  have h_MD : 0 ≤ 3 * M.D := mul_nonneg (by norm_num) M.D_pos.le
+  have heq : square c h + Binf (3 * M.D) = square c (h + 3 * M.D) :=
+    Subset.antisymm
+      outsideAnchoredGrouping_step1_E_step1_supset_step5_square_add_subset
+        (rg_square_add hh.le h_MD)
+  rw [heq]
+  exact rg_square_closed c (h + 3 * M.D)
+
 /-- Step 1 of the blueprint proof of `outsideAnchoredGrouping_step1_E`: `K_1^c \subseteq \operatorname{int} E`. -/
 private lemma outsideAnchoredGrouping_step1_E_step1_supset (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)
@@ -3004,7 +3047,26 @@ private lemma outsideAnchoredGrouping_step1_E_step1_supset (M : MeshConstants P)
     (c : Pt) (h : ℝ) (hh : 0 < h)
     (hQ : square c h + Binf (10 * M.D) ⊆ interior Ω.carrier) :
     (square c h + Binf (3 * M.D))ᶜ ⊆
-      interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier) := sorry
+      interior (Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ :
+        (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty,
+        F.carrier) := by
+  have _ := hsts
+  have _ := hQ
+  have hk_closed : IsClosed (square c h + Binf (3 * M.D)) :=
+    outsideAnchoredGrouping_step1_E_step1_supset_K1_closed M c h hh
+  apply interior_maximal _ hk_closed.isOpen_compl
+  intro x hx
+  by_cases hxΩ : x ∈ Ω.carrier
+  · right
+    have hx_supp : x ∈ support S.tiles := by rw [hcov]; exact hxΩ
+    obtain ⟨F, hFS, hxF⟩ := mem_support_iff'.1 hx_supp
+    have h_nonempty :
+        (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty :=
+      outsideAnchoredGrouping_step1_E_step1_supset_tile F hk_closed hxF hx
+    simp only [mem_iUnion, exists_prop]
+    exact ⟨F, hFS, h_nonempty, hxF⟩
+  · left
+    exact hxΩ
 
 /-- Step 2 of the blueprint proof of `outsideAnchoredGrouping_step1_E`: every selected face belongs to `E`. -/
 private lemma outsideAnchoredGrouping_step1_E_step2_faces (M : MeshConstants P) (S : Patch P)

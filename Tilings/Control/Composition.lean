@@ -1567,7 +1567,19 @@ private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_b
     (c : MacroCertificate P) (A : DecTile c) (hA : headerLegal c A)
     (i : c.Side A.typ) (hi : c.IsInner (c.occ A.typ i))
     (hb : c.IsBoundary (c.occ A.typ i)) :
-    IsNontrivial c A i := sorry
+    IsNontrivial c A i := by
+  have _ := hi
+  have h_nprint : ¬ c.IsPrint (c.occ A.typ i) := fun h_print =>
+    headerLegal_properties_step4_boundary_step1_print_not_boundary c (c.occ A.typ i) h_print hb
+  rcases hA with ⟨ch, hch0, hch_succ, _⟩
+  have hchild : IsChildOf c (ch 1) A := by
+    rw [← hch0]
+    exact hch_succ 0
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hchild
+  have hi_eq : A.cell i 3 = headerU c (headerOf c (ch 1)) :=
+    (hchild.2 i).2 h_nprint |>.2.2.2.2.2.2.1 hb
+  intro htriv
+  exact HeaderKernel.tagged_header_ne_zero (headerOf c (ch 1)) (hi_eq ▸ htriv.1)
 
 /-- Step 2.2 of the blueprint proof of `boundary_header_constant_step4_belt_eq_step2_edge`:
 if a boundary side of `u` coincides with a side of `v`, the fourth colors match by properness. -/

@@ -1490,6 +1490,28 @@ private lemma boundary_header_constant_step4_belt_eq_step1_same_type (c : MacroC
   have _ := hj
   sorry
 
+/-- Step 2.1 of the blueprint proof of `boundary_header_constant_step4_belt_eq_step2_edge`:
+if a boundary side of `u` coincides with a side of `v`, then `v`'s side is also a boundary side. -/
+private lemma boundary_header_constant_step4_belt_eq_step2_edge_step1_symm (c : MacroCertificate P)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (u v : {t : c.Typ // c.IsBeltType K.α t})
+    (k : c.Side u.1) (l : c.Side v.1)
+    (hk_bound : c.IsBoundary (c.occ u.1 k))
+    (h_side_eq : c.occSide (c.occ u.1 k) = c.occSide (c.occ v.1 l))
+    (h_u_neq_v : u.1 ≠ v.1) :
+    c.IsBoundary (c.occ v.1 l) := sorry
+
+/-- Step 2.2 of the blueprint proof of `boundary_header_constant_step4_belt_eq_step2_edge`:
+if a boundary side of `u` coincides with a side of `v`, the fourth colors match by properness. -/
+private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop (c : MacroCertificate P)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (u v : {t : c.Typ // c.IsBeltType K.α t})
+    (k : c.Side u.1) (l : c.Side v.1)
+    (hk_bound : c.IsBoundary (c.occ u.1 k))
+    (h_side_eq : c.occSide (c.occ u.1 k) = c.occSide (c.occ v.1 l))
+    (h_u_neq_v : u.1 ≠ v.1) :
+    K.col u.1 k 3 = K.col v.1 l 3 := sorry
+
 /-- Step 2 of the blueprint proof of `boundary_header_constant_step4_belt_eq`: a belt edge
 transfers fourth-colour equality between its two incident tiles. -/
 private lemma boundary_header_constant_step4_belt_eq_step2_edge (c : MacroCertificate P)
@@ -1499,11 +1521,23 @@ private lemma boundary_header_constant_step4_belt_eq_step2_edge (c : MacroCertif
     (i : c.Side u.1) (hi : c.IsBoundary (c.occ u.1 i))
     (j : c.Side v.1) (hj : c.IsBoundary (c.occ v.1 j)) :
     K.col u.1 i 3 = K.col v.1 j 3 := by
-  have _ := hK
-  have _ := h_adj
-  have _ := hi
-  have _ := hj
-  sorry
+  have hne_t : u.1 ≠ v.1 := by
+    intro h
+    have : u = v := Subtype.ext h
+    exact h_adj.1 this
+  rcases h_adj.2 with h_inl | h_inr
+  · obtain ⟨k, l, hk_bound, h_side_eq⟩ := h_inl
+    have hl_bound := boundary_header_constant_step4_belt_eq_step2_edge_step1_symm c K hK u v k l hk_bound h_side_eq hne_t
+    have heq1 := boundary_header_constant_step4_belt_eq_step1_same_type c K hK u i hi k hk_bound
+    have heq2 := boundary_header_constant_step4_belt_eq_step2_edge_step2_prop c K hK u v k l hk_bound h_side_eq hne_t
+    have heq3 := boundary_header_constant_step4_belt_eq_step1_same_type c K hK v l hl_bound j hj
+    rw [heq1, heq2, heq3]
+  · obtain ⟨l, k, hl_bound, h_side_eq⟩ := h_inr
+    have hk_bound := boundary_header_constant_step4_belt_eq_step2_edge_step1_symm c K hK v u l k hl_bound h_side_eq hne_t.symm
+    have heq1 := boundary_header_constant_step4_belt_eq_step1_same_type c K hK u i hi k hk_bound
+    have heq2 := boundary_header_constant_step4_belt_eq_step2_edge_step2_prop c K hK v u l k hl_bound h_side_eq hne_t.symm
+    have heq3 := boundary_header_constant_step4_belt_eq_step1_same_type c K hK v l hl_bound j hj
+    rw [heq1, ←heq2, heq3]
 
 /-- Step 3 of the blueprint proof of `boundary_header_constant_step4_belt_eq`: induction on a
 boundary-belt graph walk, using the one-edge transfer at each step. -/

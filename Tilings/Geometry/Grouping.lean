@@ -5645,7 +5645,12 @@ private lemma existsAnnularSpokes_step6_cut_step2_faces_ne (A : PlacedTile P) :
 
 /-- Step 2d of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Sub-H. -/
 private lemma existsAnnularSpokes_step6_cut_step2_faces_sub_H {S : Set (PlacedTile P)} (L H : FaceGroup S) {A : PlacedTile P}
-    (hA : A ∈ H.faces) : interior A.carrier ⊆ interior H.carrier := by sorry
+    (hA : A ∈ H.faces) : interior A.carrier ⊆ interior H.carrier := by
+  have _ := L
+  have h1 : A.carrier ⊆ support H.faces := fun _ hx => Set.mem_iUnion₂.mpr ⟨A, hA, hx⟩
+  have h2 : support H.faces = H.carrier := H.carrier_eq.symm
+  rw [h2] at h1
+  exact interior_mono h1
 
 /-- Step 2e of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Avoid. -/
 private lemma existsAnnularSpokes_step6_cut_step2_faces_sub_avoid (S : Patch P) (L H : FaceGroup S.tiles)

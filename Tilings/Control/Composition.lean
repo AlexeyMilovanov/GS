@@ -6981,6 +6981,78 @@ private def LiftFounded (c : MacroCertificate P) (seq' : ℕ → PlaneTiling (ty
     (tileDec X).cell i 3 ≠ 0 → ∃ m, ∃ Z ∈ (seq' (n + m)).tiles, ∃ d : c.Side (tileDec Z).typ,
       c.IsInner (c.occ (tileDec Z).typ d) ∧ sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c Z d
 
+/-- Step 1 of the blueprint proof of `lift_hierarchy_step1_decorations_step1_founded`: "A nonzero
+fourth cell of an outer side means that its chain of containing parent sides (`tcZ`) does not stay
+in the outer lists forever" (with hereditary listed sides the outer side lies in an outer list,
+so its fourth cell is `0` when the chain stays outer forever). -/
+private lemma lift_hierarchy_step1_decorations_step1_founded_step1_not_tcZ {c : MacroCertificate P}
+    (hH : c.Hereditary) (H : TypeChain c) (m : ℕ) (y : H.X m) (i : c.Side (H.typ m y))
+    (ho : c.IsOuter (c.occ (H.typ m y) i)) (hne : (tcDec H m y).cell i 3 ≠ 0) : ¬ tcZ H m y i := by
+  intro hz
+  apply hne
+  rw [tcDec_cell3_outer H m y i ho]
+  unfold tcFourthOuter
+  obtain ⟨e, he⟩ := ac1r_outer_mem_outerList c hH (c.occ (H.typ m y) i) ho _ (H.adm m y)
+  rw [dif_pos ⟨e, he⟩, if_pos hz]
+
+/-- Step 2 of the blueprint proof of `lift_hierarchy_step1_decorations_step1_founded`: "the side
+lies inside that ancestor side, scaled" — one level: a listed outer side of a child lies inside
+the scaled parent side of its outer list. -/
+private lemma lift_hierarchy_step1_decorations_step1_founded_step2_side_sub (c : MacroCertificate P)
+    (seq : ℕ → PlaneTiling c.Q)
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles) (typ : ∀ n, (seq n).tiles → c.Typ)
+    (hspec : ∀ n Z, c.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨c.form (typ n Z), c.σ.θ • (par n Z).1.anchor +ᵥ c.anchor (typ n Z)⟩)
+    (n : ℕ) (Z : (seq n).tiles) (i : c.Side (typ n Z)) (d : c.Side (typ (n + 1) (par n Z)))
+    (hd : c.occ (typ n Z) i ∈ c.outerList (c.form (typ (n + 1) (par n Z))) d) :
+    sideOf c ⟨tcDec (lhdChain c seq par typ hspec) n Z, Z.1.anchor⟩ i ⊆
+      c.σ.θ • sideOf c ⟨tcDec (lhdChain c seq par typ hspec) (n + 1) (par n Z), (par n Z).1.anchor⟩ d := by
+  have hsub := ((c.g3_outerList_mem _ _ _).1 hd).2.2
+  have hanc : Z.1.anchor = c.σ.θ • (par n Z).1.anchor +ᵥ c.anchor (typ n Z) :=
+    congrArg PlacedTile.anchor (hspec n Z).2
+  intro x hx
+  obtain ⟨p, hp, rfl⟩ := Set.mem_vadd_set.1 hx
+  have hp' : c.anchor (typ n Z) +ᵥ p ∈ c.occSide (c.occ (typ n Z) i) := Set.vadd_mem_vadd_set hp
+  obtain ⟨q, hq, hqe⟩ := Set.mem_smul_set.1 (hsub hp')
+  refine Set.mem_smul_set.2 ⟨(par n Z).1.anchor +ᵥ q, Set.vadd_mem_vadd_set hq, ?_⟩
+  show c.σ.θ • ((par n Z).1.anchor + q) = Z.1.anchor + p
+  rw [hanc, smul_add, hqe]
+  show c.σ.θ • (par n Z).1.anchor + (c.anchor (typ n Z) + p) = c.σ.θ • (par n Z).1.anchor + c.anchor (typ n Z) + p
+  rw [add_assoc]
+
+/-- Step 3 of the blueprint proof of `lift_hierarchy_step1_decorations_step1_founded`: "with
+hereditary listed sides every outer side lies in an outer list, so the chain reaches an inner side
+of an ancestor after finitely many steps, and the side lies inside that ancestor side, scaled". -/
+private lemma lift_hierarchy_step1_decorations_step1_founded_step3_reach_inner (c : MacroCertificate P)
+    (hH : c.Hereditary) (seq : ℕ → PlaneTiling c.Q)
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles) (typ : ∀ n, (seq n).tiles → c.Typ)
+    (hspec : ∀ n Z, c.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨c.form (typ n Z), c.σ.θ • (par n Z).1.anchor +ᵥ c.anchor (typ n Z)⟩)
+    (n : ℕ) (Z : (seq n).tiles) (i : c.Side (typ n Z)) (ho : c.IsOuter (c.occ (typ n Z) i))
+    (hz : ¬ tcZ (lhdChain c seq par typ hspec) n Z i) :
+    ∃ m, ∃ Z' : (seq (n + m)).tiles, ∃ d : c.Side (typ (n + m) Z'), c.IsInner (c.occ (typ (n + m) Z') d) ∧
+      sideOf c ⟨tcDec (lhdChain c seq par typ hspec) n Z, Z.1.anchor⟩ i ⊆
+        c.σ.θ ^ m • sideOf c ⟨tcDec (lhdChain c seq par typ hspec) (n + m) Z', Z'.1.anchor⟩ d := by
+  set H := lhdChain c seq par typ hspec with hHdef
+  by_contra hcon
+  push_neg at hcon
+  apply hz
+  refine ⟨fun m' (y' : (seq m').tiles) j => ∃ k, ∃ _ : m' = n + k, c.IsOuter (c.occ (typ m' y') j) ∧
+    sideOf c ⟨tcDec H n Z, Z.1.anchor⟩ i ⊆ c.σ.θ ^ k • sideOf c ⟨tcDec H m' y', y'.1.anchor⟩ j,
+    ⟨0, rfl, ho, by simp⟩, ?_⟩
+  rintro m' y' j ⟨k, rfl, hout, hsub⟩
+  obtain ⟨e, he⟩ := ac1r_outer_mem_outerList c hH _ hout _ (H.adm (n + k) y')
+  have hstep := lift_hierarchy_step1_decorations_step1_founded_step2_side_sub c seq par typ hspec
+    (n + k) y' j e he
+  have hsub' : sideOf c ⟨tcDec H n Z, Z.1.anchor⟩ i ⊆
+      c.σ.θ ^ (k + 1) • sideOf c ⟨tcDec H (n + k + 1) (par _ y'), (par _ y').1.anchor⟩ e := by
+    refine hsub.trans ?_
+    rw [pow_succ, mul_smul]
+    exact Set.smul_set_mono hstep
+  refine ⟨e, he, k + 1, rfl, ?_, hsub'⟩
+  by_contra hin
+  exact hcon (k + 1) (par _ y') e hin hsub'
+
 /-- Step 1 of the blueprint proof of `lift_hierarchy_step1_decorations`: the decoration `tcDec`
 of the typed hierarchy is founded.  A nonzero fourth cell of an outer side means that its chain
 of containing parent sides (`tcZ`) does not stay in the outer lists forever; with hereditary
@@ -6995,7 +7067,14 @@ private lemma lift_hierarchy_step1_decorations_step1_founded (c : MacroCertifica
     (hform : ∀ n (Z : (seq n).tiles),
       c.form (tcDec (lhdChain c seq par typ hspec) n Z).typ = Z.1.form) :
     LiftFounded c fun n => lhdTiling c (seq n) (tcDec (lhdChain c seq par typ hspec) n) (hform n) := by
-  sorry
+  have _ := hseq
+  intro n X hX i hout hne
+  obtain ⟨Z, rfl⟩ := hX
+  have hz := lift_hierarchy_step1_decorations_step1_founded_step1_not_tcZ hH
+    (lhdChain c seq par typ hspec) n Z i hout hne
+  obtain ⟨m, Z', d, hin, hsub⟩ :=
+    lift_hierarchy_step1_decorations_step1_founded_step3_reach_inner c hH seq par typ hspec n Z i hout hz
+  exact ⟨m, _, ⟨Z', rfl⟩, d, hin, hsub⟩
 
 private lemma lhd_main (c : MacroCertificate P) (hHer : c.Hereditary)
     (seq : ℕ → PlaneTiling c.Q) (hseq : ∀ n, c.σ.IsComposition (seq (n + 1)) (seq n))

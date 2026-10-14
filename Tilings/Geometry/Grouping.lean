@@ -6129,7 +6129,19 @@ private lemma existsAnnularSpokes_step6_cut_step2_faces_unique
 
 /-- Step 2b of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Connectedness of interior of tile. -/
 private lemma existsAnnularSpokes_step6_cut_step2_faces_conn (A : PlacedTile P) :
-    IsPreconnected (interior A.carrier) := by sorry
+    IsPreconnected (interior A.carrier) := by
+  have hd : interior A.carrier =
+      (Homeomorph.addLeft A.anchor) '' interior (P.disk A.form).carrier := by
+    change interior (A.anchor +ᵥ (P.disk A.form).carrier) = _
+    have h : A.anchor +ᵥ (P.disk A.form).carrier =
+        (Homeomorph.addLeft A.anchor) '' (P.disk A.form).carrier := rfl
+    rw [h, ← Homeomorph.image_interior (Homeomorph.addLeft A.anchor)]
+  rw [hd]
+  have h_disk : IsPathConnected (interior (P.disk A.form).carrier) :=
+    (P.disk A.form).interior_pathConnected
+  have h2 : IsPreconnected (interior (P.disk A.form).carrier) :=
+    h_disk.isConnected.isPreconnected
+  exact h2.image (A.anchor +ᵥ ·) (continuous_add_left A.anchor).continuousOn
 
 /-- Step 2c of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Nonemptiness of interior of tile. -/
 private lemma existsAnnularSpokes_step6_cut_step2_faces_ne (A : PlacedTile P) :

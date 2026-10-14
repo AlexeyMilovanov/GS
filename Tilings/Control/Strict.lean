@@ -2009,6 +2009,28 @@ private lemma strict_boundary_header_constant_step3_is_belt_type (α : C.Q.Form)
       exact isClosed_closure
     exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
 
+/-- Step 4a of the blueprint proof of `strict_boundary_header_constant_step4_belt_eq`: adjacent
+boundary-belt types have equal boundary fourth cells. -/
+private lemma strict_boundary_header_constant_step4_belt_eq_step1_adj
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (u v : {t : C.Typ // C.IsBeltType K.α t})
+    (hadj : (C.beltGraph K.α).Adj u v)
+    (i : C.Side u.1) (hi : C.IsBoundary (C.occ u.1 i))
+    (j : C.Side v.1) (hj : C.IsBoundary (C.occ v.1 j)) :
+    K.col u.1 i 3 = K.col v.1 j 3 := by
+  sorry
+
+/-- Step 4b of the blueprint proof of `strict_boundary_header_constant_step4_belt_eq`: propagate
+a fixed boundary colour along belt-graph reachability. -/
+private lemma strict_boundary_header_constant_step4_belt_eq_step2_reachable
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (u v : {t : C.Typ // C.IsBeltType K.α t})
+    (hreach : (C.beltGraph K.α).Reachable u v)
+    (c : SU C hC)
+    (hu : ∀ i : C.Side u.1, C.IsBoundary (C.occ u.1 i) → K.col u.1 i 3 = c) :
+    ∀ j : C.Side v.1, C.IsBoundary (C.occ v.1 j) → K.col v.1 j 3 = c := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `strict_boundary_header_constant`: connectedness
 propagates equality to every boundary cell of the block. -/
 private lemma strict_boundary_header_constant_step4_belt_eq (K : StrictBlock C hC)
@@ -2017,7 +2039,15 @@ private lemma strict_boundary_header_constant_step4_belt_eq (K : StrictBlock C h
     (i : C.Side u.1) (hi : C.IsBoundary (C.occ u.1 i))
     (j : C.Side v.1) (hj : C.IsBoundary (C.occ v.1 j)) :
     K.col u.1 i 3 = K.col v.1 j 3 := by
-  sorry
+  have hreach := (C.g2_belt_connected K.α).preconnected u v
+  have hu : ∀ i' : C.Side u.1, C.IsBoundary (C.occ u.1 i') → K.col u.1 i' 3 = K.col u.1 i 3 := by
+    intro i' hi'
+    obtain ⟨h, hh, -⟩ := strict_boundary_header_constant_step2_header_eq C hC K hK u.1 u.2.1 i hi
+    rw [hh i' hi', hh i hi]
+  have hv :=
+    strict_boundary_header_constant_step4_belt_eq_step2_reachable C hC K hK u v hreach
+      (K.col u.1 i 3) hu
+  exact (hv j hj).symm
 
 /-- `lem:comp/boundary-header` (strict variant): in a strictly matched finite realization of
 `σ' α` whose noncentral tiles are legal, every boundary fourth cell carries the same header

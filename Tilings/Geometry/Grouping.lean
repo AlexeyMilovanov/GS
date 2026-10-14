@@ -2469,6 +2469,117 @@ def MatchingCyclicOrder (U Kout Kin : Set Pt) {k : ℕ} (x y : Fin k → Pt) : P
   ∃ γo γi : ℝ → Pt, IsLoopParam Kout γo ∧ IsLoopParam Kin γi ∧
     LoopsHomotopicIn U γo γi ∧ PointsInOrder γo x ∧ PointsInOrder γi y
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological`: cut the
+annulus along a crosscut and record the resulting disk model and boundary order. -/
+private lemma plAnnulusRouting_step1_topological_step1_cutModel (A C : PolygonalDisk)
+    (hC : C.carrier ⊆ interior A.carrier) {k : ℕ} (x y : Fin k → Pt)
+    (hx : ∀ i, x i ∈ frontier A.carrier) (hy : ∀ i, y i ∈ frontier C.carrier)
+    (hxi : Function.Injective x) (hyi : Function.Injective y)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) x y) :
+    ∃ (B : PolygonalDisk) (e : Pt → Pt) (p q : Fin k → Pt)
+      (z : Fin (k + k) → Pt),
+      Continuous e ∧ Set.InjOn e B.carrier ∧
+      e '' B.carrier ⊆ A.carrier \ interior C.carrier ∧
+      e '' interior B.carrier ⊆ interior A.carrier \ C.carrier ∧
+      (∀ i, p i ∈ frontier B.carrier) ∧ (∀ i, q i ∈ frontier B.carrier) ∧
+      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
+      (∀ i, z (Fin.castAdd k i) = p i) ∧
+      (∀ i, z (Fin.natAdd k i) = q (Fin.rev i)) ∧
+      Function.Injective z ∧
+      ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧ PointsInOrder l z := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological`: route matching
+points in a polygonal disk when the combined boundary order is non-alternating. -/
+private lemma plAnnulusRouting_step1_topological_step2_diskRouting (B : PolygonalDisk)
+    {k : ℕ} (p q : Fin k → Pt) (hp : ∀ i, p i ∈ frontier B.carrier)
+    (hq : ∀ i, q i ∈ frontier B.carrier) (z : Fin (k + k) → Pt)
+    (hzp : ∀ i, z (Fin.castAdd k i) = p i)
+    (hzq : ∀ i, z (Fin.natAdd k i) = q (Fin.rev i))
+    (hzi : Function.Injective z)
+    (horder : ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧ PointsInOrder l z) :
+    ∃ δ : Fin k → ℝ → Pt,
+      (∀ i, Continuous (δ i)) ∧
+      (∀ i, δ i 0 = p i) ∧
+      (∀ i, δ i 1 = q i) ∧
+      (∀ i, ∀ t ∈ Set.Icc (0 : ℝ) 1, δ i t ∈ B.carrier) ∧
+      (∀ i, ∀ t ∈ Set.Ioo (0 : ℝ) 1, δ i t ∈ interior B.carrier) ∧
+      (∀ i, Function.Injective (Set.restrict (Set.Icc (0 : ℝ) 1) (δ i))) ∧
+      (∀ i j, i ≠ j →
+        Disjoint (δ i '' Set.Icc (0 : ℝ) 1) (δ j '' Set.Icc (0 : ℝ) 1)) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `plAnnulusRouting_step1_topological`: transfer disk
+arcs through an injective continuous cut model. -/
+private lemma plAnnulusRouting_step1_topological_step3_transfer (A C B : PolygonalDisk)
+    {k : ℕ} (x y : Fin k → Pt) (e : Pt → Pt) (p q : Fin k → Pt)
+    (he_cont : Continuous e) (he_inj : Set.InjOn e B.carrier)
+    (he_carrier : e '' B.carrier ⊆ A.carrier \ interior C.carrier)
+    (he_interior : e '' interior B.carrier ⊆ interior A.carrier \ C.carrier)
+    (hep : ∀ i, e (p i) = x i) (heq : ∀ i, e (q i) = y i)
+    (δ : Fin k → ℝ → Pt) (hδ_cont : ∀ i, Continuous (δ i))
+    (hδ_start : ∀ i, δ i 0 = p i) (hδ_stop : ∀ i, δ i 1 = q i)
+    (hδ_carrier : ∀ i, ∀ t ∈ Set.Icc (0 : ℝ) 1, δ i t ∈ B.carrier)
+    (hδ_in : ∀ i, ∀ t ∈ Set.Ioo (0 : ℝ) 1, δ i t ∈ interior B.carrier)
+    (hδ_simple : ∀ i, Function.Injective (Set.restrict (Set.Icc (0 : ℝ) 1) (δ i)))
+    (hδ_disj : ∀ i j, i ≠ j →
+      Disjoint (δ i '' Set.Icc (0 : ℝ) 1) (δ j '' Set.Icc (0 : ℝ) 1)) :
+    ∃ γ : Fin k → ℝ → Pt,
+      (∀ i, Continuous (γ i)) ∧
+      (∀ i, γ i 0 = x i) ∧
+      (∀ i, γ i 1 = y i) ∧
+      (∀ i, ∀ t ∈ Set.Ioo (0 : ℝ) 1, γ i t ∈ interior A.carrier \ C.carrier) ∧
+      (∀ i, Function.Injective (Set.restrict (Set.Icc (0 : ℝ) 1) (γ i))) ∧
+      (∀ i j, i ≠ j →
+        Disjoint (γ i '' Set.Icc (0 : ℝ) 1) (γ j '' Set.Icc (0 : ℝ) 1)) := by
+  let γ : Fin k → ℝ → Pt := fun i => e ∘ δ i
+  refine ⟨γ, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro i
+    exact he_cont.comp (hδ_cont i)
+  · intro i
+    change e (δ i 0) = x i
+    rw [hδ_start i, hep i]
+  · intro i
+    change e (δ i 1) = y i
+    rw [hδ_stop i, heq i]
+  · intro i t ht
+    have hcarrier : e (δ i t) ∈ A.carrier \ interior C.carrier :=
+      he_carrier ⟨δ i t, interior_subset (hδ_in i t ht), rfl⟩
+    have _ := hcarrier
+    apply he_interior
+    exact ⟨δ i t, hδ_in i t ht, rfl⟩
+  · intro i a b hab
+    apply hδ_simple i
+    change δ i a = δ i b
+    apply he_inj (hδ_carrier i a a.property) (hδ_carrier i b b.property)
+    change e (δ i a) = e (δ i b) at hab
+    exact hab
+  · intro i j hij
+    change Disjoint ((e ∘ δ i) '' Set.Icc (0 : ℝ) 1)
+      ((e ∘ δ j) '' Set.Icc (0 : ℝ) 1)
+    have himage_i : (e ∘ δ i) '' Set.Icc (0 : ℝ) 1 =
+        e '' (δ i '' Set.Icc (0 : ℝ) 1) := by
+      simpa [Function.comp_def] using
+        (Set.image_image e (δ i) (Set.Icc (0 : ℝ) 1)).symm
+    have himage_j : (e ∘ δ j) '' Set.Icc (0 : ℝ) 1 =
+        e '' (δ j '' Set.Icc (0 : ℝ) 1) := by
+      simpa [Function.comp_def] using
+        (Set.image_image e (δ j) (Set.Icc (0 : ℝ) 1)).symm
+    rw [himage_i, himage_j]
+    rw [Set.disjoint_left]
+    intro w hwi hwj
+    rcases hwi with ⟨a, ha, rfl⟩
+    rcases ha with ⟨s, hs, rfl⟩
+    rcases hwj with ⟨b, hb, hbw⟩
+    rcases hb with ⟨t, ht, htb⟩
+    have hab : e (δ j t) = e (δ i s) := by
+      rw [htb]
+      exact hbw
+    have heq : δ i s = δ j t := he_inj (hδ_carrier i s hs)
+      (hδ_carrier j t ht) hab.symm
+    exact Set.disjoint_left.1 (hδ_disj i j hij) ⟨s, hs, rfl⟩ ⟨t, ht, heq.symm⟩
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting`: Topological routing.
 In an annulus, points in matching cyclic order can be joined by pairwise disjoint simple
 continuous arcs. -/
@@ -2485,7 +2596,24 @@ private lemma plAnnulusRouting_step1_topological (A C : PolygonalDisk)
       (∀ i, ∀ t ∈ Set.Ioo (0:ℝ) 1, γ i t ∈ interior A.carrier \ C.carrier) ∧
       (∀ i, Function.Injective (Set.restrict (Set.Icc (0:ℝ) 1) (γ i))) ∧
       (∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0:ℝ) 1) (γ j '' Set.Icc (0:ℝ) 1)) := by
-  sorry
+  classical
+  by_cases hk : Nonempty (Fin k)
+  · obtain ⟨B, e, p, q, z, he_cont, he_inj, he_carrier, he_interior, hp, hq, hep, heq,
+        hzp, hzq, hzi, l, hl⟩ :=
+      plAnnulusRouting_step1_topological_step1_cutModel A C hC x y hx hy hxi hyi horder
+    obtain ⟨δ, hδ_cont, hδ_start, hδ_stop, hδ_carrier, hδ_in, hδ_simple, hδ_disj⟩ :=
+      plAnnulusRouting_step1_topological_step2_diskRouting B p q hp hq z hzp hzq hzi ⟨l, hl⟩
+    exact plAnnulusRouting_step1_topological_step3_transfer A C B x y e p q he_cont he_inj
+      he_carrier he_interior hep heq δ hδ_cont hδ_start hδ_stop hδ_carrier hδ_in hδ_simple hδ_disj
+  · let γ : Fin k → ℝ → Pt := fun i => (hk ⟨i⟩).elim
+    refine ⟨γ, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> intro i
+    · exact (hk ⟨i⟩).elim
+    · exact (hk ⟨i⟩).elim
+    · exact (hk ⟨i⟩).elim
+    · exact (hk ⟨i⟩).elim
+    · exact (hk ⟨i⟩).elim
+    · intro j hij
+      exact (hk ⟨i⟩).elim
 
 private lemma plAnnulusRouting_step2_plApprox_step1_separation_finset
     {ι : Type*} [DecidableEq ι] (s : Finset ι) (K : ι → Set Tilings.Pt)

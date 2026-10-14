@@ -4878,7 +4878,109 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s3 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have _ := hN
+  have _ := hi
+  have _ := hj
+  have _ := hij
+  have _ := hi0
+  have _ := hj3
+  have ha := existsAnnularSpokes_step2_tubes_pos_cases hR hi
+  have hb := existsAnnularSpokes_step2_tubes_pos_cases hR hj
+  rcases ha with ⟨-, eq_i⟩ | _ | _ | _
+  · rcases hb with _ | _ | _ | ⟨-, eq_j⟩
+    · omega
+    · omega
+    · omega
+    · right
+      rw [eq_i, eq_j]
+      let A : ℝ := (N : ℝ) * R / 2
+      let x : ℝ := -A + (i : ℝ) * R
+      let y : ℝ := (j : ℝ) * R - 7 * A
+      dsimp [jcr, mkPt]
+      change A * R ≤ |A * (-A) - x * y|
+      have hA : 0 < A := by
+        dsimp [A]
+        positivity
+      have hAR : R ≤ A := by
+        dsimp [A]
+        have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+        nlinarith
+      have hi' : (i : ℝ) ≤ (N : ℝ) := by exact_mod_cast hi0
+      have hiR0 : 0 ≤ (i : ℝ) * R := by positivity
+      have hiR_le : (i : ℝ) * R ≤ 2 * A := by
+        have h := mul_le_mul_of_nonneg_right hi' hR.le
+        dsimp [A]
+        nlinarith
+      have hj_low : 3 * N + 1 ≤ j := by omega
+      have hj_low' : 3 * (N : ℝ) + 1 ≤ (j : ℝ) := by
+        exact_mod_cast hj_low
+      have hjR_low : 6 * A + R ≤ (j : ℝ) * R := by
+        have h := mul_le_mul_of_nonneg_right hj_low' hR.le
+        dsimp [A]
+        nlinarith
+      have hj_high : j + 1 ≤ 4 * N := by omega
+      have hj_high' : (j : ℝ) + 1 ≤ 4 * (N : ℝ) := by
+        exact_mod_cast hj_high
+      have hjR_high : (j : ℝ) * R + R ≤ 8 * A := by
+        have h := mul_le_mul_of_nonneg_right hj_high' hR.le
+        dsimp [A]
+        nlinarith
+      have hx_le : x ≤ A := by
+        dsimp [x]
+        nlinarith
+      have hnegx_le : -x ≤ A := by
+        dsimp [x]
+        nlinarith
+      have hy_le : y ≤ A - R := by
+        dsimp [y]
+        nlinarith
+      have hnegy_le : -y ≤ A - R := by
+        dsimp [y]
+        nlinarith
+      have hA2 : A * R ≤ A ^ 2 := by
+        nlinarith [mul_le_mul_of_nonneg_left hAR hA.le]
+      have hAR0 : 0 ≤ A * R := mul_nonneg hA.le hR.le
+      by_cases hx : 0 ≤ x
+      · by_cases hy : 0 ≤ y
+        · have hxy : 0 ≤ x * y := mul_nonneg hx hy
+          have hE : A * (-A) - x * y ≤ 0 := by
+            nlinarith only [hxy, sq_nonneg A]
+          rw [abs_of_nonpos hE]
+          nlinarith only [hA2, hxy]
+        · have hy' : y ≤ 0 := le_of_not_ge hy
+          have hny : 0 ≤ -y := neg_nonneg.mpr hy'
+          have hprod : x * (-y) ≤ A * (A - R) := by
+            calc
+              x * (-y) ≤ A * (-y) := mul_le_mul_of_nonneg_right hx_le hny
+              _ ≤ A * (A - R) := mul_le_mul_of_nonneg_left hnegy_le hA.le
+          have hE : A * (-A) - x * y ≤ -A * R := by
+            nlinarith only [hprod]
+          have hE0 : A * (-A) - x * y ≤ 0 := by
+            nlinarith only [hE, hAR0]
+          rw [abs_of_nonpos hE0]
+          nlinarith only [hE]
+      · have hx' : x ≤ 0 := le_of_not_ge hx
+        by_cases hy : 0 ≤ y
+        · have hnx : 0 ≤ -x := neg_nonneg.mpr hx'
+          have hprod : (-x) * y ≤ A * (A - R) := by
+            calc
+              (-x) * y ≤ A * y := mul_le_mul_of_nonneg_right hnegx_le hy
+              _ ≤ A * (A - R) := mul_le_mul_of_nonneg_left hy_le hA.le
+          have hE : A * (-A) - x * y ≤ -A * R := by
+            nlinarith only [hprod]
+          have hE0 : A * (-A) - x * y ≤ 0 := by
+            nlinarith only [hE, hAR0]
+          rw [abs_of_nonpos hE0]
+          nlinarith only [hE]
+        · have hy' : y ≤ 0 := le_of_not_ge hy
+          have hxy : 0 ≤ x * y := mul_nonneg_of_nonpos_of_nonpos hx' hy'
+          have hE : A * (-A) - x * y ≤ 0 := by
+            nlinarith only [hxy, sq_nonneg A]
+          rw [abs_of_nonpos hE]
+          nlinarith only [hA2, hxy]
+  · omega
+  · omega
+  · omega
 
 /-- Step 1i of the blueprint proof: marks on the first and third opposite sides. -/
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s2 {N : ℕ} {R : ℝ}

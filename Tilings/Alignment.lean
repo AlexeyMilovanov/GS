@@ -3980,7 +3980,71 @@ private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists
     (heq : placedSeg ((τ.θ ^ m) • A.anchor) e =
       placedSeg ((τ.θ ^ m) • A'.anchor) e') :
     e' ∈ sidesInside τ G m A'.form a' := by
-  sorry
+  unfold sidesInside at he ⊢
+  simp only [mem_setOf_eq] at he ⊢
+  refine ⟨he', ?_⟩
+  set va := (τ.θ ^ m) • A.anchor
+  set vb := (τ.θ ^ m) • A'.anchor
+  have hne : (parentSide τ G m A.form a).1 ≠ (parentSide τ G m A.form a).2 :=
+    omitted_count_parent_endpoints_ne τ G m A.form a
+  have hne_placed : va + (parentSide τ G m A.form a).1 ≠ va + (parentSide τ G m A.form a).2 := by
+    intro h
+    exact hne (add_left_cancel h)
+  have hside2 : segment ℝ (va + (parentSide τ G m A.form a).1)
+      (va + (parentSide τ G m A.form a).2) =
+      segment ℝ (vb + (parentSide τ G m A'.form a').1)
+      (vb + (parentSide τ G m A'.form a').2) := by
+    simpa only [placedSeg] using hside
+  have hends := sa1_ba_segment_endpoints hne_placed hside2
+  
+  have hopen : openSegment ℝ (va + (parentSide τ G m A.form a).1)
+      (va + (parentSide τ G m A.form a).2) =
+      openSegment ℝ (vb + (parentSide τ G m A'.form a').1)
+      (vb + (parentSide τ G m A'.form a').2) := by
+    rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]
+    · rw [h1, h2, openSegment_symm]
+  
+  intro x hx
+  have hx_mapped : vb +ᵥ x ∈ vb +ᵥ segment ℝ e'.1 e'.2 := by
+    exact vadd_mem_vadd_set_iff.mpr hx
+  
+  have hvadd_e' : placedSeg vb e' = vb +ᵥ segment ℝ e'.1 e'.2 := fs1_placedSeg_eq vb e'
+  have hvadd_e : placedSeg va e = va +ᵥ segment ℝ e.1 e.2 := fs1_placedSeg_eq va e
+  
+  have hx_eq : vb +ᵥ x ∈ placedSeg va e := by
+    rw [← hvadd_e'] at hx_mapped
+    rw [← heq] at hx_mapped
+    exact hx_mapped
+  
+  rw [hvadd_e] at hx_eq
+  have he2 := he.2
+  
+  have hincl : va +ᵥ segment ℝ e.1 e.2 ⊆
+      va +ᵥ openSegment ℝ (parentSide τ G m A.form a).1 (parentSide τ G m A.form a).2 := by
+    intro y hy
+    rcases hy with ⟨y_orig, hy_orig, hy_eq⟩
+    rw [← hy_eq]
+    exact ⟨y_orig, he2 hy_orig, rfl⟩
+    
+  have hx_open : vb +ᵥ x ∈
+      va +ᵥ openSegment ℝ (parentSide τ G m A.form a).1 (parentSide τ G m A.form a).2 :=
+    hincl hx_eq
+    
+  have hvadd_open_a : va +ᵥ openSegment ℝ (parentSide τ G m A.form a).1
+      (parentSide τ G m A.form a).2 =
+      openSegment ℝ (va + (parentSide τ G m A.form a).1) (va + (parentSide τ G m A.form a).2) := by
+    rw [← vadd_eq_add, ← vadd_eq_add, ← vadd_openSegment]
+    
+  have hvadd_open_b : vb +ᵥ openSegment ℝ (parentSide τ G m A'.form a').1
+      (parentSide τ G m A'.form a').2 =
+      openSegment ℝ (vb + (parentSide τ G m A'.form a').1) (vb + (parentSide τ G m A'.form a').2) := by
+    rw [← vadd_eq_add, ← vadd_eq_add, ← vadd_openSegment]
+    
+  rw [hvadd_open_a] at hx_open
+  rw [hopen] at hx_open
+  rw [← hvadd_open_b] at hx_open
+  exact (vadd_mem_vadd_set_iff (a := vb) (x := x)).mp hx_open
 
 /-- Step 3 of the blueprint proof of
 `whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique`:

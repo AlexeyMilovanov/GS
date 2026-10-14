@@ -4844,7 +4844,14 @@ private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step4_sub
     {k : ℕ} (x : Fin k → Pt) (γ : ℝ → Pt) (hord : PointsInOrder γ x)
     {m : ℕ} (f : Fin m ↪ Fin k) (hf : StrictMono f) :
     PointsInOrder γ (x ∘ f) := by
-  sorry
+  rcases hord with ⟨t, hmono, hbound, hval⟩
+  use t ∘ f
+  refine ⟨?_, ?_, ?_⟩
+  · exact hmono.comp hf
+  · intros i j
+    exact hbound (f i) (f j)
+  · intro i
+    exact hval (f i)
 
 /-- Step 5 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts`: disjoint crosscuts
 in an annulus transfer the cyclic order of their outer endpoints to their inner endpoints. -/

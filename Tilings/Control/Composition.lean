@@ -2440,7 +2440,78 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell1 (c : Mac
     ∀ i : c.Side (K.tileOf t).typ,
       ¬ c.IsPrint (c.occ (K.tileOf t).typ i) →
         (K.tileOf t).cell i 1 = 0 := by
-  sorry
+  have _ := h
+  have _ := hh
+  intro i hnp
+  have ht_eq : (K.tileOf t).typ = c.central K.α := rfl.trans ht_c
+  have houter : ¬ c.IsOuter (c.occ (K.tileOf t).typ i) := by
+    cases ht_eq
+    exact (c.g2_central K.α i).1
+  have hinner : c.IsInner (c.occ (K.tileOf t).typ i) := houter
+  let o : c.SideOcc := c.occ (K.tileOf t).typ i
+  let o' : c.SideOcc := c.partner o
+  have hp := c.g1_partner o hinner
+  have hi' : c.IsInner o' := by
+    exact asm_inner_of_occSide c hinner hp.2.1 hp.2.2
+  have hown : c.owner o'.1 = K.α := by
+    exact hp.2.1.trans ht_owner
+  have hnc : o'.1 ≠ c.central K.α := by
+    intro hc
+    apply hp.1
+    rw [hc, ← ht_c]
+    rfl
+  have hlegal : headerLegal c (K.tileOf o'.1) := hK.2 o'.1 hown hnc
+  have hnt : IsNontrivial c (K.tileOf o'.1) o'.2 :=
+    headerLegal_properties_step6_inner c hH (K.tileOf o'.1) hlegal o'.2 hi'
+  obtain ⟨t', j, hown', htne, hside, hcol⟩ := hK.1 o'.1 o'.2 hown hi' hnt
+  have hocc : c.occSide (c.occ t' j) = c.occSide o' := by
+    rw [path_and_print_recovery_step1_signals_aux_childSide c K (c.occ t' j),
+      path_and_print_recovery_step1_signals_aux_childSide c K o'] at hside
+    exact path_and_print_recovery_step1_signals_aux_vadd_cancel K.v hside
+  have heq : c.occ t' j = c.partner o' :=
+    c.g1_side_unique o' (c.occ t' j) hi' (hown'.trans hown.symm) htne hocc
+  have heq' : c.occ t' j = o := by
+    rw [heq]
+    exact c.g1_partner_partner o hinner
+  have hprint_partner : c.IsPrint (c.partner o) → c.IsPrint o := by
+    intro hp'
+    change ∃ d, c.IsPrintOf (c.owner o.1) d o
+    change ∃ d, c.IsPrintOf (c.owner (c.partner o).1) d (c.partner o) at hp'
+    rcases hp' with ⟨d, hd, hp_or⟩
+    have hd_eq : c.owner (c.partner o).1 = c.owner o.1 := (c.g1_partner o hinner).2.1
+    generalize H_owner_var : c.owner (c.partner o).1 = α at d hd hp_or hd_eq
+    cases hd_eq
+    use d
+    refine ⟨hd, ?_⟩
+    cases hp_or with
+    | inl h1 =>
+      right
+      have hpartner := c.g1_partner_partner o hinner
+      have h2 := congrArg c.partner h1
+      rw [hpartner] at h2
+      exact h2
+    | inr h2 =>
+      left
+      have hinner_print := c.g4_print_inner _ d hd
+      have hpartner := c.g1_partner_partner o hinner
+      have hpartner2 := c.g1_partner_partner (c.printOcc _ d) hinner_print
+      have h1 := congrArg c.partner h2
+      rw [hpartner, hpartner2] at h1
+      exact h1
+  have hnp' : ¬ c.IsPrint o' := by
+    intro hp'
+    exact hnp (hprint_partner hp')
+  obtain ⟨ch, hch0, hch_succ, -⟩ := hlegal
+  have hchild : IsChildOf c (ch 1) (K.tileOf o'.1) := by
+    rw [← hch0]
+    exact hch_succ 0
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hchild
+  have hcell : (K.tileOf o'.1).cell o'.2 1 = 0 :=
+    ((hchild.2 o'.2).2 hnp').2.1
+  have hcol1 : (K.tileOf t').cell j 1 = (K.tileOf o'.1).cell o'.2 1 := hcol 1
+  have hcenter := congrArg (fun q : c.SideOcc => K.col q.1 q.2 1) heq'.symm
+  change (K.tileOf t).cell i 1 = (K.tileOf t').cell j 1 at hcenter
+  exact hcenter.trans (hcol1.trans hcell)
 
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell4_aux_print_partner
     (c : MacroCertificate P) {o : c.SideOcc} (ho : c.IsInner o) :

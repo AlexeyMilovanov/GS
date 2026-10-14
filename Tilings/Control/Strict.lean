@@ -2937,7 +2937,52 @@ private lemma strict_path_and_print_recovery_step2_prints_step3_print_clause
     (hX : K.tileOf o.1 = strictChild C hC F o.1) :
     K.col (C.partner (C.printOcc (C.form h.1) d)).1 (C.partner (C.printOcc (C.form h.1) d)).2 k =
       K.col o.1 o.2 2 := by
-  sorry
+  have _ := hK
+  have _ := hh
+  have hpin : C.IsInner (C.printOcc (C.form h.1) d) :=
+    C.g4_print_inner (C.form h.1) d hd
+  have hpown : C.owner (C.partner (C.printOcc (C.form h.1) d)).1 =
+      C.form h.1 := by
+    exact (C.g1_partner _ hpin).2.1.trans (C.g5_central_owner _)
+  have hFo' : C.owner (C.partner (C.printOcc (C.form h.1) d)).1 = C.form F.typ := by
+    rw [← ho_partner]
+    exact hFo
+  have hform : C.form F.typ = C.form h.1 := hFo'.symm.trans hpown
+  let dF : C.Side F.typ :=
+    cast (congrArg (fun α => Fin (C.Q.disk α).n) hform.symm) d
+  have hp : C.IsPrintOf (C.form h.1) d
+      (C.partner (C.printOcc (C.form h.1) d)) := ⟨hd, Or.inr rfl⟩
+  have transportPrint : ∀ {F G : C.Q.Form} (e : F = G)
+      (a : Fin (C.Q.disk F).n) (p : C.SideOcc),
+      C.IsPrintOf F a p →
+        C.IsPrintOf G (cast (congrArg (fun α => Fin (C.Q.disk α).n) e) a) p := by
+    intro F G e a p hap
+    subst G
+    exact hap
+  have hpF : C.IsPrintOf (C.form F.typ) dF
+      (C.partner (C.printOcc (C.form h.1) d)) := by
+    exact transportPrint hform.symm d _ hp
+  have hpath : C.occ o.1 o.2 ∈ C.path (C.form h.1) d k :=
+    List.mem_of_getElem? ho
+  have hpathF : C.occ o.1 o.2 ∈ C.path (C.form F.typ) dF k := by
+    exact (strictLegal_properties_step5_path_step1_cast_path C hC hform.symm d k _).1 hpath
+  have hXp : K.tileOf (C.partner (C.printOcc (C.form h.1) d)).1 =
+      strictChild C hC F (C.partner (C.printOcc (C.form h.1) d)).1 := by
+    rw [← ho_partner]
+    exact hX
+  have hprint := ((strictChild_cells C hC F
+      (C.partner (C.printOcc (C.form h.1) d)).1 hFo' _).1 dF hpF).1 k hk
+  have hordinary := ((strictChild_cells C hC F o.1 hFo o.2).2 ho_ord.2).2.2.2.1
+    dF k hpathF
+  calc
+    K.col (C.partner (C.printOcc (C.form h.1) d)).1
+        (C.partner (C.printOcc (C.form h.1) d)).2 k =
+        (strictChild C hC F (C.partner (C.printOcc (C.form h.1) d)).1).cell
+          (C.partner (C.printOcc (C.form h.1) d)).2 k :=
+      rhe_tile_cell C hC K _ F hXp _ k
+    _ = F.cell dF k := hprint
+    _ = (strictChild C hC F o.1).cell o.2 2 := hordinary.symm
+    _ = K.col o.1 o.2 2 := (rhe_tile_cell C hC K o.1 F hX o.2 2).symm
 
 /-- Step 2 of the blueprint proof of `strict_path_and_print_recovery`: the noncentral
 owner of each marked print carries the first four reconstructed parent cells. -/

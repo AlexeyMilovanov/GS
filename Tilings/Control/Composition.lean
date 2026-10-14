@@ -6010,7 +6010,77 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forw
     (h₂ : (part.block j₂).macroSide e₂ = (part.block j).macroSide d)
     (hj₁ : j₁ ≠ j) (hj₂ : j₂ ≠ j) :
     j₁ = j₂ ∧ ∃ h : j₁ = j₂, cast (by subst h; rfl) e₁ = e₂ := by
-  sorry
+  have hji : j₁ = j₂ := by
+    by_contra hne
+    let θ : ℝ := c.σ.θ
+    have hθ : θ ≠ 0 := by
+      dsimp [θ]
+      exact ac2_theta_ne c
+    let B₀ :=
+      alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk
+        (c.Q.disk (part.block j).α) θ hθ (part.block j).v
+    let B₁ :=
+      alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk
+        (c.Q.disk (part.block j₁).α) θ hθ (part.block j₁).v
+    let B₂ :=
+      alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk
+        (c.Q.disk (part.block j₂).α) θ hθ (part.block j₂).v
+    have hs₀ : B₀.side d = (part.block j).macroSide d := by
+      rw [
+        alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk_side]
+      rfl
+    have hs₁ : B₁.side e₁ = (part.block j₁).macroSide e₁ := by
+      rw [
+        alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk_side]
+      rfl
+    have hs₂ : B₂.side e₂ = (part.block j₂).macroSide e₂ := by
+      rw [
+        alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk_side]
+      rfl
+    have h₁' : B₁.side e₁ = B₀.side d := hs₁.trans (h₁.trans hs₀.symm)
+    have h₂' : B₂.side e₂ = B₀.side d := hs₂.trans (h₂.trans hs₀.symm)
+    have hPQ : B₀.vertex d ≠ B₀.vertex (finRotate _ d) := by
+      intro h
+      exact asm_finRotate_ne _ B₀.three_le d (B₀.vertex_injective h).symm
+    have hseg₀ : segment ℝ (B₀.vertex d) (B₀.vertex (finRotate _ d)) ⊆
+        (0 : Pt) +ᵥ B₀.side d := by
+      simp [PolygonalDisk.side]
+    have hseg₁ : segment ℝ (B₀.vertex d) (B₀.vertex (finRotate _ d)) ⊆
+        (0 : Pt) +ᵥ B₁.side e₁ := by
+      simpa [PolygonalDisk.side] using h₁'.symm.subset
+    have hseg₂ : segment ℝ (B₀.vertex d) (B₀.vertex (finRotate _ d)) ⊆
+        (0 : Pt) +ᵥ B₂.side e₂ := by
+      simpa [PolygonalDisk.side] using h₂'.symm.subset
+    have hd₀₁ : Disjoint (interior ((0 : Pt) +ᵥ B₀.carrier))
+        (interior ((0 : Pt) +ᵥ B₁.carrier)) := by
+      simpa [B₀, B₁,
+        alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk]
+        using
+          (alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_region_disjoint
+            c T part hj₁).symm
+    have hd₀₂ : Disjoint (interior ((0 : Pt) +ᵥ B₀.carrier))
+        (interior ((0 : Pt) +ᵥ B₂.carrier)) := by
+      simpa [B₀, B₂,
+        alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk]
+        using
+          (alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_region_disjoint
+            c T part hj₂).symm
+    have hd₁₂ : Disjoint (interior ((0 : Pt) +ᵥ B₁.carrier))
+        (interior ((0 : Pt) +ᵥ B₂.carrier)) := by
+      simpa [B₁, B₂,
+        alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_affDisk]
+        using
+          (alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_region_disjoint
+            c T part hne)
+    exact ac2_no_three B₀ B₁ B₂ (0 : Pt) (0 : Pt) (0 : Pt)
+      (P := B₀.vertex d) (Q := B₀.vertex (finRotate _ d)) d e₁ e₂ hPQ
+      hseg₀ hseg₁ hseg₂ hd₀₁ hd₀₂ hd₁₂
+  refine ⟨hji, ?_⟩
+  subst j₂
+  refine ⟨rfl, ?_⟩
+  exact
+    alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative_macro_side_inj
+      c (part.block j₁) (h₁.trans h₂.symm)
 
 private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace
     (c : MacroCertificate P)

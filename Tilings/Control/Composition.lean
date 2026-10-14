@@ -1500,10 +1500,23 @@ private lemma boundary_header_constant_step4_belt_eq_step1_same_type (c : MacroC
     (i : c.Side u.1) (hi : c.IsBoundary (c.occ u.1 i))
     (j : c.Side u.1) (hj : c.IsBoundary (c.occ u.1 j)) :
     K.col u.1 i 3 = K.col u.1 j 3 := by
-  have _ := hK
-  have _ := hi
-  have _ := hj
-  sorry
+  have h_legal : headerLegal c (K.tileOf u.1) :=
+    boundary_header_constant_step1_legal c K hK u.1 u.2.1 i hi
+  rcases h_legal with ⟨ch, hch0, hrel, -⟩
+  have hchild : IsChildOf c (ch 1) (K.tileOf u.1) := by
+    rw [← hch0]
+    exact hrel 0
+  have hnp_i : ¬ c.IsPrint (c.occ u.1 i) := fun hp =>
+    headerLegal_properties_step4_boundary_step1_print_not_boundary c _ hp hi
+  have hnp_j : ¬ c.IsPrint (c.occ u.1 j) := fun hp =>
+    headerLegal_properties_step4_boundary_step1_print_not_boundary c _ hp hj
+  have hi_header : K.col u.1 i 3 = headerU c (headerOf c (ch 1)) := by
+    change (K.tileOf u.1).cell i 3 = headerU c (headerOf c (ch 1))
+    exact ((hchild.2 i).2 hnp_i).2.2.2.2.2.2.1 hi
+  have hj_header : K.col u.1 j 3 = headerU c (headerOf c (ch 1)) := by
+    change (K.tileOf u.1).cell j 3 = headerU c (headerOf c (ch 1))
+    exact ((hchild.2 j).2 hnp_j).2.2.2.2.2.2.1 hj
+  exact hi_header.trans hj_header.symm
 
 /-- Step 2.1 of the blueprint proof of `boundary_header_constant_step4_belt_eq_step2_edge`:
 if a boundary side of `u` coincides with a side of `v`, then `v`'s side is also a boundary side. -/

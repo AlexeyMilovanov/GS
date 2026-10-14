@@ -2770,7 +2770,33 @@ private lemma strict_path_and_print_recovery_step2_prints_step1_penultimate
     (d : C.Side h.1) (hd : C.marked (C.form h.1) d) (k : Fin 5) (hk : k ≠ 4) :
     ∃ o, (C.path (C.form h.1) d k)[(C.path (C.form h.1) d k).length - 2]? = some o ∧
       o.1 = (C.partner (C.printOcc (C.form h.1) d)).1 ∧ C.IsOrdinary o := by
-  sorry
+  have _ := hK
+  have _ := hh
+  have hg : C.IsGenuinePath (C.form h.1) d k := ⟨hd, by omega⟩
+  obtain ⟨p, hp⟩ := rhe_port_some C (C.form h.1) d k
+  have hhead := (C.g4_path_head _ _ _ hg).trans hp
+  have hlast := C.g4_path_last _ _ _ hg
+  have hpout : C.IsOuter p :=
+    ((C.g3_outerList_mem _ _ _).1 (List.mem_of_getElem? hp)).2.1
+  have hpin := C.g4_print_inner (C.form h.1) d hd
+  have hne : p ≠ C.partner (C.printOcc (C.form h.1) d) := by
+    intro e
+    exact isInner_partner C hpin (e ▸ hpout)
+  have hlen : 2 ≤ (C.path (C.form h.1) d k).length := by
+    generalize hpath : C.path (C.form h.1) d k = l
+    cases l with
+    | nil => simp [hpath] at hhead
+    | cons x l =>
+        cases l with
+        | nil =>
+            simp [hpath] at hhead hlast
+            exact absurd (hhead.symm.trans hlast) hne
+        | cons y l => simp
+  obtain ⟨o, ho⟩ : ∃ o, (C.path (C.form h.1) d k)[
+      (C.path (C.form h.1) d k).length - 2]? = some o :=
+    ⟨_, List.getElem?_eq_getElem (by omega)⟩
+  obtain ⟨hop, hord⟩ := C.g4_path_penultimate _ _ _ hg o ho
+  exact ⟨o, ho, hop, hord⟩
 
 /-- Step 2 of the blueprint proof of `strict_path_and_print_recovery_step2_prints`: the
 penultimate side of the path transports the signal to the reconstructed parent cell. -/

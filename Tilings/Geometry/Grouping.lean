@@ -21058,6 +21058,107 @@ private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb
     Nonempty (existsRoutingAfterPower_step5_discretize_step1_route_RawData τ M Rs l hl α p F γ) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step2_erase`: "Erase
+repeated-face loops while preserving the first port face and final outside-anchored face."  One
+erasure: a list of (face, side) pairs, each face carrying its side and the next side, consecutive
+faces distinct, in which the side of `x` repeats as the side of a later `y`, is replaced by a strictly
+shorter sublist with the same first side and the same last face. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step2_erase_step1_eraseOne {T S : Type*}
+    (Q : T → Prop) (E : T → S → Prop)
+    (A B C : List (T × S)) (x y : T × S) (hxy : x.2 = y.2)
+    (hmem : ∀ w ∈ A ++ x :: (B ++ y :: C), Q w.1 ∧ E w.1 w.2)
+    (hch : (A ++ x :: (B ++ y :: C)).IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1)) :
+    ∃ L' : List (T × S), (∀ w ∈ L', Q w.1 ∧ E w.1 w.2) ∧
+      L'.IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) ∧
+      L'.head?.map Prod.snd = (A ++ x :: (B ++ y :: C)).head?.map Prod.snd ∧
+      L'.getLast?.map Prod.fst = (A ++ x :: (B ++ y :: C)).getLast?.map Prod.fst ∧
+      L'.Sublist (A ++ x :: (B ++ y :: C)) ∧ L'.length < (A ++ x :: (B ++ y :: C)).length := by
+  have hlast : ∀ (l r : List (T × S)) (u : T × S), (l ++ u :: r).getLast? = (u :: r).getLast? :=
+    fun l r u => List.getLast?_append_of_ne_nil _ (by simp)
+  have hL : A ++ x :: (B ++ y :: C) = (A ++ x :: B) ++ y :: C := by simp
+  have hchA : A.IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) := (List.isChain_append.1 hch).1
+  have hchyC : (y :: C).IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) := by
+    rw [hL] at hch
+    exact (List.isChain_append.1 hch).2.1
+  have hyC : (y :: C).Sublist (A ++ x :: (B ++ y :: C)) := by
+    rw [hL]; exact List.sublist_append_right _ _
+  have fin : ∀ L' : List (T × S), L'.IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) →
+      L'.head?.map Prod.snd = (A ++ x :: (B ++ y :: C)).head?.map Prod.snd →
+      L'.getLast?.map Prod.fst = (A ++ x :: (B ++ y :: C)).getLast?.map Prod.fst →
+      L'.Sublist (A ++ x :: (B ++ y :: C)) → L'.length < (A ++ x :: (B ++ y :: C)).length →
+      ∃ L' : List (T × S), (∀ w ∈ L', Q w.1 ∧ E w.1 w.2) ∧
+      L'.IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) ∧
+      L'.head?.map Prod.snd = (A ++ x :: (B ++ y :: C)).head?.map Prod.snd ∧
+      L'.getLast?.map Prod.fst = (A ++ x :: (B ++ y :: C)).getLast?.map Prod.fst ∧
+      L'.Sublist (A ++ x :: (B ++ y :: C)) ∧ L'.length < (A ++ x :: (B ++ y :: C)).length :=
+    fun L' h1 h2 h3 h4 h5 => ⟨L', fun w hw => hmem w (h4.subset hw), h1, h2, h3, h4, h5⟩
+  rcases List.eq_nil_or_concat A with hA | ⟨A', z, hA⟩
+  · subst hA
+    refine fin (y :: C) hchyC (by simp [hxy]) (by rw [hL, hlast _ C y]) hyC ?_
+    simp
+  · rw [List.concat_eq_append] at hA
+    subst hA
+    have hzx : E z.1 x.2 ∧ z.1 ≠ x.1 := by
+      have := (List.isChain_append.1 hch).2.2
+      simpa using this
+    by_cases hzy : z.1 = y.1
+    · rcases C with _ | ⟨c, C⟩
+      · refine fin (A' ++ [z]) hchA (by simp) ?_ (List.sublist_append_left _ _) (by simp)
+        rw [hL, hlast _ [] y, hlast A' [] z]; simp [hzy]
+      · have hyc : E y.1 c.2 ∧ y.1 ≠ c.1 := (List.isChain_cons_cons.1 hchyC).1
+        have hcC : (c :: C).IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) :=
+          (List.isChain_cons_cons.1 hchyC).2
+        refine fin (A' ++ [z] ++ c :: C) ?_ (by simp) ?_ ?_ (by simp; omega)
+        · rw [List.isChain_append]
+          refine ⟨hchA, hcC, ?_⟩
+          simp [hzy, hyc]
+        · rw [hL, hlast _ (c :: C) y, hlast (A' ++ [z]) C c]; simp
+        · exact List.Sublist.append_left (List.Sublist.cons _
+            (List.sublist_append_of_sublist_right (List.sublist_cons_self y (c :: C)))) _
+    · refine fin (A' ++ [z] ++ y :: C) ?_ (by simp) ?_ ?_ (by simp)
+      · rw [List.isChain_append]
+        refine ⟨hchA, hchyC, ?_⟩
+        simp [hzy, ← hxy, hzx.1]
+      · rw [hL, hlast (A' ++ [z]) C y, hlast _ C y]
+      · exact List.Sublist.append_left (List.Sublist.cons _ (List.sublist_append_right _ _)) _
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step2_erase`: "Erase
+repeated-face loops while preserving the first port face and final outside-anchored face."  Repeating
+the single erasure until no side repeats (induction on the length) gives a sublist with distinct sides,
+the same first side and the same last face. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step2_erase_step2_eraseAll {T S : Type*}
+    (Q : T → Prop) (E : T → S → Prop) :
+    ∀ (n : ℕ) (L : List (T × S)), L.length = n → (∀ w ∈ L, Q w.1 ∧ E w.1 w.2) →
+    L.IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) →
+    ∃ L' : List (T × S), (∀ w ∈ L', Q w.1 ∧ E w.1 w.2) ∧
+      L'.IsChain (fun a b => E a.1 b.2 ∧ a.1 ≠ b.1) ∧ (L'.map Prod.snd).Nodup ∧
+      L'.head?.map Prod.snd = L.head?.map Prod.snd ∧
+      L'.getLast?.map Prod.fst = L.getLast?.map Prod.fst ∧ L'.Sublist L := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro L hn hmem hch
+  by_cases hnd : (L.map Prod.snd).Nodup
+  · exact ⟨L, hmem, hch, hnd, rfl, rfl, List.Sublist.refl _⟩
+  · rw [List.nodup_iff_sublist] at hnd
+    push_neg at hnd
+    obtain ⟨s, hs⟩ := hnd
+    obtain ⟨l', hl', hl'eq⟩ := List.sublist_map_iff.1 hs
+    obtain ⟨x, y, rfl⟩ : ∃ x y, l' = [x, y] := by
+      rcases l' with _ | ⟨x, _ | ⟨y, _ | ⟨w, r⟩⟩⟩ <;> simp at hl'eq
+      exact ⟨x, y, rfl⟩
+    simp only [List.map_cons, List.map_nil, List.cons.injEq, and_true] at hl'eq
+    obtain ⟨r₁, r₂, hL, hx, hr⟩ := List.cons_sublist_iff.1 hl'
+    obtain ⟨A, B₁, rfl⟩ := List.mem_iff_append.1 hx
+    obtain ⟨B₂, C, rfl⟩ := List.mem_iff_append.1 (List.singleton_sublist.1 hr)
+    have hL' : L = A ++ x :: ((B₁ ++ B₂) ++ y :: C) := by rw [hL]; simp
+    subst hL'
+    obtain ⟨L₁, h1, h2, h3, h4, h5, h6⟩ :=
+      existsRoutingAfterPower_step5_discretize_step1_route_step2_erase_step1_eraseOne Q E A (B₁ ++ B₂) C x y
+        (hl'eq.1.symm.trans hl'eq.2) hmem hch
+    obtain ⟨L₂, g1, g2, g3, g4, g5, g6⟩ := ih _ (hn ▸ h6) L₁ rfl h1 h2
+    exact ⟨L₂, g1, g2, g3, g4.trans h3, g5.trans h4, g6.trans h5⟩
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route`: "Erase
 repeated-face loops while preserving the first port face and final outside-anchored face." -/
 private lemma existsRoutingAfterPower_step5_discretize_step1_route_step2_erase
@@ -21065,7 +21166,82 @@ private lemma existsRoutingAfterPower_step5_discretize_step1_route_step2_erase
     (α : Rs.GS.G.P'.Form) (p : Set Pt) (F : PlacedTile Rs.GS.G.mixed) (γ : PolyArc)
     (raw : existsRoutingAfterPower_step5_discretize_step1_route_RawData τ M Rs l hl α p F γ) :
     Nonempty (existsRoutingAfterPower_RouteData τ M Rs l hl α p F γ) := by
-  sorry
+  classical
+  have hmem : ∀ w ∈ raw.tiles.zip raw.sides, w.1 ∈ (Rs.retained l α).children.tiles ∧ HasEdge w.1 w.2 := by
+    intro w hw
+    obtain ⟨k, hk⟩ := List.mem_iff_getElem?.1 hw
+    rw [List.getElem?_zip_eq_some] at hk
+    exact raw.step k _ _ hk.1 hk.2
+  have hch : (raw.tiles.zip raw.sides).IsChain (fun a b => HasEdge a.1 b.2 ∧ a.1 ≠ b.1) := by
+    rw [List.isChain_iff_getElem]
+    intro i hi
+    have ha := List.getElem?_zip_eq_some.1
+      (List.getElem?_eq_getElem (l := raw.tiles.zip raw.sides) (Nat.lt_of_succ_lt hi))
+    have hb := List.getElem?_zip_eq_some.1 (List.getElem?_eq_getElem (l := raw.tiles.zip raw.sides) hi)
+    exact ⟨raw.step_next i _ _ ha.1 hb.2, raw.cross i _ _ ha.1 hb.1⟩
+  obtain ⟨L', h1, h2, h3, h4, h5, h6⟩ :=
+    existsRoutingAfterPower_step5_discretize_step1_route_step2_erase_step2_eraseAll
+      (fun X => X ∈ (Rs.retained l α).children.tiles) HasEdge _ _ rfl hmem hch
+  have hsnd : (raw.tiles.zip raw.sides).map Prod.snd = raw.sides := List.map_snd_zip (by rw [raw.length_eq])
+  have hfst : (raw.tiles.zip raw.sides).map Prod.fst = raw.tiles := List.map_fst_zip (by rw [raw.length_eq])
+  have hhead : (L'.map Prod.snd).head? = some p := by
+    rw [List.head?_map, h4, ← List.head?_map, hsnd, raw.head]
+  have hchain : ∀ (k : ℕ) (a b : PlacedTile Rs.GS.G.mixed × Set Pt), L'[k]? = some a →
+      L'[k + 1]? = some b → HasEdge a.1 b.2 ∧ a.1 ≠ b.1 := by
+    intro k a b ha hb
+    obtain ⟨hk, rfl⟩ := List.getElem?_eq_some_iff.1 ha
+    obtain ⟨hk', rfl⟩ := List.getElem?_eq_some_iff.1 hb
+    exact List.isChain_iff_getElem.1 h2 k hk'
+  have htail : ∀ e ∈ (L'.map Prod.snd).tail, e ∈ raw.sides.tail := by
+    intro e he
+    have hsub : (L'.map Prod.snd).Sublist raw.sides := hsnd ▸ h6.map Prod.snd
+    have hhd := raw.head
+    rcases hl1 : L'.map Prod.snd with _ | ⟨a, r₁⟩
+    · rw [hl1] at he; simp at he
+    · rcases hl2 : raw.sides with _ | ⟨b, r₂⟩
+      · rw [hl2] at hhd; simp at hhd
+      · rw [hl1] at hhead he hsub
+        rw [hl2] at hhd hsub
+        simp only [List.head?_cons, Option.some.injEq] at hhead hhd
+        subst hhead hhd
+        simpa using (List.cons_sublist_cons.1 hsub).subset he
+  refine ⟨⟨L'.map Prod.snd, L'.map Prod.fst, hhead, ?_, ?_, ?_, ?_, ?_, ?_, ?_, h3⟩⟩
+  · simp
+  · rw [List.getLast?_map, h5, ← List.getLast?_map, hfst, raw.last_tile]
+  · intro k X e hX he
+    rw [List.getElem?_map] at hX he
+    rcases hk : L'[k]? with _ | w
+    · rw [hk] at hX; simp at hX
+    · rw [hk] at hX he
+      simp only [Option.map_some, Option.some.injEq] at hX he
+      subst hX he
+      exact h1 w (List.mem_of_getElem? hk)
+  · intro k X e hX he
+    rw [List.getElem?_map] at hX he
+    rcases hk : L'[k]? with _ | a
+    · rw [hk] at hX; simp at hX
+    · rcases hk' : L'[k + 1]? with _ | b
+      · rw [hk'] at he; simp at he
+      · rw [hk] at hX
+        rw [hk'] at he
+        simp only [Option.map_some, Option.some.injEq] at hX he
+        subst hX he
+        exact (hchain k a b hk hk').1
+  · intro k X Y hX hY
+    rw [List.getElem?_map] at hX hY
+    rcases hk : L'[k]? with _ | a
+    · rw [hk] at hX; simp at hX
+    · rcases hk' : L'[k + 1]? with _ | b
+      · rw [hk'] at hY; simp at hY
+      · rw [hk] at hX
+        rw [hk'] at hY
+        simp only [Option.map_some, Option.some.injEq] at hX hY
+        subst hX hY
+        exact (hchain k a b hk hk').2
+  · intro e he
+    exact raw.inner e (htail e he)
+  · intro e he
+    exact raw.near e (htail e he)
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize`: "Finally perturb
 the routes away from the finite original vertices and list their crossed faces.  Consecutive faces

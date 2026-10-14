@@ -1870,6 +1870,41 @@ private lemma reconstructed_header_eq_innerActive_step1_print (c : MacroCertific
     (reconstruct c K h.1).cell i 4 ≠ 0 := by
   sorry
 
+/-- Step 4.2.1 of the blueprint proof of `reconstructed_header_eq_innerActive_step2_nonprint`:
+find the fourth port, a legal child tile, and a legal parent C. -/
+private lemma reconstructed_header_eq_innerActive_step2_nonprint_step1_port_parent
+    (c : MacroCertificate P) (hH : c.Hereditary) (K : ColouredBlock c)
+    (hK : BlockContext c K) (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c K h) (i : c.Side h.1)
+    (hi : c.IsInner (c.occ h.1 i)) (hnp : ¬ c.IsPrint (c.occ h.1 i)) :
+    ∃ o : c.SideOcc, ∃ colC : c.Side h.1 → Fin 5 → U c,
+      c.port (c.form h.1) i 3 = some o ∧
+      headerLegal c (K.tileOf o.1) ∧
+      IsChildOf c ⟨h.1, colC⟩ (K.tileOf o.1) ∧
+      headerLegal c ⟨h.1, colC⟩ ∧
+      o ∈ c.path (c.form h.1) i 3 ∧ ¬ c.IsPrint o := by
+  sorry
+
+/-- Step 4.2.2 of the blueprint proof of `reconstructed_header_eq_innerActive_step2_nonprint`:
+the fourth cell of the parent is non-zero. -/
+private lemma reconstructed_header_eq_innerActive_step2_nonprint_step2_parent_nonzero
+    (c : MacroCertificate P) (hH : c.Hereditary) (C : DecTile c)
+    (hC : headerLegal c C) (i : c.Side C.typ)
+    (hi : c.IsInner (c.occ C.typ i))
+    (hnp : ¬ c.IsPrint (c.occ C.typ i)) : C.cell i 3 ≠ 0 := by
+  sorry
+
+/-- Step 4.2.3 of the blueprint proof of `reconstructed_header_eq_innerActive_step2_nonprint`:
+reconstruct value matches the parent's fourth cell. -/
+private lemma reconstructed_header_eq_innerActive_step2_nonprint_step3_reconstruct_value
+    (c : MacroCertificate P) (K : ColouredBlock c) (h : HeaderKernel.Header c.Typ c.Side)
+    (i : c.Side h.1) (o : c.SideOcc) (colC : c.Side h.1 → Fin 5 → U c)
+    (ho : c.port (c.form h.1) i 3 = some o)
+    (hChild : IsChildOf c ⟨h.1, colC⟩ (K.tileOf o.1))
+    (hPath : o ∈ c.path (c.form h.1) i 3) (hPortNP : ¬ c.IsPrint o) :
+    (reconstruct c K h.1).cell i 3 = colC i 3 := by
+  sorry
+
 /-- Step 4.2 of the blueprint proof of `reconstructed_header_eq_innerActive`:
 for nonprints, the fourth cell is nonzero. -/
 private lemma reconstructed_header_eq_innerActive_step2_nonprint (c : MacroCertificate P)
@@ -1877,7 +1912,12 @@ private lemma reconstructed_header_eq_innerActive_step2_nonprint (c : MacroCerti
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
     (i : c.Side h.1) (hi : c.IsInner (c.occ h.1 i)) (hnp : ¬ c.IsPrint (c.occ h.1 i)) :
     (reconstruct c K h.1).cell i 3 ≠ 0 := by
-  sorry
+  obtain ⟨o, colC, ho, hK_legal, hChild, hC_legal, hPath, hPortNP⟩ :=
+    reconstructed_header_eq_innerActive_step2_nonprint_step1_port_parent c hH K hK h hh i hi hnp
+  have H3 := reconstructed_header_eq_innerActive_step2_nonprint_step3_reconstruct_value c K h i o colC ho hChild hPath hPortNP
+  rw [H3]
+  have H2 := reconstructed_header_eq_innerActive_step2_nonprint_step2_parent_nonzero c hH ⟨h.1, colC⟩ hC_legal i hi hnp
+  exact H2
 
 /-- Step 4 of the blueprint proof of `reconstructed_header_eq`: inner sides are nontrivial. -/
 private lemma reconstructed_header_eq_innerActive (c : MacroCertificate P) (hH : c.Hereditary)

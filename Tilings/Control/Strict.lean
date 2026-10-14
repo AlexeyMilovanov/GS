@@ -2572,6 +2572,47 @@ theorem strict_macroblock_is_decomposition (K : StrictBlock C hC)
   · exact strict_macroblock_is_decomposition_step2_central C hC K hK h hh t ht_owner ht_c
   · exact strict_macroblock_is_decomposition_step1_noncentral C hC K hK h hh t ht_owner ht_c
 
+/-- Step 1 of the blueprint proof of `strict_reconstructed_cyclic_legal`: exact decomposition
+identifies the centre as the central child of the reconstructed parent. -/
+private theorem strict_reconstructed_cyclic_legal_step1_central_child
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h) :
+    IsStrictChildOf C hC (strictReconstruct C hC K h.1) K.centre := by
+  have hex := strict_macroblock_is_decomposition C hC K hK h hh
+  exact hex.2 _ (C.g5_central_owner K.α)
+
+/-- Step 2 of the blueprint proof of `strict_reconstructed_cyclic_legal`: on a marked side,
+the cyclic central child copies the reconstructed parent's first four cells. -/
+private theorem strict_reconstructed_cyclic_legal_step2_marked_first_four
+    (D A : StrictDecTile C hC) (hDA : IsStrictChildOf C hC D A)
+    (hcyc : C.IsCyclic D.typ) (hEq : D.typ = A.typ) :
+    ∀ i : C.Side A.typ, C.marked (C.form A.typ) i → ∀ k : Fin 5, k ≠ 4 →
+      D.cell (Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hEq.symm) i) k =
+        A.cell i k := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `strict_reconstructed_cyclic_legal`: the fifth cell on a
+marked side agrees because it is local on nonprints and the print identity is fixed. -/
+private theorem strict_reconstructed_cyclic_legal_step3_marked_fifth
+    (D A : StrictDecTile C hC) (hDA : IsStrictChildOf C hC D A)
+    (hcyc : C.IsCyclic D.typ) (hEq : D.typ = A.typ)
+    (hDN : IsStrictNormal C hC D) (hAN : IsStrictNormal C hC A) :
+    ∀ i : C.Side A.typ, C.marked (C.form A.typ) i →
+      D.cell (Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hEq.symm) i) 4 =
+        A.cell i 4 := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `strict_reconstructed_cyclic_legal`: every cell on an
+unmarked side is local and therefore is determined by the common type. -/
+private theorem strict_reconstructed_cyclic_legal_step4_unmarked_local
+    (D A : StrictDecTile C hC) (hDA : IsStrictChildOf C hC D A)
+    (hEq : D.typ = A.typ) (hDN : IsStrictNormal C hC D)
+    (hAN : IsStrictNormal C hC A) :
+    ∀ i : C.Side A.typ, ¬ C.marked (C.form A.typ) i → ∀ k : Fin 5,
+      D.cell (Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hEq.symm) i) k =
+        A.cell i k := by
+  sorry
+
 /-- `lem:comp/cyclic-legal` (strict variant): if the centre of the block is legal and the type
 of `D` is cyclic, then `D` is the centre and is legal. -/
 theorem strict_reconstructed_cyclic_legal (K : StrictBlock C hC)
@@ -2579,7 +2620,40 @@ theorem strict_reconstructed_cyclic_legal (K : StrictBlock C hC)
     (hh : StrictCommonHeader C hC K h) (hA : StrictLegal C hC K.centre)
     (hcyc : C.IsCyclic h.1) :
     strictReconstruct C hC K h.1 = K.centre ∧ StrictLegal C hC (strictReconstruct C hC K h.1) := by
-  sorry
+  let D := strictReconstruct C hC K h.1
+  let A := K.centre
+  have hcentral : C.central K.α = h.1 := by
+    rw [← hh.1]
+    exact hcyc
+  have hEq : D.typ = A.typ := hcentral.symm
+  have hDA : IsStrictChildOf C hC D A := by
+    exact strict_reconstructed_cyclic_legal_step1_central_child C hC K hK h hh
+  have hDprops := strict_reconstructed_header_eq C hC K hK h hh
+  have hDN : IsStrictNormal C hC D ∧ IsStrictIdentityCorrect C hC D :=
+    ⟨hDprops.1, hDprops.2.1⟩
+  have hAN : IsStrictNormal C hC A := (strictLegal_properties C hC K.centre hA).2.1
+  have hmarked := strict_reconstructed_cyclic_legal_step2_marked_first_four C hC D A hDA hcyc hEq
+  have hfifth := strict_reconstructed_cyclic_legal_step3_marked_fifth C hC D A hDA hcyc hEq
+    hDN.1 hAN
+  have hunmarked := strict_reconstructed_cyclic_legal_step4_unmarked_local C hC D A hDA hEq
+    hDN.1 hAN
+  have hDA_eq : D = A := by
+    obtain ⟨tD, cD⟩ := D
+    obtain ⟨tA, cA⟩ := A
+    simp only at hEq
+    subst hEq
+    congr
+    funext i k
+    by_cases hm : C.marked (C.form tD) i
+    · by_cases hk : k = 4
+      · subst hk
+        exact hfifth i hm
+      · exact hmarked i hm k hk
+    · exact hunmarked i hm k
+  have hlegD : StrictLegal C hC D := by
+    rw [hDA_eq]
+    exact hA
+  exact ⟨by simpa [D, A] using hDA_eq, by simpa [D] using hlegD⟩
 
 private theorem ncl_identSU_ne_zero (e : C.EdgeId) : identSU C hC e ≠ 0 := by
   intro h; cases h

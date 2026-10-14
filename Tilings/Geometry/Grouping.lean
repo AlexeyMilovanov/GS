@@ -21085,6 +21085,65 @@ private lemma existsRoutingAfterPower_step5_discretize_step1_route (τ : Substit
     hp hF hFo γ hstart hint hH hstop
   exact existsRoutingAfterPower_step5_discretize_step1_route_step2_erase τ M Rs l hl α p F γ raw
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step2_assemble`:
+"No central side is met earlier."  The central child scatters to the inside-anchored group `L`
+(`central_scatter`), and `L ⊆ Q₀ + B∞(D)` lies in the interior of the outside-anchored group
+`H ⊇ Q₁ + B∞(2D)`, which every route avoids. -/
+private lemma existsRoutingAfterPower_step5_discretize_step2_assemble_step1_centralInH
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l)
+    (α : Rs.GS.G.P'.Form) :
+    (Rs.central l α).carrier ⊆ interior (Rs.annulus l α hl).H.carrier := by
+  have hsupp : ∀ X : PlacedTile Rs.GS.G.mixed, support (Rs.GS.G.mixedScatterTile X) = X.carrier := by
+    intro X
+    unfold GroupedFamily.mixedScatterTile
+    rcases X with ⟨f, a⟩
+    rcases f with f_G | f_P
+    · simp [PlacedTile.carrier]
+      rw [existsRoutingAfterPower_step3_entries_step4_scatterInj_support]
+      rw [Rs.GS.G.support_eq f_G]
+    · simp [support, PlacedTile.carrier]
+  have hCL : (Rs.central l α).carrier = (Rs.annulus l α hl).L.carrier := by
+    rw [← hsupp, Rs.central_scatter l α hl, FaceGroup.carrier, (Rs.annulus l α hl).L.carrier_eq]
+  have hD := M.D_pos
+  have hR : 0 ≤ Rs.R α := le_trans (by positivity) (Rs.R_large α)
+  have hN : (0 : ℝ) ≤ (Rs.N α : ℝ) := Nat.cast_nonneg _
+  rw [hCL]
+  refine (Rs.annulus l α hl).L_upper.trans ((existsAnnularSpokes_step1_nest (Rs.centre l α)
+    (a := (Rs.N α : ℝ) * Rs.R α / 2) (r := M.D) (b := (Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α)
+    (s := 2 * M.D) (by linarith) (by positivity) (by linarith)).trans
+    (interior_mono (Rs.annulus l α hl).H_lower))
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step2_assemble`:
+"Every singleton port path remains disjoint from the genuine routes."  The outside-anchored
+group `H ⊆ Q₁ + B∞(3D)` lies in the interior of the retained region, so it is disjoint from
+every outer side (in particular from every port). -/
+private lemma existsRoutingAfterPower_step5_discretize_step2_assemble_step2_HInRegion
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l)
+    (α : Rs.GS.G.P'.Form) :
+    (Rs.annulus l α hl).H.carrier ⊆ interior (Rs.retained l α).region := by
+  have hD := M.D_pos
+  refine (Rs.annulus l α hl).H_upper.trans (Set.Subset.trans ?_ (Rs.annulus_inside l α hl))
+  refine Set.add_subset_add_left ?_
+  intro x hx
+  exact ⟨hx.1.trans (by linarith), hx.2.trans (by linarith)⟩
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step2_assemble`:
+the sides of a path are genuine (nonempty) sides lying on their tiles. -/
+private lemma existsRoutingAfterPower_step5_discretize_step2_assemble_step3_hasEdge
+    {Q : Protoset} {X : PlacedTile Q} {e : Set Pt} (h : HasEdge X e) :
+    e.Nonempty ∧ e ⊆ X.carrier := by
+  obtain ⟨i, rfl⟩ := h
+  refine ⟨?_, tile_side_subset X i⟩
+  rw [tile_side_eq]
+  exact ⟨_, left_mem_segment ℝ _ _⟩
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step2_assemble`:
+the route starts at its port, so the start point lies on the arc (and in its tube). -/
+private lemma existsRoutingAfterPower_step5_discretize_step2_assemble_step4_start
+    (γ : PolyArc) : γ.start ∈ γ.carrier := by
+  refine Set.mem_iUnion.2 ⟨0, ?_⟩
+  exact left_mem_segment ℝ _ _
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize`: "Begin the
 resulting side sequence with the port, end it with the private entry edge, and append the print.
 The entry and print belong to the same small group, hence are consecutive sides of a path in the
@@ -21103,7 +21162,285 @@ private lemma existsRoutingAfterPower_step5_discretize_step2_assemble (τ : Subs
         (entries.face a (routes.perm a i)) (routes.arc a i)) :
     Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
       (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
-  sorry
+  classical
+  -- the substitution hypothesis is only needed for the discretization of the routes (`rd`)
+  have _ := hτ
+  have hEdge := @existsRoutingAfterPower_step5_discretize_step2_assemble_step3_hasEdge
+  have hCH := existsRoutingAfterPower_step5_discretize_step2_assemble_step1_centralInH τ M Rs l hl α
+  have hHR := existsRoutingAfterPower_step5_discretize_step2_assemble_step2_HInRegion τ M Rs l hl α
+  have hHcl : IsClosed (Rs.annulus l α hl).H.carrier := pd_isClosed_carrier _
+  have hRpos : 0 < Rs.R α := lt_of_lt_of_le (by have := M.D_pos; positivity) (Rs.R_large α)
+  -- the entries, prints and neighbours
+  set ent : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → Set Pt :=
+    fun a i => entries.entry a (routes.perm a i) with hent
+  set pr : Fin (Rs.GS.G.P'.disk α).n → Set Pt :=
+    fun a => (Rs.central l α).side (entries.printIdx a) with hpr
+  obtain ⟨PS, hPS⟩ : ∃ PS : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → List (Set Pt),
+      ∀ a (ha : a ∈ Rs.markedSides α) i, PS a i = (rd a ha i).sides ++ [ent a i, pr a] :=
+    ⟨fun a i => if ha : a ∈ Rs.markedSides α then (rd a ha i).sides ++ [ent a i, pr a] else [],
+      fun a ha i => dif_pos ha⟩
+  obtain ⟨PT, hPT⟩ : ∃ PT : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → List (PlacedTile Rs.GS.G.mixed),
+      ∀ a (ha : a ∈ Rs.markedSides α) i, PT a i = (rd a ha i).tiles ++ [entries.neighbour a] :=
+    ⟨fun a i => if ha : a ∈ Rs.markedSides α then (rd a ha i).tiles ++ [entries.neighbour a]
+      else [], fun a ha i => dif_pos ha⟩
+  -- basic geometric facts
+  have port_ne : ∀ a r, (ports.port a r).Nonempty := by
+    intro a r
+    obtain ⟨⟨A, -, j, hj⟩, -⟩ := (ports.outer a r).1
+    exact (hEdge ⟨j, hj⟩).1
+  have port_H : ∀ a r, Disjoint (ports.port a r) (Rs.annulus l α hl).H.carrier := by
+    intro a r
+    rw [Set.disjoint_left]
+    intro x hx hxH
+    have h1 := (ports.outer a r).1.2 hx
+    exact h1.2 (hHR hxH)
+  have ent_H : ∀ a ∈ Rs.markedSides α, ∀ i, ent a i ⊆ (Rs.annulus l α hl).H.carrier := fun a ha i =>
+    ((entries.entry_private a ha _).2.1).trans hHcl.frontier_subset
+  have ent_ne : ∀ a ∈ Rs.markedSides α, ∀ i, (ent a i).Nonempty := fun a ha i =>
+    (hEdge (entries.entry_side a ha _)).1
+  have pr_H : ∀ a, pr a ⊆ (Rs.annulus l α hl).H.carrier := fun a =>
+    ((hEdge ⟨_, rfl⟩).2.trans hCH).trans interior_subset
+  have pr_ne : ∀ a, (pr a).Nonempty := fun a => (hEdge ⟨_, rfl⟩).1
+  have start_tube : ∀ a ∈ Rs.markedSides α, ∀ i,
+      (routes.arc a i).start ∈ Metric.cthickening (2 * M.D) (routes.arc a i).carrier := fun a _ i =>
+    Metric.self_subset_cthickening _
+      (existsRoutingAfterPower_step5_discretize_step2_assemble_step4_start _)
+  -- structure of a route
+  have shape : ∀ a (ha : a ∈ Rs.markedSides α) i, ∃ t,
+      (rd a ha i).sides = ports.port a i.castSucc :: t := by
+    intro a ha i
+    exact List.head?_eq_some_iff.1 (rd a ha i).head
+  have classify : ∀ a (ha : a ∈ Rs.markedSides α) i e, e ∈ (rd a ha i).sides →
+      e = ports.port a i.castSucc ∨ (e ⊆ Metric.cthickening (2 * M.D) (routes.arc a i).carrier ∧
+        (e \ (Rs.annulus l α hl).H.carrier).Nonempty) := by
+    intro a ha i e he
+    obtain ⟨t, ht⟩ := shape a ha i
+    rw [ht, List.mem_cons] at he
+    rcases he with he | he
+    · exact Or.inl he
+    · refine Or.inr ((rd a ha i).near e ?_)
+      rw [ht]; exact he
+  have dropLast_eq : ∀ a (ha : a ∈ Rs.markedSides α) i,
+      (PS a i).dropLast = (rd a ha i).sides ++ [ent a i] := by
+    intro a ha i
+    rw [hPS a ha i, show (rd a ha i).sides ++ [ent a i, pr a] =
+      ((rd a ha i).sides ++ [ent a i]) ++ [pr a] by simp, List.dropLast_concat]
+  have ent_notin : ∀ a (ha : a ∈ Rs.markedSides α) i, ent a i ∉ (rd a ha i).sides := by
+    intro a ha i h
+    rcases classify a ha i _ h with h | ⟨-, x, hx1, hx2⟩
+    · obtain ⟨x, hx⟩ := ent_ne a ha i
+      exact Set.disjoint_left.1 (port_H a i.castSucc) (by rw [← h]; exact hx) (ent_H a ha i hx)
+    · exact hx2 (ent_H a ha i hx1)
+  -- disjointness of the nonterminal parts of two different routes
+  have port_port : ∀ a (ha : a ∈ Rs.markedSides α) (i : Fin 4) b r, (b, r) ≠ (a, i.castSucc) →
+      ports.port b r ≠ ports.port a i.castSucc := by
+    intro a ha i b r hne h
+    exact Set.disjoint_right.1 (routes.tube_ports a ha i b r hne)
+      (h ▸ routes.start_mem a ha i) (start_tube a ha i)
+  have port_tail : ∀ a (ha : a ∈ Rs.markedSides α) (i : Fin 4) b r, (b, r) ≠ (a, i.castSucc) →
+      ¬ ports.port b r ⊆ Metric.cthickening (2 * M.D) (routes.arc a i).carrier := by
+    intro a ha i b r hne h
+    obtain ⟨x, hx⟩ := port_ne b r
+    exact Set.disjoint_right.1 (routes.tube_ports a ha i b r hne) hx (h hx)
+  have castSucc_ne : ∀ (a b : Fin (Rs.GS.G.P'.disk α).n) (i j : Fin 4), (a, i) ≠ (b, j) →
+      (a, i.castSucc) ≠ (b, j.castSucc) := by
+    intro a b i j h h'
+    apply h
+    simp only [Prod.mk.injEq] at h' ⊢
+    exact ⟨h'.1, Fin.castSucc_injective _ h'.2⟩
+  have half : ∀ a (ha : a ∈ Rs.markedSides α) b (hb : b ∈ Rs.markedSides α) i j, (a, i) ≠ (b, j) →
+      ∀ e, e ∈ (rd a ha i).sides → e ∈ (rd b hb j).sides ++ [ent b j] → False := by
+    intro a ha b hb i j hne e he he'
+    rw [List.mem_append, List.mem_singleton] at he'
+    rcases classify a ha i e he with rfl | ⟨h1, h2⟩
+    · rcases he' with he' | he'
+      · rcases classify b hb j _ he' with h | ⟨h1, -⟩
+        · exact port_port b hb j a i.castSucc (castSucc_ne _ _ _ _ hne) h
+        · exact port_tail b hb j a i.castSucc (castSucc_ne _ _ _ _ hne) h1
+      · obtain ⟨x, hx⟩ := ent_ne b hb j
+        exact Set.disjoint_left.1 (port_H a i.castSucc) (by rw [he']; exact hx) (ent_H b hb j hx)
+    · rcases he' with he' | rfl
+      · rcases classify b hb j _ he' with rfl | ⟨h1', -⟩
+        · exact port_tail a ha i b j.castSucc (castSucc_ne _ _ _ _ hne).symm h1
+        · obtain ⟨x, hx, -⟩ := h2
+          exact Set.disjoint_left.1 (routes.tube_disjoint a ha b hb i j hne) (h1 hx) (h1' hx)
+      · obtain ⟨x, hx1, hx2⟩ := h2
+        exact hx2 (ent_H b hb j hx1)
+  have ent_ent : ∀ a (ha : a ∈ Rs.markedSides α) b (hb : b ∈ Rs.markedSides α) i j, (a, i) ≠ (b, j) →
+      ent a i ≠ ent b j := by
+    intro a ha b hb i j hne h
+    have hne' : (a, routes.perm a i) ≠ (b, routes.perm b j) := by
+      intro h'
+      simp only [Prod.mk.injEq] at h'
+      obtain ⟨rfl, h2⟩ := h'
+      exact hne (by rw [(routes.perm a).injective h2])
+    obtain ⟨x, hx⟩ := ent_ne a ha i
+    have := entries.separated a ha b hb _ _ hne' x hx x (show x ∈ ent b j by rw [← h]; exact hx)
+    rw [dist_self] at this
+    linarith
+  -- not a central side
+  have not_central : ∀ a (ha : a ∈ Rs.markedSides α) i e, e ∈ (rd a ha i).sides ++ [ent a i] →
+      ¬ HasEdge (Rs.central l α) e := by
+    intro a ha i e he hC
+    obtain ⟨hne, hsub⟩ := hEdge hC
+    rw [List.mem_append, List.mem_singleton] at he
+    rcases he with he | rfl
+    · rcases classify a ha i e he with rfl | ⟨-, x, hx1, hx2⟩
+      · obtain ⟨x, hx⟩ := hne
+        exact Set.disjoint_left.1 (port_H a i.castSucc) hx (interior_subset (hCH (hsub hx)))
+      · exact hx2 (interior_subset (hCH (hsub hx1)))
+    · obtain ⟨x, hx⟩ := hne
+      exact ((entries.entry_private a ha _).2.1 hx).2 (hCH (hsub hx))
+  have Fne : ∀ a ∈ Rs.markedSides α, ∀ k, entries.face a k ≠ entries.neighbour a := by
+    intro a ha k h
+    obtain ⟨p, hp⟩ := (entries.face_mem a ha k).2
+    obtain ⟨β, hβ⟩ := entries.neighbour_grouped a ha
+    rw [h, hβ] at hp
+    exact Sum.inl_ne_inr hp
+  have mem_PS : ∀ b (hb : b ∈ Rs.markedSides α) (j : Fin 4) e, e ∈ PS b j →
+      e ∈ (rd b hb j).sides ∨ e = ent b j ∨ e = pr b := by
+    intro b hb j e he
+    rw [hPS b hb j] at he
+    simpa [or_assoc] using he
+  refine ⟨{
+    marking := {e | ∃ a ∈ Rs.markedSides α, ∃ i, e ∈ PS a i}
+    port := ports.port
+    printIdx := entries.printIdx
+    pathSides := PS
+    pathTiles := PT
+    central_mem := Rs.central_mem l α
+    port_outer := ports.outer
+    port_injective := ports.injective
+    port_quantile := ports.quantile
+    print_inner := fun a ha => ⟨entries.neighbour a, (entries.neighbour_mem a ha).1, Rs.central l α,
+      Rs.central_mem l α, (entries.neighbour_mem a ha).2, entries.print_edge a ha, ⟨_, rfl⟩⟩
+    print_injOn := entries.print_injOn
+    print_cyclic := entries.print_cyclic
+    print_id := entries.print_id
+    path_head := ?_
+    path_last := ?_
+    path_length := ?_
+    path_step := ?_
+    path_cross := ?_
+    path_last_tile := ?_
+    path_inner := ?_
+    path_marked := fun a ha i e he => ⟨a, ha, i, he⟩
+    path_central := ?_
+    path_nodup := ?_
+    path_disjoint := ?_
+    singleton_disjoint := ?_ }⟩
+  · intro a ha i
+    obtain ⟨t, ht⟩ := shape a ha i
+    rw [hPS a ha i, ht]
+    rfl
+  · intro a ha i
+    rw [hPS a ha i]
+    simp [pr]
+  · intro a ha i
+    rw [hPS a ha i, hPT a ha i]
+    simp [(rd a ha i).length_eq]
+  · intro a ha i k X e e' hX he he'
+    rw [hPT a ha i] at hX
+    rw [hPS a ha i] at he he'
+    have hlen := (rd a ha i).length_eq
+    have hkX := (List.getElem?_eq_some_iff.1 hX).1
+    simp only [List.length_append, List.length_singleton] at hkX
+    by_cases hk : k < (rd a ha i).tiles.length
+    · rw [List.getElem?_append_left hk] at hX
+      rw [List.getElem?_append_left (by omega)] at he
+      obtain ⟨hmem, h1⟩ := (rd a ha i).step k X e hX he
+      refine ⟨hmem, h1, ?_⟩
+      by_cases hk1 : k + 1 < (rd a ha i).sides.length
+      · rw [List.getElem?_append_left hk1] at he'
+        exact (rd a ha i).step_next k X e' hX he'
+      · rw [List.getElem?_append_right (by omega), show k + 1 - (rd a ha i).sides.length = 0 by omega]
+          at he'
+        simp only [List.getElem?_cons_zero, Option.some.injEq] at he'
+        subst he'
+        have hF := (rd a ha i).last_tile
+        rw [List.getLast?_eq_getElem?, show (rd a ha i).tiles.length - 1 = k by omega, hX] at hF
+        cases hF
+        exact entries.face_edge a ha _
+    · have hkn : k = (rd a ha i).tiles.length := by omega
+      subst hkn
+      rw [List.getElem?_append_right (le_refl _), Nat.sub_self] at hX
+      rw [List.getElem?_append_right (by omega), show (rd a ha i).tiles.length -
+        (rd a ha i).sides.length = 0 by omega] at he
+      rw [List.getElem?_append_right (by omega), show (rd a ha i).tiles.length + 1 -
+        (rd a ha i).sides.length = 1 by omega] at he'
+      simp only [List.getElem?_cons_zero, List.getElem?_cons_succ, Option.some.injEq] at hX he he'
+      subst hX he he'
+      exact ⟨(entries.neighbour_mem a ha).1, entries.entry_side a ha _, entries.print_edge a ha⟩
+  · intro a ha i k X Y hX hY
+    rw [hPT a ha i] at hX hY
+    have hkY := (List.getElem?_eq_some_iff.1 hY).1
+    simp only [List.length_append, List.length_singleton] at hkY
+    by_cases hk : k + 1 < (rd a ha i).tiles.length
+    · rw [List.getElem?_append_left hk] at hY
+      rw [List.getElem?_append_left (by omega)] at hX
+      exact (rd a ha i).cross k X Y hX hY
+    · rw [List.getElem?_append_left (by omega)] at hX
+      rw [List.getElem?_append_right (by omega), show k + 1 - (rd a ha i).tiles.length = 0 by omega]
+        at hY
+      simp only [List.getElem?_cons_zero, Option.some.injEq] at hY
+      subst hY
+      have hF := (rd a ha i).last_tile
+      rw [List.getLast?_eq_getElem?, show (rd a ha i).tiles.length - 1 = k by omega, hX] at hF
+      cases hF
+      exact Fne a ha _
+  · intro a ha i X hX
+    rw [hPT a ha i] at hX
+    simp only [List.getLast?_append, List.getLast?_singleton, Option.some_or,
+      Option.some.injEq] at hX
+    subst hX
+    exact (entries.neighbour_mem a ha).2
+  · intro a ha i e he
+    obtain ⟨t, ht⟩ := shape a ha i
+    rw [hPS a ha i, ht] at he
+    simp only [List.cons_append, List.tail_cons, List.mem_append, List.mem_cons,
+      List.not_mem_nil, or_false] at he
+    rcases he with he | rfl | rfl
+    · exact (rd a ha i).inner e (by rw [ht]; exact he)
+    · exact ⟨entries.face a (routes.perm a i), (entries.face_mem a ha _).1, entries.neighbour a,
+        (entries.neighbour_mem a ha).1, Fne a ha _, entries.face_edge a ha _,
+        entries.entry_side a ha _⟩
+    · exact ⟨entries.neighbour a, (entries.neighbour_mem a ha).1, Rs.central l α,
+        Rs.central_mem l α, (entries.neighbour_mem a ha).2, entries.print_edge a ha, ⟨_, rfl⟩⟩
+  · intro a ha i e he
+    rw [dropLast_eq a ha i] at he
+    exact not_central a ha i e he
+  · intro a ha i
+    rw [dropLast_eq a ha i]
+    exact (rd a ha i).nodup.append (List.nodup_singleton _)
+      (List.disjoint_singleton.2 (ent_notin a ha i))
+  · intro a ha b hb i j hne
+    rw [dropLast_eq a ha i, dropLast_eq b hb j]
+    intro e he he'
+    rw [List.mem_append, List.mem_singleton] at he
+    rcases he with he | rfl
+    · exact half a ha b hb i j hne e he he'
+    · rw [List.mem_append, List.mem_singleton] at he'
+      rcases he' with he' | he'
+      · exact half b hb a ha j i (Ne.symm hne) _ he' (List.mem_append_right _ (List.mem_singleton_self _))
+      · exact ent_ent a ha b hb i j hne he'
+  · intro a r hr b hb i hmem
+    have hne : (a, r) ≠ (b, i.castSucc) := by
+      intro h
+      simp only [Prod.mk.injEq] at h
+      rcases hr with hr | rfl
+      · exact hr (h.1 ▸ hb)
+      · have := i.isLt
+        have h2 := congrArg Fin.val h.2
+        simp at h2
+        omega
+    rcases mem_PS b hb i _ hmem with h | h | h
+    · rcases classify b hb i _ h with h | ⟨h1, -⟩
+      · exact port_port b hb i a r hne h
+      · exact port_tail b hb i a r hne h1
+    · obtain ⟨x, hx⟩ := ent_ne b hb i
+      exact Set.disjoint_left.1 (port_H a r) (by rw [h]; exact hx) (ent_H b hb i hx)
+    · obtain ⟨x, hx⟩ := pr_ne b
+      exact Set.disjoint_left.1 (port_H a r) (by rw [h]; exact hx) (pr_H b hx)
 
 /-- Step 5 of the blueprint proof of `existsRoutingAfterPower`: "Finally perturb the routes away
 from the finite original vertices and list their crossed faces ... Begin the resulting side

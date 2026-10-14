@@ -4310,6 +4310,72 @@ private lemma alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
     K.macroSide d = ⋃ o ∈ c.outerList K.α d, K.childSide o := by
   sorry
 
+private lemma trace_surj
+    {α β : Type}
+    {l1 : List α} {l2 : List β}
+    (h_nodup1 : l1.Nodup) (h_nodup2 : l2.Nodup)
+    (f : α → β → Prop)
+    (htrace : ∀ x ∈ l1, ∃ y ∈ l2, f x y)
+    (hf_inj1 : ∀ x x' y, x ∈ l1 → x' ∈ l1 → y ∈ l2 → f x y → f x' y → x = x')
+    (hlen : l2.length ≤ l1.length) :
+    ∀ y ∈ l2, ∃ x ∈ l1, f x y := by
+  have : DecidableEq α := Classical.decEq α
+  have : DecidableEq β := Classical.decEq β
+  intro y hy
+  by_contra h_not
+  push_neg at h_not
+  let S1 : Finset α := l1.toFinset
+  let S2 : Finset β := l2.toFinset
+  have hs1 : S1.card = l1.length := List.toFinset_card_of_nodup h_nodup1
+  have hs2 : S2.card = l2.length := List.toFinset_card_of_nodup h_nodup2
+  have hlen' : S2.card ≤ S1.card := by omega
+  have hex : ∀ x ∈ S1, ∃ y' ∈ S2 \ {y}, f x y' := by
+    intro x hx
+    have hx_mem : x ∈ l1 := List.mem_toFinset.mp hx
+    obtain ⟨y', hy', hf⟩ := htrace x hx_mem
+    have y'_not_y : y' ≠ y := by
+      intro heq
+      subst heq
+      exact h_not x hx_mem hf
+    exact ⟨y', Finset.mem_sdiff.mpr ⟨List.mem_toFinset.mpr hy', by rwa [Finset.mem_singleton]⟩, hf⟩
+  let g : α → β := fun x => if hx : x ∈ S1 then (hex x hx).choose else y
+  have hg_mem : ∀ x ∈ S1, g x ∈ S2 \ {y} := by
+    intro x hx
+    dsimp [g]
+    rw [dif_pos hx]
+    exact (hex x hx).choose_spec.1
+  have hg_f : ∀ x ∈ S1, f x (g x) := by
+    intro x hx
+    dsimp [g]
+    rw [dif_pos hx]
+    exact (hex x hx).choose_spec.2
+  have hg_inj : ∀ x ∈ S1, ∀ x' ∈ S1, g x = g x' → x = x' := by
+    intro x hx x' hx' heq
+    have hf1 := hg_f x hx
+    have hf2 := hg_f x' hx'
+    have hgm := hg_mem x hx
+    rw [heq] at hgm
+    rw [heq] at hf1
+    exact hf_inj1 x x' (g x') (List.mem_toFinset.mp hx) (List.mem_toFinset.mp hx') (List.mem_toFinset.mp (Finset.mem_sdiff.mp hgm).1) hf1 hf2
+  have hinj : Set.InjOn g S1 := hg_inj
+  have hcard1 := Finset.card_image_of_injOn hinj
+  have hcard2 : (Finset.image g S1).card ≤ (S2 \ {y}).card := by
+    apply Finset.card_le_card
+    intro b hb
+    obtain ⟨a, ha, hab⟩ := Finset.mem_image.mp hb
+    rw [← hab]
+    exact hg_mem a ha
+  have hcard3 : (S2 \ {y}).card = S2.card - 1 := by
+    have : (S2 \ {y}).card = S2.card - ({y} : Finset β).card := by
+      apply Finset.card_sdiff_of_subset
+      exact Finset.singleton_subset_iff.mpr (List.mem_toFinset.mpr hy)
+    rw [this, Finset.card_singleton]
+  have h_S2_pos : 0 < S2.card := by
+    apply Finset.card_pos.mpr
+    use y
+    exact List.mem_toFinset.mpr hy
+  omega
+
 /-- Step 2 of the blueprint proof of
 `alignment_complete_step1_macroside_eq_step4_endpoints`: a forward trace of
 the ordered outer-side lists, together with the non-longer bound, is also
@@ -4327,7 +4393,28 @@ private lemma alignment_complete_step1_macroside_eq_step4_endpoints_step2_trace_
       K'.childSide o' = K.childSide o ∧
       c.rankIn K'.α e o' = c.rankIn K.α d o ∧
       K'.col o'.1 o'.2 3 = K.col o.1 o.2 3 := by
-  sorry
+  have h_surj := trace_surj (c.g3_outerList_nodup K.α d) (c.g3_outerList_nodup K'.α e)
+    (fun o o' => K'.childSide o' = K.childSide o ∧ c.rankIn K'.α e o' = c.rankIn K.α d o ∧ K'.col o'.1 o'.2 3 = K.col o.1 o.2 3)
+    htrace
+    (by
+      intro o1 o2 o' h_o1 h_o2 h_o' h1 h2
+      have _ := h_o2
+      have _ := h_o'
+      have _ := h1.1
+      have _ := h1.2.2
+      have _ := h2.1
+      have _ := h2.2.2
+      have h_rank : c.rankIn K.α d o1 = c.rankIn K.α d o2 := by
+        rw [← h1.2.1, h2.2.1]
+      unfold MacroData.rankIn at h_rank
+      have eq : (c.outerList K.α d).idxOf o1 + 1 = (c.outerList K.α d).idxOf o2 + 1 := h_rank
+      have eq2 : (c.outerList K.α d).idxOf o1 = (c.outerList K.α d).idxOf o2 := by omega
+      have heq : @List.idxOf c.SideOcc (@instBEqOfDecidableEq c.SideOcc fun a b => a.instDecidableEqSigma b) o1 (c.outerList K.α d) =
+                 @List.idxOf c.SideOcc (@instBEqOfDecidableEq c.SideOcc fun a b => a.instDecidableEqSigma b) o2 (c.outerList K.α d) := eq2
+      exact (List.idxOf_inj h_o1).mp heq
+    )
+    hlen
+  exact h_surj
 
 /-- Step 4 of the blueprint proof of `alignment_complete_step1_macroside_eq`:
  Once the trace is fixed and the opposing side is not longer, coverage and

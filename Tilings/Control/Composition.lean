@@ -7150,7 +7150,31 @@ private lemma lift_hierarchy_step2_proper_step1_inner_step2_match_in_blk (c : Ma
     (hblk_proper : IsProperRealization c blk) :
     ∃ Y ∈ blk.tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
       sideOf c Y j = sideOf c X i ∧ ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
-  sorry
+  have _ := hH
+  have _ := hsts
+  have _ := herase
+  have _ := hexact
+  have _ := hleg
+  have _ := hX
+  have _ := Z
+  have _ := hblk_exact
+  change ∃ t, c.owner t = blk.α ∧ X = blk.placed t at hX_in_blk
+  obtain ⟨t, ht, hXt⟩ := hX_in_blk
+  subst X
+  obtain ⟨t', j, ht', htt', hside, hcell⟩ :=
+    hblk_proper t i ht hInner hNontriv
+  refine ⟨blk.placed t', ?_, ?_, j, ?_, ?_⟩
+  · change ∃ t, c.owner t = blk.α ∧ blk.placed t' = blk.placed t
+    exact ⟨t', ht', rfl⟩
+  · intro hYeq
+    apply htt'
+    have hplaced : blk.placed t' = blk.placed t := hYeq
+    simpa [ColouredBlock.placed, ColouredBlock.tileOf, tileDec] using
+      congrArg (fun Y : PlacedTile (typedDecoration c) => (tileDec Y).typ) hplaced
+  · simpa [sideOf, ColouredBlock.placed, ColouredBlock.tileOf,
+      ColouredBlock.childSide] using hside
+  · intro k
+    exact hcell k
 
 /-- Step 2.1.3 of the blueprint proof of `lift_hierarchy_step2_proper_step1_inner`: 
 We map the match `Y` back to `(seq' 0).tiles`. -/

@@ -4928,7 +4928,25 @@ private lemma alignment_complete_step2_subdivision_eq_step1_length_step2_not_sho
     (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
     (c.outerList (part.block j).α d).length ≤
       (c.outerList (part.block j').α e).length := by
-  sorry
+  have _ := hH; have _ := hT; have _ := hL; have _ := hneq; have _ := hrank; have _ := hmode
+  have _ := hmacro
+  cases hl1 : (c.outerList (part.block j).α d).length with
+  | zero =>
+    omega
+  | succ m =>
+    have hm : m < (c.outerList (part.block j).α d).length := by omega
+    set o := (c.outerList (part.block j).α d)[m]
+    have ho : o ∈ c.outerList (part.block j).α d := List.getElem_mem hm
+    obtain ⟨o', ho', _, hrank_eq, _⟩ := htrace o ho
+    have h1 : c.rankIn (part.block j).α d o = m + 1 := by
+      unfold MacroData.rankIn
+      rw [List.Nodup.idxOf_getElem (c.g3_outerList_nodup _ _)]
+    have h2 : c.rankIn (part.block j').α e o' = (c.outerList (part.block j').α e).idxOf o' + 1 := rfl
+    rw [h1, h2] at hrank_eq
+    have h3 : (c.outerList (part.block j').α e).idxOf o' = m := by omega
+    have h4 : (c.outerList (part.block j').α e).idxOf o' < (c.outerList (part.block j').α e).length :=
+      List.idxOf_lt_length_iff.mpr ho'
+    omega
 
 /-- Step 3 of the blueprint proof of
 `alignment_complete_step2_subdivision_eq_step1_length`: Once one opposing side has

@@ -110,6 +110,30 @@ private lemma sts_hierarchical_of_strict_proper_step1_seq {P : Protoset} {τ : S
 /-- Step 2 of the blueprint proof of `sts_hierarchical_of_strict_proper`: at each step
 insert the original levels, which are STS by schedule alignment, yielding an infinite original
 STS hierarchy. -/
+private lemma sts_hierarchical_of_strict_proper_step2_sts_step1_macro
+    {P : Protoset} {τ : Substitution P} (hτ : τ.STS)
+    (Sys : StrictScheduleSystem τ)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles))
+    (seq : ℕ → PlaneTiling Sys.dec.P')
+    (hproper : ∀ n, Sys.dec.Proper (seq n))
+    (h_comp : ∀ n, Sys.σc.IsComposition (seq (n + 1)) (seq n)) :
+    ∃ O : ℕ → PlaneTiling P,
+      (∀ n, (O n).tiles = Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq n)).tiles) ∧
+      (∀ n, τ.decomposeIter Sys.GS.k (O (n + 1)).tiles = (O n).tiles) ∧
+      (∀ n, (O n).SideToSide) ∧
+      (∀ n j, j ≤ Sys.GS.k → SideToSideSet (τ.decomposeIter j (O (n + 1)).tiles)) := by
+  sorry
+
+private lemma sts_hierarchical_of_strict_proper_step2_sts_step2_interleave
+    {P : Protoset} {τ : Substitution P} {k : ℕ} (hk : 0 < k)
+    (O : ℕ → PlaneTiling P)
+    (hcomp : ∀ n, τ.decomposeIter k (O (n + 1)).tiles = (O n).tiles)
+    (hint : ∀ n j, j ≤ k → SideToSideSet
+      (τ.decomposeIter j (O (n + 1)).tiles)) {S : PlaneTiling P}
+    (hS : S.tiles = (O 0).tiles) :
+    τ.IsSideToSideHierarchical S := by
+  sorry
+
 private lemma sts_hierarchical_of_strict_proper_step2_sts {P : Protoset} {τ : Substitution P}
     (hτ : τ.STS) (Sys : StrictScheduleSystem τ)
     (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles))
@@ -117,7 +141,11 @@ private lemma sts_hierarchical_of_strict_proper_step2_sts {P : Protoset} {τ : S
     (h_comp : ∀ n, Sys.σc.IsComposition (seq (n + 1)) (seq n)) {S : PlaneTiling P}
     (hS : S.tiles = Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq 0)).tiles) :
     τ.IsSideToSideHierarchical S := by
-  sorry
+  obtain ⟨O, hO_eq, hcomp, hsts, hint⟩ :=
+    sts_hierarchical_of_strict_proper_step2_sts_step1_macro hτ Sys hΔ seq h_proper h_comp
+  have hS_eq : S.tiles = (O 0).tiles := by
+    rw [hS, hO_eq 0]
+  exact sts_hierarchical_of_strict_proper_step2_sts_step2_interleave Sys.GS.k_pos O hcomp hint hS_eq
 
 /-- `lem:strict-sound` (soundness half of `thm:sts-stshierarchy`): the
 scattering of the projection of a proper strict coloured plane tiling is a

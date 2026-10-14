@@ -4615,7 +4615,107 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s2s2 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have _ := hi
+  have _ := hj
+  right
+  set A := (N : ℝ) * R / 2
+  have hA_pos : 0 < A := by
+    dsimp [A]
+    positivity
+
+  have hi_t1 : ¬((i : ℝ) * R ≤ 2 * A) := by
+    push_neg
+    dsimp [A]
+    calc
+      (i : ℝ) * R > 2 * (N : ℝ) * R := by
+        have : 2 * (N : ℝ) < (i : ℝ) := by exact_mod_cast hi2.1
+        nlinarith
+      _ = 4 * ((N : ℝ) * R / 2) := by ring
+      _ ≥ 2 * ((N : ℝ) * R / 2) := by
+        have : 0 ≤ (N : ℝ) * R / 2 := by positivity
+        linarith
+
+  have hi_t2 : ¬((i : ℝ) * R ≤ 4 * A) := by
+    push_neg
+    dsimp [A]
+    calc
+      (i : ℝ) * R > 2 * (N : ℝ) * R := by
+        have : 2 * (N : ℝ) < (i : ℝ) := by exact_mod_cast hi2.1
+        nlinarith
+      _ = 4 * ((N : ℝ) * R / 2) := by ring
+
+  have hi_t3 : ((i : ℝ) * R ≤ 6 * A) := by
+    dsimp [A]
+    calc
+      (i : ℝ) * R ≤ 3 * (N : ℝ) * R := by
+        have : (i : ℝ) ≤ 3 * (N : ℝ) := by exact_mod_cast hi2.2
+        nlinarith
+      _ = 6 * ((N : ℝ) * R / 2) := by ring
+
+  have hj_t1 : ¬((j : ℝ) * R ≤ 2 * A) := by
+    push_neg
+    dsimp [A]
+    calc
+      (j : ℝ) * R > 2 * (N : ℝ) * R := by
+        have : 2 * (N : ℝ) < (j : ℝ) := by exact_mod_cast hj2.1
+        nlinarith
+      _ = 4 * ((N : ℝ) * R / 2) := by ring
+      _ ≥ 2 * ((N : ℝ) * R / 2) := by
+        have : 0 ≤ (N : ℝ) * R / 2 := by positivity
+        linarith
+
+  have hj_t2 : ¬((j : ℝ) * R ≤ 4 * A) := by
+    push_neg
+    dsimp [A]
+    calc
+      (j : ℝ) * R > 2 * (N : ℝ) * R := by
+        have : 2 * (N : ℝ) < (j : ℝ) := by exact_mod_cast hj2.1
+        nlinarith
+      _ = 4 * ((N : ℝ) * R / 2) := by ring
+
+  have hj_t3 : ((j : ℝ) * R ≤ 6 * A) := by
+    dsimp [A]
+    calc
+      (j : ℝ) * R ≤ 3 * (N : ℝ) * R := by
+        have : (j : ℝ) ≤ 3 * (N : ℝ) := by exact_mod_cast hj2.2
+        nlinarith
+      _ = 6 * ((N : ℝ) * R / 2) := by ring
+
+  have hi_eq : existsAnnularSpokes_pos A ((i : ℝ) * R) =
+      mkPt (-A) (A - ((i : ℝ) * R - 4 * A)) := by
+    unfold existsAnnularSpokes_pos
+    rw [if_neg hi_t1, if_neg hi_t2, if_pos hi_t3]
+
+  have hj_eq : existsAnnularSpokes_pos A ((j : ℝ) * R) =
+      mkPt (-A) (A - ((j : ℝ) * R - 4 * A)) := by
+    unfold existsAnnularSpokes_pos
+    rw [if_neg hj_t1, if_neg hj_t2, if_pos hj_t3]
+
+  rw [hi_eq, hj_eq]
+  dsimp [jcr, mkPt]
+
+  have H1 : (-A) * (A - ((j : ℝ) * R - 4 * A)) -
+      (A - ((i : ℝ) * R - 4 * A)) * (-A) =
+      A * R * ((j : ℝ) - (i : ℝ)) := by
+    ring
+
+  rw [H1]
+
+  have H2 : (1 : ℝ) ≤ (j : ℝ) - (i : ℝ) := by
+    have : i + 1 ≤ j := by omega
+    have : (i : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast this
+    linarith
+
+  have H3 : A * R ≤ A * R * ((j : ℝ) - (i : ℝ)) := by
+    have h1 : 0 ≤ A * R := by positivity
+    nlinarith
+
+  have H4 : 0 ≤ A * R * ((j : ℝ) - (i : ℝ)) := by
+    have : 0 ≤ A * R := by positivity
+    nlinarith
+
+  rw [abs_of_nonneg H4]
+  exact H3
 
 /-- Step 1d of the blueprint proof: two marks on the fourth straight side. -/
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s3s3 {N : ℕ} {R : ℝ}

@@ -5031,6 +5031,96 @@ private lemma composed_proper_step1_reconstruction (c : MacroCertificate P) (hH 
   · intro j
     exact ⟨X j, mem_range_self j, (smul_inv_smul₀ hθ _).symm, hd j, hhd j, rfl⟩
 
+/-- The block context of every block of a macro-partition of a proper legal tiling (the argument
+of `reconstructed_acyclic_legal_step1_block_context`, without the unused exact composition). -/
+private lemma macroPartition_block_context (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T)
+    (j : part.ι) : BlockContext c (part.block j) := by
+  let K := part.block j
+  have hmem : ∀ t, c.owner t = K.α → K.placed t ∈ T.tiles := by
+    intro t ht
+    rw [← part.cover]
+    exact Set.mem_iUnion.2 ⟨j, ⟨t, ht, rfl⟩⟩
+  have hprops : ∀ X ∈ T.tiles,
+      IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+        InnerActive c (tileDec X) := by
+    intro X hX
+    have hlegal := hL X hX
+    exact ⟨(headerLegal_properties_step2_normal_id c hH (tileDec X) hlegal).1,
+      (headerLegal_properties_step2_normal_id c hH (tileDec X) hlegal).2,
+      headerLegal_properties_step6_inner c hH (tileDec X) hlegal⟩
+  constructor
+  · intro t i ht hi hnon
+    have hX : K.placed t ∈ T.tiles := hmem t ht
+    have hXactive : IsNontrivial c (tileDec (K.placed t)) i := by
+      exact hnon
+    obtain ⟨Y, hY, hYX, l, hside, hcell⟩ := hT (K.placed t) hX i hXactive
+    have hmatch := asm_match c
+      ⟨(hprops _ hX).1, (hprops _ hX).2.1⟩
+      ⟨(hprops _ hY).1, (hprops _ hY).2.1⟩ i l hi hcell
+    obtain ⟨hinner, hedge⟩ := hmatch
+    let p : c.SideOcc := c.partner (c.occ t i)
+    obtain ⟨hpne, hpowner, hpside⟩ := c.g1_partner _ hi
+    rcases c.g1_edge_unique _ _ hi hinner hedge.symm with hsame | hpartner_eq
+    · have hside' : asmSide c Y.anchor (c.occ (tileDec Y).typ l) =
+          asmSide c (K.placed t).anchor (c.occ t i) := hside
+      rw [hsame] at hside'
+      have hanchor := asm_side_cancel c hside'
+      exfalso
+      exact hYX (asm_tile_unique c T hY hX (congrArg Sigma.fst hsame) hanchor)
+    · let s : c.Typ := (tileDec Y).typ
+      have hs : (tileDec Y).typ = s := rfl
+      change c.Side s at l
+      have hsp : s = p.1 := hs.symm.trans (congrArg Sigma.fst hpartner_eq)
+      have hsowner : c.owner s = K.α := by
+        rw [hsp, hpowner, ht]
+      have hownerY : c.owner (tileDec Y).typ = K.α := by
+        rw [hs, hsowner]
+      have hsne : s ≠ t := by
+        intro hst
+        exact hpne (hsp.symm.trans (hs.trans hst))
+      refine ⟨(tileDec Y).typ, l, hownerY, hsne, ?_, ?_⟩
+      · unfold ColouredBlock.childSide
+        rw [← vadd_vadd, ← vadd_vadd]
+        change K.v +ᵥ c.occSide (c.occ (tileDec Y).typ l) =
+          K.v +ᵥ c.occSide (c.occ t i)
+        rw [hpartner_eq, hpside]
+      · have hanchor : Y.anchor = (K.placed t).anchor - c.anchor t + c.anchor p.1 := by
+          have hside' : asmSide c Y.anchor (c.occ (tileDec Y).typ l) =
+              asmSide c (K.placed t).anchor (c.occ t i) := hside
+          rw [hpartner_eq] at hside'
+          have hside_partner' : asmSide c (c.anchor p.1) p =
+              asmSide c (c.anchor t) (c.occ t i) := hpside
+          apply asm_side_cancel c (o := p)
+          rw [hside']
+          unfold asmSide at hside_partner' ⊢
+          rw [← vadd_vadd, hside_partner', vadd_vadd, sub_add_cancel]
+        have hY' : K.placed (tileDec Y).typ ∈ T.tiles := hmem _ hownerY
+        have hYeq : Y = K.placed (tileDec Y).typ := by
+          apply asm_tile_unique c T hY hY'
+          · rfl
+          · change Y.anchor = K.v + c.anchor (tileDec Y).typ
+            have hps : p.1 = (tileDec Y).typ := hsp.symm.trans hs.symm
+            rw [hanchor, hps]
+            change (K.v + c.anchor t) - c.anchor t + c.anchor (tileDec Y).typ = _
+            rw [add_sub_cancel_right]
+        intro k
+        have hform : tileDec Y = K.tileOf (tileDec Y).typ :=
+          congrArg PlacedTile.form hYeq
+        have hcell' : (K.tileOf (tileDec Y).typ).cell l k =
+            (tileDec (K.placed t)).cell i k := by
+          have hform' := congrArg (decTileEquiv c) hform
+          change (⟨(tileDec Y).typ, (tileDec Y).cell⟩ :
+            Σ t, c.Side t → Fin 5 → U c) =
+            ⟨(tileDec Y).typ, (K.tileOf (tileDec Y).typ).cell⟩ at hform'
+          have hcells : (tileDec Y).cell = (K.tileOf (tileDec Y).typ).cell :=
+            eq_of_heq (Sigma.mk.inj hform').2
+          exact (congrFun (congrFun hcells l) k).symm.trans (hcell k)
+        exact hcell'
+  · intro t ht htc
+    apply hL (K.placed t) (hmem t ht)
+
 /-- Step 2 of the blueprint proof of `composed_proper`: exact repaired decomposition follows
 block by block. -/
 private lemma composed_proper_step2_exact (c : MacroCertificate P) (hH : c.Hereditary)
@@ -5038,8 +5128,53 @@ private lemma composed_proper_step2_exact (c : MacroCertificate P) (hH : c.Hered
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T)
     (T' : PlaneTiling (typedDecoration c)) (hrec : IsReconstruction c part T') :
     IsExactComposition c T' T := by
-  have _ := hH; have _ := hT; have _ := hL; have _ := hrec
-  sorry
+  classical
+  choose j hjv h hjh hX using hrec.1
+  refine ⟨fun X ↦ part.block (j X.1 X.2), ?_, ?_⟩
+  · intro X
+    refine ⟨?_, hjv X.1 X.2⟩
+    rw [hX X.1 X.2]
+    exact macroblock_is_decomposition c hH _
+      (macroPartition_block_context c hH T hT hL part _) _ (hjh X.1 X.2)
+  · apply Set.Subset.antisymm
+    · intro X hXT
+      rw [← part.cover] at hXT
+      obtain ⟨k, hk⟩ := Set.mem_iUnion.1 hXT
+      obtain ⟨Y, hYT, hkv, h', hkh', hY⟩ := hrec.2 k
+      have hformk : c.form (tileDec Y).typ = (part.block k).α := by
+        rw [hY]
+        exact hkh'.1
+      have hformj : c.form (tileDec Y).typ = (part.block (j Y hYT)).α := by
+        rw [hX Y hYT]
+        exact (hjh Y hYT).1
+      have hα : (part.block k).α = (part.block (j Y hYT)).α := hformk.symm.trans hformj
+      have hv : (part.block k).v = (part.block (j Y hYT)).v :=
+        hkv.trans (hjv Y hYT).symm
+      have hjk : k = j Y hYT := by
+        by_contra hne
+        let t := c.central (part.block k).α
+        have ht : c.owner t = (part.block k).α := c.g5_central_owner _
+        have ht' : c.owner t = (part.block (j Y hYT)).α := ht.trans hα
+        have hA : (part.block k).placed t ∈ T.tiles := by
+          rw [← part.cover]
+          exact Set.mem_iUnion.2 ⟨k, t, ht, rfl⟩
+        have hB : (part.block (j Y hYT)).placed t ∈ T.tiles := by
+          rw [← part.cover]
+          exact Set.mem_iUnion.2 ⟨j Y hYT, t, ht', rfl⟩
+        have heq : (part.block k).placed t = (part.block (j Y hYT)).placed t := by
+          apply asm_tile_unique c T hA hB
+          · rfl
+          · change (part.block k).v + c.anchor t =
+              (part.block (j Y hYT)).v + c.anchor t
+            rw [hv]
+        exact Set.disjoint_left.1 (part.disjoint hne) ⟨t, ht, rfl⟩
+          (heq ▸ ⟨t, ht', rfl⟩)
+      refine Set.mem_iUnion.2 ⟨⟨Y, hYT⟩, ?_⟩
+      simpa [hjk] using hk
+    · intro X hXU
+      obtain ⟨Y, hY⟩ := Set.mem_iUnion.1 hXU
+      rw [← part.cover]
+      exact Set.mem_iUnion.2 ⟨j Y.1 Y.2, hY⟩
 
 /-- Step 3 of the blueprint proof of `composed_proper`: normality, identity-correctness,
 and activity of inner sides. -/

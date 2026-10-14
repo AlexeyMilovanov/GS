@@ -17324,12 +17324,51 @@ def IsOuter (e : Set Pt) : Prop :=
 
 end Template
 
-/-- `f` preserves cyclic order on `s` up to a rotation of the target and up
-to a global reversal of orientation (polygonal disks carry no orientation in
-`Basic.lean`). -/
+/-- `f` preserves the cyclic order of indices on `s`, without reversal: exactly the index
+clause `CycLt3 a b e → CycLt3 (f a) (f b) (f e)` of (G4) (`print_cyclic` of
+`MacroCertificate`).  Polygonal disks carry no orientation in `Basic.lean`, so this index
+clause says nothing about the planar order; the planar order is `PhysicalPrintOrder`, and the
+two together force the parent disk and the central disk to be listed in the same rotational
+sense (the certificate construction lists all grouped disks counterclockwise).  (Audit of
+14 October 2026: the earlier version also allowed a global reversal, which (G4) forbids.) -/
 def CyclicOrderPreservingOn {n m : ℕ} (s : Finset (Fin n)) (f : Fin n → Fin m) : Prop :=
-  ∃ r : ℕ, StrictMonoOn (fun a : Fin n => ((f a : ℕ) + r) % m) (s : Set (Fin n)) ∨
-    StrictAntiOn (fun a : Fin n => ((f a : ℕ) + r) % m) (s : Set (Fin n))
+  ∀ a ∈ s, ∀ b ∈ s, ∀ e ∈ s, CycLt3 a b e → CycLt3 (f a) (f b) (f e)
+
+/-- The midpoint of the `i`-th listed side of a polygonal disk. -/
+def diskSideMid (B : PolygonalDisk) (i : Fin B.n) : Pt :=
+  midpoint ℝ (B.vertex i) (B.vertex (finRotate B.n i))
+
+/-- Planar (physical) matching order of the prints (`lem:routing`, audit of 14 October 2026):
+the midpoints of the marked parent sides `s • side a`, taken in increasing index order, and the
+midpoints of their prints `central.side (f a)` lie in matching cyclic order on the two boundary
+curves of the annulus `region \ int central` (`MatchingCyclicOrder`).  Disjoint annular routes
+preserve planar cyclic order (`existsAnnularSpokes_step5_crosscuts`), so without this clause a
+print assignment in reversed planar order (possible with at least three marked sides) admits no
+routing. -/
+def PhysicalPrintOrder {Q : Protoset} (region : Set Pt) (par : PolygonalDisk) (s : ℝ)
+    (central : PlacedTile Q) (marked : Finset (Fin par.n))
+    (f : Fin par.n → Fin (Q.disk central.form).n) : Prop :=
+  MatchingCyclicOrder (region \ interior central.carrier) (frontier region)
+    (frontier central.carrier)
+    (fun k => s • diskSideMid par (marked.orderEmbOfFin rfl k))
+    (fun k => central.anchor +ᵥ diskSideMid (Q.disk central.form) (f (marked.orderEmbOfFin rfl k)))
+
+/-- The canonical global positive orientation of directions: lexicographically positive.  It is
+an admissible `MacroData.IsPositive` (one of `v`, `-v` is positive for `v ≠ 0`, and positivity is
+invariant under positive scaling); the certificate construction uses it, so that the port ranks
+of the routing (`QuantilePorts`) are the ranks of (G3). -/
+def LexPositive (v : Pt) : Prop := 0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)
+
+/-- The ports of the parent side `a` are the sixth-quantiles of (G3) (`MacroData.port`): the
+whole outer sides of `T` contained in the scaled side `s • par.side a`, listed without
+repetition in the `LexPositive` direction, and port `r` is the entry of one-based position
+`portRank L r` of this list of length `L`.  (Audit of 14 October 2026: arbitrary separated outer
+ports cannot be converted into the ports `MacroData.port` of the certificate.) -/
+def QuantilePorts {Q : Protoset} (T : Template Q) (par : PolygonalDisk) (s : ℝ)
+    (port : Fin par.n → Fin 5 → Set Pt) : Prop :=
+  ∀ a, ∃ L : List (Set Pt), (∀ e, e ∈ L ↔ T.IsOuter e ∧ e ⊆ s • par.side a) ∧ L.Nodup ∧
+    L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+    ∀ r, L[MacroData.portRank L.length r - 1]? = some (port a r)
 
 /-- Routing data (G4) for one template `T` of a parent disk `par` scaled by
 `s`, with central child `central` and marked parent sides `marked`.  For a
@@ -17346,9 +17385,14 @@ structure RoutingData {Q : Protoset} (T : Template Q) (par : PolygonalDisk) (s :
   central_mem : central ∈ T.children.tiles
   port_outer : ∀ a r, T.IsOuter (port a r) ∧ port a r ⊆ s • par.side a
   port_injective : ∀ a, Function.Injective (port a)
+  /-- the ports are the (G3) sixth-quantiles of the `LexPositive`-ordered outer side lists -/
+  port_quantile : QuantilePorts T par s port
   print_inner : ∀ a ∈ marked, T.IsInner (central.side (printIdx a))
   print_injOn : Set.InjOn printIdx (marked : Set (Fin par.n))
   print_cyclic : CyclicOrderPreservingOn marked printIdx
+  /-- identity prints when the central child has the parent's own disk (the retained large
+  forms of (G5), `central (α) = α`; the certificate gives distinct forms distinct disks) -/
+  print_id : Q.disk central.form = par → ∀ a ∈ marked, (printIdx a : ℕ) = a
   path_head : ∀ a ∈ marked, ∀ i : Fin 4, (pathSides a i).head? = some (port a i.castSucc)
   path_last : ∀ a ∈ marked, ∀ i : Fin 4,
     (pathSides a i).getLast? = some (central.side (printIdx a))
@@ -17383,7 +17427,8 @@ retained, all other groups scattered), together with the properties the
 grouping construction guarantees: uniform normalized clearance of the central
 child, at least four private outer edges of every small neighbour, and an
 injective cyclically ordered choice of print slots on distinct small
-neighbours. -/
+neighbours, in planar matching order with the marked parent sides (`PhysicalPrintOrder`) and
+equal to the identity when the central child has the parent's disk (G5). -/
 structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
   GS : GroupedSubstitution τ
   c : GS.G.P'.Form → GS.G.P'.Form
@@ -17444,6 +17489,9 @@ structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
     (g : Fin (GS.G.P'.disk α).n → PlacedTile GS.G.mixed),
     Set.InjOn f (markedSides α : Set _) ∧ Set.InjOn g (markedSides α : Set _) ∧
     CyclicOrderPreservingOn (markedSides α) f ∧
+    PhysicalPrintOrder (retained l α).region (GS.G.P'.disk α) (τ.θ ^ (GS.k * l)) (central l α)
+      (markedSides α) f ∧
+    (GS.G.mixed.disk (central l α).form = GS.G.P'.disk α → ∀ a ∈ markedSides α, (f a : ℕ) = a) ∧
     ∀ a ∈ markedSides α, g a ∈ (retained l α).children.tiles ∧ g a ≠ central l α ∧
       HasEdge (g a) ((central l α).side (f a))
 
@@ -17464,6 +17512,8 @@ private structure existsRoutingAfterPower_PortData (τ : Substitution P) (M : Me
     cp * τ.θ ^ (Rs.GS.k * l) ≤ dist _x _y
   corner : ∀ _a _r (_i : Fin (Rs.GS.G.P'.disk α).n), ∀ _x ∈ port _a _r,
     cp * τ.θ ^ (Rs.GS.k * l) ≤ dist _x ((τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).vertex _i)
+  /-- the ports are the sixth-quantiles `⌈iL/6⌉` of the ordered outer side lists (G3) -/
+  quantile : QuantilePorts (Rs.retained l α) (Rs.GS.G.P'.disk α) (τ.θ ^ (Rs.GS.k * l)) port
 
 /-- The entrances of Step 3 of `lem:routing` for the retained template of `α` at the power
 `l > 0`: for every marked side `a`, its print slot `printIdx a` on the central child, the print
@@ -17471,7 +17521,8 @@ neighbour `neighbour a` (a retained annular group, the child scattering to the a
 `piece a`), and four of its private outer edges `entry a i` in the windows of
 `RoutingSetup.windows`, each with its outside-anchored original face `face a i` and a point
 `point a i` of that face outside `K₁ = Q₁ + B∞(3D)`.  All entrances of all marked sides are
-pairwise at distance at least `R / 10`. -/
+pairwise at distance at least `R / 10`.  The prints are in planar matching order with the marked
+parent sides (`print_order`, from `RoutingSetup.print_slots`). -/
 private structure existsRoutingAfterPower_EntryData (τ : Substitution P) (M : MeshConstants P)
     (Rs : RoutingSetup τ M) (l : ℕ) (α : Rs.GS.G.P'.Form) (hl : 0 < l) where
   printIdx : Fin (Rs.GS.G.P'.disk α).n → Fin (Rs.GS.G.mixed.disk (Rs.central l α).form).n
@@ -17482,6 +17533,11 @@ private structure existsRoutingAfterPower_EntryData (τ : Substitution P) (M : M
   point : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → Pt
   print_injOn : Set.InjOn printIdx (Rs.markedSides α : Set _)
   print_cyclic : CyclicOrderPreservingOn (Rs.markedSides α) printIdx
+  /-- the prints are in planar matching order with the marked parent sides -/
+  print_order : PhysicalPrintOrder (Rs.retained l α).region (Rs.GS.G.P'.disk α)
+    (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α) printIdx
+  print_id : Rs.GS.G.mixed.disk (Rs.central l α).form = Rs.GS.G.P'.disk α →
+    ∀ _a ∈ Rs.markedSides α, (printIdx _a : ℕ) = _a
   neighbour_mem : ∀ _a ∈ Rs.markedSides α,
     neighbour _a ∈ (Rs.retained l α).children.tiles ∧ neighbour _a ≠ Rs.central l α
   neighbour_injOn : Set.InjOn neighbour (Rs.markedSides α : Set _)
@@ -17629,7 +17685,7 @@ private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : M
     (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form) :
     Nonempty (existsRoutingAfterPower_EntryData τ M Rs l α hl) := by
   classical
-  obtain ⟨f, g, hf, hg, hcyc, hfg⟩ := Rs.print_slots l α hl
+  obtain ⟨f, g, hf, hg, hcyc, hord, hid, hfg⟩ := Rs.print_slots l α hl
   have hgr : ∀ a ∈ Rs.markedSides α, ∃ β, (g a).form = Sum.inl β := fun a ha =>
     existsRoutingAfterPower_step3_entries_step1_grouped τ M Rs l hl α (hfg a ha).1
       (hfg a ha).2.1 (hfg a ha).2.2
@@ -17657,6 +17713,8 @@ private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : M
     point := fun a i => q (pc a) i
     print_injOn := hf
     print_cyclic := hcyc
+    print_order := hord
+    print_id := hid
     neighbour_mem := fun a ha => ⟨(hfg a ha).1, (hfg a ha).2.1⟩
     neighbour_injOn := hg
     neighbour_grouped := hgr
@@ -17691,7 +17749,10 @@ its intermediate-square endpoint to the outer PL route" and continue along the r
 collar through the outside-anchored face to the entrance point (`R ≥ 10000(K₀+3)D` separates
 the rays and collars by more than `10D` outside `K₁`).  The entrances of each marked side are
 relabelled to match the port order; the groups of different marked sides are in matching cyclic
-order because the prints are (`print_cyclic`) and each print lies on the contact arc of its piece. -/
+order because the prints are in planar matching order with the marked sides (`print_order`;
+audit of 14 October 2026: the index clause `print_cyclic` alone does not fix the planar order) and
+each print lies on the contact arc of its piece.  Only the cyclic order matters: annular routing
+needs no localization of the piece of `a` near the side `a`. -/
 private lemma existsRoutingAfterPower_step4_routes (τ : Substitution P) (hτ : τ.STS)
     (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ} (hcp : 0 < cp) :
     ∃ _nRoutes : ℕ, ∀ _l ≥ _nRoutes, ∀ _hl : 0 < _l, ∀ _α,

@@ -4969,6 +4969,34 @@ private theorem strict_composed_proper_step3_properties (hτ : τ.STS)
       IsStrictIdentityCorrect C hC D := by
   sorry
 
+/-- Step 1 of the blueprint proof of `strict_composed_proper_step4_matched`: the geometric
+side-to-side part. -/
+private theorem strict_composed_proper_step4_matched_step1_sides (hτ : τ.STS)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles))
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC))
+    (hrec : IsStrictReconstruction C hC part T') :
+    T'.SideToSide := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `strict_composed_proper_step4_matched`: the numbered-port
+colour step. -/
+private theorem strict_composed_proper_step4_matched_step2_colours (hτ : τ.STS)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles))
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC))
+    (hrec : IsStrictReconstruction C hC part T') :
+    ∀ (A B : StrictDecTile C hC) (v w : Pt),
+      (⟨.typed A, v⟩ : PlacedTile (strictProtoset C hC)) ∈ T'.tiles →
+      (⟨.typed B, w⟩ : PlacedTile (strictProtoset C hC)) ∈ T'.tiles →
+      (⟨.typed A, v⟩ : PlacedTile (strictProtoset C hC)) ≠ ⟨.typed B, w⟩ →
+      ∀ (i : C.Side A.typ) (j : C.Side B.typ),
+        v +ᵥ (C.Q.disk (C.form A.typ)).side i = w +ᵥ (C.Q.disk (C.form B.typ)).side j →
+        A.cell i = B.cell j := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `strict_composed_proper`: equal parent sides are
 strictly matched, using `strict_opposing_macroside` and the numbered ports. -/
 private theorem strict_composed_proper_step4_matched (hτ : τ.STS)
@@ -4978,7 +5006,8 @@ private theorem strict_composed_proper_step4_matched (hτ : τ.STS)
     (T' : PlaneTiling (strictProtoset C hC))
     (hrec : IsStrictReconstruction C hC part T') :
     IsStrictMatched C hC T' := by
-  sorry
+  exact ⟨strict_composed_proper_step4_matched_step1_sides C hC hτ hΔ T hT hL part T' hrec,
+    strict_composed_proper_step4_matched_step2_colours C hC hτ hΔ T hT hL part T' hrec⟩
 
 /-- `lem:comp/proper` (strict variant, `lem:schedule-compose`): for a strictly matched plane
 tiling of legal tiles, replacing each assembled macroblock by its reconstructed parent and

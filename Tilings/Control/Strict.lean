@@ -7618,6 +7618,1058 @@ theorem strict_lift_decorations (seq' : ℕ → PlaneTiling C.Q)
   choose par typ hspec using hpar
   exact strictLift_main C hC seq' hseq par typ hspec
 
+/-- Step 1 of the blueprint proof of `strict_lift_matched`: the lifted bottom level is
+side-to-side, because its projection, the actual grouped level, is ("every grouped
+`σ'`-hierarchy all of whose levels ... are side-to-side"; the strict forms have exactly the
+grouped disks). -/
+private theorem strict_lift_matched_step1_sideToSide (T : PlaneTiling (strictProtoset C hC))
+    (T' : PlaneTiling C.Q) (hproj : (strictDecoration C hC).toDecoration.project T = T')
+    (hsts : T'.SideToSide) : T.SideToSide := by
+  subst hproj
+  intro A hA B hB i j h
+  exact hsts _ ⟨A, hA, rfl⟩ _ ⟨B, hB, rfl⟩ i j h
+
+/-- Step 2 of the blueprint proof of `strict_lift_matched`: every tile of a legal strict lift
+lies in a block `A` of the next level ("at each shared fine side `e` between blocks `A` and
+`A'`"): it is the strict child, of its type, of a typed tile of the composed level, placed at
+its anchor in the template. -/
+private theorem strict_lift_matched_step2_parent (T1 T0 : PlaneTiling (strictProtoset C hC))
+    (hcomp : (strictSubst C hC).IsComposition T1 T0) (hleg : AllStrictLegal C hC T1)
+    {A : StrictDecTile C hC} {v : Pt}
+    (hX : (⟨.typed A, v⟩ : PlacedTile (strictProtoset C hC)) ∈ T0.tiles) :
+    ∃ (Ap : StrictDecTile C hC) (vp : Pt),
+      (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles ∧
+      C.owner A.typ = C.form Ap.typ ∧ A = strictChild C hC Ap A.typ ∧
+      v = C.σ.θ • vp + C.anchor A.typ := by
+  have hX' := hX
+  rw [← hcomp] at hX'
+  simp only [Substitution.decompose, Set.mem_iUnion] at hX'
+  obtain ⟨⟨q, vp⟩, hXp, hmem⟩ := hX'
+  obtain ⟨Z, ⟨t, ht, rfl⟩, hZ⟩ := hmem
+  cases q with
+  | root α => exact (hleg _ hXp).elim
+  | typed Ap =>
+    simp only [PlacedTile.translate, PlacedTile.mk.injEq, StrictForm.typed.injEq] at hZ
+    obtain ⟨rfl, rfl⟩ := hZ
+    exact ⟨Ap, vp, hXp, ht, rfl, rfl⟩
+
+/-- Step 4 of the blueprint proof of `strict_lift_matched` (auxiliary): scaling commutes with
+translation of a region, `θ v + θ S = θ (v + S)`. -/
+private theorem strict_lift_matched_step4_outer_step1_smul_vadd (θ : ℝ) (v : Pt) (S : Set Pt) :
+    (θ • v) +ᵥ θ • S = θ • (v +ᵥ S) := by
+  ext x
+  simp only [Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨v + y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨θ • y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+
+/-- Step 4 of the blueprint proof of `strict_lift_matched` (auxiliary): a listed side of a
+polygonal disk lies in the disk. -/
+private theorem strict_lift_matched_step4_outer_step2_side_sub (D : PolygonalDisk) (k : Fin D.n) :
+    D.side k ⊆ D.carrier := by
+  intro z hz
+  have hf : z ∈ frontier D.carrier := by
+    rw [D.frontier_eq]
+    exact Set.mem_iUnion.2 ⟨k, hz⟩
+  exact D.compact.isClosed.frontier_subset hf
+
+/-- Step 4 of the blueprint proof of `strict_lift_matched` (auxiliary): a child of the template
+`σ' α` lies in the scaled parent disk `θ α`. -/
+private theorem strict_lift_matched_step4_outer_step3_child_sub (s : C.Typ) :
+    (C.childTile s).carrier ⊆ C.σ.θ • (C.Q.disk (C.owner s)).carrier := by
+  rw [← C.σ.support_eq]
+  exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) (som_childTile_mem C s)
+
+/-- Step 3 of the blueprint proof of `strict_lift_matched` (auxiliary): two different children
+of one template sharing a whole side lie on both sides of it, so the side is not on the
+macroboundary: it is an inner side ("inside one block the interfaces are inner"). -/
+private theorem strict_lift_matched_step3_sibling_step1_inner (t t' : C.Typ)
+    (hown : C.owner t = C.owner t') (hne : t ≠ t') (i : C.Side t) (j : C.Side t')
+    (hside : C.occSide (C.occ t i) = C.occSide (C.occ t' j)) : C.IsInner (C.occ t i) := by
+  intro hout
+  set D1 := ecs_aux_trDisk (C.Q.disk (C.form t)) (C.anchor t)
+  set D2 := ecs_aux_trDisk (C.Q.disk (C.form t')) (C.anchor t')
+  have hD1s : D1.side i = C.occSide (C.occ t i) := ecs_aux_trDisk_side _ _ _
+  have hD2s : D2.side j = C.occSide (C.occ t' j) := ecs_aux_trDisk_side _ _ _
+  have hD1c : D1.carrier = (C.childTile t).carrier := ecs_aux_trDisk_carrier _ _
+  have hD2c : D2.carrier = (C.childTile t').carrier := ecs_aux_trDisk_carrier _ _
+  set a := D1.vertex i
+  set b := D1.vertex (finRotate _ i)
+  have hab : a ≠ b := ecs_aux_vertex_ne D1 i
+  have hseg : segment ℝ a b = C.occSide (C.occ t i) := hD1s
+  obtain ⟨nv, hn0, hn⟩ := ecs_aux_exists_normal (b - a) (sub_ne_zero.2 hab.symm)
+  obtain ⟨ε1, hε1, σ1, hσ1, hb1⟩ := ecs_aux_half_ball_seg D1 i hab (by rw [hD1s, hseg]) hn hn0
+  obtain ⟨ε2, hε2, σ2, hσ2, hb2⟩ :=
+    ecs_aux_half_ball_seg D2 j hab (by rw [hD2s, ← hside, hseg]) hn hn0
+  set x := midpoint ℝ a b
+  set ε := min ε1 ε2
+  have hε : 0 < ε := lt_min hε1 hε2
+  have hdisj : Disjoint (interior D1.carrier) (interior D2.carrier) := by
+    rw [hD1c, hD2c]
+    have hm1 := som_childTile_mem C t
+    have hm2 := som_childTile_mem C t'
+    rw [← hown] at hm2
+    refine (C.σ.rule (C.owner t)).disjoint hm1 hm2 ?_
+    intro h
+    injection h with h1 h2
+    exact hne (C.type_injective t t' hown h1 h2)
+  have hσsq : σ1 * σ1 = 1 := by rcases hσ1 with rfl | rfl <;> norm_num
+  have hnp : 0 < ‖nv‖ ^ 2 := by positivity
+  have hopp : σ2 = -σ1 := by
+    obtain ⟨s, hs, -, hzx, hinn⟩ :=
+      ecs_aux_push x x nv ε 1 (by rw [dist_self]; exact hε) one_pos hn0 σ1 hσ1
+    have hpos : 0 < σ1 * inner ℝ (x + (σ1 * s) • nv - x) nv := by
+      rw [hinn, sub_self, inner_zero_left, zero_add]
+      have h' : σ1 * (σ1 * s * ‖nv‖ ^ 2) = (σ1 * σ1) * s * ‖nv‖ ^ 2 := by ring
+      rw [h', hσsq]
+      positivity
+    rcases hσ1 with rfl | rfl <;> rcases hσ2 with rfl | rfl
+    · exact absurd (Set.disjoint_left.mp hdisj ((hb1 _ (lt_of_lt_of_le hzx (min_le_left _ _))).1 hpos)
+        ((hb2 _ (lt_of_lt_of_le hzx (min_le_right _ _))).1 hpos)) id
+    · norm_num
+    · norm_num
+    · exact absurd (Set.disjoint_left.mp hdisj ((hb1 _ (lt_of_lt_of_le hzx (min_le_left _ _))).1 hpos)
+        ((hb2 _ (lt_of_lt_of_le hzx (min_le_right _ _))).1 hpos)) id
+  set M := C.σ.θ • (C.Q.disk (C.owner t)).carrier
+  have hMc : IsClosed M := ((C.Q.disk (C.owner t)).compact.smul C.σ.θ).isClosed
+  have h1M : D1.carrier ⊆ M := by
+    rw [hD1c]; exact strict_lift_matched_step4_outer_step3_child_sub C t
+  have h2M : D2.carrier ⊆ M := by
+    have h := strict_lift_matched_step4_outer_step3_child_sub C t'
+    rw [← hown] at h
+    rwa [hD2c]
+  have hball : Metric.ball x ε ⊆ M := by
+    intro z hz
+    rw [Metric.mem_ball] at hz
+    by_cases hsg : 0 ≤ σ1 * inner ℝ (z - x) nv
+    · rw [← hMc.closure_eq, Metric.mem_closure_iff]
+      intro δ hδ
+      obtain ⟨s, hs, hzz, hzx, hinn⟩ := ecs_aux_push x z nv ε δ hz hδ hn0 σ1 hσ1
+      refine ⟨_, h1M (interior_subset ((hb1 _ (lt_of_lt_of_le hzx (min_le_left _ _))).1 ?_)), ?_⟩
+      · rw [hinn]
+        have : σ1 * (σ1 * s * ‖nv‖ ^ 2) = (σ1 * σ1) * s * ‖nv‖ ^ 2 := by ring
+        rw [mul_add, this, hσsq]
+        nlinarith
+      · rw [dist_comm]; exact hzz
+    · refine h2M (interior_subset ((hb2 _ (lt_of_lt_of_le hz (min_le_right _ _))).1 ?_))
+      rw [hopp]
+      linarith
+  have hxo : x ∈ C.occSide (C.occ t i) := by
+    rw [← hseg]
+    exact midpoint_mem_segment a b
+  exact (hout hxo).2 (mem_interior.2 ⟨_, hball, Metric.isOpen_ball, Metric.mem_ball_self hε⟩)
+
+/-- Step 3 of the blueprint proof of `strict_lift_matched` (auxiliary): the partner of a print
+is a print of the same parent side. -/
+private theorem strict_lift_matched_step3_sibling_step2_print_partner {α : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {p : C.SideOcc} (h : C.IsPrintOf α d p) :
+    C.IsPrintOf α d (C.partner p) := by
+  obtain ⟨hm, rfl | rfl⟩ := h
+  · exact ⟨hm, Or.inr rfl⟩
+  · exact ⟨hm, Or.inl (C.g1_partner_partner _ (C.g4_print_inner α d hm))⟩
+
+/-- Step 3 of the blueprint proof of `strict_lift_matched` (auxiliary): a path through an inner
+nonprint side also passes through its partner ("paths through both occurrences of a crossed
+side"). -/
+private theorem strict_lift_matched_step3_sibling_step3_path_partner {α : C.Q.Form}
+    {o : C.SideOcc} (hin : C.IsInner o) (hnp : ¬ C.IsPrint o) (hα : C.owner o.1 = α)
+    {d : Fin (C.Q.disk α).n} {jj : Fin 5} (h : o ∈ C.path α d jj) :
+    C.partner o ∈ C.path α d jj := by
+  by_cases hg : C.IsGenuinePath α d jj
+  · subst hα
+    exact C.g4_path_partner _ d jj hg o h hin hnp
+  · rw [C.g4_path_trivial α d jj hg, Option.mem_toList] at h
+    have hmem : o ∈ C.outerList α d := List.mem_iff_getElem?.mpr ⟨_, h⟩
+    exact absurd ((C.g3_outerList_mem α d o).1 hmem).2.1 hin
+
+/-- Step 3 of the blueprint proof of `strict_lift_matched` (auxiliary): the partner of a
+boundary side is a boundary side (same segment, same template). -/
+private theorem strict_lift_matched_step3_sibling_step4_boundary_partner {o : C.SideOcc}
+    (hin : C.IsInner o) (hb : C.IsBoundary o) : C.IsBoundary (C.partner o) := by
+  obtain ⟨-, hown, hs⟩ := C.g1_partner o hin
+  refine ⟨isInner_partner C hin, ?_⟩
+  rw [som_occSide_eq C, som_occSide_eq C] at hs
+  rw [hown]
+  rcases som_segment_endpoints hs with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [h1, h2]; exact hb.2
+  · rw [h1, h2]; exact hb.2.symm
+
+/-- Step 3 of the blueprint proof of `strict_lift_matched`: inside one block `A` the interfaces
+are inner template sides, carried by both of their owners with the same generated and copied
+cells (identities, prints, paths through both occurrences of a crossed side, common parent
+header), so two siblings carry equal five-tuples on a shared side. -/
+private theorem strict_lift_matched_step3_sibling (Ap : StrictDecTile C hC) (t t' : C.Typ)
+    (ht : C.owner t = C.form Ap.typ) (ht' : C.owner t' = C.form Ap.typ) (hne : t ≠ t')
+    (i : C.Side t) (j : C.Side t') (hside : C.occSide (C.occ t i) = C.occSide (C.occ t' j)) :
+    (strictChild C hC Ap t).cell i = (strictChild C hC Ap t').cell j := by
+  have hin := strict_lift_matched_step3_sibling_step1_inner C t t' (ht.trans ht'.symm) hne i j hside
+  have hpo : C.occ t' j = C.partner (C.occ t i) :=
+    C.g1_side_unique (C.occ t i) (C.occ t' j) hin (ht'.trans ht.symm) hne.symm hside.symm
+  have hpp : C.partner (C.occ t' j) = C.occ t i := by rw [hpo, C.g1_partner_partner _ hin]
+  have hin' : C.IsInner (C.occ t' j) := hpo ▸ isInner_partner C hin
+  funext k
+  by_cases hp : ∃ d, C.IsPrintOf (C.form Ap.typ) d (C.occ t i)
+  · obtain ⟨d, hd⟩ := hp
+    have hd' : C.IsPrintOf (C.form Ap.typ) d (C.occ t' j) := by
+      rw [hpo]; exact strict_lift_matched_step3_sibling_step2_print_partner C hd
+    obtain ⟨hc, hc4⟩ := (strictChild_cells C hC Ap t ht i).1 d hd
+    obtain ⟨hc', hc4'⟩ := (strictChild_cells C hC Ap t' ht' j).1 d hd'
+    by_cases hk : k = 4
+    · subst hk
+      rw [hc4, hc4', hpo, C.g1_edge_partner _ hin]
+    · rw [hc k hk, hc' k hk]
+  · have hnp : ¬ C.IsPrint (C.occ t i) := by
+      show ¬ ∃ d, C.IsPrintOf (C.owner t) d (C.occ t i)
+      rw [ht]; exact hp
+    have hnp' : ¬ C.IsPrint (C.occ t' j) := by
+      show ¬ ∃ d, C.IsPrintOf (C.owner t') d (C.occ t' j)
+      rw [ht']
+      rintro ⟨d, hd2⟩
+      have h3 := strict_lift_matched_step3_sibling_step2_print_partner C hd2
+      rw [hpp] at h3
+      exact hp ⟨d, h3⟩
+    obtain ⟨h0, h1, h4, h2a, h2b, -, h3b, h3i⟩ := (strictChild_cells C hC Ap t ht i).2 hnp
+    obtain ⟨h0', h1', h4', h2a', h2b', -, h3b', h3i'⟩ := (strictChild_cells C hC Ap t' ht' j).2 hnp'
+    fin_cases k
+    · show (strictChild C hC Ap t).cell i 0 = (strictChild C hC Ap t').cell j 0
+      rw [h0, h0', if_pos hin, if_pos hin', hpo, C.g1_edge_partner _ hin]
+    · show (strictChild C hC Ap t).cell i 1 = (strictChild C hC Ap t').cell j 1
+      rw [h1, h1']
+    · show (strictChild C hC Ap t).cell i 2 = (strictChild C hC Ap t').cell j 2
+      by_cases hpath : ∃ d jj, C.occ t i ∈ C.path (C.form Ap.typ) d jj
+      · obtain ⟨d, jj, hdj⟩ := hpath
+        have hdj' : C.occ t' j ∈ C.path (C.form Ap.typ) d jj := by
+          rw [hpo]
+          exact strict_lift_matched_step3_sibling_step3_path_partner C hin hnp ht hdj
+        rw [h2a d jj hdj, h2a' d jj hdj']
+      · push_neg at hpath
+        have hpath' : ∀ d jj, C.occ t' j ∉ C.path (C.form Ap.typ) d jj := by
+          intro d jj hdj'
+          have h5 := strict_lift_matched_step3_sibling_step3_path_partner C hin' hnp' ht' hdj'
+          rw [hpp] at h5
+          exact hpath d jj h5
+        rw [h2b hpath, h2b' hpath']
+    · show (strictChild C hC Ap t).cell i 3 = (strictChild C hC Ap t').cell j 3
+      by_cases hb : C.IsBoundary (C.occ t i)
+      · have hb' : C.IsBoundary (C.occ t' j) := by
+          rw [hpo]; exact strict_lift_matched_step3_sibling_step4_boundary_partner C hin hb
+        rw [h3b hb, h3b' hb']
+      · have hb' : ¬ C.IsBoundary (C.occ t' j) := by
+          intro hb'
+          have h6 := strict_lift_matched_step3_sibling_step4_boundary_partner C hin' hb'
+          rw [hpp] at h6
+          exact hb h6
+        rw [h3i hin hb, h3i' hin' hb']
+    · show (strictChild C hC Ap t).cell i 4 = (strictChild C hC Ap t').cell j 4
+      rw [h4, h4']
+
+/-- Step 4 of the blueprint proof of `strict_lift_matched`: a side shared by children of two
+different blocks `A`, `A'` lies on the boundary of `sA` ("a layer-`j` side `c` of `A` on the
+boundary of `sA`"): it is an outer side of its template. -/
+private theorem strict_lift_matched_step4_outer (T1 : PlaneTiling (strictProtoset C hC))
+    (Ap Bp : StrictDecTile C hC) (vp wp : Pt)
+    (hAp : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (hne : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ≠ ⟨.typed Bp, wp⟩)
+    (t t' : C.Typ) (ht : C.owner t = C.form Ap.typ) (ht' : C.owner t' = C.form Bp.typ)
+    (i : C.Side t) (j : C.Side t')
+    (hside : (C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i =
+      (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).side j) :
+    C.IsOuter (C.occ t i) := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  intro z hz
+  have hzc : z ∈ (C.childTile t).carrier := by
+    obtain ⟨y, hy, rfl⟩ := hz
+    exact Set.vadd_mem_vadd_set (strict_lift_matched_step4_outer_step2_side_sub _ i hy)
+  have hzR := strict_lift_matched_step4_outer_step3_child_sub C t hzc
+  show z ∈ frontier (C.σ.θ • (C.Q.disk (C.owner t)).carrier)
+  refine ⟨subset_closure hzR, fun hint => ?_⟩
+  rw [ht] at hint
+  obtain ⟨y, hy, rfl⟩ := hz
+  have hp : C.σ.θ • vp + (C.anchor t + y) ∈
+      (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).carrier := by
+    have h1 : C.σ.θ • vp + (C.anchor t + y) ∈
+        (C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i := by
+      rw [← add_assoc]
+      exact Set.vadd_mem_vadd_set hy
+    rw [hside] at h1
+    obtain ⟨y', hy', he⟩ := h1
+    exact ⟨y', strict_lift_matched_step4_outer_step2_side_sub _ j hy', he⟩
+  have hYc : (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).carrier =
+      closure (interior ((C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).carrier)) := by
+    rw [interior_vadd, closure_vadd, (C.Q.disk (C.form t')).regular_closed]
+  rw [hYc, mem_closure_iff] at hp
+  have hpX : C.σ.θ • vp + (C.anchor t + y) ∈
+      interior ((C.σ.θ • vp) +ᵥ C.σ.θ • (C.Q.disk (C.form Ap.typ)).carrier) := by
+    rw [interior_vadd]
+    exact Set.vadd_mem_vadd_set hint
+  obtain ⟨q, hq1, hq2⟩ := hp _ isOpen_interior hpX
+  have hYsub : (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).carrier ⊆
+      (C.σ.θ • wp) +ᵥ C.σ.θ • (C.Q.disk (C.form Bp.typ)).carrier := by
+    rw [← vadd_vadd, ← ht']
+    exact Set.vadd_set_mono (strict_lift_matched_step4_outer_step3_child_sub C t')
+  have hq2' := interior_mono hYsub hq2
+  rw [strict_lift_matched_step4_outer_step1_smul_vadd, interior_smul₀ hθ] at hq1 hq2'
+  have hdisj := (Set.disjoint_image_iff (smul_right_injective Pt hθ)).mpr (T1.disjoint hAp hBp hne)
+  exact Set.disjoint_left.mp hdisj hq1 hq2'
+
+open Alignment in
+/-- Step 5 of the blueprint proof of `strict_lift_matched` (auxiliary): "a layer-`j` side `c` of
+`A` on the boundary of `sA` lies wholly on the interface with a single neighbour", for any
+coincident segments `e`, `e'` on the boundaries of `sA`, `sA'` (not only whole fine sides). -/
+private theorem strict_lift_matched_step5_schedule_step1_crossing
+    (T' : PlaneTiling C.Q) (hT' : T'.SideToSide)
+    (hlev : ∀ j ≤ m,
+      SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter T'.tiles)))
+    (A A' : PlacedTile C.Q) (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (e e' : Pt × Pt)
+    (he' : segment ℝ e'.1 e'.2 ⊆ frontier (parentRegion τ hC.groupedFamily m A'.form))
+    (heq : placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e')
+    (t : LayerTag m) (c : Pt × Pt)
+    (hc : c ∈ layerSides τ hC.groupedFamily m A.form t)
+    (hov : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2)) :
+    ∃ d, d ∈ layerSides τ hC.groupedFamily m A'.form t ∧
+      OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) ∧
+      placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d := by
+  have hs : τ.θ ^ m ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+  obtain ⟨x, y, hxy, hxyI⟩ := scs1_overlap_placed ((τ.θ ^ m) • A.anchor) hov
+  have hX : segment ℝ x y ⊆
+      frontier (((τ.θ ^ m) • A'.anchor) +ᵥ parentRegion τ hC.groupedFamily m A'.form) := by
+    intro z hz
+    have h1 := (hxyI hz).2
+    rw [heq, scs1_placedSeg_eq] at h1
+    rw [scs1_frontier_vadd]
+    exact Set.vadd_set_mono he' h1
+  have hfin : ∀ d, placedSeg ((τ.θ ^ m) • A.anchor) c = placedSeg ((τ.θ ^ m) • A'.anchor) d →
+      OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) := fun d hcd =>
+    scs1_overlap_of_placed hxy fun z hz => ⟨hcd ▸ (hxyI hz).1, heq ▸ (hxyI hz).2⟩
+  by_cases hAA : A = A'
+  · subst hAA
+    exact ⟨c, hc, hfin c rfl, rfl⟩
+  cases t with
+  | top =>
+    obtain ⟨k0, rfl⟩ := hc
+    obtain ⟨k, hk⟩ := scs1_top_side hC.groupedFamily T' hT' _ hs A A' hA hA' k0 x y hxy
+      (fun z hz => (hxyI hz).1) (by rw [← scs1_region_eq τ hC.groupedFamily m A']; exact hX)
+    exact ⟨_, ⟨k, rfl⟩, hfin _ hk, hk⟩
+  | level j =>
+    obtain ⟨B, hB, i, rfl, -⟩ := hc
+    obtain ⟨B', hB', k, hk, hfr⟩ := scs1_level_side τ hC.groupedFamily m j j.isLt.le T'
+      (hlev j j.isLt.le) A A' hA hA' hAA B hB i x y hxy (fun z hz => (hxyI hz).1) hX
+    exact ⟨_, ⟨B', hB', k, rfl, hfr⟩, hfin _ hk, hk⟩
+
+open Alignment in
+/-- Step 5 of the blueprint proof of `strict_lift_matched` (auxiliary): "hence the actual
+original intermediate levels have identical endpoints on both sides of `e`, so their schedules
+... match", for any coincident segments on the boundaries of two parents. -/
+private theorem strict_lift_matched_step5_schedule_step2_aligned
+    (T' : PlaneTiling C.Q) (hT' : T'.SideToSide)
+    (hlev : ∀ j ≤ m, SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter T'.tiles)))
+    (A A' : PlacedTile C.Q) (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles) (e e' : Pt × Pt)
+    (he : segment ℝ e.1 e.2 ⊆ frontier (parentRegion τ hC.groupedFamily m A.form))
+    (he' : segment ℝ e'.1 e'.2 ⊆ frontier (parentRegion τ hC.groupedFamily m A'.form))
+    (heq : placedSeg ((τ.θ ^ m) • A.anchor) e = placedSeg ((τ.θ ^ m) • A'.anchor) e') :
+    EndpointSchedule τ hC.groupedFamily m A.form e =
+      EndpointSchedule τ hC.groupedFamily m A'.form e' := by
+  funext t
+  ext r
+  constructor
+  · intro hr
+    rcases hr with ⟨c, hc, hov, rfl⟩
+    obtain ⟨d, hd, hov', hcd⟩ := strict_lift_matched_step5_schedule_step1_crossing C hC T'
+      hT' hlev A A' hA hA' e e' he' heq t c hc hov
+    have hat := strict_actual_schedules_aligned_step2_atom_eq C A A' e e' c d heq hcd hov hov'
+    exact ⟨d, hd, hov', hat⟩
+  · intro hr
+    rcases hr with ⟨d, hd, hov', rfl⟩
+    obtain ⟨c, hc, hov, hcd⟩ := strict_lift_matched_step5_schedule_step1_crossing C hC T'
+      hT' hlev A' A hA' hA e' e he heq.symm t d hd hov'
+    have hat := strict_actual_schedules_aligned_step2_atom_eq C A' A e' e d c heq.symm hcd hov' hov
+    exact ⟨c, hc, hov, hat⟩
+
+/-- Step 5 of the blueprint proof of `strict_lift_matched`: across two different blocks the
+schedules match ("the actual original intermediate levels have identical endpoints on both
+sides of `e`, so their schedules ... match", by schedule alignment of the actual level). -/
+private theorem strict_lift_matched_step5_schedule (T1 : PlaneTiling (strictProtoset C hC))
+    (T1' : PlaneTiling C.Q) (hproj : (strictDecoration C hC).toDecoration.project T1 = T1')
+    (hsts : T1'.SideToSide)
+    (hlev : ∀ j ≤ m, SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter T1'.tiles)))
+    (Ap Bp : StrictDecTile C hC) (vp wp : Pt)
+    (hAp : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (t t' : C.Typ) (ht : C.owner t = C.form Ap.typ) (ht' : C.owner t' = C.form Bp.typ)
+    (i : C.Side t) (j : C.Side t') (hout : C.IsOuter (C.occ t i)) (hout' : C.IsOuter (C.occ t' j))
+    (hside : (C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i =
+      (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).side j) :
+    schedU C hC (C.occ t i) = schedU C hC (C.occ t' j) := by
+  have hA1 : (⟨C.form Ap.typ, vp⟩ : PlacedTile C.Q) ∈ T1'.tiles := by
+    rw [← hproj]; exact ⟨_, hAp, rfl⟩
+  have hB1 : (⟨C.form Bp.typ, wp⟩ : PlacedTile C.Q) ∈ T1'.tiles := by
+    rw [← hproj]; exact ⟨_, hBp, rfl⟩
+  have hfr : ∀ (s : C.Typ) (k : C.Side s) (β : C.Q.Form), C.owner s = β → C.IsOuter (C.occ s k) →
+      segment ℝ (C.occStart (C.occ s k)) (C.occEnd (C.occ s k)) ⊆
+        frontier (Alignment.parentRegion τ hC.groupedFamily m β) := by
+    intro s k β hs hk
+    show _ ⊆ frontier ((τ.θ ^ m) • (C.Q.disk β).carrier)
+    rw [← hC.θ_eq, ← hs, ← som_occSide_eq C]
+    exact hk
+  have hseg : ∀ (v : Pt) (s : C.Typ) (k : C.Side s),
+      (C.σ.θ • v + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k =
+        Alignment.placedSeg ((τ.θ ^ m) • v) (C.occStart (C.occ s k), C.occEnd (C.occ s k)) := by
+    intro v s k
+    rw [PolygonalDisk.side, som_vadd_segment, Alignment.placedSeg, hC.θ_eq]
+    simp only [MacroData.occStart, MacroData.occEnd, add_assoc]
+  have hsch := strict_lift_matched_step5_schedule_step2_aligned C hC T1' hsts hlev _ _ hA1 hB1
+    (C.occStart (C.occ t i), C.occEnd (C.occ t i)) (C.occStart (C.occ t' j), C.occEnd (C.occ t' j))
+    (hfr t i _ ht hout) (hfr t' j _ ht' hout') (by rw [← hseg, ← hseg]; exact hside)
+  have hso : schedOf C hC (C.occ t i) = schedOf C hC (C.occ t' j) := by
+    simp only [schedOf]
+    rw [show C.owner (C.occ t i).1 = C.form Ap.typ from ht,
+      show C.owner (C.occ t' j).1 = C.form Bp.typ from ht']
+    exact hsch
+  simp only [schedU]
+  congr 2
+  exact Subtype.ext hso
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (auxiliary): a strict child carries
+the cells of the strict child rule. -/
+private theorem strict_lift_matched_step6_ports_step0_cell_eq {A Ap : StrictDecTile C hC}
+    (h : A = strictChild C hC Ap A.typ) (i : C.Side A.typ) (k : Fin 5) :
+    A.cell i k = (strictChild C hC Ap A.typ).cell i k := by
+  obtain ⟨t, c⟩ := A
+  have hc : c = (strictChild C hC Ap t).cell := by
+    have h' : (⟨t, c⟩ : StrictDecTile C hC) = ⟨t, (strictChild C hC Ap t).cell⟩ := h
+    injection h'
+  subst hc
+  rfl
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): an outer
+side on the path `P_jj(d)` is its initial port. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step1_port {α : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {jj : Fin 5} {o : C.SideOcc} (hout : C.IsOuter o)
+    (h : o ∈ C.path α d jj) : C.port α d jj = some o := by
+  by_cases hg : C.IsGenuinePath α d jj
+  · obtain ⟨r, hr⟩ := List.mem_iff_getElem?.1 h
+    cases r with
+    | zero =>
+      rw [← C.g4_path_head α d jj hg, List.head?_eq_getElem?]
+      exact hr
+    | succ r => exact absurd hout (C.g4_path_inner α d jj hg r o hr)
+  · rw [C.g4_path_trivial α d jj hg, Option.mem_toList] at h
+    exact h
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): the port
+`jj` of `d` lies on the path `P_jj(d)`. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step2_path {α : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {jj : Fin 5} {q : C.SideOcc} (h : C.port α d jj = some q) :
+    q ∈ C.path α d jj := by
+  by_cases hg : C.IsGenuinePath α d jj
+  · apply List.mem_of_mem_head?
+    rw [C.g4_path_head α d jj hg, h]
+    rfl
+  · rw [C.g4_path_trivial α d jj hg, Option.mem_toList]
+    exact h
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): two lists
+strictly ordered along the same direction with the same elements (here: the midpoints of the
+fine outer sides along a parent side, on both sides of the interface) agree position by
+position. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step3_sorted {ι : Type*}
+    (L1 L2 : List ι) (g1 g2 : ι → Pt) (u : Pt) (hu : u ≠ 0)
+    (h1 : (L1.map g1).Pairwise fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • u)
+    (h2 : (L2.map g2).Pairwise fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • u)
+    (hmem : ∀ x, x ∈ L1.map g1 ↔ x ∈ L2.map g2)
+    (r : ℕ) (o o' : ι) (ho : L1[r]? = some o) (ho' : o' ∈ L2) (hg : g1 o = g2 o') :
+    L2[r]? = some o' ∧ L1.length = L2.length := by
+  have hne : ∀ x y : Pt, (∃ c : ℝ, 0 < c ∧ y - x = c • u) → x ≠ y := by
+    rintro x y ⟨c, hc, h⟩ rfl
+    rw [sub_self] at h
+    exact hu ((smul_eq_zero.1 h.symm).resolve_left hc.ne')
+  have nd1 : (L1.map g1).Nodup := h1.imp fun h => hne _ _ h
+  have nd2 : (L2.map g2).Nodup := h2.imp fun h => hne _ _ h
+  have heq : L1.map g1 = L2.map g2 := by
+    refine List.Perm.eq_of_pairwise ?_ h1 h2 ((List.perm_ext_iff_of_nodup nd1 nd2).2 hmem)
+    rintro a b - - ⟨c, hc, hab⟩ ⟨c', hc', hba⟩
+    exfalso
+    have : (c + c') • u = 0 := by
+      rw [add_smul, ← hab, ← hba]; abel
+    exact hu ((smul_eq_zero.1 this).resolve_left (by linarith))
+  have hlen : L1.length = L2.length := by
+    have := congrArg List.length heq
+    simpa using this
+  refine ⟨?_, hlen⟩
+  obtain ⟨r', hr'⟩ := List.mem_iff_getElem?.1 ho'
+  have hm1 : (L2.map g2)[r]? = some (g2 o') := by
+    rw [← heq, List.getElem?_map, ho, Option.map_some, hg]
+  have hm2 : (L2.map g2)[r']? = some (g2 o') := by
+    rw [List.getElem?_map, hr', Option.map_some]
+  have hlt : r < (L2.map g2).length := by
+    rw [List.getElem?_eq_some_iff] at hm1
+    exact hm1.1
+  have := List.getElem?_inj hlt nd2 (hm1.trans hm2.symm)
+  subst this
+  exact hr'
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): coincident
+parent sides have the same positive direction ("in the same global direction"). -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step4_dir {α β : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {d' : Fin (C.Q.disk β).n} {vp wp : Pt}
+    (h : vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d') :
+    C.macroSideDir α d = C.macroSideDir β d' := by
+  rw [PolygonalDisk.side, PolygonalDisk.side, som_vadd_segment, som_vadd_segment] at h
+  have hne : (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' ≠ 0 :=
+    sub_ne_zero.2 (som_vertex_ne _ d').symm
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  unfold MacroData.macroSideDir MacroData.posDir
+  rw [← smul_sub, ← smul_sub, ← smul_sub, ← smul_sub]
+  rcases som_segment_endpoints h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · have e : (C.Q.disk α).vertex (finRotate _ d) - (C.Q.disk α).vertex d =
+        (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' := by
+      have := congrArg₂ (· - ·) h2 h1
+      simpa only [add_sub_add_left_eq_sub] using this
+    have e' : (C.Q.disk α).vertex d - (C.Q.disk α).vertex (finRotate _ d) =
+        (C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d') := by
+      rw [← neg_sub, e, neg_sub]
+    rw [e, e']
+  · have e : (C.Q.disk α).vertex (finRotate _ d) - (C.Q.disk α).vertex d =
+        (C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d') := by
+      have := congrArg₂ (· - ·) h2 h1
+      simpa only [add_sub_add_left_eq_sub] using this
+    have e' : (C.Q.disk α).vertex d - (C.Q.disk α).vertex (finRotate _ d) =
+        (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' := by
+      rw [← neg_sub, e, neg_sub]
+    rw [e, e']
+    set δ := C.σ.θ • ((C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d')
+    have hδ : δ ≠ 0 := smul_ne_zero hθ hne
+    have hneg : C.σ.θ • ((C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d')) = -δ := by
+      rw [← neg_sub, smul_neg]
+    rw [hneg]
+    have hp := C.g3_pos_iff δ hδ
+    by_cases hpos : C.IsPositive δ
+    · have : ¬ C.IsPositive (-δ) := fun h' => (hp.1 hpos) h'
+      rw [if_neg this, if_pos hpos]
+    · have : C.IsPositive (-δ) := by
+        by_contra h'
+        exact hpos (hp.2 h')
+      rw [if_pos this, if_neg hpos]
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): physically
+coincident side occurrences have the same physical midpoint. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step5_mid (vp wp : Pt)
+    (p q : C.SideOcc) (h : vp +ᵥ C.occSide p = wp +ᵥ C.occSide q) :
+    vp + C.occMid p = wp + C.occMid q := by
+  rw [som_occSide_eq C, som_occSide_eq C, som_vadd_segment, som_vadd_segment] at h
+  have hm : ∀ (v a b : Pt), v + midpoint ℝ a b = midpoint ℝ (v + a) (v + b) := by
+    intro v a b
+    rw [midpoint_eq_smul_add, midpoint_eq_smul_add, invOf_eq_inv]
+    module
+  simp only [MacroData.occMid]
+  rw [hm, hm]
+  rcases som_segment_endpoints h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [h1, h2]
+  · rw [h1, h2, midpoint_comm]
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): the strict
+children of a block of the composed level are tiles of the decomposed level. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step6_child_mem
+    (T1 T0 : PlaneTiling (strictProtoset C hC)) (hcomp : (strictSubst C hC).IsComposition T1 T0)
+    {Bp : StrictDecTile C hC} {wp : Pt}
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (s : C.Typ) (hs : C.owner s = C.form Bp.typ) :
+    (⟨.typed (strictChild C hC Bp s), C.σ.θ • wp + C.anchor s⟩ : PlacedTile (strictProtoset C hC)) ∈
+      T0.tiles := by
+  rw [← hcomp]
+  exact Set.mem_biUnion hBp ⟨_, ⟨s, hs, rfl⟩, rfl⟩
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): a placed
+child side is the translate of the side occurrence in its template. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step7_placed (v : Pt) (s : C.Typ)
+    (k : C.Side s) : (v + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k = v +ᵥ C.occSide ⟨s, k⟩ := by
+  rw [← vadd_vadd]
+  rfl
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): a
+nondegenerate segment on a parent side `d` of `A` and on the boundary of the neighbouring block
+`A'` lies on a parent side `d'` of `A'`, which coincides with `d` (the composed level is
+side-to-side). -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step8_parent
+    (T1 : PlaneTiling (strictProtoset C hC)) (hsts1 : T1.SideToSide)
+    (Ap Bp : StrictDecTile C hC) (vp wp : Pt)
+    (hAp : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (d : C.Side Ap.typ) (x y : Pt) (hxy : x ≠ y)
+    (h1 : segment ℝ x y ⊆ C.σ.θ • (vp +ᵥ (C.Q.disk (C.form Ap.typ)).side d))
+    (h2 : segment ℝ x y ⊆ (C.σ.θ • wp) +ᵥ C.macroBoundary (C.form Bp.typ)) :
+    ∃ d' : C.Side Bp.typ,
+      vp +ᵥ (C.Q.disk (C.form Ap.typ)).side d = wp +ᵥ (C.Q.disk (C.form Bp.typ)).side d' := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have hcov : segment ℝ x y ⊆ ⋃₀ Set.range (fun d' : C.Side Bp.typ =>
+      C.σ.θ • (wp +ᵥ (C.Q.disk (C.form Bp.typ)).side d')) := by
+    intro z hz
+    have hz2 := h2 hz
+    rw [MacroData.macroBoundary, MacroData.macroRegion, scs1_frontier_smul hθ,
+      (C.Q.disk _).frontier_eq, strict_lift_matched_step4_outer_step1_smul_vadd, Set.vadd_set_iUnion,
+      Set.smul_set_iUnion, Set.mem_iUnion] at hz2
+    obtain ⟨d', hd'⟩ := hz2
+    exact ⟨_, ⟨d', rfl⟩, hd'⟩
+  obtain ⟨_, ⟨d', rfl⟩, u, v, huv, hsub⟩ := scs1_cover hxy (Set.finite_range _)
+    (by rintro _ ⟨d', rfl⟩; exact ((convex_segment _ _).vadd _).smul _) hcov
+  exact ⟨d', hsts1 _ hAp _ hBp d d' (scs1_overlap_unscale hθ huv fun z hz => ⟨h1 (hsub hz).1, (hsub hz).2⟩)⟩
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): a side of
+a tile of the decomposed level lying on the scaled parent side `d'` of a block `A'` is a whole
+listed outer side of `A'` along `d'` (the decomposed level is side-to-side). -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step9_cover
+    (T1 T0 : PlaneTiling (strictProtoset C hC))
+    (hcomp : (strictSubst C hC).IsComposition T1 T0) (hsts0 : T0.SideToSide)
+    (Bp : StrictDecTile C hC) (wp : Pt)
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (d' : C.Side Bp.typ) (Z : PlacedTile (strictProtoset C hC)) (hZ : Z ∈ T0.tiles)
+    (k0 : Fin (C.Q.disk Z.form.proj).n)
+    (hsub : Z.side k0 ⊆ C.σ.θ • (wp +ᵥ (C.Q.disk (C.form Bp.typ)).side d')) :
+    ∃ q ∈ C.outerList (C.form Bp.typ) d', Z.side k0 = (C.σ.θ • wp) +ᵥ C.occSide q := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have hdfr : C.σ.θ • (C.Q.disk (C.form Bp.typ)).side d' ⊆ C.macroBoundary (C.form Bp.typ) := by
+    rw [MacroData.macroBoundary, MacroData.macroRegion, scs1_frontier_smul hθ]
+    refine Set.smul_set_mono fun z hz => ?_
+    rw [(C.Q.disk _).frontier_eq]
+    exact Set.mem_iUnion.2 ⟨d', hz⟩
+  have hsub' : Z.side k0 ⊆ (C.σ.θ • wp) +ᵥ C.macroBoundary (C.form Bp.typ) := by
+    rw [← strict_lift_matched_step4_outer_step1_smul_vadd] at hsub
+    exact hsub.trans (Set.vadd_set_mono hdfr)
+  have hcov : Z.side k0 ⊆ ⋃₀ Set.range (fun x : (Σ s : {s : C.Typ // C.owner s = C.form Bp.typ}, C.Side s.1) =>
+      (C.σ.θ • wp + C.anchor x.1.1) +ᵥ (C.Q.disk (C.form x.1.1)).side x.2) := by
+    intro z hz
+    obtain ⟨y, hy, rfl⟩ := hsub' hz
+    have hcl : IsClosed (C.σ.θ • (C.Q.disk (C.form Bp.typ)).carrier) :=
+      ((C.Q.disk _).compact.smul C.σ.θ).isClosed
+    have hyR : y ∈ C.σ.θ • (C.Q.disk (C.form Bp.typ)).carrier := hcl.frontier_subset hy
+    rw [← C.σ.support_eq, C.rule_eq] at hyR
+    simp only [support, Set.mem_iUnion] at hyR
+    obtain ⟨_, ⟨s, hs, rfl⟩, hys⟩ := hyR
+    have hcs := strict_lift_matched_step4_outer_step3_child_sub C s
+    rw [show C.owner s = C.form Bp.typ from hs] at hcs
+    have hyf : y ∈ frontier ((⟨C.form s, C.anchor s⟩ : PlacedTile C.Q).carrier) :=
+      ⟨subset_closure hys, fun hint => hy.2 (interior_mono hcs hint)⟩
+    rw [scs1_frontier_carrier, Set.mem_iUnion] at hyf
+    obtain ⟨k, hk⟩ := hyf
+    refine ⟨_, ⟨⟨⟨s, hs⟩, k⟩, rfl⟩, ?_⟩
+    show C.σ.θ • wp +ᵥ y ∈ (C.σ.θ • wp + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k
+    rw [← vadd_vadd]
+    exact Set.vadd_mem_vadd_set hk
+  have hZs : Z.side k0 = segment ℝ (Z.vertex k0) (Z.vertex (finRotate _ k0)) := scs1_tile_side_eq Z k0
+  have hne : Z.vertex k0 ≠ Z.vertex (finRotate _ k0) := fun h => som_vertex_ne _ k0 (vadd_left_cancel _ h)
+  rw [hZs] at hcov
+  obtain ⟨_, ⟨⟨⟨s, hs⟩, k⟩, rfl⟩, u, v, huv, hsub2⟩ := scs1_cover hne (Set.finite_range _)
+    (by rintro _ ⟨x, rfl⟩; exact (convex_segment _ _).vadd _) hcov
+  have hY := strict_lift_matched_step6_ports_step1_whole_ports_step6_child_mem C hC T1 T0 hcomp hBp s hs
+  have heq : Z.side k0 = (⟨.typed (strictChild C hC Bp s), C.σ.θ • wp + C.anchor s⟩ :
+      PlacedTile (strictProtoset C hC)).side k :=
+    hsts0 Z hZ _ hY k0 k ⟨u, v, huv, fun z hz => ⟨hZs ▸ (hsub2 hz).1, (hsub2 hz).2⟩⟩
+  have heq' : Z.side k0 = (C.σ.θ • wp) +ᵥ C.occSide ⟨s, k⟩ :=
+    heq.trans (strict_lift_matched_step6_ports_step1_whole_ports_step7_placed C _ s k)
+  have hq : C.occSide ⟨s, k⟩ ⊆ C.σ.θ • (C.Q.disk (C.form Bp.typ)).side d' := by
+    have h := hsub
+    rw [heq', ← strict_lift_matched_step4_outer_step1_smul_vadd] at h
+    exact Set.vadd_set_subset_vadd_set_iff.1 h
+  refine ⟨⟨s, k⟩, (C.g3_outerList_mem _ _ _).2 ⟨hs, ?_, hq⟩, heq'⟩
+  show C.occSide _ ⊆ C.macroBoundary (C.owner s)
+  rw [hs]
+  exact hq.trans hdfr
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (whole ports, auxiliary): along
+coincident parent sides, every listed outer side of one block has a listed outer side of the
+other block with the same placed midpoint. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports_step10_match
+    (T1 T0 : PlaneTiling (strictProtoset C hC))
+    (hcomp : (strictSubst C hC).IsComposition T1 T0) (hsts0 : T0.SideToSide)
+    (Ap Bp : StrictDecTile C hC) (vp wp : Pt)
+    (hAp : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (d : C.Side Ap.typ) (d' : C.Side Bp.typ)
+    (hd : vp +ᵥ (C.Q.disk (C.form Ap.typ)).side d = wp +ᵥ (C.Q.disk (C.form Bp.typ)).side d')
+    (p : C.SideOcc) (hp : p ∈ C.outerList (C.form Ap.typ) d) :
+    ∃ q ∈ C.outerList (C.form Bp.typ) d', C.σ.θ • vp + C.occMid p = C.σ.θ • wp + C.occMid q := by
+  obtain ⟨hown, -, hpS⟩ := (C.g3_outerList_mem _ d p).1 hp
+  obtain ⟨s, k⟩ := p
+  have hZ := strict_lift_matched_step6_ports_step1_whole_ports_step6_child_mem C hC T1 T0 hcomp hAp s hown
+  obtain ⟨q, hq, hZq⟩ := strict_lift_matched_step6_ports_step1_whole_ports_step9_cover C hC T1 T0 hcomp
+    hsts0 Bp wp hBp d' _ hZ k (by
+      show (C.σ.θ • vp + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k ⊆ _
+      rw [strict_lift_matched_step6_ports_step1_whole_ports_step7_placed, ← hd,
+        ← strict_lift_matched_step4_outer_step1_smul_vadd]
+      exact Set.vadd_set_mono hpS)
+  exact ⟨q, hq, strict_lift_matched_step6_ports_step1_whole_ports_step5_mid C _ _ _ _
+    ((strict_lift_matched_step6_ports_step1_whole_ports_step7_placed C (C.σ.θ • vp) s k).symm.trans hZq)⟩
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (auxiliary, whole-side ports
+`lem:whole-ports`): "after schedule alignment, corresponding parent sides have the same physical
+port lists".  If an outer side of a child of the block `A` lies on the path `P_jj(d)` of its
+template (it is then the port `jj` of `d`), the coincident outer side of the child of the
+neighbouring block `A'` is the port `jj` of the coincident parent side `d'`. -/
+private theorem strict_lift_matched_step6_ports_step1_whole_ports
+    (T1 T0 : PlaneTiling (strictProtoset C hC))
+    (hcomp : (strictSubst C hC).IsComposition T1 T0)
+    (hsts0 : T0.SideToSide) (hsts1 : T1.SideToSide)
+    (Ap Bp : StrictDecTile C hC) (vp wp : Pt)
+    (hAp : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ T1.tiles)
+    (t t' : C.Typ) (ht' : C.owner t' = C.form Bp.typ)
+    (i : C.Side t) (j : C.Side t') (hout : C.IsOuter (C.occ t i)) (hout' : C.IsOuter (C.occ t' j))
+    (hside : (C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i =
+      (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).side j)
+    (d : C.Side Ap.typ) (jj : Fin 5) (hpath : C.occ t i ∈ C.path (C.form Ap.typ) d jj) :
+    ∃ d' : C.Side Bp.typ, C.occ t' j ∈ C.path (C.form Bp.typ) d' jj ∧
+      vp +ᵥ (C.Q.disk (C.form Ap.typ)).side d = wp +ᵥ (C.Q.disk (C.form Bp.typ)).side d' := by
+  have hport := strict_lift_matched_step6_ports_step1_whole_ports_step1_port C hout hpath
+  have ho : (C.outerList _ d)[MacroData.portRank (C.outerList _ d).length jj - 1]? = some (C.occ t i) :=
+    hport
+  have hoL : C.occ t i ∈ C.outerList (C.form Ap.typ) d := List.mem_of_getElem? ho
+  obtain ⟨-, -, hoS⟩ := (C.g3_outerList_mem _ d _).1 hoL
+  have hFeq : (C.σ.θ • vp) +ᵥ C.occSide (C.occ t i) = (C.σ.θ • wp) +ᵥ C.occSide (C.occ t' j) :=
+    (strict_lift_matched_step6_ports_step1_whole_ports_step7_placed C _ t i).symm.trans
+      (hside.trans (strict_lift_matched_step6_ports_step1_whole_ports_step7_placed C _ t' j))
+  have hFsub : (C.σ.θ • vp) +ᵥ C.occSide (C.occ t i) ⊆
+      C.σ.θ • (vp +ᵥ (C.Q.disk (C.form Ap.typ)).side d) := by
+    rw [← strict_lift_matched_step4_outer_step1_smul_vadd]
+    exact Set.vadd_set_mono hoS
+  have hseg : (C.σ.θ • vp) +ᵥ C.occSide (C.occ t i) =
+      segment ℝ (C.σ.θ • vp + C.occStart (C.occ t i)) (C.σ.θ • vp + C.occEnd (C.occ t i)) := by
+    rw [som_occSide_eq C, som_vadd_segment]
+  have hxy : C.σ.θ • vp + C.occStart (C.occ t i) ≠ C.σ.θ • vp + C.occEnd (C.occ t i) :=
+    fun h => som_occStart_ne C _ (add_left_cancel h)
+  obtain ⟨d', hd'⟩ := strict_lift_matched_step6_ports_step1_whole_ports_step8_parent C hC T1 hsts1 Ap Bp
+    vp wp hAp hBp d _ _ hxy (hseg ▸ hFsub) (by
+      rw [← hseg, hFeq]
+      refine Set.vadd_set_mono ?_
+      rw [← ht']
+      exact hout')
+  have ho'L : C.occ t' j ∈ C.outerList (C.form Bp.typ) d' := by
+    refine (C.g3_outerList_mem _ _ _).2 ⟨ht', hout', ?_⟩
+    have h := hFsub
+    rw [hFeq, hd', ← strict_lift_matched_step4_outer_step1_smul_vadd] at h
+    exact Set.vadd_set_subset_vadd_set_iff.1 h
+  have hdir := strict_lift_matched_step6_ports_step1_whole_ports_step4_dir C hd'
+  have hsorted : ∀ (γ : C.Q.Form) (e : Fin (C.Q.disk γ).n) (v : Pt),
+      ((C.outerList γ e).map fun p => C.σ.θ • v + C.occMid p).Pairwise
+        fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • C.macroSideDir γ e := by
+    intro γ e v
+    rw [List.pairwise_map]
+    refine (C.g3_outerList_sorted γ e).imp ?_
+    intro p q h
+    rwa [add_sub_add_left_eq_sub]
+  obtain ⟨hr, hlen⟩ := strict_lift_matched_step6_ports_step1_whole_ports_step3_sorted
+    (C.outerList (C.form Ap.typ) d) (C.outerList (C.form Bp.typ) d')
+    (fun p => C.σ.θ • vp + C.occMid p) (fun q => C.σ.θ • wp + C.occMid q)
+    (C.macroSideDir (C.form Ap.typ) d) (som_macroSideDir_ne C _ d) (hsorted _ d vp)
+    (by rw [hdir]; exact hsorted _ d' wp) (by
+      intro x
+      simp only [List.mem_map]
+      constructor
+      · rintro ⟨p, hp, rfl⟩
+        obtain ⟨q, hq, he⟩ := strict_lift_matched_step6_ports_step1_whole_ports_step10_match C hC T1 T0
+          hcomp hsts0 Ap Bp vp wp hAp hBp d d' hd' p hp
+        exact ⟨q, hq, he.symm⟩
+      · rintro ⟨q, hq, rfl⟩
+        obtain ⟨p, hp, he⟩ := strict_lift_matched_step6_ports_step1_whole_ports_step10_match C hC T1 T0
+          hcomp hsts0 Bp Ap wp vp hBp hAp d' d hd'.symm q hq
+        exact ⟨p, hp, he.symm⟩)
+    _ _ _ ho ho'L (strict_lift_matched_step6_ports_step1_whole_ports_step5_mid C _ _ _ _ hFeq)
+  refine ⟨d', strict_lift_matched_step6_ports_step1_whole_ports_step2_path C (q := C.occ t' j) ?_, hd'⟩
+  show (C.outerList _ d')[MacroData.portRank (C.outerList _ d').length jj - 1]? = some _
+  rw [← hlen]
+  exact hr
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (auxiliary): a tile of a level lies in
+at most one tile of a higher level (disjoint interiors). -/
+private theorem strict_lift_matched_step6_ports_step2_unique (T : PlaneTiling (strictProtoset C hC))
+    {Z Z' : PlacedTile (strictProtoset C hC)} (hZ : Z ∈ T.tiles) (hZ' : Z' ∈ T.tiles) (K : ℕ)
+    {S : Set Pt} (hS : (interior S).Nonempty) (h1 : S ⊆ ((strictSubst C hC).θ ^ K) • Z.carrier)
+    (h2 : S ⊆ ((strictSubst C hC).θ ^ K) • Z'.carrier) : Z = Z' := by
+  by_contra hne
+  have hθ : (strictSubst C hC).θ ^ K ≠ 0 := pow_ne_zero _ (by linarith [(strictSubst C hC).one_lt])
+  obtain ⟨x, hx⟩ := hS
+  have hx1 := interior_mono h1 hx
+  have hx2 := interior_mono h2 hx
+  rw [interior_smul₀ hθ] at hx1 hx2
+  exact Set.disjoint_left.mp
+    ((Set.disjoint_image_iff (smul_right_injective Pt hθ)).mpr (T.disjoint hZ hZ' hne)) hx1 hx2
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (auxiliary): a child placed in its
+parent lies in the scaled parent. -/
+private theorem strict_lift_matched_step6_ports_step3_child_sub (s : C.Typ) (β : C.Q.Form)
+    (hs : C.owner s = β) (vp : Pt) :
+    (C.σ.θ • vp + C.anchor s) +ᵥ (C.Q.disk (C.form s)).carrier ⊆
+      C.σ.θ • (vp +ᵥ (C.Q.disk β).carrier) := by
+  rw [← strict_lift_matched_step4_outer_step1_smul_vadd, ← vadd_vadd, ← hs]
+  exact Set.vadd_set_mono (strict_lift_matched_step4_outer_step3_child_sub C s)
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (auxiliary): two siblings with
+coincident placed sides carry equal five-tuples on them (step 3 in placed coordinates). -/
+private theorem strict_lift_matched_step6_ports_step4_sibling (Ap : StrictDecTile C hC) (vp : Pt)
+    (t t' : C.Typ) (ht : C.owner t = C.form Ap.typ) (ht' : C.owner t' = C.form Ap.typ)
+    (htt : t ≠ t') (i : C.Side t) (j : C.Side t')
+    (hside : (C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i =
+      (C.σ.θ • vp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).side j) :
+    (strictChild C hC Ap t).cell i = (strictChild C hC Ap t').cell j := by
+  have hocc : C.occSide (C.occ t i) = C.occSide (C.occ t' j) := by
+    have h := congrArg (fun S : Set Pt => (-(C.σ.θ • vp)) +ᵥ S) hside
+    simpa [← vadd_vadd, MacroData.occSide, MacroData.childTile, PlacedTile.side] using h
+  exact strict_lift_matched_step3_sibling C hC Ap t t' ht ht' htt i j hocc
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (auxiliary): "port signals across
+persistent fault lines by induction up the levels": along the actual ancestor chain of a tile,
+a cell whose copy chain reaches an origin agrees with the coincident cell of every neighbour
+(induction on the copy chain: at an origin the two cells are generated, schedules and zeros
+matching across blocks; a copy step across two blocks follows the aligned ports to the
+coincident parent sides; inside one block the two cells agree by step 3). -/
+private theorem strict_lift_matched_step6_ports_step5_origin (seq' : ℕ → PlaneTiling C.Q)
+    (hsts : ∀ n, (seq' n).SideToSide)
+    (hlev : ∀ n, ∀ j ≤ m,
+      SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter (seq' (n + 1)).tiles)))
+    (seq'' : ℕ → PlaneTiling (strictProtoset C hC))
+    (hproj : ∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq' n)
+    (hcomp : ∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n))
+    (hleg : ∀ n, AllStrictLegal C hC (seq'' n))
+    (n : ℕ) (ch : ℕ → StrictDecTile C hC) (v : Pt)
+    (hchain : ∀ k, ∃ Y ∈ (seq'' (n + k)).tiles, Y.form = StrictForm.typed (ch k) ∧
+      (⟨.typed (ch 0), v⟩ : PlacedTile (strictProtoset C hC)).carrier ⊆
+        ((strictSubst C hC).θ ^ k) • Y.carrier)
+    (l : ℕ) (i : C.Side (ch l).typ) (k : Fin 5) (hor : StrictHasOrigin C hC ch l i k) :
+    ∀ y : Pt, (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' (n + l)).tiles →
+      (⟨.typed (ch 0), v⟩ : PlacedTile (strictProtoset C hC)).carrier ⊆
+        ((strictSubst C hC).θ ^ l) • (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)).carrier →
+      ∀ (B : StrictDecTile C hC) (w : Pt) (j : C.Side B.typ),
+        (⟨.typed B, w⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' (n + l)).tiles →
+        (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)) ≠ ⟨.typed B, w⟩ →
+        y +ᵥ (C.Q.disk (C.form (ch l).typ)).side i = w +ᵥ (C.Q.disk (C.form B.typ)).side j →
+        (ch l).cell i k = B.cell j k := by
+  have hXint : (interior (⟨.typed (ch 0), v⟩ : PlacedTile (strictProtoset C hC)).carrier).Nonempty := by
+    obtain ⟨z, hz⟩ := (C.Q.disk (C.form (ch 0).typ)).interior_nonempty
+    refine ⟨v +ᵥ z, ?_⟩
+    show v +ᵥ z ∈ interior (v +ᵥ (C.Q.disk (C.form (ch 0).typ)).carrier)
+    rw [interior_vadd]
+    exact Set.vadd_mem_vadd_set hz
+  have key : ∀ (l : ℕ) (y : Pt),
+      (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' (n + l)).tiles →
+      (⟨.typed (ch 0), v⟩ : PlacedTile (strictProtoset C hC)).carrier ⊆
+        ((strictSubst C hC).θ ^ l) • (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)).carrier →
+      ∃ vp : Pt, (⟨.typed (ch (l + 1)), vp⟩ : PlacedTile (strictProtoset C hC)) ∈
+          (seq'' (n + l + 1)).tiles ∧
+        C.owner (ch l).typ = C.form (ch (l + 1)).typ ∧ ch l = strictChild C hC (ch (l + 1)) (ch l).typ ∧
+        y = C.σ.θ • vp + C.anchor (ch l).typ ∧
+        (⟨.typed (ch 0), v⟩ : PlacedTile (strictProtoset C hC)).carrier ⊆
+          ((strictSubst C hC).θ ^ (l + 1)) •
+            (⟨.typed (ch (l + 1)), vp⟩ : PlacedTile (strictProtoset C hC)).carrier := by
+    intro l y hY hXY
+    obtain ⟨Ap, vp, hAp, hown, hAeq, hy⟩ :=
+      strict_lift_matched_step2_parent C hC _ _ (hcomp (n + l)) (hleg (n + l + 1)) hY
+    have hsub : (⟨.typed (ch 0), v⟩ : PlacedTile (strictProtoset C hC)).carrier ⊆
+        ((strictSubst C hC).θ ^ (l + 1)) •
+          (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)).carrier := by
+      refine hXY.trans ?_
+      rw [pow_succ, mul_smul]
+      apply Set.smul_set_mono
+      show y +ᵥ (C.Q.disk (C.form (ch l).typ)).carrier ⊆
+        C.σ.θ • (vp +ᵥ (C.Q.disk (C.form Ap.typ)).carrier)
+      rw [hy]
+      exact strict_lift_matched_step6_ports_step3_child_sub C _ _ hown vp
+    obtain ⟨Y1, hY1, hY1f, hXY1⟩ := hchain (l + 1)
+    have hYY := strict_lift_matched_step6_ports_step2_unique C hC (seq'' (n + l + 1)) hAp hY1 (l + 1)
+      hXint hsub hXY1
+    have hApc : Ap = ch (l + 1) := by
+      have h := congrArg PlacedTile.form hYY
+      rw [hY1f] at h
+      exact StrictForm.typed.inj h
+    subst hApc
+    exact ⟨vp, hAp, hown, hAeq, hy, hsub⟩
+  refine HasOrigin.rec (c := C) (ch := fun l => typeShadow C hC (ch l))
+    (motive := fun l i k _ => ∀ y : Pt,
+      (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' (n + l)).tiles →
+      (⟨.typed (ch 0), v⟩ : PlacedTile (strictProtoset C hC)).carrier ⊆
+        ((strictSubst C hC).θ ^ l) • (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)).carrier →
+      ∀ (B : StrictDecTile C hC) (w : Pt) (j : C.Side B.typ),
+        (⟨.typed B, w⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' (n + l)).tiles →
+        (⟨.typed (ch l), y⟩ : PlacedTile (strictProtoset C hC)) ≠ ⟨.typed B, w⟩ →
+        y +ᵥ (C.Q.disk (C.form (ch l).typ)).side i = w +ᵥ (C.Q.disk (C.form B.typ)).side j →
+        (ch l).cell i k = B.cell j k) ?_ ?_ hor
+  · intro l i k hcs y hY hXY B w j hB hne hside
+    obtain ⟨vp, hAp, hown, hAeq, hy, -⟩ := key l y hY hXY
+    obtain ⟨Bp, wp, hBp, hownB, hBeq, hw⟩ :=
+      strict_lift_matched_step2_parent C hC _ _ (hcomp (n + l)) (hleg (n + l + 1)) hB
+    subst hy hw
+    rw [strict_lift_matched_step6_ports_step0_cell_eq C hC hAeq,
+      strict_lift_matched_step6_ports_step0_cell_eq C hC hBeq]
+    by_cases hsame : (⟨.typed (ch (l + 1)), vp⟩ : PlacedTile (strictProtoset C hC)) = ⟨.typed Bp, wp⟩
+    · injection hsame with h1 h2
+      injection h1 with h1
+      subst h1 h2
+      have htt : (ch l).typ ≠ B.typ := by
+        intro h
+        apply hne
+        have hcl : ch l = B := by rw [hAeq, hBeq, h]
+        rw [hcl]
+      exact congrFun (strict_lift_matched_step6_ports_step4_sibling C hC (ch (l + 1)) vp _ _ hown hownB
+        htt i j hside) k
+    have hout := strict_lift_matched_step4_outer C hC (seq'' (n + l + 1)) (ch (l + 1)) Bp vp wp hAp hBp
+      hsame (ch l).typ B.typ hown hownB i j hside
+    have hout' := strict_lift_matched_step4_outer C hC (seq'' (n + l + 1)) Bp (ch (l + 1)) wp vp hBp hAp
+      (Ne.symm hsame) B.typ (ch l).typ hownB hown j i hside.symm
+    have hnp : ¬ C.IsPrint (C.occ (ch l).typ i) := fun ⟨_, hd⟩ => isInner_of_isPrintOf C hd hout
+    have hnp' : ¬ C.IsPrint (C.occ B.typ j) := fun ⟨_, hd⟩ => isInner_of_isPrintOf C hd hout'
+    obtain ⟨h0, h1, h4, h2a, h2b, h3, -, -⟩ := (strictChild_cells C hC (ch (l + 1)) (ch l).typ hown i).2 hnp
+    obtain ⟨h0', h1', h4', h2a', h2b', h3', -, -⟩ := (strictChild_cells C hC Bp B.typ hownB j).2 hnp'
+    have hsts0 := strict_lift_matched_step1_sideToSide C hC (seq'' (n + l)) (seq' (n + l)) (hproj _)
+      (hsts _)
+    have hsts1 := strict_lift_matched_step1_sideToSide C hC (seq'' (n + l + 1)) (seq' (n + l + 1))
+      (hproj _) (hsts _)
+    have hin : ¬ C.IsInner (C.occ (ch l).typ i) := fun h => h hout
+    have hin' : ¬ C.IsInner (C.occ B.typ j) := fun h => h hout'
+    rw [if_neg hin] at h0
+    rw [if_neg hin'] at h0'
+    have hno : k = 2 → ∀ d jj, C.occ (ch l).typ i ∉ C.path (C.form (ch (l + 1)).typ) d jj := by
+      rintro rfl d jj hp
+      have hm : (d, jj) ∈ copySource C (C.form (ch (l + 1)).typ) (C.occ (ch l).typ i) 2 :=
+        Or.inr ⟨hnp, rfl, hp⟩
+      have hcs' : copySource C (C.form (ch (l + 1)).typ) (C.occ (ch l).typ i) 2 = ∅ := hcs
+      rw [hcs'] at hm
+      exact hm
+    fin_cases k
+    · exact h0.trans h0'.symm
+    · exact h1.trans h1'.symm
+    · have hno' : ∀ d' jj, C.occ B.typ j ∉ C.path (C.form Bp.typ) d' jj := by
+        intro d' jj hp'
+        obtain ⟨d, hd, -⟩ := strict_lift_matched_step6_ports_step1_whole_ports C hC (seq'' (n + l + 1))
+          (seq'' (n + l)) (hcomp _) hsts0 hsts1 Bp (ch (l + 1)) wp vp hBp hAp
+          B.typ (ch l).typ hown j i hout' hout hside.symm d' jj hp'
+        exact hno rfl d jj hd
+      exact (h2b (hno rfl)).trans (h2b' hno').symm
+    · exact (h3 hout).trans ((strict_lift_matched_step5_schedule C hC (seq'' (n + l + 1))
+        (seq' (n + l + 1)) (hproj _) (hsts _) (hlev (n + l)) (ch (l + 1)) Bp vp wp hAp hBp (ch l).typ
+        B.typ hown hownB i j hout hout' hside).trans (h3' hout').symm)
+    · exact h4.trans h4'.symm
+  · intro l i k d k' hmem hor ih y hY hXY B w j hB hne hside
+    obtain ⟨vp, hAp, hown, hAeq, hy, hsub⟩ := key l y hY hXY
+    obtain ⟨Bp, wp, hBp, hownB, hBeq, hw⟩ :=
+      strict_lift_matched_step2_parent C hC _ _ (hcomp (n + l)) (hleg (n + l + 1)) hB
+    subst hy hw
+    rw [strict_lift_matched_step6_ports_step0_cell_eq C hC hAeq,
+      strict_lift_matched_step6_ports_step0_cell_eq C hC hBeq]
+    by_cases hsame : (⟨.typed (ch (l + 1)), vp⟩ : PlacedTile (strictProtoset C hC)) = ⟨.typed Bp, wp⟩
+    · injection hsame with h1 h2
+      injection h1 with h1
+      subst h1 h2
+      have htt : (ch l).typ ≠ B.typ := by
+        intro h
+        apply hne
+        have hcl : ch l = B := by rw [hAeq, hBeq, h]
+        rw [hcl]
+      exact congrFun (strict_lift_matched_step6_ports_step4_sibling C hC (ch (l + 1)) vp _ _ hown hownB
+        htt i j hside) k
+    have hout := strict_lift_matched_step4_outer C hC (seq'' (n + l + 1)) (ch (l + 1)) Bp vp wp hAp hBp
+      hsame (ch l).typ B.typ hown hownB i j hside
+    have hout' := strict_lift_matched_step4_outer C hC (seq'' (n + l + 1)) Bp (ch (l + 1)) wp vp hBp hAp
+      (Ne.symm hsame) B.typ (ch l).typ hownB hown j i hside.symm
+    have hnp : ¬ C.IsPrint (C.occ (ch l).typ i) := fun ⟨_, hd⟩ => isInner_of_isPrintOf C hd hout
+    have hnp' : ¬ C.IsPrint (C.occ B.typ j) := fun ⟨_, hd⟩ => isInner_of_isPrintOf C hd hout'
+    obtain ⟨h0, h1, h4, h2a, h2b, h3, -, -⟩ := (strictChild_cells C hC (ch (l + 1)) (ch l).typ hown i).2 hnp
+    obtain ⟨h0', h1', h4', h2a', h2b', h3', -, -⟩ := (strictChild_cells C hC Bp B.typ hownB j).2 hnp'
+    have hsts0 := strict_lift_matched_step1_sideToSide C hC (seq'' (n + l)) (seq' (n + l)) (hproj _)
+      (hsts _)
+    have hsts1 := strict_lift_matched_step1_sideToSide C hC (seq'' (n + l + 1)) (seq' (n + l + 1))
+      (hproj _) (hsts _)
+    have hmem' : C.occ (ch l).typ i ∈ C.path (C.form (ch (l + 1)).typ) d k' ∧ k = 2 := by
+      rcases hmem with ⟨hp, -, -⟩ | ⟨-, hk2, hpath⟩
+      · exact absurd (isInner_of_isPrintOf C hp) (fun h => h hout)
+      · exact ⟨hpath, hk2⟩
+    obtain ⟨hpath, rfl⟩ := hmem'
+    obtain ⟨d', hpath', hpl⟩ := strict_lift_matched_step6_ports_step1_whole_ports C hC (seq'' (n + l + 1))
+      (seq'' (n + l)) (hcomp _) hsts0 hsts1 (ch (l + 1)) Bp vp wp hAp hBp (ch l).typ B.typ
+      hownB i j hout hout' hside d k' hpath
+    rw [h2a d k' hpath, h2a' d' k' hpath']
+    exact ih vp hAp hsub Bp wp d' hBp hsame hpl
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched` (auxiliary): "originless copied cells
+being zero": a cell of the bottom level either agrees with the coincident cell of a neighbour
+(its copy chain along the actual hierarchy reaches an origin) or is zero (foundedness). -/
+private theorem strict_lift_matched_step6_ports_step6_match_or_zero (seq' : ℕ → PlaneTiling C.Q)
+    (hsts : ∀ n, (seq' n).SideToSide)
+    (hlev : ∀ n, ∀ j ≤ m,
+      SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter (seq' (n + 1)).tiles)))
+    (seq'' : ℕ → PlaneTiling (strictProtoset C hC))
+    (hproj : ∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq' n)
+    (hcomp : ∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n))
+    (hleg : ∀ n, AllStrictLegal C hC (seq'' n)) (hfounded : StrictLiftFounded C hC seq'')
+    (A B : StrictDecTile C hC) (v w : Pt)
+    (hA : (⟨.typed A, v⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' 0).tiles)
+    (hB : (⟨.typed B, w⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' 0).tiles)
+    (hne : (⟨.typed A, v⟩ : PlacedTile (strictProtoset C hC)) ≠ ⟨.typed B, w⟩)
+    (i : C.Side A.typ) (j : C.Side B.typ)
+    (hij : v +ᵥ (C.Q.disk (C.form A.typ)).side i = w +ᵥ (C.Q.disk (C.form B.typ)).side j)
+    (k : Fin 5) : A.cell i k = B.cell j k ∨ A.cell i k = 0 := by
+  obtain ⟨ch, h0, -, hchain, hzero⟩ := hfounded 0 _ hA A rfl
+  subst h0
+  by_cases hor : StrictHasOrigin C hC ch 0 i k
+  · left
+    exact strict_lift_matched_step6_ports_step5_origin C hC seq' hsts hlev seq'' hproj hcomp hleg 0 ch v
+      hchain 0 i k hor v hA (by rw [pow_zero, one_smul]) B w j hB hne hij
+  · right
+    refine hzero 0 i k ?_ hor
+    rw [Set.nonempty_iff_ne_empty]
+    intro hcs
+    exact hor (HasOrigin.origin _ _ _ hcs)
+
+/-- Step 6 of the blueprint proof of `strict_lift_matched`: across two different blocks the
+port signals match ("so their schedules and port signals match"): the third cells of the two
+outer sides, copied along the ports of the coincident parent sides, agree, by induction up the
+levels of the lift along persistent fault lines, originless copied cells being zero. -/
+private theorem strict_lift_matched_step6_ports (seq' : ℕ → PlaneTiling C.Q)
+    (hsts : ∀ n, (seq' n).SideToSide)
+    (hlev : ∀ n, ∀ j ≤ m,
+      SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter (seq' (n + 1)).tiles)))
+    (seq'' : ℕ → PlaneTiling (strictProtoset C hC))
+    (hproj : ∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq' n)
+    (hcomp : ∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n))
+    (hleg : ∀ n, AllStrictLegal C hC (seq'' n)) (hfounded : StrictLiftFounded C hC seq'')
+    (Ap Bp : StrictDecTile C hC) (vp wp : Pt)
+    (hAp : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' 1).tiles)
+    (hBp : (⟨.typed Bp, wp⟩ : PlacedTile (strictProtoset C hC)) ∈ (seq'' 1).tiles)
+    (hne : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) ≠ ⟨.typed Bp, wp⟩)
+    (t t' : C.Typ) (ht : C.owner t = C.form Ap.typ) (ht' : C.owner t' = C.form Bp.typ)
+    (hA : (⟨.typed (strictChild C hC Ap t), C.σ.θ • vp + C.anchor t⟩ :
+      PlacedTile (strictProtoset C hC)) ∈ (seq'' 0).tiles)
+    (hB : (⟨.typed (strictChild C hC Bp t'), C.σ.θ • wp + C.anchor t'⟩ :
+      PlacedTile (strictProtoset C hC)) ∈ (seq'' 0).tiles)
+    (i : C.Side t) (j : C.Side t')
+    (hside : (C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i =
+      (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).side j) :
+    (strictChild C hC Ap t).cell i 2 = (strictChild C hC Bp t').cell j 2 := by
+  have hXY : (⟨.typed (strictChild C hC Ap t), C.σ.θ • vp + C.anchor t⟩ :
+      PlacedTile (strictProtoset C hC)) ≠ ⟨.typed (strictChild C hC Bp t'), C.σ.θ • wp + C.anchor t'⟩ := by
+    intro h
+    apply hne
+    have hcar : (C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).carrier =
+        (C.σ.θ • wp + C.anchor t') +ᵥ (C.Q.disk (C.form t')).carrier :=
+      congrArg PlacedTile.carrier h
+    have hint : (interior ((C.σ.θ • vp + C.anchor t) +ᵥ (C.Q.disk (C.form t)).carrier)).Nonempty := by
+      obtain ⟨z, hz⟩ := (C.Q.disk (C.form t)).interior_nonempty
+      exact ⟨_, by rw [interior_vadd]; exact Set.vadd_mem_vadd_set hz⟩
+    refine strict_lift_matched_step6_ports_step2_unique C hC (seq'' 1) hAp hBp 1 hint ?_ ?_
+    · rw [pow_one]
+      exact strict_lift_matched_step6_ports_step3_child_sub C t _ ht vp
+    · rw [pow_one, hcar]
+      exact strict_lift_matched_step6_ports_step3_child_sub C t' _ ht' wp
+  rcases strict_lift_matched_step6_ports_step6_match_or_zero C hC seq' hsts hlev seq'' hproj hcomp hleg
+      hfounded _ _ _ _ hA hB hXY i j hside 2 with h | h <;>
+    rcases strict_lift_matched_step6_ports_step6_match_or_zero C hC seq' hsts hlev seq'' hproj hcomp hleg
+      hfounded _ _ _ _ hB hA (Ne.symm hXY) j i hside.symm 2 with h' | h'
+  · exact h
+  · exact h
+  · exact h'.symm
+  · rw [h, h']
+
 /-- `lem:strict-presentation` (completeness, matching): if the grouped levels and the scattered
 intermediate levels between consecutive grouped levels are side-to-side, the bottom level of a
 legal strict lift is strictly matched (schedules by `strict_actual_schedules_aligned`; port
@@ -7632,7 +8684,57 @@ theorem strict_lift_matched (seq' : ℕ → PlaneTiling C.Q)
     (hcomp : ∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n))
     (hleg : ∀ n, AllStrictLegal C hC (seq'' n)) (hfounded : StrictLiftFounded C hC seq'') :
     IsStrictMatched C hC (seq'' 0) := by
-  sorry
+  have _ := hseq
+  refine ⟨strict_lift_matched_step1_sideToSide C hC (seq'' 0) (seq' 0) (hproj 0) (hsts 0), ?_⟩
+  intro A B v w hA hB hne i j hij
+  obtain ⟨Ap, vp, hAp, hownA, hAeq, hv⟩ :=
+    strict_lift_matched_step2_parent C hC (seq'' 1) (seq'' 0) (hcomp 0) (hleg 1) hA
+  obtain ⟨Bp, wp, hBp, hownB, hBeq, hw⟩ :=
+    strict_lift_matched_step2_parent C hC (seq'' 1) (seq'' 0) (hcomp 0) (hleg 1) hB
+  obtain ⟨t, c⟩ := A
+  obtain ⟨t', c'⟩ := B
+  have hc : c = (strictChild C hC Ap t).cell := by
+    have h : (⟨t, c⟩ : StrictDecTile C hC) = ⟨t, (strictChild C hC Ap t).cell⟩ := hAeq
+    injection h
+  have hc' : c' = (strictChild C hC Bp t').cell := by
+    have h : (⟨t', c'⟩ : StrictDecTile C hC) = ⟨t', (strictChild C hC Bp t').cell⟩ := hBeq
+    injection h
+  subst hc hc' hv hw
+  dsimp only at hownA hownB i j hij ⊢
+  by_cases hsame : (⟨.typed Ap, vp⟩ : PlacedTile (strictProtoset C hC)) = ⟨.typed Bp, wp⟩
+  · injection hsame with h1 h2
+    injection h1 with h1
+    subst h1 h2
+    have htt : t ≠ t' := by
+      rintro rfl
+      exact hne rfl
+    have hocc : C.occSide (C.occ t i) = C.occSide (C.occ t' j) := by
+      have h := congrArg (fun S : Set Pt => (-(C.σ.θ • vp)) +ᵥ S) hij
+      simpa [← vadd_vadd, MacroData.occSide, MacroData.childTile, PlacedTile.side] using h
+    exact strict_lift_matched_step3_sibling C hC Ap t t' hownA hownB htt i j hocc
+  · have hout := strict_lift_matched_step4_outer C hC (seq'' 1) Ap Bp vp wp hAp hBp hsame t t'
+      hownA hownB i j hij
+    have hout' := strict_lift_matched_step4_outer C hC (seq'' 1) Bp Ap wp vp hBp hAp
+      (Ne.symm hsame) t' t hownB hownA j i hij.symm
+    have hsched := strict_lift_matched_step5_schedule C hC (seq'' 1) (seq' 1) (hproj 1) (hsts 1)
+      (hlev 0) Ap Bp vp wp hAp hBp t t' hownA hownB i j hout hout' hij
+    have hport := strict_lift_matched_step6_ports C hC seq' hsts hlev seq'' hproj hcomp hleg
+      hfounded Ap Bp vp wp hAp hBp hsame t t' hownA hownB hA hB i j hij
+    have hnp : ¬ C.IsPrint (C.occ t i) := fun ⟨_, hd⟩ => isInner_of_isPrintOf C hd hout
+    have hnp' : ¬ C.IsPrint (C.occ t' j) := fun ⟨_, hd⟩ => isInner_of_isPrintOf C hd hout'
+    obtain ⟨h0, h1, h4, -, -, h3, -, -⟩ := (strictChild_cells C hC Ap t hownA i).2 hnp
+    obtain ⟨h0', h1', h4', -, -, h3', -, -⟩ := (strictChild_cells C hC Bp t' hownB j).2 hnp'
+    have hin : ¬ C.IsInner (C.occ t i) := fun h => h hout
+    have hin' : ¬ C.IsInner (C.occ t' j) := fun h => h hout'
+    rw [if_neg hin] at h0
+    rw [if_neg hin'] at h0'
+    funext k
+    fin_cases k
+    · exact h0.trans h0'.symm
+    · exact h1.trans h1'.symm
+    · exact hport
+    · exact (h3 hout).trans (hsched.trans (h3' hout').symm)
+    · exact h4.trans h4'.symm
 
 /-- Lifting an STS grouped hierarchy to a proper strict plane tiling (`lem:strict-presentation`,
 completeness). -/

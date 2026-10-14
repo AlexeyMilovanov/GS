@@ -2937,7 +2937,14 @@ private lemma strict_path_and_print_recovery_step2_prints_step2_signal_transport
     (ho_partner : o.1 = (C.partner (C.printOcc (C.form h.1) d)).1)
     (ho_ord : C.IsOrdinary o) :
     K.col o.1 o.2 2 = (strictReconstruct C hC K h.1).cell d k := by
-  sorry
+  have _ := hd
+  have _ := hk
+  have _ := ho_partner
+  have hmem : o ∈ C.path (C.form h.1) d k := by
+    exact List.mem_of_getElem? ho
+  have hnp : ¬ C.IsPrint o := ho_ord.2
+  have hsig := strict_path_and_print_recovery_step1_signals C hC K hK h hh d k o hmem hnp
+  exact hsig
 
 /-- Step 3 of the blueprint proof of `strict_path_and_print_recovery_step2_prints`: the
 print clause copies the cell from the ordinary side. -/

@@ -14158,7 +14158,39 @@ private lemma existsAnnularSpokes_step6_cut_step3_closure (S : Patch P)
     (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
     (hWU : ⋃ j, W j = interior H.carrier \ (L.carrier ∪ ⋃ j, (α j).carrier)) (j : Fin k) :
     closure (W j) = support {A | A ∈ H.faces ∧ A ∉ L.faces ∧ interior A.carrier ⊆ W j} := by
-  sorry
+  apply Set.Subset.antisymm
+  · apply closure_minimal
+    · intro x hx
+      have hxU : x ∈ ⋃ i, W i := Set.mem_iUnion.2 ⟨j, hx⟩
+      rw [hWU] at hxU
+      have hxH : x ∈ H.carrier := interior_subset hxU.1
+      change x ∈ H.disk.carrier at hxH
+      rw [H.carrier_eq] at hxH
+      obtain ⟨A, hAH, hxA⟩ := mem_support_iff'.1 hxH
+      have hAL : A ∉ L.faces := by
+        intro hAL
+        apply hxU.2
+        left
+        change x ∈ L.disk.carrier
+        rw [L.carrier_eq]
+        exact mem_support_iff'.2 ⟨A, hAL, hxA⟩
+      obtain ⟨i, hi, _huniq⟩ := existsAnnularSpokes_step6_cut_step2_faces S L H α hskel
+        W hWo hWd hWU hAH hAL
+      have hxAcl : x ∈ closure (interior A.carrier) := by
+        rw [tile_regular]
+        exact hxA
+      have hij : i = j := by
+        by_contra hne
+        obtain ⟨y, hyA, hyj⟩ := mem_closure_iff.1 hxAcl (W j) (hWo j) hx
+        exact Set.disjoint_left.1 (hWd i j hne) (hi hyj) hyA
+      exact mem_support_iff'.2 ⟨A, ⟨hAH, hAL, by simpa [hij] using hi⟩, hxA⟩
+    · exact support_isClosed (H.finite.subset (fun A hA => hA.1))
+  · intro x hx
+    obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+    have hxAcl : x ∈ closure (interior A.carrier) := by
+      rw [tile_regular]
+      exact hxA
+    exact closure_mono hA.2.2 hxAcl
 
 /-- Step 6 of the blueprint proof of `existsAnnularSpokes`: "Cutting a polygonal annulus along
 such `4N` arcs gives `4N` disks, one between each successive pair ... All cuts use original

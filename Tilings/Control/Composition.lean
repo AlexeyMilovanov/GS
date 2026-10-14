@@ -1903,7 +1903,16 @@ private lemma reconstructed_header_eq_innerActive_step2_nonprint_step3_reconstru
     (hChild : IsChildOf c ⟨h.1, colC⟩ (K.tileOf o.1))
     (hPath : o ∈ c.path (c.form h.1) i 3) (hPortNP : ¬ c.IsPrint o) :
     (reconstruct c K h.1).cell i 3 = colC i 3 := by
-  sorry
+  dsimp [reconstruct]
+  rw [ho]
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hChild
+  obtain ⟨hTyp, hChild⟩ := hChild
+  have h2 := (hChild o.2).2 hPortNP
+  have h3 := h2.2.2.2.1 i 3 hPath
+  change K.col o.1 o.2 2 = colC i 3
+  have h4 : (K.tileOf o.1).cell o.2 2 = K.col o.1 o.2 2 := by rfl
+  rw [← h4]
+  exact h3
 
 /-- Step 4.2 of the blueprint proof of `reconstructed_header_eq_innerActive`:
 for nonprints, the fourth cell is nonzero. -/

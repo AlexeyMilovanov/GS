@@ -2731,7 +2731,13 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_boundary
       ¬ c.IsPrint (c.occ (K.tileOf t).typ i) →
         (c.IsBoundary (c.occ (K.tileOf t).typ i) →
           (K.tileOf t).cell i 3 = headerU c (headerOf c (reconstruct c K h.1))) := by
-  sorry
+  intro i _ hbound
+  have _ := ht_c
+  have hhh2 := hh.2 t i ht_owner hbound
+  change K.col t i 3 = _
+  rw [hhh2]
+  have h_recon := reconstructed_header_eq c hH K hK h hh
+  rw [h_recon.2.2.1]
 
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_inner_aux_boundary
     (c : MacroCertificate P) {o : c.SideOcc} (ho : c.IsInner o)

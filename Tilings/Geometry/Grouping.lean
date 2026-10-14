@@ -21316,6 +21316,68 @@ private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary 
     e ⊆ frontier X.carrier := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge`:
+an infinite convex set covered by finitely many convex sets (the listed sides of the group) overlaps
+one of them with positive length. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge_step1_overlap {e : Set Pt}
+    (hec : Convex ℝ e) (hei : e.Infinite) {n : ℕ} (s : Fin n → Set Pt) (hs : ∀ k, Convex ℝ (s k))
+    (hcov : e ⊆ ⋃ k, s k) : ∃ k, OverlapPos e (s k) := by
+  by_contra hcon
+  push_neg at hcon
+  have hsub : ∀ k, (e ∩ s k).Subsingleton := by
+    intro k x hx y hy
+    by_contra hxy
+    exact hcon k ⟨x, y, hxy, (hec.inter (hs k)).segment_subset hx hy⟩
+  apply hei
+  have : e = ⋃ k, e ∩ s k := by
+    rw [← inter_iUnion]; exact (inter_eq_left.mpr hcov).symm
+  rw [this]
+  exact finite_iUnion fun k => (hsub k).finite
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge`:
+a listed side of a polygonal disk is a nondegenerate segment, hence an infinite set. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge_step2_sideInfinite
+    (D : PolygonalDisk) (i : Fin D.n) : (D.side i).Infinite := by
+  have hrot : ∀ i : Fin D.n, finRotate D.n i ≠ i := by
+    obtain ⟨m, hm⟩ : ∃ m, D.n = m + 1 := ⟨D.n - 1, by have := D.three_le; omega⟩
+    have h3 := D.three_le
+    rw [hm] at h3 ⊢
+    intro i hc
+    rcases Fin.eq_castSucc_or_eq_last i with ⟨j, rfl⟩ | rfl
+    · rw [finRotate_succ_apply] at hc
+      have := congrArg Fin.val hc
+      simp at this
+    · rw [finRotate_last] at hc
+      have := congrArg Fin.val hc
+      simp at this
+      omega
+  have hne : D.vertex i ≠ D.vertex (finRotate D.n i) := fun h => hrot i (D.vertex_injective h).symm
+  unfold PolygonalDisk.side
+  rw [segment_eq_image_lineMap]
+  exact (Icc_infinite zero_lt_one).image (AffineMap.lineMap_injective ℝ hne).injOn
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge`:
+the listed sides of a group are complete original sides (`side_whole`) and the group is
+side-to-side (`sts`), so an original side of a constituent lying on the group boundary is a listed
+side of the group. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge_step3_groupSide
+    (G : GroupedFamily P) (β : G.P'.Form) {A₀ : PlacedTile P} (hA₀ : A₀ ∈ (G.dissect β).tiles)
+    (i : Fin (P.disk A₀.form).n) (hfr : A₀.side i ⊆ frontier (G.P'.disk β).carrier) :
+    ∃ k, (G.P'.disk β).side k = A₀.side i := by
+  rw [(G.P'.disk β).frontier_eq] at hfr
+  have hinf : (A₀.side i).Infinite := by
+    unfold PlacedTile.side
+    rw [← Set.image_vadd]
+    exact (existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge_step2_sideInfinite _ i).image
+      (add_right_injective A₀.anchor).injOn
+  obtain ⟨k, x, y, hxy, hseg⟩ :=
+    existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge_step1_overlap
+      ((convex_segment _ _).vadd A₀.anchor) hinf
+      (fun k => (G.P'.disk β).side k) (fun k => convex_segment _ _) hfr
+  obtain ⟨B, hB, j, hBj⟩ := G.side_whole β k
+  have := G.sts β A₀ hA₀ B hB i j ⟨x, y, hxy, by rw [hBj]; exact hseg⟩
+  exact ⟨k, hBj.symm.trans this.symm⟩
+
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed`:
 The listed boundary sides of `X` are its complete boundary original sides, so `e` is an edge of `X`. -/
 private lemma existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge (τ : Substitution P)
@@ -21327,7 +21389,34 @@ private lemma existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge (
     (hA : ∃ A ∈ ((Rs.annulus l α hl).spokes.piece j).faces, HasEdge A e)
     (hBoundary : e ⊆ frontier X.carrier) :
     HasEdge X e := by
-  sorry
+  have _ := hX
+  have _ := he
+  obtain ⟨A, hA, i, hAi⟩ := hA
+  obtain ⟨form, v⟩ := X
+  rcases form with β | p
+  · change translateSet v (Rs.GS.G.dissect β).tiles = _ at hXj
+    change e ⊆ frontier (v +ᵥ (Rs.GS.G.P'.disk β).carrier) at hBoundary
+    rw [← hXj] at hA
+    obtain ⟨A₀, hA₀, rfl⟩ := hA
+    have hside : (A₀.translate v).side i = v +ᵥ A₀.side i := by
+      simp only [PlacedTile.side, PlacedTile.translate, vadd_vadd, vadd_eq_add]
+    subst hAi
+    rw [hside] at hBoundary
+    have hfr : frontier (v +ᵥ (Rs.GS.G.P'.disk β).carrier) = v +ᵥ frontier (Rs.GS.G.P'.disk β).carrier := by
+      have h := (Homeomorph.addLeft v).image_frontier (Rs.GS.G.P'.disk β).carrier
+      rw [← Set.image_vadd, ← Set.image_vadd]
+      exact h.symm
+    rw [hfr, vadd_set_subset_vadd_set_iff] at hBoundary
+    obtain ⟨k, hk⟩ :=
+      existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge_step3_groupSide Rs.GS.G β hA₀ i hBoundary
+    refine ⟨k, ?_⟩
+    rw [hside]
+    change v +ᵥ (Rs.GS.G.P'.disk β).side k = _
+    rw [hk]
+  · change ({⟨p, v⟩} : Set (PlacedTile P)) = _ at hXj
+    rw [← hXj, mem_singleton_iff] at hA
+    subst hA
+    exact ⟨i, hAi⟩
 
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "The entry and
 print belong to the same small group".  A private outer edge of an annular piece lies on the

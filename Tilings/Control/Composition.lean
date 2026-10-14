@@ -3261,7 +3261,142 @@ private lemma reconstructed_noncentral_legal_step3_eq_step1_marked {P : Protoset
     (h_type : E.typ = h.1) :
     ∀ d : c.Side E.typ, c.marked (c.form E.typ) d → ∀ k : Fin 5, k ≠ 4 →
       E.cell d k = (reconstruct c K h.1).cell
-        (Fin.cast (congrArg (fun t => (c.Q.disk (c.form t)).n) h_type) d) k := by sorry
+        (Fin.cast (congrArg (fun t => (c.Q.disk (c.form t)).n) h_type) d) k := by
+  have _ := hE_leg
+  have _ := hE_nc
+  have _ := hnc
+  obtain ⟨α, v, col⟩ := K
+  dsimp only [CommonHeader] at hh
+  obtain ⟨hform, hh⟩ := hh
+  subst α
+  obtain ⟨t, cell⟩ := E
+  dsimp only at h_type
+  subst t
+  intro d hd k hk
+  let o := c.printOcc (c.form h.1) d
+  have hinner : c.IsInner o := c.g4_print_inner _ _ hd
+  have hactive : IsNontrivial c
+      (⟨c.central (c.form h.1), col (c.central (c.form h.1))⟩ : DecTile c)
+      (c.print (c.form h.1) d) := by
+    exact headerLegal_properties_step6_inner c hH _ hA _ hinner
+  obtain ⟨t', j, howner, htne, hside, hcol⟩ :=
+    hK.1 (c.central (c.form h.1)) (c.print (c.form h.1) d)
+      (c.g5_central_owner _) hinner hactive
+  have hoccside : c.occSide (c.occ t' j) = c.occSide o := by
+    rw [path_and_print_recovery_step1_signals_aux_childSide c
+        ⟨c.form h.1, v, col⟩ (c.occ t' j),
+      path_and_print_recovery_step1_signals_aux_childSide c
+        ⟨c.form h.1, v, col⟩
+        (c.occ (c.central (c.form h.1)) (c.print (c.form h.1) d))] at hside
+    have hsides := path_and_print_recovery_step1_signals_aux_vadd_cancel v hside
+    simpa [o, MacroData.printOcc] using hsides
+  have hoccur : c.occ t' j = c.partner o := by
+    apply c.g1_side_unique o (c.occ t' j) hinner
+    · exact howner.trans (c.g5_central_owner _).symm
+    · exact htne
+    · exact hoccside
+  have hcentre_partner :
+      col (c.central (c.form h.1)) (c.print (c.form h.1) d) k =
+        col (c.partner o).1 (c.partner o).2 k := by
+    rw [← hoccur]
+    exact (hcol k).symm
+  have hpartner_reconstruct :
+      col (c.partner o).1 (c.partner o).2 k =
+        (reconstruct c ⟨c.form h.1, v, col⟩ h.1).cell d k := by
+    have hpartner_owner : c.owner (c.partner o).1 = c.form h.1 :=
+      (c.g1_partner o hinner).2.1.trans (c.g5_central_owner _)
+    have hpartner_ne : (c.partner o).1 ≠ c.central (c.form h.1) :=
+      c.g1_partner o hinner |>.1
+    have hlegal := hK.2 (c.partner o).1 hpartner_owner hpartner_ne
+    obtain ⟨ch, hch0, hch, _⟩ := hlegal
+    let C := ch 1
+    have hC : IsChildOf c C
+        ((⟨c.form h.1, v, col⟩ : ColouredBlock c).tileOf (c.partner o).1) := by
+      have hC' := hch 0
+      rw [hch0] at hC'
+      exact hC'
+    have hCform : c.form h.1 = c.form C.typ := by
+      rw [← hC.1]
+      exact hpartner_owner.symm
+    have hGenuine : c.IsGenuinePath (c.form h.1) d k := by
+      exact ⟨hd, by omega⟩
+    have hfive := c.g3_five_le (c.form h.1) d
+    have hport_le : MacroData.portRank (c.outerList (c.form h.1) d).length k ≤
+        (c.outerList (c.form h.1) d).length := by
+      unfold MacroData.portRank
+      have hmul : (k.val + 1) * (c.outerList (c.form h.1) d).length ≤
+          5 * (c.outerList (c.form h.1) d).length :=
+        Nat.mul_le_mul_right _ (by omega)
+      omega
+    have hport_idx : MacroData.portRank (c.outerList (c.form h.1) d).length k - 1 <
+        (c.outerList (c.form h.1) d).length := by
+      omega
+    let p := (c.outerList (c.form h.1) d)[MacroData.portRank
+      (c.outerList (c.form h.1) d).length k - 1]
+    have hp : c.port (c.form h.1) d k = some p := by
+      rw [MacroData.port, List.getElem?_eq_some_iff]
+      exact ⟨hport_idx, rfl⟩
+    have hp_mem : p ∈ c.outerList (c.form h.1) d := List.getElem_mem hport_idx
+    have hp_outer : c.IsOuter p :=
+      ((c.g3_outerList_mem (c.form h.1) d p).1 hp_mem).2.1
+    have hhead : (c.path (c.form h.1) d k)[0]? = some p := by
+      rw [← List.head?_eq_getElem?, c.g4_path_head _ _ _ hGenuine, hp]
+    have hlast := c.g4_path_last (c.form h.1) d k hGenuine
+    rw [List.getLast?_eq_getElem?] at hlast
+    have hlength_pos : 0 < (c.path (c.form h.1) d k).length := by
+      have := (List.getElem?_eq_some_iff.mp hlast).1
+      omega
+    have hlength_ne_one : (c.path (c.form h.1) d k).length ≠ 1 := by
+      intro hlength
+      have hlast0 : (c.path (c.form h.1) d k)[0]? = some (c.partner o) := by
+        simpa [hlength] using hlast
+      have hp_eq : p = c.partner o := Option.some.inj (hhead.symm.trans hlast0)
+      have hpartner_inner : c.IsInner (c.partner o) := by
+        exact asm_inner_of_occSide c hinner (c.g1_partner o hinner).2.1
+          (c.g1_partner o hinner).2.2
+      exact hpartner_inner (hp_eq ▸ hp_outer)
+    have hlength_two : 2 ≤ (c.path (c.form h.1) d k).length := by omega
+    let n := (c.path (c.form h.1) d k).length - 2
+    have hn : n < (c.path (c.form h.1) d k).length := by
+      dsimp [n]
+      omega
+    let op := (c.path (c.form h.1) d k)[n]
+    have hop : (c.path (c.form h.1) d k)[n]? = some op := by
+      rw [List.getElem?_eq_some_iff]
+      exact ⟨hn, rfl⟩
+    have hop' :
+        (c.path (c.form h.1) d k)[(c.path (c.form h.1) d k).length - 2]? =
+          some op := by
+      exact hop
+    have hop_props := c.g4_path_penultimate (c.form h.1) d k hGenuine op hop'
+    have hop_owner := hop_props.1
+    have hop_ord := hop_props.2
+    have hsignal := path_and_print_recovery_step1_signals c hH
+      ⟨c.form h.1, v, col⟩ hK h ⟨rfl, hh⟩ d k op
+      (List.mem_of_getElem? hop) hop_ord.2
+    have hsmall_print := path_and_print_recovery_step2_prints_step2_print c hH
+      ⟨c.form h.1, v, col⟩ hK h ⟨rfl, hh⟩ d hd C hC hCform k hk
+    obtain ⟨s, i⟩ := op
+    change s = (c.partner o).1 at hop_owner
+    subst s
+    have hop_mem : c.occ (c.partner o).1 i ∈ c.path (c.form h.1) d k :=
+      List.mem_of_getElem? hop
+    let dC : c.Side C.typ :=
+      cast (congrArg (fun F => Fin (c.Q.disk F).n) hCform) d
+    have hop_memC : c.occ (c.partner o).1 i ∈ c.path (c.form C.typ) dC k :=
+      (headerLegal_properties_step5_path_step1_cast_path
+        c hH hCform d k (c.occ (c.partner o).1 i)).1 hop_mem
+    have hsignal_parent :
+        C.cell dC k = col (c.partner o).1 i 2 := by
+      exact (((hC.2 i).2 hop_ord.2).2.2.2.1 dC k hop_memC).symm
+    exact hsmall_print.trans <| hsignal_parent.trans hsignal
+  have hprint : c.IsPrintOf (c.form h.1) d
+      (c.occ (c.central (c.form h.1)) (c.print (c.form h.1) d)) := by
+    exact ⟨hd, Or.inl rfl⟩
+  have hEcentre :
+      cell d k = col (c.central (c.form h.1)) (c.print (c.form h.1) d) k := by
+    exact ((hE_child.2 _).1 d hprint).1 k hk |>.symm
+  exact hEcentre.trans (hcentre_partner.trans hpartner_reconstruct)
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq_step3_eq`:
 two normal tiles of the same type agreeing on first four cells of marked sides are equal. -/

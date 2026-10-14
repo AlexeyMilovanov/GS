@@ -2083,7 +2083,25 @@ private lemma path_and_print_recovery_step2_prints_step2_print (c : MacroCertifi
     (k : Fin 5) (hk : k ≠ 4) :
     (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1).cell (c.partner (c.printOcc (c.form h.1) d)).2 k =
       C.cell (cast (by change Fin (c.Q.disk (c.form h.1)).n = Fin (c.Q.disk (c.form C.typ)).n; rw [h_form]) d) k := by
-  sorry
+  have _ := hH
+  have _ := hK
+  have _ := hh
+  let i := (c.partner (c.printOcc (c.form h.1) d)).2
+  let d' : c.Side C.typ :=
+    cast (congrArg (fun F => Fin (c.Q.disk F).n) h_form) d
+  have hp : c.IsPrintOf (c.form h.1) d
+      (c.occ (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1).typ i) := by
+    change c.IsPrintOf (c.form h.1) d
+      (c.partner (c.printOcc (c.form h.1) d))
+    exact ⟨hd, Or.inr rfl⟩
+  have hp' : c.IsPrintOf (c.form C.typ) d'
+      (c.occ (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1).typ i) :=
+    (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print
+      c h_form d _).1 hp
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hC
+  have hcopy := (hC.2 i).1 d' hp'
+  have H := hcopy.1 k hk
+  exact Eq.symm (cast (by simp [i, d']; exact eq_comm) H)
 
 /-- Step 2 of the blueprint proof of `path_and_print_recovery`: the noncentral (small)
 owner of the print of `d` has first four cells `D_1(d), …, D_4(d)` on that print. -/

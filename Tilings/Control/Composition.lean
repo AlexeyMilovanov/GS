@@ -1478,7 +1478,19 @@ private lemma boundary_header_constant_step2_header_eq (c : MacroCertificate P) 
     ∃ h : HeaderKernel.Header c.Typ c.Side,
       (∀ j : c.Side t, c.IsBoundary (c.occ t j) → K.col t j 3 = headerU c h) ∧
       c.form h.1 = K.α := by
-  sorry
+  have h_leg : headerLegal c (K.tileOf t) := boundary_header_constant_step1_legal c K hK t ht i hi
+  have h_props := headerLegal_properties c hH (K.tileOf t) h_leg
+  rcases h_props with ⟨_, _, _, _, ⟨C, _, hC_child, hC_bdry⟩, _⟩
+  use headerOf c C
+  constructor
+  · exact hC_bdry
+  · have h_own := hC_child.left
+    change c.owner (K.tileOf t).typ = c.form C.typ at h_own
+    have h_typ : (K.tileOf t).typ = t := rfl
+    rw [h_typ] at h_own
+    have h_head : c.form (headerOf c C).fst = c.form C.typ := rfl
+    rw [h_head, ← h_own]
+    exact ht
 
 /-- Step 1 of the blueprint proof of `boundary_header_constant_step4_belt_eq`: boundary cells
 of one belt tile have the same fourth colour. -/

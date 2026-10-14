@@ -2004,6 +2004,74 @@ private lemma whole_side_ports_step1_parent_length (m : ℕ) (A : G.P'.Form)
   have h : 0 < τ.θ := by linarith [τ.one_lt]
   rw [Real.norm_eq_abs, abs_of_pos (pow_pos h m)]
 
+private lemma sl_line_of_two {p q x y : Pt} (hpq : p ≠ q) {t1 t2 : ℝ} (h12 : t1 ≠ t2)
+    (h1 : AffineMap.lineMap p q t1 ∈ segment ℝ x y) (h2 : AffineMap.lineMap p q t2 ∈ segment ℝ x y) :
+    ∃ a b : ℝ, x = AffineMap.lineMap p q a ∧ y = AffineMap.lineMap p q b := by
+  rw [segment_eq_image_lineMap] at h1 h2
+  obtain ⟨s1, -, hs1⟩ := h1
+  obtain ⟨s2, -, hs2⟩ := h2
+  simp only [AffineMap.lineMap_apply_module'] at hs1 hs2 ⊢
+  have hs : s1 ≠ s2 := by
+    rintro rfl
+    apply h12
+    have h' : (t1 - t2) • (q - p) = 0 := by
+      linear_combination (norm := module) hs2 - hs1
+    rcases smul_eq_zero.mp h' with h0 | h0
+    · linarith [sub_eq_zero.mp h0]
+    · exact absurd (sub_eq_zero.mp h0).symm hpq
+  have hd : s2 - s1 ≠ 0 := sub_ne_zero.mpr hs.symm
+  have hyx : y - x = ((t2 - t1) / (s2 - s1)) • (q - p) := by
+    have : (s2 - s1) • (y - x) = (t2 - t1) • (q - p) := by
+      linear_combination (norm := module) hs2 - hs1
+    rw [div_eq_inv_mul, mul_smul, ← this, smul_smul, inv_mul_cancel₀ hd, one_smul]
+  have hx2 : x = t1 • (q - p) + p - s1 • (y - x) := by
+    linear_combination (norm := module) hs1
+  refine ⟨t1 - s1 * ((t2 - t1) / (s2 - s1)),
+    t1 - s1 * ((t2 - t1) / (s2 - s1)) + (t2 - t1) / (s2 - s1), ?_, ?_⟩
+  · linear_combination (norm := module) hx2 - s1 • hyx
+  · linear_combination (norm := module) hx2 + (1 - s1) • hyx
+
+private lemma sl_preimage_segment {p q : Pt} (hpq : p ≠ q) (a b : ℝ) :
+    AffineMap.lineMap p q ⁻¹' segment ℝ (AffineMap.lineMap p q a) (AffineMap.lineMap p q b) =
+      uIcc a b := by
+  rw [← image_segment, (AffineMap.lineMap_injective ℝ hpq).preimage_image, segment_eq_uIcc]
+
+private lemma sl_measure {ι : Type*} (s : Finset ι) (I : ι → Set ℝ) (len : ι → ℝ) (c : ℝ)
+    (F : Set ℝ) (hF : F.Countable) (hc : 0 ≤ c)
+    (hI : ∀ i ∈ s, MeasureTheory.volume (I i) ≤ ENNReal.ofReal (len i)) (hlen : ∀ i ∈ s, 0 ≤ len i)
+    (hcov : Icc (0 : ℝ) 1 ⊆ (⋃ i ∈ s, I i) ∪ Icc 0 c ∪ Icc (1 - c) 1 ∪ F) :
+    1 ≤ ∑ i ∈ s, len i + 2 * c := by
+  have h := MeasureTheory.measure_mono (μ := MeasureTheory.volume) hcov
+  rw [Real.volume_Icc, sub_zero, ENNReal.ofReal_one] at h
+  have h2 : MeasureTheory.volume ((⋃ i ∈ s, I i) ∪ Icc 0 c ∪ Icc (1 - c) 1 ∪ F) ≤
+      ∑ i ∈ s, ENNReal.ofReal (len i) + ENNReal.ofReal c + ENNReal.ofReal c := by
+    refine (MeasureTheory.measure_union_le _ _).trans ?_
+    rw [hF.measure_zero, add_zero]
+    refine (MeasureTheory.measure_union_le _ _).trans ?_
+    refine add_le_add ((MeasureTheory.measure_union_le _ _).trans (add_le_add ?_ ?_)) ?_
+    · exact (MeasureTheory.measure_biUnion_finset_le _ _).trans (Finset.sum_le_sum hI)
+    · rw [Real.volume_Icc, sub_zero]
+    · rw [Real.volume_Icc]; apply le_of_eq; congr 1; ring
+  have h3 := h.trans h2
+  rw [← ENNReal.ofReal_sum_of_nonneg hlen, ← ENNReal.ofReal_add (Finset.sum_nonneg hlen) hc,
+    ← ENNReal.ofReal_add (by linarith [Finset.sum_nonneg hlen]) hc, ← ENNReal.ofReal_one,
+    ENNReal.ofReal_le_ofReal_iff (by linarith [Finset.sum_nonneg hlen])] at h3
+  linarith
+
+private lemma sl_side_le (M : MeshConstants P) (B : PlacedTile P) (i : Fin (P.disk B.form).n) :
+    dist (B.vertex i) (B.vertex (finRotate _ i)) ≤ M.D := by
+  have hmem : ∀ j : Fin (P.disk B.form).n, (P.disk B.form).vertex j ∈ (P.disk B.form).carrier := by
+    intro j
+    have hfr : (P.disk B.form).vertex j ∈ frontier (P.disk B.form).carrier := by
+      rw [PolygonalDisk.frontier_eq]
+      exact mem_iUnion.mpr ⟨j, left_mem_segment ℝ _ _⟩
+    have hclosed : IsClosed (P.disk B.form).carrier := (P.disk B.form).compact.isClosed
+    rw [← hclosed.closure_eq]
+    exact frontier_subset_closure hfr
+  have hbdd : Bornology.IsBounded (P.disk B.form).carrier := (P.disk B.form).compact.isBounded
+  rw [PlacedTile.vertex, PlacedTile.vertex, dist_vadd]
+  exact (Metric.dist_le_diam_of_mem hbdd (hmem i) (hmem (finRotate _ i))).trans (M.diam_le _)
+
 /-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound`: the length of the
 parent side is at most the total length of the whole fine sides strictly inside it plus `2D`.
 Accounting: every point of the open parent side lies on a fine side along its line (the fine
@@ -2021,7 +2089,93 @@ private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step1_su
     (A : G.P'.Form) (a : Fin (G.P'.disk A).n) (h_fin : (sidesInside τ G m A a).Finite) :
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
       ∑ e ∈ h_fin.toFinset, dist e.1 e.2 + 2 * M.D := by
-  sorry
+  classical
+  set p := (parentSide τ G m A a).1 with hp
+  set q := (parentSide τ G m A a).2 with hq
+  have hsum0 : 0 ≤ ∑ e ∈ h_fin.toFinset, dist e.1 e.2 := Finset.sum_nonneg fun _ _ => dist_nonneg
+  by_cases hpq : p = q
+  · rw [hpq, dist_self]; linarith [M.D_pos]
+  have hL : 0 < dist p q := dist_pos.mpr hpq
+  have hfrontier : segment ℝ p q ⊆ frontier (parentRegion τ G m A) :=
+    fs1_layer_frontier τ G m A .top _ ⟨a, rfl⟩
+  have hdl : ∀ u v : ℝ, dist (AffineMap.lineMap p q u) (AffineMap.lineMap p q v) = |u - v| * dist p q := by
+    intro u v
+    rw [dist_lineMap_lineMap, Real.dist_eq]
+  let E := {e : Pt × Pt | ∃ B ∈ fineTiles τ G m A, ∃ i : Fin (P.disk B.form).n,
+    e = (B.vertex i, B.vertex (finRotate _ i))}
+  have hE : E.Finite := by
+    refine Set.Finite.subset ((fs1_fineTiles_finite τ G m A).biUnion fun B _ =>
+      Set.finite_range (fun i : Fin (P.disk B.form).n => (B.vertex i, B.vertex (finRotate _ i)))) ?_
+    rintro e ⟨B, hB, i, rfl⟩
+    exact Set.mem_biUnion hB ⟨i, rfl⟩
+  let T : Pt × Pt → Set ℝ := fun e => AffineMap.lineMap p q ⁻¹' segment ℝ e.1 e.2 ∩ Icc 0 1
+  let F := ⋃ e ∈ {e ∈ E | (T e).Subsingleton}, T e
+  have hF : F.Countable :=
+    (hE.subset (sep_subset _ _)).countable.biUnion fun e he => he.2.finite.countable
+  have key := sl_measure h_fin.toFinset (fun e => AffineMap.lineMap p q ⁻¹' segment ℝ e.1 e.2)
+    (fun e => dist e.1 e.2 / dist p q) (M.D / dist p q) F hF (div_nonneg M.D_pos.le hL.le) ?_
+    (fun _ _ => div_nonneg dist_nonneg hL.le) ?_
+  · have heq : ∑ e ∈ h_fin.toFinset, dist e.1 e.2 / dist p q + 2 * (M.D / dist p q) =
+        (∑ e ∈ h_fin.toFinset, dist e.1 e.2 + 2 * M.D) / dist p q := by
+      rw [← Finset.sum_div]; ring
+    rw [heq, one_le_div hL] at key
+    exact key
+  · intro e he
+    have he' : e ∈ sidesInside τ G m A a := h_fin.mem_toFinset.mp he
+    have h1 : e.1 ∈ openSegment ℝ p q := he'.2 (left_mem_segment ℝ _ _)
+    have h2 : e.2 ∈ openSegment ℝ p q := he'.2 (right_mem_segment ℝ _ _)
+    rw [openSegment_eq_image_lineMap] at h1 h2
+    obtain ⟨a1, -, ha1⟩ := h1
+    obtain ⟨b1, -, hb1⟩ := h2
+    simp only
+    rw [← ha1, ← hb1, sl_preimage_segment hpq, Real.volume_interval, hdl,
+      mul_div_cancel_right₀ _ hL.ne', abs_sub_comm]
+  · intro t ht
+    have hft : AffineMap.lineMap p q t ∈ frontier ((0 : Pt) +ᵥ parentRegion τ G m A) := by
+      rw [zero_vadd]
+      exact hfrontier (by rw [segment_eq_image_lineMap]; exact mem_image_of_mem _ ht)
+    obtain ⟨T0, ⟨B, hB, i, rfl⟩, hT0⟩ := fs1_frontier_cover τ G m A 0 hft
+    set e : Pt × Pt := (B.vertex i, B.vertex (finRotate _ i)) with he_def
+    have heE : e ∈ E := ⟨B, hB, i, rfl⟩
+    have htT : t ∈ T e := by
+      refine ⟨?_, ht⟩
+      simpa [placedSeg] using hT0
+    by_cases hsub : (T e).Subsingleton
+    · exact Or.inr (Set.mem_biUnion (x := e) ⟨heE, hsub⟩ htT)
+    obtain ⟨t1, ht1, t2, ht2, h12⟩ := Set.not_subsingleton_iff.mp hsub
+    obtain ⟨a1, b1, ha1, hb1⟩ := sl_line_of_two hpq h12 ht1.1 ht2.1
+    have hpre : AffineMap.lineMap p q ⁻¹' segment ℝ e.1 e.2 = uIcc a1 b1 := by
+      rw [ha1, hb1, sl_preimage_segment hpq]
+    have ht' : t ∈ uIcc a1 b1 := hpre ▸ htT.1
+    have hDe : |a1 - b1| * dist p q ≤ M.D := by
+      rw [← hdl, ← ha1, ← hb1]
+      exact sl_side_le M B i
+    by_cases hin : uIcc a1 b1 ⊆ Ioo 0 1
+    · have hseg : segment ℝ e.1 e.2 ⊆ openSegment ℝ p q := by
+        rw [ha1, hb1, ← image_segment, segment_eq_uIcc, openSegment_eq_image_lineMap]
+        exact image_mono hin
+      have heS : e ∈ sidesInside τ G m A a :=
+        ⟨⟨B, hB, i, rfl, hseg.trans ((openSegment_subset_segment ℝ p q).trans hfrontier)⟩, hseg⟩
+      refine Or.inl (Or.inl (Or.inl (Set.mem_biUnion (h_fin.mem_toFinset.mpr heS) ?_)))
+      exact htT.1
+    · obtain ⟨s, hs, hsn⟩ := Set.not_subset.mp hin
+      rcases le_or_gt s 0 with hs0 | hs0
+      · have h0 : (0 : ℝ) ∈ uIcc a1 b1 := Set.ordConnected_uIcc.out hs ht' ⟨hs0, ht.1⟩
+        have hle := Set.abs_sub_le_of_uIcc_subset_uIcc (Set.uIcc_subset_uIcc h0 ht')
+        refine Or.inl (Or.inl (Or.inr ⟨ht.1, ?_⟩))
+        rw [le_div_iff₀ hL]
+        rw [abs_of_nonneg (by linarith [ht.1]), abs_sub_comm] at hle
+        nlinarith
+      · have hs1 : 1 ≤ s := by
+          by_contra hcon
+          exact hsn ⟨hs0, lt_of_not_ge hcon⟩
+        have h1 : (1 : ℝ) ∈ uIcc a1 b1 := Set.ordConnected_uIcc.out ht' hs ⟨ht.2, hs1⟩
+        have hle := Set.abs_sub_le_of_uIcc_subset_uIcc (Set.uIcc_subset_uIcc ht' h1)
+        refine Or.inl (Or.inr ⟨?_, ht.2⟩)
+        rw [abs_of_nonneg (by linarith [ht.2]), abs_sub_comm] at hle
+        have : M.D / dist p q ≥ 1 - t := by
+          rw [ge_iff_le, le_div_iff₀ hL]; nlinarith
+        linarith
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: bound the length of each edge. -/
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step2_edge_bound

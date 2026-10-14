@@ -18992,6 +18992,46 @@ private lemma existsRoutingAfterPower_step2_ports_step1_intra (τ : Substitution
           ∀ r, L[MacroData.portRank L.length r - 1]? = some (_port r)) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step2_inter`: uniqueness of the quantile port list. -/
+private lemma existsRoutingAfterPower_step2_ports_step2_inter_step1_unique (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (α : Rs.GS.G.P'.Form) (a : Fin (Rs.GS.G.P'.disk α).n)
+    (p1 p2 : Fin 5 → Set Pt) :
+    (∃ L : List (Set Pt), (∀ e, e ∈ L ↔ (Rs.retained l α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side a) ∧
+          L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+          ∀ r, L[MacroData.portRank L.length r - 1]? = some (p1 r)) →
+    (∃ L : List (Set Pt), (∀ e, e ∈ L ↔ (Rs.retained l α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side a) ∧
+          L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+          ∀ r, L[MacroData.portRank L.length r - 1]? = some (p2 r)) →
+    p1 = p2 := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step2_inter`:
+positive mutual Euclidean separation of closed portions of different sides. -/
+private lemma existsRoutingAfterPower_step2_ports_step2_inter_step2_unscaled (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ c : ℝ, 0 < c ∧ ∀ α a b, a ≠ b →
+      ∀ x ∈ (Rs.GS.G.P'.disk α).side a, ∀ y ∈ (Rs.GS.G.P'.disk α).side b,
+        (∀ i, δ ≤ dist x ((Rs.GS.G.P'.disk α).vertex i)) →
+        (∀ i, δ ≤ dist y ((Rs.GS.G.P'.disk α).vertex i)) →
+        c ≤ dist x y := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step2_inter`: scaling the separation to the retained template. -/
+private lemma existsRoutingAfterPower_step2_ports_step2_inter_step3_scaled (τ : Substitution P) (hτ : τ.STS)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (δ : ℝ) (hδ : 0 < δ) (c : ℝ) (hc : 0 < c)
+    (H_unscaled : ∀ α a b, a ≠ b →
+      ∀ x ∈ (Rs.GS.G.P'.disk α).side a, ∀ y ∈ (Rs.GS.G.P'.disk α).side b,
+        (∀ i, δ ≤ dist x ((Rs.GS.G.P'.disk α).vertex i)) →
+        (∀ i, δ ≤ dist y ((Rs.GS.G.P'.disk α).vertex i)) →
+        c ≤ dist x y) :
+    ∀ l, 0 < l → ∀ α a b, a ≠ b →
+      ∀ x ∈ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side a,
+      ∀ y ∈ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side b,
+        (∀ i, δ * τ.θ ^ (Rs.GS.k * l) ≤ dist x ((τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).vertex i)) →
+        (∀ i, δ * τ.θ ^ (Rs.GS.k * l) ≤ dist y ((τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).vertex i)) →
+        c * τ.θ ^ (Rs.GS.k * l) ≤ dist x y := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports`: inter-side separation. -/
 private lemma existsRoutingAfterPower_step2_ports_step2_inter (τ : Substitution P) (hτ : τ.STS)
     (M : MeshConstants P) (Rs : RoutingSetup τ M) :
@@ -19005,7 +19045,23 @@ private lemma existsRoutingAfterPower_step2_ports_step2_inter (τ : Substitution
           ∀ r, L[MacroData.portRank L.length r - 1]? = some (_port_b r)) →
         ∀ _r _s, ∀ _x ∈ _port_a _r, ∀ _y ∈ _port_b _s,
           _cp * τ.θ ^ (Rs.GS.k * _l) ≤ dist _x _y := by
-  sorry
+  obtain ⟨cp1, hcp1, n1, hn1⟩ := existsRoutingAfterPower_step2_ports_step1_intra τ hτ M Rs
+  obtain ⟨c, hc, H_unscaled⟩ := existsRoutingAfterPower_step2_ports_step2_inter_step2_unscaled τ hτ M Rs cp1 hcp1
+  refine ⟨c, hc, n1, ?_⟩
+  intro l hl hlpos α a b hab port_a port_b H_L_a H_L_b r s x hx y hy
+  have h_intra := hn1 l hl hlpos α
+  have ⟨port_a_ex, h_a_ex⟩ := h_intra a
+  have ⟨port_b_ex, h_b_ex⟩ := h_intra b
+  have H_eq_a : port_a = port_a_ex := existsRoutingAfterPower_step2_ports_step2_inter_step1_unique τ hτ M Rs l α a port_a port_a_ex H_L_a h_a_ex.2.2.2.2
+  have H_eq_b : port_b = port_b_ex := existsRoutingAfterPower_step2_ports_step2_inter_step1_unique τ hτ M Rs l α b port_b port_b_ex H_L_b h_b_ex.2.2.2.2
+  subst H_eq_a H_eq_b
+  have h_x_vert := h_a_ex.2.2.2.1 r
+  have h_y_vert := h_b_ex.2.2.2.1 s
+  have h_x_side : x ∈ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side a := h_a_ex.1 r |>.right hx
+  have h_y_side : y ∈ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side b := h_b_ex.1 s |>.right hy
+  exact existsRoutingAfterPower_step2_ports_step2_inter_step3_scaled τ hτ M Rs cp1 hcp1 c hc
+    H_unscaled l hlpos α a b hab x h_x_side y h_y_side
+    (fun i => h_x_vert i x hx) (fun i => h_y_vert i y hy)
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower`: "Outside the retained central
 annulus every child is an original tile, so the mesh remains `D` ... A scaled parent declared side

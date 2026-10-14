@@ -5289,6 +5289,24 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sort
 
 /-- Step 2 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
 Forward trace maps children on the macroside correctly preserving geometry. -/
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace_aux_mid
+    {c : MacroCertificate P} {K K' : ColouredBlock c} {o o' : c.SideOcc}
+    (h : K.childSide o = K'.childSide o') :
+    K.v + c.occMid o = K'.v + c.occMid o' := by
+  sorry
+
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace_aux_unique
+    {c : MacroCertificate P} {T : PlaneTiling (typedDecoration c)}
+    (part : MacroPartition c T)
+    {j j₁ j₂ : part.ι} {d : Fin (c.Q.disk (part.block j).α).n}
+    {e₁ : Fin (c.Q.disk (part.block j₁).α).n}
+    {e₂ : Fin (c.Q.disk (part.block j₂).α).n}
+    (h₁ : (part.block j₁).macroSide e₁ = (part.block j).macroSide d)
+    (h₂ : (part.block j₂).macroSide e₂ = (part.block j).macroSide d)
+    (hj₁ : j₁ ≠ j) (hj₂ : j₂ ≠ j) :
+    j₁ = j₂ ∧ ∃ h : j₁ = j₂, cast (by subst h; rfl) e₁ = e₂ := by
+  sorry
+
 private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace
     (c : MacroCertificate P)
     (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
@@ -5304,7 +5322,46 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forw
       (part.block j).childSide o = (part.block j').childSide o' ∧
       @inner ℝ _ _ w ((part.block j).v + c.occMid o) =
         @inner ℝ _ _ w ((part.block j').v + c.occMid o') := by
-  sorry
+  dsimp
+  have _ := hlen
+  intro o ho
+  obtain ⟨j₀, hneq₀, e₀, o₀, o_first, hfirst_head, hfirst_in_d, hfirst_in_e₀,
+      hfirst_rank, hfirst_is_rank, hfirst_child, hfirst_col⟩ :=
+    alignment_complete_step1_macroside_eq_step1_rank_one c hH T part hT hL j d hrank hmode
+  have htrace₀ :=
+    alignment_complete_step1_macroside_eq_step2_same_opposing_macroside c hH T part hT hL
+      j j₀ hneq₀ d e₀ hrank hmode
+      ⟨o₀, o_first, hfirst_head, hfirst_in_d, hfirst_in_e₀, hfirst_rank,
+        hfirst_is_rank, hfirst_child, hfirst_col⟩
+  have hlen₀ :=
+    alignment_complete_step1_macroside_eq_step3_not_longer c hH T part hT hL j j₀ hneq₀
+      d e₀ hrank hmode htrace₀
+  have heq₀ :=
+    alignment_complete_step1_macroside_eq_step4_endpoints c hH T part hT hL j j₀ hneq₀
+      d e₀ hrank hmode htrace₀ hlen₀
+  have htrace :=
+    alignment_complete_step1_macroside_eq_step2_same_opposing_macroside c hH T part hT hL
+      j j' hneq d e hrank hmode
+      (by
+        obtain ⟨hj_eq, hcast_eq⟩ :=
+          alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace_aux_unique
+            part heq₀ hmacro hneq₀ hneq
+        subst hj_eq
+        have he_eq : e₀ = e := by
+          obtain ⟨h_eq, hcast⟩ := hcast_eq
+          have hcast_eq' : cast (by rfl) e₀ = e := hcast
+          have : cast (by rfl) e₀ = e₀ := rfl
+          rw [this] at hcast_eq'
+          exact hcast_eq'
+        subst he_eq
+        exact ⟨o₀, o_first, hfirst_head, hfirst_in_d, hfirst_in_e₀, hfirst_rank,
+          hfirst_is_rank, hfirst_child, hfirst_col⟩)
+  obtain ⟨o', ho', hside, _hrank, _hcol⟩ := htrace o ho
+  refine ⟨o', ho', hside.symm, ?_⟩
+  have hmid :=
+    alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace_aux_mid
+      hside.symm
+  rw [hmid]
 
 /-- Step 3 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
 Backward trace maps children on the opposing macroside correctly preserving geometry. -/

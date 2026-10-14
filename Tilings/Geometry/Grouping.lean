@@ -4391,7 +4391,48 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s1 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have _ := hi
+  have _ := hj
+  have _ := hN
+  right
+  have hi_le : (i : ℝ) * R ≤ 4 * ((N : ℝ) * R / 2) := by
+    have h : (i : ℝ) ≤ 2 * (N : ℝ) := by exact_mod_cast hi1.2
+    calc (i : ℝ) * R ≤ (2 * (N : ℝ)) * R := mul_le_mul_of_nonneg_right h (le_of_lt hR)
+      _ = 4 * ((N : ℝ) * R / 2) := by ring
+  have hj_le : (j : ℝ) * R ≤ 4 * ((N : ℝ) * R / 2) := by
+    have h : (j : ℝ) ≤ 2 * (N : ℝ) := by exact_mod_cast hj1.2
+    calc (j : ℝ) * R ≤ (2 * (N : ℝ)) * R := mul_le_mul_of_nonneg_right h (le_of_lt hR)
+      _ = 4 * ((N : ℝ) * R / 2) := by ring
+  have hi_gt : ¬ ((i : ℝ) * R ≤ 2 * ((N : ℝ) * R / 2)) := by
+    push_neg
+    have h : (N : ℝ) < (i : ℝ) := by exact_mod_cast hi1.1
+    calc 2 * ((N : ℝ) * R / 2) = (N : ℝ) * R := by ring
+      _ < (i : ℝ) * R := mul_lt_mul_of_pos_right h hR
+  have hj_gt : ¬ ((j : ℝ) * R ≤ 2 * ((N : ℝ) * R / 2)) := by
+    push_neg
+    have h : (N : ℝ) < (j : ℝ) := by exact_mod_cast hj1.1
+    calc 2 * ((N : ℝ) * R / 2) = (N : ℝ) * R := by ring
+      _ < (j : ℝ) * R := mul_lt_mul_of_pos_right h hR
+  dsimp [existsAnnularSpokes_pos]
+  simp only [hi_le, hj_le, hi_gt, hj_gt, if_true, if_false]
+  have h_ji : 1 ≤ (j : ℝ) - (i : ℝ) := by
+    have h : (i : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast hij
+    linarith
+  have h_pos : 0 ≤ ((N : ℝ) * R / 2) * R := by
+    have : 0 ≤ (N : ℝ) := by positivity
+    positivity
+  have h_abs : jcr (mkPt (((N : ℝ) * R / 2) - ((i : ℝ) * R - 2 * ((N : ℝ) * R / 2))) ((N : ℝ) * R / 2))
+    (mkPt (((N : ℝ) * R / 2) - ((j : ℝ) * R - 2 * ((N : ℝ) * R / 2))) ((N : ℝ) * R / 2)) =
+    ((N : ℝ) * R / 2) * R * ((j : ℝ) - (i : ℝ)) := by
+    dsimp [jcr, mkPt]
+    ring
+  rw [h_abs]
+  have h_le : ((N : ℝ) * R / 2) * R * 1 ≤ ((N : ℝ) * R / 2) * R * ((j : ℝ) - (i : ℝ)) := by
+    apply mul_le_mul_of_nonneg_left h_ji h_pos
+  rw [mul_one] at h_le
+  have h_abs2 : 0 ≤ ((N : ℝ) * R / 2) * R * ((j : ℝ) - (i : ℝ)) := by linarith
+  rw [abs_of_nonneg h_abs2]
+  exact h_le
 
 /-- Step 1c of the blueprint proof: two marks on the third straight side. -/
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s2s2 {N : ℕ} {R : ℝ}

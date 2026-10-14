@@ -6654,7 +6654,36 @@ private def lhdChain (c : MacroCertificate P) (seq : ℕ → PlaneTiling c.Q)
   typ := typ
   adm n x := (hspec n x).1.trans (congrArg PlacedTile.form (hspec (n + 1) (par n x)).2)
 
-private lemma lhd_main (c : MacroCertificate P)
+/-- The founded mode of a decorated hierarchy (`lem:lift-hierarchy`): an outer side whose fourth
+cell is nonzero lies, after finitely many compositions, inside an *inner* side of an ancestor
+level, i.e. inside one finite higher supertile.  The decoration built by `lhd_main` (`tcDec`:
+the fourth cell of an outer side is zero exactly when its ancestor chain stays outer forever) has
+this property; an arbitrary legal exact decoration need not have it, because the fourth cell of
+an outer side is an origin and legality does not constrain it (codex counterexample of
+14 October 2026: a permanent fault line decorated with nonzero fourth cells at every level). -/
+private def LiftFounded (c : MacroCertificate P) (seq' : ℕ → PlaneTiling (typedDecoration c)) :
+    Prop :=
+  ∀ n, ∀ X ∈ (seq' n).tiles, ∀ i : c.Side (tileDec X).typ, c.IsOuter (c.occ (tileDec X).typ i) →
+    (tileDec X).cell i 3 ≠ 0 → ∃ m, ∃ Z ∈ (seq' (n + m)).tiles, ∃ d : c.Side (tileDec Z).typ,
+      c.IsInner (c.occ (tileDec Z).typ d) ∧ sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c Z d
+
+/-- Step 1 of the blueprint proof of `lift_hierarchy_step1_decorations`: the decoration `tcDec`
+of the typed hierarchy is founded.  A nonzero fourth cell of an outer side means that its chain
+of containing parent sides (`tcZ`) does not stay in the outer lists forever; with hereditary
+listed sides every outer side lies in an outer list, so the chain reaches an inner side of an
+ancestor after finitely many steps, and the side lies inside that ancestor side, scaled. -/
+private lemma lift_hierarchy_step1_decorations_step1_founded (c : MacroCertificate P)
+    (hH : c.Hereditary) (seq : ℕ → PlaneTiling c.Q)
+    (hseq : ∀ n, c.σ.IsComposition (seq (n + 1)) (seq n))
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles) (typ : ∀ n, (seq n).tiles → c.Typ)
+    (hspec : ∀ n Z, c.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨c.form (typ n Z), c.σ.θ • (par n Z).1.anchor +ᵥ c.anchor (typ n Z)⟩)
+    (hform : ∀ n (Z : (seq n).tiles),
+      c.form (tcDec (lhdChain c seq par typ hspec) n Z).typ = Z.1.form) :
+    LiftFounded c fun n => lhdTiling c (seq n) (tcDec (lhdChain c seq par typ hspec) n) (hform n) := by
+  sorry
+
+private lemma lhd_main (c : MacroCertificate P) (hHer : c.Hereditary)
     (seq : ℕ → PlaneTiling c.Q) (hseq : ∀ n, c.σ.IsComposition (seq (n + 1)) (seq n))
     (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles) (typ : ∀ n, (seq n).tiles → c.Typ)
     (hspec : ∀ n Z, c.owner (typ n Z) = (par n Z).1.form ∧
@@ -6662,7 +6691,7 @@ private lemma lhd_main (c : MacroCertificate P)
     ∃ seq' : ℕ → PlaneTiling (typedDecoration c),
       (∀ n, eraseSet c (seq' n).tiles = (seq n).tiles) ∧
       (∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) ∧
-      (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) := by
+      (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) ∧ LiftFounded c seq' := by
   set H := lhdChain c seq par typ hspec with hH
   have hform : ∀ n (Z : (seq n).tiles), c.form (tcDec H n Z).typ = Z.1.form :=
     fun n Z => (congrArg PlacedTile.form (hspec n Z).2).symm
@@ -6685,7 +6714,8 @@ private lemma lhd_main (c : MacroCertificate P)
     · rw [← hform n Y, ← hform n Y']
       exact congrArg (fun A : PlacedTile (typedDecoration c) => c.form (A.form : DecTile c).typ) he
     · exact congrArg (fun A : PlacedTile (typedDecoration c) => A.anchor) he
-  refine ⟨fun n => lhdTiling c (seq n) (tcDec H n) (hform n), ?_, ?_, ?_⟩
+  refine ⟨fun n => lhdTiling c (seq n) (tcDec H n) (hform n), ?_, ?_, ?_,
+    lift_hierarchy_step1_decorations_step1_founded c hHer seq hseq par typ hspec hform⟩
   · intro n
     ext W
     constructor
@@ -6766,9 +6796,8 @@ private lemma lift_hierarchy_step1_decorations (c : MacroCertificate P) (hH : c.
     ∃ seq' : ℕ → PlaneTiling (typedDecoration c),
       (∀ n, eraseSet c (seq' n).tiles = (seq n).tiles) ∧
       (∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) ∧
-      (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) := by
-  -- neither heredity nor the side-to-side hypothesis is needed for this step
-  have _ := hH
+      (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) ∧ LiftFounded c seq' := by
+  -- the side-to-side hypothesis is not needed for this step
   have _ := hsts
   classical
   have hpar : ∀ n (Z : (seq n).tiles), ∃ Y : (seq (n + 1)).tiles, ∃ t, c.owner t = Y.1.form ∧
@@ -6777,7 +6806,7 @@ private lemma lift_hierarchy_step1_decorations (c : MacroCertificate P) (hH : c.
     obtain ⟨Y, hY, t, ht, he⟩ := lhd_parent_exists c (hseq n) Z.2
     exact ⟨⟨Y, hY⟩, t, ht, he⟩
   choose par typ hspec using hpar
-  exact lhd_main c seq hseq par typ hspec
+  exact lhd_main c hH seq hseq par typ hspec
 
 private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_partner_inner
     (c : MacroCertificate P) {o : c.SideOcc} (hi : c.IsInner o) :
@@ -7111,6 +7140,7 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile (c : Macro
     (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
     (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
     (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (hfounded : LiftFounded c seq')
     (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
     (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
     (hNontriv : IsNontrivial c (tileDec X) i) :
@@ -7130,6 +7160,7 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells (c : MacroCert
     (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
     (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
     (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (hfounded : LiftFounded c seq')
     (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
     (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
     (hNontriv : IsNontrivial c (tileDec X) i)
@@ -7145,15 +7176,16 @@ private lemma lift_hierarchy_step2_proper_step2_outer (c : MacroCertificate P) (
     (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
     (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
     (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (hfounded : LiftFounded c seq')
     (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
     (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
     (hNontriv : IsNontrivial c (tileDec X) i) :
     ∃ Y ∈ (seq' 0).tiles, Y ≠ X ∧ ∃ j : c.Side (tileDec Y).typ,
       sideOf c Y j = sideOf c X i ∧ ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
   rcases lift_hierarchy_step2_proper_step2_outer_step1_supertile c hH seq hsts seq' herase hexact
-    hleg X hX i hOuter hNontriv with ⟨Y, hY, hNeq, j, hCoincide⟩
+    hleg hfounded X hX i hOuter hNontriv with ⟨Y, hY, hNeq, j, hCoincide⟩
   exact ⟨Y, hY, hNeq, j, hCoincide, lift_hierarchy_step2_proper_step2_outer_step2_cells c hH seq
-    hsts seq' herase hexact hleg X hX i hOuter hNontriv Y hY hNeq j hCoincide⟩
+    hsts seq' herase hexact hleg hfounded X hX i hOuter hNontriv Y hY hNeq j hCoincide⟩
 
 /-- Step 2 of the blueprint proof of `lift_hierarchy`: properness holds at level zero. -/
 private lemma lift_hierarchy_step2_proper (c : MacroCertificate P) (hH : c.Hereditary)
@@ -7161,11 +7193,12 @@ private lemma lift_hierarchy_step2_proper (c : MacroCertificate P) (hH : c.Hered
     (seq' : ℕ → PlaneTiling (typedDecoration c))
     (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
     (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
-    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) :
+    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (hfounded : LiftFounded c seq') :
     IsProper c (seq' 0) := by
   intro X hX i hNontriv
   by_cases hOuter : c.IsOuter (c.occ (tileDec X).typ i)
-  · exact lift_hierarchy_step2_proper_step2_outer c hH seq hsts seq' herase hexact hleg X hX i
+  · exact lift_hierarchy_step2_proper_step2_outer c hH seq hsts seq' herase hexact hleg hfounded X hX i
       hOuter hNontriv
   · exact lift_hierarchy_step2_proper_step1_inner c hH seq hsts seq' herase hexact hleg X hX i
       hOuter hNontriv
@@ -7182,9 +7215,10 @@ theorem lift_hierarchy (c : MacroCertificate P) (hH : c.Hereditary)
       (∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) ∧
       (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) ∧
       IsProper c (seq' 0) := by
-  rcases lift_hierarchy_step1_decorations c hH seq hseq hsts with ⟨seq', herase, hexact, hleg⟩
+  rcases lift_hierarchy_step1_decorations c hH seq hseq hsts with
+    ⟨seq', herase, hexact, hleg, hfounded⟩
   exact ⟨seq', herase, hexact, hleg,
-    lift_hierarchy_step2_proper c hH seq hsts seq' herase hexact hleg⟩
+    lift_hierarchy_step2_proper c hH seq hsts seq' herase hexact hleg hfounded⟩
 
 /-- Step 1 of the blueprint proof of `projects_to_hierarchy_step1_soundness`: repeated composition
 yields a sequence of decorated tilings. -/

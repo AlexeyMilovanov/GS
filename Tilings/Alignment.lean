@@ -3891,7 +3891,81 @@ private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists
     ∃ e' ∈ fineOuterSides τ G m A'.form,
       placedSeg ((τ.θ ^ m) • A.anchor) e =
         placedSeg ((τ.θ ^ m) • A'.anchor) e' := by
-  sorry
+  have _ := halign
+  by_cases hAA : A = A'
+  · subst hAA
+    exact ⟨e, he.1, rfl⟩
+  · obtain ⟨⟨B, hB, i, rfl, hF⟩, hIn⟩ := he
+    have he_ne : B.vertex i ≠ B.vertex (finRotate _ i) := omitted_count_tile_vertex_ne_next B i
+    have hJ1 : segment ℝ (B.vertex i) (B.vertex (finRotate _ i)) ⊆
+        frontier (parentRegion τ G m A.form) := hF
+    have hJ2 : placedSeg ((τ.θ ^ m) • A.anchor) (B.vertex i, B.vertex (finRotate _ i)) ⊆
+        frontier (((τ.θ ^ m) • A'.anchor) +ᵥ parentRegion τ G m A'.form) := by
+      intro z hz
+      have hz2 : z ∈ placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) := by
+        rw [fs1_placedSeg_eq] at hz ⊢
+        obtain ⟨z0, hz0, rfl⟩ := hz
+        exact ⟨z0, openSegment_subset_segment ℝ _ _ (hIn hz0), rfl⟩
+      rw [hside] at hz2
+      rw [fs1_placedSeg_eq] at hz2
+      obtain ⟨z0, hz0, rfl⟩ := hz2
+      have hfr : segment ℝ (parentSide τ G m A'.form a').1 (parentSide τ G m A'.form a').2 ⊆ frontier (parentRegion τ G m A'.form) :=
+        fs1_layer_frontier τ G m A'.form .top (parentSide τ G m A'.form a') ⟨a', rfl⟩
+      rw [fs1_frontier_vadd]
+      exact ⟨z0, hfr hz0, rfl⟩
+    have hJ : placedSeg ((τ.θ ^ m) • A.anchor) (B.vertex i, B.vertex (finRotate _ i)) ⊆
+        frontier (((τ.θ ^ m) • A.anchor) +ᵥ parentRegion τ G m A.form) ∩
+        frontier (((τ.θ ^ m) • A'.anchor) +ᵥ parentRegion τ G m A'.form) := by
+      intro z hz
+      refine ⟨?_, hJ2 hz⟩
+      rw [fs1_placedSeg_eq] at hz
+      rw [fs1_frontier_vadd]
+      obtain ⟨z0, hz0, rfl⟩ := hz
+      exact ⟨z0, hJ1 hz0, rfl⟩
+    have he_pts : ((τ.θ ^ m) • A.anchor) + B.vertex i ≠ ((τ.θ ^ m) • A.anchor) + B.vertex (finRotate _ i) := by
+      intro h
+      apply he_ne
+      exact add_left_cancel h
+    have hcore := fs1_core τ G m T' hfine A A' hA hA' hAA
+      (((τ.θ ^ m) • A.anchor) + B.vertex i) (((τ.θ ^ m) • A.anchor) + B.vertex (finRotate _ i)) he_pts hJ
+    obtain ⟨e1, he1, e', he', heq_e1, u, v, huv, hsub_uv⟩ := hcore
+    obtain ⟨B1, hB1, i1, rfl, hF1⟩ := he1
+    have hov_seg : OverlapPos (segment ℝ (B.vertex i) (B.vertex (finRotate _ i)))
+        (segment ℝ (B1.vertex i1) (B1.vertex (finRotate _ i1))) := by
+      apply fs1_overlap_of_placed (w := ((τ.θ ^ m) • A.anchor))
+        (p := (B.vertex i, B.vertex (finRotate _ i)))
+        (q := (B1.vertex i1, B1.vertex (finRotate _ i1))) huv
+      intro z hz
+      have hz1 := (hsub_uv hz).1
+      have hz2 := (hsub_uv hz).2
+      exact ⟨hz1, hz2⟩
+    have hov : OverlapPos (B.side i) (B1.side i1) := by
+      obtain ⟨x0, y0, hxy0, hsub0⟩ := hov_seg
+      refine ⟨x0, y0, hxy0, ?_⟩
+      rw [omitted_count_tile_side_eq B i, omitted_count_tile_side_eq B1 i1]
+      exact hsub0
+    have hR : ∀ D ∈ fineTiles τ G m A.form, D.carrier ⊆ parentRegion τ G m A.form := by
+      intro D hD x hx
+      have := omitted_count_fineTiles_support τ G m A.form
+      unfold parentRegion
+      rw [← this]
+      exact Set.mem_iUnion₂.2 ⟨D, hD, hx⟩
+    have hfront : B.side i ⊆ frontier (parentRegion τ G m A.form) := by
+      rw [omitted_count_tile_side_eq]
+      exact hF
+    have hB_eq_B1 := sa1_frontier_tiles_eq (fineTiles τ G m A.form)
+      (omitted_count_fineTiles_disjoint τ G m A.form) (parentRegion τ G m A.form) hR hB hB1 i i1 hfront hov
+    obtain ⟨tB, cB⟩ := B
+    obtain ⟨tB1, cB1⟩ := B1
+    injection hB_eq_B1 with ht hc
+    subst ht hc
+    have hov_symm : OverlapPos (PlacedTile.side { form := tB, anchor := cB } i1)
+        (PlacedTile.side { form := tB, anchor := cB } i) := by
+      obtain ⟨x0, y0, hxy0, hsub0⟩ := hov
+      exact ⟨x0, y0, hxy0, fun z hz => ⟨(hsub0 hz).2, (hsub0 hz).1⟩⟩
+    have hi_eq_i1 : i1 = i := sa1_same_tile_side { form := tB, anchor := cB } i1 i hov_symm
+    subst hi_eq_i1
+    exact ⟨e', he', heq_e1⟩
 
 /-- Step 2 of the blueprint proof of
 `whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique`:

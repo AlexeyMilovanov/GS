@@ -2320,6 +2320,99 @@ private lemma strict_boundary_header_constant_step3_is_belt_type (α : C.Q.Form)
       exact isClosed_closure
     exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
 
+private theorem strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_sides_aux1
+    {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) (hab : a ≠ b) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hc hd ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+  obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+  simp only at hu hw
+  have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+    have he : a + s • (b - a) + u • (a + t • (b - a) -
+        (a + s • (b - a))) - a = (s + u * (t - s)) • (b - a) := by
+      module
+    rw [← he, hu, sub_self]
+  have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+    have he : a + s • (b - a) + w • (a + t • (b - a) -
+        (a + s • (b - a))) - b = (s + w * (t - s) - 1) • (b - a) := by
+      module
+    rw [← he, hw, sub_self]
+  have f1 : s + u * (t - s) = 0 := (smul_eq_zero.1 e1).resolve_right hv
+  have f2 : s + w * (t - s) = 1 := by
+    have := (smul_eq_zero.1 e2).resolve_right hv
+    linarith
+  rcases lt_trichotomy s t with hst | hst | hst
+  · have hs : s = 0 := by nlinarith
+    subst hs
+    have ht : t = 1 := by nlinarith
+    subst ht
+    left
+    constructor <;> simp
+  · subst hst
+    simp at f1 f2
+    linarith
+  · have ht : t = 0 := by nlinarith
+    subst ht
+    have hs : s = 1 := by nlinarith
+    subst hs
+    right
+    constructor <;> simp
+
+private theorem strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_sides_aux2
+    {o o' : C.SideOcc} (ho : C.IsBoundary o)
+    (hown : C.owner o'.1 = C.owner o.1)
+    (hside : C.occSide o' = C.occSide o) : C.IsBoundary o' := by
+  have hinner : C.IsInner o := ho.1
+  have hinner' := strict_assembleMacrotemplates_innerOfOccSide C hinner hown hside
+  have hseg : segment ℝ (C.occStart o') (C.occEnd o') =
+      segment ℝ (C.occStart o) (C.occEnd o) := by
+    simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+      PolygonalDisk.side, vadd_segment] using hside
+  have hne' : C.occStart o' ≠ C.occEnd o' := by
+    intro heq
+    have hv := (C.Q.disk (C.form o'.1)).vertex_injective (add_left_cancel heq)
+    exact finRotate_ne_self (by have := (C.Q.disk (C.form o'.1)).three_le; omega)
+      o'.2 hv.symm
+  obtain ⟨hstart, hend⟩ | ⟨hstart, hend⟩ :=
+    strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_sides_aux1 hseg hne'
+  · refine ⟨hinner', ?_⟩
+    rw [hown]
+    rcases ho.2 with hs | he
+    · left
+      have hs' : C.occStart o' ∈ C.macroBoundary (C.owner o.1) := by
+        rw [hstart]
+        exact hs
+      rw [MacroData.macroBoundary, ← closure_diff_interior] at hs'
+      exact hs'
+    · right
+      have he' : C.occEnd o' ∈ C.macroBoundary (C.owner o.1) := by
+        rw [hend]
+        exact he
+      rw [MacroData.macroBoundary, ← closure_diff_interior] at he'
+      exact he'
+  · refine ⟨hinner', ?_⟩
+    rw [hown]
+    rcases ho.2 with hs | he
+    · right
+      have he' : C.occEnd o' ∈ C.macroBoundary (C.owner o.1) := by
+        rw [hend]
+        exact hs
+      rw [MacroData.macroBoundary, ← closure_diff_interior] at he'
+      exact he'
+    · left
+      have hs' : C.occStart o' ∈ C.macroBoundary (C.owner o.1) := by
+        rw [hstart]
+        exact he
+      rw [MacroData.macroBoundary, ← closure_diff_interior] at hs'
+      exact hs'
+
 /-- Step 1 of the blueprint proof of `strict_boundary_header_constant_step4_belt_eq_step1_adj`:
 adjacent belt types have a common boundary side where their fourth cells (index 3) agree. -/
 private lemma strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_sides
@@ -2329,7 +2422,50 @@ private lemma strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_
     ∃ (i_adj : C.Side u.1) (j_adj : C.Side v.1),
       C.IsBoundary (C.occ u.1 i_adj) ∧ C.IsBoundary (C.occ v.1 j_adj) ∧
       K.col u.1 i_adj 3 = K.col v.1 j_adj 3 := by
-  sorry
+  rw [MacroData.beltGraph, SimpleGraph.fromRel_adj] at hadj
+  have hne : u.1 ≠ v.1 := by
+    intro huv
+    apply hadj.1
+    exact Subtype.ext huv
+  have edge : ∀ (s r : {t : C.Typ // C.IsBeltType K.α t})
+      (i : C.Side s.1) (j : C.Side r.1), s.1 ≠ r.1 →
+      C.IsBoundary (C.occ s.1 i) →
+      C.occSide (C.occ s.1 i) = C.occSide (C.occ r.1 j) →
+      ∃ (i' : C.Side s.1) (j' : C.Side r.1),
+        C.IsBoundary (C.occ s.1 i') ∧ C.IsBoundary (C.occ r.1 j') ∧
+          K.col s.1 i' 3 = K.col r.1 j' 3 := by
+    intro s r i j hne_sr hi hside
+    have hinner : C.IsInner (C.occ s.1 i) := hi.1
+    obtain ⟨t', j', ht', htne, hchild, hcol⟩ :=
+      hK.1 s.1 i s.2.1 hinner
+    have hocc' : C.occSide (C.occ t' j') = C.occSide (C.occ s.1 i) := by
+      have h := hchild
+      change (K.v + C.anchor t') +ᵥ (C.Q.disk (C.form t')).side j' =
+        (K.v + C.anchor s.1) +ᵥ (C.Q.disk (C.form s.1)).side i at h
+      rw [add_vadd, add_vadd] at h
+      exact (vadd_left_cancel_iff K.v).mp h
+    have hpartner_t : C.occ t' j' = C.partner (C.occ s.1 i) :=
+      C.g1_side_unique (C.occ s.1 i) (C.occ t' j') hinner
+        (ht'.trans s.2.1.symm)
+        htne hocc'
+    have hpartner_r : C.occ r.1 j = C.partner (C.occ s.1 i) :=
+      C.g1_side_unique (C.occ s.1 i) (C.occ r.1 j) hinner
+        (r.2.1.trans s.2.1.symm)
+        hne_sr.symm hside.symm
+    have hocc : C.occ t' j' = C.occ r.1 j := hpartner_t.trans hpartner_r.symm
+    have hr : C.IsBoundary (C.occ r.1 j) :=
+      strict_boundary_header_constant_step4_belt_eq_step1_adj_step1_adj_sides_aux2
+        (C := C) hi (r.2.1.trans s.2.1.symm) hside.symm
+    refine ⟨i, j, hi, hr, ?_⟩
+    calc
+      K.col s.1 i 3 = K.col t' j' 3 := (hcol 3).symm
+      _ = K.col r.1 j 3 := congrArg (fun q : C.SideOcc => K.col q.1 q.2 3) hocc
+  rcases hadj.2 with h | h
+  · obtain ⟨i, j, hi, hside⟩ := h
+    exact edge u v i j hne hi hside
+  · obtain ⟨j, i, hj, hside⟩ := h
+    obtain ⟨j', i', hj', hi', hcol⟩ := edge v u j i hne.symm hj hside
+    exact ⟨i', j', hi', hj', hcol.symm⟩
 
 /-- Step 4a of the blueprint proof of `strict_boundary_header_constant_step4_belt_eq`: adjacent
 boundary-belt types have equal boundary fourth cells. -/

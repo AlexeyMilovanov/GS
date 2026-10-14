@@ -2856,6 +2856,32 @@ private lemma reconstructed_noncentral_legal_step3_eq_step2_type {P : Protoset}
     (h_form : c.form E.typ = c.form h.1) :
     E.typ = h.1 := by sorry
 
+/-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq_step3_eq`:
+E and the reconstructed parent agree on the first four cells of every marked side. -/
+private lemma reconstructed_noncentral_legal_step3_eq_step1_marked {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hA : headerLegal c K.centre) (hnc : ¬ c.IsCentral h.1)
+    (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
+    (hE_child : IsChildOf c E K.centre)
+    (h_type : E.typ = h.1) :
+    ∀ d : c.Side E.typ, c.marked (c.form E.typ) d → ∀ k : Fin 5, k ≠ 4 →
+      E.cell d k = (reconstruct c K h.1).cell
+        (Fin.cast (congrArg (fun t => (c.Q.disk (c.form t)).n) h_type) d) k := by sorry
+
+/-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq_step3_eq`:
+two normal tiles of the same type agreeing on first four cells of marked sides are equal. -/
+private lemma reconstructed_noncentral_legal_step3_eq_step2_normal_ext {P : Protoset}
+    (c : MacroCertificate P)
+    (X Y : DecTile c) (hXY : X.typ = Y.typ)
+    (hXN : IsNormal c X) (hYN : IsNormal c Y)
+    (hcell : ∀ d : c.Side X.typ, c.marked (c.form X.typ) d →
+      ∀ k : Fin 5, k ≠ 4 →
+        X.cell d k = Y.cell
+          (Fin.cast (congrArg (fun t => (c.Q.disk (c.form t)).n) hXY) d) k) :
+    X = Y := by sorry
+
 /-- Step 3 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: E and D agree. -/
 private lemma reconstructed_noncentral_legal_step3_eq_step3_eq {P : Protoset}
     (c : MacroCertificate P) (hH : c.Hereditary)
@@ -2865,7 +2891,11 @@ private lemma reconstructed_noncentral_legal_step3_eq_step3_eq {P : Protoset}
     (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
     (hE_child : IsChildOf c E K.centre)
     (h_type : E.typ = h.1) :
-    E = reconstruct c K h.1 := by sorry
+    E = reconstruct c K h.1 := by
+  have hEN := (headerLegal_properties c hH E hE_leg).2.1
+  have hDN := (reconstructed_header_eq c hH K hK h hh).1
+  have hmarked := reconstructed_noncentral_legal_step3_eq_step1_marked c hH K hK h hh hA hnc E hE_leg hE_nc hE_child h_type
+  exact reconstructed_noncentral_legal_step3_eq_step2_normal_ext c E (reconstruct c K h.1) h_type hEN hDN hmarked
 
 /-- Step 3 of the blueprint proof of `reconstructed_noncentral_legal`: The parents `E,D`
 have the same form. ... Hence `E=D`, and `D` is legal. -/

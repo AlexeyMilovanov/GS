@@ -6779,6 +6779,216 @@ private lemma lift_hierarchy_step1_decorations (c : MacroCertificate P) (hH : c.
   choose par typ hspec using hpar
   exact lhd_main c seq hseq par typ hspec
 
+private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_partner_inner
+    (c : MacroCertificate P) {o : c.SideOcc} (hi : c.IsInner o) :
+    c.IsInner (c.partner o) := by
+  exact asm_inner_of_occSide c hi (c.g1_partner o hi).2.1 (c.g1_partner o hi).2.2
+
+private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_boundary
+    (c : MacroCertificate P) {o : c.SideOcc} (hi : c.IsInner o) :
+    c.IsBoundary (c.partner o) ↔ c.IsBoundary o := by
+  have hp := c.g1_partner o hi
+  have hi' :=
+    lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_partner_inner c hi
+  have hside : c.occSide o = c.occSide (c.partner o) := hp.2.2.symm
+  have hends :
+      (c.occStart (c.partner o) = c.occStart o ∧
+          c.occEnd (c.partner o) = c.occEnd o) ∨
+        (c.occStart (c.partner o) = c.occEnd o ∧
+          c.occEnd (c.partner o) = c.occStart o) := by
+    apply headerLegal_properties_step4_boundary_step1_print_not_boundary_aux_endpoints
+    · exact ac2_occ_ends_ne c o
+    · simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+        PolygonalDisk.side, MacroData.occStart, MacroData.occEnd, vadd_segment] using hside
+  have hforward : c.IsBoundary (c.partner o) → c.IsBoundary o := by
+    intro hb
+    unfold MacroData.IsBoundary at hb ⊢
+    rw [hp.2.1] at hb
+    refine ⟨hi, ?_⟩
+    rcases hb.2 with hs | he
+    · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · left
+        rw [← h1]
+        exact hs
+      · right
+        rw [← h1]
+        exact hs
+    · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · right
+        rw [← h2]
+        exact he
+      · left
+        rw [← h2]
+        exact he
+  have hback : c.IsBoundary o → c.IsBoundary (c.partner o) := by
+    intro hb
+    unfold MacroData.IsBoundary at hb ⊢
+    rw [hp.2.1]
+    refine ⟨hi', ?_⟩
+    rcases hb.2 with hs | he
+    · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · left
+        rw [h1]
+        exact hs
+      · right
+        rw [h2]
+        exact hs
+    · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · right
+        rw [h2]
+        exact he
+      · left
+        rw [h1]
+        exact he
+  constructor
+  · exact hforward
+  · exact hback
+
+private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_print
+    (c : MacroCertificate P) {α : c.Q.Form} {d : Fin (c.Q.disk α).n} {o : c.SideOcc}
+    (h : c.IsPrintOf α d o) : c.IsPrintOf α d (c.partner o) := by
+  rcases h with ⟨hm, ho | ho⟩
+  · exact ⟨hm, Or.inr (by rw [ho])⟩
+  · refine ⟨hm, Or.inl ?_⟩
+    rw [ho, c.g1_partner_partner _ (c.g4_print_inner α d hm)]
+
+private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_path
+    (c : MacroCertificate P) {α : c.Q.Form} {d : Fin (c.Q.disk α).n} {j : Fin 5}
+    {o : c.SideOcc} (hi : c.IsInner o) (hnp : ¬ c.IsPrint o) :
+    o ∈ c.path α d j ↔ c.partner o ∈ c.path α d j := by
+  have hi' :=
+    lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_partner_inner c hi
+  have hnp' : ¬ c.IsPrint (c.partner o) := by
+    intro hp
+    have hpo := macroblock_is_decomposition_central_step3_nonprints_cell4_aux_print_partner
+      c hi hp
+    exact hnp hpo
+  constructor
+  · intro ho
+    by_cases hg : c.IsGenuinePath α d j
+    · exact c.g4_path_partner α d j hg o ho hi hnp
+    · rw [c.g4_path_trivial α d j hg] at ho
+      have hport : c.port α d j = some o := Option.mem_toList.mp ho
+      unfold MacroData.port at hport
+      have homem : o ∈ c.outerList α d := List.mem_of_getElem? hport
+      exact False.elim (hi (((c.g3_outerList_mem α d o).1 homem).2.1))
+  · intro ho
+    by_cases hg : c.IsGenuinePath α d j
+    · have h := c.g4_path_partner α d j hg (c.partner o) ho hi' hnp'
+      rwa [c.g1_partner_partner o hi] at h
+    · rw [c.g4_path_trivial α d j hg] at ho
+      have hport : c.port α d j = some (c.partner o) := Option.mem_toList.mp ho
+      unfold MacroData.port at hport
+      have homem : c.partner o ∈ c.outerList α d := List.mem_of_getElem? hport
+      exact False.elim (hi' (((c.g3_outerList_mem α d (c.partner o)).1 homem).2.1))
+
+private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_print_iff
+    (c : MacroCertificate P) {o : c.SideOcc} (hi : c.IsInner o) :
+    c.IsPrint (c.partner o) ↔ c.IsPrint o := by
+  constructor
+  · exact macroblock_is_decomposition_central_step3_nonprints_cell4_aux_print_partner c hi
+  · intro hp
+    have hi' :=
+      lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_partner_inner c hi
+    have h := macroblock_is_decomposition_central_step3_nonprints_cell4_aux_print_partner c hi'
+    have hpp : c.IsPrint (c.partner (c.partner o)) := by
+      rw [c.g1_partner_partner o hi]
+      exact hp
+    exact h hpp
+
+private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_cells
+    (c : MacroCertificate P) (blk : ColouredBlock c) (D : DecTile c)
+    {t t' : c.Typ} {i : c.Side t} {j : c.Side t'}
+    (hi : c.IsInner (c.occ t i))
+    (hpartner : c.occ t' j = c.partner (c.occ t i))
+    (hchild : IsChildOf c D (blk.tileOf t))
+    (hchild' : IsChildOf c D (blk.tileOf t')) :
+    ∀ k : Fin 5, blk.col t' j k = blk.col t i k := by
+  have hi' : c.IsInner (c.occ t' j) := by
+    rw [hpartner]
+    exact lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_partner_inner c hi
+  have hedge : c.edge (c.occ t' j) = c.edge (c.occ t i) := by
+    rw [hpartner]
+    exact c.g1_edge_partner (c.occ t i) hi
+  have hbound :=
+    lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_boundary c hi
+  have hprint :=
+    lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_print_iff c hi
+  have hbound' : c.IsBoundary (c.occ t' j) ↔ c.IsBoundary (c.occ t i) := by
+    rw [hpartner]
+    exact hbound
+  have hprint' : c.IsPrint (c.occ t' j) ↔ c.IsPrint (c.occ t i) := by
+    rw [hpartner]
+    exact hprint
+  have howner : c.owner t = c.form D.typ := hchild.1
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hchild hchild'
+  by_cases hp : c.IsPrint (c.occ t i)
+  · have _ : c.IsPrint (c.occ t' j) := by
+      exact hprint'.mpr hp
+    obtain ⟨d, hd⟩ := hp
+    have hd' :=
+      (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print
+        c howner d (c.occ t i)).1 hd
+    have hd'' : c.IsPrintOf (c.form D.typ) (cast
+        (congrArg (fun F => Fin (c.Q.disk F).n) howner) d) (c.occ t' j) := by
+      rw [hpartner]
+      exact lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_print c hd'
+    have hcopy := (hchild.2 i).1 _ hd'
+    have hcopy' := (hchild'.2 j).1 _ hd''
+    have hcopy4 : (blk.tileOf t).cell i 4 = identU c (c.edge (c.occ t i)) := by
+      simpa [ColouredBlock.tileOf] using hcopy.2
+    have hcopy4' : (blk.tileOf t').cell j 4 = identU c (c.edge (c.occ t' j)) := by
+      simpa [ColouredBlock.tileOf] using hcopy'.2
+    intro k
+    change (blk.tileOf t').cell j k = (blk.tileOf t).cell i k
+    by_cases hk : k = 4
+    · subst k
+      rw [hcopy4', hcopy4, hedge]
+    · exact (hcopy'.1 k hk).trans (hcopy.1 k hk).symm
+  · have hp' : ¬ c.IsPrint (c.occ t' j) := by
+      intro hp'
+      apply hp
+      apply hprint'.mp
+      exact hp'
+    obtain ⟨h0, h1, h4, h2p, h2n, h3o, h3b, h3i⟩ := (hchild.2 i).2 hp
+    obtain ⟨h0', h1', h4', h2p', h2n', h3o', h3b', h3i'⟩ :=
+      (hchild'.2 j).2 hp'
+    intro k
+    fin_cases k
+    · have hfirst : prescribedFirst c (c.occ t' j) = prescribedFirst c (c.occ t i) := by
+        simp [prescribedFirst, hi', hi, hedge]
+      exact h0'.trans (hfirst.trans h0.symm)
+    · exact h1'.trans h1.symm
+    · change (blk.tileOf t').cell j 2 = (blk.tileOf t).cell i 2
+      by_cases hpath : ∃ d q, c.occ t i ∈ c.path (c.form D.typ) d q
+      · obtain ⟨d, q, hd⟩ := hpath
+        have hd'' : c.partner (c.occ t i) ∈ c.path (c.form D.typ) d q :=
+          (lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_path c hi hp).mp hd
+        have hd' : c.occ t' j ∈ c.path (c.form D.typ) d q := by
+          rw [hpartner]
+          exact hd''
+        exact (h2p' d q hd').trans (h2p d q hd).symm
+      · have hpath0 : ∀ d q, c.occ t i ∉ c.path (c.form D.typ) d q := by
+          intro d q hd
+          exact hpath ⟨d, q, hd⟩
+        have hpath' : ∀ d q, c.occ t' j ∉ c.path (c.form D.typ) d q := by
+          intro d q hd'
+          apply hpath0 d q
+          have hd'' : c.partner (c.occ t i) ∈ c.path (c.form D.typ) d q := by
+            rw [← hpartner]
+            exact hd'
+          exact
+            (lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_path c hi hp).mpr hd''
+        exact (h2n' hpath').trans (h2n hpath0).symm
+    · by_cases hb : c.IsBoundary (c.occ t i)
+      · have hb' : c.IsBoundary (c.occ t' j) := hbound'.mpr hb
+        exact (h3b' hb').trans (h3b hb).symm
+      · have hb' : ¬ c.IsBoundary (c.occ t' j) := by
+          intro hb'
+          exact hb (hbound'.mp hb')
+        exact (h3i' hi' hb').trans (h3i hi hb).symm
+    · exact h4'.trans h4.symm
+
 /-- Step 2.1.1 of the blueprint proof of `lift_hierarchy_step2_proper_step1_inner`: 
 We show that the valid child tile `X` comes from a proper realization block `blk`. -/
 private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk (c : MacroCertificate P)
@@ -6793,7 +7003,32 @@ private lemma lift_hierarchy_step2_proper_step1_inner_step1_proper_blk (c : Macr
     (hblk_exact : IsExactBlockOfWith c (IsChildOf c) blk (tileDec Z.1) ∧ blk.v = c.σ.θ • Z.1.anchor)
     (hX_in_blk : X ∈ blk.tiles) :
     IsProperRealization c blk := by
-  sorry
+  have _ := hH
+  have _ := seq
+  have _ := hsts
+  have _ := seq'
+  have _ := herase
+  have _ := hexact
+  have _ := hleg 1 Z.1 Z.2
+  have _ := X
+  have _ := hX
+  have _ := hX_in_blk
+  intro t i ht hi hnon
+  let o := c.occ t i
+  let o' := c.partner o
+  have hp := c.g1_partner o hi
+  have hside : blk.childSide o' = blk.childSide o := by
+    have e1 := path_and_print_recovery_step1_signals_aux_childSide c blk o'
+    have e2 := path_and_print_recovery_step1_signals_aux_childSide c blk o
+    rw [e1, e2, hp.2.2]
+  have hchild : IsChildOf c (tileDec Z.1) (blk.tileOf t) :=
+    hblk_exact.1.2 t ht
+  have hchild' : IsChildOf c (tileDec Z.1) (blk.tileOf o'.1) := by
+    apply hblk_exact.1.2
+    rw [hp.2.1, ht]
+  refine ⟨o'.1, o'.2, hp.2.1.trans ht, hp.1, hside, ?_⟩
+  exact lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_cells c blk
+    (tileDec Z.1) hi rfl hchild hchild'
 
 /-- Step 2.1.2 of the blueprint proof of `lift_hierarchy_step2_proper_step1_inner`: 
 We use the fact that `blk` is a proper realization to find the matching tile `Y` inside `blk`. -/

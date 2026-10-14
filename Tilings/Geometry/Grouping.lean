@@ -1,5 +1,6 @@
 import Tilings.Basic
 import Tilings.Control.Certificate
+import Tilings.Hierarchy
 
 /-!
 # The repaired grouping construction (statements only)
@@ -18092,7 +18093,41 @@ permits arbitrarily large suitable `l`." -/
 private lemma existsRoutingAfterPower_step1_idempotent (τ : Substitution P) (M : MeshConstants P)
     (Rs : RoutingSetup τ M) :
     ∀ _n₀ : ℕ, ∃ _l ≥ _n₀, 0 < _l ∧ Rs.c^[2 * _l] = Rs.c^[_l] := by
-  sorry
+  intro n₀
+  obtain ⟨l, hl1, hl2⟩ := FiniteMap.exists_idempotent_iterate Rs.c
+  have key : ∀ k : ℕ, Rs.c^[k * l + l] = Rs.c^[l] := by
+    intro k
+    induction' k with k ih
+    · simp
+    · calc
+        Rs.c^[(k + 1) * l + l] = Rs.c^[k * l + l + l] := by
+          congr 1; ring
+        _ = Rs.c^[l] ∘ Rs.c^[k * l + l] := by
+          rw [add_comm (k * l + l) l, Function.iterate_add]
+        _ = Rs.c^[l] ∘ Rs.c^[l] := by
+          rw [ih]
+        _ = Rs.c^[2 * l] := by
+          rw [← Function.iterate_add]; congr 1; ring
+        _ = Rs.c^[l] := hl2
+  have key2 : ∀ k : ℕ, 0 < k → Rs.c^[k * l] = Rs.c^[l] := by
+    intro k hk
+    obtain ⟨m, rfl⟩ : ∃ m, k = m + 1 := Nat.exists_eq_succ_of_ne_zero hk.ne'
+    calc
+      Rs.c^[(m + 1) * l] = Rs.c^[m * l + l] := by congr 1; ring
+      _ = Rs.c^[l] := key m
+  have h_mul : ∀ k : ℕ, 0 < k → Rs.c^[2 * (k * l)] = Rs.c^[k * l] := by
+    intro k hk
+    calc
+      Rs.c^[2 * (k * l)] = Rs.c^[(2 * k) * l] := by congr 1; ring
+      _ = Rs.c^[l] := key2 (2 * k) (by omega)
+      _ = Rs.c^[k * l] := (key2 k hk).symm
+  use max n₀ 1 * l
+  refine ⟨?_, ?_, h_mul _ (by omega)⟩
+  · calc
+      max n₀ 1 * l ≥ max n₀ 1 * 1 := Nat.mul_le_mul_left _ hl1
+      _ = max n₀ 1 := mul_one _
+      _ ≥ n₀ := le_max_left _ _
+  · positivity
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower`: "Outside the retained central
 annulus every child is an original tile, so the mesh remains `D` ... A scaled parent declared side

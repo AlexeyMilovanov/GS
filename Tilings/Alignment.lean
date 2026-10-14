@@ -3541,6 +3541,53 @@ private lemma whole_side_ports_coincide_step1_parentDir_eq (m : ℕ)
     ((parentSide τ G m A.form a).2 - (parentSide τ G m A.form a).1)
     ((parentSide τ G m A'.form a').2 - (parentSide τ G m A'.form a').1) h1
 
+/- The next three facts isolate the three geometric steps needed for the
+   pointwise existence-and-uniqueness statement. -/
+
+/-- Step 1 of the blueprint proof of
+`whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique`:
+given a fixed fine side strictly inside a parent side, fine STS and schedule
+alignment match it with a fine outer side of the other parent. -/
+private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique_step1_matching_fine_side
+    (m : ℕ) (T' : PlaneTiling G.P')
+    (hfine : SideToSideSet (τ.decomposeIter m (G.scatter T'.tiles)))
+    (halign : SchedulesAligned τ G m T')
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a'))
+    (e : Pt × Pt) (he : e ∈ sidesInside τ G m A.form a) :
+    ∃ e' ∈ fineOuterSides τ G m A'.form,
+      placedSeg ((τ.θ ^ m) • A.anchor) e =
+        placedSeg ((τ.θ ^ m) • A'.anchor) e' := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique`:
+strict containment in a parent side is transported through equal placed segments. -/
+private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique_step2_transport_inside
+    (m : ℕ) (A A' : PlacedTile G.P')
+    (a : Fin (G.P'.disk A.form).n) (a' : Fin (G.P'.disk A'.form).n)
+    (hside : placedSeg ((τ.θ ^ m) • A.anchor) (parentSide τ G m A.form a) =
+      placedSeg ((τ.θ ^ m) • A'.anchor) (parentSide τ G m A'.form a'))
+    (e e' : Pt × Pt) (he : e ∈ sidesInside τ G m A.form a)
+    (he' : e' ∈ fineOuterSides τ G m A'.form)
+    (heq : placedSeg ((τ.θ ^ m) • A.anchor) e =
+      placedSeg ((τ.θ ^ m) • A'.anchor) e') :
+    e' ∈ sidesInside τ G m A'.form a' := by
+  sorry
+
+/-- Step 3 of the blueprint proof of
+`whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique`:
+on one parent, a translated physical segment determines an inside side uniquely. -/
+private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique_step3_unique_same_anchor
+    (m : ℕ) (A : PlacedTile G.P') (a : Fin (G.P'.disk A.form).n)
+    (e₁ e₂ : sidesInside τ G m A.form a)
+    (heq : placedSeg ((τ.θ ^ m) • A.anchor) (e₁ : Pt × Pt) =
+      placedSeg ((τ.θ ^ m) • A.anchor) (e₂ : Pt × Pt)) :
+    e₁ = e₂ := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
 whole-edge subdivision of their common support... -/
 private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique
@@ -3554,7 +3601,20 @@ private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists
     ∀ e : sidesInside τ G m A.form a, ∃! e' : sidesInside τ G m A'.form a',
       placedSeg ((τ.θ ^ m) • A.anchor) (e : Pt × Pt) =
       placedSeg ((τ.θ ^ m) • A'.anchor) (e' : Pt × Pt) := by
-  sorry
+  intro e
+  obtain ⟨e', he', heq⟩ :=
+whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique_step1_matching_fine_side
+      τ G m T' hfine halign A A' hA hA' a a' hside e e.2
+  have he'inside :=
+    whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique_step2_transport_inside
+      τ G m A A' a a' hside (e : Pt × Pt) e' e.2 he' heq
+  refine ⟨⟨e', he'inside⟩, heq, ?_⟩
+  intro y hy
+  symm
+  apply
+whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists_unique_step3_unique_same_anchor
+    τ G m A' a' ⟨e', he'inside⟩ y
+  exact heq.symm.trans hy
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
 whole-edge subdivision of their common support... -/

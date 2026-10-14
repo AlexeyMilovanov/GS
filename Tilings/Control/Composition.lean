@@ -3335,6 +3335,27 @@ private lemma reconstructed_acyclic_legal_step1_block_context {P : Protoset}
   · intro t ht htc
     apply hL (K.placed t) (hmem t ht)
 
+/-- Step 1 of the blueprint proof of
+`reconstructed_acyclic_legal_step2_noncentral_step1_common_header`: the reconstructed tile
+has the type of the common header selected from the block. -/
+private lemma reconstructed_acyclic_legal_step2_noncentral_step1_common_header_step1_type
+    {P : Protoset} (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c))
+    (hrec : IsReconstruction c part T') (hT' : IsProper c T')
+    (hN : ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+      InnerActive c (tileDec X))
+    (hex : IsExactComposition c T' T)
+    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ T'.tiles)
+    (j : part.ι) (hj : (part.block j).v = c.σ.θ • Y.anchor)
+    (heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ)
+    (hctx : BlockContext c (part.block j))
+    (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c (part.block j) h) :
+    (tileDec Y).typ = h.1 := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step2_noncentral`:
 Recover the common header of the block that reconstructs a noncentral tile. -/
 private lemma reconstructed_acyclic_legal_step2_noncentral_step1_common_header
@@ -3351,7 +3372,12 @@ private lemma reconstructed_acyclic_legal_step2_noncentral_step1_common_header
     (heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ)
     (hctx : BlockContext c (part.block j)) :
     CommonHeader c (part.block j) (headerOf c (tileDec Y)) := by
-  sorry
+  obtain ⟨h, hh⟩ := boundary_header_constant c hH (part.block j) hctx
+  have htype := reconstructed_acyclic_legal_step2_noncentral_step1_common_header_step1_type
+    c hH T hT hL part T' hrec hT' hN hex Y hY j hj heq hctx h hh
+  have hheader := reconstructed_header_eq_headerOf c hH (part.block j) hctx h hh
+  rw [heq, htype, hheader]
+  exact hh
 
 /-- Step 2 of the blueprint proof of `reconstructed_acyclic_legal`: 
 Every noncentral tile of `T'` is already legal. -/

@@ -11259,6 +11259,45 @@ private lemma fingerprintSeparation_step2_templates (F : FingerprintData)
     linarith
   · contradiction
 
+private lemma count_add_count_le_card_aux {α : Type} [DecidableEq α] {s : Multiset α} {a b : α} (hab : a ≠ b) :
+    s.count a + s.count b ≤ Multiset.card s := by
+  induction s using Multiset.induction_on
+  · simp
+  · case cons c s ih =>
+    have h1 : (c ::ₘ s).count a = (if a = c then 1 else 0) + s.count a := by
+      simp [Multiset.count_cons]
+      split_ifs <;> omega
+    have h2 : (c ::ₘ s).count b = (if b = c then 1 else 0) + s.count b := by
+      simp [Multiset.count_cons]
+      split_ifs <;> omega
+    have h3 : (c ::ₘ s).card = 1 + s.card := by
+      simp [Multiset.card_cons]
+      omega
+    rw [h1, h2, h3]
+    by_cases hca : a = c
+    · subst hca
+      have hcb : b ≠ a := hab.symm
+      simp [hcb]
+      omega
+    · by_cases hcb : b = c
+      · subst hcb
+        have hca_ne : a ≠ b := hab
+        simp [hca_ne]
+        omega
+      · simp [hca, hcb]
+        omega
+
+private lemma ReflTransGen_path_inv_aux {α : Type} {r : α → α → Prop} {a b c : α}
+    (h_only : ∀ y, r a y → y = b) (h_only_b : ∀ y, r b y → y = a)
+    (h : Relation.ReflTransGen r a c) : c = a ∨ c = b := by
+  induction h
+  · case refl =>
+    exact Or.inl rfl
+  · case tail y z _ r_y_z ih =>
+    rcases ih with rfl | rfl
+    · exact Or.inr (h_only z r_y_z)
+    · exact Or.inl (h_only_b z r_y_z)
+
 /-- Step 3 of the blueprint proof of `fingerprintSeparation`: Two original types
 in the same template cannot have equal fingerprints. -/
 private lemma fingerprintSeparation_step3_orig (F : FingerprintData)
@@ -11270,7 +11309,93 @@ private lemma fingerprintSeparation_step3_orig (F : FingerprintData)
     (h_three : ∀ t, ∃ a b, a ≠ t ∧ b ≠ t ∧ a ≠ b ∧
       F.template a = F.template t ∧ F.template b = F.template t) :
     ∀ u v, F.kind u = .original → F.kind v = .original → u ≠ v → F.template u = F.template v →
-    Disjoint (F.possibleFingerprints u) (F.possibleFingerprints v) := sorry
+    Disjoint (F.possibleFingerprints u) (F.possibleFingerprints v) := by
+  intro u v hku hkv huv htmpl
+  have _ := h_adj_symm -- suppress unused variable warning
+  rw [Set.disjoint_iff_forall_ne]
+  intro fu hfu fv hfv heq
+  simp only [FingerprintData.possibleFingerprints, hku, hkv, Set.mem_singleton_iff] at hfu hfv
+  subst hfu
+  subst hfv
+  have H_u : (F.baseFingerprint u).count u = (F.baseFingerprint v).count u := by rw [heq]
+  
+  have count_u_u : (F.baseFingerprint u).count u = (F.ordinary u).count u + Multiset.card (F.ordinary u) := by
+    simp [FingerprintData.baseFingerprint]
+  
+  have count_v_u : (F.baseFingerprint v).count u = (F.ordinary v).count u := by
+    simp [FingerprintData.baseFingerprint, Multiset.count_replicate, huv.symm]
+    
+  have symm_uv : (F.ordinary u).count v = (F.ordinary v).count u := h_symm u v hku hkv
+  
+  have h_bound : (F.ordinary u).count u + Multiset.card (F.ordinary u) = (F.ordinary u).count v := by
+    linarith [H_u, count_u_u, count_v_u, symm_uv]
+    
+  have h_le : (F.ordinary u).count v ≤ Multiset.card (F.ordinary u) := Multiset.count_le_card _ _
+  
+  have h_card_eq : Multiset.card (F.ordinary u) = (F.ordinary u).count v := by omega
+  have h_count_uu : (F.ordinary u).count u = 0 := by omega
+  
+  have h_only_v : ∀ w ∈ F.ordinary u, w = v := by
+    intro w hw
+    have : (F.ordinary u).count v = Multiset.card (F.ordinary u) := h_card_eq.symm
+    have hc : (F.ordinary u).count w > 0 := Multiset.count_pos.mpr hw
+    by_cases hwv : w = v
+    · exact hwv
+    · have h_sum : (F.ordinary u).count w + (F.ordinary u).count v ≤ Multiset.card (F.ordinary u) := by
+        exact count_add_count_le_card_aux hwv
+      linarith
+      
+  -- Now we do the same for v to u
+  have H_v : (F.baseFingerprint u).count v = (F.baseFingerprint v).count v := by rw [heq]
+  have count_v_v : (F.baseFingerprint v).count v = (F.ordinary v).count v + Multiset.card (F.ordinary v) := by
+    simp [FingerprintData.baseFingerprint]
+  have count_u_v : (F.baseFingerprint u).count v = (F.ordinary u).count v := by
+    simp [FingerprintData.baseFingerprint, Multiset.count_replicate, huv]
+    
+  have symm_vu : (F.ordinary v).count u = (F.ordinary u).count v := (h_symm u v hku hkv).symm
+  
+  have h_bound_v : (F.ordinary v).count v + Multiset.card (F.ordinary v) = (F.ordinary v).count u := by
+    linarith [H_v, count_v_v, count_u_v, symm_vu]
+    
+  have h_le_v : (F.ordinary v).count u ≤ Multiset.card (F.ordinary v) := Multiset.count_le_card _ _
+  have h_card_eq_v : Multiset.card (F.ordinary v) = (F.ordinary v).count u := by omega
+  
+  have h_only_u : ∀ w ∈ F.ordinary v, w = u := by
+    intro w hw
+    have : (F.ordinary v).count u = Multiset.card (F.ordinary v) := h_card_eq_v.symm
+    have hc : (F.ordinary v).count w > 0 := Multiset.count_pos.mpr hw
+    by_cases hwu : w = u
+    · exact hwu
+    · have h_sum : (F.ordinary v).count w + (F.ordinary v).count u ≤ Multiset.card (F.ordinary v) := by
+        exact count_add_count_le_card_aux hwu
+      linarith
+
+  have h_adj_uv : ∀ w, F.adj u w → w = v := by
+    intro w hw
+    rw [h_adj_orig u w hku] at hw
+    exact h_only_v w hw
+
+  have h_adj_vu : ∀ w, F.adj v w → w = u := by
+    intro w hw
+    rw [h_adj_orig v w hkv] at hw
+    exact h_only_u w hw
+    
+  obtain ⟨a, b, hau, hbu, hab_diff, hta, htb⟩ := h_three u
+  
+  by_cases hav : a = v
+  · subst hav
+    have htu_tb : F.template u = F.template b := htb.symm
+    have h_path := h_conn u b htu_tb
+    have h_reach := ReflTransGen_path_inv_aux h_adj_uv h_adj_vu h_path
+    rcases h_reach with rfl | rfl
+    · exact hbu rfl
+    · exact hab_diff.symm rfl
+  · have htu_ta : F.template u = F.template a := hta.symm
+    have h_path := h_conn u a htu_ta
+    have h_reach := ReflTransGen_path_inv_aux h_adj_uv h_adj_vu h_path
+    rcases h_reach with rfl | rfl
+    · exact hau rfl
+    · exact hav rfl
 
 /-- Step 4 of the blueprint proof of `fingerprintSeparation`: Two small types
 in the same template cannot have equal fingerprints. -/

@@ -2486,6 +2486,88 @@ private lemma plAnnulusRouting_step1_topological (A C : PolygonalDisk)
       (∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0:ℝ) 1) (γ j '' Set.Icc (0:ℝ) 1)) := by
   sorry
 
+private lemma plAnnulusRouting_step2_plApprox_step1_separation_finset
+    {ι : Type*} [DecidableEq ι] (s : Finset ι) (K : ι → Set Tilings.Pt)
+    (hcompact : ∀ i ∈ s, IsCompact (K i))
+    (hdisj : ∀ i ∈ s, ∀ j ∈ s, i ≠ j → Disjoint (K i) (K j)) :
+    ∃ U : ι → Set Tilings.Pt, (∀ i ∈ s, IsOpen (U i)) ∧
+      (∀ i ∈ s, K i ⊆ U i) ∧
+      (∀ i ∈ s, ∀ j ∈ s, i ≠ j → Disjoint (U i) (U j)) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+      refine ⟨fun _ => ∅, ?_, ?_, ?_⟩
+      · simp
+      · simp
+      · simp
+  | @insert a s ha ih =>
+      have hKa : IsCompact (K a) := hcompact a (Finset.mem_insert_self a s)
+      have hKs : IsCompact (⋃ i ∈ s, K i) :=
+        s.isCompact_biUnion (fun i hi => hcompact i (Finset.mem_insert_of_mem hi))
+      have hsep : Disjoint (K a) (⋃ i ∈ s, K i) := by
+        rw [Set.disjoint_left]
+        intro z hza hzs
+        rcases Set.mem_iUnion.1 hzs with ⟨i, hzi⟩
+        rcases Set.mem_iUnion.1 hzi with ⟨hi, hzi⟩
+        exact Set.disjoint_left.1
+          (hdisj a (Finset.mem_insert_self a s) i
+            (Finset.mem_insert_of_mem hi)
+            (Ne.symm (ne_of_mem_of_not_mem hi ha))) hza hzi
+      obtain ⟨V, W, hVopen, hWopen, hKV, hTW, hVW⟩ :=
+        normal_separation hKa.isClosed hKs.isClosed hsep
+      obtain ⟨Q, hQopen, hKQ, hQdisj⟩ := ih
+        (fun i hi => hcompact i (Finset.mem_insert_of_mem hi))
+        (fun i hi j hj hij =>
+          hdisj i (Finset.mem_insert_of_mem hi) j
+            (Finset.mem_insert_of_mem hj) hij)
+      let U : ι → Set Tilings.Pt := Function.update (fun i => Q i ∩ W) a V
+      have hUa : U a = V := by simp [U]
+      have hUa_sub : U a ⊆ V := by rw [hUa]
+      refine ⟨U, ?_, ?_, ?_⟩
+      · intro i hi
+        rcases Finset.mem_insert.mp hi with rfl | hi
+        · simpa [U] using hVopen
+        · simp only [U, Function.update_of_ne (ne_of_mem_of_not_mem hi ha)]
+          exact (hQopen i hi).inter hWopen
+      · intro i hi
+        rcases Finset.mem_insert.mp hi with rfl | hi
+        · simpa [U] using hKV
+        · have hKiW : K i ⊆ W := by
+            intro z hz
+            exact hTW (Set.mem_iUnion.2 ⟨i, Set.mem_iUnion.2 ⟨hi, hz⟩⟩)
+          intro z hz
+          simp only [U, Function.update_of_ne (ne_of_mem_of_not_mem hi ha)]
+          exact ⟨hKQ i hi hz, hKiW hz⟩
+      · intro i hi j hj hij
+        rcases Finset.mem_insert.mp hi with rfl | hi
+        · rcases Finset.mem_insert.mp hj with rfl | hj
+          · exact (hij rfl).elim
+          · have hsub : U j ⊆ W := by
+              intro z hz
+              simp only [U, Function.update_of_ne
+                (ne_of_mem_of_not_mem hj ha)] at hz
+              exact hz.2
+            exact hVW.mono hUa_sub hsub
+        · have hia : i ≠ a := ne_of_mem_of_not_mem hi ha
+          rcases Finset.mem_insert.mp hj with rfl | hj
+          · exact hVW.symm.mono (by
+              have hsub : U i ⊆ W := by
+                intro z hz
+                simp only [U, Function.update_of_ne
+                  hia] at hz
+                exact hz.2
+              exact hsub) hUa_sub
+          · have hQij := hQdisj i hi j hj hij
+            exact hQij.mono (by
+              intro z hz
+              simp only [U, Function.update_of_ne
+                hia] at hz
+              exact hz.1) (by
+              intro z hz
+              simp only [U, Function.update_of_ne
+                (ne_of_mem_of_not_mem hj ha)] at hz
+              exact hz.1)
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step2_plApprox`: Separation of arcs.
 For a finite family of disjoint continuous paths, there exist disjoint open neighborhoods around each. -/
 private lemma plAnnulusRouting_step2_plApprox_step1_separation {k : ℕ}
@@ -2494,7 +2576,21 @@ private lemma plAnnulusRouting_step2_plApprox_step1_separation {k : ℕ}
     (hdisj : ∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0:ℝ) 1) (γ j '' Set.Icc (0:ℝ) 1)) :
     ∃ U : Fin k → Set Tilings.Pt, (∀ i, IsOpen (U i)) ∧
       (∀ i, γ i '' Set.Icc (0:ℝ) 1 ⊆ U i) ∧
-      (∀ i j, i ≠ j → Disjoint (U i) (U j)) := sorry
+      (∀ i j, i ≠ j → Disjoint (U i) (U j)) := by
+  classical
+  obtain ⟨U, hUopen, hUsub, hUdisj⟩ :=
+    plAnnulusRouting_step2_plApprox_step1_separation_finset
+      (Finset.univ : Finset (Fin k))
+      (fun i => γ i '' Set.Icc (0 : ℝ) 1)
+      (fun i hi => isCompact_Icc.image (hcont i))
+      (fun i hi j hj hij => hdisj i j hij)
+  refine ⟨U, ?_, ?_, ?_⟩
+  · intro i
+    exact hUopen i (Finset.mem_univ i)
+  · intro i
+    exact hUsub i (Finset.mem_univ i)
+  · intro i j hij
+    exact hUdisj i (Finset.mem_univ i) j (Finset.mem_univ j) hij
 
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step2_plApprox`: Single arc approximation.
 A single continuous arc disjoint from C can be PL-approximated within its neighborhood. -/

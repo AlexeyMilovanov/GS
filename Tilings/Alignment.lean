@@ -4055,7 +4055,29 @@ private lemma whole_side_ports_coincide_step2_sidesInside_bijection_step1_exists
     (heq : placedSeg ((τ.θ ^ m) • A.anchor) (e₁ : Pt × Pt) =
       placedSeg ((τ.θ ^ m) • A.anchor) (e₂ : Pt × Pt)) :
     e₁ = e₂ := by
-  sorry
+  apply Subtype.ext
+  apply whole_side_ports_distinct_step3_rank_step2_inj τ G m A.form a e₁.2 e₂.2
+  set v := (τ.θ ^ m) • A.anchor
+  obtain ⟨B, -, i, he₁, -⟩ := e₁.2.1
+  have hne : v + (e₁ : Pt × Pt).1 ≠ v + (e₁ : Pt × Pt).2 := by
+    intro h
+    apply omitted_count_tile_vertex_ne_next B i
+    rw [he₁] at h
+    exact add_left_cancel h
+  have hsegments : segment ℝ (v + (e₁ : Pt × Pt).1) (v + (e₁ : Pt × Pt).2) =
+      segment ℝ (v + (e₂ : Pt × Pt).1) (v + (e₂ : Pt × Pt).2) := by
+    simpa only [placedSeg] using heq
+  rcases sa1_ba_segment_endpoints hne hsegments with hends | hends
+  · obtain ⟨h₁, h₂⟩ := hends
+    have h₁' : (e₂ : Pt × Pt).1 = (e₁ : Pt × Pt).1 := add_left_cancel h₁
+    have h₂' : (e₂ : Pt × Pt).2 = (e₁ : Pt × Pt).2 := add_left_cancel h₂
+    simp only [sideKey]
+    rw [h₁', h₂']
+  · obtain ⟨h₁, h₂⟩ := hends
+    have h₁' : (e₂ : Pt × Pt).1 = (e₁ : Pt × Pt).2 := add_left_cancel h₁
+    have h₂' : (e₂ : Pt × Pt).2 = (e₁ : Pt × Pt).1 := add_left_cancel h₂
+    simp only [sideKey]
+    rw [h₁', h₂', add_comm]
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_coincide`: fine STS gives identical
 whole-edge subdivision of their common support... -/

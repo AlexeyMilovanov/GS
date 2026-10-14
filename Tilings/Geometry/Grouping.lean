@@ -3931,6 +3931,199 @@ private lemma existsAnnularSpokes_step2_tubes_sqLt {a b : ℝ} (_ha : 0 ≤ a) (
   push_neg at hcon
   nlinarith [mul_self_le_mul_self hb hcon]
 
+private lemma existsAnnularSpokes_step2_tubes_pos_cases {N : ℕ} {R : ℝ} (hR : 0 < R)
+    {k : ℕ} (hk : k < 4 * N) :
+    k ≤ N ∧ existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((k : ℝ) * R) =
+        mkPt ((N : ℝ) * R / 2) (-((N : ℝ) * R / 2) + (k : ℝ) * R) ∨
+    N < k ∧ k ≤ 2 * N ∧ existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((k : ℝ) * R) =
+        mkPt (3 * ((N : ℝ) * R / 2) - (k : ℝ) * R) ((N : ℝ) * R / 2) ∨
+    2 * N < k ∧ k ≤ 3 * N ∧ existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((k : ℝ) * R) =
+        mkPt (-((N : ℝ) * R / 2)) (5 * ((N : ℝ) * R / 2) - (k : ℝ) * R) ∨
+    3 * N < k ∧ existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((k : ℝ) * R) =
+        mkPt ((k : ℝ) * R - 7 * ((N : ℝ) * R / 2)) (-((N : ℝ) * R / 2)) := by
+  have hR0 : 0 ≤ R := hR.le
+  have hA : 0 < (N : ℝ) * R / 2 := by
+    have hN : 0 < N := by omega
+    positivity
+  have hkn : k ≤ N ∨ N < k ∧ k ≤ 2 * N ∨ 2 * N < k ∧ k ≤ 3 * N ∨ 3 * N < k := by
+    omega
+  rcases hkn with hkn | hkn | hkn | hkn
+  · left
+    refine ⟨hkn, ?_⟩
+    unfold existsAnnularSpokes_pos
+    have ht : (k : ℝ) * R ≤ 2 * ((N : ℝ) * R / 2) := by
+      rw [div_eq_mul_inv]
+      have hk' : (k : ℝ) ≤ N := by exact_mod_cast hkn
+      nlinarith
+    simp only [if_pos ht]
+  · right; left
+    refine ⟨hkn.1, hkn.2, ?_⟩
+    unfold existsAnnularSpokes_pos
+    have ht0 : ¬ ((k : ℝ) * R ≤ 2 * ((N : ℝ) * R / 2)) := by
+      intro ht
+      have hk' : (k : ℝ) ≤ N := by
+        nlinarith
+      have hkn' : (N : ℝ) < k := by exact_mod_cast hkn.1
+      nlinarith
+    have ht1 : (k : ℝ) * R ≤ 4 * ((N : ℝ) * R / 2) := by
+      have hk' : (k : ℝ) ≤ 2 * N := by exact_mod_cast hkn.2
+      nlinarith
+    simp only [if_neg ht0, if_pos ht1]
+    congr 1
+    all_goals ring
+  · right; right; left
+    refine ⟨hkn.1, hkn.2, ?_⟩
+    unfold existsAnnularSpokes_pos
+    have ht0 : ¬ ((k : ℝ) * R ≤ 2 * ((N : ℝ) * R / 2)) := by
+      intro ht
+      have hk' : (k : ℝ) ≤ N := by nlinarith
+      have hkn' : (2 * (N : ℝ)) < k := by exact_mod_cast hkn.1
+      nlinarith
+    have ht1 : ¬ ((k : ℝ) * R ≤ 4 * ((N : ℝ) * R / 2)) := by
+      intro ht
+      have hk' : (k : ℝ) ≤ 2 * N := by nlinarith
+      have hkn' : (2 * (N : ℝ)) < k := by exact_mod_cast hkn.1
+      nlinarith
+    have ht2 : (k : ℝ) * R ≤ 6 * ((N : ℝ) * R / 2) := by
+      have hk' : (k : ℝ) ≤ 3 * N := by exact_mod_cast hkn.2
+      nlinarith
+    simp only [if_neg ht0, if_neg ht1, if_pos ht2]
+    congr 1
+    all_goals ring
+  · right; right; right
+    refine ⟨hkn, ?_⟩
+    unfold existsAnnularSpokes_pos
+    have ht0 : ¬ ((k : ℝ) * R ≤ 2 * ((N : ℝ) * R / 2)) := by
+      intro ht
+      have hk' : (k : ℝ) ≤ N := by nlinarith
+      have hkn' : (3 * (N : ℝ)) < k := by exact_mod_cast hkn
+      nlinarith
+    have ht1 : ¬ ((k : ℝ) * R ≤ 4 * ((N : ℝ) * R / 2)) := by
+      intro ht
+      have hk' : (k : ℝ) ≤ 2 * N := by nlinarith
+      have hkn' : (3 * (N : ℝ)) < k := by exact_mod_cast hkn
+      nlinarith
+    have ht2 : ¬ ((k : ℝ) * R ≤ 6 * ((N : ℝ) * R / 2)) := by
+      intro ht
+      have hk' : (k : ℝ) ≤ 3 * N := by nlinarith
+      have hkn' : (3 * (N : ℝ)) < k := by exact_mod_cast hkn
+      nlinarith
+    simp only [if_neg ht0, if_neg ht1, if_neg ht2]
+    congr 1
+    all_goals ring
+
+/-! Each of the following is one pair of sides in the square-perimeter calculation. -/
+
+/-- Step 1a of the blueprint proof: two marks on the first straight side. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s0 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi0 : i ≤ N) (hj0 : j ≤ N) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1b of the blueprint proof: two marks on the second straight side. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s1 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi1 : N < i ∧ i ≤ 2 * N) (hj1 : N < j ∧ j ≤ 2 * N) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1c of the blueprint proof: two marks on the third straight side. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s2s2 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi2 : 2 * N < i ∧ i ≤ 3 * N) (hj2 : 2 * N < j ∧ j ≤ 3 * N) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1d of the blueprint proof: two marks on the fourth straight side. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s3s3 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi3 : 3 * N < i) (hj3 : 3 * N < j) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1e of the blueprint proof: marks on the first two adjacent sides. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi0 : i ≤ N) (hj1 : N < j ∧ j ≤ 2 * N) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1f of the blueprint proof: marks on the second and third adjacent sides. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s2 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi1 : N < i ∧ i ≤ 2 * N) (hj2 : 2 * N < j ∧ j ≤ 3 * N) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1g of the blueprint proof: marks on the third and fourth adjacent sides. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s2s3 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi2 : 2 * N < i ∧ i ≤ 3 * N) (hj3 : 3 * N < j) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1h of the blueprint proof: marks on the fourth and first adjacent sides cyclically. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s3 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi0 : i ≤ N) (hj3 : 3 * N < j) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1i of the blueprint proof: marks on the first and third opposite sides. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s2 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi0 : i ≤ N) (hj2 : 2 * N < j ∧ j ≤ 3 * N) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
+/-- Step 1j of the blueprint proof: marks on the second and fourth opposite sides. -/
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s3 {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
+    (hij : i < j) (hi1 : N < i ∧ i ≤ 2 * N) (hj3 : 3 * N < j) :
+    existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
+        - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
+      (N : ℝ) * R / 2 * R ≤
+        |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
+          (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step2_tubes`: "In the square annulus,
 successive radial segments have separation at least a universal positive multiple of `R`.  This
 follows by considering a straight side and the two sides adjacent to a corner."  For `N ≥ 2` and
@@ -3941,10 +4134,59 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep {N : ℕ} {R : ℝ} 
     (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N) (hij : i ≠ j) :
     existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) =
       - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R) ∨
-    (N : ℝ) * R / 2 * R ≤
+      (N : ℝ) * R / 2 * R ≤
       |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
         (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  have hordered : ∀ {a b : ℕ}, a < b → a < 4 * N → b < 4 * N →
+      existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((b : ℝ) * R) =
+          - existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((a : ℝ) * R) ∨
+        (N : ℝ) * R / 2 * R ≤
+          |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((a : ℝ) * R))
+            (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((b : ℝ) * R))| := by
+    intro a b hab ha4 hb4
+    have ha := existsAnnularSpokes_step2_tubes_pos_cases hR ha4
+    have hb := existsAnnularSpokes_step2_tubes_pos_cases hR hb4
+    rcases ha with ⟨ha0, _⟩ | ⟨ha1, ha1', _⟩ | ⟨ha2, ha2', _⟩ | ⟨ha3, _⟩
+    · rcases hb with ⟨hb0, _⟩ | ⟨hb1, hb1', _⟩ | ⟨hb2, hb2', _⟩ | ⟨hb3, _⟩
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s0s0 hN hR (by omega) (by omega)
+          hab ha0 hb0
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1 hN hR (by omega) (by omega)
+          hab ha0 ⟨hb1, hb1'⟩
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s0s2 hN hR (by omega) (by omega)
+          hab ha0 ⟨hb2, hb2'⟩
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s0s3 hN hR (by omega) (by omega)
+          hab ha0 hb3
+    · rcases hb with ⟨hb0, _⟩ | ⟨hb1, hb1', _⟩ | ⟨hb2, hb2', _⟩ | ⟨hb3, _⟩
+      · omega
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s1s1 hN hR (by omega) (by omega)
+          hab ⟨ha1, ha1'⟩ ⟨hb1, hb1'⟩
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s1s2 hN hR (by omega) (by omega)
+          hab ⟨ha1, ha1'⟩ ⟨hb2, hb2'⟩
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s1s3 hN hR (by omega) (by omega)
+          hab ⟨ha1, ha1'⟩ hb3
+    · rcases hb with ⟨hb0, _⟩ | ⟨hb1, hb1', _⟩ | ⟨hb2, hb2', _⟩ | ⟨hb3, _⟩
+      · omega
+      · omega
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s2s2 hN hR (by omega) (by omega)
+          hab ⟨ha2, ha2'⟩ ⟨hb2, hb2'⟩
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s2s3 hN hR (by omega) (by omega)
+          hab ⟨ha2, ha2'⟩ hb3
+    · rcases hb with ⟨hb0, _⟩ | ⟨hb1, hb1', _⟩ | ⟨hb2, hb2', _⟩ | ⟨hb3, _⟩
+      · omega
+      · omega
+      · omega
+      · exact existsAnnularSpokes_step2_tubes_step1_baseSep_s3s3 hN hR (by omega) (by omega)
+          hab ha3 hb3
+  rcases lt_or_gt_of_ne hij with hij' | hji
+  · exact hordered hij' hi hj
+  · have h := hordered hji hj hi
+    rcases h with hanti | hcross
+    · left
+      rw [hanti]
+      simp
+    · right
+      rw [jcr_anti, abs_neg] at hcross
+      exact hcross
 
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step2_tubes`: "Extending each segment a
 bounded number of mesh diameters past the two cycles preserves disjoint tubes when `R/D` is

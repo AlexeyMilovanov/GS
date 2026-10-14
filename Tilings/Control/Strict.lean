@@ -5844,6 +5844,159 @@ private theorem strict_composed_proper_step4_matched_step1_sides (hτ : τ.STS)
   apply Set.image_injective.mpr (smul_right_injective Pt (som_theta_ne C))
   exact hXd.symm.trans (hmacro.trans hYe)
 
+/-- Step 1 of the blueprint proof of
+`strict_composed_proper_step4_matched_step2_colours`: distinct reconstructed parent tiles
+come from distinct blocks of the macro-partition. -/
+private theorem strict_composed_proper_step4_matched_step2_colours_step1_distinct_blocks
+    (T : PlaneTiling (strictProtoset C hC)) (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC))
+    {X Y : PlacedTile (strictProtoset C hC)} (hX : X ∈ T'.tiles) (hY : Y ∈ T'.tiles)
+    (hXY : X ≠ Y) {a b : part.ι}
+    (hva : (part.block a).v = C.σ.θ • X.anchor)
+    (hvb : (part.block b).v = C.σ.θ • Y.anchor)
+    {ha hb : HeaderKernel.Header C.Typ C.Side}
+    (hha : StrictCommonHeader C hC (part.block a) ha)
+    (hhb : StrictCommonHeader C hC (part.block b) hb)
+    (hformX : X.form =
+      StrictForm.typed (strictReconstruct C hC (part.block a) ha.1))
+    (hformY : Y.form =
+      StrictForm.typed (strictReconstruct C hC (part.block b) hb.1)) :
+    a ≠ b := by
+  intro hab
+  subst b
+  have hθ : C.σ.θ ≠ 0 := (zero_lt_one.trans C.σ.one_lt).ne'
+  have hanchor : X.anchor = Y.anchor :=
+    smul_right_injective Pt hθ (hva.symm.trans hvb)
+  have hcarrier : X.carrier = Y.carrier := by
+    simp only [PlacedTile.carrier, hformX, hformY, StrictForm.proj]
+    change X.anchor +ᵥ (C.Q.disk (C.form ha.1)).carrier =
+      Y.anchor +ᵥ (C.Q.disk (C.form hb.1)).carrier
+    rw [hanchor, hha.1, hhb.1]
+  have hnonempty : (interior X.carrier).Nonempty := by
+    obtain ⟨z, hz⟩ := (C.Q.disk (C.form ha.1)).interior_nonempty
+    refine ⟨X.anchor +ᵥ z, ?_⟩
+    rw [PlacedTile.carrier, hformX]
+    change X.anchor +ᵥ z ∈ interior (X.anchor +ᵥ (C.Q.disk (C.form ha.1)).carrier)
+    rw [interior_vadd]
+    exact Set.vadd_mem_vadd_set hz
+  obtain ⟨z, hz⟩ := hnonempty
+  have hzY : z ∈ interior Y.carrier := by
+    rw [← hcarrier]
+    exact hz
+  exact Set.disjoint_left.1 (T'.disjoint hX hY hXY) hz hzY
+
+/-- Step 2 of the blueprint proof of
+`strict_composed_proper_step4_matched_step2_colours`: after scaling, coincident sides of
+reconstructed parents are coincident macrosides of their blocks. -/
+private theorem strict_composed_proper_step4_matched_step2_colours_step2_scaled_sides
+    (K L : StrictBlock C hC) (t u : C.Typ) (v w : Pt)
+    (ht : C.form t = K.α) (hu : C.form u = L.α)
+    (hv : K.v = C.σ.θ • v) (hw : L.v = C.σ.θ • w)
+    (i : C.Side t) (j : C.Side u)
+    (hside : v +ᵥ (C.Q.disk (C.form t)).side i =
+      w +ᵥ (C.Q.disk (C.form u)).side j) :
+    L.macroSide (Fin.cast (congrArg (fun α => (C.Q.disk α).n) hu) j) =
+      K.macroSide (Fin.cast (congrArg (fun α => (C.Q.disk α).n) ht) i) := by
+  have hs := congrArg (fun S : Set Pt => C.σ.θ • S) hside
+  unfold StrictBlock.macroSide
+  rw [som_macroSide_cast C hu.symm j, som_macroSide_cast C ht.symm i]
+  unfold MacroData.macroSide
+  rw [hv, hw]
+  simpa only [← Set.image_vadd, ← Set.image_smul, Set.image_image, vadd_eq_add,
+    smul_add] using hs.symm
+
+/-- Step 3 of the blueprint proof of
+`strict_composed_proper_step4_matched_step2_colours`: uniqueness of the block across a
+macroside identifies the ordered subdivision supplied by `strict_opposing_macroside` with
+the already specified coincident block and side. -/
+private theorem strict_composed_proper_step4_matched_step2_colours_step3_subdivision
+    (T : PlaneTiling (strictProtoset C hC)) (part : StrictMacroPartition C hC T)
+    (a b : part.ι) (hab : b ≠ a)
+    (d : Fin (C.Q.disk (part.block a).α).n)
+    (e : Fin (C.Q.disk (part.block b).α).n)
+    (hmacro : (part.block b).macroSide e = (part.block a).macroSide d)
+    (hopp : StrictOpposingMacroside C hC part a d) :
+    List.Forall₂
+      (fun o o' => (part.block a).childSide o = (part.block b).childSide o')
+      (C.outerList (part.block a).α d) (C.outerList (part.block b).α e) := by
+  obtain ⟨c, hca, f, hmacro', hsub⟩ := hopp
+  by_cases hcb : c = b
+  · subst c
+    have hfe : f = e :=
+      som_macroSide_inj C hC (part.block b) (hmacro'.trans hmacro.symm)
+    subst f
+    exact hsub
+  · exact (som_three_blocks C hC part (j₁ := a) (j₂ := c) (j₃ := b)
+      hca.symm hab.symm hcb d f e hmacro' hmacro).elim
+
+/-- Step 4 of the blueprint proof of
+`strict_composed_proper_step4_matched_step2_colours`: equal ordered subdivisions pair the
+five numbered ports; strict matching of the paired child sides makes their third cells, and
+hence all five reconstructed parent cells, equal. -/
+private theorem strict_composed_proper_step4_matched_step2_colours_step4_ports
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (part : StrictMacroPartition C hC T) (a b : part.ι) (hab : b ≠ a)
+    (ha hb : HeaderKernel.Header C.Typ C.Side)
+    (hha : StrictCommonHeader C hC (part.block a) ha)
+    (hhb : StrictCommonHeader C hC (part.block b) hb)
+    (i : C.Side ha.1) (j : C.Side hb.1)
+    (hports : List.Forall₂
+      (fun o o' => (part.block a).childSide o = (part.block b).childSide o')
+      (C.outerList (part.block a).α
+        (Fin.cast (congrArg (fun α => (C.Q.disk α).n) hha.1) i))
+      (C.outerList (part.block b).α
+        (Fin.cast (congrArg (fun α => (C.Q.disk α).n) hhb.1) j))) :
+    (strictReconstruct C hC (part.block a) ha.1).cell i =
+      (strictReconstruct C hC (part.block b) hb.1).cell j := by
+  have hports' : List.Forall₂
+      (fun o o' => (part.block a).childSide o = (part.block b).childSide o')
+      (C.outerList (C.form ha.1) i) (C.outerList (C.form hb.1) j) := by
+    have cast_outerList : ∀ {α β : C.Q.Form} (h : α = β)
+        (d : Fin (C.Q.disk α).n),
+        C.outerList β (Fin.cast (congrArg (fun γ => (C.Q.disk γ).n) h) d) =
+          C.outerList α d := by
+      intro α β h d
+      subst β
+      rfl
+    have hlista : C.outerList (part.block a).α
+        (Fin.cast (congrArg (fun α => (C.Q.disk α).n) hha.1) i) =
+        C.outerList (C.form ha.1) i := cast_outerList hha.1 i
+    have hlistb : C.outerList (part.block b).α
+        (Fin.cast (congrArg (fun α => (C.Q.disk α).n) hhb.1) j) =
+        C.outerList (C.form hb.1) j := cast_outerList hhb.1 j
+    rwa [hlista, hlistb] at hports
+  funext k
+  obtain ⟨o, ho⟩ := rhe_port_some C (C.form ha.1) i k
+  obtain ⟨o', ho'⟩ := rhe_port_some C (C.form hb.1) j k
+  have hportA := ho
+  have hportB := ho'
+  have hlen := hports'.length_eq
+  unfold MacroData.port at ho ho'
+  rw [← hlen] at ho'
+  obtain ⟨hq, hget⟩ := List.getElem?_eq_some_iff.1 ho
+  obtain ⟨hq', hget'⟩ := List.getElem?_eq_some_iff.1 ho'
+  have hrel := hports'.get hq hq'
+  change (C.outerList (C.form ha.1) i).get ⟨_, hq⟩ = o at hget
+  change (C.outerList (C.form hb.1) j).get ⟨_, hq'⟩ = o' at hget'
+  rw [hget, hget'] at hrel
+  obtain ⟨ta, ia⟩ := o
+  obtain ⟨tb, ib⟩ := o'
+  have hoa := (C.g3_outerList_mem _ _ _).1 (List.mem_of_getElem? ho)
+  have hob := (C.g3_outerList_mem _ _ _).1 (List.mem_of_getElem? ho')
+  have hta : C.owner ta = (part.block a).α := hoa.1.trans hha.1
+  have htb : C.owner tb = (part.block b).α := hob.1.trans hhb.1
+  have hmemA := som_placed_mem C hC part a ta hta
+  have hmemB := som_placed_mem C hC part b tb htb
+  have hne : (part.block a).placed ta ≠ (part.block b).placed tb := by
+    intro heq
+    have hma : (part.block a).placed ta ∈ (part.block a).tiles := ⟨ta, hta, rfl⟩
+    have hmb : (part.block b).placed tb ∈ (part.block b).tiles := ⟨tb, htb, rfl⟩
+    exact Set.disjoint_left.1 (part.disjoint hab.symm) hma (heq ▸ hmb)
+  have hcol := hT.2 ((part.block a).tileOf ta) ((part.block b).tileOf tb)
+    _ _ hmemA hmemB hne ia ib hrel
+  simp only [strictReconstruct, hportA, hportB]
+  exact congrFun hcol 2
+
 /-- Step 2 of the blueprint proof of `strict_composed_proper_step4_matched`: the numbered-port
 colour step. -/
 private theorem strict_composed_proper_step4_matched_step2_colours (hτ : τ.STS)
@@ -5859,7 +6012,31 @@ private theorem strict_composed_proper_step4_matched_step2_colours (hτ : τ.STS
       ∀ (i : C.Side A.typ) (j : C.Side B.typ),
         v +ᵥ (C.Q.disk (C.form A.typ)).side i = w +ᵥ (C.Q.disk (C.form B.typ)).side j →
         A.cell i = B.cell j := by
-  sorry
+  intro A B v w hA hB hne i j hside
+  obtain ⟨a, hva, ha, hha, hformA⟩ := hrec.1 _ hA
+  obtain ⟨b, hvb, hb, hhb, hformB⟩ := hrec.1 _ hB
+  have hab :=
+    strict_composed_proper_step4_matched_step2_colours_step1_distinct_blocks C hC T part T'
+      hA hB hne hva hvb hha hhb hformA hformB
+  have hAA : A = strictReconstruct C hC (part.block a) ha.1 := by
+    exact StrictForm.typed.inj hformA
+  have hBB : B = strictReconstruct C hC (part.block b) hb.1 := by
+    exact StrictForm.typed.inj hformB
+  subst A
+  subst B
+  let d : Fin (C.Q.disk (part.block a).α).n :=
+    Fin.cast (congrArg (fun α => (C.Q.disk α).n) hha.1) i
+  let e : Fin (C.Q.disk (part.block b).α).n :=
+    Fin.cast (congrArg (fun α => (C.Q.disk α).n) hhb.1) j
+  have hmacro : (part.block b).macroSide e = (part.block a).macroSide d :=
+    strict_composed_proper_step4_matched_step2_colours_step2_scaled_sides C hC
+      (part.block a) (part.block b) ha.1 hb.1 v w hha.1 hhb.1 hva hvb i j hside
+  have hopp := strict_opposing_macroside C hC hτ hΔ T hT hL part a d
+  have hports :=
+    strict_composed_proper_step4_matched_step2_colours_step3_subdivision C hC T part
+      a b hab.symm d e hmacro hopp
+  exact strict_composed_proper_step4_matched_step2_colours_step4_ports C hC T hT part
+    a b hab.symm ha hb hha hhb i j hports
 
 /-- Step 4 of the blueprint proof of `strict_composed_proper`: equal parent sides are
 strictly matched, using `strict_opposing_macroside` and the numbered ports. -/

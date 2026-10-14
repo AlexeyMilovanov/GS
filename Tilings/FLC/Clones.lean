@@ -3391,6 +3391,105 @@ private lemma refinedSubstitution_sts_step1_visible_vertices_aux_genuineCorners_
   rw [(P.disk D.form).frontier_eq]
   exact Set.mem_iUnion.mpr ⟨i, left_mem_segment ℝ _ _⟩
 
+private lemma refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step1_common_context_aux_translate_mem
+    {P : Protoset} {τ : Substitution P} (A B : PlacedTile P)
+    (hB : B ∈ τ.decomposeTile ⟨A.form, 0⟩) :
+    B.translate (τ.θ • A.anchor) ∈ τ.decomposeTile A := by
+  dsimp [Substitution.decomposeTile, translateSet] at *
+  rcases hB with ⟨C, hC, hCeq⟩
+  use C
+  refine ⟨hC, ?_⟩
+  dsimp
+  rw [← hCeq]
+  dsimp [PlacedTile.translate]
+  ext
+  · rfl
+  · simp
+
+private lemma refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step1_common_context_aux
+    {P : Protoset} {τ : Substitution P} (h : τ.FLC) (n : ℕ) (c : (cloneProtoset τ h).Form)
+    (m' : ℕ) (q : P.Form) (Ahat0 : PlacedTile P)
+    (hAhat0 : Ahat0 ∈ τ.supertile m' q)
+    (hctx0 : c.form = Ahat0.form ∧
+      c.context = translateSet (-Ahat0.anchor) (neighbourhood (τ.supertile m' q) Ahat0)) :
+    ∀ A ∈ (refinedSubstitution τ h).supertile n c,
+      ∃ Ahat ∈ τ.supertile (n + m') q,
+        Ahat.form = A.form.form ∧
+          A.anchor = -(τ.θ ^ n • Ahat0.anchor) +ᵥ Ahat.anchor ∧
+            A.form.context = translateSet (-Ahat.anchor) (neighbourhood (τ.supertile (n + m') q) Ahat) := by
+  induction n generalizing c m' Ahat0 with
+  | zero =>
+    intro A hA
+    dsimp [Substitution.supertile, Substitution.decomposeIter] at hA
+    simp only [Set.mem_singleton_iff] at hA
+    subst A
+    use Ahat0
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [Nat.zero_add]; exact hAhat0
+    · exact hctx0.1.symm
+    · dsimp
+      rw [pow_zero, one_smul]
+      abel
+    · rw [Nat.zero_add]
+      change c.context = _
+      exact hctx0.2
+  | succ n ih =>
+    intro A hA
+    dsimp [Substitution.supertile, Substitution.decomposeIter] at hA
+    simp only [Substitution.decompose, Set.mem_iUnion, exists_prop] at hA
+    rcases hA with ⟨B, hB_sup, hA_dec⟩
+    have ih_B := ih c m' Ahat0 hAhat0 hctx0 B hB_sup
+    rcases ih_B with ⟨Bhat, hBhat_mem, hBhat_form, hBhat_anchor, hBhat_ctx⟩
+    have h_dec_B : (refinedSubstitution τ h).decomposeTile B =
+        translateSet ((refinedSubstitution τ h).θ • B.anchor)
+          ((refinedSubstitution τ h).rule B.form).tiles := rfl
+    rw [h_dec_B] at hA_dec
+    change A ∈ (fun X : PlacedTile (cloneProtoset τ h) =>
+      X.translate ((refinedSubstitution τ h).θ • B.anchor)) '' _ at hA_dec
+    rcases hA_dec with ⟨X, hX_rule, hA_eq⟩
+    change X ∈ refinedRule τ h B.form at hX_rule
+    rcases hX_rule with ⟨B', hB'_dec, hX_eq⟩
+    subst X
+    use B'.translate (τ.θ • Bhat.anchor)
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [Nat.succ_add]
+      change _ ∈ ⋃ X ∈ τ.supertile (n + m') q, τ.decomposeTile X
+      simp only [Set.mem_iUnion, exists_prop]
+      use Bhat, hBhat_mem
+      have hB'_dec_form : B' ∈ τ.decomposeTile ⟨Bhat.form, 0⟩ := by
+        rw [hBhat_form]
+        exact hB'_dec
+      exact refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step1_common_context_aux_translate_mem Bhat B' hB'_dec_form
+    · dsimp [PlacedTile.translate]
+      subst A
+      rfl
+    · dsimp [PlacedTile.translate]
+      subst A
+      dsimp [PlacedTile.translate]
+      have H_theta : (refinedSubstitution τ h).θ = τ.θ := rfl
+      rw [H_theta]
+      rw [hBhat_anchor]
+      change τ.θ • (-(τ.θ ^ n • Ahat0.anchor) + Bhat.anchor) + B'.anchor =
+        -(τ.θ ^ (n + 1) • Ahat0.anchor) + (τ.θ • Bhat.anchor + B'.anchor)
+      rw [smul_add]
+      have H_pow : τ.θ • -(τ.θ ^ n • Ahat0.anchor) = -(τ.θ ^ (n + 1) • Ahat0.anchor) := by
+        rw [pow_succ, smul_neg]
+        congr 1
+        have hm : (τ.θ * τ.θ ^ n) • Ahat0.anchor = τ.θ • τ.θ ^ n • Ahat0.anchor :=
+          mul_smul τ.θ (τ.θ ^ n) Ahat0.anchor
+        rw [hm.symm]
+        congr 1
+        exact Commute.all τ.θ (τ.θ ^ n)
+      rw [H_pow]
+      abel
+    · subst A
+      change translateSet (-B'.anchor) (neighbourhood (τ.decompose B.form.context) B') =
+        translateSet (-(B'.translate (τ.θ • Bhat.anchor)).anchor)
+          (neighbourhood (τ.supertile (n + 1 + m') q) (B'.translate (τ.θ • Bhat.anchor)))
+      have h_succ_add : n + 1 + m' = n + m' + 1 := by omega
+      rw [h_succ_add]
+      exact childContext_realized_step1_shift B.form B' hB'_dec (n + m') q Bhat hBhat_form.symm hBhat_mem hBhat_ctx
+
 /-- Step 1 of the blueprint proof of
 `refinedSubstitution_sts_step1_visible_vertices_step1_common_witness`: iterating the
 child-context realization gives one ambient original supertile and one translation for
@@ -3403,7 +3502,12 @@ private lemma refinedSubstitution_sts_step1_visible_vertices_step1_common_witnes
           Ahat.form = A.form.form ∧ A.anchor = s +ᵥ Ahat.anchor ∧
           A.form.context = translateSet (-Ahat.anchor)
             (neighbourhood (τ.supertile m q) Ahat) := by
-  sorry
+  rcases c.realized with ⟨m', q, Ahat0, hAhat0, hctx0⟩
+  use n + m', q, -(τ.θ ^ n • Ahat0.anchor)
+  have hctx0' : c.form = Ahat0.form ∧
+    c.context = translateSet (-Ahat0.anchor) (neighbourhood (τ.supertile m' q) Ahat0) := by
+    exact ⟨congrArg Prod.fst hctx0, congrArg Prod.snd hctx0⟩
+  exact refinedSubstitution_sts_step1_visible_vertices_step1_common_witness_step1_common_context_aux h n c m' q Ahat0 hAhat0 hctx0'
 
 /-- Step 2 of the blueprint proof of
 `refinedSubstitution_sts_step1_visible_vertices_step1_common_witness`: once the

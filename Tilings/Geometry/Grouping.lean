@@ -18909,6 +18909,42 @@ private lemma existsRoutingAfterPower_step3_entries_step1_grouped (τ : Substitu
     (hk : HasEdge X ((Rs.central l α).side k)) : ∃ β, X.form = Sum.inl β := by
   sorry
 
+/-- Step 1 of the blueprint proof of
+`existsRoutingAfterPower_step3_entries_step2_outside`: identify the original retained child
+on the outside of the annulus across a private edge.  The scattered face is explicitly tied to
+the retained child and to the outside of the annular group.
+-/
+private lemma existsRoutingAfterPower_step3_entries_step2_outside_step1_original
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {j : Fin (4 * Rs.N α)} {e : Set Pt}
+    (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) :
+    ∃ (F : PlacedTile Rs.GS.G.mixed) (p : P.Form),
+      F ∈ (Rs.retained l α).children.tiles ∧ F.form = Sum.inr p ∧
+      (⟨p, F.anchor⟩ : PlacedTile P) ∈
+        Rs.GS.G.mixedScatter (Rs.retained l α).children.tiles ∧
+      (⟨p, F.anchor⟩ : PlacedTile P) ∉ (Rs.annulus l α hl).H.faces ∧
+      HasEdge F e ∧ e ⊆ frontier (Rs.annulus l α hl).H.carrier := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`existsRoutingAfterPower_step3_entries_step2_outside`: an original scattered face attached to a
+boundary edge of an outside-anchored group has an interior point in the exterior.  Membership in
+both the retained children and the scattered tiling is retained explicitly, so the face cannot be
+an unrelated placed tile.
+-/
+private lemma existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {j : Fin (4 * Rs.N α)} {e : Set Pt}
+    (F : PlacedTile Rs.GS.G.mixed) (p : P.Form)
+    (hF : F ∈ (Rs.retained l α).children.tiles) (hform : F.form = Sum.inr p)
+    (hscatter : (⟨p, F.anchor⟩ : PlacedTile P) ∈
+      Rs.GS.G.mixedScatter (Rs.retained l α).children.tiles)
+    (houtside : (⟨p, F.anchor⟩ : PlacedTile P) ∉ (Rs.annulus l α hl).H.faces)
+    (heF : HasEdge F e) (he_boundary : e ⊆ frontier (Rs.annulus l α hl).H.carrier) :
+    ∃ q, q ∈ interior F.carrier ∧
+      q ∉ square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α) + Binf (3 * M.D) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "Its
 outside-anchored original face contains a point `q_i` outside `K₁`".  The outside face of a private
 outer edge (`H.OutsideAnchored`, the edge being a listed side of `H`) is an original child of the
@@ -18919,7 +18955,12 @@ private lemma existsRoutingAfterPower_step3_entries_step2_outside (τ : Substitu
     ∃ (F : PlacedTile Rs.GS.G.mixed) (q : Pt), F ∈ (Rs.retained l α).children.tiles ∧
       (∃ p, F.form = Sum.inr p) ∧ HasEdge F e ∧ q ∈ interior F.carrier ∧
       q ∉ square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α) + Binf (3 * M.D) := by
-  sorry
+  obtain ⟨F, p, hF, hform, hscatter, houtside, hEdge, hboundary⟩ :=
+    existsRoutingAfterPower_step3_entries_step2_outside_step1_original τ M Rs l hl α he
+  obtain ⟨q, hqint, hqout⟩ :=
+    existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior τ M Rs l hl α (j := j) F p
+      hF hform hscatter houtside hEdge hboundary
+  exact ⟨F, q, hF, ⟨p, hform⟩, hEdge, hqint, hqout⟩
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed`:
 An element `e` of `privateOuterEdges` has a face `A` in the piece which has it as an edge. -/

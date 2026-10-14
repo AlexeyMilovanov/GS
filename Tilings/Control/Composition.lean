@@ -2997,7 +2997,32 @@ private lemma reconstructed_noncentral_legal_step3_eq_step2_normal_ext {P : Prot
       ∀ k : Fin 5, k ≠ 4 →
         X.cell d k = Y.cell
           (Fin.cast (congrArg (fun t => (c.Q.disk (c.form t)).n) hXY) d) k) :
-    X = Y := by sorry
+    X = Y := by
+  obtain ⟨typX, cellX⟩ := X
+  obtain ⟨typY, cellY⟩ := Y
+  dsimp only at hXY
+  subst hXY
+  congr
+  ext d k
+  have hXNd : IsNormal c ⟨typX, cellX⟩ := hXN
+  have hYNd : IsNormal c ⟨typX, cellY⟩ := hYN
+  by_cases hloc : IsLocal c (c.occ typX d) k
+  · exact (hXNd d k hloc).trans (hYNd d k hloc).symm
+  · unfold IsLocal at hloc
+    push_neg at hloc
+    obtain ⟨h_marked, h2, h3⟩ := hloc
+    have h_not_4 : k ≠ 4 := by
+      intro hk
+      subst hk
+      by_cases h_ord : c.IsOrdinary (c.occ typX d)
+      · exact (h3 h_marked h_ord).2 rfl
+      · have h_sp : c.special (c.occ typX d) ∨ c.IsPrint (c.occ typX d) := by
+          by_contra h_contra
+          push_neg at h_contra
+          exact h_ord ⟨h_contra.1, h_contra.2⟩
+        exact h2 h_marked h_sp rfl
+    have hc := hcell d h_marked k h_not_4
+    exact hc
 
 /-- Step 3 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: E and D agree. -/
 private lemma reconstructed_noncentral_legal_step3_eq_step3_eq {P : Protoset}

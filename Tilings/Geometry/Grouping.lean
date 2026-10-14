@@ -14043,6 +14043,152 @@ private lemma existsAnnularSpokes_step6_cut_step1_regions_step1_cut (A C : Polyg
       (∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j)) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions_step2_compl`: "each is the
+interior of the polygonal Jordan curve formed by two successive cross-cuts and the boundary arcs of `A` and `C`
+between them".  Containment part: the closure of a cut region lies in the closed annulus `A \ int C`. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step1_closure_subset (A C : PolygonalDisk)
+    {k : ℕ} (α : Fin k → PolyArc) (W : Fin k → Set Pt)
+    (hWU : ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier)) (j : Fin k) :
+    closure (W j) ⊆ A.carrier \ interior C.carrier := by
+  have hsub : W j ⊆ A.carrier ∩ C.carrierᶜ := by
+    intro x hx
+    have hx' : x ∈ ⋃ j, W j := Set.mem_iUnion.mpr ⟨j, hx⟩
+    rw [hWU] at hx'
+    exact ⟨interior_subset hx'.1, fun h => hx'.2 (Or.inl h)⟩
+  intro x hx
+  have h1 := closure_mono hsub hx
+  have h2 := closure_inter_subset_inter_closure _ _ h1
+  rw [A.compact.isClosed.closure_eq, closure_compl] at h2
+  exact h2
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions_step2_compl`: "Cutting a polygonal
+annulus along such arcs".  The cuts are thin: the exterior of `A`, the interior of `C` and the cut regions together
+are dense in the plane, since what is left over lies in the two boundary cycles and the polygonal cross-cuts, a
+finite union of segments. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step2_dense (A C : PolygonalDisk)
+    {k : ℕ} (α : Fin k → PolyArc) (W : Fin k → Set Pt)
+    (hWU : ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier)) :
+    Dense (A.carrierᶜ ∪ interior C.carrier ∪ ⋃ i, W i) := by
+  classical
+  have hseg : ∀ a b : Pt, interior (segment ℝ a b) = ∅ := by
+    intro a b
+    rw [Set.eq_empty_iff_forall_notMem]
+    intro x hx
+    obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp isOpen_interior x hx
+    by_cases hab : a = b
+    · subst hab
+      obtain ⟨y, hy, hyx⟩ := exists_ne_near x hr
+      have h1 := interior_subset (hball hy)
+      have h2 := interior_subset hx
+      rw [segment_same] at h1 h2
+      exact hyx (h1.trans h2.symm)
+    · have hd : ‖jrot (b - a)‖ = ‖b - a‖ := norm_jrot _
+      have hpos : 0 < ‖b - a‖ := norm_pos_iff.mpr (sub_ne_zero.mpr (Ne.symm hab))
+      set ε := r / (2 * ‖b - a‖) with hεdef
+      have hε : 0 < ε := by positivity
+      have hεr : ε * ‖b - a‖ = r / 2 := by rw [hεdef]; field_simp
+      have hy : x + ε • jrot (b - a) ∈ Metric.ball x r := by
+        rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, hd, Real.norm_of_nonneg hε.le, hεr]
+        linarith
+      have h1 := jcr_zero_of_mem_segment (interior_subset (hball hy))
+      have h2 := jcr_zero_of_mem_segment (interior_subset hx)
+      have he : x + ε • jrot (b - a) - a = (x - a) + ε • jrot (b - a) := by abel
+      rw [he, jcr_add_right, h2, jcr_smul_right, jcr_jrot, zero_add] at h1
+      have : 0 < ε * ‖b - a‖ ^ 2 := by positivity
+      linarith
+  have hfin : ∀ (ι : Type) [Fintype ι] (F : ι → Set Pt), (∀ i, IsClosed (F i)) → (∀ i, interior (F i) = ∅) →
+      interior (⋃ i, F i) = ∅ := by
+    intro ι _ F hcl hint
+    have hs : ∀ s : Finset ι, interior (⋃ i ∈ s, F i) = ∅ := by
+      intro s
+      induction s using Finset.induction_on with
+      | empty => simp
+      | insert a s _ ih =>
+        rw [Finset.set_biUnion_insert, interior_union_isClosed_of_interior_empty (hcl a) ih, hint a]
+    have := hs Finset.univ
+    simpa using this
+  have hsegcl : ∀ a b : Pt, IsClosed (segment ℝ a b) := fun a b => (isCompact_segment_pt a b).isClosed
+  have harc : ∀ i, IsClosed (α i).carrier ∧ interior (α i).carrier = ∅ := by
+    intro i
+    refine ⟨isClosed_iUnion_of_finite fun l => hsegcl _ _, ?_⟩
+    exact hfin _ _ (fun l => hsegcl _ _) (fun l => hseg _ _)
+  have hZcl : IsClosed (⋃ i, (α i).carrier) := isClosed_iUnion_of_finite fun i => (harc i).1
+  have hZint : interior (⋃ i, (α i).carrier) = ∅ := hfin _ _ (fun i => (harc i).1) (fun i => (harc i).2)
+  have hint : interior (frontier A.carrier ∪ (frontier C.carrier ∪ ⋃ i, (α i).carrier)) = ∅ := by
+    rw [interior_union_isClosed_of_interior_empty isClosed_frontier, interior_frontier A.compact.isClosed]
+    rw [interior_union_isClosed_of_interior_empty isClosed_frontier hZint, interior_frontier C.compact.isClosed]
+  rw [← compl_compl (A.carrierᶜ ∪ interior C.carrier ∪ ⋃ i, W i), ← interior_eq_empty_iff_dense_compl]
+  apply Set.eq_empty_of_subset_empty
+  rw [← hint]
+  apply interior_mono
+  intro x hx
+  simp only [Set.mem_compl_iff, Set.mem_union, not_or, not_not] at hx
+  obtain ⟨⟨hxA, hxC⟩, hxW⟩ := hx
+  rw [hWU] at hxW
+  by_cases hiA : x ∈ interior A.carrier
+  · have : x ∈ C.carrier ∪ ⋃ j, (α j).carrier := by
+      by_contra h
+      exact hxW ⟨hiA, h⟩
+    rcases this with h | h
+    · exact Or.inr (Or.inl (by rw [C.compact.isClosed.frontier_eq]; exact ⟨h, hxC⟩))
+    · exact Or.inr (Or.inr h)
+  · exact Or.inl (by rw [A.compact.isClosed.frontier_eq]; exact ⟨hxA, hiA⟩)
+
+/-- Step 3 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions_step2_compl`: "Cutting a polygonal
+annulus along such arcs gives disks, one between each successive pair".  Outer contact: every other cut region
+`W i` touches the outer cycle `∂A` at a point (inside its own outer boundary arc) which is not in the closure of
+`W j`. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step3_outer_contact (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (hk : 2 ≤ k) (α : Fin k → PolyArc)
+    (hsimple : ∀ j, (α j).IsSimple)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start))
+    (W : Fin k → Set Pt) (hWo : ∀ j, IsOpen (W j)) (hWc : ∀ j, IsConnected (W j))
+    (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
+    (hWU : ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier))
+    (hWcl : ∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j))
+    (i j : Fin k) (hij : i ≠ j) :
+    ∃ p ∈ frontier A.carrier, p ∈ closure (W i) ∧ p ∉ closure (W j) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions_step2_compl`: "Cutting a polygonal
+annulus along such arcs gives disks, one between each successive pair".  Inner contact: some cut region `W i`
+other than `W j` touches the inner cycle `∂C` at a point which is not in the closure of `W j`. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step4_inner_contact (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (hk : 2 ≤ k) (α : Fin k → PolyArc)
+    (hsimple : ∀ j, (α j).IsSimple)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start))
+    (W : Fin k → Set Pt) (hWo : ∀ j, IsOpen (W j)) (hWc : ∀ j, IsConnected (W j))
+    (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
+    (hWU : ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier))
+    (hWcl : ∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j))
+    (j : Fin k) :
+    ∃ i, i ≠ j ∧ ∃ p ∈ frontier C.carrier, p ∈ closure (W i) ∧ p ∉ closure (W j) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions_step2_compl`: "so its closure is a
+closed disk and has connected complement".  Gluing: if two connected sets `S₁, S₂` both accumulate at a point `p`
+having a ball around it inside `X`, and `S₁, S₂ ⊆ X`, then `S₁ ∪ ball ∪ S₂` is a connected subset of `X`. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step5_glue {X S₁ S₂ : Set Pt} {p : Pt}
+    {r : ℝ} (hr : 0 < r) (hball : Metric.ball p r ⊆ X) (h₁ : IsPreconnected S₁) (h₂ : IsPreconnected S₂)
+    (hp₁ : p ∈ closure S₁) (hp₂ : p ∈ closure S₂) (hX₁ : S₁ ⊆ X) (hX₂ : S₂ ⊆ X) :
+    IsPreconnected (S₁ ∪ Metric.ball p r ∪ S₂) ∧ S₁ ∪ Metric.ball p r ∪ S₂ ⊆ X := by
+  obtain ⟨a, ha, hda⟩ := Metric.mem_closure_iff.mp hp₁ r hr
+  obtain ⟨b, hb, hdb⟩ := Metric.mem_closure_iff.mp hp₂ r hr
+  refine ⟨?_, Set.union_subset (Set.union_subset hX₁ hball) hX₂⟩
+  have hc : IsPreconnected (S₁ ∪ Metric.ball p r) :=
+    h₁.union a ha (Metric.mem_ball'.mpr hda) (convex_ball p r).isPreconnected
+  exact hc.union b (Or.inr (Metric.mem_ball'.mpr hdb)) hb h₂
+
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions`: "this is a
 direct polygonal Jordan argument, or the elementary polygonal annulus theorem."  Any family of
 cut regions as in step 1 consists of the components of the cut annulus; each is the interior of
@@ -14062,7 +14208,67 @@ private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl (A C : Pol
     (hWU : ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier))
     (hWcl : ∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j))
     (j : Fin k) : IsConnected (closure (W j))ᶜ := by
-  sorry
+  classical
+  have hXo : IsOpen (closure (W j))ᶜ := isClosed_closure.isOpen_compl
+  have hcl := existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step1_closure_subset A C α W hWU j
+  have hdense := existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step2_dense A C α W hWU
+  have hext : IsPathConnected A.carrierᶜ :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_exterior_pathConnected A
+  obtain ⟨y0, hy0⟩ := hext.nonempty
+  have hAX : A.carrierᶜ ⊆ (closure (W j))ᶜ := fun x hx hx' => hx (hcl hx').1
+  have hCX : interior C.carrier ⊆ (closure (W j))ᶜ := fun x hx hx' => (hcl hx').2 hx
+  have hWX : ∀ i, i ≠ j → W i ⊆ (closure (W j))ᶜ := by
+    intro i hij x hx hx'
+    obtain ⟨y, hy⟩ := mem_closure_iff.mp hx' (W i) (hWo i) hx
+    exact Set.disjoint_left.mp (hWd i j hij) hy.1 hy.2
+  have hball : ∀ p, p ∉ closure (W j) → ∃ r > 0, Metric.ball p r ⊆ (closure (W j))ᶜ :=
+    fun p hp => Metric.isOpen_iff.mp hXo p hp
+  have hfA : frontier A.carrier ⊆ closure A.carrierᶜ := fun p hp => by
+    rw [← frontier_compl] at hp
+    exact frontier_subset_closure hp
+  have hfC : frontier C.carrier ⊆ closure (interior C.carrier) := fun p hp => by
+    have := frontier_subset_closure hp
+    rwa [C.compact.isClosed.closure_eq, ← C.regular_closed] at this
+  have hT : ∀ i, ∃ T : Set Pt, IsPreconnected T ∧ T ⊆ (closure (W j))ᶜ ∧ A.carrierᶜ ⊆ T ∧
+      (i ≠ j → W i ⊆ T) := by
+    intro i
+    by_cases hij : i = j
+    · exact ⟨A.carrierᶜ, hext.isConnected.isPreconnected, hAX, subset_rfl, fun h => absurd hij h⟩
+    · obtain ⟨p, hpA, hpi, hpj⟩ :=
+        existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step3_outer_contact A C hCA hk α hsimple hin hC hA
+          hdisj horder W hWo hWc hWd hWU hWcl i j hij
+      obtain ⟨r, hr, hb⟩ := hball p hpj
+      obtain ⟨hc, hs⟩ := existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step5_glue hr hb
+        hext.isConnected.isPreconnected (hWc i).isPreconnected (hfA hpA) hpi hAX (hWX i hij)
+      exact ⟨_, hc, hs, fun x hx => Or.inl (Or.inl hx), fun _ x hx => Or.inr hx⟩
+  choose T hTc hTX hTA hTW using hT
+  obtain ⟨i0, hi0, q, hqC, hqi, hqj⟩ :=
+    existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step4_inner_contact A C hCA hk α hsimple hin hC hA
+      hdisj horder W hWo hWc hWd hWU hWcl j
+  obtain ⟨r, hr, hb⟩ := hball q hqj
+  obtain ⟨hTCc, hTCX⟩ := existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step5_glue hr hb
+    (hTc i0) C.interior_pathConnected.isConnected.isPreconnected (closure_mono (hTW i0 hi0) hqi) (hfC hqC) (hTX i0) hCX
+  have hYc : IsPreconnected ((⋃ i, T i) ∪ (T i0 ∪ Metric.ball q r ∪ interior C.carrier)) := by
+    have hU : IsPreconnected (⋃ i, T i) :=
+      isPreconnected_iUnion ⟨y0, Set.mem_iInter.mpr fun i => hTA i hy0⟩ hTc
+    exact hU.union y0 (Set.mem_iUnion.mpr ⟨i0, hTA i0 hy0⟩) (Or.inl (Or.inl (hTA i0 hy0))) hTCc
+  have hYX : (⋃ i, T i) ∪ (T i0 ∪ Metric.ball q r ∪ interior C.carrier) ⊆ (closure (W j))ᶜ :=
+    Set.union_subset (Set.iUnion_subset hTX) hTCX
+  have hXY : (closure (W j))ᶜ ⊆ closure ((⋃ i, T i) ∪ (T i0 ∪ Metric.ball q r ∪ interior C.carrier)) := by
+    intro x hx
+    rw [mem_closure_iff]
+    intro o ho hxo
+    obtain ⟨z, ⟨hzo, hzX⟩, hzD⟩ := hdense.inter_open_nonempty (o ∩ (closure (W j))ᶜ) (ho.inter hXo) ⟨x, hxo, hx⟩
+    refine ⟨z, hzo, ?_⟩
+    rcases hzD with (hz | hz) | hz
+    · exact Or.inl (Set.mem_iUnion.mpr ⟨j, hTA j hz⟩)
+    · exact Or.inr (Or.inr hz)
+    · obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz
+      by_cases hij : i = j
+      · subst hij
+        exact absurd (subset_closure hi) hzX
+      · exact Or.inl (Set.mem_iUnion.mpr ⟨i, hTW i hij hi⟩)
+  exact ⟨⟨y0, hAX hy0⟩, hYc.subset_closure hYX hXY⟩
 
 /-- Step 3 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions`: "Their inner
 boundary arcs have distinct endpoints and positive length."  Connectedness part: the closure of

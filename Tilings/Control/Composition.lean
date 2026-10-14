@@ -4988,7 +4988,71 @@ private lemma alignment_complete_step1_macroside_eq_step3_not_longer
         (part.block j').col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3) :
     (c.outerList (part.block j').α e).length ≤
       (c.outerList (part.block j).α d).length := by
-  sorry
+  have hpos : ∀ o ∈ c.outerList (part.block j').α e,
+      IsRankU c ((part.block j').col o.1 o.2 3) := by
+    rcases hmode j' hneq e with h | h
+    · exact h
+    · exfalso
+      have hd0 : 0 < (c.outerList (part.block j).α d).length := by
+        have := c.g3_five_le (part.block j).α d
+        omega
+      let o := (c.outerList (part.block j).α d)[0]
+      have ho : o ∈ c.outerList (part.block j).α d := List.getElem_mem hd0
+      obtain ⟨o', ho', -, -, hcol⟩ := htrace o ho
+      exact ac2_rankU_ne_zero c (hrank o ho).1 (hcol ▸ h o' ho')
+  have hrank' : RankMatched c part j' e := by
+    intro o ho
+    refine ⟨hpos o ho, ?_⟩
+    have hown := ((c.g3_outerList_mem (part.block j').α e o).1 ho).1
+    have hX : (part.block j').placed o.1 ∈ T.tiles := by
+      rw [← part.cover]
+      exact Set.mem_iUnion.2 ⟨j', o.1, hown, rfl⟩
+    have hntr : IsNontrivial c (tileDec ((part.block j').placed o.1)) o.2 :=
+      fun h => ac2_rankU_ne_zero c (hpos o ho) h.1
+    obtain ⟨Y, hY, hYX, i, hside, hcell⟩ := hT _ hX o.2 hntr
+    exact ⟨Y, hY, hYX, i, hside, hcell 3⟩
+  have hd0 : 0 < (c.outerList (part.block j).α d).length := by
+    have := c.g3_five_le (part.block j).α d
+    omega
+  let o := (c.outerList (part.block j).α d)[0]
+  have ho : o ∈ c.outerList (part.block j).α d := List.getElem_mem hd0
+  obtain ⟨o', ho', hside, hrankeq, -⟩ := htrace o ho
+  have hidx : (c.outerList (part.block j).α d).idxOf o = 0 := by
+    dsimp [o]
+    exact (c.g3_outerList_nodup (part.block j).α d).idxOf_getElem 0 hd0
+  have hrank_o : c.rankIn (part.block j).α d o = 1 := by
+    unfold MacroData.rankIn
+    omega
+  have hidx' : (c.outerList (part.block j').α e).idxOf o' = 0 := by
+    unfold MacroData.rankIn at hrankeq
+    omega
+  have he0 : 0 < (c.outerList (part.block j').α e).length := by
+    exact Nat.zero_lt_of_lt (List.idxOf_lt_length_of_mem ho')
+  have heq_d : (c.outerList (part.block j).α d)[0] = o := rfl
+  have heq_e : (c.outerList (part.block j').α e)[0] = o' := by
+    have hget := List.getElem_idxOf (List.idxOf_lt_length_of_mem ho')
+    simpa only [hidx'] using hget
+  have hzero : (part.block j).childSide (c.outerList (part.block j).α d)[0] =
+      (part.block j').childSide (c.outerList (part.block j').α e)[0] := by
+    rw [heq_d, heq_e]
+    exact hside.symm
+  have hclaim : ∀ k (hk : k < (c.outerList (part.block j').α e).length),
+      ∃ hk' : k < (c.outerList (part.block j).α d).length,
+        (part.block j).childSide (c.outerList (part.block j).α d)[k] =
+          (part.block j').childSide (c.outerList (part.block j').α e)[k] := by
+    intro k
+    induction k with
+    | zero =>
+      intro _
+      exact ⟨hd0, hzero⟩
+    | succ k ih =>
+      intro hk
+      obtain ⟨hk', hside_k⟩ := ih (by omega)
+      exact ac2_step c hH T part hT hL j' j hneq.symm e d hrank' k hk hk' hside_k
+  by_contra hlen
+  push_neg at hlen
+  obtain ⟨hbad, -⟩ := hclaim (c.outerList (part.block j).α d).length (by omega)
+  omega
 
 /-- Step 1 of the blueprint proof of
 `alignment_complete_step1_macroside_eq_step4_endpoints`: express a translated

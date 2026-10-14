@@ -4284,6 +4284,33 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s3s3 {N : ℕ} {R : 
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
   sorry
 
+private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1_helper_rect (x y A R : ℝ)
+  (hx2 : x ≤ A)
+  (hy2 : y ≤ A - R)
+  (hR : 0 ≤ R)
+  (hA : R ≤ A)
+  (h_cases : (R - A ≤ x ∧ -A ≤ y) ∨ (x = -A ∧ R - A ≤ y)) :
+  x * y ≤ A * (A - R) := by
+  rcases h_cases with ⟨hx1, hy1⟩ | ⟨hx1, hy1⟩
+  · have hy_cases : 0 ≤ y ∨ y ≤ 0 := le_total 0 y
+    rcases hy_cases with hy | hy
+    · calc
+        x * y ≤ A * y := by nlinarith
+        _ ≤ A * (A - R) := by nlinarith
+    · calc
+        x * y = (-x) * (-y) := by ring
+        _ ≤ (A - R) * (-y) := by nlinarith
+        _ ≤ (A - R) * A := by nlinarith
+        _ = A * (A - R) := by ring
+  · have hy_cases : 0 ≤ y ∨ y ≤ 0 := le_total 0 y
+    rcases hy_cases with hy | hy
+    · calc
+        x * y ≤ 0 := by nlinarith
+        _ ≤ A * (A - R) := by nlinarith
+    · calc
+        x * y = A * (-y) := by nlinarith
+        _ ≤ A * (A - R) := by nlinarith
+
 /-- Step 1e of the blueprint proof: marks on the first two adjacent sides. -/
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1 {N : ℕ} {R : ℝ}
     (hN : 2 ≤ N) (hR : 0 < R) {i j : ℕ} (hi : i < 4 * N) (hj : j < 4 * N)
@@ -4293,7 +4320,151 @@ private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1 {N : ℕ} {R : 
       (N : ℝ) * R / 2 * R ≤
         |jcr (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((i : ℝ) * R))
           (existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R))| := by
-  sorry
+  let A := (N : ℝ) * R / 2
+  have hA : A = (N : ℝ) * R / 2 := rfl
+  have hN_R : (N : ℝ) * R = 2 * A := by linarith
+  have hR0 : 0 ≤ R := le_of_lt hR
+  have hA_pos : 0 < A := by
+    calc
+      0 < R := hR
+      _ ≤ (N : ℝ) * R / 2 := by
+        have : 2 ≤ (N : ℝ) := by exact_mod_cast hN
+        nlinarith
+      _ = A := hA.symm
+  have hAR : R ≤ A := by
+    have hN2 : 2 ≤ (N : ℝ) := by exact_mod_cast hN
+    calc
+      R = 2 * R / 2 := by ring
+      _ ≤ (N : ℝ) * R / 2 := by nlinarith
+      _ = A := hA.symm
+
+  have h_i : ((i : ℝ) * R) ≤ 2 * A := by
+    have hi_le : (i : ℝ) ≤ (N : ℝ) := by exact_mod_cast hi0
+    calc
+      ((i : ℝ) * R) ≤ (N : ℝ) * R := by nlinarith
+      _ = 2 * A := hN_R
+      
+  have h_j1 : ¬(((j : ℝ) * R) ≤ 2 * A) := by
+    push_neg
+    have hj_gt_N : (N : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast hj1.1
+    calc
+      2 * A = (N : ℝ) * R := hN_R.symm
+      _ < (N : ℝ) * R + R := by linarith
+      _ = ((N : ℝ) + 1) * R := by ring
+      _ ≤ (j : ℝ) * R := by nlinarith
+      
+  have h_j2 : ((j : ℝ) * R) ≤ 4 * A := by
+    have hj_le_2N : (j : ℝ) ≤ 2 * (N : ℝ) := by exact_mod_cast hj1.2
+    calc
+      ((j : ℝ) * R) ≤ (2 * (N : ℝ)) * R := by nlinarith
+      _ = 2 * ((N : ℝ) * R) := by ring
+      _ = 2 * (2 * A) := by rw [hN_R]
+      _ = 4 * A := by ring
+
+  have h_vi : existsAnnularSpokes_pos A ((i : ℝ) * R) = mkPt A (-A + (i : ℝ) * R) := by
+    unfold existsAnnularSpokes_pos
+    split_ifs with h
+    · rfl
+    · contradiction
+
+  have h_vj : existsAnnularSpokes_pos A ((j : ℝ) * R) = mkPt (3 * A - (j : ℝ) * R) A := by
+    unfold existsAnnularSpokes_pos
+    split_ifs
+    · contradiction
+    · have H : A - ((j : ℝ) * R - 2 * A) = 3 * A - (j : ℝ) * R := by ring
+      rw [H]
+      
+  rw [h_vi, h_vj]
+  
+  rcases eq_or_ne i 0 with rfl | hi_ne
+  · rcases eq_or_ne j (2 * N) with rfl | hj_ne
+    · left
+      have H3 : 3 * A - ((2 * N : ℕ) : ℝ) * R = -A := by
+        push_cast
+        calc
+          3 * A - (2 * (N : ℝ)) * R = 3 * A - 2 * ((N : ℝ) * R) := by ring
+          _ = 3 * A - 2 * (2 * A) := by rw [hN_R]
+          _ = -A := by ring
+      have H4 : -A + ((0 : ℕ) : ℝ) * R = -A := by ring
+      dsimp [Pt, mkPt]
+      ext k
+      fin_cases k
+      · dsimp
+        linarith
+      · dsimp
+        linarith
+    · right
+      have hj_lt : j + 1 ≤ 2 * N := lt_of_le_of_ne hj1.2 hj_ne
+      have hj_lt_R : (j : ℝ) + 1 ≤ 2 * (N : ℝ) := by exact_mod_cast hj_lt
+      
+      have H_jcr : jcr (mkPt A (-A + ((0 : ℕ) : ℝ) * R)) (mkPt (3 * A - (j : ℝ) * R) A) =
+          A * A - (-A) * (3 * A - (j : ℝ) * R) := by
+        dsimp [Pt, mkPt, jcr]
+        ring
+      rw [H_jcr]
+      
+      have H_ineq : A * R ≤ A * A - (-A) * (3 * A - (j : ℝ) * R) := by
+        have H1 : (-A) * (3 * A - (j : ℝ) * R) ≤ A * (A - R) := by
+          apply existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1_helper_rect (-A)
+            (3 * A - (j : ℝ) * R) A R
+          · linarith
+          · have hj_gt_N : (N : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast hj1.1
+            calc
+              3 * A - (j : ℝ) * R ≤ 3 * A - ((N : ℝ) + 1) * R := by nlinarith
+              _ = 3 * A - (N : ℝ) * R - R := by ring
+              _ = A - R := by linarith [hN_R]
+          · exact hR0
+          · exact hAR
+          · right
+            refine ⟨rfl, ?_⟩
+            calc
+              3 * A - (j : ℝ) * R ≥ 3 * A - (2 * (N : ℝ) - 1) * R := by nlinarith
+              _ = R - A := by linarith [hN_R]
+        linarith
+      
+      calc
+        A * R ≤ A * A - (-A) * (3 * A - (j : ℝ) * R) := H_ineq
+        _ ≤ |A * A - (-A) * (3 * A - (j : ℝ) * R)| := le_abs_self _
+        
+  · right
+    have H_jcr : jcr (mkPt A (-A + (i : ℝ) * R)) (mkPt (3 * A - (j : ℝ) * R) A) =
+        A * A - ((i : ℝ) * R - A) * (3 * A - (j : ℝ) * R) := by
+      dsimp [Pt, mkPt, jcr]
+      ring
+    rw [H_jcr]
+    
+    have hi_ge : 1 ≤ i := Nat.pos_of_ne_zero hi_ne
+    have hi_ge_1_R : 1 ≤ (i : ℝ) := by exact_mod_cast hi_ge
+      
+    have H_ineq : A * R ≤ A * A - ((i : ℝ) * R - A) * (3 * A - (j : ℝ) * R) := by
+      have H1 : ((i : ℝ) * R - A) * (3 * A - (j : ℝ) * R) ≤ A * (A - R) := by
+        apply existsAnnularSpokes_step2_tubes_step1_baseSep_s0s1_helper_rect ((i : ℝ) * R - A)
+          (3 * A - (j : ℝ) * R) A R
+        · linarith
+        · have hj_gt_N : (N : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast hj1.1
+          calc
+            3 * A - (j : ℝ) * R ≤ 3 * A - ((N : ℝ) + 1) * R := by nlinarith
+            _ = 3 * A - (N : ℝ) * R - R := by ring
+            _ = 3 * A - 2 * A - R := by rw [hN_R]
+            _ = A - R := by ring
+        · exact hR0
+        · exact hAR
+        · left
+          refine ⟨?_, ?_⟩
+          · calc
+              (i : ℝ) * R - A ≥ 1 * R - A := by nlinarith
+              _ = R - A := by ring
+          · have hj_le_2N : (j : ℝ) ≤ 2 * (N : ℝ) := by exact_mod_cast hj1.2
+            calc
+              3 * A - (j : ℝ) * R ≥ 3 * A - (2 * (N : ℝ)) * R := by nlinarith
+              _ = 3 * A - 2 * ((N : ℝ) * R) := by ring
+              _ = 3 * A - 2 * (2 * A) := by rw [hN_R]
+              _ = -A := by ring
+      linarith
+      
+    calc
+      A * R ≤ A * A - ((i : ℝ) * R - A) * (3 * A - (j : ℝ) * R) := H_ineq
+      _ ≤ |A * A - ((i : ℝ) * R - A) * (3 * A - (j : ℝ) * R)| := le_abs_self _
 
 /-- Step 1f of the blueprint proof: marks on the second and third adjacent sides. -/
 private lemma existsAnnularSpokes_step2_tubes_step1_baseSep_s1s2 {N : ℕ} {R : ℝ}

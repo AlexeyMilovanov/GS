@@ -1588,12 +1588,124 @@ private lemma strictLegal_properties_step2_child_normal (B A : StrictDecTile C h
   rw [hchild]
   exact hgenerated
 
+private lemma strictLegal_properties_step3_child_legal_aux_copy (A B : StrictDecTile C hC)
+    (hB : IsStrictChildOf C hC A B) (i : C.Side B.typ) (k : Fin 5)
+    (p : C.Side A.typ × Fin 5)
+    (hp : p ∈ copySource C (C.form A.typ) (C.occ B.typ i) k) :
+    B.cell i k = A.cell p.1 p.2 := by
+  obtain ⟨howner, hchild⟩ := hB
+  rcases hp with ⟨hprint, hk4, hp2⟩ | ⟨hnp, hk2, hpath⟩
+  · have hcell : B.cell = (strictChild C hC A B.typ).cell :=
+      eq_of_heq (StrictDecTile.mk.inj hchild).2
+    have hcells := strictChild_cells C hC A B.typ howner i
+    have hprint' := (hcells.1 p.1 hprint).1 k hk4
+    calc
+      B.cell i k = (strictChild C hC A B.typ).cell i k := congrArg (fun f => f i k) hcell
+      _ = A.cell p.1 k := hprint'
+      _ = A.cell p.1 p.2 := by rw [hp2]
+  · subst hk2
+    have hcell : B.cell = (strictChild C hC A B.typ).cell :=
+      eq_of_heq (StrictDecTile.mk.inj hchild).2
+    have hcells := strictChild_cells C hC A B.typ howner i
+    calc
+      B.cell i 2 = (strictChild C hC A B.typ).cell i 2 := congrArg (fun f => f i 2) hcell
+      _ = A.cell p.1 p.2 := (hcells.2 hnp).2.2.2.1 p.1 p.2 hpath
+
+private lemma strictLegal_properties_step3_child_legal_aux_chain_eq
+    (f g : ℕ → DecTile C) :
+    ∀ n (i : C.Side (f n).typ) (k : Fin 5), HasOrigin C f n i k →
+      ∀ hfg : f = g,
+        hfg = hfg →
+        ∀ hside : C.Side (f n).typ = C.Side (g n).typ, HasOrigin C g n (hside ▸ i) k := by
+  intro n i k h_orig
+  induction h_orig with
+  | origin n' i' k' h_eq =>
+      intro hfg _ hside
+      subst hfg
+      cases hside
+      exact HasOrigin.origin _ _ _ h_eq
+  | step n' i' k' d k'' h_mem h_orig' ih =>
+      intro hfg _ hside
+      subst hfg
+      cases hside
+      exact HasOrigin.step _ _ _ _ _ h_mem (ih rfl rfl rfl)
+
+private lemma strictLegal_properties_step3_child_legal_aux_shift (B : StrictDecTile C hC)
+    (ch : ℕ → DecTile C) (m : ℕ) (j : C.Side (ch m).typ) (l : Fin 5)
+    (h_orig : HasOrigin C ch m j l) :
+    HasOrigin C (fun n => match n with | 0 => typeShadow C hC B | n + 1 => ch n)
+      (m + 1) j l := by
+  induction h_orig with
+  | origin m' j' l' h_eq => exact HasOrigin.origin _ _ _ h_eq
+  | step m' j' l' d l'' h_mem h_orig' ih =>
+      exact HasOrigin.step _ _ _ _ _ h_mem ih
+
 /-- Step 3 of the blueprint proof of `strictLegal_properties`: prepend a strict child to an
 infinite legality chain, shifting origins through the old chain. -/
 private lemma strictLegal_properties_step3_child_legal (A : StrictDecTile C hC)
     (hA : StrictLegal C hC A) :
     ∀ B, IsStrictChildOf C hC A B → StrictLegal C hC B := by
-  sorry
+  intro B hB
+  dsimp [StrictLegal] at *
+  rcases hA with ⟨ch, hch0, hch_rel, hch_orig⟩
+  let new_ch := fun n => match n with
+    | 0 => B
+    | n + 1 => ch n
+  have hnew : (fun n => typeShadow C hC (new_ch n)) =
+      (fun n => match n with | 0 => typeShadow C hC B | n + 1 => typeShadow C hC (ch n)) := by
+    funext n
+    cases n <;> rfl
+  use new_ch
+  constructor
+  · rfl
+  · constructor
+    · intro n
+      cases n
+      · dsimp [new_ch]
+        rw [hch0]
+        exact hB
+      · dsimp [new_ch]
+        exact hch_rel _
+    · intro n i k h_nonempty h_no_origin
+      cases n
+      · obtain ⟨p, hp⟩ := h_nonempty
+        have hno1 : ¬ StrictHasOrigin C hC new_ch 1 p.1 p.2 := by
+          intro h
+          exact h_no_origin (HasOrigin.step
+            (ch := fun n => typeShadow C hC (new_ch n)) 0 i k
+            p.1 p.2 hp h)
+        have hno0 : ¬ StrictHasOrigin C hC ch 0 p.1 p.2 := fun h =>
+          hno1 (by
+            change HasOrigin C (fun n => typeShadow C hC (new_ch n)) 1 p.1 p.2
+            convert strictLegal_properties_step3_child_legal_aux_chain_eq C
+              (fun n => match n with
+                | 0 => typeShadow C hC B
+                | n + 1 => typeShadow C hC (ch n))
+              (fun n => typeShadow C hC (new_ch n)) 1 p.1 p.2
+              (strictLegal_properties_step3_child_legal_aux_shift C hC B
+                (fun l => typeShadow C hC (ch l)) 0 p.1 p.2 h) hnew.symm rfl rfl)
+        have hcell_eq : B.cell i k = (ch 0).cell p.1 p.2 := by
+          exact strictLegal_properties_step3_child_legal_aux_copy C hC (ch 0) B
+            (by simpa only [hch0] using hB) i k p hp
+        rw [hcell_eq]
+        by_cases hNE :
+            (copySource C (C.form (ch 1).typ) (C.occ (ch 0).typ p.1) p.2).Nonempty
+        · exact hch_orig 0 p.1 p.2 hNE hno0
+        · exact absurd (HasOrigin.origin (ch := fun n => typeShadow C hC (ch n))
+            0 p.1 p.2 (Set.not_nonempty_iff_eq_empty.mp hNE)) hno0
+      · dsimp [new_ch] at h_nonempty h_no_origin ⊢
+        apply hch_orig
+        · exact h_nonempty
+        · intro h_orig_ch
+          apply h_no_origin
+          change HasOrigin C (fun l => typeShadow C hC (new_ch l)) _ _ _
+          have hshift := strictLegal_properties_step3_child_legal_aux_shift C hC B
+            (fun l => typeShadow C hC (ch l)) _ _ _ h_orig_ch
+          convert strictLegal_properties_step3_child_legal_aux_chain_eq C
+            (fun n => match n with
+              | 0 => typeShadow C hC B
+              | n + 1 => typeShadow C hC (ch n))
+            (fun n => typeShadow C hC (new_ch n)) (Nat.succ _) i k hshift hnew.symm rfl rfl
 
 private theorem strictLegal_properties_step4_boundary_step1_print_not_boundary_seg_endpoints
     {a b c d : Pt} (hab : a ≠ b) (h : segment ℝ a b = segment ℝ c d) :

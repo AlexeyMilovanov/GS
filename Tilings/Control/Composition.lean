@@ -2213,7 +2213,20 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell2_path (c 
         (∀ (d : c.Side (reconstruct c K h.1).typ) (j : Fin 5),
           c.occ (K.tileOf t).typ i ∈ c.path (c.form (reconstruct c K h.1).typ) d j →
             (K.tileOf t).cell i 2 = (reconstruct c K h.1).cell d j) := by
-  sorry
+  have _ := ht_owner
+  have _ := ht_c
+  intro i hnp d j hd
+  have heq : (reconstruct c K h.1).typ = h.1 := rfl
+  let d' : c.Side h.1 := cast (by rw [heq]) d
+  have H := path_and_print_recovery_step1_signals c hH K hK h hh d' j (c.occ (K.tileOf t).typ i)
+  have hd2 : c.occ (K.tileOf t).typ i ∈ c.path (c.form h.1) d' j := by
+    dsimp [d']
+    exact hd
+  have H2 := H hd2 hnp
+  have H3 : K.col (c.occ (K.tileOf t).typ i).1 (c.occ (K.tileOf t).typ i).2 2 = (K.tileOf t).cell i 2 := rfl
+  have H4 : (reconstruct c K h.1).cell d' j = (reconstruct c K h.1).cell d j := rfl
+  rw [H3, H4] at H2
+  exact H2
 
 /-- Step 5 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 2 off path is 0. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell2_nopath (c : MacroCertificate P)

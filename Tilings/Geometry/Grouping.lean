@@ -18701,7 +18701,9 @@ private lemma existsRoutingAfterPower_step3_entries_step3_listed_step1_mem (τ :
     (hXj : Rs.GS.G.mixedScatterTile X = ((Rs.annulus l α hl).spokes.piece j).faces)
     {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) :
     ∃ A ∈ ((Rs.annulus l α hl).spokes.piece j).faces, HasEdge A e := by
-  sorry
+  have _ := hX
+  have _ := hXj
+  exact he.1
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed`:
 An element `e` of `privateOuterEdges` of the annulus lies on the boundary of the retained child `X`. -/

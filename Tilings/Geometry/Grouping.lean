@@ -3214,7 +3214,75 @@ private lemma outsideAnchoredGrouping_step2_H_step1_lower (M : MeshConstants P) 
     (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
       F.carrier ⊆ E)
     (hE_def : E = Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier) :
-    square c h + Binf (2 * M.D) ⊆ closure (connectedComponentIn (Eᶜ) c) := sorry
+    square c h + Binf (2 * M.D) ⊆ closure (connectedComponentIn (Eᶜ) c) := by
+  have _ := hcov
+  have _ := hsts
+  have _ := hE_conn
+  have _ := hE_supset
+  have _ := hE_faces
+  have hsum_eq : ∀ r : ℝ, 0 ≤ r →
+      square c h + Binf r = square c (h + r) := by
+    intro r hr
+    apply Set.Subset.antisymm
+    · rintro x ⟨u, hu, v, hv, rfl⟩
+      refine ⟨?_, ?_⟩
+      · simp only [PiLp.add_apply]
+        calc
+          |u 0 + v 0 - c 0| = |(u 0 - c 0) + v 0| := by congr 1; ring
+          _ ≤ |u 0 - c 0| + |v 0| := abs_add_le _ _
+          _ ≤ h + r := add_le_add hu.1 hv.1
+      · simp only [PiLp.add_apply]
+        calc
+          |u 1 + v 1 - c 1| = |(u 1 - c 1) + v 1| := by congr 1; ring
+          _ ≤ |u 1 - c 1| + |v 1| := abs_add_le _ _
+          _ ≤ h + r := add_le_add hu.2 hv.2
+    · exact rg_square_add hh.le hr
+  have hQ2eq : square c h + Binf (2 * M.D) = square c (h + 2 * M.D) :=
+    hsum_eq _ (by linarith [M.D_pos])
+  have hK_eq : square c h + Binf (3 * M.D) = square c (h + 3 * M.D) :=
+    hsum_eq _ (by linarith [M.D_pos])
+  have hQ2Ω : square c h + Binf (2 * M.D) ⊆ interior Ω.carrier := by
+    exact (Set.add_subset_add_left (rg_binf_mono (by linarith [M.D_pos]))).trans hQ
+  have hQ2E : square c h + Binf (2 * M.D) ⊆ Eᶜ := by
+    intro x hx hxE
+    rw [hE_def] at hxE
+    rcases hxE with hxΩ | hxG
+    · exact hxΩ (interior_subset (hQ2Ω hx))
+    · simp only [Set.mem_iUnion, exists_prop] at hxG
+      obtain ⟨F, hF, hsel, hxF⟩ := hxG
+      obtain ⟨y, hy⟩ := hsel
+      have hyK : y ∉ square c (h + 3 * M.D) := by
+        rw [← hK_eq]
+        exact hy.2
+      simp only [square, Set.mem_setOf_eq, not_and_or, not_le] at hyK
+      rw [hQ2eq] at hx
+      rcases hyK with hy0 | hy1
+      · have hxy := rg_tile_coord M F hxF (interior_subset hy.1) 0
+        have hle : |y 0 - c 0| ≤ M.D + (h + 2 * M.D) := by
+          calc
+            |y 0 - c 0| = |(y 0 - x 0) + (x 0 - c 0)| := by congr 1; ring
+            _ ≤ |y 0 - x 0| + |x 0 - c 0| := abs_add_le _ _
+            _ = |x 0 - y 0| + |x 0 - c 0| := by rw [abs_sub_comm]
+            _ ≤ M.D + (h + 2 * M.D) := add_le_add hxy hx.1
+        linarith
+      · have hxy := rg_tile_coord M F hxF (interior_subset hy.1) 1
+        have hle : |y 1 - c 1| ≤ M.D + (h + 2 * M.D) := by
+          calc
+            |y 1 - c 1| = |(y 1 - x 1) + (x 1 - c 1)| := by congr 1; ring
+            _ ≤ |y 1 - x 1| + |x 1 - c 1| := abs_add_le _ _
+            _ = |x 1 - y 1| + |x 1 - c 1| := by rw [abs_sub_comm]
+            _ ≤ M.D + (h + 2 * M.D) := add_le_add hxy hx.2
+        linarith
+  have hcQ2 : c ∈ square c h + Binf (2 * M.D) := by
+    refine Set.mem_add.2 ⟨c, ?_, 0, ?_, by simp⟩
+    · simp only [square, Set.mem_setOf_eq, sub_self, abs_zero]
+      exact ⟨hh.le, hh.le⟩
+    · simp only [Binf, Set.mem_setOf_eq, PiLp.zero_apply, abs_zero]
+      exact ⟨by linarith [M.D_pos], by linarith [M.D_pos]⟩
+  have hQ2pre : IsPreconnected (square c h + Binf (2 * M.D)) := by
+    rw [hQ2eq]
+    exact (rg_square_convex c (h + 2 * M.D)).isPreconnected
+  exact (hQ2pre.subset_connectedComponentIn hcQ2 hQ2E).trans subset_closure
 
 /-- Step 2 of the blueprint proof of `outsideAnchoredGrouping_step2_H`: upper inclusion. -/
 private lemma outsideAnchoredGrouping_step2_H_step2_upper (M : MeshConstants P) (S : Patch P)

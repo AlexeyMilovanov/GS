@@ -4780,6 +4780,62 @@ theorem strict_opposing_macroside (hτ : τ.STS)
     subst hdd
     exact ⟨o₃, ho₃, by simp only [som_mid_of_childSide C hC hs₃]⟩
 
+private theorem scr_open_meets_interior {ι : Type*} (F : ι → Set Pt) (hF : ∀ i, IsClosed (F i))
+    (s : Finset ι) : ∀ U : Set Pt, IsOpen U → U.Nonempty → U ⊆ ⋃ i ∈ s, F i →
+      ∃ i ∈ s, (U ∩ interior (F i)).Nonempty := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => intro U _ ⟨x, hx⟩ hs; simpa using hs hx
+  | insert a s ha ih =>
+    intro U hU hne hsub
+    by_cases h : (U ∩ interior (F a)).Nonempty
+    · exact ⟨a, Finset.mem_insert_self _ _, h⟩
+    · have hne' : (U \ F a).Nonempty := by
+        by_contra h'
+        rw [Set.not_nonempty_iff_eq_empty, Set.diff_eq_empty] at h'
+        exact h (by rw [Set.inter_eq_left.mpr (interior_maximal h' hU)]; exact hne)
+      obtain ⟨i, hi, hx⟩ := ih (U \ F a) (hU.sdiff (hF a)) hne' (by
+        intro x hx
+        have := hsub hx.1
+        simp only [Finset.set_biUnion_insert, Set.mem_union] at this
+        exact this.resolve_left hx.2)
+      exact ⟨i, Finset.mem_insert_of_mem hi, hx.mono (Set.inter_subset_inter_left _ Set.diff_subset)⟩
+
+private theorem scr_block_support_eq_biUnion (K : StrictBlock C hC) :
+    support K.tiles = ⋃ t ∈ Finset.univ.filter (fun t => C.owner t = K.α), (K.placed t).carrier := by
+  ext x
+  simp [support, StrictBlock.tiles]
+
+private theorem scr_placed_closed (K : StrictBlock C hC) (t : C.Typ) : IsClosed (K.placed t).carrier :=
+  ((C.Q.disk (C.form t)).compact.vadd _).isClosed
+
+private theorem scr_block_support (K : StrictBlock C hC) :
+    support K.tiles = K.v +ᵥ C.σ.θ • (C.Q.disk K.α).carrier := by
+  rw [← C.σ.support_eq, C.rule_eq]
+  ext x
+  simp only [support, StrictBlock.tiles, StrictBlock.placed, PlacedTile.carrier, Set.mem_iUnion,
+    Set.mem_setOf_eq, Set.biUnion_image, Set.mem_vadd_set, vadd_eq_add, exists_prop]
+  constructor
+  · rintro ⟨_, ⟨i, h1, rfl⟩, y, h2, rfl⟩
+    exact ⟨_, ⟨i, h1, y, h2, rfl⟩, (add_assoc _ _ _).symm⟩
+  · rintro ⟨_, ⟨i, h1, y, h2, rfl⟩, rfl⟩
+    exact ⟨_, ⟨i, h1, rfl⟩, y, h2, add_assoc _ _ _⟩
+
+private theorem scr_recon_carrier (K : StrictBlock C hC) (t : C.Typ) (ht : C.form t = K.α) :
+    C.σ.θ • (⟨.typed (strictReconstruct C hC K t), C.σ.θ⁻¹ • K.v⟩ : PlacedTile (strictProtoset C hC)).carrier =
+      support K.tiles := by
+  have hθ : C.σ.θ ≠ 0 := (zero_lt_one.trans C.σ.one_lt).ne'
+  rw [scr_block_support]
+  show C.σ.θ • (C.σ.θ⁻¹ • K.v +ᵥ (C.Q.disk (C.form t)).carrier) = _
+  rw [ht]
+  ext x
+  simp only [Set.mem_smul_set, Set.mem_vadd_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add, smul_inv_smul₀ hθ]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add, smul_inv_smul₀ hθ]⟩
+
 /-- Step 1 of the blueprint proof of `strict_composed_proper`: construct the plane tiling
 of reconstructed parents from an assembled strict macro-partition.  Strict matching and
 legality of `T` are needed: a `StrictBlock` records only its form `α`, offset and colours, and
@@ -4794,7 +4850,63 @@ private theorem strict_composed_proper_step1_reconstruction (hτ : τ.STS)
     (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) :
     ∃ T' : PlaneTiling (strictProtoset C hC),
       IsStrictReconstruction C hC part T' := by
-  sorry
+  have _ := hτ; have _ := hΔ; have _ := hT
+  classical
+  have hθ : C.σ.θ ≠ 0 := (zero_lt_one.trans C.σ.one_lt).ne'
+  have hform : ∀ j, ∃ t, C.form t = (part.block j).α := by
+    intro j
+    have hmem : (part.block j).placed (C.central (part.block j).α) ∈ T.tiles :=
+      part.cover ▸ Set.mem_iUnion.2 ⟨j, C.central _, C.g5_central_owner _, rfl⟩
+    obtain ⟨ch, h0, hch, -⟩ := hL _ hmem
+    refine ⟨(ch 1).typ, ?_⟩
+    have h1 := (hch 0).1
+    rw [h0] at h1
+    exact h1.symm.trans (C.g5_central_owner _)
+  choose tj htj using hform
+  let X : part.ι → PlacedTile (strictProtoset C hC) := fun j =>
+    ⟨.typed (strictReconstruct C hC (part.block j) (tj j)), C.σ.θ⁻¹ • (part.block j).v⟩
+  have hX : ∀ j, C.σ.θ • (X j).carrier = support (part.block j).tiles := fun j =>
+    scr_recon_carrier C hC _ _ (htj j)
+  have hsuppT : support T.tiles = ⋃ j, support (part.block j).tiles := by
+    rw [← part.cover]
+    ext x
+    simp only [support, Set.mem_iUnion, exists_prop]
+    exact ⟨fun ⟨A, ⟨j, hA⟩, hx⟩ => ⟨j, A, hA, hx⟩, fun ⟨j, A, hA, hx⟩ => ⟨A, ⟨j, hA⟩, hx⟩⟩
+  refine ⟨⟨Set.range X, ?_, ?_⟩, ?_, ?_⟩
+  · refine Set.eq_univ_of_forall fun x => ?_
+    have hx : C.σ.θ • x ∈ support T.tiles := T.cover ▸ Set.mem_univ _
+    rw [hsuppT, Set.mem_iUnion] at hx
+    obtain ⟨j, hj⟩ := hx
+    rw [← hX j, Set.smul_mem_smul_set_iff₀ hθ] at hj
+    exact Set.mem_biUnion (Set.mem_range_self j) hj
+  · rintro _ ⟨j, rfl⟩ _ ⟨j', rfl⟩ hne
+    have hjj : j ≠ j' := fun h => hne (h ▸ rfl)
+    refine Set.disjoint_left.2 fun x hx hx' => ?_
+    have hy : C.σ.θ • x ∈ interior (support (part.block j).tiles) := by
+      rw [← hX j, interior_smul₀ hθ]; exact Set.smul_mem_smul_set hx
+    have hy' : C.σ.θ • x ∈ interior (support (part.block j').tiles) := by
+      rw [← hX j', interior_smul₀ hθ]; exact Set.smul_mem_smul_set hx'
+    obtain ⟨t, ht, hU⟩ := scr_open_meets_interior _ (scr_placed_closed C hC (part.block j)) _ _
+      (isOpen_interior.inter isOpen_interior) ⟨_, hy, hy'⟩
+      ((Set.inter_subset_left.trans interior_subset).trans (scr_block_support_eq_biUnion C hC _).subset)
+    obtain ⟨t', ht', hU'⟩ := scr_open_meets_interior _ (scr_placed_closed C hC (part.block j')) _ _
+      ((isOpen_interior.inter isOpen_interior).inter isOpen_interior) hU
+      (((Set.inter_subset_left.trans Set.inter_subset_right).trans interior_subset).trans
+        (scr_block_support_eq_biUnion C hC _).subset)
+    obtain ⟨z, ⟨-, hz⟩, hz'⟩ := hU'
+    have hA : (part.block j).placed t ∈ (part.block j).tiles :=
+      ⟨t, (Finset.mem_filter.1 ht).2, rfl⟩
+    have hB : (part.block j').placed t' ∈ (part.block j').tiles :=
+      ⟨t', (Finset.mem_filter.1 ht').2, rfl⟩
+    have hAB : (part.block j).placed t ≠ (part.block j').placed t' := fun h =>
+      Set.disjoint_left.1 (part.disjoint hjj) hA (h ▸ hB)
+    have hAT : (part.block j).placed t ∈ T.tiles := part.cover ▸ Set.mem_iUnion.2 ⟨j, hA⟩
+    have hBT : (part.block j').placed t' ∈ T.tiles := part.cover ▸ Set.mem_iUnion.2 ⟨j', hB⟩
+    exact Set.disjoint_left.1 (T.disjoint hAT hBT hAB) hz hz'
+  · rintro _ ⟨j, rfl⟩
+    exact ⟨j, (smul_inv_smul₀ hθ _).symm, tj j, rfl⟩
+  · intro j
+    exact ⟨X j, Set.mem_range_self j, (smul_inv_smul₀ hθ _).symm, tj j, rfl⟩
 
 /-- Step 2 of the blueprint proof of `strict_composed_proper`: each assembled block is an
 exact strict decomposition of its reconstructed parent. -/

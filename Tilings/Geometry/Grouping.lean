@@ -18133,6 +18133,41 @@ private lemma existsRoutingAfterPower_step3_entries_step2_outside (τ : Substitu
       q ∉ square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α) + Binf (3 * M.D) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed`:
+An element `e` of `privateOuterEdges` has a face `A` in the piece which has it as an edge. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step1_mem (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    {j : Fin (4 * Rs.N α)} {X : PlacedTile Rs.GS.G.mixed}
+    (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hXj : Rs.GS.G.mixedScatterTile X = ((Rs.annulus l α hl).spokes.piece j).faces)
+    {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) :
+    ∃ A ∈ ((Rs.annulus l α hl).spokes.piece j).faces, HasEdge A e := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed`:
+An element `e` of `privateOuterEdges` of the annulus lies on the boundary of the retained child `X`. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    {j : Fin (4 * Rs.N α)} {X : PlacedTile Rs.GS.G.mixed}
+    (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hXj : Rs.GS.G.mixedScatterTile X = ((Rs.annulus l α hl).spokes.piece j).faces)
+    {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) :
+    e ⊆ frontier X.carrier := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed`:
+The listed boundary sides of `X` are its complete boundary original sides, so `e` is an edge of `X`. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge (τ : Substitution P)
+    (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    {j : Fin (4 * Rs.N α)} {X : PlacedTile Rs.GS.G.mixed}
+    (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hXj : Rs.GS.G.mixedScatterTile X = ((Rs.annulus l α hl).spokes.piece j).faces)
+    {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j)
+    (hA : ∃ A ∈ ((Rs.annulus l α hl).spokes.piece j).faces, HasEdge A e)
+    (hBoundary : e ⊆ frontier X.carrier) :
+    HasEdge X e := by
+  sorry
+
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "The entry and
 print belong to the same small group".  A private outer edge of an annular piece lies on the
 boundary of the retained child that scatters to that piece, and the listed sides of a group are
@@ -18144,7 +18179,9 @@ private lemma existsRoutingAfterPower_step3_entries_step3_listed (τ : Substitut
     (hX : X ∈ (Rs.retained l α).children.tiles)
     (hXj : Rs.GS.G.mixedScatterTile X = ((Rs.annulus l α hl).spokes.piece j).faces)
     {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) : HasEdge X e := by
-  sorry
+  have h1 := existsRoutingAfterPower_step3_entries_step3_listed_step1_mem τ M Rs l hl α hX hXj he
+  have h2 := existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary τ M Rs l hl α hX hXj he
+  exact existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge τ M Rs l hl α hX hXj he h1 h2
 
 private lemma existsRoutingAfterPower_step3_entries_step4_scatterInj_support (v : Pt) (S : Set (PlacedTile P)) :
     support (translateSet v S) = v +ᵥ support S := by

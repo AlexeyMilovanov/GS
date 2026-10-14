@@ -1868,6 +1868,278 @@ private theorem schedule_intermediate_sts_step3_levels_sts_step2_within_group
   rw [hsideX, hsideY]
   exact congrArg (fun s : Set Pt => (τ.θ ^ j) • A.anchor +ᵥ s) hEq
 
+/-- Two tiles of a family with disjoint interiors inside `R` cannot share a nondegenerate
+segment of their sides lying on the frontier of `R`, unless they are the same tile. -/
+private lemma cgb_frontier_tiles_eq (S : Set (PlacedTile P)) (hS : DisjointInteriors S) (R : Set Pt)
+    (hR : ∀ B ∈ S, B.carrier ⊆ R) {B1 B2 : PlacedTile P} (h1 : B1 ∈ S) (h2 : B2 ∈ S)
+    (i1 : Fin (P.disk B1.form).n) (i2 : Fin (P.disk B2.form).n) {x y : Pt} (hxy : x ≠ y)
+    (hsub : segment ℝ x y ⊆ B1.side i1 ∩ B2.side i2) (hfr : segment ℝ x y ⊆ frontier R) :
+    B1 = B2 := by
+  by_contra hne
+  obtain ⟨z, hzxy, hzF⟩ := ((fs1_segment_infinite hxy).diff (Set.toFinite ({B1.vertex i1,
+    B1.vertex (finRotate _ i1), B2.vertex i2, B2.vertex (finRotate _ i2)} : Set Pt))).nonempty
+  have hz1 : z ∈ B1.side i1 := (hsub hzxy).1
+  have hz2 : z ∈ B2.side i2 := (hsub hzxy).2
+  set g := sa1_cross (y - x) with hg
+  set k := g x with hk
+  have hl : ∀ (B : PlacedTile P) (i : Fin (P.disk B.form).n), segment ℝ x y ⊆ B.side i →
+      ∀ p ∈ B.side i, g p = k := by
+    intro B i hxyB p hp
+    rw [fs1_tile_side_eq] at hxyB hp
+    exact sa1_cross_on_segment (hxyB (left_mem_segment ℝ x y)) (hxyB (right_mem_segment ℝ x y)) hp
+  have hl1 := hl B1 i1 fun w hw => (hsub hw).1
+  have hl2 := hl B2 i2 fun w hw => (hsub hw).2
+  have hK : ∀ (B : PlacedTile P) (i : Fin (P.disk B.form).n), z ∈ B.side i → z ≠ B.vertex i →
+      z ≠ B.vertex (finRotate _ i) →
+      ∃ r > 0, ∀ p ∈ Metric.ball z r, p ∈ frontier B.carrier → p ∈ B.side i := by
+    intro B i hzi hza hzb
+    let K := ⋃ j ∈ ({i}ᶜ : Set (Fin (P.disk B.form).n)), B.side j
+    have hKc : IsClosed K := (Set.toFinite _).isClosed_biUnion fun j _ => by
+      rw [fs1_tile_side_eq]; exact sa1_segment_isClosed _ _
+    have hzK : z ∉ K := by
+      simp only [K, Set.mem_iUnion]
+      rintro ⟨j, hj, hzj⟩
+      rcases sa1_placed_simple B (Set.mem_compl_singleton_iff.mp hj).symm hzi hzj with h | h
+      exacts [hza h, hzb h]
+    obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hKc.isOpen_compl z hzK
+    refine ⟨r, hr, fun p hp hpf => ?_⟩
+    rw [fs1_frontier_carrier, Set.mem_iUnion] at hpf
+    obtain ⟨j, hj⟩ := hpf
+    by_cases hji : j = i
+    · subst hji; exact hj
+    · exact absurd (Set.mem_biUnion (x := j) (Set.mem_compl_singleton_iff.mpr hji) hj) (hball hp)
+  obtain ⟨r1, hr1, hb1⟩ := hK B1 i1 hz1 (fun h => hzF (by simp [h])) (fun h => hzF (by simp [h]))
+  obtain ⟨r2, hr2, hb2⟩ := hK B2 i2 hz2 (fun h => hzF (by simp [h])) (fun h => hzF (by simp [h]))
+  set U := Metric.ball z (min r1 r2) with hUdef
+  have hU : IsOpen U := Metric.isOpen_ball
+  have hzU : z ∈ U := Metric.mem_ball_self (lt_min hr1 hr2)
+  have hw : y - x ≠ 0 := sub_ne_zero.mpr hxy.symm
+  set n : Pt := !₂[-((y - x) 1), (y - x) 0] with hndef
+  have hn : 0 < g n := by
+    rw [hg, sa1_cross_apply]
+    have h0 : n 0 = -((y - x) 1) := by simp [hndef]
+    have h1' : n 1 = (y - x) 0 := by simp [hndef]
+    rw [h0, h1']
+    have : (y - x) 0 ≠ 0 ∨ (y - x) 1 ≠ 0 := by
+      by_contra h
+      push_neg at h
+      apply hw
+      ext i
+      fin_cases i
+      · simpa using h.1
+      · simpa using h.2
+    rcases this with h | h
+    · nlinarith [mul_self_pos.mpr h, mul_self_nonneg ((y - x) 1)]
+    · nlinarith [mul_self_pos.mpr h, mul_self_nonneg ((y - x) 0)]
+  have hgz : g z = k := hl1 z hz1
+  have half1 := sa1_half (fs1_carrier_closed B1) hU (convex_ball _ _) g k hn hzU
+    (by rw [fs1_closure_interior_carrier]; exact fs1_side_subset_carrier B1 i1 hz1)
+    (fun p hp hpf => hl1 p (hb1 p (Metric.ball_subset_ball (min_le_left _ _) hp) hpf))
+  have half2 := sa1_half (fs1_carrier_closed B2) hU (convex_ball _ _) g k hn hzU
+    (by rw [fs1_closure_interior_carrier]; exact fs1_side_subset_carrier B2 i2 hz2)
+    (fun p hp hpf => hl2 p (hb2 p (Metric.ball_subset_ball (min_le_right _ _) hp) hpf))
+  have hdisj : Disjoint (interior B1.carrier) (interior B2.carrier) := hS h1 h2 hne
+  obtain ⟨δ, hδU, hδ⟩ := (sa1_eventually hU hzU n).exists
+  obtain ⟨δ', hδU', hδ'⟩ := (sa1_eventually hU hzU (-n)).exists
+  have hP : z + δ • n ∈ U ∩ {p | k < g p} := by
+    refine ⟨hδU, ?_⟩
+    show k < g (z + δ • n)
+    rw [map_add, map_smul, hgz, smul_eq_mul]
+    nlinarith
+  have hM : z + δ' • (-n) ∈ U ∩ {p | g p < k} := by
+    refine ⟨hδU', ?_⟩
+    show g (z + δ' • (-n)) < k
+    rw [map_add, map_smul, map_neg, hgz, smul_eq_mul]
+    nlinarith
+  have hcl : ∀ p ∈ U, g p = k → p ∈ closure (U ∩ {p | k < g p}) := by
+    intro p hp hgp
+    refine mem_closure_of_tendsto (sa1_tendsto p n) ?_
+    filter_upwards [sa1_eventually hU hp n] with δ hδ
+    refine ⟨hδ.1, ?_⟩
+    show k < g (p + δ • n)
+    rw [map_add, map_smul, hgp, smul_eq_mul]
+    nlinarith [hδ.2]
+  have hopp : ∀ (C1 C2 : Set Pt), IsClosed C1 → C1 ⊆ R → C2 ⊆ R →
+      U ∩ {p | k < g p} ⊆ interior C1 → U ∩ {p | g p < k} ⊆ interior C2 → False := by
+    intro C1 C2 hC1 hC1R hC2R hP1 hM2
+    have hUR : U ⊆ R := by
+      intro p hp
+      rcases lt_trichotomy (g p) k with hlt | heq | hgt
+      · exact hC2R (interior_subset (hM2 ⟨hp, hlt⟩))
+      · exact hC1R (hC1.closure_subset_iff.mpr (hP1.trans interior_subset) (hcl p hp heq))
+      · exact hC1R (interior_subset (hP1 ⟨hp, hgt⟩))
+    exact (hfr hzxy).2 (interior_maximal hUR hU hzU)
+  rcases half1 with h1P | h1M <;> rcases half2 with h2P | h2M
+  · exact Set.disjoint_left.mp hdisj (h1P hP) (h2P hP)
+  · exact hopp _ _ (fs1_carrier_closed B1) (hR B1 h1) (hR B2 h2) h1P h2M
+  · exact hopp _ _ (fs1_carrier_closed B2) (hR B2 h2) (hR B1 h1) h2P h1M
+  · exact Set.disjoint_left.mp hdisj (h1M hM) (h2M hM)
+
+/-- Every tile of an iterated decomposition of a translated set is a translate of a tile of
+the iterated decomposition of the original set. -/
+private lemma cgb_decomposeIter_translate_inv (n : ℕ) (v : Pt) (S : Set (PlacedTile P))
+    (X : PlacedTile P) (hX : X ∈ τ.decomposeIter n (translateSet v S)) :
+    ∃ B ∈ τ.decomposeIter n S, X = B.translate ((τ.θ ^ n) • v) := by
+  induction n generalizing X with
+  | zero =>
+    obtain ⟨B, hB, rfl⟩ := hX
+    exact ⟨B, hB, by simp⟩
+  | succ n ih =>
+    change X ∈ τ.decompose (τ.decomposeIter n (translateSet v S)) at hX
+    simp only [Substitution.decompose, Set.mem_iUnion] at hX
+    obtain ⟨C, hC, hXC⟩ := hX
+    obtain ⟨D, hD, rfl⟩ := ih C hC
+    simp only [Substitution.decomposeTile, translateSet, Set.mem_image] at hXC
+    obtain ⟨R, hR, rfl⟩ := hXC
+    refine ⟨R.translate (τ.θ • D.anchor), ?_, ?_⟩
+    · change _ ∈ τ.decompose (τ.decomposeIter n S)
+      simp only [Substitution.decompose, Set.mem_iUnion]
+      exact ⟨D, hD, R, hR, rfl⟩
+    · simp only [PlacedTile.translate, PlacedTile.mk.injEq, true_and, vadd_eq_add, smul_add,
+        pow_succ', mul_smul]
+      abel
+
+/-- Pulling back a segment through a translation. -/
+private lemma cgb_untranslate (a : Pt) {x y : Pt} {U V : Set Pt}
+    (h : segment ℝ x y ⊆ (a +ᵥ U) ∩ (a +ᵥ V)) :
+    segment ℝ (-a +ᵥ x) (-a +ᵥ y) ⊆ U ∩ V := by
+  intro z hz
+  have hz' : a +ᵥ z ∈ segment ℝ x y := by
+    have := Set.vadd_mem_vadd_set (a := a) hz
+    rwa [vadd_segment, vadd_neg_vadd, vadd_neg_vadd] at this
+  exact ⟨Set.vadd_mem_vadd_set_iff.1 (h hz').1, Set.vadd_mem_vadd_set_iff.1 (h hz').2⟩
+
+/-- A side of an original-layer tile containing a nondegenerate frontier segment of the
+block lies entirely on the frontier of the block (uses that the layer is STS). -/
+private lemma cgb_core (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (G.dissect α).tiles))
+    (j : ℕ) (α : G.P'.Form) (B : PlacedTile P) (hB : B ∈ fineTiles τ G j α)
+    (i : Fin (P.disk B.form).n) {x y : Pt} (hxy : x ≠ y)
+    (hsub : segment ℝ x y ⊆ B.side i ∩ frontier (parentRegion τ G j α)) :
+    B.side i ⊆ frontier (parentRegion τ G j α) := by
+  set R := parentRegion τ G j α with hRdef
+  have hBR : ∀ C ∈ fineTiles τ G j α, C.carrier ⊆ R := fun C hC => by
+    rw [hRdef, ← fs1_fineTiles_support]
+    exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hC
+  have hdisj : DisjointInteriors (fineTiles τ G j α) :=
+    sa1_disjoint_iter τ _ _ (G.dissect α).disjoint
+  intro w hw
+  have hwR : w ∈ R := hBR B hB (fs1_side_subset_carrier B i hw)
+  by_contra hwF
+  have hwI : w ∈ interior R := by
+    by_contra h
+    exact hwF ⟨subset_closure hwR, h⟩
+  have hconv : Convex ℝ (B.side i) := by rw [fs1_tile_side_eq]; exact convex_segment _ _
+  obtain ⟨o, ho, how⟩ : ∃ o ∈ B.side i, o ≠ w := by
+    by_contra hcon
+    push_neg at hcon
+    exact hxy ((hcon x (hsub (left_mem_segment ℝ x y)).1).trans
+      (hcon y (hsub (right_mem_segment ℝ x y)).1).symm)
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp isOpen_interior w hwI
+  have htend : Filter.Tendsto (fun t : ℝ => AffineMap.lineMap w o t) (nhdsWithin 0 (Set.Ioi 0))
+      (nhds w) := by
+    have : Filter.Tendsto (fun t : ℝ => AffineMap.lineMap w o t) (nhds 0)
+        (nhds (AffineMap.lineMap w o (0 : ℝ))) :=
+      AffineMap.lineMap_continuous.tendsto 0
+    simpa using this.mono_left nhdsWithin_le_nhds
+  obtain ⟨t, htb, ht⟩ :=
+    ((htend.eventually (Metric.ball_mem_nhds w hr)).and (Ioo_mem_nhdsGT (zero_lt_one' ℝ))).exists
+  set v := AffineMap.lineMap w o t with hvdef
+  have hvw : w ≠ v := by
+    intro h
+    have h0 : AffineMap.lineMap w o (0 : ℝ) = AffineMap.lineMap w o t := by simpa using h
+    exact ht.1.ne (AffineMap.lineMap_injective ℝ how.symm h0)
+  have hv : v ∈ B.side i := by
+    have hvseg : v ∈ segment ℝ w o := by
+      rw [segment_eq_image_lineMap]
+      exact ⟨t, ⟨ht.1.le, ht.2.le⟩, rfl⟩
+    exact hconv.segment_subset hw ho hvseg
+  have hsw : segment ℝ w v ⊆ B.side i := hconv.segment_subset hw hv
+  have hsI : segment ℝ w v ⊆ interior R :=
+    ((convex_ball w r).segment_subset (Metric.mem_ball_self hr) htb).trans hball
+  set K : Set (Set Pt) := {T | ∃ Z ∈ fineTiles τ G j α, Z ≠ B ∧ ∃ k : Fin (P.disk Z.form).n,
+    T = Z.side k} with hKdef
+  have hKfin : K.Finite := by
+    refine Set.Finite.subset ((fs1_fineTiles_finite τ G j α).biUnion fun Z _ =>
+      Set.finite_range (fun k : Fin (P.disk Z.form).n => Z.side k)) ?_
+    rintro T ⟨Z, hZ, -, k, rfl⟩
+    exact Set.mem_biUnion hZ ⟨k, rfl⟩
+  have hKconv : ∀ T ∈ K, Convex ℝ T := by
+    rintro T ⟨Z, -, -, k, rfl⟩
+    rw [fs1_tile_side_eq]
+    exact convex_segment _ _
+  have hKcov : segment ℝ w v ⊆ ⋃₀ K := by
+    intro z hz
+    have hzI : z ∈ interior R := hsI hz
+    have hzB : z ∈ B.side i := hsw hz
+    have hY : IsClosed (⋃ Z ∈ {Z | Z ∈ fineTiles τ G j α ∧ Z ≠ B}, Z.carrier) :=
+      ((fs1_fineTiles_finite τ G j α).subset fun _ h => h.1).isClosed_biUnion
+        fun Z _ => fs1_carrier_closed Z
+    have hsubY : interior R ∩ (B.carrier)ᶜ ⊆ ⋃ Z ∈ {Z | Z ∈ fineTiles τ G j α ∧ Z ≠ B},
+        Z.carrier := by
+      rintro p ⟨hp1, hp2⟩
+      have hp : p ∈ support (fineTiles τ G j α) := by
+        rw [fs1_fineTiles_support]; exact interior_subset hp1
+      simp only [support, Set.mem_iUnion] at hp
+      obtain ⟨Z, hZ, hpZ⟩ := hp
+      have hne : Z ≠ B := by
+        rintro rfl
+        exact hp2 hpZ
+      exact Set.mem_biUnion (x := Z) ⟨hZ, hne⟩ hpZ
+    have hzfr : z ∈ frontier B.carrier := by
+      rw [fs1_frontier_carrier]; exact Set.mem_iUnion.2 ⟨i, hzB⟩
+    have hzcl : z ∈ closure (interior R ∩ (B.carrier)ᶜ) := by
+      apply isOpen_interior.inter_closure
+      refine ⟨hzI, ?_⟩
+      rw [← frontier_compl] at hzfr
+      exact frontier_subset_closure hzfr
+    have hzY := hY.closure_subset (closure_mono hsubY hzcl)
+    simp only [Set.mem_iUnion] at hzY
+    obtain ⟨Z, ⟨hZ, hZB⟩, hzZ⟩ := hzY
+    have hzF : z ∈ frontier Z.carrier := by
+      refine ⟨subset_closure hzZ, fun hint => ?_⟩
+      have hzcl' : z ∈ closure (interior B.carrier) := by
+        rw [fs1_closure_interior_carrier]; exact fs1_side_subset_carrier B i hzB
+      rw [mem_closure_iff] at hzcl'
+      obtain ⟨q, hq1, hq2⟩ := hzcl' _ isOpen_interior hint
+      exact Set.disjoint_left.mp (hdisj hZ hB hZB) hq1 hq2
+    rw [fs1_frontier_carrier, Set.mem_iUnion] at hzF
+    obtain ⟨k, hk⟩ := hzF
+    exact ⟨_, ⟨Z, hZ, hZB, k, rfl⟩, hk⟩
+  obtain ⟨T, ⟨Z, hZ, hZB, k, rfl⟩, u', v', huv', hsub'⟩ := fs1_cover hvw hKfin hKconv hKcov
+  have hov : OverlapPos (B.side i) (Z.side k) :=
+    ⟨u', v', huv', fun z hz => ⟨hsw (hsub' hz).1, (hsub' hz).2⟩⟩
+  have heq : B.side i = Z.side k := hΔ α j B hB Z hZ i k hov
+  have hBZ := cgb_frontier_tiles_eq (fineTiles τ G j α) hdisj R hBR hB hZ i k hxy
+    (fun z hz => ⟨(hsub hz).1, heq ▸ (hsub hz).1⟩) (fun z hz => (hsub hz).2)
+  exact hZB hBZ.symm
+
+/-- A boundary side of an original-layer tile is a listed `.level j` side. -/
+private lemma cgb_level_mem (m : ℕ) (j : Fin m) (α : G.P'.Form) (B : PlacedTile P)
+    (hB : B ∈ τ.decomposeIter (j : ℕ) (G.dissect α).tiles) (i : Fin (P.disk B.form).n)
+    (hfr : B.side i ⊆ frontier (parentRegion τ G (j : ℕ) α)) :
+    ((τ.θ ^ (m - (j : ℕ))) • B.vertex i, (τ.θ ^ (m - (j : ℕ))) • B.vertex (finRotate _ i)) ∈
+      layerSides τ G m α (.level j) := by
+  refine ⟨B, hB, i, rfl, ?_⟩
+  have hs : τ.θ ^ (m - (j : ℕ)) ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+  have hpow : τ.θ ^ m = τ.θ ^ (m - (j : ℕ)) * τ.θ ^ (j : ℕ) := by
+    rw [← pow_add, Nat.sub_add_cancel j.isLt.le]
+  have hreg : parentRegion τ G m α = τ.θ ^ (m - (j : ℕ)) • parentRegion τ G (j : ℕ) α := by
+    rw [parentRegion, parentRegion, hpow, mul_smul]
+  simp only
+  rw [sa1_segment_smul, hreg, fs1_frontier_smul hs, ← fs1_tile_side_eq]
+  exact Set.smul_set_mono hfr
+
+/-- The placed scaled level side equals the scaled side of the translated tile. -/
+private lemma cgb_placed_eq (m : ℕ) (j : ℕ) (hj : j ≤ m) (A : PlacedTile G.P') (B : PlacedTile P)
+    (i : Fin (P.disk B.form).n) :
+    placedSeg ((τ.θ ^ m) • A.anchor)
+        ((τ.θ ^ (m - j)) • B.vertex i, (τ.θ ^ (m - j)) • B.vertex (finRotate _ i)) =
+      (τ.θ ^ (m - j)) • (B.translate ((τ.θ ^ j) • A.anchor)).side i := by
+  have hpow : τ.θ ^ m = τ.θ ^ (m - j) * τ.θ ^ j := by
+    rw [← pow_add, Nat.sub_add_cancel hj]
+  rw [fs1_translate_side, placedSeg, placedSeg, ← sa1_segment_smul]
+  simp only [smul_add, smul_smul, ← hpow]
+
 /-- Step 3 of the blueprint proof of `schedule_intermediate_sts_step3_levels_sts`:
 For distinct grouped parents, an overlapping intermediate side is a scaled
 `.level j` boundary side of each parent.  The displayed equalities identify
@@ -1891,7 +2163,66 @@ private theorem schedule_intermediate_sts_step3_levels_sts_step3_cross_group_bou
         (τ.θ ^ (m - (j : ℕ))) • X.side i ∧
       placedSeg ((τ.θ ^ m) • A'.anchor) d =
         (τ.θ ^ (m - (j : ℕ))) • Y.side i' := by
-  sorry
+  have hjm : (j : ℕ) ≤ m := j.isLt.le
+  revert i i' hXY
+  obtain ⟨B, hB, rfl⟩ := cgb_decomposeIter_translate_inv τ (j : ℕ) A.anchor _ X hX
+  obtain ⟨B', hB', rfl⟩ := cgb_decomposeIter_translate_inv τ (j : ℕ) A'.anchor _ Y hY
+  intro i i' hXY
+  obtain ⟨x, y, hxy, hs⟩ := hXY
+  have hdisj := fs1_disj τ G (j : ℕ) T' A A' hA hA' hAA'
+  have hBR : ∀ (α : G.P'.Form) (C : PlacedTile P), C ∈ fineTiles τ G (j : ℕ) α →
+      C.carrier ⊆ parentRegion τ G (j : ℕ) α := fun α C hC => by
+    rw [← fs1_fineTiles_support]
+    exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hC
+  have hsideX : (B.translate ((τ.θ ^ (j : ℕ)) • A.anchor)).side i = ((τ.θ ^ (j : ℕ)) • A.anchor) +ᵥ B.side i := by
+    simp [PlacedTile.translate, PlacedTile.side, vadd_vadd]
+  have hsideY : (B'.translate ((τ.θ ^ (j : ℕ)) • A'.anchor)).side i' = ((τ.θ ^ (j : ℕ)) • A'.anchor) +ᵥ B'.side i' := by
+    simp [PlacedTile.translate, PlacedTile.side, vadd_vadd]
+  have hfrA : segment ℝ x y ⊆ frontier (((τ.θ ^ (j : ℕ)) • A.anchor) +ᵥ parentRegion τ G (j : ℕ) A.form) := by
+    intro z hz
+    have hzX := (hs hz).1
+    have hzY := (hs hz).2
+    have hzR : z ∈ ((τ.θ ^ (j : ℕ)) • A.anchor) +ᵥ parentRegion τ G (j : ℕ) A.form := by
+      have := fs1_side_subset_carrier _ i hzX
+      rw [fs1_translate_carrier] at this
+      exact Set.vadd_set_mono (hBR _ B hB) this
+    refine ⟨subset_closure hzR, fun hint => ?_⟩
+    rw [fs1_translate_side] at hzY
+    have hcl := fs1_placed_side_sub τ G (j : ℕ) A'.form ((τ.θ ^ (j : ℕ)) • A'.anchor) B' hB' i' hzY
+    rw [mem_closure_iff] at hcl
+    obtain ⟨q, hq1, hq2⟩ := hcl _ isOpen_interior hint
+    exact Set.disjoint_left.mp hdisj hq1 hq2
+  have hfrA' : segment ℝ x y ⊆ frontier (((τ.θ ^ (j : ℕ)) • A'.anchor) +ᵥ parentRegion τ G (j : ℕ) A'.form) := by
+    intro z hz
+    have hzX := (hs hz).1
+    have hzY := (hs hz).2
+    have hzR : z ∈ ((τ.θ ^ (j : ℕ)) • A'.anchor) +ᵥ parentRegion τ G (j : ℕ) A'.form := by
+      have := fs1_side_subset_carrier _ i' hzY
+      rw [fs1_translate_carrier] at this
+      exact Set.vadd_set_mono (hBR _ B' hB') this
+    refine ⟨subset_closure hzR, fun hint => ?_⟩
+    rw [fs1_translate_side] at hzX
+    have hcl := fs1_placed_side_sub τ G (j : ℕ) A.form ((τ.θ ^ (j : ℕ)) • A.anchor) B hB i hzX
+    rw [mem_closure_iff] at hcl
+    obtain ⟨q, hq1, hq2⟩ := hcl _ isOpen_interior hint
+    exact Set.disjoint_left.mp hdisj hq2 hq1
+  have hcoreA : B.side i ⊆ frontier (parentRegion τ G (j : ℕ) A.form) := by
+    refine cgb_core τ G hΔ (j : ℕ) A.form B hB i (x := -((τ.θ ^ (j : ℕ)) • A.anchor) +ᵥ x) (y := -((τ.θ ^ (j : ℕ)) • A.anchor) +ᵥ y)
+      (fun h => hxy (vadd_left_cancel _ h)) (cgb_untranslate ((τ.θ ^ (j : ℕ)) • A.anchor) ?_)
+    intro z hz
+    refine ⟨?_, ?_⟩
+    · rw [← hsideX]; exact (hs hz).1
+    · rw [← fs1_frontier_vadd]; exact hfrA hz
+  have hcoreA' : B'.side i' ⊆ frontier (parentRegion τ G (j : ℕ) A'.form) := by
+    refine cgb_core τ G hΔ (j : ℕ) A'.form B' hB' i' (x := -((τ.θ ^ (j : ℕ)) • A'.anchor) +ᵥ x) (y := -((τ.θ ^ (j : ℕ)) • A'.anchor) +ᵥ y)
+      (fun h => hxy (vadd_left_cancel _ h)) (cgb_untranslate ((τ.θ ^ (j : ℕ)) • A'.anchor) ?_)
+    intro z hz
+    refine ⟨?_, ?_⟩
+    · rw [← hsideY]; exact (hs hz).2
+    · rw [← fs1_frontier_vadd]; exact hfrA' hz
+  exact ⟨_, _, cgb_level_mem τ G m j A.form B hB i hcoreA,
+    cgb_level_mem τ G m j A'.form B' hB' i' hcoreA',
+    cgb_placed_eq τ G m (j : ℕ) hjm A B i, cgb_placed_eq τ G m (j : ℕ) hjm A' B' i'⟩
 
 /-- Step 3 of the blueprint proof of `schedule_intermediate_sts`:
 Inside a block each original layer is already an STS supertile patch.

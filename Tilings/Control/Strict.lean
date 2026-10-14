@@ -2502,7 +2502,55 @@ private lemma strict_macroblock_is_decomposition_step1_noncentral_step3_nonprint
         ∀ j : Fin 5,
         ¬ (copySource C (C.form (strictReconstruct C hC K h.1).typ) (C.occ t i) j).Nonempty →
           (K.tileOf t).cell i j = (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j := by
-  sorry
+  intros i hnp j hns
+  have hL : StrictLegal C hC (K.tileOf t) := hK.2 t ht_owner ht_nc
+  rcases hL with ⟨ch, ch_zero, ch_child, _⟩
+  have hchild : IsStrictChildOf C hC (ch 1) (ch 0) := ch_child 0
+  have hchild0 : IsStrictChildOf C hC (ch 1) (K.tileOf t) := ch_zero ▸ hchild
+  rcases hchild0 with ⟨hF_ch1, h_eq⟩
+  have hF2 : C.form (strictReconstruct C hC K h.1).typ = K.α := by
+    calc C.form (strictReconstruct C hC K h.1).typ = C.form h.1 := rfl
+    _ = K.α := hh.1
+  have H_LHS : (K.tileOf t).cell i j = strictGenCell C hC K.α (headerSU C hC (strictHeaderOf C hC (ch 1))) (C.occ t i) j := by
+    have H1 : (K.tileOf t).cell i j = (strictChild C hC (ch 1) (K.tileOf t).typ).cell i j := by congr 1
+    have H2 : (K.tileOf t).cell i j = (strictChild C hC (ch 1) t).cell i j := H1
+    rw [H2]
+    dsimp [strictChild, strictGen]
+    have hF1 : C.form (ch 1).typ = K.α := by
+      calc C.form (ch 1).typ = C.owner (K.tileOf t).typ := hF_ch1.symm
+      _ = C.owner t := rfl
+      _ = K.α := ht_owner
+    have hns_K : ¬(copySource C K.α (C.occ t i) j).Nonempty := hF2 ▸ hns
+    have hns_ch1 : ¬(copySource C (C.form (ch 1).typ) (C.occ t i) j).Nonempty := hF1.symm ▸ hns_K
+    rw [dif_neg hns_ch1]
+    congr 2
+  have H_RHS : (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j = strictGenCell C hC K.α (headerSU C hC h) (C.occ t i) j := by
+    dsimp [strictChild, strictGen]
+    rw [dif_neg hns]
+    have h_hdr : strictHeaderOf C hC (strictReconstruct C hC K h.1) = h := (strict_reconstructed_header_eq C hC K hK h hh).2.2
+    rw [h_hdr]
+    congr 2
+  rw [H_LHS, H_RHS]
+  dsimp [strictGenCell]
+  split_ifs with h1 h2 h3 h4 h5 h6 h7
+  · rfl
+  · rfl
+  · rfl
+  · rfl
+  · rfl
+  · subst h5
+    have H_hh : (K.tileOf t).cell i 3 = headerSU C hC h := hh.2 t i ht_owner h7
+    have H_LHS_3 : (K.tileOf t).cell i 3 = strictGenCell C hC K.α (headerSU C hC (strictHeaderOf C hC (ch 1))) (C.occ t i) 3 := H_LHS
+    have H_LHS_4 : strictGenCell C hC K.α (headerSU C hC (strictHeaderOf C hC (ch 1))) (C.occ t i) 3 = headerSU C hC (strictHeaderOf C hC (ch 1)) := by
+      dsimp [strictGenCell]
+      rw [if_neg h1, if_neg h6, if_pos h7]
+    have H_eq : headerSU C hC (strictHeaderOf C hC (ch 1)) = headerSU C hC h := by
+      calc headerSU C hC (strictHeaderOf C hC (ch 1)) = strictGenCell C hC K.α (headerSU C hC (strictHeaderOf C hC (ch 1))) (C.occ t i) 3 := H_LHS_4.symm
+      _ = (K.tileOf t).cell i 3 := H_LHS_3.symm
+      _ = headerSU C hC h := H_hh
+    rw [H_eq]
+  · rfl
+  · rfl
 
 /-- Step 2 of the blueprint proof of `strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints`: nonprints are correct for copied cells. -/
 private lemma strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints_aux2_copied

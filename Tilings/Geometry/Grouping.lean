@@ -21175,6 +21175,795 @@ private structure existsRoutingAfterPower_step5_discretize_step1_route_RawData (
   near : ∀ _e ∈ sides.tail, _e ⊆ Metric.cthickening (2 * M.D) γ.carrier ∧
     (_e \ (Rs.annulus l α hl).H.carrier).Nonempty
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "perturb
+the routes away from the finite original vertices" — the elementary convexity of an open half-plane. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplane
+    (c : ℝ) (d a : Pt) : Convex ℝ {x : Pt | 0 < c * jcr d (x - a)} := by
+  intro x hx y hy s t hs ht hst
+  obtain rfl : t = 1 - s := by linarith
+  simp only [Set.mem_setOf_eq] at hx hy ⊢
+  have e : c * jcr d (s • x + (1 - s) • y - a) = s * (c * jcr d (x - a)) + (1 - s) * (c * jcr d (y - a)) := by
+    simp only [jcr, PiLp.sub_apply, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]; ring
+  rw [e]
+  rcases hs.lt_or_eq with hs' | hs'
+  · nlinarith
+  · subst hs'; simp only [zero_mul, zero_add, sub_zero, one_mul]; exact hy
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "perturb
+the routes away from the finite original vertices" — the half-plane on the other side of a line. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplaneNeg
+    (c : ℝ) (d a : Pt) : Convex ℝ {x : Pt | c * jcr d (x - a) < 0} := by
+  have h := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplane (-c) d a
+  have e : {x : Pt | c * jcr d (x - a) < 0} = {x : Pt | 0 < -c * jcr d (x - a)} := by
+    ext x; simp only [Set.mem_setOf_eq, neg_mul]; constructor <;> intro h <;> linarith
+  rw [e]; exact h
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "perturb
+the routes away from the finite original vertices" — near a boundary point `z` of a closed set `K`, if the points
+off the frontier are covered by two preconnected pieces avoiding the frontier, then the interior of `K` is
+preconnected near `z`. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_clopen
+    {K U P1 P2 : Set Pt} (hK : IsClosed K) (hU : IsOpen U) {z : Pt} (hzU : z ∈ U)
+    (hz : z ∈ frontier K) (h1 : IsPreconnected P1) (h2 : IsPreconnected P2) (h1U : P1 ⊆ U) (h2U : P2 ⊆ U)
+    (hcov : U \ frontier K ⊆ P1 ∪ P2) (hd1 : Disjoint P1 (frontier K)) (hd2 : Disjoint P2 (frontier K)) :
+    IsPreconnected (U ∩ interior K) := by
+  have hsplit : ∀ {Pi : Set Pt}, IsPreconnected Pi → Disjoint Pi (frontier K) →
+      Pi ⊆ interior K ∨ Pi ⊆ Kᶜ := by
+    intro Pi hPi hdi
+    apply hPi.subset_or_subset isOpen_interior hK.isOpen_compl
+    · exact Set.disjoint_left.2 fun x hx hx' => hx' (interior_subset hx)
+    · intro x hx
+      by_cases hxK : x ∈ K
+      · left
+        by_contra hni
+        exact Set.disjoint_left.1 hdi hx ⟨subset_closure hxK, hni⟩
+      · exact Or.inr hxK
+  have hint : ∀ x ∈ U ∩ interior K, x ∈ P1 ∪ P2 := fun x hx =>
+    hcov ⟨hx.1, fun hf => hf.2 hx.2⟩
+  rcases hsplit h1 hd1 with g1 | b1 <;> rcases hsplit h2 hd2 with g2 | b2
+  · exfalso
+    have hUK : U ⊆ K := by
+      intro x hx
+      by_cases hf : x ∈ frontier K
+      · exact hK.frontier_subset hf
+      · rcases hcov ⟨hx, hf⟩ with h | h
+        · exact interior_subset (g1 h)
+        · exact interior_subset (g2 h)
+    exact hz.2 (interior_maximal hUK hU hzU)
+  · convert h1 using 1
+    ext x; constructor
+    · intro hx
+      rcases hint x hx with h | h
+      · exact h
+      · exact absurd (interior_subset hx.2) (b2 h)
+    · intro hx; exact ⟨h1U hx, g1 hx⟩
+  · convert h2 using 1
+    ext x; constructor
+    · intro hx
+      rcases hint x hx with h | h
+      · exact absurd (interior_subset hx.2) (b1 h)
+      · exact h
+    · intro hx; exact ⟨h2U hx, g2 hx⟩
+  · convert isPreconnected_empty using 1
+    ext x
+    simp only [Set.mem_empty_iff_false, iff_false]
+    intro hx
+    rcases hint x hx with h | h
+    · exact b1 h (interior_subset hx.2)
+    · exact b2 h (interior_subset hx.2)
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: segment
+parameters, a point of `[a, b]` is `a + t (b - a)` with `0 ≤ t`. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segParam
+    {a b x : Pt} (hx : x ∈ segment ℝ a b) : ∃ t : ℝ, 0 ≤ t ∧ x - a = t • (b - a) := by
+  obtain ⟨t, h0, -, rfl⟩ := mem_segment_iff'.1 hx
+  exact ⟨t, h0, by abel⟩
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: a short
+nonnegative multiple of `b - a` based at `a` lies on `[a, b]`. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segMem {a b x : Pt} {t : ℝ} (ht : 0 ≤ t) (hxa : x - a = t • (b - a))
+    (hn : ‖x - a‖ < ‖b - a‖) : x ∈ segment ℝ a b := by
+  have hba : b - a ≠ 0 := by
+    intro h; rw [h, norm_zero] at hn; exact absurd hn (not_lt.2 (norm_nonneg _))
+  have ht1 : t ≤ 1 := by
+    rw [hxa, norm_smul, Real.norm_eq_abs, abs_of_nonneg ht] at hn
+    have hp : 0 < ‖b - a‖ := norm_pos_iff.2 hba
+    by_contra h; push_neg at h; nlinarith
+  exact mem_segment_iff'.2 ⟨t, ht, ht1, by rw [← hxa]; abel⟩
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "perturb
+the routes away from the finite original vertices" — near a vertex of a polygonal disk its interior is locally
+preconnected (the disk is locally a sector, bounded by the two incident sides). -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_vertex (B : PolygonalDisk) (k : Fin B.n) :
+    ∃ r0 > 0, ∀ r, 0 < r → r ≤ r0 → IsPreconnected (Metric.ball (B.vertex k) r ∩ interior B.carrier) := by
+  classical
+  have hn3 := B.three_le
+  set kp := (finRotate B.n).symm k with hkp
+  have hkpn : finRotate B.n kp = k := by simp [hkp]
+  set a := B.vertex k with ha
+  set b := B.vertex (finRotate B.n k) with hb
+  set c := B.vertex kp with hc
+  have hkkp : k ≠ kp := by
+    intro h
+    apply finRotate_ne_self (n := B.n) (by omega) k
+    conv_lhs => rw [h]
+    exact hkpn
+  have hab : a ≠ b := pd_vertex_ne_next B k
+  have hca : c ≠ a := by have := pd_vertex_ne_next B kp; rwa [hkpn] at this
+  set d1 := b - a with hd1
+  set d2 := c - a with hd2
+  have hd1n : d1 ≠ 0 := sub_ne_zero.2 hab.symm
+  have hd2n : d2 ≠ 0 := sub_ne_zero.2 hca
+  have hfr := B.frontier_eq
+  have hsk : segment ℝ a b ⊆ frontier B.carrier := by
+    rw [hfr]; exact Set.subset_iUnion_of_subset k le_rfl
+  have hskp : segment ℝ a c ⊆ frontier B.carrier := by
+    rw [hfr, segment_symm]; refine Set.subset_iUnion_of_subset kp ?_; rw [hkpn]
+  set Ko := ⋃ j ∈ ({k, kp}ᶜ : Set (Fin B.n)), segment ℝ (B.vertex j) (B.vertex (finRotate B.n j)) with hKo
+  have hKoc : IsClosed Ko :=
+    (Set.toFinite _).isClosed_biUnion (fun j _ => (isCompact_segment_pt _ _).isClosed)
+  have haKo : a ∉ Ko := by
+    simp only [hKo, Set.mem_iUnion, Set.mem_compl_iff, Set.mem_insert_iff, Set.mem_singleton_iff, not_or]
+    rintro ⟨j, ⟨hjk, hjkp⟩, haj⟩
+    have h := B.simple j k hjk ⟨haj, left_mem_segment ℝ _ _⟩
+    rcases h.1 with h | h
+    · exact hjk (B.vertex_injective h.symm)
+    · apply hjkp
+      have : finRotate B.n j = k := B.vertex_injective h.symm
+      rw [hkp, ← this]; simp
+  obtain ⟨r1, hr1, hball1⟩ := Metric.isOpen_iff.1 hKoc.isOpen_compl a haKo
+  have hn1 : 0 < ‖d1‖ := norm_pos_iff.2 hd1n
+  have hn2 : 0 < ‖d2‖ := norm_pos_iff.2 hd2n
+  refine ⟨min r1 (min ‖d1‖ ‖d2‖), by positivity, fun r hr hrr => ?_⟩
+  have hrr1 : r ≤ r1 := hrr.trans (min_le_left _ _)
+  have hrd1 : r ≤ ‖d1‖ := hrr.trans ((min_le_right _ _).trans (min_le_left _ _))
+  have hrd2 : r ≤ ‖d2‖ := hrr.trans ((min_le_right _ _).trans (min_le_right _ _))
+  set U := Metric.ball a r with hU
+  have hxU : ∀ x ∈ U, ‖x - a‖ < r := fun x hx => by rwa [hU, Metric.mem_ball, dist_eq_norm] at hx
+  have hfrU : ∀ x ∈ U, x ∈ frontier B.carrier → x ∈ segment ℝ a b ∨ x ∈ segment ℝ a c := by
+    intro x hx hxf
+    rw [hfr, Set.mem_iUnion] at hxf
+    obtain ⟨j, hj⟩ := hxf
+    by_cases hjk : j = k
+    · subst hjk; exact Or.inl hj
+    by_cases hjkp : j = kp
+    · subst hjkp; rw [hkpn, segment_symm] at hj; exact Or.inr hj
+    · exfalso
+      apply hball1 (Metric.ball_subset_ball hrr1 hx)
+      simp only [hKo, Set.mem_iUnion, Set.mem_compl_iff, Set.mem_insert_iff, Set.mem_singleton_iff, not_or]
+      exact ⟨j, ⟨hjk, hjkp⟩, hj⟩
+  have hfr_a : a ∈ frontier B.carrier := hsk (left_mem_segment ℝ _ _)
+  have hUo : IsOpen U := Metric.isOpen_ball
+  have haU : a ∈ U := Metric.mem_ball_self hr
+  by_cases hs : jcr d1 d2 = 0
+  · obtain ⟨μ, hμ⟩ := exists_smul_of_jcr_eq_zero hd1n hs
+    have hμ0 : μ ≠ 0 := by rintro rfl; rw [zero_smul] at hμ; exact hd2n hμ
+    rcases lt_or_gt_of_ne hμ0 with hμn | hμp
+    · set P1 := U ∩ {x : Pt | 0 < 1 * jcr d1 (x - a)}
+      set P2 := U ∩ {x : Pt | 1 * jcr d1 (x - a) < 0}
+      have hon1 : ∀ x ∈ segment ℝ a b, jcr d1 (x - a) = 0 := by
+        intro x hx
+        obtain ⟨t, -, ht⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segParam hx
+        rw [ht, jcr_smul_right, jcr_self, mul_zero]
+      have hon2 : ∀ x ∈ segment ℝ a c, jcr d1 (x - a) = 0 := by
+        intro x hx
+        obtain ⟨t, -, ht⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segParam hx
+        rw [ht, ← hd2, hμ, smul_smul, jcr_smul_right, jcr_self, mul_zero]
+      apply existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_clopen B.compact.isClosed hUo haU hfr_a
+        ((convex_ball a r).inter (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplane 1 d1 a)).isPreconnected
+        ((convex_ball a r).inter (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplaneNeg 1 d1 a)).isPreconnected
+        Set.inter_subset_left Set.inter_subset_left
+      · rintro x ⟨hx, hxf⟩
+        by_contra hn
+        simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_setOf_eq, one_mul, not_or,
+          not_and, not_lt] at hn
+        have h0 : jcr d1 (x - a) = 0 := le_antisymm (hn.1 hx) (hn.2 hx)
+        obtain ⟨t, ht⟩ := exists_smul_of_jcr_eq_zero hd1n h0
+        apply hxf
+        rcases le_or_gt 0 t with ht0 | ht0
+        · exact hsk (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segMem ht0 ht ((hxU x hx).trans_le hrd1))
+        · refine hskp (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segMem (t := t / μ) (div_nonneg_of_nonpos ht0.le hμn.le) ?_
+            ((hxU x hx).trans_le hrd2))
+          rw [ht, ← hd2, hμ, smul_smul, div_mul_cancel₀ _ hμ0]
+      · rw [Set.disjoint_left]
+        rintro x ⟨hx, hxp⟩ hxf
+        simp only [Set.mem_setOf_eq, one_mul] at hxp
+        rcases hfrU x hx hxf with h | h
+        · rw [hon1 x h] at hxp; exact lt_irrefl _ hxp
+        · rw [hon2 x h] at hxp; exact lt_irrefl _ hxp
+      · rw [Set.disjoint_left]
+        rintro x ⟨hx, hxp⟩ hxf
+        simp only [Set.mem_setOf_eq, one_mul] at hxp
+        rcases hfrU x hx hxf with h | h
+        · rw [hon1 x h] at hxp; exact lt_irrefl _ hxp
+        · rw [hon2 x h] at hxp; exact lt_irrefl _ hxp
+    · exfalso
+      set m := min 1 μ / 2 with hm
+      have hm0 : 0 < m := by positivity
+      have hm1 : m ≤ 1 / 2 := by have := min_le_left 1 μ; linarith
+      have hmμ : m ≤ μ / 2 := by have := min_le_right 1 μ; linarith
+      set x := a + m • d1 with hx
+      have hx1 : x ∈ segment ℝ a b := mem_segment_iff'.2 ⟨m, hm0.le, by linarith, rfl⟩
+      have hx2 : x ∈ segment ℝ c a := by
+        rw [segment_symm]
+        refine mem_segment_iff'.2 ⟨m / μ, by positivity, ?_, ?_⟩
+        · rw [div_le_one hμp]; linarith
+        · rw [hx, ← hd2, hμ, smul_smul, div_mul_cancel₀ _ hμ0]
+      have h := B.simple k kp hkkp ⟨hx1, by rw [hkpn]; exact hx2⟩
+      rcases h.1 with h | h
+      · have : m • d1 = 0 := by
+          have h' : x - a = 0 := by rw [h]; exact sub_self _
+          rw [hx] at h'; simpa using h'
+        rcases smul_eq_zero.1 this with h0 | h0
+        · linarith
+        · exact hd1n h0
+      · have : (m - 1) • d1 = 0 := by
+          have e : (m - 1) • d1 = x - b := by rw [hx, hd1]; module
+          rw [e, h, sub_self]
+        rcases smul_eq_zero.1 this with h0 | h0
+        · linarith
+        · exact hd1n h0
+  · generalize hs0 : jcr d1 d2 = s0 at hs
+    have hs2 : 0 < s0 * s0 := mul_self_pos.2 hs
+    have hP1 : IsPreconnected (U ∩ ({x : Pt | 0 < s0 * jcr d1 (x - a)} ∩ {x : Pt | 0 < (-s0) * jcr d2 (x - a)})) :=
+      ((convex_ball a r).inter ((existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplane s0 d1 a).inter
+        (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplane (-s0) d2 a))).isPreconnected
+    have hP2 : IsPreconnected (U ∩ {x : Pt | s0 * jcr d1 (x - a) < 0} ∪
+        U ∩ {x : Pt | (-s0) * jcr d2 (x - a) < 0}) := by
+      obtain ⟨t, ht⟩ : ∃ t : ℝ, t = r / (2 * (‖d1 + d2‖ + 1)) := ⟨_, rfl⟩
+      have htp : 0 < t := by rw [ht]; positivity
+      obtain ⟨y0, hy0a⟩ : ∃ y0 : Pt, y0 - a = (-t) • (d1 + d2) := ⟨a + (-t) • (d1 + d2), by abel⟩
+      have hy0U : y0 ∈ U := by
+        rw [hU, Metric.mem_ball, dist_eq_norm, hy0a, norm_smul, Real.norm_eq_abs, abs_neg,
+          abs_of_pos htp, ht]
+        have h1 : 0 ≤ ‖d1 + d2‖ := norm_nonneg _
+        rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+        nlinarith
+      have hy1 : s0 * jcr d1 (y0 - a) < 0 := by
+        rw [hy0a, jcr_smul_right, jcr_add_right, jcr_self, zero_add, hs0]
+        nlinarith
+      have hy2 : (-s0) * jcr d2 (y0 - a) < 0 := by
+        rw [hy0a, jcr_smul_right, jcr_add_right, jcr_self, add_zero, jcr_anti, hs0]
+        nlinarith
+      exact ((convex_ball a r).inter (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplaneNeg s0 d1 a)).isPreconnected.union y0
+        ⟨hy0U, hy1⟩ ⟨hy0U, hy2⟩
+        ((convex_ball a r).inter (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplaneNeg (-s0) d2 a)).isPreconnected
+    have hon1 : ∀ x ∈ segment ℝ a b, jcr d1 (x - a) = 0 ∧ 0 ≤ (-s0) * jcr d2 (x - a) := by
+      intro x hx
+      obtain ⟨t, ht0, ht⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segParam hx
+      have ht' : x - a = t • d1 := ht
+      have e1 : jcr d1 (x - a) = 0 := by rw [ht', jcr_smul_right, jcr_self, mul_zero]
+      have e2 : (-s0) * jcr d2 (x - a) = t * (s0 * s0) := by
+        rw [ht', jcr_smul_right, jcr_anti, hs0]; ring
+      exact ⟨e1, by rw [e2]; exact mul_nonneg ht0 (mul_self_nonneg s0)⟩
+    have hon2 : ∀ x ∈ segment ℝ a c, jcr d2 (x - a) = 0 ∧ 0 ≤ s0 * jcr d1 (x - a) := by
+      intro x hx
+      obtain ⟨t, ht0, ht⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segParam hx
+      have ht' : x - a = t • d2 := ht
+      have e1 : jcr d2 (x - a) = 0 := by rw [ht', jcr_smul_right, jcr_self, mul_zero]
+      have e2 : s0 * jcr d1 (x - a) = t * (s0 * s0) := by
+        rw [ht', jcr_smul_right, hs0]; ring
+      exact ⟨e1, by rw [e2]; exact mul_nonneg ht0 (mul_self_nonneg s0)⟩
+    apply existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_clopen B.compact.isClosed hUo haU hfr_a hP1 hP2 Set.inter_subset_left
+      (Set.union_subset Set.inter_subset_left Set.inter_subset_left)
+    · rintro x ⟨hx, hxf⟩
+      by_contra hn
+      simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_setOf_eq, not_or, not_and, not_lt] at hn
+      obtain ⟨hn1', hn2', hn3'⟩ := hn
+      have hA := hn2' hx
+      have hB := hn3' hx
+      apply hxf
+      by_cases hA0 : s0 * jcr d1 (x - a) = 0
+      · have h0 : jcr d1 (x - a) = 0 := by
+          rcases mul_eq_zero.1 hA0 with h | h
+          · exact absurd h hs
+          · exact h
+        obtain ⟨t, ht⟩ := exists_smul_of_jcr_eq_zero hd1n h0
+        have ht0 : 0 ≤ t := by
+          have e : (-s0) * jcr d2 (x - a) = t * (s0 * s0) := by
+            rw [ht, jcr_smul_right, jcr_anti, hs0]; ring
+          rw [e] at hB
+          by_contra hneg; push_neg at hneg
+          exact absurd hB (not_le.2 (mul_neg_of_neg_of_pos hneg hs2))
+        exact hsk (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segMem ht0 ht ((hxU x hx).trans_le hrd1))
+      · have hA' : 0 < s0 * jcr d1 (x - a) := lt_of_le_of_ne hA (Ne.symm hA0)
+        have hB0 : (-s0) * jcr d2 (x - a) = 0 := le_antisymm (hn1' hx hA') hB
+        have h0 : jcr d2 (x - a) = 0 := by
+          rcases mul_eq_zero.1 hB0 with h | h
+          · exact absurd (neg_eq_zero.1 h) hs
+          · exact h
+        obtain ⟨t, ht⟩ := exists_smul_of_jcr_eq_zero hd2n h0
+        have ht0 : 0 ≤ t := by
+          have e : s0 * jcr d1 (x - a) = t * (s0 * s0) := by
+            rw [ht, jcr_smul_right, hs0]; ring
+          rw [e] at hA
+          by_contra hneg; push_neg at hneg
+          exact absurd hA (not_le.2 (mul_neg_of_neg_of_pos hneg hs2))
+        exact hskp (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_segMem ht0 ht ((hxU x hx).trans_le hrd2))
+    · rw [Set.disjoint_left]
+      rintro x ⟨hx, hx1, hx2⟩ hxf
+      simp only [Set.mem_setOf_eq] at hx1 hx2
+      rcases hfrU x hx hxf with h | h
+      · rw [(hon1 x h).1, mul_zero] at hx1; exact lt_irrefl _ hx1
+      · rw [(hon2 x h).1, mul_zero] at hx2; exact lt_irrefl _ hx2
+    · rw [Set.disjoint_left]
+      rintro x hxP hxf
+      rcases hxP with ⟨hx, hxn⟩ | ⟨hx, hxn⟩ <;> simp only [Set.mem_setOf_eq] at hxn <;>
+        rcases hfrU x hx hxf with h | h
+      · rw [(hon1 x h).1, mul_zero] at hxn; exact lt_irrefl _ hxn
+      · linarith [(hon2 x h).2]
+      · linarith [(hon1 x h).2]
+      · rw [(hon2 x h).1, mul_zero] at hxn; exact lt_irrefl _ hxn
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "perturb
+the routes away from the finite original vertices" — the interior of a polygonal disk is locally preconnected at
+every boundary point (a half disk at an inner point of a side, a sector at a vertex). -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_localConn (B : PolygonalDisk) {z : Pt} (hz : z ∈ frontier B.carrier) :
+    ∃ r0 > 0, ∀ r, 0 < r → r ≤ r0 → IsPreconnected (Metric.ball z r ∩ interior B.carrier) := by
+  have hz' := hz
+  rw [B.frontier_eq, Set.mem_iUnion] at hz'
+  obtain ⟨i, hi⟩ := hz'
+  by_cases h1 : z = B.vertex i
+  · subst h1; exact existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_vertex B i
+  by_cases h2 : z = B.vertex (finRotate B.n i)
+  · subst h2; exact existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_vertex B _
+  have hzo := mem_openSegment_of_ne_left_right (Ne.symm h1) (Ne.symm h2) hi
+  obtain ⟨r, hr, σ, -, hch⟩ := pd_halfdisk B i hzo
+  refine ⟨r, hr, fun r' hr' hrr => ?_⟩
+  have e : Metric.ball z r' ∩ interior B.carrier = Metric.ball z r' ∩
+      {x : Pt | 0 < σ * jcr (B.vertex (finRotate B.n i) - B.vertex i) (x - B.vertex i)} := by
+    ext x
+    constructor
+    · rintro ⟨hx, hxi⟩
+      exact ⟨hx, ((hch x (Metric.ball_subset_ball hrr hx)).2.2).1 hxi⟩
+    · rintro ⟨hx, hxi⟩
+      exact ⟨hx, ((hch x (Metric.ball_subset_ball hrr hx)).2.2).2 hxi⟩
+  rw [e]
+  exact ((convex_ball z r').inter (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_halfplane _ _ _)).isPreconnected
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "perturb
+the routes away from the finite original vertices" — local preconnectedness of the interior at a boundary point of a
+scaled polygonal disk (such as the scaled parent region of a template). -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_localConnScaled (B : PolygonalDisk) {s : ℝ} (hs : 0 < s) {z : Pt}
+    (hz : z ∈ frontier (s • B.carrier)) :
+    ∃ r0 > 0, ∀ r, 0 < r → r ≤ r0 → IsPreconnected (Metric.ball z r ∩ interior (s • B.carrier)) := by
+  have hz2 : z ∈ frontier (⇑(Homeomorph.smulOfNeZero s hs.ne') '' B.carrier) := hz
+  rw [← (Homeomorph.smulOfNeZero s hs.ne').image_frontier] at hz2
+  obtain ⟨z', hz', rfl⟩ := hz2
+  change ∃ r0 > 0, ∀ r, 0 < r → r ≤ r0 → IsPreconnected (Metric.ball (s • z') r ∩ interior (s • B.carrier))
+  obtain ⟨r0, hr0, h⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_localConn B hz'
+  refine ⟨s * r0, by positivity, fun r hr hrr => ?_⟩
+  have hball : Metric.ball (s • z') r = s • Metric.ball z' (r / s) := by
+    rw [smul_ball hs.ne', Real.norm_eq_abs, abs_of_pos hs, mul_div_cancel₀ _ hs.ne']
+  rw [hball, interior_smul₀ hs.ne', ← Set.smul_set_inter₀ hs.ne']
+  have := h (r / s) (by positivity) (by rw [div_le_iff₀ hs]; linarith)
+  rw [← Set.image_smul]
+  exact this.image _ (continuous_const_smul s).continuousOn
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "list
+their crossed faces" — every point has a neighbourhood meeting only faces of a finite family that contain it. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_localNbhd
+    {Q : Protoset} {S : Set (PlacedTile Q)} (hfin : S.Finite) (x : Pt) :
+    ∃ ρ > 0, ∀ y ∈ Metric.ball x ρ, ∀ X ∈ S, y ∈ X.carrier → x ∈ X.carrier := by
+  have hC : IsClosed (⋃ X ∈ {X ∈ S | x ∉ X.carrier}, X.carrier) :=
+    (hfin.subset (fun X hX => hX.1)).isClosed_biUnion (fun X _ => tile_isClosed X)
+  have hxC : x ∉ ⋃ X ∈ {X ∈ S | x ∉ X.carrier}, X.carrier := by
+    intro hx
+    obtain ⟨X, hX, hxX⟩ := Set.mem_iUnion₂.1 hx
+    exact hX.2 hxX
+  obtain ⟨ρ, hρ, hball⟩ := Metric.isOpen_iff.1 hC.isOpen_compl x hxC
+  refine ⟨ρ, hρ, fun y hy X hX hyX => ?_⟩
+  by_contra hxX
+  exact hball hy (Set.mem_biUnion (show X ∈ {X ∈ S | x ∉ X.carrier} from ⟨hX, hxX⟩) hyX)
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`:
+"Consecutive faces share whole sides" — in a side-to-side family with disjoint interiors, if an open preconnected set
+inside the union of finitely many faces meets the interiors of two of them, the two faces are joined by a chain of
+these faces in which consecutive faces share a whole side (the finitely many vertices cannot disconnect it). -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step3_dualChain
+    {Q : Protoset} {S G : Set (PlacedTile Q)} (hdisj : DisjointInteriors S)
+    (hsts : SideToSideSet S) (hGS : G ⊆ S) (hfin : G.Finite) {W : Set Pt} (hW : IsOpen W)
+    (hWc : IsPreconnected W) (hWG : W ⊆ support G) {A0 B : PlacedTile Q} (hA0 : A0 ∈ G) (hB : B ∈ G)
+    (hA0W : (W ∩ interior A0.carrier).Nonempty) (hBW : (W ∩ interior B.carrier).Nonempty) :
+    Relation.ReflTransGen (fun X Y => X ∈ G ∧ Y ∈ G ∧ SharesSide X Y) A0 B := by
+  classical
+  set R := fun X Y : PlacedTile Q => X ∈ G ∧ Y ∈ G ∧ SharesSide X Y with hR
+  set C := {X ∈ G | Relation.ReflTransGen R A0 X} with hC
+  by_contra hB'
+  set D := G \ C with hD
+  have hBD : B ∈ D := ⟨hB, fun h => hB' h.2⟩
+  have hA0C : A0 ∈ C := ⟨hA0, Relation.ReflTransGen.refl⟩
+  have hCD : ∀ X ∈ C, ∀ Y ∈ D, ∀ p ∈ X.carrier, p ∈ Y.carrier → p ∈ gVerts G := by
+    intro X hX Y hY p hpX hpY
+    by_contra hpv
+    have hXY : X ≠ Y := by rintro rfl; exact hY.2 hX
+    have hpXi : p ∉ interior X.carrier := fun h =>
+      interior_not_mem_other hdisj (hGS hX.1) (hGS hY.1) hXY h hpY
+    have hpf : p ∈ frontier X.carrier := by
+      rw [mem_frontier_iff_of_closed (tile_isClosed X)]; exact ⟨hpX, hpXi⟩
+    rw [tile_frontier_eq, Set.mem_iUnion] at hpf
+    obtain ⟨i, hpi⟩ := hpf
+    have hpo : p ∈ openSegment ℝ (X.vertex i) (X.vertex (finRotate _ i)) := by
+      rw [tile_side_eq] at hpi
+      refine mem_openSegment_of_ne_left_right ?_ ?_ hpi
+      · intro h; exact hpv (Set.mem_biUnion hX.1 ⟨i, h⟩)
+      · intro h; exact hpv (Set.mem_biUnion hX.1 ⟨_, h⟩)
+    obtain ⟨j, hj⟩ := tile_partner hdisj hsts (hGS hX.1) (hGS hY.1) hXY i hpo hpY
+      (fun hv => hpv (Set.mem_biUnion hY.1 hv))
+    apply hY.2
+    have hS : SharesSide X Y := ⟨hXY, X.side i, ⟨i, rfl⟩, ⟨j, hj⟩⟩
+    exact ⟨hY.1, Relation.ReflTransGen.tail hX.2 ⟨hX.1, hY.1, hS⟩⟩
+  have hCfin : C.Finite := hfin.subset (fun X hX => hX.1)
+  have hDfin : D.Finite := hfin.subset (fun X hX => hX.1)
+  apply open_minus_finite_split (W := W) (O1 := W \ support D) (O2 := W \ support C) (Z := gVerts G)
+    hW hWc (hW.sdiff (support_isClosed hDfin)) (hW.sdiff (support_isClosed hCfin))
+  · rw [Set.disjoint_left]
+    rintro x ⟨hxU, hxD⟩ ⟨-, hxC⟩
+    obtain ⟨X, hX, hxX⟩ := mem_support_iff'.1 (hWG hxU)
+    by_cases hXC : X ∈ C
+    · exact hxC (carrier_subset_support hXC hxX)
+    · exact hxD (carrier_subset_support (show X ∈ D from ⟨hX, hXC⟩) hxX)
+  · exact gVerts_finite hfin
+  · intro x hxU
+    by_cases hxD : x ∈ support D
+    · by_cases hxC : x ∈ support C
+      · obtain ⟨X, hX, hxX⟩ := mem_support_iff'.1 hxC
+        obtain ⟨Y, hY, hxY⟩ := mem_support_iff'.1 hxD
+        exact Or.inr (hCD X hX Y hY x hxX hxY)
+      · exact Or.inl (Or.inr ⟨hxU, hxC⟩)
+    · exact Or.inl (Or.inl ⟨hxU, hxD⟩)
+  · obtain ⟨x, hxW, hx⟩ := hA0W
+    refine ⟨x, hxW, hxW, ?_⟩
+    intro hxD
+    obtain ⟨Y, hY, hxY⟩ := mem_support_iff'.1 hxD
+    have hne : A0 ≠ Y := by rintro rfl; exact hY.2 hA0C
+    exact interior_not_mem_other hdisj (hGS hA0) (hGS hY.1) hne hx hxY
+  · obtain ⟨x, hxW, hx⟩ := hBW
+    refine ⟨x, hxW, hxW, ?_⟩
+    intro hxC
+    obtain ⟨Y, hY, hxY⟩ := mem_support_iff'.1 hxC
+    have hne : B ≠ Y := by rintro rfl; exact hBD.2 hY
+    exact interior_not_mem_other hdisj (hGS hB) (hGS hY.1) hne hx hxY
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "list
+their crossed faces" — the faces met by a route `Γ` from a boundary point `x0` (with `Γ` otherwise interior and the
+region locally preconnected at `x0`) to an interior point of a face `F` form a chain from any face containing `x0` to
+`F`, consecutive faces sharing whole sides. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_chain
+    {Q : Protoset} {S : Set (PlacedTile Q)} (hdisj : DisjointInteriors S)
+    (hsts : SideToSideSet S) (hfin : S.Finite) {Γ : Set Pt} {x0 x1 : Pt} (hJ : JoinedIn Γ x0 x1)
+    (hint : Γ \ {x0} ⊆ interior (support S)) (hx0i : x0 ∉ interior (support S))
+    (hloc : ∃ r0 > 0, ∀ r, 0 < r → r ≤ r0 → IsPreconnected (Metric.ball x0 r ∩ interior (support S)))
+    {T0 F : PlacedTile Q} (hT0 : T0 ∈ S) (hx0T0 : x0 ∈ T0.carrier) (hF : F ∈ S)
+    (hx1F : x1 ∈ interior F.carrier) :
+    Relation.ReflTransGen (fun X Y => X ∈ {X ∈ S | (X.carrier ∩ Γ).Nonempty} ∧
+      Y ∈ {X ∈ S | (X.carrier ∩ Γ).Nonempty} ∧ SharesSide X Y) T0 F := by
+  classical
+  set G := {X ∈ S | (X.carrier ∩ Γ).Nonempty} with hGdef
+  have hGS : G ⊆ S := fun X hX => hX.1
+  have hGfin : G.Finite := hfin.subset hGS
+  have hx0 : x0 ∈ Γ := hJ.source_mem
+  have hx1Γ : x1 ∈ Γ := hJ.target_mem
+  have hcovG : ∀ x ∈ Γ, ∀ U : Set Pt, IsOpen U → U ⊆ support S →
+      (∀ y ∈ U, ∀ X ∈ S, y ∈ X.carrier → x ∈ X.carrier) → U ⊆ interior (support G) := by
+    intro x hx U hU hUS hUx
+    apply interior_maximal _ hU
+    intro y hy
+    obtain ⟨X, hX, hyX⟩ := mem_support_iff'.1 (hUS hy)
+    exact mem_support_iff'.2 ⟨X, ⟨hX, x, hUx y hy X hX hyX, hx⟩, hyX⟩
+  have hΓ' : ∀ x ∈ Γ, x ≠ x0 → x ∈ interior (support G) := by
+    intro x hx hne
+    obtain ⟨ρ, hρ, hρp⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_localNbhd hfin x
+    obtain ⟨ε, hε, hεs⟩ := Metric.isOpen_iff.1 isOpen_interior x (hint ⟨hx, hne⟩)
+    refine hcovG x hx (Metric.ball x (min ρ ε)) Metric.isOpen_ball
+      (fun y hy => interior_subset (hεs (Metric.ball_subset_ball (min_le_right _ _) hy)))
+      (fun y hy X hX hyX => hρp y (Metric.ball_subset_ball (min_le_left _ _) hy) X hX hyX) ?_
+    exact Metric.mem_ball_self (lt_min hρ hε)
+  obtain ⟨r0, hr0, hlc⟩ := hloc
+  obtain ⟨ρ0, hρ0, hρ0p⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_localNbhd hfin x0
+  set r := min r0 ρ0 with hrdef
+  have hr : 0 < r := lt_min hr0 hρ0
+  set Bs := Metric.ball x0 r ∩ interior (support S) with hBsdef
+  have hBs : IsPreconnected Bs := hlc r hr (min_le_left _ _)
+  have hBsG : Bs ⊆ interior (support G) :=
+    hcovG x0 hx0 Bs (Metric.isOpen_ball.inter isOpen_interior) (fun y hy => interior_subset hy.2)
+      (fun y hy X hX hyX => hρ0p y (Metric.ball_subset_ball (min_le_right _ _) hy.1) X hX hyX)
+  obtain ⟨f, hf⟩ := hJ
+  set g : ℝ → Pt := fun t => f.extend t with hgdef
+  have hgc : Continuous g := f.extend.continuous
+  have hgΓ : ∀ t ∈ Set.Icc (0 : ℝ) 1, g t ∈ Γ := fun t ht => by
+    show f.extend t ∈ Γ
+    rw [f.extend_apply ht]; exact hf _
+  have hg0 : g 0 = x0 := f.extend_zero
+  have hg1 : g 1 = x1 := f.extend_one
+  set Z := Set.Icc (0 : ℝ) 1 ∩ g ⁻¹' {x0} with hZdef
+  have hZc : IsClosed Z := isClosed_Icc.inter (isClosed_singleton.preimage hgc)
+  have hZne : Z.Nonempty := ⟨0, ⟨le_rfl, zero_le_one⟩, hg0⟩
+  have hZbdd : BddAbove Z := ⟨1, fun t ht => ht.1.2⟩
+  set t0 := sSup Z with ht0def
+  have ht0Z : t0 ∈ Z := hZc.csSup_mem hZne hZbdd
+  have hle : ∀ t ∈ Z, t ≤ t0 := fun t ht => le_csSup hZbdd ht
+  have hx1i : x1 ∈ interior (support S) := interior_mono (carrier_subset_support hF) hx1F
+  have ht01 : t0 < 1 := by
+    refine lt_of_le_of_ne ht0Z.1.2 ?_
+    intro h
+    have : g t0 = x0 := ht0Z.2
+    rw [h, hg1] at this
+    exact hx0i (this ▸ hx1i)
+  set V1 := g '' Set.Ioc t0 1 with hV1def
+  have hV1 : IsPreconnected V1 := isPreconnected_Ioc.image g hgc.continuousOn
+  have hV1G : V1 ⊆ interior (support G) := by
+    rintro _ ⟨t, ⟨ht1, ht2⟩, rfl⟩
+    have htI : t ∈ Set.Icc (0 : ℝ) 1 := ⟨ht0Z.1.1.trans ht1.le, ht2⟩
+    refine hΓ' _ (hgΓ t htI) ?_
+    intro hgt
+    exact absurd (hle t ⟨htI, hgt⟩) (not_le.2 ht1)
+  have hmeet : (V1 ∩ Bs).Nonempty := by
+    obtain ⟨δ, hδ, hδp⟩ := Metric.continuous_iff.1 hgc t0 r hr
+    set t := min (t0 + δ / 2) 1 with htdef
+    have ht1 : t0 < t := lt_min (by linarith) ht01
+    have ht2 : t ≤ 1 := min_le_right _ _
+    have hdist : dist t t0 < δ := by
+      rw [Real.dist_eq, abs_of_pos (by linarith)]
+      have := min_le_left (t0 + δ / 2) 1
+      linarith
+    have hgt := hδp t hdist
+    have hgt0 : g t0 = x0 := ht0Z.2
+    rw [hgt0] at hgt
+    have hgtV : g t ∈ V1 := ⟨t, ⟨ht1, ht2⟩, rfl⟩
+    have htI : t ∈ Set.Icc (0 : ℝ) 1 := ⟨ht0Z.1.1.trans ht1.le, ht2⟩
+    have hne : g t ≠ x0 := fun h => absurd (hle t ⟨htI, h⟩) (not_le.2 ht1)
+    exact ⟨g t, hgtV, hgt, hint ⟨hgΓ t htI, hne⟩⟩
+  have hV : IsPreconnected (V1 ∪ Bs) := by
+    obtain ⟨y, hy1, hy2⟩ := hmeet
+    exact hV1.union y hy1 hy2 hBs
+  have hx1V : x1 ∈ V1 ∪ Bs := Or.inl ⟨1, ⟨ht01, le_rfl⟩, hg1⟩
+  have hVW : V1 ∪ Bs ⊆ connectedComponentIn (interior (support G)) x1 :=
+    hV.subset_connectedComponentIn hx1V (Set.union_subset hV1G hBsG)
+  have hT0G : T0 ∈ G := ⟨hT0, x0, hx0T0, hx0⟩
+  have hFG : F ∈ G := ⟨hF, x1, interior_subset hx1F, hx1Γ⟩
+  refine existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step3_dualChain hdisj hsts hGS hGfin isOpen_interior.connectedComponentIn
+    isPreconnected_connectedComponentIn ((connectedComponentIn_subset _ _).trans interior_subset)
+    hT0G hFG ?_ ⟨x1, hVW hx1V, hx1F⟩
+  have hcl : x0 ∈ closure (interior T0.carrier) := by rw [tile_regular]; exact hx0T0
+  obtain ⟨y, hyT0, hy⟩ := Metric.mem_closure_iff.1 hcl r hr
+  refine ⟨y, hVW (Or.inr ⟨?_, interior_mono (carrier_subset_support hT0) hyT0⟩), hyT0⟩
+  rw [Metric.mem_ball, dist_comm]; exact hy
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "list
+their crossed faces" — a chain of faces sharing whole sides, started at a face carrying the port side, is listed as a
+side sequence and a tile sequence. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_lists
+    {Q : Protoset} {S G : Set (PlacedTile Q)} (hGS : G ⊆ S) {good : Set Pt → Prop}
+    (hgood : ∀ X ∈ G, ∀ Y ∈ G, X ≠ Y → ∀ e, HasEdge X e → HasEdge Y e → good e)
+    {T0 : PlacedTile Q} {p : Set Pt} (hT0 : T0 ∈ S) (hp : HasEdge T0 p) {Z : PlacedTile Q}
+    (h : Relation.ReflTransGen (fun X Y => X ∈ G ∧ Y ∈ G ∧ SharesSide X Y) T0 Z) :
+    ∃ (sides : List (Set Pt)) (tiles : List (PlacedTile Q)), sides.head? = some p ∧
+      tiles.length = sides.length ∧ tiles.getLast? = some Z ∧
+      (∀ (k : ℕ) (X : PlacedTile Q) (e : Set Pt), tiles[k]? = some X → sides[k]? = some e →
+        X ∈ S ∧ HasEdge X e) ∧
+      (∀ (k : ℕ) (X : PlacedTile Q) (e : Set Pt), tiles[k]? = some X → sides[k + 1]? = some e →
+        HasEdge X e) ∧
+      (∀ (k : ℕ) (X Y : PlacedTile Q), tiles[k]? = some X → tiles[k + 1]? = some Y → X ≠ Y) ∧
+      (∀ e ∈ sides.tail, ∃ A ∈ S, ∃ B ∈ S, A ≠ B ∧ HasEdge A e ∧ HasEdge B e) ∧
+      (∀ e ∈ sides.tail, good e) := by
+  induction h with
+  | refl =>
+    refine ⟨[p], [T0], rfl, rfl, rfl, ?_, ?_, ?_, by simp, by simp⟩
+    · intro k X e hX he
+      rcases k with _ | k
+      · simp only [List.getElem?_cons_zero, Option.some.injEq] at hX he
+        subst hX; subst he; exact ⟨hT0, hp⟩
+      · simp at hX
+    · intro k X e hX he; simp at he
+    · intro k X Y hX hY; simp at hY
+  | @tail b c _ hbc ih =>
+    obtain ⟨sides, tiles, h1, h2, h3, h4, h5, h6, h7, h8⟩ := ih
+    obtain ⟨hbG, hcG, hne, e, hbe, hce⟩ := hbc
+    have hsne : sides ≠ [] := by rintro rfl; simp at h1
+    have hlast : tiles[sides.length - 1]? = some b := by
+      rw [← h2, ← List.getLast?_eq_getElem?]; exact h3
+    refine ⟨sides ++ [e], tiles ++ [c], ?_, by simp [h2], by simp, ?_, ?_, ?_, ?_, ?_⟩
+    · rw [List.head?_append, h1]; rfl
+    · intro k X e' hX he'
+      rw [List.getElem?_append] at hX he'
+      rw [h2] at hX
+      split_ifs at hX he' with hk
+      · exact h4 k X e' hX he'
+      · rw [List.getElem?_singleton] at hX he'
+        split_ifs at hX he' with hk'
+        simp only [Option.some.injEq] at hX he'
+        subst hX; subst he'
+        exact ⟨hGS hcG, hce⟩
+    · intro k X e' hX he'
+      rw [List.getElem?_append] at hX he'
+      rw [h2] at hX
+      by_cases hk1 : k + 1 < sides.length
+      · rw [if_pos hk1] at he'
+        rw [if_pos (by omega)] at hX
+        exact h5 k X e' hX he'
+      · rw [if_neg hk1, List.getElem?_singleton] at he'
+        split_ifs at he' with hk'
+        simp only [Option.some.injEq] at he'
+        subst he'
+        have hk : k = sides.length - 1 := by omega
+        rw [if_pos (by omega), hk, hlast] at hX
+        simp only [Option.some.injEq] at hX
+        subst hX; exact hbe
+    · intro k X Y hX hY
+      rw [List.getElem?_append, h2] at hX hY
+      by_cases hk1 : k + 1 < sides.length
+      · rw [if_pos hk1] at hY
+        rw [if_pos (by omega)] at hX
+        exact h6 k X Y hX hY
+      · rw [if_neg hk1, List.getElem?_singleton] at hY
+        split_ifs at hY with hk'
+        simp only [Option.some.injEq] at hY
+        subst hY
+        have hk : k = sides.length - 1 := by omega
+        rw [if_pos (by omega), hk, hlast] at hX
+        simp only [Option.some.injEq] at hX
+        subst hX; exact hne
+    · intro e' he'
+      rw [List.tail_append_of_ne_nil hsne, List.mem_append, List.mem_singleton] at he'
+      rcases he' with he' | rfl
+      · exact h7 e' he'
+      · exact ⟨b, hGS hbG, c, hGS hcG, hne, hbe, hce⟩
+    · intro e' he'
+      rw [List.tail_append_of_ne_nil hsne, List.mem_append, List.mem_singleton] at he'
+      rcases he' with he' | rfl
+      · exact h8 e' he'
+      · exact hgood b hbG c hcG hne e' hbe hce
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "list
+their crossed faces" — translating a family of placed tiles translates the union of their carriers. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_supportTranslate {Q : Protoset} (T : Set (PlacedTile Q)) (v : Pt) :
+    support (translateSet v T) = v +ᵥ support T := by
+  ext x
+  simp only [support, translateSet, Set.biUnion_image, Set.mem_iUnion, exists_prop, Set.vadd_set_iUnion]
+  constructor
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨A, hA, ?_⟩
+    simpa only [PlacedTile.translate, PlacedTile.carrier, vadd_eq_add, add_vadd] using hx
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨A, hA, ?_⟩
+    simpa only [PlacedTile.translate, PlacedTile.carrier, vadd_eq_add, add_vadd] using hx
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: "list
+their crossed faces" — the carrier of a mixed tile is the union of its scattered original faces. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_scatterCarrier (G : GroupedFamily P) (X : PlacedTile G.mixed) :
+    X.carrier = support (G.mixedScatterTile X) := by
+  obtain ⟨f, v⟩ := X
+  cases f with
+  | inl β =>
+    show v +ᵥ (G.P'.disk β).carrier = support (translateSet v (G.dissect β).tiles)
+    rw [existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_supportTranslate, G.support_eq β]
+  | inr q =>
+    show v +ᵥ (P.disk q).carrier = support ({⟨q, v⟩} : Set (PlacedTile P))
+    simp [support, PlacedTile.carrier]
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: the
+retained grouped children (the central child and the small neighbours) lie in the outside-anchored group `H`, so
+the faces met by a route avoiding `H` are original faces. -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_groupedSubH
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {X : PlacedTile Rs.GS.G.mixed}
+    (hX : X ∈ (Rs.retained l α).children.tiles) (hXg : ∃ β, X.form = Sum.inl β) :
+    X.carrier ⊆ (Rs.annulus l α hl).H.carrier := by
+  rw [existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_scatterCarrier]
+  by_cases hc : X = Rs.central l α
+  · subst hc
+    rw [Rs.central_scatter l α hl, ← (Rs.annulus l α hl).L.carrier_eq]
+    have hR : 0 ≤ Rs.R α := le_trans (by have := M.D_pos; positivity) (Rs.R_large α)
+    refine (Rs.annulus l α hl).L_upper.trans (Set.Subset.trans ?_ (Rs.annulus l α hl).H_lower)
+    exact Set.add_subset_add (rg_square_mono (by linarith)) (rg_binf_mono (by linarith [M.D_pos]))
+  · obtain ⟨j, hj⟩ := Rs.small_scatter l α hl X hX hc hXg
+    rw [hj]
+    intro x hx
+    obtain ⟨Y, hY, hxY⟩ := mem_support_iff'.1 hx
+    show x ∈ (Rs.annulus l α hl).H.disk.carrier
+    rw [(Rs.annulus l α hl).H.carrier_eq]
+    exact mem_support_iff'.2 ⟨Y, (((Rs.annulus l α hl).spokes.piece_sub j) hY).1, hxY⟩
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`: every
+point of the outside-anchored group `H` lies in a retained child contained in `H` (the central child or a small
+neighbour scattering to an annular piece). -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_coverH
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {q : Pt} (hq : q ∈ (Rs.annulus l α hl).H.carrier) :
+    ∃ Z ∈ (Rs.retained l α).children.tiles, q ∈ Z.carrier ∧ Z.carrier ⊆ (Rs.annulus l α hl).H.carrier := by
+  have hq' : q ∈ support (Rs.annulus l α hl).H.faces := by
+    rw [← (Rs.annulus l α hl).H.carrier_eq]; exact hq
+  obtain ⟨Y, hY, hqY⟩ := mem_support_iff'.1 hq'
+  by_cases hYL : Y ∈ (Rs.annulus l α hl).L.faces
+  · refine ⟨Rs.central l α, Rs.central_mem l α, ?_,
+      existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_groupedSubH τ M Rs l hl α (Rs.central_mem l α) ⟨_, Rs.central_form l α⟩⟩
+    rw [existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_scatterCarrier, Rs.central_scatter l α hl]
+    exact mem_support_iff'.2 ⟨Y, hYL, hqY⟩
+  · obtain ⟨j, hj, -⟩ :=
+      ((Rs.annulus l α hl).spokes.piece_partition Y ((Rs.annulus l α hl).H.faces_sub hY)).1 ⟨hY, hYL⟩
+    obtain ⟨Z, hZ, -, hZj⟩ := Rs.piece_child l α hl j
+    refine ⟨Z, hZ, ?_, ?_⟩
+    · rw [existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_scatterCarrier, hZj]; exact mem_support_iff'.2 ⟨Y, hj, hqY⟩
+    · rw [existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_scatterCarrier, hZj]
+      intro x hx
+      obtain ⟨Y', hY', hxY'⟩ := mem_support_iff'.1 hx
+      show x ∈ (Rs.annulus l α hl).H.disk.carrier
+      rw [(Rs.annulus l α hl).H.carrier_eq]
+      exact mem_support_iff'.2 ⟨Y', (((Rs.annulus l α hl).spokes.piece_sub j) hY').1, hxY'⟩
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb`:
+"Consecutive faces share whole sides" — a side shared by two distinct retained children that both meet a route
+avoiding `H` lies within `2D` of the route (both children are original faces of diameter at most `D`) and is not
+contained in `H` (a third child inside `H` cannot contain a relative interior point of a side of two children). -/
+private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step3_sideGood
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {Γ : Set Pt} (hH : Disjoint Γ (Rs.annulus l α hl).H.carrier)
+    {X Y : PlacedTile Rs.GS.G.mixed} (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hY : Y ∈ (Rs.retained l α).children.tiles) (hXY : X ≠ Y) (hXΓ : (X.carrier ∩ Γ).Nonempty)
+    (hYΓ : (Y.carrier ∩ Γ).Nonempty) {e : Set Pt} (hXe : HasEdge X e) (hYe : HasEdge Y e) :
+    e ⊆ Metric.cthickening (2 * M.D) Γ ∧ (e \ (Rs.annulus l α hl).H.carrier).Nonempty := by
+  have hdisj := (Rs.retained l α).children.disjoint
+  have hnotH : ∀ Z ∈ (Rs.retained l α).children.tiles, (Z.carrier ∩ Γ).Nonempty →
+      ¬ Z.carrier ⊆ (Rs.annulus l α hl).H.carrier := by
+    rintro Z - ⟨x, hxZ, hxΓ⟩ hZH
+    exact Set.disjoint_left.1 hH hxΓ (hZH hxZ)
+  obtain ⟨i, hi⟩ := hXe
+  obtain ⟨j, hj⟩ := hYe
+  refine ⟨?_, ?_⟩
+  · obtain ⟨q, hq⟩ : ∃ q, X.form = Sum.inr q := by
+      rcases hXf : X.form with β | q
+      · exact absurd (existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_groupedSubH τ M Rs l hl α hX ⟨β, hXf⟩) (hnotH X hX hXΓ)
+      · exact ⟨q, rfl⟩
+    obtain ⟨x0, hx0X, hx0Γ⟩ := hXΓ
+    intro y hy
+    rw [← hi] at hy
+    have hyX : y ∈ X.carrier := tile_side_subset X i hy
+    apply Metric.mem_cthickening_of_dist_le y x0 _ _ hx0Γ
+    have hdist : dist y x0 ≤ M.D := by
+      obtain ⟨X0, Xa⟩ := X
+      simp only at hq
+      subst hq
+      obtain ⟨u, hu, rfl⟩ := hyX
+      obtain ⟨w, hw, rfl⟩ := hx0X
+      rw [dist_vadd_cancel_left]
+      exact (Metric.dist_le_diam_of_mem (P.disk q).compact.isBounded hu hw).trans (M.diam_le q)
+    linarith [M.D_pos]
+  · by_contra hne
+    rw [Set.not_nonempty_iff_eq_empty, Set.diff_eq_empty] at hne
+    set a := X.vertex i with ha
+    set d := X.vertex (finRotate _ i) - X.vertex i with hd
+    have hdn : d ≠ 0 := sub_ne_zero.2 (tile_vertex_ne_next X i).symm
+    have hm : a + (1 / 2 : ℝ) • d ∈ openSegment ℝ (X.vertex i) (X.vertex (finRotate _ i)) :=
+      mem_openSegment_iff'.2 ⟨1 / 2, by norm_num, by norm_num, rfl⟩
+    have hmH : a + (1 / 2 : ℝ) • d ∈ (Rs.annulus l α hl).H.carrier := by
+      apply hne; rw [← hi]; exact openSeg_mem_side X i hm
+    obtain ⟨Z, hZ, hmZ, hZH⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_coverH τ M Rs l hl α hmH
+    have hZX : Z ≠ X := fun h => hnotH X hX hXΓ (h ▸ hZH)
+    have hZY : Z ≠ Y := fun h => hnotH Y hY hYΓ (h ▸ hZH)
+    obtain ⟨r, hr, σ, hσ, hch⟩ := two_sides hdisj hX hY hXY i j (hj.trans hi.symm) hm
+    have hcl : a + (1 / 2 : ℝ) • d ∈ closure (interior Z.carrier) := by rw [tile_regular]; exact hmZ
+    obtain ⟨z1, hz1, hz1d⟩ := Metric.mem_closure_iff.1 hcl r hr
+    obtain ⟨ε, hε, hεZ⟩ := Metric.isOpen_iff.1 isOpen_interior z1 hz1
+    have hz1b : z1 ∈ Metric.ball (a + (1 / 2 : ℝ) • d) r := by
+      rw [Metric.mem_ball, dist_comm]; exact hz1d
+    by_cases hneg : σ * jcr d (z1 - a) < 0
+    · exact interiors_disjoint hdisj hZ hY hZY hz1 ((hch z1 hz1b).2.1 hneg)
+    · push_neg at hneg
+      obtain ⟨y, hy, hyc⟩ := exists_near_off_line a hdn z1 hσ
+        (lt_min hε (sub_pos.2 hz1d) : 0 < min ε (r - dist (a + (1 / 2 : ℝ) • d) z1))
+      have hyZ : y ∈ interior Z.carrier := hεZ (by
+        rw [Metric.mem_ball, dist_comm]; exact lt_of_lt_of_le hy (min_le_left _ _))
+      have hyb : y ∈ Metric.ball (a + (1 / 2 : ℝ) • d) r := by
+        rw [Metric.mem_ball]
+        have h1 := lt_of_lt_of_le hy (min_le_right _ _)
+        calc dist y (a + (1 / 2 : ℝ) • d) ≤ dist y z1 + dist z1 (a + (1 / 2 : ℝ) • d) := dist_triangle _ _ _
+          _ < r := by
+            have e1 := dist_comm y z1
+            have e2 := dist_comm z1 (a + (1 / 2 : ℝ) • d)
+            linarith
+      exact interiors_disjoint hdisj hZ hX hZX hyZ ((hch y hyb).1 (lt_of_le_of_lt hneg hyc))
+
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route`: "Finally
 perturb the routes away from the finite original vertices and list their crossed faces.  Consecutive
 faces share whole sides." -/
@@ -21186,7 +21975,34 @@ private lemma existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb
     (hint : γ.carrier \ {γ.start} ⊆ interior (Rs.retained l α).region)
     (hH : Disjoint γ.carrier (Rs.annulus l α hl).H.carrier) (hstop : γ.stop ∈ interior F.carrier) :
     Nonempty (existsRoutingAfterPower_step5_discretize_step1_route_RawData τ M Rs l hl α p F γ) := by
-  sorry
+  -- neither the STS hypothesis nor the original form of `F` is needed for this step
+  have _ := hτ
+  have _ := hFo
+  classical
+  have hdisj := (Rs.retained l α).children.disjoint
+  have hsts := (Rs.retained l α).sts
+  have hfin := (Rs.retained l α).children.finite
+  have hsupp : support (Rs.retained l α).children.tiles = (Rs.retained l α).region :=
+    (Rs.retained l α).support_eq
+  obtain ⟨⟨T0, hT0, i0, hT0p⟩, hpfr⟩ := hp
+  have hstartfr : γ.start ∈ frontier (Rs.retained l α).region := hpfr hstart
+  have hstarti : γ.start ∉ interior (support (Rs.retained l α).children.tiles) := by
+    rw [hsupp]; exact fun h => hstartfr.2 h
+  have hθ : 0 < τ.θ ^ (Rs.GS.k * l) := pow_pos (by linarith [τ.one_lt]) _
+  have hloc := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_localConnScaled (Rs.GS.G.P'.disk α) hθ (z := γ.start)
+    (by rw [← Rs.region_eq]; exact hstartfr)
+  rw [← Rs.region_eq, ← hsupp] at hloc
+  rw [← hsupp] at hint
+  have hJ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined γ
+  have hT0s : γ.start ∈ T0.carrier := tile_side_subset T0 i0 (by rw [hT0p]; exact hstart)
+  have hchain := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_chain hdisj hsts hfin hJ hint hstarti hloc hT0 hT0s hF hstop
+  obtain ⟨sides, tiles, h1, h2, h3, h4, h5, h6, h7, h8⟩ := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_lists (fun X hX => hX.1)
+    (good := fun e => e ⊆ Metric.cthickening (2 * M.D) γ.carrier ∧
+      (e \ (Rs.annulus l α hl).H.carrier).Nonempty)
+    (fun X hX Y hY hXY e hXe hYe =>
+      existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step3_sideGood τ M Rs l hl α hH hX.1 hY.1 hXY hX.2 hY.2 hXe hYe)
+    hT0 ⟨i0, hT0p⟩ hchain
+  exact ⟨⟨sides, tiles, h1, h2, h3, h4, h5, h6, h7, h8⟩⟩
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step5_discretize_step1_route_step2_erase`: "Erase
 repeated-face loops while preserving the first port face and final outside-anchored face."  One

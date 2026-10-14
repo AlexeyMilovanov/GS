@@ -5637,7 +5637,11 @@ private lemma existsAnnularSpokes_step6_cut_step2_faces_conn (A : PlacedTile P) 
 
 /-- Step 2c of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Nonemptiness of interior of tile. -/
 private lemma existsAnnularSpokes_step6_cut_step2_faces_ne (A : PlacedTile P) :
-    (interior A.carrier).Nonempty := by sorry
+    (interior A.carrier).Nonempty := by
+  have hd : A.carrier = (fun x => A.anchor +ᵥ x) '' (P.disk A.form).carrier := rfl
+  have ha : (fun x => A.anchor +ᵥ x) = ⇑(Homeomorph.addLeft A.anchor) := rfl
+  rw [hd, ha, ← Homeomorph.image_interior]
+  exact Set.Nonempty.image ⇑(Homeomorph.addLeft A.anchor) (P.disk A.form).interior_nonempty
 
 /-- Step 2d of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Sub-H. -/
 private lemma existsAnnularSpokes_step6_cut_step2_faces_sub_H {S : Set (PlacedTile P)} (L H : FaceGroup S) {A : PlacedTile P}

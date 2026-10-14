@@ -1595,12 +1595,127 @@ private lemma strictLegal_properties_step3_child_legal (A : StrictDecTile C hC)
     ∀ B, IsStrictChildOf C hC A B → StrictLegal C hC B := by
   sorry
 
+private theorem strictLegal_properties_step4_boundary_step1_print_not_boundary_seg_endpoints
+    {a b c d : Pt} (hab : a ≠ b) (h : segment ℝ a b = segment ℝ c d) :
+    (c = a ∧ d = b) ∨ (c = b ∧ d = a) := by
+  have mem_segment_iff' {x y z : Pt} :
+      z ∈ segment ℝ x y ↔ ∃ t : ℝ, 0 ≤ t ∧ t ≤ 1 ∧ z = x + t • (y - x) := by
+    rw [segment_eq_image']
+    constructor
+    · rintro ⟨t, ⟨ht0, ht1⟩, rfl⟩
+      exact ⟨t, ht0, ht1, rfl⟩
+    · rintro ⟨t, ht0, ht1, rfl⟩
+      exact ⟨t, ⟨ht0, ht1⟩, rfl⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [mem_segment_iff'] at hc hd ha hb
+  obtain ⟨s, hs0, hs1, rfl⟩ := hc
+  obtain ⟨t, ht0, ht1, rfl⟩ := hd
+  obtain ⟨α, ha0, ha1, hα⟩ := ha
+  obtain ⟨β, hb0, hb1, hβ⟩ := hb
+  have hu : b - a ≠ 0 := sub_ne_zero.2 hab.symm
+  have k1 : a + s • (b - a) + α • (a + t • (b - a) - (a + s • (b - a))) =
+      a + (s + α * (t - s)) • (b - a) := by module
+  have k2 : a + s • (b - a) + β • (a + t • (b - a) - (a + s • (b - a))) =
+      a + (s + β * (t - s)) • (b - a) := by module
+  rw [k1] at hα
+  rw [k2] at hβ
+  have e1 : (0 : ℝ) • (b - a) = (s + α * (t - s)) • (b - a) := by
+    rw [zero_smul]
+    exact (add_eq_left.1 hα.symm).symm
+  have e2 : (1 : ℝ) • (b - a) = (s + β * (t - s)) • (b - a) := by
+    rw [one_smul]
+    have h' : a + (b - a) = a + (s + β * (t - s)) • (b - a) := by
+      rw [← hβ]
+      abel
+    exact add_left_cancel h'
+  have f1 := smul_left_injective ℝ hu e1
+  have f2 := smul_left_injective ℝ hu e2
+  have key : (s = 0 ∧ t = 1) ∨ (s = 1 ∧ t = 0) := by
+    have h3 : s * (1 - α) = 0 := by
+      nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+    have h4 : α * t = 0 := by
+      nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+    rcases mul_eq_zero.1 h3 with h3 | h3
+    · subst h3
+      have h' : β * t = 1 := by linarith
+      left
+      refine ⟨rfl, ?_⟩
+      nlinarith
+    · have hα1 : α = 1 := by linarith
+      subst hα1
+      have ht : t = 0 := by linarith
+      subst ht
+      right
+      refine ⟨?_, rfl⟩
+      nlinarith
+  rcases key with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · left
+    constructor <;> simp
+  · right
+    constructor <;> simp
+
 /-- Step 1 of the blueprint proof of `strictLegal_properties_step4_boundary`: a print side is
 strictly internal to its template and therefore cannot be a boundary side. -/
 private lemma strictLegal_properties_step4_boundary_step1_print_not_boundary
     (C : Geometry.MacroCertificate P) (o : C.SideOcc) (h_print : C.IsPrint o) :
     ¬ C.IsBoundary o := by
-  sorry
+  obtain ⟨d, hpd⟩ := h_print
+  let α : C.Q.Form := C.owner o.1
+  change C.marked α d ∧ (o = C.printOcc α d ∨ o = C.partner (C.printOcc α d)) at hpd
+  rcases hpd with ⟨hmarked, hprint | hpartner⟩
+  · rw [hprint]
+    exact (C.g2_central α (C.print α d)).2
+  · have hprint_inner := C.g4_print_inner α d hmarked
+    obtain ⟨_hneq, howner, hside⟩ := C.g1_partner (C.printOcc α d) hprint_inner
+    intro hboundary
+    rw [hpartner] at hboundary
+    unfold MacroData.IsBoundary at hboundary
+    have howner_print : C.owner (C.printOcc α d).1 = α := by
+      change C.owner (C.central α) = α
+      exact C.g5_central_owner α
+    rw [howner, howner_print] at hboundary
+    have hboundary_print : C.IsBoundary (C.printOcc α d) := by
+      unfold MacroData.IsBoundary
+      rw [howner_print]
+      refine ⟨hprint_inner, ?_⟩
+      have hne : C.occStart (C.printOcc α d) ≠ C.occEnd (C.printOcc α d) := by
+        intro hend
+        have hvertex :
+            (C.Q.disk (C.form (C.printOcc α d).1)).vertex (C.printOcc α d).2 =
+              (C.Q.disk (C.form (C.printOcc α d).1)).vertex
+                (finRotate _ (C.printOcc α d).2) := by
+          exact vadd_left_cancel (C.anchor (C.printOcc α d).1) hend
+        have hindex := (C.Q.disk (C.form (C.printOcc α d).1)).vertex_injective hvertex
+        exact finRotate_ne_self
+          (by have := (C.Q.disk (C.form (C.printOcc α d).1)).three_le; omega)
+          (C.printOcc α d).2 hindex.symm
+      have hside' :
+          segment ℝ (C.occStart (C.printOcc α d)) (C.occEnd (C.printOcc α d)) =
+            segment ℝ (C.occStart (C.partner (C.printOcc α d)))
+              (C.occEnd (C.partner (C.printOcc α d))) := by
+        simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+          PolygonalDisk.side, MacroData.occStart, MacroData.occEnd, vadd_segment] using hside.symm
+      have hends :=
+        strictLegal_properties_step4_boundary_step1_print_not_boundary_seg_endpoints hne hside'
+      rcases hboundary.2 with hstart | hend
+      · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+        · left
+          rw [← h1]
+          exact hstart
+        · right
+          rw [← h1]
+          exact hstart
+      · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+        · right
+          rw [← h2]
+          exact hend
+        · left
+          rw [← h2]
+          exact hend
+    exact (C.g2_central α (C.print α d)).2 hboundary_print
 
 /-- Step 4 of the blueprint proof of `strictLegal_properties`: a boundary fourth cell of a
 generated child is the header of its parent. -/

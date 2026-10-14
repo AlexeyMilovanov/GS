@@ -5094,6 +5094,150 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_list_lemma
 
       exact List.Forall₂.cons ha_eq_b (ih L₂' hs₁' hs₂' h_fwd' h_bwd' len_eq)
 
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_endpoints
+    {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h.symm ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h.symm ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hc hd ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+  obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+  simp only at hu hw
+  have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+    have he : a + s • (b - a) + u •
+        (a + t • (b - a) - (a + s • (b - a))) - a =
+        (s + u * (t - s)) • (b - a) := by
+      module
+    rw [← he, hu, sub_self]
+  have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+    have he : a + s • (b - a) + w •
+        (a + t • (b - a) - (a + s • (b - a))) - b =
+        (s + w * (t - s) - 1) • (b - a) := by
+      module
+    rw [← he, hw, sub_self]
+  have f1 := (smul_eq_zero.1 e1).resolve_right hv
+  have f2 := (smul_eq_zero.1 e2).resolve_right hv
+  rcases lt_trichotomy s t with hst | hst | hst
+  · have hs : s = 0 := by nlinarith
+    subst hs
+    have ht : t = 1 := by nlinarith
+    subst ht
+    left
+    constructor <;> simp
+  · subst hst
+    simp at f1 f2
+    linarith
+  · have ht : t = 0 := by nlinarith
+    subst ht
+    have hs : s = 1 := by nlinarith
+    subst hs
+    right
+    constructor <;> simp
+
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_dir_ne
+    (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    c.macroSideDir α d ≠ 0 := by
+  have hθ : c.σ.θ ≠ 0 := by
+    linarith [c.σ.one_lt]
+  have hv : (c.Q.disk α).vertex (finRotate _ d) ≠
+      (c.Q.disk α).vertex d := by
+    intro h
+    apply asm_finRotate_ne _ (c.Q.disk α).three_le d
+    exact (c.Q.disk α).vertex_injective h
+  have hdiff : c.σ.θ • (c.Q.disk α).vertex (finRotate _ d) -
+      c.σ.θ • (c.Q.disk α).vertex d ≠ 0 := by
+    rw [← smul_sub]
+    exact smul_ne_zero hθ (sub_ne_zero.2 hv)
+  unfold MacroData.macroSideDir MacroData.posDir
+  split_ifs with hp
+  · exact hdiff
+  · intro h
+    apply hdiff
+    rw [← neg_sub, h, neg_zero]
+
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_scaled_ne
+    (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    c.σ.θ • (c.Q.disk α).vertex (finRotate _ d) -
+        c.σ.θ • (c.Q.disk α).vertex d ≠ 0 := by
+  have hθ : c.σ.θ ≠ 0 := by
+    linarith [c.σ.one_lt]
+  have hv : (c.Q.disk α).vertex (finRotate _ d) ≠
+      (c.Q.disk α).vertex d := by
+    intro h
+    apply asm_finRotate_ne _ (c.Q.disk α).three_le d
+    exact (c.Q.disk α).vertex_injective h
+  rw [← smul_sub]
+  exact smul_ne_zero hθ (sub_ne_zero.2 hv)
+
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_pos_dir_eq
+    (c : MacroCertificate P) {u v u' v' : Pt}
+    (h : v' - u' = v - u ∨ v' - u' = -(v - u)) (hne : v - u ≠ 0) :
+    c.posDir u' v' = c.posDir u v := by
+  unfold MacroData.posDir
+  have h₁ : u' - v' = -(v' - u') := by abel
+  have h₂ : u - v = -(v - u) := by abel
+  rw [h₁, h₂]
+  rcases h with h | h
+  · rw [h]
+  · rw [h, neg_neg]
+    by_cases hp : c.IsPositive (v - u)
+    · rw [if_pos hp, if_neg ((c.g3_pos_iff _ hne).1 hp)]
+    · rw [if_neg hp, if_pos (by
+        by_contra hn
+        exact hp ((c.g3_pos_iff _ hne).2 hn))]
+
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_dir_eq
+    (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T)
+    (j j' : part.ι) (d : Fin (c.Q.disk (part.block j).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
+    c.macroSideDir (part.block j').α e = c.macroSideDir (part.block j).α d := by
+  have hs := ac2_macro_vadd (part.block j) d
+  have hs' := ac2_macro_vadd (part.block j') e
+  rw [hs, hs'] at hmacro
+  unfold MacroData.macroSideDir
+  rcases alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_endpoints
+      hmacro with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
+  · apply alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_pos_dir_eq c
+    · left
+      have hh :
+        ((part.block j').v + c.σ.θ • (c.Q.disk (part.block j').α).vertex
+            (finRotate _ e)) -
+          ((part.block j').v + c.σ.θ • (c.Q.disk (part.block j').α).vertex e) =
+        ((part.block j).v + c.σ.θ • (c.Q.disk (part.block j).α).vertex
+            (finRotate _ d)) -
+          ((part.block j).v + c.σ.θ • (c.Q.disk (part.block j).α).vertex d) := by
+        rw [h₁, h₂]
+      simpa [add_sub_add_left_eq_sub] using hh
+    · exact alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_scaled_ne
+        c (part.block j).α d
+  · apply alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_pos_dir_eq c
+    · right
+      have hh :
+        ((part.block j').v + c.σ.θ • (c.Q.disk (part.block j').α).vertex
+            (finRotate _ e)) -
+          ((part.block j').v + c.σ.θ • (c.Q.disk (part.block j').α).vertex e) =
+        ((part.block j).v + c.σ.θ • (c.Q.disk (part.block j).α).vertex d) -
+          ((part.block j).v + c.σ.θ • (c.Q.disk (part.block j).α).vertex
+            (finRotate _ d)) := by
+        rw [h₁, h₂]
+      simpa [add_sub_add_left_eq_sub] using hh
+    · exact alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_scaled_ne
+        c (part.block j).α d
+
 /-- Step 1 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
 Both lists are sorted under the inner product with the macro side direction. -/
 private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted
@@ -5113,7 +5257,35 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sort
     (c.outerList (part.block j').α e).Pairwise (fun a b =>
       @inner ℝ _ _ w ((part.block j').v + c.occMid a) <
         @inner ℝ _ _ w ((part.block j').v + c.occMid b)) := by
-  sorry
+  have _ := hH
+  have _ := hT
+  have _ := hL
+  have _ := hneq
+  have _ := hrank
+  have _ := hmode
+  have _ := hlen
+  dsimp
+  let w := c.macroSideDir (part.block j).α d
+  have hw : w ≠ 0 :=
+    alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_dir_ne
+      c (part.block j).α d
+  have hwe : c.macroSideDir (part.block j').α e = w := by
+    exact alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_dir_eq
+      c T part j j' d e hmacro
+  refine ⟨(c.g3_outerList_sorted _ d).imp ?_, (c.g3_outerList_sorted _ e).imp ?_⟩
+  · intro a b ⟨r, hr, hro⟩
+    rw [← sub_pos, ← inner_sub_right, add_sub_add_left_eq_sub, hro,
+      inner_smul_right, real_inner_self_eq_norm_sq]
+    have hp := mul_pos hr (pow_pos (norm_pos_iff.2 hw) 2)
+    simpa [real_inner_comm] using hp
+  · intro a b ⟨r, hr, hro⟩
+    have hrw : c.occMid b - c.occMid a = r • w := by
+      rw [← hwe]
+      exact hro
+    rw [← sub_pos, ← inner_sub_right, add_sub_add_left_eq_sub, hrw,
+      inner_smul_right, real_inner_self_eq_norm_sq]
+    have hp := mul_pos hr (pow_pos (norm_pos_iff.2 hw) 2)
+    simpa [real_inner_comm] using hp
 
 /-- Step 2 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
 Forward trace maps children on the macroside correctly preserving geometry. -/

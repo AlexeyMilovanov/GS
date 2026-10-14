@@ -1541,6 +1541,19 @@ private lemma boundary_header_constant_step4_belt_eq_step2_edge_step1_symm (c : 
     · right; rw [hend]; exact hkv
     · left; rw [hstart]; exact hkv
 
+private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_vadd_cancel
+    (a : Pt) {S T : Set Pt} (h : a +ᵥ S = a +ᵥ T) : S = T := sorry
+
+private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_childSide
+    (c : MacroCertificate P) (K : ColouredBlock c) (o : c.SideOcc) :
+    K.childSide o = K.v +ᵥ c.occSide o := sorry
+
+private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_boundary_active
+    (c : MacroCertificate P) (A : DecTile c) (hA : headerLegal c A)
+    (i : c.Side A.typ) (hi : c.IsInner (c.occ A.typ i))
+    (hb : c.IsBoundary (c.occ A.typ i)) :
+    IsNontrivial c A i := sorry
+
 /-- Step 2.2 of the blueprint proof of `boundary_header_constant_step4_belt_eq_step2_edge`:
 if a boundary side of `u` coincides with a side of `v`, the fourth colors match by properness. -/
 private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop (c : MacroCertificate P)
@@ -1550,7 +1563,36 @@ private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop (c : 
     (hk_bound : c.IsBoundary (c.occ u.1 k))
     (h_side_eq : c.occSide (c.occ u.1 k) = c.occSide (c.occ v.1 l))
     (h_u_neq_v : u.1 ≠ v.1) :
-    K.col u.1 k 3 = K.col v.1 l 3 := sorry
+    K.col u.1 k 3 = K.col v.1 l 3 := by
+  have hu_nc : u.1 ≠ c.central K.α := by
+    intro hu
+    have h_not_bdry := (c.g2_central K.α (cast (congrArg (fun t => c.Side t) hu) k)).2
+    have h1 : (c.occ u.1 k : c.SideOcc) = c.occ (c.central K.α) (cast (congrArg (fun t => c.Side t) hu) k) := by
+      obtain ⟨tu, htu⟩ := u
+      dsimp only at hu
+      subst hu
+      rfl
+    rw [h1] at hk_bound
+    exact h_not_bdry hk_bound
+  have hu_leg : headerLegal c (K.tileOf u.1) := hK.2 u.1 u.2.1 hu_nc
+  have hk_act : IsNontrivial c (K.tileOf u.1) k :=
+    boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_boundary_active
+      c (K.tileOf u.1) hu_leg k hk_bound.1 hk_bound
+  obtain ⟨t', j, hown', htne, hside, hcol⟩ := hK.1 u.1 k u.2.1 hk_bound.1 hk_act
+  have h_childSide_t : K.childSide (c.occ t' j) = K.v +ᵥ c.occSide (c.occ t' j) :=
+    boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_childSide c K (c.occ t' j)
+  have h_childSide_u : K.childSide (c.occ u.1 k) = K.v +ᵥ c.occSide (c.occ u.1 k) :=
+    boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_childSide c K (c.occ u.1 k)
+  rw [h_childSide_t, h_childSide_u] at hside
+  have h_occSide_eq : c.occSide (c.occ t' j) = c.occSide (c.occ u.1 k) :=
+    boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_vadd_cancel K.v hside
+  have h_eq_t : c.occ t' j = c.partner (c.occ u.1 k) :=
+    c.g1_side_unique (c.occ u.1 k) (c.occ t' j) hk_bound.1 (hown'.trans u.2.1.symm) htne h_occSide_eq
+  have h_eq_v : c.occ v.1 l = c.partner (c.occ u.1 k) :=
+    c.g1_side_unique (c.occ u.1 k) (c.occ v.1 l) hk_bound.1 (v.2.1.trans u.2.1.symm) h_u_neq_v.symm h_side_eq.symm
+  have h_t_v : (c.occ t' j : c.SideOcc) = (c.occ v.1 l : c.SideOcc) := by rw [h_eq_t, h_eq_v]
+  have heq : K.col t' j 3 = K.col v.1 l 3 := congrArg (fun p : c.SideOcc => K.col p.1 p.2 3) h_t_v
+  exact (hcol 3).symm.trans heq
 
 /-- Step 2 of the blueprint proof of `boundary_header_constant_step4_belt_eq`: a belt edge
 transfers fourth-colour equality between its two incident tiles. -/

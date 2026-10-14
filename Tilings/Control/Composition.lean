@@ -5054,6 +5054,18 @@ private lemma recon_exists_type (c : MacroCertificate P) (T : PlaneTiling (typed
   rw [← h]
   exact c.g5_central_owner _
 
+/-- Step 1 of the blueprint proof of
+`composed_proper_step1_reconstruction_step1_headers`: the block is a `BlockContext` --
+properness follows by matching active sides with `hT` and `asm_match`, while every noncentral
+child is legal by `hL`. -/
+private lemma composed_proper_step1_reconstruction_step1_headers_step1_block_context {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (part : MacroPartition c T) (j : part.ι) :
+    BlockContext c (part.block j) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `composed_proper_step1_reconstruction`: every block of the
 assembled partition of a proper legal tiling has a common boundary header
 (`lem:comp/boundary-header`): the block is a `BlockContext` -- a proper realization whose
@@ -5064,7 +5076,9 @@ private lemma composed_proper_step1_reconstruction_step1_headers (c : MacroCerti
     (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T) (j : part.ι) :
     ∃ h : HeaderKernel.Header c.Typ c.Side, CommonHeader c (part.block j) h := by
-  sorry
+  exact boundary_header_constant c hH (part.block j)
+    (composed_proper_step1_reconstruction_step1_headers_step1_block_context
+      c hH T hT hL part j)
 
 /-- Step 1 of the blueprint proof of `composed_proper`: reconstruction gives a plane tiling.
 ("Assembly partitions the plane into the macroblocks.  Their underlying polygons are scaled

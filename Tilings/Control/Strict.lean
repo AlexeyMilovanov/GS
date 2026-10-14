@@ -3221,7 +3221,39 @@ private theorem strict_macroblock_is_decomposition_step1_noncentral_step2_prints
     ∀ i : C.Side t,
       C.IsPrint (C.occ t i) →
         ∀ j : Fin 5, (K.tileOf t).cell i j = (strictChild C hC (strictReconstruct C hC K h.1) t).cell i j := by
-  sorry
+  intro i hp j
+  have hDform : C.owner t = C.form h.1 := ht_owner.trans hh.1.symm
+  obtain ⟨d, hdm, ho⟩ := (rhe_isPrint_iff C hDform i).mp hp
+  have hpartner : C.occ t i = C.partner (C.printOcc (C.form h.1) d) := by
+    rcases ho with hprint | hpartner
+    · exfalso
+      apply ht_nc
+      exact (congrArg Sigma.fst hprint).trans (congrArg C.central hh.1)
+    · exact hpartner
+  have hDowner : C.owner t = C.form (strictReconstruct C hC K h.1).typ :=
+    strict_macroblock_is_decomposition_step1_noncentral_step1_owner C hC K hK h hh t
+      ht_owner ht_nc
+  change K.col t i j = _
+  by_cases hk : j = 4
+  · obtain ⟨F, hFown, hX, -, -⟩ := rhe_parent C hC _ (hK.2 t ht_owner ht_nc)
+    obtain ⟨dF, hdF⟩ := (rhe_isPrint_iff C hFown i).mp hp
+    have hleft : K.col t i 4 = identSU C hC (C.edge (C.occ t i)) := by
+      rw [rhe_tile_cell C hC K t F hX i 4]
+      exact ((strictChild_cells C hC F t hFown i).1 dF hdF).2
+    have hright :
+        (strictChild C hC (strictReconstruct C hC K h.1) t).cell i 4 =
+          identSU C hC (C.edge (C.occ t i)) :=
+      ((strictChild_cells C hC (strictReconstruct C hC K h.1) t hDowner i).1 d
+        ⟨hdm, Or.inr hpartner⟩).2
+    rw [hk]
+    exact hleft.trans hright.symm
+  · have hrec :=
+      (strict_path_and_print_recovery C hC K hK h hh).2 d hdm j hk
+    rw [← hpartner] at hrec
+    have hchild :=
+      ((strictChild_cells C hC (strictReconstruct C hC K h.1) t hDowner i).1 d
+        ⟨hdm, Or.inr hpartner⟩).1 j hk
+    exact hrec.trans hchild.symm
 
 /-- Step 1 of the blueprint proof of `strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints`: nonprints are correct for origin cells. -/
 private lemma strict_macroblock_is_decomposition_step1_noncentral_step3_nonprints_aux1_origin

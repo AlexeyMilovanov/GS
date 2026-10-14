@@ -2578,13 +2578,172 @@ theorem strict_reconstructed_header_eq (K : StrictBlock C hC) (hK : StrictBlockC
 
 /-- Step 1 of the blueprint proof of `strict_path_and_print_recovery`: every nonprint
 third signal on a path equals the corresponding reconstructed parent cell. -/
+private lemma strict_path_and_print_recovery_step1_signals_aux1
+    (C : MacroCertificate P)
+    {α : C.Q.Form} {d : Fin (C.Q.disk α).n} {j : Fin 5}
+    (hG : C.IsGenuinePath α d j) {o : C.SideOcc}
+    (ho : o ∈ C.path α d j) (hp : C.IsPrint o) :
+    o = C.partner (C.printOcc α d) := by
+  have hown : C.owner o.1 = α := C.g4_path_owner α d j o ho
+  have hp' : ∃ e : Fin (C.Q.disk α).n, C.IsPrintOf α e o := by
+    unfold MacroData.IsPrint at hp
+    rwa [hown] at hp
+  obtain ⟨e, hme, hcase⟩ := hp'
+  rcases hcase with rfl | rfl
+  · exact absurd rfl (C.g4_path_not_central α d j hG _ ho)
+  · by_cases hde : e = d
+    · rw [hde]
+    · exfalso
+      have hlast : (C.path α e 0).getLast? =
+          some (C.partner (C.printOcc α e)) := C.g4_path_last α e 0 ⟨hme, by decide⟩
+      rw [List.getLast?_eq_getElem?] at hlast
+      have hterm : C.partner (C.printOcc α e) ∈ C.path α e 0 :=
+        List.mem_of_getElem? hlast
+      have hne' : (d, j) ≠ (e, (0 : Fin 5)) :=
+        fun heq => hde (congrArg Prod.fst heq).symm
+      obtain ⟨hde', -⟩ := C.g4_path_disjoint α d e j 0 hne' _ ho hterm
+      exact hde hde'.symm
+
+/-- Step 2 of the blueprint proof of `strict_path_and_print_recovery_step1_signals`:
+only the final position of a genuine path can carry a print occurrence. -/
+private lemma strict_path_and_print_recovery_step1_signals_aux2
+    (C : MacroCertificate P)
+    {α : C.Q.Form} {d : Fin (C.Q.disk α).n} {j : Fin 5}
+    (hG : C.IsGenuinePath α d j) {n : ℕ}
+    (hn : n + 1 < (C.path α d j).length) {o : C.SideOcc}
+    (ho : (C.path α d j)[n]? = some o) : ¬ C.IsPrint o := by
+  intro hp
+  have hmem : o ∈ C.path α d j := List.mem_of_getElem? ho
+  have heq := strict_path_and_print_recovery_step1_signals_aux1 C hG hmem hp
+  have hlast : (C.path α d j).getLast? = some o := by
+    rw [heq]
+    exact C.g4_path_last α d j hG
+  rw [List.getLast?_eq_getElem?] at hlast
+  have hnodup := C.g4_path_nodup α d j
+  have hne := (List.nodup_iff_getElem?_ne_getElem?).1 hnodup n
+    ((C.path α d j).length - 1) (by omega) (by omega)
+  exact hne (ho.trans hlast.symm)
+
+/-- A fixed vector cancels in set vadd for the strict block geometry. -/
+private lemma strict_path_and_print_recovery_step1_signals_aux_vadd_cancel
+    (a : Pt) {S T : Set Pt} (h : a +ᵥ S = a +ᵥ T) : S = T := by
+  have hinj : Function.Injective (fun x : Pt => a +ᵥ x) := by
+    intro x y hxy
+    simpa using hxy
+  rw [← Set.image_vadd, ← Set.image_vadd] at h
+  exact (Set.image_eq_image hinj).mp h
+
+/-- A placed child side is the block offset added to the unplaced strict side. -/
+private lemma strict_path_and_print_recovery_step1_signals_aux_childSide
+    (C : MacroCertificate P) (hC : C.Represents τ m)
+    (K : StrictBlock C hC) (o : C.SideOcc) :
+    K.childSide o = K.v +ᵥ C.occSide o := by
+  show (K.v + C.anchor o.1) +ᵥ (C.Q.disk (C.form o.1)).side o.2 =
+    K.v +ᵥ (C.anchor o.1 +ᵥ (C.Q.disk (C.form o.1)).side o.2)
+  rw [add_vadd]
+
+/-- Step 3 of the blueprint proof of `strict_path_and_print_recovery_step1_signals`:
+consecutive nonprint occurrences carry equal third signals. -/
+private lemma strict_path_and_print_recovery_step1_signals_aux3
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    {α : C.Q.Form} (hα : α = K.α) {d : Fin (C.Q.disk α).n} {j : Fin 5}
+    (hG : C.IsGenuinePath α d j) {o o' : C.SideOcc}
+    (hmem : o ∈ C.path α d j) (hmem' : o' ∈ C.path α d j)
+    (hchain : o.1 = o'.1 ∨ (C.IsInner o ∧ o' = C.partner o))
+    (hnp : ¬ C.IsPrint o) (hnp' : ¬ C.IsPrint o') :
+    K.col o.1 o.2 2 = K.col o'.1 o'.2 2 := by
+  rcases hchain with hsame | ⟨hinner, hpartner⟩
+  · obtain ⟨t, i⟩ := o
+    subst hsame
+    have hown : C.owner o'.1 = α := C.g4_path_owner α d j (C.occ o'.1 i) hmem
+    have hnc : o'.1 ≠ C.central α := C.g4_path_not_central α d j hG (C.occ o'.1 i) hmem
+    have hownK : C.owner o'.1 = K.α := hown.trans hα
+    have hncK : o'.1 ≠ C.central K.α := by
+      rw [← hα]
+      exact hnc
+    have hlegal : StrictLegal C hC (K.tileOf o'.1) := hK.2 o'.1 hownK hncK
+    obtain ⟨B, -, hBA⟩ := strictLegal_properties_step1_parent C hC
+      (K.tileOf o'.1) hlegal
+    have heqF : α = C.owner o'.1 := hown.symm
+    have hcast : C.occ o'.1 i ∈ C.path (C.owner o'.1)
+        (cast (congrArg (fun F => Fin (C.Q.disk F).n) heqF) d) j :=
+      (strictLegal_properties_step5_path_step1_cast_path C hC heqF d j
+        (C.occ o'.1 i)).1 hmem
+    have hcast' : C.occ o'.1 o'.2 ∈ C.path (C.owner o'.1)
+        (cast (congrArg (fun F => Fin (C.Q.disk F).n) heqF) d) j :=
+      (strictLegal_properties_step5_path_step1_cast_path C hC heqF d j
+        (C.occ o'.1 o'.2)).1 hmem'
+    exact strictLegal_properties_step5_path C hC B (K.tileOf o'.1) hBA _ j i o'.2
+      hcast hcast' hnp hnp'
+  · subst hpartner
+    have hown : C.owner o.1 = α := C.g4_path_owner α d j o hmem
+    have hownK : C.owner o.1 = K.α := hown.trans hα
+    obtain ⟨t2, j2, hown2, hne2, hside2, hcol2⟩ :=
+      hK.1 o.1 o.2 hownK hinner
+    have hsideEq : C.occSide (C.occ t2 j2) = C.occSide o := by
+      have e1 : K.childSide (C.occ t2 j2) = K.v +ᵥ C.occSide (C.occ t2 j2) :=
+        strict_path_and_print_recovery_step1_signals_aux_childSide C hC K (C.occ t2 j2)
+      have e2 : K.childSide o = K.v +ᵥ C.occSide o :=
+        strict_path_and_print_recovery_step1_signals_aux_childSide C hC K o
+      rw [e1, e2] at hside2
+      exact strict_path_and_print_recovery_step1_signals_aux_vadd_cancel K.v hside2
+    have heqOcc : (C.occ t2 j2 : C.SideOcc) = C.partner o :=
+      C.g1_side_unique o (C.occ t2 j2) hinner (hown2.trans hownK.symm) hne2 hsideEq
+    have hcolEq : K.col t2 j2 2 = K.col (C.partner o).1 (C.partner o).2 2 :=
+      congrArg (fun (p : C.SideOcc) => K.col p.1 p.2 2) heqOcc
+    exact (hcol2 2).symm.trans hcolEq
+
+/-- Step 4 of the blueprint proof of `strict_path_and_print_recovery_step1_signals`:
+induction along a genuine path from its port to an arbitrary nonprint position. -/
+private lemma strict_path_and_print_recovery_step1_signals_aux4
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    {α : C.Q.Form} (hα : α = K.α) {d : Fin (C.Q.disk α).n} {j : Fin 5}
+    (hG : C.IsGenuinePath α d j) :
+    ∀ n : ℕ, ∀ o : C.SideOcc, (C.path α d j)[n]? = some o → ¬ C.IsPrint o →
+      K.col o.1 o.2 2 =
+        (match C.port α d j with | some o0 => K.col o0.1 o0.2 2 | none => 0 : SU C hC) := by
+  intro n
+  induction n with
+  | zero =>
+    intro o ho _
+    have hhead : (C.path α d j).head? = C.port α d j := C.g4_path_head α d j hG
+    have h0 : (C.path α d j)[0]? = C.port α d j := by
+      rw [← List.head?_eq_getElem?]
+      exact hhead
+    rw [ho] at h0
+    rw [← h0]
+  | succ n ih =>
+    intro o' ho' hnp'
+    obtain ⟨hlt1, -⟩ := (List.getElem?_eq_some_iff).1 ho'
+    have hlt0 : n < (C.path α d j).length := by omega
+    obtain ⟨o, ho⟩ : ∃ o, (C.path α d j)[n]? = some o :=
+      ⟨(C.path α d j)[n], List.getElem?_eq_some_iff.mpr ⟨hlt0, rfl⟩⟩
+    have hnp := strict_path_and_print_recovery_step1_signals_aux2 C hG hlt1 ho
+    have heqD := ih o ho hnp
+    have hmem : o ∈ C.path α d j := List.mem_of_getElem? ho
+    have hmem' : o' ∈ C.path α d j := List.mem_of_getElem? ho'
+    have hchain := C.g4_path_chain α d j n o o' ho ho'
+    have heq2 := strict_path_and_print_recovery_step1_signals_aux3 C hC K hK hα hG
+      hmem hmem' hchain hnp hnp'
+    rw [← heq2]
+    exact heqD
+
 private theorem strict_path_and_print_recovery_step1_signals
     (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
     (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h) :
     ∀ (d : C.Side h.1) (j : Fin 5) (o : C.SideOcc),
       o ∈ C.path (C.form h.1) d j → ¬ C.IsPrint o →
         K.col o.1 o.2 2 = (strictReconstruct C hC K h.1).cell d j := by
-  sorry
+  intro d j o ho hnp
+  show K.col o.1 o.2 2 = match C.port (C.form h.1) d j with
+    | some o0 => K.col o0.1 o0.2 2 | none => 0
+  by_cases hG : C.IsGenuinePath (C.form h.1) d j
+  · obtain ⟨n, hlt, hn⟩ := List.getElem_of_mem ho
+    have ho2 : (C.path (C.form h.1) d j)[n]? = some o :=
+      List.getElem?_eq_some_iff.mpr ⟨hlt, hn⟩
+    exact strict_path_and_print_recovery_step1_signals_aux4 C hC K hK hh.1 hG n o ho2 hnp
+  · rw [C.g4_path_trivial (C.form h.1) d j hG, Option.mem_toList] at ho
+    rw [ho]
 
 /-- Step 1 of the blueprint proof of `strict_path_and_print_recovery_step2_prints`: the
 penultimate side of the path is an ordinary side of the small owner. -/

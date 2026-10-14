@@ -2004,17 +2004,23 @@ private lemma whole_side_ports_step1_parent_length (m : ℕ) (A : G.P'.Form)
   have h : 0 < τ.θ := by linarith [τ.one_lt]
   rw [Real.norm_eq_abs, abs_of_pos (pow_pos h m)]
 
-/-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`:
-the fine outer sides overlapping the parent side positively cover it, so its length is at
-most the sum of their lengths.  (The sides *contained* in the parent side do not cover it:
-a fine side may cross a dummy parent vertex, (G3).) -/
+/-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound`: the length of the
+parent side is at most the total length of the whole fine sides strictly inside it plus `2D`.
+Accounting: every point of the open parent side lies on a fine side along its line (the fine
+tiles cover the parent region and a boundary point lies on a side of an adjacent tile); a fine
+side along the parent side that is contained in the open parent side is outer, hence in
+`sidesInside`; any other fine side covering a piece of it contains an endpoint of the parent
+side, and there is at most one such side per endpoint (two of them would bound tiles with
+overlapping interiors), each of length at most `D`.  No side-to-side hypothesis is used: such a
+side may be an outer side crossing a dummy parent vertex, or a non-outer side running through a
+reflex parent corner, half on the parent side and half inside the region (Aristotle's L-shape
+counterexample of 14 October 2026 to the earlier version, which summed only over outer sides
+overlapping the parent side). -/
 private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound_step1_sum_lengths
-    (τ : Substitution P) (G : GroupedFamily P) (m : ℕ)
-    (A : G.P'.Form) (a : Fin (G.P'.disk A).n)
-    (h_fin : {e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
-        (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.Finite) :
+    (τ : Substitution P) (G : GroupedFamily P) (M : MeshConstants P) (m : ℕ)
+    (A : G.P'.Form) (a : Fin (G.P'.disk A).n) (h_fin : (sidesInside τ G m A a).Finite) :
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
-      ∑ e ∈ h_fin.toFinset, dist e.1 e.2 := by
+      ∑ e ∈ h_fin.toFinset, dist e.1 e.2 + 2 * M.D := by
   sorry
 
 /-- Step 2 of the blueprint proof of `whole_side_ports_step2_length_bound_step1_all_edges_bound`: bound the length of each edge. -/
@@ -2445,27 +2451,6 @@ private lemma omitted_count_edge_unique_at_endpoint
   subst j
   rfl
 
-/-- Step 1 of the blueprint proof of `whole_side_ports_step2_length_bound`: the length of the
-parent side is bounded by the total number of fine edges on it times D. -/
-private lemma whole_side_ports_step2_length_bound_step1_all_edges_bound
-    (τ : Substitution P) (G : GroupedFamily P) (M : MeshConstants P) (m : ℕ)
-    (A : G.P'.Form) (a : Fin (G.P'.disk A).n) :
-    dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
-      ({e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
-        (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard : ℝ) * M.D := by
-  have h_fin := whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite τ G m A a
-  rw [Set.ncard_eq_toFinset_card _ h_fin]
-  calc dist (parentSide τ G m A a).1 (parentSide τ G m A a).2
-    _ ≤ ∑ e ∈ h_fin.toFinset, dist e.1 e.2 :=
-      whole_side_ports_step2_length_bound_step1_all_edges_bound_step1_sum_lengths τ G m A a h_fin
-    _ ≤ ∑ e ∈ h_fin.toFinset, M.D := by
-      apply Finset.sum_le_sum
-      intro e he
-      have he2 := h_fin.mem_toFinset.mp he
-      exact whole_side_ports_step2_length_bound_step1_all_edges_bound_step2_edge_bound τ G M m A e he2.1
-    _ = (h_fin.toFinset.card : ℝ) * M.D := by
-      rw [Finset.sum_const, nsmul_eq_mul]
-
 /-- Step 2's endpoint uniqueness substep: two overlapping fine outer sides that both contain
 the same endpoint of the parent side coincide. -/
 private lemma whole_side_ports_step2_length_bound_step2_omitted_count_edge_unique_at_endpoint
@@ -2734,16 +2719,16 @@ private lemma whole_side_ports_step2_length_bound (M : MeshConstants P) (m : ℕ
     (a : Fin (G.P'.disk A).n) :
     dist (parentSide τ G m A a).1 (parentSide τ G m A a).2 ≤
       ((sidesInside τ G m A a).ncard : ℝ) * M.D + 2 * M.D := by
-  have h1 := whole_side_ports_step2_length_bound_step1_all_edges_bound τ G M m A a
-  have h2 := whole_side_ports_step2_length_bound_step2_omitted_count τ G m A a
-  have h2r : ({e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
-      (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard : ℝ) ≤
-      ((sidesInside τ G m A a).ncard : ℝ) + 2 := by exact_mod_cast h2
-  have hd : 0 ≤ M.D := le_of_lt M.D_pos
-  have h3 : ({e ∈ fineOuterSides τ G m A | OverlapPos (segment ℝ e.1 e.2)
-      (segment ℝ (parentSide τ G m A a).1 (parentSide τ G m A a).2)}.ncard : ℝ) * M.D ≤
-      (((sidesInside τ G m A a).ncard : ℝ) + 2) * M.D := mul_le_mul_of_nonneg_right h2r hd
-  rw [add_mul] at h3
+  have h_fin : (sidesInside τ G m A a).Finite :=
+    (whole_side_ports_step2_length_bound_step1_all_edges_bound_step3_finite_aux2 τ G m A).subset
+      fun _ he => he.1
+  have h1 := whole_side_ports_step2_length_bound_step1_all_edges_bound_step1_sum_lengths
+    τ G M m A a h_fin
+  have h2 : ∑ e ∈ h_fin.toFinset, dist e.1 e.2 ≤ ∑ _e ∈ h_fin.toFinset, M.D :=
+    Finset.sum_le_sum fun e he =>
+      whole_side_ports_step2_length_bound_step1_all_edges_bound_step2_edge_bound τ G M m A e
+        (h_fin.mem_toFinset.mp he).1
+  rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card _ h_fin] at h2
   linarith
 
 /-- `lem:whole-ports` (count): the list of whole fine sides strictly inside

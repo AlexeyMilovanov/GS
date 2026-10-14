@@ -6047,7 +6047,7 @@ private theorem strict_composed_proper_step2_exact_step2_exact_block
     (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
     (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h) :
     IsStrictExactBlockOf C hC K (strictReconstruct C hC K h.1) := by
-  sorry
+  exact strict_macroblock_is_decomposition C hC K hK h hh
 
 /-- Step 3 of the blueprint proof of `strict_composed_proper_step2_exact`: identify the
 substitution patch of a reconstructed parent with its assembled block. -/

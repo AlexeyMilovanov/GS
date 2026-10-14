@@ -4846,6 +4846,257 @@ private lemma existsAnnularSpokes_step3_spoke_step1_walk (M : MeshConstants P) (
   have hwalk := existsAnnularSpokes_tileChainWalk S hsts htile htileInt hchain hFS hFm huF hwG
   exact ⟨u, w, huL, hwH, hwalk⟩
 
+private lemma existsAnnularSpokes_segment_endpoint_not_between {a b z : Pt} (hab : a ≠ b)
+    (hz : z ∈ segment ℝ a b) (hzb : z ≠ b) : b ∉ segment ℝ a z := by
+  obtain ⟨t, ht0, ht1, rfl⟩ := mem_segment_iff'.1 hz
+  have htne : t ≠ 1 := by
+    intro ht
+    apply hzb
+    rw [ht, one_smul]
+    abel
+  have htlt : t < 1 := lt_of_le_of_ne ht1 htne
+  rintro hb
+  obtain ⟨s, hs0, hs1, hs⟩ := mem_segment_iff'.1 hb
+  have hu : b - a ≠ 0 := sub_ne_zero.2 hab.symm
+  have heq : (1 : ℝ) • (b - a) = (s * t) • (b - a) := by
+    rw [one_smul]
+    calc
+      b - a = (a + s • (a + t • (b - a) - a)) - a := by rw [← hs]
+      _ = (s * t) • (b - a) := by module
+  have hst : (1 : ℝ) = s * t := smul_cancel_pt hu heq
+  nlinarith [mul_nonneg (sub_nonneg.2 hs1) ht0]
+
+private lemma existsAnnularSpokes_segment_meets_frontier (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ interior B.carrier) (hb : b ∉ B.carrier) :
+    (segment ℝ a b ∩ frontier B.carrier).Nonempty := by
+  by_contra hn
+  have hsub : segment ℝ a b ⊆ interior B.carrier ∪ B.carrierᶜ := by
+    intro x hx
+    by_cases hxc : x ∈ B.carrier
+    · left
+      by_contra hxi
+      apply hn
+      exact ⟨x, hx, (mem_frontier_iff_of_closed B.compact.isClosed).2 ⟨hxc, hxi⟩⟩
+    · exact Or.inr hxc
+  have hd : Disjoint (interior B.carrier) B.carrierᶜ :=
+    Set.disjoint_left.2 fun _ hx hx' => hx' (interior_subset hx)
+  rcases (convex_segment a b).isPreconnected.subset_or_subset isOpen_interior
+      B.compact.isClosed.isOpen_compl hd hsub with h | h
+  · exact hb (interior_subset (h (right_mem_segment ℝ a b)))
+  · exact h (left_mem_segment ℝ a b) (interior_subset ha)
+
+private lemma existsAnnularSpokes_edge_frontier_cases (S : Patch P)
+    (hsts : SideToSideSet S.tiles) (G : FaceGroup S.tiles) {Z : Set Pt}
+    (hZ : Z ⊆ interior (support S.tiles)) {a b p : Pt}
+    (he : existsAnnularSpokes_skelEdgeIn S.tiles Z a b) (hp : p ∈ segment ℝ a b)
+    (hpf : p ∈ frontier G.carrier) :
+    p = a ∨ p = b ∨ (a ∈ frontier G.carrier ∧ b ∈ frontier G.carrier) := by
+  rcases he.1 with ⟨A, hAS, i, hi⟩
+  rw [tile_side_eq] at hi
+  have hab : a ≠ b := by
+    intro hab
+    subst b
+    rcases seg_endpoints (tile_vertex_ne_next A i) hi with h | h
+    · exact tile_vertex_ne_next A i (h.1.symm.trans h.2)
+    · exact tile_vertex_ne_next A i (h.2.symm.trans h.1)
+  by_cases hpa : p = a
+  · exact Or.inl hpa
+  by_cases hpb : p = b
+  · exact Or.inr (Or.inl hpb)
+  right
+  right
+  have hpo : p ∈ openSegment ℝ a b :=
+    mem_openSegment_of_ne_left_right (Ne.symm hpa) (Ne.symm hpb) hp
+  have hpoA : p ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+    rcases seg_endpoints (tile_vertex_ne_next A i) hi with hend | hend
+    · rwa [← hend.1, ← hend.2]
+    · rw [← hend.2, ← hend.1, openSegment_symm]
+      exact hpo
+  change p ∈ frontier G.disk.carrier at hpf
+  rw [G.disk.frontier_eq, Set.mem_iUnion] at hpf
+  obtain ⟨k, hpk⟩ := hpf
+  obtain ⟨B, hBG, j, hBj⟩ := G.side_whole k
+  have hpBj : p ∈ B.side j := hBj.symm ▸ hpk
+  have hpBc : p ∈ B.carrier := tile_side_subset B j hpBj
+  have hpBv : p ∉ B.vertexSet := by
+    intro hpv
+    exact vertex_not_mem_open_side S.disjoint hsts hAS (G.faces_sub hBG) i hpoA hpv
+      (hZ (he.2 hp))
+  have hside : B.side j = A.side i := by
+    by_cases hAB : A = B
+    · subst B
+      have hji : j = i := tile_eq_of_openSegment_inter_segment A hpoA hpBj
+      subst j
+      rfl
+    · obtain ⟨l, hl⟩ := tile_partner S.disjoint hsts hAS (G.faces_sub hBG) hAB i hpoA hpBc hpBv
+      have hpBo : p ∈ openSegment ℝ (B.vertex j) (B.vertex (finRotate _ j)) := by
+        rw [tile_side_eq] at hpBj
+        refine mem_openSegment_of_ne_left_right ?_ ?_ hpBj
+        · intro h
+          exact hpBv ⟨j, h⟩
+        · intro h
+          exact hpBv ⟨finRotate _ j, h⟩
+      have hjl : l = j :=
+        tile_eq_of_openSegment_inter_segment B hpBo (hl.symm ▸ openSeg_mem_side A i hpoA)
+      rwa [hjl] at hl
+  have hboundary : segment ℝ a b = G.disk.side k := by
+    exact hi.symm.trans ((tile_side_eq A i).symm.trans (hside.symm.trans hBj))
+  constructor
+  · change a ∈ frontier G.disk.carrier
+    rw [G.disk.frontier_eq]
+    refine Set.mem_iUnion.2 ⟨k, ?_⟩
+    change a ∈ G.disk.side k
+    rw [← hboundary]
+    exact left_mem_segment ℝ a b
+  · change b ∈ frontier G.disk.carrier
+    rw [G.disk.frontier_eq]
+    refine Set.mem_iUnion.2 ⟨k, ?_⟩
+    change b ∈ G.disk.side k
+    rw [← hboundary]
+    exact right_mem_segment ℝ a b
+
+private lemma existsAnnularSpokes_edge_exit (S : Patch P) (hsts : SideToSideSet S.tiles)
+    (G : FaceGroup S.tiles) {Z : Set Pt} (hZ : Z ⊆ interior (support S.tiles)) {a b : Pt}
+    (he : existsAnnularSpokes_skelEdgeIn S.tiles Z a b) (ha : a ∈ G.carrier)
+    (hb : b ∉ G.carrier) : a ∈ frontier G.carrier := by
+  by_cases haf : a ∈ frontier G.carrier
+  · exact haf
+  have hai : a ∈ interior G.carrier := by
+    by_contra hai
+    exact haf ((mem_frontier_iff_of_closed G.disk.compact.isClosed).2 ⟨ha, hai⟩)
+  obtain ⟨p, hp, hpf⟩ := existsAnnularSpokes_segment_meets_frontier G.disk hai hb
+  rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hp hpf with h | h | h
+  · exact h ▸ hpf
+  · exact absurd (G.disk.compact.isClosed.frontier_subset (h ▸ hpf)) hb
+  · exact h.1
+
+private lemma existsAnnularSpokes_edge_first_frontier (S : Patch P)
+    (hsts : SideToSideSet S.tiles) (G : FaceGroup S.tiles) {Z : Set Pt}
+    (hZ : Z ⊆ interior (support S.tiles)) {a b : Pt}
+    (he : existsAnnularSpokes_skelEdgeIn S.tiles Z a b) (ha : a ∈ interior G.carrier)
+    (hb : b ∉ interior G.carrier) : b ∈ frontier G.carrier := by
+  by_cases hbc : b ∈ G.carrier
+  · exact (mem_frontier_iff_of_closed G.disk.compact.isClosed).2 ⟨hbc, hb⟩
+  obtain ⟨p, hp, hpf⟩ := existsAnnularSpokes_segment_meets_frontier G.disk ha hbc
+  rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hp hpf with h | h | h
+  · exact absurd (h ▸ hpf) (Set.disjoint_left.1 disjoint_interior_frontier ha)
+  · exact h ▸ hpf
+  · exact absurd h.1 (Set.disjoint_left.1 disjoint_interior_frontier ha)
+
+private lemma existsAnnularSpokes_edge_inside_inside (S : Patch P)
+    (hsts : SideToSideSet S.tiles) (G : FaceGroup S.tiles) {Z : Set Pt}
+    (hZ : Z ⊆ interior (support S.tiles)) {a b : Pt}
+    (he : existsAnnularSpokes_skelEdgeIn S.tiles Z a b)
+    (ha : a ∈ interior G.carrier) (hb : b ∈ interior G.carrier) :
+    segment ℝ a b ⊆ interior G.carrier := by
+  intro z hz
+  by_contra hzi
+  by_cases hzc : z ∈ G.carrier
+  · have hzf := (mem_frontier_iff_of_closed G.disk.compact.isClosed).2 ⟨hzc, hzi⟩
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hz hzf with h | h | h
+    · exact hzi (h ▸ ha)
+    · exact hzi (h ▸ hb)
+    · exact Set.disjoint_left.1 disjoint_interior_frontier ha h.1
+  · obtain ⟨p, hp, hpf⟩ := existsAnnularSpokes_segment_meets_frontier G.disk ha hzc
+    have hp' : p ∈ segment ℝ a b := (convex_segment a b).segment_subset
+      (left_mem_segment ℝ a b) hz hp
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hp' hpf with h | h | h
+    · exact Set.disjoint_left.1 disjoint_interior_frontier ha (h ▸ hpf)
+    · have hzb : z ≠ b := fun hzb => hzc (hzb ▸ interior_subset hb)
+      exact existsAnnularSpokes_segment_endpoint_not_between (by
+        intro hab
+        have hza : z = a := by
+          rw [hab, segment_same, Set.mem_singleton_iff] at hz
+          exact hz.trans hab.symm
+        exact hzc (hza ▸ interior_subset ha)) hz hzb (h ▸ hp)
+    · exact Set.disjoint_left.1 disjoint_interior_frontier ha h.1
+
+private lemma existsAnnularSpokes_edge_outside_outside (S : Patch P)
+    (hsts : SideToSideSet S.tiles) (G : FaceGroup S.tiles) {Z : Set Pt}
+    (hZ : Z ⊆ interior (support S.tiles)) {a b : Pt}
+    (he : existsAnnularSpokes_skelEdgeIn S.tiles Z a b) (ha : a ∉ G.carrier)
+    (hb : b ∉ G.carrier) : segment ℝ a b ⊆ G.carrierᶜ := by
+  intro z hz hzc
+  by_cases hzi : z ∈ interior G.carrier
+  · obtain ⟨p, hp, hpf⟩ := existsAnnularSpokes_segment_meets_frontier G.disk hzi ha
+    have hp' : p ∈ segment ℝ a b := by
+      rw [segment_symm] at hp
+      exact (convex_segment a b).segment_subset (left_mem_segment ℝ a b) hz hp
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hp' hpf with h | h | h
+    · exact ha (h ▸ G.disk.compact.isClosed.frontier_subset hpf)
+    · have hzb : z ≠ b := fun hzb => hb (hzb ▸ hzc)
+      apply existsAnnularSpokes_segment_endpoint_not_between (by
+        intro hab
+        have hza : z = a := by
+          rw [hab, segment_same, Set.mem_singleton_iff] at hz
+          exact hz.trans hab.symm
+        exact ha (hza ▸ hzc)) hz hzb
+      rw [segment_symm]
+      exact h ▸ hp
+    · exact ha (G.disk.compact.isClosed.frontier_subset h.1)
+  · have hzf := (mem_frontier_iff_of_closed G.disk.compact.isClosed).2 ⟨hzc, hzi⟩
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hz hzf with h | h | h
+    · exact ha (h ▸ hzc)
+    · exact hb (h ▸ hzc)
+    · exact ha (G.disk.compact.isClosed.frontier_subset h.1)
+
+private lemma existsAnnularSpokes_edge_inside_frontier (S : Patch P)
+    (hsts : SideToSideSet S.tiles) (G : FaceGroup S.tiles) {Z : Set Pt}
+    (hZ : Z ⊆ interior (support S.tiles)) {a b : Pt}
+    (he : existsAnnularSpokes_skelEdgeIn S.tiles Z a b)
+    (ha : a ∈ interior G.carrier) (hb : b ∈ frontier G.carrier) :
+    segment ℝ a b ⊆ interior G.carrier ∪ {b} := by
+  intro z hz
+  by_cases hzb : z = b
+  · exact Or.inr hzb
+  left
+  by_contra hzi
+  by_cases hzc : z ∈ G.carrier
+  · have hzf := (mem_frontier_iff_of_closed G.disk.compact.isClosed).2 ⟨hzc, hzi⟩
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hz hzf with h | h | h
+    · exact hzi (h ▸ ha)
+    · exact hzb h
+    · exact Set.disjoint_left.1 disjoint_interior_frontier ha h.1
+  · obtain ⟨p, hp, hpf⟩ := existsAnnularSpokes_segment_meets_frontier G.disk ha hzc
+    have hp' : p ∈ segment ℝ a b := (convex_segment a b).segment_subset
+      (left_mem_segment ℝ a b) hz hp
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hp' hpf with h | h | h
+    · exact Set.disjoint_left.1 disjoint_interior_frontier ha (h ▸ hpf)
+    · exact existsAnnularSpokes_segment_endpoint_not_between (by
+        intro hab
+        exact Set.disjoint_left.1 disjoint_interior_frontier ha (hab ▸ hb)) hz hzb (h ▸ hp)
+    · exact Set.disjoint_left.1 disjoint_interior_frontier ha h.1
+
+private lemma existsAnnularSpokes_edge_frontier_outside (S : Patch P)
+    (hsts : SideToSideSet S.tiles) (G : FaceGroup S.tiles) {Z : Set Pt}
+    (hZ : Z ⊆ interior (support S.tiles)) {a b : Pt}
+    (he : existsAnnularSpokes_skelEdgeIn S.tiles Z a b)
+    (ha : a ∈ frontier G.carrier) (hb : b ∉ G.carrier) :
+    segment ℝ a b ⊆ G.carrierᶜ ∪ {a} := by
+  intro z hz
+  by_cases hza : z = a
+  · exact Or.inr hza
+  left
+  intro hzc
+  by_cases hzi : z ∈ interior G.carrier
+  · obtain ⟨p, hp, hpf⟩ := existsAnnularSpokes_segment_meets_frontier G.disk hzi hb
+    have hp' : p ∈ segment ℝ a b := (convex_segment a b).segment_subset hz
+      (right_mem_segment ℝ a b) hp
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hp' hpf with h | h | h
+    · have hzx : z ∈ segment ℝ b a := by rwa [segment_symm]
+      exact existsAnnularSpokes_segment_endpoint_not_between (by
+        intro hab
+        exact hb (hab ▸ G.disk.compact.isClosed.frontier_subset ha)) hzx hza (by
+          rw [segment_symm] at hp
+          exact h ▸ hp)
+    · exact hb (h ▸ G.disk.compact.isClosed.frontier_subset hpf)
+    · exact hb (G.disk.compact.isClosed.frontier_subset h.2)
+  · have hzf := (mem_frontier_iff_of_closed G.disk.compact.isClosed).2 ⟨hzc, hzi⟩
+    rcases existsAnnularSpokes_edge_frontier_cases S hsts G hZ he hz hzf with h | h | h
+    · exact hza h
+    · exact hb (h ▸ hzc)
+    · exact hb (G.disk.compact.isClosed.frontier_subset h.2)
+
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "take the part from its
 last point on `∂L` to its first subsequent point on `∂H`.  The part lies in the annulus and has
 no other point on either cycle.  Planarity of the skeleton ensures that an edge cannot cross a
@@ -4861,7 +5112,67 @@ private lemma existsAnnularSpokes_step3_spoke_step2_cut (S : Patch P)
     ∃ u' w', u' ∈ frontier L.carrier ∧ w' ∈ frontier H.carrier ∧
       Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles
         (Z ∩ (interior H.carrier \ L.carrier ∪ {u', w'}))) u' w' := by
-  sorry
+  have hwL : w ∉ L.carrier := fun hwL => hw (interior_subset (hLH hwL))
+  have cutL : ∀ {a b : Pt},
+      Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) a b →
+      a ∈ interior L.carrier → b ∉ L.carrier →
+      ∃ a', a' ∈ frontier L.carrier ∧
+        Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles
+          (Z ∩ (L.carrierᶜ ∪ {a'}))) a' b := by
+    intro a b hab ha hb
+    induction hab with
+    | refl => exact (hb (interior_subset ha)).elim
+    | @tail b c _ hbc ih =>
+        by_cases hbL : b ∈ L.carrier
+        · have hbF := existsAnnularSpokes_edge_exit S hsts L hZ hbc hbL hb
+          refine ⟨b, hbF, Relation.ReflTransGen.single ?_⟩
+          refine ⟨hbc.1, fun x hx => ⟨hbc.2 hx, ?_⟩⟩
+          exact existsAnnularSpokes_edge_frontier_outside S hsts L hZ hbc hbF hb hx
+        · obtain ⟨a', ha'F, hpath⟩ := ih hbL
+          refine ⟨a', ha'F, hpath.tail ?_⟩
+          refine ⟨hbc.1, fun x hx => ⟨hbc.2 hx, ?_⟩⟩
+          exact Or.inl (existsAnnularSpokes_edge_outside_outside S hsts L hZ hbc hbL hb hx)
+  obtain ⟨u', hu'L, hwalkL⟩ := cutL hwalk hu hwL
+  have hu'H : u' ∈ interior H.carrier :=
+    hLH (L.disk.compact.isClosed.frontier_subset hu'L)
+  have cutH : ∀ {a b : Pt},
+      Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles
+        (Z ∩ (L.carrierᶜ ∪ {u'}))) a b →
+      a ∈ interior H.carrier → b ∉ H.carrier →
+      ∃ b', b' ∈ frontier H.carrier ∧
+        Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles
+          (Z ∩ (interior H.carrier \ L.carrier ∪ {u', b'}))) a b' := by
+    intro a b hab ha hb
+    induction hab using Relation.ReflTransGen.head_induction_on with
+    | refl => exact (hb (interior_subset ha)).elim
+    | @head a c hac _ ih =>
+        have hacZ : existsAnnularSpokes_skelEdgeIn S.tiles Z a c :=
+          ⟨hac.1, fun x hx => (hac.2 hx).1⟩
+        by_cases hcH : c ∈ interior H.carrier
+        · obtain ⟨b', hb'H, hpath⟩ := ih hcH
+          refine ⟨b', hb'H, Relation.ReflTransGen.head ?_ hpath⟩
+          refine ⟨hac.1, fun x hx => ⟨(hac.2 hx).1, ?_⟩⟩
+          have hxH := existsAnnularSpokes_edge_inside_inside S hsts H hZ hacZ ha hcH hx
+          have hxL := (hac.2 hx).2
+          simp only [Set.mem_union, Set.mem_compl_iff, Set.mem_singleton_iff] at hxL
+          simp only [Set.mem_union, Set.mem_diff, Set.mem_insert_iff, Set.mem_singleton_iff]
+          rcases hxL with hxL | rfl
+          · exact Or.inl ⟨hxH, hxL⟩
+          · exact Or.inr (Or.inl rfl)
+        · have hcF := existsAnnularSpokes_edge_first_frontier S hsts H hZ hacZ ha hcH
+          refine ⟨c, hcF, Relation.ReflTransGen.single ?_⟩
+          refine ⟨hac.1, fun x hx => ⟨(hac.2 hx).1, ?_⟩⟩
+          have hxH := existsAnnularSpokes_edge_inside_frontier S hsts H hZ hacZ ha hcF hx
+          have hxL := (hac.2 hx).2
+          simp only [Set.mem_union, Set.mem_compl_iff, Set.mem_singleton_iff] at hxL
+          simp only [Set.mem_union, Set.mem_diff, Set.mem_insert_iff, Set.mem_singleton_iff] at hxH ⊢
+          rcases hxH with hxH | rfl
+          · rcases hxL with hxL | rfl
+            · exact Or.inl ⟨hxH, hxL⟩
+            · exact Or.inr (Or.inl rfl)
+          · exact Or.inr (Or.inr rfl)
+  obtain ⟨w', hw'H, hwalk'⟩ := cutH hwalkL hu'H hw
+  exact ⟨u', w', hu'L, hw'H, hwalk'⟩
 
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step3_spoke_step3_erase`: select a
 finite skeletal walk and erase its loops, retaining the endpoints and carrier containment. -/

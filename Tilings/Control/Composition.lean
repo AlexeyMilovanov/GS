@@ -1514,7 +1514,32 @@ private lemma boundary_header_constant_step4_belt_eq_step2_edge_step1_symm (c : 
     (hk_bound : c.IsBoundary (c.occ u.1 k))
     (h_side_eq : c.occSide (c.occ u.1 k) = c.occSide (c.occ v.1 l))
     (h_u_neq_v : u.1 ≠ v.1) :
-    c.IsBoundary (c.occ v.1 l) := sorry
+    c.IsBoundary (c.occ v.1 l) := by
+  have _ := hK
+  have _ := h_u_neq_v
+  have howner : c.owner v.1 = c.owner u.1 := v.2.1.trans u.2.1.symm
+  have hne : c.occStart (c.occ u.1 k) ≠ c.occEnd (c.occ u.1 k) := by
+    intro h
+    have hv := (c.Q.disk (c.form u.1)).vertex_injective (add_left_cancel h)
+    exact asm_finRotate_ne _ (c.Q.disk (c.form u.1)).three_le k hv.symm
+  have hseg : segment ℝ (c.occStart (c.occ u.1 k)) (c.occEnd (c.occ u.1 k)) =
+      segment ℝ (c.occStart (c.occ v.1 l)) (c.occEnd (c.occ v.1 l)) := by
+    simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+      PolygonalDisk.side, MacroData.occStart, MacroData.occEnd, vadd_segment] using h_side_eq
+  have hends : (c.occStart (c.occ v.1 l) = c.occStart (c.occ u.1 k) ∧ c.occEnd (c.occ v.1 l) = c.occEnd (c.occ u.1 k)) ∨
+      (c.occStart (c.occ v.1 l) = c.occEnd (c.occ u.1 k) ∧ c.occEnd (c.occ v.1 l) = c.occStart (c.occ u.1 k)) :=
+    headerLegal_properties_step4_boundary_step1_print_not_boundary_aux_endpoints hne hseg
+  have hl_inner : c.IsInner (c.occ v.1 l) := asm_inner_of_occSide c hk_bound.1 howner h_side_eq.symm
+  unfold MacroData.IsBoundary at hk_bound ⊢
+  refine ⟨hl_inner, ?_⟩
+  rw [howner]
+  rcases hk_bound.2 with hku | hkv
+  · rcases hends with ⟨hstart, _⟩ | ⟨_, hend⟩
+    · left; rw [hstart]; exact hku
+    · right; rw [hend]; exact hku
+  · rcases hends with ⟨_, hend⟩ | ⟨hstart, _⟩
+    · right; rw [hend]; exact hkv
+    · left; rw [hstart]; exact hkv
 
 /-- Step 2.2 of the blueprint proof of `boundary_header_constant_step4_belt_eq_step2_edge`:
 if a boundary side of `u` coincides with a side of `v`, the fourth colors match by properness. -/

@@ -5878,6 +5878,444 @@ section Completeness
 
 variable (C : MacroCertificate P) (hC : C.Represents τ m)
 
+open Alignment in
+private lemma scs1_segment_infinite {x y : Pt} (hxy : x ≠ y) : (segment ℝ x y).Infinite := by
+  rw [segment_eq_image_lineMap]
+  refine (Set.Icc_infinite (zero_lt_one' ℝ)).image ?_
+  exact (AffineMap.lineMap_injective ℝ hxy).injOn
+
+open Alignment in
+private lemma scs1_cover {x y : Pt} (hxy : x ≠ y) {S : Set (Set Pt)} (hS : S.Finite)
+    (hconv : ∀ T ∈ S, Convex ℝ T) (hcov : segment ℝ x y ⊆ ⋃₀ S) :
+    ∃ T ∈ S, ∃ u v : Pt, u ≠ v ∧ segment ℝ u v ⊆ segment ℝ x y ∩ T := by
+  by_contra hcon
+  push_neg at hcon
+  have hsub : ∀ T ∈ S, (segment ℝ x y ∩ T).Subsingleton := by
+    intro T hT u hu v hv
+    by_contra huv
+    exact hcon T hT u v huv (((convex_segment x y).inter (hconv T hT)).segment_subset hu hv)
+  apply scs1_segment_infinite hxy
+  refine Set.Finite.subset (hS.biUnion fun T hT => (hsub T hT).finite) ?_
+  intro z hz
+  obtain ⟨T, hT, hzT⟩ := hcov hz
+  exact Set.mem_biUnion hT ⟨hz, hzT⟩
+
+open Alignment in
+private lemma scs1_placedSeg_eq (v : Pt) (e : Pt × Pt) :
+    placedSeg v e = v +ᵥ segment ℝ e.1 e.2 := (vadd_segment _ _ _ _).symm
+
+open Alignment in
+private lemma scs1_tile_side_eq (B : PlacedTile P) (i : Fin (P.disk B.form).n) :
+    B.side i = segment ℝ (B.vertex i) (B.vertex (finRotate _ i)) := by
+  simp [PlacedTile.side, PolygonalDisk.side, PlacedTile.vertex, vadd_segment]
+
+open Alignment in
+private lemma scs1_translate_side (B : PlacedTile P) (v : Pt) (i : Fin (P.disk B.form).n) :
+    (B.translate v).side i = placedSeg v (B.vertex i, B.vertex (finRotate _ i)) := by
+  rw [scs1_tile_side_eq, placedSeg]
+  simp only [PlacedTile.translate, PlacedTile.vertex, vadd_eq_add, add_assoc]
+
+open Alignment in
+private lemma scs1_frontier_vadd (v : Pt) (s : Set Pt) : frontier (v +ᵥ s) = v +ᵥ frontier s := by
+  have := (Homeomorph.addLeft v).image_frontier s
+  rw [Homeomorph.coe_addLeft] at this
+  exact this.symm
+
+open Alignment in
+private lemma scs1_frontier_smul {c : ℝ} (hc : c ≠ 0) (s : Set Pt) : frontier (c • s) = c • frontier s :=
+  ((Homeomorph.smulOfNeZero c hc).image_frontier s).symm
+
+open Alignment in
+private lemma scs1_frontier_carrier (B : PlacedTile P) : frontier B.carrier = ⋃ i, B.side i := by
+  rw [PlacedTile.carrier, scs1_frontier_vadd, (P.disk B.form).frontier_eq, Set.vadd_set_iUnion]
+  rfl
+
+open Alignment in
+private lemma scs1_closure_interior_carrier (B : PlacedTile P) :
+    closure (interior B.carrier) = B.carrier := by
+  rw [PlacedTile.carrier, interior_vadd, closure_vadd, (P.disk B.form).regular_closed]
+
+open Alignment in
+private lemma scs1_carrier_closed (B : PlacedTile P) : IsClosed B.carrier := by
+  rw [← scs1_closure_interior_carrier]; exact isClosed_closure
+
+open Alignment in
+private lemma scs1_side_subset_carrier (B : PlacedTile P) (i : Fin (P.disk B.form).n) :
+    B.side i ⊆ B.carrier := by
+  intro z hz
+  have : z ∈ frontier B.carrier := by
+    rw [scs1_frontier_carrier]; exact Set.mem_iUnion.2 ⟨i, hz⟩
+  exact (scs1_carrier_closed B).frontier_subset this
+
+open Alignment in
+private lemma scs1_translate_carrier (B : PlacedTile P) (v : Pt) :
+    (B.translate v).carrier = v +ᵥ B.carrier := by
+  ext x
+  simp only [PlacedTile.carrier, PlacedTile.translate, Set.mem_vadd_set_iff_neg_vadd_mem,
+    vadd_eq_add, neg_add_rev]
+  rw [← add_assoc]
+
+
+open Alignment in
+private lemma scs1_decomposeIter_mono (τ : Substitution P)
+    (n : ℕ) {S S' : Set (PlacedTile P)} (h : S ⊆ S') :
+    τ.decomposeIter n S ⊆ τ.decomposeIter n S' := by
+  induction n with
+  | zero => exact h
+  | succ n ih =>
+    intro B hB
+    change B ∈ τ.decompose (τ.decomposeIter n S) at hB
+    change B ∈ τ.decompose (τ.decomposeIter n S')
+    simp only [Substitution.decompose, Set.mem_iUnion] at hB ⊢
+    obtain ⟨C, hC, hBC⟩ := hB
+    exact ⟨C, ih hC, hBC⟩
+
+open Alignment in
+private lemma scs1_decomposeIter_translate (τ : Substitution P)
+    (n : ℕ) (v : Pt) (S : Set (PlacedTile P))
+    (B : PlacedTile P) (hB : B ∈ τ.decomposeIter n S) :
+    B.translate ((τ.θ ^ n) • v) ∈ τ.decomposeIter n (translateSet v S) := by
+  induction n generalizing B with
+  | zero =>
+    show B.translate ((τ.θ ^ 0) • v) ∈ translateSet v S
+    rw [pow_zero, one_smul]
+    exact ⟨B, hB, rfl⟩
+  | succ n ih =>
+    change B ∈ τ.decompose (τ.decomposeIter n S) at hB
+    change _ ∈ τ.decompose (τ.decomposeIter n (translateSet v S))
+    simp only [Substitution.decompose, Set.mem_iUnion] at hB ⊢
+    obtain ⟨C, hC, hBC⟩ := hB
+    refine ⟨C.translate ((τ.θ ^ n) • v), ih C hC, ?_⟩
+    simp only [Substitution.decomposeTile, translateSet, Set.mem_image] at hBC ⊢
+    obtain ⟨R, hR, rfl⟩ := hBC
+    refine ⟨R, hR, ?_⟩
+    simp only [PlacedTile.translate, PlacedTile.mk.injEq, true_and, vadd_eq_add, smul_add,
+      pow_succ', mul_smul]
+    abel
+
+open Alignment in
+private lemma scs1_fine_mem (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (T' : PlaneTiling G.P') (A : PlacedTile G.P')
+    (hA : A ∈ T'.tiles) (B : PlacedTile P) (hB : B ∈ fineTiles τ G m A.form) :
+    B.translate ((τ.θ ^ m) • A.anchor) ∈ τ.decomposeIter m (G.scatter T'.tiles) := by
+  apply scs1_decomposeIter_mono τ m (S := G.scatterTile A)
+  · intro C hC
+    exact Set.mem_biUnion hA hC
+  · exact scs1_decomposeIter_translate τ m A.anchor _ B hB
+
+open Alignment in
+private lemma scs1_support_translateSet (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, PlacedTile.translate, PlacedTile.carrier,
+    Set.mem_iUnion, Set.mem_image, Set.mem_vadd_set_iff_neg_vadd_mem]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    exact ⟨B, hB, by simpa [← add_assoc] using hx⟩
+  · rintro ⟨A, hA, hx⟩
+    refine ⟨⟨A.form, v +ᵥ A.anchor⟩, ⟨A, hA, rfl⟩, ?_⟩
+    simpa [← add_assoc] using hx
+
+open Alignment in
+private lemma scs1_support_decomposeTile (τ : Substitution P) (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [scs1_support_translateSet, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [Set.mem_vadd_set_iff_neg_vadd_mem, Set.mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc
+        τ.θ • A.anchor + τ.θ • y =
+            τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+open Alignment in
+private lemma scs1_support_decompose (τ : Substitution P) (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [Substitution.decompose, support]
+  rw [Set.smul_set_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨A, ⟨B, hB, hA⟩, hx⟩
+    refine ⟨B, hB, ?_⟩
+    have h : x ∈ support (τ.decomposeTile B) := by
+      simp only [support, Set.mem_iUnion]
+      exact ⟨A, hA, hx⟩
+    rwa [scs1_support_decomposeTile] at h
+  · rintro ⟨A, hA, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rwa [scs1_support_decomposeTile]
+    simp only [support, Set.mem_iUnion] at h
+    rcases h with ⟨B, hB, hxB⟩
+    exact ⟨B, ⟨A, hA, hB⟩, hxB⟩
+
+open Alignment in
+private lemma scs1_fineTiles_support (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (A : G.P'.Form) :
+    support (fineTiles τ G m A) = parentRegion τ G m A := by
+  induction m with
+  | zero => simpa [fineTiles, parentRegion, Substitution.decomposeIter] using G.support_eq A
+  | succ m ih =>
+      change support (τ.decompose (τ.decomposeIter m (G.dissect A).tiles)) = _
+      rw [scs1_support_decompose]
+      change support (τ.decomposeIter m (G.dissect A).tiles) = _ at ih
+      rw [ih, parentRegion, parentRegion, smul_smul, pow_succ']
+
+open Alignment in
+private lemma scs1_fineTiles_finite (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (A : G.P'.Form) : (fineTiles τ G m A).Finite := by
+  unfold fineTiles
+  have key : ∀ n (S : Set (PlacedTile P)), S.Finite → (τ.decomposeIter n S).Finite := by
+    intro n S hS
+    induction n with
+    | zero => exact hS
+    | succ n ih =>
+      change (τ.decompose (τ.decomposeIter n S)).Finite
+      exact ih.biUnion fun B _ => (τ.rule B.form).finite.image _
+  exact key m _ (G.dissect A).finite
+
+open Alignment in
+private lemma scs1_region_closed (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (A : G.P'.Form) : IsClosed (parentRegion τ G m A) :=
+  ((G.P'.disk A).compact.smul (τ.θ ^ m)).isClosed
+
+open Alignment in
+private lemma scs1_region_eq (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (A : PlacedTile G.P') :
+    ((τ.θ ^ m) • A.anchor) +ᵥ parentRegion τ G m A.form = (τ.θ ^ m) • A.carrier := by
+  simp only [parentRegion, PlacedTile.carrier, ← Set.image_vadd, ← Set.image_smul, Set.image_image,
+    vadd_eq_add, smul_add]
+
+open Alignment in
+private lemma scs1_frontier_cover (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (α : G.P'.Form) (a : Pt) :
+    frontier (a +ᵥ parentRegion τ G m α) ⊆ ⋃₀ {T | ∃ B ∈ fineTiles τ G m α,
+      ∃ i : Fin (P.disk B.form).n, T = placedSeg a (B.vertex i, B.vertex (finRotate _ i))} := by
+  intro z hz
+  rw [scs1_frontier_vadd, Set.mem_vadd_set] at hz
+  obtain ⟨w, hw, rfl⟩ := hz
+  have hwR : w ∈ parentRegion τ G m α := (scs1_region_closed τ G m α).frontier_subset hw
+  rw [← scs1_fineTiles_support] at hwR
+  simp only [support, Set.mem_iUnion] at hwR
+  obtain ⟨B, hB, hwB⟩ := hwR
+  have hBR : B.carrier ⊆ parentRegion τ G m α := by
+    rw [← scs1_fineTiles_support]
+    exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hB
+  have hwF : w ∈ frontier B.carrier := ⟨subset_closure hwB, fun h => hw.2 (interior_mono hBR h)⟩
+  rw [scs1_frontier_carrier, Set.mem_iUnion] at hwF
+  obtain ⟨i, hi⟩ := hwF
+  refine ⟨_, ⟨B, hB, i, rfl⟩, ?_⟩
+  rw [scs1_placedSeg_eq, ← scs1_tile_side_eq]
+  exact Set.vadd_mem_vadd_set hi
+
+open Alignment in
+private lemma scs1_cover_finite (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (α : G.P'.Form) (a : Pt) :
+    {T | ∃ B ∈ fineTiles τ G m α, ∃ i : Fin (P.disk B.form).n,
+      T = placedSeg a (B.vertex i, B.vertex (finRotate _ i))}.Finite := by
+  refine Set.Finite.subset ((scs1_fineTiles_finite τ G m α).biUnion fun B _ =>
+    Set.finite_range (fun i : Fin (P.disk B.form).n =>
+      placedSeg a (B.vertex i, B.vertex (finRotate _ i)))) ?_
+  rintro T ⟨B, hB, i, rfl⟩
+  exact Set.mem_biUnion hB ⟨i, rfl⟩
+
+open Alignment in
+private lemma scs1_placed_side_sub (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (α : G.P'.Form) (a : Pt) (B : PlacedTile P)
+    (hB : B ∈ fineTiles τ G m α) (i : Fin (P.disk B.form).n) :
+    placedSeg a (B.vertex i, B.vertex (finRotate _ i)) ⊆
+      closure (interior (a +ᵥ parentRegion τ G m α)) := by
+  rw [← scs1_translate_side]
+  refine (scs1_side_subset_carrier (B.translate a) i).trans ?_
+  rw [← scs1_closure_interior_carrier]
+  refine closure_mono (interior_mono ?_)
+  rw [scs1_translate_carrier]
+  apply Set.vadd_set_mono
+  rw [← scs1_fineTiles_support]
+  exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hB
+
+open Alignment in
+private lemma scs1_outer (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (α : G.P'.Form) (a : Pt) (B : PlacedTile P)
+    (hB : B ∈ fineTiles τ G m α) (i : Fin (P.disk B.form).n) (X : Set Pt)
+    (hX : placedSeg a (B.vertex i, B.vertex (finRotate _ i)) ⊆ closure (interior X))
+    (hdisj : Disjoint (interior (a +ᵥ parentRegion τ G m α)) (interior X)) :
+    segment ℝ (B.vertex i) (B.vertex (finRotate _ i)) ⊆ frontier (parentRegion τ G m α) := by
+  intro w hw
+  have hwR : w ∈ parentRegion τ G m α := by
+    rw [← scs1_fineTiles_support]
+    exact Set.mem_biUnion hB (scs1_side_subset_carrier B i (by rwa [scs1_tile_side_eq]))
+  refine ⟨subset_closure hwR, fun hint => ?_⟩
+  have h1 : a +ᵥ w ∈ interior (a +ᵥ parentRegion τ G m α) := by
+    rw [interior_vadd]
+    exact Set.vadd_mem_vadd_set hint
+  have h2 : a +ᵥ w ∈ closure (interior X) := hX (by
+    rw [scs1_placedSeg_eq]
+    exact Set.vadd_mem_vadd_set hw)
+  rw [mem_closure_iff] at h2
+  obtain ⟨q, hq1, hq2⟩ := h2 _ isOpen_interior h1
+  exact Set.disjoint_left.mp hdisj hq1 hq2
+
+open Alignment in
+private lemma scs1_disj (τ : Substitution P) (G : GroupedFamily P)
+    (m : ℕ) (T' : PlaneTiling G.P') (A A'' : PlacedTile G.P')
+    (hA : A ∈ T'.tiles) (hA'' : A'' ∈ T'.tiles) (hne : A ≠ A'') :
+    Disjoint (interior (((τ.θ ^ m) • A.anchor) +ᵥ parentRegion τ G m A.form))
+      (interior (((τ.θ ^ m) • A''.anchor) +ᵥ parentRegion τ G m A''.form)) := by
+  have hs : τ.θ ^ m ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+  rw [scs1_region_eq, scs1_region_eq, interior_smul₀ hs, interior_smul₀ hs]
+  exact (Set.disjoint_image_iff (smul_right_injective Pt hs)).mpr (T'.disjoint hA hA'' hne)
+
+open Alignment in
+private lemma scs1_overlap_of_placed {w : Pt} {p q : Pt × Pt} {u v : Pt} (huv : u ≠ v)
+    (h : segment ℝ u v ⊆ placedSeg w p ∩ placedSeg w q) :
+    OverlapPos (segment ℝ p.1 p.2) (segment ℝ q.1 q.2) := by
+  refine ⟨-w +ᵥ u, -w +ᵥ v, fun h' => huv (vadd_left_cancel _ h'), ?_⟩
+  rw [← vadd_segment]
+  rintro _ ⟨z, hz, rfl⟩
+  obtain ⟨h1, h2⟩ := h hz
+  rw [scs1_placedSeg_eq] at h1 h2
+  obtain ⟨z1, hz1, rfl⟩ := h1
+  obtain ⟨z2, hz2, he⟩ := h2
+  refine ⟨by simpa using hz1, ?_⟩
+  have : z2 = z1 := vadd_left_cancel _ he
+  subst this
+  simpa using hz2
+
+private lemma scs1_smul_segment (r : ℝ) (p p' : Pt) :
+    segment ℝ (r • p) (r • p') = r • segment ℝ p p' := by
+  let f : Pt →ᵃ[ℝ] Pt := (LinearMap.lsmul ℝ Pt r).toAffineMap
+  exact (image_segment ℝ f p p').symm
+
+open Alignment in
+private lemma scs1_placedSeg_smul (r q : ℝ) (v p p' : Pt) :
+    placedSeg ((r * q) • v) (r • p, r • p') = r • placedSeg (q • v) (p, p') := by
+  simp only [placedSeg]
+  rw [← scs1_smul_segment, mul_smul, smul_add, smul_add]
+
+private lemma scs1_overlap_unscale {s : ℝ} (hs : s ≠ 0) {u v : Pt} (huv : u ≠ v) {X Y : Set Pt}
+    (h : segment ℝ u v ⊆ s • X ∩ s • Y) : OverlapPos X Y := by
+  refine ⟨s⁻¹ • u, s⁻¹ • v, fun h' => huv (smul_right_injective Pt (inv_ne_zero hs) h'), ?_⟩
+  rw [scs1_smul_segment]
+  rintro _ ⟨w, hw, rfl⟩
+  obtain ⟨hwX, hwY⟩ := h hw
+  obtain ⟨a, ha, rfl⟩ := Set.mem_smul_set.mp hwX
+  obtain ⟨b, hb, hab⟩ := Set.mem_smul_set.mp hwY
+  have : b = a := smul_right_injective Pt hs hab
+  subst this
+  show s⁻¹ • s • _ ∈ X ∩ Y
+  rw [inv_smul_smul₀ hs]
+  exact ⟨ha, hb⟩
+
+open Alignment in
+private lemma scs1_overlap_placed (w : Pt) {c e : Pt × Pt}
+    (h : OverlapPos (segment ℝ c.1 c.2) (segment ℝ e.1 e.2)) :
+    ∃ x y : Pt, x ≠ y ∧ segment ℝ x y ⊆ placedSeg w c ∩ placedSeg w e := by
+  obtain ⟨x, y, hxy, hsub⟩ := h
+  refine ⟨w +ᵥ x, w +ᵥ y, fun h' => hxy (vadd_left_cancel _ h'), ?_⟩
+  rw [scs1_placedSeg_eq, scs1_placedSeg_eq, ← Set.vadd_set_inter, ← vadd_segment]
+  exact Set.vadd_set_mono hsub
+
+open Alignment in
+private lemma scs1_region_scale (τ : Substitution P) (G : GroupedFamily P) (m j : ℕ) (r q : ℝ)
+    (hrq : τ.θ ^ m = r * q) (hq : q = τ.θ ^ j) (α : G.P'.Form) (a : Pt) :
+    ((τ.θ ^ m) • a) +ᵥ parentRegion τ G m α = r • ((q • a) +ᵥ parentRegion τ G j α) := by
+  simp only [parentRegion, ← Set.image_vadd, ← Set.image_smul, Set.image_image]
+  rw [hrq, ← hq]
+  congr 1
+  funext z
+  simp only [vadd_eq_add, smul_add, mul_smul]
+
+open Alignment in
+private lemma scs1_region_scale' (τ : Substitution P) (G : GroupedFamily P) (m j : ℕ) (r q : ℝ)
+    (hrq : τ.θ ^ m = r * q) (hq : q = τ.θ ^ j) (α : G.P'.Form) :
+    parentRegion τ G m α = r • parentRegion τ G j α := by
+  simp only [parentRegion]
+  rw [hrq, ← hq, mul_smul]
+
+open Alignment in
+private lemma scs1_top_side (G : GroupedFamily P) (T' : PlaneTiling G.P') (hT' : T'.SideToSide)
+    (s : ℝ) (hs : s ≠ 0) (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles)
+    (k0 : Fin (G.P'.disk A.form).n) (x y : Pt) (hxy : x ≠ y)
+    (hc : segment ℝ x y ⊆ placedSeg (s • A.anchor)
+      (s • (G.P'.disk A.form).vertex k0, s • (G.P'.disk A.form).vertex (finRotate _ k0)))
+    (hfr : segment ℝ x y ⊆ frontier (s • A'.carrier)) :
+    ∃ k : Fin (G.P'.disk A'.form).n,
+      placedSeg (s • A.anchor)
+          (s • (G.P'.disk A.form).vertex k0, s • (G.P'.disk A.form).vertex (finRotate _ k0)) =
+        placedSeg (s • A'.anchor)
+          (s • (G.P'.disk A'.form).vertex k, s • (G.P'.disk A'.form).vertex (finRotate _ k)) := by
+  have key : ∀ (X : PlacedTile G.P') (k : Fin (G.P'.disk X.form).n),
+      placedSeg (s • X.anchor) (s • (G.P'.disk X.form).vertex k,
+        s • (G.P'.disk X.form).vertex (finRotate _ k)) = s • X.side k := by
+    intro X k
+    have h := scs1_placedSeg_smul s 1 X.anchor ((G.P'.disk X.form).vertex k)
+      ((G.P'.disk X.form).vertex (finRotate _ k))
+    rw [mul_one, one_smul] at h
+    rw [h, scs1_tile_side_eq]
+    rfl
+  rw [key] at hc
+  rw [scs1_frontier_smul hs, scs1_frontier_carrier, Set.smul_set_iUnion] at hfr
+  obtain ⟨_, ⟨k, rfl⟩, u, v, huv, hsub⟩ := scs1_cover hxy (S := Set.range fun k => s • A'.side k)
+    (Set.finite_range _) (by rintro _ ⟨k, rfl⟩; show Convex ℝ (s • A'.side k); rw [scs1_tile_side_eq]; exact (convex_segment _ _).smul s)
+    (by rw [Set.sUnion_range]; exact hfr)
+  refine ⟨k, ?_⟩
+  rw [key, key, hT' A hA A' hA' k0 k (scs1_overlap_unscale hs huv fun z hz => ⟨hc (hsub hz).1, (hsub hz).2⟩)]
+
+open Alignment in
+private lemma scs1_level_side (τ : Substitution P) (G : GroupedFamily P) (m j : ℕ) (hj : j ≤ m)
+    (T' : PlaneTiling G.P') (hlev : SideToSideSet (τ.decomposeIter j (G.scatter T'.tiles)))
+    (A A' : PlacedTile G.P') (hA : A ∈ T'.tiles) (hA' : A' ∈ T'.tiles) (hne : A ≠ A')
+    (B : PlacedTile P) (hB : B ∈ τ.decomposeIter j (G.dissect A.form).tiles)
+    (i : Fin (P.disk B.form).n) (x y : Pt) (hxy : x ≠ y)
+    (hc : segment ℝ x y ⊆ placedSeg ((τ.θ ^ m) • A.anchor)
+      ((τ.θ ^ (m - j)) • B.vertex i, (τ.θ ^ (m - j)) • B.vertex (finRotate _ i)))
+    (hfr : segment ℝ x y ⊆ frontier (((τ.θ ^ m) • A'.anchor) +ᵥ parentRegion τ G m A'.form)) :
+    ∃ B' ∈ τ.decomposeIter j (G.dissect A'.form).tiles, ∃ k : Fin (P.disk B'.form).n,
+      placedSeg ((τ.θ ^ m) • A.anchor)
+          ((τ.θ ^ (m - j)) • B.vertex i, (τ.θ ^ (m - j)) • B.vertex (finRotate _ i)) =
+        placedSeg ((τ.θ ^ m) • A'.anchor)
+          ((τ.θ ^ (m - j)) • B'.vertex k, (τ.θ ^ (m - j)) • B'.vertex (finRotate _ k)) ∧
+      segment ℝ ((τ.θ ^ (m - j)) • B'.vertex k) ((τ.θ ^ (m - j)) • B'.vertex (finRotate _ k)) ⊆
+        frontier (parentRegion τ G m A'.form) := by
+  have hθ : τ.θ ≠ 0 := by linarith [τ.one_lt]
+  have hr0 : τ.θ ^ (m - j) ≠ 0 := pow_ne_zero _ hθ
+  have hsrq : τ.θ ^ m = τ.θ ^ (m - j) * τ.θ ^ j := by rw [← pow_add, Nat.sub_add_cancel hj]
+  rw [scs1_region_scale τ G m j _ _ hsrq rfl, scs1_frontier_smul hr0] at hfr
+  rw [hsrq, scs1_placedSeg_smul] at hc
+  have hcov : segment ℝ x y ⊆ ⋃₀ ((fun S => τ.θ ^ (m - j) • S) '' {T | ∃ B' ∈ fineTiles τ G j A'.form,
+      ∃ k : Fin (P.disk B'.form).n, T = placedSeg (τ.θ ^ j • A'.anchor) (B'.vertex k, B'.vertex (finRotate _ k))}) := by
+    refine hfr.trans ?_
+    rw [Set.sUnion_image]
+    rintro _ ⟨z, hz, rfl⟩
+    obtain ⟨S, hS, hzS⟩ := scs1_frontier_cover τ G j A'.form _ hz
+    exact Set.mem_biUnion hS (Set.smul_mem_smul_set hzS)
+  obtain ⟨_, ⟨S, ⟨B', hB', k, rfl⟩, rfl⟩, u, v, huv, hsub⟩ := scs1_cover hxy
+    ((scs1_cover_finite τ G j A'.form _).image _)
+    (by rintro _ ⟨S, ⟨B', -, k, rfl⟩, rfl⟩; exact (convex_segment _ _).smul _) hcov
+  have hov : OverlapPos ((B.translate (τ.θ ^ j • A.anchor)).side i)
+      ((B'.translate (τ.θ ^ j • A'.anchor)).side k) := by
+    rw [scs1_translate_side, scs1_translate_side]
+    exact scs1_overlap_unscale hr0 huv (fun z hz => ⟨hc (hsub hz).1, (hsub hz).2⟩)
+  have hE := hlev _ (scs1_fine_mem τ G j T' A hA B hB) _ (scs1_fine_mem τ G j T' A' hA' B' hB') i k hov
+  rw [scs1_translate_side, scs1_translate_side] at hE
+  refine ⟨B', hB', k, ?_, ?_⟩
+  · rw [hsrq, scs1_placedSeg_smul, scs1_placedSeg_smul, hE]
+  · have h1 := scs1_outer τ G j A'.form (τ.θ ^ j • A'.anchor) B' hB' k _
+      (by rw [← hE]; exact scs1_placed_side_sub τ G j A.form _ B hB i)
+      (scs1_disj τ G j T' A A' hA hA' hne).symm
+    rw [scs1_smul_segment, scs1_region_scale' τ G m j _ _ hsrq rfl, scs1_frontier_smul hr0]
+    exact Set.smul_set_mono h1
+
 /-- Step 1 of the blueprint proof of `strict_actual_schedules_aligned`: at a
 shared whole fine side, a positively overlapping boundary side in one layer
 has the single neighbouring boundary side in the other parent. -/
@@ -5898,7 +6336,35 @@ private theorem strict_actual_schedules_aligned_step1_crossing_side
       OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) ∧
       Alignment.placedSeg ((τ.θ ^ m) • A.anchor) c =
         Alignment.placedSeg ((τ.θ ^ m) • A'.anchor) d := by
-  sorry
+  have _ := he
+  have hs : τ.θ ^ m ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+  obtain ⟨x, y, hxy, hxyI⟩ := scs1_overlap_placed ((τ.θ ^ m) • A.anchor) hov
+  have hX : segment ℝ x y ⊆
+      frontier (((τ.θ ^ m) • A'.anchor) +ᵥ Alignment.parentRegion τ hC.groupedFamily m A'.form) := by
+    obtain ⟨B, -, i, rfl, hsub⟩ := he'
+    intro z hz
+    have h1 := (hxyI hz).2
+    rw [heq, scs1_placedSeg_eq] at h1
+    rw [scs1_frontier_vadd]
+    exact Set.vadd_set_mono hsub h1
+  have hfin : ∀ d, Alignment.placedSeg ((τ.θ ^ m) • A.anchor) c =
+      Alignment.placedSeg ((τ.θ ^ m) • A'.anchor) d →
+      OverlapPos (segment ℝ d.1 d.2) (segment ℝ e'.1 e'.2) := fun d hcd =>
+    scs1_overlap_of_placed hxy fun z hz => ⟨hcd ▸ (hxyI hz).1, heq ▸ (hxyI hz).2⟩
+  by_cases hAA : A = A'
+  · subst hAA
+    exact ⟨c, hc, hfin c rfl, rfl⟩
+  cases t with
+  | top =>
+    obtain ⟨k0, rfl⟩ := hc
+    obtain ⟨k, hk⟩ := scs1_top_side hC.groupedFamily T' hT' _ hs A A' hA hA' k0 x y hxy
+      (fun z hz => (hxyI hz).1) (by rw [← scs1_region_eq τ hC.groupedFamily m A']; exact hX)
+    exact ⟨_, ⟨k, rfl⟩, hfin _ hk, hk⟩
+  | level j =>
+    obtain ⟨B, hB, i, rfl, -⟩ := hc
+    obtain ⟨B', hB', k, hk, hfr⟩ := scs1_level_side τ hC.groupedFamily m j j.isLt.le T'
+      (hlev j j.isLt.le) A A' hA hA' hAA B hB i x y hxy (fun z hz => (hxyI hz).1) hX
+    exact ⟨_, ⟨B', hB', k, rfl, hfr⟩, hfin _ hk, hk⟩
 
 /-- Step 2 of the blueprint proof of `strict_actual_schedules_aligned`: once
 the two layer sides and the two fine sides are physically coincident, their

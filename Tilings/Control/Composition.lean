@@ -2896,6 +2896,160 @@ theorem reconstructed_noncentral_legal (c : MacroCertificate P) (hH : c.Heredita
   have h_eq := reconstructed_noncentral_legal_step3_eq c hH K hK h hh hA hnc E hE_leg hE_nc hE_child
   rwa [← h_eq]
 
+private lemma ac1r_coef {a b : Pt} (hab : a ≠ b) {k : ℝ} (h : a + k • (b - a) = a) : k = 0 := by
+  have : k • (b - a) = 0 := by simpa using h
+  rcases smul_eq_zero.1 this with h | h
+  · exact h
+  · exact absurd (sub_eq_zero.1 h).symm hab
+
+/-- Two descriptions of the same segment have the same midpoint. -/
+private lemma ac1r_midpoint_eq {a b a' b' : Pt} (h : segment ℝ a b = segment ℝ a' b') :
+    midpoint ℝ a b = midpoint ℝ a' b' := by
+  by_cases hab : a = b
+  · subst hab
+    have h1 : a' ∈ segment ℝ a a := h ▸ left_mem_segment ℝ a' b'
+    have h2 : b' ∈ segment ℝ a a := h ▸ right_mem_segment ℝ a' b'
+    rw [segment_same] at h1 h2
+    rw [Set.mem_singleton_iff] at h1 h2
+    subst h1 h2; rfl
+  have h1 : a' ∈ segment ℝ a b := h ▸ left_mem_segment ℝ a' b'
+  have h2 : b' ∈ segment ℝ a b := h ▸ right_mem_segment ℝ a' b'
+  have h3 : a ∈ segment ℝ a' b' := h ▸ left_mem_segment ℝ a b
+  have h4 : b ∈ segment ℝ a' b' := h ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at h1 h2 h3 h4
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := h1
+  obtain ⟨u, ⟨hu0, hu1⟩, rfl⟩ := h2
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := h3
+  obtain ⟨w', ⟨hw0', hw1'⟩, hw'⟩ := h4
+  simp only at hw hw'
+  have e1 : a + (s + w * (u - s)) • (b - a) = a := by
+    rw [show a + (s + w * (u - s)) • (b - a) =
+      a + s • (b - a) + w • (a + u • (b - a) - (a + s • (b - a))) by module]
+    exact hw
+  have e2 : a + (s + w' * (u - s) - 1) • (b - a) = a := by
+    have : a + (s + w' * (u - s)) • (b - a) = b := by
+      rw [show a + (s + w' * (u - s)) • (b - a) =
+        a + s • (b - a) + w' • (a + u • (b - a) - (a + s • (b - a))) by module]
+      exact hw'
+    rw [sub_smul, one_smul, ← add_sub_assoc, this]; abel
+  have k1 := ac1r_coef hab e1
+  have k2 := ac1r_coef hab e2
+  have hsu : s + u = 1 := by
+    have p1 : (1 - w) * s = 0 := by nlinarith [mul_nonneg (sub_nonneg.2 hw1) hs0, mul_nonneg hw0 hu0]
+    have p2 : w * u = 0 := by nlinarith [mul_nonneg (sub_nonneg.2 hw1) hs0, mul_nonneg hw0 hu0]
+    have q1 : (1 - w') * (1 - s) = 0 := by
+      nlinarith [mul_nonneg (sub_nonneg.2 hw1') (sub_nonneg.2 hs1), mul_nonneg hw0' (sub_nonneg.2 hu1)]
+    have q2 : w' * (1 - u) = 0 := by
+      nlinarith [mul_nonneg (sub_nonneg.2 hw1') (sub_nonneg.2 hs1), mul_nonneg hw0' (sub_nonneg.2 hu1)]
+    rcases mul_eq_zero.1 p1 with p1 | p1 <;> rcases mul_eq_zero.1 p2 with p2 | p2 <;>
+      rcases mul_eq_zero.1 q1 with q1 | q1 <;> rcases mul_eq_zero.1 q2 with q2 | q2 <;> linarith
+  rw [midpoint_eq_smul_add, midpoint_eq_smul_add]
+  have : u = 1 - s := by linarith
+  subst this
+  module
+
+/-- The segment of a side occurrence, written with its endpoints. -/
+private lemma ac1r_occSide_eq (c : MacroCertificate P) (o : c.SideOcc) :
+    c.occSide o = segment ℝ (c.occStart o) (c.occEnd o) := by
+  simp only [MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side, vadd_segment]
+  rfl
+
+/-- The two endpoints of a side occurrence are distinct. -/
+private lemma ac1r_occStart_ne (c : MacroCertificate P) (o : c.SideOcc) : c.occStart o ≠ c.occEnd o := by
+  intro h
+  have h' := (c.Q.disk (c.form o.1)).vertex_injective (add_left_cancel h)
+  exact asm_finRotate_ne _ (c.Q.disk (c.form o.1)).three_le o.2 h'.symm
+
+/-- The positive direction of a macroside is nonzero. -/
+private lemma ac1r_macroSideDir_ne (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n) :
+    c.macroSideDir α d ≠ 0 := by
+  have hθ : c.σ.θ ≠ 0 := ne_of_gt (lt_trans zero_lt_one c.σ.one_lt)
+  have hne : c.σ.θ • (c.Q.disk α).vertex d ≠ c.σ.θ • (c.Q.disk α).vertex (finRotate _ d) := by
+    intro h
+    have h' := (c.Q.disk α).vertex_injective (smul_right_injective Pt hθ h)
+    exact asm_finRotate_ne _ (c.Q.disk α).three_le d h'.symm
+  unfold MacroData.macroSideDir MacroData.posDir
+  split_ifs
+  · exact sub_ne_zero.2 (Ne.symm hne)
+  · exact sub_ne_zero.2 hne
+
+/-- Under hereditary sides, every outer side of a template lies in one scaled parent side. -/
+private lemma ac1r_outer_sub_macroSide (c : MacroCertificate P) (hH : c.Hereditary) (o : c.SideOcc)
+    (ho : c.IsOuter o) : ∃ e : Fin (c.Q.disk (c.owner o.1)).n, c.occSide o ⊆ c.macroSide (c.owner o.1) e := by
+  set α := c.owner o.1 with hα
+  have hθ : c.σ.θ ≠ 0 := ne_of_gt (lt_trans zero_lt_one c.σ.one_lt)
+  have hfr : c.macroBoundary α = ⋃ i, c.macroSide α i := by
+    have := (Homeomorph.smulOfNeZero c.σ.θ hθ).image_frontier (c.Q.disk α).carrier
+    simp only [Homeomorph.smulOfNeZero_apply, Set.image_smul] at this
+    rw [MacroData.macroBoundary, MacroData.macroRegion, ← this, (c.Q.disk α).frontier_eq,
+      Set.smul_set_iUnion]
+    rfl
+  have hS : c.occSide o ⊆ ⋃ i, ⋃ A ∈ (c.σ.rule α).tiles, ⋃ jj : Fin (c.Q.disk A.form).n,
+      ⋃ (_ : A.side jj ⊆ c.macroSide α i), c.occSide o ∩ A.side jj := by
+    intro x hx
+    have hx' : x ∈ ⋃ i, c.macroSide α i := hfr ▸ ho hx
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 hx'
+    have hi' : x ∈ c.σ.θ • (c.Q.disk α).side i := hi
+    rw [hH.2 α i] at hi'
+    simp only [Set.mem_iUnion] at hi' ⊢
+    obtain ⟨A, hA, jj, hsub, hxA⟩ := hi'
+    exact ⟨i, A, hA, jj, hsub, hx, hxA⟩
+  by_contra hcon
+  push_neg at hcon
+  have hA₀ : (c.childTile o.1) ∈ (c.σ.rule α).tiles := by
+    rw [c.rule_eq]; exact ⟨o.1, rfl, rfl⟩
+  have hsing : ∀ i, ∀ A ∈ (c.σ.rule α).tiles, ∀ jj : Fin (c.Q.disk A.form).n,
+      A.side jj ⊆ c.macroSide α i → (c.occSide o ∩ A.side jj).Subsingleton := by
+    intro i A hA jj hsub x hx y hy
+    by_contra hxy
+    have hov : OverlapPos ((c.childTile o.1).side o.2) (A.side jj) :=
+      ⟨x, y, hxy, ((convex_segment _ _).vadd _ |>.inter ((convex_segment _ _).vadd _)).segment_subset hx hy⟩
+    have heq := c.template_sts α _ hA₀ A hA o.2 jj hov
+    exact hcon i (fun z hz => hsub (heq ▸ hz))
+  have hfin : (c.occSide o).Finite := by
+    refine Set.Finite.subset ?_ hS
+    refine Set.finite_iUnion fun i => ?_
+    refine Set.Finite.biUnion (c.σ.rule α).finite fun A hA => ?_
+    refine Set.finite_iUnion fun jj => Set.finite_iUnion fun hsub => ?_
+    exact (hsing i A hA jj hsub).finite
+  rw [ac1r_occSide_eq, segment_eq_image_lineMap] at hfin
+  exact ((Set.Icc_infinite zero_lt_one).image (AffineMap.lineMap_injective ℝ (ac1r_occStart_ne c o)).injOn) hfin
+
+/-- An outer side of a template of form `β` is listed on some side of `β`. -/
+private lemma ac1r_outer_mem_outerList (c : MacroCertificate P) (hH : c.Hereditary) (o : c.SideOcc)
+    (ho : c.IsOuter o) (β : c.Q.Form) (hβ : c.owner o.1 = β) :
+    ∃ e : Fin (c.Q.disk β).n, o ∈ c.outerList β e := by
+  subst hβ
+  obtain ⟨e, he⟩ := ac1r_outer_sub_macroSide c hH o ho
+  exact ⟨e, (c.g3_outerList_mem _ _ _).2 ⟨rfl, ho, he⟩⟩
+
+/-- A ranked fourth cell of a listed outer side of a child is its rank in the list. -/
+private lemma ac1r_cell_rank (c : MacroCertificate P) (A B : DecTile c) (hB : IsChildOf c A B)
+    (i : c.Side B.typ) (hout : c.IsOuter (c.occ B.typ i)) (β : c.Q.Form) (hβ : c.owner B.typ = β)
+    (e : Fin (c.Q.disk β).n) (hmem : c.occ B.typ i ∈ c.outerList β e) (hrk : IsRankU c (B.cell i 3)) :
+    B.cell i 3 = rankU c (c.rankOf β e (c.occ B.typ i)) := by
+  have h1 : c.form A.typ = β := hB.1.symm.trans hβ
+  subst h1
+  have hnp : ¬ c.IsPrint (c.occ B.typ i) := fun hp => asm_print_inner c hp hout
+  have h := ((hB.2 i).2 hnp).2.2.2.2.2.1 hout e hmem
+  rw [h] at hrk ⊢
+  split_ifs at hrk ⊢ with hz
+  · obtain ⟨k, -, hk⟩ := hrk
+    cases hk
+  · rfl
+
+/-- The rank value of a nonzero rank in a list of length at most `rankBound` determines it. -/
+private lemma ac1r_rankOf_one (c : MacroCertificate P) (α β : c.Q.Form) (d : Fin (c.Q.disk α).n)
+    (e : Fin (c.Q.disk β).n) (o₀ o : c.SideOcc) (h1 : c.rankIn α d o₀ = 1)
+    (h : rankU c (c.rankOf β e o) = rankU c (c.rankOf α d o₀)) : c.rankIn β e o = 1 := by
+  have h' : c.rankOf β e o = c.rankOf α d o₀ := by
+    simpa only [rankU, HeaderKernel.TaggedIndex.ordinary.injEq, Sum.inl.injEq] using h
+  have hv := congrArg Fin.val h'
+  simp only [MacroData.rankOf, h1] at hv
+  have hR : 5 ≤ c.rankBound := (c.g3_five_le α d).trans (c.g3_length_le α d)
+  have hpos : 1 ≤ c.rankIn β e o := Nat.succ_le_succ (Nat.zero_le _)
+  omega
+
 /-- Step 1 of the blueprint proof of `alignment_complete_step1_macroside_eq`: Rank
 matching and legality find a different block and a rank-one child side on one
 of its macrosides that coincides with the first listed child side of `d`. -/
@@ -2916,7 +3070,82 @@ private lemma alignment_complete_step1_macroside_eq_step1_rank_one (c : MacroCer
         IsRankU c ((part.block j').col o.1 o.2 3) ∧
         (part.block j').childSide o = (part.block j).childSide o₀ ∧
         (part.block j').col o.1 o.2 3 = (part.block j).col o₀.1 o₀.2 3 := by
-  sorry
+  -- Mode uniformity is only needed in the later steps of the blueprint proof.
+  have _ := hmode
+  obtain ⟨o₀, rest, hL0⟩ : ∃ o₀ rest, c.outerList (part.block j).α d = o₀ :: rest := by
+    cases h : c.outerList (part.block j).α d with
+    | nil => have := c.g3_five_le (part.block j).α d; rw [h] at this; simp at this
+    | cons a l => exact ⟨a, l, rfl⟩
+  have ho₀mem : o₀ ∈ c.outerList (part.block j).α d := by rw [hL0]; exact List.mem_cons_self
+  have hhead : (c.outerList (part.block j).α d).head? = some o₀ := by rw [hL0]; rfl
+  have hrank0 : c.rankIn (part.block j).α d o₀ = 1 := by simp [MacroData.rankIn, hL0]
+  obtain ⟨hown0, hout0, hsub0⟩ := (c.g3_outerList_mem _ _ _).1 ho₀mem
+  obtain ⟨hR0, -⟩ := hrank o₀ ho₀mem
+  have hX : (part.block j).placed o₀.1 ∈ T.tiles := part.cover ▸ Set.mem_iUnion.2 ⟨j, o₀.1, hown0, rfl⟩
+  have hnt : IsNontrivial c (tileDec ((part.block j).placed o₀.1)) o₀.2 := by
+    rintro ⟨h3, -⟩
+    obtain ⟨k, -, hk⟩ := hR0
+    change (part.block j).col o₀.1 o₀.2 3 = 0 at h3
+    rw [hk] at h3
+    cases h3
+  obtain ⟨Y, hY, hYX, jY, hside, hcell⟩ := hT _ hX o₀.2 hnt
+  obtain ⟨j', hYj'⟩ := Set.mem_iUnion.1 (part.cover.symm ▸ hY : Y ∈ ⋃ j, (part.block j).tiles)
+  obtain ⟨t, hown, rfl⟩ := hYj'
+  have hNX := headerLegal_properties_step2_normal_id c hH _ (hL _ hX)
+  have hNY := headerLegal_properties_step2_normal_id c hH _ (hL _ hY)
+  have hout : c.IsOuter ⟨t, jY⟩ := by
+    by_contra hin
+    exact (asm_match c hNY hNX jY o₀.2 hin (fun k => (hcell k).symm)).1 hout0
+  obtain ⟨e, he⟩ := ac1r_outer_mem_outerList c hH ⟨t, jY⟩ hout _ hown
+  have hR' : IsRankU c ((part.block j').col t jY 3) := by
+    have := hcell 3
+    change (part.block j').col t jY 3 = (part.block j).col o₀.1 o₀.2 3 at this
+    rw [this]; exact hR0
+  obtain ⟨chY, hchY0, hchY, -⟩ := hL _ hY
+  obtain ⟨chX, hchX0, hchX, -⟩ := hL _ hX
+  have hcY : IsChildOf c (chY 1) (tileDec ((part.block j').placed t)) := hchY0 ▸ hchY 0
+  have hcX : IsChildOf c (chX 1) (tileDec ((part.block j).placed o₀.1)) := hchX0 ▸ hchX 0
+  have hY3 := ac1r_cell_rank c _ _ hcY jY hout _ hown e he hR'
+  have hX3 := ac1r_cell_rank c _ _ hcX o₀.2 hout0 _ hown0 d ho₀mem hR0
+  have hrk1 : c.rankIn (part.block j').α e ⟨t, jY⟩ = 1 := by
+    refine ac1r_rankOf_one c _ _ d e o₀ _ hrank0 ?_
+    have h3 := hcell 3
+    rw [hY3, hX3] at h3
+    exact h3
+  have hsideK : (part.block j').childSide ⟨t, jY⟩ = (part.block j).childSide o₀ := hside
+  refine ⟨j', ?_, e, o₀, ⟨t, jY⟩, hhead, ho₀mem, he, hrk1, hR', hsideK, hcell 3⟩
+  intro hjj
+  subst j'
+  have ht : t ≠ o₀.1 := by
+    intro h
+    apply hYX
+    subst h
+    rfl
+  have hocc : c.occSide ⟨t, jY⟩ = c.occSide o₀ := by
+    have h1 : ∀ o : c.SideOcc, (part.block j).childSide o = (part.block j).v +ᵥ c.occSide o := by
+      intro o
+      simp only [ColouredBlock.childSide, MacroData.occSide, MacroData.childTile, PlacedTile.side, ← vadd_vadd]
+    have h2 := hsideK
+    rw [h1, h1] at h2
+    simpa using congrArg ((-(part.block j).v) +ᵥ ·) h2
+  have homem : (⟨t, jY⟩ : c.SideOcc) ∈ c.outerList (part.block j).α d :=
+    (c.g3_outerList_mem _ _ _).2 ⟨hown, hout, hocc ▸ hsub0⟩
+  have hne : (⟨t, jY⟩ : c.SideOcc) ≠ o₀ := fun h => ht (congrArg Sigma.fst h)
+  have hmid : c.occMid ⟨t, jY⟩ = c.occMid o₀ := by
+    unfold MacroData.occMid
+    apply ac1r_midpoint_eq
+    rw [← ac1r_occSide_eq, ← ac1r_occSide_eq, hocc]
+  have hpw := (c.g3_outerList_sorted (part.block j).α d).imp (R := fun o o' => ∃ r : ℝ, 0 < r ∧
+      c.occMid o' - c.occMid o = r • c.macroSideDir (part.block j).α d)
+    (S := fun o o' => (∃ r : ℝ, 0 < r ∧ c.occMid o' - c.occMid o = r • c.macroSideDir (part.block j).α d) ∨
+      (∃ r : ℝ, 0 < r ∧ c.occMid o - c.occMid o' = r • c.macroSideDir (part.block j).α d)) Or.inl
+  have hsym := hpw.forall (fun a b h => h.symm) homem ho₀mem hne
+  have hdir := ac1r_macroSideDir_ne c (part.block j).α d
+  rcases hsym with ⟨r, hr, h⟩ | ⟨r, hr, h⟩ <;>
+  · rw [hmid, sub_self] at h
+    rcases smul_eq_zero.1 h.symm with h' | h'
+    · exact absurd h' hr.ne'
+    · exact hdir h'
 
 /-! ### Lines and ordered segments -/
 

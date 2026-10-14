@@ -12025,6 +12025,1231 @@ private lemma existsAnnularSpokes_step5_crosscuts_step2_boundary_homotopy (A C :
   · exact ⟨γ', hγ'p, pg_lh_trans (pg_lh_mono hfA h) H⟩
   · exact ⟨fun t => γ' (-t), pg_isLoopParam_neg hγ'p, pg_lh_trans (pg_lh_mono hfA h) (pg_lh_comp_neg H)⟩
 
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: "Their
+endpoints are distinct and appear in the same cyclic order on the two cycles" — three parameter values in cyclic
+position, at mutual distance less than one period, put the three points in cyclic order. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step1_of_vals {γ : ℝ → Pt}
+    (hp : Function.Periodic γ 1) {x : Fin 3 → Pt} {a b c : ℝ}
+    (ha : γ a = x 0) (hb : γ b = x 1) (hc : γ c = x 2)
+    (hab : |a - b| < 1) (hbc : |b - c| < 1) (hac : |a - c| < 1)
+    (hcyc : (a < b ∧ b < c) ∨ (b < c ∧ c < a) ∨ (c < a ∧ a < b)) : PointsInOrder γ x := by
+  rw [abs_lt] at hab hbc hac
+  have key : ∀ T0 T1 T2 : ℝ, T0 < T1 → T1 < T2 → T2 < T0 + 1 → γ T0 = x 0 → γ T1 = x 1 → γ T2 = x 2 →
+      PointsInOrder γ x := by
+    intro T0 T1 T2 h1 h2 h3 e0 e1 e2
+    refine ⟨![T0, T1, T2], ?_, ?_, ?_⟩
+    · refine Fin.strictMono_iff_lt_succ.2 fun i => ?_
+      fin_cases i <;> simp <;> linarith
+    · intro i j; fin_cases i <;> fin_cases j <;> simp <;> linarith
+    · intro i; fin_cases i <;> simpa
+  rcases hcyc with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · exact key a b c h1 h2 (by linarith) ha hb hc
+  · exact key a (b + 1) (c + 1) (by linarith) (by linarith) (by linarith) ha (by rw [hp]; exact hb)
+      (by rw [hp]; exact hc)
+  · exact key a b (c + 1) h2 (by linarith) (by linarith) ha hb (by rw [hp]; exact hc)
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: three
+distinct points of a simple closed curve appear in cyclic order along one of the two orientations of the curve. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step2_dichotomy {K : Set Pt}
+    {γ : ℝ → Pt} (hγ : IsLoopParam K γ) {x : Fin 3 → Pt} (hx : ∀ i, x i ∈ K) (hinj : Function.Injective x) :
+    PointsInOrder γ x ∨ PointsInOrder (fun t => γ (-t)) x := by
+  obtain ⟨-, hp, -, him⟩ := hγ
+  have hpn : Function.Periodic (fun t => γ (-t)) 1 := fun t => by
+    simp only [neg_add, ← sub_eq_add_neg]; exact hp.sub_eq _
+  obtain ⟨a, ⟨ha0, ha1⟩, ea⟩ : x 0 ∈ γ '' Ico 0 1 := him ▸ hx 0
+  obtain ⟨b, ⟨hb0, hb1⟩, eb⟩ : x 1 ∈ γ '' Ico 0 1 := him ▸ hx 1
+  obtain ⟨c, ⟨hc0, hc1⟩, ec⟩ : x 2 ∈ γ '' Ico 0 1 := him ▸ hx 2
+  have hab : a ≠ b := by rintro rfl; exact absurd (hinj (ea.symm.trans eb)) (by decide)
+  have hbc : b ≠ c := by rintro rfl; exact absurd (hinj (eb.symm.trans ec)) (by decide)
+  have hac : a ≠ c := by rintro rfl; exact absurd (hinj (ea.symm.trans ec)) (by decide)
+  have ea' : γ (- -a) = x 0 := by simpa using ea
+  have eb' : γ (- -b) = x 1 := by simpa using eb
+  have ec' : γ (- -c) = x 2 := by simpa using ec
+  have d1 : |a - b| < 1 := abs_lt.2 ⟨by linarith, by linarith⟩
+  have d2 : |b - c| < 1 := abs_lt.2 ⟨by linarith, by linarith⟩
+  have d3 : |a - c| < 1 := abs_lt.2 ⟨by linarith, by linarith⟩
+  have d1' : |-a - -b| < 1 := abs_lt.2 ⟨by linarith, by linarith⟩
+  have d2' : |-b - -c| < 1 := abs_lt.2 ⟨by linarith, by linarith⟩
+  have d3' : |-a - -c| < 1 := abs_lt.2 ⟨by linarith, by linarith⟩
+  have hcyc : ((a < b ∧ b < c) ∨ (b < c ∧ c < a) ∨ (c < a ∧ a < b)) ∨
+      ((-a < -b ∧ -b < -c) ∨ (-b < -c ∧ -c < -a) ∨ (-c < -a ∧ -a < -b)) := by
+    rcases lt_or_gt_of_ne hab with h1 | h1 <;> rcases lt_or_gt_of_ne hbc with h2 | h2 <;>
+      rcases lt_or_gt_of_ne hac with h3 | h3
+    all_goals first
+      | (exfalso; linarith)
+      | exact Or.inl (Or.inl ⟨h1, h2⟩)
+      | exact Or.inl (Or.inr (Or.inl ⟨h2, h3⟩))
+      | exact Or.inl (Or.inr (Or.inr ⟨h3, h1⟩))
+      | exact Or.inr (Or.inl ⟨by linarith, by linarith⟩)
+      | exact Or.inr (Or.inr (Or.inl ⟨by linarith, by linarith⟩))
+      | exact Or.inr (Or.inr (Or.inr ⟨by linarith, by linarith⟩))
+  rcases hcyc with h | h
+  · exact Or.inl (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step1_of_vals hp ea eb ec
+      d1 d2 d3 h)
+  · exact Or.inr (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step1_of_vals hpn ea' eb'
+      ec' d1' d2' d3' h)
+
+/-- Step 3 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: winding
+numbers via lifts — a nonvanishing continuous complex function on a simply connected space has a continuous
+logarithm. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step3_lift_exists {X : Type*}
+    [TopologicalSpace X] [SimplyConnectedSpace X] [LocPathConnectedSpace X] {c : X → ℂ} (hc : Continuous c)
+    (h0 : ∀ a, c a ≠ 0) : ∃ Θ : X → ℂ, Continuous Θ ∧ ∀ a, Complex.exp (Θ a) = c a := by
+  have a0 : X := Classical.choice (inferInstance : Nonempty X)
+  obtain ⟨F, ⟨-, hF⟩, -⟩ := Complex.isCoveringMapOn_exp.existsUnique_continuousMap_lifts ⟨c, hc⟩
+    (a₀ := a0) (e₀ := Complex.log (c a0)) (by simp [Complex.exp_log (h0 a0)]) (fun a => h0 a)
+  exact ⟨F, F.continuous, fun a => congrFun hF a⟩
+
+/-- Step 4 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: two
+continuous logarithms of the same function on a connected space differ by a constant. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step4_lift_diff {X : Type*}
+    [TopologicalSpace X] [PreconnectedSpace X] {g₁ g₂ : X → ℂ} (h₁ : Continuous g₁) (h₂ : Continuous g₂)
+    (he : ∀ a, Complex.exp (g₁ a) = Complex.exp (g₂ a)) (a a' : X) : g₁ a - g₂ a = g₁ a' - g₂ a' :=
+  Complex.isCoveringMap_exp.const_of_comp (h₁.sub h₂) (fun a a' => by
+    ext; simp only [Complex.exp_sub, he, div_self (Complex.exp_ne_zero _)]) a a'
+
+/-- Step 5 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a
+continuous logarithm of a period-one function has a constant increment `2πi n` over a period. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step5_lift_incr {c : ℝ → ℂ}
+    (hp : Function.Periodic c 1) {Θ : ℝ → ℂ} (hΘ : Continuous Θ) (he : ∀ t, Complex.exp (Θ t) = c t) :
+    ∃ n : ℤ, ∀ t, Θ (t + 1) = Θ t + n * (2 * Real.pi * Complex.I) := by
+  have e1 : Complex.exp (Θ (0 + 1)) = Complex.exp (Θ 0) := by rw [he, he, hp]
+  obtain ⟨n, hn⟩ := Complex.exp_eq_exp_iff_exists_int.1 e1
+  refine ⟨n, fun t => ?_⟩
+  have := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step4_lift_diff
+    (g₁ := fun t => Θ (t + 1)) (g₂ := Θ) (hΘ.comp (continuous_add_right 1)) hΘ
+    (fun t => by simp only [he, hp t]) t 0
+  simp only at this
+  rw [hn] at this
+  linear_combination this
+
+/-- Step 6 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the
+winding number about `p` is invariant under free homotopies avoiding `p`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+    {U : Set Pt} {γ₀ γ₁ : ℝ → Pt} (h : LoopsHomotopicIn U γ₀ γ₁) {p : Pt} (hp : p ∉ U)
+    {Θ₀ Θ₁ : ℝ → ℂ} (h0c : Continuous Θ₀) (h0 : ∀ t, Complex.exp (Θ₀ t) = toC (γ₀ t - p))
+    (h1c : Continuous Θ₁) (h1 : ∀ t, Complex.exp (Θ₁ t) = toC (γ₁ t - p)) {n₀ n₁ : ℤ}
+    (hn0 : ∀ t, Θ₀ (t + 1) = Θ₀ t + n₀ * (2 * Real.pi * Complex.I))
+    (hn1 : ∀ t, Θ₁ (t + 1) = Θ₁ t + n₁ * (2 * Real.pi * Complex.I)) : n₀ = n₁ := by
+  obtain ⟨F, hF, hper, hF0, hF1, hFU⟩ := h
+  set G : ℝ × ℝ → Pt := fun x => F (max 0 (min 1 x.1), x.2) with hG
+  have hGc : Continuous G := hF.comp (by fun_prop)
+  have hGU : ∀ x, G x ≠ p := fun x he =>
+    hp (he ▸ hFU _ ⟨le_max_left _ _, max_le zero_le_one (min_le_left _ _)⟩ _)
+  obtain ⟨Ψ, hΨc, hΨ⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step3_lift_exists
+    (c := fun x => toC (G x - p)) (continuous_toC.comp (hGc.sub continuous_const))
+    (fun x h => hGU x (sub_eq_zero.1 (toC_injective (h.trans (by apply Complex.ext <;> simp [toC])))))
+  have hstep : ∀ x : ℝ × ℝ, Complex.exp (Ψ (x.1, x.2 + 1)) = Complex.exp (Ψ x) := by
+    intro x; rw [hΨ, hΨ]; simp only [hG, hper]
+  have hconst := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step4_lift_diff
+    (g₁ := fun x : ℝ × ℝ => Ψ (x.1, x.2 + 1)) (g₂ := Ψ) (hΨc.comp (by fun_prop)) hΨc hstep
+  have slice : ∀ (s : ℝ) (hs : s ∈ Icc (0:ℝ) 1) (γ : ℝ → Pt) (hγ : ∀ t, F (s, t) = γ t) (Θ : ℝ → ℂ)
+      (hc : Continuous Θ) (he : ∀ t, Complex.exp (Θ t) = toC (γ t - p)) (n : ℤ)
+      (hn : ∀ t, Θ (t + 1) = Θ t + n * (2 * Real.pi * Complex.I)),
+      (n : ℂ) * (2 * Real.pi * Complex.I) = Ψ (s, 0 + 1) - Ψ (s, 0) := by
+    intro s hs γ hγ Θ hc he n hn
+    have hms : max 0 (min 1 s) = s := by rw [min_eq_right hs.2, max_eq_right hs.1]
+    have := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step4_lift_diff
+      (g₁ := Θ) (g₂ := fun t => Ψ (s, t)) hc (hΨc.comp (by fun_prop))
+      (fun t => by rw [he, hΨ]; simp only [hG, hms, hγ]) (0 + 1) 0
+    rw [hn] at this
+    linear_combination this
+  have e0 := slice 0 ⟨le_refl _, zero_le_one⟩ γ₀ hF0 Θ₀ h0c h0 n₀ hn0
+  have e1 := slice 1 ⟨zero_le_one, le_refl _⟩ γ₁ hF1 Θ₁ h1c h1 n₁ hn1
+  have := hconst (0, 0) (1, 0)
+  simp only at this
+  have key : (n₀ : ℂ) * (2 * Real.pi * Complex.I) = (n₁ : ℂ) * (2 * Real.pi * Complex.I) := by
+    rw [e0, e1]; exact this
+  have hne : (2 * Real.pi * Complex.I : ℂ) ≠ 0 := by simp [Real.pi_ne_zero, Complex.I_ne_zero]
+  exact_mod_cast mul_right_cancel₀ hne key
+
+/-- Step 7 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: along
+a segment avoiding `p`, a continuous logarithm of `z - p` changes by the principal logarithm of the ratio. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step7_segment_lift {a b p : Pt}
+    (hp : p ∉ segment ℝ a b) {Φ : ℝ → ℂ} (hΦ : ContinuousOn Φ (Icc 0 1))
+    (he : ∀ μ ∈ Icc (0:ℝ) 1, Complex.exp (Φ μ) = toC (AffineMap.lineMap a b μ - p)) :
+    Φ 1 - Φ 0 = Complex.log (segRatio a b p) := by
+  have hap : toC a - toC p ≠ 0 := by
+    intro h; apply hp; rw [sub_eq_zero] at h; rw [toC_injective h]; exact left_mem_segment ℝ _ _
+  have hsub : ∀ μ ∈ Icc (0:ℝ) 1, p ∉ segment ℝ a (AffineMap.lineMap a b μ) := by
+    intro μ hμ h
+    apply hp
+    have hx : AffineMap.lineMap a b μ ∈ segment ℝ a b := by
+      rw [segment_eq_image_lineMap]; exact ⟨μ, hμ, rfl⟩
+    exact (convex_segment a b).segment_subset (left_mem_segment ℝ a b) hx h
+  set g : ℝ → ℂ := fun μ => Φ μ - Φ 0 - Complex.log (segRatio a (AffineMap.lineMap a b μ) p) with hg
+  have hgc : ContinuousOn g (Icc 0 1) := by
+    refine (hΦ.sub continuousOn_const).sub ?_
+    intro μ hμ
+    apply ContinuousAt.continuousWithinAt
+    have hc : ContinuousAt (fun μ : ℝ => segRatio a (AffineMap.lineMap a b μ) p) μ := by
+      unfold segRatio
+      apply ContinuousAt.div_const
+      exact ((continuous_toC.comp (AffineMap.lineMap_continuous)).sub continuous_const).continuousAt
+    exact ContinuousAt.comp (g := Complex.log) (x := μ) (continuousAt_clog (segRatio_mem_slitPlane (hsub μ hμ))) hc
+  have hge : ∀ μ ∈ Icc (0:ℝ) 1, Complex.exp (g μ) = 1 := by
+    intro μ hμ
+    have hne : segRatio a (AffineMap.lineMap a b μ) p ≠ 0 :=
+      Complex.slitPlane_ne_zero (segRatio_mem_slitPlane (hsub μ hμ))
+    rw [hg]
+    simp only
+    rw [Complex.exp_sub, Complex.exp_sub, Complex.exp_log hne, he μ hμ, he 0 ⟨le_refl _, zero_le_one⟩]
+    simp only [AffineMap.lineMap_apply_zero, segRatio, toC_sub]
+    have : toC (AffineMap.lineMap a b μ) - toC p ≠ 0 := by
+      intro h; apply hne; simp [segRatio, h]
+    field_simp
+  have h01 := Complex.isCoveringMap_exp.constOn_of_comp isPreconnected_Icc hgc
+    (fun x hx y hy => by ext; simp [hge x hx, hge y hy]) (a := 1) (a' := 0) ⟨zero_le_one, le_refl _⟩
+    ⟨le_refl _, zero_le_one⟩
+  simp only [hg, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero, sub_self] at h01
+  have h1 : segRatio a a p = 1 := by simp [segRatio, div_self hap]
+  rw [h1, Complex.log_one] at h01
+  linear_combination h01
+
+/-- Step 8 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: for
+a closed polygon the lift winding number agrees with the polygonal winding function. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step8_polygon_degree
+    {l : List Pt} (hl : 0 < l.length) {p : Pt} (hp : p ∉ pgCv l) {Θ : ℝ → ℂ}
+    (hΘc : Continuous Θ) (hΘ : ∀ t, Complex.exp (Θ t) = toC (pgLoop l t - p)) {n : ℤ}
+    (hn : ∀ t, Θ (t + 1) = Θ t + n * (2 * Real.pi * Complex.I)) : pgW l p = 2 * Real.pi * n := by
+  set N := l.length with hN
+  have hNR : (0:ℝ) < N := by exact_mod_cast hl
+  have hbase : ∀ τ ∈ Icc (0:ℝ) 1, pgLoop l τ = pgBase l τ := by
+    intro τ hτ
+    rw [pgLoop_eq_base]
+    rcases eq_or_lt_of_le hτ.2 with h | h
+    · subst h
+      simp [pgBase, ← hN, Nat.mod_self]
+    · simp [Int.fract_eq_self.2 ⟨hτ.1, h⟩]
+  have hpiece : ∀ i < N, Θ ((((i:ℕ):ℝ) + 1) / N) - Θ ((i:ℕ) / N) =
+      Complex.log (segRatio (l.getD i 0) (l.getD ((i + 1) % N) 0) p) := by
+    intro i hi
+    have hseg : p ∉ segment ℝ (l.getD i 0) (l.getD ((i + 1) % N) 0) := by
+      intro h; apply hp
+      have hi' : i < (pgEd l).length := by rwa [pgEd_length]
+      refine mem_pgCv.2 ⟨(pgEd l)[i], List.getElem_mem hi', ?_⟩
+      rw [pgEd_getElem]
+      rwa [List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ (Nat.mod_lt _ hl)] at h
+    have := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step7_segment_lift hseg
+      (Φ := fun μ => Θ (((i:ℝ) + μ) / N)) (hΘc.comp (by fun_prop)).continuousOn (fun μ hμ => by
+        simp only
+        have hτ : ((i:ℝ) + μ) / N ∈ Icc ((i:ℝ) / N) (((i:ℝ) + 1) / N) :=
+          ⟨div_le_div_of_nonneg_right (by linarith [hμ.1]) hNR.le,
+            div_le_div_of_nonneg_right (by linarith [hμ.2]) hNR.le⟩
+        have hτ' : ((i:ℝ) + μ) / N ∈ Icc (0:ℝ) 1 := by
+          refine ⟨div_nonneg (by linarith [hμ.1, (Nat.cast_nonneg i : (0:ℝ) ≤ i)]) hNR.le, ?_⟩
+          rw [div_le_one hNR]
+          have : (i:ℝ) + 1 ≤ N := by exact_mod_cast hi
+          linarith [hμ.2]
+        rw [hΘ, hbase _ hτ', pgBase_on_piece hl i hi hτ]
+        congr 3
+        field_simp
+        ring)
+    simpa using this
+  have hsum : ∑ i ∈ Finset.range N, (Θ ((((i:ℕ):ℝ) + 1) / N) - Θ ((i:ℕ) / N)) = Θ 1 - Θ 0 := by
+    have := Finset.sum_range_sub (fun i : ℕ => Θ ((i:ℝ) / N)) N
+    push_cast at this
+    rw [this]
+    simp [div_self hNR.ne']
+  have h1 : Θ 1 - Θ 0 = n * (2 * Real.pi * Complex.I) := by
+    have := hn 0; simp only [zero_add] at this; rw [this]; ring
+  have hW : pgW l p = ∑ i ∈ Finset.range N, Complex.arg (segRatio (l.getD i 0) (l.getD ((i + 1) % N) 0) p) := by
+    rw [pgW_eq_wind, wind, ← Fin.sum_univ_eq_sum_range]
+    refine Finset.sum_congr rfl fun k _ => ?_
+    rw [List.getD_eq_getElem _ _ k.2, List.getD_eq_getElem _ _ (Nat.mod_lt _ hl)]
+    congr 3
+    exact Fin.ext (finRotate_val_eq_mod k)
+  have him := congrArg Complex.im (hsum.trans h1)
+  rw [Finset.sum_congr rfl (fun i hi => hpiece i (Finset.mem_range.1 hi)), Complex.im_sum] at him
+  simp only [Complex.log_im] at him
+  rw [hW, him]
+  simp only [Complex.mul_im, Complex.intCast_re, Complex.intCast_im]
+  simp
+  ring
+
+/-- Step 9 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: two
+parametrizations of the same simple closed curve have winding numbers equal up to sign. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step9_param_degree
+    {K : Set Pt} {γ δ : ℝ → Pt} (hγ : IsLoopParam K γ) (hδ : IsLoopParam K δ) {p : Pt} (hp : p ∉ K)
+    {Θ Ψ : ℝ → ℂ} (hΘc : Continuous Θ) (hΘ : ∀ t, Complex.exp (Θ t) = toC (γ t - p))
+    (hΨc : Continuous Ψ) (hΨ : ∀ t, Complex.exp (Ψ t) = toC (δ t - p)) {n m : ℤ}
+    (hn : ∀ t, Θ (t + 1) = Θ t + n * (2 * Real.pi * Complex.I))
+    (hm : ∀ t, Ψ (t + 1) = Ψ t + m * (2 * Real.pi * Complex.I)) : n = m ∨ n = -m := by
+  rcases pg_loopParam_homotopic hγ hδ with h | h
+  · exact Or.inl (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree h hp
+      hΘc hΘ hΨc hΨ hn hm)
+  · refine Or.inr (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree h hp
+      hΘc hΘ (hΨc.comp continuous_neg) (fun t => hΨ (-t)) hn (n₁ := -m) (fun t => ?_))
+    have := hm (-(t + 1))
+    simp only [show -(t + 1) + 1 = -t by ring] at this
+    simp only [Function.comp_apply]
+    rw [this]; push_cast; ring
+
+/-- Step 10 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a
+parametrization of a simple closed curve avoiding `p` has a continuous logarithm of `γ - p` with some integer
+increment (its winding number). -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift {K : Set Pt}
+    {γ : ℝ → Pt} (hγ : IsLoopParam K γ) {p : Pt} (hp : p ∉ K) :
+    ∃ Θ : ℝ → ℂ, Continuous Θ ∧ (∀ t, Complex.exp (Θ t) = toC (γ t - p)) ∧
+      ∃ n : ℤ, ∀ t, Θ (t + 1) = Θ t + n * (2 * Real.pi * Complex.I) := by
+  obtain ⟨hc, hper, -, him⟩ := hγ
+  have hK : ∀ t, γ t ∈ K := fun t => by
+    rw [← pg_periodic_fract hper, ← him]; exact mem_image_of_mem _ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+  obtain ⟨Θ, hΘc, hΘ⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step3_lift_exists
+    (c := fun t => toC (γ t - p)) (continuous_toC.comp (hc.sub continuous_const))
+    (fun t h => hp ((sub_eq_zero.1 (toC_injective (h.trans (by apply Complex.ext <;> simp [toC])))) ▸ hK t))
+  refine ⟨Θ, hΘc, hΘ, existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step5_lift_incr
+    (fun t => by simp only [hper t]) hΘc hΘ⟩
+
+/-- Step 11 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a point different from `y` gives a nonzero
+    complex number `x - y`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero {x y : Pt} (h : x ≠ y) : toC (x - y) ≠ 0 := fun h' =>
+  h (sub_eq_zero.1 (toC_injective (h'.trans (by apply Complex.ext <;> simp [toC]))))
+
+open Classical in
+/-- Step 12 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the angle change (times `i`, plus the
+    log-modulus change) of a path `c` on `[a, b]` around `q`,
+measured by a continuous logarithm of `c - q`. -/
+private noncomputable def existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange (c : ℝ → Pt) (a b : ℝ) (q : Pt) : ℂ :=
+  if h : ∃ Θ : ℝ → ℂ, Continuous Θ ∧ ∀ t, Complex.exp (Θ t) = toC (c (max a (min b t)) - q) then
+    h.choose b - h.choose a else 0
+
+/-- Step 13 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: clamping a parameter into `[a, b]`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step13_clamp_mem {a b t : ℝ} (hab : a ≤ b) : max a (min b t) ∈ Icc a b :=
+  ⟨le_max_left _ _, max_le hab (min_le_left _ _)⟩
+
+/-- Step 14 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: clamping fixes the parameters of `[a, b]`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq {a b t : ℝ} (ht : t ∈ Icc a b) : max a (min b t) = t := by
+  rw [min_eq_right ht.2, max_eq_right ht.1]
+
+/-- Step 15 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the angle change is computed by any
+    continuous logarithm on `[a, b]`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq {c : ℝ → Pt} (hc : Continuous c) {a b : ℝ} (hab
+    : a ≤ b) {q : Pt}
+    (hq : ∀ t ∈ Icc a b, c t ≠ q) {Θ : ℝ → ℂ} (hΘ : ContinuousOn Θ (Icc a b))
+    (he : ∀ t ∈ Icc a b, Complex.exp (Θ t) = toC (c t - q)) : existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c
+        a b q = Θ b - Θ a := by
+  have hex : ∃ Θ : ℝ → ℂ, Continuous Θ ∧ ∀ t, Complex.exp (Θ t) = toC (c (max a (min b t)) - q) :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step3_lift_exists (continuous_toC.comp ((hc.comp (by fun_prop)).sub continuous_const))
+      (fun t => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (hq _
+          (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step13_clamp_mem hab)))
+  rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange, dif_pos hex]
+  obtain ⟨hΨc, hΨ⟩ := hex.choose_spec
+  have hd := Complex.isCoveringMap_exp.constOn_of_comp (g := fun t => hex.choose t - Θ t) isPreconnected_Icc
+    (hΨc.continuousOn.sub hΘ) (fun x hx y hy => by
+      ext
+      simp only [Complex.exp_sub, hΨ, he x hx, he y hy, existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq hx,
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq hy]
+      rw [div_self (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (hq x hx)), div_self
+          (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (hq y hy))])
+    (a := b) (a' := a) ⟨hab, le_refl _⟩ ⟨le_refl _, hab⟩
+  simp only at hd
+  linear_combination hd
+
+/-- Step 16 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the exponential of the angle change is the
+    ratio of the end and start vectors. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step16_angleChange_exp {c : ℝ → Pt} (hc : Continuous c) {a b : ℝ}
+    (hab : a ≤ b) {q : Pt}
+    (hq : ∀ t ∈ Icc a b, c t ≠ q) : Complex.exp (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c a b q) = toC
+        (c b - q) / toC (c a - q) := by
+  obtain ⟨Ψ, hΨc, hΨ⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step3_lift_exists (X := ℝ) (c := fun t => toC (c (max a
+      (min b t)) - q))
+    (continuous_toC.comp ((hc.comp (by fun_prop)).sub continuous_const))
+      (fun t => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (hq _
+          (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step13_clamp_mem hab)))
+  rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hc hab hq hΨc.continuousOn (fun t ht => by rw [hΨ,
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq ht]), Complex.exp_sub, hΨ, hΨ,
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq ⟨hab, le_refl _⟩,
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq ⟨le_refl _, hab⟩]
+
+/-- Step 17 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: angle changes add along a subdivision. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step17_angleChange_add {c : ℝ → Pt} (hc : Continuous c) {a b e : ℝ}
+    (hab : a ≤ b) (hbe : b ≤ e) {q : Pt}
+    (hq : ∀ t ∈ Icc a e, c t ≠ q) : existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c a e q =
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c a b q +
+            existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c b e q := by
+  obtain ⟨Ψ, hΨc, hΨ⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step3_lift_exists (X := ℝ) (c := fun t => toC (c (max a
+      (min e t)) - q))
+    (continuous_toC.comp ((hc.comp (by fun_prop)).sub continuous_const))
+      (fun t => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (hq _
+          (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step13_clamp_mem (hab.trans hbe))))
+  have h1 : ∀ t ∈ Icc a e, Complex.exp (Ψ t) = toC (c t - q) := fun t ht => by rw [hΨ,
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq ht]
+  rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hc (hab.trans hbe) hq hΨc.continuousOn h1,
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hc hab (fun t ht => hq t ⟨ht.1, ht.2.trans hbe⟩) hΨc.continuousOn
+      (fun t ht => h1 t ⟨ht.1, ht.2.trans hbe⟩),
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hc hbe (fun t ht => hq t ⟨hab.trans ht.1, ht.2⟩) hΨc.continuousOn
+      (fun t ht => h1 t ⟨hab.trans ht.1, ht.2⟩)]
+  ring
+
+/-- Step 18 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the angle change of a fixed path depends
+    continuously on a point moving along a path avoiding it. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step18_angleChange_cont {c : ℝ → Pt} (hc : Continuous c) {a b : ℝ}
+    (hab : a ≤ b) {q : ℝ → Pt} (hqc : Continuous q)
+    (hq : ∀ s ∈ Icc (0:ℝ) 1, ∀ t ∈ Icc a b, c t ≠ q s) :
+    ContinuousOn (fun s => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c a b (q s)) (Icc 0 1) := by
+  obtain ⟨Ψ, hΨc, hΨ⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step3_lift_exists (X := ℝ × ℝ)
+    (c := fun x => toC (c (max a (min b x.1)) - q (max 0 (min 1 x.2))))
+    (continuous_toC.comp ((hc.comp (by fun_prop)).sub (hqc.comp (by fun_prop))))
+    (fun x => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (hq _
+        (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step13_clamp_mem zero_le_one) _
+            (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step13_clamp_mem hab)))
+  have : EqOn (fun s => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c a b (q s)) (fun s => Ψ (b, s) - Ψ (a,
+      s)) (Icc 0 1) := by
+    intro s hs
+    exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hc hab (hq s hs) (Θ := fun t => Ψ (t, s))
+      (hΨc.comp (Continuous.prodMk continuous_id continuous_const)).continuousOn (fun t ht => by
+      show Complex.exp (Ψ (t, s)) = _
+      rw [hΨ]; simp only [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq ht,
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step14_clamp_eq hs])
+  refine ContinuousOn.congr ?_ this
+  exact ((hΨc.comp (Continuous.prodMk continuous_const continuous_id)).sub
+    (hΨc.comp (Continuous.prodMk continuous_const continuous_id))).continuousOn
+
+/-- Step 19 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: if the path stays in an open half-plane
+    seen from `q`, the angle change is a difference of
+principal logarithms. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step19_angleChange_half {c : ℝ → Pt} (hc : Continuous c) {a b : ℝ}
+    (hab : a ≤ b) {q : Pt} {w : ℂ}
+    (hw : ∀ t ∈ Icc a b, 0 < (toC (c t - q) * w).re) :
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange c a b q = Complex.log (toC (c b - q) * w) - Complex.log (toC
+        (c a - q) * w) := by
+  have hw0 : w ≠ 0 := by rintro rfl; have := hw a ⟨le_refl _, hab⟩; simp at this
+  have hq : ∀ t ∈ Icc a b, c t ≠ q := fun t ht h => by
+    have := hw t ht; rw [h, sub_self] at this; simp [toC] at this
+  rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hc hab hq (Θ := fun t => Complex.log (toC (c t - q) *
+      w) - Complex.log w)]
+  · ring
+  · intro t ht
+    apply ContinuousAt.continuousWithinAt
+    apply ContinuousAt.sub _ continuousAt_const
+    exact ContinuousAt.comp (g := Complex.log) (continuousAt_clog (Or.inl (hw t ht)))
+      ((continuous_toC.comp (hc.sub continuous_const)).mul continuous_const).continuousAt
+  · intro t ht
+    have h1 : toC (c t - q) * w ≠ 0 := fun h => by have := hw t ht; rw [h] at this; simp at this
+    rw [Complex.exp_sub, Complex.exp_log h1, Complex.exp_log hw0]
+    field_simp
+
+/-- Step 20 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the total angle change of the closed curve
+    made of two crosscuts, an outer and an inner
+boundary arc is constant along paths avoiding that curve. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step20_loop_sum_const {ca cb go dl : ℝ → Pt} (hca : Continuous ca)
+    (hcb : Continuous cb) (hgo : Continuous go)
+    (hdl : Continuous dl) {a b c d : ℝ} (hab : a ≤ b) (hcd : c ≤ d)
+    (h1 : ca 0 = dl c) (h2 : ca 1 = go a) (h3 : cb 0 = dl d) (h4 : cb 1 = go b)
+    {q : ℝ → Pt} (hq : Continuous q)
+    (hav : ∀ s ∈ Icc (0:ℝ) 1, (∀ t ∈ Icc (0:ℝ) 1, ca t ≠ q s) ∧ (∀ t ∈ Icc (0:ℝ) 1, cb t ≠ q s) ∧
+      (∀ t ∈ Icc a b, go t ≠ q s) ∧ (∀ t ∈ Icc c d, dl t ≠ q s)) :
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange ca 0 1 (q 0) +
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange go a b (q 0) -
+            existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange cb 0 1 (q 0) -
+                existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange dl c d (q 0) =
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange ca 0 1 (q 1) +
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange go a b (q 1) -
+              existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange cb 0 1 (q 1) -
+                  existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange dl c d (q 1) := by
+  have hcont : ContinuousOn (fun s => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange ca 0 1 (q s) +
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange go a b (q s) -
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange cb 0 1 (q s) -
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange dl c d (q s)) (Icc 0 1) :=
+    (((existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step18_angleChange_cont hca zero_le_one hq fun s hs => (hav s hs).1).add
+      (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step18_angleChange_cont hgo hab hq fun s hs => (hav s hs).2.2.1)).sub
+      (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step18_angleChange_cont hcb zero_le_one hq fun s hs => (hav s hs).2.1)).sub
+      (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step18_angleChange_cont hdl hcd hq fun s hs => (hav s hs).2.2.2)
+  have hexp : ∀ s ∈ Icc (0:ℝ) 1, Complex.exp (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange ca 0 1 (q s) +
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange go a b (q s) -
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange cb 0 1 (q s) -
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange dl c d (q s)) = 1 := by
+    intro s hs
+    obtain ⟨e1, e2, e3, e4⟩ := hav s hs
+    rw [Complex.exp_sub, Complex.exp_sub, Complex.exp_add, existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step16_angleChange_exp
+        hca zero_le_one e1, existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step16_angleChange_exp hgo hab e3,
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step16_angleChange_exp hcb zero_le_one e2,
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step16_angleChange_exp hdl hcd e4, h1, h2, h3, h4]
+    have n1 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (e4 c ⟨le_refl _, hcd⟩)
+    have n2 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (e4 d ⟨hcd, le_refl _⟩)
+    have n3 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (e3 a ⟨le_refl _, hab⟩)
+    have n4 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (e3 b ⟨hab, le_refl _⟩)
+    field_simp
+  exact Complex.isCoveringMap_exp.constOn_of_comp isPreconnected_Icc hcont
+    (fun x hx y hy => by ext; simp only [hexp x hx, hexp y hy]) ⟨le_refl _, zero_le_one⟩ ⟨zero_le_one, le_refl _⟩
+
+/-- Step 21 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: this total angle change vanishes around a
+    point below the curve. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step21_loop_sum_far {ca cb go dl : ℝ → Pt} (hca : Continuous ca) (hcb
+    : Continuous cb) (hgo : Continuous go)
+    (hdl : Continuous dl) {a b c d : ℝ} (hab : a ≤ b) (hcd : c ≤ d)
+    (h1 : ca 0 = dl c) (h2 : ca 1 = go a) (h3 : cb 0 = dl d) (h4 : cb 1 = go b) {y : Pt}
+    (hy : (∀ t ∈ Icc (0:ℝ) 1, y 1 < ca t 1) ∧ (∀ t ∈ Icc (0:ℝ) 1, y 1 < cb t 1) ∧
+      (∀ t ∈ Icc a b, y 1 < go t 1) ∧ (∀ t ∈ Icc c d, y 1 < dl t 1)) :
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange ca 0 1 y +
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange go a b y -
+            existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange cb 0 1 y -
+                existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange dl c d y = 0 := by
+  have hre : ∀ z : Pt, (toC (z - y) * (-Complex.I)).re = z 1 - y 1 := fun z => by simp [toC]
+  obtain ⟨e1, e2, e3, e4⟩ := hy
+  have k1 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step19_angleChange_half hca zero_le_one (w := -Complex.I)
+    (fun t ht => by rw [hre]; linarith [e1 t ht])
+  have k2 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step19_angleChange_half hgo hab (w := -Complex.I)
+    (fun t ht => by rw [hre]; linarith [e3 t ht])
+  have k3 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step19_angleChange_half hcb zero_le_one (w := -Complex.I)
+    (fun t ht => by rw [hre]; linarith [e2 t ht])
+  have k4 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step19_angleChange_half hdl hcd (w := -Complex.I)
+    (fun t ht => by rw [hre]; linarith [e4 t ht])
+  rw [k1, k2, k3, k4, h1, h2, h3, h4]
+  ring
+
+/-- Step 22 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a polygonal arc joins its endpoints inside
+    its carrier. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined (α : PolyArc) : JoinedIn α.carrier α.start α.stop := by
+  have hseg : ∀ k (hk : k + 1 < α.n + 2),
+      segment ℝ (α.pt ⟨k, by omega⟩) (α.pt ⟨k + 1, hk⟩) ⊆ α.carrier := fun k hk x hx =>
+    mem_iUnion.2 ⟨⟨k, by omega⟩, hx⟩
+  have key : ∀ k (hk : k < α.n + 2), JoinedIn α.carrier (α.pt ⟨0, by omega⟩) (α.pt ⟨k, hk⟩) := by
+    intro k
+    induction k with
+    | zero => intro hk; exact JoinedIn.refl (hseg 0 (by omega) (left_mem_segment ℝ _ _))
+    | succ k ih =>
+      intro hk
+      have h2 := ((convex_segment (α.pt ⟨k, by omega⟩) (α.pt ⟨k + 1, hk⟩)).isPathConnected
+        ⟨_, left_mem_segment ℝ _ _⟩).joinedIn _ (left_mem_segment ℝ _ _) _ (right_mem_segment ℝ _ _)
+      exact (ih (by omega)).trans (h2.mono (hseg k hk))
+  exact key (α.n + 1) (by omega)
+
+/-- Step 23 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a polygonal disk has a point below it,
+    outside it. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step23_far_below (B : PolygonalDisk) : ∃ y : Pt, y ∉ B.carrier ∧ ∀ z
+    ∈ B.carrier, y 1 < z 1 := by
+  obtain ⟨R, hR⟩ := (Metric.isBounded_iff_subset_closedBall (0 : Pt)).1 B.compact.isBounded
+  set y : Pt := !₂[0, -(R + 1)]
+  have hy1 : y 1 = -(R + 1) := by simp [y]
+  have hz : ∀ z ∈ B.carrier, -R ≤ z 1 := by
+    intro z hz
+    have := hR hz
+    rw [Metric.mem_closedBall, dist_zero_right] at this
+    have h1 : ‖z 1‖ ≤ ‖z‖ := PiLp.norm_apply_le z 1
+    rw [Real.norm_eq_abs] at h1
+    have := neg_abs_le (z 1)
+    linarith
+  refine ⟨y, fun h => ?_, fun z hz' => ?_⟩
+  · have := hz y h; rw [hy1] at this; linarith
+  · have := hz z hz'; rw [hy1]; linarith
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: near an inner point of
+a side, the points outside a polygonal disk form a convex set (an open half disk), so any two are joined outside. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_edge_local (B : PolygonalDisk) (i : Fin B.n) {z : Pt}
+    (hz : z ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i))) :
+    ∃ r > 0, ∀ x ∈ Metric.ball z r, ∀ y ∈ Metric.ball z r, x ∉ B.carrier → y ∉ B.carrier →
+      JoinedIn (B.carrier)ᶜ x y := by
+  obtain ⟨r, hr, σ, -, hball⟩ := pd_halfdisk B i hz
+  refine ⟨r, hr, fun x hx y hy hxB hyB => ?_⟩
+  set H := {y : Pt | y ∈ Metric.ball z r ∧
+    0 < (-σ) * jcr (B.vertex (finRotate B.n i) - B.vertex i) (y - B.vertex i)}
+  have hmem : ∀ w ∈ Metric.ball z r, w ∉ B.carrier → w ∈ H := by
+    intro w hw hwB
+    refine ⟨hw, ?_⟩
+    have := mt (hball w hw).2.1.2 hwB
+    push_neg at this; linarith
+  have hHB : H ⊆ (B.carrier)ᶜ := by
+    intro w hw hwB
+    have h1 := (hball w hw.1).2.1.1 hwB
+    have h2 := hw.2; linarith
+  exact (((pg_halfspace_convex z _ _ r (-σ)).isPathConnected ⟨x, hmem x hx hxB⟩).joinedIn x (hmem x hx hxB) y
+    (hmem y hy hyB)).mono hHB
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: every boundary
+point of a polygonal disk has points outside the disk arbitrarily close to it. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_frontier_near (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ frontier B.carrier) {r : ℝ}
+    (hr : 0 < r) : ∃ x ∈ Metric.ball z r, x ∉ B.carrier := by
+  have hz' : z ∈ closure (B.carrier)ᶜ := frontier_subset_closure (by rwa [frontier_compl])
+  obtain ⟨x, hx, hd⟩ := Metric.mem_closure_iff.1 hz' r hr
+  exact ⟨x, by rwa [Metric.mem_ball, dist_comm], hx⟩
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: along a
+connected set of boundary points with local half-disk structure, the property "all nearby outside points are joined
+outside to `y0`" spreads from one point to all points. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_good_const (B : PolygonalDisk) (y0 : Pt) {s : Set Pt}
+    (hs : IsPreconnected s)
+    (hE : ∀ z ∈ s, ∃ r > 0, ∀ x ∈ Metric.ball z r, ∀ y ∈ Metric.ball z r, x ∉ B.carrier → y ∉ B.carrier →
+      JoinedIn (B.carrier)ᶜ x y) (hF : s ⊆ frontier B.carrier) {z0 : Pt} (hz0 : z0 ∈ s)
+    (hg : ∃ r > 0, ∀ x ∈ Metric.ball z0 r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x) :
+    ∀ z ∈ s, ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x := by
+  set u := {z : Pt | ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x}
+  set v := {z : Pt | ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → ¬ JoinedIn (B.carrier)ᶜ y0 x}
+  have hu : IsOpen u := by
+    rw [Metric.isOpen_iff]; rintro z ⟨r, hr, h⟩
+    refine ⟨r / 2, by positivity, fun w hw => ⟨r / 2, by positivity, fun x hx hxB => h x ?_ hxB⟩⟩
+    rw [Metric.mem_ball] at hw hx ⊢; linarith [dist_triangle x w z]
+  have hv : IsOpen v := by
+    rw [Metric.isOpen_iff]; rintro z ⟨r, hr, h⟩
+    refine ⟨r / 2, by positivity, fun w hw => ⟨r / 2, by positivity, fun x hx hxB => h x ?_ hxB⟩⟩
+    rw [Metric.mem_ball] at hw hx ⊢; linarith [dist_triangle x w z]
+  have hcov : ∀ z ∈ s, z ∉ u → z ∈ v := by
+    intro z hz hzu
+    obtain ⟨r, hr, hJ⟩ := hE z hz
+    exact ⟨r, hr, fun x hx hxB hj => hzu ⟨r, hr, fun y hy hyB => hj.trans (hJ x hx y hy hxB hyB)⟩⟩
+  intro z1 hz1
+  by_contra hz1g
+  obtain ⟨w, hws, hwu, hwv⟩ := hs u v hu hv
+    (fun z hz => by by_cases h : z ∈ u; exacts [Or.inl h, Or.inr (hcov z hz h)]) ⟨z0, hz0, hg⟩
+    ⟨z1, hz1, hcov z1 hz1 hz1g⟩
+  obtain ⟨r1, hr1, h1⟩ := hwu
+  obtain ⟨r2, hr2, h2⟩ := hwv
+  obtain ⟨x, hx, hxB⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_frontier_near B (hF hws) (lt_min hr1 hr2)
+  exact h2 x (Metric.ball_subset_ball (min_le_right _ _) hx) hxB
+    (h1 x (Metric.ball_subset_ball (min_le_left _ _) hx) hxB)
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: every point
+outside a polygonal disk is joined outside the disk to points arbitrarily close to an inner point of some side. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_reach_edge (B : PolygonalDisk) {q : Pt} (hq : q ∉ B.carrier) :
+    ∃ i : Fin B.n, ∃ z ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)),
+      ∀ r > 0, ∃ x ∈ Metric.ball z r, x ∉ B.carrier ∧ JoinedIn (B.carrier)ᶜ q x := by
+  set W := {y : Pt | JoinedIn (B.carrier)ᶜ q y}
+  have hBo : IsOpen (B.carrier)ᶜ := B.compact.isClosed.isOpen_compl
+  have hWsub : W ⊆ (B.carrier)ᶜ := fun y hy => hy.target_mem
+  have hball_join : ∀ y ε, 0 < ε → Metric.ball y ε ⊆ (B.carrier)ᶜ → ∀ x ∈ Metric.ball y ε,
+      JoinedIn (B.carrier)ᶜ y x := fun y ε hε hball x hx =>
+    (((convex_ball y ε).isPathConnected ⟨y, Metric.mem_ball_self hε⟩).joinedIn y (Metric.mem_ball_self hε) x
+      hx).mono hball
+  have hWo : IsOpen W := by
+    rw [Metric.isOpen_iff]; intro y hy
+    obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hBo y (hWsub hy)
+    exact ⟨ε, hε, fun x hx => hy.trans (hball_join y ε hε hball x hx)⟩
+  have hqW : q ∈ W := JoinedIn.refl hq
+  by_contra hcon
+  push_neg at hcon
+  set F := range B.vertex
+  have hFc : F.Countable := (finite_range _).countable
+  have hFconn : IsPreconnected Fᶜ := (hFc.isConnected_compl_of_one_lt_rank pg_rank_pt).isPreconnected
+  have hFB : F ⊆ B.carrier := by
+    rintro _ ⟨k, rfl⟩; exact pd_segment_subset_carrier B k (left_mem_segment ℝ _ _)
+  have hint : ∀ y ∈ interior B.carrier, y ∉ closure W := by
+    intro y hy hyc
+    obtain ⟨x, hx, hxW⟩ := mem_closure_iff.1 hyc _ isOpen_interior hy
+    exact hWsub hxW (interior_subset hx)
+  have hclos : ∀ y ∈ closure W, y ∉ F → y ∈ W := by
+    intro y hy hyF
+    by_cases hyB : y ∈ B.carrier
+    · exfalso
+      by_cases hyi : y ∈ interior B.carrier
+      · exact hint y hyi hy
+      · have hyf : y ∈ frontier B.carrier := ⟨subset_closure hyB, hyi⟩
+        rw [B.frontier_eq, mem_iUnion] at hyf
+        obtain ⟨i, hi⟩ := hyf
+        have hyo : y ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) := by
+          rw [← insert_endpoints_openSegment] at hi
+          rcases hi with rfl | rfl | h
+          · exact absurd ⟨i, rfl⟩ hyF
+          · exact absurd ⟨_, rfl⟩ hyF
+          · exact h
+        obtain ⟨r, hr, hr'⟩ := hcon i y hyo
+        obtain ⟨x, hxW, hx⟩ := Metric.mem_closure_iff.1 hy r hr
+        exact hr' x (by rwa [Metric.mem_ball, dist_comm]) (hWsub hxW) hxW
+    · obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hBo y hyB
+      obtain ⟨x, hxW, hx⟩ := Metric.mem_closure_iff.1 hy ε hε
+      exact hxW.trans (hball_join y ε hε hball x (by rwa [Metric.mem_ball, dist_comm])).symm
+  obtain ⟨b, hb, hbF⟩ := (hFc.dense_compl ℝ).inter_open_nonempty _ isOpen_interior B.interior_nonempty
+  obtain ⟨w, -, hwW, hwc⟩ := hFconn W (closure W)ᶜ hWo isClosed_closure.isOpen_compl
+    (fun y hyF => by by_cases h : y ∈ closure W; exacts [Or.inl (hclos y h hyF), Or.inr h])
+    ⟨q, fun h => hq (hFB h), hqW⟩ ⟨b, hbF, hint b hb⟩
+  exact hwc (subset_closure hwW)
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a nonzero
+point has nonzero complex coordinate. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne {x : Pt} (hx : x ≠ 0) : toC x ≠ 0 := by
+  simpa using existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step11_toC_ne_zero (y := 0) hx
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the circle point
+`v + t cos θ d + t sin θ (jrot d)` corresponds to the complex number `v + t d e^{iθ}`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_toC (v d : Pt) (t θ : ℝ) :
+    toC (v + (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d - v) = (t : ℂ) * toC d * Complex.exp (θ * Complex.I) := by
+  rw [show v + (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d - v = (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d
+    by abel, toC_add, toC_smul, toC_smul, toC_jrot, Complex.exp_mul_I, ← Complex.ofReal_cos, ← Complex.ofReal_sin]
+  push_cast; ring
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a circle point
+around `v` lying on a segment starting at `v` gives a positive real relation in complex form. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_ray (v d e : Pt) (hd : d ≠ 0) {t θ : ℝ} (ht : 0 < t)
+    (h : v + (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d ∈ segment ℝ v (v + e)) :
+    ∃ μ : ℝ, 0 < μ ∧ (t : ℂ) * Complex.exp (θ * Complex.I) = μ * (toC e / toC d) := by
+  obtain ⟨μ, hμ0, -, hμ⟩ := mem_segment_iff'.1 h
+  have h1 := congrArg toC (congrArg (· - v) hμ)
+  simp only at h1
+  rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_toC,
+    show v + μ • (v + e - v) - v = μ • e by rw [add_sub_cancel_left, add_sub_cancel_left], toC_smul] at h1
+  have hD := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne hd
+  have h2 : (t : ℂ) * Complex.exp (θ * Complex.I) = μ * (toC e / toC d) := by
+    field_simp; linear_combination h1
+  refine ⟨μ, lt_of_le_of_ne hμ0 ?_, h2⟩
+  rintro rfl
+  have := congrArg norm h2
+  simp [Complex.norm_exp_ofReal_mul_I] at this
+  linarith [abs_of_pos ht]
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the circle around
+`v` meets the segment from `v` in direction `d` only at angles in `2πℤ`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_seg_left (v d : Pt) (hd : d ≠ 0) {t θ : ℝ} (ht : 0 < t)
+    (h : v + (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d ∈ segment ℝ v (v + d)) :
+    ∃ n : ℤ, (n : ℝ) * (2 * Real.pi) = θ := by
+  obtain ⟨μ, hμ, h2⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_ray v d d hd ht h
+  rw [div_self (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne hd), mul_one, Complex.exp_mul_I,
+    ← Complex.ofReal_cos, ← Complex.ofReal_sin] at h2
+  have him := congrArg Complex.im h2
+  have hre := congrArg Complex.re h2
+  simp [Complex.cos_ofReal_re, Complex.sin_ofReal_re] at him hre
+  rw [← Real.cos_eq_one_iff]
+  have hs : Real.sin θ = 0 := by
+    rcases him with h | h
+    · linarith
+    · exact h
+  have := Real.sin_sq_add_cos_sq θ
+  rw [hs] at this
+  have hc : 0 < Real.cos θ := by nlinarith
+  nlinarith
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the circle around
+`v` meets the segment from `v` in direction `e` only at angles congruent to `arg (e / d)`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_seg_right (v d e : Pt) (hd : d ≠ 0) {t θ : ℝ} (ht : 0 < t)
+    (h : v + (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d ∈ segment ℝ v (v + e)) :
+    ∃ n : ℤ, θ = Complex.arg (toC e / toC d) + n * (2 * Real.pi) := by
+  obtain ⟨μ, hμ, h2⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_ray v d e hd ht h
+  have h3 : toC e / toC d = ((t / μ : ℝ) : ℂ) * Complex.exp (θ * Complex.I) := by
+    have hμ' : (μ : ℂ) ≠ 0 := by exact_mod_cast hμ.ne'
+    push_cast; rw [div_mul_eq_mul_div, h2, mul_div_cancel_left₀ _ hμ']
+  rw [h3, Complex.arg_real_mul _ (div_pos ht hμ), Complex.arg_exp_mul_I, ← self_sub_toIocDiv_zsmul]
+  exact ⟨toIocDiv Real.two_pi_pos (-Real.pi) θ, by simp⟩
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the circle point at
+angle `arg (e / d)` lies on the ray from `v` in direction `e`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_at_arg (v d e : Pt) (hd : d ≠ 0) (he : e ≠ 0) (t : ℝ) :
+    v + (t * Real.cos (Complex.arg (toC e / toC d))) • d + (t * Real.sin (Complex.arg (toC e / toC d))) • jrot d =
+      v + (t / ‖toC e / toC d‖) • e := by
+  have hz : toC e / toC d ≠ 0 :=
+    div_ne_zero (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne he)
+      (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne hd)
+  have hn : (‖toC e / toC d‖ : ℂ) ≠ 0 := by exact_mod_cast norm_ne_zero_iff.2 hz
+  apply toC_injective
+  have key := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_toC v d t (Complex.arg (toC e / toC d))
+  have h4 := Complex.norm_mul_exp_arg_mul_I (toC e / toC d)
+  have h5 : toC (v + (t / ‖toC e / toC d‖) • e - v) = ((t / ‖toC e / toC d‖ : ℝ) : ℂ) * toC e := by
+    rw [add_sub_cancel_left, toC_smul]
+  have e1 := congrArg (· + toC v) key
+  have e2 := congrArg (· + toC v) h5
+  simp only [toC_sub, sub_add_cancel] at e1 e2
+  rw [e1, e2]
+  have hD := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne hd
+  have : Complex.exp (↑(Complex.arg (toC e / toC d)) * Complex.I) = (toC e / toC d) / (‖toC e / toC d‖ : ℂ) := by
+    rw [eq_div_iff hn, mul_comm]; exact h4
+  rw [this]; push_cast; field_simp
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: near a vertex,
+the boundary of a polygonal disk consists of the two sides at that vertex. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_near_vertex (B : PolygonalDisk) (i : Fin B.n) :
+    ∃ ρ > 0, ∀ x ∈ Metric.ball (B.vertex (finRotate B.n i)) ρ, x ∈ frontier B.carrier →
+      x ∈ segment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) ∨
+      x ∈ segment ℝ (B.vertex (finRotate B.n i)) (B.vertex (finRotate B.n (finRotate B.n i))) := by
+  set j := finRotate B.n i with hj
+  set K := ⋃ k ∈ ({i, j}ᶜ : Set (Fin B.n)), segment ℝ (B.vertex k) (B.vertex (finRotate B.n k)) with hK_def
+  have hK : IsClosed K :=
+    (Set.toFinite _).isClosed_biUnion (fun k _ => (isCompact_segment_pt _ _).isClosed)
+  have hvK : B.vertex j ∉ K := by
+    rw [hK_def, mem_iUnion₂]
+    rintro ⟨k, hk, hvk⟩
+    have hki : k ≠ i := fun h => hk (Or.inl h)
+    have hkj : k ≠ j := fun h => hk (Or.inr h)
+    have hmem := B.simple k j hkj ⟨hvk, left_mem_segment ℝ _ _⟩
+    rcases hmem.1 with h | h
+    · exact hkj (B.vertex_injective h).symm
+    · exact hki ((finRotate B.n).injective (B.vertex_injective h).symm)
+  obtain ⟨ρ, hρ, hball⟩ := Metric.isOpen_iff.1 hK.isOpen_compl _ hvK
+  refine ⟨ρ, hρ, fun x hx hxf => ?_⟩
+  rw [B.frontier_eq, mem_iUnion] at hxf
+  obtain ⟨k, hk⟩ := hxf
+  by_cases hki : k = i
+  · subst hki; exact Or.inl hk
+  by_cases hkj : k = j
+  · subst hkj; exact Or.inr hk
+  exact absurd (mem_iUnion₂.2 ⟨k, fun h => h.elim hki hkj, hk⟩) (hball hx)
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the two sides at a
+vertex of a polygonal disk do not leave the vertex in the same direction. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_not_parallel (B : PolygonalDisk) (i : Fin B.n) {c : ℝ} (hc : 0 < c)
+    (h : B.vertex (finRotate B.n (finRotate B.n i)) - B.vertex (finRotate B.n i) =
+      c • (B.vertex i - B.vertex (finRotate B.n i))) : False := by
+  set j := finRotate B.n i with hj
+  set u := B.vertex i with hu
+  set v := B.vertex j with hv
+  set w := B.vertex (finRotate B.n j) with hw
+  have hij : i ≠ j := (finRotate_ne_self (by have := B.three_le; omega) i).symm
+  set m := min 1 c with hm
+  have hm0 : 0 < m := lt_min one_pos hc
+  have hx1 : v + m • (u - v) ∈ segment ℝ u v := by
+    rw [segment_symm, mem_segment_iff']; exact ⟨m, hm0.le, min_le_left _ _, rfl⟩
+  have hx2 : v + m • (u - v) ∈ segment ℝ v w := by
+    rw [mem_segment_iff']
+    refine ⟨m / c, by positivity, (div_le_one hc).2 (min_le_right _ _), ?_⟩
+    rw [h, smul_smul, div_mul_cancel₀ _ hc.ne']
+  have hmem := B.simple i j hij ⟨hx1, hx2⟩
+  have huv : u ≠ v := pd_vertex_ne_next B i
+  rcases hmem.1 with h1 | h1
+  · rcases hmem.2 with h2 | h2
+    · exact huv (h1.symm.trans h2)
+    · exact finRotate_finRotate_ne B.three_le i (B.vertex_injective (h1.symm.trans h2)).symm
+  · have h3 : m • (u - v) = 0 := by
+      have := congrArg (· - v) h1
+      simp only [add_sub_cancel_left] at this
+      exact this.trans (sub_self _)
+    exact sub_ne_zero.2 huv ((smul_eq_zero.1 h3).resolve_left hm0.ne')
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: around a vertex
+there is an arc of a small circle lying outside the disk whose closure contains inner points of both sides at the vertex. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_vertex_arc (B : PolygonalDisk) (i : Fin B.n) :
+    ∃ p ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)),
+    ∃ p' ∈ openSegment ℝ (B.vertex (finRotate B.n i)) (B.vertex (finRotate B.n (finRotate B.n i))),
+    ∃ A ⊆ (B.carrier)ᶜ, (∀ x ∈ A, ∀ y ∈ A, JoinedIn (B.carrier)ᶜ x y) ∧ p ∈ closure A ∧ p' ∈ closure A := by
+  obtain ⟨ρ, hρ, hnear⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_near_vertex B i
+  set j := finRotate B.n i with hj
+  set u := B.vertex i with hu
+  set v := B.vertex j with hv
+  set w := B.vertex (finRotate B.n j) with hw
+  set d := u - v with hd_def
+  set e := w - v with he_def
+  have hd : d ≠ 0 := sub_ne_zero.2 (pd_vertex_ne_next B i)
+  have he : e ≠ 0 := sub_ne_zero.2 (pd_vertex_ne_next B j).symm
+  have hD := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne hd
+  have hE := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_toC_ne he
+  have hdn : 0 < ‖d‖ := norm_pos_iff.2 hd
+  set z := toC e / toC d with hz_def
+  have hz0 : z ≠ 0 := div_ne_zero hE hD
+  have hzn : 0 < ‖z‖ := norm_pos_iff.2 hz0
+  have hπ := Real.pi_pos
+  have hβ0 : Complex.arg z ≠ 0 := by
+    intro h0
+    obtain ⟨hre, him⟩ := Complex.arg_eq_zero_iff.1 h0
+    have hre' : 0 < z.re := lt_of_le_of_ne hre (fun h => hz0 (Complex.ext (by simpa using h.symm) (by simpa using him)))
+    refine existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_not_parallel B i hre' ?_
+    apply toC_injective
+    rw [toC_smul]
+    have hzr : (z.re : ℂ) = z := Complex.ext (by simp) (by simp [him])
+    rw [hzr, hz_def, div_mul_cancel₀ _ hD]
+  obtain ⟨β, hβ, hcos, hsin, m, hm⟩ : ∃ β : ℝ, (0 < β ∧ β < 2 * Real.pi) ∧ Real.cos β = Real.cos (Complex.arg z) ∧
+      Real.sin β = Real.sin (Complex.arg z) ∧ ∃ m : ℤ, β = Complex.arg z + m * (2 * Real.pi) := by
+    have h1 := Complex.neg_pi_lt_arg z
+    have h2 := Complex.arg_le_pi z
+    by_cases h : 0 < Complex.arg z
+    · exact ⟨_, ⟨h, by linarith⟩, rfl, rfl, 0, by simp⟩
+    · have h3 : Complex.arg z < 0 := lt_of_le_of_ne (not_lt.1 h) hβ0
+      exact ⟨Complex.arg z + 2 * Real.pi, ⟨by linarith, by linarith⟩, Real.cos_add_two_pi _, Real.sin_add_two_pi _, 1,
+        by simp⟩
+  set t := min (1 / 2) (min (ρ / (4 * ‖d‖)) (‖z‖ / 2)) with ht_def
+  have ht : 0 < t := lt_min (by norm_num) (lt_min (by positivity) (by positivity))
+  have ht1 : t < 1 := lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+  have htρ : 2 * t * ‖d‖ < ρ := by
+    have : t ≤ ρ / (4 * ‖d‖) := le_trans (min_le_right _ _) (min_le_left _ _)
+    rw [le_div_iff₀ (by positivity)] at this
+    linarith
+  have htz : t / ‖z‖ < 1 := by
+    have : t ≤ ‖z‖ / 2 := le_trans (min_le_right _ _) (min_le_right _ _)
+    rw [div_lt_one hzn]; linarith
+  set c : ℝ → Pt := fun θ => v + (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d with hc_def
+  have hc_cont : Continuous c := by rw [hc_def]; fun_prop
+  have hc_ball : ∀ θ, c θ ∈ Metric.ball v ρ := by
+    intro θ
+    rw [Metric.mem_ball, dist_eq_norm]
+    have e1 : c θ - v = (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d := by simp only [hc_def]; abel
+    rw [e1]
+    calc ‖(t * Real.cos θ) • d + (t * Real.sin θ) • jrot d‖
+        ≤ ‖(t * Real.cos θ) • d‖ + ‖(t * Real.sin θ) • jrot d‖ := norm_add_le _ _
+      _ = |t * Real.cos θ| * ‖d‖ + |t * Real.sin θ| * ‖d‖ := by
+          rw [norm_smul, norm_smul, norm_jrot, Real.norm_eq_abs, Real.norm_eq_abs]
+      _ ≤ t * ‖d‖ + t * ‖d‖ := by
+          gcongr
+          · rw [abs_mul, abs_of_pos ht]; exact mul_le_of_le_one_right ht.le (Real.abs_cos_le_one θ)
+          · rw [abs_mul, abs_of_pos ht]; exact mul_le_of_le_one_right ht.le (Real.abs_sin_le_one θ)
+      _ < ρ := by linarith
+  have hc0 : c 0 = v + t • d := by simp [hc_def]
+  have hc2π : c (2 * Real.pi) = v + t • d := by simp [hc_def]
+  have hcβ : c β = v + (t / ‖z‖) • e := by
+    simp only [hc_def]; rw [hcos, hsin]; exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_at_arg v d e hd he t
+  have hp : v + t • d ∈ openSegment ℝ u v := by
+    rw [openSegment_symm, mem_openSegment_iff']; exact ⟨t, ht, ht1, rfl⟩
+  have hp' : v + (t / ‖z‖) • e ∈ openSegment ℝ v w := by
+    rw [mem_openSegment_iff']; exact ⟨t / ‖z‖, by positivity, htz, rfl⟩
+  have hJ : ∀ θ, 0 < θ → θ < 2 * Real.pi → θ ≠ β → c θ ∉ frontier B.carrier := by
+    intro θ h0 h2 hne hf
+    rcases hnear _ (hc_ball θ) hf with h | h
+    · rw [segment_symm, show u = v + d by rw [hd_def, add_sub_cancel]] at h
+      obtain ⟨n, hn⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_seg_left v d hd ht h
+      have hn0 : (0 : ℝ) < n := by
+        by_contra hc; push_neg at hc; nlinarith
+      have hn1 : (n : ℝ) < 1 := by
+        by_contra hc; push_neg at hc; nlinarith
+      have : (0 : ℤ) < n := by exact_mod_cast hn0
+      have : n < (1 : ℤ) := by exact_mod_cast hn1
+      omega
+    · rw [show w = v + e by rw [he_def, add_sub_cancel]] at h
+      obtain ⟨n, hn⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_circ_seg_right v d e hd ht h
+      have hk : θ - β = ((n - m : ℤ) : ℝ) * (2 * Real.pi) := by push_cast; rw [hn, hm]; ring
+      rcases lt_trichotomy (n - m) 0 with hlt | heq | hgt
+      · have h5 : ((n - m : ℤ) : ℝ) ≤ -1 := by exact_mod_cast (by omega : n - m ≤ -1)
+        have h6 := mul_le_mul_of_nonneg_right h5 (by positivity : (0 : ℝ) ≤ 2 * Real.pi)
+        linarith [hβ.2]
+      · rw [heq] at hk; simp at hk; exact hne (by linarith)
+      · have h5 : (1 : ℝ) ≤ ((n - m : ℤ) : ℝ) := by exact_mod_cast (by omega : 1 ≤ n - m)
+        have h6 := mul_le_mul_of_nonneg_right h5 (by positivity : (0 : ℝ) ≤ 2 * Real.pi)
+        linarith [hβ.1]
+  have hBo : IsOpen (B.carrier)ᶜ := B.compact.isClosed.isOpen_compl
+  have harc : ∀ a b : ℝ, (∀ θ ∈ Ioo a b, 0 < θ ∧ θ < 2 * Real.pi ∧ θ ≠ β) →
+      c '' Ioo a b ⊆ interior B.carrier ∨ c '' Ioo a b ⊆ (B.carrier)ᶜ := by
+    intro a b hab
+    refine (isPreconnected_Ioo.image _ hc_cont.continuousOn).subset_or_subset isOpen_interior hBo
+      (Set.disjoint_left.2 fun x h1 h2 => h2 (interior_subset h1)) ?_
+    rintro _ ⟨θ, hθ, rfl⟩
+    obtain ⟨h0, h2, hne⟩ := hab θ hθ
+    by_cases hB : c θ ∈ B.carrier
+    · by_cases hI : c θ ∈ interior B.carrier
+      · exact Or.inl hI
+      · exact absurd ⟨subset_closure hB, hI⟩ (hJ θ h0 h2 hne)
+    · exact Or.inr hB
+  have hcl : ∀ a b θ : ℝ, a < b → θ ∈ Icc a b → c θ ∈ closure (c '' Ioo a b) := fun a b θ hab hθ =>
+    hc_cont.continuousWithinAt.mem_closure_image (by rw [closure_Ioo hab.ne]; exact hθ)
+  have hfin : ∀ a b : ℝ, a < b → c '' Ioo a b ⊆ (B.carrier)ᶜ → v + t • d ∈ closure (c '' Ioo a b) →
+      v + (t / ‖z‖) • e ∈ closure (c '' Ioo a b) →
+      ∃ p ∈ openSegment ℝ u v, ∃ p' ∈ openSegment ℝ v w,
+        ∃ A ⊆ (B.carrier)ᶜ, (∀ x ∈ A, ∀ y ∈ A, JoinedIn (B.carrier)ᶜ x y) ∧ p ∈ closure A ∧ p' ∈ closure A :=
+    fun a b hab hA h1 h2 => ⟨_, hp, _, hp', _, hA, fun x hx y hy =>
+      ((((convex_Ioo a b).isPathConnected (nonempty_Ioo.2 hab)).image hc_cont).joinedIn x hx y hy).mono hA, h1, h2⟩
+  -- the two sides of the circle near `v + t • d`
+  obtain ⟨r, hr, σ, hσ, hball⟩ := pd_halfdisk B i hp
+  have hjcr : ∀ θ, jcr (v - u) (c θ - u) = -(t * Real.sin θ) * ‖d‖ ^ 2 := by
+    intro θ
+    rw [show v - u = -d by rw [hd_def, neg_sub],
+      show c θ - u = (t * Real.cos θ) • d + (t * Real.sin θ) • jrot d - d by simp only [hc_def, hd_def]; abel,
+      jcr_neg_left, jcr_sub_right, jcr_add_right, jcr_smul_right, jcr_smul_right, jcr_self, jcr_jrot]
+    ring
+  obtain ⟨η1, hη1, hc1⟩ := Metric.continuous_iff.1 hc_cont 0 r hr
+  obtain ⟨η2, hη2, hc2⟩ := Metric.continuous_iff.1 hc_cont (2 * Real.pi) r hr
+  set θ1 := min (min η1 η2) (min Real.pi (min β (2 * Real.pi - β))) / 2 with hθ1_def
+  have hθ1 : 0 < θ1 := by
+    have : 0 < min (min η1 η2) (min Real.pi (min β (2 * Real.pi - β))) :=
+      lt_min (lt_min hη1 hη2) (lt_min hπ (lt_min hβ.1 (by linarith)))
+    linarith
+  have hθ1m : θ1 < min (min η1 η2) (min Real.pi (min β (2 * Real.pi - β))) := by
+    rw [hθ1_def]; linarith
+  have hθη1 : θ1 < η1 := lt_of_lt_of_le hθ1m (le_trans (min_le_left _ _) (min_le_left _ _))
+  have hθη2 : θ1 < η2 := lt_of_lt_of_le hθ1m (le_trans (min_le_left _ _) (min_le_right _ _))
+  have hθπ : θ1 < Real.pi := lt_of_lt_of_le hθ1m (le_trans (min_le_right _ _) (min_le_left _ _))
+  have hθβ : θ1 < β :=
+    lt_of_lt_of_le hθ1m (le_trans (min_le_right _ _) (le_trans (min_le_right _ _) (min_le_left _ _)))
+  have hθβ' : θ1 < 2 * Real.pi - β :=
+    lt_of_lt_of_le hθ1m (le_trans (min_le_right _ _) (le_trans (min_le_right _ _) (min_le_right _ _)))
+  have hs1 : 0 < Real.sin θ1 := Real.sin_pos_of_pos_of_lt_pi hθ1 hθπ
+  have hin1 : c θ1 ∈ Metric.ball (v + t • d) r := by
+    rw [Metric.mem_ball, ← hc0]; apply hc1
+    rw [Real.dist_eq, sub_zero, abs_of_pos hθ1]; exact hθη1
+  have hin2 : c (2 * Real.pi - θ1) ∈ Metric.ball (v + t • d) r := by
+    rw [Metric.mem_ball, ← hc2π]; apply hc2
+    rw [Real.dist_eq, show 2 * Real.pi - θ1 - 2 * Real.pi = -θ1 by ring, abs_neg, abs_of_pos hθ1]; exact hθη2
+  have hdd : 0 < ‖d‖ ^ 2 := by positivity
+  have hpos : 0 < t * Real.sin θ1 * ‖d‖ ^ 2 := by positivity
+  rcases hσ with rfl | rfl
+  · -- the arc `(0, β)` starts outside
+    have hout : c θ1 ∉ B.carrier := by
+      intro hB
+      have := (hball _ hin1).2.1.1 hB
+      rw [hjcr] at this; linarith
+    have hA : c '' Ioo 0 β ⊆ (B.carrier)ᶜ := by
+      rcases harc 0 β (fun θ hθ => ⟨hθ.1, by linarith [hθ.2], ne_of_lt hθ.2⟩) with h | h
+      · exact absurd (interior_subset (h ⟨θ1, ⟨hθ1, hθβ⟩, rfl⟩)) hout
+      · exact h
+    exact hfin 0 β hβ.1 hA (hc0 ▸ hcl 0 β 0 hβ.1 ⟨le_rfl, hβ.1.le⟩) (hcβ ▸ hcl 0 β β hβ.1 ⟨hβ.1.le, le_rfl⟩)
+  · -- the arc `(β, 2π)` ends outside
+    have hout : c (2 * Real.pi - θ1) ∉ B.carrier := by
+      intro hB
+      have := (hball _ hin2).2.1.1 hB
+      rw [hjcr, Real.sin_two_pi_sub] at this; linarith
+    have hA : c '' Ioo β (2 * Real.pi) ⊆ (B.carrier)ᶜ := by
+      rcases harc β (2 * Real.pi) (fun θ hθ => ⟨by linarith [hθ.1], hθ.2, ne_of_gt hθ.1⟩) with h | h
+      · exact absurd (interior_subset (h ⟨2 * Real.pi - θ1, ⟨by linarith, by linarith⟩, rfl⟩)) hout
+      · exact h
+    exact hfin β (2 * Real.pi) hβ.2 hA (hc2π ▸ hcl β _ _ hβ.2 ⟨hβ.2.le, le_rfl⟩)
+      (hcβ ▸ hcl β _ β hβ.2 ⟨le_rfl, hβ.2.le⟩)
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: if all outside
+points near the inner points of one side are joined outside to `y0`, the same holds for the next side. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_good_next (B : PolygonalDisk) (y0 : Pt) (i : Fin B.n)
+    (hg : ∀ z ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)),
+      ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x) :
+    ∀ z ∈ openSegment ℝ (B.vertex (finRotate B.n i)) (B.vertex (finRotate B.n (finRotate B.n i))),
+      ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x := by
+  obtain ⟨p, hp, p', hp', A, hAB, hAJ, hpA, hp'A⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_vertex_arc B i
+  obtain ⟨g, hg0, hgp⟩ := hg p hp
+  obtain ⟨r, hr, hE⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_edge_local B (finRotate B.n i) hp'
+  obtain ⟨x, hxA, hx⟩ := Metric.mem_closure_iff.1 hpA g hg0
+  obtain ⟨x', hx'A, hx'⟩ := Metric.mem_closure_iff.1 hp'A r hr
+  have hx1 : x ∈ Metric.ball p g := by rwa [Metric.mem_ball, dist_comm]
+  have hx2 : x' ∈ Metric.ball p' r := by rwa [Metric.mem_ball, dist_comm]
+  refine existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_good_const B y0 (convex_openSegment _ _).isPreconnected
+    (fun z hz => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_edge_local B _ hz)
+    ((openSegment_subset_segment ℝ _ _).trans (pd_segment_subset_frontier B _)) hp'
+    ⟨r, hr, fun y hy hyB => ((hgp x hx1 (hAB hxA)).trans (hAJ x hxA x' hx'A)).trans
+      (hE x' hx2 y hy (hAB hx'A) hyB)⟩
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: going around the
+polygon, the outside points near the inner points of every side are joined outside to `y0`. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_good_all (B : PolygonalDisk) (y0 : Pt) (i0 : Fin B.n)
+    (hg : ∀ z ∈ openSegment ℝ (B.vertex i0) (B.vertex (finRotate B.n i0)),
+      ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x) (i : Fin B.n) :
+    ∀ z ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)),
+      ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x := by
+  have key : ∀ k : ℕ, ∀ z ∈ openSegment ℝ (B.vertex ((finRotate B.n)^[k] i0))
+      (B.vertex (finRotate B.n ((finRotate B.n)^[k] i0))),
+      ∃ r > 0, ∀ x ∈ Metric.ball z r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x := by
+    intro k
+    induction k with
+    | zero => exact hg
+    | succ k ih => rw [Function.iterate_succ_apply']; exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_good_next B y0 _ ih
+  have hval : ∀ k : ℕ, ((finRotate B.n)^[k] i0).val = (i0.val + k) % B.n := by
+    intro k
+    induction k with
+    | zero => simp [Nat.mod_eq_of_lt i0.isLt]
+    | succ k ih =>
+      rw [Function.iterate_succ_apply', finRotate_val_eq_mod, ih, Nat.add_mod, Nat.mod_mod, ← Nat.add_mod,
+        add_assoc]
+  have hk : (finRotate B.n)^[i.val + B.n - i0.val] i0 = i := by
+    apply Fin.ext
+    rw [hval, show i0.val + (i.val + B.n - i0.val) = i.val + B.n by have := i0.isLt; omega, Nat.add_mod_right,
+      Nat.mod_eq_of_lt i.isLt]
+  rw [← hk]; exact key _
+
+/-- Step 24 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the complement of a polygonal disk is path
+    connected (the exterior part of the polygonal
+Jordan curve theorem). -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_exterior_pathConnected (B : PolygonalDisk) : IsPathConnected
+    (B.carrier)ᶜ := by
+  obtain ⟨y0, hy0, -⟩ := pd_far_point B
+  obtain ⟨i0, z0, hz0, hreach⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_reach_edge B hy0
+  have hg0 : ∃ r > 0, ∀ x ∈ Metric.ball z0 r, x ∉ B.carrier → JoinedIn (B.carrier)ᶜ y0 x := by
+    obtain ⟨r, hr, hE⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_edge_local B i0 hz0
+    obtain ⟨x, hx, hxB, hxJ⟩ := hreach r hr
+    exact ⟨r, hr, fun y hy hyB => hxJ.trans (hE x hx y hy hxB hyB)⟩
+  have hall := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_good_all B y0 i0
+    (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_good_const B y0 (convex_openSegment _ _).isPreconnected
+    (fun z hz => existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_edge_local B i0 hz)
+    ((openSegment_subset_segment ℝ _ _).trans (pd_segment_subset_frontier B _))
+    hz0 hg0)
+  refine ⟨y0, hy0, fun {q} hq => ?_⟩
+  obtain ⟨i, z, hz, hr⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_reach_edge B hq
+  obtain ⟨g, hg, hgz⟩ := hall i z hz
+  obtain ⟨x, hx, hxB, hqx⟩ := hr g hg
+  exact (hgz x hx hxB).trans hqx.symm
+
+/-- Step 25 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: the closed curve formed by two disjoint
+    crosscuts and the boundary arcs between them that
+avoid a third crosscut does not wind around the inner disk: the third crosscut, the inner disk and the exterior of the
+outer disk connect a point of `int C` to a point far away without meeting the curve. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step25_cut_loop_zero (A C : PolygonalDisk) (hCA : C.carrier ⊆
+    interior A.carrier)
+    {Sa Sb Sz : Set Pt} (hSa : Sa ⊆ A.carrier \ interior C.carrier) (hSb : Sb ⊆ A.carrier \ interior C.carrier)
+    {sz ez : Pt} (hzC : Sz ∩ frontier C.carrier = {sz}) (hzA : Sz ∩ frontier A.carrier = {ez})
+    (hza : Disjoint Sz Sa) (hzb : Disjoint Sz Sb) (hjz : JoinedIn Sz sz ez)
+    {ca cb go dl : ℝ → Pt} (hca : Continuous ca) (hcb : Continuous cb)
+    (hcaS : ∀ t ∈ Icc (0:ℝ) 1, ca t ∈ Sa) (hcbS : ∀ t ∈ Icc (0:ℝ) 1, cb t ∈ Sb)
+    (hgo : IsLoopParam (frontier A.carrier) go) (hdl : IsLoopParam (frontier C.carrier) dl)
+    {a b c d τ υ : ℝ} (hab : a ≤ b) (hcd : c ≤ d) (hτ1 : b < τ) (hτ2 : τ < a + 1) (hυ1 : d < υ)
+    (hυ2 : υ < c + 1) (hez : go τ = ez) (hsz : dl υ = sz)
+    (h1 : ca 0 = dl c) (h2 : ca 1 = go a) (h3 : cb 0 = dl d) (h4 : cb 1 = go b) {p : Pt}
+    (hp : p ∈ interior C.carrier) :
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange ca 0 1 p +
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange go a b p -
+            existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange cb 0 1 p -
+                existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange dl c d p = 0 := by
+  have hK : ∀ {K : Set Pt} {γ : ℝ → Pt}, IsLoopParam K γ → ∀ t, γ t ∈ K := fun {K γ} hγ t => by
+    rw [← pg_periodic_fract hγ.2.1, ← hγ.2.2.2]
+    exact mem_image_of_mem _ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+  have hszm : sz ∈ Sz ∩ frontier C.carrier := by rw [hzC]; rfl
+  have hezm : ez ∈ Sz ∩ frontier A.carrier := by rw [hzA]; rfl
+  have hCA' : ∀ x ∈ C.carrier, x ∈ A.carrier := fun x hx => interior_subset (hCA hx)
+  set S : Set Pt := {x | (∀ t ∈ Icc (0:ℝ) 1, ca t ≠ x) ∧ (∀ t ∈ Icc (0:ℝ) 1, cb t ≠ x) ∧
+      (∀ t ∈ Icc a b, go t ≠ x) ∧ (∀ t ∈ Icc c d, dl t ≠ x)} with hSdef
+  have hSopen : IsOpen S := by
+    have : S = (ca '' Icc 0 1 ∪ cb '' Icc 0 1 ∪ go '' Icc a b ∪ dl '' Icc c d)ᶜ := by
+      ext x
+      simp only [hSdef, mem_compl_iff, mem_union, mem_image, not_or, not_exists, not_and, mem_setOf_eq]
+      tauto
+    rw [this]
+    exact ((((isCompact_Icc.image hca).union (isCompact_Icc.image hcb)).union
+      (isCompact_Icc.image hgo.1)).union (isCompact_Icc.image hdl.1)).isClosed.isOpen_compl
+  have hintC : interior C.carrier ⊆ S := by
+    intro x hx
+    refine ⟨fun t ht h => (hSa (hcaS t ht)).2 (h ▸ hx), fun t ht h => (hSb (hcbS t ht)).2 (h ▸ hx),
+      fun t _ h => pg_frontier_inter_interior (h ▸ hK hgo t) (hCA (interior_subset hx)),
+      fun t _ h => pg_frontier_inter_interior (h ▸ hK hdl t) hx⟩
+  have hAc : (A.carrier)ᶜ ⊆ S := by
+    intro x hx
+    refine ⟨fun t ht h => hx (h ▸ (hSa (hcaS t ht)).1), fun t ht h => hx (h ▸ (hSb (hcbS t ht)).1),
+      fun t _ h => hx (h ▸ pd_frontier_subset_carrier A (hK hgo t)),
+      fun t _ h => hx (h ▸ hCA' _ (pd_frontier_subset_carrier C (hK hdl t)))⟩
+  have hSzS : Sz ⊆ S := by
+    intro x hx
+    refine ⟨fun t ht h => disjoint_left.1 hza hx (h ▸ hcaS t ht),
+      fun t ht h => disjoint_left.1 hzb hx (h ▸ hcbS t ht), fun t ht h => ?_, fun t ht h => ?_⟩
+    · have hx' : x ∈ Sz ∩ frontier A.carrier := ⟨hx, h ▸ hK hgo t⟩
+      rw [hzA] at hx'
+      obtain ⟨m, hm⟩ := pg_param_eq hgo (a := t) (b := τ) (by rw [h, hez]; exact hx')
+      have e1 : (m : ℝ) < 0 := by linarith [ht.2]
+      have e2 : (-1 : ℝ) < m := by linarith [ht.1]
+      have : m < 0 := by exact_mod_cast e1
+      have : -1 < m := by exact_mod_cast e2
+      omega
+    · have hx' : x ∈ Sz ∩ frontier C.carrier := ⟨hx, h ▸ hK hdl t⟩
+      rw [hzC] at hx'
+      obtain ⟨m, hm⟩ := pg_param_eq hdl (a := t) (b := υ) (by rw [h, hsz]; exact hx')
+      have e1 : (m : ℝ) < 0 := by linarith [ht.2]
+      have e2 : (-1 : ℝ) < m := by linarith [ht.1]
+      have : m < 0 := by exact_mod_cast e1
+      have : -1 < m := by exact_mod_cast e2
+      omega
+  -- the path from `p` to a far point
+  obtain ⟨r1, hr1, hb1⟩ := Metric.isOpen_iff.1 hSopen sz (hSzS hszm.1)
+  have hszC : sz ∈ closure (interior C.carrier) := by
+    rw [C.regular_closed]; exact pd_frontier_subset_carrier C hszm.2
+  obtain ⟨x1, hx1C, hx1d⟩ := Metric.mem_closure_iff.1 hszC r1 hr1
+  have hx1b : x1 ∈ Metric.ball sz r1 := by rw [Metric.mem_ball, dist_comm]; exact hx1d
+  obtain ⟨r2, hr2, hb2⟩ := Metric.isOpen_iff.1 hSopen ez (hSzS hezm.1)
+  have hezc : ez ∈ closure (A.carrier)ᶜ := by
+    have := hezm.2; rw [frontier_eq_closure_inter_closure] at this; exact this.2
+  obtain ⟨x2, hx2A, hx2d⟩ := Metric.mem_closure_iff.1 hezc r2 hr2
+  have hx2b : x2 ∈ Metric.ball ez r2 := by rw [Metric.mem_ball, dist_comm]; exact hx2d
+  obtain ⟨y, hyA, hybelow⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step23_far_below A
+  have segJ : ∀ {u v : Pt} {r : ℝ}, Metric.ball u r ⊆ S → v ∈ Metric.ball u r → 0 < r → JoinedIn S v u :=
+    fun {u v r} hb hv hr => (((convex_segment v u).isPathConnected ⟨_, left_mem_segment ℝ _ _⟩).joinedIn _
+      (left_mem_segment ℝ _ _) _ (right_mem_segment ℝ _ _)).mono
+      (((convex_ball u r).segment_subset hv (Metric.mem_ball_self hr)).trans hb)
+  have J : JoinedIn S p y :=
+    ((((C.interior_pathConnected.joinedIn p hp x1 hx1C).mono hintC).trans (segJ hb1 hx1b hr1)).trans
+      ((hjz.mono hSzS).trans (segJ hb2 hx2b hr2).symm)).trans
+          ((existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step24_exterior_pathConnected A).joinedIn x2 hx2A y hyA |>.mono hAc)
+  have hqS : ∀ s ∈ Icc (0:ℝ) 1, J.somePath.extend s ∈ S := fun s hs => by
+    rw [Path.extend_apply _ hs]; exact J.somePath_mem _
+  have hW := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step20_loop_sum_const hca hcb hgo.1 hdl.1 hab hcd h1 h2 h3 h4 (q :=
+      fun s => J.somePath.extend s)
+    J.somePath.extend.continuous hqS
+  simp only [Path.extend_zero, Path.extend_one] at hW
+  rw [hW]
+  exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step21_loop_sum_far hca hcb hgo.1 hdl.1 hab hcd h1 h2 h3 h4
+    ⟨fun t ht => hybelow _ (hSa (hcaS t ht)).1, fun t ht => hybelow _ (hSb (hcbS t ht)).1,
+      fun t _ => hybelow _ (pd_frontier_subset_carrier A (hK hgo t)),
+      fun t _ => hybelow _ (hCA' _ (pd_frontier_subset_carrier C (hK hdl t)))⟩
+
+/-- Step 26 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: "Disjoint arcs joining the two boundary
+    components of an annulus have compatible cyclic
+endpoint order": if the outer endpoints are in order along `γo` and the inner endpoints in order along `δ`, then
+`γo` and `δ` have the same winding number around a point of `int C` (sum of the three cut loops). -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step26_degrees_agree (A C : PolygonalDisk) (hCA : C.carrier ⊆
+    interior A.carrier) (α : Fin 3 → PolyArc)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    {γo δ : ℝ → Pt} (hγo : IsLoopParam (frontier A.carrier) γo) (hδ : IsLoopParam (frontier C.carrier) δ)
+    (hord : PointsInOrder γo fun j => (α j).stop) (hord' : PointsInOrder δ fun j => (α j).start)
+    {p : Pt} (hp : p ∈ interior C.carrier) {Θo Θd : ℝ → ℂ} (hΘoc : Continuous Θo)
+    (hΘo : ∀ t, Complex.exp (Θo t) = toC (γo t - p)) (hΘdc : Continuous Θd)
+    (hΘd : ∀ t, Complex.exp (Θd t) = toC (δ t - p)) {no nd : ℤ}
+    (hno : ∀ t, Θo (t + 1) = Θo t + no * (2 * Real.pi * Complex.I))
+    (hnd : ∀ t, Θd (t + 1) = Θd t + nd * (2 * Real.pi * Complex.I)) : no = nd := by
+  have hK : ∀ {K : Set Pt} {γ : ℝ → Pt}, IsLoopParam K γ → ∀ t, γ t ∈ K := fun {K γ} hγ t => by
+    rw [← pg_periodic_fract hγ.2.1, ← hγ.2.2.2]
+    exact mem_image_of_mem _ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+  obtain ⟨t, htm, htb, hte⟩ := hord
+  obtain ⟨u, hum, hub, hue⟩ := hord'
+  have t01 : t 0 < t 1 := htm (by decide)
+  have t12 : t 1 < t 2 := htm (by decide)
+  have t20 : t 2 < t 0 + 1 := htb 0 2
+  have u01 : u 0 < u 1 := hum (by decide)
+  have u12 : u 1 < u 2 := hum (by decide)
+  have u20 : u 2 < u 0 + 1 := hub 0 2
+  set c : Fin 3 → ℝ → Pt := fun j s => (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined (α j)).somePath.extend s
+      with hcdef
+  have hcc : ∀ j, Continuous (c j) := fun j => (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined (α
+      j)).somePath.extend.continuous
+  have hc0 : ∀ j, c j 0 = (α j).start := fun j => by simp [hcdef]
+  have hc1 : ∀ j, c j 1 = (α j).stop := fun j => by simp [hcdef]
+  have hcS : ∀ j, ∀ s ∈ Icc (0:ℝ) 1, c j s ∈ (α j).carrier := fun j s hs => by
+    simp only [hcdef]; rw [Path.extend_apply _ hs]; exact (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined (α
+        j)).somePath_mem _
+  have hγo1 : ∀ x, γo (x + 1) = γo x := hγo.2.1
+  have hδ1 : ∀ x, δ (x + 1) = δ x := hδ.2.1
+  have W0 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step25_cut_loop_zero A C hCA (hin 0) (hin 1) (hC 2) (hA 2) (hdisj 2 0
+      (by decide)) (hdisj 2 1 (by decide))
+    (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined (α 2)) (hcc 0) (hcc 1) (hcS 0) (hcS 1) hγo hδ t01.le u01.le
+        t12 t20 u12 u20 (hte 2) (hue 2)
+    ((hc0 0).trans (hue 0).symm) ((hc1 0).trans (hte 0).symm) ((hc0 1).trans (hue 1).symm)
+    ((hc1 1).trans (hte 1).symm) hp
+  have W1 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step25_cut_loop_zero A C hCA (hin 1) (hin 2) (hC 0) (hA 0) (hdisj 0 1
+      (by decide)) (hdisj 0 2 (by decide))
+    (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined (α 0)) (hcc 1) (hcc 2) (hcS 1) (hcS 2) hγo hδ t12.le u12.le
+        t20 (by linarith) u20
+    (by linarith) (by rw [hγo1]; exact hte 0) (by rw [hδ1]; exact hue 0)
+    ((hc0 1).trans (hue 1).symm) ((hc1 1).trans (hte 1).symm) ((hc0 2).trans (hue 2).symm)
+    ((hc1 2).trans (hte 2).symm) hp
+  have W2 := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step25_cut_loop_zero A C hCA (hin 2) (hin 0) (hC 1) (hA 1) (hdisj 1 2
+      (by decide)) (hdisj 1 0 (by decide))
+    (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step22_arc_joined (α 1)) (hcc 2) (hcc 0) (hcS 2) (hcS 0) hγo hδ t20.le u20.le
+        (τ := t 1 + 1) (υ := u 1 + 1)
+    (by linarith) (by linarith) (by linarith) (by linarith) (by rw [hγo1]; exact hte 1)
+    (by rw [hδ1]; exact hue 1)
+    ((hc0 2).trans (hue 2).symm) ((hc1 2).trans (hte 2).symm) ((hc0 0).trans (by rw [hδ1]; exact (hue 0).symm))
+    ((hc1 0).trans (by rw [hγo1]; exact (hte 0).symm)) hp
+  have hγp : ∀ x, γo x ≠ p := fun x h => pg_frontier_inter_interior (h ▸ hK hγo x) (hCA (interior_subset hp))
+  have hδp : ∀ x, δ x ≠ p := fun x h => pg_frontier_inter_interior (h ▸ hK hδ x) hp
+  have ho : existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange γo (t 0) (t 0 + 1) p =
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange γo (t 0) (t 1) p +
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange γo (t 1) (t 2) p +
+              existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange γo (t 2) (t 0 + 1) p := by
+    rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step17_angleChange_add hγo.1 t01.le (by linarith) (fun x _ => hγp x),
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step17_angleChange_add hγo.1 t12.le t20.le (fun x _ => hγp x)]
+    ring
+  have hd : existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange δ (u 0) (u 0 + 1) p =
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange δ (u 0) (u 1) p +
+          existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange δ (u 1) (u 2) p +
+              existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange δ (u 2) (u 0 + 1) p := by
+    rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step17_angleChange_add hδ.1 u01.le (by linarith) (fun x _ => hδp x),
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step17_angleChange_add hδ.1 u12.le u20.le (fun x _ => hδp x)]
+    ring
+  have ho' : existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange γo (t 0) (t 0 + 1) p = no * (2 * Real.pi * Complex.I) := by
+    rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hγo.1 (by linarith) (fun x _ => hγp x)
+        hΘoc.continuousOn (fun x _ => hΘo x), hno]; ring
+  have hd' : existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step12_angleChange δ (u 0) (u 0 + 1) p = nd * (2 * Real.pi * Complex.I) := by
+    rw [existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step15_angleChange_eq hδ.1 (by linarith) (fun x _ => hδp x)
+        hΘdc.continuousOn (fun x _ => hΘd x), hnd]; ring
+  have key : (no : ℂ) * (2 * Real.pi * Complex.I) = (nd : ℂ) * (2 * Real.pi * Complex.I) := by
+    rw [← ho', ← hd', ho, hd]
+    linear_combination W0 + W1 + W2
+  have hne : (2 * Real.pi * Complex.I : ℂ) ≠ 0 := by simp [Real.pi_ne_zero, Complex.I_ne_zero]
+  exact_mod_cast mul_right_cancel₀ hne key
+
+/-- Step 27 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3`: a parametrization of the boundary of a polygonal
+disk winds `±1` times, in particular a nonzero number of times, around an interior point. -/
+private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step27_frontier_degree (B : PolygonalDisk) {γ : ℝ → Pt}
+    (hγ : IsLoopParam (frontier B.carrier) γ) {p : Pt} (hp : p ∈ interior B.carrier) {Θ : ℝ → ℂ}
+    (hΘc : Continuous Θ) (hΘ : ∀ t, Complex.exp (Θ t) = toC (γ t - p)) {n : ℤ}
+    (hn : ∀ t, Θ (t + 1) = Θ t + n * (2 * Real.pi * Complex.I)) : n ≠ 0 := by
+  intro hn0
+  have hpK : p ∉ frontier B.carrier := fun h => pg_frontier_inter_interior h hp
+  obtain ⟨Ψ, hΨc, hΨ, m, hm⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift (pgLoop_isLoopParam B) hpK
+  have hm0 : m = 0 := by
+    rcases existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step9_param_degree hγ (pgLoop_isLoopParam B) hpK hΘc hΘ hΨc hΨ hn hm
+        with h | h <;> omega
+  have hlen : 0 < (pgL B).length := by rw [pgL_length]; have := B.three_le; omega
+  have hW := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step8_polygon_degree hlen (by rw [pgCv_pgL]; exact hpK) hΨc hΨ hm
+  obtain ⟨σ, hσ, hin, -⟩ := pd_wind B
+  rw [pgW_pgL, hin p hp, hm0] at hW
+  push_cast at hW
+  rcases hσ with rfl | rfl <;> linarith [Real.pi_pos]
+
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
 cyclic order is preserved for 3 crosscuts. -/
 private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3
@@ -12041,7 +13266,28 @@ private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3
     (hhom : LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi)
     (hord : PointsInOrder γo fun j => (α j).stop) :
     PointsInOrder γi fun j => (α j).start := by
-  sorry
+  have _ := hstop
+  obtain ⟨p, hp⟩ := C.interior_nonempty
+  have hpA : p ∉ frontier A.carrier := fun h => pg_frontier_inter_interior h (hCA (interior_subset hp))
+  have hpC : p ∉ frontier C.carrier := fun h => pg_frontier_inter_interior h hp
+  have hpU : p ∉ A.carrier \ interior C.carrier := fun h => h.2 hp
+  have hsK : ∀ i, (α i).start ∈ frontier C.carrier := fun i => by
+    have h : (α i).start ∈ (α i).carrier ∩ frontier C.carrier := by rw [hC i]; rfl
+    exact h.2
+  rcases existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step2_dichotomy hγi hsK hstart with h | h
+  · exact h
+  · exfalso
+    obtain ⟨Θo, hΘoc, hΘo, no, hno⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift hγo hpA
+    obtain ⟨Θi, hΘic, hΘi, ni, hni⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift hγi hpC
+    have e1 : no = ni := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree hhom hpU hΘoc hΘo hΘic hΘi
+      hno hni
+    have e2 : no = -ni := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step26_degrees_agree A C hCA α hin hC hA hdisj hγo
+      (pg_isLoopParam_neg hγi) hord h hp hΘoc hΘo (hΘic.comp continuous_neg) (fun t => hΘi (-t)) hno (fun t => by
+        have := hni (-(t + 1))
+        simp only [show -(t + 1) + 1 = -t by ring] at this
+        simp only [Function.comp_apply]
+        rw [this]; push_cast; ring)
+    exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step27_frontier_degree A hγo (hCA (interior_subset hp)) hΘoc hΘo hno (by omega)
 
 /-- Lift a unit-interval representative into the interval immediately after a chosen cut. -/
 private def existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_lift

@@ -1970,7 +1970,27 @@ private lemma reconstructed_header_eq_innerActive_step1_print (c : MacroCertific
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
     (i : c.Side h.1) (hi : c.IsInner (c.occ h.1 i)) (hp : c.IsPrint (c.occ h.1 i)) :
     (reconstruct c K h.1).cell i 4 ≠ 0 := by
-  sorry
+  have _ := hi
+  have h_norm := reconstructed_header_eq_isNormal c hH K hK h hh
+  have h_loc : IsLocal c (c.occ h.1 i) 4 := by
+    unfold IsLocal
+    by_cases hMarked : c.IsMarked (c.occ h.1 i)
+    · right; left
+      exact ⟨hMarked, Or.inr hp, rfl⟩
+    · left
+      exact hMarked
+  have h1 := h_norm i 4 h_loc
+  rw [h1]
+  unfold prescribedCell
+  have h40 : ¬ (4 : Fin 5) = 0 := by decide
+  have h43 : ¬ (4 : Fin 5) = 3 := by decide
+  have h44 : (4 : Fin 5) = 4 := by decide
+  rw [if_neg h40, if_neg h43, if_pos h44]
+  have hp_rw : c.IsPrint (c.occ (reconstruct c K h.1).typ i) ↔ c.IsPrint (c.occ h.1 i) := Iff.rfl
+  have hp' : c.IsPrint (c.occ (reconstruct c K h.1).typ i) := hp_rw.mpr hp
+  rw [if_pos hp']
+  intro h_eq
+  injection h_eq
 
 private lemma reconstructed_header_eq_innerActive_step2_nonprint_step1_port_parent_aux_port
     (c : MacroCertificate P) (K : ColouredBlock c) (hK : BlockContext c K)

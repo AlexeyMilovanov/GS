@@ -5371,7 +5371,108 @@ private lemma existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step3_sma
     {k : ℕ} (hk : k < 3) (x : Fin k → Pt) (γ : ℝ → Pt) {K : Set Pt} (hγ : IsLoopParam K γ)
     (hx_in : ∀ i, x i ∈ K) (hx_inj : Function.Injective x) :
     PointsInOrder γ x := by
-  sorry
+  dsimp [PointsInOrder]
+  rcases hγ with ⟨hγ_cont, hγ_per, hγ_inj, hγ_im⟩
+  match k with
+  | 0 =>
+    use (fun _ => 0)
+    refine ⟨?_, ?_, ?_⟩
+    · intro i j hij
+      exact Fin.elim0 i
+    · intro i j
+      exact Fin.elim0 i
+    · intro i
+      exact Fin.elim0 i
+  | 1 =>
+    have hx0 : x 0 ∈ γ '' Ico 0 1 := by
+      rw [hγ_im]
+      exact hx_in 0
+    rcases hx0 with ⟨t0, ht0_in, ht0_eq⟩
+    use (fun _ => t0)
+    refine ⟨?_, ?_, ?_⟩
+    · intro i j hij
+      have hi : i = 0 := Subsingleton.elim i 0
+      have hj : j = 0 := Subsingleton.elim j 0
+      subst hi hj
+      exact (lt_irrefl _ hij).elim
+    · intro i j
+      linarith
+    · intro i
+      have hi : i = 0 := Subsingleton.elim i 0
+      subst hi
+      exact ht0_eq
+  | 2 =>
+    have hx0 : x 0 ∈ γ '' Ico 0 1 := by rw [hγ_im]; exact hx_in 0
+    have hx1 : x 1 ∈ γ '' Ico 0 1 := by rw [hγ_im]; exact hx_in 1
+    rcases hx0 with ⟨t0, ht0_in, ht0_eq⟩
+    rcases hx1 with ⟨t1, ht1_in, ht1_eq⟩
+    have ht0_ne_t1 : t0 ≠ t1 := by
+      intro h
+      have : x 0 = x 1 := by rw [← ht0_eq, ← ht1_eq, h]
+      have : (0 : Fin 2) = 1 := hx_inj this
+      revert this
+      decide
+    by_cases ht : t0 < t1
+    · use (fun i => if i = 0 then t0 else t1)
+      refine ⟨?_, ?_, ?_⟩
+      · intro i j hij
+        change (i : ℕ) < j at hij
+        have hi0 : (i : ℕ) = 0 := by omega
+        have hj1 : (j : ℕ) = 1 := by omega
+        have hi_eq : i = 0 := by ext; exact hi0
+        have hj_eq : j = 1 := by ext; exact hj1
+        subst hi_eq hj_eq
+        change t0 < t1
+        exact ht
+      · intro i j
+        fin_cases i <;> fin_cases j
+        · change t0 < t0 + 1; linarith
+        · change t1 < t0 + 1
+          rcases ht1_in with ⟨ht1_ge, ht1_lt⟩
+          rcases ht0_in with ⟨ht0_ge, ht0_lt⟩
+          linarith
+        · change t0 < t1 + 1
+          rcases ht1_in with ⟨ht1_ge, ht1_lt⟩
+          rcases ht0_in with ⟨ht0_ge, ht0_lt⟩
+          linarith
+        · change t1 < t1 + 1; linarith
+      · intro i
+        fin_cases i
+        · change γ t0 = x 0; exact ht0_eq
+        · change γ t1 = x 1; exact ht1_eq
+    · use (fun i => if i = 0 then t0 else t1 + 1)
+      have ht_gt : t1 < t0 := lt_of_le_of_ne (not_lt.mp ht) ht0_ne_t1.symm
+      refine ⟨?_, ?_, ?_⟩
+      · intro i j hij
+        change (i : ℕ) < j at hij
+        have hi0 : (i : ℕ) = 0 := by omega
+        have hj1 : (j : ℕ) = 1 := by omega
+        have hi_eq : i = 0 := by ext; exact hi0
+        have hj_eq : j = 1 := by ext; exact hj1
+        subst hi_eq hj_eq
+        change t0 < t1 + 1
+        rcases ht1_in with ⟨ht1_ge, ht1_lt⟩
+        rcases ht0_in with ⟨ht0_ge, ht0_lt⟩
+        linarith
+      · intro i j
+        fin_cases i <;> fin_cases j
+        · change t0 < t0 + 1; linarith
+        · change t1 + 1 < t0 + 1
+          rcases ht1_in with ⟨ht1_ge, ht1_lt⟩
+          rcases ht0_in with ⟨ht0_ge, ht0_lt⟩
+          linarith
+        · change t0 < t1 + 1 + 1
+          rcases ht1_in with ⟨ht1_ge, ht1_lt⟩
+          rcases ht0_in with ⟨ht0_ge, ht0_lt⟩
+          linarith
+        · change t1 + 1 < t1 + 1 + 1; linarith
+      · intro i
+        fin_cases i
+        · change γ t0 = x 0; exact ht0_eq
+        · change γ (t1 + 1) = x 1
+          have : γ (t1 + 1) = γ t1 := by exact hγ_per t1
+          rw [this]
+          exact ht1_eq
 
 /-- Step 4 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
 a subset of points in cyclic order is in cyclic order. -/

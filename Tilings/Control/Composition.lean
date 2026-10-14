@@ -3498,6 +3498,174 @@ private lemma reconstructed_acyclic_legal_step5_parent_noncentral {P : Protoset}
   exact hcyc (reconstructed_acyclic_legal_step5_parent_noncentral_step2_cyclic c hcent
     (reconstructed_acyclic_legal_step5_parent_noncentral_step1_same_large_form c hcent h_large))
 
+private lemma s1c_print_transport (c : MacroCertificate P) {C B : DecTile c} (h : IsChildOf c C B)
+    {i : c.Side B.typ} (hp : c.IsPrint (c.occ B.typ i)) :
+    ∃ d : c.Side C.typ, c.IsPrintOf (c.form C.typ) d (c.occ B.typ i) := by
+  unfold MacroData.IsPrint at hp
+  rw [h.1] at hp
+  exact hp
+
+private lemma s1c_cyc_print (c : MacroCertificate P) {s : c.Typ} (hcyc : c.central (c.form s) = s)
+    (hlarge : c.kind (c.form s) = .large) (d : c.Side s) (hm : c.marked (c.form s) d) :
+    c.IsPrintOf (c.form s) d (c.occ s d) := by
+  refine ⟨hm, Or.inl ?_⟩
+  unfold MacroData.printOcc
+  refine Sigma.ext hcyc.symm ?_
+  rw [Fin.heq_ext_iff (by dsimp only; rw [hcyc])]
+  exact (c.g5_print_id_large _ d hlarge hm).symm
+
+private lemma s1c_not_on_path (c : MacroCertificate P) (α : c.Q.Form) (d : Fin (c.Q.disk α).n)
+    (j : Fin 5) (o : c.SideOcc) (ho : o.1 = c.central α) : o ∉ c.path α d j := by
+  intro hmem
+  by_cases hg : c.IsGenuinePath α d j
+  · exact c.g4_path_not_central α d j hg o hmem ho
+  · rw [c.g4_path_trivial α d j hg, Option.mem_toList] at hmem
+    have hmem' : o ∈ c.outerList α d := List.mem_iff_getElem?.mpr ⟨_, hmem⟩
+    have hout := ((c.g3_outerList_mem α d o).1 hmem').2.1
+    obtain ⟨t, i⟩ := o
+    simp only at ho
+    subst ho
+    exact (c.g2_central α i).1 hout
+
+private lemma s1c_central_inner (c : MacroCertificate P) {s : c.Typ} (hc : c.central (c.owner s) = s)
+    (i : c.Side s) : c.IsInner (c.occ s i) ∧ ¬ c.IsBoundary (c.occ s i) := by
+  revert i
+  rw [← hc]
+  intro i
+  exact c.g2_central _ i
+
+private lemma s1c_child_unique (c : MacroCertificate P) {C B B' : DecTile c}
+    (hc : c.central (c.owner B.typ) = B.typ) (h1 : IsChildOf c C B) (h2 : IsChildOf c C B')
+    (ht : B.typ = B'.typ) : B = B' := by
+  obtain ⟨s, cell⟩ := B
+  obtain ⟨s', cell'⟩ := B'
+  dsimp only at ht hc
+  subst ht
+  congr 1
+  funext i k
+  have H1 := h1.2 i
+  have H2 := h2.2 i
+  dsimp only at H1 H2
+  by_cases hp : c.IsPrint (c.occ s i)
+  · obtain ⟨d, hd⟩ := s1c_print_transport c h1 hp
+    by_cases hk : k = 4
+    · subst hk
+      rw [(H1.1 d hd).2, (H2.1 d hd).2]
+    · rw [(H1.1 d hd).1 k hk, (H2.1 d hd).1 k hk]
+  · obtain ⟨a0, a1, a4, a2p, a2n, -, -, a3i⟩ := H1.2 hp
+    obtain ⟨b0, b1, b4, b2p, b2n, -, -, b3i⟩ := H2.2 hp
+    have hin := s1c_central_inner c hc i
+    fin_cases k
+    · exact a0.trans b0.symm
+    · exact a1.trans b1.symm
+    · by_cases hpath : ∃ (d : c.Side C.typ) (j : Fin 5), c.occ s i ∈ c.path (c.form C.typ) d j
+      · obtain ⟨d, j, hm⟩ := hpath
+        exact (a2p d j hm).trans (b2p d j hm).symm
+      · push_neg at hpath
+        exact (a2n hpath).trans (b2n hpath).symm
+    · exact (a3i hin.1 hin.2).trans (b3i hin.1 hin.2).symm
+    · exact a4.trans b4.symm
+
+private lemma s1c_child_self (c : MacroCertificate P) {C B : DecTile c}
+    (hcyc : c.central (c.form B.typ) = B.typ) (hown : c.owner B.typ = c.form B.typ)
+    (hlarge : c.kind (c.form B.typ) = .large) (h : IsChildOf c C B) : IsChildOf c B B := by
+  have hc : c.central (c.owner B.typ) = B.typ := by rw [hown]; exact hcyc
+  refine ⟨hown, fun i => ⟨?_, ?_⟩⟩
+  · intro d hd
+    have hid : i = d := by
+      rcases hd with ⟨hm, he | he⟩
+      · unfold MacroData.printOcc at he
+        have h2 := (Sigma.mk.inj_iff.1 he).2
+        rw [Fin.heq_ext_iff (by rw [hcyc])] at h2
+        exact Fin.ext (h2.trans (c.g5_print_id_large _ d hlarge hm))
+      · have hin := c.g4_print_inner _ d hm
+        have hne := (c.g1_partner _ hin).1
+        have h3 : (c.partner (c.printOcc (c.form B.typ) d)).1 = c.central (c.form B.typ) :=
+          (congrArg Sigma.fst he).symm.trans hcyc.symm
+        exact absurd h3 hne
+    subst hid
+    refine ⟨fun _ _ => rfl, ?_⟩
+    have hp : c.IsPrint (c.occ B.typ i) := by
+      unfold MacroData.IsPrint
+      rw [hown]
+      exact ⟨i, s1c_cyc_print c hcyc hlarge i hd.1⟩
+    obtain ⟨d', hd'⟩ := s1c_print_transport c h hp
+    exact ((h.2 i).1 d' hd').2
+  · intro hp
+    obtain ⟨a0, a1, a4, -, a2n, -, -, a3i⟩ := (h.2 i).2 hp
+    have hin := s1c_central_inner c hc i
+    refine ⟨a0, a1, a4, ?_, ?_, ?_, ?_, a3i⟩
+    · intro d j hmem
+      exact absurd hmem (s1c_not_on_path c _ d j _ hcyc.symm)
+    · intro _
+      apply a2n
+      intro d j
+      apply s1c_not_on_path c _ d j
+      rw [← h.1]
+      exact hc.symm
+    · intro ho
+      exact absurd ho hin.1
+    · intro hb
+      exact absurd hb hin.2
+
+private lemma s1c_print_of_central (c : MacroCertificate P) {t : c.Typ}
+    (hcent : c.central (c.owner t) = t) {d : c.Side t} {d' : Fin (c.Q.disk (c.owner t)).n}
+    (h : c.IsPrintOf (c.owner t) d' (c.occ t d)) : c.occ t d = c.printOcc (c.owner t) d' := by
+  rcases h with ⟨hm, he | he⟩
+  · exact he
+  · have hin := c.g4_print_inner _ d' hm
+    have hne := (c.g1_partner _ hin).1
+    have h3 : (c.partner (c.printOcc (c.owner t) d')).1 = c.central (c.owner t) :=
+      (congrArg Sigma.fst he).symm.trans hcent.symm
+    exact absurd h3 hne
+
+private lemma s1c_exists_nonprint_marked (c : MacroCertificate P) {t : c.Typ}
+    (hcent : c.central (c.owner t) = t) (hlarge : c.kind (c.form t) = .large)
+    (hown : c.kind (c.owner t) ≠ .large) :
+    ∃ d : c.Side t, c.marked (c.form t) d ∧ ¬ c.IsPrint (c.occ t d) := by
+  by_contra hall
+  push_neg at hall
+  have hpr : ∀ d : {d : c.Side t // c.marked (c.form t) d},
+      ∃ d' : {d' : Fin (c.Q.disk (c.owner t)).n // c.marked (c.owner t) d'},
+        c.occ t d.1 = c.printOcc (c.owner t) d'.1 := by
+    intro d
+    obtain ⟨d', hd'⟩ := hall d.1 d.2
+    exact ⟨⟨d', hd'.1⟩, s1c_print_of_central c hcent hd'⟩
+  choose f hf using hpr
+  have hinj : Function.Injective f := by
+    intro d1 d2 h12
+    have := (hf d1).trans ((congrArg (fun x => c.printOcc (c.owner t) x.1) h12).trans (hf d2).symm)
+    exact Subtype.ext (eq_of_heq (Sigma.mk.inj_iff.1 this).2)
+  have h1 := Nat.card_le_card_of_injective f hinj
+  have h2 : Nat.card {d : c.Side t // c.marked (c.form t) d} = 4 * c.N :=
+    c.g5_card_marked_large _ hlarge
+  have h3 : Nat.card {d' : Fin (c.Q.disk (c.owner t)).n // c.marked (c.owner t) d'} ≤ c.Qmax :=
+    c.g5_card_marked_small _ hown
+  have h4 := c.g5_three_Q_lt
+  omega
+
+private lemma s1c_legal_shift (c : MacroCertificate P) (ch : ℕ → DecTile c)
+    (hR : ∀ n, IsChildOf c (ch (n + 1)) (ch n))
+    (hleg : ∀ (n : ℕ) (i : c.Side (ch n).typ) (k : Fin 5),
+      (copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ i) k).Nonempty →
+      ¬ HasOrigin c ch n i k → (ch n).cell i k = 0) (m : ℕ) : headerLegal c (ch m) := by
+  refine ⟨fun x => ch (m + x), rfl, ?_, ?_⟩
+  · intro i
+    have heq : m + (i + 1) = m + i + 1 := by omega
+    have hc := hR (m + i)
+    rwa [← heq] at hc
+  · intro n i k hNonempty hNoOrig
+    dsimp at hNonempty hNoOrig ⊢
+    have heq : m + (n + 1) = m + n + 1 := by omega
+    have hNonempty' :
+        (copySource c (c.form (ch (m + n + 1)).typ) (c.occ (ch (m + n)).typ i) k).Nonempty := by
+      rwa [← heq]
+    have hNoOrig' : ¬ HasOrigin c ch (m + n) i k := by
+      intro h
+      apply hNoOrig
+      exact reconstructed_noncentral_legal_step1_ancestor_step2_min_n_hasOrigin_shift c ch m n i k h
+    exact hleg (m + n) i k hNonempty' hNoOrig'
+
 /-- Step 1 of the blueprint proof of `reconstructed_acyclic_legal_step6_main`:
 The origin argument from the noncentral legality lemma shows that a legal
 ancestry chain of `A` (the legal central child of `D = tileDec X`, step 4) reaches a noncentral
@@ -3526,7 +3694,96 @@ private lemma reconstructed_acyclic_legal_step6_main_step1_chain {P : Protoset}
       headerLegal c F ∧
       c.IsCentral E.typ ∧
       ¬ c.IsCentral F.typ ∧
-      c.form E.typ = c.form (tileDec X).typ := by sorry
+      c.form E.typ = c.form (tileDec X).typ := by
+  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hex
+  have _ := hcyc; have _ := h_other_nc; have _ := h_other_cyc
+  have hlarge_t : c.kind (c.form (tileDec X).typ) = .large := (c.g5_large_iff _).2 hcent.symm
+  have hAform : c.form A.typ = c.form (tileDec X).typ := by
+    rw [hAtyp]; exact c.g5_central_fixes_large _ hlarge_t
+  have hAcyc : c.central (c.form A.typ) = A.typ := by rw [hAform, hAtyp]
+  have hAown : c.owner A.typ = c.form A.typ := by rw [hAform, hAtyp, c.g5_central_owner]
+  have hAlarge : c.kind (c.form A.typ) = .large := by rw [hAform]; exact hlarge_t
+  have hkey : ∀ s, s = A.typ → ∀ d : c.Side s, c.marked (c.form s) d → c.IsPrint (c.occ s d) := by
+    rintro s rfl d hm
+    unfold MacroData.IsPrint
+    rw [hAown]
+    exact ⟨d, s1c_cyc_print c hAcyc hAlarge d hm⟩
+  have hcond : ∀ s, s = A.typ → c.central (c.form s) = s ∧ c.owner s = c.form s ∧
+      c.kind (c.form s) = .large ∧ c.central (c.owner s) = s := by
+    rintro s rfl
+    exact ⟨hAcyc, hAown, hAlarge, by rw [hAown]; exact hAcyc⟩
+  obtain ⟨ch, hch0, hR, hleg⟩ := hAleg
+  subst hch0
+  have hex_n : ∃ n, (ch n).typ ≠ (ch 0).typ := by
+    by_contra hall
+    push_neg at hall
+    obtain ⟨d, hdm, hdnp⟩ := s1c_exists_nonprint_marked c hcent hlarge_t hown
+    have hDcell : (tileDec X).cell d 0 ≠ 0 := by
+      rw [((hN X hX).2.1 d).1 (s1c_central_inner c hcent d).1 hdnp]
+      exact asm_identU_ne_zero c _
+    obtain ⟨i, hi⟩ : ∃ i : c.Side (ch 0).typ,
+        c.occ (ch 0).typ i = c.printOcc (c.form (tileDec X).typ) d := by
+      have : ∀ s, s = c.central (c.form (tileDec X).typ) →
+          ∃ i : c.Side s, c.occ s i = c.printOcc (c.form (tileDec X).typ) d := by
+        rintro s rfl
+        exact ⟨_, rfl⟩
+      exact this _ hAtyp
+    have hpo : c.IsPrintOf (c.form (tileDec X).typ) d (c.occ (ch 0).typ i) := ⟨hdm, Or.inl hi⟩
+    have hAcell : (ch 0).cell i 0 = (tileDec X).cell d 0 := ((hXA.2 i).1 d hpo).1 0 (by decide)
+    have hstep : ∀ (n : ℕ) (j : c.Side (ch n).typ), c.IsPrint (c.occ (ch n).typ j) →
+        (ch n).cell j 0 ≠ 0 → ∃ d : c.Side (ch (n + 1)).typ,
+          (d, (0 : Fin 5)) ∈ copySource c (c.form (ch (n + 1)).typ) (c.occ (ch n).typ j) 0 ∧
+          c.IsPrint (c.occ (ch (n + 1)).typ d) ∧ (ch (n + 1)).cell d 0 ≠ 0 := by
+      intro n j hp hnz
+      obtain ⟨d', hd'⟩ := s1c_print_transport c (hR n) hp
+      refine ⟨d', Or.inl ⟨hd', by decide, rfl⟩, hkey _ (hall (n + 1)) d' hd'.1, ?_⟩
+      rw [← (((hR n).2 j).1 d' hd').1 0 (by decide)]
+      exact hnz
+    have hp0 : c.IsPrint (c.occ (ch 0).typ i) := by
+      unfold MacroData.IsPrint
+      rw [hXA.1]
+      exact ⟨d, hpo⟩
+    have hnz : (ch 0).cell i 0 ≠ 0 := by rw [hAcell]; exact hDcell
+    have hno := reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step3_no_origin
+      c ch hstep 0 i hp0 hnz
+    obtain ⟨d'', hmem, -, -⟩ := hstep 0 i hp0 hnz
+    exact hnz (hleg 0 i 0 ⟨_, hmem⟩ hno)
+  classical
+  obtain ⟨n, hn, hmin⟩ : ∃ n, (ch n).typ ≠ (ch 0).typ ∧ ∀ k < n, (ch k).typ = (ch 0).typ :=
+    ⟨Nat.find hex_n, Nat.find_spec hex_n, fun k hk => not_not.1 (Nat.find_min hex_n hk)⟩
+  cases n with
+  | zero => exact absurd rfl hn
+  | succ m =>
+    have hchain : ∀ k ≤ m, ch k = ch 0 := by
+      intro k
+      induction k with
+      | zero => intro _; rfl
+      | succ k ih =>
+        intro hk
+        have e1 := hmin (k + 1) (by omega)
+        have e0 := hmin k (by omega)
+        obtain ⟨c1, c2, c3, _⟩ := hcond _ e1
+        obtain ⟨-, -, -, c4⟩ := hcond _ e0
+        have hself := s1c_child_self c c1 c2 c3 (hR (k + 1))
+        have := s1c_child_unique c c4 (hR k) hself (e0.trans e1.symm)
+        rw [← this]
+        exact ih (by omega)
+    have hEA : IsChildOf c (ch (m + 1)) (ch 0) := by
+      have := hR m
+      rwa [hchain m le_rfl] at this
+    have hEform : c.form (ch (m + 1)).typ = c.form (tileDec X).typ := by
+      rw [← hEA.1, hAown, hAform]
+    have hEc : c.central (c.owner (ch (m + 1)).typ) = (ch (m + 1)).typ :=
+      ((c.g5_large_iff _).1 (by rw [hEform]; exact hlarge_t)).symm
+    refine ⟨ch (m + 1), ch (m + 1 + 1), hEA, hR (m + 1), s1c_legal_shift c ch hR hleg _,
+      s1c_legal_shift c ch hR hleg _, hEc, ?_, hEform⟩
+    intro hF
+    have hFl : c.kind (c.form (ch (m + 1 + 1)).typ) = .large := (c.g5_large_iff _).2 hF.symm
+    rw [← (hR (m + 1)).1] at hFl
+    have h1 := c.g5_central_fixes_large _ hFl
+    rw [hEc] at h1
+    apply hn
+    rw [hAtyp, ← hEform, h1, hEc]
 
 private lemma step2_eq_central_no_outer (c : MacroCertificate P) {s : c.Typ} (hs : c.IsCentral s)
     (i : c.Side s) : ¬ c.IsOuter (c.occ s i) ∧ ¬ c.IsBoundary (c.occ s i) := by

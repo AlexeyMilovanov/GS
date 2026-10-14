@@ -2493,7 +2493,32 @@ private lemma strict_boundary_header_constant_step4_belt_eq_step2_reachable
     (c : SU C hC)
     (hu : ∀ i : C.Side u.1, C.IsBoundary (C.occ u.1 i) → K.col u.1 i 3 = c) :
     ∀ j : C.Side v.1, C.IsBoundary (C.occ v.1 j) → K.col v.1 j 3 = c := by
-  sorry
+  have propagate : ∀ {x y : {t : C.Typ // C.IsBeltType K.α t}},
+      (C.beltGraph K.α).Walk x y → ∀ c : SU C hC,
+      (∀ i : C.Side x.1, C.IsBoundary (C.occ x.1 i) → K.col x.1 i 3 = c) →
+      ∀ j : C.Side y.1, C.IsBoundary (C.occ y.1 j) → K.col y.1 j 3 = c := by
+    intro x y p
+    induction p with
+    | nil =>
+        intro c hx j hj
+        exact hx j hj
+    | @cons x y z hadj p ih =>
+        intro c hx j hj
+        have howner : C.owner x.1 = K.α := x.2.1
+        have hbelt : C.IsBeltType (C.owner x.1) x.1 := by
+          rw [howner]
+          exact x.2
+        obtain ⟨i, hi⟩ := C.g2_belt_edge x.1 hbelt
+        have hy : ∀ k : C.Side y.1,
+            C.IsBoundary (C.occ y.1 k) → K.col y.1 k 3 = c := by
+          intro k hk
+          have hxy := strict_boundary_header_constant_step4_belt_eq_step1_adj
+            C hC K hK x y hadj i hi k hk
+          calc
+            K.col y.1 k 3 = K.col x.1 i 3 := hxy.symm
+            _ = c := hx i hi
+        exact ih c hy j hj
+  exact hreach.elim (fun p => propagate p c hu)
 
 /-- Step 4 of the blueprint proof of `strict_boundary_header_constant`: connectedness
 propagates equality to every boundary cell of the block. -/

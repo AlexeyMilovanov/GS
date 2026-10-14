@@ -3525,7 +3525,89 @@ private lemma outsideAnchoredGrouping_step2_H_step3_conn_int (M : MeshConstants 
     (hE_faces : ∀ F ∈ S.tiles, (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty →
       F.carrier ⊆ E)
     (hE_def : E = Ω.carrierᶜ ∪ ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty, F.carrier) :
-    IsConnected (interior (closure (connectedComponentIn (Eᶜ) c))) := sorry
+    IsConnected (interior (closure (connectedComponentIn (Eᶜ) c))) := by
+  let G : Set (PlacedTile P) :=
+    {F | F ∈ S.tiles ∧ (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty}
+  let U : Set Pt :=
+    ⋃ F ∈ S.tiles, ⋃ _ : (interior F.carrier ∩ (square c h + Binf (3 * M.D))ᶜ).Nonempty,
+      F.carrier
+  have hGfin : G.Finite := by
+    apply S.finite.subset
+    intro F hF
+    exact hF.1
+  have hUG : U = support G := by
+    ext x
+    constructor
+    · intro hx
+      simp only [U, Set.mem_iUnion] at hx
+      rcases hx with ⟨F, hF, hsel, hx⟩
+      exact mem_support_iff'.2 ⟨F, ⟨hF, hsel⟩, hx⟩
+    · intro hx
+      rcases mem_support_iff'.1 hx with ⟨F, ⟨hF, hsel⟩, hx⟩
+      refine Set.mem_iUnion.2 ⟨F, Set.mem_iUnion.2 ⟨hF, ?_⟩⟩
+      exact Set.mem_iUnion.2 ⟨hsel, hx⟩
+  have hUclosed : IsClosed U := by
+    rw [hUG]
+    exact support_isClosed hGfin
+  have hOopen : IsOpen (interior Ω.carrier ∩ Uᶜ) :=
+    isOpen_interior.inter hUclosed.isOpen_compl
+  have hK3K10 : square c h + Binf (3 * M.D) ⊆ square c h + Binf (10 * M.D) := by
+    have hD : 3 * M.D ≤ 10 * M.D := by linarith [M.D_pos]
+    have hB : Binf (3 * M.D) ⊆ Binf (10 * M.D) := rg_binf_mono hD
+    intro x hx
+    rcases Set.mem_add.1 hx with ⟨y, hy, z, hz, rfl⟩
+    exact Set.mem_add.2 ⟨y, hy, z, hB hz, rfl⟩
+  have hK3int : square c h + Binf (3 * M.D) ⊆ interior Ω.carrier :=
+    hK3K10.trans hQ
+  let C : Set Pt := connectedComponentIn (Eᶜ) c
+  have hCcl : closure C ⊆ interior Ω.carrier := by
+    dsimp [C]
+    exact (outsideAnchoredGrouping_step2_H_step2_upper M S Ω hcov hsts c h hh hQ E
+      hE_conn hE_supset hE_faces hE_def).trans hK3int
+  have hcK2 : c ∈ square c h + Binf (2 * M.D) := by
+    refine Set.mem_add.2 ⟨c, ?_, 0, ?_, by simp⟩
+    · simp [square, le_of_lt hh]
+    · simp [Binf, M.D_pos.le]
+  have hccl : c ∈ closure C := by
+    dsimp [C]
+    exact outsideAnchoredGrouping_step2_H_step1_lower M S Ω hcov hsts c h hh hQ E hE_conn
+      hE_supset hE_faces hE_def hcK2
+  have hCne : C.Nonempty := by
+    by_contra hne
+    have hCempty : C = ∅ := Set.not_nonempty_iff_eq_empty.mp hne
+    rw [hCempty, closure_empty] at hccl
+    exact hccl
+  have hcE : c ∈ Eᶜ := connectedComponentIn_nonempty_iff.mp hCne
+  have hcC : c ∈ C := by
+    dsimp [C]
+    exact mem_connectedComponentIn hcE
+  have hCO : C ⊆ interior Ω.carrier ∩ Uᶜ := by
+    intro x hx
+    have hxcl : x ∈ closure C := subset_closure hx
+    refine ⟨hCcl hxcl, ?_⟩
+    intro hxU
+    have hxE : x ∈ Eᶜ := connectedComponentIn_subset (Eᶜ) c hx
+    apply hxE
+    rw [hE_def]
+    exact Or.inr hxU
+  have hOC : interior Ω.carrier ∩ Uᶜ ⊆ Eᶜ := by
+    intro x hx hxE
+    rw [hE_def] at hxE
+    rcases hxE with hxE | hxE
+    · exact hxE (interior_subset hx.1)
+    · exact hx.2 hxE
+  have hCeq : C = connectedComponentIn (interior Ω.carrier ∩ Uᶜ) c := by
+    apply Set.Subset.antisymm
+    · exact isPreconnected_connectedComponentIn.subset_connectedComponentIn hcC hCO
+    · have hcO : c ∈ interior Ω.carrier ∩ Uᶜ := hCO hcC
+      exact isPreconnected_connectedComponentIn.subset_connectedComponentIn
+        (mem_connectedComponentIn hcO)
+        ((connectedComponentIn_subset _ _).trans hOC)
+  have hCopen : IsOpen C := by
+    rw [hCeq]
+    exact hOopen.connectedComponentIn
+  have hCconn : IsConnected C := isConnected_connectedComponentIn_iff.2 hcE
+  exact hCconn.subset_closure hCopen.subset_interior_closure interior_subset
 
 /-- Near a nonvertex point of an edge of a selected face, the two local half-planes
 lie respectively in that face and outside all selected faces.  Unlike `JSetup.bedge_sides`,

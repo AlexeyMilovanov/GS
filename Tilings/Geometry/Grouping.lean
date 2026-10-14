@@ -6421,6 +6421,128 @@ private lemma existsAnnularSpokes_step3_spoke_step2_cut (S : Patch P)
   obtain ⟨w', hw'H, hwalk'⟩ := cutH hwalkL hu'H hw
   exact ⟨u', w', hu'L, hw'H, hwalk'⟩
 
+private def existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix
+    {α : Type*} [DecidableEq α] (a : α) : List α → List α
+  | [] => []
+  | x :: xs => if x = a then [x] else x ::
+      existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix a xs
+
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_prefix
+    {α : Type*} [DecidableEq α] (a : α) (l : List α) :
+    existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix a l <+: l := by
+  induction l with
+  | nil => simp [existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix]
+  | cons x xs ih =>
+      by_cases h : x = a
+      · exact ⟨xs, by simp [existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix, h]
+          ⟩
+      · obtain ⟨t, ht⟩ := ih
+        exact ⟨t, by simp [existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix, h, ht]
+          ⟩
+
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_spec
+    {α : Type*} [DecidableEq α] (a : α) (l : List α) (h : a ∈ l) :
+    ∃ p, existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix a l = p ++ [a] := by
+  induction l with
+  | nil => simp at h
+  | cons x xs ih =>
+      by_cases hxa : x = a
+      · exact ⟨[], by simp [existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix, hxa]⟩
+      · have hxs : a ∈ xs := by
+          rcases (by simpa only [List.mem_cons] using h) with hax | hxs
+          · exact (hxa hax.symm).elim
+          · exact hxs
+        obtain ⟨p, hp⟩ := ih hxs
+        exact ⟨x :: p, by simp [existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix,
+          hxa, hp, List.cons_append]⟩
+
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_last
+    {α : Type*} [DecidableEq α] (a : α) {l : List α} (ha : a ∈ l) :
+    (existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix a l).getLast (by
+      obtain ⟨p, hp⟩ :=
+        existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_spec a l ha
+      rw [hp]
+      simp) = a := by
+  obtain ⟨p, hp⟩ :=
+    existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_spec a l ha
+  simp only [hp]
+  exact List.getLast_append_singleton p
+
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_path
+    {α : Type*} (r : α → α → Prop) {a b : α}
+    (h : Relation.ReflTransGen r a b) :
+    ∃ (l : List α) (hl : l ≠ []), l.Nodup ∧ l.IsChain r ∧
+      l.head hl = a ∧ l.getLast hl = b := by
+  classical
+  induction h with
+  | refl =>
+      refine ⟨[a], by simp, by simp, by simp, by simp, by simp⟩
+  | @tail b c hbc hrel ih =>
+      obtain ⟨l, hl, hnodup, hchain, hhead, hlast⟩ := ih
+      by_cases hc : c ∈ l
+      · obtain ⟨p, hp⟩ :=
+          existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_spec c l hc
+        have hpref :=
+          existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_prefix c l
+        have hpne :
+            existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix c l ≠ [] := by
+          rw [hp]
+          simp
+        have hpp := hnodup.sublist hpref.sublist
+        have hpc := hchain.prefix hpref
+        refine ⟨_, hpne, hpp, hpc, ?_, ?_⟩
+        · rw [hpref.head hpne, hhead]
+        · exact existsAnnularSpokes_step3_spoke_step3_erase_step1_prefix_last c hc
+      · refine ⟨l ++ [c], by simp, ?_, ?_, ?_, ?_⟩
+        · rw [← List.concat_eq_append]
+          exact hnodup.concat hc
+        · have hcross : ∀ x ∈ l.getLast?, r x c := by
+            intro x hx
+            have hx' : x = l.getLast hl := by
+              rw [List.getLast?_eq_getLast_of_ne_nil hl] at hx
+              simpa using hx.symm
+            rw [hx', hlast]
+            exact hrel
+          have hcross' : ∀ x ∈ l.getLast?, ∀ y ∈ [c].head?, r x y := by
+            intro x hx y hy
+            have hy' : y = c := by simpa using hy.symm
+            rw [hy']
+            exact hcross x hx
+          exact hchain.append (by simp) hcross'
+        · rw [List.head_append_left hl]
+          exact hhead
+        · simp
+
+private def existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList
+    (l : List Pt) (hl : 2 ≤ l.length) : PolyArc where
+  n := l.length - 2
+  pt := fun i => l.get ⟨i.1, by omega⟩
+
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_arc_injective
+    {l : List Pt} (hl : 2 ≤ l.length) (hnodup : l.Nodup) :
+    Function.Injective
+      (existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList l hl).pt := by
+  change Function.Injective (fun i : Fin (l.length - 2 + 2) =>
+    l.get ⟨i.1, by omega⟩)
+  intro i j hij
+  have hget : (l.get ⟨i.1, by omega⟩) = l.get ⟨j.1, by omega⟩ := hij
+  exact Fin.ext ((hnodup.getElem_inj_iff).mp hget)
+
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_arc_start
+    {l : List Pt} (hl : 2 ≤ l.length) (hne : l ≠ []) :
+    (existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList l hl).start =
+      l.head hne := by
+  simp [existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList, PolyArc.start,
+    List.head_eq_getElem_zero]
+
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_arc_stop
+    {l : List Pt} (hl : 2 ≤ l.length) (hne : l ≠ []) :
+  (existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList l hl).stop =
+      l.getLast hne := by
+  change l.get ⟨l.length - 2 + 1, by omega⟩ = l.getLast hne
+  have hidx : l.length - 2 + 1 = l.length - 1 := by omega
+  simpa [hidx] using (List.get_length_sub_one (l := l) (by omega))
+
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step3_spoke_step3_erase`: select a
 finite skeletal walk and erase its loops, retaining the endpoints and carrier containment. -/
 private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_loop_erase (S : Patch P)
@@ -6428,7 +6550,40 @@ private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_loop_erase (S : 
     (hwalk : Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) u w) :
     ∃ α : PolyArc, Function.Injective α.pt ∧ α.IsSkeletal S.tiles ∧ α.start = u ∧
       α.stop = w ∧ α.carrier ⊆ Z := by
-  sorry
+  classical
+  obtain ⟨l, hl, hnodup, hchain, hhead, hlast⟩ :=
+    existsAnnularSpokes_step3_spoke_step3_erase_step1_path
+      (existsAnnularSpokes_skelEdgeIn S.tiles Z) hwalk
+  have hlen : 2 ≤ l.length := by
+    cases l with
+    | nil => simp at hl
+    | cons x xs =>
+        cases xs with
+        | nil => simp_all
+        | cons y ys => simp
+  let α := existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList l hlen
+  refine ⟨α, ?_, ?_, ?_, ?_, ?_⟩
+  · exact existsAnnularSpokes_step3_spoke_step3_erase_step1_arc_injective hlen hnodup
+  · intro i
+    dsimp [α, existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList] at i
+    have hrel := hchain.getElem i.1 (by omega)
+    change existsAnnularSpokes_skelEdgeIn S.tiles Z
+      (l.get ⟨i.1, by omega⟩) (l.get ⟨i.1 + 1, by omega⟩) at hrel
+    rcases hrel with ⟨⟨A, hA, hEdge⟩, hZ⟩
+    refine ⟨A, hA, ?_⟩
+    exact hEdge
+  · dsimp [α]
+    rw [existsAnnularSpokes_step3_spoke_step3_erase_step1_arc_start hlen hl, hhead]
+  · dsimp [α]
+    rw [existsAnnularSpokes_step3_spoke_step3_erase_step1_arc_stop hlen hl, hlast]
+  · intro x hx
+    rw [PolyArc.carrier] at hx
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.1 hx
+    dsimp [α, existsAnnularSpokes_step3_spoke_step3_erase_step1_arcOfList] at i
+    have hrel := hchain.getElem i.1 (by omega)
+    change existsAnnularSpokes_skelEdgeIn S.tiles Z
+      (l.get ⟨i.1, by omega⟩) (l.get ⟨i.1 + 1, by omega⟩) at hrel
+    exact hrel.2 (by simpa [PolyArc.seg, α] using hi)
 
 private lemma existsAnnularSpokes_step3_spoke_step3_erase_step2_side_to_side_simple_aux
     (S : Patch P) (hsts : SideToSideSet S.tiles) {a b c d : Pt}

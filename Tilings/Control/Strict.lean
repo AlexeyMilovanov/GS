@@ -2270,7 +2270,23 @@ private lemma strict_boundary_header_constant_step2_header_eq (K : StrictBlock C
     ∃ h : HeaderKernel.Header C.Typ C.Side,
       (∀ j : C.Side t, C.IsBoundary (C.occ t j) → K.col t j 3 = headerSU C hC h) ∧
       C.form h.1 = K.α := by
-  sorry
+  have h_legal : StrictLegal C hC (K.tileOf t) := by
+    apply hK.2 t ht
+    rintro rfl
+    exact (C.g2_central K.α i).2 hi
+  have h_props := strictLegal_properties C hC (K.tileOf t) h_legal
+  obtain ⟨B, hB, hBA, h_bound⟩ := h_props.2.2.2.2.1
+  let h := strictHeaderOf C hC B
+  use h
+  constructor
+  · intro j hj
+    exact h_bound j hj
+  · dsimp [strictHeaderOf]
+    have hBA_own := hBA.1
+    have hA_typ : (K.tileOf t).typ = t := rfl
+    rw [hA_typ] at hBA_own
+    rw [← ht]
+    exact hBA_own.symm
 
 /-- Step 3 of the blueprint proof of `strict_boundary_header_constant`: any boundary side owner
 is part of the boundary belt type. -/

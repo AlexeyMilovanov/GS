@@ -2391,7 +2391,10 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_outer (c
           c.occ (K.tileOf t).typ i ∈ c.outerList (c.form (reconstruct c K h.1).typ) d →
             (K.tileOf t).cell i 3 = if zA c (reconstruct c K h.1) d = true then 0
               else rankU c (c.rankOf (c.form (reconstruct c K h.1).typ) d (c.occ (K.tileOf t).typ i))) := by
-  sorry
+  subst ht_c
+  have _ := hH; have _ := hK; have _ := hh; have _ := ht_owner
+  intro i _ h_outer _ _
+  exact False.elim ((c.g2_central K.α i).1 h_outer)
 
 /-- Step 7 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 3 on boundary carries header. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_boundary (c : MacroCertificate P)

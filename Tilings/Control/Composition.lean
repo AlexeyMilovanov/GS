@@ -1950,7 +1950,30 @@ private lemma reconstructed_header_eq_innerActive_step2_nonprint_step2_parent_no
     (hC : headerLegal c C) (i : c.Side C.typ)
     (hi : c.IsInner (c.occ C.typ i))
     (hnp : ¬ c.IsPrint (c.occ C.typ i)) : C.cell i 3 ≠ 0 := by
-  sorry
+  have H1 : InnerActive c C := (headerLegal_properties c hH C hC).2.2.2.2.2.2.1
+  have H2 := H1 i hi
+  unfold IsNontrivial at H2
+  have H3 : IsNormal c C := (headerLegal_properties c hH C hC).2.1
+  have H4 := H3 i 4
+  have H5 : IsLocal c (c.occ C.typ i) 4 := by
+    by_cases hLoc1 : c.IsMarked (c.occ C.typ i)
+    · right
+      by_cases hLoc2 : c.special (c.occ C.typ i) ∨ c.IsPrint (c.occ C.typ i)
+      · left
+        exact ⟨hLoc1, hLoc2, rfl⟩
+      · right
+        push_neg at hLoc2
+        have hOrd : c.IsOrdinary (c.occ C.typ i) := ⟨hLoc2.1, hLoc2.2⟩
+        exact ⟨hLoc1, hOrd, Or.inr rfl⟩
+    · left
+      exact hLoc1
+  have H6 := H4 H5
+  unfold prescribedCell at H6
+  rw [if_neg (by decide)] at H6
+  rw [if_neg (by decide)] at H6
+  rw [if_pos (by decide)] at H6
+  rw [if_neg hnp] at H6
+  tauto
 
 /-- Step 4.2.3 of the blueprint proof of `reconstructed_header_eq_innerActive_step2_nonprint`:
 reconstruct value matches the parent's fourth cell. -/

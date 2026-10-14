@@ -2587,7 +2587,61 @@ private lemma reconstructed_noncentral_legal_step2_parent_step1_n_eq_1_or_2 {P :
       (∀ i < n', IsChildOf c (ch' (i + 1)) (ch' i)) ∧
       ch' n' = E_anc ∧
       (∀ i < n', c.IsCentral (ch' i).typ) ∧
-      (n' = 1 ∨ n' = 2) := by sorry
+      (n' = 1 ∨ n' = 2) := by
+  have _ := hH
+  have _ := hK
+  have _ := hA
+  have _ := hE_leg
+  by_cases hn0 : n = 0
+  · subst n
+    have hE : E_anc = K.centre := hch_end.symm.trans hch0
+    have hcentral : c.IsCentral K.centre.typ := by
+      dsimp [ColouredBlock.centre, ColouredBlock.tileOf, Geometry.MacroData.IsCentral]
+      rw [c.g5_central_owner]
+    exfalso
+    apply hE_nc
+    rw [hE]
+    exact hcentral
+  · by_cases hn1 : n = 1
+    · subst n
+      refine ⟨1, ch, hch0, ?_, hch_end, ?_, Or.inl rfl⟩
+      · intro i hi
+        have hi0 : i = 0 := by omega
+        subst i
+        exact hch_child 0
+      · intro i hi
+        have hi0 : i = 0 := by omega
+        subst i
+        exact hch_cent 0 (by omega)
+    · have hn2 : 2 ≤ n := by omega
+      have hch_child0 : IsChildOf c (ch 1) (ch 0) := hch_child 0
+      have hcent1 : c.IsCentral (ch 1).typ := hch_cent 1 (by omega)
+      have H5 : (ch 0).typ = c.central K.α := by
+        rw [hch0]
+        rfl
+      have H6 : c.owner (ch 0).typ = K.α := by
+        rw [H5]
+        exact c.g5_central_owner K.α
+      have H7 : c.form (ch 1).typ = K.α := by
+        dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hch_child0
+        rw [← hch_child0.1, H6]
+      have H11 : c.kind (c.form (ch 1).typ) = Geometry.FormKind.large := by
+        have H11_aux := (c.g5_large_iff (ch 1).typ).mpr
+        dsimp [Geometry.MacroData.IsCentral] at hcent1
+        apply H11_aux
+        exact hcent1.symm
+      have HK_not_large : c.kind K.α ≠ Geometry.FormKind.large := by
+        have Hh_form : c.form h.1 = K.α := hh.1
+        rw [← Hh_form]
+        intro H
+        apply hnc
+        dsimp [Geometry.MacroData.IsCentral]
+        have Haux := (c.g5_large_iff h.1).mp H
+        exact Haux.symm
+      exfalso
+      apply HK_not_large
+      rw [← H7]
+      exact H11
 
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step2_parent`: Length two is impossible here. -/
 private lemma reconstructed_noncentral_legal_step2_parent_step2_not_n_eq_2 {P : Protoset}

@@ -21305,6 +21305,65 @@ private lemma existsRoutingAfterPower_step3_entries_step3_listed_step1_mem (τ :
   have _ := hXj
   exact he.1
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary`:
+the support of a translated set of placed tiles is the translate of the support. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step1_translate
+    (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  have hcarrier : ∀ B : PlacedTile P, (B.translate v).carrier = v +ᵥ B.carrier := by
+    intro B
+    ext y
+    simp [PlacedTile.carrier, PlacedTile.translate, vadd_eq_add, add_vadd]
+  ext x
+  simp only [support, translateSet, mem_iUnion, Set.mem_vadd_set, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    rw [hcarrier] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    exact ⟨y, ⟨B, hB, hy⟩, rfl⟩
+  · rintro ⟨_, ⟨A, hA, hx⟩, rfl⟩
+    exact ⟨A.translate v, ⟨A, hA, rfl⟩, by rw [hcarrier]; exact ⟨_, hx, rfl⟩⟩
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary`:
+the carrier of a placed mixed tile is the union of the carriers of its scattered original faces. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step2_carrier
+    (G : GroupedFamily P) (X : PlacedTile G.mixed) :
+    X.carrier = support (G.mixedScatterTile X) := by
+  obtain ⟨f, a⟩ := X
+  cases f with
+  | inl β =>
+    show a +ᵥ (G.P'.disk β).carrier = support (translateSet a (G.dissect β).tiles)
+    rw [existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step1_translate,
+      G.support_eq β]
+  | inr p =>
+    show a +ᵥ (P.disk p).carrier = support ({⟨p, a⟩} : Set (PlacedTile P))
+    simp [support, PlacedTile.carrier]
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary`:
+a listed side of a placed tile is contained in its carrier. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step3_side
+    {A : PlacedTile P} {e : Set Pt} (h : HasEdge A e) : e ⊆ A.carrier := by
+  obtain ⟨i, rfl⟩ := h
+  apply Set.vadd_set_mono
+  intro y hy
+  have hfr : y ∈ frontier (P.disk A.form).carrier := by
+    rw [(P.disk A.form).frontier_eq]
+    exact Set.mem_iUnion.2 ⟨i, hy⟩
+  have := frontier_subset_closure hfr
+  rwa [(P.disk A.form).compact.isClosed.closure_eq] at this
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary`:
+a point of a face group `K` contained in a face group `H` (faces of `K` among faces of `H`) which
+lies on the frontier of `H` lies on the frontier of `K`. -/
+private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step4_frontier
+    {S : Set (PlacedTile P)} (K H : FaceGroup S) (hKH : K.faces ⊆ H.faces) {x : Pt}
+    (hxK : x ∈ K.carrier) (hxH : x ∈ frontier H.carrier) : x ∈ frontier K.carrier := by
+  have hsub : K.carrier ⊆ H.carrier := by
+    show K.disk.carrier ⊆ H.disk.carrier
+    rw [K.carrier_eq, H.carrier_eq]
+    exact Set.biUnion_subset_biUnion_left hKH
+  exact ⟨subset_closure hxK, fun hint => hxH.2 (interior_mono hsub hint)⟩
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed`:
 An element `e` of `privateOuterEdges` of the annulus lies on the boundary of the retained child `X`. -/
 private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary (τ : Substitution P)
@@ -21314,7 +21373,20 @@ private lemma existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary 
     (hXj : Rs.GS.G.mixedScatterTile X = ((Rs.annulus l α hl).spokes.piece j).faces)
     {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) :
     e ⊆ frontier X.carrier := by
-  sorry
+  have _ := hX
+  intro x hx
+  have hcarX :=
+    existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step2_carrier Rs.GS.G X
+  rw [hXj, ← ((Rs.annulus l α hl).spokes.piece j).carrier_eq] at hcarX
+  rw [hcarX]
+  obtain ⟨⟨A, hA, hAe⟩, hH, -⟩ := he
+  have hxK : x ∈ ((Rs.annulus l α hl).spokes.piece j).carrier := by
+    show x ∈ ((Rs.annulus l α hl).spokes.piece j).disk.carrier
+    rw [((Rs.annulus l α hl).spokes.piece j).carrier_eq]
+    exact Set.mem_biUnion hA
+      (existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step3_side hAe hx)
+  exact existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step4_frontier _ _
+    (fun B hB => ((Rs.annulus l α hl).spokes.piece_sub j hB).1) hxK (hH hx)
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge`:
 an infinite convex set covered by finitely many convex sets (the listed sides of the group) overlaps

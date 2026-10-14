@@ -1477,6 +1477,56 @@ private lemma boundary_header_constant_step2_header_eq (c : MacroCertificate P) 
       c.form h.1 = K.α := by
   sorry
 
+/-- Step 1 of the blueprint proof of `boundary_header_constant_step4_belt_eq`: boundary cells
+of one belt tile have the same fourth colour. -/
+private lemma boundary_header_constant_step4_belt_eq_step1_same_type (c : MacroCertificate P)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (u : {t : c.Typ // c.IsBeltType K.α t})
+    (i : c.Side u.1) (hi : c.IsBoundary (c.occ u.1 i))
+    (j : c.Side u.1) (hj : c.IsBoundary (c.occ u.1 j)) :
+    K.col u.1 i 3 = K.col u.1 j 3 := by
+  have _ := hK
+  have _ := hi
+  have _ := hj
+  sorry
+
+/-- Step 2 of the blueprint proof of `boundary_header_constant_step4_belt_eq`: a belt edge
+transfers fourth-colour equality between its two incident tiles. -/
+private lemma boundary_header_constant_step4_belt_eq_step2_edge (c : MacroCertificate P)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (u v : {t : c.Typ // c.IsBeltType K.α t})
+    (h_adj : (c.beltGraph K.α).Adj u v)
+    (i : c.Side u.1) (hi : c.IsBoundary (c.occ u.1 i))
+    (j : c.Side v.1) (hj : c.IsBoundary (c.occ v.1 j)) :
+    K.col u.1 i 3 = K.col v.1 j 3 := by
+  have _ := hK
+  have _ := h_adj
+  have _ := hi
+  have _ := hj
+  sorry
+
+/-- Step 3 of the blueprint proof of `boundary_header_constant_step4_belt_eq`: induction on a
+boundary-belt graph walk, using the one-edge transfer at each step. -/
+private lemma boundary_header_constant_step4_belt_eq_step3_walk (c : MacroCertificate P)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    {u v : {t : c.Typ // c.IsBeltType K.α t}}
+    (w : (c.beltGraph K.α).Walk u v)
+    (i : c.Side u.1) (hi : c.IsBoundary (c.occ u.1 i))
+    (j : c.Side v.1) (hj : c.IsBoundary (c.occ v.1 j)) :
+    K.col u.1 i 3 = K.col v.1 j 3 := by
+  have _ := w
+  induction w with
+  | nil =>
+    exact boundary_header_constant_step4_belt_eq_step1_same_type c K hK _ i hi j hj
+  | @cons _ v' _ h_adj w' ih =>
+    have hv_prop : c.IsBeltType (c.owner v'.1) v'.1 := by
+      rw [v'.2.1]
+      exact v'.2
+    obtain ⟨k, hk⟩ := c.g2_belt_edge v'.1 hv_prop
+    have h1 := boundary_header_constant_step4_belt_eq_step2_edge c K hK _ _ h_adj i hi k hk
+    have h2 := ih k hk j hj w'
+    rw [h1, h2]
+
 /-- Step 4 of the blueprint proof of `boundary_header_constant`: connectedness propagates equality
 to every boundary cell of the block. -/
 private lemma boundary_header_constant_step4_belt_eq (c : MacroCertificate P)
@@ -1485,7 +1535,10 @@ private lemma boundary_header_constant_step4_belt_eq (c : MacroCertificate P)
     (i : c.Side u.1) (hi : c.IsBoundary (c.occ u.1 i))
     (j : c.Side v.1) (hj : c.IsBoundary (c.occ v.1 j)) :
     K.col u.1 i 3 = K.col v.1 j 3 := by
-  sorry
+  have h_conn := (c.g2_belt_connected K.α).preconnected
+  have h_reach := h_conn u v
+  exact h_reach.elim fun w =>
+    boundary_header_constant_step4_belt_eq_step3_walk c K hK w i hi j hj
 
 /-- Step 5 of the blueprint proof of `boundary_header_constant`: any boundary side owner
 is part of the boundary belt type. -/

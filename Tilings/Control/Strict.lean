@@ -4957,6 +4957,27 @@ private theorem strict_composed_proper_step2_exact (hτ : τ.STS)
     (strictSubst C hC).IsComposition T' T := by
   sorry
 
+/-- Every block of a strict macro-partition of a strictly matched legal tiling is a
+`StrictBlockContext`. -/
+private theorem step3_blockContext (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) (j : part.ι) :
+    StrictBlockContext C hC (part.block j) := by
+  refine ⟨fun t i ht hin => ?_, fun t ht _ => hL _ (som_placed_mem C hC part j t ht)⟩
+  obtain ⟨hne, hown, hside⟩ := C.g1_partner (C.occ t i) hin
+  refine ⟨(C.partner (C.occ t i)).1, (C.partner (C.occ t i)).2, hown.trans ht, hne, ?_, fun k => ?_⟩
+  · rw [som_childSide_eq, som_childSide_eq]
+    exact congrArg _ hside
+  · have hA := som_placed_mem C hC part j _ (hown.trans ht)
+    have hB := som_placed_mem C hC part j t ht
+    have hAB : (part.block j).placed (C.partner (C.occ t i)).1 ≠ (part.block j).placed t := by
+      intro h
+      apply hne
+      simp only [StrictBlock.placed, PlacedTile.mk.injEq, StrictForm.typed.injEq] at h
+      exact congrArg StrictDecTile.typ h.1
+    have := hT.2 _ _ _ _ hA hB hAB (C.partner (C.occ t i)).2 i (by
+      exact (som_childSide_eq C hC _ _).trans ((congrArg _ hside).trans (som_childSide_eq C hC _ (C.occ t i)).symm))
+    exact congrFun this k
+
 /-- Step 3 of the blueprint proof of `strict_composed_proper`: reconstructed parents are
 normal and identity-correct. -/
 private theorem strict_composed_proper_step3_properties (hτ : τ.STS)
@@ -4967,7 +4988,12 @@ private theorem strict_composed_proper_step3_properties (hτ : τ.STS)
     (hrec : IsStrictReconstruction C hC part T') :
     ∀ X ∈ T'.tiles, ∃ D, X.form = StrictForm.typed D ∧ IsStrictNormal C hC D ∧
       IsStrictIdentityCorrect C hC D := by
-  sorry
+  have _ := hτ; have _ := hΔ
+  intro X hX
+  obtain ⟨j, -, h, hh, hform⟩ := hrec.1 X hX
+  obtain ⟨hN, hI, -⟩ := strict_reconstructed_header_eq C hC (part.block j)
+    (step3_blockContext C hC T hT hL part j) h hh
+  exact ⟨_, hform, hN, hI⟩
 
 /-- Step 1 of the blueprint proof of `strict_composed_proper_step4_matched`: the geometric
 side-to-side part. -/

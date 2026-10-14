@@ -4609,7 +4609,73 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_list_lemma
     (h_bwd : ∀ b ∈ L₂, ∃ a ∈ L₁, f₁ a = f₂ b)
     (h_len : L₁.length = L₂.length) :
     List.Forall₂ R L₁ L₂ := by
-  sorry
+  induction L₁ generalizing L₂ with
+  | nil =>
+    cases L₂
+    · exact List.Forall₂.nil
+    · contradiction
+  | cons a L₁' ih =>
+    cases L₂ with
+    | nil => contradiction
+    | cons b L₂' =>
+      have len_eq : L₁'.length = L₂'.length := by
+        simp only [List.length_cons] at h_len
+        omega
+      have hs₁' : L₁'.Pairwise (fun a b => f₁ a < f₁ b) := List.pairwise_cons.mp hs₁ |>.2
+      have hs₂' : L₂'.Pairwise (fun a b => f₂ a < f₂ b) := List.pairwise_cons.mp hs₂ |>.2
+
+      have ha : ∃ b' ∈ b :: L₂', R a b' ∧ f₂ b' = f₁ a := h_fwd a List.mem_cons_self
+      have hb : ∃ a' ∈ a :: L₁', f₁ a' = f₂ b := h_bwd b List.mem_cons_self
+      
+      have f_eq : f₁ a = f₂ b := by
+        rcases ha with ⟨b', hb', _, hab'⟩
+        rcases hb with ⟨a', ha', hba'⟩
+        have h1 : f₂ b ≤ f₁ a := by
+          rw [← hab']
+          cases hb' with
+          | head => exact le_rfl
+          | tail _ h => 
+            have : f₂ b < f₂ b' := List.rel_of_pairwise_cons hs₂ h
+            exact le_of_lt this
+        have h2 : f₁ a ≤ f₂ b := by
+          rw [← hba']
+          cases ha' with
+          | head => exact le_rfl
+          | tail _ h => 
+            have : f₁ a < f₁ a' := List.rel_of_pairwise_cons hs₁ h
+            exact le_of_lt this
+        exact le_antisymm h2 h1
+
+      have ha_eq_b : R a b := by
+        rcases ha with ⟨b', hb', hR, hab'⟩
+        cases hb' with
+        | head => exact hR
+        | tail _ h => 
+          have : f₂ b < f₂ b' := List.rel_of_pairwise_cons hs₂ h
+          rw [hab', f_eq] at this
+          exact False.elim (lt_irrefl _ this)
+      
+      have h_fwd' : ∀ a' ∈ L₁', ∃ b' ∈ L₂', R a' b' ∧ f₂ b' = f₁ a' := by
+        intro a' ha'
+        rcases h_fwd a' (List.mem_cons_of_mem a ha') with ⟨b', hb', hR, hab'⟩
+        cases hb' with
+        | head => 
+          have : f₁ a < f₁ a' := List.rel_of_pairwise_cons hs₁ ha'
+          rw [← hab', ← f_eq] at this
+          exact False.elim (lt_irrefl _ this)
+        | tail _ h => exact ⟨b', h, hR, hab'⟩
+
+      have h_bwd' : ∀ b' ∈ L₂', ∃ a' ∈ L₁', f₁ a' = f₂ b' := by
+        intro b' hb'
+        rcases h_bwd b' (List.mem_cons_of_mem b hb') with ⟨a', ha', hba'⟩
+        cases ha' with
+        | head => 
+          have : f₂ b < f₂ b' := List.rel_of_pairwise_cons hs₂ hb'
+          rw [← hba', f_eq] at this
+          exact False.elim (lt_irrefl _ this)
+        | tail _ h => exact ⟨a', h, hba'⟩
+
+      exact List.Forall₂.cons ha_eq_b (ih L₂' hs₁' hs₂' h_fwd' h_bwd' len_eq)
 
 /-- Step 1 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
 Both lists are sorted under the inner product with the macro side direction. -/

@@ -5899,13 +5899,58 @@ private lemma existsAnnularSpokes_step3_spoke_step3_erase_step1_loop_erase (S : 
       α.stop = w ∧ α.carrier ⊆ Z := by
   sorry
 
+private lemma existsAnnularSpokes_step3_spoke_step3_erase_step2_side_to_side_simple_aux
+    (S : Patch P) (hsts : SideToSideSet S.tiles) {a b c d : Pt}
+    (hA : ∃ A ∈ S.tiles, HasEdge A (segment ℝ a b))
+    (hB : ∃ B ∈ S.tiles, HasEdge B (segment ℝ c d))
+    (hab : a ≠ b) (hcd : c ≠ d)
+    (hAi : segment ℝ a b ⊆ interior (support S.tiles))
+    (hBi : segment ℝ c d ⊆ interior (support S.tiles))
+    (hne : segment ℝ a b ≠ segment ℝ c d) :
+    segment ℝ a b ∩ segment ℝ c d ⊆
+      ({a, b} : Set Pt) ∩ {c, d} := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step3_spoke_step3_erase`: in the
 interior of a side-to-side support, an injective skeletal polygonal arc is simple. -/
 private lemma existsAnnularSpokes_step3_spoke_step3_erase_step2_side_to_side_simple
     (S : Patch P) (hsts : SideToSideSet S.tiles) {Z : Set Pt}
     (hZ : Z ⊆ interior (support S.tiles)) (α : PolyArc) (hinj : Function.Injective α.pt)
     (hskel : α.IsSkeletal S.tiles) (hcarrier : α.carrier ⊆ Z) : α.IsSimple := by
-  sorry
+  constructor
+  · exact hinj
+  · intro i j hij
+    obtain ⟨A, hA, hA_edge⟩ := hskel i
+    obtain ⟨B, hB, hB_edge⟩ := hskel j
+    have hAi : α.seg i ⊆ interior (support S.tiles) :=
+      (Set.subset_iUnion _ i).trans (hcarrier.trans hZ)
+    have hBi : α.seg j ⊆ interior (support S.tiles) :=
+      (Set.subset_iUnion _ j).trans (hcarrier.trans hZ)
+    have h_ne_i : α.pt i.castSucc ≠ α.pt i.succ := by
+      intro h
+      have hval : (i.castSucc : ℕ) = (i.succ : ℕ) := congrArg Fin.val (hinj h)
+      simp only [Fin.val_succ, Fin.val_castSucc] at hval
+      omega
+    have h_ne_j : α.pt j.castSucc ≠ α.pt j.succ := by
+      intro h
+      have hval : (j.castSucc : ℕ) = (j.succ : ℕ) := congrArg Fin.val (hinj h)
+      simp only [Fin.val_succ, Fin.val_castSucc] at hval
+      omega
+    by_cases hne : α.seg i ≠ α.seg j
+    · exact existsAnnularSpokes_step3_spoke_step3_erase_step2_side_to_side_simple_aux S hsts
+        ⟨A, hA, hA_edge⟩ ⟨B, hB, hB_edge⟩ h_ne_i h_ne_j hAi hBi hne
+    · push_neg at hne
+      exfalso
+      have hne_symm : segment ℝ (α.pt i.castSucc) (α.pt i.succ) = segment ℝ (α.pt j.castSucc) (α.pt j.succ) := hne
+      rcases seg_endpoints h_ne_i hne_symm with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · have h_i_eq_j : i = j := by exact Fin.castSucc_inj.mp (hinj h1.symm)
+        exact hij h_i_eq_j
+      · have hi1 : j.castSucc = i.succ := hinj h1
+        have hi2 : j.succ = i.castSucc := hinj h2
+        have hval1 : (j.castSucc : ℕ) = (i.succ : ℕ) := congrArg Fin.val hi1
+        have hval2 : (j.succ : ℕ) = (i.castSucc : ℕ) := congrArg Fin.val hi2
+        simp only [Fin.val_succ, Fin.val_castSucc] at hval1 hval2
+        omega
 
 /-- Step 3 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "Select a graph path,
 erase loops".  A skeletal walk between two distinct points, with edges in

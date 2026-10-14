@@ -7234,10 +7234,13 @@ theorem compose_legal_exists (c : MacroCertificate P) (hH : c.Hereditary)
   sorry
 
 /-- The side-to-side-supertiling hypothesis of `lem:lift-hierarchy` for a
-given `σ'` hierarchy: every finite supertile `σ'^n X`, `X` a tile of level
-`n`, is side-to-side. -/
+given `σ'` hierarchy: every intermediate decomposition `σ'^k X`, `k ≤ n`,
+of every level-`n` tile `X` is side-to-side.  The weaker condition requiring
+only the full decomposition `σ'^n X` is ruled out by the 14 Oct 2026
+counterexample: level-1 siblings in a level-2 tile can have partially
+overlapping sides even when their level-0 children are side-to-side. -/
 def HierarchySupertilesSTS (c : MacroCertificate P) (seq : ℕ → PlaneTiling c.Q) : Prop :=
-  ∀ n, ∀ X ∈ (seq n).tiles, SideToSideSet (c.σ.decomposeIter n {X})
+  ∀ n k, k ≤ n → ∀ X ∈ (seq n).tiles, SideToSideSet (c.σ.decomposeIter k {X})
 
 /-! ### Helpers for `lift_hierarchy_step1_decorations` -/
 /-- Prints are inner sides. -/
@@ -9419,7 +9422,7 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step1_supertile_step6_sts
   rw [← herase] at hB0
   obtain ⟨Y, hY, rfl⟩ := hB0
   have heq : (erase c X).side i = (erase c Y).side j :=
-    hsts n W hW (erase c X) hXW (erase c Y) hB i j hov
+    hsts n n le_rfl W hW (erase c X) hXW (erase c Y) hB i j hov
   refine ⟨Y, hY, fun h => hBX (h ▸ rfl), j, heq.symm⟩
 
 /-- Step 1 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer`:

@@ -5384,6 +5384,72 @@ private theorem strict_composed_proper_step1_reconstruction (hτ : τ.STS)
   · intro j
     exact ⟨X j, Set.mem_range_self j, (smul_inv_smul₀ hθ _).symm, hd j, hhd j, rfl⟩
 
+/-- Step 1 of the blueprint proof of `strict_composed_proper_step2_exact`: obtain the
+strict block context needed by the boundary-header and exactness lemmas. -/
+private theorem strict_composed_proper_step2_exact_step1_block_context
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) (j : part.ι) :
+    StrictBlockContext C hC (part.block j) := by
+  refine ⟨fun t i ht hin => ?_, fun t ht _ => hL _ (som_placed_mem C hC part j t ht)⟩
+  obtain ⟨hne, hown, hside⟩ := C.g1_partner (C.occ t i) hin
+  refine ⟨(C.partner (C.occ t i)).1, (C.partner (C.occ t i)).2, hown.trans ht, hne, ?_,
+    fun k => ?_⟩
+  · rw [som_childSide_eq, som_childSide_eq]
+    exact congrArg _ hside
+  · have hA := som_placed_mem C hC part j _ (hown.trans ht)
+    have hB := som_placed_mem C hC part j t ht
+    have hAB : (part.block j).placed (C.partner (C.occ t i)).1 ≠ (part.block j).placed t := by
+      intro h
+      apply hne
+      simp only [StrictBlock.placed, PlacedTile.mk.injEq, StrictForm.typed.injEq] at h
+      exact congrArg StrictDecTile.typ h.1
+    have hcol := hT.2 _ _ _ _ hA hB hAB (C.partner (C.occ t i)).2 i (by
+      exact (som_childSide_eq C hC _ _).trans
+        ((congrArg _ hside).trans (som_childSide_eq C hC _ (C.occ t i)).symm))
+    exact congrFun hcol k
+
+/-- Step 2 of the blueprint proof of `strict_composed_proper_step2_exact`: apply exact repaired
+decomposition to one assembled block and its common boundary header. -/
+private theorem strict_composed_proper_step2_exact_step2_exact_block
+    (K : StrictBlock C hC) (hK : StrictBlockContext C hC K)
+    (h : HeaderKernel.Header C.Typ C.Side) (hh : StrictCommonHeader C hC K h) :
+    IsStrictExactBlockOf C hC K (strictReconstruct C hC K h.1) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `strict_composed_proper_step2_exact`: identify the
+substitution patch of a reconstructed parent with its assembled block. -/
+private theorem strict_composed_proper_step2_exact_step3_block_patch
+    (K : StrictBlock C hC) (D : StrictDecTile C hC)
+    (X : PlacedTile (strictProtoset C hC))
+    (hE : IsStrictExactBlockOf C hC K D)
+    (hv : K.v = C.σ.θ • X.anchor)
+    (hform : X.form = StrictForm.typed D) :
+    (strictSubst C hC).decomposeTile X = K.tiles := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `strict_composed_proper_step2_exact`: glue the local
+block-patch equalities into the global decomposition equality. -/
+private theorem strict_composed_proper_step2_exact_step4_set_union_glue
+    (T : PlaneTiling (strictProtoset C hC)) (part : StrictMacroPartition C hC T)
+    (T' : PlaneTiling (strictProtoset C hC))
+    (hleft : ∀ X ∈ T'.tiles, ∃ j, (strictSubst C hC).decomposeTile X =
+      (part.block j).tiles)
+    (hright : ∀ j, ∃ X ∈ T'.tiles, (strictSubst C hC).decomposeTile X =
+      (part.block j).tiles) :
+    (strictSubst C hC).decompose T'.tiles = T.tiles := by
+  unfold Substitution.decompose
+  rw [← part.cover]
+  apply Set.Subset.antisymm
+  · intro Y hY
+    obtain ⟨X, hX⟩ := Set.mem_iUnion.1 hY
+    obtain ⟨hXT, hYX⟩ := Set.mem_iUnion.1 hX
+    obtain ⟨j, hpatch⟩ := hleft X hXT
+    exact Set.mem_iUnion.2 ⟨j, hpatch ▸ hYX⟩
+  · intro Y hY
+    obtain ⟨j, hY⟩ := Set.mem_iUnion.1 hY
+    obtain ⟨X, hXT, hpatch⟩ := hright j
+    exact Set.mem_iUnion.2 ⟨X, Set.mem_iUnion.2 ⟨hXT, hpatch.symm ▸ hY⟩⟩
+
 /-- Step 2 of the blueprint proof of `strict_composed_proper`: each assembled block is an
 exact strict decomposition of its reconstructed parent. -/
 private theorem strict_composed_proper_step2_exact (hτ : τ.STS)
@@ -5393,7 +5459,25 @@ private theorem strict_composed_proper_step2_exact (hτ : τ.STS)
     (T' : PlaneTiling (strictProtoset C hC))
     (hrec : IsStrictReconstruction C hC part T') :
     (strictSubst C hC).IsComposition T' T := by
-  sorry
+  have _ := hτ
+  have _ := hΔ
+  have hleft : ∀ X ∈ T'.tiles, ∃ j,
+      (strictSubst C hC).decomposeTile X = (part.block j).tiles := by
+    intro X hX
+    obtain ⟨j, hv, h, hh, hform⟩ := hrec.1 X hX
+    have hK := strict_composed_proper_step2_exact_step1_block_context C hC T hT hL part j
+    have hex := strict_composed_proper_step2_exact_step2_exact_block C hC (part.block j) hK h hh
+    exact ⟨j, strict_composed_proper_step2_exact_step3_block_patch C hC
+      (part.block j) (strictReconstruct C hC (part.block j) h.1) X hex hv hform⟩
+  have hright : ∀ j, ∃ X ∈ T'.tiles, (strictSubst C hC).decomposeTile X =
+      (part.block j).tiles := by
+    intro j
+    obtain ⟨X, hX, hv, h, hh, hform⟩ := hrec.2 j
+    have hK := strict_composed_proper_step2_exact_step1_block_context C hC T hT hL part j
+    have hex := strict_composed_proper_step2_exact_step2_exact_block C hC (part.block j) hK h hh
+    exact ⟨X, hX, strict_composed_proper_step2_exact_step3_block_patch C hC
+      (part.block j) (strictReconstruct C hC (part.block j) h.1) X hex hv hform⟩
+  exact strict_composed_proper_step2_exact_step4_set_union_glue C hC T part T' hleft hright
 
 /-- Every block of a strict macro-partition of a strictly matched legal tiling is a
 `StrictBlockContext`. -/

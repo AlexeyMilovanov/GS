@@ -6948,6 +6948,40 @@ private lemma strict_planeTiling_ext {Q : Protoset} {T U : PlaneTiling Q}
   cases U
   congr
 
+/-- The founded property of a strict lift of a hierarchy (`lem:strict-presentation`,
+completeness): every decorated tile is legal along its *actual* ancestor chain in the lift (the
+tiles `Y` of the higher levels containing it): every originless copied cell of that chain is zero.
+`AllStrictLegal` alone only asks for *some* legality chain, which may divert from the actual
+hierarchy; then a persistent fault line can carry a constant nonzero copied signal on one side
+(argon audit of 14 October 2026, the strict twin of the repair fac433f). The lift constructed by
+`strict_lift_decorations` (cells `stcValue`: the origin of the actual chain, or zero) is founded. -/
+def StrictLiftFounded (C : MacroCertificate P) (hC : C.Represents τ m)
+    (seq'' : ℕ → PlaneTiling (strictProtoset C hC)) : Prop :=
+  ∀ n, ∀ X ∈ (seq'' n).tiles, ∀ A, X.form = StrictForm.typed A →
+    ∃ ch : ℕ → StrictDecTile C hC, ch 0 = A ∧ (∀ k, IsStrictChildOf C hC (ch (k + 1)) (ch k)) ∧
+      (∀ k, ∃ Y ∈ (seq'' (n + k)).tiles, Y.form = StrictForm.typed (ch k) ∧
+        X.carrier ⊆ ((strictSubst C hC).θ ^ k) • Y.carrier) ∧
+      ∀ (k : ℕ) (i : C.Side (ch k).typ) (l : Fin 5),
+        (copySource C (C.form (ch (k + 1)).typ) (C.occ (ch k).typ i) l).Nonempty →
+        ¬ StrictHasOrigin C hC ch k i l → (ch k).cell i l = 0
+
+/-- Step 1 of the blueprint proof of `strict_lift_decorations`: the constructed lift is founded.
+The legality chain of a lifted tile can be taken along the actual hierarchy (`stcTile` of the
+iterated parents), whose copied cells are `stcValue`: the origin of a terminating copy chain, or
+zero when the chain has no origin. -/
+private lemma strict_lift_decorations_step1_founded (C : MacroCertificate P)
+    (hC : C.Represents τ m)
+    (seq : ℕ → PlaneTiling C.Q) (hseq : ∀ n, C.σ.IsComposition (seq (n + 1)) (seq n))
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles)
+    (typ : ∀ n, (seq n).tiles → C.Typ)
+    (hspec : ∀ n Z, C.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨C.form (typ n Z), C.σ.θ • (par n Z).1.anchor +ᵥ C.anchor (typ n Z)⟩)
+    (hform : ∀ n (Z : (seq n).tiles),
+      C.form (stcTile C hC (strictLiftChain C seq par typ hspec) n Z).typ = Z.1.form) :
+    StrictLiftFounded C hC fun n =>
+      strictLiftTiling C hC (seq n) (stcTile C hC (strictLiftChain C seq par typ hspec) n) (hform n) := by
+  sorry
+
 private lemma strictLift_main (C : MacroCertificate P) (hC : C.Represents τ m)
     (seq : ℕ → PlaneTiling C.Q) (hseq : ∀ n, C.σ.IsComposition (seq (n + 1)) (seq n))
     (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles)
@@ -6957,7 +6991,7 @@ private lemma strictLift_main (C : MacroCertificate P) (hC : C.Represents τ m)
     ∃ seq'' : ℕ → PlaneTiling (strictProtoset C hC),
       (∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq n) ∧
       (∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n)) ∧
-      (∀ n, AllStrictLegal C hC (seq'' n)) := by
+      (∀ n, AllStrictLegal C hC (seq'' n)) ∧ StrictLiftFounded C hC seq'' := by
   let H := strictLiftChain C seq par typ hspec
   have hform : ∀ n (Z : (seq n).tiles), C.form (stcTile C hC H n Z).typ = Z.1.form :=
     fun n Z => (congrArg PlacedTile.form (hspec n Z).2).symm
@@ -6971,7 +7005,8 @@ private lemma strictLift_main (C : MacroCertificate P) (hC : C.Represents τ m)
     exact ⟨Z, Subtype.ext h1, h2, rfl⟩
   let lift : ℕ → PlaneTiling (strictProtoset C hC) := fun n =>
     strictLiftTiling C hC (seq n) (stcTile C hC H n) (hform n)
-  refine ⟨lift, ?_, ?_, ?_⟩
+  refine ⟨lift, ?_, ?_, ?_,
+    strict_lift_decorations_step1_founded C hC seq hseq par typ hspec hform⟩
   · intro n
     apply strict_planeTiling_ext
     ext W
@@ -7034,7 +7069,7 @@ theorem strict_lift_decorations (seq' : ℕ → PlaneTiling C.Q)
     ∃ seq'' : ℕ → PlaneTiling (strictProtoset C hC),
       (∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq' n) ∧
       (∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n)) ∧
-      (∀ n, AllStrictLegal C hC (seq'' n)) := by
+      (∀ n, AllStrictLegal C hC (seq'' n)) ∧ StrictLiftFounded C hC seq'' := by
   classical
   have hpar : ∀ n (Z : (seq' n).tiles),
       ∃ Y : (seq' (n + 1)).tiles, ∃ t, C.owner t = Y.1.form ∧
@@ -7057,7 +7092,7 @@ theorem strict_lift_matched (seq' : ℕ → PlaneTiling C.Q)
     (seq'' : ℕ → PlaneTiling (strictProtoset C hC))
     (hproj : ∀ n, (strictDecoration C hC).toDecoration.project (seq'' n) = seq' n)
     (hcomp : ∀ n, (strictSubst C hC).IsComposition (seq'' (n + 1)) (seq'' n))
-    (hleg : ∀ n, AllStrictLegal C hC (seq'' n)) :
+    (hleg : ∀ n, AllStrictLegal C hC (seq'' n)) (hfounded : StrictLiftFounded C hC seq'') :
     IsStrictMatched C hC (seq'' 0) := by
   sorry
 
@@ -7069,9 +7104,9 @@ theorem strict_lift_hierarchy (seq' : ℕ → PlaneTiling C.Q)
       SideToSideSet (τ.decomposeIter j (hC.groupedFamily.scatter (seq' (n + 1)).tiles))) :
     ∃ T : PlaneTiling (strictProtoset C hC), (strictDecoration C hC).Proper T ∧
       (strictDecoration C hC).toDecoration.project T = seq' 0 := by
-  obtain ⟨seq'', hproj, hcomp, hleg⟩ := strict_lift_decorations C hC seq' hseq
+  obtain ⟨seq'', hproj, hcomp, hleg, hfounded⟩ := strict_lift_decorations C hC seq' hseq
   exact ⟨seq'' 0, (strict_proper_iff C hC _).2
-    ⟨strict_lift_matched C hC seq' hseq hsts hlev seq'' hproj hcomp hleg, hleg 0⟩, hproj 0⟩
+    ⟨strict_lift_matched C hC seq' hseq hsts hlev seq'' hproj hcomp hleg hfounded, hleg 0⟩, hproj 0⟩
 
 end Completeness
 

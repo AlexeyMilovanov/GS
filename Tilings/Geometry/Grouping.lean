@@ -18978,6 +18978,46 @@ private lemma existsRoutingAfterPower_step2_ports (τ : Substitution P) (hτ : �
 
   exact ⟨⟨port_fn, outer_cond, inj_cond, sep_cond, corner_cond, quant_cond⟩⟩
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped`:
+an original child sharing a central side lies in `H \ L`, hence in one annular piece. -/
+private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {p : P.Form}
+    {X : PlacedTile Rs.GS.G.mixed}
+    (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hXc : X ≠ Rs.central l α) {k : Fin (Rs.GS.G.mixed.disk (Rs.central l α).form).n}
+    (hk : HasEdge X ((Rs.central l α).side k))
+    (hXp : X.form = Sum.inr p) :
+    ∃ j : Fin (4 * Rs.N α),
+      (⟨p, X.anchor⟩ : PlacedTile P) ∈ ((Rs.annulus l α hl).spokes.piece j).faces := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped`:
+the retained child representing an annular piece cannot pass through an original child in that
+piece; the only possible overlap is the same retained child. -/
+private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step2_collision
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {p : P.Form}
+    {X Y : PlacedTile Rs.GS.G.mixed} {j : Fin (4 * Rs.N α)}
+    (hX : X ∈ (Rs.retained l α).children.tiles)
+    (hXc : X ≠ Rs.central l α) (hXp : X.form = Sum.inr p)
+    (hY : Y ∈ (Rs.retained l α).children.tiles)
+    (hYc : Y ≠ Rs.central l α)
+    (hYj : Rs.GS.G.mixedScatterTile Y = ((Rs.annulus l α hl).spokes.piece j).faces)
+    (hXj : (⟨p, X.anchor⟩ : PlacedTile P) ∈
+      ((Rs.annulus l α hl).spokes.piece j).faces) : Y = X := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped`:
+the four separated windows force every annular piece to contain two distinct original faces. -/
+private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step3_piece_two_faces
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) :
+    ∀ j : Fin (4 * Rs.N α), ∃ A B : PlacedTile P,
+      A ∈ ((Rs.annulus l α hl).spokes.piece j).faces ∧
+      B ∈ ((Rs.annulus l α hl).spokes.piece j).faces ∧ A ≠ B := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: the print neighbour
 is a retained annular group.  A child sharing a side with the central child (which scatters to the
 inside-anchored group `L`) lies within `D` of `L`, hence in `H \ L`, hence in one annular piece; the
@@ -18989,7 +19029,30 @@ private lemma existsRoutingAfterPower_step3_entries_step1_grouped (τ : Substitu
     {X : PlacedTile Rs.GS.G.mixed} (hX : X ∈ (Rs.retained l α).children.tiles)
     (hXc : X ≠ Rs.central l α) {k : Fin (Rs.GS.G.mixed.disk (Rs.central l α).form).n}
     (hk : HasEdge X ((Rs.central l α).side k)) : ∃ β, X.form = Sum.inl β := by
-  sorry
+  cases hform : X.form with
+  | inl β => exact ⟨β, rfl⟩
+  | inr p =>
+    exfalso
+    obtain ⟨j, hXj⟩ :=
+      existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member
+        τ M Rs l hl α hX hXc hk hform
+    obtain ⟨Y, hY, hYc, hYj⟩ := Rs.piece_child l α hl j
+    have hYX :=
+      existsRoutingAfterPower_step3_entries_step1_grouped_step2_collision
+        τ M Rs l hl α hX hXc hform hY hYc hYj hXj
+    rw [hYX] at hYj
+    have hscatter : Rs.GS.G.mixedScatterTile X =
+        ({⟨p, X.anchor⟩} : Set (PlacedTile P)) := by
+      simp [GroupedFamily.mixedScatterTile, hform]
+    rw [hscatter] at hYj
+    obtain ⟨A, B, hA, hB, hAB⟩ :=
+      existsRoutingAfterPower_step3_entries_step1_grouped_step3_piece_two_faces
+        τ M Rs l hl α j
+    have hA' : A ∈ ({⟨p, X.anchor⟩} : Set (PlacedTile P)) := hYj.symm ▸ hA
+    have hB' : B ∈ ({⟨p, X.anchor⟩} : Set (PlacedTile P)) := hYj.symm ▸ hB
+    have hAe : A = ⟨p, X.anchor⟩ := by simpa using hA'
+    have hBe : B = ⟨p, X.anchor⟩ := by simpa using hB'
+    exact hAB (hAe.trans hBe.symm)
 
 /-- Step 1 of the blueprint proof of
 `existsRoutingAfterPower_step3_entries_step2_outside`: identify the original retained child

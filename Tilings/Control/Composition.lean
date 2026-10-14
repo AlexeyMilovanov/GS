@@ -2250,6 +2250,42 @@ private lemma path_and_print_recovery_step1_signals (c : MacroCertificate P)
   · rw [c.g4_path_trivial (c.form h.1) d j hG, Option.mem_toList] at ho
     rw [ho]
 
+/-- Step 1 of the blueprint proof of `path_and_print_recovery_step2_prints_step1_parent_cell`:
+the penultimate side of the genuine path is an ordinary side of the small owner. -/
+private lemma path_and_print_recovery_step2_prints_step1_parent_cell_step1_penultimate
+    (c : MacroCertificate P) (h : HeaderKernel.Header c.Typ c.Side)
+    (d : c.Side h.1) (hd : c.marked (c.form h.1) d) (k : Fin 5) (hk : k ≠ 4) :
+    ∃ o, (c.path (c.form h.1) d k)[(c.path (c.form h.1) d k).length - 2]? = some o ∧
+      o.1 = (c.partner (c.printOcc (c.form h.1) d)).1 ∧ c.IsOrdinary o := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `path_and_print_recovery_step2_prints_step1_parent_cell`:
+the predecessor's third cell is the reconstructed parent cell. -/
+private lemma path_and_print_recovery_step2_prints_step1_parent_cell_step2_signal
+    (c : MacroCertificate P) (hH : c.Hereditary) (K : ColouredBlock c)
+    (hK : BlockContext c K) (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c K h) (d : c.Side h.1) (k : Fin 5) (o : c.SideOcc)
+    (ho : (c.path (c.form h.1) d k)[(c.path (c.form h.1) d k).length - 2]? = some o)
+    (ho_ord : c.IsOrdinary o) :
+    K.col o.1 o.2 2 = (reconstruct c K h.1).cell d k := by
+  exact path_and_print_recovery_step1_signals c hH K hK h hh d k o
+    (List.mem_of_getElem? ho) ho_ord.2
+
+/-- Step 3 of the blueprint proof of `path_and_print_recovery_step2_prints_step1_parent_cell`:
+the child clause identifies the parent cell with the predecessor's signal. -/
+private lemma path_and_print_recovery_step2_prints_step1_parent_cell_step3_child_clause
+    (c : MacroCertificate P) (K : ColouredBlock c)
+    (h : HeaderKernel.Header c.Typ c.Side) (d : c.Side h.1)
+    (C : DecTile c) (hC : IsChildOf c C
+      (K.tileOf (c.partner (c.printOcc (c.form h.1) d)).1))
+    (h_form : c.form h.1 = c.form C.typ) (k : Fin 5) (o : c.SideOcc)
+    (ho : (c.path (c.form h.1) d k)[(c.path (c.form h.1) d k).length - 2]? = some o)
+    (ho_partner : o.1 = (c.partner (c.printOcc (c.form h.1) d)).1)
+    (ho_ord : c.IsOrdinary o) :
+    C.cell (cast (congrArg (fun F => Fin (c.Q.disk F).n) h_form) d) k =
+      K.col o.1 o.2 2 := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `path_and_print_recovery_step2_prints`: the parent `C` agrees with `D` on the cell `k`. -/
 private lemma path_and_print_recovery_step2_prints_step1_parent_cell (c : MacroCertificate P)
     (hH : c.Hereditary) (K : ColouredBlock c) (hK : BlockContext c K)
@@ -2259,7 +2295,14 @@ private lemma path_and_print_recovery_step2_prints_step1_parent_cell (c : MacroC
     (h_form : c.form h.1 = c.form C.typ)
     (k : Fin 5) (hk : k ≠ 4) :
     C.cell (cast (by change Fin (c.Q.disk (c.form h.1)).n = Fin (c.Q.disk (c.form C.typ)).n; rw [h_form]) d) k = (reconstruct c K h.1).cell d k := by
-  sorry
+  obtain ⟨o, ho, ho_partner, ho_ord⟩ :=
+    path_and_print_recovery_step2_prints_step1_parent_cell_step1_penultimate c h d hd k hk
+  have hsignal := path_and_print_recovery_step2_prints_step1_parent_cell_step2_signal c hH K hK
+    h hh d k o ho ho_ord
+  have hparent :=
+    path_and_print_recovery_step2_prints_step1_parent_cell_step3_child_clause c K h d C hC
+      h_form k o ho ho_partner ho_ord
+  exact hparent.trans hsignal
 
 /-- Step 2 of the blueprint proof of `path_and_print_recovery_step2_prints`: the small child tile inherits the cell `k` from its parent `C`. -/
 private lemma path_and_print_recovery_step2_prints_step2_print (c : MacroCertificate P)

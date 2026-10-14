@@ -7496,7 +7496,21 @@ private lemma strict_lift_decorations_step1_founded_step1_carrier (C : MacroCert
     (n k : ℕ) (Z : (seq n).tiles) :
     Z.1.carrier ⊆
       ((strictSubst C hC).θ ^ k) • (stcAncestor (strictLiftChain C seq par typ hspec) n Z k).1.carrier := by
-  sorry
+  let H := strictLiftChain C seq par typ hspec
+  change Z.1.carrier ⊆ ((strictSubst C hC).θ ^ k) • (stcAncestor H n Z k).1.carrier
+  induction k with
+  | zero => simp [stcAncestor, strictSubst]
+  | succ k ih =>
+    have hchild := strict_child_carrier_subset C (hspec (n + k) (stcAncestor H n Z k)).1
+    have hgeom := (hspec (n + k) (stcAncestor H n Z k)).2
+    rw [← hgeom] at hchild
+    have hstep : (stcAncestor H n Z k).1.carrier ⊆ C.σ.θ • (stcAncestor H n Z (k + 1)).1.carrier := by
+      simpa [stcAncestor] using hchild
+    have hpow : (strictSubst C hC).θ ^ (k + 1) = (strictSubst C hC).θ ^ k * C.σ.θ := by
+      change (strictSubst C hC).θ ^ (k + 1) = (strictSubst C hC).θ ^ k * (strictSubst C hC).θ
+      rw [pow_succ]
+    rw [hpow, mul_smul]
+    exact ih.trans (Set.smul_set_mono hstep)
 
 /-- Step 1 of the blueprint proof of `strict_lift_decorations`: the constructed lift is founded.
 The legality chain of a lifted tile can be taken along the actual hierarchy (`stcTile` of the

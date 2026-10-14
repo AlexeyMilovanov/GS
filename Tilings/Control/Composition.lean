@@ -4490,6 +4490,78 @@ private lemma alignment_complete_step1_macroside_eq (c : MacroCertificate P) (hH
   exact alignment_complete_step1_macroside_eq_step4_endpoints c hH T part hT hL j j' hneq d e
     hrank hmode htrace hlen
 
+/-- Step 2 of the blueprint proof of
+`alignment_complete_step2_subdivision_eq_step1_length`: The reverse endpoint
+obstruction shows that a traced subdivision cannot be longer than its coinciding
+opposing subdivision. -/
+private lemma alignment_complete_step2_subdivision_eq_step1_length_step2_not_shorter
+    (c : MacroCertificate P) (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (htrace : ∀ o ∈ c.outerList (part.block j).α d,
+      ∃ o' ∈ c.outerList (part.block j').α e,
+        (part.block j').childSide o' = (part.block j).childSide o ∧
+        c.rankIn (part.block j').α e o' = c.rankIn (part.block j).α d o ∧
+        (part.block j').col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3)
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
+    (c.outerList (part.block j).α d).length ≤
+      (c.outerList (part.block j').α e).length := by
+  sorry
+
+/-- Step 3 of the blueprint proof of
+`alignment_complete_step2_subdivision_eq_step1_length`: Once one opposing side has
+been traced, an alternative opposing macroside on the same geometric segment
+cannot terminate earlier. -/
+private lemma alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative
+    (c : MacroCertificate P) (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j₁ j' : part.ι) (hneq₁ : j₁ ≠ j) (hneq' : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n)
+    (e₁ : Fin (c.Q.disk (part.block j₁).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (htrace : ∀ o ∈ c.outerList (part.block j).α d,
+      ∃ o' ∈ c.outerList (part.block j₁).α e₁,
+        (part.block j₁).childSide o' = (part.block j).childSide o ∧
+        c.rankIn (part.block j₁).α e₁ o' = c.rankIn (part.block j).α d o ∧
+        (part.block j₁).col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3)
+    (hmacro₁ : (part.block j₁).macroSide e₁ = (part.block j).macroSide d)
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
+    (c.outerList (part.block j₁).α e₁).length ≤
+      (c.outerList (part.block j').α e).length := by
+  sorry
+
+/-- Step 4 of the blueprint proof of
+`alignment_complete_step2_subdivision_eq_step1_length`: At the other endpoint,
+the alternative opposing macroside cannot extend beyond the traced subdivision. -/
+private lemma alignment_complete_step2_subdivision_eq_step1_length_step4_not_longer_alternative
+    (c : MacroCertificate P) (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c))
+    (part : MacroPartition c T) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j₁ j' : part.ι) (hneq₁ : j₁ ≠ j) (hneq' : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n)
+    (e₁ : Fin (c.Q.disk (part.block j₁).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (htrace : ∀ o ∈ c.outerList (part.block j).α d,
+      ∃ o' ∈ c.outerList (part.block j₁).α e₁,
+        (part.block j₁).childSide o' = (part.block j).childSide o ∧
+        c.rankIn (part.block j₁).α e₁ o' = c.rankIn (part.block j).α d o ∧
+        (part.block j₁).col o'.1 o'.2 3 = (part.block j).col o.1 o.2 3)
+    (hmacro₁ : (part.block j₁).macroSide e₁ = (part.block j).macroSide d)
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
+    (c.outerList (part.block j').α e).length ≤
+      (c.outerList (part.block j).α d).length := by
+  sorry
+
 /-- Step 2a of the blueprint proof of `alignment_complete_step2_subdivision_eq`: The length of
 the child side subdivision is uniquely determined by the geometric macro side.
 Thus coinciding macro sides have subdivisions of the same length. -/
@@ -4502,7 +4574,32 @@ private lemma alignment_complete_step2_subdivision_eq_step1_length (c : MacroCer
     (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
     (hmacro : (part.block j').macroSide e = (part.block j).macroSide d) :
     (c.outerList (part.block j).α d).length = (c.outerList (part.block j').α e).length := by
-  sorry
+  obtain ⟨j₁, hneq₁, e₁, o₀, o, hfirst, ho₀, ho, hrank_one, hpositive, hside, hcell⟩ :=
+    alignment_complete_step1_macroside_eq_step1_rank_one c hH T part hT hL j d hrank hmode
+  have htrace := alignment_complete_step1_macroside_eq_step2_same_opposing_macroside c hH T part
+    hT hL j j₁ hneq₁ d e₁ hrank hmode
+    ⟨o₀, o, hfirst, ho₀, ho, hrank_one, hpositive, hside, hcell⟩
+  have hle := alignment_complete_step1_macroside_eq_step3_not_longer c hH T part hT hL j j₁
+    hneq₁ d e₁ hrank hmode htrace
+  have hge := alignment_complete_step2_subdivision_eq_step1_length_step2_not_shorter c hH T part
+    hT hL j j₁ hneq₁ d e₁ hrank hmode htrace
+    (by
+      exact alignment_complete_step1_macroside_eq_step4_endpoints c hH T part hT hL j j₁
+        hneq₁ d e₁ hrank hmode htrace hle)
+  have hlen₁ : (c.outerList (part.block j).α d).length =
+      (c.outerList (part.block j₁).α e₁).length := Nat.le_antisymm hge hle
+  have hmacro₁ := alignment_complete_step1_macroside_eq_step4_endpoints c hH T part hT hL j j₁
+    hneq₁ d e₁ hrank hmode htrace hle
+  have hsame :=
+    alignment_complete_step2_subdivision_eq_step1_length_step3_not_shorter_alternative c hH T
+      part hT hL j j₁ j' hneq₁ hneq d e₁ e hrank hmode htrace hmacro₁ hmacro
+  have hlast := alignment_complete_step2_subdivision_eq_step1_length_step4_not_longer_alternative
+    c hH T part hT hL j j₁ j' hneq₁ hneq d e₁ e hrank hmode htrace hmacro₁ hmacro
+  have hfirst_le : (c.outerList (part.block j).α d).length ≤
+      (c.outerList (part.block j').α e).length := by
+    rw [hlen₁]
+    exact hsame
+  exact Nat.le_antisymm hfirst_le hlast
 
 private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_list_lemma
     {α β : Type*} (L₁ : List α) (L₂ : List β) {f₁ : α → ℝ} {f₂ : β → ℝ} {R : α → β → Prop}

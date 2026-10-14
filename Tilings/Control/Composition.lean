@@ -5312,7 +5312,89 @@ private lemma composed_proper_step1_reconstruction_step1_headers_step1_block_con
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
     (part : MacroPartition c T) (j : part.ι) :
     BlockContext c (part.block j) := by
-  sorry
+  let K := part.block j
+  have hmem : ∀ t, c.owner t = K.α → K.placed t ∈ T.tiles := by
+    intro t ht
+    rw [← part.cover]
+    exact Set.mem_iUnion.2 ⟨j, ⟨t, ht, rfl⟩⟩
+  have hprops : ∀ X ∈ T.tiles,
+      IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
+        InnerActive c (tileDec X) := by
+    intro X hX
+    have hlegal := hL X hX
+    exact ⟨(headerLegal_properties_step2_normal_id c hH (tileDec X) hlegal).1,
+      (headerLegal_properties_step2_normal_id c hH (tileDec X) hlegal).2,
+      headerLegal_properties_step6_inner c hH (tileDec X) hlegal⟩
+  constructor
+  · intro t i ht hi hnon
+    have hX : K.placed t ∈ T.tiles := hmem t ht
+    have hXactive : IsNontrivial c (tileDec (K.placed t)) i := by
+      exact hnon
+    obtain ⟨Y, hY, hYX, l, hside, hcell⟩ := hT (K.placed t) hX i hXactive
+    have hmatch := asm_match c
+      ⟨(hprops _ hX).1, (hprops _ hX).2.1⟩
+      ⟨(hprops _ hY).1, (hprops _ hY).2.1⟩ i l hi hcell
+    obtain ⟨hinner, hedge⟩ := hmatch
+    let p : c.SideOcc := c.partner (c.occ t i)
+    obtain ⟨hpne, hpowner, hpside⟩ := c.g1_partner _ hi
+    rcases c.g1_edge_unique _ _ hi hinner hedge.symm with hsame | hpartner_eq
+    · have hside' : asmSide c Y.anchor (c.occ (tileDec Y).typ l) =
+          asmSide c (K.placed t).anchor (c.occ t i) := hside
+      rw [hsame] at hside'
+      have hanchor := asm_side_cancel c hside'
+      exfalso
+      exact hYX (asm_tile_unique c T hY hX (congrArg Sigma.fst hsame) hanchor)
+    · let s : c.Typ := (tileDec Y).typ
+      have hs : (tileDec Y).typ = s := rfl
+      change c.Side s at l
+      have hsp : s = p.1 := hs.symm.trans (congrArg Sigma.fst hpartner_eq)
+      have hsowner : c.owner s = K.α := by
+        rw [hsp, hpowner, ht]
+      have hownerY : c.owner (tileDec Y).typ = K.α := by
+        rw [hs, hsowner]
+      have hsne : s ≠ t := by
+        intro hst
+        exact hpne (hsp.symm.trans (hs.trans hst))
+      refine ⟨(tileDec Y).typ, l, hownerY, hsne, ?_, ?_⟩
+      · unfold ColouredBlock.childSide
+        rw [← vadd_vadd, ← vadd_vadd]
+        change K.v +ᵥ c.occSide (c.occ (tileDec Y).typ l) =
+          K.v +ᵥ c.occSide (c.occ t i)
+        rw [hpartner_eq, hpside]
+      · have hanchor : Y.anchor = (K.placed t).anchor - c.anchor t + c.anchor p.1 := by
+          have hside' : asmSide c Y.anchor (c.occ (tileDec Y).typ l) =
+              asmSide c (K.placed t).anchor (c.occ t i) := hside
+          rw [hpartner_eq] at hside'
+          have hside_partner' : asmSide c (c.anchor p.1) p =
+              asmSide c (c.anchor t) (c.occ t i) := hpside
+          apply asm_side_cancel c (o := p)
+          rw [hside']
+          unfold asmSide at hside_partner' ⊢
+          rw [← vadd_vadd, hside_partner', vadd_vadd, sub_add_cancel]
+        have hY' : K.placed (tileDec Y).typ ∈ T.tiles := hmem _ hownerY
+        have hYeq : Y = K.placed (tileDec Y).typ := by
+          apply asm_tile_unique c T hY hY'
+          · rfl
+          · change Y.anchor = K.v + c.anchor (tileDec Y).typ
+            have hps : p.1 = (tileDec Y).typ := hsp.symm.trans hs.symm
+            rw [hanchor, hps]
+            change (K.v + c.anchor t) - c.anchor t + c.anchor (tileDec Y).typ = _
+            rw [add_sub_cancel_right]
+        intro k
+        have hform : tileDec Y = K.tileOf (tileDec Y).typ :=
+          congrArg PlacedTile.form hYeq
+        have hcell' : (K.tileOf (tileDec Y).typ).cell l k =
+            (tileDec (K.placed t)).cell i k := by
+          have hform' := congrArg (decTileEquiv c) hform
+          change (⟨(tileDec Y).typ, (tileDec Y).cell⟩ :
+            Σ t, c.Side t → Fin 5 → U c) =
+            ⟨(tileDec Y).typ, (K.tileOf (tileDec Y).typ).cell⟩ at hform'
+          have hcells : (tileDec Y).cell = (K.tileOf (tileDec Y).typ).cell :=
+            eq_of_heq (Sigma.mk.inj hform').2
+          exact (congrFun (congrFun hcells l) k).symm.trans (hcell k)
+        exact hcell'
+  · intro t ht htc
+    apply hL (K.placed t) (hmem t ht)
 
 /-- Step 1 of the blueprint proof of `composed_proper_step1_reconstruction`: every block of the
 assembled partition of a proper legal tiling has a common boundary header

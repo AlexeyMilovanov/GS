@@ -9668,6 +9668,452 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step2_fixed (c
   rw [h0]
   simp [prescribedFirst, hni]
 
+/-- Step 1 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"At each level the hierarchy specifies each child's type and its parent": a level-zero tile is a
+child of a level-one tile, placed in the macroblock of that parent. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step1_parent
+    (c : MacroCertificate P) (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (W : PlacedTile (typedDecoration c)) (hW : W ∈ (seq' 0).tiles) :
+    ∃ Z ∈ (seq' 1).tiles, IsChildOf c (tileDec Z) (tileDec W) ∧
+      W.anchor = c.σ.θ • Z.anchor + c.anchor (tileDec W).typ := by
+  obtain ⟨blk, hbe, hbu⟩ := hexact 0
+  have hWU : W ∈ ⋃ Z : (seq' 1).tiles, (blk Z).tiles := hbu ▸ hW
+  obtain ⟨Z, hZ⟩ := mem_iUnion.mp hWU
+  obtain ⟨t, ht, rfl⟩ := hZ
+  refine ⟨Z.1, Z.2, (hbe Z).1.2 t ht, ?_⟩
+  show (blk Z).v + c.anchor t = _
+  rw [(hbe Z).2]
+  rfl
+
+/-- Step 2 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"The third cell of an outer side is nonzero only when that side is a port, by the inner-side clause
+of (G4)": an outer child side lying in the list of the parent side `d` copies, as third cell, the
+cell `k` of `d` when it is the port `k` of `d`, and is zero when it is no port of `d`. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step2_port_cell
+    (c : MacroCertificate P) (A B : DecTile c) (hB : IsChildOf c A B)
+    (l : c.Side B.typ) (hOuter : c.IsOuter (c.occ B.typ l)) (d : c.Side A.typ)
+    (hd : c.occ B.typ l ∈ c.outerList (c.form A.typ) d) :
+    (∀ k : Fin 5, c.port (c.form A.typ) d k = some (c.occ B.typ l) → B.cell l 2 = A.cell d k) ∧
+    ((∀ k : Fin 5, c.port (c.form A.typ) d k ≠ some (c.occ B.typ l)) → B.cell l 2 = 0) := by
+  have hnp : ¬ c.IsPrint (c.occ B.typ l) := fun hp => asm_print_inner c hp hOuter
+  obtain ⟨-, -, -, hpath, hnopath, -⟩ := (hB.2 l).2 hnp
+  have key : ∀ (d' : c.Side A.typ) (k : Fin 5), c.occ B.typ l ∈ c.path (c.form A.typ) d' k →
+      c.port (c.form A.typ) d k = some (c.occ B.typ l) := by
+    intro d' k hmem
+    have hport : c.port (c.form A.typ) d' k = some (c.occ B.typ l) := by
+      by_cases hg : c.IsGenuinePath (c.form A.typ) d' k
+      · obtain ⟨n, hn⟩ := List.getElem?_of_mem hmem
+        cases n with
+        | zero =>
+          rw [← c.g4_path_head _ d' k hg, List.head?_eq_getElem?]
+          exact hn
+        | succ n => exact absurd hOuter (c.g4_path_inner _ d' k hg n _ hn)
+      · rw [c.g4_path_trivial _ d' k hg] at hmem
+        exact Option.mem_toList.mp hmem
+    have hmem' : c.occ B.typ l ∈ c.outerList (c.form A.typ) d' := by
+      unfold MacroData.port at hport
+      exact List.mem_of_getElem? hport
+    have := lhd_outerList_unique c hmem' hd
+    subst this
+    exact hport
+  refine ⟨fun k hk => hpath d k ?_, fun hk => hnopath fun d' k hmem => hk k (key d' k hmem)⟩
+  by_cases hg : c.IsGenuinePath (c.form A.typ) d k
+  · apply List.mem_of_mem_head?
+    rw [c.g4_path_head _ d k hg]
+    exact hk
+  · rw [c.g4_path_trivial _ d k hg]
+    exact Option.mem_toList.mpr hk
+
+/-- Step 3 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"with matching ranks": the fourth cell of an outer child side in the list of the parent side `d` is
+zero in the zero mode of `d` and its rank in the list of `d` otherwise. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step3_rank_cell
+    (c : MacroCertificate P) (A B : DecTile c) (hB : IsChildOf c A B)
+    (l : c.Side B.typ) (hOuter : c.IsOuter (c.occ B.typ l)) (d : c.Side A.typ)
+    (hd : c.occ B.typ l ∈ c.outerList (c.form A.typ) d) :
+    B.cell l 3 = if zA c A d = true then 0
+      else rankU c (c.rankOf (c.form A.typ) d (c.occ B.typ l)) := by
+  have hnp : ¬ c.IsPrint (c.occ B.typ l) := fun hp => asm_print_inner c hp hOuter
+  exact ((hB.2 l).2 hnp).2.2.2.2.2.1 hOuter d hd
+
+/-- Step 4 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"Both overlapping sides therefore belong to one finite higher supertile. The assumed STS property
+makes their descendant sides coincide completely, with matching ranks and ports ... the coincident
+side of a port is the port of the same number of the opposing block": the parent side `d` of the
+outer side `i` of `X` coincides with a parent side `d'` of the (different) parent of `Y`, and the
+coincident side `j` of `Y` lies in the list of `d'` at the same position, in a list of the same
+length. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step4_matching_lists
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (m : ℕ) (W : PlacedTile (typedDecoration c)) (hW : W ∈ (seq' m).tiles)
+    (e : c.Side (tileDec W).typ) (he : c.IsInner (c.occ (tileDec W).typ e))
+    (hsub : sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c W e)
+    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ (seq' 0).tiles) (hNeq : Y ≠ X)
+    (j : c.Side (tileDec Y).typ) (hCoincide : sideOf c Y j = sideOf c X i)
+    (ZX : PlacedTile (typedDecoration c)) (hZX : ZX ∈ (seq' 1).tiles)
+    (hXZ : IsChildOf c (tileDec ZX) (tileDec X))
+    (haX : X.anchor = c.σ.θ • ZX.anchor + c.anchor (tileDec X).typ)
+    (ZY : PlacedTile (typedDecoration c)) (hZY : ZY ∈ (seq' 1).tiles)
+    (hYZ : IsChildOf c (tileDec ZY) (tileDec Y))
+    (haY : Y.anchor = c.σ.θ • ZY.anchor + c.anchor (tileDec Y).typ)
+    (d : c.Side (tileDec ZX).typ)
+    (hd : c.occ (tileDec X).typ i ∈ c.outerList (c.form (tileDec ZX).typ) d) :
+    ∃ d' : c.Side (tileDec ZY).typ, ZY ≠ ZX ∧ sideOf c ZY d' = sideOf c ZX d ∧
+      c.occ (tileDec Y).typ j ∈ c.outerList (c.form (tileDec ZY).typ) d' ∧
+      (c.outerList (c.form (tileDec ZY).typ) d').length =
+        (c.outerList (c.form (tileDec ZX).typ) d).length ∧
+      (c.outerList (c.form (tileDec ZY).typ) d').idxOf (c.occ (tileDec Y).typ j) =
+        (c.outerList (c.form (tileDec ZX).typ) d).idxOf (c.occ (tileDec X).typ i) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"with one fewer level to go before the chain becomes inner" (no level left): an outer side of a
+level-zero tile never lies inside an inner side of a level-zero tile, because the two tiles sharing
+that inner side surround it. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step5_level_down_base
+    (c : MacroCertificate P) (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (W : PlacedTile (typedDecoration c)) (hW : W ∈ (seq' 0).tiles)
+    (e : c.Side (tileDec W).typ) (he : c.IsInner (c.occ (tileDec W).typ e))
+    (hsub : sideOf c X i ⊆ sideOf c W e) : False := by
+  have hnest : ∀ (V : PlacedTile (typedDecoration c)) (a b : c.Side (tileDec V).typ), a ≠ b →
+      ¬ sideOf c V a ⊆ sideOf c V b := by
+    intro V a b hab hs
+    have hsimp := (c.Q.disk (c.form (tileDec V).typ)).simple a b hab
+    have hs' : (c.Q.disk (c.form (tileDec V).typ)).side a ⊆ (c.Q.disk (c.form (tileDec V).typ)).side b := by
+      intro q hq
+      have h1 : V.anchor +ᵥ q ∈ sideOf c V b := hs (Set.vadd_mem_vadd_set hq)
+      obtain ⟨q', hq', hqq⟩ := h1
+      rw [vadd_left_cancel_iff] at hqq
+      exact hqq ▸ hq'
+    unfold PolygonalDisk.side at hs'
+    rw [Set.inter_eq_left.2 hs'] at hsimp
+    apply ((Set.toFinite _).subset hsimp).not_infinite
+    exact lhd_segment_infinite (fun h => lhd_finRotate_ne (c.Q.disk _).three_le a
+      ((c.Q.disk _).vertex_injective h).symm)
+  obtain ⟨blk, hbe, hbu⟩ := hexact 0
+  have hWU : W ∈ ⋃ Z : (seq' 1).tiles, (blk Z).tiles := hbu ▸ hW
+  obtain ⟨Z, hZ⟩ := mem_iUnion.mp hWU
+  obtain ⟨t, ht, hWt⟩ := hZ
+  have hanc : W.anchor = (blk Z).v + c.anchor (tileDec W).typ := by subst hWt; rfl
+  have hown : c.owner (tileDec W).typ = (blk Z).α := by subst hWt; exact ht
+  set o : c.SideOcc := c.occ (tileDec W).typ e with ho
+  have hp := c.g1_partner o he
+  set W' := (blk Z).placed (c.partner o).1 with hW'def
+  have hW' : W' ∈ (seq' 0).tiles := hbu ▸ mem_iUnion.2 ⟨Z, (c.partner o).1, hp.2.1.trans hown, rfl⟩
+  have hside : sideOf c W' (c.partner o).2 = sideOf c W e := by
+    have e1 := path_and_print_recovery_step1_signals_aux_childSide c (blk Z) (c.partner o)
+    have e2 := path_and_print_recovery_step1_signals_aux_childSide c (blk Z) o
+    have e3 : sideOf c W e = (blk Z).childSide o := by
+      show W.anchor +ᵥ _ = ((blk Z).v + c.anchor o.1) +ᵥ _
+      rw [hanc]
+    rw [e3]
+    change (blk Z).childSide (c.partner o) = (blk Z).childSide o
+    rw [e1, e2, hp.2.2]
+  have hWW' : W' ≠ W := by
+    intro h
+    apply hp.1
+    have := congrArg (fun V : PlacedTile (typedDecoration c) => (tileDec V).typ) h
+    exact this
+  have hA : W ∈ (seq' 0).tiles := hW
+  -- the geometry near the midpoint of the side of `X`
+  set x := X.anchor + (c.Q.disk (c.form (tileDec X).typ)).vertex i with hx
+  set y := X.anchor + (c.Q.disk (c.form (tileDec X).typ)).vertex (finRotate _ i) with hy
+  have hS : sideOf c X i = segment ℝ x y :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq X i
+  have hxy : x ≠ y := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne X i
+  set p := midpoint ℝ x y with hp'
+  have hSA : sideOf c W e = segment ℝ (W.anchor + (c.Q.disk (c.form (tileDec W).typ)).vertex e)
+      (W.anchor + (c.Q.disk (c.form (tileDec W).typ)).vertex (finRotate _ e)) :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq W e
+  obtain ⟨f, u, hu, hf⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_seg_functional _ _
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne W e)
+  have hloc : ∀ (V : PlacedTile (typedDecoration c)) (l : c.Side (tileDec V).typ),
+      sideOf c V l = sideOf c W e →
+      p ∈ V.carrier ∧ p ∉ interior V.carrier ∧ ∀ᶠ q in nhds p, q ∈ frontier V.carrier → f (q - p) = 0 := by
+    intro V l hV
+    have hVs : sideOf c V l = segment ℝ (V.anchor + (c.Q.disk (c.form (tileDec V).typ)).vertex l)
+        (V.anchor + (c.Q.disk (c.form (tileDec V).typ)).vertex (finRotate _ l)) :=
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq V l
+    have hxV : x ∈ sideOf c V l := by rw [hV]; apply hsub; rw [hS]; exact left_mem_segment ℝ x y
+    have hyV : y ∈ sideOf c V l := by rw [hV]; apply hsub; rw [hS]; exact right_mem_segment ℝ x y
+    have hpV : p ∈ sideOf c V l := by rw [hV]; apply hsub; rw [hS]; exact midpoint_mem_segment x y
+    have hpA : p ∈ sideOf c W e := hV ▸ hpV
+    rw [hVs] at hxV hyV
+    have hne := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_midpoint_ne_endpoint _ _ x y
+      hxV hyV hxy
+    have hpV1 : p ∈ (1 : ℝ) • V.side l := by rw [one_smul]; exact hpV
+    have hl := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_local V 1 one_ne_zero l p
+      hpV1 (by rw [one_smul]; exact hne.1) (by rw [one_smul]; exact hne.2)
+    have hfr := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier V 1
+      one_ne_zero l hpV1
+    simp only [one_smul] at hl hfr
+    refine ⟨(lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed V).frontier_subset hfr,
+      hfr.2, ?_⟩
+    filter_upwards [hl] with q hq hqf
+    have hq0 : q ∈ sideOf c V l := hq hqf
+    have hq' : q ∈ sideOf c W e := hV ▸ hq0
+    rw [hSA] at hq' hpA
+    exact hf q hq' p hpA
+  obtain ⟨hpA, hpA', hlA⟩ := hloc W e rfl
+  obtain ⟨hpB, hpB', hlB⟩ := hloc W' (c.partner o).2 hside
+  have hint := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_two_regions W.carrier W'.carrier
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed W)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular W)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed W')
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular W')
+    ((seq' 0).disjoint hA hW' hWW'.symm) p hpA' hpA hpB' hpB f u hu hlA hlB
+  have hpX : p ∈ X.carrier :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_sub X i
+      (by change p ∈ sideOf c X i; rw [hS]; exact midpoint_mem_segment x y)
+  have hcl : p ∈ closure (interior X.carrier) := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular]; exact hpX
+  obtain ⟨z, hz1, hz2⟩ := mem_closure_iff.1 hcl _ isOpen_interior hint
+  obtain ⟨b, -, hb⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_open_cover_interior
+    (Finset.univ : Finset Bool) (fun b => if b then W.carrier else W'.carrier)
+    (fun b => by
+      cases b
+      · exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed W'
+      · exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed W)
+    (interior (W.carrier ∪ W'.carrier) ∩ interior X.carrier) (isOpen_interior.inter isOpen_interior)
+    ⟨z, hz1, hz2⟩ (by
+      intro q hq
+      rcases interior_subset hq.1 with hq' | hq'
+      · exact mem_iUnion₂.2 ⟨true, Finset.mem_univ _, by simpa using hq'⟩
+      · exact mem_iUnion₂.2 ⟨false, Finset.mem_univ _, by simpa using hq'⟩)
+  obtain ⟨w, hw1, hw2⟩ := hb
+  cases b
+  · have hXB : X = W' := by
+      by_contra hne
+      exact Set.disjoint_left.1 ((seq' 0).disjoint hX hW' hne) hw1.2 (by simpa using hw2)
+    subst hXB
+    rw [← hside] at hsub
+    by_cases hie : i = (c.partner o).2
+    · subst hie
+      exact lift_hierarchy_step2_proper_step1_inner_step1_proper_blk_aux_partner_inner c he hOuter
+    · exact hnest _ i _ hie hsub
+  · have hXA : X = W := by
+      by_contra hne
+      exact Set.disjoint_left.1 ((seq' 0).disjoint hX hA hne) hw1.2 (by simpa using hw2)
+    subst hXA
+    by_cases hie : i = e
+    · subst hie
+      exact he hOuter
+    · exact hnest _ i e hie hsub
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"the two copied cells on the coincident sides `b ⊂ σ'd` and `b' ⊂ σ'd'` copy the cells of the parent
+sides `d, d'`, which are again coincident sides in the next level with one fewer level to go before
+the chain becomes inner" (inductive case): if the outer side `i` of `X` lies inside an inner side of a
+level-`m + 1` tile and its parent side `d` is still outer, then `d` lies inside the same inner side,
+now `m` levels up. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step5_level_down_succ
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (m : ℕ) (W : PlacedTile (typedDecoration c)) (hW : W ∈ (seq' (m + 1)).tiles)
+    (e : c.Side (tileDec W).typ) (he : c.IsInner (c.occ (tileDec W).typ e))
+    (hsub : sideOf c X i ⊆ (c.σ.θ ^ (m + 1)) • sideOf c W e)
+    (ZX : PlacedTile (typedDecoration c)) (hZX : ZX ∈ (seq' 1).tiles)
+    (hXZ : IsChildOf c (tileDec ZX) (tileDec X))
+    (haX : X.anchor = c.σ.θ • ZX.anchor + c.anchor (tileDec X).typ)
+    (d : c.Side (tileDec ZX).typ)
+    (hd : c.occ (tileDec X).typ i ∈ c.outerList (c.form (tileDec ZX).typ) d)
+    (hdo : c.IsOuter (c.occ (tileDec ZX).typ d)) :
+    sideOf c ZX d ⊆ (c.σ.θ ^ m) • sideOf c W e := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"the two copied cells on the coincident sides `b ⊂ σ'd` and `b' ⊂ σ'd'` copy the cells of the parent
+sides `d, d'`, which are again coincident sides in the next level with one fewer level to go before
+the chain becomes inner": if the outer side `i` of `X` lies inside an inner side of a level-`m` tile
+and its parent side `d` is still outer, then `m ≥ 1` and `d` lies inside the same inner side, now
+`m - 1` levels up. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step5_level_down
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hOuter : c.IsOuter (c.occ (tileDec X).typ i))
+    (m : ℕ) (W : PlacedTile (typedDecoration c)) (hW : W ∈ (seq' m).tiles)
+    (e : c.Side (tileDec W).typ) (he : c.IsInner (c.occ (tileDec W).typ e))
+    (hsub : sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c W e)
+    (ZX : PlacedTile (typedDecoration c)) (hZX : ZX ∈ (seq' 1).tiles)
+    (hXZ : IsChildOf c (tileDec ZX) (tileDec X))
+    (haX : X.anchor = c.σ.θ • ZX.anchor + c.anchor (tileDec X).typ)
+    (d : c.Side (tileDec ZX).typ)
+    (hd : c.occ (tileDec X).typ i ∈ c.outerList (c.form (tileDec ZX).typ) d)
+    (hdo : c.IsOuter (c.occ (tileDec ZX).typ d)) :
+    ∃ m', m = m' + 1 ∧ sideOf c ZX d ⊆ (c.σ.θ ^ m') • sideOf c W e := by
+  cases m with
+  | zero =>
+    exfalso
+    exact lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step5_level_down_base c seq' hexact
+      X hX i hOuter W hW e he (by simpa using hsub)
+  | succ m =>
+    exact ⟨m, rfl, lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step5_level_down_succ c hH
+      seq hsts seq' herase hexact X hX i hOuter m W hW e he hsub ZX hZX hXZ haX d hd hdo⟩
+
+/-- Step 6 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"the coincident side ... of the opposing block": in a tiling, the tile carrying a side coincident
+with a given side of another tile is unique. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step6_unique_opposite
+    (c : MacroCertificate P) (T : PlaneTiling (typedDecoration c))
+    (X Y Y' : PlacedTile (typedDecoration c)) (hX : X ∈ T.tiles) (hY : Y ∈ T.tiles)
+    (hY' : Y' ∈ T.tiles) (hNeq : Y ≠ X) (hNeq' : Y' ≠ X)
+    (i : c.Side (tileDec X).typ) (j : c.Side (tileDec Y).typ) (j' : c.Side (tileDec Y').typ)
+    (h : sideOf c Y j = sideOf c X i) (h' : sideOf c Y' j' = sideOf c X i) : Y = Y' := by
+  by_contra hYY
+  set x := X.anchor + (c.Q.disk (c.form (tileDec X).typ)).vertex i with hx
+  set y := X.anchor + (c.Q.disk (c.form (tileDec X).typ)).vertex
+    (finRotate _ i) with hy
+  have hS : sideOf c X i = segment ℝ x y :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq X i
+  have hxy : x ≠ y := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne X i
+  set p := midpoint ℝ x y with hp
+  obtain ⟨f, u, hu, hf⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_seg_functional x y hxy
+  have hloc : ∀ (Z : PlacedTile (typedDecoration c)) (l : c.Side (tileDec Z).typ),
+      sideOf c Z l = sideOf c X i →
+      p ∈ Z.carrier ∧ p ∉ interior Z.carrier ∧ ∀ᶠ q in nhds p, q ∈ frontier Z.carrier → f (q - p) = 0 := by
+    intro Z l hZ
+    have hZs : sideOf c Z l = segment ℝ (Z.anchor + (c.Q.disk (c.form (tileDec Z).typ)).vertex l)
+        (Z.anchor + (c.Q.disk (c.form (tileDec Z).typ)).vertex (finRotate _ l)) :=
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq Z l
+    have hxZ : x ∈ sideOf c Z l := by rw [hZ, hS]; exact left_mem_segment ℝ x y
+    have hyZ : y ∈ sideOf c Z l := by rw [hZ, hS]; exact right_mem_segment ℝ x y
+    have hpZ : p ∈ sideOf c Z l := by rw [hZ, hS]; exact midpoint_mem_segment x y
+    rw [hZs] at hxZ hyZ
+    have hne := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_midpoint_ne_endpoint _ _ x y
+      hxZ hyZ hxy
+    have hpZ1 : p ∈ (1 : ℝ) • Z.side l := by rw [one_smul]; exact hpZ
+    have hl := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_local Z 1 one_ne_zero l p
+      hpZ1 (by rw [one_smul]; exact hne.1) (by rw [one_smul]; exact hne.2)
+    have hfr := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier Z 1
+      one_ne_zero l hpZ1
+    simp only [one_smul] at hl hfr
+    refine ⟨(lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed Z).frontier_subset hfr,
+      hfr.2, ?_⟩
+    filter_upwards [hl] with q hq hqf
+    have hq0 : q ∈ sideOf c Z l := hq hqf
+    have hq' : q ∈ sideOf c X i := hZ ▸ hq0
+    rw [hS] at hq'
+    exact hf q hq' p (midpoint_mem_segment x y)
+  obtain ⟨hpX, hpX', hlX⟩ := hloc X i rfl
+  obtain ⟨hpY, hpY', hlY⟩ := hloc Y j h
+  obtain ⟨hpY'0, -, -⟩ := hloc Y' j' h'
+  have hint := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_two_regions X.carrier Y.carrier
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed X)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular X)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed Y)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular Y)
+    (T.disjoint hX hY hNeq.symm) p hpX' hpX hpY' hpY f u hu hlX hlY
+  have hcl : p ∈ closure (interior Y'.carrier) := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular]; exact hpY'0
+  obtain ⟨z, hz1, hz2⟩ := mem_closure_iff.1 hcl _ isOpen_interior hint
+  obtain ⟨b, -, hb⟩ := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_open_cover_interior
+    (Finset.univ : Finset Bool) (fun b => if b then X.carrier else Y.carrier)
+    (fun b => by
+      cases b
+      · exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed Y
+      · exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_closed X)
+    (interior (X.carrier ∪ Y.carrier) ∩ interior Y'.carrier) (isOpen_interior.inter isOpen_interior)
+    ⟨z, hz1, hz2⟩ (by
+      intro q hq
+      rcases interior_subset hq.1 with hq' | hq'
+      · exact mem_iUnion₂.2 ⟨true, Finset.mem_univ _, by simpa using hq'⟩
+      · exact mem_iUnion₂.2 ⟨false, Finset.mem_univ _, by simpa using hq'⟩)
+  obtain ⟨w, hw1, hw2⟩ := hb
+  cases b
+  · exact Set.disjoint_left.1 (T.disjoint hY' hY (fun e => hYY e.symm)) hw1.2 (by simpa using hw2)
+  · exact Set.disjoint_left.1 (T.disjoint hY' hX hNeq') hw1.2 (by simpa using hw2)
+
+/-- Step 7 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"the coincident side ... of the opposing block": distinct listed sides of one tile are distinct
+segments, so the coincident side of a tile is determined by its segment. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step7_side_inj
+    (c : MacroCertificate P) (Y : PlacedTile (typedDecoration c))
+    (j j' : c.Side (tileDec Y).typ) (h : sideOf c Y j = sideOf c Y j') : j = j' := by
+  by_contra hne
+  have hs := (c.Q.disk (c.form (tileDec Y).typ)).simple j j' hne
+  have h' : (c.Q.disk (c.form (tileDec Y).typ)).side j = (c.Q.disk (c.form (tileDec Y).typ)).side j' := by
+    have := congrArg (fun S : Set Pt => (-Y.anchor) +ᵥ S) h
+    simpa only [sideOf, neg_vadd_vadd] using this
+  unfold PolygonalDisk.side at h'
+  rw [h', Set.inter_self] at hs
+  apply ((Set.toFinite _).subset hs).not_infinite
+  exact lhd_segment_infinite (fun he => lhd_finRotate_ne (c.Q.disk _).three_le j'
+    ((c.Q.disk _).vertex_injective he).symm)
+
+/-- Step 8 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"The same argument applies to inner sides, already lying in a finite supertile": a side coincident
+with an inner side of another tile carries the same full colour. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step8_inner_cells
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (seq : ℕ → PlaneTiling c.Q) (hsts : HierarchySupertilesSTS c seq)
+    (seq' : ℕ → PlaneTiling (typedDecoration c))
+    (herase : ∀ n, eraseSet c (seq' n).tiles = (seq n).tiles)
+    (hexact : ∀ n, IsExactComposition c (seq' (n + 1)) (seq' n))
+    (hleg : ∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X))
+    (X : PlacedTile (typedDecoration c)) (hX : X ∈ (seq' 0).tiles)
+    (i : c.Side (tileDec X).typ) (hInner : c.IsInner (c.occ (tileDec X).typ i))
+    (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ (seq' 0).tiles) (hNeq : Y ≠ X)
+    (j : c.Side (tileDec Y).typ) (hCoincide : sideOf c Y j = sideOf c X i) :
+    ∀ k : Fin 5, (tileDec Y).cell j k = (tileDec X).cell i k := by
+  have hnt : IsNontrivial c (tileDec X) i := by
+    obtain ⟨Z, -, hXZ, -⟩ :=
+      lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step1_parent c seq' hexact X hX
+    rintro ⟨h3, h4⟩
+    by_cases hp : c.IsPrint (c.occ (tileDec X).typ i)
+    · obtain ⟨d, hd⟩ := (lhd_print_iff c hXZ.1 i).1 hp
+      have h5 := ((hXZ.2 i).1 d hd).2
+      rw [h4] at h5
+      cases h5
+    · obtain ⟨-, -, -, -, -, -, hb, hib⟩ := (hXZ.2 i).2 hp
+      by_cases hbd : c.IsBoundary (c.occ (tileDec X).typ i)
+      · rw [hb hbd] at h3
+        cases h3
+      · rw [hib hInner hbd] at h3
+        cases h3
+  obtain ⟨Y', hY', hNeq', j', hside', hcell'⟩ := lift_hierarchy_step2_proper_step1_inner c hH seq hsts
+    seq' herase hexact hleg X hX i hInner hnt
+  have hYY := lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step6_unique_opposite c
+    (seq' 0) X Y Y' hX hY hY' hNeq hNeq' i j j' hCoincide hside'
+  subst hYY
+  have hjj := lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step7_side_inj c Y j j'
+    (hCoincide.trans hside'.symm)
+  subst hjj
+  exact hcell'
+
+/-- Step 9 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
+"the coincident side of a port is the port of the same number of the opposing block": two entries
+at the same position of two lists of the same length occupy the same quantile ports. -/
+private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step9_port_transfer
+    {γ : Type*} [DecidableEq γ] (L₁ L₂ : List γ) (h₁ : L₁.Nodup) (a b : γ) (hb : b ∈ L₂)
+    (hlen : L₂.length = L₁.length) (hidx : L₂.idxOf b = L₁.idxOf a) (k : Fin 5)
+    (h : L₁[MacroData.portRank L₁.length k - 1]? = some a) :
+    L₂[MacroData.portRank L₂.length k - 1]? = some b := by
+  have hn : L₁.idxOf a = MacroData.portRank L₁.length k - 1 := by
+    rw [List.getElem?_eq_some_iff] at h
+    obtain ⟨hn, rfl⟩ := h
+    exact List.Nodup.idxOf_getElem h₁ _ hn
+  rw [hlen, ← hn, ← hidx]
+  exact List.getElem?_idxOf hb
+
 /-- Step 3 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells`: "Their
 copied cells either reach the same shared origin, or matching origins on a shared side, or both have
 no origin and are zero. The third cell of an outer side is nonzero only when that side is a port.
@@ -9687,7 +10133,113 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third (c
     (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ (seq' 0).tiles) (hNeq : Y ≠ X)
     (j : c.Side (tileDec Y).typ) (hCoincide : sideOf c Y j = sideOf c X i) :
     (tileDec Y).cell j 2 = (tileDec X).cell i 2 := by
-  sorry
+  have key : ∀ m : ℕ, ∀ (seq : ℕ → PlaneTiling c.Q), HierarchySupertilesSTS c seq →
+      ∀ (seq' : ℕ → PlaneTiling (typedDecoration c)),
+      (∀ n, eraseSet c (seq' n).tiles = (seq n).tiles) →
+      (∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) →
+      (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) →
+      ∀ X ∈ (seq' 0).tiles, ∀ i : c.Side (tileDec X).typ, c.IsOuter (c.occ (tileDec X).typ i) →
+      (tileDec X).cell i 3 ≠ 0 →
+      ∀ W ∈ (seq' m).tiles, ∀ e : c.Side (tileDec W).typ, c.IsInner (c.occ (tileDec W).typ e) →
+      sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c W e →
+      ∀ Y ∈ (seq' 0).tiles, Y ≠ X → ∀ j : c.Side (tileDec Y).typ, sideOf c Y j = sideOf c X i →
+      (tileDec Y).cell j 2 = (tileDec X).cell i 2 ∧ (tileDec Y).cell j 3 = (tileDec X).cell i 3 := by
+    intro m
+    induction m using Nat.strong_induction_on with
+    | _ m ih =>
+    intro seq hsts seq' herase hexact hleg X hX i hOuter h3 W hW e he hsub Y hY hNeq j hCoincide
+    obtain ⟨ZX, hZX, hXZ, haX⟩ :=
+      lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step1_parent c seq' hexact X hX
+    obtain ⟨ZY, hZY, hYZ, haY⟩ :=
+      lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step1_parent c seq' hexact Y hY
+    have hYout := lift_hierarchy_step2_proper_step2_outer_step2_cells_step1_opp_outer c seq' hexact X hX i
+      hOuter Y hY hNeq j hCoincide
+    obtain ⟨d, hd⟩ := ac1r_outer_mem_outerList c hH _ hOuter _ hXZ.1
+    obtain ⟨d', hNZ, hside, hd', hlen, hidx⟩ :=
+      lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step4_matching_lists c hH seq hsts
+        seq' herase hexact X hX i hOuter m W hW e he hsub Y hY hNeq j hCoincide ZX hZX hXZ haX ZY hZY
+        hYZ haY d hd
+    have hsts1 : HierarchySupertilesSTS c (fun n => seq (n + 1)) :=
+      fun n k hk V hV => hsts (n + 1) k (by omega) V hV
+    have herase1 : ∀ n, eraseSet c ((fun n => seq' (n + 1)) n).tiles = ((fun n => seq (n + 1)) n).tiles :=
+      fun n => herase (n + 1)
+    have hexact1 : ∀ n, IsExactComposition c ((fun n => seq' (n + 1)) (n + 1)) ((fun n => seq' (n + 1)) n) :=
+      fun n => hexact (n + 1)
+    have hleg1 : ∀ n, ∀ V ∈ ((fun n => seq' (n + 1)) n).tiles, headerLegal c (tileDec V) :=
+      fun n => hleg (n + 1)
+    have h3X := lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step3_rank_cell c _ _ hXZ i
+      hOuter d hd
+    have h3Y := lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step3_rank_cell c _ _ hYZ j
+      hYout d' hd'
+    have hzA : zA c (tileDec ZX) d = false := by
+      by_contra hz
+      rw [Bool.not_eq_false] at hz
+      rw [h3X, if_pos hz] at h3
+      exact h3 rfl
+    have houter_iff : c.IsOuter (c.occ (tileDec ZX).typ d) ↔ c.IsOuter (c.occ (tileDec ZY).typ d') :=
+      ⟨fun h => lift_hierarchy_step2_proper_step2_outer_step2_cells_step1_opp_outer c (fun n => seq' (n + 1))
+          hexact1 ZX hZX d h ZY hZY hNZ d' hside,
+        fun h => lift_hierarchy_step2_proper_step2_outer_step2_cells_step1_opp_outer c (fun n => seq' (n + 1))
+          hexact1 ZY hZY d' h ZX hZX hNZ.symm d hside.symm⟩
+    have hpar : ∀ k, (tileDec ZY).cell d' k = (tileDec ZX).cell d k := by
+      by_cases hdo : c.IsOuter (c.occ (tileDec ZX).typ d)
+      · obtain ⟨m', rfl, hsub'⟩ :=
+          lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step5_level_down c hH seq hsts
+            seq' herase hexact X hX i hOuter m W hW e he hsub ZX hZX hXZ haX d hd hdo
+        have hdo' := houter_iff.1 hdo
+        have h3d : (tileDec ZX).cell d 3 ≠ 0 := by
+          intro h0
+          apply Bool.false_ne_true
+          rw [← hzA]
+          simp [zA, HeaderKernel.zeroMode, fourthVec, MacroData.outerB, hdo, h0]
+        have hih := ih m' (by omega) (fun n => seq (n + 1)) hsts1 (fun n => seq' (n + 1)) herase1
+          hexact1 hleg1 ZX hZX d hdo h3d W hW e he hsub' ZY hZY hNZ d' hside
+        obtain ⟨a0, a1, a4⟩ := lift_hierarchy_step2_proper_step2_outer_step2_cells_step2_fixed c
+          (fun n => seq' (n + 1)) hexact1 ZX hZX d hdo
+        obtain ⟨b0, b1, b4⟩ := lift_hierarchy_step2_proper_step2_outer_step2_cells_step2_fixed c
+          (fun n => seq' (n + 1)) hexact1 ZY hZY d' hdo'
+        intro k
+        fin_cases k
+        · exact b0.trans a0.symm
+        · exact b1.trans a1.symm
+        · exact hih.1
+        · exact hih.2
+        · exact b4.trans a4.symm
+      · exact lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step8_inner_cells c hH
+          (fun n => seq (n + 1)) hsts1 (fun n => seq' (n + 1)) herase1 hexact1 hleg1 ZX hZX d hdo
+          ZY hZY hNZ d' hside
+    have hXY : ∀ k, c.port (c.form (tileDec ZX).typ) d k = some (c.occ (tileDec X).typ i) →
+        c.port (c.form (tileDec ZY).typ) d' k = some (c.occ (tileDec Y).typ j) := fun k hk =>
+      lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step9_port_transfer _ _
+        (c.g3_outerList_nodup _ _) _ _ hd' hlen hidx k hk
+    have hYX : ∀ k, c.port (c.form (tileDec ZY).typ) d' k = some (c.occ (tileDec Y).typ j) →
+        c.port (c.form (tileDec ZX).typ) d k = some (c.occ (tileDec X).typ i) := fun k hk =>
+      lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step9_port_transfer _ _
+        (c.g3_outerList_nodup _ _) _ _ hd hlen.symm hidx.symm k hk
+    obtain ⟨pX, nX⟩ := lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step2_port_cell c _ _
+      hXZ i hOuter d hd
+    obtain ⟨pY, nY⟩ := lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step2_port_cell c _ _
+      hYZ j hYout d' hd'
+    refine ⟨?_, ?_⟩
+    · by_cases hk : ∃ k, c.port (c.form (tileDec ZX).typ) d k = some (c.occ (tileDec X).typ i)
+      · obtain ⟨k, hk⟩ := hk
+        rw [pX k hk, pY k (hXY k hk), hpar k]
+      · push_neg at hk
+        rw [nX hk, nY fun k hk' => hk k (hYX k hk')]
+    · have hzA' : zA c (tileDec ZY) d' = zA c (tileDec ZX) d := by
+        simp only [zA, HeaderKernel.zeroMode, fourthVec, MacroData.outerB, hpar 3]
+        congr 1
+        exact decide_eq_decide.2 houter_iff.symm
+      have hrank : c.rankOf (c.form (tileDec ZY).typ) d' (c.occ (tileDec Y).typ j) =
+          c.rankOf (c.form (tileDec ZX).typ) d (c.occ (tileDec X).typ i) := by
+        apply Fin.ext
+        simp only [MacroData.rankOf, MacroData.rankIn, hidx]
+      rw [h3X, h3Y, hzA', hrank]
+  have h3 := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step1_fourth_ne_zero c seq' hexact X hX i
+    hOuter hNontriv
+  obtain ⟨m, W, hW, e, he, hsub⟩ :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step2_ancestor_inner c seq' hfounded X hX i hOuter h3
+  exact (key m seq hsts seq' herase hexact hleg X hX i hOuter h3 W hW e he hsub Y hY hNeq j hCoincide).1
 
 /-- Step 4 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells`: "For an
 outer side with nonzero fourth cell, its ancestor side becomes inner at a finite level ... with

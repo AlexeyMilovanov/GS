@@ -107,6 +107,24 @@ private lemma sts_hierarchical_of_strict_proper_step1_seq {P : Protoset} {τ : S
   refine ⟨rfl, fun n => ?_⟩
   exact ⟨(seq_f n).property, (Classical.choose_spec (hcomp (seq_f n).val (seq_f n).property)).2⟩
 
+/-- Step 1 of the blueprint proof of `sts_hierarchical_of_strict_proper_step2_sts_step1_macro`:
+isolate one step of schedule composition. -/
+private lemma sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair
+    {P : Protoset} {τ : Substitution P} (hτ : τ.STS)
+    (Sys : StrictScheduleSystem τ)
+    (hΔ : ∀ α j, SideToSideSet (τ.decomposeIter j (Sys.GS.G.dissect α).tiles))
+    (T T' : PlaneTiling Sys.dec.P') (hT : Sys.dec.Proper T)
+    (hcomp : Sys.σc.IsComposition T' T) :
+    ∃ U : PlaneTiling P,
+      U.tiles = Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles ∧
+      U.SideToSide ∧
+      τ.decomposeIter Sys.GS.k
+          (Sys.GS.G.scatter (Sys.dec.toDecoration.project T').tiles) = U.tiles ∧
+      (∀ j, j ≤ Sys.GS.k →
+        SideToSideSet (τ.decomposeIter j
+          (Sys.GS.G.scatter (Sys.dec.toDecoration.project T').tiles))) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `sts_hierarchical_of_strict_proper`: at each step
 insert the original levels, which are STS by schedule alignment, yielding an infinite original
 STS hierarchy. -/
@@ -122,7 +140,32 @@ private lemma sts_hierarchical_of_strict_proper_step2_sts_step1_macro
       (∀ n, τ.decomposeIter Sys.GS.k (O (n + 1)).tiles = (O n).tiles) ∧
       (∀ n, (O n).SideToSide) ∧
       (∀ n j, j ≤ Sys.GS.k → SideToSideSet (τ.decomposeIter j (O (n + 1)).tiles)) := by
-  sorry
+  have H : ∀ n, ∃ U : PlaneTiling P,
+      U.tiles = Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq n)).tiles ∧
+      U.SideToSide ∧
+      τ.decomposeIter Sys.GS.k
+          (Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq (n + 1))).tiles) = U.tiles ∧
+      (∀ j, j ≤ Sys.GS.k →
+        SideToSideSet (τ.decomposeIter j
+          (Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq (n + 1))).tiles))) := by
+    intro n
+    exact sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair hτ Sys hΔ (seq n) (seq (n + 1)) (hproper n) (h_comp n)
+  let O : ℕ → PlaneTiling P := fun n => Classical.choose (H n)
+  have Hspec := fun n => Classical.choose_spec (H n)
+  have heq : ∀ n, Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq (n + 1))).tiles = (O (n + 1)).tiles := by
+    intro n
+    exact (Hspec (n + 1)).1.symm
+  refine ⟨O, fun n => (Hspec n).1, fun n => ?_, fun n => (Hspec n).2.1, fun n j hj => ?_⟩
+  · have h1 := (Hspec n).2.2.1
+    have h2 : Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq (n + 1))).tiles = (O (n + 1)).tiles := heq n
+    have h3 : (O n).tiles = τ.decomposeIter Sys.GS.k (Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq (n + 1))).tiles) := h1.symm
+    rw [h2] at h3
+    exact h3.symm
+  · have h1 := (Hspec n).2.2.2 j hj
+    have h2 : Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq (n + 1))).tiles = (O (n + 1)).tiles := heq n
+    have h3 : SideToSideSet (τ.decomposeIter j (Sys.GS.G.scatter (Sys.dec.toDecoration.project (seq (n + 1))).tiles)) := h1
+    rw [h2] at h3
+    exact h3
 
 private lemma sts_hierarchical_of_strict_proper_step2_sts_step2_interleave
     {P : Protoset} {τ : Substitution P} {k : ℕ} (hk : 0 < k)

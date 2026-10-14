@@ -1328,13 +1328,18 @@ def IsStrictExactBlockOf (K : StrictBlock C hC) (D : StrictDecTile C hC) : Prop 
   C.form D.typ = K.α ∧ ∀ t, C.owner t = K.α → IsStrictChildOf C hC D (K.tileOf t)
 
 /-- `T'` is obtained from the macroblocks of `part` by replacing each block with a
-reconstructed parent and scaling down by `θ`. -/
+reconstructed parent and scaling down by `θ`.  The reconstructed parent of a block has the type
+`h.1` of a common boundary header `h` of the block (`lem:comp/reconstruction`).  Repair of
+14 October 2026: the type was an arbitrary witness before, and a relabelled parent of the same
+form satisfied the old definition without being normal and identity-correct (codex). -/
 def IsStrictReconstruction {T : PlaneTiling (strictProtoset C hC)}
     (part : StrictMacroPartition C hC T) (T' : PlaneTiling (strictProtoset C hC)) : Prop :=
   (∀ X ∈ T'.tiles, ∃ j, (part.block j).v = C.σ.θ • X.anchor ∧
-      ∃ t, X.form = StrictForm.typed (strictReconstruct C hC (part.block j) t)) ∧
+      ∃ h, StrictCommonHeader C hC (part.block j) h ∧
+        X.form = StrictForm.typed (strictReconstruct C hC (part.block j) h.1)) ∧
   (∀ j, ∃ X ∈ T'.tiles, (part.block j).v = C.σ.θ • X.anchor ∧
-      ∃ t, X.form = StrictForm.typed (strictReconstruct C hC (part.block j) t))
+      ∃ h, StrictCommonHeader C hC (part.block j) h ∧
+        X.form = StrictForm.typed (strictReconstruct C hC (part.block j) h.1))
 
 /-- The macroside `d` of block `j` has a complete opposing macroside of another block with the
 same ordered subdivision (the strict replacement of the conclusion of `lem:comp/alignment`). -/
@@ -4866,6 +4871,17 @@ private theorem scr_recon_carrier (K : StrictBlock C hC) (t : C.Typ) (ht : C.for
   · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
     exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add, smul_inv_smul₀ hθ]⟩
 
+/-- Step 1 of the blueprint proof of `strict_composed_proper_step1_reconstruction`: every block
+of the assembled strict partition of a strictly matched legal tiling has a common boundary header
+(`lem:comp/boundary-header`): the block is a `StrictBlockContext` (a strictly matched realization
+whose noncentral children are legal, from `hT`, `hL` and `part`) and
+`strict_boundary_header_constant` applies. -/
+private theorem strict_composed_proper_step1_reconstruction_step1_headers
+    (T : PlaneTiling (strictProtoset C hC)) (hT : IsStrictMatched C hC T)
+    (hL : AllStrictLegal C hC T) (part : StrictMacroPartition C hC T) (j : part.ι) :
+    ∃ h : HeaderKernel.Header C.Typ C.Side, StrictCommonHeader C hC (part.block j) h := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `strict_composed_proper`: construct the plane tiling
 of reconstructed parents from an assembled strict macro-partition.  Strict matching and
 legality of `T` are needed: a `StrictBlock` records only its form `α`, offset and colours, and
@@ -4883,18 +4899,10 @@ private theorem strict_composed_proper_step1_reconstruction (hτ : τ.STS)
   have _ := hτ; have _ := hΔ; have _ := hT
   classical
   have hθ : C.σ.θ ≠ 0 := (zero_lt_one.trans C.σ.one_lt).ne'
-  have hform : ∀ j, ∃ t, C.form t = (part.block j).α := by
-    intro j
-    have hmem : (part.block j).placed (C.central (part.block j).α) ∈ T.tiles :=
-      part.cover ▸ Set.mem_iUnion.2 ⟨j, C.central _, C.g5_central_owner _, rfl⟩
-    obtain ⟨ch, h0, hch, -⟩ := hL _ hmem
-    refine ⟨(ch 1).typ, ?_⟩
-    have h1 := (hch 0).1
-    rw [h0] at h1
-    exact h1.symm.trans (C.g5_central_owner _)
-  choose tj htj using hform
+  choose hd hhd using strict_composed_proper_step1_reconstruction_step1_headers C hC T hT hL part
+  have htj : ∀ j, C.form (hd j).1 = (part.block j).α := fun j => (hhd j).1
   let X : part.ι → PlacedTile (strictProtoset C hC) := fun j =>
-    ⟨.typed (strictReconstruct C hC (part.block j) (tj j)), C.σ.θ⁻¹ • (part.block j).v⟩
+    ⟨.typed (strictReconstruct C hC (part.block j) (hd j).1), C.σ.θ⁻¹ • (part.block j).v⟩
   have hX : ∀ j, C.σ.θ • (X j).carrier = support (part.block j).tiles := fun j =>
     scr_recon_carrier C hC _ _ (htj j)
   have hsuppT : support T.tiles = ⋃ j, support (part.block j).tiles := by
@@ -4934,9 +4942,9 @@ private theorem strict_composed_proper_step1_reconstruction (hτ : τ.STS)
     have hBT : (part.block j').placed t' ∈ T.tiles := part.cover ▸ Set.mem_iUnion.2 ⟨j', hB⟩
     exact Set.disjoint_left.1 (T.disjoint hAT hBT hAB) hz hz'
   · rintro _ ⟨j, rfl⟩
-    exact ⟨j, (smul_inv_smul₀ hθ _).symm, tj j, rfl⟩
+    exact ⟨j, (smul_inv_smul₀ hθ _).symm, hd j, hhd j, rfl⟩
   · intro j
-    exact ⟨X j, Set.mem_range_self j, (smul_inv_smul₀ hθ _).symm, tj j, rfl⟩
+    exact ⟨X j, Set.mem_range_self j, (smul_inv_smul₀ hθ _).symm, hd j, hhd j, rfl⟩
 
 /-- Step 2 of the blueprint proof of `strict_composed_proper`: each assembled block is an
 exact strict decomposition of its reconstructed parent. -/

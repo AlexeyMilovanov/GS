@@ -138,13 +138,18 @@ abbrev IsExactComposition (c : MacroCertificate P) (T' T : PlaneTiling (typedDec
   IsExactCompositionWith c (IsChildOf c) T' T
 
 /-- `T'` is obtained from the macroblocks of `part` by replacing each block
-with its reconstructed parent and scaling down by `θ`. -/
+with its reconstructed parent and scaling down by `θ`.  The reconstructed parent
+of a block has the type `h.1` of a common boundary header `h` of the block
+(`lem:comp/reconstruction`: "define `D` to have type `t`", the type of the
+header `h` of `lem:comp/boundary-header`).  Repair of 14 October 2026: the type
+was unconstrained before, and a relabelled parent of the same form satisfied the
+old definition while being neither normal nor exact. -/
 def IsReconstruction (c : MacroCertificate P) {T : PlaneTiling (typedDecoration c)}
     (part : MacroPartition c T) (T' : PlaneTiling (typedDecoration c)) : Prop :=
   (∀ X ∈ T'.tiles, ∃ j, (part.block j).v = c.σ.θ • X.anchor ∧
-      tileDec X = reconstruct c (part.block j) (tileDec X).typ) ∧
+      ∃ h, CommonHeader c (part.block j) h ∧ tileDec X = reconstruct c (part.block j) h.1) ∧
   (∀ j, ∃ X ∈ T'.tiles, (part.block j).v = c.σ.θ • X.anchor ∧
-      tileDec X = reconstruct c (part.block j) (tileDec X).typ)
+      ∃ h, CommonHeader c (part.block j) h ∧ tileDec X = reconstruct c (part.block j) h.1)
 
 /-- A macroside is *mode-uniform*: either all its child outer sides carry
 positive ranks, or all carry zero. -/
@@ -4254,6 +4259,18 @@ private lemma recon_exists_type (c : MacroCertificate P) (T : PlaneTiling (typed
   rw [← h]
   exact c.g5_central_owner _
 
+/-- Step 1 of the blueprint proof of `composed_proper_step1_reconstruction`: every block of the
+assembled partition of a proper legal tiling has a common boundary header
+(`lem:comp/boundary-header`): the block is a `BlockContext` -- a proper realization whose
+noncentral children are legal, by the argument of
+`reconstructed_acyclic_legal_step1_block_context`, which uses only `hT`, `hL` and `part` -- and
+`boundary_header_constant` applies. -/
+private lemma composed_proper_step1_reconstruction_step1_headers (c : MacroCertificate P)
+    (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T) (j : part.ι) :
+    ∃ h : HeaderKernel.Header c.Typ c.Side, CommonHeader c (part.block j) h := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `composed_proper`: reconstruction gives a plane tiling.
 ("Assembly partitions the plane into the macroblocks.  Their underlying polygons are scaled
 parent polygons, so replacing and scaling them preserves coverage and disjoint interiors.")
@@ -4264,12 +4281,12 @@ private lemma composed_proper_step1_reconstruction (c : MacroCertificate P) (hH 
     (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T) :
     ∃ T' : PlaneTiling (typedDecoration c), IsReconstruction c part T' := by
-  have _ := hH; have _ := hT
-  choose t ht using recon_exists_type c T hL part
+  choose hd hhd using composed_proper_step1_reconstruction_step1_headers c hH T hT hL part
+  have ht : ∀ j, c.form (hd j).1 = (part.block j).α := fun j => (hhd j).1
   set θ := c.σ.θ with hθdef
   have hθ : θ ≠ 0 := (zero_lt_one.trans c.σ.one_lt).ne'
   let X : part.ι → PlacedTile (typedDecoration c) := fun j =>
-    ⟨reconstruct c (part.block j) (t j), θ⁻¹ • (part.block j).v⟩
+    ⟨reconstruct c (part.block j) (hd j).1, θ⁻¹ • (part.block j).v⟩
   have hcar : ∀ j x, x ∈ (X j).carrier ↔ θ • x ∈ support (part.block j).tiles := by
     intro j x
     rw [recon_mem_support_block, mem_smul_set_iff_inv_smul_mem₀ hθ]
@@ -4307,9 +4324,9 @@ private lemma composed_proper_step1_reconstruction (c : MacroCertificate P) (hH 
       exact Set.disjoint_left.1 (part.disjoint hjk') hA hB
     exact Set.disjoint_left.1 (T.disjoint hAT hBT hAB) hzA hzB
   · rintro _ ⟨j, rfl⟩
-    exact ⟨j, (smul_inv_smul₀ hθ _).symm, rfl⟩
+    exact ⟨j, (smul_inv_smul₀ hθ _).symm, hd j, hhd j, rfl⟩
   · intro j
-    exact ⟨X j, mem_range_self j, (smul_inv_smul₀ hθ _).symm, rfl⟩
+    exact ⟨X j, mem_range_self j, (smul_inv_smul₀ hθ _).symm, hd j, hhd j, rfl⟩
 
 /-- Step 2 of the blueprint proof of `composed_proper`: exact repaired decomposition follows
 block by block. -/
@@ -4515,7 +4532,11 @@ private lemma reconstructed_acyclic_legal_step2_noncentral {P : Protoset}
     (hnc : ¬ c.IsCentral (tileDec Y).typ)
     (hctx : ∀ j, BlockContext c (part.block j)) :
     headerLegal c (tileDec Y) := by
-  obtain ⟨j, hj, heq⟩ := hrec.1 Y hY
+  obtain ⟨j, hj, h₀, _hh₀, heq₀⟩ := hrec.1 Y hY
+  have heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ := by
+    have htyp : (tileDec Y).typ = h₀.1 := congrArg DecTile.typ heq₀
+    rw [htyp]
+    exact heq₀
   have hh := reconstructed_acyclic_legal_step2_noncentral_step1_common_header c hH T hT hL part T'
     hrec hT' hN hex Y hY j hj heq (hctx j)
   have hA : headerLegal c (part.block j).centre := by

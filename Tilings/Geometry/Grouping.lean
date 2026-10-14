@@ -11419,6 +11419,101 @@ private lemma existsAnnularSpokes_step5_crosscuts (A C : PolygonalDisk)
     hdisj hstart hstop hγo hγi hhom hord
   exact ⟨γo, γi, hγo, hγi, hhom, hord, hinner⟩
 
+/-- Step 1 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions`: "Cutting a
+polygonal annulus along such `4N` arcs gives `4N` disks, one between each successive pair; this
+is a direct polygonal Jordan argument, or the elementary polygonal annulus theorem."  Removing
+the cross-cuts from the open annulus `int A \ C` leaves `k` pairwise disjoint connected open
+regions covering it, the `j`-th having the cross-cuts `j` and `j + 1` in its closure. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step1_cut (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (hk : 2 ≤ k) (α : Fin k → PolyArc)
+    (hsimple : ∀ j, (α j).IsSimple)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start)) :
+    ∃ W : Fin k → Set Pt, (∀ j, IsOpen (W j)) ∧ (∀ j, IsConnected (W j)) ∧
+      (∀ i j, i ≠ j → Disjoint (W i) (W j)) ∧
+      ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier) ∧
+      (∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions`: "this is a
+direct polygonal Jordan argument, or the elementary polygonal annulus theorem."  Any family of
+cut regions as in step 1 consists of the components of the cut annulus; each is the interior of
+the polygonal Jordan curve formed by two successive cross-cuts and the boundary arcs of `A` and
+`C` between them, so its closure is a closed disk and has connected complement. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (hk : 2 ≤ k) (α : Fin k → PolyArc)
+    (hsimple : ∀ j, (α j).IsSimple)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start))
+    (W : Fin k → Set Pt) (hWo : ∀ j, IsOpen (W j)) (hWc : ∀ j, IsConnected (W j))
+    (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
+    (hWU : ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier))
+    (hWcl : ∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j))
+    (j : Fin k) : IsConnected (closure (W j))ᶜ := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions`: "Their inner
+boundary arcs have distinct endpoints and positive length."  Connectedness part: the closure of
+each cut region meets `C` exactly in the boundary arc of `∂C` between the starts of the two
+successive cross-cuts, which is connected. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step3_inner_conn (A C : PolygonalDisk)
+    (hCA : C.carrier ⊆ interior A.carrier) {k : ℕ} (hk : 2 ≤ k) (α : Fin k → PolyArc)
+    (hsimple : ∀ j, (α j).IsSimple)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) (fun j => (α j).stop) (fun j => (α j).start))
+    (W : Fin k → Set Pt) (hWo : ∀ j, IsOpen (W j)) (hWc : ∀ j, IsConnected (W j))
+    (hWd : ∀ i j, i ≠ j → Disjoint (W i) (W j))
+    (hWU : ⋃ j, W j = interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier))
+    (hWcl : ∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j))
+    (j : Fin k) : IsConnected (closure (W j) ∩ C.carrier) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions`: "Their inner
+boundary arcs have distinct endpoints and positive length."  Nontriviality part: the closure of
+the `j`-th region contains the starts of the cross-cuts `j` and `j + 1`, which lie on `∂C ⊆ C`
+and are distinct since the cross-cuts are disjoint and `k ≥ 2`. -/
+private lemma existsAnnularSpokes_step6_cut_step1_regions_step4_inner_nontrivial
+    (C : PolygonalDisk) {k : ℕ} (hk : 2 ≤ k) (α : Fin k → PolyArc)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    (W : Fin k → Set Pt)
+    (hWcl : ∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j))
+    (j : Fin k) : (closure (W j) ∩ C.carrier).Nontrivial := by
+  have hmem : ∀ i, (α i).start ∈ (α i).carrier ∧ (α i).start ∈ C.carrier := by
+    intro i
+    have h : (α i).start ∈ (α i).carrier ∩ frontier C.carrier := by
+      rw [hC i]; exact Set.mem_singleton _
+    refine ⟨h.1, ?_⟩
+    have h2 := frontier_subset_closure h.2
+    rwa [C.compact.isClosed.closure_eq] at h2
+  have hne : finRotate k j ≠ j := by
+    obtain ⟨n, rfl⟩ : ∃ n, k = n + 2 := ⟨k - 2, by omega⟩
+    rw [finRotate_succ_apply]
+    intro h
+    have := congrArg Fin.val h
+    rw [Fin.val_add, Fin.val_one] at this
+    have hj := j.isLt
+    rcases Nat.lt_or_ge (j.val + 1) (n + 2) with h1 | h1
+    · rw [Nat.mod_eq_of_lt h1] at this; omega
+    · have : j.val + 1 = n + 2 := by omega
+      simp_all
+  refine ⟨(α j).start, ⟨(hWcl j).1 (hmem j).1, (hmem j).2⟩, (α (finRotate k j)).start,
+    ⟨(hWcl j).2 (hmem _).1, (hmem _).2⟩, ?_⟩
+  intro heq
+  exact Set.disjoint_left.mp (hdisj (finRotate k j) j hne) (hmem _).1 (heq ▸ (hmem j).1)
+
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "Cutting a polygonal
 annulus along such `4N` arcs gives `4N` disks, one between each successive pair; this is a
 direct polygonal Jordan argument, or the elementary polygonal annulus theorem ... Their inner
@@ -11443,7 +11538,14 @@ private lemma existsAnnularSpokes_step6_cut_step1_regions (A C : PolygonalDisk)
       (∀ j, IsConnected (closure (W j))ᶜ) ∧
       (∀ j, IsConnected (closure (W j) ∩ C.carrier) ∧
         (closure (W j) ∩ C.carrier).Nontrivial) := by
-  sorry
+  obtain ⟨W, hWo, hWc, hWd, hWU, hWcl⟩ :=
+    existsAnnularSpokes_step6_cut_step1_regions_step1_cut A C hCA hk α hsimple hin hC hA hdisj horder
+  refine ⟨W, hWo, hWc, hWd, hWU, hWcl, fun j => ?_, fun j => ⟨?_, ?_⟩⟩
+  · exact existsAnnularSpokes_step6_cut_step1_regions_step2_compl A C hCA hk α hsimple hin hC hA hdisj
+      horder W hWo hWc hWd hWU hWcl j
+  · exact existsAnnularSpokes_step6_cut_step1_regions_step3_inner_conn A C hCA hk α hsimple hin hC hA
+      hdisj horder W hWo hWc hWd hWU hWcl j
+  · exact existsAnnularSpokes_step6_cut_step1_regions_step4_inner_nontrivial C hk α hC hdisj W hWcl j
 
 /-- Step 2a of the blueprint proof of `existsAnnularSpokes_step6_cut_step2_faces`: Uniqueness from topological connectedness. -/
 private lemma existsAnnularSpokes_step6_cut_step2_faces_unique

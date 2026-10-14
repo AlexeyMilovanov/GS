@@ -5335,7 +5335,11 @@ private theorem strict_composed_proper_step1_reconstruction_step1_headers_step2_
     (part : StrictMacroPartition C hC T) (j : part.ι) :
     ∀ t, C.owner t = (part.block j).α → t ≠ C.central (part.block j).α →
       StrictLegal C hC ((part.block j).tileOf t) := by
-  sorry
+  intro t ht _
+  have h_placed_in_T : (part.block j).placed t ∈ T.tiles := by
+    rw [← part.cover]
+    exact Set.mem_iUnion.mpr ⟨j, ⟨t, ht, rfl⟩⟩
+  exact hL _ h_placed_in_T
 
 /-- Step 1 of the blueprint proof of `strict_composed_proper_step1_reconstruction`: every block
 of the assembled strict partition of a strictly matched legal tiling has a common boundary header

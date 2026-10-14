@@ -5633,7 +5633,33 @@ private theorem strict_composed_proper_step2_exact_step3_block_patch
     (hv : K.v = C.σ.θ • X.anchor)
     (hform : X.form = StrictForm.typed D) :
     (strictSubst C hC).decomposeTile X = K.tiles := by
-  sorry
+  dsimp [Substitution.decomposeTile]
+  rw [hform]
+  ext Y
+  constructor
+  · intro hY
+    change Y ∈ translateSet (C.σ.θ • X.anchor) _ at hY
+    rcases hY with ⟨Z, ⟨t, ht, rfl⟩, rfl⟩
+    obtain ⟨_, htile⟩ := hE.2 t (hE.1 ▸ ht)
+    refine ⟨t, ht.trans hE.1, ?_⟩
+    ext
+    · exact congrArg StrictForm.typed htile.symm
+    · dsimp [StrictBlock.placed, PlacedTile.translate]
+      rw [hv]
+      simp only [PiLp.smul_apply, smul_eq_mul]
+  · intro hY
+    rcases hY with ⟨t, ht, rfl⟩
+    obtain ⟨_, htile⟩ := hE.2 t ht
+    change _ ∈ translateSet (C.σ.θ • X.anchor) _
+    refine ⟨⟨.typed (K.tileOf t), C.anchor t⟩, ?_, ?_⟩
+    · refine ⟨t, ht.trans hE.1.symm, ?_⟩
+      simpa [strictChild, StrictForm.proj, StrictForm.parentCells,
+        StrictForm.parentHeader] using congrArg StrictForm.typed htile.symm
+    · ext
+      · rfl
+      · dsimp [StrictBlock.placed, PlacedTile.translate]
+        rw [hv]
+        simp only [PiLp.smul_apply, smul_eq_mul]
 
 /-- Step 4 of the blueprint proof of `strict_composed_proper_step2_exact`: glue the local
 block-patch equalities into the global decomposition equality. -/

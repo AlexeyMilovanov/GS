@@ -5006,7 +5006,27 @@ private lemma existsAnnularSpokes_step6_cut_step2_faces_sub_avoid (S : Patch P) 
     (hskel : ∀ j, (α j).IsSkeletal S.tiles)
     {A : PlacedTile P} (hA : A ∈ H.faces) (hAL : A ∉ L.faces) :
     Disjoint (interior A.carrier)
-      (L.carrier ∪ ⋃ j, (α j).carrier) := by sorry
+      (L.carrier ∪ ⋃ j, (α j).carrier) := by
+  simp only [Set.disjoint_union_right, Set.disjoint_iUnion_right]
+  constructor
+  · rw [FaceGroup.carrier, L.carrier_eq, Set.disjoint_left]
+    intro x hx hxL
+    obtain ⟨B, hB, hxB⟩ := mem_support_iff'.1 hxL
+    exact interior_not_mem_other S.disjoint (H.faces_sub hA) (L.faces_sub hB)
+      (fun h => hAL (h ▸ hB)) hx hxB
+  · intro j
+    rw [PolyArc.carrier, Set.disjoint_iUnion_right]
+    intro i
+    rw [Set.disjoint_left]
+    intro x hx hxi
+    obtain ⟨B, hB, hBi⟩ := hskel j i
+    obtain ⟨i', hi'⟩ := hBi
+    have hxB : x ∈ B.carrier := tile_side_subset B i' (hi' ▸ hxi)
+    by_cases hAB : B = A
+    · rcases hAB
+      have hfront := tile_side_subset_frontier A i' (hi' ▸ hxi)
+      exact disjoint_interior_frontier.le_bot ⟨hx, hfront⟩
+    · exact interior_not_mem_other S.disjoint (H.faces_sub hA) hB (Ne.symm hAB) hx hxB
 
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step6_cut`: "All cuts use original
 edges, so the disks are unions of whole original faces."  The interior of a face of `H` that is

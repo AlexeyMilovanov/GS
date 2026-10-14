@@ -2915,6 +2915,75 @@ private lemma alignment_complete_step2_subdivision_eq_step1_length (c : MacroCer
     (c.outerList (part.block j).α d).length = (c.outerList (part.block j').α e).length := by
   sorry
 
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_list_lemma
+    {α β : Type*} (L₁ : List α) (L₂ : List β) {f₁ : α → ℝ} {f₂ : β → ℝ} {R : α → β → Prop}
+    (hs₁ : L₁.Pairwise (fun a b => f₁ a < f₁ b))
+    (hs₂ : L₂.Pairwise (fun a b => f₂ a < f₂ b))
+    (h_fwd : ∀ a ∈ L₁, ∃ b ∈ L₂, R a b ∧ f₂ b = f₁ a)
+    (h_bwd : ∀ b ∈ L₂, ∃ a ∈ L₁, f₁ a = f₂ b)
+    (h_len : L₁.length = L₂.length) :
+    List.Forall₂ R L₁ L₂ := by
+  sorry
+
+/-- Step 1 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
+Both lists are sorted under the inner product with the macro side direction. -/
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted
+    (c : MacroCertificate P)
+    (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d)
+    (hlen : (c.outerList (part.block j).α d).length = (c.outerList (part.block j').α e).length) :
+    let w := c.macroSideDir (part.block j).α d;
+    (c.outerList (part.block j).α d).Pairwise (fun a b =>
+      @inner ℝ _ _ w ((part.block j).v + c.occMid a) <
+        @inner ℝ _ _ w ((part.block j).v + c.occMid b)) ∧
+    (c.outerList (part.block j').α e).Pairwise (fun a b =>
+      @inner ℝ _ _ w ((part.block j').v + c.occMid a) <
+        @inner ℝ _ _ w ((part.block j').v + c.occMid b)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
+Forward trace maps children on the macroside correctly preserving geometry. -/
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace
+    (c : MacroCertificate P)
+    (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d)
+    (hlen : (c.outerList (part.block j).α d).length = (c.outerList (part.block j').α e).length) :
+    let w := c.macroSideDir (part.block j).α d;
+    ∀ o ∈ c.outerList (part.block j).α d, ∃ o' ∈ c.outerList (part.block j').α e,
+      (part.block j).childSide o = (part.block j').childSide o' ∧
+      @inner ℝ _ _ w ((part.block j).v + c.occMid o) =
+        @inner ℝ _ _ w ((part.block j').v + c.occMid o') := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `alignment_complete_step2_subdivision_eq_step2_pointwise`:
+Backward trace maps children on the opposing macroside correctly preserving geometry. -/
+private lemma alignment_complete_step2_subdivision_eq_step2_pointwise_step3_backward_trace
+    (c : MacroCertificate P)
+    (hH : c.Hereditary) (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T)
+    (hT : IsProper c T) (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X))
+    (j j' : part.ι) (hneq : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n) (e : Fin (c.Q.disk (part.block j').α).n)
+    (hrank : RankMatched c part j d)
+    (hmode : ∀ j'' : part.ι, j'' ≠ j → ∀ e'', ModeUniform c (part.block j'') e'')
+    (hmacro : (part.block j').macroSide e = (part.block j).macroSide d)
+    (hlen : (c.outerList (part.block j).α d).length = (c.outerList (part.block j').α e).length) :
+    let w := c.macroSideDir (part.block j).α d;
+    ∀ o' ∈ c.outerList (part.block j').α e, ∃ o ∈ c.outerList (part.block j).α d,
+      (part.block j).childSide o = (part.block j').childSide o' ∧
+      @inner ℝ _ _ w ((part.block j).v + c.occMid o) =
+        @inner ℝ _ _ w ((part.block j').v + c.occMid o') := by
+  sorry
+
 /-- Step 2b of the blueprint proof of `alignment_complete_step2_subdivision_eq`: Once the geometric
 macrosides coincide and their child side subdivisions have the same length,
 their child sides correspond exactly in geometry pointwise. -/
@@ -2931,7 +3000,31 @@ private lemma alignment_complete_step2_subdivision_eq_step2_pointwise (c : Macro
     (hk' : k < (c.outerList (part.block j').α e).length) :
     (part.block j).childSide ((c.outerList (part.block j).α d).get ⟨k, hk⟩) =
     (part.block j').childSide ((c.outerList (part.block j').α e).get ⟨k, hk'⟩) := by
-  sorry
+  let w := c.macroSideDir (part.block j).α d
+  have h_sorted :=
+    alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted
+      c hH T part hT hL j j' hneq d e hrank hmode hmacro hlen
+  have h_fwd :=
+    alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace
+      c hH T part hT hL j j' hneq d e hrank hmode hmacro hlen
+  have h_bwd :=
+    alignment_complete_step2_subdivision_eq_step2_pointwise_step3_backward_trace
+      c hH T part hT hL j j' hneq d e hrank hmode hmacro hlen
+  have h_forall2 :=
+    alignment_complete_step2_subdivision_eq_step2_pointwise_list_lemma
+      (c.outerList (part.block j).α d) (c.outerList (part.block j').α e)
+      (f₁ := fun a => @inner ℝ _ _ w ((part.block j).v + c.occMid a))
+      (f₂ := fun a => @inner ℝ _ _ w ((part.block j').v + c.occMid a))
+      (R := fun a b => (part.block j).childSide a = (part.block j').childSide b)
+      h_sorted.1 h_sorted.2 ?_ ?_ hlen
+  rw [List.forall₂_iff_get] at h_forall2
+  exact (h_forall2.2 k hk hk')
+  · intro a ha
+    obtain ⟨b, hb, h_child, h_inner⟩ := h_fwd a ha
+    exact ⟨b, hb, h_child, h_inner.symm⟩
+  · intro b hb
+    obtain ⟨a, ha, h_child, h_inner⟩ := h_bwd b hb
+    exact ⟨a, ha, h_inner⟩
 
 /-- Step 2 of the blueprint proof of `alignment_complete`: Complete child-side
 matching identifies the whole ordered subdivision. Once the geometric

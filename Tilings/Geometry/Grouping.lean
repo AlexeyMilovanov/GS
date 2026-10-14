@@ -2593,6 +2593,55 @@ private lemma plAnnulusRouting_step2_plApprox_step1_separation {k : ℕ}
   · intro i j hij
     exact hUdisj i (Finset.mem_univ i) j (Finset.mem_univ j) hij
 
+private lemma plAnnulusRouting_step2_plApprox_step2_single_x_neq_y 
+    (x y : Tilings.Pt) (γ : ℝ → Tilings.Pt)
+    (hend_x : γ 0 = x)
+    (hend_y : γ 1 = y)
+    (hsimp : Function.Injective (Set.restrict (Set.Icc (0:ℝ) 1) γ)) : x ≠ y := by
+  intro h
+  have h1 : (⟨0, by norm_num⟩ : Set.Icc (0 : ℝ) 1) ≠ ⟨1, by norm_num⟩ := by
+    intro h_eq
+    have h_val := congrArg Subtype.val h_eq
+    norm_num at h_val
+  have h2 : Set.restrict (Set.Icc (0 : ℝ) 1) γ ⟨0, by norm_num⟩ =
+            Set.restrict (Set.Icc (0 : ℝ) 1) γ ⟨1, by norm_num⟩ := by
+    change γ 0 = γ 1
+    rw [hend_x, hend_y, h]
+  exact h1 (hsimp h2)
+
+private structure plAnnulusRouting_step2_plApprox_step2_single_RawData 
+    (x y : Tilings.Pt) (U : Set Tilings.Pt) (A C : Tilings.PolygonalDisk) where
+  n : ℕ
+  pt : Fin (n + 2) → Tilings.Pt
+  start_eq : pt 0 = x
+  stop_eq : pt (Fin.last (n + 1)) = y
+  carr_subset : ∀ i : Fin (n + 1), segment ℝ (pt i.castSucc) (pt i.succ) ⊆ A.carrier \ interior C.carrier
+  carr_int_subset : ∀ i : Fin (n + 1), segment ℝ (pt i.castSucc) (pt i.succ) \ {x, y} ⊆ interior A.carrier \ C.carrier
+  carr_U_subset : ∀ i : Fin (n + 1), segment ℝ (pt i.castSucc) (pt i.succ) ⊆ U
+
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_step2_plApprox_step2_single`: Poly path. -/
+private lemma plAnnulusRouting_step2_plApprox_step2_single_step1_polyPath (A C : Tilings.PolygonalDisk)
+    (hC : C.carrier ⊆ interior A.carrier) (x y : Tilings.Pt)
+    (γ : ℝ → Tilings.Pt)
+    (hcont : Continuous γ)
+    (hend_x : γ 0 = x)
+    (hend_y : γ 1 = y)
+    (hin : ∀ t ∈ Set.Ioo (0:ℝ) 1, γ t ∈ interior A.carrier \ C.carrier)
+    (hsimp : Function.Injective (Set.restrict (Set.Icc (0:ℝ) 1) γ))
+    (U : Set Tilings.Pt) (hU_open : IsOpen U) (hU_supset : γ '' Set.Icc (0:ℝ) 1 ⊆ U) :
+    Nonempty (plAnnulusRouting_step2_plApprox_step2_single_RawData x y U A C) := sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_step2_plApprox_step2_single`: Loop erasure. -/
+private lemma plAnnulusRouting_step2_plApprox_step2_single_step2_eraseLoops 
+    (x y : Tilings.Pt) (hxy : x ≠ y)
+    (U : Set Tilings.Pt) (A C : Tilings.PolygonalDisk)
+    (rd : plAnnulusRouting_step2_plApprox_step2_single_RawData x y U A C) :
+    ∃ α : Tilings.Geometry.PolyArc,
+      α.IsSimple ∧ α.start = x ∧ α.stop = y ∧
+      α.carrier ⊆ A.carrier \ interior C.carrier ∧
+      α.carrier \ {x, y} ⊆ interior A.carrier \ C.carrier ∧
+      α.carrier ⊆ U := sorry
+
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step2_plApprox`: Single arc approximation.
 A single continuous arc disjoint from C can be PL-approximated within its neighborhood. -/
 private lemma plAnnulusRouting_step2_plApprox_step2_single (A C : Tilings.PolygonalDisk)
@@ -2608,7 +2657,11 @@ private lemma plAnnulusRouting_step2_plApprox_step2_single (A C : Tilings.Polygo
       α.IsSimple ∧ α.start = x ∧ α.stop = y ∧
       α.carrier ⊆ A.carrier \ interior C.carrier ∧
       α.carrier \ {x, y} ⊆ interior A.carrier \ C.carrier ∧
-      α.carrier ⊆ U := sorry
+      α.carrier ⊆ U := by
+  have hxy := plAnnulusRouting_step2_plApprox_step2_single_x_neq_y x y γ hend_x hend_y hsimp
+  have h_rd := plAnnulusRouting_step2_plApprox_step2_single_step1_polyPath A C hC x y γ hcont hend_x hend_y hin hsimp U hU_open hU_supset
+  obtain ⟨rd⟩ := h_rd
+  exact plAnnulusRouting_step2_plApprox_step2_single_step2_eraseLoops x y hxy U A C rd
 
 /-- Step 2 of the blueprint proof of `plAnnulusRouting`: PL approximation.
 Any family of pairwise disjoint, simple continuous arcs in a polygonal domain

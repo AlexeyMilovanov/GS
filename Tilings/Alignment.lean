@@ -5213,6 +5213,17 @@ private theorem strict_schedule_composition_step2_fine_sts_step2_dissect_sts_ste
       ⟨(huvsub (hrssub hz).1).2, (hrssub hz).2⟩⟩
   exact hXparent.trans (hpq.trans hYparent.symm)
 
+
+/-- Dissected tiles of distinct projected parents of a proper decorated tiling meet side to side:
+public form of `strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group`
+(reused by `dissection_preserves_sts_sofic` in `LocalRules.lean`). -/
+theorem dissect_cross_group_sideToSide {P : Protoset} (G : GroupedFamily P)
+    (dec : SideDecoration G.P') (T : PlaneTiling dec.P') (hp : dec.Proper T) :
+    ∀ A ∈ dec.toDecoration.project T, ∀ B ∈ dec.toDecoration.project T, A ≠ B →
+      ∀ X ∈ G.scatterTile A, ∀ Y ∈ G.scatterTile B,
+        ∀ i j, OverlapPos (X.side i) (Y.side j) → X.side i = Y.side j :=
+  strict_schedule_composition_step2_fine_sts_step2_dissect_sts_step2_cross_group G dec T hp
+
 /-- Step 2 of the blueprint proof of `strict_schedule_composition_step2_fine_sts`: dissecting a
 proper strict coloured tiling preserves side-to-sideness. Within one grouped tile the dissect is
 STS by `hΔ` (the `j = 0` case); across two distinct tiles of the (side-to-side, by `hp`) projected

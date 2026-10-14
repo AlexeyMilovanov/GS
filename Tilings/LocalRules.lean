@@ -2152,8 +2152,8 @@ private lemma dissection_preserves_sts_sofic_step2_scatter_sts_step2_diff_group
     (hB : B ∈ G.scatterTile B')
     (i : Fin (P.disk A.form).n) (j : Fin (P.disk B.form).n)
     (h_overlap : OverlapPos (A.side i) (B.side j)) :
-    A.side i = B.side j := by
-  sorry
+    A.side i = B.side j :=
+  Alignment.dissect_cross_group_sideToSide G dec T hT A' hA' B' hB' h_neq A hA B hB i j h_overlap
 
 /-- Step 2 of the blueprint proof of `dissection_preserves_sts_sofic`: scattering
     a proper side-decoration tiling preserves the side-to-side property.  The

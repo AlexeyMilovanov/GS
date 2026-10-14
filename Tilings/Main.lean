@@ -29,12 +29,6 @@ theorem sts_side_to_side_hierarchy_sofic (h : τ.STS) :
     IsSideToSideSofic {T | τ.IsSideToSideHierarchical T} := by
   sorry
 
-/-- Theorem 1(c) (`thm:sts-hierarchy`): under STS the hierarchical plane
-tilings are sofic. -/
-theorem sts_hierarchy_sofic (h : τ.STS) :
-    IsSofic {T | τ.IsHierarchical T} := by
-  sorry
-
 /-- Theorem 2(a) (`thm:flc-substitution`): under FLC the substitution plane
 tilings are sofic. -/
 theorem flc_substitution_sofic (h : τ.FLC) :
@@ -50,6 +44,12 @@ theorem flc_hierarchy_sofic (h : τ.FLC) :
 /-- `lem:sts-flc`: STS implies FLC. -/
 theorem STS.flc (h : τ.STS) : τ.FLC :=
   STS.finite_crowns τ h
+
+/-- Theorem 1(c) (`thm:sts-hierarchy`): under STS the hierarchical plane
+tilings are sofic. -/
+theorem sts_hierarchy_sofic (h : τ.STS) :
+    IsSofic {T | τ.IsHierarchical T} := by
+  exact flc_hierarchy_sofic τ (STS.flc τ h)
 
 /-- Theorem 1(c) follows from Theorem 2(b) and `STS.flc`; recorded as the
 intended dependency. -/

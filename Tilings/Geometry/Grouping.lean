@@ -4352,6 +4352,367 @@ private lemma existsAnnularSpokes_step2_tubes (c : Pt) {N : ℕ} {R D : ℝ} (hD
     have := existsAnnularSpokes_step2_tubes_step2_separation c hD hN hR hij hp hq
     linarith)
 
+private lemma existsAnnularSpokes_walk_iterate {I X : Type*} {r : X → X → Prop}
+    {f : I → I} {g : I → X} (hf : ∀ i, r (g i) (g (f i))) (i : I) :
+    ∀ n, Relation.ReflTransGen r (g i) (g ((f^[n]) i)) := by
+  intro n
+  induction n generalizing i with
+  | zero => exact Relation.ReflTransGen.refl
+  | succ n ih =>
+      rw [Function.iterate_succ_apply]
+      exact Relation.ReflTransGen.head (hf i) (ih (f i))
+
+private lemma existsAnnularSpokes_tileBoundaryWalk (S : Patch P) {Z : Set Pt}
+    {A : PlacedTile P} (hA : A ∈ S.tiles) (hAZ : A.carrier ⊆ Z) {u w : Pt}
+    (hu : u ∈ A.vertexSet) (hw : w ∈ A.vertexSet) :
+    Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) u w := by
+  obtain ⟨i, rfl⟩ := hu
+  obtain ⟨k, rfl⟩ := hw
+  letI : NeZero (P.disk A.form).n := ⟨by have := (P.disk A.form).three_le; omega⟩
+  let r := existsAnnularSpokes_skelEdgeIn S.tiles Z
+  have hstep : ∀ l : Fin (P.disk A.form).n, r (A.vertex l) (A.vertex (finRotate _ l)) := by
+    intro l
+    refine ⟨⟨A, hA, l, tile_side_eq A l⟩, ?_⟩
+    rw [← tile_side_eq]
+    exact (tile_side_subset A l).trans hAZ
+  have hwalk := existsAnnularSpokes_walk_iterate
+    (r := r) (f := finRotate (P.disk A.form).n) (g := A.vertex) hstep i (k - i).val
+  have hend : ((finRotate (P.disk A.form).n)^[(k - i).val]) i = k := by
+    rw [← finCycle_eq_finRotate_iterate]
+    change i + (k - i) = k
+    calc
+      i + (k - i) = (k - i) + i := add_comm _ _
+      _ = k := sub_add_cancel k i
+  rwa [hend] at hwalk
+
+private lemma existsAnnularSpokes_intersectingTilesShareVertex (S : Patch P)
+    (hsts : SideToSideSet S.tiles) {A B : PlacedTile P} (hA : A ∈ S.tiles)
+    (hB : B ∈ S.tiles) (hAB : (A.carrier ∩ B.carrier).Nonempty)
+    (hAi : A.carrier ⊆ interior (support S.tiles)) :
+    (A.vertexSet ∩ B.vertexSet).Nonempty := by
+  classical
+  by_cases hEq : A = B
+  · subst B
+    let i : Fin (P.disk A.form).n := ⟨0, by have := (P.disk A.form).three_le; omega⟩
+    exact ⟨A.vertex i, ⟨i, rfl⟩, ⟨i, rfl⟩⟩
+  obtain ⟨x, hxA, hxB⟩ := hAB
+  by_cases hxvA : x ∈ A.vertexSet
+  · refine ⟨x, hxvA, ?_⟩
+    by_contra hxvB
+    have hxnot : x ∉ interior B.carrier := by
+      intro hxi
+      exact interior_not_mem_other S.disjoint hB hA (Ne.symm hEq) hxi hxA
+    have hxf : x ∈ frontier B.carrier := by
+      rw [mem_frontier_iff_of_closed (tile_isClosed B)]
+      exact ⟨hxB, hxnot⟩
+    rw [tile_frontier_eq, Set.mem_iUnion] at hxf
+    obtain ⟨i, hxi⟩ := hxf
+    have hxo : x ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate _ i)) := by
+      rw [tile_side_eq] at hxi
+      refine mem_openSegment_of_ne_left_right ?_ ?_ hxi
+      · intro h
+        exact hxvB ⟨i, h⟩
+      · intro h
+        exact hxvB ⟨finRotate _ i, h⟩
+    exact vertex_not_mem_open_side S.disjoint hsts hB hA i hxo hxvA (hAi hxA)
+  have hxnot : x ∉ interior A.carrier := by
+    intro hxi
+    exact interior_not_mem_other S.disjoint hA hB hEq hxi hxB
+  have hxf : x ∈ frontier A.carrier := by
+    rw [mem_frontier_iff_of_closed (tile_isClosed A)]
+    exact ⟨hxA, hxnot⟩
+  rw [tile_frontier_eq, Set.mem_iUnion] at hxf
+  obtain ⟨i, hxi⟩ := hxf
+  have hxo : x ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+    rw [tile_side_eq] at hxi
+    refine mem_openSegment_of_ne_left_right ?_ ?_ hxi
+    · intro h
+      exact hxvA ⟨i, h⟩
+    · intro h
+      exact hxvA ⟨finRotate _ i, h⟩
+  have hxvB : x ∉ B.vertexSet := fun hx =>
+    vertex_not_mem_open_side S.disjoint hsts hA hB i hxo hx (hAi hxA)
+  obtain ⟨k, hk⟩ := tile_partner S.disjoint hsts hA hB hEq i hxo hxB hxvB
+  rw [tile_side_eq, tile_side_eq] at hk
+  rcases seg_endpoints (tile_vertex_ne_next A i) hk.symm with h | h
+  · exact ⟨A.vertex i, ⟨i, rfl⟩, ⟨k, h.1⟩⟩
+  · exact ⟨A.vertex i, ⟨i, rfl⟩, ⟨finRotate _ k, h.2⟩⟩
+
+private lemma existsAnnularSpokes_tilesMeetingSegmentConnected (S : Patch P) {a b : Pt}
+    (hseg : segment ℝ a b ⊆ support S.tiles) {A B : PlacedTile P}
+    (hA : A ∈ S.tiles) (hB : B ∈ S.tiles) (ha : a ∈ A.carrier) (hb : b ∈ B.carrier) :
+    Relation.ReflTransGen
+      (fun X Y : PlacedTile P =>
+        (X ∈ S.tiles ∧ (X.carrier ∩ segment ℝ a b).Nonempty) ∧
+        (Y ∈ S.tiles ∧ (Y.carrier ∩ segment ℝ a b).Nonempty) ∧
+        (X.carrier ∩ Y.carrier).Nonempty)
+      A B := by
+  classical
+  let G := {X ∈ S.tiles | (X.carrier ∩ segment ℝ a b).Nonempty}
+  let r := fun X Y : PlacedTile P => X ∈ G ∧ Y ∈ G ∧ (X.carrier ∩ Y.carrier).Nonempty
+  let C := {X ∈ G | Relation.ReflTransGen r A X}
+  let E := G \ C
+  have hAG : A ∈ G := ⟨hA, ⟨a, ha, left_mem_segment ℝ _ _⟩⟩
+  have hBG : B ∈ G := ⟨hB, ⟨b, hb, right_mem_segment ℝ _ _⟩⟩
+  have hGC : G.Finite := S.finite.subset fun X hX => hX.1
+  by_contra hnot
+  have hBE : B ∈ E := ⟨hBG, fun h => hnot (by simpa [r, G] using h.2)⟩
+  have hAC : A ∈ C := ⟨hAG, Relation.ReflTransGen.refl⟩
+  have hCf : C.Finite := hGC.subset fun X hX => hX.1
+  have hEf : E.Finite := hGC.subset fun X hX => hX.1
+  have hdisj : Disjoint (support C) (support E) := by
+    rw [Set.disjoint_left]
+    intro x hxC hxE
+    obtain ⟨X, hXC, hxX⟩ := mem_support_iff'.1 hxC
+    obtain ⟨Y, hYE, hxY⟩ := mem_support_iff'.1 hxE
+    apply hYE.2
+    refine ⟨hYE.1, Relation.ReflTransGen.tail hXC.2 ?_⟩
+    exact ⟨hXC.1, hYE.1, x, hxX, hxY⟩
+  have hcover : segment ℝ a b ⊆ support C ∪ support E := by
+    intro x hx
+    obtain ⟨X, hXS, hxX⟩ := mem_support_iff'.1 (hseg hx)
+    have hXG : X ∈ G := ⟨hXS, ⟨x, hxX, hx⟩⟩
+    by_cases hXC : X ∈ C
+    · exact Or.inl (carrier_subset_support hXC hxX)
+    · exact Or.inr (carrier_subset_support (show X ∈ E from ⟨hXG, hXC⟩) hxX)
+  have hinter := isPreconnected_closed_iff.1 (convex_segment a b).isPreconnected
+    (support C) (support E) (support_isClosed hCf) (support_isClosed hEf) hcover
+    ⟨a, left_mem_segment ℝ _ _, carrier_subset_support hAC ha⟩
+    ⟨b, right_mem_segment ℝ _ _, carrier_subset_support hBE hb⟩
+  obtain ⟨x, -, hxC, hxE⟩ := hinter
+  exact Set.disjoint_left.1 hdisj hxC hxE
+
+private lemma existsAnnularSpokes_tileChainWalk (S : Patch P)
+    (hsts : SideToSideSet S.tiles) {a b : Pt} {Z : Set Pt}
+    (hsub : ∀ A ∈ S.tiles, (A.carrier ∩ segment ℝ a b).Nonempty → A.carrier ⊆ Z)
+    (hint : ∀ A ∈ S.tiles, (A.carrier ∩ segment ℝ a b).Nonempty →
+      A.carrier ⊆ interior (support S.tiles)) {A B : PlacedTile P}
+    (hchain : Relation.ReflTransGen
+      (fun X Y : PlacedTile P =>
+        (X ∈ S.tiles ∧ (X.carrier ∩ segment ℝ a b).Nonempty) ∧
+        (Y ∈ S.tiles ∧ (Y.carrier ∩ segment ℝ a b).Nonempty) ∧
+        (X.carrier ∩ Y.carrier).Nonempty) A B)
+    (hA : A ∈ S.tiles) (hAm : (A.carrier ∩ segment ℝ a b).Nonempty)
+    {u w : Pt} (hu : u ∈ A.vertexSet) (hw : w ∈ B.vertexSet) :
+    Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles Z) u w := by
+  let r := fun X Y : PlacedTile P =>
+    (X ∈ S.tiles ∧ (X.carrier ∩ segment ℝ a b).Nonempty) ∧
+    (Y ∈ S.tiles ∧ (Y.carrier ∩ segment ℝ a b).Nonempty) ∧
+    (X.carrier ∩ Y.carrier).Nonempty
+  change Relation.ReflTransGen r A B at hchain
+  induction hchain generalizing u w with
+  | refl =>
+      exact existsAnnularSpokes_tileBoundaryWalk S hA (hsub _ hA hAm) hu hw
+  | @tail Y W _ hYW ih =>
+      obtain ⟨v, hvY, hvW⟩ :=
+        existsAnnularSpokes_intersectingTilesShareVertex S hsts hYW.1.1 hYW.2.1.1
+          hYW.2.2 (hint _ hYW.1.1 hYW.1.2)
+      exact (ih hu hvY).trans
+        (existsAnnularSpokes_tileBoundaryWalk S hYW.2.1.1
+          (hsub _ hYW.2.1.1 hYW.2.1.2) hvW hw)
+
+private lemma existsAnnularSpokes_square_add_eq (c : Pt) {h r : ℝ}
+    (hh : 0 ≤ h) (hr : 0 ≤ r) : square c h + Binf r = square c (h + r) := by
+  apply Set.Subset.antisymm
+  · rintro x ⟨u, hu, v, hv, rfl⟩
+    refine ⟨?_, ?_⟩
+    · simp only [PiLp.add_apply]
+      calc
+        |u 0 + v 0 - c 0| = |(u 0 - c 0) + v 0| := by ring
+        _ ≤ |u 0 - c 0| + |v 0| := abs_add_le _ _
+        _ ≤ h + r := add_le_add hu.1 hv.1
+    · simp only [PiLp.add_apply]
+      calc
+        |u 1 + v 1 - c 1| = |(u 1 - c 1) + v 1| := by ring
+        _ ≤ |u 1 - c 1| + |v 1| := abs_add_le _ _
+        _ ≤ h + r := add_le_add hu.2 hv.2
+  · exact rg_square_add hh hr
+
+private lemma existsAnnularSpokes_pos_mem_square {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 0 < R) (j : Fin (4 * N)) :
+    |existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) 0| ≤
+        (N : ℝ) * R / 2 ∧
+      |existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) 1| ≤
+        (N : ℝ) * R / 2 := by
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hNR : 0 ≤ (N : ℝ) * R := mul_nonneg (Nat.cast_nonneg N) hR.le
+  rcases existsAnnularSpokes_step2_tubes_pos_cases hR j.isLt with h | h | h | h
+  · rw [h.2]
+    simp only [rg_mkPt0, rg_mkPt1]
+    rw [abs_of_pos hA]
+    have hj : ((j : ℕ) : ℝ) ≤ N := by exact_mod_cast h.1
+    have hjR : ((j : ℕ) : ℝ) * R ≤ (N : ℝ) * R :=
+      mul_le_mul_of_nonneg_right hj hR.le
+    have hjR0 : 0 ≤ ((j : ℕ) : ℝ) * R := mul_nonneg (by positivity) hR.le
+    rw [abs_le]
+    constructor
+    · exact le_rfl
+    · constructor <;> nlinarith
+  · rw [h.2.2]
+    simp only [rg_mkPt0, rg_mkPt1]
+    rw [abs_of_pos hA, abs_le]
+    have hj1 : (N : ℝ) < (j : ℕ) := by exact_mod_cast h.1
+    have hj2 : ((j : ℕ) : ℝ) ≤ 2 * N := by exact_mod_cast h.2.1
+    have hjR1 : (N : ℝ) * R < ((j : ℕ) : ℝ) * R :=
+      mul_lt_mul_of_pos_right hj1 hR
+    have hjR2 : ((j : ℕ) : ℝ) * R ≤ (2 * N : ℝ) * R :=
+      mul_le_mul_of_nonneg_right hj2 hR.le
+    constructor
+    · constructor <;> nlinarith
+    · exact le_rfl
+  · rw [h.2.2]
+    simp only [rg_mkPt0, rg_mkPt1]
+    rw [abs_neg, abs_of_pos hA, abs_le]
+    have hj1 : (2 * N : ℝ) < (j : ℕ) := by exact_mod_cast h.1
+    have hj2 : ((j : ℕ) : ℝ) ≤ 3 * N := by exact_mod_cast h.2.1
+    have hjR1 : (2 * N : ℝ) * R < ((j : ℕ) : ℝ) * R :=
+      mul_lt_mul_of_pos_right hj1 hR
+    have hjR2 : ((j : ℕ) : ℝ) * R ≤ (3 * N : ℝ) * R :=
+      mul_le_mul_of_nonneg_right hj2 hR.le
+    constructor
+    · exact le_rfl
+    · constructor <;> nlinarith
+  · rw [h.2]
+    simp only [rg_mkPt0, rg_mkPt1]
+    rw [abs_neg, abs_of_pos hA, abs_le]
+    have hj1 : (3 * N : ℝ) < (j : ℕ) := by exact_mod_cast h.1
+    have hj2 : ((j : ℕ) : ℝ) < 4 * N := by exact_mod_cast j.isLt
+    have hjR1 : (3 * N : ℝ) * R < ((j : ℕ) : ℝ) * R :=
+      mul_lt_mul_of_pos_right hj1 hR
+    have hjR2 : ((j : ℕ) : ℝ) * R < (4 * N : ℝ) * R :=
+      mul_lt_mul_of_pos_right hj2 hR
+    constructor
+    · constructor <;> nlinarith
+    · exact le_rfl
+
+private lemma existsAnnularSpokes_pos_on_square {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 0 < R) (j : Fin (4 * N)) :
+    |existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) 0| =
+        (N : ℝ) * R / 2 ∨
+      |existsAnnularSpokes_pos ((N : ℝ) * R / 2) ((j : ℝ) * R) 1| =
+        (N : ℝ) * R / 2 := by
+  have hA : 0 < (N : ℝ) * R / 2 := by
+    have : 0 < N := by omega
+    positivity
+  rcases existsAnnularSpokes_step2_tubes_pos_cases hR j.isLt with h | h | h | h
+  · left
+    rw [h.2]
+    simp [mkPt, abs_of_pos hA]
+  · right
+    rw [h.2.2]
+    simp [mkPt, abs_of_pos hA]
+  · left
+    rw [h.2.2]
+    simp [mkPt, abs_of_pos hA]
+  · right
+    rw [h.2]
+    simp [mkPt, abs_of_pos hA]
+
+private lemma existsAnnularSpokes_ray_endpoints (c : Pt) {N : ℕ} {R D : ℝ}
+    (hD : 0 < D) (hN : 2 ≤ N) (hR : 100 * D ≤ R) (j : Fin (4 * N)) :
+    let A := (N : ℝ) * R / 2
+    let v := existsAnnularSpokes_pos A ((j : ℝ) * R)
+    let p := c + ((A - 3 * D) / A) • v
+    let q := c + ((A + R + 6 * D) / A) • v
+    p ∈ existsAnnularSpokes_ray c N R D j ∧
+      q ∈ existsAnnularSpokes_ray c N R D j ∧
+      p ∈ square c (A - 3 * D) ∧ q ∈ square c (A + R + 6 * D) ∧
+      existsAnnularSpokes_ray c N R D j ⊆ square c (A + R + 6 * D) := by
+  dsimp only
+  have hR0 : 0 < R := by linarith
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hinner : 0 < (N : ℝ) * R / 2 - 3 * D := by
+    have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+    nlinarith
+  have hv := existsAnnularSpokes_pos_mem_square hN hR0 j
+  let A := (N : ℝ) * R / 2
+  let v := existsAnnularSpokes_pos A ((j : ℝ) * R)
+  let p := c + ((A - 3 * D) / A) • v
+  let q := c + ((A + R + 6 * D) / A) • v
+  have hA' : 0 < A := hA
+  have hinner' : 0 < A - 3 * D := hinner
+  have hvcoord : ∀ i : Fin 2, |v i| ≤ A := by
+    intro i
+    fin_cases i
+    · exact hv.1
+    · exact hv.2
+  have hpcoord : ∀ i : Fin 2, |p i - c i| ≤ A - 3 * D := by
+    intro i
+    have hμ : 0 ≤ (A - 3 * D) / A := (div_nonneg hinner'.le hA'.le)
+    simp only [p, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul, add_sub_cancel_left, abs_mul]
+    calc
+      |(A - 3 * D) / A| * |v i| = (A - 3 * D) / A * |v i| := by
+        rw [abs_of_nonneg hμ]
+      _ ≤ (A - 3 * D) / A * A := mul_le_mul_of_nonneg_left (hvcoord i) hμ
+      _ = A - 3 * D := by field_simp
+  have hqcoord : ∀ i : Fin 2, |q i - c i| ≤ A + R + 6 * D := by
+    intro i
+    have hμ : 0 ≤ (A + R + 6 * D) / A := by positivity
+    simp only [q, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul, add_sub_cancel_left, abs_mul]
+    calc
+      |(A + R + 6 * D) / A| * |v i| = (A + R + 6 * D) / A * |v i| := by
+        rw [abs_of_nonneg hμ]
+      _ ≤ (A + R + 6 * D) / A * A := mul_le_mul_of_nonneg_left (hvcoord i) hμ
+      _ = A + R + 6 * D := by field_simp
+  have hpSq : p ∈ square c (A - 3 * D) := ⟨hpcoord 0, hpcoord 1⟩
+  have hqSq : q ∈ square c (A + R + 6 * D) := ⟨hqcoord 0, hqcoord 1⟩
+  have hpSq' : p ∈ square c (A + R + 6 * D) :=
+    rg_square_mono (by nlinarith [hR0, hD]) hpSq
+  have hray : existsAnnularSpokes_ray c N R D j = segment ℝ p q := by
+    simp only [existsAnnularSpokes_ray, p, q, v, A]
+  refine ⟨?_, ?_, hpSq, hqSq, ?_⟩
+  · rw [hray]
+    exact left_mem_segment ℝ _ _
+  · rw [hray]
+    exact right_mem_segment ℝ _ _
+  · rw [hray]
+    exact (rg_square_convex c (A + R + 6 * D)).segment_subset hpSq' hqSq
+
+private lemma existsAnnularSpokes_tileMeetingRay (M : MeshConstants P)
+    (Ω : PolygonalDisk) (c : Pt) {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 100 * M.D ≤ R)
+    (hΩ : square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D) ⊆
+      interior Ω.carrier) (j : Fin (4 * N)) {F : PlacedTile P}
+    (hmeet : (F.carrier ∩ existsAnnularSpokes_ray c N R M.D j).Nonempty) :
+    F.carrier ⊆
+      Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j) ∩
+        interior Ω.carrier := by
+  have hR0 : 0 < R := by linarith [M.D_pos]
+  obtain ⟨p, hpF, hpRay⟩ := hmeet
+  obtain ⟨-, -, -, -, hraySq⟩ :=
+    existsAnnularSpokes_ray_endpoints c M.D_pos hN hR j
+  have hpSq := hraySq hpRay
+  intro x hxF
+  have hxp : dist x p ≤ M.D := by
+    refine (Metric.dist_le_diam_of_mem (tileDisk F).compact.isBounded hxF hpF).trans ?_
+    change Metric.diam F.carrier ≤ M.D
+    rw [PlacedTile.carrier, diam_vadd]
+    exact M.diam_le _
+  constructor
+  · exact Metric.mem_cthickening_of_dist_le x p M.D _ hpRay hxp
+  · apply hΩ
+    have hbase : 0 ≤ (N : ℝ) * R / 2 + R := by
+      have hmul : 0 ≤ (N : ℝ) * R := mul_nonneg (Nat.cast_nonneg N) hR0.le
+      linarith
+    rw [existsAnnularSpokes_square_add_eq c hbase
+      (mul_nonneg (by norm_num) M.D_pos.le)]
+    apply rg_square_mono (show (N : ℝ) * R / 2 + R + 7 * M.D ≤
+      (N : ℝ) * R / 2 + R + 10 * M.D by linarith [M.D_pos])
+    refine ⟨?_, ?_⟩
+    · calc
+        |x 0 - c 0| = |(x 0 - p 0) + (p 0 - c 0)| := by ring
+        _ ≤ |x 0 - p 0| + |p 0 - c 0| := abs_add_le _ _
+        _ ≤ M.D + ((N : ℝ) * R / 2 + R + 6 * M.D) :=
+          add_le_add (rg_tile_coord M F hxF hpF 0) hpSq.1
+        _ = (N : ℝ) * R / 2 + R + 7 * M.D := by ring
+    · calc
+        |x 1 - c 1| = |(x 1 - p 1) + (p 1 - c 1)| := by ring
+        _ ≤ |x 1 - p 1| + |p 1 - c 1| := abs_add_le _ _
+        _ ≤ M.D + ((N : ℝ) * R / 2 + R + 6 * M.D) :=
+          add_le_add (rg_tile_coord M F hxF hpF 1) hpSq.2
+        _ = (N : ℝ) * R / 2 + R + 7 * M.D := by ring
+
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "Follow the finite
 sequence of original faces crossed by one extended segment.  Consecutive faces share a side or
 vertex, and every face boundary is a connected polygonal cycle.  Their boundary graphs form a
@@ -4371,7 +4732,119 @@ private lemma existsAnnularSpokes_step3_spoke_step1_walk (M : MeshConstants P) (
       Relation.ReflTransGen (existsAnnularSpokes_skelEdgeIn S.tiles
         (Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j) ∩ interior Ω.carrier))
         u w := by
-  sorry
+  have hD := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  let A := (N : ℝ) * R / 2
+  let v := existsAnnularSpokes_pos A ((j : ℝ) * R)
+  let p := c + ((A - 3 * M.D) / A) • v
+  let q := c + ((A + R + 6 * M.D) / A) • v
+  have hApos : 0 < A := by dsimp [A]; positivity
+  obtain ⟨hpRay, hqRay, hpSq, hqSq, hraySq⟩ :=
+    existsAnnularSpokes_ray_endpoints c hD hN hR j
+  have hbase : 0 ≤ A + R := by positivity
+  have hΩ' : square c (A + R + 10 * M.D) ⊆ interior Ω.carrier := by
+    rw [← existsAnnularSpokes_square_add_eq c hbase (by positivity)]
+    exact hΩ
+  have hrayΩ : existsAnnularSpokes_ray c N R M.D j ⊆ interior Ω.carrier := by
+    intro x hx
+    exact hΩ' (rg_square_mono
+      (show A + R + 6 * M.D ≤ A + R + 10 * M.D by linarith) (hraySq hx))
+  have hraySupport : existsAnnularSpokes_ray c N R M.D j ⊆ support S.tiles := by
+    rw [hcov]
+    exact hrayΩ.trans interior_subset
+  obtain ⟨F, hFS, hpF⟩ := mem_support_iff'.1 (hraySupport hpRay)
+  obtain ⟨G, hGS, hqG⟩ := mem_support_iff'.1 (hraySupport hqRay)
+  have hFm : (F.carrier ∩ existsAnnularSpokes_ray c N R M.D j).Nonempty :=
+    ⟨p, hpF, hpRay⟩
+  have hGm : (G.carrier ∩ existsAnnularSpokes_ray c N R M.D j).Nonempty :=
+    ⟨q, hqG, hqRay⟩
+  have hFsmall : F.carrier ⊆ square c (A - 2 * M.D) := by
+    intro x hx
+    refine ⟨?_, ?_⟩
+    · calc
+        |x 0 - c 0| = |(x 0 - p 0) + (p 0 - c 0)| := by ring
+        _ ≤ |x 0 - p 0| + |p 0 - c 0| := abs_add_le _ _
+        _ ≤ M.D + (A - 3 * M.D) := add_le_add (rg_tile_coord M F hx hpF 0) hpSq.1
+        _ = A - 2 * M.D := by ring
+    · calc
+        |x 1 - c 1| = |(x 1 - p 1) + (p 1 - c 1)| := by ring
+        _ ≤ |x 1 - p 1| + |p 1 - c 1| := abs_add_le _ _
+        _ ≤ M.D + (A - 3 * M.D) := add_le_add (rg_tile_coord M F hx hpF 1) hpSq.2
+        _ = A - 2 * M.D := by ring
+  have hsmallPos : 0 ≤ A - 2 * M.D := by
+    dsimp [A]
+    nlinarith
+  have hsmallInterior : square c (A - 2 * M.D) ⊆ interior (square c A) := by
+    have hnest := existsAnnularSpokes_step1_nest c
+      (a := A - 2 * M.D) (r := 0) (b := A) (s := 0) (by linarith) hApos.le le_rfl
+    rw [existsAnnularSpokes_square_add_eq c hsmallPos le_rfl,
+      existsAnnularSpokes_square_add_eq c hApos.le le_rfl] at hnest
+    simpa using hnest
+  have hFL : F.carrier ⊆ interior L.carrier :=
+    hFsmall.trans (hsmallInterior.trans (interior_mono hL))
+  let iu : Fin (P.disk F.form).n := ⟨0, by have := (P.disk F.form).three_le; omega⟩
+  let iw : Fin (P.disk G.form).n := ⟨0, by have := (P.disk G.form).three_le; omega⟩
+  let u := F.vertex iu
+  let w := G.vertex iw
+  have huF : u ∈ F.vertexSet := ⟨iu, rfl⟩
+  have hwG : w ∈ G.vertexSet := ⟨iw, rfl⟩
+  have huFc : u ∈ F.carrier := tile_side_subset F iu (vertex_mem_side F iu)
+  have hwGc : w ∈ G.carrier := tile_side_subset G iw (vertex_mem_side G iw)
+  have huL : u ∈ interior L.carrier := hFL huFc
+  have hvmax : |v 0| = A ∨ |v 1| = A := by
+    simpa only [v, A] using existsAnnularSpokes_pos_on_square hN hR0 j
+  have hμ : 0 ≤ (A + R + 6 * M.D) / A := by positivity
+  have hqmax : |q 0 - c 0| = A + R + 6 * M.D ∨
+      |q 1 - c 1| = A + R + 6 * M.D := by
+    rcases hvmax with hv0 | hv1
+    · left
+      simp only [q, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul, add_sub_cancel_left,
+        abs_mul, abs_of_nonneg hμ, hv0]
+      field_simp
+    · right
+      simp only [q, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul, add_sub_cancel_left,
+        abs_mul, abs_of_nonneg hμ, hv1]
+      field_simp
+  have hwH : w ∉ H.carrier := by
+    intro hw
+    have hwSq := hH hw
+    rw [existsAnnularSpokes_square_add_eq c hbase (by positivity)] at hwSq
+    rcases hqmax with hq0 | hq1
+    · have hqw : |q 0 - w 0| ≤ M.D := by
+        rw [abs_sub_comm]
+        exact rg_tile_coord M G hwGc hqG 0
+      have htri : |q 0 - c 0| ≤ |q 0 - w 0| + |w 0 - c 0| := by
+        calc
+          |q 0 - c 0| = |(q 0 - w 0) + (w 0 - c 0)| := by ring
+          _ ≤ _ := abs_add_le _ _
+      rw [hq0] at htri
+      linarith [hwSq.1]
+    · have hqw : |q 1 - w 1| ≤ M.D := by
+        rw [abs_sub_comm]
+        exact rg_tile_coord M G hwGc hqG 1
+      have htri : |q 1 - c 1| ≤ |q 1 - w 1| + |w 1 - c 1| := by
+        calc
+          |q 1 - c 1| = |(q 1 - w 1) + (w 1 - c 1)| := by ring
+          _ ≤ _ := abs_add_le _ _
+      rw [hq1] at htri
+      linarith [hwSq.2]
+  have hchain := existsAnnularSpokes_tilesMeetingSegmentConnected S hraySupport
+    hFS hGS hpF hqG
+  let Z := Metric.cthickening M.D (existsAnnularSpokes_ray c N R M.D j) ∩
+    interior Ω.carrier
+  have htile : ∀ T ∈ S.tiles, (T.carrier ∩ existsAnnularSpokes_ray c N R M.D j).Nonempty →
+      T.carrier ⊆ Z := by
+    intro T hTS hTm
+    exact existsAnnularSpokes_tileMeetingRay M Ω c hN hR hΩ j hTm
+  have htileInt : ∀ T ∈ S.tiles,
+      (T.carrier ∩ existsAnnularSpokes_ray c N R M.D j).Nonempty →
+      T.carrier ⊆ interior (support S.tiles) := by
+    intro T hTS hTm x hx
+    rw [hcov]
+    exact (existsAnnularSpokes_tileMeetingRay M Ω c hN hR hΩ j hTm hx).2
+  have hwalk := existsAnnularSpokes_tileChainWalk S hsts htile htileInt hchain hFS hFm huF hwG
+  exact ⟨u, w, huL, hwH, hwalk⟩
 
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step3_spoke`: "take the part from its
 last point on `∂L` to its first subsequent point on `∂H`.  The part lies in the annulus and has

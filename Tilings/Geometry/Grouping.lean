@@ -5825,6 +5825,5060 @@ private lemma existsAnnularSpokes_step5_crosscuts_step1_endpoints (A C : Polygon
       rw [hij]
       exact (hstop j).1)
 
+section PgAnnulusHelpers
+
+open Filter Topology
+
+/-! ### Closed polygons given by lists of points -/
+
+/-- consecutive pairs of an open chain -/
+private def pgCh : List Pt → List (Pt × Pt)
+  | a :: b :: r => (a, b) :: pgCh (b :: r)
+  | _ => []
+
+/-- edges of the closed polygon through a list of points -/
+private def pgEd : List Pt → List (Pt × Pt)
+  | [] => []
+  | a :: r => pgCh (a :: r ++ [a])
+
+/-- the curve of a closed polygon -/
+private def pgCv (l : List Pt) : Set Pt := ⋃ e ∈ pgEd l, segment ℝ e.1 e.2
+
+/-- the winding function of a closed polygon -/
+private def pgW (l : List Pt) (p : Pt) : ℝ := ((pgEd l).map (fun e => Complex.arg (segRatio e.1 e.2 p))).sum
+
+/-- two edges meet at most in common endpoints -/
+private def PgOK (e f : Pt × Pt) : Prop :=
+  segment ℝ e.1 e.2 ∩ segment ℝ f.1 f.2 ⊆ ({e.1, e.2} : Set Pt) ∩ {f.1, f.2}
+
+/-- a simple closed polygon -/
+private structure PgSP (l : List Pt) : Prop where
+  three : 3 ≤ l.length
+  nodup : l.Nodup
+  pw : (pgEd l).Pairwise PgOK
+
+private lemma pgOK_symm {e f : Pt × Pt} (h : PgOK e f) : PgOK f e := by
+  intro x hx
+  have := h ⟨hx.2, hx.1⟩
+  exact ⟨this.2, this.1⟩
+
+@[simp] private lemma pgCh_nil : pgCh [] = [] := rfl
+@[simp] private lemma pgCh_single (a : Pt) : pgCh [a] = [] := rfl
+@[simp] private lemma pgCh_cons_cons (a b : Pt) (r : List Pt) : pgCh (a :: b :: r) = (a, b) :: pgCh (b :: r) := rfl
+
+private lemma pgCh_append (l1 : List Pt) (b : Pt) (l2 : List Pt) :
+    pgCh (l1 ++ b :: l2) = pgCh (l1 ++ [b]) ++ pgCh (b :: l2) := by
+  induction l1 with
+  | nil => simp
+  | cons a t ih =>
+    cases t with
+    | nil => simp
+    | cons c t' =>
+      simp only [List.cons_append, pgCh_cons_cons, List.cons_append] at ih ⊢
+      rw [ih]
+
+private lemma pgCh_length (l : List Pt) : (pgCh l).length = l.length - 1 := by
+  induction l with
+  | nil => rfl
+  | cons a t ih =>
+    cases t with
+    | nil => rfl
+    | cons b t' => simp only [pgCh_cons_cons, List.length_cons] at ih ⊢; rw [ih]; omega
+
+private lemma pgCh_getElem (l : List Pt) (i : ℕ) (hi : i < (pgCh l).length) :
+    (pgCh l)[i] = (l[i]'(by rw [pgCh_length] at hi; omega), l[i + 1]'(by rw [pgCh_length] at hi; omega)) := by
+  induction l generalizing i with
+  | nil => simp at hi
+  | cons a t ih =>
+    cases t with
+    | nil => simp at hi
+    | cons b t' =>
+      cases i with
+      | zero => simp
+      | succ i =>
+        simp only [pgCh_cons_cons, List.getElem_cons_succ]
+        exact ih i _
+
+private lemma pgCh_mem {l : List Pt} {e : Pt × Pt} (he : e ∈ pgCh l) : e.1 ∈ l ∧ e.2 ∈ l := by
+  obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem he
+  rw [pgCh_getElem]
+  exact ⟨List.getElem_mem _, List.getElem_mem _⟩
+
+private lemma pgEd_cons (a : Pt) (r : List Pt) : pgEd (a :: r) = pgCh (a :: r ++ [a]) := rfl
+
+private lemma pgEd_length (l : List Pt) : (pgEd l).length = l.length := by
+  cases l with
+  | nil => rfl
+  | cons a r => rw [pgEd_cons, pgCh_length]; simp
+
+private lemma finRotate_val_eq_mod {n : ℕ} (k : Fin n) : (finRotate n k).val = (k.val + 1) % n := by
+  rw [finRotate_val']
+  split_ifs with h
+  · rw [h, Nat.mod_self]
+  · rw [Nat.mod_eq_of_lt (by omega)]
+
+private lemma pgEd_getElem (l : List Pt) (i : ℕ) (hi : i < (pgEd l).length) :
+    (pgEd l)[i] = (l[i]'(by rw [pgEd_length] at hi; exact hi),
+      l[(i + 1) % l.length]'(by
+        rw [pgEd_length] at hi; exact Nat.mod_lt _ (by omega))) := by
+  cases l with
+  | nil => simp [pgEd] at hi
+  | cons a r =>
+    have hi' : i < r.length + 1 := by rw [pgEd_length] at hi; simpa using hi
+    simp only [pgEd_cons]
+    rw [pgCh_getElem]
+    simp only [List.length_cons]
+    congr 1
+    · rw [List.getElem_append_left (by simp; omega)]
+    · by_cases h : i + 1 = r.length + 1
+      · rw [List.getElem_append_right (by simp; omega)]
+        simp [h]
+      · rw [List.getElem_append_left (by simp; omega)]
+        have hm : (i + 1) % (r.length + 1) = i + 1 := Nat.mod_eq_of_lt (by omega)
+        simp only [hm]
+
+private lemma pgEd_eq_ofFn (l : List Pt) :
+    pgEd l = List.ofFn (fun k : Fin l.length => (l.get k, l.get (finRotate _ k))) := by
+  apply List.ext_getElem
+  · simp [pgEd_length]
+  · intro i h1 h2
+    rw [pgEd_getElem, List.getElem_ofFn]
+    simp [finRotate_val_eq_mod]
+
+private lemma pgW_eq_wind (l : List Pt) (p : Pt) : pgW l p = wind l.get p := by
+  rw [pgW, pgEd_eq_ofFn, wind, List.map_ofFn, List.sum_ofFn]
+  simp only [Function.comp_apply]
+
+private lemma pgCv_eq_polyCurve (l : List Pt) : pgCv l = polyCurve l.get := by
+  ext x
+  simp only [pgCv, polyCurve, pgEd_eq_ofFn, mem_iUnion, List.mem_ofFn, exists_prop]
+  constructor
+  · rintro ⟨e, ⟨k, rfl⟩, hx⟩; exact ⟨k, hx⟩
+  · rintro ⟨k, hx⟩; exact ⟨_, ⟨k, rfl⟩, hx⟩
+
+private lemma mem_pgCv {l : List Pt} {x : Pt} : x ∈ pgCv l ↔ ∃ e ∈ pgEd l, x ∈ segment ℝ e.1 e.2 := by
+  simp [pgCv]
+
+private lemma seg_subset_pgCv {l : List Pt} {e : Pt × Pt} (he : e ∈ pgEd l) :
+    segment ℝ e.1 e.2 ⊆ pgCv l := fun _ hx => mem_pgCv.2 ⟨e, he, hx⟩
+
+private lemma PgSP.simple_fin {l : List Pt} (h : PgSP l) (i j : Fin l.length) (hij : i ≠ j) :
+    segment ℝ (l.get i) (l.get (finRotate _ i)) ∩ segment ℝ (l.get j) (l.get (finRotate _ j)) ⊆
+      ({l.get i, l.get (finRotate _ i)} : Set Pt) ∩ {l.get j, l.get (finRotate _ j)} := by
+  have hpw := h.pw
+  rw [pgEd_eq_ofFn, List.pairwise_ofFn] at hpw
+  rcases lt_or_gt_of_ne hij with hlt | hlt
+  · exact hpw hlt
+  · have h2 := pgOK_symm (hpw hlt)
+    simp only [PgOK] at h2
+    exact h2
+
+private lemma PgSP.inj {l : List Pt} (h : PgSP l) : Function.Injective l.get :=
+  List.nodup_iff_injective_get.1 h.nodup
+
+/-- the list of vertices of a polygonal disk -/
+private def pgL (B : PolygonalDisk) : List Pt := List.ofFn B.vertex
+
+private lemma pgL_length (B : PolygonalDisk) : (pgL B).length = B.n := by simp [pgL]
+
+private lemma pgL_get (B : PolygonalDisk) (k : Fin (pgL B).length) :
+    (pgL B).get k = B.vertex (Fin.cast (pgL_length B) k) := by
+  simp [pgL]; rfl
+
+private lemma pgL_get_rot (B : PolygonalDisk) (k : Fin (pgL B).length) :
+    (pgL B).get (finRotate _ k) = B.vertex (finRotate B.n (Fin.cast (pgL_length B) k)) := by
+  rw [pgL_get]; congr 1; ext; simp [finRotate_val_eq_mod, pgL_length]
+
+private lemma pgCv_pgL (B : PolygonalDisk) : pgCv (pgL B) = frontier B.carrier := by
+  rw [B.frontier_eq, pgCv_eq_polyCurve]
+  ext x
+  simp only [polyCurve, mem_iUnion]
+  constructor
+  · rintro ⟨k, hk⟩
+    refine ⟨Fin.cast (pgL_length B) k, ?_⟩
+    rwa [pgL_get, pgL_get_rot] at hk
+  · rintro ⟨k, hk⟩
+    refine ⟨Fin.cast (pgL_length B).symm k, ?_⟩
+    rw [pgL_get, pgL_get_rot]; simpa using hk
+
+private lemma pgSP_pgL (B : PolygonalDisk) : PgSP (pgL B) where
+  three := by rw [pgL_length]; exact B.three_le
+  nodup := List.nodup_ofFn.2 B.vertex_injective
+  pw := by
+    rw [pgEd_eq_ofFn, List.pairwise_ofFn]
+    intro i j hij
+    have := B.simple (Fin.cast (pgL_length B) i) (Fin.cast (pgL_length B) j)
+      (fun h => (ne_of_lt hij) (by ext; simpa using congrArg Fin.val h))
+    simp only [PgOK]
+    rw [pgL_get, pgL_get_rot, pgL_get, pgL_get_rot]
+    exact this
+
+/-! ### Free homotopies of loops -/
+
+private lemma pg_lh_symm {U : Set Pt} {γ δ : ℝ → Pt} (h : LoopsHomotopicIn U γ δ) : LoopsHomotopicIn U δ γ := by
+  obtain ⟨F, hc, hp, h0, h1, hU⟩ := h
+  refine ⟨fun x => F (1 - x.1, x.2), hc.comp (by fun_prop), fun s t => hp _ _, ?_, ?_, ?_⟩
+  · intro t; simpa using h1 t
+  · intro t; simpa using h0 t
+  · intro s hs t; exact hU _ ⟨by linarith [hs.2], by linarith [hs.1]⟩ t
+
+private lemma pg_lh_trans {U : Set Pt} {γ δ ε : ℝ → Pt} (h1 : LoopsHomotopicIn U γ δ)
+    (h2 : LoopsHomotopicIn U δ ε) : LoopsHomotopicIn U γ ε := by
+  obtain ⟨F, hc, hp, h0, h1', hU⟩ := h1
+  obtain ⟨G, gc, gp, g0, g1, gU⟩ := h2
+  refine ⟨fun x => if x.1 ≤ 1 / 2 then F (2 * x.1, x.2) else G (2 * x.1 - 1, x.2), ?_, ?_, ?_, ?_, ?_⟩
+  · apply Continuous.if_le (hc.comp (by fun_prop)) (gc.comp (by fun_prop)) continuous_fst
+      continuous_const
+    intro x hx
+    simp only [Function.comp_apply, hx]
+    norm_num
+    rw [h1', g0]
+  · intro s t
+    simp only
+    split_ifs
+    · exact hp _ _
+    · exact gp _ _
+  · intro t; simp [h0]
+  · intro t; norm_num; rw [g1]
+  · intro s hs t
+    simp only
+    split_ifs with h
+    · exact hU _ ⟨by linarith [hs.1], by linarith⟩ t
+    · exact gU _ ⟨by linarith, by linarith [hs.2]⟩ t
+
+private lemma pg_lh_mono {U V : Set Pt} (hUV : U ⊆ V) {γ δ : ℝ → Pt} (h : LoopsHomotopicIn U γ δ) :
+    LoopsHomotopicIn V γ δ := by
+  obtain ⟨F, hc, hp, h0, h1, hU⟩ := h
+  exact ⟨F, hc, hp, h0, h1, fun s hs t => hUV (hU s hs t)⟩
+
+private lemma pg_lh_of_family {U : Set Pt} (F : ℝ × ℝ → Pt) (hc : Continuous F)
+    (hp : ∀ s t, F (s, t + 1) = F (s, t)) (hU : ∀ s ∈ Icc (0 : ℝ) 1, ∀ t, F (s, t) ∈ U) :
+    LoopsHomotopicIn U (fun t => F (0, t)) (fun t => F (1, t)) :=
+  ⟨F, hc, hp, fun _ => rfl, fun _ => rfl, hU⟩
+
+private lemma pg_lh_congr {U : Set Pt} {γ δ γ' δ' : ℝ → Pt} (h : LoopsHomotopicIn U γ δ) (hγ : γ = γ')
+    (hδ : δ = δ') : LoopsHomotopicIn U γ' δ' := hγ ▸ hδ ▸ h
+
+private lemma pg_lh_refl {U : Set Pt} {γ : ℝ → Pt} (hc : Continuous γ) (hp : Function.Periodic γ 1)
+    (hU : ∀ t, γ t ∈ U) : LoopsHomotopicIn U γ γ :=
+  ⟨fun x => γ x.2, hc.comp continuous_snd, fun _ t => hp t, fun _ => rfl, fun _ => rfl,
+    fun _ _ t => hU t⟩
+
+private lemma pg_lh_comp_neg {U : Set Pt} {γ δ : ℝ → Pt} (h : LoopsHomotopicIn U γ δ) :
+    LoopsHomotopicIn U (fun t => γ (-t)) (fun t => δ (-t)) := by
+  obtain ⟨F, hc, hp, h0, h1, hU⟩ := h
+  refine ⟨fun x => F (x.1, -x.2), hc.comp (by fun_prop), ?_, fun t => h0 _, fun t => h1 _,
+    fun s hs t => hU s hs _⟩
+  intro s t
+  simp only
+  rw [← hp s (-(t + 1)), show -(t + 1) + 1 = -t by ring]
+
+/-! ### The uniform parametrization of a closed polygon -/
+
+/-- uniform-speed loop through the list of points -/
+private def pgLoop (l : List Pt) (t : ℝ) : Pt :=
+  AffineMap.lineMap (l.getD (⌊(l.length : ℝ) * Int.fract t⌋₊ % l.length) 0)
+    (l.getD ((⌊(l.length : ℝ) * Int.fract t⌋₊ + 1) % l.length) 0)
+    ((l.length : ℝ) * Int.fract t - ⌊(l.length : ℝ) * Int.fract t⌋₊)
+
+private lemma pgLoop_add_one (l : List Pt) (t : ℝ) : pgLoop l (t + 1) = pgLoop l t := by
+  simp [pgLoop, Int.fract_add_one]
+
+private lemma pgLoop_add_int (l : List Pt) (t : ℝ) (m : ℤ) : pgLoop l (t + m) = pgLoop l t := by
+  simp [pgLoop, Int.fract_add_intCast]
+
+private lemma pgLoop_periodic (l : List Pt) : Function.Periodic (pgLoop l) 1 := pgLoop_add_one l
+
+/-- the loop on one period, at a point of the `i`-th edge -/
+private lemma pgLoop_eq_of {l : List Pt} (hn : 0 < l.length) {τ : ℝ} (hτ : τ ∈ Ico (0 : ℝ) 1) {i : ℕ}
+    (hi1 : (i : ℝ) ≤ l.length * τ) (hi2 : (l.length : ℝ) * τ < i + 1) :
+    pgLoop l τ = AffineMap.lineMap (l.getD i 0) (l.getD ((i + 1) % l.length) 0)
+      ((l.length : ℝ) * τ - i) := by
+  have hf : Int.fract τ = τ := Int.fract_eq_self.2 hτ
+  have hu0 : 0 ≤ (l.length : ℝ) * τ := mul_nonneg (by positivity) hτ.1
+  have hfl : ⌊(l.length : ℝ) * τ⌋₊ = i := by
+    rw [Nat.floor_eq_iff hu0]; exact ⟨hi1, hi2⟩
+  have hil : i < l.length := by
+    have : (i : ℝ) < l.length := by
+      calc (i : ℝ) ≤ l.length * τ := hi1
+        _ < l.length * 1 := by
+          exact mul_lt_mul_of_pos_left hτ.2 (by exact_mod_cast hn)
+        _ = l.length := mul_one _
+    exact_mod_cast this
+  simp only [pgLoop, hf, hfl, Nat.mod_eq_of_lt hil]
+
+private lemma pgLoop_mem_seg {l : List Pt} (hl : l ≠ []) (t : ℝ) :
+    ∃ i : ℕ, ∃ hi : i < l.length, pgLoop l t ∈ segment ℝ (l[i]) (l[(i + 1) % l.length]'
+      (Nat.mod_lt _ (by omega))) := by
+  have hn : 0 < l.length := List.length_pos_of_ne_nil hl
+  set τ := Int.fract t
+  have hτ : τ ∈ Ico (0 : ℝ) 1 := ⟨Int.fract_nonneg t, Int.fract_lt_one t⟩
+  have hu0 : 0 ≤ (l.length : ℝ) * τ := mul_nonneg (by positivity) hτ.1
+  set i := ⌊(l.length : ℝ) * τ⌋₊
+  have hi1 : (i : ℝ) ≤ l.length * τ := Nat.floor_le hu0
+  have hi2 : (l.length : ℝ) * τ < i + 1 := Nat.lt_floor_add_one _
+  have hil : i < l.length := by
+    have : (l.length : ℝ) * τ < l.length := by
+      have := mul_lt_mul_of_pos_left hτ.2 (show (0:ℝ) < l.length by exact_mod_cast hn)
+      linarith
+    have : (i : ℝ) < l.length := lt_of_le_of_lt hi1 this
+    exact_mod_cast this
+  refine ⟨i, hil, ?_⟩
+  have hx : pgLoop l t = pgLoop l τ := by
+    have := pgLoop_add_int l τ ⌊t⌋
+    rw [← this]; congr 1; exact (Int.fract_add_floor t).symm
+  rw [hx, pgLoop_eq_of hn hτ hi1 hi2, List.getD_eq_getElem _ _ hil,
+    List.getD_eq_getElem _ _ (Nat.mod_lt _ hn)]
+  rw [segment_eq_image_lineMap]
+  exact ⟨_, ⟨by linarith, by linarith⟩, rfl⟩
+
+private lemma pgLoop_mem_pgCv {l : List Pt} (hl : l ≠ []) (t : ℝ) : pgLoop l t ∈ pgCv l := by
+  obtain ⟨i, hi, h⟩ := pgLoop_mem_seg hl t
+  have hi' : i < (pgEd l).length := by rwa [pgEd_length]
+  refine mem_pgCv.2 ⟨(pgEd l)[i], List.getElem_mem hi', ?_⟩
+  rw [pgEd_getElem]; exact h
+
+/-- the loop on one period as a function on `[0,1]` -/
+private def pgBase (l : List Pt) (τ : ℝ) : Pt :=
+  AffineMap.lineMap (l.getD (⌊(l.length : ℝ) * τ⌋₊ % l.length) 0)
+    (l.getD ((⌊(l.length : ℝ) * τ⌋₊ + 1) % l.length) 0)
+    ((l.length : ℝ) * τ - ⌊(l.length : ℝ) * τ⌋₊)
+
+private lemma pgBase_on_piece {l : List Pt} (hn : 0 < l.length) (i : ℕ) (hi : i < l.length) {τ : ℝ}
+    (hτ : τ ∈ Icc ((i : ℝ) / l.length) (((i : ℝ) + 1) / l.length)) :
+    pgBase l τ = AffineMap.lineMap (l.getD i 0) (l.getD ((i + 1) % l.length) 0)
+      ((l.length : ℝ) * τ - i) := by
+  have hnR : (0 : ℝ) < l.length := by exact_mod_cast hn
+  have h1 : (i : ℝ) ≤ l.length * τ := by
+    have := (div_le_iff₀ hnR).1 hτ.1; linarith
+  have h2 : (l.length : ℝ) * τ ≤ i + 1 := by
+    have := (le_div_iff₀ hnR).1 hτ.2; linarith
+  rcases lt_or_eq_of_le h2 with h2 | h2
+  · have hfl : ⌊(l.length : ℝ) * τ⌋₊ = i := by
+      rw [Nat.floor_eq_iff (by linarith [show (0:ℝ) ≤ i from by positivity])]; exact ⟨h1, h2⟩
+    simp only [pgBase, hfl, Nat.mod_eq_of_lt hi]
+  · have hfl : ⌊(l.length : ℝ) * τ⌋₊ = i + 1 := by
+      rw [h2, show ((i:ℝ) + 1) = ((i + 1 : ℕ) : ℝ) by push_cast; ring, Nat.floor_natCast]
+    simp only [pgBase]
+    rw [hfl, h2]
+    push_cast
+    rw [sub_self, AffineMap.lineMap_apply_zero, add_sub_cancel_left, AffineMap.lineMap_apply_one]
+
+private lemma pgBase_continuousOn {l : List Pt} (hn : 0 < l.length) : ContinuousOn (pgBase l) (Icc 0 1) := by
+  have hnR : (0 : ℝ) < l.length := by exact_mod_cast hn
+  let C : Fin l.length → Set ℝ := fun i => Icc ((i : ℝ) / l.length) (((i : ℕ) + 1 : ℝ) / l.length)
+  have hcover : Icc (0 : ℝ) 1 ⊆ ⋃ i, C i := by
+    intro t ht
+    by_cases ht1 : t = 1
+    · subst t
+      refine Set.mem_iUnion.2 ⟨⟨l.length - 1, by omega⟩, ?_⟩
+      change ((l.length - 1 : ℕ) : ℝ) / l.length ≤ 1 ∧ 1 ≤ (((l.length - 1 : ℕ) : ℝ) + 1) / l.length
+      constructor
+      · rw [div_le_one hnR]; exact_mod_cast Nat.sub_le _ 1
+      · rw [le_div_iff₀ hnR]; norm_num; exact_mod_cast (Nat.sub_add_cancel hn).ge
+    have htlt : t < 1 := lt_of_le_of_ne ht.2 ht1
+    have hnt0 : 0 ≤ (l.length : ℝ) * t := mul_nonneg hnR.le ht.1
+    have hfl := Nat.floor_le hnt0
+    have hlt := Nat.lt_floor_add_one ((l.length : ℝ) * t)
+    have hfloor_lt : ⌊(l.length : ℝ) * t⌋₊ < l.length := by
+      rw [Nat.floor_lt hnt0]; simpa using mul_lt_mul_of_pos_left htlt hnR
+    refine Set.mem_iUnion.2 ⟨⟨_, hfloor_lt⟩, ?_⟩
+    change ((⌊(l.length : ℝ) * t⌋₊ : ℕ) : ℝ) / l.length ≤ t ∧
+      t ≤ (((⌊(l.length : ℝ) * t⌋₊ : ℕ) : ℝ) + 1) / l.length
+    constructor
+    · exact (div_le_iff₀ hnR).2 (by linarith)
+    · exact (le_div_iff₀ hnR).2 (by linarith)
+  have hsub : (⋃ i, C i) ⊆ Icc (0 : ℝ) 1 := by
+    rw [Set.iUnion_subset_iff]
+    intro i t ht
+    constructor
+    · exact (div_nonneg (by positivity) hnR.le).trans ht.1
+    · calc t ≤ ((i : ℕ) + 1 : ℝ) / l.length := ht.2
+        _ ≤ 1 := by rw [div_le_one hnR]; exact_mod_cast i.isLt
+  rw [Set.Subset.antisymm hcover hsub]
+  refine (locallyFinite_of_finite C).continuousOn_iUnion (fun i => isClosed_Icc) (fun i => ?_)
+  apply ContinuousOn.congr
+    (AffineMap.lineMap_continuous.comp
+      (continuous_const.mul continuous_id |>.sub continuous_const)).continuousOn
+  intro t ht
+  exact pgBase_on_piece hn i i.isLt ht
+
+private lemma pgLoop_eq_base (l : List Pt) : pgLoop l = pgBase l ∘ Int.fract := rfl
+
+private lemma pgLoop_continuous {l : List Pt} (hl : l ≠ []) : Continuous (pgLoop l) := by
+  have hn : 0 < l.length := List.length_pos_of_ne_nil hl
+  rw [pgLoop_eq_base]
+  apply (pgBase_continuousOn hn).comp_fract''
+  have hnR : (l.length : ℝ) ≠ 0 := by exact_mod_cast hn.ne'
+  simp only [pgBase, mul_zero, Nat.floor_zero, Nat.zero_mod, CharP.cast_eq_zero, zero_add,
+    mul_one, Nat.floor_natCast, Nat.mod_self, sub_self, AffineMap.lineMap_apply_zero]
+
+private lemma pgLoop_pgL (B : PolygonalDisk) : pgLoop (pgL B) = polygonBoundaryBase B ∘ Int.fract := by
+  funext t
+  have hn : 0 < B.n := by have := B.three_le; omega
+  simp only [pgLoop, Function.comp_apply, polygonBoundaryBase, polygonBoundaryIndex, pgL_length]
+  have hk : ⌊(B.n : ℝ) * Int.fract t⌋₊ % B.n < B.n := Nat.mod_lt _ hn
+  rw [List.getD_eq_getElem _ _ (by rw [pgL_length]; exact hk),
+    List.getD_eq_getElem _ _ (by rw [pgL_length]; exact Nat.mod_lt _ hn)]
+  simp only [pgL, List.getElem_ofFn]
+  congr 2
+  exact congrArg B.vertex (Fin.ext (by simp [finRotate_val_eq_mod]))
+
+set_option maxHeartbeats 800000 in
+private lemma pgLoop_isLoopParam (B : PolygonalDisk) : IsLoopParam (frontier B.carrier) (pgLoop (pgL B)) := by
+  rw [pgLoop_pgL]
+  let γ : ℝ → Pt := polygonBoundaryBase B ∘ Int.fract
+  change IsLoopParam (frontier B.carrier) γ
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · apply (polygonBoundaryBase_continuousOn B).comp_fract''
+    have hnN : 0 < B.n := by have := B.three_le; omega
+    simp [polygonBoundaryBase, polygonBoundaryIndex]
+  · intro t
+    simp [γ, Function.comp_def, Int.fract_add_one]
+  · intro s hs t ht hst
+    have hγ (u : ℝ) (hu : u ∈ Ico (0 : ℝ) 1) : γ u = polygonBoundaryBase B u := by
+      simp [γ, Function.comp_def, Int.fract_eq_self.2 hu]
+    rw [hγ s hs, hγ t ht] at hst
+    let i := polygonBoundaryIndex B s
+    let j := polygonBoundaryIndex B t
+    have hnN : 0 < B.n := by have := B.three_le; omega
+    have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+    have hs0 : 0 ≤ (B.n : ℝ) * s := mul_nonneg hn.le hs.1
+    have ht0 : 0 ≤ (B.n : ℝ) * t := mul_nonneg hn.le ht.1
+    have hsi : ⌊(B.n : ℝ) * s⌋₊ < B.n := by
+      rw [Nat.floor_lt hs0]
+      simpa using (mul_lt_mul_of_pos_left hs.2 hn)
+    have htj : ⌊(B.n : ℝ) * t⌋₊ < B.n := by
+      rw [Nat.floor_lt ht0]
+      simpa using (mul_lt_mul_of_pos_left ht.2 hn)
+    have hi : i.val = ⌊(B.n : ℝ) * s⌋₊ := by
+      simp [i, polygonBoundaryIndex, Nat.mod_eq_of_lt hsi]
+    have hj : j.val = ⌊(B.n : ℝ) * t⌋₊ := by
+      simp [j, polygonBoundaryIndex, Nat.mod_eq_of_lt htj]
+    have hus : (B.n : ℝ) * s - i.val ∈ Ico (0 : ℝ) 1 := by
+      rw [hi]
+      exact ⟨sub_nonneg.2 (Nat.floor_le hs0), by
+        have := Nat.lt_floor_add_one ((B.n : ℝ) * s)
+        linarith⟩
+    have hut : (B.n : ℝ) * t - j.val ∈ Ico (0 : ℝ) 1 := by
+      rw [hj]
+      exact ⟨sub_nonneg.2 (Nat.floor_le ht0), by
+        have := Nat.lt_floor_add_one ((B.n : ℝ) * t)
+        linarith⟩
+    have hBs : polygonBoundaryBase B s = AffineMap.lineMap (B.vertex i)
+        (B.vertex (finRotate B.n i)) ((B.n : ℝ) * s - i.val) := by
+      simp [polygonBoundaryBase, i, hi]
+    have hBt : polygonBoundaryBase B t = AffineMap.lineMap (B.vertex j)
+        (B.vertex (finRotate B.n j)) ((B.n : ℝ) * t - j.val) := by
+      simp [polygonBoundaryBase, j, hj]
+    rw [hBs, hBt] at hst
+    by_cases hij : i = j
+    · rw [hij] at hst
+      have hne : B.vertex j ≠ B.vertex (finRotate B.n j) := pd_vertex_ne_next B j
+      have hu := AffineMap.lineMap_injective ℝ hne hst
+      nlinarith
+    · have hsseg : AffineMap.lineMap (B.vertex i) (B.vertex (finRotate B.n i))
+          ((B.n : ℝ) * s - i.val) ∈ segment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) := by
+        rw [segment_eq_image_lineMap]
+        exact ⟨_, ⟨hus.1, hus.2.le⟩, rfl⟩
+      have htseg : AffineMap.lineMap (B.vertex j) (B.vertex (finRotate B.n j))
+          ((B.n : ℝ) * t - j.val) ∈ segment ℝ (B.vertex j) (B.vertex (finRotate B.n j)) := by
+        rw [segment_eq_image_lineMap]
+        exact ⟨_, ⟨hut.1, hut.2.le⟩, rfl⟩
+      have hends := B.simple i j hij ⟨hsseg, hst ▸ htseg⟩
+      simp only [Set.mem_inter_iff, Set.mem_insert_iff, Set.mem_singleton_iff] at hends
+      have hne_i : B.vertex i ≠ B.vertex (finRotate B.n i) := pd_vertex_ne_next B i
+      have hne_j : B.vertex j ≠ B.vertex (finRotate B.n j) := pd_vertex_ne_next B j
+      have hleft_i : AffineMap.lineMap (B.vertex i) (B.vertex (finRotate B.n i))
+          ((B.n : ℝ) * s - i.val) = B.vertex i := by
+        rcases hends.1 with h | h
+        · exact h
+        · rw [AffineMap.lineMap_eq_right_iff] at h
+          exact False.elim ((ne_of_lt hus.2) (h.resolve_left hne_i))
+      have hleft_j : AffineMap.lineMap (B.vertex j) (B.vertex (finRotate B.n j))
+          ((B.n : ℝ) * t - j.val) = B.vertex j := by
+        rcases hends.2 with h | h
+        · exact hst.symm.trans h
+        · have h' := hst.symm.trans h
+          rw [AffineMap.lineMap_eq_right_iff] at h'
+          exact False.elim ((ne_of_lt hut.2) (h'.resolve_left hne_j))
+      exact (hij (B.vertex_injective (hleft_i.symm.trans (hst.trans hleft_j)))).elim
+  · rw [B.frontier_eq]
+    ext x
+    constructor
+    · rintro ⟨t, ht, rfl⟩
+      have hfract : Int.fract t = t := Int.fract_eq_self.2 ht
+      change polygonBoundaryBase B (Int.fract t) ∈ _
+      rw [hfract]
+      let i := polygonBoundaryIndex B t
+      have hnN : 0 < B.n := by have := B.three_le; omega
+      have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+      have ht0 : 0 ≤ (B.n : ℝ) * t := mul_nonneg hn.le ht.1
+      have hfi : ⌊(B.n : ℝ) * t⌋₊ < B.n := by
+        rw [Nat.floor_lt ht0]
+        simpa using mul_lt_mul_of_pos_left ht.2 hn
+      have hi : i.val = ⌊(B.n : ℝ) * t⌋₊ := by
+        simp [i, polygonBoundaryIndex, Nat.mod_eq_of_lt hfi]
+      apply Set.mem_iUnion.2
+      refine ⟨i, ?_⟩
+      have hbase : polygonBoundaryBase B t = AffineMap.lineMap (B.vertex i)
+          (B.vertex (finRotate B.n i)) ((B.n : ℝ) * t - i.val) := by
+        simp [polygonBoundaryBase, i, hi]
+      rw [hbase, segment_eq_image_lineMap]
+      refine ⟨(B.n : ℝ) * t - i.val, ?_, rfl⟩
+      rw [hi]
+      refine ⟨sub_nonneg.2 (Nat.floor_le ht0), ?_⟩
+      have := Nat.lt_floor_add_one ((B.n : ℝ) * t)
+      linarith
+    · rw [Set.mem_iUnion]
+      rintro ⟨i, hx⟩
+      rw [segment_eq_image_lineMap] at hx
+      obtain ⟨u, hu, rfl⟩ := hx
+      by_cases hu1 : u = 1
+      · let j := finRotate B.n i
+        refine ⟨(j : ℝ) / B.n, ?_, ?_⟩
+        · have hnN : 0 < B.n := by have := B.three_le; omega
+          have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+          exact ⟨div_nonneg (by positivity) hn.le, (div_lt_one hn).2 (by exact_mod_cast j.isLt)⟩
+        · have hjmem : (j : ℝ) / B.n ∈
+              Icc ((j : ℝ) / B.n) (((j : ℕ) + 1 : ℝ) / B.n) := by
+            constructor
+            · rfl
+            · have hnN : 0 < B.n := by have := B.three_le; omega
+              exact div_le_div_of_nonneg_right (by norm_num) (by exact_mod_cast hnN.le)
+          have hnN : 0 < B.n := by have := B.three_le; omega
+          have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+          simp only [γ, Function.comp_apply]
+          rw [Int.fract_eq_self.2 ⟨(div_nonneg (by positivity) hn.le).trans hjmem.1,
+            (div_lt_one hn).2 (by exact_mod_cast j.isLt)⟩]
+          rw [polygonBoundaryBase_on_edge B j hjmem, hu1]
+          rw [mul_div_cancel₀ _ hn.ne']
+          simp [j]
+      · let t := ((i : ℝ) + u) / B.n
+        have hnN : 0 < B.n := by have := B.three_le; omega
+        have hn : (0 : ℝ) < B.n := by exact_mod_cast hnN
+        have htmem : t ∈ Icc ((i : ℝ) / B.n) (((i : ℕ) + 1 : ℝ) / B.n) := by
+          dsimp [t]
+          constructor <;> rw [div_le_div_iff_of_pos_right hn]
+          · linarith [hu.1]
+          · norm_num at hu1 ⊢
+            linarith [hu.2]
+        have htIco : t ∈ Ico (0 : ℝ) 1 := by
+          refine ⟨(div_nonneg (by positivity) hn.le).trans htmem.1, ?_⟩
+          rw [div_lt_one hn]
+          have hi : ((i : ℕ) : ℝ) + 1 ≤ B.n := by exact_mod_cast i.isLt
+          have hu' : u < 1 := lt_of_le_of_ne hu.2 hu1
+          linarith
+        refine ⟨t, htIco, ?_⟩
+        simp only [γ, Function.comp_apply]
+        rw [Int.fract_eq_self.2 htIco, polygonBoundaryBase_on_edge B i htmem]
+        congr 1
+        dsimp [t]
+        rw [mul_div_cancel₀ _ hn.ne']
+        ring
+
+/-- evaluation of the uniform loop at a point of the `i`-th edge -/
+private lemma pgLoop_eval (l : List Pt) (m : ℤ) {i : ℕ} (hi : i < l.length) {μ : ℝ} (hμ : μ ∈ Ico (0 : ℝ) 1) :
+    pgLoop l ((m : ℝ) + ((i : ℝ) + μ) / l.length) =
+      AffineMap.lineMap (l.getD i 0) (l.getD ((i + 1) % l.length) 0) μ := by
+  have hn : 0 < l.length := by omega
+  have hnR : (0 : ℝ) < l.length := by exact_mod_cast hn
+  rw [add_comm, pgLoop_add_int]
+  have hτ : ((i : ℝ) + μ) / l.length ∈ Ico (0 : ℝ) 1 := by
+    constructor
+    · exact div_nonneg (by linarith [hμ.1, show (0:ℝ) ≤ i from by positivity]) hnR.le
+    · rw [div_lt_one hnR]
+      have : (i : ℝ) + 1 ≤ l.length := by exact_mod_cast hi
+      linarith [hμ.2]
+  have hmul : (l.length : ℝ) * (((i : ℝ) + μ) / l.length) = i + μ := by field_simp
+  rw [pgLoop_eq_of (i := i) hn hτ (by rw [hmul]; linarith [hμ.1]) (by rw [hmul]; linarith [hμ.2]), hmul]
+  congr 1; ring
+
+/-- every real number is a position on some edge -/
+private lemma pg_decomp (n : ℕ) (hn : 0 < n) (t : ℝ) :
+    ∃ m : ℤ, ∃ i : ℕ, i < n ∧ ∃ μ ∈ Ico (0 : ℝ) 1, t = m + ((i : ℝ) + μ) / n := by
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  set τ := Int.fract t
+  have hu0 : 0 ≤ (n : ℝ) * τ := mul_nonneg hnR.le (Int.fract_nonneg t)
+  set i := ⌊(n : ℝ) * τ⌋₊
+  have hi1 : (i : ℝ) ≤ n * τ := Nat.floor_le hu0
+  have hi2 : (n : ℝ) * τ < i + 1 := Nat.lt_floor_add_one _
+  have hil : i < n := by
+    have : (n : ℝ) * τ < n := by
+      have := mul_lt_mul_of_pos_left (Int.fract_lt_one t) hnR; linarith
+    exact_mod_cast lt_of_le_of_lt hi1 this
+  refine ⟨⌊t⌋, i, hil, n * τ - i, ⟨by linarith, by linarith⟩, ?_⟩
+  rw [show ((i:ℝ) + (n * τ - i)) / n = τ by field_simp; ring]
+  exact (Int.floor_add_fract t).symm
+
+/-- rotating the list shifts the loop -/
+private lemma pgLoop_rotate_one (l : List Pt) (t : ℝ) :
+    pgLoop (l.rotate 1) t = pgLoop l (t + 1 / l.length) := by
+  rcases Nat.eq_zero_or_pos l.length with h0 | hn
+  · have : l = [] := List.length_eq_zero_iff.1 h0
+    subst this; simp [pgLoop]
+  obtain ⟨m, i, hi, μ, hμ, rfl⟩ := pg_decomp l.length hn t
+  have hlen : (l.rotate 1).length = l.length := List.length_rotate _ _
+  have hi' : i < (l.rotate 1).length := by rw [hlen]; exact hi
+  have e1 := pgLoop_eval (l.rotate 1) m hi' hμ
+  rw [hlen] at e1
+  rw [e1]
+  rw [List.getD_eq_getElem _ _ hi', List.getD_eq_getElem _ _ (by rw [hlen]; exact Nat.mod_lt _ hn),
+    List.getElem_rotate, List.getElem_rotate]
+  by_cases hi1 : i + 1 < l.length
+  · have : (m : ℝ) + ((i : ℝ) + μ) / l.length + 1 / l.length = m + (((i + 1 : ℕ) : ℝ) + μ) / l.length := by
+      push_cast; ring
+    rw [this, pgLoop_eval l m hi1 hμ, List.getD_eq_getElem _ _ hi1,
+      List.getD_eq_getElem _ _ (Nat.mod_lt _ hn)]
+    congr 2
+    · simp [Nat.mod_eq_of_lt hi1]
+    · simp only [Nat.mod_add_mod]
+  · have hie : i + 1 = l.length := by omega
+    have : (m : ℝ) + ((i : ℝ) + μ) / l.length + 1 / l.length = ((m + 1 : ℤ) : ℝ) + (((0 : ℕ) : ℝ) + μ) / l.length := by
+      have : (i : ℝ) + 1 = l.length := by exact_mod_cast hie
+      push_cast; field_simp; linarith
+    rw [this, pgLoop_eval l (m + 1) hn hμ, List.getD_eq_getElem _ _ hn,
+      List.getD_eq_getElem _ _ (Nat.mod_lt _ hn)]
+    congr 2
+    · simp [hie]
+    · simp only [Nat.mod_add_mod, hie, Nat.add_mod_left]
+
+/-- reversal of a loop keeping the first point -/
+private def pgRev : List Pt → List Pt
+  | [] => []
+  | x :: r => x :: r.reverse
+
+private lemma pgRev_length (l : List Pt) : (pgRev l).length = l.length := by
+  cases l <;> simp [pgRev]
+
+private lemma pgRev_getElem_zero (x : Pt) (r : List Pt) : (pgRev (x :: r))[0]'(by simp [pgRev]) = x := rfl
+
+private lemma pgRev_getElem (l : List Pt) (i : ℕ) (hi : i < l.length) :
+    (pgRev l)[i]'(by rw [pgRev_length]; exact hi) =
+      l[(l.length - i) % l.length]'(Nat.mod_lt _ (by omega)) := by
+  cases l with
+  | nil => simp at hi
+  | cons x r =>
+    cases i with
+    | zero => simp [pgRev]
+    | succ i =>
+      simp only [pgRev, List.getElem_cons_succ, List.getElem_reverse, List.length_cons]
+      have h1 : i < r.length := by simp at hi; omega
+      have : (r.length + 1 - (i + 1)) % (r.length + 1) = r.length - i := by
+        rw [Nat.mod_eq_of_lt (by omega)]; omega
+      simp only [this]
+      rw [List.getElem_cons]
+      split_ifs with h
+      · omega
+      · congr 1; omega
+
+private lemma pgLoop_rev (l : List Pt) (t : ℝ) : pgLoop (pgRev l) t = pgLoop l (-t) := by
+  rcases Nat.eq_zero_or_pos l.length with h0 | hn
+  · have : l = [] := List.length_eq_zero_iff.1 h0
+    subst this; simp [pgLoop, pgRev]
+  obtain ⟨m, i, hi, μ, hμ, rfl⟩ := pg_decomp l.length hn t
+  have hlen : (pgRev l).length = l.length := pgRev_length l
+  have hi' : i < (pgRev l).length := by rw [hlen]; exact hi
+  have e1 := pgLoop_eval (pgRev l) m hi' hμ
+  rw [hlen] at e1
+  rw [e1, List.getD_eq_getElem _ _ hi', List.getD_eq_getElem _ _ (by rw [hlen]; exact Nat.mod_lt _ hn),
+    pgRev_getElem _ _ hi, pgRev_getElem _ _ (Nat.mod_lt _ hn)]
+  have hnR : (0 : ℝ) < l.length := by exact_mod_cast hn
+  rcases eq_or_lt_of_le hμ.1 with hμ0 | hμ0
+  · subst hμ0
+    simp only [AffineMap.lineMap_apply_zero]
+    by_cases hi0 : i = 0
+    · subst hi0
+      have : -((m : ℝ) + (((0 : ℕ) : ℝ) + 0) / l.length) = ((-m : ℤ) : ℝ) + (((0 : ℕ) : ℝ) + 0) / l.length := by
+        push_cast; ring
+      rw [this, pgLoop_eval l (-m) hn ⟨le_refl _, one_pos⟩, List.getD_eq_getElem _ _ hn]
+      simp
+    · have hj : l.length - i < l.length := by omega
+      have : -((m : ℝ) + ((i : ℝ) + 0) / l.length) =
+          ((-m - 1 : ℤ) : ℝ) + (((l.length - i : ℕ) : ℝ) + 0) / l.length := by
+        rw [Nat.cast_sub hi.le]; push_cast; field_simp; ring
+      rw [this, pgLoop_eval l (-m - 1) hj ⟨le_refl _, one_pos⟩, List.getD_eq_getElem _ _ hj]
+      simp [Nat.mod_eq_of_lt hj]
+  · have hj : l.length - i - 1 < l.length := by omega
+    have : -((m : ℝ) + ((i : ℝ) + μ) / l.length) =
+        ((-m - 1 : ℤ) : ℝ) + (((l.length - i - 1 : ℕ) : ℝ) + (1 - μ)) / l.length := by
+      rw [Nat.cast_sub (by omega), Nat.cast_sub hi.le]; push_cast; field_simp; ring
+    rw [this, pgLoop_eval l (-m - 1) hj ⟨by linarith [hμ.2], by linarith⟩,
+      List.getD_eq_getElem _ _ hj, List.getD_eq_getElem _ _ (Nat.mod_lt _ hn)]
+    rw [← AffineMap.lineMap_apply_one_sub]
+    have e1 : (l.length - i - 1 + 1) % l.length = (l.length - i) % l.length := by
+      rw [show l.length - i - 1 + 1 = l.length - i by omega]
+    have e2 : (l.length - (i + 1) % l.length) % l.length = l.length - i - 1 := by
+      rcases Nat.lt_or_ge (i + 1) l.length with h | h
+      · rw [Nat.mod_eq_of_lt h, Nat.mod_eq_of_lt (by omega)]; omega
+      · have : i + 1 = l.length := by omega
+        rw [this, Nat.mod_self, Nat.sub_zero, Nat.mod_self]; omega
+    simp only [e1, e2]
+
+/-! ### Basic algebra of the winding function of list polygons -/
+
+private lemma pg_im_div_mul (z w : ℂ) : (z / w).im * Complex.normSq w = z.im * w.re - z.re * w.im := by
+  rcases eq_or_ne w 0 with rfl | hw
+  · simp
+  · have : Complex.normSq w ≠ 0 := by rwa [Ne, Complex.normSq_eq_zero]
+    rw [Complex.div_im]; field_simp
+
+private lemma segRatio_im_mul (a b p : Pt) :
+    (segRatio a b p).im * Complex.normSq (toC a - toC p) = jcr (b - a) (p - a) := by
+  rw [segRatio, pg_im_div_mul]; simp [toC, jcr]; ring
+
+private lemma normSq_toC_pos {a p : Pt} (h : p ≠ a) : 0 < Complex.normSq (toC a - toC p) := by
+  rw [Complex.normSq_pos, sub_ne_zero]; exact fun e => h (toC_injective e).symm
+
+private lemma segRatio_im_pos {a b p : Pt} (h : 0 < jcr (b - a) (p - a)) : 0 < (segRatio a b p).im := by
+  have hpa : p ≠ a := by rintro rfl; simp [jcr] at h
+  have h1 := segRatio_im_mul a b p
+  have h2 := normSq_toC_pos hpa
+  by_contra hc; push_neg at hc
+  nlinarith [mul_le_mul_of_nonneg_right hc h2.le]
+
+private lemma segRatio_im_neg {a b p : Pt} (h : jcr (b - a) (p - a) < 0) : (segRatio a b p).im < 0 := by
+  have hpa : p ≠ a := by rintro rfl; simp [jcr] at h
+  have h1 := segRatio_im_mul a b p
+  have h2 := normSq_toC_pos hpa
+  by_contra hc; push_neg at hc
+  nlinarith [mul_le_mul_of_nonneg_right hc h2.le]
+
+private lemma toC_div_im_mul (x d : Pt) : (toC x / toC d).im * Complex.normSq (toC d) = jcr d x := by
+  rw [pg_im_div_mul]; simp [toC, jcr]; ring
+
+private lemma arg_segRatio_halfplane {a b p d : Pt} (ha : 0 < jcr d (a - p)) (hb : 0 < jcr d (b - p)) :
+    Complex.arg (segRatio a b p) =
+      Complex.arg (toC (b - p) / toC d) - Complex.arg (toC (a - p) / toC d) := by
+  have hd : toC d ≠ 0 := by
+    intro h; have : d = 0 := toC_injective (by rw [h]; simp [toC]; rfl)
+    subst this; simp [jcr] at ha
+  have hnd : 0 < Complex.normSq (toC d) := Complex.normSq_pos.2 hd
+  have him : ∀ x : Pt, 0 < jcr d (x - p) → 0 < (toC (x - p) / toC d).im := by
+    intro x hx
+    have := toC_div_im_mul (x - p) d
+    by_contra hc; push_neg at hc; nlinarith [mul_le_mul_of_nonneg_right hc hnd.le]
+  have hza := him a ha
+  have hzb := him b hb
+  set za := toC (a - p) / toC d
+  set zb := toC (b - p) / toC d
+  have hza0 : za ≠ 0 := fun h => by rw [h] at hza; simp at hza
+  have hzb0 : zb ≠ 0 := fun h => by rw [h] at hzb; simp at hzb
+  have hap : toC (a - p) ≠ 0 := by
+    intro h; apply hza0; simp only [za, h, zero_div]
+  have hseg : segRatio a b p = zb * za⁻¹ := by
+    simp only [segRatio, za, zb, ← toC_sub]
+    field_simp
+  have hpa : Complex.arg za < Real.pi := Complex.arg_lt_pi_iff.2 (Or.inr hza.ne')
+  have hpb : Complex.arg zb < Real.pi := Complex.arg_lt_pi_iff.2 (Or.inr hzb.ne')
+  have h0a : 0 ≤ Complex.arg za := Complex.arg_nonneg_iff.2 hza.le
+  have h0b : 0 ≤ Complex.arg zb := Complex.arg_nonneg_iff.2 hzb.le
+  have hinv : Complex.arg za⁻¹ = - Complex.arg za := by
+    rw [Complex.arg_inv, if_neg hpa.ne]
+  rw [hseg, (Complex.arg_mul_eq_add_arg_iff hzb0 (inv_ne_zero hza0)).2, hinv]
+  · ring
+  · rw [hinv]; constructor <;> linarith
+
+private lemma pgCh_sum_tele (f : Pt → ℝ) (a : Pt) (r : List Pt) :
+    ((pgCh (a :: r)).map (fun e => f e.2 - f e.1)).sum =
+      f ((a :: r).getLast (List.cons_ne_nil _ _)) - f a := by
+  induction r generalizing a with
+  | nil => simp
+  | cons b r ih =>
+    rw [pgCh_cons_cons, List.map_cons, List.sum_cons, ih, List.getLast_cons (List.cons_ne_nil _ _)]
+    ring
+
+private lemma pgEd_sum_tele (f : Pt → ℝ) (l : List Pt) : ((pgEd l).map (fun e => f e.2 - f e.1)).sum = 0 := by
+  cases l with
+  | nil => simp [pgEd]
+  | cons a r =>
+    rw [pgEd_cons, List.cons_append, pgCh_sum_tele]
+    simp
+
+private lemma pgEd_mem {l : List Pt} {e : Pt × Pt} (he : e ∈ pgEd l) : e.1 ∈ l ∧ e.2 ∈ l := by
+  cases l with
+  | nil => simp [pgEd] at he
+  | cons a r =>
+    rw [pgEd_cons] at he
+    have := pgCh_mem he
+    simp only [List.cons_append, List.mem_cons, List.mem_append, List.not_mem_nil] at this ⊢
+    tauto
+
+/-- **Half-plane criterion**: the winding vanishes at a point seeing all vertices in an open
+half-plane. -/
+private lemma pgW_eq_zero_of_halfplane {l : List Pt} {p d : Pt} (h : ∀ x ∈ l, 0 < jcr d (x - p)) :
+    pgW l p = 0 := by
+  rw [pgW, ← pgEd_sum_tele (fun x => Complex.arg (toC (x - p) / toC d)) l]
+  congr 1
+  apply List.map_congr_left
+  intro e he
+  have := pgEd_mem he
+  exact arg_segRatio_halfplane (h _ this.1) (h _ this.2)
+
+/-! ### Rotation -/
+
+private lemma pgEd_rotate_one (l : List Pt) : pgEd (l.rotate 1) = (pgEd l).rotate 1 := by
+  match l with
+  | [] => rfl
+  | [a] => simp [pgEd]
+  | a :: b :: r =>
+    have e1 : (a :: b :: r).rotate 1 = b :: (r ++ [a]) := by simp [List.rotate_cons_succ]
+    rw [e1, pgEd_cons, pgEd_cons]
+    have e2 : b :: (r ++ [a]) ++ [b] = (b :: r) ++ a :: [b] := by simp
+    have e3 : a :: b :: r ++ [a] = a :: (b :: (r ++ [a])) := by simp
+    rw [e2, pgCh_append, e3, pgCh_cons_cons]
+    simp [List.rotate_cons_succ]
+
+private lemma pgEd_rotate_perm (l : List Pt) (k : ℕ) : (pgEd (l.rotate k)).Perm (pgEd l) := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    rw [← List.rotate_rotate, pgEd_rotate_one]
+    exact (List.rotate_perm _ _).trans ih
+
+private lemma pgW_rotate (l : List Pt) (k : ℕ) (p : Pt) : pgW (l.rotate k) p = pgW l p :=
+  ((pgEd_rotate_perm l k).map _).sum_eq
+
+private lemma pgCv_rotate (l : List Pt) (k : ℕ) : pgCv (l.rotate k) = pgCv l := by
+  ext x; simp only [mem_pgCv, (pgEd_rotate_perm l k).mem_iff]
+
+private lemma pgOK_symm' : ∀ {e f : Pt × Pt}, PgOK e f → PgOK f e := fun h => pgOK_symm h
+
+private lemma PgSP.rotate {l : List Pt} (h : PgSP l) (k : ℕ) : PgSP (l.rotate k) where
+  three := by rw [List.length_rotate]; exact h.three
+  nodup := (List.rotate_perm l k).nodup_iff.2 h.nodup
+  pw := h.pw.perm (pgEd_rotate_perm l k).symm pgOK_symm'
+
+/-! ### Splitting along a chord -/
+
+private lemma pgEd_close (a b : Pt) (x : List Pt) : pgEd (a :: x ++ [b]) = pgCh (a :: x ++ [b]) ++ [(b, a)] := by
+  rw [List.cons_append, pgEd_cons]
+  have : a :: (x ++ [b]) ++ [a] = (a :: x) ++ b :: [a] := by simp
+  rw [this, pgCh_append]; simp
+
+private lemma pgEd_split (a b : Pt) (m1 m2 : List Pt) :
+    pgEd (a :: m1 ++ b :: m2) = pgCh (a :: m1 ++ [b]) ++ pgCh (b :: m2 ++ [a]) := by
+  rw [List.cons_append, pgEd_cons]
+  have : a :: (m1 ++ b :: m2) ++ [a] = (a :: m1) ++ b :: (m2 ++ [a]) := by simp
+  rw [this, pgCh_append]; simp
+
+private lemma arg_segRatio_swap {a b p : Pt} (hp : p ∉ segment ℝ a b) :
+    Complex.arg (segRatio b a p) = - Complex.arg (segRatio a b p) := by
+  have h := segRatio_mem_slitPlane hp
+  have e : segRatio b a p = (segRatio a b p)⁻¹ := by simp [segRatio, inv_div]
+  rw [e, Complex.arg_inv, if_neg (Complex.mem_slitPlane_iff_arg.1 h).1]
+
+private lemma pgW_split {a b p : Pt} (m1 m2 : List Pt) (hp : p ∉ segment ℝ a b) :
+    pgW (a :: m1 ++ b :: m2) p = pgW (a :: m1 ++ [b]) p + pgW (b :: m2 ++ [a]) p := by
+  rw [pgW, pgW, pgW, pgEd_close, pgEd_close, pgEd_split]
+  simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
+  have := arg_segRatio_swap hp
+  have hp' : p ∉ segment ℝ b a := by rwa [segment_symm]
+  have := arg_segRatio_swap hp'
+  linarith
+
+private lemma pgCv_close (a b : Pt) (x : List Pt) :
+    pgCv (a :: x ++ [b]) = (⋃ e ∈ pgCh (a :: x ++ [b]), segment ℝ e.1 e.2) ∪ segment ℝ a b := by
+  rw [pgCv, pgEd_close]
+  ext y; simp only [List.mem_append, List.mem_singleton, mem_iUnion, mem_union, exists_prop]
+  constructor
+  · rintro ⟨e, he | rfl, hy⟩
+    · exact Or.inl ⟨e, he, hy⟩
+    · exact Or.inr (by rw [segment_symm]; exact hy)
+  · rintro (⟨e, he, hy⟩ | hy)
+    · exact ⟨e, Or.inl he, hy⟩
+    · exact ⟨(b, a), Or.inr rfl, by rw [segment_symm]; exact hy⟩
+
+private lemma pgCv_split (a b : Pt) (m1 m2 : List Pt) :
+    pgCv (a :: m1 ++ b :: m2) = (⋃ e ∈ pgCh (a :: m1 ++ [b]), segment ℝ e.1 e.2) ∪
+      (⋃ e ∈ pgCh (b :: m2 ++ [a]), segment ℝ e.1 e.2) := by
+  ext y; simp only [pgCv, pgEd_split, List.mem_append, mem_iUnion, mem_union, exists_prop]
+  constructor
+  · rintro ⟨e, he | he, hy⟩
+    · exact Or.inl ⟨e, he, hy⟩
+    · exact Or.inr ⟨e, he, hy⟩
+  · rintro (⟨e, he, hy⟩ | ⟨e, he, hy⟩)
+    · exact ⟨e, Or.inl he, hy⟩
+    · exact ⟨e, Or.inr he, hy⟩
+
+/-! ### Reversal -/
+
+private lemma pgCh_reverse (m : List Pt) : pgCh m.reverse = ((pgCh m).map Prod.swap).reverse := by
+  induction m with
+  | nil => rfl
+  | cons a t ih =>
+    cases t with
+    | nil => rfl
+    | cons b r =>
+      rw [pgCh_cons_cons, List.map_cons, List.reverse_cons (a := Prod.swap (a, b)), ← ih,
+        List.reverse_cons (a := a) (as := b :: r), List.reverse_cons (a := b) (as := r), List.append_assoc, List.singleton_append,
+        pgCh_append]
+      simp
+
+private lemma pgEd_pgRev (l : List Pt) : pgEd (pgRev l) = ((pgEd l).map Prod.swap).reverse := by
+  cases l with
+  | nil => rfl
+  | cons x r =>
+    simp only [pgRev, pgEd_cons]
+    rw [← pgCh_reverse]; simp
+
+private lemma pg_sum_map_neg {α : Type*} (L : List α) (f : α → ℝ) :
+    (L.map (fun e => - f e)).sum = - (L.map f).sum := by
+  induction L with
+  | nil => simp
+  | cons x t ih => simp only [List.map_cons, List.sum_cons, ih]; ring
+
+private lemma pgW_pgRev {l : List Pt} {p : Pt} (hp : p ∉ pgCv l) : pgW (pgRev l) p = - pgW l p := by
+  rw [pgW, pgW, pgEd_pgRev, List.map_reverse, List.sum_reverse, List.map_map, ← pg_sum_map_neg]
+  congr 1
+  apply List.map_congr_left
+  intro e he
+  simp only [Function.comp_apply, Prod.fst_swap, Prod.snd_swap]
+  exact arg_segRatio_swap (fun h => hp (mem_pgCv.2 ⟨e, he, h⟩))
+
+private lemma pgCv_pgRev (l : List Pt) : pgCv (pgRev l) = pgCv l := by
+  ext y; simp only [mem_pgCv, pgEd_pgRev, List.mem_reverse, List.mem_map]
+  constructor
+  · rintro ⟨_, ⟨e, he, rfl⟩, hy⟩; exact ⟨e, he, by rw [segment_symm]; exact hy⟩
+  · rintro ⟨e, he, hy⟩; exact ⟨_, ⟨e, he, rfl⟩, by simp only [Prod.fst_swap, Prod.snd_swap]; rw [segment_symm]; exact hy⟩
+
+private lemma pgRev_perm (l : List Pt) : (pgRev l).Perm l := by
+  cases l with
+  | nil => rfl
+  | cons x r => exact (List.reverse_perm r).cons x
+
+private lemma pgOK_swap {e f : Pt × Pt} (h : PgOK e f) : PgOK e.swap f.swap := by
+  intro y hy
+  simp only [Prod.fst_swap, Prod.snd_swap] at hy ⊢
+  rw [segment_symm ℝ e.2, segment_symm ℝ f.2] at hy
+  have := h hy
+  rw [Set.pair_comm e.2, Set.pair_comm f.2]; exact this
+
+private lemma PgSP.pgRev {l : List Pt} (h : PgSP l) : PgSP (pgRev l) where
+  three := by rw [pgRev_length]; exact h.three
+  nodup := (pgRev_perm l).nodup_iff.2 h.nodup
+  pw := by
+    rw [pgEd_pgRev]
+    refine List.Pairwise.perm ?_ (List.reverse_perm _).symm pgOK_symm'
+    rw [List.pairwise_map]
+    exact h.pw.imp pgOK_swap
+
+/-! ### Off-curve properties -/
+
+private lemma pgW_int {l : List Pt} {p : Pt} (hp : p ∉ pgCv l) : ∃ n : ℤ, pgW l p = 2 * Real.pi * n := by
+  rw [pgW_eq_wind]; rw [pgCv_eq_polyCurve] at hp; exact wind_int hp
+
+private lemma pgW_continuousAt {l : List Pt} {p : Pt} (hp : p ∉ pgCv l) : ContinuousAt (pgW l) p := by
+  have : pgW l = wind l.get := funext (pgW_eq_wind l)
+  rw [this]; rw [pgCv_eq_polyCurve] at hp; exact wind_continuousAt hp
+
+private lemma pgW_const {l : List Pt} {S : Set Pt} (hS : IsPreconnected S) (hSc : ∀ x ∈ S, x ∉ pgCv l)
+    {x y : Pt} (hx : x ∈ S) (hy : y ∈ S) : pgW l x = pgW l y := by
+  rw [pgW_eq_wind, pgW_eq_wind]
+  exact wind_const_of_preconnected hS (fun z hz => by rw [← pgCv_eq_polyCurve]; exact hSc z hz) hx hy
+
+private lemma isCompact_pgCv (l : List Pt) : IsCompact (pgCv l) := by
+  rw [pgCv]
+  have := (pgEd l).toFinset.isCompact_biUnion (fun e _ => isCompact_segment_pt e.1 e.2)
+  simpa using this
+
+private lemma isClosed_pgCv (l : List Pt) : IsClosed (pgCv l) := (isCompact_pgCv l).isClosed
+
+/-! ### Elementary plane geometry for the polygonal Jordan theorem -/
+
+private lemma pg_jcr_seg {a b x : Pt} (hx : x ∈ segment ℝ a b) : jcr (b - a) (x - a) = 0 := by
+  obtain ⟨t, -, -, rfl⟩ := mem_segment_iff'.1 hx
+  rw [add_sub_cancel_left, jcr_smul_right, jcr_self, mul_zero]
+
+private lemma pg_jcr_param (a b : Pt) (s t : ℝ) :
+    jcr (b - a) (a + s • (b - a) + t • jrot (b - a) - a) = t * ‖b - a‖ ^ 2 := by
+  rw [show a + s • (b - a) + t • jrot (b - a) - a = s • (b - a) + t • jrot (b - a) by abel,
+    jcr_add_right, jcr_smul_right, jcr_smul_right, jcr_self, jcr_jrot]; ring
+
+private lemma pg_arg_im_pos {z : ℂ} (h : 0 < z.im) : 0 < Complex.arg z ∧ Complex.arg z < Real.pi := by
+  refine ⟨lt_of_le_of_ne (Complex.arg_nonneg_iff.2 h.le) ?_, Complex.arg_lt_pi_iff.2 (Or.inr h.ne')⟩
+  intro h0; have := Complex.arg_eq_zero_iff.1 h0.symm; linarith [this.2]
+
+private lemma pg_arg_im_neg {z : ℂ} (h : z.im < 0) : -Real.pi < Complex.arg z ∧ Complex.arg z < 0 :=
+  ⟨Complex.neg_pi_lt_arg z, Complex.arg_neg_iff.2 h⟩
+
+private lemma pgW_tri (x1 x2 x3 p : Pt) : pgW [x1, x2, x3] p =
+    Complex.arg (segRatio x1 x2 p) + Complex.arg (segRatio x2 x3 p) + Complex.arg (segRatio x3 x1 p) := by
+  simp [pgW, pgEd, pgCh, add_assoc]
+
+private lemma mem_pgCv_tri {x1 x2 x3 y : Pt} :
+    y ∈ pgCv [x1, x2, x3] ↔ y ∈ segment ℝ x1 x2 ∨ y ∈ segment ℝ x2 x3 ∨ y ∈ segment ℝ x3 x1 := by
+  simp [pgCv, pgEd, pgCh]
+
+private lemma pg_int_eq_one {x : ℝ} {n : ℤ} (hx : x = 2 * Real.pi * n) (h0 : 0 < x) (h3 : x < 3 * Real.pi) :
+    x = 2 * Real.pi := by
+  have hπ := Real.pi_pos
+  have hlo : (0 : ℝ) < n := by
+    by_contra h; push_neg at h; nlinarith
+  have hhi : (n : ℝ) < 2 := by
+    by_contra h; push_neg at h; nlinarith
+  have : n = 1 := by
+    have a1 : (0 : ℤ) < n := by exact_mod_cast hlo
+    have a2 : n < 2 := by exact_mod_cast hhi
+    omega
+  rw [hx, this]; simp
+
+private lemma pgW_tri_pos {x1 x2 x3 p : Pt} (h1 : 0 < jcr (x2 - x1) (p - x1)) (h2 : 0 < jcr (x3 - x2) (p - x2))
+    (h3 : 0 < jcr (x1 - x3) (p - x3)) : pgW [x1, x2, x3] p = 2 * Real.pi := by
+  have hp : p ∉ pgCv [x1, x2, x3] := by
+    intro h; rcases mem_pgCv_tri.1 h with h | h | h
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+  obtain ⟨n, hn⟩ := pgW_int hp
+  have a1 := pg_arg_im_pos (segRatio_im_pos h1)
+  have a2 := pg_arg_im_pos (segRatio_im_pos h2)
+  have a3 := pg_arg_im_pos (segRatio_im_pos h3)
+  apply pg_int_eq_one hn <;> rw [pgW_tri] <;> linarith
+
+private lemma pgW_tri_neg {x1 x2 x3 p : Pt} (h1 : jcr (x2 - x1) (p - x1) < 0) (h2 : jcr (x3 - x2) (p - x2) < 0)
+    (h3 : jcr (x1 - x3) (p - x3) < 0) : pgW [x1, x2, x3] p = -(2 * Real.pi) := by
+  have hp : p ∉ pgCv [x1, x2, x3] := by
+    intro h; rcases mem_pgCv_tri.1 h with h | h | h
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+  obtain ⟨n, hn⟩ := pgW_int hp
+  have a1 := pg_arg_im_neg (segRatio_im_neg h1)
+  have a2 := pg_arg_im_neg (segRatio_im_neg h2)
+  have a3 := pg_arg_im_neg (segRatio_im_neg h3)
+  have := pg_int_eq_one (x := - pgW [x1, x2, x3] p) (n := -n) (by rw [hn]; push_cast; ring)
+    (by rw [pgW_tri]; linarith) (by rw [pgW_tri]; linarith)
+  linarith
+
+private lemma pgW_tri_zero {x1 x2 x3 p : Pt} (h : jcr (x2 - x1) (p - x1) < 0) (hD : 0 ≤ jcr (x2 - x1) (x3 - x1)) :
+    pgW [x1, x2, x3] p = 0 := by
+  apply pgW_eq_zero_of_halfplane (d := x2 - x1)
+  intro x hx
+  have e : ∀ y, jcr (x2 - x1) (y - p) = jcr (x2 - x1) (y - x1) - jcr (x2 - x1) (p - x1) := by
+    intro y; rw [← jcr_sub_right]; congr 1; abel
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+  rcases hx with rfl | rfl | rfl
+  · rw [e, sub_self, show jcr (x2 - x) 0 = 0 by simp [jcr]]; linarith
+  · rw [e, jcr_self]; linarith
+  · rw [e]; linarith
+
+private lemma pgW_tri_zero' {x1 x2 x3 p : Pt} (h : 0 < jcr (x2 - x1) (p - x1)) (hD : jcr (x2 - x1) (x3 - x1) ≤ 0) :
+    pgW [x1, x2, x3] p = 0 := by
+  apply pgW_eq_zero_of_halfplane (d := x1 - x2)
+  intro x hx
+  have e : ∀ y, jcr (x1 - x2) (y - p) = jcr (x2 - x1) (p - x1) - jcr (x2 - x1) (y - x1) := by
+    intro y
+    rw [show x1 - x2 = (-1 : ℝ) • (x2 - x1) by simp, jcr_smul_left, ← jcr_sub_right]
+    rw [show y - p = -((p - x1) - (y - x1)) by abel]
+    simp [jcr]; ring
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+  rcases hx with rfl | rfl | rfl
+  · rw [e, sub_self, show jcr (x2 - x) 0 = 0 by simp [jcr]]; linarith
+  · rw [e, jcr_self]; linarith
+  · rw [e]; linarith
+
+private lemma pg_cancel {D p x y j : ℝ} (hD : D ≠ 0) (h : D * p = D * x + j * (y - x)) :
+    p = x + j / D * (y - x) := by
+  apply mul_left_cancel₀ hD; rw [h, mul_add]; congr 1; field_simp
+
+private lemma pg_tri_rot1 (x1 x2 x3 : Pt) : [x2, x3, x1] = [x1, x2, x3].rotate 1 := rfl
+private lemma pg_tri_rot2 (x1 x2 x3 : Pt) : [x3, x1, x2] = [x1, x2, x3].rotate 2 := rfl
+
+private lemma pgW_tri_vals_pos {x1 x2 x3 p : Pt} (hD : 0 < jcr (x2 - x1) (x3 - x1)) (hp : p ∉ pgCv [x1, x2, x3]) :
+    pgW [x1, x2, x3] p = 0 ∨ pgW [x1, x2, x3] p = 2 * Real.pi := by
+  set D := jcr (x2 - x1) (x3 - x1)
+  set j1 := jcr (x2 - x1) (p - x1)
+  set j2 := jcr (x3 - x2) (p - x2)
+  set j3 := jcr (x1 - x3) (p - x3)
+  have e2 : jcr (x3 - x2) (x1 - x2) = D := by simp only [D, jcr]; simp; ring
+  have e3 : jcr (x1 - x3) (x2 - x3) = D := by simp only [D, jcr]; simp; ring
+  have hsum : j1 + j2 + j3 = D := by simp only [D, j1, j2, j3, jcr]; simp; ring
+  have b0 : D * p 0 = j2 * x1 0 + j3 * x2 0 + j1 * x3 0 := by
+    simp only [D, j1, j2, j3, jcr]; simp; ring
+  have b1 : D * p 1 = j2 * x1 1 + j3 * x2 1 + j1 * x3 1 := by
+    simp only [D, j1, j2, j3, jcr]; simp; ring
+  rcases lt_or_ge j1 0 with h1 | h1
+  · exact Or.inl (pgW_tri_zero h1 hD.le)
+  rcases lt_or_ge j2 0 with h2 | h2
+  · left; rw [← pgW_rotate _ 1, ← pg_tri_rot1]; exact pgW_tri_zero h2 (by rw [e2]; exact hD.le)
+  rcases lt_or_ge j3 0 with h3 | h3
+  · left; rw [← pgW_rotate _ 2, ← pg_tri_rot2]; exact pgW_tri_zero h3 (by rw [e3]; exact hD.le)
+  rcases eq_or_lt_of_le h1 with h1' | h1'
+  · exfalso; apply hp; apply mem_pgCv_tri.2; left
+    rw [mem_segment_iff']
+    refine ⟨j3 / D, div_nonneg h3 hD.le, by rw [div_le_one hD]; linarith, ?_⟩
+    apply pt_ext <;> simp <;> apply pg_cancel hD.ne'
+    · linear_combination b0 + x1 0 * hsum + (x1 0 - x3 0) * h1'
+    · linear_combination b1 + x1 1 * hsum + (x1 1 - x3 1) * h1'
+  rcases eq_or_lt_of_le h2 with h2' | h2'
+  · exfalso; apply hp; apply mem_pgCv_tri.2; right; left
+    rw [mem_segment_iff']
+    refine ⟨j1 / D, div_nonneg h1 hD.le, by rw [div_le_one hD]; linarith, ?_⟩
+    apply pt_ext <;> simp <;> apply pg_cancel hD.ne'
+    · linear_combination b0 + x2 0 * hsum + (x2 0 - x1 0) * h2'
+    · linear_combination b1 + x2 1 * hsum + (x2 1 - x1 1) * h2'
+  rcases eq_or_lt_of_le h3 with h3' | h3'
+  · exfalso; apply hp; apply mem_pgCv_tri.2; right; right
+    rw [mem_segment_iff']
+    refine ⟨j2 / D, div_nonneg h2 hD.le, by rw [div_le_one hD]; linarith, ?_⟩
+    apply pt_ext <;> simp <;> apply pg_cancel hD.ne'
+    · linear_combination b0 + x3 0 * hsum + (x3 0 - x2 0) * h3'
+    · linear_combination b1 + x3 1 * hsum + (x3 1 - x2 1) * h3'
+  exact Or.inr (pgW_tri_pos h1' h2' h3')
+
+private lemma pgRev_tri (x1 x2 x3 : Pt) : pgRev [x1, x2, x3] = [x1, x3, x2] := rfl
+
+private lemma pgW_tri_vals {x1 x2 x3 : Pt} (hD : jcr (x2 - x1) (x3 - x1) ≠ 0) :
+    ∃ σ : ℝ, (σ = 1 ∨ σ = -1) ∧ ∀ p ∉ pgCv [x1, x2, x3],
+      pgW [x1, x2, x3] p = 0 ∨ pgW [x1, x2, x3] p = 2 * Real.pi * σ := by
+  rcases lt_or_gt_of_ne hD with h | h
+  · refine ⟨-1, Or.inr rfl, fun p hp => ?_⟩
+    have hD' : 0 < jcr (x3 - x1) (x2 - x1) := by rw [jcr_anti]; linarith
+    have hp' : p ∉ pgCv [x1, x3, x2] := by rwa [← pgRev_tri, pgCv_pgRev]
+    have := pgW_tri_vals_pos hD' hp'
+    rw [← pgRev_tri, pgW_pgRev hp] at this
+    rcases this with h1 | h1
+    · left; linarith
+    · right; linarith
+  · exact ⟨1, Or.inl rfl, fun p hp => by rw [mul_one]; exact pgW_tri_vals_pos h hp⟩
+
+/-! ### Strips and half-disks -/
+
+private lemma pg_strip {a b : Pt} {K : Set Pt} (hK : IsClosed K) (hab : a ≠ b) {s1 s2 : ℝ}
+    (hS : ∀ s ∈ Icc s1 s2, a + s • (b - a) ∉ K) :
+    ∃ τ > 0, ∀ s ∈ Icc s1 s2, ∀ t : ℝ, t ≠ 0 → |t| ≤ τ →
+      a + s • (b - a) + t • jrot (b - a) ∉ K ∧ a + s • (b - a) + t • jrot (b - a) ∉ segment ℝ a b := by
+  set S := (fun s : ℝ => a + s • (b - a)) '' Icc s1 s2
+  have hSc : IsCompact S := isCompact_Icc.image (by fun_prop)
+  have hSK : S ⊆ Kᶜ := by rintro _ ⟨s, hs, rfl⟩; exact hS s hs
+  obtain ⟨δ, hδ, hth⟩ := hSc.exists_thickening_subset_open hK.isOpen_compl hSK
+  have hd : 0 < ‖b - a‖ := norm_pos_iff.2 (sub_ne_zero.2 hab.symm)
+  refine ⟨δ / (2 * ‖b - a‖), by positivity, fun s hs t ht0 ht => ⟨?_, ?_⟩⟩
+  · apply hth
+    rw [Metric.mem_thickening_iff]
+    refine ⟨a + s • (b - a), ⟨s, hs, rfl⟩, ?_⟩
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, norm_jrot, Real.norm_eq_abs]
+    have : |t| * ‖b - a‖ ≤ δ / 2 := by
+      calc |t| * ‖b - a‖ ≤ δ / (2 * ‖b - a‖) * ‖b - a‖ := by gcongr
+        _ = δ / 2 := by field_simp
+    linarith
+  · intro h
+    have := pg_jcr_seg h
+    rw [pg_jcr_param] at this
+    rcases mul_eq_zero.1 this with h1 | h1
+    · exact ht0 h1
+    · exact hd.ne' (pow_eq_zero_iff (n := 2) (by norm_num) |>.1 h1)
+
+private lemma pg_halfspace_convex (x0 a d : Pt) (r τ : ℝ) :
+    Convex ℝ {y : Pt | y ∈ Metric.ball x0 r ∧ 0 < τ * jcr d (y - a)} := by
+  intro x hx y hy α β hα hβ hαβ
+  refine ⟨(convex_ball x0 r) hx.1 hy.1 hα hβ hαβ, ?_⟩
+  have : jcr d (α • x + β • y - a) = α * jcr d (x - a) + β * jcr d (y - a) := by
+    have e : α • x + β • y - a = α • (x - a) + β • (y - a) := by
+      rw [show β = 1 - α by linarith]; module
+    rw [e, jcr_add_right, jcr_smul_right, jcr_smul_right]
+  rw [this]
+  have h1 := hx.2
+  have h2 := hy.2
+  rcases eq_or_lt_of_le hα with h | h
+  · subst h; simp at hαβ; subst hαβ; simpa using h2
+  · nlinarith [mul_pos h h1, mul_nonneg hβ h2.le]
+
+/-- the winding function is constant on a half-disk avoiding the curve -/
+private lemma pg_halfdisk_eq {l : List Pt} {x0 a d : Pt} {r τ : ℝ}
+    (hK : ∀ y ∈ Metric.ball x0 r, y ∈ pgCv l → jcr d (y - a) = 0)
+    {y1 y2 : Pt} (h1 : y1 ∈ Metric.ball x0 r) (h2 : y2 ∈ Metric.ball x0 r)
+    (j1 : 0 < τ * jcr d (y1 - a)) (j2 : 0 < τ * jcr d (y2 - a)) : pgW l y1 = pgW l y2 := by
+  apply pgW_const (pg_halfspace_convex x0 a d r τ).isPreconnected _ ⟨h1, j1⟩ ⟨h2, j2⟩
+  rintro y ⟨hy, hj⟩ hc
+  rw [hK y hy hc, mul_zero] at hj; exact lt_irrefl _ hj
+
+/-- points of the line close to a relative interior point of a segment lie on the segment -/
+private lemma pg_line_ball {a b y : Pt} (hab : a ≠ b) {s : ℝ}
+    (hy : y ∈ Metric.ball (a + s • (b - a)) (min s (1 - s) * ‖b - a‖)) (hj : jcr (b - a) (y - a) = 0) :
+    ∃ t : ℝ, y = a + t • (b - a) ∧ |t - s| < min s (1 - s) := by
+  have hd : b - a ≠ 0 := sub_ne_zero.2 hab.symm
+  have hdn : 0 < ‖b - a‖ := norm_pos_iff.2 hd
+  obtain ⟨t, ht⟩ := exists_smul_of_jcr_eq_zero hd hj
+  refine ⟨t, by rw [← ht]; abel, ?_⟩
+  rw [Metric.mem_ball, dist_eq_norm] at hy
+  have : y - (a + s • (b - a)) = (t - s) • (b - a) := by rw [sub_smul, ← ht]; abel
+  rw [this, norm_smul, Real.norm_eq_abs] at hy
+  exact (mul_lt_mul_iff_of_pos_right hdn).1 hy
+
+/-! ### Side values of the winding function along an edge -/
+
+/-- `λ` is the value of the winding function just to the left of the edge `a → b`
+(and `λ - 2π` just to the right). -/
+private def PgSide (l : List Pt) (a b : Pt) (lam : ℝ) : Prop :=
+  ∀ s ∈ Ioo (0 : ℝ) 1, ∀ᶠ t in 𝓝[>] (0 : ℝ),
+    a + s • (b - a) + t • jrot (b - a) ∉ pgCv l ∧ a + s • (b - a) + (-t) • jrot (b - a) ∉ pgCv l ∧
+    pgW l (a + s • (b - a) + t • jrot (b - a)) = lam ∧
+    pgW l (a + s • (b - a) + (-t) • jrot (b - a)) = lam - 2 * Real.pi
+
+private lemma PgSide.unique {l : List Pt} {a b : Pt} {lam mu : ℝ} (h1 : PgSide l a b lam) (h2 : PgSide l a b mu) :
+    lam = mu := by
+  have hs : (1 / 2 : ℝ) ∈ Ioo (0 : ℝ) 1 := ⟨by norm_num, by norm_num⟩
+  obtain ⟨t, ht1, ht2⟩ := ((h1 _ hs).and (h2 _ hs)).exists
+  rw [← ht1.2.2.1, ← ht2.2.2.1]
+
+private lemma pgSide_rotate {l : List Pt} (k : ℕ) {a b : Pt} {lam : ℝ} :
+    PgSide (l.rotate k) a b lam ↔ PgSide l a b lam := by
+  simp only [PgSide, pgW_rotate, pgCv_rotate]
+
+/-- side points near a given point -/
+private lemma PgSide.near {l : List Pt} {a b : Pt} {lam : ℝ} (h : PgSide l a b lam) {s : ℝ} (hs : s ∈ Ioo (0 : ℝ) 1)
+    {x : Pt} {r : ℝ} (hx : dist (a + s • (b - a)) x < r / 2) :
+    ∃ t : ℝ, 0 < t ∧ a + s • (b - a) + t • jrot (b - a) ∈ Metric.ball x r ∧
+      a + s • (b - a) + (-t) • jrot (b - a) ∈ Metric.ball x r ∧
+      a + s • (b - a) + t • jrot (b - a) ∉ pgCv l ∧ a + s • (b - a) + (-t) • jrot (b - a) ∉ pgCv l ∧
+      pgW l (a + s • (b - a) + t • jrot (b - a)) = lam ∧
+      pgW l (a + s • (b - a) + (-t) • jrot (b - a)) = lam - 2 * Real.pi := by
+  have hr : 0 < r := by linarith [dist_nonneg (x := a + s • (b - a)) (y := x)]
+  set M := ‖b - a‖ + 1
+  have hM : 0 < M := by positivity
+  have hpos : (0 : ℝ) < r / (2 * M) := by positivity
+  obtain ⟨t, ⟨ht1, ht2, ht3, ht4⟩, ht5⟩ := ((h s hs).and (Ioo_mem_nhdsGT hpos)).exists
+  have hd : ∀ σ : ℝ, |σ| = 1 → dist (a + s • (b - a) + (σ * t) • jrot (b - a)) x < r := by
+    intro σ hσ
+    calc dist (a + s • (b - a) + (σ * t) • jrot (b - a)) x
+        ≤ dist (a + s • (b - a) + (σ * t) • jrot (b - a)) (a + s • (b - a)) + dist (a + s • (b - a)) x :=
+          dist_triangle _ _ _
+      _ < r / 2 + r / 2 := by
+          gcongr
+          rw [dist_eq_norm, add_sub_cancel_left, norm_smul, norm_jrot, Real.norm_eq_abs, abs_mul, hσ,
+            one_mul, abs_of_pos ht5.1]
+          calc t * ‖b - a‖ ≤ t * M :=
+                mul_le_mul_of_nonneg_left (by linarith [show M = ‖b - a‖ + 1 from rfl]) ht5.1.le
+            _ < r / (2 * M) * M := by gcongr; exact ht5.2
+            _ = r / 2 := by field_simp
+      _ = r := by ring
+  refine ⟨t, ht5.1, ?_, ?_, ht1, ht2, ht3, ht4⟩
+  · have := hd 1 (by norm_num); rw [one_mul] at this; exact this
+  · have := hd (-1) (by norm_num); rw [neg_one_mul] at this; exact this
+
+/-! ### Lists starting with a given edge -/
+
+/-- the curve of the edges other than the first one -/
+private def pgOt (a v : Pt) (rest : List Pt) : Set Pt := ⋃ e ∈ pgCh (v :: rest ++ [a]), segment ℝ e.1 e.2
+
+private lemma pgEd_cons2 (a v : Pt) (rest : List Pt) : pgEd (a :: v :: rest) = (a, v) :: pgCh (v :: rest ++ [a]) := rfl
+
+private lemma pgCv_cons2 (a v : Pt) (rest : List Pt) : pgCv (a :: v :: rest) = segment ℝ a v ∪ pgOt a v rest := by
+  ext y; simp [pgCv, pgOt, pgEd_cons2]
+
+private lemma isClosed_pgOt (a v : Pt) (rest : List Pt) : IsClosed (pgOt a v rest) := by
+  have := (pgCh (v :: rest ++ [a])).toFinset.isCompact_biUnion (fun e _ => isCompact_segment_pt e.1 e.2)
+  simp only [List.mem_toFinset] at this
+  exact this.isClosed
+
+private lemma pgOt_inter {a v : Pt} {rest : List Pt} (hL : PgSP (a :: v :: rest)) {x : Pt} (hx : x ∈ segment ℝ a v)
+    (hx' : x ∈ pgOt a v rest) : x = a ∨ x = v := by
+  have hpw := hL.pw
+  rw [pgEd_cons2, List.pairwise_cons] at hpw
+  simp only [pgOt, mem_iUnion, exists_prop] at hx'
+  obtain ⟨e, he, hxe⟩ := hx'
+  have := (hpw.1 e he ⟨hx, hxe⟩).1
+  simpa using this
+
+private lemma pg_param_ne_ends {a v : Pt} (hav : a ≠ v) {s : ℝ} (hs : s ∈ Ioo (0 : ℝ) 1) :
+    a + s • (v - a) ≠ a ∧ a + s • (v - a) ≠ v := by
+  have hd : v - a ≠ 0 := sub_ne_zero.2 hav.symm
+  constructor
+  · intro h
+    have : s • (v - a) = (0 : ℝ) • (v - a) := by rw [zero_smul]; rw [← h] at *; simpa using h
+    exact hs.1.ne' (smul_cancel_pt hd this)
+  · intro h
+    have : s • (v - a) = (1 : ℝ) • (v - a) := by rw [one_smul]; nth_rw 2 [← h]; abel
+    exact hs.2.ne (smul_cancel_pt hd this)
+
+private lemma pg_param_not_ot {a v : Pt} {rest : List Pt} (hL : PgSP (a :: v :: rest)) {s : ℝ} (hs : s ∈ Ioo (0 : ℝ) 1) :
+    a + s • (v - a) ∉ pgOt a v rest := by
+  have hav : a ≠ v := by
+    have := hL.nodup; simp only [List.nodup_cons, List.mem_cons, not_or] at this; exact this.1.1
+  intro h
+  have hseg : a + s • (v - a) ∈ segment ℝ a v := mem_segment_iff'.2 ⟨s, hs.1.le, hs.2.le, rfl⟩
+  rcases pgOt_inter hL hseg h with h1 | h1
+  · exact (pg_param_ne_ends hav hs).1 h1
+  · exact (pg_param_ne_ends hav hs).2 h1
+
+private lemma pg_get_pair_mem_tail {a v : Pt} {rest : List Pt} (hL : PgSP (a :: v :: rest))
+    (k : Fin (a :: v :: rest).length) (hk : k.val ≠ 0) :
+    ((a :: v :: rest).get k, (a :: v :: rest).get (finRotate _ k)) ∈ pgCh (v :: rest ++ [a]) := by
+  have hmem : ((a :: v :: rest).get k, (a :: v :: rest).get (finRotate _ k)) ∈ pgEd (a :: v :: rest) := by
+    rw [pgEd_eq_ofFn, List.mem_ofFn]; exact ⟨k, rfl⟩
+  rw [pgEd_cons2, List.mem_cons] at hmem
+  rcases hmem with h | h
+  · exfalso
+    have h1 := congrArg Prod.fst h
+    simp only at h1
+    have : k = ⟨0, by simp⟩ := hL.inj (by rw [h1]; rfl)
+    exact hk (by rw [this])
+  · exact h
+
+/-- the jump of the winding function across the first edge -/
+private lemma pg_jump {a v : Pt} {rest : List Pt} (hL : PgSP (a :: v :: rest)) {s : ℝ} (hs : s ∈ Ioo (0 : ℝ) 1) :
+    ∀ᶠ t in 𝓝[>] (0 : ℝ), pgW (a :: v :: rest) (a + s • (v - a) + t • jrot (v - a)) -
+      pgW (a :: v :: rest) (a + s • (v - a) + (-t) • jrot (v - a)) = 2 * Real.pi := by
+  set L := a :: v :: rest
+  have hav : a ≠ v := by
+    have := hL.nodup; simp only [L, List.nodup_cons, List.mem_cons, not_or] at this; exact this.1.1
+  have hlen : 3 ≤ L.length := hL.three
+  set k0 : Fin L.length := ⟨0, by omega⟩
+  have hk1 : finRotate L.length k0 = ⟨1, by omega⟩ := by
+    ext; rw [finRotate_val_eq_mod]; show (0 + 1) % L.length = 1; exact Nat.mod_eq_of_lt (by omega)
+  have hc0 : L.get k0 = a := rfl
+  have hc1 : L.get (finRotate L.length k0) = v := by rw [hk1]; rfl
+  have hq : a + s • (v - a) ∈ openSegment ℝ (L.get k0) (L.get (finRotate L.length k0)) := by
+    rw [hc0, hc1]; exact mem_openSegment_iff'.2 ⟨s, hs.1, hs.2, rfl⟩
+  have hother : ∀ k ≠ k0, a + s • (v - a) ∉ segment ℝ (L.get k) (L.get (finRotate L.length k)) := by
+    intro k hk h
+    apply pg_param_not_ot hL hs
+    simp only [pgOt, mem_iUnion, exists_prop]
+    exact ⟨_, pg_get_pair_mem_tail hL k (fun h0 => hk (Fin.ext h0)), h⟩
+  have := wind_jump (c := L.get) k0 (by rw [hc0, hc1]; exact hav) hq hother
+  rw [hc0, hc1] at this
+  simpa only [pgW_eq_wind] using this
+
+/-- **Side values exist** for the first edge of a simple polygon. -/
+private lemma pg_edge_side {a v : Pt} {rest : List Pt} (hL : PgSP (a :: v :: rest)) :
+    ∃ lam, PgSide (a :: v :: rest) a v lam := by
+  set L := a :: v :: rest
+  have hav : a ≠ v := by
+    have := hL.nodup; simp only [L, List.nodup_cons, List.mem_cons, not_or] at this; exact this.1.1
+  have hstrip : ∀ s1 s2 : ℝ, 0 < s1 → s2 < 1 → ∃ τ > 0, ∀ s ∈ Icc s1 s2, ∀ t : ℝ, t ≠ 0 → |t| ≤ τ →
+      a + s • (v - a) + t • jrot (v - a) ∉ pgCv L := by
+    intro s1 s2 h1 h2
+    obtain ⟨τ, hτ, hS⟩ := pg_strip (isClosed_pgOt a v rest) hav (s1 := s1) (s2 := s2)
+      (fun s hs => pg_param_not_ot hL ⟨by linarith [hs.1], by linarith [hs.2]⟩)
+    refine ⟨τ, hτ, fun s hs t ht0 ht => ?_⟩
+    rw [pgCv_cons2]
+    rintro (h | h)
+    · exact (hS s hs t ht0 ht).2 h
+    · exact (hS s hs t ht0 ht).1 h
+  obtain ⟨τ0, hτ0, hS0⟩ := hstrip (1 / 2) (1 / 2) (by norm_num) (by norm_num)
+  set J := jrot (v - a)
+  set P : ℝ → ℝ → Pt := fun s t => a + s • (v - a) + t • J
+  refine ⟨pgW L (P (1 / 2) τ0), fun s hs => ?_⟩
+  obtain ⟨τ1, hτ1, hS1⟩ := hstrip (min s (1 / 2)) (max s (1 / 2)) (lt_min hs.1 (by norm_num))
+    (max_lt hs.2 (by norm_num))
+  have hval : ∀ t, 0 < t → t ≤ τ1 → pgW L (P s t) = pgW L (P (1 / 2) τ0) := by
+    intro t ht ht1
+    set tm := min τ0 τ1
+    have htm : 0 < tm := lt_min hτ0 hτ1
+    have hA : IsPreconnected ((fun z : ℝ × ℝ => P z.1 z.2) '' (Icc (min s (1 / 2)) (max s (1 / 2)) ×ˢ Ioc 0 τ1)) :=
+      (isPreconnected_Icc.prod isPreconnected_Ioc).image _ (by fun_prop)
+    have hAoff : ∀ x ∈ (fun z : ℝ × ℝ => P z.1 z.2) '' (Icc (min s (1 / 2)) (max s (1 / 2)) ×ˢ Ioc 0 τ1),
+        x ∉ pgCv L := by
+      rintro _ ⟨⟨s', t'⟩, ⟨hs', ht'⟩, rfl⟩
+      exact hS1 s' hs' t' ht'.1.ne' (by rw [abs_of_pos ht'.1]; exact ht'.2)
+    have e1 : pgW L (P s t) = pgW L (P (1 / 2) tm) :=
+      pgW_const hA hAoff ⟨(s, t), ⟨⟨min_le_left _ _, le_max_left _ _⟩, ht, ht1⟩, rfl⟩
+        ⟨(1 / 2, tm), ⟨⟨min_le_right _ _, le_max_right _ _⟩, htm, min_le_right _ _⟩, rfl⟩
+    have hB : IsPreconnected ((fun t' : ℝ => P (1 / 2) t') '' Ioc 0 τ0) :=
+      isPreconnected_Ioc.image _ (by fun_prop)
+    have hBoff : ∀ x ∈ (fun t' : ℝ => P (1 / 2) t') '' Ioc 0 τ0, x ∉ pgCv L := by
+      rintro _ ⟨t', ht', rfl⟩
+      exact hS0 (1 / 2) ⟨le_refl _, le_refl _⟩ t' ht'.1.ne' (by rw [abs_of_pos ht'.1]; exact ht'.2)
+    have e2 : pgW L (P (1 / 2) tm) = pgW L (P (1 / 2) τ0) :=
+      pgW_const hB hBoff ⟨tm, ⟨htm, min_le_left _ _⟩, rfl⟩ ⟨τ0, ⟨hτ0, le_refl _⟩, rfl⟩
+    rw [e1, e2]
+  have hsmem : s ∈ Icc (min s (1 / 2)) (max s (1 / 2)) := ⟨min_le_left _ _, le_max_left _ _⟩
+  filter_upwards [pg_jump hL hs, Ioo_mem_nhdsGT hτ1] with t hj ht
+  have h1 : P s t ∉ pgCv L := hS1 s hsmem t ht.1.ne' (by rw [abs_of_pos ht.1]; exact ht.2.le)
+  have h2 : P s (-t) ∉ pgCv L := hS1 s hsmem (-t) (by linarith [ht.1])
+    (by rw [abs_neg, abs_of_pos ht.1]; exact ht.2.le)
+  have h3 := hval t ht.1 ht.2.le
+  refine ⟨h1, h2, h3, ?_⟩
+  have : pgW L (P s (-t)) = pgW L (P s t) - 2 * Real.pi := by
+    simp only [P, J] at hj ⊢; linarith
+  rw [this, h3]
+
+/-- **Local values** near a relative interior point of the first edge. -/
+private lemma pg_edge_local {a v : Pt} {rest : List Pt} (hL : PgSP (a :: v :: rest)) {lam : ℝ}
+    (h : PgSide (a :: v :: rest) a v lam) {s : ℝ} (hs : s ∈ Ioo (0 : ℝ) 1) :
+    ∃ r > 0, ∀ y ∈ Metric.ball (a + s • (v - a)) r, y ∉ pgCv (a :: v :: rest) →
+      pgW (a :: v :: rest) y = lam ∨ pgW (a :: v :: rest) y = lam - 2 * Real.pi := by
+  set L := a :: v :: rest
+  have hav : a ≠ v := by
+    have := hL.nodup; simp only [L, List.nodup_cons, List.mem_cons, not_or] at this; exact this.1.1
+  have hdn : 0 < ‖v - a‖ := norm_pos_iff.2 (sub_ne_zero.2 hav.symm)
+  set q := a + s • (v - a)
+  obtain ⟨r1, hr1, hr1K⟩ := Metric.isOpen_iff.1 (isClosed_pgOt a v rest).isOpen_compl q
+    (pg_param_not_ot hL hs)
+  have hm : 0 < min s (1 - s) := lt_min hs.1 (by linarith [hs.2])
+  set r := min r1 (min s (1 - s) * ‖v - a‖)
+  have hr : 0 < r := lt_min hr1 (by positivity)
+  refine ⟨r, hr, ?_⟩
+  have hK : ∀ y ∈ Metric.ball q r, y ∈ pgCv L → jcr (v - a) (y - a) = 0 := by
+    intro y hy hc
+    rw [pgCv_cons2] at hc
+    rcases hc with hc | hc
+    · exact pg_jcr_seg hc
+    · exact absurd hc (hr1K (Metric.ball_subset_ball (min_le_left _ _) hy))
+  obtain ⟨t, ht, hy1, hy2, -, -, hw1, hw2⟩ := h.near hs (x := q) (r := r) (by rw [dist_self]; linarith)
+  intro y hy hyc
+  have hj1 : 0 < (1 : ℝ) * jcr (v - a) (a + s • (v - a) + t • jrot (v - a) - a) := by
+    rw [pg_jcr_param, one_mul]; positivity
+  have hj2 : 0 < (-1 : ℝ) * jcr (v - a) (a + s • (v - a) + (-t) • jrot (v - a) - a) := by
+    rw [pg_jcr_param]; nlinarith [sq_nonneg ‖v - a‖, mul_pos ht (pow_pos hdn 2)]
+  rcases lt_trichotomy (jcr (v - a) (y - a)) 0 with hlt | heq | hgt
+  · right; rw [← hw2]
+    exact pg_halfdisk_eq hK hy hy2 (by linarith) hj2
+  · exfalso
+    obtain ⟨t', rfl, ht'⟩ := pg_line_ball hav (Metric.ball_subset_ball (min_le_right _ _) hy) heq
+    apply hyc; rw [pgCv_cons2]; left
+    rw [abs_lt] at ht'
+    exact mem_segment_iff'.2 ⟨t', by linarith [min_le_left s (1 - s)], by linarith [min_le_right s (1 - s)], rfl⟩
+  · left; rw [← hw1]
+    exact pg_halfdisk_eq hK hy hy1 (by linarith) hj1
+
+private lemma pg_vals_algebra {c lam σ : ℝ} (hσ : σ = 1 ∨ σ = -1) (h1 : lam = c ∨ lam = c + 2 * Real.pi * σ)
+    (h2 : lam - 2 * Real.pi = c ∨ lam - 2 * Real.pi = c + 2 * Real.pi * σ) :
+    lam = c + Real.pi * (1 + σ) := by
+  have := Real.pi_pos
+  rcases hσ with rfl | rfl <;> rcases h1 with h1 | h1 <;> rcases h2 with h2 | h2 <;> linarith
+
+private lemma pg_vals_algebra' {c lam σ x : ℝ} (hσ : σ = 1 ∨ σ = -1) (hl : lam = c + Real.pi * (1 + σ))
+    (hx : x = c ∨ x = c + 2 * Real.pi * σ) : x = lam ∨ x = lam - 2 * Real.pi := by
+  rcases hσ with rfl | rfl <;> rcases hx with hx | hx
+  · right; linarith
+  · left; linarith
+  · left; linarith
+  · right; linarith
+
+private lemma pg_exists_near_end {a b : Pt} {r : ℝ} (hr : 0 < r) :
+    ∃ s ∈ Ioo (0 : ℝ) 1, dist (a + s • (b - a)) b < r := by
+  set ε := min (1 / 2) (r / (2 * (‖b - a‖ + 1)))
+  have hε : 0 < ε := lt_min (by norm_num) (by positivity)
+  refine ⟨1 - ε, ⟨by linarith [min_le_left (1 / 2 : ℝ) (r / (2 * (‖b - a‖ + 1)))], by linarith⟩, ?_⟩
+  rw [dist_eq_norm, show a + (1 - ε) • (b - a) - b = (-ε) • (b - a) by module, norm_smul, Real.norm_eq_abs,
+    abs_neg, abs_of_pos hε]
+  calc ε * ‖b - a‖ ≤ r / (2 * (‖b - a‖ + 1)) * ‖b - a‖ := by gcongr; exact min_le_right _ _
+    _ < r / (2 * (‖b - a‖ + 1)) * (2 * (‖b - a‖ + 1)) := by gcongr; linarith [norm_nonneg (b - a)]
+    _ = r := by field_simp
+
+private lemma pg_exists_near_start {a b : Pt} {r : ℝ} (hr : 0 < r) :
+    ∃ s ∈ Ioo (0 : ℝ) 1, dist (a + s • (b - a)) a < r := by
+  set ε := min (1 / 2) (r / (2 * (‖b - a‖ + 1)))
+  have hε : 0 < ε := lt_min (by norm_num) (by positivity)
+  refine ⟨ε, ⟨hε, by linarith [min_le_left (1 / 2 : ℝ) (r / (2 * (‖b - a‖ + 1)))]⟩, ?_⟩
+  rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos hε]
+  calc ε * ‖b - a‖ ≤ r / (2 * (‖b - a‖ + 1)) * ‖b - a‖ := by gcongr; exact min_le_right _ _
+    _ < r / (2 * (‖b - a‖ + 1)) * (2 * (‖b - a‖ + 1)) := by gcongr; linarith [norm_nonneg (b - a)]
+    _ = r := by field_simp
+
+private lemma pg_seg_split {a v w : Pt} {s : ℝ} (hs : s ∈ Ioo (0 : ℝ) 1) (hv : v = a + s • (w - a)) {t : ℝ}
+    (ht0 : 0 ≤ t) (ht1 : t ≤ 1) : a + t • (w - a) ∈ segment ℝ a v ∪ segment ℝ v w := by
+  rcases le_total t s with h | h
+  · left; rw [mem_segment_iff']
+    refine ⟨t / s, div_nonneg ht0 hs.1.le, by rw [div_le_one hs.1]; exact h, ?_⟩
+    rw [hv, add_sub_cancel_left, smul_smul, div_mul_cancel₀ _ hs.1.ne']
+  · right; rw [mem_segment_iff']
+    have h1s : 0 < 1 - s := by linarith [hs.2]
+    refine ⟨(t - s) / (1 - s), div_nonneg (by linarith) h1s.le, by rw [div_le_one h1s]; linarith, ?_⟩
+    rw [hv]
+    have : w - (a + s • (w - a)) = (1 - s) • (w - a) := by module
+    rw [this, smul_smul, div_mul_cancel₀ _ h1s.ne', add_assoc, ← add_smul]; congr 2; ring
+
+/-- **Vertex lemma**: the side values of two consecutive edges agree, and near the common
+vertex the winding function only takes the two side values. -/
+private lemma pg_vertex {a v w : Pt} {rest : List Pt} (hL : PgSP (a :: v :: w :: rest)) {lam1 lam2 : ℝ}
+    (h1 : PgSide (a :: v :: w :: rest) a v lam1) (h2 : PgSide (a :: v :: w :: rest) v w lam2) :
+    lam1 = lam2 ∧ ∃ r > 0, ∀ y ∈ Metric.ball v r, y ∉ pgCv (a :: v :: w :: rest) →
+      pgW (a :: v :: w :: rest) y = lam1 ∨ pgW (a :: v :: w :: rest) y = lam1 - 2 * Real.pi := by
+  set L := a :: v :: w :: rest
+  have hnd := hL.nodup
+  simp only [L, List.nodup_cons, List.mem_cons, not_or] at hnd
+  have hav : a ≠ v := hnd.1.1
+  have haw : a ≠ w := hnd.1.2.1
+  have hvw : v ≠ w := hnd.2.1.1
+  have hvr : v ∉ rest := hnd.2.1.2
+  set K1 := ⋃ e ∈ pgCh (w :: rest ++ [a]), segment ℝ e.1 e.2
+  have hpgEd : pgEd L = (a, v) :: (v, w) :: pgCh (w :: rest ++ [a]) := rfl
+  have hcurve : ∀ y, y ∈ pgCv L ↔ y ∈ segment ℝ a v ∨ y ∈ segment ℝ v w ∨ y ∈ K1 := by
+    intro y; simp [pgCv, hpgEd, K1]
+  have hpw := hL.pw
+  rw [hpgEd, List.pairwise_cons, List.pairwise_cons] at hpw
+  have hvK1 : v ∉ K1 := by
+    simp only [K1, mem_iUnion, exists_prop, not_exists, not_and]
+    intro e he hve
+    have h := (hpw.1 e (List.mem_cons_of_mem _ he) ⟨right_mem_segment ℝ a v, hve⟩).2
+    have hm := pgCh_mem he
+    simp only [mem_insert_iff, mem_singleton_iff] at h
+    rcases h with h | h
+    · rw [← h] at hm; simp at hm; tauto
+    · rw [← h] at hm; simp at hm; tauto
+  have hK1c : IsClosed K1 := by
+    have := (pgCh (w :: rest ++ [a])).toFinset.isCompact_biUnion (fun e _ => isCompact_segment_pt e.1 e.2)
+    simp only [List.mem_toFinset] at this
+    exact this.isClosed
+  set D := jcr (v - a) (w - a)
+  by_cases hD : D ≠ 0
+  · -- non-collinear vertex: compare with a triangle
+    set L' := w :: rest ++ [a]
+    have hcurve' : pgCv L' = K1 ∪ segment ℝ w a := pgCv_close w a rest
+    have hvaw : v ∉ segment ℝ a w := by
+      intro h; apply hD; have := pg_jcr_seg h; simp only [D]; rw [jcr_anti, this, neg_zero]
+    set F := pgCv L' ∪ segment ℝ a w
+    have hFc : IsClosed F := (isClosed_pgCv L').union (isCompact_segment_pt a w).isClosed
+    have hvF : v ∉ F := by
+      rintro (h | h)
+      · rw [hcurve'] at h
+        rcases h with h | h
+        · exact hvK1 h
+        · rw [segment_symm] at h; exact hvaw h
+      · exact hvaw h
+    obtain ⟨r0, hr0, hr0F⟩ := Metric.isOpen_iff.1 hFc.isOpen_compl v hvF
+    have hsplit : ∀ y, y ∉ segment ℝ a w → pgW L y = pgW [a, v, w] y + pgW L' y := by
+      intro y hy
+      exact pgW_split (a := a) (b := w) [v] rest hy
+    have hc : ∀ y ∈ Metric.ball v r0, pgW L' y = pgW L' v := by
+      intro y hy
+      apply pgW_const (convex_ball v r0).isPreconnected _ hy (Metric.mem_ball_self hr0)
+      intro x hx hxc; exact hr0F hx (Or.inl hxc)
+    obtain ⟨σ, hσ, hT⟩ := pgW_tri_vals hD
+    have hloc : ∀ y ∈ Metric.ball v r0, y ∉ pgCv L →
+        pgW L y = pgW L' v ∨ pgW L y = pgW L' v + 2 * Real.pi * σ := by
+      intro y hy hyc
+      have hyaw : y ∉ segment ℝ a w := fun h => hr0F hy (Or.inr h)
+      have hyT : y ∉ pgCv [a, v, w] := by
+        intro h
+        rcases mem_pgCv_tri.1 h with h | h | h
+        · exact hyc ((hcurve y).2 (Or.inl h))
+        · exact hyc ((hcurve y).2 (Or.inr (Or.inl h)))
+        · rw [segment_symm] at h; exact hyaw h
+      rw [hsplit y hyaw, hc y hy]
+      rcases hT y hyT with h | h
+      · left; rw [h, zero_add]
+      · right; rw [h]; ring
+    obtain ⟨s1, hs1, hd1⟩ := pg_exists_near_end (a := a) (b := v) (half_pos hr0)
+    obtain ⟨t1, ht1, hy1, hy1', hc1, hc1', hw1, hw1'⟩ := h1.near hs1 hd1
+    obtain ⟨s2, hs2, hd2⟩ := pg_exists_near_start (a := v) (b := w) (half_pos hr0)
+    obtain ⟨t2, ht2, hy2, hy2', hc2, hc2', hw2, hw2'⟩ := h2.near hs2 hd2
+    have e1 := pg_vals_algebra hσ (hw1 ▸ hloc _ hy1 hc1) (hw1' ▸ hloc _ hy1' hc1')
+    have e2 := pg_vals_algebra hσ (hw2 ▸ hloc _ hy2 hc2) (hw2' ▸ hloc _ hy2' hc2')
+    refine ⟨by rw [e1, e2], r0, hr0, fun y hy hyc => pg_vals_algebra' hσ e1 (hloc y hy hyc)⟩
+  · -- collinear vertex: the curve is straight near `v`
+    push_neg at hD
+    have hd : v - a ≠ 0 := sub_ne_zero.2 hav.symm
+    obtain ⟨κ, hκ⟩ := exists_smul_of_jcr_eq_zero hd hD
+    have hok := hpw.1 (v, w) List.mem_cons_self
+    have hκ1 : 1 < κ := by
+      by_contra hcon; push_neg at hcon
+      rcases lt_or_ge 0 κ with h0 | h0
+      · rcases eq_or_lt_of_le hcon with h1' | h1'
+        · apply hvw; rw [h1', one_smul] at hκ; rw [← sub_add_cancel w a, hκ]; abel
+        · have hw : w ∈ segment ℝ a v := mem_segment_iff'.2 ⟨κ, h0.le, h1'.le, by rw [← hκ]; abel⟩
+          have := (hok ⟨hw, right_mem_segment ℝ v w⟩).1
+          simp only [mem_insert_iff, mem_singleton_iff] at this
+          rcases this with h | h
+          · exact haw h.symm
+          · exact hvw h.symm
+      · have h1k : 0 < 1 - κ := by linarith
+        have ha : a ∈ segment ℝ v w := by
+          rw [mem_segment_iff']
+          refine ⟨1 / (1 - κ), by positivity, by rw [div_le_one h1k]; linarith, ?_⟩
+          have : w - v = (κ - 1) • (v - a) := by rw [sub_smul, one_smul, ← hκ]; abel
+          rw [this, smul_smul, show 1 / (1 - κ) * (κ - 1) = -1 by field_simp; ring, neg_one_smul]; abel
+        have := (hok ⟨left_mem_segment ℝ a v, ha⟩).2
+        simp only [mem_insert_iff, mem_singleton_iff] at this
+        rcases this with h | h
+        · exact hav h
+        · exact haw h
+    set s := 1 / κ
+    have hκ0 : 0 < κ := by linarith
+    have hs : s ∈ Ioo (0 : ℝ) 1 := ⟨by positivity, by rw [div_lt_one hκ0]; exact hκ1⟩
+    have hv : v = a + s • (w - a) := by
+      rw [hκ, smul_smul, show s * κ = 1 by simp only [s]; field_simp, one_smul]; abel
+    have hwv : w - v = (1 - s) • (w - a) := by rw [hv]; module
+    have hsw : 0 < 1 - s := by linarith [hs.2]
+    have hvseg : v ∈ segment ℝ a w := mem_segment_iff'.2 ⟨s, hs.1.le, hs.2.le, hv⟩
+    have hsub1 : segment ℝ a v ⊆ segment ℝ a w :=
+      (convex_segment a w).segment_subset (left_mem_segment ℝ a w) hvseg
+    have hsub2 : segment ℝ v w ⊆ segment ℝ a w :=
+      (convex_segment a w).segment_subset hvseg (right_mem_segment ℝ a w)
+    have hdw : 0 < ‖w - a‖ := norm_pos_iff.2 (sub_ne_zero.2 haw.symm)
+    obtain ⟨r1, hr1, hr1K⟩ := Metric.isOpen_iff.1 hK1c.isOpen_compl v hvK1
+    have hm : 0 < min s (1 - s) := lt_min hs.1 hsw
+    set r0 := min r1 (min s (1 - s) * ‖w - a‖)
+    have hr0 : 0 < r0 := lt_min hr1 (by positivity)
+    have hK : ∀ y ∈ Metric.ball v r0, y ∈ pgCv L → jcr (w - a) (y - a) = 0 := by
+      intro y hy hc
+      rcases (hcurve y).1 hc with h | h | h
+      · exact pg_jcr_seg (hsub1 h)
+      · exact pg_jcr_seg (hsub2 h)
+      · exact absurd h (hr1K (Metric.ball_subset_ball (min_le_left _ _) hy))
+    have hoff : ∀ y ∈ Metric.ball v r0, y ∉ pgCv L → jcr (w - a) (y - a) ≠ 0 := by
+      intro y hy hyc heq
+      have hy' : y ∈ Metric.ball (a + s • (w - a)) (min s (1 - s) * ‖w - a‖) := by
+        rw [← hv]; exact Metric.ball_subset_ball (min_le_right _ _) hy
+      obtain ⟨t', rfl, ht'⟩ := pg_line_ball haw hy' heq
+      rw [abs_lt] at ht'
+      apply hyc
+      rcases pg_seg_split (t := t') hs hv (by linarith [min_le_left s (1 - s)]) (by linarith [min_le_right s (1 - s)])
+        with h | h
+      · exact (hcurve _).2 (Or.inl h)
+      · exact (hcurve _).2 (Or.inr (Or.inl h))
+    have hj1 : ∀ s' t : ℝ, jcr (w - a) (a + s' • (v - a) + t • jrot (v - a) - a) = κ * (t * ‖v - a‖ ^ 2) := by
+      intro s' t; rw [hκ, jcr_smul_left, pg_jcr_param]
+    have hj2 : ∀ s' t : ℝ, jcr (w - a) (v + s' • (w - v) + t • jrot (w - v) - a) =
+        1 / (1 - s) * (t * ‖w - v‖ ^ 2) := by
+      intro s' t
+      have e1 : w - a = (1 / (1 - s)) • (w - v) := by rw [hwv, smul_smul, one_div_mul_cancel hsw.ne', one_smul]
+      have e2 : v + s' • (w - v) + t • jrot (w - v) - a = (v + s' • (w - v) + t • jrot (w - v) - v) + s • (w - a) := by
+        rw [hv]; abel
+      rw [e2, jcr_add_right, jcr_smul_right, jcr_self, mul_zero, add_zero, e1, jcr_smul_left, pg_jcr_param]
+    obtain ⟨s1, hs1, hd1⟩ := pg_exists_near_end (a := a) (b := v) (half_pos hr0)
+    obtain ⟨t1, ht1, hy1, hy1', -, -, hw1, hw1'⟩ := h1.near hs1 hd1
+    obtain ⟨s2, hs2, hd2⟩ := pg_exists_near_start (a := v) (b := w) (half_pos hr0)
+    obtain ⟨t2, ht2, hy2, -, -, -, hw2, -⟩ := h2.near hs2 hd2
+    have hdv : 0 < ‖v - a‖ := norm_pos_iff.2 hd
+    have hdvw : 0 < ‖w - v‖ := norm_pos_iff.2 (sub_ne_zero.2 hvw.symm)
+    have p1 : 0 < (1 : ℝ) * jcr (w - a) (a + s1 • (v - a) + t1 • jrot (v - a) - a) := by
+      rw [hj1, one_mul]; positivity
+    have p1' : 0 < (-1 : ℝ) * jcr (w - a) (a + s1 • (v - a) + (-t1) • jrot (v - a) - a) := by
+      rw [hj1]; nlinarith [mul_pos hκ0 (mul_pos ht1 (pow_pos hdv 2))]
+    have p2 : 0 < (1 : ℝ) * jcr (w - a) (v + s2 • (w - v) + t2 • jrot (w - v) - a) := by
+      rw [hj2, one_mul]; have : 0 < 1 / (1 - s) := by positivity
+      positivity
+    refine ⟨?_, r0, hr0, fun y hy hyc => ?_⟩
+    · rw [← hw1, ← hw2]; exact pg_halfdisk_eq hK hy1 hy2 p1 p2
+    · rcases lt_or_gt_of_ne (hoff y hy hyc) with hlt | hgt
+      · right; rw [← hw1']; exact pg_halfdisk_eq hK hy hy1' (by linarith) p1'
+      · left; rw [← hw1]; exact pg_halfdisk_eq hK hy hy1 (by linarith) p1
+
+private lemma pg_cons3 (L : List Pt) (h : 3 ≤ L.length) :
+    L = L[0] :: L[1] :: L[2] :: L.drop 3 := by
+  match L, h with
+  | x :: y :: z :: r, _ => rfl
+
+private lemma pg_rot_get {l : List Pt} {k i : ℕ} (hi : i < (l.rotate k).length) :
+    (l.rotate k)[i] = l[(i + k) % l.length]'(Nat.mod_lt _ (by simp at hi; omega)) :=
+  List.getElem_rotate _ _ _ _
+
+private lemma pg_rot_cons {l : List Pt} {k : ℕ} (hk : k < l.length) (h3 : 3 ≤ l.length) :
+    ∃ rest, l.rotate k = l[k] :: l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega)) ::
+      l[(k + 2) % l.length]'(Nat.mod_lt _ (by omega)) :: rest := by
+  refine ⟨(l.rotate k).drop 3, ?_⟩
+  conv_lhs => rw [pg_cons3 (l.rotate k) (by simpa using h3)]
+  rw [pg_rot_get, pg_rot_get, pg_rot_get]
+  simp [Nat.mod_eq_of_lt hk, Nat.add_comm]
+
+/-- side values of every edge -/
+private lemma pg_side_exists {l : List Pt} (hl : PgSP l) {k : ℕ} (hk : k < l.length) :
+    ∃ lam, PgSide l (l[k]) (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))) lam := by
+  obtain ⟨rest, hrot⟩ := pg_rot_cons hk hl.three
+  have hL := hl.rotate k
+  rw [hrot] at hL
+  obtain ⟨lam, hlam⟩ := pg_edge_side hL
+  rw [← hrot, pgSide_rotate] at hlam
+  exact ⟨lam, hlam⟩
+
+/-- the vertex lemma for the vertex following edge `k` -/
+private lemma pg_vertex_at {l : List Pt} (hl : PgSP l) {k : ℕ} (hk : k < l.length) {lam1 lam2 : ℝ}
+    (h1 : PgSide l (l[k]) (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))) lam1)
+    (h2 : PgSide l (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega)))
+      (l[(k + 2) % l.length]'(Nat.mod_lt _ (by omega))) lam2) :
+    lam1 = lam2 ∧ ∃ r > 0, ∀ y ∈ Metric.ball (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))) r,
+      y ∉ pgCv l → pgW l y = lam1 ∨ pgW l y = lam1 - 2 * Real.pi := by
+  obtain ⟨rest, hrot⟩ := pg_rot_cons hk hl.three
+  have hL := hl.rotate k
+  rw [hrot] at hL
+  rw [← pgSide_rotate k, hrot] at h1 h2
+  obtain ⟨heq, r, hr, hloc⟩ := pg_vertex hL h1 h2
+  refine ⟨heq, r, hr, fun y hy hyc => ?_⟩
+  have := hloc y hy (by rw [← hrot, pgCv_rotate]; exact hyc)
+  rwa [← hrot, pgW_rotate] at this
+
+/-- edge-local values -/
+private lemma pg_edge_local_at {l : List Pt} (hl : PgSP l) {k : ℕ} (hk : k < l.length) {lam : ℝ}
+    (h : PgSide l (l[k]) (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))) lam) {s : ℝ}
+    (hs : s ∈ Ioo (0 : ℝ) 1) :
+    ∃ r > 0, ∀ y ∈ Metric.ball (l[k] + s • (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega)) - l[k])) r,
+      y ∉ pgCv l → pgW l y = lam ∨ pgW l y = lam - 2 * Real.pi := by
+  obtain ⟨rest, hrot⟩ := pg_rot_cons hk hl.three
+  have hL := hl.rotate k
+  rw [hrot] at hL
+  rw [← pgSide_rotate k, hrot] at h
+  obtain ⟨r, hr, hloc⟩ := pg_edge_local hL h hs
+  refine ⟨r, hr, fun y hy hyc => ?_⟩
+  have := hloc y hy (by rw [← hrot, pgCv_rotate]; exact hyc)
+  rwa [← hrot, pgW_rotate] at this
+
+/-- all edges share the same left value -/
+private lemma pg_side_all {l : List Pt} (hl : PgSP l) :
+    ∃ lam, ∀ k (hk : k < l.length), PgSide l (l[k]) (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))) lam := by
+  have h3 := hl.three
+  obtain ⟨lam, hlam⟩ := pg_side_exists hl (k := 0) (by omega)
+  refine ⟨lam, fun k hk => ?_⟩
+  induction k with
+  | zero => exact hlam
+  | succ k ih =>
+    have ih := ih (by omega)
+    obtain ⟨mu, hmu⟩ := pg_side_exists hl hk
+    have e1 : (k + 1) % l.length = k + 1 := Nat.mod_eq_of_lt hk
+    have hmu' : PgSide l (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega)))
+        (l[(k + 2) % l.length]'(Nat.mod_lt _ (by omega))) mu := by
+      have e2 : (k + 1 + 1) % l.length = (k + 2) % l.length := rfl
+      simp only [e1]; simpa only [e2] using hmu
+    have := (pg_vertex_at hl (by omega) ih hmu').1
+    rw [this]; exact hmu
+
+private lemma pg_vertex_pred {n j : ℕ} (hn : 0 < n) (hj : j < n) : ∃ k < n, (k + 1) % n = j := by
+  rcases Nat.eq_zero_or_pos j with rfl | hj0
+  · exact ⟨n - 1, by omega, by rw [Nat.sub_add_cancel hn, Nat.mod_self]⟩
+  · exact ⟨j - 1, by omega, by rw [Nat.sub_add_cancel hj0, Nat.mod_eq_of_lt hj]⟩
+
+private lemma pg_edge_of_mem {l : List Pt} {e : Pt × Pt} (he : e ∈ pgEd l) :
+    ∃ k, ∃ hk : k < l.length, e = (l[k], l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))) := by
+  obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem he
+  have hk' : k < l.length := by rwa [pgEd_length] at hk
+  exact ⟨k, hk', pgEd_getElem l k hk⟩
+
+/-- local two-valuedness at every point of the curve -/
+private lemma pg_local_all {l : List Pt} (hl : PgSP l) {lam : ℝ}
+    (hlam : ∀ k (hk : k < l.length), PgSide l (l[k]) (l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))) lam)
+    {x : Pt} (hx : x ∈ pgCv l) :
+    ∃ r > 0, ∀ y ∈ Metric.ball x r, y ∉ pgCv l → pgW l y = lam ∨ pgW l y = lam - 2 * Real.pi := by
+  have h3 := hl.three
+  have hvert : ∀ j (hj : j < l.length), ∃ r > 0, ∀ y ∈ Metric.ball (l[j]) r,
+      y ∉ pgCv l → pgW l y = lam ∨ pgW l y = lam - 2 * Real.pi := by
+    intro j hj
+    obtain ⟨k, hk, hkj⟩ := pg_vertex_pred (by omega) hj
+    have h2 := hlam ((k + 1) % l.length) (Nat.mod_lt _ (by omega))
+    have e : ((k + 1) % l.length + 1) % l.length = (k + 2) % l.length := by
+      rw [Nat.mod_add_mod]
+    simp only [e] at h2
+    obtain ⟨-, r, hr, hloc⟩ := pg_vertex_at hl hk (hlam k hk) h2
+    simp only [hkj] at hloc
+    exact ⟨r, hr, hloc⟩
+  obtain ⟨e, he, hxe⟩ := mem_pgCv.1 hx
+  obtain ⟨k, hk, rfl⟩ := pg_edge_of_mem he
+  obtain ⟨s, hs0, hs1, rfl⟩ := mem_segment_iff'.1 hxe
+  rcases eq_or_lt_of_le hs0 with h0 | h0
+  · subst h0; simp only [zero_smul, add_zero]; exact hvert k hk
+  rcases eq_or_lt_of_le hs1 with h1 | h1
+  · subst h1; simp only [one_smul, add_sub_cancel]; exact hvert _ _
+  exact pg_edge_local_at hl hk (hlam k hk) ⟨h0, h1⟩
+
+private lemma pg_far_point (l : List Pt) : ∃ p : Pt, p ∉ pgCv l ∧ pgW l p = 0 := by
+  set c := -(l.map (fun x : Pt => |x 1|)).sum - 1
+  have hc : ∀ x ∈ l, c < x 1 := by
+    intro x hx
+    have : |x 1| ≤ (l.map (fun x : Pt => |x 1|)).sum :=
+      List.single_le_sum (fun y hy => by obtain ⟨z, -, rfl⟩ := List.mem_map.1 hy; exact abs_nonneg _) _
+        (List.mem_map_of_mem hx)
+    have := neg_abs_le (x 1)
+    simp only [c]; linarith
+  refine ⟨!₂[0, c], ?_, ?_⟩
+  · intro h
+    obtain ⟨e, he, hxe⟩ := mem_pgCv.1 h
+    have hm := pgEd_mem he
+    obtain ⟨t, ht0, ht1, hxt⟩ := mem_segment_iff'.1 hxe
+    have := congrArg (fun z : Pt => z 1) hxt
+    simp at this
+    have h1 := hc _ hm.1
+    have h2 := hc _ hm.2
+    rcases eq_or_lt_of_le ht1 with ht1' | ht1'
+    · subst ht1'; linarith
+    · nlinarith [mul_pos (sub_pos.2 ht1') (sub_pos.2 h1), mul_nonneg ht0 (sub_pos.2 h2).le]
+  · apply pgW_eq_zero_of_halfplane (d := !₂[1, 0])
+    intro x hx
+    simp [jcr]; linarith [hc x hx]
+
+/-- **Polygonal Jordan theorem (winding form)**: off the curve of a simple closed polygon the
+winding function takes only the values `0` and `2πσ`, and `π (1 + σ)` is the left side value of
+every edge. -/
+private theorem pg_jordan {l : List Pt} (hl : PgSP l) :
+    ∃ σ : ℝ, (σ = 1 ∨ σ = -1) ∧ (∀ y ∉ pgCv l, pgW l y = 0 ∨ pgW l y = 2 * Real.pi * σ) ∧
+      ∀ e ∈ pgEd l, PgSide l e.1 e.2 (Real.pi * (1 + σ)) := by
+  obtain ⟨lam, hlam⟩ := pg_side_all hl
+  have h3 := hl.three
+  have hglob : ∀ y ∉ pgCv l, pgW l y = lam ∨ pgW l y = lam - 2 * Real.pi := by
+    intro y hy
+    have hne : (pgCv l).Nonempty := ⟨l[0], mem_pgCv.2 ⟨(l[0], l[(0 + 1) % l.length]'(Nat.mod_lt _ (by omega))),
+      by rw [pgEd_eq_ofFn, List.mem_ofFn]; exact ⟨⟨0, by omega⟩, by simp [finRotate_val_eq_mod]⟩,
+      left_mem_segment ℝ _ _⟩⟩
+    obtain ⟨x, hx, hmin⟩ := (isCompact_pgCv l).exists_isMinOn hne (f := fun z => dist y z)
+      (continuous_const.dist continuous_id).continuousOn
+    have hxy : 0 < dist y x := dist_pos.2 (fun h => hy (h ▸ hx))
+    obtain ⟨r, hr, hloc⟩ := pg_local_all hl hlam hx
+    set ε := min 1 (r / (2 * dist y x))
+    have hε : 0 < ε := lt_min one_pos (by positivity)
+    have hε1 : ε ≤ 1 := min_le_left _ _
+    set P : ℝ → Pt := fun μ => x + μ • (y - x)
+    have hoff : ∀ μ ∈ Icc ε 1, P μ ∉ pgCv l := by
+      intro μ hμ hc
+      have h1 := hmin hc
+      simp only [mem_setOf_eq] at h1
+      have : dist y (P μ) = (1 - μ) * dist y x := by
+        simp only [P, dist_eq_norm]
+        rw [show y - (x + μ • (y - x)) = (1 - μ) • (y - x) by module, norm_smul, Real.norm_eq_abs,
+          abs_of_nonneg (by linarith [hμ.2])]
+      have hμ0 : 0 < μ := lt_of_lt_of_le hε hμ.1
+      nlinarith [mul_pos hμ0 hxy]
+    have hA : IsPreconnected (P '' Icc ε 1) := isPreconnected_Icc.image _ (by fun_prop)
+    have e1 : pgW l y = pgW l (P ε) := by
+      have hy1 : P 1 = y := by simp [P]
+      rw [← hy1]
+      exact pgW_const hA (by rintro _ ⟨μ, hμ, rfl⟩; exact hoff μ hμ) ⟨1, ⟨hε1, le_refl _⟩, rfl⟩
+        ⟨ε, ⟨le_refl _, hε1⟩, rfl⟩
+    have hPε : P ε ∈ Metric.ball x r := by
+      rw [Metric.mem_ball, dist_eq_norm]
+      simp only [P, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos hε]
+      rw [← dist_eq_norm]
+      calc ε * dist y x ≤ r / (2 * dist y x) * dist y x := by gcongr; exact min_le_right _ _
+        _ = r / 2 := by field_simp
+        _ < r := by linarith
+    rw [e1]; exact hloc _ hPε (hoff ε ⟨le_refl _, hε1⟩)
+  obtain ⟨p, hp, hp0⟩ := pg_far_point l
+  have hπ := Real.pi_pos
+  have hlam' : lam = 2 * Real.pi ∨ lam = 0 := by
+    rcases hglob p hp with h | h
+    · right; linarith
+    · left; linarith
+  rcases hlam' with hl2 | hl0
+  · refine ⟨1, Or.inl rfl, fun y hy => ?_, fun e he => ?_⟩
+    · rcases hglob y hy with h | h
+      · right; linarith
+      · left; linarith
+    · obtain ⟨k, hk, rfl⟩ := pg_edge_of_mem he
+      have := hlam k hk; rw [hl2] at this; convert this using 1; ring
+  · refine ⟨-1, Or.inr rfl, fun y hy => ?_, fun e he => ?_⟩
+    · rcases hglob y hy with h | h
+      · left; linarith
+      · right; linarith
+    · obtain ⟨k, hk, rfl⟩ := pg_edge_of_mem he
+      have := hlam k hk; rw [hl0] at this; convert this using 1; ring
+
+/-! ### Winding numbers of polygonal disks -/
+
+private lemma pgW_pgL (B : PolygonalDisk) (p : Pt) : pgW (pgL B) p = wind B.vertex p := by
+  rw [pgW_eq_wind, wind, wind]
+  exact Fintype.sum_equiv (finCongr (pgL_length B)) _ _ (fun k => by rw [pgL_get, pgL_get_rot]; rfl)
+
+private lemma pd_polyCurve (B : PolygonalDisk) : polyCurve B.vertex = frontier B.carrier := B.frontier_eq.symm
+
+private lemma pg_rank_pt : 1 < Module.rank ℝ Pt := by
+  rw [← Module.finrank_eq_rank, finrank_euclideanSpace]; simp
+
+private lemma isClosed_polyCurve {m : ℕ} (c : Fin m → Pt) : IsClosed (polyCurve c) :=
+  isClosed_iUnion_of_finite (fun _ => (isCompact_segment_pt _ _).isClosed)
+
+/-- the winding function is locally constant off the curve -/
+private lemma wind_eventually_eq {m : ℕ} {c : Fin m → Pt} {y : Pt} (hy : y ∉ polyCurve c) :
+    ∃ r > 0, ∀ x ∈ Metric.ball y r, x ∉ polyCurve c ∧ wind c x = wind c y := by
+  obtain ⟨r, hr, hrK⟩ := Metric.isOpen_iff.1 (isClosed_polyCurve c).isOpen_compl y hy
+  exact ⟨r, hr, fun x hx => ⟨hrK hx, wind_const_of_preconnected (convex_ball y r).isPreconnected
+    (fun z hz => hrK hz) hx (Metric.mem_ball_self hr)⟩⟩
+
+/-- values of the winding function on the outer side of a polygonal disk near a side point -/
+private lemma pd_edge_vals (B : PolygonalDisk) (i : Fin B.n) {q : Pt}
+    (hq : q ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i))) {c : ℝ}
+    (hc : ∀ x ∈ interior B.carrier, wind B.vertex x = c) :
+    ∃ r > 0, ∃ z, z ∉ B.carrier ∧ (wind B.vertex z - c = 2 * Real.pi ∨ wind B.vertex z - c = -(2 * Real.pi)) ∧
+      ∀ x ∈ Metric.ball q r, x ∉ B.carrier → wind B.vertex x = wind B.vertex z := by
+  obtain ⟨r, hr, σ, hσ, hball⟩ := pd_halfdisk B i hq
+  set a := B.vertex i
+  set b := B.vertex (finRotate B.n i)
+  have hab : a ≠ b := pd_vertex_ne_next B i
+  have hdn : 0 < ‖b - a‖ := norm_pos_iff.2 (sub_ne_zero.2 hab.symm)
+  obtain ⟨s, hs0, hs1, hqs⟩ := mem_openSegment_iff'.1 hq
+  have hother : ∀ k ≠ i, q ∉ segment ℝ (B.vertex k) (B.vertex (finRotate B.n k)) :=
+    fun k hk h => hk (pd_eq_of_openSegment_inter_segment B hq h)
+  have hjump := wind_jump i hab hq hother
+  set J := jrot (b - a)
+  have hpos : (0 : ℝ) < r / (2 * ‖b - a‖) := by positivity
+  obtain ⟨t, hjt, ht⟩ := (hjump.and (Ioo_mem_nhdsGT hpos)).exists
+  have hmem : ∀ τ : ℝ, |τ| = 1 → q + (τ * t) • J ∈ Metric.ball q r := by
+    intro τ hτ
+    rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, norm_jrot, Real.norm_eq_abs, abs_mul,
+      hτ, one_mul, abs_of_pos ht.1]
+    calc t * ‖b - a‖ < r / (2 * ‖b - a‖) * ‖b - a‖ := by gcongr; exact ht.2
+      _ = r / 2 := by field_simp
+      _ < r := by linarith
+  have hjcr : ∀ τ : ℝ, jcr (b - a) (q + (τ * t) • J - a) = τ * t * ‖b - a‖ ^ 2 := by
+    intro τ; rw [hqs, pg_jcr_param]
+  have hext : ∀ x ∈ Metric.ball q r, x ∉ B.carrier → σ * jcr (b - a) (x - a) < 0 := by
+    intro x hx hxc; by_contra h; push_neg at h; exact hxc ((hball x hx).2.1.2 h)
+  have hextc : ∀ x ∈ Metric.ball q r, x ∉ B.carrier → ∀ y ∈ Metric.ball q r, y ∉ B.carrier →
+      wind B.vertex x = wind B.vertex y := by
+    intro x hx hxc y hy hyc
+    have hconv := pg_halfspace_convex q a (b - a) r (-σ)
+    apply wind_const_of_preconnected hconv.isPreconnected _ ⟨hx, by linarith [hext x hx hxc]⟩
+      ⟨hy, by linarith [hext y hy hyc]⟩
+    rintro z ⟨hz, hzj⟩ hzc
+    rw [pd_polyCurve] at hzc
+    have := (hball z hz).2.1.1 (pd_frontier_subset_carrier B hzc)
+    nlinarith
+  rcases hσ with rfl | rfl
+  · -- the interior is on the left
+    have hin : q + (1 * t) • J ∈ interior B.carrier :=
+      ((hball _ (hmem 1 (by norm_num))).2.2).2 (by rw [hjcr, one_mul, one_mul]; exact mul_pos ht.1 (pow_pos hdn 2))
+    have hout : q + (-1 * t) • J ∉ B.carrier := by
+      intro h
+      have := ((hball _ (hmem (-1) (by norm_num))).2.1).1 h
+      rw [hjcr] at this; nlinarith [mul_pos ht.1 (pow_pos hdn 2)]
+    refine ⟨r, hr, _, hout, Or.inr ?_, fun x hx hxc => hextc x hx hxc _ (hmem (-1) (by norm_num)) hout⟩
+    have h1 := hc _ hin
+    rw [one_mul] at h1; rw [neg_one_mul]
+    linarith
+  · have hin : q + (-1 * t) • J ∈ interior B.carrier :=
+      ((hball _ (hmem (-1) (by norm_num))).2.2).2 (by rw [hjcr]; nlinarith [mul_pos ht.1 (pow_pos hdn 2)])
+    have hout : q + (1 * t) • J ∉ B.carrier := by
+      intro h
+      have := ((hball _ (hmem 1 (by norm_num))).2.1).1 h
+      rw [hjcr] at this; nlinarith [mul_pos ht.1 (pow_pos hdn 2)]
+    refine ⟨r, hr, _, hout, Or.inl ?_, fun x hx hxc => hextc x hx hxc _ (hmem 1 (by norm_num)) hout⟩
+    have h1 := hc _ hin
+    rw [neg_one_mul] at h1; rw [one_mul]
+    linarith
+
+/-- a far point below a polygonal disk -/
+private lemma pd_far_point (B : PolygonalDisk) : ∃ p : Pt, p ∉ B.carrier ∧ wind B.vertex p = 0 := by
+  obtain ⟨R, hR⟩ := (Metric.isBounded_iff_subset_closedBall (0 : Pt)).1 B.compact.isBounded
+  set p : Pt := !₂[0, -(R + 1)]
+  have hp1 : p 1 = -(R + 1) := by simp [p]
+  refine ⟨p, fun h => ?_, ?_⟩
+  · have := hR h
+    rw [Metric.mem_closedBall, dist_zero_right] at this
+    have h1 : ‖p 1‖ ≤ ‖p‖ := PiLp.norm_apply_le p 1
+    have h0 : 0 ≤ R := le_trans (norm_nonneg _) this
+    rw [hp1, Real.norm_eq_abs, abs_of_neg (by linarith)] at h1
+    linarith
+  · rw [← pgW_pgL]
+    apply pgW_eq_zero_of_halfplane (d := !₂[1, 0])
+    intro x hx
+    obtain ⟨k, rfl⟩ := List.mem_ofFn.1 hx
+    have hv : B.vertex k ∈ B.carrier := pd_segment_subset_carrier B k (left_mem_segment ℝ _ _)
+    have := hR hv
+    rw [Metric.mem_closedBall, dist_zero_right] at this
+    have h1 : ‖B.vertex k 1‖ ≤ ‖B.vertex k‖ := PiLp.norm_apply_le _ 1
+    rw [Real.norm_eq_abs] at h1
+    have := neg_abs_le (B.vertex k 1)
+    have e : jcr !₂[1, 0] (B.vertex k - p) = B.vertex k 1 - p 1 := by simp [jcr]
+    rw [e, hp1]; linarith
+
+/-- **Winding numbers of a polygonal disk**: `2πσ` inside, `0` outside. -/
+private theorem pd_wind (B : PolygonalDisk) : ∃ σ : ℝ, (σ = 1 ∨ σ = -1) ∧
+    (∀ x ∈ interior B.carrier, wind B.vertex x = 2 * Real.pi * σ) ∧ ∀ x ∉ B.carrier, wind B.vertex x = 0 := by
+  obtain ⟨σ, hσ, hvals, -⟩ := pg_jordan (pgSP_pgL B)
+  have hvals' : ∀ y ∉ frontier B.carrier, wind B.vertex y = 0 ∨ wind B.vertex y = 2 * Real.pi * σ := by
+    intro y hy; rw [← pgW_pgL]; exact hvals y (by rw [pgCv_pgL]; exact hy)
+  have hπ := Real.pi_pos
+  set F := range B.vertex
+  have hFfin : F.Finite := finite_range _
+  have hFc : F.Countable := hFfin.countable
+  have hFconn : IsPreconnected Fᶜ := (hFc.isConnected_compl_of_one_lt_rank pg_rank_pt).isPreconnected
+  have hFd : Dense Fᶜ := hFc.dense_compl ℝ
+  have hF_sub : F ⊆ B.carrier := by
+    rintro _ ⟨k, rfl⟩; exact pd_segment_subset_carrier B k (left_mem_segment ℝ _ _)
+  have hfront_open : ∀ y ∈ frontier B.carrier, y ∉ F →
+      ∃ i, y ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) := by
+    intro y hy hyF
+    rw [B.frontier_eq, mem_iUnion] at hy
+    obtain ⟨i, hi⟩ := hy
+    exact ⟨i, mem_openSegment_of_ne_left_right (fun h => hyF ⟨i, h⟩) (fun h => hyF ⟨_, h⟩) hi⟩
+  obtain ⟨p, hpB, hp0⟩ := pd_far_point B
+  have hpF : p ∉ F := fun h => hpB (hF_sub h)
+  obtain ⟨x0, hx0, hx0F⟩ := hFd.inter_open_nonempty _ isOpen_interior B.interior_nonempty
+  set c := wind B.vertex x0
+  have hint_off : ∀ x ∈ interior B.carrier, x ∉ polyCurve B.vertex := by
+    intro x hx h; rw [pd_polyCurve] at h; exact h.2 hx
+  have hc : ∀ x ∈ interior B.carrier, wind B.vertex x = c := fun x hx =>
+    wind_const_of_preconnected B.interior_pathConnected.isConnected.isPreconnected hint_off hx hx0
+  have hcv : c = 0 ∨ c = 2 * Real.pi * σ := hvals' x0 (fun h => h.2 hx0)
+  have hoff_of_not : ∀ y, y ∉ B.carrier → y ∉ polyCurve B.vertex := by
+    intro y hy h; rw [pd_polyCurve] at h; exact hy (pd_frontier_subset_carrier B h)
+  -- step 1: the interior value is not zero
+  have hc0 : c ≠ 0 := by
+    intro hc0
+    set O := {y | y ∉ frontier B.carrier ∧ wind B.vertex y ≠ 0}
+    set M := B.carrier ∪ O
+    have hMc : IsClosed M := by
+      rw [← isOpen_compl_iff, Metric.isOpen_iff]
+      intro y hy
+      simp only [M, O, mem_compl_iff, mem_union, mem_setOf_eq, not_or, not_and, not_not] at hy
+      have hyf : y ∉ polyCurve B.vertex := hoff_of_not y hy.1
+      obtain ⟨r, hr, hloc⟩ := wind_eventually_eq hyf
+      obtain ⟨r2, hr2, hr2B⟩ := Metric.isOpen_iff.1 (pd_isClosed_carrier B).isOpen_compl y hy.1
+      refine ⟨min r r2, lt_min hr hr2, fun x hx => ?_⟩
+      have hx1 := hloc x (Metric.ball_subset_ball (min_le_left _ _) hx)
+      have hx2 : x ∉ B.carrier := hr2B (Metric.ball_subset_ball (min_le_right _ _) hx)
+      simp only [M, O, mem_compl_iff, mem_union, mem_setOf_eq, not_or, not_and, not_not]
+      refine ⟨hx2, fun _ => by rw [hx1.2]; exact hy.2 (fun h => hyf (by rw [pd_polyCurve]; exact h))⟩
+    have hu : IsOpen (M ∩ Fᶜ) := by
+      rw [Metric.isOpen_iff]
+      rintro y ⟨hyM, hyF⟩
+      obtain ⟨r0, hr0, hr0F⟩ := Metric.isOpen_iff.1 hFfin.isClosed.isOpen_compl y hyF
+      by_cases hyi : y ∈ interior B.carrier
+      · obtain ⟨r, hr, hrB⟩ := Metric.isOpen_iff.1 isOpen_interior y hyi
+        exact ⟨min r r0, lt_min hr hr0, fun x hx => ⟨Or.inl (interior_subset
+          (hrB (Metric.ball_subset_ball (min_le_left _ _) hx))), hr0F (Metric.ball_subset_ball (min_le_right _ _) hx)⟩⟩
+      by_cases hyfr : y ∈ frontier B.carrier
+      · obtain ⟨i, hi⟩ := hfront_open y hyfr hyF
+        obtain ⟨r, hr, z, hzB, hz, hloc⟩ := pd_edge_vals B i hi hc
+        refine ⟨min r r0, lt_min hr hr0, fun x hx => ⟨?_, hr0F (Metric.ball_subset_ball (min_le_right _ _) hx)⟩⟩
+        by_cases hxB : x ∈ B.carrier
+        · exact Or.inl hxB
+        · right
+          refine ⟨fun h => hxB (pd_frontier_subset_carrier B h), ?_⟩
+          rw [hloc x (Metric.ball_subset_ball (min_le_left _ _) hx) hxB]
+          rw [hc0] at hz; intro h; rw [h] at hz
+          rcases hz with hz | hz <;> linarith
+      · have hyO : y ∈ O := by
+          rcases hyM with hyM | hyM
+          · exact absurd (by rw [← self_diff_frontier]; exact ⟨hyM, hyfr⟩) hyi
+          · exact hyM
+        have hyf : y ∉ polyCurve B.vertex := by rw [pd_polyCurve]; exact hyO.1
+        obtain ⟨r, hr, hloc⟩ := wind_eventually_eq hyf
+        refine ⟨min r r0, lt_min hr hr0, fun x hx => ⟨Or.inr ⟨?_, ?_⟩,
+          hr0F (Metric.ball_subset_ball (min_le_right _ _) hx)⟩⟩
+        · have := (hloc x (Metric.ball_subset_ball (min_le_left _ _) hx)).1
+          rwa [pd_polyCurve] at this
+        · rw [(hloc x (Metric.ball_subset_ball (min_le_left _ _) hx)).2]; exact hyO.2
+    have hsub := hFconn.subset_left_of_subset_union hu hMc.isOpen_compl
+      (disjoint_compl_right.mono_left inter_subset_left)
+      (fun y hy => by by_cases h : y ∈ M; exacts [Or.inl ⟨h, hy⟩, Or.inr h])
+      ⟨x0, hx0F, Or.inl (interior_subset hx0), hx0F⟩
+    have := (hsub hpF).1
+    rcases this with h | h
+    · exact hpB h
+    · exact h.2 hp0
+  have hc2 : c = 2 * Real.pi * σ := by tauto
+  refine ⟨σ, hσ, fun x hx => by rw [hc x hx, hc2], ?_⟩
+  -- step 2: no outside point has nonzero winding
+  by_contra hcon
+  push_neg at hcon
+  obtain ⟨y0, hy0B, hy0⟩ := hcon
+  set V := {y | y ∉ B.carrier ∧ wind B.vertex y ≠ 0}
+  have hVo : IsOpen V := by
+    rw [Metric.isOpen_iff]
+    intro y hy
+    obtain ⟨r, hr, hloc⟩ := wind_eventually_eq (hoff_of_not y hy.1)
+    obtain ⟨r2, hr2, hr2B⟩ := Metric.isOpen_iff.1 (pd_isClosed_carrier B).isOpen_compl y hy.1
+    exact ⟨min r r2, lt_min hr hr2, fun x hx => ⟨hr2B (Metric.ball_subset_ball (min_le_right _ _) hx),
+      by rw [(hloc x (Metric.ball_subset_ball (min_le_left _ _) hx)).2]; exact hy.2⟩⟩
+  have hclos : ∀ y ∈ closure V, y ∉ F → y ∈ V := by
+    intro y hy hyF
+    by_cases hyfr : y ∈ frontier B.carrier
+    · exfalso
+      obtain ⟨i, hi⟩ := hfront_open y hyfr hyF
+      obtain ⟨r, hr, z, hzB, hz, hloc⟩ := pd_edge_vals B i hi hc
+      have hz0 : wind B.vertex z = 0 := by
+        rcases hvals' z (fun h => hzB (pd_frontier_subset_carrier B h)) with h | h
+        · exact h
+        · rw [h, hc2] at hz; rcases hz with hz | hz <;> linarith
+      obtain ⟨x, hxV, hx⟩ := Metric.mem_closure_iff.1 hy r hr
+      exact hxV.2 (by rw [hloc x (by rw [Metric.mem_ball, dist_comm]; exact hx) hxV.1, hz0])
+    · have hyB : y ∉ B.carrier := by
+        intro hyB
+        have hyi : y ∈ interior B.carrier := by rw [← self_diff_frontier]; exact ⟨hyB, hyfr⟩
+        obtain ⟨x, hx, hxV⟩ := mem_closure_iff.1 hy _ isOpen_interior hyi
+        exact hxV.1 (interior_subset hx)
+      refine ⟨hyB, fun h0 => ?_⟩
+      obtain ⟨r, hr, hloc⟩ := wind_eventually_eq (hoff_of_not y hyB)
+      obtain ⟨x, hxV, hx⟩ := Metric.mem_closure_iff.1 hy r hr
+      exact hxV.2 (by rw [(hloc x (by rw [Metric.mem_ball, dist_comm]; exact hx)).2, h0])
+  obtain ⟨y1, hy1V, hy1F⟩ := hFd.inter_open_nonempty V hVo ⟨y0, hy0B, hy0⟩
+  have hsub := hFconn.subset_left_of_subset_union (u := V ∩ Fᶜ) (v := (closure V)ᶜ)
+    (hVo.inter hFfin.isClosed.isOpen_compl) isClosed_closure.isOpen_compl
+    (disjoint_compl_right.mono_left (inter_subset_left.trans subset_closure))
+    (fun y hy => by
+      by_cases h : y ∈ closure V
+      · exact Or.inl ⟨hclos y h hy, hy⟩
+      · exact Or.inr h)
+    ⟨y1, hy1F, hy1V, hy1F⟩
+  exact (hsub hpF).1.2 hp0
+
+/-! ### Reparametrizations and duplicated vertices -/
+
+/-- a loop is homotopic (inside its image) to any reparametrization `t ↦ γ (t + ψ t)` with `ψ`
+continuous and periodic -/
+private lemma pg_reparam {γ : ℝ → Pt} (hγc : Continuous γ) (hγp : Function.Periodic γ 1) {ψ : ℝ → ℝ}
+    (hψc : Continuous ψ) (hψp : Function.Periodic ψ 1) :
+    LoopsHomotopicIn (range γ) γ (fun t => γ (t + ψ t)) := by
+  refine ⟨fun x => γ (x.2 + x.1 * ψ x.2), hγc.comp (by fun_prop), fun s t => ?_, fun t => by simp,
+    fun t => by simp, fun s _ t => mem_range_self _⟩
+  simp only
+  rw [hψp t, show t + 1 + s * ψ t = (t + s * ψ t) + 1 by ring, hγp]
+
+private lemma range_pgLoop_subset {l : List Pt} (hl : l ≠ []) : range (pgLoop l) ⊆ pgCv l := by
+  rintro _ ⟨t, rfl⟩; exact pgLoop_mem_pgCv hl t
+
+private lemma pg_fract_eq {m : ℤ} {τ : ℝ} (hτ : τ ∈ Ico (0 : ℝ) 1) : Int.fract ((m : ℝ) + τ) = τ := by
+  rw [add_comm, Int.fract_add_intCast, Int.fract_eq_self.2 hτ]
+
+/-- the reparametrization function for a duplicated vertex -/
+private def pgPhi (n k : ℕ) (τ : ℝ) : ℝ := min (((n : ℝ) + 1) * τ / n) (max ((k : ℝ) / n) ((((n : ℝ) + 1) * τ - 1) / n))
+
+private lemma pgPhi_continuous (n k : ℕ) : Continuous (pgPhi n k) := by
+  unfold pgPhi; fun_prop
+
+private lemma pgPhi_zero {n k : ℕ} (hn : 0 < n) : pgPhi n k 0 = 0 := by
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  simp only [pgPhi, mul_zero, zero_div, zero_sub]
+  apply min_eq_left
+  exact le_max_of_le_left (by positivity)
+
+private lemma pgPhi_one {n k : ℕ} (hn : 0 < n) (hk : k ≤ n) : pgPhi n k 1 = 1 := by
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  have hkR : (k : ℝ) ≤ n := by exact_mod_cast hk
+  simp only [pgPhi, mul_one, add_sub_cancel_right]
+  rw [div_self hnR.ne', max_eq_right (by rw [div_le_one hnR]; exact hkR)]
+  exact min_eq_right (by rw [le_div_iff₀ hnR]; linarith)
+
+private lemma pgPhi_lt {n k j : ℕ} (hn : 0 < n) (hj : j < k) {μ : ℝ} (hμ : μ ∈ Ico (0 : ℝ) 1) :
+    pgPhi n k ((j + μ) / (n + 1)) = (j + μ) / n := by
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  have hjk : (j : ℝ) + 1 ≤ k := by exact_mod_cast hj
+  unfold pgPhi
+  rw [show ((n : ℝ) + 1) * ((j + μ) / (n + 1)) = j + μ by field_simp]
+  apply min_eq_left
+  apply le_max_of_le_left
+  apply div_le_div_of_nonneg_right _ hnR.le
+  linarith [hμ.2]
+
+private lemma pgPhi_eq {n k : ℕ} (hn : 0 < n) {μ : ℝ} (hμ : μ ∈ Ico (0 : ℝ) 1) :
+    pgPhi n k ((k + μ) / (n + 1)) = k / n := by
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  unfold pgPhi
+  rw [show ((n : ℝ) + 1) * ((k + μ) / (n + 1)) = k + μ by field_simp]
+  rw [max_eq_left (div_le_div_of_nonneg_right (by linarith [hμ.2]) hnR.le)]
+  exact min_eq_right (div_le_div_of_nonneg_right (by linarith [hμ.1]) hnR.le)
+
+private lemma pgPhi_gt {n k j : ℕ} (hn : 0 < n) (hj : k < j) {μ : ℝ} (hμ : μ ∈ Ico (0 : ℝ) 1) :
+    pgPhi n k ((j + μ) / (n + 1)) = (((j - 1 : ℕ) : ℝ) + μ) / n := by
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  have hjk : (k : ℝ) + 1 ≤ j := by exact_mod_cast hj
+  have hj1 : (((j - 1 : ℕ) : ℝ)) = j - 1 := by rw [Nat.cast_sub (by omega)]; simp
+  unfold pgPhi
+  rw [show ((n : ℝ) + 1) * ((j + μ) / (n + 1)) = j + μ by field_simp, hj1]
+  rw [max_eq_right (div_le_div_of_nonneg_right (by linarith [hμ.1]) hnR.le)]
+  rw [min_eq_right (div_le_div_of_nonneg_right (by linarith) hnR.le)]
+  congr 1; ring
+
+/-- the loop through a list with a duplicated vertex is a reparametrization -/
+private lemma pgLoop_dup_eq (l1 l2 : List Pt) {x : Pt} (hx : (l2 ++ l1).head? = some x) (t : ℝ) :
+    pgLoop (l1 ++ x :: l2) t = pgLoop (l1 ++ l2)
+      (t + (pgPhi (l1 ++ l2).length l1.length (Int.fract t) - Int.fract t)) := by
+  set L := l1 ++ l2
+  set L' := l1 ++ x :: l2
+  set n := L.length
+  set k := l1.length
+  have hn : 0 < n := by
+    simp only [n, L, List.length_append]
+    rcases l2 with _ | ⟨y, l2⟩
+    · rcases l1 with _ | ⟨z, l1⟩
+      · simp at hx
+      · simp
+    · simp
+  have hkn : k ≤ n := by simp [k, n, L]
+  have hlen' : L'.length = n + 1 := by simp [L', n, L]; omega
+  obtain ⟨m, j, hj, μ, hμ, rfl⟩ := pg_decomp (n + 1) (by omega) t
+  have hfr : Int.fract ((m : ℝ) + ((j : ℝ) + μ) / ((n + 1 : ℕ) : ℝ)) = ((j : ℝ) + μ) / ((n : ℝ) + 1) := by
+    rw [pg_fract_eq]; · push_cast; ring
+    constructor
+    · exact div_nonneg (by linarith [hμ.1, (Nat.cast_nonneg j : (0:ℝ) ≤ j)]) (by positivity)
+    · rw [div_lt_one (by positivity)]
+      have : (j : ℝ) + 1 ≤ ((n + 1 : ℕ) : ℝ) := by exact_mod_cast hj
+      linarith [hμ.2]
+  rw [hfr]
+  have hsimp : ∀ φ : ℝ, (m : ℝ) + ((j : ℝ) + μ) / ((n + 1 : ℕ) : ℝ) + (φ - ((j : ℝ) + μ) / ((n : ℝ) + 1)) =
+      m + φ := by intro φ; push_cast; ring
+  rw [hsimp]
+  have hL'eval := pgLoop_eval L' m (i := j) (by rw [hlen']; exact hj) hμ
+  rw [hlen'] at hL'eval
+  rw [hL'eval]
+  -- element access
+  have gL'lt : ∀ i, i < k → L'.getD i 0 = L.getD i 0 := by
+    intro i hi; simp only [L', L]; rw [List.getD_append _ _ _ _ hi, List.getD_append _ _ _ _ hi]
+  have gL'eq : L'.getD k 0 = x := by
+    simp only [L', k]; rw [List.getD_append_right _ _ _ _ le_rfl]; simp
+  have gL'gt : ∀ i, k < i → L'.getD i 0 = L.getD (i - 1) 0 := by
+    intro i hi; simp only [L', L]
+    rw [List.getD_append_right _ _ _ _ hi.le, List.getD_append_right _ _ _ _ (by omega)]
+    obtain ⟨i', hi'⟩ : ∃ i', i - k = i' + 1 := ⟨i - k - 1, by omega⟩
+    rw [hi', List.getD_cons_succ]; congr 1; omega
+  have gx : L.getD (k % n) 0 = x := by
+    rcases Nat.lt_or_ge k n with hk | hk
+    · rw [Nat.mod_eq_of_lt hk]
+      simp only [L]
+      rw [List.getD_append_right _ _ _ _ le_rfl, Nat.sub_self]
+      rcases l2 with _ | ⟨y, l2⟩
+      · simp [n, L, k] at hk
+      · simp at hx; simp [hx]
+    · have : k = n := le_antisymm hkn hk
+      rw [this, Nat.mod_self]
+      have hl2 : l2 = [] := by
+        simp only [k, n, L, List.length_append] at this
+        exact List.length_eq_zero_iff.1 (by omega)
+      subst hl2
+      rcases l1 with _ | ⟨z, l1⟩
+      · simp at hx
+      · simp at hx; simp [L, hx]
+  have g0 : L'.getD 0 0 = L.getD 0 0 := by
+    rcases Nat.eq_zero_or_pos k with hk0 | hk0
+    · rw [← hk0, gL'eq, ← gx, hk0, Nat.zero_mod]
+    · exact gL'lt 0 hk0
+  rcases lt_trichotomy j k with hjk | hjk | hjk
+  · -- before the duplicated vertex
+    rw [pgPhi_lt hn hjk hμ, pgLoop_eval L m (by omega) hμ, gL'lt j hjk]
+    congr 1
+    rw [Nat.mod_eq_of_lt (by omega)]
+    rcases Nat.lt_or_ge (j + 1) k with h | h
+    · rw [gL'lt _ h, Nat.mod_eq_of_lt (by omega)]
+    · have : j + 1 = k := by omega
+      rw [this, gL'eq, ← gx]
+  · -- at the duplicated vertex
+    subst hjk
+    rw [pgPhi_eq hn hμ, gL'eq]
+    have hnext : L'.getD ((k + 1) % (n + 1)) 0 = x := by
+      rcases Nat.lt_or_ge k n with hk | hk
+      · rw [Nat.mod_eq_of_lt (by omega), gL'gt _ (by omega), Nat.add_sub_cancel, ← gx, Nat.mod_eq_of_lt hk]
+      · have : k = n := le_antisymm hkn hk
+        rw [this, Nat.mod_self, g0, ← gx, this, Nat.mod_self]
+    rw [hnext, AffineMap.lineMap_same_apply]
+    rcases Nat.lt_or_ge k n with hk | hk
+    · have := pgLoop_eval L m (i := k) hk (μ := 0) ⟨le_rfl, one_pos⟩
+      rw [add_zero] at this
+      rw [this, AffineMap.lineMap_apply_zero, List.getD_eq_getElem _ _ hk, ← gx, Nat.mod_eq_of_lt hk,
+        List.getD_eq_getElem _ _ hk]
+    · have : k = n := le_antisymm hkn hk
+      have h1 : (m : ℝ) + (k : ℝ) / n = ((m + 1 : ℤ) : ℝ) + (((0 : ℕ) : ℝ) + 0) / n := by
+        rw [this, div_self (by exact_mod_cast hn.ne')]; push_cast; ring
+      rw [h1, pgLoop_eval L (m + 1) hn ⟨le_rfl, one_pos⟩, AffineMap.lineMap_apply_zero, ← gx, this, Nat.mod_self]
+  · -- after the duplicated vertex
+    rw [pgPhi_gt hn hjk hμ, pgLoop_eval L m (i := j - 1) (by omega) hμ, gL'gt j hjk]
+    congr 1
+    rw [Nat.sub_add_cancel (by omega)]
+    rcases Nat.lt_or_ge (j + 1) (n + 1) with h | h
+    · rw [Nat.mod_eq_of_lt h, gL'gt _ (by omega), Nat.add_sub_cancel, Nat.mod_eq_of_lt (by omega)]
+    · have : j = n := by omega
+      rw [this, Nat.mod_self, Nat.mod_self, g0]
+
+/-- **Duplicating a vertex** does not change the free homotopy class of the loop. -/
+private lemma pgLoop_dup_homotopic (l1 l2 : List Pt) {x : Pt} (hx : (l2 ++ l1).head? = some x) :
+    LoopsHomotopicIn (pgCv (l1 ++ l2)) (pgLoop (l1 ++ l2)) (pgLoop (l1 ++ x :: l2)) := by
+  have hne : l1 ++ l2 ≠ [] := by
+    intro h; rw [List.append_eq_nil_iff] at h; rw [h.1, h.2] at hx; simp at hx
+  have hn : 0 < (l1 ++ l2).length := List.length_pos_of_ne_nil hne
+  have hkn : l1.length ≤ (l1 ++ l2).length := by simp
+  set ψ0 : ℝ → ℝ := fun τ => pgPhi (l1 ++ l2).length l1.length τ - τ
+  have hψc : Continuous (ψ0 ∘ Int.fract) := by
+    apply ContinuousOn.comp_fract''
+    · exact ((pgPhi_continuous _ _).sub continuous_id).continuousOn
+    · simp only [ψ0, pgPhi_zero hn, pgPhi_one hn hkn]; ring
+  have hψp : Function.Periodic (ψ0 ∘ Int.fract) 1 := by
+    intro t; simp [Int.fract_add_one]
+  have h := pg_reparam (pgLoop_continuous hne) (pgLoop_periodic _) hψc hψp
+  refine pg_lh_mono (range_pgLoop_subset hne) (pg_lh_congr h rfl ?_)
+  funext t
+  rw [pgLoop_dup_eq l1 l2 hx t]
+  rfl
+
+/-! ### Linear interpolation of vertex lists -/
+
+/-- pointwise interpolation of two vertex lists -/
+private def pgMix (s : ℝ) (l l' : List Pt) : List Pt := List.zipWith (fun a b => (1 - s) • a + s • b) l l'
+
+private lemma pgMix_length {l l' : List Pt} (h : l.length = l'.length) (s : ℝ) : (pgMix s l l').length = l.length := by
+  simp [pgMix, h]
+
+private lemma pgMix_getD {l l' : List Pt} (h : l.length = l'.length) (s : ℝ) (i : ℕ) :
+    (pgMix s l l').getD i 0 = (1 - s) • l.getD i 0 + s • l'.getD i 0 := by
+  by_cases hi : i < l.length
+  · rw [List.getD_eq_getElem _ _ (by rw [pgMix_length h]; exact hi), List.getD_eq_getElem _ _ hi,
+      List.getD_eq_getElem _ _ (by rw [← h]; exact hi)]
+    simp [pgMix]
+  · rw [List.getD_eq_default _ _ (by rw [pgMix_length h]; omega), List.getD_eq_default _ _ (by omega),
+      List.getD_eq_default _ _ (by omega)]
+    simp
+
+private lemma pgLoop_pgMix {l l' : List Pt} (h : l.length = l'.length) (s t : ℝ) :
+    pgLoop (pgMix s l l') t = (1 - s) • pgLoop l t + s • pgLoop l' t := by
+  simp only [pgLoop, pgMix_length h, pgMix_getD h, ← h, AffineMap.lineMap_apply_module]
+  module
+
+private lemma pgMix_self (s : ℝ) (l : List Pt) : pgMix s l l = l := by
+  induction l with
+  | nil => rfl
+  | cons a r ih =>
+    change ((1 - s) • a + s • a) :: pgMix s r r = a :: r
+    rw [ih]; congr 1; module
+
+private lemma pgMix_cons (s : ℝ) (a b : Pt) (l l' : List Pt) :
+    pgMix s (a :: l) (b :: l') = ((1 - s) • a + s • b) :: pgMix s l l' := rfl
+
+private lemma pgMix_append (s : ℝ) {l1 l1' : List Pt} (h : l1.length = l1'.length) (l2 l2' : List Pt) :
+    pgMix s (l1 ++ l2) (l1' ++ l2') = pgMix s l1 l1' ++ pgMix s l2 l2' := by
+  simp only [pgMix]; rw [List.zipWith_append h]
+
+private lemma pgMix_zero {l l' : List Pt} (h : l.length = l'.length) : pgMix 0 l l' = l := by
+  apply List.ext_getElem (pgMix_length h 0)
+  intro i h1 h2; simp [pgMix]
+
+private lemma pgMix_one {l l' : List Pt} (h : l.length = l'.length) : pgMix 1 l l' = l' := by
+  apply List.ext_getElem (by rw [pgMix_length h 1, h])
+  intro i h1 h2; simp [pgMix]
+
+/-! ### Elementary homotopy moves on vertex lists -/
+
+/-- one elementary move: a linear interpolation keeping the first vertex, or the duplication of a
+vertex -/
+private def PgStep (X : Set Pt) (l l' : List Pt) : Prop :=
+  (l ≠ [] ∧ l.length = l'.length ∧ l.head? = l'.head? ∧ ∀ s ∈ Icc (0 : ℝ) 1, pgCv (pgMix s l l') ⊆ X) ∨
+  ∃ l1 l2 : List Pt, ∃ x : Pt, (l2 ++ l1).head? = some x ∧ pgCv (l1 ++ l2) ⊆ X ∧
+    l = l1 ++ l2 ∧ l' = l1 ++ x :: l2
+
+/-- the equivalence generated by the elementary moves (without reflexivity) -/
+private def PgRel (X : Set Pt) : List Pt → List Pt → Prop :=
+  Relation.TransGen (fun l l' => PgStep X l l' ∨ PgStep X l' l)
+
+private lemma PgRel.symm {X : Set Pt} {l l' : List Pt} (h : PgRel X l l') : PgRel X l' l := by
+  induction h with
+  | single h => exact Relation.TransGen.single h.symm
+  | tail _ h ih => exact Relation.TransGen.head h.symm ih
+
+private lemma PgRel.trans {X : Set Pt} {l l' l'' : List Pt} (h1 : PgRel X l l') (h2 : PgRel X l' l'') : PgRel X l l'' :=
+  Relation.TransGen.trans h1 h2
+
+private lemma PgRel.interp {X : Set Pt} {l l' : List Pt} (hne : l ≠ []) (hlen : l.length = l'.length)
+    (hh : l.head? = l'.head?) (hX : ∀ s ∈ Icc (0 : ℝ) 1, pgCv (pgMix s l l') ⊆ X) : PgRel X l l' :=
+  Relation.TransGen.single (Or.inl (Or.inl ⟨hne, hlen, hh, hX⟩))
+
+private lemma PgRel.dup {X : Set Pt} (l1 l2 : List Pt) {x : Pt} (hx : (l2 ++ l1).head? = some x)
+    (hX : pgCv (l1 ++ l2) ⊆ X) : PgRel X (l1 ++ l2) (l1 ++ x :: l2) :=
+  Relation.TransGen.single (Or.inl (Or.inr ⟨l1, l2, x, hx, hX, rfl, rfl⟩))
+
+private lemma pg_ne_nil_of_head {l1 l2 : List Pt} {x : Pt} (hx : (l2 ++ l1).head? = some x) : l1 ++ l2 ≠ [] := by
+  intro h; rw [List.append_eq_nil_iff] at h; rw [h.1, h.2] at hx; simp at hx
+
+private lemma pgStep_sound {X : Set Pt} {l l' : List Pt} (h : PgStep X l l') :
+    LoopsHomotopicIn X (pgLoop l) (pgLoop l') := by
+  rcases h with ⟨hne, hlen, -, hX⟩ | ⟨l1, l2, x, hx, hX, rfl, rfl⟩
+  · have hne' : l' ≠ [] := by intro h; rw [h] at hlen; exact hne (List.length_eq_zero_iff.1 hlen)
+    have h := pg_lh_of_family (U := X) (fun p => (1 - p.1) • pgLoop l p.2 + p.1 • pgLoop l' p.2)
+      (by have := pgLoop_continuous hne; have := pgLoop_continuous hne'; fun_prop)
+      (fun s t => by simp only [pgLoop_add_one])
+      (fun s hs t => by
+        simp only
+        rw [← pgLoop_pgMix hlen]
+        apply hX s hs
+        apply pgLoop_mem_pgCv
+        intro h0; have := congrArg List.length h0; rw [pgMix_length hlen] at this
+        exact hne (List.length_eq_zero_iff.1 this))
+    exact pg_lh_congr h (by funext t; simp) (by funext t; simp)
+  · exact pg_lh_mono hX (pgLoop_dup_homotopic l1 l2 hx)
+
+/-- soundness: related lists give freely homotopic loops -/
+private lemma PgRel.sound {X : Set Pt} {l l' : List Pt} (h : PgRel X l l') : LoopsHomotopicIn X (pgLoop l) (pgLoop l') := by
+  induction h with
+  | single h => rcases h with h | h
+                · exact pgStep_sound h
+                · exact pg_lh_symm (pgStep_sound h)
+  | tail _ h ih =>
+    rcases h with h | h
+    · exact pg_lh_trans ih (pgStep_sound h)
+    · exact pg_lh_trans ih (pg_lh_symm (pgStep_sound h))
+
+private lemma pg_head_dup (l1 l2 : List Pt) {x : Pt} (hx : (l2 ++ l1).head? = some x) :
+    (l1 ++ l2).head? = (l1 ++ x :: l2).head? := by
+  cases l1 with
+  | nil => cases l2 with
+    | nil => simp at hx
+    | cons y r => simp at hx ⊢; exact hx
+  | cons a r => simp
+
+private lemma pgStep_head {X : Set Pt} {l l' : List Pt} (h : PgStep X l l') : l.head? = l'.head? := by
+  rcases h with ⟨-, -, hh, -⟩ | ⟨l1, l2, x, hx, -, rfl, rfl⟩
+  · exact hh
+  · exact pg_head_dup l1 l2 hx
+
+private lemma PgRel.head {X : Set Pt} {l l' : List Pt} (h : PgRel X l l') : l.head? = l'.head? := by
+  induction h with
+  | single h => rcases h with h | h
+                · exact pgStep_head h
+                · exact (pgStep_head h).symm
+  | tail _ h ih =>
+    rcases h with h | h
+    · exact ih.trans (pgStep_head h)
+    · exact ih.trans (pgStep_head h).symm
+
+/-! ### Curves of modified lists -/
+
+private lemma pgEd_cons_append_cons (y : Pt) (m r : List Pt) : pgEd (y :: m ++ y :: r) = pgEd (y :: m) ++ pgEd (y :: r) := by
+  rw [List.cons_append, pgEd_cons, pgEd_cons, pgEd_cons]
+  have : y :: (m ++ y :: r) ++ [y] = (y :: m) ++ y :: (r ++ [y]) := by simp
+  rw [this, pgCh_append]; simp
+
+private lemma pgCv_append_edges {l1 l2 : List (Pt × Pt)} : (⋃ e ∈ l1 ++ l2, segment ℝ e.1 e.2) =
+    (⋃ e ∈ l1, segment ℝ e.1 e.2) ∪ ⋃ e ∈ l2, segment ℝ e.1 e.2 := by
+  ext z; simp only [List.mem_append, mem_iUnion, mem_union, exists_prop]
+  constructor
+  · rintro ⟨e, he | he, hz⟩
+    · exact Or.inl ⟨e, he, hz⟩
+    · exact Or.inr ⟨e, he, hz⟩
+  · rintro (⟨e, he, hz⟩ | ⟨e, he, hz⟩)
+    · exact ⟨e, Or.inl he, hz⟩
+    · exact ⟨e, Or.inr he, hz⟩
+
+private lemma pgCv_cons_append_cons (y : Pt) (m r : List Pt) : pgCv (y :: m ++ y :: r) = pgCv (y :: m) ∪ pgCv (y :: r) := by
+  simp only [pgCv]; rw [pgEd_cons_append_cons, pgCv_append_edges]
+
+/-- inserting a closed sub-loop at a vertex -/
+private lemma pgCv_insert (A m B : List Pt) (y : Pt) :
+    pgCv (A ++ (y :: m) ++ y :: B) = pgCv (A ++ y :: B) ∪ pgCv (y :: m) := by
+  rw [← pgCv_rotate (A ++ (y :: m) ++ y :: B) A.length, ← pgCv_rotate (A ++ y :: B) A.length,
+    List.append_assoc, List.rotate_append_length_eq, List.rotate_append_length_eq]
+  rw [show (y :: m ++ y :: B) ++ A = y :: m ++ y :: (B ++ A) by simp, pgCv_cons_append_cons,
+    show (y :: B) ++ A = y :: (B ++ A) by simp]
+  exact union_comm _ _
+
+private lemma pg_mem_pgCv_head (y : Pt) (r : List Pt) : y ∈ pgCv (y :: r) := by
+  rw [mem_pgCv]
+  cases r with
+  | nil => exact ⟨(y, y), by simp [pgEd], left_mem_segment ℝ _ _⟩
+  | cons z r => exact ⟨(y, z), by simp [pgEd], left_mem_segment ℝ _ _⟩
+
+private lemma pgCv_pair (x z : Pt) : pgCv [x, z] = segment ℝ x z := by
+  ext p; simp [pgCv, pgEd, segment_symm ℝ z x]
+
+private lemma pgCv_single (x : Pt) : pgCv [x] = {x} := by
+  ext p; simp [pgCv, pgEd]
+
+private lemma pgCv_dup (l1 l2 : List Pt) {x : Pt} (hx : (l2 ++ l1).head? = some x) :
+    pgCv (l1 ++ x :: l2) = pgCv (l1 ++ l2) := by
+  cases l2 with
+  | cons y r =>
+    simp only [List.cons_append, List.head?_cons, Option.some.injEq] at hx
+    subst hx
+    have := pgCv_insert l1 [] r y
+    rw [List.append_assoc] at this
+    simp only [List.cons_append, List.nil_append] at this
+    rw [this, pgCv_single, union_eq_left, singleton_subset_iff]
+    rw [← pgCv_rotate _ l1.length, List.rotate_append_length_eq]
+    exact pg_mem_pgCv_head _ _
+  | nil =>
+    cases l1 with
+    | nil => simp at hx
+    | cons a r =>
+      simp only [List.nil_append, List.head?_cons, Option.some.injEq] at hx
+      subst hx
+      have := pgCv_insert [] r [] a
+      simp only [List.nil_append, List.append_nil] at this ⊢
+      rw [show a :: r ++ [a] = a :: r ++ a :: [] from rfl, this, pgCv_single, union_comm, union_eq_left,
+        singleton_subset_iff]
+      exact pg_mem_pgCv_head _ _
+
+private lemma PgRel.cv {X : Set Pt} {l l' : List Pt} (h : PgRel X l l') : pgCv l ⊆ X ∧ pgCv l' ⊆ X := by
+  have hs : ∀ {l l'}, PgStep X l l' → pgCv l ⊆ X ∧ pgCv l' ⊆ X := by
+    intro l l' h
+    rcases h with ⟨-, hlen, -, hX⟩ | ⟨l1, l2, x, hx, hX, rfl, rfl⟩
+    · have h0 := hX 0 ⟨le_refl _, zero_le_one⟩
+      have h1 := hX 1 ⟨zero_le_one, le_refl _⟩
+      rw [pgMix_zero hlen] at h0; rw [pgMix_one hlen] at h1
+      exact ⟨h0, h1⟩
+    · exact ⟨hX, by rw [pgCv_dup l1 l2 hx]; exact hX⟩
+  induction h with
+  | single h => rcases h with h | h
+                · exact hs h
+                · exact (hs h).symm
+  | tail _ h ih =>
+    rcases h with h | h
+    · exact ⟨ih.1, (hs h).2⟩
+    · exact ⟨ih.1, (hs h).1⟩
+
+private lemma PgRel.refl {X : Set Pt} {l : List Pt} (hne : l ≠ []) (hX : pgCv l ⊆ X) : PgRel X l l :=
+  PgRel.interp hne rfl rfl (fun s _ => by rw [pgMix_self]; exact hX)
+
+/-! ### Derived moves -/
+
+private lemma pg_head_append {A L L' R : List Pt} (hL : L ≠ []) (hL' : L' ≠ []) (h : L.head? = L'.head?) :
+    (A ++ L ++ R).head? = (A ++ L' ++ R).head? := by
+  cases A with
+  | cons a r => simp
+  | nil =>
+    cases L with
+    | nil => exact absurd rfl hL
+    | cons b r => cases L' with
+      | nil => exact absurd rfl hL'
+      | cons c r' => simpa using h
+
+private lemma pgMix_head_cons {s : ℝ} {y : Pt} {L L' : List Pt} (hlen : L.length = L'.length) (hy : L.head? = some y)
+    (hh : L.head? = L'.head?) : ∃ m, pgMix s L L' = y :: m := by
+  obtain ⟨r, rfl⟩ := List.head?_eq_some_iff.1 hy
+  obtain ⟨r', rfl⟩ := List.head?_eq_some_iff.1 (hh ▸ hy)
+  exact ⟨pgMix s r r', by rw [pgMix_cons]; congr 1; module⟩
+
+private lemma pgStep_lift {X : Set Pt} {L L' : List Pt} {y : Pt} (A B : List Pt) (h : PgStep X L L')
+    (hy : L.head? = some y) (hX : pgCv (A ++ y :: B) ⊆ X) : PgStep X (A ++ L ++ y :: B) (A ++ L' ++ y :: B) := by
+  rcases h with ⟨hne, hlen, hh, hXm⟩ | ⟨l1, l2, x, hx, hX2, rfl, rfl⟩
+  · have hne' : L' ≠ [] := by intro h; rw [h] at hlen; exact hne (List.length_eq_zero_iff.1 hlen)
+    refine Or.inl ⟨by simp, by simp [hlen], pg_head_append hne hne' hh, fun s hs => ?_⟩
+    rw [pgMix_append s (by simp [hlen] : (A ++ L).length = (A ++ L').length),
+      pgMix_append s (rfl : A.length = A.length), pgMix_self, pgMix_self]
+    obtain ⟨m, hm⟩ := pgMix_head_cons (s := s) hlen hy hh
+    rw [hm, pgCv_insert]
+    exact union_subset hX (hm ▸ hXm s hs)
+  · refine Or.inr ⟨A ++ l1, l2 ++ y :: B, x, ?_, ?_, by simp, by simp⟩
+    · cases l2 with
+      | cons z r => simpa using hx
+      | nil =>
+        simp only [List.nil_append, List.append_nil] at hx hy
+        rw [hx] at hy; cases hy; simp
+    · obtain ⟨r, hr⟩ := List.head?_eq_some_iff.1 hy
+      have : A ++ l1 ++ (l2 ++ y :: B) = A ++ (y :: r) ++ y :: B := by rw [← hr]; simp
+      rw [this, pgCv_insert]
+      exact union_subset hX (hr ▸ hX2)
+
+/-- moves on a closed sub-loop at `y` can be performed inside a larger loop through `y` -/
+private lemma PgRel.lift {X : Set Pt} {L L' : List Pt} {y : Pt} (A B : List Pt) (h : PgRel X L L')
+    (hy : L.head? = some y) (hX : pgCv (A ++ y :: B) ⊆ X) : PgRel X (A ++ L ++ y :: B) (A ++ L' ++ y :: B) := by
+  induction h with
+  | single h =>
+    rcases h with h | h
+    · exact Relation.TransGen.single (Or.inl (pgStep_lift A B h hy hX))
+    · exact Relation.TransGen.single (Or.inr (pgStep_lift A B h ((pgStep_head h).trans hy) hX))
+  | tail h1 h ih =>
+    have hy1 := (PgRel.head h1).symm.trans hy
+    rcases h with h | h
+    · exact ih.trans (Relation.TransGen.single (Or.inl (pgStep_lift A B h hy1 hX)))
+    · exact ih.trans (Relation.TransGen.single (Or.inr (pgStep_lift A B h ((pgStep_head h).trans hy1) hX)))
+
+/-- moving one vertex (not the first one) linearly -/
+private lemma PgRel.move {X : Set Pt} {A B : List Pt} {y y' : Pt} (hA : A ≠ [])
+    (hX : ∀ s ∈ Icc (0 : ℝ) 1, pgCv (A ++ ((1 - s) • y + s • y') :: B) ⊆ X) :
+    PgRel X (A ++ y :: B) (A ++ y' :: B) := by
+  refine PgRel.interp (by simp) (by simp) ?_ fun s hs => ?_
+  · cases A with
+    | nil => exact absurd rfl hA
+    | cons a r => simp
+  · rw [pgMix_append s rfl, pgMix_self, pgMix_cons, pgMix_self]; exact hX s hs
+
+private lemma PgRel.dup_mid {X : Set Pt} (A B : List Pt) (x : Pt) (hX : pgCv (A ++ x :: B) ⊆ X) :
+    PgRel X (A ++ x :: x :: B) (A ++ x :: B) :=
+  (PgRel.dup A (x :: B) (by simp) hX).symm
+
+private lemma PgRel.dup_end {X : Set Pt} {l : List Pt} {x : Pt} (hx : l.head? = some x) (hX : pgCv l ⊆ X) :
+    PgRel X (l ++ [x]) l := by
+  have := PgRel.dup (X := X) l [] (by simpa using hx) (by simpa using hX)
+  simpa using this.symm
+
+private lemma pgCv_spike (A B : List Pt) (x z : Pt) : pgCv (A ++ x :: z :: x :: B) = pgCv (A ++ x :: B) ∪ segment ℝ x z := by
+  have := pgCv_insert A [z] B x
+  rw [pgCv_pair] at this
+  simpa using this
+
+/-- removing a spike `x → y → x` -/
+private lemma PgRel.backtrack {X : Set Pt} (A B : List Pt) (x y : Pt) (hX : pgCv (A ++ x :: y :: x :: B) ⊆ X) :
+    PgRel X (A ++ x :: y :: x :: B) (A ++ x :: B) := by
+  rw [pgCv_spike] at hX
+  have hX1 := subset_union_left.trans hX
+  have h1 : PgRel X ((A ++ [x]) ++ y :: x :: B) ((A ++ [x]) ++ x :: x :: B) := by
+    refine PgRel.move (by simp) fun s hs => ?_
+    have : A ++ [x] ++ ((1 - s) • y + s • x) :: x :: B = A ++ x :: ((1 - s) • y + s • x) :: x :: B := by simp
+    rw [this, pgCv_spike]
+    refine union_subset hX1 ((Convex.segment_subset (convex_segment x y) (left_mem_segment ℝ x y) ?_).trans
+      (subset_union_right.trans hX))
+    exact ⟨s, 1 - s, hs.1, by linarith [hs.2], by ring, by rw [add_comm]⟩
+  simp only [List.append_assoc, List.singleton_append] at h1
+  refine h1.trans ((PgRel.dup_mid A (x :: B) x ?_).trans (PgRel.dup_mid A B x hX1))
+  rw [show A ++ x :: x :: B = A ++ x :: x :: B from rfl, pgCv_dup A (x :: B) (by simp)]; exact hX1
+
+/-- contracting a null sub-loop at `y` -/
+private lemma PgRel.contract {X : Set Pt} {L : List Pt} {y : Pt} (A B : List Pt) (h : PgRel X L [y])
+    (hy : L.head? = some y) (hX : pgCv (A ++ y :: B) ⊆ X) : PgRel X (A ++ L ++ y :: B) (A ++ y :: B) := by
+  have h1 := PgRel.lift A B h hy hX
+  simp only [List.append_assoc, List.singleton_append] at h1
+  have := h1.trans (PgRel.dup_mid A B y hX)
+  simpa using this
+
+/-- going along a path and back -/
+private lemma PgRel.path_back {X : Set Pt} (y : Pt) (P : List Pt) : ∀ (A B : List Pt) (x : Pt),
+    pgCv (A ++ x :: (P ++ y :: (P.reverse ++ x :: B))) ⊆ X →
+    PgRel X (A ++ x :: (P ++ y :: (P.reverse ++ x :: B))) (A ++ x :: B) := by
+  induction P with
+  | nil => intro A B x hX; exact PgRel.backtrack A B x y hX
+  | cons p P0 ih =>
+    intro A B x hX
+    have e : A ++ x :: (p :: P0 ++ y :: ((p :: P0).reverse ++ x :: B)) =
+        (A ++ [x]) ++ p :: (P0 ++ y :: (P0.reverse ++ p :: (x :: B))) := by simp
+    have e2 : A ++ x :: (p :: P0 ++ y :: ((p :: P0).reverse ++ x :: B)) =
+        (A ++ [x]) ++ (p :: (P0 ++ y :: P0.reverse)) ++ p :: (x :: B) := by simp
+    have hX2 : pgCv (A ++ [x] ++ p :: x :: B) ⊆ X := by
+      rw [e2, pgCv_insert] at hX; exact subset_union_left.trans hX
+    rw [e]; rw [e] at hX
+    refine (ih (A ++ [x]) (x :: B) p hX).trans ?_
+    have h3 := PgRel.backtrack (X := X) A B x p (by simpa using hX2)
+    simpa using h3
+
+private lemma pgCv_path_back_close (x y : Pt) (P : List Pt) :
+    pgCv (x :: (P ++ y :: (P.reverse ++ [x]))) = pgCv (x :: (P ++ y :: P.reverse)) := by
+  have := pgCv_dup (x :: (P ++ y :: P.reverse)) [] (x := x) (by simp)
+  simp only [List.append_nil] at this
+  rw [← this]; simp
+
+private lemma PgRel.path_back_closed {X : Set Pt} (x y : Pt) (P : List Pt) (hX : pgCv (x :: (P ++ y :: P.reverse)) ⊆ X) :
+    PgRel X (x :: (P ++ y :: P.reverse)) [x] := by
+  refine (PgRel.dup_end (x := x) (by simp) hX).symm.trans ?_
+  have := PgRel.path_back (X := X) y P [] [] x (by simpa [pgCv_path_back_close] using hX)
+  simpa using this
+
+private lemma pgCv_path_back_subset (x y : Pt) (P Q : List Pt) :
+    pgCv (x :: (P ++ y :: P.reverse)) ⊆ pgCv (x :: P ++ y :: Q) := by
+  intro z hz
+  rw [mem_pgCv] at hz ⊢
+  obtain ⟨e, he, hz⟩ := hz
+  have e1 : pgEd (x :: (P ++ y :: P.reverse)) = pgCh (x :: P ++ [y]) ++ pgCh (x :: P ++ [y]).reverse := by
+    rw [pgEd_cons, show x :: (P ++ y :: P.reverse) ++ [x] = (x :: P) ++ y :: (P.reverse ++ [x]) by simp,
+      pgCh_append, show y :: (P.reverse ++ [x]) = (x :: P ++ [y]).reverse by simp]
+  rw [pgEd_split]
+  rw [e1, List.mem_append] at he
+  rcases he with he | he
+  · exact ⟨e, List.mem_append_left _ he, hz⟩
+  · rw [pgCh_reverse, List.mem_reverse, List.mem_map] at he
+    obtain ⟨f, hf, rfl⟩ := he
+    exact ⟨f, List.mem_append_left _ hf, by rw [segment_symm]; exact hz⟩
+
+/-- a loop null-homotopic by moves stays so after rotation -/
+private lemma PgRel.rotate_null {X : Set Pt} {x y : Pt} {P Q : List Pt} (h : PgRel X (y :: Q ++ x :: P) [y]) :
+    PgRel X (x :: P ++ y :: Q) [x] := by
+  have hS := (PgRel.cv h).1
+  have hT : pgCv (x :: P ++ y :: Q) ⊆ X := by
+    have := pgCv_rotate (y :: Q ++ x :: P) (y :: Q).length
+    rw [List.rotate_append_length_eq] at this
+    rw [this]; exact hS
+  have hL0 := (pgCv_path_back_subset x y P Q).trans hT
+  have h0 := PgRel.path_back_closed x y P hL0
+  have hT1 : pgCv ((x :: P ++ y :: Q) ++ [x]) ⊆ X := by
+    have := pgCv_dup (x :: P ++ y :: Q) [] (x := x) (by simp)
+    simp only [List.append_nil] at this; rw [this]; exact hT
+  have s1 := (PgRel.dup_end (x := x) (by simp) hT).symm
+  have s2 := (PgRel.contract (x :: P ++ y :: Q) [] h0 (by simp) hT1).symm
+  have s3 := PgRel.contract (x :: P) (P.reverse ++ [x]) h (by simp) (by
+    simpa [pgCv_path_back_close] using hL0)
+  have s4 := PgRel.path_back (X := X) y P [] [] x (by
+    simpa [pgCv_path_back_close] using hL0)
+  have e : x :: P ++ y :: Q ++ x :: (P ++ y :: P.reverse) ++ [x] =
+      (x :: P) ++ (y :: Q ++ x :: P) ++ y :: (P.reverse ++ [x]) := by simp
+  simp only [List.nil_append] at s4
+  refine s1.trans (s2.trans ?_)
+  rw [e]
+  refine s3.trans ?_
+  simpa using s4
+
+/-! ### Splitting a simple polygon along a diagonal -/
+
+/-- the closed region bounded by a closed polygon -/
+private def pgReg (l : List Pt) : Set Pt := pgCv l ∪ {y | pgW l y ≠ 0}
+
+private lemma pg_edge_from {l : List Pt} {x : Pt} (hx : x ∈ l) : ∃ f ∈ pgEd l, f.1 = x := by
+  obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
+  have hi' : i < (pgEd l).length := by rwa [pgEd_length]
+  exact ⟨(pgEd l)[i], List.getElem_mem _, by rw [pgEd_getElem]⟩
+
+/-- a vertex of a simple polygon lying on an edge is an endpoint of it -/
+private lemma pg_vertex_on_edge {l : List Pt} (hl : PgSP l) {x : Pt} (hx : x ∈ l) {e : Pt × Pt} (he : e ∈ pgEd l)
+    (hxe : x ∈ segment ℝ e.1 e.2) : x = e.1 ∨ x = e.2 := by
+  obtain ⟨f, hf, rfl⟩ := pg_edge_from hx
+  by_cases hfe : f = e
+  · subst hfe; exact Or.inl rfl
+  · have h := List.Pairwise.forall (fun _ _ h => pgOK_symm h) hl.pw hf he hfe
+    have := (h ⟨left_mem_segment ℝ _ _, hxe⟩).2
+    simpa using this
+
+private lemma jrot_sub_swap (a b : Pt) : jrot (a - b) = - jrot (b - a) := by
+  ext i; fin_cases i <;> simp [jrot]
+
+/-- the orientation of two simple polygons sharing an edge in opposite directions, near which the
+sum of their winding functions is `2πσ` -/
+private lemma pg_glue_sigma {P1 P2 : List Pt} {a b : Pt} {σ σ1 σ2 : ℝ} (hσ : σ = 1 ∨ σ = -1) (hσ1 : σ1 = 1 ∨ σ1 = -1)
+    (hσ2 : σ2 = 1 ∨ σ2 = -1) (hS1 : PgSide P1 b a (Real.pi * (1 + σ1))) (hS2 : PgSide P2 a b (Real.pi * (1 + σ2)))
+    {s0 : ℝ} (hs0 : s0 ∈ Ioo (0 : ℝ) 1) {r : ℝ} (hr : 0 < r)
+    (hsum : ∀ y ∈ Metric.ball (a + s0 • (b - a)) r, y ∉ pgCv P1 → y ∉ pgCv P2 →
+      pgW P1 y + pgW P2 y = 2 * Real.pi * σ) : σ1 = σ ∧ σ2 = σ := by
+  have hs1 : 1 - s0 ∈ Ioo (0 : ℝ) 1 := ⟨by linarith [hs0.2], by linarith [hs0.1]⟩
+  set q := a + s0 • (b - a)
+  have hq : b + (1 - s0) • (a - b) = q := by simp only [q]; module
+  have hJ := jrot_sub_swap a b
+  set M := ‖jrot (b - a)‖ + 1
+  have hM : 0 < M := by positivity
+  have hball : ∀ᶠ t in 𝓝[>] (0 : ℝ), t < r / M := by
+    exact Filter.eventually_of_mem (Ioo_mem_nhdsGT (by positivity : (0:ℝ) < r / M)) fun t ht => ht.2
+  have hpos : ∀ᶠ t in 𝓝[>] (0 : ℝ), 0 < t := self_mem_nhdsWithin
+  obtain ⟨t, ⟨h2, h1⟩, hb, ht⟩ := (((hS2 s0 hs0).and (hS1 (1 - s0) hs1)).and (hball.and hpos)).exists
+  rw [hq, hJ] at h1
+  have e : q + (-t) • -jrot (b - a) = q + t • jrot (b - a) := by module
+  rw [e] at h1
+  have hy : q + t • jrot (b - a) ∈ Metric.ball q r := by
+    rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+    calc t * ‖jrot (b - a)‖ ≤ t * M := by gcongr; linarith
+      _ < r / M * M := by gcongr
+      _ = r := by field_simp
+  have := hsum _ hy h1.2.1 h2.1
+  rw [h1.2.2.2, h2.2.2.1] at this
+  have hπ := Real.pi_pos
+  have key : σ1 + σ2 = 2 * σ := by
+    have : Real.pi * (σ1 + σ2 - 2 * σ) = 0 := by linarith
+    rcases mul_eq_zero.1 this with h | h
+    · linarith
+    · linarith
+  rcases hσ with rfl | rfl <;> rcases hσ1 with rfl | rfl <;> rcases hσ2 with rfl | rfl <;>
+    exact ⟨by linarith, by linarith⟩
+
+private lemma pg_piece_sum_ne {w1 w2 σ : ℝ} (hσ : σ = 1 ∨ σ = -1) (h1 : w1 = 0 ∨ w1 = 2 * Real.pi * σ)
+    (h2 : w2 = 0 ∨ w2 = 2 * Real.pi * σ) (hw : w1 ≠ 0) : w1 + w2 ≠ 0 := by
+  have hπ := Real.pi_pos
+  rcases h1 with h1 | h1
+  · exact absurd h1 hw
+  · rcases h2 with h2 | h2 <;> rcases hσ with rfl | rfl <;> rw [h1, h2] <;> nlinarith
+
+/-- **Splitting along a diagonal**: a chord of a simple polygon whose interior avoids the curve
+and lies in the region splits it into two simple polygons with smaller regions -/
+private lemma pg_split {a b : Pt} {m1 m2 : List Pt} (hl : PgSP (a :: m1 ++ b :: m2)) (hm1 : m1 ≠ []) (hm2 : m2 ≠ [])
+    (hD : ∀ y ∈ openSegment ℝ a b, y ∉ pgCv (a :: m1 ++ b :: m2))
+    (hW : ∃ y ∈ openSegment ℝ a b, pgW (a :: m1 ++ b :: m2) y ≠ 0) :
+    PgSP (a :: m1 ++ [b]) ∧ PgSP (b :: m2 ++ [a]) ∧ pgReg (a :: m1 ++ [b]) ⊆ pgReg (a :: m1 ++ b :: m2) ∧
+      pgReg (b :: m2 ++ [a]) ⊆ pgReg (a :: m1 ++ b :: m2) := by
+  set l := a :: m1 ++ b :: m2 with hl_def
+  have hal : a ∈ l := by simp [l]
+  have hbl : b ∈ l := by simp [l]
+  have hEd := pgEd_split a b m1 m2
+  -- edges of the two chains are edges of `l`
+  have hc1 : ∀ e ∈ pgCh (a :: m1 ++ [b]), e ∈ pgEd l := fun e he => by
+    rw [hEd]; exact List.mem_append_left _ he
+  have hc2 : ∀ e ∈ pgCh (b :: m2 ++ [a]), e ∈ pgEd l := fun e he => by
+    rw [hEd]; exact List.mem_append_right _ he
+  -- the chord meets an edge only at common endpoints
+  have hok : ∀ e ∈ pgEd l, PgOK e (a, b) ∧ PgOK e (b, a) := by
+    intro e he
+    have key : ∀ z ∈ segment ℝ e.1 e.2 ∩ segment ℝ a b, z ∈ ({e.1, e.2} : Set Pt) ∩ {a, b} := by
+      rintro z ⟨hz1, hz2⟩
+      rw [← insert_endpoints_openSegment] at hz2
+      rcases hz2 with rfl | rfl | hz2
+      · exact ⟨pg_vertex_on_edge hl hal he hz1, Or.inl rfl⟩
+      · exact ⟨pg_vertex_on_edge hl hbl he hz1, Or.inr rfl⟩
+      · exact absurd (seg_subset_pgCv he hz1) (hD z hz2)
+    refine ⟨fun z hz => key z hz, fun z hz => ?_⟩
+    have := key z ⟨hz.1, by rw [segment_symm]; exact hz.2⟩
+    refine ⟨this.1, ?_⟩
+    rcases this.2 with h | h
+    · exact Or.inr h
+    · exact Or.inl h
+  have hpw : (pgEd l).Pairwise PgOK := hl.pw
+  rw [hEd, List.pairwise_append] at hpw
+  have hn1 : (a :: m1 ++ [b]).Nodup := List.Sublist.nodup (by simp [l]) hl.nodup
+  have hn2 : (b :: m2 ++ [a]).Nodup := by
+    have : (b :: m2 ++ [a]).Perm (b :: m2 ++ [a]) := List.Perm.refl _
+    have hnd := hl.nodup
+    rw [hl_def, List.nodup_append] at hnd
+    obtain ⟨h1, h2, h3⟩ := hnd
+    rw [List.nodup_append]
+    refine ⟨h2, by simp, ?_⟩
+    simp only [List.mem_singleton]
+    rintro x hx y rfl rfl
+    exact h3 _ (List.mem_cons_self) _ hx rfl
+  have hP1 : PgSP (a :: m1 ++ [b]) := by
+    refine ⟨by cases m1 with | nil => exact absurd rfl hm1 | cons _ _ => simp, hn1, ?_⟩
+    rw [pgEd_close, List.pairwise_append]
+    refine ⟨hpw.1, by simp, ?_⟩
+    intro e he f hf
+    simp only [List.mem_singleton] at hf; subst hf
+    exact (hok e (hc1 e he)).2
+  have hP2 : PgSP (b :: m2 ++ [a]) := by
+    refine ⟨by cases m2 with | nil => exact absurd rfl hm2 | cons _ _ => simp, hn2, ?_⟩
+    rw [pgEd_close, List.pairwise_append]
+    refine ⟨hpw.2.1, by simp, ?_⟩
+    intro e he f hf
+    simp only [List.mem_singleton] at hf; subst hf
+    exact (hok e (hc2 e he)).1
+  -- curves
+  have hcv1 : pgCv (a :: m1 ++ [b]) ⊆ pgCv l ∪ segment ℝ a b := by
+    rw [pgCv_close]; refine union_subset_union ?_ le_rfl
+    intro z hz; simp only [mem_iUnion, exists_prop] at hz
+    obtain ⟨e, he, hz⟩ := hz; exact seg_subset_pgCv (hc1 e he) hz
+  have hcv2 : pgCv (b :: m2 ++ [a]) ⊆ pgCv l ∪ segment ℝ a b := by
+    rw [pgCv_close, segment_symm]; refine union_subset_union ?_ le_rfl
+    intro z hz; simp only [mem_iUnion, exists_prop] at hz
+    obtain ⟨e, he, hz⟩ := hz; exact seg_subset_pgCv (hc2 e he) hz
+  have hseg1 : segment ℝ a b ⊆ pgCv (a :: m1 ++ [b]) := by rw [pgCv_close]; exact subset_union_right
+  have hseg2 : segment ℝ a b ⊆ pgCv (b :: m2 ++ [a]) := by
+    rw [pgCv_close, segment_symm]; exact subset_union_right
+  -- the winding function of `l` on the chord
+  obtain ⟨σ, hσ, hJl, -⟩ := pg_jordan hl
+  obtain ⟨y0, hy0, hy0W⟩ := hW
+  have hconst : ∀ y ∈ openSegment ℝ a b, pgW l y = pgW l y0 := fun y hy =>
+    pgW_const (convex_openSegment a b).isPreconnected hD hy hy0
+  have hval : pgW l y0 = 2 * Real.pi * σ := (hJl y0 (hD y0 hy0)).resolve_left hy0W
+  have hseg : segment ℝ a b ⊆ pgReg l := by
+    rw [← insert_endpoints_openSegment]
+    rintro z (rfl | rfl | hz)
+    · exact Or.inl (by
+        obtain ⟨f, hf, hf1⟩ := pg_edge_from hal; rw [← hf1]; exact seg_subset_pgCv hf (left_mem_segment ℝ _ _))
+    · exact Or.inl (by
+        obtain ⟨f, hf, hf1⟩ := pg_edge_from hbl; rw [← hf1]; exact seg_subset_pgCv hf (left_mem_segment ℝ _ _))
+    · exact Or.inr (by show pgW l z ≠ 0; rw [hconst z hz]; exact hy0W)
+  -- orientations of the pieces
+  obtain ⟨σ1, hσ1, hJ1, hE1⟩ := pg_jordan hP1
+  obtain ⟨σ2, hσ2, hJ2, hE2⟩ := pg_jordan hP2
+  have hab : a ≠ b := by
+    intro h; have := hl.nodup; rw [hl_def, h] at this; simp at this
+  have hq : a + (1 / 2 : ℝ) • (b - a) ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, by module⟩
+  have hqc : a + (1 / 2 : ℝ) • (b - a) ∉ pgCv l := hD _ hq
+  obtain ⟨r, hr, hrb⟩ := Metric.isOpen_iff.1 (isClosed_pgCv l).isOpen_compl _ hqc
+  have hsplitW : ∀ y, y ∉ segment ℝ a b → pgW l y = pgW (a :: m1 ++ [b]) y + pgW (b :: m2 ++ [a]) y :=
+    fun y hy => pgW_split m1 m2 hy
+  have hσ12 := pg_glue_sigma hσ hσ1 hσ2 (hE1 (b, a) (by rw [pgEd_close]; simp))
+    (hE2 (a, b) (by rw [pgEd_close]; simp)) (s0 := 1 / 2) ⟨by norm_num, by norm_num⟩ hr (fun y hy h1 h2 => by
+      rw [← hsplitW y (fun h => h1 (hseg1 h)), ← hval]
+      have hbc : pgW l y = pgW l (a + (1 / 2 : ℝ) • (b - a)) :=
+        pgW_const (convex_ball _ r).isPreconnected (fun z hz => hrb hz) hy (Metric.mem_ball_self hr)
+      rw [hbc, hconst _ hq])
+  obtain ⟨rfl, rfl⟩ := hσ12
+  refine ⟨hP1, hP2, ?_, ?_⟩
+  · rintro y (hy | hy)
+    · rcases hcv1 hy with h | h
+      · exact Or.inl h
+      · exact hseg h
+    · by_cases hyl : y ∈ pgCv l
+      · exact Or.inl hyl
+      by_cases hyc : y ∈ pgCv (a :: m1 ++ [b])
+      · rcases hcv1 hyc with h | h
+        · exact Or.inl h
+        · exact hseg h
+      have hyc2 : y ∉ pgCv (b :: m2 ++ [a]) := fun h => by
+        rcases hcv2 h with h | h
+        · exact hyl h
+        · exact hyc (hseg1 h)
+      refine Or.inr ?_
+      show pgW l y ≠ 0
+      rw [hsplitW y (fun h => hyc (hseg1 h))]
+      exact pg_piece_sum_ne hσ (hJ1 y hyc) (hJ2 y hyc2) hy
+  · rintro y (hy | hy)
+    · rcases hcv2 hy with h | h
+      · exact Or.inl h
+      · exact hseg h
+    · by_cases hyl : y ∈ pgCv l
+      · exact Or.inl hyl
+      by_cases hyc : y ∈ pgCv (b :: m2 ++ [a])
+      · rcases hcv2 hyc with h | h
+        · exact Or.inl h
+        · exact hseg h
+      have hyc1 : y ∉ pgCv (a :: m1 ++ [b]) := fun h => by
+        rcases hcv1 h with h | h
+        · exact hyl h
+        · exact hyc (hseg2 h)
+      refine Or.inr ?_
+      show pgW l y ≠ 0
+      rw [hsplitW y (fun h => hyc (hseg2 h)), add_comm]
+      exact pg_piece_sum_ne hσ (hJ2 y hyc) (hJ1 y hyc1) hy
+
+/-! ### Cone coordinates at a vertex -/
+
+/-- first cone coordinate (along `u - v`) -/
+private def pgS (v u w x : Pt) : ℝ := jcr (x - v) (w - v) / jcr (u - v) (w - v)
+
+/-- second cone coordinate (along `w - v`) -/
+private def pgT (v u w x : Pt) : ℝ := jcr (u - v) (x - v) / jcr (u - v) (w - v)
+
+section cone
+
+variable {v u w : Pt}
+
+private lemma pg_ST_decomp (hD : jcr (u - v) (w - v) ≠ 0) (x : Pt) :
+    x = v + pgS v u w x • (u - v) + pgT v u w x • (w - v) := by
+  apply pt_ext <;> simp [pgS, pgT] <;> field_simp <;> simp only [jcr] at hD ⊢ <;> simp <;> ring
+
+private lemma pgS_comb (x y : Pt) {a b : ℝ} (hab : a + b = 1) : pgS v u w (a • x + b • y) = a * pgS v u w x + b * pgS v u w y := by
+  obtain rfl : b = 1 - a := by linarith
+  simp only [pgS, jcr]; simp; ring
+
+private lemma pgT_comb (x y : Pt) {a b : ℝ} (hab : a + b = 1) : pgT v u w (a • x + b • y) = a * pgT v u w x + b * pgT v u w y := by
+  obtain rfl : b = 1 - a := by linarith
+  simp only [pgT, jcr]; simp; ring
+
+private lemma pgS_line (x y : Pt) (θ : ℝ) : pgS v u w (x + θ • (y - x)) = pgS v u w x + θ * (pgS v u w y - pgS v u w x) := by
+  rw [show x + θ • (y - x) = (1 - θ) • x + θ • y by module, pgS_comb x y (by ring)]; ring
+
+private lemma pgT_line (x y : Pt) (θ : ℝ) : pgT v u w (x + θ • (y - x)) = pgT v u w x + θ * (pgT v u w y - pgT v u w x) := by
+  rw [show x + θ • (y - x) = (1 - θ) • x + θ • y by module, pgT_comb x y (by ring)]; ring
+
+private lemma pgS_v : pgS v u w v = 0 := by simp [pgS, jcr]
+private lemma pgT_v : pgT v u w v = 0 := by simp [pgT, jcr]
+private lemma pgS_u (hD : jcr (u - v) (w - v) ≠ 0) : pgS v u w u = 1 := div_self hD
+private lemma pgT_u : pgT v u w u = 0 := by simp [pgT, jcr_self]
+private lemma pgS_w : pgS v u w w = 0 := by simp [pgS, jcr_self]
+private lemma pgT_w (hD : jcr (u - v) (w - v) ≠ 0) : pgT v u w w = 1 := div_self hD
+
+private lemma pg_mem_seg_vw (hD : jcr (u - v) (w - v) ≠ 0) {y : Pt} (hS : pgS v u w y = 0) (hT0 : 0 ≤ pgT v u w y)
+    (hT1 : pgT v u w y ≤ 1) : y ∈ segment ℝ v w := by
+  rw [segment_eq_image']
+  refine ⟨pgT v u w y, ⟨hT0, hT1⟩, ?_⟩
+  conv_rhs => rw [pg_ST_decomp hD y, hS]
+  simp
+
+private lemma pg_mem_seg_vu (hD : jcr (u - v) (w - v) ≠ 0) {y : Pt} (hT : pgT v u w y = 0) (hS0 : 0 ≤ pgS v u w y)
+    (hS1 : pgS v u w y ≤ 1) : y ∈ segment ℝ v u := by
+  rw [segment_eq_image']
+  refine ⟨pgS v u w y, ⟨hS0, hS1⟩, ?_⟩
+  conv_rhs => rw [pg_ST_decomp hD y, hT]
+  simp
+
+private lemma pg_mem_seg_uw (hD : jcr (u - v) (w - v) ≠ 0) {y : Pt} (hST : pgS v u w y + pgT v u w y = 1)
+    (hS0 : 0 ≤ pgS v u w y) (hT0 : 0 ≤ pgT v u w y) : y ∈ segment ℝ u w := by
+  rw [segment_eq_image']
+  refine ⟨pgT v u w y, ⟨hT0, by linarith⟩, ?_⟩
+  conv_rhs => rw [pg_ST_decomp hD y]
+  rw [show pgS v u w y = 1 - pgT v u w y by linarith]
+  module
+
+/-- the closed triangle in cone coordinates -/
+private def pgTri (v u w : Pt) : Set Pt := {x | 0 ≤ pgS v u w x ∧ 0 ≤ pgT v u w x ∧ pgS v u w x + pgT v u w x ≤ 1}
+
+private lemma convex_pgTri : Convex ℝ (pgTri v u w) := by
+  intro x hx y hy a b ha hb hab
+  simp only [pgTri, mem_setOf_eq, pgS_comb x y hab, pgT_comb x y hab] at hx hy ⊢
+  refine ⟨add_nonneg (mul_nonneg ha hx.1) (mul_nonneg hb hy.1), add_nonneg (mul_nonneg ha hx.2.1) (mul_nonneg hb hy.2.1), ?_⟩
+  nlinarith [hx.2.2, hy.2.2]
+
+private lemma mem_pgTri_v : v ∈ pgTri v u w := by simp [pgTri, pgS_v, pgT_v]
+private lemma mem_pgTri_u (hD : jcr (u - v) (w - v) ≠ 0) : u ∈ pgTri v u w := by simp [pgTri, pgS_u hD, pgT_u]
+private lemma mem_pgTri_w (hD : jcr (u - v) (w - v) ≠ 0) : w ∈ pgTri v u w := by simp [pgTri, pgS_w, pgT_w hD]
+
+/-! ### Leaving the cap -/
+
+/-- a segment from a point strictly inside the cone below the line `S + T = 1` to a point outside
+the cone meets one of the two sides of the cone -/
+private lemma pg_exit (hD : jcr (u - v) (w - v) ≠ 0) {x b : Pt} (hS : 0 < pgS v u w x) (hT : 0 < pgT v u w x)
+    (hR : pgS v u w x + pgT v u w x ≤ 1) (hRb : pgS v u w b + pgT v u w b ≤ 1)
+    (hb : pgS v u w b < 0 ∨ pgT v u w b < 0) :
+    ∃ θ ∈ Ioo (0 : ℝ) 1, x + θ • (b - x) ∈ segment ℝ v u ∪ segment ℝ v w := by
+  set g : ℝ → ℝ := fun θ => min (pgS v u w x + θ * (pgS v u w b - pgS v u w x))
+    (pgT v u w x + θ * (pgT v u w b - pgT v u w x))
+  have hg : ContinuousOn g (Icc 0 1) := by fun_prop
+  have h0 : g 0 = min (pgS v u w x) (pgT v u w x) := by simp [g]
+  have h1 : g 1 = min (pgS v u w b) (pgT v u w b) := by simp [g]
+  have hmem : (0 : ℝ) ∈ Ioo (g 1) (g 0) := by
+    rw [h0, h1]
+    refine ⟨?_, lt_min hS hT⟩
+    rcases hb with hb | hb
+    · exact lt_of_le_of_lt (min_le_left _ _) hb
+    · exact lt_of_le_of_lt (min_le_right _ _) hb
+  obtain ⟨θ, hθ, hgθ⟩ := intermediate_value_Ioo' zero_le_one hg hmem
+  refine ⟨θ, hθ, ?_⟩
+  set y := x + θ • (b - x)
+  have eS : pgS v u w y = pgS v u w x + θ * (pgS v u w b - pgS v u w x) := pgS_line x b θ
+  have eT : pgT v u w y = pgT v u w x + θ * (pgT v u w b - pgT v u w x) := pgT_line x b θ
+  have hgy : min (pgS v u w y) (pgT v u w y) = 0 := by rw [eS, eT]; exact hgθ
+  have hS0 : 0 ≤ pgS v u w y := by rw [← hgy]; exact min_le_left _ _
+  have hT0 : 0 ≤ pgT v u w y := by rw [← hgy]; exact min_le_right _ _
+  have hsum : pgS v u w y + pgT v u w y ≤ 1 := by
+    rw [eS, eT]; nlinarith [hθ.1, hθ.2]
+  rcases min_choice (pgS v u w y) (pgT v u w y) with h | h
+  · rw [h] at hgy
+    exact Or.inr (pg_mem_seg_vw hD hgy hT0 (by linarith))
+  · rw [h] at hgy
+    exact Or.inl (pg_mem_seg_vu hD hgy hS0 (by linarith))
+
+private lemma pg_openSeg_param {a b x : Pt} (hx : x ∈ openSegment ℝ a b) {θ : ℝ} (hθ : θ ∈ Ioo (0 : ℝ) 1) :
+    x + θ • (b - x) ∈ openSegment ℝ a b ∧ x + θ • (a - x) ∈ openSegment ℝ a b := by
+  rw [openSegment_eq_image'] at hx ⊢
+  obtain ⟨l0, hl0, rfl⟩ := hx
+  refine ⟨⟨l0 + θ * (1 - l0), ⟨by nlinarith [hl0.1, hl0.2, hθ.1, hθ.2], by nlinarith [hl0.1, hl0.2, hθ.1, hθ.2]⟩,
+    by module⟩, ⟨l0 * (1 - θ), ⟨by nlinarith [hl0.1, hl0.2, hθ.1, hθ.2], by nlinarith [hl0.1, hl0.2, hθ.1, hθ.2]⟩,
+    by module⟩⟩
+
+private lemma pg_openSeg_comb {a b x : Pt} (hx : x ∈ openSegment ℝ a b) (f : Pt → ℝ)
+    (hf : ∀ (p q : Pt) (θ : ℝ), f (p + θ • (q - p)) = f p + θ * (f q - f p)) :
+    ∃ θ ∈ Ioo (0 : ℝ) 1, f x = (1 - θ) * f a + θ * f b := by
+  rw [openSegment_eq_image'] at hx
+  obtain ⟨l0, hl0, rfl⟩ := hx
+  exact ⟨l0, hl0, by rw [hf]; ring⟩
+
+/-- **Cap lemma**: an edge whose endpoints lie outside the cap `{S, T > 0, S + T < c}` and whose
+interior avoids the two sides of the cone does not enter the cap -/
+private lemma pg_capA (hD : jcr (u - v) (w - v) ≠ 0) {a b x : Pt} {c : ℝ} (hc1 : c ≤ 1)
+    (hseg : ∀ y ∈ openSegment ℝ a b, y ∉ segment ℝ v u ∧ y ∉ segment ℝ v w)
+    (hx : x ∈ openSegment ℝ a b) (hS : 0 < pgS v u w x) (hT : 0 < pgT v u w x)
+    (hc : pgS v u w x + pgT v u w x < c)
+    (ha : pgS v u w a < 0 ∨ pgT v u w a < 0 ∨ c ≤ pgS v u w a + pgT v u w a)
+    (hb : pgS v u w b < 0 ∨ pgT v u w b < 0 ∨ c ≤ pgS v u w b + pgT v u w b) : False := by
+  have hlin : ∀ (p q : Pt) (θ : ℝ), (pgS v u w + pgT v u w) (p + θ • (q - p)) =
+      (pgS v u w + pgT v u w) p + θ * ((pgS v u w + pgT v u w) q - (pgS v u w + pgT v u w) p) := by
+    intro p q θ; simp only [Pi.add_apply, pgS_line, pgT_line]; ring
+  obtain ⟨l0, hl0, hcomb⟩ := pg_openSeg_comb hx _ hlin
+  simp only [Pi.add_apply] at hcomb
+  have hbad : ∀ y ∈ openSegment ℝ a b, y ∈ segment ℝ v u ∪ segment ℝ v w → False := by
+    intro y hy h; rcases h with h | h
+    · exact (hseg y hy).1 h
+    · exact (hseg y hy).2 h
+  by_cases hbc : pgS v u w b + pgT v u w b < c
+  · have hb' : pgS v u w b < 0 ∨ pgT v u w b < 0 := by
+      rcases hb with h | h | h
+      · exact Or.inl h
+      · exact Or.inr h
+      · exact absurd h (not_le.2 hbc)
+    obtain ⟨θ, hθ, hy⟩ := pg_exit hD hS hT (by linarith) (by linarith) hb'
+    exact hbad _ (pg_openSeg_param hx hθ).1 hy
+  · have hac : pgS v u w a + pgT v u w a < c := by
+      by_contra h; push_neg at h hbc
+      nlinarith [hl0.1, hl0.2]
+    have ha' : pgS v u w a < 0 ∨ pgT v u w a < 0 := by
+      rcases ha with h | h | h
+      · exact Or.inl h
+      · exact Or.inr h
+      · exact absurd h (not_le.2 hac)
+    obtain ⟨θ, hθ, hy⟩ := pg_exit hD hS hT (by linarith) (by linarith) ha'
+    exact hbad _ (pg_openSeg_param hx hθ).2 hy
+
+/-- **Cap lemma on the base**: an edge whose endpoints lie outside the closed triangle (or are `u`, `w`)
+and whose interior avoids the two sides of the cone does not meet the open base `(u, w)` -/
+private lemma pg_capB (hD : jcr (u - v) (w - v) ≠ 0) {a b x : Pt}
+    (hseg : ∀ y ∈ openSegment ℝ a b, y ∉ segment ℝ v u ∧ y ∉ segment ℝ v w)
+    (hx : x ∈ openSegment ℝ a b) (hS : 0 < pgS v u w x) (hT : 0 < pgT v u w x)
+    (hc : pgS v u w x + pgT v u w x = 1)
+    (ha : pgS v u w a < 0 ∨ pgT v u w a < 0 ∨ 1 < pgS v u w a + pgT v u w a ∨ a = u ∨ a = w)
+    (hb : pgS v u w b < 0 ∨ pgT v u w b < 0 ∨ 1 < pgS v u w b + pgT v u w b ∨ b = u ∨ b = w)
+    (hab : ¬ ((a = u ∨ a = w) ∧ (b = u ∨ b = w))) : False := by
+  have hlin : ∀ (p q : Pt) (θ : ℝ), (pgS v u w + pgT v u w) (p + θ • (q - p)) =
+      (pgS v u w + pgT v u w) p + θ * ((pgS v u w + pgT v u w) q - (pgS v u w + pgT v u w) p) := by
+    intro p q θ; simp only [Pi.add_apply, pgS_line, pgT_line]; ring
+  obtain ⟨l0, hl0, hcomb⟩ := pg_openSeg_comb hx _ hlin
+  simp only [Pi.add_apply] at hcomb
+  have hbad : ∀ y ∈ openSegment ℝ a b, y ∈ segment ℝ v u ∪ segment ℝ v w → False := by
+    intro y hy h; rcases h with h | h
+    · exact (hseg y hy).1 h
+    · exact (hseg y hy).2 h
+  have hu1 : pgS v u w u + pgT v u w u = 1 := by rw [pgS_u hD, pgT_u]; ring
+  have hw1 : pgS v u w w + pgT v u w w = 1 := by rw [pgS_w, pgT_w hD]; ring
+  -- exits through `b` or through `a`
+  have exitb : pgS v u w b + pgT v u w b ≤ 1 → (pgS v u w b < 0 ∨ pgT v u w b < 0) → False := by
+    intro h1 h2
+    obtain ⟨θ, hθ, hy⟩ := pg_exit hD hS hT hc.le h1 h2
+    exact hbad _ (pg_openSeg_param hx hθ).1 hy
+  have exita : pgS v u w a + pgT v u w a ≤ 1 → (pgS v u w a < 0 ∨ pgT v u w a < 0) → False := by
+    intro h1 h2
+    obtain ⟨θ, hθ, hy⟩ := pg_exit hD hS hT hc.le h1 h2
+    exact hbad _ (pg_openSeg_param hx hθ).2 hy
+  have outa : pgS v u w a < 0 ∨ pgT v u w a < 0 ∨ 1 < pgS v u w a + pgT v u w a ∨
+      pgS v u w a + pgT v u w a = 1 ∧ (a = u ∨ a = w) := by
+    rcases ha with h | h | h | rfl | rfl
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr (Or.inl h))
+    · exact Or.inr (Or.inr (Or.inr ⟨hu1, Or.inl rfl⟩))
+    · exact Or.inr (Or.inr (Or.inr ⟨hw1, Or.inr rfl⟩))
+  have outb : pgS v u w b < 0 ∨ pgT v u w b < 0 ∨ 1 < pgS v u w b + pgT v u w b ∨
+      pgS v u w b + pgT v u w b = 1 ∧ (b = u ∨ b = w) := by
+    rcases hb with h | h | h | rfl | rfl
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr (Or.inl h))
+    · exact Or.inr (Or.inr (Or.inr ⟨hu1, Or.inl rfl⟩))
+    · exact Or.inr (Or.inr (Or.inr ⟨hw1, Or.inr rfl⟩))
+  rcases lt_trichotomy (pgS v u w b + pgT v u w b) 1 with hb1 | hb1 | hb1
+  · rcases outb with h | h | h | h
+    · exact exitb hb1.le (Or.inl h)
+    · exact exitb hb1.le (Or.inr h)
+    · linarith
+    · linarith [h.1]
+  · rcases lt_trichotomy (pgS v u w a + pgT v u w a) 1 with ha1 | ha1 | ha1
+    · rcases outa with h | h | h | h
+      · exact exita ha1.le (Or.inl h)
+      · exact exita ha1.le (Or.inr h)
+      · linarith
+      · linarith [h.1]
+    · rcases outb with h | h | h | hbu
+      · exact exitb hb1.le (Or.inl h)
+      · exact exitb hb1.le (Or.inr h)
+      · linarith
+      rcases outa with h | h | h | hau
+      · exact exita ha1.le (Or.inl h)
+      · exact exita ha1.le (Or.inr h)
+      · linarith
+      exact hab ⟨hau.2, hbu.2⟩
+    · nlinarith [hl0.1, hl0.2]
+  · have ha1 : pgS v u w a + pgT v u w a < 1 := by
+      by_contra h; push_neg at h; nlinarith [hl0.1, hl0.2]
+    rcases outa with h | h | h | h
+    · exact exita ha1.le (Or.inl h)
+    · exact exita ha1.le (Or.inr h)
+    · linarith
+    · linarith [h.1]
+
+/-! ### Inside the triangle -/
+
+private lemma pg_tri_inside (hD : jcr (u - v) (w - v) ≠ 0) {q : Pt} (hS : 0 < pgS v u w q) (hT : 0 < pgT v u w q)
+    (hST : pgS v u w q + pgT v u w q < 1) : q ∉ pgCv [u, v, w] ∧ pgW [u, v, w] q ≠ 0 := by
+  set D := jcr (u - v) (w - v)
+  have eS : jcr (q - v) (w - v) = pgS v u w q * D := (div_mul_cancel₀ _ hD).symm
+  have eT : jcr (u - v) (q - v) = pgT v u w q * D := (div_mul_cancel₀ _ hD).symm
+  have j1 : jcr (v - u) (q - u) = -(pgT v u w q * D) := by rw [← eT]; simp only [jcr]; simp; ring
+  have j2 : jcr (w - v) (q - v) = -(pgS v u w q * D) := by rw [← eS]; simp only [jcr]; simp; ring
+  have j3 : jcr (u - w) (q - w) = -((1 - pgS v u w q - pgT v u w q) * D) := by
+    rw [sub_mul, sub_mul, ← eS, ← eT, one_mul]; simp only [D, jcr]; simp; ring
+  have hR : 0 < 1 - pgS v u w q - pgT v u w q := by linarith
+  have hπ := Real.pi_pos
+  rcases lt_or_gt_of_ne hD with hneg | hpos
+  · have h1 : 0 < jcr (v - u) (q - u) := by rw [j1]; nlinarith
+    have h2 : 0 < jcr (w - v) (q - v) := by rw [j2]; nlinarith
+    have h3 : 0 < jcr (u - w) (q - w) := by rw [j3]; nlinarith
+    refine ⟨fun h => ?_, by rw [pgW_tri_pos h1 h2 h3]; positivity⟩
+    rcases mem_pgCv_tri.1 h with h | h | h
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+  · have h1 : jcr (v - u) (q - u) < 0 := by rw [j1]; nlinarith
+    have h2 : jcr (w - v) (q - v) < 0 := by rw [j2]; nlinarith
+    have h3 : jcr (u - w) (q - w) < 0 := by rw [j3]; nlinarith
+    refine ⟨fun h => ?_, by rw [pgW_tri_neg h1 h2 h3]; linarith⟩
+    rcases mem_pgCv_tri.1 h with h | h | h
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+    · have := pg_jcr_seg h; linarith
+
+private lemma pgTri_subset_reg (hD : jcr (u - v) (w - v) ≠ 0) : pgTri v u w ⊆ pgReg [u, v, w] := by
+  rintro q ⟨hS, hT, hST⟩
+  rcases eq_or_lt_of_le hS with hS' | hS'
+  · exact Or.inl (mem_pgCv_tri.2 (Or.inr (Or.inl (pg_mem_seg_vw hD hS'.symm hT (by linarith)))))
+  rcases eq_or_lt_of_le hT with hT' | hT'
+  · exact Or.inl (mem_pgCv_tri.2 (Or.inl (by rw [segment_symm]; exact pg_mem_seg_vu hD hT'.symm hS (by linarith))))
+  rcases eq_or_lt_of_le hST with h' | h'
+  · exact Or.inl (mem_pgCv_tri.2 (Or.inr (Or.inr (by rw [segment_symm]; exact pg_mem_seg_uw hD h' hS hT))))
+  exact Or.inr (pg_tri_inside hD hS' hT' h').2
+
+end cone
+
+/-! ### The lowest vertex -/
+
+/-- `v` is lexicographically lowest (second coordinate first) among the points of `l` -/
+private def PgLow (l : List Pt) (v : Pt) : Prop := ∀ x ∈ l, v 1 < x 1 ∨ (v 1 = x 1 ∧ v 0 ≤ x 0)
+
+private lemma pg_exists_low : ∀ (l : List Pt), l ≠ [] → ∃ v ∈ l, PgLow l v
+  | [], h => absurd rfl h
+  | [a], _ => ⟨a, by simp, by intro x hx; simp at hx; subst hx; right; exact ⟨rfl, le_rfl⟩⟩
+  | a :: b :: r, _ => by
+    obtain ⟨v, hv, hlow⟩ := pg_exists_low (b :: r) (by simp)
+    by_cases h : v 1 < a 1 ∨ (v 1 = a 1 ∧ v 0 ≤ a 0)
+    · refine ⟨v, List.mem_cons_of_mem _ hv, fun x hx => ?_⟩
+      rcases List.mem_cons.1 hx with rfl | hx
+      · exact h
+      · exact hlow x hx
+    · push_neg at h
+      refine ⟨a, by simp, fun x hx => ?_⟩
+      rcases List.mem_cons.1 hx with rfl | hx
+      · right; exact ⟨rfl, le_rfl⟩
+      · rcases hlow x hx with h' | ⟨h1, h2⟩
+        · rcases lt_or_eq_of_le (h.1) with h1 | h1
+          · left; linarith
+          · left; linarith
+        · rcases lt_or_eq_of_le h.1 with h3 | h3
+          · left; linarith
+          · right; exact ⟨by linarith, by linarith [h.2 h3.symm]⟩
+
+private lemma PgLow.rotate {l : List Pt} {v : Pt} (h : PgLow l v) (k : ℕ) : PgLow (l.rotate k) v :=
+  fun x hx => h x ((List.mem_rotate).1 hx)
+
+/-- a null loop stays null when the list is rotated back -/
+private lemma PgRel.of_rotate {X : Set Pt} {l : List Pt} {k : ℕ} {x y : Pt} (h : PgRel X (l.rotate k) [y])
+    (hx : l.head? = some x) : PgRel X l [x] := by
+  have hn : 0 < l.length := by
+    cases l with
+    | nil => simp at hx
+    | cons _ _ => simp
+  rw [← List.rotate_mod] at h
+  set k' := k % l.length
+  have hk' : k' < l.length := Nat.mod_lt _ hn
+  rw [List.rotate_eq_drop_append_take hk'.le] at h
+  have hl : l = l.take k' ++ l.drop k' := (List.take_append_drop k' l).symm
+  rcases Nat.eq_zero_or_pos k' with h0 | h0
+  · rw [h0] at h hl; simp at h hl
+    have := PgRel.head h; rw [hx] at this; simp at this; rw [this]; exact h
+  · obtain ⟨y', Q, hQ⟩ : ∃ y' Q, l.drop k' = y' :: Q := by
+      cases hd : l.drop k' with
+      | nil => rw [List.drop_eq_nil_iff] at hd; omega
+      | cons a r => exact ⟨a, r, rfl⟩
+    obtain ⟨x', P, hP⟩ : ∃ x' P, l.take k' = x' :: P := by
+      cases ht : l.take k' with
+      | nil =>
+        rw [List.take_eq_nil_iff] at ht
+        rcases ht with h | h
+        · omega
+        · rw [h] at hn; simp at hn
+      | cons a r => exact ⟨a, r, rfl⟩
+    rw [hQ, hP] at h
+    have hy := PgRel.head h; simp at hy; subst hy
+    have hx' : x' = x := by rw [hl, hP] at hx; simpa using hx
+    subst hx'
+    have := PgRel.rotate_null h
+    rw [hl, hP, hQ]; exact this
+
+/-! ### The angle at the lowest vertex -/
+
+private lemma pg_edges_uvw (u v w : Pt) (rest : List Pt) :
+    pgEd (u :: v :: w :: rest) = (u, v) :: (v, w) :: pgCh (w :: rest ++ [u]) := rfl
+
+private lemma pg_low_noncollinear {u v w : Pt} {rest : List Pt} (hl : PgSP (u :: v :: w :: rest))
+    (hv : PgLow (u :: v :: w :: rest) v) : jcr (u - v) (w - v) ≠ 0 := by
+  intro hD
+  have hnd := hl.nodup
+  simp only [List.nodup_cons, List.mem_cons, not_or] at hnd
+  obtain ⟨⟨huv, huw, -⟩, ⟨hvw, -⟩, -⟩ := hnd
+  have hok : PgOK (u, v) (v, w) := by
+    have := hl.pw; rw [pg_edges_uvw, List.pairwise_cons] at this
+    exact this.1 _ (List.mem_cons_self)
+  have hu := hv u (by simp)
+  have hw := hv w (by simp)
+  -- `w - v` is a positive multiple of `u - v`
+  obtain ⟨κ, hκ, hq⟩ : ∃ κ : ℝ, 0 < κ ∧ w - v = κ • (u - v) := by
+    simp only [jcr] at hD
+    simp only [PiLp.sub_apply] at hD
+    rcases hu with hu | ⟨hu1, hu0⟩
+    · have hp : 0 < u 1 - v 1 := by linarith
+      refine ⟨(w 1 - v 1) / (u 1 - v 1), ?_, ?_⟩
+      · rcases hw with hw | ⟨hw1, hw0⟩
+        · exact div_pos (by linarith) hp
+        · exfalso
+          have : w 0 = v 0 := by
+            have : (u 1 - v 1) * (w 0 - v 0) = 0 := by linear_combination -hD - (u 0 - v 0) * hw1
+            rcases mul_eq_zero.1 this with h | h
+            · linarith
+            · linarith
+          exact hvw (pt_ext this hw1.symm).symm
+      · apply pt_ext <;> simp <;> field_simp
+        · linarith
+    · have hp : 0 < u 0 - v 0 := by
+        rcases lt_or_eq_of_le hu0 with h | h
+        · linarith
+        · exact absurd (pt_ext h.symm hu1.symm) huv
+      have hw1 : w 1 = v 1 := by
+        have : (u 0 - v 0) * (w 1 - v 1) = 0 := by linear_combination hD - (w 0 - v 0) * hu1
+        rcases mul_eq_zero.1 this with h | h
+        · linarith
+        · linarith
+      refine ⟨(w 0 - v 0) / (u 0 - v 0), ?_, ?_⟩
+      · rcases hw with hw | ⟨-, hw0⟩
+        · linarith
+        · rcases lt_or_eq_of_le hw0 with h | h
+          · apply div_pos <;> linarith
+          · exact absurd (pt_ext h.symm hw1) (Ne.symm hvw)
+      · apply pt_ext <;> simp <;> field_simp
+        rw [hw1, ← hu1]; ring
+  rcases le_or_gt κ 1 with hκ1 | hκ1
+  · have h1 : w ∈ segment ℝ u v := by
+      rw [segment_symm, segment_eq_image']
+      exact ⟨κ, ⟨hκ.le, hκ1⟩, by simp only; rw [← hq]; abel⟩
+    have := hok ⟨h1, right_mem_segment ℝ _ _⟩
+    rcases this.1 with h | h
+    · exact huw h.symm
+    · exact hvw h.symm
+  · have h1 : u ∈ segment ℝ v w := by
+      rw [segment_eq_image']
+      refine ⟨1 / κ, ⟨by positivity, by rw [div_le_one hκ]; exact hκ1.le⟩, ?_⟩
+      simp only; rw [hq, smul_smul, div_mul_cancel₀ _ hκ.ne', one_smul]; abel
+    have := hok ⟨left_mem_segment ℝ _ _, h1⟩
+    rcases this.2 with h | h
+    · exact huv h
+    · exact huw h
+
+/-- the cone coordinates of the diagonal points near `v` -/
+private lemma pgS_diag {v u w : Pt} (hD : jcr (u - v) (w - v) ≠ 0) (ε : ℝ) : pgS v u w (v + ε • (u - v) + ε • (w - v)) = ε := by
+  simp only [pgS]; rw [div_eq_iff hD]; simp only [jcr]; simp; ring
+
+private lemma pgT_diag {v u w : Pt} (hD : jcr (u - v) (w - v) ≠ 0) (ε : ℝ) : pgT v u w (v + ε • (u - v) + ε • (w - v)) = ε := by
+  simp only [pgT]; rw [div_eq_iff hD]; simp only [jcr]; simp; ring
+
+private lemma pgST_seg_uw {v u w : Pt} (hD : jcr (u - v) (w - v) ≠ 0) {y : Pt} (hy : y ∈ segment ℝ u w) :
+    pgS v u w y + pgT v u w y = 1 := by
+  rw [segment_eq_image'] at hy
+  obtain ⟨θ, -, rfl⟩ := hy
+  rw [pgS_line, pgT_line, pgS_u hD, pgT_u, pgS_w, pgT_w hD]; ring
+
+private lemma pgT_seg_vu {v u w : Pt} {y : Pt} (hy : y ∈ segment ℝ v u) : pgT v u w y = 0 := by
+  rw [segment_eq_image'] at hy
+  obtain ⟨θ, -, rfl⟩ := hy
+  rw [pgT_line, pgT_v, pgT_u]; ring
+
+private lemma pgS_seg_vw {v u w : Pt} {y : Pt} (hy : y ∈ segment ℝ v w) : pgS v u w y = 0 := by
+  rw [segment_eq_image']at hy
+  obtain ⟨θ, -, rfl⟩ := hy
+  rw [pgS_line, pgS_v, pgS_w]; ring
+
+/-- **Cone lemma**: just inside the angle at the lowest vertex the winding function is nonzero -/
+private lemma pg_cone {u v w : Pt} {rest : List Pt} (hl : PgSP (u :: v :: w :: rest))
+    (hv : PgLow (u :: v :: w :: rest) v) :
+    ∃ ε0 > 0, ∀ ε : ℝ, 0 < ε → ε < ε0 → pgW (u :: v :: w :: rest) (v + ε • (u - v) + ε • (w - v)) ≠ 0 := by
+  have hD := pg_low_noncollinear hl hv
+  set l' := w :: rest ++ [u]
+  have hnd := hl.nodup
+  have hvl' : v ∉ l' := by
+    have h1 : v ∉ w :: rest := (List.nodup_cons.1 (List.nodup_cons.1 hnd).2).1
+    have h2 : u ∉ v :: w :: rest := (List.nodup_cons.1 hnd).1
+    intro h
+    simp only [l', List.mem_append, List.mem_singleton] at h
+    rcases h with h | h
+    · exact h1 h
+    · exact h2 (h ▸ List.mem_cons_self)
+  have hvc : v ∉ pgCv l' := by
+    rw [pgCv_close]
+    rintro (h | h)
+    · simp only [mem_iUnion, exists_prop] at h
+      obtain ⟨e, he, hve⟩ := h
+      have he' : e ∈ pgEd (u :: v :: w :: rest) := by
+        rw [pg_edges_uvw]; exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ he)
+      have hm := pgCh_mem he
+      rcases pg_vertex_on_edge hl (by simp) he' hve with h | h
+      · exact hvl' (h ▸ hm.1)
+      · exact hvl' (h ▸ hm.2)
+    · have := pgST_seg_uw hD (by rw [segment_symm]; exact h); rw [pgS_v, pgT_v] at this; norm_num at this
+  obtain ⟨r, hr, hrb⟩ := Metric.isOpen_iff.1 (isClosed_pgCv l').isOpen_compl _ hvc
+  set ey : Pt := !₂[0, 1]
+  set ex : Pt := !₂[1, 0]
+  set p0 := v - (r / 2) • ey
+  have hp0 : p0 ∈ Metric.ball v r := by
+    rw [Metric.mem_ball, dist_eq_norm, show p0 - v = -((r / 2) • ey) by simp [p0], norm_neg, norm_smul]
+    have : ‖ey‖ = 1 := by rw [EuclideanSpace.norm_eq]; simp [ey]
+    rw [this, Real.norm_eq_abs, abs_of_pos (by positivity)]; linarith
+  have hW0 : pgW l' p0 = 0 := by
+    apply pgW_eq_zero_of_halfplane (d := ex)
+    intro x hx
+    have hxl : x ∈ u :: v :: w :: rest := by
+      simp only [l', List.mem_cons, List.mem_append] at hx ⊢; tauto
+    have := hv x hxl
+    simp only [jcr, p0, ex, ey]; simp
+    rcases this with h | h <;> nlinarith [h]
+  have hball : ∀ q ∈ Metric.ball v r, pgW l' q = 0 := fun q hq => by
+    rw [← hW0]; exact pgW_const (convex_ball v r).isPreconnected (fun z hz => hrb hz) hq hp0
+  set M := ‖(u - v) + (w - v)‖ + 1
+  have hM : 0 < M := by positivity
+  refine ⟨min (1 / 4) (r / M), lt_min (by norm_num) (by positivity), fun ε hε hε1 => ?_⟩
+  set q := v + ε • (u - v) + ε • (w - v)
+  have hS := pgS_diag hD ε
+  have hT := pgT_diag hD ε
+  have hε4 : ε < 1 / 4 := lt_of_lt_of_le hε1 (min_le_left _ _)
+  have hin := pg_tri_inside hD (q := q) (by rw [hS]; exact hε) (by rw [hT]; exact hε) (by rw [hS, hT]; linarith)
+  have hq_uw : q ∉ segment ℝ u w := fun h => by
+    have := pgST_seg_uw hD h; rw [hS, hT] at this; linarith
+  have hqb : q ∈ Metric.ball v r := by
+    rw [Metric.mem_ball, dist_eq_norm, show q - v = ε • ((u - v) + (w - v)) by simp only [q]; module, norm_smul,
+      Real.norm_eq_abs, abs_of_pos hε]
+    calc ε * ‖(u - v) + (w - v)‖ ≤ ε * M := by gcongr; linarith
+      _ < r / M * M := by gcongr; exact lt_of_lt_of_le hε1 (min_le_right _ _)
+      _ = r := by field_simp
+  have e := pgW_split (a := u) (b := w) [v] rest hq_uw
+  rw [show u :: v :: w :: rest = u :: [v] ++ w :: rest from rfl, e, show u :: [v] ++ [w] = [u, v, w] from rfl,
+    hball q hqb, add_zero]
+  exact hin.2
+
+/-! ### The curve near the lowest vertex -/
+
+private lemma pgCh_ne {m : List Pt} (hm : m.Nodup) {e : Pt × Pt} (he : e ∈ pgCh m) : e.1 ≠ e.2 := by
+  induction m with
+  | nil => simp at he
+  | cons a r ih =>
+    cases r with
+    | nil => simp at he
+    | cons b r' =>
+      rw [pgCh_cons_cons, List.mem_cons] at he
+      rcases he with rfl | he
+      · exact fun h => (List.nodup_cons.1 hm).1 (by simp only at h; rw [h]; exact List.mem_cons_self)
+      · exact ih (List.nodup_cons.1 hm).2 he
+
+private lemma pgCh_fst_mem {m : List Pt} {x : Pt} {e : Pt × Pt} (he : e ∈ pgCh (m ++ [x])) : e.1 ∈ m := by
+  induction m with
+  | nil => simp at he
+  | cons a r ih =>
+    cases r with
+    | nil => simp at he; rw [he]; simp
+    | cons b r' =>
+      rw [List.cons_append, List.cons_append, pgCh_cons_cons, List.mem_cons] at he
+      rcases he with rfl | he
+      · simp
+      · exact List.mem_cons_of_mem _ (ih (by simpa using he))
+
+section low
+
+variable {u v w : Pt} {rest : List Pt}
+
+private lemma pg_nodup_parts (hl : PgSP (u :: v :: w :: rest)) :
+    u ≠ v ∧ u ≠ w ∧ v ≠ w ∧ u ∉ rest ∧ v ∉ rest ∧ w ∉ rest := by
+  have h := hl.nodup
+  simp only [List.nodup_cons, List.mem_cons, not_or] at h
+  exact ⟨h.1.1, h.1.2.1, h.2.1.1, h.1.2.2, h.2.1.2, h.2.2.1⟩
+
+/-- the other edges: their interiors avoid the two sides at `v` and they do not end at `v` -/
+private lemma pg_other_edge (hl : PgSP (u :: v :: w :: rest)) {e : Pt × Pt} (he : e ∈ pgCh (w :: rest ++ [u])) :
+    e.1 ≠ v ∧ e.2 ≠ v ∧ e.1 ≠ e.2 ∧ e ∈ pgEd (u :: v :: w :: rest) ∧
+      ∀ y ∈ openSegment ℝ e.1 e.2, y ∉ segment ℝ v u ∧ y ∉ segment ℝ v w := by
+  obtain ⟨huv, huw, hvw, hur, hvr, hwr⟩ := pg_nodup_parts hl
+  have hm := pgCh_mem he
+  have hvm : v ∉ w :: rest ++ [u] := by
+    intro h
+    simp at h
+    rcases h with h | h | h
+    · exact hvw h
+    · exact hvr h
+    · exact huv h.symm
+  have hnd : (w :: rest ++ [u]).Nodup := (List.perm_append_singleton u (w :: rest)).nodup_iff.2
+    (List.Sublist.nodup (List.Sublist.cons_cons u (List.sublist_cons_self v _)) hl.nodup)
+  have hne := pgCh_ne hnd he
+  have hpw := hl.pw
+  rw [pg_edges_uvw, List.pairwise_cons, List.pairwise_cons] at hpw
+  have hok1 : PgOK e (u, v) := pgOK_symm (hpw.1 e (List.mem_cons_of_mem _ he))
+  have hok2 : PgOK e (v, w) := pgOK_symm (hpw.2.1 e he)
+  refine ⟨fun h => hvm (h ▸ hm.1), fun h => hvm (h ▸ hm.2), hne, by
+    rw [pg_edges_uvw]; exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ he), fun y hy => ⟨fun h => ?_, fun h => ?_⟩⟩
+  · have := (hok1 ⟨openSegment_subset_segment ℝ _ _ hy, by rw [segment_symm]; exact h⟩).1
+    rcases this with rfl | rfl
+    · exact hne ((left_mem_openSegment_iff).1 hy)
+    · exact hne ((right_mem_openSegment_iff).1 hy)
+  · have := (hok2 ⟨openSegment_subset_segment ℝ _ _ hy, h⟩).1
+    rcases this with rfl | rfl
+    · exact hne ((left_mem_openSegment_iff).1 hy)
+    · exact hne ((right_mem_openSegment_iff).1 hy)
+
+private lemma pg_mem_pgCv_uvw {y : Pt} (hy : y ∈ pgCv (u :: v :: w :: rest)) :
+    y ∈ segment ℝ v u ∨ y ∈ segment ℝ v w ∨ ∃ e ∈ pgCh (w :: rest ++ [u]), y ∈ segment ℝ e.1 e.2 := by
+  rw [mem_pgCv, pg_edges_uvw] at hy
+  obtain ⟨e, he, hye⟩ := hy
+  rcases List.mem_cons.1 he with rfl | he
+  · left; rw [segment_symm]; exact hye
+  rcases List.mem_cons.1 he with rfl | he
+  · exact Or.inr (Or.inl hye)
+  · exact Or.inr (Or.inr ⟨e, he, hye⟩)
+
+/-- vertices of `rest` inside the closed triangle lie strictly inside the angle -/
+private lemma pg_rest_in_tri (hl : PgSP (u :: v :: w :: rest)) (hD : jcr (u - v) (w - v) ≠ 0) {x : Pt} (hx : x ∈ rest)
+    (hxt : x ∈ pgTri v u w) : 0 < pgS v u w x ∧ 0 < pgT v u w x := by
+  obtain ⟨huv, huw, hvw, hur, hvr, hwr⟩ := pg_nodup_parts hl
+  have hxl : x ∈ u :: v :: w :: rest := List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hx))
+  have hvwE : (v, w) ∈ pgEd (u :: v :: w :: rest) := by
+    rw [pg_edges_uvw]; exact List.mem_cons_of_mem _ List.mem_cons_self
+  have huvE : (u, v) ∈ pgEd (u :: v :: w :: rest) := by
+    rw [pg_edges_uvw]; exact List.mem_cons_self
+  obtain ⟨hS, hT, hST⟩ := hxt
+  constructor
+  · rcases eq_or_lt_of_le hS with h | h
+    · have := pg_mem_seg_vw hD h.symm hT (by linarith)
+      rcases pg_vertex_on_edge hl hxl hvwE this with h' | h'
+      · simp only at h'; exact absurd (by rw [← h']; exact hx) hvr
+      · simp only at h'; exact absurd (by rw [← h']; exact hx) hwr
+    · exact h
+  · rcases eq_or_lt_of_le hT with h | h
+    · have := pg_mem_seg_vu hD h.symm hS (by linarith)
+      rcases pg_vertex_on_edge hl hxl huvE (by rw [segment_symm]; exact this) with h' | h'
+      · simp only at h'; exact absurd (by rw [← h']; exact hx) hur
+      · simp only at h'; exact absurd (by rw [← h']; exact hx) hvr
+    · exact h
+
+/-- **Clear cap**: no point of the curve lies in `{S, T > 0, S + T < c}` when no vertex of `rest` in the
+triangle lies below the level `c` -/
+private lemma pg_cap_clear (hl : PgSP (u :: v :: w :: rest)) (hD : jcr (u - v) (w - v) ≠ 0) {c : ℝ} (hc1 : c ≤ 1)
+    (hmin : ∀ x ∈ rest, x ∈ pgTri v u w → c ≤ pgS v u w x + pgT v u w x) {y : Pt}
+    (hS : 0 < pgS v u w y) (hT : 0 < pgT v u w y) (hc : pgS v u w y + pgT v u w y < c) :
+    y ∉ pgCv (u :: v :: w :: rest) := by
+  intro hy
+  rcases pg_mem_pgCv_uvw hy with h | h | ⟨e, he, hye⟩
+  · rw [pgT_seg_vu h] at hT; exact lt_irrefl _ hT
+  · rw [pgS_seg_vw h] at hS; exact lt_irrefl _ hS
+  obtain ⟨-, -, -, -, hseg⟩ := pg_other_edge hl he
+  have hm := pgCh_mem he
+  -- classification of the endpoints
+  have hend : ∀ a ∈ w :: rest ++ [u], pgS v u w a < 0 ∨ pgT v u w a < 0 ∨ c ≤ pgS v u w a + pgT v u w a := by
+    intro a ha
+    simp only [List.cons_append, List.mem_cons, List.mem_append] at ha
+    rcases ha with rfl | ha | rfl | ha
+    · right; right; rw [pgS_w, pgT_w hD]; linarith
+    · by_cases hat : a ∈ pgTri v u w
+      · exact Or.inr (Or.inr (hmin a ha hat))
+      · simp only [pgTri, mem_setOf_eq, not_and_or, not_le] at hat
+        rcases hat with h | h | h
+        · exact Or.inl h
+        · exact Or.inr (Or.inl h)
+        · exact Or.inr (Or.inr (by linarith))
+    · right; right; rw [pgS_u hD, pgT_u]; linarith
+    · simp at ha
+  have hnotend : ∀ a ∈ w :: rest ++ [u], y ≠ a := by
+    rintro a ha rfl
+    rcases hend y ha with h | h | h
+    · linarith
+    · linarith
+    · linarith
+  rw [← insert_endpoints_openSegment] at hye
+  rcases hye with h | h | hye
+  · exact hnotend _ hm.1 h
+  · exact hnotend _ hm.2 h
+  · exact pg_capA hD hc1 hseg hye hS hT hc (hend _ hm.1) (hend _ hm.2)
+
+private lemma pgCh_not_uw (hl : PgSP (u :: v :: w :: rest)) (hrest : rest ≠ []) {e : Pt × Pt}
+    (he : e ∈ pgCh (w :: rest ++ [u])) : ¬ ((e.1 = u ∨ e.1 = w) ∧ (e.2 = u ∨ e.2 = w)) := by
+  obtain ⟨huv, huw, hvw, hur, hvr, hwr⟩ := pg_nodup_parts hl
+  obtain ⟨r, rest', rfl⟩ := List.exists_cons_of_ne_nil hrest
+  rw [List.cons_append, List.cons_append, pgCh_cons_cons, List.mem_cons] at he
+  rintro ⟨h1, h2⟩
+  rcases he with rfl | he
+  · simp only at h2
+    rcases h2 with h2 | h2
+    · exact hur (h2 ▸ List.mem_cons_self)
+    · exact hwr (h2 ▸ List.mem_cons_self)
+  · have := pgCh_fst_mem (m := r :: rest') (x := u) (by simpa using he)
+    rcases h1 with h1 | h1
+    · exact hur (h1 ▸ this)
+    · exact hwr (h1 ▸ this)
+
+/-- **Clear base**: if no vertex of `rest` lies in the closed triangle, the open segment `(u, w)` avoids
+the curve -/
+private lemma pg_base_clear (hl : PgSP (u :: v :: w :: rest)) (hD : jcr (u - v) (w - v) ≠ 0) (hrest : rest ≠ [])
+    (hno : ∀ x ∈ rest, x ∉ pgTri v u w) {y : Pt} (hS : 0 < pgS v u w y) (hT : 0 < pgT v u w y)
+    (hc : pgS v u w y + pgT v u w y = 1) : y ∉ pgCv (u :: v :: w :: rest) := by
+  intro hy
+  rcases pg_mem_pgCv_uvw hy with h | h | ⟨e, he, hye⟩
+  · rw [pgT_seg_vu h] at hT; exact lt_irrefl _ hT
+  · rw [pgS_seg_vw h] at hS; exact lt_irrefl _ hS
+  obtain ⟨-, -, -, -, hseg⟩ := pg_other_edge hl he
+  have hm := pgCh_mem he
+  have hend : ∀ a ∈ w :: rest ++ [u],
+      pgS v u w a < 0 ∨ pgT v u w a < 0 ∨ 1 < pgS v u w a + pgT v u w a ∨ a = u ∨ a = w := by
+    intro a ha
+    simp only [List.cons_append, List.mem_cons, List.mem_append] at ha
+    rcases ha with rfl | ha | rfl | ha
+    · exact Or.inr (Or.inr (Or.inr (Or.inr rfl)))
+    · have hat := hno a ha
+      simp only [pgTri, mem_setOf_eq, not_and_or, not_le] at hat
+      rcases hat with h | h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)
+      · exact Or.inr (Or.inr (Or.inl h))
+    · exact Or.inr (Or.inr (Or.inr (Or.inl rfl)))
+    · simp at ha
+  have hnotend : ∀ a ∈ w :: rest ++ [u], y ≠ a := by
+    rintro a ha rfl
+    rcases hend y ha with h | h | h | h | h
+    · linarith
+    · linarith
+    · linarith
+    · rw [h, pgT_u] at hT; exact lt_irrefl _ hT
+    · rw [h, pgS_w] at hS; exact lt_irrefl _ hS
+  rw [← insert_endpoints_openSegment] at hye
+  rcases hye with h | h | hye
+  · exact hnotend _ hm.1 h
+  · exact hnotend _ hm.2 h
+  · exact pg_capB hD hseg hye hS hT hc (hend _ hm.1) (hend _ hm.2) (pgCh_not_uw hl hrest he)
+
+end low
+
+private lemma convex_pgCap (v u w : Pt) (c : ℝ) :
+    Convex ℝ {x | 0 < pgS v u w x ∧ 0 < pgT v u w x ∧ pgS v u w x + pgT v u w x < c} := by
+  intro x hx y hy a b ha hb hab
+  simp only [mem_setOf_eq, pgS_comb x y hab, pgT_comb x y hab] at hx hy ⊢
+  rcases eq_or_lt_of_le ha with rfl | ha'
+  · simp at hab; subst hab; simpa using hy
+  rcases eq_or_lt_of_le hb with rfl | hb'
+  · simp at hab; subst hab; simpa using hx
+  refine ⟨add_pos (mul_pos ha' hx.1) (mul_pos hb' hy.1), add_pos (mul_pos ha' hx.2.1) (mul_pos hb' hy.2.1), ?_⟩
+  nlinarith [hx.2.2, hy.2.2]
+
+private lemma convex_pgCapB (v u w : Pt) :
+    Convex ℝ {x | 0 < pgS v u w x ∧ 0 < pgT v u w x ∧ pgS v u w x + pgT v u w x ≤ 1} := by
+  intro x hx y hy a b ha hb hab
+  simp only [mem_setOf_eq, pgS_comb x y hab, pgT_comb x y hab] at hx hy ⊢
+  rcases eq_or_lt_of_le ha with rfl | ha'
+  · simp at hab; subst hab; simpa using hy
+  rcases eq_or_lt_of_le hb with rfl | hb'
+  · simp at hab; subst hab; simpa using hx
+  refine ⟨add_pos (mul_pos ha' hx.1) (mul_pos hb' hy.1), add_pos (mul_pos ha' hx.2.1) (mul_pos hb' hy.2.1), ?_⟩
+  nlinarith [hx.2.2, hy.2.2]
+
+/-! ### Simple polygons are null-homotopic in their regions -/
+
+private lemma pgReg_rotate (l : List Pt) (k : ℕ) : pgReg (l.rotate k) = pgReg l := by
+  simp only [pgReg, pgCv_rotate, pgW_rotate]
+
+private lemma pgCv_subset_reg (l : List Pt) : pgCv l ⊆ pgReg l := subset_union_left
+
+private lemma pg_vertex_mem_cv {l : List Pt} {x : Pt} (hx : x ∈ l) : x ∈ pgCv l := by
+  obtain ⟨f, hf, hf1⟩ := pg_edge_from hx
+  rw [← hf1]; exact seg_subset_pgCv hf (left_mem_segment ℝ _ _)
+
+private lemma pg_rotate_one (x : Pt) (m : List Pt) : (x :: m).rotate 1 = m ++ [x] := by
+  simp [List.rotate_cons_succ]
+
+private lemma pgCv_rot1 (x : Pt) (m : List Pt) : pgCv (m ++ [x]) = pgCv (x :: m) := by
+  rw [← pg_rotate_one, pgCv_rotate]
+
+section disk
+
+variable {X : Set Pt} {u v w : Pt} {rest : List Pt}
+
+private lemma pgTri_seg {p q : Pt} (hp : p ∈ pgTri v u w) (hq : q ∈ pgTri v u w) :
+    segment ℝ p q ⊆ pgTri v u w := convex_pgTri.segment_subset hp hq
+
+private lemma pgTri_mix {p q : Pt} (hp : p ∈ pgTri v u w) (hq : q ∈ pgTri v u w)
+    {s : ℝ} (hs : s ∈ Icc (0 : ℝ) 1) : (1 - s) • p + s • q ∈ pgTri v u w :=
+  convex_pgTri hp hq (by linarith [hs.2]) hs.1 (by ring)
+
+/-- the base case: a triangle -/
+private lemma pg_disk_tri (hD : jcr (u - v) (w - v) ≠ 0) (hX : pgReg [u, v, w] ⊆ X) : PgRel X [u, v, w] [u] := by
+  have hT : pgTri v u w ⊆ X := (pgTri_subset_reg hD).trans hX
+  have hu := mem_pgTri_u (v := v) (u := u) (w := w) hD
+  have hv := mem_pgTri_v (v := v) (u := u) (w := w)
+  have hw := mem_pgTri_w (v := v) (u := u) (w := w) hD
+  have s1 : PgRel X ([u] ++ v :: [w]) ([u] ++ u :: [w]) := by
+    refine PgRel.move (by simp) fun s hs => ?_
+    have hy := pgTri_mix hv hu hs
+    intro z hz
+    simp only [List.singleton_append] at hz
+    rcases mem_pgCv_tri.1 hz with h | h | h
+    · exact hT (pgTri_seg hu hy h)
+    · exact hT (pgTri_seg hy hw h)
+    · exact hT (pgTri_seg hw hu h)
+  have s2 : PgRel X ([] ++ u :: u :: [w]) ([] ++ u :: [w]) :=
+    PgRel.dup_mid [] [w] u (by simp only [List.nil_append]; rw [pgCv_pair]; exact (pgTri_seg hu hw).trans hT)
+  have s3 : PgRel X ([u] ++ w :: []) ([u] ++ u :: []) := by
+    refine PgRel.move (by simp) fun s hs => ?_
+    have hy := pgTri_mix hw hu hs
+    simp only [List.singleton_append]; rw [pgCv_pair]; exact (pgTri_seg hu hy).trans hT
+  have s4 : PgRel X ([] ++ u :: u :: []) ([] ++ u :: []) :=
+    PgRel.dup_mid [] [] u (by simp only [List.nil_append]; rw [pgCv_single]; exact singleton_subset_iff.2 (hT hu))
+  simp only [List.singleton_append, List.nil_append] at s1 s2 s3 s4
+  exact s1.trans (s2.trans (s3.trans s4))
+
+/-- the induction hypothesis of the disk theorem -/
+private def PgDiskIH (X : Set Pt) (n : ℕ) : Prop :=
+  ∀ l' : List Pt, l'.length < n → PgSP l' → pgReg l' ⊆ X → ∀ x, l'.head? = some x → PgRel X l' [x]
+
+private lemma pg_openSeg_uw (hD : jcr (u - v) (w - v) ≠ 0) {y : Pt} (hy : y ∈ openSegment ℝ u w) :
+    0 < pgS v u w y ∧ 0 < pgT v u w y ∧ pgS v u w y + pgT v u w y = 1 := by
+  rw [openSegment_eq_image'] at hy
+  obtain ⟨θ, hθ, rfl⟩ := hy
+  rw [pgS_line, pgT_line, pgS_u hD, pgT_u, pgS_w, pgT_w hD]
+  exact ⟨by linarith [hθ.2], by linarith [hθ.1], by ring⟩
+
+/-- the ear case: no vertex in the triangle at the lowest vertex -/
+private lemma pg_disk_ear (hl : PgSP (u :: v :: w :: rest)) (hv : PgLow (u :: v :: w :: rest) v) (hrest : rest ≠ [])
+    (hno : ∀ x ∈ rest, x ∉ pgTri v u w) (hX : pgReg (u :: v :: w :: rest) ⊆ X)
+    (ih : PgDiskIH X (u :: v :: w :: rest).length) : PgRel X (u :: v :: w :: rest) [u] := by
+  have hD := pg_low_noncollinear hl hv
+  set K := {x | 0 < pgS v u w x ∧ 0 < pgT v u w x ∧ pgS v u w x + pgT v u w x ≤ 1}
+  have hclear : ∀ y ∈ K, y ∉ pgCv (u :: v :: w :: rest) := by
+    rintro y ⟨hS, hT, hST⟩
+    rcases eq_or_lt_of_le hST with h | h
+    · exact pg_base_clear hl hD hrest hno hS hT h
+    · exact pg_cap_clear hl hD le_rfl (fun x hx hxt => absurd hxt (hno x hx)) hS hT h
+  obtain ⟨ε0, hε0, hcone⟩ := pg_cone hl hv
+  set ε := min (ε0 / 2) (1 / 4)
+  have hε : 0 < ε := lt_min (by linarith) (by norm_num)
+  have hεε : ε < ε0 := lt_of_le_of_lt (min_le_left _ _) (by linarith)
+  have hε4 : ε ≤ 1 / 4 := min_le_right _ _
+  set q := v + ε • (u - v) + ε • (w - v)
+  have hqK : q ∈ K := ⟨by rw [pgS_diag hD]; exact hε, by rw [pgT_diag hD]; exact hε,
+    by rw [pgS_diag hD, pgT_diag hD]; linarith⟩
+  have hconst : ∀ y ∈ K, pgW (u :: v :: w :: rest) y = pgW (u :: v :: w :: rest) q := fun y hy =>
+    pgW_const (convex_pgCapB v u w).isPreconnected hclear hy hqK
+  have hopen : ∀ y ∈ openSegment ℝ u w, y ∈ K := fun y hy => by
+    obtain ⟨h1, h2, h3⟩ := pg_openSeg_uw hD hy; exact ⟨h1, h2, h3.le⟩
+  have hmid : u + (1 / 2 : ℝ) • (w - u) ∈ openSegment ℝ u w :=
+    ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, by module⟩
+  have hWm : pgW (u :: [v] ++ w :: rest) (u + (1 / 2 : ℝ) • (w - u)) ≠ 0 := by
+    rw [show u :: [v] ++ w :: rest = u :: v :: w :: rest from rfl, hconst _ (hopen _ hmid)]
+    exact hcone ε hε hεε
+  obtain ⟨-, hP2, hR1, hR2⟩ := pg_split (a := u) (b := w) (m1 := [v]) (m2 := rest) hl (by simp) hrest
+    (fun y hy => hclear y (hopen y hy)) ⟨_, hmid, hWm⟩
+  change pgReg [u, v, w] ⊆ _ at hR1
+  have hT : pgTri v u w ⊆ X := ((pgTri_subset_reg hD).trans hR1).trans hX
+  have hP2X : pgCv (w :: rest ++ [u]) ⊆ X := ((pgCv_subset_reg _).trans hR2).trans hX
+  have hu := mem_pgTri_u (v := v) (u := u) (w := w) hD
+  have hvt := mem_pgTri_v (v := v) (u := u) (w := w)
+  have hw := mem_pgTri_w (v := v) (u := u) (w := w) hD
+  have s1 : PgRel X ([u] ++ v :: w :: rest) ([u] ++ u :: w :: rest) := by
+    refine PgRel.move (by simp) fun s hs => ?_
+    have hy := pgTri_mix hvt hu hs
+    rw [show [u] ++ ((1 - s) • v + s • u) :: w :: rest = u :: [(1 - s) • v + s • u] ++ w :: rest from rfl,
+      pgCv_split]
+    refine union_subset ?_ ?_
+    · intro z hz
+      simp only [mem_iUnion, exists_prop, List.cons_append, List.nil_append, pgCh_cons_cons, pgCh_single,
+        List.mem_cons, List.not_mem_nil, or_false] at hz
+      obtain ⟨e, he | he, hze⟩ := hz
+      · subst he; exact hT (pgTri_seg hu hy hze)
+      · subst he; exact hT (pgTri_seg hy hw hze)
+    · refine Subset.trans ?_ hP2X
+      rw [pgCv_close]; exact subset_union_left
+  have hcv : pgCv (u :: w :: rest) ⊆ X := by rw [← pgCv_rot1]; exact hP2X
+  have s2 : PgRel X ([] ++ u :: u :: w :: rest) ([] ++ u :: w :: rest) := PgRel.dup_mid [] (w :: rest) u hcv
+  have s3 := PgRel.rotate_null (ih (w :: rest ++ [u]) (by simp) hP2 (hR2.trans hX) w rfl)
+  simp only [List.singleton_append, List.nil_append] at s1 s2 s3
+  exact s1.trans (s2.trans s3)
+
+/-- the diagonal case: `z` is the vertex of `rest` in the triangle closest to `v` -/
+private lemma pg_disk_diag (hl : PgSP (u :: v :: w :: rest)) (hv : PgLow (u :: v :: w :: rest) v) {z : Pt}
+    (hz : z ∈ rest) (hzt : z ∈ pgTri v u w)
+    (hzmin : ∀ x ∈ rest, x ∈ pgTri v u w → pgS v u w z + pgT v u w z ≤ pgS v u w x + pgT v u w x)
+    (hX : pgReg (u :: v :: w :: rest) ⊆ X) (ih : PgDiskIH X (u :: v :: w :: rest).length) :
+    PgRel X (u :: v :: w :: rest) [u] := by
+  have hD := pg_low_noncollinear hl hv
+  obtain ⟨hzS, hzT⟩ := pg_rest_in_tri hl hD hz hzt
+  set c := pgS v u w z + pgT v u w z
+  have hc1 : c ≤ 1 := hzt.2.2
+  have hc0 : 0 < c := by positivity
+  set K := {x | 0 < pgS v u w x ∧ 0 < pgT v u w x ∧ pgS v u w x + pgT v u w x < c}
+  have hclear : ∀ y ∈ K, y ∉ pgCv (u :: v :: w :: rest) := by
+    rintro y ⟨hS, hT, hST⟩; exact pg_cap_clear hl hD hc1 hzmin hS hT hST
+  obtain ⟨ε0, hε0, hcone⟩ := pg_cone hl hv
+  set ε := min (ε0 / 2) (c / 4)
+  have hε : 0 < ε := lt_min (by linarith) (by linarith)
+  have hεε : ε < ε0 := lt_of_le_of_lt (min_le_left _ _) (by linarith)
+  have hε4 : ε ≤ c / 4 := min_le_right _ _
+  set q := v + ε • (u - v) + ε • (w - v)
+  have hqK : q ∈ K := ⟨by rw [pgS_diag hD]; exact hε, by rw [pgT_diag hD]; exact hε,
+    by rw [pgS_diag hD, pgT_diag hD]; linarith⟩
+  have hconst : ∀ y ∈ K, pgW (u :: v :: w :: rest) y = pgW (u :: v :: w :: rest) q := fun y hy =>
+    pgW_const (convex_pgCap v u w c).isPreconnected hclear hy hqK
+  have hopen : ∀ y ∈ openSegment ℝ v z, y ∈ K := fun y hy => by
+    rw [openSegment_eq_image'] at hy
+    obtain ⟨θ, hθ, rfl⟩ := hy
+    rw [mem_setOf_eq, pgS_line, pgT_line, pgS_v, pgT_v]
+    refine ⟨by nlinarith [hθ.1], by nlinarith [hθ.1], ?_⟩
+    nlinarith [hθ.2]
+  have hmid : v + (1 / 2 : ℝ) • (z - v) ∈ openSegment ℝ v z :=
+    ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, by module⟩
+  -- rotate to start at `v`
+  obtain ⟨R1, R2, rfl⟩ := List.append_of_mem hz
+  set L := u :: v :: w :: (R1 ++ z :: R2)
+  have hL' : L.rotate 1 = v :: (w :: R1) ++ z :: (R2 ++ [u]) := by
+    simp only [L, pg_rotate_one]; simp
+  have hlL : PgSP (v :: (w :: R1) ++ z :: (R2 ++ [u])) := by rw [← hL']; exact hl.rotate 1
+  have hcvL : pgCv (v :: (w :: R1) ++ z :: (R2 ++ [u])) = pgCv L := by rw [← hL', pgCv_rotate]
+  have hWL : ∀ y, pgW (v :: (w :: R1) ++ z :: (R2 ++ [u])) y = pgW L y := fun y => by rw [← hL', pgW_rotate]
+  have hRL : pgReg (v :: (w :: R1) ++ z :: (R2 ++ [u])) = pgReg L := by rw [← hL', pgReg_rotate]
+  obtain ⟨hP1, hP2, hR1, hR2⟩ := pg_split hlL (by simp) (by simp)
+    (fun y hy => by rw [hcvL]; exact hclear y (hopen y hy))
+    ⟨_, hmid, by rw [hWL, hconst _ (hopen _ hmid)]; exact hcone ε hε hεε⟩
+  rw [hRL] at hR1 hR2
+  have i1 := ih (v :: (w :: R1) ++ [z]) (by simp [L]) hP1 (hR1.trans hX) v rfl
+  have i2 := PgRel.rotate_null (ih (z :: (R2 ++ [u]) ++ [v]) (by simp [L]) hP2 (hR2.trans hX) z rfl)
+  -- the chord lies in the region
+  have hsegR : segment ℝ z v ⊆ pgReg L := by
+    rw [segment_symm, ← insert_endpoints_openSegment]
+    rintro y (rfl | rfl | hy)
+    · exact Or.inl (pg_vertex_mem_cv (by simp [L]))
+    · exact Or.inl (pg_vertex_mem_cv (by simp [L]))
+    · exact Or.inr (by show pgW L y ≠ 0; rw [hconst y (hopen y hy)]; exact hcone ε hε hεε)
+  have s1 : PgRel X ((v :: w :: R1) ++ z :: (R2 ++ [u])) ((v :: w :: R1) ++ z :: v :: z :: (R2 ++ [u])) := by
+    refine (PgRel.backtrack _ _ z v ?_).symm
+    rw [pgCv_spike]
+    refine union_subset ?_ (hsegR.trans hX)
+    have : (v :: w :: R1) ++ z :: (R2 ++ [u]) = v :: (w :: R1) ++ z :: (R2 ++ [u]) := rfl
+    rw [this, hcvL]; exact (pgCv_subset_reg L).trans hX
+  have hc2 : pgCv ([] ++ v :: z :: (R2 ++ [u])) ⊆ X := by
+    rw [List.nil_append, ← pgCv_rot1]; exact ((pgCv_subset_reg _).trans hR2).trans hX
+  have s2 := PgRel.contract [] (z :: (R2 ++ [u])) i1 rfl hc2
+  have e2 : [] ++ (v :: (w :: R1) ++ [z]) ++ v :: z :: (R2 ++ [u]) = (v :: w :: R1) ++ z :: v :: z :: (R2 ++ [u]) := by
+    simp
+  rw [e2, List.nil_append] at s2
+  have hfin : PgRel X (L.rotate 1) [v] := by
+    rw [hL']; exact s1.trans (s2.trans i2)
+  exact PgRel.of_rotate hfin rfl
+
+end disk
+
+/-- **Disk theorem**: a simple closed polygon is null-homotopic by moves inside its closed region -/
+private theorem pg_disk (n : ℕ) : ∀ (l : List Pt), l.length = n → PgSP l → ∀ X : Set Pt, pgReg l ⊆ X →
+    ∀ x, l.head? = some x → PgRel X l [x] := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro l hn hl X hX x hx
+  classical
+  have hne : l ≠ [] := by intro h; rw [h] at hx; simp at hx
+  have h3 := hl.three
+  obtain ⟨v, hvl, hlow⟩ := pg_exists_low l hne
+  obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hvl
+  set k := (i + l.length - 1) % l.length
+  have hk : k < l.length := Nat.mod_lt _ (by omega)
+  obtain ⟨rest, hrot⟩ := pg_rot_cons hk h3
+  have hk1 : (k + 1) % l.length = i := by
+    simp only [k]
+    rw [Nat.mod_add_mod, show i + l.length - 1 + 1 = i + l.length by omega, Nat.add_mod_right, Nat.mod_eq_of_lt hi]
+  simp only [hk1] at hrot
+  set u := l[k]
+  set w := l[(k + 2) % l.length]'(Nat.mod_lt _ (by omega))
+  have hL : PgSP (u :: l[i] :: w :: rest) := by rw [← hrot]; exact hl.rotate k
+  have hLlow : PgLow (u :: l[i] :: w :: rest) l[i] := by rw [← hrot]; exact hlow.rotate k
+  have hLX : pgReg (u :: l[i] :: w :: rest) ⊆ X := by rw [← hrot, pgReg_rotate]; exact hX
+  have hlen : (u :: l[i] :: w :: rest).length = n := by rw [← hrot, List.length_rotate, hn]
+  have ih' : PgDiskIH X (u :: l[i] :: w :: rest).length := by
+    intro l' hl' hP hR y hy; rw [hlen] at hl'; exact ih _ hl' l' rfl hP X hR y hy
+  have hmain : PgRel X (u :: l[i] :: w :: rest) [u] := by
+    have hD := pg_low_noncollinear hL hLlow
+    by_cases hr : rest = []
+    · subst hr; exact pg_disk_tri hD hLX
+    by_cases hin : ∃ y ∈ rest, y ∈ pgTri l[i] u w
+    · obtain ⟨y0, hy0, hy0t⟩ := hin
+      obtain ⟨z, hz, hzmin⟩ := (rest.toFinset.filter (· ∈ pgTri l[i] u w)).exists_min_image
+        (fun y => pgS l[i] u w y + pgT l[i] u w y) ⟨y0, by simp [hy0, hy0t]⟩
+      simp only [Finset.mem_filter, List.mem_toFinset] at hz hzmin
+      exact pg_disk_diag hL hLlow hz.1 hz.2 (fun y hy hyt => hzmin y ⟨hy, hyt⟩) hLX ih'
+    · push_neg at hin
+      exact pg_disk_ear hL hLlow hr hin hLX ih'
+  rw [← hrot] at hmain
+  exact PgRel.of_rotate hmain hx
+
+/-! ### Rotations of loops -/
+
+private lemma pgLoop_rotate (l : List Pt) (k : ℕ) (t : ℝ) : pgLoop (l.rotate k) t = pgLoop l (t + k / l.length) := by
+  induction k generalizing t with
+  | zero => simp
+  | succ k ih =>
+    rw [← List.rotate_rotate, pgLoop_rotate_one, ih, List.length_rotate]
+    congr 1; push_cast; ring
+
+private lemma pg_lh_rotate {l : List Pt} (hl : l ≠ []) (k : ℕ) :
+    LoopsHomotopicIn (pgCv l) (pgLoop l) (pgLoop (l.rotate k)) := by
+  have h := pg_reparam (pgLoop_continuous hl) (pgLoop_periodic l) (ψ := fun _ => (k : ℝ) / l.length)
+    continuous_const (fun _ => rfl)
+  exact pg_lh_mono (range_pgLoop_subset hl) (pg_lh_congr h rfl (by funext t; rw [pgLoop_rotate]))
+
+/-! ### Chains inside a set -/
+
+/-- all segments of the open chain lie in `S` -/
+private def PgChIn (S : Set Pt) (m : List Pt) : Prop := ∀ e ∈ pgCh m, segment ℝ e.1 e.2 ⊆ S
+
+private lemma pgChIn_cons_append {S : Set Pt} {a b : Pt} {m rest : List Pt} (h1 : PgChIn S (a :: m ++ [b]))
+    (h2 : PgChIn S (b :: rest)) : PgChIn S (a :: (m ++ b :: rest)) := by
+  intro e he
+  rw [show a :: (m ++ b :: rest) = (a :: m) ++ b :: rest by simp, pgCh_append, List.mem_append] at he
+  rcases he with he | he
+  · exact h1 e he
+  · exact h2 e he
+
+private lemma pgChIn_pair {S : Set Pt} {a b : Pt} (h : segment ℝ a b ⊆ S) : PgChIn S [a, b] := by
+  intro e he; simp at he; subst he; exact h
+
+private lemma pgChIn_single (S : Set Pt) (a : Pt) : PgChIn S [a] := by
+  intro e he; simp at he
+
+private lemma pgChIn_reverse {S : Set Pt} {m : List Pt} (h : PgChIn S m) : PgChIn S m.reverse := by
+  intro e he
+  rw [pgCh_reverse, List.mem_reverse, List.mem_map] at he
+  obtain ⟨f, hf, rfl⟩ := he
+  rw [Prod.fst_swap, Prod.snd_swap, segment_symm]; exact h f hf
+
+private lemma pgCv_subset_of_chIn {S : Set Pt} {x : Pt} {m : List Pt} (h : PgChIn S (x :: m ++ [x])) : pgCv (x :: m) ⊆ S := by
+  intro z hz
+  rw [mem_pgCv] at hz
+  obtain ⟨e, he, hz⟩ := hz
+  exact h e he hz
+
+private lemma pgChIn_of_pgCv {S : Set Pt} {x y : Pt} {m m' : List Pt} (h : pgCv (x :: m ++ y :: m') ⊆ S) :
+    PgChIn S (x :: m ++ [y]) ∧ PgChIn S (y :: m' ++ [x]) := by
+  constructor
+  · intro e he z hz; apply h; rw [mem_pgCv, pgEd_split]; exact ⟨e, List.mem_append_left _ he, hz⟩
+  · intro e he z hz; apply h; rw [mem_pgCv, pgEd_split]; exact ⟨e, List.mem_append_right _ he, hz⟩
+
+private lemma pgCv_close_dup (x : Pt) (r : List Pt) : pgCv (x :: r ++ [x]) = pgCv (x :: r) := by
+  have := pgCv_dup (x :: r) [] (x := x) (by simp)
+  simpa using this
+
+/-- contracting a null sub-loop at the end of a loop -/
+private lemma PgRel.contract_end {X : Set Pt} {L : List Pt} {x : Pt} (r : List Pt) (h : PgRel X L [x])
+    (hy : L.head? = some x) (hX : pgCv (x :: r) ⊆ X) : PgRel X (x :: r ++ L) (x :: r) := by
+  obtain ⟨m, rfl⟩ := List.head?_eq_some_iff.1 hy
+  have hc : pgCv (x :: r ++ [x]) ⊆ X := by rw [pgCv_close_dup]; exact hX
+  have hbig : pgCv (x :: r ++ (x :: m) ++ [x]) ⊆ X := by
+    rw [pgCv_insert (x :: r) m [] x]; exact union_subset hc (PgRel.cv h).1
+  have hbig' : pgCv (x :: r ++ (x :: m)) ⊆ X := by
+    have := pgCv_dup (x :: r ++ (x :: m)) [] (x := x) (by simp)
+    simp only [List.append_nil] at this; rw [← this]; exact hbig
+  have s1 := (PgRel.dup_end (l := x :: r ++ (x :: m)) (x := x) (by simp) hbig').symm
+  have s2 := PgRel.contract (x :: r) [] h rfl hc
+  have s3 := PgRel.dup_end (l := x :: r) (x := x) rfl hX
+  exact s1.trans (s2.trans s3)
+
+/-- **Annulus algebra**: if the two halves of the annulus are null-homotopic, the outer loop is freely
+homotopic to the inner one -/
+private lemma pg_annulus_moves {X : Set Pt} {a1 a2 c1 c2 : Pt} {α β g d : List Pt}
+    (hP1 : PgRel X (a1 :: (α ++ a2 :: c2 :: (g.reverse ++ [c1]))) [a1])
+    (hP2 : PgRel X (a2 :: (β ++ a1 :: c1 :: (d.reverse ++ [c2]))) [a2])
+    (hA : pgCv (a1 :: α ++ a2 :: β) ⊆ X) (hK : pgCv (c1 :: g ++ c2 :: d) ⊆ X)
+    (hb1 : segment ℝ a1 c1 ⊆ X) (hb2 : segment ℝ a2 c2 ⊆ X) :
+    LoopsHomotopicIn X (pgLoop (a1 :: α ++ a2 :: β)) (pgLoop (c1 :: g ++ c2 :: d)) := by
+  obtain ⟨cA1, cA2⟩ := pgChIn_of_pgCv hA
+  obtain ⟨cK1, cK2⟩ := pgChIn_of_pgCv hK
+  have rK1 : PgChIn X (c2 :: (g.reverse ++ [c1])) := by simpa using pgChIn_reverse cK1
+  have rK2 : PgChIn X (c1 :: (d.reverse ++ [c2])) := by simpa using pgChIn_reverse cK2
+  have p1 : PgChIn X [a1, c1] := pgChIn_pair hb1
+  have p1' : PgChIn X [c1, a1] := pgChIn_pair (by rw [segment_symm]; exact hb1)
+  have p2 : PgChIn X [a2, c2] := pgChIn_pair hb2
+  have p2' : PgChIn X [c2, a2] := pgChIn_pair (by rw [segment_symm]; exact hb2)
+  have t1 : PgChIn X (a2 :: (β ++ [a1])) := cA2
+  have t2 : PgChIn X (c2 :: a2 :: (β ++ [a1])) := pgChIn_cons_append (m := []) p2' t1
+  have t3 : PgChIn X (c1 :: (g ++ c2 :: a2 :: (β ++ [a1]))) := pgChIn_cons_append cK1 t2
+  have t4 : PgChIn X (a1 :: c1 :: (g ++ c2 :: a2 :: (β ++ [a1]))) := pgChIn_cons_append (m := []) p1 t3
+  have t5 : PgChIn X (c1 :: a1 :: c1 :: (g ++ c2 :: a2 :: (β ++ [a1]))) := pgChIn_cons_append (m := []) p1' t4
+  have t6 : PgChIn X (c2 :: (g.reverse ++ c1 :: a1 :: c1 :: (g ++ c2 :: a2 :: (β ++ [a1])))) :=
+    pgChIn_cons_append rK1 t5
+  have t7 : PgChIn X (a2 :: c2 :: (g.reverse ++ c1 :: a1 :: c1 :: (g ++ c2 :: a2 :: (β ++ [a1])))) :=
+    pgChIn_cons_append (m := []) p2 t6
+  have t8 : PgChIn X (a1 :: (α ++ a2 :: c2 :: (g.reverse ++ c1 :: a1 :: c1 :: (g ++ c2 :: a2 :: (β ++ [a1]))))) :=
+    pgChIn_cons_append cA1 t7
+  have hBig1 : pgCv (a1 :: (α ++ a2 :: c2 :: (g.reverse ++ c1 :: a1 :: c1 :: (g ++ c2 :: a2 :: β)))) ⊆ X :=
+    pgCv_subset_of_chIn (by simpa using t8)
+  have hY : pgCv (a1 :: c1 :: (g ++ c2 :: a2 :: β)) ⊆ X := pgCv_subset_of_chIn (by simpa using t4)
+  have s1 := (PgRel.path_back (X := X) a1 (c2 :: (g.reverse ++ [c1])) (a1 :: α) β a2 (by simpa using hBig1)).symm
+  have s2 := PgRel.contract [] (c1 :: (g ++ c2 :: a2 :: β)) hP1 rfl (by simpa using hY)
+  have u3 : PgChIn X (c1 :: (d.reverse ++ c2 :: a2 :: (β ++ [a1]))) := pgChIn_cons_append rK2 t2
+  have u4 : PgChIn X (a1 :: c1 :: (d.reverse ++ c2 :: a2 :: (β ++ [a1]))) := pgChIn_cons_append (m := []) p1 u3
+  have u5 : PgChIn X (c1 :: a1 :: c1 :: (d.reverse ++ c2 :: a2 :: (β ++ [a1]))) := pgChIn_cons_append (m := []) p1' u4
+  have u6 : PgChIn X (c2 :: (d ++ c1 :: a1 :: c1 :: (d.reverse ++ c2 :: a2 :: (β ++ [a1])))) :=
+    pgChIn_cons_append cK2 u5
+  have u7 : PgChIn X (c1 :: (g ++ c2 :: (d ++ c1 :: a1 :: c1 :: (d.reverse ++ c2 :: a2 :: (β ++ [a1]))))) :=
+    pgChIn_cons_append cK1 u6
+  have u8 : PgChIn X (a1 :: c1 :: (g ++ c2 :: (d ++ c1 :: a1 :: c1 :: (d.reverse ++ c2 :: a2 :: (β ++ [a1]))))) :=
+    pgChIn_cons_append (m := []) p1 u7
+  have hBig2 : pgCv (a1 :: c1 :: (g ++ c2 :: (d ++ c1 :: a1 :: c1 :: (d.reverse ++ c2 :: a2 :: β)))) ⊆ X :=
+    pgCv_subset_of_chIn (by simpa using u8)
+  have s3 := (PgRel.path_back (X := X) a1 (d ++ [c1]) (a1 :: c1 :: g) (a2 :: β) c2 (by simpa using hBig2)).symm
+  have v2 : PgChIn X (c2 :: (d ++ [c1, a1])) := pgChIn_cons_append (m := d) cK2 p1'
+  have v3 : PgChIn X (c1 :: (g ++ c2 :: (d ++ [c1, a1]))) := pgChIn_cons_append cK1 v2
+  have v4 : PgChIn X (a1 :: c1 :: (g ++ c2 :: (d ++ [c1, a1]))) := pgChIn_cons_append (m := []) p1 v3
+  have hX1 : pgCv (a1 :: c1 :: (g ++ c2 :: (d ++ [c1]))) ⊆ X := pgCv_subset_of_chIn (by simpa using v4)
+  have hP2' := PgRel.rotate_null (x := a1) (y := a2) (Q := β) (P := c1 :: (d.reverse ++ [c2])) hP2
+  have s4 := PgRel.contract_end (c1 :: (g ++ c2 :: (d ++ [c1]))) hP2' rfl hX1
+  have hmain : PgRel X (a1 :: α ++ a2 :: β) (a1 :: c1 :: (g ++ c2 :: (d ++ [c1]))) := by
+    have e1 : a1 :: α ++ a2 :: β = (a1 :: α) ++ a2 :: β := rfl
+    refine s1.trans ?_
+    have e2 : (a1 :: α) ++ a2 :: (c2 :: (g.reverse ++ [c1]) ++ a1 :: ((c2 :: (g.reverse ++ [c1])).reverse ++ a2 :: β)) =
+        [] ++ a1 :: (α ++ a2 :: c2 :: (g.reverse ++ [c1])) ++ a1 :: c1 :: (g ++ c2 :: a2 :: β) := by simp
+    rw [e2]
+    refine s2.trans ?_
+    have e3 : [] ++ a1 :: c1 :: (g ++ c2 :: a2 :: β) = (a1 :: c1 :: g) ++ c2 :: a2 :: β := by simp
+    rw [e3]
+    refine s3.trans ?_
+    have e4 : (a1 :: c1 :: g) ++ c2 :: (d ++ [c1] ++ a1 :: ((d ++ [c1]).reverse ++ c2 :: a2 :: β)) =
+        a1 :: c1 :: (g ++ c2 :: (d ++ [c1])) ++ (a1 :: (c1 :: (d.reverse ++ [c2])) ++ a2 :: β) := by simp
+    rw [e4]; exact s4
+  -- from the conjugated loop to the inner loop
+  set X1 := a1 :: c1 :: (g ++ c2 :: (d ++ [c1]))
+  have hX1r : X1.rotate 1 = c1 :: (g ++ c2 :: d) ++ [c1, a1] := by simp [X1]
+  have hcvr : pgCv (X1.rotate 1) ⊆ X := by rw [pgCv_rotate]; exact hX1
+  have w1 := (PgRel.dup_end (l := X1.rotate 1) (x := c1) (by rw [hX1r]; simp) hcvr).symm
+  have w2 := PgRel.backtrack (X := X) (c1 :: (g ++ c2 :: d)) [] c1 a1 (by
+    have : c1 :: (g ++ c2 :: d) ++ [c1, a1, c1] = X1.rotate 1 ++ [c1] := by rw [hX1r]; simp
+    rw [this, pgCv_dup (X1.rotate 1) [] (by rw [hX1r]; simp)]; simpa using hcvr)
+  have w3 := PgRel.dup_end (l := c1 :: (g ++ c2 :: d)) (x := c1) rfl (by simpa using hK)
+  have hrot : PgRel X (X1.rotate 1) (c1 :: g ++ c2 :: d) := by
+    refine w1.trans ?_
+    rw [hX1r]
+    have e5 : c1 :: (g ++ c2 :: d) ++ [c1, a1] ++ [c1] = c1 :: (g ++ c2 :: d) ++ c1 :: a1 :: c1 :: [] := by simp
+    rw [e5]; refine w2.trans ?_
+    simpa using w3
+  have hne : X1 ≠ [] := by simp [X1]
+  exact pg_lh_trans hmain.sound (pg_lh_trans (pg_lh_mono hX1 (pg_lh_rotate hne 1)) hrot.sound)
+
+/-! ### The two halves of the annulus -/
+
+private lemma pgEd_piece (x y x' y' : Pt) (α g : List Pt) :
+    pgEd (x :: (α ++ y :: y' :: (g.reverse ++ [x']))) =
+      pgCh (x :: α ++ [y]) ++ ((y, y') :: (pgCh (y' :: g.reverse ++ [x']) ++ [(x', x)])) := by
+  rw [pgEd_cons]
+  have e : x :: (α ++ y :: y' :: (g.reverse ++ [x'])) ++ [x] = (x :: α) ++ y :: (y' :: (g.reverse ++ [x', x])) := by simp
+  rw [e, pgCh_append, pgCh_cons_cons]
+  have h := pgCh_append (y' :: g.reverse) x' [x]
+  simp only [List.cons_append, pgCh_cons_cons, pgCh_single] at h
+  rw [h]; simp
+
+private lemma pgCh_rev_chain (x' y' : Pt) (g : List Pt) :
+    pgCh (y' :: g.reverse ++ [x']) = ((pgCh (x' :: g ++ [y'])).map Prod.swap).reverse := by
+  rw [← pgCh_reverse]; simp
+
+private lemma pgOK_of_disjoint {e f : Pt × Pt} (h : Disjoint (segment ℝ e.1 e.2) (segment ℝ f.1 f.2)) : PgOK e f := by
+  intro z hz; exact (Set.disjoint_left.1 h hz.1 hz.2).elim
+
+/-- **The halves are simple**: an arc of the outer polygon, a bridge, an arc of the inner polygon
+(reversed) and a second bridge form a simple polygon -/
+private lemma pg_piece_simple {x y x' y' : Pt} {α β g d : List Pt} (hA : PgSP (x :: α ++ y :: β))
+    (hK : PgSP (x' :: g ++ y' :: d)) (hdisj : Disjoint (pgCv (x :: α ++ y :: β)) (pgCv (x' :: g ++ y' :: d)))
+    (hb1A : segment ℝ y y' ∩ pgCv (x :: α ++ y :: β) ⊆ {y}) (hb1K : segment ℝ y y' ∩ pgCv (x' :: g ++ y' :: d) ⊆ {y'})
+    (hb2A : segment ℝ x' x ∩ pgCv (x :: α ++ y :: β) ⊆ {x}) (hb2K : segment ℝ x' x ∩ pgCv (x' :: g ++ y' :: d) ⊆ {x'})
+    (hbb : Disjoint (segment ℝ y y') (segment ℝ x' x)) :
+    PgSP (x :: (α ++ y :: y' :: (g.reverse ++ [x']))) := by
+  set LA := x :: α ++ y :: β
+  set LK := x' :: g ++ y' :: d
+  have hEA : ∀ e ∈ pgCh (x :: α ++ [y]), e ∈ pgEd LA := fun e he => by
+    rw [pgEd_split]; exact List.mem_append_left _ he
+  have hEK : ∀ e ∈ pgCh (x' :: g ++ [y']), e ∈ pgEd LK := fun e he => by
+    rw [pgEd_split]; exact List.mem_append_left _ he
+  have hE3 : ∀ f ∈ pgCh (y' :: g.reverse ++ [x']), f.swap ∈ pgEd LK ∧
+      segment ℝ f.1 f.2 = segment ℝ f.swap.1 f.swap.2 := fun f hf => by
+    rw [pgCh_rev_chain, List.mem_reverse, List.mem_map] at hf
+    obtain ⟨f0, hf0, rfl⟩ := hf
+    refine ⟨by simpa using hEK f0 hf0, by simp [segment_symm]⟩
+  have hxA : x ∈ LA := by simp [LA]
+  have hyA : y ∈ LA := by simp [LA]
+  have hxK : x' ∈ LK := by simp [LK]
+  have hyK : y' ∈ LK := by simp [LK]
+  -- an outer edge and a bridge
+  have okA : ∀ e ∈ pgEd LA, ∀ (b b' : Pt), b ∈ LA → segment ℝ b b' ∩ pgCv LA ⊆ {b} → PgOK e (b, b') := by
+    intro e he b b' hb hbb' z hz
+    have hz1 : z = b := hbb' ⟨hz.2, seg_subset_pgCv he hz.1⟩
+    subst hz1
+    exact ⟨pg_vertex_on_edge hA hb he hz.1, Or.inl rfl⟩
+  have okK : ∀ e ∈ pgEd LK, ∀ (b b' : Pt), b' ∈ LK → segment ℝ b b' ∩ pgCv LK ⊆ {b'} → PgOK (b, b') e := by
+    intro e he b b' hb hbb' z hz
+    have hz1 : z = b' := hbb' ⟨hz.1, seg_subset_pgCv he hz.2⟩
+    subst hz1
+    exact ⟨Or.inr rfl, pg_vertex_on_edge hK hb he hz.2⟩
+  have hb2A' : segment ℝ x x' ∩ pgCv LA ⊆ {x} := by rw [segment_symm]; exact hb2A
+  have hb2K' : segment ℝ x x' ∩ pgCv LK ⊆ {x'} := by rw [segment_symm]; exact hb2K
+  refine ⟨by simp; omega, ?_, ?_⟩
+  · -- nodup
+    have h1 : (x :: α ++ [y]).Nodup := List.Sublist.nodup (by simp [LA]) hA.nodup
+    have h2 : (y' :: g.reverse ++ [x']).Nodup := by
+      have : (x' :: g ++ [y']).Nodup := List.Sublist.nodup (by simp [LK]) hK.nodup
+      have e4 : y' :: g.reverse ++ [x'] = (x' :: g ++ [y']).reverse := by simp
+      rw [e4, List.nodup_reverse]; exact this
+    have e : x :: (α ++ y :: y' :: (g.reverse ++ [x'])) = (x :: α ++ [y]) ++ (y' :: g.reverse ++ [x']) := by simp
+    rw [e, List.nodup_append]
+    refine ⟨h1, h2, fun a ha b hb hab => ?_⟩
+    subst hab
+    have haA : a ∈ pgCv LA := pg_vertex_mem_cv (List.Sublist.subset (by simp [LA]) ha)
+    have haK : a ∈ pgCv LK := by
+      apply pg_vertex_mem_cv
+      have : a ∈ (y' :: g.reverse ++ [x']) := hb
+      simp only [List.cons_append, List.mem_cons, List.mem_append, List.mem_reverse] at this
+      simp only [LK, List.cons_append, List.mem_cons, List.mem_append]
+      tauto
+    exact Set.disjoint_iff.1 hdisj ⟨haA, haK⟩
+  · -- pairwise
+    rw [pgEd_piece, List.pairwise_append, List.pairwise_cons, List.pairwise_append]
+    have hpwA : (pgEd LA).Pairwise PgOK := hA.pw
+    rw [pgEd_split, List.pairwise_append] at hpwA
+    have hpw3 : (pgCh (y' :: g.reverse ++ [x'])).Pairwise PgOK := by
+      have hpwK : (pgEd LK).Pairwise PgOK := hK.pw
+      rw [pgEd_split, List.pairwise_append] at hpwK
+      rw [pgCh_rev_chain, List.pairwise_reverse, List.pairwise_map]
+      exact hpwK.1.imp fun h => pgOK_symm (pgOK_swap h)
+    refine ⟨hpwA.1, ⟨?_, hpw3, by simp, ?_⟩, ?_⟩
+    · intro f hf
+      rw [List.mem_append, List.mem_singleton] at hf
+      rcases hf with hf | rfl
+      · obtain ⟨hfK, hseg⟩ := hE3 f hf
+        have := okK f.swap hfK y y' hyK hb1K
+        intro z hz
+        rw [hseg] at hz
+        have h' := this hz
+        simp only [Prod.fst_swap, Prod.snd_swap] at h'
+        refine ⟨h'.1, ?_⟩
+        rcases h'.2 with h | h
+        · exact Or.inr h
+        · exact Or.inl h
+      · exact pgOK_of_disjoint hbb
+    · intro f hf b hb
+      simp only [List.mem_singleton] at hb; subst hb
+      obtain ⟨hfK, hseg⟩ := hE3 f hf
+      have := pgOK_symm (okK f.swap hfK x x' hxK hb2K')
+      intro z hz
+      rw [hseg] at hz
+      have h' := this ⟨hz.1, by rw [segment_symm]; exact hz.2⟩
+      simp only [Prod.fst_swap, Prod.snd_swap] at h'
+      constructor
+      · rcases h'.1 with h | h
+        · exact Or.inr h
+        · exact Or.inl h
+      · rcases h'.2 with h | h
+        · exact Or.inr h
+        · exact Or.inl h
+    · intro e he f hf
+      rw [List.mem_cons, List.mem_append, List.mem_singleton] at hf
+      rcases hf with rfl | hf | rfl
+      · exact okA e (hEA e he) y y' hyA hb1A
+      · obtain ⟨hfK, hseg⟩ := hE3 f hf
+        apply pgOK_of_disjoint
+        rw [hseg]
+        exact Set.disjoint_of_subset (fun z hz => seg_subset_pgCv (hEA e he) hz)
+          (fun z hz => seg_subset_pgCv hfK hz) hdisj
+      · have := okA e (hEA e he) x x' hxA hb2A'
+        intro z hz
+        have h' := this ⟨hz.1, by rw [segment_symm]; exact hz.2⟩
+        refine ⟨h'.1, ?_⟩
+        rcases h'.2 with h | h
+        · exact Or.inr h
+        · exact Or.inl h
+
+/-! ### Winding numbers of the halves -/
+
+/-- the winding sum along an open chain -/
+private def pgChW (m : List Pt) (p : Pt) : ℝ := ((pgCh m).map (fun e => Complex.arg (segRatio e.1 e.2 p))).sum
+
+private lemma pgW_eq_chW (x : Pt) (m : List Pt) (p : Pt) : pgW (x :: m) p = pgChW (x :: m ++ [x]) p := rfl
+
+private lemma pgChW_append (l1 : List Pt) (b : Pt) (l2 : List Pt) (p : Pt) :
+    pgChW (l1 ++ b :: l2) p = pgChW (l1 ++ [b]) p + pgChW (b :: l2) p := by
+  simp only [pgChW]; rw [pgCh_append, List.map_append, List.sum_append]
+
+private lemma pgChW_cons2 (a b : Pt) (r : List Pt) (p : Pt) :
+    pgChW (a :: b :: r) p = Complex.arg (segRatio a b p) + pgChW (b :: r) p := by
+  simp [pgChW]
+
+private lemma pgChW_pair (a b p : Pt) : pgChW [a, b] p = Complex.arg (segRatio a b p) := by simp [pgChW]
+
+private lemma pgChW_reverse {m : List Pt} {p : Pt} (hp : ∀ e ∈ pgCh m, p ∉ segment ℝ e.1 e.2) :
+    pgChW m.reverse p = - pgChW m p := by
+  simp only [pgChW, pgCh_reverse, List.map_reverse, List.sum_reverse, List.map_map]
+  rw [← pg_sum_map_neg]
+  apply congrArg List.sum
+  apply List.map_congr_left
+  intro e he
+  simp only [Function.comp_apply, Prod.fst_swap, Prod.snd_swap]
+  exact arg_segRatio_swap (hp e he)
+
+private lemma pgChW_piece {x y x' y' : Pt} {α g : List Pt} {p : Pt} (hpK : ∀ e ∈ pgCh (x' :: g ++ [y']), p ∉ segment ℝ e.1 e.2) :
+    pgW (x :: (α ++ y :: y' :: (g.reverse ++ [x']))) p = pgChW (x :: α ++ [y]) p + Complex.arg (segRatio y y' p) -
+      pgChW (x' :: g ++ [y']) p + Complex.arg (segRatio x' x p) := by
+  rw [pgW_eq_chW]
+  have e : x :: (α ++ y :: y' :: (g.reverse ++ [x'])) ++ [x] = (x :: α) ++ y :: (y' :: (g.reverse ++ [x', x])) := by simp
+  rw [e, pgChW_append (x :: α) y _ p, pgChW_cons2,
+    show y' :: (g.reverse ++ [x', x]) = (y' :: g.reverse) ++ x' :: [x] by simp,
+    pgChW_append (y' :: g.reverse) x' [x] p, pgChW_pair]
+  have e4 : (y' :: g.reverse) ++ [x'] = (x' :: g ++ [y']).reverse := by simp
+  rw [e4, pgChW_reverse hpK]
+  ring
+
+/-- **Winding numbers of the halves** add up to the difference of the outer and inner ones -/
+private lemma pgW_pieces {x y x' y' : Pt} {α β g d : List Pt} {p : Pt} (hpK : p ∉ pgCv (x' :: g ++ y' :: d))
+    (hb1 : p ∉ segment ℝ y y') (hb2 : p ∉ segment ℝ x x') :
+    pgW (x :: (α ++ y :: y' :: (g.reverse ++ [x']))) p + pgW (y :: (β ++ x :: x' :: (d.reverse ++ [y']))) p =
+      pgW (x :: α ++ y :: β) p - pgW (x' :: g ++ y' :: d) p := by
+  have hK1 : ∀ e ∈ pgCh (x' :: g ++ [y']), p ∉ segment ℝ e.1 e.2 := fun e he h =>
+    hpK (seg_subset_pgCv (by rw [pgEd_split]; exact List.mem_append_left _ he) h)
+  have hK2 : ∀ e ∈ pgCh (y' :: d ++ [x']), p ∉ segment ℝ e.1 e.2 := fun e he h =>
+    hpK (seg_subset_pgCv (by rw [pgEd_split]; exact List.mem_append_right _ he) h)
+  rw [pgChW_piece hK1, pgChW_piece hK2]
+  have hLA : pgW (x :: α ++ y :: β) p = pgChW (x :: α ++ [y]) p + pgChW (y :: β ++ [x]) p := by
+    show pgW (x :: (α ++ y :: β)) p = _
+    rw [pgW_eq_chW, show x :: (α ++ y :: β) ++ [x] = (x :: α) ++ y :: (β ++ [x]) by simp, pgChW_append]
+    simp
+  have hLK : pgW (x' :: g ++ y' :: d) p = pgChW (x' :: g ++ [y']) p + pgChW (y' :: d ++ [x']) p := by
+    show pgW (x' :: (g ++ y' :: d)) p = _
+    rw [pgW_eq_chW, show x' :: (g ++ y' :: d) ++ [x'] = (x' :: g) ++ y' :: (d ++ [x']) by simp, pgChW_append]
+    simp
+  rw [hLA, hLK]
+  have h1 := arg_segRatio_swap hb1
+  have h2 := arg_segRatio_swap hb2
+  linarith
+
+/-! ### The annulus theorem for vertex lists -/
+
+private lemma pgCv_piece_subset (x y x' y' : Pt) (α β g d : List Pt) :
+    pgCv (x :: (α ++ y :: y' :: (g.reverse ++ [x']))) ⊆
+      pgCv (x :: α ++ y :: β) ∪ pgCv (x' :: g ++ y' :: d) ∪ segment ℝ y y' ∪ segment ℝ x x' := by
+  intro z hz
+  rw [mem_pgCv, pgEd_piece] at hz
+  obtain ⟨e, he, hz⟩ := hz
+  simp only [List.mem_append, List.mem_cons] at he
+  rcases he with he | rfl | he | rfl | he
+  · exact Or.inl (Or.inl (Or.inl (seg_subset_pgCv (by rw [pgEd_split]; exact List.mem_append_left _ he) hz)))
+  · exact Or.inl (Or.inr hz)
+  · rw [pgCh_rev_chain, List.mem_reverse, List.mem_map] at he
+    obtain ⟨f, hf, rfl⟩ := he
+    refine Or.inl (Or.inl (Or.inr (seg_subset_pgCv (e := f) (by rw [pgEd_split]; exact List.mem_append_left _ hf) ?_)))
+    rw [segment_symm]; exact hz
+  · exact Or.inr (by rw [segment_symm]; exact hz)
+  · simp at he
+
+private lemma pgCv_chain1_subset_piece (x y x' y' : Pt) (α g : List Pt) {e : Pt × Pt} (he : e ∈ pgCh (x :: α ++ [y])) :
+    segment ℝ e.1 e.2 ⊆ pgCv (x :: (α ++ y :: y' :: (g.reverse ++ [x']))) := by
+  apply seg_subset_pgCv; rw [pgEd_piece]; exact List.mem_append_left _ he
+
+private lemma pgCv_chain2_subset_piece (x y x' y' : Pt) (α g : List Pt) {e : Pt × Pt} (he : e ∈ pgCh (x' :: g ++ [y'])) :
+    segment ℝ e.1 e.2 ⊆ pgCv (x :: (α ++ y :: y' :: (g.reverse ++ [x']))) := by
+  have : e.swap ∈ pgCh (y' :: g.reverse ++ [x']) := by
+    rw [pgCh_rev_chain, List.mem_reverse, List.mem_map]; exact ⟨e, he, rfl⟩
+  intro z hz
+  apply seg_subset_pgCv (e := e.swap)
+  · rw [pgEd_piece]; exact List.mem_append_right _ (List.mem_cons_of_mem _ (List.mem_append_left _ this))
+  · simp only [Prod.fst_swap, Prod.snd_swap]; rw [segment_symm]; exact hz
+
+/-- **Annulus theorem (lists)**: a simple outer polygon and a simple inner polygon of the same
+orientation, joined by two disjoint bridges, are freely homotopic in any set containing the curves,
+the bridges and the points between them -/
+private theorem pg_annulus_lists {x y x' y' : Pt} {α β g d : List Pt} {U : Set Pt} {σ : ℝ} (hσ : σ = 1 ∨ σ = -1)
+    (hA : PgSP (x :: α ++ y :: β)) (hK : PgSP (x' :: g ++ y' :: d))
+    (hdisj : Disjoint (pgCv (x :: α ++ y :: β)) (pgCv (x' :: g ++ y' :: d)))
+    (hbx : segment ℝ x x' ∩ pgCv (x :: α ++ y :: β) ⊆ {x}) (hbx' : segment ℝ x x' ∩ pgCv (x' :: g ++ y' :: d) ⊆ {x'})
+    (hby : segment ℝ y y' ∩ pgCv (x :: α ++ y :: β) ⊆ {y}) (hby' : segment ℝ y y' ∩ pgCv (x' :: g ++ y' :: d) ⊆ {y'})
+    (hbb : Disjoint (segment ℝ x x') (segment ℝ y y'))
+    (hAU : pgCv (x :: α ++ y :: β) ⊆ U) (hKU : pgCv (x' :: g ++ y' :: d) ⊆ U)
+    (hxU : segment ℝ x x' ⊆ U) (hyU : segment ℝ y y' ⊆ U)
+    (hreg : ∀ p, p ∉ pgCv (x :: α ++ y :: β) → p ∉ pgCv (x' :: g ++ y' :: d) →
+      pgW (x :: α ++ y :: β) p - pgW (x' :: g ++ y' :: d) p ≠ 0 → p ∈ U)
+    {s0 r : ℝ} (hs0 : s0 ∈ Ioo (0 : ℝ) 1) (hr : 0 < r)
+    (hball : ∀ z ∈ Metric.ball (x + s0 • (x' - x)) r, z ∉ pgCv (x :: α ++ y :: β) ∧
+      z ∉ pgCv (x' :: g ++ y' :: d) ∧ z ∉ segment ℝ y y')
+    (hval : pgW (x :: α ++ y :: β) (x + s0 • (x' - x)) - pgW (x' :: g ++ y' :: d) (x + s0 • (x' - x)) =
+      2 * Real.pi * σ) :
+    LoopsHomotopicIn U (pgLoop (x :: α ++ y :: β)) (pgLoop (x' :: g ++ y' :: d)) := by
+  set LA := x :: α ++ y :: β
+  set LK := x' :: g ++ y' :: d
+  set P1 := x :: (α ++ y :: y' :: (g.reverse ++ [x']))
+  set P2 := y :: (β ++ x :: x' :: (d.reverse ++ [y']))
+  -- rotated lists
+  have hLA' : LA.rotate (α.length + 1) = y :: β ++ x :: α :=
+    List.rotate_append_length_eq (x :: α) (y :: β)
+  have hLK' : LK.rotate (g.length + 1) = y' :: d ++ x' :: g :=
+    List.rotate_append_length_eq (x' :: g) (y' :: d)
+  have cvA' : pgCv (y :: β ++ x :: α) = pgCv LA := by rw [← hLA', pgCv_rotate]
+  have cvK' : pgCv (y' :: d ++ x' :: g) = pgCv LK := by rw [← hLK', pgCv_rotate]
+  have hA' : PgSP (y :: β ++ x :: α) := by rw [← hLA']; exact hA.rotate _
+  have hK' : PgSP (y' :: d ++ x' :: g) := by rw [← hLK']; exact hK.rotate _
+  have hP1 : PgSP P1 := pg_piece_simple hA hK hdisj hby hby' (by rw [segment_symm]; exact hbx)
+    (by rw [segment_symm]; exact hbx') (by rw [segment_symm ℝ x']; exact hbb.symm)
+  have hP2 : PgSP P2 := pg_piece_simple hA' hK' (by rw [cvA', cvK']; exact hdisj) (by rw [cvA']; exact hbx)
+    (by rw [cvK']; exact hbx') (by rw [segment_symm, cvA']; exact hby) (by rw [segment_symm, cvK']; exact hby')
+    (by rw [segment_symm ℝ y']; exact hbb)
+  -- curves
+  have cv1 : pgCv P1 ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ y y' ∪ segment ℝ x x' := pgCv_piece_subset x y x' y' α β g d
+  have cv2 : pgCv P2 ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ y y' ∪ segment ℝ x x' := by
+    have := pgCv_piece_subset y x y' x' β α d g
+    rw [cvA', cvK'] at this
+    intro z hz
+    rcases this hz with ((h | h) | h) | h
+    · exact Or.inl (Or.inl (Or.inl h))
+    · exact Or.inl (Or.inl (Or.inr h))
+    · exact Or.inr h
+    · exact Or.inl (Or.inr h)
+  have hcvU : pgCv LA ∪ pgCv LK ∪ segment ℝ y y' ∪ segment ℝ x x' ⊆ U :=
+    union_subset (union_subset (union_subset hAU hKU) hyU) hxU
+  have cvA12 : pgCv LA ⊆ pgCv P1 ∪ pgCv P2 := by
+    intro z hz
+    rw [mem_pgCv, pgEd_split] at hz
+    obtain ⟨e, he, hz⟩ := hz
+    rcases List.mem_append.1 he with he | he
+    · exact Or.inl (pgCv_chain1_subset_piece x y x' y' α g he hz)
+    · exact Or.inr (pgCv_chain1_subset_piece y x y' x' β d he hz)
+  have cvK12 : pgCv LK ⊆ pgCv P1 ∪ pgCv P2 := by
+    intro z hz
+    rw [mem_pgCv, pgEd_split] at hz
+    obtain ⟨e, he, hz⟩ := hz
+    rcases List.mem_append.1 he with he | he
+    · exact Or.inl (pgCv_chain2_subset_piece x y x' y' α g he hz)
+    · exact Or.inr (pgCv_chain2_subset_piece y x y' x' β d he hz)
+  have hxx'1 : segment ℝ x x' ⊆ pgCv P1 := by
+    rw [segment_symm]; apply seg_subset_pgCv (e := (x', x)); rw [pgEd_piece]; simp
+  have hyy'1 : segment ℝ y y' ⊆ pgCv P1 := by
+    apply seg_subset_pgCv (e := (y, y')); rw [pgEd_piece]; simp
+  -- orientations
+  obtain ⟨σ1, hσ1, hJ1, hE1⟩ := pg_jordan hP1
+  obtain ⟨σ2, hσ2, hJ2, hE2⟩ := pg_jordan hP2
+  set q := x + s0 • (x' - x)
+  have hqA : q ∉ pgCv LA := (hball q (Metric.mem_ball_self hr)).1
+  have hqK : q ∉ pgCv LK := (hball q (Metric.mem_ball_self hr)).2.1
+  have hσ12 := pg_glue_sigma hσ hσ1 hσ2 (a := x) (b := x') (hE1 (x', x) (by rw [pgEd_piece]; simp))
+    (hE2 (x, x') (by rw [pgEd_piece]; simp)) hs0 hr (fun z hz h1 h2 => by
+      obtain ⟨hzA, hzK, hzy⟩ := hball z hz
+      rw [pgW_pieces hzK hzy (fun h => h1 (hxx'1 h))]
+      have eA : pgW LA z = pgW LA q :=
+        pgW_const (convex_ball q r).isPreconnected (fun w hw => (hball w hw).1) hz (Metric.mem_ball_self hr)
+      have eK : pgW LK z = pgW LK q :=
+        pgW_const (convex_ball q r).isPreconnected (fun w hw => (hball w hw).2.1) hz (Metric.mem_ball_self hr)
+      rw [eA, eK]; exact hval)
+  rw [hσ12.1] at hJ1; rw [hσ12.2] at hJ2
+  -- regions
+  have hregP : ∀ {Pa Pb : List Pt}, pgCv Pa ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ y y' ∪ segment ℝ x x' →
+      pgCv Pb ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ y y' ∪ segment ℝ x x' →
+      pgCv LA ⊆ pgCv Pa ∪ pgCv Pb → pgCv LK ⊆ pgCv Pa ∪ pgCv Pb →
+      segment ℝ y y' ⊆ pgCv Pa ∪ pgCv Pb → segment ℝ x x' ⊆ pgCv Pa ∪ pgCv Pb →
+      (∀ p ∉ pgCv Pa, pgW Pa p = 0 ∨ pgW Pa p = 2 * Real.pi * σ) →
+      (∀ p ∉ pgCv Pb, pgW Pb p = 0 ∨ pgW Pb p = 2 * Real.pi * σ) →
+      (∀ p, p ∉ pgCv LK → p ∉ segment ℝ y y' → p ∉ segment ℝ x x' → pgW Pa p + pgW Pb p = pgW LA p - pgW LK p) →
+      pgReg Pa ⊆ U := by
+    intro Pa Pb ca cb cA cK cy cx ja jb hsum z hz
+    rcases hz with hz | hz
+    · exact hcvU (ca hz)
+    by_cases hza : z ∈ pgCv Pa
+    · exact hcvU (ca hza)
+    by_cases hzb : z ∈ pgCv Pb
+    · exact hcvU (cb hzb)
+    have hzA : z ∉ pgCv LA := fun h => by rcases cA h with h | h <;> contradiction
+    have hzK : z ∉ pgCv LK := fun h => by rcases cK h with h | h <;> contradiction
+    have hzy : z ∉ segment ℝ y y' := fun h => by rcases cy h with h | h <;> contradiction
+    have hzx : z ∉ segment ℝ x x' := fun h => by rcases cx h with h | h <;> contradiction
+    apply hreg z hzA hzK
+    rw [← hsum z hzK hzy hzx]
+    exact pg_piece_sum_ne hσ (ja z hza) (jb z hzb) hz
+  have hR1 : pgReg P1 ⊆ U := hregP cv1 cv2 cvA12 cvK12 (fun z h => Or.inl (hyy'1 h)) (fun z h => Or.inl (hxx'1 h))
+    hJ1 hJ2 (fun p hpK hpy hpx => pgW_pieces hpK hpy hpx)
+  have hR2 : pgReg P2 ⊆ U := hregP cv2 cv1 (fun z h => (cvA12 h).symm) (fun z h => (cvK12 h).symm)
+    (fun z h => Or.inr (hyy'1 h)) (fun z h => Or.inr (hxx'1 h)) hJ2 hJ1
+    (fun p hpK hpy hpx => by rw [add_comm]; exact pgW_pieces hpK hpy hpx)
+  have hD1 := pg_disk _ P1 rfl hP1 U hR1 x rfl
+  have hD2 := pg_disk _ P2 rfl hP2 U hR2 y rfl
+  exact pg_annulus_moves hD1 hD2 hAU hKU hxU hyU
+
+/-! ### Subdividing an edge -/
+
+private lemma jcr_neg_left (u v : Pt) : jcr (-u) v = - jcr u v := by simp [jcr]; ring
+
+/-- a point off a segment sees it inside an open half-plane -/
+private lemma pg_sep {a b p : Pt} (hp : p ∉ segment ℝ a b) : ∃ d : Pt, ∀ x ∈ segment ℝ a b, 0 < jcr d (x - p) := by
+  by_cases hab : a = b
+  · subst hab
+    refine ⟨-(jrot (a - p)), fun x hx => ?_⟩
+    rw [segment_same, mem_singleton_iff] at hx; subst hx
+    have hne : x - p ≠ 0 := sub_ne_zero.2 (fun h => hp (by rw [h]; exact left_mem_segment ℝ _ _))
+    rw [jcr_neg_left, jcr_anti, jcr_jrot, neg_neg]
+    exact pow_pos (norm_pos_iff.2 hne) 2
+  have hu : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have hpar : ∀ x ∈ segment ℝ a b, ∃ s : ℝ, 0 ≤ s ∧ s ≤ 1 ∧ x - p = (a - p) + s • (b - a) := by
+    intro x hx
+    obtain ⟨s, hs0, hs1, rfl⟩ := mem_segment_iff'.1 hx
+    exact ⟨s, hs0, hs1, by abel⟩
+  rcases lt_trichotomy (jcr (b - a) (a - p)) 0 with hc | hc | hc
+  · refine ⟨-(b - a), fun x hx => ?_⟩
+    obtain ⟨s, -, -, hxs⟩ := hpar x hx
+    rw [hxs, jcr_neg_left, jcr_add_right, jcr_smul_right, jcr_self]; linarith
+  · obtain ⟨κ, hκ⟩ := exists_smul_of_jcr_eq_zero hu hc
+    have hκ' : 0 < κ ∨ κ < -1 := by
+      by_contra h; push_neg at h
+      apply hp
+      rw [mem_segment_iff']
+      exact ⟨-κ, by linarith [h.1], by linarith [h.2], by
+        rw [neg_smul, ← hκ]; abel⟩
+    have hn : 0 < ‖b - a‖ ^ 2 := pow_pos (norm_pos_iff.2 hu) 2
+    have key : ∀ x ∈ segment ℝ a b, ∃ s : ℝ, 0 ≤ s ∧ s ≤ 1 ∧ jcr (jrot (b - a)) (x - p) = -((κ + s) * ‖b - a‖ ^ 2) := by
+      intro x hx
+      obtain ⟨s, hs0, hs1, hxs⟩ := hpar x hx
+      refine ⟨s, hs0, hs1, ?_⟩
+      rw [hxs, hκ, ← add_smul, jcr_smul_right, jcr_anti, jcr_jrot]; ring
+    rcases hκ' with hκ' | hκ'
+    · refine ⟨-(jrot (b - a)), fun x hx => ?_⟩
+      obtain ⟨s, hs0, -, hs⟩ := key x hx
+      rw [jcr_neg_left, hs, neg_neg]; positivity
+    · refine ⟨jrot (b - a), fun x hx => ?_⟩
+      obtain ⟨s, -, hs1, hs⟩ := key x hx
+      rw [hs]; nlinarith
+  · refine ⟨b - a, fun x hx => ?_⟩
+    obtain ⟨s, -, -, hxs⟩ := hpar x hx
+    rw [hxs, jcr_add_right, jcr_smul_right, jcr_self]; linarith
+
+/-- the angles subtended by the two halves of a segment add up -/
+private lemma pg_arg_split {a b y p : Pt} (hy : y ∈ segment ℝ a b) (hp : p ∉ segment ℝ a b) :
+    Complex.arg (segRatio a y p) + Complex.arg (segRatio y b p) = Complex.arg (segRatio a b p) := by
+  obtain ⟨d, hd⟩ := pg_sep hp
+  have h0 : pgW [a, y, b] p = 0 := by
+    apply pgW_eq_zero_of_halfplane (d := d)
+    intro x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl
+    · exact hd _ (left_mem_segment ℝ _ _)
+    · exact hd _ hy
+    · exact hd _ (right_mem_segment ℝ _ _)
+  rw [pgW_tri] at h0
+  have := arg_segRatio_swap hp
+  linarith
+
+section subdiv
+
+variable {a b y : Pt}
+
+private lemma pg_seg_halves (hy : y ∈ openSegment ℝ a b) (hab : a ≠ b) :
+    segment ℝ a y ⊆ segment ℝ a b ∧ segment ℝ y b ⊆ segment ℝ a b ∧
+      segment ℝ a b ⊆ segment ℝ a y ∪ segment ℝ y b ∧ segment ℝ a y ∩ segment ℝ y b ⊆ {y} ∧
+      b ∉ segment ℝ a y ∧ a ∉ segment ℝ y b := by
+  have hys := openSegment_subset_segment ℝ a b hy
+  obtain ⟨t, ht0, ht1, rfl⟩ := mem_openSegment_iff'.1 hy
+  have hu : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have hay : ∀ z ∈ segment ℝ a (a + t • (b - a)), ∃ s, 0 ≤ s ∧ s ≤ t ∧ z = a + s • (b - a) := by
+    intro z hz
+    obtain ⟨s, hs0, hs1, rfl⟩ := mem_segment_iff'.1 hz
+    exact ⟨s * t, by positivity, by nlinarith, by rw [add_sub_cancel_left, smul_smul]⟩
+  have hyb : ∀ z ∈ segment ℝ (a + t • (b - a)) b, ∃ s, t ≤ s ∧ s ≤ 1 ∧ z = a + s • (b - a) := by
+    intro z hz
+    obtain ⟨s, hs0, hs1, rfl⟩ := mem_segment_iff'.1 hz
+    exact ⟨t + s * (1 - t), by nlinarith, by nlinarith, by module⟩
+  refine ⟨(convex_segment a b).segment_subset (left_mem_segment ℝ _ _) hys,
+    (convex_segment a b).segment_subset hys (right_mem_segment ℝ _ _), ?_, ?_, ?_, ?_⟩
+  · intro z hz
+    obtain ⟨s, hs0, hs1, rfl⟩ := mem_segment_iff'.1 hz
+    rcases le_total s t with h | h
+    · left; rw [mem_segment_iff']
+      exact ⟨s / t, by positivity, by rw [div_le_one ht0]; exact h, by
+        rw [add_sub_cancel_left, smul_smul, div_mul_cancel₀ _ ht0.ne']⟩
+    · right; rw [mem_segment_iff']
+      refine ⟨(s - t) / (1 - t), div_nonneg (by linarith) (by linarith), by
+        rw [div_le_one (by linarith)]; linarith, ?_⟩
+      have h1t : (1 : ℝ) - t ≠ 0 := by linarith
+      rw [show b - (a + t • (b - a)) = (1 - t) • (b - a) by module, smul_smul, div_mul_cancel₀ _ h1t]
+      module
+  · rintro z ⟨hz1, hz2⟩
+    obtain ⟨s1, -, hs1, rfl⟩ := hay z hz1
+    obtain ⟨s2, hs2, -, he⟩ := hyb _ hz2
+    have : s1 = s2 := smul_cancel_pt hu (add_left_cancel he)
+    have : s1 = t := by linarith
+    subst this; rfl
+  · intro h
+    obtain ⟨s, -, hs, he⟩ := hay b h
+    have : (1 : ℝ) = s := smul_cancel_pt hu (by rw [one_smul]; exact (sub_eq_iff_eq_add'.2 he))
+    linarith
+  · intro h
+    obtain ⟨s, hs, -, he⟩ := hyb a h
+    have : (0 : ℝ) = s := smul_cancel_pt hu (by rw [zero_smul]; rw [← sub_self a]; exact sub_eq_iff_eq_add'.2 he)
+    linarith
+
+private lemma pgCv_insert_on_edge {z : Pt} (R : List Pt) (hz : z ∈ segment ℝ a b) :
+    pgCv (a :: z :: b :: R) ⊆ pgCv (a :: b :: R) := by
+  intro w hw
+  rw [mem_pgCv] at hw ⊢
+  obtain ⟨e, he, hwe⟩ := hw
+  rw [show pgEd (a :: z :: b :: R) = (a, z) :: (z, b) :: pgCh (b :: R ++ [a]) from rfl] at he
+  have hab : (a, b) ∈ pgEd (a :: b :: R) := by
+    rw [show pgEd (a :: b :: R) = (a, b) :: pgCh (b :: R ++ [a]) from rfl]; exact List.mem_cons_self
+  rcases List.mem_cons.1 he with rfl | he
+  · exact ⟨(a, b), hab, (convex_segment a b).segment_subset (left_mem_segment ℝ _ _) hz hwe⟩
+  rcases List.mem_cons.1 he with rfl | he
+  · exact ⟨(a, b), hab, (convex_segment a b).segment_subset hz (right_mem_segment ℝ _ _) hwe⟩
+  · exact ⟨e, List.mem_cons_of_mem _ he, hwe⟩
+
+/-- **Subdividing an edge** of a simple polygon at an interior point -/
+private lemma pg_subdiv {R : List Pt} (hl : PgSP (a :: b :: R)) (hy : y ∈ openSegment ℝ a b) :
+    PgSP (a :: y :: b :: R) ∧ pgCv (a :: y :: b :: R) = pgCv (a :: b :: R) ∧
+      (∀ p ∉ pgCv (a :: b :: R), pgW (a :: y :: b :: R) p = pgW (a :: b :: R) p) ∧
+      ∀ X : Set Pt, pgCv (a :: b :: R) ⊆ X → PgRel X (a :: b :: R) (a :: y :: b :: R) := by
+  have hab : a ≠ b := by
+    intro h; have := hl.nodup; rw [h] at this; simp at this
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := pg_seg_halves hy hab
+  have hys := openSegment_subset_segment ℝ a b hy
+  have hya : y ≠ a := fun h => hab ((left_mem_openSegment_iff).1 (h ▸ hy))
+  have hyb : y ≠ b := fun h => hab ((right_mem_openSegment_iff).1 (h ▸ hy))
+  have hEab : (a, b) ∈ pgEd (a :: b :: R) := by
+    rw [show pgEd (a :: b :: R) = (a, b) :: pgCh (b :: R ++ [a]) from rfl]; exact List.mem_cons_self
+  have hEd : pgEd (a :: y :: b :: R) = (a, y) :: (y, b) :: pgCh (b :: R ++ [a]) := rfl
+  have hEd0 : pgEd (a :: b :: R) = (a, b) :: pgCh (b :: R ++ [a]) := rfl
+  have hcv : pgCv (a :: y :: b :: R) = pgCv (a :: b :: R) := by
+    refine Subset.antisymm (pgCv_insert_on_edge R hys) ?_
+    intro w hw
+    rw [mem_pgCv, hEd0] at hw
+    rw [mem_pgCv, hEd]
+    obtain ⟨e, he, hwe⟩ := hw
+    rcases List.mem_cons.1 he with rfl | he
+    · rcases h3 hwe with h | h
+      · exact ⟨(a, y), List.mem_cons_self, h⟩
+      · exact ⟨(y, b), List.mem_cons_of_mem _ List.mem_cons_self, h⟩
+    · exact ⟨e, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ he), hwe⟩
+  refine ⟨⟨by simp, ?_, ?_⟩, hcv, fun p hp => ?_, fun X hX => ?_⟩
+  · -- nodup
+    refine List.nodup_cons.2 ⟨?_, List.nodup_cons.2 ⟨?_, (List.nodup_cons.1 hl.nodup).2⟩⟩
+    · intro h
+      rcases List.mem_cons.1 h with h | h
+      · exact hya h.symm
+      · exact (List.nodup_cons.1 hl.nodup).1 h
+    · intro h
+      rcases List.mem_cons.1 h with h | hyR
+      · exact hyb h
+      have hyl : y ∈ a :: b :: R := List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hyR)
+      rcases pg_vertex_on_edge hl hyl hEab hys with h | h
+      · exact hya h
+      · exact hyb h
+  · -- pairwise
+    have hpw := hl.pw
+    rw [hEd0, List.pairwise_cons] at hpw
+    rw [hEd, List.pairwise_cons, List.pairwise_cons]
+    refine ⟨?_, ?_, hpw.2⟩
+    · intro f hf
+      rcases List.mem_cons.1 hf with rfl | hf
+      · intro z hz
+        have := h4 hz
+        rw [mem_singleton_iff] at this; subst this
+        exact ⟨Or.inr rfl, Or.inl rfl⟩
+      · intro z hz
+        have hz' := hpw.1 f hf ⟨h1 hz.1, hz.2⟩
+        have hza : z = a := by
+          rcases hz'.1 with h | h
+          · exact h
+          · have h' : z = b := h
+            exact absurd (by rw [← h']; exact hz.1) h5
+        exact ⟨Or.inl hza, hz'.2⟩
+    · intro f hf z hz
+      have hz' := hpw.1 f hf ⟨h2 hz.1, hz.2⟩
+      have hzb : z = b := by
+        rcases hz'.1 with h | h
+        · have h' : z = a := h
+          exact absurd (by rw [← h']; exact hz.1) h6
+        · exact h
+      exact ⟨Or.inr hzb, hz'.2⟩
+  · -- winding
+    have hpy : p ∉ segment ℝ a b := fun h => hp (seg_subset_pgCv hEab h)
+    rw [pgW_eq_chW, pgW_eq_chW]
+    simp only [List.cons_append, pgChW_cons2]
+    rw [← pg_arg_split hys hpy]; ring
+  · -- moves
+    have s1 := PgRel.dup (X := X) [a] (b :: R) (x := b) (by simp) hX
+    have s2 : PgRel X ([a] ++ b :: b :: R) ([a] ++ y :: b :: R) := by
+      refine PgRel.move (by simp) fun s hs => ?_
+      refine Subset.trans (pgCv_insert_on_edge R ?_) hX
+      exact (convex_segment a b) (right_mem_segment ℝ a b) hys (by linarith [hs.2]) hs.1 (by ring)
+    simp only [List.singleton_append] at s1 s2
+    exact s1.trans s2
+
+end subdiv
+
+/-! ### Subdividing at a point of the curve -/
+
+/-- **Subdivision at a point of the curve**: the point becomes the first vertex -/
+private lemma pg_subdiv_at {l : List Pt} (hl : PgSP l) {y : Pt} (hyc : y ∈ pgCv l) (hyv : y ∉ l) :
+    ∃ l' : List Pt, PgSP l' ∧ l'.head? = some y ∧ pgCv l' = pgCv l ∧ (∀ p ∉ pgCv l, pgW l' p = pgW l p) ∧
+      (∀ x ∈ l, x ∈ l') ∧ (∀ x ∈ l', x ∈ l ∨ x = y) ∧
+      ∀ X : Set Pt, pgCv l ⊆ X → LoopsHomotopicIn X (pgLoop l) (pgLoop l') := by
+  obtain ⟨e, he, hye⟩ := mem_pgCv.1 hyc
+  obtain ⟨k, hk, rfl⟩ := pg_edge_of_mem he
+  obtain ⟨rest, hrot⟩ := pg_rot_cons hk hl.three
+  set a := l[k]
+  set b := l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))
+  set c := l[(k + 2) % l.length]'(Nat.mod_lt _ (by omega))
+  have hyo : y ∈ openSegment ℝ a b := by
+    rw [← insert_endpoints_openSegment] at hye
+    rcases hye with h | h | h
+    · exact absurd (h ▸ List.getElem_mem _) hyv
+    · exact absurd (h ▸ List.getElem_mem _) hyv
+    · exact h
+  have hL : PgSP (a :: b :: c :: rest) := by rw [← hrot]; exact hl.rotate k
+  obtain ⟨hS, hcv, hW, hrel⟩ := pg_subdiv hL hyo
+  have hmem : ∀ x, x ∈ a :: b :: c :: rest ↔ x ∈ l := fun x => by rw [← hrot, List.mem_rotate]
+  refine ⟨(a :: y :: b :: c :: rest).rotate 1, hS.rotate 1, by simp, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [pgCv_rotate, hcv, ← hrot, pgCv_rotate]
+  · intro p hp
+    rw [pgW_rotate, hW p (by rw [← hrot, pgCv_rotate]; exact hp), ← hrot, pgW_rotate]
+  · intro x hx
+    rw [List.mem_rotate]
+    have := (hmem x).2 hx
+    simp only [List.mem_cons] at this ⊢; tauto
+  · intro x hx
+    rw [List.mem_rotate] at hx
+    simp only [List.mem_cons] at hx
+    rcases hx with h | h | h
+    · left; exact (hmem x).1 (by simp [h])
+    · right; exact h
+    · left; exact (hmem x).1 (by simp only [List.mem_cons]; tauto)
+  · intro X hX
+    have hne : l ≠ [] := by intro h; rw [h] at hk; simp at hk
+    have h1 := pg_lh_mono hX (pg_lh_rotate hne k)
+    rw [hrot] at h1
+    have hX' : pgCv (a :: b :: c :: rest) ⊆ X := fun z hz => hX (by rw [← hrot, pgCv_rotate] at hz; exact hz)
+    have h2 := (hrel X hX').sound
+    have h3' := pg_lh_rotate (l := a :: y :: b :: c :: rest) (by simp) 1
+    have h3 := pg_lh_mono (fun z hz => hX' (hcv ▸ hz)) h3'
+    exact pg_lh_trans h1 (pg_lh_trans h2 h3)
+
+/-! ### Rays -/
+
+/-- the first time a path leaves an open set -/
+private lemma pg_first_exit {r : ℝ → Pt} (hr : Continuous r) {S : Set Pt} (hS : IsOpen S) (h0 : r 0 ∈ S) {T : ℝ}
+    (hT0 : 0 ≤ T) (hT : r T ∉ S) : ∃ t ∈ Ioc 0 T, r t ∉ S ∧ ∀ s ∈ Ico 0 t, r s ∈ S := by
+  set M := {s ∈ Icc 0 T | r s ∉ S}
+  have hMc : IsClosed M := isClosed_Icc.inter (hS.isClosed_compl.preimage hr)
+  have hMne : M.Nonempty := ⟨T, ⟨hT0, le_rfl⟩, hT⟩
+  have hMb : BddBelow M := ⟨0, fun s hs => hs.1.1⟩
+  have ht := hMc.csInf_mem hMne hMb
+  refine ⟨sInf M, ⟨?_, ht.1.2⟩, ht.2, fun s hs => ?_⟩
+  · rcases eq_or_lt_of_le ht.1.1 with h | h
+    · exfalso; apply ht.2; rw [← h]; exact h0
+    · exact h
+  · by_contra h
+    have : sInf M ≤ s := csInf_le hMb ⟨⟨hs.1, by linarith [hs.2, ht.1.2]⟩, h⟩
+    linarith [hs.2]
+
+/-- the last time a path is in a closed set -/
+private lemma pg_last_in {r : ℝ → Pt} (hr : Continuous r) {C : Set Pt} (hC : IsClosed C) (h0 : r 0 ∈ C) {T : ℝ}
+    (hT0 : 0 ≤ T) (hT : r T ∉ C) : ∃ t ∈ Ico 0 T, r t ∈ C ∧ ∀ s ∈ Ioc t T, r s ∉ C := by
+  set M := {s ∈ Icc 0 T | r s ∈ C}
+  have hMc : IsClosed M := isClosed_Icc.inter (hC.preimage hr)
+  have hMne : M.Nonempty := ⟨0, ⟨le_rfl, hT0⟩, h0⟩
+  have hMb : BddAbove M := ⟨T, fun s hs => hs.1.2⟩
+  have ht := hMc.csSup_mem hMne hMb
+  refine ⟨sSup M, ⟨ht.1.1, ?_⟩, ht.2, fun s hs h => ?_⟩
+  · rcases eq_or_lt_of_le ht.1.2 with h | h
+    · exfalso; apply hT; rw [← h]; exact ht.2
+    · exact h
+  · have : s ≤ sSup M := le_csSup hMb ⟨⟨by linarith [hs.1, ht.1.1], hs.2⟩, h⟩
+    linarith [hs.1]
+
+/-- the vertical unit vector -/
+private def pgEy : Pt := !₂[0, 1]
+
+private lemma pgEy_apply0 : pgEy 0 = 0 := by simp [pgEy]
+private lemma pgEy_apply1 : pgEy 1 = 1 := by simp [pgEy]
+private lemma norm_pgEy : ‖pgEy‖ = 1 := by rw [EuclideanSpace.norm_eq]; simp [pgEy]
+
+/-- a point of the interior of `C` avoiding finitely many abscissas -/
+private lemma pg_choose_point {S : Set Pt} (hS : IsOpen S) (hne : S.Nonempty) (F : Finset ℝ) :
+    ∃ p ∈ S, p 0 ∉ F := by
+  obtain ⟨p0, hp0⟩ := hne
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hS p0 hp0
+  obtain ⟨x, hx, hxF⟩ := (Set.Ioo_infinite (show p0 0 < p0 0 + ε by linarith)).exists_notMem_finset F
+  refine ⟨!₂[x, p0 1], hball ?_, by simpa using hxF⟩
+  rw [Metric.mem_ball, EuclideanSpace.dist_eq]
+  simp [Fin.sum_univ_two]
+  rw [Real.dist_eq, abs_lt]; constructor <;> linarith [hx.1, hx.2]
+
+/-! ### Bridges between nested polygonal disks -/
+
+private lemma pg_frontier_inter_interior {s : Set Pt} {z : Pt} (h1 : z ∈ frontier s) (h2 : z ∈ interior s) : False := by
+  rw [frontier, mem_diff] at h1; exact h1.2 h2
+
+/-- a ray from an interior point of the inner disk: its first exit from the outer disk and its last
+point on the inner disk -/
+private lemma pd_bridge (A C : PolygonalDisk) (hCA : C.carrier ⊆ interior A.carrier) {p : Pt}
+    (hp : p ∈ interior C.carrier) {v : Pt} (hv : ‖v‖ = 1) :
+    ∃ tC tA : ℝ, 0 < tC ∧ tC < tA ∧ p + tA • v ∈ frontier A.carrier ∧ p + tC • v ∈ frontier C.carrier ∧
+      (∀ t, 0 ≤ t → t < tA → p + t • v ∈ interior A.carrier) ∧ (∀ t, tC < t → t ≤ tA → p + t • v ∉ C.carrier) := by
+  set r : ℝ → Pt := fun t => p + t • v
+  have hr : Continuous r := by fun_prop
+  have hpC : p ∈ C.carrier := interior_subset hp
+  have hpA : p ∈ interior A.carrier := hCA hpC
+  obtain ⟨R, hR⟩ := (Metric.isBounded_iff_subset_ball p).1 A.compact.isBounded
+  have hR0 : 0 ≤ R := by
+    by_contra h; push_neg at h
+    have := hR (interior_subset hpA); rw [Metric.mem_ball, dist_self] at this; linarith
+  have hrR : r R ∉ interior A.carrier := fun h => by
+    have := hR (interior_subset h)
+    rw [Metric.mem_ball, dist_eq_norm] at this
+    simp only [r, add_sub_cancel_left, norm_smul, hv, mul_one, Real.norm_eq_abs, abs_of_nonneg hR0] at this
+    linarith
+  obtain ⟨tA, ⟨htA0, -⟩, htA, hbefore⟩ := pg_first_exit hr isOpen_interior (by simpa [r] using hpA) hR0 hrR
+  have hAcl := pd_isClosed_carrier A
+  have hCcl := pd_isClosed_carrier C
+  have hrtA : r tA ∈ A.carrier := by
+    apply hAcl.mem_of_tendsto (b := 𝓝[<] tA) ((hr.tendsto tA).mono_left nhdsWithin_le_nhds)
+    filter_upwards [Ioo_mem_nhdsLT htA0] with s hs
+    exact interior_subset (hbefore s ⟨hs.1.le, hs.2⟩)
+  have hfA : r tA ∈ frontier A.carrier := by rw [hAcl.frontier_eq]; exact ⟨hrtA, htA⟩
+  have hrtAC : r tA ∉ C.carrier := fun h => htA (hCA h)
+  obtain ⟨tC, ⟨htC0, htCA⟩, htC, hafter⟩ := pg_last_in hr hCcl (by simpa [r] using hpC) htA0.le hrtAC
+  have hfC : r tC ∈ frontier C.carrier := by
+    rw [hCcl.frontier_eq]
+    refine ⟨htC, fun hint => ?_⟩
+    obtain ⟨δ, hδ, hball⟩ := Metric.isOpen_iff.1 (isOpen_interior.preimage hr) tC hint
+    set s := min (tC + δ / 2) tA
+    have hs1 : tC < s := lt_min (by linarith) htCA
+    have hs2 : s ≤ tA := min_le_right _ _
+    apply hafter s ⟨hs1, hs2⟩
+    apply interior_subset
+    apply hball
+    rw [Metric.mem_ball, Real.dist_eq, abs_lt]
+    constructor
+    · linarith
+    · linarith [min_le_left (tC + δ / 2) tA]
+  have htCpos : 0 < tC := by
+    rcases eq_or_lt_of_le htC0 with h | h
+    · exfalso; rw [← h] at hfC; simp only [r, zero_smul, add_zero] at hfC
+      exact pg_frontier_inter_interior hfC hp
+    · exact h
+  exact ⟨tC, tA, htCpos, htCA, hfA, hfC, fun t ht0 ht => hbefore t ⟨ht0, ht⟩, fun t h1 h2 => hafter t ⟨h1, h2⟩⟩
+
+private lemma pg_seg_ray {p v : Pt} {t1 t2 : ℝ} (h : t1 ≤ t2) {z : Pt} (hz : z ∈ segment ℝ (p + t2 • v) (p + t1 • v)) :
+    ∃ t, t1 ≤ t ∧ t ≤ t2 ∧ z = p + t • v := by
+  obtain ⟨θ, h0, h1, rfl⟩ := mem_segment_iff'.1 hz
+  refine ⟨t2 + θ * (t1 - t2), by nlinarith, by nlinarith, by module⟩
+
+/-! ### Two parametrizations of the same simple closed curve -/
+
+private lemma pg_periodic_fract {δ : ℝ → Pt} (hp : Function.Periodic δ 1) (x : ℝ) : δ (Int.fract x) = δ x := by
+  have := (hp.int_mul ⌊x⌋) (Int.fract x)
+  rw [mul_one, Int.fract_add_floor] at this
+  exact this.symm
+
+private lemma pg_isLoopParam_neg {K : Set Pt} {δ : ℝ → Pt} (h : IsLoopParam K δ) : IsLoopParam K (fun t => δ (-t)) := by
+  obtain ⟨hc, hp, hinj, him⟩ := h
+  refine ⟨hc.comp continuous_neg, fun t => by simp only [neg_add, ← sub_eq_add_neg]; exact hp.sub_eq _, ?_, ?_⟩
+  · intro a ha b hb hab
+    simp only at hab
+    rw [← pg_periodic_fract hp, ← pg_periodic_fract hp (-b)] at hab
+    have e := hinj ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ hab
+    rw [Int.fract_eq_fract] at e
+    obtain ⟨m, hm⟩ := e
+    have h1 : (m : ℝ) < 1 := by linarith [ha.1, ha.2, hb.1, hb.2]
+    have h2 : (-1 : ℝ) < m := by linarith [ha.1, ha.2, hb.1, hb.2]
+    have : m = 0 := by
+      have : m < 1 := by exact_mod_cast h1
+      have : -1 < m := by exact_mod_cast h2
+      omega
+    subst this; simp at hm; linarith
+  · rw [← him]
+    ext z
+    constructor
+    · rintro ⟨t, -, rfl⟩
+      exact ⟨Int.fract (-t), ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩, pg_periodic_fract hp _⟩
+    · rintro ⟨u, -, rfl⟩
+      refine ⟨Int.fract (-u), ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩, ?_⟩
+      simp only
+      rw [← pg_periodic_fract hp, ← pg_periodic_fract hp u]
+      congr 1
+      rw [Int.fract_eq_fract]
+      exact ⟨⌊-u⌋, by rw [Int.fract]; ring⟩
+
+/-- a continuous lift of `γ` through `δ` -/
+private lemma pg_loop_lift {K : Set Pt} {γ δ : ℝ → Pt} (hγ : IsLoopParam K γ) (hδ : IsLoopParam K δ) :
+    ∃ F : ℝ → ℝ, Continuous F ∧ ∀ t, δ (F t) = γ t := by
+  obtain ⟨hγc, hγp, -, hγim⟩ := hγ
+  obtain ⟨hδc, hδp, hδinj, hδim⟩ := hδ
+  set Φ : AddCircle (1 : ℝ) → Pt := hδp.lift with hΦdef
+  have hΦc : Continuous Φ := (QuotientAddGroup.isQuotientMap_mk _).continuous_iff.2 hδc
+  have hΦx : ∀ x : ℝ, Φ (x : AddCircle (1 : ℝ)) = δ x := fun x => rfl
+  have hΦinj : Function.Injective Φ := by
+    intro u v huv
+    induction u using QuotientAddGroup.induction_on with | H a => ?_
+    induction v using QuotientAddGroup.induction_on with | H b => ?_
+    have ha : (a : AddCircle (1 : ℝ)) = (Int.fract a : ℝ) := by
+      rw [QuotientAddGroup.eq]; exact ⟨-⌊a⌋, by simp only [Int.fract, zsmul_eq_mul]; push_cast; ring⟩
+    have hb : (b : AddCircle (1 : ℝ)) = (Int.fract b : ℝ) := by
+      rw [QuotientAddGroup.eq]; exact ⟨-⌊b⌋, by simp only [Int.fract, zsmul_eq_mul]; push_cast; ring⟩
+    rw [ha, hb] at huv ⊢
+    rw [hΦx, hΦx] at huv
+    rw [hδinj ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ huv]
+  have hemb : Topology.IsEmbedding Φ := (hΦc.isClosedEmbedding hΦinj).isEmbedding
+  have hrange : ∀ t, γ t ∈ range Φ := by
+    intro t
+    have : γ (Int.fract t) ∈ K := hγim ▸ mem_image_of_mem _ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+    rw [← hδim] at this
+    obtain ⟨u, -, hu⟩ := this
+    exact ⟨u, by rw [hΦx, hu, pg_periodic_fract hγp]⟩
+  set g : ℝ → AddCircle (1 : ℝ) := fun t => Function.invFun Φ (γ t)
+  have hg : ∀ t, Φ (g t) = γ t := fun t => Function.invFun_eq (hrange t)
+  have hgc : Continuous g := hemb.continuous_iff.2 (by
+    have : Φ ∘ g = γ := funext hg
+    rw [this]; exact hγc)
+  obtain ⟨F, hF, -⟩ := (AddCircle.isCoveringMap_coe (1 : ℝ)).existsUnique_continuousMap_lifts ⟨g, hgc⟩ 0
+    (Function.invFun QuotientAddGroup.mk (g 0)) (Function.invFun_eq (QuotientAddGroup.mk_surjective (g 0)))
+  refine ⟨F, F.continuous, fun t => ?_⟩
+  rw [← hΦx, ← hg t]
+  exact congrArg Φ (congrFun hF.2 t)
+
+private lemma pg_periodic_int {δ : ℝ → Pt} (hp : Function.Periodic δ 1) (x : ℝ) (m : ℤ) : δ (x + m) = δ x := by
+  have := (hp.int_mul m) x
+  rwa [mul_one] at this
+
+private lemma pg_param_eq {K : Set Pt} {δ : ℝ → Pt} (hδ : IsLoopParam K δ) {a b : ℝ} (h : δ a = δ b) : ∃ m : ℤ, a - b = m := by
+  obtain ⟨-, hp, hinj, -⟩ := hδ
+  rw [← pg_periodic_fract hp, ← pg_periodic_fract hp b] at h
+  exact Int.fract_eq_fract.1 (hinj ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ h)
+
+/-- the lift has a constant integer increment over a period -/
+private lemma pg_lift_incr {K : Set Pt} {γ δ : ℝ → Pt} (hγ : IsLoopParam K γ) (hδ : IsLoopParam K δ) {F : ℝ → ℝ}
+    (hF : Continuous F) (hFδ : ∀ t, δ (F t) = γ t) : ∃ n : ℤ, ∀ t, F (t + 1) = F t + n := by
+  have hint : ∀ t, ∃ m : ℤ, F (t + 1) - F t = m := fun t =>
+    pg_param_eq hδ (by rw [hFδ, hFδ, hγ.2.1 t])
+  obtain ⟨n, hn⟩ := hint 0
+  refine ⟨n, fun t => ?_⟩
+  obtain ⟨m, hm⟩ := hint t
+  suffices m = n by rw [← this, ← hm]; ring
+  by_contra hne
+  set k : ℝ → ℝ := fun t => F (t + 1) - F t
+  have hkc : Continuous k := by fun_prop
+  have key : ∀ v : ℝ, v ∈ uIcc (k 0) (k t) → ∃ m' : ℤ, (m' : ℝ) = v := by
+    intro v hv
+    obtain ⟨s, -, hs⟩ := intermediate_value_uIcc hkc.continuousOn hv
+    obtain ⟨m', hm'⟩ := hint s
+    exact ⟨m', by rw [← hm', ← hs]⟩
+  have hk0 : k 0 = n := hn
+  have hkt : k t = m := hm
+  rcases lt_or_gt_of_ne hne with h | h
+  · have h' : (m : ℝ) + 1 ≤ n := by exact_mod_cast h
+    obtain ⟨m', hm'⟩ := key (n - 1 / 2) (by rw [hk0, hkt, uIcc_of_ge (by linarith)]; constructor <;> linarith)
+    have : (2 * m' : ℤ) = 2 * n - 1 := by
+      have : ((2 * m' : ℤ) : ℝ) = ((2 * n - 1 : ℤ) : ℝ) := by push_cast; linarith
+      exact_mod_cast this
+    omega
+  · have h' : (n : ℝ) + 1 ≤ m := by exact_mod_cast h
+    obtain ⟨m', hm'⟩ := key (n + 1 / 2) (by rw [hk0, hkt, uIcc_of_le (by linarith)]; constructor <;> linarith)
+    have : (2 * m' : ℤ) = 2 * n + 1 := by
+      have : ((2 * m' : ℤ) : ℝ) = ((2 * n + 1 : ℤ) : ℝ) := by push_cast; linarith
+      exact_mod_cast this
+    omega
+
+/-- the increment of the lift is `±1` -/
+private lemma pg_lift_degree {K : Set Pt} {γ δ : ℝ → Pt} (hγ : IsLoopParam K γ) (hδ : IsLoopParam K δ) {F : ℝ → ℝ}
+    (hF : Continuous F) (hFδ : ∀ t, δ (F t) = γ t) {n : ℤ} (hn : ∀ t, F (t + 1) = F t + n) : n = 1 ∨ n = -1 := by
+  have hinj := hγ.2.2.1
+  have hδp := hδ.2.1
+  have hF1 : F 1 = F 0 + n := by simpa using hn 0
+  have hcont := hF.continuousOn (s := uIcc 0 1)
+  -- a point `s ∈ (0,1)` with `F s = F 0 + 1` or `F 0 - 1` is impossible
+  have hno : ∀ s ∈ Ioo (0 : ℝ) 1, ∀ m : ℤ, F s = F 0 + m → False := by
+    intro s hs m hm
+    have : γ s = γ 0 := by rw [← hFδ, ← hFδ, hm, pg_periodic_int hδp]
+    have := hinj ⟨hs.1.le, hs.2⟩ ⟨le_refl _, one_pos⟩ this
+    linarith [hs.1]
+  have hivt : ∀ v ∈ uIcc (F 0) (F 1), ∃ s ∈ Icc (0 : ℝ) 1, F s = v := by
+    intro v hv
+    obtain ⟨s, hs, hsv⟩ := intermediate_value_uIcc hcont hv
+    rw [uIcc_of_le zero_le_one] at hs
+    exact ⟨s, hs, hsv⟩
+  by_contra hne
+  push_neg at hne
+  rcases lt_trichotomy n 0 with h | h | h
+  · have h2 : n ≤ -2 := by omega
+    have h2' : (n : ℝ) ≤ -2 := by exact_mod_cast h2
+    obtain ⟨s, hs, hsv⟩ := hivt (F 0 - 1) (by rw [hF1, uIcc_of_ge (by linarith)]; constructor <;> linarith)
+    have hs0 : s ≠ 0 := by rintro rfl; linarith
+    have hs1 : s ≠ 1 := by rintro rfl; rw [hF1] at hsv; linarith
+    exact hno s ⟨lt_of_le_of_ne hs.1 (Ne.symm hs0), lt_of_le_of_ne hs.2 hs1⟩ (-1) (by rw [hsv]; push_cast; ring)
+  · subst h
+    simp only [Int.cast_zero, add_zero] at hF1
+    have hhalf : F (1 / 2) ≠ F 0 := by
+      intro he
+      have : γ (1 / 2) = γ 0 := by rw [← hFδ, ← hFδ, he]
+      have := hinj ⟨by norm_num, by norm_num⟩ ⟨le_refl _, one_pos⟩ this
+      norm_num at this
+    set v := (F 0 + F (1 / 2)) / 2 with hv
+    have hv1 : v ∈ uIcc (F 0) (F (1 / 2)) := by
+      rcases lt_or_gt_of_ne hhalf with h | h
+      · rw [uIcc_of_ge h.le]; constructor <;> linarith [hv]
+      · rw [uIcc_of_le h.le]; constructor <;> linarith [hv]
+    have hv2 : v ∈ uIcc (F (1 / 2)) (F 1) := by rw [hF1, uIcc_comm]; exact hv1
+    obtain ⟨s1, hs1, hsv1⟩ := intermediate_value_uIcc (hF.continuousOn (s := uIcc 0 (1 / 2))) hv1
+    obtain ⟨s2, hs2, hsv2⟩ := intermediate_value_uIcc (hF.continuousOn (s := uIcc (1 / 2) 1)) hv2
+    rw [uIcc_of_le (by norm_num)] at hs1 hs2
+    have hvne0 : v ≠ F 0 := by intro h; apply hhalf; linarith [hv]
+    have hvne1 : v ≠ F (1 / 2) := by intro h; apply hhalf; linarith [hv]
+    have h1a : s1 ≠ 1 / 2 := by rintro rfl; exact hvne1 hsv1.symm
+    have h2a : s2 ≠ 1 / 2 := by rintro rfl; exact hvne1 hsv2.symm
+    have h2b : s2 ≠ 1 := by rintro rfl; rw [hF1] at hsv2; exact hvne0 hsv2.symm
+    have : γ s1 = γ s2 := by rw [← hFδ, ← hFδ, hsv1, hsv2]
+    have := hinj ⟨hs1.1, by linarith [hs1.2]⟩ ⟨by linarith [hs2.1], lt_of_le_of_ne hs2.2 h2b⟩ this
+    have : s1 < s2 := by
+      rcases lt_or_eq_of_le hs1.2 with h | h
+      · linarith [hs2.1]
+      · exact absurd h h1a
+    linarith
+  · have h2 : 2 ≤ n := by omega
+    have h2' : (2 : ℝ) ≤ n := by exact_mod_cast h2
+    obtain ⟨s, hs, hsv⟩ := hivt (F 0 + 1) (by rw [hF1, uIcc_of_le (by linarith)]; constructor <;> linarith)
+    have hs0 : s ≠ 0 := by rintro rfl; linarith
+    have hs1 : s ≠ 1 := by rintro rfl; rw [hF1] at hsv; linarith
+    exact hno s ⟨lt_of_le_of_ne hs.1 (Ne.symm hs0), lt_of_le_of_ne hs.2 hs1⟩ 1 (by rw [hsv]; push_cast; ring)
+
+/-- **Two parametrizations of a simple closed curve** are freely homotopic in the curve, up to
+orientation -/
+private lemma pg_loopParam_homotopic {K : Set Pt} {γ δ : ℝ → Pt} (hγ : IsLoopParam K γ) (hδ : IsLoopParam K δ) :
+    LoopsHomotopicIn K γ δ ∨ LoopsHomotopicIn K γ (fun t => δ (-t)) := by
+  obtain ⟨F, hF, hFδ⟩ := pg_loop_lift hγ hδ
+  obtain ⟨n, hn⟩ := pg_lift_incr hγ hδ hF hFδ
+  have hdeg := pg_lift_degree hγ hδ hF hFδ hn
+  obtain ⟨hδc, hδp, -, hδim⟩ := hδ
+  have hK : ∀ x, δ x ∈ K := fun x => by
+    rw [← pg_periodic_fract hδp, ← hδim]; exact mem_image_of_mem _ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+  have H : LoopsHomotopicIn K γ (fun t => δ (n * t)) := by
+    refine ⟨fun x => δ ((1 - x.1) * F x.2 + x.1 * (n * x.2)), by fun_prop, ?_, ?_, ?_, fun _ _ _ => hK _⟩
+    · intro s t
+      simp only
+      rw [hn, show (1 - s) * (F t + n) + s * (n * (t + 1)) = (1 - s) * F t + s * (n * t) + n by ring,
+        pg_periodic_int hδp]
+    · intro t; simp [hFδ]
+    · intro t; simp
+  rcases hdeg with rfl | rfl
+  · left; exact pg_lh_congr H rfl (funext fun t => by simp)
+  · right; exact pg_lh_congr H rfl (funext fun t => by simp)
+
+/-! ### The annulus between nested polygonal disks -/
+
+private lemma pg_isClosed_segment (a b : Pt) : IsClosed (segment ℝ a b) := by
+  rw [segment_eq_image]; exact (isCompact_Icc.image (by fun_prop)).isClosed
+
+/-- subdividing at two points of the curve -/
+private lemma pg_subdiv_two {l : List Pt} (hl : PgSP l) {y1 y2 : Pt} (h1c : y1 ∈ pgCv l) (h2c : y2 ∈ pgCv l)
+    (h1v : y1 ∉ l) (h2v : y2 ∉ l) (hne : y1 ≠ y2) :
+    ∃ α β : List Pt, PgSP (y1 :: α ++ y2 :: β) ∧ pgCv (y1 :: α ++ y2 :: β) = pgCv l ∧
+      (∀ p ∉ pgCv l, pgW (y1 :: α ++ y2 :: β) p = pgW l p) ∧
+      ∀ X : Set Pt, pgCv l ⊆ X → LoopsHomotopicIn X (pgLoop l) (pgLoop (y1 :: α ++ y2 :: β)) := by
+  obtain ⟨l1, hS1, hh1, hcv1, hW1, -, hout1, hlh1⟩ := pg_subdiv_at hl h2c h2v
+  have h1c' : y1 ∈ pgCv l1 := hcv1 ▸ h1c
+  have h1v' : y1 ∉ l1 := fun h => (hout1 y1 h).elim h1v hne
+  obtain ⟨l2, hS2, hh2, hcv2, hW2, hin2, -, hlh2⟩ := pg_subdiv_at hS1 h1c' h1v'
+  have hy2l2 := hin2 y2 (List.mem_of_mem_head? hh1)
+  cases l2 with
+  | nil => simp at hh2
+  | cons a r =>
+    simp only [List.head?_cons, Option.some.injEq] at hh2
+    subst hh2
+    have hy2r : y2 ∈ r := by
+      rcases List.mem_cons.1 hy2l2 with h | h
+      · exact absurd h.symm hne
+      · exact h
+    obtain ⟨α, β, rfl⟩ := List.append_of_mem hy2r
+    refine ⟨α, β, hS2, ?_, ?_, ?_⟩
+    · rw [List.cons_append, hcv2, hcv1]
+    · intro p hp
+      rw [List.cons_append, hW2 p (by rw [hcv1]; exact hp), hW1 p hp]
+    · intro X hX
+      rw [List.cons_append]
+      exact pg_lh_trans (hlh1 X hX) (hlh2 X (by rw [hcv1]; exact hX))
+
+/-- the inner boundary as a vertex list with a prescribed orientation -/
+private lemma pd_inner_list (C : PolygonalDisk) {σ : ℝ} (hσ : σ = 1 ∨ σ = -1) :
+    ∃ K0 : List Pt, PgSP K0 ∧ pgCv K0 = frontier C.carrier ∧ (∀ x ∈ K0, x ∈ pgL C) ∧
+      (∀ p ∈ interior C.carrier, pgW K0 p = 2 * Real.pi * σ) ∧ (∀ p ∉ C.carrier, pgW K0 p = 0) ∧
+      (pgLoop K0 = pgLoop (pgL C) ∨ pgLoop K0 = fun t => pgLoop (pgL C) (-t)) := by
+  obtain ⟨σC, hσC, hin, hout⟩ := pd_wind C
+  by_cases h : σC = σ
+  · subst h
+    refine ⟨pgL C, pgSP_pgL C, pgCv_pgL C, fun x hx => hx, fun p hp => by rw [pgW_pgL]; exact hin p hp,
+      fun p hp => by rw [pgW_pgL]; exact hout p hp, Or.inl rfl⟩
+  · have hσ' : σC = -σ := by rcases hσ with rfl | rfl <;> rcases hσC with rfl | rfl <;> first | exact absurd rfl h | norm_num
+    refine ⟨pgRev (pgL C), (pgSP_pgL C).pgRev, by rw [pgCv_pgRev, pgCv_pgL],
+      fun x hx => (pgRev_perm _).mem_iff.1 hx, fun p hp => ?_, fun p hp => ?_, Or.inr (funext (pgLoop_rev _))⟩
+    · rw [pgW_pgRev (by rw [pgCv_pgL]; exact fun h => pg_frontier_inter_interior h hp), pgW_pgL, hin p hp, hσ']
+      ring
+    · rw [pgW_pgRev (by rw [pgCv_pgL]; exact fun h => hp (pd_frontier_subset_carrier C h)), pgW_pgL, hout p hp]
+      ring
+
+private lemma pg_ray_ne {p : Pt} {t s : ℝ} (ht : 0 < t) (hs : 0 < s) : p + t • pgEy ≠ p + s • (-pgEy) := by
+  intro h
+  have := congrArg (fun z : Pt => z 1) h
+  simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.neg_apply, smul_eq_mul, pgEy_apply1] at this
+  linarith
+
+/-- **Annulus**: the outer boundary loop is freely homotopic in the closed annulus to the inner
+boundary loop traversed in one of the two directions -/
+private lemma pd_annulus (A C : PolygonalDisk) (hCA : C.carrier ⊆ interior A.carrier) :
+    ∃ γ' : ℝ → Pt, (γ' = pgLoop (pgL C) ∨ γ' = fun t => pgLoop (pgL C) (-t)) ∧
+      LoopsHomotopicIn (A.carrier \ interior C.carrier) (pgLoop (pgL A)) γ' := by
+  obtain ⟨σ, hσ, hinA, houtA⟩ := pd_wind A
+  obtain ⟨K0, hK0, hcvK0, hmemK0, hinK0, houtK0, hloopK0⟩ := pd_inner_list C hσ
+  set U := A.carrier \ interior C.carrier with hUdef
+  have hfrA_int : ∀ z ∈ frontier A.carrier, z ∉ interior A.carrier := fun z h1 h2 => pg_frontier_inter_interior h1 h2
+  have hfrC_sub : frontier C.carrier ⊆ C.carrier := pd_frontier_subset_carrier C
+  have hfrA_sub : frontier A.carrier ⊆ A.carrier := pd_frontier_subset_carrier A
+  have hAU : frontier A.carrier ⊆ U := fun z hz => ⟨hfrA_sub hz, fun h => hfrA_int z hz (hCA (interior_subset h))⟩
+  have hKU : frontier C.carrier ⊆ U := fun z hz =>
+    ⟨interior_subset (hCA (hfrC_sub hz)), fun h => pg_frontier_inter_interior hz h⟩
+  obtain ⟨p, hp, hp0⟩ := pg_choose_point isOpen_interior C.interior_nonempty
+    ((pgL A ++ pgL C).map (fun z : Pt => z 0)).toFinset
+  have hvert : ∀ (t : ℝ) (w : Pt), w 0 = 0 → p + t • w ∉ pgL A ∧ p + t • w ∉ pgL C := by
+    intro t w hw
+    have e : (p + t • w) 0 = p 0 := by simp [hw]
+    constructor <;> intro h <;> apply hp0 <;>
+      simp only [List.mem_toFinset, List.map_append, List.mem_append, List.mem_map]
+    · exact Or.inl ⟨_, h, e⟩
+    · exact Or.inr ⟨_, h, e⟩
+  have hv0 : pgEy 0 = 0 := pgEy_apply0
+  have hv0' : (-pgEy) 0 = 0 := by simp [pgEy_apply0]
+  obtain ⟨tC1, tA1, h01, h11, hfA1, hfC1, hinA1, houtC1⟩ := pd_bridge A C hCA hp norm_pgEy
+  obtain ⟨tC2, tA2, h02, h12, hfA2, hfC2, hinA2, houtC2⟩ :=
+    pd_bridge A C hCA hp (v := -pgEy) (by rw [norm_neg, norm_pgEy])
+  set a1 := p + tA1 • pgEy with ha1
+  set c1 := p + tC1 • pgEy with hc1
+  set a2 := p + tA2 • (-pgEy) with ha2
+  set c2 := p + tC2 • (-pgEy) with hc2
+  obtain ⟨α, β, hLA, hcvLA, hWLA, hlhA⟩ := pg_subdiv_two (pgSP_pgL A) (y1 := a1) (y2 := a2)
+    (by rw [pgCv_pgL]; exact hfA1) (by rw [pgCv_pgL]; exact hfA2) (hvert _ _ hv0).1 (hvert _ _ hv0').1
+    (pg_ray_ne (by linarith) (by linarith))
+  obtain ⟨g, d, hLK, hcvLK, hWLK, hlhK⟩ := pg_subdiv_two hK0 (y1 := c1) (y2 := c2)
+    (by rw [hcvK0]; exact hfC1) (by rw [hcvK0]; exact hfC2) (fun h => (hvert _ _ hv0).2 (hmemK0 _ h))
+    (fun h => (hvert _ _ hv0').2 (hmemK0 _ h)) (pg_ray_ne h01 h02)
+  rw [pgCv_pgL] at hcvLA hWLA
+  rw [hcvK0] at hcvLK hWLK
+  -- the bridges
+  have hb1A : segment ℝ a1 c1 ∩ pgCv (a1 :: α ++ a2 :: β) ⊆ {a1} := by
+    rintro z ⟨hz, hzc⟩
+    rw [hcvLA] at hzc
+    obtain ⟨t, ht1, ht2, rfl⟩ := pg_seg_ray h11.le hz
+    rcases eq_or_lt_of_le ht2 with h | h
+    · rw [h]; rfl
+    · exact absurd (hinA1 t (by linarith) h) (hfrA_int _ hzc)
+  have hb1C : segment ℝ a1 c1 ∩ pgCv (c1 :: g ++ c2 :: d) ⊆ {c1} := by
+    rintro z ⟨hz, hzc⟩
+    rw [hcvLK] at hzc
+    obtain ⟨t, ht1, ht2, rfl⟩ := pg_seg_ray h11.le hz
+    rcases eq_or_lt_of_le ht1 with h | h
+    · rw [← h]; rfl
+    · exact absurd (hfrC_sub hzc) (houtC1 t h ht2)
+  have hb2A : segment ℝ a2 c2 ∩ pgCv (a1 :: α ++ a2 :: β) ⊆ {a2} := by
+    rintro z ⟨hz, hzc⟩
+    rw [hcvLA] at hzc
+    obtain ⟨t, ht1, ht2, rfl⟩ := pg_seg_ray h12.le hz
+    rcases eq_or_lt_of_le ht2 with h | h
+    · rw [h]; rfl
+    · exact absurd (hinA2 t (by linarith) h) (hfrA_int _ hzc)
+  have hb2C : segment ℝ a2 c2 ∩ pgCv (c1 :: g ++ c2 :: d) ⊆ {c2} := by
+    rintro z ⟨hz, hzc⟩
+    rw [hcvLK] at hzc
+    obtain ⟨t, ht1, ht2, rfl⟩ := pg_seg_ray h12.le hz
+    rcases eq_or_lt_of_le ht1 with h | h
+    · rw [← h]; rfl
+    · exact absurd (hfrC_sub hzc) (houtC2 t h ht2)
+  have hnot2 : ∀ t : ℝ, 0 < t → p + t • pgEy ∉ segment ℝ a2 c2 := by
+    intro t ht hz
+    obtain ⟨s, hs1, -, hs⟩ := pg_seg_ray h12.le hz
+    exact pg_ray_ne ht (by linarith) hs
+  have hbb : Disjoint (segment ℝ a1 c1) (segment ℝ a2 c2) := by
+    rw [Set.disjoint_left]
+    intro z hz1 hz2
+    obtain ⟨t, ht1, -, rfl⟩ := pg_seg_ray h11.le hz1
+    exact hnot2 t (by linarith) hz2
+  have hU1 : segment ℝ a1 c1 ⊆ U := by
+    intro z hz
+    obtain ⟨t, ht1, ht2, rfl⟩ := pg_seg_ray h11.le hz
+    refine ⟨?_, ?_⟩
+    · rcases eq_or_lt_of_le ht2 with h | h
+      · rw [h]; exact hfrA_sub hfA1
+      · exact interior_subset (hinA1 t (by linarith) h)
+    · rcases eq_or_lt_of_le ht1 with h | h
+      · rw [← h]; exact fun hi => pg_frontier_inter_interior hfC1 hi
+      · exact fun hi => houtC1 t h ht2 (interior_subset hi)
+  have hU2 : segment ℝ a2 c2 ⊆ U := by
+    intro z hz
+    obtain ⟨t, ht1, ht2, rfl⟩ := pg_seg_ray h12.le hz
+    refine ⟨?_, ?_⟩
+    · rcases eq_or_lt_of_le ht2 with h | h
+      · rw [h]; exact hfrA_sub hfA2
+      · exact interior_subset (hinA2 t (by linarith) h)
+    · rcases eq_or_lt_of_le ht1 with h | h
+      · rw [← h]; exact fun hi => pg_frontier_inter_interior hfC2 hi
+      · exact fun hi => houtC2 t h ht2 (interior_subset hi)
+  have hdisj : Disjoint (pgCv (a1 :: α ++ a2 :: β)) (pgCv (c1 :: g ++ c2 :: d)) := by
+    rw [hcvLA, hcvLK, Set.disjoint_left]
+    exact fun z hzA hzC => hfrA_int z hzA (hCA (hfrC_sub hzC))
+  have hreg : ∀ q, q ∉ pgCv (a1 :: α ++ a2 :: β) → q ∉ pgCv (c1 :: g ++ c2 :: d) →
+      pgW (a1 :: α ++ a2 :: β) q - pgW (c1 :: g ++ c2 :: d) q ≠ 0 → q ∈ U := by
+    intro q hqA hqK hne
+    rw [hcvLA] at hqA
+    rw [hcvLK] at hqK
+    rw [hWLA q hqA, hWLK q hqK, pgW_pgL] at hne
+    by_cases hqA' : q ∈ A.carrier
+    · refine ⟨hqA', fun hqC => hne ?_⟩
+      rw [hinA q (hCA (interior_subset hqC)), hinK0 q hqC]; ring
+    · exfalso; apply hne
+      rw [houtA q hqA', houtK0 q (fun h => hqA' (interior_subset (hCA h)))]; ring
+  -- the base point between the bridges
+  set q0 := a1 + (1 / 2 : ℝ) • (c1 - a1) with hq0
+  have hq0' : q0 = p + ((tA1 + tC1) / 2) • pgEy := by rw [hq0, ha1, hc1]; module
+  have hq0A : q0 ∈ interior A.carrier := by rw [hq0']; exact hinA1 _ (by linarith) (by linarith)
+  have hq0C : q0 ∉ C.carrier := by rw [hq0']; exact houtC1 _ (by linarith) (by linarith)
+  have hq0s : q0 ∉ segment ℝ a2 c2 := by rw [hq0']; exact hnot2 _ (by linarith)
+  have hO : IsOpen (interior A.carrier ∩ C.carrierᶜ ∩ (segment ℝ a2 c2)ᶜ) :=
+    (isOpen_interior.inter (pd_isClosed_carrier C).isOpen_compl).inter (pg_isClosed_segment a2 c2).isOpen_compl
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.1 hO q0 ⟨⟨hq0A, hq0C⟩, hq0s⟩
+  have hball' : ∀ z ∈ Metric.ball q0 r, z ∉ pgCv (a1 :: α ++ a2 :: β) ∧ z ∉ pgCv (c1 :: g ++ c2 :: d) ∧
+      z ∉ segment ℝ a2 c2 := by
+    intro z hz
+    obtain ⟨⟨hzA, hzC⟩, hzs⟩ := hball hz
+    rw [hcvLA, hcvLK]
+    exact ⟨fun h => hfrA_int z h hzA, fun h => hzC (hfrC_sub h), hzs⟩
+  have hval : pgW (a1 :: α ++ a2 :: β) q0 - pgW (c1 :: g ++ c2 :: d) q0 = 2 * Real.pi * σ := by
+    rw [hWLA q0 (fun h => hfrA_int q0 h hq0A), hWLK q0 (fun h => hq0C (hfrC_sub h)), pgW_pgL, hinA q0 hq0A,
+      houtK0 q0 hq0C]
+    ring
+  have H := pg_annulus_lists (U := U) hσ hLA hLK hdisj hb1A hb1C hb2A hb2C hbb (by rw [hcvLA]; exact hAU)
+    (by rw [hcvLK]; exact hKU) hU1 hU2 hreg (s0 := 1 / 2) ⟨by norm_num, by norm_num⟩ hr hball' hval
+  exact ⟨pgLoop K0, hloopK0, pg_lh_trans (hlhA U (by rw [pgCv_pgL]; exact hAU))
+    (pg_lh_trans H (pg_lh_symm (hlhK U (by rw [hcvK0]; exact hKU))))⟩
+
+end PgAnnulusHelpers
+
 /-- Step 5 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts`: choose the inner
 boundary parametrization with the orientation freely homotopic to the given outer one. -/
 private lemma existsAnnularSpokes_step5_crosscuts_step2_boundary_homotopy (A C : PolygonalDisk)
@@ -5832,7 +10886,16 @@ private lemma existsAnnularSpokes_step5_crosscuts_step2_boundary_homotopy (A C :
     (hγo : IsLoopParam (frontier A.carrier) γo) :
     ∃ γi : ℝ → Pt, IsLoopParam (frontier C.carrier) γi ∧
       LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi := by
-  sorry
+  obtain ⟨γ', hγ', H⟩ := pd_annulus A C hCA
+  have hγ'p : IsLoopParam (frontier C.carrier) γ' := by
+    rcases hγ' with rfl | rfl
+    · exact pgLoop_isLoopParam C
+    · exact pg_isLoopParam_neg (pgLoop_isLoopParam C)
+  have hfA : frontier A.carrier ⊆ A.carrier \ interior C.carrier := fun z hz =>
+    ⟨pd_frontier_subset_carrier A hz, fun h => pg_frontier_inter_interior hz (hCA (interior_subset h))⟩
+  rcases pg_loopParam_homotopic hγo (pgLoop_isLoopParam A) with h | h
+  · exact ⟨γ', hγ'p, pg_lh_trans (pg_lh_mono hfA h) H⟩
+  · exact ⟨fun t => γ' (-t), pg_isLoopParam_neg hγ'p, pg_lh_trans (pg_lh_mono hfA h) (pg_lh_comp_neg H)⟩
 
 /-- Step 1 of the blueprint proof of `existsAnnularSpokes_step5_crosscuts_step3_order_transfer`:
 cyclic order is preserved for 3 crosscuts. -/

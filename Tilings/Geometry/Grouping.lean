@@ -17975,6 +17975,24 @@ private lemma existsRoutingAfterPower_step3_entries_step3_listed (τ : Substitut
     {e : Set Pt} (he : e ∈ privateOuterEdges (Rs.annulus l α hl) j) : HasEdge X e := by
   sorry
 
+private lemma existsRoutingAfterPower_step3_entries_step4_scatterInj_support (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, mem_iUnion, Set.mem_vadd_set, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    have hcarrier_translate : (B.translate v).carrier = v +ᵥ B.carrier := by
+      ext y
+      simp [PlacedTile.carrier, PlacedTile.translate, vadd_eq_add, add_vadd]
+    rw [hcarrier_translate] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    exact ⟨y, ⟨B, hB, hy⟩, rfl⟩
+  · rintro ⟨_, ⟨A, hA, hx⟩, rfl⟩
+    have hcarrier_translate : (A.translate v).carrier = v +ᵥ A.carrier := by
+      ext y
+      simp [PlacedTile.carrier, PlacedTile.translate, vadd_eq_add, add_vadd]
+    exact ⟨A.translate v, ⟨A, hA, rfl⟩, by rw [hcarrier_translate]; exact ⟨_, hx, rfl⟩⟩
+
 /-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "The windows are
 separated by a fixed multiple of `R`, so the four faces are distinct" -- the bookkeeping fact that
 distinct children of the retained template have distinct scatterings (the scattering of a child
@@ -17985,7 +18003,39 @@ private lemma existsRoutingAfterPower_step3_entries_step4_scatterInj (τ : Subst
     {X Y : PlacedTile Rs.GS.G.mixed} (hX : X ∈ (Rs.retained l α).children.tiles)
     (hY : Y ∈ (Rs.retained l α).children.tiles)
     (hXY : Rs.GS.G.mixedScatterTile X = Rs.GS.G.mixedScatterTile Y) : X = Y := by
-  sorry
+  have hsX : support (Rs.GS.G.mixedScatterTile X) = X.carrier := by
+    unfold GroupedFamily.mixedScatterTile
+    rcases X with ⟨f, a⟩
+    rcases f with f_G | f_P
+    · simp [PlacedTile.carrier]
+      rw [existsRoutingAfterPower_step3_entries_step4_scatterInj_support]
+      rw [Rs.GS.G.support_eq f_G]
+    · simp [support, PlacedTile.carrier]
+  have hsY : support (Rs.GS.G.mixedScatterTile Y) = Y.carrier := by
+    unfold GroupedFamily.mixedScatterTile
+    rcases Y with ⟨f, a⟩
+    rcases f with f_G | f_P
+    · simp [PlacedTile.carrier]
+      rw [existsRoutingAfterPower_step3_entries_step4_scatterInj_support]
+      rw [Rs.GS.G.support_eq f_G]
+    · simp [support, PlacedTile.carrier]
+  have h_carr_eq : X.carrier = Y.carrier := by
+    rw [← hsX, ← hsY, hXY]
+  by_contra h_neq
+  have h_disj : DisjointInteriors (Rs.retained l α).children.tiles := (Rs.retained l α).children.disjoint
+  have h_disjoint := h_disj hX hY h_neq
+  have hint_eq : interior X.carrier = interior Y.carrier := by
+    rw [h_carr_eq]
+  have h_int_nonempty : (interior X.carrier).Nonempty := by
+    have h_int := (Rs.GS.G.mixed.disk X.form).interior_nonempty
+    rw [PlacedTile.carrier, interior_vadd]
+    exact Set.Nonempty.vadd_set h_int
+  have h_disjoint2 : Disjoint (interior X.carrier) (interior Y.carrier) := h_disjoint
+  rw [hint_eq] at h_disjoint2
+  have h_empty : interior Y.carrier = ∅ := Disjoint.eq_bot_of_self h_disjoint2
+  rw [hint_eq] at h_int_nonempty
+  rw [h_empty] at h_int_nonempty
+  exact Set.not_nonempty_empty h_int_nonempty
 
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower`: "In each selected small group's
 middle outer interval, choose four separated windows ... choose a private fine edge in each window.

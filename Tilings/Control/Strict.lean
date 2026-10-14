@@ -7156,6 +7156,20 @@ def StrictLiftFounded (C : MacroCertificate P) (hC : C.Represents τ m)
         (copySource C (C.form (ch (k + 1)).typ) (C.occ (ch k).typ i) l).Nonempty →
         ¬ StrictHasOrigin C hC ch k i l → (ch k).cell i l = 0
 
+/-- Step 1 of the blueprint proof of `strict_lift_decorations_step1_founded`: the constructed
+lift's legality chain carrier is contained in the higher-level ancestor carrier. -/
+private lemma strict_lift_decorations_step1_founded_step1_carrier (C : MacroCertificate P)
+    (hC : C.Represents τ m)
+    (seq : ℕ → PlaneTiling C.Q)
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles)
+    (typ : ∀ n, (seq n).tiles → C.Typ)
+    (hspec : ∀ n Z, C.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨C.form (typ n Z), C.σ.θ • (par n Z).1.anchor +ᵥ C.anchor (typ n Z)⟩)
+    (n k : ℕ) (Z : (seq n).tiles) :
+    Z.1.carrier ⊆
+      ((strictSubst C hC).θ ^ k) • (stcAncestor (strictLiftChain C seq par typ hspec) n Z k).1.carrier := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `strict_lift_decorations`: the constructed lift is founded.
 The legality chain of a lifted tile can be taken along the actual hierarchy (`stcTile` of the
 iterated parents), whose copied cells are `stcValue`: the origin of a terminating copy chain, or
@@ -7171,7 +7185,38 @@ private lemma strict_lift_decorations_step1_founded (C : MacroCertificate P)
       C.form (stcTile C hC (strictLiftChain C seq par typ hspec) n Z).typ = Z.1.form) :
     StrictLiftFounded C hC fun n =>
       strictLiftTiling C hC (seq n) (stcTile C hC (strictLiftChain C seq par typ hspec) n) (hform n) := by
-  sorry
+  have _ := hseq
+  let H := strictLiftChain C seq par typ hspec
+  intro n X hX A hA
+  obtain ⟨Z, rfl⟩ := hX
+  have hA' : A = stcTile C hC H n Z := by
+    dsimp [strictLiftTiling, StrictForm.proj] at hA
+    injection hA with hA_inj
+    exact hA_inj.symm
+  subst hA'
+  refine ⟨fun k => stcTile C hC H (n + k) (stcAncestor H n Z k), rfl, ?_, ?_, ?_⟩
+  · intro k
+    exact stcTile_child H (n + k) (stcAncestor H n Z k)
+  · intro k
+    refine ⟨⟨StrictForm.typed (stcTile C hC H (n + k) (stcAncestor H n Z k)), (stcAncestor H n Z k).1.anchor⟩, ?_, ?_, ?_⟩
+    · dsimp [strictLiftTiling]
+      exact ⟨stcAncestor H n Z k, rfl⟩
+    · rfl
+    · have H_c := strict_lift_decorations_step1_founded_step1_carrier C hC seq par typ hspec n k Z
+      dsimp [strictLiftTiling, PlacedTile.carrier, StrictForm.proj]
+      have h1 : C.form (stcTile C hC (strictLiftChain C seq par typ hspec) n Z).typ = Z.1.form :=
+        hform n Z
+      have h2 : C.form (stcTile C hC H (n + k) (stcAncestor H n Z k)).typ =
+          (stcAncestor H n Z k).1.form :=
+        hform (n + k) (stcAncestor H n Z k)
+      rw [h1, h2]
+      exact H_c
+  · intro k i l hne hno
+    show stcValue C hC H ⟨n + k, stcAncestor H n Z k, i, l⟩ = 0
+    unfold stcValue
+    rw [dif_neg]
+    rintro ⟨j, a, ha, ha'⟩
+    exact hno (stc_hasOrigin H n Z j k i l a ha ha')
 
 private lemma strictLift_main (C : MacroCertificate P) (hC : C.Represents τ m)
     (seq : ℕ → PlaneTiling C.Q) (hseq : ∀ n, C.σ.IsComposition (seq (n + 1)) (seq n))

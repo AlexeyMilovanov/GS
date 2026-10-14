@@ -3815,6 +3815,36 @@ private lemma outsideAnchoredGrouping_step2_H (M : MeshConstants P) (S : Patch P
 
 /-! The remaining step is the cellulation identification of the component closure. -/
 
+/-- A nonempty open set covered by finitely many closed sets meets the interior of one
+of them. -/
+private lemma outsideAnchoredGrouping_open_cover_interior {ι : Type*} (F : ι → Set Pt)
+    (hF : ∀ i, IsClosed (F i)) :
+    ∀ (s : Finset ι) (U : Set Pt), IsOpen U → U.Nonempty → U ⊆ ⋃ i ∈ s, F i →
+      ∃ i ∈ s, (U ∩ interior (F i)).Nonempty := by
+  classical
+  intro s
+  induction s using Finset.induction_on with
+  | empty =>
+      intro U _ hUne hUsub
+      obtain ⟨x, hx⟩ := hUne
+      simpa using hUsub hx
+  | @insert i s his ih =>
+      intro U hUo hUne hUsub
+      by_cases hsub : U ⊆ F i
+      · exact ⟨i, Finset.mem_insert_self _ _, hUne.mono fun x hx =>
+          ⟨hx, interior_maximal hsub hUo hx⟩⟩
+      · obtain ⟨x, hxU, hxi⟩ := Set.not_subset.1 hsub
+        obtain ⟨j, hjs, hj⟩ := ih (U \ F i) (hUo.sdiff (hF i)) ⟨x, hxU, hxi⟩ (by
+          intro y hy
+          have hy' := hUsub hy.1
+          simp only [Finset.mem_insert, Set.mem_iUnion, exists_prop] at hy'
+          obtain ⟨j, hj, hyF⟩ := hy'
+          rcases hj with rfl | hj
+          · exact absurd hyF hy.2
+          · exact Set.mem_iUnion₂.2 ⟨j, hj, hyF⟩)
+        exact ⟨j, Finset.mem_insert_of_mem hjs,
+          hj.mono fun y hy => ⟨hy.1.1, hy.2⟩⟩
+
 /-- Step 1 of the blueprint proof of `outsideAnchoredGrouping_step3_FaceGroup`: the closure
 of the component selected by `H_carrier` is the support of a finite nonempty set of complete
 faces of the patch, and this support lies in the interior of the covered polygonal disk. -/
@@ -3833,7 +3863,148 @@ private lemma outsideAnchoredGrouping_step3_FaceGroup_step1_component_faces
     (H_carrier : Set Pt) (hH_sub : H_carrier ⊆ square c h + Binf (3 * M.D))
     (hH_def : H_carrier = closure (connectedComponentIn (Eᶜ) c)) :
     ∃ G : Set (PlacedTile P), G ⊆ S.tiles ∧ G.Finite ∧ G.Nonempty ∧
-      support G = H_carrier ∧ support G ⊆ interior Ω.carrier := sorry
+      support G = H_carrier ∧ support G ⊆ interior Ω.carrier := by
+  classical
+  have _ := hsts
+  have _ := hE_conn
+  set K := square c h + Binf (3 * M.D) with hKdef
+  set A : Set (PlacedTile P) :=
+    {F ∈ S.tiles | (interior F.carrier ∩ Kᶜ).Nonempty} with hAdef
+  have hAS : A ⊆ S.tiles := fun F hF => hF.1
+  have hAfin : A.Finite := S.finite.subset hAS
+  have hEsupport : E = Ω.carrierᶜ ∪ support A := by
+    rw [hE_def]
+    congr 1
+    ext x
+    simp only [hAdef, hKdef, mem_support_iff', Set.mem_setOf_eq, Set.mem_iUnion,
+      exists_prop]
+    constructor
+    · rintro ⟨F, hFS, hF, hxF⟩
+      exact ⟨F, ⟨hFS, hF⟩, hxF⟩
+    · rintro ⟨F, ⟨hFS, hF⟩, hxF⟩
+      exact ⟨F, hFS, hF, hxF⟩
+  have hKΩ : K ⊆ interior Ω.carrier := by
+    rw [hKdef]
+    exact (Set.add_subset_add_left (rg_binf_mono (by linarith [M.D_pos]))).trans hQ
+  set O := Eᶜ with hOdef
+  have hOK : O ⊆ K := by
+    intro x hxO
+    by_contra hxK
+    exact hxO (interior_subset (hE_supset (by rwa [hKdef])))
+  have hOeq : O = interior Ω.carrier ∩ (support A)ᶜ := by
+    ext x
+    constructor
+    · intro hxO
+      have hxΩ := hKΩ (hOK hxO)
+      rw [hOdef, hEsupport] at hxO
+      exact ⟨hxΩ, fun hxA => hxO (Or.inr hxA)⟩
+    · rintro ⟨hxΩ, hxA⟩
+      rw [hOdef, hEsupport]
+      exact fun hxE => hxE.elim (fun hxΩc => hxΩc (interior_subset hxΩ)) hxA
+  have hOo : IsOpen O := by
+    rw [hOeq]
+    exact isOpen_interior.inter (support_isClosed hAfin).isOpen_compl
+  set W := connectedComponentIn O c with hWdef
+  have hWo : IsOpen W := by
+    rw [hWdef]
+    exact hOo.connectedComponentIn
+  have hWO : W ⊆ O := by
+    rw [hWdef]
+    exact connectedComponentIn_subset O c
+  set G : Set (PlacedTile P) := {F ∈ S.tiles | interior F.carrier ⊆ W} with hGdef
+  have hGS : G ⊆ S.tiles := fun F hF => hF.1
+  have hGfin : G.Finite := S.finite.subset hGS
+  have hstay : ∀ F ∈ S.tiles, (interior F.carrier ∩ W).Nonempty →
+      interior F.carrier ⊆ W := by
+    intro F hFS hmeet
+    obtain ⟨z, hzF, hzW⟩ := hmeet
+    have hFA : F ∉ A := by
+      intro hFA
+      exact hWO hzW (hE_faces F hFS (by simpa [hKdef] using hFA.2)
+        (interior_subset hzF))
+    have hFsubO : interior F.carrier ⊆ O := by
+      intro x hxF
+      rw [hOeq]
+      refine ⟨?_, ?_⟩
+      · rw [← hcov]
+        exact interior_mono (carrier_subset_support hFS) hxF
+      · intro hxA
+        obtain ⟨B, hBA, hxB⟩ := mem_support_iff'.1 hxA
+        exact interior_not_mem_other S.disjoint hFS (hAS hBA) (fun h => hFA (h ▸ hBA)) hxF hxB
+    have hcomp :=
+      (tileDisk F).interior_pathConnected.isConnected.isPreconnected.subset_connectedComponentIn
+        hzF hFsubO
+    rw [← connectedComponentIn_eq (hWdef ▸ hzW)] at hcomp
+    simpa [hWdef] using hcomp
+  have hWsubS : W ⊆ support S.tiles := by
+    intro x hxW
+    rw [hcov]
+    exact interior_subset ((hOeq ▸ hWO hxW).1)
+  have hWcover : W ⊆ support G := by
+    intro x hxW
+    have hxcl : x ∈ closure (support G) := by
+      rw [Metric.mem_closure_iff]
+      intro ε hε
+      set U := Metric.ball x ε ∩ W with hUdef
+      have hUo : IsOpen U := Metric.isOpen_ball.inter hWo
+      have hUne : U.Nonempty := ⟨x, Metric.mem_ball_self hε, hxW⟩
+      have hUsub : U ⊆ ⋃ F ∈ S.finite.toFinset, F.carrier := by
+        intro y hy
+        obtain ⟨F, hFS, hyF⟩ := mem_support_iff'.1 (hWsubS hy.2)
+        exact Set.mem_iUnion₂.2 ⟨F, Set.Finite.mem_toFinset S.finite |>.2 hFS, hyF⟩
+      obtain ⟨F, hFfin, y, hyU, hyF⟩ :=
+        outsideAnchoredGrouping_open_cover_interior (fun F : PlacedTile P => F.carrier)
+          (fun F => tile_isClosed F) S.finite.toFinset U hUo hUne hUsub
+      have hFS : F ∈ S.tiles := Set.Finite.mem_toFinset S.finite |>.1 hFfin
+      have hFG : F ∈ G := ⟨hFS, hstay F hFS ⟨y, hyF, hyU.2⟩⟩
+      refine ⟨y, carrier_subset_support hFG (interior_subset hyF), ?_⟩
+      rw [hUdef] at hyU
+      simpa [Metric.mem_ball, dist_comm] using hyU.1
+    exact (support_isClosed hGfin).closure_eq ▸ hxcl
+  have hGsubcl : support G ⊆ closure W := by
+    intro x hx
+    obtain ⟨F, hFG, hxF⟩ := mem_support_iff'.1 hx
+    have hxcl : x ∈ closure (interior F.carrier) := by
+      rw [tile_regular]
+      exact hxF
+    exact closure_mono hFG.2 hxcl
+  have hclsubG : closure W ⊆ support G :=
+    closure_minimal hWcover (support_isClosed hGfin)
+  have hsupport : support G = closure W := Set.Subset.antisymm hGsubcl hclsubG
+  have hcK : c ∈ K := by
+    rw [hKdef]
+    refine Set.mem_add.2 ⟨c, ?_, 0, ?_, by simp⟩
+    · simp only [square, Set.mem_setOf_eq, sub_self, abs_zero]
+      exact ⟨hh.le, hh.le⟩
+    · simp only [Binf, Set.mem_setOf_eq, PiLp.zero_apply, abs_zero]
+      exact ⟨by linarith [M.D_pos], by linarith [M.D_pos]⟩
+  have hcO : c ∈ O := by
+    rw [hOeq]
+    refine ⟨hKΩ hcK, ?_⟩
+    intro hcA
+    obtain ⟨F, hFA, hcF⟩ := mem_support_iff'.1 hcA
+    obtain ⟨w, hwF, hwK⟩ := hFA.2
+    apply hwK
+    rw [hKdef]
+    refine Set.mem_add.2 ⟨c, ?_, w - c, ?_, by abel⟩
+    · simp only [square, Set.mem_setOf_eq, sub_self, abs_zero]
+      exact ⟨hh.le, hh.le⟩
+    · refine ⟨?_, ?_⟩
+      · exact (rg_tile_coord M F (interior_subset hwF) hcF 0).trans (by
+          linarith [M.D_pos])
+      · exact (rg_tile_coord M F (interior_subset hwF) hcF 1).trans (by
+          linarith [M.D_pos])
+  have hWne : W.Nonempty := ⟨c, hWdef ▸ mem_connectedComponentIn hcO⟩
+  have hGne : G.Nonempty := by
+    obtain ⟨x, hxW⟩ := hWne
+    obtain ⟨F, hFG, -⟩ := mem_support_iff'.1 (hWcover hxW)
+    exact ⟨F, hFG⟩
+  have hG_eq : support G = H_carrier := by
+    rw [hsupport, hWdef, hH_def]
+  have hGcov : support G ⊆ interior Ω.carrier := by
+    rw [hG_eq]
+    exact hH_sub.trans hKΩ
+  exact ⟨G, hGS, hGfin, hGne, hG_eq, hGcov⟩
 
 private lemma outsideAnchoredGrouping_step3_FaceGroup (M : MeshConstants P) (S : Patch P)
     (Ω : PolygonalDisk)

@@ -3559,6 +3559,69 @@ private lemma whole_side_ports_coincide_step5_port_eq_step2_port_mem (τ : Subst
     port τ G m A a r ∈ sidesInside τ G m A a := by
   sorry
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+/-- Step 5 of the blueprint proof of `whole_side_ports_coincide_step5_port_eq_step3_rank_inj`: rank equality implies key equality. -/
+private lemma whole_side_ports_coincide_step5_port_eq_step3_rank_inj_step1_rank_to_key
+    (X : Set (Pt × Pt)) (h_fin : X.Finite) (u : Pt)
+    (e1 e2 : Pt × Pt) (he1 : e1 ∈ X) (he2 : e2 ∈ X)
+    (h_rank : rankIn X u e1 = rankIn X u e2) :
+    sideKey u e1 = sideKey u e2 := by
+  dsimp [rankIn] at h_rank
+  by_contra h_ne
+  rcases lt_or_gt_of_ne h_ne with h_lt | h_gt
+  · have h1 : {e' ∈ X | sideKey u e' < sideKey u e1} ⊆ {e' ∈ X | sideKey u e' < sideKey u e2} := by
+      intro e he
+      simp only [Set.mem_setOf_eq] at he ⊢
+      exact ⟨he.1, lt_trans he.2 h_lt⟩
+    have h2 : e1 ∈ {e' ∈ X | sideKey u e' < sideKey u e2} := by
+      simp only [Set.mem_setOf_eq]
+      exact ⟨he1, h_lt⟩
+    have h3 : e1 ∉ {e' ∈ X | sideKey u e' < sideKey u e1} := by
+      simp only [Set.mem_setOf_eq, lt_self_iff_false, not_false_eq_true, and_false]
+    have h4 : {e' ∈ X | sideKey u e' < sideKey u e1} ⊂ {e' ∈ X | sideKey u e' < sideKey u e2} := by
+      refine Set.ssubset_iff_subset_ne.mpr ⟨h1, ?_⟩
+      intro heq
+      have hh3 : e1 ∉ {e' ∈ X | sideKey u e' < sideKey u e2} := by
+        rw [← heq]
+        exact h3
+      exact hh3 h2
+    have h5 : {e' ∈ X | sideKey u e' < sideKey u e2}.Finite := by
+      exact h_fin.subset (fun _ h => h.1)
+    have h6 := Set.ncard_lt_ncard h4 h5
+    omega
+  · have h1 : {e' ∈ X | sideKey u e' < sideKey u e2} ⊆ {e' ∈ X | sideKey u e' < sideKey u e1} := by
+      intro e he
+      simp only [Set.mem_setOf_eq] at he ⊢
+      exact ⟨he.1, lt_trans he.2 h_gt⟩
+    have h2 : e2 ∈ {e' ∈ X | sideKey u e' < sideKey u e1} := by
+      simp only [Set.mem_setOf_eq]
+      exact ⟨he2, h_gt⟩
+    have h3 : e2 ∉ {e' ∈ X | sideKey u e' < sideKey u e2} := by
+      simp only [Set.mem_setOf_eq, lt_self_iff_false, not_false_eq_true, and_false]
+    have h4 : {e' ∈ X | sideKey u e' < sideKey u e2} ⊂ {e' ∈ X | sideKey u e' < sideKey u e1} := by
+      refine Set.ssubset_iff_subset_ne.mpr ⟨h1, ?_⟩
+      intro heq
+      have hh3 : e2 ∉ {e' ∈ X | sideKey u e' < sideKey u e1} := by
+        rw [← heq]
+        exact h3
+      exact hh3 h2
+    have h5 : {e' ∈ X | sideKey u e' < sideKey u e1}.Finite := by
+      exact h_fin.subset (fun _ h => h.1)
+    have h6 := Set.ncard_lt_ncard h4 h5
+    omega
+
 /-- Step 5 of the blueprint proof of `whole_side_ports_coincide_step5_port_eq`: rank is injective. -/
 private lemma whole_side_ports_coincide_step5_port_eq_step3_rank_inj (τ : Substitution P)
     (G : Geometry.GroupedFamily P) (m : ℕ)
@@ -3567,7 +3630,14 @@ private lemma whole_side_ports_coincide_step5_port_eq_step3_rank_inj (τ : Subst
     (h : rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e1 =
       rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e2) :
     e1 = e2 := by
-  sorry
+  have h_fin : (sidesInside τ G m A a).Finite :=
+    whole_side_ports_distinct_step3_rank_step1_finite τ G m A a
+  have h_inj : (sidesInside τ G m A a).InjOn (sideKey (parentDir τ G m A a)) :=
+    whole_side_ports_distinct_step3_rank_step2_inj τ G m A a
+  have h_key : sideKey (parentDir τ G m A a) e1 = sideKey (parentDir τ G m A a) e2 :=
+    whole_side_ports_coincide_step5_port_eq_step3_rank_inj_step1_rank_to_key
+      (sidesInside τ G m A a) h_fin (parentDir τ G m A a) e1 e2 he1 he2 h
+  exact h_inj he1 he2 h_key
 
 /-- Step 5 of the blueprint proof of `whole_side_ports_coincide`: the chosen ports coincide
 because they are uniquely determined by the physical subdivision. -/

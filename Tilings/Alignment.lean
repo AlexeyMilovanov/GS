@@ -3760,6 +3760,13 @@ private lemma whole_side_ports_coincide_step4_ncard_eq (m : ℕ)
       have h : f (f.symm ⟨e', he'⟩) = ⟨e', he'⟩ := Equiv.apply_symm_apply f ⟨e', he'⟩
       exact congrArg Subtype.val h)
 
+/-- Helper for `whole_side_ports_coincide_step5_port_eq_step1_port_rank`: index bounds. -/
+private lemma whole_side_ports_coincide_step5_port_eq_step1_port_rank_aux1 {L : ℕ} (h : 5 ≤ L) :
+    ∀ r : Fin 5, 1 ≤ portIndex L r ∧ portIndex L r ≤ L := by
+  intro r
+  unfold portIndex
+  fin_cases r <;> (dsimp; omega)
+
 /-- Step 5 of the blueprint proof of `whole_side_ports_coincide_step5_port_eq`: the port has the defined rank. -/
 private lemma whole_side_ports_coincide_step5_port_eq_step1_port_rank (τ : Substitution P)
     (G : Geometry.GroupedFamily P) (m : ℕ)
@@ -3767,7 +3774,15 @@ private lemma whole_side_ports_coincide_step5_port_eq_step1_port_rank (τ : Subs
     (hL : 5 ≤ (sidesInside τ G m A a).ncard) (r : Fin 5) :
     rankIn (sidesInside τ G m A a) (parentDir τ G m A a) (port τ G m A a r) =
       portIndex (sidesInside τ G m A a).ncard r := by
-  sorry
+  have h_bounds := whole_side_ports_coincide_step5_port_eq_step1_port_rank_aux1 hL r
+  have H_exist : ∃ e ∈ sidesInside τ G m A a,
+      rankIn (sidesInside τ G m A a) (parentDir τ G m A a) e =
+        portIndex (sidesInside τ G m A a).ncard r := by
+    exact whole_side_ports_distinct_step3_rank (τ := τ) (G := G) m A a
+      (portIndex (sidesInside τ G m A a).ncard r) h_bounds.1 h_bounds.2
+  have H_eps := Classical.epsilon_spec H_exist
+  unfold port
+  exact H_eps.2
 
 /-- Step 5 of the blueprint proof of `whole_side_ports_coincide_step5_port_eq`: the port belongs to the inside sides. -/
 private lemma whole_side_ports_coincide_step5_port_eq_step2_port_mem (τ : Substitution P)

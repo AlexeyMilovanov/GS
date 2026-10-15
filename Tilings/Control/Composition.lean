@@ -12034,6 +12034,164 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_st
             (congrArg (fun o : c.SideOcc => c.anchor o.1) hoccXY)
       exact ⟨d', hParentNe, hParentSide, hd', hlen.symm, hidx⟩
 
+private lemma level_down_aux_boundary_cover (c : MacroCertificate P) (hH : c.Hereditary) :
+    ∀ (m : ℕ) (A : PlacedTile c.Q) (e : Fin (c.Q.disk A.form).n) (x : Pt),
+      x ∈ (c.σ.θ ^ m) • A.side e →
+        ∃ B ∈ c.σ.decomposeIter m {A}, ∃ j : Fin (c.Q.disk B.form).n,
+          B.side j ⊆ (c.σ.θ ^ m) • A.side e ∧ x ∈ B.side j := by
+  intro m
+  induction m with
+  | zero =>
+      intro A e x hx
+      refine ⟨A, ?_, e, ?_, ?_⟩
+      · simp [Substitution.decomposeIter]
+      · simp
+      · simpa using hx
+  | succ m ih =>
+      intro A e x hx
+      have hpow : c.σ.θ ^ (m + 1) = (c.σ.θ ^ m) * c.σ.θ := by
+        rw [pow_succ]
+      rw [hpow, mul_smul] at hx
+      obtain ⟨z, hz, rfl⟩ := Set.mem_smul_set.1 hx
+      obtain ⟨p, hp, rfl⟩ := Set.mem_smul_set.1 hz
+      obtain ⟨u, hu, rfl⟩ := Set.mem_vadd_set.1 hp
+      have hθu : c.σ.θ • u ∈ c.σ.θ • (c.Q.disk A.form).side e :=
+        Set.mem_smul_set.2 ⟨u, hu, rfl⟩
+      rw [hH.2 A.form e] at hθu
+      simp only [Set.mem_iUnion] at hθu
+      obtain ⟨C, hC, j, hjsub, hθuj⟩ := hθu
+      let D : PlacedTile c.Q := C.translate (c.σ.θ • A.anchor)
+      have hD : D ∈ c.σ.decompose {A} := by
+        simp only [Substitution.decompose, Set.mem_iUnion, Set.mem_singleton_iff]
+        exact ⟨A, rfl, Set.mem_image_of_mem _ hC⟩
+      have hDside : D.side j = (c.σ.θ • A.anchor) +ᵥ C.side j := by
+        simp [D, PlacedTile.translate, PlacedTile.side, add_vadd]
+      have hzD : c.σ.θ • (A.anchor + u) ∈ D.side j := by
+        rw [hDside, smul_add]
+        exact Set.vadd_mem_vadd_set hθuj
+      have hDsub : D.side j ⊆ c.σ.θ • A.side e := by
+        rw [hDside]
+        intro q hq
+        obtain ⟨v, hv, rfl⟩ := Set.mem_vadd_set.1 hq
+        obtain ⟨w, hw, rfl⟩ := Set.mem_smul_set.1 (hjsub hv)
+        refine Set.mem_smul_set.2 ⟨A.anchor + w, Set.vadd_mem_vadd_set hw, ?_⟩
+        simp only [vadd_eq_add, smul_add]
+      obtain ⟨B, hB, k, hksub, hxB⟩ := ih D j _
+        (Set.mem_smul_set.2 ⟨_, hzD, rfl⟩)
+      refine ⟨B, ?_, k, ?_, hxB⟩
+      · rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_succ_inner]
+        exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_mono
+          c.σ m (Set.singleton_subset_iff.2 hD) hB
+      · rw [hpow, mul_smul]
+        exact hksub.trans (Set.smul_set_mono hDsub)
+
+private lemma level_down_aux_mem_adjacent (c : MacroCertificate P)
+    (T : Set (PlacedTile c.Q)) (hT : DisjointInteriors T)
+    (m : ℕ) (A A' : PlacedTile c.Q)
+    (hAA' : Disjoint (interior A.carrier) (interior A'.carrier))
+    (e : Fin (c.Q.disk A.form).n) (e' : Fin (c.Q.disk A'.form).n)
+    (hee : A.side e = A'.side e')
+    (hAT : c.σ.decomposeIter m {A} ⊆ T) (hA'T : c.σ.decomposeIter m {A'} ⊆ T)
+    (Z : PlacedTile c.Q) (hZT : Z ∈ T) (d : Fin (c.Q.disk Z.form).n)
+    (x y : Pt) (hxy : x ≠ y) (hxZ : x ∈ Z.side d) (hyZ : y ∈ Z.side d)
+    (hxE : x ∈ (c.σ.θ ^ m) • A.side e) (hyE : y ∈ (c.σ.θ ^ m) • A.side e) :
+    Z ∈ c.σ.decomposeIter m {A} ∨ Z ∈ c.σ.decomposeIter m {A'} := by
+  let s : ℝ := c.σ.θ ^ m
+  have hs : s ≠ 0 := pow_ne_zero _ (by linarith [c.σ.one_lt])
+  let F := c.σ.decomposeIter m {A}
+  let F' := c.σ.decomposeIter m {A'}
+  have hF : F.Finite :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_finite
+      c.σ m (Set.finite_singleton A)
+  have hF' : F'.Finite :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_finite
+      c.σ m (Set.finite_singleton A')
+  have hsF : support F = s • A.carrier := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeIter,
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_singleton]
+  have hsF' : support F' = s • A'.carrier := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_decomposeIter,
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_singleton]
+  have hdis : Disjoint (interior (s • A.carrier)) (interior (s • A'.carrier)) := by
+    rw [interior_smul₀ hs, interior_smul₀ hs]
+    exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_smul_disjoint
+      s hs _ _ hAA'
+  let p := midpoint ℝ x y
+  have hconvZ : Convex ℝ (Z.side d) := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq]
+    exact convex_segment _ _
+  have hpZ : p ∈ Z.side d :=
+    hconvZ.segment_subset hxZ hyZ (midpoint_mem_segment x y)
+  have hpE : p ∈ s • A.side e := by
+    exact ((by
+      rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq]
+      exact convex_segment _ _ : Convex ℝ (s • A.side e)).segment_subset hxE hyE
+        (midpoint_mem_segment x y))
+  have hE : s • A.side e = segment ℝ (s • (A.anchor + (c.Q.disk A.form).vertex e))
+      (s • (A.anchor + (c.Q.disk A.form).vertex (finRotate _ e))) :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq A s e
+  have hE' : s • A'.side e' = segment ℝ (s • (A'.anchor + (c.Q.disk A'.form).vertex e'))
+      (s • (A'.anchor + (c.Q.disk A'.form).vertex (finRotate _ e'))) :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq A' s e'
+  have hEE : s • A.side e = s • A'.side e' := by rw [hee]
+  have hne :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_midpoint_ne_endpoint
+      _ _ x y (hE ▸ hxE) (hE ▸ hyE) hxy
+  have hne' :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_midpoint_ne_endpoint
+      _ _ x y (hE' ▸ hEE ▸ hxE) (hE' ▸ hEE ▸ hyE) hxy
+  have hloc :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_local
+      A s hs e p hpE hne.1 hne.2
+  have hloc' :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_local
+      A' s hs e' p (hEE ▸ hpE) hne'.1 hne'.2
+  have huv : s • (A.anchor + (c.Q.disk A.form).vertex e) ≠
+      s • (A.anchor + (c.Q.disk A.form).vertex (finRotate _ e)) := by
+    intro h
+    apply hxy
+    have hx' := hE ▸ hxE
+    have hy' := hE ▸ hyE
+    rw [h, segment_same] at hx' hy'
+    exact hx'.trans hy'.symm
+  obtain ⟨f, u, hu, hf⟩ :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_seg_functional _ _ huv
+  have hfr : ∀ᶠ q in nhds p, q ∈ frontier (s • A.carrier) → f (q - p) = 0 := by
+    filter_upwards [hloc] with q hq hqf
+    exact hf q (hE ▸ hq hqf) p (hE ▸ hpE)
+  have hfr' : ∀ᶠ q in nhds p, q ∈ frontier (s • A'.carrier) → f (q - p) = 0 := by
+    filter_upwards [hloc'] with q hq hqf
+    exact hf q (hE ▸ hEE ▸ hq hqf) p (hE ▸ hpE)
+  have hpfr : p ∈ frontier (s • A.carrier) :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier
+      A s hs e hpE
+  have hpfr' : p ∈ frontier (s • A'.carrier) :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_frontier
+      A' s hs e' (hEE ▸ hpE)
+  have hpint := lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_two_regions
+    (s • A.carrier) (s • A'.carrier)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A s)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_regular A s hs)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A' s)
+    (lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_regular A' s hs)
+    hdis p hpfr.2
+    ((lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A s).frontier_subset hpfr)
+    hpfr'.2
+    ((lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_closed A' s).frontier_subset hpfr')
+    f u hu hfr hfr'
+  have hmeet : (interior Z.carrier ∩ interior (support (F ∪ F'))).Nonempty := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_support_union,
+      hsF, hsF']
+    have hpX : p ∈ closure (interior Z.carrier) := by
+      rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_regular]
+      exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_sub Z d hpZ
+    obtain ⟨z, hz1, hz2⟩ := mem_closure_iff.1 hpX _ isOpen_interior hpint
+    exact ⟨z, hz2, hz1⟩
+  have hmem :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_mem_of_interior_meet
+      T hT (F ∪ F') (hF.union hF') (Set.union_subset hAT hA'T) Z hZT hmeet
+  exact hmem
+
 /-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
 "with one fewer level to go before the chain becomes inner" (no level left): an outer side of a
 level-zero tile never lies inside an inner side of a level-zero tile, because the two tiles sharing
@@ -12195,7 +12353,204 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_st
     (hd : c.occ (tileDec X).typ i ∈ c.outerList (c.form (tileDec ZX).typ) d)
     (hdo : c.IsOuter (c.occ (tileDec ZX).typ d)) :
     sideOf c ZX d ⊆ (c.σ.θ ^ m) • sideOf c W e := by
-  sorry
+  classical
+  have _ := hX
+  have _ := hOuter
+  have _ := hXZ
+  have _ := hdo
+  have hθ : c.σ.θ ≠ 0 := by linarith [c.σ.one_lt]
+  have hXd : sideOf c X i ⊆ c.σ.θ • sideOf c ZX d := by
+    have hdsub := ((c.g3_outerList_mem _ _ _).1 hd).2.2
+    intro q hq
+    obtain ⟨p, hp, rfl⟩ := Set.mem_vadd_set.1 hq
+    have hp' : c.anchor (tileDec X).typ +ᵥ p ∈
+        c.occSide (c.occ (tileDec X).typ i) := Set.vadd_mem_vadd_set hp
+    obtain ⟨z, hz, hzp⟩ := Set.mem_smul_set.1 (hdsub hp')
+    refine Set.mem_smul_set.2 ⟨ZX.anchor +ᵥ z, Set.vadd_mem_vadd_set hz, ?_⟩
+    show c.σ.θ • (ZX.anchor + z) = X.anchor + p
+    rw [haX, smul_add, hzp]
+    simp only [vadd_eq_add, add_assoc]
+  let a := X.anchor + (c.Q.disk (c.form (tileDec X).typ)).vertex i
+  let b := X.anchor +
+    (c.Q.disk (c.form (tileDec X).typ)).vertex (finRotate _ i)
+  have hab : a ≠ b :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne X i
+  have hXside : sideOf c X i = segment ℝ a b :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq X i
+  let x := c.σ.θ⁻¹ • a
+  let y := c.σ.θ⁻¹ • b
+  have hxy : x ≠ y := fun h => hab (smul_right_injective Pt (inv_ne_zero hθ) h)
+  have hxa : x ∈ sideOf c ZX d := by
+    rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ]
+    exact hXd (hXside ▸ left_mem_segment ℝ a b)
+  have hya : y ∈ sideOf c ZX d := by
+    rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ]
+    exact hXd (hXside ▸ right_mem_segment ℝ a b)
+  have hpow : c.σ.θ ^ (m + 1) = c.σ.θ * c.σ.θ ^ m := by
+    rw [pow_succ, mul_comm]
+  have hxE : x ∈ (c.σ.θ ^ m) • sideOf c W e := by
+    rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ, ← mul_smul, ← hpow]
+    exact hsub (hXside ▸ left_mem_segment ℝ a b)
+  have hyE : y ∈ (c.σ.θ ^ m) • sideOf c W e := by
+    rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ, ← mul_smul, ← hpow]
+    exact hsub (hXside ▸ right_mem_segment ℝ a b)
+  obtain ⟨blk, hbe, hbu⟩ := hexact (m + 1)
+  have hWU : W ∈ ⋃ V : (seq' (m + 2)).tiles, (blk V).tiles := by
+    rw [← hbu]
+    simpa [Nat.add_assoc] using hW
+  obtain ⟨V, hWV⟩ := mem_iUnion.1 hWU
+  obtain ⟨s, hs, rfl⟩ := hWV
+  have hp := c.g1_partner ⟨s, e⟩ he
+  let o' := c.partner ⟨s, e⟩
+  let W' := (blk V).placed o'.1
+  have hW' : W' ∈ (seq' (m + 1)).tiles := by
+    rw [hbu]
+    exact mem_iUnion.2 ⟨V, o'.1, hp.2.1.trans hs, rfl⟩
+  let A := erase c ((blk V).placed s)
+  let A' := erase c W'
+  have hA : A ∈ (seq (m + 1)).tiles :=
+    herase (m + 1) ▸ ⟨(blk V).placed s, hW, rfl⟩
+  have hA' : A' ∈ (seq (m + 1)).tiles := herase (m + 1) ▸ ⟨W', hW', rfl⟩
+  have hAne : A ≠ A' := by
+    intro h
+    have hform : c.form s = c.form o'.1 := by
+      simpa [A, A', W', erase, tileDec] using congrArg PlacedTile.form h
+    have hanchor : (blk V).v + c.anchor s = (blk V).v + c.anchor o'.1 := by
+      simpa [A, A', W', erase, tileDec, ColouredBlock.placed,
+        ColouredBlock.tileOf] using congrArg PlacedTile.anchor h
+    exact hp.1 (c.type_injective _ _ hp.2.1 hform.symm (add_left_cancel hanchor).symm)
+  have hAA' : Disjoint (interior A.carrier) (interior A'.carrier) :=
+    (seq (m + 1)).disjoint hA hA' hAne
+  have hside : A.side e = A'.side o'.2 := by
+    change ((blk V).placed s).anchor +ᵥ
+        (c.Q.disk (c.form (tileDec ((blk V).placed s)).typ)).side e =
+      W'.anchor +ᵥ (c.Q.disk (c.form (tileDec W').typ)).side o'.2
+    show ((blk V).v + c.anchor s) +ᵥ (c.Q.disk (c.form s)).side e =
+      ((blk V).v + c.anchor o'.1) +ᵥ (c.Q.disk (c.form o'.1)).side o'.2
+    rw [add_vadd, add_vadd]
+    exact congrArg (fun S : Set Pt => (blk V).v +ᵥ S) hp.2.2.symm
+  have hAT :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub
+      c seq seq' herase hexact m 1 A (by simpa [Nat.add_comm] using hA)
+  have hA'T :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub
+      c seq seq' herase hexact m 1 A' (by simpa [Nat.add_comm] using hA')
+  have hZX1 : erase c ZX ∈ (seq 1).tiles := herase 1 ▸ ⟨ZX, hZX, rfl⟩
+  have hxEA : x ∈ (c.σ.θ ^ m) • A.side e := by simpa [A] using hxE
+  have hyEA : y ∈ (c.σ.θ ^ m) • A.side e := by simpa [A] using hyE
+  have hmem := level_down_aux_mem_adjacent c (seq 1).tiles (seq 1).disjoint m
+    A A' hAA' e o'.2 hside hAT hA'T (erase c ZX) hZX1 d x y hxy hxa hya hxEA hyEA
+  have hF : (c.σ.decomposeIter m {A}).Finite :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_finite
+      c.σ m (Set.finite_singleton A)
+  have hF' : (c.σ.decomposeIter m {A'}).Finite :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_finite
+      c.σ m (Set.finite_singleton A')
+  have hconvD : Convex ℝ ((erase c ZX).side d) := by
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq]
+    exact convex_segment _ _
+  have hsegZX : segment ℝ x y ⊆ (erase c ZX).side d :=
+    hconvD.segment_subset hxa hya
+  have hcover : ∀ z ∈ segment ℝ x y,
+      ∃ B ∈ c.σ.decomposeIter m {A}, ∃ j : Fin (c.Q.disk B.form).n,
+        B.side j ⊆ (c.σ.θ ^ m) • A.side e ∧ z ∈ B.side j := by
+    intro z hz
+    apply level_down_aux_boundary_cover c hH m A e z
+    exact ((by
+      rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq]
+      exact convex_segment _ _ : Convex ℝ ((c.σ.θ ^ m) • A.side e)).segment_subset
+        hxEA hyEA hz)
+  have hcover' : ∀ z ∈ segment ℝ x y,
+      ∃ B ∈ c.σ.decomposeIter m {A'}, ∃ j : Fin (c.Q.disk B.form).n,
+        B.side j ⊆ (c.σ.θ ^ m) • A.side e ∧ z ∈ B.side j := by
+    intro z hz
+    have hzA := ((by
+      rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_scaled_side_eq]
+      exact convex_segment _ _ : Convex ℝ ((c.σ.θ ^ m) • A.side e)).segment_subset
+        hxEA hyEA hz)
+    have hzA' : z ∈ (c.σ.θ ^ m) • A'.side o'.2 := by
+      rw [← hside]
+      exact hzA
+    obtain ⟨B, hB, j, hj, hzj⟩ :=
+      level_down_aux_boundary_cover c hH m A' o'.2 z hzA'
+    refine ⟨B, hB, j, ?_, hzj⟩
+    rw [hside]
+    exact hj
+  let chooseOpp : Set (PlacedTile c.Q) :=
+    if erase c ZX ∈ c.σ.decomposeIter m {A} then c.σ.decomposeIter m {A'}
+    else c.σ.decomposeIter m {A}
+  have hOppFin : chooseOpp.Finite := by
+    dsimp [chooseOpp]
+    split_ifs <;> assumption
+  let Iall : Finset (Σ B : PlacedTile c.Q, Fin (c.Q.disk B.form).n) :=
+    hOppFin.toFinset.sigma (fun _ => Finset.univ)
+  let J : Set (Σ B : PlacedTile c.Q, Fin (c.Q.disk B.form).n) :=
+    {q | q.1 ∈ chooseOpp ∧ q.1.side q.2 ⊆ (c.σ.θ ^ m) • A.side e}
+  have hJfin : J.Finite := by
+    apply Iall.finite_toSet.subset
+    intro q hq
+    simp only [J, Set.mem_setOf_eq] at hq
+    simp [Iall, hq.1]
+  let I : Finset (Σ B : PlacedTile c.Q, Fin (c.Q.disk B.form).n) := hJfin.toFinset
+  have hcovI : segment ℝ x y ⊆ ⋃ q ∈ I, q.1.side q.2 := by
+    intro z hz
+    by_cases hZA : erase c ZX ∈ c.σ.decomposeIter m {A}
+    · obtain ⟨B, hB, j, hj, hzj⟩ := hcover' z hz
+      exact mem_iUnion₂.2 ⟨⟨B, j⟩, by simp [I, J, chooseOpp, hZA, hB, hj], hzj⟩
+    · obtain ⟨B, hB, j, hj, hzj⟩ := hcover z hz
+      exact mem_iUnion₂.2 ⟨⟨B, j⟩, by simp [I, J, chooseOpp, hZA, hB, hj], hzj⟩
+  have hconvI : ∀ q : (Σ B : PlacedTile c.Q, Fin (c.Q.disk B.form).n),
+      Convex ℝ (q.1.side q.2) := by
+    intro q
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq]
+    exact convex_segment _ _
+  obtain ⟨q, hqI, hqov⟩ :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_pigeon_overlap
+      x y hxy I (fun q => q.1.side q.2) hconvI hcovI
+  have hqJ : q ∈ J := by simpa [I] using hqI
+  have hqOpp : q.1 ∈ chooseOpp := hqJ.1
+  have hqsub : q.1.side q.2 ⊆ (c.σ.θ ^ m) • A.side e := hqJ.2
+  have hV : erase c V.1 ∈ (seq (m + 2)).tiles :=
+    herase (m + 2) ▸ ⟨V.1, V.2, rfl⟩
+  have hchild : ∀ t, c.owner t = (blk V).α →
+      erase c ((blk V).placed t) ∈ c.σ.decompose {erase c V.1} := by
+    intro t ht
+    obtain ⟨⟨hf, -⟩, hv⟩ := hbe V
+    simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+      c.rule_eq, Set.mem_iUnion, Set.mem_image, Set.mem_singleton_iff,
+      Set.mem_setOf_eq, exists_prop]
+    refine ⟨_, rfl, _, ⟨t, ht.trans hf.symm, rfl⟩, ?_⟩
+    simp [erase, ColouredBlock.placed, ColouredBlock.tileOf, tileDec,
+      PlacedTile.translate, hv]
+  have hAV : A ∈ c.σ.decompose {erase c V.1} := by
+    simpa [A] using hchild s hs
+  have hA'V : A' ∈ c.σ.decompose {erase c V.1} := by
+    exact hchild o'.1 (hp.2.1.trans hs)
+  have hup : ∀ B, B ∈ c.σ.decompose {erase c V.1} →
+      c.σ.decomposeIter m {B} ⊆ c.σ.decomposeIter (m + 1) {erase c V.1} := by
+    intro B hB
+    rw [lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_succ_inner]
+    exact lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_decomposeIter_mono
+      c.σ m (Set.singleton_subset_iff.2 hB)
+  have hZXV : erase c ZX ∈ c.σ.decomposeIter (m + 1) {erase c V.1} := by
+    rcases hmem with hZA | hZA'
+    · exact hup A hAV hZA
+    · exact hup A' hA'V hZA'
+  have hqV : q.1 ∈ c.σ.decomposeIter (m + 1) {erase c V.1} := by
+    by_cases hZA : erase c ZX ∈ c.σ.decomposeIter m {A}
+    · apply hup A' hA'V
+      simpa [chooseOpp, hZA] using hqOpp
+    · apply hup A hAV
+      simpa [chooseOpp, hZA] using hqOpp
+  have hov : OverlapPos ((erase c ZX).side d) (q.1.side q.2) := by
+    obtain ⟨u, v, huv, huvsub⟩ := hqov
+    exact ⟨u, v, huv, fun z hz => ⟨hsegZX (huvsub hz).1, (huvsub hz).2⟩⟩
+  have heq := hsts (m + 2) (m + 1) (by omega) (erase c V.1) hV
+    (erase c ZX) hZXV q.1 hqV d q.2 hov
+  change (erase c ZX).side d ⊆
+    (c.σ.θ ^ m) • (erase c ((blk V).placed s)).side e
+  rw [heq]
+  simpa [A] using hqsub
 
 /-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
 "the two copied cells on the coincident sides `b ⊂ σ'd` and `b' ⊂ σ'd'` copy the cells of the parent

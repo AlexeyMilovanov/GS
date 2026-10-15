@@ -24347,7 +24347,22 @@ private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step3_piece_tw
     ∀ j : Fin (4 * Rs.N α), ∃ A B : PlacedTile P,
       A ∈ ((Rs.annulus l α hl).spokes.piece j).faces ∧
       B ∈ ((Rs.annulus l α hl).spokes.piece j).faces ∧ A ≠ B := by
-  sorry
+  intro j
+  obtain ⟨e, he, hsep⟩ := Rs.windows l α hl
+  obtain ⟨⟨A, hA, i, hAi⟩, -⟩ := he j 0
+  obtain ⟨⟨B, hB, k, hBk⟩, -⟩ := he j 1
+  refine ⟨A, B, hA, hB, ?_⟩
+  rintro rfl
+  have hxs : A.vertex i ∈ A.side i := ⟨(P.disk A.form).vertex i, left_mem_segment ℝ _ _, rfl⟩
+  have hys : A.vertex k ∈ A.side k := ⟨(P.disk A.form).vertex k, left_mem_segment ℝ _ _, rfl⟩
+  have hx : A.vertex i ∈ e j 0 := hAi ▸ hxs
+  have hy : A.vertex k ∈ e j 1 := hBk ▸ hys
+  have h1 := hsep j 0 j 1 (by simp) _ hx _ hy
+  have h2 := step5_tile_dist_le M A (tile_side_subset A i hxs) (tile_side_subset A k hys)
+  have h3 := Rs.R_large α
+  have hD := M.D_pos
+  have hK : (0 : ℝ) ≤ M.K0 := Nat.cast_nonneg _
+  nlinarith
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: the print neighbour
 is a retained annular group.  A child sharing a side with the central child (which scatters to the

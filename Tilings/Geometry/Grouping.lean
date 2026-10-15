@@ -5931,6 +5931,123 @@ private theorem pd_wind (B : PolygonalDisk) : ∃ σ : ℝ, (σ = 1 ∨ σ = -1)
     ⟨y1, hy1F, hy1V, hy1F⟩
   exact (hsub hpF).1.2 hp0
 
+/-- Counterclockwise orientation of the listed boundary, expressed using the winding-number
+orientation already developed for polygonal disks in `pd_wind`. -/
+private def pdCCW (B : PolygonalDisk) : Prop :=
+  ∀ x ∈ interior B.carrier, wind B.vertex x = 2 * Real.pi
+
+/-- Reverse the cyclic vertex listing of a polygonal disk while keeping its carrier. -/
+private def pdReverse (B : PolygonalDisk) : PolygonalDisk := by
+  let l := pgRev (pgL B)
+  have hl : PgSP l := (pgSP_pgL B).pgRev
+  exact
+    { carrier := B.carrier
+      n := l.length
+      three_le := hl.three
+      vertex := l.get
+      vertex_injective := hl.inj
+      compact := B.compact
+      interior_nonempty := B.interior_nonempty
+      regular_closed := B.regular_closed
+      interior_pathConnected := B.interior_pathConnected
+      frontier_eq := by
+        change frontier B.carrier = polyCurve l.get
+        rw [← pgCv_eq_polyCurve, show l = pgRev (pgL B) by rfl, pgCv_pgRev, pgCv_pgL]
+      simple := hl.simple_fin }
+
+private lemma pdReverse_carrier (B : PolygonalDisk) : (pdReverse B).carrier = B.carrier := rfl
+
+private lemma pdReverse_vertexSet (B : PolygonalDisk) :
+    (pdReverse B).vertexSet = B.vertexSet := by
+  ext x
+  simp only [PolygonalDisk.vertexSet, mem_range]
+  constructor
+  · rintro ⟨i, rfl⟩
+    have hi : (pdReverse B).vertex i ∈ pgRev (pgL B) := by
+      exact List.get_mem _ _
+    rw [(pgRev_perm (pgL B)).mem_iff] at hi
+    obtain ⟨j, hj⟩ := List.mem_ofFn.1 hi
+    exact ⟨j, by simpa [pdReverse, pgL] using hj⟩
+  · rintro ⟨i, rfl⟩
+    have hi : B.vertex i ∈ pgL B := List.mem_ofFn.2 ⟨i, rfl⟩
+    rw [← (pgRev_perm (pgL B)).mem_iff] at hi
+    obtain ⟨j, hj⟩ := List.mem_iff_get.1 hi
+    exact ⟨j, by simpa [pdReverse] using hj⟩
+
+private lemma pdReverse_side (B : PolygonalDisk) (i : Fin (pdReverse B).n) :
+    ∃ j : Fin B.n, (pdReverse B).side i = B.side j := by
+  let l := pgL B
+  have hi : ((pgRev l).get i, (pgRev l).get (finRotate _ i)) ∈ pgEd (pgRev l) := by
+    rw [pgEd_eq_ofFn]
+    exact List.mem_ofFn.2 ⟨i, rfl⟩
+  rw [pgEd_pgRev, List.mem_reverse, List.mem_map] at hi
+  obtain ⟨e, he, hes⟩ := hi
+  rw [pgEd_eq_ofFn] at he
+  obtain ⟨j, rfl⟩ := List.mem_ofFn.1 he
+  refine ⟨Fin.cast (pgL_length B) j, ?_⟩
+  change segment ℝ ((pgRev l).get i) ((pgRev l).get (finRotate _ i)) =
+    segment ℝ (B.vertex (Fin.cast (pgL_length B) j))
+      (B.vertex (finRotate B.n (Fin.cast (pgL_length B) j)))
+  have hends := Prod.mk.inj hes
+  rw [← pgL_get B j, ← pgL_get_rot B j, ← hends.2, ← hends.1, segment_symm]
+
+private lemma pdReverse_ccw_of_not (B : PolygonalDisk) (h : ¬pdCCW B) : pdCCW (pdReverse B) := by
+  obtain ⟨σ, hσ, hin, -⟩ := pd_wind B
+  have hσneg : σ = -1 := by
+    rcases hσ with hσ | hσ
+    · exfalso
+      apply h
+      intro x hx
+      simpa [pdCCW, hσ] using hin x hx
+    · exact hσ
+  intro x hx
+  change wind (pgRev (pgL B)).get x = 2 * Real.pi
+  rw [← pgW_eq_wind, pgW_pgRev, pgW_pgL, hin x (by simpa using hx), hσneg]
+  · ring
+  · rw [pgCv_pgL]
+    exact fun hfront => Set.disjoint_left.1 disjoint_interior_frontier hx hfront
+
+/-- Canonical counterclockwise relisting of a polygonal disk. -/
+private noncomputable def pdOrientCCW (B : PolygonalDisk) : PolygonalDisk :=
+  by
+    classical
+    exact if pdCCW B then B else pdReverse B
+
+private lemma pdOrientCCW_carrier (B : PolygonalDisk) :
+    (pdOrientCCW B).carrier = B.carrier := by
+  classical
+  by_cases h : pdCCW B
+  · rw [pdOrientCCW, if_pos h]
+  · rw [pdOrientCCW, if_neg h, pdReverse_carrier]
+
+private lemma pdOrientCCW_vertexSet (B : PolygonalDisk) :
+    (pdOrientCCW B).vertexSet = B.vertexSet := by
+  classical
+  by_cases h : pdCCW B
+  · rw [pdOrientCCW, if_pos h]
+  · rw [pdOrientCCW, if_neg h, pdReverse_vertexSet]
+
+private lemma pdOrientCCW_side (B : PolygonalDisk) (i : Fin (pdOrientCCW B).n) :
+    ∃ j : Fin B.n, (pdOrientCCW B).side i = B.side j := by
+  classical
+  by_cases h : pdCCW B
+  · have heq : pdOrientCCW B = B := by rw [pdOrientCCW, if_pos h]
+    revert i
+    rw [heq]
+    exact fun i => ⟨i, rfl⟩
+  · have heq : pdOrientCCW B = pdReverse B := by rw [pdOrientCCW, if_neg h]
+    revert i
+    rw [heq]
+    exact pdReverse_side B
+
+private lemma pdOrientCCW_ccw (B : PolygonalDisk) : pdCCW (pdOrientCCW B) := by
+  classical
+  by_cases h : pdCCW B
+  · rw [pdOrientCCW, if_pos h]
+    exact h
+  · rw [pdOrientCCW, if_neg h]
+    exact pdReverse_ccw_of_not B h
+
 /-! ### Reparametrizations and duplicated vertices -/
 
 /-- a loop is homotopic (inside its image) to any reparametrization `t ↦ γ (t + ψ t)` with `ψ`
@@ -34715,6 +34832,7 @@ private structure existsMacroCertificate_GroupingSeed (τ : Substitution P) wher
       ((annular p).spokes.piece j).disk.n ≤ M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊
   GS : GroupedSubstitution τ
   grouped_power : GS.k = k
+  ccw : ∀ α, pdCCW (GS.G.P'.disk α)
   large : P.Form → GS.G.P'.Form
   small : P.Form → Fin (4 * N) → GS.G.P'.Form
   original : P.Form → GS.G.P'.Form
@@ -35390,8 +35508,9 @@ private lemma emcg_supertile_finite (q : P.Form) : (τ.supertile k q).Finite :=
 /-- The grouped protoset. -/
 private def emcgP' : Protoset where
   Form := P.Form ⊕ (P.Form × Fin (4 * N)) ⊕ P.Form
-  disk := Sum.elim (fun p => (A p).L.disk)
-    (Sum.elim (fun pj => ((A pj.1).spokes.piece pj.2).disk) P.disk)
+  disk := Sum.elim (fun p => pdOrientCCW (A p).L.disk)
+    (Sum.elim (fun pj => pdOrientCCW ((A pj.1).spokes.piece pj.2).disk)
+      (fun p => pdOrientCCW (P.disk p)))
 
 /-- The scattering patches. -/
 private def emcgDissect : (emcgP' τ k A).Form → Patch P :=
@@ -35423,9 +35542,16 @@ private def emcgG (h : τ.STS) : GroupedFamily P where
   dissect := emcgDissect τ k A
   support_eq := by
     rintro (p | ⟨p, j⟩ | p)
-    · exact (A p).L.carrier_eq.symm
-    · exact ((A p).spokes.piece j).carrier_eq.symm
-    · exact emcg_support_singleton_zero p
+    · change support (A p).L.faces = (pdOrientCCW (A p).L.disk).carrier
+      rw [pdOrientCCW_carrier]
+      exact (A p).L.carrier_eq.symm
+    · change support ((A p).spokes.piece j).faces =
+        (pdOrientCCW ((A p).spokes.piece j).disk).carrier
+      rw [pdOrientCCW_carrier]
+      exact ((A p).spokes.piece j).carrier_eq.symm
+    · change support ({⟨p, 0⟩} : Set (PlacedTile P)) = (pdOrientCCW (P.disk p)).carrier
+      rw [pdOrientCCW_carrier]
+      exact emcg_support_singleton_zero p
   sts := by
     rintro (p | ⟨p, j⟩ | p)
     · exact emcg_sts_subset (h k p) (A p).L.faces_sub
@@ -35442,19 +35568,34 @@ private def emcgG (h : τ.STS) : GroupedFamily P where
       rw [hX, hY]
   side_whole := by
     rintro (p | ⟨p, j⟩ | p) i
-    · exact (A p).L.side_whole i
-    · exact ((A p).spokes.piece j).side_whole i
-    · exact ⟨⟨p, 0⟩, mem_singleton _, i, by simp [PlacedTile.side]; rfl⟩
+    · obtain ⟨i', hi'⟩ := pdOrientCCW_side (A p).L.disk i
+      obtain ⟨B, hB, k, hk⟩ := (A p).L.side_whole i'
+      exact ⟨B, hB, k, hk.trans hi'.symm⟩
+    · obtain ⟨i', hi'⟩ := pdOrientCCW_side ((A p).spokes.piece j).disk i
+      obtain ⟨B, hB, k, hk⟩ := ((A p).spokes.piece j).side_whole i'
+      exact ⟨B, hB, k, hk.trans hi'.symm⟩
+    · obtain ⟨i', hi'⟩ := pdOrientCCW_side (P.disk p) i
+      exact ⟨⟨p, 0⟩, mem_singleton _, i', by simpa [PlacedTile.side] using hi'.symm⟩
   vertex_retained := by
     rintro (p | ⟨p, j⟩ | p) v hv hfr
-    · exact (A p).L.vertex_retained v (emcg_isVertexOf_mono (A p).L.faces_sub hv) hfr
-    · exact ((A p).spokes.piece j).vertex_retained v
-        (emcg_isVertexOf_mono ((A p).spokes.piece j).faces_sub hv) hfr
+    · change v ∈ frontier (pdOrientCCW (A p).L.disk).carrier at hfr
+      change v ∈ (pdOrientCCW (A p).L.disk).vertexSet
+      rw [pdOrientCCW_vertexSet]
+      exact (A p).L.vertex_retained v (emcg_isVertexOf_mono (A p).L.faces_sub hv)
+        (by simpa [pdOrientCCW_carrier] using hfr)
+    · change v ∈ frontier (pdOrientCCW ((A p).spokes.piece j).disk).carrier at hfr
+      change v ∈ (pdOrientCCW ((A p).spokes.piece j).disk).vertexSet
+      rw [pdOrientCCW_vertexSet]
+      exact ((A p).spokes.piece j).vertex_retained v
+        (emcg_isVertexOf_mono ((A p).spokes.piece j).faces_sub hv)
+        (by simpa [pdOrientCCW_carrier] using hfr)
     · obtain ⟨B, hB, l, hl⟩ := hv
       change B ∈ ({⟨p, 0⟩} : Set (PlacedTile P)) at hB
       rw [mem_singleton_iff] at hB
       subst hB
-      exact ⟨l, by rw [← hl]; simp [PlacedTile.vertex]; rfl⟩
+      change v ∈ (pdOrientCCW (P.disk p)).vertexSet
+      rw [pdOrientCCW_vertexSet]
+      exact ⟨l, by rw [← hl]; simp [PlacedTile.vertex]⟩
 
 end GroupingConstruction
 
@@ -36043,6 +36184,11 @@ private lemma existsMacroCertificate_seed1_grouping (τ : Substitution P) (h : �
     annular_quantitative := hAg
     GS := emcgGS τ Ag h hk
     grouped_power := rfl
+    ccw := by
+      rintro (p | ⟨p, j⟩ | p)
+      · exact pdOrientCCW_ccw (Ag p).L.disk
+      · exact pdOrientCCW_ccw ((Ag p).spokes.piece j).disk
+      · exact pdOrientCCW_ccw (P.disk p)
     large := fun p => Sum.inl p
     small := fun p j => Sum.inr (Sum.inl (p, j))
     original := fun p => Sum.inr (Sum.inr p)
@@ -36079,8 +36225,13 @@ private structure existsMacroCertificate_RoutingSeed (τ : Substitution P)
   represents : C.Represents τ m
   baseForm : C.Q.Form → setup.GS.G.P'.Form
   catalogueTile : C.Q.Form → PlacedTile setup.GS.G.mixed
-  disk_eq : ∀ α, C.Q.disk α =
-    pdTranslate (setup.GS.G.mixed.disk (catalogueTile α).form) (catalogueTile α).anchor
+  disk_carrier : ∀ α, (C.Q.disk α).carrier =
+    (pdTranslate (setup.GS.G.mixed.disk (catalogueTile α).form)
+      (catalogueTile α).anchor).carrier
+  disk_vertexSet : ∀ α, (C.Q.disk α).vertexSet =
+    (pdTranslate (setup.GS.G.mixed.disk (catalogueTile α).form)
+      (catalogueTile α).anchor).vertexSet
+  disk_ccw : ∀ α, pdCCW (C.Q.disk α)
   scatter_eq : ∀ α, (C.Δ α).tiles = setup.GS.G.mixedScatterTile (catalogueTile α)
   originalForm : P.Form → C.Q.Form
   original_tile : ∀ p, catalogueTile (originalForm p) = ⟨Sum.inr p, 0⟩

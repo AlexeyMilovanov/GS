@@ -2489,6 +2489,269 @@ private lemma plAnnulusRouting_closedBall_continuous_extension
   intro z hz
   simpa only [Function.comp_apply] using congrFun hH ⟨z, hz⟩
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: the base case of the ear decomposition.  A convex
+polygonal disk is the image of the closed unit disk under an embedding sending the open disk into its interior
+(radial gauge rescaling). -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step1_convexModel (B : PolygonalDisk)
+    (hconv : Convex ℝ B.carrier) :
+    ∃ g : Metric.closedBall (0 : ℂ) 1 → Pt, Continuous g ∧ Function.Injective g ∧
+      range g = B.carrier ∧ ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier := by
+  have hcpt := B.compact
+  have hne := B.interior_nonempty
+  obtain ⟨h, hi, hc, -⟩ := exists_homeomorph_image_interior_closure_frontier_eq_unitBall hconv hne
+    hcpt.isBounded
+  rw [hcpt.isClosed.closure_eq] at hc
+  let R : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  refine ⟨fun z => h.symm (R z.1), ?_, ?_, ?_, ?_⟩
+  · exact h.symm.continuous.comp (R.continuous.comp continuous_subtype_val)
+  · intro z w hzw
+    exact Subtype.ext (R.injective (h.symm.injective hzw))
+  · ext x
+    constructor
+    · rintro ⟨z, rfl⟩
+      have : R z.1 ∈ Metric.closedBall (0 : Pt) 1 := by
+        have := z.2
+        rw [Metric.mem_closedBall, dist_zero_right] at this ⊢
+        rwa [R.norm_map]
+      rw [← hc] at this
+      obtain ⟨y, hy, hy'⟩ := this
+      simpa [← hy'] using hy
+    · intro hx
+      have hx' : h x ∈ Metric.closedBall (0 : Pt) 1 := hc ▸ mem_image_of_mem h hx
+      refine ⟨⟨R.symm (h x), ?_⟩, by simp⟩
+      rw [Metric.mem_closedBall, dist_zero_right] at hx' ⊢
+      rwa [R.symm.norm_map]
+  · intro z hz
+    have : R z.1 ∈ Metric.ball (0 : Pt) 1 := by
+      rw [Metric.mem_ball, dist_zero_right] at hz ⊢
+      rwa [R.norm_map]
+    rw [← hi] at this
+    obtain ⟨y, hy, hy'⟩ := this
+    simpa [← hy'] using hy
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: the ear decomposition (polygonal Schoenflies
+theorem) for a nonconvex polygonal disk.  Cutting off ears along interior diagonals and gluing the disk models
+of the pieces, the carrier is the image of the closed unit disk under a continuous injective map sending the
+open unit disk into the interior. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition (B : PolygonalDisk) (hconv : ¬ Convex ℝ B.carrier) :
+    ∃ g : Metric.closedBall (0 : ℂ) 1 → Pt, Continuous g ∧ Function.Injective g ∧
+      range g = B.carrier ∧ ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: every polygonal disk has a disk model (combine the
+convex base case with the ear decomposition). -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step3_diskModel (B : PolygonalDisk) :
+    ∃ g : Metric.closedBall (0 : ℂ) 1 → Pt, Continuous g ∧ Function.Injective g ∧
+      range g = B.carrier ∧ ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier := by
+  by_cases hconv : Convex ℝ B.carrier
+  · exact plAnnulusRouting_polygonalDisk_closedBall_model_step1_convexModel B hconv
+  · exact plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition B hconv
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model` (boundary reparametrization): the disk model maps
+the unit circle onto the boundary curve, so the loop `l` lifts continuously to the unit circle through it. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step4_boundaryLift (B : PolygonalDisk)
+    (g : Metric.closedBall (0 : ℂ) 1 → Pt)
+    (hg : Continuous g) (hginj : Function.Injective g) (hrange : range g = B.carrier)
+    (hint : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier)
+    (l : ℝ → Pt) (hl : IsLoopParam (frontier B.carrier) l) :
+    ∃ ψ : ℝ → Metric.closedBall (0 : ℂ) 1, Continuous ψ ∧ (∀ t, ‖(ψ t).1‖ = 1) ∧
+      ∀ t, g (ψ t) = l t := by
+  have hfr : ∀ t, l t ∈ frontier B.carrier := fun t => by
+    rw [← hl.2.2.2]
+    refine ⟨Int.fract t, ⟨Int.fract_nonneg t, Int.fract_lt_one t⟩, ?_⟩
+    rw [Int.fract]; simpa using hl.2.1.sub_int_mul_eq (n := ⌊t⌋) (x := t)
+  have hex : ∀ t, ∃ z, g z = l t := fun t => by
+    have : l t ∈ range g := hrange ▸ B.compact.isClosed.frontier_subset (hfr t)
+    exact this
+  choose ψ hψ using hex
+  haveI : CompactSpace (Metric.closedBall (0 : ℂ) 1) :=
+    isCompact_iff_compactSpace.mp (isCompact_closedBall 0 1)
+  have hemb := hg.isClosedEmbedding hginj
+  refine ⟨ψ, ?_, ?_, hψ⟩
+  · rw [hemb.isEmbedding.continuous_iff]
+    have : g ∘ ψ = l := funext hψ
+    rw [this]; exact hl.1
+  · intro t
+    have h1 : ‖(ψ t).1‖ ≤ 1 := by
+      have := (ψ t).2; rwa [Metric.mem_closedBall, dist_zero_right] at this
+    refine le_antisymm h1 (not_lt.mp fun hlt => ?_)
+    have hi := hint (ψ t) (by simpa using hlt)
+    rw [hψ t] at hi
+    exact (Set.disjoint_left.1 disjoint_interior_frontier hi) (hfr t)
+
+
+/-- Step 5 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: a period-one loop parametrization takes equal
+values only at parameters differing by an integer. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step5_loopPeriod (K : Set Pt) (l : ℝ → Pt) (hl : IsLoopParam K l) {s t : ℝ} (h : l s = l t) :
+    ∃ k : ℤ, t = s + k := by
+  obtain ⟨-, hper, hinj, -⟩ := hl
+  have hf : ∀ x, l (Int.fract x) = l x := fun x => by
+    rw [Int.fract]; simpa using hper.sub_int_mul_eq (n := ⌊x⌋) (x := x)
+  have hmem : ∀ x, Int.fract x ∈ Ico (0 : ℝ) 1 := fun x => ⟨Int.fract_nonneg x, Int.fract_lt_one x⟩
+  have he : Int.fract s = Int.fract t := hinj (hmem s) (hmem t) (by rw [hf, hf, h])
+  refine ⟨⌊t⌋ - ⌊s⌋, ?_⟩
+  rw [Int.fract, Int.fract] at he
+  push_cast; linarith
+
+
+/-- Step 6 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: polar coordinates `r * exp (2πit)` with `r ≥ 0`
+determine `r`, and determine `t` up to an integer when `r ≠ 0`. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step6_polarEq {r r' s t : ℝ}
+    (hr : 0 ≤ r) (hr' : 0 ≤ r')
+    (h : (r : ℂ) * Complex.exp (((2 * Real.pi * s : ℝ) : ℂ) * Complex.I) =
+      (r' : ℂ) * Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) :
+    r = r' ∧ (r = 0 ∨ ∃ k : ℤ, t = s + k) := by
+  have hρ : r = r' := by
+    have hn := congrArg norm h
+    rw [norm_mul, norm_mul, Complex.norm_exp_ofReal_mul_I, Complex.norm_exp_ofReal_mul_I,
+      Complex.norm_real, Complex.norm_real, Real.norm_of_nonneg hr,
+      Real.norm_of_nonneg hr'] at hn
+    simpa using hn
+  refine ⟨hρ, ?_⟩
+  subst hρ
+  rcases eq_or_ne r 0 with h0 | h0
+  · exact Or.inl h0
+  right
+  have hne : (r : ℂ) ≠ 0 := by exact_mod_cast h0
+  have he := mul_left_cancel₀ hne h
+  obtain ⟨n, hn⟩ := Complex.exp_eq_exp_iff_exists_int.mp he
+  have him := congrArg Complex.im hn
+  simp at him
+  refine ⟨-n, ?_⟩
+  have hpi := Real.pi_pos
+  push_cast
+  nlinarith
+
+
+/-- Step 7 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model` (boundary reparametrization): extend the circle
+lift `ψ` of `l` conically, `r * exp (2πit) ↦ r * ψ t`, to a self-embedding of the closed disk, and compose it
+with the disk model `g`. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step7_coneReparametrization (B : PolygonalDisk)
+    (g : Metric.closedBall (0 : ℂ) 1 → Pt)
+    (hg : Continuous g) (hginj : Function.Injective g) (hcar : ∀ z, g z ∈ B.carrier)
+    (hint : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier)
+    (l : ℝ → Pt) (hl : IsLoopParam (frontier B.carrier) l)
+    (ψ : ℝ → Metric.closedBall (0 : ℂ) 1) (hψ : Continuous ψ) (hψn : ∀ t, ‖(ψ t).1‖ = 1)
+    (hψl : ∀ t, g (ψ t) = l t) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧
+      (∀ z, f z ∈ B.carrier) ∧
+      (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f z ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
+  have hu := plAnnulusRouting_unitCircle_mem_closedBall
+  -- periodicity of the lift
+  have hψper : Function.Periodic ψ 1 := fun t => hginj (by rw [hψl, hψl, hl.2.1])
+  have hψk : ∀ (t : ℝ) (k : ℤ), ψ (t + k) = ψ t := fun t k => by
+    simpa using hψper.int_mul k t
+  let Q := Icc (0 : ℝ) 1 ×ˢ Icc (-1 : ℝ) 1
+  let E : ℝ → ℂ := fun t => Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)
+  have hEn : ∀ t, ‖E t‖ = 1 := fun t => Complex.norm_exp_ofReal_mul_I _
+  have hEc : Continuous E := by fun_prop
+  have hball : ∀ p : Q, (p.1.1 : ℂ) * E p.1.2 ∈ Metric.closedBall (0 : ℂ) 1 := fun p => by
+    have := p.2.1
+    rw [Metric.mem_closedBall, dist_zero_right, norm_mul, hEn, Complex.norm_real,
+      Real.norm_of_nonneg this.1]
+    linarith [this.2]
+  have hball' : ∀ p : Q, (p.1.1 : ℂ) * (ψ p.1.2).1 ∈ Metric.closedBall (0 : ℂ) 1 := fun p => by
+    have := p.2.1
+    rw [Metric.mem_closedBall, dist_zero_right, norm_mul, hψn, Complex.norm_real,
+      Real.norm_of_nonneg this.1]
+    linarith [this.2]
+  let Φ : Q → Metric.closedBall (0 : ℂ) 1 := fun p => ⟨_, hball p⟩
+  let Ψ : Q → Metric.closedBall (0 : ℂ) 1 := fun p => ⟨_, hball' p⟩
+  haveI : CompactSpace Q := isCompact_iff_compactSpace.mp (isCompact_Icc.prod isCompact_Icc)
+  have hΦc : Continuous Φ := by
+    refine Continuous.subtype_mk ?_ _
+    exact (Complex.continuous_ofReal.comp (continuous_fst.comp continuous_subtype_val)).mul
+      (hEc.comp (continuous_snd.comp continuous_subtype_val))
+  have hΨc : Continuous Ψ := by
+    refine Continuous.subtype_mk ?_ _
+    exact (Complex.continuous_ofReal.comp (continuous_fst.comp continuous_subtype_val)).mul
+      (continuous_subtype_val.comp (hψ.comp (continuous_snd.comp continuous_subtype_val)))
+  have hΦs : Function.Surjective Φ := by
+    rintro ⟨z, hz⟩
+    have hz1 : ‖z‖ ≤ 1 := by simpa using hz
+    have hpi := Real.pi_pos
+    have ha1 := Complex.neg_pi_lt_arg z
+    have ha2 := Complex.arg_le_pi z
+    refine ⟨⟨(‖z‖, Complex.arg z / (2 * Real.pi)), ⟨norm_nonneg z, hz1⟩, ?_, ?_⟩, ?_⟩
+    · rw [le_div_iff₀ (by positivity)]; linarith
+    · rw [div_le_iff₀ (by positivity)]; linarith
+    · apply Subtype.ext
+      change (‖z‖ : ℂ) * E (Complex.arg z / (2 * Real.pi)) = z
+      have : 2 * Real.pi * (Complex.arg z / (2 * Real.pi)) = Complex.arg z := by
+        field_simp
+      simp only [E, this]
+      exact Complex.norm_mul_exp_arg_mul_I z
+  have hq : Topology.IsQuotientMap Φ := (hΦc.isClosedMap).isQuotientMap hΦc hΦs
+  have hfac : ∀ p q : Q, Φ p = Φ q → Ψ p = Ψ q := by
+    intro p q hpq
+    obtain ⟨hr, h0 | ⟨k, hk⟩⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step6_polarEq p.2.1.1 q.2.1.1 (congrArg Subtype.val hpq)
+    · apply Subtype.ext; change (p.1.1 : ℂ) * _ = (q.1.1 : ℂ) * _
+      rw [← hr, h0]; simp
+    · apply Subtype.ext; change (p.1.1 : ℂ) * _ = (q.1.1 : ℂ) * _
+      rw [← hr, hk, hψk]
+  let F : Metric.closedBall (0 : ℂ) 1 → Metric.closedBall (0 : ℂ) 1 :=
+    fun z => Ψ (Function.surjInv hΦs z)
+  have hFΦ : ∀ p, F (Φ p) = Ψ p := fun p =>
+    hfac _ _ (Function.surjInv_eq hΦs (Φ p))
+  have hFc : Continuous F := by
+    rw [hq.continuous_iff]
+    have : F ∘ Φ = Ψ := funext hFΦ
+    rw [this]; exact hΨc
+  refine ⟨g ∘ F, hg.comp hFc, ?_, fun z => hcar _, ?_, ?_⟩
+  · intro z w hzw
+    obtain ⟨p, rfl⟩ := hΦs z
+    obtain ⟨q, rfl⟩ := hΦs w
+    have h1 : Ψ p = Ψ q := by
+      have := hginj hzw
+      simpa only [Function.comp_apply, hFΦ] using this
+    have h2 := congrArg Subtype.val h1
+    change (p.1.1 : ℂ) * (ψ p.1.2).1 = (q.1.1 : ℂ) * (ψ q.1.2).1 at h2
+    have hr : p.1.1 = q.1.1 := by
+      have hn := congrArg norm h2
+      rw [norm_mul, norm_mul, hψn, hψn, Complex.norm_real, Complex.norm_real,
+        Real.norm_of_nonneg p.2.1.1, Real.norm_of_nonneg q.2.1.1] at hn
+      simpa using hn
+    apply Subtype.ext
+    change (p.1.1 : ℂ) * E p.1.2 = (q.1.1 : ℂ) * E q.1.2
+    rcases eq_or_ne p.1.1 0 with h0 | h0
+    · rw [← hr, h0]; simp
+    have hne : (p.1.1 : ℂ) ≠ 0 := by exact_mod_cast h0
+    rw [← hr] at h2 ⊢
+    have h3 : ψ p.1.2 = ψ q.1.2 := Subtype.ext (mul_left_cancel₀ hne h2)
+    have h4 : l p.1.2 = l q.1.2 := by rw [← hψl, ← hψl, h3]
+    obtain ⟨k, hk⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step5_loopPeriod _ l hl h4
+    congr 1
+    simp only [E, hk]
+    rw [show ((2 * Real.pi * (p.1.2 + k) : ℝ) : ℂ) * Complex.I =
+      ((2 * Real.pi * p.1.2 : ℝ) : ℂ) * Complex.I + k * (2 * Real.pi * Complex.I) by
+        push_cast; ring]
+    exact (Complex.exp_eq_exp_iff_exists_int.mpr ⟨k, rfl⟩).symm
+  · intro z hz
+    obtain ⟨p, rfl⟩ := hΦs z
+    apply hint
+    simp only [hFΦ]
+    have hz' : ‖(p.1.1 : ℂ) * E p.1.2‖ < 1 := by simpa [Φ] using hz
+    rw [norm_mul, hEn] at hz'
+    change (p.1.1 : ℂ) * (ψ p.1.2).1 ∈ Metric.ball 0 1
+    rw [Metric.mem_ball, dist_zero_right, norm_mul, hψn]
+    simpa using hz'
+  · intro t
+    obtain ⟨p, hp⟩ := hΦs ⟨E t, hu t⟩
+    have hv : (p.1.1 : ℂ) * E p.1.2 = ((1 : ℝ) : ℂ) * E t := by
+      rw [Complex.ofReal_one, one_mul]; exact congrArg Subtype.val hp
+    obtain ⟨hr, h0 | ⟨k, hk⟩⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step6_polarEq p.2.1.1 zero_le_one hv
+    · exact absurd (hr.symm.trans h0) one_ne_zero
+    change g (F ⟨E t, hu t⟩) = l t
+    rw [← hp, hFΦ]
+    have : Ψ p = ψ p.1.2 := by
+      apply Subtype.ext; change (p.1.1 : ℂ) * _ = _; rw [hr]; simp
+    rw [this]
+    have ht : p.1.2 = t + (-k : ℤ) := by push_cast; linarith
+    rw [ht, hψk, hψl]
+
 /-- Remaining polygonal Schoenflies obligation.  Construct a boundary-compatible embedding of
 the closed complex unit disk onto the carrier of a carrier-based `PolygonalDisk`, with the open
 unit disk sent into its interior.  An ear decomposition plus boundary reparametrization is the
@@ -2501,7 +2764,10 @@ private lemma plAnnulusRouting_polygonalDisk_closedBall_model
       (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f z ∈ interior B.carrier) ∧
       ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
         plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
-  sorry
+  obtain ⟨g, hg, hginj, hrange, hint⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step3_diskModel B
+  obtain ⟨ψ, hψ, hψn, hψl⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step4_boundaryLift B g hg hginj hrange hint l hl
+  exact plAnnulusRouting_polygonalDisk_closedBall_model_step7_coneReparametrization B g hg hginj (fun z => hrange ▸ mem_range_self z) hint l hl
+    ψ hψ hψn hψl
 
 /-- Remaining polygonal annulus-cut obligation.  Cut along a cross-cut in a boundary gap and
 retain the lifts of two finite, compatibly ordered boundary point families.  The conclusion is

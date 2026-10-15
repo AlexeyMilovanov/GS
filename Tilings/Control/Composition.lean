@@ -3103,7 +3103,96 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell2_nopath (
         ((∀ (d : c.Side (reconstruct c K h.1).typ) (j : Fin 5),
             c.occ (K.tileOf t).typ i ∉ c.path (c.form (reconstruct c K h.1).typ) d j) →
           (K.tileOf t).cell i 2 = 0) := by
-  sorry
+  intro i hprint hnopath
+  have ht_eq : (K.tileOf t).typ = c.central K.α := ht_c
+  have hinner : c.IsInner (c.occ (K.tileOf t).typ i) := by
+    cases ht_eq
+    have hg := (c.g2_central K.α i).1
+    exact hg
+  let p := c.partner (c.occ (K.tileOf t).typ i)
+  have hp_partner : c.partner p = c.occ (K.tileOf t).typ i := c.g1_partner_partner _ hinner
+  have hown_p : c.owner p.1 = c.owner (c.occ (K.tileOf t).typ i).1 := (c.g1_partner _ hinner).2.1
+  have hp_notprint : ¬ c.IsPrint p := by
+    intro ⟨d, hd⟩
+    have hd' := (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print c hown_p d p).mp hd
+    apply hprint
+    use cast (congrArg (fun α => Fin (c.Q.disk α).n) hown_p) d
+    dsimp [MacroData.IsPrintOf] at hd' ⊢
+    refine ⟨hd'.1, ?_⟩
+    rcases hd'.2 with heq_p | heq_p
+    · right
+      have h2 := congrArg c.partner heq_p
+      dsimp [p] at h2
+      rw [c.g1_partner_partner _ hinner] at h2
+      exact Eq.symm (cast (by rfl) h2.symm)
+    · left
+      have h2 := congrArg c.partner heq_p
+      dsimp [p] at h2
+      rw [c.g1_partner_partner _ hinner] at h2
+      have h_print_inner := c.g4_print_inner _ _ hd'.1
+      rw [c.g1_partner_partner _ h_print_inner] at h2
+      exact Eq.symm (cast (by rfl) h2.symm)
+  have hp_inner : c.IsInner p := by
+    have hside := (c.g1_partner _ hinner).2.2
+    dsimp [MacroData.IsInner, MacroData.IsOuter] at hinner ⊢
+    rw [hown_p, hside]
+    exact hinner
+  have hp_nopath : ∀ d j, p ∉ c.path (c.form (reconstruct c K h.1).typ) d j := by
+    intro d j hp_mem
+    have h_genuine : c.IsGenuinePath (c.form (reconstruct c K h.1).typ) d j := by
+      by_contra hc
+      have h_triv := c.g4_path_trivial _ _ _ hc
+      rw [h_triv] at hp_mem
+      have hp_outer : c.IsOuter p := by
+        have hp_mem2 : p ∈ c.outerList (c.form (reconstruct c K h.1).typ) d := by
+          cases h_port : c.port (c.form (reconstruct c K h.1).typ) d j
+          · rw [h_port] at hp_mem; contradiction
+          · rename_i o
+            rw [h_port] at hp_mem; dsimp [Option.toList] at hp_mem
+            cases hp_mem
+            · have hport2 : c.port (c.form (reconstruct c K h.1).typ) d j = some p := h_port
+              dsimp [MacroData.port] at hport2
+              exact List.mem_of_getElem? hport2
+            · contradiction
+        have h_outerList_mem := c.g3_outerList_mem (c.form (reconstruct c K h.1).typ) d p
+        exact (h_outerList_mem.1 hp_mem2).2.1
+      exact hp_inner hp_outer
+    have h_mem2 := c.g4_path_partner _ _ _ h_genuine p hp_mem hp_inner hp_notprint
+    rw [hp_partner] at h_mem2
+    exact hnopath d j h_mem2
+  have h_nc : p.1 ≠ c.central K.α := by
+    have hne : p.1 ≠ (c.occ (K.tileOf t).typ i).1 := (c.g1_partner _ hinner).1
+    dsimp [MacroData.occ] at hne
+    rw [ht_eq] at hne
+    exact hne
+  have hp_owner : c.owner p.1 = K.α := by
+    rw [hown_p]
+    dsimp [MacroData.occ]
+    cases ht_eq
+    exact ht_owner
+  have h_child := macroblock_is_decomposition_noncentral c hH K hK h hh p.1 hp_owner h_nc
+  have h_child2 := h_child.2 p.2
+  have h_cell2 : (K.tileOf p.1).cell p.2 2 = 0 := by
+    have h_notprint_p : ¬ c.IsPrint (c.occ p.1 p.2) := hp_notprint
+    exact (h_child2.2 h_notprint_p).2.2.2.2.1 hp_nopath
+  have hactive_p := headerLegal_properties_step6_inner c hH (K.tileOf p.1) (hK.2 p.1 hp_owner h_nc) p.2 hp_inner
+  have hprop := hK.1 p.1 p.2 hp_owner hp_inner hactive_p
+  rcases hprop with ⟨t', j', howner', hne', hchildSide, hcol⟩
+  have hchildSide1 := path_and_print_recovery_step1_signals_aux_childSide c K (c.occ t' j')
+  have hchildSide2 := path_and_print_recovery_step1_signals_aux_childSide c K (c.occ p.1 p.2)
+  rw [hchildSide1, hchildSide2] at hchildSide
+  have hside_eq := path_and_print_recovery_step1_signals_aux_vadd_cancel K.v hchildSide
+  have hp_eq : c.occ t' j' = c.partner p := by
+    have hown_t' : c.owner (c.occ t' j').1 = c.owner p.1 := by
+      dsimp [MacroData.occ]
+      rw [hp_owner, howner']
+    exact c.g1_side_unique p (c.occ t' j') hp_inner hown_t' hne' hside_eq
+  rw [hp_partner] at hp_eq
+  have hcol2 := hcol 2
+  have h_p_col : K.col p.1 p.2 2 = 0 := h_cell2
+  have heq : K.col t' j' 2 = K.col (K.tileOf t).typ i 2 := congrArg (fun o : c.SideOcc => K.col o.1 o.2 2) hp_eq
+  have ht_cell : (K.tileOf t).cell i 2 = K.col (K.tileOf t).typ i 2 := by rfl
+  rw [ht_cell, ← heq, hcol2, h_p_col]
 
 /-- Step 6 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 3 on outer depends on mode. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell3_outer (c : MacroCertificate P)

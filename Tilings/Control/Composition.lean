@@ -9053,7 +9053,17 @@ theorem compose_legal_exists (c : MacroCertificate P) (hH : c.Hereditary)
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) :
     ∃ T' : PlaneTiling (typedDecoration c), IsProper c T' ∧
       (∀ X ∈ T'.tiles, headerLegal c (tileDec X)) ∧ IsExactComposition c T' T := by
-  sorry
+  obtain ⟨part, T', hrec, hT', hN, hex⟩ := composed_proper c hH T hT hL
+  use T'
+  refine ⟨hT', ?_, hex⟩
+  intro X hX
+  by_cases h_cent : c.IsCentral (tileDec X).typ
+  · by_cases h_cyc : c.IsCyclic (tileDec X).typ
+    · have hctx := reconstructed_acyclic_legal_step1_block_context c hH T hT hL part T' hex
+      exact reconstructed_acyclic_legal_step3_cyclic c hH T hT hL part T' hrec hT' hN hex X hX h_cyc hctx
+    · exact reconstructed_acyclic_legal c hH T hT hL part T' hrec hT' hN hex X hX h_cent h_cyc
+  · have hctx := reconstructed_acyclic_legal_step1_block_context c hH T hT hL part T' hex
+    exact reconstructed_acyclic_legal_step2_noncentral c hH T hT hL part T' hrec hT' hN hex X hX h_cent hctx
 
 /-- The side-to-side-supertiling hypothesis of `lem:lift-hierarchy` for a
 given `σ'` hierarchy: every intermediate decomposition `σ'^k X`, `k ≤ n`,

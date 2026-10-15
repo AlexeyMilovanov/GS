@@ -21339,7 +21339,107 @@ private lemma existsRoutingAfterPower_step3_entries_step2_outside_step1_original
         Rs.GS.G.mixedScatter (Rs.retained l α).children.tiles ∧
       (⟨p, F.anchor⟩ : PlacedTile P) ∉ (Rs.annulus l α hl).H.faces ∧
       HasEdge F e ∧ e ⊆ frontier (Rs.annulus l α hl).H.carrier := by
-  sorry
+  have hsub_front := he.2.1
+  obtain ⟨F_P, hFP_in_S, hFP_not_in_H, hFP_edge, hFP_disj⟩ := he.2.2
+  simp only [GroupedFamily.mixedScatter, Set.mem_iUnion, exists_prop] at hFP_in_S
+  obtain ⟨F, hF_child, hFP_in_scatterF⟩ := hFP_in_S
+  have h_inr : ∃ p, F.form = Sum.inr p := by
+    by_contra h_not_inr
+    have h_inl : ∃ β, F.form = Sum.inl β := by
+      cases hform : F.form with
+      | inl β => exact ⟨β, rfl⟩
+      | inr p => exact False.elim (h_not_inr ⟨p, hform⟩)
+    by_cases h_cent : F = Rs.central l α
+    · subst h_cent
+      have h_scat := Rs.central_scatter l α hl
+      rw [h_scat] at hFP_in_scatterF
+      have hFP_L : F_P.carrier ⊆ (Rs.annulus l α hl).L.carrier := by
+        intro x hx
+        show x ∈ (Rs.annulus l α hl).L.disk.carrier
+        rw [(Rs.annulus l α hl).L.carrier_eq]
+        exact Set.subset_biUnion_of_mem (u := fun (Z : PlacedTile P) => Z.carrier) hFP_in_scatterF hx
+      obtain ⟨i, hi⟩ := hFP_edge
+      have h_e_sub : e ⊆ F_P.carrier := by
+        intro x hx
+        have hy : x ∈ F_P.side i := hi ▸ hx
+        dsimp [PlacedTile.side, PlacedTile.carrier] at hy ⊢
+        obtain ⟨y, hy1, rfl⟩ := Set.mem_vadd_set.1 hy
+        apply Set.vadd_mem_vadd_set
+        have hfront : y ∈ frontier (P.disk F_P.form).carrier := by
+          rw [(P.disk F_P.form).frontier_eq]
+          exact Set.subset_iUnion (fun j => segment ℝ _ _) i hy1
+        exact (P.disk F_P.form).compact.isClosed.closure_eq ▸ frontier_subset_closure hfront
+      have he_nonempty : e.Nonempty := by
+        rw [← hi, PlacedTile.side]
+        exact ⟨_, Set.vadd_mem_vadd_set (a := F_P.anchor) (left_mem_segment ℝ _ _)⟩
+      have he_L : e ⊆ (Rs.annulus l α hl).L.carrier := h_e_sub.trans hFP_L
+      have hD := M.D_pos
+      have hR0 : 0 < Rs.R α := by have h1 : 0 ≤ (M.K0 : ℝ) := Nat.cast_nonneg M.K0; have h3 := Rs.R_large α; nlinarith
+      have hb : 0 ≤ (Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α := by positivity
+      have hnest1 : square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2) + Binf M.D ⊆
+          interior (square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α) + Binf (2 * M.D)) :=
+        existsAnnularSpokes_step1_nest (Rs.centre l α) (by linarith) hb (by linarith)
+      have hLH : (Rs.annulus l α hl).L.carrier ⊆ interior (Rs.annulus l α hl).H.carrier :=
+        (Rs.annulus l α hl).L_upper.trans (hnest1.trans (interior_mono (Rs.annulus l α hl).H_lower))
+      have he_intH : e ⊆ interior (Rs.annulus l α hl).H.carrier := he_L.trans hLH
+      have he_empty : e ⊆ ∅ := fun x hx =>
+        Set.disjoint_left.1 disjoint_interior_frontier (he_intH hx) (hsub_front hx)
+      exact he_nonempty.ne_empty (Set.subset_empty_iff.1 he_empty)
+    · obtain ⟨k, hk⟩ := Rs.small_scatter l α hl F hF_child h_cent h_inl
+      rw [hk] at hFP_in_scatterF
+      have h_kj : k = j := by
+        by_contra h_k_ne_j
+        have h_disj := hFP_disj k h_k_ne_j
+        have hFP_sub : F_P.carrier ⊆ ((Rs.annulus l α hl).spokes.piece k).carrier := by
+          intro x hx
+          show x ∈ ((Rs.annulus l α hl).spokes.piece k).disk.carrier
+          rw [((Rs.annulus l α hl).spokes.piece k).carrier_eq]
+          exact Set.subset_biUnion_of_mem (u := fun (Z : PlacedTile P) => Z.carrier) hFP_in_scatterF hx
+        obtain ⟨i, hi⟩ := hFP_edge
+        have h_e_sub : e ⊆ F_P.carrier := by
+          intro x hx
+          have hy : x ∈ F_P.side i := hi ▸ hx
+          dsimp [PlacedTile.side, PlacedTile.carrier] at hy ⊢
+          obtain ⟨y, hy1, rfl⟩ := Set.mem_vadd_set.1 hy
+          apply Set.vadd_mem_vadd_set
+          have hfront : y ∈ frontier (P.disk F_P.form).carrier := by
+            rw [(P.disk F_P.form).frontier_eq]
+            exact Set.subset_iUnion (fun j => segment ℝ _ _) i hy1
+          exact (P.disk F_P.form).compact.isClosed.closure_eq ▸ frontier_subset_closure hfront
+        have h_e_nonempty : e.Nonempty := by
+          rw [← hi, PlacedTile.side]
+          exact ⟨_, Set.vadd_mem_vadd_set (a := F_P.anchor) (left_mem_segment ℝ _ _)⟩
+        obtain ⟨x, hx⟩ := h_e_nonempty
+        exact Set.disjoint_left.1 h_disj (h_e_sub hx) (hFP_sub (h_e_sub hx))
+      rw [h_kj] at hFP_in_scatterF
+      have hFP_in_H : F_P ∈ (Rs.annulus l α hl).H.faces :=
+        ((Rs.annulus l α hl).spokes.piece_sub j hFP_in_scatterF).1
+      exact hFP_not_in_H hFP_in_H
+  obtain ⟨p, hp⟩ := h_inr
+  use F, p
+  have hF_scat : Rs.GS.G.mixedScatterTile F = {⟨p, F.anchor⟩} := by
+    dsimp [GroupedFamily.mixedScatterTile]
+    rw [hp]
+    rfl
+  have h_in_scatter : (⟨p, F.anchor⟩ : PlacedTile P) ∈ Rs.GS.G.mixedScatter (Rs.retained l α).children.tiles := by
+    dsimp [GroupedFamily.mixedScatter]
+    rw [Set.mem_iUnion]
+    use F
+    rw [Set.mem_iUnion]
+    use hF_child
+    rw [hF_scat]
+    exact Set.mem_singleton _
+  rw [hF_scat] at hFP_in_scatterF
+  have hF_eq : F_P = ⟨p, F.anchor⟩ := hFP_in_scatterF
+  subst hF_eq
+  have hFeq : F = (⟨Sum.inr p, F.anchor⟩ : PlacedTile Rs.GS.G.mixed) := by
+    apply PlacedTile.ext
+    · exact hp
+    · rfl
+  have hEdge : HasEdge F e := by
+    rw [hFeq]
+    simpa [HasEdge, PlacedTile.side] using hFP_edge
+  exact ⟨hF_child, hp, h_in_scatter, hFP_not_in_H, hEdge, hsub_front⟩
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior`:
 "the face cannot be an unrelated placed tile" -- every original tile of the scattering of a mixed

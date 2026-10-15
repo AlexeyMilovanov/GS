@@ -108,6 +108,234 @@ private lemma sts_hierarchical_of_strict_proper_step1_seq {P : Protoset} {τ : S
   refine ⟨rfl, fun n => ?_⟩
   exact ⟨(seq_f n).property, (Classical.choose_spec (hcomp (seq_f n).val (seq_f n).property)).2⟩
 
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_supp_trans
+    {P : Protoset} (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  have hc : ∀ A : PlacedTile P, (A.translate v).carrier = v +ᵥ A.carrier := by
+    intro A
+    show (v +ᵥ A.anchor) +ᵥ _ = v +ᵥ (A.anchor +ᵥ _)
+    rw [vadd_vadd]
+    rfl
+  simp only [support, translateSet, Set.biUnion_image, hc, Set.vadd_set_iUnion₂]
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_tile_supp
+    {P : Protoset} (G : GroupedFamily P) (A : PlacedTile G.P') :
+    support (G.scatterTile A) = A.carrier := by
+  rw [GroupedFamily.scatterTile,
+    sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_supp_trans,
+    G.support_eq A.form]
+  rfl
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_supp
+    {P : Protoset} (G : GroupedFamily P) (S : Set (PlacedTile G.P')) :
+    support (G.scatter S) = support S := by
+  ext x
+  simp only [GroupedFamily.scatter, support, Set.mem_iUnion]
+  constructor
+  · rintro ⟨B, ⟨A, hAS, hBA⟩, hxB⟩
+    refine ⟨A, hAS, ?_⟩
+    rw [←
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_tile_supp
+        G A]
+    simp only [support, Set.mem_iUnion]
+    exact ⟨B, hBA, hxB⟩
+  · rintro ⟨A, hAS, hxA⟩
+    rw [←
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_tile_supp
+        G A] at hxA
+    simp only [support, Set.mem_iUnion] at hxA
+    rcases hxA with ⟨B, hBA, hxB⟩
+    exact ⟨B, ⟨A, hAS, hBA⟩, hxB⟩
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_car_trans
+    {P : Protoset} (A : PlacedTile P) (v : Pt) :
+    (A.translate v).carrier = v +ᵥ A.carrier := by
+  simp only [PlacedTile.translate, PlacedTile.carrier, Set.ext_iff,
+    Set.mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add]
+  intro y
+  constructor <;> intro hy
+  · convert hy using 1
+    all_goals abel
+  · convert hy using 1
+    all_goals abel
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_disj
+    {P : Protoset} (G : GroupedFamily P) (T : PlaneTiling G.P') :
+    DisjointInteriors (G.scatter T.tiles) := by
+  intro B hB C hC hBC
+  simp only [GroupedFamily.scatter, Set.mem_iUnion] at hB hC
+  obtain ⟨A, hAT, hBA⟩ := hB
+  obtain ⟨D, hDT, hCD⟩ := hC
+  by_cases hAD : A = D
+  · subst D
+    simp only [GroupedFamily.scatterTile, translateSet, Set.mem_image] at hBA hCD
+    obtain ⟨B₀, hB₀, rfl⟩ := hBA
+    obtain ⟨C₀, hC₀, hCeq⟩ := hCD
+    subst C
+    have hB₀C₀ : B₀ ≠ C₀ := by
+      intro h
+      apply hBC
+      rw [h]
+    have hd := (G.dissect A.form).disjoint hB₀ hC₀ hB₀C₀
+    dsimp [Function.onFun] at hd ⊢
+    rw [
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_car_trans,
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_car_trans,
+      interior_vadd, interior_vadd]
+    exact disjoint_image_of_injective (add_right_injective A.anchor) hd
+  · have hBsub : interior B.carrier ⊆ interior A.carrier := by
+      apply interior_maximal
+      · apply interior_subset.trans
+        rw [←
+          sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_tile_supp
+            G A]
+        intro x hx
+        simp only [support, Set.mem_iUnion]
+        exact ⟨B, hBA, hx⟩
+      · exact isOpen_interior
+    have hCsub : interior C.carrier ⊆ interior D.carrier := by
+      apply interior_maximal
+      · apply interior_subset.trans
+        rw [←
+          sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_tile_supp
+            G D]
+        intro x hx
+        simp only [support, Set.mem_iUnion]
+        exact ⟨C, hCD, hx⟩
+      · exact isOpen_interior
+    exact (T.disjoint hAT hDT hAD).mono hBsub hCsub
+
+private noncomputable def
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_tiling
+    {P : Protoset} (G : GroupedFamily P) (T : PlaneTiling G.P') : PlaneTiling P where
+  tiles := G.scatter T.tiles
+  cover := by
+    rw [
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_supp,
+      T.cover]
+  disjoint :=
+    sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_disj G T
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_trans
+    {P : Protoset} (G : GroupedFamily P) (v : Pt)
+    (S : Set (PlacedTile G.P')) :
+    G.scatter (translateSet v S) = translateSet v (G.scatter S) := by
+  ext B
+  simp only [GroupedFamily.scatter, GroupedFamily.scatterTile, translateSet,
+    Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨A₀, hA₀, rfl⟩, C, hC, rfl⟩
+    refine ⟨C.translate A₀.anchor, ⟨A₀, hA₀, C, hC, rfl⟩, ?_⟩
+    simp [PlacedTile.translate, add_assoc]
+  · rintro ⟨B₀, ⟨A, hAS, C, hC, rfl⟩, rfl⟩
+    refine ⟨A.translate v, ⟨A, hAS, rfl⟩, C, hC, ?_⟩
+    simp [PlacedTile.translate, add_assoc]
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_dec_trans
+    {P : Protoset} (τ : Substitution P) (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) =
+      translateSet (τ.θ • v) (τ.decompose S) := by
+  ext C
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    Set.mem_iUnion, Set.mem_image]
+  constructor
+  · rintro ⟨A, ⟨A₀, hA₀, rfl⟩, B, hB, rfl⟩
+    refine ⟨B.translate (τ.θ • A₀.anchor), ⟨A₀, hA₀, B, hB, rfl⟩, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+  · rintro ⟨C₀, ⟨A, hAS, B, hB, rfl⟩, rfl⟩
+    refine ⟨A.translate v, ⟨A, hAS, rfl⟩, B, hB, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · simp only [PlacedTile.translate, vadd_eq_add, smul_add]
+      abel
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_iter_trans
+    {P : Protoset} (τ : Substitution P) (n : ℕ) (v : Pt)
+    (S : Set (PlacedTile P)) :
+    τ.decomposeIter n (translateSet v S) =
+      translateSet (τ.θ ^ n • v) (τ.decomposeIter n S) := by
+  induction n with
+  | zero => simp [Substitution.decomposeIter]
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (translateSet v S)) = _
+      rw [ih,
+        sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_dec_trans]
+      rw [pow_succ', mul_smul]
+      rfl
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_iter_union
+    {P : Protoset} (τ : Substitution P) {ι : Type*} (n : ℕ) (s : Set ι)
+    (f : ι → Set (PlacedTile P)) :
+    τ.decomposeIter n (⋃ i ∈ s, f i) = ⋃ i ∈ s, τ.decomposeIter n (f i) := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (⋃ i ∈ s, f i)) = _
+      rw [ih]
+      ext C
+      simp only [Substitution.decompose, Set.mem_iUnion]
+      constructor
+      · rintro ⟨B, ⟨i, hi, hB⟩, hCB⟩
+        refine ⟨i, hi, ?_⟩
+        change C ∈ τ.decompose (τ.decomposeIter n (f i))
+        simp only [Substitution.decompose, Set.mem_iUnion]
+        exact ⟨B, hB, hCB⟩
+      · rintro ⟨i, hi, hC⟩
+        change C ∈ τ.decompose (τ.decomposeIter n (f i)) at hC
+        simp only [Substitution.decompose, Set.mem_iUnion] at hC
+        rcases hC with ⟨B, hB, hCB⟩
+        exact ⟨B, ⟨i, hi, hB⟩, hCB⟩
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_dec_tile
+    {P : Protoset} (τ : Substitution P) (GS : GroupedSubstitution τ)
+    (A : PlacedTile GS.G.P') :
+    GS.G.scatter (GS.σ.decomposeTile A) =
+      τ.decomposeIter GS.k (GS.G.scatterTile A) := by
+  rw [Substitution.decomposeTile,
+    sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_trans,
+    GS.θ_eq, GS.compat, GroupedFamily.scatterTile,
+    sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_iter_trans]
+
+private lemma
+sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_dec_scat
+    {P : Protoset} (τ : Substitution P) (GS : GroupedSubstitution τ)
+    (S : Set (PlacedTile GS.G.P')) :
+    GS.G.scatter (GS.σ.decompose S) =
+      τ.decomposeIter GS.k (GS.G.scatter S) := by
+  change GS.G.scatter (GS.σ.decompose S) =
+    τ.decomposeIter GS.k (⋃ A ∈ S, GS.G.scatterTile A)
+  rw [sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_iter_union]
+  ext B
+  simp only [Substitution.decompose, GroupedFamily.scatter, Set.mem_iUnion]
+  constructor
+  · rintro ⟨C, ⟨A, hAS, hCA⟩, hBC⟩
+    refine ⟨A, hAS, ?_⟩
+    rw [←
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_dec_tile
+        τ GS A]
+    simp only [GroupedFamily.scatter, Set.mem_iUnion]
+    exact ⟨C, hCA, hBC⟩
+  · rintro ⟨A, hAS, hBA⟩
+    rw [←
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_dec_tile
+        τ GS A] at hBA
+    simp only [GroupedFamily.scatter, Set.mem_iUnion] at hBA
+    rcases hBA with ⟨C, hC, hBC⟩
+    exact ⟨C, ⟨A, hAS, hC⟩, hBC⟩
+
 /-- Step 1 of the blueprint proof of `sts_hierarchical_of_strict_proper_step2_sts_step1_macro`:
 isolate one step of schedule composition. -/
 private lemma sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair
@@ -124,7 +352,26 @@ private lemma sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair
       (∀ j, j ≤ Sys.GS.k →
         SideToSideSet (τ.decomposeIter j
           (Sys.GS.G.scatter (Sys.dec.toDecoration.project T').tiles))) := by
-  sorry
+  let U :=
+    sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_scat_tiling
+      Sys.GS.G (Sys.dec.toDecoration.project T)
+  have hproject := Sys.isComposition_project hcomp
+  have hreduce :
+      τ.decomposeIter Sys.GS.k
+          (Sys.GS.G.scatter (Sys.dec.toDecoration.project T').tiles) = U.tiles := by
+    change τ.decomposeIter Sys.GS.k
+      (Sys.GS.G.scatter (Sys.dec.toDecoration.project T').tiles) =
+        Sys.GS.G.scatter (Sys.dec.toDecoration.project T).tiles
+    rw [←
+      sts_hierarchical_of_strict_proper_step2_sts_step1_macro_step1_pair_dec_scat
+        τ Sys.GS]
+    rw [hproject]
+  have hsts := Alignment.strict_schedule_composition (τ := τ) hτ Sys hΔ T T' hT hcomp
+  refine ⟨U, rfl, ?_, hreduce, ?_⟩
+  · change SideToSideSet U.tiles
+    rw [← hreduce]
+    exact hsts.2 Sys.GS.k le_rfl
+  · exact hsts.2
 
 /-- Step 2 of the blueprint proof of `sts_hierarchical_of_strict_proper`: at each step
 insert the original levels, which are STS by schedule alignment, yielding an infinite original

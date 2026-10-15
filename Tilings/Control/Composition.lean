@@ -2610,6 +2610,22 @@ theorem path_and_print_recovery (c : MacroCertificate P) (hH : c.Hereditary)
   exact ⟨path_and_print_recovery_step1_signals c hH K hK h hh,
     path_and_print_recovery_step2_prints c hH K hK h hh⟩
 
+/-- Transporting a print occurrence when two parent forms are equal. -/
+private lemma macroblock_is_decomposition_noncentral_cast_print (c : MacroCertificate P)
+    {a b : c.Q.Form} (hab : a = b) (d : Fin (c.Q.disk a).n) (o : c.SideOcc) :
+    c.IsPrintOf a d o →
+      c.IsPrintOf b (cast (congrArg (fun x => Fin (c.Q.disk x).n) hab) d) o := by
+  subst b
+  simp
+
+/-- Transporting path membership when two parent forms are equal. -/
+private lemma macroblock_is_decomposition_noncentral_cast_path (c : MacroCertificate P)
+    {a b : c.Q.Form} (hab : a = b) (d : Fin (c.Q.disk a).n) (j : Fin 5) (o : c.SideOcc) :
+    o ∈ c.path a d j ↔
+      o ∈ c.path b (cast (congrArg (fun x => Fin (c.Q.disk x).n) hab) d) j := by
+  subst b
+  rfl
+
 /-- Step 1 of the blueprint proof of `macroblock_is_decomposition`: noncentral tiles have
 the required colours as a child of `D`. -/
 private lemma macroblock_is_decomposition_noncentral (c : MacroCertificate P) (hH : c.Hereditary)
@@ -2617,7 +2633,80 @@ private lemma macroblock_is_decomposition_noncentral (c : MacroCertificate P) (h
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) (t : c.Typ)
     (ht_owner : c.owner t = K.α) (ht_nc : t ≠ c.central K.α) :
     IsChildOf c (reconstruct c K h.1) (K.tileOf t) := by
-  sorry
+  have ht_legal : headerLegal c (K.tileOf t) := hK.2 t ht_owner ht_nc
+  have ht_props := headerLegal_properties c hH (K.tileOf t) ht_legal
+  obtain ⟨C, hC_legal, hCB, hC_boundary⟩ := ht_props.2.2.2.2.1
+  have hform : c.form C.typ = c.form h.1 := by
+    calc
+      c.form C.typ = c.owner t := hCB.1.symm
+      _ = K.α := ht_owner
+      _ = c.form h.1 := hh.1.symm
+  have hsignals := path_and_print_recovery c hH K hK h hh
+  have hreconstruct := reconstructed_header_eq c hH K hK h hh
+  refine ⟨?_, ?_⟩
+  · change c.owner t = c.form h.1
+    rw [ht_owner]
+    exact hh.1.symm
+  · intro i
+    have hCBi := hCB.2 i
+    constructor
+    · intro d hd
+      change c.IsPrintOf (c.form h.1) d (c.occ t i) at hd
+      constructor
+      · intro k hk
+        rcases hd.2 with hcentral | hsmall
+        · have ht_central : t = c.central (c.form h.1) := congrArg Sigma.fst hcentral
+          rw [hh.1] at ht_central
+          exact (ht_nc ht_central).elim
+        · have hs := hsignals.2 d hd.1 k hk
+          change c.occ t i = c.partner (c.printOcc (c.form h.1) d) at hsmall
+          rw [← hsmall] at hs
+          exact hs
+      · let dC : c.Side C.typ :=
+            cast (congrArg (fun α => Fin (c.Q.disk α).n) hform.symm) d
+        have hdC : c.IsPrintOf (c.form C.typ) dC (c.occ (K.tileOf t).typ i) := by
+          exact macroblock_is_decomposition_noncentral_cast_print c hform.symm d (c.occ t i) hd
+        exact (hCBi.1 dC hdC).2
+    · intro hnp
+      have hfixed := hCBi.2 hnp
+      refine ⟨hfixed.1, hfixed.2.1, hfixed.2.2.1, ?_, ?_, ?_, ?_, ?_⟩
+      · intro d j hdj
+        change K.col t i 2 = (reconstruct c K h.1).cell d j
+        exact hsignals.1 d j (c.occ t i) hdj hnp
+      · intro hnopath
+        apply hfixed.2.2.2.2.1
+        intro dC j
+        let dh : c.Side h.1 :=
+          cast (congrArg (fun α => Fin (c.Q.disk α).n) hform) dC
+        intro hmem
+        apply hnopath dh j
+        exact (macroblock_is_decomposition_noncentral_cast_path c hform dC j _).mp hmem
+      · intro hi_outer d hd
+        obtain ⟨j, hj⟩ := boundary_side_of_outer_side c hH t i hi_outer
+        have hheader : headerOf c C = h := by
+          apply HeaderKernel.tagged_header_injective
+          calc
+            headerU c (headerOf c C) = (K.tileOf t).cell j 3 := (hC_boundary j hj).symm
+            _ = headerU c h := hh.2 t j ht_owner hj
+        cases hheader
+        have hrec_header : headerOf c (reconstruct c K C.typ) = headerOf c C := by
+          simpa only [headerOf, HeaderKernel.makeHeader_type] using hreconstruct.2.2.1
+        have hmode : zA c C d = zA c (reconstruct c K C.typ) d := by
+          have hrec_header' := hrec_header.symm
+          change (⟨C.typ, zA c C⟩ : HeaderKernel.Header c.Typ c.Side) =
+            ⟨C.typ, zA c (reconstruct c K C.typ)⟩ at hrec_header'
+          have hmode_fun : zA c C = zA c (reconstruct c K C.typ) :=
+            eq_of_heq (Sigma.mk.inj hrec_header').2
+          exact congrFun hmode_fun d
+        have hd' : c.occ (K.tileOf t).typ i ∈ c.outerList (c.form C.typ) d := by
+          simpa only [headerOf, HeaderKernel.makeHeader_type] using hd
+        have hout := hfixed.2.2.2.2.2.1 hi_outer d hd'
+        simpa only [headerOf, HeaderKernel.makeHeader_type, hmode] using hout
+      · intro hi_boundary
+        change K.col t i 3 = headerU c (headerOf c (reconstruct c K h.1))
+        rw [hreconstruct.2.2.1]
+        exact hh.2 t i ht_owner hi_boundary
+      · exact hfixed.2.2.2.2.2.2.2
 
 /-- Step 1 of the blueprint proof of `macroblock_is_decomposition_central`: owner matches. -/
 private lemma macroblock_is_decomposition_central_step1_owner (c : MacroCertificate P)

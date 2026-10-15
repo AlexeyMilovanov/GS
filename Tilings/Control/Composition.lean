@@ -12618,7 +12618,30 @@ private lemma projects_to_hierarchy_step1_soundness_step1_composition
         (∀ n, IsProper c (seq n)) ∧
         (∀ n, ∀ X ∈ (seq n).tiles, headerLegal c (tileDec X)) ∧
         (∀ n, IsExactComposition c (seq (n + 1)) (seq n)) := by
-  sorry
+  intro T hT hL
+  let Good : Type :=
+    { T' : PlaneTiling (typedDecoration c) //
+      IsProper c T' ∧ (∀ X ∈ T'.tiles, headerLegal c (tileDec X)) }
+  have h_comp_ex : ∀ T' : Good, ∃ T'' : Good,
+      IsExactComposition c T''.1 T'.1 := by
+    intro T'
+    rcases T' with ⟨T', hT', hL'⟩
+    have ⟨T'', hT'', hL'', hC''⟩ := compose_legal_exists c hH T' hT' hL'
+    exact ⟨⟨T'', hT'', hL''⟩, hC''⟩
+  have ⟨f, hf⟩ := Classical.axiomOfChoice h_comp_ex
+  let seq_dep : ℕ → Good :=
+    fun n => Nat.rec (⟨T, hT, hL⟩) (fun _ val => f val) n
+  use fun n => (seq_dep n).1
+  constructor
+  · rfl
+  · constructor
+    · intro n
+      exact (seq_dep n).2.1
+    · constructor
+      · intro n
+        exact (seq_dep n).2.2
+      · intro n
+        exact hf (seq_dep n)
 
 /-- Step 2 of the blueprint proof of `projects_to_hierarchy_step1_soundness`: erasure of a valid
 decorated tiling gives an undecorated tiling. -/

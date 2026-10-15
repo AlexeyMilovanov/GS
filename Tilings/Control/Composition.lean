@@ -2817,7 +2817,88 @@ private lemma macroblock_is_decomposition_central_step3_nonprints_cell0 (c : Mac
     ∀ i : c.Side (K.tileOf t).typ,
       ¬ c.IsPrint (c.occ (K.tileOf t).typ i) →
         (K.tileOf t).cell i 0 = prescribedFirst c (c.occ (K.tileOf t).typ i) := by
-  sorry
+  intro i hi
+  cases ht_c
+  have hinner : c.IsInner (c.occ (c.central K.α) i) := (c.g2_central K.α i).1
+  set p : c.SideOcc := c.partner (c.occ (c.central K.α) i) with hp
+  have hp_owner : c.owner p.1 = K.α := by
+    rw [hp]
+    exact (c.g1_partner _ hinner).2.1.trans ht_owner
+  have hp_ne : p.1 ≠ c.central K.α := by
+    rw [hp]
+    intro heq
+    exact (c.g1_partner _ hinner).1 heq
+  have hp_inner : c.IsInner p := by
+    apply asm_inner_of_occSide c hinner
+    · rw [hp_owner, ht_owner]
+    · rw [hp]
+      exact (c.g1_partner _ hinner).2.2
+  have hp_print : ¬ c.IsPrint p := by
+    intro hp_print
+    obtain ⟨d, hmarked, hprint⟩ := hp_print
+    let d' : Fin (c.Q.disk K.α).n :=
+      cast (congrArg (fun F => Fin (c.Q.disk F).n) hp_owner) d
+    have hprint' : c.IsPrintOf K.α d' p := by
+      simpa [d'] using
+        (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print c hp_owner d p).1
+          ⟨hmarked, by
+            rcases hprint with hprint | hprint
+            · exact Or.inl hprint
+            · exact Or.inr hprint⟩
+    rcases hprint' with ⟨hmarked', hprint' | hprint'⟩
+    · apply hp_ne
+      exact congrArg Sigma.fst hprint'
+    · have hprint_inner : c.IsInner (c.printOcc K.α d') :=
+        c.g4_print_inner K.α d' hmarked'
+      have hpp : c.partner p = c.occ (c.central K.α) i := by
+        rw [hp]
+        exact c.g1_partner_partner _ hinner
+      apply hi
+      refine ⟨cast (congrArg (fun F => Fin (c.Q.disk F).n) ht_owner.symm) d', ?_⟩
+      exact (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print c ht_owner.symm
+        d' (c.occ (c.central K.α) i)).1 (by
+          refine ⟨hmarked', Or.inl ?_⟩
+          rw [← hpp, hprint']
+          exact c.g1_partner_partner _ hprint_inner)
+  have hchild : IsChildOf c (reconstruct c K h.1) (K.tileOf p.1) :=
+    macroblock_is_decomposition_noncentral c hH K hK h hh p.1 hp_owner hp_ne
+  have hnp := (hchild.2 p.2).2 hp_print
+  have hp_nontriv : IsNontrivial c (K.tileOf p.1) p.2 := by
+    unfold IsNontrivial
+    intro hzero
+    by_cases hb : c.IsBoundary p
+    · have h3 := hnp.2.2.2.2.2.2.1 hb
+      exact HeaderKernel.tagged_header_ne_zero
+        (headerOf c (reconstruct c K h.1)) (h3.symm.trans hzero.1)
+    · have h3 := hnp.2.2.2.2.2.2.2 hp_inner hb
+      have hne : botU c ≠ 0 := fun hzero => by cases hzero
+      exact hne (h3.symm.trans hzero.1)
+  obtain ⟨t', j, ht'_owner, ht'_ne, hside, hcols⟩ :=
+    hK.1 p.1 p.2 hp_owner hp_inner hp_nontriv
+  have hside' : c.occSide (⟨t', j⟩ : c.SideOcc) = c.occSide p := by
+    simpa [ColouredBlock.childSide, MacroData.occSide, ← vadd_vadd] using hside
+  have ht'_eq : (⟨t', j⟩ : c.SideOcc) = c.partner p :=
+    c.g1_side_unique p ⟨t', j⟩ hp_inner (ht'_owner.trans hp_owner.symm) ht'_ne hside'
+  have hpp : c.partner p = c.occ (c.central K.α) i := by
+    rw [hp]
+    exact c.g1_partner_partner _ hinner
+  have hocc : (⟨t', j⟩ : c.SideOcc) = c.occ (c.central K.α) i := ht'_eq.trans hpp
+  have hcol0 : K.col (c.central K.α) i 0 = K.col p.1 p.2 0 := by
+    cases hocc
+    exact hcols 0
+  have hp0 := hnp.1
+  have hedge : c.edge p = c.edge (c.occ (c.central K.α) i) :=
+    c.g1_edge_partner _ hinner
+  have hfirst : prescribedFirst c p = prescribedFirst c
+      (c.occ (K.tileOf (c.central K.α)).typ i) := by
+    have hinner' : c.IsInner (c.occ (K.tileOf (c.central K.α)).typ i) := hinner
+    have hedge' : c.edge p = c.edge (c.occ (K.tileOf (c.central K.α)).typ i) := hedge
+    simp [prescribedFirst, hp_inner, hinner', hedge']
+  calc
+    (K.tileOf (c.central K.α)).cell i 0 = K.col (c.central K.α) i 0 := rfl
+    _ = K.col p.1 p.2 0 := hcol0
+    _ = prescribedFirst c p := hp0
+    _ = prescribedFirst c (c.occ (K.tileOf (c.central K.α)).typ i) := hfirst
 
 /-- Step 2 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 1 is 0. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell1 (c : MacroCertificate P)

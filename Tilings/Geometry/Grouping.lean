@@ -16538,6 +16538,1227 @@ private lemma pg_first_exit {r : ℝ → Pt} (hr : Continuous r) {S : Set Pt} (h
     have : sInf M ≤ s := csInf_le hMb ⟨⟨hs.1, by linarith [hs.2, ht.1.2]⟩, h⟩
     linarith [hs.2]
 
+private lemma pg_path_prefix_mem_component {r : ℝ → Pt} (hr : Continuous r)
+    {U : Set Pt} {s : ℝ} (hs : 0 ≤ s)
+    (hU : ∀ u ∈ Icc (0 : ℝ) s, r u ∈ U) :
+    r s ∈ connectedComponentIn U (r 0) := by
+  refine (isPreconnected_Icc.image r hr.continuousOn).subset_connectedComponentIn
+    ⟨0, ⟨le_rfl, hs⟩, rfl⟩ ?_ ⟨s, ⟨hs, le_rfl⟩, rfl⟩
+  rintro z ⟨u, hu, rfl⟩
+  exact hU u hu
+
+private lemma pg_path_first_exit_mem_closure {r : ℝ → Pt} (hr : Continuous r)
+    {U : Set Pt} {x : Pt} (hr0 : r 0 = x) {t : ℝ} (ht : 0 < t)
+    (hbefore : ∀ s ∈ Ico (0 : ℝ) t, r s ∈ U) :
+    r t ∈ closure (connectedComponentIn U x) := by
+  have htcl : t ∈ closure (Ico (0 : ℝ) t) := by
+    rw [closure_Ico (ne_of_lt ht)]
+    exact ⟨ht.le, le_rfl⟩
+  apply closure_mono (s := r '' Ico (0 : ℝ) t) (t := connectedComponentIn U x) ?_
+  · exact mem_closure_image hr.continuousAt htcl
+  · rintro z ⟨s, hs, rfl⟩
+    have hrsC0 : r s ∈ connectedComponentIn U (r 0) :=
+      pg_path_prefix_mem_component hr hs.1 (fun u hu =>
+        hbefore u ⟨hu.1, hu.2.trans_lt hs.2⟩)
+    rwa [hr0] at hrsC0
+
+/-- Every component of the open complement of a cross-cut accumulates at an interior
+point of the cut.  This is the first-exit part of the two-components argument. -/
+private lemma plSchoenflies_chord_component_closure_meets_openSegment
+    (B : PolygonalDisk) {a b x : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier)
+    (hx : x ∈ interior B.carrier \ segment ℝ a b) :
+    (closure (connectedComponentIn (interior B.carrier \ segment ℝ a b) x) ∩
+      openSegment ℝ a b).Nonempty := by
+  let U := interior B.carrier \ segment ℝ a b
+  let q := a + (1 / 2 : ℝ) • (b - a)
+  have hqseg : q ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    dsimp only [q]
+    module
+  have hqint : q ∈ interior B.carrier := hchord hqseg
+  let H := B.interior_pathConnected.joinedIn x hx.1 q hqint
+  let J := H.somePath
+  let r : ℝ → Pt := J.extend
+  have hr : Continuous r := J.extend.continuous
+  have hrmem : ∀ s ∈ Icc (0 : ℝ) 1, r s ∈ interior B.carrier := by
+    intro s hs
+    rw [show r s = J ⟨s, hs⟩ by
+      dsimp only [r]
+      rw [Path.extend_apply _ hs]]
+    exact H.somePath_mem ⟨s, hs⟩
+  have hr0 : r 0 = x := by simp [r]
+  have hr1 : r 1 = q := by simp [r]
+  have h0 : r 0 ∈ U := by simpa only [hr0] using hx
+  have h1 : r 1 ∉ U := by
+    rw [hr1]
+    exact fun h => h.2 (openSegment_subset_segment ℝ a b hqseg)
+  obtain ⟨t, ht, htU, hbefore⟩ :=
+    pg_first_exit hr (plSchoenflies_chord_complement_open B a b) h0
+      (T := 1) (by norm_num) h1
+  have hrtint : r t ∈ interior B.carrier := hrmem t ⟨ht.1.le, ht.2⟩
+  have hrtseg : r t ∈ segment ℝ a b := by
+    by_contra h
+    exact htU ⟨hrtint, h⟩
+  have hrtopen : r t ∈ openSegment ℝ a b := by
+    rw [← insert_endpoints_openSegment] at hrtseg
+    rcases hrtseg with h | h | h
+    · rw [h] at hrtint
+      exact False.elim (Set.disjoint_left.1 disjoint_interior_frontier hrtint ha)
+    · rw [h] at hrtint
+      exact False.elim (Set.disjoint_left.1 disjoint_interior_frontier hrtint hb)
+    · exact h
+  refine ⟨r t, ?_, hrtopen⟩
+  exact pg_path_first_exit_mem_closure hr hr0 ht.1 hbefore
+
+/-- A component accumulating on the open chord is one of the two components seen in a
+fixed small ball about the midpoint. -/
+private lemma plSchoenflies_chord_component_eq_midpoint_side
+    (B : PolygonalDisk) {a b x y pplus pminus : Pt}
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier)
+    (hx : x ∈ interior B.carrier \ segment ℝ a b)
+    (hyC : y ∈ closure (connectedComponentIn
+      (interior B.carrier \ segment ℝ a b) x))
+    (hy : y ∈ openSegment ℝ a b)
+    {R η : ℝ} (hR : 0 < R)
+    (hball : Metric.ball (a + (1 / 2 : ℝ) • (b - a)) R ⊆ interior B.carrier)
+    (hη : 0 < η) (hηR : η * ‖b - a‖ < R)
+    (hpplus : pplus = a + (1 / 2 : ℝ) • (b - a) + η • jrot (b - a))
+    (hpminus : pminus = a + (1 / 2 : ℝ) • (b - a) + (-η) • jrot (b - a)) :
+    connectedComponentIn (interior B.carrier \ segment ℝ a b) x =
+        connectedComponentIn (interior B.carrier \ segment ℝ a b) pplus ∨
+      connectedComponentIn (interior B.carrier \ segment ℝ a b) x =
+        connectedComponentIn (interior B.carrier \ segment ℝ a b) pminus := by
+  let U := interior B.carrier \ segment ℝ a b
+  let q := a + (1 / 2 : ℝ) • (b - a)
+  let d := b - a
+  let J := jrot d
+  have hd : d ≠ 0 := sub_ne_zero.2 hab.symm
+  have hdn : 0 < ‖d‖ := norm_pos_iff.2 hd
+  have hq : q ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    simp only [q]
+    module
+  have hpplusU : pplus ∈ U := by
+    refine ⟨hball ?_, ?_⟩
+    · rw [hpplus]
+      change q + η • J ∈ Metric.ball q R
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_eq_abs, abs_of_pos hη, norm_jrot]
+      simpa only [d] using hηR
+    · intro hpseg
+      have hz := pg_jcr_seg hpseg
+      rw [hpplus, pg_jcr_param] at hz
+      exact (mul_pos hη (pow_pos hdn 2)).ne' hz
+  have hpminusU : pminus ∈ U := by
+    refine ⟨hball ?_, ?_⟩
+    · rw [hpminus]
+      change q + (-η) • J ∈ Metric.ball q R
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_eq_abs, abs_neg, abs_of_pos hη, norm_jrot]
+      simpa only [d] using hηR
+    · intro hpseg
+      have hz := pg_jcr_seg hpseg
+      rw [hpminus, pg_jcr_param] at hz
+      have : (-η) * ‖d‖ ^ 2 < 0 := mul_neg_of_neg_of_pos (neg_neg_of_pos hη) (pow_pos hdn 2)
+      linarith
+  obtain ⟨s, hs0, hs1, hys⟩ := mem_openSegment_iff'.1 hy
+  let K := segment ℝ y q
+  have hKc : IsCompact K := isCompact_segment_pt y q
+  have hKint : K ⊆ interior B.carrier := by
+    dsimp only [K]
+    exact ((convex_openSegment a b).segment_subset hy hq).trans hchord
+  obtain ⟨δ, hδ, hδint⟩ :=
+    hKc.exists_thickening_subset_open isOpen_interior hKint
+  let ρ := min s (1 - s) * ‖d‖
+  have hρ : 0 < ρ := mul_pos (lt_min hs0 (sub_pos.2 hs1)) hdn
+  obtain ⟨z, hzC, hyz⟩ := Metric.mem_closure_iff.1 hyC (min δ ρ) (lt_min hδ hρ)
+  have hzU : z ∈ U := connectedComponentIn_subset U x hzC
+  have hzball : z ∈ Metric.ball y ρ := by
+    rw [Metric.mem_ball, dist_comm]
+    exact hyz.trans_le (min_le_right _ _)
+  have hzj : jcr d (z - a) ≠ 0 := by
+    intro hj
+    have hzline := pg_line_ball hab (s := s) (by simpa only [d, hys] using hzball) hj
+    obtain ⟨t, hzt, ht⟩ := hzline
+    apply hzU.2
+    apply openSegment_subset_segment ℝ a b
+    rw [openSegment_eq_image']
+    refine ⟨t, ⟨?_, ?_⟩, ?_⟩
+    · have hm := lt_min_iff.1 ht
+      nlinarith [neg_le_abs (t - s)]
+    · have hm := lt_min_iff.1 ht
+      nlinarith [le_abs_self (t - s)]
+    · simpa only [d] using hzt.symm
+  have hzthick : z ∈ Metric.thickening δ K := by
+    rw [Metric.mem_thickening_iff]
+    refine ⟨y, left_mem_segment ℝ y q, ?_⟩
+    simpa only [dist_comm] using hyz.trans_le (min_le_left _ _)
+  have hhalf (σ : ℝ) : Convex ℝ {w : Pt | 0 < σ * jcr d (w - a)} := by
+    intro u hu v hv α β hα hβ hαβ
+    change 0 < σ * jcr d (u - a) at hu
+    change 0 < σ * jcr d (v - a) at hv
+    change 0 < σ * jcr d (α • u + β • v - a)
+    have he : jcr d (α • u + β • v - a) =
+        α * jcr d (u - a) + β * jcr d (v - a) := by
+      have hab' : α • u + β • v - a = α • (u - a) + β • (v - a) := by
+        rw [show β = 1 - α by linarith]
+        module
+      rw [hab', jcr_add_right, jcr_smul_right, jcr_smul_right]
+    rw [he, mul_add]
+    rcases eq_or_lt_of_le hα with rfl | hα'
+    · simp only [zero_smul, zero_mul, zero_add] at hαβ ⊢
+      subst β
+      simpa using hv
+    rcases eq_or_lt_of_le hβ with rfl | hβ'
+    · simp only [zero_smul, zero_mul, add_zero] at hαβ ⊢
+      subst α
+      simpa using hu
+    · nlinarith [mul_pos hα' hu, mul_pos hβ' hv]
+  have hcollar (σ : ℝ) : Convex ℝ
+      (Metric.thickening δ K ∩ {w : Pt | 0 < σ * jcr d (w - a)}) :=
+    ((convex_segment y q).thickening δ).inter (hhalf σ)
+  have hcollarU (σ : ℝ) :
+      Metric.thickening δ K ∩ {w : Pt | 0 < σ * jcr d (w - a)} ⊆ U := by
+    rintro w ⟨hwK, hwj⟩
+    change 0 < σ * jcr d (w - a) at hwj
+    refine ⟨hδint hwK, ?_⟩
+    intro hwseg
+    rw [pg_jcr_seg hwseg, mul_zero] at hwj
+    exact lt_irrefl 0 hwj
+  have hlocal (σ : ℝ) : Convex ℝ
+      {w : Pt | w ∈ Metric.ball q R ∧ 0 < σ * jcr d (w - a)} :=
+    pg_halfspace_convex q a d R σ
+  have hlocalU (σ : ℝ) :
+      {w : Pt | w ∈ Metric.ball q R ∧ 0 < σ * jcr d (w - a)} ⊆ U := by
+    rintro w ⟨hwq, hwj⟩
+    change 0 < σ * jcr d (w - a) at hwj
+    refine ⟨hball hwq, ?_⟩
+    intro hwseg
+    rw [pg_jcr_seg hwseg, mul_zero] at hwj
+    exact lt_irrefl 0 hwj
+  rcases lt_or_gt_of_ne hzj with hzneg | hzpos
+  · right
+    let e := min (δ / (2 * ‖d‖)) (R / (2 * ‖d‖))
+    have he : 0 < e := lt_min (div_pos hδ (by positivity)) (div_pos hR (by positivity))
+    have hed : e * ‖d‖ < δ := by
+      calc
+        e * ‖d‖ ≤ δ / (2 * ‖d‖) * ‖d‖ := by gcongr; exact min_le_left _ _
+        _ = δ / 2 := by field_simp
+        _ < δ := half_lt_self hδ
+    have heR : e * ‖d‖ < R := by
+      calc
+        e * ‖d‖ ≤ R / (2 * ‖d‖) * ‖d‖ := by gcongr; exact min_le_right _ _
+        _ = R / 2 := by field_simp
+        _ < R := half_lt_self hR
+    let zq := q + (-e) • J
+    have hzqthick : zq ∈ Metric.thickening δ K := by
+      rw [Metric.mem_thickening_iff]
+      refine ⟨q, right_mem_segment ℝ y q, ?_⟩
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+        abs_neg, abs_of_pos he, norm_jrot]
+      simpa only [d] using hed
+    have hzqneg : 0 < (-1 : ℝ) * jcr d (zq - a) := by
+      rw [show zq = a + (1 / 2 : ℝ) • d + (-e) • jrot d by rfl,
+        pg_jcr_param]
+      nlinarith [mul_pos he (pow_pos hdn 2)]
+    have hzneg' : 0 < (-1 : ℝ) * jcr d (z - a) := by linarith
+    have hzqCz : zq ∈ connectedComponentIn U z :=
+      (hcollar (-1)).isPreconnected.subset_connectedComponentIn
+        ⟨hzthick, hzneg'⟩ (hcollarU (-1)) ⟨hzqthick, hzqneg⟩
+    have hzqball : zq ∈ Metric.ball q R := by
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_eq_abs, abs_neg, abs_of_pos he, norm_jrot]
+      simpa only [d] using heR
+    have hpminusLocal : pminus ∈
+        {w : Pt | w ∈ Metric.ball q R ∧ 0 < (-1 : ℝ) * jcr d (w - a)} := by
+      refine ⟨?_, ?_⟩
+      · rw [hpminus]
+        change q + (-η) • J ∈ Metric.ball q R
+        rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+          Real.norm_eq_abs, abs_neg, abs_of_pos hη, norm_jrot]
+        simpa only [d] using hηR
+      · rw [hpminus, pg_jcr_param]
+        nlinarith [mul_pos hη (pow_pos hdn 2)]
+    have hpminusC : pminus ∈ connectedComponentIn U zq :=
+      (hlocal (-1)).isPreconnected.subset_connectedComponentIn
+        ⟨hzqball, hzqneg⟩ (hlocalU (-1)) hpminusLocal
+    calc
+      connectedComponentIn U x = connectedComponentIn U z := connectedComponentIn_eq hzC
+      _ = connectedComponentIn U zq := connectedComponentIn_eq hzqCz
+      _ = connectedComponentIn U pminus := connectedComponentIn_eq hpminusC
+  · left
+    let e := min (δ / (2 * ‖d‖)) (R / (2 * ‖d‖))
+    have he : 0 < e := lt_min (div_pos hδ (by positivity)) (div_pos hR (by positivity))
+    have hed : e * ‖d‖ < δ := by
+      calc
+        e * ‖d‖ ≤ δ / (2 * ‖d‖) * ‖d‖ := by gcongr; exact min_le_left _ _
+        _ = δ / 2 := by field_simp
+        _ < δ := half_lt_self hδ
+    have heR : e * ‖d‖ < R := by
+      calc
+        e * ‖d‖ ≤ R / (2 * ‖d‖) * ‖d‖ := by gcongr; exact min_le_right _ _
+        _ = R / 2 := by field_simp
+        _ < R := half_lt_self hR
+    let zq := q + e • J
+    have hzqthick : zq ∈ Metric.thickening δ K := by
+      rw [Metric.mem_thickening_iff]
+      refine ⟨q, right_mem_segment ℝ y q, ?_⟩
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+        abs_of_pos he, norm_jrot]
+      simpa only [d] using hed
+    have hzqpos : 0 < (1 : ℝ) * jcr d (zq - a) := by
+      rw [show zq = a + (1 / 2 : ℝ) • d + e • jrot d by rfl,
+        pg_jcr_param]
+      simpa using mul_pos he (pow_pos hdn 2)
+    have hzpos' : 0 < (1 : ℝ) * jcr d (z - a) := by simpa using hzpos
+    have hzqCz : zq ∈ connectedComponentIn U z :=
+      (hcollar 1).isPreconnected.subset_connectedComponentIn
+        ⟨hzthick, hzpos'⟩ (hcollarU 1) ⟨hzqthick, hzqpos⟩
+    have hzqball : zq ∈ Metric.ball q R := by
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_eq_abs, abs_of_pos he, norm_jrot]
+      simpa only [d] using heR
+    have hpplusLocal : pplus ∈
+        {w : Pt | w ∈ Metric.ball q R ∧ 0 < (1 : ℝ) * jcr d (w - a)} := by
+      refine ⟨?_, ?_⟩
+      · rw [hpplus]
+        change q + η • J ∈ Metric.ball q R
+        rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+          Real.norm_eq_abs, abs_of_pos hη, norm_jrot]
+        simpa only [d] using hηR
+      · rw [hpplus, pg_jcr_param]
+        simpa using mul_pos hη (pow_pos hdn 2)
+    have hpplusC : pplus ∈ connectedComponentIn U zq :=
+      (hlocal 1).isPreconnected.subset_connectedComponentIn
+        ⟨hzqball, hzqpos⟩ (hlocalU 1) hpplusLocal
+    calc
+      connectedComponentIn U x = connectedComponentIn U z := connectedComponentIn_eq hzC
+      _ = connectedComponentIn U zq := connectedComponentIn_eq hzqCz
+      _ = connectedComponentIn U pplus := connectedComponentIn_eq hpplusC
+
+/-- The chord complement has at most two components, represented by the two local
+sides at its midpoint. -/
+private lemma plSchoenflies_chord_components_atMost_two
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    ∃ pplus pminus, pplus ∈ interior B.carrier \ segment ℝ a b ∧
+      pminus ∈ interior B.carrier \ segment ℝ a b ∧
+      ∀ x ∈ interior B.carrier \ segment ℝ a b,
+        connectedComponentIn (interior B.carrier \ segment ℝ a b) x =
+            connectedComponentIn (interior B.carrier \ segment ℝ a b) pplus ∨
+          connectedComponentIn (interior B.carrier \ segment ℝ a b) x =
+            connectedComponentIn (interior B.carrier \ segment ℝ a b) pminus := by
+  let q := a + (1 / 2 : ℝ) • (b - a)
+  have hqseg : q ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    simp only [q]
+    module
+  have hqint : q ∈ interior B.carrier := hchord hqseg
+  obtain ⟨R, hR, hball⟩ := Metric.isOpen_iff.1 isOpen_interior q hqint
+  have hdn : 0 < ‖b - a‖ := norm_pos_iff.2 (sub_ne_zero.2 hab.symm)
+  let η := R / (2 * ‖b - a‖)
+  have hη : 0 < η := div_pos hR (mul_pos two_pos hdn)
+  have hηR : η * ‖b - a‖ < R := by
+    dsimp only [η]
+    calc
+      R / (2 * ‖b - a‖) * ‖b - a‖ = R / 2 := by field_simp
+      _ < R := half_lt_self hR
+  let pplus := q + η • jrot (b - a)
+  let pminus := q + (-η) • jrot (b - a)
+  have hpplus : pplus ∈ interior B.carrier \ segment ℝ a b := by
+    refine ⟨hball ?_, ?_⟩
+    · rw [Metric.mem_ball, dist_eq_norm]
+      simp only [pplus, add_sub_cancel_left, norm_smul, norm_jrot,
+        Real.norm_eq_abs, abs_of_pos hη]
+      exact hηR
+    · intro hpseg
+      have hz := pg_jcr_seg hpseg
+      rw [show pplus = a + (1 / 2 : ℝ) • (b - a) +
+        η • jrot (b - a) by rfl, pg_jcr_param] at hz
+      exact (mul_pos hη (pow_pos hdn 2)).ne' hz
+  have hpminus : pminus ∈ interior B.carrier \ segment ℝ a b := by
+    refine ⟨hball ?_, ?_⟩
+    · rw [Metric.mem_ball, dist_eq_norm]
+      simp only [pminus, add_sub_cancel_left, norm_smul, norm_jrot,
+        Real.norm_eq_abs, abs_neg, abs_of_pos hη]
+      exact hηR
+    · intro hpseg
+      have hz := pg_jcr_seg hpseg
+      rw [show pminus = a + (1 / 2 : ℝ) • (b - a) +
+        (-η) • jrot (b - a) by rfl, pg_jcr_param] at hz
+      have : (-η) * ‖b - a‖ ^ 2 < 0 :=
+        mul_neg_of_neg_of_pos (neg_neg_of_pos hη) (pow_pos hdn 2)
+      linarith
+  refine ⟨pplus, pminus, hpplus, hpminus, fun x hx => ?_⟩
+  obtain ⟨y, hyC, hyseg⟩ :=
+    plSchoenflies_chord_component_closure_meets_openSegment B ha hb hab hchord hx
+  exact plSchoenflies_chord_component_eq_midpoint_side B hab hchord hx hyC hyseg
+    hR hball hη hηR rfl rfl
+
+/-- Rotate a simple polygon to a listed point, or first subdivide the unique side
+containing it. -/
+private lemma plSchoenflies_pg_make_first {l : List Pt} (hl : PgSP l) {y : Pt}
+    (hy : y ∈ pgCv l) :
+    ∃ l' : List Pt, PgSP l' ∧ l'.head? = some y ∧ pgCv l' = pgCv l ∧
+      (∀ p ∉ pgCv l, pgW l' p = pgW l p) ∧
+      (∀ z ∈ l, z ∈ l') ∧ (∀ z ∈ l', z ∈ l ∨ z = y) := by
+  by_cases hyv : y ∈ l
+  · obtain ⟨k, hk, hky⟩ := List.mem_iff_getElem.1 hyv
+    obtain ⟨rest, hrot⟩ := pg_rot_cons hk hl.three
+    let l' := l.rotate k
+    refine ⟨l', hl.rotate k, ?_, pgCv_rotate l k, ?_, ?_, ?_⟩
+    · rw [show l' = y ::
+        l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega)) ::
+          l[(k + 2) % l.length]'(Nat.mod_lt _ (by omega)) :: rest by
+        dsimp only [l']; rw [hrot, hky]]
+      rfl
+    · intro p _
+      exact pgW_rotate l k p
+    · intro z hz
+      rw [show l' = l.rotate k by rfl, List.mem_rotate]
+      exact hz
+    · intro z hz
+      left
+      rw [show l' = l.rotate k by rfl, List.mem_rotate] at hz
+      exact hz
+  · obtain ⟨l', hl', hl'h, hl'cv, hl'W, hl'mem, hl'new, _⟩ :=
+      pg_subdiv_at hl hy hyv
+    exact ⟨l', hl', hl'h, hl'cv, hl'W, hl'mem, hl'new⟩
+
+/-- Insert arbitrary cross-cut endpoints into the cyclic vertex list and split it
+at those endpoints.  Both intervening lists are nonempty because the chord is
+interior rather than a boundary side. -/
+private lemma plSchoenflies_chord_vertex_lists
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    ∃ m1 m2 : List Pt, m1 ≠ [] ∧ m2 ≠ [] ∧
+      PgSP (a :: m1 ++ b :: m2) ∧
+      pgCv (a :: m1 ++ b :: m2) = frontier B.carrier ∧
+      ∀ p ∉ frontier B.carrier,
+        pgW (a :: m1 ++ b :: m2) p = pgW (pgL B) p := by
+  have ha' : a ∈ pgCv (pgL B) := by rwa [pgCv_pgL]
+  obtain ⟨la, hla, hlah, hlacv, hlaW, hla_old, _⟩ :=
+    plSchoenflies_pg_make_first (pgSP_pgL B) ha'
+  have hb_la : b ∈ pgCv la := by rw [hlacv, pgCv_pgL]; exact hb
+  obtain ⟨lb, hlb, hlbh, hlbcv, hlbW, hlb_old, _⟩ :=
+    plSchoenflies_pg_make_first hla hb_la
+  have ha_la : a ∈ la := by
+    rw [List.head?_eq_some_iff] at hlah
+    obtain ⟨r, rfl⟩ := hlah
+    exact List.mem_cons_self
+  have ha_lb : a ∈ lb := hlb_old a ha_la
+  have ha_lb_curve : a ∈ pgCv lb := pg_vertex_mem_cv ha_lb
+  obtain ⟨l, hl, hlh, hlcv, hlW, hlb_mem, _⟩ :=
+    plSchoenflies_pg_make_first hlb ha_lb_curve
+  have hb_l : b ∈ l := hlb_mem b (by
+    rw [List.head?_eq_some_iff] at hlbh
+    obtain ⟨r, rfl⟩ := hlbh
+    exact List.mem_cons_self)
+  rw [List.head?_eq_some_iff] at hlh
+  obtain ⟨r, rfl⟩ := hlh
+  have hb_r : b ∈ r := by
+    simpa only [List.mem_cons, hab.symm, false_or] using hb_l
+  obtain ⟨m1, m2, hr⟩ := List.mem_iff_append.1 hb_r
+  subst r
+  have hcv : pgCv (a :: m1 ++ b :: m2) = frontier B.carrier := by
+    change pgCv (a :: (m1 ++ b :: m2)) = frontier B.carrier
+    rw [hlcv, hlbcv, hlacv, pgCv_pgL]
+  have hW : ∀ p ∉ frontier B.carrier,
+      pgW (a :: m1 ++ b :: m2) p = pgW (pgL B) p := by
+    intro p hp
+    change pgW (a :: (m1 ++ b :: m2)) p = pgW (pgL B) p
+    rw [hlW p (by rwa [hlbcv, hlacv, pgCv_pgL]),
+      hlbW p (by rwa [hlacv, pgCv_pgL]), hlaW p (by rwa [pgCv_pgL])]
+  have hmid : a + (1 / 2 : ℝ) • (b - a) ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, by module⟩
+  have hnotfront : a + (1 / 2 : ℝ) • (b - a) ∉ frontier B.carrier :=
+    fun h => Set.disjoint_left.1 disjoint_interior_frontier (hchord hmid) h
+  have hm1 : m1 ≠ [] := by
+    intro hm1
+    subst m1
+    apply hnotfront
+    rw [← hcv]
+    apply seg_subset_pgCv (e := (a, b))
+    · rw [pgEd_split]
+      simp
+    · exact openSegment_subset_segment ℝ a b hmid
+  have hm2 : m2 ≠ [] := by
+    intro hm2
+    subst m2
+    apply hnotfront
+    rw [← hcv]
+    apply seg_subset_pgCv (e := (b, a))
+    · rw [pgEd_split]
+      simp
+    · rw [segment_symm]
+      exact openSegment_subset_segment ℝ a b hmid
+  exact ⟨m1, m2, hm1, hm2, hl, hcv, hW⟩
+
+/-- The two local sides of the chord belong to different components.  The
+separating invariant is the winding number of either boundary arc closed by
+the chord. -/
+private lemma plSchoenflies_chord_components_atLeast_two
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    ∃ u v, u ∈ interior B.carrier \ segment ℝ a b ∧
+      v ∈ interior B.carrier \ segment ℝ a b ∧
+      connectedComponentIn (interior B.carrier \ segment ℝ a b) u ≠
+        connectedComponentIn (interior B.carrier \ segment ℝ a b) v := by
+  obtain ⟨m1, m2, hm1, hm2, hl, hcv, hW⟩ :=
+    plSchoenflies_chord_vertex_lists B ha hb hab hchord
+  let l := a :: m1 ++ b :: m2
+  let P1 := a :: m1 ++ [b]
+  have hD : ∀ y ∈ openSegment ℝ a b, y ∉ pgCv l := by
+    intro y hy
+    rw [show pgCv l = frontier B.carrier by exact hcv]
+    exact fun h => Set.disjoint_left.1 disjoint_interior_frontier (hchord hy) h
+  let q := a + (1 / 2 : ℝ) • (b - a)
+  have hqseg : q ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    simp only [q]
+    module
+  have hqfront : q ∉ frontier B.carrier :=
+    fun h => Set.disjoint_left.1 disjoint_interior_frontier (hchord hqseg) h
+  obtain ⟨σB, hσB, hBin, _⟩ := pd_wind B
+  have hqW : pgW l q ≠ 0 := by
+    rw [hW q hqfront, pgW_pgL, hBin q (hchord hqseg)]
+    have hπ : Real.pi ≠ 0 := Real.pi_ne_zero
+    rcases hσB with rfl | rfl <;> positivity
+  obtain ⟨hP1, _, _, _⟩ := pg_split (a := a) (b := b) (m1 := m1)
+    (m2 := m2) hl hm1 hm2 hD ⟨q, hqseg, hqW⟩
+  change PgSP P1 at hP1
+  obtain ⟨σ1, hσ1, _, hside1⟩ := pg_jordan hP1
+  have hba : (b, a) ∈ pgEd P1 := by
+    dsimp only [P1]
+    rw [pgEd_close]
+    simp
+  have hside : PgSide P1 b a (Real.pi * (1 + σ1)) := hside1 (b, a) hba
+  obtain ⟨R, hR, hball⟩ := Metric.isOpen_iff.1 isOpen_interior q (hchord hqseg)
+  have hcenter : dist (b + (1 / 2 : ℝ) • (a - b)) q < R / 2 := by
+    rw [show b + (1 / 2 : ℝ) • (a - b) = q by simp only [q]; module,
+      dist_self]
+    linarith
+  obtain ⟨t, ht, huBall, hvBall, huP1, hvP1, hwu, hwv⟩ :=
+    hside.near (s := 1 / 2) (by norm_num) hcenter
+  let u := b + (1 / 2 : ℝ) • (a - b) + t • jrot (a - b)
+  let v := b + (1 / 2 : ℝ) • (a - b) + (-t) • jrot (a - b)
+  have hsegP1 : segment ℝ a b ⊆ pgCv P1 := by
+    dsimp only [P1]
+    rw [pgCv_close]
+    exact subset_union_right
+  have hu : u ∈ interior B.carrier \ segment ℝ a b := by
+    refine ⟨hball (by exact huBall), ?_⟩
+    exact fun h => huP1 (hsegP1 h)
+  have hv : v ∈ interior B.carrier \ segment ℝ a b := by
+    refine ⟨hball (by exact hvBall), ?_⟩
+    exact fun h => hvP1 (hsegP1 h)
+  refine ⟨u, v, hu, hv, ?_⟩
+  intro huv
+  let U := interior B.carrier \ segment ℝ a b
+  let C := connectedComponentIn U u
+  have hCU : C ⊆ U := connectedComponentIn_subset U u
+  have hP1curve : pgCv P1 ⊆ pgCv l ∪ segment ℝ a b := by
+    dsimp only [P1]
+    rw [pgCv_close]
+    refine union_subset_union ?_ le_rfl
+    intro z hz
+    simp only [mem_iUnion, exists_prop] at hz
+    obtain ⟨e, he, hze⟩ := hz
+    apply seg_subset_pgCv (l := l) (e := e) ?_ hze
+    rw [show l = a :: m1 ++ b :: m2 by rfl, pgEd_split]
+    exact List.mem_append_left _ he
+  have hCavoid : ∀ z ∈ C, z ∉ pgCv P1 := by
+    intro z hzC hzP
+    rcases hP1curve hzP with hzL | hzseg
+    · exact Set.disjoint_left.1 disjoint_interior_frontier (hCU hzC).1
+        (by rwa [hcv] at hzL)
+    · exact (hCU hzC).2 hzseg
+  have huC : u ∈ C := mem_connectedComponentIn hu
+  have hvC : v ∈ C := by
+    rw [show C = connectedComponentIn U v by exact huv]
+    exact mem_connectedComponentIn hv
+  have hconn :=
+    (plSchoenflies_chord_component_open_pathConnected B hu).2.isConnected.isPreconnected
+  have heq := pgW_const hconn hCavoid huC hvC
+  change pgW P1 u = pgW P1 v at heq
+  rw [hwu, hwv] at heq
+  linarith [Real.pi_pos]
+
+/-- **C1: exactly two components.**  The open complement of an interior
+cross-cut has precisely the two components represented by the two local
+sides of the chord. -/
+private lemma plSchoenflies_chord_components_exactly_two
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    ∃ pplus pminus, pplus ∈ interior B.carrier \ segment ℝ a b ∧
+      pminus ∈ interior B.carrier \ segment ℝ a b ∧
+      connectedComponentIn (interior B.carrier \ segment ℝ a b) pplus ≠
+        connectedComponentIn (interior B.carrier \ segment ℝ a b) pminus ∧
+      ∀ x ∈ interior B.carrier \ segment ℝ a b,
+        connectedComponentIn (interior B.carrier \ segment ℝ a b) x =
+            connectedComponentIn (interior B.carrier \ segment ℝ a b) pplus ∨
+          connectedComponentIn (interior B.carrier \ segment ℝ a b) x =
+            connectedComponentIn (interior B.carrier \ segment ℝ a b) pminus := by
+  obtain ⟨pplus, pminus, hpplus, hpminus, hall⟩ :=
+    plSchoenflies_chord_components_atMost_two B ha hb hab hchord
+  obtain ⟨u, v, hu, hv, huv⟩ :=
+    plSchoenflies_chord_components_atLeast_two B ha hb hab hchord
+  have hne : connectedComponentIn (interior B.carrier \ segment ℝ a b) pplus ≠
+      connectedComponentIn (interior B.carrier \ segment ℝ a b) pminus := by
+    intro heq
+    rcases hall u hu with hu' | hu'
+    · have huM := hu'.trans heq
+      rcases hall v hv with hv' | hv'
+      · exact huv (huM.trans (hv'.trans heq).symm)
+      · exact huv (huM.trans hv'.symm)
+    · rcases hall v hv with hv' | hv'
+      · exact huv (hu'.trans (hv'.trans heq).symm)
+      · exact huv (hu'.trans hv'.symm)
+  exact ⟨pplus, pminus, hpplus, hpminus, hne, hall⟩
+
+/-- A refined cyclic list with the same curve and winding as a polygonal disk
+defines the same closed winding region. -/
+private lemma plSchoenflies_pgReg_eq_carrier
+    (B : PolygonalDisk) {l : List Pt} (hcv : pgCv l = frontier B.carrier)
+    (hW : ∀ p ∉ frontier B.carrier, pgW l p = pgW (pgL B) p) :
+    pgReg l = B.carrier := by
+  obtain ⟨σ, hσ, hBin, hBout⟩ := pd_wind B
+  ext x
+  constructor
+  · rintro (hcurve | hwind)
+    · exact pd_frontier_subset_carrier B (hcv ▸ hcurve)
+    · by_cases hxf : x ∈ frontier B.carrier
+      · exact pd_frontier_subset_carrier B hxf
+      by_contra hxB
+      apply hwind
+      rw [hW x hxf, pgW_pgL, hBout x hxB]
+  · intro hxB
+    by_cases hxf : x ∈ frontier B.carrier
+    · exact Or.inl (hcv.symm ▸ hxf)
+    · right
+      change pgW l x ≠ 0
+      have hxi : x ∈ interior B.carrier := by
+        rw [← self_diff_frontier]
+        exact ⟨hxB, hxf⟩
+      rw [hW x hxf, pgW_pgL, hBin x hxi]
+      have hπ : Real.pi ≠ 0 := Real.pi_ne_zero
+      rcases hσ with rfl | rfl <;> positivity
+
+/-- The two endpoint-split cyclic lists are simple, and their winding regions
+lie in the original carrier.  This is the combinatorial/simple part of C2. -/
+private lemma plSchoenflies_chord_boundary_lists_simple
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    ∃ m1 m2 : List Pt, m1 ≠ [] ∧ m2 ≠ [] ∧
+      PgSP (a :: m1 ++ [b]) ∧ PgSP (b :: m2 ++ [a]) ∧
+      pgCv (a :: m1 ++ b :: m2) = frontier B.carrier ∧
+      pgReg (a :: m1 ++ [b]) ⊆ B.carrier ∧
+      pgReg (b :: m2 ++ [a]) ⊆ B.carrier := by
+  obtain ⟨m1, m2, hm1, hm2, hl, hcv, hW⟩ :=
+    plSchoenflies_chord_vertex_lists B ha hb hab hchord
+  let l := a :: m1 ++ b :: m2
+  have hD : ∀ y ∈ openSegment ℝ a b, y ∉ pgCv l := by
+    intro y hy
+    rw [show pgCv l = frontier B.carrier by exact hcv]
+    exact fun h => Set.disjoint_left.1 disjoint_interior_frontier (hchord hy) h
+  let q := a + (1 / 2 : ℝ) • (b - a)
+  have hqseg : q ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    simp only [q]
+    module
+  have hqfront : q ∉ frontier B.carrier :=
+    fun h => Set.disjoint_left.1 disjoint_interior_frontier (hchord hqseg) h
+  obtain ⟨σ, hσ, hBin, _⟩ := pd_wind B
+  have hqW : pgW l q ≠ 0 := by
+    rw [hW q hqfront, pgW_pgL, hBin q (hchord hqseg)]
+    have hπ : Real.pi ≠ 0 := Real.pi_ne_zero
+    rcases hσ with rfl | rfl <;> positivity
+  obtain ⟨hP1, hP2, hR1, hR2⟩ := pg_split (a := a) (b := b)
+    (m1 := m1) (m2 := m2) hl hm1 hm2 hD ⟨q, hqseg, hqW⟩
+  have hreg : pgReg l = B.carrier := plSchoenflies_pgReg_eq_carrier B hcv hW
+  exact ⟨m1, m2, hm1, hm2, hP1, hP2, hcv,
+    hR1.trans_eq hreg, hR2.trans_eq hreg⟩
+
+/-- Every point of a simple polygonal curve is approached from both winding
+regions: by points of nonzero winding and by points of zero winding. -/
+private lemma plSchoenflies_pg_boundary_two_sides {l : List Pt} (hl : PgSP l)
+    {x : Pt} (hx : x ∈ pgCv l) {ε : ℝ} (hε : 0 < ε) :
+    ∃ zin zout : Pt,
+      zin ∈ Metric.ball x ε ∧ zout ∈ Metric.ball x ε ∧
+      zin ∉ pgCv l ∧ zout ∉ pgCv l ∧ pgW l zin ≠ 0 ∧ pgW l zout = 0 := by
+  obtain ⟨σ, hσ, _, hsides⟩ := pg_jordan hl
+  obtain ⟨e, he, hxe⟩ := mem_pgCv.1 hx
+  obtain ⟨k, hk, rfl⟩ := pg_edge_of_mem he
+  let a := l[k]
+  let b := l[(k + 1) % l.length]'(Nat.mod_lt _ (by omega))
+  have hab : a ≠ b := by
+    intro heq
+    have heq' : (⟨k, hk⟩ : Fin l.length) =
+        ⟨(k + 1) % l.length, Nat.mod_lt _ (by omega)⟩ := hl.inj heq
+    have hv := congrArg Fin.val heq'
+    simp only at hv
+    have hthree := hl.three
+    by_cases hlast : k + 1 = l.length
+    · rw [hlast, Nat.mod_self] at hv
+      omega
+    · rw [Nat.mod_eq_of_lt (by omega)] at hv
+      omega
+  have hxc : x ∈ closure (openSegment ℝ a b) :=
+    segment_subset_closure_openSegment hxe
+  obtain ⟨q, hq, hxq⟩ := Metric.mem_closure_iff.1 hxc (ε / 2) (half_pos hε)
+  obtain ⟨s, hs0, hs1, hqs⟩ := mem_openSegment_iff'.1 hq
+  have hside : PgSide l a b (Real.pi * (1 + σ)) :=
+    hsides (a, b) (by simpa only [a, b] using he)
+  have hnear : dist (a + s • (b - a)) x < ε / 2 := by
+    rw [← hqs, dist_comm]
+    exact hxq
+  obtain ⟨t, ht, hu, hv, huc, hvc, hwu, hwv⟩ :=
+    hside.near (s := s) ⟨hs0, hs1⟩ (x := x) (r := ε) hnear
+  let u := a + s • (b - a) + t • jrot (b - a)
+  let v := a + s • (b - a) + (-t) • jrot (b - a)
+  rcases hσ with rfl | rfl
+  · refine ⟨u, v, hu, hv, huc, hvc, ?_, ?_⟩
+    · rw [hwu]
+      nlinarith [Real.pi_pos]
+    · rw [hwv]
+      ring
+  · refine ⟨v, u, hv, hu, hvc, huc, ?_, ?_⟩
+    · rw [hwv]
+      nlinarith [Real.pi_pos]
+    · rw [hwu]
+      ring
+
+/-- The closed winding region of a simple polygon is closed. -/
+private lemma plSchoenflies_pgReg_closed {l : List Pt} (hl : PgSP l) :
+    IsClosed (pgReg l) := by
+  rw [← isOpen_compl_iff, Metric.isOpen_iff]
+  intro x hx
+  have hxc : x ∉ pgCv l := fun h => hx (Or.inl h)
+  have hxW : pgW l x = 0 := by
+    by_contra h
+    exact hx (Or.inr h)
+  have hxpoly : x ∉ polyCurve l.get := by rwa [← pgCv_eq_polyCurve]
+  obtain ⟨r, hr, hloc⟩ := wind_eventually_eq hxpoly
+  refine ⟨r, hr, fun y hy => ?_⟩
+  have hy' := hloc y hy
+  intro hyreg
+  rcases hyreg with hycurve | hywind
+  · exact hy'.1 (by rwa [← pgCv_eq_polyCurve])
+  · apply hywind
+    rw [pgW_eq_wind, hy'.2, ← pgW_eq_wind, hxW]
+
+/-- The interior of a simple polygon's closed winding region is exactly its
+off-curve nonzero-winding locus; its closure is the whole region and its
+frontier is the polygonal curve. -/
+private lemma plSchoenflies_pgReg_topology_core {l : List Pt} (hl : PgSP l) :
+    let I := {x : Pt | x ∉ pgCv l ∧ pgW l x ≠ 0}
+    interior (pgReg l) = I ∧ closure I = pgReg l ∧ I.Nonempty ∧
+      frontier (pgReg l) = pgCv l := by
+  let I := {x : Pt | x ∉ pgCv l ∧ pgW l x ≠ 0}
+  have hIo : IsOpen I := by
+    rw [Metric.isOpen_iff]
+    intro x hx
+    change x ∉ pgCv l ∧ pgW l x ≠ 0 at hx
+    have hxpoly : x ∉ polyCurve l.get := by
+      simpa only [pgCv_eq_polyCurve] using hx.1
+    obtain ⟨r, hr, hloc⟩ := wind_eventually_eq hxpoly
+    refine ⟨r, hr, fun y hy => ?_⟩
+    have hy' := hloc y hy
+    change y ∉ pgCv l ∧ pgW l y ≠ 0
+    refine ⟨?_, ?_⟩
+    · simpa only [pgCv_eq_polyCurve] using hy'.1
+    · rw [pgW_eq_wind, hy'.2, ← pgW_eq_wind]
+      exact hx.2
+  have hIreg : I ⊆ pgReg l := fun x hx => Or.inr hx.2
+  have hIint : I ⊆ interior (pgReg l) := interior_maximal hIreg hIo
+  have hintI : interior (pgReg l) ⊆ I := by
+    intro x hx
+    have hxreg : x ∈ pgReg l := interior_subset hx
+    have hxc : x ∉ pgCv l := by
+      intro hxc
+      obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.1 isOpen_interior x hx
+      obtain ⟨zin, zout, _, hzout, _, hzoutc, _, hzoutW⟩ :=
+        plSchoenflies_pg_boundary_two_sides hl hxc hr
+      have hzoutReg : zout ∈ pgReg l := interior_subset (hball hzout)
+      rcases hzoutReg with hcurve | hwind
+      · exact hzoutc hcurve
+      · exact hwind hzoutW
+    refine ⟨hxc, ?_⟩
+    rcases hxreg with hcurve | hwind
+    · contradiction
+    · exact hwind
+  have hint : interior (pgReg l) = I := Set.Subset.antisymm hintI hIint
+  have hclsub : closure I ⊆ pgReg l :=
+    closure_minimal hIreg (plSchoenflies_pgReg_closed hl)
+  have hregcl : pgReg l ⊆ closure I := by
+    intro x hx
+    by_cases hxc : x ∈ pgCv l
+    · rw [Metric.mem_closure_iff]
+      intro ε hε
+      obtain ⟨zin, zout, hzin, _, hzinc, _, hzinW, _⟩ :=
+        plSchoenflies_pg_boundary_two_sides hl hxc hε
+      exact ⟨zin, ⟨hzinc, hzinW⟩, by
+        simpa only [Metric.mem_ball, dist_comm] using hzin⟩
+    · rcases hx with hcurve | hwind
+      · contradiction
+      · exact subset_closure ⟨hxc, hwind⟩
+  have hcl : closure I = pgReg l := Set.Subset.antisymm hclsub hregcl
+  have hIne : I.Nonempty := by
+    have hthree := hl.three
+    let i : Fin l.length := ⟨0, by omega⟩
+    have hxcurve : l.get i ∈ pgCv l := pg_vertex_mem_cv (List.get_mem l i)
+    obtain ⟨zin, zout, _, _, hzinc, _, hzinW, _⟩ :=
+      plSchoenflies_pg_boundary_two_sides hl hxcurve one_pos
+    exact ⟨zin, hzinc, hzinW⟩
+  have hfront : frontier (pgReg l) = pgCv l := by
+    rw [frontier, (plSchoenflies_pgReg_closed hl).closure_eq, hint]
+    ext x
+    simp only [pgReg, I, mem_diff, mem_union, mem_setOf_eq]
+    tauto
+  exact ⟨hint, hcl, hIne, hfront⟩
+
+/-- For either split boundary cycle, its nonzero-winding interior is one of the
+two components of the chord complement. -/
+private lemma plSchoenflies_pgInside_eq_chord_component
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier)
+    {P : List Pt} (hP : PgSP P) (hPreg : pgReg P ⊆ B.carrier)
+    (hPcurve : pgCv P ⊆ frontier B.carrier ∪ segment ℝ a b)
+    (hsegP : segment ℝ a b ⊆ pgCv P) :
+    ∃ x ∈ interior B.carrier \ segment ℝ a b,
+      {y : Pt | y ∉ pgCv P ∧ pgW P y ≠ 0} =
+        connectedComponentIn (interior B.carrier \ segment ℝ a b) x := by
+  let U := interior B.carrier \ segment ℝ a b
+  let q := a + (1 / 2 : ℝ) • (b - a)
+  have hqseg : q ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    simp only [q]
+    module
+  obtain ⟨R, hR, hball⟩ := Metric.isOpen_iff.1 isOpen_interior q (hchord hqseg)
+  obtain ⟨zin, zout, hzinball, hzoutball, hzinc, hzoutc, hzinW, hzoutW⟩ :=
+    plSchoenflies_pg_boundary_two_sides hP (hsegP (openSegment_subset_segment ℝ a b hqseg)) hR
+  have hzinU : zin ∈ U := ⟨hball hzinball, fun h => hzinc (hsegP h)⟩
+  have hzoutU : zout ∈ U := ⟨hball hzoutball, fun h => hzoutc (hsegP h)⟩
+  have hcomp_avoid (z : Pt) (hz : z ∈ U) :
+      ∀ w ∈ connectedComponentIn U z, w ∉ pgCv P := by
+    intro w hw hwp
+    rcases hPcurve hwp with hwf | hws
+    · exact Set.disjoint_left.1 disjoint_interior_frontier
+        (connectedComponentIn_subset U z hw).1 hwf
+    · exact (connectedComponentIn_subset U z hw).2 hws
+  have hcomp_const (z : Pt) (hz : z ∈ U) {w : Pt}
+      (hw : w ∈ connectedComponentIn U z) : pgW P w = pgW P z := by
+    have hconn := (plSchoenflies_chord_component_open_pathConnected B hz).2
+    exact pgW_const hconn.isConnected.isPreconnected (hcomp_avoid z hz)
+      hw (mem_connectedComponentIn hz)
+  have hzinzout : connectedComponentIn U zin ≠ connectedComponentIn U zout := by
+    intro heq
+    have hzoutIn : zout ∈ connectedComponentIn U zin := by
+      rw [heq]
+      exact mem_connectedComponentIn hzoutU
+    have he := hcomp_const zin hzinU hzoutIn
+    rw [hzoutW] at he
+    exact hzinW he.symm
+  obtain ⟨pplus, pminus, hpplus, hpminus, hpm, hall⟩ :=
+    plSchoenflies_chord_components_exactly_two B ha hb hab hchord
+  have hexhaust : ∀ y ∈ U,
+      connectedComponentIn U y = connectedComponentIn U zin ∨
+        connectedComponentIn U y = connectedComponentIn U zout := by
+    intro y hy
+    rcases hall zin hzinU with hzin | hzin
+    · have hzout : connectedComponentIn U zout = connectedComponentIn U pminus := by
+        rcases hall zout hzoutU with hzout | hzout
+        · exact False.elim (hzinzout (hzin.trans hzout.symm))
+        · exact hzout
+      rcases hall y hy with hy | hy
+      · exact Or.inl (hy.trans hzin.symm)
+      · exact Or.inr (hy.trans hzout.symm)
+    · have hzout : connectedComponentIn U zout = connectedComponentIn U pplus := by
+        rcases hall zout hzoutU with hzout | hzout
+        · exact hzout
+        · exact False.elim (hzinzout (hzin.trans hzout.symm))
+      rcases hall y hy with hy | hy
+      · exact Or.inr (hy.trans hzout.symm)
+      · exact Or.inl (hy.trans hzin.symm)
+  refine ⟨zin, hzinU, Set.ext fun y => ?_⟩
+  constructor
+  · intro hyI
+    have hyintP : y ∈ interior (pgReg P) := by
+      rw [(plSchoenflies_pgReg_topology_core hP).1]
+      exact hyI
+    have hyU : y ∈ U := by
+      refine ⟨interior_mono hPreg hyintP, ?_⟩
+      exact fun h => hyI.1 (hsegP h)
+    rcases hexhaust y hyU with hy | hy
+    · change y ∈ connectedComponentIn U zin
+      rw [← hy]
+      exact mem_connectedComponentIn hyU
+    · have hyIn : y ∈ connectedComponentIn U zout := by
+        rw [← hy]
+        exact mem_connectedComponentIn hyU
+      have he := hcomp_const zout hzoutU hyIn
+      rw [hzoutW] at he
+      exact False.elim (hyI.2 he)
+  · intro hyC
+    have hyU : y ∈ U := connectedComponentIn_subset U zin hyC
+    refine ⟨hcomp_avoid zin hzinU y hyC, ?_⟩
+    rw [hcomp_const zin hzinU hyC]
+    exact hzinW
+
+/-- Removing the one-dimensional chord does not change the closure of the
+interior of the disk. -/
+private lemma plSchoenflies_chord_complement_closure
+    (B : PolygonalDisk) {a b : Pt} (hab : a ≠ b) :
+    closure (interior B.carrier \ segment ℝ a b) = B.carrier := by
+  apply Set.Subset.antisymm
+  · exact closure_minimal (diff_subset.trans interior_subset) B.compact.isClosed
+  · calc
+      B.carrier = closure (interior B.carrier) := B.regular_closed.symm
+      _ ⊆ closure (interior B.carrier \ segment ℝ a b) := closure_minimal (by
+        intro x hx
+        by_cases hxs : x ∈ segment ℝ a b
+        · rw [Metric.mem_closure_iff]
+          intro ε hε
+          obtain ⟨R, hR, hball⟩ := Metric.isOpen_iff.1 isOpen_interior x hx
+          have hdn : 0 < ‖b - a‖ :=
+            norm_pos_iff.2 (sub_ne_zero.2 hab.symm)
+          let t := min (R / (2 * ‖b - a‖)) (ε / (2 * ‖b - a‖))
+          have ht : 0 < t :=
+            lt_min (div_pos hR (by positivity)) (div_pos hε (by positivity))
+          have htR : t * ‖b - a‖ < R := by
+            calc
+              t * ‖b - a‖ ≤ R / (2 * ‖b - a‖) * ‖b - a‖ := by
+                gcongr
+                exact min_le_left _ _
+              _ = R / 2 := by field_simp
+              _ < R := half_lt_self hR
+          have htε : t * ‖b - a‖ < ε := by
+            calc
+              t * ‖b - a‖ ≤ ε / (2 * ‖b - a‖) * ‖b - a‖ := by
+                gcongr
+                exact min_le_right _ _
+              _ = ε / 2 := by field_simp
+              _ < ε := half_lt_self hε
+          obtain ⟨s, hs0, hs1, hxs'⟩ := mem_segment_iff'.1 hxs
+          let z := x + t • jrot (b - a)
+          have hzx : dist x z < ε := by
+            rw [dist_eq_norm]
+            simp only [z, sub_add_cancel_left, norm_neg, norm_smul, norm_jrot,
+              Real.norm_eq_abs, abs_of_pos ht]
+            exact htε
+          refine ⟨z, ⟨hball ?_, ?_⟩, hzx⟩
+          · rw [Metric.mem_ball, dist_eq_norm]
+            simp only [z, add_sub_cancel_left, norm_smul, norm_jrot,
+              Real.norm_eq_abs, abs_of_pos ht]
+            exact htR
+          · intro hzseg
+            have hzj := pg_jcr_seg hzseg
+            rw [show z = a + s • (b - a) + t • jrot (b - a) by
+              dsimp only [z]; rw [hxs'], pg_jcr_param] at hzj
+            exact (mul_pos ht (pow_pos hdn 2)).ne' hzj
+        · exact subset_closure ⟨hx, hxs⟩) isClosed_closure
+
+/-- Package a simple split winding region as a `PolygonalDisk` once its
+interior has been identified as a chord-complement component. -/
+private lemma plSchoenflies_pgReg_polygonalDisk
+    (B : PolygonalDisk) {P : List Pt} (hP : PgSP P)
+    (hPreg : pgReg P ⊆ B.carrier)
+    (hpath : IsPathConnected {x : Pt | x ∉ pgCv P ∧ pgW P x ≠ 0}) :
+    ∃ D : PolygonalDisk, D.carrier = pgReg P ∧
+      interior D.carrier = {x : Pt | x ∉ pgCv P ∧ pgW P x ≠ 0} := by
+  obtain ⟨hint, hcl, hne, hfront⟩ := plSchoenflies_pgReg_topology_core hP
+  let D : PolygonalDisk :=
+    { carrier := pgReg P
+      n := P.length
+      three_le := hP.three
+      vertex := P.get
+      vertex_injective := hP.inj
+      compact := B.compact.of_isClosed_subset (plSchoenflies_pgReg_closed hP) hPreg
+      interior_nonempty := by rwa [hint]
+      regular_closed := by rw [hint, hcl]
+      interior_pathConnected := by rwa [hint]
+      frontier_eq := by
+        rw [hfront, pgCv_eq_polyCurve]
+        rfl
+      simple := hP.simple_fin }
+  exact ⟨D, rfl, hint⟩
+
+/-- The two simple cycles obtained by closing the complementary boundary
+chains meet exactly in the inserted chord. -/
+private lemma plSchoenflies_split_curves_inter {a b : Pt} {m1 m2 : List Pt}
+    (hl : PgSP (a :: m1 ++ b :: m2)) :
+    pgCv (a :: m1 ++ [b]) ∩ pgCv (b :: m2 ++ [a]) = segment ℝ a b := by
+  apply Set.Subset.antisymm
+  · intro z hz
+    rw [pgCv_close] at hz
+    rw [pgCv_close] at hz
+    rcases hz.1 with hz1 | hz1
+    · rcases hz.2 with hz2 | hz2
+      · simp only [mem_iUnion, exists_prop] at hz1 hz2
+        obtain ⟨e, he, hze⟩ := hz1
+        obtain ⟨f, hf, hzf⟩ := hz2
+        have hpw := hl.pw
+        rw [pgEd_split, List.pairwise_append] at hpw
+        have hok : PgOK e f := hpw.2.2 e he f hf
+        have hzends := hok ⟨hze, hzf⟩
+        have hzA : z ∈ a :: m1 ++ [b] := by
+          have he' := pgCh_mem he
+          rcases hzends.1 with h | h
+          · exact h ▸ he'.1
+          · exact h ▸ he'.2
+        have hzB : z ∈ b :: m2 ++ [a] := by
+          have hf' := pgCh_mem hf
+          rcases hzends.2 with h | h
+          · exact h ▸ hf'.1
+          · exact h ▸ hf'.2
+        have hzab : z = a ∨ z = b := by
+          by_contra hzab
+          push_neg at hzab
+          have hzleft : z ∈ a :: m1 := by
+            simpa only [List.mem_append, List.mem_singleton, hzab.2, or_false] using hzA
+          have hzright : z ∈ b :: m2 := by
+            simpa only [List.mem_append, List.mem_singleton, hzab.1, or_false] using hzB
+          have hnd := hl.nodup
+          rw [show a :: m1 ++ b :: m2 = (a :: m1) ++ (b :: m2) by simp,
+            List.nodup_append] at hnd
+          exact hnd.2.2 z hzleft z hzright rfl
+        rcases hzab with hza | hzb
+        · rw [hza]
+          exact left_mem_segment ℝ a b
+        · rw [hzb]
+          exact right_mem_segment ℝ a b
+      · rwa [segment_symm] at hz2
+    · exact hz1
+  · intro z hz
+    constructor
+    · rw [pgCv_close]
+      exact Or.inr hz
+    · rw [pgCv_close, segment_symm]
+      exact Or.inr hz
+
+/-- Split a polygonal disk along an interior chord into two polygonal disks. -/
+private lemma plSchoenflies_chord_split
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    ∃ B₁ B₂ : PolygonalDisk,
+      B₁.carrier ∪ B₂.carrier = B.carrier ∧
+      B₁.carrier ∩ B₂.carrier = segment ℝ a b ∧
+      Disjoint (interior B₁.carrier) (interior B₂.carrier) ∧
+      interior B.carrier =
+        interior B₁.carrier ∪ interior B₂.carrier ∪ openSegment ℝ a b := by
+  obtain ⟨m1, m2, hm1, hm2, hl, hcv, hW⟩ :=
+    plSchoenflies_chord_vertex_lists B ha hb hab hchord
+  let l := a :: m1 ++ b :: m2
+  let P1 := a :: m1 ++ [b]
+  let P2 := b :: m2 ++ [a]
+  let U := interior B.carrier \ segment ℝ a b
+  let I1 := {x : Pt | x ∉ pgCv P1 ∧ pgW P1 x ≠ 0}
+  let I2 := {x : Pt | x ∉ pgCv P2 ∧ pgW P2 x ≠ 0}
+  have hD : ∀ y ∈ openSegment ℝ a b, y ∉ pgCv l := by
+    intro y hy
+    rw [show pgCv l = frontier B.carrier by exact hcv]
+    exact fun h => Set.disjoint_left.1 disjoint_interior_frontier (hchord hy) h
+  let q := a + (1 / 2 : ℝ) • (b - a)
+  have hqseg : q ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    simp only [q]
+    module
+  have hqfront : q ∉ frontier B.carrier :=
+    fun h => Set.disjoint_left.1 disjoint_interior_frontier (hchord hqseg) h
+  obtain ⟨σB, hσB, hBin, _⟩ := pd_wind B
+  have hqW : pgW l q ≠ 0 := by
+    rw [hW q hqfront, pgW_pgL, hBin q (hchord hqseg)]
+    rcases hσB with rfl | rfl <;> positivity
+  obtain ⟨hP1, hP2, hR1, hR2⟩ := pg_split (a := a) (b := b)
+    (m1 := m1) (m2 := m2) hl hm1 hm2 hD ⟨q, hqseg, hqW⟩
+  change PgSP P1 at hP1
+  change PgSP P2 at hP2
+  have hreg : pgReg l = B.carrier := plSchoenflies_pgReg_eq_carrier B hcv hW
+  have hR1B : pgReg P1 ⊆ B.carrier := hR1.trans_eq hreg
+  have hR2B : pgReg P2 ⊆ B.carrier := hR2.trans_eq hreg
+  have hP1curve : pgCv P1 ⊆ frontier B.carrier ∪ segment ℝ a b := by
+    dsimp only [P1]
+    rw [pgCv_close]
+    refine union_subset_union ?_ le_rfl
+    intro z hz
+    simp only [mem_iUnion, exists_prop] at hz
+    obtain ⟨e, he, hze⟩ := hz
+    rw [← hcv]
+    apply seg_subset_pgCv (l := l) (e := e) ?_ hze
+    rw [show l = a :: m1 ++ b :: m2 by rfl, pgEd_split]
+    exact List.mem_append_left _ he
+  have hP2curve : pgCv P2 ⊆ frontier B.carrier ∪ segment ℝ a b := by
+    dsimp only [P2]
+    rw [pgCv_close]
+    refine union_subset_union ?_ ?_
+    · intro z hz
+      simp only [mem_iUnion, exists_prop] at hz
+      obtain ⟨e, he, hze⟩ := hz
+      rw [← hcv]
+      apply seg_subset_pgCv (l := l) (e := e) ?_ hze
+      rw [show l = a :: m1 ++ b :: m2 by rfl, pgEd_split]
+      exact List.mem_append_right _ he
+    · rw [segment_symm]
+  have hsegP1 : segment ℝ a b ⊆ pgCv P1 := by
+    dsimp only [P1]
+    rw [pgCv_close]
+    exact subset_union_right
+  have hsegP2 : segment ℝ a b ⊆ pgCv P2 := by
+    dsimp only [P2]
+    rw [pgCv_close, segment_symm]
+    exact subset_union_right
+  obtain ⟨x1, hx1, hI1⟩ := plSchoenflies_pgInside_eq_chord_component
+    B ha hb hab hchord hP1 hR1B hP1curve hsegP1
+  obtain ⟨x2, hx2, hI2⟩ := plSchoenflies_pgInside_eq_chord_component
+    B ha hb hab hchord hP2 hR2B hP2curve hsegP2
+  change I1 = connectedComponentIn U x1 at hI1
+  change I2 = connectedComponentIn U x2 at hI2
+  have hI1U : I1 ⊆ U := by
+    rw [hI1]
+    exact connectedComponentIn_subset U x1
+  have hI2U : I2 ⊆ U := by
+    rw [hI2]
+    exact connectedComponentIn_subset U x2
+  have hIunion : I1 ∪ I2 = U := by
+    apply Set.Subset.antisymm (union_subset hI1U hI2U)
+    intro y hyU
+    by_cases hy1 : y ∈ I1
+    · exact Or.inl hy1
+    by_cases hy2 : y ∈ I2
+    · exact Or.inr hy2
+    exfalso
+    have hyP1 : y ∉ pgCv P1 := by
+      intro h
+      rcases hP1curve h with h | h
+      · exact Set.disjoint_left.1 disjoint_interior_frontier hyU.1 h
+      · exact hyU.2 h
+    have hyP2 : y ∉ pgCv P2 := by
+      intro h
+      rcases hP2curve h with h | h
+      · exact Set.disjoint_left.1 disjoint_interior_frontier hyU.1 h
+      · exact hyU.2 h
+    have hw1 : pgW P1 y = 0 := by
+      by_contra h
+      exact hy1 ⟨hyP1, h⟩
+    have hw2 : pgW P2 y = 0 := by
+      by_contra h
+      exact hy2 ⟨hyP2, h⟩
+    have hyfront : y ∉ frontier B.carrier :=
+      Set.disjoint_left.1 disjoint_interior_frontier hyU.1
+    have hwl : pgW l y ≠ 0 := by
+      rw [hW y hyfront, pgW_pgL, hBin y hyU.1]
+      rcases hσB with rfl | rfl <;> positivity
+    have hsplit : pgW l y = pgW P1 y + pgW P2 y :=
+      pgW_split m1 m2 hyU.2
+    rw [hsplit, hw1, hw2, add_zero] at hwl
+    exact hwl rfl
+  have hIdisj : Disjoint I1 I2 := by
+    rw [Set.disjoint_left]
+    intro y hy1 hy2
+    have hyU : y ∈ U := hI1U hy1
+    obtain ⟨σ1, hσ1, hvals1, _⟩ := pg_jordan hP1
+    obtain ⟨σ2, hσ2, hvals2, _⟩ := pg_jordan hP2
+    have hw1 : pgW P1 y = 2 * Real.pi * σ1 :=
+      (hvals1 y hy1.1).resolve_left hy1.2
+    have hw2 : pgW P2 y = 2 * Real.pi * σ2 :=
+      (hvals2 y hy2.1).resolve_left hy2.2
+    have hwl : pgW l y = 2 * Real.pi * σB := by
+      rw [hW y (Set.disjoint_left.1 disjoint_interior_frontier hyU.1),
+        pgW_pgL, hBin y hyU.1]
+    have hsplit : pgW l y = pgW P1 y + pgW P2 y :=
+      pgW_split m1 m2 hyU.2
+    rw [hwl, hw1, hw2] at hsplit
+    rcases hσB with rfl | rfl <;> rcases hσ1 with rfl | rfl <;>
+      rcases hσ2 with rfl | rfl <;> nlinarith [Real.pi_pos]
+  have hpath1 : IsPathConnected I1 := by
+    rw [hI1]
+    exact (plSchoenflies_chord_component_open_pathConnected B hx1).2
+  have hpath2 : IsPathConnected I2 := by
+    rw [hI2]
+    exact (plSchoenflies_chord_component_open_pathConnected B hx2).2
+  obtain ⟨B1, hB1car, hB1int⟩ :=
+    plSchoenflies_pgReg_polygonalDisk B hP1 hR1B hpath1
+  obtain ⟨B2, hB2car, hB2int⟩ :=
+    plSchoenflies_pgReg_polygonalDisk B hP2 hR2B hpath2
+  change interior B1.carrier = I1 at hB1int
+  change interior B2.carrier = I2 at hB2int
+  have hcarUnion : B1.carrier ∪ B2.carrier = B.carrier := by
+    rw [hB1car, hB2car, ← (plSchoenflies_pgReg_topology_core hP1).2.1,
+      ← (plSchoenflies_pgReg_topology_core hP2).2.1, ← closure_union,
+      hIunion, plSchoenflies_chord_complement_closure B hab]
+  have hcarInter : B1.carrier ∩ B2.carrier = segment ℝ a b := by
+    rw [hB1car, hB2car]
+    apply Set.Subset.antisymm
+    · intro z hz
+      have hzB : z ∈ B.carrier := hR1B hz.1
+      by_cases hzint : z ∈ interior B.carrier
+      · by_cases hzseg : z ∈ segment ℝ a b
+        · exact hzseg
+        · have hzU : z ∈ U := ⟨hzint, hzseg⟩
+          have hzP1 : z ∉ pgCv P1 := by
+            intro h
+            rcases hP1curve h with h | h
+            · exact Set.disjoint_left.1 disjoint_interior_frontier hzU.1 h
+            · exact hzU.2 h
+          have hzP2 : z ∉ pgCv P2 := by
+            intro h
+            rcases hP2curve h with h | h
+            · exact Set.disjoint_left.1 disjoint_interior_frontier hzU.1 h
+            · exact hzU.2 h
+          have hzI1 : z ∈ I1 := ⟨hzP1, hz.1.resolve_left hzP1⟩
+          have hzI2 : z ∈ I2 := ⟨hzP2, hz.2.resolve_left hzP2⟩
+          exact False.elim (Set.disjoint_left.1 hIdisj hzI1 hzI2)
+      · have hzfront : z ∈ frontier B.carrier := by
+          rw [B.compact.isClosed.frontier_eq]
+          exact ⟨hzB, hzint⟩
+        have hzP1 : z ∈ pgCv P1 := by
+          by_contra h
+          have hzI : z ∈ I1 := ⟨h, hz.1.resolve_left h⟩
+          have : z ∈ interior B.carrier :=
+            interior_mono hR1B ((plSchoenflies_pgReg_topology_core hP1).1 ▸ hzI)
+          exact hzint this
+        have hzP2 : z ∈ pgCv P2 := by
+          by_contra h
+          have hzI : z ∈ I2 := ⟨h, hz.2.resolve_left h⟩
+          have : z ∈ interior B.carrier :=
+            interior_mono hR2B ((plSchoenflies_pgReg_topology_core hP2).1 ▸ hzI)
+          exact hzint this
+        exact (Set.ext_iff.1 (plSchoenflies_split_curves_inter hl) z).1 ⟨hzP1, hzP2⟩
+    · intro z hz
+      exact ⟨Or.inl (hsegP1 hz), Or.inl (hsegP2 hz)⟩
+  have hinter : interior B.carrier = I1 ∪ I2 ∪ openSegment ℝ a b := by
+    apply Set.Subset.antisymm
+    · intro z hz
+      by_cases hzs : z ∈ segment ℝ a b
+      · right
+        rw [← insert_endpoints_openSegment] at hzs
+        rcases hzs with h | h | h
+        · subst h
+          exact False.elim (Set.disjoint_left.1 disjoint_interior_frontier hz ha)
+        · subst h
+          exact False.elim (Set.disjoint_left.1 disjoint_interior_frontier hz hb)
+        · exact h
+      · left
+        rw [hIunion]
+        exact ⟨hz, hzs⟩
+    · rintro z (h | h)
+      · rcases h with h | h
+        · exact (hI1U h).1
+        · exact (hI2U h).1
+      · exact hchord h
+  refine ⟨B1, B2, hcarUnion, hcarInter, ?_, ?_⟩
+  · simpa only [hB1int, hB2int] using hIdisj
+  · simpa only [hB1int, hB2int] using hinter
+
 /-- the last time a path is in a closed set -/
 private lemma pg_last_in {r : ℝ → Pt} (hr : Continuous r) {C : Set Pt} (hC : IsClosed C) (h0 : r 0 ∈ C) {T : ℝ}
     (hT0 : 0 ≤ T) (hT : r T ∉ C) : ∃ t ∈ Ico 0 T, r t ∈ C ∧ ∀ s ∈ Ioc t T, r s ∉ C := by

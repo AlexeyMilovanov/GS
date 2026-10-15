@@ -2483,26 +2483,9 @@ private lemma plAnnulusRouting_step1_topological_step1_cutModel_step1_cutGeometr
       e '' B.carrier ⊆ A.carrier \ interior C.carrier ∧
       e '' interior B.carrier ⊆ interior A.carrier \ C.carrier ∧
       (∀ i, p i ∈ frontier B.carrier) ∧ (∀ i, q i ∈ frontier B.carrier) ∧
-      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) := by
-  sorry
-
-/-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological_step1_cutModel`:
-transfer the matching cyclic order to the boundary of the cut-open disk. -/
-private lemma plAnnulusRouting_step1_topological_step1_cutModel_step2_boundaryOrder
-    (A C B : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
-    (x y : Fin k → Pt) (hx : ∀ i, x i ∈ frontier A.carrier)
-    (hy : ∀ i, y i ∈ frontier C.carrier) (hxi : Function.Injective x)
-    (hyi : Function.Injective y)
-    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
-      (frontier C.carrier) x y) (e : Pt → Pt) (he_cont : Continuous e)
-    (he_inj : Set.InjOn e B.carrier)
-    (he_carrier : e '' B.carrier ⊆ A.carrier \ interior C.carrier)
-    (he_interior : e '' interior B.carrier ⊆ interior A.carrier \ C.carrier)
-    (p q : Fin k → Pt) (hp : ∀ i, p i ∈ frontier B.carrier)
-    (hq : ∀ i, q i ∈ frontier B.carrier) (hep : ∀ i, e (p i) = x i)
-    (heq : ∀ i, e (q i) = y i) :
-    ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
-      PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
+      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
+      ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
+        PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
   sorry
 
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological`: cut the
@@ -2525,7 +2508,8 @@ private lemma plAnnulusRouting_step1_topological_step1_cutModel (A C : Polygonal
       Function.Injective z ∧
       ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧ PointsInOrder l z := by
   classical
-  obtain ⟨B, e, p, q, he_cont, he_inj, he_carrier, he_interior, hp, hq, hep, heq⟩ :=
+  obtain ⟨B, e, p, q, he_cont, he_inj, he_carrier, he_interior, hp, hq, hep, heq,
+      l, hl_loop, hl_order⟩ :=
     plAnnulusRouting_step1_topological_step1_cutModel_step1_cutGeometry A C hC x y hx hy
       hxi hyi horder
   have hp_inj : Function.Injective p := by
@@ -2586,9 +2570,6 @@ private lemma plAnnulusRouting_step1_topological_step1_cutModel (A C : Polygonal
             apply hq_inj
             rw [← hzq i, ← hzq j]
             exact hij
-  obtain ⟨l, hl_loop, hl_order⟩ :=
-    plAnnulusRouting_step1_topological_step1_cutModel_step2_boundaryOrder A C B hC x y hx hy
-      hxi hyi horder e he_cont he_inj he_carrier he_interior p q hp hq hep heq
   exact ⟨B, e, p, q, z, he_cont, he_inj, he_carrier, he_interior, hp, hq, hep, heq, hzp,
     hzq, hzi, l, hl_loop, by simpa [z] using hl_order⟩
 
@@ -28407,6 +28388,14 @@ private structure existsMacroCertificate_GroupingSeed (τ : Substitution P) wher
   square_margin : ∀ p, square (centre p) ((N : ℝ) * R / 2 + R) + Binf (10 * M.D) ⊆
     interior ((τ.θ ^ k) • (P.disk p).carrier)
   annular : ∀ p, AnnularGrouping M (τ.supertile k p) (centre p) N R
+  annular_quantitative : ∀ p,
+    (∀ j : Fin (4 * N), ((annular p).spokes.piece j).carrier ⊆
+      Metric.cthickening (Cloc * M.D) (idealTrapezoid (centre p) N R M.D (j : ℕ))) ∧
+    (∀ j : Fin (4 * N),
+      (⌊R / (Clen * M.D)⌋₊ : ℝ) - Cerr ≤ ((privateOuterEdges (annular p) j).ncard : ℝ)) ∧
+    (∀ j : Fin (4 * N), Metric.diam ((annular p).spokes.piece j).carrier ≤ C * R) ∧
+    ∀ j : Fin (4 * N),
+      ((annular p).spokes.piece j).disk.n ≤ M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊
   GS : GroupedSubstitution τ
   grouped_power : GS.k = k
   large : P.Form → GS.G.P'.Form
@@ -28419,7 +28408,7 @@ private structure existsMacroCertificate_GroupingSeed (τ : Substitution P) wher
     (∃ p v, (GS.G.dissect α).tiles = translateSet v (annular p).L.faces) ∨
     (∃ p j v, (GS.G.dissect α).tiles = translateSet v ((annular p).spokes.piece j).faces) ∨
     ∃ p v, (GS.G.dissect α).tiles = {⟨p, v⟩}
-  inside_supertile : ∀ α, ∃ p v, translateSet v (GS.G.dissect α).tiles ⊆ τ.supertile k p
+  inside_supertile : ∀ α, ∃ n p v, translateSet v (GS.G.dissect α).tiles ⊆ τ.supertile n p
   hereditary : τ.HereditarySides → GS.σ.HereditarySides
   grouped_disks_distinct : ∀ α β, (GS.G.dissect α).tiles.Nontrivial →
     (GS.G.dissect β).tiles.Nontrivial → GS.G.P'.disk α = GS.G.P'.disk β → α = β

@@ -28790,12 +28790,1336 @@ private structure existsMacroCertificate_GroupingSeed (τ : Substitution P) wher
   grouped_disks_distinct : ∀ α β, (GS.G.dissect α).tiles.Nontrivial →
     (GS.G.dissect β).tiles.Nontrivial → GS.G.P'.disk α = GS.G.P'.disk β → α = β
 
+/-! ### Helpers for `existsMacroCertificate_seed1_grouping` -/
+
+/-- An open nonempty set covered by finitely many tile carriers meets the interior of one. -/
+private lemma emcg_open_meets_interior {U : Set Pt} (hU : IsOpen U) (hne : U.Nonempty)
+    {F : Set (PlacedTile P)} (hF : F.Finite) (hcov : U ⊆ ⋃ A ∈ F, A.carrier) :
+    ∃ A ∈ F, (U ∩ interior A.carrier).Nonempty := by
+  induction F, hF using Set.Finite.induction_on generalizing U with
+  | empty => obtain ⟨x, hx⟩ := hne; simpa using hcov hx
+  | @insert A0 F _ _ ih =>
+    by_cases h : (U \ A0.carrier).Nonempty
+    · have hclosed : IsClosed A0.carrier := by
+        have : IsCompact A0.carrier := by
+          simpa [PlacedTile.carrier] using (P.disk A0.form).compact.vadd A0.anchor
+        exact this.isClosed
+      obtain ⟨A, hA, hx⟩ := ih (hU.sdiff hclosed) h (by
+        intro x hx
+        have := hcov hx.1
+        simp only [mem_insert_iff, iUnion_iUnion_eq_or_left, mem_union] at this
+        rcases this with h1 | h1
+        · exact absurd h1 hx.2
+        · exact h1)
+      exact ⟨A, mem_insert_of_mem _ hA, hx.mono (inter_subset_inter_left _ diff_subset)⟩
+    · have hsub : U ⊆ A0.carrier := by
+        intro x hx; by_contra hc; exact h ⟨x, hx, hc⟩
+      refine ⟨A0, mem_insert _ _, ?_⟩
+      rw [inter_eq_left.mpr (interior_maximal hsub hU)]
+      exact hne
+
+/-- Supports of two disjoint finite families of tiles of a set with disjoint interiors have
+disjoint interiors. -/
+private lemma emcg_disjoint_interior_support {S F₁ F₂ : Set (PlacedTile P)}
+    (hS : DisjointInteriors S) (h₁ : F₁ ⊆ S) (h₂ : F₂ ⊆ S) (hf₁ : F₁.Finite) (hf₂ : F₂.Finite)
+    (hd : Disjoint F₁ F₂) : Disjoint (interior (support F₁)) (interior (support F₂)) := by
+  rw [Set.disjoint_iff]
+  rintro x ⟨hx1, hx2⟩
+  obtain ⟨A, hA, hUA⟩ := emcg_open_meets_interior (isOpen_interior.inter isOpen_interior)
+    ⟨x, hx1, hx2⟩ hf₁ ((inter_subset_left).trans (interior_subset (s := support F₁)))
+  obtain ⟨B, hB, hUB⟩ := emcg_open_meets_interior
+    ((isOpen_interior.inter isOpen_interior).inter isOpen_interior) hUA hf₂
+    ((inter_subset_left.trans inter_subset_right).trans (interior_subset (s := support F₂)))
+  have hAB : A ≠ B := fun hAB => Set.disjoint_left.mp hd hA (hAB ▸ hB)
+  obtain ⟨y, ⟨⟨_, hyA⟩, hyB⟩⟩ := hUB
+  exact Set.disjoint_left.mp (hS (h₁ hA) (h₂ hB) hAB) hyA hyB
+
+/-- The interior of the carrier of a placed tile is nonempty. -/
+private lemma emcg_interior_carrier_nonempty (A : PlacedTile P) :
+    (interior A.carrier).Nonempty := by
+  rw [PlacedTile.carrier, interior_vadd]
+  obtain ⟨x, hx⟩ := (P.disk A.form).interior_nonempty
+  exact ⟨A.anchor +ᵥ x, Set.vadd_mem_vadd_set hx⟩
+
+/-- Two disjoint finite families of tiles of a set with disjoint interiors, the first nonempty,
+have different supports. -/
+private lemma emcg_support_ne {S F₁ F₂ : Set (PlacedTile P)}
+    (hS : DisjointInteriors S) (h₁ : F₁ ⊆ S) (h₂ : F₂ ⊆ S) (hf₁ : F₁.Finite) (hf₂ : F₂.Finite)
+    (hd : Disjoint F₁ F₂) (hne : F₁.Nonempty) : support F₁ ≠ support F₂ := by
+  intro heq
+  have h := emcg_disjoint_interior_support hS h₁ h₂ hf₁ hf₂ hd
+  obtain ⟨A, hA⟩ := hne
+  obtain ⟨y, hy⟩ := emcg_interior_carrier_nonempty A
+  have hsub : A.carrier ⊆ support F₁ := fun z hz => by
+    simp only [support, mem_iUnion]
+    exact ⟨A, hA, hz⟩
+  have h1 : y ∈ interior (support F₁) := interior_mono hsub hy
+  have h2 : y ∈ interior (support F₂) := heq ▸ h1
+  exact Set.disjoint_left.mp h h1 h2
+
+private lemma emcg_translateSet_zero (S : Set (PlacedTile P)) : translateSet 0 S = S := by
+  ext A
+  simp [translateSet, PlacedTile.translate]
+
+private lemma emcg_mem_translateSet {v : Pt} {S : Set (PlacedTile P)} {A : PlacedTile P} :
+    A ∈ translateSet v S ↔ ∃ B ∈ S, A = B.translate v := by
+  simp only [translateSet, mem_image]
+  exact ⟨fun ⟨B, hB, h⟩ => ⟨B, hB, h.symm⟩, fun ⟨B, hB, h⟩ => ⟨B, hB, h.symm⟩⟩
+
+private lemma emcg_translate_carrier (A : PlacedTile P) (v : Pt) :
+    (A.translate v).carrier = v +ᵥ A.carrier := by
+  simp only [PlacedTile.carrier, PlacedTile.translate, vadd_vadd]
+  rfl
+
+private lemma emcg_translate_side (A : PlacedTile P) (v : Pt) (i : Fin (P.disk A.form).n) :
+    (A.translate v).side i = v +ᵥ A.side i := by
+  simp only [PlacedTile.side, PlacedTile.translate, vadd_vadd]
+  rfl
+
+private lemma emcg_translate_vertex (A : PlacedTile P) (v : Pt) (i : Fin (P.disk A.form).n) :
+    (A.translate v).vertex i = v + A.vertex i := by
+  simp only [PlacedTile.vertex, PlacedTile.translate, vadd_eq_add, add_assoc]
+
+private lemma emcg_support_translateSet (v : Pt) (S : Set (PlacedTile P)) :
+    support (translateSet v S) = v +ᵥ support S := by
+  ext x
+  simp only [support, translateSet, mem_iUnion, mem_image, exists_prop]
+  constructor
+  · rintro ⟨A, ⟨B, hB, rfl⟩, hx⟩
+    rw [emcg_translate_carrier] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    exact ⟨y, by simp only [mem_iUnion, exists_prop]; exact ⟨B, hB, hy⟩, rfl⟩
+  · rintro ⟨y, hy, rfl⟩
+    simp only [mem_iUnion, exists_prop] at hy
+    obtain ⟨B, hB, hy⟩ := hy
+    exact ⟨B.translate v, ⟨B, hB, rfl⟩, by rw [emcg_translate_carrier]; exact ⟨y, hy, rfl⟩⟩
+
+private lemma emcg_decompose_translate (τ : Substitution P) (v : Pt)
+    (S : Set (PlacedTile P)) :
+    τ.decompose (translateSet v S) = translateSet (τ.θ • v) (τ.decompose S) := by
+  ext A
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet,
+    PlacedTile.translate, mem_iUnion, mem_image]
+  constructor
+  · rintro ⟨B, ⟨C, hC, rfl⟩, D, hD, rfl⟩
+    refine ⟨D.translate (τ.θ • C.anchor), ⟨C, hC, D, hD, ?_⟩, ?_⟩
+    · apply PlacedTile.ext
+      · rfl
+      · simp [PlacedTile.translate]
+    · apply PlacedTile.ext
+      · rfl
+      · change τ.θ • v + (τ.θ • C.anchor + D.anchor) =
+          τ.θ • (v + C.anchor) + D.anchor
+        rw [smul_add]
+        abel
+  · rintro ⟨B, ⟨C, hC, D, hD, rfl⟩, rfl⟩
+    refine ⟨C.translate v, ⟨C, hC, rfl⟩, D, hD, ?_⟩
+    apply PlacedTile.ext
+    · rfl
+    · change τ.θ • (v + C.anchor) + D.anchor =
+        τ.θ • v + (τ.θ • C.anchor + D.anchor)
+      rw [smul_add]
+      abel
+
+private lemma emcg_decompose_iUnion (τ : Substitution P)
+    {ι : Sort*} (S : ι → Set (PlacedTile P)) :
+    τ.decompose (⋃ i, S i) = ⋃ i, τ.decompose (S i) := by
+  ext A
+  simp only [Substitution.decompose, mem_iUnion]
+  constructor
+  · rintro ⟨B, ⟨i, hB⟩, hA⟩
+    exact ⟨i, B, hB, hA⟩
+  · rintro ⟨i, B, hB, hA⟩
+    exact ⟨B, ⟨i, hB⟩, hA⟩
+
+private lemma emcg_iter_iUnion (τ : Substitution P) (n : ℕ)
+    {ι : Sort*} (S : ι → Set (PlacedTile P)) :
+    τ.decomposeIter n (⋃ i, S i) = ⋃ i, τ.decomposeIter n (S i) := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (⋃ i, S i)) = _
+      rw [ih, emcg_decompose_iUnion]
+      rfl
+
+private lemma emcg_iter_translate (τ : Substitution P) (n : ℕ)
+    (v : Pt) (S : Set (PlacedTile P)) :
+    τ.decomposeIter n (translateSet v S) =
+      translateSet ((τ.θ ^ n) • v) (τ.decomposeIter n S) := by
+  induction n with
+  | zero => simp [Substitution.decomposeIter]
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (translateSet v S)) = _
+      rw [ih, emcg_decompose_translate]
+      congr 1
+      rw [pow_succ', mul_smul]
+
+private lemma emcg_iter_biUnion (τ : Substitution P) (n : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter n S = ⋃ T ∈ S, τ.decomposeIter n {T} := by
+  conv_lhs => rw [show S = ⋃ T ∈ S, ({T} : Set (PlacedTile P)) by ext; simp]
+  rw [emcg_iter_iUnion]
+  apply iUnion_congr
+  intro T
+  rw [emcg_iter_iUnion]
+
+private lemma emcg_iter_singleton (τ : Substitution P) (n : ℕ) (T : PlacedTile P) :
+    τ.decomposeIter n {T} = translateSet ((τ.θ ^ n) • T.anchor) (τ.supertile n T.form) := by
+  rw [show ({T} : Set (PlacedTile P)) = translateSet T.anchor {⟨T.form, 0⟩} by
+    ext B; simp [translateSet, PlacedTile.translate, PlacedTile.ext_iff]]
+  rw [emcg_iter_translate]
+  rfl
+
+private lemma emcg_iter_mono (τ : Substitution P) (n : ℕ) {S S' : Set (PlacedTile P)}
+    (h : S ⊆ S') : τ.decomposeIter n S ⊆ τ.decomposeIter n S' := by
+  rw [emcg_iter_biUnion τ n S, emcg_iter_biUnion τ n S']
+  exact biUnion_subset_biUnion_left h
+
+private lemma emcg_iter_add (τ : Substitution P) (m n : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter n (τ.decomposeIter m S) = τ.decomposeIter (m + n) S := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      change τ.decompose (τ.decomposeIter n (τ.decomposeIter m S)) =
+        τ.decompose (τ.decomposeIter (m + n) S)
+      rw [ih]
+
+private lemma emcg_smul_vadd_set (c : ℝ) (a : Pt) (s : Set Pt) :
+    c • (a +ᵥ s) = (c • a) +ᵥ c • s := by
+  ext x
+  simp only [mem_smul_set, mem_vadd_set, vadd_eq_add]
+  constructor
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    exact ⟨c • z, ⟨z, hz, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    exact ⟨a + z, ⟨z, hz, rfl⟩, by rw [smul_add]⟩
+
+/-- One step of hereditary sides for a placed tile. -/
+private lemma emcg_hered_side_one (τ : Substitution P) (hH : τ.HereditarySides)
+    (T : PlacedTile P) (i : Fin (P.disk T.form).n) {x : Pt} (hx : x ∈ τ.θ • T.side i) :
+    ∃ F ∈ τ.decomposeTile T, ∃ j, F.side j ⊆ τ.θ • T.side i ∧ x ∈ F.side j := by
+  have h2 := hH.2 T.form i
+  have hside : τ.θ • T.side i = (τ.θ • T.anchor) +ᵥ τ.θ • (P.disk T.form).side i := by
+    rw [PlacedTile.side, emcg_smul_vadd_set]
+  rw [hside] at hx ⊢
+  obtain ⟨y, hy, rfl⟩ := hx
+  rw [h2] at hy
+  simp only [mem_iUnion, exists_prop] at hy
+  obtain ⟨A, hA, j, hj, hyj⟩ := hy
+  refine ⟨A.translate (τ.θ • T.anchor), ⟨A, hA, rfl⟩, j, ?_, ?_⟩
+  · rw [emcg_translate_side]
+    exact vadd_set_mono hj
+  · rw [emcg_translate_side]
+    exact vadd_mem_vadd_set hyj
+
+/-- Hereditary sides for the `n`-th decomposition of a placed tile. -/
+private lemma emcg_hered_side_iter (τ : Substitution P) (hH : τ.HereditarySides) (n : ℕ)
+    (T : PlacedTile P) (i : Fin (P.disk T.form).n) {x : Pt} (hx : x ∈ (τ.θ ^ n) • T.side i) :
+    ∃ F ∈ τ.decomposeIter n {T}, ∃ j, F.side j ⊆ (τ.θ ^ n) • T.side i ∧ x ∈ F.side j := by
+  induction n generalizing x with
+  | zero =>
+    refine ⟨T, rfl, i, by simp, by simpa using hx⟩
+  | succ n ih =>
+    rw [pow_succ', mul_smul] at hx ⊢
+    obtain ⟨y, hy, rfl⟩ := hx
+    obtain ⟨F, hF, j, hj, hyj⟩ := ih hy
+    obtain ⟨F', hF', j', hj', hxj'⟩ := emcg_hered_side_one τ hH F j (smul_mem_smul_set hyj)
+    refine ⟨F', ?_, j', hj'.trans (smul_set_mono hj), hxj'⟩
+    change F' ∈ τ.decompose (τ.decomposeIter n {T})
+    simp only [Substitution.decompose, mem_iUnion]
+    exact ⟨F, hF, hF'⟩
+
+/-- One step of hereditary vertices for a placed tile. -/
+private lemma emcg_hered_vertex_one (τ : Substitution P) (hH : τ.HereditarySides)
+    (T : PlacedTile P) (i : Fin (P.disk T.form).n) :
+    ∃ F ∈ τ.decomposeTile T, τ.θ • T.vertex i ∈ F.vertexSet := by
+  obtain ⟨A, hA, j, hj⟩ := hH.1 T.form i
+  refine ⟨A.translate (τ.θ • T.anchor), ⟨A, hA, rfl⟩, j, ?_⟩
+  rw [emcg_translate_vertex, hj, PlacedTile.vertex, vadd_eq_add, smul_add]
+
+/-- Hereditary vertices for the `n`-th decomposition of a placed tile. -/
+private lemma emcg_hered_vertex_iter (τ : Substitution P) (hH : τ.HereditarySides) (n : ℕ)
+    (T : PlacedTile P) (i : Fin (P.disk T.form).n) :
+    ∃ F ∈ τ.decomposeIter n {T}, (τ.θ ^ n) • T.vertex i ∈ F.vertexSet := by
+  induction n with
+  | zero => exact ⟨T, rfl, i, by simp⟩
+  | succ n ih =>
+    obtain ⟨F, hF, j, hj⟩ := ih
+    obtain ⟨F', hF', hv⟩ := emcg_hered_vertex_one τ hH F j
+    refine ⟨F', ?_, ?_⟩
+    · change F' ∈ τ.decompose (τ.decomposeIter n {T})
+      simp only [Substitution.decompose, mem_iUnion]
+      exact ⟨F, hF, hF'⟩
+    · rw [pow_succ', mul_smul, ← hj]
+      exact hv
+
+private lemma emcg_b_iterate_support_decomposeTile (τ : Substitution P) (A : PlacedTile P) :
+    support (τ.decomposeTile A) = τ.θ • A.carrier := by
+  dsimp [Substitution.decomposeTile]
+  rw [emcg_support_translateSet, τ.support_eq, PlacedTile.carrier]
+  ext x
+  simp only [Set.mem_vadd_set_iff_neg_vadd_mem, Set.mem_smul_set]
+  constructor
+  · rintro ⟨y, hy, hx⟩
+    refine ⟨A.anchor + y, ?_, ?_⟩
+    · simpa
+    · rw [smul_add]
+      calc τ.θ • A.anchor + τ.θ • y = τ.θ • A.anchor + (-(τ.θ • A.anchor) + x) := by congr 1
+        _ = x := by abel
+  · rintro ⟨y, hy, rfl⟩
+    refine ⟨-A.anchor + y, ?_, ?_⟩
+    · simpa
+    · simp [smul_add]
+
+private lemma emcg_b_iterate_support_decompose (τ : Substitution P) (S : Set (PlacedTile P)) :
+    support (τ.decompose S) = τ.θ • support S := by
+  dsimp [Substitution.decompose, support]
+  rw [Set.smul_set_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨A, ⟨B, hB, hA⟩, hx⟩
+    refine ⟨B, hB, ?_⟩
+    have h : x ∈ support (τ.decomposeTile B) := by
+      simp only [support, Set.mem_iUnion]
+      exact ⟨A, hA, hx⟩
+    rw [emcg_b_iterate_support_decomposeTile τ] at h
+    exact h
+  · rintro ⟨A, hA, hx⟩
+    have h : x ∈ support (τ.decomposeTile A) := by
+      rw [emcg_b_iterate_support_decomposeTile τ]
+      exact hx
+    simp only [support, Set.mem_iUnion] at h
+    rcases h with ⟨B, hB, hx'⟩
+    exact ⟨B, ⟨A, hA, hB⟩, hx'⟩
+
+private lemma emcg_b_disjoint_translate {v : Pt} {S : Set (PlacedTile P)}
+    (h : DisjointInteriors S) : DisjointInteriors (translateSet v S) := by
+  intro A hA B hB hne
+  dsimp [translateSet] at hA hB
+  rcases hA with ⟨A', hA', rfl⟩
+  rcases hB with ⟨B', hB', rfl⟩
+  have hne' : A' ≠ B' := by
+    intro hc
+    apply hne
+    rw [hc]
+  have hd := h hA' hB' hne'
+  have heq1 : (A'.translate v).carrier = v +ᵥ A'.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem,
+      vadd_eq_add, neg_add_rev]
+    rw [← add_assoc]
+  have heq2 : (B'.translate v).carrier = v +ᵥ B'.carrier := by
+    ext x
+    simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem,
+      vadd_eq_add, neg_add_rev]
+    rw [← add_assoc]
+  dsimp [Function.onFun] at hd ⊢
+  rw [heq1, heq2, interior_vadd, interior_vadd]
+  exact (disjoint_image_iff (add_right_injective v)).mpr hd
+
+private lemma emcg_b_disjoint_decompose (τ : Substitution P) (S : Set (PlacedTile P))
+    (hS : DisjointInteriors S) : DisjointInteriors (τ.decompose S) := by
+  have hθ : τ.θ ≠ 0 := (zero_lt_one.trans τ.one_lt).ne'
+  have key : ∀ {X X' : PlacedTile P}, X ∈ τ.decomposeTile X' →
+      interior X.carrier ⊆ τ.θ • interior X'.carrier := by
+    intro X X' hX
+    rw [← interior_smul₀ hθ]
+    refine interior_mono ?_
+    rw [← emcg_b_iterate_support_decomposeTile τ]
+    exact Set.subset_biUnion_of_mem hX
+  intro A hA B hB hne
+  simp only [Substitution.decompose, Set.mem_iUnion, exists_prop] at hA hB
+  obtain ⟨A', hA', hAmem⟩ := hA
+  obtain ⟨B', hB', hBmem⟩ := hB
+  dsimp [Function.onFun]
+  by_cases hAB : A' = B'
+  · subst hAB
+    have h_rule_disj := (τ.rule A'.form).disjoint
+    have h_trans_disj := emcg_b_disjoint_translate h_rule_disj
+      (v := τ.θ • A'.anchor)
+    change DisjointInteriors (τ.decomposeTile A') at h_trans_disj
+    exact h_trans_disj hAmem hBmem hne
+  · have hd : Disjoint (interior A'.carrier) (interior B'.carrier) :=
+      hS hA' hB' hAB
+    have hd' : Disjoint (τ.θ • interior A'.carrier) (τ.θ • interior B'.carrier) :=
+      (disjoint_image_iff (smul_right_injective _ hθ)).mpr hd
+    exact hd'.mono (key hAmem) (key hBmem)
+
+
+private lemma emcg_iter_support (τ : Substitution P) (n : ℕ) (S : Set (PlacedTile P)) :
+    support (τ.decomposeIter n S) = (τ.θ ^ n) • support S := by
+  induction n with
+  | zero => simp [Substitution.decomposeIter]
+  | succ n ih =>
+    change support (τ.decompose (τ.decomposeIter n S)) = _
+    rw [emcg_b_iterate_support_decompose, ih, smul_smul, pow_succ']
+
+private lemma emcg_iter_disjoint (τ : Substitution P) (n : ℕ) {S : Set (PlacedTile P)}
+    (hS : DisjointInteriors S) : DisjointInteriors (τ.decomposeIter n S) := by
+  induction n with
+  | zero => exact hS
+  | succ n ih => exact emcg_b_disjoint_decompose τ _ ih
+
+private lemma emcg_segment_infinite {a b : Pt} (hab : a ≠ b) : (segment ℝ a b).Infinite := by
+  rw [segment_eq_image_lineMap]
+  refine Set.Infinite.image ?_ (Set.Icc_infinite zero_lt_one)
+  exact (AffineMap.lineMap_injective ℝ hab).injOn
+
+private lemma emcg_inter_subsingleton {s e : Set Pt} (hs : Convex ℝ s) (he : Convex ℝ e)
+    (h : ¬ OverlapPos s e) : (s ∩ e).Subsingleton := by
+  intro x hx y hy
+  by_contra hxy
+  exact h ⟨x, y, hxy, (hs.inter he).segment_subset hx hy⟩
+
+private lemma emcg_exists_overlap {ι : Type*} [Finite ι] (s : ι → Set Pt)
+    (hs : ∀ i, Convex ℝ (s i)) {a b : Pt} (hab : a ≠ b) (hcov : segment ℝ a b ⊆ ⋃ i, s i) :
+    ∃ i, OverlapPos (s i) (segment ℝ a b) := by
+  by_contra hno
+  push_neg at hno
+  have hfin : (segment ℝ a b).Finite := by
+    have : segment ℝ a b ⊆ ⋃ i, (s i ∩ segment ℝ a b) := by
+      intro x hx
+      obtain ⟨i, hi⟩ := mem_iUnion.mp (hcov hx)
+      exact mem_iUnion.mpr ⟨i, hi, hx⟩
+    refine Set.Finite.subset (Set.finite_iUnion fun i => ?_) this
+    exact (emcg_inter_subsingleton (hs i) (convex_segment a b) (hno i)).finite
+  exact emcg_segment_infinite hab hfin
+
+private lemma emcg_finRotate_ne {n : ℕ} (hn : 2 ≤ n) (i : Fin n) : finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h1 : (1 : Fin (m + 1)) = 0 := by
+    have := congrArg (fun x => x - i) h
+    simpa using this
+  have : NeZero (m + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h1
+  omega
+
+private lemma emcg_side_eq_segment (A : PlacedTile P) (i : Fin (P.disk A.form).n) :
+    A.side i = segment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+  simp only [PlacedTile.side, PlacedTile.vertex, PolygonalDisk.side]
+  exact vadd_segment ℝ _ _ _
+
+private lemma emcg_vertex_ne (A : PlacedTile P) (i : Fin (P.disk A.form).n) :
+    A.vertex i ≠ A.vertex (finRotate _ i) := by
+  intro h
+  simp only [PlacedTile.vertex, vadd_eq_add, add_right_inj] at h
+  exact emcg_finRotate_ne (by have := (P.disk A.form).three_le; omega) i
+    ((P.disk A.form).vertex_injective h).symm
+
+private lemma emcg_segment_endpoints {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  · have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+    have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+    have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+    rw [segment_eq_image'] at hc hd ha hb
+    obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+    obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+    obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+    obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+    simp only at hu hw
+    have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+    have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+      have h' : a + s • (b - a) + u • (a + t • (b - a) -
+          (a + s • (b - a))) - a = (s + u * (t - s)) • (b - a) := by
+        module
+      rw [← h', hu, sub_self]
+    have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+      have h' : a + s • (b - a) + w • (a + t • (b - a) -
+          (a + s • (b - a))) - b = (s + w * (t - s) - 1) • (b - a) := by
+        module
+      rw [← h', hw, sub_self]
+    have f1 := (smul_eq_zero.1 e1).resolve_right hv
+    have f2 := (smul_eq_zero.1 e2).resolve_right hv
+    rcases lt_trichotomy s t with hst | hst | hst
+    · have hs : s = 0 := by nlinarith
+      subst hs
+      have ht : t = 1 := by nlinarith
+      subst ht
+      left; constructor <;> simp
+    · subst hst; simp at f1 f2; linarith
+    · have ht : t = 0 := by nlinarith
+      subst ht
+      have hs : s = 1 := by nlinarith
+      subst hs
+      right; constructor <;> simp
+
+private lemma emcg_tile_closed {Q : Protoset} (A : PlacedTile Q) : IsClosed A.carrier := by
+  have : IsCompact A.carrier := by
+    simpa [PlacedTile.carrier] using (Q.disk A.form).compact.vadd A.anchor
+  exact this.isClosed
+
+private lemma emcg_disk_side_subset_frontier (D : PolygonalDisk) (i : Fin D.n) :
+    D.side i ⊆ frontier D.carrier := by
+  rw [D.frontier_eq]
+  exact subset_iUnion (fun i => segment ℝ (D.vertex i) (D.vertex (finRotate D.n i))) i
+
+private lemma emcg_carrier_subset_support {Q : Protoset} {S : Set (PlacedTile Q)}
+    {A : PlacedTile Q} (hA : A ∈ S) : A.carrier ⊆ support S := fun z hz => by
+  simp only [support, mem_iUnion]
+  exact ⟨A, hA, hz⟩
+
+private lemma emcg_side_subset_carrier {Q : Protoset} (A : PlacedTile Q)
+    (i : Fin (Q.disk A.form).n) : A.side i ⊆ A.carrier := by
+  simp only [PlacedTile.side, PlacedTile.carrier]
+  refine vadd_set_mono ?_
+  refine (emcg_disk_side_subset_frontier _ i).trans ?_
+  rw [((Q.disk A.form).compact.isClosed).frontier_eq]
+  exact diff_subset
+
+private lemma emcg_grouped_carrier (G : GroupedFamily P) (X : PlacedTile G.P') :
+    X.carrier = support (G.scatterTile X) := by
+  rw [GroupedFamily.scatterTile, emcg_support_translateSet, G.support_eq]
+  rfl
+
+/-- A point of a scaled side of a grouped form lying in a child of the grouped substitution lies
+on the frontier of that child. -/
+private lemma emcg_not_mem_interior_child {τ : Substitution P} (GS : GroupedSubstitution τ)
+    (α : GS.G.P'.Form) (i : Fin (GS.G.P'.disk α).n) {X : PlacedTile GS.G.P'}
+    (hX : X ∈ (GS.σ.rule α).tiles) {y : Pt} (hy : y ∈ (τ.θ ^ GS.k) • (GS.G.P'.disk α).side i) :
+    y ∉ interior X.carrier := by
+  intro hint
+  have hθ : τ.θ ^ GS.k ≠ 0 := (pow_pos (zero_lt_one.trans τ.one_lt) _).ne'
+  have hsub : X.carrier ⊆ (τ.θ ^ GS.k) • (GS.G.P'.disk α).carrier := by
+    rw [← GS.θ_eq, ← GS.σ.support_eq α]
+    exact emcg_carrier_subset_support hX
+  have h1 := interior_mono hsub hint
+  rw [interior_smul₀ hθ] at h1
+  obtain ⟨z, hz, rfl⟩ := hy
+  rw [smul_mem_smul_set_iff₀ hθ] at h1
+  have hzf := emcg_disk_side_subset_frontier _ i hz
+  rw [((GS.G.P'.disk α).compact.isClosed).frontier_eq] at hzf
+  exact hzf.2 h1
+
+/-- Fine tiles of the decomposition of a grouped form are constituents of children. -/
+private lemma emcg_fine_tile_in_child {τ : Substitution P} (GS : GroupedSubstitution τ)
+    (α : GS.G.P'.Form) {F : PlacedTile P}
+    (hF : F ∈ τ.decomposeIter GS.k (GS.G.dissect α).tiles) :
+    ∃ X ∈ (GS.σ.rule α).tiles, F ∈ GS.G.scatterTile X := by
+  rw [← GS.compat α] at hF
+  simp only [GroupedFamily.scatter, mem_iUnion] at hF
+  obtain ⟨X, hX, hF⟩ := hF
+  exact ⟨X, hX, hF⟩
+
+private lemma emcg_scatterTile_subset {τ : Substitution P} (GS : GroupedSubstitution τ)
+    (α : GS.G.P'.Form) {X : PlacedTile GS.G.P'} (hX : X ∈ (GS.σ.rule α).tiles) :
+    GS.G.scatterTile X ⊆ τ.decomposeIter GS.k (GS.G.dissect α).tiles := by
+  rw [← GS.compat α]
+  intro F hF
+  simp only [GroupedFamily.scatter, mem_iUnion]
+  exact ⟨X, hX, hF⟩
+
+/-- A point on the frontier of a placed tile lies on one of its listed sides. -/
+private lemma emcg_mem_side_of_not_interior {Q : Protoset} (X : PlacedTile Q) {y : Pt}
+    (hy : y ∈ X.carrier) (hyi : y ∉ interior X.carrier) :
+    ∃ l, y ∈ X.side l := by
+  simp only [PlacedTile.carrier, PlacedTile.side] at hy hyi ⊢
+  rw [interior_vadd] at hyi
+  obtain ⟨z, hz, rfl⟩ := hy
+  have hzi : z ∉ interior (Q.disk X.form).carrier := fun h => hyi (vadd_mem_vadd_set h)
+  have hzf : z ∈ frontier (Q.disk X.form).carrier := by
+    rw [((Q.disk X.form).compact.isClosed).frontier_eq]
+    exact ⟨hz, hzi⟩
+  rw [(Q.disk X.form).frontier_eq] at hzf
+  obtain ⟨l, hl⟩ := mem_iUnion.mp hzf
+  exact ⟨l, vadd_mem_vadd_set hl⟩
+
+/-- `lem:certificate-exists`, heredity: a grouped substitution whose decompositions are STS
+inherits hereditary listed sides from `τ`. -/
+private lemma emcg_grouped_hereditary {τ : Substitution P} (GS : GroupedSubstitution τ)
+    (hH : τ.HereditarySides)
+    (hsts : ∀ α, SideToSideSet (τ.decomposeIter GS.k (GS.G.dissect α).tiles)) :
+    GS.σ.HereditarySides := by
+  constructor
+  · intro α i
+    rw [GS.θ_eq]
+    obtain ⟨T, hT, j, hj⟩ := GS.G.side_whole α i
+    have hT' : τ.decomposeIter GS.k {T} ⊆ τ.decomposeIter GS.k (GS.G.dissect α).tiles :=
+      emcg_iter_mono τ _ (singleton_subset_iff.mpr hT)
+    have hv : ∃ j', T.vertex j' = (GS.G.P'.disk α).vertex i := by
+      have h := hj
+      rw [emcg_side_eq_segment, PolygonalDisk.side] at h
+      rcases emcg_segment_endpoints h with ⟨h1, _⟩ | ⟨_, h2⟩
+      · exact ⟨j, h1⟩
+      · exact ⟨_, h2⟩
+    obtain ⟨j', hj'⟩ := hv
+    obtain ⟨F, hF, m, hm⟩ := emcg_hered_vertex_iter τ hH GS.k T j'
+    obtain ⟨X, hX, hFX⟩ := emcg_fine_tile_in_child GS α (hT' hF)
+    rw [GroupedFamily.scatterTile, emcg_mem_translateSet] at hFX
+    obtain ⟨F0, hF0, rfl⟩ := hFX
+    rw [hj'] at hm
+    have hyX : (τ.θ ^ GS.k) • (GS.G.P'.disk α).vertex i ∈ X.carrier := by
+      rw [emcg_grouped_carrier]
+      refine emcg_carrier_subset_support (A := F0.translate X.anchor) ?_ ?_
+      · rw [GroupedFamily.scatterTile, emcg_mem_translateSet]; exact ⟨F0, hF0, rfl⟩
+      · rw [← hm]
+        exact emcg_side_subset_carrier _ m (by
+          rw [emcg_side_eq_segment]; exact left_mem_segment ℝ _ _)
+    have hyi := emcg_not_mem_interior_child GS α i hX (y := (τ.θ ^ GS.k) •
+      (GS.G.P'.disk α).vertex i) (smul_mem_smul_set (by
+        rw [PolygonalDisk.side]; exact left_mem_segment ℝ _ _))
+    -- the vertex lies on the frontier of the grouped disk of `X`
+    have hfr : F0.vertex m ∈ frontier (GS.G.P'.disk X.form).carrier := by
+      rw [((GS.G.P'.disk X.form).compact.isClosed).frontier_eq]
+      have hm' : (τ.θ ^ GS.k) • (GS.G.P'.disk α).vertex i = X.anchor +ᵥ F0.vertex m := by
+        rw [← hm, emcg_translate_vertex]; rfl
+      rw [hm'] at hyX hyi
+      simp only [PlacedTile.carrier] at hyX hyi
+      rw [interior_vadd] at hyi
+      exact ⟨(vadd_mem_vadd_set_iff).mp hyX, fun h => hyi (vadd_mem_vadd_set h)⟩
+    obtain ⟨m', hm'⟩ := GS.G.vertex_retained X.form (F0.vertex m) ⟨F0, hF0, m, rfl⟩ hfr
+    refine ⟨X, hX, m', ?_⟩
+    rw [PlacedTile.vertex, hm', ← hm, emcg_translate_vertex]
+    rfl
+  · intro α i
+    rw [GS.θ_eq]
+    apply Subset.antisymm
+    · intro x hx
+      obtain ⟨T, hT, j, hj⟩ := GS.G.side_whole α i
+      have hT' : τ.decomposeIter GS.k {T} ⊆ τ.decomposeIter GS.k (GS.G.dissect α).tiles :=
+        emcg_iter_mono τ _ (singleton_subset_iff.mpr hT)
+      rw [← hj] at hx
+      obtain ⟨F, hF, m, hmsub, hxm⟩ := emcg_hered_side_iter τ hH GS.k T j hx
+      rw [hj] at hmsub
+      obtain ⟨X, hX, hFX⟩ := emcg_fine_tile_in_child GS α (hT' hF)
+      have hFX' := hFX
+      rw [GroupedFamily.scatterTile, emcg_mem_translateSet] at hFX'
+      obtain ⟨F0, hF0, hFeq⟩ := hFX'
+      -- the fine side lies on the frontier of `X`
+      have hcov : F.side m ⊆ ⋃ l, X.side l := by
+        intro y hy
+        have hyX : y ∈ X.carrier := by
+          rw [emcg_grouped_carrier]
+          exact emcg_carrier_subset_support hFX (emcg_side_subset_carrier F m hy)
+        have hyi := emcg_not_mem_interior_child GS α i hX (hmsub hy)
+        obtain ⟨l, hl⟩ := emcg_mem_side_of_not_interior X hyX hyi
+        exact mem_iUnion.mpr ⟨l, hl⟩
+      rw [emcg_side_eq_segment] at hcov
+      obtain ⟨l, hl⟩ := emcg_exists_overlap (fun l => X.side l)
+        (fun l => by show Convex ℝ (X.side l); rw [emcg_side_eq_segment]; exact convex_segment _ _)
+        (emcg_vertex_ne F m) hcov
+      rw [← emcg_side_eq_segment] at hl
+      obtain ⟨B0, hB0, q, hq⟩ := GS.G.side_whole X.form l
+      have hB : B0.translate X.anchor ∈ τ.decomposeIter GS.k (GS.G.dissect α).tiles :=
+        emcg_scatterTile_subset GS α hX (by
+          rw [GroupedFamily.scatterTile, emcg_mem_translateSet]; exact ⟨B0, hB0, rfl⟩)
+      have hBside : (B0.translate X.anchor).side q = X.side l := by
+        rw [emcg_translate_side, hq]; rfl
+      have heq := hsts α _ hB _ (hT' hF) q m (by rw [hBside]; exact hl)
+      rw [hBside] at heq
+      simp only [mem_iUnion, exists_prop]
+      exact ⟨X, hX, l, heq ▸ hmsub, heq ▸ hxm⟩
+    · simp only [iUnion_subset_iff]
+      intro X _ l hl
+      exact hl
+
+section GroupingConstruction
+
+variable (τ : Substitution P) (k : ℕ) {M : MeshConstants P} {N : ℕ} {R : ℝ}
+  {c : P.Form → Pt} (A : ∀ p, AnnularGrouping M (τ.supertile k p) (c p) N R)
+
+private lemma emcg_disjoint_of_subset {S T : Set (PlacedTile P)} (hS : DisjointInteriors S)
+    (h : T ⊆ S) : DisjointInteriors T := Set.PairwiseDisjoint.subset hS h
+
+private lemma emcg_iter_finite (n : ℕ) {S : Set (PlacedTile P)} (hS : S.Finite) :
+    (τ.decomposeIter n S).Finite := by
+  induction n with
+  | zero => exact hS
+  | succ n ih =>
+    change (τ.decompose (τ.decomposeIter n S)).Finite
+    exact ih.biUnion fun T _ => (τ.rule T.form).finite.image _
+
+private lemma emcg_supertile_disjoint (q : P.Form) : DisjointInteriors (τ.supertile k q) := by
+  refine emcg_iter_disjoint τ k ?_
+  intro X hX Y hY hXY
+  rw [mem_singleton_iff] at hX hY
+  exact absurd (hX.trans hY.symm) hXY
+
+private lemma emcg_supertile_finite (q : P.Form) : (τ.supertile k q).Finite :=
+  emcg_iter_finite τ k (finite_singleton _)
+
+/-- The grouped protoset. -/
+private def emcgP' : Protoset where
+  Form := P.Form ⊕ (P.Form × Fin (4 * N)) ⊕ P.Form
+  disk := Sum.elim (fun p => (A p).L.disk)
+    (Sum.elim (fun pj => ((A pj.1).spokes.piece pj.2).disk) P.disk)
+
+/-- The scattering patches. -/
+private def emcgDissect : (emcgP' τ k A).Form → Patch P :=
+  Sum.elim (fun p => ⟨(A p).L.faces, (A p).L.finite,
+      emcg_disjoint_of_subset (emcg_supertile_disjoint τ k p) (A p).L.faces_sub⟩)
+    (Sum.elim (fun pj => ⟨((A pj.1).spokes.piece pj.2).faces, ((A pj.1).spokes.piece pj.2).finite,
+      emcg_disjoint_of_subset (emcg_supertile_disjoint τ k pj.1)
+        ((A pj.1).spokes.piece pj.2).faces_sub⟩)
+      (fun p => ⟨{⟨p, 0⟩}, finite_singleton _, by
+        intro X hX Y hY hXY
+        rw [mem_singleton_iff] at hX hY
+        exact absurd (hX.trans hY.symm) hXY⟩))
+
+private lemma emcg_sts_subset {S T : Set (PlacedTile P)} (hS : SideToSideSet S) (h : T ⊆ S) :
+    SideToSideSet T := fun A hA B hB => hS A (h hA) B (h hB)
+
+private lemma emcg_isVertexOf_mono {S T : Set (PlacedTile P)} (h : T ⊆ S) {v : Pt}
+    (hv : Substitution.IsVertexOf T v) : Substitution.IsVertexOf S v := by
+  obtain ⟨B, hB, hv⟩ := hv
+  exact ⟨B, h hB, hv⟩
+
+private lemma emcg_support_singleton_zero (p : P.Form) :
+    support ({⟨p, 0⟩} : Set (PlacedTile P)) = (P.disk p).carrier := by
+  simp [support, PlacedTile.carrier]
+
+/-- The grouped family: the large groups, the annular pieces and the original singletons. -/
+private def emcgG (h : τ.STS) : GroupedFamily P where
+  P' := emcgP' τ k A
+  dissect := emcgDissect τ k A
+  support_eq := by
+    rintro (p | ⟨p, j⟩ | p)
+    · exact (A p).L.carrier_eq.symm
+    · exact ((A p).spokes.piece j).carrier_eq.symm
+    · exact emcg_support_singleton_zero p
+  sts := by
+    rintro (p | ⟨p, j⟩ | p)
+    · exact emcg_sts_subset (h k p) (A p).L.faces_sub
+    · exact emcg_sts_subset (h k p) ((A p).spokes.piece j).faces_sub
+    · exact h 0 p
+  dualConnected := by
+    rintro (p | ⟨p, j⟩ | p)
+    · exact (A p).L.dualConnected
+    · exact ((A p).spokes.piece j).dualConnected
+    · intro X hX Y hY
+      change X ∈ ({⟨p, 0⟩} : Set (PlacedTile P)) at hX
+      change Y ∈ ({⟨p, 0⟩} : Set (PlacedTile P)) at hY
+      rw [mem_singleton_iff] at hX hY
+      rw [hX, hY]
+  side_whole := by
+    rintro (p | ⟨p, j⟩ | p) i
+    · exact (A p).L.side_whole i
+    · exact ((A p).spokes.piece j).side_whole i
+    · exact ⟨⟨p, 0⟩, mem_singleton _, i, by simp [PlacedTile.side]; rfl⟩
+  vertex_retained := by
+    rintro (p | ⟨p, j⟩ | p) v hv hfr
+    · exact (A p).L.vertex_retained v (emcg_isVertexOf_mono (A p).L.faces_sub hv) hfr
+    · exact ((A p).spokes.piece j).vertex_retained v
+        (emcg_isVertexOf_mono ((A p).spokes.piece j).faces_sub hv) hfr
+    · obtain ⟨B, hB, l, hl⟩ := hv
+      change B ∈ ({⟨p, 0⟩} : Set (PlacedTile P)) at hB
+      rw [mem_singleton_iff] at hB
+      subst hB
+      exact ⟨l, by rw [← hl]; simp [PlacedTile.vertex]; rfl⟩
+
+end GroupingConstruction
+
+private lemma emcg_translateSet_translateSet {Q : Protoset} (v w : Pt) (S : Set (PlacedTile Q)) :
+    translateSet v (translateSet w S) = translateSet (v + w) S := by
+  ext X
+  simp only [translateSet, mem_image]
+  constructor
+  · rintro ⟨Y, ⟨Z, hZ, rfl⟩, rfl⟩
+    exact ⟨Z, hZ, by simp [PlacedTile.translate, add_assoc]⟩
+  · rintro ⟨Z, hZ, rfl⟩
+    exact ⟨Z.translate w, ⟨Z, hZ, rfl⟩, by simp [PlacedTile.translate, add_assoc]⟩
+
+private lemma emcg_translateSet_iUnion {Q : Protoset} (v : Pt) {ι : Sort*}
+    (S : ι → Set (PlacedTile Q)) : translateSet v (⋃ i, S i) = ⋃ i, translateSet v (S i) := by
+  simp only [translateSet, image_iUnion]
+
+private lemma emcg_translate_injective {Q : Protoset} (v : Pt) :
+    Function.Injective (fun X : PlacedTile Q => X.translate v) := by
+  intro X Y h
+  simp only [PlacedTile.translate, PlacedTile.mk.injEq] at h
+  exact PlacedTile.ext h.1 (by simpa using h.2)
+
+private lemma emcg_translateSet_disjoint {Q : Protoset} (v : Pt) {S T : Set (PlacedTile Q)}
+    (h : Disjoint S T) : Disjoint (translateSet v S) (translateSet v T) :=
+  (disjoint_image_iff (emcg_translate_injective v)).mpr h
+
+private lemma emcg_scatterTile_translate (G : GroupedFamily P) (X : PlacedTile G.P') (v : Pt) :
+    G.scatterTile (X.translate v) = translateSet v (G.scatterTile X) := by
+  simp only [GroupedFamily.scatterTile, emcg_translateSet_translateSet]
+  rfl
+
+private lemma emcg_scatter_translateSet (G : GroupedFamily P) (v : Pt)
+    (S : Set (PlacedTile G.P')) : G.scatter (translateSet v S) = translateSet v (G.scatter S) := by
+  simp only [GroupedFamily.scatter, translateSet, biUnion_image, image_iUnion]
+  apply iUnion_congr; intro X; apply iUnion_congr; intro _
+  exact emcg_scatterTile_translate G X v
+
+private lemma emcg_support_biUnion {Q : Protoset} {ι : Type*} (s : Set ι)
+    (f : ι → Set (PlacedTile Q)) : support (⋃ i ∈ s, f i) = ⋃ i ∈ s, support (f i) := by
+  ext x
+  simp only [support, mem_iUnion, exists_prop]
+  constructor
+  · rintro ⟨A, ⟨i, hi, hA⟩, hx⟩; exact ⟨i, hi, A, hA, hx⟩
+  · rintro ⟨i, hi, A, hA, hx⟩; exact ⟨A, ⟨i, hi, hA⟩, hx⟩
+
+private lemma emcg_support_scatter (G : GroupedFamily P) (S : Set (PlacedTile G.P')) :
+    support (G.scatter S) = support S := by
+  rw [GroupedFamily.scatter, emcg_support_biUnion]
+  simp only [support]
+  apply iUnion_congr; intro X; apply iUnion_congr; intro _
+  rw [emcg_grouped_carrier G X]
+  rfl
+
+private lemma emcg_iter_singleton_disjoint (τ : Substitution P) (n : ℕ) {S : Set (PlacedTile P)}
+    (hS : DisjointInteriors S) {T T' : PlacedTile P} (hT : T ∈ S) (hT' : T' ∈ S) (hne : T ≠ T') :
+    Disjoint (τ.decomposeIter n {T}) (τ.decomposeIter n {T'}) := by
+  rw [Set.disjoint_left]
+  intro F hF hF'
+  have hθ : τ.θ ^ n ≠ 0 := (pow_pos (zero_lt_one.trans τ.one_lt) _).ne'
+  have key : ∀ {T : PlacedTile P}, F ∈ τ.decomposeIter n {T} →
+      interior F.carrier ⊆ (τ.θ ^ n) • interior T.carrier := by
+    intro T hFT
+    rw [← interior_smul₀ hθ]
+    refine interior_mono ((emcg_carrier_subset_support hFT).trans ?_)
+    rw [emcg_iter_support]
+    simp [support]
+  obtain ⟨y, hy⟩ := emcg_interior_carrier_nonempty F
+  obtain ⟨a, ha, rfl⟩ := key hF hy
+  obtain ⟨b, hb, hab⟩ := key hF' hy
+  rw [smul_right_injective Pt hθ hab] at hb
+  exact Set.disjoint_left.mp (hS hT hT' hne) ha hb
+
+section GroupingConstruction2
+
+variable (τ : Substitution P) (k : ℕ) {M : MeshConstants P} {N : ℕ} {R : ℝ}
+  {c : P.Form → Pt} (A : ∀ p, AnnularGrouping M (τ.supertile k p) (c p) N R)
+
+/-- The original tiles of `τ^k q` outside the large group and the annular pieces. -/
+private def emcgRest (q : P.Form) : Set (PlacedTile P) :=
+  τ.supertile k q \ ((A q).L.faces ∪ ⋃ j, ((A q).spokes.piece j).faces)
+
+/-- The grouped version of the supertile `τ^k q`. -/
+private def emcgGT (q : P.Form) : Set (PlacedTile (emcgP' τ k A)) :=
+  {(⟨Sum.inl q, 0⟩ : PlacedTile (emcgP' τ k A))} ∪
+    range (fun j : Fin (4 * N) => (⟨Sum.inr (Sum.inl (q, j)), 0⟩ : PlacedTile (emcgP' τ k A))) ∪
+    (fun B : PlacedTile P => (⟨Sum.inr (Sum.inr B.form), B.anchor⟩ : PlacedTile (emcgP' τ k A))) ''
+      emcgRest τ k A q
+
+private lemma emcg_mem_GT {q : P.Form} {Y : PlacedTile (emcgP' τ k A)} :
+    Y ∈ emcgGT τ k A q ↔ Y = ⟨Sum.inl q, 0⟩ ∨ (∃ j, Y = ⟨Sum.inr (Sum.inl (q, j)), 0⟩) ∨
+      ∃ B ∈ emcgRest τ k A q, Y = ⟨Sum.inr (Sum.inr B.form), B.anchor⟩ := by
+  simp only [emcgGT, mem_union, mem_singleton_iff, mem_range, mem_image]
+  constructor
+  · rintro ((h | ⟨j, rfl⟩) | ⟨B, hB, rfl⟩)
+    · exact Or.inl h
+    · exact Or.inr (Or.inl ⟨j, rfl⟩)
+    · exact Or.inr (Or.inr ⟨B, hB, rfl⟩)
+  · rintro (h | ⟨j, rfl⟩ | ⟨B, hB, rfl⟩)
+    · exact Or.inl (Or.inl h)
+    · exact Or.inl (Or.inr ⟨j, rfl⟩)
+    · exact Or.inr ⟨B, hB, rfl⟩
+
+private lemma emcg_GT_finite (q : P.Form) : (emcgGT τ k A q).Finite :=
+  ((finite_singleton _).union (finite_range _)).union
+    (((emcg_supertile_finite τ k q).subset diff_subset).image _)
+
+variable (h : τ.STS)
+
+private lemma emcg_scatter_large (q : P.Form) (v : Pt) :
+    (emcgG τ k A h).scatterTile ⟨Sum.inl q, v⟩ = translateSet v (A q).L.faces := rfl
+
+private lemma emcg_scatter_small (q : P.Form) (j : Fin (4 * N)) (v : Pt) :
+    (emcgG τ k A h).scatterTile ⟨Sum.inr (Sum.inl (q, j)), v⟩ =
+      translateSet v ((A q).spokes.piece j).faces := rfl
+
+private lemma emcg_scatter_orig (r : P.Form) (v : Pt) :
+    (emcgG τ k A h).scatterTile ⟨Sum.inr (Sum.inr r), v⟩ = {⟨r, v⟩} := by
+  change translateSet v {⟨r, 0⟩} = _
+  ext X
+  simp [translateSet, PlacedTile.translate]
+
+private lemma emcg_scatter_GT (q : P.Form) :
+    (emcgG τ k A h).scatter (emcgGT τ k A q) = τ.supertile k q := by
+  apply Subset.antisymm
+  · simp only [GroupedFamily.scatter, iUnion_subset_iff]
+    intro Y hY
+    rcases (emcg_mem_GT τ k A).mp hY with rfl | ⟨j, rfl⟩ | ⟨B, hB, rfl⟩
+    · rw [emcg_scatter_large, emcg_translateSet_zero]; exact (A q).L.faces_sub
+    · rw [emcg_scatter_small, emcg_translateSet_zero]; exact ((A q).spokes.piece j).faces_sub
+    · rw [emcg_scatter_orig, singleton_subset_iff]; exact hB.1
+  · intro B hB
+    simp only [GroupedFamily.scatter, mem_iUnion, exists_prop]
+    by_cases hL : B ∈ (A q).L.faces
+    · refine ⟨_, (emcg_mem_GT τ k A).mpr (Or.inl rfl), ?_⟩
+      rw [emcg_scatter_large, emcg_translateSet_zero]; exact hL
+    by_cases hP : ∃ j, B ∈ ((A q).spokes.piece j).faces
+    · obtain ⟨j, hj⟩ := hP
+      refine ⟨_, (emcg_mem_GT τ k A).mpr (Or.inr (Or.inl ⟨j, rfl⟩)), ?_⟩
+      rw [emcg_scatter_small, emcg_translateSet_zero]; exact hj
+    · refine ⟨_, (emcg_mem_GT τ k A).mpr (Or.inr (Or.inr ⟨B, ⟨hB, ?_⟩, rfl⟩)), ?_⟩
+      · simp only [mem_union, mem_iUnion, not_or]
+        exact ⟨hL, fun ⟨j, hj⟩ => hP ⟨j, hj⟩⟩
+      · rw [emcg_scatter_orig]; rfl
+
+private lemma emcg_piece_disjoint_L (q : P.Form) (j : Fin (4 * N)) :
+    Disjoint ((A q).spokes.piece j).faces (A q).L.faces := by
+  rw [Set.disjoint_left]
+  intro B hB hBL
+  exact ((A q).spokes.piece_sub j hB).2 hBL
+
+private lemma emcg_piece_disjoint_piece (q : P.Form) {j j' : Fin (4 * N)} (hjj : j ≠ j') :
+    Disjoint ((A q).spokes.piece j).faces ((A q).spokes.piece j').faces := by
+  rw [Set.disjoint_left]
+  intro B hB hB'
+  have hS := ((A q).spokes.piece j).faces_sub hB
+  obtain ⟨i, -, huniq⟩ := ((A q).spokes.piece_partition B hS).mp ((A q).spokes.piece_sub j hB)
+  exact hjj ((huniq j hB).trans (huniq j' hB').symm)
+
+private lemma emcg_GT_scatter_disjoint (q : P.Form) {Y₀ Y₁ : PlacedTile (emcgP' τ k A)}
+    (h₀ : Y₀ ∈ emcgGT τ k A q) (h₁ : Y₁ ∈ emcgGT τ k A q) (hne : Y₀ ≠ Y₁) :
+    Disjoint ((emcgG τ k A h).scatterTile Y₀) ((emcgG τ k A h).scatterTile Y₁) := by
+  rcases (emcg_mem_GT τ k A).mp h₀ with rfl | ⟨j, rfl⟩ | ⟨B, hB, rfl⟩ <;>
+    rcases (emcg_mem_GT τ k A).mp h₁ with rfl | ⟨j', rfl⟩ | ⟨B', hB', rfl⟩ <;>
+    simp only [emcg_scatter_large, emcg_scatter_small, emcg_scatter_orig, emcg_translateSet_zero,
+      disjoint_singleton_left, disjoint_singleton_right]
+  · exact absurd rfl hne
+  · exact (emcg_piece_disjoint_L τ k A q j').symm
+  · exact fun h' => hB'.2 (Or.inl h')
+  · exact emcg_piece_disjoint_L τ k A q j
+  · exact emcg_piece_disjoint_piece τ k A q (fun hjj => hne (by rw [hjj]))
+  · exact fun h' => hB'.2 (Or.inr (mem_iUnion.mpr ⟨j, h'⟩))
+  · exact fun h' => hB.2 (Or.inl h')
+  · exact fun h' => hB.2 (Or.inr (mem_iUnion.mpr ⟨j', h'⟩))
+  · intro hBB
+    apply hne
+    have : B = B' := PlacedTile.ext (PlacedTile.mk.inj hBB).1.symm (PlacedTile.mk.inj hBB).2.symm
+    rw [this]
+
+end GroupingConstruction2
+
+section GroupingConstruction3
+
+variable (τ : Substitution P) (k : ℕ) {M : MeshConstants P} {N : ℕ} {R : ℝ}
+  {c : P.Form → Pt} (A : ∀ p, AnnularGrouping M (τ.supertile k p) (c p) N R)
+
+/-- The children of the grouped substitution: every constituent `T` of a grouped form is replaced
+by the grouped version of `τ^k T`. -/
+private def emcgRuleSet (α : (emcgP' τ k A).Form) : Set (PlacedTile (emcgP' τ k A)) :=
+  ⋃ T ∈ (emcgDissect τ k A α).tiles, translateSet ((τ.θ ^ k) • T.anchor) (emcgGT τ k A T.form)
+
+variable (h : τ.STS)
+
+private lemma emcg_scatter_biUnion (G : GroupedFamily P) {ι : Type*} (s : Set ι)
+    (f : ι → Set (PlacedTile G.P')) : G.scatter (⋃ i ∈ s, f i) = ⋃ i ∈ s, G.scatter (f i) := by
+  ext F
+  simp only [GroupedFamily.scatter, mem_iUnion, exists_prop]
+  constructor
+  · rintro ⟨X, ⟨i, hi, hX⟩, hF⟩; exact ⟨i, hi, X, hX, hF⟩
+  · rintro ⟨i, hi, X, hX, hF⟩; exact ⟨X, ⟨i, hi, hX⟩, hF⟩
+
+private lemma emcg_scatter_rule (α : (emcgP' τ k A).Form) :
+    (emcgG τ k A h).scatter (emcgRuleSet τ k A α) =
+      τ.decomposeIter k (emcgDissect τ k A α).tiles := by
+  rw [emcgRuleSet, emcg_scatter_biUnion, emcg_iter_biUnion]
+  apply iUnion_congr; intro T; apply iUnion_congr; intro _
+  rw [emcg_scatter_translateSet, emcg_scatter_GT, emcg_iter_singleton]
+
+private lemma emcg_rule_finite (α : (emcgP' τ k A).Form) : (emcgRuleSet τ k A α).Finite :=
+  (emcgDissect τ k A α).finite.biUnion fun T _ => (emcg_GT_finite τ k A T.form).image _
+
+include h in
+private lemma emcg_rule_disjoint (α : (emcgP' τ k A).Form) :
+    DisjointInteriors (emcgRuleSet τ k A α) := by
+  intro X hX Y hY hXY
+  have hsub : ∀ {Z}, Z ∈ emcgRuleSet τ k A α →
+      (emcgG τ k A h).scatterTile Z ⊆ τ.decomposeIter k (emcgDissect τ k A α).tiles := by
+    intro Z hZ F hF
+    rw [← emcg_scatter_rule τ k A h α]
+    simp only [GroupedFamily.scatter, mem_iUnion, exists_prop]
+    exact ⟨Z, hZ, hF⟩
+  have hfin : ∀ Z : PlacedTile (emcgP' τ k A), ((emcgG τ k A h).scatterTile Z).Finite :=
+    fun Z => ((emcgG τ k A h).dissect Z.form).finite.image _
+  have hdisj : Disjoint ((emcgG τ k A h).scatterTile X) ((emcgG τ k A h).scatterTile Y) := by
+    have hX' := hX
+    have hY' := hY
+    simp only [emcgRuleSet, mem_iUnion, exists_prop] at hX' hY'
+    obtain ⟨T, hT, hXT⟩ := hX'
+    obtain ⟨T', hT', hYT⟩ := hY'
+    rw [emcg_mem_translateSet] at hXT hYT
+    obtain ⟨X0, hX0, rfl⟩ := hXT
+    obtain ⟨Y0, hY0, rfl⟩ := hYT
+    by_cases hTT : T = T'
+    · subst hTT
+      rw [emcg_scatterTile_translate, emcg_scatterTile_translate]
+      refine emcg_translateSet_disjoint _ (emcg_GT_scatter_disjoint τ k A h T.form hX0 hY0 ?_)
+      rintro rfl; exact hXY rfl
+    · refine (emcg_iter_singleton_disjoint τ k (emcgDissect τ k A α).disjoint hT hT' hTT).mono
+        ?_ ?_
+      · rw [emcg_scatterTile_translate, emcg_iter_singleton]
+        refine image_mono ?_
+        rw [← emcg_scatter_GT τ k A h T.form]
+        intro F hF
+        simp only [GroupedFamily.scatter, mem_iUnion, exists_prop]
+        exact ⟨X0, hX0, hF⟩
+      · rw [emcg_scatterTile_translate, emcg_iter_singleton]
+        refine image_mono ?_
+        rw [← emcg_scatter_GT τ k A h T'.form]
+        intro F hF
+        simp only [GroupedFamily.scatter, mem_iUnion, exists_prop]
+        exact ⟨Y0, hY0, hF⟩
+  change Disjoint (interior X.carrier) (interior Y.carrier)
+  rw [emcg_grouped_carrier (emcgG τ k A h) X, emcg_grouped_carrier (emcgG τ k A h) Y]
+  exact emcg_disjoint_interior_support (emcg_iter_disjoint τ k (emcgDissect τ k A α).disjoint)
+    (hsub hX) (hsub hY) (hfin X) (hfin Y) hdisj
+
+variable {k} (hk : 0 < k)
+
+/-- The grouped substitution on the labelled catalogue. -/
+private def emcgσ : Substitution (emcgP' τ k A) where
+  θ := τ.θ ^ k
+  one_lt := one_lt_pow₀ τ.one_lt hk.ne'
+  rule α := ⟨emcgRuleSet τ k A α, emcg_rule_finite τ k A α, emcg_rule_disjoint τ k A h α⟩
+  support_eq α := by
+    change support (emcgRuleSet τ k A α) = _
+    rw [← emcg_support_scatter (emcgG τ k A h), emcg_scatter_rule τ k A h, emcg_iter_support]
+    exact congrArg _ ((emcgG τ k A h).support_eq α)
+
+/-- The grouped substitution for `τ^k` on the labelled catalogue. -/
+private def emcgGS : GroupedSubstitution τ where
+  G := emcgG τ k A h
+  k := k
+  k_pos := hk
+  σ := emcgσ τ A h hk
+  θ_eq := rfl
+  compat := emcg_scatter_rule τ k A h
+
+end GroupingConstruction3
+
+section GroupingConstruction4
+
+variable (τ : Substitution P) (k : ℕ) {M : MeshConstants P} {N : ℕ} {R : ℝ}
+  {c : P.Form → Pt} (A : ∀ p, AnnularGrouping M (τ.supertile k p) (c p) N R)
+
+private lemma emcg_dissect_sub (α : (emcgP' τ k A).Form) :
+    ∃ n p, (emcgDissect τ k A α).tiles ⊆ τ.supertile n p ∧ (n = 0 ∨ n = k) := by
+  rcases α with p | ⟨p, j⟩ | p
+  · exact ⟨k, p, (A p).L.faces_sub, Or.inr rfl⟩
+  · exact ⟨k, p, ((A p).spokes.piece j).faces_sub, Or.inr rfl⟩
+  · exact ⟨0, p, subset_rfl, Or.inl rfl⟩
+
+private lemma emcg_iter_sts (h : τ.STS) (α : (emcgP' τ k A).Form) :
+    SideToSideSet (τ.decomposeIter k (emcgDissect τ k A α).tiles) := by
+  obtain ⟨n, p, hsub, -⟩ := emcg_dissect_sub τ k A α
+  refine emcg_sts_subset (h (n + k) p) ?_
+  rw [Substitution.supertile, ← emcg_iter_add]
+  exact emcg_iter_mono τ k hsub
+
+private lemma emcg_square_add_Binf (c : Pt) (a b : ℝ) : square c a + Binf b ⊆ square c (a + b) := by
+  rintro x ⟨y, hy, z, hz, rfl⟩
+  simp only [square, Binf, mem_setOf_eq] at hy hz ⊢
+  simp only [PiLp.add_apply]
+  constructor
+  · calc |y 0 + z 0 - c 0| = |(y 0 - c 0) + z 0| := by ring_nf
+      _ ≤ |y 0 - c 0| + |z 0| := abs_add_le _ _
+      _ ≤ a + b := add_le_add hy.1 hz.1
+  · calc |y 1 + z 1 - c 1| = |(y 1 - c 1) + z 1| := by ring_nf
+      _ ≤ |y 1 - c 1| + |z 1| := abs_add_le _ _
+      _ ≤ a + b := add_le_add hy.2 hz.2
+
+private lemma emcg_square_mono (c : Pt) {a b : ℝ} (hab : a ≤ b) : square c a ⊆ square c b :=
+  fun _ hx => ⟨hx.1.trans hab, hx.2.trans hab⟩
+
+private lemma emcg_L_support_square (hR : 0 ≤ R) (p : P.Form) :
+    support (A p).L.faces ⊆ square (c p) ((N : ℝ) * R / 2 + R + 3 * M.D) := by
+  rw [← (A p).L.carrier_eq]
+  refine (A p).L_upper.trans ((emcg_square_add_Binf _ _ _).trans (emcg_square_mono _ ?_))
+  linarith [M.D_pos]
+
+private lemma emcg_piece_support_square (p : P.Form) (j : Fin (4 * N)) :
+    support ((A p).spokes.piece j).faces ⊆ square (c p) ((N : ℝ) * R / 2 + R + 3 * M.D) := by
+  have hsub : support ((A p).spokes.piece j).faces ⊆ (A p).H.carrier := by
+    rw [FaceGroup.carrier, (A p).H.carrier_eq]
+    intro x hx
+    simp only [support, mem_iUnion, exists_prop] at hx ⊢
+    obtain ⟨B, hB, hx⟩ := hx
+    exact ⟨B, ((A p).spokes.piece_sub j hB).1, hx⟩
+  exact hsub.trans ((A p).H_upper.trans (emcg_square_add_Binf _ _ _))
+
+private lemma emcg_support_nonempty {S : Set (PlacedTile P)} (hS : S.Nonempty) :
+    (support S).Nonempty := by
+  obtain ⟨B, hB⟩ := hS
+  obtain ⟨y, hy⟩ := emcg_interior_carrier_nonempty B
+  exact ⟨y, emcg_carrier_subset_support hB (interior_subset hy)⟩
+
+private lemma emcg_grouped_disks_distinct (h : τ.STS) (hR : 0 ≤ R)
+    (hsep : ∀ p q, p ≠ q → Disjoint (square (c p) ((N : ℝ) * R / 2 + R + 3 * M.D))
+      (square (c q) ((N : ℝ) * R / 2 + R + 3 * M.D)))
+    (α β : (emcgP' τ k A).Form) (hα : (emcgDissect τ k A α).tiles.Nontrivial)
+    (hβ : (emcgDissect τ k A β).tiles.Nontrivial)
+    (hdisk : (emcgP' τ k A).disk α = (emcgP' τ k A).disk β) : α = β := by
+  have hsupp : support (emcgDissect τ k A α).tiles = support (emcgDissect τ k A β).tiles := by
+    have h1 : support (emcgDissect τ k A α).tiles = ((emcgP' τ k A).disk α).carrier :=
+      (emcgG τ k A h).support_eq α
+    have h2 : support (emcgDissect τ k A β).tiles = ((emcgP' τ k A).disk β).carrier :=
+      (emcgG τ k A h).support_eq β
+    rw [h1, h2, hdisk]
+  have hsame : ∀ p q, support (emcgDissect τ k A α).tiles ⊆
+      square (c p) ((N : ℝ) * R / 2 + R + 3 * M.D) →
+      support (emcgDissect τ k A β).tiles ⊆ square (c q) ((N : ℝ) * R / 2 + R + 3 * M.D) →
+      p = q := by
+    intro p q hp hq
+    by_contra hpq
+    obtain ⟨y, hy⟩ := emcg_support_nonempty hα.nonempty
+    exact Set.disjoint_left.mp (hsep p q hpq) (hp hy) (hq (hsupp ▸ hy))
+  rcases α with p | ⟨p, j⟩ | p <;> rcases β with q | ⟨q, j'⟩ | q
+  · obtain rfl := hsame p q (emcg_L_support_square τ k A hR p) (emcg_L_support_square τ k A hR q)
+    rfl
+  · obtain rfl := hsame p q (emcg_L_support_square τ k A hR p) (emcg_piece_support_square τ k A q j')
+    exact absurd hsupp (emcg_support_ne (emcg_supertile_disjoint τ k p) (A p).L.faces_sub
+      ((A p).spokes.piece j').faces_sub (A p).L.finite ((A p).spokes.piece j').finite
+      (emcg_piece_disjoint_L τ k A p j').symm hα.nonempty)
+  · exact absurd hβ (not_nontrivial_singleton (x := (⟨q, 0⟩ : PlacedTile P)))
+  · obtain rfl := hsame p q (emcg_piece_support_square τ k A p j) (emcg_L_support_square τ k A hR q)
+    exact absurd hsupp (emcg_support_ne (emcg_supertile_disjoint τ k p)
+      ((A p).spokes.piece j).faces_sub (A p).L.faces_sub ((A p).spokes.piece j).finite
+      (A p).L.finite (emcg_piece_disjoint_L τ k A p j) hα.nonempty)
+  · obtain rfl := hsame p q (emcg_piece_support_square τ k A p j)
+      (emcg_piece_support_square τ k A q j')
+    by_cases hjj : j = j'
+    · rw [hjj]
+    · exact absurd hsupp (emcg_support_ne (emcg_supertile_disjoint τ k p)
+        ((A p).spokes.piece j).faces_sub ((A p).spokes.piece j').faces_sub
+        ((A p).spokes.piece j).finite ((A p).spokes.piece j').finite
+        (emcg_piece_disjoint_piece τ k A p hjj) hα.nonempty)
+  · exact absurd hβ (not_nontrivial_singleton (x := (⟨q, 0⟩ : PlacedTile P)))
+  all_goals exact absurd hα (not_nontrivial_singleton (x := (⟨p, 0⟩ : PlacedTile P)))
+
+end GroupingConstruction4
+
+private lemma emcg_norm_le_abs_add (v : Pt) : ‖v‖ ≤ |v 0| + |v 1| := by
+  rw [EuclideanSpace.norm_eq, Fin.sum_univ_two, Real.norm_eq_abs, Real.norm_eq_abs]
+  rw [Real.sqrt_le_left (by positivity)]
+  nlinarith [abs_nonneg (v 0), abs_nonneg (v 1), sq_abs (v 0), sq_abs (v 1)]
+
+private lemma emcg_norm_sub_le_of_square {c y : Pt} {W : ℝ} (hy : y ∈ square c W) :
+    ‖y - c‖ ≤ 2 * W := by
+  refine (emcg_norm_le_abs_add _).trans ?_
+  simp only [PiLp.sub_apply]
+  linarith [hy.1, hy.2]
+
+/-- Choice of the substitution power and of well-separated centres: for every half side `W` there
+are `k > 0` and centres whose squares lie in the interiors of the scaled forms and are pairwise
+disjoint. -/
+private lemma emcg_centres (τ : Substitution P) {W : ℝ} (hW : 0 < W) :
+    ∃ k, 0 < k ∧ ∃ c : P.Form → Pt,
+      (∀ p, square (c p) W ⊆ interior ((τ.θ ^ k) • (P.disk p).carrier)) ∧
+      ∀ p q, p ≠ q → Disjoint (square (c p) W) (square (c q) W) := by
+  have hex : ∀ p : P.Form, ∃ x : Pt, ∃ ε > 0, Metric.ball x ε ⊆ interior (P.disk p).carrier := by
+    intro p
+    obtain ⟨x, hx⟩ := (P.disk p).interior_nonempty
+    obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp isOpen_interior x hx
+    exact ⟨x, ε, hε, hball⟩
+  choose x ε hε hball using hex
+  set n : ℕ := Fintype.card P.Form
+  let e := Fintype.equivFin P.Form
+  let off : P.Form → Pt := fun p => EuclideanSpace.single 0 (3 * W * ((e p : ℕ) : ℝ))
+  have hoff : ∀ p, ‖off p‖ ≤ 3 * W * n := by
+    intro p
+    simp only [off, EuclideanSpace.norm_single, Real.norm_eq_abs]
+    rw [abs_of_nonneg (by positivity)]
+    have : ((e p : ℕ) : ℝ) ≤ n := by exact_mod_cast (e p).isLt.le
+    nlinarith
+  have hθ : Filter.Tendsto (fun k : ℕ => τ.θ ^ k) Filter.atTop Filter.atTop :=
+    tendsto_pow_atTop_atTop_of_one_lt τ.one_lt
+  have hev : ∀ᶠ k : ℕ in Filter.atTop, 0 < k ∧
+      (∀ p, 2 * W + 3 * W * n < τ.θ ^ k * ε p) ∧
+      ∀ pq : P.Form × P.Form, x pq.1 ≠ x pq.2 →
+        4 * W + 6 * W * n < τ.θ ^ k * ‖x pq.1 - x pq.2‖ := by
+    refine (Filter.eventually_gt_atTop 0).and ((Filter.eventually_all.mpr fun p => ?_).and
+      (Filter.eventually_all.mpr fun pq => ?_))
+    · exact (hθ.atTop_mul_const (hε p)).eventually_gt_atTop _
+    · by_cases hpq : x pq.1 = x pq.2
+      · exact Filter.Eventually.of_forall fun _ h => absurd hpq h
+      · exact ((hθ.atTop_mul_const (norm_pos_iff.mpr (sub_ne_zero.mpr hpq))).eventually_gt_atTop
+          _).mono fun _ h _ => h
+  obtain ⟨k, hk0, hka, hkb⟩ := hev.exists
+  have hθk : 0 < τ.θ ^ k := pow_pos (zero_lt_one.trans τ.one_lt) _
+  refine ⟨k, hk0, fun p => (τ.θ ^ k) • x p + off p, ?_, ?_⟩
+  · intro p y hy
+    rw [interior_smul₀ hθk.ne']
+    refine smul_set_mono (hball p) ?_
+    rw [smul_ball hθk.ne', Real.norm_eq_abs, abs_of_pos hθk, Metric.mem_ball, dist_eq_norm]
+    have h1 := emcg_norm_sub_le_of_square hy
+    calc ‖y - (τ.θ ^ k) • x p‖ = ‖(y - ((τ.θ ^ k) • x p + off p)) + off p‖ := by
+          congr 1; abel
+      _ ≤ ‖y - ((τ.θ ^ k) • x p + off p)‖ + ‖off p‖ := norm_add_le _ _
+      _ < τ.θ ^ k * ε p := by linarith [hoff p, hka p]
+  · intro p q hpq
+    rw [Set.disjoint_left]
+    intro y hyp hyq
+    have hp0 : |y 0 - ((τ.θ ^ k) • x p + off p) 0| ≤ W := hyp.1
+    have hp1 : |y 1 - ((τ.θ ^ k) • x p + off p) 1| ≤ W := hyp.2
+    have hq0 : |y 0 - ((τ.θ ^ k) • x q + off q) 0| ≤ W := hyq.1
+    have hq1 : |y 1 - ((τ.θ ^ k) • x q + off q) 1| ≤ W := hyq.2
+    have h0 : |((τ.θ ^ k) • x p + off p) 0 - ((τ.θ ^ k) • x q + off q) 0| ≤ 2 * W := by
+      have := abs_sub_le (((τ.θ ^ k) • x p + off p) 0) (y 0) (((τ.θ ^ k) • x q + off q) 0)
+      linarith [abs_sub_comm (y 0) (((τ.θ ^ k) • x p + off p) 0)]
+    have h1 : |((τ.θ ^ k) • x p + off p) 1 - ((τ.θ ^ k) • x q + off q) 1| ≤ 2 * W := by
+      have := abs_sub_le (((τ.θ ^ k) • x p + off p) 1) (y 1) (((τ.θ ^ k) • x q + off q) 1)
+      linarith [abs_sub_comm (y 1) (((τ.θ ^ k) • x p + off p) 1)]
+    by_cases hx : x p = x q
+    · have hne : ((e p : ℕ) : ℝ) ≠ ((e q : ℕ) : ℝ) := by
+        intro h'
+        exact hpq (e.injective (Fin.ext (by exact_mod_cast h')))
+      have hge : 1 ≤ |((e p : ℕ) : ℝ) - ((e q : ℕ) : ℝ)| := by
+        rcases lt_or_gt_of_ne hne with hlt | hlt
+        · have : ((e p : ℕ) : ℝ) + 1 ≤ ((e q : ℕ) : ℝ) := by
+            exact_mod_cast (show (e p : ℕ) + 1 ≤ (e q : ℕ) by exact_mod_cast hlt)
+          rw [abs_of_neg (by linarith)]; linarith
+        · have : ((e q : ℕ) : ℝ) + 1 ≤ ((e p : ℕ) : ℝ) := by
+            exact_mod_cast (show (e q : ℕ) + 1 ≤ (e p : ℕ) by exact_mod_cast hlt)
+          rw [abs_of_pos (by linarith)]; linarith
+      rw [hx] at h0
+      simp only [PiLp.add_apply, add_sub_add_left_eq_sub, off, EuclideanSpace.single_apply,
+        if_true] at h0
+      rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < 3 * W)] at h0
+      nlinarith
+    · have hb := hkb (p, q) hx
+      have hsum : ‖((τ.θ ^ k) • x p + off p) - ((τ.θ ^ k) • x q + off q)‖ ≤ 4 * W := by
+        refine (emcg_norm_le_abs_add _).trans ?_
+        simp only [PiLp.sub_apply]
+        linarith
+      have hrw : (τ.θ ^ k) • (x p - x q) =
+          (((τ.θ ^ k) • x p + off p) - ((τ.θ ^ k) • x q + off q)) - off p + off q := by
+        rw [smul_sub]; abel
+      have hn1 := norm_add_le
+        ((((τ.θ ^ k) • x p + off p) - ((τ.θ ^ k) • x q + off q)) - off p) (off q)
+      have hn2 := norm_sub_le (((τ.θ ^ k) • x p + off p) - ((τ.θ ^ k) • x q + off q)) (off p)
+      have hn3 : ‖(τ.θ ^ k) • (x p - x q)‖ = τ.θ ^ k * ‖x p - x q‖ := by
+        rw [norm_smul, Real.norm_eq_abs, abs_of_pos hθk]
+      rw [← hn3, hrw] at hb
+      linarith [hoff p, hoff q]
+
+private lemma emcg_smul_segment (θ : ℝ) (a b : Pt) :
+    θ • segment ℝ a b = segment ℝ (θ • a) (θ • b) := by
+  rw [← Set.image_smul]
+  exact image_segment ℝ ((θ • LinearMap.id : Pt →ₗ[ℝ] Pt).toAffineMap) a b
+
+/-- A polygonal disk scaled by a nonzero factor. -/
+private def emcgScaleDisk (D : PolygonalDisk) (θ : ℝ) (hθ : θ ≠ 0) : PolygonalDisk where
+  carrier := θ • D.carrier
+  n := D.n
+  three_le := D.three_le
+  vertex i := θ • D.vertex i
+  vertex_injective i j hij := D.vertex_injective (smul_right_injective Pt hθ hij)
+  compact := D.compact.smul θ
+  interior_nonempty := by
+    rw [interior_smul₀ hθ]
+    obtain ⟨x, hx⟩ := D.interior_nonempty
+    exact ⟨θ • x, smul_mem_smul_set hx⟩
+  regular_closed := by rw [interior_smul₀ hθ, closure_smul₀, D.regular_closed]
+  interior_pathConnected := by
+    rw [interior_smul₀ hθ, ← Set.image_smul]
+    exact D.interior_pathConnected.image (continuous_const_smul θ)
+  frontier_eq := by
+    rw [frontier, closure_smul₀, interior_smul₀ hθ, ← Set.smul_set_sdiff₀ hθ, ← frontier,
+      D.frontier_eq, Set.smul_set_iUnion]
+    simp only [emcg_smul_segment]
+  simple i j hij := by
+    have h := Set.smul_set_mono (a := θ) (D.simple i j hij)
+    rw [Set.smul_set_inter₀ hθ, Set.smul_set_inter₀ hθ, emcg_smul_segment, emcg_smul_segment,
+      Set.smul_set_insert, Set.smul_set_insert, Set.smul_set_singleton,
+      Set.smul_set_singleton] at h
+    exact h
+
 /-- Step 1--2 of `lem:certificate-exists`: choose the mesh constants, then `R,Q,N,k`, and
 form the finite labelled catalogue consisting of `L`, its `4N` annular pieces, and the remaining
 singletons, with scattering/regrouping equal to the `k`-th substitution power. -/
 private lemma existsMacroCertificate_seed1_grouping (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_GroupingSeed τ) := by
-  sorry
+  classical
+  let M : MeshConstants P := Classical.choice (MeshConstants.nonempty P)
+  obtain ⟨Csep, Cloc, Clen, Cerr, C, hCsep, hCloc, hClen, hCerr, hC, hquant⟩ :=
+    quantitativeAnnularGrouping M
+  have hD := M.D_pos
+  -- the scale `R`
+  let R : ℝ := max (max (Csep * M.D) (10000 * ((M.K0 : ℝ) + 3) * M.D))
+    (((M.K0 : ℝ) + 3 + Cerr) * Clen * M.D)
+  have hR1 : Csep * M.D ≤ R := (le_max_left _ _).trans (le_max_left _ _)
+  have hR2 : 10000 * ((M.K0 : ℝ) + 3) * M.D ≤ R := (le_max_right _ _).trans (le_max_left _ _)
+  have hR3 : ((M.K0 : ℝ) + 3 + Cerr) * Clen * M.D ≤ R := le_max_right _ _
+  have hR0 : 0 < R := lt_of_lt_of_le (by positivity) hR2
+  have hpriv : (M.K0 : ℝ) + 2 ≤ (⌊R / (Clen * M.D)⌋₊ : ℝ) - Cerr := by
+    have hCD : 0 < Clen * M.D := mul_pos hClen hD
+    have h1 : (M.K0 : ℝ) + 3 + Cerr ≤ R / (Clen * M.D) := by
+      rw [le_div_iff₀ hCD]; linarith
+    have h2 := Nat.lt_floor_add_one (R / (Clen * M.D))
+    linarith
+  -- the bound `Q` and the number `N`
+  let Qmax : ℕ := M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊
+  let N : ℕ := Qmax + 2
+  -- the power `k` and the centres
+  have hW : 0 < (N : ℝ) * R / 2 + R + 10 * M.D := by positivity
+  obtain ⟨k, hk, c, hcin, hcsep⟩ := emcg_centres τ hW
+  have hθk : τ.θ ^ k ≠ 0 := (pow_pos (zero_lt_one.trans τ.one_lt) _).ne'
+  have hmargin : ∀ p, square (c p) ((N : ℝ) * R / 2 + R) + Binf (10 * M.D) ⊆
+      interior ((τ.θ ^ k) • (P.disk p).carrier) := fun p =>
+    (emcg_square_add_Binf _ _ _).trans (hcin p)
+  -- the annular groupings
+  have hex : ∀ p, ∃ G : AnnularGrouping M (τ.supertile k p) (c p) N R,
+      (∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+          Metric.cthickening (Cloc * M.D) (idealTrapezoid (c p) N R M.D (j : ℕ))) ∧
+      (∀ j : Fin (4 * N),
+          (⌊R / (Clen * M.D)⌋₊ : ℝ) - Cerr ≤ ((privateOuterEdges G j).ncard : ℝ)) ∧
+      (∀ j : Fin (4 * N), Metric.diam (G.spokes.piece j).carrier ≤ C * R) ∧
+      (∀ j : Fin (4 * N), (G.spokes.piece j).disk.n ≤ M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊) :=
+    fun p => hquant ((τ.pow k hk).rule p) (emcgScaleDisk (P.disk p) (τ.θ ^ k) hθk)
+      ((τ.pow k hk).support_eq p) (h k p) (c p) N R (by omega) hR1 (hmargin p)
+  choose Ag hAg using hex
+  have hsep : ∀ p q, p ≠ q → Disjoint (square (c p) ((N : ℝ) * R / 2 + R + 3 * M.D))
+      (square (c q) ((N : ℝ) * R / 2 + R + 3 * M.D)) := fun p q hpq =>
+    (hcsep p q hpq).mono (emcg_square_mono _ (by linarith)) (emcg_square_mono _ (by linarith))
+  exact ⟨{
+    M := M
+    Csep := Csep
+    Cloc := Cloc
+    Clen := Clen
+    Cerr := Cerr
+    C := C
+    constants_pos := ⟨hCsep, hCloc, hClen, hCerr, hC⟩
+    R := R
+    R_separates := hR1
+    R_routes := hR2
+    private_edges := hpriv
+    Qmax := Qmax
+    Qmax_eq := rfl
+    N := N
+    N_two := by omega
+    N_dominates := by omega
+    k := k
+    k_pos := hk
+    centre := c
+    square_margin := hmargin
+    annular := Ag
+    annular_quantitative := hAg
+    GS := emcgGS τ Ag h hk
+    grouped_power := rfl
+    large := fun p => Sum.inl p
+    small := fun p j => Sum.inr (Sum.inl (p, j))
+    original := fun p => Sum.inr (Sum.inr p)
+    large_dissect := fun _ => rfl
+    small_dissect := fun _ _ => rfl
+    original_dissect := fun _ => rfl
+    catalogue := by
+      rintro (p | ⟨p, j⟩ | p)
+      · exact Or.inl ⟨p, 0, (emcg_translateSet_zero _).symm⟩
+      · exact Or.inr (Or.inl ⟨p, j, 0, (emcg_translateSet_zero _).symm⟩)
+      · exact Or.inr (Or.inr ⟨p, 0, rfl⟩)
+    inside_supertile := by
+      intro α
+      obtain ⟨n, p, hsub, -⟩ := emcg_dissect_sub τ k Ag α
+      exact ⟨n, p, 0, by rw [emcg_translateSet_zero]; exact hsub⟩
+    hereditary := fun hH => emcg_grouped_hereditary (emcgGS τ Ag h hk) hH (emcg_iter_sts τ k Ag h)
+    grouped_disks_distinct := emcg_grouped_disks_distinct τ k Ag h hR0.le hsep }⟩
 
 /-- The second choice package in the construction.  Besides the routing power and retained
 templates, its equations identify every field of the final certificate with the corresponding

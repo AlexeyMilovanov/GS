@@ -2573,6 +2573,211 @@ private lemma plAnnulusRouting_step1_topological_step1_cutModel (A C : Polygonal
   exact ⟨B, e, p, q, z, he_cont, he_inj, he_carrier, he_interior, hp, hq, hep, heq, hzp,
     hzq, hzi, l, hl_loop, by simpa [z] using hl_order⟩
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological_step2_diskRouting`:
+model the polygonal disk on the closed unit disk of `ℂ` (polygonal Schoenflies theorem).  Any
+period-one parametrization `l` of the boundary curve extends to a continuous map `h : ℂ → Pt`
+which is injective on the closed unit disk, maps it into the carrier, maps the open unit disk
+into the interior, and sends `exp (2πit)` to `l t`. -/
+private lemma plAnnulusRouting_step1_topological_step2_diskRouting_step1_schoenflies
+    (B : PolygonalDisk) (l : ℝ → Pt) (hl : IsLoopParam (frontier B.carrier) l) :
+    ∃ h : ℂ → Pt, Continuous h ∧ Set.InjOn h (Metric.closedBall (0 : ℂ) 1) ∧
+      h '' Metric.closedBall (0 : ℂ) 1 ⊆ B.carrier ∧
+      h '' Metric.ball (0 : ℂ) 1 ⊆ interior B.carrier ∧
+      ∀ t : ℝ, h (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) = l t := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological_step2_diskRouting`:
+polar coordinates on the unit disk are unique for positive radii and angles (in turns) closer
+than one full turn. -/
+private lemma plAnnulusRouting_step1_topological_step2_diskRouting_step2_polarUnique
+    {ρ₁ ρ₂ θ₁ θ₂ : ℝ} (h1 : 0 < ρ₁) (h2 : 0 < ρ₂) (hθ : |θ₁ - θ₂| < 1)
+    (h : (ρ₁ : ℂ) * Complex.exp (((2 * Real.pi * θ₁ : ℝ) : ℂ) * Complex.I) =
+      (ρ₂ : ℂ) * Complex.exp (((2 * Real.pi * θ₂ : ℝ) : ℂ) * Complex.I)) :
+    ρ₁ = ρ₂ ∧ θ₁ = θ₂ := by
+  have hρ : ρ₁ = ρ₂ := by
+    have hn := congrArg norm h
+    rw [norm_mul, norm_mul, Complex.norm_exp_ofReal_mul_I, Complex.norm_exp_ofReal_mul_I,
+      Complex.norm_real, Complex.norm_real, Real.norm_of_nonneg h1.le,
+      Real.norm_of_nonneg h2.le] at hn
+    simpa using hn
+  refine ⟨hρ, ?_⟩
+  subst hρ
+  have hne : (ρ₁ : ℂ) ≠ 0 := by exact_mod_cast h1.ne'
+  have he := mul_left_cancel₀ hne h
+  obtain ⟨n, hn⟩ := Complex.exp_eq_exp_iff_exists_int.mp he
+  have him := congrArg Complex.im hn
+  simp at him
+  have hθn : θ₁ = θ₂ + n := by
+    have hpi := Real.pi_pos
+    nlinarith
+  have : |(n : ℝ)| < 1 := by rw [hθn] at hθ; simpa using hθ
+  have hn0 : n = 0 := by
+    have : |n| < 1 := by exact_mod_cast this
+    exact Int.abs_lt_one_iff.mp this
+  simp [hn0] at hθn
+  exact hθn
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological_step2_diskRouting`:
+the radial profile `max 0 (1 - 3s) + max 0 (3s - 2)` and the angular profile
+`max 0 (min 1 (3s - 1))` of the routing arcs determine the parameter, and the radial profile
+vanishes where the angular profile is strictly between `0` and `1`. -/
+private lemma plAnnulusRouting_step1_topological_step2_diskRouting_step2_profile (s s' : ℝ) :
+    (max 0 (1 - 3 * s) + max 0 (3 * s - 2) = max 0 (1 - 3 * s') + max 0 (3 * s' - 2) →
+      max 0 (min 1 (3 * s - 1)) = max 0 (min 1 (3 * s' - 1)) → s = s') ∧
+    (0 < max 0 (min 1 (3 * s - 1)) → max 0 (min 1 (3 * s - 1)) < 1 →
+      max 0 (1 - 3 * s) + max 0 (3 * s - 2) = 0) := by
+  constructor
+  · intro h1 h2
+    rw [max_def, max_def, max_def, max_def] at h1
+    rw [max_def, max_def, min_def, min_def] at h2
+    split_ifs at h1 h2 <;> linarith
+  · intro h1 h2
+    rw [max_def, max_def]
+    rw [max_def, min_def] at h1 h2
+    split_ifs at h1 h2 ⊢ <;> linarith
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological_step2_diskRouting`:
+route the nested pairs in the round unit disk.  For boundary angles `t` (in turns) increasing
+within less than one turn, the points `exp (2πi t_i)` and `exp (2πi t_{2k-1-i})` are joined by
+pairwise disjoint simple arcs, running in the open unit disk except at their endpoints. -/
+private lemma plAnnulusRouting_step1_topological_step2_diskRouting_step2_roundDiskRouting
+    {k : ℕ} (t : Fin (k + k) → ℝ) (ht : StrictMono t) (ht1 : ∀ i j, t j < t i + 1) :
+    ∃ γ : Fin k → ℝ → ℂ,
+      (∀ i, Continuous (γ i)) ∧
+      (∀ i, γ i 0 = Complex.exp (((2 * Real.pi * t (Fin.castAdd k i) : ℝ) : ℂ) * Complex.I)) ∧
+      (∀ i, γ i 1 = Complex.exp (((2 * Real.pi * t (Fin.natAdd k (Fin.rev i)) : ℝ) : ℂ) * Complex.I)) ∧
+      (∀ i, ∀ s ∈ Set.Icc (0 : ℝ) 1, γ i s ∈ Metric.closedBall (0 : ℂ) 1) ∧
+      (∀ i, ∀ s ∈ Set.Ioo (0 : ℝ) 1, γ i s ∈ Metric.ball (0 : ℂ) 1) ∧
+      (∀ i, Set.InjOn (γ i) (Set.Icc (0 : ℝ) 1)) ∧
+      (∀ i j, i ≠ j → Disjoint (γ i '' Set.Icc (0 : ℝ) 1) (γ j '' Set.Icc (0 : ℝ) 1)) := by
+  obtain ⟨a, ha_def⟩ : ∃ a : Fin k → ℝ, a = fun i => t (Fin.castAdd k i) := ⟨_, rfl⟩
+  obtain ⟨b, hb_def⟩ : ∃ b : Fin k → ℝ, b = fun i => t (Fin.natAdd k (Fin.rev i)) := ⟨_, rfl⟩
+  obtain ⟨r, hr_def⟩ : ∃ r : Fin k → ℝ, r = fun i : Fin k => (((i : ℕ) : ℝ) + 1) / (k + 1) := ⟨_, rfl⟩
+  obtain ⟨X, hX_def⟩ : ∃ X : ℝ → ℝ, X = fun s => max 0 (1 - 3 * s) + max 0 (3 * s - 2) :=
+    ⟨_, rfl⟩
+  obtain ⟨Y, hY_def⟩ : ∃ Y : ℝ → ℝ, Y = fun s => max 0 (min 1 (3 * s - 1)) := ⟨_, rfl⟩
+  have hX0 : ∀ s, 0 ≤ X s := fun s => by subst hX_def; dsimp only; positivity
+  have hX1 : ∀ s ∈ Icc (0:ℝ) 1, X s ≤ 1 := by
+    intro s hs; subst hX_def; dsimp only; rw [max_def, max_def]; split_ifs <;> linarith [hs.1, hs.2]
+  have hX1' : ∀ s ∈ Ioo (0:ℝ) 1, X s < 1 := by
+    intro s hs; subst hX_def; dsimp only; rw [max_def, max_def]; split_ifs <;> linarith [hs.1, hs.2]
+  have hY0 : ∀ s, 0 ≤ Y s := fun s => by subst hY_def; exact le_max_left _ _
+  have hY1 : ∀ s, Y s ≤ 1 := fun s => by subst hY_def; exact max_le zero_le_one (min_le_left _ _)
+  have hXY : ∀ s s', X s = X s' → Y s = Y s' → s = s' := by
+    subst hX_def hY_def
+    exact fun s s' h1 h2 => (plAnnulusRouting_step1_topological_step2_diskRouting_step2_profile s s').1 h1 h2
+  have hmid : ∀ s, 0 < Y s → Y s < 1 → X s = 0 := by
+    subst hX_def hY_def
+    exact fun s h1 h2 => (plAnnulusRouting_step1_topological_step2_diskRouting_step2_profile s s).2 h1 h2
+  obtain ⟨ρ, hρ_def⟩ : ∃ ρ : Fin k → ℝ → ℝ, ρ = fun i s => r i + (1 - r i) * X s := ⟨_, rfl⟩
+  obtain ⟨θ, hθ_def⟩ : ∃ θ : Fin k → ℝ → ℝ, θ = fun i s => a i + (b i - a i) * Y s :=
+    ⟨_, rfl⟩
+  have hab : ∀ i, a i < b i := by
+    intro i; subst ha_def hb_def; apply ht; rw [Fin.lt_def]
+    simp only [Fin.val_castAdd, Fin.val_natAdd, Fin.val_rev]; omega
+  have hlt : ∀ i j : Fin k, i < j → a i < a j ∧ b j < b i := by
+    intro i j hij
+    rw [Fin.lt_def] at hij
+    subst ha_def hb_def
+    refine ⟨ht ?_, ht ?_⟩ <;> rw [Fin.lt_def] <;>
+      simp only [Fin.val_castAdd, Fin.val_natAdd, Fin.val_rev] <;> omega
+  have hdiff : ∀ m m', t m - t m' < 1 := fun m m' => by linarith [ht1 m' m]
+  have hr0 : ∀ i, 0 < r i := fun i => by subst hr_def; dsimp only; positivity
+  have hr1 : ∀ i, r i < 1 := by
+    intro i; subst hr_def; dsimp only
+    rw [div_lt_one (by positivity)]
+    have := i.isLt
+    have : ((i : ℕ) : ℝ) < k := by exact_mod_cast this
+    linarith
+  have hrlt : ∀ i j : Fin k, i < j → r i < r j := by
+    intro i j hij; subst hr_def; dsimp only
+    have : ((i : ℕ) : ℝ) < (j : ℕ) := by exact_mod_cast hij
+    gcongr
+  have hba' : ∀ i j, b i - a j < 1 := by
+    intro i j; subst ha_def hb_def; exact hdiff _ _
+  have hρ0 : ∀ i s, 0 < ρ i s := fun i s => by
+    have := hr0 i; have := hr1 i; have := hX0 s
+    simp only [hρ_def]; nlinarith
+  have hθa : ∀ i s, a i ≤ θ i s := fun i s => by
+    have := hab i; have := hY0 s; simp only [hθ_def]; nlinarith
+  have hθb : ∀ i s, θ i s ≤ b i := fun i s => by
+    have := hab i; have := hY1 s; simp only [hθ_def]; nlinarith
+  have hθd : ∀ i j s s', |θ i s - θ j s'| < 1 := by
+    intro i j s s'
+    rw [abs_lt]
+    constructor
+    · linarith [hθa i s, hθb j s', hba' j i]
+    · linarith [hθa j s', hθb i s, hba' i j]
+  have hnorm : ∀ i s,
+      ‖(ρ i s : ℂ) * Complex.exp (((2 * Real.pi * θ i s : ℝ) : ℂ) * Complex.I)‖ = ρ i s := by
+    intro i s
+    rw [norm_mul, Complex.norm_exp_ofReal_mul_I, Complex.norm_real,
+      Real.norm_of_nonneg (hρ0 i s).le, mul_one]
+  refine ⟨fun i s => (ρ i s : ℂ) * Complex.exp (((2 * Real.pi * θ i s : ℝ) : ℂ) * Complex.I),
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro i
+    subst hρ_def hθ_def hX_def hY_def
+    fun_prop
+  · intro i
+    have h1 : ρ i 0 = 1 := by simp [hρ_def, hX_def]
+    have h2 : θ i 0 = a i := by simp [hθ_def, hY_def]
+    simp only [h1, h2, Complex.ofReal_one, one_mul, ha_def]
+  · intro i
+    have h1 : ρ i 1 = 1 := by simp [hρ_def, hX_def]; norm_num
+    have h2 : θ i 1 = b i := by simp [hθ_def, hY_def]; norm_num
+    simp only [h1, h2, Complex.ofReal_one, one_mul, hb_def]
+  · intro i s hs
+    rw [Metric.mem_closedBall, dist_zero_right, hnorm]
+    have := hX1 s hs; have := hr1 i
+    simp only [hρ_def]; nlinarith
+  · intro i s hs
+    rw [Metric.mem_ball, dist_zero_right, hnorm]
+    have := hX1' s hs; have := hr1 i
+    simp only [hρ_def]; nlinarith
+  · intro i s _ s' _ h
+    obtain ⟨h1, h2⟩ := plAnnulusRouting_step1_topological_step2_diskRouting_step2_polarUnique
+      (hρ0 i s) (hρ0 i s') (hθd i i s s') h
+    have hr := hr1 i; have hba := hab i
+    apply hXY
+    · simp only [hρ_def] at h1
+      have : (1 - r i) * (X s - X s') = 0 := by linarith
+      rcases mul_eq_zero.mp this with h | h
+      · linarith
+      · linarith
+    · simp only [hθ_def] at h2
+      have : (b i - a i) * (Y s - Y s') = 0 := by linarith
+      rcases mul_eq_zero.mp this with h | h
+      · linarith
+      · linarith
+  · have key : ∀ i j : Fin k, i < j → ∀ s s',
+        (ρ i s : ℂ) * Complex.exp (((2 * Real.pi * θ i s : ℝ) : ℂ) * Complex.I) ≠
+          (ρ j s' : ℂ) * Complex.exp (((2 * Real.pi * θ j s' : ℝ) : ℂ) * Complex.I) := by
+      intro i j hij s s' h
+      obtain ⟨h1, h2⟩ := plAnnulusRouting_step1_topological_step2_diskRouting_step2_polarUnique
+        (hρ0 i s) (hρ0 j s') (hθd i j s s') h
+      obtain ⟨hai, hbi⟩ := hlt i j hij
+      have hθ1 : a i < θ i s := by linarith [hθa j s']
+      have hθ2 : θ i s < b i := by linarith [hθb j s']
+      have hba := hab i
+      have hY0' : 0 < Y s := by
+        by_contra hc
+        have : Y s = 0 := le_antisymm (not_lt.mp hc) (hY0 s)
+        simp only [hθ_def, this] at hθ1; linarith
+      have hY1' : Y s < 1 := by
+        by_contra hc
+        have : Y s = 1 := le_antisymm (hY1 s) (not_lt.mp hc)
+        simp only [hθ_def, this] at hθ2; linarith
+      have hX := hmid s hY0' hY1'
+      simp only [hρ_def, hX] at h1
+      have := hrlt i j hij; have := hr1 j; have := hX0 s'
+      nlinarith
+    intro i j hij
+    rw [Set.disjoint_left]
+    rintro _ ⟨s, _, rfl⟩ ⟨s', _, hs'⟩
+    rcases lt_or_gt_of_ne hij with h | h
+    · exact key i j h s s' hs'.symm
+    · exact key j i h s' s hs'
+
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological`: route matching
 points in a polygonal disk when the combined boundary order is non-alternating. -/
 private lemma plAnnulusRouting_step1_topological_step2_diskRouting (B : PolygonalDisk)
@@ -2591,7 +2796,30 @@ private lemma plAnnulusRouting_step1_topological_step2_diskRouting (B : Polygona
       (∀ i, Function.Injective (Set.restrict (Set.Icc (0 : ℝ) 1) (δ i))) ∧
       (∀ i j, i ≠ j →
         Disjoint (δ i '' Set.Icc (0 : ℝ) 1) (δ j '' Set.Icc (0 : ℝ) 1)) := by
-  sorry
+  have _ := hp
+  have _ := hq
+  have _ := hzi
+  obtain ⟨l, hl, t, ht, ht1, hlt⟩ := horder
+  obtain ⟨h, hc, hinj, hcar, hint, hcirc⟩ :=
+    plAnnulusRouting_step1_topological_step2_diskRouting_step1_schoenflies B l hl
+  obtain ⟨γ, hγc, hγ0, hγ1, hγcb, hγb, hγinj, hγdisj⟩ :=
+    plAnnulusRouting_step1_topological_step2_diskRouting_step2_roundDiskRouting t ht ht1
+  refine ⟨fun i => h ∘ γ i, fun i => hc.comp (hγc i), ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro i
+    simp only [Function.comp_apply, hγ0, hcirc, hlt, hzp]
+  · intro i
+    simp only [Function.comp_apply, hγ1, hcirc, hlt, hzq, Fin.rev_rev]
+  · intro i s hs
+    exact hcar ⟨γ i s, hγcb i s hs, rfl⟩
+  · intro i s hs
+    exact hint ⟨γ i s, hγb i s hs, rfl⟩
+  · intro i ⟨s, hs⟩ ⟨s', hs'⟩ hss
+    exact Subtype.ext (hγinj i hs hs' (hinj (hγcb i s hs) (hγcb i s' hs') hss))
+  · intro i j hij
+    rw [Set.disjoint_left]
+    rintro _ ⟨s, hs, rfl⟩ ⟨s', hs', hss⟩
+    have he : γ j s' = γ i s := hinj (hγcb j s' hs') (hγcb i s hs) hss
+    exact Set.disjoint_left.1 (hγdisj i j hij) ⟨s, hs, rfl⟩ ⟨s', hs', he⟩
 
 /-- Step 3 of the blueprint proof of `plAnnulusRouting_step1_topological`: transfer disk
 arcs through an injective continuous cut model. -/

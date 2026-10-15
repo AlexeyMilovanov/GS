@@ -17298,7 +17298,71 @@ private lemma existsAnnularSpokes_step6_cut_step1_regions_step2_compl_step3_oute
     (hWcl : ∀ j, (α j).carrier ⊆ closure (W j) ∧ (α (finRotate k j)).carrier ⊆ closure (W j))
     (i j : Fin k) (hij : i ≠ j) :
     ∃ p ∈ frontier A.carrier, p ∈ closure (W i) ∧ p ∉ closure (W j) := by
-  sorry
+  obtain ⟨γ, δ, hγ, hδ, -, ⟨t, htm, htw, htv⟩, ⟨τ, hτm, hτw, hτv⟩⟩ := horder
+  set U := interior A.carrier \ (C.carrier ∪ ⋃ j, (α j).carrier) with hU
+  have hWsub : ∀ l, W l ⊆ U := by
+    intro l x hx
+    rw [← hWU]
+    exact Set.mem_iUnion.mpr ⟨l, hx⟩
+  have hcomp : ∀ l x, x ∈ W l → connectedComponentIn U x = W l := by
+    intro l x hx
+    set V : Set Pt := ⋃ m, ⋃ (_ : m ≠ l), W m with hV
+    have hVo : IsOpen V := isOpen_iUnion fun m => isOpen_iUnion fun _ => hWo m
+    have hd : Disjoint (W l) V := by
+      rw [Set.disjoint_left]
+      intro z hzl hzV
+      obtain ⟨m, hm⟩ := Set.mem_iUnion.mp hzV
+      obtain ⟨hml, hzm⟩ := Set.mem_iUnion.mp hm
+      exact Set.disjoint_left.mp (hWd l m hml.symm) hzl hzm
+    have hUV : U ⊆ W l ∪ V := by
+      intro z hz
+      have hz' : z ∈ ⋃ m, W m := by
+        rw [hWU]
+        exact hz
+      obtain ⟨m, hzm⟩ := Set.mem_iUnion.mp hz'
+      by_cases hml : m = l
+      · left
+        simpa [hml] using hzm
+      · right
+        exact Set.mem_iUnion.mpr ⟨m, Set.mem_iUnion.mpr ⟨hml, hzm⟩⟩
+    apply Set.Subset.antisymm
+    · apply isPreconnected_connectedComponentIn.subset_left_of_subset_union
+        (hWo l) hVo hd ((connectedComponentIn_subset U x).trans hUV)
+      exact ⟨x, mem_connectedComponentIn (hWsub l hx), hx⟩
+    · exact (hWc l).isPreconnected.subset_connectedComponentIn hx (hWsub l)
+  have hWine : (W i).Nonempty := by
+    have hstart : (α i).start ∈ (α i).carrier :=
+      Set.mem_iUnion.mpr ⟨0, left_mem_segment ℝ _ _⟩
+    exact Set.Nonempty.of_closure ⟨(α i).start, (hWcl i).1 hstart⟩
+  obtain ⟨x, hxi⟩ := hWine
+  have hxU : x ∈ U := hWsub i hxi
+  obtain ⟨l, p, hpcl, hpgap⟩ :=
+    existsAnnularSpokes_step6_cut_step1_regions_step1_cut_step5_cover A C hCA hk α
+      hsimple hin hC hA hdisj hγ htm htw htv hδ hτm hτw hτv
+        (fun a b y hab hy ha hb =>
+          existsAnnularSpokes_step6_cut_step1_regions_step1_cut_step4_gap_separate
+            A C hCA α hin hC hA hγ htm htw htv hδ hab hy ha hb) hxU
+  have hpA : p ∈ frontier A.carrier :=
+    (existsAnnularSpokes_step6_cut_step1_regions_step1_cut_step2_gap_facts A C hCA
+      α hA hγ htm htw htv l hpgap).1
+  refine ⟨p, hpA, ?_, ?_⟩
+  · rwa [hcomp i x hxi] at hpcl
+  · intro hpj
+    obtain ⟨y, hyj⟩ := (hWc j).nonempty
+    have hyU : y ∈ U := hWsub j hyj
+    have hpi :
+        (closure (connectedComponentIn U x) ∩
+          existsAnnularSpokes_step6_cut_step1_regions_step1_cut_gap γ t l).Nonempty := by
+      exact ⟨p, hpcl, hpgap⟩
+    have hpj' :
+        (closure (connectedComponentIn U y) ∩
+          existsAnnularSpokes_step6_cut_step1_regions_step1_cut_gap γ t l).Nonempty := by
+      exact ⟨p, by rwa [hcomp j y hyj], hpgap⟩
+    have hyi :=
+      existsAnnularSpokes_step6_cut_step1_regions_step1_cut_step2_gap_unique A C hCA
+        α hA hγ htm htw htv l hyU hpi hpj'
+    rw [hcomp i x hxi] at hyi
+    exact Set.disjoint_left.mp (hWd i j hij) hyi hyj
 
 /-- Step 4 of the blueprint proof of `existsAnnularSpokes_step6_cut_step1_regions_step2_compl`: "Cutting a polygonal
 annulus along such arcs gives disks, one between each successive pair".  Inner contact: some cut region `W i`

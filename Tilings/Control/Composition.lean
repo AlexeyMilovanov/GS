@@ -11518,6 +11518,195 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_st
   have hnp : ¬ c.IsPrint (c.occ B.typ l) := fun hp => asm_print_inner c hp hOuter
   exact ((hB.2 l).2 hnp).2.2.2.2.2.1 hOuter d hd
 
+private lemma
+    lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step4_matching_lists_u
+    (T : PlaneTiling P) (X Y Y' : PlacedTile P) (hX : X ∈ T.tiles) (hY : Y ∈ T.tiles)
+    (hY' : Y' ∈ T.tiles) (hXY : X ≠ Y) (hXY' : X ≠ Y')
+    (i : Fin (P.disk X.form).n) (j : Fin (P.disk Y.form).n)
+    (j' : Fin (P.disk Y'.form).n) (h : Y.side j = X.side i)
+    (h' : Y'.side j' = X.side i) : Y = Y' := by
+  by_contra hYY'
+  let x := X.anchor + (P.disk X.form).vertex i
+  let y := X.anchor + (P.disk X.form).vertex (finRotate _ i)
+  have hxy : x ≠ y :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne X i
+  have hs : X.side i = segment ℝ x y :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq X i
+  apply ac2_no_three (P.disk X.form) (P.disk Y.form) (P.disk Y'.form)
+    X.anchor Y.anchor Y'.anchor i j j' hxy
+  · rw [← hs]
+    change X.side i ⊆ X.side i
+    exact Set.Subset.rfl
+  · rw [← hs, ← h]
+    change Y.side j ⊆ Y.side j
+    exact Set.Subset.rfl
+  · rw [← hs, ← h']
+    change Y'.side j' ⊆ Y'.side j'
+    exact Set.Subset.rfl
+  · exact T.disjoint hX hY hXY
+  · exact T.disjoint hX hY' hXY'
+  · exact T.disjoint hY hY' hYY'
+
+private lemma
+    lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step4_matching_lists_l
+    (c : MacroCertificate P) (hH : c.Hereditary) (K K' : ColouredBlock c)
+    (d : Fin (c.Q.disk K.α).n) (e : Fin (c.Q.disk K'.α).n)
+    (hmacro : K'.macroSide e = K.macroSide d)
+    (hmatch : ∀ o ∈ c.outerList K.α d, ∀ o' ∈ c.outerList K'.α e,
+      OverlapPos (K.childSide o) (K'.childSide o') →
+        K.childSide o = K'.childSide o') :
+    List.Forall₂ (fun o o' => K.childSide o = K'.childSide o')
+      (c.outerList K.α d) (c.outerList K'.α e) := by
+  classical
+  let L := c.outerList K.α d
+  let L' := c.outerList K'.α e
+  let w := c.macroSideDir K.α d
+  let f : c.SideOcc → ℝ := fun o => inner ℝ w (K.v + c.occMid o)
+  let f' : c.SideOcc → ℝ := fun o => inner ℝ w (K'.v + c.occMid o)
+  have hdir : c.macroSideDir K'.α e = w := by
+    have hs := ac2_macro_vadd K d
+    have hs' := ac2_macro_vadd K' e
+    rw [hs, hs'] at hmacro
+    unfold w MacroData.macroSideDir
+    rcases
+        alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_endpoints
+          hmacro with hends | hends
+    · apply
+        alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_pos_dir_eq c
+      · left
+        have hv :
+            (K'.v + c.σ.θ • (c.Q.disk K'.α).vertex (finRotate _ e)) -
+                (K'.v + c.σ.θ • (c.Q.disk K'.α).vertex e) =
+              (K.v + c.σ.θ • (c.Q.disk K.α).vertex (finRotate _ d)) -
+                (K.v + c.σ.θ • (c.Q.disk K.α).vertex d) := by
+          rw [hends.1, hends.2]
+        simpa [add_sub_add_left_eq_sub] using hv
+      · exact
+          alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_scaled_ne
+            c K.α d
+    · apply
+        alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_pos_dir_eq c
+      · right
+        have hv :
+            (K'.v + c.σ.θ • (c.Q.disk K'.α).vertex (finRotate _ e)) -
+                (K'.v + c.σ.θ • (c.Q.disk K'.α).vertex e) =
+              (K.v + c.σ.θ • (c.Q.disk K.α).vertex d) -
+                (K.v + c.σ.θ • (c.Q.disk K.α).vertex (finRotate _ d)) := by
+          rw [hends.1, hends.2]
+        simpa [add_sub_add_left_eq_sub] using hv
+      · exact
+          alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_scaled_ne
+            c K.α d
+  have hs : L.Pairwise (fun a b => f a < f b) := by
+    apply (c.g3_outerList_sorted K.α d).imp
+    rintro a b ⟨r, hr, hab⟩
+    unfold f w
+    rw [← sub_pos, ← inner_sub_right, add_sub_add_left_eq_sub, hab,
+      inner_smul_right, real_inner_self_eq_norm_sq]
+    exact mul_pos hr (pow_pos (norm_pos_iff.2
+      (alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_dir_ne
+        c K.α d)) 2)
+  have hs' : L'.Pairwise (fun a b => f' a < f' b) := by
+    apply (c.g3_outerList_sorted K'.α e).imp
+    rintro a b ⟨r, hr, hab⟩
+    unfold f' w
+    rw [← sub_pos, ← inner_sub_right, add_sub_add_left_eq_sub, hab, hdir,
+      inner_smul_right, real_inner_self_eq_norm_sq]
+    exact mul_pos hr (pow_pos (norm_pos_iff.2
+      (alignment_complete_step2_subdivision_eq_step2_pointwise_step1_sorted_dir_ne
+        c K.α d)) 2)
+  have hfwd : ∀ o ∈ L, ∃ o' ∈ L',
+      K.childSide o = K'.childSide o' ∧ f' o' = f o := by
+    intro o ho
+    have hcov : K.childSide o ⊆ ⋃ o' ∈ L'.toFinset, K'.childSide o' := by
+      intro q hq
+      have hqmacro : q ∈ K'.macroSide e := by
+        rw [hmacro]
+        rw [alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
+          c hH K d]
+        exact mem_iUnion₂.2 ⟨o, ho, hq⟩
+      rw [alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
+        c hH K' e] at hqmacro
+      obtain ⟨o', ho', hqo'⟩ := mem_iUnion₂.1 hqmacro
+      exact mem_iUnion₂.2 ⟨o', by simpa using ho', hqo'⟩
+    have hne : K.v + c.occStart o ≠ K.v + c.occEnd o := by
+      exact fun h => ac1r_occStart_ne c o (add_left_cancel h)
+    obtain ⟨o', ho', hov⟩ :=
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_pigeon_overlap
+        (K.v + c.occStart o) (K.v + c.occEnd o) hne L'.toFinset
+        (fun o' => K'.childSide o')
+        (fun o' => by
+          show Convex ℝ (K'.childSide o')
+          rw [ac2_childSide_eq]
+          exact convex_segment _ _)
+        (by rw [← ac2_childSide_eq]; exact hcov)
+    have ho'L : o' ∈ L' := by simpa using ho'
+    have heq := hmatch o ho o' ho'L (by rwa [← ac2_childSide_eq] at hov)
+    refine ⟨o', ho'L, heq, ?_⟩
+    exact congrArg (fun p => inner ℝ w p)
+      (alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace_aux_mid
+        heq).symm
+  have hbwd : ∀ o' ∈ L', ∃ o ∈ L, f o = f' o' := by
+    intro o' ho'
+    have hcov : K'.childSide o' ⊆ ⋃ o ∈ L.toFinset, K.childSide o := by
+      intro q hq
+      have hqmacro : q ∈ K.macroSide d := by
+        rw [← hmacro]
+        rw [alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
+          c hH K' e]
+        exact mem_iUnion₂.2 ⟨o', ho', hq⟩
+      rw [alignment_complete_step1_macroside_eq_step4_endpoints_step1_union
+        c hH K d] at hqmacro
+      obtain ⟨o, ho, hqo⟩ := mem_iUnion₂.1 hqmacro
+      exact mem_iUnion₂.2 ⟨o, by simpa using ho, hqo⟩
+    have hne : K'.v + c.occStart o' ≠ K'.v + c.occEnd o' := by
+      exact fun h => ac1r_occStart_ne c o' (add_left_cancel h)
+    obtain ⟨o, ho, hov⟩ :=
+      lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_pigeon_overlap
+        (K'.v + c.occStart o') (K'.v + c.occEnd o') hne L.toFinset
+        (fun o => K.childSide o)
+        (fun o => by
+          show Convex ℝ (K.childSide o)
+          rw [ac2_childSide_eq]
+          exact convex_segment _ _)
+        (by rw [← ac2_childSide_eq]; exact hcov)
+    have hoL : o ∈ L := by simpa using ho
+    rw [← ac2_childSide_eq] at hov
+    have hov' : OverlapPos (K.childSide o) (K'.childSide o') := by
+      rw [OverlapPos]
+      obtain ⟨a, b, hab, hsab⟩ := hov
+      exact ⟨a, b, hab, by simpa [inter_comm] using hsab⟩
+    have heq := hmatch o hoL o' ho' hov'
+    refine ⟨o, hoL, ?_⟩
+    exact
+      congrArg (fun p => inner ℝ w p)
+        (alignment_complete_step2_subdivision_eq_step2_pointwise_step2_forward_trace_aux_mid
+          heq)
+  have hlen : L.length = L'.length := by
+    have hn : (L.map f).Nodup :=
+      List.Pairwise.imp (@ne_of_lt ℝ _) (List.pairwise_map.mpr hs)
+    have hn' : (L'.map f').Nodup :=
+      List.Pairwise.imp (@ne_of_lt ℝ _) (List.pairwise_map.mpr hs')
+    have hsets : (L.map f).toFinset = (L'.map f').toFinset := by
+      ext z
+      simp only [List.mem_toFinset, List.mem_map]
+      constructor
+      · rintro ⟨o, ho, rfl⟩
+        obtain ⟨o', ho', -, hf⟩ := hfwd o ho
+        exact ⟨o', ho', hf⟩
+      · rintro ⟨o', ho', rfl⟩
+        obtain ⟨o, ho, hf⟩ := hbwd o' ho'
+        exact ⟨o, ho, hf⟩
+    calc
+      L.length = (L.map f).toFinset.card := by
+        rw [List.toFinset_card_of_nodup hn, List.length_map]
+      _ = (L'.map f').toFinset.card := congrArg Finset.card hsets
+      _ = L'.length := by
+        rw [List.toFinset_card_of_nodup hn', List.length_map]
+  exact
+    alignment_complete_step2_subdivision_eq_step2_pointwise_list_lemma L L' hs hs'
+      hfwd hbwd hlen
+
 /-- Step 4 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
 "Both overlapping sides therefore belong to one finite higher supertile. The assumed STS property
 makes their descendant sides coincide completely, with matching ranks and ports ... the coincident
@@ -11552,7 +11741,288 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_st
         (c.outerList (c.form (tileDec ZX).typ) d).length ∧
       (c.outerList (c.form (tileDec ZY).typ) d').idxOf (c.occ (tileDec Y).typ j) =
         (c.outerList (c.form (tileDec ZX).typ) d).idxOf (c.occ (tileDec X).typ i) := by
-  sorry
+  have hYout :=
+    lift_hierarchy_step2_proper_step2_outer_step2_cells_step1_opp_outer c seq' hexact
+      X hX i hOuter Y hY hNeq j hCoincide
+  obtain ⟨d', hd'⟩ :=
+    ac1r_outer_mem_outerList c hH (c.occ (tileDec Y).typ j) hYout
+      (c.form (tileDec ZY).typ) hYZ.1
+  obtain ⟨n, V, hV, hXV, B, hBV, hBX, k, hov⟩ :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_one_supertile c seq
+      seq' herase hexact X hX i m W hW e he hsub
+  have hfull := hsts n n le_rfl V hV
+  have hsideB : B.side k = sideOf c X i := hfull _ hXV _ hBV i k hov |>.symm
+  have hsubV :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub c
+      seq seq' herase hexact n 0 V (by simpa using hV)
+  have hB0 : B ∈ (seq 0).tiles := hsubV hBV
+  have hX0 : erase c X ∈ (seq 0).tiles := herase 0 ▸ ⟨X, hX, rfl⟩
+  have hY0 : erase c Y ∈ (seq 0).tiles := herase 0 ▸ ⟨Y, hY, rfl⟩
+  have hXYe : erase c X ≠ erase c Y := by
+    intro hXY
+    have hc : X.carrier = Y.carrier := by
+      simpa [PlacedTile.carrier, erase, tileDec] using
+        congrArg (fun Z : PlacedTile c.Q => Z.carrier) hXY
+    obtain ⟨q, hq⟩ := (c.Q.disk (c.form (tileDec X).typ)).interior_nonempty
+    have hqX : X.anchor +ᵥ q ∈ interior X.carrier := by
+      rw [show X.carrier = X.anchor +ᵥ
+        (c.Q.disk (c.form (tileDec X).typ)).carrier by rfl, interior_vadd]
+      exact Set.vadd_mem_vadd_set hq
+    have hqY : X.anchor +ᵥ q ∈ interior Y.carrier := by
+      rw [← hc]
+      exact hqX
+    exact Set.disjoint_left.1 ((seq' 0).disjoint hX hY hNeq.symm) hqX hqY
+  have hBY : B = erase c Y := by
+    apply Eq.symm
+    apply
+      lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step4_matching_lists_u
+        (seq 0) (erase c X) (erase c Y) B hX0 hY0 hB0 hXYe hBX.symm i j k
+    · exact hCoincide
+    · exact hsideB
+  subst B
+  cases n with
+  | zero =>
+      simp only [Substitution.decomposeIter] at hXV hBV
+      exact absurd (hXV.trans hBV.symm) hXYe
+  | succ n =>
+      have hparSub :=
+        lift_hierarchy_step2_proper_step2_outer_step1_supertile_step4_supertile_sub c
+          seq seq' herase hexact n 1 V (by simpa [Nat.add_comm] using hV)
+      change erase c X ∈ c.σ.decompose (c.σ.decomposeIter n {V}) at hXV
+      change erase c Y ∈ c.σ.decompose (c.σ.decomposeIter n {V}) at hBV
+      obtain ⟨AX, hAX, hXAX⟩ := mem_iUnion₂.1 hXV
+      obtain ⟨AY, hAY, hYAY⟩ := mem_iUnion₂.1 hBV
+      have hAX1 : AX ∈ (seq 1).tiles := hparSub hAX
+      have hAY1 : AY ∈ (seq 1).tiles := hparSub hAY
+      have hZX1 : erase c ZX ∈ (seq 1).tiles := herase 1 ▸ ⟨ZX, hZX, rfl⟩
+      have hZY1 : erase c ZY ∈ (seq 1).tiles := herase 1 ▸ ⟨ZY, hZY, rfl⟩
+      simp only [Substitution.decomposeTile, translateSet, c.rule_eq] at hXAX hYAY
+      obtain ⟨CX, ⟨tX, htX, rfl⟩, hCX⟩ := hXAX
+      obtain ⟨CY, ⟨tY, htY, rfl⟩, hCY⟩ := hYAY
+      have heX :
+          (⟨c.form tX, c.σ.θ • AX.anchor +ᵥ c.anchor tX⟩ : PlacedTile c.Q) =
+            ⟨c.form (tileDec X).typ,
+              c.σ.θ • (erase c ZX).anchor +ᵥ c.anchor (tileDec X).typ⟩ := by
+        calc
+          _ = erase c X := hCX
+          _ = _ := by
+            apply PlacedTile.ext
+            · rfl
+            · exact haX
+      have heY :
+          (⟨c.form tY, c.σ.θ • AY.anchor +ᵥ c.anchor tY⟩ : PlacedTile c.Q) =
+            ⟨c.form (tileDec Y).typ,
+              c.σ.θ • (erase c ZY).anchor +ᵥ c.anchor (tileDec Y).typ⟩ := by
+        calc
+          _ = erase c Y := hCY
+          _ = _ := by
+            apply PlacedTile.ext
+            · rfl
+            · exact haY
+      have hAXeq : AX = erase c ZX :=
+        (lhd_parent_unique c (seq 1) hAX1 hZX1 htX hXZ.1 heX).1
+      have hAYeq : AY = erase c ZY :=
+        (lhd_parent_unique c (seq 1) hAY1 hZY1 htY hYZ.1 heY).1
+      subst AX
+      subst AY
+      have hZXV : erase c ZX ∈ c.σ.decomposeIter n {V} := hAX
+      have hZYV : erase c ZY ∈ c.σ.decomposeIter n {V} := hAY
+      let KX : ColouredBlock c :=
+        ⟨c.form (tileDec ZX).typ, c.σ.θ • ZX.anchor, fun _ _ _ => 0⟩
+      let KY : ColouredBlock c :=
+        ⟨c.form (tileDec ZY).typ, c.σ.θ • ZY.anchor, fun _ _ _ => 0⟩
+      have hXchild : KX.childSide (c.occ (tileDec X).typ i) = sideOf c X i := by
+        change (c.σ.θ • ZX.anchor + c.anchor (tileDec X).typ) +ᵥ
+            (c.Q.disk (c.form (tileDec X).typ)).side i = X.anchor +ᵥ _
+        rw [haX]
+      have hYchild : KY.childSide (c.occ (tileDec Y).typ j) = sideOf c Y j := by
+        change (c.σ.θ • ZY.anchor + c.anchor (tileDec Y).typ) +ᵥ
+            (c.Q.disk (c.form (tileDec Y).typ)).side j = Y.anchor +ᵥ _
+        rw [haY]
+      have hXmacro : KX.macroSide d = c.σ.θ • sideOf c ZX d := by
+        ext q
+        simp only [KX, ColouredBlock.macroSide, MacroData.macroSide, sideOf,
+          Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+        constructor
+        · rintro ⟨z, ⟨z', hz', rfl⟩, rfl⟩
+          exact ⟨ZX.anchor + z', ⟨z', hz', rfl⟩, by module⟩
+        · rintro ⟨z, ⟨z', hz', rfl⟩, rfl⟩
+          exact ⟨c.σ.θ • z', ⟨z', hz', rfl⟩, by module⟩
+      have hYmacro : KY.macroSide d' = c.σ.θ • sideOf c ZY d' := by
+        ext q
+        simp only [KY, ColouredBlock.macroSide, MacroData.macroSide, sideOf,
+          Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+        constructor
+        · rintro ⟨z, ⟨z', hz', rfl⟩, rfl⟩
+          exact ⟨ZY.anchor + z', ⟨z', hz', rfl⟩, by module⟩
+        · rintro ⟨z, ⟨z', hz', rfl⟩, rfl⟩
+          exact ⟨c.σ.θ • z', ⟨z', hz', rfl⟩, by module⟩
+      have hXsub : sideOf c X i ⊆ KX.macroSide d := by
+        rw [← hXchild, ac2_childSide_vadd, ColouredBlock.macroSide]
+        exact Set.vadd_set_mono ((c.g3_outerList_mem _ _ _).1 hd).2.2
+      have hYsub : sideOf c Y j ⊆ KY.macroSide d' := by
+        rw [← hYchild, ac2_childSide_vadd, ColouredBlock.macroSide]
+        exact Set.vadd_set_mono ((c.g3_outerList_mem _ _ _).1 hd').2.2
+      let x := X.anchor + (c.Q.disk (c.form (tileDec X).typ)).vertex i
+      let y := X.anchor +
+        (c.Q.disk (c.form (tileDec X).typ)).vertex (finRotate _ i)
+      have hxy : x ≠ y :=
+        lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_ne
+          X i
+      have hsideXY : sideOf c X i = segment ℝ x y :=
+        lift_hierarchy_step2_proper_step2_outer_step1_supertile_step5_aux_placed_side_eq
+          X i
+      have hθ : c.σ.θ ≠ 0 := by linarith [c.σ.one_lt]
+      have hxpX : c.σ.θ⁻¹ • x ∈ sideOf c ZX d := by
+        rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ, ← hXmacro]
+        exact hXsub (by rw [hsideXY]; exact left_mem_segment ℝ x y)
+      have hypX : c.σ.θ⁻¹ • y ∈ sideOf c ZX d := by
+        rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ, ← hXmacro]
+        exact hXsub (by rw [hsideXY]; exact right_mem_segment ℝ x y)
+      have hxpY : c.σ.θ⁻¹ • x ∈ sideOf c ZY d' := by
+        rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ, ← hYmacro]
+        apply hYsub
+        rw [hCoincide, hsideXY]
+        exact left_mem_segment ℝ x y
+      have hypY : c.σ.θ⁻¹ • y ∈ sideOf c ZY d' := by
+        rw [← Set.mem_smul_set_iff_inv_smul_mem₀ hθ, ← hYmacro]
+        apply hYsub
+        rw [hCoincide, hsideXY]
+        exact right_mem_segment ℝ x y
+      have hovParent : OverlapPos (sideOf c ZX d) (sideOf c ZY d') := by
+        refine ⟨c.σ.θ⁻¹ • x, c.σ.θ⁻¹ • y, ?_, ?_⟩
+        · exact fun h => hxy (smul_right_injective Pt (inv_ne_zero hθ) h)
+        · apply Convex.segment_subset
+            ((by
+              change Convex ℝ (ZX.anchor +ᵥ
+                (c.Q.disk (c.form (tileDec ZX).typ)).side d)
+              rw [PolygonalDisk.side, vadd_segment]
+              exact convex_segment _ _ : Convex ℝ (sideOf c ZX d)).inter
+            (by
+              change Convex ℝ (ZY.anchor +ᵥ
+                (c.Q.disk (c.form (tileDec ZY).typ)).side d')
+              rw [PolygonalDisk.side, vadd_segment]
+              exact convex_segment _ _ : Convex ℝ (sideOf c ZY d')))
+          · exact ⟨hxpX, hxpY⟩
+          · exact ⟨hypX, hypY⟩
+      have hParentSide : sideOf c ZY d' = sideOf c ZX d := by
+        exact (hsts (n + 1) n (by omega) V hV _ hZXV _ hZYV d d'
+          hovParent).symm
+      have hMacroSide : KY.macroSide d' = KX.macroSide d := by
+        rw [hYmacro, hXmacro, hParentSide]
+      have hchildXV : ∀ o, o ∈ c.outerList KX.α d →
+          (⟨c.form o.1, KX.v + c.anchor o.1⟩ : PlacedTile c.Q) ∈
+            c.σ.decomposeIter (n + 1) {V} := by
+        intro o ho
+        change _ ∈ c.σ.decompose (c.σ.decomposeIter n {V})
+        refine mem_iUnion₂.2 ⟨erase c ZX, hZXV, ?_⟩
+        simp only [Substitution.decomposeTile, translateSet, c.rule_eq, mem_image]
+        refine ⟨c.childTile o.1, ⟨o.1, ?_, rfl⟩, ?_⟩
+        · exact ((c.g3_outerList_mem _ _ _).1 ho).1
+        · apply PlacedTile.ext rfl
+          simp [erase, PlacedTile.translate]
+      have hchildYV : ∀ o, o ∈ c.outerList KY.α d' →
+          (⟨c.form o.1, KY.v + c.anchor o.1⟩ : PlacedTile c.Q) ∈
+            c.σ.decomposeIter (n + 1) {V} := by
+        intro o ho
+        change _ ∈ c.σ.decompose (c.σ.decomposeIter n {V})
+        refine mem_iUnion₂.2 ⟨erase c ZY, hZYV, ?_⟩
+        simp only [Substitution.decomposeTile, translateSet, c.rule_eq, mem_image]
+        refine ⟨c.childTile o.1, ⟨o.1, ?_, rfl⟩, ?_⟩
+        · exact ((c.g3_outerList_mem _ _ _).1 ho).1
+        · apply PlacedTile.ext rfl
+          simp [erase, PlacedTile.translate]
+      have hsubdivision :=
+        lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step4_matching_lists_l
+          c hH KX KY d d' hMacroSide (by
+            intro o ho o' ho' hov'
+            let A : PlacedTile c.Q := ⟨c.form o.1, KX.v + c.anchor o.1⟩
+            let A' : PlacedTile c.Q := ⟨c.form o'.1, KY.v + c.anchor o'.1⟩
+            have hA := hchildXV o ho
+            have hA' := hchildYV o' ho'
+            have hAs : A.side o.2 = KX.childSide o := by rfl
+            have hA's : A'.side o'.2 = KY.childSide o' := by rfl
+            have := hsts (n + 1) (n + 1) le_rfl V hV A hA A' hA' o.2 o'.2
+              (by rwa [hAs, hA's])
+            rwa [hAs, hA's] at this)
+      have hlen := hsubdivision.length_eq
+      have hidxX :
+          (c.outerList KX.α d).idxOf (c.occ (tileDec X).typ i) <
+            (c.outerList KX.α d).length := List.idxOf_lt_length_iff.2 hd
+      have hidxY :
+          (c.outerList KY.α d').idxOf (c.occ (tileDec Y).typ j) <
+            (c.outerList KY.α d').length := List.idxOf_lt_length_iff.2 hd'
+      have hpair := (List.forall₂_iff_get.1 hsubdivision).2 _ hidxX
+        (hlen ▸ hidxX)
+      have hgetX := List.getElem_idxOf hidxX
+      have hgetY := List.getElem_idxOf hidxY
+      have hpairedSide :
+          KX.childSide (c.occ (tileDec X).typ i) =
+            KY.childSide ((c.outerList KY.α d').get ⟨_, hlen ▸ hidxX⟩) := by
+        exact (congrArg KX.childSide hgetX).symm.trans hpair
+      have hsameY :
+          KY.childSide ((c.outerList KY.α d').get ⟨_, hlen ▸ hidxX⟩) =
+            KY.childSide (c.occ (tileDec Y).typ j) := by
+        rw [← hpairedSide, hXchild, hYchild, hCoincide]
+      have hoccY :
+          (c.outerList KY.α d').get ⟨_, hlen ▸ hidxX⟩ =
+            c.occ (tileDec Y).typ j := by
+        by_contra hne
+        apply ac2_list_no_overlap c
+          (List.getElem_mem (l := c.outerList KY.α d') (hlen ▸ hidxX)) hd' hne
+        rw [ac2_childSide_vadd, ac2_childSide_vadd] at hsameY
+        have hlocal := congrArg (fun S : Set Pt => (-KY.v) +ᵥ S) hsameY
+        simp only [neg_vadd_vadd] at hlocal
+        change OverlapPos
+          (c.occSide ((c.outerList KY.α d').get ⟨_, hlen ▸ hidxX⟩))
+          (c.occSide (c.occ (tileDec Y).typ j))
+        rw [hlocal, ac2_occSide_eq]
+        refine ⟨c.occStart (c.occ (tileDec Y).typ j),
+          c.occEnd (c.occ (tileDec Y).typ j), ac2_occ_ends_ne c _, ?_⟩
+        simp
+      have hidx :
+          (c.outerList KY.α d').idxOf (c.occ (tileDec Y).typ j) =
+            (c.outerList KX.α d).idxOf (c.occ (tileDec X).typ i) := by
+        rw [← hoccY]
+        exact (c.g3_outerList_nodup KY.α d').idxOf_getElem _ _
+      have hParentNe : ZY ≠ ZX := by
+        intro hEq
+        subst ZY
+        have hdd : d' = d := by
+          by_contra hne
+          have hsimp := (c.Q.disk (c.form (tileDec ZX).typ)).simple d' d hne
+          have hlocal := congrArg (fun S : Set Pt => (-ZX.anchor) +ᵥ S) hParentSide
+          simp only [sideOf, neg_vadd_vadd] at hlocal
+          change segment ℝ _ _ = segment ℝ _ _ at hlocal
+          rw [hlocal, Set.inter_self] at hsimp
+          apply ((Set.toFinite _).subset hsimp).not_infinite
+          exact ac2_segment_infinite (fun hv =>
+            asm_finRotate_ne _ (c.Q.disk _).three_le d
+              ((c.Q.disk _).vertex_injective hv).symm)
+        have hoccXY : c.occ (tileDec X).typ i = c.occ (tileDec Y).typ j := by
+          have hxopt := List.getElem?_idxOf hd
+          have hyopt :
+              (c.outerList (c.form (tileDec ZX).typ) d)[
+                (c.outerList (c.form (tileDec ZX).typ) d).idxOf
+                  (c.occ (tileDec Y).typ j)]? = some (c.occ (tileDec Y).typ j) := by
+            simpa [hdd] using List.getElem?_idxOf hd'
+          have hidx' :
+              (c.outerList (c.form (tileDec ZX).typ) d).idxOf
+                  (c.occ (tileDec Y).typ j) =
+                (c.outerList (c.form (tileDec ZX).typ) d).idxOf
+                  (c.occ (tileDec X).typ i) := by
+            simpa [KX, KY, hdd] using hidx
+          rw [hidx'] at hyopt
+          exact Option.some.inj (hxopt.symm.trans hyopt)
+        apply hXYe
+        apply PlacedTile.ext
+        · change c.form (tileDec X).typ = c.form (tileDec Y).typ
+          exact congrArg (fun o : c.SideOcc => c.form o.1) hoccXY
+        · change X.anchor = Y.anchor
+          rw [haX, haY]
+          exact congrArg (fun p => c.σ.θ • ZX.anchor + p)
+            (congrArg (fun o : c.SideOcc => c.anchor o.1) hoccXY)
+      exact ⟨d', hParentNe, hParentSide, hd', hlen.symm, hidx⟩
 
 /-- Step 5 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third`:
 "with one fewer level to go before the chain becomes inner" (no level left): an outer side of a

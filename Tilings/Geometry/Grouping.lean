@@ -3786,6 +3786,38 @@ private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step1_convexModel 
     obtain ⟨y, hy, hy'⟩ := this
     simpa [← hy'] using hy
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition`: a nonconvex polygonal
+disk has an interior diagonal, i.e. two non-adjacent listed vertices whose open connecting segment lies in the interior
+(this is the existence of an ear / diagonal; nonconvexity forces at least four listed vertices). -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step1_existsDiagonal (B : PolygonalDisk)
+    (hconv : ¬ Convex ℝ B.carrier) :
+    ∃ i j : Fin B.n, i ≠ j ∧ j ≠ finRotate B.n i ∧ i ≠ finRotate B.n j ∧
+      openSegment ℝ (B.vertex i) (B.vertex j) ⊆ interior B.carrier := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition`: cutting off along an
+interior diagonal splits the polygonal disk into two polygonal disks with fewer listed vertices, whose union is the
+carrier and which meet exactly along the diagonal. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step2_cutAlongDiagonal (B : PolygonalDisk)
+    (i j : Fin B.n) (hij : i ≠ j) (hji : j ≠ finRotate B.n i) (hij' : i ≠ finRotate B.n j)
+    (hdiag : openSegment ℝ (B.vertex i) (B.vertex j) ⊆ interior B.carrier) :
+    ∃ B₁ B₂ : PolygonalDisk, B₁.n < B.n ∧ B₂.n < B.n ∧ B.carrier = B₁.carrier ∪ B₂.carrier ∧
+      B₁.carrier ∩ B₂.carrier = segment ℝ (B.vertex i) (B.vertex j) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition`: gluing the disk models
+of the two pieces along the common diagonal gives a disk model of the whole polygonal disk. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels (B B₁ B₂ : PolygonalDisk)
+    (p q : Pt) (hpq : p ≠ q) (hdiag : openSegment ℝ p q ⊆ interior B.carrier)
+    (hU : B.carrier = B₁.carrier ∪ B₂.carrier) (hI : B₁.carrier ∩ B₂.carrier = segment ℝ p q)
+    (g₁ : Metric.closedBall (0 : ℂ) 1 → Pt) (hg₁ : Continuous g₁) (hg₁i : Function.Injective g₁)
+    (hg₁r : range g₁ = B₁.carrier) (hg₁b : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g₁ z ∈ interior B₁.carrier)
+    (g₂ : Metric.closedBall (0 : ℂ) 1 → Pt) (hg₂ : Continuous g₂) (hg₂i : Function.Injective g₂)
+    (hg₂r : range g₂ = B₂.carrier) (hg₂b : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g₂ z ∈ interior B₂.carrier) :
+    ∃ g : Metric.closedBall (0 : ℂ) 1 → Pt, Continuous g ∧ Function.Injective g ∧
+      range g = B.carrier ∧ ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: the ear decomposition (polygonal Schoenflies
 theorem) for a nonconvex polygonal disk.  Cutting off ears along interior diagonals and gluing the disk models
 of the pieces, the carrier is the image of the closed unit disk under a continuous injective map sending the
@@ -3793,7 +3825,32 @@ open unit disk into the interior. -/
 private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition (B : PolygonalDisk) (hconv : ¬ Convex ℝ B.carrier) :
     ∃ g : Metric.closedBall (0 : ℂ) 1 → Pt, Continuous g ∧ Function.Injective g ∧
       range g = B.carrier ∧ ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier := by
-  sorry
+  have key : ∀ m : ℕ, ∀ B : PolygonalDisk, B.n < m →
+      ∃ g : Metric.closedBall (0 : ℂ) 1 → Pt, Continuous g ∧ Function.Injective g ∧
+        range g = B.carrier ∧ ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier := by
+    intro m
+    induction m with
+    | zero => intro B hB; exact absurd hB (Nat.not_lt_zero _)
+    | succ m ih =>
+      intro B hB
+      by_cases hc : Convex ℝ B.carrier
+      · exact plAnnulusRouting_polygonalDisk_closedBall_model_step1_convexModel B hc
+      obtain ⟨i, j, hij, hji, hij', hdiag⟩ :=
+        plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step1_existsDiagonal B hc
+      obtain ⟨B₁, B₂, h₁, h₂, hU, hI⟩ :=
+        plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step2_cutAlongDiagonal B i j hij hji hij' hdiag
+      obtain ⟨g₁, hg₁, hg₁i, hg₁r, hg₁b⟩ := ih B₁ (by omega)
+      obtain ⟨g₂, hg₂, hg₂i, hg₂r, hg₂b⟩ := ih B₂ (by omega)
+      exact plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels B B₁ B₂ _ _
+        (fun h => hij (B.vertex_injective h)) hdiag hU hI g₁ hg₁ hg₁i hg₁r hg₁b g₂ hg₂ hg₂i hg₂r hg₂b
+  obtain ⟨i, j, hij, hji, hij', hdiag⟩ :=
+    plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step1_existsDiagonal B hconv
+  obtain ⟨B₁, B₂, h₁, h₂, hU, hI⟩ :=
+    plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step2_cutAlongDiagonal B i j hij hji hij' hdiag
+  obtain ⟨g₁, hg₁, hg₁i, hg₁r, hg₁b⟩ := key B.n B₁ h₁
+  obtain ⟨g₂, hg₂, hg₂i, hg₂r, hg₂b⟩ := key B.n B₂ h₂
+  exact plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels B B₁ B₂ _ _
+    (fun h => hij (B.vertex_injective h)) hdiag hU hI g₁ hg₁ hg₁i hg₁r hg₁b g₂ hg₂ hg₂i hg₂r hg₂b
 
 /-- Step 3 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: every polygonal disk has a disk model (combine the
 convex base case with the ear decomposition). -/

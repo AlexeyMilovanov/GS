@@ -21341,6 +21341,132 @@ private lemma existsRoutingAfterPower_step3_entries_step2_outside_step1_original
       HasEdge F e ∧ e ⊆ frontier (Rs.annulus l α hl).H.carrier := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior`:
+"the face cannot be an unrelated placed tile" -- every original tile of the scattering of a mixed
+tile lies in the carrier of that mixed tile. -/
+private lemma existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step1_carrier
+    (G : GroupedFamily P) (C : PlacedTile G.mixed) {X : PlacedTile P}
+    (hX : X ∈ G.mixedScatterTile C) : X.carrier ⊆ C.carrier := by
+  rcases C with ⟨f, a⟩
+  rcases f with β | p
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inl, translateSet, Set.mem_image] at hX
+    obtain ⟨T0, hT0, rfl⟩ := hX
+    have hsub : T0.carrier ⊆ (G.P'.disk β).carrier := by
+      rw [← G.support_eq β]; exact carrier_subset_support hT0
+    intro x hx
+    simp only [PlacedTile.carrier, PlacedTile.translate] at hx ⊢
+    obtain ⟨y, hy, rfl⟩ := hx
+    refine ⟨T0.anchor +ᵥ y, hsub ⟨y, hy, rfl⟩, ?_⟩
+    simp [vadd_eq_add, add_assoc]
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inr, Set.mem_singleton_iff] at hX
+    subst hX
+    intro x hx
+    exact hx
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior`:
+"Membership in both the retained children and the scattered tiling is retained explicitly" --
+the scattering of a patch of mixed tiles has pairwise disjoint interiors. -/
+private lemma existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step1_disjoint
+    (G : GroupedFamily P) (T : Patch G.mixed) : DisjointInteriors (G.mixedScatter T.tiles) := by
+  intro X hX Y hY hXY
+  simp only [GroupedFamily.mixedScatter, Set.mem_iUnion] at hX hY
+  obtain ⟨C1, hC1, hX1⟩ := hX
+  obtain ⟨C2, hC2, hY2⟩ := hY
+  by_cases hC : C1 = C2
+  · subst hC
+    rcases C1 with ⟨f, a⟩
+    rcases f with β | p
+    · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inl, translateSet, Set.mem_image] at hX1 hY2
+      obtain ⟨X0, hX0, rfl⟩ := hX1
+      obtain ⟨Y0, hY0, rfl⟩ := hY2
+      have hne : X0 ≠ Y0 := fun h => hXY (h ▸ rfl)
+      have hd := (G.dissect β).disjoint hX0 hY0 hne
+      have hcar : ∀ Z : PlacedTile P, (Z.translate a).carrier = a +ᵥ Z.carrier := by
+        intro Z
+        simp only [PlacedTile.carrier, PlacedTile.translate, vadd_vadd]
+        rfl
+      change Disjoint (interior (X0.translate a).carrier) (interior (Y0.translate a).carrier)
+      rw [hcar, hcar, interior_vadd, interior_vadd]
+      exact Set.disjoint_vadd_set.2 hd
+    · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inr, Set.mem_singleton_iff] at hX1 hY2
+      exact absurd (hX1.trans hY2.symm) hXY
+  · have hd := T.disjoint hC1 hC2 hC
+    exact Disjoint.mono
+      (interior_mono
+        (existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step1_carrier G C1 hX1))
+      (interior_mono
+        (existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step1_carrier G C2 hY2))
+      hd
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior`:
+"Its outside-anchored original face contains a point outside `K₁`" -- a face of a tiling with
+disjoint interiors, not in the outside-anchored group `H`, having a listed side on the boundary of
+`H`, is the outside face of a listed side of `H`, hence its interior meets the exterior of `K`. -/
+private lemma existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step2_anchor
+    {S : Set (PlacedTile P)} (hdisj : DisjointInteriors S) (H : FaceGroup S) {K : Set Pt}
+    (hanc : H.OutsideAnchored K) {A : PlacedTile P} (hA : A ∈ S) (hAH : A ∉ H.faces)
+    (i : Fin (P.disk A.form).n) (hi : A.side i ⊆ frontier H.carrier) :
+    (interior A.carrier ∩ Kᶜ).Nonempty := by
+  classical
+  set a := A.vertex i
+  set b := A.vertex (finRotate _ i)
+  have hab : a ≠ b := tile_vertex_ne_next A i
+  -- a relative interior point of the side, not a vertex of `H`
+  have hinf : (openSegment ℝ a b).Infinite := by
+    rw [openSegment_eq_image']
+    refine (Set.Ioo_infinite (by norm_num : (0 : ℝ) < 1)).image ?_
+    intro s _ t _ hst
+    have hd : b - a ≠ 0 := sub_ne_zero.2 hab.symm
+    exact smul_cancel_pt hd (add_left_cancel hst)
+  have hVfin : H.disk.vertexSet.Finite := Set.finite_range _
+  obtain ⟨q, hqo, hqV⟩ := (hinf.diff hVfin).nonempty
+  have hqA : q ∈ A.side i := openSeg_mem_side A i hqo
+  have hqH : q ∈ frontier H.disk.carrier := hi hqA
+  rw [H.disk.frontier_eq] at hqH
+  obtain ⟨m, hm⟩ := Set.mem_iUnion.1 hqH
+  have hqm : q ∈ openSegment ℝ (H.disk.vertex m) (H.disk.vertex (finRotate _ m)) := by
+    refine mem_openSegment_of_ne_left_right ?_ ?_ hm
+    · intro h; exact hqV ⟨m, h⟩
+    · intro h; exact hqV ⟨_, h⟩
+  obtain ⟨F', hF'S, hF'H, ⟨k, hk⟩, hF'K⟩ := hanc m
+  obtain ⟨B, hBH, ⟨j, hj⟩⟩ := H.side_whole m
+  have hBS : B ∈ S := H.faces_sub hBH
+  have hBF : B ≠ F' := fun h => hF'H (h ▸ hBH)
+  have hAB : A ≠ B := fun h => hAH (h ▸ hBH)
+  have hqB : q ∈ openSegment ℝ (B.vertex j) (B.vertex (finRotate _ j)) := by
+    refine openSegment_transfer (pd_vertex_ne_next H.disk m) ?_ hqm
+    rw [← tile_side_eq, hj]; rfl
+  have hkj : F'.side k = B.side j := hk.trans hj.symm
+  obtain ⟨r, hr, σ, hσ, hch⟩ := two_sides hdisj hBS hF'S hBF j k hkj hqB
+  -- a point of the interior of `A` near `q`
+  have hqAc : q ∈ closure (interior A.carrier) := by
+    rw [tile_regular]; exact tile_side_subset A i hqA
+  obtain ⟨y, hyA, hqy⟩ := Metric.mem_closure_iff.1 hqAc (r / 2) (by linarith)
+  obtain ⟨ε, hε, hεA⟩ := Metric.isOpen_iff.1 isOpen_interior y hyA
+  set d := B.vertex (finRotate _ j) - B.vertex j
+  have hd : d ≠ 0 := sub_ne_zero.2 (tile_vertex_ne_next B j).symm
+  have hnegσ : -σ = 1 ∨ -σ = -1 := by
+    rcases hσ with hσ | hσ <;> rw [hσ] <;> norm_num
+  obtain ⟨z, hyz, hz⟩ := exists_near_off_line (B.vertex j) hd y hnegσ (lt_min hε (half_pos hr))
+  have hyball : y ∈ Metric.ball q r := by
+    rw [Metric.mem_ball, dist_comm]; linarith
+  have hzball : z ∈ Metric.ball q r := by
+    rw [Metric.mem_ball]
+    have h1 := dist_triangle z y q
+    have h2 : dist y z < r / 2 := lt_of_lt_of_le hyz (min_le_right _ _)
+    rw [dist_comm z y, dist_comm y q] at h1
+    linarith
+  have hzA : z ∈ interior A.carrier := hεA (by
+    rw [Metric.mem_ball, dist_comm]; exact lt_of_lt_of_le hyz (min_le_left _ _))
+  by_cases hpos : 0 < σ * jcr d (y - B.vertex j)
+  · exact (interiors_disjoint hdisj hA hBS hAB hyA ((hch y hyball).1 hpos)).elim
+  · have hzneg : σ * jcr d (z - B.vertex j) < 0 := by
+      push_neg at hpos; linarith
+    have hzF : z ∈ interior F'.carrier := (hch z hzball).2.1 hzneg
+    by_cases hAF : A = F'
+    · rw [hAF]; exact hF'K
+    · exact (interiors_disjoint hdisj hA hF'S hAF hzA hzF).elim
+
 /-- Step 2 of the blueprint proof of
 `existsRoutingAfterPower_step3_entries_step2_outside`: an original scattered face attached to a
 boundary edge of an outside-anchored group has an interior point in the exterior.  Membership in
@@ -21358,7 +21484,17 @@ private lemma existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior
     (heF : HasEdge F e) (he_boundary : e ⊆ frontier (Rs.annulus l α hl).H.carrier) :
     ∃ q, q ∈ interior F.carrier ∧
       q ∉ square (Rs.centre l α) ((Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α) + Binf (3 * M.D) := by
-  sorry
+  have _ := j
+  rcases F with ⟨f, a⟩
+  dsimp only at hform
+  subst hform
+  obtain ⟨i, hi⟩ := heF
+  have hside : (⟨p, a⟩ : PlacedTile P).side i ⊆ frontier (Rs.annulus l α hl).H.carrier := by
+    rw [← hi] at he_boundary; exact he_boundary
+  exact existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step2_anchor
+    (existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step1_disjoint Rs.GS.G
+      (Rs.retained l α).children)
+    (Rs.annulus l α hl).H (Rs.annulus l α hl).H_anchor hscatter houtside i hside
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries`: "Its
 outside-anchored original face contains a point `q_i` outside `K₁`".  The outside face of a private

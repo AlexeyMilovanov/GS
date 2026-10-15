@@ -4083,6 +4083,876 @@ private lemma plAnnulusRouting_polygonalDisk_closedBall_model
   exact plAnnulusRouting_polygonalDisk_closedBall_model_step7_coneReparametrization B g hg hginj (fun z => hrange ▸ mem_range_self z) hint l hl
     ψ hψ hψn hψl
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the polygonal annulus
+`A \ interior C` is a topological annulus.  It has a period-one model `Ψ`, injective on one fundamental domain, sending
+`{0} × ℝ` and `{1} × ℝ` onto the outer and inner boundaries (as loop parametrizations), the closed strip onto the
+annulus and the open strip into its interior. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step1_annulusModel
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) :
+    ∃ Ψ : ℝ × ℝ → Pt, Continuous Ψ ∧ (∀ s t, Ψ (s, t + 1) = Ψ (s, t)) ∧
+      InjOn Ψ (Icc 0 1 ×ˢ Ico 0 1) ∧ IsLoopParam (frontier A.carrier) (fun t => Ψ (0, t)) ∧
+      IsLoopParam (frontier C.carrier) (fun t => Ψ (1, t)) ∧
+      MapsTo Ψ (Icc 0 1 ×ˢ univ) (A.carrier \ interior C.carrier) ∧
+      A.carrier \ interior C.carrier ⊆ Ψ '' (Icc 0 1 ×ˢ univ) ∧
+      MapsTo Ψ (Ioo 0 1 ×ˢ univ) (interior A.carrier \ C.carrier) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: for a period-one annulus map that
+is injective on one fundamental domain, equal values force equal radial coordinates and angular coordinates differing
+by an integer. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_periodicFiber {Φ : ℝ × ℝ → Pt} (hper : ∀ s t, Φ (s, t + 1) = Φ (s, t))
+    (hinj : InjOn Φ (Icc 0 1 ×ˢ Ico 0 1)) {s s' t t' : ℝ} (hs : s ∈ Icc (0 : ℝ) 1) (hs' : s' ∈ Icc (0 : ℝ) 1)
+    (h : Φ (s, t) = Φ (s', t')) : s = s' ∧ ∃ n : ℤ, t - t' = n := by
+  have hfr : ∀ u v, Φ (u, Int.fract v) = Φ (u, v) := by
+    intro u v
+    have hp : Function.Periodic (fun w => Φ (u, w)) 1 := fun w => hper u w
+    have := (hp.int_mul ⌊v⌋) (Int.fract v)
+    simp only [mul_one, Int.fract_add_floor] at this
+    exact this.symm
+  rw [← hfr s t, ← hfr s' t'] at h
+  have := hinj ⟨hs, Int.fract_nonneg t, Int.fract_lt_one t⟩ ⟨hs', Int.fract_nonneg t', Int.fract_lt_one t'⟩ h
+  simp only [Prod.mk.injEq] at this
+  exact ⟨this.1, Int.fract_eq_fract.1 this.2⟩
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: two reals have the same image in
+`AddCircle 1` iff they differ by an integer. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_addCircleCoeEq (a b : ℝ) :
+    (a : AddCircle (1 : ℝ)) = (b : AddCircle (1 : ℝ)) ↔ ∃ m : ℤ, a = b + m := by
+  show (QuotientAddGroup.mk a : ℝ ⧸ AddSubgroup.zmultiples (1 : ℝ)) = QuotientAddGroup.mk b ↔ _
+  rw [QuotientAddGroup.eq_iff_sub_mem, AddSubgroup.mem_zmultiples_iff]
+  constructor
+  · rintro ⟨m, hm⟩; exact ⟨m, by rw [zsmul_eq_mul, mul_one] at hm; linarith⟩
+  · rintro ⟨m, hm⟩; exact ⟨m, by rw [zsmul_eq_mul, mul_one]; linarith⟩
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: a continuous real function taking
+equal values at the ends of an interval `[a, b]` is not injective on `[a, b)`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_nonInjOfEqEndpoints {F : ℝ → ℝ} (hF : Continuous F) {a b : ℝ} (hab : a < b) (he : F a = F b) :
+    ¬ InjOn F (Ico a b) := by
+  intro hinj
+  by_cases hc : ∀ c ∈ Ioo a b, F c = F a
+  · have := hinj (show (a + b) / 2 ∈ Ico a b from ⟨by linarith, by linarith⟩) (left_mem_Ico.2 hab)
+      (hc _ ⟨by linarith, by linarith⟩)
+    linarith
+  push_neg at hc
+  obtain ⟨c, hc, hFc⟩ := hc
+  rcases lt_or_gt_of_ne hFc with h | h
+  · obtain ⟨x, hx, hxv⟩ := intermediate_value_Icc' hc.1.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F c) (F a) from ⟨by linarith, by linarith⟩)
+    obtain ⟨y, hy, hyv⟩ := intermediate_value_Icc hc.2.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F c) (F b) from ⟨by linarith, by linarith⟩)
+    have hxc : x ≠ c := fun h' => by rw [h'] at hxv; linarith
+    have hyc : y ≠ c := fun h' => by rw [h'] at hyv; linarith
+    have hyb : y ≠ b := fun h' => by rw [h', ← he] at hyv; linarith
+    have := hinj ⟨hx.1, by linarith [hx.2, hc.2]⟩ ⟨by linarith [hy.1, hc.1], lt_of_le_of_ne hy.2 hyb⟩ (hxv.trans hyv.symm)
+    have h1 : x < c := lt_of_le_of_ne hx.2 hxc
+    have h2 : c < y := lt_of_le_of_ne hy.1 (Ne.symm hyc)
+    linarith
+  · obtain ⟨x, hx, hxv⟩ := intermediate_value_Icc hc.1.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F a) (F c) from ⟨by linarith, by linarith⟩)
+    obtain ⟨y, hy, hyv⟩ := intermediate_value_Icc' hc.2.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F b) (F c) from ⟨by linarith, by linarith⟩)
+    have hxc : x ≠ c := fun h' => by rw [h'] at hxv; linarith
+    have hyc : y ≠ c := fun h' => by rw [h'] at hyv; linarith
+    have hyb : y ≠ b := fun h' => by rw [h', ← he] at hyv; linarith
+    have := hinj ⟨hx.1, by linarith [hx.2, hc.2]⟩ ⟨by linarith [hy.1, hc.1], lt_of_le_of_ne hy.2 hyb⟩ (hxv.trans hyv.symm)
+    have h1 : x < c := lt_of_le_of_ne hx.2 hxc
+    have h2 : c < y := lt_of_le_of_ne hy.1 (Ne.symm hyc)
+    linarith
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: two period-one parametrizations of
+the same simple closed curve differ by a reparametrization `φ` lifting a circle homeomorphism: `φ` is continuous and
+either increasing of degree one or decreasing of degree minus one. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_boundaryLift {K : Set Pt} {γ δ : ℝ → Pt} (hγ : IsLoopParam K γ) (hδ : IsLoopParam K δ) :
+    ∃ φ : ℝ → ℝ, Continuous φ ∧
+      ((StrictMono φ ∧ ∀ t, φ (t + 1) = φ t + 1) ∨ (StrictAnti φ ∧ ∀ t, φ (t + 1) = φ t - 1)) ∧
+      ∀ t, δ (φ t) = γ t := by
+  have hce := @plAnnulusRouting_polygonalAnnulus_cutModel_step2_addCircleCoeEq
+  obtain ⟨ψ, hψ⟩ := plSchoenflies_loopParam_circleHomeomorph hγ hδ
+  let f : C(ℝ, AddCircle (1 : ℝ)) :=
+    ⟨fun t => ψ (t : AddCircle (1 : ℝ)), ψ.continuous.comp continuous_quotient_mk'⟩
+  have cov := AddCircle.isCoveringMap_coe (1 : ℝ)
+  obtain ⟨e₀, he₀⟩ := QuotientAddGroup.mk_surjective (ψ ((0 : ℝ) : AddCircle (1 : ℝ)))
+  obtain ⟨F, ⟨hF0, hFl⟩, huniq⟩ := cov.existsUnique_continuousMap_lifts f 0 e₀ he₀
+  have hFt : ∀ t, ((F t : ℝ) : AddCircle (1 : ℝ)) = ψ (t : AddCircle (1 : ℝ)) := fun t => congrFun hFl t
+  have key : ∀ a b, ((F a : ℝ) : AddCircle (1 : ℝ)) = ((F b : ℝ) : AddCircle (1 : ℝ)) ↔
+      (a : AddCircle (1 : ℝ)) = (b : AddCircle (1 : ℝ)) := by
+    intro a b; rw [hFt, hFt]; exact ψ.injective.eq_iff
+  obtain ⟨k, hk⟩ := (hce _ _).1 ((key 1 0).2 ((hce 1 0).2 ⟨1, by norm_num⟩))
+  have hper : ∀ t, F (t + 1) = F t + k := by
+    let G : C(ℝ, ℝ) := ⟨fun t => F (t + 1) - k, by fun_prop⟩
+    have hG : G = F := huniq G ⟨by simp [G, hk, hF0], by
+      funext t
+      simp only [G, Function.comp_apply, ContinuousMap.coe_mk]
+      rw [show ((F (t + 1) - (k : ℝ) : ℝ) : AddCircle (1 : ℝ)) = ((F (t + 1) : ℝ) : AddCircle (1 : ℝ)) from
+        (hce _ _).2 ⟨-k, by push_cast; ring⟩, hFt]
+      show ψ _ = ψ _
+      congr 1
+      exact (hce _ _).2 ⟨1, by push_cast; ring⟩⟩
+    intro t
+    have := congrArg (fun H : C(ℝ, ℝ) => H t) hG
+    simp only [G, ContinuousMap.coe_mk] at this
+    linarith
+  have hperm : ∀ (m : ℤ) t, F (t + m) = F t + m * k := by
+    intro m
+    induction m using Int.induction_on with
+    | zero => intro t; simp
+    | succ n ih => intro t; rw [show t + ((n + 1 : ℤ) : ℝ) = (t + ((n : ℤ) : ℝ)) + 1 by push_cast; ring, hper, ih]; push_cast; ring
+    | pred n ih =>
+      intro t
+      have := hper (t + ((-(n : ℤ) - 1 : ℤ) : ℝ))
+      rw [show t + ((-(n : ℤ) - 1 : ℤ) : ℝ) + 1 = t + ((-(n : ℤ)) : ℤ) by push_cast; ring, ih] at this
+      push_cast at this ⊢; linarith
+  have hk0 : k ≠ 0 := by
+    intro hk0
+    refine plAnnulusRouting_polygonalAnnulus_cutModel_step2_nonInjOfEqEndpoints F.continuous zero_lt_one (by rw [hk, hk0]; simp) ?_
+    intro a ha b hb hab
+    have := (key a b).1 (by rw [hab])
+    exact (AddCircle.coe_eq_coe_iff_of_mem_Ico (a := 0) (by simpa using ha) (by simpa using hb)).1 this
+  have hinj : Function.Injective F := by
+    intro a b hab
+    obtain ⟨m, hm⟩ := (hce a b).1 ((key a b).1 (by rw [hab]))
+    have h1 := hperm m b
+    rw [← hm, hab] at h1
+    have : (m : ℝ) * k = 0 := by linarith
+    have : m = 0 := by
+      rcases mul_eq_zero.1 this with h | h
+      · exact_mod_cast h
+      · exact absurd (by exact_mod_cast h) hk0
+    rw [hm, this]; simp
+  have hunit : ∀ a, F a = F 0 + 1 ∨ F a = F 0 - 1 → k = 1 ∨ k = -1 := by
+    intro a ha
+    obtain ⟨m, hm⟩ := (hce a 0).1 ((key a 0).1 ((hce _ _).2 (by
+      rcases ha with ha | ha
+      · exact ⟨1, by rw [ha]; push_cast; ring⟩
+      · exact ⟨-1, by rw [ha]; push_cast; ring⟩)))
+    have h1 := hperm m 0
+    rw [zero_add] at hm h1
+    subst hm
+    rcases ha with ha | ha
+    · have : m * k = 1 := by
+        have : ((m * k : ℤ) : ℝ) = 1 := by push_cast; linarith
+        exact_mod_cast this
+      exact Int.eq_one_or_neg_one_of_mul_eq_one' this |>.elim (fun h => Or.inl h.2) (fun h => Or.inr h.2)
+    · have : m * k = -1 := by
+        have : ((m * k : ℤ) : ℝ) = -1 := by push_cast; linarith
+        exact_mod_cast this
+      have h' : (-m) * k = 1 := by rw [neg_mul, this]; rfl
+      exact Int.eq_one_or_neg_one_of_mul_eq_one' h' |>.elim (fun h => Or.inl h.2) (fun h => Or.inr h.2)
+  refine ⟨F, F.continuous, ?_, fun t => ?_⟩
+  · rcases F.continuous.strictMono_of_inj hinj with hm | hm
+    · left
+      have hpos : (0 : ℝ) < k := by have := hm zero_lt_one; linarith
+      have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast (show (1 : ℤ) ≤ k by exact_mod_cast hpos)
+      obtain ⟨a, -, ha⟩ := intermediate_value_Icc zero_le_one F.continuous.continuousOn
+        (show F 0 + 1 ∈ Icc (F 0) (F 1) from ⟨by linarith, by linarith⟩)
+      have hk' : k = 1 := (hunit a (Or.inl ha)).resolve_right (fun h => by rw [h] at hpos; norm_num at hpos)
+      exact ⟨hm, fun t => by rw [hper, hk']; norm_num⟩
+    · right
+      have hneg : (k : ℝ) < 0 := by have := hm zero_lt_one; linarith
+      have hk1 : (k : ℝ) ≤ -1 := by exact_mod_cast (show k ≤ -1 by
+        have : k < 0 := by exact_mod_cast hneg
+        omega)
+      obtain ⟨a, -, ha⟩ := intermediate_value_Icc' zero_le_one F.continuous.continuousOn
+        (show F 0 - 1 ∈ Icc (F 1) (F 0) from ⟨by linarith, by linarith⟩)
+      have hk' : k = -1 := (hunit a (Or.inr ha)).resolve_left (fun h => by rw [h] at hneg; norm_num at hneg)
+      exact ⟨hm, fun t => by rw [hper, hk']; norm_num; ring⟩
+  · rw [← hψ t, ← hFt t]; rfl
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: an integer-valued continuous real
+function on a preconnected set is constant. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_intValuedConst {X : Type*} [TopologicalSpace X] {S : Set X}
+    (hS : IsPreconnected S) {f : X → ℝ}
+    (hf : ContinuousOn f S) (hint : ∀ x ∈ S, ∃ n : ℤ, f x = n) {a b : X} (ha : a ∈ S) (hb : b ∈ S) :
+    f a = f b := by
+  have half : ∀ m n : ℤ, (n : ℝ) ≠ m + 1 / 2 := by
+    intro m n h
+    have : ((2 * n : ℤ) : ℝ) = ((2 * m + 1 : ℤ) : ℝ) := by push_cast; linarith
+    have := Int.cast_injective this
+    omega
+  obtain ⟨m, hm⟩ := hint a ha
+  obtain ⟨n, hn⟩ := hint b hb
+  by_contra hne
+  rcases lt_or_gt_of_ne hne with h | h
+  · have hmn : m + 1 ≤ n := by
+      have : m < n := by rw [hm, hn] at h; exact_mod_cast h
+      omega
+    have hmn' : (m : ℝ) + 1 ≤ n := by exact_mod_cast hmn
+    obtain ⟨c, hc, hfc⟩ := hS.intermediate_value ha hb hf (show (m : ℝ) + 1 / 2 ∈ Icc (f a) (f b) from
+      ⟨by rw [hm]; linarith, by rw [hn]; linarith⟩)
+    obtain ⟨k, hk⟩ := hint c hc
+    exact half m k (hk ▸ hfc)
+  · have hmn : n + 1 ≤ m := by
+      have : n < m := by rw [hm, hn] at h; exact_mod_cast h
+      omega
+    have hmn' : (n : ℝ) + 1 ≤ m := by exact_mod_cast hmn
+    obtain ⟨c, hc, hfc⟩ := hS.intermediate_value hb ha hf (show (n : ℝ) + 1 / 2 ∈ Icc (f b) (f a) from
+      ⟨by rw [hn]; linarith, by rw [hm]; linarith⟩)
+    obtain ⟨k, hk⟩ := hint c hc
+    exact half n k (hk ▸ hfc)
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the
+plAnnulusRouting_polygonalAnnulus_cutModel_step2_angularRetraction coordinate of the annulus model is a continuous
+retraction of the annulus onto the circle `AddCircle 1`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_angularRetraction (Ψ : ℝ × ℝ → Pt) (hΨc : Continuous Ψ) (hper : ∀ s t, Ψ (s, t + 1) = Ψ (s, t))
+    (hinj : InjOn Ψ (Icc 0 1 ×ˢ Ico 0 1)) :
+    ∃ r : Pt → AddCircle (1 : ℝ), ContinuousOn r (Ψ '' (Icc 0 1 ×ˢ univ)) ∧
+      ∀ s ∈ Icc (0 : ℝ) 1, ∀ t : ℝ, r (Ψ (s, t)) = (t : AddCircle (1 : ℝ)) := by
+  let Ψc : ℝ × AddCircle (1 : ℝ) → Pt := fun p =>
+    (show Function.Periodic (fun t => Ψ (p.1, t)) 1 from fun t => hper _ t).lift p.2
+  have hΨc' : Continuous Ψc := by
+    rw [← (IsOpenQuotientMap.id.prodMap (QuotientAddGroup.isOpenQuotientMap_mk
+      (N := AddSubgroup.zmultiples (1 : ℝ)))).continuous_comp_iff]
+    exact hΨc
+  let S : Set (ℝ × AddCircle (1 : ℝ)) := Icc 0 1 ×ˢ univ
+  haveI : CompactSpace S := isCompact_iff_compactSpace.1 (isCompact_Icc.prod isCompact_univ)
+  let e : S → Pt := fun p => Ψc p.1
+  have he : Continuous e := hΨc'.comp continuous_subtype_val
+  have hfr : ∀ x : AddCircle (1 : ℝ), ∃ t ∈ Ico (0 : ℝ) 1, (t : AddCircle (1 : ℝ)) = x := by
+    intro x
+    obtain ⟨t0, rfl⟩ := QuotientAddGroup.mk_surjective x
+    refine ⟨Int.fract t0, ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩, (plAnnulusRouting_polygonalAnnulus_cutModel_step2_addCircleCoeEq _ _).2 ⟨-⌊t0⌋, ?_⟩⟩
+    rw [Int.fract]; push_cast; ring
+  have heinj : Function.Injective e := by
+    rintro ⟨⟨s, x⟩, hs⟩ ⟨⟨s', x'⟩, hs'⟩ hee
+    obtain ⟨t, ht, rfl⟩ := hfr x
+    obtain ⟨t', ht', rfl⟩ := hfr x'
+    have := hinj ⟨hs.1, ht⟩ ⟨hs'.1, ht'⟩ hee
+    simp only [Prod.mk.injEq] at this
+    obtain ⟨rfl, rfl⟩ := this; rfl
+  have hemb := (he.isClosedEmbedding heinj).isEmbedding
+  let h := hemb.toHomeomorph
+  classical
+  let r : Pt → AddCircle (1 : ℝ) := fun P => if hP : P ∈ range e then (h.symm ⟨P, hP⟩).1.2 else 0
+  have hsub : Ψ '' (Icc 0 1 ×ˢ univ) ⊆ range e := by
+    rintro _ ⟨⟨s, t⟩, ⟨hs, -⟩, rfl⟩
+    exact ⟨⟨(s, (t : AddCircle (1 : ℝ))), hs, mem_univ _⟩, rfl⟩
+  refine ⟨r, ?_, ?_⟩
+  · refine ContinuousOn.mono ?_ hsub
+    rw [continuousOn_iff_continuous_restrict]
+    have : (range e).restrict r = fun z => (h.symm z).1.2 := by
+      funext z; simp only [restrict_apply, r, dif_pos z.2]
+    rw [this]
+    exact continuous_snd.comp (continuous_subtype_val.comp h.symm.continuous)
+  · intro s hs t
+    have hmem : Ψ (s, t) ∈ range e := ⟨⟨(s, (t : AddCircle (1 : ℝ))), hs, mem_univ _⟩, rfl⟩
+    simp only [r, dif_pos hmem]
+    have : h.symm ⟨Ψ (s, t), hmem⟩ = ⟨(s, (t : AddCircle (1 : ℝ))), hs, mem_univ _⟩ := by
+      rw [Homeomorph.symm_apply_eq]
+      exact Subtype.ext rfl
+    rw [this]
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: compatible orientations: if the
+outer loop `γo` is freely homotopic inside the annulus to the inner loop `γi`, then `γi` cannot be an
+orientation-reversing (degree minus one) reparametrization of the inner boundary loop of the annulus model. The
+plAnnulusRouting_polygonalAnnulus_cutModel_step2_angularRetraction retraction turns the homotopy into a homotopy of
+circle maps, whose lift to `ℝ` would have to have constant degree. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_noReversal (U : Set Pt) (γo γi : ℝ → Pt) (hhom : LoopsHomotopicIn U γo γi)
+    (Ψ : ℝ × ℝ → Pt) (hΨc : Continuous Ψ) (hper : ∀ s t, Ψ (s, t + 1) = Ψ (s, t))
+    (hinj : InjOn Ψ (Icc 0 1 ×ˢ Ico 0 1)) (hΨ0 : ∀ t, Ψ (0, t) = γo t)
+    (hsurj : U ⊆ Ψ '' (Icc 0 1 ×ˢ univ))
+    (φ : ℝ → ℝ) (hφc : Continuous φ) (hφp : ∀ t, φ (t + 1) = φ t - 1) (hφ : ∀ t, Ψ (1, φ t) = γi t) :
+    False := by
+  obtain ⟨F, hFc, hFper, hF0, hF1, hFU⟩ := hhom
+  obtain ⟨r, hrc, hr⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_angularRetraction Ψ hΨc hper hinj
+  have hFV : ∀ p : unitInterval × ℝ, F (p.1.1, p.2) ∈ Ψ '' (Icc 0 1 ×ˢ univ) :=
+    fun p => hsurj (hFU p.1.1 p.1.2 p.2)
+  let H : C(unitInterval × ℝ, AddCircle (1 : ℝ)) := ⟨fun p => r (F (p.1.1, p.2)), by
+    have : Continuous fun p : unitInterval × ℝ => F (p.1.1, p.2) := hFc.comp (by fun_prop)
+    exact hrc.comp_continuous this hFV⟩
+  have hH0 : ∀ a : ℝ, H (0, a) = ((ContinuousMap.id ℝ a : ℝ) : AddCircle (1 : ℝ)) := by
+    intro a
+    show r (F (0, a)) = _
+    rw [hF0, ← hΨ0, hr 0 ⟨le_rfl, zero_le_one⟩]; rfl
+  have cov := AddCircle.isCoveringMap_coe (1 : ℝ)
+  let G := cov.liftHomotopy H (ContinuousMap.id ℝ) hH0
+  have hGl : ∀ p, ((G p : ℝ) : AddCircle (1 : ℝ)) = H p := fun p => congrFun (cov.liftHomotopy_lifts H _ hH0) p
+  have hG0 : ∀ a, G (0, a) = a := fun a => cov.liftHomotopy_zero H _ hH0 a
+  let D : unitInterval × ℝ → ℝ := fun p => G (p.1, p.2 + 1) - G p
+  have hDint : ∀ p ∈ (univ : Set (unitInterval × ℝ)), ∃ n : ℤ, D p = n := by
+    intro p _
+    have : ((G (p.1, p.2 + 1) : ℝ) : AddCircle (1 : ℝ)) = ((G p : ℝ) : AddCircle (1 : ℝ)) := by
+      rw [hGl, hGl]
+      show r (F (p.1.1, p.2 + 1)) = r (F (p.1.1, p.2))
+      rw [hFper]
+    obtain ⟨m, hm⟩ := (plAnnulusRouting_polygonalAnnulus_cutModel_step2_addCircleCoeEq _ _).1 this
+    exact ⟨m, by simp only [D]; linarith⟩
+  have hDc : ContinuousOn D univ := by
+    apply Continuous.continuousOn
+    exact (G.continuous.comp (by fun_prop)).sub G.continuous
+  have hD := plAnnulusRouting_polygonalAnnulus_cutModel_step2_intValuedConst isPreconnected_univ hDc hDint (mem_univ ((0 : unitInterval), (0 : ℝ)))
+    (mem_univ ((1 : unitInterval), (0 : ℝ)))
+  let E : ℝ → ℝ := fun t => G (1, t) - φ t
+  have hEint : ∀ t ∈ (univ : Set ℝ), ∃ n : ℤ, E t = n := by
+    intro t _
+    have : ((G (1, t) : ℝ) : AddCircle (1 : ℝ)) = ((φ t : ℝ) : AddCircle (1 : ℝ)) := by
+      rw [hGl]
+      show r (F (1, t)) = _
+      rw [hF1, ← hφ, hr 1 ⟨zero_le_one, le_rfl⟩]
+    obtain ⟨m, hm⟩ := (plAnnulusRouting_polygonalAnnulus_cutModel_step2_addCircleCoeEq _ _).1 this
+    exact ⟨m, by simp only [E]; linarith⟩
+  have hEc : ContinuousOn E univ := by
+    apply Continuous.continuousOn
+    exact (G.continuous.comp (by fun_prop)).sub hφc
+  have hE := plAnnulusRouting_polygonalAnnulus_cutModel_step2_intValuedConst isPreconnected_univ hEc hEint (mem_univ (0 : ℝ)) (mem_univ (1 : ℝ))
+  simp only [D, E, hG0, zero_add] at hD hE
+  have := hφp 0
+  rw [zero_add] at this
+  linarith
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: iterating a shift relation `φ (t +
+1) = φ t + c`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_iterShift {φ : ℝ → ℝ} {c : ℝ} (h : ∀ t, φ (t + 1) = φ t + c) (t : ℝ) :
+    ∀ n : ℕ, φ (t + n) = φ t + n * c ∧ φ (t - n) = φ t - n * c := by
+  intro n
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    constructor
+    · rw [show t + ((n + 1 : ℕ) : ℝ) = (t + n) + 1 by push_cast; ring, h, ih.1]; push_cast; ring
+    · have := h (t - ((n + 1 : ℕ) : ℝ))
+      rw [show t - ((n + 1 : ℕ) : ℝ) + 1 = t - n by push_cast; ring, ih.2] at this
+      push_cast at this ⊢; linarith
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: a continuous lift of degree `1` or
+`-1` is surjective. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_shiftSurj {φ : ℝ → ℝ} (hφc : Continuous φ) {c : ℝ} (hc : c = 1 ∨ c = -1)
+    (h : ∀ t, φ (t + 1) = φ t + c) : Function.Surjective φ := by
+  intro x
+  obtain ⟨n, hn⟩ := exists_nat_gt (|x - φ 0|)
+  have h1 := plAnnulusRouting_polygonalAnnulus_cutModel_step2_iterShift h 0 n
+  simp only [zero_add, zero_sub] at h1
+  have hx1 := le_abs_self (x - φ 0)
+  have hx2 := neg_abs_le (x - φ 0)
+  rcases hc with rfl | rfl
+  · obtain ⟨a, -, ha⟩ := intermediate_value_Icc (show -(n : ℝ) ≤ n by linarith [n.cast_nonneg (α := ℝ)])
+      hφc.continuousOn (show x ∈ Icc (φ (-(n : ℝ))) (φ n) from ⟨by rw [h1.2]; linarith, by rw [h1.1]; linarith⟩)
+    exact ⟨a, ha⟩
+  · obtain ⟨a, -, ha⟩ := intermediate_value_Icc' (show -(n : ℝ) ≤ n by linarith [n.cast_nonneg (α := ℝ)])
+      hφc.continuousOn (show x ∈ Icc (φ n) (φ (-(n : ℝ))) from ⟨by rw [h1.1]; linarith, by rw [h1.2]; linarith⟩)
+    exact ⟨a, ha⟩
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: precomposing the annulus model with
+the lift relating its outer boundary loop to `γo` produces an annulus model whose outer boundary is parametrized
+exactly by `γo`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_outerReparam (A C : PolygonalDisk) (γo : ℝ → Pt) (hγo : IsLoopParam (frontier A.carrier) γo)
+    (Ψ0 : ℝ × ℝ → Pt) (hΨc : Continuous Ψ0) (hper : ∀ s t, Ψ0 (s, t + 1) = Ψ0 (s, t))
+    (hinj : InjOn Ψ0 (Icc 0 1 ×ˢ Ico 0 1)) (hΨ0 : IsLoopParam (frontier A.carrier) (fun t => Ψ0 (0, t)))
+    (hΨ1 : IsLoopParam (frontier C.carrier) (fun t => Ψ0 (1, t)))
+    (hmap : MapsTo Ψ0 (Icc 0 1 ×ˢ univ) (A.carrier \ interior C.carrier))
+    (hsurj : A.carrier \ interior C.carrier ⊆ Ψ0 '' (Icc 0 1 ×ˢ univ))
+    (hmapi : MapsTo Ψ0 (Ioo 0 1 ×ˢ univ) (interior A.carrier \ C.carrier)) :
+    ∃ Ψ : ℝ × ℝ → Pt, Continuous Ψ ∧ (∀ s t, Ψ (s, t + 1) = Ψ (s, t)) ∧
+      InjOn Ψ (Icc 0 1 ×ˢ Ico 0 1) ∧ (∀ t, Ψ (0, t) = γo t) ∧
+      IsLoopParam (frontier C.carrier) (fun t => Ψ (1, t)) ∧
+      MapsTo Ψ (Icc 0 1 ×ˢ univ) (A.carrier \ interior C.carrier) ∧
+      A.carrier \ interior C.carrier ⊆ Ψ '' (Icc 0 1 ×ˢ univ) ∧
+      MapsTo Ψ (Ioo 0 1 ×ˢ univ) (interior A.carrier \ C.carrier) := by
+  obtain ⟨φ, hφc, hφ, hφl⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_boundaryLift hγo hΨ0
+  have hint : ∀ m : ℤ, (m : ℝ) < 0 → (-1 : ℝ) < m → False := by
+    intro m h1 h2
+    have : m < 0 := by exact_mod_cast h1
+    have : -1 < m := by exact_mod_cast h2
+    omega
+  obtain ⟨c, hc, hφp, hkey⟩ : ∃ c : ℝ, (c = 1 ∨ c = -1) ∧ (∀ t, φ (t + 1) = φ t + c) ∧
+      ∀ t ∈ Ico (0 : ℝ) 1, ∀ t' ∈ Ico (0 : ℝ) 1, ∀ n : ℤ, φ t - φ t' = n → t = t' := by
+    have finish : (∀ a b, a ∈ Ico (0 : ℝ) 1 → b ∈ Ico (0 : ℝ) 1 → a < b → ∀ m : ℤ, φ a - φ b ≠ m) →
+        ∀ t ∈ Ico (0 : ℝ) 1, ∀ t' ∈ Ico (0 : ℝ) 1, ∀ n : ℤ, φ t - φ t' = n → t = t' := by
+      intro key t ht t' ht' n hn
+      rcases lt_trichotomy t t' with h | h | h
+      · exact absurd hn (key t t' ht ht' h n)
+      · exact h
+      · exact absurd (show φ t' - φ t = ((-n : ℤ) : ℝ) by push_cast; linarith) (key t' t ht' ht h (-n))
+    rcases hφ with ⟨hm, hp⟩ | ⟨hm, hp⟩
+    · refine ⟨1, Or.inl rfl, hp, finish fun a b ha hb hab m hm' => ?_⟩
+      have e1 := hm hab
+      have e2 := hm (show b < a + 1 by linarith [hb.2, ha.1])
+      rw [hp] at e2
+      exact hint m (by linarith) (by linarith)
+    · refine ⟨-1, Or.inr rfl, fun t => by rw [hp]; ring, finish fun a b ha hb hab m hm' => ?_⟩
+      have e1 := hm hab
+      have e2 := hm (show b < a + 1 by linarith [hb.2, ha.1])
+      rw [hp] at e2
+      exact hint (-m) (by push_cast; linarith) (by push_cast; linarith)
+  have hpm : ∀ s t, Ψ0 (s, t + c) = Ψ0 (s, t) := by
+    rcases hc with rfl | rfl
+    · exact hper
+    · intro s t
+      have := hper s (t + -1)
+      rw [show t + -1 + 1 = t by ring] at this
+      exact this.symm
+  have hsφ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_shiftSurj hφc hc hφp
+  refine ⟨fun p => Ψ0 (p.1, φ p.2), hΨc.comp (continuous_fst.prodMk (hφc.comp continuous_snd)),
+    fun s t => by simp only [hφp, hpm], ?_, hφl, ⟨hΨc.comp (continuous_const.prodMk hφc),
+    fun t => by simp only [hφp, hpm], ?_, ?_⟩, ?_, ?_, ?_⟩
+  · rintro ⟨s, t⟩ ⟨hs, ht⟩ ⟨s', t'⟩ ⟨hs', ht'⟩ hst
+    obtain ⟨rfl, n, hn⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_periodicFiber hper hinj hs hs' hst
+    rw [hkey t ht t' ht' n hn]
+  · intro t ht t' ht' h
+    obtain ⟨-, n, hn⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_periodicFiber hper hinj ⟨zero_le_one, le_rfl⟩ ⟨zero_le_one, le_rfl⟩ h
+    exact hkey t ht t' ht' n hn
+  · rw [← hΨ1.2.2.2]
+    ext y
+    constructor
+    · rintro ⟨t, -, rfl⟩
+      exact ⟨Int.fract (φ t), ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩,
+        plSchoenflies_periodic_fract (g := fun t => Ψ0 (1, t)) (fun t => hper 1 t) (φ t)⟩
+    · rintro ⟨x, -, rfl⟩
+      obtain ⟨t0, rfl⟩ := hsφ x
+      exact ⟨Int.fract t0, ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩,
+        plSchoenflies_periodic_fract (g := fun t => Ψ0 (1, φ t)) (fun t => by simp only [hφp, hpm]) t0⟩
+  · rintro ⟨s, t⟩ ⟨hs, -⟩; exact hmap ⟨hs, mem_univ _⟩
+  · intro y hy
+    obtain ⟨⟨s, x⟩, hsx, rfl⟩ := hsurj hy
+    obtain ⟨t0, rfl⟩ := hsφ x
+    exact ⟨(s, t0), ⟨hsx.1, mem_univ _⟩, rfl⟩
+  · rintro ⟨s, t⟩ ⟨hs, -⟩; exact hmapi ⟨hs, mem_univ _⟩
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: compatible orientations. Since `γo`
+and `γi` are freely homotopic in the annulus, the inner parametrization `γi` is obtained from the inner boundary loop
+`t ↦ Ψ (1, t)` of the annulus model by an increasing degree-one reparametrization `φ`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step2_innerOrientation
+    (A C : PolygonalDisk) (γo γi : ℝ → Pt) (hγi : IsLoopParam (frontier C.carrier) γi)
+    (hhom : LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi)
+    (Ψ : ℝ × ℝ → Pt) (hΨc : Continuous Ψ) (hper : ∀ s t, Ψ (s, t + 1) = Ψ (s, t))
+    (hinj : InjOn Ψ (Icc 0 1 ×ˢ Ico 0 1)) (hΨ0 : ∀ t, Ψ (0, t) = γo t)
+    (hΨ1 : IsLoopParam (frontier C.carrier) (fun t => Ψ (1, t)))
+    (hsurj : A.carrier \ interior C.carrier ⊆ Ψ '' (Icc 0 1 ×ˢ univ)) :
+    ∃ φ : ℝ → ℝ, Continuous φ ∧ StrictMono φ ∧ (∀ t, φ (t + 1) = φ t + 1) ∧ ∀ t, Ψ (1, φ t) = γi t := by
+  obtain ⟨φ, hφc, hφ | hφ, hφl⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_boundaryLift hγi hΨ1
+  · exact ⟨φ, hφc, hφ.1, hφ.2, hφl⟩
+  · exact (plAnnulusRouting_polygonalAnnulus_cutModel_step2_noReversal _ γo γi hhom Ψ hΨc hper hinj hΨ0 hsurj φ hφc
+      hφ.2 hφl).elim
+
+/-- Step 3 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: interpolating linearly between the
+outer parametrization and an orientation-compatible lift of the inner one turns the annulus model into one whose two
+boundary circles are parametrized by `γo` and `γi`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step3_reparametrize (A C : PolygonalDisk) (γo γi : ℝ → Pt)
+    (Ψ : ℝ × ℝ → Pt) (hΨc : Continuous Ψ) (hper : ∀ s t, Ψ (s, t + 1) = Ψ (s, t))
+    (hinj : InjOn Ψ (Icc 0 1 ×ˢ Ico 0 1)) (hΨ0 : ∀ t, Ψ (0, t) = γo t)
+    (hmap : MapsTo Ψ (Icc 0 1 ×ˢ univ) (A.carrier \ interior C.carrier))
+    (hmapi : MapsTo Ψ (Ioo 0 1 ×ˢ univ) (interior A.carrier \ C.carrier))
+    (φ : ℝ → ℝ) (hφc : Continuous φ) (hφm : StrictMono φ) (hφp : ∀ t, φ (t + 1) = φ t + 1)
+    (hφ : ∀ t, Ψ (1, φ t) = γi t) :
+    ∃ Φ : ℝ × ℝ → Pt, Continuous Φ ∧ (∀ s t, Φ (s, t + 1) = Φ (s, t)) ∧
+      InjOn Φ (Icc 0 1 ×ˢ Ico 0 1) ∧ (∀ t, Φ (0, t) = γo t) ∧ (∀ t, Φ (1, t) = γi t) ∧
+      MapsTo Φ (Icc 0 1 ×ˢ univ) (A.carrier \ interior C.carrier) ∧
+      MapsTo Φ (Ioo 0 1 ×ˢ univ) (interior A.carrier \ C.carrier) := by
+  let h : ℝ → ℝ → ℝ := fun s t => (1 - s) * t + s * φ t
+  have hh1 : ∀ s t, h s (t + 1) = h s t + 1 := fun s t => by simp only [h, hφp]; ring
+  have hmono : ∀ s ∈ Icc (0 : ℝ) 1, StrictMono (h s) := by
+    intro s hs t t' htt'
+    have h1 := hφm htt'
+    simp only [h]
+    rcases eq_or_lt_of_le hs.2 with hs1 | hs1
+    · subst hs1; nlinarith
+    · nlinarith [mul_nonneg hs.1 (sub_nonneg.2 h1.le)]
+  refine ⟨fun p => Ψ (p.1, h p.1 p.2), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · refine hΨc.comp (Continuous.prodMk continuous_fst ?_)
+    simp only [h]; fun_prop
+  · intro s t; simp only [hh1, hper]
+  · rintro ⟨s, t⟩ ⟨hs, ht⟩ ⟨s', t'⟩ ⟨hs', ht'⟩ hst
+    simp only at hst
+    obtain ⟨rfl, n, hn⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_periodicFiber hper hinj hs hs' hst
+    have key : ∀ a b, a ∈ Ico (0 : ℝ) 1 → b ∈ Ico (0 : ℝ) 1 → a < b → ∀ m : ℤ, h s a - h s b ≠ m := by
+      intro a b ha hb hab m hm
+      have e1 := hmono s hs hab
+      have e2 := hmono s hs (show b < a + 1 by linarith [hb.2, ha.1])
+      rw [hh1] at e2
+      have hm1 : (m : ℝ) < 0 := by linarith
+      have hm2 : (-1 : ℝ) < m := by linarith
+      have : m < 0 := by exact_mod_cast hm1
+      have : -1 < m := by exact_mod_cast hm2
+      omega
+    rcases lt_trichotomy t t' with htt | htt | htt
+    · exact absurd hn (key t t' ht ht' htt n)
+    · rw [htt]
+    · exact absurd (show h s t' - h s t = ((-n : ℤ) : ℝ) by push_cast; linarith) (key t' t ht' ht htt (-n))
+  · intro t; simp only [h]; rw [hΨ0]; congr 1; ring
+  · intro t; simp only [h]; rw [← hφ]; congr 2; ring
+  · rintro ⟨s, t⟩ ⟨hs, -⟩; exact hmap ⟨hs, mem_univ _⟩
+  · rintro ⟨s, t⟩ ⟨hs, -⟩; exact hmapi ⟨hs, mem_univ _⟩
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the cut-open annulus is modelled by
+the unit square; membership in a segment of the plane, in coordinates. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_segmentMem (x y P : Pt) :
+    P ∈ segment ℝ x y ↔ ∃ θ ∈ Icc (0 : ℝ) 1, P 0 = (1 - θ) * x 0 + θ * y 0 ∧ P 1 = (1 - θ) * x 1 + θ * y 1 := by
+  rw [segment_eq_image]
+  constructor
+  · rintro ⟨θ, hθ, rfl⟩
+    exact ⟨θ, hθ, by simp, by simp⟩
+  · rintro ⟨θ, hθ, h0, h1⟩
+    refine ⟨θ, hθ, ?_⟩
+    ext i; fin_cases i <;> simp [h0, h1]
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the closed unit square is the
+coordinate preimage of a product of intervals. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squarePreimage :
+    {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1} =
+      (EuclideanSpace.equiv (Fin 2) ℝ).toHomeomorph ⁻¹' (univ.pi fun _ => Icc 0 1) := by
+  ext P; simp only [mem_setOf_eq, mem_preimage, Set.mem_pi, mem_univ, true_implies, Fin.forall_fin_two]; rfl
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the interior of the closed unit
+square is the open unit square. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior :
+    interior {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1} =
+      {P : Pt | P 0 ∈ Ioo (0:ℝ) 1 ∧ P 1 ∈ Ioo (0:ℝ) 1} := by
+  rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squarePreimage, ← Homeomorph.preimage_interior, interior_pi_set finite_univ]
+  ext P; simp [Fin.forall_fin_two]
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the closure of the open unit square
+is the closed unit square. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareClosure :
+    closure {P : Pt | P 0 ∈ Ioo (0:ℝ) 1 ∧ P 1 ∈ Ioo (0:ℝ) 1} =
+      {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1} := by
+  have : {P : Pt | P 0 ∈ Ioo (0:ℝ) 1 ∧ P 1 ∈ Ioo (0:ℝ) 1} =
+      (EuclideanSpace.equiv (Fin 2) ℝ).toHomeomorph ⁻¹' (univ.pi fun _ => Ioo 0 1) := by
+    ext P; simp [Fin.forall_fin_two]
+  rw [this, ← Homeomorph.preimage_closure, closure_pi_set, plAnnulusRouting_polygonalAnnulus_cutModel_step4_squarePreimage]
+  simp [closure_Ioo]
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: a point of the plane is determined
+by its two coordinates. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff (P : Pt) (a b : ℝ) : P = !₂[a, b] ↔ P 0 = a ∧ P 1 = b := by
+  constructor
+  · rintro rfl; simp
+  · rintro ⟨h0, h1⟩; ext i; fin_cases i <;> simp [h0, h1]
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: a vertical segment, in coordinates.
+-/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_verticalSide (a b c : ℝ) (P : Pt) :
+    P ∈ segment ℝ (!₂[a, b] : Pt) (!₂[a, c]) ↔ P 0 = a ∧ ∃ θ ∈ Icc (0 : ℝ) 1, P 1 = (1 - θ) * b + θ * c := by
+  rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_segmentMem]; simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
+  constructor
+  · rintro ⟨θ, hθ, h0, h1⟩; exact ⟨by rw [h0]; ring, θ, hθ, h1⟩
+  · rintro ⟨h0, θ, hθ, h1⟩; exact ⟨θ, hθ, by rw [h0]; ring, h1⟩
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: a horizontal segment, in
+coordinates. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_horizontalSide (a b c : ℝ) (P : Pt) :
+    P ∈ segment ℝ (!₂[b, a] : Pt) (!₂[c, a]) ↔ P 1 = a ∧ ∃ θ ∈ Icc (0 : ℝ) 1, P 0 = (1 - θ) * b + θ * c := by
+  rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_segmentMem]; simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
+  constructor
+  · rintro ⟨θ, hθ, h0, h1⟩; exact ⟨by rw [h1]; ring, θ, hθ, h0⟩
+  · rintro ⟨h1, θ, hθ, h0⟩; exact ⟨θ, hθ, h0, by rw [h1]; ring⟩
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the increasing affine
+parametrization of `[0, 1]`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_upParam (x : ℝ) :
+    (∃ θ ∈ Icc (0 : ℝ) 1, x = (1 - θ) * 0 + θ * 1) ↔ x ∈ Icc (0 : ℝ) 1 := by
+  constructor
+  · rintro ⟨θ, hθ, rfl⟩; simpa using hθ
+  · intro hx; exact ⟨x, hx, by ring⟩
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the decreasing affine
+parametrization of `[0, 1]`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_downParam (x : ℝ) :
+    (∃ θ ∈ Icc (0 : ℝ) 1, x = (1 - θ) * 1 + θ * 0) ↔ x ∈ Icc (0 : ℝ) 1 := by
+  constructor
+  · rintro ⟨θ, hθ, rfl⟩; constructor <;> linarith [hθ.1, hθ.2]
+  · intro hx; exact ⟨1 - x, ⟨by linarith [hx.2], by linarith [hx.1]⟩, by ring⟩
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the four sides of the unit square,
+in coordinates. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareSides (P : Pt) :
+    (P ∈ segment ℝ (!₂[0, 0] : Pt) (!₂[0, 1]) ↔ P 0 = 0 ∧ P 1 ∈ Icc (0 : ℝ) 1) ∧
+    (P ∈ segment ℝ (!₂[0, 1] : Pt) (!₂[1, 1]) ↔ P 1 = 1 ∧ P 0 ∈ Icc (0 : ℝ) 1) ∧
+    (P ∈ segment ℝ (!₂[1, 1] : Pt) (!₂[1, 0]) ↔ P 0 = 1 ∧ P 1 ∈ Icc (0 : ℝ) 1) ∧
+    (P ∈ segment ℝ (!₂[1, 0] : Pt) (!₂[0, 0]) ↔ P 1 = 0 ∧ P 0 ∈ Icc (0 : ℝ) 1) := by
+  rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_verticalSide, plAnnulusRouting_polygonalAnnulus_cutModel_step4_horizontalSide,
+    plAnnulusRouting_polygonalAnnulus_cutModel_step4_verticalSide, plAnnulusRouting_polygonalAnnulus_cutModel_step4_horizontalSide,
+    plAnnulusRouting_polygonalAnnulus_cutModel_step4_upParam, plAnnulusRouting_polygonalAnnulus_cutModel_step4_upParam,
+    plAnnulusRouting_polygonalAnnulus_cutModel_step4_downParam, plAnnulusRouting_polygonalAnnulus_cutModel_step4_downParam]
+  exact ⟨Iff.rfl, Iff.rfl, Iff.rfl, Iff.rfl⟩
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the frontier of the unit square is
+the union of its four sides. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareFrontier :
+    frontier {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1} =
+      {P : Pt | (P 0 = 0 ∧ P 1 ∈ Icc (0 : ℝ) 1) ∨ (P 1 = 1 ∧ P 0 ∈ Icc (0 : ℝ) 1) ∨
+        (P 0 = 1 ∧ P 1 ∈ Icc (0 : ℝ) 1) ∨ (P 1 = 0 ∧ P 0 ∈ Icc (0 : ℝ) 1)} := by
+  have hcl : IsClosed {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1} := by
+    rw [← plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareClosure]; exact isClosed_closure
+  rw [hcl.frontier_eq, plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior]
+  ext P
+  simp only [mem_diff, mem_setOf_eq, mem_Icc, mem_Ioo]
+  constructor
+  · rintro ⟨⟨⟨h1, h2⟩, h3, h4⟩, h5⟩
+    by_contra hc
+    apply h5
+    refine ⟨⟨lt_of_le_of_ne h1 ?_, lt_of_le_of_ne h2 ?_⟩, lt_of_le_of_ne h3 ?_, lt_of_le_of_ne h4 ?_⟩ <;>
+      intro h <;> apply hc <;> simp_all
+  · rintro (⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩) <;>
+      refine ⟨⟨⟨?_, ?_⟩, ?_, ?_⟩, ?_⟩ <;> simp_all
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the unit square with vertices
+`(0,0), (0,1), (1,1), (1,0)` is a polygonal disk. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareDisk :
+    ∃ B : PolygonalDisk, B.carrier = {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1} := by
+  have hfr : ∀ i : Fin 4, finRotate 4 i = i + 1 := fun i => finRotate_succ_apply i
+  refine ⟨{ carrier := {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1}
+            n := 4
+            three_le := by norm_num
+            vertex := ![!₂[0, 0], !₂[0, 1], !₂[1, 1], !₂[1, 0]]
+            vertex_injective := ?_
+            compact := ?_
+            interior_nonempty := ?_
+            regular_closed := ?_
+            interior_pathConnected := ?_
+            frontier_eq := ?_
+            simple := ?_ }, rfl⟩
+  · intro i j hij
+    fin_cases i <;> fin_cases j <;> simp_all
+  · rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squarePreimage, Homeomorph.isCompact_preimage]
+    exact isCompact_univ_pi fun _ => isCompact_Icc
+  · rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior]; exact ⟨!₂[1/2, 1/2], by norm_num, by norm_num⟩
+  · rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior, plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareClosure]
+  · rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior]
+    refine Convex.isPathConnected ?_ ⟨!₂[1/2, 1/2], by norm_num, by norm_num⟩
+    exact ((convex_Ioo 0 1).linear_preimage (EuclideanSpace.proj (0 : Fin 2) : Pt →L[ℝ] ℝ).toLinearMap).inter
+      ((convex_Ioo 0 1).linear_preimage (EuclideanSpace.proj (1 : Fin 2) : Pt →L[ℝ] ℝ).toLinearMap)
+  · rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareFrontier]
+    ext P
+    have h4 := plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareSides P
+    simp only [mem_iUnion, mem_setOf_eq]
+    constructor
+    · rintro (h | h | h | h)
+      · exact ⟨0, by simpa [hfr, h4] using h⟩
+      · exact ⟨1, by simpa [hfr, h4] using h⟩
+      · exact ⟨2, by simpa [hfr, h4] using h⟩
+      · exact ⟨3, by simpa [hfr, h4] using h⟩
+    · rintro ⟨i, hi⟩
+      fin_cases i <;> simp [hfr, h4] at hi <;> simp [hi]
+  · intro i j hij P hP
+    have h4 := plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareSides P
+    fin_cases i <;> fin_cases j <;> simp [hfr, h4, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff] at hij hP ⊢ <;>
+      rcases hP with ⟨⟨h1, -⟩, h2, -⟩ <;> simp_all
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the explicit boundary loop of the
+unit square on its four quarter periods. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_loopQuarters (t : ℝ) :
+    let g : ℝ → Pt := fun t => !₂[max 0 (min 1 (min (4 * t - 1) (4 - 4 * t))), max 0 (min 1 (min (4 * t) (3 - 4 * t)))]
+    (t ∈ Icc (0 : ℝ) (1/4) → g t = !₂[0, 4 * t]) ∧ (t ∈ Icc (1/4 : ℝ) (1/2) → g t = !₂[4 * t - 1, 1]) ∧
+    (t ∈ Icc (1/2 : ℝ) (3/4) → g t = !₂[1, 3 - 4 * t]) ∧ (t ∈ Icc (3/4 : ℝ) 1 → g t = !₂[4 - 4 * t, 0]) := by
+  intro g
+  refine ⟨fun ht => ?_, fun ht => ?_, fun ht => ?_, fun ht => ?_⟩ <;> obtain ⟨h1, h2⟩ := ht <;>
+    rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff] <;> simp only [g, Matrix.cons_val_zero, Matrix.cons_val_one] <;>
+    constructor <;> rw [max_def, min_def, min_def] <;> split_ifs <;> linarith
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the boundary of the unit square has
+a period-one loop parametrization running up the left side (`s = 0`) and then down the right side (`s = 1`). -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareLoop :
+    ∃ l : ℝ → Pt, IsLoopParam (frontier {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1}) l ∧
+      (∀ τ ∈ Icc (0:ℝ) 1, l (τ / 4) = !₂[0, τ]) ∧ (∀ ρ ∈ Icc (0:ℝ) 1, l ((3 - ρ) / 4) = !₂[1, ρ]) := by
+  let g : ℝ → Pt := fun t => !₂[max 0 (min 1 (min (4 * t - 1) (4 - 4 * t))), max 0 (min 1 (min (4 * t) (3 - 4 * t)))]
+  have hq : ∀ t, (t ∈ Icc (0 : ℝ) (1/4) → g t = !₂[0, 4 * t]) ∧ (t ∈ Icc (1/4 : ℝ) (1/2) → g t = !₂[4 * t - 1, 1]) ∧
+      (t ∈ Icc (1/2 : ℝ) (3/4) → g t = !₂[1, 3 - 4 * t]) ∧ (t ∈ Icc (3/4 : ℝ) 1 → g t = !₂[4 - 4 * t, 0]) :=
+    fun t => plAnnulusRouting_polygonalAnnulus_cutModel_step4_loopQuarters t
+  have hgc : Continuous g := by
+    refine (PiLp.continuous_toLp 2 _).comp ?_
+    refine continuous_pi fun i => ?_
+    fin_cases i <;> simp <;> fun_prop
+  have hfr : ∀ t ∈ Ico (0 : ℝ) 1, g (Int.fract t) = g t := fun t ht => by rw [Int.fract_eq_self.2 ht]
+  have hcase : ∀ t ∈ Ico (0 : ℝ) 1, t ∈ Icc (0 : ℝ) (1/4) ∨ t ∈ Icc (1/4 : ℝ) (1/2) ∨ t ∈ Icc (1/2 : ℝ) (3/4) ∨
+      t ∈ Icc (3/4 : ℝ) 1 := by
+    intro t ⟨h0, h1⟩
+    rcases le_total t (1/4) with h | h
+    · exact Or.inl ⟨h0, h⟩
+    rcases le_total t (1/2) with h' | h'
+    · exact Or.inr (Or.inl ⟨h, h'⟩)
+    rcases le_total t (3/4) with h'' | h''
+    · exact Or.inr (Or.inr (Or.inl ⟨h', h''⟩))
+    · exact Or.inr (Or.inr (Or.inr ⟨h'', h1.le⟩))
+  refine ⟨fun t => g (Int.fract t), ⟨?_, ?_, ?_, ?_⟩, ?_, ?_⟩
+  · exact ContinuousOn.comp_fract (f := fun _ : ℝ => g) (s := id) (hgc.comp continuous_snd).continuousOn
+      continuous_id (fun _ => by show g 0 = g 1; rw [(hq 0).1 ⟨le_rfl, by norm_num⟩, (hq 1).2.2.2 ⟨by norm_num, le_rfl⟩]; norm_num)
+  · intro t; simp only [Int.fract_add_one]
+  · intro s hs t ht hst
+    simp only [hfr s hs, hfr t ht] at hst
+    rcases hcase s hs with h1 | h1 | h1 | h1 <;>
+      [rw [(hq s).1 h1] at hst; rw [(hq s).2.1 h1] at hst; rw [(hq s).2.2.1 h1] at hst; rw [(hq s).2.2.2 h1] at hst] <;>
+      (rcases hcase t ht with h2 | h2 | h2 | h2 <;>
+      [rw [(hq t).1 h2] at hst; rw [(hq t).2.1 h2] at hst; rw [(hq t).2.2.1 h2] at hst; rw [(hq t).2.2.2 h2] at hst]) <;>
+      (rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff] at hst; simp only [Matrix.cons_val_zero, Matrix.cons_val_one] at hst
+       obtain ⟨e1, e2⟩ := hst; linarith [h1.1, h1.2, h2.1, h2.2, hs.2, ht.2])
+  · rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareFrontier]
+    ext P
+    simp only [mem_image, mem_setOf_eq]
+    constructor
+    · rintro ⟨t, ht, rfl⟩
+      rw [hfr t ht]
+      rcases hcase t ht with h1 | h1 | h1 | h1
+      · rw [(hq t).1 h1]; left; simp; constructor <;> linarith [h1.1, h1.2]
+      · rw [(hq t).2.1 h1]; right; left; simp; constructor <;> linarith [h1.1, h1.2]
+      · rw [(hq t).2.2.1 h1]; right; right; left; simp; constructor <;> linarith [h1.1, h1.2]
+      · rw [(hq t).2.2.2 h1]; right; right; right; simp; constructor <;> linarith [h1.1, h1.2]
+    · rintro (⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩)
+      · refine ⟨P 1 / 4, ⟨by linarith, by linarith⟩, ?_⟩
+        rw [hfr _ ⟨by linarith, by linarith⟩, (hq _).1 ⟨by linarith, by linarith⟩, eq_comm, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
+        constructor <;> simp <;> linarith
+      · refine ⟨(1 + P 0) / 4, ⟨by linarith, by linarith⟩, ?_⟩
+        rw [hfr _ ⟨by linarith, by linarith⟩, (hq _).2.1 ⟨by linarith, by linarith⟩, eq_comm, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
+        constructor <;> simp <;> linarith
+      · refine ⟨(3 - P 1) / 4, ⟨by linarith, by linarith⟩, ?_⟩
+        rw [hfr _ ⟨by linarith, by linarith⟩, (hq _).2.2.1 ⟨by linarith, by linarith⟩, eq_comm, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
+        constructor <;> simp <;> linarith
+      · rcases eq_or_lt_of_le h2 with h4 | h4
+        · refine ⟨0, ⟨le_rfl, by norm_num⟩, ?_⟩
+          rw [hfr _ ⟨le_rfl, by norm_num⟩, (hq _).1 ⟨le_rfl, by norm_num⟩, eq_comm, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
+          constructor <;> simp <;> linarith
+        · refine ⟨(4 - P 0) / 4, ⟨by linarith, by linarith⟩, ?_⟩
+          rw [hfr _ ⟨by linarith, by linarith⟩, (hq _).2.2.2 ⟨by linarith, by linarith⟩, eq_comm, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
+          constructor <;> simp <;> linarith
+  · intro τ hτ
+    have h : τ / 4 ∈ Ico (0 : ℝ) 1 := ⟨by linarith [hτ.1], by linarith [hτ.2]⟩
+    simp only [hfr _ h]
+    rw [(hq _).1 ⟨by linarith [hτ.1], by linarith [hτ.2]⟩, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]; constructor <;> simp; ring
+  · intro ρ hρ
+    have h : (3 - ρ) / 4 ∈ Ico (0 : ℝ) 1 := ⟨by linarith [hρ.2], by linarith [hρ.1]⟩
+    simp only [hfr _ h]
+    rw [(hq _).2.2.1 ⟨by linarith [hρ.2], by linarith [hρ.1]⟩, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]; constructor <;> simp; ring
+
+/-- Step 5 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: a finite cyclically ordered family
+of parameters fits, after an affine rescaling, strictly inside one period; the complementary boundary gap is where the
+cross-cut is placed. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step5_gapWindow {k : ℕ} (t : Fin k → ℝ) (htm : StrictMono t) (htw : ∀ i j, t j < t i + 1) :
+    ∃ a L : ℝ, 0 < L ∧ L < 1 ∧ ∀ i, (t i - a) / L ∈ Ioo (0 : ℝ) 1 := by
+  cases k with
+  | zero => exact ⟨0, 1 / 2, by norm_num, by norm_num, fun i => i.elim0⟩
+  | succ m =>
+    have hlo : ∀ i, t 0 ≤ t i := fun i => htm.monotone (Fin.zero_le i)
+    have hhi : ∀ i, t i ≤ t (Fin.last m) := fun i => htm.monotone (Fin.le_last i)
+    have hw : t (Fin.last m) < t 0 + 1 := htw 0 _
+    have h0 : t 0 ≤ t (Fin.last m) := hlo _
+    refine ⟨t 0 - (1 - (t (Fin.last m) - t 0)) / 4, t (Fin.last m) - t 0 + (1 - (t (Fin.last m) - t 0)) / 2,
+      by linarith, by linarith, fun i => ⟨div_pos (by linarith [hlo i]) (by linarith), ?_⟩⟩
+    rw [div_lt_one (by linarith)]
+    linarith [hhi i]
+
+/-- Step 6 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: cut the annulus model along the
+cross-cut over a boundary gap. Composing the annulus model with an affine shear of the unit square embeds the cut-open
+square into the annulus, and the lifts of the outer and inner boundary points lie on the left and right sides of the
+square in the required cyclic order. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step6_cutOpen (A C : PolygonalDisk) {k : ℕ}
+    (x y : Fin k → Pt) (γo γi : ℝ → Pt)
+    (hxo : PointsInOrder γo x) (hyi' : PointsInOrder γi y)
+    (Φ : ℝ × ℝ → Pt) (hΦc : Continuous Φ) (hper : ∀ s t, Φ (s, t + 1) = Φ (s, t))
+    (hinj : InjOn Φ (Icc 0 1 ×ˢ Ico 0 1)) (hΦ0 : ∀ t, Φ (0, t) = γo t) (hΦ1 : ∀ t, Φ (1, t) = γi t)
+    (hmap : MapsTo Φ (Icc 0 1 ×ˢ univ) (A.carrier \ interior C.carrier))
+    (hmapi : MapsTo Φ (Ioo 0 1 ×ˢ univ) (interior A.carrier \ C.carrier)) :
+    ∃ (B : PolygonalDisk) (e : Pt → Pt) (p q : Fin k → Pt),
+      Continuous e ∧ Set.InjOn e B.carrier ∧
+      e '' B.carrier ⊆ A.carrier \ interior C.carrier ∧
+      e '' interior B.carrier ⊆ interior A.carrier \ C.carrier ∧
+      (∀ i, p i ∈ frontier B.carrier) ∧ (∀ i, q i ∈ frontier B.carrier) ∧
+      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
+      ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
+        PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
+  obtain ⟨t, htm, htw, htx⟩ := hxo
+  obtain ⟨u, hum, huw, huy⟩ := hyi'
+  obtain ⟨a, L, hL0, hL1, hta⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step5_gapWindow t htm htw
+  obtain ⟨b, M, hM0, hM1, hub⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step5_gapWindow u hum huw
+  obtain ⟨B, hBc⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareDisk
+  obtain ⟨l, hl, hl0, hl1⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareLoop
+  have hBi := plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior
+  rw [← hBc] at hBi hl
+  let T : Pt → ℝ := fun P => (1 - P 0) * (a + P 1 * L) + P 0 * (b + P 1 * M)
+  let e : Pt → Pt := fun P => Φ (P 0, T P)
+  let τ : Fin k → ℝ := fun i => (t i - a) / L
+  let ρ : Fin k → ℝ := fun i => (u i - b) / M
+  have hfront : frontier B.carrier = _ := hBc ▸ plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareFrontier
+  refine ⟨B, e, fun i => !₂[0, τ i], fun i => !₂[1, ρ i], ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, l, hl, ?_⟩
+  · refine hΦc.comp (Continuous.prodMk ?_ ?_)
+    · fun_prop
+    · simp only [T]; fun_prop
+  · intro P hP Q hQ hPQ
+    rw [hBc] at hP hQ
+    obtain ⟨hs, n, hn⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step2_periodicFiber hper hinj hP.1 hQ.1 hPQ
+    have hσ0 := hP.1.1
+    have hσ1 := hP.1.2
+    have hdiff : T P - T Q = (P 1 - Q 1) * ((1 - P 0) * L + P 0 * M) := by
+      simp only [T]; rw [hs]; ring
+    have hc0 : 0 < (1 - P 0) * L + P 0 * M := by
+      rcases le_total L M with h | h
+      · nlinarith [mul_nonneg hσ0 (sub_nonneg.2 h)]
+      · nlinarith [mul_nonneg (sub_nonneg.2 hσ1) (sub_nonneg.2 h)]
+    have hc1 : (1 - P 0) * L + P 0 * M < 1 := by
+      rcases le_total L M with h | h
+      · nlinarith [mul_nonneg (sub_nonneg.2 hσ1) (sub_nonneg.2 h)]
+      · nlinarith [mul_nonneg hσ0 (sub_nonneg.2 h)]
+    have hP1 := hP.2
+    have hQ1 := hQ.2
+    have hnlt : (n : ℝ) < 1 := by
+      rw [← hn, hdiff]; nlinarith [hP1.1, hP1.2, hQ1.1, hQ1.2]
+    have hngt : (-1 : ℝ) < n := by
+      rw [← hn, hdiff]; nlinarith [hP1.1, hP1.2, hQ1.1, hQ1.2]
+    have hn0 : n = 0 := by
+      have h1 : n < 1 := by exact_mod_cast hnlt
+      have h2 : -1 < n := by exact_mod_cast hngt
+      omega
+    rw [hn0, Int.cast_zero, hdiff] at hn
+    have h12 : P 1 = Q 1 := by
+      rcases mul_eq_zero.1 hn with h | h
+      · linarith
+      · linarith
+    exact ((plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff P (Q 0) (Q 1)).2 ⟨hs, h12⟩).trans
+      ((plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff Q (Q 0) (Q 1)).2 ⟨rfl, rfl⟩).symm
+  · rintro _ ⟨P, hP, rfl⟩; rw [hBc] at hP; exact hmap ⟨hP.1, mem_univ _⟩
+  · rintro _ ⟨P, hP, rfl⟩; rw [hBi] at hP; exact hmapi ⟨hP.1, mem_univ _⟩
+  · intro i; rw [hfront]
+    exact Or.inl ⟨by simp, by simpa using And.intro (hta i).1.le (hta i).2.le⟩
+  · intro i; rw [hfront]
+    exact Or.inr (Or.inr (Or.inl ⟨by simp, by simpa using And.intro (hub i).1.le (hub i).2.le⟩))
+  · intro i
+    have key : T (!₂[0, τ i]) = t i := by simp [T, τ]; field_simp; ring
+    show Φ ((!₂[0, τ i] : Pt) 0, T _) = _
+    rw [key]; simp [hΦ0, htx]
+  · intro i
+    have key : T (!₂[1, ρ i]) = u i := by simp [T, ρ]; field_simp; ring
+    show Φ ((!₂[1, ρ i] : Pt) 0, T _) = _
+    rw [key]; simp [hΦ1, huy]
+  · refine ⟨Fin.addCases (fun i => τ i / 4) (fun i => (3 - ρ (Fin.rev i)) / 4), ?_, ?_, ?_⟩
+    · intro i j hij
+      induction i using Fin.addCases with
+      | left i =>
+        induction j using Fin.addCases with
+        | left j =>
+          simp only [Fin.addCases_left, τ]
+          gcongr
+          exact htm (by rw [Fin.lt_def] at hij ⊢; exact hij)
+        | right j =>
+          simp only [Fin.addCases_left, Fin.addCases_right]
+          linarith [(hta i).2, (hub (Fin.rev j)).2]
+      | right i =>
+        induction j using Fin.addCases with
+        | left j => rw [Fin.lt_def] at hij; simp only [Fin.val_natAdd, Fin.val_castAdd] at hij; omega
+        | right j =>
+          simp only [Fin.addCases_right, ρ]
+          have : Fin.rev j < Fin.rev i := Fin.rev_lt_rev.2 (by
+            rw [Fin.lt_def] at hij ⊢; simp only [Fin.val_natAdd] at hij; omega)
+          have := hum this
+          gcongr
+    · have hs : ∀ i, 0 < Fin.addCases (motive := fun _ => ℝ) (fun i => τ i / 4) (fun i => (3 - ρ (Fin.rev i)) / 4) i ∧
+          Fin.addCases (motive := fun _ => ℝ) (fun i => τ i / 4) (fun i => (3 - ρ (Fin.rev i)) / 4) i < 1 := by
+        intro i
+        induction i using Fin.addCases with
+        | left i =>
+          simp only [Fin.addCases_left]
+          constructor <;> linarith [(hta i).1, (hta i).2]
+        | right i =>
+          simp only [Fin.addCases_right]
+          constructor <;> linarith [(hub (Fin.rev i)).1, (hub (Fin.rev i)).2]
+      intro i j
+      linarith [(hs i).1, (hs j).2]
+    · intro i
+      induction i using Fin.addCases with
+      | left i =>
+        simp only [Fin.addCases_left]
+        exact hl0 _ ⟨(hta i).1.le, (hta i).2.le⟩
+      | right i =>
+        simp only [Fin.addCases_right]
+        exact hl1 _ ⟨(hub (Fin.rev i)).1.le, (hub (Fin.rev i)).2.le⟩
+
+
 /-- Remaining polygonal annulus-cut obligation.  Cut along a cross-cut in a boundary gap and
 retain the lifts of two finite, compatibly ordered boundary point families.  The conclusion is
 formulated as an embedded polygonal disk so it can be reused independently of `MatchingCyclicOrder`. -/
@@ -4103,7 +4973,21 @@ private lemma plAnnulusRouting_polygonalAnnulus_cutModel
       (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
       ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
         PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
-  sorry
+  -- The boundary-membership and injectivity hypotheses are not needed by this construction.
+  have _unused : _ ∧ _ ∧ _ ∧ _ := ⟨hx, hy, hxi, hyi⟩
+  obtain ⟨Ψ0, hΨ0c, hper0, hinj0, hΨ00, hΨ01, hmap0, hsurj0, hmapi0⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step1_annulusModel A C hC
+  obtain ⟨Ψ, hΨc, hper, hinj, hΨ0, hΨ1, hmap, hsurj, hmapi⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step2_outerReparam A C γo hγo Ψ0 hΨ0c hper0 hinj0 hΨ00 hΨ01 hmap0
+      hsurj0 hmapi0
+  obtain ⟨φ, hφc, hφm, hφp, hφ⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step2_innerOrientation A C γo γi hγi hhom Ψ hΨc hper hinj hΨ0 hΨ1
+      hsurj
+  obtain ⟨Φ, hΦc, hΦper, hΦinj, hΦ0, hΦ1, hΦmap, hΦmapi⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step3_reparametrize A C γo γi Ψ hΨc hper hinj hΨ0 hmap hmapi φ hφc hφm
+      hφp hφ
+  exact plAnnulusRouting_polygonalAnnulus_cutModel_step6_cutOpen A C x y γo γi hxo hyi' Φ hΦc hΦper hΦinj hΦ0 hΦ1
+    hΦmap hΦmapi
 
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological_step1_cutModel`:
 construct the cut-open disk model, with boundary lifts of the prescribed endpoints. -/

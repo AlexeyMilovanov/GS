@@ -12031,6 +12031,495 @@ private lemma plAnnulusRouting_polygonalDisk_closedBall_model
   exact plAnnulusRouting_polygonalDisk_closedBall_model_step7_coneReparametrization B g hg hginj (fun z => hrange ▸ mem_range_self z) hint l hl
     ψ hψ hψn hψl
 
+/-- Package a simple polygonal winding region while retaining its exact
+cyclic vertex list. -/
+private lemma plAnnulusRouting_pgReg_polygonalDisk_exactList
+    (B : PolygonalDisk) {P : List Pt} (hP : PgSP P)
+    (hPreg : pgReg P ⊆ B.carrier)
+    (hpath : IsPathConnected {x : Pt | x ∉ pgCv P ∧ pgW P x ≠ 0}) :
+    ∃ D : PolygonalDisk, D.carrier = pgReg P ∧
+      interior D.carrier = {x : Pt | x ∉ pgCv P ∧ pgW P x ≠ 0} ∧
+      pgL D = P := by
+  obtain ⟨hint, hcl, hne, hfront⟩ := plSchoenflies_pgReg_topology_core hP
+  let D : PolygonalDisk :=
+    { carrier := pgReg P
+      n := P.length
+      three_le := hP.three
+      vertex := P.get
+      vertex_injective := hP.inj
+      compact := B.compact.of_isClosed_subset (plSchoenflies_pgReg_closed hP) hPreg
+      interior_nonempty := by rwa [hint]
+      regular_closed := by rw [hint, hcl]
+      interior_pathConnected := by rwa [hint]
+      frontier_eq := by
+        rw [hfront, pgCv_eq_polyCurve]
+        rfl
+      simple := hP.simple_fin }
+  refine ⟨D, rfl, hint, ?_⟩
+  simp [D, pgL]
+
+/-- A nonvertex point of a polygonal boundary is in the relative interior of
+one of its listed sides. -/
+private lemma plAnnulusRouting_frontier_openSide_of_not_vertex
+    (B : PolygonalDisk) {z : Pt} (hz : z ∈ frontier B.carrier) (hv : z ∉ pgL B) :
+    ∃ i : Fin B.n,
+      z ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) := by
+  rw [B.frontier_eq, Set.mem_iUnion] at hz
+  obtain ⟨i, hi⟩ := hz
+  rw [← insert_endpoints_openSegment] at hi
+  rcases hi with hi | hi | hi
+  · exfalso
+    apply hv
+    rw [hi, pgL]
+    exact List.mem_ofFn.mpr ⟨i, rfl⟩
+  · exfalso
+    apply hv
+    rw [hi, pgL]
+    exact List.mem_ofFn.mpr ⟨finRotate B.n i, rfl⟩
+  · exact ⟨i, hi⟩
+
+/-- The interior of a set contained in a closed polygonal annulus lies in the
+open annulus. -/
+private lemma plAnnulusRouting_interior_subset_openAnnulus
+    (A C : PolygonalDisk) {S : Set Pt}
+    (hS : S ⊆ A.carrier \ interior C.carrier) :
+    interior S ⊆ interior A.carrier \ C.carrier := by
+  intro x hx
+  refine ⟨interior_mono (hS.trans diff_subset) hx, ?_⟩
+  intro hxC
+  have hxcl : x ∈ closure (interior C.carrier) := by
+    rw [C.regular_closed]
+    exact hxC
+  obtain ⟨y, hyS, hyC⟩ := mem_closure_iff.1 hxcl _ isOpen_interior hx
+  exact (hS (interior_subset hyS)).2 hyC
+
+/-- Two opposite rays from an interior point of the inner disk give disjoint
+polygonal cross-cuts of a nested polygonal annulus.  Their endpoints lie on
+the two boundary components, their closed segments stay in the closed
+annulus, and their open segments stay in its open part. -/
+private lemma plAnnulusRouting_polygonalAnnulus_twoCrosscuts
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) (F : Finset Pt) :
+    ∃ a₁ a₂ c₁ c₂ : Pt,
+      a₁ ∈ frontier A.carrier ∧ a₂ ∈ frontier A.carrier ∧
+      c₁ ∈ frontier C.carrier ∧ c₂ ∈ frontier C.carrier ∧
+      a₁ ≠ a₂ ∧ c₁ ≠ c₂ ∧
+      a₁ ∉ F ∧ a₂ ∉ F ∧ c₁ ∉ F ∧ c₂ ∉ F ∧
+      a₁ ∉ pgL A ∧ a₂ ∉ pgL A ∧ c₁ ∉ pgL C ∧ c₂ ∉ pgL C ∧
+      (∃ i, a₁ ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate A.n i))) ∧
+      (∃ i, a₂ ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate A.n i))) ∧
+      (∃ i, c₁ ∈ openSegment ℝ (C.vertex i) (C.vertex (finRotate C.n i))) ∧
+      (∃ i, c₂ ∈ openSegment ℝ (C.vertex i) (C.vertex (finRotate C.n i))) ∧
+      segment ℝ a₁ c₁ ⊆ A.carrier \ interior C.carrier ∧
+      segment ℝ a₂ c₂ ⊆ A.carrier \ interior C.carrier ∧
+      openSegment ℝ a₁ c₁ ⊆ interior A.carrier \ C.carrier ∧
+      openSegment ℝ a₂ c₂ ⊆ interior A.carrier \ C.carrier ∧
+      Disjoint (segment ℝ a₁ c₁) (segment ℝ a₂ c₂) := by
+  classical
+  let forbidden := ((F.toList ++ pgL A ++ pgL C).map (fun z : Pt => z 0)).toFinset
+  obtain ⟨p, hp, hp₀⟩ := pg_choose_point isOpen_interior C.interior_nonempty forbidden
+  obtain ⟨tC₁, tA₁, hC₁, hCA₁, hA₁, hc₁, hinA₁, houtC₁⟩ :=
+    pd_bridge A C hC hp norm_pgEy
+  obtain ⟨tC₂, tA₂, hC₂, hCA₂, hA₂, hc₂, hinA₂, houtC₂⟩ :=
+    pd_bridge A C hC hp (v := -pgEy) (by rw [norm_neg, norm_pgEy])
+  let a₁ := p + tA₁ • pgEy
+  let c₁ := p + tC₁ • pgEy
+  let a₂ := p + tA₂ • (-pgEy)
+  let c₂ := p + tC₂ • (-pgEy)
+  have hclosed₁ : segment ℝ a₁ c₁ ⊆ A.carrier \ interior C.carrier := by
+    intro z hz
+    obtain ⟨t, htC, htA, rfl⟩ := pg_seg_ray hCA₁.le hz
+    refine ⟨?_, ?_⟩
+    · rcases eq_or_lt_of_le htA with h | h
+      · rw [h]
+        exact pd_frontier_subset_carrier A hA₁
+      · exact interior_subset (hinA₁ t (by linarith) h)
+    · rcases eq_or_lt_of_le htC with h | h
+      · rw [← h]
+        exact fun hi => pg_frontier_inter_interior hc₁ hi
+      · exact fun hi => houtC₁ t h htA (interior_subset hi)
+  have hclosed₂ : segment ℝ a₂ c₂ ⊆ A.carrier \ interior C.carrier := by
+    intro z hz
+    obtain ⟨t, htC, htA, rfl⟩ := pg_seg_ray hCA₂.le hz
+    refine ⟨?_, ?_⟩
+    · rcases eq_or_lt_of_le htA with h | h
+      · rw [h]
+        exact pd_frontier_subset_carrier A hA₂
+      · exact interior_subset (hinA₂ t (by linarith) h)
+    · rcases eq_or_lt_of_le htC with h | h
+      · rw [← h]
+        exact fun hi => pg_frontier_inter_interior hc₂ hi
+      · exact fun hi => houtC₂ t h htA (interior_subset hi)
+  have hopen₁ : openSegment ℝ a₁ c₁ ⊆ interior A.carrier \ C.carrier := by
+    intro z hz
+    obtain ⟨s, hs₀, hs₁, rfl⟩ := mem_openSegment_iff'.1 hz
+    let t := tA₁ + s * (tC₁ - tA₁)
+    have he : a₁ + s • (c₁ - a₁) = p + t • pgEy := by
+      simp only [a₁, c₁, t]
+      module
+    rw [he]
+    have htC : tC₁ < t := by dsimp only [t]; nlinarith
+    have htA : t < tA₁ := by dsimp only [t]; nlinarith
+    exact ⟨hinA₁ t (by linarith) htA, houtC₁ t htC htA.le⟩
+  have hopen₂ : openSegment ℝ a₂ c₂ ⊆ interior A.carrier \ C.carrier := by
+    intro z hz
+    obtain ⟨s, hs₀, hs₁, rfl⟩ := mem_openSegment_iff'.1 hz
+    let t := tA₂ + s * (tC₂ - tA₂)
+    have he : a₂ + s • (c₂ - a₂) = p + t • (-pgEy) := by
+      simp only [a₂, c₂, t]
+      module
+    rw [he]
+    have htC : tC₂ < t := by dsimp only [t]; nlinarith
+    have htA : t < tA₂ := by dsimp only [t]; nlinarith
+    exact ⟨hinA₂ t (by linarith) htA, houtC₂ t htC htA.le⟩
+  have hdisj : Disjoint (segment ℝ a₁ c₁) (segment ℝ a₂ c₂) := by
+    rw [Set.disjoint_left]
+    intro z hz₁ hz₂
+    obtain ⟨t, ht, -, rfl⟩ := pg_seg_ray hCA₁.le hz₁
+    obtain ⟨s, hs, -, he⟩ := pg_seg_ray hCA₂.le hz₂
+    exact pg_ray_ne (lt_of_lt_of_le hC₁ ht) (lt_of_lt_of_le hC₂ hs) he
+  have havoid (t : ℝ) (v : Pt) (hv : v 0 = 0) : p + t • v ∉ F := by
+    intro hmem
+    apply hp₀
+    simp only [forbidden, List.mem_toFinset, List.mem_map]
+    have hmem' : p + t • v ∈ F.toList := by simpa using hmem
+    refine ⟨p + t • v,
+      List.mem_append.mpr (Or.inl (List.mem_append.mpr (Or.inl hmem'))), ?_⟩
+    simp [hv]
+  have havoidA (t : ℝ) (v : Pt) (hv : v 0 = 0) : p + t • v ∉ pgL A := by
+    intro hmem
+    apply hp₀
+    simp only [forbidden, List.mem_toFinset, List.mem_map]
+    refine ⟨p + t • v, ?_, ?_⟩
+    · exact List.mem_append.mpr
+        (Or.inl (List.mem_append.mpr (Or.inr hmem)))
+    · simp [hv]
+  have havoidC (t : ℝ) (v : Pt) (hv : v 0 = 0) : p + t • v ∉ pgL C := by
+    intro hmem
+    apply hp₀
+    simp only [forbidden, List.mem_toFinset, List.mem_map]
+    refine ⟨p + t • v, ?_, ?_⟩
+    · exact List.mem_append.mpr (Or.inr hmem)
+    · simp [hv]
+  have ha₁v : a₁ ∉ pgL A := havoidA tA₁ pgEy pgEy_apply0
+  have ha₂v : a₂ ∉ pgL A := havoidA tA₂ (-pgEy) (by simp [pgEy_apply0])
+  have hc₁v : c₁ ∉ pgL C := havoidC tC₁ pgEy pgEy_apply0
+  have hc₂v : c₂ ∉ pgL C := havoidC tC₂ (-pgEy) (by simp [pgEy_apply0])
+  refine ⟨a₁, a₂, c₁, c₂, hA₁, hA₂, hc₁, hc₂, ?_, ?_,
+    havoid tA₁ pgEy pgEy_apply0, havoid tA₂ (-pgEy) (by simp [pgEy_apply0]),
+    havoid tC₁ pgEy pgEy_apply0, havoid tC₂ (-pgEy) (by simp [pgEy_apply0]),
+    ha₁v, ha₂v, hc₁v, hc₂v,
+    plAnnulusRouting_frontier_openSide_of_not_vertex A hA₁ ha₁v,
+    plAnnulusRouting_frontier_openSide_of_not_vertex A hA₂ ha₂v,
+    plAnnulusRouting_frontier_openSide_of_not_vertex C hc₁ hc₁v,
+    plAnnulusRouting_frontier_openSide_of_not_vertex C hc₂ hc₂v,
+    hclosed₁, hclosed₂, hopen₁, hopen₂, hdisj⟩
+  · exact pg_ray_ne (hC₁.trans hCA₁) (hC₂.trans hCA₂)
+  · exact pg_ray_ne hC₁ hC₂
+
+/-- Subdividing both boundary polygons at the endpoints of two cross-cuts
+produces the two simple polygonal sector cycles of the annulus. -/
+private lemma plAnnulusRouting_polygonalAnnulus_sectorLists
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) (F : Finset Pt) :
+    ∃ (a₁ a₂ c₁ c₂ : Pt) (α β g d : List Pt),
+      a₁ ∉ F ∧ a₂ ∉ F ∧ c₁ ∉ F ∧ c₂ ∉ F ∧
+      PgSP (a₁ :: α ++ a₂ :: β) ∧
+      PgSP (c₁ :: g ++ c₂ :: d) ∧
+      pgCv (a₁ :: α ++ a₂ :: β) = frontier A.carrier ∧
+      pgCv (c₁ :: g ++ c₂ :: d) = frontier C.carrier ∧
+      PgSP (a₁ :: (α ++ a₂ :: c₂ :: (g.reverse ++ [c₁]))) ∧
+      PgSP (a₂ :: (β ++ a₁ :: c₁ :: (d.reverse ++ [c₂]))) ∧
+      segment ℝ a₁ c₁ ⊆ A.carrier \ interior C.carrier ∧
+      segment ℝ a₂ c₂ ⊆ A.carrier \ interior C.carrier ∧
+      openSegment ℝ a₁ c₁ ⊆ interior A.carrier \ C.carrier ∧
+      openSegment ℝ a₂ c₂ ⊆ interior A.carrier \ C.carrier ∧
+      pgReg (a₁ :: (α ++ a₂ :: c₂ :: (g.reverse ++ [c₁]))) ⊆
+        A.carrier \ interior C.carrier ∧
+      pgReg (a₂ :: (β ++ a₁ :: c₁ :: (d.reverse ++ [c₂]))) ⊆
+        A.carrier \ interior C.carrier ∧
+      interior (pgReg (a₁ :: (α ++ a₂ :: c₂ :: (g.reverse ++ [c₁])))) ⊆
+        interior A.carrier \ C.carrier ∧
+      interior (pgReg (a₂ :: (β ++ a₁ :: c₁ :: (d.reverse ++ [c₂])))) ⊆
+        interior A.carrier \ C.carrier := by
+  obtain ⟨a₁, a₂, c₁, c₂, ha₁, ha₂, hc₁, hc₂, ha₁a₂, hc₁c₂,
+      ha₁F, ha₂F, hc₁F, hc₂F, ha₁v, ha₂v, hc₁v, hc₂v, -, -, -, -,
+      hclosed₁, hclosed₂, hopen₁, hopen₂, hcuts⟩ :=
+    plAnnulusRouting_polygonalAnnulus_twoCrosscuts A C hC F
+  obtain ⟨σ, hσ, hinA, houtA⟩ := pd_wind A
+  obtain ⟨K₀, hK₀, hcvK₀, hmemK₀, hinK₀, houtK₀, -⟩ := pd_inner_list C hσ
+  obtain ⟨α, β, hLA, hcvLA, hWLA, -⟩ :=
+    pg_subdiv_two (pgSP_pgL A) (by rwa [pgCv_pgL]) (by rwa [pgCv_pgL])
+      ha₁v ha₂v ha₁a₂
+  obtain ⟨g, d, hLK, hcvLK, hWLK, -⟩ :=
+    pg_subdiv_two hK₀ (by rwa [hcvK₀]) (by rwa [hcvK₀])
+      (fun h => hc₁v (hmemK₀ _ h)) (fun h => hc₂v (hmemK₀ _ h)) hc₁c₂
+  rw [pgCv_pgL] at hcvLA hWLA
+  rw [hcvK₀] at hcvLK hWLK
+  have hfrA_int : ∀ z ∈ frontier A.carrier, z ∉ interior A.carrier :=
+    fun z h₁ h₂ => pg_frontier_inter_interior h₁ h₂
+  have hfrC_int : ∀ z ∈ frontier C.carrier, z ∉ interior C.carrier :=
+    fun z h₁ h₂ => pg_frontier_inter_interior h₁ h₂
+  have hfrC_car : frontier C.carrier ⊆ C.carrier := pd_frontier_subset_carrier C
+  have hdisj : Disjoint (pgCv (a₁ :: α ++ a₂ :: β))
+      (pgCv (c₁ :: g ++ c₂ :: d)) := by
+    rw [hcvLA, hcvLK, Set.disjoint_left]
+    exact fun z hzA hzC => hfrA_int z hzA (hC (hfrC_car hzC))
+  have bridge_outer {a c : Pt} (ha : a ∈ frontier A.carrier)
+      (hc : c ∈ frontier C.carrier)
+      (ho : openSegment ℝ a c ⊆ interior A.carrier \ C.carrier) :
+      segment ℝ a c ∩ frontier A.carrier ⊆ {a} := by
+    rintro z ⟨hz, hzf⟩
+    rw [← insert_endpoints_openSegment] at hz
+    rcases hz with hz | hz | hz
+    · subst z
+      rfl
+    · subst z
+      exact False.elim (hfrA_int c hzf (hC (hfrC_car hc)))
+    · exact False.elim (hfrA_int z hzf (ho hz).1)
+  have bridge_inner {a c : Pt} (ha : a ∈ frontier A.carrier)
+      (hc : c ∈ frontier C.carrier)
+      (ho : openSegment ℝ a c ⊆ interior A.carrier \ C.carrier) :
+      segment ℝ a c ∩ frontier C.carrier ⊆ {c} := by
+    rintro z ⟨hz, hzf⟩
+    rw [← insert_endpoints_openSegment] at hz
+    rcases hz with hz | hz | hz
+    · subst z
+      exact False.elim (hfrA_int a ha (hC (hfrC_car hzf)))
+    · subst z
+      rfl
+    · exact False.elim ((ho hz).2 (hfrC_car hzf))
+  have hb₁A : segment ℝ a₁ c₁ ∩ pgCv (a₁ :: α ++ a₂ :: β) ⊆ {a₁} := by
+    rw [hcvLA]
+    exact bridge_outer ha₁ hc₁ hopen₁
+  have hb₁C : segment ℝ a₁ c₁ ∩ pgCv (c₁ :: g ++ c₂ :: d) ⊆ {c₁} := by
+    rw [hcvLK]
+    exact bridge_inner ha₁ hc₁ hopen₁
+  have hb₂A : segment ℝ a₂ c₂ ∩ pgCv (a₁ :: α ++ a₂ :: β) ⊆ {a₂} := by
+    rw [hcvLA]
+    exact bridge_outer ha₂ hc₂ hopen₂
+  have hb₂C : segment ℝ a₂ c₂ ∩ pgCv (c₁ :: g ++ c₂ :: d) ⊆ {c₂} := by
+    rw [hcvLK]
+    exact bridge_inner ha₂ hc₂ hopen₂
+  have hP₁ : PgSP (a₁ :: (α ++ a₂ :: c₂ :: (g.reverse ++ [c₁]))) :=
+    pg_piece_simple hLA hLK hdisj hb₂A hb₂C (by rw [segment_symm]; exact hb₁A)
+      (by rw [segment_symm]; exact hb₁C)
+      (by rw [segment_symm ℝ c₁]; exact hcuts.symm)
+  have hLA' : PgSP (a₂ :: β ++ a₁ :: α) := by
+    rw [← List.rotate_append_length_eq (a₁ :: α) (a₂ :: β)]
+    exact hLA.rotate _
+  have hLK' : PgSP (c₂ :: d ++ c₁ :: g) := by
+    rw [← List.rotate_append_length_eq (c₁ :: g) (c₂ :: d)]
+    exact hLK.rotate _
+  have hb₁A' : segment ℝ a₁ c₁ ∩ pgCv (a₂ :: β ++ a₁ :: α) ⊆ {a₁} := by
+    rw [← List.rotate_append_length_eq (a₁ :: α) (a₂ :: β), pgCv_rotate]
+    exact hb₁A
+  have hb₁C' : segment ℝ a₁ c₁ ∩ pgCv (c₂ :: d ++ c₁ :: g) ⊆ {c₁} := by
+    rw [← List.rotate_append_length_eq (c₁ :: g) (c₂ :: d), pgCv_rotate]
+    exact hb₁C
+  have hb₂A' : segment ℝ a₂ c₂ ∩ pgCv (a₂ :: β ++ a₁ :: α) ⊆ {a₂} := by
+    rw [← List.rotate_append_length_eq (a₁ :: α) (a₂ :: β), pgCv_rotate]
+    exact hb₂A
+  have hb₂C' : segment ℝ a₂ c₂ ∩ pgCv (c₂ :: d ++ c₁ :: g) ⊆ {c₂} := by
+    rw [← List.rotate_append_length_eq (c₁ :: g) (c₂ :: d), pgCv_rotate]
+    exact hb₂C
+  have hP₂ : PgSP (a₂ :: (β ++ a₁ :: c₁ :: (d.reverse ++ [c₂]))) :=
+    pg_piece_simple hLA' hLK' (by
+      rw [← List.rotate_append_length_eq (a₁ :: α) (a₂ :: β),
+        ← List.rotate_append_length_eq (c₁ :: g) (c₂ :: d), pgCv_rotate,
+        pgCv_rotate]
+      exact hdisj) hb₁A' hb₁C' (by rw [segment_symm]; exact hb₂A')
+      (by rw [segment_symm]; exact hb₂C') (by rw [segment_symm ℝ c₂]; exact hcuts)
+  let LA := a₁ :: α ++ a₂ :: β
+  let LK := c₁ :: g ++ c₂ :: d
+  let P₁ := a₁ :: (α ++ a₂ :: c₂ :: (g.reverse ++ [c₁]))
+  let P₂ := a₂ :: (β ++ a₁ :: c₁ :: (d.reverse ++ [c₂]))
+  have cv₁ : pgCv P₁ ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ a₂ c₂ ∪
+      segment ℝ a₁ c₁ := pgCv_piece_subset a₁ a₂ c₁ c₂ α β g d
+  have cv₂ : pgCv P₂ ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ a₂ c₂ ∪
+      segment ℝ a₁ c₁ := by
+    have h := pgCv_piece_subset a₂ a₁ c₂ c₁ β α d g
+    have cvA' : pgCv (a₂ :: β ++ a₁ :: α) = pgCv LA := by
+      rw [← List.rotate_append_length_eq (a₁ :: α) (a₂ :: β), pgCv_rotate]
+    have cvK' : pgCv (c₂ :: d ++ c₁ :: g) = pgCv LK := by
+      rw [← List.rotate_append_length_eq (c₁ :: g) (c₂ :: d), pgCv_rotate]
+    rw [cvA', cvK'] at h
+    intro z hz
+    rcases h hz with ((hz | hz) | hz) | hz
+    · exact Or.inl (Or.inl (Or.inl hz))
+    · exact Or.inl (Or.inl (Or.inr hz))
+    · exact Or.inr hz
+    · exact Or.inl (Or.inr hz)
+  have hAU : frontier A.carrier ⊆ A.carrier \ interior C.carrier := fun z hz =>
+    ⟨pd_frontier_subset_carrier A hz, fun hi => hfrA_int z hz (hC (interior_subset hi))⟩
+  have hCU : frontier C.carrier ⊆ A.carrier \ interior C.carrier := fun z hz =>
+    ⟨interior_subset (hC (hfrC_car hz)), hfrC_int z hz⟩
+  have hcvU : pgCv LA ∪ pgCv LK ∪ segment ℝ a₂ c₂ ∪ segment ℝ a₁ c₁ ⊆
+      A.carrier \ interior C.carrier := by
+    rw [show pgCv LA = frontier A.carrier by exact hcvLA,
+      show pgCv LK = frontier C.carrier by exact hcvLK]
+    exact union_subset (union_subset (union_subset hAU hCU) hclosed₂) hclosed₁
+  have cvA12 : pgCv LA ⊆ pgCv P₁ ∪ pgCv P₂ := by
+    intro z hz
+    rw [mem_pgCv, pgEd_split] at hz
+    obtain ⟨e, he, hze⟩ := hz
+    rcases List.mem_append.1 he with he | he
+    · exact Or.inl (pgCv_chain1_subset_piece a₁ a₂ c₁ c₂ α g he hze)
+    · exact Or.inr (pgCv_chain1_subset_piece a₂ a₁ c₂ c₁ β d he hze)
+  have cvK12 : pgCv LK ⊆ pgCv P₁ ∪ pgCv P₂ := by
+    intro z hz
+    rw [mem_pgCv, pgEd_split] at hz
+    obtain ⟨e, he, hze⟩ := hz
+    rcases List.mem_append.1 he with he | he
+    · exact Or.inl (pgCv_chain2_subset_piece a₁ a₂ c₁ c₂ α g he hze)
+    · exact Or.inr (pgCv_chain2_subset_piece a₂ a₁ c₂ c₁ β d he hze)
+  have hcross₁ : segment ℝ a₁ c₁ ⊆ pgCv P₁ := by
+    rw [segment_symm]
+    apply seg_subset_pgCv (e := (c₁, a₁))
+    rw [pgEd_piece]
+    simp
+  have hcross₂ : segment ℝ a₂ c₂ ⊆ pgCv P₁ := by
+    apply seg_subset_pgCv (e := (a₂, c₂))
+    rw [pgEd_piece]
+    simp
+  obtain ⟨σ₁, hσ₁, hJ₁, hE₁⟩ := pg_jordan hP₁
+  obtain ⟨σ₂, hσ₂, hJ₂, hE₂⟩ := pg_jordan hP₂
+  let q := a₁ + (1 / 2 : ℝ) • (c₁ - a₁)
+  have hqseg : q ∈ openSegment ℝ a₁ c₁ := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+    dsimp only [q]
+    module
+  have hqA : q ∈ interior A.carrier := (hopen₁ hqseg).1
+  have hqC : q ∉ C.carrier := (hopen₁ hqseg).2
+  have hqcut₂ : q ∉ segment ℝ a₂ c₂ := fun h =>
+    Set.disjoint_left.1 hcuts (openSegment_subset_segment ℝ a₁ c₁ hqseg) h
+  have hO : IsOpen (interior A.carrier ∩ C.carrierᶜ ∩ (segment ℝ a₂ c₂)ᶜ) :=
+    (isOpen_interior.inter C.compact.isClosed.isOpen_compl).inter
+      (pg_isClosed_segment a₂ c₂).isOpen_compl
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.1 hO q ⟨⟨hqA, hqC⟩, hqcut₂⟩
+  have hball' : ∀ z ∈ Metric.ball q r,
+      z ∉ pgCv LA ∧ z ∉ pgCv LK ∧ z ∉ segment ℝ a₂ c₂ := by
+    intro z hz
+    obtain ⟨⟨hzA, hzC⟩, hzs⟩ := hball hz
+    rw [show pgCv LA = frontier A.carrier by exact hcvLA,
+      show pgCv LK = frontier C.carrier by exact hcvLK]
+    exact ⟨fun h => hfrA_int z h hzA, fun h => hzC (hfrC_car h), hzs⟩
+  have hval : pgW LA q - pgW LK q = 2 * Real.pi * σ := by
+    rw [hWLA q (fun h => hfrA_int q h hqA),
+      hWLK q (fun h => hqC (hfrC_car h)), pgW_pgL,
+      hinA q hqA, houtK₀ q hqC]
+    ring
+  have hσ₁₂ := pg_glue_sigma hσ hσ₁ hσ₂ (a := a₁) (b := c₁)
+    (hE₁ (c₁, a₁) (by rw [pgEd_piece]; simp))
+    (hE₂ (a₁, c₁) (by rw [pgEd_piece]; simp))
+    (s0 := 1 / 2) ⟨by norm_num, by norm_num⟩ hr (fun z hz hz₁ hz₂ => by
+      obtain ⟨hzA, hzK, hzs⟩ := hball' z hz
+      rw [pgW_pieces hzK hzs (fun h => hz₁ (hcross₁ h))]
+      have eA : pgW LA z = pgW LA q :=
+        pgW_const (convex_ball q r).isPreconnected (fun w hw => (hball' w hw).1)
+          hz (Metric.mem_ball_self hr)
+      have eK : pgW LK z = pgW LK q :=
+        pgW_const (convex_ball q r).isPreconnected (fun w hw => (hball' w hw).2.1)
+          hz (Metric.mem_ball_self hr)
+      rw [eA, eK]
+      exact hval)
+  rw [hσ₁₂.1] at hJ₁
+  rw [hσ₁₂.2] at hJ₂
+  have hregP : ∀ {Pa Pb : List Pt},
+      pgCv Pa ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ a₂ c₂ ∪ segment ℝ a₁ c₁ →
+      pgCv Pb ⊆ pgCv LA ∪ pgCv LK ∪ segment ℝ a₂ c₂ ∪ segment ℝ a₁ c₁ →
+      pgCv LA ⊆ pgCv Pa ∪ pgCv Pb → pgCv LK ⊆ pgCv Pa ∪ pgCv Pb →
+      segment ℝ a₂ c₂ ⊆ pgCv Pa ∪ pgCv Pb →
+      segment ℝ a₁ c₁ ⊆ pgCv Pa ∪ pgCv Pb →
+      (∀ p ∉ pgCv Pa, pgW Pa p = 0 ∨ pgW Pa p = 2 * Real.pi * σ) →
+      (∀ p ∉ pgCv Pb, pgW Pb p = 0 ∨ pgW Pb p = 2 * Real.pi * σ) →
+      (∀ p, p ∉ pgCv LK → p ∉ segment ℝ a₂ c₂ → p ∉ segment ℝ a₁ c₁ →
+        pgW Pa p + pgW Pb p = pgW LA p - pgW LK p) →
+      pgReg Pa ⊆ A.carrier \ interior C.carrier := by
+    intro Pa Pb ca cb cA cK ccut₂ ccut₁ ja jb hsum z hz
+    rcases hz with hz | hz
+    · exact hcvU (ca hz)
+    by_cases hza : z ∈ pgCv Pa
+    · exact hcvU (ca hza)
+    by_cases hzb : z ∈ pgCv Pb
+    · exact hcvU (cb hzb)
+    have hzA : z ∉ pgCv LA := fun h => by rcases cA h with h | h <;> contradiction
+    have hzK : z ∉ pgCv LK := fun h => by rcases cK h with h | h <;> contradiction
+    have hz₂ : z ∉ segment ℝ a₂ c₂ := fun h => by
+      rcases ccut₂ h with h | h <;> contradiction
+    have hz₁ : z ∉ segment ℝ a₁ c₁ := fun h => by
+      rcases ccut₁ h with h | h <;> contradiction
+    have hne : pgW LA z - pgW LK z ≠ 0 := by
+      rw [← hsum z hzK hz₂ hz₁]
+      exact pg_piece_sum_ne hσ (ja z hza) (jb z hzb) hz
+    by_cases hzAc : z ∈ A.carrier
+    · refine ⟨hzAc, fun hzCi => hne ?_⟩
+      rw [hWLA z (by rwa [← hcvLA]), hWLK z (by rwa [← hcvLK]), pgW_pgL,
+        hinA z (hC (interior_subset hzCi)), hinK₀ z hzCi]
+      ring
+    · exfalso
+      apply hne
+      rw [hWLA z (by rwa [← hcvLA]), hWLK z (by rwa [← hcvLK]), pgW_pgL,
+        houtA z hzAc, houtK₀ z (fun hzC => hzAc (interior_subset (hC hzC)))]
+      ring
+  have hR₁ : pgReg P₁ ⊆ A.carrier \ interior C.carrier :=
+    hregP cv₁ cv₂ cvA12 cvK12 (fun z hz => Or.inl (hcross₂ hz))
+      (fun z hz => Or.inl (hcross₁ hz)) hJ₁ hJ₂
+      (fun p hpK hp₂ hp₁ => pgW_pieces hpK hp₂ hp₁)
+  have hR₂ : pgReg P₂ ⊆ A.carrier \ interior C.carrier :=
+    hregP cv₂ cv₁ (fun z hz => (cvA12 hz).symm) (fun z hz => (cvK12 hz).symm)
+      (fun z hz => Or.inr (hcross₂ hz)) (fun z hz => Or.inr (hcross₁ hz))
+      hJ₂ hJ₁ (fun p hpK hp₂ hp₁ => by
+        rw [add_comm]
+        exact pgW_pieces hpK hp₂ hp₁)
+  have hRi₁ : interior (pgReg P₁) ⊆ interior A.carrier \ C.carrier :=
+    plAnnulusRouting_interior_subset_openAnnulus A C hR₁
+  have hRi₂ : interior (pgReg P₂) ⊆ interior A.carrier \ C.carrier :=
+    plAnnulusRouting_interior_subset_openAnnulus A C hR₂
+  exact ⟨a₁, a₂, c₁, c₂, α, β, g, d, ha₁F, ha₂F, hc₁F, hc₂F,
+    hLA, hLK, hcvLA, hcvLK, hP₁, hP₂, hclosed₁, hclosed₂, hopen₁, hopen₂,
+    hR₁, hR₂, hRi₁, hRi₂⟩
+
+/-- Once a simple sector cycle has connected winding interior and contains
+the marked points in the required order, its winding region is the desired
+cut-open polygonal disk (with the identity embedding). -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_of_sector
+    (A C : PolygonalDisk) {k : ℕ} (x y : Fin k → Pt) {P : List Pt}
+    (hP : PgSP P) (hPreg : pgReg P ⊆ A.carrier \ interior C.carrier)
+    (hpath : IsPathConnected {z : Pt | z ∉ pgCv P ∧ pgW P z ≠ 0})
+    (hxP : ∀ i, x i ∈ pgCv P) (hyP : ∀ i, y i ∈ pgCv P)
+    (horder : PointsInOrder (pgLoop P)
+      (Fin.addCases x (fun i => y (Fin.rev i)))) :
+    ∃ (B : PolygonalDisk) (e : Pt → Pt) (p q : Fin k → Pt),
+      Continuous e ∧ Set.InjOn e B.carrier ∧
+      e '' B.carrier ⊆ A.carrier \ interior C.carrier ∧
+      e '' interior B.carrier ⊆ interior A.carrier \ C.carrier ∧
+      (∀ i, p i ∈ frontier B.carrier) ∧ (∀ i, q i ∈ frontier B.carrier) ∧
+      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
+      ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
+        PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
+  obtain ⟨B, hBcar, hBint, hBL⟩ :=
+    plAnnulusRouting_pgReg_polygonalDisk_exactList A hP
+      (hPreg.trans diff_subset) hpath
+  have hBfront : frontier B.carrier = pgCv P := by
+    rw [hBcar]
+    exact (plSchoenflies_pgReg_topology_core hP).2.2.2
+  have hBi : interior B.carrier ⊆ interior A.carrier \ C.carrier := by
+    rw [hBcar]
+    exact plAnnulusRouting_interior_subset_openAnnulus A C hPreg
+  refine ⟨B, id, x, y, continuous_id, fun _ _ _ _ h => h, ?_, ?_, ?_, ?_,
+    fun _ => rfl, fun _ => rfl, pgLoop P, ?_, horder⟩
+  · rintro _ ⟨z, hz, rfl⟩
+    exact hPreg (hBcar ▸ hz)
+  · rintro _ ⟨z, hz, rfl⟩
+    exact hBi hz
+  · intro i
+    rw [hBfront]
+    exact hxP i
+  · intro i
+    rw [hBfront]
+    exact hyP i
+  · rw [← hBL]
+    exact pgLoop_isLoopParam B
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the polygonal annulus
 `A \ interior C` is a topological annulus.  It has a period-one model `Ψ`, injective on one fundamental domain, sending
 `{0} × ℝ` and `{1} × ℝ` onto the outer and inner boundaries (as loop parametrizations), the closed strip onto the

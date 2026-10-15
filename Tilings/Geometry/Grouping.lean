@@ -24053,20 +24053,6 @@ private lemma existsRoutingAfterPower_step1_idempotent (τ : Substitution P) (M 
       _ ≥ n₀ := le_max_left _ _
   · positivity
 
-/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step1_intra`:
-A scaled parent declared side contains an ordered list of whole fine sides of large enough
-cardinality to choose five distinct ports by the sixth-quantiles. -/
-private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_ports (τ : Substitution P)
-    (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) :
-    ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α _a,
-    ∃ (L : List (Set Pt)) (_port : Fin 5 → Set Pt),
-      (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
-      L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
-      (∀ r, L[MacroData.portRank L.length r - 1]? = some (_port r)) ∧
-      (∀ _r, (Rs.retained _l _α).IsOuter (_port _r) ∧ _port _r ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
-      Function.Injective _port := by
-  sorry
-
 private lemma
     existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_support_translate
     {Q : Protoset} (T : Set (PlacedTile Q)) (v : Pt) :
@@ -24944,6 +24930,261 @@ private lemma existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_ot
       · exact (hinext h₂).elim
       · simp only [h₂, ↓reduceDIte] at hle
         exact hle.trans ((Classical.choose_spec (hpair α a i h₁ h₂)).2 x hx)
+
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_side_interval
+    {Q : Protoset} {p q : Pt} (X : PlacedTile Q)
+    (i : Fin (Q.disk X.form).n) (hsub : X.side i ⊆ segment ℝ p q) :
+    ∃ a b : ℝ, a < b ∧
+      X.side i = segment ℝ (AffineMap.lineMap p q a) (AffineMap.lineMap p q b) := by
+  have hleft := hsub (vertex_mem_side X i)
+  have hright := hsub (by rw [tile_side_eq]; exact right_mem_segment ℝ _ _)
+  obtain ⟨a, -, -, ha⟩ := mem_segment_iff'.mp hleft
+  obtain ⟨b, -, -, hb⟩ := mem_segment_iff'.mp hright
+  have ha' : X.vertex i = AffineMap.lineMap p q a := by
+    rw [ha]
+    simp only [AffineMap.lineMap_apply_module']
+    module
+  have hb' : X.vertex (finRotate _ i) = AffineMap.lineMap p q b := by
+    rw [hb]
+    simp only [AffineMap.lineMap_apply_module']
+    module
+  have hab : a ≠ b := by
+    intro h
+    apply tile_vertex_ne_next X i
+    rw [ha', hb', h]
+  rcases lt_or_gt_of_ne hab with hab | hba
+  · exact ⟨a, b, hab, by rw [tile_side_eq, ha', hb']⟩
+  · exact ⟨b, a, hba, by rw [tile_side_eq, ha', hb', segment_symm]⟩
+
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_point_param
+    {p q : Pt} {a b : ℝ} (hab : a ≤ b) {e : Set Pt}
+    (he : e = segment ℝ (AffineMap.lineMap p q a) (AffineMap.lineMap p q b))
+    {x : Pt} (hx : x ∈ e) :
+    ∃ t ∈ Icc a b, x = AffineMap.lineMap p q t := by
+  rw [he, ← image_segment] at hx
+  obtain ⟨t, ht, rfl⟩ := hx
+  refine ⟨t, ?_, rfl⟩
+  simpa only [segment_eq_uIcc, uIcc_of_le hab] using ht
+
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_overlap
+    {p q : Pt} {a b c d : ℝ} (hpq : p ≠ q) (hab : a < b) (hcd : c < d)
+    (hac : a ≤ c) (hcb : c < b) {e f : Set Pt}
+    (he : e = segment ℝ (AffineMap.lineMap p q a) (AffineMap.lineMap p q b))
+    (hf : f = segment ℝ (AffineMap.lineMap p q c) (AffineMap.lineMap p q d)) :
+    OverlapPos e f := by
+  let u := min b d
+  have hcu : c < u := lt_min hcb hcd
+  refine ⟨AffineMap.lineMap p q c, AffineMap.lineMap p q u, ?_, ?_⟩
+  · exact (AffineMap.lineMap_injective ℝ hpq).ne (ne_of_lt hcu)
+  · intro z hz
+    rw [← image_segment] at hz
+    obtain ⟨t, ht, rfl⟩ := hz
+    have ht' : t ∈ Icc c u := by
+      simpa only [segment_eq_uIcc, uIcc_of_le hcu.le] using ht
+    constructor
+    · rw [he, ← image_segment]
+      refine ⟨t, ?_, rfl⟩
+      rw [segment_eq_uIcc, uIcc_of_le hab.le]
+      exact ⟨hac.trans ht'.1, ht'.2.trans (min_le_left _ _)⟩
+    · rw [hf, ← image_segment]
+      refine ⟨t, ?_, rfl⟩
+      rw [segment_eq_uIcc, uIcc_of_le hcd.le]
+      exact ⟨ht'.1, ht'.2.trans (min_le_right _ _)⟩
+
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_before
+    {p q : Pt} (hpq : p ≠ q) (hlex : LexPositive (q - p))
+    {a b c d : ℝ} (hab : a < b) (hcd : c < d) (hac : a ≤ c)
+    {e f : Set Pt}
+    (he : e = segment ℝ (AffineMap.lineMap p q a) (AffineMap.lineMap p q b))
+    (hf : f = segment ℝ (AffineMap.lineMap p q c) (AffineMap.lineMap p q d))
+    (hno : ¬ OverlapPos e f) :
+    ∀ x ∈ e, ∀ y ∈ f, x = y ∨ LexPositive (y - x) := by
+  have hbc : b ≤ c := by
+    by_contra h
+    exact hno (existsRoutingAfterPower_step2_ports_step1_intra_step1_overlap
+      hpq hab hcd hac (lt_of_not_ge h) he hf)
+  intro x hx y hy
+  obtain ⟨s, hs, rfl⟩ :=
+    existsRoutingAfterPower_step2_ports_step1_intra_step1_point_param hab.le he hx
+  obtain ⟨t, ht, rfl⟩ :=
+    existsRoutingAfterPower_step2_ports_step1_intra_step1_point_param hcd.le hf hy
+  have hst : s ≤ t := hs.2.trans (hbc.trans ht.1)
+  rcases hst.eq_or_lt with hst | hst
+  · left
+    rw [hst]
+  · right
+    have heq : AffineMap.lineMap p q t - AffineMap.lineMap p q s =
+        (t - s) • (q - p) := by
+      simp only [AffineMap.lineMap_apply_module']
+      module
+    rw [heq]
+    exact existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_lex_smul_pos
+      hlex (sub_pos.mpr hst)
+
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_ordered_list
+    {Q : Protoset} (T : Template Q) {p q : Pt} (hpq : p ≠ q)
+    (hlex : LexPositive (q - p)) :
+    ∃ L : List (Set Pt),
+      (∀ e, e ∈ L ↔ T.IsOuter e ∧ e ⊆ segment ℝ p q) ∧ L.Nodup ∧
+      L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) := by
+  classical
+  let E : Set (Set Pt) := {e | T.IsOuter e ∧ e ⊆ segment ℝ p q}
+  have hE : E.Finite := by
+    refine (T.children.finite.biUnion (fun X _ => Set.finite_range X.side)).subset ?_
+    intro e he
+    obtain ⟨⟨X, hX, i, hi⟩, -⟩ := he.1
+    exact Set.mem_biUnion hX ⟨i, hi⟩
+  letI : Fintype {e // e ∈ E} := hE.fintype
+  have hspan (e : {e // e ∈ E}) :
+      ∃ a b : ℝ, a < b ∧
+        e.1 = segment ℝ (AffineMap.lineMap p q a) (AffineMap.lineMap p q b) := by
+    obtain ⟨⟨X, hX, i, hi⟩, -⟩ := e.2.1
+    obtain ⟨a, b, hab, hside⟩ :=
+      existsRoutingAfterPower_step2_ports_step1_intra_step1_side_interval X i
+        (by rw [hi]; exact e.2.2)
+    exact ⟨a, b, hab, hi.symm.trans hside⟩
+  let lo : {e // e ∈ E} → ℝ := fun e => Classical.choose (hspan e)
+  let hi : {e // e ∈ E} → ℝ := fun e =>
+    Classical.choose (Classical.choose_spec (hspan e))
+  have hspan_spec (e : {e // e ∈ E}) : lo e < hi e ∧
+      e.1 = segment ℝ (AffineMap.lineMap p q (lo e))
+        (AffineMap.lineMap p q (hi e)) :=
+    Classical.choose_spec (Classical.choose_spec (hspan e))
+  let r : {e // e ∈ E} → {e // e ∈ E} → Prop := fun e f => lo e ≤ lo f
+  letI : IsTrans {e // e ∈ E} r := ⟨fun _ _ _ h₁ h₂ => h₁.trans h₂⟩
+  letI : Std.Total r := ⟨fun e f => le_total (lo e) (lo f)⟩
+  let K := List.mergeSort (Finset.univ.toList : List {e // e ∈ E}) (r · ·)
+  have hKpair : K.Pairwise r := List.pairwise_mergeSort' r _
+  have hKperm : K.Perm (Finset.univ.toList : List {e // e ∈ E}) :=
+    List.mergeSort_perm _ _
+  have hKn : K.Nodup := hKperm.nodup_iff.mpr (Finset.nodup_toList _)
+  let L := K.map Subtype.val
+  refine ⟨L, ?_, hKn.map Subtype.val_injective, ?_⟩
+  · intro e
+    constructor
+    · intro he
+      obtain ⟨z, hz, rfl⟩ := List.mem_map.mp he
+      exact z.2
+    · intro he
+      let z : {e // e ∈ E} := ⟨e, he⟩
+      apply List.mem_map.mpr
+      refine ⟨z, ?_, rfl⟩
+      exact hKperm.mem_iff.mpr (by simp)
+  · rw [List.pairwise_map]
+    refine (List.pairwise_and_iff.mpr ⟨hKpair, hKn⟩).imp (fun {e f} hef => ?_)
+    have hno : ¬ OverlapPos e.1 f.1 := by
+      intro hov
+      obtain ⟨⟨X, hX, i, hXi⟩, -⟩ := e.2.1
+      obtain ⟨⟨Y, hY, j, hYj⟩, -⟩ := f.2.1
+      apply hef.2
+      apply Subtype.ext
+      have hov' : OverlapPos (X.side i) (Y.side j) := by
+        rwa [hXi, hYj]
+      exact hXi.symm.trans (((T.sts X hX Y hY i j) hov').trans hYj)
+    exact existsRoutingAfterPower_step2_ports_step1_intra_step1_before hpq hlex
+      (hspan_spec e).1 (hspan_spec f).1 hef.1 (hspan_spec e).2 (hspan_spec f).2 hno
+
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step1_intra`:
+A scaled parent declared side contains an ordered list of whole fine sides of large enough
+cardinality to choose five distinct ports by the sixth-quantiles. -/
+private lemma existsRoutingAfterPower_step2_ports_step1_intra_step1_ports (τ : Substitution P)
+    (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    ∃ _nPorts : ℕ, ∀ _l ≥ _nPorts, 0 < _l → ∀ _α _a,
+    ∃ (L : List (Set Pt)) (_port : Fin 5 → Set Pt),
+      (∀ e, e ∈ L ↔ (Rs.retained _l _α).IsOuter e ∧ e ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
+      L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
+      (∀ r, L[MacroData.portRank L.length r - 1]? = some (_port r)) ∧
+      (∀ _r, (Rs.retained _l _α).IsOuter (_port _r) ∧ _port _r ⊆ (τ.θ ^ (Rs.GS.k * _l)) • (Rs.GS.G.P'.disk _α).side _a) ∧
+      Function.Injective _port := by
+  classical
+  have _ := hτ
+  obtain ⟨d, hd, hdside⟩ :=
+    existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_parent_min τ M Rs
+  obtain ⟨nPorts, hnPorts⟩ := pow_unbounded_of_one_lt (6 * M.D / d) τ.one_lt
+  refine ⟨nPorts, ?_⟩
+  intro l hln hl α a
+  let s := τ.θ ^ (Rs.GS.k * l)
+  let B := Rs.GS.G.P'.disk α
+  let p₀ := s • B.vertex a
+  let q₀ := s • B.vertex (finRotate _ a)
+  have hs : 0 < s := pow_pos (by linarith [τ.one_lt]) _
+  have hpq₀ : p₀ ≠ q₀ := by
+    intro h
+    have := smul_right_injective Pt hs.ne' h
+    exact (pd_vertex_ne_next B a) this
+  let p := if LexPositive (q₀ - p₀) then p₀ else q₀
+  let q := if LexPositive (q₀ - p₀) then q₀ else p₀
+  have hpq : p ≠ q := by
+    simp only [p, q]
+    split_ifs
+    · exact hpq₀
+    · exact hpq₀.symm
+  have hlex : LexPositive (q - p) := by
+    simp only [p, q]
+    split_ifs with h
+    · exact h
+    · rcases existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_lex_neg
+        (sub_ne_zero.mpr hpq₀.symm) with h' | h'
+      · exact (h h').elim
+      · simpa only [neg_sub] using h'
+  have hpqseg : segment ℝ p q = s • B.side a := by
+    dsimp only [p, q]
+    split_ifs
+    · simp only [p₀, q₀]
+      rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_segment_smul]
+      rfl
+    · simp only [p₀, q₀]
+      rw [segment_symm,
+        existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_segment_smul]
+      rfl
+  obtain ⟨L, hL, hLn, hLpair⟩ :=
+    existsRoutingAfterPower_step2_ports_step1_intra_step1_ordered_list
+      (Rs.retained l α) hpq hlex
+  have hLscaled : ∀ e, e ∈ L ↔ (Rs.retained l α).IsOuter e ∧
+      e ⊆ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side a := by
+    intro e
+    rw [← hpqseg]
+    exact hL e
+  have hnkl : nPorts ≤ Rs.GS.k * l := by
+    have hkl : l ≤ Rs.GS.k * l := by
+      nlinarith [Rs.GS.k_pos]
+    exact hln.trans hkl
+  have hpow : τ.θ ^ nPorts ≤ s :=
+    pow_le_pow_right₀ τ.one_lt.le hnkl
+  have hslarge : 6 * M.D < s * d := by
+    have hn' : 6 * M.D < (τ.θ ^ nPorts) * d := by
+      rw [div_lt_iff₀ hd] at hnPorts
+      exact hnPorts
+    exact hn'.trans_le (mul_le_mul_of_nonneg_right hpow hd.le)
+  have hlength :=
+    existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_length_bound
+      τ M Rs l hl α a L hLscaled hLn
+  have hNd : s * d ≤ (L.length : ℝ) * M.D + 2 * M.D := by
+    exact (mul_le_mul_of_nonneg_left (hdside α a) hs.le).trans
+      (by simpa [s] using hlength)
+  have hN : 5 ≤ L.length := by
+    have hcast : (4 : ℝ) < (L.length : ℝ) := by
+      nlinarith [M.D_pos]
+    exact_mod_cast hcast
+  let idx : Fin 5 → ℕ := fun r => MacroData.portRank L.length r - 1
+  have hidx : ∀ r, idx r < L.length := by
+    intro r
+    fin_cases r <;> simp only [idx, MacroData.portRank] <;> omega
+  let port : Fin 5 → Set Pt := fun r => L[idx r]'(by simpa using hidx r)
+  have hport : ∀ r, L[MacroData.portRank L.length r - 1]? = some (port r) := by
+    intro r
+    rw [List.getElem?_eq_getElem (hidx r)]
+  have hport_outer : ∀ r, (Rs.retained l α).IsOuter (port r) ∧
+      port r ⊆ (τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).side a := by
+    intro r
+    apply (hLscaled (port r)).mp
+    exact L.get_mem ⟨idx r, hidx r⟩
+  have hport_inj : Function.Injective port := by
+    intro r t hrt
+    have hi : idx r = idx t := (List.Nodup.getElem_inj_iff hLn).mp hrt
+    fin_cases r <;> fin_cases t <;>
+      simp only [idx, MacroData.portRank] at hi ⊢ <;> omega
+  exact ⟨L, port, hLscaled, hLn, hLpair, hport, hport_outer, hport_inj⟩
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step1_intra`:
 Their separation from one another and from the ends is bounded below by a positive

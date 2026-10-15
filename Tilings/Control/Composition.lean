@@ -3838,6 +3838,272 @@ private lemma reconstructed_noncentral_legal_step3_eq_step1_form {P : Protoset}
   rw [h4] at h1
   rw [← h1, h2]
 
+private def reconstructed_noncentral_legal_step3_eq_step2_cellv
+    {P : Protoset} (c : MacroCertificate P) (A : DecTile c) (v : ℕ) (k : Fin 5) : U c :=
+  if h : v < (c.Q.disk (c.form A.typ)).n then A.cell ⟨v, h⟩ k else 0
+
+private lemma reconstructed_noncentral_legal_step3_eq_step2_cellv_side {P : Protoset}
+    (c : MacroCertificate P) (A : DecTile c) (i : c.Side A.typ) (k : Fin 5) :
+    reconstructed_noncentral_legal_step3_eq_step2_cellv c A i.val k = A.cell i k := by
+  unfold reconstructed_noncentral_legal_step3_eq_step2_cellv
+  rw [dif_pos i.isLt]
+
+private lemma reconstructed_noncentral_legal_step3_eq_step2_marked_cast_iff {P : Protoset}
+    (c : MacroCertificate P) {α β : c.Q.Form} (h : α = β)
+    (d : Fin (c.Q.disk α).n) :
+    c.marked β (Fin.cast (congrArg (fun u => (c.Q.disk u).n) h) d) ↔ c.marked α d := by
+  subst h
+  rfl
+
+private lemma reconstructed_noncentral_legal_step3_eq_step2_print_heq {P : Protoset}
+    (c : MacroCertificate P) {α β : c.Q.Form} (h : α = β)
+    (d : Fin (c.Q.disk α).n) :
+    HEq (c.print β (Fin.cast (congrArg (fun u => (c.Q.disk u).n) h) d)) (c.print α d) := by
+  subst h
+  rfl
+
+private lemma reconstructed_noncentral_legal_step3_eq_step2_print_special {P : Protoset}
+    (c : MacroCertificate P) {t : c.Typ} (ht : ¬ c.IsCentral t) (i : c.Side t)
+    (hp : c.IsPrint (c.occ t i)) : c.special (c.occ t i) := by
+  obtain ⟨d, hmk, h | h⟩ := hp
+  · exfalso
+    apply ht
+    change c.central (c.owner t) = t
+    exact (congrArg Sigma.fst h).symm
+  · rw [h]
+    exact c.g4_print_special _ d hmk
+
+private def reconstructed_noncentral_legal_step3_eq_step2_fp {P : Protoset}
+    (c : MacroCertificate P) : U c → Multiset c.Typ
+  | .ordinary (Sum.inr (Sum.inr (Sum.inl e))) =>
+      {(c.edgeTypes e).1, (c.edgeTypes e).2}
+  | _ => 0
+
+private lemma reconstructed_noncentral_legal_step3_eq_step2_fp_card {P : Protoset}
+    (c : MacroCertificate P) (x : U c) :
+    Multiset.card (reconstructed_noncentral_legal_step3_eq_step2_fp c x) ≤ 2 := by
+  rcases x with _ | (_ | _ | _ | _ | _) | _ <;>
+    simp [reconstructed_noncentral_legal_step3_eq_step2_fp]
+
+open Classical in
+private theorem reconstructed_noncentral_legal_step3_eq_step2_fp_mem {P : Protoset}
+    (c : MacroCertificate P) (A : DecTile c) (hAc : ¬ c.IsCentral A.typ)
+    (hs : c.kind (c.form A.typ) = .small) (hN : IsNormal c A)
+    (hI : IsIdentityCorrect c A) :
+    (∑ i : c.Side A.typ,
+      if c.marked (c.form A.typ) i then
+      reconstructed_noncentral_legal_step3_eq_step2_fp c (A.cell i 0) else 0) ∈
+      c.possibleFingerprints A.typ := by
+  classical
+  obtain ⟨s, hs1, hs2⟩ := c.g6_special_unique A.typ hs
+  unfold MacroData.possibleFingerprints
+  rw [if_pos hs]
+  refine ⟨if c.marked (c.form A.typ) s then
+      reconstructed_noncentral_legal_step3_eq_step2_fp c (A.cell s 0) else 0, ?_, ?_⟩
+  · split_ifs
+    · exact reconstructed_noncentral_legal_step3_eq_step2_fp_card c _
+    · simp
+  · have hx : (if c.marked (c.form A.typ) s then
+        reconstructed_noncentral_legal_step3_eq_step2_fp c (A.cell s 0) else 0) =
+        ∑ i : c.Side A.typ, if i = s then
+          (if c.marked (c.form A.typ) i then
+            reconstructed_noncentral_legal_step3_eq_step2_fp c (A.cell i 0) else 0)
+          else 0 := by
+      simp
+    unfold MacroData.baseFingerprint
+    rw [hx, Finset.sum_filter, ← Finset.sum_add_distrib]
+    apply Finset.sum_congr rfl
+    intro i _
+    by_cases his : i = s
+    · subst his
+      have hnfp : ¬ c.IsFingerprintSide (c.occ A.typ i) := fun h => h.2.1.1 hs1
+      by_cases hm : c.marked (c.form A.typ) i <;>
+        simp [hm, hnfp, reconstructed_noncentral_legal_step3_eq_step2_fp]
+    · rw [if_neg his, add_zero]
+      by_cases hm : c.marked (c.form A.typ) i
+      · rw [if_pos hm]
+        by_cases hin : c.IsInner (c.occ A.typ i)
+        · have hsp : ¬ c.special (c.occ A.typ i) := fun h => his (hs2 i h)
+          have hpr : ¬ c.IsPrint (c.occ A.typ i) := fun h => hsp (
+            reconstructed_noncentral_legal_step3_eq_step2_print_special c hAc i h)
+          have hfp : c.IsFingerprintSide (c.occ A.typ i) :=
+            ⟨hin, ⟨hsp, hpr⟩, fun _ => hm⟩
+          rw [if_pos hfp, (hI i).1 hin hpr]
+          rfl
+        · have hnfp : ¬ c.IsFingerprintSide (c.occ A.typ i) := fun h => hin h.1
+          rw [if_neg hnfp, asm_cell_zero_outer c hN i (not_not.1 hin)]
+          rfl
+      · have hnfp : ¬ c.IsFingerprintSide (c.occ A.typ i) := fun h => hm (h.2.2 hs)
+        rw [if_neg hm, if_neg hnfp]
+
+private lemma reconstructed_noncentral_legal_step3_eq_step2_anchor_eq {P : Protoset}
+    (c : MacroCertificate P) {q q' : c.Q.Form} (h : q' = q) (v w : Pt)
+    (i : Fin (c.Q.disk q).n)
+    (hs : (⟨q', w⟩ : PlacedTile c.Q).side
+        (Fin.cast (congrArg (fun u => (c.Q.disk u).n) h.symm) i) =
+      (⟨q, v⟩ : PlacedTile c.Q).side i) :
+    w = v := by
+  subst h
+  apply asm_vadd_cancel (asm_isCompact_segment _ _) ⟨_, left_mem_segment ℝ _ _⟩
+  exact hs
+
+private theorem reconstructed_noncentral_legal_step3_eq_step2_typ_eq {P : Protoset}
+    (c : MacroCertificate P) (X Y : DecTile c) (hXc : ¬ c.IsCentral X.typ)
+    (hYc : ¬ c.IsCentral Y.typ) (hf : c.form Y.typ = c.form X.typ)
+    (hXN : IsNormal c X) (hXI : IsIdentityCorrect c X)
+    (hYN : IsNormal c Y) (hYI : IsIdentityCorrect c Y)
+    (hcell : ∀ d : c.Side X.typ, c.marked (c.form X.typ) d → ∀ k : Fin 5, k ≠ 4 →
+      reconstructed_noncentral_legal_step3_eq_step2_cellv c Y d.val k = X.cell d k) :
+    Y.typ = X.typ := by
+  classical
+  have hn : (c.Q.disk (c.form X.typ)).n = (c.Q.disk (c.form Y.typ)).n :=
+    congrArg (fun u => (c.Q.disk u).n) hf.symm
+  have hcast : ∀ d : c.Side X.typ,
+      reconstructed_noncentral_legal_step3_eq_step2_cellv c Y d.val 0 =
+        Y.cell (Fin.cast hn d) 0 := by
+    intro d
+    rw [← reconstructed_noncentral_legal_step3_eq_step2_cellv_side c Y
+      (Fin.cast hn d), Fin.val_cast]
+  have hmk : ∀ d : c.Side X.typ,
+      c.marked (c.form Y.typ) (Fin.cast hn d) ↔ c.marked (c.form X.typ) d :=
+    reconstructed_noncentral_legal_step3_eq_step2_marked_cast_iff c hf.symm
+  have hnl : c.kind (c.form X.typ) ≠ .large := fun hl =>
+    hXc ((c.g5_large_iff _).1 hl).symm
+  by_contra hne
+  cases hk : c.kind (c.form X.typ) with
+  | large => exact hnl hk
+  | original =>
+    obtain ⟨i, hin, hm⟩ := c.g5_original_marked X.typ hk
+    have hXp : ¬ c.IsPrint (c.occ X.typ i) := by
+      intro hp
+      have h1 := c.g6_special_small _
+        (reconstructed_noncentral_legal_step3_eq_step2_print_special c hXc i hp)
+      rw [hk] at h1
+      cases h1
+    have hYk : c.kind (c.form Y.typ) = .original := by rw [hf]; exact hk
+    have hYp : ¬ c.IsPrint (c.occ Y.typ (Fin.cast hn i)) := by
+      intro hp
+      have h1 := c.g6_special_small _
+        (reconstructed_noncentral_legal_step3_eq_step2_print_special c hYc _ hp)
+      rw [hYk] at h1
+      cases h1
+    have e3 := hcell i hm 0 (by decide)
+    rw [hcast, (hXI i).1 hin hXp] at e3
+    have hYin : c.IsInner (c.occ Y.typ (Fin.cast hn i)) := by
+      intro ho
+      rw [asm_cell_zero_outer c hYN _ ho] at e3
+      exact asm_identU_ne_zero c _ e3.symm
+    rw [(hYI _).1 hYin hYp] at e3
+    have hedge := asm_identU_inj c e3
+    rcases c.g1_edge_unique _ _ hin hYin hedge.symm with h | h
+    · exact hne (congrArg Sigma.fst h)
+    · obtain ⟨hpne, hown, hside⟩ := c.g1_partner _ hin
+      rw [← h] at hpne hown hside
+      have ha : c.anchor Y.typ = c.anchor X.typ := by
+        exact reconstructed_noncentral_legal_step3_eq_step2_anchor_eq c hf _ _ i
+          (by simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side] using hside)
+      exact hpne (c.type_injective _ _ hown hf ha)
+  | small =>
+    have hYs : c.kind (c.form Y.typ) = .small := by rw [hf]; exact hk
+    refine Set.disjoint_left.1 (c.g6_fingerprint _ _ hne hYc hXc)
+      (reconstructed_noncentral_legal_step3_eq_step2_fp_mem c Y hYc hYs hYN hYI) ?_
+    convert reconstructed_noncentral_legal_step3_eq_step2_fp_mem c X hXc hk hXN hXI
+      using 1
+    rw [← Equiv.sum_comp (finCongr hn)]
+    apply Finset.sum_congr rfl
+    intro i _
+    simp only [finCongr_apply]
+    by_cases hm : c.marked (c.form X.typ) i
+    · rw [if_pos ((hmk i).2 hm), if_pos hm, ← hcast, hcell i hm 0 (by decide)]
+    · rw [if_neg hm, if_neg (fun h => hm ((hmk i).1 h))]
+
+private lemma reconstructed_noncentral_legal_step3_eq_step2_cell_agreement {P : Protoset}
+    (c : MacroCertificate P) (hH : c.Hereditary) (K : ColouredBlock c)
+    (hK : BlockContext c K) (h : HeaderKernel.Header c.Typ c.Side)
+    (hh : CommonHeader c K h) (hA : headerLegal c K.centre)
+    (E : DecTile c) (hE_child : IsChildOf c E K.centre)
+    (h_form : c.form E.typ = c.form h.1) :
+    ∀ d : c.Side E.typ, c.marked (c.form E.typ) d → ∀ k : Fin 5, k ≠ 4 →
+      reconstructed_noncentral_legal_step3_eq_step2_cellv c
+        (reconstruct c K h.1) d.val k = E.cell d k := by
+  intro d hd k hk
+  have heα : c.form E.typ = K.α := h_form.trans hh.1
+  let dα : Fin (c.Q.disk K.α).n :=
+    Fin.cast (congrArg (fun u => (c.Q.disk u).n) heα) d
+  have hdα : c.marked K.α dα :=
+    (reconstructed_noncentral_legal_step3_eq_step2_marked_cast_iff c heα d).2 hd
+  have hprint : c.IsPrintOf (c.form E.typ) d
+      (c.occ K.centre.typ (c.print K.α dα)) := by
+    refine ⟨hd, Or.inl ?_⟩
+    have hcent : K.centre.typ = c.central (c.form E.typ) := congrArg c.central heα.symm
+    refine Sigma.ext hcent ?_
+    apply (Fin.heq_ext_iff (congrArg (fun t => (c.Q.disk (c.form t)).n) hcent)).mpr
+    exact Fin.val_eq_val_of_heq
+      (reconstructed_noncentral_legal_step3_eq_step2_print_heq c heα d)
+  have hcopy := (((hE_child.2 (c.print K.α dα)).1 d hprint).1 k hk)
+  have hcopy' : K.col K.centre.typ (c.print K.α dα) k = E.cell d k := by
+    exact hcopy
+  have hinner : c.IsInner (c.occ K.centre.typ (c.print K.α dα)) := by
+    simpa [MacroData.printOcc, dα, heα] using c.g4_print_inner K.α dα hdα
+  have hprint' : c.IsPrint (c.occ K.centre.typ (c.print K.α dα)) :=
+    by
+      unfold MacroData.IsPrint
+      have hownc : c.owner (c.occ K.centre.typ (c.print K.α dα)).1 = K.α := by
+        change c.owner K.centre.typ = K.α
+        simpa [ColouredBlock.centre, ColouredBlock.tileOf] using c.g5_central_owner K.α
+      rw [hownc]
+      exact ⟨dα, hdα, Or.inl rfl⟩
+  have hAprops := headerLegal_properties c hH K.centre hA
+  have hnontriv : IsNontrivial c K.centre (c.print K.α dα) := by
+    intro hz
+    have hi4 := (hAprops.2.2.1 (c.print K.α dα)).2 hprint'
+    exact asm_identU_ne_zero c _ (by rw [← hi4]; exact hz.2)
+  obtain ⟨t', j, htowner, htne, hside, hcells⟩ :=
+    hK.1 K.centre.typ (c.print K.α dα) (c.g5_central_owner K.α) hinner hnontriv
+  have hside' : c.occSide (c.occ t' j) =
+      c.occSide (c.occ K.centre.typ (c.print K.α dα)) := by
+    apply path_and_print_recovery_step1_signals_aux_vadd_cancel K.v
+    rw [path_and_print_recovery_step1_signals_aux_childSide c K,
+      path_and_print_recovery_step1_signals_aux_childSide c K] at hside
+    exact hside
+  have hpartner : c.occ t' j =
+      c.partner (c.occ K.centre.typ (c.print K.α dα)) :=
+    c.g1_side_unique _ _ hinner
+      (htowner.trans (c.g5_central_owner K.α).symm) htne hside'
+  have hmatch : K.col (c.partner (c.occ K.centre.typ (c.print K.α dα))).1
+      (c.partner (c.occ K.centre.typ (c.print K.α dα))).2 k =
+      K.col K.centre.typ (c.print K.α dα) k := by
+    rw [← hpartner]
+    exact hcells k
+  let dH : c.Side h.1 :=
+    Fin.cast (congrArg (fun u => (c.Q.disk u).n) h_form) d
+  have hdH : c.marked (c.form h.1) dH :=
+    (reconstructed_noncentral_legal_step3_eq_step2_marked_cast_iff c h_form d).2 hd
+  have hrec := (path_and_print_recovery c hH K hK h hh).2 dH hdH k hk
+  have hdHα : Fin.cast (congrArg (fun u => (c.Q.disk u).n) hh.1) dH = dα := by
+    apply Fin.ext
+    simp [dH, dα]
+  have hocc : c.printOcc (c.form h.1) dH =
+      c.occ K.centre.typ (c.print K.α dα) := by
+    have hcentH : K.centre.typ = c.central (c.form h.1) :=
+      congrArg c.central hh.1.symm
+    refine Sigma.ext hcentH.symm ?_
+    rw [← hdHα]
+    exact (reconstructed_noncentral_legal_step3_eq_step2_print_heq c hh.1 dH).symm
+  calc
+    reconstructed_noncentral_legal_step3_eq_step2_cellv c
+        (reconstruct c K h.1) d.val k = (reconstruct c K h.1).cell dH k := by
+          rw [← reconstructed_noncentral_legal_step3_eq_step2_cellv_side c
+            (reconstruct c K h.1) dH]
+          rfl
+    _ = K.col (c.partner (c.printOcc (c.form h.1) dH)).1
+        (c.partner (c.printOcc (c.form h.1) dH)).2 k := hrec.symm
+    _ = K.col (c.partner (c.occ K.centre.typ (c.print K.α dα))).1
+        (c.partner (c.occ K.centre.typ (c.print K.α dα))).2 k := by
+          rw [hocc]
+    _ = K.col K.centre.typ (c.print K.α dα) k := hmatch
+    _ = E.cell d k := hcopy'
+
 /-- Step 2 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq`: E and D types agree. -/
 private lemma reconstructed_noncentral_legal_step3_eq_step2_type {P : Protoset}
     (c : MacroCertificate P) (hH : c.Hereditary)
@@ -3847,7 +4113,14 @@ private lemma reconstructed_noncentral_legal_step3_eq_step2_type {P : Protoset}
     (E : DecTile c) (hE_leg : headerLegal c E) (hE_nc : ¬ c.IsCentral E.typ)
     (hE_child : IsChildOf c E K.centre)
     (h_form : c.form E.typ = c.form h.1) :
-    E.typ = h.1 := by sorry
+    E.typ = h.1 := by
+  have hEprops := headerLegal_properties c hH E hE_leg
+  have hDprops := reconstructed_header_eq c hH K hK h hh
+  exact (reconstructed_noncentral_legal_step3_eq_step2_typ_eq c E
+    (reconstruct c K h.1) hE_nc hnc h_form.symm hEprops.2.1 hEprops.2.2.1
+    hDprops.1 hDprops.2.1
+    (reconstructed_noncentral_legal_step3_eq_step2_cell_agreement c hH K hK h hh hA E
+      hE_child h_form)).symm
 
 /-- Step 1 of the blueprint proof of `reconstructed_noncentral_legal_step3_eq_step3_eq`:
 E and the reconstructed parent agree on the first four cells of every marked side. -/

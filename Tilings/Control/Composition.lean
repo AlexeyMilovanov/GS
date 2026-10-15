@@ -7623,8 +7623,133 @@ private lemma composed_proper_step3_properties (c : MacroCertificate P) (hH : c.
     (T' : PlaneTiling (typedDecoration c)) (hrec : IsReconstruction c part T') :
     ∀ X ∈ T'.tiles, IsNormal c (tileDec X) ∧ IsIdentityCorrect c (tileDec X) ∧
       InnerActive c (tileDec X) := by
-  have _ := hH; have _ := hT; have _ := hL; have _ := hrec
-  sorry
+  have _ := hrec
+  obtain ⟨blk, hblk, hcover⟩ := composed_proper_step2_exact c hH T hT hL part T' hrec
+  intro X hX
+  let X' : T'.tiles := ⟨X, hX⟩
+  let K := blk X'
+  have hKexact : IsExactBlockOf c K (tileDec X) := (hblk X').1
+  have hmem : ∀ t, c.owner t = K.α → K.placed t ∈ T.tiles := by
+    intro t ht
+    rw [hcover]
+    exact Set.mem_iUnion.2 ⟨X', ⟨t, ht, rfl⟩⟩
+  have hprops : ∀ Y ∈ T.tiles,
+      IsNormal c (tileDec Y) ∧ IsIdentityCorrect c (tileDec Y) ∧
+        InnerActive c (tileDec Y) := by
+    intro Y hY
+    have hlegal := hL Y hY
+    exact ⟨(headerLegal_properties_step2_normal_id c hH (tileDec Y) hlegal).1,
+      (headerLegal_properties_step2_normal_id c hH (tileDec Y) hlegal).2,
+      headerLegal_properties_step6_inner c hH (tileDec Y) hlegal⟩
+  have hctx : BlockContext c K := by
+    constructor
+    · intro t i ht hi hnon
+      have hXt : K.placed t ∈ T.tiles := hmem t ht
+      have hXtactive : IsNontrivial c (tileDec (K.placed t)) i := hnon
+      obtain ⟨Y, hY, hYX, l, hside, hcell⟩ := hT (K.placed t) hXt i hXtactive
+      have hmatch := asm_match c
+        ⟨(hprops _ hXt).1, (hprops _ hXt).2.1⟩
+        ⟨(hprops _ hY).1, (hprops _ hY).2.1⟩ i l hi hcell
+      obtain ⟨hinner, hedge⟩ := hmatch
+      let p : c.SideOcc := c.partner (c.occ t i)
+      obtain ⟨hpne, hpowner, hpside⟩ := c.g1_partner _ hi
+      rcases c.g1_edge_unique _ _ hi hinner hedge.symm with hsame | hpartner_eq
+      · have hside' : asmSide c Y.anchor (c.occ (tileDec Y).typ l) =
+            asmSide c (K.placed t).anchor (c.occ t i) := hside
+        rw [hsame] at hside'
+        have hanchor := asm_side_cancel c hside'
+        exfalso
+        exact hYX (asm_tile_unique c T hY hXt (congrArg Sigma.fst hsame) hanchor)
+      · let s : c.Typ := (tileDec Y).typ
+        have hs : (tileDec Y).typ = s := rfl
+        change c.Side s at l
+        have hsp : s = p.1 := hs.symm.trans (congrArg Sigma.fst hpartner_eq)
+        have hsowner : c.owner s = K.α := by
+          rw [hsp, hpowner, ht]
+        have hownerY : c.owner (tileDec Y).typ = K.α := by
+          rw [hs, hsowner]
+        have hsne : s ≠ t := by
+          intro hst
+          exact hpne (hsp.symm.trans (hs.trans hst))
+        refine ⟨(tileDec Y).typ, l, hownerY, hsne, ?_, ?_⟩
+        · unfold ColouredBlock.childSide
+          rw [← vadd_vadd, ← vadd_vadd]
+          change K.v +ᵥ c.occSide (c.occ (tileDec Y).typ l) =
+            K.v +ᵥ c.occSide (c.occ t i)
+          rw [hpartner_eq, hpside]
+        · have hanchor : Y.anchor = (K.placed t).anchor - c.anchor t + c.anchor p.1 := by
+            have hside' : asmSide c Y.anchor (c.occ (tileDec Y).typ l) =
+                asmSide c (K.placed t).anchor (c.occ t i) := hside
+            rw [hpartner_eq] at hside'
+            have hside_partner' : asmSide c (c.anchor p.1) p =
+                asmSide c (c.anchor t) (c.occ t i) := hpside
+            apply asm_side_cancel c (o := p)
+            rw [hside']
+            unfold asmSide at hside_partner' ⊢
+            rw [← vadd_vadd, hside_partner', vadd_vadd, sub_add_cancel]
+          have hY' : K.placed (tileDec Y).typ ∈ T.tiles := hmem _ hownerY
+          have hYeq : Y = K.placed (tileDec Y).typ := by
+            apply asm_tile_unique c T hY hY'
+            · rfl
+            · change Y.anchor = K.v + c.anchor (tileDec Y).typ
+              have hps : p.1 = (tileDec Y).typ := hsp.symm.trans hs.symm
+              rw [hanchor, hps]
+              change (K.v + c.anchor t) - c.anchor t + c.anchor (tileDec Y).typ = _
+              rw [add_sub_cancel_right]
+          intro k
+          have hform : tileDec Y = K.tileOf (tileDec Y).typ :=
+            congrArg PlacedTile.form hYeq
+          have hform' := congrArg (decTileEquiv c) hform
+          change (⟨(tileDec Y).typ, (tileDec Y).cell⟩ :
+            Σ u, c.Side u → Fin 5 → U c) =
+            ⟨(tileDec Y).typ, (K.tileOf (tileDec Y).typ).cell⟩ at hform'
+          have hcells : (tileDec Y).cell = (K.tileOf (tileDec Y).typ).cell :=
+            eq_of_heq (Sigma.mk.inj hform').2
+          exact (congrFun (congrFun hcells l) k).symm.trans (hcell k)
+    · intro t ht _
+      exact hL (K.placed t) (hmem t ht)
+  have hh : CommonHeader c K (headerOf c (tileDec X)) := by
+    constructor
+    · exact hKexact.1
+    · intro t i ht hi
+      have hchild := hKexact.2 t ht
+      have hnp : ¬ c.IsPrint (c.occ t i) := fun hp =>
+        headerLegal_properties_step4_boundary_step1_print_not_boundary c _ hp hi
+      dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hchild
+      exact ((hchild.2 i).2 hnp).2.2.2.2.2.2.1 hi
+  have hreconstruct : tileDec X = reconstruct c K (tileDec X).typ := by
+    apply (decTileEquiv c).injective
+    refine Sigma.ext rfl ?_
+    apply heq_of_eq
+    funext d i
+    have h_len := c.g3_five_le (c.form (tileDec X).typ) d
+    set L := (c.outerList (c.form (tileDec X).typ) d).length
+    have h1 : i.val ≤ 4 := by omega
+    have h2 : (i.val + 1) * L ≤ 5 * L := Nat.mul_le_mul_right L (by omega)
+    have h_bound : (((i.val + 1) * L + 5) / 6) - 1 < L := by omega
+    obtain ⟨o, ho⟩ : ∃ o, c.port (c.form (tileDec X).typ) d i = some o := by
+      unfold Geometry.MacroData.port Geometry.MacroData.portRank
+      exact ⟨_, List.getElem?_eq_getElem h_bound⟩
+    have ho_mem : o ∈ c.outerList (c.form (tileDec X).typ) d := by
+      unfold Geometry.MacroData.port at ho
+      exact List.mem_of_getElem? ho
+    obtain ⟨ho_owner, ho_outer, -⟩ :=
+      (c.g3_outerList_mem (c.form (tileDec X).typ) d o).1 ho_mem
+    have howner : c.owner o.1 = K.α := ho_owner.trans hKexact.1
+    have hchild := hKexact.2 o.1 howner
+    have hnp : ¬ c.IsPrint o := fun hp => asm_print_inner c hp ho_outer
+    have hpath : o ∈ c.path (c.form (tileDec X).typ) d i := by
+      by_cases hGenuine : c.IsGenuinePath (c.form (tileDec X).typ) d i
+      · exact List.mem_of_mem_head? ((c.g4_path_head _ _ _ hGenuine).trans ho)
+      · rw [c.g4_path_trivial _ _ _ hGenuine, ho]
+        simp
+    dsimp [decTileEquiv, reconstruct]
+    rw [ho]
+    dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hchild
+    exact (((hchild.2 o.2).2 hnp).2.2.2.1 d i hpath).symm
+  have hp := reconstructed_header_eq c hH K hctx (headerOf c (tileDec X)) hh
+  rw [hreconstruct]
+  exact ⟨hp.1, hp.2.1, hp.2.2.2⟩
 
 /-- Step 4 of the blueprint proof of `composed_proper`: the resulting tiling is proper. -/
 private lemma composed_proper_step4_proper (c : MacroCertificate P) (hH : c.Hereditary)

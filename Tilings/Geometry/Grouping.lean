@@ -3805,6 +3805,697 @@ private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposi
       B₁.carrier ∩ B₂.carrier = segment ℝ (B.vertex i) (B.vertex j) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: the common diagonal
+lies on the boundary of each piece: since the other piece is the closure of its
+interior and a segment has empty interior in the plane, the diagonal misses the interior of each piece. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step1_segmentDisjointInterior
+    (B₁ B₂ : PolygonalDisk) (p q : Pt)
+    (hI : B₁.carrier ∩ B₂.carrier = segment ℝ p q) :
+    Disjoint (segment ℝ p q) (interior B₁.carrier) := by
+  have hseg : interior (segment ℝ p q) = ∅ := by
+    by_contra h
+    rw [← ne_eq, ← Set.nonempty_iff_ne_empty, (convex_segment p q).interior_nonempty_iff_affineSpan_eq_top] at h
+    have h2 : affineSpan ℝ ({p, q} : Set Pt) = ⊤ := by
+      apply eq_top_iff.2
+      rw [← h]
+      apply affineSpan_le.2
+      intro x hx
+      obtain ⟨t, -, rfl⟩ := (segment_eq_image_lineMap ℝ p q ▸ hx : _)
+      exact AffineMap.lineMap_mem_affineSpan_pair t p q
+    have hc : Collinear ℝ ({p, q} : Set Pt) := collinear_pair ℝ p q
+    rw [Collinear, ← direction_affineSpan, h2, AffineSubspace.direction_top] at hc
+    have : Module.rank ℝ (⊤ : Submodule ℝ Pt) = 2 := by
+      rw [rank_top, rank_eq_card_basis (EuclideanSpace.basisFun (Fin 2) ℝ).toBasis]; simp
+    rw [this] at hc
+    norm_num at hc
+  rw [Set.disjoint_left]
+  intro x hxs hxi
+  have hx2 : x ∈ B₂.carrier := (hI ▸ hxs : x ∈ B₁.carrier ∩ B₂.carrier).2
+  rw [← B₂.regular_closed, mem_closure_iff] at hx2
+  obtain ⟨y, hy1, hy2⟩ := hx2 _ isOpen_interior hxi
+  have hsub : interior B₁.carrier ∩ interior B₂.carrier ⊆ interior (segment ℝ p q) := by
+    apply interior_maximal _ (isOpen_interior.inter isOpen_interior)
+    rw [← hI]
+    exact inter_subset_inter interior_subset interior_subset
+  rw [hseg] at hsub
+  exact hsub ⟨hy1, hy2⟩
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: the preimage of the
+diagonal under a disk model of a piece is an arc of the unit circle; we
+parametrize it by pulling back the affine parametrization of the diagonal (the model is a homeomorphism onto its image). -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step2_diagonalArcOnCircle
+    (B₁ : PolygonalDisk) (p q : Pt) (hpq : p ≠ q)
+    (hdisj : Disjoint (segment ℝ p q) (interior B₁.carrier)) (hseg : segment ℝ p q ⊆ B₁.carrier)
+    (g₁ : Metric.closedBall (0 : ℂ) 1 → Pt) (hg₁ : Continuous g₁) (hg₁i : Function.Injective g₁)
+    (hg₁r : range g₁ = B₁.carrier) (hg₁b : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g₁ z ∈ interior B₁.carrier) :
+    ∃ γ : ℝ → Metric.closedBall (0 : ℂ) 1, ContinuousOn γ (Icc 0 1) ∧ InjOn γ (Icc 0 1) ∧
+      (∀ t ∈ Icc (0 : ℝ) 1, ‖(γ t : ℂ)‖ = 1) ∧ ∀ t ∈ Icc (0 : ℝ) 1, g₁ (γ t) = AffineMap.lineMap p q t := by
+  let e := (hg₁.isClosedEmbedding hg₁i).isEmbedding.toHomeomorph
+  have he : ∀ y, g₁ (e.symm y) = y.1 := fun y => congrArg Subtype.val (e.apply_symm_apply y)
+  have hmem : ∀ t : ℝ, AffineMap.lineMap p q (projIcc (0 : ℝ) 1 zero_le_one t : ℝ) ∈ range g₁ := by
+    intro t
+    rw [hg₁r]
+    apply hseg
+    rw [segment_eq_image_lineMap]
+    exact mem_image_of_mem _ (projIcc (0 : ℝ) 1 zero_le_one t).2
+  let γ : ℝ → Metric.closedBall (0 : ℂ) 1 := fun t => e.symm ⟨_, hmem t⟩
+  have hγ : ∀ t ∈ Icc (0 : ℝ) 1, g₁ (γ t) = AffineMap.lineMap p q t := by
+    intro t ht
+    rw [he]
+    simp [projIcc_of_mem _ ht]
+  refine ⟨γ, ?_, ?_, ?_, hγ⟩
+  · apply Continuous.continuousOn
+    apply e.symm.continuous.comp
+    apply Continuous.subtype_mk
+    exact (AffineMap.lineMap_continuous).comp (continuous_subtype_val.comp continuous_projIcc)
+  · intro s hs t ht hst
+    have := congrArg g₁ hst
+    rw [hγ s hs, hγ t ht] at this
+    exact AffineMap.lineMap_injective ℝ hpq this
+  · intro t ht
+    have h1 : ‖(γ t : ℂ)‖ ≤ 1 := by
+      have := (γ t).2
+      rwa [Metric.mem_closedBall, dist_zero_right] at this
+    refine le_antisymm h1 (not_lt.1 fun h => ?_)
+    have hb : (γ t).1 ∈ Metric.ball (0 : ℂ) 1 := by rwa [Metric.mem_ball, dist_zero_right]
+    have hi := hg₁b _ hb
+    rw [hγ t ht] at hi
+    have hs : AffineMap.lineMap p q t ∈ segment ℝ p q := by
+      rw [segment_eq_image_lineMap]; exact mem_image_of_mem _ ht
+    exact Set.disjoint_left.1 hdisj hs hi
+
+/-- Step 3 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: an embedded arc of the
+unit circle lifts through the exponential map to a continuous, strictly
+monotone angle function whose total variation is less than a full turn. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step3_circleArcLift
+    (α : ℝ → ℂ) (hαc : ContinuousOn α (Icc 0 1)) (hαi : InjOn α (Icc 0 1))
+    (hαs : MapsTo α (Icc 0 1) (Metric.sphere 0 1)) :
+    ∃ θ : ℝ → ℝ, ContinuousOn θ (Icc 0 1) ∧ (StrictMonoOn θ (Icc 0 1) ∨ StrictAntiOn θ (Icc 0 1)) ∧
+      |θ 1 - θ 0| < 2 * Real.pi ∧ ∀ t ∈ Icc (0 : ℝ) 1, α t = Complex.exp (θ t * Complex.I) := by
+  have hne : ∀ t ∈ Icc (0 : ℝ) 1, α t ≠ 0 := fun t ht h => by
+    have := hαs ht
+    rw [mem_sphere_zero_iff_norm, h, norm_zero] at this
+    exact zero_ne_one this
+  let γ : C(unitInterval, {z : ℂ // z ≠ 0}) :=
+    ⟨fun t => ⟨α t, hne t t.2⟩, (hαc.comp_continuous continuous_subtype_val (fun t => t.2)).subtype_mk _⟩
+  have h0 : γ 0 = (fun z : ℂ ↦ (⟨_, z.exp_ne_zero⟩ : {z : ℂ // z ≠ 0})) (Complex.log (α 0)) := by
+    apply Subtype.ext
+    simp only [γ, ContinuousMap.coe_mk]
+    rw [Complex.exp_log (hne 0 ⟨le_refl _, zero_le_one⟩)]
+    rfl
+  obtain ⟨Γ, hΓ, -⟩ := Complex.isCoveringMap_exp.exists_path_lifts γ _ h0
+  have hΓe : ∀ t : unitInterval, Complex.exp (Γ t) = α t := fun t => by
+    have := congrArg Subtype.val (congrFun hΓ t)
+    simpa [γ] using this
+  let θ : ℝ → ℝ := fun t => (Γ (projIcc 0 1 zero_le_one t)).im
+  have hθc : Continuous θ := Complex.continuous_im.comp (Γ.continuous.comp continuous_projIcc)
+  have hθα : ∀ t ∈ Icc (0 : ℝ) 1, α t = Complex.exp (θ t * Complex.I) := by
+    intro t ht
+    have h1 := hΓe (projIcc 0 1 zero_le_one t)
+    simp only [projIcc_of_mem _ ht] at h1
+    have hn := hαs ht
+    rw [mem_sphere_zero_iff_norm, ← h1, Complex.norm_exp] at hn
+    have hre : (Γ ⟨t, ht⟩).re = 0 := by
+      have := Real.exp_eq_one_iff _ |>.1 hn
+      exact this
+    rw [← h1]
+    congr 1
+    apply Complex.ext
+    · simp [θ, projIcc_of_mem _ ht, hre]
+    · simp [θ, projIcc_of_mem _ ht]
+  have hθi : InjOn θ (Icc 0 1) := by
+    intro s hs t ht hst
+    apply hαi hs ht
+    rw [hθα s hs, hθα t ht, hst]
+  refine ⟨θ, hθc.continuousOn, hθc.continuousOn.strictMonoOn_of_injOn_Icc' zero_le_one hθi, ?_, hθα⟩
+  have h01 : (0 : ℝ) ∈ Icc (0 : ℝ) 1 := ⟨le_refl _, zero_le_one⟩
+  have h11 : (1 : ℝ) ∈ Icc (0 : ℝ) 1 := ⟨zero_le_one, le_refl _⟩
+  have key : ∀ t ∈ Icc (0 : ℝ) 1, ∀ k : ℤ, k ≠ 0 → θ t ≠ θ 0 + k * (2 * Real.pi) := by
+    intro t ht k hk h
+    have : α t = α 0 := by
+      rw [hθα t ht, hθα 0 h01, h, Complex.exp_eq_exp_iff_exists_int]
+      exact ⟨k, by push_cast; ring⟩
+    have ht0 := hαi ht h01 this
+    rw [ht0] at h
+    have : (k : ℝ) * (2 * Real.pi) = 0 := by linarith
+    rcases mul_eq_zero.1 this with h' | h'
+    · exact hk (by exact_mod_cast h')
+    · linarith [Real.pi_pos]
+  by_contra hcon
+  rw [not_lt, le_abs'] at hcon
+  rcases hcon with h | h
+  · obtain ⟨t, ht, hteq⟩ := intermediate_value_Icc' zero_le_one hθc.continuousOn
+      (show θ 0 + ((-1 : ℤ) : ℝ) * (2 * Real.pi) ∈ Icc (θ 1) (θ 0) by
+        push_cast; constructor <;> linarith [Real.pi_pos])
+    exact key t ht (-1) (by norm_num) hteq
+  · obtain ⟨t, ht, hteq⟩ := intermediate_value_Icc zero_le_one hθc.continuousOn
+      (show θ 0 + ((1 : ℤ) : ℝ) * (2 * Real.pi) ∈ Icc (θ 0) (θ 1) by
+        push_cast; constructor <;> linarith [Real.pi_pos])
+    exact key t ht 1 (by norm_num) hteq
+
+/-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: after a rotation (and
+a reflection when the angle function decreases), the angle function of an
+embedded arc starts at `0`, increases, and stays below `2π`. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step4_circleArcNormalize
+    (α : ℝ → ℂ) (θ : ℝ → ℝ) (hθc : ContinuousOn θ (Icc 0 1))
+    (hmono : StrictMonoOn θ (Icc 0 1) ∨ StrictAntiOn θ (Icc 0 1)) (hspan : |θ 1 - θ 0| < 2 * Real.pi)
+    (hα : ∀ t ∈ Icc (0 : ℝ) 1, α t = Complex.exp (θ t * Complex.I)) :
+    ∃ c d : ℂ → ℂ, ∃ θ' : ℝ → ℝ, Continuous c ∧ Continuous d ∧ (∀ z, d (c z) = z) ∧ (∀ z, c (d z) = z) ∧
+      (∀ z, ‖c z‖ = ‖z‖) ∧ ContinuousOn θ' (Icc 0 1) ∧ StrictMonoOn θ' (Icc 0 1) ∧ θ' 0 = 0 ∧
+      θ' 1 < 2 * Real.pi ∧ ∀ t ∈ Icc (0 : ℝ) 1, c (α t) = Complex.exp (θ' t * Complex.I) := by
+  rcases hmono with hm | hm
+  · refine ⟨fun z => Complex.exp (-(θ 0 : ℂ) * Complex.I) * z, fun z => Complex.exp ((θ 0 : ℂ) * Complex.I) * z,
+      fun t => θ t - θ 0, continuous_const.mul continuous_id, continuous_const.mul continuous_id, ?_, ?_, ?_,
+      hθc.sub continuousOn_const, ?_, by simp, ?_, ?_⟩
+    · intro z
+      dsimp only; rw [← mul_assoc, ← Complex.exp_add]; ring_nf; simp
+    · intro z
+      dsimp only; rw [← mul_assoc, ← Complex.exp_add]; ring_nf; simp
+    · intro z
+      rw [norm_mul, Complex.norm_exp]; simp
+    · intro s hs t ht hst
+      have := hm hs ht hst
+      simp only; linarith
+    · have := (le_abs_self (θ 1 - θ 0)).trans_lt hspan
+      simpa using this
+    · intro t ht
+      dsimp only; rw [hα t ht, ← Complex.exp_add]
+      congr 1; push_cast; ring
+  · refine ⟨fun z => Complex.exp ((θ 0 : ℂ) * Complex.I) * (starRingEnd ℂ) z,
+      fun z => (starRingEnd ℂ) (Complex.exp (-(θ 0 : ℂ) * Complex.I) * z),
+      fun t => θ 0 - θ t, continuous_const.mul Complex.continuous_conj,
+      Complex.continuous_conj.comp (continuous_const.mul continuous_id), ?_, ?_, ?_,
+      continuousOn_const.sub hθc, ?_, by simp, ?_, ?_⟩
+    · intro z
+      simp only [map_mul, ← Complex.exp_conj, Complex.conj_conj]
+      rw [← mul_assoc, ← Complex.exp_add]
+      simp
+    · intro z
+      simp only [map_mul, ← Complex.exp_conj, Complex.conj_conj]
+      rw [← mul_assoc, ← Complex.exp_add]
+      simp
+    · intro z
+      rw [norm_mul, Complex.norm_exp]; simp
+    · intro s hs t ht hst
+      have := hm hs ht hst
+      simp only; linarith
+    · have := (neg_abs_le (θ 1 - θ 0))
+      have : θ 0 - θ 1 < 2 * Real.pi := by linarith
+      simpa using this
+    · intro t ht
+      dsimp only; rw [hα t ht, ← Complex.exp_conj, ← Complex.exp_add]
+      congr 1
+      simp [Complex.conj_ofReal]
+      ring
+
+/-- Step 5 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: an increasing angle
+function on `[0, 1]` with values in `[0, 2π)` extends to an order
+automorphism of the real line sending `2` to `2π`. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step5_angleExtension
+    (θ : ℝ → ℝ) (hc : ContinuousOn θ (Icc 0 1)) (hm : StrictMonoOn θ (Icc 0 1))
+    (h1 : θ 1 < 2 * Real.pi) :
+    ∃ T : ℝ ≃o ℝ, (∀ t ∈ Icc (0 : ℝ) 1, T t = θ t) ∧ T 2 = 2 * Real.pi := by
+  have h01 : (0 : ℝ) ∈ Icc (0 : ℝ) 1 := ⟨le_refl _, zero_le_one⟩
+  have h11 : (1 : ℝ) ∈ Icc (0 : ℝ) 1 := ⟨zero_le_one, le_refl _⟩
+  have hpos : θ 0 < θ 1 := hm h01 h11 zero_lt_one
+  set c := 2 * Real.pi - θ 1 with hcdef
+  have hcpos : 0 < c := by linarith
+  let p : ℝ → ℝ := fun s => (projIcc (0 : ℝ) 1 zero_le_one s : ℝ)
+  let T : ℝ → ℝ := fun s => θ (p s) + max (s - 1) 0 * c + min s 0
+  have hpc : Continuous p := continuous_subtype_val.comp continuous_projIcc
+  have hpI : ∀ s, p s ∈ Icc (0 : ℝ) 1 := fun s => (projIcc (0 : ℝ) 1 zero_le_one s).2
+  have hTc : Continuous T := by
+    refine ((hc.comp_continuous hpc hpI).add ((continuous_id.sub continuous_const).max continuous_const |>.mul
+      continuous_const)).add (continuous_id.min continuous_const)
+  have hθmono : ∀ s s', s ≤ s' → θ (p s) ≤ θ (p s') := fun s s' h =>
+    hm.monotoneOn (hpI s) (hpI s') (monotone_projIcc zero_le_one h)
+  have hTm : StrictMono T := by
+    intro s s' hss
+    have hmax : max (s - 1) 0 * c ≤ max (s' - 1) 0 * c :=
+      mul_le_mul_of_nonneg_right (max_le_max (by linarith) le_rfl) hcpos.le
+    have hmin : min s 0 ≤ min s' 0 := min_le_min hss.le le_rfl
+    have hθ := hθmono s s' hss.le
+    simp only [T]
+    by_cases hs' : s' ≤ 0
+    · have : min s 0 < min s' 0 := by rw [min_eq_left (by linarith), min_eq_left hs']; exact hss
+      linarith
+    by_cases hs : 1 ≤ s
+    · have : max (s - 1) 0 * c < max (s' - 1) 0 * c := by
+        rw [max_eq_left (by linarith), max_eq_left (by linarith)]
+        exact mul_lt_mul_of_pos_right (by linarith) hcpos
+      linarith
+    · push_neg at hs hs'
+      have hp : p s < p s' := by
+        have hv : ∀ x, p x = max 0 (min 1 x) := fun x => rfl
+        rw [hv, hv]
+        simp only [max_def, min_def]
+        split_ifs <;> linarith
+      have := hm (hpI s) (hpI s') hp
+      linarith
+  have hTs : Function.Surjective T := by
+    intro y
+    have hle : ∀ s, s ≤ 0 → T s = θ 0 + s := fun s hs => by
+      simp only [T, p, projIcc_of_le_left zero_le_one hs, max_eq_right (by linarith : s - 1 ≤ 0), zero_mul,
+        min_eq_left hs]
+      ring
+    have hge : ∀ s, 1 ≤ s → T s = θ 1 + (s - 1) * c := fun s hs => by
+      simp only [T, p, projIcc_of_right_le zero_le_one hs, max_eq_left (by linarith : 0 ≤ s - 1),
+        min_eq_right (by linarith : (0 : ℝ) ≤ s)]
+      ring
+    set a := min (y - θ 0) 0
+    set b := 1 + |y - θ 1| / c + 1
+    have hTa : T a ≤ y := by rw [hle a (min_le_right _ _)]; linarith [min_le_left (y - θ 0) 0]
+    have hTb : y ≤ T b := by
+      rw [hge b (by have := div_nonneg (abs_nonneg (y - θ 1)) hcpos.le; linarith)]
+      have : (b - 1) * c = |y - θ 1| + c := by
+        simp only [b]; field_simp; ring
+      rw [this]; linarith [le_abs_self (y - θ 1)]
+    exact intermediate_value_univ a b hTc ⟨hTa, hTb⟩
+  refine ⟨StrictMono.orderIsoOfSurjective T hTm hTs, ?_, ?_⟩
+  · intro t ht
+    simp only [StrictMono.coe_orderIsoOfSurjective, T, p, projIcc_of_mem _ ht,
+      max_eq_right (by linarith [ht.2] : t - 1 ≤ 0), min_eq_right ht.1]
+    ring
+  · simp only [StrictMono.coe_orderIsoOfSurjective, T, p, projIcc_of_right_le zero_le_one (by norm_num : (1 : ℝ) ≤ 2)]
+    norm_num [c]
+
+/-- Step 6 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: an increasing
+homeomorphism of `[0, 2π]` fixing both endpoints induces a homeomorphism of the
+unit circle. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step6_circleMapOfAngleMap
+    (Φ : ℝ → ℝ) (hc : ContinuousOn Φ (Icc 0 (2 * Real.pi)))
+    (hm : StrictMonoOn Φ (Icc 0 (2 * Real.pi))) (h0 : Φ 0 = 0) (h2 : Φ (2 * Real.pi) = 2 * Real.pi) :
+    ∃ f : ℂ → ℂ, ContinuousOn f (Metric.sphere 0 1) ∧ MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      InjOn f (Metric.sphere 0 1) ∧ SurjOn f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      ∀ s ∈ Icc 0 (2 * Real.pi), f (Complex.exp (s * Complex.I)) = Complex.exp (Φ s * Complex.I) := by
+  have hpi := Real.pi_pos
+  haveI : Fact (0 < 2 * Real.pi) := ⟨Real.two_pi_pos⟩
+  let g : ℝ → ℂ := fun s => Complex.exp (Φ s * Complex.I)
+  have hg0 : g 0 = g (2 * Real.pi) := by
+    simp only [g, h0, h2]
+    rw [Complex.ofReal_zero, zero_mul, Complex.exp_zero]
+    push_cast
+    exact (Complex.exp_two_pi_mul_I).symm
+  have hgc : ContinuousOn g (Icc 0 (2 * Real.pi)) :=
+    Complex.continuous_exp.comp_continuousOn ((Complex.continuous_ofReal.comp_continuousOn hc).mul continuousOn_const)
+  let G : Real.Angle → ℂ := AddCircle.liftIco (2 * Real.pi) 0 g
+  have hGc : Continuous G := AddCircle.liftIco_zero_continuous hg0 hgc
+  have hGv : ∀ r : ℝ, G r = g (toIcoMod Real.two_pi_pos 0 r) := by
+    intro r
+    rw [← Real.Angle.coe_toIcoMod r 0]
+    exact AddCircle.liftIco_zero_coe_apply (by simpa using toIcoMod_mem_Ico Real.two_pi_pos 0 r)
+  let f : ℂ → ℂ := fun w => G (Complex.arg w)
+  have hexp_mod : ∀ r : ℝ, Complex.exp ((toIcoMod Real.two_pi_pos 0 r : ℝ) * Complex.I) =
+      Complex.exp (r * Complex.I) := by
+    intro r
+    rw [Complex.exp_eq_exp_iff_exists_int]
+    refine ⟨-toIcoDiv Real.two_pi_pos 0 r, ?_⟩
+    rw [toIcoMod]
+    simp only [zsmul_eq_mul]
+    push_cast
+    ring
+  have hunit : ∀ w ∈ Metric.sphere (0 : ℂ) 1, Complex.exp ((Complex.arg w : ℂ) * Complex.I) = w := by
+    intro w hw
+    have h1 : ‖w‖ = 1 := mem_sphere_zero_iff_norm.1 hw
+    have := Complex.norm_mul_exp_arg_mul_I w
+    rw [h1] at this
+    simpa using this
+  have hfv : ∀ s : ℝ, f (Complex.exp (s * Complex.I)) = g (toIcoMod Real.two_pi_pos 0 s) := by
+    intro s
+    simp only [f]
+    rw [Complex.arg_exp_mul_I, Real.Angle.coe_toIocMod, hGv]
+  have hgmod : ∀ s ∈ Icc 0 (2 * Real.pi), g (toIcoMod Real.two_pi_pos 0 s) = g s := by
+    intro s hs
+    rcases eq_or_lt_of_le hs.2 with h | h
+    · have h2z : toIcoMod Real.two_pi_pos 0 (2 * Real.pi) = 0 := by
+        simpa using toIcoMod_add_right Real.two_pi_pos 0 0
+      rw [h, h2z]
+      exact hg0
+    · rw [toIcoMod_eq_self Real.two_pi_pos |>.2 ⟨hs.1, by simpa using h⟩]
+  have hgn : ∀ s, ‖g s‖ = 1 := fun s => Complex.norm_exp_ofReal_mul_I _
+  have hIco : ∀ r : ℝ, toIcoMod Real.two_pi_pos 0 r ∈ Ico 0 (2 * Real.pi) := fun r => by
+    simpa using toIcoMod_mem_Ico Real.two_pi_pos 0 r
+  have hΦrange : ∀ s ∈ Ico 0 (2 * Real.pi), Φ s ∈ Ico 0 (2 * Real.pi) := by
+    intro s hs
+    have hs' : s ∈ Icc 0 (2 * Real.pi) := Ico_subset_Icc_self hs
+    have h0' : (0 : ℝ) ∈ Icc 0 (2 * Real.pi) := ⟨le_refl _, by linarith⟩
+    have h2' : 2 * Real.pi ∈ Icc 0 (2 * Real.pi) := ⟨by linarith, le_refl _⟩
+    refine ⟨?_, ?_⟩
+    · have := hm.monotoneOn h0' hs' hs.1; rwa [h0] at this
+    · have := hm hs' h2' hs.2; rwa [h2] at this
+  refine ⟨f, ?_, ?_, ?_, ?_, ?_⟩
+  · intro w hw
+    have hw0 : w ≠ 0 := by
+      intro h; rw [h, mem_sphere_zero_iff_norm, norm_zero] at hw; exact zero_ne_one hw
+    exact (hGc.continuousAt.comp (Complex.continuousAt_arg_coe_angle hw0)).continuousWithinAt
+  · intro w _
+    rw [mem_sphere_zero_iff_norm]
+    simp only [f]
+    rw [hGv]; exact hgn _
+  · intro w hw w' hw' hww
+    simp only [f, hGv, g] at hww
+    set s := toIcoMod Real.two_pi_pos 0 (Complex.arg w)
+    set s' := toIcoMod Real.two_pi_pos 0 (Complex.arg w')
+    obtain ⟨n, hn⟩ := Complex.exp_eq_exp_iff_exists_int.1 hww
+    have hre : Φ s = Φ s' + n * (2 * Real.pi) := by
+      have := congrArg Complex.im hn
+      simpa using this
+    have h1 := hΦrange s (hIco _)
+    have h2 := hΦrange s' (hIco _)
+    have hn0 : n = 0 := by
+      have hlt : (n : ℝ) * (2 * Real.pi) < 2 * Real.pi := by linarith [h1.2, h2.1]
+      have hgt : -(2 * Real.pi) < (n : ℝ) * (2 * Real.pi) := by linarith [h1.1, h2.2]
+      have a1 : (n : ℝ) < 1 := by nlinarith
+      have a2 : (-1 : ℝ) < n := by nlinarith
+      have b1 : n < 1 := by exact_mod_cast a1
+      have b2 : -1 < n := by exact_mod_cast a2
+      omega
+    rw [hn0] at hre
+    simp at hre
+    have hss : s = s' := hm.injOn (Ico_subset_Icc_self (hIco _)) (Ico_subset_Icc_self (hIco _)) hre
+    rw [← hunit w hw, ← hunit w' hw', ← hexp_mod, ← hexp_mod (Complex.arg w')]
+    show Complex.exp ((s : ℂ) * Complex.I) = Complex.exp ((s' : ℂ) * Complex.I)
+    rw [hss]
+  · intro w hw
+    set u := toIcoMod Real.two_pi_pos 0 (Complex.arg w)
+    have hu := hIco (Complex.arg w)
+    obtain ⟨s, hs, hsu⟩ := intermediate_value_Icc (by linarith : (0 : ℝ) ≤ 2 * Real.pi) hc
+      (show u ∈ Icc (Φ 0) (Φ (2 * Real.pi)) by rw [h0, h2]; exact Ico_subset_Icc_self hu)
+    refine ⟨Complex.exp (s * Complex.I), ?_, ?_⟩
+    · rw [mem_sphere_zero_iff_norm]; exact Complex.norm_exp_ofReal_mul_I _
+    · rw [hfv, hgmod s hs]
+      simp only [g, hsu]
+      rw [hexp_mod, hunit w hw]
+  · intro s hs
+    rw [hfv, hgmod s hs]
+
+/-- Step 7 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: two normalized arcs
+(increasing angle functions starting at `0` and staying below `2π`) are
+matched by a homeomorphism of the unit circle. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step7_normalizedArcMatch
+    (θ₁ θ₂ : ℝ → ℝ) (h₁c : ContinuousOn θ₁ (Icc 0 1)) (h₂c : ContinuousOn θ₂ (Icc 0 1))
+    (h₁m : StrictMonoOn θ₁ (Icc 0 1)) (h₂m : StrictMonoOn θ₂ (Icc 0 1)) (h₁0 : θ₁ 0 = 0) (h₂0 : θ₂ 0 = 0)
+    (h₁1 : θ₁ 1 < 2 * Real.pi) (h₂1 : θ₂ 1 < 2 * Real.pi) :
+    ∃ f : ℂ → ℂ, ContinuousOn f (Metric.sphere 0 1) ∧ MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      InjOn f (Metric.sphere 0 1) ∧ SurjOn f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      ∀ t ∈ Icc (0 : ℝ) 1, f (Complex.exp (θ₁ t * Complex.I)) = Complex.exp (θ₂ t * Complex.I) := by
+  obtain ⟨T₁, hT₁, hT₁2⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step5_angleExtension θ₁ h₁c h₁m h₁1
+  obtain ⟨T₂, hT₂, hT₂2⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step5_angleExtension θ₂ h₂c h₂m h₂1
+  have h01 : (0 : ℝ) ∈ Icc (0 : ℝ) 1 := ⟨le_refl _, zero_le_one⟩
+  have h11 : (1 : ℝ) ∈ Icc (0 : ℝ) 1 := ⟨zero_le_one, le_refl _⟩
+  have hinv : ∀ t ∈ Icc (0 : ℝ) 1, T₁.symm (θ₁ t) = t := fun t ht => by
+    rw [← hT₁ t ht, OrderIso.symm_apply_apply]
+  obtain ⟨f, hfc, hfm, hfi, hfs, hfv⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step6_circleMapOfAngleMap (fun s => T₂ (T₁.symm s))
+    (T₂.continuous.comp T₁.symm.continuous).continuousOn
+    ((T₂.strictMono.comp T₁.symm.strictMono).strictMonoOn _)
+    (by have := hinv 0 h01; rw [h₁0] at this; show T₂ (T₁.symm 0) = 0; rw [this, hT₂ 0 h01, h₂0])
+    (by have : T₁.symm (2 * Real.pi) = 2 := by rw [OrderIso.symm_apply_eq]; exact hT₁2.symm
+        show T₂ (T₁.symm (2 * Real.pi)) = 2 * Real.pi; rw [this, hT₂2])
+  refine ⟨f, hfc, hfm, hfi, hfs, fun t ht => ?_⟩
+  have hmem : θ₁ t ∈ Icc 0 (2 * Real.pi) := by
+    constructor
+    · rw [← h₁0]; exact h₁m.monotoneOn h01 ht ht.1
+    · exact (h₁m.monotoneOn ht h11 ht.2).trans h₁1.le
+  rw [hfv _ hmem, hinv t ht, hT₂ t ht]
+
+/-- Step 8 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: any two embedded arcs
+of the unit circle are matched, with their parametrizations, by a
+homeomorphism of the circle. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step8_circleArcHomeomorph
+    (α β : ℝ → ℂ) (hαc : ContinuousOn α (Icc 0 1)) (hαi : InjOn α (Icc 0 1))
+    (hαs : MapsTo α (Icc 0 1) (Metric.sphere 0 1)) (hβc : ContinuousOn β (Icc 0 1)) (hβi : InjOn β (Icc 0 1))
+    (hβs : MapsTo β (Icc 0 1) (Metric.sphere 0 1)) :
+    ∃ f : ℂ → ℂ, ContinuousOn f (Metric.sphere 0 1) ∧ MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      InjOn f (Metric.sphere 0 1) ∧ SurjOn f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      ∀ t ∈ Icc (0 : ℝ) 1, f (α t) = β t := by
+  obtain ⟨θa, hac, ham, has, haα⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step3_circleArcLift α hαc hαi hαs
+  obtain ⟨θb, hbc, hbm, hbs, hbβ⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step3_circleArcLift β hβc hβi hβs
+  obtain ⟨ca, da, θa', hcac, hdac, hdca, hcda, hcan, hac', ham', ha0, ha1, hca⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step4_circleArcNormalize α θa hac ham has haα
+  obtain ⟨cb, db, θb', hcbc, hdbc, hdcb, hcdb, hcbn, hbc', hbm', hb0, hb1, hcb⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step4_circleArcNormalize β θb hbc hbm hbs hbβ
+  obtain ⟨g, hgc, hgm, hgi, hgs, hgab⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step7_normalizedArcMatch θa' θb' hac' hbc' ham' hbm'
+      ha0 hb0 ha1 hb1
+  have hdbn : ∀ z, ‖db z‖ = ‖z‖ := fun z => by rw [← hcbn, hcdb]
+  have hdan : ∀ z, ‖da z‖ = ‖z‖ := fun z => by rw [← hcan, hcda]
+  have hsph : ∀ (k : ℂ → ℂ), (∀ z, ‖k z‖ = ‖z‖) → MapsTo k (Metric.sphere 0 1) (Metric.sphere 0 1) :=
+    fun k hk z hz => by rw [mem_sphere_zero_iff_norm, hk]; exact mem_sphere_zero_iff_norm.1 hz
+  refine ⟨fun z => db (g (ca z)), ?_, ?_, ?_, ?_, ?_⟩
+  · exact hdbc.comp_continuousOn (hgc.comp hcac.continuousOn (hsph ca hcan))
+  · exact (hsph db hdbn).comp (hgm.comp (hsph ca hcan))
+  · intro z hz w hw hzw
+    have h1 : g (ca z) = g (ca w) := by
+      have := congrArg cb hzw; simpa [hcdb] using this
+    have h2 := hgi (hsph ca hcan hz) (hsph ca hcan hw) h1
+    have := congrArg da h2; simpa [hdca] using this
+  · intro w hw
+    obtain ⟨v, hv, hgv⟩ := hgs (hsph cb hcbn hw)
+    refine ⟨da v, hsph da hdan hv, ?_⟩
+    simp only [hcda, hgv, hdcb]
+  · intro t ht
+    simp only
+    rw [hca t ht, hgab t ht, ← hcb t ht, hdcb]
+
+/-- Step 9 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: a homeomorphism of the
+unit circle extends radially (coning) to a norm-preserving homeomorphism
+of the plane. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step9_coneExtension
+    (f : ℂ → ℂ) (hfc : ContinuousOn f (Metric.sphere 0 1))
+    (hfm : MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1)) (hfi : InjOn f (Metric.sphere 0 1))
+    (hfs : SurjOn f (Metric.sphere 0 1) (Metric.sphere 0 1)) :
+    ∃ F : ℂ → ℂ, Continuous F ∧ Function.Injective F ∧ Function.Surjective F ∧ (∀ z, ‖F z‖ = ‖z‖) ∧
+      ∀ z ∈ Metric.sphere (0 : ℂ) 1, F z = f z := by
+  let u : ℂ → ℂ := fun z => z / (‖z‖ : ℂ)
+  have hu : ∀ z, z ≠ 0 → u z ∈ Metric.sphere (0 : ℂ) 1 := fun z hz => by
+    rw [mem_sphere_zero_iff_norm, norm_div, Complex.norm_real, norm_norm, div_self (norm_ne_zero_iff.2 hz)]
+  have hzu : ∀ z : ℂ, (‖z‖ : ℂ) * u z = z := fun z => by
+    by_cases hz : z = 0
+    · simp [hz]
+    · have hne : (‖z‖ : ℂ) ≠ 0 := by exact_mod_cast norm_ne_zero_iff.2 hz
+      simp only [u]; field_simp
+  let F : ℂ → ℂ := fun z => (‖z‖ : ℂ) * f (u z)
+  have hFn : ∀ z, ‖F z‖ = ‖z‖ := fun z => by
+    by_cases hz : z = 0
+    · simp [F, hz]
+    · have := hfm (hu z hz)
+      rw [mem_sphere_zero_iff_norm] at this
+      simp [F, this]
+  refine ⟨F, ?_, ?_, ?_, hFn, ?_⟩
+  · rw [continuous_iff_continuousAt]
+    intro z
+    by_cases hz : z = 0
+    · subst hz
+      have h0 : F 0 = 0 := by simp [F]
+      rw [ContinuousAt, h0, tendsto_zero_iff_norm_tendsto_zero]
+      simp only [hFn]
+      have := (continuous_norm (E := ℂ)).tendsto 0
+      simpa using this
+    · have hopen : IsOpen {w : ℂ | w ≠ 0} := isOpen_ne
+      have hcont : ContinuousOn F {w : ℂ | w ≠ 0} := by
+        apply ContinuousOn.mul (Complex.continuous_ofReal.comp continuous_norm).continuousOn
+        apply hfc.comp _ (fun w hw => hu w hw)
+        apply ContinuousOn.div continuousOn_id (Complex.continuous_ofReal.comp continuous_norm).continuousOn
+        intro w hw
+        simpa using hw
+      exact hcont.continuousAt (hopen.mem_nhds hz)
+  · intro z w hzw
+    have hn : ‖z‖ = ‖w‖ := by rw [← hFn z, ← hFn w, hzw]
+    by_cases hz : z = 0
+    · have : w = 0 := by rw [← norm_eq_zero, ← hn, hz, norm_zero]
+      rw [hz, this]
+    have hw : w ≠ 0 := by rw [← norm_ne_zero_iff, ← hn]; exact norm_ne_zero_iff.2 hz
+    have hne : (‖z‖ : ℂ) ≠ 0 := by exact_mod_cast norm_ne_zero_iff.2 hz
+    have h1 : f (u z) = f (u w) := by
+      have : (‖z‖ : ℂ) * f (u z) = (‖z‖ : ℂ) * f (u w) := by
+        have := hzw; simp only [F] at this; rw [this, hn]
+      exact mul_left_cancel₀ hne this
+    have h2 := hfi (hu z hz) (hu w hw) h1
+    rw [← hzu z, ← hzu w, h2, hn]
+  · intro w
+    by_cases hw : w = 0
+    · exact ⟨0, by simp [F, hw]⟩
+    obtain ⟨s, hs, hfs'⟩ := hfs (hu w hw)
+    have hs1 : ‖s‖ = 1 := mem_sphere_zero_iff_norm.1 hs
+    refine ⟨(‖w‖ : ℂ) * s, ?_⟩
+    have hn : ‖(‖w‖ : ℂ) * s‖ = ‖w‖ := by simp [hs1]
+    have hus : u ((‖w‖ : ℂ) * s) = s := by
+      have hne : (‖w‖ : ℂ) ≠ 0 := by exact_mod_cast norm_ne_zero_iff.2 hw
+      simp only [u, hn]; field_simp
+    simp only [F]
+    rw [hus, hn, hfs', hzu]
+  · intro z hz
+    have h1 : ‖z‖ = 1 := mem_sphere_zero_iff_norm.1 hz
+    simp [F, u, h1]
+
+/-- Step 10 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: the closed left half
+disk is a convex body, so it is homeomorphic to the closed unit disk by a
+homeomorphism sending its interior into the open disk and its diameter onto the unit circle. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step10_halfDiskModel
+    : ∃ h : ℂ ≃ₜ ℂ, h '' {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} = Metric.closedBall 0 1 ∧
+      (∀ z : ℂ, ‖z‖ < 1 → z.re < 0 → ‖h z‖ < 1) ∧ ∀ y ∈ Icc (-1 : ℝ) 1, ‖h (y * Complex.I)‖ = 1 := by
+  set L := {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} with hL
+  have hLeq : L = Metric.closedBall 0 1 ∩ {z : ℂ | z.re ≤ 0} := by
+    ext z; simp [L]
+  have hconv : Convex ℝ L := by
+    rw [hLeq]
+    refine (convex_closedBall 0 1).inter ?_
+    exact convex_halfSpace_le (f := Complex.re) Complex.reLm.isLinear 0
+  have hclosed : IsClosed L := by
+    rw [hLeq]
+    exact Metric.isClosed_closedBall.inter (isClosed_le Complex.continuous_re continuous_const)
+  have hopen_sub : ∀ z : ℂ, ‖z‖ < 1 → z.re < 0 → z ∈ interior L := by
+    intro z hz hre
+    have hO : IsOpen {w : ℂ | ‖w‖ < 1 ∧ w.re < 0} :=
+      (isOpen_lt continuous_norm continuous_const).inter (isOpen_lt Complex.continuous_re continuous_const)
+    refine interior_maximal ?_ hO ⟨hz, hre⟩
+    intro w hw
+    exact ⟨hw.1.le, hw.2.le⟩
+  have hne : (interior L).Nonempty := by
+    refine ⟨(-1/2 : ℂ), hopen_sub _ ?_ ?_⟩
+    · rw [show (-1/2 : ℂ) = ((-1/2 : ℝ) : ℂ) by push_cast; ring, Complex.norm_real]; norm_num
+    · norm_num
+  have hbdd : Bornology.IsBounded L := by
+    rw [hLeq]; exact Metric.isBounded_closedBall.subset inter_subset_left
+  obtain ⟨h, hi, hc, hf⟩ := exists_homeomorph_image_interior_closure_frontier_eq_unitBall hconv hne hbdd
+  rw [hclosed.closure_eq] at hc
+  refine ⟨h, hc, ?_, ?_⟩
+  · intro z hz hre
+    have : h z ∈ h '' interior L := mem_image_of_mem _ (hopen_sub z hz hre)
+    rw [hi] at this
+    simpa using this
+  · intro y hy
+    have hmem : (y : ℂ) * Complex.I ∈ frontier L := by
+      rw [hclosed.frontier_eq]
+      refine ⟨⟨?_, by simp⟩, ?_⟩
+      · rw [norm_mul, Complex.norm_I, mul_one, Complex.norm_real, Real.norm_eq_abs]
+        exact abs_le.2 hy
+      · intro hint
+        obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 isOpen_interior _ hint
+        have hpt : (y : ℂ) * Complex.I + (ε / 2 : ℝ) ∈ Metric.ball ((y : ℂ) * Complex.I) ε := by
+          rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, Complex.norm_real, Real.norm_eq_abs,
+            abs_of_pos (by linarith)]
+          linarith
+        have := (interior_subset (hball hpt)).2
+        simp at this
+        linarith
+    have : h ((y : ℂ) * Complex.I) ∈ h '' frontier L := mem_image_of_mem _ hmem
+    rw [hf] at this
+    simpa using this
+
+/-- Step 11 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: reparametrize the
+closed disk by the closed left half disk so that the diameter goes, with a
+prescribed parametrization, onto a given embedded arc of the unit circle (combine steps 8-10). -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step11_halfDiskReparam
+    (γ : ℝ → Metric.closedBall (0 : ℂ) 1) (hγc : ContinuousOn γ (Icc 0 1))
+    (hγi : InjOn γ (Icc 0 1)) (hγs : ∀ t ∈ Icc (0 : ℝ) 1, ‖(γ t : ℂ)‖ = 1) :
+    ∃ φ : ℂ → Metric.closedBall (0 : ℂ) 1, ContinuousOn φ {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} ∧
+      InjOn φ {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} ∧ φ '' {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} = univ ∧
+      (∀ z : ℂ, ‖z‖ < 1 → z.re < 0 → ‖(φ z : ℂ)‖ < 1) ∧
+      ∀ y ∈ Icc (-1 : ℝ) 1, φ (y * Complex.I) = γ ((1 + y) / 2) := by
+  obtain ⟨h, hhL, hhb, hhd⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step10_halfDiskModel
+  let α : ℝ → ℂ := fun t => h (((2 * t - 1 : ℝ) : ℂ) * Complex.I)
+  have hαc : Continuous α := h.continuous.comp
+    ((Complex.continuous_ofReal.comp ((continuous_const.mul continuous_id).sub continuous_const)).mul continuous_const)
+  have hαi : InjOn α (Icc 0 1) := by
+    intro s _ t _ hst
+    have h1 := h.injective hst
+    have h2 := congrArg Complex.im h1
+    simp at h2
+    linarith
+  have hαs : MapsTo α (Icc 0 1) (Metric.sphere 0 1) := by
+    intro t ht
+    rw [mem_sphere_zero_iff_norm]
+    exact hhd _ ⟨by linarith [ht.1], by linarith [ht.2]⟩
+  have hβi : InjOn (fun t => (γ t : ℂ)) (Icc 0 1) := fun s hs t ht hst => hγi hs ht (Subtype.ext hst)
+  obtain ⟨f, hfc, hfm, hfi, hfs, hfab⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step8_circleArcHomeomorph α (fun t => (γ t : ℂ))
+      hαc.continuousOn hαi hαs
+    (continuous_subtype_val.comp_continuousOn hγc) hβi (fun t ht => mem_sphere_zero_iff_norm.2 (hγs t ht))
+  obtain ⟨F, hFc, hFi, hFs, hFn, hFf⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step9_coneExtension
+      f hfc hfm hfi hfs
+  let r : ℂ → ℂ := fun w => w / ((max 1 ‖w‖ : ℝ) : ℂ)
+  have hmax : ∀ w : ℂ, ((max 1 ‖w‖ : ℝ) : ℂ) ≠ 0 := fun w => by
+    have : (0 : ℝ) < max 1 ‖w‖ := lt_of_lt_of_le one_pos (le_max_left _ _)
+    exact_mod_cast this.ne'
+  have hrc : Continuous r := continuous_id.div
+    (Complex.continuous_ofReal.comp (continuous_const.max continuous_norm)) hmax
+  have hrn : ∀ w, ‖r w‖ ≤ 1 := fun w => by
+    simp only [r]
+    rw [norm_div, Complex.norm_real, Real.norm_of_nonneg (le_trans zero_le_one (le_max_left _ _))]
+    rw [div_le_one (lt_of_lt_of_le one_pos (le_max_left _ _))]
+    exact le_max_right _ _
+  have hrid : ∀ w : ℂ, ‖w‖ ≤ 1 → r w = w := fun w hw => by
+    simp [r, max_eq_left hw]
+  have hL : ∀ z ∈ {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0}, ‖h z‖ ≤ 1 := fun z hz => by
+    have : h z ∈ h '' {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} := mem_image_of_mem _ hz
+    rw [hhL] at this
+    simpa using this
+  let φ : ℂ → Metric.closedBall (0 : ℂ) 1 := fun z => ⟨r (F (h z)), mem_closedBall_zero_iff.2 (hrn _)⟩
+  have hφv : ∀ z ∈ {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0}, (φ z : ℂ) = F (h z) := fun z hz => by
+    simp only [φ]
+    rw [hrid _ (by rw [hFn]; exact hL z hz)]
+  refine ⟨φ, ?_, ?_, ?_, ?_, ?_⟩
+  · exact (Continuous.subtype_mk (hrc.comp (hFc.comp h.continuous)) _).continuousOn
+  · intro z hz w hw hzw
+    have := congrArg Subtype.val hzw
+    rw [hφv z hz, hφv w hw] at this
+    exact h.injective (hFi this)
+  · apply eq_univ_of_forall
+    intro w
+    obtain ⟨v, hv⟩ := hFs w.1
+    have hv1 : v ∈ Metric.closedBall (0 : ℂ) 1 := by
+      rw [mem_closedBall_zero_iff, ← hFn, hv]; exact mem_closedBall_zero_iff.1 w.2
+    rw [← hhL] at hv1
+    obtain ⟨z, hz, rfl⟩ := hv1
+    exact ⟨z, hz, Subtype.ext (by rw [hφv z hz, hv])⟩
+  · intro z hz hre
+    have hz' : z ∈ {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} := ⟨hz.le, hre.le⟩
+    rw [hφv z hz', hFn]
+    exact hhb z hz hre
+  · intro y hy
+    have hyL : (y : ℂ) * Complex.I ∈ {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} := by
+      refine ⟨?_, by simp⟩
+      rw [norm_mul, Complex.norm_I, mul_one, Complex.norm_real, Real.norm_eq_abs]
+      exact abs_le.2 hy
+    apply Subtype.ext
+    rw [hφv _ hyL, hFf _ (mem_sphere_zero_iff_norm.2 (hhd y hy))]
+    have ht : (1 + y) / 2 ∈ Icc (0 : ℝ) 1 := ⟨by linarith [hy.1], by linarith [hy.2]⟩
+    rw [← hfab _ ht]
+    show f (h ((y : ℂ) * Complex.I)) = f (h (((2 * ((1 + y) / 2) - 1 : ℝ) : ℂ) * Complex.I))
+    congr 3
+    push_cast
+    ring
+
+/-- Step 12 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels`: normal form of a
+piece: each piece is the image of the closed left half disk under an embedding
+sending the open part into the interior and the diameter affinely onto the common diagonal. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step12_normalizePiece
+    (B₁ : PolygonalDisk) (p q : Pt) (hpq : p ≠ q)
+    (hdisj : Disjoint (segment ℝ p q) (interior B₁.carrier)) (hseg : segment ℝ p q ⊆ B₁.carrier)
+    (g₁ : Metric.closedBall (0 : ℂ) 1 → Pt) (hg₁ : Continuous g₁) (hg₁i : Function.Injective g₁)
+    (hg₁r : range g₁ = B₁.carrier) (hg₁b : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g₁ z ∈ interior B₁.carrier) :
+    ∃ k : ℂ → Pt, ContinuousOn k {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} ∧ InjOn k {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} ∧
+      k '' {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} = B₁.carrier ∧
+      (∀ z : ℂ, ‖z‖ < 1 → z.re < 0 → k z ∈ interior B₁.carrier) ∧
+      ∀ y ∈ Icc (-1 : ℝ) 1, k (y * Complex.I) = AffineMap.lineMap p q ((1 + y) / 2) := by
+  obtain ⟨γ, hγc, hγi, hγs, hγg⟩ := plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step2_diagonalArcOnCircle
+      B₁ p q hpq hdisj hseg g₁ hg₁ hg₁i hg₁r hg₁b
+  obtain ⟨φ, hφc, hφi, hφs, hφb, hφd⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step11_halfDiskReparam γ hγc hγi hγs
+  refine ⟨fun z => g₁ (φ z), hg₁.comp_continuousOn hφc, hg₁i.comp_injOn hφi, ?_, ?_, ?_⟩
+  · show (g₁ ∘ φ) '' _ = _
+    rw [image_comp, hφs, image_univ, hg₁r]
+  · intro z hz hre
+    apply hg₁b
+    rw [Metric.mem_ball, dist_zero_right]
+    exact hφb z hz hre
+  · intro y hy
+    simp only
+    rw [hφd y hy, hγg]
+    constructor <;> linarith [hy.1, hy.2]
+
 /-- Step 3 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition`: gluing the disk models
 of the two pieces along the common diagonal gives a disk model of the whole polygonal disk. -/
 private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels (B B₁ B₂ : PolygonalDisk)
@@ -3816,7 +4507,122 @@ private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposi
     (hg₂r : range g₂ = B₂.carrier) (hg₂b : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g₂ z ∈ interior B₂.carrier) :
     ∃ g : Metric.closedBall (0 : ℂ) 1 → Pt, Continuous g ∧ Function.Injective g ∧
       range g = B.carrier ∧ ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → g z ∈ interior B.carrier := by
-  sorry
+  have hI' : B₂.carrier ∩ B₁.carrier = segment ℝ p q := by rw [inter_comm]; exact hI
+  obtain ⟨k₁, hk₁c, hk₁i, hk₁r, hk₁b, hk₁d⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step12_normalizePiece B₁ p q hpq
+      (plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step1_segmentDisjointInterior B₁ B₂ p q hI)
+    (hI ▸ inter_subset_left) g₁ hg₁ hg₁i hg₁r hg₁b
+  obtain ⟨k₂, hk₂c, hk₂i, hk₂r, hk₂b, hk₂d⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step12_normalizePiece B₂ p q hpq
+      (plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step1_segmentDisjointInterior B₂ B₁ p q hI')
+    (hI' ▸ inter_subset_left) g₂ hg₂ hg₂i hg₂r hg₂b
+  set L := {z : ℂ | ‖z‖ ≤ 1 ∧ z.re ≤ 0} with hL
+  let σ : ℂ → ℂ := fun z => -(starRingEnd ℂ) z
+  have hσσ : ∀ z, σ (σ z) = z := fun z => by simp [σ]
+  have hσre : ∀ z, (σ z).re = -z.re := fun z => by simp [σ]
+  have hσn : ∀ z, ‖σ z‖ = ‖z‖ := fun z => by simp [σ]
+  have hax : ∀ z : ℂ, z.re = 0 → z = (z.im : ℂ) * Complex.I := fun z hz => by
+    apply Complex.ext <;> simp [hz]
+  have hσax : ∀ z : ℂ, z.re = 0 → σ z = z := fun z hz => by
+    apply Complex.ext <;> simp [σ, hz]
+  have himb : ∀ z : ℂ, ‖z‖ ≤ 1 → z.im ∈ Icc (-1 : ℝ) 1 := fun z hz => by
+    have := Complex.abs_im_le_norm z
+    exact abs_le.1 (this.trans hz)
+  have hnorm : ∀ z : Metric.closedBall (0 : ℂ) 1, ‖z.1‖ ≤ 1 := fun z => mem_closedBall_zero_iff.1 z.2
+  have hmemL : ∀ z : Metric.closedBall (0 : ℂ) 1, z.1.re ≤ 0 → z.1 ∈ L := fun z hz =>
+    ⟨hnorm z, hz⟩
+  have hmemL' : ∀ z : Metric.closedBall (0 : ℂ) 1, 0 ≤ z.1.re → σ z.1 ∈ L := fun z hz =>
+    ⟨by rw [hσn]; exact hnorm z, by rw [hσre]; linarith⟩
+  -- agreement on the diameter
+  have hagree : ∀ z : ℂ, ‖z‖ ≤ 1 → z.re = 0 → k₁ z = k₂ (σ z) := by
+    intro z hz hre
+    rw [hσax z hre, hax z hre, hk₁d _ (himb z hz), hk₂d _ (himb z hz)]
+  let g : Metric.closedBall (0 : ℂ) 1 → Pt := fun z => if z.1.re ≤ 0 then k₁ z.1 else k₂ (σ z.1)
+  refine ⟨g, ?_, ?_, ?_, ?_⟩
+  · apply continuous_if_le (Complex.continuous_re.comp continuous_subtype_val) continuous_const
+    · exact hk₁c.comp continuous_subtype_val.continuousOn (fun z hz => hmemL z hz)
+    · have hσc : Continuous σ := (Complex.continuous_conj).neg
+      exact hk₂c.comp (hσc.comp continuous_subtype_val).continuousOn (fun z hz => hmemL' z hz)
+    · intro z hz
+      exact hagree z.1 (hnorm z) hz
+  · -- injectivity
+    have hseg_param : ∀ x ∈ segment ℝ p q, ∃ y ∈ Icc (-1 : ℝ) 1, x = AffineMap.lineMap p q ((1 + y) / 2) := by
+      intro x hx
+      rw [segment_eq_image_lineMap] at hx
+      obtain ⟨t, ht, rfl⟩ := hx
+      refine ⟨2 * t - 1, ⟨by linarith [ht.1], by linarith [ht.2]⟩, ?_⟩
+      congr 1; ring
+    have hyL : ∀ y ∈ Icc (-1 : ℝ) 1, ((y : ℂ) * Complex.I) ∈ L := fun y hy => by
+      refine ⟨?_, by simp⟩
+      rw [norm_mul, Complex.norm_I, mul_one, Complex.norm_real, Real.norm_eq_abs]
+      exact abs_le.2 hy
+    have hmix : ∀ z w : Metric.closedBall (0 : ℂ) 1, z.1.re ≤ 0 → ¬ w.1.re ≤ 0 → k₁ z.1 = k₂ (σ w.1) → False := by
+      intro z w hz hw hzw
+      have hx : k₁ z.1 ∈ segment ℝ p q := by
+        rw [← hI]
+        refine ⟨hk₁r ▸ mem_image_of_mem _ (hmemL z hz), ?_⟩
+        rw [hzw]; exact hk₂r ▸ mem_image_of_mem _ (hmemL' w (le_of_lt (not_le.1 hw)))
+      obtain ⟨y, hy, hxy⟩ := hseg_param _ hx
+      have h2 : σ w.1 = (y : ℂ) * Complex.I := by
+        apply hk₂i (hmemL' w (le_of_lt (not_le.1 hw))) (hyL y hy)
+        rw [← hzw, hxy, hk₂d y hy]
+      have := congrArg Complex.re h2
+      rw [hσre] at this
+      simp at this
+      linarith [not_le.1 hw]
+    intro z w hzw
+    simp only [g] at hzw
+    split_ifs at hzw with hz hw hw
+    · exact Subtype.ext (hk₁i (hmemL z hz) (hmemL w hw) hzw)
+    · exact (hmix z w hz hw hzw).elim
+    · exact (hmix w z hw hz hzw.symm).elim
+    · have h := hk₂i (hmemL' z (le_of_lt (not_le.1 hz))) (hmemL' w (le_of_lt (not_le.1 hw))) hzw
+      apply Subtype.ext
+      rw [← hσσ z.1, ← hσσ w.1, h]
+  · -- range
+    ext x
+    constructor
+    · rintro ⟨z, rfl⟩
+      rw [hU]
+      simp only [g]
+      split_ifs with hz
+      · exact Or.inl (hk₁r ▸ mem_image_of_mem _ (hmemL z hz))
+      · exact Or.inr (hk₂r ▸ mem_image_of_mem _ (hmemL' z (le_of_lt (not_le.1 hz))))
+    · intro hx
+      rw [hU] at hx
+      rcases hx with hx | hx
+      · rw [← hk₁r] at hx
+        obtain ⟨z, hz, rfl⟩ := hx
+        refine ⟨⟨z, by simpa using hz.1⟩, ?_⟩
+        simp only [g, if_pos hz.2]
+      · rw [← hk₂r] at hx
+        obtain ⟨w, hw, rfl⟩ := hx
+        refine ⟨⟨σ w, by simpa [hσn] using hw.1⟩, ?_⟩
+        simp only [g]
+        split_ifs with h
+        · have hre : w.re = 0 := by rw [hσre] at h; linarith [hw.2]
+          rw [hσax w hre]
+          rw [hσax w hre] at h
+          exact (hagree w hw.1 hre).trans (by rw [hσax w hre])
+        · rw [hσσ]
+  · -- interior
+    intro z hz
+    rw [Metric.mem_ball, dist_zero_right] at hz
+    have hsub1 : interior B₁.carrier ⊆ interior B.carrier := interior_mono (hU ▸ subset_union_left)
+    have hsub2 : interior B₂.carrier ⊆ interior B.carrier := interior_mono (hU ▸ subset_union_right)
+    simp only [g]
+    split_ifs with hre
+    · rcases lt_or_eq_of_le hre with hlt | heq
+      · exact hsub1 (hk₁b _ hz hlt)
+      · rw [hax _ heq, hk₁d _ (himb _ (hnorm z))]
+        apply hdiag
+        rw [openSegment_eq_image_lineMap]
+        refine mem_image_of_mem _ ⟨?_, ?_⟩
+        · have := Complex.abs_im_le_norm z.1
+          linarith [neg_abs_le z.1.im]
+        · have := Complex.abs_im_le_norm z.1
+          linarith [le_abs_self z.1.im]
+    · exact hsub2 (hk₂b _ (by rw [hσn]; exact hz) (by rw [hσre]; linarith [not_le.1 hre]))
 
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: the ear decomposition (polygonal Schoenflies
 theorem) for a nonconvex polygonal disk.  Cutting off ears along interior diagonals and gluing the disk models

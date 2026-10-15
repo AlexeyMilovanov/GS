@@ -3175,6 +3175,228 @@ private lemma plAnnulusRouting_step2_plApprox_step2_single_step1_polyPath (A C :
   · exact hfirst
   · exact hlast
 
+private def plAnnulusRouting_eraseEdge (x y : Tilings.Pt) (U : Set Tilings.Pt)
+    (A C : Tilings.PolygonalDisk) (a b : Tilings.Pt) : Prop :=
+  segment ℝ a b ⊆ A.carrier \ interior C.carrier ∧
+    segment ℝ a b \ {x, y} ⊆ interior A.carrier \ C.carrier ∧
+    segment ℝ a b ⊆ U
+
+private lemma plAnnulusRouting_eraseEdge_subsegment {x y a b c d : Tilings.Pt}
+    {U : Set Tilings.Pt} {A C : Tilings.PolygonalDisk}
+    (h : plAnnulusRouting_eraseEdge x y U A C a b)
+    (hc : c ∈ segment ℝ a b) (hd : d ∈ segment ℝ a b) :
+    plAnnulusRouting_eraseEdge x y U A C c d := by
+  have hsub : segment ℝ c d ⊆ segment ℝ a b :=
+    (convex_segment a b).segment_subset hc hd
+  exact ⟨hsub.trans h.1, fun z hz => h.2.1 ⟨hsub hz.1, hz.2⟩, hsub.trans h.2.2⟩
+
+private lemma plAnnulusRouting_eraseEdge_merge {x y a b c z : Tilings.Pt}
+    {U : Set Tilings.Pt} {A C : Tilings.PolygonalDisk}
+    (hab : plAnnulusRouting_eraseEdge x y U A C a b)
+    (hbc : plAnnulusRouting_eraseEdge x y U A C b c)
+    (hzab : z ∈ segment ℝ a b) (hzbc : z ∈ segment ℝ b c) (hzb : z ≠ b) :
+    plAnnulusRouting_eraseEdge x y U A C a c := by
+  have hzba : Wbtw ℝ b z a := mem_segment_iff_wbtw.mp (by simpa [segment_symm] using hzab)
+  have hzbc' : Wbtw ℝ b z c := mem_segment_iff_wbtw.mp hzbc
+  have hsame : SameRay ℝ (a - b) (c - b) := by
+    change SameRay ℝ (a -ᵥ b) (c -ᵥ b)
+    apply hzba.sameRay_vsub_left.symm.trans hzbc'.sameRay_vsub_left
+    intro hz0
+    exact (hzb (vsub_eq_zero_iff_eq.mp hz0)).elim
+  rcases wbtw_total_of_sameRay_vsub_left (x := b) (y := a) (z := c) hsame with hac | hca
+  · exact plAnnulusRouting_eraseEdge_subsegment hbc hac.mem_segment
+      (right_mem_segment ℝ b c)
+  · exact plAnnulusRouting_eraseEdge_subsegment hab (left_mem_segment ℝ a b)
+      (by simpa [segment_symm] using hca.mem_segment)
+
+private def plAnnulusRouting_eraseValid (x y : Tilings.Pt) (U : Set Tilings.Pt)
+    (A C : Tilings.PolygonalDisk) (l : List Tilings.Pt) : Prop :=
+  l.head? = some x ∧ l.getLast? = some y ∧
+    l.IsChain (plAnnulusRouting_eraseEdge x y U A C)
+
+private def plAnnulusRouting_arcOfList (l : List Tilings.Pt) (hl : 2 ≤ l.length) :
+    Tilings.Geometry.PolyArc where
+  n := l.length - 2
+  pt := fun i => l.get ⟨i.1, by omega⟩
+
+private lemma plAnnulusRouting_arcOfList_injective {l : List Tilings.Pt}
+    (hl : 2 ≤ l.length) (hnodup : l.Nodup) :
+    Function.Injective (plAnnulusRouting_arcOfList l hl).pt := by
+  intro i j hij
+  apply Fin.ext
+  exact (hnodup.getElem_inj_iff.mp hij)
+
+private lemma plAnnulusRouting_arcOfList_start {l : List Tilings.Pt}
+    (hl : 2 ≤ l.length) (hne : l ≠ []) :
+    (plAnnulusRouting_arcOfList l hl).start = l.head hne := by
+  simp [plAnnulusRouting_arcOfList, PolyArc.start, List.head_eq_getElem_zero]
+
+private lemma plAnnulusRouting_arcOfList_stop {l : List Tilings.Pt}
+    (hl : 2 ≤ l.length) (hne : l ≠ []) :
+    (plAnnulusRouting_arcOfList l hl).stop = l.getLast hne := by
+  change l.get ⟨l.length - 2 + 1, by omega⟩ = l.getLast hne
+  have hidx : l.length - 2 + 1 = l.length - 1 := by omega
+  simpa [hidx] using (List.get_length_sub_one (l := l) (by omega))
+
+private lemma plAnnulusRouting_eraseValid_two {x y : Tilings.Pt} (hxy : x ≠ y)
+    {U : Set Tilings.Pt} {A C : Tilings.PolygonalDisk} {l : List Tilings.Pt}
+    (hl : plAnnulusRouting_eraseValid x y U A C l) : 2 ≤ l.length := by
+  cases l with
+  | nil => simp [plAnnulusRouting_eraseValid] at hl
+  | cons a t =>
+      cases t with
+      | nil =>
+          simp [plAnnulusRouting_eraseValid] at hl
+          exact (hxy (hl.1.symm.trans hl.2)).elim
+      | cons b t => simp
+
+private lemma plAnnulusRouting_eraseValid_last {x y : Tilings.Pt}
+    {U : Set Tilings.Pt} {A C : Tilings.PolygonalDisk} {l : List Tilings.Pt}
+    (hl : plAnnulusRouting_eraseValid x y U A C l) {i : ℕ}
+    (hi : i < l.length) (hilast : i + 1 = l.length) : l[i] = y := by
+  have hne : l ≠ [] := by
+    rw [List.ne_nil_iff_length_pos]
+    omega
+  have hlast : l.getLast hne = y := by
+    have h := hl.2.1
+    rw [List.getLast?_eq_getLast_of_ne_nil hne] at h
+    exact Option.some.inj h
+  rw [List.getLast_eq_getElem] at hlast
+  have heq : i = l.length - 1 := by omega
+  simpa [heq] using hlast
+
+private lemma plAnnulusRouting_eraseValid_splice {x y : Tilings.Pt}
+    {U : Set Tilings.Pt} {A C : Tilings.PolygonalDisk} {l : List Tilings.Pt}
+    (hl : plAnnulusRouting_eraseValid x y U A C l) {i j : ℕ}
+    (hi : i < l.length) (hj : j < l.length) (hij : i < j)
+    (hbridge : ∀ hj' : j + 1 < l.length,
+      plAnnulusRouting_eraseEdge x y U A C l[i] l[j + 1])
+    (hlast : j + 1 = l.length → l[i] = y) :
+    let l' := l.take (i + 1) ++ l.drop (j + 1)
+    plAnnulusRouting_eraseValid x y U A C l' ∧ l'.length < l.length := by
+  dsimp
+  have htake_ne : l.take (i + 1) ≠ [] := by
+    rw [List.ne_nil_iff_length_pos, List.length_take]
+    omega
+  have hhead : (l.take (i + 1) ++ l.drop (j + 1)).head? = some x := by
+    rw [List.head?_append_of_ne_nil _ htake_ne]
+    cases l with
+    | nil => simp at hi
+    | cons a t =>
+        simpa using hl.1
+  have hchain : (l.take (i + 1) ++ l.drop (j + 1)).IsChain
+      (plAnnulusRouting_eraseEdge x y U A C) := by
+    apply (hl.2.2.take _).append (hl.2.2.drop _)
+    intro a ha b hb
+    have ha' : a = l[i] := by
+      have ht : (l.take (i + 1)).getLast? = some l[i] := by
+        rw [← List.take_concat_get' l i hi]
+        rw [List.getLast?_append_of_ne_nil _ (by simp)]
+        rfl
+      rw [ht] at ha
+      have hai : l[i] = a := by simpa using ha
+      exact hai.symm
+    subst a
+    have hsuf : j + 1 < l.length := by
+      by_contra h
+      have heq : j + 1 = l.length := by omega
+      rw [List.drop_eq_nil_of_le (by omega)] at hb
+      simp at hb
+    have hb' : b = l[j + 1] := by
+      have hd : (l.drop (j + 1)).head? = some l[j + 1] := by
+        rw [List.drop_eq_getElem_cons hsuf]
+        rfl
+      rw [hd] at hb
+      have hbj : l[j + 1] = b := by simpa using hb
+      exact hbj.symm
+    subst b
+    exact hbridge hsuf
+  have hlast' : (l.take (i + 1) ++ l.drop (j + 1)).getLast? = some y := by
+    by_cases hsuf : j + 1 < l.length
+    · have hsuf_ne : l.drop (j + 1) ≠ [] := by
+        rw [List.ne_nil_iff_length_pos, List.length_drop]
+        omega
+      rw [List.getLast?_append_of_ne_nil _ hsuf_ne]
+      calc
+        (l.drop (j + 1)).getLast? =
+            (l.take (j + 1) ++ l.drop (j + 1)).getLast? := by
+          rw [List.getLast?_append_of_ne_nil _ hsuf_ne]
+        _ = l.getLast? := congrArg List.getLast? (List.take_append_drop (j + 1) l)
+        _ = some y := hl.2.1
+    · have heq : j + 1 = l.length := by omega
+      rw [List.drop_eq_nil_of_le (by omega), List.append_nil]
+      rw [← List.take_concat_get' l i hi]
+      simp [hlast heq]
+  refine ⟨⟨hhead, hlast', hchain⟩, ?_⟩
+  simp only [List.length_append, List.length_take, List.length_drop]
+  omega
+
+private lemma plAnnulusRouting_eraseValid_cross_splice {x y z : Tilings.Pt}
+    {U : Set Tilings.Pt} {A C : Tilings.PolygonalDisk} {l : List Tilings.Pt}
+    (hl : plAnnulusRouting_eraseValid x y U A C l) {i j : ℕ}
+    (hi : i + 1 < l.length) (hj : j + 1 < l.length) (hgap : i + 1 < j)
+    (hiz : plAnnulusRouting_eraseEdge x y U A C l[i] z)
+    (hzj : plAnnulusRouting_eraseEdge x y U A C z l[j + 1]) :
+    let l' := l.take (i + 1) ++ [z] ++ l.drop (j + 1)
+    plAnnulusRouting_eraseValid x y U A C l' ∧ l'.length < l.length := by
+  dsimp
+  have htake_ne : l.take (i + 1) ≠ [] := by
+    rw [List.ne_nil_iff_length_pos, List.length_take]
+    omega
+  have hsuf_ne : l.drop (j + 1) ≠ [] := by
+    rw [List.ne_nil_iff_length_pos, List.length_drop]
+    omega
+  have hhead : (l.take (i + 1) ++ [z] ++ l.drop (j + 1)).head? = some x := by
+    have hpref_ne : l.take (i + 1) ++ [z] ≠ [] := by simp
+    rw [List.head?_append_of_ne_nil _ hpref_ne]
+    rw [List.head?_append_of_ne_nil _ htake_ne]
+    cases l with
+    | nil => simp at hi
+    | cons a t => simpa using hl.1
+  have hlast : (l.take (i + 1) ++ [z] ++ l.drop (j + 1)).getLast? = some y := by
+    rw [List.getLast?_append_of_ne_nil _ hsuf_ne]
+    calc
+      (l.drop (j + 1)).getLast? =
+          (l.take (j + 1) ++ l.drop (j + 1)).getLast? := by
+        rw [List.getLast?_append_of_ne_nil _ hsuf_ne]
+      _ = l.getLast? := congrArg List.getLast? (List.take_append_drop (j + 1) l)
+      _ = some y := hl.2.1
+  have hprefix : (l.take (i + 1) ++ [z]).IsChain
+      (plAnnulusRouting_eraseEdge x y U A C) := by
+    apply (hl.2.2.take _).append (.singleton z)
+    intro a ha b hb
+    have ha' : a = l[i] := by
+      have ht : (l.take (i + 1)).getLast? = some l[i] := by
+        rw [← List.take_concat_get' l i (by omega)]
+        rw [List.getLast?_append_of_ne_nil _ (by simp)]
+        rfl
+      rw [ht] at ha
+      have hai : l[i] = a := by simpa using ha
+      exact hai.symm
+    have hb' : b = z := by
+      have hzb : z = b := by simpa using hb
+      exact hzb.symm
+    simpa [ha', hb'] using hiz
+  have hchain : (l.take (i + 1) ++ [z] ++ l.drop (j + 1)).IsChain
+      (plAnnulusRouting_eraseEdge x y U A C) := by
+    apply hprefix.append (hl.2.2.drop _)
+    intro a ha b hb
+    have ha' : a = z := by
+      have hza : z = a := by simpa using ha
+      exact hza.symm
+    have hb' : b = l[j + 1] := by
+      have hd : (l.drop (j + 1)).head? = some l[j + 1] := by
+        rw [List.drop_eq_getElem_cons hj]
+        rfl
+      rw [hd] at hb
+      have hbj : l[j + 1] = b := by simpa using hb
+      exact hbj.symm
+    simpa [ha', hb'] using hzj
+  refine ⟨⟨hhead, hlast, hchain⟩, ?_⟩
+  simp only [List.length_append, List.length_cons, List.length_nil, List.length_take,
+    List.length_drop]
+  omega
+
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step2_plApprox_step2_single`: Loop erasure. -/
 private lemma plAnnulusRouting_step2_plApprox_step2_single_step2_eraseLoops 
     (x y : Tilings.Pt) (hxy : x ≠ y)
@@ -3184,7 +3406,152 @@ private lemma plAnnulusRouting_step2_plApprox_step2_single_step2_eraseLoops
       α.IsSimple ∧ α.start = x ∧ α.stop = y ∧
       α.carrier ⊆ A.carrier \ interior C.carrier ∧
       α.carrier \ {x, y} ⊆ interior A.carrier \ C.carrier ∧
-      α.carrier ⊆ U := sorry
+      α.carrier ⊆ U := by
+  classical
+  let l₀ : List Tilings.Pt := List.ofFn rd.pt
+  have hl₀ : plAnnulusRouting_eraseValid x y U A C l₀ := by
+    have hhead : l₀.head? = some x := by
+      simp [l₀, rd.start_eq]
+    have hlast : l₀.getLast? = some y := by
+      have hne : l₀ ≠ [] := by simp [l₀]
+      rw [List.getLast?_eq_getLast_of_ne_nil hne, List.getLast_eq_getElem]
+      simp only [l₀, List.length_ofFn, List.getElem_ofFn]
+      simpa using congrArg some rd.stop_eq
+    refine ⟨hhead, hlast, ?_⟩
+    rw [List.isChain_ofFn]
+    intro i hi
+    let j : Fin (rd.n + 1) := ⟨i, by omega⟩
+    change plAnnulusRouting_eraseEdge x y U A C
+      (rd.pt j.castSucc) (rd.pt j.succ)
+    exact ⟨rd.carr_subset j, rd.carr_int_subset j, rd.carr_U_subset j⟩
+  have hex : ∃ k : ℕ, ∃ l : List Tilings.Pt,
+      plAnnulusRouting_eraseValid x y U A C l ∧ l.length = k :=
+    ⟨l₀.length, l₀, hl₀, rfl⟩
+  let k := Nat.find hex
+  obtain ⟨l, hl, hlen⟩ := Nat.find_spec hex
+  have hmin : ∀ {l' : List Tilings.Pt},
+      plAnnulusRouting_eraseValid x y U A C l' → l.length ≤ l'.length := by
+    intro l' hl'
+    rw [hlen]
+    exact Nat.find_min' hex ⟨l', hl', rfl⟩
+  have htwo : 2 ≤ l.length := plAnnulusRouting_eraseValid_two hxy hl
+  have hedge : ∀ (i : ℕ) (hi : i + 1 < l.length),
+      plAnnulusRouting_eraseEdge x y U A C l[i] l[i + 1] := by
+    intro i hi
+    exact List.isChain_iff_getElem.mp hl.2.2 i hi
+  have hnodup : l.Nodup := by
+    rw [List.nodup_iff_injective_get]
+    intro p q hpq
+    have hpq' : l[p.1] = l[q.1] := hpq
+    by_contra hpq_fin
+    rcases lt_or_gt_of_ne (fun hval => hpq_fin (Fin.ext hval)) with hpq_lt | hqp_lt
+    · have hshort := plAnnulusRouting_eraseValid_splice hl p.isLt q.isLt hpq_lt
+        (fun hq => by
+          rw [hpq']
+          exact hedge q.1 hq)
+        (fun hq => hpq.trans (plAnnulusRouting_eraseValid_last hl q.isLt hq))
+      exact (not_lt_of_ge (hmin hshort.1)) hshort.2
+    · have hshort := plAnnulusRouting_eraseValid_splice hl q.isLt p.isLt hqp_lt
+        (fun hp => by
+          rw [← hpq']
+          exact hedge p.1 hp)
+        (fun hp => hpq.symm.trans (plAnnulusRouting_eraseValid_last hl p.isLt hp))
+      exact (not_lt_of_ge (hmin hshort.1)) hshort.2
+  have hadj : ∀ (i : ℕ) (hi : i + 2 < l.length) (z : Tilings.Pt),
+      z ∈ segment ℝ l[i] l[i + 1] → z ∈ segment ℝ l[i + 1] l[i + 2] →
+      z = l[i + 1] := by
+    intro i hi z hzi hzj
+    by_contra hzne
+    have hmerge : plAnnulusRouting_eraseEdge x y U A C l[i] l[i + 2] :=
+      plAnnulusRouting_eraseEdge_merge (hedge i (by omega))
+        (hedge (i + 1) (by omega)) hzi hzj hzne
+    have hshort := plAnnulusRouting_eraseValid_splice hl (by omega : i < l.length)
+      (by omega : i + 1 < l.length) (by omega : i < i + 1)
+      (fun _ => by simpa [Nat.add_assoc] using hmerge) (fun h => by omega)
+    exact (not_lt_of_ge (hmin hshort.1)) hshort.2
+  have hfar : ∀ (i j : ℕ) (hi : i + 1 < l.length) (hj : j + 1 < l.length),
+      i + 1 < j → Disjoint (segment ℝ l[i] l[i + 1]) (segment ℝ l[j] l[j + 1]) := by
+    intro i j hi hj hgap
+    rw [Set.disjoint_left]
+    intro z hzi hzj
+    have hiz := plAnnulusRouting_eraseEdge_subsegment (hedge i hi)
+      (left_mem_segment ℝ l[i] l[i + 1]) hzi
+    have hzj' := plAnnulusRouting_eraseEdge_subsegment (hedge j hj) hzj
+      (right_mem_segment ℝ l[j] l[j + 1])
+    have hshort := plAnnulusRouting_eraseValid_cross_splice hl hi hj hgap hiz hzj'
+    exact (not_lt_of_ge (hmin hshort.1)) hshort.2
+  have hsimple_list : ∀ (i j : ℕ) (hi : i + 1 < l.length)
+      (hj : j + 1 < l.length), i ≠ j →
+      segment ℝ l[i] l[i + 1] ∩ segment ℝ l[j] l[j + 1] ⊆
+        ({l[i], l[i + 1]} : Set Tilings.Pt) ∩ {l[j], l[j + 1]} := by
+    intro i j hi hj hij z hz
+    rcases lt_or_gt_of_ne hij with hij' | hji'
+    · by_cases hnext : j = i + 1
+      · subst j
+        have hz' := hadj i (by omega) z hz.1 hz.2
+        simp [hz']
+      · exact (Set.disjoint_left.mp (hfar i j hi hj (by omega)) hz.1 hz.2).elim
+    · by_cases hnext : i = j + 1
+      · subst i
+        have hz' := hadj j (by omega) z hz.2 hz.1
+        simp [hz']
+      · exact (Set.disjoint_left.mp (hfar j i hj hi (by omega)) hz.2 hz.1).elim
+  have hl_ne : l ≠ [] := by
+    rw [List.ne_nil_iff_length_pos]
+    omega
+  have hl_head : l.head hl_ne = x := by
+    have hh := hl.1
+    rw [List.head?_eq_some_head hl_ne] at hh
+    exact Option.some.inj hh
+  have hl_last : l.getLast hl_ne = y := by
+    have hh := hl.2.1
+    rw [List.getLast?_eq_getLast_of_ne_nil hl_ne] at hh
+    exact Option.some.inj hh
+  let α := plAnnulusRouting_arcOfList l htwo
+  refine ⟨α, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · constructor
+    · exact plAnnulusRouting_arcOfList_injective htwo hnodup
+    · intro i j hij
+      have hi : i.1 + 1 < l.length := by
+        have := i.isLt
+        dsimp [α, plAnnulusRouting_arcOfList] at this
+        omega
+      have hj : j.1 + 1 < l.length := by
+        have := j.isLt
+        dsimp [α, plAnnulusRouting_arcOfList] at this
+        omega
+      have hij' : i.1 ≠ j.1 := fun h => hij (Fin.ext h)
+      simpa [α, PolyArc.seg, plAnnulusRouting_arcOfList] using
+        hsimple_list i.1 j.1 hi hj hij'
+  · exact (plAnnulusRouting_arcOfList_start htwo hl_ne).trans hl_head
+  · exact (plAnnulusRouting_arcOfList_stop htwo hl_ne).trans hl_last
+  · intro z hz
+    rw [PolyArc.carrier] at hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz
+    have hil : i.1 + 1 < l.length := by
+      have := i.isLt
+      dsimp [α, plAnnulusRouting_arcOfList] at this
+      omega
+    exact (hedge i.1 hil).1 (by
+      simpa [α, PolyArc.seg, plAnnulusRouting_arcOfList] using hi)
+  · intro z hz
+    rw [PolyArc.carrier] at hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz.1
+    have hil : i.1 + 1 < l.length := by
+      have := i.isLt
+      dsimp [α, plAnnulusRouting_arcOfList] at this
+      omega
+    apply (hedge i.1 hil).2.1
+    exact ⟨by simpa [α, PolyArc.seg, plAnnulusRouting_arcOfList] using hi, hz.2⟩
+  · intro z hz
+    rw [PolyArc.carrier] at hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz
+    have hil : i.1 + 1 < l.length := by
+      have := i.isLt
+      dsimp [α, plAnnulusRouting_arcOfList] at this
+      omega
+    exact (hedge i.1 hil).2.2 (by
+      simpa [α, PolyArc.seg, plAnnulusRouting_arcOfList] using hi)
 
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step2_plApprox`: Single arc approximation.
 A single continuous arc disjoint from C can be PL-approximated within its neighborhood. -/

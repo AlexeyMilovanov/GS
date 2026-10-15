@@ -2470,6 +2470,61 @@ def MatchingCyclicOrder (U Kout Kin : Set Pt) {k : ℕ} (x y : Fin k → Pt) : P
   ∃ γo γi : ℝ → Pt, IsLoopParam Kout γo ∧ IsLoopParam Kin γi ∧
     LoopsHomotopicIn U γo γi ∧ PointsInOrder γo x ∧ PointsInOrder γi y
 
+private lemma plAnnulusRouting_unitCircle_mem_closedBall (t : ℝ) :
+    Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) ∈
+      Metric.closedBall (0 : ℂ) 1 := by
+  rw [Metric.mem_closedBall, dist_zero_right, Complex.norm_exp_ofReal_mul_I]
+
+/-- A continuous map on the closed complex unit disk extends to the plane.  This is the
+Tietze-extension step needed after constructing a Schoenflies disk model. -/
+private lemma plAnnulusRouting_closedBall_continuous_extension
+    (f : Metric.closedBall (0 : ℂ) 1 → Pt) (hf : Continuous f) :
+    ∃ h : ℂ → Pt, Continuous h ∧
+      ∀ z (hz : z ∈ Metric.closedBall (0 : ℂ) 1), h z = f ⟨z, hz⟩ := by
+  let F : C(Metric.closedBall (0 : ℂ) 1, Pt) := ⟨f, hf⟩
+  obtain ⟨H, hH⟩ := F.exists_extension'
+    (e := ((↑) : Metric.closedBall (0 : ℂ) 1 → ℂ))
+    Metric.isClosed_closedBall.isClosedEmbedding_subtypeVal
+  refine ⟨H, H.continuous, ?_⟩
+  intro z hz
+  simpa only [Function.comp_apply] using congrFun hH ⟨z, hz⟩
+
+/-- Remaining polygonal Schoenflies obligation.  Construct a boundary-compatible embedding of
+the closed complex unit disk onto the carrier of a carrier-based `PolygonalDisk`, with the open
+unit disk sent into its interior.  An ear decomposition plus boundary reparametrization is the
+intended proof; the ambient extension is supplied separately above. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model
+    (B : PolygonalDisk) (l : ℝ → Pt) (hl : IsLoopParam (frontier B.carrier) l) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧
+      (∀ z, f z ∈ B.carrier) ∧
+      (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f z ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
+  sorry
+
+/-- Remaining polygonal annulus-cut obligation.  Cut along a cross-cut in a boundary gap and
+retain the lifts of two finite, compatibly ordered boundary point families.  The conclusion is
+formulated as an embedded polygonal disk so it can be reused independently of `MatchingCyclicOrder`. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
+    (x y : Fin k → Pt) (hx : ∀ i, x i ∈ frontier A.carrier)
+    (hy : ∀ i, y i ∈ frontier C.carrier) (hxi : Function.Injective x)
+    (hyi : Function.Injective y) (γo γi : ℝ → Pt)
+    (hγo : IsLoopParam (frontier A.carrier) γo)
+    (hγi : IsLoopParam (frontier C.carrier) γi)
+    (hhom : LoopsHomotopicIn (A.carrier \ interior C.carrier) γo γi)
+    (hxo : PointsInOrder γo x) (hyi' : PointsInOrder γi y) :
+    ∃ (B : PolygonalDisk) (e : Pt → Pt) (p q : Fin k → Pt),
+      Continuous e ∧ Set.InjOn e B.carrier ∧
+      e '' B.carrier ⊆ A.carrier \ interior C.carrier ∧
+      e '' interior B.carrier ⊆ interior A.carrier \ C.carrier ∧
+      (∀ i, p i ∈ frontier B.carrier) ∧ (∀ i, q i ∈ frontier B.carrier) ∧
+      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
+      ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
+        PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological_step1_cutModel`:
 construct the cut-open disk model, with boundary lifts of the prescribed endpoints. -/
 private lemma plAnnulusRouting_step1_topological_step1_cutModel_step1_cutGeometry
@@ -2486,7 +2541,9 @@ private lemma plAnnulusRouting_step1_topological_step1_cutModel_step1_cutGeometr
       (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
       ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
         PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
-  sorry
+  obtain ⟨γo, γi, hγo, hγi, hhom, hxo, hyi'⟩ := horder
+  exact plAnnulusRouting_polygonalAnnulus_cutModel A C hC x y hx hy hxi hyi γo γi
+    hγo hγi hhom hxo hyi'
 
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological`: cut the
 annulus along a crosscut and record the resulting disk model and boundary order. -/
@@ -2584,7 +2641,23 @@ private lemma plAnnulusRouting_step1_topological_step2_diskRouting_step1_schoenf
       h '' Metric.closedBall (0 : ℂ) 1 ⊆ B.carrier ∧
       h '' Metric.ball (0 : ℂ) 1 ⊆ interior B.carrier ∧
       ∀ t : ℝ, h (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) = l t := by
-  sorry
+  obtain ⟨f, hf, hfinj, hfcar, hfint, hfcircle⟩ :=
+    plAnnulusRouting_polygonalDisk_closedBall_model B l hl
+  obtain ⟨h, hh, hext⟩ := plAnnulusRouting_closedBall_continuous_extension f hf
+  refine ⟨h, hh, ?_, ?_, ?_, ?_⟩
+  · intro z hz w hw hzw
+    exact congrArg Subtype.val (hfinj (by
+      simpa only [hext z hz, hext w hw] using hzw))
+  · rintro _ ⟨z, hz, rfl⟩
+    rw [hext z hz]
+    exact hfcar ⟨z, hz⟩
+  · rintro _ ⟨z, hz, rfl⟩
+    have hz' : z ∈ Metric.closedBall (0 : ℂ) 1 := Metric.ball_subset_closedBall hz
+    rw [hext z hz']
+    exact hfint ⟨z, hz'⟩ hz
+  · intro t
+    rw [hext _ (plAnnulusRouting_unitCircle_mem_closedBall t)]
+    exact hfcircle t
 
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological_step2_diskRouting`:
 polar coordinates on the unit disk are unique for positive radii and angles (in turns) closer

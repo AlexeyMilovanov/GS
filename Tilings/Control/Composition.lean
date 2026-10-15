@@ -13233,7 +13233,11 @@ private lemma projects_to_hierarchy_step2_completeness (c : MacroCertificate P)
         (∀ n, c.σ.IsComposition (seq (n + 1)) (seq n)) ∧ HierarchySupertilesSTS c seq) →
       ∃ T : PlaneTiling (typedDecoration c), IsProper c T ∧
         (∀ X ∈ T.tiles, headerLegal c (tileDec X)) ∧ eraseSet c T.tiles = T₀.tiles := by
-  sorry
+  intro T₀ hseq
+  rcases hseq with ⟨seq, hseq0, hseq, hsts⟩
+  rcases lift_hierarchy c hH seq hseq hsts with ⟨seq', herase, hexact, hleg, hprop⟩
+  use seq' 0
+  exact ⟨hprop, hleg 0, by rw [herase 0, hseq0]⟩
 
 /-- Step 3 of the blueprint proof of `projects_to_hierarchy`: finiteness of the
 legal decorated tile alphabet. -/

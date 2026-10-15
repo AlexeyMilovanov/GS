@@ -21046,7 +21046,92 @@ private lemma existsRoutingAfterPower_step2_ports_step2_inter_step2_unscaled (τ
         (∀ i, δ ≤ dist x ((Rs.GS.G.P'.disk α).vertex i)) →
         (∀ i, δ ≤ dist y ((Rs.GS.G.P'.disk α).vertex i)) →
         c ≤ dist x y := by
-  sorry
+  have _ := hτ
+  have hpair : ∀ (α : Rs.GS.G.P'.Form)
+      (a b : Fin ((Rs.GS.G.P'.disk α).n)), a ≠ b →
+      ∃ d : ℝ, 0 < d ∧ ∀ x ∈ (Rs.GS.G.P'.disk α).side a,
+        ∀ y ∈ (Rs.GS.G.P'.disk α).side b,
+        (∀ i, δ ≤ dist x ((Rs.GS.G.P'.disk α).vertex i)) →
+        (∀ i, δ ≤ dist y ((Rs.GS.G.P'.disk α).vertex i)) → d ≤ dist x y := by
+    intro α a b hab
+    let D := Rs.GS.G.P'.disk α
+    let Ka := D.side a ∩ {x | ∀ j, δ ≤ dist x (D.vertex j)}
+    let Kb := D.side b ∩ {y | ∀ j, δ ≤ dist y (D.vertex j)}
+    have hKa : IsCompact Ka := by
+      have hc : IsCompact (D.side a) := by
+        rw [PolygonalDisk.side, segment_eq_image']
+        exact isCompact_Icc.image (by fun_prop)
+      have hcl : IsClosed {x | ∀ j, δ ≤ dist x (D.vertex j)} := by
+        have heq : {x | ∀ (j : Fin D.n), δ ≤ dist x (D.vertex j)} = ⋂ j : Fin D.n, {x | δ ≤ dist x (D.vertex j)} := by
+          ext x; simp
+        rw [heq]
+        apply isClosed_iInter
+        intro j
+        exact isClosed_le continuous_const (continuous_id.dist continuous_const)
+      exact hc.inter_right hcl
+    have hKb_cl : IsClosed Kb := by
+      have hc : IsCompact (D.side b) := by
+        rw [PolygonalDisk.side, segment_eq_image']
+        exact isCompact_Icc.image (by fun_prop)
+      have hcl : IsClosed {y | ∀ j, δ ≤ dist y (D.vertex j)} := by
+        have heq : {y | ∀ (j : Fin D.n), δ ≤ dist y (D.vertex j)} = ⋂ j : Fin D.n, {y | δ ≤ dist y (D.vertex j)} := by
+          ext x; simp
+        rw [heq]
+        apply isClosed_iInter
+        intro j
+        exact isClosed_le continuous_const (continuous_id.dist continuous_const)
+      exact hc.isClosed.inter hcl
+    have hdisj : Disjoint Ka Kb := by
+      rw [disjoint_iff_inter_eq_empty, eq_empty_iff_forall_notMem]
+      intro x hx
+      have hx_in_inter : x ∈ D.side a ∩ D.side b := ⟨hx.1.1, hx.2.1⟩
+      have hx_simple := D.simple a b hab hx_in_inter
+      have hx_end := hx_simple.1
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx_end
+      rcases hx_end with rfl | rfl
+      · have hdist := hx.1.2 a
+        simp only [dist_self] at hdist
+        linarith
+      · have hdist := hx.1.2 (finRotate D.n a)
+        simp only [dist_self] at hdist
+        linarith
+    obtain ⟨r, hr_pos, hr_lt⟩ := Metric.exists_pos_forall_lt_edist hKa hKb_cl hdisj
+    have h_r_ne : (r : ENNReal) ≠ 0 := ENNReal.coe_ne_zero.2 hr_pos.ne'
+    refine ⟨(r : ℝ), ENNReal.toReal_pos h_r_ne ENNReal.coe_ne_top, ?_⟩
+    intro x hx_a y hx_b hx_dist hy_dist
+    have hx : x ∈ Ka := ⟨hx_a, hx_dist⟩
+    have hy : y ∈ Kb := ⟨hx_b, hy_dist⟩
+    have hlt := hr_lt x hx y hy
+    have hlt' : ↑r < ENNReal.ofReal (dist x y) := by
+      rw [← edist_dist]
+      exact hlt
+    rw [← ENNReal.ofReal_coe_nnreal] at hlt'
+    have hdist : (r : ℝ) < dist x y :=
+      (ENNReal.ofReal_lt_ofReal_iff_of_nonneg (by positivity)).1 hlt'
+    exact hdist.le
+  let I := Σ α : Rs.GS.G.P'.Form, Fin ((Rs.GS.G.P'.disk α).n) × Fin ((Rs.GS.G.P'.disk α).n)
+  let q : I → ℝ := fun i => if h : i.2.1 = i.2.2 then 1 else Classical.choose (hpair i.1 i.2.1 i.2.2 h)
+  let S := insert 1 (Finset.univ.image q)
+  have S_nonempty : S.Nonempty := Finset.insert_nonempty _ _
+  let c := S.min' S_nonempty
+  refine ⟨c, ?_, ?_⟩
+  · rw [Finset.lt_min'_iff]
+    intro y hy
+    rw [Finset.mem_insert, Finset.mem_image] at hy
+    rcases hy with rfl | ⟨⟨α, a, b⟩, _, h_q⟩
+    · exact zero_lt_one
+    · dsimp [q] at h_q
+      split_ifs at h_q with h
+      · rw [← h_q]
+        exact zero_lt_one
+      · rw [← h_q]
+        exact (Classical.choose_spec (hpair α a b h)).1
+  · intro α a b hab x hx y hy hx_dist hy_dist
+    have h_le := Finset.min'_le S (q ⟨α, a, b⟩) (Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨⟨α, a, b⟩, Finset.mem_univ _, rfl⟩))
+    dsimp [q] at h_le
+    split_ifs at h_le with h
+    · exact (hab h).elim
+    · exact h_le.trans ((Classical.choose_spec (hpair α a b h)).2 x hx y hy hx_dist hy_dist)
 
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step2_inter`: scaling the separation to the retained template. -/
 private lemma existsRoutingAfterPower_step2_ports_step2_inter_step3_scaled (τ : Substitution P) (hτ : τ.STS)

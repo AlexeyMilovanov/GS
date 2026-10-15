@@ -28381,10 +28381,140 @@ def MacroCertificate.Represents.groupedSubstitution {C : MacroCertificate P} {τ
 
 /-! ### Helpers for `existsMacroCertificate` -/
 
-/-- The raw finite construction of `lem:certificate-exists`.  It is a sorried definition, to be
-filled in first; the property lemmas `existsMacroCertificate_step1_groupedFamily` ...
-`existsMacroCertificate_step9_g7` are about this one value and become provable once it is
-constructed.  Its intended value, in the noncircular order of the blueprint:
+/-- The first, purely geometric, choice package in the construction of
+`lem:certificate-exists`.  It records the noncircular order of the choices and the labelled
+catalogue obtained from the quantitative annular groupings. -/
+private structure existsMacroCertificate_GroupingSeed (τ : Substitution P) where
+  M : MeshConstants P
+  Csep : ℝ
+  Cloc : ℝ
+  Clen : ℝ
+  Cerr : ℝ
+  C : ℝ
+  constants_pos : 0 < Csep ∧ 0 < Cloc ∧ 0 < Clen ∧ 0 ≤ Cerr ∧ 0 < C
+  R : ℝ
+  R_separates : Csep * M.D ≤ R
+  R_routes : 10000 * ((M.K0 : ℝ) + 3) * M.D ≤ R
+  private_edges : (M.K0 : ℝ) + 2 ≤ (⌊R / (Clen * M.D)⌋₊ : ℝ) - Cerr
+  Qmax : ℕ
+  Qmax_eq : Qmax = M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊
+  N : ℕ
+  N_two : 2 ≤ N
+  N_dominates : 3 * Qmax < 4 * N
+  k : ℕ
+  k_pos : 0 < k
+  centre : P.Form → Pt
+  square_margin : ∀ p, square (centre p) ((N : ℝ) * R / 2 + R) + Binf (10 * M.D) ⊆
+    interior ((τ.θ ^ k) • (P.disk p).carrier)
+  annular : ∀ p, AnnularGrouping M (τ.supertile k p) (centre p) N R
+  GS : GroupedSubstitution τ
+  grouped_power : GS.k = k
+  large : P.Form → GS.G.P'.Form
+  small : P.Form → Fin (4 * N) → GS.G.P'.Form
+  original : P.Form → GS.G.P'.Form
+  large_dissect : ∀ p, (GS.G.dissect (large p)).tiles = (annular p).L.faces
+  small_dissect : ∀ p j, (GS.G.dissect (small p j)).tiles = ((annular p).spokes.piece j).faces
+  original_dissect : ∀ p, (GS.G.dissect (original p)).tiles = {⟨p, 0⟩}
+  catalogue : ∀ α,
+    (∃ p v, (GS.G.dissect α).tiles = translateSet v (annular p).L.faces) ∨
+    (∃ p j v, (GS.G.dissect α).tiles = translateSet v ((annular p).spokes.piece j).faces) ∨
+    ∃ p v, (GS.G.dissect α).tiles = {⟨p, v⟩}
+  inside_supertile : ∀ α, ∃ p v, translateSet v (GS.G.dissect α).tiles ⊆ τ.supertile k p
+  hereditary : τ.HereditarySides → GS.σ.HereditarySides
+  grouped_disks_distinct : ∀ α β, (GS.G.dissect α).tiles.Nontrivial →
+    (GS.G.dissect β).tiles.Nontrivial → GS.G.P'.disk α = GS.G.P'.disk β → α = β
+
+/-- Step 1--2 of `lem:certificate-exists`: choose the mesh constants, then `R,Q,N,k`, and
+form the finite labelled catalogue consisting of `L`, its `4N` annular pieces, and the remaining
+singletons, with scattering/regrouping equal to the `k`-th substitution power. -/
+private lemma existsMacroCertificate_seed1_grouping (τ : Substitution P) (h : τ.STS) :
+    Nonempty (existsMacroCertificate_GroupingSeed τ) := by
+  sorry
+
+/-- The second choice package in the construction.  Besides the routing power and retained
+templates, its equations identify every field of the final certificate with the corresponding
+labelled group, retained child, print slot, globally oriented outer list, or routed side list. -/
+private structure existsMacroCertificate_RoutingSeed (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) where
+  setup : RoutingSetup τ g.M
+  setup_grouped : setup.GS = g.GS
+  l : ℕ
+  l_pos : 0 < l
+  central_idempotent : setup.c^[2 * l] = setup.c^[l]
+  routing : ∀ α, RoutingData (setup.retained l α) (setup.GS.G.P'.disk α)
+    (τ.θ ^ (setup.GS.k * l)) (setup.central l α) (setup.markedSides α)
+  C : MacroCertificate P
+  m : ℕ
+  m_eq : m = g.k * l
+  represents : C.Represents τ m
+  baseForm : C.Q.Form → setup.GS.G.P'.Form
+  catalogueTile : C.Q.Form → PlacedTile setup.GS.G.mixed
+  disk_eq : ∀ α, C.Q.disk α =
+    pdTranslate (setup.GS.G.mixed.disk (catalogueTile α).form) (catalogueTile α).anchor
+  scatter_eq : ∀ α, (C.Δ α).tiles = setup.GS.G.mixedScatterTile (catalogueTile α)
+  originalForm : P.Form → C.Q.Form
+  original_tile : ∀ p, catalogueTile (originalForm p) = ⟨Sum.inr p, 0⟩
+  original_scatter : ∀ p, (C.Δ (originalForm p)).tiles = {⟨p, 0⟩}
+  catalogue_injective : Function.Injective catalogueTile
+  grouped_disks_distinct : ∀ α β, C.kind α ≠ .original → C.kind β ≠ .original →
+    C.Q.disk α = C.Q.disk β → α = β
+  kind_original : ∀ α, C.kind α = .original ↔ ∃ p, (catalogueTile α).form = Sum.inr p
+  kind_large : ∀ α, C.kind α = .large ↔
+    ∃ β, (catalogueTile α).form = Sum.inl (setup.c^[l] β)
+  kind_small : ∀ α, C.kind α = .small ↔
+    ∃ β γ X, X ∈ (setup.retained l β).children.tiles ∧ X ≠ setup.central l β ∧
+      X.form = Sum.inl γ ∧ (catalogueTile α).form = Sum.inl γ
+  templateChild : C.Typ → PlacedTile setup.GS.G.mixed
+  child_bijective : ∀ α, Set.BijOn templateChild {t | C.owner t = α}
+    (setup.retained l (baseForm α)).children.tiles
+  child_carrier : ∀ t, (C.childTile t).carrier = (templateChild t).carrier
+  central_child : ∀ α, templateChild (C.central α) = setup.central l (baseForm α)
+  central_form : ∀ α, (templateChild (C.central α)).form =
+    Sum.inl (setup.c^[l] (baseForm α))
+  parentSide : ∀ α, Fin (C.Q.disk α).n → Fin (setup.GS.G.P'.disk (baseForm α)).n
+  parentSide_injective : ∀ α, Function.Injective (parentSide α)
+  parent_side_geometry : ∀ α d, C.macroSide α d =
+    (τ.θ ^ (setup.GS.k * l)) • (setup.GS.G.P'.disk (baseForm α)).side (parentSide α d)
+  marked_from_setup : ∀ α d, C.marked α d ↔ parentSide α d ∈ setup.markedSides (baseForm α)
+  marked_rule : ∀ o : C.SideOcc,
+    C.IsMarked o ↔ C.kind (C.form o.1) ≠ .large ∨ C.IsPrint o
+  positive_eq : C.IsPositive = LexPositive
+  outerList_global : ∀ α d, (C.outerList α d).Nodup ∧
+    (C.outerList α d).Pairwise fun o o' =>
+      ∃ r : ℝ, 0 < r ∧ C.occMid o' - C.occMid o = r • C.macroSideDir α d
+  print_from_routing : ∀ α d, C.occSide (C.printOcc α d) =
+    (setup.central l (baseForm α)).side ((routing (baseForm α)).printIdx (parentSide α d))
+  special_rule : ∀ o : C.SideOcc, C.special o ↔
+    ∃ α d, C.marked α d ∧ o = C.partner (C.printOcc α d)
+  path_from_routing : ∀ α d (i : Fin 4),
+    (C.path α d i.castSucc).map C.occSide =
+      (routing (baseForm α)).pathSides (parentSide α d) i
+  fifth_path : ∀ α d, C.path α d (4 : Fin 5) = (C.port α d (4 : Fin 5)).toList
+  N_eq : C.N = g.N
+  Qmax_eq : C.Qmax = g.Qmax
+  rankBound_is_max : ∀ b, (∀ α d, (C.outerList α d).length ≤ b) → C.rankBound ≤ b
+
+/-- Step 3--9 of `lem:certificate-exists`: choose `l` using `existsRoutingAfterPower`, retain
+the fixed central image and its annular neighbours, scatter every other group, and package the
+positioned types, global outer lists, print/special slots and routed occurrence paths. -/
+private lemma existsMacroCertificate_seed2_routing (τ : Substitution P) (h : τ.STS)
+    (g : existsMacroCertificate_GroupingSeed τ) :
+    Nonempty (existsMacroCertificate_RoutingSeed τ g) := by
+  sorry
+
+private noncomputable def existsMacroCertificate_groupingSeed (τ : Substitution P) (h : τ.STS) :
+    existsMacroCertificate_GroupingSeed τ :=
+  Classical.choice (existsMacroCertificate_seed1_grouping τ h)
+
+private noncomputable def existsMacroCertificate_routingSeed (τ : Substitution P) (h : τ.STS) :
+    existsMacroCertificate_RoutingSeed τ (existsMacroCertificate_groupingSeed τ h) :=
+  Classical.choice (existsMacroCertificate_seed2_routing τ h
+    (existsMacroCertificate_groupingSeed τ h))
+
+/-- The raw finite construction of `lem:certificate-exists`.  It chooses the two construction
+seeds above; the property lemmas `existsMacroCertificate_step1_groupedFamily` ...
+`existsMacroCertificate_step9_g7` are about this same value.  Its intended value, in the
+noncircular order of the blueprint:
 1. fix mesh constants `M` of `P` (`MeshConstants.nonempty`); choose `R` with
    `R ≥ Csep · D` (`quantitativeAnnularGrouping`) and `R ≥ 10000 (K₀ + 3) D`, then
    `Q = K₀ ⌈4C²R²/a⌉`, then `N ≥ 2` with `4N > 3Q`, then `k` so large that every `τ^k α` contains
@@ -28408,7 +28538,8 @@ constructed.  Its intended value, in the noncircular order of the blueprint:
    `Qmax = Q`, with `N` as chosen and `rankBound` the largest outer-list length. -/
 private noncomputable def existsMacroCertificate_raw (τ : Substitution P) (h : τ.STS) :
     ℕ × MacroData P := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  exact (s.m, s.C.toMacroData)
 
 /-- The grouped-family, substitution-compatibility and representation output of Step 1 of
 `lem:certificate-exists`: "Keep the finite labelled groups in `P'` ... Scattering a group and
@@ -28563,57 +28694,138 @@ supertile-origin/hereditary clauses required by `Represents`. -/
 private lemma existsMacroCertificate_step1_groupedFamily (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_RepresentationData τ
       (existsMacroCertificate_raw τ h).1 (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_RepresentationData τ s.m s.C.toMacroData)
+  exact ⟨{
+    m_pos := s.represents.m_pos
+    θ_eq := s.represents.θ_eq
+    compat := s.represents.compat
+    scatter_support := s.C.scatter_support
+    sts := s.represents.sts
+    dualConnected := s.represents.dualConnected
+    side_whole := s.represents.side_whole
+    vertex_retained := s.represents.vertex_retained
+    singleton := s.represents.singleton
+    inside_supertile := s.represents.inside_supertile
+    hereditary := s.represents.hereditary }⟩
 
 /-- Step 2 of the blueprint proof of `existsMacroCertificate`: the retained/scattered rules
 are finite STS polygonal templates and their positioned type tags enumerate the children. -/
 private lemma existsMacroCertificate_step2_templates (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_TemplateData (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_TemplateData s.C.toMacroData)
+  exact ⟨{
+    rule_eq := s.C.rule_eq
+    type_injective := s.C.type_injective
+    template_sts := s.C.template_sts }⟩
 
 /-- Step 3 of the blueprint proof of `existsMacroCertificate`: "Disk cellulations with at
 least the centre and its ring have connected inner-side duals and at least three children",
 with the two-owner and interface-identity consequences. -/
 private lemma existsMacroCertificate_step3_g1 (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_G1Data (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_G1Data s.C.toMacroData)
+  exact ⟨{
+    connected := s.C.g1_connected
+    three_le := s.C.g1_three_le
+    inner_side := s.C.g1_inner_side
+    partner := s.C.g1_partner
+    partner_partner := s.C.g1_partner_partner
+    side_unique := s.C.g1_side_unique
+    edge_partner := s.C.g1_edge_partner
+    edge_unique := s.C.g1_edge_unique
+    edgeTypes := s.C.g1_edgeTypes }⟩
 
 /-- Step 4 of the blueprint proof of `existsMacroCertificate`: boundary faces are connected
 through the complete finite fan at every macroboundary vertex, while the centre is interior. -/
 private lemma existsMacroCertificate_step4_g2 (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_G2Data (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_G2Data s.C.toMacroData)
+  exact ⟨{
+    belt_connected := s.C.g2_belt_connected
+    belt_edge := s.C.g2_belt_edge
+    central := s.C.g2_central }⟩
 
 /-- Step 5 of the blueprint proof of `existsMacroCertificate`: finite boundary interval
 intersections, global supporting-line orientation, five ports, and the finite rank bound give
 (G3), with no nested-cut assumption. -/
 private lemma existsMacroCertificate_step5_g3 (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_G3Data (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_G3Data s.C.toMacroData)
+  exact ⟨{
+    pos_iff := s.C.g3_pos_iff
+    pos_smul := s.C.g3_pos_smul
+    outerList_mem := s.C.g3_outerList_mem
+    outerList_nodup := s.C.g3_outerList_nodup
+    outerList_sorted := s.C.g3_outerList_sorted
+    crossing_le_two := s.C.g3_crossing_le_two
+    five_le := s.C.g3_five_le
+    length_le := s.C.g3_length_le }⟩
 
 /-- Step 6 of the blueprint proof of `existsMacroCertificate`: `lem:routing` supplies (G4),
 including inner paths, partner occurrences, the small-owner terminal print and disjointness. -/
 private lemma existsMacroCertificate_step6_g4 (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_G4Data (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_G4Data s.C.toMacroData)
+  exact ⟨{
+    print_injective := s.C.g4_print_injective
+    print_cyclic := s.C.g4_print_cyclic
+    print_inner := s.C.g4_print_inner
+    print_small := s.C.g4_print_small
+    print_special := s.C.g4_print_special
+    path_head := s.C.g4_path_head
+    path_last := s.C.g4_path_last
+    path_chain := s.C.g4_path_chain
+    path_owner := s.C.g4_path_owner
+    path_inner := s.C.g4_path_inner
+    path_partner := s.C.g4_path_partner
+    path_marked := s.C.g4_path_marked
+    path_not_central := s.C.g4_path_not_central
+    path_penultimate := s.C.g4_path_penultimate
+    path_trivial := s.C.g4_path_trivial
+    path_nodup := s.C.g4_path_nodup
+    path_disjoint := s.C.g4_path_disjoint }⟩
 
 /-- Step 7 of the blueprint proof of `existsMacroCertificate`: fixed central forms, identity
 prints for large parents, the retained ring, and `4N > 3Q` give (G5). -/
 private lemma existsMacroCertificate_step7_g5 (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_G5Data (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_G5Data s.C.toMacroData)
+  exact ⟨{
+    central_owner := s.C.g5_central_owner
+    large_iff := s.C.g5_large_iff
+    central_fixes_large := s.C.g5_central_fixes_large
+    print_id_large := s.C.g5_print_id_large
+    card_marked_large := s.C.g5_card_marked_large
+    card_marked_small := s.C.g5_card_marked_small
+    three_Q_lt := s.C.g5_three_Q_lt
+    original_marked := s.C.g5_original_marked }⟩
 
 /-- Step 8 of the blueprint proof of `existsMacroCertificate`: the quantitative private-neighbour
 estimate and `fingerprintSeparation` give the unique-special-side and fingerprint clauses (G6). -/
 private lemma existsMacroCertificate_step8_g6 (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_G6Data (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_G6Data s.C.toMacroData)
+  exact ⟨{
+    special_small := s.C.g6_special_small
+    special_unique := s.C.g6_special_unique
+    special_inner := s.C.g6_special_inner
+    fingerprint := s.C.g6_fingerprint }⟩
 
 /-- Step 9 of the blueprint proof of `existsMacroCertificate`: the construction's marking rule
 marks every outer side, boundary side, print and genuine-path occurrence, proving (G7). -/
 private lemma existsMacroCertificate_step9_g7 (τ : Substitution P) (h : τ.STS) :
     Nonempty (existsMacroCertificate_G7Data (existsMacroCertificate_raw τ h).2) := by
-  sorry
+  let s := existsMacroCertificate_routingSeed τ h
+  change Nonempty (existsMacroCertificate_G7Data s.C.toMacroData)
+  exact ⟨{ marking := s.C.g7_marking }⟩
 
 /-- `lem:certificate-exists`: for every STS polygonal substitution `τ` there
 are a macrocertificate `C` with the properties (G1)–(G7) and a power `m > 0`

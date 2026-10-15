@@ -35163,7 +35163,8 @@ private structure existsMacroCertificate_RoutingSeed (τ : Substitution P)
   special_contact : ∀ o : C.SideOcc, C.special o →
     C.IsInner o ∧ (C.partner o).1 = C.central (C.owner o.1)
   path_from_routing : ∀ α d (i : Fin 4),
-    (C.path α d i.castSucc).map C.occSide =
+    @List.destutter (Set Pt) (· ≠ ·) (Classical.decRel _)
+      ((C.path α d i.castSucc).map C.occSide) =
       (routing (baseForm α)).pathSides (parentSide α d) i
   fifth_path : ∀ α d, C.path α d (4 : Fin 5) = (C.port α d (4 : Fin 5)).toList
   N_eq : C.N = g.N

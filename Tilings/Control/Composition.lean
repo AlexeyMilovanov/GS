@@ -1555,7 +1555,7 @@ private lemma boundary_header_constant_step4_belt_eq_step2_edge_step1_symm (c : 
     · left; rw [hstart]; exact hkv
 
 private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_vadd_cancel
-    (a : Pt) {S T : Set Pt} (h : a +ᵥ S = a +ᵥ T) : S = T := sorry
+    (a : Pt) {S T : Set Pt} (h : a +ᵥ S = a +ᵥ T) : S = T := (vadd_left_cancel_iff a).mp h
 
 private lemma boundary_header_constant_step4_belt_eq_step2_edge_step2_prop_aux_childSide
     (c : MacroCertificate P) (K : ColouredBlock c) (o : c.SideOcc) :

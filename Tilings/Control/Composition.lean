@@ -7751,14 +7751,503 @@ private lemma composed_proper_step3_properties (c : MacroCertificate P) (hH : c.
   rw [hreconstruct]
   exact ⟨hp.1, hp.2.1, hp.2.2.2⟩
 
+private lemma composed_proper_step4_child_mem (c : MacroCertificate P)
+    (T : PlaneTiling (typedDecoration c)) (part : MacroPartition c T) (j : part.ι)
+    (t : c.Typ) (ht : c.owner t = (part.block j).α) :
+    (part.block j).placed t ∈ T.tiles := by
+  rw [← part.cover]
+  exact Set.mem_iUnion.2 ⟨j, t, ht, rfl⟩
+
+private lemma composed_proper_step4_rank_positive (c : MacroCertificate P)
+    (α : c.Q.Form) (d : Fin (c.Q.disk α).n) (o : c.SideOcc)
+    (ho : o ∈ c.outerList α d) : IsRankU c (rankU c (c.rankOf α d o)) := by
+  refine ⟨c.rankOf α d o, ?_, rfl⟩
+  unfold MacroData.rankOf MacroData.rankIn
+  have hbound : (c.outerList α d).idxOf o + 1 ≤ c.rankBound := by
+    calc
+      (c.outerList α d).idxOf o + 1 ≤ (c.outerList α d).length := by
+        exact Nat.succ_le_iff.2 (List.idxOf_lt_length_iff.2 ho)
+      _ ≤ c.rankBound := c.g3_length_le α d
+  change 0 < min ((c.outerList α d).idxOf o + 1) c.rankBound
+  omega
+
+private lemma composed_proper_step4_mode_of_exact (c : MacroCertificate P)
+    (K : ColouredBlock c) (D : DecTile c) (hKD : IsExactBlockOf c K D)
+    (d : Fin (c.Q.disk K.α).n) : ModeUniform c K d := by
+  rcases K with ⟨α, v, col⟩
+  rcases hKD with ⟨hform, hchild⟩
+  cases hform
+  let i : c.Side D.typ := d
+  by_cases hz : zA c D i = true
+  · right
+    intro o ho
+    obtain ⟨hown, hout, -⟩ := (c.g3_outerList_mem (c.form D.typ) i o).1 ho
+    have hnp : ¬ c.IsPrint o := fun hp => asm_print_inner c hp hout
+    have hc := hchild o.1 hown
+    exact (((hc.2 o.2).2 hnp).2.2.2.2.2.1 hout i ho).trans (if_pos hz)
+  · left
+    intro o ho
+    obtain ⟨hown, hout, -⟩ := (c.g3_outerList_mem (c.form D.typ) i o).1 ho
+    have hnp : ¬ c.IsPrint o := fun hp => asm_print_inner c hp hout
+    have hc := hchild o.1 hown
+    have hcell := ((hc.2 o.2).2 hnp).2.2.2.2.2.1 hout i ho
+    rw [if_neg hz] at hcell
+    change col o.1 o.2 3 = rankU c (c.rankOf (c.form D.typ) i o) at hcell
+    change IsRankU c (col o.1 o.2 3)
+    rw [hcell]
+    exact composed_proper_step4_rank_positive c (c.form D.typ) i o ho
+
+private lemma composed_proper_step4_rank_matched_of_exact_aux (c : MacroCertificate P)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T) (K : ColouredBlock c)
+    (hKT : K.tiles ⊆ T.tiles) (D : DecTile c) (hKD : IsExactBlockOf c K D)
+    (d : Fin (c.Q.disk K.α).n)
+    (hz : zA c D (cast (congrArg (fun α => Fin (c.Q.disk α).n) hKD.1.symm) d) = false) :
+    ∀ o ∈ c.outerList K.α d,
+      IsRankU c (K.col o.1 o.2 3) ∧
+      ∃ Y ∈ T.tiles, Y ≠ K.placed o.1 ∧ ∃ i : c.Side (tileDec Y).typ,
+        sideOf c Y i = K.childSide o ∧ (tileDec Y).cell i 3 = K.col o.1 o.2 3 := by
+  rcases K with ⟨α, v, col⟩
+  rcases hKD with ⟨hform, hchild⟩
+  cases hform
+  simp only [cast_eq] at hz
+  let i : c.Side D.typ := d
+  intro o ho
+  obtain ⟨hown, hout, -⟩ := (c.g3_outerList_mem (c.form D.typ) i o).1 ho
+  have hnp : ¬ c.IsPrint o := fun hp => asm_print_inner c hp hout
+  have hc := hchild o.1 hown
+  have hcell := ((hc.2 o.2).2 hnp).2.2.2.2.2.1 hout i ho
+  have hz' : ¬ zA c D i = true := by simpa [hz]
+  rw [if_neg hz'] at hcell
+  change col o.1 o.2 3 = rankU c (c.rankOf (c.form D.typ) i o) at hcell
+  have hrank : IsRankU c (col o.1 o.2 3) := by
+    rw [hcell]
+    exact composed_proper_step4_rank_positive c (c.form D.typ) i o ho
+  refine ⟨hrank, ?_⟩
+  have hmem : (⟨c.form D.typ, v, col⟩ : ColouredBlock c).placed o.1 ∈ T.tiles :=
+    hKT ⟨o.1, hown, rfl⟩
+  have hnon : IsNontrivial c
+      (tileDec ((⟨c.form D.typ, v, col⟩ : ColouredBlock c).placed o.1)) o.2 := by
+    intro hzero
+    rcases hrank with ⟨k, hk, hr⟩
+    have hne : rankU c k ≠ 0 := by intro h; cases h
+    exact hne (hr.symm.trans hzero.1)
+  obtain ⟨Y, hY, hYX, i, hside, hcells⟩ := hT _ hmem o.2 hnon
+  refine ⟨Y, hY, hYX, i, ?_, ?_⟩
+  · exact hside
+  · exact hcells 3
+
+private lemma composed_proper_step4_rank_matched_of_exact (c : MacroCertificate P)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (part : MacroPartition c T) (j : part.ι) (D : DecTile c)
+    (hKD : IsExactBlockOf c (part.block j) D) (d : Fin (c.Q.disk (part.block j).α).n)
+    (hz : zA c D (cast (congrArg (fun α => Fin (c.Q.disk α).n) hKD.1.symm) d) = false) :
+    RankMatched c part j d := by
+  apply composed_proper_step4_rank_matched_of_exact_aux c T hT (part.block j)
+    (fun _ h => part.cover ▸ Set.mem_iUnion.2 ⟨j, h⟩) D hKD d hz
+
+private lemma composed_proper_step4_side_injective (D : PolygonalDisk) :
+    Function.Injective D.side := by
+  intro i j h
+  by_contra hij
+  have hab : D.vertex i ≠ D.vertex (finRotate D.n i) := fun he =>
+    boundary_side_of_outer_side_step2_transition_finRotate_ne_self (by omega) i
+      (D.vertex_injective he).symm
+  have hm : midpoint ℝ (D.vertex i) (D.vertex (finRotate D.n i)) ∈ D.side i :=
+    midpoint_mem_segment _ _
+  have hmj : midpoint ℝ (D.vertex i) (D.vertex (finRotate D.n i)) ∈ D.side j := h ▸ hm
+  have he := (D.simple i j hij ⟨hm, hmj⟩).1
+  rcases he with he | he
+  · exact hab ((midpoint_eq_left_iff ℝ).mp he)
+  · exact hab ((midpoint_eq_right_iff ℝ).mp he)
+
+private lemma composed_proper_step4_corresponding_child_cells (c : MacroCertificate P)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (part : MacroPartition c T) (j j' : part.ι) (hjj' : j' ≠ j)
+    (o o' : c.SideOcc) (ho : c.owner o.1 = (part.block j).α)
+    (ho' : c.owner o'.1 = (part.block j').α)
+    (hrank : IsRankU c ((part.block j).col o.1 o.2 3))
+    (hsides : (part.block j).childSide o = (part.block j').childSide o') :
+    ∀ k : Fin 5, (part.block j').col o'.1 o'.2 k = (part.block j).col o.1 o.2 k := by
+  have hA := composed_proper_step4_child_mem c T part j o.1 ho
+  have hC := composed_proper_step4_child_mem c T part j' o'.1 ho'
+  have hAC : (part.block j).placed o.1 ≠ (part.block j').placed o'.1 := by
+    intro heq
+    have hleft : (part.block j).placed o.1 ∈ (part.block j).tiles := ⟨o.1, ho, rfl⟩
+    have hright : (part.block j).placed o.1 ∈ (part.block j').tiles := heq ▸ ⟨o'.1, ho', rfl⟩
+    exact Set.disjoint_left.1 (part.disjoint hjj'.symm) hleft hright
+  have hnon : IsNontrivial c (tileDec ((part.block j).placed o.1)) o.2 := by
+    intro hz
+    rcases hrank with ⟨r, hr, heq⟩
+    have hne : rankU c r ≠ 0 := by intro h; cases h
+    exact hne (heq.symm.trans hz.1)
+  obtain ⟨Y, hY, hYA, i, hside, hcells⟩ := hT _ hA o.2 hnon
+  have hYC : Y = (part.block j').placed o'.1 := by
+    by_contra hne
+    have dAY := T.disjoint hA hY hYA.symm
+    have dAC := T.disjoint hA hC hAC
+    have dYC := T.disjoint hY hC hne
+    apply asm_no_three
+      (c.Q.disk (c.form o.1))
+      (c.Q.disk (c.form (tileDec Y).typ))
+      (c.Q.disk (c.form o'.1))
+      ((part.block j).placed o.1).anchor Y.anchor
+      ((part.block j').placed o'.1).anchor o.2 i o'.2
+    · exact hside
+    · exact hsides.symm
+    · exact dAY
+    · exact dAC
+    · exact dYC
+  intro k
+  subst Y
+  change Fin (c.Q.disk (c.form o'.1)).n at i
+  have hii : i = o'.2 := by
+    apply composed_proper_step4_side_injective
+    apply path_and_print_recovery_step1_signals_aux_vadd_cancel
+      ((part.block j').placed o'.1).anchor
+    exact hside.trans hsides
+  subst i
+  exact hcells k
+
+private lemma composed_proper_step4_ports (c : MacroCertificate P)
+    (K K' : ColouredBlock c) (d : Fin (c.Q.disk K.α).n)
+    (e : Fin (c.Q.disk K'.α).n)
+    (hsub : List.Forall₂ (fun o o' => K.childSide o = K'.childSide o')
+      (c.outerList K.α d) (c.outerList K'.α e)) (k : Fin 5) :
+    ∃ o o', c.port K.α d k = some o ∧ c.port K'.α e k = some o' ∧
+      o ∈ c.outerList K.α d ∧ o' ∈ c.outerList K'.α e ∧
+      K.childSide o = K'.childSide o' := by
+  have hlen : (c.outerList K.α d).length = (c.outerList K'.α e).length := hsub.length_eq
+  have hidx : MacroData.portRank (c.outerList K.α d).length k - 1 <
+      (c.outerList K.α d).length := by
+    have h5 := c.g3_five_le K.α d
+    fin_cases k <;> simp [MacroData.portRank] <;> omega
+  have hidx' : MacroData.portRank (c.outerList K.α d).length k - 1 <
+      (c.outerList K'.α e).length := by
+    rwa [← hlen]
+  let n := MacroData.portRank (c.outerList K.α d).length k - 1
+  let o := (c.outerList K.α d).get ⟨n, hidx⟩
+  let o' := (c.outerList K'.α e).get ⟨n, hidx'⟩
+  refine ⟨o, o', ?_, ?_, List.get_mem _ _, List.get_mem _ _, ?_⟩
+  · unfold MacroData.port
+    rw [List.getElem?_eq_some_iff]
+    exact ⟨hidx, rfl⟩
+  · unfold MacroData.port
+    rw [List.getElem?_eq_some_iff]
+    have hidx2 : MacroData.portRank (c.outerList K'.α e).length k - 1 <
+        (c.outerList K'.α e).length := by
+      have h5 := c.g3_five_le K'.α e
+      fin_cases k <;> simp [MacroData.portRank] <;> omega
+    refine ⟨hidx2, ?_⟩
+    simp only [o', n]
+    congr 1
+    exact congrArg (fun L => MacroData.portRank L k - 1) hlen.symm
+  · exact hsub.get hidx hidx'
+
+private lemma composed_proper_step4_reconstruct_cell (c : MacroCertificate P)
+    (K : ColouredBlock c) (t : c.Typ) (hform : K.α = c.form t)
+    (d : Fin (c.Q.disk K.α).n) (k : Fin 5) :
+    (reconstruct c K t).cell
+      (cast (congrArg (fun α => Fin (c.Q.disk α).n) hform) d) k =
+      match c.port K.α d k with
+      | some o => K.col o.1 o.2 2
+      | none => 0 := by
+  rcases K with ⟨α, v, col⟩
+  cases hform
+  rfl
+
+private lemma composed_proper_step4_reconstruction_cell_eq (c : MacroCertificate P)
+    (A : DecTile c) (K : ColouredBlock c) (hA : A = reconstruct c K A.typ)
+    (i : c.Side A.typ) (k : Fin 5) : A.cell i k = (reconstruct c K A.typ).cell i k := by
+  have h := congrArg (decTileEquiv c) hA
+  change (⟨A.typ, A.cell⟩ : Σ t, c.Side t → Fin 5 → U c) =
+    ⟨A.typ, (reconstruct c K A.typ).cell⟩ at h
+  have hc : A.cell = (reconstruct c K A.typ).cell := eq_of_heq (Sigma.mk.inj h).2
+  exact congrFun (congrFun hc i) k
+
+private lemma composed_proper_step4_reconstructed_cells (c : MacroCertificate P)
+    (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
+    (part : MacroPartition c T) (X Y : PlacedTile (typedDecoration c))
+    (j j' : part.ι) (hjj' : j' ≠ j)
+    (d : Fin (c.Q.disk (part.block j).α).n)
+    (e : Fin (c.Q.disk (part.block j').α).n)
+    (hDX : tileDec X = reconstruct c (part.block j) (tileDec X).typ)
+    (hDY : tileDec Y = reconstruct c (part.block j') (tileDec Y).typ)
+    (hformX : (part.block j).α = c.form (tileDec X).typ)
+    (hformY : (part.block j').α = c.form (tileDec Y).typ)
+    (hrank : RankMatched c part j d)
+    (hsub : List.Forall₂ (fun o o' => (part.block j).childSide o =
+      (part.block j').childSide o') (c.outerList (part.block j).α d)
+      (c.outerList (part.block j').α e)) :
+    ∀ k : Fin 5,
+      (tileDec Y).cell (cast
+        (congrArg (fun α => Fin (c.Q.disk α).n) hformY) e) k =
+      (tileDec X).cell (cast
+        (congrArg (fun α => Fin (c.Q.disk α).n) hformX) d) k := by
+  intro k
+  obtain ⟨o, o', hp, hp', ho, ho', hsides⟩ :=
+    composed_proper_step4_ports c (part.block j) (part.block j') d e hsub k
+  have hown := ((c.g3_outerList_mem (part.block j).α d o).1 ho).1
+  have hown' := ((c.g3_outerList_mem (part.block j').α e o').1 ho').1
+  have hcells := composed_proper_step4_corresponding_child_cells c T hT part j j' hjj'
+    o o' hown hown' (hrank o ho).1 hsides
+  calc
+    _ = (reconstruct c (part.block j') (tileDec Y).typ).cell
+        (cast (congrArg (fun α => Fin (c.Q.disk α).n) hformY) e) k :=
+      composed_proper_step4_reconstruction_cell_eq c (tileDec Y) (part.block j') hDY _ k
+    _ = (part.block j').col o'.1 o'.2 2 := by
+      exact (composed_proper_step4_reconstruct_cell c (part.block j')
+        (tileDec Y).typ hformY e k).trans (by rw [hp'])
+    _ = (part.block j).col o.1 o.2 2 := hcells 2
+    _ = (reconstruct c (part.block j) (tileDec X).typ).cell
+        (cast (congrArg (fun α => Fin (c.Q.disk α).n) hformX) d) k := by
+      exact ((composed_proper_step4_reconstruct_cell c (part.block j)
+        (tileDec X).typ hformX d k).trans (by rw [hp])).symm
+    _ = _ := (composed_proper_step4_reconstruction_cell_eq c
+      (tileDec X) (part.block j) hDX _ k).symm
+
+private def composed_proper_step4_trim (c : MacroCertificate P) (K : ColouredBlock c) :
+    ColouredBlock c where
+  α := K.α
+  v := K.v
+  col t := if c.owner t = K.α then K.col t else fun _ _ => 0
+
+private lemma composed_proper_step4_trim_tiles (c : MacroCertificate P) (K : ColouredBlock c) :
+    (composed_proper_step4_trim c K).tiles = K.tiles := by
+  ext X
+  constructor
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t, ht, ?_⟩
+    simp [composed_proper_step4_trim, ColouredBlock.placed, ColouredBlock.tileOf, ht]
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t, ht, ?_⟩
+    simp [composed_proper_step4_trim, ColouredBlock.placed, ColouredBlock.tileOf, ht]
+
+private lemma composed_proper_step4_trim_exact (c : MacroCertificate P)
+    (K : ColouredBlock c) (D : DecTile c) (hKD : IsExactBlockOf c K D) :
+    IsExactBlockOf c (composed_proper_step4_trim c K) D := by
+  refine ⟨hKD.1, fun t ht => ?_⟩
+  simpa [composed_proper_step4_trim, ColouredBlock.tileOf, ht] using hKD.2 t ht
+
+private lemma composed_proper_step4_exact_reconstruct (c : MacroCertificate P)
+    (K : ColouredBlock c) (D : DecTile c) (hKD : IsExactBlockOf c K D) :
+    D = reconstruct c K D.typ := by
+  apply (decTileEquiv c).injective
+  change (⟨D.typ, D.cell⟩ : Σ t, c.Side t → Fin 5 → U c) =
+    ⟨D.typ, (reconstruct c K D.typ).cell⟩
+  congr 1
+  funext d k
+  have hidx : MacroData.portRank (c.outerList (c.form D.typ) d).length k - 1 <
+      (c.outerList (c.form D.typ) d).length := by
+    have h5 := c.g3_five_le (c.form D.typ) d
+    fin_cases k <;> simp [MacroData.portRank] <;> omega
+  let o := (c.outerList (c.form D.typ) d).get
+    ⟨MacroData.portRank (c.outerList (c.form D.typ) d).length k - 1, hidx⟩
+  have hp : c.port (c.form D.typ) d k = some o := by
+    unfold MacroData.port
+    rw [List.getElem?_eq_some_iff]
+    exact ⟨hidx, rfl⟩
+  have ho : o ∈ c.outerList (c.form D.typ) d := List.get_mem _ _
+  obtain ⟨hown, hout, -⟩ := (c.g3_outerList_mem (c.form D.typ) d o).1 ho
+  have hnp : ¬ c.IsPrint o := fun h => asm_print_inner c h hout
+  have hpath : o ∈ c.path (c.form D.typ) d k := by
+    by_cases hg : c.IsGenuinePath (c.form D.typ) d k
+    · exact List.mem_of_mem_head? ((c.g4_path_head _ _ _ hg).trans hp)
+    · rw [c.g4_path_trivial _ _ _ hg, hp]
+      simp
+  have hc := hKD.2 o.1 (hown.trans hKD.1)
+  have hcell := ((hc.2 o.2).2 hnp).2.2.2.1 d k hpath
+  change D.cell d k = (match c.port (c.form D.typ) d k with
+    | some q => K.col q.1 q.2 2
+    | none => 0)
+  rw [hp]
+  exact hcell.symm
+
+private lemma composed_proper_step4_block_ext (c : MacroCertificate P)
+    (K L : ColouredBlock c) (hα : K.α = L.α) (hv : K.v = L.v)
+    (hc : ∀ (t : c.Typ) (i : c.Side t) (k : Fin 5), K.col t i k = L.col t i k) : K = L := by
+  rcases K with ⟨α, v, col⟩
+  rcases L with ⟨β, w, col'⟩
+  simp only at hα hv hc
+  subst β
+  subst w
+  congr 1
+  funext t i k
+  exact hc t i k
+
+private lemma composed_proper_step4_trim_eq_of_common (c : MacroCertificate P)
+    (T : PlaneTiling (typedDecoration c)) (K L : ColouredBlock c)
+    (hK : K.tiles ⊆ T.tiles) (hL : L.tiles ⊆ T.tiles)
+    (Z : PlacedTile (typedDecoration c)) (hZK : Z ∈ K.tiles) (hZL : Z ∈ L.tiles) :
+    composed_proper_step4_trim c K = composed_proper_step4_trim c L := by
+  obtain ⟨t, ht, hZt⟩ := hZK
+  obtain ⟨s, hs, hZs⟩ := hZL
+  have hplaced : K.placed t = L.placed s := hZt.symm.trans hZs
+  have hts : t = s := congrArg (fun X => (tileDec X).typ) hplaced
+  subst s
+  have hα : K.α = L.α := ht.symm.trans hs
+  have hv : K.v = L.v := by
+    have ha := congrArg PlacedTile.anchor hplaced
+    change K.v + c.anchor t = L.v + c.anchor t at ha
+    exact add_right_cancel ha
+  apply composed_proper_step4_block_ext c (composed_proper_step4_trim c K)
+    (composed_proper_step4_trim c L) hα hv
+  intro u i k
+  by_cases hu : c.owner u = K.α
+  · have huL : c.owner u = L.α := hu.trans hα
+    have hKu : K.placed u ∈ T.tiles := hK ⟨u, hu, rfl⟩
+    have hLu : L.placed u ∈ T.tiles := hL ⟨u, huL, rfl⟩
+    have heq := asm_tile_unique c T hKu hLu rfl (by
+      change K.v + c.anchor u = L.v + c.anchor u
+      rw [hv])
+    have heq' := congrArg (decTileEquiv c ∘ tileDec) heq
+    change (⟨u, K.col u⟩ : Σ t, c.Side t → Fin 5 → U c) =
+      ⟨u, L.col u⟩ at heq'
+    have hcu : K.col u = L.col u := eq_of_heq (Sigma.mk.inj heq').2
+    simpa [composed_proper_step4_trim, hu, huL, hα] using congrFun (congrFun hcu i) k
+  · have huL : ¬ c.owner u = L.α := fun h => hu (h.trans hα.symm)
+    simp [composed_proper_step4_trim, hu, huL]
+
+private lemma composed_proper_step4_zero_false (c : MacroCertificate P) (D : DecTile c)
+    (hN : IsNormal c D) (i : c.Side D.typ) (hi : IsNontrivial c D i) :
+    zA c D i = false := by
+  unfold zA
+  by_cases ho : c.IsOuter (c.occ D.typ i)
+  · apply HeaderKernel.zeroMode_eq_false_of_ne_zero
+    intro h3
+    have hnp : ¬ c.IsPrint (c.occ D.typ i) := fun hp => asm_print_inner c hp ho
+    exact hi ⟨h3, asm_cell_four_nonprint c hN i hnp⟩
+  · apply HeaderKernel.zeroMode_eq_false_of_inner
+    simpa [MacroData.outerB] using ho
+
+private lemma composed_proper_step4_macroSide_eq (c : MacroCertificate P)
+    (K : ColouredBlock c) (X : PlacedTile (typedDecoration c))
+    (hform : c.form (tileDec X).typ = K.α) (hv : K.v = c.σ.θ • X.anchor)
+    (i : c.Side (tileDec X).typ) :
+    K.macroSide (cast (congrArg (fun α => Fin (c.Q.disk α).n) hform) i) =
+      c.σ.θ • sideOf c X i := by
+  rcases K with ⟨α, v, col⟩
+  cases hform
+  simp only [cast_eq] at hv ⊢
+  unfold ColouredBlock.macroSide MacroData.macroSide sideOf
+  rw [hv]
+  ext x
+  simp only [Set.mem_vadd_set_iff_neg_vadd_mem, Set.mem_smul_set_iff_inv_smul_mem₀
+    (zero_lt_one.trans c.σ.one_lt).ne']
+  constructor <;> intro hx
+  · simpa [smul_sub, inv_smul_smul₀ (zero_lt_one.trans c.σ.one_lt).ne'] using hx
+  · simpa [smul_sub, inv_smul_smul₀ (zero_lt_one.trans c.σ.one_lt).ne'] using hx
+
 /-- Step 4 of the blueprint proof of `composed_proper`: the resulting tiling is proper. -/
 private lemma composed_proper_step4_proper (c : MacroCertificate P) (hH : c.Hereditary)
     (T : PlaneTiling (typedDecoration c)) (hT : IsProper c T)
     (hL : ∀ X ∈ T.tiles, headerLegal c (tileDec X)) (part : MacroPartition c T)
     (T' : PlaneTiling (typedDecoration c)) (hrec : IsReconstruction c part T') :
     IsProper c T' := by
-  have _ := hH; have _ := hT; have _ := hL; have _ := hrec
-  sorry
+  have hnormal := composed_proper_step3_properties c hH T hT hL part T' hrec
+  obtain ⟨blk, hblk, hcover⟩ := composed_proper_step2_exact c hH T hT hL part T' hrec
+  let b : T'.tiles → ColouredBlock c := fun X => composed_proper_step4_trim c (blk X)
+  have hbsub : ∀ X : T'.tiles, (b X).tiles ⊆ T.tiles := by
+    intro X Z hZ
+    change Z ∈ (composed_proper_step4_trim c (blk X)).tiles at hZ
+    rw [composed_proper_step4_trim_tiles] at hZ
+    rw [hcover]
+    exact Set.mem_iUnion.2 ⟨X, hZ⟩
+  let I := {K : ColouredBlock c // ∃ X : T'.tiles, K = b X}
+  let exactPart : MacroPartition c T := {
+    ι := I
+    block := Subtype.val
+    disjoint := by
+      rintro ⟨K, X, hK⟩ ⟨L, Y, hL⟩ hne
+      subst K
+      subst L
+      rw [Set.disjoint_left]
+      intro Z hZX hZY
+      apply hne
+      apply Subtype.ext
+      exact composed_proper_step4_trim_eq_of_common c T (blk X) (blk Y)
+        (by simpa [b, composed_proper_step4_trim_tiles] using hbsub X)
+        (by simpa [b, composed_proper_step4_trim_tiles] using hbsub Y) Z
+        (by simpa [b, composed_proper_step4_trim_tiles] using hZX)
+        (by simpa [b, composed_proper_step4_trim_tiles] using hZY)
+    cover := by
+      apply Set.Subset.antisymm
+      · intro Z hZ
+        obtain ⟨J, hZJ⟩ := Set.mem_iUnion.1 hZ
+        obtain ⟨X, hJ⟩ := J.2
+        rw [hJ] at hZJ
+        change Z ∈ (composed_proper_step4_trim c (blk X)).tiles at hZJ
+        rw [composed_proper_step4_trim_tiles] at hZJ
+        rw [hcover]
+        exact Set.mem_iUnion.2 ⟨X, hZJ⟩
+      · intro Z hZ
+        rw [hcover] at hZ
+        obtain ⟨X, hZX⟩ := Set.mem_iUnion.1 hZ
+        let J : I := ⟨b X, X, rfl⟩
+        refine Set.mem_iUnion.2 ⟨J, ?_⟩
+        change Z ∈ (b X).tiles
+        change Z ∈ (composed_proper_step4_trim c (blk X)).tiles
+        rwa [composed_proper_step4_trim_tiles]
+  }
+  have hmode : ∀ J : exactPart.ι, ∀ d, ModeUniform c (exactPart.block J) d := by
+    intro J d
+    obtain ⟨X, hJ⟩ := J.2
+    have hExact : IsExactBlockOf c J.1 (tileDec X.1) := by
+      rw [hJ]
+      exact composed_proper_step4_trim_exact c (blk X) (tileDec X.1) (hblk X).1
+    exact composed_proper_step4_mode_of_exact c J.1 (tileDec X.1) hExact d
+  intro X hX i hi
+  let Xs : T'.tiles := ⟨X, hX⟩
+  let j : exactPart.ι := ⟨b Xs, Xs, rfl⟩
+  have hKD : IsExactBlockOf c (exactPart.block j) (tileDec X) := by
+    exact composed_proper_step4_trim_exact c (blk Xs) (tileDec X) (hblk Xs).1
+  let d : Fin (c.Q.disk (exactPart.block j).α).n :=
+    cast (congrArg (fun α => Fin (c.Q.disk α).n) hKD.1) i
+  have hz0 := composed_proper_step4_zero_false c (tileDec X) (hnormal X hX).1 i hi
+  have hz : zA c (tileDec X)
+      (cast (congrArg (fun α => Fin (c.Q.disk α).n) hKD.1.symm) d) = false := by
+    simpa [d] using hz0
+  have hrank : RankMatched c exactPart j d :=
+    composed_proper_step4_rank_matched_of_exact c T hT exactPart j (tileDec X) hKD d hz
+  have hopp := alignment_complete c hH T exactPart hT hL j d hrank (by
+    intro J hJ e
+    exact hmode J e)
+  obtain ⟨j', hj', e, hmacro, hsub⟩ := hopp
+  obtain ⟨Ys, hj'blk⟩ := j'.2
+  let Y : PlacedTile (typedDecoration c) := Ys.1
+  have hY : Y ∈ T'.tiles := Ys.2
+  have hKDY : IsExactBlockOf c (exactPart.block j') (tileDec Y) := by
+    change IsExactBlockOf c j'.1 (tileDec Ys.1)
+    rw [hj'blk]
+    exact composed_proper_step4_trim_exact c (blk Ys) (tileDec Ys.1) (hblk Ys).1
+  let i' : c.Side (tileDec Y).typ :=
+    cast (congrArg (fun α => Fin (c.Q.disk α).n) hKDY.1.symm) e
+  have hYX : Y ≠ X := by
+    intro heq
+    apply hj'
+    apply Subtype.ext
+    change j'.1 = b Xs
+    rw [hj'blk]
+    congr 2
+    exact Subtype.ext heq
+  have hvX : (exactPart.block j).v = c.σ.θ • X.anchor := (hblk Xs).2
+  have hvY : (exactPart.block j').v = c.σ.θ • Y.anchor := by
+    change j'.1.v = c.σ.θ • Ys.1.anchor
+    rw [hj'blk]
+    exact (hblk Ys).2
+  have hmX := composed_proper_step4_macroSide_eq c (exactPart.block j) X hKD.1 hvX i
+  have hmY := composed_proper_step4_macroSide_eq c (exactPart.block j') Y hKDY.1 hvY i'
+  have hscale : c.σ.θ • sideOf c Y i' = c.σ.θ • sideOf c X i := by
+    rw [← hmY, ← hmX]
+    simpa [i', d] using hmacro
+  have hside : sideOf c Y i' = sideOf c X i := by
+    have hs := congrArg (fun S : Set Pt => c.σ.θ⁻¹ • S) hscale
+    simpa [inv_smul_smul₀ (zero_lt_one.trans c.σ.one_lt).ne'] using hs
+  refine ⟨Y, hY, hYX, i', hside, ?_⟩
+  have hDX := composed_proper_step4_exact_reconstruct c (exactPart.block j) (tileDec X) hKD
+  have hDY := composed_proper_step4_exact_reconstruct c (exactPart.block j') (tileDec Y) hKDY
+  have hcells := composed_proper_step4_reconstructed_cells c T hT exactPart X Y j j' hj' d e
+    hDX hDY hKD.1.symm hKDY.1.symm hrank hsub
+  simpa [i', d] using hcells
 
 /-- `lem:comp/proper`: for a proper legal plane tiling `T`, replacing each
 assembled macroblock by its reconstructed parent and scaling down gives a

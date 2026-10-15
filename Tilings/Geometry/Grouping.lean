@@ -24265,6 +24265,52 @@ private lemma existsRoutingAfterPower_step2_ports (τ : Substitution P) (hτ : �
 
   exact ⟨⟨port_fn, outer_cond, inj_cond, sep_cond, corner_cond, quant_cond⟩⟩
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member`:
+the scattered original tiles of a mixed tile cover it, so the central child lies in `L`. -/
+private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member_step1_cover
+    (G : GroupedFamily P) (C : PlacedTile G.mixed) : C.carrier ⊆ support (G.mixedScatterTile C) := by
+  rcases C with ⟨f, a⟩
+  rcases f with β | q
+  · intro x hx
+    simp only [PlacedTile.carrier] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    change y ∈ (G.P'.disk β).carrier at hy
+    rw [← G.support_eq β] at hy
+    obtain ⟨T, hT, hyT⟩ := mem_support_iff'.1 hy
+    refine mem_support_iff'.2 ⟨T.translate a, ?_, ?_⟩
+    · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inl, translateSet]
+      exact ⟨T, hT, rfl⟩
+    · simp only [PlacedTile.carrier, PlacedTile.translate] at hyT ⊢
+      obtain ⟨w, hw, rfl⟩ := hyT
+      exact ⟨w, hw, by simp [vadd_eq_add, add_assoc]⟩
+  · intro x hx
+    refine mem_support_iff'.2 ⟨⟨q, a⟩, ?_, hx⟩
+    simp [GroupedFamily.mixedScatterTile]
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member`:
+every scattered original tile lies inside the mixed tile that produced it. -/
+private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member_step2_carrier
+    (G : GroupedFamily P) (C : PlacedTile G.mixed) {A : PlacedTile P}
+    (hA : A ∈ G.mixedScatterTile C) : A.carrier ⊆ C.carrier := by
+  rcases C with ⟨f, a⟩
+  rcases f with β | q
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inl, translateSet,
+      Set.mem_image] at hA
+    obtain ⟨T, hT, rfl⟩ := hA
+    have hsub : T.carrier ⊆ (G.P'.disk β).carrier := by
+      rw [← G.support_eq β]
+      exact carrier_subset_support hT
+    intro x hx
+    simp only [PlacedTile.carrier, PlacedTile.translate] at hx ⊢
+    obtain ⟨y, hy, rfl⟩ := hx
+    refine ⟨T.anchor +ᵥ y, hsub ⟨y, hy, rfl⟩, ?_⟩
+    simp [vadd_eq_add, add_assoc]
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inr,
+      Set.mem_singleton_iff] at hA
+    subst hA
+    intro x hx
+    exact hx
+
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped`:
 an original child sharing a central side lies in `H \ L`, hence in one annular piece. -/
 private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member
@@ -24277,7 +24323,81 @@ private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_
     (hXp : X.form = Sum.inr p) :
     ∃ j : Fin (4 * Rs.N α),
       (⟨p, X.anchor⟩ : PlacedTile P) ∈ ((Rs.annulus l α hl).spokes.piece j).faces := by
-  sorry
+  set A : PlacedTile P := ⟨p, X.anchor⟩
+  have hdisj := (Rs.retained l α).children.disjoint
+  have hAX : A.carrier = X.carrier := by simp [A, PlacedTile.carrier, hXp]
+  have hscX : Rs.GS.G.mixedScatterTile X = {A} := by simp [GroupedFamily.mixedScatterTile, hXp, A]
+  have hAS : A ∈ Rs.GS.G.mixedScatter (Rs.retained l α).children.tiles :=
+    Set.mem_biUnion hX (by rw [hscX]; rfl)
+  obtain ⟨z, hz⟩ : (interior X.carrier).Nonempty := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact (Rs.GS.G.mixed.disk X.form).interior_nonempty.vadd_set
+  -- the original child is not a face of `L`
+  have hAL : A ∉ (Rs.annulus l α hl).L.faces := by
+    intro h
+    rw [← Rs.central_scatter l α hl] at h
+    have hsub :=
+      existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member_step2_carrier Rs.GS.G _ h
+    rw [hAX] at hsub
+    exact interior_not_mem_other hdisj hX (Rs.central_mem l α) hXc hz (hsub (interior_subset hz))
+  -- the original child lies in `H`
+  have hR : 0 ≤ Rs.R α := by
+    have h1 := Rs.R_large α
+    have h2 := M.D_pos
+    have h3 : 0 ≤ 10000 * ((M.K0 : ℝ) + 3) * M.D := by positivity
+    linarith
+  have hXH : X.carrier ⊆ (Rs.annulus l α hl).H.carrier := by
+    obtain ⟨i, hi⟩ := hk
+    set y := (Rs.central l α).vertex k
+    have hyside : y ∈ (Rs.central l α).side k := by
+      rw [tile_side_eq]; exact left_mem_segment ℝ _ _
+    have hyX : y ∈ X.carrier := tile_side_subset X i (hi ▸ hyside)
+    have hyL : y ∈ (Rs.annulus l α hl).L.carrier := by
+      have h1 := existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member_step1_cover Rs.GS.G
+        (Rs.central l α) (tile_side_subset _ k hyside)
+      rw [Rs.central_scatter l α hl, ← (Rs.annulus l α hl).L.carrier_eq] at h1
+      exact h1
+    obtain ⟨u, hu, v, hv, huv⟩ := (Rs.annulus l α hl).L_upper hyL
+    intro x hx
+    apply (Rs.annulus l α hl).H_lower
+    have hcoord : ∀ i : Fin 2, |x i - y i| ≤ M.D := fun i =>
+      rg_tile_coord M A (hAX ▸ hx) (hAX ▸ hyX) i
+    refine ⟨u, ⟨?_, ?_⟩, x - u, ⟨?_, ?_⟩, add_sub_cancel u x⟩
+    · exact hu.1.trans (by linarith)
+    · exact hu.2.trans (by linarith)
+    · have h := hcoord 0
+      have hv0 := hv.1
+      rw [← huv] at h
+      simp only [PiLp.sub_apply, PiLp.add_apply] at h ⊢
+      calc |x 0 - u 0| = |(x 0 - (u 0 + v 0)) + v 0| := by ring_nf
+        _ ≤ |x 0 - (u 0 + v 0)| + |v 0| := abs_add_le _ _
+        _ ≤ 2 * M.D := by linarith
+    · have h := hcoord 1
+      have hv1 := hv.2
+      rw [← huv] at h
+      simp only [PiLp.sub_apply, PiLp.add_apply] at h ⊢
+      calc |x 1 - u 1| = |(x 1 - (u 1 + v 1)) + v 1| := by ring_nf
+        _ ≤ |x 1 - (u 1 + v 1)| + |v 1| := abs_add_le _ _
+        _ ≤ 2 * M.D := by linarith
+  -- hence it is a face of `H`
+  have hAH : A ∈ (Rs.annulus l α hl).H.faces := by
+    have hzH : z ∈ (Rs.annulus l α hl).H.carrier := hXH (interior_subset hz)
+    change z ∈ (Rs.annulus l α hl).H.disk.carrier at hzH
+    rw [(Rs.annulus l α hl).H.carrier_eq] at hzH
+    obtain ⟨F, hF, hzF⟩ := mem_support_iff'.1 hzH
+    have hFS := (Rs.annulus l α hl).H.faces_sub hF
+    simp only [GroupedFamily.mixedScatter, Set.mem_iUnion] at hFS
+    obtain ⟨Y, hY, hFY⟩ := hFS
+    have hFYc :=
+      existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_member_step2_carrier Rs.GS.G Y hFY
+    by_cases hYX : Y = X
+    · subst hYX
+      rw [hscX] at hFY
+      rw [Set.mem_singleton_iff] at hFY
+      exact hFY ▸ hF
+    · exact absurd (hFYc hzF) (interior_not_mem_other hdisj hX hY (Ne.symm hYX) hz)
+  obtain ⟨j, hj, -⟩ := ((Rs.annulus l α hl).spokes.piece_partition A hAS).1 ⟨hAH, hAL⟩
+  exact ⟨j, hj⟩
 
 /- The carrier of a scattered original tile is contained in the mixed tile that
    produced it.  This is local to the collision step because the general

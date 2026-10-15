@@ -8418,9 +8418,27 @@ private lemma reconstructed_acyclic_legal_step3_cyclic {P : Protoset}
     (hcyc : c.IsCyclic (tileDec Y).typ)
     (hctx : ∀ j, BlockContext c (part.block j)) :
     headerLegal c (tileDec Y) := by
-  have _ := hH; have _ := hT; have _ := hL; have _ := hrec; have _ := hT'; have _ := hN
-  have _ := hex; have _ := hY; have _ := hcyc; have _ := hctx
-  sorry
+  have _ := hT; have _ := hT'; have _ := hN; have _ := hex
+  obtain ⟨j, -, h₀, hh₀, heq₀⟩ := hrec.1 Y hY
+  have heq : tileDec Y = reconstruct c (part.block j) (tileDec Y).typ := by
+    have htyp : (tileDec Y).typ = h₀.1 := congrArg DecTile.typ heq₀
+    rw [htyp]
+    exact heq₀
+  have hh : CommonHeader c (part.block j) (headerOf c (tileDec Y)) := by
+    rw [heq₀, reconstructed_header_eq_headerOf c hH (part.block j) (hctx j) h₀ hh₀]
+    exact hh₀
+  have hA : headerLegal c (part.block j).centre := by
+    have hmem : (part.block j).placed (c.central (part.block j).α) ∈ T.tiles := by
+      rw [← part.cover]
+      refine Set.mem_iUnion.2 ⟨j, ?_⟩
+      change ∃ t, c.owner t = (part.block j).α ∧
+        (part.block j).placed (c.central (part.block j).α) = (part.block j).placed t
+      exact ⟨c.central (part.block j).α, c.g5_central_owner _, rfl⟩
+    exact hL _ hmem
+  have hleg := (reconstructed_cyclic_legal c hH (part.block j) (hctx j)
+    (headerOf c (tileDec Y)) hh hA hcyc).2
+  rw [heq]
+  exact hleg
 
 /-- Step 4 of the blueprint proof of `reconstructed_acyclic_legal`: "Let `D` be such a parent,
 of type `t`, and let `A` be its original legal central child."  By exactness of the composition

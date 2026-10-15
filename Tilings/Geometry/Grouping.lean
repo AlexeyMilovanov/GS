@@ -2470,6 +2470,41 @@ def MatchingCyclicOrder (U Kout Kin : Set Pt) {k : ℕ} (x y : Fin k → Pt) : P
   ∃ γo γi : ℝ → Pt, IsLoopParam Kout γo ∧ IsLoopParam Kin γi ∧
     LoopsHomotopicIn U γo γi ∧ PointsInOrder γo x ∧ PointsInOrder γi y
 
+/-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological_step1_cutModel`:
+construct the cut-open disk model, with boundary lifts of the prescribed endpoints. -/
+private lemma plAnnulusRouting_step1_topological_step1_cutModel_step1_cutGeometry
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ} (x y : Fin k → Pt)
+    (hx : ∀ i, x i ∈ frontier A.carrier) (hy : ∀ i, y i ∈ frontier C.carrier)
+    (hxi : Function.Injective x) (hyi : Function.Injective y)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) x y) :
+    ∃ (B : PolygonalDisk) (e : Pt → Pt) (p q : Fin k → Pt),
+      Continuous e ∧ Set.InjOn e B.carrier ∧
+      e '' B.carrier ⊆ A.carrier \ interior C.carrier ∧
+      e '' interior B.carrier ⊆ interior A.carrier \ C.carrier ∧
+      (∀ i, p i ∈ frontier B.carrier) ∧ (∀ i, q i ∈ frontier B.carrier) ∧
+      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological_step1_cutModel`:
+transfer the matching cyclic order to the boundary of the cut-open disk. -/
+private lemma plAnnulusRouting_step1_topological_step1_cutModel_step2_boundaryOrder
+    (A C B : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
+    (x y : Fin k → Pt) (hx : ∀ i, x i ∈ frontier A.carrier)
+    (hy : ∀ i, y i ∈ frontier C.carrier) (hxi : Function.Injective x)
+    (hyi : Function.Injective y)
+    (horder : MatchingCyclicOrder (A.carrier \ interior C.carrier) (frontier A.carrier)
+      (frontier C.carrier) x y) (e : Pt → Pt) (he_cont : Continuous e)
+    (he_inj : Set.InjOn e B.carrier)
+    (he_carrier : e '' B.carrier ⊆ A.carrier \ interior C.carrier)
+    (he_interior : e '' interior B.carrier ⊆ interior A.carrier \ C.carrier)
+    (p q : Fin k → Pt) (hp : ∀ i, p i ∈ frontier B.carrier)
+    (hq : ∀ i, q i ∈ frontier B.carrier) (hep : ∀ i, e (p i) = x i)
+    (heq : ∀ i, e (q i) = y i) :
+    ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
+      PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological`: cut the
 annulus along a crosscut and record the resulting disk model and boundary order. -/
 private lemma plAnnulusRouting_step1_topological_step1_cutModel (A C : PolygonalDisk)
@@ -2489,7 +2524,73 @@ private lemma plAnnulusRouting_step1_topological_step1_cutModel (A C : Polygonal
       (∀ i, z (Fin.natAdd k i) = q (Fin.rev i)) ∧
       Function.Injective z ∧
       ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧ PointsInOrder l z := by
-  sorry
+  classical
+  obtain ⟨B, e, p, q, he_cont, he_inj, he_carrier, he_interior, hp, hq, hep, heq⟩ :=
+    plAnnulusRouting_step1_topological_step1_cutModel_step1_cutGeometry A C hC x y hx hy
+      hxi hyi horder
+  have hp_inj : Function.Injective p := by
+    intro i j hij
+    apply hxi
+    rw [← hep i, ← hep j, hij]
+  have hq_inj : Function.Injective q := by
+    intro i j hij
+    apply hyi
+    rw [← heq i, ← heq j, hij]
+  have hxy : ∀ i j, x i ≠ y j := by
+    intro i j hij
+    have hyC : y j ∈ C.carrier := C.compact.isClosed.frontier_subset (hy j)
+    have hyA : y j ∈ interior A.carrier := hC hyC
+    exact (Set.disjoint_left.1 disjoint_interior_frontier hyA (hij ▸ hx i))
+  have hpq : ∀ i j, p i ≠ q j := by
+    intro i j hij
+    apply hxy i j
+    rw [← hep i, ← heq j, hij]
+  let z : Fin (k + k) → Pt := Fin.addCases p (fun i => q (Fin.rev i))
+  have hzp : ∀ i, z (Fin.castAdd k i) = p i := by
+    intro i
+    change Fin.addCases p (fun i => q (Fin.rev i)) (Fin.castAdd k i) = p i
+    rw [Fin.addCases_left]
+  have hzq : ∀ i, z (Fin.natAdd k i) = q (Fin.rev i) := by
+    intro i
+    change Fin.addCases p (fun i => q (Fin.rev i)) (Fin.natAdd k i) = q (Fin.rev i)
+    rw [Fin.addCases_right]
+  have hzi : Function.Injective z := by
+    intro i
+    induction i using Fin.addCases with
+    | left i =>
+        intro j
+        induction j using Fin.addCases with
+        | left j =>
+            intro hij
+            apply congrArg (Fin.castAdd k)
+            apply hp_inj
+            rw [← hzp i, ← hzp j]
+            exact hij
+        | right j =>
+            intro hij
+            exact False.elim ((hpq i (Fin.rev j)) (by
+              rw [← hzp i, ← hzq j]
+              exact hij))
+    | right i =>
+        intro j
+        induction j using Fin.addCases with
+        | left j =>
+            intro hij
+            exact False.elim ((hpq j (Fin.rev i)) (by
+              rw [← hzp j, ← hzq i]
+              exact hij.symm))
+        | right j =>
+            intro hij
+            apply congrArg (Fin.natAdd k)
+            apply Fin.rev_injective
+            apply hq_inj
+            rw [← hzq i, ← hzq j]
+            exact hij
+  obtain ⟨l, hl_loop, hl_order⟩ :=
+    plAnnulusRouting_step1_topological_step1_cutModel_step2_boundaryOrder A C B hC x y hx hy
+      hxi hyi horder e he_cont he_inj he_carrier he_interior p q hp hq hep heq
+  exact ⟨B, e, p, q, z, he_cont, he_inj, he_carrier, he_interior, hp, hq, hep, heq, hzp,
+    hzq, hzi, l, hl_loop, by simpa [z] using hl_order⟩
 
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step1_topological`: route matching
 points in a polygonal disk when the combined boundary order is non-alternating. -/

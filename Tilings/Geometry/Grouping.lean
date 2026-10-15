@@ -24052,7 +24052,37 @@ private lemma existsRoutingAfterPower_step2_ports_step2_inter_step1_unique (τ :
           L.Nodup ∧ L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) ∧
           ∀ r, L[MacroData.portRank L.length r - 1]? = some (p2 r)) →
     p1 = p2 := by
-  sorry
+  have _ := hτ
+  rintro ⟨L1, h1, n1, q1, r1⟩ ⟨L2, h2, n2, q2, r2⟩
+  have hne : ∀ e, e ∈ L1 → e.Nonempty := by
+    intro e he
+    obtain ⟨⟨A, -, i, rfl⟩, -⟩ := ((h1 e).1 he).1
+    exact ⟨_, Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _)⟩
+  have hperm : L1.Perm L2 := (List.perm_ext_iff_of_nodup n1 n2).2 (fun e => (h1 e).trans (h2 e).symm)
+  have hL : L1 = L2 := by
+    refine hperm.eq_of_pairwise ?_ q1 q2
+    intro a b ha hb hab hba
+    have key : ∀ x ∈ a, ∀ y ∈ b, x = y := by
+      intro x hx y hy
+      rcases hab x hx y hy with h | h
+      · exact h
+      rcases hba y hy x hx with h' | h'
+      · exact h'.symm
+      exfalso
+      simp only [LexPositive, PiLp.sub_apply] at h h'
+      rcases h with h | ⟨h0, h⟩ <;> rcases h' with h' | ⟨h0', h'⟩ <;> linarith
+    obtain ⟨x, hx⟩ := hne a ha
+    obtain ⟨y, hy⟩ := hne b (hperm.symm.subset hb)
+    ext z
+    constructor
+    · intro hz
+      rw [key z hz y hy]; exact hy
+    · intro hz
+      rw [← key x hx z hz]; exact hx
+  subst hL
+  funext r
+  have := (r1 r).symm.trans (r2 r)
+  exact Option.some_injective _ this
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports_step2_inter`:
 positive mutual Euclidean separation of closed portions of different sides. -/

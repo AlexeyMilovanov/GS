@@ -33133,8 +33133,8 @@ private structure existsMacroCertificate_RoutingSeed (τ : Substitution P)
       ∃ r : ℝ, 0 < r ∧ C.occMid o' - C.occMid o = r • C.macroSideDir α d
   print_from_routing : ∀ α d, C.occSide (C.printOcc α d) =
     (setup.central l (baseForm α)).side ((routing (baseForm α)).printIdx (parentSide α d))
-  special_rule : ∀ o : C.SideOcc, C.special o ↔
-    ∃ α d, C.marked α d ∧ o = C.partner (C.printOcc α d)
+  special_contact : ∀ o : C.SideOcc, C.special o →
+    C.IsInner o ∧ (C.partner o).1 = C.central (C.owner o.1)
   path_from_routing : ∀ α d (i : Fin 4),
     (C.path α d i.castSucc).map C.occSide =
       (routing (baseForm α)).pathSides (parentSide α d) i

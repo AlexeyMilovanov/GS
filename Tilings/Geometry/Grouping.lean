@@ -23912,6 +23912,31 @@ private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step1_annular_
       (⟨p, X.anchor⟩ : PlacedTile P) ∈ ((Rs.annulus l α hl).spokes.piece j).faces := by
   sorry
 
+/- The carrier of a scattered original tile is contained in the mixed tile that
+   produced it.  This is local to the collision step because the general
+   scattering helper is declared later in this file. -/
+private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step2_collision_aux_carrier
+    (G : GroupedFamily P) (C : PlacedTile G.mixed) {A : PlacedTile P}
+    (hA : A ∈ G.mixedScatterTile C) : A.carrier ⊆ C.carrier := by
+  rcases C with ⟨f, a⟩
+  rcases f with β | p
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inl, translateSet,
+      Set.mem_image] at hA
+    obtain ⟨T, hT, rfl⟩ := hA
+    have hsub : T.carrier ⊆ (G.P'.disk β).carrier := by
+      rw [← G.support_eq β]
+      exact carrier_subset_support hT
+    intro x hx
+    simp only [PlacedTile.carrier, PlacedTile.translate] at hx ⊢
+    obtain ⟨y, hy, rfl⟩ := hx
+    refine ⟨T.anchor +ᵥ y, hsub ⟨y, hy, rfl⟩, ?_⟩
+    simp [vadd_eq_add, add_assoc]
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inr,
+      Set.mem_singleton_iff] at hA
+    subst hA
+    intro x hx
+    exact hx
+
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped`:
 the retained child representing an annular piece cannot pass through an original child in that
 piece; the only possible overlap is the same retained child. -/
@@ -23926,7 +23951,26 @@ private lemma existsRoutingAfterPower_step3_entries_step1_grouped_step2_collisio
     (hYj : Rs.GS.G.mixedScatterTile Y = ((Rs.annulus l α hl).spokes.piece j).faces)
     (hXj : (⟨p, X.anchor⟩ : PlacedTile P) ∈
       ((Rs.annulus l α hl).spokes.piece j).faces) : Y = X := by
-  sorry
+  have _ := hXc
+  have _ := hYc
+  have hmem : (⟨p, X.anchor⟩ : PlacedTile P) ∈ Rs.GS.G.mixedScatterTile Y := by
+    rw [hYj]
+    exact hXj
+  have hsub : (⟨p, X.anchor⟩ : PlacedTile P).carrier ⊆ Y.carrier :=
+    existsRoutingAfterPower_step3_entries_step1_grouped_step2_collision_aux_carrier
+      Rs.GS.G Y hmem
+  have hXsub : X.carrier ⊆ Y.carrier := by
+    intro x hx
+    apply hsub
+    simpa [PlacedTile.carrier, hXp] using hx
+  by_contra hYX
+  have hXY : X ≠ Y := fun h => hYX h.symm
+  have hdisj := (Rs.retained l α).children.disjoint hX hY hXY
+  have hnonempty : (interior X.carrier).Nonempty := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact (Rs.GS.G.mixed.disk X.form).interior_nonempty.vadd_set
+  obtain ⟨x, hx⟩ := hnonempty
+  exact Set.disjoint_left.1 hdisj hx (interior_mono hXsub hx)
 
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step3_entries_step1_grouped`:
 the four separated windows force every annular piece to contain two distinct original faces. -/

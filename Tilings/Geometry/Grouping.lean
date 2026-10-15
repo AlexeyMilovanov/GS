@@ -1,5 +1,6 @@
 import Tilings.Basic
 import Tilings.Control.Certificate
+import Tilings.Crowns
 import Tilings.Hierarchy
 
 /-!
@@ -2737,6 +2738,173 @@ private lemma plAnnulusRouting_step2_plApprox_step2_single_x_neq_y
     rw [hend_x, hend_y, h]
   exact h1 (hsimp h2)
 
+private lemma plAnnulusRouting_starConvex_openSegment_interior {p q : Tilings.Pt}
+    {s : Set Tilings.Pt} (hs : StarConvex ℝ p s) (hq : q ∈ interior s) :
+    openSegment ℝ p q ⊆ interior s := by
+  rintro z ⟨a, b, ha, hb, hab, rfl⟩
+  obtain ⟨ε, hε, hεs⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hq)
+  rw [mem_interior_iff_mem_nhds, Metric.mem_nhds_iff]
+  refine ⟨b * ε, mul_pos hb hε, ?_⟩
+  intro w hw
+  let u := q + b⁻¹ • (w - (a • p + b • q))
+  have huq : dist u q < ε := by
+    dsimp [u]
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+      abs_inv, abs_of_pos hb, ← dist_eq_norm]
+    exact (inv_mul_lt_iff₀ hb).2 (by simpa [mul_comm] using hw)
+  have hu : u ∈ s := hεs (by simpa [Metric.mem_ball] using huq)
+  have hbu : b • u = b • q + (w - (a • p + b • q)) := by
+    dsimp [u]
+    rw [smul_add, smul_smul, mul_inv_cancel₀ hb.ne', one_smul]
+  have hw_eq : w = a • p + b • u := by rw [hbu]; abel
+  rw [hw_eq]
+  exact hs hu ha.le hb.le hab
+
+private lemma plAnnulusRouting_localCone_pos_smul_iff (S : Set Tilings.Pt)
+    (p z : Tilings.Pt) {c : ℝ} (hc : 0 < c) :
+    p + c • (z - p) ∈ Crowns.localCone S p ↔ z ∈ Crowns.localCone S p := by
+  constructor
+  · rintro ⟨r, hr, hmem⟩
+    refine ⟨c * r, mul_pos hc hr, ?_⟩
+    intro t ht
+    have htc : t / c ∈ Set.Ioo (0 : ℝ) r :=
+      ⟨div_pos ht.1 hc, (div_lt_iff₀ hc).2 (by simpa [mul_comm] using ht.2)⟩
+    have h := hmem (t / c) htc
+    simpa [smul_smul, hc.ne'] using h
+  · rintro ⟨r, hr, hmem⟩
+    refine ⟨r / c, div_pos hr hc, ?_⟩
+    intro t ht
+    have htc : t * c ∈ Set.Ioo (0 : ℝ) r :=
+      ⟨mul_pos ht.1 hc, (lt_div_iff₀ hc).1 ht.2⟩
+    have h := hmem (t * c) htc
+    simpa [smul_smul, mul_assoc] using h
+
+private lemma plAnnulusRouting_localCone_starConvex (S : Set Tilings.Pt)
+    (p : Tilings.Pt) (hp : p ∈ S) : StarConvex ℝ p (Crowns.localCone S p) := by
+  have hpp : p ∈ Crowns.localCone S p := by
+    refine ⟨1, zero_lt_one, ?_⟩
+    intro t ht
+    simpa using hp
+  intro z hz a b ha hb hab
+  by_cases hb0 : b = 0
+  · subst b
+    have ha1 : a = 1 := by linarith
+    simpa [ha1] using hpp
+  · have hbpos : 0 < b := lt_of_le_of_ne hb (Ne.symm hb0)
+    have h := (plAnnulusRouting_localCone_pos_smul_iff S p z hbpos).2 hz
+    have heq : a • p + b • z = p + b • (z - p) := by
+      have ha_eq : a = 1 - b := by linarith
+      rw [ha_eq]
+      module
+    rw [heq]
+    exact h
+
+private lemma plAnnulusRouting_localCone_compl_starConvex (S : Set Tilings.Pt)
+    (p : Tilings.Pt) : StarConvex ℝ p (insert p (Crowns.localCone S p)ᶜ) := by
+  intro z hz a b ha hb hab
+  rcases hz with rfl | hz
+  · left
+    rw [← add_smul, hab, one_smul]
+  · by_cases hb0 : b = 0
+    · left
+      subst b
+      have ha1 : a = 1 := by linarith
+      simp [ha1]
+    · right
+      have hbpos : 0 < b := lt_of_le_of_ne hb (Ne.symm hb0)
+      intro hcone
+      apply hz
+      apply (plAnnulusRouting_localCone_pos_smul_iff S p z hbpos).1
+      have heq : a • p + b • z = p + b • (z - p) := by
+        have ha_eq : a = 1 - b := by linarith
+        rw [ha_eq]
+        module
+      rw [← heq]
+      exact hcone
+
+private lemma plAnnulusRouting_disk_inward_chord (D : Tilings.PolygonalDisk)
+    {p : Tilings.Pt} (hp : p ∈ D.carrier) :
+    ∃ r > 0, ∀ q ∈ Metric.ball p r, q ∈ interior D.carrier →
+      segment ℝ p q ⊆ insert p (interior D.carrier) := by
+  obtain ⟨r, hr, hlocal⟩ := Crowns.polygonLocalCone D hp
+  have hstar : StarConvex ℝ p (D.carrier ∩ Metric.ball p r) := by
+    have hc := plAnnulusRouting_localCone_starConvex D.carrier p hp
+    have hb := (convex_ball p r).starConvex (Metric.mem_ball_self hr)
+    rw [hlocal]
+    exact hc.inter hb
+  refine ⟨r, hr, ?_⟩
+  intro q hqr hqD z hz
+  by_cases hzp : z = p
+  · exact Or.inl hzp
+  right
+  have hqint : q ∈ interior (D.carrier ∩ Metric.ball p r) := by
+    rw [interior_inter, Metric.isOpen_ball.interior_eq]
+    exact ⟨hqD, hqr⟩
+  have hzq : z = q ∨ z ∈ openSegment ℝ p q := by
+    by_cases hzq : z = q
+    · exact Or.inl hzq
+    · exact Or.inr (mem_openSegment_of_ne_left_right (Ne.symm hzp) (Ne.symm hzq) hz)
+  rcases hzq with rfl | hzq
+  · exact hqD
+  exact interior_mono inter_subset_left
+    (plAnnulusRouting_starConvex_openSegment_interior hstar hqint hzq)
+
+private lemma plAnnulusRouting_disk_outward_chord (D : Tilings.PolygonalDisk)
+    {p : Tilings.Pt} (hp : p ∉ interior D.carrier) :
+    ∃ r > 0, ∀ q ∈ Metric.ball p r, q ∉ D.carrier →
+      segment ℝ p q ⊆ insert p D.carrierᶜ := by
+  by_cases hpD : p ∈ D.carrier
+  · obtain ⟨r, hr, hlocal⟩ := Crowns.polygonLocalCone D hpD
+    have hstar : StarConvex ℝ p (insert p D.carrierᶜ ∩ Metric.ball p r) := by
+      have hc := plAnnulusRouting_localCone_compl_starConvex D.carrier p
+      have hb := (convex_ball p r).starConvex (Metric.mem_ball_self hr)
+      intro z hz a b ha hb' hab
+      have hz' : z ∈ insert p (Crowns.localCone D.carrier p)ᶜ := by
+        rcases hz.1 with rfl | hzD
+        · exact Or.inl rfl
+        · exact Or.inr fun hzc => hzD ((Set.ext_iff.1 hlocal z).2 ⟨hzc, hz.2⟩).1
+      have hball := hb hz.2 ha hb' hab
+      rcases hc hz' ha hb' hab with h | h
+      · exact ⟨Or.inl h, hball⟩
+      · refine ⟨Or.inr ?_, hball⟩
+        intro hD
+        exact h ((Set.ext_iff.1 hlocal _).1 ⟨hD, hball⟩).1
+    refine ⟨r, hr, ?_⟩
+    intro q hqr hqD
+    exact (hstar.segment_subset ⟨Or.inr hqD, hqr⟩).trans inter_subset_left
+  · obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp D.compact.isClosed.isOpen_compl p hpD
+    refine ⟨r, hr, ?_⟩
+    intro q hqr hqD
+    have hseg := (convex_ball p r).segment_subset (Metric.mem_ball_self hr) hqr
+    exact fun z hz => Or.inr (hball (hseg hz))
+
+private lemma plAnnulusRouting_endpoint_chord (A C : Tilings.PolygonalDisk)
+    (p : Tilings.Pt) (U : Set Tilings.Pt) (hpA : p ∈ A.carrier)
+    (hpC : p ∉ interior C.carrier) (hpU : p ∈ U) (hU : IsOpen U) :
+    ∃ r > 0, ∀ q ∈ Metric.ball p r, q ∈ interior A.carrier \ C.carrier →
+      segment ℝ p q ⊆ insert p ((interior A.carrier \ C.carrier) ∩ U) := by
+  obtain ⟨rA, hrA, hA⟩ := plAnnulusRouting_disk_inward_chord A hpA
+  obtain ⟨rC, hrC, hC⟩ := plAnnulusRouting_disk_outward_chord C hpC
+  obtain ⟨rU, hrU, hUball⟩ := Metric.isOpen_iff.mp hU p hpU
+  let r := min rA (min rC rU)
+  have hr : 0 < r := lt_min hrA (lt_min hrC hrU)
+  refine ⟨r, hr, ?_⟩
+  intro q hqr hq z hz
+  have hqrA : q ∈ Metric.ball p rA := Metric.ball_subset_ball (min_le_left _ _) hqr
+  have hqrC : q ∈ Metric.ball p rC :=
+    Metric.ball_subset_ball ((min_le_right rA _).trans (min_le_left _ _)) hqr
+  have hqrU : q ∈ Metric.ball p rU :=
+    Metric.ball_subset_ball ((min_le_right rA _).trans (min_le_right _ _)) hqr
+  have hzA := hA q hqrA hq.1 hz
+  have hzC := hC q hqrC hq.2 hz
+  have hzU := hUball ((convex_ball p rU).segment_subset
+    (Metric.mem_ball_self hrU) hqrU hz)
+  rcases hzA with hzp | hzA
+  · exact Or.inl hzp
+  rcases hzC with hzp | hzC
+  · exact Or.inl hzp
+  exact Or.inr ⟨⟨hzA, hzC⟩, hzU⟩
+
 private structure plAnnulusRouting_step2_plApprox_step2_single_RawData 
     (x y : Tilings.Pt) (U : Set Tilings.Pt) (A C : Tilings.PolygonalDisk) where
   n : ℕ
@@ -2746,6 +2914,167 @@ private structure plAnnulusRouting_step2_plApprox_step2_single_RawData
   carr_subset : ∀ i : Fin (n + 1), segment ℝ (pt i.castSucc) (pt i.succ) ⊆ A.carrier \ interior C.carrier
   carr_int_subset : ∀ i : Fin (n + 1), segment ℝ (pt i.castSucc) (pt i.succ) \ {x, y} ⊆ interior A.carrier \ C.carrier
   carr_U_subset : ∀ i : Fin (n + 1), segment ℝ (pt i.castSucc) (pt i.succ) ⊆ U
+
+private lemma plAnnulusRouting_step2_plApprox_step2_single_step1_build
+    (A C : Tilings.PolygonalDisk) (x y : Tilings.Pt) (γ : ℝ → Tilings.Pt)
+    (hcont : Continuous γ) (hend_x : γ 0 = x) (hend_y : γ 1 = y)
+    (hC : C.carrier ⊆ interior A.carrier) (hxy : x ≠ y)
+    (U V : Set Tilings.Pt) (hV_open : IsOpen V)
+    (hxann : x ∈ A.carrier \ interior C.carrier)
+    (hyann : y ∈ A.carrier \ interior C.carrier) (hxU : x ∈ U) (hyU : y ∈ U)
+    {a b : ℝ} (hab : a < b)
+    (hmid : ∀ t ∈ Set.Icc a b, γ t ∈ V)
+    (hV_sub : V ⊆ (interior A.carrier \ C.carrier) ∩ U)
+    (hfirst : segment ℝ x (γ a) ⊆ insert x V)
+    (hlast : segment ℝ (γ b) y ⊆ insert y V) :
+    Nonempty (plAnnulusRouting_step2_plApprox_step2_single_RawData x y U A C) := by
+  let K := γ '' Set.Icc a b
+  have hK_compact : IsCompact K := isCompact_Icc.image hcont
+  have hKV : K ⊆ V := by
+    rintro _ ⟨t, ht, rfl⟩
+    exact hmid t ht
+  obtain ⟨ε, hε, hεV⟩ := hK_compact.exists_thickening_subset_open hV_open hKV
+  have huc : UniformContinuousOn γ (Set.Icc a b) :=
+    isCompact_Icc.uniformContinuousOn_of_continuous hcont.continuousOn
+  obtain ⟨δ, hδ, hclose⟩ := Metric.uniformContinuousOn_iff.mp huc ε hε
+  obtain ⟨n, hn⟩ := exists_nat_one_div_lt (div_pos hδ (sub_pos.mpr hab))
+  have hnpos : (0 : ℝ) < (n + 1 : ℕ) := by positivity
+  have hn' : 1 / ((n + 1 : ℕ) : ℝ) < δ / (b - a) := by
+    simpa [Nat.cast_add, Nat.cast_one] using hn
+  have hstep : (b - a) / (n + 1 : ℕ) < δ := by
+    calc
+      (b - a) / (n + 1 : ℕ) = (b - a) * (1 / (n + 1 : ℕ)) := by ring
+      _ < (b - a) * (δ / (b - a)) :=
+        mul_lt_mul_of_pos_left hn' (sub_pos.mpr hab)
+      _ = δ := by field_simp [(sub_pos.mpr hab).ne']
+  let τ : Fin (n + 4) → ℝ := fun i =>
+    if i.val = 0 then 0
+    else if i.val = n + 3 then 1
+    else a + (i.val - 1 : ℕ) * ((b - a) / (n + 1 : ℕ))
+  let pt : Fin (n + 4) → Tilings.Pt := fun i => γ (τ i)
+  have hpt_zero : pt 0 = x := by simp [pt, τ, hend_x]
+  have hpt_last : pt (Fin.last (n + 3)) = y := by
+    simp [pt, τ, hend_y, Fin.last]
+  have hpt_mid (k : ℕ) (hk : k ≤ n + 1) :
+      pt ⟨k + 1, by omega⟩ = γ (a + (k : ℝ) * ((b - a) / (n + 1 : ℕ))) := by
+    simp only [pt, τ]
+    split
+    · omega
+    split
+    · omega
+    rfl
+  have hmiddle_segment (k : ℕ) (hk : k < n + 1) :
+      segment ℝ
+        (γ (a + (k : ℝ) * ((b - a) / (n + 1 : ℕ))))
+        (γ (a + ((k + 1 : ℕ) : ℝ) * ((b - a) / (n + 1 : ℕ)))) ⊆ V := by
+    let s := a + (k : ℝ) * ((b - a) / (n + 1 : ℕ))
+    let t := a + ((k + 1 : ℕ) : ℝ) * ((b - a) / (n + 1 : ℕ))
+    have hstep_nonneg : 0 ≤ (b - a) / (n + 1 : ℕ) :=
+      div_nonneg (sub_pos.mpr hab).le (Nat.cast_nonneg _)
+    have hs : s ∈ Set.Icc a b := by
+      constructor
+      · dsimp [s]
+        exact le_add_of_nonneg_right (mul_nonneg (Nat.cast_nonneg k) hstep_nonneg)
+      · dsimp [s]
+        have hk' : (k : ℝ) ≤ (n + 1 : ℕ) := by exact_mod_cast hk.le
+        have hden : (0 : ℝ) < (n + 1 : ℕ) := by positivity
+        calc
+          a + (k : ℝ) * ((b - a) / (n + 1 : ℕ)) ≤
+              a + (n + 1 : ℕ) * ((b - a) / (n + 1 : ℕ)) :=
+            by simpa [add_comm] using
+              add_le_add_left (mul_le_mul_of_nonneg_right hk' hstep_nonneg) a
+          _ = b := by field_simp; ring
+    have ht : t ∈ Set.Icc a b := by
+      constructor
+      · dsimp [t]
+        exact le_add_of_nonneg_right
+          (mul_nonneg (Nat.cast_nonneg (k + 1)) hstep_nonneg)
+      · dsimp [t]
+        have hk' : ((k + 1 : ℕ) : ℝ) ≤ (n + 1 : ℕ) := by exact_mod_cast hk
+        have hden : (0 : ℝ) < (n + 1 : ℕ) := by positivity
+        calc
+          a + ((k + 1 : ℕ) : ℝ) * ((b - a) / (n + 1 : ℕ)) ≤
+              a + (n + 1 : ℕ) * ((b - a) / (n + 1 : ℕ)) :=
+            by simpa [add_comm] using
+              add_le_add_left (mul_le_mul_of_nonneg_right hk' hstep_nonneg) a
+          _ = b := by field_simp; ring
+    have hst : dist s t < δ := by
+      rw [Real.dist_eq]
+      have heq : t - s = (b - a) / (n + 1 : ℕ) := by
+        dsimp [s, t]
+        push_cast
+        ring
+      rw [abs_sub_comm, heq, abs_of_nonneg hstep_nonneg]
+      exact hstep
+    have hγclose : dist (γ s) (γ t) < ε := hclose s hs t ht hst
+    have hball : segment ℝ (γ s) (γ t) ⊆ Metric.ball (γ s) ε :=
+      (convex_ball (γ s) ε).segment_subset (Metric.mem_ball_self hε)
+        (by simpa [Metric.mem_ball, dist_comm] using hγclose)
+    have hγK : γ s ∈ K := ⟨s, hs, rfl⟩
+    exact hball.trans ((Metric.ball_subset_thickening hγK ε).trans hεV)
+  have hsegment : ∀ i : Fin (n + 3),
+      segment ℝ (pt i.castSucc) (pt i.succ) ⊆ insert x (insert y V) := by
+    intro i
+    by_cases hi0 : i.val = 0
+    · have hi : i = 0 := Fin.ext hi0
+      subst i
+      change segment ℝ (pt (0 : Fin (n + 4))) (pt ⟨1, by omega⟩) ⊆ _
+      rw [hpt_zero, hpt_mid 0 (by omega)]
+      simp only [Nat.cast_zero, zero_mul, add_zero]
+      exact hfirst.trans (insert_subset_insert (subset_insert y V))
+    by_cases hilast : i.val = n + 2
+    · have hi : i = Fin.last (n + 2) := Fin.ext (by simpa [Fin.last] using hilast)
+      subst i
+      change segment ℝ (pt ⟨n + 2, by omega⟩) (pt ⟨n + 3, by omega⟩) ⊆ _
+      have hmid_last := hpt_mid (n + 1) (by omega)
+      have htime_last : a + ((n + 1 : ℕ) : ℝ) * ((b - a) / (n + 1 : ℕ)) = b := by
+        field_simp
+        ring
+      rw [htime_last] at hmid_last
+      rw [hmid_last, show pt ⟨n + 3, by omega⟩ = y by simpa [Fin.last] using hpt_last]
+      exact hlast.trans (subset_insert x (insert y V))
+    · let k := i.val - 1
+      have hk : k < n + 1 := by dsimp [k]; omega
+      have hi_cast : i.castSucc = (⟨k + 1, by omega⟩ : Fin (n + 4)) := by
+        apply Fin.ext
+        dsimp [k]
+        omega
+      have hi_succ : i.succ = (⟨k + 2, by omega⟩ : Fin (n + 4)) := by
+        apply Fin.ext
+        dsimp [k]
+        omega
+      rw [hi_cast, hi_succ, hpt_mid k hk.le, hpt_mid (k + 1) (by omega)]
+      exact (hmiddle_segment k hk).trans
+        ((subset_insert y V).trans (subset_insert x (insert y V)))
+  refine ⟨{
+    n := n + 2
+    pt := pt
+    start_eq := by
+      by_cases hc : C.carrier ⊆ interior A.carrier
+      · exact hpt_zero
+      · exact (hc hC).elim
+    stop_eq := by
+      by_cases heq : x = y
+      · exact (hxy heq).elim
+      · exact hpt_last
+    carr_subset := ?_
+    carr_int_subset := ?_
+    carr_U_subset := ?_ }⟩
+  · intro i z hz
+    rcases hsegment i hz with hzx | hzy | hzV
+    · simpa [hzx] using hxann
+    · simpa [hzy] using hyann
+    · exact ⟨interior_subset (hV_sub hzV).1.1, fun hzCi => (hV_sub hzV).1.2 (interior_subset hzCi)⟩
+  · intro i z hz
+    rcases hsegment i hz.1 with hzx | hzy | hzV
+    · exact (hz.2 (Or.inl hzx)).elim
+    · exact (hz.2 (Or.inr hzy)).elim
+    · exact (hV_sub hzV).1
+  · intro i z hz
+    rcases hsegment i hz with hzx | hzy | hzV
+    · simpa [hzx] using hxU
+    · simpa [hzy] using hyU
+    · exact (hV_sub hzV).2
 
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step2_plApprox_step2_single`: Poly path. -/
 private lemma plAnnulusRouting_step2_plApprox_step2_single_step1_polyPath (A C : Tilings.PolygonalDisk)
@@ -2757,7 +3086,94 @@ private lemma plAnnulusRouting_step2_plApprox_step2_single_step1_polyPath (A C :
     (hin : ∀ t ∈ Set.Ioo (0:ℝ) 1, γ t ∈ interior A.carrier \ C.carrier)
     (hsimp : Function.Injective (Set.restrict (Set.Icc (0:ℝ) 1) γ))
     (U : Set Tilings.Pt) (hU_open : IsOpen U) (hU_supset : γ '' Set.Icc (0:ℝ) 1 ⊆ U) :
-    Nonempty (plAnnulusRouting_step2_plApprox_step2_single_RawData x y U A C) := sorry
+    Nonempty (plAnnulusRouting_step2_plApprox_step2_single_RawData x y U A C) := by
+  have h0cl : (0 : ℝ) ∈ closure (Set.Ioo (0 : ℝ) 1) := by
+    rw [closure_Ioo zero_ne_one]
+    norm_num
+  have h1cl : (1 : ℝ) ∈ closure (Set.Ioo (0 : ℝ) 1) := by
+    rw [closure_Ioo zero_ne_one]
+    norm_num
+  have hxA : x ∈ A.carrier := by
+    have h := map_mem_closure hcont h0cl (fun t ht => (hin t ht).1)
+    rw [hend_x, A.regular_closed] at h
+    exact h
+  have hyA : y ∈ A.carrier := by
+    have h := map_mem_closure hcont h1cl (fun t ht => (hin t ht).1)
+    rw [hend_y, A.regular_closed] at h
+    exact h
+  have hxC : x ∉ interior C.carrier := by
+    have h : γ 0 ∈ closure C.carrierᶜ :=
+      map_mem_closure hcont h0cl (fun t ht => (hin t ht).2)
+    rw [hend_x, closure_compl] at h
+    exact h
+  have hyC : y ∉ interior C.carrier := by
+    have h : γ 1 ∈ closure C.carrierᶜ :=
+      map_mem_closure hcont h1cl (fun t ht => (hin t ht).2)
+    rw [hend_y, closure_compl] at h
+    exact h
+  have hxU : x ∈ U := by
+    rw [← hend_x]
+    exact hU_supset ⟨0, by norm_num, rfl⟩
+  have hyU : y ∈ U := by
+    rw [← hend_y]
+    exact hU_supset ⟨1, by norm_num, rfl⟩
+  let V := (interior A.carrier \ C.carrier) ∩ U
+  have hVopen : IsOpen V :=
+    (isOpen_interior.inter C.compact.isClosed.isOpen_compl).inter hU_open
+  obtain ⟨rx, hrx, hxchord⟩ :=
+    plAnnulusRouting_endpoint_chord A C x U hxA hxC hxU hU_open
+  obtain ⟨ry, hry, hychord⟩ :=
+    plAnnulusRouting_endpoint_chord A C y U hyA hyC hyU hU_open
+  have hxpre : γ ⁻¹' Metric.ball x rx ∈ nhds (0 : ℝ) := by
+    apply hcont.continuousAt
+    rw [hend_x]
+    exact Metric.ball_mem_nhds x hrx
+  obtain ⟨dx, hdx, hdxpre⟩ := Metric.mem_nhds_iff.mp hxpre
+  let a := min (dx / 2) (1 / 4 : ℝ)
+  have ha : 0 < a := lt_min (half_pos hdx) (by norm_num)
+  have ha14 : a ≤ 1 / 4 := min_le_right _ _
+  have hadx : a < dx := lt_of_le_of_lt (min_le_left _ _) (half_lt_self hdx)
+  have hγa_ball : γ a ∈ Metric.ball x rx := by
+    apply hdxpre
+    rw [Metric.mem_ball, Real.dist_eq, sub_zero, abs_of_pos ha]
+    exact hadx
+  have ha1 : a < 1 := by linarith
+  have hfirst : segment ℝ x (γ a) ⊆ insert x V := by
+    exact hxchord (γ a) hγa_ball (hin a ⟨ha, ha1⟩)
+  have hypre : γ ⁻¹' Metric.ball y ry ∈ nhds (1 : ℝ) := by
+    apply hcont.continuousAt
+    rw [hend_y]
+    exact Metric.ball_mem_nhds y hry
+  obtain ⟨dy, hdy, hdypre⟩ := Metric.mem_nhds_iff.mp hypre
+  let e := min (dy / 2) (1 / 4 : ℝ)
+  let b := 1 - e
+  have he : 0 < e := lt_min (half_pos hdy) (by norm_num)
+  have he14 : e ≤ 1 / 4 := min_le_right _ _
+  have hedy : e < dy := lt_of_le_of_lt (min_le_left _ _) (half_lt_self hdy)
+  have hb : b < 1 := by dsimp [b]; linarith
+  have hb0 : 0 < b := by dsimp [b]; linarith
+  have hγb_ball : γ b ∈ Metric.ball y ry := by
+    apply hdypre
+    rw [Metric.mem_ball, Real.dist_eq]
+    have : b - 1 = -e := by simp [b]
+    rw [this, abs_neg, abs_of_pos he]
+    exact hedy
+  have hlast : segment ℝ (γ b) y ⊆ insert y V := by
+    rw [segment_symm]
+    exact hychord (γ b) hγb_ball (hin b ⟨hb0, hb⟩)
+  have hab : a < b := by
+    dsimp [b]
+    linarith
+  have hxy :=
+    plAnnulusRouting_step2_plApprox_step2_single_x_neq_y x y γ hend_x hend_y hsimp
+  apply plAnnulusRouting_step2_plApprox_step2_single_step1_build A C x y γ hcont
+    hend_x hend_y hC hxy U V hVopen ⟨hxA, hxC⟩ ⟨hyA, hyC⟩ hxU hyU hab
+  · intro t ht
+    exact ⟨hin t ⟨ha.trans_le ht.1, ht.2.trans_lt hb⟩, hU_supset ⟨t, ⟨(ha.trans_le ht.1).le,
+      (ht.2.trans_lt hb).le⟩, rfl⟩⟩
+  · exact fun z hz => hz
+  · exact hfirst
+  · exact hlast
 
 /-- Step 2 of the blueprint proof of `plAnnulusRouting_step2_plApprox_step2_single`: Loop erasure. -/
 private lemma plAnnulusRouting_step2_plApprox_step2_single_step2_eraseLoops 

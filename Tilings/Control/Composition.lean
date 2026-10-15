@@ -3370,6 +3370,72 @@ theorem macroblock_is_decomposition (c : MacroCertificate P) (hH : c.Hereditary)
     · exact macroblock_is_decomposition_central c hH K hK h hh t ht_owner ht
     · exact macroblock_is_decomposition_noncentral c hH K hK h hh t ht_owner ht
 
+/-- Exact decomposition makes the centre a child of the reconstructed parent. -/
+private lemma reconstructed_cyclic_legal_centre_child
+    (c : MacroCertificate P) (hH : c.Hereditary)
+    (K : ColouredBlock c) (hK : BlockContext c K)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h) :
+    IsChildOf c (reconstruct c K h.1) K.centre := by
+  have hdec := macroblock_is_decomposition c hH K hK h hh
+  exact hdec.2 (c.central K.α) (c.g5_central_owner K.α)
+
+/-- Cyclicity and the common header identify the reconstructed parent and centre types. -/
+private lemma reconstructed_cyclic_legal_type
+    (c : MacroCertificate P) (K : ColouredBlock c)
+    (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
+    (hcyc : c.IsCyclic h.1) :
+    (reconstruct c K h.1).typ = K.centre.typ := by
+  dsimp [reconstruct, ColouredBlock.centre, ColouredBlock.tileOf]
+  simpa [hh.1] using hcyc.symm
+
+/-- On a cyclic large central child, each marked side is the print of the same parent side. -/
+private lemma reconstructed_cyclic_legal_print_self
+    (c : MacroCertificate P) {t : c.Typ} (hcyc : c.IsCyclic t)
+    (hlarge : c.kind (c.form t) = .large) (d : c.Side t)
+    (hd : c.marked (c.form t) d) :
+    c.IsPrintOf (c.form t) d (c.occ t d) := by
+  refine ⟨hd, Or.inl ?_⟩
+  have hval := c.g5_print_id_large (c.form t) d hlarge hd
+  show (⟨t, d⟩ : c.SideOcc) = ⟨c.central (c.form t), c.print (c.form t) d⟩
+  generalize c.print (c.form t) d = p at hval
+  revert p
+  rw [hcyc]
+  intro p hp
+  exact Sigma.ext rfl (heq_of_eq (Fin.ext hp.symm))
+
+/-- A normal identity-correct parent equals a normal cyclic child of the same type. -/
+private lemma reconstructed_cyclic_legal_eq_of_child
+    (c : MacroCertificate P) {D A : DecTile c}
+    (hchild : IsChildOf c D A) (hD_normal : IsNormal c D)
+    (hD_identity : IsIdentityCorrect c D) (hA_normal : IsNormal c A)
+    (hType : D.typ = A.typ) (hcyc : c.IsCyclic D.typ) : D = A := by
+  cases D with
+  | mk Dtyp Dcell =>
+    cases A with
+    | mk Atyp Acell =>
+      dsimp at hType
+      subst Atyp
+      dsimp at hchild hD_normal hD_identity hA_normal hcyc ⊢
+      have hlarge : c.kind (c.form Dtyp) = .large := by
+        apply (c.g5_large_iff Dtyp).2
+        rw [hchild.1]
+        exact hcyc.symm
+      congr 1
+      funext i k
+      by_cases hm : c.marked (c.form Dtyp) i
+      · have hprintOf := reconstructed_cyclic_legal_print_self c hcyc hlarge i hm
+        have hcopy := (hchild.2 i).1 i hprintOf
+        by_cases hk : k = 4
+        · subst k
+          have hp : c.IsPrint (c.occ Dtyp i) := by
+            unfold MacroData.IsPrint
+            rw [hchild.1]
+            exact ⟨i, hprintOf⟩
+          exact ((hD_identity i).2 hp).trans hcopy.2.symm
+        · exact (hcopy.1 k hk).symm
+      · have hlocal : IsLocal c (c.occ Dtyp i) k := Or.inl hm
+        exact (hD_normal i k hlocal).trans (hA_normal i k hlocal).symm
+
 /-- `lem:comp/cyclic-legal`: if the centre `A` of `M` is legal and the type
 `t` of `D` is cyclic, then `D = A` and `D` is legal. -/
 theorem reconstructed_cyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
@@ -3377,7 +3443,12 @@ theorem reconstructed_cyclic_legal (c : MacroCertificate P) (hH : c.Hereditary)
     (h : HeaderKernel.Header c.Typ c.Side) (hh : CommonHeader c K h)
     (hA : headerLegal c K.centre) (hcyc : c.IsCyclic h.1) :
     reconstruct c K h.1 = K.centre ∧ headerLegal c (reconstruct c K h.1) := by
-  sorry
+  have hchild := reconstructed_cyclic_legal_centre_child c hH K hK h hh
+  have hType := reconstructed_cyclic_legal_type c K h hh hcyc
+  have hD := reconstructed_header_eq c hH K hK h hh
+  have hA_normal := (headerLegal_properties c hH K.centre hA).2.1
+  have heq := reconstructed_cyclic_legal_eq_of_child c hchild hD.1 hD.2.1 hA_normal hType hcyc
+  exact ⟨heq, heq ▸ hA⟩
 /-- Step 3: a nonzero print cell that, at every level, copies from such a cell again (Step 2) never reaches an origin — the infinite descent. -/
 private lemma reconstructed_noncentral_legal_step1_ancestor_step1_not_all_central_step3_no_origin
     {P : Protoset} (c : MacroCertificate P) (ch : ℕ → DecTile c)

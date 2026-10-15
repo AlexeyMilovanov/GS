@@ -2489,6 +2489,1263 @@ private lemma plAnnulusRouting_closedBall_continuous_extension
   intro z hz
   simpa only [Function.comp_apply] using congrFun hH ⟨z, hz⟩
 
+/-- The convex case of the disk model.  This is the gauge-rescaling construction; in
+particular it applies to triangles and convex polygonal disks. -/
+private lemma plAnnulusRouting_polygonalDisk_convex_closedBall_model
+    (B : PolygonalDisk) (hconv : Convex ℝ B.carrier) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧
+      (∀ z, f z ∈ B.carrier) ∧
+      (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f z ∈ interior B.carrier) := by
+  let e : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  obtain ⟨h, hint, hclosure, -⟩ :=
+    exists_homeomorph_image_interior_closure_frontier_eq_unitBall hconv
+      B.interior_nonempty B.compact.isBounded
+  let f : Metric.closedBall (0 : ℂ) 1 → Pt := fun z => h.symm (e z.1)
+  have e_closedBall {z : ℂ} (hz : z ∈ Metric.closedBall (0 : ℂ) 1) :
+      e z ∈ Metric.closedBall (0 : Pt) 1 := by
+    simpa [Metric.mem_closedBall, dist_zero_right] using hz
+  have e_ball {z : ℂ} (hz : z ∈ Metric.ball (0 : ℂ) 1) :
+      e z ∈ Metric.ball (0 : Pt) 1 := by
+    simpa [Metric.mem_ball, dist_zero_right] using hz
+  refine ⟨f, h.symm.continuous.comp (e.continuous.comp continuous_subtype_val), ?_, ?_, ?_⟩
+  · intro z w hzw
+    exact Subtype.ext (e.injective (h.symm.injective hzw))
+  · intro z
+    have hz : e z.1 ∈ h '' closure B.carrier := by
+      rw [hclosure]
+      exact e_closedBall z.2
+    obtain ⟨y, hy, hey⟩ := hz
+    have : f z = y := by
+      simp only [f]
+      rw [← hey]
+      simp
+    rw [this]
+    rwa [B.compact.isClosed.closure_eq] at hy
+  · intro z hz
+    have hez : e z.1 ∈ h '' interior B.carrier := by
+      rw [hint]
+      exact e_ball hz
+    obtain ⟨y, hy, hey⟩ := hez
+    have : f z = y := by
+      simp only [f]
+      rw [← hey]
+      simp
+    rwa [this]
+
+private lemma plSchoenflies_periodic_fract {X : Type*} {g : ℝ → X}
+    (hg : Function.Periodic g 1) (x : ℝ) : g (Int.fract x) = g x := by
+  have h := (hg.int_mul ⌊x⌋) (Int.fract x)
+  rw [mul_one, Int.fract_add_floor] at h
+  exact h.symm
+
+/-- Two parametrizations of the same simple closed curve differ by a homeomorphism of the
+parameter circle.  This includes both possible orientations. -/
+private lemma plSchoenflies_loopParam_circleHomeomorph {K : Set Pt} {γ δ : ℝ → Pt}
+    (hγ : IsLoopParam K γ) (hδ : IsLoopParam K δ) :
+    ∃ φ : AddCircle (1 : ℝ) ≃ₜ AddCircle (1 : ℝ),
+      ∀ t : ℝ, hδ.2.1.lift (φ (t : AddCircle (1 : ℝ))) = γ t := by
+  set Γ : AddCircle (1 : ℝ) → Pt := hγ.2.1.lift
+  set Δ : AddCircle (1 : ℝ) → Pt := hδ.2.1.lift
+  have hΓc : Continuous Γ :=
+    (QuotientAddGroup.isQuotientMap_mk _).continuous_iff.2 hγ.1
+  have hΔc : Continuous Δ :=
+    (QuotientAddGroup.isQuotientMap_mk _).continuous_iff.2 hδ.1
+  have hΓx : ∀ x : ℝ, Γ (x : AddCircle (1 : ℝ)) = γ x := fun _ => rfl
+  have hΔx : ∀ x : ℝ, Δ (x : AddCircle (1 : ℝ)) = δ x := fun _ => rfl
+  have hΓinj : Function.Injective Γ := by
+    intro u v huv
+    induction u using QuotientAddGroup.induction_on with | H a => ?_
+    induction v using QuotientAddGroup.induction_on with | H b => ?_
+    have ha : (a : AddCircle (1 : ℝ)) = (Int.fract a : ℝ) := by
+      rw [QuotientAddGroup.eq]
+      exact ⟨-⌊a⌋, by simp only [Int.fract, zsmul_eq_mul]; push_cast; ring⟩
+    have hb : (b : AddCircle (1 : ℝ)) = (Int.fract b : ℝ) := by
+      rw [QuotientAddGroup.eq]
+      exact ⟨-⌊b⌋, by simp only [Int.fract, zsmul_eq_mul]; push_cast; ring⟩
+    rw [ha, hb] at huv ⊢
+    rw [hΓx, hΓx] at huv
+    rw [hγ.2.2.1 ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+      ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ huv]
+  have hΔinj : Function.Injective Δ := by
+    intro u v huv
+    induction u using QuotientAddGroup.induction_on with | H a => ?_
+    induction v using QuotientAddGroup.induction_on with | H b => ?_
+    have ha : (a : AddCircle (1 : ℝ)) = (Int.fract a : ℝ) := by
+      rw [QuotientAddGroup.eq]
+      exact ⟨-⌊a⌋, by simp only [Int.fract, zsmul_eq_mul]; push_cast; ring⟩
+    have hb : (b : AddCircle (1 : ℝ)) = (Int.fract b : ℝ) := by
+      rw [QuotientAddGroup.eq]
+      exact ⟨-⌊b⌋, by simp only [Int.fract, zsmul_eq_mul]; push_cast; ring⟩
+    rw [ha, hb] at huv ⊢
+    rw [hΔx, hΔx] at huv
+    rw [hδ.2.2.1 ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+      ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩ huv]
+  have hΓrange : range Γ = K := by
+    apply Set.Subset.antisymm
+    · rintro y ⟨u, rfl⟩
+      induction u using QuotientAddGroup.induction_on with | H a => ?_
+      rw [hΓx, ← plSchoenflies_periodic_fract hγ.2.1, ← hγ.2.2.2]
+      exact mem_image_of_mem _ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+    · intro y hy
+      rw [← hγ.2.2.2] at hy
+      obtain ⟨t, -, rfl⟩ := hy
+      exact ⟨(t : AddCircle (1 : ℝ)), hΓx t⟩
+  have hΔrange : range Δ = K := by
+    apply Set.Subset.antisymm
+    · rintro y ⟨u, rfl⟩
+      induction u using QuotientAddGroup.induction_on with | H a => ?_
+      rw [hΔx, ← plSchoenflies_periodic_fract hδ.2.1, ← hδ.2.2.2]
+      exact mem_image_of_mem _ ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+    · intro y hy
+      rw [← hδ.2.2.2] at hy
+      obtain ⟨t, -, rfl⟩ := hy
+      exact ⟨(t : AddCircle (1 : ℝ)), hΔx t⟩
+  have hΔemb : Topology.IsEmbedding Δ := (hΔc.isClosedEmbedding hΔinj).isEmbedding
+  have hΓin : ∀ u, Γ u ∈ range Δ := fun u => by
+    rw [hΔrange, ← hΓrange]
+    exact ⟨u, rfl⟩
+  let g : AddCircle (1 : ℝ) → AddCircle (1 : ℝ) := fun u => Function.invFun Δ (Γ u)
+  have hg : ∀ u, Δ (g u) = Γ u := fun u => Function.invFun_eq (hΓin u)
+  have hgc : Continuous g := hΔemb.continuous_iff.2 (by
+    have : Δ ∘ g = Γ := funext hg
+    rwa [this])
+  have hgi : Function.Injective g := by
+    intro u v huv
+    apply hΓinj
+    rw [← hg u, ← hg v, huv]
+  have hgs : Function.Surjective g := by
+    intro v
+    have : Δ v ∈ range Γ := by rw [hΓrange, ← hΔrange]; exact ⟨v, rfl⟩
+    obtain ⟨u, hu⟩ := this
+    refine ⟨u, hΔinj ?_⟩
+    rw [hg u, hu]
+  let eg : AddCircle (1 : ℝ) ≃ AddCircle (1 : ℝ) := Equiv.ofBijective g ⟨hgi, hgs⟩
+  let φ : AddCircle (1 : ℝ) ≃ₜ AddCircle (1 : ℝ) :=
+    eg.toHomeomorphOfContinuousClosed hgc hgc.isClosedMap
+  refine ⟨φ, fun t => ?_⟩
+  change Δ (g (t : AddCircle (1 : ℝ))) = γ t
+  rw [hg, hΓx]
+
+private def plSchoenflies_circleOfNe (z : ℂ) (hz : z ≠ 0) : Circle :=
+  ⟨z / ‖z‖, by
+    have h : ‖z / (‖z‖ : ℂ)‖ = 1 := by
+      rw [norm_div, Complex.norm_real, Real.norm_eq_abs, abs_of_nonneg (norm_nonneg z),
+        div_self (norm_ne_zero_iff.mpr hz)]
+    simpa [Submonoid.unitSphere] using h⟩
+
+private def plSchoenflies_circleOfNeC (z : ({0}ᶜ : Set ℂ)) : Circle :=
+  plSchoenflies_circleOfNe z.1 z.2
+
+private lemma plSchoenflies_circleOfNeC_continuous :
+    Continuous plSchoenflies_circleOfNeC := by
+  apply Continuous.subtype_mk
+  change Continuous fun z : ({0}ᶜ : Set ℂ) => z.1 / (‖z.1‖ : ℂ)
+  fun_prop (disch := simp)
+
+/-- The Alexander radial extension of a circle homeomorphism. -/
+private def plSchoenflies_radialExtension (ψ : Circle ≃ₜ Circle) (z : ℂ) : ℂ :=
+  if hz : z = 0 then 0 else (‖z‖ : ℂ) * ψ (plSchoenflies_circleOfNe z hz)
+
+private lemma plSchoenflies_radialExtension_norm (ψ : Circle ≃ₜ Circle) (z : ℂ) :
+    ‖plSchoenflies_radialExtension ψ z‖ = ‖z‖ := by
+  by_cases hz : z = 0 <;> simp [plSchoenflies_radialExtension, hz]
+
+private lemma plSchoenflies_radialExtension_continuous (ψ : Circle ≃ₜ Circle) :
+    Continuous (plSchoenflies_radialExtension ψ) := by
+  rw [continuous_iff_continuousAt]
+  intro z
+  by_cases hz : z = 0
+  · subst z
+    rw [Metric.continuousAt_iff]
+    intro ε hε
+    refine ⟨ε, hε, fun x hx => ?_⟩
+    rw [show plSchoenflies_radialExtension ψ 0 = 0 by
+      simp [plSchoenflies_radialExtension], dist_zero_right,
+      plSchoenflies_radialExtension_norm]
+    rwa [dist_zero_right] at hx
+  · have hc : Continuous fun w : ({0}ᶜ : Set ℂ) =>
+        (‖w.1‖ : ℂ) * ψ (plSchoenflies_circleOfNeC w) := by
+      apply (Complex.continuous_ofReal.comp
+        (continuous_norm.comp continuous_subtype_val)).mul
+      exact continuous_subtype_val.comp
+        (ψ.continuous.comp plSchoenflies_circleOfNeC_continuous)
+    have hcOn : ContinuousOn (plSchoenflies_radialExtension ψ) ({0}ᶜ : Set ℂ) := by
+      rw [continuousOn_iff_continuous_restrict]
+      apply hc.congr
+      intro w
+      simp [Set.restrict, plSchoenflies_radialExtension, plSchoenflies_circleOfNeC]
+    exact hcOn.continuousAt (isOpen_compl_singleton.mem_nhds hz)
+
+private lemma plSchoenflies_circleOfNe_radialExtension (ψ : Circle ≃ₜ Circle) {z : ℂ}
+    (hz : z ≠ 0) :
+    plSchoenflies_circleOfNe (plSchoenflies_radialExtension ψ z)
+      (by rw [← norm_ne_zero_iff, plSchoenflies_radialExtension_norm]
+          exact norm_ne_zero_iff.mpr hz) =
+      ψ (plSchoenflies_circleOfNe z hz) := by
+  apply Circle.ext
+  change plSchoenflies_radialExtension ψ z /
+      (‖plSchoenflies_radialExtension ψ z‖ : ℂ) =
+    ψ (plSchoenflies_circleOfNe z hz)
+  rw [plSchoenflies_radialExtension_norm, plSchoenflies_radialExtension,
+    dif_neg hz]
+  field_simp [norm_ne_zero_iff.mpr hz]
+
+private lemma plSchoenflies_radialExtension_leftInverse (ψ : Circle ≃ₜ Circle) (z : ℂ) :
+    plSchoenflies_radialExtension ψ.symm (plSchoenflies_radialExtension ψ z) = z := by
+  by_cases hz : z = 0
+  · simp [plSchoenflies_radialExtension, hz]
+  · have hr : plSchoenflies_radialExtension ψ z ≠ 0 := by
+      rw [← norm_ne_zero_iff, plSchoenflies_radialExtension_norm]
+      exact norm_ne_zero_iff.mpr hz
+    rw [plSchoenflies_radialExtension, dif_neg hr, plSchoenflies_radialExtension_norm,
+      plSchoenflies_circleOfNe_radialExtension ψ hz, ψ.symm_apply_apply]
+    change (‖z‖ : ℂ) * (z / ‖z‖) = z
+    field_simp [norm_ne_zero_iff.mpr hz]
+
+/-- A circle homeomorphism extends radially to a norm-preserving homeomorphism of the plane. -/
+private def plSchoenflies_radialHomeomorph (ψ : Circle ≃ₜ Circle) : ℂ ≃ₜ ℂ where
+  toFun := plSchoenflies_radialExtension ψ
+  invFun := plSchoenflies_radialExtension ψ.symm
+  left_inv := plSchoenflies_radialExtension_leftInverse ψ
+  right_inv z := by
+    simpa using plSchoenflies_radialExtension_leftInverse ψ.symm z
+  continuous_toFun := plSchoenflies_radialExtension_continuous ψ
+  continuous_invFun := plSchoenflies_radialExtension_continuous ψ.symm
+
+private lemma plSchoenflies_radialExtension_circle (ψ : Circle ≃ₜ Circle) (u : Circle) :
+    plSchoenflies_radialExtension ψ (u : ℂ) = (ψ u : ℂ) := by
+  have hu : (u : ℂ) ≠ 0 := Circle.coe_ne_zero u
+  rw [plSchoenflies_radialExtension, dif_neg hu, Circle.norm_coe]
+  change (1 : ℂ) * (ψ (plSchoenflies_circleOfNe (u : ℂ) hu) : ℂ) = (ψ u : ℂ)
+  rw [one_mul]
+  congr 1
+  apply Circle.ext
+  simp [plSchoenflies_circleOfNe]
+
+/-- Alexander's trick for disk models: a model with one simple boundary parametrization can be
+reparametrized to have any other parametrization of the same curve. -/
+private lemma plSchoenflies_boundary_reparametrization
+    (B : PolygonalDisk) (l₀ l : ℝ → Pt)
+    (hl₀ : IsLoopParam (frontier B.carrier) l₀)
+    (hl : IsLoopParam (frontier B.carrier) l)
+    (f₀ : Metric.closedBall (0 : ℂ) 1 → Pt)
+    (hf₀c : Continuous f₀) (hf₀i : Function.Injective f₀)
+    (hf₀B : ∀ z, f₀ z ∈ B.carrier)
+    (hf₀int : ∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f₀ z ∈ interior B.carrier)
+    (hf₀circle : ∀ t : ℝ,
+      f₀ ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l₀ t) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧
+      (∀ z, f z ∈ B.carrier) ∧
+      (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f z ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
+  obtain ⟨φ, hφ⟩ := plSchoenflies_loopParam_circleHomeomorph hl hl₀
+  let q : AddCircle (1 : ℝ) ≃ₜ Circle := AddCircle.homeomorphCircle one_ne_zero
+  let ψ : Circle ≃ₜ Circle := q.symm.trans (φ.trans q)
+  let r : ℂ ≃ₜ ℂ := plSchoenflies_radialHomeomorph ψ
+  have hrnorm (z : ℂ) : ‖r z‖ = ‖z‖ :=
+    plSchoenflies_radialExtension_norm ψ z
+  have hrclosed (z : Metric.closedBall (0 : ℂ) 1) :
+      r z.1 ∈ Metric.closedBall (0 : ℂ) 1 := by
+    rw [Metric.mem_closedBall, dist_zero_right, hrnorm]
+    have hz := z.2
+    rwa [Metric.mem_closedBall, dist_zero_right] at hz
+  let rs : Metric.closedBall (0 : ℂ) 1 → Metric.closedBall (0 : ℂ) 1 :=
+    fun z => ⟨r z.1, hrclosed z⟩
+  let f : Metric.closedBall (0 : ℂ) 1 → Pt := fun z => f₀ (rs z)
+  have hq (t : ℝ) :
+      ((q (t : AddCircle (1 : ℝ)) : Circle) : ℂ) =
+        Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) := by
+    rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk, Circle.coe_exp]
+    congr 2
+    norm_num
+  have hf₀q : ∀ u : AddCircle (1 : ℝ),
+      f₀ ⟨(q u : Circle), by
+        rw [Metric.mem_closedBall, dist_zero_right, Circle.norm_coe]⟩ = hl₀.2.1.lift u := by
+    intro u
+    induction u using QuotientAddGroup.induction_on with | H t => ?_
+    have heq :
+        (⟨((q (t : AddCircle (1 : ℝ)) : Circle) : ℂ), by
+          rw [Metric.mem_closedBall, dist_zero_right, Circle.norm_coe]⟩ :
+            Metric.closedBall (0 : ℂ) 1) =
+          ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+            plAnnulusRouting_unitCircle_mem_closedBall t⟩ := by
+      apply Subtype.ext
+      exact hq t
+    rw [heq]
+    exact hf₀circle t
+  have hrq (t : ℝ) :
+      r (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) =
+        ((q (φ (t : AddCircle (1 : ℝ))) : Circle) : ℂ) := by
+    rw [← hq t]
+    simpa [r, ψ] using plSchoenflies_radialExtension_circle ψ
+      (q (t : AddCircle (1 : ℝ)))
+  refine ⟨f, hf₀c.comp (r.continuous.comp continuous_subtype_val |>.subtype_mk _), ?_, ?_, ?_, ?_⟩
+  · intro z w hzw
+    apply Subtype.ext
+    apply r.injective
+    exact congrArg Subtype.val (hf₀i hzw)
+  · intro z
+    exact hf₀B (rs z)
+  · intro z hz
+    apply hf₀int
+    rw [Metric.mem_ball, dist_zero_right, hrnorm]
+    simpa [Metric.mem_ball, dist_zero_right] using hz
+  · intro t
+    have hrs : rs ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ =
+        ⟨((q (φ (t : AddCircle (1 : ℝ))) : Circle) : ℂ), by
+          rw [Metric.mem_closedBall, dist_zero_right, Circle.norm_coe]⟩ := by
+      apply Subtype.ext
+      exact hrq t
+    change f₀ (rs _) = l t
+    rw [hrs, hf₀q, hφ]
+
+/-- Restricting an ambient homeomorphism to the standard unit circle gives an
+`IsLoopParam` of the image circle. -/
+private lemma plSchoenflies_homeomorph_circle_isLoopParam (H : ℂ ≃ₜ Pt) (K : Set Pt)
+    (hK : H '' Metric.sphere (0 : ℂ) 1 = K) :
+    IsLoopParam K (fun t : ℝ =>
+      H (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I))) := by
+  let q : AddCircle (1 : ℝ) ≃ₜ Circle := AddCircle.homeomorphCircle one_ne_zero
+  have hq (t : ℝ) :
+      ((q (t : AddCircle (1 : ℝ)) : Circle) : ℂ) =
+        Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) := by
+    rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk, Circle.coe_exp]
+    congr 2
+    norm_num
+  refine ⟨by fun_prop, ?_, ?_, ?_⟩
+  · intro t
+    apply congrArg H
+    rw [show (((2 * Real.pi * (t + 1) : ℝ) : ℂ) * Complex.I) =
+      (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) + 2 * Real.pi * Complex.I by
+        push_cast; ring]
+    rw [Complex.exp_add, Complex.exp_two_pi_mul_I, mul_one]
+  · intro s hs t ht hst
+    have he : (q (s : AddCircle (1 : ℝ)) : Circle) =
+        q (t : AddCircle (1 : ℝ)) := by
+      apply Circle.ext
+      rw [hq s, hq t]
+      exact H.injective hst
+    have he' : (s : AddCircle (1 : ℝ)) = (t : AddCircle (1 : ℝ)) := q.injective he
+    exact (AddCircle.coe_eq_coe_iff_of_mem_Ico (p := (1 : ℝ)) (a := 0)
+      (by simpa using hs) (by simpa using ht)).mp he'
+  · apply Set.Subset.antisymm
+    · rintro y ⟨t, ht, rfl⟩
+      rw [← hK]
+      exact ⟨_, by rw [Metric.mem_sphere, dist_zero_right,
+        Complex.norm_exp_ofReal_mul_I], rfl⟩
+    · intro y hy
+      rw [← hK] at hy
+      obtain ⟨z, hz, rfl⟩ := hy
+      have hznorm : ‖z‖ = 1 := by simpa [Metric.mem_sphere, dist_zero_right] using hz
+      let u : Circle := ⟨z, by simpa [Submonoid.unitSphere] using hznorm⟩
+      obtain ⟨t, ht, htq⟩ := AddCircle.eq_coe_Ico (p := (1 : ℝ)) (q.symm u)
+      refine ⟨t, ht, ?_⟩
+      change H (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) = H z
+      apply congrArg H
+      rw [← hq t, htq, q.apply_symm_apply]
+
+/-- A convex polygonal disk has a disk model together with a simple boundary
+parametrization induced by that model. -/
+private lemma plSchoenflies_polygonalDisk_convex_some_boundary_model
+    (B : PolygonalDisk) (hconv : Convex ℝ B.carrier) :
+    ∃ (l₀ : ℝ → Pt) (f₀ : Metric.closedBall (0 : ℂ) 1 → Pt),
+      IsLoopParam (frontier B.carrier) l₀ ∧
+      Continuous f₀ ∧ Function.Injective f₀ ∧
+      (∀ z, f₀ z ∈ B.carrier) ∧
+      (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f₀ z ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f₀ ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l₀ t := by
+  let e : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  obtain ⟨h, hint, hclosure, hfrontier⟩ :=
+    exists_homeomorph_image_interior_closure_frontier_eq_unitBall hconv
+      B.interior_nonempty B.compact.isBounded
+  let H : ℂ ≃ₜ Pt := e.toHomeomorph.trans h.symm
+  have hHsphere : H '' Metric.sphere (0 : ℂ) 1 = frontier B.carrier := by
+    apply Set.Subset.antisymm
+    · rintro y ⟨z, hz, rfl⟩
+      have hez : e z ∈ Metric.sphere (0 : Pt) 1 := by
+        simpa [Metric.mem_sphere, dist_zero_right] using hz
+      rw [← hfrontier] at hez
+      obtain ⟨x, hx, hex⟩ := hez
+      simpa [H, ← hex] using hx
+    · intro y hy
+      have hhy : h y ∈ Metric.sphere (0 : Pt) 1 := by
+        rw [← hfrontier]
+        exact ⟨y, hy, rfl⟩
+      let z : ℂ := e.symm (h y)
+      have hz : z ∈ Metric.sphere (0 : ℂ) 1 := by
+        simpa [z, Metric.mem_sphere, dist_zero_right] using hhy
+      exact ⟨z, hz, by simp [H, z]⟩
+  let l₀ : ℝ → Pt := fun t =>
+    H (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I))
+  let f₀ : Metric.closedBall (0 : ℂ) 1 → Pt := fun z => H z.1
+  have hl₀ : IsLoopParam (frontier B.carrier) l₀ :=
+    plSchoenflies_homeomorph_circle_isLoopParam H _ hHsphere
+  refine ⟨l₀, f₀, hl₀, H.continuous.comp continuous_subtype_val,
+    fun z w hzw => Subtype.ext (H.injective hzw), ?_, ?_, fun _ => rfl⟩
+  · intro z
+    have hez : e z.1 ∈ h '' closure B.carrier := by
+      rw [hclosure]
+      have hz := z.2
+      rw [Metric.mem_closedBall, dist_zero_right] at hz
+      simpa using hz
+    obtain ⟨y, hy, hey⟩ := hez
+    have : f₀ z = y := by simp [f₀, H, ← hey]
+    rw [this]
+    rwa [B.compact.isClosed.closure_eq] at hy
+  · intro z hz
+    have hez : e z.1 ∈ h '' interior B.carrier := by
+      rw [hint]
+      rw [Metric.mem_ball, dist_zero_right] at hz
+      simpa using hz
+    obtain ⟨y, hy, hey⟩ := hez
+    have : f₀ z = y := by simp [f₀, H, ← hey]
+    rwa [this]
+
+/-- The complete boundary-compatible disk model in the convex case. -/
+private lemma plSchoenflies_polygonalDisk_convex_prescribed_boundary_model
+    (B : PolygonalDisk) (hconv : Convex ℝ B.carrier)
+    (l : ℝ → Pt) (hl : IsLoopParam (frontier B.carrier) l) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧
+      (∀ z, f z ∈ B.carrier) ∧
+      (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f z ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
+  obtain ⟨l₀, f₀, hl₀, hf₀c, hf₀i, hf₀B, hf₀int, hf₀circle⟩ :=
+    plSchoenflies_polygonalDisk_convex_some_boundary_model B hconv
+  exact plSchoenflies_boundary_reparametrization B l₀ l hl₀ hl f₀ hf₀c hf₀i
+    hf₀B hf₀int hf₀circle
+
+/-- Every ray from an interior point of a compact polygonal disk has a last point in the
+carrier, and this point is on the frontier. -/
+private lemma plSchoenflies_exists_frontier_on_ray (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ interior B.carrier) (u : Circle) :
+    ∃ r : ℝ, 0 < r ∧ z + r • Complex.orthonormalBasisOneI.repr (u : ℂ) ∈
+      frontier B.carrier := by
+  let e : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  have heu : ‖e (u : ℂ)‖ = 1 := by simp
+  obtain ⟨C, hC⟩ := isBounded_iff_forall_norm_le.1 B.compact.isBounded
+  have hzB : z ∈ B.carrier := interior_subset hz
+  have hzC : ‖z‖ ≤ C := hC z hzB
+  let R : ℝ := C + ‖z‖ + 1
+  have hR : 0 < R := by dsimp [R]; linarith [norm_nonneg z]
+  let ray : ℝ → Pt := fun t => z + t • e (u : ℂ)
+  have hray : Continuous ray := by fun_prop
+  have hRout : ray R ∉ B.carrier := by
+    intro hmem
+    have hle := hC (ray R) hmem
+    have htri : ‖R • e (u : ℂ)‖ ≤ ‖ray R‖ + ‖z‖ := by
+      have := norm_sub_le (ray R) z
+      simpa [ray] using this
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos hR, heu, mul_one] at htri
+    dsimp [R] at htri
+    linarith
+  let A : Set ℝ := Icc 0 R ∩ ray ⁻¹' B.carrier
+  have hAc : IsCompact A := isCompact_Icc.inter_right
+    (B.compact.isClosed.preimage hray)
+  have hAne : A.Nonempty := by
+    refine ⟨0, ⟨⟨le_rfl, hR.le⟩, ?_⟩⟩
+    simpa [ray] using hzB
+  obtain ⟨s, hsA, hsmax⟩ := hAc.exists_isMaxOn hAne continuous_id.continuousOn
+  have hs0 : 0 ≤ s := hsA.1.1
+  have hsR : s < R := lt_of_le_of_ne hsA.1.2 (fun h => hRout (by
+    rw [← h]
+    exact hsA.2))
+  have hsB : ray s ∈ B.carrier := hsA.2
+  have hspos : 0 < s := by
+    obtain ⟨ε, hε, hεz⟩ := Metric.isOpen_iff.1 isOpen_interior z hz
+    let d := min (R / 2) (ε / 2)
+    have hd : 0 < d := lt_min (half_pos hR) (half_pos hε)
+    have hdr : d < R := (min_le_left _ _).trans_lt (half_lt_self hR)
+    have hdist : dist (ray d) z < ε := by
+      simp only [ray, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+        abs_of_pos hd, heu, mul_one]
+      exact (min_le_right _ _).trans_lt (half_lt_self hε)
+    have hdA : d ∈ A := by
+      refine ⟨⟨hd.le, hdr.le⟩, ?_⟩
+      exact (interior_subset : interior B.carrier ⊆ B.carrier) (hεz hdist)
+    exact lt_of_lt_of_le hd (hsmax hdA)
+  refine ⟨s, hspos, ?_⟩
+  rw [B.compact.isClosed.frontier_eq]
+  refine ⟨hsB, ?_⟩
+  intro hsint
+  obtain ⟨ε, hε, hεs⟩ := Metric.isOpen_iff.1 isOpen_interior (ray s) hsint
+  let d := min ((R - s) / 2) (ε / 2)
+  have hd : 0 < d := lt_min (half_pos (sub_pos.2 hsR)) (half_pos hε)
+  have hsdR : s + d < R := by
+    have := min_le_left ((R - s) / 2) (ε / 2)
+    linarith
+  have hdist : dist (ray (s + d)) (ray s) < ε := by
+    simp only [ray, dist_eq_norm, show z + (s + d) • e (u : ℂ) -
+      (z + s • e (u : ℂ)) = d • e (u : ℂ) by module,
+      norm_smul, Real.norm_eq_abs, abs_of_pos hd, heu, mul_one]
+    exact (min_le_right _ _).trans_lt (half_lt_self hε)
+  have hsdA : s + d ∈ A :=
+    ⟨⟨by linarith, hsdR.le⟩,
+      (interior_subset : interior B.carrier ⊆ B.carrier) (hεs hdist)⟩
+  have hmax : s + d ≤ s := by simpa using hsmax hsdA
+  linarith
+
+/-- Under the inward-star hypothesis, a ray from the star center meets the frontier at most
+once. -/
+private lemma plSchoenflies_frontier_ray_unique (B : PolygonalDisk) {z : Pt}
+    (hstar : ∀ w ∈ frontier B.carrier, openSegment ℝ z w ⊆ interior B.carrier)
+    {v : Pt} (_hv : v ≠ 0) {r s : ℝ} (hr : 0 < r) (hs : 0 < s)
+    (hwr : z + r • v ∈ frontier B.carrier)
+    (hws : z + s • v ∈ frontier B.carrier) : r = s := by
+  rcases lt_trichotomy r s with hrs | hrs | hrs
+  · have hm : z + r • v ∈ openSegment ℝ z (z + s • v) := by
+      rw [openSegment_eq_image']
+      refine ⟨r / s, ⟨div_pos hr hs, (div_lt_one hs).2 hrs⟩, ?_⟩
+      calc
+        z + (r / s) • (z + s • v - z) =
+            z + ((r / s) * s) • v := by module
+        _ = z + r • v := by rw [div_mul_cancel₀ r hs.ne']
+    exact (Set.disjoint_left.1 disjoint_interior_frontier
+      (hstar _ hws hm) hwr).elim
+  · exact hrs
+  · have hm : z + s • v ∈ openSegment ℝ z (z + r • v) := by
+      rw [openSegment_eq_image']
+      refine ⟨s / r, ⟨div_pos hs hr, (div_lt_one hr).2 hrs⟩, ?_⟩
+      calc
+        z + (s / r) • (z + r • v - z) =
+            z + ((s / r) * r) • v := by module
+        _ = z + s • v := by rw [div_mul_cancel₀ s hr.ne']
+    exact (Set.disjoint_left.1 disjoint_interior_frontier
+      (hstar _ hwr hm) hws).elim
+
+/-- Direction, viewed on the complex unit circle, from an interior point to a frontier
+point. -/
+private def plSchoenflies_boundaryDirection (B : PolygonalDisk) (z : Pt)
+    (hz : z ∈ interior B.carrier) (w : frontier B.carrier) : Circle := by
+  let e : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  have hwz : w.1 - z ≠ 0 := by
+    intro h
+    have hw : w.1 = z := sub_eq_zero.mp h
+    exact Set.disjoint_left.1 disjoint_interior_frontier hz (hw ▸ w.2)
+  have ha : e.symm (w.1 - z) ≠ 0 := by
+    intro h
+    apply hwz
+    apply e.symm.injective
+    simpa using h
+  exact plSchoenflies_circleOfNe (e.symm (w.1 - z)) ha
+
+private lemma plSchoenflies_boundaryDirection_continuous (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ interior B.carrier) :
+    Continuous (plSchoenflies_boundaryDirection B z hz) := by
+  let e : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  let nz : frontier B.carrier → ({0}ᶜ : Set ℂ) := fun w =>
+    ⟨e.symm (w.1 - z), by
+      intro h
+      have hwz : w.1 - z = 0 := e.symm.injective (by simpa using h)
+      have hw : w.1 = z := sub_eq_zero.mp hwz
+      exact Set.disjoint_left.1 disjoint_interior_frontier hz (hw ▸ w.2)⟩
+  have hnz : Continuous nz := by
+    apply Continuous.subtype_mk
+    fun_prop
+  exact plSchoenflies_circleOfNeC_continuous.comp hnz
+
+private lemma plSchoenflies_boundaryDirection_repr (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ interior B.carrier) (w : frontier B.carrier) :
+    z + ‖w.1 - z‖ • Complex.orthonormalBasisOneI.repr
+      (plSchoenflies_boundaryDirection B z hz w : ℂ) = w.1 := by
+  let e : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  have hwz : w.1 - z ≠ 0 := by
+    intro h
+    have hw : w.1 = z := sub_eq_zero.mp h
+    exact Set.disjoint_left.1 disjoint_interior_frontier hz (hw ▸ w.2)
+  have ha : e.symm (w.1 - z) ≠ 0 := by
+    intro h
+    apply hwz
+    apply e.symm.injective
+    simpa using h
+  change z + ‖w.1 - z‖ • e
+    ((plSchoenflies_circleOfNe (e.symm (w.1 - z)) ha : Circle) : ℂ) = w.1
+  simp only [plSchoenflies_circleOfNe]
+  have hn : ‖e.symm (w.1 - z)‖ = ‖w.1 - z‖ := e.symm.norm_map _
+  rw [← hn]
+  have hnorm : ‖e.symm (w.1 - z)‖ ≠ 0 := norm_ne_zero_iff.mpr ha
+  have hc : ‖e.symm (w.1 - z)‖ •
+      (e.symm (w.1 - z) / ‖e.symm (w.1 - z)‖) = e.symm (w.1 - z) := by
+    change (‖e.symm (w.1 - z)‖ : ℂ) *
+      (e.symm (w.1 - z) / (‖e.symm (w.1 - z)‖ : ℂ)) = _
+    field_simp
+    rw [div_self]
+    exact_mod_cast hnorm
+  have hem : ‖e.symm (w.1 - z)‖ •
+      e (e.symm (w.1 - z) / ‖e.symm (w.1 - z)‖) = w.1 - z := by
+    rw [← e.map_smul, hc, e.apply_symm_apply]
+  rw [hem]
+  abel
+
+/-- The frontier of an inward-star-shaped polygonal disk is homeomorphic to the circle by
+radial direction. -/
+private lemma plSchoenflies_star_boundaryDirection_homeomorph (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ interior B.carrier)
+    (hstar : ∀ w ∈ frontier B.carrier, openSegment ℝ z w ⊆ interior B.carrier) :
+    ∃ D : frontier B.carrier ≃ₜ Circle,
+      ∀ w, D w = plSchoenflies_boundaryDirection B z hz w := by
+  let d : frontier B.carrier → Circle := plSchoenflies_boundaryDirection B z hz
+  have hdi : Function.Injective d := by
+    intro w₁ w₂ hd
+    let v : Pt := Complex.orthonormalBasisOneI.repr (d w₁ : ℂ)
+    have hv : v ≠ 0 := by
+      rw [← norm_ne_zero_iff]
+      simp [v]
+    have hr₁ : 0 < ‖w₁.1 - z‖ := norm_pos_iff.2 (sub_ne_zero.2 fun h =>
+      Set.disjoint_left.1 disjoint_interior_frontier hz (h ▸ w₁.2))
+    have hr₂ : 0 < ‖w₂.1 - z‖ := norm_pos_iff.2 (sub_ne_zero.2 fun h =>
+      Set.disjoint_left.1 disjoint_interior_frontier hz (h ▸ w₂.2))
+    have hw₁ : z + ‖w₁.1 - z‖ • v ∈ frontier B.carrier := by
+      rw [show z + ‖w₁.1 - z‖ • v = w₁.1 by
+        exact plSchoenflies_boundaryDirection_repr B hz w₁]
+      exact w₁.2
+    have hw₂ : z + ‖w₂.1 - z‖ • v ∈ frontier B.carrier := by
+      rw [show v = Complex.orthonormalBasisOneI.repr (d w₂ : ℂ) by
+        simp only [v, hd]]
+      rw [show z + ‖w₂.1 - z‖ • Complex.orthonormalBasisOneI.repr (d w₂ : ℂ) =
+        w₂.1 by exact plSchoenflies_boundaryDirection_repr B hz w₂]
+      exact w₂.2
+    have hr := plSchoenflies_frontier_ray_unique B hstar hv hr₁ hr₂ hw₁ hw₂
+    apply Subtype.ext
+    calc
+      w₁.1 = z + ‖w₁.1 - z‖ • v :=
+        (plSchoenflies_boundaryDirection_repr B hz w₁).symm
+      _ = z + ‖w₂.1 - z‖ • v := by rw [hr]
+      _ = z + ‖w₂.1 - z‖ • Complex.orthonormalBasisOneI.repr (d w₂ : ℂ) := by
+        rw [show v = Complex.orthonormalBasisOneI.repr (d w₂ : ℂ) by
+          simp only [v, hd]]
+      _ = w₂.1 := plSchoenflies_boundaryDirection_repr B hz w₂
+  have hds : Function.Surjective d := by
+    intro u
+    obtain ⟨r, hr, hfr⟩ := plSchoenflies_exists_frontier_on_ray B hz u
+    let w : frontier B.carrier :=
+      ⟨z + r • Complex.orthonormalBasisOneI.repr (u : ℂ), hfr⟩
+    refine ⟨w, ?_⟩
+    apply Circle.ext
+    simp only [d, plSchoenflies_boundaryDirection, plSchoenflies_circleOfNe]
+    have her : Complex.orthonormalBasisOneI.repr.symm
+        (w.1 - z) = r • (u : ℂ) := by simp [w]
+    rw [her, norm_smul, Real.norm_eq_abs, abs_of_pos hr, Circle.norm_coe, mul_one]
+    change ((r : ℂ) * (u : ℂ)) / (r : ℂ) = (u : ℂ)
+    field_simp
+    rw [div_self]
+    exact_mod_cast hr.ne'
+  let hfrc : IsCompact (frontier B.carrier) :=
+    B.compact.of_isClosed_subset isClosed_frontier B.compact.isClosed.frontier_subset
+  letI : CompactSpace (frontier B.carrier) := isCompact_iff_compactSpace.mp hfrc
+  let ed : frontier B.carrier ≃ Circle := Equiv.ofBijective d ⟨hdi, hds⟩
+  let D := ed.toHomeomorphOfContinuousClosed
+    (plSchoenflies_boundaryDirection_continuous B hz)
+    (plSchoenflies_boundaryDirection_continuous B hz).isClosedMap
+  exact ⟨D, fun _ => rfl⟩
+
+private def plSchoenflies_starRadialExtension (B : PolygonalDisk) (z : Pt)
+    (D : frontier B.carrier ≃ₜ Circle) (x : ℂ) : Pt :=
+  if hx : x = 0 then z else
+    z + ‖x‖ • ((D.symm (plSchoenflies_circleOfNe x hx)).1 - z)
+
+private lemma plSchoenflies_starRadialExtension_circle (B : PolygonalDisk) (z : Pt)
+    (D : frontier B.carrier ≃ₜ Circle) (u : Circle) :
+    plSchoenflies_starRadialExtension B z D (u : ℂ) = (D.symm u).1 := by
+  have hu : (u : ℂ) ≠ 0 := Circle.coe_ne_zero u
+  rw [plSchoenflies_starRadialExtension, dif_neg hu, Circle.norm_coe]
+  have he : plSchoenflies_circleOfNe (u : ℂ) hu = u := by
+    apply Circle.ext
+    simp [plSchoenflies_circleOfNe]
+  rw [he, one_smul]
+  abel
+
+private lemma plSchoenflies_starRadialExtension_continuous (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ interior B.carrier) (D : frontier B.carrier ≃ₜ Circle) :
+    Continuous (plSchoenflies_starRadialExtension B z D) := by
+  obtain ⟨C, hC⟩ := isBounded_iff_forall_norm_le.1 B.compact.isBounded
+  have hzC : ‖z‖ ≤ C := hC z (interior_subset hz)
+  have hC0 : 0 ≤ C := (norm_nonneg z).trans hzC
+  let M : ℝ := 2 * C + 1
+  have hM : 0 < M := by dsimp [M]; linarith
+  have hbound (u : Circle) : ‖(D.symm u).1 - z‖ < M := by
+    have huC : ‖(D.symm u).1‖ ≤ C :=
+      hC _ (B.compact.isClosed.frontier_subset (D.symm u).2)
+    calc
+      ‖(D.symm u).1 - z‖ ≤ ‖(D.symm u).1‖ + ‖z‖ := norm_sub_le _ _
+      _ ≤ 2 * C := by linarith
+      _ < M := by dsimp [M]; linarith
+  rw [continuous_iff_continuousAt]
+  intro x
+  by_cases hx : x = 0
+  · subst x
+    rw [Metric.continuousAt_iff]
+    intro ε hε
+    refine ⟨ε / M, div_pos hε hM, fun y hy => ?_⟩
+    rw [show plSchoenflies_starRadialExtension B z D 0 = z by
+      simp [plSchoenflies_starRadialExtension]]
+    by_cases hy0 : y = 0
+    · subst y
+      simpa [plSchoenflies_starRadialExtension] using hε
+    · rw [plSchoenflies_starRadialExtension, dif_neg hy0, dist_eq_norm,
+        add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_nonneg (norm_nonneg y)]
+      have hy : ‖y‖ < ε / M := by simpa [dist_zero_right] using hy
+      calc
+        ‖y‖ * ‖(D.symm (plSchoenflies_circleOfNe y hy0)).1 - z‖ < ‖y‖ * M := by
+          gcongr
+          exact hbound _
+        _ < (ε / M) * M := by gcongr
+        _ = ε := by field_simp
+  · have hc : Continuous fun y : ({0}ᶜ : Set ℂ) =>
+        z + ‖y.1‖ • ((D.symm (plSchoenflies_circleOfNeC y)).1 - z) := by
+      apply continuous_const.add
+      apply (continuous_norm.comp continuous_subtype_val).smul
+      exact (continuous_subtype_val.comp
+        (D.symm.continuous.comp plSchoenflies_circleOfNeC_continuous)).sub continuous_const
+    have hcOn : ContinuousOn (plSchoenflies_starRadialExtension B z D)
+        ({0}ᶜ : Set ℂ) := by
+      rw [continuousOn_iff_continuous_restrict]
+      apply hc.congr
+      intro y
+      have hy : y.1 ≠ 0 := y.2
+      change z + ‖y.1‖ • ((D.symm (plSchoenflies_circleOfNeC y)).1 - z) =
+        plSchoenflies_starRadialExtension B z D y.1
+      rw [plSchoenflies_starRadialExtension, dif_neg hy]
+      rfl
+    exact hcOn.continuousAt (isOpen_compl_singleton.mem_nhds hx)
+
+private lemma plSchoenflies_norm_smul_circleOfNe {x : ℂ} (hx : x ≠ 0) :
+    (‖x‖ : ℂ) * (plSchoenflies_circleOfNe x hx : ℂ) = x := by
+  change (‖x‖ : ℂ) * (x / (‖x‖ : ℂ)) = x
+  field_simp
+  rw [div_self]
+  exact_mod_cast norm_ne_zero_iff.mpr hx
+
+private lemma plSchoenflies_polar_unique {z : Pt} {a b : ℝ} (ha : 0 < a) (hb : 0 < b)
+    (u v : Circle)
+    (h : z + a • Complex.orthonormalBasisOneI.repr (u : ℂ) =
+      z + b • Complex.orthonormalBasisOneI.repr (v : ℂ)) : a = b ∧ u = v := by
+  have hsmul : a • Complex.orthonormalBasisOneI.repr (u : ℂ) =
+      b • Complex.orthonormalBasisOneI.repr (v : ℂ) := add_left_cancel h
+  have hn := congrArg norm hsmul
+  have hab : a = b := by
+    simpa [norm_smul, Real.norm_eq_abs, abs_of_pos ha, abs_of_pos hb] using hn
+  subst b
+  have huv : Complex.orthonormalBasisOneI.repr (u : ℂ) =
+      Complex.orthonormalBasisOneI.repr (v : ℂ) :=
+    smul_right_injective Pt ha.ne' hsmul
+  exact ⟨rfl, Circle.ext (Complex.orthonormalBasisOneI.repr.injective huv)⟩
+
+private lemma plSchoenflies_starRadialExtension_of_ne (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ interior B.carrier) (D : frontier B.carrier ≃ₜ Circle)
+    (hD : ∀ w, D w = plSchoenflies_boundaryDirection B z hz w) {x : ℂ} (hx : x ≠ 0) :
+    plSchoenflies_starRadialExtension B z D x =
+      z + (‖x‖ * ‖(D.symm (plSchoenflies_circleOfNe x hx)).1 - z‖) •
+        Complex.orthonormalBasisOneI.repr (plSchoenflies_circleOfNe x hx : ℂ) := by
+  let u := plSchoenflies_circleOfNe x hx
+  let w : frontier B.carrier := D.symm u
+  let R : ℝ := ‖w.1 - z‖
+  change plSchoenflies_starRadialExtension B z D x =
+    z + (‖x‖ * R) • Complex.orthonormalBasisOneI.repr (u : ℂ)
+  have hdir : plSchoenflies_boundaryDirection B z hz w = u := by
+    rw [← hD w, D.apply_symm_apply]
+  have hrepr := plSchoenflies_boundaryDirection_repr B hz w
+  rw [hdir] at hrepr
+  rw [plSchoenflies_starRadialExtension, dif_neg hx]
+  change z + ‖x‖ • (w.1 - z) = _
+  have hw : w.1 - z = R •
+      Complex.orthonormalBasisOneI.repr (u : ℂ) := by
+    dsimp only [R]
+    rw [← sub_eq_zero]
+    rw [show w.1 - z - ‖w.1 - z‖ • Complex.orthonormalBasisOneI.repr (u : ℂ) =
+      w.1 - (z + ‖w.1 - z‖ • Complex.orthonormalBasisOneI.repr (u : ℂ)) by abel,
+      hrepr, sub_self]
+  calc
+    z + ‖x‖ • (w.1 - z) = z + ‖x‖ •
+        (R • Complex.orthonormalBasisOneI.repr (u : ℂ)) := by rw [hw]
+    _ = z + (‖x‖ * R) •
+        Complex.orthonormalBasisOneI.repr (u : ℂ) := by rw [smul_smul]
+
+private lemma plSchoenflies_starRadialExtension_injective (B : PolygonalDisk) {z : Pt}
+    (hz : z ∈ interior B.carrier) (D : frontier B.carrier ≃ₜ Circle)
+    (hD : ∀ w, D w = plSchoenflies_boundaryDirection B z hz w) :
+    Function.Injective (plSchoenflies_starRadialExtension B z D) := by
+  intro x y hxy
+  by_cases hx : x = 0
+  · subst x
+    by_cases hy : y = 0
+    · exact hy.symm
+    · have hyform := plSchoenflies_starRadialExtension_of_ne B hz D hD hy
+      rw [show plSchoenflies_starRadialExtension B z D 0 = z by
+        simp [plSchoenflies_starRadialExtension], hyform] at hxy
+      have hR : 0 < ‖(D.symm (plSchoenflies_circleOfNe y hy)).1 - z‖ :=
+        norm_pos_iff.2 (sub_ne_zero.2 fun h =>
+          Set.disjoint_left.1 disjoint_interior_frontier hz (h ▸ (D.symm _).2))
+      have ha : 0 < ‖y‖ * ‖(D.symm (plSchoenflies_circleOfNe y hy)).1 - z‖ :=
+        mul_pos (norm_pos_iff.2 hy) hR
+      have hv : Complex.orthonormalBasisOneI.repr
+          (plSchoenflies_circleOfNe y hy : ℂ) ≠ 0 := by
+        rw [← norm_ne_zero_iff]
+        simp
+      have : (‖y‖ * ‖(D.symm (plSchoenflies_circleOfNe y hy)).1 - z‖) •
+          Complex.orthonormalBasisOneI.repr (plSchoenflies_circleOfNe y hy : ℂ) = 0 := by
+        have he := congrArg (fun p : Pt => p - z) hxy
+        simpa using he.symm
+      exact (smul_ne_zero ha.ne' hv this).elim
+  · by_cases hy : y = 0
+    · subst y
+      exfalso
+      have hxform := plSchoenflies_starRadialExtension_of_ne B hz D hD hx
+      rw [hxform, show plSchoenflies_starRadialExtension B z D 0 = z by
+        simp [plSchoenflies_starRadialExtension]] at hxy
+      have hR : 0 < ‖(D.symm (plSchoenflies_circleOfNe x hx)).1 - z‖ :=
+        norm_pos_iff.2 (sub_ne_zero.2 fun he =>
+          Set.disjoint_left.1 disjoint_interior_frontier hz (he ▸ (D.symm _).2))
+      have ha : 0 < ‖x‖ * ‖(D.symm (plSchoenflies_circleOfNe x hx)).1 - z‖ :=
+        mul_pos (norm_pos_iff.2 hx) hR
+      have hv : Complex.orthonormalBasisOneI.repr
+          (plSchoenflies_circleOfNe x hx : ℂ) ≠ 0 := by
+        rw [← norm_ne_zero_iff]
+        simp
+      have hs : (‖x‖ * ‖(D.symm (plSchoenflies_circleOfNe x hx)).1 - z‖) •
+          Complex.orthonormalBasisOneI.repr (plSchoenflies_circleOfNe x hx : ℂ) = 0 := by
+        have he := congrArg (fun p : Pt => p - z) hxy
+        simpa using he
+      exact (smul_ne_zero ha.ne' hv hs).elim
+    · rw [plSchoenflies_starRadialExtension_of_ne B hz D hD hx,
+        plSchoenflies_starRadialExtension_of_ne B hz D hD hy] at hxy
+      let ux := plSchoenflies_circleOfNe x hx
+      let uy := plSchoenflies_circleOfNe y hy
+      let Rx := ‖(D.symm ux).1 - z‖
+      let Ry := ‖(D.symm uy).1 - z‖
+      have hRx : 0 < Rx := norm_pos_iff.2 (sub_ne_zero.2 fun h =>
+        Set.disjoint_left.1 disjoint_interior_frontier hz (h ▸ (D.symm ux).2))
+      have hRy : 0 < Ry := norm_pos_iff.2 (sub_ne_zero.2 fun h =>
+        Set.disjoint_left.1 disjoint_interior_frontier hz (h ▸ (D.symm uy).2))
+      have hp := plSchoenflies_polar_unique
+        (mul_pos (norm_pos_iff.2 hx) hRx) (mul_pos (norm_pos_iff.2 hy) hRy) ux uy hxy
+      have hu : ux = uy := hp.2
+      have hR : Rx = Ry := by simp [Rx, Ry, hu]
+      have hnorm : ‖x‖ = ‖y‖ := by
+        apply mul_right_cancel₀ hRy.ne'
+        have hp1 := hp.1
+        rwa [hR] at hp1
+      calc
+        x = (‖x‖ : ℂ) * (ux : ℂ) := (plSchoenflies_norm_smul_circleOfNe hx).symm
+        _ = (‖y‖ : ℂ) * (uy : ℂ) := by rw [hnorm, hu]
+        _ = y := plSchoenflies_norm_smul_circleOfNe hy
+
+private lemma plSchoenflies_circleHomeomorph_isLoopParam {K : Set Pt}
+    (D : K ≃ₜ Circle) :
+    IsLoopParam K (fun t : ℝ =>
+      (D.symm ((AddCircle.homeomorphCircle (T := (1 : ℝ)) one_ne_zero)
+        (t : AddCircle (1 : ℝ)))).1) := by
+  let q : AddCircle (1 : ℝ) ≃ₜ Circle := AddCircle.homeomorphCircle one_ne_zero
+  let l : ℝ → Pt := fun t => (D.symm (q (t : AddCircle (1 : ℝ)))).1
+  change IsLoopParam K l
+  refine ⟨by fun_prop, ?_, ?_, ?_⟩
+  · intro t
+    change (D.symm (q ((t + 1 : ℝ) : AddCircle (1 : ℝ)))).1 = _
+    congr 3
+    rw [QuotientAddGroup.eq]
+    exact ⟨-1, by simp⟩
+  · intro s hs t ht hst
+    have hw : D.symm (q (s : AddCircle (1 : ℝ))) =
+        D.symm (q (t : AddCircle (1 : ℝ))) := Subtype.ext hst
+    have hq := D.symm.injective hw
+    have hst' := q.injective hq
+    exact (AddCircle.coe_eq_coe_iff_of_mem_Ico (p := (1 : ℝ)) (a := 0)
+      (by simpa using hs) (by simpa using ht)).mp hst'
+  · apply Set.Subset.antisymm
+    · rintro y ⟨t, -, rfl⟩
+      exact (D.symm (q (t : AddCircle (1 : ℝ)))).2
+    · intro y hy
+      let w : K := ⟨y, hy⟩
+      obtain ⟨t, ht, htq⟩ := AddCircle.eq_coe_Ico (p := (1 : ℝ)) (q.symm (D w))
+      refine ⟨t, ht, ?_⟩
+      change (D.symm (q (t : AddCircle (1 : ℝ)))).1 = y
+      rw [htq, q.apply_symm_apply, D.symm_apply_apply]
+
+/-- The inward-star-shaped case of polygonal Schoenflies, with the boundary parametrization
+induced by the radial model. -/
+private lemma plSchoenflies_polygonalDisk_star_some_boundary_model
+    (B : PolygonalDisk) {z : Pt} (hz : z ∈ interior B.carrier)
+    (hstar : ∀ w ∈ frontier B.carrier, openSegment ℝ z w ⊆ interior B.carrier) :
+    ∃ (l₀ : ℝ → Pt) (f₀ : Metric.closedBall (0 : ℂ) 1 → Pt),
+      IsLoopParam (frontier B.carrier) l₀ ∧
+      Continuous f₀ ∧ Function.Injective f₀ ∧
+      (∀ x, f₀ x ∈ B.carrier) ∧
+      (∀ x, x.1 ∈ Metric.ball (0 : ℂ) 1 → f₀ x ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f₀ ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l₀ t := by
+  obtain ⟨D, hD⟩ := plSchoenflies_star_boundaryDirection_homeomorph B hz hstar
+  let q : AddCircle (1 : ℝ) ≃ₜ Circle := AddCircle.homeomorphCircle one_ne_zero
+  let l₀ : ℝ → Pt := fun t => (D.symm (q (t : AddCircle (1 : ℝ)))).1
+  let f₀ : Metric.closedBall (0 : ℂ) 1 → Pt := fun x =>
+    plSchoenflies_starRadialExtension B z D x.1
+  have hl₀ : IsLoopParam (frontier B.carrier) l₀ :=
+    plSchoenflies_circleHomeomorph_isLoopParam D
+  have hf₀c : Continuous f₀ :=
+    (plSchoenflies_starRadialExtension_continuous B hz D).comp continuous_subtype_val
+  have hf₀i : Function.Injective f₀ := by
+    intro x y hxy
+    apply Subtype.ext
+    exact plSchoenflies_starRadialExtension_injective B hz D hD hxy
+  have hf₀B : ∀ x, f₀ x ∈ B.carrier := by
+    intro x
+    by_cases hx : x.1 = 0
+    · simpa [f₀, plSchoenflies_starRadialExtension, hx] using interior_subset hz
+    · let u := plSchoenflies_circleOfNe x.1 hx
+      let w : frontier B.carrier := D.symm u
+      have hnorm0 : 0 < ‖x.1‖ := norm_pos_iff.2 hx
+      have hnorm1 : ‖x.1‖ ≤ 1 := by
+        have hxmem := x.2
+        rwa [Metric.mem_closedBall, dist_zero_right] at hxmem
+      change plSchoenflies_starRadialExtension B z D x.1 ∈ B.carrier
+      rw [plSchoenflies_starRadialExtension, dif_neg hx]
+      rcases eq_or_lt_of_le hnorm1 with h | h
+      · rw [h, one_smul]
+        simpa [w] using B.compact.isClosed.frontier_subset w.2
+      · apply interior_subset
+        apply hstar w.1 w.2
+        rw [openSegment_eq_image']
+        exact ⟨‖x.1‖, ⟨hnorm0, h⟩, rfl⟩
+  have hf₀int : ∀ x, x.1 ∈ Metric.ball (0 : ℂ) 1 →
+      f₀ x ∈ interior B.carrier := by
+    intro x hxball
+    by_cases hx : x.1 = 0
+    · simpa [f₀, plSchoenflies_starRadialExtension, hx] using hz
+    · let u := plSchoenflies_circleOfNe x.1 hx
+      let w : frontier B.carrier := D.symm u
+      have hnorm0 : 0 < ‖x.1‖ := norm_pos_iff.2 hx
+      have hnorm1 : ‖x.1‖ < 1 := by
+        rwa [Metric.mem_ball, dist_zero_right] at hxball
+      change plSchoenflies_starRadialExtension B z D x.1 ∈ interior B.carrier
+      rw [plSchoenflies_starRadialExtension, dif_neg hx]
+      apply hstar w.1 w.2
+      rw [openSegment_eq_image']
+      exact ⟨‖x.1‖, ⟨hnorm0, hnorm1⟩, rfl⟩
+  refine ⟨l₀, f₀, hl₀, hf₀c, hf₀i, hf₀B, hf₀int, fun t => ?_⟩
+  have hq : ((q (t : AddCircle (1 : ℝ)) : Circle) : ℂ) =
+      Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) := by
+    rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk, Circle.coe_exp]
+    congr 2
+    norm_num
+  change plSchoenflies_starRadialExtension B z D
+    (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) =
+      (D.symm (q (t : AddCircle (1 : ℝ)))).1
+  rw [← hq]
+  exact plSchoenflies_starRadialExtension_circle B z D _
+
+/-- The complete prescribed-boundary disk model in the inward-star-shaped case. -/
+private lemma plSchoenflies_polygonalDisk_star_prescribed_boundary_model
+    (B : PolygonalDisk) {z : Pt} (hz : z ∈ interior B.carrier)
+    (hstar : ∀ w ∈ frontier B.carrier, openSegment ℝ z w ⊆ interior B.carrier)
+    (l : ℝ → Pt) (hl : IsLoopParam (frontier B.carrier) l) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧
+      (∀ x, f x ∈ B.carrier) ∧
+      (∀ x, x.1 ∈ Metric.ball (0 : ℂ) 1 → f x ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
+  obtain ⟨l₀, f₀, hl₀, hf₀c, hf₀i, hf₀B, hf₀int, hf₀circle⟩ :=
+    plSchoenflies_polygonalDisk_star_some_boundary_model B hz hstar
+  exact plSchoenflies_boundary_reparametrization B l₀ l hl₀ hl f₀ hf₀c hf₀i
+    hf₀B hf₀int hf₀circle
+
+/-- A cross-cut satisfying the hypotheses used in the Schoenflies induction is contained in
+the disk. -/
+private lemma plSchoenflies_chord_subset_carrier
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    segment ℝ a b ⊆ B.carrier := by
+  rw [← insert_endpoints_openSegment]
+  rintro x (rfl | rfl | hx)
+  · exact B.compact.isClosed.frontier_subset ha
+  · exact B.compact.isClosed.frontier_subset hb
+  · exact interior_subset (hchord hx)
+
+/-- The only boundary points of an interior cross-cut are its endpoints. -/
+private lemma plSchoenflies_frontier_inter_chord
+    (B : PolygonalDisk) {a b : Pt}
+    (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
+    (hchord : openSegment ℝ a b ⊆ interior B.carrier) :
+    frontier B.carrier ∩ segment ℝ a b = {a, b} := by
+  ext x
+  constructor
+  · rintro ⟨hxf, hxs⟩
+    rw [← insert_endpoints_openSegment] at hxs
+    rcases hxs with rfl | rfl | hxo
+    · exact Or.inl rfl
+    · exact Or.inr rfl
+    · exact False.elim (Set.disjoint_left.1 disjoint_interior_frontier (hchord hxo) hxf)
+  · intro hx
+    rcases hx with rfl | rfl
+    · exact ⟨ha, left_mem_segment ℝ _ _⟩
+    · exact ⟨hb, right_mem_segment ℝ _ _⟩
+
+/-- Removing a closed chord from the interior leaves an open set. -/
+private lemma plSchoenflies_chord_complement_open (B : PolygonalDisk) (a b : Pt) :
+    IsOpen (interior B.carrier \ segment ℝ a b) :=
+  isOpen_interior.inter (isCompact_segment_pt a b).isClosed.isOpen_compl
+
+/-- Components of the open complement of a chord are open and path connected. -/
+private lemma plSchoenflies_chord_component_open_pathConnected
+    (B : PolygonalDisk) {a b x : Pt}
+    (hx : x ∈ interior B.carrier \ segment ℝ a b) :
+    IsOpen (connectedComponentIn (interior B.carrier \ segment ℝ a b) x) ∧
+      IsPathConnected (connectedComponentIn (interior B.carrier \ segment ℝ a b) x) := by
+  let U := interior B.carrier \ segment ℝ a b
+  have hU : IsOpen U := plSchoenflies_chord_complement_open B a b
+  have hC : IsConnected (connectedComponentIn U x) :=
+    isConnected_connectedComponentIn_iff.2 hx
+  exact ⟨hU.connectedComponentIn, hU.connectedComponentIn.isConnected_iff_isPathConnected.1 hC⟩
+
+/-- The closure of a component of the chord complement already has the compactness,
+nonempty-interior, and regular-closed fields needed for a `PolygonalDisk`. -/
+private lemma plSchoenflies_chord_component_closure_core
+    (B : PolygonalDisk) {a b x : Pt}
+    (hx : x ∈ interior B.carrier \ segment ℝ a b) :
+    let C := connectedComponentIn (interior B.carrier \ segment ℝ a b) x
+    IsCompact (closure C) ∧ (interior (closure C)).Nonempty ∧
+      closure (interior (closure C)) = closure C := by
+  let U := interior B.carrier \ segment ℝ a b
+  let C := connectedComponentIn U x
+  have hU : IsOpen U := plSchoenflies_chord_complement_open B a b
+  have hCo : IsOpen C := hU.connectedComponentIn
+  have hCB : C ⊆ B.carrier :=
+    (connectedComponentIn_subset U x).trans (diff_subset.trans interior_subset)
+  have hclB : closure C ⊆ B.carrier := closure_minimal hCB B.compact.isClosed
+  have hCint : C ⊆ interior (closure C) := interior_maximal subset_closure hCo
+  refine ⟨B.compact.of_isClosed_subset isClosed_closure hclB,
+    ⟨x, hCint (mem_connectedComponentIn hx)⟩, ?_⟩
+  apply Set.Subset.antisymm
+  · exact closure_minimal interior_subset isClosed_closure
+  · exact closure_mono hCint
+
+private def plSchoenflies_leftHalfDisk :
+    Set (Metric.closedBall (0 : ℂ) 1) := {z | z.1.re ≤ 0}
+
+private def plSchoenflies_rightHalfDisk :
+    Set (Metric.closedBall (0 : ℂ) 1) := {z | 0 ≤ z.1.re}
+
+/-- The two standard closed half-disks form a closed cover and meet in the diameter. -/
+private lemma plSchoenflies_halfDisk_closed_cover :
+    IsClosed plSchoenflies_leftHalfDisk ∧
+      IsClosed plSchoenflies_rightHalfDisk ∧
+      plSchoenflies_leftHalfDisk ∪ plSchoenflies_rightHalfDisk = Set.univ ∧
+      plSchoenflies_leftHalfDisk ∩ plSchoenflies_rightHalfDisk = {z | z.1.re = 0} := by
+  have hc : Continuous (fun z : Metric.closedBall (0 : ℂ) 1 => z.1.re) :=
+    Complex.continuous_re.comp continuous_subtype_val
+  refine ⟨isClosed_Iic.preimage hc, isClosed_Ici.preimage hc, ?_, ?_⟩
+  · ext z
+    simp only [plSchoenflies_leftHalfDisk, plSchoenflies_rightHalfDisk,
+      Set.mem_union, Set.mem_setOf_eq, Set.mem_univ, iff_true]
+    exact le_total z.1.re 0
+  · ext z
+    simp only [plSchoenflies_leftHalfDisk, plSchoenflies_rightHalfDisk,
+      Set.mem_inter_iff, Set.mem_setOf_eq]
+    exact ⟨fun h => le_antisymm h.1 h.2, fun h => h ▸ ⟨le_rfl, le_rfl⟩⟩
+
+/-- Closed-cover pasting with the injectivity condition isolated.  This is the abstract
+topological core of the gluing stage: in the geometric application the cross-piece condition
+comes from the two disk interiors being disjoint and the common diameter mapping to the chord. -/
+private lemma plSchoenflies_glue_closed_cover
+    {X Y : Type*} [TopologicalSpace X] [TopologicalSpace Y]
+    (K₁ K₂ : Set X) (hK₁ : IsClosed K₁) (hK₂ : IsClosed K₂)
+    (hcover : K₁ ∪ K₂ = Set.univ) (f₁ f₂ : X → Y)
+    (hf₁ : ContinuousOn f₁ K₁) (hf₂ : ContinuousOn f₂ K₂)
+    (hagrees : Set.EqOn f₁ f₂ (K₁ ∩ K₂))
+    (hinj₁ : Set.InjOn f₁ K₁) (hinj₂ : Set.InjOn f₂ K₂)
+    (hcross : ∀ x ∈ K₁, ∀ y ∈ K₂, f₁ x = f₂ y → x = y) :
+    ∃ f : X → Y, Continuous f ∧ Function.Injective f ∧
+      Set.EqOn f f₁ K₁ ∧ Set.EqOn f f₂ K₂ := by
+  classical
+  let f : X → Y := K₁.piecewise f₁ f₂
+  have hfK₁ : Set.EqOn f f₁ K₁ := by
+    intro x hx
+    simp [f, hx]
+  have hfK₂ : Set.EqOn f f₂ K₂ := by
+    intro x hx
+    by_cases hx₁ : x ∈ K₁
+    · simpa [f, hx₁] using hagrees ⟨hx₁, hx⟩
+    · simp [f, hx₁]
+  have hfc : Continuous f := by
+    apply continuousOn_univ.mp
+    rw [← hcover]
+    exact (hf₁.congr hfK₁).union_of_isClosed (hf₂.congr hfK₂) hK₁ hK₂
+  refine ⟨f, hfc, ?_, hfK₁, hfK₂⟩
+  intro x y hxy
+  have hx : x ∈ K₁ ∨ x ∈ K₂ := by
+    have : x ∈ K₁ ∪ K₂ := hcover.symm ▸ Set.mem_univ x
+    exact this
+  have hy : y ∈ K₁ ∨ y ∈ K₂ := by
+    have : y ∈ K₁ ∪ K₂ := hcover.symm ▸ Set.mem_univ y
+    exact this
+  rcases hx with hx | hx <;> rcases hy with hy | hy
+  · apply hinj₁ hx hy
+    rw [← hfK₁ hx, ← hfK₁ hy]
+    exact hxy
+  · apply hcross x hx y hy
+    rw [← hfK₁ hx, ← hfK₂ hy]
+    exact hxy
+  · symm
+    apply hcross y hy x hx
+    rw [← hfK₁ hy, ← hfK₂ hx]
+    exact hxy.symm
+  · apply hinj₂ hx hy
+    rw [← hfK₂ hx, ← hfK₂ hy]
+    exact hxy
+
+/-- Once the two half-disk models have been put on a closed cover of the unit disk, the
+piecewise map has exactly the model properties needed by the Schoenflies target. -/
+private lemma plSchoenflies_glue_piecewise_models
+    (B B₁ B₂ : PolygonalDisk)
+    (K₁ K₂ : Set (Metric.closedBall (0 : ℂ) 1))
+    (hK₁ : IsClosed K₁) (hK₂ : IsClosed K₂) (hcover : K₁ ∪ K₂ = Set.univ)
+    (hpieces : B₁.carrier ∪ B₂.carrier = B.carrier)
+    (f₁ f₂ : Metric.closedBall (0 : ℂ) 1 → Pt)
+    (hf₁c : ContinuousOn f₁ K₁) (hf₂c : ContinuousOn f₂ K₂)
+    (hagrees : Set.EqOn f₁ f₂ (K₁ ∩ K₂))
+    (hinj₁ : Set.InjOn f₁ K₁) (hinj₂ : Set.InjOn f₂ K₂)
+    (hcross : ∀ x ∈ K₁, ∀ y ∈ K₂, f₁ x = f₂ y → x = y)
+    (hf₁B : ∀ x ∈ K₁, f₁ x ∈ B₁.carrier)
+    (hf₂B : ∀ x ∈ K₂, f₂ x ∈ B₂.carrier)
+    (hf₁int : ∀ x ∈ K₁, x.1 ∈ Metric.ball (0 : ℂ) 1 → f₁ x ∈ interior B.carrier)
+    (hf₂int : ∀ x ∈ K₂, x.1 ∈ Metric.ball (0 : ℂ) 1 → f₂ x ∈ interior B.carrier)
+    (l : ℝ → Pt)
+    (hf₁circle : ∀ t : ℝ,
+      (⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ : Metric.closedBall (0 : ℂ) 1) ∈ K₁ →
+      f₁ ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t)
+    (hf₂circle : ∀ t : ℝ,
+      (⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ : Metric.closedBall (0 : ℂ) 1) ∈ K₂ →
+      f₂ ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧
+      (∀ x, f x ∈ B.carrier) ∧
+      (∀ x, x.1 ∈ Metric.ball (0 : ℂ) 1 → f x ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
+  obtain ⟨f, hfc, hfinj, hf₁, hf₂⟩ :=
+    plSchoenflies_glue_closed_cover K₁ K₂ hK₁ hK₂ hcover f₁ f₂ hf₁c hf₂c
+      hagrees hinj₁ hinj₂ hcross
+  refine ⟨f, hfc, hfinj, ?_, ?_, ?_⟩
+  · intro x
+    have hx : x ∈ K₁ ∨ x ∈ K₂ := by
+      have : x ∈ K₁ ∪ K₂ := hcover.symm ▸ Set.mem_univ x
+      exact this
+    rw [← hpieces]
+    rcases hx with hx | hx
+    · exact Or.inl (hf₁ hx ▸ hf₁B x hx)
+    · exact Or.inr (hf₂ hx ▸ hf₂B x hx)
+  · intro x hxball
+    have hx : x ∈ K₁ ∨ x ∈ K₂ := by
+      have : x ∈ K₁ ∪ K₂ := hcover.symm ▸ Set.mem_univ x
+      exact this
+    rcases hx with hx | hx
+    · exact hf₁ hx ▸ hf₁int x hx hxball
+    · exact hf₂ hx ▸ hf₂int x hx hxball
+  · intro t
+    let z : Metric.closedBall (0 : ℂ) 1 :=
+      ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩
+    have hz : z ∈ K₁ ∨ z ∈ K₂ := by
+      have : z ∈ K₁ ∪ K₂ := hcover.symm ▸ Set.mem_univ z
+      exact this
+    change f z = l t
+    rcases hz with hz | hz
+    · rw [hf₁ hz]
+      exact hf₁circle t hz
+    · rw [hf₂ hz]
+      exact hf₂circle t hz
+
+/-- With at least four listed vertices there is a combinatorially nonadjacent pair.  The
+geometric content still needed in the diagonal stage is to choose such a pair whose open chord
+lies in the interior. -/
+private lemma plSchoenflies_exists_nonadjacent_indices (B : PolygonalDisk)
+    (h4 : 4 ≤ B.n) :
+    ∃ i j : Fin B.n, i ≠ j ∧ finRotate B.n i ≠ j ∧ finRotate B.n j ≠ i := by
+  let i : Fin B.n := ⟨0, by omega⟩
+  let j : Fin B.n := ⟨2, by omega⟩
+  refine ⟨i, j, ?_, ?_, ?_⟩ <;> intro h
+  · have := congrArg Fin.val h
+    simp [i, j] at this
+  · have := congrArg Fin.val h
+    have hn : 1 ≠ B.n := by omega
+    simp [i, j, finRotate_val', hn] at this
+  · have := congrArg Fin.val h
+    have hn : 3 ≠ B.n := by omega
+    simp [i, j, finRotate_val', hn] at this
+
+/-- A chord whose open part is interior cannot be a listed side in either direction. -/
+private lemma plSchoenflies_interior_chord_nonadjacent
+    (B : PolygonalDisk) {i j : Fin B.n}
+    (hchord : openSegment ℝ (B.vertex i) (B.vertex j) ⊆ interior B.carrier) :
+    finRotate B.n i ≠ j ∧ finRotate B.n j ≠ i := by
+  let q := B.vertex i + (1 / 2 : ℝ) • (B.vertex j - B.vertex i)
+  have hq : q ∈ openSegment ℝ (B.vertex i) (B.vertex j) :=
+    ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, by module⟩
+  have hqi : q ∈ interior B.carrier := hchord hq
+  constructor
+  · intro hij
+    have hqf : q ∈ frontier B.carrier :=
+      pd_segment_subset_frontier B i (by rw [hij]; exact openSegment_subset_segment ℝ _ _ hq)
+    exact Set.disjoint_left.1 disjoint_interior_frontier hqi hqf
+  · intro hji
+    have hqs : q ∈ segment ℝ (B.vertex j) (B.vertex (finRotate B.n j)) := by
+      rw [hji, segment_symm]
+      exact openSegment_subset_segment ℝ _ _ hq
+    have hqf : q ∈ frontier B.carrier := pd_segment_subset_frontier B j hqs
+    exact Set.disjoint_left.1 disjoint_interior_frontier hqi hqf
+
+/-- A boundary point is either listed already or lies in the open part of a unique listed side.
+This is the insertion dichotomy needed before splitting the cyclic vertex list at arbitrary
+cross-cut endpoints. -/
+private lemma plSchoenflies_frontier_point_vertex_or_openSide
+    (B : PolygonalDisk) {x : Pt} (hx : x ∈ frontier B.carrier) :
+    (∃ i : Fin B.n, x = B.vertex i) ∨
+      ∃ i : Fin B.n,
+        x ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) ∧
+        ∀ j : Fin B.n,
+          x ∈ openSegment ℝ (B.vertex j) (B.vertex (finRotate B.n j)) → j = i := by
+  rw [B.frontier_eq, Set.mem_iUnion] at hx
+  obtain ⟨i, hxi⟩ := hx
+  by_cases hleft : x = B.vertex i
+  · exact Or.inl ⟨i, hleft⟩
+  by_cases hright : x = B.vertex (finRotate B.n i)
+  · exact Or.inl ⟨finRotate B.n i, hright⟩
+  right
+  have hxopen : x ∈ openSegment ℝ (B.vertex i) (B.vertex (finRotate B.n i)) :=
+    mem_openSegment_of_ne_left_right (Ne.symm hleft) (Ne.symm hright) hxi
+  refine ⟨i, hxopen, fun j hxj => ?_⟩
+  exact pd_eq_of_openSegment_inter_segment B hxopen
+    (openSegment_subset_segment ℝ _ _ hxj)
+
+/-- Strong induction on the number of listed vertices, packaged so that dummy collinear
+vertices can be retained until the geometric diagonal step supplies genuinely smaller pieces. -/
+private lemma plSchoenflies_polygonalDisk_strong_induction
+    (P : PolygonalDisk → Prop)
+    (hstep : ∀ B : PolygonalDisk, (∀ C : PolygonalDisk, C.n < B.n → P C) → P B) :
+    ∀ B : PolygonalDisk, P B := by
+  let Q : ℕ → Prop := fun n => ∀ B : PolygonalDisk, B.n = n → P B
+  have hQ : ∀ n, Q n := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+        dsimp only [Q]
+        intro B hBn
+        apply hstep B
+        intro C hC
+        exact ih C.n (by omega) C rfl
+  exact fun B => hQ B.n B rfl
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalDisk_closedBall_model`: the base case of the ear decomposition.  A convex
 polygonal disk is the image of the closed unit disk under an embedding sending the open disk into its interior
 (radial gauge rescaling). -/

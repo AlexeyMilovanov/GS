@@ -6908,7 +6908,122 @@ private lemma existsAnnularSpokes_step3_spoke_step3_erase_step2_side_to_side_sim
     (hne : segment ℝ a b ≠ segment ℝ c d) :
     segment ℝ a b ∩ segment ℝ c d ⊆
       ({a, b} : Set Pt) ∩ {c, d} := by
-  sorry
+  classical
+  rcases hA with ⟨A, hA, hAedge⟩
+  rcases hAedge with ⟨i, hi⟩
+  rcases hB with ⟨B, hB, hBedge⟩
+  rcases hBedge with ⟨j, hj⟩
+  have hendsA :
+      (A.vertex i = a ∧ A.vertex (finRotate _ i) = b) ∨
+        (A.vertex i = b ∧ A.vertex (finRotate _ i) = a) :=
+    seg_endpoints hab (hi.symm.trans (tile_side_eq A i))
+  have hendsB :
+      (B.vertex j = c ∧ B.vertex (finRotate _ j) = d) ∨
+        (B.vertex j = d ∧ B.vertex (finRotate _ j) = c) :=
+    seg_endpoints hcd (hj.symm.trans (tile_side_eq B j))
+  intro x hx
+  have hxAi : x ∈ A.side i := by
+    rw [hi]
+    exact hx.1
+  have hxBj : x ∈ B.side j := by
+    rw [hj]
+    exact hx.2
+  have hA_vertex : x ∈ ({a, b} : Set Pt) → x ∈ A.vertexSet := by
+    intro h
+    change ∃ k, A.vertex k = x
+    rcases Set.mem_insert_iff.mp h with hxa | hxb
+    · rcases hendsA with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · exact ⟨i, h1.trans hxa.symm⟩
+      · exact ⟨finRotate _ i, h2.trans hxa.symm⟩
+    · have hxb' : x = b := Set.mem_singleton_iff.mp hxb
+      rcases hendsA with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · exact ⟨finRotate _ i, h2.trans hxb'.symm⟩
+      · exact ⟨i, h1.trans hxb'.symm⟩
+  have hB_vertex : x ∈ ({c, d} : Set Pt) → x ∈ B.vertexSet := by
+    intro h
+    change ∃ k, B.vertex k = x
+    rcases Set.mem_insert_iff.mp h with hxc | hxd
+    · rcases hendsB with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · exact ⟨j, h1.trans hxc.symm⟩
+      · exact ⟨finRotate _ j, h2.trans hxc.symm⟩
+    · have hxd' : x = d := Set.mem_singleton_iff.mp hxd
+      rcases hendsB with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · exact ⟨finRotate _ j, h2.trans hxd'.symm⟩
+      · exact ⟨j, h1.trans hxd'.symm⟩
+  have hA_open_of_not : x ∉ ({a, b} : Set Pt) →
+      x ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+    intro h
+    rcases hendsA with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]
+      apply mem_openSegment_of_ne_left_right
+      · intro hxa
+        exact h (by simp [hxa])
+      · intro hxb
+        exact h (by simp [hxb])
+      · exact hx.1
+    · rw [h1, h2, openSegment_symm]
+      apply mem_openSegment_of_ne_left_right
+      · intro hxb
+        exact h (by simp [hxb])
+      · intro hxa
+        exact h (by simp [hxa])
+      · exact hx.1
+  have hB_open_of_not : x ∉ ({c, d} : Set Pt) →
+      x ∈ openSegment ℝ (B.vertex j) (B.vertex (finRotate _ j)) := by
+    intro h
+    rcases hendsB with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]
+      apply mem_openSegment_of_ne_left_right
+      · intro hxc
+        exact h (by simp [hxc])
+      · intro hxd
+        exact h (by simp [hxd])
+      · exact hx.2
+    · rw [h1, h2, openSegment_symm]
+      apply mem_openSegment_of_ne_left_right
+      · intro hxd
+        exact h (by simp [hxd])
+      · intro hxc
+        exact h (by simp [hxc])
+      · exact hx.2
+  have hxAB : x ∈ ({a, b} : Set Pt) := by
+    by_contra hxa
+    have hxi := hA_open_of_not hxa
+    by_cases hxcd : x ∈ ({c, d} : Set Pt)
+    · exact vertex_not_mem_open_side S.disjoint hsts hA hB i hxi
+        (hB_vertex hxcd) (hAi hx.1)
+    · have hxj := hB_open_of_not hxcd
+      by_cases hAB : A = B
+      · subst B
+        have hside : x ∈ A.side j := by
+          rw [tile_side_eq]
+          exact openSegment_subset_segment ℝ _ _ hxj
+        have hji : j = i := tile_eq_of_openSegment_inter_segment A hxi hside
+        apply hne
+        calc
+          segment ℝ a b = A.side i := hi.symm
+          _ = A.side j := by rw [hji]
+          _ = segment ℝ c d := hj
+      · obtain ⟨k, hk⟩ := tile_partner S.disjoint hsts hA hB hAB i hxi
+          (tile_side_subset B j hxBj) (by
+            intro hxv
+            obtain ⟨k', hk'⟩ := hxv
+            exact tile_vertex_not_mem_openSegment B k' j (hk' ▸ hxj))
+        have hxk : x ∈ B.side k := by
+          rw [hk]
+          exact hxAi
+        have hkj : k = j := tile_eq_of_openSegment_inter_segment B hxj hxk
+        apply hne
+        calc
+          segment ℝ a b = A.side i := hi.symm
+          _ = B.side k := hk.symm
+          _ = B.side j := by rw [hkj]
+          _ = segment ℝ c d := hj
+  have hxCD : x ∈ ({c, d} : Set Pt) := by
+    by_contra hxcd
+    exact vertex_not_mem_open_side S.disjoint hsts hB hA j (hB_open_of_not hxcd)
+      (hA_vertex hxAB) (hBi hx.2)
+  exact ⟨hxAB, hxCD⟩
 
 /-- Step 2 of the blueprint proof of `existsAnnularSpokes_step3_spoke_step3_erase`: in the
 interior of a side-to-side support, an injective skeletal polygonal arc is simple. -/

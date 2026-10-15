@@ -24164,7 +24164,40 @@ private lemma existsRoutingAfterPower_step2_ports_step2_inter_step3_scaled (τ :
         (∀ i, δ * τ.θ ^ (Rs.GS.k * l) ≤ dist x ((τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).vertex i)) →
         (∀ i, δ * τ.θ ^ (Rs.GS.k * l) ≤ dist y ((τ.θ ^ (Rs.GS.k * l)) • (Rs.GS.G.P'.disk α).vertex i)) →
         c * τ.θ ^ (Rs.GS.k * l) ≤ dist x y := by
-  sorry
+  have _ := hτ
+  have _ := hδ
+  have _ := hc
+  intro l hl α a b hab x hx y hy hx_dist hy_dist
+  have _ := hl
+  have hs : 0 < τ.θ ^ (Rs.GS.k * l) :=
+    pow_pos (by linarith [τ.one_lt]) _
+  obtain ⟨x', hx', rfl⟩ := Set.mem_smul_set.mp hx
+  obtain ⟨y', hy', rfl⟩ := Set.mem_smul_set.mp hy
+  have hx_dist' : ∀ i, δ ≤ dist x' ((Rs.GS.G.P'.disk α).vertex i) := by
+    intro i
+    have h := hx_dist i
+    rw [dist_smul₀, Real.norm_eq_abs, abs_of_pos hs] at h
+    apply le_of_mul_le_mul_left ?_ hs
+    calc
+      τ.θ ^ (Rs.GS.k * l) * δ = δ * τ.θ ^ (Rs.GS.k * l) := mul_comm _ _
+      _ ≤ τ.θ ^ (Rs.GS.k * l) * dist x' ((Rs.GS.G.P'.disk α).vertex i) := by
+        simpa using h
+  have hy_dist' : ∀ i, δ ≤ dist y' ((Rs.GS.G.P'.disk α).vertex i) := by
+    intro i
+    have h := hy_dist i
+    rw [dist_smul₀, Real.norm_eq_abs, abs_of_pos hs] at h
+    apply le_of_mul_le_mul_left ?_ hs
+    calc
+      τ.θ ^ (Rs.GS.k * l) * δ = δ * τ.θ ^ (Rs.GS.k * l) := mul_comm _ _
+      _ ≤ τ.θ ^ (Rs.GS.k * l) * dist y' ((Rs.GS.G.P'.disk α).vertex i) := by
+        simpa using h
+  have h := H_unscaled α a b hab x' hx' y' hy' hx_dist' hy_dist'
+  calc
+    c * τ.θ ^ (Rs.GS.k * l) = τ.θ ^ (Rs.GS.k * l) * c := mul_comm _ _
+    _ ≤ τ.θ ^ (Rs.GS.k * l) * dist x' y' :=
+      mul_le_mul_of_nonneg_left h hs.le
+    _ = dist (τ.θ ^ (Rs.GS.k * l) • x') (τ.θ ^ (Rs.GS.k * l) • y') := by
+      rw [dist_smul₀, Real.norm_eq_abs, abs_of_pos hs]
 
 /-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step2_ports`: inter-side separation. -/
 private lemma existsRoutingAfterPower_step2_ports_step2_inter (τ : Substitution P) (hτ : τ.STS)

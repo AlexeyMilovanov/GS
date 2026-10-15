@@ -12874,7 +12874,107 @@ private lemma lift_hierarchy_step2_proper_step2_outer_step2_cells_step4_fourth (
     (Y : PlacedTile (typedDecoration c)) (hY : Y ∈ (seq' 0).tiles) (hNeq : Y ≠ X)
     (j : c.Side (tileDec Y).typ) (hCoincide : sideOf c Y j = sideOf c X i) :
     (tileDec Y).cell j 3 = (tileDec X).cell i 3 := by
-  sorry
+  have key : ∀ m : ℕ, ∀ (seq : ℕ → PlaneTiling c.Q), HierarchySupertilesSTS c seq →
+      ∀ (seq' : ℕ → PlaneTiling (typedDecoration c)),
+      (∀ n, eraseSet c (seq' n).tiles = (seq n).tiles) →
+      (∀ n, IsExactComposition c (seq' (n + 1)) (seq' n)) →
+      (∀ n, ∀ X ∈ (seq' n).tiles, headerLegal c (tileDec X)) →
+      ∀ X ∈ (seq' 0).tiles, ∀ i : c.Side (tileDec X).typ,
+      c.IsOuter (c.occ (tileDec X).typ i) →
+      (tileDec X).cell i 3 ≠ 0 →
+      ∀ W ∈ (seq' m).tiles, ∀ e : c.Side (tileDec W).typ,
+      c.IsInner (c.occ (tileDec W).typ e) →
+      sideOf c X i ⊆ (c.σ.θ ^ m) • sideOf c W e →
+      ∀ Y ∈ (seq' 0).tiles, Y ≠ X → ∀ j : c.Side (tileDec Y).typ,
+      sideOf c Y j = sideOf c X i →
+      (tileDec Y).cell j 3 = (tileDec X).cell i 3 := by
+    intro m
+    induction m using Nat.strong_induction_on with
+    | _ m ih =>
+      intro seq hsts seq' herase hexact hleg X hX i hOuter h3 W hW e he hsub Y hY hNeq j
+        hCoincide
+      obtain ⟨ZX, hZX, hXZ, haX⟩ :=
+        lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step1_parent c seq'
+          hexact X hX
+      obtain ⟨ZY, hZY, hYZ, haY⟩ :=
+        lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step1_parent c seq'
+          hexact Y hY
+      have hYout :=
+        lift_hierarchy_step2_proper_step2_outer_step2_cells_step1_opp_outer c seq' hexact X hX i
+          hOuter Y hY hNeq j hCoincide
+      obtain ⟨d, hd⟩ := ac1r_outer_mem_outerList c hH _ hOuter _ hXZ.1
+      obtain ⟨d', hNZ, hside, hd', hlen, hidx⟩ :=
+        lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step4_matching_lists c hH
+          seq hsts seq' herase hexact X hX i hOuter m W hW e he hsub Y hY hNeq j hCoincide ZX
+          hZX hXZ haX ZY hZY hYZ haY d hd
+      have hsts1 : HierarchySupertilesSTS c (fun n => seq (n + 1)) :=
+        fun n k hk V hV => hsts (n + 1) k (by omega) V hV
+      have herase1 : ∀ n,
+          eraseSet c ((fun n => seq' (n + 1)) n).tiles = ((fun n => seq (n + 1)) n).tiles :=
+        fun n => herase (n + 1)
+      have hexact1 : ∀ n,
+          IsExactComposition c ((fun n => seq' (n + 1)) (n + 1))
+            ((fun n => seq' (n + 1)) n) :=
+        fun n => hexact (n + 1)
+      have hleg1 : ∀ n, ∀ V ∈ ((fun n => seq' (n + 1)) n).tiles,
+          headerLegal c (tileDec V) :=
+        fun n => hleg (n + 1)
+      have h3X :=
+        lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step3_rank_cell c _ _ hXZ
+          i hOuter d hd
+      have h3Y :=
+        lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step3_rank_cell c _ _ hYZ
+          j hYout d' hd'
+      have hzA : zA c (tileDec ZX) d = false := by
+        by_contra hz
+        rw [Bool.not_eq_false] at hz
+        rw [h3X, if_pos hz] at h3
+        exact h3 rfl
+      have houter_iff : c.IsOuter (c.occ (tileDec ZX).typ d) ↔
+          c.IsOuter (c.occ (tileDec ZY).typ d') :=
+        ⟨fun h =>
+          lift_hierarchy_step2_proper_step2_outer_step2_cells_step1_opp_outer c
+            (fun n => seq' (n + 1)) hexact1 ZX hZX d h ZY hZY hNZ d' hside,
+          fun h =>
+          lift_hierarchy_step2_proper_step2_outer_step2_cells_step1_opp_outer c
+            (fun n => seq' (n + 1)) hexact1 ZY hZY d' h ZX hZX hNZ.symm d hside.symm⟩
+      have hpar4 : (tileDec ZY).cell d' 3 = (tileDec ZX).cell d 3 := by
+        by_cases hdo : c.IsOuter (c.occ (tileDec ZX).typ d)
+        · obtain ⟨m', rfl, hsub'⟩ :=
+            lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step5_level_down c hH
+              seq hsts seq' herase hexact X hX i hOuter m W hW e he hsub ZX hZX hXZ haX d hd hdo
+          have hdo' := houter_iff.1 hdo
+          have h3d : (tileDec ZX).cell d 3 ≠ 0 := by
+            intro h0
+            apply Bool.false_ne_true
+            rw [← hzA]
+            simp [zA, HeaderKernel.zeroMode, fourthVec, MacroData.outerB, hdo, h0]
+          have hih := ih m' (by omega) (fun n => seq (n + 1)) hsts1
+            (fun n => seq' (n + 1)) herase1 hexact1 hleg1 ZX hZX d hdo h3d W hW e he hsub'
+              ZY hZY hNZ d' hside
+          exact hih
+        · exact
+            (lift_hierarchy_step2_proper_step2_outer_step2_cells_step3_third_step8_inner_cells c hH
+              (fun n => seq (n + 1)) hsts1 (fun n => seq' (n + 1)) herase1 hexact1 hleg1 ZX hZX d
+              hdo ZY hZY hNZ d' hside) 3
+      have hzA' : zA c (tileDec ZY) d' = zA c (tileDec ZX) d := by
+        simp only [zA, HeaderKernel.zeroMode, fourthVec, MacroData.outerB, hpar4]
+        congr 1
+        exact decide_eq_decide.2 houter_iff.symm
+      have hrank : c.rankOf (c.form (tileDec ZY).typ) d'
+          (c.occ (tileDec Y).typ j) =
+          c.rankOf (c.form (tileDec ZX).typ) d (c.occ (tileDec X).typ i) := by
+        apply Fin.ext
+        simp only [MacroData.rankOf, MacroData.rankIn, hidx]
+      rw [h3X, h3Y, hzA', hrank]
+  have h3 :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step1_fourth_ne_zero c seq' hexact X
+      hX i hOuter hNontriv
+  obtain ⟨m, W, hW, e, he, hsub⟩ :=
+    lift_hierarchy_step2_proper_step2_outer_step1_supertile_step2_ancestor_inner c seq' hfounded X
+      hX i hOuter h3
+  exact (key m seq hsts seq' herase hexact hleg X hX i hOuter h3 W hW e he hsub Y hY hNeq j
+    hCoincide)
 
 /-- Step 2 of the blueprint proof of `lift_hierarchy_step2_proper_step2_outer`:
 Their copied cells either reach the same shared origin, or matching origins on a shared side,

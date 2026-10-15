@@ -2731,7 +2731,83 @@ private lemma macroblock_is_decomposition_central_step2_prints (c : MacroCertifi
         c.IsPrintOf (c.form (reconstruct c K h.1).typ) d (c.occ (K.tileOf t).typ i) →
         (∀ k : Fin 5, k ≠ 4 → (K.tileOf t).cell i k = (reconstruct c K h.1).cell d k) ∧
         (K.tileOf t).cell i 4 = identU c (c.edge (c.occ (K.tileOf t).typ i)) := by
-  sorry
+  have _ := ht_owner
+  subst t
+  intro i d hd
+  have hF : c.form h.1 = K.α := hh.1
+  let d' : Fin (c.Q.disk K.α).n :=
+    cast (congrArg (fun F => Fin (c.Q.disk F).n) hF) d
+  have hd' : c.IsPrintOf K.α d'
+      (c.occ (K.tileOf (c.central K.α)).typ i) := by
+    exact (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print c hF d
+      (c.occ (K.tileOf (c.central K.α)).typ i)).1 hd
+  rcases hd' with ⟨hd_marked, hd_occ | hd_occ⟩
+  · let p := c.partner (c.printOcc K.α d')
+    have hprint_inner : c.IsInner (c.printOcc K.α d') :=
+      c.g4_print_inner K.α d' hd_marked
+    have hp_info := c.g1_partner (c.printOcc K.α d') hprint_inner
+    have hp_inner : c.IsInner p := by
+      exact asm_inner_of_occSide c hprint_inner hp_info.2.1 hp_info.2.2
+    have hp_owner : c.owner p.1 = K.α := by
+      exact hp_info.2.1.trans (c.g5_central_owner K.α)
+    have hp_nc : p.1 ≠ c.central K.α := by
+      intro hp_central
+      have hp_small := c.g4_print_small K.α d' hd_marked
+      have hcentral_large : c.kind (c.form (c.central K.α)) = .large := by
+        rw [c.g5_large_iff, c.g5_central_owner K.α]
+      rw [hp_central] at hp_small
+      cases hp_small.symm.trans hcentral_large
+    have hp_child : IsChildOf c (reconstruct c K h.1) (K.tileOf p.1) := by
+      exact macroblock_is_decomposition_noncentral c hH K hK h hh p.1 hp_owner hp_nc
+    have hp_print : c.IsPrintOf (c.form h.1) d p := by
+      exact (headerLegal_properties_step2_normal_id_step1_normal_aux_cast_print c hF d p).2
+        ⟨hd_marked, Or.inr rfl⟩
+    have hp_child' := hp_child
+    dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hp_child'
+    have hp_cells := (hp_child'.2 p.2).1 d hp_print
+    have hp_nontrivial : IsNontrivial c (K.tileOf p.1) p.2 := by
+      intro hz
+      exact asm_identU_ne_zero c _ (hp_cells.2.symm.trans hz.2)
+    obtain ⟨u, j, hu_owner, hu_ne, hu_side, hu_col⟩ :=
+      hK.1 p.1 p.2 hp_owner hp_inner hp_nontrivial
+    have hu_side' : c.occSide (c.occ u j) = c.occSide p := by
+      have h1 := path_and_print_recovery_step1_signals_aux_childSide c K (c.occ u j)
+      have h2 := path_and_print_recovery_step1_signals_aux_childSide c K p
+      rw [h1, h2] at hu_side
+      exact path_and_print_recovery_step1_signals_aux_vadd_cancel K.v hu_side
+    have hu_eq : c.occ u j = c.partner p := by
+      exact c.g1_side_unique p (c.occ u j) hp_inner
+        (hu_owner.trans hp_owner.symm) (by exact hu_ne) hu_side'
+    have hu_print : c.occ u j = c.printOcc K.α d' := by
+      rw [hu_eq]
+      exact c.g1_partner_partner (c.printOcc K.α d')
+        (c.g4_print_inner K.α d' hd_marked)
+    have hcentral_eq : c.occ (c.central K.α) i = c.printOcc K.α d' := hd_occ
+    constructor
+    · intro k hk
+      have hcolk : (K.tileOf (c.central K.α)).cell i k =
+          (K.tileOf p.1).cell p.2 k := by
+        have heq : c.occ u j = c.occ (c.central K.α) i := hu_print.trans hcentral_eq.symm
+        exact (congrArg (fun o : c.SideOcc => K.col o.1 o.2 k) heq).symm.trans
+          (hu_col k)
+      exact hcolk.trans (hp_cells.1 k hk)
+    · have hcol4 : (K.tileOf (c.central K.α)).cell i 4 =
+          (K.tileOf p.1).cell p.2 4 := by
+        have heq : c.occ u j = c.occ (c.central K.α) i := hu_print.trans hcentral_eq.symm
+        exact (congrArg (fun o : c.SideOcc => K.col o.1 o.2 4) heq).symm.trans
+          (hu_col 4)
+      rw [hcol4, hp_cells.2]
+      exact congrArg (identU c)
+        ((c.g1_edge_partner (c.printOcc K.α d') hprint_inner).trans
+          (congrArg c.edge hcentral_eq.symm))
+  · have hp_small := c.g4_print_small K.α d' hd_marked
+    have hcentral_large : c.kind (c.form (c.central K.α)) = .large := by
+      rw [c.g5_large_iff, c.g5_central_owner K.α]
+    have hp_eq : (c.partner (c.printOcc K.α d')).1 = c.central K.α :=
+      (congrArg Sigma.fst hd_occ).symm
+    rw [hp_eq] at hp_small
+    exfalso
+    exact by cases hp_small.symm.trans hcentral_large
 
 /-- Step 1 of the blueprint proof of `macroblock_is_decomposition_central_step3_nonprints`: cell 0 is prescribedFirst. -/
 private lemma macroblock_is_decomposition_central_step3_nonprints_cell0 (c : MacroCertificate P)

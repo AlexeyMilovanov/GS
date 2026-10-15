@@ -2488,7 +2488,25 @@ private lemma path_and_print_recovery_step2_prints_step1_parent_cell_step3_child
     (ho_ord : c.IsOrdinary o) :
     C.cell (cast (congrArg (fun F => Fin (c.Q.disk F).n) h_form) d) k =
       K.col o.1 o.2 2 := by
-  sorry
+  obtain ⟨t, i⟩ := o
+  change t = (c.partner (c.printOcc (c.form h.1) d)).1 at ho_partner
+  subst t
+  let d' : c.Side C.typ :=
+    cast (congrArg (fun F => Fin (c.Q.disk F).n) h_form) d
+  have hcast : ∀ {F1 F2 : c.Q.Form} (e : F1 = F2)
+      (d1 : Fin (c.Q.disk F1).n) (j : Fin 5) (occ : c.SideOcc),
+      occ ∈ c.path F1 d1 j ↔
+        occ ∈ c.path F2 (cast (congrArg (fun F => Fin (c.Q.disk F).n) e) d1) j := by
+    intro F1 F2 e d1 j occ
+    subst e
+    rfl
+  have hpath : c.occ (c.partner (c.printOcc (c.form h.1) d)).1 i ∈
+      c.path (c.form C.typ) d' k := by
+    have hmem := List.mem_of_getElem? ho
+    exact (hcast h_form d k _).1 hmem
+  dsimp [IsChildOf, headerSubstitution, IsChildOfWith] at hC
+  have hcopy := ((hC.2 i).2 ho_ord.2).2.2.2.1 d' k hpath
+  exact hcopy.symm
 
 /-- Step 1 of the blueprint proof of `path_and_print_recovery_step2_prints`: the parent `C` agrees with `D` on the cell `k`. -/
 private lemma path_and_print_recovery_step2_prints_step1_parent_cell (c : MacroCertificate P)

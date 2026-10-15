@@ -30659,8 +30659,10 @@ private structure existsMacroCertificate_RoutingSeed (τ : Substitution P)
   parent_side_geometry : ∀ α d, C.macroSide α d =
     (τ.θ ^ (setup.GS.k * l)) • (setup.GS.G.P'.disk (baseForm α)).side (parentSide α d)
   marked_from_setup : ∀ α d, C.marked α d ↔ parentSide α d ∈ setup.markedSides (baseForm α)
-  marked_rule : ∀ o : C.SideOcc,
-    C.IsMarked o ↔ C.kind (C.form o.1) ≠ .large ∨ C.IsPrint o
+  marked_rule_nonlarge : ∀ o : C.SideOcc,
+    C.kind (C.form o.1) ≠ .large ∨ C.IsPrint o → C.IsMarked o
+  marked_rule_large : ∀ o : C.SideOcc, C.kind (C.owner o.1) = .large →
+    C.kind (C.form o.1) = .large → C.IsMarked o → C.IsPrint o
   positive_eq : C.IsPositive = LexPositive
   outerList_global : ∀ α d, (C.outerList α d).Nodup ∧
     (C.outerList α d).Pairwise fun o o' =>
@@ -30713,9 +30715,10 @@ noncircular order of the blueprint:
    of `c^l`) and its `4N` annular small neighbours and scatter every other group; this is `σ'`,
    and the first component is `m = k l`;
 4. the types are the positioned children of the retained templates, `central α` is the retained
-   centre, `kind` is large / small / original as in the grouping, `marked` is "every side not
-   belonging to the large central group, plus the prints", `print` and `special` come from the print
-   slots (the print in its small owner is its special side), `outerList` lists the whole outer fine
+   centre, `kind` is large / small / original as in the grouping, every side of a non-large child
+   and every print is marked, while in a large form's own template the marked sides of its large
+   central child are exactly its prints; `print` and `special` come from the print slots (the print
+   in its small owner is its special side), `outerList` lists the whole outer fine
    sides in the global supporting-line direction, `path` converts the `RoutingData` paths into side
    occurrences (both owners of every crossed inner side, the print in its small owner only), and
    `Qmax = Q`, with `N` as chosen and `rankBound` the largest outer-list length. -/

@@ -30026,7 +30026,9 @@ group in the `C_loc D`-neighbourhood of its ideal trapezoid, with at least
 `⌊R/(C_len D)⌋ - C_err` private outer edges, of diameter at most `C R`, and
 with at most `Q(P,R) = K0 ⌈4C²R²/a⌉` listed sides. -/
 theorem quantitativeAnnularGrouping (M : MeshConstants P) :
-    ∃ Csep Cloc Clen Cerr C : ℝ, 0 < Csep ∧ 0 < Cloc ∧ 0 < Clen ∧ 0 ≤ Cerr ∧ 0 < C ∧
+    ∃ Csep Cloc Clen Cerr C : ℝ,
+      Csep = 1000 ∧ Cloc = 20 ∧ Clen = 2 ∧ Cerr = 0 ∧ C = 7 ∧
+      0 < Csep ∧ 0 < Cloc ∧ 0 < Clen ∧ 0 ≤ Cerr ∧ 0 < C ∧
       ∀ (S : Patch P) (Ω : PolygonalDisk), support S.tiles = Ω.carrier →
         SideToSideSet S.tiles → ∀ (c : Pt) (N : ℕ) (R : ℝ), 2 ≤ N → Csep * M.D ≤ R →
         square c ((N : ℝ) * R / 2 + R) + Binf (10 * M.D) ⊆ interior Ω.carrier →
@@ -30038,7 +30040,8 @@ theorem quantitativeAnnularGrouping (M : MeshConstants P) :
           (∀ j : Fin (4 * N), Metric.diam (G.spokes.piece j).carrier ≤ C * R) ∧
           (∀ j : Fin (4 * N),
               (G.spokes.piece j).disk.n ≤ M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊) := by
-  refine ⟨1000, 20, 2, 0, 7, by norm_num, by norm_num, by norm_num, le_rfl, by norm_num, ?_⟩
+  refine ⟨1000, 20, 2, 0, 7, rfl, rfl, rfl, rfl, rfl,
+    by norm_num, by norm_num, by norm_num, le_rfl, by norm_num, ?_⟩
   intro S Ω hcov hsts c N R hN hR hΩ
   have hD := M.D_pos
   have hR0 : 0 < R := by linarith
@@ -35757,6 +35760,11 @@ private structure existsMacroCertificate_GroupingSeed (τ : Substitution P) wher
   Cerr : ℝ
   C : ℝ
   constants_pos : 0 < Csep ∧ 0 < Cloc ∧ 0 < Clen ∧ 0 ≤ Cerr ∧ 0 < C
+  Csep_eq : Csep = 1000
+  Cloc_eq : Cloc = 20
+  Clen_eq : Clen = 2
+  Cerr_eq : Cerr = 0
+  C_eq : C = 7
   R : ℝ
   R_separates : Csep * M.D ≤ R
   R_routes : 10000 * ((M.K0 : ℝ) + 3) * M.D ≤ R
@@ -35780,6 +35788,10 @@ private structure existsMacroCertificate_GroupingSeed (τ : Substitution P) wher
     (∀ j : Fin (4 * N), Metric.diam ((annular p).spokes.piece j).carrier ≤ C * R) ∧
     ∀ j : Fin (4 * N),
       ((annular p).spokes.piece j).disk.n ≤ M.K0 * ⌈4 * C ^ 2 * R ^ 2 / M.a⌉₊
+  annular_windows : ∀ p, ∃ e : Fin (4 * N) → Fin 4 → Set Pt,
+    (∀ j i, e j i ∈ privateOuterEdges (annular p) j) ∧
+      ∀ j i j' i', (j, i) ≠ (j', i') →
+        ∀ x ∈ e j i, ∀ y ∈ e j' i', R / 10 ≤ dist x y
   GS : GroupedSubstitution τ
   grouped_power : GS.k = k
   ccw : ∀ α, pdCCW (GS.G.P'.disk α)
@@ -37062,6 +37074,19 @@ private def emcgScaleDisk (D : PolygonalDisk) (θ : ℝ) (hθ : θ ≠ 0) : Poly
       Set.smul_set_singleton] at h
     exact h
 
+/-- the four middle windows of every annular piece contain private outer edges pairwise
+separated by R/10, by localization within 20D and R ≥ 10000(K₀+3)D. -/
+private lemma existsMacroCertificate_seed1_grouping_step1_windows (M : MeshConstants P)
+    {S : Set (PlacedTile P)} (c : Pt) (N : ℕ) (R : ℝ) (G : AnnularGrouping M S c N R)
+    (hN : 2 ≤ N) (hR : 10000 * ((M.K0 : ℝ) + 3) * M.D ≤ R)
+    (hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ))) :
+    ∃ e : Fin (4 * N) → Fin 4 → Set Pt,
+      (∀ j i, e j i ∈ privateOuterEdges G j) ∧
+        ∀ j i j' i', (j, i) ≠ (j', i') →
+          ∀ x ∈ e j i, ∀ y ∈ e j' i', R / 10 ≤ dist x y := by
+  sorry
+
 /-- Step 1--2 of `lem:certificate-exists`: choose the mesh constants, then `R,Q,N,k`, and
 form the finite labelled catalogue consisting of `L`, its `4N` annular pieces, and the remaining
 singletons, with scattering/regrouping equal to the `k`-th substitution power. -/
@@ -37069,7 +37094,8 @@ private lemma existsMacroCertificate_seed1_grouping (τ : Substitution P) (h : �
     Nonempty (existsMacroCertificate_GroupingSeed τ) := by
   classical
   let M : MeshConstants P := Classical.choice (MeshConstants.nonempty P)
-  obtain ⟨Csep, Cloc, Clen, Cerr, C, hCsep, hCloc, hClen, hCerr, hC, hquant⟩ :=
+  obtain ⟨Csep, Cloc, Clen, Cerr, C, hCsep_eq, hCloc_eq, hClen_eq, hCerr_eq, hC_eq,
+    hCsep, hCloc, hClen, hCerr, hC, hquant⟩ :=
     quantitativeAnnularGrouping M
   have hD := M.D_pos
   -- the scale `R`
@@ -37106,6 +37132,14 @@ private lemma existsMacroCertificate_seed1_grouping (τ : Substitution P) (h : �
     fun p => hquant ((τ.pow k hk).rule p) (emcgScaleDisk (P.disk p) (τ.θ ^ k) hθk)
       ((τ.pow k hk).support_eq p) (h k p) (c p) N R (by omega) hR1 (hmargin p)
   choose Ag hAg using hex
+  have hwin : ∀ p, ∃ e : Fin (4 * N) → Fin 4 → Set Pt,
+      (∀ j i, e j i ∈ privateOuterEdges (Ag p) j) ∧
+        ∀ j i j' i', (j, i) ≠ (j', i') →
+          ∀ x ∈ e j i, ∀ y ∈ e j' i', R / 10 ≤ dist x y := by
+    intro p
+    apply existsMacroCertificate_seed1_grouping_step1_windows M (c p) N R (Ag p)
+      (by omega) hR2
+    simpa [hCloc_eq] using (hAg p).1
   have hsep : ∀ p q, p ≠ q → Disjoint (square (c p) ((N : ℝ) * R / 2 + R + 3 * M.D))
       (square (c q) ((N : ℝ) * R / 2 + R + 3 * M.D)) := fun p q hpq =>
     (hcsep p q hpq).mono (emcg_square_mono _ (by linarith)) (emcg_square_mono _ (by linarith))
@@ -37117,6 +37151,11 @@ private lemma existsMacroCertificate_seed1_grouping (τ : Substitution P) (h : �
     Cerr := Cerr
     C := C
     constants_pos := ⟨hCsep, hCloc, hClen, hCerr, hC⟩
+    Csep_eq := hCsep_eq
+    Cloc_eq := hCloc_eq
+    Clen_eq := hClen_eq
+    Cerr_eq := hCerr_eq
+    C_eq := hC_eq
     R := R
     R_separates := hR1
     R_routes := hR2
@@ -37132,6 +37171,7 @@ private lemma existsMacroCertificate_seed1_grouping (τ : Substitution P) (h : �
     square_margin := hmargin
     annular := Ag
     annular_quantitative := hAg
+    annular_windows := hwin
     GS := emcgGS τ Ag h hk
     grouped_power := rfl
     ccw := by
@@ -37219,7 +37259,7 @@ private structure existsMacroCertificate_RoutingSeed (τ : Substitution P)
     (setup.central l (baseForm α)).side ((routing (baseForm α)).printIdx (parentSide α d))
   special_contact : ∀ o : C.SideOcc, C.special o →
     C.IsInner o ∧ (C.partner o).1 = C.central (C.owner o.1)
-  path_from_routing : ∀ α d (i : Fin 4),
+  path_from_routing : ∀ α d (i : Fin 4), C.marked α d →
     @List.destutter (Set Pt) (· ≠ ·) (Classical.decRel _)
       ((C.path α d i.castSucc).map C.occSide) =
       (routing (baseForm α)).pathSides (parentSide α d) i

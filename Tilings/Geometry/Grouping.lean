@@ -10748,6 +10748,399 @@ private lemma plSchoenflies_pg_exists_diagonal {l : List Pt} (hl : PgSP l)
     · rw [← hreg]
       exact plSchoenflies_pg_low_ear_diagonal hL hLlow hrest hin
 
+/-- The nonzero-winding side of a nondegenerate triangle is path-connected. -/
+private lemma plSchoenflies_pgInside_triangle_pathConnected {u v w : Pt}
+    (hD : jcr (u - v) (w - v) ≠ 0) :
+    IsPathConnected {x : Pt | x ∉ pgCv [u, v, w] ∧ pgW [u, v, w] x ≠ 0} := by
+  let I := {x : Pt | x ∉ pgCv [u, v, w] ∧ pgW [u, v, w] x ≠ 0}
+  let K := {x : Pt | 0 < pgS v u w x ∧ 0 < pgT v u w x ∧
+    pgS v u w x + pgT v u w x < 1}
+  have eS (x : Pt) : jcr (x - v) (w - v) = pgS v u w x * jcr (u - v) (w - v) := by
+    exact (div_mul_cancel₀ _ hD).symm
+  have eT (x : Pt) : jcr (u - v) (x - v) = pgT v u w x * jcr (u - v) (w - v) := by
+    exact (div_mul_cancel₀ _ hD).symm
+  have eR (x : Pt) : jcr (u - w) (x - w) =
+      -(1 - pgS v u w x - pgT v u w x) * jcr (u - v) (w - v) := by
+    calc
+      jcr (u - w) (x - w) = -jcr (u - v) (w - v) +
+          jcr (x - v) (w - v) + jcr (u - v) (x - v) := by
+        simp only [jcr, PiLp.sub_apply]
+        ring
+      _ = _ := by rw [eS x, eT x]; ring
+  have eO0 : jcr (v - u) (w - u) = -jcr (u - v) (w - v) := by
+    simp only [jcr, PiLp.sub_apply]
+    ring
+  have eO1 : jcr (w - v) (u - v) = -jcr (u - v) (w - v) := jcr_anti _ _
+  have eO2 : jcr (u - w) (v - w) = -jcr (u - v) (w - v) := by
+    simp only [jcr, PiLp.sub_apply]
+    ring
+  have hIK : I = K := by
+    apply Set.Subset.antisymm
+    · intro x hx
+      change x ∉ pgCv [u, v, w] ∧ pgW [u, v, w] x ≠ 0 at hx
+      have hS : 0 ≤ pgS v u w x := by
+        by_contra h
+        have hS' : pgS v u w x < 0 := lt_of_not_ge h
+        apply hx.2
+        rcases lt_or_gt_of_ne hD with hDn | hDp
+        · rw [← pgW_rotate [u, v, w] 1, ← pg_tri_rot1]
+          apply pgW_tri_zero
+          · rw [show jcr (w - v) (x - v) =
+                -(pgS v u w x * jcr (u - v) (w - v)) by rw [← eS x, jcr_anti]]
+            nlinarith
+          · rw [eO1]
+            linarith
+        · rw [← pgW_rotate [u, v, w] 1, ← pg_tri_rot1]
+          apply pgW_tri_zero'
+          · rw [show jcr (w - v) (x - v) =
+                -(pgS v u w x * jcr (u - v) (w - v)) by rw [← eS x, jcr_anti]]
+            nlinarith
+          · rw [eO1]
+            linarith
+      have hT : 0 ≤ pgT v u w x := by
+        by_contra h
+        have hT' : pgT v u w x < 0 := lt_of_not_ge h
+        apply hx.2
+        rcases lt_or_gt_of_ne hD with hDn | hDp
+        · apply pgW_tri_zero
+          · rw [show jcr (v - u) (x - u) =
+                -(pgT v u w x * jcr (u - v) (w - v)) by
+              rw [← eT x]
+              simp only [jcr]
+              simp
+              ring]
+            nlinarith
+          · rw [eO0]
+            linarith
+        · apply pgW_tri_zero'
+          · rw [show jcr (v - u) (x - u) =
+                -(pgT v u w x * jcr (u - v) (w - v)) by
+              rw [← eT x]
+              simp only [jcr]
+              simp
+              ring]
+            nlinarith
+          · rw [eO0]
+            linarith
+      have hR : 0 ≤ 1 - pgS v u w x - pgT v u w x := by
+        by_contra h
+        have hR' : 1 - pgS v u w x - pgT v u w x < 0 := lt_of_not_ge h
+        apply hx.2
+        rcases lt_or_gt_of_ne hD with hDn | hDp
+        · rw [← pgW_rotate [u, v, w] 2, ← pg_tri_rot2]
+          apply pgW_tri_zero
+          · rw [eR x]
+            nlinarith
+          · rw [eO2]
+            linarith
+        · rw [← pgW_rotate [u, v, w] 2, ← pg_tri_rot2]
+          apply pgW_tri_zero'
+          · rw [eR x]
+            nlinarith
+          · rw [eO2]
+            linarith
+      have hSpos : 0 < pgS v u w x := lt_of_le_of_ne hS (by
+        intro hS0
+        apply hx.1
+        exact mem_pgCv_tri.2 (Or.inr (Or.inl
+          (pg_mem_seg_vw hD hS0.symm hT (by linarith)))))
+      have hTpos : 0 < pgT v u w x := lt_of_le_of_ne hT (by
+        intro hT0
+        apply hx.1
+        exact mem_pgCv_tri.2 (Or.inl (by
+          rw [segment_symm]
+          exact pg_mem_seg_vu hD hT0.symm hS (by linarith))))
+      have hRpos : 0 < 1 - pgS v u w x - pgT v u w x :=
+        lt_of_le_of_ne hR (by
+        intro hR0
+        apply hx.1
+        exact mem_pgCv_tri.2 (Or.inr (Or.inr (by
+          rw [segment_symm]
+          exact pg_mem_seg_uw hD (by linarith) hS hT))))
+      exact ⟨hSpos, hTpos, by linarith⟩
+    · rintro x ⟨hS, hT, hST⟩
+      exact pg_tri_inside hD hS hT hST
+  change IsPathConnected I
+  rw [hIK]
+  apply (convex_pgCap v u w 1).isPathConnected
+  let q := v + (1 / 3 : ℝ) • (u - v) + (1 / 3 : ℝ) • (w - v)
+  refine ⟨q, ?_⟩
+  change 0 < pgS v u w q ∧ 0 < pgT v u w q ∧
+    pgS v u w q + pgT v u w q < 1
+  rw [show q = v + (1 / 3 : ℝ) • (u - v) + (1 / 3 : ℝ) • (w - v) by rfl,
+    pgS_diag hD, pgT_diag hD]
+  norm_num
+
+/-- Split a simple cyclic list at two listed vertices joined through its
+winding interior. -/
+private lemma plSchoenflies_pg_diagonal_lists {l : List Pt} (hl : PgSP l)
+    {a b : Pt} (ha : a ∈ l) (hb : b ∈ l) (hab : a ≠ b)
+    (hchord : openSegment ℝ a b ⊆ interior (pgReg l)) :
+    ∃ m1 m2 : List Pt, m1 ≠ [] ∧ m2 ≠ [] ∧
+      PgSP (a :: m1 ++ b :: m2) ∧
+      pgCv (a :: m1 ++ b :: m2) = pgCv l ∧
+      (∀ p ∉ pgCv l, pgW (a :: m1 ++ b :: m2) p = pgW l p) ∧
+      (a :: m1 ++ b :: m2).length = l.length := by
+  have hac : a ∈ pgCv l := pg_vertex_mem_cv ha
+  obtain ⟨la, hla, hlah, hlacv, hlaW, hla_old, hla_new⟩ :=
+    plSchoenflies_pg_make_first hl hac
+  have hb_la : b ∈ la := hla_old b hb
+  rw [List.head?_eq_some_iff] at hlah
+  obtain ⟨r, rfl⟩ := hlah
+  have hb_r : b ∈ r := by
+    simpa only [List.mem_cons, hab.symm, false_or] using hb_la
+  obtain ⟨m1, m2, hr⟩ := List.mem_iff_append.1 hb_r
+  subst r
+  have hlen : (a :: m1 ++ b :: m2).length = l.length := by
+    change (a :: (m1 ++ b :: m2)).length = l.length
+    rw [← List.toFinset_card_of_nodup hla.nodup,
+      ← List.toFinset_card_of_nodup hl.nodup]
+    congr 1
+    ext z
+    simp only [List.mem_toFinset]
+    constructor
+    · intro hz
+      rcases hla_new z hz with hz | rfl
+      · exact hz
+      · exact ha
+    · exact hla_old z
+  have hnotcurve : ∀ y ∈ openSegment ℝ a b, y ∉ pgCv l := by
+    intro y hy
+    exact ((plSchoenflies_pgReg_topology_core hl).1 ▸ hchord hy).1
+  have hmid : a + (1 / 2 : ℝ) • (b - a) ∈ openSegment ℝ a b := by
+    refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, by module⟩
+  have hm1 : m1 ≠ [] := by
+    intro hm1
+    subst m1
+    apply hnotcurve _ hmid
+    rw [← hlacv]
+    apply seg_subset_pgCv (e := (a, b))
+    · simpa using (show (a, b) ∈ pgEd (a :: b :: m2) by
+        rw [pgEd_cons2]
+        simp)
+    · exact openSegment_subset_segment ℝ a b hmid
+  have hm2 : m2 ≠ [] := by
+    intro hm2
+    subst m2
+    apply hnotcurve _ hmid
+    rw [← hlacv]
+    apply seg_subset_pgCv (e := (b, a))
+    · rw [show a :: (m1 ++ [b]) = (a :: m1) ++ [b] by simp,
+        pgEd_close a b]
+      simp
+    · rw [segment_symm]
+      exact openSegment_subset_segment ℝ a b hmid
+  exact ⟨m1, m2, hm1, hm2, hla, hlacv, hlaW, hlen⟩
+
+/-- The nonzero-winding side of every simple polygonal curve is
+path-connected. -/
+private lemma plSchoenflies_pgInside_pathConnected {l : List Pt} (hl : PgSP l) :
+    IsPathConnected {x : Pt | x ∉ pgCv l ∧ pgW l x ≠ 0} := by
+  induction hnlen : l.length using Nat.strong_induction_on generalizing l with
+  | h n ih =>
+      by_cases hn : l.length = 3
+      · obtain ⟨u, v, w, rfl⟩ := List.length_eq_three.mp hn
+        obtain ⟨z, hz, hlow⟩ := pg_exists_low [u, v, w] (by simp)
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
+        rcases hz with hz | hz | hz
+        · subst z
+          have hP' : PgSP [w, u, v] := by
+            rw [pg_tri_rot2]
+            exact hl.rotate 2
+          have hlow' : PgLow [w, u, v] u := by
+            rw [pg_tri_rot2]
+            exact hlow.rotate 2
+          have hD' := pg_low_noncollinear hP' hlow'
+          have hD : jcr (u - v) (w - v) ≠ 0 := by
+            rw [← show jcr (w - u) (v - u) = jcr (u - v) (w - v) by
+              simp only [jcr, PiLp.sub_apply]
+              ring]
+            exact hD'
+          exact plSchoenflies_pgInside_triangle_pathConnected hD
+        · subst z
+          exact plSchoenflies_pgInside_triangle_pathConnected
+            (pg_low_noncollinear hl hlow)
+        · subst z
+          have hP' : PgSP [v, w, u] := by
+            rw [pg_tri_rot1]
+            exact hl.rotate 1
+          have hlow' : PgLow [v, w, u] w := by
+            rw [pg_tri_rot1]
+            exact hlow.rotate 1
+          have hD' := pg_low_noncollinear hP' hlow'
+          have hD : jcr (u - v) (w - v) ≠ 0 := by
+            rw [← show jcr (v - w) (u - w) = jcr (u - v) (w - v) by
+              simp only [jcr, PiLp.sub_apply]
+              ring]
+            exact hD'
+          exact plSchoenflies_pgInside_triangle_pathConnected hD
+      · have hfour : 4 ≤ l.length := by
+          have := hl.three
+          omega
+        obtain ⟨a, ha, b, hb, hab, hchord⟩ :=
+          plSchoenflies_pg_exists_diagonal hl hfour
+        obtain ⟨m1, m2, hm1, hm2, hL, hcv, hW, hlen⟩ :=
+          plSchoenflies_pg_diagonal_lists hl ha hb hab hchord
+        let L := a :: m1 ++ b :: m2
+        let P1 := a :: m1 ++ [b]
+        let P2 := b :: m2 ++ [a]
+        change PgSP L at hL
+        have hreg : pgReg L = pgReg l := by
+          ext x
+          simp only [pgReg, mem_union, mem_setOf_eq]
+          by_cases hx : x ∈ pgCv l
+          · rw [hcv]
+            simp [hx]
+          · rw [hcv]
+            simp only [hx, false_or]
+            rw [hW x hx]
+        have hchordL : openSegment ℝ a b ⊆ interior (pgReg L) := by
+          rw [hreg]
+          exact hchord
+        have havoid : ∀ y ∈ openSegment ℝ a b, y ∉ pgCv L := by
+          intro y hy
+          exact ((plSchoenflies_pgReg_topology_core hL).1 ▸ hchordL hy).1
+        let q := a + (1 / 2 : ℝ) • (b - a)
+        have hqS : q ∈ openSegment ℝ a b := by
+          refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+          simp only [q]
+          module
+        have hqW : pgW L q ≠ 0 := by
+          exact ((plSchoenflies_pgReg_topology_core hL).1 ▸ hchordL hqS).2
+        obtain ⟨hP1, hP2, hR1, hR2⟩ :=
+          pg_split (a := a) (b := b) (m1 := m1) (m2 := m2)
+            hL hm1 hm2 havoid ⟨q, hqS, hqW⟩
+        change PgSP P1 at hP1
+        change PgSP P2 at hP2
+        change pgReg P1 ⊆ pgReg L at hR1
+        change pgReg P2 ⊆ pgReg L at hR2
+        have hm1len : 0 < m1.length := List.length_pos_iff_ne_nil.2 hm1
+        have hm2len : 0 < m2.length := List.length_pos_iff_ne_nil.2 hm2
+        have hP1len : P1.length < l.length := by
+          change (a :: (m1 ++ b :: m2)).length = l.length at hlen
+          change (a :: (m1 ++ [b])).length < l.length
+          simp at hlen ⊢
+          omega
+        have hP2len : P2.length < l.length := by
+          change (a :: (m1 ++ b :: m2)).length = l.length at hlen
+          change (b :: (m2 ++ [a])).length < l.length
+          simp at hlen ⊢
+          omega
+        have hp1 : IsPathConnected
+            {x : Pt | x ∉ pgCv P1 ∧ pgW P1 x ≠ 0} :=
+          ih P1.length (by rw [← hnlen]; exact hP1len) hP1 rfl
+        have hp2 : IsPathConnected
+            {x : Pt | x ∉ pgCv P2 ∧ pgW P2 x ≠ 0} :=
+          ih P2.length (by rw [← hnlen]; exact hP2len) hP2 rfl
+        let I := {x : Pt | x ∉ pgCv L ∧ pgW L x ≠ 0}
+        let I1 := {x : Pt | x ∉ pgCv P1 ∧ pgW P1 x ≠ 0}
+        let I2 := {x : Pt | x ∉ pgCv P2 ∧ pgW P2 x ≠ 0}
+        have hI1 : I1 ⊆ I := by
+          intro x hx
+          change x ∉ pgCv P1 ∧ pgW P1 x ≠ 0 at hx
+          change x ∈ {z : Pt | z ∉ pgCv L ∧ pgW L z ≠ 0}
+          rw [← (plSchoenflies_pgReg_topology_core hL).1]
+          apply interior_mono hR1
+          rw [(plSchoenflies_pgReg_topology_core hP1).1]
+          exact hx
+        have hI2 : I2 ⊆ I := by
+          intro x hx
+          change x ∉ pgCv P2 ∧ pgW P2 x ≠ 0 at hx
+          change x ∈ {z : Pt | z ∉ pgCv L ∧ pgW L z ≠ 0}
+          rw [← (plSchoenflies_pgReg_topology_core hL).1]
+          apply interior_mono hR2
+          rw [(plSchoenflies_pgReg_topology_core hP2).1]
+          exact hx
+        have hcv1 : pgCv P1 ⊆ pgCv L ∪ segment ℝ a b := by
+          dsimp only [P1, L]
+          rw [pgCv_close]
+          refine union_subset_union ?_ le_rfl
+          intro z hz
+          simp only [mem_iUnion, exists_prop] at hz
+          obtain ⟨e, he, hze⟩ := hz
+          apply seg_subset_pgCv (l := a :: m1 ++ b :: m2) (e := e) ?_ hze
+          rw [pgEd_split]
+          exact List.mem_append_left _ he
+        have hcv2 : pgCv P2 ⊆ pgCv L ∪ segment ℝ a b := by
+          dsimp only [P2, L]
+          rw [pgCv_close, segment_symm]
+          refine union_subset_union ?_ le_rfl
+          intro z hz
+          simp only [mem_iUnion, exists_prop] at hz
+          obtain ⟨e, he, hze⟩ := hz
+          apply seg_subset_pgCv (l := a :: m1 ++ b :: m2) (e := e) ?_ hze
+          rw [pgEd_split]
+          exact List.mem_append_right _ he
+        have hexhaust : I ⊆ I1 ∪ I2 ∪ openSegment ℝ a b := by
+          intro x hx
+          by_cases hxs : x ∈ openSegment ℝ a b
+          · exact Or.inr hxs
+          have hxseg : x ∉ segment ℝ a b := by
+            rw [← insert_endpoints_openSegment]
+            rintro (rfl | rfl | h)
+            · exact hx.1 (pg_vertex_mem_cv (by simp [L]))
+            · exact hx.1 (pg_vertex_mem_cv (by simp [L]))
+            · exact hxs h
+          have hx1 : x ∉ pgCv P1 := fun h => by
+            rcases hcv1 h with h | h
+            · exact hx.1 h
+            · exact hxseg h
+          have hx2 : x ∉ pgCv P2 := fun h => by
+            rcases hcv2 h with h | h
+            · exact hx.1 h
+            · exact hxseg h
+          have hsum := pgW_split m1 m2 hxseg
+          by_cases hw1 : pgW P1 x = 0
+          · refine Or.inl (Or.inr ⟨hx2, ?_⟩)
+            intro hw2
+            apply hx.2
+            change pgW L x = 0
+            rw [hsum, hw1, hw2, add_zero]
+          · exact Or.inl (Or.inl ⟨hx1, hw1⟩)
+        have hqI : q ∈ I := by
+          change q ∈ {z : Pt | z ∉ pgCv L ∧ pgW L z ≠ 0}
+          rw [← (plSchoenflies_pgReg_topology_core hL).1]
+          exact hchordL hqS
+        have hIo : IsOpen I := by
+          change IsOpen {x : Pt | x ∉ pgCv L ∧ pgW L x ≠ 0}
+          rw [← (plSchoenflies_pgReg_topology_core hL).1]
+          exact isOpen_interior
+        obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.1 hIo q hqI
+        have hseg1 : segment ℝ a b ⊆ pgCv P1 := by
+          dsimp only [P1]
+          rw [pgCv_close]
+          exact subset_union_right
+        have hseg2 : segment ℝ a b ⊆ pgCv P2 := by
+          dsimp only [P2]
+          rw [pgCv_close, segment_symm]
+          exact subset_union_right
+        obtain ⟨z1, -, hz1b, -, hz1c, -, hz1w, -⟩ :=
+          plSchoenflies_pg_boundary_two_sides hP1
+            (hseg1 (openSegment_subset_segment ℝ a b hqS)) hr
+        obtain ⟨z2, -, hz2b, -, hz2c, -, hz2w, -⟩ :=
+          plSchoenflies_pg_boundary_two_sides hP2
+            (hseg2 (openSegment_subset_segment ℝ a b hqS)) hr
+        have hz1I : z1 ∈ I1 := ⟨hz1c, hz1w⟩
+        have hz2I : z2 ∈ I2 := ⟨hz2c, hz2w⟩
+        have hbpc : IsPathConnected (Metric.ball q r) :=
+          (convex_ball q r).isPathConnected ⟨q, Metric.mem_ball_self hr⟩
+        have hspc : IsPathConnected (openSegment ℝ a b) :=
+          (convex_openSegment a b).isPathConnected ⟨q, hqS⟩
+        have hpathI : IsPathConnected I := by
+          refine ⟨q, hqI, fun y hy => ?_⟩
+          rcases hexhaust hy with (hy1 | hy2) | hys
+          · exact (hbpc.joinedIn q (Metric.mem_ball_self hr) z1 hz1b).mono hball |>.trans
+              ((hp1.joinedIn z1 hz1I y hy1).mono hI1)
+          · exact (hbpc.joinedIn q (Metric.mem_ball_self hr) z2 hz2b).mono hball |>.trans
+              ((hp2.joinedIn z2 hz2I y hy2).mono hI2)
+          · exact (hspc.joinedIn q hqS y hys).mono (fun z hz => by
+              change z ∈ {w : Pt | w ∉ pgCv L ∧ pgW L w ≠ 0}
+              rw [← (plSchoenflies_pgReg_topology_core hL).1]
+              exact hchordL hz)
+        rw [← (plSchoenflies_pgReg_topology_core hl).1, ← hreg,
+          (plSchoenflies_pgReg_topology_core hL).1]
+        exact hpathI
+
 /-- A polygonal disk with exactly three listed vertices is the closed triangle
 spanned by those vertices, and hence is convex. -/
 private lemma plSchoenflies_polygonalDisk_three_convex (B : PolygonalDisk)
@@ -12478,6 +12871,39 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorLists
     hLA, hLK, hcvLA, hcvLK, hP₁, hP₂, hclosed₁, hclosed₂, hopen₁, hopen₂,
     hR₁, hR₂, hRi₁, hRi₂⟩
 
+/-- The two cycles cut out by the opposite-ray construction are genuine
+polygonal disks, with their exact cyclic lists retained. -/
+private lemma plAnnulusRouting_polygonalAnnulus_sectorDisks
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier)
+    (F : Finset Pt) :
+    ∃ (D1 D2 : PolygonalDisk) (P1 P2 : List Pt),
+      PgSP P1 ∧ PgSP P2 ∧
+      D1.carrier = pgReg P1 ∧ D2.carrier = pgReg P2 ∧
+      pgL D1 = P1 ∧ pgL D2 = P2 ∧
+      D1.carrier ⊆ A.carrier \ interior C.carrier ∧
+      D2.carrier ⊆ A.carrier \ interior C.carrier ∧
+      interior D1.carrier ⊆ interior A.carrier \ C.carrier ∧
+      interior D2.carrier ⊆ interior A.carrier \ C.carrier := by
+  obtain ⟨a1, a2, c1, c2, α, β, g, d, -, -, -, -, -, -, -, -,
+      hP1, hP2, -, -, -, -, hR1, hR2, hRi1, hRi2⟩ :=
+    plAnnulusRouting_polygonalAnnulus_sectorLists A C hC F
+  let P1 := a1 :: (α ++ a2 :: c2 :: (g.reverse ++ [c1]))
+  let P2 := a2 :: (β ++ a1 :: c1 :: (d.reverse ++ [c2]))
+  change PgSP P1 at hP1
+  change PgSP P2 at hP2
+  change pgReg P1 ⊆ A.carrier \ interior C.carrier at hR1
+  change pgReg P2 ⊆ A.carrier \ interior C.carrier at hR2
+  change interior (pgReg P1) ⊆ interior A.carrier \ C.carrier at hRi1
+  change interior (pgReg P2) ⊆ interior A.carrier \ C.carrier at hRi2
+  obtain ⟨D1, hD1, -, hL1⟩ :=
+    plAnnulusRouting_pgReg_polygonalDisk_exactList A hP1
+      (hR1.trans diff_subset) (plSchoenflies_pgInside_pathConnected hP1)
+  obtain ⟨D2, hD2, -, hL2⟩ :=
+    plAnnulusRouting_pgReg_polygonalDisk_exactList A hP2
+      (hR2.trans diff_subset) (plSchoenflies_pgInside_pathConnected hP2)
+  exact ⟨D1, D2, P1, P2, hP1, hP2, hD1, hD2, hL1, hL2,
+    hD1 ▸ hR1, hD2 ▸ hR2, hD1 ▸ hRi1, hD2 ▸ hRi2⟩
+
 /-- Once a simple sector cycle has connected winding interior and contains
 the marked points in the required order, its winding region is the desired
 cut-open polygonal disk (with the identity embedding). -/
@@ -12519,6 +12945,38 @@ private lemma plAnnulusRouting_polygonalAnnulus_cutModel_of_sector
     exact hyP i
   · rw [← hBL]
     exact pgLoop_isLoopParam B
+
+/-- With no marked points, either polygonal sector is already a cut model. -/
+private lemma plAnnulusRouting_polygonalAnnulus_cutModel_empty
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier)
+    (x y : Fin 0 → Pt) :
+    ∃ (B : PolygonalDisk) (e : Pt → Pt) (p q : Fin 0 → Pt),
+      Continuous e ∧ Set.InjOn e B.carrier ∧
+      e '' B.carrier ⊆ A.carrier \ interior C.carrier ∧
+      e '' interior B.carrier ⊆ interior A.carrier \ C.carrier ∧
+      (∀ i, p i ∈ frontier B.carrier) ∧ (∀ i, q i ∈ frontier B.carrier) ∧
+      (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
+      ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
+        PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
+  obtain ⟨a1, a2, c1, c2, α, β, g, d, -, -, -, -, -, -, -, -,
+      hP, -, -, -, -, -, hR, -, -, -⟩ :=
+    plAnnulusRouting_polygonalAnnulus_sectorLists A C hC ∅
+  let P := a1 :: (α ++ a2 :: c2 :: (g.reverse ++ [c1]))
+  change PgSP P at hP
+  change pgReg P ⊆ A.carrier \ interior C.carrier at hR
+  apply plAnnulusRouting_polygonalAnnulus_cutModel_of_sector A C x y hP hR
+      (plSchoenflies_pgInside_pathConnected hP)
+  · intro i
+    exact i.elim0
+  · intro i
+    exact i.elim0
+  · refine ⟨fun i => i.elim0, ?_, ?_, ?_⟩
+    · intro i
+      exact i.elim0
+    · intro i
+      exact i.elim0
+    · intro i
+      exact i.elim0
 
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the polygonal annulus
 `A \ interior C` is a topological annulus.  It has a period-one model `Ψ`, injective on one fundamental domain, sending
@@ -13410,21 +13868,24 @@ private lemma plAnnulusRouting_polygonalAnnulus_cutModel
       (∀ i, e (p i) = x i) ∧ (∀ i, e (q i) = y i) ∧
       ∃ l : ℝ → Pt, IsLoopParam (frontier B.carrier) l ∧
         PointsInOrder l (Fin.addCases p (fun i => q (Fin.rev i))) := by
-  -- The boundary-membership and injectivity hypotheses are not needed by this construction.
-  have _unused : _ ∧ _ ∧ _ ∧ _ := ⟨hx, hy, hxi, hyi⟩
-  obtain ⟨Ψ0, hΨ0c, hper0, hinj0, hΨ00, hΨ01, hmap0, hsurj0, hmapi0⟩ :=
-    plAnnulusRouting_polygonalAnnulus_cutModel_step1_annulusModel A C hC
-  obtain ⟨Ψ, hΨc, hper, hinj, hΨ0, hΨ1, hmap, hsurj, hmapi⟩ :=
-    plAnnulusRouting_polygonalAnnulus_cutModel_step2_outerReparam A C γo hγo Ψ0 hΨ0c hper0 hinj0 hΨ00 hΨ01 hmap0
-      hsurj0 hmapi0
-  obtain ⟨φ, hφc, hφm, hφp, hφ⟩ :=
-    plAnnulusRouting_polygonalAnnulus_cutModel_step2_innerOrientation A C γo γi hγi hhom Ψ hΨc hper hinj hΨ0 hΨ1
-      hsurj
-  obtain ⟨Φ, hΦc, hΦper, hΦinj, hΦ0, hΦ1, hΦmap, hΦmapi⟩ :=
-    plAnnulusRouting_polygonalAnnulus_cutModel_step3_reparametrize A C γo γi Ψ hΨc hper hinj hΨ0 hmap hmapi φ hφc hφm
-      hφp hφ
-  exact plAnnulusRouting_polygonalAnnulus_cutModel_step6_cutOpen A C x y γo γi hxo hyi' Φ hΦc hΦper hΦinj hΦ0 hΦ1
-    hΦmap hΦmapi
+  cases k with
+  | zero => exact plAnnulusRouting_polygonalAnnulus_cutModel_empty A C hC x y
+  | succ k =>
+      -- The boundary-membership and injectivity hypotheses are not needed by this construction.
+      have _unused : _ ∧ _ ∧ _ ∧ _ := ⟨hx, hy, hxi, hyi⟩
+      obtain ⟨Ψ0, hΨ0c, hper0, hinj0, hΨ00, hΨ01, hmap0, hsurj0, hmapi0⟩ :=
+        plAnnulusRouting_polygonalAnnulus_cutModel_step1_annulusModel A C hC
+      obtain ⟨Ψ, hΨc, hper, hinj, hΨ0, hΨ1, hmap, hsurj, hmapi⟩ :=
+        plAnnulusRouting_polygonalAnnulus_cutModel_step2_outerReparam A C γo hγo Ψ0 hΨ0c hper0 hinj0 hΨ00 hΨ01 hmap0
+          hsurj0 hmapi0
+      obtain ⟨φ, hφc, hφm, hφp, hφ⟩ :=
+        plAnnulusRouting_polygonalAnnulus_cutModel_step2_innerOrientation A C γo γi hγi hhom Ψ hΨc hper hinj hΨ0 hΨ1
+          hsurj
+      obtain ⟨Φ, hΦc, hΦper, hΦinj, hΦ0, hΦ1, hΦmap, hΦmapi⟩ :=
+        plAnnulusRouting_polygonalAnnulus_cutModel_step3_reparametrize A C γo γi Ψ hΨc hper hinj hΨ0 hmap hmapi φ hφc hφm
+          hφp hφ
+      exact plAnnulusRouting_polygonalAnnulus_cutModel_step6_cutOpen A C x y γo γi hxo hyi' Φ hΦc hΦper hΦinj hΦ0 hΦ1
+        hΦmap hΦmapi
 
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_step1_topological_step1_cutModel`:
 construct the cut-open disk model, with boundary lifts of the prescribed endpoints. -/

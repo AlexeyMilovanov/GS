@@ -13080,6 +13080,297 @@ private lemma plAnnulusRouting_polygonalAnnulus_phasePath {U : Set Pt}
   · intro s hs
     exact hFU s hs _
 
+/-- A continuous real function with equal endpoint values cannot be injective on the
+half-open interval between those endpoints. -/
+private lemma plAnnulusRouting_polygonalAnnulus_nonInj_Ico_of_eq_endpoints
+    {F : ℝ → ℝ} (hF : Continuous F) {a b : ℝ} (hab : a < b)
+    (he : F a = F b) : ¬ InjOn F (Ico a b) := by
+  intro hinj
+  by_cases hc : ∀ c ∈ Ioo a b, F c = F a
+  · have h := hinj (show (a + b) / 2 ∈ Ico a b from ⟨by linarith, by linarith⟩)
+      (left_mem_Ico.2 hab) (hc _ ⟨by linarith, by linarith⟩)
+    linarith
+  push_neg at hc
+  obtain ⟨c, hc, hFc⟩ := hc
+  rcases lt_or_gt_of_ne hFc with h | h
+  · obtain ⟨x, hx, hxv⟩ := intermediate_value_Icc' hc.1.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F c) (F a) from ⟨by linarith, by linarith⟩)
+    obtain ⟨y, hy, hyv⟩ := intermediate_value_Icc hc.2.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F c) (F b) from ⟨by linarith, by linarith⟩)
+    have hxc : x ≠ c := fun h' => by rw [h'] at hxv; linarith
+    have hyc : y ≠ c := fun h' => by rw [h'] at hyv; linarith
+    have hyb : y ≠ b := fun h' => by rw [h', ← he] at hyv; linarith
+    have hxy := hinj ⟨hx.1, by linarith [hx.2, hc.2]⟩
+      ⟨by linarith [hy.1, hc.1], lt_of_le_of_ne hy.2 hyb⟩ (hxv.trans hyv.symm)
+    have hxc' : x < c := lt_of_le_of_ne hx.2 hxc
+    have hcy : c < y := lt_of_le_of_ne hy.1 (Ne.symm hyc)
+    linarith
+  · obtain ⟨x, hx, hxv⟩ := intermediate_value_Icc hc.1.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F a) (F c) from ⟨by linarith, by linarith⟩)
+    obtain ⟨y, hy, hyv⟩ := intermediate_value_Icc' hc.2.le hF.continuousOn
+      (show (F c + F a) / 2 ∈ Icc (F b) (F c) from ⟨by linarith, by linarith⟩)
+    have hxc : x ≠ c := fun h' => by rw [h'] at hxv; linarith
+    have hyc : y ≠ c := fun h' => by rw [h'] at hyv; linarith
+    have hyb : y ≠ b := fun h' => by rw [h', ← he] at hyv; linarith
+    have hxy := hinj ⟨hx.1, by linarith [hx.2, hc.2]⟩
+      ⟨by linarith [hy.1, hc.1], lt_of_le_of_ne hy.2 hyb⟩ (hxv.trans hyv.symm)
+    have hxc' : x < c := lt_of_le_of_ne hx.2 hxc
+    have hcy : c < y := lt_of_le_of_ne hy.1 (Ne.symm hyc)
+    linarith
+
+/-- Stereographic projection from `1` is injective on the unit circle with that
+point removed. -/
+private lemma plAnnulusRouting_polygonalAnnulus_stereo_injective
+    {z w : ℂ} (hz : ‖z‖ = 1) (hw : ‖w‖ = 1) (hz1 : z ≠ 1) (hw1 : w ≠ 1)
+    (h : z.im / (1 - z.re) = w.im / (1 - w.re)) : z = w := by
+  have hzsq : z.re ^ 2 + z.im ^ 2 = 1 := by
+    calc
+      z.re ^ 2 + z.im ^ 2 = Complex.normSq z := by
+        rw [Complex.normSq_apply]
+        simp only [pow_two]
+      _ = ‖z‖ ^ 2 := (Complex.sq_norm z).symm
+      _ = 1 := by rw [hz]; norm_num
+  have hwsq : w.re ^ 2 + w.im ^ 2 = 1 := by
+    calc
+      w.re ^ 2 + w.im ^ 2 = Complex.normSq w := by
+        rw [Complex.normSq_apply]
+        simp only [pow_two]
+      _ = ‖w‖ ^ 2 := (Complex.sq_norm w).symm
+      _ = 1 := by rw [hw]; norm_num
+  have hzle : z.re ≤ 1 := by
+    calc
+      z.re ≤ |z.re| := le_abs_self _
+      _ ≤ ‖z‖ := Complex.abs_re_le_norm z
+      _ = 1 := hz
+  have hwle : w.re ≤ 1 := by
+    calc
+      w.re ≤ |w.re| := le_abs_self _
+      _ ≤ ‖w‖ := Complex.abs_re_le_norm w
+      _ = 1 := hw
+  have hzre : z.re ≠ 1 := by
+    intro hre
+    have him : z.im = 0 := by nlinarith [hzsq]
+    apply hz1
+    apply Complex.ext <;> simp [hre, him]
+  have hwre : w.re ≠ 1 := by
+    intro hre
+    have him : w.im = 0 := by nlinarith [hwsq]
+    apply hw1
+    apply Complex.ext <;> simp [hre, him]
+  have hzlt : z.re < 1 := lt_of_le_of_ne hzle hzre
+  have hwlt : w.re < 1 := lt_of_le_of_ne hwle hwre
+  let r := z.im / (1 - z.re)
+  have hrz : r * (1 - z.re) = z.im := by
+    simp only [r]
+    exact div_mul_cancel₀ z.im (sub_ne_zero.mpr hzre.symm)
+  have hrw : r * (1 - w.re) = w.im := by
+    rw [show r = w.im / (1 - w.re) by exact h]
+    exact div_mul_cancel₀ w.im (sub_ne_zero.mpr hwre.symm)
+  have hzformula : (r ^ 2 + 1) * z.re = r ^ 2 - 1 := by
+    have hrzsq := congrArg (fun x : ℝ => x ^ 2) hrz
+    nlinarith [mul_pos (sub_pos.mpr hzlt) (sub_pos.mpr hzlt)]
+  have hwformula : (r ^ 2 + 1) * w.re = r ^ 2 - 1 := by
+    have hrwsq := congrArg (fun x : ℝ => x ^ 2) hrw
+    nlinarith [mul_pos (sub_pos.mpr hwlt) (sub_pos.mpr hwlt)]
+  have hre : z.re = w.re := by
+    have hrpos : 0 < r ^ 2 + 1 := by positivity
+    nlinarith
+  have him : z.im = w.im := by
+    rw [← hrz, ← hrw, hre]
+  exact Complex.ext hre him
+
+/-- A continuous simple period-one loop contained in the unit circle covers the
+whole circle. -/
+private lemma plAnnulusRouting_polygonalAnnulus_simple_circleLoop_surjective
+    (ψ : ℝ → Metric.closedBall (0 : ℂ) 1) (hψc : Continuous ψ)
+    (hψper : Function.Periodic ψ 1) (hψi : InjOn ψ (Ico 0 1))
+    (hψn : ∀ t, ‖(ψ t : ℂ)‖ = 1) :
+    Metric.sphere (0 : ℂ) 1 ⊆ (fun t => (ψ t : ℂ)) '' Ico 0 1 := by
+  intro u hu
+  by_contra hnot
+  have hun : ‖u‖ = 1 := mem_sphere_zero_iff_norm.1 hu
+  let q : ℝ → ℂ := fun t => (starRingEnd ℂ) u * (ψ t : ℂ)
+  have hqn : ∀ t, ‖q t‖ = 1 := fun t => by simp [q, hun, hψn]
+  have hq1 : ∀ t, q t ≠ 1 := by
+    intro t ht
+    have hu0 : u ≠ 0 := norm_ne_zero_iff.mp (by rw [hun]; exact one_ne_zero)
+    have he : (ψ t : ℂ) = u := by
+      apply mul_left_cancel₀ ((map_ne_zero (starRingEnd ℂ)).2 hu0)
+      change (starRingEnd ℂ) u * (ψ t : ℂ) =
+        (starRingEnd ℂ) u * u
+      rw [show (starRingEnd ℂ) u * (ψ t : ℂ) = 1 by exact ht]
+      calc
+        (1 : ℂ) = ((Complex.normSq u : ℝ) : ℂ) := by
+          rw [Complex.normSq_eq_norm_sq, hun]
+          norm_num
+        _ = (starRingEnd ℂ) u * u := Complex.normSq_eq_conj_mul_self
+    apply hnot
+    refine ⟨Int.fract t, ⟨Int.fract_nonneg t, Int.fract_lt_one t⟩, ?_⟩
+    change (ψ (Int.fract t) : ℂ) = u
+    rw [show ψ (Int.fract t) = ψ t by
+      rw [Int.fract]
+      simpa using hψper.sub_int_mul_eq (n := ⌊t⌋) (x := t)]
+    exact he
+  let F : ℝ → ℝ := fun t => (q t).im / (1 - (q t).re)
+  have hqc : Continuous q := by
+    exact continuous_const.mul (continuous_subtype_val.comp hψc)
+  have hden : ∀ t, 1 - (q t).re ≠ 0 := by
+    intro t ht
+    have hre : (q t).re = 1 := by linarith
+    have him : (q t).im = 0 := by
+      have hsq : (q t).re ^ 2 + (q t).im ^ 2 = 1 := by
+        calc
+          (q t).re ^ 2 + (q t).im ^ 2 = Complex.normSq (q t) := by
+            rw [Complex.normSq_apply]
+            simp only [pow_two]
+          _ = ‖q t‖ ^ 2 := (Complex.sq_norm (q t)).symm
+          _ = 1 := by rw [hqn]; norm_num
+      nlinarith
+    apply hq1 t
+    apply Complex.ext <;> simp [hre, him]
+  have hFc : Continuous F := by
+    exact (Complex.continuous_im.comp hqc).div
+      (continuous_const.sub (Complex.continuous_re.comp hqc)) hden
+  have hFper : Function.Periodic F 1 := by
+    intro t
+    simp only [F, q]
+    rw [hψper t]
+  have hFi : InjOn F (Ico 0 1) := by
+    intro s hs t ht hst
+    apply hψi hs ht
+    apply Subtype.ext
+    have hqeq : q s = q t :=
+      plAnnulusRouting_polygonalAnnulus_stereo_injective (hqn s) (hqn t)
+        (hq1 s) (hq1 t) hst
+    have hu0 : u ≠ 0 := norm_ne_zero_iff.mp (by rw [hun]; exact one_ne_zero)
+    exact mul_left_cancel₀ ((map_ne_zero (starRingEnd ℂ)).2 hu0) hqeq
+  exact plAnnulusRouting_polygonalAnnulus_nonInj_Ico_of_eq_endpoints hFc
+    zero_lt_one (by simpa using (hFper 0).symm) hFi
+
+/-- The prescribed-boundary polygonal disk model can be chosen onto the whole
+carrier.  This strengthens `plAnnulusRouting_polygonalDisk_closedBall_model` by
+retaining the surjectivity supplied by the ear-decomposition model. -/
+private lemma plAnnulusRouting_polygonalDisk_closedBall_model_onto
+    (B : PolygonalDisk) (l : ℝ → Pt)
+    (hl : IsLoopParam (frontier B.carrier) l) :
+    ∃ f : Metric.closedBall (0 : ℂ) 1 → Pt,
+      Continuous f ∧ Function.Injective f ∧ range f = B.carrier ∧
+      (∀ z, z.1 ∈ Metric.ball (0 : ℂ) 1 → f z ∈ interior B.carrier) ∧
+      ∀ t : ℝ, f ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = l t := by
+  obtain ⟨g, hgc, hgi, hgr, hgint⟩ :=
+    plAnnulusRouting_polygonalDisk_closedBall_model_step3_diskModel B
+  obtain ⟨ψ, hψc, hψn, hψl⟩ :=
+    plAnnulusRouting_polygonalDisk_closedBall_model_step4_boundaryLift
+      B g hgc hgi hgr hgint l hl
+  have hψper : Function.Periodic ψ 1 := fun t => hgi (by rw [hψl, hψl, hl.2.1])
+  have hψi : InjOn ψ (Ico 0 1) := by
+    intro s hs t ht hst
+    apply hl.2.2.1 hs ht
+    rw [← hψl, ← hψl, hst]
+  have hψsurj : Metric.sphere (0 : ℂ) 1 ⊆
+      (fun t => (ψ t : ℂ)) '' Ico 0 1 :=
+    plAnnulusRouting_polygonalAnnulus_simple_circleLoop_surjective
+      ψ hψc hψper hψi hψn
+  let e : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  let q : AddCircle (1 : ℝ) ≃ₜ Circle := AddCircle.homeomorphCircle one_ne_zero
+  let K : Set Pt := e '' Metric.sphere (0 : ℂ) 1
+  let γ : ℝ → Pt := fun t => e (ψ t : ℂ)
+  let δ : ℝ → Pt := fun t =>
+    e (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I))
+  have hγ : IsLoopParam K γ := by
+    refine ⟨e.continuous.comp (continuous_subtype_val.comp hψc), ?_, ?_, ?_⟩
+    · intro t
+      simp only [γ]
+      rw [hψper t]
+    · intro s hs t ht hst
+      apply hψi hs ht
+      apply Subtype.ext
+      exact e.injective hst
+    · apply Set.Subset.antisymm
+      · rintro y ⟨t, -, rfl⟩
+        exact ⟨(ψ t : ℂ), mem_sphere_zero_iff_norm.2 (hψn t), rfl⟩
+      · rintro y ⟨z, hz, rfl⟩
+        obtain ⟨t, ht, htz⟩ := hψsurj hz
+        exact ⟨t, ht, congrArg e htz⟩
+  have hδ : IsLoopParam K δ := by
+    have h := plSchoenflies_homeomorph_circle_isLoopParam e.toHomeomorph K rfl
+    simpa only [δ] using h
+  obtain ⟨φ, hφ⟩ := plSchoenflies_loopParam_circleHomeomorph hγ hδ
+  let χ : Circle ≃ₜ Circle := q.symm.trans (φ.trans q)
+  let r : ℂ ≃ₜ ℂ := plSchoenflies_radialHomeomorph χ
+  have hrnorm (z : ℂ) : ‖r z‖ = ‖z‖ :=
+    plSchoenflies_radialExtension_norm χ z
+  have hrclosed (z : Metric.closedBall (0 : ℂ) 1) :
+      r z.1 ∈ Metric.closedBall (0 : ℂ) 1 := by
+    rw [Metric.mem_closedBall, dist_zero_right, hrnorm]
+    have hz := z.2
+    rwa [Metric.mem_closedBall, dist_zero_right] at hz
+  let rs : Metric.closedBall (0 : ℂ) 1 → Metric.closedBall (0 : ℂ) 1 :=
+    fun z => ⟨r z.1, hrclosed z⟩
+  have hrnorm_symm (z : ℂ) : ‖r.symm z‖ = ‖z‖ := by
+    rw [← hrnorm (r.symm z), r.apply_symm_apply]
+  have hrss : Function.Surjective rs := by
+    intro z
+    have hz : r.symm z.1 ∈ Metric.closedBall (0 : ℂ) 1 := by
+      rw [Metric.mem_closedBall, dist_zero_right, hrnorm_symm]
+      have hz := z.2
+      rwa [Metric.mem_closedBall, dist_zero_right] at hz
+    refine ⟨⟨r.symm z.1, hz⟩, ?_⟩
+    apply Subtype.ext
+    exact r.apply_symm_apply z.1
+  let f : Metric.closedBall (0 : ℂ) 1 → Pt := fun z => g (rs z)
+  have hfrange : range f = B.carrier := by
+    rw [← hgr]
+    ext y
+    constructor
+    · rintro ⟨z, rfl⟩
+      exact ⟨rs z, rfl⟩
+    · rintro ⟨z, rfl⟩
+      obtain ⟨w, rfl⟩ := hrss z
+      exact ⟨w, rfl⟩
+  have hq (t : ℝ) :
+      ((q (t : AddCircle (1 : ℝ)) : Circle) : ℂ) =
+        Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) := by
+    rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk,
+      Circle.coe_exp]
+    congr 2
+    norm_num
+  have hδq (u : AddCircle (1 : ℝ)) :
+      hδ.2.1.lift u = e ((q u : Circle) : ℂ) := by
+    induction u using QuotientAddGroup.induction_on with
+    | H t =>
+      change δ t = e ((q (t : AddCircle (1 : ℝ)) : Circle) : ℂ)
+      simp only [δ]
+      rw [hq]
+  have hrq (t : ℝ) :
+      r (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) =
+        (ψ t : ℂ) := by
+    rw [← hq t]
+    change plSchoenflies_radialExtension χ
+      (q (t : AddCircle (1 : ℝ)) : Circle) = (ψ t : ℂ)
+    rw [plSchoenflies_radialExtension_circle]
+    apply e.injective
+    simp only [χ, Homeomorph.trans_apply, Homeomorph.symm_apply_apply]
+    rw [← hδq, hφ]
+  refine ⟨f, hgc.comp (r.continuous.comp continuous_subtype_val |>.subtype_mk _),
+    ?_, hfrange, ?_, ?_⟩
+  · intro z w hzw
+    apply Subtype.ext
+    apply r.injective
+    exact congrArg Subtype.val (hgi hzw)
+  · intro z hz
+    apply hgint
+    rw [Metric.mem_ball, dist_zero_right, hrnorm]
+    simpa [Metric.mem_ball, dist_zero_right] using hz
+  · intro t
+    change g (rs _) = l t
+    have hrs : rs ⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I),
+        plAnnulusRouting_unitCircle_mem_closedBall t⟩ = ψ t := by
+      apply Subtype.ext
+      exact hrq t
+    rw [hrs, hψl]
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the polygonal annulus
 `A \ interior C` is a topological annulus.  It has a period-one model `Ψ`, injective on one fundamental domain, sending
 `{0} × ℝ` and `{1} × ℝ` onto the outer and inner boundaries (as loop parametrizations), the closed strip onto the

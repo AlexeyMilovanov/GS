@@ -8575,7 +8575,7 @@ point of the cut.  This is the first-exit part of the two-components argument. -
 private lemma plSchoenflies_chord_component_closure_meets_openSegment
     (B : PolygonalDisk) {a b x : Pt}
     (ha : a ∈ frontier B.carrier) (hb : b ∈ frontier B.carrier)
-    (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier)
+    (_hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier)
     (hx : x ∈ interior B.carrier \ segment ℝ a b) :
     (closure (connectedComponentIn (interior B.carrier \ segment ℝ a b) x) ∩
       openSegment ℝ a b).Nonempty := by
@@ -8625,7 +8625,7 @@ fixed small ball about the midpoint. -/
 private lemma plSchoenflies_chord_component_eq_midpoint_side
     (B : PolygonalDisk) {a b x y pplus pminus : Pt}
     (hab : a ≠ b) (hchord : openSegment ℝ a b ⊆ interior B.carrier)
-    (hx : x ∈ interior B.carrier \ segment ℝ a b)
+    (_hx : x ∈ interior B.carrier \ segment ℝ a b)
     (hyC : y ∈ closure (connectedComponentIn
       (interior B.carrier \ segment ℝ a b) x))
     (hy : y ∈ openSegment ℝ a b)
@@ -8716,11 +8716,11 @@ private lemma plSchoenflies_chord_component_eq_midpoint_side
       rw [hab', jcr_add_right, jcr_smul_right, jcr_smul_right]
     rw [he, mul_add]
     rcases eq_or_lt_of_le hα with rfl | hα'
-    · simp only [zero_smul, zero_mul, zero_add] at hαβ ⊢
+    · simp only [zero_mul, zero_add] at hαβ ⊢
       subst β
       simpa using hv
     rcases eq_or_lt_of_le hβ with rfl | hβ'
-    · simp only [zero_smul, zero_mul, add_zero] at hαβ ⊢
+    · simp only [zero_mul, add_zero] at hαβ ⊢
       subst α
       simpa using hu
     · nlinarith [mul_pos hα' hu, mul_pos hβ' hv]
@@ -9244,7 +9244,7 @@ private lemma plSchoenflies_pg_boundary_two_sides {l : List Pt} (hl : PgSP l)
       ring
 
 /-- The closed winding region of a simple polygon is closed. -/
-private lemma plSchoenflies_pgReg_closed {l : List Pt} (hl : PgSP l) :
+private lemma plSchoenflies_pgReg_closed {l : List Pt} (_hl : PgSP l) :
     IsClosed (pgReg l) := by
   rw [← isOpen_compl_iff, Metric.isOpen_iff]
   intro x hx
@@ -9576,7 +9576,7 @@ private lemma plSchoenflies_listed_chord_vertex_lists
       (B.vertex i :: m1 ++ B.vertex j :: m2).length = B.n := by
   let l := pgL B
   let k := i.val
-  have hk : k < l.length := by simpa [l, k, pgL_length] using i.isLt
+  have hk : k < l.length := by simp [l, k, pgL_length]
   obtain ⟨rest, hrot⟩ := pg_rot_cons hk (pgSP_pgL B).three
   let lr := l.rotate k
   have hfirst : lr.head? = some (B.vertex i) := by
@@ -11094,7 +11094,6 @@ private lemma plSchoenflies_pgInside_pathConnected {l : List Pt} (hl : PgSP l) :
           · refine Or.inl (Or.inr ⟨hx2, ?_⟩)
             intro hw2
             apply hx.2
-            change pgW L x = 0
             rw [hsum, hw1, hw2, add_zero]
           · exact Or.inl (Or.inl ⟨hx1, hw1⟩)
         have hqI : q ∈ I := by
@@ -11309,7 +11308,7 @@ private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposi
 interior diagonal splits the polygonal disk into two polygonal disks with fewer listed vertices, whose union is the
 carrier and which meet exactly along the diagonal. -/
 private lemma plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step2_cutAlongDiagonal (B : PolygonalDisk)
-    (i j : Fin B.n) (hij : i ≠ j) (hji : j ≠ finRotate B.n i) (hij' : i ≠ finRotate B.n j)
+    (i j : Fin B.n) (hij : i ≠ j) (_hji : j ≠ finRotate B.n i) (_hij' : i ≠ finRotate B.n j)
     (hdiag : openSegment ℝ (B.vertex i) (B.vertex j) ⊆ interior B.carrier) :
     ∃ B₁ B₂ : PolygonalDisk, B₁.n < B.n ∧ B₂.n < B.n ∧ B.carrier = B₁.carrier ∪ B₂.carrier ∧
       B₁.carrier ∩ B₂.carrier = segment ℝ (B.vertex i) (B.vertex j) := by
@@ -15934,7 +15933,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_crosscut_boundary
   · apply Set.Subset.antisymm
     · rintro z ⟨hzα, hzA⟩
       by_cases hzs : z = α.start
-      · simpa [hzs]
+      · simp [hzs]
       by_cases hzt : z = α.stop
       · subst z
         exact False.elim ((hfront_disjoint A hzA)
@@ -15948,7 +15947,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_crosscut_boundary
   · apply Set.Subset.antisymm
     · rintro z ⟨hzα, hzC⟩
       by_cases hzt : z = α.stop
-      · simpa [hzt]
+      · simp [hzt]
       by_cases hzs : z = α.start
       · subst z
         exact False.elim ((hfront_disjoint A hstart)
@@ -34315,7 +34314,7 @@ uniform central-child clearance gives both an intermediate ball contained in the
 and a uniform positive separation of that ball from every outer port. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R1_ballPortClearance
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ} :
-    ∃ κ > (0 : ℝ), ∃ cP > (0 : ℝ), ∀ (l : ℕ) (hl : 0 < l)
+    ∃ κ > (0 : ℝ), ∃ cP > (0 : ℝ), ∀ (l : ℕ) (_hl : 0 < l)
       (α : Rs.GS.G.P'.Form) (ports : existsRoutingAfterPower_PortData τ M Rs l α cp),
       Metric.closedBall (Rs.centre l α) (κ * τ.θ ^ (Rs.GS.k * l)) ⊆
           interior (Rs.retained l α).region ∧
@@ -34498,7 +34497,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_config_mem
       exact ⟨by simpa using h3D, by simpa using h3D⟩
     have hqc : entries.point a i ≠ c := by
       intro heq
-      exact entries.point_out a a.property i ⟨c, hcBase, 0, hzero, by simpa [heq]⟩
+      exact entries.point_out a a.property i ⟨c, hcBase, 0, hzero, by simp [heq]⟩
     have hnorm : ‖entries.point a i - c‖ ≠ 0 := norm_ne_zero_iff.mpr (sub_ne_zero.mpr hqc)
     simp [norm_smul, hnorm]
   have hmem : (s⁻¹ • c,
@@ -34805,7 +34804,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_portCorner_closed
 /-- R2's admissible compactum.  Taking the closure records exactly the limits needed by the
 finite-subcover argument; quantitative closed inequalities can subsequently be passed to it. -/
 private def existsRoutingAfterPower_step4_routes_step6_R2_Kadm
-    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp _rho : ℝ)
     (α : Rs.GS.G.P'.Form) :
     Set (existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) :=
   ((existsRoutingAfterPower_step4_routes_step6_R2_Kfull τ M Rs α ∩
@@ -35038,7 +35037,7 @@ private def existsRoutingAfterPower_step4_routes_step6_R4_perturb
 /-- A scalar Lipschitz cutoff times a fixed displacement is Lipschitz with constant
 `L * ‖v‖`. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_error_lipschitz
-    (ψ : Pt → ℝ) (v : Pt) {L : ℝ} (hL : 0 ≤ L)
+    (ψ : Pt → ℝ) (v : Pt) {L : ℝ} (_hL : 0 ≤ L)
     (hψ : ∀ x y, |ψ x - ψ y| ≤ L * dist x y) :
     ∀ x y, dist (ψ x • v) (ψ y • v) ≤ L * ‖v‖ * dist x y := by
   intro x y
@@ -35214,7 +35213,7 @@ private def existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff
   max 0 (min (2 - dist z x / κ) 1)
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_bounds
-    (z : Pt) {κ : ℝ} (hκ : 0 < κ) (x : Pt) :
+    (z : Pt) {κ : ℝ} (_hκ : 0 < κ) (x : Pt) :
     0 ≤ existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ x ∧
       existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ x ≤ 1 := by
   constructor
@@ -35383,7 +35382,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_bounds
     linarith
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_eq_one
-    (p q : Pt) {w : ℝ} (hw : 0 < w) {x : Pt} (hx : x ∈ segment ℝ p q) :
+    (p q : Pt) {w : ℝ} (_hw : 0 < w) {x : Pt} (hx : x ∈ segment ℝ p q) :
     existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w x = 1 := by
   rw [existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff,
     Metric.infDist_zero_of_mem hx]
@@ -35532,7 +35531,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialEnd_dist
           dist (c' + r • u) (c' + r • u') := dist_triangle _ _ _
     _ = dist c c' + |r| * dist u u' := by
       congr 1
-      · simpa [add_comm] using dist_add_left (r • u) c c'
+      · simp
       · rw [dist_add_left, dist_eq_norm, ← smul_sub, norm_smul, Real.norm_eq_abs,
           ← dist_eq_norm]
 
@@ -35893,7 +35892,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_transportRoutes_half
   have hpoly := existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize_radius
     A C hC (fun i => e (γ i 0)) (fun i => e (γ i 1)) γ'
       (show 0 < δ / 8 by positivity) hcont' (fun _ => rfl) (fun _ => rfl) hin hsimp' hsep'
-  convert hpoly using 1 <;> ring
+  convert hpoly using 1; ring
 
 /-- R4d assembled for route families.  A common lower-`1/2` homeomorphism leaves clearance
 `δ / 2`; re-polygonalizing in quarter-clearance tubes leaves the proved final bound `δ / 4`. -/
@@ -35926,7 +35925,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_transportRoutes
   have hpoly := existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize_clearance
     A C hC (fun i => e (γ i 0)) (fun i => e (γ i 1)) γ' (show 0 < δ / 2 by positivity)
     hcont' (fun _ => rfl) (fun _ => rfl) hin hsimp' hsep'
-  convert hpoly using 1 <;> norm_num [div_div]
+  convert hpoly using 1; norm_num [div_div]
 
 /-- R4e's quantitative clearance neighborhood.  If endpoint/configuration movement controls the
 pointwise transport by the configuration distance, the ball of radius `δ / 4` preserves clearance
@@ -36442,7 +36441,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R6_scaleGood
         have h3D : 0 ≤ 3 * M.D := by nlinarith [M.D_pos]
         exact entries.point_out b hb (perm b j)
           ⟨Rs.centre l α, ⟨by simp [hbase], by simp [hbase]⟩, 0,
-            ⟨by simpa using h3D, by simpa using h3D⟩, by simpa [heq]⟩
+            ⟨by simpa using h3D, by simpa using h3D⟩, by simp [heq]⟩
       have hyfull := existsRoutingAfterPower_step4_routes_step6_R4_collar_subset_radial
         (mul_pos hκ hs) hqc (hentry b hb (perm b j)) hy
       have hradScale :
@@ -36475,8 +36474,8 @@ form, minimize over the finite catalogue together with R1's ball-to-port clearan
 normalized routes. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R6_assemble
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp κ cP : ℝ}
-    (hcp : 0 < cp) (hκ : 0 < κ) (hcP : 0 < cP)
-    (hR1 : ∀ (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+    (_hcp : 0 < cp) (hκ : 0 < κ) (hcP : 0 < cP)
+    (hR1 : ∀ (l : ℕ) (_hl : 0 < l) (α : Rs.GS.G.P'.Form)
       (ports : existsRoutingAfterPower_PortData τ M Rs l α cp),
       Metric.closedBall (Rs.centre l α) (κ * τ.θ ^ (Rs.GS.k * l)) ⊆
           interior (Rs.retained l α).region ∧
@@ -39619,6 +39618,362 @@ private def emcgScaleDisk (D : PolygonalDisk) (θ : ℝ) (hθ : θ ≠ 0) : Poly
       Set.smul_set_singleton] at h
     exact h
 
+private lemma emcg_window_far (v w z q : Pt) (μ A R : ℝ) (hA : 0 < A) (hμ : 0 ≤ μ)
+    (hR : 0 ≤ R) (hv : v 0 ^ 2 + v 1 ^ 2 ≤ 2 * A ^ 2)
+    (hw : w 0 ^ 2 + w 1 ^ 2 ≤ 2 * A ^ 2)
+    (h1 : 3 * A * R / 16 ≤ jcr v z) (h2 : 3 * A * R / 16 ≤ jcr z w)
+    (hq : jcr v q ≤ 0 ∨ jcr q w ≤ 0) :
+    R ^ 2 / 64 ≤ (z 0 - μ * q 0) ^ 2 + (z 1 - μ * q 1) ^ 2 := by
+  unfold jcr at *
+  set d0 := z 0 - μ * q 0
+  set d1 := z 1 - μ * q 1
+  have key : ∀ a b : ℝ, a ^ 2 + b ^ 2 ≤ 2 * A ^ 2 →
+      3 * A * R / 16 ≤ a * d1 - b * d0 → R ^ 2 / 64 ≤ d0 ^ 2 + d1 ^ 2 := by
+    intro a b hab hc
+    have hl : (a * d1 - b * d0) ^ 2 ≤ (a ^ 2 + b ^ 2) * (d0 ^ 2 + d1 ^ 2) := by
+      nlinarith [sq_nonneg (a * d0 + b * d1)]
+    have hpos : 0 ≤ 3 * A * R / 16 := by positivity
+    have h3 : (3 * A * R / 16) ^ 2 ≤ 2 * A ^ 2 * (d0 ^ 2 + d1 ^ 2) := by
+      calc
+        (3 * A * R / 16) ^ 2 ≤ (a * d1 - b * d0) ^ 2 := pow_le_pow_left₀ hpos hc 2
+        _ ≤ _ := hl
+        _ ≤ _ := mul_le_mul_of_nonneg_right hab (by positivity)
+    have hA2 : 0 < A ^ 2 := by positivity
+    nlinarith
+  rcases hq with hq | hq
+  · exact key (v 0) (v 1) hv (by simp only [d0, d1]; nlinarith)
+  · exact key (-w 0) (-w 1) (by nlinarith) (by simp only [d0, d1]; nlinarith)
+
+private lemma emcg_window_farFromOthers {c : Pt} {N : ℕ} {R D : ℝ} (hN : 2 ≤ N)
+    (hD : 0 < D) (hR : 1000 * D ≤ R) (j : Fin (4 * N)) (k : ℕ) (hk : k < 4)
+    (hu1 : 2 * k * ((N : ℝ) * R / 2) ≤ ((j : ℕ) : ℝ) * R)
+    (hu2 : ((j : ℕ) : ℝ) * R + R ≤ 2 * (k + 1) * ((N : ℝ) * R / 2))
+    (p : Pt)
+    (h1 : 3 * ((N : ℝ) * R / 2) * R / 16 ≤
+      jcr (squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R)) (p - c))
+    (h2 : 3 * ((N : ℝ) * R / 2) * R / 16 ≤
+      jcr (p - c) (squarePerimeterPoint ((N : ℝ) * R / 2) (((j : ℕ) : ℝ) * R + R)))
+    (t : Fin (4 * N)) (ht : t ≠ j) (q : Pt)
+    (hq : q ∈ idealTrapezoid c N R D (t : ℕ)) : R / 8 ≤ dist p q := by
+  obtain ⟨τ, ⟨hτ1, hτ2⟩, μ, ⟨hμ1, -⟩, rfl⟩ := hq
+  have hRpos : 0 < R := by linarith
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have htN : ((t : ℕ) : ℝ) + 1 ≤ 4 * N := by
+    exact_mod_cast (show (t : ℕ) + 1 ≤ 4 * N by omega)
+  have hjN : ((j : ℕ) : ℝ) + 1 ≤ 4 * N := by
+    exact_mod_cast (show (j : ℕ) + 1 ≤ 4 * N by omega)
+  have hτ0 : 0 ≤ τ := le_trans (by positivity) hτ1
+  have hτ8 : τ ≤ 8 * ((N : ℝ) * R / 2) := by nlinarith
+  have hτ : τ ≤ ((j : ℕ) : ℝ) * R ∨ ((j : ℕ) : ℝ) * R + R ≤ τ := by
+    have hne : (t : ℕ) ≠ (j : ℕ) := fun h => ht (Fin.ext h)
+    rcases Nat.lt_or_gt_of_ne hne with h | h
+    · left
+      have : ((t : ℕ) : ℝ) + 1 ≤ (j : ℕ) := by exact_mod_cast h
+      nlinarith
+    · right
+      have : ((j : ℕ) : ℝ) + 1 ≤ (t : ℕ) := by exact_mod_cast h
+      nlinarith
+  have hsign := step5_sign _ _ _ _ k hk hA hRpos hu1 hu2 hτ0 hτ8 hτ
+  have hv := step5_spp_bound (A := (N : ℝ) * R / 2) (t := ((j : ℕ) : ℝ) * R)
+    (by positivity) (by nlinarith)
+  have hw := step5_spp_bound (A := (N : ℝ) * R / 2)
+    (t := ((j : ℕ) : ℝ) * R + R) (by positivity) (by nlinarith)
+  have key := emcg_window_far _ _ (p - c) _ μ _ R hA (by linarith) hRpos.le hv hw h1 h2 hsign
+  have hd : dist p (c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) τ) ^ 2 =
+      ((p - c) 0 - μ * squarePerimeterPoint ((N : ℝ) * R / 2) τ 0) ^ 2 +
+        ((p - c) 1 - μ * squarePerimeterPoint ((N : ℝ) * R / 2) τ 1) ^ 2 := by
+    rw [EuclideanSpace.dist_eq, Real.sq_sqrt (by positivity), Fin.sum_univ_two]
+    simp [Real.dist_eq, sq_abs]
+    ring
+  have hdn := dist_nonneg (x := p)
+    (y := c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) τ)
+  nlinarith [key]
+
+private lemma emcg_window_core {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt}
+    {N : ℕ} {R : ℝ} (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S c N R)
+    (hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ)))
+    (j : Fin (4 * N)) (f : Pt → ℝ) (s : ℝ) (γ : ℝ → Pt) (hγ : Continuous γ)
+    {x0 x1 : ℝ} (hx : x0 ≤ x1) (h0 : γ x0 ∈ G.H.carrier) (h1 : γ x1 ∉ G.H.carrier)
+    (hfs : ∀ x ∈ Icc x0 x1, f (γ x) = s) (hL : ∀ x ∈ Icc x0 x1, γ x ∉ G.L.carrier)
+    (hfar : ∀ x ∈ Icc x0 x1, ∀ t : Fin (4 * N), t ≠ j →
+      ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), R / 8 ≤ dist (γ x) q) :
+    ∃ e ∈ privateOuterEdges G j, ∃ p ∈ e, f p = s ∧
+      ∀ t : Fin (4 * N), t ≠ j →
+        ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), R / 8 ≤ dist p q := by
+  obtain ⟨x, hxI, hxf⟩ := step5_frontier_hit hγ hx h0 h1
+  have hfr : frontier G.H.carrier = ⋃ i, G.H.disk.side i := G.H.disk.frontier_eq
+  have hxf' := hxf
+  rw [hfr, mem_iUnion] at hxf'
+  obtain ⟨i, hi⟩ := hxf'
+  obtain ⟨A, hAH, iA, hA⟩ := G.H.side_whole i
+  obtain ⟨F, hFS, hFH, ⟨iF, hF⟩, -⟩ := G.H_anchor i
+  have hpA : γ x ∈ A.carrier := tile_side_subset A iA (hA ▸ hi)
+  have hpF : γ x ∈ F.carrier := tile_side_subset F iF (hF ▸ hi)
+  have hfarE : ∀ t : Fin (4 * N), t ≠ j → ∀ y, dist y (γ x) ≤ M.D →
+      y ∉ (G.spokes.piece t).carrier := by
+    intro t ht y hy hyt
+    have hlocy := hloc t hyt
+    rw [Metric.mem_cthickening_iff] at hlocy
+    have h2 : ENNReal.ofReal (22 * M.D) ≤
+        Metric.infEDist (γ x) (idealTrapezoid c N R M.D (t : ℕ)) := by
+      rw [Metric.le_infEDist]
+      intro q hq
+      rw [edist_dist]
+      apply ENNReal.ofReal_le_ofReal
+      exact (show 22 * M.D ≤ R / 8 by linarith [M.D_pos]).trans (hfar x hxI t ht q hq)
+    have h3 := Metric.infEDist_le_infEDist_add_edist (x := γ x) (y := y)
+      (s := idealTrapezoid c N R M.D (t : ℕ))
+    rw [edist_dist, dist_comm] at h3
+    have h4 : ENNReal.ofReal (22 * M.D) ≤
+        ENNReal.ofReal (20 * M.D) + ENNReal.ofReal M.D :=
+      h2.trans (h3.trans (add_le_add hlocy (ENNReal.ofReal_le_ofReal hy)))
+    rw [← ENNReal.ofReal_add (by linarith [M.D_pos]) M.D_pos.le] at h4
+    have := (ENNReal.ofReal_le_ofReal_iff (by linarith [M.D_pos])).1 h4
+    linarith [M.D_pos]
+  have hAj : A ∈ (G.spokes.piece j).faces := by
+    have hAL : A ∉ G.L.faces := by
+      intro hAL
+      apply hL x hxI
+      show γ x ∈ G.L.disk.carrier
+      rw [G.L.carrier_eq]
+      exact carrier_subset_support hAL hpA
+    obtain ⟨t, ht, -⟩ := (G.spokes.piece_partition A (G.H.faces_sub hAH)).1 ⟨hAH, hAL⟩
+    by_cases htj : t = j
+    · exact htj ▸ ht
+    · exfalso
+      apply hfarE t htj (γ x) (by simp [M.D_pos.le])
+      show γ x ∈ (G.spokes.piece t).disk.carrier
+      rw [(G.spokes.piece t).carrier_eq]
+      exact carrier_subset_support ht hpA
+  refine ⟨G.H.disk.side i, ⟨⟨A, hAj, iA, hA⟩, ?_, F, hFS, hFH, ⟨iF, hF⟩, ?_⟩,
+    γ x, hi, hfs x hxI, ?_⟩
+  · rw [hfr]
+    exact subset_iUnion (fun i => G.H.disk.side i) i
+  · intro t ht
+    rw [Set.disjoint_left]
+    intro y hyF hyt
+    exact hfarE t ht y (step5_tile_dist_le M F hyF hpF) hyt
+  · exact hfar x hxI
+
+private lemma emcg_window_reduced {A R D y x s δ : ℝ} (hA : 0 < A) (hD : 0 < D)
+    (hR : 1000 * D ≤ R) (hRA : R ≤ A) (hy1 : -A ≤ y) (hy2 : y ≤ A - R)
+    (hx1 : A + R + 2 * D ≤ x) (hx2 : x ≤ A + R + 4 * D)
+    (hδ1 : R / 16 ≤ δ) (hδ2 : δ ≤ 7 * R / 16)
+    (hs : s = y * (A + R + 2 * D) / A + R / 8 + 2 * D + δ) :
+    3 * A * R / 16 ≤ A * s - y * x ∧
+      3 * A * R / 16 ≤ x * (y + R) - s * A ∧ |s| ≤ A + R + 2 * D := by
+  have e : y * (A + R + 2 * D) / A * A = y * (A + R + 2 * D) := by field_simp
+  have hs' : A * s = y * (A + R + 2 * D) + A * (R / 8 + 2 * D + δ) := by
+    rw [hs]
+    nlinarith
+  refine ⟨?_, ?_, abs_le.2 ⟨?_, ?_⟩⟩ <;> nlinarith
+
+private lemma emcg_window_side {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt}
+    {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R)
+    (G : AnnularGrouping M S c N R)
+    (hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ)))
+    (j : Fin (4 * N)) (k : ℕ) (hk : k < 4)
+    (hu1 : 2 * k * ((N : ℝ) * R / 2) ≤ ((j : ℕ) : ℝ) * R)
+    (hu2 : ((j : ℕ) : ℝ) * R + R ≤ 2 * (k + 1) * ((N : ℝ) * R / 2))
+    (y : ℝ) (hy1 : -((N : ℝ) * R / 2) ≤ y)
+    (hy2 : y ≤ (N : ℝ) * R / 2 - R) (f : Pt → ℝ) (g : ℝ → ℝ)
+    (s δ : ℝ) (hδ1 : R / 16 ≤ δ) (hδ2 : δ ≤ 7 * R / 16)
+    (Z : ℝ → ℝ → Pt) (hZc : ∀ u, Continuous (Z u)) (hfZ : ∀ u x, f (Z u x) = u)
+    (hg : g s = y * ((N : ℝ) * R / 2 + R + 2 * M.D) / ((N : ℝ) * R / 2) +
+      R / 8 + 2 * M.D + δ) (hgabs : ∀ u, |g u| = |u|)
+    (hZsq : ∀ u x, (|Z u x 0 - c 0| = |x| ∧ |Z u x 1 - c 1| = |u|) ∨
+      (|Z u x 0 - c 0| = |u| ∧ |Z u x 1 - c 1| = |x|))
+    (hcr1 : ∀ u x, jcr (squarePerimeterPoint ((N : ℝ) * R / 2)
+      (((j : ℕ) : ℝ) * R)) (Z u x - c) = (N : ℝ) * R / 2 * g u - y * x)
+    (hcr2 : ∀ u x, jcr (Z u x - c) (squarePerimeterPoint ((N : ℝ) * R / 2)
+      (((j : ℕ) : ℝ) * R + R)) = x * (y + R) - g u * ((N : ℝ) * R / 2)) :
+    ∃ e ∈ privateOuterEdges G j, ∃ p ∈ e, f p = s ∧
+      ∀ t : Fin (4 * N), t ≠ j →
+        ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), R / 8 ≤ dist p q := by
+  have hD := M.D_pos
+  have hRpos : 0 < R := by linarith
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  have hRA : R ≤ (N : ℝ) * R / 2 := by nlinarith
+  have red : ∀ x ∈ Icc ((N : ℝ) * R / 2 + R + 2 * M.D)
+      ((N : ℝ) * R / 2 + R + 4 * M.D),
+      3 * ((N : ℝ) * R / 2) * R / 16 ≤ (N : ℝ) * R / 2 * g s - y * x ∧
+      3 * ((N : ℝ) * R / 2) * R / 16 ≤ x * (y + R) - g s * ((N : ℝ) * R / 2) ∧
+      |g s| ≤ (N : ℝ) * R / 2 + R + 2 * M.D := by
+    intro x hx
+    exact emcg_window_reduced hA hD hR hRA hy1 hy2 hx.1 hx.2 hδ1 hδ2 hg
+  have hsabs : |s| ≤ (N : ℝ) * R / 2 + R + 2 * M.D := by
+    rw [← hgabs s]
+    exact (red _ ⟨le_rfl, by linarith⟩).2.2
+  refine emcg_window_core hR G hloc j f s (Z s) (hZc s)
+    (x0 := (N : ℝ) * R / 2 + R + 2 * M.D)
+    (x1 := (N : ℝ) * R / 2 + R + 4 * M.D) (by linarith) ?_ ?_
+    (fun x _ => hfZ s x) ?_ ?_
+  · apply G.H_lower
+    apply rg_square_add (by positivity) (by positivity)
+    have hx0 : |(N : ℝ) * R / 2 + R + 2 * M.D| =
+        (N : ℝ) * R / 2 + R + 2 * M.D := abs_of_pos (by positivity)
+    rcases hZsq s ((N : ℝ) * R / 2 + R + 2 * M.D) with ⟨h0, h1⟩ | ⟨h0, h1⟩
+    · exact ⟨h0.trans_le hx0.le, h1.trans_le hsabs⟩
+    · exact ⟨h0.trans_le hsabs, h1.trans_le hx0.le⟩
+  · intro hmem
+    have hsq := step5_square_add_subset (G.H_upper hmem)
+    have hx1 : |(N : ℝ) * R / 2 + R + 4 * M.D| =
+        (N : ℝ) * R / 2 + R + 4 * M.D := abs_of_pos (by positivity)
+    rcases hZsq s ((N : ℝ) * R / 2 + R + 4 * M.D) with ⟨h0, -⟩ | ⟨-, h1⟩
+    · have := hsq.1
+      rw [h0, hx1] at this
+      linarith
+    · have := hsq.2
+      rw [h1, hx1] at this
+      linarith
+  · intro x hx hmem
+    have hsq := step5_square_add_subset (G.L_upper hmem)
+    have hxa : |x| = x := abs_of_pos (by linarith [hx.1])
+    rcases hZsq s x with ⟨h0, -⟩ | ⟨-, h1⟩
+    · have := hsq.1
+      rw [h0, hxa] at this
+      linarith [hx.1]
+    · have := hsq.2
+      rw [h1, hxa] at this
+      linarith [hx.1]
+  · intro x hx t ht q hq
+    exact emcg_window_farFromOthers hN hD hR j k hk hu1 hu2 (Z s x)
+      (by rw [hcr1]; exact (red x hx).1) (by rw [hcr2]; exact (red x hx).2.1) t ht q hq
+
+private lemma emcg_window_pick {M : MeshConstants P} {S : Set (PlacedTile P)} (c : Pt)
+    {N : ℕ} {R : ℝ} (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R)
+    (G : AnnularGrouping M S c N R)
+    (hloc : ∀ j : Fin (4 * N), (G.spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j : ℕ)))
+    (j : Fin (4 * N)) :
+    ∃ f : Pt → ℝ, LipschitzWith 1 f ∧ ∃ a : ℝ,
+      ∃ (e : Fin 4 → Set Pt) (p : Fin 4 → Pt),
+      ∀ i, e i ∈ privateOuterEdges G j ∧ p i ∈ e i ∧
+        f (p i) = a + (2 * (i : ℕ) + 1) * R / 16 ∧
+        ∀ t : Fin (4 * N), t ≠ j →
+          ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), R / 8 ≤ dist (p i) q := by
+  have hD := M.D_pos
+  have hRpos : 0 < R := by linarith
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  obtain ⟨k, hk, hk1, hk2⟩ :
+      ∃ k, k < 4 ∧ k * N ≤ (j : ℕ) ∧ (j : ℕ) + 1 ≤ (k + 1) * N := by
+    refine ⟨(j : ℕ) / N, (Nat.div_lt_iff_lt_mul (by omega)).2 j.isLt,
+      Nat.div_mul_le_self _ _, ?_⟩
+    have h1 := Nat.div_add_mod (j : ℕ) N
+    have h2 := Nat.mod_lt (j : ℕ) (show N > 0 by omega)
+    nlinarith
+  have hk1' : (k : ℝ) * N ≤ (j : ℕ) := by exact_mod_cast hk1
+  have hk2' : ((j : ℕ) : ℝ) + 1 ≤ ((k : ℝ) + 1) * N := by exact_mod_cast hk2
+  have hu1 : 2 * k * ((N : ℝ) * R / 2) ≤ ((j : ℕ) : ℝ) * R := by nlinarith
+  have hu2 : ((j : ℕ) : ℝ) * R + R ≤ 2 * (k + 1) * ((N : ℝ) * R / 2) := by nlinarith
+  set A := (N : ℝ) * R / 2 with hAdef
+  set u := ((j : ℕ) : ℝ) * R with hudef
+  have finish (f : Pt → ℝ) (hf : LipschitzWith 1 f) (a : ℝ)
+      (H : ∀ i : Fin 4, ∃ e ∈ privateOuterEdges G j, ∃ p ∈ e,
+        f p = a + (2 * (i : ℕ) + 1) * R / 16 ∧
+          ∀ t : Fin (4 * N), t ≠ j →
+            ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), R / 8 ≤ dist p q) :
+      ∃ f : Pt → ℝ, LipschitzWith 1 f ∧ ∃ a : ℝ,
+        ∃ (e : Fin 4 → Set Pt) (p : Fin 4 → Pt),
+        ∀ i, e i ∈ privateOuterEdges G j ∧ p i ∈ e i ∧
+          f (p i) = a + (2 * (i : ℕ) + 1) * R / 16 ∧
+          ∀ t : Fin (4 * N), t ≠ j →
+            ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), R / 8 ≤ dist (p i) q := by
+    choose e he p hp hfp hfar using H
+    exact ⟨f, hf, a, e, p, fun i => ⟨he i, hp i, hfp i, hfar i⟩⟩
+  interval_cases k <;> norm_num at hu1 hu2
+  · let a := (-A + u) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D
+    apply finish (fun p => p 1 - c 1) (step5_coord_lipschitz c 1) a
+    intro i
+    let δ := (2 * (i : ℕ) + 1) * R / 16
+    have hδ1 : R / 16 ≤ δ := by fin_cases i <;> simp [δ] <;> linarith
+    have hδ2 : δ ≤ 7 * R / 16 := by fin_cases i <;> simp [δ] <;> linarith
+    apply emcg_window_side hN hR G hloc j 0 (by norm_num) (by push_cast; linarith)
+      (by push_cast; linarith) (-A + u) (by linarith) (by linarith)
+      (fun p => p 1 - c 1) id (a + δ) δ hδ1 hδ2 (fun s x => c + mkPt x s)
+      (fun _ => continuous_const.add (step5_mkPt_continuous continuous_id continuous_const))
+      (fun s x => by simp [mkPt]) (by simp [a, δ, A]) (fun s => rfl)
+      (fun s x => Or.inl (by simp [mkPt]))
+    · intro s x
+      rw [step5_spp0 (t := u) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]
+      ring
+    · intro s x
+      rw [step5_spp0 (t := u + R) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]
+      ring
+  · let b := (u - 3 * A) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D
+    let a := -b - R / 2
+    apply finish (fun p => p 0 - c 0) (step5_coord_lipschitz c 0) a
+    intro i
+    let d := (2 * (i : ℕ) + 1) * R / 16
+    let δ := R / 2 - d
+    have hδ1 : R / 16 ≤ δ := by fin_cases i <;> simp [δ, d] <;> linarith
+    have hδ2 : δ ≤ 7 * R / 16 := by fin_cases i <;> simp [δ, d] <;> linarith
+    apply emcg_window_side hN hR G hloc j 1 (by norm_num) (by push_cast; linarith)
+      (by push_cast; linarith) (u - 3 * A) (by linarith) (by linarith)
+      (fun p => p 0 - c 0) (fun s => -s) (a + d) δ hδ1 hδ2
+      (fun s x => c + mkPt s x)
+      (fun _ => continuous_const.add (step5_mkPt_continuous continuous_const continuous_id))
+      (fun s x => by simp [mkPt]) (by simp [a, b, δ, d]; ring) (fun s => abs_neg s)
+      (fun s x => Or.inr (by simp [mkPt]))
+    · intro s x
+      rw [step5_spp1 (t := u) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]
+      ring
+    · intro s x
+      rw [step5_spp1 (t := u + R) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]
+      ring
+  · let b := (u - 5 * A) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D
+    let a := -b - R / 2
+    apply finish (fun p => p 1 - c 1) (step5_coord_lipschitz c 1) a
+    intro i
+    let d := (2 * (i : ℕ) + 1) * R / 16
+    let δ := R / 2 - d
+    have hδ1 : R / 16 ≤ δ := by fin_cases i <;> simp [δ, d] <;> linarith
+    have hδ2 : δ ≤ 7 * R / 16 := by fin_cases i <;> simp [δ, d] <;> linarith
+    apply emcg_window_side hN hR G hloc j 2 (by norm_num) (by push_cast; linarith)
+      (by push_cast; linarith) (u - 5 * A) (by linarith) (by linarith)
+      (fun p => p 1 - c 1) (fun s => -s) (a + d) δ hδ1 hδ2
+      (fun s x => c + mkPt (-x) s)
+      (fun _ => continuous_const.add (step5_mkPt_continuous continuous_neg continuous_const))
+      (fun s x => by simp [mkPt]) (by simp [a, b, δ, d]; ring) (fun s => abs_neg s)
+      (fun s x => Or.inl (by simp [mkPt]))
+    · intro s x
+      rw [step5_spp2 hA.le (t := u) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]
+      ring
+    · intro s x
+      rw [step5_spp2 hA.le (t := u + R) (by linarith) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1]
+      ring
+  · let a := (u - 7 * A) * (A + R + 2 * M.D) / A + R / 8 + 2 * M.D
+    apply finish (fun p => p 0 - c 0) (step5_coord_lipschitz c 0) a
+    intro i
+    let δ := (2 * (i : ℕ) + 1) * R / 16
+    have hδ1 : R / 16 ≤ δ := by fin_cases i <;> simp [δ] <;> linarith
+    have hδ2 : δ ≤ 7 * R / 16 := by fin_cases i <;> simp [δ] <;> linarith
+    apply emcg_window_side hN hR G hloc j 3 (by norm_num) (by push_cast; linarith)
+      (by push_cast; linarith) (u - 7 * A) (by linarith) (by linarith)
+      (fun p => p 0 - c 0) id (a + δ) δ hδ1 hδ2 (fun s x => c + mkPt s (-x))
+      (fun _ => continuous_const.add (step5_mkPt_continuous continuous_const continuous_neg))
+      (fun s x => by simp [mkPt]) (by simp [a, δ, A]) (fun s => rfl)
+      (fun s x => Or.inr (by simp [mkPt]))
+    · intro s x
+      rw [step5_spp3 hA.le (t := u) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]
+      ring
+    · intro s x
+      rw [step5_spp3 hA.le (t := u + R) (by linarith)]
+      simp only [jcr, add_sub_cancel_left, rg_mkPt0, rg_mkPt1, id]
+      ring
+
 /-- the four middle windows of every annular piece contain private outer edges pairwise
 separated by R/10, by localization within 20D and R ≥ 10000(K₀+3)D. -/
 private lemma existsMacroCertificate_seed1_grouping_step1_windows (M : MeshConstants P)
@@ -39630,7 +39985,75 @@ private lemma existsMacroCertificate_seed1_grouping_step1_windows (M : MeshConst
       (∀ j i, e j i ∈ privateOuterEdges G j) ∧
         ∀ j i j' i', (j, i) ≠ (j', i') →
           ∀ x ∈ e j i, ∀ y ∈ e j' i', R / 10 ≤ dist x y := by
-  sorry
+  classical
+  have hD := M.D_pos
+  have hK : (0 : ℝ) ≤ M.K0 := Nat.cast_nonneg _
+  have hR1000 : 1000 * M.D ≤ R := by nlinarith
+  have hRpos : 0 < R := by linarith
+  have H := fun j => emcg_window_pick c hN hR1000 G hloc j
+  choose f hf a e p he hp hfp hfar using H
+  refine ⟨e, he, ?_⟩
+  intro j i j' i' hne x hx y hy
+  have edge_dist {j : Fin (4 * N)} {e : Set Pt} (he : e ∈ privateOuterEdges G j)
+      {x y : Pt} (hx : x ∈ e) (hy : y ∈ e) : dist x y ≤ M.D := by
+    rcases he.1 with ⟨A, -, k, hk⟩
+    exact step5_tile_dist_le M A (tile_side_subset A k (hk ▸ hx))
+      (tile_side_subset A k (hk ▸ hy))
+  have hpx : dist (p j i) x ≤ M.D := edge_dist (he j i) (hp j i) hx
+  have hyp : dist y (p j' i') ≤ M.D := edge_dist (he j' i') hy (hp j' i')
+  by_cases hj : j = j'
+  · subst j'
+    have hii : i ≠ i' := by
+      intro h
+      exact hne (Prod.ext rfl h)
+    have htargets : R / 8 ≤ dist (f j (p j i)) (f j (p j i')) := by
+      rw [hfp j i, hfp j i', Real.dist_eq]
+      let d := a j + (2 * (i : ℕ) + 1) * R / 16 -
+        (a j + (2 * (i' : ℕ) + 1) * R / 16)
+      have hdpos : d ≤ |d| := le_abs_self d
+      have hdneg : -d ≤ |d| := neg_le_abs d
+      fin_cases i
+      all_goals fin_cases i'
+      all_goals norm_num at hii
+      all_goals norm_num [d] at hdpos hdneg ⊢
+      all_goals linarith
+    have hfx : dist (f j (p j i)) (f j x) ≤ M.D := by
+      have h := (hf j).dist_le_mul (p j i) x
+      simpa using h.trans (by simpa using hpx)
+    have hfy : dist (f j y) (f j (p j i')) ≤ M.D := by
+      have h := (hf j).dist_le_mul y (p j i')
+      simpa using h.trans (by simpa using hyp)
+    have hxy : dist (f j x) (f j y) ≤ dist x y := by
+      simpa using (hf j).dist_le_mul x y
+    have htri1 := dist_triangle (f j (p j i)) (f j x) (f j (p j i'))
+    have htri2 := dist_triangle (f j x) (f j y) (f j (p j i'))
+    nlinarith
+  · have hyc : y ∈ (G.spokes.piece j').carrier := by
+      rcases (he j' i').1 with ⟨A, hA, k, hk⟩
+      show y ∈ (G.spokes.piece j').disk.carrier
+      rw [(G.spokes.piece j').carrier_eq]
+      exact carrier_subset_support hA (tile_side_subset A k (hk ▸ hy))
+    have hyT := hloc j' hyc
+    rw [Metric.mem_cthickening_iff] at hyT
+    have hfarE : ENNReal.ofReal (R / 8) ≤
+        Metric.infEDist (p j i) (idealTrapezoid c N R M.D (j' : ℕ)) := by
+      rw [Metric.le_infEDist]
+      intro q hq
+      rw [edist_dist]
+      exact ENNReal.ofReal_le_ofReal (hfar j i j' (Ne.symm hj) q hq)
+    have htri := Metric.infEDist_le_infEDist_add_edist (x := p j i) (y := y)
+      (s := idealTrapezoid c N R M.D (j' : ℕ))
+    rw [edist_dist] at htri
+    have hsum : ENNReal.ofReal (R / 8) ≤
+        ENNReal.ofReal (20 * M.D) + ENNReal.ofReal (dist (p j i) y) :=
+      hfarE.trans (htri.trans (add_le_add hyT le_rfl))
+    rw [← ENNReal.ofReal_add (by positivity : 0 ≤ 20 * M.D) dist_nonneg] at hsum
+    have hpy : R / 8 ≤ 20 * M.D + dist (p j i) y :=
+      (ENNReal.ofReal_le_ofReal_iff
+        (by positivity : 0 ≤ 20 * M.D + dist (p j i) y)).1 hsum
+    have htri' := dist_triangle_left (p j i) y x
+    have hxp : dist x (p j i) ≤ M.D := by simpa [dist_comm] using hpx
+    nlinarith [hR1000]
 
 /-- Step 1--2 of `lem:certificate-exists`: choose the mesh constants, then `R,Q,N,k`, and
 form the finite labelled catalogue consisting of `L`, its `4N` annular pieces, and the remaining

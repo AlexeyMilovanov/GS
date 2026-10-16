@@ -43094,7 +43094,9 @@ fifth and the unmarked paths are singleton ports, `N` and `Qmax` are the chosen 
 side projection alone did not pin the chains - adjacent duplicate occurrences were allowed - and
 the ownership of the centre, the catalogue form of a type's child and the bijectivity of the side
 relabelling were missing; the chain invariants, `central_owner`, `child_form`, `base_form`,
-`catalogue_form_injective` and `parentSide_bijective` are now part of the data.)  The properties
+`catalogue_form_injective`, `parentSide_bijective`, `parentSide_cyclic` and `child_sideSet` are now
+part of the data; the last two were found missing by Aristotle on (G3)/(G4): without the side
+correspondence the five routing ports need not be entries of the outer lists.)  The properties
 (G1)--(G7) of `D` are proved from these equations in the following seven lemmas; (G4) is a pure
 projection. -/
 private structure existsMacroCertificate_CertData (τ : Substitution P)
@@ -43134,6 +43136,10 @@ private structure existsMacroCertificate_CertData (τ : Substitution P)
   child_bijective : ∀ α, Set.BijOn templateChild {t | D.owner t = α}
     (s.setup.retained l (baseForm α)).children.tiles
   child_carrier : ∀ t, (D.childTile t).carrier = (templateChild t).carrier
+  /-- the listed sides of a type and of its template child are the same segments (the two
+  listings of one polygon have the same vertex set) -/
+  child_sideSet : ∀ t, Set.range (fun i : D.Side t => D.occSide ⟨t, i⟩) =
+    Set.range (fun j => (templateChild t).side j)
   central_child : ∀ α, templateChild (D.central α) = s.setup.central l (baseForm α)
   central_form : ∀ α, (templateChild (D.central α)).form =
     Sum.inl (s.setup.c^[l] (baseForm α))
@@ -43151,6 +43157,9 @@ private structure existsMacroCertificate_CertData (τ : Substitution P)
   parentSide_injective : ∀ α, Function.Injective (parentSide α)
   /-- the relabelling between the two listings of the same disk is a bijection -/
   parentSide_bijective : ∀ α, Function.Bijective (parentSide α)
+  /-- both listings are counterclockwise, so the relabelling is a cyclic shift -/
+  parentSide_cyclic : ∀ α (a b e : Fin (D.Q.disk α).n), CycLt3 a b e →
+    CycLt3 (parentSide α a) (parentSide α b) (parentSide α e)
   parent_side_geometry : ∀ α d, D.macroSide α d =
     (τ.θ ^ (s.setup.GS.k * l)) • (s.setup.GS.G.P'.disk (baseForm α)).side (parentSide α d)
   marked_from_setup : ∀ α d, D.marked α d ↔ parentSide α d ∈ s.setup.markedSides (baseForm α)
@@ -43264,9 +43273,10 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2 (τ : Substitution P
 
 /-- Step 7 of `lem:certificate-exists`, (G3): `LexPositive` is a global positive orientation; the
 outer lists are those of `CertData`; "at most two endpoint-crossing sides are omitted"
-(`lem:whole-ports`); each list has at least five entries because the routing's five ports are
-distinct entries of it (`RoutingData.port_quantile`, `port_injective`); the lists are bounded by
-`rankBound`. -/
+(`lem:whole-ports`, the geometric content of this step); each list has at least five entries
+because the routing's five ports are distinct outer sides of the template contained in the scaled
+parent side (`RoutingData.port_quantile`, `port_injective`), hence, through `child_sideSet` and
+`outerList_mem`, five distinct entries of the list; the lists are bounded by `rankBound`. -/
 private lemma existsMacroCertificate_seed2_routing_step6_g3 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)

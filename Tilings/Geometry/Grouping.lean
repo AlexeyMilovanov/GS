@@ -34047,6 +34047,416 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_config_mem_Kreal
     subset_closure ?_⟩
   exact ⟨l, hl, ports, entries, rfl⟩
 
+/-- Every port is a complete straight segment.  This packages both endpoints, rather than the
+single representative point used by the preliminary space `R2_Config`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_exists
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {α : Rs.GS.G.P'.Form} (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) :
+    ∃ pq : Pt × Pt, ports.port a r = segment ℝ pq.1 pq.2 := by
+  obtain ⟨A, hA, i, hi⟩ := (ports.outer a r).1.1
+  exact ⟨(A.vertex i, A.vertex (finRotate (Rs.GS.G.mixed.disk A.form).n i)),
+    by simpa [tile_side_eq] using hi.symm⟩
+
+private noncomputable def existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {α : Rs.GS.G.P'.Form} (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) : Pt × Pt :=
+  Classical.choose
+    (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_exists τ M Rs ports a r)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_spec
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {α : Rs.GS.G.P'.Form} (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) :
+    ports.port a r = segment ℝ
+      (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r).1
+      (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r).2 :=
+  Classical.choose_spec
+    (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_exists τ M Rs ports a r)
+
+/-- Enriched normalized parameters: the centre, both endpoints of every whole port, and every
+marked entrance direction. -/
+private abbrev existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    (α : Rs.GS.G.P'.Form) :=
+  Pt × ((Fin (Rs.GS.G.P'.disk α).n → Fin 5 → Pt × Pt) ×
+    ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} → Fin 4 → Pt))
+
+/-- Compact ambient space for the enriched parameters. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_Kfull
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    (α : Rs.GS.G.P'.Form) :
+    Set (existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) :=
+  (Rs.GS.G.P'.disk α).carrier ×ˢ
+    (Set.pi Set.univ (fun _ => Set.pi Set.univ (fun _ =>
+        (Rs.GS.G.P'.disk α).carrier ×ˢ (Rs.GS.G.P'.disk α).carrier)) ×ˢ
+      Set.pi Set.univ (fun _ => Set.pi Set.univ (fun _ => Metric.sphere (0 : Pt) 1)))
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kfull_compact
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    (α : Rs.GS.G.P'.Form) :
+    IsCompact (existsRoutingAfterPower_step4_routes_step6_R2_Kfull τ M Rs α) := by
+  exact (Rs.GS.G.P'.disk α).compact.prod
+    ((isCompact_univ_pi fun _ => isCompact_univ_pi fun _ =>
+        (Rs.GS.G.P'.disk α).compact.prod (Rs.GS.G.P'.disk α).compact).prod
+      (isCompact_univ_pi fun _ => isCompact_univ_pi fun _ =>
+        isCompact_sphere (0 : Pt) 1))
+
+/-- Normalize the enriched actual data. -/
+private noncomputable def existsRoutingAfterPower_step4_routes_step6_R2_admConfig
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α :=
+  let s := τ.θ ^ (Rs.GS.k * l)
+  (s⁻¹ • Rs.centre l α,
+    (fun a r =>
+      (s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+        τ M Rs ports a r).1,
+       s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+        τ M Rs ports a r).2),
+    fun a i => ‖entries.point a i - Rs.centre l α‖⁻¹ •
+      (entries.point a i - Rs.centre l α)))
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kfull
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries ∈
+      existsRoutingAfterPower_step4_routes_step6_R2_Kfull τ M Rs α := by
+  let s := τ.θ ^ (Rs.GS.k * l)
+  let old := existsRoutingAfterPower_step4_routes_step6_R2_config τ M Rs ports entries
+  have hold := existsRoutingAfterPower_step4_routes_step6_R2_config_mem τ M Rs ports entries
+  have hs : 0 < s := pow_pos (lt_trans zero_lt_one τ.one_lt) _
+  have hend : ∀ a r (j : Fin 2),
+      s⁻¹ • ![(existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+          τ M Rs ports a r).1,
+        (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+          τ M Rs ports a r).2] j ∈ (Rs.GS.G.P'.disk α).carrier := by
+    intro a r j
+    have hp : ![(existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+          τ M Rs ports a r).1,
+        (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+          τ M Rs ports a r).2] j ∈ ports.port a r := by
+      rw [existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_spec τ M Rs ports a r]
+      fin_cases j
+      · simpa using left_mem_segment ℝ
+          (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r).1
+          (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r).2
+      · simpa using right_mem_segment ℝ
+          (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r).1
+          (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r).2
+    have hp' := (ports.outer a r).2 hp
+    obtain ⟨z, hz, hpz⟩ := Set.mem_smul_set.mp hp'
+    have hz' : z ∈ (Rs.GS.G.P'.disk α).carrier :=
+      pd_frontier_subset_carrier _ ((Rs.GS.G.P'.disk α).frontier_eq ▸
+        Set.mem_iUnion.2 ⟨a, hz⟩)
+    change s • z = _ at hpz
+    rw [← hpz, smul_smul]
+    simpa [hs.ne'] using hz'
+  change (s⁻¹ • Rs.centre l α, _) ∈ _
+  refine ⟨hold.1, ?_, hold.2.2⟩
+  intro a _ r _
+  exact ⟨hend a r 0, hend a r 1⟩
+
+/-- Normalized configurations genuinely arising from complete port and entrance data. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_admRealized
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    Set (existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) :=
+  {cfg | ∃ (l : ℕ) (hl : 0 < l)
+      (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+      (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl),
+    existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries = cfg}
+
+private def existsRoutingAfterPower_step4_routes_step6_R2_portAt
+    {τ : Substitution P} {M : MeshConstants P} {Rs : RoutingSetup τ M}
+    {α : Rs.GS.G.P'.Form}
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) (t : ℝ) : Pt :=
+  AffineMap.lineMap (cfg.2.1 a r).1 (cfg.2.1 a r).2 t
+
+/-- The closed quantitative part of admissibility needed for avoiding all nonincident ports. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_PortSeparated
+    {τ : Substitution P} {M : MeshConstants P} {Rs : RoutingSetup τ M}
+    {α : Rs.GS.G.P'.Form} (cp : ℝ)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) : Prop :=
+  ∀ a r b t, (a, r) ≠ (b, t) → ∀ u ∈ Icc (0 : ℝ) 1, ∀ v ∈ Icc (0 : ℝ) 1,
+    cp ≤ dist
+      (existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg a r u)
+      (existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg b t v)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_portSeparated_closed
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    IsClosed {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+      existsRoutingAfterPower_step4_routes_step6_R2_PortSeparated cp cfg} := by
+  classical
+  let S := fun (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5)
+      (b : Fin (Rs.GS.G.P'.disk α).n) (t : Fin 5) (u v : ℝ) =>
+    if (a, r) ≠ (b, t) ∧ u ∈ Icc (0 : ℝ) 1 ∧ v ∈ Icc (0 : ℝ) 1 then
+      {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+        cp ≤ dist
+          (existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg a r u)
+          (existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg b t v)}
+    else Set.univ
+  have hS : ∀ a r b t u v, IsClosed (S a r b t u v) := by
+    intro a r b t u v
+    dsimp only [S]
+    split_ifs
+    · apply isClosed_le continuous_const
+      have ha : Continuous (fun cfg :
+          existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α =>
+          existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg a r u) := by
+        unfold existsRoutingAfterPower_step4_routes_step6_R2_portAt
+        simp only [AffineMap.lineMap_apply_module']
+        fun_prop
+      have hb : Continuous (fun cfg :
+          existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α =>
+          existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg b t v) := by
+        unfold existsRoutingAfterPower_step4_routes_step6_R2_portAt
+        simp only [AffineMap.lineMap_apply_module']
+        fun_prop
+      exact ha.dist hb
+    · exact isClosed_univ
+  have heq :
+      {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+          existsRoutingAfterPower_step4_routes_step6_R2_PortSeparated cp cfg} =
+        ⋂ a, ⋂ r, ⋂ b, ⋂ t, ⋂ u, ⋂ v, S a r b t u v := by
+    ext cfg
+    simp only [Set.mem_setOf_eq, Set.mem_iInter]
+    constructor
+    · intro h a r b t u v
+      dsimp only [S]
+      split_ifs with hc
+      · exact h a r b t hc.1 u hc.2.1 v hc.2.2
+      · exact Set.mem_univ cfg
+    · intro h a r b t habt u hu v hv
+      have hh := h a r b t u v
+      dsimp only [S] at hh
+      rw [if_pos ⟨habt, hu, hv⟩] at hh
+      exact hh
+  rw [heq]
+  exact isClosed_iInter fun a => isClosed_iInter fun r => isClosed_iInter fun b =>
+    isClosed_iInter fun t => isClosed_iInter fun u => isClosed_iInter fun v => hS a r b t u v
+
+/-- Closed normalized separation of every complete port from all parent corners. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_PortCorner
+    {τ : Substitution P} {M : MeshConstants P} {Rs : RoutingSetup τ M}
+    {α : Rs.GS.G.P'.Form} (cp : ℝ)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) : Prop :=
+  ∀ a r i, ∀ u ∈ Icc (0 : ℝ) 1,
+    cp ≤ dist (existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg a r u)
+      ((Rs.GS.G.P'.disk α).vertex i)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_portCorner_closed
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    IsClosed {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+      existsRoutingAfterPower_step4_routes_step6_R2_PortCorner cp cfg} := by
+  classical
+  let S := fun (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5)
+      (i : Fin (Rs.GS.G.P'.disk α).n) (u : ℝ) =>
+    if u ∈ Icc (0 : ℝ) 1 then
+      {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+        cp ≤ dist (existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg a r u)
+          ((Rs.GS.G.P'.disk α).vertex i)}
+    else Set.univ
+  have hS : ∀ a r i u, IsClosed (S a r i u) := by
+    intro a r i u
+    dsimp only [S]
+    split_ifs
+    · apply isClosed_le continuous_const
+      have ha : Continuous (fun cfg :
+          existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α =>
+          existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg a r u) := by
+        unfold existsRoutingAfterPower_step4_routes_step6_R2_portAt
+        simp only [AffineMap.lineMap_apply_module']
+        fun_prop
+      exact ha.dist continuous_const
+    · exact isClosed_univ
+  have heq :
+      {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+          existsRoutingAfterPower_step4_routes_step6_R2_PortCorner cp cfg} =
+        ⋂ a, ⋂ r, ⋂ i, ⋂ u, S a r i u := by
+    ext cfg
+    simp only [Set.mem_setOf_eq, Set.mem_iInter]
+    constructor
+    · intro h a r i u
+      dsimp only [S]
+      split_ifs with hu
+      · exact h a r i u hu
+      · exact Set.mem_univ cfg
+    · intro h a r i u hu
+      have hh := h a r i u
+      dsimp only [S] at hh
+      rw [if_pos hu] at hh
+      exact hh
+  rw [heq]
+  exact isClosed_iInter fun a => isClosed_iInter fun r => isClosed_iInter fun i =>
+    isClosed_iInter fun u => hS a r i u
+
+/-- R2's admissible compactum.  Taking the closure records exactly the limits needed by the
+finite-subcover argument; quantitative closed inequalities can subsequently be passed to it. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_Kadm
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    Set (existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) :=
+  ((existsRoutingAfterPower_step4_routes_step6_R2_Kfull τ M Rs α ∩
+      closure (existsRoutingAfterPower_step4_routes_step6_R2_admRealized τ M Rs cp α)) ∩
+      {cfg | existsRoutingAfterPower_step4_routes_step6_R2_PortSeparated cp cfg}) ∩
+    {cfg | existsRoutingAfterPower_step4_routes_step6_R2_PortCorner cp cfg}
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_closed
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    IsClosed (existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) := by
+  exact (((existsRoutingAfterPower_step4_routes_step6_R2_Kfull_compact τ M Rs α).isClosed.inter
+    isClosed_closure).inter
+      (existsRoutingAfterPower_step4_routes_step6_R2_portSeparated_closed τ M Rs cp α)).inter
+        (existsRoutingAfterPower_step4_routes_step6_R2_portCorner_closed τ M Rs cp α)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_compact
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    IsCompact (existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) := by
+  exact (((existsRoutingAfterPower_step4_routes_step6_R2_Kfull_compact τ M Rs α).inter_right
+    isClosed_closure).inter_right
+      (existsRoutingAfterPower_step4_routes_step6_R2_portSeparated_closed τ M Rs cp α)).inter_right
+        (existsRoutingAfterPower_step4_routes_step6_R2_portCorner_closed τ M Rs cp α)
+
+/-- The two enriched coordinates reconstruct the complete physical port after rescaling. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_port
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) :
+    let s := τ.θ ^ (Rs.GS.k * l)
+    ports.port a r = s • segment ℝ
+      (s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+        τ M Rs ports a r).1)
+      (s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+        τ M Rs ports a r).2) := by
+  dsimp only
+  rw [existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_spec τ M Rs ports a r,
+    ← existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_segment_smul]
+  have hs : 0 < τ.θ ^ (Rs.GS.k * l) := pow_pos (lt_trans zero_lt_one τ.one_lt) _
+  simp [smul_smul, hs.ne']
+
+/-- The normalized complete port segments inherit the exact `cp` separation. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_port_separated
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp) :
+    let s := τ.θ ^ (Rs.GS.k * l)
+    ∀ a r b t, (a, r) ≠ (b, t) →
+      ∀ x ∈ segment ℝ
+          (s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+            τ M Rs ports a r).1)
+          (s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+            τ M Rs ports a r).2),
+      ∀ y ∈ segment ℝ
+          (s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+            τ M Rs ports b t).1)
+          (s⁻¹ • (existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+            τ M Rs ports b t).2),
+        cp ≤ dist x y := by
+  dsimp only
+  intro a r b t habt x hx y hy
+  let s := τ.θ ^ (Rs.GS.k * l)
+  have hs : 0 < s := pow_pos (lt_trans zero_lt_one τ.one_lt) _
+  have hpa := existsRoutingAfterPower_step4_routes_step6_R2_admConfig_port
+    τ M Rs ports a r
+  have hpb := existsRoutingAfterPower_step4_routes_step6_R2_admConfig_port
+    τ M Rs ports b t
+  have hsx : s • x ∈ ports.port a r := by
+    rw [hpa]
+    exact Set.smul_mem_smul_set hx
+  have hsy : s • y ∈ ports.port b t := by
+    rw [hpb]
+    exact Set.smul_mem_smul_set hy
+  have hsep := ports.separated a r b t habt (s • x) hsx (s • y) hsy
+  have hdist : dist (s • x) (s • y) = s * dist x y := by
+    rw [dist_eq_norm, ← smul_sub, norm_smul, Real.norm_eq_abs, abs_of_pos hs,
+      ← dist_eq_norm]
+  rw [hdist] at hsep
+  exact le_of_mul_le_mul_left (by simpa [s, mul_comm] using hsep) hs
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_portSeparated
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    existsRoutingAfterPower_step4_routes_step6_R2_PortSeparated cp
+      (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries) := by
+  intro a r b t habt u hu v hv
+  let s := τ.θ ^ (Rs.GS.k * l)
+  let pa := existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r
+  let pb := existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports b t
+  have hsep := existsRoutingAfterPower_step4_routes_step6_R2_admConfig_port_separated
+    τ M Rs ports a r b t habt
+  have hxu : AffineMap.lineMap (s⁻¹ • pa.1) (s⁻¹ • pa.2) u ∈
+      segment ℝ (s⁻¹ • pa.1) (s⁻¹ • pa.2) := by
+    rw [segment_eq_image_lineMap]
+    exact ⟨u, hu, rfl⟩
+  have hyv : AffineMap.lineMap (s⁻¹ • pb.1) (s⁻¹ • pb.2) v ∈
+      segment ℝ (s⁻¹ • pb.1) (s⁻¹ • pb.2) := by
+    rw [segment_eq_image_lineMap]
+    exact ⟨v, hv, rfl⟩
+  have H := hsep (AffineMap.lineMap (s⁻¹ • pa.1) (s⁻¹ • pa.2) u) hxu
+    (AffineMap.lineMap (s⁻¹ • pb.1) (s⁻¹ • pb.2) v) hyv
+  simpa [existsRoutingAfterPower_step4_routes_step6_R2_portAt,
+    existsRoutingAfterPower_step4_routes_step6_R2_admConfig, s, pa, pb] using H
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_portCorner
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    existsRoutingAfterPower_step4_routes_step6_R2_PortCorner cp
+      (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries) := by
+  intro a r i u hu
+  let s := τ.θ ^ (Rs.GS.k * l)
+  let pa := existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints τ M Rs ports a r
+  have hs : 0 < s := pow_pos (lt_trans zero_lt_one τ.one_lt) _
+  let x := AffineMap.lineMap (s⁻¹ • pa.1) (s⁻¹ • pa.2) u
+  have hx : x ∈ segment ℝ (s⁻¹ • pa.1) (s⁻¹ • pa.2) := by
+    rw [segment_eq_image_lineMap]
+    exact ⟨u, hu, rfl⟩
+  have hpa := existsRoutingAfterPower_step4_routes_step6_R2_admConfig_port
+    τ M Rs ports a r
+  have hsx : s • x ∈ ports.port a r := by
+    rw [hpa]
+    exact Set.smul_mem_smul_set hx
+  have hc := ports.corner a r i (s • x) hsx
+  have hdist : dist (s • x) (s • (Rs.GS.G.P'.disk α).vertex i) =
+      s * dist x ((Rs.GS.G.P'.disk α).vertex i) := by
+    rw [dist_eq_norm, ← smul_sub, norm_smul, Real.norm_eq_abs, abs_of_pos hs,
+      ← dist_eq_norm]
+  rw [hdist] at hc
+  have H : cp ≤ dist x ((Rs.GS.G.P'.disk α).vertex i) :=
+    le_of_mul_le_mul_left (by simpa [s, mul_comm] using hc) hs
+  simpa [existsRoutingAfterPower_step4_routes_step6_R2_portAt,
+    existsRoutingAfterPower_step4_routes_step6_R2_admConfig, s, pa, x] using H
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kadm
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries ∈
+      existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α := by
+  refine ⟨⟨⟨existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kfull
+    τ M Rs ports entries, subset_closure ?_⟩, ?_⟩, ?_⟩
+  · exact ⟨l, hl, ports, entries, rfl⟩
+  · exact existsRoutingAfterPower_step4_routes_step6_R2_admConfig_portSeparated
+      τ M Rs ports entries
+  · exact existsRoutingAfterPower_step4_routes_step6_R2_admConfig_portCorner
+      τ M Rs ports entries
+
 /-- Polygonal arc carriers are compact. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_polyArc_compact (γ : PolyArc) :
     IsCompact γ.carrier := by
@@ -34571,6 +34981,53 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_directionEndpointBum
   · simpa [hv] using hmove
   · simpa [hv] using hlower
 
+/-- The stored unit direction is exactly the coordinate used by the radial endpoint. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialEnd_direction
+    {c q : Pt} (r : ℝ) :
+    existsRoutingAfterPower_step4_routes_step1_radialEnd c q r =
+      c + r • (‖q - c‖⁻¹ • (q - c)) := by
+  unfold existsRoutingAfterPower_step4_routes_step1_radialEnd
+  rw [div_eq_mul_inv, smul_smul]
+
+/-- Moving the centre and the unit direction moves the normalized radial endpoint by at most the
+centre displacement plus `|r|` times the direction displacement. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialEnd_dist
+    (c c' u u' : Pt) (r : ℝ) :
+    dist (c + r • u) (c' + r • u') ≤ dist c c' + |r| * dist u u' := by
+  calc
+    dist (c + r • u) (c' + r • u') ≤
+        dist (c + r • u) (c' + r • u) +
+          dist (c' + r • u) (c' + r • u') := dist_triangle _ _ _
+    _ = dist c c' + |r| * dist u u' := by
+      congr 1
+      · simpa [add_comm] using dist_add_left (r • u) c c'
+      · rw [dist_add_left, dist_eq_norm, ← smul_sub, norm_smul, Real.norm_eq_abs,
+          ← dist_eq_norm]
+
+/-- Lower Lipschitz constants multiply under composition. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_compose_lower
+    (e f : Pt ≃ₜ Pt) {c d : ℝ} (hd : 0 ≤ d)
+    (he : ∀ x y, c * dist x y ≤ dist (e x) (e y))
+    (hf : ∀ x y, d * dist x y ≤ dist (f x) (f y)) :
+    ∀ x y, (d * c) * dist x y ≤ dist (f (e x)) (f (e y)) := by
+  intro x y
+  calc
+    (d * c) * dist x y = d * (c * dist x y) := by ring
+    _ ≤ d * dist (e x) (e y) := mul_le_mul_of_nonneg_left (he x y) hd
+    _ ≤ dist (f (e x)) (f (e y)) := hf (e x) (e y)
+
+/-- Pointwise displacement bounds add under composition. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_compose_displacement
+    (e f : Pt ≃ₜ Pt) {A : Set Pt} {etaE etaF : ℝ}
+    (he : ∀ x ∈ A, dist (e x) x ≤ etaE)
+    (hf : ∀ x ∈ A, dist (f (e x)) (e x) ≤ etaF) :
+    ∀ x ∈ A, dist (f (e x)) x ≤ etaE + etaF := by
+  intro x hx
+  calc
+    dist (f (e x)) x ≤ dist (f (e x)) (e x) + dist (e x) x := dist_triangle _ _ _
+    _ ≤ etaF + etaE := add_le_add (hf x hx) (he x hx)
+    _ = etaE + etaF := add_comm _ _
+
 /-- The quantitative core of R4: a deformation with lower Lipschitz constant `1/2` preserves at
 least half of every clearance between two carriers.  The remaining R4 work is to construct the PL
 port slides and centre bump with this bound while preserving the prescribed collars. -/
@@ -34697,6 +35154,80 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize_clear
   rw [dist_comm u₀ u] at htri
   linarith [hsep i j hij.symm u₀ hu₀ v₀ hv₀]
 
+/-- R4d with an arbitrary approximation radius.  Re-polygonalizing in open `η`-tubes loses
+exactly `2 * η` from the clearance, which permits the final `δ / 2` bound after shrinking the
+deformation neighborhood. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize_radius
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
+    (x y : Fin k → Pt) (γ : Fin k → ℝ → Pt) {δ η : ℝ} (hη : 0 < η)
+    (hcont : ∀ i, Continuous (γ i))
+    (hend_x : ∀ i, γ i 0 = x i) (hend_y : ∀ i, γ i 1 = y i)
+    (hin : ∀ i, ∀ t ∈ Ioo (0 : ℝ) 1, γ i t ∈ interior A.carrier \ C.carrier)
+    (hsimp : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ i)))
+    (hsep : ∀ i j, i ≠ j → ∀ u ∈ γ i '' Icc (0 : ℝ) 1,
+      ∀ v ∈ γ j '' Icc (0 : ℝ) 1, δ ≤ dist u v) :
+    ∃ α : Fin k → PolyArc, ∀ i,
+      (α i).IsSimple ∧ (α i).start = x i ∧ (α i).stop = y i ∧
+      (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (α i).carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧
+      ∀ j, j ≠ i → ∀ u ∈ (α i).carrier, ∀ v ∈ (α j).carrier,
+        δ - 2 * η ≤ dist u v := by
+  let U : Fin k → Set Pt := fun i => Metric.thickening η (γ i '' Icc (0 : ℝ) 1)
+  have hUopen : ∀ i, IsOpen (U i) := fun _ => Metric.isOpen_thickening
+  have hUsub : ∀ i, γ i '' Icc (0 : ℝ) 1 ⊆ U i := by
+    intro i z hz
+    exact Metric.mem_thickening_iff.2 ⟨z, hz, by simpa using hη⟩
+  have hex : ∀ i, ∃ α : PolyArc,
+      α.IsSimple ∧ α.start = x i ∧ α.stop = y i ∧
+      α.carrier ⊆ A.carrier \ interior C.carrier ∧
+      α.carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧ α.carrier ⊆ U i := by
+    intro i
+    exact plAnnulusRouting_step2_plApprox_step2_single A C hC (x i) (y i) (γ i)
+      (hcont i) (hend_x i) (hend_y i) (hin i) (hsimp i) (U i) (hUopen i) (hUsub i)
+  choose α hα using hex
+  refine ⟨α, fun i => ⟨(hα i).1, (hα i).2.1, (hα i).2.2.1,
+    (hα i).2.2.2.1, (hα i).2.2.2.2.1, ?_⟩⟩
+  intro j hij u hu v hv
+  obtain ⟨u₀, hu₀, hdu⟩ := Metric.mem_thickening_iff.1 ((hα i).2.2.2.2.2 hu)
+  obtain ⟨v₀, hv₀, hdv⟩ := Metric.mem_thickening_iff.1 ((hα j).2.2.2.2.2 hv)
+  have htri : dist u₀ v₀ ≤ dist u₀ u + dist u v + dist v v₀ :=
+    dist_triangle4 u₀ u v v₀
+  rw [dist_comm u₀ u] at htri
+  linarith [hsep i j hij.symm u₀ hu₀ v₀ hv₀]
+
+/-- R4d with the requested final half-clearance.  A lower `3/4` deformation followed by
+re-polygonalization in `δ / 8`-tubes retains clearance `δ / 2`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_transportRoutes_half
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
+    (e : Pt ≃ₜ Pt) (γ : Fin k → ℝ → Pt) {δ : ℝ} (hδ : 0 < δ)
+    (hcont : ∀ i, Continuous (γ i))
+    (hsimp : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ i)))
+    (hsep : ∀ i j, i ≠ j → ∀ u ∈ γ i '' Icc (0 : ℝ) 1,
+      ∀ v ∈ γ j '' Icc (0 : ℝ) 1, δ ≤ dist u v)
+    (hlower : ∀ u v, (3 / 4 : ℝ) * dist u v ≤ dist (e u) (e v))
+    (hin : ∀ i, ∀ t ∈ Ioo (0 : ℝ) 1, e (γ i t) ∈ interior A.carrier \ C.carrier) :
+    ∃ α : Fin k → PolyArc, ∀ i,
+      (α i).IsSimple ∧ (α i).start = e (γ i 0) ∧ (α i).stop = e (γ i 1) ∧
+      (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (α i).carrier \ {e (γ i 0), e (γ i 1)} ⊆ interior A.carrier \ C.carrier ∧
+      ∀ j, j ≠ i → ∀ u ∈ (α i).carrier, ∀ v ∈ (α j).carrier,
+        δ / 2 ≤ dist u v := by
+  let γ' : Fin k → ℝ → Pt := fun i t => e (γ i t)
+  have hcont' : ∀ i, Continuous (γ' i) := fun i => e.continuous.comp (hcont i)
+  have hsimp' : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ' i)) := by
+    intro i s t hst
+    exact hsimp i (e.injective hst)
+  have hsep' : ∀ i j, i ≠ j → ∀ u ∈ γ' i '' Icc (0 : ℝ) 1,
+      ∀ v ∈ γ' j '' Icc (0 : ℝ) 1, (3 / 4 : ℝ) * δ ≤ dist u v := by
+    rintro i j hij u ⟨s, hs, rfl⟩ v ⟨t, ht, rfl⟩
+    exact (mul_le_mul_of_nonneg_left
+      (hsep i j hij (γ i s) ⟨s, hs, rfl⟩ (γ j t) ⟨t, ht, rfl⟩) (by norm_num)).trans
+      (hlower (γ i s) (γ j t))
+  have hpoly := existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize_radius
+    A C hC (fun i => e (γ i 0)) (fun i => e (γ i 1)) γ'
+      (show 0 < δ / 8 by positivity) hcont' (fun _ => rfl) (fun _ => rfl) hin hsimp' hsep'
+  convert hpoly using 1 <;> ring
+
 /-- R4d assembled for route families.  A common lower-`1/2` homeomorphism leaves clearance
 `δ / 2`; re-polygonalizing in quarter-clearance tubes leaves the proved final bound `δ / 4`. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_transportRoutes
@@ -34787,6 +35318,25 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R5_finiteSubcover
   have hmin : δ ≤ δloc z := Finset.min'_le S (δloc z)
     (Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨z, hzt, rfl⟩))
   exact hmono x (δloc z) δ (hstable z x hx hxz) hmin
+
+/-- R5 instantiated on the enriched admissible compactum.  Once R4e supplies the displayed
+local routing predicate, the finite subcover yields one positive clearance for every admissible
+configuration. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R5_Kadm
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    (Good : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α → ℝ → Prop)
+    (hmono : ∀ x d e, Good x d → e ≤ d → Good x e)
+    (hlocal : ∀ x ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α,
+      ∃ ε > (0 : ℝ), ∃ δ > (0 : ℝ),
+        ∀ y ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α,
+          y ∈ Metric.ball x ε → Good y δ) :
+    ∃ δ > (0 : ℝ),
+      ∀ x ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α,
+        Good x δ := by
+  exact existsRoutingAfterPower_step4_routes_step6_R5_finiteSubcover
+    (existsRoutingAfterPower_step4_routes_step6_R2_Kadm_compact τ M Rs cp rho α)
+    Good hmono hlocal
 
 /-- Step 6 of the blueprint proof of `existsRoutingAfterPower_step4_routes`: the routing in
 normalized coordinates with uniform clearance.  "For a normalized centre `z ∈ K_A`, take the

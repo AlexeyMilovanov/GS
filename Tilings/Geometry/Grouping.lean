@@ -12978,6 +12978,108 @@ private lemma plAnnulusRouting_polygonalAnnulus_cutModel_empty
     · intro i
       exact i.elim0
 
+/-- The complementary parameter interval following the last marked point is
+nondegenerate and contains two distinct unmarked points of the loop. -/
+private lemma plAnnulusRouting_polygonalAnnulus_markedGap {K : Set Pt}
+    {k : ℕ} (hk : 0 < k) (x : Fin k → Pt) (γ : ℝ → Pt)
+    (hγ : IsLoopParam K γ) (hx : PointsInOrder γ x) :
+    ∃ t : Fin k → ℝ, StrictMono t ∧
+      (∀ i j, t j < t i + 1) ∧ (∀ i, γ (t i) = x i) ∧
+      ∃ a b : ℝ, t ⟨k - 1, by omega⟩ < a ∧ a < b ∧
+        b < t ⟨0, hk⟩ + 1 ∧
+        (∀ i, γ a ≠ x i) ∧ (∀ i, γ b ≠ x i) ∧ γ a ≠ γ b := by
+  obtain ⟨t, ht, htw, htx⟩ := hx
+  let first : Fin k := ⟨0, hk⟩
+  let last : Fin k := ⟨k - 1, by omega⟩
+  let d := t first + 1 - t last
+  have hd : 0 < d := by
+    dsimp only [d]
+    linarith [htw first last]
+  let a := t last + d / 3
+  let b := t last + 2 * d / 3
+  have ha : t last < a := by dsimp only [a]; linarith
+  have hab : a < b := by dsimp only [a, b]; linarith
+  have hb : b < t first + 1 := by dsimp only [b, d]; linarith
+  have htlo : ∀ i, t first ≤ t i := fun i => by
+    apply ht.monotone
+    rw [Fin.le_iff_val_le_val]
+    simp [first]
+  have hthi : ∀ i, t i ≤ t last := fun i => by
+    apply ht.monotone
+    rw [Fin.le_iff_val_le_val]
+    dsimp only [last]
+    omega
+  have avoid {s : ℝ} (hslo : t last < s) (hshi : s < t first + 1) :
+      ∀ i, γ s ≠ x i := by
+    intro i he
+    rw [← htx i] at he
+    obtain ⟨n, hn⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step5_loopPeriod K γ hγ he
+    have hnlt : (n : ℝ) < 0 := by linarith [hn, hthi i]
+    have hngt : (-1 : ℝ) < n := by linarith [hn, htlo i]
+    have hnlt' : n < 0 := by exact_mod_cast hnlt
+    have hngt' : (-1 : ℤ) < n := by exact_mod_cast hngt
+    omega
+  have habγ : γ a ≠ γ b := by
+    intro he
+    obtain ⟨n, hn⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step5_loopPeriod K γ hγ he
+    have hnlt : (n : ℝ) < 1 := by linarith [hn, hb, ha, htlo last]
+    have hnpos : (0 : ℝ) < n := by linarith [hn]
+    have hnlt' : n < 1 := by exact_mod_cast hnlt
+    have hnpos' : (0 : ℤ) < n := by exact_mod_cast hnpos
+    omega
+  refine ⟨t, ht, htw, htx, a, b, ha, hab, hb, avoid ha ?_, avoid ?_ hb, habγ⟩
+  · exact hab.trans hb
+  · exact ha.trans hab
+
+/-- An open sub-period of a simple loop contains two distinct points outside
+any prescribed finite set. -/
+private lemma plAnnulusRouting_polygonalAnnulus_gapAvoidFinite {K : Set Pt}
+    (γ : ℝ → Pt) (hγ : IsLoopParam K γ) (F : Finset Pt)
+    {lo hi : ℝ} (hlo : lo < hi) (hwidth : hi ≤ lo + 1) :
+    ∃ a b : ℝ, a ∈ Ioo lo hi ∧ b ∈ Ioo lo hi ∧
+      γ a ∉ F ∧ γ b ∉ F ∧ γ a ≠ γ b := by
+  classical
+  have hinj : InjOn γ (Ioo lo hi) := by
+    intro s hs t ht he
+    obtain ⟨n, hn⟩ :=
+      plAnnulusRouting_polygonalDisk_closedBall_model_step5_loopPeriod K γ hγ he
+    have hnlt : (n : ℝ) < 1 := by
+      linarith [hn, ht.2, hwidth, hs.1]
+    have hngt : (-1 : ℝ) < n := by
+      linarith [hn, ht.1, hwidth, hs.2]
+    have hnlt' : n < 1 := by exact_mod_cast hnlt
+    have hngt' : (-1 : ℤ) < n := by exact_mod_cast hngt
+    have hn0 : n = 0 := by omega
+    rw [hn0, Int.cast_zero, add_zero] at hn
+    exact hn.symm
+  have himg : (γ '' Ioo lo hi).Infinite :=
+    (Set.Ioo_infinite hlo).image hinj
+  obtain ⟨pa, ⟨a, ha, rfl⟩, haF⟩ := (himg.diff F.finite_toSet).nonempty
+  let F' := insert (γ a) F
+  obtain ⟨pb, ⟨b, hb, rfl⟩, hbF⟩ := (himg.diff F'.finite_toSet).nonempty
+  refine ⟨a, b, ha, hb, ?_, ?_, ?_⟩
+  · simpa using haF
+  · exact fun h => hbF (by simp [F', h])
+  · exact fun h => hbF (by simp [F', h])
+
+/-- A free homotopy supplies a path between arbitrarily chosen phases of its
+two boundary loops: shear the angular parameter during the homotopy. -/
+private lemma plAnnulusRouting_polygonalAnnulus_phasePath {U : Set Pt}
+    (γo γi : ℝ → Pt) (hhom : LoopsHomotopicIn U γo γi)
+    (a b : ℝ) :
+    ∃ η : ℝ → Pt, Continuous η ∧ η 0 = γo a ∧ η 1 = γi b ∧
+      ∀ s ∈ Icc (0 : ℝ) 1, η s ∈ U := by
+  obtain ⟨F, hFc, -, hF0, hF1, hFU⟩ := hhom
+  let η : ℝ → Pt := fun s => F (s, a + s * (b - a))
+  refine ⟨η, hFc.comp ?_, ?_, ?_, ?_⟩
+  · fun_prop
+  · simp [η, hF0]
+  · simp [η, hF1]
+  · intro s hs
+    exact hFU s hs _
+
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the polygonal annulus
 `A \ interior C` is a topological annulus.  It has a period-one model `Ψ`, injective on one fundamental domain, sending
 `{0} × ℝ` and `{1} × ℝ` onto the outer and inner boundaries (as loop parametrizations), the closed strip onto the

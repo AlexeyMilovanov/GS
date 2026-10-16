@@ -43048,6 +43048,13 @@ private structure existsMacroCertificate_SetupSeed (τ : Substitution P)
     Set.InjOn piece (setup.markedSides (setup.c β) : Set _) ∧
     ∀ a ∈ setup.markedSides (setup.c β),
       (setup.GS.G.P'.disk (setup.c β)).side a ⊆ support ((g.annular p).spokes.piece (piece a)).faces
+  /-- a non-central child of a retained template never has a central-image form (it is an annular
+  piece or an original tile) -/
+  noncentral_not_large : ∀ l α (_hl : 0 < l), ∀ X ∈ (setup.retained l α).children.tiles,
+    X ≠ setup.central l α → ∀ β, X.form ≠ Sum.inl (setup.c β)
+  /-- a form that is not a central image has at most `Q` listed sides (annular pieces by
+  `lem:quantitative-sector`, original tiles by `K₀ ≤ Q`) -/
+  sides_le_Qmax : ∀ α, (∀ β, α ≠ setup.c β) → (setup.GS.G.P'.disk α).n ≤ g.Qmax
 
 /-- Step 3 of `lem:certificate-exists`: "Scattering a group and applying the grouped substitution
 to each constituent defines `σ`"; the central child of a template is the inside-anchored group
@@ -43081,9 +43088,15 @@ are injective on edges, the special side of a small type is its designated conta
 centre (the print, when it receives one), prints come from the routing's print slots, the outer
 lists are the whole outer fine sides in `LexPositive` order, the genuine paths are the occurrence
 chains of the routed side lists (both occurrences of every crossed inner side, the print in its
-small owner), the fifth and the unmarked paths are singleton ports, `N` and `Qmax` are the chosen
-constants and `rankBound` is the largest list length.  The properties (G1)--(G7) of `D` are proved
-from these equations in the following seven lemmas. -/
+small owner, with the occurrence-level invariants the chains inherit from the routing data), the
+fifth and the unmarked paths are singleton ports, `N` and `Qmax` are the chosen constants and
+`rankBound` is the largest list length.  (Repair of 16 October 2026 after codex: the destuttered
+side projection alone did not pin the chains - adjacent duplicate occurrences were allowed - and
+the ownership of the centre, the catalogue form of a type's child and the bijectivity of the side
+relabelling were missing; the chain invariants, `central_owner`, `child_form`, `base_form`,
+`catalogue_form_injective` and `parentSide_bijective` are now part of the data.)  The properties
+(G1)--(G7) of `D` are proved from these equations in the following seven lemmas; (G4) is a pure
+projection. -/
 private structure existsMacroCertificate_CertData (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
@@ -43124,9 +43137,20 @@ private structure existsMacroCertificate_CertData (τ : Substitution P)
   central_child : ∀ α, templateChild (D.central α) = s.setup.central l (baseForm α)
   central_form : ∀ α, (templateChild (D.central α)).form =
     Sum.inl (s.setup.c^[l] (baseForm α))
+  central_owner : ∀ α, D.owner (D.central α) = α
+  /-- the mixed form of a type's template child is the catalogue form of its own form -/
+  child_form : ∀ t, (templateChild t).form = (catalogueTile (D.form t)).form
+  /-- the base form of a grouped catalogue form is that grouped form; of an original singleton
+  the grouped singleton form -/
+  base_form : ∀ α β, (catalogueTile α).form = Sum.inl β → baseForm α = β
+  base_original : ∀ p, (s.setup.GS.G.dissect (baseForm (originalForm p))).tiles = {⟨p, 0⟩}
+  /-- one catalogue entry per mixed form -/
+  catalogue_form_injective : ∀ α β, (catalogueTile α).form = (catalogueTile β).form → α = β
   -- parent sides and marking
   parentSide : ∀ α, Fin (D.Q.disk α).n → Fin (s.setup.GS.G.P'.disk (baseForm α)).n
   parentSide_injective : ∀ α, Function.Injective (parentSide α)
+  /-- the relabelling between the two listings of the same disk is a bijection -/
+  parentSide_bijective : ∀ α, Function.Bijective (parentSide α)
   parent_side_geometry : ∀ α d, D.macroSide α d =
     (τ.θ ^ (s.setup.GS.k * l)) • (s.setup.GS.G.P'.disk (baseForm α)).side (parentSide α d)
   marked_from_setup : ∀ α d, D.marked α d ↔ parentSide α d ∈ s.setup.markedSides (baseForm α)
@@ -43157,6 +43181,12 @@ private structure existsMacroCertificate_CertData (τ : Substitution P)
   -- prints and special sides
   print_from_routing : ∀ α d, D.occSide (D.printOcc α d) =
     (s.setup.central l (baseForm α)).side ((routing (baseForm α)).printIdx (parentSide α d))
+  print_injective : ∀ α (d d' : Fin (D.Q.disk α).n), D.marked α d → D.marked α d' →
+    D.print α d = D.print α d' → d = d'
+  print_cyclic : ∀ α (a b e : Fin (D.Q.disk α).n), D.marked α a → D.marked α b →
+    D.marked α e → CycLt3 a b e → CycLt3 (D.print α a) (D.print α b) (D.print α e)
+  print_inner : ∀ α d, D.marked α d → D.IsInner (D.printOcc α d)
+  print_small : ∀ α d, D.marked α d → D.kind (D.form (D.partner (D.printOcc α d)).1) = .small
   special_small : ∀ o : D.SideOcc, D.special o → D.kind (D.form o.1) = .small
   special_unique : ∀ t, D.kind (D.form t) = .small → ∃! i, D.special (D.occ t i)
   special_contact : ∀ o : D.SideOcc, D.special o →
@@ -43178,6 +43208,18 @@ private structure existsMacroCertificate_CertData (τ : Substitution P)
     ∀ o ∈ D.path α d i, D.IsInner o → ¬ D.IsPrint o → D.partner o ∈ D.path α d i
   path_trivial : ∀ α d i, ¬ D.IsGenuinePath α d i → D.path α d i = (D.port α d i).toList
   fifth_path : ∀ α d, D.path α d (4 : Fin 5) = (D.port α d (4 : Fin 5)).toList
+  -- the occurrence-level invariants inherited by the chains from the routing data
+  path_inner : ∀ α d i, D.IsGenuinePath α d i →
+    ∀ (n : ℕ) (o : D.SideOcc), (D.path α d i)[n + 1]? = some o → D.IsInner o
+  path_marked : ∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, D.IsMarked o
+  path_not_central : ∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, o.1 ≠ D.central α
+  path_penultimate : ∀ α d i, D.IsGenuinePath α d i →
+    ∀ o : D.SideOcc, (D.path α d i)[(D.path α d i).length - 2]? = some o →
+      o.1 = (D.partner (D.printOcc α d)).1 ∧ D.IsOrdinary o
+  path_nodup : ∀ α d i, (D.path α d i).Nodup
+  path_disjoint : ∀ α (d d' : Fin (D.Q.disk α).n) (i i' : Fin 5), (d, i) ≠ (d', i') →
+    ∀ o, o ∈ D.path α d i → o ∈ D.path α d' i' →
+      d = d' ∧ (o = D.printOcc α d ∨ o = D.partner (D.printOcc α d))
 
 /-- Step 4 of `lem:certificate-exists`: the finite packaging.  "Keep the finite labelled groups in
 `P'`" (here: the retained catalogue tiles), "the types are the positioned children of the
@@ -43233,22 +43275,39 @@ private lemma existsMacroCertificate_seed2_routing_step6_g3 (τ : Substitution P
     existsMacroCertificate_G3Data cd.D := by
   sorry
 
-/-- Step 8 of `lem:certificate-exists`, (G4): "The routing lemma gives (G4)": the print map is the
-routing's print slot map (injective, cyclic, inner, with a small other owner which is special),
-and the genuine paths are the occurrence chains of the routed side lists (`CertData`), which
-inherit from `RoutingData` that every side after the port is inner, every side is marked, no
-central side occurs before the print, the side before the print is an ordinary side of the small
-owner, no occurrence repeats and distinct paths share only the terminal print. -/
+/-- Step 8 of `lem:certificate-exists`, (G4): "The routing lemma gives (G4)".  All clauses are
+recorded in `CertData` (the print map is the routing's print slot map; the genuine paths are the
+occurrence chains of the routed side lists with the invariants they inherit from `RoutingData`),
+so this step is a projection; the content is in Step 4. -/
 private lemma existsMacroCertificate_seed2_routing_step7_g4 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
-    existsMacroCertificate_G4Data cd.D := by
-  sorry
+    existsMacroCertificate_G4Data cd.D :=
+  { print_injective := cd.print_injective
+    print_cyclic := cd.print_cyclic
+    print_inner := cd.print_inner
+    print_small := cd.print_small
+    print_special := cd.special_print
+    path_head := cd.path_head
+    path_last := cd.path_last
+    path_chain := cd.path_chain
+    path_owner := cd.path_owner
+    path_inner := cd.path_inner
+    path_partner := cd.path_partner
+    path_marked := cd.path_marked
+    path_not_central := cd.path_not_central
+    path_penultimate := cd.path_penultimate
+    path_trivial := cd.path_trivial
+    path_nodup := cd.path_nodup
+    path_disjoint := cd.path_disjoint }
 
-/-- Step 9 of `lem:certificate-exists`, (G5): the central child belongs to its template and is its
-unique large child (`kind_large`, `child_bijective`); "For a retained large form `α = c^l β`,
+/-- Step 9 of `lem:certificate-exists`, (G5): the central child belongs to its template
+(`central_owner`) and is its unique large child (`kind_large`, `child_form`, `child_bijective`,
+`SetupSeed.noncentral_not_large`); `central_fixes_large` from `base_form`, `catalogue_form_injective`
+and idempotence; the marked-side counts through the bijection `parentSide` (`SetupSeed.marked_large_card`,
+`SetupSeed.sides_le_Qmax`); "For a retained large form `α = c^l β`,
 `c^l α = α`" (`central_idempotent`); identity prints for a large parent (`RoutingData.print_id`);
 a large form has `4N` marked sides and a non-large form at most `Qmax` (`SetupSeed`,
 `g.annular_quantitative`, `MeshConstants.sides_le`); `4N > 3Q`; every original type has a marked

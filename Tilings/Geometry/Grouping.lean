@@ -36048,6 +36048,158 @@ private def existsRoutingAfterPower_step4_routes_step6_R4_Good
       ∀ b r, (b, r) ≠ (a, i.castSucc) → ∀ x ∈ (γ a i).carrier,
         ∀ y ∈ segment ℝ (cfg.2.1 b r).1 (cfg.2.1 b r).2, δ ≤ dist x y
 
+/-- The simultaneous metric part of R4e.  Suppose a new polygonal route family has the right
+endpoints and domain properties and lies pointwise within the configuration distance of an old
+`R4_Good` family.  Then one configuration-distance bound preserves, at once, route-to-route
+clearance and clearance from every moved port and every moved radial collar.  Thus the remaining
+local-stability obligation is the geometric construction of the nearby routes. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_Good_fixedRoutes
+    (tau : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup tau M)
+    (alpha : Rs.GS.G.P'.Form) (kappa delta : ℝ)
+    (cfg cfg' : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig tau M Rs alpha)
+    (perm : Fin (Rs.GS.G.P'.disk alpha).n → Equiv.Perm (Fin 4))
+    (gamma : Fin (Rs.GS.G.P'.disk alpha).n → Fin 4 → PolyArc)
+    (gamma' : Fin (Rs.GS.G.P'.disk alpha).n → Fin 4 → PolyArc)
+    (hdelta : 0 < delta)
+    (hgamma : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+      (gamma a i).start ∈ segment ℝ (cfg.2.1 a i.castSucc).1 (cfg.2.1 a i.castSucc).2 ∧
+      (gamma a i).stop = cfg.1 + kappa • cfg.2.2 ⟨a, ha⟩ (perm a i) ∧
+      (gamma a i).carrier \ {(gamma a i).start} ⊆
+        interior (Rs.GS.G.P'.disk alpha).carrier ∧
+      Disjoint (gamma a i).carrier (Metric.ball cfg.1 kappa) ∧
+      (∀ b, ∀ hb : b ∈ Rs.markedSides alpha, ∀ j, (a, i) ≠ (b, j) →
+        ∀ x ∈ (gamma a i).carrier,
+        (∀ y ∈ (gamma b j).carrier, delta ≤ dist x y) ∧
+        ∀ y ∈ segment ℝ cfg.1
+          (cfg.1 + kappa • cfg.2.2 ⟨b, hb⟩ (perm b j)), delta ≤ dist x y) ∧
+      ∀ b r, (b, r) ≠ (a, i.castSucc) → ∀ x ∈ (gamma a i).carrier,
+        ∀ y ∈ segment ℝ (cfg.2.1 b r).1 (cfg.2.1 b r).2, delta ≤ dist x y)
+    (hnear : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+      ∀ x ∈ (gamma' a i).carrier, ∃ x₀ ∈ (gamma a i).carrier,
+        dist x₀ x ≤ dist cfg cfg')
+    (hstart : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+      (gamma' a i).start ∈ segment ℝ (cfg'.2.1 a i.castSucc).1 (cfg'.2.1 a i.castSucc).2)
+    (hstop : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+      (gamma' a i).stop = cfg'.1 + kappa • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+    (hinterior : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+      (gamma' a i).carrier \ {(gamma' a i).start} ⊆
+        interior (Rs.GS.G.P'.disk alpha).carrier)
+    (hball : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+      Disjoint (gamma' a i).carrier (Metric.ball cfg'.1 kappa))
+    (hsmall : (3 + |kappa|) * dist cfg cfg' ≤ delta / 2) :
+    existsRoutingAfterPower_step4_routes_step6_R4_Good
+      tau M Rs alpha kappa cfg' (delta / 2) := by
+  refine ⟨perm, gamma', ?_⟩
+  intro a ha i
+  obtain ⟨-, -, -, -, hseparation, hports⟩ := hgamma a ha i
+  refine ⟨hstart a ha i, hstop a ha i, hinterior a ha i, hball a ha i, ?_, ?_⟩
+  · intro b hb j hab x hx
+    obtain ⟨x₀, hx₀, hxx₀⟩ := hnear a ha i x hx
+    obtain ⟨hroutes, hradial⟩ := hseparation b hb j hab x₀ hx₀
+    constructor
+    · intro y hy
+      obtain ⟨y₀, hy₀, hyy₀⟩ := hnear b hb j y hy
+      have hold := hroutes y₀ hy₀
+      have htri : dist x₀ y₀ ≤ dist x₀ x + dist x y + dist y y₀ :=
+        dist_triangle4 x₀ x y y₀
+      rw [dist_comm y y₀] at htri
+      have hloss : 2 * dist cfg cfg' ≤ (3 + |kappa|) * dist cfg cfg' := by
+        nlinarith [abs_nonneg kappa, (dist_nonneg : 0 ≤ dist cfg cfg')]
+      linarith
+    · intro y hy
+      have hrad := existsRoutingAfterPower_step4_routes_step6_R4_radial_clearance
+        (A := {x₀})
+        (c := cfg.1) (c' := cfg'.1)
+        (u := cfg.2.2 ⟨b, hb⟩ (perm b j))
+        (u' := cfg'.2.2 ⟨b, hb⟩ (perm b j))
+        (by
+          intro x' hx'
+          rw [Set.mem_singleton_iff.mp hx']
+          exact hradial) x₀ (Set.mem_singleton x₀) y hy
+      have hc := existsRoutingAfterPower_step4_routes_step6_R4_config_center_dist
+        tau M Rs alpha cfg cfg'
+      have hu := existsRoutingAfterPower_step4_routes_step6_R4_config_direction_dist
+        tau M Rs alpha cfg cfg' ⟨b, hb⟩ (perm b j)
+      have hobstacle : 2 * dist cfg.1 cfg'.1 +
+          |kappa| * dist (cfg.2.2 ⟨b, hb⟩ (perm b j))
+            (cfg'.2.2 ⟨b, hb⟩ (perm b j)) ≤
+          (2 + |kappa|) * dist cfg cfg' := by
+        calc
+          _ ≤ 2 * dist cfg cfg' + |kappa| * dist cfg cfg' :=
+            add_le_add (mul_le_mul_of_nonneg_left hc (by norm_num))
+              (mul_le_mul_of_nonneg_left hu (abs_nonneg kappa))
+          _ = _ := by ring
+      have htri : dist x₀ y ≤ dist x₀ x + dist x y := dist_triangle _ _ _
+      have hloss : dist cfg cfg' + (2 + |kappa|) * dist cfg cfg' =
+          (3 + |kappa|) * dist cfg cfg' := by ring
+      linarith
+  · intro b r hbr x hx y hy
+    obtain ⟨x₀, hx₀, hxx₀⟩ := hnear a ha i x hx
+    have hp := existsRoutingAfterPower_step4_routes_step6_R4_onePort_clearance
+      (p := (cfg.2.1 b r).1) (q := (cfg.2.1 b r).2)
+      (p' := (cfg'.2.1 b r).1) (q' := (cfg'.2.1 b r).2)
+      (hports b r hbr) x₀ hx₀ y hy
+    obtain ⟨hp1, hp2⟩ := existsRoutingAfterPower_step4_routes_step6_R4_config_port_dist
+      tau M Rs alpha cfg cfg' b r
+    have hportloss : dist (cfg.2.1 b r).1 (cfg'.2.1 b r).1 +
+        dist (cfg.2.1 b r).2 (cfg'.2.1 b r).2 ≤
+        2 * dist cfg cfg' := by linarith
+    have htri : dist x₀ y ≤ dist x₀ x + dist x y := dist_triangle _ _ _
+    have hloss : 3 * dist cfg cfg' ≤ (3 + |kappa|) * dist cfg cfg' := by
+      nlinarith [abs_nonneg kappa, (dist_nonneg : 0 ≤ dist cfg cfg')]
+    linarith
+
+/-- A concrete common neighborhood size for the simultaneous port/collar loss in
+`R4_Good_fixedRoutes`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_fixedRoutes_radius
+    {X : Type*} [PseudoMetricSpace X] (cfg : X) {delta : ℝ} (hdelta : 0 < delta)
+    (kappa : ℝ) :
+    ∃ epsilon > (0 : ℝ), ∀ cfg' : X, cfg' ∈ Metric.ball cfg epsilon →
+      (3 + |kappa|) * dist cfg cfg' ≤ delta / 2 := by
+  let C : ℝ := 3 + |kappa|
+  have hC : 0 < C := by dsimp [C]; positivity
+  refine ⟨delta / (4 * C), by positivity, ?_⟩
+  intro cfg' hcfg'
+  rw [Metric.mem_ball] at hcfg'
+  have hmul : dist cfg' cfg * (4 * C) < delta :=
+    (lt_div_iff₀ (mul_pos (by norm_num) hC)).mp hcfg'
+  rw [dist_comm cfg' cfg] at hmul
+  have hdist : 0 ≤ dist cfg cfg' := dist_nonneg
+  dsimp [C] at hC hmul ⊢
+  nlinarith
+
+/-- Positive `R4_Good` clearance forces the selected inner directions to be pairwise distinct.
+This is the closed-limit datum that must ultimately be extracted from the realized entrance
+order before the fixed-configuration annulus theorem can be applied on all of `R2_Kadm`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_Good_direction_injective
+    (tau : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup tau M)
+    (alpha : Rs.GS.G.P'.Form) (kappa : ℝ)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig tau M Rs alpha)
+    {delta : ℝ} (hdelta : 0 < delta)
+    (hgood : existsRoutingAfterPower_step4_routes_step6_R4_Good
+      tau M Rs alpha kappa cfg delta) :
+    ∃ perm : Fin (Rs.GS.G.P'.disk alpha).n → Equiv.Perm (Fin 4),
+      ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+        ∀ b, ∀ hb : b ∈ Rs.markedSides alpha, ∀ j, (a, i) ≠ (b, j) →
+          cfg.2.2 ⟨a, ha⟩ (perm a i) ≠ cfg.2.2 ⟨b, hb⟩ (perm b j) := by
+  obtain ⟨perm, gamma, hgamma⟩ := hgood
+  refine ⟨perm, ?_⟩
+  intro a ha i b hb j hab huv
+  obtain ⟨-, hstop, -, -, hseparation, -⟩ := hgamma a ha i
+  have hstopMem : (gamma a i).stop ∈ (gamma a i).carrier := by
+    rw [PolyArc.carrier]
+    refine Set.mem_iUnion.2 ⟨Fin.last (gamma a i).n, ?_⟩
+    rw [PolyArc.seg, PolyArc.stop, Fin.succ_last]
+    exact right_mem_segment ℝ
+      ((gamma a i).pt (Fin.last (gamma a i).n).castSucc)
+      ((gamma a i).pt (Fin.last ((gamma a i).n + 1)))
+  have hsep := (hseparation b hb j hab (gamma a i).stop hstopMem).2
+    (cfg.1 + kappa • cfg.2.2 ⟨b, hb⟩ (perm b j))
+    (right_mem_segment ℝ cfg.1
+      (cfg.1 + kappa • cfg.2.2 ⟨b, hb⟩ (perm b j)))
+  rw [hstop, huv, dist_self] at hsep
+  linarith
+
 /-- Decreasing the requested normalized clearance preserves `R4_Good`. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_Good_mono
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)

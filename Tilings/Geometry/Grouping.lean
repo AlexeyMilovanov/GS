@@ -15457,6 +15457,218 @@ private lemma plAnnulusRouting_step2_plApprox (A C : PolygonalDisk)
   have hU_disj_ij := hU_disj i j hneq.symm
   exact hU_disj_ij.mono hU_i (hα j).2.2.2.2.2
 
+set_option maxHeartbeats 500000 in
+/-- Two aligned complementary boundary gaps contain the endpoints of two disjoint
+simple polygonal cross-cuts of the annulus. -/
+private lemma plAnnulusRouting_polygonalAnnulus_twoGapCrosscuts
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier)
+    {k : ℕ} (hk : 0 < k) (x y : Fin k → Pt)
+    (γo γi : ℝ → Pt)
+    (hγo : IsLoopParam (frontier A.carrier) γo)
+    (hγi : IsLoopParam (frontier C.carrier) γi)
+    (hhom : LoopsHomotopicIn
+      (A.carrier \ interior C.carrier) γo γi)
+    (hxo : PointsInOrder γo x) (hyi : PointsInOrder γi y) :
+    ∃ (tₒ ti : Fin k → ℝ) (ao₁ ao₂ ai₁ ai₂ : ℝ)
+      (α₁ α₂ : PolyArc),
+      StrictMono tₒ ∧ StrictMono ti ∧
+      (∀ i j, tₒ j < tₒ i + 1) ∧
+      (∀ i j, ti j < ti i + 1) ∧
+      (∀ i, γo (tₒ i) = x i) ∧
+      (∀ i, γi (ti i) = y i) ∧
+      tₒ ⟨k - 1, by omega⟩ < ao₁ ∧ ao₁ < ao₂ ∧
+      ao₂ < tₒ ⟨0, hk⟩ + 1 ∧
+      ti ⟨k - 1, by omega⟩ < ai₁ ∧ ai₁ < ai₂ ∧
+      ai₂ < ti ⟨0, hk⟩ + 1 ∧
+      α₁.IsSimple ∧ α₂.IsSimple ∧
+      α₁.start = γo ao₁ ∧ α₁.stop = γi ai₁ ∧
+      α₂.start = γo ao₂ ∧ α₂.stop = γi ai₂ ∧
+      α₁.carrier ⊆ A.carrier \ interior C.carrier ∧
+      α₂.carrier ⊆ A.carrier \ interior C.carrier ∧
+      α₁.carrier \ {α₁.start, α₁.stop} ⊆
+        interior A.carrier \ C.carrier ∧
+      α₂.carrier \ {α₂.start, α₂.stop} ⊆
+        interior A.carrier \ C.carrier ∧
+      Disjoint α₁.carrier α₂.carrier := by
+  obtain ⟨tₒ, hto, htow, htox, ao₁, ao₂, hao₁, hao₁₂, hao₂, -, -, -⟩ :=
+    plAnnulusRouting_polygonalAnnulus_markedGap hk x γo hγo hxo
+  obtain ⟨ti, hti, htiw, htiy, ai₁, ai₂, hai₁, hai₁₂, hai₂, -, -, -⟩ :=
+    plAnnulusRouting_polygonalAnnulus_markedGap hk y γi hγi hyi
+  have hto_first_last : tₒ ⟨0, hk⟩ ≤ tₒ ⟨k - 1, by omega⟩ := by
+    apply hto.monotone
+    rw [Fin.le_iff_val_le_val]
+    simp
+  have hti_first_last : ti ⟨0, hk⟩ ≤ ti ⟨k - 1, by omega⟩ := by
+    apply hti.monotone
+    rw [Fin.le_iff_val_le_val]
+    simp
+  have hao_width : ao₂ < ao₁ + 1 := by linarith
+  have hai_width : ai₂ < ai₁ + 1 := by linarith
+  obtain ⟨Ψ0, hΨ0c, hper0, hinj0, hΨ00, hΨ01, hmap0, hsurj0, hmapi0⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step1_annulusModel A C hC
+  obtain ⟨Ψ, hΨc, hper, hinj, hΨ0, hΨ1, hmap, hsurj, hmapi⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step2_outerReparam A C γo hγo Ψ0
+      hΨ0c hper0 hinj0 hΨ00 hΨ01 hmap0 hsurj0 hmapi0
+  obtain ⟨φ, hφc, hφm, hφp, hφ⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step2_innerOrientation A C γo γi
+      hγi hhom Ψ hΨc hper hinj hΨ0 hΨ1 hsurj
+  obtain ⟨Φ, hΦc, hΦper, hΦinj, hΦ0, hΦ1, hΦmap, hΦmapi⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step3_reparametrize A C γo γi
+      Ψ hΨc hper hinj hΨ0 hmap hmapi φ hφc hφm hφp hφ
+  let ao : Fin 2 → ℝ := ![ao₁, ao₂]
+  let ai : Fin 2 → ℝ := ![ai₁, ai₂]
+  let ang : Fin 2 → ℝ → ℝ := fun i s => (1 - s) * ao i + s * ai i
+  let p : Fin 2 → Pt := fun i => γo (ao i)
+  let q : Fin 2 → Pt := fun i => γi (ai i)
+  let η : Fin 2 → ℝ → Pt := fun i s => Φ (s, ang i s)
+  have hcont : ∀ i, Continuous (η i) := by
+    intro i
+    exact hΦc.comp (continuous_id.prodMk (by
+      dsimp only [ang]
+      fun_prop))
+  have hend_p : ∀ i, η i 0 = p i := by
+    intro i
+    simp [η, ang, p, hΦ0]
+  have hend_q : ∀ i, η i 1 = q i := by
+    intro i
+    simp [η, ang, q, hΦ1]
+  have hin : ∀ i, ∀ s ∈ Ioo (0 : ℝ) 1,
+      η i s ∈ interior A.carrier \ C.carrier := by
+    intro i s hs
+    exact hΦmapi ⟨hs, mem_univ _⟩
+  have hsimp : ∀ i,
+      Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (η i)) := by
+    intro i s t hst
+    apply Subtype.ext
+    exact (plAnnulusRouting_polygonalAnnulus_cutModel_step2_periodicFiber
+      hΦper hΦinj s.property t.property hst).1
+  have convex_gap (s : ℝ) (hs : s ∈ Icc (0 : ℝ) 1) :
+      0 < ang 1 s - ang 0 s ∧ ang 1 s - ang 0 s < 1 := by
+    have hws : 0 ≤ s := hs.1
+    have hw1s : 0 ≤ 1 - s := sub_nonneg.2 hs.2
+    have hdo : 0 < ao₂ - ao₁ := sub_pos.2 hao₁₂
+    have hdi : 0 < ai₂ - ai₁ := sub_pos.2 hai₁₂
+    have hdo1 : 0 < 1 - (ao₂ - ao₁) := by linarith
+    have hdi1 : 0 < 1 - (ai₂ - ai₁) := by linarith
+    have hang : ang 1 s - ang 0 s =
+        (1 - s) * (ao₂ - ao₁) + s * (ai₂ - ai₁) := by
+      simp [ang, ao, ai]
+      ring
+    rw [hang]
+    constructor
+    · rcases eq_or_lt_of_le hws with rfl | hspos
+      · simpa using hdo
+      · exact add_pos_of_nonneg_of_pos (mul_nonneg hw1s hdo.le)
+          (mul_pos hspos hdi)
+    · apply sub_pos.mp
+      have hone : 1 - ((1 - s) * (ao₂ - ao₁) + s * (ai₂ - ai₁)) =
+          (1 - s) * (1 - (ao₂ - ao₁)) + s * (1 - (ai₂ - ai₁)) := by
+        ring
+      rw [hone]
+      rcases eq_or_lt_of_le hws with rfl | hspos
+      · simpa using hdo1
+      · exact add_pos_of_nonneg_of_pos (mul_nonneg hw1s hdo1.le)
+          (mul_pos hspos hdi1)
+  have hdisj : ∀ i j, i ≠ j →
+      Disjoint (η i '' Icc (0 : ℝ) 1) (η j '' Icc (0 : ℝ) 1) := by
+    intro i j hij
+    rw [Set.disjoint_left]
+    rintro z ⟨s, hs, rfl⟩ ⟨t, ht, heq⟩
+    have heq' : Φ (s, ang i s) = Φ (t, ang j t) := by
+      simpa [η] using heq.symm
+    have hfiber :=
+      plAnnulusRouting_polygonalAnnulus_cutModel_step2_periodicFiber
+        hΦper hΦinj hs ht heq'
+    have hst : s = t := hfiber.1
+    subst t
+    obtain ⟨n, hn⟩ := hfiber.2
+    fin_cases i <;> fin_cases j
+    · exact (hij rfl).elim
+    · have hg := convex_gap s hs
+      have hnlt : (n : ℝ) < 0 := by
+        rw [← hn]
+        simpa [ang, ao, ai] using neg_lt_zero.mpr hg.1
+      have hngt : (-1 : ℝ) < n := by
+        rw [← hn]
+        simpa [ang, ao, ai] using neg_lt_neg hg.2
+      have hnlt' : n < 0 := by exact_mod_cast hnlt
+      have hngt' : (-1 : ℤ) < n := by exact_mod_cast hngt
+      omega
+    · have hg := convex_gap s hs
+      have hnpos : (0 : ℝ) < n := by
+        rw [← hn]
+        simpa [ang, ao, ai] using hg.1
+      have hnlt : (n : ℝ) < 1 := by
+        rw [← hn]
+        simpa [ang, ao, ai] using hg.2
+      have hnpos' : (0 : ℤ) < n := by exact_mod_cast hnpos
+      have hnlt' : n < 1 := by exact_mod_cast hnlt
+      omega
+    · exact (hij rfl).elim
+  obtain ⟨α, hα⟩ :=
+    plAnnulusRouting_step2_plApprox A C hC p q η hcont hend_p hend_q hin hsimp hdisj
+  have hα0 := hα (0 : Fin 2)
+  have hα1 := hα (1 : Fin 2)
+  refine ⟨tₒ, ti, ao₁, ao₂, ai₁, ai₂, α 0, α 1, hto, hti, htow, htiw,
+    htox, htiy, hao₁, hao₁₂, hao₂, hai₁, hai₁₂, hai₂, hα0.1, hα1.1,
+    ?_, ?_, ?_, ?_, hα0.2.2.2.1, hα1.2.2.2.1, ?_, ?_, ?_⟩
+  · simpa [p, ao] using hα0.2.1
+  · simpa [q, ai] using hα0.2.2.1
+  · simpa [p, ao] using hα1.2.1
+  · simpa [q, ai] using hα1.2.2.1
+  · simpa [hα0.2.1, hα0.2.2.1] using hα0.2.2.2.2.1
+  · simpa [hα1.2.1, hα1.2.2.1] using hα1.2.2.2.2.1
+  · exact hα0.2.2.2.2.2 1 (by decide)
+
+/-- A polygonal cross-cut whose non-endpoints lie in the open annulus meets
+each boundary component only at its designated endpoint. -/
+private lemma plAnnulusRouting_polygonalAnnulus_crosscut_boundary
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier)
+    (α : PolyArc)
+    (hstart : α.start ∈ frontier A.carrier)
+    (hstop : α.stop ∈ frontier C.carrier)
+    (hopen : α.carrier \ {α.start, α.stop} ⊆
+      interior A.carrier \ C.carrier) :
+    α.carrier ∩ frontier A.carrier = {α.start} ∧
+      α.carrier ∩ frontier C.carrier = {α.stop} := by
+  have hstart_carrier : α.start ∈ α.carrier := by
+    exact Set.mem_iUnion.2 ⟨0, left_mem_segment ℝ _ _⟩
+  have hstop_carrier : α.stop ∈ α.carrier := by
+    exact Set.mem_iUnion.2 ⟨Fin.last _, right_mem_segment ℝ _ _⟩
+  have hfront_disjoint : ∀ (B : PolygonalDisk) {z : Pt},
+      z ∈ frontier B.carrier → z ∉ interior B.carrier := by
+    intro B z hz
+    exact hz.2
+  constructor
+  · apply Set.Subset.antisymm
+    · rintro z ⟨hzα, hzA⟩
+      by_cases hzs : z = α.start
+      · simpa [hzs]
+      by_cases hzt : z = α.stop
+      · subst z
+        exact False.elim ((hfront_disjoint A hzA)
+          (hC (pd_frontier_subset_carrier C hstop)))
+      · exact False.elim ((hfront_disjoint A hzA)
+          (hopen ⟨hzα, by simp [hzs, hzt]⟩).1)
+    · rintro z hz
+      rw [Set.mem_singleton_iff] at hz
+      subst z
+      exact ⟨hstart_carrier, hstart⟩
+  · apply Set.Subset.antisymm
+    · rintro z ⟨hzα, hzC⟩
+      by_cases hzt : z = α.stop
+      · simpa [hzt]
+      by_cases hzs : z = α.start
+      · subst z
+        exact False.elim ((hfront_disjoint A hstart)
+          (hC (pd_frontier_subset_carrier C hzC)))
+      · exact False.elim ((hopen ⟨hzα, by simp [hzs, hzt]⟩).2
+          (pd_frontier_subset_carrier C hzC))
+    · rintro z hz
+      rw [Set.mem_singleton_iff] at hz
+      subst z
+      exact ⟨hstop_carrier, hstop⟩
+
 /-- **PL annulus routing** (classical helper; must be proved, never assumed).
 In the polygonal annulus `A \ int C`, distinct outer points and distinct inner
 points in matching cyclic order are joined by pairwise disjoint simple

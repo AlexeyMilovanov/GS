@@ -2470,6 +2470,179 @@ def MatchingCyclicOrder (U Kout Kin : Set Pt) {k : ℕ} (x y : Fin k → Pt) : P
   ∃ γo γi : ℝ → Pt, IsLoopParam Kout γo ∧ IsLoopParam Kin γi ∧
     LoopsHomotopicIn U γo γi ∧ PointsInOrder γo x ∧ PointsInOrder γi y
 
+/-- A compact-witness relaxation of `PointsInOrder`.  Parameters are normalized into `[0,2]`;
+the order and one-period window inequalities are non-strict, so this predicate is closed. -/
+private def existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder
+    (gamma : ℝ → Pt) {k : ℕ} (x : Fin k → Pt) : Prop :=
+  ∃ t : Fin k → ℝ,
+    (∀ i, t i ∈ Icc (0 : ℝ) 2) ∧
+    (∀ i j, i ≤ j → t i ≤ t j) ∧
+    (∀ i j, t j ≤ t i + 1) ∧
+    ∀ i, gamma (t i) = x i
+
+/-- The normalized weak-order predicate is closed: it is the continuous image of a closed subset
+of the compact cube `[0,2]^k`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_weakPointsInOrder_closed
+    (gamma : ℝ → Pt) (hgamma : Continuous gamma) (k : ℕ) :
+    IsClosed {x : Fin k → Pt |
+      existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder gamma x} := by
+  classical
+  let K : Set (Fin k → ℝ) := Set.pi Set.univ fun _ => Icc (0 : ℝ) 2
+  let M : Set (Fin k → ℝ) := {t | ∀ i j, i ≤ j → t i ≤ t j}
+  let W : Set (Fin k → ℝ) := {t | ∀ i j, t j ≤ t i + 1}
+  let T := (K ∩ M) ∩ W
+  have hK : IsCompact K := isCompact_univ_pi fun _ => isCompact_Icc
+  have hM : IsClosed M := by
+    have heq : M = ⋂ i, ⋂ j, if i ≤ j then {t : Fin k → ℝ | t i ≤ t j} else Set.univ := by
+      ext t
+      simp only [M, Set.mem_setOf_eq, Set.mem_iInter]
+      constructor
+      · intro ht i j
+        split_ifs with hij
+        · exact ht i j hij
+        · exact Set.mem_univ t
+      · intro ht i j hij
+        have h := ht i j
+        rwa [if_pos hij] at h
+    rw [heq]
+    apply isClosed_iInter
+    intro i
+    apply isClosed_iInter
+    intro j
+    split_ifs
+    · exact isClosed_le (by fun_prop) (by fun_prop)
+    · exact isClosed_univ
+  have hW : IsClosed W := by
+    have heq : W = ⋂ i, ⋂ j, {t : Fin k → ℝ | t j ≤ t i + 1} := by
+      ext t
+      simp [W]
+    rw [heq]
+    exact isClosed_iInter fun i => isClosed_iInter fun j =>
+      isClosed_le (by fun_prop) (by fun_prop)
+  have hT : IsCompact T := (hK.inter_right hM).inter_right hW
+  let f : (Fin k → ℝ) → (Fin k → Pt) := fun t i => gamma (t i)
+  have hf : Continuous f := by
+    apply continuous_pi
+    intro i
+    exact hgamma.comp (continuous_apply i)
+  have heq :
+      {x : Fin k → Pt |
+        existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder gamma x} = f '' T := by
+    ext x
+    constructor
+    · rintro ⟨t, htK, htM, htW, htx⟩
+      refine ⟨t, ⟨⟨?_, htM⟩, htW⟩, ?_⟩
+      · dsimp only [K]
+        exact fun i _ => htK i
+      exact funext fun i => htx i
+    · rintro ⟨t, ⟨⟨htK, htM⟩, htW⟩, rfl⟩
+      refine ⟨t, ?_, htM, htW, fun _ => rfl⟩
+      intro i
+      exact htK i (Set.mem_univ i)
+  rw [heq]
+  exact (hT.image hf).isClosed
+
+/-- Every strict cyclic-order witness can be shifted by an integral period into the compact
+normalization used by `WeakPointsInOrder`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_pointsInOrder_weak
+    (gamma : ℝ → Pt) (hper : Function.Periodic gamma 1) {k : ℕ} (x : Fin k → Pt)
+    (horder : PointsInOrder gamma x) :
+    existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder gamma x := by
+  cases k with
+  | zero =>
+      refine ⟨fun i => i.elim0, ?_, ?_, ?_, ?_⟩
+      · intro i
+        exact i.elim0
+      · intro i
+        exact i.elim0
+      · intro i
+        exact i.elim0
+      · intro i
+        exact i.elim0
+  | succ k =>
+      obtain ⟨t, ht, htw, htx⟩ := horder
+      let n : ℤ := ⌊t 0⌋
+      let s : Fin (k + 1) → ℝ := fun i => t i - n
+      have hnle : (n : ℝ) ≤ t 0 := by simpa [n] using Int.floor_le (t 0)
+      have htn : t 0 < (n : ℝ) + 1 := by simpa [n] using Int.lt_floor_add_one (t 0)
+      refine ⟨s, ?_, ?_, ?_, ?_⟩
+      · intro i
+        have hfirst : t 0 ≤ t i := ht.monotone (Fin.zero_le i)
+        have hlast : t i < t 0 + 1 := htw 0 i
+        dsimp only [s]
+        constructor
+        · linarith
+        · linarith
+      · intro i j hij
+        dsimp only [s]
+        exact sub_le_sub_right (ht.monotone hij) _
+      · intro i j
+        dsimp only [s]
+        linarith [htw i j]
+      · intro i
+        dsimp only [s]
+        rw [show t i - (n : ℝ) = t i - n * 1 by push_cast; ring]
+        rw [hper.sub_int_mul_eq]
+        exact htx i
+
+/-- Pairwise distinct points turn a weak normalized cyclic order back into the strict
+`PointsInOrder` predicate.  In particular, a positive direction gap prevents order from being
+lost on passage to a closed limit. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
+    (gamma : ℝ → Pt) (hper : Function.Periodic gamma 1) {k : ℕ} (x : Fin k → Pt)
+    (hweak : existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder gamma x)
+    (hinj : Function.Injective x) : PointsInOrder gamma x := by
+  obtain ⟨t, htbound, htmono, htwrap, htx⟩ := hweak
+  refine ⟨t, ?_, ?_, htx⟩
+  · intro i j hij
+    have hle := htmono i j hij.le
+    exact lt_of_le_of_ne hle fun heq => hij.ne (hinj (by rw [← htx i, ← htx j, heq]))
+  · intro i j
+    have hle := htwrap i j
+    apply lt_of_le_of_ne hle
+    intro heq
+    have hgamma : gamma (t j) = gamma (t i) := by
+      rw [heq]
+      exact hper (t i)
+    have hij : j = i := hinj (by simpa [htx] using hgamma)
+    subst j
+    linarith
+
+/-- Closed, fixed-loop version of matching cyclic order. -/
+private def existsRoutingAfterPower_step4_routes_step6_WeakMatchingOrder
+    (gammaOuter gammaInner : ℝ → Pt) {k : ℕ} (x y : Fin k → Pt) : Prop :=
+  existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder gammaOuter x ∧
+    existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder gammaInner y
+
+private lemma existsRoutingAfterPower_step4_routes_step6_weakMatchingOrder_closed
+    (gammaOuter gammaInner : ℝ → Pt) (hOuter : Continuous gammaOuter)
+    (hInner : Continuous gammaInner) (k : ℕ) :
+    IsClosed {xy : (Fin k → Pt) × (Fin k → Pt) |
+      existsRoutingAfterPower_step4_routes_step6_WeakMatchingOrder
+        gammaOuter gammaInner xy.1 xy.2} := by
+  have hO := existsRoutingAfterPower_step4_routes_step6_weakPointsInOrder_closed
+    gammaOuter hOuter k
+  have hI := existsRoutingAfterPower_step4_routes_step6_weakPointsInOrder_closed
+    gammaInner hInner k
+  exact (hO.preimage (by fun_prop)).inter (hI.preimage (by fun_prop))
+
+/-- Under endpoint injectivity, closed weak matching order supplies the genuine
+`MatchingCyclicOrder` witness for fixed compatible boundary loops. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_weak_matchingCyclicOrder
+    {U Kout Kin : Set Pt} {gammaOuter gammaInner : ℝ → Pt} {k : ℕ}
+    {x y : Fin k → Pt} (hOuter : IsLoopParam Kout gammaOuter)
+    (hInner : IsLoopParam Kin gammaInner)
+    (hhom : LoopsHomotopicIn U gammaOuter gammaInner)
+    (hweak : existsRoutingAfterPower_step4_routes_step6_WeakMatchingOrder
+      gammaOuter gammaInner x y)
+    (hxi : Function.Injective x) (hyi : Function.Injective y) :
+    MatchingCyclicOrder U Kout Kin x y := by
+  refine ⟨gammaOuter, gammaInner, hOuter, hInner, hhom, ?_, ?_⟩
+  · exact existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
+      gammaOuter hOuter.2.1 x hweak.1 hxi
+  · exact existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
+      gammaInner hInner.2.1 y hweak.2 hyi
+
 private lemma plAnnulusRouting_unitCircle_mem_closedBall (t : ℝ) :
     Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) ∈
       Metric.closedBall (0 : ℂ) 1 := by
@@ -35983,6 +36156,30 @@ private lemma existsRoutingAfterPower_step4_routes_step5_scale {ι : Type*} [Fin
   rw [add_sub_cancel] at h4
   linarith
 
+private noncomputable def existsRoutingAfterPower_step4_routes_step6_R1_clearance
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) : ℝ :=
+  Classical.choose Rs.clearance
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    0 < existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs ∧
+      ∀ l α, 0 < l → ∀ x ∈ (Rs.central l α).carrier,
+        existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs *
+            τ.θ ^ (Rs.GS.k * l) ≤
+          Metric.infDist x (frontier (Rs.retained l α).region) :=
+  Classical.choose_spec Rs.clearance
+
+private noncomputable def existsRoutingAfterPower_step4_routes_step6_R1_kappa
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) : ℝ :=
+  existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs / 4
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) :
+    0 < existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs := by
+  unfold existsRoutingAfterPower_step4_routes_step6_R1_kappa
+  have h := (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).1
+  linarith
+
 /-- R1 for `existsRoutingAfterPower_step4_routes_step6_outerRouting`: a fixed fraction of the
 uniform central-child clearance gives both an intermediate ball contained in the retained region
 and a uniform positive separation of that ball from every outer port. -/
@@ -35994,8 +36191,12 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R1_ballPortClearance
           interior (Rs.retained l α).region ∧
         ∀ b r, ∀ x ∈ Metric.closedBall (Rs.centre l α) (κ * τ.θ ^ (Rs.GS.k * l)),
           ∀ y ∈ ports.port b r, cP * τ.θ ^ (Rs.GS.k * l) ≤ dist x y := by
-  obtain ⟨ρ, hρ, hclear⟩ := Rs.clearance
-  refine ⟨ρ / 4, by positivity, ρ / 2, by positivity, ?_⟩
+  let ρ := existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs
+  have hρ := (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).1
+  have hclear := (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).2
+  refine ⟨existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs,
+    existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs,
+    ρ / 2, by positivity, ?_⟩
   intro l hl α ports
   let s := τ.θ ^ (Rs.GS.k * l)
   let c := Rs.centre l α
@@ -36039,11 +36240,14 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R1_ballPortClearance
       Metric.notMem_of_dist_lt_infDist (hcx'.trans_le hclearc)
     rw [← self_diff_frontier]
     exact ⟨hxRegion, hxFrontier⟩
-  refine ⟨hball, ?_⟩
+  refine ⟨by
+    simpa [existsRoutingAfterPower_step4_routes_step6_R1_kappa, ρ] using hball, ?_⟩
   intro b r x hx y hy
+  have hx' : x ∈ Metric.closedBall c ((ρ / 4) * s) := by
+    simpa [existsRoutingAfterPower_step4_routes_step6_R1_kappa, ρ] using hx
   have hcx : dist c x ≤ (ρ / 4) * s := by
     rw [dist_comm]
-    exact Metric.mem_closedBall.1 hx
+    exact Metric.mem_closedBall.1 hx'
   have hyFrontier : y ∈ frontier (Rs.retained l α).region := (ports.outer b r).1.2 hy
   have hcy : ρ * s ≤ dist c y :=
     hclearc.trans (Metric.infDist_le_dist_of_mem hyFrontier)
@@ -36580,6 +36784,51 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_directionSeparated_c
   exact isClosed_iInter fun a => isClosed_iInter fun b => isClosed_iInter fun i =>
     isClosed_iInter fun j => hS a b i j
 
+/-- Closed normalized clearance of the moving centre from the fixed parent frontier.  R1 returns
+one quarter of this value, leaving a strict margin around its protected ball. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_CenterSeparated
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    {α : Rs.GS.G.P'.Form}
+  (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) : Prop :=
+  ∀ z ∈ frontier (Rs.GS.G.P'.disk α).carrier,
+    existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs ≤ dist cfg.1 z
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_centerSeparated_closed
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    (α : Rs.GS.G.P'.Form) :
+    IsClosed {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+      existsRoutingAfterPower_step4_routes_step6_R2_CenterSeparated τ M Rs cfg} := by
+  classical
+  let S := fun z : Pt =>
+    if z ∈ frontier (Rs.GS.G.P'.disk α).carrier then
+      {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+        existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs ≤ dist cfg.1 z}
+    else Set.univ
+  have hS : ∀ z, IsClosed (S z) := by
+    intro z
+    dsimp only [S]
+    split_ifs
+    · exact isClosed_le continuous_const (by fun_prop)
+    · exact isClosed_univ
+  have heq :
+      {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+          existsRoutingAfterPower_step4_routes_step6_R2_CenterSeparated τ M Rs cfg} =
+        ⋂ z, S z := by
+    ext cfg
+    simp only [Set.mem_setOf_eq, Set.mem_iInter]
+    constructor
+    · intro h z
+      dsimp only [S]
+      split_ifs with hz
+      · exact h z hz
+      · exact Set.mem_univ cfg
+    · intro h z hz
+      have hh := h z
+      dsimp only [S] at hh
+      rwa [if_pos hz] at hh
+  rw [heq]
+  exact isClosed_iInter hS
+
 /-- R2's admissible compactum.  Taking the closure records exactly the limits needed by the
 finite-subcover argument; quantitative closed inequalities can subsequently be passed to it. -/
 private def existsRoutingAfterPower_step4_routes_step6_R2_Kadm
@@ -36591,7 +36840,8 @@ private def existsRoutingAfterPower_step4_routes_step6_R2_Kadm
       {cfg | existsRoutingAfterPower_step4_routes_step6_R2_PortSeparated cp cfg}) ∩
     {cfg | existsRoutingAfterPower_step4_routes_step6_R2_PortCorner cp cfg}) ∩
     {cfg | existsRoutingAfterPower_step4_routes_step6_R2_PortOnSide cfg}) ∩
-    {cfg | existsRoutingAfterPower_step4_routes_step6_R2_DirectionSeparated M Rs cfg}
+    {cfg | existsRoutingAfterPower_step4_routes_step6_R2_DirectionSeparated M Rs cfg ∧
+      existsRoutingAfterPower_step4_routes_step6_R2_CenterSeparated τ M Rs cfg}
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_closed
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
@@ -36602,7 +36852,8 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_closed
       (existsRoutingAfterPower_step4_routes_step6_R2_portSeparated_closed τ M Rs cp α)).inter
         (existsRoutingAfterPower_step4_routes_step6_R2_portCorner_closed τ M Rs cp α)).inter
           (existsRoutingAfterPower_step4_routes_step6_R2_portOnSide_closed τ M Rs α)).inter
-            (existsRoutingAfterPower_step4_routes_step6_R2_directionSeparated_closed τ M Rs α)
+            ((existsRoutingAfterPower_step4_routes_step6_R2_directionSeparated_closed τ M Rs α).inter
+              (existsRoutingAfterPower_step4_routes_step6_R2_centerSeparated_closed τ M Rs α))
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_compact
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
@@ -36613,7 +36864,8 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_compact
       (existsRoutingAfterPower_step4_routes_step6_R2_portSeparated_closed τ M Rs cp α)).inter_right
         (existsRoutingAfterPower_step4_routes_step6_R2_portCorner_closed τ M Rs cp α)).inter_right
           (existsRoutingAfterPower_step4_routes_step6_R2_portOnSide_closed τ M Rs α)).inter_right
-            (existsRoutingAfterPower_step4_routes_step6_R2_directionSeparated_closed τ M Rs α)
+            ((existsRoutingAfterPower_step4_routes_step6_R2_directionSeparated_closed τ M Rs α).inter
+              (existsRoutingAfterPower_step4_routes_step6_R2_centerSeparated_closed τ M Rs α))
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portOnSide
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
@@ -36629,7 +36881,93 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_directionSepara
     {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
     (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
     existsRoutingAfterPower_step4_routes_step6_R2_DirectionSeparated M Rs cfg :=
-  hcfg.2
+  hcfg.2.1
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_centerSeparated
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
+    existsRoutingAfterPower_step4_routes_step6_R2_CenterSeparated τ M Rs cfg :=
+  hcfg.2.2
+
+/-- The canonical protected closed ball at every admissible limit centre lies strictly in the
+fixed parent interior. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_ball_subset_interior
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
+    Metric.closedBall cfg.1 (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) ⊆
+      interior (Rs.GS.G.P'.disk α).carrier := by
+  let B := Rs.GS.G.P'.disk α
+  let clearance := existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs
+  let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+  have hclearance : 0 < clearance :=
+    (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).1
+  have hkappa : 0 < kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  have hkclear : kappa < clearance := by
+    dsimp [kappa, existsRoutingAfterPower_step4_routes_step6_R1_kappa, clearance]
+    linarith
+  have hc : cfg.1 ∈ B.carrier := hcfg.1.1.1.1.1.1
+  obtain ⟨z, hz, hzdist⟩ := B.compact.exists_mem_frontier_infDist_compl_eq_dist hc
+  have hsep : clearance ≤ dist cfg.1 z :=
+    existsRoutingAfterPower_step4_routes_step6_R2_Kadm_centerSeparated
+      τ M Rs cp rho α hcfg z hz
+  have hcomp : clearance ≤ Metric.infDist cfg.1 (B.carrier)ᶜ := by
+    rwa [hzdist]
+  intro x hx
+  have hcx : dist cfg.1 x ≤ kappa := by
+    rw [dist_comm]
+    exact Metric.mem_closedBall.1 hx
+  have hxB : x ∈ B.carrier :=
+    Metric.ball_infDist_compl_subset (Metric.mem_ball'.2 ((hcx.trans_lt hkclear).trans_le hcomp))
+  have hxfront : x ∉ frontier B.carrier := by
+    intro hxf
+    have := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_centerSeparated
+      τ M Rs cp rho α hcfg x hxf
+    linarith
+  rw [← self_diff_frontier]
+  exact ⟨hxB, hxfront⟩
+
+/-- The larger radius used to contain the support and displacement of the centre bump is still
+strictly inside the parent: `3κ < 4κ = clearance`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
+    Metric.closedBall cfg.1
+        (3 * existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) ⊆
+      interior (Rs.GS.G.P'.disk α).carrier := by
+  let B := Rs.GS.G.P'.disk α
+  let clearance := existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs
+  let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+  have hclearance : 0 < clearance :=
+    (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).1
+  have hkappa : 0 < kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  have h3clear : 3 * kappa < clearance := by
+    dsimp [kappa, existsRoutingAfterPower_step4_routes_step6_R1_kappa, clearance]
+    linarith
+  have hc : cfg.1 ∈ B.carrier := hcfg.1.1.1.1.1.1
+  obtain ⟨z, hz, hzdist⟩ := B.compact.exists_mem_frontier_infDist_compl_eq_dist hc
+  have hsep : clearance ≤ dist cfg.1 z :=
+    existsRoutingAfterPower_step4_routes_step6_R2_Kadm_centerSeparated
+      τ M Rs cp rho α hcfg z hz
+  have hcomp : clearance ≤ Metric.infDist cfg.1 (B.carrier)ᶜ := by rwa [hzdist]
+  intro x hx
+  have hcx : dist cfg.1 x ≤ 3 * kappa := by
+    rw [dist_comm]
+    exact Metric.mem_closedBall.1 hx
+  have hxB : x ∈ B.carrier :=
+    Metric.ball_infDist_compl_subset (Metric.mem_ball'.2 ((hcx.trans_lt h3clear).trans_le hcomp))
+  have hxfront : x ∉ frontier B.carrier := by
+    intro hxf
+    have := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_centerSeparated
+      τ M Rs cp rho α hcfg x hxf
+    linarith
+  rw [← self_diff_frontier]
+  exact ⟨hxB, hxfront⟩
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_direction_norm
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
@@ -36798,6 +37136,109 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portMid_frontie
   existsRoutingAfterPower_step4_routes_step6_R2_Kadm_port_subset_frontier
     τ M Rs cp rho α hcfg ai.1 ai.2.castSucc
       (existsRoutingAfterPower_step4_routes_step6_R2_portMid_mem cfg ai)
+
+/-- Positive corner clearance puts every canonical marked-port midpoint in the relative interior
+of its indexed parent side. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portMid_openSide
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (ai : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} × Fin 4) :
+    existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg ai ∈
+      openSegment ℝ ((Rs.GS.G.P'.disk α).vertex ai.1)
+        ((Rs.GS.G.P'.disk α).vertex (finRotate (Rs.GS.G.P'.disk α).n ai.1)) := by
+  let B := Rs.GS.G.P'.disk α
+  let x := existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg ai
+  have hxSide : x ∈ B.side ai.1 := by
+    have hend := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portOnSide
+      τ M Rs cp rho α hcfg ai.1 ai.2.castSucc
+    exact (convex_segment _ _).segment_subset hend.1 hend.2
+      (existsRoutingAfterPower_step4_routes_step6_R2_portMid_mem cfg ai)
+  change x ∈ segment ℝ (B.vertex ai.1) (B.vertex (finRotate B.n ai.1)) at hxSide
+  obtain ⟨s, t, hs, ht, hst, heq⟩ := hxSide
+  refine ⟨s, t, ?_, ?_, hst, heq⟩
+  · apply lt_of_le_of_ne hs
+    intro hs0
+    have hs0' : s = 0 := hs0.symm
+    have ht1 : t = 1 := by linarith
+    have hxvertex : B.vertex (finRotate B.n ai.1) = x := by
+      simpa [hs0', ht1] using heq
+    have hcorner := hcfg.1.1.2 ai.1 ai.2.castSucc (finRotate B.n ai.1)
+      (1 / 2) (by norm_num : (1 / 2 : ℝ) ∈ Icc 0 1)
+    change cp ≤ dist x (B.vertex (finRotate B.n ai.1)) at hcorner
+    rw [hxvertex, dist_self] at hcorner
+    linarith
+  · apply lt_of_le_of_ne ht
+    intro ht0
+    have ht0' : t = 0 := ht0.symm
+    have hs1 : s = 1 := by linarith
+    have hxvertex : B.vertex ai.1 = x := by
+      simpa [ht0', hs1] using heq
+    have hcorner := hcfg.1.1.2 ai.1 ai.2.castSucc ai.1
+      (1 / 2) (by norm_num : (1 / 2 : ℝ) ∈ Icc 0 1)
+    change cp ≤ dist x (B.vertex ai.1) at hcorner
+    rw [hxvertex, dist_self] at hcorner
+    linarith
+
+/-- Every point of an admissible complete port lies in the relative interior of its parent side;
+the uniform corner condition rules out the two parent vertices. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portPoint_openSide
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) {x : Pt}
+    (hx : x ∈ segment ℝ (cfg.2.1 a r).1 (cfg.2.1 a r).2) :
+    x ∈ openSegment ℝ ((Rs.GS.G.P'.disk α).vertex a)
+      ((Rs.GS.G.P'.disk α).vertex (finRotate (Rs.GS.G.P'.disk α).n a)) := by
+  let B := Rs.GS.G.P'.disk α
+  have hxSide : x ∈ B.side a := by
+    have hend := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portOnSide
+      τ M Rs cp rho α hcfg a r
+    exact (convex_segment _ _).segment_subset hend.1 hend.2 hx
+  change x ∈ segment ℝ (B.vertex a) (B.vertex (finRotate B.n a)) at hxSide
+  obtain ⟨s, t, hs, ht, hst, heq⟩ := hxSide
+  refine ⟨s, t, ?_, ?_, hst, heq⟩
+  · apply lt_of_le_of_ne hs
+    intro hs0
+    have hs0' : s = 0 := hs0.symm
+    have ht1 : t = 1 := by linarith
+    have hxvertex : B.vertex (finRotate B.n a) = x := by simpa [hs0', ht1] using heq
+    have hpoint : cp ≤ dist x (B.vertex (finRotate B.n a)) := by
+      rw [segment_eq_image_lineMap] at hx
+      obtain ⟨v, hv, rfl⟩ := hx
+      exact hcfg.1.1.2 a r (finRotate B.n a) v hv
+    rw [hxvertex, dist_self] at hpoint
+    linarith
+  · apply lt_of_le_of_ne ht
+    intro ht0
+    have ht0' : t = 0 := ht0.symm
+    have hs1 : s = 1 := by linarith
+    have hxvertex : B.vertex a = x := by simpa [ht0', hs1] using heq
+    have hpoint : cp ≤ dist x (B.vertex a) := by
+      rw [segment_eq_image_lineMap] at hx
+      obtain ⟨v, hv, rfl⟩ := hx
+      exact hcfg.1.1.2 a r a v hv
+    rw [hxvertex, dist_self] at hpoint
+    linarith
+
+/-- The stored parameterwise port-separation inequality applies to arbitrary points of two
+distinct complete port segments. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portPoints_separated
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5)
+    (b : Fin (Rs.GS.G.P'.disk α).n) (s : Fin 5) (hars : (a, r) ≠ (b, s))
+    {x y : Pt} (hx : x ∈ segment ℝ (cfg.2.1 a r).1 (cfg.2.1 a r).2)
+    (hy : y ∈ segment ℝ (cfg.2.1 b s).1 (cfg.2.1 b s).2) :
+    cp ≤ dist x y := by
+  rw [segment_eq_image_lineMap] at hx hy
+  obtain ⟨u, hu, rfl⟩ := hx
+  obtain ⟨v, hv, rfl⟩ := hy
+  exact hcfg.1.1.1.2 a r b s hars u hu v hv
 
 /-- The two enriched coordinates reconstruct the complete physical port after rescaling. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_port
@@ -37053,6 +37494,45 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_directionS
   rw [hgap]
   exact mul_le_mul_of_nonneg_left hray (inv_nonneg.mpr hrpos.le)
 
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_centerSeparated
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    existsRoutingAfterPower_step4_routes_step6_R2_CenterSeparated τ M Rs
+      (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries) := by
+  let s := τ.θ ^ (Rs.GS.k * l)
+  let c := Rs.centre l α
+  have hs : 0 < s := pow_pos (lt_trans zero_lt_one τ.one_lt) _
+  have hR : 0 < Rs.R α := by
+    have hK : (0 : ℝ) ≤ M.K0 := Nat.cast_nonneg _
+    nlinarith [Rs.R_large α, M.D_pos]
+  have hhalf : 0 ≤ (Rs.N α : ℝ) * Rs.R α / 2 := by positivity
+  have hcSquare : c ∈ square c ((Rs.N α : ℝ) * Rs.R α / 2) := by
+    exact ⟨by simp [hhalf], by simp [hhalf]⟩
+  have hcCentral : c ∈ (Rs.central l α).carrier := by
+    rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_scatter_carrier,
+      Rs.central_scatter l α hl, ← (Rs.annulus l α hl).L.carrier_eq]
+    exact (Rs.annulus l α hl).L_lower hcSquare
+  intro z hz
+  have hsz : s • z ∈ frontier (Rs.retained l α).region := by
+    rw [Rs.region_eq,
+      existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_frontier_smul hs.ne']
+    exact Set.smul_mem_smul_set hz
+  have hclear :=
+    (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).2
+      l α hl c hcCentral
+  have hdist := hclear.trans (Metric.infDist_le_dist_of_mem hsz)
+  have hscale : dist c (s • z) =
+      s * dist (s⁻¹ • c) z := by
+    conv_lhs =>
+      rw [← show s • (s⁻¹ • c) = c by simp [smul_smul, hs.ne']]
+    rw [dist_smul₀, Real.norm_eq_abs, abs_of_pos hs]
+  rw [hscale] at hdist
+  change existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs ≤
+    dist (s⁻¹ • c) z
+  nlinarith
+
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kadm
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
     {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
@@ -37069,8 +37549,10 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kadm
       τ M Rs ports entries
   · exact existsRoutingAfterPower_step4_routes_step6_R2_admConfig_portOnSide
       τ M Rs ports entries
-  · exact existsRoutingAfterPower_step4_routes_step6_R2_admConfig_directionSeparated
-      τ M Rs ports entries
+  · exact ⟨existsRoutingAfterPower_step4_routes_step6_R2_admConfig_directionSeparated
+      τ M Rs ports entries,
+      existsRoutingAfterPower_step4_routes_step6_R2_admConfig_centerSeparated
+        τ M Rs ports entries⟩
 
 /-- Polygonal arc carriers are compact. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_polyArc_compact (γ : PolyArc) :
@@ -37319,6 +37801,144 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_homeomorph
   · exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_lower ψ v hL hψ
   · exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_upper ψ v hL hψ
 
+/-- Package the earlier radial cone extension of a circle homeomorphism as a genuine ambient
+homeomorphism.  Norm preservation makes the continuous bijection proper, hence closed. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_circleConeHomeomorph
+    (f : ℂ → ℂ) (hfc : ContinuousOn f (Metric.sphere 0 1))
+    (hfm : MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1))
+    (hfi : InjOn f (Metric.sphere 0 1))
+    (hfs : SurjOn f (Metric.sphere 0 1) (Metric.sphere 0 1)) :
+    ∃ F : ℂ ≃ₜ ℂ, (∀ z, ‖F z‖ = ‖z‖) ∧
+      ∀ z ∈ Metric.sphere (0 : ℂ) 1, F z = f z := by
+  obtain ⟨g, hgc, hgi, hgs, hgnorm, hgsphere⟩ :=
+    plAnnulusRouting_polygonalDisk_closedBall_model_step2_earDecomposition_step3_glueModels_step9_coneExtension
+      f hfc hfm hfi hfs
+  have hgproper : IsProperMap g := by
+    rw [isProperMap_iff_isCompact_preimage]
+    refine ⟨hgc, ?_⟩
+    intro K hK
+    rw [Metric.isCompact_iff_isClosed_bounded]
+    constructor
+    · exact hK.isClosed.preimage hgc
+    · obtain ⟨r, hr⟩ := hK.isBounded.subset_closedBall (0 : ℂ)
+      rw [Metric.isBounded_iff_subset_closedBall (0 : ℂ)]
+      refine ⟨r, ?_⟩
+      intro z hz
+      have hgz := hr hz
+      simpa [Metric.mem_closedBall, dist_zero_right, hgnorm] using hgz
+  let e : ℂ ≃ ℂ := Equiv.ofBijective g ⟨hgi, hgs⟩
+  let F : ℂ ≃ₜ ℂ := e.toHomeomorphOfContinuousClosed hgc hgproper.isClosedMap
+  exact ⟨F, hgnorm, hgsphere⟩
+
+/-- Conjugating a norm-preserving complex homeomorphism by the standard real-linear isometry and
+translations gives a homeomorphism of `Pt` preserving every circle and ball about `c`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_conjugateNormHomeomorph
+    (c : Pt) (F : ℂ ≃ₜ ℂ) (hF : ∀ z, ‖F z‖ = ‖z‖) :
+    ∃ H : Pt ≃ₜ Pt,
+      (∀ x, H x = c + (Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt)
+        (F ((Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt).symm (x - c)))) ∧
+      ∀ x, dist c (H x) = dist c x := by
+  let E : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  let H : Pt ≃ₜ Pt :=
+    (Homeomorph.addLeft (-c)).trans
+      (E.symm.toHomeomorph.trans (F.trans (E.toHomeomorph.trans (Homeomorph.addLeft c))))
+  refine ⟨H, ?_, ?_⟩
+  · intro x
+    simp only [H, Homeomorph.trans_apply, Homeomorph.coe_addLeft,
+      LinearIsometryEquiv.coe_toHomeomorph, E]
+    congr 2
+    abel
+  · intro x
+    have hformula : H x = c + E (F (E.symm (x - c))) := by
+      simp only [H, Homeomorph.trans_apply, Homeomorph.coe_addLeft,
+        LinearIsometryEquiv.coe_toHomeomorph]
+      congr 2
+      abel
+    rw [hformula, dist_eq_norm,
+      show c - (c + E (F (E.symm (x - c)))) = -E (F (E.symm (x - c))) by abel,
+      norm_neg, E.norm_map, hF, E.symm.norm_map, ← dist_eq_norm, dist_comm]
+
+/-- Radius-normalized version of the preceding conjugation.  The `κ`-circle is first scaled to
+the unit circle, so agreement of `F` with its circle map gives exact endpoint motion at radius
+`κ`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_conjugateNormHomeomorph_radius
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (F : ℂ ≃ₜ ℂ)
+    (hF : ∀ z, ‖F z‖ = ‖z‖) :
+    ∃ H : Pt ≃ₜ Pt,
+      (∀ x, H x = c + kappa • (Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt)
+        (F ((Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt).symm
+          (kappa⁻¹ • (x - c))))) ∧
+      ∀ x, dist c (H x) = dist c x := by
+  let E : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  let H : Pt ≃ₜ Pt :=
+    (Homeomorph.addLeft (-c)).trans
+      ((Homeomorph.smulOfNeZero kappa⁻¹ (inv_ne_zero hkappa.ne')).trans
+        (E.symm.toHomeomorph.trans
+          (F.trans (E.toHomeomorph.trans
+            ((Homeomorph.smulOfNeZero kappa hkappa.ne').trans (Homeomorph.addLeft c))))))
+  refine ⟨H, ?_, ?_⟩
+  · intro x
+    simp only [H, Homeomorph.trans_apply, Homeomorph.coe_addLeft,
+      Homeomorph.smulOfNeZero_apply, LinearIsometryEquiv.coe_toHomeomorph, E]
+    congr 2
+    abel
+  · intro x
+    have hformula : H x = c + kappa • E (F (E.symm (kappa⁻¹ • (x - c)))) := by
+      simp only [H, Homeomorph.trans_apply, Homeomorph.coe_addLeft,
+        Homeomorph.smulOfNeZero_apply, LinearIsometryEquiv.coe_toHomeomorph]
+      congr 2
+      abel
+    rw [hformula, dist_eq_norm,
+      show c - (c + kappa • E (F (E.symm (kappa⁻¹ • (x - c))))) =
+        -(kappa • E (F (E.symm (kappa⁻¹ • (x - c))))) by abel,
+      norm_neg, norm_smul, Real.norm_eq_abs,
+      abs_of_pos hkappa, E.norm_map, hF, E.symm.norm_map, norm_smul, Real.norm_eq_abs,
+      abs_of_pos (inv_pos.mpr hkappa), ← dist_eq_norm, dist_comm]
+    field_simp
+
+/-- Once a homeomorphism of the unit circle carrying the old finite direction family to the new
+one is available, radial coning gives the required angular deformation: exact endpoint motion and
+preservation of every ball about the fixed centre. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_angularDeformation_of_circleMap
+    {I : Type*} (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (u u' : I → Pt)
+    (hu : ∀ i, ‖u i‖ = 1) (hu' : ∀ i, ‖u' i‖ = 1)
+    (f : ℂ → ℂ) (hfc : ContinuousOn f (Metric.sphere 0 1))
+    (hfm : MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1))
+    (hfi : InjOn f (Metric.sphere 0 1))
+    (hfs : SurjOn f (Metric.sphere 0 1) (Metric.sphere 0 1))
+    (hmap : ∀ i, f ((Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt).symm (u i)) =
+      (Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt).symm (u' i)) :
+    ∃ H : Pt ≃ₜ Pt,
+      (∀ i, H (c + kappa • u i) = c + kappa • u' i) ∧
+      (∀ x, dist c (H x) = dist c x) ∧
+      ∀ r : ℝ, H '' Metric.ball c r = Metric.ball c r := by
+  let E : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  obtain ⟨F, hFnorm, hFsphere⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_circleConeHomeomorph f hfc hfm hfi hfs
+  obtain ⟨H, hHformula, hHdist⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_conjugateNormHomeomorph_radius
+      c hkappa F hFnorm
+  refine ⟨H, ?_, hHdist, ?_⟩
+  · intro i
+    rw [hHformula]
+    have hunit : E.symm (u i) ∈ Metric.sphere (0 : ℂ) 1 := by
+      rw [Metric.mem_sphere, dist_zero_right, E.symm.norm_map, hu]
+    have hscale : kappa⁻¹ • (c + kappa • u i - c) = u i := by
+      rw [add_sub_cancel_left, smul_smul, inv_mul_cancel₀ hkappa.ne', one_smul]
+    rw [hscale, hFsphere _ hunit, hmap i, E.apply_symm_apply]
+  · intro r
+    apply Set.Subset.antisymm
+    · rintro y ⟨x, hx, rfl⟩
+      rw [Metric.mem_ball, dist_comm, hHdist]
+      simpa [Metric.mem_ball, dist_comm] using hx
+    · intro y hy
+      refine ⟨H.symm y, ?_, H.apply_symm_apply y⟩
+      rw [Metric.mem_ball]
+      have := hHdist (H.symm y)
+      rw [H.apply_symm_apply] at this
+      rw [dist_comm, ← this]
+      simpa [Metric.mem_ball, dist_comm] using hy
+
 /-- A concrete radial cutoff for the centre bump: one on the `κ`-ball and zero outside the
 `2κ`-ball. -/
 private def existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff
@@ -37413,6 +38033,65 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_centreBump
     have hb := existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_bounds z hκ y
     rw [abs_of_nonneg hb.1]
     exact hb.2
+
+/-- The centre bump sends the protected open ball exactly to the ball about the new centre and
+keeps every point of the fixed parent interior in that interior. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_centreBump_parentInterior_ball
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (c' : Pt)
+    (hsmall : dist cfg.1 c' < existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) :
+    ∃ e : Pt ≃ₜ Pt,
+      e cfg.1 = c' ∧
+      e '' Metric.ball cfg.1 (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) =
+        Metric.ball c' (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) ∧
+      (∀ x ∈ interior (Rs.GS.G.P'.disk α).carrier,
+        e x ∈ interior (Rs.GS.G.P'.disk α).carrier) ∧
+      ∀ x, dist (e x) x ≤ dist cfg.1 c' := by
+  let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+  let v := c' - cfg.1
+  have hkappa : 0 < kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  have hv : ‖v‖ = dist cfg.1 c' := by simp [v, dist_eq_norm, norm_sub_rev]
+  have hvsmall : ‖v‖ < kappa := by simpa [hv] using hsmall
+  obtain ⟨e, hinner, houter, hmove, -⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_centreBump cfg.1 v hkappa hvsmall
+  have hcv : cfg.1 + v = c' := by dsimp [v]; abel
+  refine ⟨e, ?_, ?_, ?_, fun x => by simpa [hv] using hmove x⟩
+  · rw [hinner cfg.1 (Metric.mem_closedBall_self hkappa.le), hcv]
+  · apply Set.Subset.antisymm
+    · rintro y ⟨x, hx, rfl⟩
+      rw [hinner x (Metric.ball_subset_closedBall hx)]
+      rw [Metric.mem_ball] at hx ⊢
+      rw [← hcv]
+      simpa using hx
+    · intro y hy
+      let x := y - v
+      have hx : x ∈ Metric.ball cfg.1 kappa := by
+        rw [Metric.mem_ball] at hy ⊢
+        dsimp only [x]
+        rw [← hcv] at hy
+        have heq : dist (y - v) cfg.1 = dist y (cfg.1 + v) := by
+          rw [dist_eq_norm, dist_eq_norm]
+          congr 1
+          abel
+        rw [heq]
+        exact hy
+      refine ⟨x, hx, ?_⟩
+      rw [hinner x (Metric.ball_subset_closedBall hx)]
+      dsimp only [x]
+      abel
+  · intro x hx
+    by_cases hfar : 2 * kappa ≤ dist cfg.1 x
+    · rwa [houter x hfar]
+    · apply existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
+        τ M Rs cp rho α hcfg
+      rw [Metric.mem_closedBall]
+      have htri : dist (e x) cfg.1 ≤ dist (e x) x + dist x cfg.1 := dist_triangle _ _ _
+      have hm := hmove x
+      rw [dist_comm cfg.1 x] at hfar
+      linarith
 
 /-- R4b's collar clause: every straight collar contained in the inner ball is translated exactly,
 so a radial collar based at `z` becomes the corresponding collar based at `z + v`. -/
@@ -37572,6 +38251,56 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_portSlide_tube
   apply hout x
   exact not_lt.mpr hx
 
+/-- The symmetric tube cutoff used for a port slide preserves every affine half-plane whose
+boundary is parallel to the slide direction.  This is the invariant needed to keep a route in
+the parent polygon near a relative-interior point of one of its sides. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portSlide_tube_halfplane
+    (d a u p q : Pt) {w delta sigma : ℝ} (hw : 0 < w) (hu : ‖u‖ = 1)
+    (hparallel : jcr d u = 0) (hsmall : w⁻¹ * |delta| < 1) :
+    ∃ e : Pt ≃ₜ Pt,
+      (∀ x, w ≤ Metric.infDist x (segment ℝ p q) → e x = x) ∧
+      (∀ x, dist (e x) x ≤ |delta|) ∧
+      e '' segment ℝ p q = segment ℝ (p + delta • u) (q + delta • u) ∧
+      ∀ x, sigma * jcr d (e x - a) = sigma * jcr d (x - a) := by
+  let psi := existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w
+  let v := delta • u
+  have hv : ‖v‖ = |delta| := by simp [v, norm_smul, hu]
+  have hsmall' : w⁻¹ * ‖v‖ < 1 := by simpa [hv] using hsmall
+  obtain ⟨e, he, -, -⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb_homeomorph psi v
+      (inv_nonneg.mpr hw.le)
+      (existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_lipschitz p q hw) hsmall'
+  refine ⟨e, ?_, ?_, ?_, ?_⟩
+  · intro x hx
+    rw [he]
+    apply existsRoutingAfterPower_step4_routes_step6_R4_perturb_eq_self
+    exact existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_eq_zero p q hw hx
+  · intro x
+    rw [he, ← hv]
+    apply existsRoutingAfterPower_step4_routes_step6_R4_perturb_displacement
+    intro y
+    have hb := existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_bounds p q hw y
+    rw [abs_of_nonneg hb.1]
+    exact hb.2
+  · calc
+      e '' segment ℝ p q =
+          existsRoutingAfterPower_step4_routes_step6_R4_perturb psi v '' segment ℝ p q := by
+        apply Set.image_congr
+        intro x _hx
+        exact he x
+      _ = segment ℝ (p + v) (q + v) := by
+        apply existsRoutingAfterPower_step4_routes_step6_R4_perturb_segment
+        intro x hx
+        exact existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_eq_one p q hw hx
+      _ = segment ℝ (p + delta • u) (q + delta • u) := by rfl
+  · intro x
+    rw [he]
+    simp only [existsRoutingAfterPower_step4_routes_step6_R4_perturb, v]
+    have hcross : jcr d (x + psi x • delta • u - a) = jcr d (x - a) := by
+      rw [show x + psi x • delta • u - a = (x - a) + (psi x * delta) • u by module,
+        jcr_add_right, jcr_smul_right, hparallel, mul_zero, add_zero]
+    rw [hcross]
+
 /-- Two points on the same parent side differ by a signed multiple of the unit side tangent; the
 absolute signed displacement is their distance.  This supplies the local coordinates required by
 `R4_portSlide_tube` for the old and new port starts. -/
@@ -37604,6 +38333,149 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_sameSide_displacemen
   refine ⟨u, δ, hu, heq, ?_⟩
   rw [heq, dist_eq_norm]
   simp [norm_smul, hu]
+
+/-- The side displacement can be chosen parallel to the listed side, including when the two
+points coincide. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_sameSide_displacement_parallel
+    (B : PolygonalDisk) (a : Fin B.n) {x y : Pt}
+    (hx : x ∈ B.side a) (hy : y ∈ B.side a) :
+    ∃ (u : Pt) (delta : ℝ), ‖u‖ = 1 ∧
+      jcr (B.vertex (finRotate B.n a) - B.vertex a) u = 0 ∧
+      y = x + delta • u ∧ |delta| = dist x y := by
+  let p := B.vertex a
+  let q := B.vertex (finRotate B.n a)
+  let d := q - p
+  have hd : d ≠ 0 := sub_ne_zero.mpr (pd_vertex_ne_next B a).symm
+  have hdn : ‖d‖ ≠ 0 := norm_ne_zero_iff.mpr hd
+  change x ∈ segment ℝ p q at hx
+  change y ∈ segment ℝ p q at hy
+  rw [segment_eq_image_lineMap] at hx hy
+  obtain ⟨t, ht, rfl⟩ := hx
+  obtain ⟨s, hs, rfl⟩ := hy
+  let u := ‖d‖⁻¹ • d
+  let delta := (s - t) * ‖d‖
+  have hu : ‖u‖ = 1 := by
+    dsimp only [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr (norm_pos_iff.mpr hd))]
+    exact inv_mul_cancel₀ hdn
+  have hparallel : jcr d u = 0 := by
+    simp [u, jcr_smul_right, jcr_self]
+  have hcoef : delta * ‖d‖⁻¹ = s - t := by
+    dsimp only [delta]
+    rw [mul_assoc, mul_inv_cancel₀ hdn, mul_one]
+  have heq : AffineMap.lineMap p q s = AffineMap.lineMap p q t + delta • u := by
+    simp only [AffineMap.lineMap_apply_module', u, smul_smul, hcoef, d]
+    module
+  refine ⟨u, delta, hu, by simpa [d, p, q] using hparallel, heq, ?_⟩
+  rw [heq, dist_eq_norm]
+  simp [norm_smul, hu]
+
+/-- A sufficiently small slide based at a relative-interior point of a parent side preserves the
+entire parent interior.  Outside the local half-disk it is the identity; inside, its displacement
+is parallel to the boundary line and therefore preserves the strict half-plane inequality. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portSlide_parentInterior
+    (B : PolygonalDisk) (a : Fin B.n) {p : Pt}
+    (hp : p ∈ openSegment ℝ (B.vertex a) (B.vertex (finRotate B.n a))) :
+    ∃ epsilon > (0 : ℝ), ∀ q ∈ B.side a, dist p q < epsilon →
+      ∃ e : Pt ≃ₜ Pt,
+        e p = q ∧
+        (∀ z, epsilon ≤ dist p z → e z = z) ∧
+        (∀ z, dist (e z) z ≤ dist p q) ∧
+        ∀ z, e z ∈ interior B.carrier ↔ z ∈ interior B.carrier := by
+  obtain ⟨r, hr, sigma, hsigma, hlocal⟩ := pd_halfdisk B a hp
+  let epsilon := r / 3
+  have hepsilon : 0 < epsilon := by dsimp [epsilon]; positivity
+  refine ⟨epsilon, hepsilon, ?_⟩
+  intro q hq hpq
+  have hpSide : p ∈ B.side a := openSegment_subset_segment ℝ _ _ hp
+  obtain ⟨u, delta, hu, hparallel, hqeq, hdelta⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_sameSide_displacement_parallel B a hpSide hq
+  have hsmall : epsilon⁻¹ * |delta| < 1 := by
+    rw [inv_mul_lt_one₀ hepsilon]
+    simpa [hdelta] using hpq
+  obtain ⟨e, hfix, hmove, hsegment, hinvariant⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_portSlide_tube_halfplane
+      (B.vertex (finRotate B.n a) - B.vertex a) (B.vertex a) u p p
+      hepsilon hu hparallel hsmall (sigma := sigma)
+  have hmap : e p = q := by
+    have hmem : e p ∈ e '' segment ℝ p p := ⟨p, left_mem_segment ℝ p p, rfl⟩
+    rw [hsegment, segment_same, ← hqeq, Set.mem_singleton_iff] at hmem
+    exact hmem
+  refine ⟨e, hmap, ?_, ?_, ?_⟩
+  · intro z hz
+    apply hfix z
+    simpa [Metric.infDist_singleton, dist_comm] using hz
+  · intro z
+    exact (hmove z).trans_eq hdelta
+  · intro z
+    by_cases hz : z ∈ Metric.ball p epsilon
+    · have hzr : z ∈ Metric.ball p r := Metric.ball_subset_ball (by dsimp [epsilon]; linarith) hz
+      have hezr : e z ∈ Metric.ball p r := by
+        rw [Metric.mem_ball] at hz ⊢
+        have htri : dist (e z) p ≤ dist (e z) z + dist z p := dist_triangle _ _ _
+        have hm := hmove z
+        rw [hdelta] at hm
+        dsimp [epsilon] at hz hpq
+        linarith
+      rw [(hlocal (e z) hezr).2.2, (hlocal z hzr).2.2, hinvariant z]
+    · have hzdist : epsilon ≤ dist p z := by
+        rw [Metric.mem_ball, dist_comm] at hz
+        exact le_of_not_gt hz
+      rw [hfix z (by simpa [Metric.infDist_singleton, dist_comm] using hzdist)]
+
+/-- Width-controlled form of `R4_portSlide_parentInterior`.  Any smaller positive support width
+may be prescribed, which permits the finitely many port slides to have pairwise disjoint
+supports. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portSlide_parentInterior_width
+    (B : PolygonalDisk) (a : Fin B.n) {p : Pt}
+    (hp : p ∈ openSegment ℝ (B.vertex a) (B.vertex (finRotate B.n a))) :
+    ∃ w0 > (0 : ℝ), ∀ w, 0 < w → w ≤ w0 → ∀ q ∈ B.side a, dist p q < w →
+      ∃ e : Pt ≃ₜ Pt,
+        e p = q ∧
+        (∀ z, w ≤ dist p z → e z = z) ∧
+        (∀ z, dist (e z) z ≤ dist p q) ∧
+        ∀ z, e z ∈ interior B.carrier ↔ z ∈ interior B.carrier := by
+  obtain ⟨r, hr, sigma, hsigma, hlocal⟩ := pd_halfdisk B a hp
+  let w0 := r / 3
+  have hw0 : 0 < w0 := by dsimp [w0]; positivity
+  refine ⟨w0, hw0, ?_⟩
+  intro w hw hww0 q hq hpq
+  have hpSide : p ∈ B.side a := openSegment_subset_segment ℝ _ _ hp
+  obtain ⟨u, delta, hu, hparallel, hqeq, hdelta⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_sameSide_displacement_parallel B a hpSide hq
+  have hsmall : w⁻¹ * |delta| < 1 := by
+    rw [inv_mul_lt_one₀ hw]
+    simpa [hdelta] using hpq
+  obtain ⟨e, hfix, hmove, hsegment, hinvariant⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_portSlide_tube_halfplane
+      (B.vertex (finRotate B.n a) - B.vertex a) (B.vertex a) u p p
+      hw hu hparallel hsmall (sigma := sigma)
+  have hmap : e p = q := by
+    have hmem : e p ∈ e '' segment ℝ p p := ⟨p, left_mem_segment ℝ p p, rfl⟩
+    rw [hsegment, segment_same, ← hqeq, Set.mem_singleton_iff] at hmem
+    exact hmem
+  refine ⟨e, hmap, ?_, ?_, ?_⟩
+  · intro z hz
+    apply hfix z
+    simpa [Metric.infDist_singleton, dist_comm] using hz
+  · intro z
+    exact (hmove z).trans_eq hdelta
+  · intro z
+    by_cases hz : z ∈ Metric.ball p w
+    · have hwr : w < r := by dsimp [w0] at hww0; linarith
+      have hzr : z ∈ Metric.ball p r := Metric.ball_subset_ball hwr.le hz
+      have hezr : e z ∈ Metric.ball p r := by
+        rw [Metric.mem_ball] at hz ⊢
+        have htri : dist (e z) p ≤ dist (e z) z + dist z p := dist_triangle _ _ _
+        have hm := hmove z
+        rw [hdelta] at hm
+        dsimp [w0] at hww0
+        linarith
+      rw [(hlocal (e z) hezr).2.2, (hlocal z hzr).2.2, hinvariant z]
+    · have hzdist : w ≤ dist p z := by
+        rw [Metric.mem_ball, dist_comm] at hz
+        exact le_of_not_gt hz
+      rw [hfix z (by simpa [Metric.infDist_singleton, dist_comm] using hzdist)]
 
 /-- R4c's endpoint-only choice: the entrance direction is represented by its endpoint in the
 configuration data, rather than by a prescribed radial collar.  Nearby endpoints are related by a
@@ -37912,6 +38784,93 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_portStart_homeomorph
       nlinarith
     exact (mul_le_mul_of_nonneg_right hcoef dist_nonneg).trans (hlower y z)
 
+/-- The exact one-start port transport can be chosen to preserve the fixed parent interior.
+The neighborhood size comes from the local half-disk at the old start; the configuration radius
+is half as large because affine port correspondence costs at most twice the configuration
+distance. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portStart_parentInterior
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) (x : Pt)
+    (hx : x ∈ segment ℝ (cfg.2.1 a r).1 (cfg.2.1 a r).2) :
+    ∃ epsilon > (0 : ℝ),
+      ∀ (cfg' : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α),
+        cfg' ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α →
+        dist cfg cfg' < epsilon →
+        ∃ x' ∈ segment ℝ (cfg'.2.1 a r).1 (cfg'.2.1 a r).2, ∃ e : Pt ≃ₜ Pt,
+          e x = x' ∧
+          (∀ z, 2 * epsilon ≤ dist x z → e z = z) ∧
+          (∀ z, dist (e z) z ≤ 2 * dist cfg cfg') ∧
+          ∀ z, e z ∈ interior (Rs.GS.G.P'.disk α).carrier ↔
+            z ∈ interior (Rs.GS.G.P'.disk α).carrier := by
+  let B := Rs.GS.G.P'.disk α
+  have hxOpen := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portPoint_openSide
+    τ M Rs hcp α hcfg a r hx
+  obtain ⟨w, hw, hslide⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_portSlide_parentInterior B a hxOpen
+  let epsilon := w / 2
+  have hepsilon : 0 < epsilon := by dsimp [epsilon]; positivity
+  refine ⟨epsilon, hepsilon, ?_⟩
+  intro cfg' hcfg' hdist
+  obtain ⟨x', hx', hxx', -, -⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_portStart_correspondence
+      τ M Rs cp rho α cfg cfg' hcfg hcfg' a r x hx
+  have hx'Side : x' ∈ B.side a := by
+    have hend := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portOnSide
+      τ M Rs cp rho α hcfg' a r
+    exact (convex_segment _ _).segment_subset hend.1 hend.2 hx'
+  have hxx'lt : dist x x' < w := by
+    dsimp [epsilon] at hdist
+    linarith
+  obtain ⟨e, hmap, hfix, hmove, hinterior⟩ := hslide x' hx'Side hxx'lt
+  refine ⟨x', hx', e, hmap, ?_, ?_, hinterior⟩
+  · intro z hz
+    apply hfix z
+    convert hz using 1 <;> dsimp [epsilon] <;> ring
+  · intro z
+    exact (hmove z).trans hxx'
+
+/-- Width-controlled exact transport of one route start.  The slide fixes the complement of the
+prescribed support ball, preserves the whole parent interior, and costs at most twice the
+configuration distance. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portStart_parentInterior_width
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (r : Fin 5) (x : Pt)
+    (hx : x ∈ segment ℝ (cfg.2.1 a r).1 (cfg.2.1 a r).2) :
+    ∃ w0 > (0 : ℝ), ∀ w, 0 < w → w ≤ w0 →
+      ∀ (cfg' : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α),
+        cfg' ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α →
+        dist cfg cfg' < w / 2 →
+        ∃ x' ∈ segment ℝ (cfg'.2.1 a r).1 (cfg'.2.1 a r).2, ∃ e : Pt ≃ₜ Pt,
+          e x = x' ∧
+          (∀ z, w ≤ dist x z → e z = z) ∧
+          (∀ z, dist (e z) z ≤ 2 * dist cfg cfg') ∧
+          ∀ z, e z ∈ interior (Rs.GS.G.P'.disk α).carrier ↔
+            z ∈ interior (Rs.GS.G.P'.disk α).carrier := by
+  let B := Rs.GS.G.P'.disk α
+  have hxOpen := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portPoint_openSide
+    τ M Rs hcp α hcfg a r hx
+  obtain ⟨w0, hw0, hslide⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_portSlide_parentInterior_width B a hxOpen
+  refine ⟨w0, hw0, ?_⟩
+  intro w hw hww0 cfg' hcfg' hdist
+  obtain ⟨x', hx', hxx', -, -⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_portStart_correspondence
+      τ M Rs cp rho α cfg cfg' hcfg hcfg' a r x hx
+  have hx'Side : x' ∈ B.side a := by
+    have hend := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portOnSide
+      τ M Rs cp rho α hcfg' a r
+    exact (convex_segment _ _).segment_subset hend.1 hend.2 hx'
+  have hxx'lt : dist x x' < w := by linarith
+  obtain ⟨e, hmap, hfix, hmove, hinterior⟩ :=
+    hslide w hw hww0 x' hx'Side hxx'lt
+  exact ⟨x', hx', e, hmap, hfix, fun z => (hmove z).trans hxx', hinterior⟩
+
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_config_radialEndpoint_dist
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
     (α : Rs.GS.G.P'.Form) {κ : ℝ} (hκ : 0 < κ)
@@ -38079,6 +39038,41 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_composeList_eq_self
         hfix e List.mem_cons_self]
       exact ih (fun f hf => hfix f (List.mem_cons_of_mem e hf))
 
+/-- A set preserved in both directions by every local homeomorphism is preserved by their finite
+composition. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_composeList_mem_iff
+    (es : List (Pt ≃ₜ Pt)) (U : Set Pt)
+    (hU : ∀ e ∈ es, ∀ x, e x ∈ U ↔ x ∈ U) :
+    ∀ x, existsRoutingAfterPower_step4_routes_step6_R4_composeList es x ∈ U ↔ x ∈ U := by
+  induction es with
+  | nil => simp [existsRoutingAfterPower_step4_routes_step6_R4_composeList]
+  | cons e es ih =>
+      intro x
+      rw [existsRoutingAfterPower_step4_routes_step6_R4_composeList_apply,
+        ih (fun f hf => hU f (List.mem_cons_of_mem e hf)), hU e List.mem_cons_self]
+
+/-- A finite family of positive radii and one positive global bound have a common positive lower
+bound. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_finitePositiveRadius
+    {ι : Type*} [Fintype ι] (w : ι → ℝ) (hw : ∀ i, 0 < w i) {c : ℝ} (hc : 0 < c) :
+    ∃ W > (0 : ℝ), W ≤ c ∧ ∀ i, W ≤ w i := by
+  classical
+  let S : Finset ℝ := insert c (Finset.univ.image w)
+  have hSne : S.Nonempty := Finset.insert_nonempty _ _
+  let W := S.min' hSne
+  have hW : 0 < W := by
+    rw [Finset.lt_min'_iff]
+    intro d hd
+    rw [Finset.mem_insert, Finset.mem_image] at hd
+    rcases hd with rfl | ⟨i, -, rfl⟩
+    · exact hc
+    · exact hw i
+  refine ⟨W, hW, ?_, ?_⟩
+  · exact Finset.min'_le S c (Finset.mem_insert_self c _)
+  · intro i
+    exact Finset.min'_le S (w i)
+      (Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨i, Finset.mem_univ _, rfl⟩))
+
 /-- A noninterfering finite family of local motions simultaneously carries every listed old
 endpoint to its new endpoint, independently of the list order. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_composeList_maps_points
@@ -38136,6 +39130,144 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_composeList_lower
             (existsRoutingAfterPower_step4_routes_step6_R4_composeList es (e y)) :=
           ih (fun f hf => hc f (List.mem_cons_of_mem e hf))
             (fun f hf => hlower f (List.mem_cons_of_mem e hf)) (e x) (e y)
+
+/-- All route starts can be slid simultaneously to the corresponding nearby ports.  The supports
+are chosen uniformly smaller than one quarter of the port gap, so the local motions do not
+interfere; their composite preserves the fixed parent interior in both directions. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portStartFamily_parentInterior
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (gamma : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc)
+    (hstart : ∀ a, ∀ ha : a ∈ Rs.markedSides α, ∀ i,
+      (gamma a i).start ∈ segment ℝ (cfg.2.1 a i.castSucc).1
+        (cfg.2.1 a i.castSucc).2) :
+    let I := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} × Fin 4
+    ∃ epsilon > (0 : ℝ),
+      ∀ (cfg' : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α),
+        cfg' ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α →
+        dist cfg cfg' < epsilon →
+        ∃ q : I → Pt, ∃ F : Pt ≃ₜ Pt,
+          (∀ ai : I, q ai ∈ segment ℝ (cfg'.2.1 ai.1 ai.2.castSucc).1
+            (cfg'.2.1 ai.1 ai.2.castSucc).2) ∧
+          (∀ ai : I, F (gamma ai.1 ai.2).start = q ai) ∧
+          (∀ z ∈ Metric.closedBall cfg.1
+            (3 * existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs), F z = z) ∧
+          (∀ z, dist (F z) z ≤ Fintype.card I * (2 * dist cfg cfg')) ∧
+          ∀ z, F z ∈ interior (Rs.GS.G.P'.disk α).carrier ↔
+            z ∈ interior (Rs.GS.G.P'.disk α).carrier := by
+  classical
+  dsimp only
+  let I := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} × Fin 4
+  let p : I → Pt := fun ai => (gamma ai.1 ai.2).start
+  have hp : ∀ ai : I, p ai ∈ segment ℝ (cfg.2.1 ai.1 ai.2.castSucc).1
+      (cfg.2.1 ai.1 ai.2.castSucc).2 := fun ai => hstart ai.1 ai.1.property ai.2
+  have hlocal : ∀ ai : I, ∃ w0 > (0 : ℝ), ∀ w, 0 < w → w ≤ w0 →
+      ∀ (cfg' : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α),
+        cfg' ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α →
+        dist cfg cfg' < w / 2 →
+        ∃ x' ∈ segment ℝ (cfg'.2.1 ai.1 ai.2.castSucc).1
+          (cfg'.2.1 ai.1 ai.2.castSucc).2, ∃ e : Pt ≃ₜ Pt,
+          e (p ai) = x' ∧ (∀ z, w ≤ dist (p ai) z → e z = z) ∧
+          (∀ z, dist (e z) z ≤ 2 * dist cfg cfg') ∧
+          ∀ z, e z ∈ interior (Rs.GS.G.P'.disk α).carrier ↔
+            z ∈ interior (Rs.GS.G.P'.disk α).carrier := by
+    intro ai
+    exact existsRoutingAfterPower_step4_routes_step6_R4_portStart_parentInterior_width
+      τ M Rs hcp α cfg hcfg ai.1 ai.2.castSucc (p ai) (hp ai)
+  choose w0 hw0 htransport using hlocal
+  obtain ⟨w, hw, hwbound, hww0⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_finitePositiveRadius
+      w0 hw0
+        (c := min (cp / 4) (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs))
+        (lt_min (by positivity)
+          (existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs))
+  have hwcp : w ≤ cp / 4 := hwbound.trans (min_le_left _ _)
+  have hwkappa : w ≤ existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs :=
+    hwbound.trans (min_le_right _ _)
+  let epsilon := w / 4
+  have hepsilon : 0 < epsilon := by dsimp [epsilon]; positivity
+  refine ⟨epsilon, hepsilon, ?_⟩
+  intro cfg' hcfg' hdist
+  have hdistw : dist cfg cfg' < w / 2 := by dsimp [epsilon] at hdist; linarith
+  have hmoves : ∀ ai : I, ∃ x' ∈ segment ℝ (cfg'.2.1 ai.1 ai.2.castSucc).1
+      (cfg'.2.1 ai.1 ai.2.castSucc).2, ∃ e : Pt ≃ₜ Pt,
+      e (p ai) = x' ∧ (∀ z, w ≤ dist (p ai) z → e z = z) ∧
+      (∀ z, dist (e z) z ≤ 2 * dist cfg cfg') ∧
+      ∀ z, e z ∈ interior (Rs.GS.G.P'.disk α).carrier ↔
+        z ∈ interior (Rs.GS.G.P'.disk α).carrier := by
+    intro ai
+    exact htransport ai w hw (hww0 ai) cfg' hcfg' hdistw
+  choose q hq e hmap hfix hmove hinterior using hmoves
+  have hpair : ∀ ai bj : I, ai ≠ bj →
+      (ai.1.1, ai.2.castSucc) ≠ (bj.1.1, bj.2.castSucc) := by
+    intro ai bj haibj hpairs
+    apply haibj
+    obtain ⟨ha, hi⟩ := Prod.mk.inj hpairs
+    exact Prod.ext (Subtype.ext ha) (Fin.castSucc_injective _ hi)
+  have holdsep : ∀ ai bj : I, ai ≠ bj → cp ≤ dist (p ai) (p bj) := by
+    intro ai bj haibj
+    exact existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portPoints_separated
+      τ M Rs cp rho α hcfg ai.1 ai.2.castSucc bj.1 bj.2.castSucc
+        (hpair ai bj haibj) (hp ai) (hp bj)
+  have hfixOld : ∀ ai bj : I, ai ≠ bj → e ai (p bj) = p bj := by
+    intro ai bj haibj
+    apply hfix ai
+    linarith [holdsep ai bj haibj]
+  have hfixNew : ∀ ai bj : I, ai ≠ bj → e ai (q bj) = q bj := by
+    intro ai bj haibj
+    apply hfix ai
+    have htri : dist (p ai) (p bj) ≤ dist (p ai) (q bj) + dist (q bj) (p bj) :=
+      dist_triangle _ _ _
+    have hmovej := hmove bj (p bj)
+    rw [hmap bj] at hmovej
+    have hcpw : 4 * w ≤ cp := by
+      have := hwcp
+      linarith
+    dsimp [epsilon] at hdist
+    linarith [holdsep ai bj haibj]
+  let is : List I := Finset.univ.toList
+  let F := existsRoutingAfterPower_step4_routes_step6_R4_composeList (is.map e)
+  refine ⟨q, F, hq, ?_, ?_, ?_, ?_⟩
+  · intro ai
+    exact existsRoutingAfterPower_step4_routes_step6_R4_composeList_maps_points
+      is e p q (by simpa [is] using (Finset.univ : Finset I).nodup_toList) hmap
+        hfixOld hfixNew ai (by simp [is])
+  · intro z hz
+    apply existsRoutingAfterPower_step4_routes_step6_R4_composeList_eq_self
+    intro f hf
+    obtain ⟨ai, -, rfl⟩ := List.mem_map.mp hf
+    apply hfix ai
+    have hpfront : p ai ∈ frontier (Rs.GS.G.P'.disk α).carrier :=
+      existsRoutingAfterPower_step4_routes_step6_R2_Kadm_port_subset_frontier
+        τ M Rs cp rho α hcfg ai.1 ai.2.castSucc (hp ai)
+    have hcp := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_centerSeparated
+      τ M Rs cp rho α hcfg (p ai) hpfront
+    have hzdist : dist cfg.1 z ≤
+        3 * existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs := by
+      rw [dist_comm]
+      exact Metric.mem_closedBall.1 hz
+    have htri : dist cfg.1 (p ai) ≤ dist cfg.1 z + dist z (p ai) := dist_triangle _ _ _
+    have hclear : existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs =
+        4 * existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs := by
+      unfold existsRoutingAfterPower_step4_routes_step6_R1_kappa
+      ring
+    rw [hclear] at hcp
+    rw [dist_comm]
+    linarith
+  · intro z
+    have hdisp := existsRoutingAfterPower_step4_routes_step6_R4_composeList_displacement
+      (is.map e) (fun _ => 2 * dist cfg cfg')
+      (fun f hf => by
+        obtain ⟨ai, -, rfl⟩ := List.mem_map.mp hf
+        exact hmove ai) z
+    simpa [F, is, I, List.map_map, mul_assoc] using hdisp
+  · intro z
+    apply existsRoutingAfterPower_step4_routes_step6_R4_composeList_mem_iff
+    intro f hf x
+    obtain ⟨ai, -, rfl⟩ := List.mem_map.mp hf
+    exact hinterior ai x
 
 /-- Assemble all direction-endpoint bumps into one homeomorphism.  It maps every old circle
 endpoint exactly to the corresponding new endpoint, fixes points outside all support balls, and

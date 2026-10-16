@@ -15161,6 +15161,165 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorRectangleModel
       simp [q, hcl _ hu, cl, projIcc_of_mem]
     rw [hq1, Htop u hu]
 
+/-- The two radial boundary rows of a sector rectangle lie on the corresponding
+outer and inner polygonal chains. -/
+private lemma plAnnulusRouting_polygonalAnnulus_sectorRectangleModel_boundaryRows
+    (A C D : PolygonalDisk) (a b c d : Pt) (α β g k : List Pt)
+    (houter : pgCv (a :: α ++ b :: β) = frontier A.carrier)
+    (hinner : pgCv (c :: g ++ d :: k) = frontier C.carrier)
+    (hdisj : Disjoint (frontier A.carrier) (frontier C.carrier))
+    (hL : pgL D = a :: (α ++ b :: d :: (g.reverse ++ [c])))
+    (l : ℝ → Pt) (f : ℝ × ℝ → Pt)
+    (hl : IsLoopParam (frontier D.carrier) l) (hfc : Continuous f)
+    (hfinj : InjOn f (Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1))
+    (hf0 : ∀ s ∈ Icc (0 : ℝ) 1, f (s, 0) = AffineMap.lineMap a c s)
+    (hf1 : ∀ s ∈ Icc (0 : ℝ) 1, f (s, 1) = AffineMap.lineMap b d s)
+    (hrow0 : ∀ u ∈ Icc (0 : ℝ) 1, f (0, u) = l (u / 4))
+    (hrow1 : ∀ u ∈ Icc (0 : ℝ) 1, f (1, u) = l ((3 - u) / 4)) :
+    MapsTo (fun u => f (0, u)) (Icc (0 : ℝ) 1) (frontier A.carrier) ∧
+      MapsTo (fun u => f (1, u)) (Icc (0 : ℝ) 1) (frontier C.carrier) := by
+  have hloop_mem (t : ℝ) : l t ∈ frontier D.carrier := by
+    rw [← hl.2.2.2]
+    refine ⟨Int.fract t, ⟨Int.fract_nonneg t, Int.fract_lt_one t⟩, ?_⟩
+    exact pg_periodic_fract hl.2.1 t
+  have houter_a : a ∈ frontier A.carrier := by
+    rw [← houter]
+    exact pg_vertex_mem_cv (by simp)
+  have houter_b : b ∈ frontier A.carrier := by
+    rw [← houter]
+    exact pg_vertex_mem_cv (by simp)
+  have hinner_c : c ∈ frontier C.carrier := by
+    rw [← hinner]
+    exact pg_vertex_mem_cv (by simp)
+  have hinner_d : d ∈ frontier C.carrier := by
+    rw [← hinner]
+    exact pg_vertex_mem_cv (by simp)
+  let R0 : Set Pt := (fun u => f (0, u)) '' Icc (0 : ℝ) 1
+  let R1 : Set Pt := (fun u => f (1, u)) '' Icc (0 : ℝ) 1
+  have hR0_union : R0 ⊆ frontier A.carrier ∪ frontier C.carrier := by
+    rintro z ⟨u, hu, rfl⟩
+    have hzD : f (0, u) ∈ frontier D.carrier := by
+      rw [hrow0 u hu]
+      exact hloop_mem _
+    have hzcv : f (0, u) ∈
+        pgCv (a :: (α ++ b :: d :: (g.reverse ++ [c]))) := by
+      rwa [← hL, pgCv_pgL]
+    rcases pgCv_piece_subset a b c d α β g k hzcv with
+      ((hz | hz) | hz) | hz
+    · exact Or.inl (houter ▸ hz)
+    · exact Or.inr (hinner ▸ hz)
+    · rw [segment_eq_image_lineMap] at hz
+      obtain ⟨s, hs, hsz⟩ := hz
+      have heq : f (0, u) = f (s, 1) :=
+        hsz.symm.trans (hf1 s hs).symm
+      have hp : (0, u) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨by norm_num, hu⟩
+      have hq : (s, 1) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨hs, by norm_num⟩
+      have hs0 := congrArg Prod.fst (hfinj hp hq heq)
+      dsimp only at hs0
+      subst s
+      have hzb : f (0, u) = b := by
+        simpa using hsz.symm
+      change f (0, u) ∈ frontier A.carrier ∪ frontier C.carrier
+      rw [hzb]
+      exact Or.inl houter_b
+    · rw [segment_eq_image_lineMap] at hz
+      obtain ⟨s, hs, hsz⟩ := hz
+      have heq : f (0, u) = f (s, 0) :=
+        hsz.symm.trans (hf0 s hs).symm
+      have hp : (0, u) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨by norm_num, hu⟩
+      have hq : (s, 0) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨hs, by norm_num⟩
+      have hs0 := congrArg Prod.fst (hfinj hp hq heq)
+      dsimp only at hs0
+      subst s
+      have hza : f (0, u) = a := by
+        simpa using hsz.symm
+      change f (0, u) ∈ frontier A.carrier ∪ frontier C.carrier
+      rw [hza]
+      exact Or.inl houter_a
+  have hR1_union : R1 ⊆ frontier A.carrier ∪ frontier C.carrier := by
+    rintro z ⟨u, hu, rfl⟩
+    have hzD : f (1, u) ∈ frontier D.carrier := by
+      rw [hrow1 u hu]
+      exact hloop_mem _
+    have hzcv : f (1, u) ∈
+        pgCv (a :: (α ++ b :: d :: (g.reverse ++ [c]))) := by
+      rwa [← hL, pgCv_pgL]
+    rcases pgCv_piece_subset a b c d α β g k hzcv with
+      ((hz | hz) | hz) | hz
+    · exact Or.inl (houter ▸ hz)
+    · exact Or.inr (hinner ▸ hz)
+    · rw [segment_eq_image_lineMap] at hz
+      obtain ⟨s, hs, hsz⟩ := hz
+      have heq : f (1, u) = f (s, 1) :=
+        hsz.symm.trans (hf1 s hs).symm
+      have hp : (1, u) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨by norm_num, hu⟩
+      have hq : (s, 1) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨hs, by norm_num⟩
+      have hs1 := congrArg Prod.fst (hfinj hp hq heq)
+      dsimp only at hs1
+      subst s
+      have hzd : f (1, u) = d := by
+        simpa using hsz.symm
+      change f (1, u) ∈ frontier A.carrier ∪ frontier C.carrier
+      rw [hzd]
+      exact Or.inr hinner_d
+    · rw [segment_eq_image_lineMap] at hz
+      obtain ⟨s, hs, hsz⟩ := hz
+      have heq : f (1, u) = f (s, 0) :=
+        hsz.symm.trans (hf0 s hs).symm
+      have hp : (1, u) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨by norm_num, hu⟩
+      have hq : (s, 0) ∈ Icc (0 : ℝ) 1 ×ˢ Icc (0 : ℝ) 1 :=
+        ⟨hs, by norm_num⟩
+      have hs1 := congrArg Prod.fst (hfinj hp hq heq)
+      dsimp only at hs1
+      subst s
+      have hzc : f (1, u) = c := by
+        simpa using hsz.symm
+      change f (1, u) ∈ frontier A.carrier ∪ frontier C.carrier
+      rw [hzc]
+      exact Or.inr hinner_c
+  have hR0pre : IsPreconnected R0 := by
+    apply isPreconnected_Icc.image
+    exact (hfc.comp (continuous_const.prodMk continuous_id)).continuousOn
+  have hR1pre : IsPreconnected R1 := by
+    apply isPreconnected_Icc.image
+    exact (hfc.comp (continuous_const.prodMk continuous_id)).continuousOn
+  have hsep (R : Set Pt) (hR : R ⊆ frontier A.carrier ∪ frontier C.carrier) :
+      R ∩ (frontier A.carrier ∩ frontier C.carrier) = ∅ := by
+    apply Set.not_nonempty_iff_eq_empty.mp
+    rintro ⟨z, -, hzA, hzC⟩
+    exact Set.disjoint_left.1 hdisj hzA hzC
+  have hR0choice : R0 ⊆ frontier A.carrier ∨ R0 ⊆ frontier C.carrier :=
+    (isPreconnected_iff_subset_of_disjoint_closed.mp hR0pre)
+      _ _ isClosed_frontier isClosed_frontier hR0_union (hsep R0 hR0_union)
+  have hR1choice : R1 ⊆ frontier A.carrier ∨ R1 ⊆ frontier C.carrier :=
+    (isPreconnected_iff_subset_of_disjoint_closed.mp hR1pre)
+      _ _ isClosed_frontier isClosed_frontier hR1_union (hsep R1 hR1_union)
+  have hR0 : R0 ⊆ frontier A.carrier := by
+    rcases hR0choice with h | h
+    · exact h
+    · exfalso
+      have hzR : f (0, 0) ∈ R0 := ⟨0, by norm_num, rfl⟩
+      have hza : f (0, 0) = a := by
+        simpa using hf0 0 (by norm_num)
+      exact Set.disjoint_left.1 hdisj (hza.symm ▸ houter_a) (h hzR)
+  have hR1 : R1 ⊆ frontier C.carrier := by
+    rcases hR1choice with h | h
+    · exfalso
+      have hzR : f (1, 0) ∈ R1 := ⟨0, by norm_num, rfl⟩
+      have hzc : f (1, 0) = c := by
+        simpa using hf0 1 (by norm_num)
+      exact Set.disjoint_left.1 hdisj (h hzR) (hzc.symm ▸ hinner_c)
+    · exact h
+  exact ⟨fun u hu => hR0 ⟨u, hu, rfl⟩,
+    fun u hu => hR1 ⟨u, hu, rfl⟩⟩
+
 /-- Two continuous rectangle models with matching middle and end edges glue
 to a continuous period-one map.  On the fundamental domain it is exactly
 the two affine angular rescalings of the supplied models. -/
@@ -15265,8 +15424,10 @@ private lemma plAnnulusRouting_polygonalAnnulus_model_except_injective_boundary
       A.carrier \ interior C.carrier ⊆
         Ψ '' (Icc (0 : ℝ) 1 ×ˢ univ) ∧
       MapsTo Ψ (Ioo (0 : ℝ) 1 ×ˢ univ)
-        (interior A.carrier \ C.carrier) := by
-  obtain ⟨a₁, a₂, c₁, c₂, α, β, g, d, -, -, -, -, -, -, -, -,
+        (interior A.carrier \ C.carrier) ∧
+      MapsTo (fun t => Ψ (0, t)) univ (frontier A.carrier) ∧
+      MapsTo (fun t => Ψ (1, t)) univ (frontier C.carrier) := by
+  obtain ⟨a₁, a₂, c₁, c₂, α, β, g, d, -, -, -, -, -, -, houter₁, hinner₁,
       hP₁, hP₂, -, -, hopen₁, hopen₂, hR₁, hR₂, hRi₁, hRi₂,
       -, hRinter, hRunion⟩ :=
     plAnnulusRouting_polygonalAnnulus_sectorLists_partition A C hC ∅
@@ -15287,12 +15448,33 @@ private lemma plAnnulusRouting_polygonalAnnulus_model_except_injective_boundary
       (hR₂.trans diff_subset) (plSchoenflies_pgInside_pathConnected hP₂)
   change pgL D₁ = a₁ :: (α ++ a₂ :: c₂ :: (g.reverse ++ [c₁])) at hL₁
   change pgL D₂ = a₂ :: (β ++ a₁ :: c₁ :: (d.reverse ++ [c₂])) at hL₂
-  obtain ⟨l₁, f₁, hl₁, hf₁c, hf₁inj, hf₁range, hf₁int, hf₁0, hf₁1, -, -⟩ :=
+  obtain ⟨l₁, f₁, hl₁, hf₁c, hf₁inj, hf₁range, hf₁int, hf₁0, hf₁1,
+      hf₁row0, hf₁row1⟩ :=
     plAnnulusRouting_polygonalAnnulus_sectorRectangleModel
       D₁ a₁ a₂ c₁ c₂ α g hL₁
-  obtain ⟨l₂, f₂, hl₂, hf₂c, hf₂inj, hf₂range, hf₂int, hf₂0, hf₂1, -, -⟩ :=
+  obtain ⟨l₂, f₂, hl₂, hf₂c, hf₂inj, hf₂range, hf₂int, hf₂0, hf₂1,
+      hf₂row0, hf₂row1⟩ :=
     plAnnulusRouting_polygonalAnnulus_sectorRectangleModel
       D₂ a₂ a₁ c₂ c₁ β d hL₂
+  have houter₂ : pgCv (a₂ :: β ++ a₁ :: α) = frontier A.carrier := by
+    rw [← List.rotate_append_length_eq (a₁ :: α) (a₂ :: β), pgCv_rotate]
+    exact houter₁
+  have hinner₂ : pgCv (c₂ :: d ++ c₁ :: g) = frontier C.carrier := by
+    rw [← List.rotate_append_length_eq (c₁ :: g) (c₂ :: d), pgCv_rotate]
+    exact hinner₁
+  have hfrontDisj : Disjoint (frontier A.carrier) (frontier C.carrier) := by
+    rw [Set.disjoint_left]
+    intro z hzA hzC
+    exact pg_frontier_inter_interior hzA
+      (hC (pd_frontier_subset_carrier C hzC))
+  obtain ⟨hf₁outer, hf₁inner⟩ :=
+    plAnnulusRouting_polygonalAnnulus_sectorRectangleModel_boundaryRows
+      A C D₁ a₁ a₂ c₁ c₂ α β g d houter₁ hinner₁ hfrontDisj hL₁
+      l₁ f₁ hl₁ hf₁c hf₁inj hf₁0 hf₁1 hf₁row0 hf₁row1
+  obtain ⟨hf₂outer, hf₂inner⟩ :=
+    plAnnulusRouting_polygonalAnnulus_sectorRectangleModel_boundaryRows
+      A C D₂ a₂ a₁ c₂ c₁ β α d g houter₂ hinner₂ hfrontDisj hL₂
+      l₂ f₂ hl₂ hf₂c hf₂inj hf₂0 hf₂1 hf₂row0 hf₂row1
   have hmiddle : ∀ s ∈ Icc (0 : ℝ) 1, f₁ (s, 1) = f₂ (s, 0) := by
     intro s hs
     rw [hf₁1 s hs, hf₂0 s hs]
@@ -15313,7 +15495,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_model_except_injective_boundary
   have hDinter : D₁.carrier ∩ D₂.carrier ⊆
       segment ℝ a₁ c₁ ∪ segment ℝ a₂ c₂ := by
     rwa [hD₁, hD₂]
-  refine ⟨Ψ, hΨc, hΨper, ?_, ?_, ?_, ?_⟩
+  refine ⟨Ψ, hΨc, hΨper, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro p hp q hq hpq
     have hpS : p.1 ∈ Icc (0 : ℝ) 1 := hp.1
     have hqS : q.1 ∈ Icc (0 : ℝ) 1 := hq.1
@@ -15467,6 +15649,102 @@ private lemma plAnnulusRouting_polygonalAnnulus_model_except_injective_boundary
       exact ⟨p.1, hp.1, rfl⟩
     · rw [hΨt, hΨ₂ p.1 hs t ⟨ht.le, ht1.le⟩]
       exact hDi₂ (hf₂int ⟨hp.1, ⟨by linarith, by linarith⟩⟩)
+  · intro t ht
+    let u := Int.fract t
+    have hu0 : 0 ≤ u := Int.fract_nonneg _
+    have hu1 : u < 1 := Int.fract_lt_one _
+    change Ψ (0, t) ∈ frontier A.carrier
+    rw [hΨfract 0 t]
+    by_cases hu : u < 1 / 2
+    · rw [hΨ₁ 0 (by norm_num) u ⟨hu0, hu⟩]
+      exact hf₁outer (x := 2 * u) ⟨by linarith, by linarith⟩
+    · rw [hΨ₂ 0 (by norm_num) u ⟨not_lt.mp hu, hu1.le⟩]
+      exact hf₂outer (x := 2 * u - 1) ⟨by linarith, by linarith⟩
+  · intro t ht
+    let u := Int.fract t
+    have hu0 : 0 ≤ u := Int.fract_nonneg _
+    have hu1 : u < 1 := Int.fract_lt_one _
+    change Ψ (1, t) ∈ frontier C.carrier
+    rw [hΨfract 1 t]
+    by_cases hu : u < 1 / 2
+    · rw [hΨ₁ 1 (by norm_num) u ⟨hu0, hu⟩]
+      exact hf₁inner (x := 2 * u) ⟨by linarith, by linarith⟩
+    · rw [hΨ₂ 1 (by norm_num) u ⟨not_lt.mp hu, hu1.le⟩]
+      exact hf₂inner (x := 2 * u - 1) ⟨by linarith, by linarith⟩
+
+/-- Boundary-row containment, annulus surjectivity, and the open-strip image
+upgrade the two row containments to exact frontier ranges. -/
+private lemma plAnnulusRouting_polygonalAnnulus_boundaryRow_ranges
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier)
+    (Ψ : ℝ × ℝ → Pt) (hper : ∀ s t, Ψ (s, t + 1) = Ψ (s, t))
+    (hsurj : A.carrier \ interior C.carrier ⊆
+      Ψ '' (Icc (0 : ℝ) 1 ×ˢ univ))
+    (hopen : MapsTo Ψ (Ioo (0 : ℝ) 1 ×ˢ univ)
+      (interior A.carrier \ C.carrier))
+    (hrow0 : MapsTo (fun t => Ψ (0, t)) univ (frontier A.carrier))
+    (hrow1 : MapsTo (fun t => Ψ (1, t)) univ (frontier C.carrier)) :
+    (fun t => Ψ (0, t)) '' Ico (0 : ℝ) 1 = frontier A.carrier ∧
+      (fun t => Ψ (1, t)) '' Ico (0 : ℝ) 1 = frontier C.carrier := by
+  have hdisj : Disjoint (frontier A.carrier) (frontier C.carrier) := by
+    rw [Set.disjoint_left]
+    intro z hzA hzC
+    exact pg_frontier_inter_interior hzA
+      (hC (pd_frontier_subset_carrier C hzC))
+  constructor
+  · apply Set.Subset.antisymm
+    · rintro z ⟨t, -, rfl⟩
+      exact hrow0 (x := t) (Set.mem_univ t)
+    · intro z hz
+      have hzU : z ∈ A.carrier \ interior C.carrier :=
+        ⟨pd_frontier_subset_carrier A hz, fun hzCi =>
+          pg_frontier_inter_interior hz (hC (interior_subset hzCi))⟩
+      obtain ⟨p, hp, hpz⟩ := hsurj hzU
+      let u := Int.fract p.2
+      have hu : u ∈ Ico (0 : ℝ) 1 :=
+        ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+      have hqz : Ψ (p.1, u) = z :=
+        (pg_periodic_fract (δ := fun t => Ψ (p.1, t))
+          (hper p.1) p.2).trans hpz
+      rcases eq_or_lt_of_le hp.1.1 with hs0 | hs0
+      · rw [← hs0] at hqz
+        exact ⟨u, hu, hqz⟩
+      · rcases eq_or_lt_of_le hp.1.2 with hs1 | hs1
+        · rw [hs1] at hqz
+          have hzC : z ∈ frontier C.carrier := by
+            rw [← hqz]
+            exact hrow1 (x := u) (Set.mem_univ u)
+          exact False.elim (Set.disjoint_left.1 hdisj hz hzC)
+        · have hzopen := hopen (x := (p.1, u))
+            ⟨⟨hs0, hs1⟩, Set.mem_univ u⟩
+          rw [hqz] at hzopen
+          exact False.elim (pg_frontier_inter_interior hz hzopen.1)
+  · apply Set.Subset.antisymm
+    · rintro z ⟨t, -, rfl⟩
+      exact hrow1 (x := t) (Set.mem_univ t)
+    · intro z hz
+      have hzU : z ∈ A.carrier \ interior C.carrier :=
+        ⟨interior_subset (hC (pd_frontier_subset_carrier C hz)),
+          pg_frontier_inter_interior hz⟩
+      obtain ⟨p, hp, hpz⟩ := hsurj hzU
+      let u := Int.fract p.2
+      have hu : u ∈ Ico (0 : ℝ) 1 :=
+        ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩
+      have hqz : Ψ (p.1, u) = z :=
+        (pg_periodic_fract (δ := fun t => Ψ (p.1, t))
+          (hper p.1) p.2).trans hpz
+      rcases eq_or_lt_of_le hp.1.1 with hs0 | hs0
+      · rw [← hs0] at hqz
+        have hzA : z ∈ frontier A.carrier := by
+          rw [← hqz]
+          exact hrow0 (x := u) (Set.mem_univ u)
+        exact False.elim (Set.disjoint_left.1 hdisj hzA hz)
+      · rcases eq_or_lt_of_le hp.1.2 with hs1 | hs1
+        · rw [hs1] at hqz
+          exact ⟨u, hu, hqz⟩
+        · have hzopen := hopen (x := (p.1, u))
+            ⟨⟨hs0, hs1⟩, Set.mem_univ u⟩
+          rw [hqz] at hzopen
+          exact False.elim (hzopen.2 (pd_frontier_subset_carrier C hz))
 
 /-- Step 1 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the polygonal annulus
 `A \ interior C` is a topological annulus.  It has a period-one model `Ψ`, injective on one fundamental domain, sending
@@ -15480,7 +15758,18 @@ private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step1_annulusModel
       MapsTo Ψ (Icc 0 1 ×ˢ univ) (A.carrier \ interior C.carrier) ∧
       A.carrier \ interior C.carrier ⊆ Ψ '' (Icc 0 1 ×ˢ univ) ∧
       MapsTo Ψ (Ioo 0 1 ×ˢ univ) (interior A.carrier \ C.carrier) := by
-  sorry
+  obtain ⟨Ψ, hΨc, hper, hinj, hmap, hsurj, hopen, hrow0, hrow1⟩ :=
+    plAnnulusRouting_polygonalAnnulus_model_except_injective_boundary A C hC
+  obtain ⟨hrange0, hrange1⟩ :=
+    plAnnulusRouting_polygonalAnnulus_boundaryRow_ranges
+      A C hC Ψ hper hsurj hopen hrow0 hrow1
+  have hloop0 : IsLoopParam (frontier A.carrier) (fun t => Ψ (0, t)) :=
+    plAnnulusRouting_polygonalAnnulus_boundaryRow_isLoopParam
+      Ψ hΨc hper hinj 0 (by norm_num) (frontier A.carrier) hrange0
+  have hloop1 : IsLoopParam (frontier C.carrier) (fun t => Ψ (1, t)) :=
+    plAnnulusRouting_polygonalAnnulus_boundaryRow_isLoopParam
+      Ψ hΨc hper hinj 1 (by norm_num) (frontier C.carrier) hrange1
+  exact ⟨Ψ, hΨc, hper, hinj, hloop0, hloop1, hmap, hsurj, hopen⟩
 
 /-- Step 5 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: a finite cyclically ordered family
 of parameters fits, after an affine rescaling, strictly inside one period; the complementary boundary gap is where the

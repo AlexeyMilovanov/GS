@@ -33907,6 +33907,44 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_config_mem
     · exact fun a _ i _ => Metric.mem_sphere.2 (by simpa using huNorm a i)
   simpa [existsRoutingAfterPower_step4_routes_step6_R2_config, s, c] using hmem
 
+/-- The realized normalized coordinate tuples.  This still records one point per port rather than
+the two endpoints of the whole port segment, so its compact closure is an intermediate space and
+not yet the final admissible space required by R5. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_realized
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    Set (existsRoutingAfterPower_step4_routes_step6_R2_Config τ M Rs α) :=
+  {cfg | ∃ (l : ℕ) (hl : 0 < l)
+      (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+      (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl),
+    existsRoutingAfterPower_step4_routes_step6_R2_config τ M Rs ports entries = cfg}
+
+/-- Compact closure of the realized coordinate tuples inside the compact ambient space. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_Kreal
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    Set (existsRoutingAfterPower_step4_routes_step6_R2_Config τ M Rs α) :=
+  existsRoutingAfterPower_step4_routes_step6_R2_K τ M Rs α ∩
+    closure (existsRoutingAfterPower_step4_routes_step6_R2_realized τ M Rs cp α)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kreal_compact
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    IsCompact (existsRoutingAfterPower_step4_routes_step6_R2_Kreal τ M Rs cp α) := by
+  exact (existsRoutingAfterPower_step4_routes_step6_R2_K_compact τ M Rs α).inter_right
+    isClosed_closure
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_config_mem_Kreal
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    existsRoutingAfterPower_step4_routes_step6_R2_config τ M Rs ports entries ∈
+      existsRoutingAfterPower_step4_routes_step6_R2_Kreal τ M Rs cp α := by
+  refine ⟨existsRoutingAfterPower_step4_routes_step6_R2_config_mem τ M Rs ports entries,
+    subset_closure ?_⟩
+  exact ⟨l, hl, ports, entries, rfl⟩
+
 /-- Polygonal arc carriers are compact. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_polyArc_compact (γ : PolyArc) :
     IsCompact γ.carrier := by
@@ -33976,6 +34014,461 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_fixedConfiguration
     · exact (hij heq).elim
     · exact hmin.trans ((Classical.choose_spec (hpair i j heq)).2 u hu v hv)
 
+/-- The common deformation underlying the R4 port slide and centre bump.  For a port slide,
+`v` is tangent to the side; for a centre bump it is the displacement of the centre. -/
+private def existsRoutingAfterPower_step4_routes_step6_R4_perturb
+    (ψ : Pt → ℝ) (v : Pt) (x : Pt) : Pt :=
+  x + ψ x • v
+
+/-- A scalar Lipschitz cutoff times a fixed displacement is Lipschitz with constant
+`L * ‖v‖`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_error_lipschitz
+    (ψ : Pt → ℝ) (v : Pt) {L : ℝ} (hL : 0 ≤ L)
+    (hψ : ∀ x y, |ψ x - ψ y| ≤ L * dist x y) :
+    ∀ x y, dist (ψ x • v) (ψ y • v) ≤ L * ‖v‖ * dist x y := by
+  intro x y
+  rw [dist_eq_norm, ← sub_smul, norm_smul, Real.norm_eq_abs]
+  calc
+    |ψ x - ψ y| * ‖v‖ ≤ (L * dist x y) * ‖v‖ :=
+      mul_le_mul_of_nonneg_right (hψ x y) (norm_nonneg v)
+    _ = L * ‖v‖ * dist x y := by ring
+
+/-- Exact upper Lipschitz estimate for the R4 perturbation. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_upper
+    (ψ : Pt → ℝ) (v : Pt) {L : ℝ} (hL : 0 ≤ L)
+    (hψ : ∀ x y, |ψ x - ψ y| ≤ L * dist x y) :
+    ∀ x y, dist (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x)
+      (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v y) ≤
+        (1 + L * ‖v‖) * dist x y := by
+  intro x y
+  have herr := existsRoutingAfterPower_step4_routes_step6_R4_error_lipschitz ψ v hL hψ x y
+  calc
+    dist (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x)
+        (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v y) ≤
+        dist x y + dist (ψ x • v) (ψ y • v) := by
+      simpa [existsRoutingAfterPower_step4_routes_step6_R4_perturb] using
+        dist_add_add_le x (ψ x • v) y (ψ y • v)
+    _ ≤ (1 + L * ‖v‖) * dist x y := by nlinarith
+
+/-- Exact lower Lipschitz estimate for the R4 perturbation. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_lower
+    (ψ : Pt → ℝ) (v : Pt) {L : ℝ} (hL : 0 ≤ L)
+    (hψ : ∀ x y, |ψ x - ψ y| ≤ L * dist x y) :
+    ∀ x y, (1 - L * ‖v‖) * dist x y ≤
+      dist (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x)
+        (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v y) := by
+  intro x y
+  have herr := existsRoutingAfterPower_step4_routes_step6_R4_error_lipschitz ψ v hL hψ x y
+  have htri : dist x y ≤
+      dist (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x)
+          (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v y) +
+        dist (ψ x • v) (ψ y • v) := by
+    calc
+      dist x y = dist
+          (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x - ψ x • v)
+          (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v y - ψ y • v) := by
+        simp [existsRoutingAfterPower_step4_routes_step6_R4_perturb]
+      _ ≤ _ := dist_sub_sub_le _ _ _ _
+  nlinarith
+
+/-- The perturbation moves no point farther than `‖v‖` when the cutoff takes values in
+`[-1,1]`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_displacement
+    (ψ : Pt → ℝ) (v : Pt) (hψ : ∀ x, |ψ x| ≤ 1) :
+    ∀ x, dist (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x) x ≤ ‖v‖ := by
+  intro x
+  rw [dist_eq_norm]
+  simp only [existsRoutingAfterPower_step4_routes_step6_R4_perturb, add_sub_cancel_left,
+    norm_smul, Real.norm_eq_abs]
+  exact mul_le_of_le_one_left (norm_nonneg v) (hψ x)
+
+/-- Where the cutoff vanishes, the deformation is exactly the identity. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_eq_self
+    (ψ : Pt → ℝ) (v x : Pt) (hψ : ψ x = 0) :
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x = x := by
+  simp [existsRoutingAfterPower_step4_routes_step6_R4_perturb, hψ]
+
+/-- Where the cutoff is one, the deformation is exactly translation by `v`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_eq_add
+    (ψ : Pt → ℝ) (v x : Pt) (hψ : ψ x = 1) :
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x = x + v := by
+  simp [existsRoutingAfterPower_step4_routes_step6_R4_perturb, hψ]
+
+/-- Consequently a straight collar on which the cutoff is one is carried exactly to the
+translated straight collar. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_segment
+    (ψ : Pt → ℝ) (v p q : Pt) (hψ : ∀ x ∈ segment ℝ p q, ψ x = 1) :
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v '' segment ℝ p q =
+      segment ℝ (p + v) (q + v) := by
+  calc
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v '' segment ℝ p q =
+        (fun x => x + v) '' segment ℝ p q := by
+      apply Set.image_congr
+      intro x hx
+      exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_eq_add ψ v x (hψ x hx)
+    _ = (fun x => v + x) '' segment ℝ p q := by
+      apply Set.image_congr
+      intro x _hx
+      exact add_comm x v
+    _ = segment ℝ (p + v) (q + v) := by
+      simpa [add_comm] using segment_translate_image ℝ v p q
+
+/-- If the cutoff displacement has Lipschitz constant strictly below one, the perturbation is
+bijective.  Surjectivity is the contraction equation `x = y - ψ x • v`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_bijective
+    (ψ : Pt → ℝ) (v : Pt) {L : ℝ} (hL : 0 ≤ L)
+    (hψ : ∀ x y, |ψ x - ψ y| ≤ L * dist x y) (hsmall : L * ‖v‖ < 1) :
+    Function.Bijective (existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v) := by
+  let q : NNReal := ⟨L * ‖v‖, mul_nonneg hL (norm_nonneg v)⟩
+  have hq : q < 1 := by
+    exact_mod_cast hsmall
+  let g : Pt → Pt → Pt := fun y x => y - ψ x • v
+  have hg : ∀ y, ContractingWith q (g y) := by
+    intro y
+    refine ⟨hq, LipschitzWith.of_dist_le_mul fun x z => ?_⟩
+    have herr := existsRoutingAfterPower_step4_routes_step6_R4_error_lipschitz ψ v hL hψ x z
+    change dist (y - ψ x • v) (y - ψ z • v) ≤ (q : ℝ) * dist x z
+    rw [dist_eq_norm, sub_sub_sub_cancel_left, norm_sub_rev, ← dist_eq_norm]
+    simpa [q, mul_assoc] using herr
+  constructor
+  · intro x y hxy
+    have hlower :=
+      existsRoutingAfterPower_step4_routes_step6_R4_perturb_lower ψ v hL hψ x y
+    rw [hxy, dist_self] at hlower
+    have hpos : 0 < 1 - L * ‖v‖ := sub_pos.mpr hsmall
+    have hdist : dist x y = 0 := by
+      nlinarith [hpos, (dist_nonneg : 0 ≤ dist x y)]
+    exact dist_eq_zero.mp hdist
+  · intro y
+    let x : Pt := (hg y).fixedPoint (g y)
+    have hx : g y x = x := (hg y).fixedPoint_isFixedPt
+    refine ⟨x, ?_⟩
+    change x + ψ x • v = y
+    dsimp [g] at hx
+    exact ((sub_eq_iff_eq_add).mp hx).symm
+
+/-- R4a/R4b homeomorphism theorem.  It packages the exact perturbation formula with its
+bi-Lipschitz estimates; the inverse Lipschitz bound follows from the lower estimate. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_perturb_homeomorph
+    (ψ : Pt → ℝ) (v : Pt) {L : ℝ} (hL : 0 ≤ L)
+    (hψ : ∀ x y, |ψ x - ψ y| ≤ L * dist x y) (hsmall : L * ‖v‖ < 1) :
+    ∃ e : Pt ≃ₜ Pt,
+      (∀ x, e x = existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v x) ∧
+      (∀ x y, (1 - L * ‖v‖) * dist x y ≤ dist (e x) (e y)) ∧
+      ∀ x y, dist (e x) (e y) ≤ (1 + L * ‖v‖) * dist x y := by
+  let F := existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v
+  have hbij : Function.Bijective F :=
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb_bijective ψ v hL hψ hsmall
+  let e₀ : Pt ≃ Pt := Equiv.ofBijective F hbij
+  let q : NNReal := ⟨L * ‖v‖, mul_nonneg hL (norm_nonneg v)⟩
+  have hq : q < 1 := by
+    exact_mod_cast hsmall
+  have hanti : AntilipschitzWith (1 - q)⁻¹ F := by
+    apply AntilipschitzWith.of_le_mul_dist
+    intro x y
+    have hlower :=
+      existsRoutingAfterPower_step4_routes_step6_R4_perturb_lower ψ v hL hψ x y
+    have hpos : 0 < (1 : ℝ) - (q : ℝ) := by
+      change 0 < 1 - L * ‖v‖
+      exact sub_pos.mpr hsmall
+    rw [NNReal.coe_inv, NNReal.coe_sub hq.le, inv_mul_eq_div]
+    apply (le_div_iff₀ hpos).2
+    simpa [q, F, mul_comm] using hlower
+  have hforward : Continuous F :=
+    (LipschitzWith.of_dist_le'
+      (existsRoutingAfterPower_step4_routes_step6_R4_perturb_upper ψ v hL hψ)).continuous
+  have hinverseLip : LipschitzWith (1 - q)⁻¹ (e₀.symm : Pt → Pt) := by
+    intro x y
+    have h := hanti (e₀.symm x) (e₀.symm y)
+    rw [show F (e₀.symm x) = x from e₀.apply_symm_apply x,
+      show F (e₀.symm y) = y from e₀.apply_symm_apply y] at h
+    exact h
+  have hinverse : Continuous e₀.symm := hinverseLip.continuous
+  let e : Pt ≃ₜ Pt :=
+    { toEquiv := e₀
+      continuous_toFun := hforward
+      continuous_invFun := hinverse }
+  refine ⟨e, fun _ => rfl, ?_, ?_⟩
+  · exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_lower ψ v hL hψ
+  · exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_upper ψ v hL hψ
+
+/-- A concrete radial cutoff for the centre bump: one on the `κ`-ball and zero outside the
+`2κ`-ball. -/
+private def existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff
+    (z : Pt) (κ : ℝ) (x : Pt) : ℝ :=
+  max 0 (min (2 - dist z x / κ) 1)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_bounds
+    (z : Pt) {κ : ℝ} (hκ : 0 < κ) (x : Pt) :
+    0 ≤ existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ x ∧
+      existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ x ≤ 1 := by
+  constructor
+  · exact le_max_left _ _
+  · rw [existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff, max_le_iff]
+    exact ⟨zero_le_one, min_le_right _ _⟩
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_eq_one
+    (z : Pt) {κ : ℝ} (hκ : 0 < κ) {x : Pt} (hx : x ∈ Metric.closedBall z κ) :
+    existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ x = 1 := by
+  have hdist : dist z x ≤ κ := by simpa [dist_comm] using hx
+  have hbase : 1 ≤ 2 - dist z x / κ := by
+    have hquot : dist z x / κ ≤ 1 := (div_le_one hκ).2 hdist
+    linarith
+  simp [existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff, min_eq_right hbase]
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_eq_zero
+    (z : Pt) {κ : ℝ} (hκ : 0 < κ) {x : Pt} (hx : 2 * κ ≤ dist z x) :
+    existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ x = 0 := by
+  have hbase : 2 - dist z x / κ ≤ 0 := by
+    have hquot : 2 ≤ dist z x / κ := (le_div_iff₀ hκ).2 hx
+    linarith
+  simp [existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff, hbase,
+    hbase.trans zero_le_one]
+
+/-- The concrete centre cutoff has Lipschitz constant `κ⁻¹`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_lipschitz
+    (z : Pt) {κ : ℝ} (hκ : 0 < κ) :
+    ∀ x y, |existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ x -
+      existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ y| ≤
+        κ⁻¹ * dist x y := by
+  let K : NNReal := ⟨κ⁻¹, inv_nonneg.mpr hκ.le⟩
+  have hbase : LipschitzWith K (fun x : Pt => 2 - dist z x / κ) := by
+    apply LipschitzWith.of_dist_le_mul
+    intro x y
+    rw [Real.dist_eq]
+    have hd : |dist z y - dist z x| ≤ dist x y := by
+      simpa [dist_comm, abs_sub_comm] using abs_dist_sub_le x y z
+    calc
+      |2 - dist z x / κ - (2 - dist z y / κ)| = κ⁻¹ * |dist z y - dist z x| := by
+        rw [div_eq_mul_inv, div_eq_mul_inv]
+        have hκinv : 0 ≤ κ⁻¹ := inv_nonneg.mpr hκ.le
+        rw [show 2 - dist z x * κ⁻¹ - (2 - dist z y * κ⁻¹) =
+          κ⁻¹ * (dist z y - dist z x) by ring, abs_mul, abs_of_nonneg hκinv]
+      _ ≤ κ⁻¹ * dist x y := mul_le_mul_of_nonneg_left hd (inv_nonneg.mpr hκ.le)
+      _ = (K : ℝ) * dist x y := rfl
+  have hcut : LipschitzWith K
+      (fun x : Pt => max 0 (min (2 - dist z x / κ) 1)) :=
+    (hbase.min_const 1).const_max 0
+  intro x y
+  simpa [existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff, Real.dist_eq, K] using
+    hcut.dist_le_mul x y
+
+/-- Concrete R4b: a sufficiently small centre displacement gives a global homeomorphism which
+translates the whole inner ball and is the identity beyond radius `2κ`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_centreBump
+    (z v : Pt) {κ : ℝ} (hκ : 0 < κ) (hsmall : ‖v‖ < κ) :
+    ∃ e : Pt ≃ₜ Pt,
+      (∀ x ∈ Metric.closedBall z κ, e x = x + v) ∧
+      (∀ x, 2 * κ ≤ dist z x → e x = x) ∧
+      (∀ x, dist (e x) x ≤ ‖v‖) ∧
+      ∀ x y, (1 - κ⁻¹ * ‖v‖) * dist x y ≤ dist (e x) (e y) := by
+  let ψ := existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff z κ
+  have hLip := existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_lipschitz z hκ
+  have hsmall' : κ⁻¹ * ‖v‖ < 1 := by
+    rw [inv_mul_lt_one₀ hκ]
+    exact hsmall
+  obtain ⟨e, he, hlower, -⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb_homeomorph ψ v
+      (inv_nonneg.mpr hκ.le) hLip hsmall'
+  refine ⟨e, ?_, ?_, ?_, hlower⟩
+  · intro x hx
+    rw [he]
+    exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_eq_add ψ v x
+      (existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_eq_one z hκ hx)
+  · intro x hx
+    rw [he]
+    exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_eq_self ψ v x
+      (existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_eq_zero z hκ hx)
+  · intro x
+    rw [he]
+    apply existsRoutingAfterPower_step4_routes_step6_R4_perturb_displacement
+    intro y
+    have hb := existsRoutingAfterPower_step4_routes_step6_R4_radialCutoff_bounds z hκ y
+    rw [abs_of_nonneg hb.1]
+    exact hb.2
+
+/-- R4b's collar clause: every straight collar contained in the inner ball is translated exactly,
+so a radial collar based at `z` becomes the corresponding collar based at `z + v`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_centreBump_collar
+    (z v p q : Pt) {κ : ℝ} (hκ : 0 < κ) (hsmall : ‖v‖ < κ)
+    (hcollar : segment ℝ p q ⊆ Metric.closedBall z κ) :
+    ∃ e : Pt ≃ₜ Pt,
+      e '' segment ℝ p q = segment ℝ (p + v) (q + v) ∧
+      (∀ x, 2 * κ ≤ dist z x → e x = x) ∧
+      ∀ x, dist (e x) x ≤ ‖v‖ := by
+  obtain ⟨e, hinner, houter, hmove, -⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_centreBump z v hκ hsmall
+  refine ⟨e, ?_, houter, hmove⟩
+  calc
+    e '' segment ℝ p q = (fun x => x + v) '' segment ℝ p q := by
+      apply Set.image_congr
+      intro x hx
+      exact hinner x (hcollar hx)
+    _ = (fun x => v + x) '' segment ℝ p q := by
+      apply Set.image_congr
+      intro x _hx
+      exact add_comm x v
+    _ = segment ℝ (p + v) (q + v) := by
+      simpa [add_comm] using segment_translate_image ℝ v p q
+
+/-- Concrete R4a in local side coordinates.  The unit vector `u` is tangent to the straight side;
+`ψ` is any Lipschitz rectangular cutoff which is one on the normal collar and zero off its support.
+The resulting slide is a global homeomorphism, fixes the complement of the rectangle, moves every
+point by at most `|δ|`, and translates the entire straight collar. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portSlide
+    (ψ : Pt → ℝ) (u p q : Pt) {L δ : ℝ} (hL : 0 ≤ L) (hu : ‖u‖ = 1)
+    (hψLip : ∀ x y, |ψ x - ψ y| ≤ L * dist x y)
+    (hψBound : ∀ x, |ψ x| ≤ 1) (R : Set Pt) (hψZero : ∀ x ∉ R, ψ x = 0)
+    (hψCollar : ∀ x ∈ segment ℝ p q, ψ x = 1) (hsmall : L * |δ| < 1) :
+    ∃ e : Pt ≃ₜ Pt,
+      (∀ x ∉ R, e x = x) ∧
+      (∀ x, dist (e x) x ≤ |δ|) ∧
+      e '' segment ℝ p q = segment ℝ (p + δ • u) (q + δ • u) ∧
+      (∀ x y, (1 - L * |δ|) * dist x y ≤ dist (e x) (e y)) ∧
+      ∀ x y, dist (e x) (e y) ≤ (1 + L * |δ|) * dist x y := by
+  let v := δ • u
+  have hv : ‖v‖ = |δ| := by simp [v, norm_smul, hu]
+  have hsmall' : L * ‖v‖ < 1 := by simpa [hv] using hsmall
+  obtain ⟨e, he, hlower, hupper⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_perturb_homeomorph ψ v hL hψLip hsmall'
+  refine ⟨e, ?_, ?_, ?_, ?_, ?_⟩
+  · intro x hx
+    rw [he]
+    exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_eq_self ψ v x (hψZero x hx)
+  · intro x
+    rw [he, ← hv]
+    exact existsRoutingAfterPower_step4_routes_step6_R4_perturb_displacement ψ v hψBound x
+  · calc
+      e '' segment ℝ p q =
+          existsRoutingAfterPower_step4_routes_step6_R4_perturb ψ v '' segment ℝ p q := by
+        apply Set.image_congr
+        intro x _hx
+        exact he x
+      _ = segment ℝ (p + v) (q + v) :=
+        existsRoutingAfterPower_step4_routes_step6_R4_perturb_segment ψ v p q hψCollar
+      _ = segment ℝ (p + δ • u) (q + δ • u) := by rfl
+  · simpa [hv] using hlower
+  · simpa [hv] using hupper
+
+/-- A concrete Lipschitz cutoff for a straight port collar, supported in its `w`-neighborhood. -/
+private def existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff
+    (p q : Pt) (w : ℝ) (x : Pt) : ℝ :=
+  max 0 (1 - Metric.infDist x (segment ℝ p q) / w)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_bounds
+    (p q : Pt) {w : ℝ} (hw : 0 < w) (x : Pt) :
+    0 ≤ existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w x ∧
+      existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w x ≤ 1 := by
+  constructor
+  · exact le_max_left _ _
+  · rw [existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff, max_le_iff]
+    refine ⟨zero_le_one, ?_⟩
+    have hdiv : 0 ≤ Metric.infDist x (segment ℝ p q) / w :=
+      div_nonneg Metric.infDist_nonneg hw.le
+    linarith
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_eq_one
+    (p q : Pt) {w : ℝ} (hw : 0 < w) {x : Pt} (hx : x ∈ segment ℝ p q) :
+    existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w x = 1 := by
+  rw [existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff,
+    Metric.infDist_zero_of_mem hx]
+  simp
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_eq_zero
+    (p q : Pt) {w : ℝ} (hw : 0 < w) {x : Pt}
+    (hx : w ≤ Metric.infDist x (segment ℝ p q)) :
+    existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w x = 0 := by
+  have hdiv : 1 ≤ Metric.infDist x (segment ℝ p q) / w := (le_div_iff₀ hw).2 (by simpa using hx)
+  simp [existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff, sub_nonpos.mpr hdiv]
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_lipschitz
+    (p q : Pt) {w : ℝ} (hw : 0 < w) :
+    ∀ x y, |existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w x -
+      existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w y| ≤
+        w⁻¹ * dist x y := by
+  let K : NNReal := ⟨w⁻¹, inv_nonneg.mpr hw.le⟩
+  have hbase : LipschitzWith K
+      (fun x : Pt => 1 - Metric.infDist x (segment ℝ p q) / w) := by
+    apply LipschitzWith.of_dist_le_mul
+    intro x y
+    rw [Real.dist_eq]
+    have hd := (Metric.lipschitz_infDist_pt (segment ℝ p q)).dist_le_mul x y
+    rw [Real.dist_eq, NNReal.coe_one, one_mul] at hd
+    calc
+      |1 - Metric.infDist x (segment ℝ p q) / w -
+          (1 - Metric.infDist y (segment ℝ p q) / w)| =
+          w⁻¹ * |Metric.infDist x (segment ℝ p q) -
+            Metric.infDist y (segment ℝ p q)| := by
+        rw [div_eq_mul_inv, div_eq_mul_inv]
+        have hwinv : 0 ≤ w⁻¹ := inv_nonneg.mpr hw.le
+        rw [show 1 - Metric.infDist x (segment ℝ p q) * w⁻¹ -
+          (1 - Metric.infDist y (segment ℝ p q) * w⁻¹) =
+            w⁻¹ * (Metric.infDist y (segment ℝ p q) -
+              Metric.infDist x (segment ℝ p q)) by ring,
+          abs_mul, abs_of_nonneg hwinv, abs_sub_comm]
+      _ ≤ w⁻¹ * dist x y := mul_le_mul_of_nonneg_left hd (inv_nonneg.mpr hw.le)
+      _ = (K : ℝ) * dist x y := rfl
+  have hcut : LipschitzWith K (fun x : Pt =>
+      max 0 (1 - Metric.infDist x (segment ℝ p q) / w)) := hbase.const_max 0
+  intro x y
+  simpa [existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff, Real.dist_eq, K] using
+    hcut.dist_le_mul x y
+
+/-- Fully concrete port slide supported in a thin tube around its straight collar. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_portSlide_tube
+    (u p q : Pt) {w δ : ℝ} (hw : 0 < w) (hu : ‖u‖ = 1)
+    (hsmall : w⁻¹ * |δ| < 1) :
+    ∃ e : Pt ≃ₜ Pt,
+      (∀ x, w ≤ Metric.infDist x (segment ℝ p q) → e x = x) ∧
+      (∀ x, dist (e x) x ≤ |δ|) ∧
+      e '' segment ℝ p q = segment ℝ (p + δ • u) (q + δ • u) ∧
+      (∀ x y, (1 - w⁻¹ * |δ|) * dist x y ≤ dist (e x) (e y)) ∧
+      ∀ x y, dist (e x) (e y) ≤ (1 + w⁻¹ * |δ|) * dist x y := by
+  let ψ := existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff p q w
+  let R : Set Pt := {x | Metric.infDist x (segment ℝ p q) < w}
+  have hbound : ∀ x, |ψ x| ≤ 1 := by
+    intro x
+    have hb := existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_bounds p q hw x
+    rw [abs_of_nonneg hb.1]
+    exact hb.2
+  obtain ⟨e, hout, hmove, hcollar, hlower, hupper⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_portSlide ψ u p q
+      (inv_nonneg.mpr hw.le) hu
+      (existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_lipschitz p q hw)
+      hbound R
+      (fun x hx => existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_eq_zero p q hw
+        (le_of_not_gt hx))
+      (fun x hx => existsRoutingAfterPower_step4_routes_step6_R4_segmentCutoff_eq_one p q hw hx)
+      hsmall
+  refine ⟨e, ?_, hmove, hcollar, hlower, hupper⟩
+  intro x hx
+  apply hout x
+  exact not_lt.mpr hx
+
+/-- R4c's endpoint-only choice: the entrance direction is represented by its endpoint in the
+configuration data, rather than by a prescribed radial collar.  Nearby endpoints are related by a
+compactly supported bump.  Re-polygonalization is still needed before this can be applied to a
+route constrained to remain outside the inner disk. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_directionEndpointBump
+    (p p' : Pt) {κ : ℝ} (hκ : 0 < κ) (hpp' : dist p p' < κ) :
+    ∃ e : Pt ≃ₜ Pt,
+      e p = p' ∧
+      (∀ x, 2 * κ ≤ dist p x → e x = x) ∧
+      (∀ x, dist (e x) x ≤ dist p p') ∧
+      ∀ x y, (1 - κ⁻¹ * dist p p') * dist x y ≤ dist (e x) (e y) := by
+  let v := p' - p
+  have hv : ‖v‖ = dist p p' := by simp [v, dist_eq_norm, norm_sub_rev]
+  have hvsmall : ‖v‖ < κ := by simpa [hv] using hpp'
+  obtain ⟨e, hinner, houter, hmove, hlower⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_centreBump p v hκ hvsmall
+  have hpball : p ∈ Metric.closedBall p κ := Metric.mem_closedBall_self hκ.le
+  refine ⟨e, ?_, houter, ?_, ?_⟩
+  · rw [hinner p hpball]
+    dsimp [v]
+    abel
+  · simpa [hv] using hmove
+  · simpa [hv] using hlower
+
 /-- The quantitative core of R4: a deformation with lower Lipschitz constant `1/2` preserves at
 least half of every clearance between two carriers.  The remaining R4 work is to construct the PL
 port slides and centre bump with this bound while preserving the prescribed collars. -/
@@ -33987,6 +34480,172 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_lowerLipschitzStabil
     ∀ u ∈ f '' A, ∀ v ∈ f '' B, δ / 2 ≤ dist u v := by
   rintro u ⟨x, hx, rfl⟩ v ⟨y, hy, rfl⟩
   exact (div_le_div_of_nonneg_right (hsep x hx y hy) (by norm_num)).trans (hlower x y)
+
+/-- R4d, common-map form: transporting both carriers by a map with lower Lipschitz constant `c`
+multiplies their old clearance by `c`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_transport_common
+    {X Y : Type*} [PseudoMetricSpace X] [PseudoMetricSpace Y] (f : X → Y)
+    {A B : Set X} {δ c : ℝ} (hc : 0 ≤ c)
+    (hsep : ∀ x ∈ A, ∀ y ∈ B, δ ≤ dist x y)
+    (hlower : ∀ x y, c * dist x y ≤ dist (f x) (f y)) :
+    ∀ u ∈ f '' A, ∀ v ∈ f '' B, c * δ ≤ dist u v := by
+  rintro u ⟨x, hx, rfl⟩ v ⟨y, hy, rfl⟩
+  exact (mul_le_mul_of_nonneg_left (hsep x hx y hy) hc).trans (hlower x y)
+
+/-- R4d, independently moved form.  If the two endpoints move by at most `ηA` and `ηB`, the
+clearance loses at most `ηA + ηB`; this is the exact additive estimate used for route-versus-fixed
+port and route-versus-radial-collar bounds. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_transport_independent
+    {X : Type*} [PseudoMetricSpace X] (f g : X → X) {A B : Set X} {δ ηA ηB : ℝ}
+    (hsep : ∀ x ∈ A, ∀ y ∈ B, δ ≤ dist x y)
+    (hmoveA : ∀ x ∈ A, dist (f x) x ≤ ηA)
+    (hmoveB : ∀ y ∈ B, dist (g y) y ≤ ηB) :
+    ∀ u ∈ f '' A, ∀ v ∈ g '' B, δ - ηA - ηB ≤ dist u v := by
+  rintro u ⟨x, hx, rfl⟩ v ⟨y, hy, rfl⟩
+  have htri : dist x y ≤ dist x (f x) + dist (f x) (g y) + dist (g y) y :=
+    dist_triangle4 x (f x) (g y) y
+  rw [dist_comm x (f x)] at htri
+  linarith [hsep x hx y hy, hmoveA x hx, hmoveB y hy]
+
+/-- In particular, two carriers moved by the same uniform amount `η` retain clearance
+`δ - 2η`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_transport_two_eta
+    {X : Type*} [PseudoMetricSpace X] (f g : X → X) {A B : Set X} {δ η : ℝ}
+    (hsep : ∀ x ∈ A, ∀ y ∈ B, δ ≤ dist x y)
+    (hmoveA : ∀ x ∈ A, dist (f x) x ≤ η)
+    (hmoveB : ∀ y ∈ B, dist (g y) y ≤ η) :
+    ∀ u ∈ f '' A, ∀ v ∈ g '' B, δ - 2 * η ≤ dist u v := by
+  have h := existsRoutingAfterPower_step4_routes_step6_R4_transport_independent
+    f g hsep hmoveA hmoveB
+  intro u hu v hv
+  have huv := h u hu v hv
+  linarith
+
+/-- R4d's re-polygonalization branch.  Composing a finite family of simple disjoint continuous
+paths with a homeomorphism preserves continuity, simplicity, and disjointness; the existing PL
+approximation theorem then replaces the transported paths by polygonal arcs in the target
+annulus. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
+    (e : Pt ≃ₜ Pt) (γ : Fin k → ℝ → Pt)
+    (hcont : ∀ i, Continuous (γ i))
+    (hsimp : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ i)))
+    (hdisj : ∀ i j, i ≠ j → Disjoint (γ i '' Icc (0 : ℝ) 1) (γ j '' Icc (0 : ℝ) 1))
+    (hin : ∀ i, ∀ t ∈ Ioo (0 : ℝ) 1, e (γ i t) ∈ interior A.carrier \ C.carrier) :
+    ∃ α : Fin k → PolyArc, ∀ i,
+      (α i).IsSimple ∧ (α i).start = e (γ i 0) ∧ (α i).stop = e (γ i 1) ∧
+      (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (α i).carrier \ {e (γ i 0), e (γ i 1)} ⊆ interior A.carrier \ C.carrier ∧
+      ∀ j, j ≠ i → Disjoint (α i).carrier (α j).carrier := by
+  let γ' : Fin k → ℝ → Pt := fun i t => e (γ i t)
+  have hcont' : ∀ i, Continuous (γ' i) := fun i => e.continuous.comp (hcont i)
+  have hsimp' : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ' i)) := by
+    intro i s t hst
+    apply hsimp i
+    exact e.injective hst
+  have hdisj' : ∀ i j, i ≠ j →
+      Disjoint (γ' i '' Icc (0 : ℝ) 1) (γ' j '' Icc (0 : ℝ) 1) := by
+    intro i j hij
+    rw [Set.disjoint_left]
+    rintro z ⟨s, hs, rfl⟩ ⟨t, ht, heq⟩
+    have hγ : γ i s = γ j t := e.injective heq.symm
+    exact (Set.disjoint_left.1 (hdisj i j hij))
+      ⟨s, hs, rfl⟩ ⟨t, ht, hγ.symm⟩
+  exact plAnnulusRouting_step2_plApprox A C hC
+    (fun i => e (γ i 0)) (fun i => e (γ i 1)) γ' hcont'
+    (fun _ => rfl) (fun _ => rfl) hin hsimp' hdisj'
+
+/-- Quantitative re-polygonalization.  Approximating each continuous route inside its open
+`δ / 4`-tube preserves at least `δ / 2` of the pairwise clearance. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize_clearance
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
+    (x y : Fin k → Pt) (γ : Fin k → ℝ → Pt) {δ : ℝ} (hδ : 0 < δ)
+    (hcont : ∀ i, Continuous (γ i))
+    (hend_x : ∀ i, γ i 0 = x i) (hend_y : ∀ i, γ i 1 = y i)
+    (hin : ∀ i, ∀ t ∈ Ioo (0 : ℝ) 1, γ i t ∈ interior A.carrier \ C.carrier)
+    (hsimp : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ i)))
+    (hsep : ∀ i j, i ≠ j → ∀ u ∈ γ i '' Icc (0 : ℝ) 1,
+      ∀ v ∈ γ j '' Icc (0 : ℝ) 1, δ ≤ dist u v) :
+    ∃ α : Fin k → PolyArc, ∀ i,
+      (α i).IsSimple ∧ (α i).start = x i ∧ (α i).stop = y i ∧
+      (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (α i).carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧
+      ∀ j, j ≠ i → ∀ u ∈ (α i).carrier, ∀ v ∈ (α j).carrier, δ / 2 ≤ dist u v := by
+  let U : Fin k → Set Pt := fun i => Metric.thickening (δ / 4) (γ i '' Icc (0 : ℝ) 1)
+  have hUopen : ∀ i, IsOpen (U i) := fun _ => Metric.isOpen_thickening
+  have hUsub : ∀ i, γ i '' Icc (0 : ℝ) 1 ⊆ U i := by
+    intro i z hz
+    apply Metric.mem_thickening_iff.2
+    exact ⟨z, hz, by simpa using (show (0 : ℝ) < δ / 4 by positivity)⟩
+  have hex : ∀ i, ∃ α : PolyArc,
+      α.IsSimple ∧ α.start = x i ∧ α.stop = y i ∧
+      α.carrier ⊆ A.carrier \ interior C.carrier ∧
+      α.carrier \ {x i, y i} ⊆ interior A.carrier \ C.carrier ∧ α.carrier ⊆ U i := by
+    intro i
+    exact plAnnulusRouting_step2_plApprox_step2_single A C hC (x i) (y i) (γ i)
+      (hcont i) (hend_x i) (hend_y i) (hin i) (hsimp i) (U i) (hUopen i) (hUsub i)
+  choose α hα using hex
+  refine ⟨α, fun i => ⟨(hα i).1, (hα i).2.1, (hα i).2.2.1,
+    (hα i).2.2.2.1, (hα i).2.2.2.2.1, ?_⟩⟩
+  intro j hij u hu v hv
+  obtain ⟨u₀, hu₀, hdu⟩ := Metric.mem_thickening_iff.1 ((hα i).2.2.2.2.2 hu)
+  obtain ⟨v₀, hv₀, hdv⟩ := Metric.mem_thickening_iff.1 ((hα j).2.2.2.2.2 hv)
+  have htri : dist u₀ v₀ ≤ dist u₀ u + dist u v + dist v v₀ :=
+    dist_triangle4 u₀ u v v₀
+  rw [dist_comm u₀ u] at htri
+  linarith [hsep i j hij.symm u₀ hu₀ v₀ hv₀]
+
+/-- R4d assembled for route families.  A common lower-`1/2` homeomorphism leaves clearance
+`δ / 2`; re-polygonalizing in quarter-clearance tubes leaves the proved final bound `δ / 4`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_transportRoutes
+    (A C : PolygonalDisk) (hC : C.carrier ⊆ interior A.carrier) {k : ℕ}
+    (e : Pt ≃ₜ Pt) (γ : Fin k → ℝ → Pt) {δ : ℝ} (hδ : 0 < δ)
+    (hcont : ∀ i, Continuous (γ i))
+    (hsimp : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ i)))
+    (hsep : ∀ i j, i ≠ j → ∀ u ∈ γ i '' Icc (0 : ℝ) 1,
+      ∀ v ∈ γ j '' Icc (0 : ℝ) 1, δ ≤ dist u v)
+    (hlower : ∀ u v, dist u v / 2 ≤ dist (e u) (e v))
+    (hin : ∀ i, ∀ t ∈ Ioo (0 : ℝ) 1, e (γ i t) ∈ interior A.carrier \ C.carrier) :
+    ∃ α : Fin k → PolyArc, ∀ i,
+      (α i).IsSimple ∧ (α i).start = e (γ i 0) ∧ (α i).stop = e (γ i 1) ∧
+      (α i).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (α i).carrier \ {e (γ i 0), e (γ i 1)} ⊆ interior A.carrier \ C.carrier ∧
+      ∀ j, j ≠ i → ∀ u ∈ (α i).carrier, ∀ v ∈ (α j).carrier, δ / 4 ≤ dist u v := by
+  let γ' : Fin k → ℝ → Pt := fun i t => e (γ i t)
+  have hcont' : ∀ i, Continuous (γ' i) := fun i => e.continuous.comp (hcont i)
+  have hsimp' : ∀ i, Function.Injective (Set.restrict (Icc (0 : ℝ) 1) (γ' i)) := by
+    intro i s t hst
+    apply hsimp i
+    exact e.injective hst
+  have hsep' : ∀ i j, i ≠ j → ∀ u ∈ γ' i '' Icc (0 : ℝ) 1,
+      ∀ v ∈ γ' j '' Icc (0 : ℝ) 1, δ / 2 ≤ dist u v := by
+    rintro i j hij u ⟨s, hs, rfl⟩ v ⟨t, ht, rfl⟩
+    exact (div_le_div_of_nonneg_right
+      (hsep i j hij (γ i s) ⟨s, hs, rfl⟩ (γ j t) ⟨t, ht, rfl⟩)
+      (by norm_num)).trans (hlower (γ i s) (γ j t))
+  have hpoly := existsRoutingAfterPower_step4_routes_step6_R4_repolygonalize_clearance
+    A C hC (fun i => e (γ i 0)) (fun i => e (γ i 1)) γ' (show 0 < δ / 2 by positivity)
+    hcont' (fun _ => rfl) (fun _ => rfl) hin hsimp' hsep'
+  convert hpoly using 1 <;> norm_num [div_div]
+
+/-- R4e's quantitative clearance neighborhood.  If endpoint/configuration movement controls the
+pointwise transport by the configuration distance, the ball of radius `δ / 4` preserves clearance
+`δ / 2`.  The remaining geometric R4e input is to construct such transports for every admissible
+port and direction coordinate and to re-polygonalize their route images. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_localClearanceStability
+    {C X : Type*} [PseudoMetricSpace C] [PseudoMetricSpace X] (c : C)
+    {A B : Set X} {δ : ℝ} (hδ : 0 < δ)
+    (hsep : ∀ x ∈ A, ∀ y ∈ B, δ ≤ dist x y) :
+    ∃ ε > (0 : ℝ), ∀ c' : C, dist c' c < ε → ∀ f g : X → X,
+      (∀ x ∈ A, dist (f x) x ≤ dist c' c) →
+      (∀ y ∈ B, dist (g y) y ≤ dist c' c) →
+      ∀ u ∈ f '' A, ∀ v ∈ g '' B, δ / 2 ≤ dist u v := by
+  refine ⟨δ / 4, by positivity, ?_⟩
+  intro c' hc' f g hmoveA hmoveB u hu v hv
+  have htransport := existsRoutingAfterPower_step4_routes_step6_R4_transport_independent
+    f g hsep hmoveA hmoveB u hu v hv
+  have hhalf : δ / 2 ≤ δ - dist c' c - dist c' c := by linarith
+  exact hhalf.trans htransport
 
 /-- R5, abstracted from the routing geometry: positive local clearances on a compact parameter
 space, stable throughout an open ball and monotone under decreasing the clearance, have one

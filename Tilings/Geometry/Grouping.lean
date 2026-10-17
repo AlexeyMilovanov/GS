@@ -44409,6 +44409,27 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2 (τ : Substitution P
     existsMacroCertificate_G2Data cd.D := by
   sorry
 
+private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_crossing
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+    (cd : existsMacroCertificate_CertData τ g s l routing) :
+    ∀ α (d : Fin (cd.D.Q.disk α).n),
+      Set.ncard {o : cd.D.SideOcc | cd.D.owner o.1 = α ∧ cd.D.IsOuter o ∧
+        OverlapPos (cd.D.occSide o) (cd.D.macroSide α d) ∧
+        ¬ cd.D.occSide o ⊆ cd.D.macroSide α d} ≤ 2 := by
+  sorry
+
+private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_five
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+    (cd : existsMacroCertificate_CertData τ g s l routing) :
+    ∀ α d, 5 ≤ (cd.D.outerList α d).length := by
+  sorry
+
 /-- Step 7 of `lem:certificate-exists`, (G3): `LexPositive` is a global positive orientation; the
 outer lists are those of `CertData`; "at most two endpoint-crossing sides are omitted"
 (`lem:whole-ports`, the geometric content of this step); each list has at least five entries
@@ -44421,7 +44442,32 @@ private lemma existsMacroCertificate_seed2_routing_step6_g3 (τ : Substitution P
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G3Data cd.D := by
-  sorry
+  refine {
+    pos_iff := ?_
+    pos_smul := ?_
+    outerList_mem := cd.outerList_mem
+    outerList_nodup := cd.outerList_nodup
+    outerList_sorted := cd.outerList_sorted
+    crossing_le_two := ?_
+    five_le := ?_
+    length_le := cd.rankBound_ge }
+  · intro v hv
+    rw [cd.positive_eq]
+    constructor
+    · intro h hneg
+      simp only [LexPositive, PiLp.neg_apply] at h hneg
+      rcases h with h | ⟨h0, h1⟩ <;> rcases hneg with h' | ⟨h0', h1'⟩ <;>
+        linarith
+    · intro h
+      rcases existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_lex_neg hv with
+        h' | h'
+      · exact h'
+      · exact False.elim (h h')
+  · intro v r hr hv
+    rw [cd.positive_eq] at hv ⊢
+    exact existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_lex_smul_pos hv hr
+  · exact existsMacroCertificate_seed2_routing_step6_g3_aux_crossing τ g s l routing cd
+  · exact existsMacroCertificate_seed2_routing_step6_g3_aux_five τ g s l routing cd
 
 /-- Step 8 of `lem:certificate-exists`, (G4): "The routing lemma gives (G4)".  All clauses are
 recorded in `CertData` (the print map is the routing's print slot map; the genuine paths are the

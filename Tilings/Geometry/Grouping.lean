@@ -5272,7 +5272,81 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step11_
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, o.1 ≠ D.central α) := by
-  sorry
+  intro D α d i hG o ho
+  classical
+  have hpath : D.path α d i =
+      if hi : D.IsGenuinePath α d i then
+        emcdLiftPath D (emcdTemplateChild g s l) α
+          ((routing (emcdBaseForm g s l α)).pathTiles
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+          ((routing (emcdBaseForm g s l α)).pathSides
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+      else (D.port α d i).toList := rfl
+  rw [hpath] at ho
+  split_ifs at ho
+  · unfold emcdLiftPath at ho
+    simp only [List.mem_flatMap, List.mem_append] at ho
+    rcases ho with ⟨⟨X, ⟨e, e'⟩⟩, hmem, ho⟩
+    let β := emcdBaseForm g s l α
+    let a := emcdParentSide g s l α d
+    let j : Fin 4 := ⟨i.val, hG.2⟩
+    have ha : a ∈ s.setup.markedSides β := by
+      dsimp only [a, β]
+      exact hG.1
+    obtain ⟨k, hk⟩ := List.mem_iff_getElem?.mp hmem
+    rw [List.getElem?_zip_eq_some] at hk
+    have hk_sides := hk.2
+    rw [List.getElem?_zip_eq_some] at hk_sides
+    have hk_tile : ((routing β).pathTiles a j)[k]? = some X := hk.1
+    have hk_e : ((routing β).pathSides a j)[k]? = some e := hk_sides.1
+    have hk_e' : ((routing β).pathSides a j).tail[k]? = some e' := hk_sides.2
+    have hk_e'_orig : ((routing β).pathSides a j)[k + 1]? = some e' := by
+      simpa only [List.getElem?_tail] using hk_e'
+    have hstep := (routing β).path_step a ha j k X e e' hk_tile hk_e hk_e'_orig
+    have hlen := (routing β).path_length a ha j
+    have hk_tiles := (List.getElem?_eq_some_iff.mp hk_tile).1
+    have hk_drop : k < ((routing β).pathSides a j).dropLast.length := by
+      rw [List.length_dropLast]
+      omega
+    have he_drop : e ∈ ((routing β).pathSides a j).dropLast := by
+      rw [List.mem_iff_getElem?]
+      refine ⟨k, List.getElem?_eq_some_iff.mpr ⟨hk_drop, ?_⟩⟩
+      rw [List.getElem_dropLast]
+      exact (List.getElem?_eq_some_iff.mp hk_e).2
+    have hXne : X ≠ s.setup.central l β := by
+      intro hX
+      apply (routing β).path_central a ha j e he_drop
+      rw [← hX]
+      exact hstep.2.1
+    cases ho with
+    | inl hocc =>
+      unfold emcdLiftOccurrence at hocc
+      split_ifs at hocc with hex
+      · have hoeq : o = Classical.choose hex := by
+          simpa only [List.mem_singleton] using hocc
+        have hchild := (Classical.choose_spec hex).2.1
+        rw [← hoeq] at hchild
+        intro hcentral
+        apply hXne
+        calc
+          X = emcdTemplateChild g s l o.1 := hchild.symm
+          _ = emcdTemplateChild g s l (D.central α) := congrArg _ hcentral
+          _ = s.setup.central l β := rfl
+      · simp only [List.not_mem_nil] at hocc
+    | inr hocc =>
+      unfold emcdLiftOccurrence at hocc
+      split_ifs at hocc with hex
+      · have hoeq : o = Classical.choose hex := by
+          simpa only [List.mem_singleton] using hocc
+        have hchild := (Classical.choose_spec hex).2.1
+        rw [← hoeq] at hchild
+        intro hcentral
+        apply hXne
+        calc
+          X = emcdTemplateChild g s l o.1 := hchild.symm
+          _ = emcdTemplateChild g s l (D.central α) := congrArg _ hcentral
+          _ = s.setup.central l β := rfl
+      · simp only [List.not_mem_nil] at hocc
 
 /-- Step 12 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: penultimate -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step12_penultimate

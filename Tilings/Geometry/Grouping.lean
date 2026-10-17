@@ -37095,6 +37095,183 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_weakOrderAdmissible_
   intro q
   exact hW.preimage (hmap p q)
 
+/-! The realized weak cyclic order.  All declarations for this argument are kept in this
+contiguous block so that the independent R2--R4 work below can be merged without interleaving
+changes. -/
+
+/-- The piece map carried by the entrance data is injective on marked sides. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_piece_injOn
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    Set.InjOn entries.piece (Rs.markedSides α : Set _) :=
+  entries.piece_injOn
+
+/-- An entrance point is at most one original-face diameter farther from its ideal trapezoid
+than the annular piece containing its entrance edge. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_entryPoint_localized
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (ha : a ∈ Rs.markedSides α) (i : Fin 4) :
+    entries.point a i ∈ Metric.cthickening (21 * M.D)
+      (idealTrapezoid (Rs.centre l α) (Rs.N α) (Rs.R α) M.D
+        (entries.piece a : ℕ)) := by
+  obtain ⟨y, hy, hpy⟩ :=
+    (existsRoutingAfterPower_step4_routes_step2_entryNear τ M Rs entries ha i).1
+  rcases (entries.entry_private a ha i).1 with ⟨A, hA, k, hk⟩
+  have hyPiece : y ∈ ((Rs.annulus l α hl).spokes.piece (entries.piece a)).carrier := by
+    show y ∈ ((Rs.annulus l α hl).spokes.piece (entries.piece a)).disk.carrier
+    rw [((Rs.annulus l α hl).spokes.piece (entries.piece a)).carrier_eq]
+    exact carrier_subset_support hA (tile_side_subset A k (hk ▸ hy))
+  have hpPiece : entries.point a i ∈ Metric.cthickening M.D
+      ((Rs.annulus l α hl).spokes.piece (entries.piece a)).carrier := by
+    rw [Metric.mem_cthickening_iff]
+    refine (Metric.infEDist_le_edist_of_mem hyPiece).trans ?_
+    rw [edist_dist]
+    exact ENNReal.ofReal_le_ofReal hpy
+  have hpNested : entries.point a i ∈ Metric.cthickening M.D
+      (Metric.cthickening (20 * M.D)
+        (idealTrapezoid (Rs.centre l α) (Rs.N α) (Rs.R α) M.D
+          (entries.piece a : ℕ))) :=
+    Metric.cthickening_subset_of_subset M.D
+      (Rs.piece_localized l α hl (entries.piece a)) hpPiece
+  rw [cthickening_cthickening M.D_pos.le (mul_nonneg (by norm_num) M.D_pos.le), show
+    M.D + 20 * M.D = 21 * M.D by ring] at hpNested
+  exact hpNested
+
+/-- Distinct stored entrances remain quantitatively separated after moving from their edges to
+the selected points in the adjacent original faces. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_entryPoint_separated
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl)
+    (a b : Fin (Rs.GS.G.P'.disk α).n) (ha : a ∈ Rs.markedSides α)
+    (hb : b ∈ Rs.markedSides α) (i j : Fin 4) (hab : (a, i) ≠ (b, j)) :
+    Rs.R α / 10 - 2 * M.D ≤ dist (entries.point a i) (entries.point b j) := by
+  obtain ⟨x, hx, hpx⟩ :=
+    (existsRoutingAfterPower_step4_routes_step2_entryNear τ M Rs entries ha i).1
+  obtain ⟨y, hy, hpy⟩ :=
+    (existsRoutingAfterPower_step4_routes_step2_entryNear τ M Rs entries hb j).1
+  have hxy := entries.separated a ha b hb i j hab x hx y hy
+  have htri1 := dist_triangle x (entries.point a i) y
+  have htri2 := dist_triangle (entries.point a i) (entries.point b j) y
+  have hpx' : dist x (entries.point a i) ≤ M.D := by
+    rwa [dist_comm]
+  linarith [hpx']
+
+/-- Consequently all entrance points indexed by marked-side/four-slot pairs are distinct. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_entryPoint_injective
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    Function.Injective (fun ai : {a // a ∈ Rs.markedSides α} × Fin 4 =>
+      entries.point ai.1 ai.2) := by
+  intro ai bj hij
+  by_contra hab
+  have hab' : (ai.1.1, ai.2) ≠ (bj.1.1, bj.2) := by
+    intro h
+    apply hab
+    have hfst : ai.1.1 = bj.1.1 := congrArg
+      (fun z : Fin (Rs.GS.G.P'.disk α).n × Fin 4 => z.1) h
+    have hsnd : ai.2 = bj.2 := congrArg
+      (fun z : Fin (Rs.GS.G.P'.disk α).n × Fin 4 => z.2) h
+    exact Prod.ext (Subtype.ext hfst) hsnd
+  have hsep := existsRoutingAfterPower_step4_routes_step6_R2_entryPoint_separated
+    τ M Rs entries ai.1 bj.1 ai.1.property bj.1.property ai.2 bj.2 hab'
+  change entries.point ai.1 ai.2 = entries.point bj.1 bj.2 at hij
+  rw [hij, dist_self] at hsep
+  have hlarge := Rs.R_large α
+  have hK : (0 : ℝ) ≤ M.K0 := Nat.cast_nonneg _
+  nlinarith [M.D_pos]
+
+/-- A finite injective real tuple can be relabelled in strictly increasing order.  The
+permutations in `R2_WeakOrderAdmissible` use this independently inside every four-point block. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_sort_real
+    {k : ℕ} (u : Fin k → ℝ) (hu : Function.Injective u) :
+    ∃ p : Equiv.Perm (Fin k), StrictMono (u ∘ p) := by
+  refine ⟨Tuple.sort u, ?_⟩
+  exact (Tuple.monotone_sort u).strictMono_of_injective
+    (hu.comp (Tuple.sort u).injective)
+
+/-- The midpoint of a nondegenerate subsegment lies in the relative interior of the ambient
+nondegenerate segment. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_subsegment_midpoint_open
+    {a b p q : Pt} (hab : a ≠ b) (hpq : p ≠ q)
+    (hp : p ∈ segment ℝ a b) (hq : q ∈ segment ℝ a b) :
+    AffineMap.lineMap p q (1 / 2 : ℝ) ∈ openSegment ℝ a b := by
+  rw [segment_eq_image_lineMap] at hp hq
+  obtain ⟨u, hu, rfl⟩ := hp
+  obtain ⟨v, hv, rfl⟩ := hq
+  have huv : u ≠ v := by
+    intro huv
+    apply hpq
+    rw [huv]
+  have hw : (u + v) / 2 ∈ Ioo (0 : ℝ) 1 := by
+    rcases lt_or_gt_of_ne huv with huv | hvu
+    · constructor <;> nlinarith [hu.1, hu.2, hv.1, hv.2]
+    · constructor <;> nlinarith [hu.1, hu.2, hv.1, hv.2]
+  convert lineMap_mem_openSegment (𝕜 := ℝ) a b hw using 1
+  simp only [AffineMap.lineMap_apply_module']
+  module
+
+/-- The normalized midpoint of every realized complete port is in the relative interior of its
+indexed parent side; this uses nondegeneracy of the complete fine side, not a positivity
+assumption on the numerical separation constant. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_portMid_openSide
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl)
+    (a : Fin (Rs.GS.G.P'.disk α).n) (i : Fin 4) :
+    existsRoutingAfterPower_step4_routes_step6_R2_portAt
+        (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries)
+        a i.castSucc (1 / 2) ∈
+      openSegment ℝ ((Rs.GS.G.P'.disk α).vertex a)
+        ((Rs.GS.G.P'.disk α).vertex (finRotate (Rs.GS.G.P'.disk α).n a)) := by
+  let s := τ.θ ^ (Rs.GS.k * l)
+  let pq := existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+    τ M Rs ports a i.castSucc
+  have hs : 0 < s := pow_pos (lt_trans zero_lt_one τ.one_lt) _
+  have hpq : pq.1 ≠ pq.2 := by
+    intro hpqEq
+    obtain ⟨A, hA, k, hk⟩ := (ports.outer a i.castSucc).1.1
+    have hv : A.vertex k ∈ ports.port a i.castSucc := by
+      rw [← hk, tile_side_eq]
+      exact left_mem_segment ℝ _ _
+    have hw : A.vertex (finRotate (Rs.GS.G.mixed.disk A.form).n k) ∈
+        ports.port a i.castSucc := by
+      rw [← hk, tile_side_eq]
+      exact right_mem_segment ℝ _ _
+    rw [existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_spec τ M Rs ports,
+      show existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+        τ M Rs ports a i.castSucc = pq by rfl, hpqEq, segment_same,
+      Set.mem_singleton_iff] at hv hw
+    exact tile_vertex_ne_next A k (hv.trans hw.symm)
+  have hend : ∀ j : Fin 2, s⁻¹ • ![pq.1, pq.2] j ∈
+      (Rs.GS.G.P'.disk α).side a := by
+    intro j
+    have hp : ![pq.1, pq.2] j ∈ ports.port a i.castSucc := by
+      rw [existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints_spec τ M Rs ports,
+        show existsRoutingAfterPower_step4_routes_step6_R2_portEndpoints
+          τ M Rs ports a i.castSucc = pq by rfl]
+      fin_cases j
+      · exact left_mem_segment ℝ _ _
+      · exact right_mem_segment ℝ _ _
+    obtain ⟨z, hz, hpz⟩ := Set.mem_smul_set.mp ((ports.outer a i.castSucc).2 hp)
+    change s • z = _ at hpz
+    rw [← hpz, smul_smul]
+    simpa [hs.ne'] using hz
+  have hpqNorm : s⁻¹ • pq.1 ≠ s⁻¹ • pq.2 := by
+    intro h
+    apply hpq
+    have h' := congrArg (fun z : Pt => s • z) h
+    simpa [smul_smul, hs.ne'] using h'
+  change AffineMap.lineMap (s⁻¹ • pq.1) (s⁻¹ • pq.2) (1 / 2 : ℝ) ∈ _
+  exact existsRoutingAfterPower_step4_routes_step6_R2_subsegment_midpoint_open
+    (pd_vertex_ne_next (Rs.GS.G.P'.disk α) a) hpqNorm (hend 0) (hend 1)
+
+
 /-- R2's admissible compactum.  Taking the closure records exactly the limits needed by the
 finite-subcover argument; quantitative closed inequalities can subsequently be passed to it. -/
 private def existsRoutingAfterPower_step4_routes_step6_R2_Kadm

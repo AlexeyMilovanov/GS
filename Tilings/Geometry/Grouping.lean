@@ -3576,7 +3576,21 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_an
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d, (D.outerList α d).length ≤ D.rankBound) ∧
     ∀ b, (∀ α d, (D.outerList α d).length ≤ b) → D.rankBound ≤ b := by
-  sorry
+  let D := emcdMacroData τ h g s l hl routing
+  change (∀ α d, (D.outerList α d).length ≤ D.rankBound) ∧
+    ∀ b, (∀ α d, (D.outerList α d).length ≤ b) → D.rankBound ≤ b
+  constructor
+  · intro α d
+    let a : Σ α : D.Q.Form, Fin (D.Q.disk α).n := ⟨α, d⟩
+    exact Finset.le_sup
+      (f := fun x : Σ α : D.Q.Form, Fin (D.Q.disk α).n =>
+        (D.outerList x.1 x.2).length)
+      (Finset.mem_univ a)
+  · intro b hb
+    exact Finset.sup_le
+      (f := fun a : Σ α : D.Q.Form, Fin (D.Q.disk α).n =>
+        (D.outerList a.1 a.2).length)
+      (fun a _ => hb a.1 a.2)
 
 /-- Step 4 of `lem:certificate-exists`: the internal interface specifications (`partner_spec`,
 `edge_spec`, `edgeTypes_spec` from the two-owner property of inner sides in the STS template

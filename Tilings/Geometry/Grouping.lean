@@ -33335,12 +33335,13 @@ def QuantilePorts {Q : Protoset} (T : Template Q) (par : PolygonalDisk) (s : ℝ
     ∀ r, L[MacroData.portRank L.length r - 1]? = some (port a r)
 
 /-- Routing data (G4) for one template `T` of a parent disk `par` scaled by
-`s`, with central child `central` and marked parent sides `marked`.  For a
-marked side `a` the paths `i = 0,…,3` run from port `i` to the print
-`central.side (printIdx a)`.  Paths are lists of sides; `pathTiles` lists the
-crossed children (`k`-th tile contains sides `k` and `k+1`). -/
+`s`, with central child `central`, marked parent sides `marked`, and designated
+marked central sides `centralMarked`.  For a marked side `a` the paths `i = 0,…,3`
+run from port `i` to the print `central.side (printIdx a)`, whose index belongs to
+`centralMarked`.  Paths are lists of sides; `pathTiles` lists the crossed children
+(`k`-th tile contains sides `k` and `k+1`). -/
 structure RoutingData {Q : Protoset} (T : Template Q) (par : PolygonalDisk) (s : ℝ)
-    (central : PlacedTile Q) (marked : Finset (Fin par.n)) where
+    (central : PlacedTile Q) (marked : Finset (Fin par.n)) (centralMarked : Finset ℕ) where
   marking : Set (Set Pt)
   port : Fin par.n → Fin 5 → Set Pt
   printIdx : Fin par.n → Fin (Q.disk central.form).n
@@ -33352,6 +33353,7 @@ structure RoutingData {Q : Protoset} (T : Template Q) (par : PolygonalDisk) (s :
   /-- the ports are the (G3) sixth-quantiles of the `LexPositive`-ordered outer side lists -/
   port_quantile : QuantilePorts T par s port
   print_inner : ∀ a ∈ marked, T.IsInner (central.side (printIdx a))
+  print_marked : ∀ a ∈ marked, (printIdx a : ℕ) ∈ centralMarked
   print_injOn : Set.InjOn printIdx (marked : Set (Fin par.n))
   print_cyclic : CyclicOrderPreservingOn marked printIdx
   /-- identity prints when the central child has the parent's own disk (the retained large
@@ -33390,9 +33392,10 @@ retained `σ^l`-templates (central child and its annular small neighbours
 retained, all other groups scattered), together with the properties the
 grouping construction guarantees: uniform normalized clearance of the central
 child, at least four private outer edges of every small neighbour, and an
-injective cyclically ordered choice of print slots on distinct small
-neighbours, in planar matching order with the marked parent sides (`PhysicalPrintOrder`) and
-equal to the identity when the central child has the parent's disk (G5). -/
+injective cyclically ordered choice of print slots among the designated marked sides of the
+central form, on distinct small neighbours, in planar matching order with the marked parent sides
+(`PhysicalPrintOrder`) and equal to the identity when the central child has the parent's disk
+(G5). -/
 structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
   GS : GroupedSubstitution τ
   c : GS.G.P'.Form → GS.G.P'.Form
@@ -33449,10 +33452,14 @@ structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
   windows : ∀ l α (hl : 0 < l), ∃ e : Fin (4 * N α) → Fin 4 → Set Pt,
     (∀ j i, e j i ∈ privateOuterEdges (annulus l α hl) j) ∧
       ∀ j i j' i', (j, i) ≠ (j', i') → ∀ x ∈ e j i, ∀ y ∈ e j' i', R α / 10 ≤ dist x y
+  /-- The print slots are designated marked sides of the central form, injective and cyclically
+  ordered over the marked parent sides, physically matched to them, and incident to distinct
+  retained neighbours. -/
   print_slots : ∀ l α, 0 < l → ∃ (f : Fin (GS.G.P'.disk α).n → Fin (GS.G.mixed.disk (central l α).form).n)
     (g : Fin (GS.G.P'.disk α).n → PlacedTile GS.G.mixed),
     Set.InjOn f (markedSides α : Set _) ∧ Set.InjOn g (markedSides α : Set _) ∧
     CyclicOrderPreservingOn (markedSides α) f ∧
+    (∀ a ∈ markedSides α, (f a : ℕ) ∈ (markedSides (c^[l] α)).map Fin.valEmbedding) ∧
     PhysicalPrintOrder (retained l α).region (GS.G.P'.disk α) (τ.θ ^ (GS.k * l)) (central l α)
       (markedSides α) f ∧
     (GS.G.mixed.disk (central l α).form = GS.G.P'.disk α → ∀ a ∈ markedSides α, (f a : ℕ) = a) ∧
@@ -33485,8 +33492,9 @@ neighbour `neighbour a` (a retained annular group, the child scattering to the a
 `piece a`), and four of its private outer edges `entry a i` in the windows of
 `RoutingSetup.windows`, each with its outside-anchored original face `face a i` and a point
 `point a i` of that face outside `K₁ = Q₁ + B∞(3D)`.  All entrances of all marked sides are
-pairwise at distance at least `R / 10`.  The prints are in planar matching order with the marked
-parent sides (`print_order`, from `RoutingSetup.print_slots`). -/
+pairwise at distance at least `R / 10`.  The prints are designated marked sides of the central
+form (`print_marked`) and are in planar matching order with the marked parent sides
+(`print_order`), both from `RoutingSetup.print_slots`. -/
 private structure existsRoutingAfterPower_EntryData (τ : Substitution P) (M : MeshConstants P)
     (Rs : RoutingSetup τ M) (l : ℕ) (α : Rs.GS.G.P'.Form) (hl : 0 < l) where
   printIdx : Fin (Rs.GS.G.P'.disk α).n → Fin (Rs.GS.G.mixed.disk (Rs.central l α).form).n
@@ -33497,6 +33505,8 @@ private structure existsRoutingAfterPower_EntryData (τ : Substitution P) (M : M
   point : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → Pt
   print_injOn : Set.InjOn printIdx (Rs.markedSides α : Set _)
   print_cyclic : CyclicOrderPreservingOn (Rs.markedSides α) printIdx
+  print_marked : ∀ _a ∈ Rs.markedSides α,
+    (printIdx _a : ℕ) ∈ (Rs.markedSides (Rs.c^[l] α)).map Fin.valEmbedding
   /-- the prints are in planar matching order with the marked parent sides -/
   print_order : PhysicalPrintOrder (Rs.retained l α).region (Rs.GS.G.P'.disk α)
     (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α) printIdx
@@ -36011,7 +36021,7 @@ private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : M
     (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form) :
     Nonempty (existsRoutingAfterPower_EntryData τ M Rs l α hl) := by
   classical
-  obtain ⟨f, g, hf, hg, hcyc, hord, hid, hfg⟩ := Rs.print_slots l α hl
+  obtain ⟨f, g, hf, hg, hcyc, hmarked, hord, hid, hfg⟩ := Rs.print_slots l α hl
   have hgr : ∀ a ∈ Rs.markedSides α, ∃ β, (g a).form = Sum.inl β := fun a ha =>
     existsRoutingAfterPower_step3_entries_step1_grouped τ M Rs l hl α (hfg a ha).1
       (hfg a ha).2.1 (hfg a ha).2.2
@@ -36039,6 +36049,7 @@ private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : M
     point := fun a i => q (pc a) i
     print_injOn := hf
     print_cyclic := hcyc
+    print_marked := hmarked
     print_order := hord
     print_id := hid
     neighbour_mem := fun a ha => ⟨(hfg a ha).1, (hfg a ha).2.1⟩
@@ -42146,7 +42157,8 @@ private lemma existsRoutingAfterPower_step5_discretize_step2_assemble (τ : Subs
       existsRoutingAfterPower_RouteData τ M Rs l hl α (ports.port a i.castSucc)
         (entries.face a (routes.perm a i)) (routes.arc a i)) :
     Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
-      (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
+      (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)
+      ((Rs.markedSides (Rs.c^[l] α)).map Fin.valEmbedding)) := by
   classical
   -- the substitution hypothesis is only needed for the discretization of the routes (`rd`)
   have _ := hτ
@@ -42299,6 +42311,7 @@ private lemma existsRoutingAfterPower_step5_discretize_step2_assemble (τ : Subs
     port_quantile := ports.quantile
     print_inner := fun a ha => ⟨entries.neighbour a, (entries.neighbour_mem a ha).1, Rs.central l α,
       Rs.central_mem l α, (entries.neighbour_mem a ha).2, entries.print_edge a ha, ⟨_, rfl⟩⟩
+    print_marked := entries.print_marked
     print_injOn := entries.print_injOn
     print_cyclic := entries.print_cyclic
     print_id := entries.print_id
@@ -42437,7 +42450,8 @@ private lemma existsRoutingAfterPower_step5_discretize (τ : Substitution P) (h�
     (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl)
     (routes : existsRoutingAfterPower_ArcData τ M Rs l hl α ports entries) :
     Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
-      (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
+      (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)
+      ((Rs.markedSides (Rs.c^[l] α)).map Fin.valEmbedding)) := by
   have hrd : ∀ a, a ∈ Rs.markedSides α → ∀ i : Fin 4,
       existsRoutingAfterPower_RouteData τ M Rs l hl α (ports.port a i.castSucc)
         (entries.face a (routes.perm a i)) (routes.arc a i) := fun a ha i =>
@@ -42455,7 +42469,8 @@ theorem existsRoutingAfterPower (τ : Substitution P) (hτ : τ.STS) (M : MeshCo
     (Rs : RoutingSetup τ M) :
     ∀ n₀ : ℕ, ∃ l ≥ n₀, 0 < l ∧ Rs.c^[2 * l] = Rs.c^[l] ∧
       ∀ α, Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α)
-        (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)) := by
+        (τ.θ ^ (Rs.GS.k * l)) (Rs.central l α) (Rs.markedSides α)
+        ((Rs.markedSides (Rs.c^[l] α)).map Fin.valEmbedding)) := by
   obtain ⟨cp, hcp, nPorts, hPorts⟩ := existsRoutingAfterPower_step2_ports τ hτ M Rs
   obtain ⟨nRoutes, hRoutes⟩ := existsRoutingAfterPower_step4_routes τ hτ M Rs hcp
   intro n₀
@@ -44406,6 +44421,7 @@ private structure existsMacroCertificate_RoutingSeed (τ : Substitution P)
   central_idempotent : setup.c^[2 * l] = setup.c^[l]
   routing : ∀ α, RoutingData (setup.retained l α) (setup.GS.G.P'.disk α)
     (τ.θ ^ (setup.GS.k * l)) (setup.central l α) (setup.markedSides α)
+    ((setup.markedSides (setup.c^[l] α)).map Fin.valEmbedding)
   C : MacroCertificate P
   m : ℕ
   m_eq : m = g.k * l
@@ -44688,7 +44704,8 @@ private lemma existsMacroCertificate_seed2_routing_step2_power (τ : Substitutio
     (M : MeshConstants P) (Rs : RoutingSetup τ M) :
     ∃ l : ℕ, 0 < l ∧ Rs.c^[2 * l] = Rs.c^[l] ∧
       ∀ α, Nonempty (RoutingData (Rs.retained l α) (Rs.GS.G.P'.disk α) (τ.θ ^ (Rs.GS.k * l))
-        (Rs.central l α) (Rs.markedSides α)) := by
+        (Rs.central l α) (Rs.markedSides α)
+        ((Rs.markedSides (Rs.c^[l] α)).map Fin.valEmbedding)) := by
   obtain ⟨l, -, hl, hidem, hr⟩ := existsRoutingAfterPower τ h M Rs 1
   exact ⟨l, hl, hidem, hr⟩
 
@@ -44716,7 +44733,8 @@ projection. -/
 private structure existsMacroCertificate_CertData (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)) where
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) where
   l_pos : 0 < l
   central_idempotent : s.setup.c^[2 * l] = s.setup.c^[l]
   D : MacroData P
@@ -44802,6 +44820,8 @@ private structure existsMacroCertificate_CertData (τ : Substitution P)
   rankBound_ge : ∀ α d, (D.outerList α d).length ≤ D.rankBound
   rankBound_is_max : ∀ b, (∀ α d, (D.outerList α d).length ≤ b) → D.rankBound ≤ b
   -- prints and special sides
+  /-- Prints use the routing slots, which `RoutingData.print_marked` records as designated marked
+  sides of the central form. -/
   print_from_routing : ∀ α d, D.occSide (D.printOcc α d) =
     (s.setup.central l (baseForm α)).side ((routing (baseForm α)).printIdx (parentSide α d))
   print_injective : ∀ α (d d' : Fin (D.Q.disk α).n), D.marked α d → D.marked α d' →
@@ -44855,7 +44875,8 @@ private lemma existsMacroCertificate_seed2_routing_step3_data (τ : Substitution
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (hl : 0 < l) (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)) :
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     Nonempty (existsMacroCertificate_CertData τ g s l routing) := by
   sorry
 
@@ -44867,7 +44888,8 @@ side has exactly two owners (`template_sts`), and the interface identifiers are 
 private lemma existsMacroCertificate_seed2_routing_step4_g1 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G1Data cd.D := by
   sorry
@@ -44880,7 +44902,8 @@ because it is not the whole macrotile; "The retained centre is strictly interior
 private lemma existsMacroCertificate_seed2_routing_step5_g2 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G2Data cd.D := by
   sorry
@@ -44889,7 +44912,8 @@ private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_crossing
     (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     ∀ α (d : Fin (cd.D.Q.disk α).n),
       Set.ncard {o : cd.D.SideOcc | cd.D.owner o.1 = α ∧ cd.D.IsOuter o ∧
@@ -44901,7 +44925,8 @@ private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_five
     (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     ∀ α d, 5 ≤ (cd.D.outerList α d).length := by
   sorry
@@ -44915,7 +44940,8 @@ parent side (`RoutingData.port_quantile`, `port_injective`), hence, through `chi
 private lemma existsMacroCertificate_seed2_routing_step6_g3 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G3Data cd.D := by
   refine {
@@ -44952,7 +44978,8 @@ so this step is a projection; the content is in Step 4. -/
 private lemma existsMacroCertificate_seed2_routing_step7_g4 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G4Data cd.D :=
   { print_injective := cd.print_injective
@@ -44986,7 +45013,8 @@ inner side (all its sides are marked). -/
 private lemma existsMacroCertificate_seed2_routing_step8_g5 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G5Data cd.D := by
   sorry
@@ -44998,7 +45026,8 @@ fingerprint multisets of distinct noncentral types are disjoint (`fingerprintSep
 private lemma existsMacroCertificate_seed2_routing_step9_g6 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G6Data cd.D := by
   sorry
@@ -45010,7 +45039,8 @@ path lies in a non-large child (no central side before the print). -/
 private lemma existsMacroCertificate_seed2_routing_step10_g7 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α))
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G7Data cd.D := by
   sorry
@@ -45024,7 +45054,8 @@ private lemma existsMacroCertificate_seed2_routing (τ : Substitution P) (h : τ
   obtain ⟨s⟩ := existsMacroCertificate_seed2_routing_step1_setup τ h g
   obtain ⟨l, hl, hidem, hr⟩ := existsMacroCertificate_seed2_routing_step2_power τ h g.M s.setup
   let routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α) :=
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding) :=
     fun α => Classical.choice (hr α)
   obtain ⟨cd⟩ := existsMacroCertificate_seed2_routing_step3_data τ h g s l hl hidem routing
   have g1 := existsMacroCertificate_seed2_routing_step4_g1 τ g s l routing cd

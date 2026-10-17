@@ -39015,6 +39015,105 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_Kadm_innerSquare_rad
   · exact existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
       τ M Rs cp rho α hcfg
 
+/-- Normalizing a positively sized circle about `c` gives a parametrization of the unit circle. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_normalizeCircleLoop
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) {γ : ℝ → Pt}
+    (hγ : IsLoopParam (Metric.sphere c kappa) γ) :
+    IsLoopParam (Metric.sphere (0 : Pt) 1) (fun t => kappa⁻¹ • (γ t - c)) := by
+  have hmem : ∀ t, γ t ∈ Metric.sphere c kappa := fun t => qo_loop_mem hγ t
+  refine ⟨continuous_const.smul (hγ.1.sub continuous_const), ?_, ?_, ?_⟩
+  · intro t
+    change kappa⁻¹ • (γ (t + 1) - c) = kappa⁻¹ • (γ t - c)
+    rw [hγ.2.1 t]
+  · intro s hs t ht hst
+    apply hγ.2.2.1 hs ht
+    have := smul_right_injective Pt (inv_ne_zero hkappa.ne') hst
+    exact sub_left_inj.mp this
+  · apply Set.Subset.antisymm
+    · rintro u ⟨t, -, rfl⟩
+      rw [Metric.mem_sphere, dist_zero_right, norm_smul, Real.norm_eq_abs,
+        abs_of_pos (inv_pos.mpr hkappa), show ‖γ t - c‖ = kappa by
+          simpa [Metric.mem_sphere, dist_eq_norm, norm_sub_rev] using hmem t,
+        inv_mul_cancel₀ hkappa.ne']
+    · intro u hu
+      have hunorm : ‖u‖ = 1 := by
+        simpa [Metric.mem_sphere, dist_zero_right] using hu
+      have hpoint : c + kappa • u ∈ Metric.sphere c kappa := by
+        rw [Metric.mem_sphere, dist_eq_norm, add_sub_cancel_left, norm_smul,
+          Real.norm_eq_abs, abs_of_pos hkappa, hunorm, mul_one]
+      rw [← hγ.2.2.2] at hpoint
+      obtain ⟨t, ht, htpoint⟩ := hpoint
+      refine ⟨t, ht, ?_⟩
+      change kappa⁻¹ • (γ t - c) = u
+      rw [htpoint, add_sub_cancel_left, smul_smul, inv_mul_cancel₀ hkappa.ne', one_smul]
+
+/-- A matching order on the protected circle induces the matching order on the canonical
+centred square.  Compatibility is transferred through the punctured parent by comparing the
+radial square loop with the inner loop supplied by the polygonal-annulus theorem. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_matchingSquare
+    (A C : PolygonalDisk) {c : Pt} {kappa : ℝ} (hkappa : 0 < kappa)
+    (hCcarrier : C.carrier = square c kappa) (hCA : C.carrier ⊆ interior A.carrier)
+    {k : ℕ} (x u : Fin k → Pt)
+    (hmatch : MatchingCyclicOrder (A.carrier \ Metric.ball c kappa)
+      (frontier A.carrier) (Metric.sphere c kappa) x (fun i => c + kappa • u i)) :
+    MatchingCyclicOrder (A.carrier \ interior C.carrier)
+      (frontier A.carrier) (frontier C.carrier) x
+      (fun i => existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa (u i)) := by
+  obtain ⟨γo, γc, hγo, hγc, hoc, hxo, huc⟩ := hmatch
+  let η : ℝ → Pt := fun t => kappa⁻¹ • (γc t - c)
+  have hη : IsLoopParam (Metric.sphere (0 : Pt) 1) η :=
+    existsRoutingAfterPower_step4_routes_step6_R3_normalizeCircleLoop c hkappa hγc
+  let δ := existsRoutingAfterPower_step4_routes_step6_R3_squareLoop c kappa η
+  have hδ : IsLoopParam (frontier C.carrier) δ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_squareLoop_isLoopParam
+      c hkappa C hCcarrier η hη
+  have huη : PointsInOrder η u := by
+    obtain ⟨t, ht, htwrap, htval⟩ := huc
+    refine ⟨t, ht, htwrap, ?_⟩
+    intro i
+    dsimp only [η]
+    rw [htval i, add_sub_cancel_left, smul_smul, inv_mul_cancel₀ hkappa.ne', one_smul]
+  have huδ : PointsInOrder δ
+      (fun i => existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa (u i)) :=
+    existsRoutingAfterPower_step4_routes_step6_R3_pointsInOrder_squareLoop c kappa η u huη
+  have hcircleSquare : LoopsHomotopicIn (C.carrier \ Metric.ball c kappa) γc δ := by
+    have hscaled : (fun t => c + kappa • η t) = γc := by
+      funext t
+      dsimp only [η]
+      rw [smul_smul, mul_inv_cancel₀ hkappa.ne', one_smul]
+      abel
+    rw [← hscaled]
+    exact existsRoutingAfterPower_step4_routes_step6_R3_circle_square_homotopy
+      c hkappa C hCcarrier η hη
+  obtain ⟨γi, hγi, hoi⟩ :=
+    existsAnnularSpokes_step5_crosscuts_step2_boundary_homotopy A C hCA hγo
+  have hcC : c ∈ interior C.carrier := by
+    rw [hCcarrier]
+    apply sw3_mem_interior_square
+    simp [sw3N, hkappa]
+  have hpunctured : LoopsHomotopicIn ({c}ᶜ) δ γi := by
+    have hnotBall : A.carrier \ Metric.ball c kappa ⊆ {c}ᶜ := by
+      intro z hz
+      simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
+        (show z ≠ c from fun hzc => hz.2 (hzc ▸ Metric.mem_ball_self hkappa))
+    have hnotBallC : C.carrier \ Metric.ball c kappa ⊆ {c}ᶜ := by
+      intro z hz
+      simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
+        (show z ≠ c from fun hzc => hz.2 (hzc ▸ Metric.mem_ball_self hkappa))
+    have hnotInterior : A.carrier \ interior C.carrier ⊆ {c}ᶜ := by
+      intro z hz
+      simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
+        (show z ≠ c from fun hzc => hz.2 (hzc ▸ hcC))
+    exact pg_lh_trans
+      (pg_lh_symm (pg_lh_mono hnotBallC hcircleSquare))
+      (pg_lh_trans (pg_lh_symm (pg_lh_mono hnotBall hoc))
+        (pg_lh_mono hnotInterior hoi))
+  have hui : PointsInOrder γi
+      (fun i => existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa (u i)) :=
+    existsRoutingAfterPower_step4_routes_step6_R3_pointsInOrder_of_puncturedHomotopy
+      C hcC hδ hγi hpunctured huδ
+  exact ⟨γo, γi, hγo, hγi, hoi, hxo, hui⟩
+
 /-- Polygonal arc carriers are compact. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_polyArc_compact (γ : PolyArc) :
     IsCompact γ.carrier := by
@@ -39023,6 +39122,130 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_polyArc_compact (γ 
   intro i
   rw [PolyArc.seg, segment_eq_image']
   exact isCompact_Icc.image (by fun_prop)
+
+/-- Two disjoint compact planar carriers have one positive metric separation. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_compactSeparation
+    {K L : Set Pt} (hK : IsCompact K) (hL : IsCompact L) (hKL : Disjoint K L) :
+    ∃ d : ℝ, 0 < d ∧ ∀ x ∈ K, ∀ y ∈ L, d ≤ dist x y := by
+  obtain ⟨r, hr, hsep⟩ := Metric.exists_pos_forall_lt_edist hK hL.isClosed hKL
+  have hrne : (r : ENNReal) ≠ 0 := ENNReal.coe_ne_zero.mpr hr.ne'
+  refine ⟨(r : ℝ), ENNReal.toReal_pos hrne ENNReal.coe_ne_top, ?_⟩
+  intro x hx y hy
+  have hlt : (r : ENNReal) < ENNReal.ofReal (dist x y) := by
+    rw [← edist_dist]
+    exact hsep x hx y hy
+  rw [← ENNReal.ofReal_coe_nnreal] at hlt
+  exact ((ENNReal.ofReal_lt_ofReal_iff_of_nonneg (by positivity)).1 hlt).le
+
+/-- Finitely many pairs of disjoint compact carriers have one common positive separation. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_finiteCompactSeparation
+    {ι : Type*} [Fintype ι] (K L : ι → Set Pt)
+    (hK : ∀ i, IsCompact (K i)) (hL : ∀ i, IsCompact (L i))
+    (hdisj : ∀ i, Disjoint (K i) (L i)) :
+    ∃ d > (0 : ℝ), ∀ i, ∀ x ∈ K i, ∀ y ∈ L i, d ≤ dist x y := by
+  classical
+  have hpair : ∀ i, ∃ d : ℝ, 0 < d ∧
+      ∀ x ∈ K i, ∀ y ∈ L i, d ≤ dist x y := fun i =>
+    existsRoutingAfterPower_step4_routes_step6_R3_compactSeparation
+      (hK i) (hL i) (hdisj i)
+  let q : ι → ℝ := fun i => Classical.choose (hpair i)
+  let S := insert 1 (Finset.univ.image q)
+  have hSne : S.Nonempty := Finset.insert_nonempty _ _
+  let d := S.min' hSne
+  have hd : 0 < d := by
+    rw [Finset.lt_min'_iff]
+    intro r hr
+    rw [Finset.mem_insert, Finset.mem_image] at hr
+    rcases hr with rfl | ⟨i, -, rfl⟩
+    · exact zero_lt_one
+    · exact (Classical.choose_spec (hpair i)).1
+  refine ⟨d, hd, ?_⟩
+  intro i x hx y hy
+  have hmin : d ≤ q i := Finset.min'_le S (q i)
+    (Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨i, Finset.mem_univ _, rfl⟩))
+  exact hmin.trans ((Classical.choose_spec (hpair i)).2 x hx y hy)
+
+/-- A point of a segment whose endpoints lie on one ray has a coefficient between the two
+endpoint coefficients. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_mem_raySegment
+    (c u : Pt) {a b : ℝ} (hab : a ≤ b) {x : Pt}
+    (hx : x ∈ segment ℝ (c + a • u) (c + b • u)) :
+    ∃ r ∈ Icc a b, x = c + r • u := by
+  obtain ⟨s, t, hs, ht, hst, rfl⟩ := hx
+  have hs_eq : s = 1 - t := by linarith
+  refine ⟨(1 - t) * a + t * b, ⟨?_, ?_⟩, ?_⟩
+  · nlinarith [mul_nonneg ht (sub_nonneg.mpr hab)]
+  · have hst' : 0 ≤ 1 - t := by linarith
+    nlinarith [mul_nonneg hst' (sub_nonneg.mpr hab)]
+  · rw [hs_eq]
+    module
+
+/-- Positive points on two distinct unit rays cannot coincide. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_positive_unitRay_injective
+    {u v : Pt} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1) {a b : ℝ}
+    (ha : 0 < a) (hb : 0 < b) (h : a • u = b • v) : u = v := by
+  have hab : a = b := by
+    have hn := congrArg norm h
+    simpa [norm_smul, Real.norm_eq_abs, abs_of_pos ha, abs_of_pos hb, hu, hv] using hn
+  subst b
+  exact smul_right_injective Pt ha.ne' h
+
+/-- A positive point on one unit ray is not a nonnegative point on a distinct unit ray. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_positiveRay_ne
+    (c : Pt) {u v : Pt} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1) (huv : u ≠ v)
+    {a b : ℝ} (ha : 0 < a) (hb : 0 ≤ b) : c + a • u ≠ c + b • v := by
+  intro h
+  have hsmul : a • u = b • v := add_left_cancel h
+  have hbpos : 0 < b := by
+    apply lt_of_le_of_ne hb
+    intro hb0
+    have hn := congrArg norm hsmul
+    rw [← hb0, zero_smul, norm_zero, norm_smul, Real.norm_eq_abs, abs_of_pos ha, hu,
+      mul_one] at hn
+    linarith
+  exact huv
+    (existsRoutingAfterPower_step4_routes_step6_R3_positive_unitRay_injective
+      hu hv ha hbpos hsmul)
+
+/-- Segments contained in disjoint positive ranges on distinct unit rays are disjoint. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_raySegments_disjoint
+    (c : Pt) {u v : Pt} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1) (huv : u ≠ v)
+    {a b d e : ℝ} (ha : 0 < a) (hd : 0 < d) (hab : a ≤ b) (hde : d ≤ e) :
+    Disjoint (segment ℝ (c + a • u) (c + b • u))
+      (segment ℝ (c + d • v) (c + e • v)) := by
+  rw [Set.disjoint_left]
+  intro x hx hy
+  obtain ⟨r, hr, hrx⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_mem_raySegment c u hab hx
+  obtain ⟨s, hs, hsx⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_mem_raySegment c v hde hy
+  apply huv
+  apply existsRoutingAfterPower_step4_routes_step6_R3_positive_unitRay_injective hu hv
+    (ha.trans_le hr.1) (hd.trans_le hs.1)
+  exact add_left_cancel (hrx.symm.trans hsx)
+
+/-- A canonical square endpoint lies on its unit ray at a radius at least `kappa`; its radial
+normalization is the radius-`kappa` point on that same ray. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radius
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) {u : Pt} (hu : ‖u‖ = 1) :
+    ∃ R ≥ kappa,
+      existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u = c + R • u ∧
+      c + (kappa /
+        ‖existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u - c‖) •
+          (existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u - c) =
+        c + kappa • u := by
+  let R := kappa / sw3N u
+  have hNpos : 0 < sw3N u :=
+    existsRoutingAfterPower_step4_routes_step6_R3_sw3N_pos_of_norm_eq_one hu
+  have hNle : sw3N u ≤ 1 := by
+    rw [← hu]
+    exact sw3N_le_norm u
+  have hkR : kappa ≤ R := by
+    dsimp only [R]
+    rw [le_div_iff₀ hNpos]
+    nlinarith
+  refine ⟨R, hkR, rfl, ?_⟩
+  exact existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radial c hkappa hu
 
 /-- R3's fixed-configuration clearance core: `plAnnulusRouting` can be strengthened, for its
 fixed endpoint configuration, by one positive lower bound on all distances between distinct
@@ -39083,6 +39306,343 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_fixedConfiguration
     split_ifs at hmin with heq
     · exact (hij heq).elim
     · exact hmin.trans ((Classical.choose_spec (hpair i j heq)).2 u hu v hv)
+
+/-- Weak order supplies a positively separated annular route family ending on the canonical
+square boundary.  This packages the exact fixed-configuration input used by the collar assembly. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareRoutes_of_weakOrder
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (horder : existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α cfg) :
+    let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+    let I := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4
+    let e : Fin (Fintype.card I) ≃o I := Fintype.orderIsoFinOfCardEq I rfl
+    ∃ portPerm dirPerm :
+        {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} → Equiv.Perm (Fin 4),
+      ∃ (C : PolygonalDisk) (γ : Fin (Fintype.card I) → PolyArc) (delta : ℝ),
+        C.carrier = square cfg.1 kappa ∧
+        Metric.closedBall cfg.1 kappa ⊆ C.carrier ∧
+        C.carrier ⊆ interior (Rs.GS.G.P'.disk α).carrier ∧
+        0 < delta ∧
+        (∀ j,
+          (γ j).IsSimple ∧
+          (γ j).start = existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg
+            ((e j).1, portPerm (e j).1 (e j).2) ∧
+          (γ j).stop = existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint
+            cfg.1 kappa (cfg.2.2 (e j).1 (dirPerm (e j).1 (e j).2)) ∧
+          (γ j).carrier ⊆ (Rs.GS.G.P'.disk α).carrier \ interior C.carrier ∧
+          (γ j).carrier \ {(γ j).start, (γ j).stop} ⊆
+            interior (Rs.GS.G.P'.disk α).carrier \ C.carrier) ∧
+        ∀ i j, i ≠ j → ∀ u ∈ (γ i).carrier, ∀ v ∈ (γ j).carrier,
+          delta ≤ dist u v := by
+  classical
+  let A := Rs.GS.G.P'.disk α
+  let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+  let I := {a : Fin A.n // a ∈ Rs.markedSides α} ×ₗ Fin 4
+  let e : Fin (Fintype.card I) ≃o I := Fintype.orderIsoFinOfCardEq I rfl
+  have hkappa : 0 < kappa :=
+    existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  obtain ⟨portPerm, dirPerm, hmatch⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R2_matchingCyclicOrder
+      (cp := cp) (rho := rho) τ M Rs hcp α hcfg horder
+  obtain ⟨C, hCcarrier, hCball, hCouter⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_bounds cfg.1 hkappa
+  have hCA : C.carrier ⊆ interior A.carrier := by
+    refine hCouter.trans ((Metric.closedBall_subset_closedBall ?_).trans
+      (existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
+        τ M Rs cp rho α hcfg))
+    linarith
+  let x : Fin (Fintype.card I) → Pt := fun j =>
+    existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg
+      ((e j).1, portPerm (e j).1 (e j).2)
+  let u : Fin (Fintype.card I) → Pt := fun j =>
+    cfg.2.2 (e j).1 (dirPerm (e j).1 (e j).2)
+  let y : Fin (Fintype.card I) → Pt := fun j =>
+    existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint cfg.1 kappa (u j)
+  have hu : ∀ j, ‖u j‖ = 1 := fun j =>
+    existsRoutingAfterPower_step4_routes_step6_R2_Kadm_direction_norm
+      τ M Rs cp rho α hcfg (e j).1 (dirPerm (e j).1 (e j).2)
+  have hmatching : MatchingCyclicOrder (A.carrier \ interior C.carrier)
+      (frontier A.carrier) (frontier C.carrier) x y := by
+    apply existsRoutingAfterPower_step4_routes_step6_R3_matchingSquare
+      A C hkappa hCcarrier hCA x u
+    simpa only [A, kappa, I, e, x, u] using hmatch
+  have hx : ∀ j, x j ∈ frontier A.carrier := by
+    intro j
+    exact existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portMid_frontier
+      τ M Rs cp rho α hcfg _
+  have hy : ∀ j, y j ∈ frontier C.carrier := by
+    intro j
+    exact existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_frontier
+      cfg.1 hkappa C hCcarrier (hu j)
+  have hxi : Function.Injective x := by
+    intro i j hij
+    have hpair := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portMid_injective
+      τ M Rs hcp α hcfg hij
+    apply e.injective
+    obtain ⟨ha, hi⟩ := Prod.mk.inj hpair
+    have hi' : (portPerm (e i).1) (e i).2 =
+        (portPerm (e i).1) (e j).2 := by
+      simpa only [ha] using hi
+    exact Prod.ext ha ((portPerm (e i).1).injective hi')
+  have hui : Function.Injective u := by
+    intro i j hij
+    by_contra hne
+    have hpairs : ((e i).1.1, dirPerm (e i).1 (e i).2) ≠
+        ((e j).1.1, dirPerm (e j).1 (e j).2) := by
+      intro hp
+      apply hne
+      apply e.injective
+      obtain ⟨ha, hi⟩ := Prod.mk.inj hp
+      have ha' : (e i).1 = (e j).1 := Subtype.ext ha
+      have hi' : (dirPerm (e i).1) (e i).2 =
+          (dirPerm (e i).1) (e j).2 := by
+        simpa only [ha'] using hi
+      exact Prod.ext ha' ((dirPerm (e i).1).injective hi')
+    exact existsRoutingAfterPower_step4_routes_step6_R2_Kadm_direction_injective
+      τ M Rs cp rho α hcfg (e i).1 (e j).1
+        (dirPerm (e i).1 (e i).2) (dirPerm (e j).1 (e j).2) hpairs hij
+  have hyi : Function.Injective y := by
+    intro i j hij
+    apply hui
+    exact existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_injective
+      cfg.1 hkappa
+        (by simpa [Metric.mem_sphere, dist_zero_right] using hu i)
+        (by simpa [Metric.mem_sphere, dist_zero_right] using hu j) hij
+  obtain ⟨γ, delta, hdelta, hγ, hsep⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_fixedConfiguration
+      A C hCA x y hx hy hxi hyi hmatching
+  refine ⟨portPerm, dirPerm, C, γ, delta, hCcarrier, hCball, hCA, hdelta, ?_, hsep⟩
+  intro j
+  simpa only [A, kappa, I, e, x, u, y, (hγ j).2.1, (hγ j).2.2.1] using hγ j
+
+/-- A polygonal cross-cut whose non-endpoints lie in the parent interior meets the parent
+frontier only at its outer endpoint. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_crosscut_outerFrontier
+    (A : PolygonalDisk) (γ : PolyArc) (hstart : γ.start ∈ frontier A.carrier)
+    (hstop : γ.stop ∈ interior A.carrier)
+    (hopen : γ.carrier \ {γ.start, γ.stop} ⊆ interior A.carrier) :
+    γ.carrier ∩ frontier A.carrier = {γ.start} := by
+  have hstartCarrier : γ.start ∈ γ.carrier :=
+    Set.mem_iUnion.2 ⟨0, left_mem_segment ℝ _ _⟩
+  apply Set.Subset.antisymm
+  · rintro z ⟨hzγ, hzA⟩
+    by_cases hzs : z = γ.start
+    · simpa [hzs]
+    by_cases hzt : z = γ.stop
+    · subst z
+      exact False.elim (hzA.2 hstop)
+    · exact False.elim (hzA.2 (hopen ⟨hzγ, by simp [hzs, hzt]⟩))
+  · rintro z hz
+    rw [Set.mem_singleton_iff] at hz
+    subst z
+    exact ⟨hstartCarrier, hstart⟩
+
+/-- A polygonal annular cross-cut with open-annulus interior meets the whole inner disk only at
+its inner endpoint. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_crosscut_innerCarrier
+    (A C : PolygonalDisk) (hCA : C.carrier ⊆ interior A.carrier) (γ : PolyArc)
+    (hstart : γ.start ∈ frontier A.carrier) (hstop : γ.stop ∈ frontier C.carrier)
+    (hopen : γ.carrier \ {γ.start, γ.stop} ⊆ interior A.carrier \ C.carrier) :
+    γ.carrier ∩ C.carrier = {γ.stop} := by
+  have hstopCarrier : γ.stop ∈ γ.carrier :=
+    Set.mem_iUnion.2 ⟨Fin.last _, right_mem_segment ℝ _ _⟩
+  apply Set.Subset.antisymm
+  · rintro z ⟨hzγ, hzC⟩
+    by_cases hzs : z = γ.stop
+    · simpa [hzs]
+    by_cases hzt : z = γ.start
+    · subst z
+      exact False.elim (hstart.2 (hCA hzC))
+    · exact False.elim ((hopen ⟨hzγ, by simp [hzt, hzs]⟩).2 hzC)
+  · rintro z hz
+    rw [Set.mem_singleton_iff] at hz
+    subst z
+    exact ⟨hstopCarrier, pd_frontier_subset_carrier C hstop⟩
+
+/-- A route entering the parent immediately after its start is disjoint from every boundary
+port positively separated from a port containing that start. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_route_otherPort_disjoint
+    (A : PolygonalDisk) {K S T : Set Pt} {p : Pt} {d : ℝ}
+    (hpS : p ∈ S) (hinside : K \ {p} ⊆ interior A.carrier)
+    (hT : T ⊆ frontier A.carrier) (hd : 0 < d)
+    (hsep : ∀ x ∈ S, ∀ y ∈ T, d ≤ dist x y) : Disjoint K T := by
+  rw [Set.disjoint_left]
+  intro q hqK hqT
+  by_cases hqp : q = p
+  · subst q
+    have := hsep p hpS p hqT
+    rw [dist_self] at this
+    linarith
+  · exact (hT hqT).2 (hinside ⟨hqK, by simpa [hqp]⟩)
+
+/-- Appending the canonical square-to-circle collars to pairwise disjoint annular routes keeps
+the routes pairwise disjoint, inside the parent away from their starts, and outside the protected
+open ball. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_joinedRoutes
+    (A C : PolygonalDisk) {c : Pt} {kappa : ℝ} (hkappa : 0 < kappa)
+    (hCcarrier : C.carrier = square c kappa)
+    (hCball : Metric.closedBall c kappa ⊆ C.carrier)
+    (hCA : C.carrier ⊆ interior A.carrier)
+    {k : ℕ} (x u : Fin k → Pt) (hu : ∀ i, ‖u i‖ = 1)
+    (hui : Function.Injective u) (γ : Fin k → PolyArc)
+    (hγ : ∀ i,
+      (γ i).start = x i ∧
+      (γ i).stop = existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint
+        c kappa (u i) ∧
+      (γ i).carrier ⊆ A.carrier \ interior C.carrier ∧
+      (γ i).carrier \ {( γ i).start, (γ i).stop} ⊆
+        interior A.carrier \ C.carrier)
+    (hx : ∀ i, x i ∈ frontier A.carrier)
+    (hdisj : ∀ i j, i ≠ j → Disjoint (γ i).carrier (γ j).carrier) :
+    let Γ : Fin k → PolyArc := fun i =>
+      existsRoutingAfterPower_step4_routes_step1_join (γ i) (c + kappa • u i)
+    (∀ i,
+      (Γ i).start = x i ∧
+      (Γ i).stop = c + kappa • u i ∧
+      (Γ i).carrier \ {(Γ i).start} ⊆ interior A.carrier ∧
+      Disjoint (Γ i).carrier (Metric.ball c kappa)) ∧
+    (∀ i j, i ≠ j → Disjoint (Γ i).carrier (Γ j).carrier) ∧
+    ∀ i j, i ≠ j →
+      Disjoint (Γ i).carrier (segment ℝ c (c + kappa • u j)) := by
+  let y : Fin k → Pt := fun i =>
+    existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa (u i)
+  let z : Fin k → Pt := fun i => c + kappa • u i
+  let L : Fin k → Set Pt := fun i => segment ℝ (y i) (z i)
+  let Γ : Fin k → PolyArc := fun i =>
+    existsRoutingAfterPower_step4_routes_step1_join (γ i) (z i)
+  have hyfront : ∀ i, y i ∈ frontier C.carrier := fun i =>
+    existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_frontier
+      c hkappa C hCcarrier (hu i)
+  have hL : ∀ i, L i ⊆ C.carrier \ Metric.ball c kappa := by
+    intro i
+    have hrad := existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_radial
+      c hkappa C hCcarrier (hyfront i)
+    have hend := existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radial
+      c hkappa (hu i)
+    simpa only [L, y, z, hend] using hrad
+  have hballInterior : Metric.ball c kappa ⊆ interior C.carrier := by
+    intro q hq
+    rw [hCcarrier]
+    apply sw3_mem_interior_square
+    exact (sw3N_le_norm (q - c)).trans_lt (by
+      simpa [Metric.mem_ball, dist_eq_norm, norm_sub_rev] using hq)
+  have hγC : ∀ i, (γ i).carrier ∩ C.carrier = {y i} := by
+    intro i
+    have hstart : (γ i).start ∈ frontier A.carrier := by
+      rw [(hγ i).1]
+      exact hx i
+    have hstop : (γ i).stop ∈ frontier C.carrier := by
+      rw [(hγ i).2.1]
+      exact hyfront i
+    have hcross := existsRoutingAfterPower_step4_routes_step6_R3_crosscut_innerCarrier
+      A C hCA (γ i) hstart hstop (hγ i).2.2.2
+    simpa only [y, (hγ i).2.1] using hcross
+  have hLL : ∀ i j, i ≠ j → Disjoint (L i) (L j) := by
+    intro i j hij
+    obtain ⟨Ri, hRi, hyi, -⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radius
+        c hkappa (hu i)
+    obtain ⟨Rj, hRj, hyj, -⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radius
+        c hkappa (hu j)
+    have h := existsRoutingAfterPower_step4_routes_step6_R3_raySegments_disjoint
+      c (hu i) (hu j) (fun huv => hij (hui huv)) hkappa hkappa hRi hRj
+    simpa only [L, y, z, hyi, hyj, segment_symm] using h
+  have hγL : ∀ i j, i ≠ j → Disjoint (γ i).carrier (L j) := by
+    intro i j hij
+    rw [Set.disjoint_left]
+    intro q hqγ hqL
+    have hqC := (hL j hqL).1
+    have hqy : q = y i := by
+      have : q ∈ (γ i).carrier ∩ C.carrier := ⟨hqγ, hqC⟩
+      rw [hγC i] at this
+      exact this
+    exact Set.disjoint_left.1 (hLL i j hij)
+      (hqy ▸ left_mem_segment ℝ (y i) (z i)) hqL
+  have hJ : ∀ j, segment ℝ c (z j) ⊆ C.carrier := by
+    intro j
+    apply Set.Subset.trans _ hCball
+    apply (convex_closedBall c kappa).segment_subset
+    · exact Metric.mem_closedBall_self hkappa.le
+    · rw [Metric.mem_closedBall, dist_eq_norm]
+      change ‖(c + kappa • u j) - c‖ ≤ kappa
+      rw [add_sub_cancel_left]
+      rw [norm_smul, Real.norm_eq_abs, abs_of_pos hkappa, hu j, mul_one]
+  have hγJ : ∀ i j, i ≠ j →
+      Disjoint (γ i).carrier (segment ℝ c (z j)) := by
+    intro i j hij
+    rw [Set.disjoint_left]
+    intro q hqγ hqJ
+    have hqy : q = y i := by
+      have : q ∈ (γ i).carrier ∩ C.carrier := ⟨hqγ, hJ j hqJ⟩
+      rw [hγC i] at this
+      exact this
+    obtain ⟨R, hR, hyR, -⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radius
+        c hkappa (hu i)
+    obtain ⟨s, hs, hqs⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R3_mem_raySegment c (u j)
+        (show (0 : ℝ) ≤ kappa from hkappa.le) (by simpa [z] using hqJ)
+    apply existsRoutingAfterPower_step4_routes_step6_R3_positiveRay_ne
+      c (hu i) (hu j) (fun huv => hij (hui huv)) (hkappa.trans_le hR) hs.1
+    calc
+      c + R • u i = y i := hyR.symm
+      _ = q := hqy.symm
+      _ = c + s • u j := hqs
+  have hLJ : ∀ i j, i ≠ j → Disjoint (L i) (segment ℝ c (z j)) := by
+    intro i j hij
+    rw [Set.disjoint_left]
+    intro q hqL hqJ
+    obtain ⟨R, hR, hyR, -⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radius
+        c hkappa (hu i)
+    obtain ⟨r, hr, hqr⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R3_mem_raySegment c (u i) hR
+        (by simpa only [L, y, z, hyR, segment_symm] using hqL)
+    obtain ⟨s, hs, hqs⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R3_mem_raySegment c (u j)
+        (show (0 : ℝ) ≤ kappa from hkappa.le) (by simpa [z] using hqJ)
+    apply existsRoutingAfterPower_step4_routes_step6_R3_positiveRay_ne
+      c (hu i) (hu j) (fun huv => hij (hui huv)) (hkappa.trans_le hr.1) hs.1
+    exact hqr.symm.trans hqs
+  have hcarrier : ∀ i, (Γ i).carrier = (γ i).carrier ∪ L i := by
+    intro i
+    rw [(existsRoutingAfterPower_step4_routes_step1_join_spec (γ i) (z i)).2.2,
+      (hγ i).2.1]
+  constructor
+  · intro i
+    have hspec := existsRoutingAfterPower_step4_routes_step1_join_spec (γ i) (z i)
+    refine ⟨hspec.1.trans (hγ i).1, hspec.2.1, ?_, ?_⟩
+    · rw [hcarrier i]
+      rintro q ⟨hq, hqstart⟩
+      rcases hq with hqγ | hqL
+      · by_cases hqy : q = y i
+        · subst q
+          exact hCA (pd_frontier_subset_carrier C (hyfront i))
+        · have hstopY : (γ i).stop = y i := by
+            simpa only [y] using (hγ i).2.1
+          exact ((hγ i).2.2.2 ⟨hqγ, by
+            simp only [Set.mem_insert_iff, Set.mem_singleton_iff, not_or]
+            exact ⟨fun h => hqstart (h.trans hspec.1.symm),
+              fun h => hqy (h.trans hstopY)⟩⟩).1
+      · exact hCA (hL i hqL).1
+    · rw [hcarrier i, Set.disjoint_union_left]
+      constructor
+      · rw [Set.disjoint_left]
+        intro q hqγ hqb
+        exact ((hγ i).2.2.1 hqγ).2 (hballInterior hqb)
+      · exact Set.disjoint_left.2 fun q hqL hqb => (hL i hqL).2 hqb
+  · constructor
+    · intro i j hij
+      rw [hcarrier i, hcarrier j, Set.disjoint_union_left, Set.disjoint_union_right,
+        Set.disjoint_union_right]
+      exact ⟨⟨hdisj i j hij, hγL i j hij⟩,
+        (hγL j i hij.symm).symm, hLL i j hij⟩
+    · intro i j hij
+      rw [hcarrier i, Set.disjoint_union_left]
+      exact ⟨hγJ i j hij, hLJ i j hij⟩
 
 /-- The common deformation underlying the R4 port slide and centre bump.  For a port slide,
 `v` is tangent to the side; for a centre bump it is the displacement of the centre. -/

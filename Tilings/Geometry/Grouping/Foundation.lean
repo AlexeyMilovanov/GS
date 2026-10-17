@@ -32726,40 +32726,6 @@ private def quantitativeAnnularGrouping_innerOrder_sector
     ∃ a : ℝ, 0 < a ∧
       x = c + a • squarePerimeterPoint ((N : ℝ) * R / 2) t}
 
-/-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: choose, for
-each marked boundary point, an inside-anchoring side and face.  The `50 D` exclusion and the
-diameter bound localize the whole chosen face in the corresponding open radial sector.  In
-particular, marked points belonging to distinct sectors are distinct. -/
-private lemma quantitativeAnnularGrouping_innerOrder_step1_localize_faces
-    {M : MeshConstants P} {S : Set (PlacedTile P)} (c : Pt) {N : ℕ} {R : ℝ}
-    (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S c N R)
-    {m : ℕ} (j : Fin m → Fin (4 * N)) (hj : StrictMono j) (y : Fin m → Pt)
-    (hy : ∀ k, y k ∈ frontier G.L.carrier)
-    (hfar : ∀ k, ∀ t : Fin (4 * N), t ≠ j k →
-      ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), 50 * M.D ≤ dist (y k) q) :
-    ∃ i : Fin m → Fin G.L.disk.n, ∃ F : Fin m → PlacedTile P,
-      (∀ k, y k ∈ G.L.disk.side (i k)) ∧
-      (∀ k, F k ∈ G.L.faces) ∧
-      (∀ k, HasEdge (F k) (G.L.disk.side (i k))) ∧
-      (∀ k, (interior (F k).carrier ∩
-        interior (square c ((N : ℝ) * R / 2))).Nonempty) ∧
-      (∀ k, (F k).carrier ⊆
-        quantitativeAnnularGrouping_innerOrder_sector c N R (j k : ℕ)) ∧
-      Function.Injective y := by
-  sorry
-
-/-- Step 2 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: move each
-possibly-vertex marked point through the relative interior of its selected boundary side.  The
-resulting finite families converge to the original family in the product topology. -/
-private lemma quantitativeAnnularGrouping_innerOrder_step2_regularize
-    {S : Set (PlacedTile P)} (L : FaceGroup S) {m : ℕ} (y : Fin m → Pt)
-    (i : Fin m → Fin L.disk.n) (hy : ∀ k, y k ∈ L.disk.side (i k)) :
-    ∃ p : ℕ → Fin m → Pt,
-      (∀ n k, p n k ∈ openSegment ℝ (L.disk.vertex (i k))
-        (L.disk.vertex (finRotate L.disk.n (i k)))) ∧
-      Filter.Tendsto p Filter.atTop (nhds y) := by
-  sorry
-
 /-- Step 3 of the blueprint proof of
 `quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: prepend a breakpoint to a polygonal
 arc (the radial start of a crosscut). -/

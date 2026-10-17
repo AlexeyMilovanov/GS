@@ -46057,6 +46057,221 @@ private structure existsMacroCertificate_SetupSeed (τ : Substitution P)
   sides_le_Qmax_singleton : ∀ α (p : P.Form), (setup.GS.G.dissect α).tiles = {⟨p, 0⟩} →
     (setup.GS.G.P'.disk α).n ≤ g.Qmax
 
+/-- Step 3 of `lem:certificate-exists`: "Inside any `σ`-template, fix a constituent original tile
+`q₀` of the parent and let the central child be the retained large group `L_{q₀}` of `τ^k(q₀)`."
+Every grouped form has a nonempty dissection into original tiles, and iterating the choice of a
+constituent tile and its large group defines the central-form map `c`, the central child anchors,
+and the inclusion of each central supertile in the iterated decomposition of the parent. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub1_central_chain
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) :
+    ∃ (q₀ : g.GS.G.P'.Form → PlacedTile P) (anchor : ℕ → g.GS.G.P'.Form → Pt),
+      (∀ α, q₀ α ∈ (g.GS.G.dissect α).tiles) ∧
+      (∀ α, anchor 0 α = 0) ∧
+      (∀ m α, anchor (m + 1) α =
+        (τ.θ ^ g.k) • (anchor m α + (q₀ ((fun β => g.large (q₀ β).form)^[m] α)).anchor)) ∧
+      (∀ l α, translateSet (anchor l α)
+        (g.GS.G.dissect ((fun β => g.large (q₀ β).form)^[l] α)).tiles ⊆
+        τ.decomposeIter (g.GS.k * l) (g.GS.G.dissect α).tiles) ∧
+      ∀ m α, translateSet (anchor (m + 1) α)
+        (τ.supertile g.k (q₀ ((fun β => g.large (q₀ β).form)^[m] α)).form) ⊆
+        τ.decomposeIter (g.GS.k * (m + 1)) (g.GS.G.dissect α).tiles := by
+  sorry
+
+private noncomputable def emcsCentralTile (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) : g.GS.G.P'.Form → PlacedTile P :=
+  (existsMacroCertificate_seed2_routing_step1_setup_sub1_central_chain τ g).choose
+
+private noncomputable def emcsCentralAnchor (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) : ℕ → g.GS.G.P'.Form → Pt :=
+  (existsMacroCertificate_seed2_routing_step1_setup_sub1_central_chain τ g).choose_spec.choose
+
+private noncomputable def emcsCentralForm (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (α : g.GS.G.P'.Form) : g.GS.G.P'.Form :=
+  g.large (emcsCentralTile τ g α).form
+
+private noncomputable def emcsCentralPlaced (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (l : ℕ) (α : g.GS.G.P'.Form) :
+    PlacedTile g.GS.G.mixed :=
+  ⟨Sum.inl ((emcsCentralForm τ g)^[l] α), emcsCentralAnchor τ g l α⟩
+
+private noncomputable def emcsCentre (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) : ℕ → g.GS.G.P'.Form → Pt
+  | 0, _ => 0
+  | m + 1, α =>
+    emcsCentralAnchor τ g (m + 1) α +
+      g.centre (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form
+
+/-- Step 3 of `lem:certificate-exists`: "Scattering a group and applying the grouped substitution
+to each constituent defines `σ` on `P'` ... In each `σ^l`-template of a group keep only the
+central large child and the `4N` small annular groups directly adjacent to it, and scatter every
+other group in the template back to its original `P`-tiles."  The non-central grouped children of
+every retained template are the `4N` translated small catalogue groups, which are never large
+central images and have at most `Qmax` listed sides (`lem:quantitative-sector`). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) :
+    ∃ retained : ℕ → g.GS.G.P'.Form → Template g.GS.G.mixed,
+      (∀ l α, (retained l α).region = (τ.θ ^ (g.GS.k * l)) • (g.GS.G.P'.disk α).carrier) ∧
+      (∀ l α, g.GS.G.mixedScatter (retained l α).children.tiles =
+        τ.decomposeIter (g.GS.k * l) (g.GS.G.dissect α).tiles) ∧
+      (∀ l α, emcsCentralPlaced τ g l α ∈ (retained l α).children.tiles) ∧
+      (∀ l α, ∀ X ∈ (retained l α).children.tiles, X ≠ emcsCentralPlaced τ g l α →
+        (∃ p, X.form = Sum.inr p) ∨ SharesSide X (emcsCentralPlaced τ g l α)) ∧
+      (∀ l α (_hl : 0 < l), ∀ X ∈ (retained l α).children.tiles,
+        X ≠ emcsCentralPlaced τ g l α → ∀ β, X.form ≠ Sum.inl (emcsCentralForm τ g β)) ∧
+      (∀ l α (_hl : 0 < l), ∀ X ∈ (retained l α).children.tiles,
+        X ≠ emcsCentralPlaced τ g l α → ∀ γ, X.form = Sum.inl γ →
+          (g.GS.G.P'.disk γ).n ≤ g.Qmax) ∧
+      ∀ α (p : P.Form), (g.GS.G.dissect α).tiles = {⟨p, 0⟩} →
+        (g.GS.G.P'.disk α).n ≤ g.Qmax := by
+  sorry
+
+private noncomputable def emcsRetained (τ : Substitution P) (h : τ.STS)
+    (g : existsMacroCertificate_GroupingSeed τ) : ℕ → g.GS.G.P'.Form → Template g.GS.G.mixed :=
+  (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose
+
+/-- Step 3 of `lem:certificate-exists` and `lem:quantitative-sector`: translating the catalogue
+annular grouping `g.annular p` of the central constituent `p` by `emcsCentralAnchor τ g l α` into
+the scattered patch of `emcsRetained τ h g l α` yields the template's `AnnularGrouping` at
+`emcsCentre τ g l α`, together with its interior square margin (`g.square_margin`), central and
+small piece scatter equations, sector localization (`g.annular_quantitative`), separated private
+outer windows (`g.annular_windows`), and the `annulus_catalogue` translation witness. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub3_annulus
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) :
+    ∃ annulus : ∀ l α, 0 < l →
+        AnnularGrouping g.M (g.GS.G.mixedScatter (emcsRetained τ h g l α).children.tiles)
+          (emcsCentre τ g l α) g.N g.R,
+      (∀ l α (_hl : 0 < l),
+        square (emcsCentre τ g l α) ((g.N : ℝ) * g.R / 2 + g.R) + Binf (10 * g.M.D) ⊆
+          interior (emcsRetained τ h g l α).region) ∧
+      (∀ l α (hl : 0 < l),
+        g.GS.G.mixedScatterTile (emcsCentralPlaced τ g l α) = (annulus l α hl).L.faces) ∧
+      (∀ l α (hl : 0 < l), ∀ X ∈ (emcsRetained τ h g l α).children.tiles,
+        X ≠ emcsCentralPlaced τ g l α → (∃ β, X.form = Sum.inl β) →
+          ∃ j : Fin (4 * g.N),
+            g.GS.G.mixedScatterTile X = ((annulus l α hl).spokes.piece j).faces) ∧
+      (∀ l α (hl : 0 < l) (j : Fin (4 * g.N)),
+        ∃ X ∈ (emcsRetained τ h g l α).children.tiles, X ≠ emcsCentralPlaced τ g l α ∧
+          g.GS.G.mixedScatterTile X = ((annulus l α hl).spokes.piece j).faces) ∧
+      (∀ l α (hl : 0 < l) (j : Fin (4 * g.N)),
+        ((annulus l α hl).spokes.piece j).carrier ⊆
+          Metric.cthickening (20 * g.M.D)
+            (idealTrapezoid (emcsCentre τ g l α) g.N g.R g.M.D (j : ℕ))) ∧
+      (∀ l α (hl : 0 < l), ∃ e : Fin (4 * g.N) → Fin 4 → Set Pt,
+        (∀ j i, e j i ∈ privateOuterEdges (annulus l α hl) j) ∧
+          ∀ j i j' i', (j, i) ≠ (j', i') →
+            ∀ x ∈ e j i, ∀ y ∈ e j' i', g.R / 10 ≤ dist x y) ∧
+      ∀ l α (hl : 0 < l), ∃ (p : P.Form) (v : Pt),
+        g.GS.G.mixedScatterTile (emcsCentralPlaced τ g l α) =
+          translateSet v (g.annular p).L.faces ∧
+        ∀ j : Fin (4 * g.N), ∃ j' : Fin (4 * g.N), (j : ℕ) = j' ∧
+          ((annulus l α hl).spokes.piece j).faces =
+            translateSet v ((g.annular p).spokes.piece j').faces := by
+  sorry
+
+private noncomputable def emcsAnnulus (τ : Substitution P) (h : τ.STS)
+    (g : existsMacroCertificate_GroupingSeed τ) : ∀ l α, 0 < l →
+    AnnularGrouping g.M (g.GS.G.mixedScatter (emcsRetained τ h g l α).children.tiles)
+      (emcsCentre τ g l α) g.N g.R :=
+  (existsMacroCertificate_seed2_routing_step1_setup_sub3_annulus τ h g).choose
+
+/-- Step 3 of `lem:certificate-exists`: "The retained centre is strictly interior": because at
+`l = 1` the central child `L_{q₀}` lies inside `square (centre p) (N R / 2 + R)` which has
+`L∞`-clearance `R` from the frontier of `(retained 1 α).region` by `g.square_margin`, and at
+higher powers `(emcsCentralPlaced τ g (m + 1) α).carrier` lies inside the scaled carrier of the
+previous central child, the central child has uniform normalized clearance `ρ = g.R / τ.θ ^ g.GS.k`
+for all `l ≥ 1`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) :
+    ∃ ρ : ℝ, 0 < ρ ∧ ∀ l α, 0 < l → ∀ x ∈ (emcsCentralPlaced τ g l α).carrier,
+      ρ * τ.θ ^ (g.GS.k * l) ≤
+        Metric.infDist x (frontier (emcsRetained τ h g l α).region) := by
+  sorry
+
+/-- Step 3 of `lem:certificate-exists` and `lem:inner-sector-order`
+(`quantitativeAnnularGrouping_innerOrder`): for each original form `p`, the ray from `g.centre p`
+through the midpoint of sector `T_j` (perimeter parameter `(j + 1/2) R`) exits `(g.annular p).L`
+at a point `50 D`-far from all other sectors, selecting a side `slotSide p j` of `g.large p` shared
+with `((g.annular p).spokes.piece j).faces` so that `slotSide p` is injective and preserves
+`CycLt3` in the counterclockwise listing `g.ccw (g.large p)`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) :
+    ∃ slotSide : ∀ p : P.Form, Fin (4 * g.N) → Fin (g.GS.G.P'.disk (g.large p)).n,
+      (∀ p, Function.Injective (slotSide p)) ∧
+      (∀ p (j₁ j₂ j₃ : Fin (4 * g.N)), CycLt3 j₁ j₂ j₃ →
+        CycLt3 (slotSide p j₁) (slotSide p j₂) (slotSide p j₃)) ∧
+      ∀ p (j : Fin (4 * g.N)),
+        (g.GS.G.P'.disk (g.large p)).side (slotSide p j) ⊆
+          support ((g.annular p).spokes.piece j).faces ∧
+        ∃ B ∈ ((g.annular p).spokes.piece j).faces,
+          HasEdge B ((g.GS.G.P'.disk (g.large p)).side (slotSide p j)) := by
+  sorry
+
+private noncomputable def emcsSlotSide (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) :
+    ∀ p : P.Form, Fin (4 * g.N) → Fin (g.GS.G.P'.disk (g.large p)).n :=
+  (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose
+
+/-- Step 3 of `lem:certificate-exists`: the marked sides of a grouped form `α`: on a large
+catalogue form `g.large p`, the `4N` designated contact sides `emcsSlotSide τ g p` shared with
+the `4N` annular pieces; on every other grouped form (including all small annular pieces and
+singleton groups), all listed sides (`Finset.univ`). -/
+private noncomputable def emcsMarkedSides (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (α : g.GS.G.P'.Form) :
+    Finset (Fin (g.GS.G.P'.disk α).n) := by
+  classical
+  exact if hα : ∃ p : P.Form, g.large p = α then
+    Finset.univ.image (fun j : Fin (4 * g.N) =>
+      Fin.cast (by rw [hα.choose_spec]) (emcsSlotSide τ g hα.choose j))
+  else
+    Finset.univ
+
+/-- Step 3 of `lem:certificate-exists`: under injectivity of `g.large` (implied by the disjoint
+centre squares of `existsMacroCertificate_seed1_grouping`), `emcsMarkedSides` marks every side of
+every non-central grouped child and of every singleton group, marks `4N` contact sides on every
+central image `emcsCentralForm τ g β`, and provides the cyclically ordered print slots `f`,
+print neighbours `g'`, and annular piece indices `printPiece` satisfying `PhysicalPrintOrder`
+and equal to the identity when the central child has the parent's disk. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (hlarge_inj : Function.Injective g.large) :
+    (∀ l α (_hl : 0 < l), ∀ X ∈ (emcsRetained τ h g l α).children.tiles,
+      X ≠ emcsCentralPlaced τ g l α → ∀ γ, X.form = Sum.inl γ →
+        emcsMarkedSides τ g γ = Finset.univ) ∧
+    (∀ α (p : P.Form), (g.GS.G.dissect α).tiles = {⟨p, 0⟩} →
+      emcsMarkedSides τ g α = Finset.univ) ∧
+    (∀ β, (emcsMarkedSides τ g (emcsCentralForm τ g β)).card = 4 * g.N) ∧
+    (∀ β, ∃ (p : P.Form)
+        (piece : Fin (g.GS.G.P'.disk (emcsCentralForm τ g β)).n → Fin (4 * g.N)),
+      (g.GS.G.dissect (emcsCentralForm τ g β)).tiles = (g.annular p).L.faces ∧
+      Set.InjOn piece (emcsMarkedSides τ g (emcsCentralForm τ g β) : Set _) ∧
+      ∀ a ∈ emcsMarkedSides τ g (emcsCentralForm τ g β),
+        (g.GS.G.P'.disk (emcsCentralForm τ g β)).side a ⊆
+          support ((g.annular p).spokes.piece (piece a)).faces) ∧
+    ∀ l α (hl : 0 < l),
+      ∃ (f : Fin (g.GS.G.P'.disk α).n →
+          Fin (g.GS.G.mixed.disk (emcsCentralPlaced τ g l α).form).n)
+        (g' : Fin (g.GS.G.P'.disk α).n → PlacedTile g.GS.G.mixed)
+        (printPiece : Fin (g.GS.G.P'.disk α).n → Fin (4 * g.N)),
+      Set.InjOn f (emcsMarkedSides τ g α : Set _) ∧
+      Set.InjOn g' (emcsMarkedSides τ g α : Set _) ∧
+      CyclicOrderPreservingOn (emcsMarkedSides τ g α) f ∧
+      Set.InjOn printPiece (emcsMarkedSides τ g α : Set _) ∧
+      CyclicOrderPreservingOn (emcsMarkedSides τ g α) printPiece ∧
+      (∀ a ∈ emcsMarkedSides τ g α,
+        g.GS.G.mixedScatterTile (g' a) =
+          ((emcsAnnulus τ h g l α hl).spokes.piece (printPiece a)).faces) ∧
+      (∀ a ∈ emcsMarkedSides τ g α,
+        (f a : ℕ) ∈ (emcsMarkedSides τ g ((emcsCentralForm τ g)^[l] α)).map Fin.valEmbedding) ∧
+      PhysicalPrintOrder (emcsRetained τ h g l α).region (g.GS.G.P'.disk α)
+        (τ.θ ^ (g.GS.k * l)) (emcsCentralPlaced τ g l α) (emcsMarkedSides τ g α) f ∧
+      (g.GS.G.mixed.disk (emcsCentralPlaced τ g l α).form = g.GS.G.P'.disk α →
+        ∀ a ∈ emcsMarkedSides τ g α, (f a : ℕ) = a) ∧
+      ∀ a ∈ emcsMarkedSides τ g α,
+        g' a ∈ (emcsRetained τ h g l α).children.tiles ∧
+        g' a ≠ emcsCentralPlaced τ g l α ∧
+        HasEdge (g' a) ((emcsCentralPlaced τ g l α).side (f a)) := by
+  sorry
+
 /-- Step 3 of `lem:certificate-exists`: "Scattering a group and applying the grouped substitution
 to each constituent defines `σ`"; the central child of a template is the inside-anchored group
 `L` of the supertile of the constituent nearest the centre, the retained ring its `4N` annular
@@ -46080,7 +46295,55 @@ counterclockwise), this gives `print_slots`. -/
 private lemma existsMacroCertificate_seed2_routing_step1_setup (τ : Substitution P) (h : τ.STS)
     (g : existsMacroCertificate_GroupingSeed τ) :
     Nonempty (existsMacroCertificate_SetupSeed τ g) := by
-  sorry
+  -- Specification gap A.1: `existsMacroCertificate_GroupingSeed` does not record that `g.large`
+  -- is injective (or that `g.centre` has disjoint outer squares as proved in `seed1_grouping`).
+  have hlarge_inj : Function.Injective g.large := sorry
+  obtain ⟨hreg, hscat, hcmem, hothers, hnotlarge, hQchild, hQsing⟩ :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose_spec
+  obtain ⟨hann_in, hc_scat, hs_scat, hp_child, hp_loc, hwin, hann_cat⟩ :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub3_annulus τ h g).choose_spec
+  have hclear := existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance τ h g
+  obtain ⟨hm_child, hm_sing, hm_card, hm_contact, hprints⟩ :=
+    existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints τ h g hlarge_inj
+  exact ⟨{
+    setup := {
+      GS := g.GS
+      parent_ccw := g.ccw
+      c := emcsCentralForm τ g
+      markedSides := emcsMarkedSides τ g
+      retained := emcsRetained τ h g
+      central := emcsCentralPlaced τ g
+      region_eq := hreg
+      scatter_eq := hscat
+      central_mem := hcmem
+      central_form := fun _ _ => rfl
+      others := hothers
+      clearance := hclear
+      N := fun _ => g.N
+      R := fun _ => g.R
+      centre := emcsCentre τ g
+      N_two := fun _ => g.N_two
+      R_large := fun _ => g.R_routes
+      annulus := emcsAnnulus τ h g
+      annulus_inside := hann_in
+      central_scatter := hc_scat
+      small_scatter := hs_scat
+      piece_child := hp_child
+      piece_localized := hp_loc
+      windows := hwin
+      print_slots := hprints }
+    setup_grouped := rfl
+    N_eq := fun _ => rfl
+    R_eq := fun _ => rfl
+    central_large := fun α => ⟨(emcsCentralTile τ g α).form, g.large_dissect _⟩
+    annulus_catalogue := hann_cat
+    marked_child := hm_child
+    marked_singleton := hm_sing
+    marked_large_card := hm_card
+    marked_large_contact := hm_contact
+    noncentral_not_large := hnotlarge
+    sides_le_Qmax_child := hQchild
+    sides_le_Qmax_singleton := hQsing }⟩
 
 /-- The routed idempotent power of `lem:routing` (`existsRoutingAfterPower` at `n₀ = 1`):
 `l > 0` with `c^[2l] = c^[l]` and routing data for every retained template. -/
@@ -46248,6 +46511,404 @@ private structure existsMacroCertificate_CertData (τ : Substitution P)
     ∀ o, o ∈ D.path α d i → o ∈ D.path α d' i' →
       d = d' ∧ (o = D.printOcc α d ∨ o = D.partner (D.printOcc α d))
 
+/-- Step 4 of `lem:certificate-exists`: the mixed forms retained in the finite certificate
+catalogue `Q`: the original forms `Sum.inr p`, the retained central large forms
+`Sum.inl (s.setup.c^[l] β)`, and the non-central grouped children `Sum.inl γ` of the retained
+templates at the routed power `l`. -/
+private def emcdIsRetainedForm {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (μ : s.setup.GS.G.mixed.Form) : Prop :=
+  (∃ p : P.Form, μ = Sum.inr p) ∨
+  (∃ β : s.setup.GS.G.P'.Form, μ = Sum.inl (s.setup.c^[l] β)) ∨
+  ∃ (β γ : s.setup.GS.G.P'.Form) (X : PlacedTile s.setup.GS.G.mixed),
+    X ∈ (s.setup.retained l β).children.tiles ∧ X ≠ s.setup.central l β ∧
+      X.form = Sum.inl γ ∧ μ = Sum.inl γ
+
+private abbrev emcdForm {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) : Type :=
+  { μ : s.setup.GS.G.mixed.Form // emcdIsRetainedForm g s l μ }
+
+/-- Step 4 of `lem:certificate-exists`: the grouped base form in `s.setup.GS.G.P'.Form`
+associated to each retained catalogue form: `γ` on a grouped form `Sum.inl γ`, and the
+singleton grouped form `g.original p` (transported along `s.setup_grouped`) on `Sum.inr p`. -/
+private def emcdBaseForm {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (α : emcdForm g s l) : s.setup.GS.G.P'.Form :=
+  match α.1 with
+  | Sum.inl γ => γ
+  | Sum.inr p => s.setup_grouped.symm ▸ g.original p
+
+/-- Step 4 of `lem:certificate-exists`: the retained protoset `Q` of the macrocertificate,
+equipping each retained form `α` with the counterclockwise disk of `emcdBaseForm g s l α`. -/
+private noncomputable def emcdQ {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) : Protoset where
+  Form := emcdForm g s l
+  fintype := @Subtype.fintype _ _ (Classical.decPred _) inferInstance
+  decEq := Classical.decEq _
+  disk α := s.setup.GS.G.P'.disk (emcdBaseForm g s l α)
+
+/-- Step 4 of `lem:certificate-exists`: the catalogue tile of a retained form `α`, anchored at
+the origin with mixed form `α.1`. -/
+private def emcdCatalogueTile {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (α : emcdForm g s l) : PlacedTile s.setup.GS.G.mixed :=
+  ⟨α.1, 0⟩
+
+/-- Step 4 of `lem:certificate-exists`: the embedding of original forms `p : P.Form` into the
+retained catalogue `emcdQ g s l`. -/
+private def emcdOriginalForm {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (p : P.Form) : emcdForm g s l :=
+  ⟨Sum.inr p, Or.inl ⟨p, rfl⟩⟩
+
+/-- Step 4 of `lem:certificate-exists`: the kind (`.original`, `.large`, or `.small`) of a
+retained catalogue form. -/
+private noncomputable def emcdKind {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (α : emcdForm g s l) : FormKind :=
+  open Classical in
+  if ∃ p : P.Form, α.1 = Sum.inr p then .original
+  else if ∃ β : s.setup.GS.G.P'.Form, α.1 = Sum.inl (s.setup.c^[l] β) then .large
+  else .small
+
+/-- Step 4 of `lem:certificate-exists`: the scattering patch `Δ α` of a retained form `α`. -/
+private def emcdDelta {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (α : emcdForm g s l) : Patch P :=
+  s.setup.GS.G.dissect (emcdBaseForm g s l α)
+
+/-- Step 4 of `lem:certificate-exists`: the positioned child types `Typ`, indexed by an owner
+retained form `α` and a child `X` of the retained template
+`s.setup.retained l (emcdBaseForm g s l α)`. -/
+private def emcdTyp {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) : Type :=
+  Σ α : emcdForm g s l,
+    { X : PlacedTile s.setup.GS.G.mixed //
+      X ∈ (s.setup.retained l (emcdBaseForm g s l α)).children.tiles }
+
+private def emcdTemplateChild {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (t : emcdTyp g s l) : PlacedTile s.setup.GS.G.mixed :=
+  t.2.1
+
+private def emcdOwner {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (t : emcdTyp g s l) : emcdForm g s l :=
+  t.1
+
+private def emcdAnchor {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (t : emcdTyp g s l) : Pt :=
+  t.2.1.anchor
+
+private def emcdCentral {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (α : emcdForm g s l) : emcdTyp g s l :=
+  ⟨α, ⟨s.setup.central l (emcdBaseForm g s l α), s.setup.central_mem l (emcdBaseForm g s l α)⟩⟩
+
+private noncomputable def emcdChildForm {τ : Substitution P}
+    (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (t : emcdTyp g s l) : emcdForm g s l :=
+  ⟨t.2.1.form, show emcdIsRetainedForm g s l t.2.1.form by
+    classical
+    by_cases hX : t.2.1 = s.setup.central l (emcdBaseForm g s l t.1)
+    · exact Or.inr (Or.inl ⟨emcdBaseForm g s l t.1,
+        by rw [hX, s.setup.central_form]⟩)
+    · rcases hform : t.2.1.form with γ | p
+      · exact Or.inr (Or.inr ⟨emcdBaseForm g s l t.1, γ, t.2.1, t.2.2, hX, hform, rfl⟩)
+      · exact Or.inl ⟨p, rfl⟩⟩
+
+private def emcdParentSide {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (α : emcdForm g s l) :
+    Fin ((emcdQ g s l).disk α).n → Fin (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).n :=
+  id
+
+/-- Step 4 of `lem:certificate-exists`: the uncoloured macrotemplate substitution `σ'` on the
+retained catalogue `emcdQ g s l` (with expansion factor `τ.θ ^ (g.k * l)` and rule given by the
+positioned children `t` with `emcdOwner g s l t = α`), together with the finite certificate
+maps (`edge`, `partner`, `edgeTypes`, `special`, `print`, `outerList`, `path`, `rankBound`)
+packaged into `MacroData P`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub1_macroData
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    ∃ (σ : Substitution (emcdQ g s l))
+      (edge partner :
+        (Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n) →
+          (Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n))
+      (edgeTypes :
+        (Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n) →
+          emcdTyp g s l × emcdTyp g s l)
+      (special :
+        (Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n) → Prop)
+      (print : ∀ α : (emcdQ g s l).Form, Fin ((emcdQ g s l).disk α).n →
+        Fin ((emcdQ g s l).disk (emcdChildForm g s l (emcdCentral g s l α))).n)
+      (outerList : ∀ α : (emcdQ g s l).Form, Fin ((emcdQ g s l).disk α).n →
+        List (Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n))
+      (path : ∀ α : (emcdQ g s l).Form, Fin ((emcdQ g s l).disk α).n → Fin 5 →
+        List (Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n))
+      (rankBound : ℕ),
+      σ.θ = τ.θ ^ (g.k * l) ∧
+      ∀ α, (σ.rule α).tiles =
+        (fun t => (⟨emcdChildForm g s l t, emcdAnchor g s l t⟩ : PlacedTile (emcdQ g s l))) ''
+          {t | emcdOwner g s l t = α} := by
+  sorry
+
+/-- Step 4 of `lem:certificate-exists`: the concrete `MacroData P` assembled from the retained
+catalogue `emcdQ g s l`, the positioned types `emcdTyp g s l`, and the maps of `sub1_macroData`. -/
+private noncomputable def emcdMacroData (τ : Substitution P) (h : τ.STS)
+    (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g)
+    (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) : MacroData P :=
+  let H := existsMacroCertificate_seed2_routing_step3_data_sub1_macroData τ h g s l hl routing
+  let typFin : Fintype (emcdTyp g s l) :=
+    @Sigma.instFintype (emcdForm g s l)
+      (fun α => { X : PlacedTile s.setup.GS.G.mixed //
+        X ∈ (s.setup.retained l (emcdBaseForm g s l α)).children.tiles })
+      (fun α => ((s.setup.retained l (emcdBaseForm g s l α)).children.finite).fintype)
+      (emcdQ g s l).fintype
+  let edgeFin : Fintype
+      (Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n) :=
+    @Sigma.instFintype (emcdTyp g s l)
+      (fun t => Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n)
+      (fun _ => inferInstance)
+      typFin
+  { Q := emcdQ g s l
+    Δ := emcdDelta g s l
+    σ := H.choose
+    kind := emcdKind g s l
+    Typ := emcdTyp g s l
+    typFintype := typFin
+    typDecEq := Classical.decEq _
+    form := emcdChildForm g s l
+    owner := emcdOwner g s l
+    anchor := emcdAnchor g s l
+    central := emcdCentral g s l
+    EdgeId := Σ t : emcdTyp g s l, Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n
+    edgeFintype := edgeFin
+    edgeDecEq := Classical.decEq _
+    edge := H.choose_spec.choose
+    partner := H.choose_spec.choose_spec.choose
+    edgeTypes := H.choose_spec.choose_spec.choose_spec.choose
+    marked := fun α d => emcdParentSide g s l α d ∈ s.setup.markedSides (emcdBaseForm g s l α)
+    special := H.choose_spec.choose_spec.choose_spec.choose_spec.choose
+    print := H.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose
+    IsPositive := LexPositive
+    outerList :=
+      H.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose
+    path :=
+      H.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose
+    N := g.N
+    Qmax := g.Qmax
+    rankBound :=
+      H.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose_spec.choose }
+
+/-- Step 4 of `lem:certificate-exists`: the catalogue, disk, dissection, and kind equations for
+`emcdMacroData`: each retained form has the carrier and vertex set of its catalogue tile,
+counterclockwise orientation (`s.setup.parent_ccw`), scattering patch equal to `mixedScatterTile`,
+injective catalogue embedding (`catalogue_injective`, `catalogue_form_injective`,
+`grouped_disks_distinct`), and disjoint `.original` / `.large` / `.small` classification
+(`s.noncentral_not_large`). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α, (D.Q.disk α).carrier =
+      (pdTranslate (s.setup.GS.G.mixed.disk (emcdCatalogueTile g s l α).form)
+        (emcdCatalogueTile g s l α).anchor).carrier) ∧
+    (∀ α, (D.Q.disk α).vertexSet =
+      (pdTranslate (s.setup.GS.G.mixed.disk (emcdCatalogueTile g s l α).form)
+        (emcdCatalogueTile g s l α).anchor).vertexSet) ∧
+    (∀ α, pdCCW (D.Q.disk α)) ∧
+    (∀ α, (D.Δ α).tiles = s.setup.GS.G.mixedScatterTile (emcdCatalogueTile g s l α)) ∧
+    (∀ p, emcdCatalogueTile g s l (emcdOriginalForm g s l p) = ⟨Sum.inr p, 0⟩) ∧
+    (∀ p, (D.Δ (emcdOriginalForm g s l p)).tiles = {⟨p, 0⟩}) ∧
+    Function.Injective (emcdCatalogueTile g s l) ∧
+    (∀ α β, D.kind α ≠ .original → D.kind β ≠ .original →
+      D.Q.disk α = D.Q.disk β → α = β) ∧
+    (∀ α, D.kind α = .original ↔ ∃ p, (emcdCatalogueTile g s l α).form = Sum.inr p) ∧
+    (∀ α, D.kind α = .large ↔
+      ∃ β, (emcdCatalogueTile g s l α).form = Sum.inl (s.setup.c^[l] β)) ∧
+    (∀ α, D.kind α = .small ↔
+      ∃ β γ X, X ∈ (s.setup.retained l β).children.tiles ∧ X ≠ s.setup.central l β ∧
+        X.form = Sum.inl γ ∧ (emcdCatalogueTile g s l α).form = Sum.inl γ) ∧
+    (∀ α β, (emcdCatalogueTile g s l α).form = Sum.inl β → emcdBaseForm g s l α = β) ∧
+    (∀ p, (s.setup.GS.G.dissect (emcdBaseForm g s l (emcdOriginalForm g s l p))).tiles =
+      {⟨p, 0⟩}) ∧
+    ∀ α β, (emcdCatalogueTile g s l α).form = (emcdCatalogueTile g s l β).form → α = β := by
+  sorry
+
+/-- Step 4 of `lem:certificate-exists`: the positioned-child, template, parent-side, and marking
+clauses for `emcdMacroData`: `emcdTemplateChild` bijects `{t | D.owner t = α}` onto the children
+of `s.setup.retained l (emcdBaseForm g s l α)` preserving carriers and side sets, `D.σ` satisfies
+`existsMacroCertificate_TemplateData D`, `emcdParentSide` is the identity relabelling, and the
+marking discipline (`marked_rule_nonlarge`, `marked_rule_large`) follows from `s.marked_child`,
+`s.marked_singleton`, `RoutingData.print_marked`, `RoutingData.print_id`, and `hidem`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    existsMacroCertificate_TemplateData D ∧
+    (∀ α, Set.BijOn (emcdTemplateChild g s l) {t | D.owner t = α}
+      (s.setup.retained l (emcdBaseForm g s l α)).children.tiles) ∧
+    (∀ t, (D.childTile t).carrier = (emcdTemplateChild g s l t).carrier) ∧
+    (∀ t, Set.range (fun i : D.Side t => D.occSide ⟨t, i⟩) =
+      Set.range (fun j => (emcdTemplateChild g s l t).side j)) ∧
+    (∀ α, emcdTemplateChild g s l (D.central α) = s.setup.central l (emcdBaseForm g s l α)) ∧
+    (∀ α, (emcdTemplateChild g s l (D.central α)).form =
+      Sum.inl (s.setup.c^[l] (emcdBaseForm g s l α))) ∧
+    (∀ α, D.owner (D.central α) = α) ∧
+    (∀ t, (emcdTemplateChild g s l t).form = (emcdCatalogueTile g s l (D.form t)).form) ∧
+    (∀ α, Function.Injective (emcdParentSide g s l α)) ∧
+    (∀ α, Function.Bijective (emcdParentSide g s l α)) ∧
+    (∀ α (a b e : Fin (D.Q.disk α).n), CycLt3 a b e →
+      CycLt3 (emcdParentSide g s l α a) (emcdParentSide g s l α b) (emcdParentSide g s l α e)) ∧
+    (∀ α d, D.macroSide α d =
+      (τ.θ ^ (s.setup.GS.k * l)) •
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).side (emcdParentSide g s l α d)) ∧
+    (∀ α d, D.marked α d ↔
+      emcdParentSide g s l α d ∈ s.setup.markedSides (emcdBaseForm g s l α)) ∧
+    (∀ o : D.SideOcc, D.kind (D.form o.1) ≠ .large ∨ D.IsPrint o → D.IsMarked o) ∧
+    ∀ o : D.SideOcc, D.kind (D.owner o.1) = .large →
+      D.kind (D.form o.1) = .large → D.IsMarked o → D.IsPrint o := by
+  sorry
+
+/-- Step 4 of `lem:certificate-exists`: the representation package
+`existsMacroCertificate_RepresentationData τ (g.k * l) D`: scattering the children of `D.σ.rule α`
+equals `s.setup.GS.G.mixedScatter (s.setup.retained l (emcdBaseForm g s l α)).children.tiles =
+τ.decomposeIter (g.k * l) (D.Δ α).tiles` (`s.setup.scatter_eq`), the dissections `D.Δ α` inherit
+`support_eq`, `sts`, `dualConnected`, `side_whole`, and `vertex_retained` from `s.setup.GS.G`,
+`emcdOriginalForm` gives the singleton originals, and `g.inside_supertile` and `g.hereditary`
+transfer to `D`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    existsMacroCertificate_RepresentationData τ (g.k * l)
+      (emcdMacroData τ h g s l hl routing) := by
+  sorry
+
+/-- Step 4 of `lem:certificate-exists`: the internal interface specifications (`partner_spec`,
+`edge_spec`, `edgeTypes_spec` from the two-owner property of inner sides in the STS template
+`s.setup.retained l (emcdBaseForm g s l α)`), the global orientation `LexPositive`, the sorted
+outer-side lists `outerList`, and the sharp rank bound `rankBound`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ o : D.SideOcc, D.IsInner o →
+      (D.partner o).1 ≠ o.1 ∧ D.owner (D.partner o).1 = D.owner o.1 ∧
+        D.occSide (D.partner o) = D.occSide o) ∧
+    (∀ o o' : D.SideOcc, D.IsInner o → D.IsInner o' →
+      (D.edge o = D.edge o' ↔ o' = o ∨ o' = D.partner o)) ∧
+    (∀ o : D.SideOcc, D.IsInner o →
+      D.edgeTypes (D.edge o) = (o.1, (D.partner o).1) ∨
+        D.edgeTypes (D.edge o) = ((D.partner o).1, o.1)) ∧
+    D.IsPositive = LexPositive ∧
+    (∀ α (d : Fin (D.Q.disk α).n) (o : D.SideOcc),
+      o ∈ D.outerList α d ↔ D.owner o.1 = α ∧ D.IsOuter o ∧ D.occSide o ⊆ D.macroSide α d) ∧
+    (∀ α d, (D.outerList α d).Nodup) ∧
+    (∀ α d, (D.outerList α d).Pairwise fun o o' =>
+      ∃ r : ℝ, 0 < r ∧ D.occMid o' - D.occMid o = r • D.macroSideDir α d) ∧
+    D.N = g.N ∧
+    D.Qmax = g.Qmax ∧
+    (∀ α d, (D.outerList α d).length ≤ D.rankBound) ∧
+    ∀ b, (∀ α d, (D.outerList α d).length ≤ b) → D.rankBound ≤ b := by
+  sorry
+
+/-- Step 4 of `lem:certificate-exists`: the print and special-side clauses for `emcdMacroData`:
+prints use `(routing (emcdBaseForm g s l α)).printIdx`, inheriting injectivity, cyclic order, and
+innerness from `RoutingData` (`print_injOn`, `print_cyclic`, `print_inner`), their opposite partner
+lies on a small annular child (`RoutingData.path_last`, `RoutingData.path_step`,
+`RoutingData.path_last_tile`), and under distinctness of print partner children (`hpartner_inj`),
+every small child type has a unique special contact side with the central child, equal to the print
+partner when the small child receives a print. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_special
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (hpartner_inj : ∀ β : s.setup.GS.G.P'.Form,
+      ∀ a ∈ s.setup.markedSides β, ∀ b ∈ s.setup.markedSides β,
+        ∀ X ∈ (s.setup.retained l β).children.tiles, X ≠ s.setup.central l β →
+          HasEdge X ((s.setup.central l β).side ((routing β).printIdx a)) →
+          HasEdge X ((s.setup.central l β).side ((routing β).printIdx b)) → a = b) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d, D.occSide (D.printOcc α d) =
+      (s.setup.central l (emcdBaseForm g s l α)).side
+        ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d))) ∧
+    (∀ α (d d' : Fin (D.Q.disk α).n), D.marked α d → D.marked α d' →
+      D.print α d = D.print α d' → d = d') ∧
+    (∀ α (a b e : Fin (D.Q.disk α).n), D.marked α a → D.marked α b →
+      D.marked α e → CycLt3 a b e → CycLt3 (D.print α a) (D.print α b) (D.print α e)) ∧
+    (∀ α d, D.marked α d → D.IsInner (D.printOcc α d)) ∧
+    (∀ α d, D.marked α d → D.kind (D.form (D.partner (D.printOcc α d)).1) = .small) ∧
+    (∀ o : D.SideOcc, D.special o → D.kind (D.form o.1) = .small) ∧
+    (∀ t, D.kind (D.form t) = .small → ∃! i, D.special (D.occ t i)) ∧
+    (∀ o : D.SideOcc, D.special o →
+      D.IsInner o ∧ (D.partner o).1 = D.central (D.owner o.1)) ∧
+    ∀ α d, D.marked α d → D.special (D.partner (D.printOcc α d)) := by
+  sorry
+
+/-- Step 4 of `lem:certificate-exists`: the path clauses for `emcdMacroData`: lifting each routed
+geometric side list `(routing (emcdBaseForm g s l α)).pathSides d i` and tile list `pathTiles d i`
+to the alternating entry/exit side-occurrence chain `D.path α d i.castSucc` (ending at
+`D.partner (D.printOcc α d)` in its small owner) and setting unmarked and fifth paths to singleton
+ports `(D.port α d i).toList` establishes `path_from_routing`, `path_head`, `path_last`,
+`path_chain`, `path_owner`, `path_partner`, `path_trivial`, `fifth_path`, `path_inner`,
+`path_marked`, `path_not_central`, `path_penultimate`, `path_nodup`, and `path_disjoint`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d (i : Fin 4), D.marked α d →
+      @List.destutter (Set Pt) (· ≠ ·) (Classical.decRel _)
+        ((D.path α d i.castSucc).map D.occSide) =
+        (routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d) i) ∧
+    (∀ α d i, D.IsGenuinePath α d i → (D.path α d i).head? = D.port α d i) ∧
+    (∀ α d i, D.IsGenuinePath α d i →
+      (D.path α d i).getLast? = some (D.partner (D.printOcc α d))) ∧
+    (∀ α d i (n : ℕ) (o o' : D.SideOcc),
+      (D.path α d i)[n]? = some o → (D.path α d i)[n + 1]? = some o' →
+        o.1 = o'.1 ∨ (D.IsInner o ∧ o' = D.partner o)) ∧
+    (∀ α d i (o : D.SideOcc), o ∈ D.path α d i → D.owner o.1 = α) ∧
+    (∀ α d i, D.IsGenuinePath α d i →
+      ∀ o ∈ D.path α d i, D.IsInner o → ¬ D.IsPrint o → D.partner o ∈ D.path α d i) ∧
+    (∀ α d i, ¬ D.IsGenuinePath α d i → D.path α d i = (D.port α d i).toList) ∧
+    (∀ α d, D.path α d (4 : Fin 5) = (D.port α d (4 : Fin 5)).toList) ∧
+    (∀ α d i, D.IsGenuinePath α d i →
+      ∀ (n : ℕ) (o : D.SideOcc), (D.path α d i)[n + 1]? = some o → D.IsInner o) ∧
+    (∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, D.IsMarked o) ∧
+    (∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, o.1 ≠ D.central α) ∧
+    (∀ α d i, D.IsGenuinePath α d i →
+      ∀ o : D.SideOcc, (D.path α d i)[(D.path α d i).length - 2]? = some o →
+        o.1 = (D.partner (D.printOcc α d)).1 ∧ D.IsOrdinary o) ∧
+    (∀ α d i, (D.path α d i).Nodup) ∧
+    ∀ α (d d' : Fin (D.Q.disk α).n) (i i' : Fin 5), (d, i) ≠ (d', i') →
+      ∀ o, o ∈ D.path α d i → o ∈ D.path α d' i' →
+        d = d' ∧ (o = D.printOcc α d ∨ o = D.partner (D.printOcc α d)) := by
+  sorry
+
 /-- Step 4 of `lem:certificate-exists`: the finite packaging.  "Keep the finite labelled groups in
 `P'`" (here: the retained catalogue tiles), "the types are the positioned children of the
 retained templates", kinds, marking, interface identifiers, special sides, prints, globally
@@ -46262,7 +46923,105 @@ private lemma existsMacroCertificate_seed2_routing_step3_data (τ : Substitution
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     Nonempty (existsMacroCertificate_CertData τ g s l routing) := by
-  sorry
+  -- Specification gap A.2: `RoutingData` drops `EntryData.neighbour_injOn` and `SetupSeed` does
+  -- not link `annulus_catalogue` to `marked_large_contact`, so distinctness of the small partner
+  -- children of distinct print slots is not recorded by `s` and `routing`.
+  have hpartner_inj : ∀ β : s.setup.GS.G.P'.Form,
+      ∀ a ∈ s.setup.markedSides β, ∀ b ∈ s.setup.markedSides β,
+        ∀ X ∈ (s.setup.retained l β).children.tiles, X ≠ s.setup.central l β →
+          HasEdge X ((s.setup.central l β).side ((routing β).printIdx a)) →
+          HasEdge X ((s.setup.central l β).side ((routing β).printIdx b)) → a = b := sorry
+  obtain ⟨hdisk_c, hdisk_v, hdisk_ccw, hscat, horig_tile, horig_scat, hcat_inj, hgd_dist,
+    hkind_o, hkind_l, hkind_s, hbase_f, hbase_o, hcat_f_inj⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue τ h g s l hl routing
+  obtain ⟨htmpl, hchild_bij, hchild_c, hchild_s, hcent_c, hcent_f, hcent_o, hchild_f,
+    hps_inj, hps_bij, hps_cyc, hps_geom, hmark_setup, hmark_nonl, hmark_l⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates τ h g s l hl
+      hidem routing
+  have hrep := existsMacroCertificate_seed2_routing_step3_data_sub4_representation τ h g s l hl
+    routing
+  obtain ⟨hpart, hedge, hedge_t, hpos, hout_mem, hout_nodup, hout_sort, hN, hQmax,
+    hrank_ge, hrank_max⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer τ h g s l hl routing
+  obtain ⟨hpr_rout, hpr_inj, hpr_cyc, hpr_in, hpr_sm, hsp_sm, hsp_uniq, hsp_cont, hsp_pr⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_special τ h g s l hl routing
+      hpartner_inj
+  obtain ⟨hpa_rout, hpa_head, hpa_last, hpa_chain, hpa_own, hpa_part, hpa_triv, hpa_5,
+    hpa_in, hpa_mark, hpa_ncent, hpa_pen, hpa_nodup, hpa_disj⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths τ h g s l hl routing
+  exact ⟨{
+    l_pos := hl
+    central_idempotent := hidem
+    D := emcdMacroData τ h g s l hl routing
+    rep := hrep
+    tmpl := htmpl
+    baseForm := emcdBaseForm g s l
+    catalogueTile := emcdCatalogueTile g s l
+    disk_carrier := hdisk_c
+    disk_vertexSet := hdisk_v
+    disk_ccw := hdisk_ccw
+    scatter_eq := hscat
+    originalForm := emcdOriginalForm g s l
+    original_tile := horig_tile
+    original_scatter := horig_scat
+    catalogue_injective := hcat_inj
+    grouped_disks_distinct := hgd_dist
+    kind_original := hkind_o
+    kind_large := hkind_l
+    kind_small := hkind_s
+    templateChild := emcdTemplateChild g s l
+    child_bijective := hchild_bij
+    child_carrier := hchild_c
+    child_sideSet := hchild_s
+    central_child := hcent_c
+    central_form := hcent_f
+    central_owner := hcent_o
+    child_form := hchild_f
+    base_form := hbase_f
+    base_original := hbase_o
+    catalogue_form_injective := hcat_f_inj
+    parentSide := emcdParentSide g s l
+    parentSide_injective := hps_inj
+    parentSide_bijective := hps_bij
+    parentSide_cyclic := hps_cyc
+    parent_side_geometry := hps_geom
+    marked_from_setup := hmark_setup
+    marked_rule_nonlarge := hmark_nonl
+    marked_rule_large := hmark_l
+    partner_spec := hpart
+    edge_spec := hedge
+    edgeTypes_spec := hedge_t
+    positive_eq := hpos
+    outerList_mem := hout_mem
+    outerList_nodup := hout_nodup
+    outerList_sorted := hout_sort
+    N_eq := hN
+    Qmax_eq := hQmax
+    rankBound_ge := hrank_ge
+    rankBound_is_max := hrank_max
+    print_from_routing := hpr_rout
+    print_injective := hpr_inj
+    print_cyclic := hpr_cyc
+    print_inner := hpr_in
+    print_small := hpr_sm
+    special_small := hsp_sm
+    special_unique := hsp_uniq
+    special_contact := hsp_cont
+    special_print := hsp_pr
+    path_from_routing := hpa_rout
+    path_head := hpa_head
+    path_last := hpa_last
+    path_chain := hpa_chain
+    path_owner := hpa_own
+    path_partner := hpa_part
+    path_trivial := hpa_triv
+    fifth_path := hpa_5
+    path_inner := hpa_in
+    path_marked := hpa_mark
+    path_not_central := hpa_ncent
+    path_penultimate := hpa_pen
+    path_nodup := hpa_nodup
+    path_disjoint := hpa_disj }⟩
 
 /-- Step 5 of `lem:certificate-exists`, (G1): "Disk cellulations with at least the centre and its
 ring have connected inner-side duals and at least three children"; every child of a retained

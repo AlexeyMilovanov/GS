@@ -3277,7 +3277,26 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
     (∀ α d, D.macroSide α d =
       (τ.θ ^ (s.setup.GS.k * l)) •
         (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).side (emcdParentSide g s l α d)) := by
-  sorry
+  dsimp only
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro α
+    exact Function.injective_id
+  · intro α
+    exact Function.bijective_id
+  · intro α a b e hab
+    exact hab
+  · intro α d
+    let H := existsMacroCertificate_seed2_routing_step3_data_sub1_macroData τ h g s l hl routing
+    have hθ : H.choose.θ = τ.θ ^ (g.k * l) := H.choose_spec.1
+    have hk : s.setup.GS.k = g.k := by
+      calc
+        s.setup.GS.k = g.GS.k := congrArg (fun x => x.k) s.setup_grouped
+        _ = g.k := g.grouped_power
+    change H.choose.θ •
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).side d =
+      (τ.θ ^ (s.setup.GS.k * l)) •
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).side d
+    rw [hθ, hk]
 
 /-- Step 4 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: the marking

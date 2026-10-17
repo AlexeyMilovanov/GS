@@ -5502,6 +5502,213 @@ private lemma existsMacroCertificate_seed2_routing_step7_g4 (τ : Substitution P
     path_nodup := cd.path_nodup
     path_disjoint := cd.path_disjoint }
 
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "the central child has the parent's own
+disk"; two translates of one compact nonempty set coincide only for equal translation vectors. -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_vadd_cancel {K : Set Pt} (hK : IsCompact K)
+    (hne : K.Nonempty) {u w : Pt} (h : u +ᵥ K = w +ᵥ K) : u = w := by
+  have hδ : (u - w) +ᵥ K = K := by
+    have := congrArg (fun S => (-w) +ᵥ S) h
+    simpa [vadd_vadd, sub_eq_neg_add, add_comm] using this
+  obtain ⟨x, hx, hmax⟩ := hK.exists_isMaxOn hne
+    ((continuous_const.inner continuous_id : Continuous fun y : Pt => inner ℝ (u - w) y).continuousOn)
+  have hmem : (u - w) + x ∈ K := by
+    rw [← hδ]; exact ⟨x, hx, rfl⟩
+  have := hmax hmem
+  simp only [mem_setOf_eq, inner_add_right, real_inner_self_eq_norm_sq] at this
+  have h0 : ‖u - w‖ ^ 2 ≤ 0 := by linarith
+  have : ‖u - w‖ = 0 := by nlinarith [norm_nonneg (u - w)]
+  exact sub_eq_zero.mp (norm_eq_zero.mp this)
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "the central child has the parent's own
+disk"; if the listed sides of one disk, translated by `u` and reindexed surjectively, are the listed sides of the same disk
+translated by `w`, then `u = w`. -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_anchor_eq {Z Y : PolygonalDisk} (hZY : Z = Y)
+    {ι : Type*} (f : ι → Fin Z.n) (hf : Function.Surjective f) {u w : Pt}
+    (h : Set.range (fun i => u +ᵥ Z.side (f i)) = Set.range (fun j => w +ᵥ Y.side j)) : u = w := by
+  subst hZY
+  have hU : (⋃ k, Z.side k) = frontier Z.carrier := Z.frontier_eq.symm
+  apply existsMacroCertificate_seed2_routing_step8_g5_step9_vadd_cancel (K := ⋃ k, Z.side k)
+  · rw [hU]
+    exact Z.compact.of_isClosed_subset isClosed_frontier
+      (frontier_subset_closure.trans Z.compact.isClosed.closure_subset)
+  · exact ⟨Z.vertex ⟨0, by have := Z.three_le; omega⟩,
+      mem_iUnion.2 ⟨_, left_mem_segment ℝ _ _⟩⟩
+  · have h2 := congrArg sUnion h
+    simp only [sUnion_range] at h2
+    rw [Set.vadd_set_iUnion, Set.vadd_set_iUnion, ← h2]
+    exact (hf.iUnion_comp (fun k => u +ᵥ Z.side k)).symm
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "the print map is the identity on its
+marked sides"; equal translated listed sides of equal disks have equal indices. -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_side_index {Z Y : PolygonalDisk} (hZY : Z = Y)
+    (u : Pt) (i : Fin Z.n) (j : Fin Y.n) (h : u +ᵥ Z.side i = u +ᵥ Y.side j) : (i : ℕ) = j := by
+  subst hZY
+  have h' : Z.side i = Z.side j := by simpa [vadd_vadd] using congrArg (fun S => (-u) +ᵥ S) h
+  rw [cyc_seg_inj Z.three_le Z.vertex_injective h']
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "For a retained large form `α = c^l β`,
+`c^l α = c^{2l} β = c^l β = α`. Thus the central form is fixed." -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_central_fixes (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) (α : cd.D.Q.Form)
+    (hk : cd.D.kind α = .large) : cd.D.form (cd.D.central α) = α := by
+  obtain ⟨β, hβ⟩ := (cd.kind_large α).1 hk
+  apply cd.catalogue_form_injective
+  rw [← cd.child_form, cd.central_form, hβ, cd.base_form α _ hβ, ← Function.iterate_add_apply, ← two_mul,
+    cd.central_idempotent]
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "The central child belongs to its
+template and is its unique large child." -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_large_iff (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) (t : cd.D.Typ) :
+    cd.D.kind (cd.D.form t) = .large ↔ t = cd.D.central (cd.D.owner t) := by
+  constructor
+  · intro hk
+    obtain ⟨β, hβ⟩ := (cd.kind_large _).1 hk
+    have hmem : cd.templateChild t ∈ (s.setup.retained l (cd.baseForm (cd.D.owner t))).children.tiles :=
+      (cd.child_bijective (cd.D.owner t)).mapsTo (show t ∈ {u | cd.D.owner u = cd.D.owner t} from rfl)
+    by_contra hne
+    have hX : cd.templateChild t ≠ s.setup.central l (cd.baseForm (cd.D.owner t)) := by
+      intro hX
+      apply hne
+      apply (cd.child_bijective (cd.D.owner t)).injOn
+        (show t ∈ {u | cd.D.owner u = cd.D.owner t} from rfl)
+        (show cd.D.central (cd.D.owner t) ∈ {u | cd.D.owner u = cd.D.owner t} from cd.central_owner _)
+      rw [hX, cd.central_child]
+    obtain ⟨m, hm⟩ : ∃ m, l = m + 1 := ⟨l - 1, by have := cd.l_pos; omega⟩
+    apply s.noncentral_not_large l _ cd.l_pos _ hmem hX (s.setup.c^[m] β)
+    rw [cd.child_form, hβ, hm, Function.iterate_succ_apply']
+  · intro ht
+    rw [ht]
+    apply (cd.kind_large _).2
+    exact ⟨cd.baseForm (cd.D.owner t), by rw [← cd.child_form, cd.central_form]⟩
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "the print map is the identity on its
+marked sides (the central child has the parent's own disk)", from `RoutingData.print_id`. -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_print_id (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) (α : cd.D.Q.Form) (d : Fin (cd.D.Q.disk α).n)
+    (hk : cd.D.kind α = .large) (hm : cd.D.marked α d) : (cd.D.print α d).val = d.val := by
+  obtain ⟨β, hβ⟩ := (cd.kind_large α).1 hk
+  have hB : cd.baseForm α = s.setup.c^[l] β := cd.base_form α _ hβ
+  have hfix : s.setup.c^[l] (cd.baseForm α) = cd.baseForm α := by
+    rw [hB, ← Function.iterate_add_apply, ← two_mul, cd.central_idempotent]
+  have hfc : cd.D.form (cd.D.central α) = α :=
+    existsMacroCertificate_seed2_routing_step8_g5_step9_central_fixes τ g s l routing cd α hk
+  have hθ : cd.D.σ.θ = τ.θ ^ (s.setup.GS.k * l) := by
+    rw [cd.rep.θ_eq, s.setup_grouped, g.grouped_power]
+  have hθpos : (τ.θ ^ (s.setup.GS.k * l)) ≠ 0 := (pow_pos (lt_trans zero_lt_one τ.one_lt) _).ne'
+  have hQside : ∀ α' (j : Fin (cd.D.Q.disk α').n), (cd.D.Q.disk α').side j =
+      (s.setup.GS.G.P'.disk (cd.baseForm α')).side (cd.parentSide α' j) := by
+    intro α' j
+    have h := cd.parent_side_geometry α' j
+    rw [MacroData.macroSide, hθ] at h
+    simpa [smul_smul, hθpos] using congrArg (fun S => (τ.θ ^ (s.setup.GS.k * l))⁻¹ • S) h
+  have hZY : s.setup.GS.G.P'.disk (cd.baseForm (cd.D.form (cd.D.central α))) =
+      s.setup.GS.G.mixed.disk (s.setup.central l (cd.baseForm α)).form := by
+    rw [s.setup.central_form, hfc]
+    exact congrArg s.setup.GS.G.P'.disk hfix.symm
+  have hside_occ : ∀ j : Fin (cd.D.Q.disk (cd.D.form (cd.D.central α))).n,
+      cd.D.occSide ⟨cd.D.central α, j⟩ = cd.D.anchor (cd.D.central α) +ᵥ
+        (s.setup.GS.G.P'.disk (cd.baseForm (cd.D.form (cd.D.central α)))).side
+          (cd.parentSide (cd.D.form (cd.D.central α)) j) := by
+    intro j
+    rw [← hQside]
+    rfl
+  have hanchor : cd.D.anchor (cd.D.central α) = (s.setup.central l (cd.baseForm α)).anchor := by
+    apply existsMacroCertificate_seed2_routing_step8_g5_step9_anchor_eq hZY
+      (cd.parentSide (cd.D.form (cd.D.central α))) (cd.parentSide_bijective _).2
+    have h := cd.child_sideSet (cd.D.central α)
+    rw [cd.central_child] at h
+    refine Eq.trans ?_ (h.trans rfl)
+    congr 1
+    funext i
+    exact (hside_occ i).symm
+  have hpr := cd.print_from_routing α d
+  rw [show cd.D.printOcc α d = ⟨cd.D.central α, cd.D.print α d⟩ from rfl, hside_occ, hanchor] at hpr
+  have hv := existsMacroCertificate_seed2_routing_step8_g5_step9_side_index hZY _ _ _ hpr
+  have hid := (routing (cd.baseForm α)).print_id
+    (by rw [s.setup.central_form]; exact congrArg s.setup.GS.G.P'.disk hfix)
+    (cd.parentSide α d) ((cd.marked_from_setup α d).1 hm)
+  have hC : ∀ α' α'' (_h : α' = α'') (j : Fin (cd.D.Q.disk α').n) (e : Fin (cd.D.Q.disk α'').n),
+      (cd.parentSide α' j : ℕ) = cd.parentSide α'' e → (j : ℕ) = e := by
+    intro α' α'' h
+    subst h
+    intro j e hv
+    rw [cd.parentSide_injective _ (Fin.ext hv)]
+  exact hC _ _ hfc _ _ (hv.trans hid)
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: the marked sides of a form correspond,
+through the bijection `parentSide`, to the marked sides of its grouped base form. -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_card_marked (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) (α : cd.D.Q.Form) :
+    Nat.card {d // cd.D.marked α d} = (s.setup.markedSides (cd.baseForm α)).card := by
+  rw [← Nat.card_eq_finsetCard]
+  apply Nat.card_congr
+  refine Equiv.ofBijective (fun d => ⟨cd.parentSide α d.1, (cd.marked_from_setup α d.1).1 d.2⟩) ⟨?_, ?_⟩
+  · intro d e hde
+    exact Subtype.ext (cd.parentSide_injective α (congrArg Subtype.val hde))
+  · rintro ⟨a, ha⟩
+    obtain ⟨d, hd⟩ := (cd.parentSide_bijective α).2 a
+    exact ⟨⟨d, (cd.marked_from_setup α d).2 (hd ▸ ha)⟩, Subtype.ext hd⟩
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "A large form has exactly `4N` marked
+sides (Step 3)". -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_card_large (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) (α : cd.D.Q.Form)
+    (hk : cd.D.kind α = .large) : Nat.card {d // cd.D.marked α d} = 4 * cd.D.N := by
+  obtain ⟨β, hβ⟩ := (cd.kind_large α).1 hk
+  obtain ⟨m, hm⟩ : ∃ m, l = m + 1 := ⟨l - 1, by have := cd.l_pos; omega⟩
+  rw [existsMacroCertificate_seed2_routing_step8_g5_step9_card_marked τ g s l routing cd α,
+    cd.base_form α _ hβ, cd.N_eq, hm, Function.iterate_succ_apply']
+  exact s.marked_large_card _
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step8_g5`: "a non-large form has at most `Q`
+marked sides, because ... an annular piece has at most `Q` sides while an original tile has at most `K₀ ≤ Q` sides". -/
+private lemma existsMacroCertificate_seed2_routing_step8_g5_step9_card_small (τ : Substitution P)
+    (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) (α : cd.D.Q.Form)
+    (hk : cd.D.kind α ≠ .large) : Nat.card {d // cd.D.marked α d} ≤ cd.D.Qmax := by
+  have h1 : Nat.card {d // cd.D.marked α d} ≤ (cd.D.Q.disk α).n := by
+    simpa using Finite.card_subtype_le (fun d : Fin (cd.D.Q.disk α).n => cd.D.marked α d)
+  have h2 : (cd.D.Q.disk α).n = (s.setup.GS.G.P'.disk (cd.baseForm α)).n := by
+    simpa using Fintype.card_of_bijective (cd.parentSide_bijective α)
+  have h3 : (s.setup.GS.G.P'.disk (cd.baseForm α)).n ≤ g.Qmax := by
+    cases hkα : cd.D.kind α with
+    | large => exact (hk hkα).elim
+    | small =>
+      obtain ⟨β, γ, X, hX, hXc, hXf, hγ⟩ := (cd.kind_small α).1 hkα
+      rw [cd.base_form α γ hγ]
+      exact s.sides_le_Qmax_child l β cd.l_pos X hX hXc γ hXf
+    | original =>
+      obtain ⟨p, hp⟩ := (cd.kind_original α).1 hkα
+      have hα : α = cd.originalForm p := cd.catalogue_form_injective _ _ (by rw [hp, cd.original_tile])
+      subst hα
+      exact s.sides_le_Qmax_singleton _ p (cd.base_original p)
+  rw [cd.Qmax_eq]
+  omega
+
 /-- Step 9 of `lem:certificate-exists`, (G5): the central child belongs to its template
 (`central_owner`) and is its unique large child (`kind_large`, `child_form`, `child_bijective`,
 `SetupSeed.noncentral_not_large`); `central_fixes_large` from `base_form`, `catalogue_form_injective`
@@ -5519,7 +5726,17 @@ private lemma existsMacroCertificate_seed2_routing_step8_g5 (τ : Substitution P
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G5Data cd.D := by
-  sorry
+  exact
+  { central_owner := cd.central_owner
+    large_iff := existsMacroCertificate_seed2_routing_step8_g5_step9_large_iff τ g s l routing cd
+    central_fixes_large := existsMacroCertificate_seed2_routing_step8_g5_step9_central_fixes τ g s l routing cd
+    print_id_large := existsMacroCertificate_seed2_routing_step8_g5_step9_print_id τ g s l routing cd
+    card_marked_large := existsMacroCertificate_seed2_routing_step8_g5_step9_card_large τ g s l routing cd
+    card_marked_small := existsMacroCertificate_seed2_routing_step8_g5_step9_card_small τ g s l routing cd
+    three_Q_lt := by rw [cd.Qmax_eq, cd.N_eq]; exact g.N_dominates
+    original_marked := fun t ht => by
+      obtain ⟨i, hi⟩ := (existsMacroCertificate_seed2_routing_step4_g1 τ g s l routing cd).inner_side t
+      exact ⟨i, hi, cd.marked_rule_nonlarge _ (Or.inl (by simp [ht]))⟩ }
 
 private noncomputable def existsMacroCertificate_seed2_routing_step9_g6_ordinary (D : MacroData P)
     (t : D.Typ) : Multiset D.Typ := by

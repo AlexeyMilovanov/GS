@@ -4278,6 +4278,209 @@ private noncomputable def emcdMacroData (τ : Substitution P) (h : τ.STS)
     rankBound := emcdGeometricRankBound S }
 
 
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+"every original form is a singleton": a grouped form scattering to the single tile `⟨p, 0⟩` has the
+carrier of the original form `p`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_singleton_carrier
+    (G : GroupedFamily P) (x : G.P'.Form) (p : P.Form) (hx : (G.dissect x).tiles = {⟨p, 0⟩}) :
+    (G.P'.disk x).carrier = (P.disk p).carrier := by
+  rw [← G.support_eq x, hx, emcg_support_singleton_zero]
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+"every original form is a singleton": a grouped form scattering to the single tile `⟨p, 0⟩` has the
+listed vertex set of the original form `p` (its sides are whole sides of `p`, and it retains every
+vertex of `p`). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_singleton_vertexSet
+    (G : GroupedFamily P) (x : G.P'.Form) (p : P.Form) (hx : (G.dissect x).tiles = {⟨p, 0⟩}) :
+    (G.P'.disk x).vertexSet = (P.disk p).vertexSet := by
+  have hcar :=
+    existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_singleton_carrier G x p hx
+  apply Set.Subset.antisymm
+  · rintro _ ⟨j, rfl⟩
+    obtain ⟨A, hA, i, hi⟩ := G.side_whole x j
+    rw [hx, Set.mem_singleton_iff] at hA
+    subst hA
+    have hseg : segment ℝ ((P.disk p).vertex i) ((P.disk p).vertex (finRotate _ i)) =
+        segment ℝ ((G.P'.disk x).vertex j) ((G.P'.disk x).vertex (finRotate _ j)) := by
+      simpa [PlacedTile.side, PolygonalDisk.side] using hi
+    rcases emcg_segment_endpoints hseg with ⟨h1, _⟩ | ⟨_, h1⟩
+    · exact ⟨i, h1⟩
+    · exact ⟨_, h1⟩
+  · rintro _ ⟨i, rfl⟩
+    apply G.vertex_retained x
+    · rw [hx]
+      exact ⟨⟨p, 0⟩, rfl, i, by simp [PlacedTile.vertex]⟩
+    · rw [hcar, (P.disk p).frontier_eq]
+      exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+"every original form is a singleton": the base grouped form of the catalogue entry of an original
+form `p` scatters to the single tile `⟨p, 0⟩` (transport of `g.original_dissect`). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_original
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (p : P.Form) :
+    (s.setup.GS.G.dissect (emcdBaseForm g s l (emcdOriginalForm g s l p))).tiles = {⟨p, 0⟩} := by
+  have key : ∀ (GS1 GS2 : GroupedSubstitution τ) (e : GS1 = GS2) (x : GS2.G.P'.Form),
+      (GS1.G.dissect (e.symm ▸ x)).tiles = (GS2.G.dissect x).tiles := by
+    rintro _ _ rfl x
+    rfl
+  have h := key _ _ s.setup_grouped (g.original p)
+  rw [g.original_dissect] at h
+  exact h
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+a set of tiles whose support contains two points further apart than the mesh diameter `D` has at
+least two tiles. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_nontrivial_of_far
+    (M : MeshConstants P) {S : Set (PlacedTile P)} {x y : Pt}
+    (hx : x ∈ support S) (hy : y ∈ support S) (hxy : M.D < dist x y) : S.Nontrivial := by
+  simp only [support, Set.mem_iUnion, exists_prop] at hx hy
+  obtain ⟨A, hA, hxA⟩ := hx
+  obtain ⟨B, hB, hyB⟩ := hy
+  refine ⟨A, hA, B, hB, ?_⟩
+  rintro rfl
+  obtain ⟨x', hx', rfl⟩ := hxA
+  obtain ⟨y', hy', rfl⟩ := hyB
+  have h1 : dist x' y' ≤ M.D :=
+    (Metric.dist_le_diam_of_mem (P.disk A.form).compact.isBounded hx' hy').trans (M.diam_le _)
+  simp only [vadd_eq_add, dist_add_left] at hxy
+  linarith
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+the inside-anchored group `L` of an annular grouping contains the square `Q₀` of half side
+`NR/2 ≥ R > D`, so it has at least two faces. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_L_nontrivial
+    {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S c N R) (hN : 2 ≤ N) (hR : M.D < R) : G.L.faces.Nontrivial := by
+  have hD := M.D_pos
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hR0 : 0 ≤ R := by linarith
+  have hpos : 0 ≤ (N : ℝ) * R / 2 := by positivity
+  apply existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_nontrivial_of_far M
+    (x := c) (y := c + mkPt ((N : ℝ) * R / 2) 0)
+  · rw [← G.L.carrier_eq]
+    exact G.L_lower ⟨by simpa using hpos, by simpa using hpos⟩
+  · rw [← G.L.carrier_eq]
+    exact G.L_lower ⟨by simp [mkPt, abs_of_nonneg hpos], by simp [mkPt]; positivity⟩
+  · rw [dist_self_add_right]
+    have : ‖mkPt ((N : ℝ) * R / 2) 0‖ = (N : ℝ) * R / 2 := by
+      rw [EuclideanSpace.norm_eq]
+      simp [mkPt, Real.sqrt_sq_eq_abs, abs_of_nonneg hpos]
+    rw [this]
+    nlinarith
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+an annular piece with more than `K₀` private outer edges has at least two faces (a single face has
+at most `K₀` sides). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_piece_nontrivial
+    {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S c N R) (j : Fin (4 * N))
+    (hcount : (M.K0 : ℝ) + 1 ≤ ((privateOuterEdges G j).ncard : ℝ)) :
+    (G.spokes.piece j).faces.Nontrivial := by
+  by_contra hnt
+  rw [Set.not_nontrivial_iff] at hnt
+  have hcount' : M.K0 + 1 ≤ (privateOuterEdges G j).ncard := by exact_mod_cast hcount
+  obtain ⟨e0, he0⟩ : (privateOuterEdges G j).Nonempty := by
+    rw [Set.nonempty_iff_ne_empty]
+    intro h
+    rw [h, Set.ncard_empty] at hcount'
+    omega
+  obtain ⟨A, hA, -⟩ := he0.1
+  have hsub : privateOuterEdges G j ⊆ Set.range A.side := by
+    intro e he
+    obtain ⟨B, hB, i, hi⟩ := he.1
+    obtain rfl := hnt hB hA
+    exact ⟨i, hi⟩
+  have h1 := Set.ncard_le_ncard hsub (Set.finite_range _)
+  have h2 : (Set.range A.side).ncard ≤ (P.disk A.form).n := by
+    rw [← Set.image_univ]
+    refine (Set.ncard_image_le (Set.finite_univ)).trans ?_
+    simp
+  have h3 := M.sides_le A.form
+  omega
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+a retained central large form `c^l β` (`l > 0`) is a large catalogue group `L_p`, which is not a
+singleton. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_large_nontrivial
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l) (β : s.setup.GS.G.P'.Form) :
+    (s.setup.GS.G.dissect (s.setup.c^[l] β)).tiles.Nontrivial := by
+  obtain ⟨m, rfl⟩ : ∃ m, l = m + 1 := ⟨l - 1, by omega⟩
+  rw [Function.iterate_succ_apply']
+  obtain ⟨p, hp⟩ := s.central_large (s.setup.c^[m] β)
+  rw [hp]
+  have hD := g.M.D_pos
+  have hK : (0 : ℝ) ≤ g.M.K0 := Nat.cast_nonneg _
+  have hR := g.R_routes
+  exact existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_L_nontrivial
+    (g.annular p) g.N_two (by nlinarith)
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+the form of a non-central grouped child of a retained template (`l > 0`) scatters to a translate of
+an annular piece of the catalogue, which has at least `K₀ + 2` private outer edges and hence is
+not a singleton. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_small_nontrivial
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l) (β γ : s.setup.GS.G.P'.Form)
+    (X : PlacedTile s.setup.GS.G.mixed) (hX : X ∈ (s.setup.retained l β).children.tiles)
+    (hXc : X ≠ s.setup.central l β) (hXf : X.form = Sum.inl γ) :
+    (s.setup.GS.G.dissect γ).tiles.Nontrivial := by
+  obtain ⟨j, hj⟩ := s.setup.small_scatter l β hl X hX hXc ⟨γ, hXf⟩
+  obtain ⟨p, v, -, hpiece⟩ := s.annulus_catalogue l β hl
+  obtain ⟨j', -, hj'⟩ := hpiece j
+  have hsc : s.setup.GS.G.mixedScatterTile X =
+      translateSet X.anchor (s.setup.GS.G.dissect γ).tiles := by
+    simp [GroupedFamily.mixedScatterTile, hXf]
+  have hnt : ((g.annular p).spokes.piece j').faces.Nontrivial := by
+    apply existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_piece_nontrivial
+    have h1 := (g.annular_quantitative p).2.1 j'
+    have h2 := g.private_edges
+    linarith
+  have ht : (translateSet X.anchor (s.setup.GS.G.dissect γ).tiles).Nontrivial := by
+    rw [← hsc, hj, hj']
+    exact hnt.image (emcg_translate_injective v)
+  exact Set.nontrivial_of_image _ _ ht
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+distinct non-singleton grouped forms of the routing setup have distinct disks
+(`g.grouped_disks_distinct`, transported along `s.setup_grouped`). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_disks_distinct
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (α β : s.setup.GS.G.P'.Form)
+    (hα : (s.setup.GS.G.dissect α).tiles.Nontrivial) (hβ : (s.setup.GS.G.dissect β).tiles.Nontrivial)
+    (hd : s.setup.GS.G.P'.disk α = s.setup.GS.G.P'.disk β) : α = β := by
+  have key := g.grouped_disks_distinct
+  rw [← s.setup_grouped] at key
+  exact key α β hα hβ hd
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+"a type is large, small or original according as its form is a central image, an annular piece or
+an original singleton": a retained form which is not original is a grouped form `Sum.inl γ` whose
+group is not a singleton. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_nonoriginal
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l) (α : emcdForm g s l)
+    (hα : emcdKind g s l α ≠ .original) :
+    ∃ γ, α.1 = Sum.inl γ ∧ (s.setup.GS.G.dissect γ).tiles.Nontrivial := by
+  obtain ⟨μ, hμ⟩ := α
+  rcases hμ with ⟨p, rfl⟩ | ⟨β, rfl⟩ | ⟨β, γ, X, hX, hXc, hXf, rfl⟩
+  · exact absurd (by unfold emcdKind; rw [if_pos ⟨p, rfl⟩]) hα
+  · exact ⟨_, rfl,
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_large_nontrivial g s l hl β⟩
+  · exact ⟨γ, rfl, existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_small_nontrivial
+      g s l hl β γ X hX hXc hXf⟩
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue`:
+the base form of a grouped catalogue form `Sum.inl β` is `β`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (α : emcdForm g s l)
+    (β : s.setup.GS.G.P'.Form) (h : α.1 = Sum.inl β) : emcdBaseForm g s l α = β := by
+  obtain ⟨μ, hμ⟩ := α
+  subst h
+  rfl
+
 /-- Step 4 of `lem:certificate-exists`: the catalogue, disk, dissection, and kind equations for
 `emcdMacroData`: each retained form has the carrier and vertex set of its catalogue tile,
 counterclockwise orientation (`s.setup.parent_ccw`), scattering patch equal to `mixedScatterTile`,
@@ -4314,7 +4517,88 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue
     (∀ p, (s.setup.GS.G.dissect (emcdBaseForm g s l (emcdOriginalForm g s l p))).tiles =
       {⟨p, 0⟩}) ∧
     ∀ α β, (emcdCatalogueTile g s l α).form = (emcdCatalogueTile g s l β).form → α = β := by
-  sorry
+  intro D
+  have hbase := existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_original g s l
+  have hkind_o : ∀ α : emcdForm g s l, emcdKind g s l α = .original ↔ ∃ p, α.1 = Sum.inr p := by
+    intro α
+    unfold emcdKind
+    split_ifs with h1 h2 <;> simp_all
+  have hkind_l : ∀ α : emcdForm g s l, emcdKind g s l α = .large ↔
+      ∃ β, α.1 = Sum.inl (s.setup.c^[l] β) := by
+    intro α
+    unfold emcdKind
+    split_ifs with h1 h2
+    · obtain ⟨p, hp⟩ := h1
+      simp [hp]
+    · simpa using h2
+    · simpa using h2
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · rintro ⟨μ | p, hμ⟩
+    · show (s.setup.GS.G.P'.disk μ).carrier = (0 : Pt) +ᵥ (s.setup.GS.G.P'.disk μ).carrier
+      rw [zero_vadd]
+    · show (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdOriginalForm g s l p))).carrier =
+        (0 : Pt) +ᵥ (P.disk p).carrier
+      rw [zero_vadd]
+      exact existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_singleton_carrier
+        _ _ p (hbase p)
+  · rintro ⟨μ | p, hμ⟩
+    · show (s.setup.GS.G.P'.disk μ).vertexSet = (pdTranslate (s.setup.GS.G.P'.disk μ) 0).vertexSet
+      simp [pdTranslate, PolygonalDisk.vertexSet]
+    · show (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdOriginalForm g s l p))).vertexSet =
+        (pdTranslate (P.disk p) 0).vertexSet
+      rw [existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_singleton_vertexSet
+        _ _ p (hbase p)]
+      simp [pdTranslate, PolygonalDisk.vertexSet]
+  · intro α
+    exact s.setup.parent_ccw _
+  · rintro ⟨μ | p, hμ⟩
+    · show (s.setup.GS.G.dissect μ).tiles = translateSet 0 (s.setup.GS.G.dissect μ).tiles
+      rw [emcg_translateSet_zero]
+    · exact hbase p
+  · intro p
+    rfl
+  · exact hbase
+  · rintro ⟨μ, hμ⟩ ⟨ν, hν⟩ h
+    simp only [emcdCatalogueTile, PlacedTile.mk.injEq, and_true] at h
+    exact Subtype.ext h
+  · intro α β hα hβ hd
+    obtain ⟨γ, hγ, hγn⟩ :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_nonoriginal g s l hl α hα
+    obtain ⟨γ', hγ', hγn'⟩ :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_nonoriginal g s l hl β hβ
+    have hd' : s.setup.GS.G.P'.disk γ = s.setup.GS.G.P'.disk γ' := by
+      rw [← existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l α γ hγ,
+        ← existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l β γ' hγ']
+      exact hd
+    have := existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_disks_distinct g s
+      γ γ' hγn hγn' hd'
+    exact Subtype.ext (hγ.trans (this ▸ hγ'.symm))
+  · exact hkind_o
+  · exact hkind_l
+  · intro α
+    have hs : D.kind α = .small ↔ emcdKind g s l α ≠ .original ∧ emcdKind g s l α ≠ .large := by
+      show emcdKind g s l α = .small ↔ _
+      cases emcdKind g s l α <;> simp
+    rw [hs, Ne, Ne, hkind_o, hkind_l]
+    show _ ↔ ∃ β γ X, X ∈ (s.setup.retained l β).children.tiles ∧ X ≠ s.setup.central l β ∧
+      X.form = Sum.inl γ ∧ α.1 = Sum.inl γ
+    obtain ⟨μ, hμ⟩ := α
+    constructor
+    · rintro ⟨h1, h2⟩
+      rcases hμ with ⟨p, rfl⟩ | ⟨β, rfl⟩ | h
+      · exact absurd ⟨p, rfl⟩ h1
+      · exact absurd ⟨β, rfl⟩ h2
+      · exact h
+    · rintro ⟨β, γ, X, hX, hXc, hXf, rfl⟩
+      refine ⟨fun ⟨p, hp⟩ => (by cases hp), fun ⟨β', hβ'⟩ => ?_⟩
+      have hγ : γ = s.setup.c^[l] β' := Sum.inl_injective hβ'
+      obtain ⟨m, rfl⟩ : ∃ m, l = m + 1 := ⟨l - 1, by omega⟩
+      rw [Function.iterate_succ_apply'] at hγ
+      exact s.noncentral_not_large (m + 1) β hl X hX hXc _ (hXf.trans (congrArg Sum.inl hγ))
+  · exact existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l
+  · exact hbase
+  · rintro ⟨μ, hμ⟩ ⟨ν, hν⟩ h
+    exact Subtype.ext h
 
 /-- Step 4 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: `D.σ` satisfies

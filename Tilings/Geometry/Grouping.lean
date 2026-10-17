@@ -2927,6 +2927,38 @@ private def emcdParentSide {τ : Substitution P} (g : existsMacroCertificate_Gro
     Fin ((emcdQ g s l).disk α).n → Fin (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).n :=
   id
 
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub1_macroData`:
+"each with its disk relisted counterclockwise and translated to the origin": the disk of a
+retained catalogue form has the same carrier as the mixed disk of its mixed form (for an original
+singleton because the singleton group has the original tile as its scattering). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub1_macroData_step4_carrier
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (μ : s.setup.GS.G.mixed.Form)
+    (hμ : emcdIsRetainedForm g s l μ) :
+    ((emcdQ g s l).disk ⟨μ, hμ⟩).carrier = (s.setup.GS.G.mixed.disk μ).carrier := by
+  rcases μ with γ | p
+  · rfl
+  · show (s.setup.GS.G.P'.disk (s.setup_grouped.symm ▸ g.original p)).carrier = (P.disk p).carrier
+    have key : ∀ (GS : GroupedSubstitution τ) (e : GS = g.GS),
+        (GS.G.P'.disk (e.symm ▸ g.original p)).carrier = (P.disk p).carrier := by
+      intro GS e
+      subst e
+      rw [← g.GS.G.support_eq, g.original_dissect]
+      simp [support, PlacedTile.carrier]
+    exact key _ s.setup_grouped
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub1_macroData`:
+"The types are the positioned children of the retained templates; the owner of a type is its
+template and its anchor is its position": the relabelled child of a type has the carrier of the
+template child. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub1_macroData_step4_childCarrier
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (t : emcdTyp g s l) :
+    (⟨emcdChildForm g s l t, emcdAnchor g s l t⟩ : PlacedTile (emcdQ g s l)).carrier =
+      t.2.1.carrier := by
+  simp only [PlacedTile.carrier, emcdAnchor, emcdChildForm]
+  rw [existsMacroCertificate_seed2_routing_step3_data_sub1_macroData_step4_carrier]
+
 /-- Relabel the retained template as a substitution on the retained catalogue.  This
 choice specifies only the substitution; all finite certificate maps are constructed below. -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub1_macroData
@@ -2940,7 +2972,51 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub1_macroData
       ∀ α, (σ.rule α).tiles =
         (fun t => (⟨emcdChildForm g s l t, emcdAnchor g s l t⟩ : PlacedTile (emcdQ g s l))) ''
           {t | emcdOwner g s l t = α} := by
-  sorry
+  have hk : s.setup.GS.k = g.k := by rw [s.setup_grouped, g.grouped_power]
+  let F : emcdTyp g s l → PlacedTile (emcdQ g s l) :=
+    fun t => ⟨emcdChildForm g s l t, emcdAnchor g s l t⟩
+  have hF := existsMacroCertificate_seed2_routing_step3_data_sub1_macroData_step4_childCarrier g s l
+  have hown : ∀ α : emcdForm g s l, {t | emcdOwner g s l t = α} =
+      (fun X => (⟨α, X⟩ : emcdTyp g s l)) '' Set.univ := by
+    intro α
+    ext ⟨β, X⟩
+    simp only [Set.mem_setOf_eq, emcdOwner, Set.image_univ, Set.mem_range]
+    constructor
+    · rintro rfl; exact ⟨X, rfl⟩
+    · rintro ⟨Y, hY⟩; cases hY; rfl
+  refine ⟨⟨τ.θ ^ (g.k * l), one_lt_pow₀ τ.one_lt (Nat.mul_ne_zero g.k_pos.ne' hl.ne'),
+    fun α => ⟨F '' {t | emcdOwner g s l t = α}, ?_, ?_⟩, ?_⟩, rfl, fun α => rfl⟩
+  · rw [hown]
+    have : Finite {X : PlacedTile s.setup.GS.G.mixed //
+        X ∈ (s.setup.retained l (emcdBaseForm g s l α)).children.tiles} :=
+      (s.setup.retained l (emcdBaseForm g s l α)).children.finite.to_subtype
+    exact (Set.finite_univ.image _).image _
+  · rw [hown]
+    rintro _ ⟨_, ⟨X, -, rfl⟩, rfl⟩ _ ⟨_, ⟨Y, -, rfl⟩, rfl⟩ hne
+    have hXY : X.1 ≠ Y.1 := by
+      intro e
+      apply hne
+      have : X = Y := Subtype.ext e
+      subst this
+      rfl
+    show Disjoint (interior (F ⟨α, X⟩).carrier) (interior (F ⟨α, Y⟩).carrier)
+    rw [hF, hF]
+    exact (s.setup.retained l (emcdBaseForm g s l α)).children.disjoint X.2 Y.2 hXY
+  · intro α
+    show support (F '' {t | emcdOwner g s l t = α}) = _
+    rw [hown, ← hk]
+    have hreg := (s.setup.retained l (emcdBaseForm g s l α)).support_eq
+    rw [s.setup.region_eq] at hreg
+    show _ = (τ.θ ^ (s.setup.GS.k * l)) • (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).carrier
+    rw [← hreg]
+    ext x
+    simp only [support, Set.mem_iUnion, Set.image_univ, Set.mem_image, Set.mem_range,
+      exists_prop]
+    constructor
+    · rintro ⟨_, ⟨_, ⟨X, rfl⟩, rfl⟩, hx⟩
+      exact ⟨X.1, X.2, by rw [hF ⟨α, X⟩] at hx; exact hx⟩
+    · rintro ⟨X, hX, hx⟩
+      exact ⟨F ⟨α, ⟨X, hX⟩⟩, ⟨_, ⟨⟨X, hX⟩, rfl⟩, rfl⟩, by rw [hF ⟨α, ⟨X, hX⟩⟩]; exact hx⟩
 
 /-- The other occurrence of the same geometric side in the same template.  The
 fallback is used only when there is no opposite occurrence (in particular on outer sides).

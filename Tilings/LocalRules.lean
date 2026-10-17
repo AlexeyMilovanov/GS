@@ -1,4 +1,5 @@
 import Tilings.Alignment
+import Tilings.Control.Composition
 
 /-!
 # Local-rule transfers and the hereditary STS core (statements only)
@@ -3129,11 +3130,56 @@ theorem Core.hereditary_sts_substitution_sofic (τ : Substitution P) (hsts : τ.
     (hher : τ.HereditarySides) : IsSideToSideSofic {T | τ.IsSubstitutionTiling T} := by
   sorry
 
+/-! ### The hereditary STS hierarchy assembly steps -/
+
+/-- Step 1 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: the repaired
+control presentation makes the grouped hierarchical family sofic once every grouped
+hierarchy has side-to-side finite supertiles. -/
+private theorem hereditary_sts_hierarchy_sofic_step1_control
+    (C : Geometry.MacroCertificate P) (hH : C.Hereditary)
+    (hsts : ∀ T : PlaneTiling C.Q, C.σ.IsHierarchical T →
+      ∃ seq : ℕ → PlaneTiling C.Q, seq 0 = T ∧
+        (∀ n, C.σ.IsComposition (seq (n + 1)) (seq n)) ∧
+        Planned.HierarchySupertilesSTS C seq) :
+    IsSofic {T : PlaneTiling C.Q | C.σ.IsHierarchical T} := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: the STS
+certificate supplies the side-to-side-supertiling instantiation needed by the
+repaired hierarchy lift for every grouped hierarchy. -/
+private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts
+    (τ : Substitution P) (hτ : τ.STS) :
+    ∃ (C : Geometry.MacroCertificate P) (m : ℕ), C.Represents τ m ∧
+      ∀ T : PlaneTiling C.Q, C.σ.IsHierarchical T →
+        ∃ seq : ℕ → PlaneTiling C.Q, seq 0 = T ∧
+          (∀ n, C.σ.IsComposition (seq (n + 1)) (seq n)) ∧
+          Planned.HierarchySupertilesSTS C seq := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: grouping,
+scattering, and the positive-power hierarchy equivalence identify the scattered
+grouped family with the original hierarchical family. -/
+private theorem hereditary_sts_hierarchy_sofic_step3_power_scatter
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) :
+    Geometry.GroupedFamily.scatterFamily
+        (Geometry.MacroCertificate.Represents.groupedFamily hC)
+        {T : PlaneTiling C.Q | C.σ.IsHierarchical T} =
+      {T : PlaneTiling P | τ.IsHierarchical T} := by
+  sorry
+
 /-- `thm:hereditary-hierarchy`: an STS substitution with hereditary listed
 sides has a sofic family of hierarchical plane tilings. -/
 theorem Core.hereditary_sts_hierarchy_sofic (τ : Substitution P) (hsts : τ.STS)
     (hher : τ.HereditarySides) : IsSofic {T | τ.IsHierarchical T} := by
-  sorry
+  obtain ⟨C, m, hC, hstsC⟩ :=
+    hereditary_sts_hierarchy_sofic_step2_certificate_sts τ hsts
+  have hH : C.Hereditary := hC.hereditary hher
+  have hF := hereditary_sts_hierarchy_sofic_step1_control C hH hstsC
+  have hscatter := Decoration.dissection_preserves_sofic
+    (Geometry.MacroCertificate.Represents.groupedFamily hC) hF
+  rw [hereditary_sts_hierarchy_sofic_step3_power_scatter τ C m hC] at hscatter
+  exact hscatter
 
 end Tilings
 

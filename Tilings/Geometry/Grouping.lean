@@ -44642,7 +44642,7 @@ seed `g`.  Its fields are pinned to the catalogue of `g`: `N` and `R` are the ch
 the central-form map `c` takes values in the large catalogue forms `L_p`, the retained annulus of
 every template at every power is a translate of one catalogue annulus `(g.annular p)` (the central
 child scatters to the translated `L_p`, the `j`-th retained piece to the translated `j`-th
-annular piece), every side of a non-large form is marked, and a large form `L_p` has exactly `4N`
+annular piece), every side of an annular piece and of a singleton group is marked, and a large form `L_p` has exactly `4N`
 marked sides, each the side it shares with one annular piece, distinct pieces for distinct marked
 sides.  The quantitative fields of the setup (clearance, windows, print slots) are those of
 `RoutingSetup`; they follow from `g.square_margin`, `g.annular_windows` and the cyclic order of the
@@ -44661,8 +44661,15 @@ private structure existsMacroCertificate_SetupSeed (τ : Substitution P)
     ∀ j : Fin (4 * setup.N α), ∃ j' : Fin (4 * g.N), (j : ℕ) = j' ∧
       ((setup.annulus l α hl).spokes.piece j).faces =
         translateSet v ((g.annular p).spokes.piece j').faces
-  /-- every side of a form that is not a central image is marked -/
-  marked_nonlarge : ∀ α, (∀ β, α ≠ setup.c β) → setup.markedSides α = Finset.univ
+  /-- every side of the form of a non-central grouped child of a retained template (an annular
+  piece) and of a singleton group is marked.  (Repair of 17 October 2026 after Aristotle: the earlier
+  clause marked every side of every form that is not a central image, which `GroupingSeed.catalogue`
+  allows to be a translated copy of a large group with more than `4N` sides, so that no print slots
+  could exist for it; forms that never occur as children are left unconstrained.) -/
+  marked_child : ∀ l α (_hl : 0 < l), ∀ X ∈ (setup.retained l α).children.tiles,
+    X ≠ setup.central l α → ∀ γ, X.form = Sum.inl γ → setup.markedSides γ = Finset.univ
+  marked_singleton : ∀ α (p : P.Form), (setup.GS.G.dissect α).tiles = {⟨p, 0⟩} →
+    setup.markedSides α = Finset.univ
   /-- a large form (a central image) has exactly `4N` marked sides -/
   marked_large_card : ∀ β, (setup.markedSides (setup.c β)).card = 4 * g.N
   /-- the marked sides of a large form `L_p` are sides shared with distinct annular pieces -/

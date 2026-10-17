@@ -3708,6 +3708,21 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step4_c
         o.1 = o'.1 ∨ (D.IsInner o ∧ o' = D.partner o)) := by
   sorry
 
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner_aux1
+    {α : Type} {l : List α} {i : ℕ} {a : α} (h : l[i]? = some a) : a ∈ l := by
+  revert i h
+  induction l with
+  | nil => intro i h; contradiction
+  | cons head tail ih =>
+    intro i h
+    cases i with
+    | zero => 
+      injection h with h2
+      subst h2
+      exact List.Mem.head _
+    | succ i =>
+      exact List.Mem.tail _ (ih h)
+
 /-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: owner -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -3717,7 +3732,46 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_o
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d i (o : D.SideOcc), o ∈ D.path α d i → D.owner o.1 = α) := by
-  sorry
+  intro D α d i o ho
+  classical
+  have hpath : D.path α d i =
+      if hi : D.IsGenuinePath α d i then
+        emcdLiftPath D (emcdTemplateChild g s l) α
+          ((routing (emcdBaseForm g s l α)).pathTiles
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+          ((routing (emcdBaseForm g s l α)).pathSides
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+      else (D.port α d i).toList := rfl
+  rw [hpath] at ho
+  split_ifs at ho with hgen
+  · unfold emcdLiftPath at ho
+    simp only [List.mem_flatMap, List.mem_append] at ho
+    rcases ho with ⟨⟨X, ⟨e1, e2⟩⟩, _, ho⟩
+    cases ho with
+    | inl h1 =>
+      unfold emcdLiftOccurrence at h1
+      split_ifs at h1 with hex
+      · simp only [List.mem_singleton] at h1
+        subst o
+        exact hex.choose_spec.1
+      · simp only [List.not_mem_nil] at h1
+    | inr h2 =>
+      unfold emcdLiftOccurrence at h2
+      split_ifs at h2 with hex
+      · simp only [List.mem_singleton] at h2
+        subst o
+        exact hex.choose_spec.1
+      · simp only [List.not_mem_nil] at h2
+  · have ho_eq := Option.mem_toList.mp ho
+    have H1 := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner_aux1 ho_eq
+    have h_outer : D.outerList α d =
+        emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d := by
+      rfl
+    rw [h_outer] at H1
+    unfold emcdGeometricOuterList at H1
+    simp only [List.mem_mergeSort, Finset.mem_toList, Finset.mem_filter,
+      Finset.mem_univ, true_and] at H1
+    exact H1.1
 
 /-- Step 6 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: partner -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step6_partner

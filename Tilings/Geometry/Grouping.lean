@@ -3407,7 +3407,7 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_an
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     let D := emcdMacroData τ h g s l hl routing
     D.N = g.N ∧ D.Qmax = g.Qmax := by
-  sorry
+  exact ⟨rfl, rfl⟩
 
 /-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: the sharp rank bound `rankBound`. -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step4_rankBound

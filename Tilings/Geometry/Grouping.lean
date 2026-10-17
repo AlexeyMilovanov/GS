@@ -3827,7 +3827,11 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step7_t
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d i, ¬ D.IsGenuinePath α d i → D.path α d i = (D.port α d i).toList) := by
-  sorry
+  dsimp only [emcdMacroData]
+  intro α d i hi
+  simp only [MacroData.IsGenuinePath] at hi ⊢
+  simp only [dif_neg hi]
+  rfl
 
 /-- Step 8 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: fifth -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step8_fifth

@@ -32717,6 +32717,33 @@ theorem quantitativeAnnularGrouping (M : MeshConstants P) :
     rw [h3] at h2
     exact h1.trans (Nat.mul_le_mul_left _ h2)
 
+/-- `lem:inner-sector-order` (interface repair of 17 October 2026): points of the boundary of the
+inside-anchored group `L` lying in distinct ideal sectors, each at distance at least `50 D` from
+every other ideal sector, appear along the counterclockwise boundary parametrization in the order
+of the sectors.  This is the inside-anchored counterpart of
+`quantitativeAnnularGrouping_step1_outerOrder` (`qo_main`): inside anchoring excludes long
+backtracking of `∂L` inside its band `Q₀ + B∞(D) \ int Q₀` ("A cycle lying in a thin band
+around a square may run backwards along the band for a long distance.  Its mere Hausdorff
+proximity to the square does not give a uniform diameter bound for sectors between selected
+endpoints", blueprint remark before `lem:annular-spokes`).  Proof sketch: join each `y k` through
+its inside-anchoring face (`L_anchor`) to a point of `int Q₀` within `D` and then radially to the
+centre `c`; these paths lie in their sectors and meet only at `c`; a boundary parametrization
+visiting the points out of sector order would either backtrack by more than one sector, which the
+winding separators of `qo_sep` (adapted to the inner band) exclude, or run clockwise, which
+contradicts the winding number `2π` of the counterclockwise listing (`pdCCW`). -/
+private lemma quantitativeAnnularGrouping_innerOrder {M : MeshConstants P}
+    {S : Set (PlacedTile P)} (c : Pt) {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S c N R)
+    (B : PolygonalDisk) (hB : B.carrier = G.L.carrier) (hccw : pdCCW B)
+    {m : ℕ} (j : Fin m → Fin (4 * N)) (hj : StrictMono j) (y : Fin m → Pt)
+    (hy : ∀ k, y k ∈ frontier G.L.carrier)
+    (hyj : ∀ k,
+      y k ∈ Metric.cthickening (20 * M.D) (idealTrapezoid c N R M.D (j k : ℕ)))
+    (hfar : ∀ k, ∀ t : Fin (4 * N), t ≠ j k →
+      ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), 50 * M.D ≤ dist (y k) q) :
+    PointsInOrder (pgLoop (pgL B)) y := by
+  sorry
+
 /-! ## The fingerprint criterion (`lem:fingerprint`) -/
 
 /-- Kinds of types in a macrotemplate. -/
@@ -33441,6 +33468,15 @@ structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
   piece_child : ∀ l α (hl : 0 < l) (j : Fin (4 * N α)),
     ∃ X ∈ (retained l α).children.tiles, X ≠ central l α ∧
       GS.G.mixedScatterTile X = ((annulus l α hl).spokes.piece j).faces
+  /-- Every retained annular piece keeps the quantitative identification with the ideal sector
+  of the same index (`lem:quantitative-sector`, first conclusion of `quantitativeAnnularGrouping`
+  with `C_loc = 20`); `AnnularGrouping` itself carries no quantitative localization, so the
+  routing setup retains it (interface repair of 17 October 2026: `lem:routing` derives the
+  angular order of the entrance pieces from it). -/
+  piece_localized : ∀ l α (hl : 0 < l) (j : Fin (4 * N α)),
+    ((annulus l α hl).spokes.piece j).carrier ⊆
+      Metric.cthickening (20 * M.D)
+        (idealTrapezoid (centre l α) (N α) (R α) M.D (j : ℕ))
   /-- Four private outer edges of every annular group in separated windows
   (`lem:routing`: windows at relative parameters `0.30, 0.43, 0.57, 0.70` of
   the middle outer interval of each group), all `4 · 4N` of them pairwise at
@@ -33454,11 +33490,22 @@ structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
       ∀ j i j' i', (j, i) ≠ (j', i') → ∀ x ∈ e j i, ∀ y ∈ e j' i', R α / 10 ≤ dist x y
   /-- The print slots are designated marked sides of the central form, injective and cyclically
   ordered over the marked parent sides, physically matched to them, and incident to distinct
-  retained neighbours. -/
-  print_slots : ∀ l α, 0 < l → ∃ (f : Fin (GS.G.P'.disk α).n → Fin (GS.G.mixed.disk (central l α).form).n)
-    (g : Fin (GS.G.P'.disk α).n → PlacedTile GS.G.mixed),
+  retained neighbours.  The annular piece of the print neighbour `g a` is recorded as
+  `printPiece a`; the pieces of the marked sides are pairwise distinct and in the cyclic order of
+  the marked sides.  This is the planar order of the prints on the contact arcs of the pieces
+  (`lem:routing`: "the cyclic order of the entrance pieces must be derived from the planar order
+  of the prints on the contact arcs"), established in the construction (`lem:certificate-exists`,
+  Step 2) by `lem:inner-sector-order` applied to the central child listed counterclockwise. -/
+  print_slots : ∀ l α (hl : 0 < l),
+    ∃ (f : Fin (GS.G.P'.disk α).n → Fin (GS.G.mixed.disk (central l α).form).n)
+      (g : Fin (GS.G.P'.disk α).n → PlacedTile GS.G.mixed)
+      (printPiece : Fin (GS.G.P'.disk α).n → Fin (4 * N α)),
     Set.InjOn f (markedSides α : Set _) ∧ Set.InjOn g (markedSides α : Set _) ∧
     CyclicOrderPreservingOn (markedSides α) f ∧
+    Set.InjOn printPiece (markedSides α : Set _) ∧
+    CyclicOrderPreservingOn (markedSides α) printPiece ∧
+    (∀ a ∈ markedSides α,
+      GS.G.mixedScatterTile (g a) = ((annulus l α hl).spokes.piece (printPiece a)).faces) ∧
     (∀ a ∈ markedSides α, (f a : ℕ) ∈ (markedSides (c^[l] α)).map Fin.valEmbedding) ∧
     PhysicalPrintOrder (retained l α).region (GS.G.P'.disk α) (τ.θ ^ (GS.k * l)) (central l α)
       (markedSides α) f ∧
@@ -33520,6 +33567,11 @@ private structure existsRoutingAfterPower_EntryData (τ : Substitution P) (M : M
     HasEdge (neighbour _a) ((Rs.central l α).side (printIdx _a))
   piece_eq : ∀ _a ∈ Rs.markedSides α, Rs.GS.G.mixedScatterTile (neighbour _a) =
     ((Rs.annulus l α hl).spokes.piece (piece _a)).faces
+  /-- the pieces of distinct marked sides are distinct (`RoutingSetup.print_slots`) -/
+  piece_injOn : Set.InjOn piece (Rs.markedSides α : Set _)
+  /-- the pieces of the marked sides are in the cyclic order of the marked sides: the planar
+  order of the prints on the contact arcs (`RoutingSetup.print_slots`) -/
+  piece_cyclic : CyclicOrderPreservingOn (Rs.markedSides α) piece
   entry_private : ∀ _a ∈ Rs.markedSides α, ∀ _i,
     entry _a _i ∈ privateOuterEdges (Rs.annulus l α hl) (piece _a)
   entry_side : ∀ _a ∈ Rs.markedSides α, ∀ _i, HasEdge (neighbour _a) (entry _a _i)
@@ -36014,28 +36066,18 @@ private lemma existsRoutingAfterPower_step3_entries_step4_scatterInj (τ : Subst
 
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower`: "In each selected small group's
 middle outer interval, choose four separated windows ... choose a private fine edge in each window.
-... Its outside-anchored original face contains a point `q_i` outside `K₁`".  The print slots and
-neighbours come from `RoutingSetup.print_slots`, the pieces from `small_scatter`, the windows from
+... Its outside-anchored original face contains a point `q_i` outside `K₁`".  The print slots,
+neighbours and pieces come from `RoutingSetup.print_slots`, and the windows from
 `RoutingSetup.windows`. -/
 private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : MeshConstants P)
     (Rs : RoutingSetup τ M) (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form) :
     Nonempty (existsRoutingAfterPower_EntryData τ M Rs l α hl) := by
   classical
-  obtain ⟨f, g, hf, hg, hcyc, hmarked, hord, hid, hfg⟩ := Rs.print_slots l α hl
+  obtain ⟨f, g, printPiece, hf, hg, hcyc, hpiece_inj, hpiece_cyclic, hpiece,
+    hmarked, hord, hid, hfg⟩ := Rs.print_slots l α hl
   have hgr : ∀ a ∈ Rs.markedSides α, ∃ β, (g a).form = Sum.inl β := fun a ha =>
     existsRoutingAfterPower_step3_entries_step1_grouped τ M Rs l hl α (hfg a ha).1
       (hfg a ha).2.1 (hfg a ha).2.2
-  have hN : 0 < 4 * Rs.N α := by
-    have := Rs.N_two α
-    omega
-  have hpc : ∀ a, ∃ j : Fin (4 * Rs.N α), a ∈ Rs.markedSides α →
-      Rs.GS.G.mixedScatterTile (g a) = ((Rs.annulus l α hl).spokes.piece j).faces := by
-    intro a
-    by_cases ha : a ∈ Rs.markedSides α
-    · obtain ⟨j, hj⟩ := Rs.small_scatter l α hl (g a) (hfg a ha).1 (hfg a ha).2.1 (hgr a ha)
-      exact ⟨j, fun _ => hj⟩
-    · exact ⟨⟨0, hN⟩, fun h => absurd h ha⟩
-  choose pc hpc using hpc
   obtain ⟨E, hEpriv, hEsep⟩ := Rs.windows l α hl
   have hout := fun j i =>
     existsRoutingAfterPower_step3_entries_step2_outside τ M Rs l hl α (hEpriv j i)
@@ -36043,10 +36085,10 @@ private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : M
   exact ⟨{
     printIdx := f
     neighbour := g
-    piece := pc
-    entry := fun a i => E (pc a) i
-    face := fun a i => F (pc a) i
-    point := fun a i => q (pc a) i
+    piece := printPiece
+    entry := fun a i => E (printPiece a) i
+    face := fun a i => F (printPiece a) i
+    point := fun a i => q (printPiece a) i
     print_injOn := hf
     print_cyclic := hcyc
     print_marked := hmarked
@@ -36056,23 +36098,23 @@ private lemma existsRoutingAfterPower_step3_entries (τ : Substitution P) (M : M
     neighbour_injOn := hg
     neighbour_grouped := hgr
     print_edge := fun a ha => (hfg a ha).2.2
-    piece_eq := fun a ha => hpc a ha
-    entry_private := fun a _ i => hEpriv (pc a) i
+    piece_eq := hpiece
+    piece_injOn := hpiece_inj
+    piece_cyclic := hpiece_cyclic
+    entry_private := fun a _ i => hEpriv (printPiece a) i
     entry_side := fun a ha i => existsRoutingAfterPower_step3_entries_step3_listed τ M Rs l hl α
-      (hfg a ha).1 (hpc a ha) (hEpriv (pc a) i)
-    face_mem := fun a _ i => ⟨(hF (pc a) i).1, (hF (pc a) i).2.1⟩
-    face_edge := fun a _ i => (hF (pc a) i).2.2.1
-    point_mem := fun a _ i => (hF (pc a) i).2.2.2.1
-    point_out := fun a _ i => (hF (pc a) i).2.2.2.2
+      (hfg a ha).1 (hpiece a ha) (hEpriv (printPiece a) i)
+    face_mem := fun a _ i => ⟨(hF (printPiece a) i).1, (hF (printPiece a) i).2.1⟩
+    face_edge := fun a _ i => (hF (printPiece a) i).2.2.1
+    point_mem := fun a _ i => (hF (printPiece a) i).2.2.2.1
+    point_out := fun a _ i => (hF (printPiece a) i).2.2.2.2
     separated := by
       intro a ha b hb i j hij x hx y hy
-      refine hEsep (pc a) i (pc b) j ?_ x hx y hy
+      refine hEsep (printPiece a) i (printPiece b) j ?_ x hx y hy
       intro h
       obtain ⟨h1, h2⟩ := Prod.mk.inj h
       apply hij
-      have hab : g a = g b := existsRoutingAfterPower_step3_entries_step4_scatterInj τ M Rs l α
-        (hfg a ha).1 (hfg b hb).1 (by rw [hpc a ha, hpc b hb, h1])
-      rw [hg ha hb hab, h2] }⟩
+      exact Prod.ext (hpiece_inj ha hb h1) h2 }⟩
 
 /-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step4_routes`: "Each fixed radial
 direction meets its boundary at a point `b_i(z)`": the point of the circle of radius `r` about the
@@ -45329,7 +45371,20 @@ to each constituent defines `σ`"; the central child of a template is the inside
 groups; `N`, `R`, the windows (`g.annular_windows`) and the quantitative clearance (from
 `g.square_margin`, iterated along the central chain) are those of the grouping seed, and the print
 slots are an order-preserving injection of the marked sides of the parent into the contact sides
-of `L` with the pieces (identity on a large parent).  See the blueprint for the detailed proof. -/
+of `L` with the pieces (identity on a large parent).  See the blueprint for the detailed proof.
+
+The two new setup clauses are obtained as follows.  `piece_localized` comes from the first conjunct
+of `g.annular_quantitative`, translated with the catalogue annulus.  For `printPiece`, list the
+marked sides as `a₁ < … < aₘ` in index order and choose distinct pieces `j₁ < … < jₘ` (for a large
+parent all `4N` pieces in order; for a non-large parent any increasing selection), then choose for
+each `jₖ` a contact side of the central child in the middle of the sector `T_{jₖ}`: a side of `L`
+containing the exit point from `L` of the ray from `c` at perimeter parameter `(jₖ + 1/2) R`.
+By `piece_localized`, the face across that side belongs to piece `jₖ`.  Thus `printPiece` preserves
+cyclic order by construction, as a strictly increasing map on index order, while `f` (the index of
+that side in the counterclockwise listing of the central child) preserves cyclic order by
+`quantitativeAnnularGrouping_innerOrder`; its `50 D` separation holds because the chosen points
+are `R/2 - O(D)` from the other sectors.  Together with `PhysicalPrintOrder` (both disks
+counterclockwise), this gives `print_slots`. -/
 private lemma existsMacroCertificate_seed2_routing_step1_setup (τ : Substitution P) (h : τ.STS)
     (g : existsMacroCertificate_GroupingSeed τ) :
     Nonempty (existsMacroCertificate_SetupSeed τ g) := by

@@ -3143,6 +3143,172 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_sp
     ∀ α d, D.marked α d → D.special (D.partner (D.printOcc α d)) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: from_routing -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d (i : Fin 4), D.marked α d →
+      @List.destutter (Set Pt) (· ≠ ·) (Classical.decRel _)
+        ((D.path α d i.castSucc).map D.occSide) =
+        (routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d) i) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: head -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step2_head
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i → (D.path α d i).head? = D.port α d i) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: last -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step3_last
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i →
+      (D.path α d i).getLast? = some (D.partner (D.printOcc α d))) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: chain -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step4_chain
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i (n : ℕ) (o o' : D.SideOcc),
+      (D.path α d i)[n]? = some o → (D.path α d i)[n + 1]? = some o' →
+        o.1 = o'.1 ∨ (D.IsInner o ∧ o' = D.partner o)) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: owner -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i (o : D.SideOcc), o ∈ D.path α d i → D.owner o.1 = α) := by
+  sorry
+
+/-- Step 6 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: partner -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step6_partner
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i →
+      ∀ o ∈ D.path α d i, D.IsInner o → ¬ D.IsPrint o → D.partner o ∈ D.path α d i) := by
+  sorry
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: trivial -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step7_trivial
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, ¬ D.IsGenuinePath α d i → D.path α d i = (D.port α d i).toList) := by
+  sorry
+
+/-- Step 8 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: fifth -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step8_fifth
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d, D.path α d (4 : Fin 5) = (D.port α d (4 : Fin 5)).toList) := by
+  sorry
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: inner -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step9_inner
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i →
+      ∀ (n : ℕ) (o : D.SideOcc), (D.path α d i)[n + 1]? = some o → D.IsInner o) := by
+  sorry
+
+/-- Step 10 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: marked -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, D.IsMarked o) := by
+  sorry
+
+/-- Step 11 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: not_central -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step11_not_central
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, o.1 ≠ D.central α) := by
+  sorry
+
+/-- Step 12 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: penultimate -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step12_penultimate
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i →
+      ∀ o : D.SideOcc, (D.path α d i)[(D.path α d i).length - 2]? = some o →
+        o.1 = (D.partner (D.printOcc α d)).1 ∧ D.IsOrdinary o) := by
+  sorry
+
+/-- Step 13 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: nodup -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, (D.path α d i).Nodup) := by
+  sorry
+
+/-- Step 14 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: disjoint -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α (d d' : Fin (D.Q.disk α).n) (i i' : Fin 5), (d, i) ≠ (d', i') →
+      ∀ o, o ∈ D.path α d i → o ∈ D.path α d' i' →
+        d = d' ∧ (o = D.printOcc α d ∨ o = D.partner (D.printOcc α d)) := by
+  sorry
+
 /-- Step 4 of `lem:certificate-exists`: the path clauses for `emcdMacroData`: lifting each routed
 geometric side list `(routing (emcdBaseForm g s l α)).pathSides d i` and tile list `pathTiles d i`
 to the alternating entry/exit side-occurrence chain `D.path α d i.castSucc` (ending at
@@ -3183,7 +3349,21 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths
     ∀ α (d d' : Fin (D.Q.disk α).n) (i i' : Fin 5), (d, i) ≠ (d', i') →
       ∀ o, o ∈ D.path α d i → o ∈ D.path α d' i' →
         d = d' ∧ (o = D.printOcc α d ∨ o = D.partner (D.printOcc α d)) := by
-  sorry
+  exact ⟨
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step2_head τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step3_last τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step4_chain τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step6_partner τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step7_trivial τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step8_fifth τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step9_inner τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step11_not_central τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step12_penultimate τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup τ h g s l hl routing,
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint τ h g s l hl routing⟩
 
 /-- Step 4 of `lem:certificate-exists`: the finite packaging.  "Keep the finite labelled groups in
 `P'`" (here: the retained catalogue tiles), "the types are the positioned children of the

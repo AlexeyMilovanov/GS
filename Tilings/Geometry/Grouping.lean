@@ -2396,6 +2396,963 @@ private def emcsAnnulusSpec (τ : Substitution P)
         ((g.annular
           (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form).spokes.piece j).faces
 
+
+/-! ### Helpers for `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates` -/
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"Its annulus is a translate of the catalogue annulus of one original supertile" -- squares
+translate. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_square_vadd (v c : Pt) (r : ℝ) : v +ᵥ square c r = square (v + c) r := by
+  ext x
+  simp only [mem_vadd_set, square, mem_setOf_eq, vadd_eq_add]
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    simpa [PiLp.add_apply, add_sub_add_left_eq_sub] using hy
+  · intro hx
+    refine ⟨x - v, ?_, by abel⟩
+    simpa [PiLp.sub_apply, sub_sub, add_comm] using hx
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"Its annulus is a translate of the catalogue annulus" -- translation commutes with Minkowski
+sums. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_vadd_add (v : Pt) (X Y : Set Pt) : (v +ᵥ X) + Y = v +ᵥ (X + Y) := by
+  ext x
+  simp only [mem_add, mem_vadd_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨a, ha, rfl⟩, b, hb, rfl⟩
+    exact ⟨a + b, ⟨a, ha, b, hb, rfl⟩, by abel⟩
+  · rintro ⟨_, ⟨a, ha, b, hb, rfl⟩, rfl⟩
+    exact ⟨v + a, ⟨a, ha, rfl⟩, b, hb, by abel⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the sides of a translated polygonal disk are the translated sides. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_pd_side (B : PolygonalDisk) (v : Pt) (i : Fin B.n) :
+    (pdTranslate B v).side i = v +ᵥ B.side i := by
+  simp only [PolygonalDisk.side, pdTranslate, vadd_segment]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+listed sides of placed tiles translate. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate {Q : Protoset} {A : PlacedTile Q} {e : Set Pt} (v : Pt)
+    (h : HasEdge A e) : HasEdge (A.translate v) (v +ᵥ e) := by
+  obtain ⟨i, rfl⟩ := h
+  exact ⟨i, emcg_translate_side A v i⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+listed sides of placed tiles translate back. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate_iff {Q : Protoset} {A : PlacedTile Q} {e : Set
+    Pt} (v : Pt) :
+    HasEdge (A.translate v) (v +ᵥ e) ↔ HasEdge A e := by
+  refine ⟨fun ⟨i, hi⟩ => ⟨i, ?_⟩, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v⟩
+  rw [emcg_translate_side] at hi
+  exact (vadd_left_cancel_iff v).1 hi
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+shared sides translate. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sharesSide_translate {Q : Protoset} {A B : PlacedTile Q} (v : Pt)
+    (h : SharesSide A B) : SharesSide (A.translate v) (B.translate v) := by
+  obtain ⟨hne, e, hA, hB⟩ := h
+  exact ⟨fun h' => hne (emcg_translate_injective v h'), v +ᵥ e, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v hA,
+    existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v hB⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+vertices of a translated tile. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_vertexSet_translate {Q : Protoset} (A : PlacedTile Q) (v : Pt) :
+    (A.translate v).vertexSet = v +ᵥ A.vertexSet := by
+  ext x
+  simp only [PlacedTile.vertexSet, mem_range, mem_vadd_set]
+  constructor
+  · rintro ⟨i, rfl⟩
+    exact ⟨A.vertex i, ⟨i, rfl⟩, by rw [emcg_translate_vertex]; rfl⟩
+  · rintro ⟨_, ⟨i, rfl⟩, rfl⟩
+    exact ⟨i, by rw [emcg_translate_vertex]; rfl⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"Its annulus is a translate of the catalogue annulus of one original supertile" -- a face group of
+`S` translates to a face group of any `S'` containing the translate of `S`, provided the vertices of
+`S'` on the translated region are vertices of the translate of `S`. -/
+private def existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_faceGroup {S S' : Set (PlacedTile P)} (F : FaceGroup S) (v : Pt)
+    (hsub : translateSet v S ⊆ S')
+    (hV : ∀ w, Substitution.IsVertexOf S' w → w ∈ v +ᵥ F.carrier →
+      Substitution.IsVertexOf (translateSet v S) w) : FaceGroup S' where
+  faces := translateSet v F.faces
+  faces_sub := (image_mono F.faces_sub).trans hsub
+  finite := F.finite.image _
+  disk := pdTranslate F.disk v
+  carrier_eq := by
+    show v +ᵥ F.disk.carrier = _
+    rw [F.carrier_eq, emcg_support_translateSet]
+  side_whole := by
+    intro i
+    obtain ⟨A, hA, he⟩ := F.side_whole i
+    refine ⟨A.translate v, ⟨A, hA, rfl⟩, ?_⟩
+    rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_pd_side]
+    exact existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v he
+  vertex_retained := by
+    intro w hw hfr
+    have hcl : IsClosed (pdTranslate F.disk v).carrier := (pdTranslate F.disk v).compact.isClosed
+    have hwc : w ∈ v +ᵥ F.carrier := hcl.frontier_subset hfr
+    obtain ⟨B, hB, hwB⟩ := hV w hw hwc
+    obtain ⟨A, hA, rfl⟩ := hB
+    rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_vertexSet_translate] at hwB
+    obtain ⟨u, hu, rfl⟩ := hwB
+    have hfr' : u ∈ frontier F.disk.carrier := by
+      have : frontier (pdTranslate F.disk v).carrier = v +ᵥ frontier F.disk.carrier := by
+        show frontier (v +ᵥ F.disk.carrier) = _
+        rw [frontier, closure_vadd, interior_vadd, ← Set.vadd_set_sdiff]; rfl
+      rw [this] at hfr
+      obtain ⟨u', hu', he⟩ := hfr
+      rwa [← (vadd_left_cancel_iff v).1 he]
+    have := F.vertex_retained u ⟨A, hA, hu⟩ hfr'
+    obtain ⟨i, hi⟩ := this
+    exact ⟨i, by simp only [pdTranslate]; rw [hi]⟩
+  dualConnected := by
+    rintro _ ⟨A, hA, rfl⟩ _ ⟨B, hB, rfl⟩
+    refine Relation.ReflTransGen.lift (fun X => X.translate v) ?_ (F.dualConnected A hA B hB)
+    rintro X Y ⟨hX, hY, hXY⟩
+    exact ⟨⟨X, hX, rfl⟩, ⟨Y, hY, rfl⟩, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sharesSide_translate v hXY⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"Its annulus is a translate of the catalogue annulus" -- the translate of a polygonal arc. -/
+private def existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc (a : PolyArc) (v : Pt) : PolyArc := ⟨a.n, fun i => v +ᵥ a.pt i⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+segments of a translated arc. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_seg (a : PolyArc) (v : Pt) (i : Fin (a.n + 1)) :
+    (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc a v).seg i = v +ᵥ a.seg i := by
+  simp only [PolyArc.seg, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc, vadd_segment]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the carrier of a translated arc. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier (a : PolyArc) (v : Pt) :
+    (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc a v).carrier = v +ᵥ a.carrier := by
+  simp only [PolyArc.carrier, Set.vadd_set_iUnion]
+  exact iUnion_congr fun i => existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_seg a v i
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+loop parametrizations translate. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_loop (K : Set Pt) (γ : ℝ → Pt) (v : Pt) (h : IsLoopParam K γ) :
+    IsLoopParam (v +ᵥ K) (fun t => v +ᵥ γ t) := by
+  obtain ⟨hc, hp, hi, hK⟩ := h
+  refine ⟨continuous_const.add hc, fun t => by simp [hp t], ?_, ?_⟩
+  · intro s hs t ht hst
+    exact hi hs ht ((vadd_left_cancel_iff v).1 hst)
+  · rw [← hK, ← Set.image_vadd, Set.image_image]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the matching cyclic order of the spokes is preserved by translation. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_matching (U Ko Ki : Set Pt) {k : ℕ} (x y : Fin k → Pt) (v : Pt)
+    (h : MatchingCyclicOrder U Ko Ki x y) :
+    MatchingCyclicOrder (v +ᵥ U) (v +ᵥ Ko) (v +ᵥ Ki) (fun j => v +ᵥ x j) (fun j => v +ᵥ y j) := by
+  obtain ⟨γo, γi, ho, hi, ⟨F, hF, hper, h0, h1, hU⟩, ⟨t0, hto, hto1, hto2⟩, ⟨ti, hti, hti1, hti2⟩⟩ :=
+    h
+  refine ⟨fun t => v +ᵥ γo t, fun t => v +ᵥ γi t, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_loop _ _ v ho,
+      existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_loop _ _ v hi,
+    ⟨fun st => v +ᵥ F st, continuous_const.add hF, fun s t => by simp [hper s t],
+      fun t => by simp [h0 t], fun t => by simp [h1 t],
+      fun s hs t => Set.vadd_mem_vadd_set (hU s hs t)⟩,
+    ⟨t0, hto, hto1, fun i => by simp [hto2 i]⟩, ⟨ti, hti, hti1, fun i => by simp [hti2 i]⟩⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the carrier of a group is contained in the carrier of any group containing its faces. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_carrier_mono {S : Set (PlacedTile P)} (F F' : FaceGroup S) (h :
+    F.faces ⊆ F'.faces) :
+    F.carrier ⊆ F'.carrier := by
+  show F.disk.carrier ⊆ F'.disk.carrier
+  rw [F.carrier_eq, F'.carrier_eq]
+  intro x hx
+  simp only [support, mem_iUnion] at hx ⊢
+  obtain ⟨A, hA, hx⟩ := hx
+  exact ⟨A, h hA, hx⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"Its annulus is a translate of the catalogue annulus of one original supertile, so the quantitative
+data (`N`, `R`, the four separated windows of every piece, the private-edge count) are those of the
+grouping step."  An annular grouping of `S` translates to an annular grouping of any `S'` containing
+the translate of `S` whose vertices on the translated annulus are vertices of the translate of
+`S`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_annulus {M : MeshConstants P} {S S' : Set (PlacedTile P)} {c :
+    Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S c N R) (v : Pt) (hsub : translateSet v S ⊆ S')
+    (hV : ∀ w, Substitution.IsVertexOf S' w → w ∈ v +ᵥ (G.L.carrier ∪ G.H.carrier) →
+      Substitution.IsVertexOf (translateSet v S) w) :
+    ∃ G' : AnnularGrouping M S' (v + c) N R,
+      G'.L.faces = translateSet v G.L.faces ∧
+      G'.H.carrier = v +ᵥ G.H.carrier ∧
+      (∀ j, (G'.spokes.piece j).faces = translateSet v (G.spokes.piece j).faces) ∧
+      (∀ j, (G'.spokes.piece j).carrier = v +ᵥ (G.spokes.piece j).carrier) ∧
+      (∀ j e, e ∈ privateOuterEdges G j → v +ᵥ e ∈ privateOuterEdges G' j) := by
+  have hVL : ∀ w, Substitution.IsVertexOf S' w → w ∈ v +ᵥ G.L.carrier →
+      Substitution.IsVertexOf (translateSet v S) w :=
+    fun w hw hw' => hV w hw (Set.vadd_set_mono subset_union_left hw')
+  have hVH : ∀ w, Substitution.IsVertexOf S' w → w ∈ v +ᵥ G.H.carrier →
+      Substitution.IsVertexOf (translateSet v S) w :=
+    fun w hw hw' => hV w hw (Set.vadd_set_mono subset_union_right hw')
+  have hVP : ∀ j, ∀ w, Substitution.IsVertexOf S' w → w ∈ v +ᵥ (G.spokes.piece j).carrier →
+      Substitution.IsVertexOf (translateSet v S) w := by
+    intro j w hw hw'
+    refine hVH w hw (Set.vadd_set_mono (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_carrier_mono _ _ ?_) hw')
+    exact (G.spokes.piece_sub j).trans diff_subset
+  let L' : FaceGroup S' := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_faceGroup G.L v hsub hVL
+  let H' : FaceGroup S' := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_faceGroup G.H v hsub hVH
+  let pc : Fin (4 * N) → FaceGroup S' := fun j => existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_faceGroup (G.spokes.piece j)
+      v hsub (hVP j)
+  have hLc : L'.carrier = v +ᵥ G.L.carrier := rfl
+  have hHc : H'.carrier = v +ᵥ G.H.carrier := rfl
+  have hpc : ∀ j, (pc j).carrier = v +ᵥ (G.spokes.piece j).carrier := fun j => rfl
+  have hmemT : ∀ {X : Set (PlacedTile P)} {B : PlacedTile P}, B.translate v ∈ translateSet v X ↔ B ∈ X :=
+    fun {X B} => (emcg_translate_injective v).mem_set_image
+  have hint : ∀ X : Set Pt, interior (v +ᵥ X) = v +ᵥ interior X := fun X => interior_vadd v X
+  have hfr : ∀ X : Set Pt, frontier (v +ᵥ X) = v +ᵥ frontier X := fun X => by
+    rw [frontier, closure_vadd, interior_vadd, ← Set.vadd_set_sdiff]; rfl
+  have hannU : H'.carrier \ interior L'.carrier = v +ᵥ (G.H.carrier \ interior G.L.carrier) := by
+    rw [hHc, hLc, hint, Set.vadd_set_sdiff]
+  let sp : SpokeSystem S' L' H' N :=
+    { spoke := fun j => existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc (G.spokes.spoke j) v
+      simple := by
+        intro j
+        obtain ⟨hinj, hseg⟩ := G.spokes.simple j
+        refine ⟨fun a b hab => hinj ((vadd_left_cancel_iff v).1 hab), ?_⟩
+        intro a b hab
+        have h := Set.vadd_set_mono (a := v) (hseg a b hab)
+        rw [Set.vadd_set_inter, Set.vadd_set_inter, ← existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_seg, ←
+            existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_seg] at h
+        simpa [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc, Set.vadd_set_insert, Set.vadd_set_singleton] using h
+      skeletal := by
+        intro j i
+        obtain ⟨A, hA, he⟩ := G.spokes.skeletal j i
+        exact ⟨A.translate v, hsub ⟨A, hA, rfl⟩, by rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_seg]; exact
+            existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v he⟩
+      in_annulus := by
+        intro j
+        rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier, hannU]
+        exact Set.vadd_set_mono (G.spokes.in_annulus j)
+      meets_L := by
+        intro j
+        rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier, hLc, hfr, ← Set.vadd_set_inter, G.spokes.meets_L j,
+          Set.vadd_set_singleton]
+        rfl
+      meets_H := by
+        intro j
+        rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier, hHc, hfr, ← Set.vadd_set_inter, G.spokes.meets_H j,
+          Set.vadd_set_singleton]
+        rfl
+      disjoint := by
+        intro i j hij
+        rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier,
+            existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier]
+        exact (Set.disjoint_vadd_set).2 (G.spokes.disjoint i j hij)
+      order := by
+        rw [hannU, hHc, hLc, hfr, hfr]
+        exact existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_matching _ _ _ _ _ v G.spokes.order
+      piece := pc
+      piece_partition := by
+        intro A hA
+        by_cases hT : ∃ B ∈ S, A = B.translate v
+        · obtain ⟨B, hB, rfl⟩ := hT
+          have := G.spokes.piece_partition B hB
+          simp only [L', H', pc, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_faceGroup]
+          rw [hmemT, hmemT]
+          simp only [hmemT]
+          exact this
+        · have hHS : ∀ X : Set (PlacedTile P), X ⊆ S → A ∉ translateSet v X := by
+            rintro X hX ⟨B, hB, rfl⟩
+            exact hT ⟨B, hX hB, rfl⟩
+          constructor
+          · rintro ⟨hH, -⟩
+            exact absurd hH (hHS _ G.H.faces_sub)
+          · rintro ⟨j, hj, -⟩
+            exact absurd hj (hHS _ (G.spokes.piece j).faces_sub)
+      piece_sub := by
+        intro j
+        show translateSet v _ ⊆ translateSet v _ \ translateSet v _
+        rw [translateSet, translateSet, translateSet, ← Set.image_diff (emcg_translate_injective v)]
+        exact image_mono (G.spokes.piece_sub j)
+      piece_between := by
+        intro j
+        rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier,
+            existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_arc_carrier, hpc]
+        exact ⟨Set.vadd_set_mono (G.spokes.piece_between j).1,
+          Set.vadd_set_mono (G.spokes.piece_between j).2⟩
+      contact_connected := by
+        intro j
+        rw [hpc, hLc, ← Set.vadd_set_inter, ← Set.image_vadd]
+        exact (G.spokes.contact_connected j).image _ (continuous_const_vadd v).continuousOn
+      contact_nondegenerate := by
+        intro j
+        rw [hpc, hLc, ← Set.vadd_set_inter, ← Set.image_vadd]
+        exact (G.spokes.contact_nondegenerate j).image (fun a b h => (vadd_left_cancel_iff v).1 h) }
+  have hK : ∀ (r : ℝ) (B : Set Pt), square (v + c) r + B = v +ᵥ (square c r + B) := fun r B => by
+    rw [← existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_square_vadd,
+        existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_vadd_add]
+  have hcarT : ∀ F : PlacedTile P, interior (F.translate v).carrier = v +ᵥ interior F.carrier :=
+    fun F => by rw [emcg_translate_carrier, hint]
+  refine ⟨AnnularGrouping.mk L' H' ?_ ?_ ?_ ?_ ?_ ?_ sp, rfl, rfl, fun j => rfl, fun j => rfl, ?_⟩
+  · rw [hLc, ← existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_square_vadd]; exact Set.vadd_set_mono G.L_lower
+  · rw [hLc, hK]; exact Set.vadd_set_mono G.L_upper
+  · intro i
+    obtain ⟨F, hF, he, hne⟩ := G.L_anchor i
+    refine ⟨F.translate v, ⟨F, hF, rfl⟩, ?_, ?_⟩
+    · show HasEdge _ ((pdTranslate G.L.disk v).side i)
+      rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_pd_side]; exact
+          existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v he
+    · rw [hcarT, ← existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_square_vadd, hint, ← Set.vadd_set_inter]
+      exact hne.vadd_set
+  · rw [hHc, hK]; exact Set.vadd_set_mono G.H_lower
+  · rw [hHc, hK]; exact Set.vadd_set_mono G.H_upper
+  · intro i
+    obtain ⟨F, hF, hnot, he, hne⟩ := G.H_anchor i
+    refine ⟨F.translate v, hsub ⟨F, hF, rfl⟩, fun h => hnot (hmemT.1 h), ?_, ?_⟩
+    · show HasEdge _ ((pdTranslate G.H.disk v).side i)
+      rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_pd_side]; exact
+          existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v he
+    · rw [hcarT, hK, ← Set.vadd_set_compl, ← Set.vadd_set_inter]
+      exact hne.vadd_set
+  · rintro j e ⟨⟨A, hA, heA⟩, hfrH, F, hF, hnot, heF, hdisj⟩
+    refine ⟨⟨A.translate v, ⟨A, hA, rfl⟩, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v heA⟩, ?_,
+      F.translate v, hsub ⟨F, hF, rfl⟩, fun h => hnot (hmemT.1 h),
+          existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate v heF, ?_⟩
+    · show v +ᵥ e ⊆ frontier H'.carrier
+      rw [hHc, hfr]; exact Set.vadd_set_mono hfrH
+    · intro t ht
+      show Disjoint _ (pc t).carrier
+      rw [hpc, emcg_translate_carrier]
+      exact (Set.disjoint_vadd_set).2 (hdisj t ht)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"Its annulus is a translate of the catalogue annulus of one original supertile" -- a vertex of a
+patch with disjoint interiors lying in the interior of the support of a finite subpatch is a vertex
+of the subpatch. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_vertex_local {S0 S' : Set (PlacedTile P)} (hsub : S0 ⊆ S') (hfin
+    : S0.Finite)
+    (hdisj : DisjointInteriors S') {w : Pt} (hw : w ∈ interior (support S0))
+    (hv : Substitution.IsVertexOf S' w) : Substitution.IsVertexOf S0 w := by
+  obtain ⟨B, hB, hwB⟩ := hv
+  have hwc : w ∈ B.carrier := by
+    obtain ⟨i, rfl⟩ := hwB
+    refine emcg_side_subset_carrier B i ?_
+    rw [emcg_side_eq_segment]
+    exact left_mem_segment ℝ _ _
+  have hreg : closure (interior B.carrier) = B.carrier := by
+    rw [PlacedTile.carrier, interior_vadd, closure_vadd, (P.disk B.form).regular_closed]
+  rw [← hreg] at hwc
+  obtain ⟨y, hyU, hyB⟩ := mem_closure_iff.1 hwc _ isOpen_interior hw
+  obtain ⟨A, hA, hAne⟩ := emcg_open_meets_interior (isOpen_interior.inter isOpen_interior)
+    ⟨y, hyU, hyB⟩ hfin (fun z hz => interior_subset hz.1)
+  by_cases hAB : A = B
+  · subst hAB
+    exact ⟨A, hA, hwB⟩
+  · exfalso
+    obtain ⟨z, ⟨-, hzB⟩, hzA⟩ := hAne
+    exact Set.disjoint_left.mp (hdisj (hsub hA) hB hAB) hzA hzB
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+a single placed tile is side-to-side (distinct listed sides of a simple polygon meet in at most
+their common endpoints). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_single {Q : Protoset} (A : PlacedTile Q) : SideToSideSet ({A}
+    : Set _) := by
+  rintro X rfl Y rfl i j hov
+  by_cases hij : i = j
+  · rw [hij]
+  exfalso
+  obtain ⟨x, y, hxy, hseg⟩ := hov
+  have h := (Q.disk Y.form).simple i j hij
+  have hsub : Y.side i ∩ Y.side j ⊆
+      Y.anchor +ᵥ ({(Q.disk Y.form).vertex i, (Q.disk Y.form).vertex (finRotate _ i)} : Set Pt) := by
+    simp only [PlacedTile.side]
+    rw [← Set.vadd_set_inter]
+    exact Set.vadd_set_mono (h.trans inter_subset_left)
+  have hfin : (Y.anchor +ᵥ ({(Q.disk Y.form).vertex i, (Q.disk Y.form).vertex (finRotate _ i)} :
+      Set Pt)).Finite := by
+    rw [← Set.image_vadd]
+    exact (Set.toFinite _).image _
+  exact emcg_segment_infinite hxy (hfin.subset (hseg.trans hsub))
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+for the power `l = 0` the retained template is the parent group itself: its only child is the
+central child `c⁰(α) = α` placed at the origin. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_template_zero (τ : Substitution P) (g :
+    existsMacroCertificate_GroupingSeed τ)
+    (α : g.GS.G.P'.Form) :
+    ∃ T : Template g.GS.G.mixed,
+      T.region = (τ.θ ^ (g.GS.k * 0)) • (g.GS.G.P'.disk α).carrier ∧
+      g.GS.G.mixedScatter T.children.tiles = τ.decomposeIter (g.GS.k * 0) (g.GS.G.dissect α).tiles ∧
+      T.children.tiles = {emcsCentralPlaced τ g 0 α} := by
+  have hc : emcsCentralAnchor τ g 0 α = 0 :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub1_central_chain τ g).choose_spec.choose_spec.2.1 α
+  have hA : emcsCentralPlaced τ g 0 α = ⟨Sum.inl α, 0⟩ := by
+    simp only [emcsCentralPlaced, hc, Function.iterate_zero, id]
+  refine ⟨⟨⟨{⟨Sum.inl α, 0⟩}, finite_singleton _, pairwiseDisjoint_singleton _ _⟩,
+    (g.GS.G.P'.disk α).carrier, ?_, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_single _⟩, by rw [mul_zero, pow_zero,
+        one_smul], ?_, by rw [hA]⟩
+  · simp only [support, mem_singleton_iff, iUnion_iUnion_eq_left, PlacedTile.carrier, zero_vadd]
+    rfl
+  · rw [mul_zero]
+    simp only [GroupedFamily.mixedScatter, mem_singleton_iff, iUnion_iUnion_eq_left,
+      GroupedFamily.mixedScatterTile, Sum.elim_inl, emcg_translateSet_zero]
+    rfl
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+distinct listed sides of a polygonal disk are distinct sets. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_side_injective (B : PolygonalDisk) : Function.Injective B.side := by
+  intro i j h
+  by_contra hij
+  have hab : B.vertex i ≠ B.vertex (finRotate B.n i) := fun he =>
+    emcg_finRotate_ne (by have := B.three_le; omega) i (B.vertex_injective he).symm
+  have hm : midpoint ℝ (B.vertex i) (B.vertex (finRotate B.n i)) ∈ B.side i :=
+    midpoint_mem_segment _ _
+  have hmj : midpoint ℝ (B.vertex i) (B.vertex (finRotate B.n i)) ∈ B.side j := h ▸ hm
+  rcases (B.simple i j hij ⟨hm, hmj⟩).1 with h1 | h1
+  · exact hab ((midpoint_eq_left_iff ℝ).mp h1)
+  · exact hab ((midpoint_eq_right_iff ℝ).mp h1)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+every listed side of a group is a whole side of one of its constituent tiles, so a group has at most
+`K₀` listed sides per constituent. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_grouped_sides (M : MeshConstants P) (G : GroupedFamily P) (α : G.P'.Form) :
+    (G.P'.disk α).n ≤ M.K0 * (G.dissect α).tiles.ncard := by
+  classical
+  choose A hA k hk using G.side_whole α
+  let f : Fin (G.P'.disk α).n → PlacedTile P × Fin M.K0 := fun i =>
+    (A i, ⟨k i, lt_of_lt_of_le (k i).isLt (M.sides_le _)⟩)
+  have hinj : Function.Injective f := by
+    intro i j hij
+    simp only [f, Prod.mk.injEq, Fin.mk.injEq] at hij
+    apply existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_side_injective
+    rw [← hk i, ← hk j]
+    obtain ⟨h1, h2⟩ := hij
+    have : ∀ {X Y : PlacedTile P} (a : Fin (P.disk X.form).n) (b : Fin (P.disk Y.form).n),
+        X = Y → (a : ℕ) = b → X.side a = Y.side b := by
+      intro X Y a b hXY hab
+      subst hXY
+      rw [Fin.ext hab]
+    exact this _ _ h1 h2
+  have hfin := (G.dissect α).finite
+  have hcard := Finset.card_le_card_of_injOn f (s := Finset.univ)
+    (t := hfin.toFinset ×ˢ (Finset.univ : Finset (Fin M.K0)))
+    (fun i _ => by simp [f, hA i]) hinj.injOn
+  rw [Finset.card_univ, Fintype.card_fin, Finset.card_product, Finset.card_univ, Fintype.card_fin,
+    ← Set.ncard_eq_toFinset_card _ hfin] at hcard
+  linarith [hcard, mul_comm M.K0 (G.dissect α).tiles.ncard]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+`Q ≥ K₀`, i.e. `K₀ ≤ K₀ ⌈4C²R²/a⌉`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_K0_le_Qmax (τ : Substitution P) (g :
+    existsMacroCertificate_GroupingSeed τ) :
+    g.M.K0 ≤ g.Qmax := by
+  rw [g.Qmax_eq]
+  have hR : 0 < g.R := by
+    have := g.R_separates; rw [g.Csep_eq] at this; nlinarith [g.M.D_pos]
+  have hpos : 0 < 4 * g.C ^ 2 * g.R ^ 2 / g.M.a := by
+    rw [g.C_eq]; have := g.M.a_pos; positivity
+  have : 1 ≤ ⌈4 * g.C ^ 2 * g.R ^ 2 / g.M.a⌉₊ := Nat.one_le_iff_ne_zero.2 (by
+    rw [Ne, Nat.ceil_eq_zero, not_le]; exact hpos)
+  nlinarith
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"an original tile has at most `K₀ ≤ Q` sides" -- a singleton group has at most `Qmax` listed sides. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_singleton_sides (τ : Substitution P) (g :
+    existsMacroCertificate_GroupingSeed τ)
+    (α : g.GS.G.P'.Form) (p : P.Form) (hα : (g.GS.G.dissect α).tiles = {⟨p, 0⟩}) :
+    (g.GS.G.P'.disk α).n ≤ g.Qmax := by
+  have h := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_grouped_sides g.M g.GS.G α
+  rw [hα, Set.ncard_singleton, mul_one] at h
+  exact h.trans (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_K0_le_Qmax τ g)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+segments are null sets. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_volume_segment (x y : Pt) : MeasureTheory.volume (segment ℝ x y) = 0 := by
+  have hsub : segment ℝ x y ⊆ (affineSpan ℝ ({x, y} : Set Pt) : Set Pt) := by
+    rw [segment_eq_image_lineMap]
+    rintro _ ⟨t, -, rfl⟩
+    exact AffineMap.lineMap_mem_affineSpan_pair t x y
+  refine MeasureTheory.measure_mono_null hsub ?_
+  refine MeasureTheory.Measure.addHaar_affineSubspace _ _ ?_
+  intro htop
+  have h1 := (collinear_iff_finrank_le_one (k := ℝ) (s := ({x, y} : Set Pt))).1 (collinear_pair ℝ x y)
+  rw [← direction_affineSpan, htop, AffineSubspace.direction_top, finrank_top, finrank_euclideanSpace,
+    Fintype.card_fin] at h1
+  omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the interior of a polygonal disk has full measure. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_volume_interior (B : PolygonalDisk) :
+    MeasureTheory.volume (interior B.carrier) = MeasureTheory.volume B.carrier := by
+  refine le_antisymm (MeasureTheory.measure_mono interior_subset) ?_
+  have hfr : MeasureTheory.volume (frontier B.carrier) = 0 := by
+    rw [B.frontier_eq]
+    exact MeasureTheory.measure_iUnion_null fun i => existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_volume_segment _ _
+  calc MeasureTheory.volume B.carrier ≤
+        MeasureTheory.volume (interior B.carrier ∪ frontier B.carrier) := by
+        refine MeasureTheory.measure_mono fun z hz => ?_
+        by_cases h : z ∈ interior B.carrier
+        · exact Or.inl h
+        · exact Or.inr ⟨subset_closure hz, h⟩
+    _ ≤ _ := MeasureTheory.measure_union_le _ _
+    _ = _ := by rw [hfr, add_zero]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+(`lem:quantitative-sector`) a finite family of tiles with disjoint interiors inside a ball of radius
+`d` has at most `⌈4d²/a⌉` members. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_faces_le (M : MeshConstants P) {F : Set (PlacedTile P)} (hF : F.Finite)
+    (hdisj : DisjointInteriors F) {x : Pt} {d : ℝ} (hd0 : 0 ≤ d)
+    (hball : support F ⊆ Metric.closedBall x d) : F.ncard ≤ ⌈4 * d ^ 2 / M.a⌉₊ := by
+  classical
+  open MeasureTheory in
+  set t := hF.toFinset with ht
+  have hdisj' : (↑t : Set (PlacedTile P)).PairwiseDisjoint (fun A => interior A.carrier) := by
+    rw [ht, Set.Finite.coe_toFinset]; exact hdisj
+  have hmeas := measure_biUnion_finset (μ := volume) hdisj' (fun A _ => isOpen_interior.measurableSet)
+  have hvolA : ∀ A ∈ t, ENNReal.ofReal M.a ≤ volume (interior A.carrier) := by
+    intro A _
+    rw [PlacedTile.carrier, interior_vadd, measure_vadd, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_volume_interior]
+    exact M.area_ge A.form
+  have hle : volume (⋃ A ∈ t, interior A.carrier) ≤ volume (Metric.closedBall x d) := by
+    apply measure_mono
+    intro z hz
+    simp only [Set.mem_iUnion] at hz
+    obtain ⟨A, hA, hzA⟩ := hz
+    refine hball ?_
+    exact emcg_carrier_subset_support (by simpa [ht] using hA) (interior_subset hzA)
+  rw [hmeas, EuclideanSpace.volume_closedBall_fin_two] at hle
+  have hsum : (t.card : ENNReal) * ENNReal.ofReal M.a ≤ ENNReal.ofReal (d ^ 2 * Real.pi) := by
+    calc (t.card : ENNReal) * ENNReal.ofReal M.a = ∑ A ∈ t, ENNReal.ofReal M.a := by
+          rw [Finset.sum_const, nsmul_eq_mul]
+      _ ≤ _ := Finset.sum_le_sum hvolA
+      _ ≤ _ := hle
+      _ = _ := by rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_pow hd0]
+  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (by positivity),
+    ENNReal.ofReal_le_ofReal_iff (by positivity)] at hsum
+  have hcard : F.ncard = t.card := Set.ncard_eq_toFinset_card _ hF
+  rw [hcard]
+  have ha := M.a_pos
+  have : (t.card : ℝ) ≤ 4 * d ^ 2 / M.a := by
+    rw [le_div_iff₀ ha]
+    nlinarith [Real.pi_lt_four, sq_nonneg d]
+  exact_mod_cast this.trans (Nat.le_ceil _)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"an annular piece has at most `Q` sides (`lem:quantitative-sector`)" -- the small catalogue forms
+have at most `Qmax` listed sides. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_small_sides (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (p : P.Form) (j : Fin (4 * g.N)) : (g.GS.G.P'.disk (g.small p j)).n ≤ g.Qmax := by
+  have h := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_grouped_sides g.M g.GS.G (g.small p j)
+  have hR : 0 < g.R := by
+    have := g.R_separates; rw [g.Csep_eq] at this; nlinarith [g.M.D_pos]
+  have hC : 0 < g.C := by rw [g.C_eq]; norm_num
+  have hsupp : support (g.GS.G.dissect (g.small p j)).tiles = ((g.annular p).spokes.piece j).carrier := by
+    rw [g.small_dissect]; exact ((g.annular p).spokes.piece j).carrier_eq.symm
+  obtain ⟨x, hx⟩ := ((g.annular p).spokes.piece j).disk.interior_nonempty
+  have hxc : x ∈ ((g.annular p).spokes.piece j).carrier := interior_subset hx
+  have hdiam := (g.annular_quantitative p).2.2.1 j
+  have hball : support (g.GS.G.dissect (g.small p j)).tiles ⊆ Metric.closedBall x (g.C * g.R) := by
+    rw [hsupp]
+    intro y hy
+    exact Metric.mem_closedBall.2 ((Metric.dist_le_diam_of_mem
+      ((g.annular p).spokes.piece j).disk.compact.isBounded hy hxc).trans hdiam)
+  have hf := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_faces_le g.M (g.GS.G.dissect (g.small p j)).finite (g.GS.G.dissect
+      (g.small p j)).disjoint
+    (by positivity) hball
+  rw [g.Qmax_eq]
+  calc _ ≤ g.M.K0 * (g.GS.G.dissect (g.small p j)).tiles.ncard := h
+    _ ≤ g.M.K0 * ⌈4 * (g.C * g.R) ^ 2 / g.M.a⌉₊ := Nat.mul_le_mul_left _ hf
+    _ = _ := by rw [mul_pow, ← mul_assoc]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the translated central supertile `τ^k q` of the central chain lies in the iterated decomposition of
+the parent (`sub1_central_chain`). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_supertile_sub (τ : Substitution P) (g :
+    existsMacroCertificate_GroupingSeed τ)
+    (m : ℕ) (α : g.GS.G.P'.Form) :
+    translateSet (emcsCentralAnchor τ g (m + 1) α)
+        (τ.supertile g.k (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form) ⊆
+      τ.decomposeIter (g.GS.k * (m + 1)) (g.GS.G.dissect α).tiles :=
+  (existsMacroCertificate_seed2_routing_step1_setup_sub1_central_chain τ g).choose_spec.choose_spec.2.2.2.2 m α
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the support of a supertile is the scaled disk. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_support_supertile (τ : Substitution P) (n : ℕ) (p : P.Form) :
+    support (τ.supertile n p) = (τ.θ ^ n) • (P.disk p).carrier := by
+  rw [Substitution.supertile, emcg_iter_support, emcg_support_singleton_zero]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+supports are monotone. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_support_mono {Q : Protoset} {X Y : Set (PlacedTile Q)} (h : X ⊆ Y) :
+    support X ⊆ support Y :=
+  biUnion_subset_biUnion_left h
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"at each step the chosen centre lies in the square of Lemma `lem:quantitative-sector` with its margin,
+strictly inside the scaled parent" -- the margin square of the retained centre lies in the interior
+of the retained region. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_margin (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (m : ℕ) (α : g.GS.G.P'.Form) :
+    square (emcsCentre τ g (m + 1) α) ((g.N : ℝ) * g.R / 2 + g.R) + Binf (10 * g.M.D) ⊆
+      interior ((τ.θ ^ (g.GS.k * (m + 1))) • (g.GS.G.P'.disk α).carrier) := by
+  set v := emcsCentralAnchor τ g (m + 1) α
+  set p := (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form
+  have hc : emcsCentre τ g (m + 1) α = v + g.centre p := rfl
+  rw [hc, ← existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_square_vadd,
+      existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_vadd_add]
+  refine (Set.vadd_set_mono (g.square_margin p)).trans ?_
+  rw [← interior_vadd, ← existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_support_supertile, ← emcg_support_translateSet,
+    ← g.GS.G.support_eq, ← emcg_iter_support]
+  exact interior_mono (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_support_mono
+      (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_supertile_sub τ g m α))
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"Its annulus is a translate of the catalogue annulus of one original supertile" -- the annulus of the
+retained template at the power `m + 1`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_annulus_succ (τ : Substitution P) (g :
+    existsMacroCertificate_GroupingSeed τ)
+    (m : ℕ) (α : g.GS.G.P'.Form) (S' : Set (PlacedTile P))
+    (hS' : S' = τ.decomposeIter (g.GS.k * (m + 1)) (g.GS.G.dissect α).tiles) :
+    ∃ G' : AnnularGrouping g.M S' (emcsCentre τ g (m + 1) α) g.N g.R,
+      G'.L.faces = translateSet (emcsCentralAnchor τ g (m + 1) α)
+        (g.annular (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form).L.faces ∧
+      (∀ j, (G'.spokes.piece j).faces = translateSet (emcsCentralAnchor τ g (m + 1) α)
+        ((g.annular (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form).spokes.piece j).faces) ∧
+      (∀ j, (G'.spokes.piece j).carrier = emcsCentralAnchor τ g (m + 1) α +ᵥ
+        ((g.annular (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form).spokes.piece j).carrier) ∧
+      (∀ j e, e ∈ privateOuterEdges (g.annular (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form) j →
+        emcsCentralAnchor τ g (m + 1) α +ᵥ e ∈ privateOuterEdges G' j) := by
+  set v := emcsCentralAnchor τ g (m + 1) α
+  set p := (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form
+  have hsub : translateSet v (τ.supertile g.k p) ⊆ S' := hS' ▸ existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_supertile_sub τ g m α
+  have hdisj : DisjointInteriors S' := hS' ▸ emcg_iter_disjoint τ _ (g.GS.G.dissect α).disjoint
+  have hR : 0 ≤ g.R := by
+    have := g.R_separates; rw [g.Csep_eq] at this; nlinarith [g.M.D_pos]
+  have hD := g.M.D_pos
+  have hBinf : ∀ {r s : ℝ}, r ≤ s → Binf r ⊆ Binf s := fun h x hx => ⟨hx.1.trans h, hx.2.trans h⟩
+  have hLH : (g.annular p).L.carrier ∪ (g.annular p).H.carrier ⊆
+      interior ((τ.θ ^ g.k) • (P.disk p).carrier) := by
+    refine union_subset ?_ ?_
+    · refine (g.annular p).L_upper.trans (Set.Subset.trans ?_ (g.square_margin p))
+      exact Set.add_subset_add (emcg_square_mono _ (by linarith)) (hBinf (by linarith))
+    · refine (g.annular p).H_upper.trans (Set.Subset.trans ?_ (g.square_margin p))
+      exact Set.add_subset_add_left (hBinf (by linarith))
+  have hV : ∀ w, Substitution.IsVertexOf S' w →
+      w ∈ v +ᵥ ((g.annular p).L.carrier ∪ (g.annular p).H.carrier) →
+      Substitution.IsVertexOf (translateSet v (τ.supertile g.k p)) w := by
+    intro w hw hw'
+    refine existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_vertex_local hsub ((emcg_supertile_finite τ g.k p).image _) hdisj ?_ hw
+    rw [emcg_support_translateSet, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_support_supertile, interior_vadd]
+    exact Set.vadd_set_mono hLH hw'
+  obtain ⟨G', h1, -, h3, h4, h5⟩ := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_annulus (g.annular p) v hsub hV
+  exact ⟨G', h1, h3, h4, h5⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+ideal trapezoids translate with their centre. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_trapezoid (v c : Pt) (N : ℕ) (R D : ℝ) (j : ℕ) (r : ℝ) :
+    v +ᵥ Metric.cthickening r (idealTrapezoid c N R D j) =
+      Metric.cthickening r (idealTrapezoid (v + c) N R D j) := by
+  have ht : idealTrapezoid (v + c) N R D j = v +ᵥ idealTrapezoid c N R D j := by
+    ext x
+    simp only [idealTrapezoid, mem_setOf_eq, mem_vadd_set, vadd_eq_add]
+    constructor
+    · rintro ⟨t, ht, μ, hμ, rfl⟩
+      exact ⟨c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) t, ⟨t, ht, μ, hμ, rfl⟩, by abel⟩
+    · rintro ⟨_, ⟨t, ht, μ, hμ, rfl⟩, rfl⟩
+      exact ⟨t, ht, μ, hμ, by abel⟩
+  rw [ht]
+  ext x
+  simp only [Metric.cthickening_eq_preimage_infEDist, mem_preimage, mem_vadd_set, vadd_eq_add]
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    rw [← vadd_eq_add, Metric.infEDist_vadd]
+    exact hy
+  · intro hx
+    refine ⟨x - v, ?_, by abel⟩
+    have : x = v +ᵥ (x - v) := by rw [vadd_eq_add]; abel
+    rw [this, Metric.infEDist_vadd] at hx
+    exact hx
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the carrier of a mixed tile is the support of its scattering. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_carrier_scatter (G : GroupedFamily P) (X : PlacedTile G.mixed) :
+    X.carrier = support (G.mixedScatterTile X) := by
+  obtain ⟨f, w⟩ := X
+  cases f with
+  | inl β =>
+    show w +ᵥ (G.P'.disk β).carrier = support (translateSet w (G.dissect β).tiles)
+    rw [emcg_support_translateSet, G.support_eq]
+  | inr q =>
+    show w +ᵥ (P.disk q).carrier = support ({⟨q, w⟩} : Set (PlacedTile P))
+    simp [support, PlacedTile.carrier]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"these are whole sides ... by the whole-side property of groups" -- every listed side of a mixed tile
+is a whole side of one of its scattered constituents. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_child_side (G : GroupedFamily P) (X : PlacedTile G.mixed)
+    (i : Fin (G.mixed.disk X.form).n) : ∃ A ∈ G.mixedScatterTile X, HasEdge A (X.side i) := by
+  obtain ⟨f, w⟩ := X
+  cases f with
+  | inl β =>
+    obtain ⟨A, hA, he⟩ := G.side_whole β i
+    exact ⟨A.translate w, ⟨A, hA, rfl⟩, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_hasEdge_translate w he⟩
+  | inr q =>
+    exact ⟨⟨q, w⟩, mem_singleton _, i, rfl⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+side-to-side sets stay side-to-side after untranslating. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_untranslate {S : Set (PlacedTile P)} (u : Pt)
+    (h : SideToSideSet (translateSet u S)) : SideToSideSet S := by
+  intro A hA B hB i j hov
+  obtain ⟨x, y, hxy, hseg⟩ := hov
+  have hov' : OverlapPos ((A.translate u).side i) ((B.translate u).side j) := by
+    refine ⟨u +ᵥ x, u +ᵥ y, fun he => hxy ((vadd_left_cancel_iff u).1 he), ?_⟩
+    rw [emcg_translate_side, emcg_translate_side, ← Set.vadd_set_inter, ← vadd_segment]
+    exact Set.vadd_set_mono hseg
+  have := h _ ⟨A, hA, rfl⟩ _ ⟨B, hB, rfl⟩ i j hov'
+  rw [emcg_translate_side, emcg_translate_side] at this
+  exact (vadd_left_cancel_iff u).1 this
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+the iterated decomposition of a group is side-to-side (it lies in a translated supertile, STS). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_iter (τ : Substitution P) (h : τ.STS) (g :
+    existsMacroCertificate_GroupingSeed τ)
+    (n : ℕ) (α : g.GS.G.P'.Form) : SideToSideSet (τ.decomposeIter n (g.GS.G.dissect α).tiles) := by
+  obtain ⟨n0, p0, w, hw⟩ := g.inside_supertile α
+  refine existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_untranslate ((τ.θ ^ n) • w) (emcg_sts_subset (h (n0 + n) p0) ?_)
+  rw [← emcg_iter_translate, Substitution.supertile, ← emcg_iter_add]
+  exact emcg_iter_mono τ n hw
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"The retained templates are side-to-side because scattering a group of a side-to-side patch along
+whole sides preserves the side-to-side property." -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_mixed (G : GroupedFamily P) {C : Set (PlacedTile G.mixed)}
+    {S : Set (PlacedTile P)} (hS : SideToSideSet S) (hC : G.mixedScatter C ⊆ S) : SideToSideSet C := by
+  intro X hX Y hY i j hov
+  obtain ⟨A, hA, a, ha⟩ := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_child_side G X i
+  obtain ⟨B, hB, b, hb⟩ := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_child_side G Y j
+  have hA' : A ∈ S := hC (mem_biUnion hX hA)
+  have hB' : B ∈ S := hC (mem_biUnion hY hB)
+  rw [← ha, ← hb] at hov ⊢
+  exact hS A hA' B hB' a b hov
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+children whose scatterings are disjoint families of a patch with disjoint interiors have disjoint
+interiors. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_disjoint_mixed (G : GroupedFamily P) {C : Set (PlacedTile G.mixed)}
+    {S : Set (PlacedTile P)} (hS : DisjointInteriors S) (hC : G.mixedScatter C ⊆ S)
+    (huniq : ∀ X ∈ C, ∀ Y ∈ C, ∀ A, A ∈ G.mixedScatterTile X → A ∈ G.mixedScatterTile Y → X = Y) :
+    DisjointInteriors C := by
+  intro X hX Y hY hXY
+  have hfin : ∀ Z : PlacedTile G.mixed, (G.mixedScatterTile Z).Finite := by
+    rintro ⟨f, w⟩
+    cases f with
+    | inl β => exact (G.dissect β).finite.image _
+    | inr q => exact finite_singleton _
+  show Disjoint (interior X.carrier) (interior Y.carrier)
+  rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_carrier_scatter,
+      existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_carrier_scatter]
+  refine emcg_disjoint_interior_support hS (fun A hA => hC (mem_biUnion hX hA))
+    (fun A hA => hC (mem_biUnion hY hA)) (hfin X) (hfin Y) ?_
+  rw [Set.disjoint_left]
+  intro A h1 h2
+  exact hXY (huniq X hX Y hY A h1 h2)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"a large form `L_p` has exactly `4N` marked sides, the side it shares with each of the `4N` annular
+pieces (one per piece; these are whole sides of `L_p` by the whole-side property of groups)" -- every
+small catalogue group shares a whole listed side with the large catalogue group of the same
+supertile. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_contact (τ : Substitution P) (h : τ.STS) (g :
+    existsMacroCertificate_GroupingSeed τ)
+    (p : P.Form) (j : Fin (4 * g.N)) :
+    SharesSide (⟨Sum.inl (g.small p j), 0⟩ : PlacedTile g.GS.G.mixed) ⟨Sum.inl (g.large p), 0⟩ := by
+  classical
+  set G := g.GS.G
+  set L := (g.annular p).L
+  set Pc := (g.annular p).spokes.piece j
+  set D1 := G.P'.disk (g.large p)
+  set D2 := G.P'.disk (g.small p j)
+  have hD1 : D1.carrier = support L.faces := by
+    rw [← G.support_eq, g.large_dissect]
+  have hD2 : D2.carrier = support Pc.faces := by
+    rw [← G.support_eq, g.small_dissect]
+  have hdisjF : Disjoint L.faces Pc.faces :=
+    Set.disjoint_left.2 fun A hA hA' => ((g.annular p).spokes.piece_sub j hA').2 hA
+  have hint : Disjoint (interior D1.carrier) (interior D2.carrier) := by
+    rw [hD1, hD2]
+    exact emcg_disjoint_interior_support (emcg_supertile_disjoint τ g.k p) L.faces_sub Pc.faces_sub
+      L.finite Pc.finite hdisjF
+  set K := D2.carrier ∩ D1.carrier with hKdef
+  have hK : K = Pc.carrier ∩ L.carrier := by
+    rw [hKdef, hD1, hD2]
+    show support Pc.faces ∩ support L.faces = Pc.disk.carrier ∩ L.disk.carrier
+    rw [Pc.carrier_eq, L.carrier_eq]
+  have hKconn : IsPreconnected K := by
+    rw [hK]; exact ((g.annular p).spokes.contact_connected j).isPreconnected
+  have hKnt : K.Nontrivial := by
+    rw [hK]; exact (g.annular p).spokes.contact_nondegenerate j
+  have hfr : ∀ (E F : PolygonalDisk), Disjoint (interior E.carrier) (interior F.carrier) →
+      F.carrier ∩ E.carrier ⊆ frontier E.carrier := by
+    intro E F hEF x ⟨hxF, hxE⟩
+    refine ⟨subset_closure hxE, fun hxi => ?_⟩
+    rw [← F.regular_closed] at hxF
+    obtain ⟨y, hy1, hy2⟩ := mem_closure_iff.1 hxF _ isOpen_interior hxi
+    exact Set.disjoint_left.mp hEF hy1 hy2
+  have hK1 : K ⊆ ⋃ i, D1.side i := by
+    have := hfr D1 D2 hint
+    rw [D1.frontier_eq] at this
+    exact this
+  have hK2 : K ⊆ ⋃ a, D2.side a := by
+    have := hfr D2 D1 hint.symm
+    rw [D2.frontier_eq, inter_comm] at this
+    exact this
+  have hinf : K.Infinite := hKconn.infinite_of_nontrivial hKnt
+  obtain ⟨i, a, hia⟩ : ∃ i a, (K ∩ (D1.side i ∩ D2.side a)).Infinite := by
+    by_contra hno
+    push_neg at hno
+    refine hinf ((Set.finite_iUnion fun i => Set.finite_iUnion fun a =>
+      hno i a).subset ?_)
+    intro x hx
+    obtain ⟨i, hi⟩ := mem_iUnion.1 (hK1 hx)
+    obtain ⟨a, ha⟩ := mem_iUnion.1 (hK2 hx)
+    exact mem_iUnion.2 ⟨i, mem_iUnion.2 ⟨a, hx, hi, ha⟩⟩
+  obtain ⟨x, hx, y, hy, hxy⟩ := hia.nontrivial
+  have hov : OverlapPos (D1.side i) (D2.side a) := by
+    refine ⟨x, y, hxy, ?_⟩
+    exact ((convex_segment _ _).inter (convex_segment _ _)).segment_subset hx.2 hy.2
+  obtain ⟨A, hA, ia, hAi⟩ := G.side_whole (g.large p) i
+  obtain ⟨B, hB, ib, hBi⟩ := G.side_whole (g.small p j) a
+  rw [g.large_dissect] at hA
+  rw [g.small_dissect] at hB
+  have heq : D1.side i = D2.side a := by
+    rw [← hAi, ← hBi] at hov ⊢
+    exact h g.k p A (L.faces_sub hA) B (Pc.faces_sub hB) ia ib hov
+  refine ⟨fun hne => ?_, (0 : Pt) +ᵥ D2.side a, ⟨a, rfl⟩, ⟨i, ?_⟩⟩
+  · simp only [PlacedTile.mk.injEq, Sum.inl.injEq] at hne
+    have := g.catalogue_labels_injective (a₁ := Sum.inr (Sum.inl (p, j))) (a₂ := Sum.inl p) hne.1
+    exact Sum.inr_ne_inl this
+  · show (0 : Pt) +ᵥ D1.side i = (0 : Pt) +ᵥ D2.side a
+    rw [heq]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub2_templates`:
+"For a power `l` the retained template of `α` keeps, inside `σ^l α`, only the central chain `c^l(α)`
+... and its `4N` annular neighbours, and scatters every other group into original tiles."  At the
+power `m + 1` the retained template has the central child, the `4N` translated small catalogue
+groups of the central supertile, and otherwise only original tiles. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_template_succ (τ : Substitution P) (h : τ.STS)
+    (g : existsMacroCertificate_GroupingSeed τ) (m : ℕ) (α : g.GS.G.P'.Form) :
+    ∃ T : Template g.GS.G.mixed,
+      T.region = (τ.θ ^ (g.GS.k * (m + 1))) • (g.GS.G.P'.disk α).carrier ∧
+      g.GS.G.mixedScatter T.children.tiles =
+        τ.decomposeIter (g.GS.k * (m + 1)) (g.GS.G.dissect α).tiles ∧
+      emcsCentralPlaced τ g (m + 1) α ∈ T.children.tiles ∧
+      (∀ j, (⟨Sum.inl (g.small (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form j),
+          emcsCentralAnchor τ g (m + 1) α⟩ : PlacedTile g.GS.G.mixed) ∈ T.children.tiles) ∧
+      ∀ X ∈ T.children.tiles, X = emcsCentralPlaced τ g (m + 1) α ∨
+        (∃ j, X = ⟨Sum.inl (g.small (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form j),
+          emcsCentralAnchor τ g (m + 1) α⟩) ∨ ∃ q, X.form = Sum.inr q := by
+  classical
+  set n := g.GS.k * (m + 1) with hn
+  set S' := τ.decomposeIter n (g.GS.G.dissect α).tiles with hS'
+  set v := emcsCentralAnchor τ g (m + 1) α with hv
+  set p := (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form with hp
+  have hcent : emcsCentralPlaced τ g (m + 1) α = ⟨Sum.inl (g.large p), v⟩ := by
+    simp only [emcsCentralPlaced, Function.iterate_succ_apply']
+    rfl
+  have hsupT : translateSet v (τ.supertile g.k p) ⊆ S' := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_supertile_sub τ g m α
+  have hLf : translateSet v (g.annular p).L.faces ⊆ S' :=
+    (image_mono (g.annular p).L.faces_sub).trans hsupT
+  have hPf : ∀ j, translateSet v ((g.annular p).spokes.piece j).faces ⊆ S' := fun j =>
+    (image_mono ((g.annular p).spokes.piece j).faces_sub).trans hsupT
+  have hS'fin : S'.Finite := emcg_iter_finite τ n (g.GS.G.dissect α).finite
+  let sm : Fin (4 * g.N) → PlacedTile g.GS.G.mixed := fun j => ⟨Sum.inl (g.small p j), v⟩
+  let Rest : Set (PlacedTile P) := S' \ (translateSet v (g.annular p).L.faces ∪
+    ⋃ j, translateSet v ((g.annular p).spokes.piece j).faces)
+  let orig : PlacedTile P → PlacedTile g.GS.G.mixed := fun B => ⟨Sum.inr B.form, B.anchor⟩
+  let C : Set (PlacedTile g.GS.G.mixed) := insert ⟨Sum.inl (g.large p), v⟩ (range sm ∪ orig '' Rest)
+  have hsc_c : g.GS.G.mixedScatterTile ⟨Sum.inl (g.large p), v⟩ =
+      translateSet v (g.annular p).L.faces := by
+    show translateSet v (g.GS.G.dissect (g.large p)).tiles = _
+    rw [g.large_dissect]
+  have hsc_s : ∀ j, g.GS.G.mixedScatterTile (sm j) =
+      translateSet v ((g.annular p).spokes.piece j).faces := by
+    intro j
+    show translateSet v (g.GS.G.dissect (g.small p j)).tiles = _
+    rw [g.small_dissect]
+  have hsc_o : ∀ B, g.GS.G.mixedScatterTile (orig B) = {B} := fun B => rfl
+  have hscat : g.GS.G.mixedScatter C = S' := by
+    ext A
+    simp only [GroupedFamily.mixedScatter, mem_iUnion, exists_prop]
+    constructor
+    · rintro ⟨X, hX, hA⟩
+      rcases hX with rfl | ⟨j, rfl⟩ | ⟨B, hB, rfl⟩
+      · rw [hsc_c] at hA; exact hLf hA
+      · rw [hsc_s] at hA; exact hPf j hA
+      · rw [hsc_o, mem_singleton_iff] at hA; subst hA; exact hB.1
+    · intro hA
+      by_cases h1 : A ∈ translateSet v (g.annular p).L.faces
+      · exact ⟨_, mem_insert _ _, by rw [hsc_c]; exact h1⟩
+      by_cases h2 : ∃ j, A ∈ translateSet v ((g.annular p).spokes.piece j).faces
+      · obtain ⟨j, hj⟩ := h2
+        exact ⟨sm j, Or.inr (Or.inl ⟨j, rfl⟩), by rw [hsc_s]; exact hj⟩
+      · refine ⟨orig A, Or.inr (Or.inr ⟨A, ⟨hA, ?_⟩, rfl⟩), by rw [hsc_o]; exact mem_singleton _⟩
+        rintro (h | h)
+        · exact h1 h
+        · exact h2 (mem_iUnion.1 h)
+  have hLP : ∀ j A, A ∈ translateSet v (g.annular p).L.faces →
+      A ∈ translateSet v ((g.annular p).spokes.piece j).faces → False := by
+    rintro j _ ⟨B, hB, rfl⟩ hB'
+    have hB'' := (emcg_translate_injective v).mem_set_image.1 hB'
+    exact ((g.annular p).spokes.piece_sub j hB'').2 hB
+  have hPP : ∀ j j' A, A ∈ translateSet v ((g.annular p).spokes.piece j).faces →
+      A ∈ translateSet v ((g.annular p).spokes.piece j').faces → j = j' := by
+    rintro j j' _ ⟨B, hB, rfl⟩ hB'
+    have hB'' := (emcg_translate_injective v).mem_set_image.1 hB'
+    have hBS := ((g.annular p).spokes.piece j).faces_sub hB
+    have hex := ((g.annular p).spokes.piece_partition B hBS).1
+      ⟨((g.annular p).spokes.piece_sub j hB).1, ((g.annular p).spokes.piece_sub j hB).2⟩
+    exact hex.unique hB hB''
+  have hRest : ∀ B ∈ Rest, ∀ X, (X = (⟨Sum.inl (g.large p), v⟩ : PlacedTile g.GS.G.mixed) ∨
+      ∃ j, X = sm j) → B ∈ g.GS.G.mixedScatterTile X → False := by
+    rintro B ⟨-, hB⟩ X hX hBX
+    rcases hX with rfl | ⟨j, rfl⟩
+    · rw [hsc_c] at hBX; exact hB (Or.inl hBX)
+    · rw [hsc_s] at hBX; exact hB (Or.inr (mem_iUnion.2 ⟨j, hBX⟩))
+  have huniq : ∀ X ∈ C, ∀ Y ∈ C, ∀ A, A ∈ g.GS.G.mixedScatterTile X →
+      A ∈ g.GS.G.mixedScatterTile Y → X = Y := by
+    intro X hX Y hY A hAX hAY
+    rcases hX with rfl | ⟨j, rfl⟩ | ⟨B, hB, rfl⟩ <;> rcases hY with rfl | ⟨j', rfl⟩ | ⟨B', hB', rfl⟩
+    · rfl
+    · rw [hsc_c] at hAX; rw [hsc_s] at hAY; exact (hLP j' A hAX hAY).elim
+    · rw [hsc_o, mem_singleton_iff] at hAY; subst hAY
+      exact (hRest A hB' _ (Or.inl rfl) hAX).elim
+    · rw [hsc_s] at hAX; rw [hsc_c] at hAY; exact (hLP j A hAY hAX).elim
+    · rw [hsc_s] at hAX hAY; rw [hPP j j' A hAX hAY]
+    · rw [hsc_o, mem_singleton_iff] at hAY; subst hAY
+      exact (hRest A hB' _ (Or.inr ⟨j, rfl⟩) hAX).elim
+    · rw [hsc_o, mem_singleton_iff] at hAX; subst hAX
+      exact (hRest A hB _ (Or.inl rfl) hAY).elim
+    · rw [hsc_o, mem_singleton_iff] at hAX; subst hAX
+      exact (hRest A hB _ (Or.inr ⟨j', rfl⟩) hAY).elim
+    · rw [hsc_o, mem_singleton_iff] at hAX hAY; rw [← hAX, ← hAY]
+  have hCfin : C.Finite :=
+    ((finite_range sm).union ((hS'fin.subset diff_subset).image orig)).insert _
+  have hsupp : support C = support (g.GS.G.mixedScatter C) := by
+    simp only [GroupedFamily.mixedScatter]
+    rw [emcg_support_biUnion]
+    simp only [support]
+    exact iUnion₂_congr fun X _ => existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_carrier_scatter g.GS.G X
+  refine ⟨⟨⟨C, hCfin, existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_disjoint_mixed g.GS.G (emcg_iter_disjoint τ n
+      (g.GS.G.dissect α).disjoint)
+      hscat.le huniq⟩, (τ.θ ^ n) • (g.GS.G.P'.disk α).carrier, ?_,
+      existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_mixed g.GS.G
+          (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sts_iter τ h g n α) hscat.le⟩, rfl, hscat, ?_, ?_, ?_⟩
+  · show support C = _
+    rw [hsupp, hscat, hS', emcg_iter_support, g.GS.G.support_eq]
+  · show _ ∈ C
+    rw [hcent]; exact mem_insert _ _
+  · intro j
+    exact Or.inr (Or.inl ⟨j, rfl⟩)
+  · intro X hX
+    rcases hX with rfl | ⟨j, rfl⟩ | ⟨B, hB, rfl⟩
+    · exact Or.inl hcent.symm
+    · exact Or.inr (Or.inl ⟨j, rfl⟩)
+    · exact Or.inr (Or.inr ⟨B.form, rfl⟩)
+
 /-- Step 3 of `lem:certificate-exists`: "Scattering a group and applying the grouped substitution
 to each constituent defines `σ` on `P'` ... In each `σ^l`-template of a group keep only the
 central large child and the `4N` small annular groups directly adjacent to it, and scatter every
@@ -2421,7 +3378,156 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub2_templates
       ∃ annulus : ∀ l α, 0 < l →
         AnnularGrouping g.M (g.GS.G.mixedScatter (retained l α).children.tiles)
           (emcsCentre τ g l α) g.N g.R, emcsAnnulusSpec τ g retained annulus := by
-  sorry
+  classical
+  choose T0 hT0r hT0s hT0c using existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_template_zero τ g
+  choose T1 hT1r hT1s hT1c hT1small hT1cases using existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_template_succ τ h g
+  choose Ga hGaL hGaP hGaC hGaE using fun m α => existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_annulus_succ τ g m α _ (hT1s m α)
+  let retained : ℕ → g.GS.G.P'.Form → Template g.GS.G.mixed := fun l α =>
+    Nat.casesOn (motive := fun _ => Template g.GS.G.mixed) l (T0 α) (fun m => T1 m α)
+  let annulus : ∀ l α, 0 < l → AnnularGrouping g.M
+      (g.GS.G.mixedScatter (retained l α).children.tiles) (emcsCentre τ g l α) g.N g.R :=
+    fun l α hl => match l, hl with
+      | 0, hl => absurd hl (lt_irrefl 0)
+      | m + 1, _ => Ga m α
+  -- the central form of the successor step is the large form of the central tile
+  have hiter : ∀ m α, (emcsCentralForm τ g)^[m + 1] α =
+      g.large (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form := by
+    intro m α
+    rw [Function.iterate_succ_apply']
+    rfl
+  have hcent : ∀ m α, emcsCentralPlaced τ g (m + 1) α =
+      ⟨Sum.inl (g.large (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form),
+        emcsCentralAnchor τ g (m + 1) α⟩ := by
+    intro m α
+    simp only [emcsCentralPlaced, hiter]
+  have hsl : ∀ p j q, g.small p j ≠ g.large q := by
+    intro p j q hpq
+    have := g.catalogue_labels_injective (a₁ := Sum.inr (Sum.inl (p, j))) (a₂ := Sum.inl q) hpq
+    exact Sum.inr_ne_inl this
+  have hsmall_ne : ∀ m α j,
+      (⟨Sum.inl (g.small (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form j),
+        emcsCentralAnchor τ g (m + 1) α⟩ : PlacedTile g.GS.G.mixed) ≠ emcsCentralPlaced τ g (m + 1) α := by
+    intro m α j hX
+    rw [hcent] at hX
+    simp only [PlacedTile.mk.injEq, Sum.inl.injEq] at hX
+    exact hsl _ _ _ hX.1
+  refine ⟨retained, ?_, ?_, ?_, ?_, ?_, ?_, fun α p hα => existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_singleton_sides τ g α
+      p hα, annulus,
+    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+  · intro l α
+    cases l with
+    | zero => exact hT0r α
+    | succ m => exact hT1r m α
+  · intro l α
+    cases l with
+    | zero => exact hT0s α
+    | succ m => exact hT1s m α
+  · intro l α
+    cases l with
+    | zero => show _ ∈ (T0 α).children.tiles; rw [hT0c α]; exact mem_singleton _
+    | succ m => exact hT1c m α
+  · intro l α X hX hne
+    cases l with
+    | zero =>
+      have hX' : X ∈ (T0 α).children.tiles := hX
+      rw [hT0c α] at hX'
+      exact absurd hX' hne
+    | succ m =>
+      rcases hT1cases m α X hX with h1 | ⟨j, rfl⟩ | h3
+      · exact absurd h1 hne
+      · right
+        have := existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_sharesSide_translate (emcsCentralAnchor τ g (m + 1) α)
+            (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_contact τ h g
+          (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form j)
+        simp only [PlacedTile.translate, vadd_eq_add, add_zero] at this
+        rw [hcent]
+        exact this
+      · exact Or.inl h3
+  · intro l α hl X hX hne β
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      rcases hT1cases m α X hX with h1 | ⟨j, rfl⟩ | ⟨q, hq⟩
+      · exact absurd h1 hne
+      · intro hf
+        simp only [Sum.inl.injEq] at hf
+        exact hsl _ _ _ hf
+      · rw [hq]; exact Sum.inr_ne_inl
+  · intro l α hl X hX hne γ hγ
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      rcases hT1cases m α X hX with h1 | ⟨j, rfl⟩ | ⟨q, hq⟩
+      · exact absurd h1 hne
+      · simp only [Sum.inl.injEq] at hγ
+        rw [← hγ]
+        exact existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_small_sides τ g _ j
+      · rw [hq] at hγ; exact absurd hγ Sum.inr_ne_inl
+  · intro l α hl
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      show _ ⊆ interior (T1 m α).region
+      rw [hT1r]
+      exact existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_margin τ g m α
+  · intro l α hl
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      show _ = (Ga m α).L.faces
+      rw [hGaL, hcent, ← g.large_dissect]
+      rfl
+  · intro l α hl X hX hne _
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      rcases hT1cases m α X hX with h1 | ⟨j, rfl⟩ | ⟨q, hq⟩
+      · exact absurd h1 hne
+      · refine ⟨j, ?_⟩
+        show _ = ((Ga m α).spokes.piece j).faces
+        rw [hGaP, ← g.small_dissect]
+        rfl
+      · rename_i hβ
+        obtain ⟨β, hβ⟩ := hβ
+        rw [hq] at hβ; exact absurd hβ Sum.inr_ne_inl
+  · intro l α hl j
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      refine ⟨_, hT1small m α j, hsmall_ne m α j, ?_⟩
+      show _ = ((Ga m α).spokes.piece j).faces
+      rw [hGaP, ← g.small_dissect]
+      rfl
+  · intro l α hl j
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      show ((Ga m α).spokes.piece j).carrier ⊆ _
+      rw [hGaC]
+      have h1 := (g.annular_quantitative (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form).1 j
+      rw [g.Cloc_eq] at h1
+      refine (Set.vadd_set_mono h1).trans ?_
+      rw [existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_trapezoid]
+      rfl
+  · intro l α hl
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      obtain ⟨e, he, hsep⟩ := g.annular_windows (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form
+      refine ⟨fun j i => emcsCentralAnchor τ g (m + 1) α +ᵥ e j i, fun j i => hGaE m α j _ (he j i), ?_⟩
+      rintro j i j' i' hji _ ⟨x, hx, rfl⟩ _ ⟨y, hy, rfl⟩
+      rw [dist_vadd_cancel_left]
+      exact hsep j i j' i' hji x hx y hy
+  · intro l α hl
+    cases l with
+    | zero => exact absurd hl (lt_irrefl 0)
+    | succ m =>
+      refine ⟨(emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form, emcsCentralAnchor τ g (m + 1) α,
+        ?_, fun j => ⟨j, rfl, hGaP m α j⟩⟩
+      rw [hcent, ← g.large_dissect]
+      rfl
+  · intro m α j
+    exact hGaP m α j
 
 private noncomputable def emcsRetained (τ : Substitution P) (h : τ.STS)
     (g : existsMacroCertificate_GroupingSeed τ) : ℕ → g.GS.G.P'.Form → Template g.GS.G.mixed :=

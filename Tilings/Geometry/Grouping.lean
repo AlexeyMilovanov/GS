@@ -38124,6 +38124,40 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kord
   ⟨existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kadm
     τ M Rs ports entries, horder⟩
 
+/- Universal weak order on realized configurations extends to every point of the admissible
+compactum, because the weak-order predicate is closed. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_weakOrder_of_realized
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hrealized : ∀ (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+      (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+      (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl),
+        existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α
+          (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries))
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
+    existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α cfg := by
+  apply closure_minimal _
+      (existsRoutingAfterPower_step4_routes_step6_R2_weakOrderAdmissible_closed τ M Rs α)
+      hcfg.1.1.1.1.2
+  rintro cfg' ⟨l, hl, ports, entries, rfl⟩
+  exact hrealized l hl α ports entries
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_subset_Kord_of_realized
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hrealized : ∀ (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+      (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+      (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl),
+        existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α
+          (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries))
+    (α : Rs.GS.G.P'.Form) :
+    existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α ⊆
+      existsRoutingAfterPower_step4_routes_step6_R2_Kord τ M Rs cp rho α := by
+  intro cfg hcfg
+  exact ⟨hcfg,
+    existsRoutingAfterPower_step4_routes_step6_R2_Kadm_weakOrder_of_realized
+      τ M Rs hrealized α hcfg⟩
+
 /-- Scaling a polygonal disk by a nonzero real scalar preserves all of its defining data.  This
 local copy is placed before R3 because the later grouping-scale construction is not yet in scope. -/
 private def existsRoutingAfterPower_step4_routes_step6_R3_scaleDisk
@@ -38605,11 +38639,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_pointsInOrder_of_pun
     apply hn0
     omega
 
-/- The following orientation-qualified B2 construction records the route that becomes available
-once `RoutingSetup` retains the parent orientation.  It is intentionally inactive until that
-interface change lands; the current setup cannot state its required invariant. -/
 /- The canonical positively oriented circle has lift degree one about its centre. -/
-/-
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_circleLoop_degree_one
     (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) :
     ∃ Theta : ℝ → ℂ, Continuous Theta ∧
@@ -38620,22 +38650,24 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_circleLoop_degree_on
     (Real.log kappa : ℂ) + ((2 * Real.pi * t : ℝ) : ℂ) * Complex.I
   refine ⟨Theta, by fun_prop, ?_, ?_⟩
   · intro t
-    rw [Theta, Complex.exp_add, Complex.exp_natCast_mul_I, Real.exp_log hkappa]
+    dsimp only [Theta]
+    rw [Complex.exp_add, ← Complex.ofReal_exp, Real.exp_log hkappa,
+      Complex.exp_mul_I]
     rw [existsRoutingAfterPower_step4_routes_step6_R2_circleLoop, add_sub_cancel_left,
       toC_smul]
     congr 1
-    change toC ((Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt)
-      (AddCircle.homeomorphCircle one_ne_zero (t : AddCircle (1 : ℝ)) : Circle)) = _
+    unfold existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
     rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk, Circle.coe_exp]
-    apply Complex.ext <;> simp [toC]
+    rw [Complex.exp_mul_I]
+    rw [div_one]
+    push_cast
+    rfl
   · intro t
     dsimp only [Theta]
     push_cast
     ring
 
--/
 /- A counterclockwise polygonal boundary has lift degree one about every interior point. -/
-/-
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one
     (B : PolygonalDisk) (hccw : pdCCW B) {c : Pt} (hc : c ∈ interior B.carrier) :
     ∃ Theta : ℝ → ℂ, Continuous Theta ∧
@@ -38646,7 +38678,10 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one
   obtain ⟨Theta, hThetaC, hTheta, n, hn⟩ :=
     existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
       (pgLoop_isLoopParam B) hcfront
-  have hlen : 0 < (pgL B).length := by rw [pgL_length]; omega
+  have hlen : 0 < (pgL B).length := by
+    rw [pgL_length]
+    have := B.three_le
+    omega
   have hdegree :=
     existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step8_polygon_degree
       hlen (by rw [pgCv_pgL]; exact hcfront) hThetaC hTheta hn
@@ -38655,20 +38690,15 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one
       rw [pgW_pgL]
       exact hccw c hc
     rw [hwind] at hdegree
-    have hpi : Real.pi ≠ 0 := Real.pi_ne_zero
-    apply_fun Complex.re at hdegree
-    simp only [Complex.ofReal_mul_re, Complex.ofReal_ofNat_re,
-      Complex.intCast_re] at hdegree
     push_cast at hdegree
-    nlinarith
+    have hnR : (n : ℝ) = 1 := by nlinarith [Real.pi_pos]
+    exact_mod_cast hnR
   subst n
   exact ⟨Theta, hThetaC, hTheta, hn⟩
 
--/
 /- The B2 homotopy is valid once the omitted orientation datum is supplied explicitly.  The
 proof inserts a counterclockwise polygonal square, uses the polygonal annulus theorem on the
 outside, and the radial circle-to-square collar on the inside. -/
-/-
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homotopy_of_ccw
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
     (α : Rs.GS.G.P'.Form)
@@ -38690,9 +38720,10 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homoto
     rw [pdOrientCCW_carrier, hC0]
   have hCA : C.carrier ⊆ interior A.carrier := by
     rw [pdOrientCCW_carrier]
-    exact houter0.trans
+    refine houter0.trans ((Metric.closedBall_subset_closedBall ?_).trans
       (existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
-        τ M Rs cp rho α hcfg) |>.trans (fun x hx => hx)
+        τ M Rs cp rho α hcfg))
+    linarith
   have hcC : cfg.1 ∈ interior C.carrier := by
     rw [hCcarrier]
     apply sw3_mem_interior_square
@@ -38748,13 +38779,10 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homoto
     existsRoutingAfterPower_step4_routes_step6_R3_circle_square_homotopy
       cfg.1 hkappa C hCcarrier _
         existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoopParam
-  have hsquarePunctured : LoopsHomotopicIn ({cfg.1}ᶜ)
+  have hsquareBoundary : LoopsHomotopicIn (frontier C.carrier)
       (pgLoop (pgL C)) squareLoop := by
     rcases pg_loopParam_homotopic (pgLoop_isLoopParam C) hsquareParam with h | h
-    · exact pg_lh_mono (fun x hx => by
-        simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
-          (show x ≠ cfg.1 from fun hxc =>
-            Set.disjoint_left.1 disjoint_interior_frontier hcC (hxc ▸ hx))) h
+    · exact h
     · exfalso
       obtain ⟨ThetaC, hThetaCC, hThetaC, hThetaCIncr⟩ :=
         existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one C
@@ -38765,9 +38793,13 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homoto
         existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
           hsquareParam (fun hcf => Set.disjoint_left.1 disjoint_interior_frontier hcC hcf)
       have hm1 : m = 1 :=
-        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
-          hcircleSquare (by simp) hThetaCircleC hThetaCircle hThetaSquareC
-            hThetaSquare hThetaCircleIncr hThetaSquareIncr
+        (existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+          (n₀ := 1) (n₁ := m) hcircleSquare
+          (by
+            intro hmem
+            exact hmem.2 (Metric.mem_ball_self hkappa))
+          hThetaCircleC hThetaCircle hThetaSquareC hThetaSquare
+          hThetaCircleIncr hThetaSquareIncr).symm
       let Psi : ℝ → ℂ := fun t => ThetaSquare (-t)
       have hPsiC : Continuous Psi := hThetaSquareC.comp continuous_neg
       have hPsi : ∀ t, Complex.exp (Psi t) = toC
@@ -38785,24 +38817,92 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homoto
         ring
       have hdeg :=
         existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+          (n₀ := 1) (n₁ := -m)
           (pg_lh_mono (fun x hx => by
             simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
               (show x ≠ cfg.1 from fun hxc =>
                 Set.disjoint_left.1 disjoint_interior_frontier hcC (hxc ▸ hx))) h)
-          (by simp) hThetaCC hThetaC hPsiC hPsi hThetaCIncr hPsiIncr
+          (by
+            intro hmem
+            exact hmem rfl)
+          hThetaCC hThetaC hPsiC hPsi hThetaCIncr
+            (by simpa only [Int.cast_neg] using hPsiIncr)
       omega
   have hsameCurve : LoopsHomotopicIn
       (A.carrier \ Metric.ball cfg.1 kappa) (pgLoop (pgL C)) squareLoop :=
-    pg_lh_mono (fun x hx => ⟨interior_subset (hCA (pd_frontier_subset_carrier C
-      (qo_loop_mem (pgLoop_isLoopParam C) 0))), hx⟩) hsquarePunctured
+    pg_lh_mono (by
+      intro x hx
+      constructor
+      · exact interior_subset (hCA (pd_frontier_subset_carrier C hx))
+      · intro hball
+        exact Set.disjoint_left.1 disjoint_interior_frontier (hballInt hball) hx)
+      hsquareBoundary
   have hAnn' : LoopsHomotopicIn (A.carrier \ Metric.ball cfg.1 kappa)
       (pgLoop (pgL A)) (pgLoop (pgL C)) :=
-    pg_lh_mono (fun x hx => ⟨hx.1, fun hball => hx.2 (hballInt hball)⟩) hAnn
+    pg_lh_mono (by
+      intro x hx
+      constructor
+      · exact hx.1
+      · intro hball
+        exact hx.2 (hballInt hball)) hAnn
   have hcircleSquare' : LoopsHomotopicIn (A.carrier \ Metric.ball cfg.1 kappa)
       (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop cfg.1 kappa) squareLoop :=
-    pg_lh_mono (fun x hx => ⟨interior_subset (hCA hx.1), hx.2⟩) hcircleSquare
+    pg_lh_mono (by
+      intro x hx
+      constructor
+      · exact interior_subset (hCA hx.1)
+      · exact hx.2) hcircleSquare
   exact pg_lh_trans (pg_lh_trans hAnn' hsameCurve) (pg_lh_symm hcircleSquare')
--/
+
+/- The parent orientation stored in `RoutingSetup` discharges the only extra hypothesis of the
+annular B2 construction. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homotopy
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
+    let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+    LoopsHomotopicIn
+      ((Rs.GS.G.P'.disk α).carrier \ Metric.ball cfg.1 kappa)
+      (pgLoop (pgL (Rs.GS.G.P'.disk α)))
+      (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop cfg.1 kappa) := by
+  exact existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homotopy_of_ccw
+    τ M Rs cp rho α (Rs.parent_ccw α) hcfg
+
+/- B2 in the form consumed by the fixed-configuration annulus routing theorem: closed weak
+order plus the stored parent orientation gives the required matching cyclic order. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_matchingCyclicOrder
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (horder : existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible
+      τ M Rs α cfg) :
+    let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+    ∃ portPerm dirPerm :
+        {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} →
+          Equiv.Perm (Fin 4),
+      MatchingCyclicOrder
+        ((Rs.GS.G.P'.disk α).carrier \ Metric.ball cfg.1 kappa)
+        (frontier (Rs.GS.G.P'.disk α).carrier) (Metric.sphere cfg.1 kappa)
+        (fun j =>
+          let e : Fin (Fintype.card
+              ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4)) ≃o
+                ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4) :=
+            Fintype.orderIsoFinOfCardEq _ rfl
+          existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg
+            ((e j).1, portPerm (e j).1 (e j).2))
+        (fun j =>
+          let e : Fin (Fintype.card
+              ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4)) ≃o
+                ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4) :=
+            Fintype.orderIsoFinOfCardEq _ rfl
+          cfg.1 + kappa • cfg.2.2 (e j).1 (dirPerm (e j).1 (e j).2)) := by
+  exact existsRoutingAfterPower_step4_routes_step6_R2_matchingCyclicOrder_of_weakOrder
+    (cp := cp) (rho := rho) τ M Rs hcp α
+      (existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs) hcfg horder
+      (existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homotopy
+        τ M Rs cp rho α hcfg)
 
 /-- The radial collar from the square boundary to the protected circle stays in the polygonal
 square and avoids the open protected ball. -/

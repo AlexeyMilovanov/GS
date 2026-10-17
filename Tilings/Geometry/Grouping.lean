@@ -44184,9 +44184,15 @@ private structure existsMacroCertificate_SetupSeed (τ : Substitution P)
   piece or an original tile) -/
   noncentral_not_large : ∀ l α (_hl : 0 < l), ∀ X ∈ (setup.retained l α).children.tiles,
     X ≠ setup.central l α → ∀ β, X.form ≠ Sum.inl (setup.c β)
-  /-- a form that is not a central image has at most `Q` listed sides (annular pieces by
-  `lem:quantitative-sector`, original tiles by `K₀ ≤ Q`) -/
-  sides_le_Qmax : ∀ α, (∀ β, α ≠ setup.c β) → (setup.GS.G.P'.disk α).n ≤ g.Qmax
+  /-- the form of a non-central grouped child of a retained template (an annular piece) has at
+  most `Q` listed sides (`lem:quantitative-sector`); a singleton group has at most `K₀ ≤ Q`.
+  (Repair of 17 October 2026 after Aristotle: the earlier clause quantified over every form that is
+  not a central image, which `GroupingSeed.catalogue` allows to be a translated copy of a large
+  group.) -/
+  sides_le_Qmax_child : ∀ l α (_hl : 0 < l), ∀ X ∈ (setup.retained l α).children.tiles,
+    X ≠ setup.central l α → ∀ γ, X.form = Sum.inl γ → (setup.GS.G.P'.disk γ).n ≤ g.Qmax
+  sides_le_Qmax_singleton : ∀ α (p : P.Form), (setup.GS.G.dissect α).tiles = {⟨p, 0⟩} →
+    (setup.GS.G.P'.disk α).n ≤ g.Qmax
 
 /-- Step 3 of `lem:certificate-exists`: "Scattering a group and applying the grouped substitution
 to each constituent defines `σ`"; the central child of a template is the inside-anchored group
@@ -44449,7 +44455,8 @@ private lemma existsMacroCertificate_seed2_routing_step7_g4 (τ : Substitution P
 (`central_owner`) and is its unique large child (`kind_large`, `child_form`, `child_bijective`,
 `SetupSeed.noncentral_not_large`); `central_fixes_large` from `base_form`, `catalogue_form_injective`
 and idempotence; the marked-side counts through the bijection `parentSide` (`SetupSeed.marked_large_card`,
-`SetupSeed.sides_le_Qmax`); "For a retained large form `α = c^l β`,
+`SetupSeed.sides_le_Qmax_child` / `sides_le_Qmax_singleton`, through `kind_small` / `kind_original`,
+`base_form` / `base_original`); "For a retained large form `α = c^l β`,
 `c^l α = α`" (`central_idempotent`); identity prints for a large parent (`RoutingData.print_id`);
 a large form has `4N` marked sides and a non-large form at most `Qmax` (`SetupSeed`,
 `g.annular_quantitative`, `MeshConstants.sides_le`); `4N > 3Q`; every original type has a marked

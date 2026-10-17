@@ -32717,6 +32717,99 @@ theorem quantitativeAnnularGrouping (M : MeshConstants P) :
     rw [h3] at h2
     exact h1.trans (Nat.mul_le_mul_left _ h2)
 
+/-- The open radial sector over the interior of the `j`-th length-`R` interval on the inner
+square.  Unlike `idealTrapezoid`, it allows every positive radial multiplier; this is the form
+preserved by the inward radial part of a crosscut. -/
+private def quantitativeAnnularGrouping_innerOrder_sector
+    (c : Pt) (N : ℕ) (R : ℝ) (j : ℕ) : Set Pt :=
+  {x | ∃ t ∈ Ioo ((j : ℝ) * R) (((j : ℝ) + 1) * R),
+    ∃ a : ℝ, 0 < a ∧
+      x = c + a • squarePerimeterPoint ((N : ℝ) * R / 2) t}
+
+/-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: choose, for
+each marked boundary point, an inside-anchoring side and face.  The `50 D` exclusion and the
+diameter bound localize the whole chosen face in the corresponding open radial sector.  In
+particular, marked points belonging to distinct sectors are distinct. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step1_localize_faces
+    {M : MeshConstants P} {S : Set (PlacedTile P)} (c : Pt) {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S c N R)
+    {m : ℕ} (j : Fin m → Fin (4 * N)) (hj : StrictMono j) (y : Fin m → Pt)
+    (hy : ∀ k, y k ∈ frontier G.L.carrier)
+    (hfar : ∀ k, ∀ t : Fin (4 * N), t ≠ j k →
+      ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), 50 * M.D ≤ dist (y k) q) :
+    ∃ i : Fin m → Fin G.L.disk.n, ∃ F : Fin m → PlacedTile P,
+      (∀ k, y k ∈ G.L.disk.side (i k)) ∧
+      (∀ k, F k ∈ G.L.faces) ∧
+      (∀ k, HasEdge (F k) (G.L.disk.side (i k))) ∧
+      (∀ k, (interior (F k).carrier ∩
+        interior (square c ((N : ℝ) * R / 2))).Nonempty) ∧
+      (∀ k, (F k).carrier ⊆
+        quantitativeAnnularGrouping_innerOrder_sector c N R (j k : ℕ)) ∧
+      Function.Injective y := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: move each
+possibly-vertex marked point through the relative interior of its selected boundary side.  The
+resulting finite families converge to the original family in the product topology. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step2_regularize
+    {S : Set (PlacedTile P)} (L : FaceGroup S) {m : ℕ} (y : Fin m → Pt)
+    (i : Fin m → Fin L.disk.n) (hy : ∀ k, y k ∈ L.disk.side (i k)) :
+    ∃ p : ℕ → Fin m → Pt,
+      (∀ n k, p n k ∈ openSegment ℝ (L.disk.vertex (i k))
+        (L.disk.vertex (finRotate L.disk.n (i k)))) ∧
+      Filter.Tendsto p Filter.atTop (nhds y) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: from open-side
+points in the localized anchoring faces, construct pairwise disjoint proper inward polygonal
+crosscuts to a smaller square.  Its boundary parametrization is compatibly oriented with the
+counterclockwise outer boundary, and the crosscut starts occur in increasing sector order. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts
+    {M : MeshConstants P} {S : Set (PlacedTile P)} (c : Pt) {N : ℕ} {R : ℝ}
+    (hN : 2 ≤ N) (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S c N R)
+    (B : PolygonalDisk) (hB : B.carrier = G.L.carrier) (hccw : pdCCW B)
+    {m : ℕ} (j : Fin m → Fin (4 * N)) (hj : StrictMono j)
+    (i : Fin m → Fin G.L.disk.n) (F : Fin m → PlacedTile P)
+    (hF : ∀ k, F k ∈ G.L.faces)
+    (hFi : ∀ k, HasEdge (F k) (G.L.disk.side (i k)))
+    (hFa : ∀ k, (interior (F k).carrier ∩
+      interior (square c ((N : ℝ) * R / 2))).Nonempty)
+    (hFs : ∀ k, (F k).carrier ⊆
+      quantitativeAnnularGrouping_innerOrder_sector c N R (j k : ℕ))
+    (p : Fin m → Pt)
+    (hp : ∀ k, p k ∈ openSegment ℝ (G.L.disk.vertex (i k))
+      (G.L.disk.vertex (finRotate G.L.disk.n (i k)))) :
+    ∃ C : PolygonalDisk, ∃ α : Fin m → PolyArc, ∃ δ : ℝ → Pt,
+      C.carrier ⊆ interior B.carrier ∧
+      (∀ k, (α k).carrier ⊆ B.carrier \ interior C.carrier) ∧
+      (∀ k, (α k).carrier ∩ frontier C.carrier = {(α k).start}) ∧
+      (∀ k, (α k).carrier ∩ frontier B.carrier = {(α k).stop}) ∧
+      (∀ k, (α k).stop = p k) ∧
+      (∀ k l, k ≠ l → Disjoint (α k).carrier (α l).carrier) ∧
+      IsLoopParam (frontier C.carrier) δ ∧
+      LoopsHomotopicIn (B.carrier \ interior C.carrier) (pgLoop (pgL B)) δ ∧
+      PointsInOrder δ (fun k => (α k).start) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: for compatible
+orientations of the two boundary loops of a polygonal annulus, pairwise disjoint proper
+crosscuts transfer cyclic order from their inner endpoints to their outer endpoints.  The
+three-crosscut case follows from `step26_degrees_agree`; the general case is the existing
+three-point reduction. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_transfer_outward
+    (B C : PolygonalDisk) (hCB : C.carrier ⊆ interior B.carrier)
+    {m : ℕ} (α : Fin m → PolyArc)
+    (hin : ∀ k, (α k).carrier ⊆ B.carrier \ interior C.carrier)
+    (hC : ∀ k, (α k).carrier ∩ frontier C.carrier = {(α k).start})
+    (hB : ∀ k, (α k).carrier ∩ frontier B.carrier = {(α k).stop})
+    (hdisj : ∀ k l, k ≠ l → Disjoint (α k).carrier (α l).carrier)
+    {γ δ : ℝ → Pt} (hγ : IsLoopParam (frontier B.carrier) γ)
+    (hδ : IsLoopParam (frontier C.carrier) δ)
+    (hhom : LoopsHomotopicIn (B.carrier \ interior C.carrier) γ δ)
+    (horder : PointsInOrder δ (fun k => (α k).start)) :
+    PointsInOrder γ (fun k => (α k).stop) := by
+  sorry
+
 /-- `lem:inner-sector-order` (interface repair of 17 October 2026): points of the boundary of the
 inside-anchored group `L` lying in distinct ideal sectors, each at distance at least `50 D` from
 every other ideal sector, appear along the counterclockwise boundary parametrization in the order
@@ -32742,7 +32835,35 @@ private lemma quantitativeAnnularGrouping_innerOrder {M : MeshConstants P}
     (hfar : ∀ k, ∀ t : Fin (4 * N), t ≠ j k →
       ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), 50 * M.D ≤ dist (y k) q) :
     PointsInOrder (pgLoop (pgL B)) y := by
-  sorry
+  have _ := hyj
+  obtain ⟨i, F, hyi, hF, hFi, hFa, hFs, hy_inj⟩ :=
+    quantitativeAnnularGrouping_innerOrder_step1_localize_faces
+      c hN hR G j hj y hy hfar
+  obtain ⟨p, hp, hp_lim⟩ :=
+    quantitativeAnnularGrouping_innerOrder_step2_regularize G.L y i hyi
+  have hp_order : ∀ n, PointsInOrder (pgLoop (pgL B)) (p n) := by
+    intro n
+    obtain ⟨C, α, δ, hCB, hin, hC, hBout, hstop, hdisj, hδ, hhom, hinner⟩ :=
+      quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts
+        c hN hR G B hB hccw j hj i F hF hFi hFa hFs (p n) (hp n)
+    have hout := quantitativeAnnularGrouping_innerOrder_step4_transfer_outward
+      B C hCB α hin hC hBout hdisj (pgLoop_isLoopParam B) hδ hhom hinner
+    simpa only [hstop] using hout
+  have hp_weak : ∀ n,
+      existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder
+        (pgLoop (pgL B)) (p n) := by
+    intro n
+    exact existsRoutingAfterPower_step4_routes_step6_pointsInOrder_weak
+      (pgLoop (pgL B)) (pgLoop_periodic (pgL B)) (p n) (hp_order n)
+  have hclosed :=
+    existsRoutingAfterPower_step4_routes_step6_weakPointsInOrder_closed
+      (pgLoop (pgL B)) (pgLoop_isLoopParam B).1 m
+  have hy_weak :
+      existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder
+        (pgLoop (pgL B)) y :=
+    hclosed.mem_of_tendsto hp_lim (Filter.Eventually.of_forall hp_weak)
+  exact existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
+    (pgLoop (pgL B)) (pgLoop_periodic (pgL B)) y hy_weak hy_inj
 
 /-! ## The fingerprint criterion (`lem:fingerprint`) -/
 

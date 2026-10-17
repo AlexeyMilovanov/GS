@@ -33704,6 +33704,969 @@ private lemma quantitativeAnnularGrouping_innerOrder_step4_transfer_outward
     exact quantitativeAnnularGrouping_innerOrder_step4_transfer_outward_step1_k3 B C hCB (α ∘ f) (fun j => hin (f j))
       (fun j => hC (f j)) (fun j => hB (f j)) (fun i j hij => hdisj (f i) (f j) (f.injective.ne hij)) hγ hδ hhom hord_sub
 
+/-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: "Join every `y_k` through its
+inside-anchoring face (a face of `L` of diameter at most `D` whose interior meets `int Q₀`) to a point `z_k ∈ int Q₀`
+with `|z_k - y_k| ≤ D`".  A point `p` in the relative interior of a boundary edge of the inside-anchored group lies on
+a face `F` of `L` (within `D` of `p`) whose interior contains a point `z ∈ int Q`, joined to `p` by a polygonal path
+through `int F`. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step1_anchorFace (M : MeshConstants P)
+    {S : Set (PlacedTile P)} (L : FaceGroup S) {Q : Set Pt} (hanc : L.InsideAnchored Q) {p : Pt}
+    (m : Fin L.disk.n) (hp : p ∈ openSegment ℝ (L.disk.vertex m) (L.disk.vertex (finRotate _ m))) :
+    ∃ F : PlacedTile P, F.carrier ⊆ L.carrier ∧ p ∈ F.carrier ∧ (∀ w ∈ F.carrier, dist w p ≤ M.D) ∧
+      ∃ z ∈ interior F.carrier, z ∈ interior Q ∧ ∃ l : List Pt, l.head? = some z ∧ l.getLast? = some p ∧
+        l.IsChain (fun x y => segment ℝ x y ⊆ insert p (interior F.carrier)) := by
+  obtain ⟨F, hF, hE, z, hz1, hz2⟩ := hanc m
+  have hE' : HasEdge F (segment ℝ (L.disk.vertex m) (L.disk.vertex (finRotate _ m))) := hE
+  have hpF : p ∈ F.carrier := by
+    obtain ⟨i, hi⟩ := hE'
+    exact tile_side_subset F i (by rw [hi]; exact openSegment_subset_segment _ _ _ hp)
+  obtain ⟨q, hq, hpq⟩ := qo_open_pick_F F (pd_vertex_ne_next L.disk m) hE' hp
+  obtain ⟨l1, h11, h12, h13⟩ := sw3_poly_path isOpen_interior
+    (tileDisk F).interior_pathConnected.isConnected.isPreconnected hz1 hq
+  obtain ⟨hj1, hj2, hj3⟩ := sw3_chain_join (R := fun x y => segment ℝ x y ⊆ insert p (interior F.carrier))
+    (l2 := [q, p]) h11 h12 rfl rfl (h13.imp fun x y h => h.trans (subset_insert _ _))
+    (by rw [List.isChain_pair, segment_symm]; exact hpq)
+    (show segment ℝ q q ⊆ _ by rw [segment_same]; exact singleton_subset_iff.2 (Or.inr hq))
+  refine ⟨F, ?_, hpF, fun w hw => sw3_tile_dist_le M F hw hpF, z, hz1, hz2, _, hj1, hj2, hj3⟩
+  intro w hw
+  change w ∈ L.disk.carrier
+  rw [L.carrier_eq]
+  exact mem_support_iff'.2 ⟨F, hF, hw⟩
+
+/-- Step 2 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: "and then radially to the centre `c`.
+These paths lie in `L`, stay within `D` of the sectors `T_{j_k}`".  The radial segment `[c, z]` lies in `int Q₀`, and
+`z = c + μ v(τ)` (`v` the perimeter point of `∂Q₀`) with the perimeter parameter `τ` in the `j`-th window `[jR,
+(j+1)R)`, because `y` is `4 D` away from every other ideal sector. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step2_radial {c y z : Pt} {N : ℕ} {R D : ℝ}
+    (hN : 2 ≤ N) (hD : 0 < D) (hR : 1000 * D ≤ R)
+    (hy : y ∉ interior (square c ((N : ℝ) * R / 2))) (hz : z ∈ interior (square c ((N : ℝ) * R / 2)))
+    (hzy : dist z y ≤ D) (j : Fin (4 * N))
+    (hfar : ∀ t : Fin (4 * N), t ≠ j → ∀ q ∈ idealTrapezoid c N R D (t : ℕ), 4 * D ≤ dist y q) :
+    segment ℝ c z ⊆ interior (square c ((N : ℝ) * R / 2)) ∧
+    ∃ μ τ : ℝ, 0 < μ ∧ (j : ℝ) * R ≤ τ ∧ τ < ((j : ℝ) + 1) * R ∧
+      z = c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) τ := by
+  set A := (N : ℝ) * R / 2 with hAdef
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hR0 : 0 < R := by linarith
+  have hRA : R ≤ A := by rw [hAdef]; nlinarith
+  have hA : 0 < A := by linarith
+  have hzN : sw3N (z - c) < A := sw3_interior_square hz
+  have hyN : A ≤ sw3N (y - c) := by
+    by_contra h
+    push_neg at h
+    exact hy (sw3_mem_interior_square h)
+  have hyz : sw3N (y - c) - sw3N (z - c) ≤ D := by
+    refine (sw3N_sub_le (y - c) (z - c)).trans ?_
+    rw [show y - c - (z - c) = y - z by abel]
+    refine (sw3N_le_norm _).trans ?_
+    rw [← dist_eq_norm, dist_comm]; exact hzy
+  set ν := sw3N (z - c) with hν
+  have hν0 : 0 < ν := by linarith
+  refine ⟨?_, ?_⟩
+  · intro x hx
+    rw [segment_eq_image'] at hx
+    obtain ⟨t, ht, rfl⟩ := hx
+    apply sw3_mem_interior_square
+    rw [add_sub_cancel_left, sw3N_smul, abs_of_nonneg ht.1]
+    nlinarith [ht.2]
+  set u : Pt := (A / ν) • (z - c) with hu
+  have huN : sw3N u = A := by
+    rw [hu, sw3N_smul, abs_of_pos (by positivity), ← hν]; field_simp
+  obtain ⟨τ, hτ0, hτ8, hτu⟩ := sw3P_surj hA u huN
+  have hspp : squarePerimeterPoint A τ = u := by rw [← sw3P_eq hA hτ0 hτ8, hτu]
+  have hzu : z = c + (ν / A) • u := by
+    rw [hu, smul_smul, show ν / A * (A / ν) = 1 by field_simp, one_smul]; abel
+  set t := ⌊τ / R⌋₊ with htdef
+  have ht1 : (t : ℝ) * R ≤ τ := by
+    have := Nat.floor_le (div_nonneg hτ0 hR0.le)
+    rw [← htdef] at this
+    rwa [le_div_iff₀ hR0] at this
+  have ht2 : τ < ((t : ℝ) + 1) * R := by
+    have := Nat.lt_floor_add_one (τ / R)
+    rw [← htdef] at this
+    rwa [div_lt_iff₀ hR0] at this
+  have h8 : 8 * A = (4 * N : ℝ) * R := by rw [hAdef]; ring
+  have ht4 : t < 4 * N := by
+    have : (t : ℝ) < 4 * N := by
+      by_contra h
+      push_neg at h
+      nlinarith
+    exact_mod_cast this
+  have htj : (⟨t, ht4⟩ : Fin (4 * N)) = j := by
+    by_contra hne
+    have hq : c + u ∈ idealTrapezoid c N R D t := by
+      refine ⟨τ, ⟨ht1, ht2.le⟩, 1, ⟨le_rfl, ?_⟩, by rw [one_smul, hspp]⟩
+      rw [← hAdef, le_div_iff₀ hA]; linarith
+    have hfar' := hfar ⟨t, ht4⟩ hne (c + u) hq
+    have hnu : ‖u‖ ≤ 2 * A := by rw [← hτu]; exact sw3P_norm_le hA τ
+    have hzq : dist z (c + u) ≤ 2 * D := by
+      rw [dist_eq_norm, hzu, show c + (ν / A) • u - (c + u) = (ν / A - 1) • u by
+        rw [sub_smul, one_smul]; abel, norm_smul, Real.norm_eq_abs,
+        abs_of_nonpos (by rw [sub_nonpos, div_le_one hA]; linarith)]
+      have h1 : -(ν / A - 1) ≤ D / A := by
+        rw [neg_sub, one_sub_div hA.ne', div_le_div_iff_of_pos_right hA]; linarith
+      calc -(ν / A - 1) * ‖u‖ ≤ D / A * (2 * A) :=
+            mul_le_mul h1 hnu (norm_nonneg _) (by positivity)
+        _ = 2 * D := by field_simp
+    have := dist_triangle y z (c + u)
+    rw [dist_comm y z] at this
+    linarith
+  have htj' : t = (j : ℕ) := by rw [← htj]
+  refine ⟨ν / A, τ, by positivity, ?_, ?_, by rw [hspp]; exact hzu⟩
+  · rw [← htj']; exact ht1
+  · rw [← htj']; exact ht2
+
+/-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder` (auxiliary estimate for
+"the paths ... meet only at `c`"): the Euclidean norm is at most twice the sup norm. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step3_normLe (v : Pt) : ‖v‖ ≤ 2 * sw3N v := by
+  have h0 : |v 0| ≤ sw3N v := le_max_left _ _
+  have h1 : |v 1| ≤ sw3N v := le_max_right _ _
+  rw [EuclideanSpace.norm_eq, Fin.sum_univ_two, Real.norm_eq_abs, Real.norm_eq_abs, sq_abs, sq_abs]
+  apply Real.sqrt_le_iff.2
+  refine ⟨by linarith [sw3N_nonneg v], ?_⟩
+  have a0 := sq_abs (v 0)
+  have a1 := sq_abs (v 1)
+  nlinarith [abs_nonneg (v 0), abs_nonneg (v 1)]
+
+/-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the paths "stay within
+`D` of the sectors `T_{j_k}`, which are at least `50D` apart at the points `y_k`, and meet only at
+`c`".  A set within `D` of a boundary point `y_i` (outside `int Q₀`) avoids the centre and the
+radial segment `[c, z_j]` of a point `y_j` at distance at least `5 D` from `y_i`. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step3_disjoint {c yi yj zj : Pt} {A D : ℝ}
+    (hD : 0 < D) (hDA : D < A) (hyi : yi ∉ interior (square c A)) (hzj : zj ∈ interior (square c A))
+    (hzjy : dist zj yj ≤ D) (hsep : 5 * D ≤ dist yi yj) (K : Set Pt) (hK : ∀ w ∈ K, dist w yi ≤ D) :
+    c ∉ K ∧ Disjoint K (segment ℝ c zj) := by
+  have hyN : A ≤ sw3N (yi - c) := by
+    by_contra h
+    push_neg at h
+    exact hyi (sw3_mem_interior_square h)
+  have hwN : ∀ w ∈ K, A - D ≤ sw3N (w - c) := by
+    intro w hw
+    have := sw3N_sub_le (yi - c) (w - c)
+    rw [show yi - c - (w - c) = yi - w by abel] at this
+    have h2 := sw3N_le_norm (yi - w)
+    rw [← dist_eq_norm, dist_comm] at h2
+    linarith [hK w hw]
+  have hzN : sw3N (zj - c) < A := sw3_interior_square hzj
+  refine ⟨fun hc => ?_, ?_⟩
+  · have := hwN c hc
+    rw [sub_self] at this
+    simp [sw3N] at this
+    linarith
+  rw [Set.disjoint_left]
+  intro w hwK hws
+  rw [segment_eq_image'] at hws
+  obtain ⟨t, ht, rfl⟩ := hws
+  have h1 := hwN _ hwK
+  rw [add_sub_cancel_left, sw3N_smul, abs_of_nonneg ht.1] at h1
+  have hdz : dist (c + t • (zj - c)) zj ≤ 2 * D := by
+    rw [dist_eq_norm, show c + t • (zj - c) - zj = (1 - t) • (c - zj) by
+      rw [sub_smul, one_smul, smul_sub, smul_sub]; abel, norm_smul, Real.norm_eq_abs,
+      abs_of_nonneg (by linarith [ht.2]), ← norm_neg, neg_sub]
+    have := quantitativeAnnularGrouping_innerOrder_step3_normLe (zj - c)
+    have hn : 0 ≤ sw3N (zj - c) := sw3N_nonneg _
+    calc (1 - t) * ‖zj - c‖ ≤ (1 - t) * (2 * sw3N (zj - c)) :=
+          mul_le_mul_of_nonneg_left this (by linarith [ht.2])
+      _ ≤ 2 * D := by nlinarith
+  have := dist_triangle4 yi (c + t • (zj - c)) zj yj
+  have h5 : dist yi (c + t • (zj - c)) ≤ D := by rw [dist_comm]; exact hK _ hwK
+  linarith
+
+/-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the sectors "are at
+least `50D` apart at the points `y_k`": a point in the `20 D`-neighbourhood of `T_t` is more than
+`25 D` away from a point at distance at least `50 D` from `T_t`. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step3_sep {c ya yb : Pt} {N : ℕ} {R D : ℝ}
+    (hD : 0 < D) {t : ℕ} (hya : ya ∈ Metric.cthickening (20 * D) (idealTrapezoid c N R D t))
+    (hyb : ∀ q ∈ idealTrapezoid c N R D t, 50 * D ≤ dist yb q) : 25 * D < dist ya yb := by
+  have h := Metric.cthickening_subset_thickening' (by linarith : (0 : ℝ) < 25 * D)
+    (by linarith : 20 * D < 25 * D) _ hya
+  obtain ⟨q, hq, hdq⟩ := Metric.mem_thickening_iff.1 h
+  have h1 := hyb q hq
+  have h2 := dist_triangle yb ya q
+  rw [dist_comm yb ya] at h2
+  linarith
+
+/-- Step 5 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: "then `y_1, …, y_m`
+appear in this cyclic order along the counterclockwise boundary parametrization".  Combinatorial
+assembly: distinct parameters in `[0,1)` any three of which are in positive cyclic order give
+`PointsInOrder` (start the period at the parameter of the first point). -/
+private lemma quantitativeAnnularGrouping_innerOrder_step5_assemble {γ : ℝ → Pt}
+    (hγ : Function.Periodic γ 1) {m : ℕ} (y : Fin m → Pt) (s : Fin m → ℝ)
+    (hs : ∀ k, s k ∈ Ico (0 : ℝ) 1) (hsy : ∀ k, γ (s k) = y k) (hinj : Function.Injective s)
+    (hcyc : ∀ a b d : Fin m, a < b → b < d →
+      (s a < s b ∧ s b < s d) ∨ (s b < s d ∧ s d < s a) ∨ (s d < s a ∧ s a < s b)) :
+    PointsInOrder γ y := by
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · exact ⟨fun _ => 0, fun i => i.elim0, fun i => i.elim0, fun i => i.elim0⟩
+  set o : Fin m := ⟨0, hm⟩ with hodef
+  set t : Fin m → ℝ := fun k => if s o ≤ s k then s k else s k + 1 with ht
+  have ht1 : ∀ k, s o ≤ s k → t k = s k := fun k h => by simp only [ht, if_pos h]
+  have ht2 : ∀ k, s k < s o → t k = s k + 1 := fun k h => by simp only [ht, if_neg (not_le.2 h)]
+  have hrange : ∀ k, s o ≤ t k ∧ t k < s o + 1 := by
+    intro k
+    rcases le_or_gt (s o) (s k) with h | h
+    · rw [ht1 k h]; exact ⟨h, by linarith [(hs k).2, (hs o).1]⟩
+    · rw [ht2 k h]; exact ⟨by linarith [(hs k).1, (hs o).2], by linarith⟩
+  refine ⟨t, ?_, ?_, ?_⟩
+  · intro a b hab
+    by_cases hao : a = o
+    · have hbo : b ≠ o := by rintro rfl; rw [hao] at hab; exact lt_irrefl _ hab
+      have hsb : s b ≠ s o := fun h => hbo (hinj h)
+      rw [hao, ht1 o le_rfl]
+      rcases le_or_gt (s o) (s b) with h | h
+      · rw [ht1 b h]; exact lt_of_le_of_ne h (Ne.symm hsb)
+      · rw [ht2 b h]; linarith [(hs b).1, (hs o).2]
+    · have hoa : o < a := by
+        rw [Fin.lt_def]
+        have : (a : ℕ) ≠ 0 := fun h => hao (Fin.ext h)
+        simp only [hodef]; omega
+      rcases hcyc o a b hoa hab with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩
+      · rw [ht1 a h1.le, ht1 b (by linarith)]; exact h2
+      · rw [ht2 a (by linarith), ht2 b h2]; linarith
+      · rw [ht1 a h2.le, ht2 b h1]; linarith [(hs a).2, (hs b).1]
+  · intro i j; linarith [hrange i, hrange j]
+  · intro k
+    rcases le_or_gt (s o) (s k) with h | h
+    · rw [ht1 k h]; exact hsy k
+    · rw [ht2 k h, hγ]; exact hsy k
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: "a parametrization running clockwise
+contradicts the winding number `2π`" (transfer of orientation).  Three disjoint arcs crossing the annulus between the
+boundaries of nested polygonal disks `C ⊆ int A` have their endpoints in the same cyclic order along loop
+parametrizations of `∂C` and `∂A` of the same nonzero degree about a point of `int C`. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_orient (A C : PolygonalDisk) (hCA : C.carrier ⊆ interior A.carrier) (α : Fin 3 → PolyArc)
+    (hin : ∀ j, (α j).carrier ⊆ A.carrier \ interior C.carrier)
+    (hC : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start})
+    (hA : ∀ j, (α j).carrier ∩ frontier A.carrier = {(α j).stop})
+    (hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier)
+    {γo δ : ℝ → Pt} (hγo : IsLoopParam (frontier A.carrier) γo) (hδ : IsLoopParam (frontier C.carrier) δ)
+    {p : Pt} (hp : p ∈ interior C.carrier) {Θo Θd : ℝ → ℂ} (hΘoc : Continuous Θo)
+    (hΘo : ∀ t, Complex.exp (Θo t) = toC (γo t - p)) (hΘdc : Continuous Θd)
+    (hΘd : ∀ t, Complex.exp (Θd t) = toC (δ t - p)) {n : ℤ} (hn : n ≠ 0)
+    (hno : ∀ t, Θo (t + 1) = Θo t + n * (2 * Real.pi * Complex.I))
+    (hnd : ∀ t, Θd (t + 1) = Θd t + n * (2 * Real.pi * Complex.I))
+    (hord' : PointsInOrder δ fun j => (α j).start) : PointsInOrder γo fun j => (α j).stop := by
+  have hsK : ∀ i, (α i).stop ∈ frontier A.carrier := fun i => by
+    have h : (α i).stop ∈ (α i).carrier ∩ frontier A.carrier := by rw [hA i]; rfl
+    exact h.2
+  have hmem : ∀ i, (α i).stop ∈ (α i).carrier := fun i => by
+    have h : (α i).stop ∈ (α i).carrier ∩ frontier A.carrier := by rw [hA i]; rfl
+    exact h.1
+  have hinj : Function.Injective fun j => (α j).stop := by
+    intro i j hij
+    by_contra hne
+    exact Set.disjoint_left.1 (hdisj i j hne) (hmem i) (by simp only at hij; rw [hij]; exact hmem j)
+  rcases existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step2_dichotomy hγo hsK hinj
+    with h | h
+  · exact h
+  · exfalso
+    have e := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step26_degrees_agree A C hCA α
+      hin hC hA hdisj (pg_isLoopParam_neg hγo) hδ h hord' hp (hΘoc.comp continuous_neg) (fun t => hΘo (-t))
+      hΘdc hΘd (no := -n) (fun t => by
+        have := hno (-(t + 1))
+        simp only [show -(t + 1) + 1 = -t by ring] at this
+        simp only [Function.comp_apply]
+        rw [this]; push_cast; ring) hnd
+    omega
+
+/-- Step 5 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: "`y_1, …, y_m` appear in this cyclic
+order" (reading off parameters).  If three points appear in order along a loop parametrization, their parameters in
+`[0,1)` are in positive cyclic order. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step5_cycOfOrder {γ : ℝ → Pt} {K : Set Pt} (hγ : IsLoopParam K γ) (x : Fin 3 → Pt)
+    (h : PointsInOrder γ x) (s : Fin 3 → ℝ) (hs : ∀ i, s i ∈ Ico (0 : ℝ) 1) (hsx : ∀ i, γ (s i) = x i) :
+    (s 0 < s 1 ∧ s 1 < s 2) ∨ (s 1 < s 2 ∧ s 2 < s 0) ∨ (s 2 < s 0 ∧ s 0 < s 1) := by
+  obtain ⟨t, htm, htw, htx⟩ := h
+  have hk : ∀ i, ∃ k : ℤ, s i - t i = k := fun i => pg_param_eq hγ (by rw [hsx, htx])
+  obtain ⟨k0, hk0⟩ := hk 0
+  obtain ⟨k1, hk1⟩ := hk 1
+  obtain ⟨k2, hk2⟩ := hk 2
+  have h01 : t 0 < t 1 := htm (by decide)
+  have h12 : t 1 < t 2 := htm (by decide)
+  have h20 : t 2 < t 0 + 1 := htw 0 2
+  have b0 := hs 0
+  have b1 := hs 1
+  have b2 := hs 2
+  -- d1 := (s 1 - s 0) - (t 1 - t 0) = k1 - k0 ∈ {-1, 0}
+  have e1 : ((k1 - k0 : ℤ) : ℝ) = (s 1 - s 0) - (t 1 - t 0) := by push_cast; linarith
+  have e2 : ((k2 - k0 : ℤ) : ℝ) = (s 2 - s 0) - (t 2 - t 0) := by push_cast; linarith
+  have l1 : -2 < k1 - k0 := by
+    have : ((-2 : ℤ) : ℝ) < ((k1 - k0 : ℤ) : ℝ) := by rw [e1]; push_cast; linarith [b0.2, b1.1]
+    exact_mod_cast this
+  have u1 : k1 - k0 < 1 := by
+    have : ((k1 - k0 : ℤ) : ℝ) < ((1 : ℤ) : ℝ) := by rw [e1]; push_cast; linarith [b0.1, b1.2]
+    exact_mod_cast this
+  have l2 : -2 < k2 - k0 := by
+    have : ((-2 : ℤ) : ℝ) < ((k2 - k0 : ℤ) : ℝ) := by rw [e2]; push_cast; linarith [b0.2, b2.1]
+    exact_mod_cast this
+  have u2 : k2 - k0 < 1 := by
+    have : ((k2 - k0 : ℤ) : ℝ) < ((1 : ℤ) : ℝ) := by rw [e2]; push_cast; linarith [b0.1, b2.2]
+    exact_mod_cast this
+  have c1 : k1 - k0 = 0 ∨ k1 - k0 = -1 := by omega
+  have c2 : k2 - k0 = 0 ∨ k2 - k0 = -1 := by omega
+  rcases c1 with c1 | c1 <;> rcases c2 with c2 | c2 <;> rw [c1] at e1 <;> rw [c2] at e2 <;>
+    push_cast at e1 e2
+  · left; constructor <;> linarith
+  · right; right; constructor <;> linarith
+  · exfalso; linarith [b1.1, b2.2, b0.1, b0.2, b1.2, b2.1]
+  · right; left; constructor <;> linarith
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: "the winding number `2π` of the
+counterclockwise listing".  A polygonal disk with winding number `2π` about an interior point has a boundary loop of
+degree one about it (continuous logarithm). -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_degOne (B : PolygonalDisk) {p : Pt} (hp : p ∈ interior B.carrier)
+    (hw : wind B.vertex p = 2 * Real.pi) :
+    ∃ Θ : ℝ → ℂ, Continuous Θ ∧ (∀ t, Complex.exp (Θ t) = toC (pgLoop (pgL B) t - p)) ∧
+      ∀ t, Θ (t + 1) = Θ t + ((1 : ℤ) : ℂ) * (2 * Real.pi * Complex.I) := by
+  have hpf : p ∉ frontier B.carrier := fun h => pg_frontier_inter_interior h hp
+  obtain ⟨Θ, hΘc, hΘ, n, hn⟩ :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
+      (pgLoop_isLoopParam B) hpf
+  have hlen : 0 < (pgL B).length := by rw [pgL_length]; have := B.three_le; omega
+  have hdeg := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step8_polygon_degree
+    hlen (by rw [pgCv_pgL]; exact hpf) hΘc hΘ hn
+  rw [pgW_pgL, hw] at hdeg
+  have hn1 : (n : ℝ) = 1 := by
+    have := Real.pi_pos
+    have h2 : 2 * Real.pi * 1 = 2 * Real.pi * (n : ℝ) := by linarith
+    exact (mul_left_cancel₀ (by positivity) h2).symm
+  have : n = 1 := by exact_mod_cast hn1
+  subst this
+  exact ⟨Θ, hΘc, hΘ, hn⟩
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: auxiliary description of a vertical
+segment (side of the comparison square `Q₀`). -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_segVert {a b x : Pt} (h0 : a 0 = b 0) (hab : a 1 ≤ b 1) :
+    x ∈ segment ℝ a b ↔ x 0 = a 0 ∧ a 1 ≤ x 1 ∧ x 1 ≤ b 1 := by
+  constructor
+  · intro hx
+    rw [segment_eq_image'] at hx
+    obtain ⟨θ, ⟨h1, h2⟩, rfl⟩ := hx
+    simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]
+    refine ⟨by rw [h0]; ring, by nlinarith, by nlinarith⟩
+  · rintro ⟨e0, e1, e2⟩
+    rcases eq_or_lt_of_le hab with h | h
+    · have : x = a := pt_ext e0 (by linarith)
+      rw [this]; exact left_mem_segment ℝ a b
+    · rw [segment_eq_image']
+      refine ⟨(x 1 - a 1) / (b 1 - a 1), ⟨div_nonneg (by linarith) (by linarith),
+        (div_le_one (by linarith)).2 (by linarith)⟩, ?_⟩
+      apply pt_ext
+      · simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]; rw [h0] at e0 ⊢; rw [e0]; ring
+      · have hne : b 1 - a 1 ≠ 0 := by linarith
+        simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]
+        field_simp; ring
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: auxiliary description of a horizontal
+segment (side of the comparison square `Q₀`). -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_segHoriz {a b x : Pt} (h1 : a 1 = b 1) (hab : a 0 ≤ b 0) :
+    x ∈ segment ℝ a b ↔ x 1 = a 1 ∧ a 0 ≤ x 0 ∧ x 0 ≤ b 0 := by
+  constructor
+  · intro hx
+    rw [segment_eq_image'] at hx
+    obtain ⟨θ, ⟨h1', h2⟩, rfl⟩ := hx
+    simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]
+    refine ⟨by rw [h1]; ring, by nlinarith, by nlinarith⟩
+  · rintro ⟨e1, e0, e2⟩
+    rcases eq_or_lt_of_le hab with h | h
+    · have : x = a := pt_ext (by linarith) e1
+      rw [this]; exact left_mem_segment ℝ a b
+    · rw [segment_eq_image']
+      refine ⟨(x 0 - a 0) / (b 0 - a 0), ⟨div_nonneg (by linarith) (by linarith),
+        (div_le_one (by linarith)).2 (by linarith)⟩, ?_⟩
+      apply pt_ext
+      · have hne : b 0 - a 0 ≠ 0 := by linarith
+        simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]
+        field_simp; ring
+      · simp only [PiLp.add_apply, PiLp.smul_apply, PiLp.sub_apply, smul_eq_mul]; rw [h1] at e1 ⊢; rw [e1]; ring
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the corners of the square `square c r`
+(comparison loop around `∂Q₀`), counterclockwise from `(r, -r)`. -/
+private def quantitativeAnnularGrouping_innerOrder_step4_sqV (c : Pt) (r : ℝ) : Fin 4 → Pt :=
+  ![c + mkPt r (-r), c + mkPt r r, c + mkPt (-r) r, c + mkPt (-r) (-r)]
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: explicit values of the corners of the
+comparison square. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqVApply (c : Pt) (r : ℝ) :
+    quantitativeAnnularGrouping_innerOrder_step4_sqV c r 0 = c + mkPt r (-r) ∧ quantitativeAnnularGrouping_innerOrder_step4_sqV c r 1 = c + mkPt r r ∧
+      quantitativeAnnularGrouping_innerOrder_step4_sqV c r 2 = c + mkPt (-r) r ∧
+        quantitativeAnnularGrouping_innerOrder_step4_sqV c r 3 = c + mkPt (-r) (-r) := by
+  simp [quantitativeAnnularGrouping_innerOrder_step4_sqV]
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the boundary of a square is its
+sup-norm sphere. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_frontierSquare {c : Pt} {r : ℝ} :
+    frontier (square c r) = {x | sw3N (x - c) = r} := by
+  have hcl : IsClosed (square c r) := by
+    have h0 : Continuous fun w : Pt => w 0 := PiLp.continuous_apply 2 _ 0
+    have h1 : Continuous fun w : Pt => w 1 := PiLp.continuous_apply 2 _ 1
+    exact (isClosed_le ((h0.sub continuous_const).abs) continuous_const).inter
+      (isClosed_le ((h1.sub continuous_const).abs) continuous_const)
+  ext x
+  rw [frontier, hcl.closure_eq, mem_diff, mem_setOf_eq, sw3_mem_square_iff]
+  constructor
+  · rintro ⟨h1, h2⟩
+    refine le_antisymm h1 (not_lt.1 fun h => h2 (sw3_mem_interior_square h))
+  · intro h
+    exact ⟨h.le, fun h' => (sw3_interior_square h').ne h⟩
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: membership in the `k`-th side of the
+comparison square. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqSideIff {c : Pt} {r : ℝ} (hr : 0 < r) (k : Fin 4) (x : Pt) :
+    x ∈ segment ℝ (quantitativeAnnularGrouping_innerOrder_step4_sqV c r k) (quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 k)) ↔
+      (k = 0 ∧ x 0 - c 0 = r ∧ |x 1 - c 1| ≤ r) ∨ (k = 1 ∧ x 1 - c 1 = r ∧ |x 0 - c 0| ≤ r) ∨
+      (k = 2 ∧ x 0 - c 0 = -r ∧ |x 1 - c 1| ≤ r) ∨ (k = 3 ∧ x 1 - c 1 = -r ∧ |x 0 - c 0| ≤ r) := by
+  obtain ⟨e0, e1, e2, e3⟩ := quantitativeAnnularGrouping_innerOrder_step4_sqVApply c r
+  fin_cases k
+  · simp only [Fin.zero_eta, finRotate_succ_apply, zero_add]
+    rw [e0, show (1 : Fin 4) = 1 from rfl, e1, quantitativeAnnularGrouping_innerOrder_step4_segVert (by simp [mkPt]) (by simp [mkPt]; linarith)]
+    simp [mkPt, abs_le]; constructor <;> intro h <;> constructor <;> (try constructor) <;> linarith [h.1, h.2.1, h.2.2]
+  · simp only [Fin.mk_one, finRotate_succ_apply]
+    rw [e1, show (1 : Fin 4) + 1 = 2 from rfl, e2, segment_symm,
+      quantitativeAnnularGrouping_innerOrder_step4_segHoriz (by simp [mkPt]) (by simp [mkPt]; linarith)]
+    simp [mkPt, abs_le]; constructor <;> intro h <;> constructor <;> (try constructor) <;> linarith [h.1, h.2.1, h.2.2]
+  · simp only [Fin.reduceFinMk, finRotate_succ_apply]
+    rw [e2, show (2 : Fin 4) + 1 = 3 from rfl, e3, segment_symm,
+      quantitativeAnnularGrouping_innerOrder_step4_segVert (by simp [mkPt]) (by simp [mkPt]; linarith)]
+    simp [mkPt, abs_le]; constructor <;> intro h <;> constructor <;> (try constructor) <;> linarith [h.1, h.2.1, h.2.2]
+  · simp only [Fin.reduceFinMk, finRotate_succ_apply]
+    rw [e3, show (3 : Fin 4) + 1 = 0 from rfl, e0,
+      quantitativeAnnularGrouping_innerOrder_step4_segHoriz (by simp [mkPt]) (by simp [mkPt]; linarith)]
+    simp [mkPt, abs_le]; constructor <;> intro h <;> constructor <;> (try constructor) <;> linarith [h.1, h.2.1, h.2.2]
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: a square is closed. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_squareClosed (c : Pt) (r : ℝ) : IsClosed (square c r) := by
+  have h0 : Continuous fun w : Pt => w 0 := PiLp.continuous_apply 2 _ 0
+  have h1 : Continuous fun w : Pt => w 1 := PiLp.continuous_apply 2 _ 1
+  exact (isClosed_le ((h0.sub continuous_const).abs) continuous_const).inter
+    (isClosed_le ((h1.sub continuous_const).abs) continuous_const)
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: a square is convex. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_squareConvex (c : Pt) (r : ℝ) : Convex ℝ (square c r) := by
+  intro x hx y hy a b ha hb hab
+  rw [sw3_mem_square_iff] at hx hy ⊢
+  have e : a • x + b • y - c = a • (x - c) + b • (y - c) := by
+    calc a • x + b • y - c = a • x + b • y - (a + b) • c := by rw [hab, one_smul]
+      _ = a • (x - c) + b • (y - c) := by module
+  rw [e]
+  refine (sw3N_add_le _ _).trans ?_
+  rw [sw3N_smul, sw3N_smul, abs_of_nonneg ha, abs_of_nonneg hb]
+  have h1 := mul_le_mul_of_nonneg_left hx ha
+  have h2 := mul_le_mul_of_nonneg_left hy hb
+  have h3 : a * r + b * r = r := by rw [← add_mul, hab, one_mul]
+  linarith
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the sup norm in coordinates. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sw3NEq (x c : Pt) : sw3N (x - c) = max |x 0 - c 0| |x 1 - c 1| := by
+  simp [sw3N]
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the boundary of the comparison square
+is the union of its four sides. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqFrontierEq {c : Pt} {r : ℝ} (hr : 0 < r) :
+    frontier (square c r) =
+      ⋃ k : Fin 4, segment ℝ (quantitativeAnnularGrouping_innerOrder_step4_sqV c r k)
+        (quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 k)) := by
+  rw [quantitativeAnnularGrouping_innerOrder_step4_frontierSquare]
+  ext x
+  simp only [mem_setOf_eq, mem_iUnion, quantitativeAnnularGrouping_innerOrder_step4_sqSideIff hr, quantitativeAnnularGrouping_innerOrder_step4_sw3NEq]
+  constructor
+  · intro h
+    have h0 : |x 0 - c 0| ≤ r := h ▸ le_max_left _ _
+    have h1 : |x 1 - c 1| ≤ r := h ▸ le_max_right _ _
+    rcases max_choice |x 0 - c 0| |x 1 - c 1| with e | e <;> rw [e] at h
+    · rcases (abs_eq hr.le).1 h with h' | h'
+      · exact ⟨0, Or.inl ⟨rfl, h', h1⟩⟩
+      · exact ⟨2, Or.inr (Or.inr (Or.inl ⟨rfl, h', h1⟩))⟩
+    · rcases (abs_eq hr.le).1 h with h' | h'
+      · exact ⟨1, Or.inr (Or.inl ⟨rfl, h', h0⟩)⟩
+      · exact ⟨3, Or.inr (Or.inr (Or.inr ⟨rfl, h', h0⟩))⟩
+  · rintro ⟨k, ⟨-, e, h⟩ | ⟨-, e, h⟩ | ⟨-, e, h⟩ | ⟨-, e, h⟩⟩
+    · rw [e, abs_of_pos hr]; exact max_eq_left h
+    · rw [e, abs_of_pos hr]; exact max_eq_right h
+    · rw [e, abs_neg, abs_of_pos hr]; exact max_eq_left h
+    · rw [e, abs_neg, abs_of_pos hr]; exact max_eq_right h
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: distinct sides of the comparison square
+meet only at common corners. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqSimple {c : Pt} {r : ℝ} (hr : 0 < r) (i j : Fin 4) (hij : i ≠ j) :
+    segment ℝ (quantitativeAnnularGrouping_innerOrder_step4_sqV c r i) (quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 i)) ∩
+        segment ℝ (quantitativeAnnularGrouping_innerOrder_step4_sqV c r j) (quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 j)) ⊆
+      ({quantitativeAnnularGrouping_innerOrder_step4_sqV c r i, quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 i)} : Set Pt) ∩
+        {quantitativeAnnularGrouping_innerOrder_step4_sqV c r j, quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 j)} := by
+  rintro x ⟨hxi, hxj⟩
+  rw [quantitativeAnnularGrouping_innerOrder_step4_sqSideIff hr] at hxi hxj
+  have hx : ∀ a b : ℝ, x 0 - c 0 = a → x 1 - c 1 = b → x = c + mkPt a b := fun a b ha hb =>
+    pt_ext (by simp [mkPt]; linarith) (by simp [mkPt]; linarith)
+  fin_cases i <;> fin_cases j <;> simp at hij hxi hxj ⊢ <;>
+    first
+    | (exfalso; linarith [hxi.1, hxj.1])
+    | (rw [hx _ _ hxi.1 hxj.1]; simp [quantitativeAnnularGrouping_innerOrder_step4_sqV])
+    | (rw [hx _ _ hxj.1 hxi.1]; simp [quantitativeAnnularGrouping_innerOrder_step4_sqV])
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the centre `c` lies in the interior of
+the square. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqCentreInterior {c : Pt} {r : ℝ} (hr : 0 < r) : c ∈ interior (square c r) :=
+  sw3_mem_interior_square (by simp [sw3N]; exact hr)
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the small square `square c r` around
+the centre, as a polygonal disk listed counterclockwise from `(r, -r)`; its boundary carries the perimeter parameter
+of `∂Q₀` (radial projection). -/
+private def quantitativeAnnularGrouping_innerOrder_step4_sqDisk (c : Pt) {r : ℝ} (hr : 0 < r) : PolygonalDisk where
+  carrier := square c r
+  n := 4
+  three_le := by norm_num
+  vertex := quantitativeAnnularGrouping_innerOrder_step4_sqV c r
+  vertex_injective := by
+    intro i j h
+    have h0 := congrArg (fun v : Pt => v 0) h
+    have h1 := congrArg (fun v : Pt => v 1) h
+    fin_cases i <;> fin_cases j <;> simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt] at h0 h1 ⊢ <;> linarith
+  compact := by
+    refine Metric.isCompact_of_isClosed_isBounded (quantitativeAnnularGrouping_innerOrder_step4_squareClosed c r)
+      ((Metric.isBounded_closedBall (x := c) (r := 2 * r)).subset fun x hx => ?_)
+    rw [Metric.mem_closedBall, dist_eq_norm]
+    exact (quantitativeAnnularGrouping_innerOrder_step3_normLe _).trans (by rw [sw3_mem_square_iff] at hx; linarith)
+  interior_nonempty := ⟨c, quantitativeAnnularGrouping_innerOrder_step4_sqCentreInterior hr⟩
+  regular_closed := by
+    apply Subset.antisymm (closure_minimal interior_subset (quantitativeAnnularGrouping_innerOrder_step4_squareClosed c r))
+    intro x hx
+    refine closure_mono ?_ (segment_subset_closure_openSegment (right_mem_segment ℝ c x))
+    rintro y ⟨a, b, ha, hb, hab, rfl⟩
+    apply sw3_mem_interior_square
+    rw [sw3_mem_square_iff] at hx
+    have e : a • c + b • x - c = b • (x - c) := by
+      calc a • c + b • x - c = a • c + b • x - (a + b) • c := by rw [hab, one_smul]
+        _ = b • (x - c) := by module
+    rw [e, sw3N_smul, abs_of_pos hb]
+    have hb1 : b < 1 := by linarith
+    nlinarith [sw3N_nonneg (x - c)]
+  interior_pathConnected :=
+    (quantitativeAnnularGrouping_innerOrder_step4_squareConvex c r).interior.isPathConnected
+      ⟨c, quantitativeAnnularGrouping_innerOrder_step4_sqCentreInterior hr⟩
+  frontier_eq := quantitativeAnnularGrouping_innerOrder_step4_sqFrontierEq hr
+  simple := quantitativeAnnularGrouping_innerOrder_step4_sqSimple hr
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the comparison square is listed
+counterclockwise (winding number `2π` about `c`). -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqWind (c : Pt) {r : ℝ} (hr : 0 < r) :
+    wind (quantitativeAnnularGrouping_innerOrder_step4_sqDisk c hr).vertex c = 2 * Real.pi := by
+  have key : ∀ k : Fin 4,
+      segRatio (quantitativeAnnularGrouping_innerOrder_step4_sqV c r k) (quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 k)) c =
+        Complex.I := by
+    intro k
+    unfold segRatio
+    have hne : toC (quantitativeAnnularGrouping_innerOrder_step4_sqV c r k) - toC c ≠ 0 := by
+      intro h
+      have h' := congrArg Complex.re h
+      fin_cases k <;> simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, toC, mkPt] at h' <;> linarith
+    rw [div_eq_iff hne]
+    fin_cases k <;> apply Complex.ext <;> simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, toC, mkPt]
+  change ∑ k : Fin 4,
+    Complex.arg (segRatio (quantitativeAnnularGrouping_innerOrder_step4_sqV c r k) (quantitativeAnnularGrouping_innerOrder_step4_sqV c r (finRotate 4 k)) c) = _
+  simp only [key, Complex.arg_I, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  push_cast; ring
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the vertex list of the comparison
+square. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqPgL (c : Pt) {r : ℝ} (hr : 0 < r) :
+    pgL (quantitativeAnnularGrouping_innerOrder_step4_sqDisk c hr) = List.ofFn (quantitativeAnnularGrouping_innerOrder_step4_sqV c r) := rfl
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the boundary parametrization of the
+comparison square is the radial rescaling of the perimeter parametrization of `∂Q₀` ("the perimeter parameter (the
+radial projection to `∂Q₀`)"). -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sqLoop (c : Pt) {r : ℝ} (hr : 0 < r) {A : ℝ} (hA : 0 < A) {τ : ℝ} (h0 : 0 ≤ τ)
+    (h8 : τ < 8 * A) :
+    pgLoop (pgL (quantitativeAnnularGrouping_innerOrder_step4_sqDisk c hr)) (τ / (8 * A)) = c + (r / A) • squarePerimeterPoint A τ := by
+  rw [quantitativeAnnularGrouping_innerOrder_step4_sqPgL]
+  have hlen : (List.ofFn (quantitativeAnnularGrouping_innerOrder_step4_sqV c r)).length = 4 := List.length_ofFn
+  have hτ : τ / (8 * A) ∈ Ico (0 : ℝ) 1 :=
+    ⟨by positivity, by rw [div_lt_one (by positivity)]; exact h8⟩
+  have e4 : ((List.ofFn (quantitativeAnnularGrouping_innerOrder_step4_sqV c r)).length : ℝ) * (τ / (8 * A)) = τ / (2 * A) := by
+    rw [hlen]; field_simp; ring
+  rcases lt_or_ge τ (2 * A) with h1 | h1
+  · rw [pgLoop_eq_of (by rw [hlen]; norm_num) hτ (i := 0) (by rw [e4]; push_cast; positivity)
+      (by rw [e4, div_lt_iff₀ (by positivity)]; push_cast; linarith), e4]
+    apply pt_ext
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 0 = c 0 + r / A * squarePerimeterPoint A τ 0 by simp,
+        sw3_V0]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | field_simp
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 1 = c 1 + r / A * squarePerimeterPoint A τ 1 by simp,
+        sw3_V1]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | (field_simp; done)
+          | (field_simp; ring1)
+  rcases lt_or_ge τ (4 * A) with h2 | h2
+  · rw [pgLoop_eq_of (by rw [hlen]; norm_num) hτ (i := 1)
+      (by rw [e4, le_div_iff₀ (by positivity)]; push_cast; linarith)
+      (by rw [e4, div_lt_iff₀ (by positivity)]; push_cast; linarith), e4]
+    apply pt_ext
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 0 = c 0 + r / A * squarePerimeterPoint A τ 0 by simp,
+        sw3_V0]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | (field_simp; done)
+          | (field_simp; ring1)
+          | ((obtain rfl : τ = 2 * A := by linarith); field_simp; ring1)
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 1 = c 1 + r / A * squarePerimeterPoint A τ 1 by simp,
+        sw3_V1]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | (field_simp; done)
+          | ((obtain rfl : τ = 2 * A := by linarith); field_simp; ring1)
+  rcases lt_or_ge τ (6 * A) with h3 | h3
+  · rw [pgLoop_eq_of (by rw [hlen]; norm_num) hτ (i := 2)
+      (by rw [e4, le_div_iff₀ (by positivity)]; push_cast; linarith)
+      (by rw [e4, div_lt_iff₀ (by positivity)]; push_cast; linarith), e4]
+    apply pt_ext
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 0 = c 0 + r / A * squarePerimeterPoint A τ 0 by simp,
+        sw3_V0]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | (field_simp; done)
+          | ((obtain rfl : τ = 4 * A := by linarith); field_simp; ring1)
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 1 = c 1 + r / A * squarePerimeterPoint A τ 1 by simp,
+        sw3_V1]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | (field_simp; done)
+          | (field_simp; ring1)
+          | ((obtain rfl : τ = 4 * A := by linarith); field_simp; ring1)
+  · rw [pgLoop_eq_of (by rw [hlen]; norm_num) hτ (i := 3)
+      (by rw [e4, le_div_iff₀ (by positivity)]; push_cast; linarith)
+      (by rw [e4, div_lt_iff₀ (by positivity)]; push_cast; linarith), e4]
+    apply pt_ext
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 0 = c 0 + r / A * squarePerimeterPoint A τ 0 by simp,
+        sw3_V0]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | (field_simp; done)
+          | (field_simp; ring1)
+          | ((obtain rfl : τ = 6 * A := by linarith); field_simp; ring1)
+    · rw [show (c + (r / A) • squarePerimeterPoint A τ) 1 = c 1 + r / A * squarePerimeterPoint A τ 1 by simp,
+        sw3_V1]
+      simp [quantitativeAnnularGrouping_innerOrder_step4_sqV, mkPt, AffineMap.lineMap_apply]
+      split_ifs <;>
+        first
+          | (exfalso; linarith)
+          | (field_simp; done)
+          | ((obtain rfl : τ = 6 * A := by linarith); field_simp; ring1)
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the polygonal arc through the points of
+a list (the escape paths `y_k → z_k → c`). -/
+private def quantitativeAnnularGrouping_innerOrder_step4_arc (l : List Pt) : PolyArc := ⟨l.length - 2, fun i => l.getD i 0⟩
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: endpoints and carrier of the polygonal
+arc through the points of a list. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_arcProps {l : List Pt} (hl : 2 ≤ l.length) {a b : Pt} (ha : l.head? = some a)
+    (hb : l.getLast? = some b) {T : Set Pt} (hT : l.IsChain (fun x y => segment ℝ x y ⊆ T)) :
+    (quantitativeAnnularGrouping_innerOrder_step4_arc l).start = a ∧ (quantitativeAnnularGrouping_innerOrder_step4_arc l).stop = b ∧
+      (quantitativeAnnularGrouping_innerOrder_step4_arc l).carrier ⊆ T ∧
+      a ∈ (quantitativeAnnularGrouping_innerOrder_step4_arc l).carrier ∧ b ∈ (quantitativeAnnularGrouping_innerOrder_step4_arc l).carrier := by
+  have hgi : ∀ i (h : i < l.length), l.getD i 0 = l[i] := fun i h => by
+    rw [List.getD_eq_getElem]
+  have ha' : l[0]'(by omega) = a := by
+    rw [List.head?_eq_getElem?] at ha
+    simpa [List.getElem?_eq_getElem (by omega : 0 < l.length)] using ha
+  have hb' : l[l.length - 1]'(by omega) = b := by
+    rw [List.getLast?_eq_getElem?] at hb
+    simpa [List.getElem?_eq_getElem (by omega : l.length - 1 < l.length)] using hb
+  have hst : (quantitativeAnnularGrouping_innerOrder_step4_arc l).start = a := by
+    simp only [PolyArc.start, quantitativeAnnularGrouping_innerOrder_step4_arc, Fin.val_zero]; rw [hgi 0 (by omega), ha']
+  have hsp : (quantitativeAnnularGrouping_innerOrder_step4_arc l).stop = b := by
+    simp only [PolyArc.stop, quantitativeAnnularGrouping_innerOrder_step4_arc, Fin.val_last]
+    rw [hgi _ (by omega)]; convert hb' using 2; omega
+  refine ⟨hst, hsp, ?_, ?_, ?_⟩
+  · intro x hx
+    obtain ⟨i, hi⟩ := mem_iUnion.1 hx
+    simp only [PolyArc.seg, quantitativeAnnularGrouping_innerOrder_step4_arc, Fin.coe_castSucc, Fin.val_succ] at hi
+    have hi1 : (i : ℕ) + 1 < l.length := by have := i.isLt; simp only [quantitativeAnnularGrouping_innerOrder_step4_arc] at this; omega
+    rw [hgi _ (by omega), hgi _ hi1] at hi
+    exact hT.getElem i hi1 hi
+  · rw [← hst]
+    exact mem_iUnion.2 ⟨0, left_mem_segment ℝ _ _⟩
+  · rw [← hsp]
+    exact mem_iUnion.2 ⟨Fin.last _, right_mem_segment ℝ _ _⟩
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the perimeter point of `∂Q₀` with
+parameter in `[0, 8A)` has sup norm `A`. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_sppNorm {A τ : ℝ} (hA : 0 < A) (h0 : 0 ≤ τ) (h8 : τ < 8 * A) :
+    sw3N (squarePerimeterPoint A τ) = A := by
+  rw [← sw3P_eq hA h0 h8]; exact sw3N_sw3P hA τ
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: radial rays through distinct perimeter
+parameters are disjoint away from `c` (the paths "meet only at `c`"). -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_radialNe {c : Pt} {A : ℝ} (hA : 0 < A) {τ τ' : ℝ} (h0 : 0 ≤ τ) (h8 : τ < 8 * A)
+    (h0' : 0 ≤ τ') (h8' : τ' < 8 * A) (hne : τ ≠ τ') {a a' : ℝ} (ha : 0 < a) (ha' : 0 < a')
+    (h : c + a • squarePerimeterPoint A τ = c + a' • squarePerimeterPoint A τ') : False := by
+  have h1 := congrArg (fun x => sw3N (x - c)) h
+  simp only [add_sub_cancel_left, sw3N_smul, quantitativeAnnularGrouping_innerOrder_step4_sppNorm hA h0 h8,
+    quantitativeAnnularGrouping_innerOrder_step4_sppNorm hA h0' h8',
+    abs_of_pos ha, abs_of_pos ha'] at h1
+  have haa : a = a' := mul_right_cancel₀ hA.ne' h1
+  subst haa
+  have h2 : squarePerimeterPoint A τ = squarePerimeterPoint A τ' :=
+    smul_right_injective Pt ha.ne' (add_left_cancel h)
+  exact hne (qo_pos_inj h0 h8 h0' h8' h2)
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: points of a radial segment are of the
+form `c + l • v`. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_memRadial {c v x : Pt} {a b : ℝ} (hab : a ≤ b) (hx : x ∈ segment ℝ (c + a • v) (c + b • v)) :
+    ∃ l, a ≤ l ∧ l ≤ b ∧ x = c + l • v := by
+  rw [segment_eq_image'] at hx
+  obtain ⟨θ, ⟨h1, h2⟩, rfl⟩ := hx
+  refine ⟨a + θ * (b - a), by nlinarith, by nlinarith, ?_⟩
+  module
+
+
+/-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: the paths "cut the disk `L` into `m`
+sectors whose boundary arcs between consecutive points `y_k, y_{k+1}` contain no other `y_i`".  Three boundary points
+of a counterclockwise polygonal disk joined by pairwise disjoint escape paths to radial segments from `c` with
+increasing perimeter parameters have parameters in positive cyclic order along the boundary parametrization. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_triple (B : PolygonalDisk) (hccw : pdCCW B) (c : Pt) {A : ℝ} (hA : 0 < A)
+    (τ μ : Fin 3 → ℝ) (hτ0 : 0 ≤ τ 0) (hτ01 : τ 0 < τ 1) (hτ12 : τ 1 < τ 2) (hτ2 : τ 2 < 8 * A)
+    (hμ : ∀ i, 0 < μ i)
+    (hseg : ∀ i, segment ℝ c (c + μ i • squarePerimeterPoint A (τ i)) ⊆ interior B.carrier)
+    (U : Fin 3 → Set Pt) (p : Fin 3 → Pt) (hUB : ∀ i, U i ⊆ interior B.carrier)
+    (hpB : ∀ i, p i ∈ frontier B.carrier) {ρ : ℝ} (hρ : 0 < ρ)
+    (hUc : ∀ i, Disjoint (insert (p i) (U i)) (square c ρ))
+    (hchain : ∀ i, ∃ l : List Pt, l.head? = some (c + μ i • squarePerimeterPoint A (τ i)) ∧
+      l.getLast? = some (p i) ∧ l.IsChain (fun x y => segment ℝ x y ⊆ insert (p i) (U i)))
+    (hUU : ∀ i j, i ≠ j → Disjoint (insert (p i) (U i)) (insert (p j) (U j)))
+    (hUseg : ∀ i j, i ≠ j →
+      Disjoint (insert (p i) (U i)) (segment ℝ c (c + μ j • squarePerimeterPoint A (τ j))))
+    (s : Fin 3 → ℝ) (hs : ∀ i, s i ∈ Ico (0 : ℝ) 1) (hsp : ∀ i, pgLoop (pgL B) (s i) = p i) :
+    (s 0 < s 1 ∧ s 1 < s 2) ∨ (s 1 < s 2 ∧ s 2 < s 0) ∨ (s 2 < s 0 ∧ s 0 < s 1) := by
+  set v : Fin 3 → Pt := fun i => squarePerimeterPoint A (τ i) with hv
+  have hτi : ∀ i, 0 ≤ τ i ∧ τ i < 8 * A := by
+    intro i; fin_cases i
+    · exact ⟨hτ0, by simp; linarith⟩
+    · exact ⟨by simp; linarith, by simp; linarith⟩
+    · exact ⟨by simp; linarith, hτ2⟩
+  have hτinj : ∀ i j, i ≠ j → τ i ≠ τ j := by
+    intro i j hij; fin_cases i <;> fin_cases j <;> simp at hij ⊢ <;> linarith
+  have hvN : ∀ i, sw3N (v i) = A := fun i => quantitativeAnnularGrouping_innerOrder_step4_sppNorm hA (hτi i).1 (hτi i).2
+  have hcB : c ∈ interior B.carrier := hseg 0 (left_mem_segment ℝ _ _)
+  obtain ⟨ε, hε, hεB⟩ := Metric.isOpen_iff.1 isOpen_interior c hcB
+  set m0 := min (μ 0 * A) (min (μ 1 * A) (μ 2 * A)) with hm0
+  have hm0p : 0 < m0 := lt_min (mul_pos (hμ 0) hA) (lt_min (mul_pos (hμ 1) hA) (mul_pos (hμ 2) hA))
+  have hm0le : ∀ i, m0 ≤ μ i * A := by
+    intro i; fin_cases i
+    · exact min_le_left _ _
+    · exact (min_le_right _ _).trans (min_le_left _ _)
+    · exact (min_le_right _ _).trans (min_le_right _ _)
+  set r := min (ρ / 2) (min (ε / 4) (m0 / 2)) with hrdef
+  have hr : 0 < r := lt_min (by linarith) (lt_min (by linarith) (by linarith))
+  have hrρ : r < ρ := (min_le_left _ _).trans_lt (by linarith)
+  have hrε : r ≤ ε / 4 := (min_le_right _ _).trans (min_le_left _ _)
+  have hrμ : ∀ i, r < μ i * A := fun i =>
+    ((min_le_right _ _).trans (min_le_right _ _)).trans_lt (by linarith [hm0le i])
+  set C := quantitativeAnnularGrouping_innerOrder_step4_sqDisk c hr with hC
+  have hCcar : C.carrier = square c r := rfl
+  have hCA : C.carrier ⊆ interior B.carrier := by
+    intro x hx
+    rw [hCcar, sw3_mem_square_iff] at hx
+    apply hεB
+    rw [Metric.mem_ball, dist_eq_norm]
+    have := quantitativeAnnularGrouping_innerOrder_step3_normLe (x - c)
+    linarith
+  have hcC : c ∈ interior C.carrier := quantitativeAnnularGrouping_innerOrder_step4_sqCentreInterior hr
+  -- the starts and the arcs
+  set w : Fin 3 → Pt := fun i => c + (r / A) • v i with hw
+  have hwN : ∀ i, sw3N (w i - c) = r := by
+    intro i; simp only [hw, add_sub_cancel_left, sw3N_smul, hvN, abs_of_pos (div_pos hr hA)]
+    field_simp
+  choose l hl1 hl2 hl3 using hchain
+  set T : Fin 3 → Set Pt := fun i => segment ℝ (w i) (c + μ i • v i) ∪ insert (p i) (U i) with hT
+  have hlen : ∀ i, 2 ≤ (w i :: l i).length := by
+    intro i
+    have : (l i).length ≠ 0 := by
+      intro h; rw [List.length_eq_zero_iff] at h; have h1 := hl1 i; rw [h] at h1; simp at h1
+    simp; omega
+  have hchT : ∀ i, (w i :: l i).IsChain (fun x y => segment ℝ x y ⊆ T i) := by
+    intro i
+    obtain ⟨z, rest, hzr⟩ : ∃ z rest, l i = z :: rest := by
+      cases h : l i with
+      | nil => have h1 := hl1 i; rw [h] at h1; simp at h1
+      | cons z rest => exact ⟨z, rest, rfl⟩
+    have hz : z = c + μ i • v i := by have h1 := hl1 i; rw [hzr] at h1; simpa using h1
+    rw [hzr, List.isChain_cons_cons]
+    refine ⟨fun x hx => Or.inl (by rw [← hz]; exact hx), ?_⟩
+    rw [← hzr]
+    exact (hl3 i).imp fun x y h => h.trans subset_union_right
+  have hlast : ∀ i, (w i :: l i).getLast? = some (p i) := by
+    intro i
+    rw [List.getLast?_cons, hl2 i]; rfl
+  have hprops := fun i => quantitativeAnnularGrouping_innerOrder_step4_arcProps (hlen i) rfl (hlast i) (hchT i)
+  set α : Fin 3 → PolyArc := fun i => quantitativeAnnularGrouping_innerOrder_step4_arc (w i :: l i) with hα
+  have hst : ∀ i, (α i).start = w i := fun i => (hprops i).1
+  have hsp' : ∀ i, (α i).stop = p i := fun i => (hprops i).2.1
+  have hcarT : ∀ i, (α i).carrier ⊆ T i := fun i => (hprops i).2.2.1
+  have hwmem : ∀ i, w i ∈ (α i).carrier := fun i => (hprops i).2.2.2.1
+  have hpmem : ∀ i, p i ∈ (α i).carrier := fun i => (hprops i).2.2.2.2
+  -- the radial parts
+  have hrad : ∀ i, ∀ x ∈ segment ℝ (w i) (c + μ i • v i), ∃ lam, r / A ≤ lam ∧ lam ≤ μ i ∧ x = c + lam • v i := by
+    intro i x hx
+    exact quantitativeAnnularGrouping_innerOrder_step4_memRadial (by rw [div_le_iff₀ hA]; linarith [hrμ i]) hx
+  have hradN : ∀ i, ∀ x ∈ segment ℝ (w i) (c + μ i • v i), r ≤ sw3N (x - c) := by
+    intro i x hx
+    obtain ⟨lam, h1, -, rfl⟩ := hrad i x hx
+    rw [add_sub_cancel_left, sw3N_smul, hvN, abs_of_pos ((div_pos hr hA).trans_le h1)]
+    rwa [div_le_iff₀ hA] at h1
+  have hradB : ∀ i, segment ℝ (w i) (c + μ i • v i) ⊆ interior B.carrier := by
+    intro i x hx
+    obtain ⟨lam, h1, h2, rfl⟩ := hrad i x hx
+    apply hseg i
+    rw [segment_eq_image']
+    refine ⟨lam / μ i, ⟨div_nonneg ((div_pos hr hA).le.trans h1) (hμ i).le, (div_le_one (hμ i)).2 h2⟩, ?_⟩
+    simp only [hv, add_sub_cancel_left, smul_smul]
+    rw [div_mul_cancel₀ _ (hμ i).ne']
+  have hUfar : ∀ i, ∀ x ∈ insert (p i) (U i), ρ < sw3N (x - c) := by
+    intro i x hx
+    by_contra h
+    push_neg at h
+    exact Set.disjoint_left.1 (hUc i) hx (sw3_mem_square_iff.2 h)
+  have hUBi : ∀ i, insert (p i) (U i) ⊆ B.carrier := by
+    intro i x hx
+    rcases hx with rfl | hx
+    · exact pd_frontier_subset_carrier B (hpB i)
+    · exact interior_subset (hUB i hx)
+  have hin : ∀ j, (α j).carrier ⊆ B.carrier \ interior C.carrier := by
+    intro j x hx
+    have hintC : interior C.carrier = interior (square c r) := rfl
+    rcases hcarT j hx with hx | hx
+    · refine ⟨interior_subset (hradB j hx), fun h => ?_⟩
+      rw [hintC] at h
+      have := sw3_interior_square h
+      linarith [hradN j x hx]
+    · refine ⟨hUBi j hx, fun h => ?_⟩
+      rw [hintC] at h
+      have := sw3_interior_square h
+      linarith [hUfar j x hx]
+  have hfrC : frontier C.carrier = {x | sw3N (x - c) = r} := quantitativeAnnularGrouping_innerOrder_step4_frontierSquare
+  have hCc : ∀ j, (α j).carrier ∩ frontier C.carrier = {(α j).start} := by
+    intro j
+    rw [hst, hfrC]
+    ext x
+    simp only [mem_inter_iff, mem_setOf_eq, mem_singleton_iff]
+    constructor
+    · rintro ⟨hx, hxr⟩
+      rcases hcarT j hx with hx | hx
+      · obtain ⟨lam, h1, -, rfl⟩ := hrad j x hx
+        rw [add_sub_cancel_left, sw3N_smul, hvN, abs_of_pos ((div_pos hr hA).trans_le h1)] at hxr
+        have : lam = r / A := by field_simp; linarith
+        rw [this]
+      · linarith [hUfar j x hx]
+    · rintro rfl; exact ⟨hwmem j, hwN j⟩
+  have hAc : ∀ j, (α j).carrier ∩ frontier B.carrier = {(α j).stop} := by
+    intro j
+    rw [hsp']
+    ext x
+    simp only [mem_inter_iff, mem_singleton_iff]
+    constructor
+    · rintro ⟨hx, hxf⟩
+      rcases hcarT j hx with hx | hx
+      · exact absurd (hradB j hx) fun h => pg_frontier_inter_interior hxf h
+      · rcases hx with rfl | hx
+        · rfl
+        · exact absurd (hUB j hx) fun h => pg_frontier_inter_interior hxf h
+    · rintro rfl; exact ⟨hpmem j, hpB j⟩
+  have hdisj : ∀ i j, i ≠ j → Disjoint (α i).carrier (α j).carrier := by
+    intro i j hij
+    refine Set.disjoint_left.2 fun x hxi hxj => ?_
+    have hsub : ∀ k, segment ℝ (w k) (c + μ k • v k) ⊆ segment ℝ c (c + μ k • v k) := by
+      intro k
+      refine (convex_segment _ _).segment_subset ?_ (right_mem_segment ℝ _ _)
+      rw [segment_eq_image']
+      refine ⟨(r / A) / μ k, ⟨div_nonneg (div_pos hr hA).le (hμ k).le, (div_le_one (hμ k)).2 ?_⟩, ?_⟩
+      · rw [div_le_iff₀ hA]; linarith [hrμ k]
+      · simp only [hw, add_sub_cancel_left, smul_smul]; rw [div_mul_cancel₀ _ (hμ k).ne']
+    rcases hcarT i hxi with hi | hi <;> rcases hcarT j hxj with hj | hj
+    · obtain ⟨lam, h1, -, rfl⟩ := hrad i x hi
+      obtain ⟨lam', h1', -, e⟩ := hrad j _ hj
+      exact quantitativeAnnularGrouping_innerOrder_step4_radialNe hA (hτi i).1 (hτi i).2 (hτi j).1 (hτi j).2 (hτinj i j hij)
+        ((div_pos hr hA).trans_le h1) ((div_pos hr hA).trans_le h1') e
+    · exact Set.disjoint_left.1 (hUseg j i (Ne.symm hij)) hj (hsub i hi)
+    · exact Set.disjoint_left.1 (hUseg i j hij) hi (hsub j hj)
+    · exact Set.disjoint_left.1 (hUU i j hij) hi hj
+  -- the loops and their degrees
+  have hγo := pgLoop_isLoopParam B
+  have hδ := pgLoop_isLoopParam C
+  obtain ⟨Θo, hΘoc, hΘo, hno⟩ := quantitativeAnnularGrouping_innerOrder_step4_degOne B hcB (hccw c hcB)
+  obtain ⟨Θd, hΘdc, hΘd, hnd⟩ := quantitativeAnnularGrouping_innerOrder_step4_degOne C hcC (quantitativeAnnularGrouping_innerOrder_step4_sqWind c hr)
+  have hord' : PointsInOrder (pgLoop (pgL C)) fun j => (α j).start := by
+    refine ⟨fun i => τ i / (8 * A), ?_, ?_, ?_⟩
+    · intro a b hab
+      simp only
+      apply div_lt_div_of_pos_right _ (by positivity)
+      fin_cases a <;> fin_cases b <;> simp at hab ⊢ <;> linarith
+    · intro a b
+      simp only
+      have h1 := (hτi a).1
+      have h2 := (hτi b).2
+      have : τ b / (8 * A) < 1 := by rw [div_lt_one (by positivity)]; exact h2
+      have : 0 ≤ τ a / (8 * A) := by positivity
+      linarith
+    · intro i
+      simp only [hst]
+      exact quantitativeAnnularGrouping_innerOrder_step4_sqLoop c hr hA (hτi i).1 (hτi i).2
+  have hord := quantitativeAnnularGrouping_innerOrder_step4_orient B C hCA α hin hCc hAc hdisj hγo hδ hcC hΘoc hΘo hΘdc hΘd one_ne_zero hno hnd hord'
+  simp only [hsp'] at hord
+  exact quantitativeAnnularGrouping_innerOrder_step5_cycOfOrder hγo p hord s hs hsp
+
+
+/-- Step 5 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: auxiliary: a finite family of positive
+reals has a positive lower bound. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step5_finMin {ι : Type*} [Fintype ι] (f : ι → ℝ) (h : ∀ i, 0 < f i) :
+    ∃ δ > 0, ∀ i, δ ≤ f i := by
+  rcases isEmpty_or_nonempty ι with hι | hι
+  · exact ⟨1, one_pos, fun i => (IsEmpty.false i).elim⟩
+  · obtain ⟨i0, -, hi0⟩ := Finset.univ.exists_min_image f Finset.univ_nonempty
+    exact ⟨f i0, h i0, fun i => hi0 i (Finset.mem_univ i)⟩
+
+/-- Step 5 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: auxiliary: distinct parameters in
+`[0,1)` are uniformly separated, with room below `1`. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step5_delta {m : ℕ} (s : Fin m → ℝ) (hs : ∀ k, s k ∈ Ico (0 : ℝ) 1)
+    (hinj : Function.Injective s) :
+    ∃ δ > 0, (∀ a b, a ≠ b → 2 * δ ≤ |s a - s b|) ∧ ∀ a, s a + δ < 1 := by
+  classical
+  obtain ⟨δ1, hδ1, h1⟩ := quantitativeAnnularGrouping_innerOrder_step5_finMin (fun ab : Fin m × Fin m => if ab.1 = ab.2 then 1 else |s ab.1 - s ab.2|)
+    (fun ab => by
+      simp only
+      split_ifs with h
+      · exact one_pos
+      · exact abs_pos.2 (sub_ne_zero.2 fun e => h (hinj e)))
+  obtain ⟨δ2, hδ2, h2⟩ := quantitativeAnnularGrouping_innerOrder_step5_finMin (fun a => 1 - s a) (fun a => by linarith [(hs a).2])
+  refine ⟨min (δ1 / 2) (δ2 / 2), lt_min (by linarith) (by linarith), fun a b hab => ?_, fun a => ?_⟩
+  · have := h1 (a, b)
+    simp only [if_neg hab] at this
+    linarith [min_le_left (δ1 / 2) (δ2 / 2)]
+  · linarith [h2 a, min_le_right (δ1 / 2) (δ2 / 2)]
+
+
 /-- `lem:inner-sector-order` (interface repair of 17 October 2026): points of the boundary of the
 inside-anchored group `L` lying in distinct ideal sectors, each at distance at least `50 D` from
 every other ideal sector, appear along the counterclockwise boundary parametrization in the order
@@ -33729,35 +34692,165 @@ private lemma quantitativeAnnularGrouping_innerOrder {M : MeshConstants P}
     (hfar : ∀ k, ∀ t : Fin (4 * N), t ≠ j k →
       ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), 50 * M.D ≤ dist (y k) q) :
     PointsInOrder (pgLoop (pgL B)) y := by
-  have _ := hyj
-  obtain ⟨i, F, hyi, hF, hFi, hFa, hFs, hy_inj⟩ :=
-    quantitativeAnnularGrouping_innerOrder_step1_localize_faces
-      c hN hR G j hj y hy hfar
-  obtain ⟨p, hp, hp_lim⟩ :=
-    quantitativeAnnularGrouping_innerOrder_step2_regularize G.L y i hyi
-  have hp_order : ∀ n, PointsInOrder (pgLoop (pgL B)) (p n) := by
-    intro n
-    obtain ⟨C, α, δ, hCB, hin, hC, hBout, hstop, hdisj, hδ, hhom, hinner⟩ :=
-      quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts
-        c hN hR G B hB hccw j hj i F hF hFi hFa hFs (p n) (hp n)
-    have hout := quantitativeAnnularGrouping_innerOrder_step4_transfer_outward
-      B C hCB α hin hC hBout hdisj (pgLoop_isLoopParam B) hδ hhom hinner
-    simpa only [hstop] using hout
-  have hp_weak : ∀ n,
-      existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder
-        (pgLoop (pgL B)) (p n) := by
-    intro n
-    exact existsRoutingAfterPower_step4_routes_step6_pointsInOrder_weak
-      (pgLoop (pgL B)) (pgLoop_periodic (pgL B)) (p n) (hp_order n)
-  have hclosed :=
-    existsRoutingAfterPower_step4_routes_step6_weakPointsInOrder_closed
-      (pgLoop (pgL B)) (pgLoop_isLoopParam B).1 m
-  have hy_weak :
-      existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder
-        (pgLoop (pgL B)) y :=
-    hclosed.mem_of_tendsto hp_lim (Filter.Eventually.of_forall hp_weak)
-  exact existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
-    (pgLoop (pgL B)) (pgLoop_periodic (pgL B)) y hy_weak hy_inj
+  have hD := M.D_pos
+  set A := (N : ℝ) * R / 2 with hAdef
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hR0 : 0 < R := by linarith
+  have hRA : R ≤ A := by rw [hAdef]; nlinarith
+  have hA : 0 < A := by linarith
+  have hDA : M.D < A := by linarith
+  -- the boundary parameters of the given points
+  have hγ := pgLoop_isLoopParam B
+  have hfrB : frontier B.carrier = frontier G.L.carrier := by rw [hB]
+  have hγL : IsLoopParam (frontier G.L.disk.carrier) (pgLoop (pgL B)) := by
+    have e : frontier G.L.disk.carrier = frontier B.carrier := by rw [hfrB]; rfl
+    rw [e]; exact hγ
+  have hpar : ∀ k, ∃ t ∈ Ico (0 : ℝ) 1, pgLoop (pgL B) t = y k := by
+    intro k
+    have : y k ∈ frontier B.carrier := by rw [hfrB]; exact hy k
+    rw [← hγ.2.2.2] at this
+    exact this
+  choose s hs hsy using hpar
+  -- Step 3: the points are far apart
+  have hsep : ∀ a b, a ≠ b → 25 * M.D < dist (y a) (y b) := fun a b hab =>
+    quantitativeAnnularGrouping_innerOrder_step3_sep hD (hyj a)
+      (hfar b (j a) (fun h => hab (hj.injective h)))
+  have hsinj : Function.Injective s := by
+    intro a b hab
+    by_contra hne
+    have e : y a = y b := by rw [← hsy a, ← hsy b, hab]
+    have := hsep a b hne
+    rw [e, dist_self] at this
+    linarith
+  -- move each point slightly forward to the interior of a listed side of `L`
+  obtain ⟨δ, hδ, hδgap, hδone⟩ := quantitativeAnnularGrouping_innerOrder_step5_delta s hs hsinj
+  have hpert := fun k => qo_cut_near G.L.disk hγL (s k) hD hδ
+  choose s' hs' hpd mk hmk using hpert
+  set p : Fin m → Pt := fun k => pgLoop (pgL B) (s' k) with hpdef
+  have hpy : ∀ k, dist (p k) (y k) < M.D := fun k => by
+    have := hpd k; rw [hsy k] at this; exact this
+  have hpL : ∀ k, p k ∈ frontier G.L.carrier := by
+    intro k
+    change p k ∈ frontier G.L.disk.carrier
+    rw [G.L.disk.frontier_eq]
+    exact mem_iUnion.2 ⟨mk k, openSegment_subset_segment _ _ _ (hmk k)⟩
+  have hpQ : ∀ k, p k ∉ interior (square c A) := fun k hk =>
+    (hpL k).2 (interior_mono G.L_lower hk)
+  have hs'01 : ∀ k, s' k ∈ Ico (0 : ℝ) 1 :=
+    fun k => ⟨(hs k).1.trans (hs' k).1.le, (hs' k).2.trans (hδone k)⟩
+  have hlt : ∀ a b, s' a < s' b → s a < s b := by
+    intro a b hab
+    by_contra hba
+    push_neg at hba
+    rcases eq_or_ne a b with rfl | hne
+    · exact lt_irrefl _ hab
+    · have h1 := hδgap a b hne
+      rw [abs_of_nonneg (by linarith)] at h1
+      linarith [(hs' a).1, (hs' b).2]
+  -- Step 1: the inside-anchoring faces and the paths to `int Q₀`
+  have h1 := fun k => quantitativeAnnularGrouping_innerOrder_step1_anchorFace M G.L G.L_anchor (mk k) (hmk k)
+  choose F hFL hpF hFd z hzF hzQ l hl1 hl2 hl3 using h1
+  -- Step 2: the radial segments and their sectors
+  have hfarp : ∀ k, ∀ t : Fin (4 * N), t ≠ j k →
+      ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), 4 * M.D ≤ dist (p k) q := by
+    intro k t ht q hq
+    have h1 := hfar k t ht q hq
+    have h2 := dist_triangle (y k) (p k) q
+    have h3 : dist (y k) (p k) < M.D := by rw [dist_comm]; exact hpy k
+    linarith
+  have h2 := fun k => quantitativeAnnularGrouping_innerOrder_step2_radial hN hD hR (hpQ k) (hzQ k)
+    (hFd k _ (interior_subset (hzF k))) (j k) (hfarp k)
+  choose hsegQ μ τ hμ hτ1 hτ2 hzeq using h2
+  -- Step 3: separation of the paths
+  have hsepp : ∀ a b, a ≠ b → 5 * M.D ≤ dist (p a) (p b) := by
+    intro a b hab
+    have h1 := hsep a b hab
+    have h2 := dist_triangle4 (y a) (p a) (p b) (y b)
+    have h3 : dist (y a) (p a) < M.D := by rw [dist_comm]; exact hpy a
+    linarith [hpy b]
+  have hFseg : ∀ a b, a ≠ b → Disjoint (F a).carrier (segment ℝ c (z b)) := fun a b hab =>
+    (quantitativeAnnularGrouping_innerOrder_step3_disjoint hD hDA (hpQ a) (hzQ b)
+      (hFd b _ (interior_subset (hzF b))) (hsepp a b hab) _ (hFd a)).2
+  have hFF : ∀ a b, a ≠ b → Disjoint (F a).carrier (F b).carrier := by
+    intro a b hab
+    rw [Set.disjoint_left]
+    intro w hwa hwb
+    have h1 := hFd a w hwa
+    have h2 := hFd b w hwb
+    have := dist_triangle (p a) w (p b)
+    rw [dist_comm (p a) w] at this
+    linarith [hsepp a b hab]
+  have hFfar : ∀ a, Disjoint (insert (p a) (interior (F a).carrier)) (square c (A / 2)) := by
+    intro a
+    rw [Set.disjoint_left]
+    intro x hx hxs
+    have hxF : x ∈ (F a).carrier := by
+      rcases hx with rfl | hx
+      · exact hpF a
+      · exact interior_subset hx
+    have hyN : A ≤ sw3N (p a - c) := by
+      by_contra h
+      push_neg at h
+      exact hpQ a (sw3_mem_interior_square h)
+    have h1 := sw3N_sub_le (p a - c) (x - c)
+    rw [show p a - c - (x - c) = p a - x by abel] at h1
+    have h2 := sw3N_le_norm (p a - x)
+    rw [← dist_eq_norm, dist_comm] at h2
+    have h3 := sw3_mem_square_iff.1 hxs
+    linarith [hFd a x hxF]
+  have hinsF : ∀ a, insert (p a) (interior (F a).carrier) ⊆ (F a).carrier := by
+    intro a x hx
+    rcases hx with rfl | hx
+    · exact hpF a
+    · exact interior_subset hx
+  have hτmono : ∀ a b, a < b → τ a < τ b := by
+    intro a b hab
+    have hjab : ((j a : ℕ) : ℝ) + 1 ≤ ((j b : ℕ) : ℝ) := by
+      have : (j a : ℕ) < (j b : ℕ) := hj hab
+      exact_mod_cast this
+    have := hτ2 a
+    have := hτ1 b
+    nlinarith
+  have hτ0 : ∀ a, 0 ≤ τ a := fun a => le_trans (by positivity) (hτ1 a)
+  have hτ8 : ∀ a, τ a < 8 * A := by
+    intro a
+    have hj4 : ((j a : ℕ) : ℝ) + 1 ≤ 4 * N := by
+      have : (j a : ℕ) + 1 ≤ 4 * N := (j a).isLt
+      exact_mod_cast this
+    have := hτ2 a
+    have h8 : 8 * A = 4 * N * R := by rw [hAdef]; ring
+    nlinarith
+  have hBL : interior (square c A) ⊆ interior B.carrier := by
+    rw [hB]; exact interior_mono G.L_lower
+  have hFB : ∀ a, interior (F a).carrier ⊆ interior B.carrier := fun a => by
+    rw [hB]; exact interior_mono (hFL a)
+  -- Step 5: assemble from triples
+  refine quantitativeAnnularGrouping_innerOrder_step5_assemble hγ.2.1 y s hs hsy hsinj ?_
+  -- Step 4: the triples
+  intro a b d hab hbd
+  have hene : ∀ i i' : Fin 3, i ≠ i' → (![a, b, d] : Fin 3 → Fin m) i ≠ ![a, b, d] i' := by
+    have h1 : a ≠ b := ne_of_lt hab
+    have h2 : b ≠ d := ne_of_lt hbd
+    have h3 : a ≠ d := ne_of_lt (hab.trans hbd)
+    intro i i' hii
+    fin_cases i <;> fin_cases i' <;> simp [h1, h2, h3, h1.symm, h2.symm, h3.symm] at hii ⊢
+  set e : Fin 3 → Fin m := ![a, b, d] with he
+  have hz' : ∀ i, z (e i) = c + μ (e i) • squarePerimeterPoint A (τ (e i)) := fun i => hzeq (e i)
+  have key := quantitativeAnnularGrouping_innerOrder_step4_triple B hccw c hA (fun i => τ (e i)) (fun i => μ (e i)) (hτ0 a) (hτmono a b hab)
+    (hτmono b d hbd) (hτ8 d) (fun i => hμ (e i))
+    (fun i => by rw [← hz']; exact (hsegQ (e i)).trans hBL)
+    (fun i => interior (F (e i)).carrier) (fun i => p (e i)) (fun i => hFB (e i))
+    (fun i => by rw [hfrB]; exact hpL (e i)) (half_pos hA) (fun i => hFfar (e i))
+    (fun i => ⟨l (e i), by rw [← hz']; exact hl1 (e i), hl2 (e i), hl3 (e i)⟩)
+    (fun i i' hii => (hFF _ _ (hene i i' hii)).mono (hinsF _) (hinsF _))
+    (fun i i' hii => by rw [← hz']; exact (hFseg _ _ (hene i i' hii)).mono_left (hinsF _))
+    (fun i => s' (e i)) (fun i => hs'01 (e i)) (fun i => rfl)
+  simp only [he, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.head_cons,
+    Matrix.tail_cons] at key
+  rcases key with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · exact Or.inl ⟨hlt _ _ h1, hlt _ _ h2⟩
+  · exact Or.inr (Or.inl ⟨hlt _ _ h1, hlt _ _ h2⟩)
+  · exact Or.inr (Or.inr ⟨hlt _ _ h1, hlt _ _ h2⟩)
 
 /-! ## The fingerprint criterion (`lem:fingerprint`) -/
 

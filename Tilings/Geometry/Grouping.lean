@@ -2216,7 +2216,120 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub1_central_chai
       ∀ m α, translateSet (anchor (m + 1) α)
         (τ.supertile g.k (q₀ ((fun β => g.large (q₀ β).form)^[m] α)).form) ⊆
         τ.decomposeIter (g.GS.k * (m + 1)) (g.GS.G.dissect α).tiles := by
-  sorry
+  classical
+  have hnonempty : ∀ α, (g.GS.G.dissect α).tiles.Nonempty := by
+    intro α
+    by_contra hne
+    rw [Set.not_nonempty_iff_eq_empty] at hne
+    have hsupp : support (g.GS.G.dissect α).tiles = ∅ := by
+      ext x
+      simp [support, hne]
+    have hcar : (g.GS.G.P'.disk α).carrier = ∅ := by
+      rw [← g.GS.G.support_eq α, hsupp]
+    obtain ⟨x, hx⟩ := (g.GS.G.P'.disk α).interior_nonempty
+    have hx' : x ∈ (g.GS.G.P'.disk α).carrier := interior_subset hx
+    rw [hcar] at hx'
+    exact hx'
+  let q₀ : g.GS.G.P'.Form → PlacedTile P :=
+    fun α => Classical.choose (hnonempty α)
+  have hq₀ : ∀ α, q₀ α ∈ (g.GS.G.dissect α).tiles := by
+    intro α
+    exact Classical.choose_spec (hnonempty α)
+  let c : g.GS.G.P'.Form → g.GS.G.P'.Form :=
+    fun β => g.large (q₀ β).form
+  let anchor : ℕ → g.GS.G.P'.Form → Pt :=
+    fun m => Nat.rec (motive := fun _ => g.GS.G.P'.Form → Pt)
+      (fun _ => 0)
+      (fun m ih α =>
+        (τ.θ ^ g.k) • (ih α + (q₀ (c^[m] α)).anchor)) m
+  have hlarge : ∀ q : PlacedTile P,
+      translateSet ((τ.θ ^ g.k) • q.anchor)
+          (g.GS.G.dissect (g.large q.form)).tiles ⊆
+        τ.decomposeIter g.k {q} := by
+    intro q
+    rw [g.large_dissect, emcg_iter_singleton]
+    exact image_mono (g.annular q.form).L.faces_sub
+  have hchain : ∀ l α, translateSet (anchor l α)
+      (g.GS.G.dissect (c^[l] α)).tiles ⊆
+        τ.decomposeIter (g.k * l) (g.GS.G.dissect α).tiles := by
+    intro l
+    induction l with
+    | zero =>
+        intro α
+        simp [anchor, Substitution.decomposeIter, emcg_translateSet_zero]
+    | succ m ih =>
+        intro α
+        let β := c^[m] α
+        let q := q₀ β
+        have hq : q ∈ (g.GS.G.dissect β).tiles := hq₀ β
+        have hanchor : anchor (m + 1) α =
+            (τ.θ ^ g.k) • (anchor m α + q.anchor) := by
+          dsimp [anchor, q, β]
+        have hc : c^[m + 1] α = c β := by
+          simp [Function.iterate_succ_apply', β]
+        have hmid : translateSet ((τ.θ ^ g.k) • anchor m α)
+            (τ.decomposeIter g.k {q}) ⊆
+              τ.decomposeIter g.k
+                (translateSet (anchor m α) (g.GS.G.dissect β).tiles) := by
+          rw [emcg_iter_translate]
+          exact image_mono (emcg_iter_mono τ g.k (singleton_subset_iff.mpr hq))
+        have hnext : translateSet (anchor (m + 1) α)
+            (g.GS.G.dissect (c^[m + 1] α)).tiles ⊆
+              translateSet ((τ.θ ^ g.k) • anchor m α)
+                (τ.decomposeIter g.k {q}) := by
+          rw [hanchor, hc, smul_add]
+          rw [← emcg_translateSet_translateSet]
+          exact image_mono (hlarge q)
+        calc
+          translateSet (anchor (m + 1) α)
+              (g.GS.G.dissect (c^[m + 1] α)).tiles ⊆
+              τ.decomposeIter g.k
+                (translateSet (anchor m α) (g.GS.G.dissect β).tiles) :=
+            hnext.trans hmid
+          _ ⊆ τ.decomposeIter g.k
+                (τ.decomposeIter (g.k * m) (g.GS.G.dissect α).tiles) :=
+            emcg_iter_mono τ g.k (ih α)
+          _ = τ.decomposeIter (g.k * (m + 1))
+                (g.GS.G.dissect α).tiles := by
+            rw [emcg_iter_add, Nat.mul_succ]
+  refine ⟨q₀, anchor, hq₀, ?_, ?_, ?_, ?_⟩
+  · intro α
+    dsimp [anchor]
+  · intro m α
+    dsimp [anchor, c]
+  · intro l α
+    simpa [c, g.grouped_power] using hchain l α
+  · intro m α
+    let β := c^[m] α
+    let q := q₀ β
+    have hanchor : anchor (m + 1) α =
+        (τ.θ ^ g.k) • (anchor m α + q.anchor) := by
+      dsimp [anchor, q, β]
+    have hmid : translateSet ((τ.θ ^ g.k) • anchor m α)
+        (τ.decomposeIter g.k {q}) ⊆
+          τ.decomposeIter g.k
+            (translateSet (anchor m α) (g.GS.G.dissect β).tiles) := by
+      rw [emcg_iter_translate]
+      exact image_mono (emcg_iter_mono τ g.k
+        (singleton_subset_iff.mpr (hq₀ β)))
+    have hnext : translateSet (anchor (m + 1) α)
+        (τ.supertile g.k q.form) ⊆
+          translateSet ((τ.θ ^ g.k) • anchor m α)
+            (τ.decomposeIter g.k {q}) := by
+      rw [hanchor, smul_add]
+      rw [← emcg_translateSet_translateSet, emcg_iter_singleton]
+    calc
+      translateSet (anchor (m + 1) α)
+          (τ.supertile g.k q.form) ⊆
+          τ.decomposeIter g.k
+            (translateSet (anchor m α) (g.GS.G.dissect β).tiles) :=
+        hnext.trans hmid
+      _ ⊆ τ.decomposeIter g.k
+            (τ.decomposeIter (g.k * m) (g.GS.G.dissect α).tiles) :=
+        emcg_iter_mono τ g.k (hchain m α)
+      _ = τ.decomposeIter (g.GS.k * (m + 1))
+            (g.GS.G.dissect α).tiles := by
+        rw [emcg_iter_add, g.grouped_power, Nat.mul_succ]
 
 private noncomputable def emcsCentralTile (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) : g.GS.G.P'.Form → PlacedTile P :=

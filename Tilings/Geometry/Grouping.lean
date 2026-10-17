@@ -48682,7 +48682,85 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_central
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     ∀ _α _i, ¬ cd.D.IsOuter (cd.D.occ (cd.D.central _α) _i) ∧
       ¬ cd.D.IsBoundary (cd.D.occ (cd.D.central _α) _i) := by
-  sorry
+  intro α i
+  let β := cd.baseForm α
+  have hsupport : support (cd.D.σ.rule α).tiles =
+      support (s.setup.retained l β).children.tiles := by
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+      rw [cd.tmpl.rule_eq α] at hA
+      obtain ⟨t, ht, rfl⟩ := hA
+      refine mem_support_iff'.2 ⟨cd.templateChild t, ?_, ?_⟩
+      · exact (cd.child_bijective α).1 ht
+      · rw [← cd.child_carrier t]
+        exact hxA
+    · intro hx
+      obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+      obtain ⟨t, ht, hAt⟩ := (cd.child_bijective α).2.2 hA
+      refine mem_support_iff'.2 ⟨cd.D.childTile t, ?_, ?_⟩
+      · rw [cd.tmpl.rule_eq α]
+        exact ⟨t, ht, rfl⟩
+      · rw [cd.child_carrier t, hAt]
+        exact hxA
+  have hregion : cd.D.macroRegion α = (s.setup.retained l β).region := by
+    calc
+      cd.D.macroRegion α = support (cd.D.σ.rule α).tiles := by
+        exact (cd.D.σ.support_eq α).symm
+      _ = support (s.setup.retained l β).children.tiles := hsupport
+      _ = (s.setup.retained l β).region := (s.setup.retained l β).support_eq
+  have hboundary : cd.D.macroBoundary α = frontier (s.setup.retained l β).region := by
+    rw [MacroData.macroBoundary, hregion]
+  have hcentralCarrier : (cd.D.childTile (cd.D.central α)).carrier =
+      (s.setup.central l β).carrier := by
+    calc
+      (cd.D.childTile (cd.D.central α)).carrier =
+          (cd.templateChild (cd.D.central α)).carrier := cd.child_carrier _
+      _ = (s.setup.central l β).carrier := by rw [cd.central_child]
+  obtain ⟨ρ, hρ, hclear⟩ := s.setup.clearance
+  have hscale : 0 < τ.θ ^ (s.setup.GS.k * l) :=
+    pow_pos (zero_lt_one.trans τ.one_lt) _
+  have hpositive : 0 < ρ * τ.θ ^ (s.setup.GS.k * l) := mul_pos hρ hscale
+  have hnotfrontier : ∀ x ∈ (s.setup.central l β).carrier,
+      x ∉ frontier (s.setup.retained l β).region := by
+    intro x hx hxf
+    have hle := hclear l β cd.l_pos x hx
+    rw [Metric.infDist_zero_of_mem hxf] at hle
+    linarith
+  have hside : cd.D.occSide (cd.D.occ (cd.D.central α) i) ⊆
+      (cd.D.childTile (cd.D.central α)).carrier := by
+    exact tile_side_subset _ _
+  have hstart : cd.D.occStart (cd.D.occ (cd.D.central α) i) ∈
+      cd.D.occSide (cd.D.occ (cd.D.central α) i) := by
+    change (cd.D.childTile (cd.D.central α)).vertex i ∈
+      (cd.D.childTile (cd.D.central α)).side i
+    exact vertex_mem_side _ _
+  have hcentral : cd.D.occStart (cd.D.occ (cd.D.central α) i) ∈
+      (s.setup.central l β).carrier := by
+    rw [← hcentralCarrier]
+    exact hside hstart
+  have hnotouter : ¬ cd.D.IsOuter (cd.D.occ (cd.D.central α) i) := by
+    intro hout
+    have hx := hout hstart
+    rw [cd.central_owner α, hboundary] at hx
+    exact hnotfrontier _ hcentral hx
+  have hnotboundary : ¬ cd.D.IsBoundary (cd.D.occ (cd.D.central α) i) := by
+    intro hb
+    rcases hb.2 with hx | hx
+    · rw [cd.central_owner α, hboundary] at hx
+      exact hnotfrontier _ hcentral hx
+    · have hend : cd.D.occEnd (cd.D.occ (cd.D.central α) i) ∈
+          cd.D.occSide (cd.D.occ (cd.D.central α) i) := by
+        change (cd.D.childTile (cd.D.central α)).vertex (finRotate _ i) ∈
+          (cd.D.childTile (cd.D.central α)).side i
+        rw [tile_side_eq]
+        exact right_mem_segment ℝ _ _
+      have hcend : cd.D.occEnd (cd.D.occ (cd.D.central α) i) ∈
+          (s.setup.central l β).carrier := hcentralCarrier ▸ hside hend
+      rw [cd.central_owner α, hboundary] at hx
+      exact hnotfrontier _ hcend hx
+  exact ⟨hnotouter, hnotboundary⟩
 
 private lemma existsMacroCertificate_seed2_routing_step5_g2 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)

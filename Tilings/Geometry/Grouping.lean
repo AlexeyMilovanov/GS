@@ -2643,6 +2643,137 @@ private lemma existsRoutingAfterPower_step4_routes_step6_weak_matchingCyclicOrde
   · exact existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
       gammaInner hInner.2.1 y hweak.2 hyi
 
+/-- The fixed normalized circle loop used to express inner endpoint order as a closed condition
+on direction vectors, independently of the moving centre and the chosen protected radius. -/
+private noncomputable def existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+    (t : ℝ) : Pt :=
+  (Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt)
+    (AddCircle.homeomorphCircle one_ne_zero (t : AddCircle (1 : ℝ)) : Circle)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoopParam :
+    IsLoopParam (Metric.sphere (0 : Pt) 1)
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop := by
+  let E : AddCircle (1 : ℝ) ≃ₜ Circle := AddCircle.homeomorphCircle one_ne_zero
+  let L : ℂ ≃ₗᵢ[ℝ] Pt := Complex.orthonormalBasisOneI.repr
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · exact L.continuous.comp
+      (continuous_subtype_val.comp (E.continuous.comp continuous_quotient_mk'))
+  · intro t
+    have hcoe : ((t + 1 : ℝ) : AddCircle (1 : ℝ)) =
+        (t : AddCircle (1 : ℝ)) := by
+      rw [QuotientAddGroup.eq_iff_sub_mem]
+      simp
+    exact congrArg (fun x => L ((E x : Circle) : ℂ)) hcoe
+  · intro s hs t ht hst
+    have hst' : ((E (s : AddCircle (1 : ℝ)) : Circle) : ℂ) =
+        (E (t : AddCircle (1 : ℝ)) : Circle) := L.injective hst
+    have hcircle : E (s : AddCircle (1 : ℝ)) = E (t : AddCircle (1 : ℝ)) :=
+      Subtype.ext hst'
+    have hcoe := E.injective hcircle
+    exact (AddCircle.coe_eq_coe_iff_of_mem_Ico (a := 0) (by simpa using hs)
+      (by simpa using ht)).1 hcoe
+  · ext z
+    constructor
+    · rintro ⟨t, -, rfl⟩
+      simpa [existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop,
+        Metric.mem_sphere, dist_zero_right, L.norm_map] using
+          (E (t : AddCircle (1 : ℝ))).property
+    · intro hz
+      let w : Circle := ⟨L.symm z, by
+        simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right,
+          L.symm.norm_map] using hz⟩
+      obtain ⟨x, hx⟩ := E.surjective w
+      obtain ⟨t, rfl⟩ := QuotientAddGroup.mk_surjective x
+      refine ⟨Int.fract t, ⟨Int.fract_nonneg _, Int.fract_lt_one _⟩, ?_⟩
+      change L ((E ((Int.fract t : ℝ) : AddCircle (1 : ℝ)) : Circle) : ℂ) = z
+      have hcoe : ((Int.fract t : ℝ) : AddCircle (1 : ℝ)) =
+          ((t : ℝ) : AddCircle (1 : ℝ)) := by
+        rw [QuotientAddGroup.eq_iff_sub_mem, AddSubgroup.mem_zmultiples_iff]
+        refine ⟨-⌊t⌋, ?_⟩
+        rw [Int.fract]
+        ring
+      rw [hcoe, hx]
+      exact L.apply_symm_apply z
+
+private noncomputable def existsRoutingAfterPower_step4_routes_step6_R2_circleLoop
+    (c : Pt) (kappa : ℝ) (t : ℝ) : Pt :=
+  c + kappa • existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop t
+
+/-- Translation and positive scaling turn the fixed normalized loop into the canonical loop on
+the moving protected circle. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_circleLoop_isLoopParam
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) :
+    IsLoopParam (Metric.sphere c kappa)
+      (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop c kappa) := by
+  let u := existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+  have hu := existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoopParam
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · exact continuous_const.add (continuous_const.smul hu.1)
+  · intro t
+    simp only [existsRoutingAfterPower_step4_routes_step6_R2_circleLoop]
+    rw [hu.2.1]
+  · intro s hs t ht hst
+    apply hu.2.2.1 hs ht
+    exact smul_right_injective Pt hkappa.ne' (add_left_cancel hst)
+  · ext z
+    constructor
+    · rintro ⟨t, -, rfl⟩
+      have hunit : ‖u t‖ = 1 := by
+        change ‖(Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt)
+          ((AddCircle.homeomorphCircle one_ne_zero
+            (t : AddCircle (1 : ℝ)) : Circle) : ℂ)‖ = 1
+        rw [LinearIsometryEquiv.norm_map]
+        simpa [Submonoid.unitSphere] using
+          (AddCircle.homeomorphCircle one_ne_zero
+            (t : AddCircle (1 : ℝ))).property
+      rw [Metric.mem_sphere, dist_eq_norm]
+      change ‖c + kappa • u t - c‖ = kappa
+      rw [add_sub_cancel_left, norm_smul,
+        Real.norm_eq_abs, abs_of_pos hkappa, hunit, mul_one]
+    · intro hz
+      let v : Pt := kappa⁻¹ • (z - c)
+      have hzdist : ‖z - c‖ = kappa := by
+        simpa [Metric.mem_sphere, dist_eq_norm] using hz
+      have hvnorm : ‖v‖ = 1 := by
+        rw [show v = kappa⁻¹ • (z - c) by rfl, norm_smul, Real.norm_eq_abs,
+          abs_of_pos (inv_pos.mpr hkappa), hzdist, inv_mul_cancel₀ hkappa.ne']
+      have hv : v ∈ Metric.sphere (0 : Pt) 1 := by
+        simpa [Metric.mem_sphere, dist_zero_right] using hvnorm
+      rw [← hu.2.2.2] at hv
+      obtain ⟨t, ht, hut⟩ := hv
+      refine ⟨t, ht, ?_⟩
+      simp only [existsRoutingAfterPower_step4_routes_step6_R2_circleLoop]
+      rw [hut]
+      dsimp only [v]
+      rw [smul_smul, mul_inv_cancel₀ hkappa.ne', one_smul]
+      abel
+
+/-- Cyclic order of normalized directions is exactly the cyclic order of their translated,
+scaled radial endpoints. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_pointsInOrder_circleLoop
+    (c : Pt) (kappa : ℝ) {k : ℕ} (d : Fin k → Pt)
+    (horder : PointsInOrder
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop d) :
+    PointsInOrder (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop c kappa)
+      (fun i => c + kappa • d i) := by
+  obtain ⟨t, ht, htwrap, htd⟩ := horder
+  exact ⟨t, ht, htwrap, fun i => by
+    simp only [existsRoutingAfterPower_step4_routes_step6_R2_circleLoop]
+    rw [htd i]⟩
+
+/-- The same transport holds for the closed weak-order witnesses used in `R2_Kadm`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_weakPointsInOrder_circleLoop
+    (c : Pt) (kappa : ℝ) {k : ℕ} (d : Fin k → Pt)
+    (horder : existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop d) :
+    existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder
+      (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop c kappa)
+      (fun i => c + kappa • d i) := by
+  obtain ⟨t, ht, htmono, htwrap, htd⟩ := horder
+  exact ⟨t, ht, htmono, htwrap, fun i => by
+    simp only [existsRoutingAfterPower_step4_routes_step6_R2_circleLoop]
+    rw [htd i]⟩
+
 private lemma plAnnulusRouting_unitCircle_mem_closedBall (t : ℝ) :
     Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) ∈
       Metric.closedBall (0 : ℂ) 1 := by
@@ -36829,6 +36960,81 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_centerSeparated_clos
   rw [heq]
   exact isClosed_iInter hS
 
+/-- Closed weak cyclic compatibility of all marked port midpoints and all stored entrance
+directions, allowing independent relabelling of the four members of each side block.  The
+relabellings form a finite type, so their existential quantifiers are finite unions. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    (α : Rs.GS.G.P'.Form)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) : Prop :=
+  let A := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}
+  let I := A ×ₗ Fin 4
+  let e : Fin (Fintype.card I) ≃o I := Fintype.orderIsoFinOfCardEq I rfl
+  ∃ portPerm dirPerm : A → Equiv.Perm (Fin 4),
+    existsRoutingAfterPower_step4_routes_step6_WeakMatchingOrder
+      (pgLoop (pgL (Rs.GS.G.P'.disk α)))
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+      (fun j => existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg
+        (e j).1 (portPerm (e j).1 (e j).2).castSucc (1 / 2))
+      (fun j => cfg.2.2 (e j).1 (dirPerm (e j).1 (e j).2))
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_weakOrderAdmissible_closed
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M)
+    (α : Rs.GS.G.P'.Form) :
+    IsClosed {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+      existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α cfg} := by
+  classical
+  let A := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}
+  let I := A ×ₗ Fin 4
+  let k := Fintype.card I
+  let e : Fin k ≃o I := Fintype.orderIsoFinOfCardEq I rfl
+  let outer := fun (p : A → Equiv.Perm (Fin 4))
+      (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+      (j : Fin k) =>
+    existsRoutingAfterPower_step4_routes_step6_R2_portAt cfg
+      (e j).1 (p (e j).1 (e j).2).castSucc (1 / 2)
+  let inner := fun (p : A → Equiv.Perm (Fin 4))
+      (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+      (j : Fin k) => cfg.2.2 (e j).1 (p (e j).1 (e j).2)
+  let W : Set ((Fin k → Pt) × (Fin k → Pt)) :=
+    {xy | existsRoutingAfterPower_step4_routes_step6_WeakMatchingOrder
+      (pgLoop (pgL (Rs.GS.G.P'.disk α)))
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop xy.1 xy.2}
+  have hW : IsClosed W :=
+    existsRoutingAfterPower_step4_routes_step6_weakMatchingOrder_closed
+      (pgLoop (pgL (Rs.GS.G.P'.disk α)))
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+      (pgLoop_isLoopParam (Rs.GS.G.P'.disk α)).1
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoopParam.1 k
+  have hmap : ∀ p q : A → Equiv.Perm (Fin 4), Continuous
+      (fun cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α =>
+        (outer p cfg, inner q cfg)) := by
+    intro p q
+    apply Continuous.prodMk
+    · apply continuous_pi
+      intro j
+      dsimp only [outer, existsRoutingAfterPower_step4_routes_step6_R2_portAt]
+      simp only [AffineMap.lineMap_apply_module']
+      fun_prop
+    · apply continuous_pi
+      intro j
+      dsimp only [inner]
+      fun_prop
+  have heq :
+      {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α |
+        existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α cfg} =
+      ⋃ p : A → Equiv.Perm (Fin 4), ⋃ q : A → Equiv.Perm (Fin 4),
+        (fun cfg => (outer p cfg, inner q cfg)) ⁻¹' W := by
+    ext cfg
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_preimage]
+    rfl
+  rw [heq]
+  apply isClosed_iUnion_of_finite
+  intro p
+  apply isClosed_iUnion_of_finite
+  intro q
+  exact hW.preimage (hmap p q)
+
 /-- R2's admissible compactum.  Taking the closure records exactly the limits needed by the
 finite-subcover argument; quantitative closed inequalities can subsequently be passed to it. -/
 private def existsRoutingAfterPower_step4_routes_step6_R2_Kadm
@@ -36866,6 +37072,32 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_compact
           (existsRoutingAfterPower_step4_routes_step6_R2_portOnSide_closed τ M Rs α)).inter_right
             ((existsRoutingAfterPower_step4_routes_step6_R2_directionSeparated_closed τ M Rs α).inter
               (existsRoutingAfterPower_step4_routes_step6_R2_centerSeparated_closed τ M Rs α))
+
+/-- The fully ordered candidate compactum.  It is kept separate from `R2_Kadm` until the physical
+realization lemma from `EntryData.print_order` is proved; after that lemma, the realized family
+lands here and this is the compact set to use in R5. -/
+private def existsRoutingAfterPower_step4_routes_step6_R2_Kord
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    Set (existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α) :=
+  existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α ∩
+    {cfg | existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α cfg}
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kord_compact
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form) :
+    IsCompact (existsRoutingAfterPower_step4_routes_step6_R2_Kord τ M Rs cp rho α) := by
+  exact (existsRoutingAfterPower_step4_routes_step6_R2_Kadm_compact
+    τ M Rs cp rho α).inter_right
+      (existsRoutingAfterPower_step4_routes_step6_R2_weakOrderAdmissible_closed τ M Rs α)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kord_order
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kord τ M Rs cp rho α) :
+    existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α cfg :=
+  hcfg.2
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portOnSide
     (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
@@ -37107,6 +37339,93 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portMid_injecti
     (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg bj) at hsep
   rw [heq, dist_self] at hsep
   linarith
+
+/-- The closed weak-order datum upgrades to a genuine matching order on the actual protected
+circle.  The annular homotopy is kept explicit: W1's remaining physical-order argument must
+supply it with the compatible orientation inherited from `EntryData.print_order`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_matchingCyclicOrder_of_weakOrder
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form) {kappa : ℝ} (hkappa : 0 < kappa)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
+    (horder : existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible
+      τ M Rs α cfg)
+    {U : Set Pt}
+    (hhom : LoopsHomotopicIn U (pgLoop (pgL (Rs.GS.G.P'.disk α)))
+      (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop cfg.1 kappa)) :
+    ∃ portPerm dirPerm :
+        {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} →
+          Equiv.Perm (Fin 4),
+      MatchingCyclicOrder U (frontier (Rs.GS.G.P'.disk α).carrier)
+        (Metric.sphere cfg.1 kappa)
+        (fun j =>
+          let e : Fin (Fintype.card
+              ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4)) ≃o
+                ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4) :=
+            Fintype.orderIsoFinOfCardEq _ rfl
+          existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg
+            ((e j).1, portPerm (e j).1 (e j).2))
+        (fun j =>
+          let e : Fin (Fintype.card
+              ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4)) ≃o
+                ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4) :=
+            Fintype.orderIsoFinOfCardEq _ rfl
+          cfg.1 + kappa • cfg.2.2 (e j).1 (dirPerm (e j).1 (e j).2)) := by
+  classical
+  let A := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}
+  let I := A ×ₗ Fin 4
+  let k := Fintype.card I
+  let e : Fin k ≃o I := Fintype.orderIsoFinOfCardEq I rfl
+  dsimp [existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible] at horder
+  obtain ⟨portPerm, dirPerm, hweak⟩ := horder
+  let x : Fin k → Pt := fun j =>
+    existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg
+      ((e j).1, portPerm (e j).1 (e j).2)
+  let d : Fin k → Pt := fun j => cfg.2.2 (e j).1 (dirPerm (e j).1 (e j).2)
+  have hxinj : Function.Injective x := by
+    intro i j hij
+    have hpair := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_portMid_injective
+      τ M Rs hcp α hcfg hij
+    apply e.injective
+    obtain ⟨ha, hi⟩ := Prod.mk.inj hpair
+    have hi' : (portPerm (e i).1) (e i).2 =
+        (portPerm (e i).1) (e j).2 := by
+      simpa only [ha] using hi
+    exact Prod.ext ha ((portPerm (e i).1).injective hi')
+  have hdinj : Function.Injective d := by
+    intro i j hij
+    by_contra hne
+    have hpairs : ((e i).1.1, dirPerm (e i).1 (e i).2) ≠
+        ((e j).1.1, dirPerm (e j).1 (e j).2) := by
+      intro hp
+      apply hne
+      apply e.injective
+      obtain ⟨ha, hi⟩ := Prod.mk.inj hp
+      have ha' : (e i).1 = (e j).1 := Subtype.ext ha
+      have hi' : (dirPerm (e i).1) (e i).2 =
+          (dirPerm (e i).1) (e j).2 := by
+        simpa only [ha'] using hi
+      exact Prod.ext ha' ((dirPerm (e i).1).injective hi')
+    exact existsRoutingAfterPower_step4_routes_step6_R2_Kadm_direction_injective
+      τ M Rs cp rho α hcfg (e i).1 (e j).1
+        (dirPerm (e i).1 (e i).2) (dirPerm (e j).1 (e j).2) hpairs hij
+  have hxo : PointsInOrder (pgLoop (pgL (Rs.GS.G.P'.disk α))) x :=
+    existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
+      (pgLoop (pgL (Rs.GS.G.P'.disk α))) (pgLoop_isLoopParam _).2.1 x hweak.1 hxinj
+  have hdi : PointsInOrder
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop d :=
+    existsRoutingAfterPower_step4_routes_step6_weak_pointsInOrder
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoopParam.2.1
+      d hweak.2 hdinj
+  refine ⟨portPerm, dirPerm, ?_⟩
+  refine ⟨pgLoop (pgL (Rs.GS.G.P'.disk α)),
+    existsRoutingAfterPower_step4_routes_step6_R2_circleLoop cfg.1 kappa,
+    pgLoop_isLoopParam _,
+    existsRoutingAfterPower_step4_routes_step6_R2_circleLoop_isLoopParam cfg.1 hkappa,
+    hhom, hxo, ?_⟩
+  exact existsRoutingAfterPower_step4_routes_step6_R2_pointsInOrder_circleLoop
+    cfg.1 kappa d hdi
 
 /-- Every complete port of an admissible limit configuration is still a subsegment of its
 indexed parent side, hence lies on the fixed parent frontier. -/
@@ -37554,6 +37873,20 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kadm
       existsRoutingAfterPower_step4_routes_step6_R2_admConfig_centerSeparated
         τ M Rs ports entries⟩
 
+/-- Once the physical print/window argument supplies weak matching order, every realized enriched
+configuration belongs to the fully ordered compactum `R2_Kord`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kord
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp rho : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl)
+    (horder : existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α
+      (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries)) :
+    existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries ∈
+      existsRoutingAfterPower_step4_routes_step6_R2_Kord τ M Rs cp rho α :=
+  ⟨existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kadm
+    τ M Rs ports entries, horder⟩
+
 /-- Polygonal arc carriers are compact. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_polyArc_compact (γ : PolyArc) :
     IsCompact γ.carrier := by
@@ -37896,6 +38229,123 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_conjugateNormHomeomo
       abs_of_pos (inv_pos.mpr hkappa), ← dist_eq_norm, dist_comm]
     field_simp
 
+/-- A degree-one increasing lift of the parameter circle gives a concrete homeomorphism of the
+complex unit circle.  This is the quotient-circle packaging used by the finite interpolation
+step: once its piecewise-affine lift has been constructed, no further planar topology is needed. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_circleMap_of_periodicOrderIso
+    (phi : ℝ ≃o ℝ) (hphi : ∀ t, phi (t + 1) = phi t + 1) :
+    ∃ f : ℂ → ℂ,
+      ContinuousOn f (Metric.sphere 0 1) ∧
+      MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      InjOn f (Metric.sphere 0 1) ∧
+      SurjOn f (Metric.sphere 0 1) (Metric.sphere 0 1) ∧
+      ∀ t : ℝ, f (Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I)) =
+        Complex.exp (((2 * Real.pi * phi t : ℝ) : ℂ) * Complex.I) := by
+  classical
+  have hphi' : Function.Periodic
+      (fun t : ℝ => ((phi t : ℝ) : AddCircle (1 : ℝ))) 1 := by
+    intro t
+    change ((phi (t + 1) : ℝ) : AddCircle (1 : ℝ)) =
+      (phi t : AddCircle (1 : ℝ))
+    rw [hphi, QuotientAddGroup.eq_iff_sub_mem]
+    simp
+  have hsymm : ∀ t : ℝ, phi.symm (t + 1) = phi.symm t + 1 := by
+    intro t
+    apply phi.injective
+    rw [phi.apply_symm_apply, hphi, phi.apply_symm_apply]
+  have hsymm' : Function.Periodic
+      (fun t : ℝ => ((phi.symm t : ℝ) : AddCircle (1 : ℝ))) 1 := by
+    intro t
+    change ((phi.symm (t + 1) : ℝ) : AddCircle (1 : ℝ)) =
+      (phi.symm t : AddCircle (1 : ℝ))
+    rw [hsymm, QuotientAddGroup.eq_iff_sub_mem]
+    simp
+  let q : AddCircle (1 : ℝ) → AddCircle (1 : ℝ) := hphi'.lift
+  let qi : AddCircle (1 : ℝ) → AddCircle (1 : ℝ) := hsymm'.lift
+  have hq_mk (t : ℝ) : q (t : AddCircle (1 : ℝ)) =
+      (phi t : AddCircle (1 : ℝ)) := rfl
+  have hqi_mk (t : ℝ) : qi (t : AddCircle (1 : ℝ)) =
+      (phi.symm t : AddCircle (1 : ℝ)) := rfl
+  have hq_left : Function.LeftInverse qi q := by
+    intro x
+    obtain ⟨t, rfl⟩ := QuotientAddGroup.mk_surjective x
+    rw [hq_mk, hqi_mk, phi.symm_apply_apply]
+  have hq_right : Function.RightInverse qi q := by
+    intro x
+    obtain ⟨t, rfl⟩ := QuotientAddGroup.mk_surjective x
+    rw [hqi_mk, hq_mk, phi.apply_symm_apply]
+  have hqc : Continuous q := by
+    apply (QuotientAddGroup.isQuotientMap_mk _).continuous_iff.2
+    change Continuous fun t : ℝ => ((phi t : ℝ) : AddCircle (1 : ℝ))
+    exact continuous_quotient_mk'.comp phi.continuous
+  have hqic : Continuous qi := by
+    apply (QuotientAddGroup.isQuotientMap_mk _).continuous_iff.2
+    change Continuous fun t : ℝ => ((phi.symm t : ℝ) : AddCircle (1 : ℝ))
+    exact continuous_quotient_mk'.comp phi.symm.continuous
+  let Q : AddCircle (1 : ℝ) ≃ₜ AddCircle (1 : ℝ) :=
+    { toEquiv :=
+        { toFun := q
+          invFun := qi
+          left_inv := hq_left
+          right_inv := hq_right }
+      continuous_toFun := hqc
+      continuous_invFun := hqic }
+  let E : AddCircle (1 : ℝ) ≃ₜ Circle := AddCircle.homeomorphCircle one_ne_zero
+  let H : Circle ≃ₜ Circle := E.symm.trans (Q.trans E)
+  let f : ℂ → ℂ := fun z => if hz : z ∈ Metric.sphere (0 : ℂ) 1 then
+    (H ⟨z, by
+      simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right] using hz⟩ : Circle)
+    else z
+  refine ⟨f, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [continuousOn_iff_continuous_restrict]
+    have heq : Set.restrict (Metric.sphere (0 : ℂ) 1) f =
+        fun z : Metric.sphere (0 : ℂ) 1 =>
+          ((H ⟨z.1, by
+            simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right] using z.2⟩ :
+              Circle) : ℂ) := by
+      funext z
+      simp [f]
+    rw [heq]
+    exact continuous_subtype_val.comp (H.continuous.comp (by fun_prop))
+  · intro z hz
+    simp only [f, dif_pos hz]
+    simpa [Metric.mem_sphere, dist_zero_right] using (H _).property
+  · intro z hz w hw heq
+    simp only [f, dif_pos hz, dif_pos hw] at heq
+    exact congrArg Subtype.val (H.injective (Subtype.ext heq))
+  · intro z hz
+    let w : Circle := H.symm ⟨z, by
+      simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right] using hz⟩
+    have hw : (w : ℂ) ∈ Metric.sphere (0 : ℂ) 1 := by
+      simpa [Metric.mem_sphere, dist_zero_right] using w.property
+    refine ⟨w, hw, ?_⟩
+    simp only [f, dif_pos hw]
+    exact congrArg Subtype.val (H.apply_symm_apply ⟨z, by
+      simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right] using hz⟩)
+  · intro t
+    have hz : Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I) ∈
+        Metric.sphere (0 : ℂ) 1 := by
+      rw [Metric.mem_sphere, dist_zero_right, Complex.norm_exp_ofReal_mul_I]
+    simp only [f, dif_pos hz]
+    have hsource : (⟨Complex.exp (((2 * Real.pi * t : ℝ) : ℂ) * Complex.I), by
+          simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right] using hz⟩ :
+          Circle) = AddCircle.homeomorphCircle one_ne_zero
+            (t : AddCircle (1 : ℝ)) := by
+      apply Subtype.ext
+      rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk, Circle.coe_exp]
+      congr 2
+      norm_num
+    rw [hsource]
+    have hmap : H (AddCircle.homeomorphCircle one_ne_zero (t : AddCircle (1 : ℝ))) =
+        AddCircle.homeomorphCircle one_ne_zero (phi t : AddCircle (1 : ℝ)) := by
+      change E (q (E.symm (E (t : AddCircle (1 : ℝ))))) =
+        E (phi t : AddCircle (1 : ℝ))
+      rw [E.symm_apply_apply, hq_mk]
+    rw [hmap, AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk,
+      Circle.coe_exp]
+    congr 2
+    norm_num
+
 /-- Once a homeomorphism of the unit circle carrying the old finite direction family to the new
 one is available, radial coning gives the required angular deformation: exact endpoint motion and
 preservation of every ball about the fixed centre. -/
@@ -37938,6 +38388,32 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_angularDeformation_o
       rw [H.apply_symm_apply] at this
       rw [dist_comm, ← this]
       simpa [Metric.mem_ball, dist_comm] using hy
+
+/-- Parameter-space form of the angular deformation.  The only remaining interpolation input is
+an increasing order isomorphism of the real line, of degree one, taking each chosen old angle to
+the corresponding new angle. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_angularDeformation_of_periodicOrderIso
+    {I : Type*} (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (u u' : I → Pt)
+    (hu : ∀ i, ‖u i‖ = 1) (hu' : ∀ i, ‖u' i‖ = 1)
+    (t t' : I → ℝ) (phi : ℝ ≃o ℝ)
+    (hphi : ∀ s, phi (s + 1) = phi s + 1)
+    (hparam : ∀ i, phi (t i) = t' i)
+    (huparam : ∀ i,
+      (Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt).symm (u i) =
+        Complex.exp (((2 * Real.pi * t i : ℝ) : ℂ) * Complex.I))
+    (huparam' : ∀ i,
+      (Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt).symm (u' i) =
+        Complex.exp (((2 * Real.pi * t' i : ℝ) : ℂ) * Complex.I)) :
+    ∃ H : Pt ≃ₜ Pt,
+      (∀ i, H (c + kappa • u i) = c + kappa • u' i) ∧
+      (∀ x, dist c (H x) = dist c x) ∧
+      ∀ r : ℝ, H '' Metric.ball c r = Metric.ball c r := by
+  obtain ⟨f, hfc, hfm, hfi, hfs, hf⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_circleMap_of_periodicOrderIso phi hphi
+  apply existsRoutingAfterPower_step4_routes_step6_R4_angularDeformation_of_circleMap
+    c hkappa u u' hu hu' f hfc hfm hfi hfs
+  intro i
+  rw [huparam i, hf, hparam i, huparam' i]
 
 /-- A concrete radial cutoff for the centre bump: one on the `κ`-ball and zero outside the
 `2κ`-ball. -/

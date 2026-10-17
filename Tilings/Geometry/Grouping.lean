@@ -6961,7 +6961,34 @@ private lemma existsMacroCertificate_seed2_routing_step10_g7 (τ : Substitution 
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G7Data cd.D := by
-  sorry
+  have g2 := existsMacroCertificate_seed2_routing_step5_g2 τ g s l routing cd
+  have g4 := existsMacroCertificate_seed2_routing_step7_g4 τ g s l routing cd
+  have g5 := existsMacroCertificate_seed2_routing_step8_g5 τ g s l routing cd
+  have nonlarge_of_outer_or_boundary : ∀ o : cd.D.SideOcc, (cd.D.IsOuter o ∨ cd.D.IsBoundary o) →
+      cd.D.kind (cd.D.form o.1) ≠ .large := by
+    intro o ho hl
+    have hc : o.1 = cd.D.central (cd.D.owner o.1) := (g5.large_iff o.1).mp hl
+    let j : cd.D.Side (cd.D.central (cd.D.owner o.1)) :=
+      Fin.cast (congrArg (fun t => (cd.D.Q.disk (cd.D.form t)).n) hc) o.2
+    have hocc : o = cd.D.occ (cd.D.central (cd.D.owner o.1)) j := by
+      refine Sigma.ext hc ?_
+      apply (Fin.heq_ext_iff (congrArg (fun t => (cd.D.Q.disk (cd.D.form t)).n) hc)).mpr
+      simp [j]
+    rcases ho with hOuter | hBoundary
+    · have hNotOuter := (g2.central (cd.D.owner o.1) j).1
+      rw [← hocc] at hNotOuter
+      exact hNotOuter hOuter
+    · have hNotBoundary := (g2.central (cd.D.owner o.1) j).2
+      rw [← hocc] at hNotBoundary
+      exact hNotBoundary hBoundary
+  constructor
+  intro o ho
+  rcases ho with hOuter | hBoundary | hPrint | hGenuine
+  · exact cd.marked_rule_nonlarge o (Or.inl (nonlarge_of_outer_or_boundary o (Or.inl hOuter)))
+  · exact cd.marked_rule_nonlarge o (Or.inl (nonlarge_of_outer_or_boundary o (Or.inr hBoundary)))
+  · exact cd.marked_rule_nonlarge o (Or.inr hPrint)
+  · rcases hGenuine with ⟨d, i, hi, hoi⟩
+    exact g4.path_marked (cd.D.owner o.1) d i hi o hoi
 
 /-- Step 3--9 of `lem:certificate-exists`: choose `l` using `existsRoutingAfterPower`, retain
 the fixed central image and its annular neighbours, scatter every other group, and package the

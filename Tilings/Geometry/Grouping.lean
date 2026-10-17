@@ -3257,7 +3257,7 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
       Sum.inl (s.setup.c^[l] (emcdBaseForm g s l α))) ∧
     (∀ α, D.owner (D.central α) = α) ∧
     (∀ t, (emcdTemplateChild g s l t).form = (emcdCatalogueTile g s l (D.form t)).form) := by
-  sorry
+  exact ⟨fun _ => rfl, fun α => s.setup.central_form l _, fun _ => rfl, fun _ => rfl⟩
 
 /-- Step 4 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: `emcdParentSide`

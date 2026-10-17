@@ -46727,7 +46727,75 @@ private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_five
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     ∀ α d, 5 ≤ (cd.D.outerList α d).length := by
-  sorry
+  classical
+  intro α d
+  have hsupport : support (cd.D.σ.rule α).tiles =
+      support (s.setup.retained l (cd.baseForm α)).children.tiles := by
+    rw [cd.tmpl.rule_eq]
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+      obtain ⟨t, ht, rfl⟩ := hA
+      apply mem_support_iff'.2
+      refine ⟨cd.templateChild t, (cd.child_bijective α).mapsTo ht, ?_⟩
+      rw [← cd.child_carrier t]
+      exact hxA
+    · intro hx
+      obtain ⟨X, hX, hxX⟩ := mem_support_iff'.1 hx
+      obtain ⟨t, ht, htx⟩ := (cd.child_bijective α).surjOn hX
+      apply mem_support_iff'.2
+      refine ⟨cd.D.childTile t, ⟨t, ht, rfl⟩, ?_⟩
+      rw [cd.child_carrier t, htx]
+      exact hxX
+  have hregion : cd.D.macroRegion α =
+      (s.setup.retained l (cd.baseForm α)).region := by
+    calc
+      cd.D.macroRegion α = support (cd.D.σ.rule α).tiles := by
+        exact (cd.D.σ.support_eq α).symm
+      _ = support (s.setup.retained l (cd.baseForm α)).children.tiles := hsupport
+      _ = (s.setup.retained l (cd.baseForm α)).region :=
+        (s.setup.retained l (cd.baseForm α)).support_eq
+  have hport : ∀ r : Fin 5, ∃ o : cd.D.SideOcc,
+      o ∈ cd.D.outerList α d ∧
+        cd.D.occSide o = (routing (cd.baseForm α)).port
+          (cd.parentSide α d) r := by
+    intro r
+    let a := cd.parentSide α d
+    let rd := routing (cd.baseForm α)
+    obtain ⟨X, hX, i, hi⟩ := (rd.port_outer a r).1.1
+    obtain ⟨t, ht, htx⟩ := (cd.child_bijective α).surjOn hX
+    subst X
+    have hmem : (cd.templateChild t).side i ∈
+        Set.range (fun j => (cd.templateChild t).side j) := ⟨i, rfl⟩
+    rw [← cd.child_sideSet t] at hmem
+    obtain ⟨j, hj⟩ := hmem
+    have hside : cd.D.occSide ⟨t, j⟩ = rd.port a r := hj.trans hi
+    have houter : cd.D.IsOuter ⟨t, j⟩ := by
+      change cd.D.occSide ⟨t, j⟩ ⊆ frontier (cd.D.macroRegion (cd.D.owner t))
+      rw [ht, hregion, hside]
+      exact (rd.port_outer a r).1.2
+    have hsub : cd.D.occSide ⟨t, j⟩ ⊆ cd.D.macroSide α d := by
+      rw [cd.parent_side_geometry, hside]
+      exact (rd.port_outer a r).2
+    refine ⟨⟨t, j⟩, (cd.outerList_mem α d ⟨t, j⟩).2 ?_, hside⟩
+    exact ⟨ht, houter, hsub⟩
+  let f : Fin 5 → (cd.D.outerList α d).toFinset := fun r =>
+    ⟨Classical.choose (hport r), List.mem_toFinset.mpr
+      (Classical.choose_spec (hport r)).1⟩
+  have hf : Function.Injective f := by
+    intro r r' hrr'
+    apply (routing (cd.baseForm α)).port_injective (cd.parentSide α d)
+    calc
+      (routing (cd.baseForm α)).port (cd.parentSide α d) r =
+          cd.D.occSide (f r).1 := (Classical.choose_spec (hport r)).2.symm
+      _ = cd.D.occSide (f r').1 := by rw [hrr']
+      _ = (routing (cd.baseForm α)).port (cd.parentSide α d) r' :=
+        (Classical.choose_spec (hport r')).2
+  have hc := Fintype.card_le_of_injective f hf
+  rw [Fintype.card_coe] at hc
+  rw [List.toFinset_card_of_nodup (cd.outerList_nodup α d)] at hc
+  simpa using hc
 
 /-- Step 7 of `lem:certificate-exists`, (G3): `LexPositive` is a global positive orientation; the
 outer lists are those of `CertData`; "at most two endpoint-crossing sides are omitted"

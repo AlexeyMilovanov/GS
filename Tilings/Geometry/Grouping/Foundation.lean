@@ -32791,6 +32791,45 @@ private lemma quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts
       PointsInOrder δ (fun k => (α k).start) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder_step4_transfer_outward`:
+"The three-crosscut case follows from `step26_degrees_agree`": for three disjoint crosscuts, inner
+order along `δ` gives outer order along `γ`, since otherwise the reversed `γ` would have the degree of
+`δ`, which by the homotopy equals the degree of `γ`, forcing degree zero. -/
+private lemma quantitativeAnnularGrouping_innerOrder_step4_transfer_outward_step1_k3
+    (B C : PolygonalDisk) (hCB : C.carrier ⊆ interior B.carrier) (α : Fin 3 → PolyArc)
+    (hin : ∀ k, (α k).carrier ⊆ B.carrier \ interior C.carrier)
+    (hC : ∀ k, (α k).carrier ∩ frontier C.carrier = {(α k).start})
+    (hB : ∀ k, (α k).carrier ∩ frontier B.carrier = {(α k).stop})
+    (hdisj : ∀ k l, k ≠ l → Disjoint (α k).carrier (α l).carrier)
+    {γ δ : ℝ → Pt} (hγ : IsLoopParam (frontier B.carrier) γ)
+    (hδ : IsLoopParam (frontier C.carrier) δ)
+    (hhom : LoopsHomotopicIn (B.carrier \ interior C.carrier) γ δ)
+    (horder : PointsInOrder δ (fun k => (α k).start)) :
+    PointsInOrder γ (fun k => (α k).stop) := by
+  obtain ⟨-, hstop⟩ := existsAnnularSpokes_step5_crosscuts_step1_endpoints B C α hC hB hdisj
+  obtain ⟨p, hp⟩ := C.interior_nonempty
+  have hpB : p ∉ frontier B.carrier := fun h => pg_frontier_inter_interior h (hCB (interior_subset hp))
+  have hpC : p ∉ frontier C.carrier := fun h => pg_frontier_inter_interior h hp
+  have hpU : p ∉ B.carrier \ interior C.carrier := fun h => h.2 hp
+  have hsK : ∀ i, (α i).stop ∈ frontier B.carrier := fun i => by
+    have h : (α i).stop ∈ (α i).carrier ∩ frontier B.carrier := by rw [hB i]; rfl
+    exact h.2
+  rcases existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step2_dichotomy hγ hsK hstop with h | h
+  · exact h
+  · exfalso
+    obtain ⟨Θo, hΘoc, hΘo, no, hno⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift hγ hpB
+    obtain ⟨Θi, hΘic, hΘi, ni, hni⟩ := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift hδ hpC
+    have e1 : no = ni := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree hhom hpU hΘoc hΘo
+      hΘic hΘi hno hni
+    have e2 : -no = ni := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step26_degrees_agree B C hCB α hin hC hB
+      hdisj (pg_isLoopParam_neg hγ) hδ h horder hp (hΘoc.comp continuous_neg) (fun t => hΘo (-t)) hΘic hΘi (fun t => by
+        have := hno (-(t + 1))
+        simp only [show -(t + 1) + 1 = -t by ring] at this
+        simp only [Function.comp_apply]
+        rw [this]; push_cast; ring) hni
+    exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step27_frontier_degree B hγ (hCB (interior_subset hp))
+      hΘoc hΘo hno (by omega)
+
 /-- Step 4 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: for compatible
 orientations of the two boundary loops of a polygonal annulus, pairwise disjoint proper
 crosscuts transfer cyclic order from their inner endpoints to their outer endpoints.  The
@@ -32808,7 +32847,17 @@ private lemma quantitativeAnnularGrouping_innerOrder_step4_transfer_outward
     (hhom : LoopsHomotopicIn (B.carrier \ interior C.carrier) γ δ)
     (horder : PointsInOrder δ (fun k => (α k).start)) :
     PointsInOrder γ (fun k => (α k).stop) := by
-  sorry
+  have hsK : ∀ i, (α i).stop ∈ frontier B.carrier := fun i => by
+    have h : (α i).stop ∈ (α i).carrier ∩ frontier B.carrier := by rw [hB i]; rfl
+    exact h.2
+  have hstop := (existsAnnularSpokes_step5_crosscuts_step1_endpoints B C α hC hB hdisj).2
+  by_cases hk : m < 3
+  · exact existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step3_small_k hk _ _ hγ hsK hstop
+  · apply existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step2_reduction _ _ hγ hsK hstop
+    intro f hf
+    have hord_sub := existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step4_sub_order _ _ horder f hf
+    exact quantitativeAnnularGrouping_innerOrder_step4_transfer_outward_step1_k3 B C hCB (α ∘ f) (fun j => hin (f j))
+      (fun j => hC (f j)) (fun j => hB (f j)) (fun i j hij => hdisj (f i) (f j) (f.injective.ne hij)) hγ hδ hhom hord_sub
 
 /-- `lem:inner-sector-order` (interface repair of 17 October 2026): points of the boundary of the
 inside-anchored group `L` lying in distinct ideal sectors, each at distance at least `50 D` from

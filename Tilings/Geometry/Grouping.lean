@@ -48017,7 +48017,101 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_belt_edge
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     ∀ _t, cd.D.IsBeltType (cd.D.owner _t) _t →
       ∃ _i, cd.D.IsBoundary (cd.D.occ _t _i) := by
-  sorry
+  classical
+  intro t ht
+  let D := cd.D
+  have child_mem : D.childTile t ∈ (D.σ.rule (D.owner t)).tiles := by
+    rw [cd.tmpl.rule_eq]
+    exact ⟨t, rfl, rfl⟩
+  have child_subset : (D.childTile t).carrier ⊆ D.macroRegion (D.owner t) := by
+    rw [MacroData.macroRegion, ← D.σ.support_eq]
+    exact carrier_subset_support child_mem
+  obtain ⟨x, hxchild, hxmacro⟩ := ht.2
+  have hxnotint : x ∉ interior (D.childTile t).carrier := by
+    intro hxint
+    exact hxmacro.2 (interior_mono child_subset hxint)
+  have hxfront : x ∈ frontier (D.childTile t).carrier := by
+    rw [mem_frontier_iff_of_closed (tile_isClosed (D.childTile t))]
+    exact ⟨hxchild, hxnotint⟩
+  rw [tile_frontier_eq, Set.mem_iUnion] at hxfront
+  obtain ⟨i, hxi⟩ := hxfront
+  have outer_boundary (a : D.Side t) (ha : D.IsOuter (D.occ t a)) :
+      ∃ b, D.IsBoundary (D.occ t b) := by
+    obtain ⟨j, hj⟩ :=
+      (existsMacroCertificate_seed2_routing_step4_g1 τ g s l routing cd).inner_side t
+    have hn : 2 ≤ (D.Q.disk (D.form t)).n := by
+      have := (D.Q.disk (D.form t)).three_le
+      omega
+    letI : NeZero (D.Q.disk (D.form t)).n := ⟨by omega⟩
+    have htrans : ∃ k, D.IsOuter (D.occ t k) ∧
+        D.IsInner (D.occ t (finRotate _ k)) := by
+      by_contra hcon
+      push_neg at hcon
+      have hall : ∀ r : ℕ, D.IsOuter (D.occ t ((finRotate _)^[r] a)) := by
+        intro r
+        induction r with
+        | zero => simpa using ha
+        | succ r ih =>
+          rw [Function.iterate_succ_apply']
+          exact not_not.mp (hcon _ ih)
+      have hr : (finRotate _)^[(j - a).val] a = j := by
+        rw [← finCycle_eq_finRotate_iterate]
+        change a + (j - a) = j
+        simpa [add_comm] using sub_add_cancel j a
+      exact hj (hr ▸ hall (j - a).val)
+    obtain ⟨k, hk, hk'⟩ := htrans
+    refine ⟨finRotate _ k, hk', Or.inl ?_⟩
+    apply hk
+    change (D.childTile t).anchor +
+        (D.Q.disk (D.form t)).vertex (finRotate _ k) ∈ (D.childTile t).side k
+    rw [PlacedTile.side, PolygonalDisk.side]
+    exact ⟨_, right_mem_segment ℝ _ _, rfl⟩
+  rw [tile_side_eq] at hxi
+  by_cases hstart : x = (D.childTile t).vertex i
+  · by_cases hinner : D.IsInner (D.occ t i)
+    · refine ⟨i, hinner, Or.inl ?_⟩
+      change (D.childTile t).vertex i ∈ D.macroBoundary (D.owner t)
+      rwa [← hstart]
+    · exact outer_boundary i (not_not.mp hinner)
+  · by_cases hend : x = (D.childTile t).vertex (finRotate _ i)
+    · by_cases hinner : D.IsInner (D.occ t i)
+      · refine ⟨i, hinner, Or.inr ?_⟩
+        change (D.childTile t).vertex (finRotate _ i) ∈ D.macroBoundary (D.owner t)
+        rwa [← hend]
+      · exact outer_boundary i (not_not.mp hinner)
+    · have hxopen : x ∈ openSegment ℝ ((D.childTile t).vertex i)
+          ((D.childTile t).vertex (finRotate _ i)) :=
+        mem_openSegment_of_ne_left_right (Ne.symm hstart) (Ne.symm hend) hxi
+      by_cases hinner : D.IsInner (D.occ t i)
+      · obtain ⟨hne, howner, hside⟩ := cd.partner_spec (D.occ t i) hinner
+        let o' := D.partner (D.occ t i)
+        have partner_mem : D.childTile o'.1 ∈ (D.σ.rule (D.owner t)).tiles := by
+          rw [cd.tmpl.rule_eq]
+          exact ⟨o'.1, howner, rfl⟩
+        have child_ne : D.childTile t ≠ D.childTile o'.1 := by
+          intro heq
+          apply hne
+          apply cd.tmpl.type_injective o'.1 t howner
+          · exact congrArg PlacedTile.form heq.symm
+          · exact congrArg PlacedTile.anchor heq.symm
+        obtain ⟨r, hr, σ, -, hlocal⟩ := two_sides
+          (D.σ.rule (D.owner t)).disjoint child_mem partner_mem child_ne i o'.2
+          hside hxopen
+        have hxint : x ∈ interior (support (D.σ.rule (D.owner t)).tiles) := by
+          rw [mem_interior_iff_mem_nhds]
+          apply Filter.mem_of_superset (Metric.ball_mem_nhds x hr)
+          intro y hy
+          rcases le_or_gt 0
+              (σ * jcr ((D.childTile t).vertex (finRotate _ i) -
+                (D.childTile t).vertex i) (y - (D.childTile t).vertex i)) with h | h
+          · exact carrier_subset_support child_mem ((hlocal y hy).2.2 h)
+          · exact carrier_subset_support partner_mem
+              (interior_subset ((hlocal y hy).2.1 h))
+        exfalso
+        apply hxmacro.2
+        rw [MacroData.macroRegion, ← D.σ.support_eq]
+        exact hxint
+      · exact outer_boundary i (not_not.mp hinner)
 
 private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_central
     (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)

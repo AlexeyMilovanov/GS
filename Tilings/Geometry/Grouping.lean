@@ -33425,6 +33425,13 @@ central form, on distinct small neighbours, in planar matching order with the ma
 (G5). -/
 structure RoutingSetup (τ : Substitution P) (M : MeshConstants P) where
   GS : GroupedSubstitution τ
+  /-- Every grouped disk is listed counterclockwise (`GroupingSeed.ccw`: the certificate
+  construction lists all grouped disks counterclockwise), so that the polygon loop
+  `pgLoop (pgL (GS.G.P'.disk α))` is the positively oriented boundary parametrization used by
+  `PhysicalPrintOrder` and by the annular routing (`lem:routing`; interface repair of
+  17 October 2026: without it the parent loop cannot be matched with the positively oriented
+  circle around the centre). -/
+  parent_ccw : ∀ α, pdCCW (GS.G.P'.disk α)
   c : GS.G.P'.Form → GS.G.P'.Form
   markedSides : ∀ α : GS.G.P'.Form, Finset (Fin (GS.G.P'.disk α).n)
   retained : ℕ → GS.G.P'.Form → Template GS.G.mixed

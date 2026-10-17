@@ -3021,6 +3021,94 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue
     ∀ α β, (emcdCatalogueTile g s l α).form = (emcdCatalogueTile g s l β).form → α = β := by
   sorry
 
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: `D.σ` satisfies
+`existsMacroCertificate_TemplateData D`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step1_templateData
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    existsMacroCertificate_TemplateData D := by
+  sorry
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`:
+`emcdTemplateChild` bijects `{t | D.owner t = α}` onto the children of
+`s.setup.retained l (emcdBaseForm g s l α)` preserving carriers and side sets. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step2_children
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α, Set.BijOn (emcdTemplateChild g s l) {t | D.owner t = α}
+      (s.setup.retained l (emcdBaseForm g s l α)).children.tiles) ∧
+    (∀ t, (D.childTile t).carrier = (emcdTemplateChild g s l t).carrier) ∧
+    (∀ t, Set.range (fun i : D.Side t => D.occSide ⟨t, i⟩) =
+      Set.range (fun j => (emcdTemplateChild g s l t).side j)) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: properties of the central child. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step3_central
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α, emcdTemplateChild g s l (D.central α) = s.setup.central l (emcdBaseForm g s l α)) ∧
+    (∀ α, (emcdTemplateChild g s l (D.central α)).form =
+      Sum.inl (s.setup.c^[l] (emcdBaseForm g s l α))) ∧
+    (∀ α, D.owner (D.central α) = α) ∧
+    (∀ t, (emcdTemplateChild g s l t).form = (emcdCatalogueTile g s l (D.form t)).form) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: `emcdParentSide`
+is the identity relabelling and has the required parent-side properties. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step4_parentSide
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α, Function.Injective (emcdParentSide g s l α)) ∧
+    (∀ α, Function.Bijective (emcdParentSide g s l α)) ∧
+    (∀ α (a b e : Fin (D.Q.disk α).n), CycLt3 a b e →
+      CycLt3 (emcdParentSide g s l α a) (emcdParentSide g s l α b) (emcdParentSide g s l α e)) ∧
+    (∀ α d, D.macroSide α d =
+      (τ.θ ^ (s.setup.GS.k * l)) •
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).side (emcdParentSide g s l α d)) := by
+  sorry
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: the marking
+discipline (`marked_rule_nonlarge`, `marked_rule_large`) follows from `s.marked_child`,
+`s.marked_singleton`, `RoutingData.print_marked`, `RoutingData.print_id`, and `hidem`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d, D.marked α d ↔
+      emcdParentSide g s l α d ∈ s.setup.markedSides (emcdBaseForm g s l α)) ∧
+    (∀ o : D.SideOcc, D.kind (D.form o.1) ≠ .large ∨ D.IsPrint o → D.IsMarked o) ∧
+    ∀ o : D.SideOcc, D.kind (D.owner o.1) = .large →
+      D.kind (D.form o.1) = .large → D.IsMarked o → D.IsPrint o := by
+  sorry
+
 /-- Step 4 of `lem:certificate-exists`: the positioned-child, template, parent-side, and marking
 clauses for `emcdMacroData`: `emcdTemplateChild` bijects `{t | D.owner t = α}` onto the children
 of `s.setup.retained l (emcdBaseForm g s l α)` preserving carriers and side sets, `D.σ` satisfies
@@ -3058,7 +3146,12 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
     (∀ o : D.SideOcc, D.kind (D.form o.1) ≠ .large ∨ D.IsPrint o → D.IsMarked o) ∧
     ∀ o : D.SideOcc, D.kind (D.owner o.1) = .large →
       D.kind (D.form o.1) = .large → D.IsMarked o → D.IsPrint o := by
-  sorry
+  have h1 := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step1_templateData τ h g s l hl hidem routing
+  have h2 := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step2_children τ h g s l hl hidem routing
+  have h3 := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step3_central τ h g s l hl hidem routing
+  have h4 := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step4_parentSide τ h g s l hl hidem routing
+  have h5 := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking τ h g s l hl hidem routing
+  exact ⟨h1, h2.1, h2.2.1, h2.2.2, h3.1, h3.2.1, h3.2.2.1, h3.2.2.2, h4.1, h4.2.1, h4.2.2.1, h4.2.2.2, h5.1, h5.2.1, h5.2.2⟩
 
 /-- Step 4 of `lem:certificate-exists`: the representation package
 `existsMacroCertificate_RepresentationData τ (g.k * l) D`: scattering the children of `D.σ.rule α`

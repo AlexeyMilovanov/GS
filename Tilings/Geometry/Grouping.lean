@@ -3170,6 +3170,68 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representatio
       (emcdMacroData τ h g s l hl routing) := by
   sorry
 
+/-- Step 1 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: the internal
+interface specifications (`partner_spec`, `edge_spec`, `edgeTypes_spec` from the two-owner
+property of inner sides in the STS template). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ o : D.SideOcc, D.IsInner o →
+      (D.partner o).1 ≠ o.1 ∧ D.owner (D.partner o).1 = D.owner o.1 ∧
+        D.occSide (D.partner o) = D.occSide o) ∧
+    (∀ o o' : D.SideOcc, D.IsInner o → D.IsInner o' →
+      (D.edge o = D.edge o' ↔ o' = o ∨ o' = D.partner o)) ∧
+    (∀ o : D.SideOcc, D.IsInner o →
+      D.edgeTypes (D.edge o) = (o.1, (D.partner o).1) ∨
+        D.edgeTypes (D.edge o) = ((D.partner o).1, o.1)) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: the global
+orientation `LexPositive` and the sorted outer-side lists `outerList`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step2_orientation_outer
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    D.IsPositive = LexPositive ∧
+    (∀ α (d : Fin (D.Q.disk α).n) (o : D.SideOcc),
+      o ∈ D.outerList α d ↔ D.owner o.1 = α ∧ D.IsOuter o ∧ D.occSide o ⊆ D.macroSide α d) ∧
+    (∀ α d, (D.outerList α d).Nodup) ∧
+    (∀ α d, (D.outerList α d).Pairwise fun o o' =>
+      ∃ r : ℝ, 0 < r ∧ D.occMid o' - D.occMid o = r • D.macroSideDir α d) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: constants N and Qmax. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step3_constants
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    D.N = g.N ∧ D.Qmax = g.Qmax := by
+  sorry
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: the sharp rank bound `rankBound`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step4_rankBound
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d, (D.outerList α d).length ≤ D.rankBound) ∧
+    ∀ b, (∀ α d, (D.outerList α d).length ≤ b) → D.rankBound ≤ b := by
+  sorry
+
 /-- Step 4 of `lem:certificate-exists`: the internal interface specifications (`partner_spec`,
 `edge_spec`, `edgeTypes_spec` from the two-owner property of inner sides in the STS template
 `s.setup.retained l (emcdBaseForm g s l α)`), the global orientation `LexPositive`, the sorted
@@ -3199,7 +3261,21 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_an
     D.Qmax = g.Qmax ∧
     (∀ α d, (D.outerList α d).length ≤ D.rankBound) ∧
     ∀ b, (∀ α d, (D.outerList α d).length ≤ b) → D.rankBound ≤ b := by
-  sorry
+  dsimp only
+  obtain ⟨hpart, hedge, hedge_t⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces
+      τ h g s l hl routing
+  obtain ⟨hpos, hout_mem, hout_nodup, hout_sort⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step2_orientation_outer
+      τ h g s l hl routing
+  obtain ⟨hN, hQmax⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step3_constants
+      τ h g s l hl routing
+  obtain ⟨hrank_ge, hrank_max⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step4_rankBound
+      τ h g s l hl routing
+  exact ⟨hpart, hedge, hedge_t, hpos, hout_mem, hout_nodup, hout_sort,
+    hN, hQmax, hrank_ge, hrank_max⟩
 
 /-- Step 4 of `lem:certificate-exists`: the print and special-side clauses for `emcdMacroData`:
 prints use `(routing (emcdBaseForm g s l α)).printIdx`, inheriting injectivity, cyclic order, and

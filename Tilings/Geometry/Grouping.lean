@@ -48600,6 +48600,1150 @@ private lemma existsMacroCertificate_seed2_routing_step8_g5 (τ : Substitution P
     existsMacroCertificate_G5Data cd.D := by
   sorry
 
+private noncomputable def existsMacroCertificate_seed2_routing_step9_g6_ordinary (D : MacroData P)
+    (t : D.Typ) : Multiset D.Typ := by
+  classical
+  exact ∑ i ∈ Finset.univ.filter (fun i : D.Side t => D.IsFingerprintSide (D.occ t i)),
+    ({(D.partner (D.occ t i)).1} : Multiset D.Typ)
+
+private def existsMacroCertificate_seed2_routing_step9_g6_kind (D : MacroData P)
+    (t : D.Typ) : TypeKind :=
+  match D.kind (D.form t) with
+  | .original => .original
+  | .small => .small
+  | .large => .central
+
+private def existsMacroCertificate_seed2_routing_step9_g6_data (D : MacroData P) :
+    FingerprintData where
+  Tag := D.Typ
+  decEq := inferInstance
+  Tmpl := D.Q.Form
+  template := D.owner
+  kind := existsMacroCertificate_seed2_routing_step9_g6_kind D
+  ordinary := existsMacroCertificate_seed2_routing_step9_g6_ordinary D
+  adj := fun t u => t ≠ u ∧ D.owner u = D.owner t ∧ ∃ (i : D.Side t) (j : D.Side u),
+    D.IsInner (D.occ t i) ∧ D.occSide (D.occ t i) = D.occSide (D.occ u j)
+
+@[simp] private lemma existsMacroCertificate_seed2_routing_step9_g6_kind_original
+    (D : MacroData P) (t : D.Typ) :
+    existsMacroCertificate_seed2_routing_step9_g6_kind D t = .original ↔
+      D.kind (D.form t) = .original := by
+  rcases h : D.kind (D.form t) with _ | _ | _ <;>
+    simp [existsMacroCertificate_seed2_routing_step9_g6_kind, h]
+
+@[simp] private lemma existsMacroCertificate_seed2_routing_step9_g6_kind_small
+    (D : MacroData P) (t : D.Typ) :
+    existsMacroCertificate_seed2_routing_step9_g6_kind D t = .small ↔
+      D.kind (D.form t) = .small := by
+  rcases h : D.kind (D.form t) with _ | _ | _ <;>
+    simp [existsMacroCertificate_seed2_routing_step9_g6_kind, h]
+
+@[simp] private lemma existsMacroCertificate_seed2_routing_step9_g6_kind_central
+    (D : MacroData P) (t : D.Typ) :
+    existsMacroCertificate_seed2_routing_step9_g6_kind D t = .central ↔
+      D.kind (D.form t) = .large := by
+  rcases h : D.kind (D.form t) with _ | _ | _ <;>
+    simp [existsMacroCertificate_seed2_routing_step9_g6_kind, h]
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_base
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing) (t : cd.D.Typ) :
+    (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).baseFingerprint t =
+      cd.D.baseFingerprint t := by
+  classical
+  let S := Finset.univ.filter
+    (fun i : cd.D.Side t => cd.D.IsFingerprintSide (cd.D.occ t i))
+  have hinner : ∀ i ∈ S, cd.D.IsInner (cd.D.occ t i) := by
+    intro i hi
+    exact (Finset.mem_filter.1 hi).2.1
+  have hpair : ∀ i ∈ S,
+      ({(cd.D.partner (cd.D.occ t i)).1, t} : Multiset cd.D.Typ) =
+        {(cd.D.edgeTypes (cd.D.edge (cd.D.occ t i))).1,
+          (cd.D.edgeTypes (cd.D.edge (cd.D.occ t i))).2} := by
+    intro i hi
+    rcases cd.edgeTypes_spec (cd.D.occ t i) (hinner i hi) with h | h
+    · rw [h]
+      exact Multiset.cons_swap _ _ _
+    · rw [h]
+  change (∑ i ∈ S, ({(cd.D.partner (cd.D.occ t i)).1} : Multiset cd.D.Typ)) +
+      Multiset.replicate
+        (Multiset.card (∑ i ∈ S,
+          ({(cd.D.partner (cd.D.occ t i)).1} : Multiset cd.D.Typ))) t =
+    ∑ i ∈ S,
+      ({(cd.D.edgeTypes (cd.D.edge (cd.D.occ t i))).1,
+        (cd.D.edgeTypes (cd.D.edge (cd.D.occ t i))).2} : Multiset cd.D.Typ)
+  have hcard : Multiset.card
+      (∑ i ∈ S, ({(cd.D.partner (cd.D.occ t i)).1} : Multiset cd.D.Typ)) = S.card := by
+    simp
+  rw [hcard]
+  revert hinner hpair
+  induction S using Finset.induction_on with
+  | empty => intro _ _; simp
+  | @insert i S hi ih =>
+      intro hinner hpair
+      rw [Finset.sum_insert hi, Finset.card_insert_of_notMem hi,
+        Multiset.replicate_succ, Finset.sum_insert hi]
+      rw [← Multiset.singleton_add t (Multiset.replicate S.card t)]
+      calc
+        _ = ({(cd.D.partner (cd.D.occ t i)).1, t} : Multiset cd.D.Typ) +
+              ((∑ j ∈ S, ({(cd.D.partner (cd.D.occ t j)).1} : Multiset cd.D.Typ)) +
+                Multiset.replicate S.card t) := by
+          rw [show ({(cd.D.partner (cd.D.occ t i)).1, t} : Multiset cd.D.Typ) =
+              {(cd.D.partner (cd.D.occ t i)).1} + {t} from
+            (Multiset.singleton_add (cd.D.partner (cd.D.occ t i)).1 {t}).symm]
+          simp only [add_assoc, add_left_comm, add_comm]
+        _ = _ := by
+          rw [hpair i (Finset.mem_insert_self i S),
+            ih (fun j hj => hinner j (Finset.mem_insert_of_mem hj))
+              (fun j hj => hpair j (Finset.mem_insert_of_mem hj))]
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_mem_ordinary
+    (D : MacroData P) (t v : D.Typ) :
+    v ∈ existsMacroCertificate_seed2_routing_step9_g6_ordinary D t ↔
+      ∃ i : D.Side t,
+        D.IsFingerprintSide (D.occ t i) ∧ (D.partner (D.occ t i)).1 = v := by
+  classical
+  simp [existsMacroCertificate_seed2_routing_step9_g6_ordinary, eq_comm]
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_possible
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t : cd.D.Typ)
+    (ht : ¬ cd.D.IsCentral t) :
+    (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).possibleFingerprints t =
+      cd.D.possibleFingerprints t := by
+  rcases hk : cd.D.kind (cd.D.form t) with _ | _ | _
+  · unfold FingerprintData.possibleFingerprints MacroData.possibleFingerprints
+    rw [existsMacroCertificate_seed2_routing_step9_g6_base cd t]
+    simp [existsMacroCertificate_seed2_routing_step9_g6_data,
+      existsMacroCertificate_seed2_routing_step9_g6_kind, hk]
+  · unfold FingerprintData.possibleFingerprints MacroData.possibleFingerprints
+    rw [existsMacroCertificate_seed2_routing_step9_g6_base cd t]
+    simp [existsMacroCertificate_seed2_routing_step9_g6_data,
+      existsMacroCertificate_seed2_routing_step9_g6_kind, hk]
+  · exact False.elim (ht (g5.large_iff t |>.mp hk).symm)
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_original_fingerprint
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .original) (i : cd.D.Side t) :
+    cd.D.IsFingerprintSide (cd.D.occ t i) ↔ cd.D.IsInner (cd.D.occ t i) := by
+  constructor
+  · exact fun h => h.1
+  · intro hi
+    refine ⟨hi, ⟨?_, ?_⟩, fun hs => (FormKind.noConfusion (ht.symm.trans hs))⟩
+    · intro hspecial
+      exact FormKind.noConfusion (ht.symm.trans (cd.special_small _ hspecial))
+    · rintro ⟨d, hmarked, ho | ho⟩
+      · have hcowner : cd.D.owner (cd.D.central (cd.D.owner t)) = cd.D.owner t :=
+          cd.central_owner _
+        have hlarge : cd.D.kind
+            (cd.D.form (cd.D.central (cd.D.owner t))) = .large := by
+          apply (g5.large_iff _).2
+          rw [hcowner]
+        have htc : t = cd.D.central (cd.D.owner t) := congrArg Sigma.fst ho
+        rw [htc] at ht
+        exact FormKind.noConfusion (ht.symm.trans hlarge)
+      · have hsmall := cd.print_small (cd.D.owner t) d hmarked
+        have hts : t = (cd.D.partner (cd.D.printOcc (cd.D.owner t) d)).1 :=
+          congrArg Sigma.fst ho
+        rw [hts] at ht
+        exact FormKind.noConfusion (ht.symm.trans hsmall)
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_adj_original
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g1 : existsMacroCertificate_G1Data cd.D)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t u : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .original) :
+    (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).adj t u ↔
+      u ∈ existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t := by
+  rw [existsMacroCertificate_seed2_routing_step9_g6_mem_ordinary]
+  constructor
+  · rintro ⟨htu, howner, i, j, hi, hsides⟩
+    have heq := g1.side_unique (cd.D.occ t i) (cd.D.occ u j) hi howner htu.symm
+      hsides.symm
+    refine ⟨i,
+      (existsMacroCertificate_seed2_routing_step9_g6_original_fingerprint cd g5 t ht i).2 hi,
+      ?_⟩
+    exact (congrArg Sigma.fst heq).symm
+  · rintro ⟨i, hi, hpartner⟩
+    have hp := g1.partner (cd.D.occ t i) hi.1
+    rcases heq : cd.D.partner (cd.D.occ t i) with ⟨v, j⟩
+    simp only [heq] at hpartner hp
+    subst v
+    exact ⟨hp.1.symm, hp.2.1, i, j, hi.1, hp.2.2.symm⟩
+
+private def existsMacroCertificate_seed2_routing_step9_g6_partnerIndex
+    (D : MacroData P) (t u : D.Typ) (i : D.Side t)
+    (h : (D.partner (D.occ t i)).1 = u) : D.Side u := by
+  subst u
+  exact (D.partner (D.occ t i)).2
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_partnerOcc
+    (D : MacroData P) (t u : D.Typ) (i : D.Side t)
+    (h : (D.partner (D.occ t i)).1 = u) :
+    D.occ u (existsMacroCertificate_seed2_routing_step9_g6_partnerIndex D t u i h) =
+      D.partner (D.occ t i) := by
+  subst u
+  rfl
+
+private def existsMacroCertificate_seed2_routing_step9_g6_sideOccIndex
+    (D : MacroData P) (o : D.SideOcc) : ℕ := o.2
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_partner_inner
+    {D : MacroData P} (g1 : existsMacroCertificate_G1Data D) (o : D.SideOcc)
+    (ho : D.IsInner o) : D.IsInner (D.partner o) := by
+  have hp := g1.partner o ho
+  intro hout
+  apply ho
+  unfold MacroData.IsOuter at hout ⊢
+  rw [hp.2.2, hp.2.1] at hout
+  exact hout
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_partnerIndex_involutive
+    {D : MacroData P} (g1 : existsMacroCertificate_G1Data D) (t u : D.Typ)
+    (i : D.Side t) (hi : D.IsInner (D.occ t i))
+    (h : (D.partner (D.occ t i)).1 = u)
+    (h' : (D.partner
+      (D.occ u (existsMacroCertificate_seed2_routing_step9_g6_partnerIndex D t u i h))).1 = t) :
+    existsMacroCertificate_seed2_routing_step9_g6_partnerIndex D u t
+      (existsMacroCertificate_seed2_routing_step9_g6_partnerIndex D t u i h) h' = i := by
+  apply Fin.ext
+  have hocc := existsMacroCertificate_seed2_routing_step9_g6_partnerOcc D t u i h
+  have hocc' := existsMacroCertificate_seed2_routing_step9_g6_partnerOcc D u t
+    (existsMacroCertificate_seed2_routing_step9_g6_partnerIndex D t u i h) h'
+  have hpp := g1.partner_partner (D.occ t i) hi
+  have heq : D.occ t
+      (existsMacroCertificate_seed2_routing_step9_g6_partnerIndex D u t
+        (existsMacroCertificate_seed2_routing_step9_g6_partnerIndex D t u i h) h') =
+      D.occ t i := by
+    rw [hocc', hocc, hpp]
+  exact congrArg (existsMacroCertificate_seed2_routing_step9_g6_sideOccIndex D) heq
+
+set_option maxHeartbeats 800000 in
+private lemma existsMacroCertificate_seed2_routing_step9_g6_original_count
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g1 : existsMacroCertificate_G1Data cd.D)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t u : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .original)
+    (hu : cd.D.kind (cd.D.form u) = .original) :
+    (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t).count u =
+      (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D u).count t := by
+  classical
+  let S := Finset.univ.filter (fun i : cd.D.Side t =>
+    cd.D.IsFingerprintSide (cd.D.occ t i) ∧ (cd.D.partner (cd.D.occ t i)).1 = u)
+  let T := Finset.univ.filter (fun j : cd.D.Side u =>
+    cd.D.IsFingerprintSide (cd.D.occ u j) ∧ (cd.D.partner (cd.D.occ u j)).1 = t)
+  have hcount_t :
+      (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t).count u = S.card := by
+    rw [existsMacroCertificate_seed2_routing_step9_g6_ordinary, Multiset.count_sum']
+    simp only [Multiset.count_singleton]
+    rw [Finset.sum_boole]
+    apply congrArg Finset.card
+    ext i
+    simp [S, eq_comm]
+  have hcount_u :
+      (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D u).count t = T.card := by
+    rw [existsMacroCertificate_seed2_routing_step9_g6_ordinary, Multiset.count_sum']
+    simp only [Multiset.count_singleton]
+    rw [Finset.sum_boole]
+    apply congrArg Finset.card
+    ext i
+    simp [T, eq_comm]
+  rw [hcount_t, hcount_u]
+  let f : ∀ i ∈ S, cd.D.Side u := fun i hi =>
+    existsMacroCertificate_seed2_routing_step9_g6_partnerIndex cd.D t u i
+      (Finset.mem_filter.1 hi).2.2
+  let q : ∀ j ∈ T, cd.D.Side t := fun j hj =>
+    existsMacroCertificate_seed2_routing_step9_g6_partnerIndex cd.D u t j
+      (Finset.mem_filter.1 hj).2.2
+  have hf : ∀ i hi, f i hi ∈ T := by
+    intro i hi
+    have hi' := (Finset.mem_filter.1 hi).2
+    have hiInner : cd.D.IsInner (cd.D.occ t i) := hi'.1.1
+    have hiPartner : (cd.D.partner (cd.D.occ t i)).1 = u := hi'.2
+    dsimp [f]
+    rw [Finset.mem_filter]
+    refine ⟨Finset.mem_univ _, ?_, ?_⟩
+    · apply (existsMacroCertificate_seed2_routing_step9_g6_original_fingerprint
+        cd g5 u hu _).2
+      rw [existsMacroCertificate_seed2_routing_step9_g6_partnerOcc cd.D t u i hiPartner]
+      exact existsMacroCertificate_seed2_routing_step9_g6_partner_inner g1 _ hiInner
+    · rw [existsMacroCertificate_seed2_routing_step9_g6_partnerOcc cd.D t u i hiPartner]
+      have hpp := g1.partner_partner (cd.D.occ t i) hiInner
+      rw [hpp]
+  have hq : ∀ j hj, q j hj ∈ S := by
+    intro j hj
+    have hj' := (Finset.mem_filter.1 hj).2
+    have hjInner : cd.D.IsInner (cd.D.occ u j) := hj'.1.1
+    have hjPartner : (cd.D.partner (cd.D.occ u j)).1 = t := hj'.2
+    dsimp [q]
+    rw [Finset.mem_filter]
+    refine ⟨Finset.mem_univ _, ?_, ?_⟩
+    · apply (existsMacroCertificate_seed2_routing_step9_g6_original_fingerprint
+        cd g5 t ht _).2
+      rw [existsMacroCertificate_seed2_routing_step9_g6_partnerOcc cd.D u t j hjPartner]
+      exact existsMacroCertificate_seed2_routing_step9_g6_partner_inner g1 _ hjInner
+    · rw [existsMacroCertificate_seed2_routing_step9_g6_partnerOcc cd.D u t j hjPartner]
+      have hpp := g1.partner_partner (cd.D.occ u j) hjInner
+      rw [hpp]
+  refine Finset.card_bij' f q hf hq ?_ ?_
+  · intro i hi
+    dsimp [q, f]
+    apply existsMacroCertificate_seed2_routing_step9_g6_partnerIndex_involutive g1
+    exact (Finset.mem_filter.1 hi).2.1.1
+  · intro j hj
+    dsimp [q, f]
+    apply existsMacroCertificate_seed2_routing_step9_g6_partnerIndex_involutive g1
+    exact (Finset.mem_filter.1 hj).2.1.1
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_of_quantitative
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (hsmall : ∀ t,
+      (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).kind t = .small →
+      g.M.K0 + 2 ≤ Multiset.card
+        ((existsMacroCertificate_seed2_routing_step9_g6_data cd.D).ordinary t))
+    (hprivate : ∀ t u,
+      (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).kind t = .small →
+      (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).kind u = .small →
+      t ≠ u → cd.D.owner t = cd.D.owner u →
+      3 ≤ Multiset.card
+        (((existsMacroCertificate_seed2_routing_step9_g6_data cd.D).ordinary t).filter
+          (fun v =>
+            (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).kind v = .original ∧
+              v ∉ (existsMacroCertificate_seed2_routing_step9_g6_data cd.D).ordinary u))) :
+    ∀ t u, t ≠ u → ¬ cd.D.IsCentral t → ¬ cd.D.IsCentral u →
+      Disjoint (cd.D.possibleFingerprints t) (cd.D.possibleFingerprints u) := by
+  classical
+  let F := existsMacroCertificate_seed2_routing_step9_g6_data cd.D
+  have g1 := existsMacroCertificate_seed2_routing_step4_g1 τ g s l routing cd
+  have g5 := existsMacroCertificate_seed2_routing_step8_g5 τ g s l routing cd
+  have htmpl : ∀ t, ∀ v ∈ F.ordinary t, F.template v = F.template t := by
+    intro t v hv
+    rcases (existsMacroCertificate_seed2_routing_step9_g6_mem_ordinary cd.D t v).1 hv with
+      ⟨i, hi, rfl⟩
+    exact (g1.partner (cd.D.occ t i) hi.1).2.1
+  have hadj_symm : ∀ t u, F.adj t u → F.adj u t := by
+    rintro t u ⟨htu, howner, i, j, hi, hsides⟩
+    refine ⟨htu.symm, howner.symm, j, i, ?_, hsides.symm⟩
+    intro hout
+    apply hi
+    unfold MacroData.IsOuter at hout ⊢
+    rw [hsides, ← howner]
+    exact hout
+  have hadj_orig : ∀ t u, F.kind t = .original →
+      (F.adj t u ↔ u ∈ F.ordinary t) := by
+    intro t u ht
+    apply existsMacroCertificate_seed2_routing_step9_g6_adj_original cd g1 g5
+    change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D t = .original at ht
+    exact (existsMacroCertificate_seed2_routing_step9_g6_kind_original cd.D t).1 ht
+  have hconn : ∀ t u, F.template t = F.template u →
+      Relation.ReflTransGen F.adj t u := by
+    intro t u howner
+    have hr := g1.connected (cd.D.owner t)
+      (⟨t, rfl⟩ : {v // cd.D.owner v = cd.D.owner t})
+      (⟨u, howner.symm⟩ : {v // cd.D.owner v = cd.D.owner t})
+    rw [SimpleGraph.reachable_iff_reflTransGen] at hr
+    apply Relation.ReflTransGen.lift Subtype.val _ hr
+    intro a b hab
+    rw [MacroData.innerGraph, SimpleGraph.fromRel_adj] at hab
+    have hab' : a.1 ≠ b.1 := fun h => hab.1 (Subtype.ext h)
+    rcases hab.2 with h | h
+    · exact ⟨hab', b.2.trans a.2.symm, h⟩
+    · exact hadj_symm b.1 a.1 ⟨hab'.symm, a.2.trans b.2.symm, h⟩
+  have hthree : ∀ t, ∃ a b, a ≠ t ∧ b ≠ t ∧ a ≠ b ∧
+      F.template a = F.template t ∧ F.template b = F.template t := by
+    intro t
+    have hc : 2 < Fintype.card {v : cd.D.Typ // cd.D.owner v = cd.D.owner t} := by
+      simpa [Nat.card_eq_fintype_card] using g1.three_le (cd.D.owner t)
+    obtain ⟨a, b, c, hab, hac, hbc⟩ := Fintype.two_lt_card_iff.mp hc
+    by_cases hat : a.1 = t
+    · refine ⟨b.1, c.1, ?_, ?_, ?_, b.2, c.2⟩
+      · exact fun h => hab (Subtype.ext (hat.trans h.symm))
+      · exact fun h => hac (Subtype.ext (hat.trans h.symm))
+      · exact fun h => hbc (Subtype.ext h)
+    · by_cases hbt : b.1 = t
+      · refine ⟨a.1, c.1, hat, ?_, ?_, a.2, c.2⟩
+        · exact fun h => hbc (Subtype.ext (hbt.trans h.symm))
+        · exact fun h => hac (Subtype.ext h)
+      · exact ⟨a.1, b.1, hat, hbt, fun h => hab (Subtype.ext h), a.2, b.2⟩
+  have horig_ne : ∀ t, F.kind t = .original → F.ordinary t ≠ 0 := by
+    intro t ht
+    have ht' : cd.D.kind (cd.D.form t) = .original := by
+      change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D t = .original at ht
+      exact (existsMacroCertificate_seed2_routing_step9_g6_kind_original cd.D t).1 ht
+    obtain ⟨i, hi⟩ := g1.inner_side t
+    have hv : (cd.D.partner (cd.D.occ t i)).1 ∈ F.ordinary t := by
+      change (cd.D.partner (cd.D.occ t i)).1 ∈
+        existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t
+      rw [existsMacroCertificate_seed2_routing_step9_g6_mem_ordinary]
+      exact ⟨i,
+      (existsMacroCertificate_seed2_routing_step9_g6_original_fingerprint
+        cd g5 t ht' i).2 hi, rfl⟩
+    exact fun hz => by simp [hz] at hv
+  have horig_le : ∀ t, F.kind t = .original →
+      Multiset.card (F.ordinary t) ≤ g.M.K0 := by
+    intro t ht
+    have ht' : cd.D.kind (cd.D.form t) = .original := by
+      change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D t = .original at ht
+      exact (existsMacroCertificate_seed2_routing_step9_g6_kind_original cd.D t).1 ht
+    obtain ⟨p, hp⟩ := (cd.kind_original (cd.D.form t)).1 ht'
+    have hn : (cd.D.Q.disk (cd.D.form t)).n ≤ g.M.K0 := by
+      calc
+        (cd.D.Q.disk (cd.D.form t)).n =
+            (cd.D.Q.disk (cd.D.form t)).vertexSet.ncard := by
+          rw [PolygonalDisk.vertexSet, Set.ncard_range_of_injective
+            (cd.D.Q.disk (cd.D.form t)).vertex_injective,
+            Nat.card_eq_fintype_card, Fintype.card_fin]
+        _ = (pdTranslate
+              (s.setup.GS.G.mixed.disk (cd.catalogueTile (cd.D.form t)).form)
+              (cd.catalogueTile (cd.D.form t)).anchor).vertexSet.ncard := by
+          rw [cd.disk_vertexSet]
+        _ = (s.setup.GS.G.mixed.disk (cd.catalogueTile (cd.D.form t)).form).n := by
+          rw [PolygonalDisk.vertexSet, Set.ncard_range_of_injective
+            (pdTranslate _ _).vertex_injective,
+            Nat.card_eq_fintype_card, Fintype.card_fin]
+          rfl
+        _ = (P.disk p).n := by simp [hp]
+        _ ≤ g.M.K0 := g.M.sides_le p
+    calc
+      Multiset.card (F.ordinary t) ≤ Fintype.card (cd.D.Side t) := by
+        change Multiset.card
+          (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t) ≤ _
+        rw [existsMacroCertificate_seed2_routing_step9_g6_ordinary]
+        calc
+          Multiset.card (∑ i ∈ Finset.univ.filter (fun i : cd.D.Side t =>
+              cd.D.IsFingerprintSide (cd.D.occ t i)),
+                ({(cd.D.partner (cd.D.occ t i)).1} : Multiset cd.D.Typ)) =
+              (Finset.univ.filter (fun i : cd.D.Side t =>
+                cd.D.IsFingerprintSide (cd.D.occ t i))).card := by simp
+          _ ≤ Finset.univ.card := Finset.card_le_card (Finset.filter_subset _ _)
+          _ = Fintype.card (cd.D.Side t) := Finset.card_univ
+      _ = (cd.D.Q.disk (cd.D.form t)).n := Fintype.card_fin _
+      _ ≤ g.M.K0 := hn
+  have hsep := fingerprintSeparation F g.M.K0 htmpl
+    (fun t u ht hu =>
+      existsMacroCertificate_seed2_routing_step9_g6_original_count cd g1 g5 t u
+        (by
+          change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D t = .original at ht
+          exact (existsMacroCertificate_seed2_routing_step9_g6_kind_original cd.D t).1 ht)
+        (by
+          change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D u = .original at hu
+          exact (existsMacroCertificate_seed2_routing_step9_g6_kind_original cd.D u).1 hu))
+    hadj_symm hadj_orig hconn hthree horig_ne horig_le hsmall hprivate
+  intro t u htu ht hu
+  rw [← existsMacroCertificate_seed2_routing_step9_g6_possible cd g5 t ht,
+    ← existsMacroCertificate_seed2_routing_step9_g6_possible cd g5 u hu]
+  exact hsep t u (by
+    intro h
+    have hl : cd.D.kind (cd.D.form t) = .large := by
+      change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D t = .central at h
+      exact (existsMacroCertificate_seed2_routing_step9_g6_kind_central cd.D t).1 h
+    exact ht ((g5.large_iff t).mp hl).symm)
+    (by
+      intro h
+      have hl : cd.D.kind (cd.D.form u) = .large := by
+        change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D u = .central at h
+        exact (existsMacroCertificate_seed2_routing_step9_g6_kind_central cd.D u).1 h
+      exact hu ((g5.large_iff u).mp hl).symm)
+    htu
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_side_of_template
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing) (t : cd.D.Typ)
+    {γ : s.setup.GS.G.P'.Form}
+    (hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inl γ)
+    {e : Set Pt} (he : HasEdge (cd.templateChild t) e) :
+    ∃ i : cd.D.Side t, cd.D.occSide (cd.D.occ t i) = e := by
+  have hemem : e ∈ Set.range (fun j => (cd.templateChild t).side j) := by
+    rcases he with ⟨j, rfl⟩
+    exact Set.mem_range_self j
+  rw [← cd.child_sideSet t] at hemem
+  exact hemem
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_side_of_original
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing) (t : cd.D.Typ)
+    {p : P.Form} (hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inr p)
+    {e : Set Pt} (he : HasEdge (cd.templateChild t) e) :
+    ∃ i : cd.D.Side t, cd.D.occSide (cd.D.occ t i) = e := by
+  have hemem : e ∈ Set.range (fun j => (cd.templateChild t).side j) := by
+    rcases he with ⟨j, rfl⟩
+    exact Set.mem_range_self j
+  rw [← cd.child_sideSet t] at hemem
+  exact hemem
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_region
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing) (α : cd.D.Q.Form) :
+    cd.D.macroRegion α = (s.setup.retained l (cd.baseForm α)).region := by
+  unfold MacroData.macroRegion
+  rw [← cd.D.σ.support_eq, cd.tmpl.rule_eq,
+    ← (s.setup.retained l (cd.baseForm α)).support_eq]
+  ext x
+  simp only [support, Set.mem_iUnion, Set.mem_image, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨A, ⟨t, ht, rfl⟩, hx⟩
+    refine ⟨cd.templateChild t, (cd.child_bijective α).1 ht, ?_⟩
+    rw [← cd.child_carrier]
+    exact hx
+  · rintro ⟨X, hX, hx⟩
+    obtain ⟨t, ht, htx⟩ := (cd.child_bijective α).2.2 hX
+    refine ⟨cd.D.childTile t, ⟨t, ht, rfl⟩, ?_⟩
+    rw [cd.child_carrier, htx]
+    exact hx
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_private_inner
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing) {t : cd.D.Typ}
+    {j : Fin (4 * s.setup.N (cd.baseForm (cd.D.owner t)))} {e : Set Pt}
+    (he : e ∈ privateOuterEdges
+      (s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos) j)
+    {i : cd.D.Side t} (hi : cd.D.occSide (cd.D.occ t i) = e) :
+    cd.D.IsInner (cd.D.occ t i) := by
+  intro hout
+  have heint : e ⊆ interior
+      (s.setup.retained l (cd.baseForm (cd.D.owner t))).region := by
+    refine he.2.1.trans ?_
+    refine (frontier_subset_closure.trans ?_).trans
+      (existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_H_in_region
+        τ g.M s.setup l cd.l_pos (cd.baseForm (cd.D.owner t)))
+    change closure
+      (s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).H.disk.carrier ⊆ _
+    rw [(s.setup.annulus l (cd.baseForm (cd.D.owner t))
+      cd.l_pos).H.disk.compact.isClosed.closure_eq]
+    exact Set.Subset.rfl
+  have hefront : e ⊆ frontier (cd.D.macroRegion (cd.D.owner t)) := by
+    rw [← hi]
+    exact hout
+  have hregion := existsMacroCertificate_seed2_routing_step9_g6_region cd (cd.D.owner t)
+  rw [← hregion] at heint
+  obtain ⟨A, -, k, hk⟩ := he.1
+  have hne : e.Nonempty := by
+    rw [← hk, PlacedTile.side]
+    exact ⟨_, Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _)⟩
+  obtain ⟨x, hx⟩ := hne
+  exact Set.disjoint_left.1 disjoint_interior_frontier (heint hx) (hefront hx)
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_private_occurrence
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g1 : existsMacroCertificate_G1Data cd.D)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .small)
+    {γ : s.setup.GS.G.P'.Form}
+    (hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inl γ)
+    {j : Fin (4 * s.setup.N (cd.baseForm (cd.D.owner t)))}
+    (hpiece : s.setup.GS.G.mixedScatterTile (cd.templateChild t) =
+      ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece j).faces)
+    {e : Set Pt}
+    (he : e ∈ privateOuterEdges
+      (s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos) j) :
+    ∃ (i : cd.D.Side t) (u : cd.D.Typ),
+      cd.D.IsFingerprintSide (cd.D.occ t i) ∧
+      (cd.D.partner (cd.D.occ t i)).1 = u ∧
+      cd.D.kind (cd.D.form u) = .original ∧ cd.D.occSide (cd.D.occ t i) = e ∧
+      ∀ k, k ≠ j → Disjoint (cd.templateChild u).carrier
+        ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece k).carrier := by
+  let α := cd.D.owner t
+  have htmem : cd.templateChild t ∈
+      (s.setup.retained l (cd.baseForm α)).children.tiles :=
+    (cd.child_bijective α).1 rfl
+  have htcentral : cd.templateChild t ≠ s.setup.central l (cd.baseForm α) := by
+    intro h
+    have htc : t = cd.D.central α := by
+      apply (cd.child_bijective α).2.1 rfl (cd.central_owner α)
+      rw [cd.central_child, h]
+    have hlarge : cd.D.kind (cd.D.form t) = .large := by
+      apply (g5.large_iff t).2
+      rw [htc, cd.central_owner]
+    exact FormKind.noConfusion (ht.symm.trans hlarge)
+  obtain ⟨F, q, hFmem, ⟨p, hp⟩, hFe, hqint, hqout⟩ :=
+    existsRoutingAfterPower_step3_entries_step2_outside τ g.M s.setup l cd.l_pos
+      (cd.baseForm α) he
+  obtain ⟨u, huowner, huF⟩ := (cd.child_bijective α).2.2 hFmem
+  have hucatalogue : (cd.catalogueTile (cd.D.form u)).form = Sum.inr p := by
+    rw [← cd.child_form u, huF, hp]
+  have huorig : cd.D.kind (cd.D.form u) = .original :=
+    (cd.kind_original (cd.D.form u)).2 ⟨p, hucatalogue⟩
+  have htu : t ≠ u := by
+    intro htu
+    rw [← htu, hform] at hucatalogue
+    cases hucatalogue
+  have hte := existsRoutingAfterPower_step3_entries_step3_listed τ g.M s.setup l cd.l_pos
+    (cd.baseForm α) htmem hpiece he
+  obtain ⟨i, hi⟩ :=
+    existsMacroCertificate_seed2_routing_step9_g6_side_of_template cd t hform hte
+  obtain ⟨k, hk⟩ :=
+    existsMacroCertificate_seed2_routing_step9_g6_side_of_original cd u hucatalogue (huF ▸ hFe)
+  have hinner := existsMacroCertificate_seed2_routing_step9_g6_private_inner cd he hi
+  have hpartner : cd.D.occ u k = cd.D.partner (cd.D.occ t i) :=
+    g1.side_unique (cd.D.occ t i) (cd.D.occ u k) hinner huowner htu.symm
+      (hk.trans hi.symm)
+  have hnot_special : ¬ cd.D.special (cd.D.occ t i) := by
+    intro hs
+    have hc := (cd.special_contact (cd.D.occ t i) hs).2
+    have huc : u = cd.D.central α := (congrArg Sigma.fst hpartner).trans hc
+    have hlarge : cd.D.kind (cd.D.form u) = .large := by
+      apply (g5.large_iff u).2
+      rw [huc, cd.central_owner]
+    exact FormKind.noConfusion (huorig.symm.trans hlarge)
+  have hnot_print : ¬ cd.D.IsPrint (cd.D.occ t i) := by
+    rintro ⟨d, hd, ho | ho⟩
+    · have htc : t = cd.D.central α := congrArg Sigma.fst ho
+      have hlarge : cd.D.kind (cd.D.form t) = .large := by
+        apply (g5.large_iff t).2
+        rw [htc, cd.central_owner]
+      exact FormKind.noConfusion (ht.symm.trans hlarge)
+    · have hpinner := cd.print_inner α d hd
+      have hpp := g1.partner_partner (cd.D.printOcc α d) hpinner
+      have hpo : cd.D.partner (cd.D.occ t i) = cd.D.printOcc α d := by
+        rw [ho, hpp]
+      have huc : u = cd.D.central α := by
+        exact (congrArg Sigma.fst hpartner).trans
+          (congrArg (fun o : cd.D.SideOcc => o.1) hpo)
+      have hlarge : cd.D.kind (cd.D.form u) = .large := by
+        apply (g5.large_iff u).2
+        rw [huc, cd.central_owner]
+      exact FormKind.noConfusion (huorig.symm.trans hlarge)
+  refine ⟨i, u, ⟨hinner, ⟨hnot_special, hnot_print⟩, ?_⟩, ?_, huorig, hi, ?_⟩
+  · intro _
+    exact cd.marked_rule_nonlarge (cd.D.occ t i) (Or.inl (by simp [ht]))
+  · rw [← hpartner]
+  · intro k hkj
+    obtain ⟨A, hApiece, ia, hAe⟩ := he.1
+    obtain ⟨F0, hF0S, hF0H, hF0edge, hF0disj⟩ := he.2.2
+    obtain ⟨i0, hF0e⟩ := hF0edge
+    let S0 := s.setup.GS.G.mixedScatter
+      (s.setup.retained l (cd.baseForm α)).children.tiles
+    have hAS : A ∈ S0 :=
+      (s.setup.annulus l (cd.baseForm α) cd.l_pos).H.faces_sub
+        ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece_sub j hApiece).1
+    have hFPS : (⟨p, F.anchor⟩ : PlacedTile P) ∈ S0 := by
+      unfold S0 GroupedFamily.mixedScatter
+      exact Set.mem_iUnion.2 ⟨F, Set.mem_iUnion.2 ⟨hFmem, by
+        simp [GroupedFamily.mixedScatterTile, hp]⟩⟩
+    have hAF0 : A ≠ F0 := fun h => hF0H (h ▸
+      ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece_sub j hApiece).1)
+    have hAFP : A ≠ (⟨p, F.anchor⟩ : PlacedTile P) := by
+      intro h
+      have hqH : q ∈ (s.setup.annulus l (cd.baseForm α) cd.l_pos).H.carrier := by
+        change q ∈ (s.setup.annulus l (cd.baseForm α) cd.l_pos).H.disk.carrier
+        rw [(s.setup.annulus l (cd.baseForm α) cd.l_pos).H.carrier_eq]
+        have hFPH : (⟨p, F.anchor⟩ : PlacedTile P) ∈
+            (s.setup.annulus l (cd.baseForm α) cd.l_pos).H.faces :=
+          ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece_sub j
+            (h ▸ hApiece)).1
+        apply carrier_subset_support hFPH
+        simpa [PlacedTile.carrier, hp] using interior_subset hqint
+      exact hqout ((s.setup.annulus l (cd.baseForm α) cd.l_pos).H_upper hqH)
+    have hFPe : HasEdge (⟨p, F.anchor⟩ : PlacedTile P) e := by
+      have hFPmixed : F =
+          (⟨Sum.inr p, F.anchor⟩ : PlacedTile s.setup.GS.G.mixed) := by
+        cases F with
+        | mk form anchor => simp_all
+      rw [hFPmixed] at hFe
+      simpa [PlacedTile.side] using hFe
+    obtain ⟨ib, hibe⟩ := hFPe
+    have hFPF0 : (⟨p, F.anchor⟩ : PlacedTile P) = F0 :=
+      side_partner_unique
+        (existsRoutingAfterPower_step3_entries_step2_outside_step2_exterior_step1_disjoint
+          s.setup.GS.G (s.setup.retained l (cd.baseForm α)).children) hAS hFPS hF0S
+        hAFP hAF0 ia ib i0 (hibe.trans hAe.symm) (hF0e.trans hAe.symm)
+    have hcarr : (cd.templateChild u).carrier = F0.carrier := by
+      rw [huF, PlacedTile.carrier, hp, ← hFPF0]
+      rfl
+    rw [hcarr]
+    exact hF0disj k hkj
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_small_piece
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .small) :
+    ∃ (γ : s.setup.GS.G.P'.Form)
+      (j : Fin (4 * s.setup.N (cd.baseForm (cd.D.owner t)))),
+      (cd.catalogueTile (cd.D.form t)).form = Sum.inl γ ∧
+      s.setup.GS.G.mixedScatterTile (cd.templateChild t) =
+        ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece j).faces := by
+  obtain ⟨-, γ, -, -, -, -, hform⟩ := (cd.kind_small (cd.D.form t)).1 ht
+  have hmem := (cd.child_bijective (cd.D.owner t)).1 rfl
+  have hne : cd.templateChild t ≠ s.setup.central l (cd.baseForm (cd.D.owner t)) := by
+    intro h
+    have htc : t = cd.D.central (cd.D.owner t) := by
+      apply (cd.child_bijective (cd.D.owner t)).2.1 rfl (cd.central_owner _)
+      rw [cd.central_child, h]
+    have hlarge : cd.D.kind (cd.D.form t) = .large := by
+      apply (g5.large_iff t).2
+      rw [htc, cd.central_owner]
+    exact FormKind.noConfusion (ht.symm.trans hlarge)
+  have hchildform : (cd.templateChild t).form = Sum.inl γ := cd.child_form t |>.trans hform
+  obtain ⟨j, hj⟩ := s.setup.small_scatter l (cd.baseForm (cd.D.owner t)) cd.l_pos
+    (cd.templateChild t) hmem hne ⟨γ, hchildform⟩
+  exact ⟨γ, j, hform, hj⟩
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_private_three
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g1 : existsMacroCertificate_G1Data cd.D)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t u : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .small)
+    (hu : cd.D.kind (cd.D.form u) = .small) (htu : t ≠ u)
+    (howner : cd.D.owner t = cd.D.owner u) :
+    3 ≤ Multiset.card
+      ((existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t).filter
+        (fun v => cd.D.kind (cd.D.form v) = .original ∧
+          v ∉ existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D u)) := by
+  classical
+  obtain ⟨γ, j, hform, hpiece⟩ :=
+    existsMacroCertificate_seed2_routing_step9_g6_small_piece cd g5 t ht
+  obtain ⟨δ, k, huform, hupiece⟩ :=
+    existsMacroCertificate_seed2_routing_step9_g6_small_piece cd g5 u hu
+  have hupiece_ex : ∃ k' : Fin (4 * s.setup.N (cd.baseForm (cd.D.owner t))),
+      s.setup.GS.G.mixedScatterTile (cd.templateChild u) =
+        ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece k').faces := by
+    rw [howner]
+    exact ⟨k, hupiece⟩
+  obtain ⟨k', hupiece'⟩ := hupiece_ex
+  have hjk : j ≠ k' := by
+    intro hjk
+    have hscat : s.setup.GS.G.mixedScatterTile (cd.templateChild t) =
+        s.setup.GS.G.mixedScatterTile (cd.templateChild u) := by
+      rw [hpiece, hupiece', ← hjk]
+    have htmem := (cd.child_bijective (cd.D.owner t)).1 rfl
+    have humem : cd.templateChild u ∈
+        (s.setup.retained l (cd.baseForm (cd.D.owner t))).children.tiles := by
+      apply (cd.child_bijective (cd.D.owner t)).1
+      exact howner.symm
+    have hchild := existsRoutingAfterPower_step3_entries_step4_scatterInj τ g.M s.setup l
+      (cd.baseForm (cd.D.owner t)) htmem humem hscat
+    exact htu ((cd.child_bijective (cd.D.owner t)).2.1 rfl howner.symm hchild)
+  obtain ⟨E, hE, hEsep⟩ := s.setup.windows l (cd.baseForm (cd.D.owner t)) cd.l_pos
+  have hocc : ∀ r : Fin 4, ∃ (i : cd.D.Side t) (v : cd.D.Typ),
+      cd.D.IsFingerprintSide (cd.D.occ t i) ∧
+      (cd.D.partner (cd.D.occ t i)).1 = v ∧
+      cd.D.kind (cd.D.form v) = .original ∧ cd.D.occSide (cd.D.occ t i) = E j r ∧
+      v ∉ existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D u := by
+    intro r
+    obtain ⟨i, v, hi, hiv, hvorig, hie, hvdisj⟩ :=
+      existsMacroCertificate_seed2_routing_step9_g6_private_occurrence
+        cd g1 g5 t ht hform hpiece (hE j r)
+    refine ⟨i, v, hi, hiv, hvorig, hie, ?_⟩
+    intro hv
+    rcases (existsMacroCertificate_seed2_routing_step9_g6_mem_ordinary cd.D u v).1 hv with
+      ⟨m, hm, hmv⟩
+    have hp := g1.partner (cd.D.occ u m) hm.1
+    rcases heq : cd.D.partner (cd.D.occ u m) with ⟨w, n⟩
+    simp only [heq] at hmv hp
+    subst w
+    have hside_u : cd.D.occSide (cd.D.occ v n) = cd.D.occSide (cd.D.occ u m) := hp.2.2
+    let x := cd.D.occStart (cd.D.occ u m)
+    have hxsideu : x ∈ cd.D.occSide (cd.D.occ u m) := by
+      unfold x MacroData.occStart MacroData.occSide MacroData.childTile PlacedTile.side
+      exact Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _)
+    have hxu : x ∈ (cd.D.childTile u).carrier := by
+      apply tile_side_subset (cd.D.childTile u) m
+      exact hxsideu
+    have hxv : x ∈ (cd.D.childTile v).carrier := by
+      apply tile_side_subset (cd.D.childTile v) n
+      change x ∈ cd.D.occSide (cd.D.occ v n)
+      rw [hside_u]
+      exact hxsideu
+    have hxvu : x ∈ (cd.templateChild v).carrier := cd.child_carrier v ▸ hxv
+    have hxuu : x ∈ (cd.templateChild u).carrier := cd.child_carrier u ▸ hxu
+    have hxpiece : x ∈
+        ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece k').carrier := by
+      rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_scatter_carrier,
+        hupiece', ←
+        ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece k').carrier_eq]
+        at hxuu
+      exact hxuu
+    exact Set.disjoint_left.1 (hvdisj _ hjk.symm) hxvu hxpiece
+  choose I V hI using hocc
+  have hR : 0 < s.setup.R (cd.baseForm (cd.D.owner t)) := by
+    have hlarge := s.setup.R_large (cd.baseForm (cd.D.owner t))
+    exact lt_of_lt_of_le (by have := g.M.D_pos; positivity) hlarge
+  have hI_ne : ∀ a b : Fin 4, a ≠ b → I a ≠ I b := by
+    intro a b hab hIab
+    obtain ⟨A, -, ia, hia⟩ := (hE j a).1
+    have hx : (E j a).Nonempty := by
+      rw [← hia, PlacedTile.side]
+      exact ⟨_, Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _)⟩
+    obtain ⟨x, hx⟩ := hx
+    have hsets : E j a = E j b := by rw [← (hI a).2.2.2.1, ← (hI b).2.2.2.1, hIab]
+    have hd := hEsep j a j b (by simp [hab]) x hx x (hsets ▸ hx)
+    rw [dist_self] at hd
+    linarith
+  have hcard : 3 ≤ (Finset.univ.filter fun i : cd.D.Side t =>
+      cd.D.IsFingerprintSide (cd.D.occ t i) ∧
+        (cd.D.kind (cd.D.form (cd.D.partner (cd.D.occ t i)).1) = .original ∧
+          (cd.D.partner (cd.D.occ t i)).1 ∉
+            existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D u)).card := by
+    rw [show 3 = 2 + 1 by omega, ← Nat.lt_iff_add_one_le, Finset.two_lt_card_iff]
+    refine ⟨I 0, I 1, I 2, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      rw [(hI 0).2.1]
+      exact ⟨(hI 0).1, (hI 0).2.2.1, (hI 0).2.2.2.2⟩
+    · simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      rw [(hI 1).2.1]
+      exact ⟨(hI 1).1, (hI 1).2.2.1, (hI 1).2.2.2.2⟩
+    · simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      rw [(hI 2).2.1]
+      exact ⟨(hI 2).1, (hI 2).2.2.1, (hI 2).2.2.2.2⟩
+    · exact hI_ne 0 1 (by decide)
+    · exact hI_ne 0 2 (by decide)
+    · exact hI_ne 1 2 (by decide)
+  let pred : cd.D.Typ → Prop := fun v =>
+    cd.D.kind (cd.D.form v) = .original ∧
+      v ∉ existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D u
+  have haux : ∀ R : Finset (cd.D.Side t),
+      Multiset.card (Multiset.filter pred
+        (∑ i ∈ R, ({(cd.D.partner (cd.D.occ t i)).1} : Multiset cd.D.Typ))) =
+        (R.filter fun i => pred (cd.D.partner (cd.D.occ t i)).1).card := by
+    intro R
+    induction R using Finset.induction_on with
+    | empty => simp
+    | @insert a R ha ih =>
+        rw [Finset.sum_insert ha, Multiset.filter_add, Multiset.card_add,
+          Finset.filter_insert]
+        by_cases hp : pred (cd.D.partner (cd.D.occ t a)).1
+        · simp only [Multiset.filter_singleton, if_pos hp, Multiset.card_singleton]
+          have hnot : a ∉ R.filter (fun i => pred (cd.D.partner (cd.D.occ t i)).1) :=
+            fun hmem => ha (Finset.filter_subset _ _ hmem)
+          rw [Finset.card_insert_of_notMem hnot, ih]
+          omega
+        · simp [hp, ih]
+  change 3 ≤ Multiset.card (Multiset.filter pred
+    (∑ i ∈ Finset.univ.filter (fun i : cd.D.Side t =>
+      cd.D.IsFingerprintSide (cd.D.occ t i)),
+        ({(cd.D.partner (cd.D.occ t i)).1} : Multiset cd.D.Typ)))
+  rw [haux]
+  simpa [pred, Finset.filter_filter, and_assoc] using hcard
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_hasEdge_of_scatter_boundary
+    (G : GroupedFamily P) {X : PlacedTile G.mixed} {F : Set (PlacedTile P)}
+    (hX : G.mixedScatterTile X = F) {e : Set Pt}
+    (hA : ∃ A ∈ F, HasEdge A e) (hBoundary : e ⊆ frontier X.carrier) : HasEdge X e := by
+  obtain ⟨A, hA, i, hAi⟩ := hA
+  obtain ⟨form, v⟩ := X
+  rcases form with β | p
+  · change translateSet v (G.dissect β).tiles = F at hX
+    change e ⊆ frontier (v +ᵥ (G.P'.disk β).carrier) at hBoundary
+    rw [← hX] at hA
+    obtain ⟨A₀, hA₀, rfl⟩ := hA
+    have hside : (A₀.translate v).side i = v +ᵥ A₀.side i := by
+      simp only [PlacedTile.side, PlacedTile.translate, vadd_vadd, vadd_eq_add]
+    subst hAi
+    rw [hside] at hBoundary
+    have hfr : frontier (v +ᵥ (G.P'.disk β).carrier) =
+        v +ᵥ frontier (G.P'.disk β).carrier := by
+      have h := (Homeomorph.addLeft v).image_frontier (G.P'.disk β).carrier
+      rw [← Set.image_vadd, ← Set.image_vadd]
+      exact h.symm
+    rw [hfr, vadd_set_subset_vadd_set_iff] at hBoundary
+    obtain ⟨k, hk⟩ :=
+      existsRoutingAfterPower_step3_entries_step3_listed_step3_hasEdge_step3_groupSide
+        G β hA₀ i hBoundary
+    refine ⟨k, ?_⟩
+    rw [hside]
+    change v +ᵥ (G.P'.disk β).side k = _
+    rw [hk]
+  · change ({⟨p, v⟩} : Set (PlacedTile P)) = F at hX
+    rw [← hX, Set.mem_singleton_iff] at hA
+    subst hA
+    exact ⟨i, hAi⟩
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_catalogue_occurrence
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g1 : existsMacroCertificate_G1Data cd.D)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .small)
+    {γ : s.setup.GS.G.P'.Form}
+    (hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inl γ)
+    {j : Fin (4 * s.setup.N (cd.baseForm (cd.D.owner t)))}
+    (hpiece : s.setup.GS.G.mixedScatterTile (cd.templateChild t) =
+      ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece j).faces)
+    (p : P.Form) (v : Pt) (j' : Fin (4 * g.N))
+    (hpiece' :
+      ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece j).faces =
+        translateSet v ((g.annular p).spokes.piece j').faces)
+    (hcentral : s.setup.GS.G.mixedScatterTile
+      (s.setup.central l (cd.baseForm (cd.D.owner t))) =
+        translateSet v (g.annular p).L.faces)
+    {e : Set Pt} (he : e ∈ privateOuterEdges (g.annular p) j') :
+    ∃ i : cd.D.Side t, cd.D.IsFingerprintSide (cd.D.occ t i) ∧
+      cd.D.occSide (cd.D.occ t i) = v +ᵥ e := by
+  let α := cd.D.owner t
+  let K := (g.annular p).spokes.piece j'
+  let H := (g.annular p).H
+  obtain ⟨A, hAK, k, hke⟩ := he.1
+  have heK : e ⊆ frontier K.carrier := by
+    intro x hx
+    have hxK : x ∈ K.carrier := by
+      change x ∈ K.disk.carrier
+      rw [K.carrier_eq]
+      exact Set.mem_biUnion hAK
+        (existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step3_side
+          ⟨k, hke⟩ hx)
+    exact existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step4_frontier
+      K H (fun B hB => ((g.annular p).spokes.piece_sub j' hB).1) hxK (he.2.1 hx)
+  have hchild : (cd.templateChild t).carrier = v +ᵥ K.carrier := by
+    change (cd.templateChild t).carrier = v +ᵥ K.disk.carrier
+    rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_scatter_carrier,
+      hpiece, hpiece',
+      existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step1_translate,
+      K.carrier_eq]
+  have hechild : v +ᵥ e ⊆ frontier (cd.templateChild t).carrier := by
+    rw [hchild]
+    have hfr : frontier (v +ᵥ K.carrier) = v +ᵥ frontier K.carrier := by
+      have h := (Homeomorph.addLeft v).image_frontier K.carrier
+      rw [← Set.image_vadd, ← Set.image_vadd]
+      exact h.symm
+    rw [hfr, vadd_set_subset_vadd_set_iff]
+    exact heK
+  have hAtranslate : A.translate v ∈
+      s.setup.GS.G.mixedScatterTile (cd.templateChild t) := by
+    rw [hpiece, hpiece']
+    exact ⟨A, hAK, rfl⟩
+  have hAinPiece : A.translate v ∈
+      ((s.setup.annulus l (cd.baseForm (cd.D.owner t)) cd.l_pos).spokes.piece j).faces := by
+    rw [hpiece']
+    exact ⟨A, hAK, rfl⟩
+  have hAedge : HasEdge (A.translate v) (v +ᵥ e) := by
+    refine ⟨k, ?_⟩
+    rw [← hke]
+    simp only [PlacedTile.side, PlacedTile.translate, vadd_vadd, vadd_eq_add]
+  have hte : HasEdge (cd.templateChild t) (v +ᵥ e) :=
+    existsMacroCertificate_seed2_routing_step9_g6_hasEdge_of_scatter_boundary
+      s.setup.GS.G hpiece ⟨A.translate v, hAinPiece, hAedge⟩ hechild
+  obtain ⟨i, hi⟩ :=
+    existsMacroCertificate_seed2_routing_step9_g6_side_of_template cd t hform hte
+  have hinner : cd.D.IsInner (cd.D.occ t i) := by
+    intro hout
+    have heint : v +ᵥ e ⊆ interior
+        (s.setup.retained l (cd.baseForm α)).region := by
+      rw [← hi]
+      refine (cd.child_carrier t ▸ tile_side_subset (cd.D.childTile t) i).trans ?_
+      rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_scatter_carrier,
+        hpiece, ←
+        ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j).carrier_eq]
+      have hsub :
+          ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j).carrier ⊆
+            (s.setup.annulus l (cd.baseForm α) cd.l_pos).H.carrier := by
+        change
+          ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j).disk.carrier ⊆
+            (s.setup.annulus l (cd.baseForm α) cd.l_pos).H.disk.carrier
+        rw [((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j).carrier_eq,
+          (s.setup.annulus l (cd.baseForm α) cd.l_pos).H.carrier_eq]
+        intro x hx
+        obtain ⟨A, hA, hxA⟩ := mem_support_iff'.1 hx
+        exact carrier_subset_support
+          ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece_sub j hA).1 hxA
+      exact hsub.trans
+        (existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_H_in_region
+          τ g.M s.setup l cd.l_pos (cd.baseForm α))
+    have hefront : v +ᵥ e ⊆ frontier (cd.D.macroRegion (cd.D.owner t)) := by
+      rw [← hi]
+      exact hout
+    rw [← existsMacroCertificate_seed2_routing_step9_g6_region cd α] at heint
+    have hne : (v +ᵥ e).Nonempty := by
+      rw [← hke, PlacedTile.side]
+      exact ⟨_, Set.vadd_mem_vadd_set
+        (Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _))⟩
+    obtain ⟨x, hx⟩ := hne
+    exact Set.disjoint_left.1 disjoint_interior_frontier (heint hx) (hefront hx)
+  have hcentralCarrier :
+      (s.setup.central l (cd.baseForm α)).carrier = v +ᵥ (g.annular p).L.carrier := by
+    change (s.setup.central l (cd.baseForm α)).carrier =
+      v +ᵥ (g.annular p).L.disk.carrier
+    rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_scatter_carrier,
+      hcentral,
+      existsRoutingAfterPower_step3_entries_step3_listed_step2_boundary_step1_translate,
+      (g.annular p).L.carrier_eq]
+  have hLH : (g.annular p).L.carrier ⊆ interior (g.annular p).H.carrier := by
+    have hR : 0 < g.R := by
+      have h0 : 0 ≤ (g.M.K0 : ℝ) := Nat.cast_nonneg _
+      have := g.R_routes
+      have := g.M.D_pos
+      nlinarith
+    have hD := g.M.D_pos
+    have hb : 0 ≤ (g.N : ℝ) * g.R / 2 + g.R := by positivity
+    have hnest : square (g.centre p) ((g.N : ℝ) * g.R / 2) + Binf g.M.D ⊆
+        interior (square (g.centre p) ((g.N : ℝ) * g.R / 2 + g.R) +
+          Binf (2 * g.M.D)) :=
+      existsAnnularSpokes_step1_nest (g.centre p) (by linarith) hb (by linarith)
+    exact (g.annular p).L_upper.trans
+      (hnest.trans (interior_mono (g.annular p).H_lower))
+  have hdisj : Disjoint (v +ᵥ e)
+      (s.setup.central l (cd.baseForm α)).carrier := by
+    rw [hcentralCarrier]
+    apply Set.disjoint_vadd_set.2
+    exact (disjoint_interior_frontier.mono hLH he.2.1).symm
+  have hnot_special : ¬ cd.D.special (cd.D.occ t i) := by
+    intro hs
+    have hc := (cd.special_contact (cd.D.occ t i) hs).2
+    have hp := g1.partner (cd.D.occ t i) hinner
+    have hx : (v +ᵥ e).Nonempty := by
+      rw [← hke, PlacedTile.side]
+      exact ⟨_, Set.vadd_mem_vadd_set
+        (Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _))⟩
+    obtain ⟨x, hx⟩ := hx
+    apply Set.disjoint_left.1 hdisj hx
+    have hxside : x ∈ cd.D.occSide (cd.D.partner (cd.D.occ t i)) := by
+      rw [hp.2.2, hi]
+      exact hx
+    have hxcarrier : x ∈
+        (cd.templateChild (cd.D.partner (cd.D.occ t i)).1).carrier :=
+      cd.child_carrier _ ▸ tile_side_subset _ _ hxside
+    rw [hc, cd.central_child] at hxcarrier
+    exact hxcarrier
+  have hnot_print : ¬ cd.D.IsPrint (cd.D.occ t i) := by
+    rintro ⟨d, hd, ho | ho⟩
+    · have htc : t = cd.D.central α := congrArg Sigma.fst ho
+      have hlarge : cd.D.kind (cd.D.form t) = .large := by
+        apply (g5.large_iff t).2
+        rw [htc, cd.central_owner]
+      exact FormKind.noConfusion (ht.symm.trans hlarge)
+    · have hpinner := cd.print_inner α d hd
+      have hpp := g1.partner_partner (cd.D.printOcc α d) hpinner
+      have hpo : cd.D.partner (cd.D.occ t i) = cd.D.printOcc α d := by
+        rw [ho, hpp]
+      have hc : (cd.D.partner (cd.D.occ t i)).1 = cd.D.central α := by
+        exact congrArg (fun o : cd.D.SideOcc => o.1) hpo
+      have hp := g1.partner (cd.D.occ t i) hinner
+      have hx : (v +ᵥ e).Nonempty := by
+        rw [← hke, PlacedTile.side]
+        exact ⟨_, Set.vadd_mem_vadd_set
+          (Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _))⟩
+      obtain ⟨x, hx⟩ := hx
+      apply Set.disjoint_left.1 hdisj hx
+      have hxside : x ∈ cd.D.occSide (cd.D.partner (cd.D.occ t i)) := by
+        rw [hp.2.2, hi]
+        exact hx
+      have hxcarrier : x ∈
+          (cd.templateChild (cd.D.partner (cd.D.occ t i)).1).carrier :=
+        cd.child_carrier _ ▸ tile_side_subset _ _ hxside
+      rw [hc, cd.central_child] at hxcarrier
+      exact hxcarrier
+  refine ⟨i, ⟨hinner, ⟨hnot_special, hnot_print⟩, ?_⟩, hi⟩
+  intro _
+  exact cd.marked_rule_nonlarge (cd.D.occ t i) (Or.inl (by simp [ht]))
+
+private lemma existsMacroCertificate_seed2_routing_step9_g6_small_many
+    {τ : Substitution P} {g : existsMacroCertificate_GroupingSeed τ}
+    {s : existsMacroCertificate_SetupSeed τ g} {l : ℕ}
+    {routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (g1 : existsMacroCertificate_G1Data cd.D)
+    (g5 : existsMacroCertificate_G5Data cd.D) (t : cd.D.Typ)
+    (ht : cd.D.kind (cd.D.form t) = .small) :
+    g.M.K0 + 2 ≤ Multiset.card
+      (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t) := by
+  classical
+  obtain ⟨γ, j, hform, hpiece⟩ :=
+    existsMacroCertificate_seed2_routing_step9_g6_small_piece cd g5 t ht
+  obtain ⟨p, v, hcentral, hpieces⟩ :=
+    s.annulus_catalogue l (cd.baseForm (cd.D.owner t)) cd.l_pos
+  obtain ⟨j', -, hpiece'⟩ := hpieces j
+  let E := privateOuterEdges (g.annular p) j'
+  have hocc : ∀ e : E, ∃ i : cd.D.Side t,
+      cd.D.IsFingerprintSide (cd.D.occ t i) ∧
+        cd.D.occSide (cd.D.occ t i) = v +ᵥ (e : Set Pt) := by
+    intro e
+    exact existsMacroCertificate_seed2_routing_step9_g6_catalogue_occurrence
+      cd g1 g5 t ht hform hpiece p v j' hpiece' hcentral e.property
+  choose I hI using hocc
+  let T := {i : cd.D.Side t // cd.D.IsFingerprintSide (cd.D.occ t i)}
+  let f : E → T := fun e => ⟨I e, (hI e).1⟩
+  have hf : Function.Injective f := by
+    intro e e' heq
+    apply Subtype.ext
+    have hsides : v +ᵥ (e : Set Pt) = v +ᵥ (e' : Set Pt) := by
+      rw [← (hI e).2, ← (hI e').2]
+      exact congrArg (fun i : cd.D.Side t => cd.D.occSide (cd.D.occ t i))
+        (congrArg Subtype.val heq)
+    exact Set.Subset.antisymm
+      (vadd_set_subset_vadd_set_iff.mp hsides.le)
+      (vadd_set_subset_vadd_set_iff.mp hsides.ge)
+  have hcard : E.ncard ≤ Multiset.card
+      (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t) := by
+    calc
+      E.ncard = Nat.card E := by simp
+      _ ≤ Nat.card T := Nat.card_le_card_of_injective f hf
+      _ = (Finset.univ.filter fun i : cd.D.Side t =>
+          cd.D.IsFingerprintSide (cd.D.occ t i)).card := by
+        rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
+      _ = Multiset.card
+          (existsMacroCertificate_seed2_routing_step9_g6_ordinary cd.D t) := by
+        simp [existsMacroCertificate_seed2_routing_step9_g6_ordinary]
+  have hreal : (g.M.K0 : ℝ) + 2 ≤ (E.ncard : ℝ) :=
+    g.private_edges.trans ((g.annular_quantitative p).2.1 j')
+  have hnat : g.M.K0 + 2 ≤ E.ncard := by exact_mod_cast hreal
+  exact hnat.trans hcard
+
 /-- Step 10 of `lem:certificate-exists`, (G6): the special sides are those of `CertData`; "The
 private-neighbour estimate and `lem:fingerprint` give (G6)": every small type has at least
 `K₀ + 2` private outer edges (`g.annular_quantitative`, `g.private_edges`), so the possible
@@ -48611,7 +49755,29 @@ private lemma existsMacroCertificate_seed2_routing_step9_g6 (τ : Substitution P
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G6Data cd.D := by
-  sorry
+  have g1 := existsMacroCertificate_seed2_routing_step4_g1 τ g s l routing cd
+  have g5 := existsMacroCertificate_seed2_routing_step8_g5 τ g s l routing cd
+  refine {
+    special_small := cd.special_small
+    special_unique := cd.special_unique
+    special_inner := fun o ho => (cd.special_contact o ho).1
+    fingerprint := ?_ }
+  apply existsMacroCertificate_seed2_routing_step9_g6_of_quantitative cd
+  · intro t ht
+    apply existsMacroCertificate_seed2_routing_step9_g6_small_many cd g1 g5 t
+    change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D t = .small at ht
+    exact (existsMacroCertificate_seed2_routing_step9_g6_kind_small cd.D t).1 ht
+  · intro t u ht hu htu howner
+    have ht' : cd.D.kind (cd.D.form t) = .small := by
+      change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D t = .small at ht
+      exact (existsMacroCertificate_seed2_routing_step9_g6_kind_small cd.D t).1 ht
+    have hu' : cd.D.kind (cd.D.form u) = .small := by
+      change existsMacroCertificate_seed2_routing_step9_g6_kind cd.D u = .small at hu
+      exact (existsMacroCertificate_seed2_routing_step9_g6_kind_small cd.D u).1 hu
+    simpa only [existsMacroCertificate_seed2_routing_step9_g6_data,
+      existsMacroCertificate_seed2_routing_step9_g6_kind_original] using
+        existsMacroCertificate_seed2_routing_step9_g6_private_three
+          cd g1 g5 t u ht' hu' htu howner
 
 /-- Step 11 of `lem:certificate-exists`, (G7): "The marking rule `every side not belonging to the
 large central group, plus the prints` gives (G7)": outer and boundary sides belong to non-large

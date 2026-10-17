@@ -32760,6 +32760,744 @@ private lemma quantitativeAnnularGrouping_innerOrder_step2_regularize
       Filter.Tendsto p Filter.atTop (nhds y) := by
   sorry
 
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: prepend a breakpoint to a polygonal
+arc (the radial start of a crosscut). -/
+private def innerOrderCrosscuts_step3_cons (x : Pt) (α : PolyArc) : PolyArc where
+  n := α.n + 1
+  pt := Fin.cons x α.pt
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: append a breakpoint to a polygonal
+arc (the marked endpoint of a crosscut). -/
+private def innerOrderCrosscuts_step3_snoc (α : PolyArc) (x : Pt) : PolyArc where
+  n := α.n + 1
+  pt := Fin.snoc α.pt x
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: a polygonal arc consisting of a
+single segment. -/
+private def innerOrderCrosscuts_step3_single (a b : Pt) : PolyArc where
+  n := 0
+  pt := ![a, b]
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the carrier of an arc with a
+prepended breakpoint. -/
+private lemma innerOrderCrosscuts_step3_cons_carrier (x : Pt) (α : PolyArc) :
+    (innerOrderCrosscuts_step3_cons x α).carrier = segment ℝ x α.start ∪ α.carrier := by
+  ext y
+  simp only [PolyArc.carrier, PolyArc.seg, mem_iUnion, mem_union, innerOrderCrosscuts_step3_cons, PolyArc.start]
+  constructor
+  · rintro ⟨i, hi⟩
+    induction i using Fin.cases with
+    | zero => left; simpa using hi
+    | succ j => right; exact ⟨j, by simpa [← Fin.succ_castSucc] using hi⟩
+  · rintro (h | ⟨j, hj⟩)
+    · exact ⟨0, by simpa using h⟩
+    · exact ⟨j.succ, by simpa [← Fin.succ_castSucc] using hj⟩
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the carrier of an arc with an
+appended breakpoint. -/
+private lemma innerOrderCrosscuts_step3_snoc_carrier (α : PolyArc) (x : Pt) :
+    (innerOrderCrosscuts_step3_snoc α x).carrier = α.carrier ∪ segment ℝ α.stop x := by
+  ext y
+  simp only [PolyArc.carrier, PolyArc.seg, mem_iUnion, mem_union, innerOrderCrosscuts_step3_snoc, PolyArc.stop]
+  constructor
+  · rintro ⟨i, hi⟩
+    induction i using Fin.lastCases with
+    | last => right; simpa [Fin.succ_castSucc, Fin.succ_last] using hi
+    | cast j =>
+      left; refine ⟨j, ?_⟩
+      rw [Fin.succ_castSucc, Fin.snoc_castSucc, Fin.snoc_castSucc] at hi; exact hi
+  · rintro (⟨j, hj⟩ | h)
+    · refine ⟨j.castSucc, ?_⟩
+      rw [Fin.succ_castSucc, Fin.snoc_castSucc, Fin.snoc_castSucc]; exact hj
+    · exact ⟨Fin.last _, by simpa [Fin.succ_castSucc, Fin.succ_last] using h⟩
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the carrier of a single-segment
+arc. -/
+private lemma innerOrderCrosscuts_step3_single_carrier (a b : Pt) : (innerOrderCrosscuts_step3_single a b).carrier = segment ℝ a b := by
+  ext y
+  simp [PolyArc.carrier, PolyArc.seg, innerOrderCrosscuts_step3_single]
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the start of an arc with a
+prepended breakpoint. -/
+@[simp] private lemma innerOrderCrosscuts_step3_cons_start (x : Pt) (α : PolyArc) : (innerOrderCrosscuts_step3_cons x α).start = x := rfl
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the stop of an arc with a prepended
+breakpoint. -/
+@[simp] private lemma innerOrderCrosscuts_step3_cons_stop (x : Pt) (α : PolyArc) : (innerOrderCrosscuts_step3_cons x α).stop = α.stop := by
+  simp [innerOrderCrosscuts_step3_cons, PolyArc.stop]
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the start of an arc with an
+appended breakpoint. -/
+@[simp] private lemma innerOrderCrosscuts_step3_snoc_start (α : PolyArc) (x : Pt) : (innerOrderCrosscuts_step3_snoc α x).start = α.start := by
+  simp [innerOrderCrosscuts_step3_snoc, PolyArc.start]
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the stop of an arc with an appended
+breakpoint. -/
+@[simp] private lemma innerOrderCrosscuts_step3_snoc_stop (α : PolyArc) (x : Pt) : (innerOrderCrosscuts_step3_snoc α x).stop = x := by
+  simp [innerOrderCrosscuts_step3_snoc, PolyArc.stop]
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the start of a single-segment arc.
+-/
+@[simp] private lemma innerOrderCrosscuts_step3_single_start (a b : Pt) : (innerOrderCrosscuts_step3_single a b).start = a := rfl
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the stop of a single-segment arc.
+-/
+@[simp] private lemma innerOrderCrosscuts_step3_single_stop (a b : Pt) : (innerOrderCrosscuts_step3_single a b).stop = b := rfl
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the start of an arc lies on it. -/
+private lemma innerOrderCrosscuts_step3_start_mem (α : PolyArc) : α.start ∈ α.carrier :=
+  mem_iUnion.2 ⟨0, left_mem_segment ℝ _ _⟩
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the stop of an arc lies on it. -/
+private lemma innerOrderCrosscuts_step3_stop_mem (α : PolyArc) : α.stop ∈ α.carrier :=
+  mem_iUnion.2 ⟨Fin.last _, by simpa [PolyArc.seg, PolyArc.stop] using right_mem_segment ℝ _ _⟩
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: any two points of an open connected
+set (the interior of an anchoring face) are joined by a polygonal arc inside it. -/
+private lemma innerOrderCrosscuts_step3_chain {U : Set Pt} (hU : IsOpen U) (hpc : IsPreconnected U) {a : Pt} (ha : a ∈ U) :
+    ∀ b ∈ U, ∃ β : PolyArc, β.start = a ∧ β.stop = b ∧ β.carrier ⊆ U := by
+  set R : Set Pt := {x | ∃ β : PolyArc, β.start = a ∧ β.stop = x ∧ β.carrier ⊆ U} with hR
+  have hext : ∀ x ∈ R, ∀ y, segment ℝ x y ⊆ U → y ∈ R := by
+    rintro x ⟨β, h1, h2, h3⟩ y hxy
+    refine ⟨innerOrderCrosscuts_step3_snoc β y, by simp [h1], by simp, ?_⟩
+    rw [innerOrderCrosscuts_step3_snoc_carrier, h2]
+    exact union_subset h3 hxy
+  have hRo : IsOpen R := by
+    rw [Metric.isOpen_iff]
+    intro x hx
+    obtain ⟨β, h1, h2, h3⟩ := hx
+    have hxU : x ∈ U := h3 (h2 ▸ innerOrderCrosscuts_step3_stop_mem β)
+    obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hU x hxU
+    refine ⟨ε, hε, fun y hy => hext x ⟨β, h1, h2, h3⟩ y ?_⟩
+    exact ((convex_ball x ε).segment_subset (Metric.mem_ball_self hε) hy).trans hball
+  have hVo : IsOpen (U \ R) := by
+    rw [Metric.isOpen_iff]
+    rintro y ⟨hyU, hyR⟩
+    obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hU y hyU
+    refine ⟨ε, hε, fun x hx => ⟨hball hx, fun hxR => hyR (hext x hxR y ?_)⟩⟩
+    have hx' : x ∈ Metric.ball y ε := hx
+    exact ((convex_ball y ε).segment_subset hx' (Metric.mem_ball_self hε)).trans hball
+  have haR : a ∈ R := ⟨innerOrderCrosscuts_step3_single a a, rfl, rfl, by
+    rw [innerOrderCrosscuts_step3_single_carrier, segment_same]; exact singleton_subset_iff.2 ha⟩
+  have hsub : U ⊆ R := hpc.subset_left_of_subset_union hRo hVo disjoint_sdiff_right
+    (fun x hx => by by_cases h : x ∈ R; exacts [Or.inl h, Or.inr ⟨hx, h⟩]) ⟨a, ha, haR⟩
+  intro b hb
+  exact hsub hb
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the cross product is affine along a
+segment. -/
+private lemma innerOrderCrosscuts_step3_jcr_lineMap (d a p y : Pt) (θ : ℝ) :
+    jcr d (p + θ • (y - p) - a) = (1 - θ) * jcr d (p - a) + θ * jcr d (y - a) := by
+  simp only [jcr, PiLp.add_apply, PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul]
+  ring
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: from a relative interior point of a
+side, a short segment enters the interior of the face. -/
+private lemma innerOrderCrosscuts_step3_inward (A : PlacedTile P) (i : Fin (P.disk A.form).n) {p : Pt}
+    (hp : p ∈ openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i))) :
+    ∃ q : Pt, q ≠ p ∧ ∀ x ∈ segment ℝ p q, x ≠ p → x ∈ interior A.carrier := by
+  obtain ⟨r, hr, σ, hσ, h⟩ := tile_halfdisk A i hp
+  have hd : A.vertex (finRotate _ i) - A.vertex i ≠ 0 := sub_ne_zero.2 (tile_vertex_ne_next A i).symm
+  obtain ⟨y, hy, hlt⟩ := exists_near_off_line (A.vertex i) hd p hσ hr
+  have hp0 : jcr (A.vertex (finRotate _ i) - A.vertex i) (p - A.vertex i) = 0 :=
+    ((h p (Metric.mem_ball_self hr)).1).1 (openSeg_mem_side A i hp)
+  rw [hp0, mul_zero] at hlt
+  refine ⟨y, fun hyp => by rw [hyp, hp0, mul_zero] at hlt; exact lt_irrefl _ hlt, fun x hx hxp => ?_⟩
+  obtain ⟨θ, hθ0, hθ1, rfl⟩ := mem_segment_iff'.1 hx
+  · have hθ : 0 < θ := by
+      rcases eq_or_lt_of_le hθ0 with h0 | h0
+      · subst h0; simp at hxp
+      · exact h0
+    have hball : p + θ • (y - p) ∈ Metric.ball p r := by
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+        abs_of_pos hθ, ← dist_eq_norm, dist_comm]
+      nlinarith [dist_nonneg (x := p) (y := y)]
+    refine ((h _ hball).2.2).2 ?_
+    rw [innerOrderCrosscuts_step3_jcr_lineMap, hp0]
+    nlinarith
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the four sides of the unit square,
+listed counterclockwise. -/
+private lemma innerOrderCrosscuts_step1_unitSides (P : Pt) :
+    (P ∈ segment ℝ (!₂[1, 0] : Pt) (!₂[1, 1]) ↔ P 0 = 1 ∧ P 1 ∈ Icc (0 : ℝ) 1) ∧
+    (P ∈ segment ℝ (!₂[1, 1] : Pt) (!₂[0, 1]) ↔ P 1 = 1 ∧ P 0 ∈ Icc (0 : ℝ) 1) ∧
+    (P ∈ segment ℝ (!₂[0, 1] : Pt) (!₂[0, 0]) ↔ P 0 = 0 ∧ P 1 ∈ Icc (0 : ℝ) 1) ∧
+    (P ∈ segment ℝ (!₂[0, 0] : Pt) (!₂[1, 0]) ↔ P 1 = 0 ∧ P 0 ∈ Icc (0 : ℝ) 1) := by
+  have h4 := plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareSides P
+  exact ⟨by rw [segment_symm]; exact h4.2.2.1, by rw [segment_symm]; exact h4.2.1,
+    by rw [segment_symm]; exact h4.1, by rw [segment_symm]; exact h4.2.2.2⟩
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the unit square as a polygonal
+disk, listed counterclockwise from `(1,0)`. -/
+private def innerOrderCrosscuts_step1_unitSq : PolygonalDisk where
+  carrier := {P : Pt | P 0 ∈ Icc (0:ℝ) 1 ∧ P 1 ∈ Icc (0:ℝ) 1}
+  n := 4
+  three_le := by norm_num
+  vertex := ![!₂[1, 0], !₂[1, 1], !₂[0, 1], !₂[0, 0]]
+  vertex_injective := by
+    intro i j hij
+    fin_cases i <;> fin_cases j <;> simp_all
+  compact := by
+    rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squarePreimage, Homeomorph.isCompact_preimage]
+    exact isCompact_univ_pi fun _ => isCompact_Icc
+  interior_nonempty := by
+    rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior]
+    exact ⟨!₂[1/2, 1/2], by norm_num, by norm_num⟩
+  regular_closed := by
+    rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior,
+      plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareClosure]
+  interior_pathConnected := by
+    rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareInterior]
+    refine Convex.isPathConnected ?_ ⟨!₂[1/2, 1/2], by norm_num, by norm_num⟩
+    exact ((convex_Ioo 0 1).linear_preimage (EuclideanSpace.proj (0 : Fin 2) : Pt →L[ℝ] ℝ).toLinearMap).inter
+      ((convex_Ioo 0 1).linear_preimage (EuclideanSpace.proj (1 : Fin 2) : Pt →L[ℝ] ℝ).toLinearMap)
+  frontier_eq := by
+    have hfr : ∀ i : Fin 4, finRotate 4 i = i + 1 := fun i => finRotate_succ_apply i
+    rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareFrontier]
+    ext P
+    have h4 := innerOrderCrosscuts_step1_unitSides P
+    simp only [mem_iUnion, mem_setOf_eq]
+    constructor
+    · rintro (h | h | h | h)
+      · exact ⟨2, by simpa [hfr, h4] using h⟩
+      · exact ⟨1, by simpa [hfr, h4] using h⟩
+      · exact ⟨0, by simpa [hfr, h4] using h⟩
+      · exact ⟨3, by simpa [hfr, h4] using h⟩
+    · rintro ⟨i, hi⟩
+      fin_cases i <;> simp [hfr, h4] at hi <;> simp [hi]
+  simple := by
+    have hfr : ∀ i : Fin 4, finRotate 4 i = i + 1 := fun i => finRotate_succ_apply i
+    intro i j hij P hP
+    have h4 := innerOrderCrosscuts_step1_unitSides P
+    fin_cases i <;> fin_cases j <;>
+      simp [hfr, h4, plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff] at hij hP ⊢ <;>
+      rcases hP with ⟨⟨h1, -⟩, h2, -⟩ <;> simp_all
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: scaling a segment. -/
+private lemma innerOrderCrosscuts_step1_segment_smul (s : ℝ) (p q : Pt) : segment ℝ (s • p) (s • q) = s • segment ℝ p q := by
+  let f : Pt →ᵃ[ℝ] Pt := (LinearMap.lsmul ℝ Pt s).toAffineMap
+  exact (image_segment ℝ f _ _).symm
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: scaling a polygonal disk by a
+nonzero factor. -/
+private def innerOrderCrosscuts_step1_scaleDisk (D : PolygonalDisk) (s : ℝ) (hs : s ≠ 0) : PolygonalDisk where
+  carrier := s • D.carrier
+  n := D.n
+  three_le := D.three_le
+  vertex i := s • D.vertex i
+  vertex_injective i j hij := D.vertex_injective (smul_right_injective Pt hs hij)
+  compact := D.compact.smul s
+  interior_nonempty := by
+    rw [interior_smul₀ hs]
+    obtain ⟨x, hx⟩ := D.interior_nonempty
+    exact ⟨s • x, Set.smul_mem_smul_set hx⟩
+  regular_closed := by rw [interior_smul₀ hs, closure_smul₀, D.regular_closed]
+  interior_pathConnected := by
+    rw [interior_smul₀ hs, ← Set.image_smul]
+    exact D.interior_pathConnected.image (continuous_const_smul s)
+  frontier_eq := by
+    rw [frontier, closure_smul₀, interior_smul₀ hs, ← Set.smul_set_sdiff₀ hs,
+      ← frontier, D.frontier_eq, Set.smul_set_iUnion]
+    simp only [innerOrderCrosscuts_step1_segment_smul]
+  simple i j hij := by
+    have h := Set.smul_set_mono (a := s) (D.simple i j hij)
+    rw [Set.smul_set_inter₀ hs, Set.smul_set_inter₀ hs] at h
+    simpa only [innerOrderCrosscuts_step1_segment_smul, Set.smul_set_insert, Set.smul_set_insert, Set.smul_set_singleton,
+      Set.smul_set_singleton] using h
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the smaller square of half side `κ`
+about the centre, listed counterclockwise from `c + κ (1,-1)`. -/
+private noncomputable def innerOrderCrosscuts_step1_sqDisk (c : Pt) {κ : ℝ} (hκ : 0 < κ) : PolygonalDisk :=
+  pdTranslate (innerOrderCrosscuts_step1_scaleDisk innerOrderCrosscuts_step1_unitSq (2 * κ) (by positivity)) (c - κ • !₂[1, 1])
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the smaller square has four listed
+vertices. -/
+private lemma innerOrderCrosscuts_step1_sqDisk_n (c : Pt) {κ : ℝ} (hκ : 0 < κ) : (innerOrderCrosscuts_step1_sqDisk c hκ).n = 4 := rfl
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the listed vertices of the smaller
+square. -/
+private lemma innerOrderCrosscuts_step1_sqDisk_vertex (c : Pt) {κ : ℝ} (hκ : 0 < κ) (i : Fin 4) :
+    (innerOrderCrosscuts_step1_sqDisk c hκ).vertex i =
+      c + κ • (![!₂[1, -1], !₂[1, 1], !₂[-1, 1], !₂[-1, -1]] : Fin 4 → Pt) i := by
+  show (c - κ • (!₂[1, 1] : Pt)) + (2 * κ) • (![!₂[1, 0], !₂[1, 1], !₂[0, 1], !₂[0, 0]] : Fin 4 → Pt) i = _
+  ext j
+  fin_cases i <;> fin_cases j <;> simp <;> ring
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the carrier of the smaller square.
+-/
+private lemma innerOrderCrosscuts_step1_sqDisk_carrier (c : Pt) {κ : ℝ} (hκ : 0 < κ) :
+    (innerOrderCrosscuts_step1_sqDisk c hκ).carrier = square c κ := by
+  have ev : ∀ i : Fin 2, (c - κ • (!₂[1, 1] : Pt)) i = c i - κ := by
+    intro i; fin_cases i <;> simp
+  show (c - κ • (!₂[1, 1] : Pt)) +ᵥ ((2 * κ) • innerOrderCrosscuts_step1_unitSq.carrier) = square c κ
+  ext x
+  constructor
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    change (c - κ • (!₂[1, 1] : Pt)) + (2 * κ) • z ∈ square c κ
+    have hz' : z 0 ∈ Icc (0:ℝ) 1 ∧ z 1 ∈ Icc (0:ℝ) 1 := hz
+    have hcoord : ∀ i : Fin 2, ((c - κ • (!₂[1, 1] : Pt)) + (2 * κ) • z : Pt) i - c i = κ * (2 * z i - 1) := by
+      intro i
+      rw [PiLp.add_apply, ev, PiLp.smul_apply, smul_eq_mul]; ring
+    change |((c - κ • (!₂[1, 1] : Pt)) + (2 * κ) • z : Pt) 0 - c 0| ≤ κ ∧
+      |((c - κ • (!₂[1, 1] : Pt)) + (2 * κ) • z : Pt) 1 - c 1| ≤ κ
+    rw [hcoord 0, hcoord 1]
+    constructor <;> rw [abs_le] <;> constructor <;> nlinarith [hz'.1.1, hz'.1.2, hz'.2.1, hz'.2.2]
+  · intro hx
+    let z : Pt := (2 * κ)⁻¹ • (x - (c - κ • (!₂[1, 1] : Pt)))
+    have hz : z 0 ∈ Icc (0 : ℝ) 1 ∧ z 1 ∈ Icc (0 : ℝ) 1 := by
+      have hzi : ∀ i : Fin 2, z i = (2 * κ)⁻¹ * (x i - (c i - κ)) := by
+        intro i
+        simp only [z]
+        rw [PiLp.smul_apply, PiLp.sub_apply, ev, smul_eq_mul]
+      rw [hzi, hzi]
+      simp only [square, mem_setOf_eq] at hx
+      have h2 : 0 < 2 * κ := by positivity
+      rw [inv_mul_eq_div, inv_mul_eq_div]
+      constructor <;> constructor
+      · exact div_nonneg (by linarith [(abs_le.mp hx.1).1]) h2.le
+      · exact (div_le_one h2).2 (by linarith [(abs_le.mp hx.1).2])
+      · exact div_nonneg (by linarith [(abs_le.mp hx.2).1]) h2.le
+      · exact (div_le_one h2).2 (by linarith [(abs_le.mp hx.2).2])
+    refine ⟨(2 * κ) • z, Set.smul_mem_smul_set hz, ?_⟩
+    change (c - κ • (!₂[1, 1] : Pt)) + (2 * κ) • z = x
+    simp only [z]
+    rw [smul_smul, mul_inv_cancel₀ (by positivity), one_smul]
+    abel
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the vertex list of the smaller
+square. -/
+private lemma innerOrderCrosscuts_step4_pgL_sq (c : Pt) {κ : ℝ} (hκ : 0 < κ) :
+    pgL (innerOrderCrosscuts_step1_sqDisk c hκ) = [c + κ • !₂[1, -1], c + κ • !₂[1, 1], c + κ • !₂[-1, 1], c + κ • !₂[-1, -1]] := by
+  show List.ofFn (n := 4) (innerOrderCrosscuts_step1_sqDisk c hκ).vertex = _
+  simp [List.ofFn_succ, innerOrderCrosscuts_step1_sqDisk_vertex]
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the segment ratio of two points on
+rays from the centre. -/
+private lemma innerOrderCrosscuts_step4_segRatio (c u v : Pt) {κ : ℝ} (hκ : κ ≠ 0) :
+    segRatio (c + κ • u) (c + κ • v) c = toC v / toC u := by
+  unfold segRatio
+  rw [← toC_sub, ← toC_sub, add_sub_cancel_left, add_sub_cancel_left, toC_smul, toC_smul]
+  rw [mul_div_mul_left _ _ (by exact_mod_cast hκ)]
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the complex number of a point given
+by coordinates. -/
+private lemma innerOrderCrosscuts_step4_toC_mk (a b : ℝ) : toC (!₂[a, b]) = ⟨a, b⟩ := by
+  simp [toC]
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the winding function of the smaller
+square about its centre is `2π`. -/
+private lemma innerOrderCrosscuts_step4_pgW_sq (c : Pt) {κ : ℝ} (hκ : 0 < κ) : pgW (pgL (innerOrderCrosscuts_step1_sqDisk c hκ)) c = 2 * Real.pi := by
+  rw [innerOrderCrosscuts_step4_pgL_sq]
+  simp only [pgW, pgEd, pgCh, List.cons_append, List.nil_append, List.map_cons, List.map_nil,
+    List.sum_cons, List.sum_nil]
+  rw [innerOrderCrosscuts_step4_segRatio _ _ _ hκ.ne', innerOrderCrosscuts_step4_segRatio _ _ _ hκ.ne', innerOrderCrosscuts_step4_segRatio _ _ _ hκ.ne',
+    innerOrderCrosscuts_step4_segRatio _ _ _ hκ.ne']
+  simp only [innerOrderCrosscuts_step4_toC_mk]
+  have h1 : (⟨1, 1⟩ : ℂ) / ⟨1, -1⟩ = Complex.I := by
+    rw [div_eq_iff (by intro h; have := congrArg Complex.re h; simp at this)]
+    apply Complex.ext <;> simp
+  have h2 : (⟨-1, 1⟩ : ℂ) / ⟨1, 1⟩ = Complex.I := by
+    rw [div_eq_iff (by intro h; have := congrArg Complex.re h; simp at this)]
+    apply Complex.ext <;> simp
+  have h3 : (⟨-1, -1⟩ : ℂ) / ⟨-1, 1⟩ = Complex.I := by
+    rw [div_eq_iff (by intro h; have := congrArg Complex.re h; simp at this)]
+    apply Complex.ext <;> simp
+  have h4 : (⟨1, -1⟩ : ℂ) / ⟨-1, -1⟩ = Complex.I := by
+    rw [div_eq_iff (by intro h; have := congrArg Complex.re h; simp at this)]
+    apply Complex.ext <;> simp
+  rw [h1, h2, h3, h4, Complex.arg_I]
+  ring
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: a boundary listing with winding
+`2π` about an interior point has lift degree one. -/
+private lemma innerOrderCrosscuts_step4_degree_one (B : PolygonalDisk) {c : Pt} (hc : c ∈ interior B.carrier)
+    (hW : pgW (pgL B) c = 2 * Real.pi) :
+    ∃ Theta : ℝ → ℂ, Continuous Theta ∧
+      (∀ t, Complex.exp (Theta t) = toC (pgLoop (pgL B) t - c)) ∧
+      ∀ t, Theta (t + 1) = Theta t + (1 : ℤ) * (2 * Real.pi * Complex.I) := by
+  have hcfront : c ∉ frontier B.carrier := fun hcf =>
+    Set.disjoint_left.1 disjoint_interior_frontier hc hcf
+  obtain ⟨Theta, hThetaC, hTheta, n, hn⟩ :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
+      (pgLoop_isLoopParam B) hcfront
+  have hlen : 0 < (pgL B).length := by
+    rw [pgL_length]
+    have := B.three_le
+    omega
+  have hdegree :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step8_polygon_degree
+      hlen (by rw [pgCv_pgL]; exact hcfront) hThetaC hTheta hn
+  have hn1 : n = 1 := by
+    rw [hW] at hdegree
+    have hnR : (n : ℝ) = 1 := by nlinarith [Real.pi_pos]
+    exact_mod_cast hnR
+  subst n
+  exact ⟨Theta, hThetaC, hTheta, hn⟩
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the centre lies in the interior of
+the smaller square. -/
+private lemma innerOrderCrosscuts_step4_center_mem (c : Pt) {κ : ℝ} (hκ : 0 < κ) : c ∈ interior (innerOrderCrosscuts_step1_sqDisk c hκ).carrier := by
+  rw [innerOrderCrosscuts_step1_sqDisk_carrier]
+  apply sw3_mem_interior_square
+  simp [sw3N, hκ]
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the counterclockwise outer boundary
+loop is homotopic in the annulus to the counterclockwise inner square loop. -/
+private lemma innerOrderCrosscuts_step4_homotopy (B : PolygonalDisk) (hccw : pdCCW B) (c : Pt) {κ : ℝ} (hκ : 0 < κ)
+    (hCB : (innerOrderCrosscuts_step1_sqDisk c hκ).carrier ⊆ interior B.carrier) :
+    LoopsHomotopicIn (B.carrier \ interior (innerOrderCrosscuts_step1_sqDisk c hκ).carrier) (pgLoop (pgL B))
+      (pgLoop (pgL (innerOrderCrosscuts_step1_sqDisk c hκ))) := by
+  set C := innerOrderCrosscuts_step1_sqDisk c hκ with hCdef
+  have hcC : c ∈ interior C.carrier := innerOrderCrosscuts_step4_center_mem c hκ
+  have hcB : c ∈ interior B.carrier := hCB (interior_subset hcC)
+  obtain ⟨gammaC, hgammaC, hAnn⟩ := pd_annulus B C hCB
+  rcases hgammaC with h | h
+  · rw [← h]; exact hAnn
+  · exfalso
+    obtain ⟨ThetaA, hThetaAC, hThetaA, hThetaAIncr⟩ :=
+      innerOrderCrosscuts_step4_degree_one B hcB (by rw [pgW_pgL]; exact hccw c hcB)
+    obtain ⟨ThetaC, hThetaCC, hThetaC, hThetaCIncr⟩ :=
+      innerOrderCrosscuts_step4_degree_one C hcC (innerOrderCrosscuts_step4_pgW_sq c hκ)
+    let Psi : ℝ → ℂ := fun t => ThetaC (-t)
+    have hPsiC : Continuous Psi := hThetaCC.comp continuous_neg
+    have hPsi : ∀ t, Complex.exp (Psi t) = toC (gammaC t - c) := by
+      intro t
+      dsimp only [Psi]
+      rw [hThetaC, h]
+    have hPsiIncr : ∀ t, Psi (t + 1) =
+        Psi t + (-1 : ℤ) * (2 * Real.pi * Complex.I) := by
+      intro t
+      dsimp only [Psi]
+      have hs := hThetaCIncr (-(t + 1))
+      simp only [show -(t + 1) + 1 = -t by ring] at hs
+      rw [hs]
+      push_cast
+      ring
+    have hdeg :=
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+        hAnn (fun hcU => hcU.2 hcC) hThetaAC hThetaA hPsiC hPsi hThetaAIncr hPsiIncr
+    omega
+
+/-- Step 4 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the boundary loop of the smaller
+square is the radial rescaling of the perimeter parametrization of the inner square `Q₀`. -/
+private lemma innerOrderCrosscuts_step4_sq_loop (c : Pt) {κ A t : ℝ} (hκ : 0 < κ) (hA : 0 < A) (ht0 : 0 ≤ t) (ht1 : t < 8 * A) :
+    pgLoop (pgL (innerOrderCrosscuts_step1_sqDisk c hκ)) (t / (8 * A)) = c + (κ / A) • squarePerimeterPoint A t := by
+  set C := innerOrderCrosscuts_step1_sqDisk c hκ with hC
+  have h8 : 0 < 8 * A := by linarith
+  have hfr : Int.fract (t / (8 * A)) = t / (8 * A) := by
+    rw [Int.fract_eq_self]
+    exact ⟨div_nonneg ht0 h8.le, (div_lt_one h8).2 ht1⟩
+  rw [pgLoop_pgL, Function.comp_apply, hfr]
+  have hn : ((C.n : ℕ) : ℝ) = 4 := by rw [hC, innerOrderCrosscuts_step1_sqDisk_n]; norm_num
+  have hlt : ∀ k, k < 4 → k < C.n := fun k hk => hk
+  have hv0 : C.vertex ⟨0, hlt 0 (by norm_num)⟩ = c + κ • !₂[1, -1] := innerOrderCrosscuts_step1_sqDisk_vertex c hκ 0
+  have hv1 : C.vertex ⟨1, hlt 1 (by norm_num)⟩ = c + κ • !₂[1, 1] := innerOrderCrosscuts_step1_sqDisk_vertex c hκ 1
+  have hv2 : C.vertex ⟨2, hlt 2 (by norm_num)⟩ = c + κ • !₂[-1, 1] := innerOrderCrosscuts_step1_sqDisk_vertex c hκ 2
+  have hv3 : C.vertex ⟨3, hlt 3 (by norm_num)⟩ = c + κ • !₂[-1, -1] := innerOrderCrosscuts_step1_sqDisk_vertex c hκ 3
+  have hr0 : finRotate C.n ⟨0, hlt 0 (by norm_num)⟩ = ⟨1, hlt 1 (by norm_num)⟩ := rfl
+  have hr1 : finRotate C.n ⟨1, hlt 1 (by norm_num)⟩ = ⟨2, hlt 2 (by norm_num)⟩ := rfl
+  have hr2 : finRotate C.n ⟨2, hlt 2 (by norm_num)⟩ = ⟨3, hlt 3 (by norm_num)⟩ := rfl
+  have hr3 : finRotate C.n ⟨3, hlt 3 (by norm_num)⟩ = ⟨0, hlt 0 (by norm_num)⟩ := rfl
+  by_cases h1 : t ≤ 2 * A
+  · have := polygonBoundaryBase_on_edge C ⟨0, hlt 0 (by norm_num)⟩ (t := t / (8 * A)) (by
+      rw [hn]; simp only [mem_Icc]
+      constructor
+      · norm_num; positivity
+      · rw [div_le_div_iff₀ h8 (by norm_num)]; norm_num; linarith)
+    rw [this, hr0, hv0, hv1, step5_spp0 h1, hn]
+    ext j; fin_cases j <;> (simp [AffineMap.lineMap_apply, mkPt]; field_simp; try ring)
+  by_cases h2 : t ≤ 4 * A
+  · have := polygonBoundaryBase_on_edge C ⟨1, hlt 1 (by norm_num)⟩ (t := t / (8 * A)) (by
+      rw [hn]; simp only [mem_Icc]
+      constructor
+      · rw [div_le_div_iff₀ (by norm_num) h8]; norm_num; linarith
+      · rw [div_le_div_iff₀ h8 (by norm_num)]; norm_num; linarith)
+    rw [this, hr1, hv1, hv2, step5_spp1 (by linarith) h2, hn]
+    ext j; fin_cases j <;> (simp [AffineMap.lineMap_apply, mkPt]; field_simp; try ring)
+  by_cases h3 : t ≤ 6 * A
+  · have := polygonBoundaryBase_on_edge C ⟨2, hlt 2 (by norm_num)⟩ (t := t / (8 * A)) (by
+      rw [hn]; simp only [mem_Icc]
+      constructor
+      · rw [div_le_div_iff₀ (by norm_num) h8]; norm_num; linarith
+      · rw [div_le_div_iff₀ h8 (by norm_num)]; norm_num; linarith)
+    rw [this, hr2, hv2, hv3, step5_spp2 hA.le (by linarith) h3, hn]
+    ext j; fin_cases j <;> (simp [AffineMap.lineMap_apply, mkPt]; field_simp; try ring)
+  · have := polygonBoundaryBase_on_edge C ⟨3, hlt 3 (by norm_num)⟩ (t := t / (8 * A)) (by
+      rw [hn]; simp only [mem_Icc]
+      constructor
+      · rw [div_le_div_iff₀ (by norm_num) h8]; norm_num; linarith
+      · rw [div_le_div_iff₀ h8 (by norm_num)]; norm_num; linarith)
+    rw [this, hr3, hv3, hv0, step5_spp3 hA.le (by linarith), hn]
+    ext j; fin_cases j <;> (simp [AffineMap.lineMap_apply, mkPt]; field_simp; try ring)
+
+/-- Step 3 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: join a radial segment from the
+smaller square through an anchoring face to the marked point, as a proper crosscut. -/
+private lemma innerOrderCrosscuts_step3_arc (B C : PolygonalDisk) (F : PlacedTile P) (hFB : F.carrier ⊆ B.carrier)
+    (hFC : Disjoint F.carrier C.carrier) {p : Pt} (hp : p ∈ frontier B.carrier)
+    (i : Fin (P.disk F.form).n) (hpF : p ∈ openSegment ℝ (F.vertex i) (F.vertex (finRotate _ i)))
+    {z s : Pt} (hz : z ∈ interior F.carrier) (hs : s ∈ frontier C.carrier)
+    (hsz1 : segment ℝ s z ⊆ B.carrier \ interior C.carrier)
+    (hsz2 : segment ℝ s z ∩ frontier C.carrier ⊆ {s})
+    (hsz3 : Disjoint (segment ℝ s z) (frontier B.carrier)) :
+    ∃ α : PolyArc, α.start = s ∧ α.stop = p ∧ α.carrier ⊆ segment ℝ s z ∪ F.carrier ∧
+      α.carrier ⊆ B.carrier \ interior C.carrier ∧
+      α.carrier ∩ frontier C.carrier = {s} ∧ α.carrier ∩ frontier B.carrier = {p} := by
+  obtain ⟨q, hqp, hq⟩ := innerOrderCrosscuts_step3_inward F i hpF
+  have hqF : q ∈ interior F.carrier := hq q (right_mem_segment ℝ _ _) hqp
+  have hconn : IsPreconnected (interior F.carrier) :=
+    (tileDisk F).interior_pathConnected.isConnected.isPreconnected
+  obtain ⟨β, hβ1, hβ2, hβ3⟩ := innerOrderCrosscuts_step3_chain isOpen_interior hconn hz q hqF
+  have hpFc : p ∈ F.carrier := tile_side_subset F i (openSeg_mem_side F i hpF)
+  have hseg : segment ℝ q p ⊆ F.carrier := by
+    rw [segment_symm]
+    intro x hx
+    by_cases hxp : x = p
+    · rw [hxp]; exact hpFc
+    · exact interior_subset (hq x hx hxp)
+  have hFint : interior F.carrier ⊆ interior B.carrier := interior_mono hFB
+  have hFfr : ∀ x ∈ F.carrier, x ∉ frontier C.carrier ∧ x ∉ interior C.carrier := fun x hx =>
+    ⟨fun h => disjoint_left.1 hFC hx (pd_frontier_subset_carrier C h),
+      fun h => disjoint_left.1 hFC hx (interior_subset h)⟩
+  refine ⟨innerOrderCrosscuts_step3_snoc (innerOrderCrosscuts_step3_cons s β) p, by simp, by simp, ?_, ?_, ?_, ?_⟩
+  all_goals rw [innerOrderCrosscuts_step3_snoc_carrier, innerOrderCrosscuts_step3_cons_carrier]
+  all_goals simp only [innerOrderCrosscuts_step3_cons_stop, hβ1, hβ2]
+  · refine union_subset (union_subset subset_union_left ?_) ?_
+    · exact (hβ3.trans interior_subset).trans subset_union_right
+    · exact hseg.trans subset_union_right
+  · refine union_subset (union_subset hsz1 ?_) ?_
+    · intro x hx
+      have hxF := interior_subset (hβ3 hx)
+      exact ⟨hFB hxF, (hFfr x hxF).2⟩
+    · intro x hx
+      exact ⟨hFB (hseg hx), (hFfr x (hseg hx)).2⟩
+  · apply Subset.antisymm
+    · rintro x ⟨(hx | hx) | hx, hxf⟩
+      · exact hsz2 ⟨hx, hxf⟩
+      · exact absurd hxf (hFfr x (interior_subset (hβ3 hx))).1
+      · exact absurd hxf (hFfr x (hseg hx)).1
+    · rintro x rfl
+      exact ⟨Or.inl (Or.inl (left_mem_segment ℝ _ _)), hs⟩
+  · apply Subset.antisymm
+    · rintro x ⟨(hx | hx) | hx, hxf⟩
+      · exact absurd hxf (disjoint_left.1 hsz3 hx)
+      · exact absurd hxf (fun h => disjoint_left.1 disjoint_interior_frontier (hFint (hβ3 hx)) h)
+      · by_cases hxp : x = p
+        · exact hxp
+        · rw [segment_symm] at hx
+          exact absurd hxf (fun h => disjoint_left.1 disjoint_interior_frontier (hFint (hq x hx hxp)) h)
+    · rintro x rfl
+      exact ⟨Or.inr (right_mem_segment ℝ _ _), hp⟩
+
+/-- Step 2 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the perimeter points of `Q₀` have
+sup-norm `A`. -/
+private lemma innerOrderCrosscuts_step2_sw3N_spp {A t : ℝ} (hA : 0 < A) (h0 : 0 ≤ t) (h1 : t ≤ 8 * A) :
+    sw3N (squarePerimeterPoint A t) = A := by
+  rw [sw3_spp_eq hA h0 h1, sw3N_sw3P hA]
+
+/-- Step 2 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: sup-norm of a radial point. -/
+private lemma innerOrderCrosscuts_step2_sw3N_radial (c u : Pt) {b : ℝ} (hb : 0 ≤ b) : sw3N (c + b • u - c) = b * sw3N u := by
+  rw [add_sub_cancel_left, sw3N_smul, abs_of_nonneg hb]
+
+/-- Step 2 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: polar form of a point of an open
+radial sector. -/
+private lemma innerOrderCrosscuts_step2_sector_bounds {c : Pt} {N : ℕ} {R : ℝ} (hR : 0 < R) {j : ℕ} (hj : j < 4 * N) {x : Pt}
+    (hx : x ∈ quantitativeAnnularGrouping_innerOrder_sector c N R j) :
+    ∃ t a : ℝ, (j : ℝ) * R < t ∧ t < ((j : ℝ) + 1) * R ∧ 0 < t ∧ t < 8 * ((N : ℝ) * R / 2) ∧ 0 < a ∧
+      x = c + a • squarePerimeterPoint ((N : ℝ) * R / 2) t := by
+  obtain ⟨t, ⟨ht1, ht2⟩, a, ha, rfl⟩ := hx
+  have hj' : (j : ℝ) + 1 ≤ 4 * (N : ℝ) := by exact_mod_cast hj
+  refine ⟨t, a, ht1, ht2, ?_, ?_, ha, rfl⟩
+  · have : (0 : ℝ) ≤ j * R := by positivity
+    linarith
+  · nlinarith
+
+/-- Step 2 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: distinct open radial sectors are
+disjoint, so crosscuts in distinct sectors are disjoint. -/
+private lemma innerOrderCrosscuts_step2_sector_disjoint {c : Pt} {N : ℕ} {R : ℝ} (hR : 0 < R) {j j' : ℕ} (hj : j < 4 * N)
+    (hj' : j' < 4 * N) (hne : j ≠ j') :
+    Disjoint (quantitativeAnnularGrouping_innerOrder_sector c N R j)
+      (quantitativeAnnularGrouping_innerOrder_sector c N R j') := by
+  rw [Set.disjoint_left]
+  intro x hx hx'
+  obtain ⟨t, a, h1, h2, h3, h4, ha, rfl⟩ := innerOrderCrosscuts_step2_sector_bounds hR hj hx
+  obtain ⟨t', a', h1', h2', h3', h4', ha', he⟩ := innerOrderCrosscuts_step2_sector_bounds hR hj' hx'
+  have hN : 0 < (N : ℝ) := by
+    have : (0 : ℝ) < 4 * N := by
+      have : (1 : ℝ) ≤ 4 * N := by exact_mod_cast (show 1 ≤ 4 * N by omega)
+      linarith
+    linarith
+  set A := (N : ℝ) * R / 2 with hA
+  have hA0 : 0 < A := by positivity
+  have hs1 := congrArg (fun y => sw3N (y - c)) he
+  simp only at hs1
+  rw [innerOrderCrosscuts_step2_sw3N_radial c _ ha.le, innerOrderCrosscuts_step2_sw3N_radial c _ ha'.le, innerOrderCrosscuts_step2_sw3N_spp hA0 h3.le h4.le,
+    innerOrderCrosscuts_step2_sw3N_spp hA0 h3'.le h4'.le] at hs1
+  have haa : a = a' := by
+    have := mul_right_cancel₀ hA0.ne' hs1
+    exact this
+  subst haa
+  have hu : squarePerimeterPoint A t = squarePerimeterPoint A t' :=
+    smul_right_injective Pt ha.ne' (add_left_cancel he)
+  have htt : t = t' := qo_pos_inj h3.le h4 h3'.le h4' hu
+  subst htt
+  apply hne
+  have e1 : (j : ℝ) < j' + 1 := lt_of_mul_lt_mul_right (h1.trans h2') hR.le
+  have e2 : (j' : ℝ) < j + 1 := lt_of_mul_lt_mul_right (h1'.trans h2) hR.le
+  have : j < j' + 1 := by exact_mod_cast e1
+  have : j' < j + 1 := by exact_mod_cast e2
+  omega
+
+/-- Step 2 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the centre lies in no open radial
+sector. -/
+private lemma innerOrderCrosscuts_step2_center_not_mem_sector {c : Pt} {N : ℕ} {R : ℝ} (hR : 0 < R) {j : ℕ} (hj : j < 4 * N) :
+    c ∉ quantitativeAnnularGrouping_innerOrder_sector c N R j := by
+  intro hx
+  obtain ⟨t, a, h1, h2, h3, h4, ha, he⟩ := innerOrderCrosscuts_step2_sector_bounds hR hj hx
+  have hN : 0 < (N : ℝ) := by
+    have : (1 : ℝ) ≤ 4 * N := by exact_mod_cast (show 1 ≤ 4 * N by omega)
+    linarith
+  have hA0 : 0 < (N : ℝ) * R / 2 := by positivity
+  have hs1 := congrArg (fun y => sw3N (y - c)) he
+  simp only at hs1
+  rw [innerOrderCrosscuts_step2_sw3N_radial c _ ha.le, innerOrderCrosscuts_step2_sw3N_spp hA0 h3.le h4.le, sub_self] at hs1
+  have : sw3N (0 : Pt) = 0 := by simp [sw3N]
+  rw [this] at hs1
+  have := mul_pos ha hA0
+  linarith
+
+/-- Step 2 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: the radial segment from the smaller
+square to a point of `int Q₀` lies in the annulus and meets its two boundaries properly. -/
+private lemma innerOrderCrosscuts_step2_radial (B : PolygonalDisk) (c : Pt) {A κ a t : ℝ} (hA : 0 < A) (hκ : 0 < κ)
+    (hQ : square c A ⊆ B.carrier) (ht0 : 0 ≤ t) (ht1 : t ≤ 8 * A) (hκa : κ < a * A) (ha1 : a < 1) :
+    let s := c + (κ / A) • squarePerimeterPoint A t
+    let z := c + a • squarePerimeterPoint A t
+    s ∈ frontier (innerOrderCrosscuts_step1_sqDisk c hκ).carrier ∧
+    segment ℝ s z ⊆ B.carrier \ interior (innerOrderCrosscuts_step1_sqDisk c hκ).carrier ∧
+    segment ℝ s z ∩ frontier (innerOrderCrosscuts_step1_sqDisk c hκ).carrier ⊆ {s} ∧
+    Disjoint (segment ℝ s z) (frontier B.carrier) ∧
+    ∀ x ∈ segment ℝ s z, ∃ b : ℝ, 0 < b ∧ x = c + b • squarePerimeterPoint A t := by
+  intro s z
+  set u := squarePerimeterPoint A t with hu
+  have hun : sw3N u = A := innerOrderCrosscuts_step2_sw3N_spp hA ht0 ht1
+  have hκA : κ / A < a := by rw [div_lt_iff₀ hA]; exact hκa
+  have hκA0 : 0 < κ / A := div_pos hκ hA
+  have hseg : ∀ x ∈ segment ℝ s z, ∃ b, κ / A ≤ b ∧ b ≤ a ∧ x = c + b • u := by
+    intro x hx
+    obtain ⟨θ, hθ0, hθ1, rfl⟩ := mem_segment_iff'.1 hx
+    refine ⟨κ / A + θ * (a - κ / A), by nlinarith, by nlinarith, ?_⟩
+    simp only [s, z]
+    module
+  have hC := innerOrderCrosscuts_step1_sqDisk_carrier c hκ
+  have hnorm : ∀ b, 0 ≤ b → sw3N (c + b • u - c) = b * A := fun b hb => by
+    rw [innerOrderCrosscuts_step2_sw3N_radial c u hb, hun]
+  have hnotint : ∀ b, κ / A ≤ b → c + b • u ∉ interior (innerOrderCrosscuts_step1_sqDisk c hκ).carrier := by
+    intro b hb hint
+    rw [hC] at hint
+    have h1 := sw3_interior_square hint
+    rw [hnorm b (hκA0.le.trans hb)] at h1
+    have : κ ≤ b * A := by rwa [div_le_iff₀ hA] at hb
+    linarith
+  have hintB : ∀ b, 0 ≤ b → b ≤ a → c + b • u ∈ interior B.carrier := by
+    intro b hb0 hb
+    apply interior_mono hQ
+    apply sw3_mem_interior_square
+    rw [hnorm b hb0]
+    nlinarith
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · rw [(innerOrderCrosscuts_step1_sqDisk c hκ).compact.isClosed.frontier_eq]
+    refine ⟨?_, hnotint _ le_rfl⟩
+    rw [hC, sw3_mem_square_iff, hnorm _ hκA0.le, div_mul_cancel₀ _ hA.ne']
+  · intro x hx
+    obtain ⟨b, hb1, hb2, rfl⟩ := hseg x hx
+    exact ⟨interior_subset (hintB b (hκA0.le.trans hb1) hb2), hnotint b hb1⟩
+  · rintro x ⟨hx, hxf⟩
+    obtain ⟨b, hb1, hb2, rfl⟩ := hseg x hx
+    have hxC := pd_frontier_subset_carrier _ hxf
+    rw [hC, sw3_mem_square_iff, hnorm _ (hκA0.le.trans hb1)] at hxC
+    have : b ≤ κ / A := by rw [le_div_iff₀ hA]; exact hxC
+    have hbe : b = κ / A := le_antisymm this hb1
+    rw [hbe]; rfl
+  · rw [Set.disjoint_left]
+    intro x hx hxf
+    obtain ⟨b, hb1, hb2, rfl⟩ := hseg x hx
+    exact disjoint_left.1 disjoint_interior_frontier (hintB b (hκA0.le.trans hb1) hb2) hxf
+  · intro x hx
+    obtain ⟨b, hb1, hb2, rfl⟩ := hseg x hx
+    exact ⟨b, hκA0.trans_le hb1, rfl⟩
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: a positive lower bound for finitely
+many positive numbers. -/
+private lemma innerOrderCrosscuts_step1_exists_pos_le {m : ℕ} (r : Fin m → ℝ) (hr : ∀ k, 0 < r k) : ∃ ρ > 0, ∀ k, ρ ≤ r k := by
+  rcases isEmpty_or_nonempty (Fin m) with h | h
+  · exact ⟨1, one_pos, fun k => (IsEmpty.false k).elim⟩
+  · obtain ⟨k0, hk0⟩ := Finite.exists_min r
+    exact ⟨r k0, hr k0, hk0⟩
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: continuity of the sup-distance to
+the centre. -/
+private lemma innerOrderCrosscuts_step1_sw3N_continuous (c : Pt) : Continuous fun x : Pt => sw3N (x - c) := by
+  unfold sw3N
+  have h0 : Continuous fun w : Pt => w 0 := PiLp.continuous_apply 2 _ 0
+  have h1 : Continuous fun w : Pt => w 1 := PiLp.continuous_apply 2 _ 1
+  exact ((h0.comp (continuous_id.sub continuous_const)).abs).max ((h1.comp (continuous_id.sub continuous_const)).abs)
+
+/-- Step 1 of the blueprint proof of
+`quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts`: a face avoiding the centre keeps a
+positive sup-distance from it. -/
+private lemma innerOrderCrosscuts_step1_sep (F : PlacedTile P) {c : Pt} (hc : c ∉ F.carrier) :
+    ∃ r > 0, ∀ x ∈ F.carrier, r ≤ sw3N (x - c) := by
+  rcases F.carrier.eq_empty_or_nonempty with he | hne
+  · exact ⟨1, one_pos, fun x hx => by rw [he] at hx; exact hx.elim⟩
+  obtain ⟨x0, hx0, hmin⟩ := (tileDisk F).compact.exists_isMinOn hne (innerOrderCrosscuts_step1_sw3N_continuous c).continuousOn
+  refine ⟨sw3N (x0 - c), ?_, fun x hx => hmin hx⟩
+  refine lt_of_le_of_ne (sw3N_nonneg _) (fun h0 => hc ?_)
+  have ha : |(x0 - c) 0| = 0 := le_antisymm ((le_max_left _ _).trans h0.symm.le) (abs_nonneg _)
+  have hb : |(x0 - c) 1| = 0 := le_antisymm ((le_max_right _ _).trans h0.symm.le) (abs_nonneg _)
+  have : x0 = c := by
+    have hz : x0 - c = 0 := by
+      ext i; fin_cases i
+      · exact abs_eq_zero.1 ha
+      · exact abs_eq_zero.1 hb
+    exact sub_eq_zero.1 hz
+  rw [← this]; exact hx0
+
 /-- Step 3 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder`: from open-side
 points in the localized anchoring faces, construct pairwise disjoint proper inward polygonal
 crosscuts to a smaller square.  Its boundary parametrization is compatibly oriented with the
@@ -32789,7 +33527,114 @@ private lemma quantitativeAnnularGrouping_innerOrder_step3_inward_crosscuts
       IsLoopParam (frontier C.carrier) δ ∧
       LoopsHomotopicIn (B.carrier \ interior C.carrier) (pgLoop (pgL B)) δ ∧
       PointsInOrder δ (fun k => (α k).start) := by
-  sorry
+  have hD := M.D_pos
+  have hR0 : 0 < R := by linarith
+  have hN0 : (0 : ℝ) < N := by
+    have : (2 : ℝ) ≤ N := by exact_mod_cast hN
+    linarith
+  set A := (N : ℝ) * R / 2 with hAdef
+  have hA : 0 < A := by positivity
+  have hBL : B.carrier = G.L.disk.carrier := hB
+  have hQB : square c A ⊆ B.carrier := by rw [hB]; exact G.L_lower
+  have hFB : ∀ k, (F k).carrier ⊆ B.carrier := fun k => by
+    rw [hBL, G.L.carrier_eq]; exact carrier_subset_support (hF k)
+  -- the anchoring points, in polar form
+  have hz : ∀ k, ∃ t a : ℝ, (j k : ℝ) * R < t ∧ t < ((j k : ℝ) + 1) * R ∧ 0 < t ∧ t < 8 * A ∧
+      0 < a ∧ c + a • squarePerimeterPoint A t ∈ interior (F k).carrier ∧
+      c + a • squarePerimeterPoint A t ∈ interior (square c A) := by
+    intro k
+    obtain ⟨z, hzF, hzQ⟩ := hFa k
+    obtain ⟨t, a, h1, h2, h3, h4, ha, rfl⟩ :=
+      innerOrderCrosscuts_step2_sector_bounds hR0 (j k).isLt (hFs k (interior_subset hzF))
+    exact ⟨t, a, h1, h2, h3, h4, ha, hzF, hzQ⟩
+  choose t a ht1 ht2 ht3 ht4 ha hzF hzQ using hz
+  have hnormz : ∀ k, sw3N (c + a k • squarePerimeterPoint A (t k) - c) = a k * A := fun k => by
+    rw [innerOrderCrosscuts_step2_sw3N_radial c _ (ha k).le, innerOrderCrosscuts_step2_sw3N_spp hA (ht3 k).le (ht4 k).le]
+  have ha1 : ∀ k, a k < 1 := by
+    intro k
+    have := sw3_interior_square (hzQ k)
+    rw [hnormz k] at this
+    nlinarith
+  -- the inner square
+  have hsep : ∀ k, ∃ r > 0, ∀ x ∈ (F k).carrier, r ≤ sw3N (x - c) := fun k =>
+    innerOrderCrosscuts_step1_sep (F k) (fun hc => innerOrderCrosscuts_step2_center_not_mem_sector hR0 (j k).isLt (hFs k hc))
+  choose r hr hrF using hsep
+  obtain ⟨ρ, hρ, hρr⟩ := innerOrderCrosscuts_step1_exists_pos_le r hr
+  set κ := min (A / 2) (ρ / 2) with hκdef
+  have hκ : 0 < κ := lt_min (by positivity) (by positivity)
+  have hκA : κ < A := (min_le_left _ _).trans_lt (by linarith)
+  have hκr : ∀ k, κ < r k := fun k => (min_le_right _ _).trans_lt (by linarith [hρr k])
+  set C := innerOrderCrosscuts_step1_sqDisk c hκ with hCdef
+  have hCc : C.carrier = square c κ := innerOrderCrosscuts_step1_sqDisk_carrier c hκ
+  have hFC : ∀ k, Disjoint (F k).carrier C.carrier := by
+    intro k
+    rw [Set.disjoint_left, hCc]
+    intro x hxF hxC
+    rw [sw3_mem_square_iff] at hxC
+    linarith [hrF k x hxF, hκr k]
+  have hκa : ∀ k, κ < a k * A := fun k => by
+    have := hrF k _ (interior_subset (hzF k))
+    rw [hnormz k] at this
+    linarith [hκr k]
+  have hCB : C.carrier ⊆ interior B.carrier := by
+    rw [hCc]
+    intro x hx
+    apply interior_mono hQB
+    apply sw3_mem_interior_square
+    rw [sw3_mem_square_iff] at hx
+    linarith
+  -- the marked points
+  have hpF : ∀ k, ∃ i' : Fin (P.disk (F k).form).n,
+      p k ∈ openSegment ℝ ((F k).vertex i') ((F k).vertex (finRotate _ i')) := by
+    intro k
+    obtain ⟨i', hi'⟩ := hFi k
+    refine ⟨i', openSegment_transfer (pd_vertex_ne_next G.L.disk (i k)) ?_ (hp k)⟩
+    rw [← tile_side_eq, hi']
+    rfl
+  have hpB : ∀ k, p k ∈ frontier B.carrier := fun k => by
+    rw [hBL]
+    exact pd_segment_subset_frontier G.L.disk (i k) (openSegment_subset_segment ℝ _ _ (hp k))
+  -- the crosscuts
+  have harc : ∀ k, ∃ α : PolyArc, α.start = c + (κ / A) • squarePerimeterPoint A (t k) ∧
+      α.stop = p k ∧ α.carrier ⊆ quantitativeAnnularGrouping_innerOrder_sector c N R (j k : ℕ) ∧
+      α.carrier ⊆ B.carrier \ interior C.carrier ∧
+      α.carrier ∩ frontier C.carrier = {c + (κ / A) • squarePerimeterPoint A (t k)} ∧
+      α.carrier ∩ frontier B.carrier = {p k} := by
+    intro k
+    obtain ⟨hs, h1, h2, h3, h4⟩ :=
+      innerOrderCrosscuts_step2_radial B c hA hκ hQB (ht3 k).le (ht4 k).le (hκa k) (ha1 k)
+    obtain ⟨i', hi'⟩ := hpF k
+    obtain ⟨α, hα1, hα2, hα3, hα4, hα5, hα6⟩ :=
+      innerOrderCrosscuts_step3_arc B C (F k) (hFB k) (hFC k) (hpB k) i' hi' (hzF k) hs h1 h2 h3
+    refine ⟨α, hα1, hα2, ?_, hα4, hα5, hα6⟩
+    refine hα3.trans (union_subset ?_ (hFs k))
+    intro x hx
+    obtain ⟨b, hb, rfl⟩ := h4 x hx
+    exact ⟨t k, ⟨ht1 k, ht2 k⟩, b, hb, rfl⟩
+  choose α hαs hαp hαsec hαin hαC hαB using harc
+  refine ⟨C, α, pgLoop (pgL C), hCB, hαin, fun k => by rw [hαs]; exact hαC k,
+    fun k => by rw [hαp]; exact hαB k, hαp, ?_, pgLoop_isLoopParam C, innerOrderCrosscuts_step4_homotopy B hccw c hκ hCB, ?_⟩
+  · intro k l hkl
+    have hjne : (j k : ℕ) ≠ (j l : ℕ) := fun h => hkl (hj.injective (Fin.ext h))
+    exact (innerOrderCrosscuts_step2_sector_disjoint hR0 (j k).isLt (j l).isLt hjne).mono (hαsec k) (hαsec l)
+  · have h8 : 0 < 8 * A := by linarith
+    refine ⟨fun k => t k / (8 * A), ?_, ?_, ?_⟩
+    · intro k l hkl
+      have hjl : (j k : ℕ) < (j l : ℕ) := hj hkl
+      have hjl' : ((j k : ℕ) : ℝ) + 1 ≤ ((j l : ℕ) : ℝ) := by exact_mod_cast hjl
+      have : t k < t l := by
+        have := ht2 k
+        have := ht1 l
+        nlinarith
+      exact div_lt_div_of_pos_right this h8
+    · intro k l
+      have h1 : t l / (8 * A) < 1 := (div_lt_one h8).2 (ht4 l)
+      have h2 : 0 < t k / (8 * A) := div_pos (ht3 k) h8
+      show t l / (8 * A) < t k / (8 * A) + 1
+      linarith
+    · intro k
+      simp only
+      rw [innerOrderCrosscuts_step4_sq_loop c hκ hA (ht3 k).le (ht4 k), hαs]
 
 /-- Step 1 of the blueprint proof of `quantitativeAnnularGrouping_innerOrder_step4_transfer_outward`:
 "The three-crosscut case follows from `step26_degrees_agree`": for three disjoint crosscuts, inner

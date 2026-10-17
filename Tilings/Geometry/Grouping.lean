@@ -38357,6 +38357,269 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_circle_square_homoto
         abs_of_nonneg (hkappa.le.trans hrLower), hnorm, mul_one]
       exact not_lt_of_ge hrLower
 
+/-- Two parametrizations of one polygonal boundary induce the same cyclic order whenever they
+are homotopic without crossing an interior point.  The boundary lift is either increasing or
+decreasing; in the latter case its winding degree is negated, contradicting homotopy invariance
+and the nonzero degree of a polygonal frontier about an interior point. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_pointsInOrder_of_puncturedHomotopy
+    (C : PolygonalDisk) {c : Pt} (hc : c ∈ interior C.carrier)
+    {gamma delta : ℝ → Pt}
+    (hgamma : IsLoopParam (frontier C.carrier) gamma)
+    (hdelta : IsLoopParam (frontier C.carrier) delta)
+    (hhom : LoopsHomotopicIn ({c}ᶜ) gamma delta)
+    {k : ℕ} {x : Fin k → Pt} (horder : PointsInOrder gamma x) :
+    PointsInOrder delta x := by
+  obtain ⟨phi, hphic, hphi, hparam⟩ :=
+    plAnnulusRouting_polygonalAnnulus_cutModel_step2_boundaryLift hgamma hdelta
+  rcases hphi with ⟨hphimono, hphiper⟩ | ⟨_hphianti, hphiper⟩
+  · obtain ⟨t, htmono, htperiod, htx⟩ := horder
+    refine ⟨phi ∘ t, hphimono.comp htmono, ?_, ?_⟩
+    · intro i j
+      have hij := hphimono (htperiod i j)
+      simpa only [Function.comp_apply, hphiper] using hij
+    · intro i
+      simp only [Function.comp_apply, hparam, htx]
+  · exfalso
+    have hcfront : c ∉ frontier C.carrier := fun hcf =>
+      Set.disjoint_left.1 disjoint_interior_frontier hc hcf
+    obtain ⟨ThetaGamma, hThetaGammaC, hThetaGamma, n, hn⟩ :=
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
+        hgamma hcfront
+    obtain ⟨ThetaDelta, hThetaDeltaC, hThetaDelta, m, hm⟩ :=
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
+        hdelta hcfront
+    have hdeg : n = m :=
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+        hhom (by simp) hThetaGammaC hThetaGamma hThetaDeltaC hThetaDelta hn hm
+    have hn0 : n ≠ 0 :=
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step27_frontier_degree
+        C hgamma hc hThetaGammaC hThetaGamma hn
+    let Psi : ℝ → ℂ := fun t => ThetaDelta (phi t)
+    have hPsiC : Continuous Psi := hThetaDeltaC.comp hphic
+    have hPsi : ∀ t, Complex.exp (Psi t) = toC (gamma t - c) := by
+      intro t
+      dsimp only [Psi]
+      rw [hThetaDelta, hparam]
+    have hPsiIncr : ∀ t, Psi (t + 1) =
+        Psi t + (-m) * (2 * Real.pi * Complex.I) := by
+      intro t
+      dsimp only [Psi]
+      rw [hphiper]
+      have hstep := hm (phi t - 1)
+      rw [show phi t - 1 + 1 = phi t by ring] at hstep
+      rw [hstep]
+      push_cast
+      ring
+    have hself : LoopsHomotopicIn ({c}ᶜ) gamma gamma :=
+      pg_lh_refl hgamma.1 hgamma.2.1 fun t => by
+        simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
+          (show gamma t ≠ c from fun htc => hcfront (htc ▸ qo_loop_mem hgamma t))
+    have hdeg' : n = -m :=
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+        hself (by simp) hThetaGammaC hThetaGamma hPsiC hPsi hn
+          (by simpa only [Int.cast_neg] using hPsiIncr)
+    apply hn0
+    omega
+
+/- The following orientation-qualified B2 construction records the route that becomes available
+once `RoutingSetup` retains the parent orientation.  It is intentionally inactive until that
+interface change lands; the current setup cannot state its required invariant. -/
+/- The canonical positively oriented circle has lift degree one about its centre. -/
+/-
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_circleLoop_degree_one
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) :
+    ∃ Theta : ℝ → ℂ, Continuous Theta ∧
+      (∀ t, Complex.exp (Theta t) = toC
+        (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop c kappa t - c)) ∧
+      ∀ t, Theta (t + 1) = Theta t + (1 : ℤ) * (2 * Real.pi * Complex.I) := by
+  let Theta : ℝ → ℂ := fun t =>
+    (Real.log kappa : ℂ) + ((2 * Real.pi * t : ℝ) : ℂ) * Complex.I
+  refine ⟨Theta, by fun_prop, ?_, ?_⟩
+  · intro t
+    rw [Theta, Complex.exp_add, Complex.exp_natCast_mul_I, Real.exp_log hkappa]
+    rw [existsRoutingAfterPower_step4_routes_step6_R2_circleLoop, add_sub_cancel_left,
+      toC_smul]
+    congr 1
+    change toC ((Complex.orthonormalBasisOneI.repr : ℂ ≃ₗᵢ[ℝ] Pt)
+      (AddCircle.homeomorphCircle one_ne_zero (t : AddCircle (1 : ℝ)) : Circle)) = _
+    rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk, Circle.coe_exp]
+    apply Complex.ext <;> simp [toC]
+  · intro t
+    dsimp only [Theta]
+    push_cast
+    ring
+
+-/
+/- A counterclockwise polygonal boundary has lift degree one about every interior point. -/
+/-
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one
+    (B : PolygonalDisk) (hccw : pdCCW B) {c : Pt} (hc : c ∈ interior B.carrier) :
+    ∃ Theta : ℝ → ℂ, Continuous Theta ∧
+      (∀ t, Complex.exp (Theta t) = toC (pgLoop (pgL B) t - c)) ∧
+      ∀ t, Theta (t + 1) = Theta t + (1 : ℤ) * (2 * Real.pi * Complex.I) := by
+  have hcfront : c ∉ frontier B.carrier := fun hcf =>
+    Set.disjoint_left.1 disjoint_interior_frontier hc hcf
+  obtain ⟨Theta, hThetaC, hTheta, n, hn⟩ :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
+      (pgLoop_isLoopParam B) hcfront
+  have hlen : 0 < (pgL B).length := by rw [pgL_length]; omega
+  have hdegree :=
+    existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step8_polygon_degree
+      hlen (by rw [pgCv_pgL]; exact hcfront) hThetaC hTheta hn
+  have hn1 : n = 1 := by
+    have hwind : pgW (pgL B) c = 2 * Real.pi := by
+      rw [pgW_pgL]
+      exact hccw c hc
+    rw [hwind] at hdegree
+    have hpi : Real.pi ≠ 0 := Real.pi_ne_zero
+    apply_fun Complex.re at hdegree
+    simp only [Complex.ofReal_mul_re, Complex.ofReal_ofNat_re,
+      Complex.intCast_re] at hdegree
+    push_cast at hdegree
+    nlinarith
+  subst n
+  exact ⟨Theta, hThetaC, hTheta, hn⟩
+
+-/
+/- The B2 homotopy is valid once the omitted orientation datum is supplied explicitly.  The
+proof inserts a counterclockwise polygonal square, uses the polygonal annulus theorem on the
+outside, and the radial circle-to-square collar on the inside. -/
+/-
+private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homotopy_of_ccw
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    (hccw : pdCCW (Rs.GS.G.P'.disk α))
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
+    let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+    LoopsHomotopicIn
+      ((Rs.GS.G.P'.disk α).carrier \ Metric.ball cfg.1 kappa)
+      (pgLoop (pgL (Rs.GS.G.P'.disk α)))
+      (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop cfg.1 kappa) := by
+  let A := Rs.GS.G.P'.disk α
+  let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+  have hkappa : 0 < kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  obtain ⟨C0, hC0, hball0, houter0⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_bounds cfg.1 hkappa
+  let C := pdOrientCCW C0
+  have hCcarrier : C.carrier = square cfg.1 kappa := by
+    rw [pdOrientCCW_carrier, hC0]
+  have hCA : C.carrier ⊆ interior A.carrier := by
+    rw [pdOrientCCW_carrier]
+    exact houter0.trans
+      (existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
+        τ M Rs cp rho α hcfg) |>.trans (fun x hx => hx)
+  have hcC : cfg.1 ∈ interior C.carrier := by
+    rw [hCcarrier]
+    apply sw3_mem_interior_square
+    simp [sw3N, hkappa]
+  have hcA : cfg.1 ∈ interior A.carrier := hCA (interior_subset hcC)
+  have hballInt : Metric.ball cfg.1 kappa ⊆ interior C.carrier := by
+    intro x hx
+    rw [hCcarrier]
+    apply sw3_mem_interior_square
+    have hnorm : ‖x - cfg.1‖ < kappa := by
+      simpa [Metric.mem_ball, dist_eq_norm, norm_sub_rev] using hx
+    exact (sw3N_le_norm (x - cfg.1)).trans_lt hnorm
+  obtain ⟨gammaC, hgammaC, hAnn⟩ := pd_annulus A C hCA
+  have hgammaCeq : gammaC = pgLoop (pgL C) := by
+    rcases hgammaC with h | h
+    · exact h
+    · exfalso
+      obtain ⟨ThetaA, hThetaAC, hThetaA, hThetaAIncr⟩ :=
+        existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one A hccw hcA
+      obtain ⟨ThetaC, hThetaCC, hThetaC, hThetaCIncr⟩ :=
+        existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one C
+          (pdOrientCCW_ccw C0) hcC
+      let Psi : ℝ → ℂ := fun t => ThetaC (-t)
+      have hPsiC : Continuous Psi := hThetaCC.comp continuous_neg
+      have hPsi : ∀ t, Complex.exp (Psi t) = toC (gammaC t - cfg.1) := by
+        intro t
+        dsimp only [Psi]
+        rw [hThetaC, h]
+      have hPsiIncr : ∀ t, Psi (t + 1) =
+          Psi t + (-1 : ℤ) * (2 * Real.pi * Complex.I) := by
+        intro t
+        dsimp only [Psi]
+        have hs := hThetaCIncr (-(t + 1))
+        simp only [show -(t + 1) + 1 = -t by ring] at hs
+        rw [hs]
+        push_cast
+        ring
+      have hdeg :=
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+          hAnn (by
+            intro hcU
+            exact hcU.2 hcC) hThetaAC hThetaA hPsiC hPsi hThetaAIncr hPsiIncr
+      omega
+  subst gammaC
+  let squareLoop := existsRoutingAfterPower_step4_routes_step6_R3_squareLoop cfg.1 kappa
+    existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+  have hsquareParam : IsLoopParam (frontier C.carrier) squareLoop :=
+    existsRoutingAfterPower_step4_routes_step6_R3_squareLoop_isLoopParam
+      cfg.1 hkappa C hCcarrier _
+        existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoopParam
+  have hcircleSquare : LoopsHomotopicIn (C.carrier \ Metric.ball cfg.1 kappa)
+      (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop cfg.1 kappa) squareLoop :=
+    existsRoutingAfterPower_step4_routes_step6_R3_circle_square_homotopy
+      cfg.1 hkappa C hCcarrier _
+        existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoopParam
+  have hsquarePunctured : LoopsHomotopicIn ({cfg.1}ᶜ)
+      (pgLoop (pgL C)) squareLoop := by
+    rcases pg_loopParam_homotopic (pgLoop_isLoopParam C) hsquareParam with h | h
+    · exact pg_lh_mono (fun x hx => by
+        simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
+          (show x ≠ cfg.1 from fun hxc =>
+            Set.disjoint_left.1 disjoint_interior_frontier hcC (hxc ▸ hx))) h
+    · exfalso
+      obtain ⟨ThetaC, hThetaCC, hThetaC, hThetaCIncr⟩ :=
+        existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one C
+          (pdOrientCCW_ccw C0) hcC
+      obtain ⟨ThetaCircle, hThetaCircleC, hThetaCircle, hThetaCircleIncr⟩ :=
+        existsRoutingAfterPower_step4_routes_step6_R2_circleLoop_degree_one cfg.1 hkappa
+      obtain ⟨ThetaSquare, hThetaSquareC, hThetaSquare, m, hThetaSquareIncr⟩ :=
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step10_loop_lift
+          hsquareParam (fun hcf => Set.disjoint_left.1 disjoint_interior_frontier hcC hcf)
+      have hm1 : m = 1 :=
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+          hcircleSquare (by simp) hThetaCircleC hThetaCircle hThetaSquareC
+            hThetaSquare hThetaCircleIncr hThetaSquareIncr
+      let Psi : ℝ → ℂ := fun t => ThetaSquare (-t)
+      have hPsiC : Continuous Psi := hThetaSquareC.comp continuous_neg
+      have hPsi : ∀ t, Complex.exp (Psi t) = toC
+          ((fun s => squareLoop (-s)) t - cfg.1) := by
+        intro t
+        exact hThetaSquare (-t)
+      have hPsiIncr : ∀ t, Psi (t + 1) =
+          Psi t + (-m) * (2 * Real.pi * Complex.I) := by
+        intro t
+        dsimp only [Psi]
+        have hs := hThetaSquareIncr (-(t + 1))
+        simp only [show -(t + 1) + 1 = -t by ring] at hs
+        rw [hs]
+        push_cast
+        ring
+      have hdeg :=
+        existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+          (pg_lh_mono (fun x hx => by
+            simpa only [Set.mem_compl_iff, Set.mem_singleton_iff] using
+              (show x ≠ cfg.1 from fun hxc =>
+                Set.disjoint_left.1 disjoint_interior_frontier hcC (hxc ▸ hx))) h)
+          (by simp) hThetaCC hThetaC hPsiC hPsi hThetaCIncr hPsiIncr
+      omega
+  have hsameCurve : LoopsHomotopicIn
+      (A.carrier \ Metric.ball cfg.1 kappa) (pgLoop (pgL C)) squareLoop :=
+    pg_lh_mono (fun x hx => ⟨interior_subset (hCA (pd_frontier_subset_carrier C
+      (qo_loop_mem (pgLoop_isLoopParam C) 0))), hx⟩) hsquarePunctured
+  have hAnn' : LoopsHomotopicIn (A.carrier \ Metric.ball cfg.1 kappa)
+      (pgLoop (pgL A)) (pgLoop (pgL C)) :=
+    pg_lh_mono (fun x hx => ⟨hx.1, fun hball => hx.2 (hballInt hball)⟩) hAnn
+  have hcircleSquare' : LoopsHomotopicIn (A.carrier \ Metric.ball cfg.1 kappa)
+      (existsRoutingAfterPower_step4_routes_step6_R2_circleLoop cfg.1 kappa) squareLoop :=
+    pg_lh_mono (fun x hx => ⟨interior_subset (hCA hx.1), hx.2⟩) hcircleSquare
+  exact pg_lh_trans (pg_lh_trans hAnn' hsameCurve) (pg_lh_symm hcircleSquare')
+-/
+
 /-- The radial collar from the square boundary to the protected circle stays in the polygonal
 square and avoids the open protected ball. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_radial
@@ -38874,6 +39137,251 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_
         (mul_le_mul_of_nonneg_left (le_max_left |c - a| |d - b|) (by linarith [ht.2]))
         (mul_le_mul_of_nonneg_left (le_max_right |c - a| |d - b|) ht.1)
     _ = max |c - a| |d - b| := by ring
+
+/-- Finite affine gluing on the line.  Outside the extreme knots the first and last affine
+pieces are continued; this makes induction by adjoining the final knot especially simple. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_finiteInterpolation
+    {n : ℕ} (t t' : Fin (n + 2) → ℝ) (epsilon : ℝ)
+    (ht : StrictMono t) (ht' : StrictMono t')
+    (hmove : ∀ i, |t' i - t i| ≤ epsilon) :
+    ∃ f : ℝ → ℝ, Continuous f ∧ StrictMono f ∧
+      (∀ i, f (t i) = t' i) ∧
+      ∀ x ∈ Icc (t 0) (t (Fin.last (n + 1))), |f x - x| ≤ epsilon := by
+  induction n with
+  | zero =>
+      let f := existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
+        (t 0) (t 1) (t' 0) (t' 1)
+      have ht01 : t 0 < t 1 := ht (by decide)
+      have ht01' : t' 0 < t' 1 := ht' (by decide)
+      refine ⟨f,
+        existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_continuous _ _ _ _,
+        existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_strictMono ht01 ht01',
+        ?_, ?_⟩
+      · intro i
+        fin_cases i
+        · exact (existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_endpoints
+            ht01.ne).1
+        · exact (existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_endpoints
+            ht01.ne).2
+      · intro x hx
+        refine (existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_displacement
+          ht01 hx).trans ?_
+        exact max_le (hmove 0) (hmove 1)
+  | succ m ih =>
+      let u : Fin (m + 2) → ℝ := fun i => t i.castSucc
+      let u' : Fin (m + 2) → ℝ := fun i => t' i.castSucc
+      have hu : StrictMono u := ht.comp Fin.strictMono_castSucc
+      have hu' : StrictMono u' := ht'.comp Fin.strictMono_castSucc
+      have humove : ∀ i, |u' i - u i| ≤ epsilon := fun i => hmove i.castSucc
+      obtain ⟨g, hgc, hgmono, hgknots, hgmove⟩ := ih u u' hu hu' humove
+      let j : Fin (m + 3) := (Fin.last (m + 1)).castSucc
+      let last : Fin (m + 3) := Fin.last (m + 2)
+      let L := existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
+        (t j) (t last) (t' j) (t' last)
+      have hjlast : j < last := by
+        rw [Fin.lt_iff_val_lt_val]
+        simp [j, last]
+      have htab : t j < t last := ht hjlast
+      have htab' : t' j < t' last := ht' hjlast
+      have hLmono : StrictMono L :=
+        existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_strictMono htab htab'
+      have hLend :=
+        existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_endpoints
+          (c := t' j) (d := t' last) htab.ne
+      let f : ℝ → ℝ := Set.piecewise (Iic (t j)) g L
+      have hgj : g (t j) = t' j := by
+        have := hgknots (Fin.last (m + 1))
+        simpa [u, u', j] using this
+      have hfcontinuous : Continuous f := by
+        dsimp only [f]
+        apply Continuous.piecewise
+        · intro x hx
+          rw [frontier_Iic] at hx
+          simp only [Set.mem_singleton_iff] at hx
+          subst x
+          simpa [L] using hgj.trans hLend.1.symm
+        · exact hgc
+        · exact existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_continuous
+            (t j) (t last) (t' j) (t' last)
+      have hfmono : StrictMono f := by
+        intro x y hxy
+        by_cases hx : x ≤ t j
+        · by_cases hy : y ≤ t j
+          · simpa [f, Set.piecewise, hx, hy] using hgmono hxy
+          · have hleft : g x ≤ g (t j) := hgmono.monotone hx
+            have hright : L (t j) < L y := hLmono (lt_of_not_ge hy)
+            have hright' : g (t j) < L y := by
+              rw [hgj, ← hLend.1]
+              exact hright
+            simpa [f, Set.piecewise, hx, hy, hgj, hLend.1] using
+              hleft.trans_lt hright'
+        · have hy : ¬y ≤ t j := fun hy => hx (hxy.le.trans hy)
+          simpa [f, Set.piecewise, hx, hy] using hLmono hxy
+      refine ⟨f, hfcontinuous, hfmono, ?_, ?_⟩
+      · intro i
+        refine Fin.lastCases ?_ (fun q => ?_) i
+        · have hnot : ¬t last ≤ t j := not_le.mpr htab
+          simpa [f, Set.piecewise, last, hnot, L] using hLend.2
+        · have hqj : q.castSucc ≤ j := by
+            simpa [Fin.le_iff_val_le_val, j] using Nat.le_of_lt_succ q.isLt
+          have hmem : t q.castSucc ≤ t j := ht.monotone hqj
+          have hq := hgknots q
+          simpa [f, Set.piecewise, hmem, u, u'] using hq
+      · intro x hx
+        by_cases hxt : x ≤ t j
+        · have hfirst : t 0 ≤ x := hx.1
+          have hg := hgmove x ⟨by simpa [u] using hfirst, by
+            have : t j = u (Fin.last (m + 1)) := by simp [u, j]
+            rw [← this]
+            exact hxt⟩
+          simpa [f, Set.piecewise, hxt] using hg
+        · have hlast : x ≤ t last := by simpa [last] using hx.2
+          have hdisp :=
+            existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_displacement
+              (c := t' j) (d := t' last) htab ⟨le_of_not_ge hxt, hlast⟩
+          have hmax : max |t' j - t j| |t' last - t last| ≤ epsilon :=
+            max_le (hmove j) (hmove last)
+          simpa [f, Set.piecewise, hxt, L] using hdisp.trans hmax
+
+/-- Periodically extending the finite affine interpolation yields a degree-one order
+isomorphism.  The endpoint displacement is periodic, so the affine estimate on one fundamental
+interval gives the global uniform estimate. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_periodicInterpolation
+    {n : ℕ} (t t' : Fin (n + 2) → ℝ) (epsilon : ℝ)
+    (ht : StrictMono t) (ht' : StrictMono t')
+    (hperiod : t (Fin.last (n + 1)) = t 0 + 1)
+    (hperiod' : t' (Fin.last (n + 1)) = t' 0 + 1)
+    (hmove : ∀ i, |t' i - t i| ≤ epsilon) :
+    ∃ phi : ℝ ≃o ℝ,
+      (∀ s, phi (s + 1) = phi s + 1) ∧
+      (∀ i, phi (t i) = t' i) ∧
+      ∀ s, |phi s - s| ≤ epsilon := by
+  obtain ⟨g, _hgc, hgmono, hgknots, hgmove⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R4_finiteInterpolation
+      t t' epsilon ht ht' hmove
+  let a := t 0
+  let c := t' 0
+  let f : ℝ → ℝ := fun x =>
+    g (a + Int.fract (x - a)) + (Int.floor (x - a) : ℝ)
+  have hga : g a = c := by simpa [a, c] using hgknots 0
+  have hga1 : g (a + 1) = c + 1 := by
+    rw [← hperiod, ← hperiod']
+    exact hgknots (Fin.last (n + 1))
+  have hmono : StrictMono f := by
+    intro x y hxy
+    let p : ℤ := ⌊x - a⌋
+    let q : ℤ := ⌊y - a⌋
+    let rx := a + Int.fract (x - a)
+    let ry := a + Int.fract (y - a)
+    have hpq : p ≤ q := Int.floor_mono (by linarith)
+    by_cases heq : p = q
+    · have hxyform : rx + (p : ℝ) = x ∧ ry + (q : ℝ) = y := by
+        constructor
+        · dsimp only [rx, p]
+          rw [add_assoc, Int.fract_add_floor]
+          ring
+        · dsimp only [ry, q]
+          rw [add_assoc, Int.fract_add_floor]
+          ring
+      have hrxy : rx < ry := by rw [← hxyform.1, ← hxyform.2, heq] at hxy; linarith
+      have := hgmono hrxy
+      simpa [f, rx, ry, p, q, heq] using add_lt_add_right this (p : ℝ)
+    · have hpq' : p < q := lt_of_le_of_ne hpq heq
+      have hrxlo : a ≤ rx := by dsimp only [rx]; linarith [Int.fract_nonneg (x - a)]
+      have hrxhi : rx < a + 1 := by dsimp only [rx]; linarith [Int.fract_lt_one (x - a)]
+      have hrylo : a ≤ ry := by dsimp only [ry]; linarith [Int.fract_nonneg (y - a)]
+      have hgx : g rx < c + 1 := (hgmono hrxhi).trans_eq hga1
+      have hgy : c ≤ g ry := hga ▸ hgmono.monotone hrylo
+      have hpqcast : (p : ℝ) + 1 ≤ q := by exact_mod_cast hpq'
+      change g rx + (p : ℝ) < g ry + (q : ℝ)
+      linarith
+  have hdegree : ∀ x, f (x + 1) = f x + 1 := by
+    intro x
+    dsimp only [f]
+    rw [show x + 1 - a = (x - a) + 1 by ring, Int.fract_add_one,
+      Int.floor_add_one]
+    push_cast
+    ring
+  have hsurj : Function.Surjective f := by
+    intro y
+    let q : ℤ := ⌊y - c⌋
+    let sy := c + Int.fract (y - c)
+    have hsy : sy ∈ Icc c (c + 1) := by
+      exact ⟨by dsimp only [sy]; linarith [Int.fract_nonneg (y - c)],
+        by dsimp only [sy]; linarith [Int.fract_lt_one (y - c)]⟩
+    have hsy' : sy ∈ Icc (g a) (g (a + 1)) := by
+      simpa only [hga, hga1] using hsy
+    obtain ⟨r, hr, hgr⟩ := intermediate_value_Icc (show a ≤ a + 1 by linarith)
+      _hgc.continuousOn hsy'
+    let x := r + (q : ℝ)
+    have hrlt : r < a + 1 := by
+      by_contra h
+      have hre : r = a + 1 := le_antisymm hr.2 (le_of_not_gt h)
+      rw [hre, hga1] at hgr
+      dsimp only [sy] at hgr
+      linarith [Int.fract_lt_one (y - c)]
+    have hrsub : r - a ∈ Ico (0 : ℝ) 1 := ⟨by linarith [hr.1], by linarith⟩
+    refine ⟨x, ?_⟩
+    have hfloor : Int.floor (x - a) = q := by
+      have hrFloor : Int.floor (r - a) = 0 := by
+        apply Int.floor_eq_iff.2
+        simpa using hrsub
+      rw [show x - a = (r - a) + (q : ℝ) by simp [x]; ring,
+        Int.floor_add_intCast, hrFloor]
+      omega
+    have hfract : Int.fract (x - a) = r - a := by
+      rw [show x - a = (r - a) + (q : ℝ) by simp [x]; ring,
+        Int.fract_add_intCast, Int.fract_eq_self.2 hrsub]
+    dsimp only [f]
+    rw [hfloor, hfract, show a + (r - a) = r by ring, hgr]
+    have hyform : sy + (q : ℝ) = y := by
+      dsimp only [sy, q]
+      rw [add_assoc, Int.fract_add_floor]
+      ring
+    exact hyform
+  let phi : ℝ ≃o ℝ := StrictMono.orderIsoOfSurjective f hmono hsurj
+  refine ⟨phi, ?_, ?_, ?_⟩
+  · intro s
+    change f (s + 1) = f s + 1
+    exact hdegree s
+  · intro i
+    refine Fin.lastCases ?_ (fun j => ?_) i
+    · change f (t (Fin.last (n + 1))) = t' (Fin.last (n + 1))
+      rw [hperiod, hperiod', hdegree]
+      congr 1
+      change f a = c
+      simp [f, hga]
+    · have hti : t j.castSucc - a ∈ Ico (0 : ℝ) 1 := by
+        constructor
+        · exact sub_nonneg.mpr (ht.monotone (Fin.zero_le _))
+        · have hj := ht (Fin.castSucc_lt_last j)
+          rw [hperiod] at hj
+          linarith
+      change f (t j.castSucc) = t' j.castSucc
+      have hfloor : Int.floor (t j.castSucc - a) = 0 := by
+        rw [Int.floor_eq_iff]
+        simpa using hti
+      simp only [f, Int.fract_eq_self.2 hti, hfloor, Int.cast_zero, add_zero]
+      simpa [a] using hgknots j.castSucc
+  · intro s
+    let r := a + Int.fract (s - a)
+    have hr : r ∈ Icc a (t (Fin.last (n + 1))) := by
+      rw [hperiod]
+      exact ⟨by dsimp only [r]; linarith [Int.fract_nonneg (s - a)],
+        by dsimp only [r]; linarith [Int.fract_lt_one (s - a)]⟩
+    have hgr := hgmove r hr
+    change |f s - s| ≤ epsilon
+    have hsform : r + (Int.floor (s - a) : ℝ) = s := by
+      dsimp only [r]
+      rw [add_assoc, Int.fract_add_floor]
+      ring
+    have hdiff : f s - s = g r - r := by
+      change g (a + Int.fract (s - a)) + (Int.floor (s - a) : ℝ) - s =
+        g r - r
+      change g r + (Int.floor (s - a) : ℝ) - s = g r - r
+      linarith [hsform]
+    rw [hdiff]
+    exact hgr
 
 /-- A continuous strictly increasing degree-one lift is automatically onto, hence determines an
 order isomorphism of the real line.  This packages the final step of periodic interpolation. -/

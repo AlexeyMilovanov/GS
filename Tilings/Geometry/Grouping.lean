@@ -47625,6 +47625,289 @@ private lemma existsMacroCertificate_seed2_routing_step4_g1 (τ : Substitution P
   · intro o o' ho ho' hedge
     exact (cd.edge_spec o o' ho ho').1 hedge
 
+/-- Tiles incident with one boundary point of a finite polygonal cellulation form a side-adjacent
+fan.  The shared side at every step has that boundary point as an endpoint. -/
+private lemma emcg_boundary_fan {Q : Protoset} (S : Patch Q) (hsts : SideToSideSet S.tiles)
+    (B : PolygonalDisk) {a : ℝ} (ha : 0 < a)
+    (hsupport : support S.tiles = a • B.carrier) {z : Pt}
+    (hz : z ∈ frontier (a • B.carrier)) {A₀ A₁ : PlacedTile Q}
+    (hA₀ : A₀ ∈ S.tiles) (hA₁ : A₁ ∈ S.tiles)
+    (hzA₀ : z ∈ A₀.carrier) (hzA₁ : z ∈ A₁.carrier) :
+    Relation.ReflTransGen
+      (fun X Y : PlacedTile Q =>
+        X ∈ S.tiles ∧ z ∈ X.carrier ∧ Y ∈ S.tiles ∧ z ∈ Y.carrier ∧ X ≠ Y ∧
+          ∃ i j, Y.side j = X.side i ∧
+            (X.vertex i = z ∨ X.vertex (finRotate _ i) = z)) A₀ A₁ := by
+  classical
+  let G : Set (PlacedTile Q) := {X ∈ S.tiles | z ∈ X.carrier}
+  have hGfin : G.Finite := S.finite.subset fun X hX => hX.1
+  let K : Set (Set Pt) :=
+    {e | ∃ X ∈ G, ∃ i : Fin (Q.disk X.form).n, z ∉ X.side i ∧ e = X.side i}
+  have hKfin : K.Finite := by
+    apply (hGfin.biUnion fun X _ => Set.finite_range X.side).subset
+    rintro e ⟨X, hX, i, -, rfl⟩
+    exact Set.mem_biUnion hX ⟨i, rfl⟩
+  have hKclosed : IsClosed (⋃₀ K) := by
+    rw [Set.sUnion_eq_biUnion]
+    apply hKfin.isClosed_biUnion
+    rintro e ⟨X, -, i, -, rfl⟩
+    rw [tile_side_eq]
+    exact (isCompact_segment_pt _ _).isClosed
+  have hzK : z ∉ ⋃₀ K := by
+    rintro ⟨e, ⟨X, hX, i, hzi, rfl⟩, hze⟩
+    exact hzi hze
+  obtain ⟨δ, hδ, hδK⟩ := Metric.isOpen_iff.1 hKclosed.isOpen_compl z hzK
+  obtain ⟨r₀, hr₀, hlocal⟩ :=
+    existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step1_localConnScaled
+      B ha hz
+  obtain ⟨ρ, hρ, hρinc⟩ :=
+    existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step2_localNbhd
+      S.finite z
+  let r := min r₀ (min ρ δ)
+  have hr : 0 < r := lt_min hr₀ (lt_min hρ hδ)
+  let W := Metric.ball z r ∩ interior (support S.tiles)
+  have hWo : IsOpen W := Metric.isOpen_ball.inter isOpen_interior
+  have hWc : IsPreconnected W := by
+    simpa only [W, hsupport] using hlocal r hr (min_le_left _ _)
+  have hWG : W ⊆ support G := by
+    rintro x ⟨hxb, hxi⟩
+    obtain ⟨X, hXS, hxX⟩ := mem_support_iff'.1 (interior_subset hxi)
+    have hzX := hρinc x (Metric.ball_subset_ball
+      ((min_le_right r₀ (min ρ δ)).trans (min_le_left ρ δ)) hxb) X hXS hxX
+    exact carrier_subset_support (show X ∈ G from ⟨hXS, hzX⟩) hxX
+  have meets (X : PlacedTile Q) (hXS : X ∈ S.tiles) (hzX : z ∈ X.carrier) :
+      (W ∩ interior X.carrier).Nonempty := by
+    have hzcl : z ∈ closure (interior X.carrier) := by
+      rw [tile_regular]
+      exact hzX
+    obtain ⟨x, hxi, hzx⟩ := Metric.mem_closure_iff.1 hzcl r hr
+    have hxb : x ∈ Metric.ball z r := by
+      rw [Metric.mem_ball, dist_comm]
+      exact hzx
+    have hxS : x ∈ interior (support S.tiles) :=
+      interior_mono (carrier_subset_support hXS) hxi
+    exact ⟨x, ⟨hxb, hxS⟩, hxi⟩
+  let R := fun X Y : PlacedTile Q =>
+    X ∈ S.tiles ∧ z ∈ X.carrier ∧ Y ∈ S.tiles ∧ z ∈ Y.carrier ∧
+      X ≠ Y ∧ ∃ i j, Y.side j = X.side i ∧
+      (X.vertex i = z ∨ X.vertex (finRotate _ i) = z)
+  set C := {X ∈ G | Relation.ReflTransGen R A₀ X}
+  by_contra hA₁C
+  set D := G \ C
+  have hA₀C : A₀ ∈ C := ⟨⟨hA₀, hzA₀⟩, Relation.ReflTransGen.refl⟩
+  have hA₁D : A₁ ∈ D := by
+    refine ⟨⟨hA₁, hzA₁⟩, fun h => hA₁C ?_⟩
+    simpa only [R] using h.2
+  have hCD : ∀ X ∈ C, ∀ Y ∈ D, ∀ p ∈ W, p ∈ X.carrier → p ∈ Y.carrier →
+      p ∈ gVerts G := by
+    intro X hX Y hY p hpW hpX hpY
+    by_contra hpv
+    have hXY : X ≠ Y := by
+      rintro rfl
+      exact hY.2 hX
+    have hpXi : p ∉ interior X.carrier := fun h =>
+      interior_not_mem_other S.disjoint hX.1.1 hY.1.1 hXY h hpY
+    have hpf : p ∈ frontier X.carrier := by
+      rw [mem_frontier_iff_of_closed (tile_isClosed X)]
+      exact ⟨hpX, hpXi⟩
+    rw [tile_frontier_eq, Set.mem_iUnion] at hpf
+    obtain ⟨i, hpi⟩ := hpf
+    have hpo : p ∈ openSegment ℝ (X.vertex i) (X.vertex (finRotate _ i)) := by
+      rw [tile_side_eq] at hpi
+      apply mem_openSegment_of_ne_left_right
+      · intro h
+        exact hpv (Set.mem_biUnion hX.1 ⟨i, h⟩)
+      · intro h
+        exact hpv (Set.mem_biUnion hX.1 ⟨_, h⟩)
+      · exact hpi
+    obtain ⟨j, hj⟩ := tile_partner S.disjoint hsts hX.1.1 hY.1.1 hXY i hpo hpY
+      (fun hv => hpv (Set.mem_biUnion hY.1 hv))
+    have hzi : z ∈ X.side i := by
+      by_contra hnot
+      apply hδK (Metric.ball_subset_ball
+        ((min_le_right r₀ (min ρ δ)).trans (min_le_right ρ δ)) hpW.1)
+      exact ⟨X.side i, ⟨X, hX.1, i, hnot, rfl⟩, hpi⟩
+    have hz_end : X.vertex i = z ∨ X.vertex (finRotate _ i) = z := by
+      by_contra hend
+      push_neg at hend
+      have hzo : z ∈ openSegment ℝ (X.vertex i) (X.vertex (finRotate _ i)) := by
+        rw [tile_side_eq] at hzi
+        exact mem_openSegment_of_ne_left_right hend.1 hend.2 hzi
+      obtain ⟨ε, hε, σ, -, htwo⟩ :=
+        two_sides S.disjoint hX.1.1 hY.1.1 hXY i j hj hzo
+      have hzint : z ∈ interior (support S.tiles) := by
+        rw [mem_interior_iff_mem_nhds]
+        apply Filter.mem_of_superset (Metric.ball_mem_nhds z hε)
+        intro x hx
+        by_cases hsign : 0 ≤ σ * jcr
+            (X.vertex (finRotate _ i) - X.vertex i) (x - X.vertex i)
+        · exact carrier_subset_support hX.1.1 ((htwo x hx).2.2 hsign)
+        · exact carrier_subset_support hY.1.1
+            (interior_subset ((htwo x hx).2.1 (lt_of_not_ge hsign)))
+      rw [hsupport] at hzint
+      exact hz.2 hzint
+    apply hY.2
+    refine ⟨hY.1, Relation.ReflTransGen.tail hX.2 ?_⟩
+    exact ⟨hX.1.1, hX.1.2, hY.1.1, hY.1.2, hXY, i, j, hj, hz_end⟩
+  have hCfin : C.Finite := hGfin.subset fun X hX => hX.1
+  have hDfin : D.Finite := hGfin.subset fun X hX => hX.1
+  apply open_minus_finite_split (W := W) (O1 := W \ support D) (O2 := W \ support C)
+    (Z := gVerts G) hWo hWc (hWo.sdiff (support_isClosed hDfin))
+      (hWo.sdiff (support_isClosed hCfin))
+  · rw [Set.disjoint_left]
+    rintro x ⟨hxW, hxD⟩ ⟨-, hxC⟩
+    obtain ⟨X, hX, hxX⟩ := mem_support_iff'.1 (hWG hxW)
+    by_cases hXC : X ∈ C
+    · exact hxC (carrier_subset_support hXC hxX)
+    · exact hxD (carrier_subset_support (show X ∈ D from ⟨hX, hXC⟩) hxX)
+  · exact gVerts_finite hGfin
+  · intro x hxW
+    by_cases hxD : x ∈ support D
+    · by_cases hxC : x ∈ support C
+      · obtain ⟨X, hX, hxX⟩ := mem_support_iff'.1 hxC
+        obtain ⟨Y, hY, hxY⟩ := mem_support_iff'.1 hxD
+        exact Or.inr (hCD X hX Y hY x hxW hxX hxY)
+      · exact Or.inl (Or.inr ⟨hxW, hxC⟩)
+    · exact Or.inl (Or.inl ⟨hxW, hxD⟩)
+  · obtain ⟨x, hxW, hxA₀⟩ := meets A₀ hA₀ hzA₀
+    refine ⟨x, hxW, hxW, ?_⟩
+    intro hxD
+    obtain ⟨Y, hY, hxY⟩ := mem_support_iff'.1 hxD
+    have hne : A₀ ≠ Y := by
+      rintro rfl
+      exact hY.2 hA₀C
+    exact interior_not_mem_other S.disjoint hA₀ hY.1.1 hne hxA₀ hxY
+  · obtain ⟨x, hxW, hxA₁⟩ := meets A₁ hA₁ hzA₁
+    refine ⟨x, hxW, hxW, ?_⟩
+    intro hxC
+    obtain ⟨Y, hY, hxY⟩ := mem_support_iff'.1 hxC
+    have hne : A₁ ≠ Y := by
+      rintro rfl
+      exact hA₁D.2 hY
+    exact interior_not_mem_other S.disjoint hA₁ hY.1.1 hne hxA₁ hxY
+
+/-- The geometric fan chain at a macroboundary point lifts to reachability in the certificate's
+belt graph. -/
+private lemma emcg_boundary_fan_reachable
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) (α : cd.D.Q.Form)
+    {z : Pt} (hz : z ∈ cd.D.macroBoundary α) (t u : cd.D.Typ)
+    (ht : cd.D.owner t = α) (hu : cd.D.owner u = α)
+    (hzt : z ∈ (cd.D.childTile t).carrier) (hzu : z ∈ (cd.D.childTile u).carrier) :
+    (cd.D.beltGraph α).Reachable
+      ⟨t, ht, z, hzt, hz⟩ ⟨u, hu, z, hzu, hz⟩ := by
+  classical
+  let bt : {v : cd.D.Typ // cd.D.IsBeltType α v} := ⟨t, ht, z, hzt, hz⟩
+  let bu : {v : cd.D.Typ // cd.D.IsBeltType α v} := ⟨u, hu, z, hzu, hz⟩
+  let R := fun X Y : PlacedTile cd.D.Q =>
+    X ∈ (cd.D.σ.rule α).tiles ∧ z ∈ X.carrier ∧
+      Y ∈ (cd.D.σ.rule α).tiles ∧ z ∈ Y.carrier ∧ X ≠ Y ∧
+        ∃ i j, Y.side j = X.side i ∧
+          (X.vertex i = z ∨ X.vertex (finRotate _ i) = z)
+  have fan : Relation.ReflTransGen R (cd.D.childTile t) (cd.D.childTile u) := by
+    apply emcg_boundary_fan (cd.D.σ.rule α) (cd.tmpl.template_sts α)
+      (cd.D.Q.disk α) (a := cd.D.σ.θ) (lt_trans zero_lt_one cd.D.σ.one_lt)
+    · exact cd.D.σ.support_eq α
+    · exact hz
+    · rw [cd.tmpl.rule_eq]
+      exact ⟨t, ht, rfl⟩
+    · rw [cd.tmpl.rule_eq]
+      exact ⟨u, hu, rfl⟩
+    · exact hzt
+    · exact hzu
+  have edge {x y : cd.D.Typ} (hx : cd.D.owner x = α) (hy : cd.D.owner y = α)
+      (hrel : R (cd.D.childTile x) (cd.D.childTile y)) :
+      (cd.D.beltGraph α).Adj
+        ⟨x, hx, z, hrel.2.1, hz⟩ ⟨y, hy, z, hrel.2.2.2.1, hz⟩ := by
+    obtain ⟨hxin, hzx, hyin, hzy, hxy, i, j, hside, hend⟩ := hrel
+    have hne : x ≠ y := fun h => hxy (congrArg cd.D.childTile h)
+    have hinner : cd.D.IsInner (cd.D.occ x i) := by
+      intro houter
+      let q := midpoint ℝ ((cd.D.childTile x).vertex i)
+        ((cd.D.childTile x).vertex (finRotate _ i))
+      have hqo : q ∈ openSegment ℝ ((cd.D.childTile x).vertex i)
+          ((cd.D.childTile x).vertex (finRotate _ i)) := by
+        apply mem_openSegment_of_ne_left_right
+        · intro h
+          exact tile_vertex_ne_next (cd.D.childTile x) i
+            ((midpoint_eq_left_iff ℝ).mp h.symm)
+        · intro h
+          exact tile_vertex_ne_next (cd.D.childTile x) i
+            ((midpoint_eq_right_iff ℝ).mp h.symm)
+        · exact midpoint_mem_segment _ _
+      obtain ⟨ε, hε, σ, -, htwo⟩ :=
+        two_sides (cd.D.σ.rule α).disjoint hxin hyin hxy i j hside hqo
+      have hqint : q ∈ interior (support (cd.D.σ.rule α).tiles) := by
+        rw [mem_interior_iff_mem_nhds]
+        apply Filter.mem_of_superset (Metric.ball_mem_nhds q hε)
+        intro w hw
+        by_cases hsign : 0 ≤ σ * jcr
+            ((cd.D.childTile x).vertex (finRotate _ i) - (cd.D.childTile x).vertex i)
+            (w - (cd.D.childTile x).vertex i)
+        · exact carrier_subset_support hxin ((htwo w hw).2.2 hsign)
+        · exact carrier_subset_support hyin
+            (interior_subset ((htwo w hw).2.1 (lt_of_not_ge hsign)))
+      have hqside : q ∈ cd.D.occSide (cd.D.occ x i) := by
+        rw [MacroData.occSide, tile_side_eq]
+        exact openSegment_subset_segment ℝ _ _ hqo
+      have hqfront := houter hqside
+      rw [MacroData.macroBoundary, MacroData.macroRegion, hx,
+        ← cd.D.σ.support_eq α] at hqfront
+      exact hqfront.2 hqint
+    have hboundary : cd.D.IsBoundary (cd.D.occ x i) := by
+      refine ⟨hinner, ?_⟩
+      rcases hend with hend | hend
+      · left
+        rw [show cd.D.occStart (cd.D.occ x i) = z by
+          simpa only [MacroData.occStart, MacroData.childTile, PlacedTile.vertex] using hend,
+          hx]
+        exact hz
+      · right
+        rw [show cd.D.occEnd (cd.D.occ x i) = z by
+          simpa only [MacroData.occEnd, MacroData.childTile, PlacedTile.vertex] using hend,
+          hx]
+        exact hz
+    rw [MacroData.beltGraph, SimpleGraph.fromRel_adj]
+    refine ⟨?_, Or.inl ⟨i, j, hboundary, ?_⟩⟩
+    · intro h
+      exact hne (congrArg Subtype.val h)
+    · exact hside.symm
+  have key : ∀ {X Y : PlacedTile cd.D.Q}, Relation.ReflTransGen R X Y →
+      ∀ (x y : cd.D.Typ) (hx : cd.D.owner x = α) (hy : cd.D.owner y = α)
+        (hchildx : cd.D.childTile x = X) (hchildy : cd.D.childTile y = Y)
+        (hzx : z ∈ (cd.D.childTile x).carrier) (hzy : z ∈ (cd.D.childTile y).carrier),
+        (cd.D.beltGraph α).Reachable
+          ⟨x, hx, z, hzx, hz⟩ ⟨y, hy, z, hzy, hz⟩ := by
+    intro X Y hchain
+    induction hchain with
+    | refl =>
+        intro x y hx hy hchildx hchildy hzx hzy
+        have htile : cd.D.childTile x = cd.D.childTile y := hchildx.trans hchildy.symm
+        have hform : cd.D.form x = cd.D.form y := congrArg PlacedTile.form htile
+        have hanchor : cd.D.anchor x = cd.D.anchor y := congrArg PlacedTile.anchor htile
+        have hxy := cd.tmpl.type_injective x y (hx.trans hy.symm) hform hanchor
+        subst y
+        exact SimpleGraph.Reachable.rfl
+    | @tail Y Z _ hYZ ih =>
+        intro x zt hx hzt hchildx hchildz hzx hzzt
+        have hYmem : Y ∈ (cd.D.σ.rule α).tiles := hYZ.1
+        rw [cd.tmpl.rule_eq] at hYmem
+        obtain ⟨y, hy, hchildy⟩ := hYmem
+        change cd.D.owner y = α at hy
+        change cd.D.childTile y = Y at hchildy
+        have hzy : z ∈ (cd.D.childTile y).carrier := by
+          rw [hchildy]
+          exact hYZ.2.1
+        have hreach := ih x y hx hy hchildx hchildy hzx hzy
+        have hrel : R (cd.D.childTile y) (cd.D.childTile zt) := by
+          simpa only [hchildy, hchildz] using hYZ
+        exact hreach.trans (edge hy hzt hrel).reachable
+  exact key fan t u ht hu rfl rfl hzt hzu
+
 /-- Step 6 of `lem:certificate-exists`, (G2): "Around the macroboundary, consecutive boundary
 faces are connected through the finite fan at each boundary vertex ... Faces touching the
 boundary only at a vertex must be included in this fan"; every belt type has a boundary side
@@ -47638,7 +47921,92 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_belt_connected
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     ∀ _α, (cd.D.beltGraph _α).Connected := by
-  sorry
+  classical
+  intro α
+  have hθ : 0 < cd.D.σ.θ := lt_trans zero_lt_one cd.D.σ.one_lt
+  have hfront_pre : IsPreconnected (cd.D.macroBoundary α) := by
+    have hloop := pgLoop_isLoopParam (cd.D.Q.disk α)
+    have hpre : IsPreconnected (frontier (cd.D.Q.disk α).carrier) := by
+      rw [← hloop.2.2.2]
+      exact isPreconnected_Ico.image _ hloop.1.continuousOn
+    rw [MacroData.macroBoundary, MacroData.macroRegion,
+      existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_frontier_smul hθ.ne',
+      ← Set.image_smul]
+    exact hpre.image _ (continuous_const_smul cd.D.σ.θ).continuousOn
+  have belt_nonempty : Nonempty {t : cd.D.Typ // cd.D.IsBeltType α t} := by
+    let i : Fin (cd.D.Q.disk α).n :=
+      ⟨0, by have := (cd.D.Q.disk α).three_le; omega⟩
+    let z := cd.D.σ.θ • (cd.D.Q.disk α).vertex i
+    have hz : z ∈ cd.D.macroBoundary α := by
+      rw [MacroData.macroBoundary, MacroData.macroRegion,
+        existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_frontier_smul hθ.ne']
+      exact smul_mem_smul_set (pd_segment_subset_frontier (cd.D.Q.disk α) i
+        (left_mem_segment ℝ _ _))
+    have hzsupport : z ∈ support (cd.D.σ.rule α).tiles := by
+      rw [cd.D.σ.support_eq α]
+      exact pd_frontier_subset_carrier (emcgScaleDisk (cd.D.Q.disk α) cd.D.σ.θ hθ.ne') hz
+    obtain ⟨A, hA, hzA⟩ := mem_support_iff'.1 hzsupport
+    rw [cd.tmpl.rule_eq] at hA
+    obtain ⟨t, ht, rfl⟩ := hA
+    exact ⟨⟨t, ht, z, hzA, hz⟩⟩
+  refine { preconnected := ?_, nonempty := belt_nonempty }
+  intro u v
+  by_contra huv
+  let C : Set {t : cd.D.Typ // cd.D.IsBeltType α t} :=
+    {w | (cd.D.beltGraph α).Reachable u w}
+  let E : Set {t : cd.D.Typ // cd.D.IsBeltType α t} := Cᶜ
+  let KC : Set Pt := ⋃ w : {t : cd.D.Typ // cd.D.IsBeltType α t},
+    ⋃ _ : w ∈ C, (cd.D.childTile w.1).carrier ∩ cd.D.macroBoundary α
+  let KE : Set Pt := ⋃ w : {t : cd.D.Typ // cd.D.IsBeltType α t},
+    ⋃ _ : w ∈ E, (cd.D.childTile w.1).carrier ∩ cd.D.macroBoundary α
+  have hKCclosed : IsClosed KC := by
+    apply isClosed_iUnion_of_finite
+    intro w
+    apply isClosed_iUnion_of_finite
+    intro hw
+    exact (tile_isClosed (cd.D.childTile w.1)).inter isClosed_frontier
+  have hKEclosed : IsClosed KE := by
+    apply isClosed_iUnion_of_finite
+    intro w
+    apply isClosed_iUnion_of_finite
+    intro hw
+    exact (tile_isClosed (cd.D.childTile w.1)).inter isClosed_frontier
+  have hcover : cd.D.macroBoundary α ⊆ KC ∪ KE := by
+    intro z hz
+    have hzsupport : z ∈ support (cd.D.σ.rule α).tiles := by
+      rw [cd.D.σ.support_eq α]
+      exact pd_frontier_subset_carrier (emcgScaleDisk (cd.D.Q.disk α) cd.D.σ.θ hθ.ne') hz
+    obtain ⟨A, hA, hzA⟩ := mem_support_iff'.1 hzsupport
+    rw [cd.tmpl.rule_eq] at hA
+    obtain ⟨t, ht, rfl⟩ := hA
+    let w : {t : cd.D.Typ // cd.D.IsBeltType α t} := ⟨t, ht, z, hzA, hz⟩
+    by_cases hw : w ∈ C
+    · left
+      exact Set.mem_iUnion₂.2 ⟨w, hw, hzA, hz⟩
+    · right
+      exact Set.mem_iUnion₂.2 ⟨w, hw, hzA, hz⟩
+  have hdis : Disjoint KC KE := by
+    rw [Set.disjoint_left]
+    intro z hzC hzE
+    obtain ⟨w, hwC, hzw, hz⟩ := Set.mem_iUnion₂.1 hzC
+    obtain ⟨w', hw'E, hzw', -⟩ := Set.mem_iUnion₂.1 hzE
+    have hfan := emcg_boundary_fan_reachable τ g s l routing cd α hz w.1 w'.1
+      w.2.1 w'.2.1 hzw hzw'
+    exact hw'E (hwC.trans hfan)
+  rcases isPreconnected_iff_subset_of_disjoint_closed.1 hfront_pre KC KE
+      hKCclosed hKEclosed hcover (by
+        apply Set.eq_empty_of_forall_notMem
+        rintro x ⟨-, hxC, hxE⟩
+        exact Set.disjoint_left.1 hdis hxC hxE) with hsub | hsub
+  · obtain ⟨z, hzv, hz⟩ := v.2.2
+    have hvE : v ∈ E := huv
+    have hzKE : z ∈ KE := Set.mem_iUnion₂.2 ⟨v, hvE, hzv, hz⟩
+    have hzKC : z ∈ KC := hsub hz
+    exact Set.disjoint_left.1 hdis hzKC hzKE
+  · obtain ⟨z, hzu, hz⟩ := u.2.2
+    have hzKC : z ∈ KC := Set.mem_iUnion₂.2 ⟨u, SimpleGraph.Reachable.rfl, hzu, hz⟩
+    have hzKE : z ∈ KE := hsub hz
+    exact Set.disjoint_left.1 hdis hzKC hzKE
 
 private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_belt_edge
     (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)

@@ -47123,6 +47123,261 @@ private lemma existsMacroCertificate_seed2_routing_step3_data (τ : Substitution
     path_nodup := hpa_nodup
     path_disjoint := hpa_disj }⟩
 
+private lemma emcg_g1_shared_inner
+    (D : MacroData P) (tmpl : existsMacroCertificate_TemplateData D)
+    {α : D.Q.Form} {t u : D.Typ} (ht : D.owner t = α) (hu : D.owner u = α)
+    (hshare : SharesSide (D.childTile t) (D.childTile u)) :
+    ∃ (i : D.Side t) (j : D.Side u),
+      D.IsInner (D.occ t i) ∧ D.occSide (D.occ t i) = D.occSide (D.occ u j) := by
+  rcases hshare with ⟨htu, e, ⟨i, hi⟩, ⟨j, hj⟩⟩
+  refine ⟨i, j, ?_, hi.trans hj.symm⟩
+  intro hout
+  have htmem : D.childTile t ∈ (D.σ.rule α).tiles := by
+    rw [tmpl.rule_eq α]
+    exact ⟨t, ht, rfl⟩
+  have humem : D.childTile u ∈ (D.σ.rule α).tiles := by
+    rw [tmpl.rule_eq α]
+    exact ⟨u, hu, rfl⟩
+  let q := midpoint ℝ ((D.childTile t).vertex i)
+    ((D.childTile t).vertex (finRotate _ i))
+  have hqopen : q ∈ openSegment ℝ ((D.childTile t).vertex i)
+      ((D.childTile t).vertex (finRotate _ i)) := by
+    apply mem_openSegment_of_ne_left_right
+    · intro h
+      exact tile_vertex_ne_next (D.childTile t) i (by
+        dsimp [q] at h
+        rw [eq_comm, midpoint_eq_left_iff] at h
+        exact h)
+    · intro h
+      exact tile_vertex_ne_next (D.childTile t) i (by
+        dsimp [q] at h
+        rw [eq_comm, midpoint_eq_right_iff] at h
+        exact h)
+    · exact midpoint_mem_segment _ _
+  obtain ⟨r, hr, σ, -, hlocal⟩ := two_sides (D.σ.rule α).disjoint
+    htmem humem htu i j (hj.trans hi.symm) hqopen
+  have hqint : q ∈ interior (support (D.σ.rule α).tiles) := by
+    rw [mem_interior_iff_mem_nhds]
+    apply Filter.mem_of_superset (Metric.ball_mem_nhds q hr)
+    intro x hx
+    by_cases hnonneg : 0 ≤ σ * jcr
+        ((D.childTile t).vertex (finRotate _ i) - (D.childTile t).vertex i)
+        (x - (D.childTile t).vertex i)
+    · exact carrier_subset_support htmem ((hlocal x hx).2.2 hnonneg)
+    · exact carrier_subset_support humem
+        (interior_subset ((hlocal x hx).2.1 (lt_of_not_ge hnonneg)))
+  have hqfront : q ∈ D.macroBoundary α := by
+    have hqfront' : q ∈ D.macroBoundary (D.owner t) := by
+      apply hout
+      rw [MacroData.occSide, tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hqopen
+    exact ht ▸ hqfront'
+  rw [D.σ.support_eq α] at hqint
+  exact hqfront.2 hqint
+
+private lemma emcg_g1_connected
+    (D : MacroData P) (tmpl : existsMacroCertificate_TemplateData D) :
+    ∀ α, (D.innerGraph α).Connected := by
+  classical
+  intro α
+  let V := {t : D.Typ // D.owner t = α}
+  have hnonempty : Nonempty V := by
+    obtain ⟨x, hx⟩ := (D.Q.disk α).interior_nonempty
+    have hx' : D.σ.θ • x ∈ support (D.σ.rule α).tiles := by
+      rw [D.σ.support_eq α]
+      exact smul_mem_smul_set (interior_subset hx)
+    obtain ⟨A, hA, -⟩ := mem_support_iff'.1 hx'
+    rw [tmpl.rule_eq α] at hA
+    obtain ⟨t, ht, -⟩ := hA
+    exact ⟨⟨t, ht⟩⟩
+  letI : Nonempty V := hnonempty
+  refine ⟨?_⟩
+  intro a b
+  rw [SimpleGraph.reachable_iff_reflTransGen]
+  have hamem : D.childTile a.1 ∈ (D.σ.rule α).tiles := by
+    rw [tmpl.rule_eq α]
+    exact ⟨a.1, a.2, rfl⟩
+  have hbmem : D.childTile b.1 ∈ (D.σ.rule α).tiles := by
+    rw [tmpl.rule_eq α]
+    exact ⟨b.1, b.2, rfl⟩
+  have hpre : IsPreconnected (interior (support (D.σ.rule α).tiles)) := by
+    rw [D.σ.support_eq α]
+    exact (emcgScaleDisk (D.Q.disk α) D.σ.θ
+      (ne_of_gt (zero_lt_one.trans D.σ.one_lt))).interior_pathConnected.isConnected.isPreconnected
+  have hchain := existsRoutingAfterPower_step5_discretize_step1_route_step1_perturb_step3_dualChain
+    (D.σ.rule α).disjoint (tmpl.template_sts α) (Set.Subset.rfl)
+    (D.σ.rule α).finite isOpen_interior hpre interior_subset
+    hamem hbmem
+    (by
+      obtain ⟨x, hx⟩ := (tileDisk (D.childTile a.1)).interior_nonempty
+      exact ⟨x, interior_mono (carrier_subset_support hamem) hx, hx⟩)
+    (by
+      obtain ⟨x, hx⟩ := (tileDisk (D.childTile b.1)).interior_nonempty
+      exact ⟨x, interior_mono (carrier_subset_support hbmem) hx, hx⟩)
+  have hlift : ∀ (A B : PlacedTile D.Q),
+      Relation.ReflTransGen
+        (fun X Y => X ∈ (D.σ.rule α).tiles ∧ Y ∈ (D.σ.rule α).tiles ∧ SharesSide X Y) A B →
+      ∀ (x y : V), D.childTile x.1 = A → D.childTile y.1 = B →
+        Relation.ReflTransGen (D.innerGraph α).Adj x y := by
+    intro A B h
+    induction h with
+    | refl =>
+        intro x y hx hy
+        have htile : D.childTile x.1 = D.childTile y.1 := hx.trans hy.symm
+        have hform : D.form x.1 = D.form y.1 :=
+          congrArg (fun Z : PlacedTile D.Q => Z.form) htile
+        have hanchor : D.anchor x.1 = D.anchor y.1 :=
+          congrArg (fun Z : PlacedTile D.Q => Z.anchor) htile
+        have hxy : x.1 = y.1 := tmpl.type_injective x.1 y.1
+          (x.2.trans y.2.symm) hform hanchor
+        have hxy' : x = y := Subtype.ext hxy
+        subst y
+        exact Relation.ReflTransGen.refl
+    | @tail B C hAB hBC ih =>
+        intro x z hx hz
+        rw [tmpl.rule_eq α] at hBC
+        rcases hBC.1 with ⟨y, hyown, hy⟩
+        let y' : V := ⟨y, hyown⟩
+        have hy' : D.childTile y = B := by
+          simpa only [MacroData.childTile] using hy
+        have hshare : SharesSide (D.childTile y) (D.childTile z.1) := by
+          rw [hy', hz]
+          exact hBC.2.2
+        have hadj : (D.innerGraph α).Adj y' z := by
+          obtain ⟨i, j, hi, hij⟩ := emcg_g1_shared_inner D tmpl hyown z.2 hshare
+          refine ⟨?_, Or.inl ⟨i, j, hi, hij⟩⟩
+          intro heq
+          exact hshare.1 (congrArg (fun w : V => D.childTile w.1) heq)
+        exact Relation.ReflTransGen.tail (ih x y' hx hy') hadj
+  exact hlift _ _ hchain a b rfl rfl
+
+private lemma emcg_g1_three_le
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) :
+    ∀ α, 3 ≤ Nat.card {t : cd.D.Typ // cd.D.owner t = α} := by
+  classical
+  intro α
+  let j0 : Fin (4 * s.setup.N (cd.baseForm α)) := ⟨0, by
+    have := s.setup.N_two (cd.baseForm α)
+    omega⟩
+  let j1 : Fin (4 * s.setup.N (cd.baseForm α)) := ⟨1, by
+    have := s.setup.N_two (cd.baseForm α)
+    omega⟩
+  obtain ⟨X0, hX0, hX0c, hX0j⟩ :=
+    s.setup.piece_child l (cd.baseForm α) cd.l_pos j0
+  obtain ⟨X1, hX1, hX1c, hX1j⟩ :=
+    s.setup.piece_child l (cd.baseForm α) cd.l_pos j1
+  have hX01 : X0 ≠ X1 := by
+    intro h
+    subst X1
+    have heq : ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j0).faces =
+        ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j1).faces :=
+      hX0j.symm.trans hX1j
+    obtain ⟨x, hx⟩ :=
+      ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j0).disk.interior_nonempty
+    have hx' : x ∈ support
+        ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j0).faces := by
+      rw [← ((s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes.piece j0).carrier_eq]
+      exact interior_subset hx
+    obtain ⟨A, hA, -⟩ := mem_support_iff'.1 hx'
+    exact sw3_piece_ne (s.setup.annulus l (cd.baseForm α) cd.l_pos).spokes
+      (by
+        intro hj
+        have := congrArg Fin.val hj
+        simp [j0, j1] at this)
+      hA (heq ▸ hA)
+  obtain ⟨tc, htc, htcc⟩ := (cd.child_bijective α).2.2
+    (s.setup.central_mem l (cd.baseForm α))
+  obtain ⟨t0, ht0, ht0c⟩ := (cd.child_bijective α).2.2 hX0
+  obtain ⟨t1, ht1, ht1c⟩ := (cd.child_bijective α).2.2 hX1
+  have hct0 : tc ≠ t0 := by
+    intro h
+    subst t0
+    exact hX0c (ht0c.symm.trans htcc)
+  have hct1 : tc ≠ t1 := by
+    intro h
+    subst t1
+    exact hX1c (ht1c.symm.trans htcc)
+  have ht01 : t0 ≠ t1 := by
+    intro h
+    subst t1
+    exact hX01 (ht0c.symm.trans ht1c)
+  let f : Fin 3 → {t : cd.D.Typ // cd.D.owner t = α} := fun i =>
+    Fin.cases ⟨tc, htc⟩ (fun i => Fin.cases ⟨t0, ht0⟩ (fun _ => ⟨t1, ht1⟩) i) i
+  have hf : Function.Injective f := by
+    intro i j hij
+    fin_cases i <;> fin_cases j <;> simp only [f, Fin.cases_zero, Fin.cases_succ] at hij ⊢
+    · exact (hct0 (congrArg Subtype.val hij)).elim
+    · exact (hct1 (congrArg Subtype.val hij)).elim
+    · exact (hct0 (congrArg Subtype.val hij).symm).elim
+    · exact (ht01 (congrArg Subtype.val hij)).elim
+    · exact (hct1 (congrArg Subtype.val hij).symm).elim
+    · exact (ht01 (congrArg Subtype.val hij).symm).elim
+  simpa using Nat.card_le_card_of_injective f hf
+
+private lemma emcg_g1_side_unique
+    (D : MacroData P) (tmpl : existsMacroCertificate_TemplateData D)
+    (o o' : D.SideOcc) (ho : D.IsInner o) (hown : D.owner o'.1 = D.owner o.1)
+    (hne : o'.1 ≠ o.1) (hside : D.occSide o' = D.occSide o)
+    (hpartner : (D.partner o).1 ≠ o.1 ∧
+      D.owner (D.partner o).1 = D.owner o.1 ∧
+      D.occSide (D.partner o) = D.occSide o) : o' = D.partner o := by
+  have _ := ho
+  let α := D.owner o.1
+  have homem : D.childTile o.1 ∈ (D.σ.rule α).tiles := by
+    rw [tmpl.rule_eq α]
+    exact ⟨o.1, rfl, rfl⟩
+  have hopmem : D.childTile (D.partner o).1 ∈ (D.σ.rule α).tiles := by
+    rw [tmpl.rule_eq α]
+    exact ⟨(D.partner o).1, hpartner.2.1, rfl⟩
+  have ho'mem : D.childTile o'.1 ∈ (D.σ.rule α).tiles := by
+    rw [tmpl.rule_eq α]
+    exact ⟨o'.1, hown, rfl⟩
+  have hop_ne : D.childTile o.1 ≠ D.childTile (D.partner o).1 := by
+    intro htile
+    apply hpartner.1
+    apply tmpl.type_injective
+    · exact hpartner.2.1
+    · exact congrArg (fun A : PlacedTile D.Q => A.form) htile.symm
+    · exact congrArg (fun A : PlacedTile D.Q => A.anchor) htile.symm
+  have ho'_ne : D.childTile o.1 ≠ D.childTile o'.1 := by
+    intro htile
+    apply hne
+    symm
+    apply tmpl.type_injective
+    · exact hown.symm
+    · exact congrArg (fun A : PlacedTile D.Q => A.form) htile
+    · exact congrArg (fun A : PlacedTile D.Q => A.anchor) htile
+  have htile := side_partner_unique (D.σ.rule α).disjoint homem hopmem ho'mem
+    hop_ne ho'_ne o.2 (D.partner o).2 o'.2 hpartner.2.2 hside
+  have hform : D.form (D.partner o).1 = D.form o'.1 :=
+    congrArg (fun A : PlacedTile D.Q => A.form) htile
+  have hanchor : D.anchor (D.partner o).1 = D.anchor o'.1 :=
+    congrArg (fun A : PlacedTile D.Q => A.anchor) htile
+  have htyp : (D.partner o).1 = o'.1 := tmpl.type_injective _ _
+    (hpartner.2.1.trans hown.symm) hform hanchor
+  have hsidep : D.occSide o' = D.occSide (D.partner o) :=
+    hside.trans hpartner.2.2.symm
+  cases o' with
+  | mk t' i' =>
+      cases hp : D.partner o with
+      | mk p ip =>
+          simp only [hp] at htyp hsidep ⊢
+          subst t'
+          have hinj : Function.Injective (D.childTile p).vertex := by
+            intro a b hab
+            apply (D.Q.disk (D.form p)).vertex_injective
+            simpa [PlacedTile.vertex] using hab
+          have hii : i' = ip := by
+            apply cyc_seg_inj (D.Q.disk (D.form p)).three_le hinj
+            simpa only [MacroData.occSide, tile_side_eq] using hsidep
+          subst i'
+          rfl
+
 /-- Step 5 of `lem:certificate-exists`, (G1): "Disk cellulations with at least the centre and its
 ring have connected inner-side duals and at least three children"; every child of a retained
 template has an inner side (a child with outer sides only would be the whole template), an inner
@@ -47135,7 +47390,71 @@ private lemma existsMacroCertificate_seed2_routing_step4_g1 (τ : Substitution P
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G1Data cd.D := by
-  sorry
+  classical
+  have hconnected : ∀ α, (cd.D.innerGraph α).Connected :=
+    emcg_g1_connected cd.D cd.tmpl
+  have hthree : ∀ α, 3 ≤ Nat.card {t : cd.D.Typ // cd.D.owner t = α} :=
+    emcg_g1_three_le τ g s l routing cd
+  have hinner : ∀ t, ∃ i, cd.D.IsInner (cd.D.occ t i) := by
+    intro t
+    let V := {u : cd.D.Typ // cd.D.owner u = cd.D.owner t}
+    have hcard : 1 < Nat.card V := lt_of_lt_of_le (by omega) (hthree (cd.D.owner t))
+    letI : Nontrivial V := Finite.one_lt_card_iff_nontrivial.mp hcard
+    obtain ⟨u, htu⟩ := exists_ne (⟨t, rfl⟩ : V)
+    have hreach := hconnected (cd.D.owner t) (⟨t, rfl⟩ : V) u
+    rw [SimpleGraph.reachable_iff_reflTransGen] at hreach
+    rcases hreach.cases_head with heq | ⟨v, hadj, -⟩
+    · exact (htu heq.symm).elim
+    · rcases hadj with ⟨-, hadj | hadj⟩
+      · rcases hadj with ⟨i, j, hi, -⟩
+        exact ⟨i, hi⟩
+      · rcases hadj with ⟨i, j, hi, hside⟩
+        refine ⟨j, ?_⟩
+        intro hout
+        apply hi
+        intro x hx
+        rw [hside] at hx
+        rw [v.2]
+        exact hout hx
+  have hpartner_inner : ∀ o : cd.D.SideOcc, cd.D.IsInner o →
+      cd.D.IsInner (cd.D.partner o) := by
+    intro o ho hout
+    apply ho
+    intro x hx
+    have hp := cd.partner_spec o ho
+    rw [← hp.2.2] at hx
+    have hown := hp.2.1
+    exact hown ▸ hout hx
+  have hside_unique : ∀ o o' : cd.D.SideOcc, cd.D.IsInner o →
+      cd.D.owner o'.1 = cd.D.owner o.1 → o'.1 ≠ o.1 →
+      cd.D.occSide o' = cd.D.occSide o → o' = cd.D.partner o := by
+    intro o o' ho hown hne hside
+    exact emcg_g1_side_unique cd.D cd.tmpl o o' ho hown hne hside (cd.partner_spec o ho)
+  have hpartner_partner : ∀ o : cd.D.SideOcc, cd.D.IsInner o →
+      cd.D.partner (cd.D.partner o) = o := by
+    intro o ho
+    have hp := cd.partner_spec o ho
+    have hpi := hpartner_inner o ho
+    have hpp := cd.partner_spec (cd.D.partner o) hpi
+    symm
+    apply hside_unique (cd.D.partner o) o hpi
+    · exact hp.2.1.symm
+    · exact hp.1.symm
+    · exact hp.2.2.symm
+  refine {
+    connected := hconnected
+    three_le := hthree
+    inner_side := hinner
+    partner := cd.partner_spec
+    partner_partner := hpartner_partner
+    side_unique := hside_unique
+    edge_partner := ?_
+    edge_unique := ?_
+    edgeTypes := cd.edgeTypes_spec }
+  · intro o ho
+    exact ((cd.edge_spec o (cd.D.partner o) ho (hpartner_inner o ho)).2 (Or.inr rfl)).symm
+  · intro o o' ho ho' hedge
+    exact (cd.edge_spec o o' ho ho').1 hedge
 
 /-- Step 6 of `lem:certificate-exists`, (G2): "Around the macroboundary, consecutive boundary
 faces are connected through the finite fan at each boundary vertex ... Faces touching the

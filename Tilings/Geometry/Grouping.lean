@@ -37898,6 +37898,530 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kord
   ⟨existsRoutingAfterPower_step4_routes_step6_R2_admConfig_mem_Kadm
     τ M Rs ports entries, horder⟩
 
+/-- Scaling a polygonal disk by a nonzero real scalar preserves all of its defining data.  This
+local copy is placed before R3 because the later grouping-scale construction is not yet in scope. -/
+private def existsRoutingAfterPower_step4_routes_step6_R3_scaleDisk
+    (D : PolygonalDisk) (s : ℝ) (hs : s ≠ 0) : PolygonalDisk where
+  carrier := s • D.carrier
+  n := D.n
+  three_le := D.three_le
+  vertex i := s • D.vertex i
+  vertex_injective i j hij := D.vertex_injective (smul_right_injective Pt hs hij)
+  compact := D.compact.smul s
+  interior_nonempty := by
+    rw [interior_smul₀ hs]
+    obtain ⟨x, hx⟩ := D.interior_nonempty
+    exact ⟨s • x, Set.smul_mem_smul_set hx⟩
+  regular_closed := by rw [interior_smul₀ hs, closure_smul₀, D.regular_closed]
+  interior_pathConnected := by
+    rw [interior_smul₀ hs, ← Set.image_smul]
+    exact D.interior_pathConnected.image (continuous_const_smul s)
+  frontier_eq := by
+    rw [frontier, closure_smul₀, interior_smul₀ hs, ← Set.smul_set_sdiff₀ hs,
+      ← frontier, D.frontier_eq, Set.smul_set_iUnion]
+    simp only [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_segment_smul]
+  simple i j hij := by
+    have h := Set.smul_set_mono (a := s) (D.simple i j hij)
+    rw [Set.smul_set_inter₀ hs, Set.smul_set_inter₀ hs] at h
+    simpa only [
+      existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_segment_smul,
+      Set.smul_set_insert, Set.smul_set_insert, Set.smul_set_singleton,
+      Set.smul_set_singleton] using h
+
+/-- The square of infinity-radius `kappa` about `c` is a polygonal disk. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquareDisk
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) :
+    ∃ C : PolygonalDisk, C.carrier = square c kappa := by
+  obtain ⟨B, hB⟩ := plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareDisk
+  let one : Pt := !₂[1, 1]
+  let v : Pt := c - kappa • one
+  let S := existsRoutingAfterPower_step4_routes_step6_R3_scaleDisk B (2 * kappa)
+    (by positivity)
+  let C := pdTranslate S v
+  refine ⟨C, ?_⟩
+  rw [show C.carrier = v +ᵥ ((2 * kappa) • B.carrier) from rfl, hB]
+  ext x
+  constructor
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    change v + (2 * kappa) • z ∈ square c kappa
+    dsimp only [square]
+    have hcoord : ∀ i : Fin 2,
+        (v + (2 * kappa) • z) i - c i = kappa * (2 * z i - 1) := by
+      intro i
+      dsimp only [v, one]
+      fin_cases i <;> simp <;> ring
+    change |(v + (2 * kappa) • z) 0 - c 0| ≤ kappa ∧
+      |(v + (2 * kappa) • z) 1 - c 1| ≤ kappa
+    rw [hcoord 0, hcoord 1]
+    constructor <;> rw [abs_le] <;> constructor <;>
+      nlinarith [hz.1.1, hz.1.2, hz.2.1, hz.2.2]
+  · intro hx
+    let z : Pt := (2 * kappa)⁻¹ • (x - v)
+    have hz : z 0 ∈ Icc (0 : ℝ) 1 ∧ z 1 ∈ Icc (0 : ℝ) 1 := by
+      dsimp only [z, v, one]
+      simp only [PiLp.smul_apply, PiLp.sub_apply, Matrix.cons_val_zero,
+        Matrix.cons_val_one, smul_eq_mul]
+      dsimp only [square] at hx
+      have h2 : 0 < 2 * kappa := by positivity
+      rw [inv_mul_eq_div, inv_mul_eq_div]
+      constructor <;> constructor
+      · exact div_nonneg (by linarith [(abs_le.mp hx.1).1]) h2.le
+      · exact (div_le_one h2).2 (by linarith [(abs_le.mp hx.1).2])
+      · exact div_nonneg (by linarith [(abs_le.mp hx.2).1]) h2.le
+      · exact (div_le_one h2).2 (by linarith [(abs_le.mp hx.2).2])
+    refine ⟨(2 * kappa) • z, Set.smul_mem_smul_set hz, ?_⟩
+    change v + (2 * kappa) • z = x
+    dsimp only [z]
+    rw [smul_smul]
+    have hne : 2 * kappa ≠ 0 := by positivity
+    rw [mul_inv_cancel₀ hne, one_smul]
+    abel
+
+/-- The protected Euclidean ball is contained in the centred polygonal square, while the whole
+square stays inside the ball of twice the radius. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_bounds
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) :
+    ∃ C : PolygonalDisk,
+      C.carrier = square c kappa ∧
+      Metric.closedBall c kappa ⊆ C.carrier ∧
+      C.carrier ⊆ Metric.closedBall c (2 * kappa) := by
+  obtain ⟨C, hC⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquareDisk c hkappa
+  refine ⟨C, hC, ?_, ?_⟩
+  · intro x hx
+    rw [hC]
+    have hcoord : ∀ i : Fin 2, |x i - c i| ≤ kappa := by
+      intro i
+      calc
+        |x i - c i| ≤ ‖x - c‖ := by
+          simpa only [PiLp.sub_apply, Real.norm_eq_abs] using
+            PiLp.norm_apply_le (x - c) i
+        _ = dist x c := by rw [dist_eq_norm]
+        _ ≤ kappa := by simpa [dist_comm] using Metric.mem_closedBall.mp hx
+    exact ⟨hcoord 0, hcoord 1⟩
+  · intro x hx
+    rw [hC] at hx
+    rw [Metric.mem_closedBall, dist_eq_norm]
+    have hnorm : ‖x - c‖ ≤ |x 0 - c 0| + |x 1 - c 1| := by
+      rw [EuclideanSpace.norm_eq, Fin.sum_univ_two, Real.sqrt_le_iff]
+      refine ⟨by positivity, ?_⟩
+      simp only [PiLp.sub_apply, Real.norm_eq_abs, sq_abs]
+      nlinarith [abs_nonneg (x 0 - c 0), abs_nonneg (x 1 - c 1),
+        sq_abs (x 0 - c 0), sq_abs (x 1 - c 1)]
+    exact hnorm.trans (by linarith [hx.1, hx.2])
+
+/-- Every point of the centred square boundary is at Euclidean distance at least `kappa` from
+the centre. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_frontier_norm
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (hC : C.carrier = square c kappa) {x : Pt} (hx : x ∈ frontier C.carrier) :
+    kappa ≤ ‖x - c‖ := by
+  by_contra hnorm
+  push_neg at hnorm
+  have hcoord : ∀ i : Fin 2, |(x - c) i| < kappa := by
+    intro i
+    exact (by
+      simpa only [Real.norm_eq_abs] using
+        (PiLp.norm_apply_le (x - c) i).trans_lt hnorm)
+  have hmax : sw3N (x - c) < kappa := by
+    unfold sw3N
+    exact max_lt (hcoord 0) (hcoord 1)
+  have hxint : x ∈ interior C.carrier := by
+    rw [hC]
+    exact sw3_mem_interior_square hmax
+  exact Set.disjoint_left.1 disjoint_interior_frontier hxint hx
+
+/-- The canonical intersection of a ray with the centred square boundary. -/
+private def existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint
+    (c : Pt) (kappa : ℝ) (u : Pt) : Pt :=
+  c + (kappa / sw3N u) • u
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_sw3N_pos_of_norm_eq_one
+    {u : Pt} (hu : ‖u‖ = 1) : 0 < sw3N u := by
+  apply lt_of_le_of_ne (sw3N_nonneg u)
+  intro hzero
+  have h0 : u 0 = 0 := by
+    have := le_max_left |u 0| |u 1|
+    rw [← sw3N, ← hzero] at this
+    exact abs_eq_zero.mp (le_antisymm this (abs_nonneg _))
+  have h1 : u 1 = 0 := by
+    have := le_max_right |u 0| |u 1|
+    rw [← sw3N, ← hzero] at this
+    exact abs_eq_zero.mp (le_antisymm this (abs_nonneg _))
+  have huzero : u = 0 := by
+    ext i
+    fin_cases i
+    · exact h0
+    · exact h1
+  rw [huzero, norm_zero] at hu
+  exact zero_ne_one hu
+
+/-- Unit directions meet the canonical centred square on its frontier. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_frontier
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (hC : C.carrier = square c kappa) {u : Pt} (hu : ‖u‖ = 1) :
+    existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u ∈
+      frontier C.carrier := by
+  let r := kappa / sw3N u
+  have hN : 0 < sw3N u :=
+    existsRoutingAfterPower_step4_routes_step6_R3_sw3N_pos_of_norm_eq_one hu
+  have hr : 0 < r := div_pos hkappa hN
+  have hsup : sw3N
+      (existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u - c) =
+      kappa := by
+    rw [existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint,
+      add_sub_cancel_left, sw3N_smul, abs_of_pos hr]
+    dsimp only [r]
+    field_simp
+  have hmem : existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u ∈
+      C.carrier := by
+    rw [hC]
+    exact ⟨(le_max_left _ _).trans_eq hsup,
+      (le_max_right _ _).trans_eq hsup⟩
+  rw [mem_frontier_iff_of_closed C.compact.isClosed]
+  refine ⟨hmem, ?_⟩
+  intro hint
+  have := sw3_interior_square (hC ▸ hint)
+  rw [hsup] at this
+  exact (lt_irrefl kappa this).elim
+
+/-- Radially normalizing the canonical square intersection gives the original circle point. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radial
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) {u : Pt} (hu : ‖u‖ = 1) :
+    let x := existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u
+    c + (kappa / ‖x - c‖) • (x - c) = c + kappa • u := by
+  dsimp only
+  let r := kappa / sw3N u
+  have hN : 0 < sw3N u :=
+    existsRoutingAfterPower_step4_routes_step6_R3_sw3N_pos_of_norm_eq_one hu
+  have hr : 0 < r := div_pos hkappa hN
+  have hnorm : ‖existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u - c‖ = r := by
+    rw [existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint,
+      add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos hr, hu, mul_one]
+  rw [hnorm, existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint,
+    add_sub_cancel_left, smul_smul]
+  have hrne : r ≠ 0 := hr.ne'
+  rw [div_mul_cancel₀ kappa hrne]
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_injective
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) :
+    Set.InjOn (existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa)
+      (Metric.sphere (0 : Pt) 1) := by
+  intro u hu v hv huv
+  rw [Metric.mem_sphere, dist_zero_right] at hu hv
+  have hu' := existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radial
+    c hkappa hu
+  have hv' := existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_radial
+    c hkappa hv
+  rw [huv] at hu'
+  have heq : c + kappa • u = c + kappa • v := hu'.symm.trans hv'
+  exact smul_right_injective Pt hkappa.ne' (add_left_cancel heq)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_frontier_sw3N
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (hC : C.carrier = square c kappa) {x : Pt} (hx : x ∈ frontier C.carrier) :
+    sw3N (x - c) = kappa := by
+  have hxC : x ∈ square c kappa := by
+    rw [← hC]
+    exact C.compact.isClosed.frontier_subset hx
+  have hle : sw3N (x - c) ≤ kappa := by
+    unfold sw3N
+    exact max_le hxC.1 hxC.2
+  apply le_antisymm hle
+  by_contra hlt
+  push_neg at hlt
+  have hxint : x ∈ interior C.carrier := by
+    rw [hC]
+    exact sw3_mem_interior_square hlt
+  exact Set.disjoint_left.1 disjoint_interior_frontier hxint hx
+
+/-- Every point of the centred square boundary is the canonical square endpoint of a unique unit
+direction. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_surjective
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (hC : C.carrier = square c kappa) {x : Pt} (hx : x ∈ frontier C.carrier) :
+    ∃ u ∈ Metric.sphere (0 : Pt) 1,
+      existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa u = x := by
+  let n := ‖x - c‖
+  have hn : kappa ≤ n :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_frontier_norm
+      c hkappa C hC hx
+  have hnpos : 0 < n := hkappa.trans_le hn
+  let u := n⁻¹ • (x - c)
+  have hu : ‖u‖ = 1 := by
+    dsimp only [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hnpos)]
+    exact inv_mul_cancel₀ hnpos.ne'
+  refine ⟨u, Metric.mem_sphere.mpr (by simpa [dist_zero_right]), ?_⟩
+  have hsup :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_frontier_sw3N
+      c hkappa C hC hx
+  have hNu : sw3N u = n⁻¹ * kappa := by
+    dsimp only [u]
+    rw [sw3N_smul, abs_of_pos (inv_pos.mpr hnpos), hsup]
+  rw [existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint, hNu,
+    smul_smul]
+  have hcoef : kappa / (n⁻¹ * kappa) * n⁻¹ = 1 := by
+    field_simp
+  rw [hcoef, one_smul]
+  abel
+
+private def existsRoutingAfterPower_step4_routes_step6_R3_squareLoop
+    (c : Pt) (kappa : ℝ) (gamma : ℝ → Pt) (t : ℝ) : Pt :=
+  existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa (gamma t)
+
+/-- Radial projection carries any parametrized unit circle homeomorphically to the centred
+polygonal square boundary, without changing its parameter. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareLoop_isLoopParam
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (hC : C.carrier = square c kappa) (gamma : ℝ → Pt)
+    (hgamma : IsLoopParam (Metric.sphere (0 : Pt) 1) gamma) :
+    IsLoopParam (frontier C.carrier)
+      (existsRoutingAfterPower_step4_routes_step6_R3_squareLoop c kappa gamma) := by
+  have hmem : ∀ t, gamma t ∈ Metric.sphere (0 : Pt) 1 := fun t => qo_loop_mem hgamma t
+  have hnorm : ∀ t, ‖gamma t‖ = 1 := fun t => by
+    simpa [Metric.mem_sphere, dist_zero_right] using hmem t
+  have hNpos : ∀ t, 0 < sw3N (gamma t) := fun t =>
+    existsRoutingAfterPower_step4_routes_step6_R3_sw3N_pos_of_norm_eq_one (hnorm t)
+  have hNc : Continuous (fun t => sw3N (gamma t)) := by
+    unfold sw3N
+    have hc0 : Continuous (fun w : Pt => w 0) := PiLp.continuous_apply 2 _ 0
+    have hc1 : Continuous (fun w : Pt => w 1) := PiLp.continuous_apply 2 _ 1
+    have h0 : Continuous (fun t => |gamma t 0|) := by
+      simpa only [Function.comp_apply] using (hc0.comp hgamma.1).abs
+    have h1 : Continuous (fun t => |gamma t 1|) := by
+      simpa only [Function.comp_apply] using (hc1.comp hgamma.1).abs
+    exact h0.max h1
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · unfold existsRoutingAfterPower_step4_routes_step6_R3_squareLoop
+    unfold existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint
+    exact continuous_const.add
+      ((continuous_const.div hNc (fun t => (hNpos t).ne')).smul hgamma.1)
+  · intro t
+    simp only [existsRoutingAfterPower_step4_routes_step6_R3_squareLoop]
+    rw [hgamma.2.1 t]
+  · intro s hs t ht hst
+    apply hgamma.2.2.1 hs ht
+    exact existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_injective
+      c hkappa (hmem s) (hmem t) hst
+  · apply Set.Subset.antisymm
+    · rintro x ⟨t, -, rfl⟩
+      exact existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_frontier
+        c hkappa C hC (hnorm t)
+    · intro x hx
+      obtain ⟨u, hu, rfl⟩ :=
+        existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_surjective
+          c hkappa C hC hx
+      rw [← hgamma.2.2.2] at hu
+      obtain ⟨t, ht, htu⟩ := hu
+      refine ⟨t, ht, ?_⟩
+      simp only [existsRoutingAfterPower_step4_routes_step6_R3_squareLoop, htu]
+
+/-- Radial projection to the square boundary preserves a finite cyclic-order witness verbatim:
+the same real parameters witness the order before and after projection. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_pointsInOrder_squareLoop
+    (c : Pt) (kappa : ℝ) {k : ℕ} (gamma : ℝ → Pt) (d : Fin k → Pt)
+    (horder : PointsInOrder gamma d) :
+    PointsInOrder
+      (existsRoutingAfterPower_step4_routes_step6_R3_squareLoop c kappa gamma)
+      (fun i => existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint c kappa (d i)) := by
+  obtain ⟨t, ht, htwrap, htd⟩ := horder
+  exact ⟨t, ht, htwrap, fun i => by
+    simp only [existsRoutingAfterPower_step4_routes_step6_R3_squareLoop, htd i]⟩
+
+/-- The round loop and its canonical square projection are freely homotopic through the closed
+collar between the protected circle and the square boundary. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_circle_square_homotopy
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (hC : C.carrier = square c kappa) (gamma : ℝ → Pt)
+    (hgamma : IsLoopParam (Metric.sphere (0 : Pt) 1) gamma) :
+    LoopsHomotopicIn (C.carrier \ Metric.ball c kappa)
+      (fun t => c + kappa • gamma t)
+      (existsRoutingAfterPower_step4_routes_step6_R3_squareLoop c kappa gamma) := by
+  have hmem : ∀ t, gamma t ∈ Metric.sphere (0 : Pt) 1 := fun t => qo_loop_mem hgamma t
+  have hnorm : ∀ t, ‖gamma t‖ = 1 := fun t => by
+    simpa [Metric.mem_sphere, dist_zero_right] using hmem t
+  have hNpos : ∀ t, 0 < sw3N (gamma t) := fun t =>
+    existsRoutingAfterPower_step4_routes_step6_R3_sw3N_pos_of_norm_eq_one (hnorm t)
+  have hNc : Continuous (fun t => sw3N (gamma t)) := by
+    unfold sw3N
+    have hc0 : Continuous (fun w : Pt => w 0) := PiLp.continuous_apply 2 _ 0
+    have hc1 : Continuous (fun w : Pt => w 1) := PiLp.continuous_apply 2 _ 1
+    have h0 : Continuous (fun t => |gamma t 0|) := by
+      simpa only [Function.comp_apply] using (hc0.comp hgamma.1).abs
+    have h1 : Continuous (fun t => |gamma t 1|) := by
+      simpa only [Function.comp_apply] using (hc1.comp hgamma.1).abs
+    exact h0.max h1
+  let radius : ℝ × ℝ → ℝ := fun p =>
+    (1 - p.1) * kappa + p.1 * (kappa / sw3N (gamma p.2))
+  let F : ℝ × ℝ → Pt := fun p => c + radius p • gamma p.2
+  have hrc : Continuous radius := by
+    dsimp only [radius]
+    apply Continuous.add
+    · fun_prop
+    · apply Continuous.mul continuous_fst
+      exact continuous_const.div (hNc.comp continuous_snd)
+        (fun p => (hNpos p.2).ne')
+  have hFc : Continuous F := by
+    dsimp only [F]
+    exact continuous_const.add (hrc.smul (hgamma.1.comp continuous_snd))
+  refine ⟨F, hFc, ?_, ?_, ?_, ?_⟩
+  · intro s t
+    dsimp only [F, radius]
+    rw [hgamma.2.1 t]
+  · intro t
+    simp [F, radius]
+  · intro t
+    simp only [F, radius, one_mul, one_div, sub_self, zero_mul, zero_add]
+    rfl
+  · intro s hs t
+    have hNle : sw3N (gamma t) ≤ 1 := by
+      rw [← hnorm t]
+      exact sw3N_le_norm _
+    have hratio : 1 ≤ 1 / sw3N (gamma t) := by
+      exact (le_div_iff₀ (hNpos t)).2 (by simpa using hNle)
+    have hrLower : kappa ≤ radius (s, t) := by
+      dsimp only [radius]
+      have hscaled : kappa ≤ kappa / sw3N (gamma t) := by
+        rw [div_eq_mul_inv]
+        have hratio' : 1 ≤ (sw3N (gamma t))⁻¹ := by
+          simpa only [one_div] using hratio
+        simpa using mul_le_mul_of_nonneg_left hratio' hkappa.le
+      nlinarith [mul_nonneg hs.1 (sub_nonneg.mpr hscaled),
+        mul_nonneg (sub_nonneg.mpr hs.2) hkappa.le]
+    have hrUpper : radius (s, t) ≤ kappa / sw3N (gamma t) := by
+      dsimp only [radius]
+      have hscaled : kappa ≤ kappa / sw3N (gamma t) := by
+        rw [div_eq_mul_inv]
+        have hratio' : 1 ≤ (sw3N (gamma t))⁻¹ := by
+          simpa only [one_div] using hratio
+        simpa using mul_le_mul_of_nonneg_left hratio' hkappa.le
+      nlinarith [mul_nonneg (sub_nonneg.mpr hs.2)
+        (sub_nonneg.mpr hscaled)]
+    constructor
+    · rw [hC]
+      have hsup : sw3N (F (s, t) - c) ≤ kappa := by
+        dsimp only [F]
+        rw [add_sub_cancel_left, sw3N_smul, abs_of_nonneg (hkappa.le.trans hrLower)]
+        have hmul := mul_le_mul_of_nonneg_right hrUpper (sw3N_nonneg (gamma t))
+        have hcancel : kappa / sw3N (gamma t) * sw3N (gamma t) = kappa := by
+          exact div_mul_cancel₀ kappa (hNpos t).ne'
+        rwa [hcancel] at hmul
+      unfold square
+      exact ⟨(le_max_left _ _).trans hsup, (le_max_right _ _).trans hsup⟩
+    · rw [Metric.mem_ball, dist_eq_norm]
+      dsimp only [F]
+      rw [add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+        abs_of_nonneg (hkappa.le.trans hrLower), hnorm, mul_one]
+      exact not_lt_of_ge hrLower
+
+/-- The radial collar from the square boundary to the protected circle stays in the polygonal
+square and avoids the open protected ball. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_radial
+    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (hC : C.carrier = square c kappa) {x : Pt} (hx : x ∈ frontier C.carrier) :
+    segment ℝ x (c + (kappa / ‖x - c‖) • (x - c)) ⊆
+      C.carrier \ Metric.ball c kappa := by
+  let n := ‖x - c‖
+  have hn : kappa ≤ n :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_frontier_norm
+      c hkappa C hC hx
+  have hnpos : 0 < n := hkappa.trans_le hn
+  have hxC : x ∈ C.carrier := C.compact.isClosed.frontier_subset hx
+  have hyball : c + (kappa / n) • (x - c) ∈ Metric.closedBall c kappa := by
+    rw [Metric.mem_closedBall, dist_eq_norm]
+    simp only [add_sub_cancel_left, norm_smul, Real.norm_eq_abs]
+    rw [abs_of_pos (div_pos hkappa hnpos)]
+    change kappa / n * n ≤ kappa
+    rw [div_mul_cancel₀ kappa hnpos.ne']
+  have hyC : c + (kappa / n) • (x - c) ∈ C.carrier := by
+    rw [hC]
+    have hcoord : ∀ i : Fin 2,
+        |(c + (kappa / n) • (x - c)) i - c i| ≤ kappa := by
+      intro i
+      calc
+        |(c + (kappa / n) • (x - c)) i - c i| ≤
+            ‖(c + (kappa / n) • (x - c)) - c‖ := by
+          simpa only [PiLp.sub_apply, Real.norm_eq_abs] using
+            PiLp.norm_apply_le ((c + (kappa / n) • (x - c)) - c) i
+        _ = dist (c + (kappa / n) • (x - c)) c := by rw [dist_eq_norm]
+        _ ≤ kappa := by simpa [dist_comm] using Metric.mem_closedBall.mp hyball
+    exact ⟨hcoord 0, hcoord 1⟩
+  intro z hz
+  refine ⟨hC ▸ (rg_square_convex c kappa).segment_subset (hC ▸ hxC) (hC ▸ hyC) hz, ?_⟩
+  rw [Metric.mem_ball]
+  obtain ⟨t, ht0, ht1, rfl⟩ := mem_segment_iff'.mp hz
+  have hscale :
+      x + t • (c + (kappa / n) • (x - c) - x) - c =
+        (1 - t + t * (kappa / n)) • (x - c) := by module
+  rw [dist_eq_norm, hscale, norm_smul, Real.norm_eq_abs]
+  have hratio : 0 < kappa / n := div_pos hkappa hnpos
+  have hcoef : 0 ≤ 1 - t + t * (kappa / n) := by
+    nlinarith [mul_nonneg ht0 hratio.le, mul_nonneg (sub_nonneg.mpr ht1) zero_le_one]
+  rw [abs_of_nonneg hcoef]
+  have hkn : kappa / n * n = kappa := by field_simp
+  have hcoeflower : kappa / n ≤ 1 - t + t * (kappa / n) := by
+    have hratioOne : kappa / n ≤ 1 := (div_le_one hnpos).2 hn
+    nlinarith [mul_nonneg (sub_nonneg.mpr ht1) (sub_nonneg.mpr hratioOne)]
+  nlinarith
+
+/-- A three-radius clearance therefore supplies a polygonal inner disk containing the protected
+ball and lying in the parent interior. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_innerSquare
+    (A : PolygonalDisk) (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa)
+    (hball : Metric.closedBall c (3 * kappa) ⊆ interior A.carrier) :
+    ∃ C : PolygonalDisk,
+      Metric.closedBall c kappa ⊆ C.carrier ∧ C.carrier ⊆ interior A.carrier := by
+  obtain ⟨C, _hC, hinner, houter⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_bounds c hkappa
+  refine ⟨C, hinner, houter.trans ?_⟩
+  intro x hx
+  apply hball
+  exact Metric.mem_closedBall.mpr
+    ((Metric.mem_closedBall.mp hx).trans (by linarith [hkappa]))
+
+/-- Combined inner-square package for the round-boundary reduction: it contains the protected
+ball, lies in the parent interior, and every square-boundary point has a protected radial collar
+to the round boundary. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_innerSquare_radial
+    (A : PolygonalDisk) (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa)
+    (hball : Metric.closedBall c (3 * kappa) ⊆ interior A.carrier) :
+    ∃ C : PolygonalDisk,
+      Metric.closedBall c kappa ⊆ C.carrier ∧
+      C.carrier ⊆ interior A.carrier ∧
+      ∀ x ∈ frontier C.carrier,
+        segment ℝ x (c + (kappa / ‖x - c‖) • (x - c)) ⊆
+          C.carrier \ Metric.ball c kappa := by
+  obtain ⟨C, hC, hinner, houter⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_bounds c hkappa
+  refine ⟨C, hinner, houter.trans ?_, ?_⟩
+  · intro x hx
+    apply hball
+    exact Metric.mem_closedBall.mpr
+      ((Metric.mem_closedBall.mp hx).trans (by linarith [hkappa]))
+  · intro x hx
+    exact existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_radial
+      c hkappa C hC hx
+
+/-- Every admissible normalized configuration has the preceding polygonal inner disk at the
+canonical protected radius. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R3_Kadm_innerSquare_radial
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp rho : ℝ)
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α) :
+    let kappa := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs
+    ∃ C : PolygonalDisk,
+      Metric.closedBall cfg.1 kappa ⊆ C.carrier ∧
+      C.carrier ⊆ interior (Rs.GS.G.P'.disk α).carrier ∧
+      ∀ x ∈ frontier C.carrier,
+        segment ℝ x (cfg.1 + (kappa / ‖x - cfg.1‖) • (x - cfg.1)) ⊆
+          C.carrier \ Metric.ball cfg.1 kappa := by
+  apply existsRoutingAfterPower_step4_routes_step6_R3_innerSquare_radial
+  · exact existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  · exact existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
+      τ M Rs cp rho α hcfg
+
 /-- Polygonal arc carriers are compact. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_polyArc_compact (γ : PolyArc) :
     IsCompact γ.carrier := by
@@ -38239,6 +38763,112 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_conjugateNormHomeomo
       abs_of_pos hkappa, E.norm_map, hF, E.symm.norm_map, norm_smul, Real.norm_eq_abs,
       abs_of_pos (inv_pos.mpr hkappa), ← dist_eq_norm, dist_comm]
     field_simp
+
+/-- The affine map carrying the ordered interval `[a,b]` to `[c,d]`. -/
+private def existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
+    (a b c d x : ℝ) : ℝ :=
+  c + ((x - a) / (b - a)) * (d - c)
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_continuous
+    (a b c d : ℝ) :
+    Continuous (existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation a b c d) := by
+  unfold existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
+  fun_prop
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_endpoints
+    {a b c d : ℝ} (hab : a ≠ b) :
+    existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation a b c d a = c ∧
+      existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation a b c d b = d := by
+  unfold existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
+  constructor
+  · simp
+  · rw [div_self (sub_ne_zero.mpr hab.symm)]
+    ring
+
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_strictMono
+    {a b c d : ℝ} (hab : a < b) (hcd : c < d) :
+    StrictMono (existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation a b c d) := by
+  intro x y hxy
+  unfold existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
+  have habp : 0 < b - a := sub_pos.mpr hab
+  have hcdp : 0 < d - c := sub_pos.mpr hcd
+  have hquot : (x - a) / (b - a) < (y - a) / (b - a) :=
+    (div_lt_div_iff_of_pos_right habp).2 (by linarith)
+  nlinarith
+
+/-- Linear interpolation loses no more than the larger displacement of its two endpoints. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation_displacement
+    {a b c d x : ℝ} (hab : a < b) (hx : x ∈ Icc a b) :
+    |existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation a b c d x - x| ≤
+      max |c - a| |d - b| := by
+  let t := (x - a) / (b - a)
+  have hden : 0 < b - a := sub_pos.mpr hab
+  have ht : t ∈ Icc (0 : ℝ) 1 := by
+    constructor
+    · exact div_nonneg (sub_nonneg.mpr hx.1) hden.le
+    · exact (div_le_one hden).2 (by linarith [hx.2])
+  have hxform : x = (1 - t) * a + t * b := by
+    dsimp only [t]
+    field_simp
+    ring
+  have hinterp :
+      existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation a b c d x =
+        (1 - t) * c + t * d := by
+    unfold existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
+    dsimp only [t]
+    ring
+  rw [hinterp, hxform]
+  have heq : (1 - t) * c + t * d - ((1 - t) * a + t * b) =
+      (1 - t) * (c - a) + t * (d - b) := by ring
+  rw [heq]
+  calc
+    |(1 - t) * (c - a) + t * (d - b)| ≤
+        |(1 - t) * (c - a)| + |t * (d - b)| := abs_add_le _ _
+    _ = (1 - t) * |c - a| + t * |d - b| := by
+      rw [abs_mul, abs_mul, abs_of_nonneg (by linarith [ht.2]), abs_of_nonneg ht.1]
+    _ ≤ (1 - t) * max |c - a| |d - b| +
+        t * max |c - a| |d - b| := by
+      exact add_le_add
+        (mul_le_mul_of_nonneg_left (le_max_left |c - a| |d - b|) (by linarith [ht.2]))
+        (mul_le_mul_of_nonneg_left (le_max_right |c - a| |d - b|) ht.1)
+    _ = max |c - a| |d - b| := by ring
+
+/-- A continuous strictly increasing degree-one lift is automatically onto, hence determines an
+order isomorphism of the real line.  This packages the final step of periodic interpolation. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_R4_periodicStrictMono_orderIso
+    (f : ℝ → ℝ) (hf : Continuous f) (hmono : StrictMono f)
+    (hdegree : ∀ x, f (x + 1) = f x + 1) :
+    ∃ phi : ℝ ≃o ℝ, (∀ x, phi x = f x) ∧
+      ∀ x, phi (x + 1) = phi x + 1 := by
+  let g : ℝ → ℝ := fun x => f x - x
+  have hgper : Function.Periodic g 1 := by
+    intro x
+    dsimp only [g]
+    rw [hdegree]
+    ring
+  have hfinteger : ∀ n : ℤ, f n = f 0 + n := by
+    intro n
+    have hper := hgper.int_mul n 0
+    dsimp only [g] at hper
+    norm_num at hper
+    linarith
+  have hsurj : Function.Surjective f := by
+    intro y
+    let n : ℤ := ⌊y - f 0⌋
+    have hnle : (n : ℝ) ≤ y - f 0 := by
+      simpa [n] using Int.floor_le (y - f 0)
+    have hylt : y - f 0 < (n : ℝ) + 1 := by
+      simpa [n] using Int.lt_floor_add_one (y - f 0)
+    have hflo : f n ≤ y := by rw [hfinteger]; linarith
+    have hfhi : y ≤ f ((n : ℝ) + 1) := by
+      rw [hdegree, hfinteger]
+      linarith
+    exact intermediate_value_univ (n : ℝ) ((n : ℝ) + 1) hf ⟨hflo, hfhi⟩
+  let phi : ℝ ≃o ℝ := StrictMono.orderIsoOfSurjective f hmono hsurj
+  refine ⟨phi, fun _ => rfl, ?_⟩
+  intro x
+  change f (x + 1) = f x + 1
+  exact hdegree x
 
 /-- A degree-one increasing lift of the parameter circle gives a concrete homeomorphism of the
 complex unit circle.  This is the quotient-circle packaging used by the finite interpolation

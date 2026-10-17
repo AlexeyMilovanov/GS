@@ -46144,6 +46144,322 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2 (τ : Substitution P
     belt_edge := existsMacroCertificate_seed2_routing_step5_g2_aux_belt_edge τ g s l routing cd
     central := existsMacroCertificate_seed2_routing_step5_g2_aux_central τ g s l routing cd }
 
+private lemma emcg_crossing_overlap_span {a b x y : Pt}
+    (h : OverlapPos (segment ℝ a b) (segment ℝ x y)) :
+    affineSpan ℝ ({a, b} : Set Pt) = affineSpan ℝ ({x, y} : Set Pt) := by
+  obtain ⟨u, v, huv, huvsub⟩ := h
+  have hmem {r s z : Pt} (hz : z ∈ segment ℝ r s) :
+      z ∈ affineSpan ℝ ({r, s} : Set Pt) := by
+    rw [segment_eq_image'] at hz
+    obtain ⟨q, -, rfl⟩ := hz
+    simpa [vadd_eq_add, vsub_eq_sub, add_comm] using
+      (smul_vsub_vadd_mem_affineSpan_pair q r s)
+  have hab : affineSpan ℝ ({u, v} : Set Pt) = affineSpan ℝ ({a, b} : Set Pt) :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne
+      (hmem (huvsub (left_mem_segment ℝ u v)).1)
+      (hmem (huvsub (right_mem_segment ℝ u v)).1) huv
+  have hxy : affineSpan ℝ ({u, v} : Set Pt) = affineSpan ℝ ({x, y} : Set Pt) :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne
+      (hmem (huvsub (left_mem_segment ℝ u v)).2)
+      (hmem (huvsub (right_mem_segment ℝ u v)).2) huv
+  exact hab.symm.trans hxy
+
+private lemma emcg_crossing_inside_or_endpoint {p q x y : Pt} (hpq : p ≠ q)
+    (hov : OverlapPos (segment ℝ x y) (segment ℝ p q)) :
+    segment ℝ x y ⊆ openSegment ℝ p q ∨
+      p ∈ segment ℝ x y ∨ q ∈ segment ℝ x y := by
+  have hspan := emcg_crossing_overlap_span hov
+  obtain ⟨u, v, huv, huvsub⟩ := hov
+  have hline : ∀ z ∈ affineSpan ℝ ({p, q} : Set Pt),
+      ∃ r : ℝ, z = p + r • (q - p) := by
+    intro z hz
+    obtain ⟨r, hr⟩ := (mem_affineSpan_pair_iff_exists_lineMap_eq).1 hz
+    rw [AffineMap.lineMap_apply] at hr
+    exact ⟨r, by simpa [vsub_eq_sub, vadd_eq_add, add_comm] using hr.symm⟩
+  have hpoint : ∀ {a b t : ℝ}, a < b → a ≤ t → t ≤ b →
+      p + t • (q - p) ∈ segment ℝ (p + a • (q - p)) (p + b • (q - p)) := by
+    intro a b t hab hat htb
+    rw [segment_eq_image']
+    let r := (t - a) / (b - a)
+    have hr0 : 0 ≤ r := by
+      exact div_nonneg (sub_nonneg.mpr hat) (le_of_lt (sub_pos.mpr hab))
+    have hr1 : r ≤ 1 := by
+      apply (div_le_iff₀ (sub_pos.mpr hab)).2
+      dsimp [r]
+      linarith
+    refine ⟨r, ⟨hr0, hr1⟩, ?_⟩
+    have hden : b - a ≠ 0 := ne_of_gt (sub_pos.mpr hab)
+    have hscalar : a + (t - a) / (b - a) * (b - a) = t := by
+      field_simp [hden]
+      ring
+    calc
+      (p + a • (q - p)) + r • ((p + b • (q - p)) - (p + a • (q - p))) =
+          p + (a + (t - a) / (b - a) * (b - a)) • (q - p) := by
+        dsimp [r]
+        module
+      _ = p + t • (q - p) := by rw [hscalar]
+  have hpd : q - p ≠ 0 := sub_ne_zero.mpr hpq.symm
+  have hxline : x ∈ affineSpan ℝ ({p, q} : Set Pt) := by
+    rw [← hspan]
+    exact left_mem_affineSpan_pair ℝ x y
+  have hyline : y ∈ affineSpan ℝ ({p, q} : Set Pt) := by
+    rw [← hspan]
+    exact right_mem_affineSpan_pair ℝ x y
+  obtain ⟨rx, hrx⟩ := hline x hxline
+  obtain ⟨ry, hry⟩ := hline y hyline
+  have hmem_scalar : ∀ {a b t : ℝ}, a ≤ t → t ≤ b →
+      p + t • (q - p) ∈ segment ℝ (p + a • (q - p)) (p + b • (q - p)) := by
+    intro a b t hat htb
+    by_cases hab : a < b
+    · exact hpoint hab hat htb
+    · have hba : b ≤ a := le_of_not_gt hab
+      have h : a = b := le_antisymm (le_trans hat htb) hba
+      subst b
+      have ht : t = a := le_antisymm htb hat
+      subst t
+      rw [segment_same]
+      rfl
+  by_cases hpE : p ∈ segment ℝ x y
+  · exact Or.inr (Or.inl hpE)
+  by_cases hqE : q ∈ segment ℝ x y
+  · exact Or.inr (Or.inr hqE)
+  have huP : u ∈ segment ℝ p q := (huvsub (left_mem_segment ℝ u v)).2
+  obtain ⟨t, ht0, ht1, hut⟩ := mem_segment_iff'.1 huP
+  have huE : u ∈ segment ℝ x y := (huvsub (left_mem_segment ℝ u v)).1
+  rw [segment_eq_image'] at huE
+  obtain ⟨r, hr, hur⟩ := huE
+  have hscalar : t = rx + r * (ry - rx) := by
+    have heq : p + t • (q - p) = p + (rx + r * (ry - rx)) • (q - p) := by
+      calc
+        p + t • (q - p) = u := hut.symm
+        _ = x + r • (y - x) := hur.symm
+        _ = p + (rx + r * (ry - rx)) • (q - p) := by rw [hrx, hry]; module
+    exact smul_cancel_pt hpd (add_left_cancel heq)
+  have hbetween : (rx ≤ t ∧ t ≤ ry) ∨ (ry ≤ t ∧ t ≤ rx) := by
+    by_cases hxy : rx ≤ ry
+    · left
+      constructor <;> nlinarith [hr.1, hr.2]
+    · right
+      have hyx : ry ≤ rx := le_of_not_ge hxy
+      constructor <;> nlinarith [hr.1, hr.2]
+  have hzero : ¬ ((rx ≤ 0 ∧ 0 ≤ ry) ∨ (ry ≤ 0 ∧ 0 ≤ rx)) := by
+    rintro (h | h)
+    · exact hpE (by simpa [hrx, hry] using hmem_scalar h.1 h.2)
+    · exact hpE (by simpa [hrx, hry, segment_symm] using hmem_scalar h.1 h.2)
+  have hone : ¬ ((rx ≤ 1 ∧ 1 ≤ ry) ∨ (ry ≤ 1 ∧ 1 ≤ rx)) := by
+    rintro (h | h)
+    · exact hqE (by simpa [hrx, hry] using hmem_scalar h.1 h.2)
+    · exact hqE (by simpa [hrx, hry, segment_symm] using hmem_scalar h.1 h.2)
+  have hrx0 : 0 < rx := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hzero (Or.inl ⟨not_lt.mp h', le_trans ht0 h.2⟩)
+    · by_contra h'
+      exact hzero (Or.inr ⟨h.1.trans (le_trans h.2 (not_lt.mp h')),
+        le_trans ht0 h.2⟩)
+  have hry0 : 0 < ry := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hzero (Or.inl ⟨h.1.trans (le_trans h.2 (not_lt.mp h')),
+        le_trans ht0 h.2⟩)
+    · by_contra h'
+      exact hzero (Or.inr ⟨not_lt.mp h', le_trans ht0 h.2⟩)
+  have hrx1 : rx < 1 := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hone (Or.inl ⟨le_trans h.1 ht1,
+        le_trans (not_lt.mp h') (le_trans h.1 h.2)⟩)
+    · by_contra h'
+      exact hone (Or.inr ⟨le_trans h.1 ht1, not_lt.mp h'⟩)
+  have hry1 : ry < 1 := by
+    rcases hbetween with h | h
+    · by_contra h'
+      exact hone (Or.inl ⟨le_trans h.1 ht1, not_lt.mp h'⟩)
+    · by_contra h'
+      exact hone (Or.inr ⟨le_trans h.1 ht1,
+        le_trans (not_lt.mp h') (le_trans h.1 h.2)⟩)
+  left
+  intro z hz
+  rw [segment_eq_image'] at hz
+  obtain ⟨a, ha, hza⟩ := hz
+  rw [openSegment_eq_image']
+  refine ⟨rx + a * (ry - rx), ?_, ?_⟩
+  · constructor
+    · nlinarith [mul_nonneg (sub_nonneg.mpr ha.2) (le_of_lt hrx0),
+        mul_nonneg ha.1 (le_of_lt hry0)]
+    · nlinarith [mul_nonneg (sub_nonneg.mpr ha.2) (sub_nonneg.mpr (le_of_lt hrx1)),
+        mul_nonneg ha.1 (sub_nonneg.mpr (le_of_lt hry1))]
+  · rw [hrx, hry] at hza
+    symm
+    change z = p + (rx + a * (ry - rx)) • (q - p)
+    calc
+      z = (p + rx • (q - p)) + a • ((p + ry • (q - p)) -
+          (p + rx • (q - p))) := hza.symm
+      _ = p + (rx + a * (ry - rx)) • (q - p) := by module
+
+private lemma emcg_crossing_common_open {p q r s : Pt} (hpq : p ≠ q)
+    (hrp : r ≠ p) (hsp : s ≠ p) (hr : r ∈ segment ℝ p q)
+    (hs : s ∈ segment ℝ p q) :
+    ∃ z, z ∈ openSegment ℝ p r ∧ z ∈ openSegment ℝ p s := by
+  have hpr : Wbtw ℝ p r q := mem_segment_iff_wbtw.mp hr
+  have hps : Wbtw ℝ p s q := mem_segment_iff_wbtw.mp hs
+  have hsame : SameRay ℝ (r -ᵥ p) (s -ᵥ p) := by
+    apply hpr.sameRay_vsub_left.trans hps.sameRay_vsub_left.symm
+    intro hqp
+    exact False.elim (hpq (sub_eq_zero.mp hqp).symm)
+  rcases wbtw_total_of_sameRay_vsub_left hsame with hrs | hsr
+  · let z := AffineMap.lineMap p r (1 / 2 : ℝ)
+    have hzpr : z ∈ openSegment ℝ p r :=
+      lineMap_mem_openSegment (𝕜 := ℝ) p r (by norm_num)
+    have hzp : z ≠ p := by
+      intro h
+      rw [h] at hzpr
+      exact hrp (left_mem_openSegment_iff.mp hzpr).symm
+    have hzr : z ≠ r := by
+      intro h
+      rw [h] at hzpr
+      exact hrp (right_mem_openSegment_iff.mp hzpr).symm
+    have hzstrict : Sbtw ℝ p z r :=
+      ⟨mem_segment_iff_wbtw.mp (openSegment_subset_segment ℝ p r hzpr), hzp, hzr⟩
+    have hzps := hrs.trans_sbtw_left hzstrict
+    exact ⟨z, hzpr, mem_openSegment_of_ne_left_right hzps.left_ne hzps.right_ne
+      hzps.wbtw.mem_segment⟩
+  · let z := AffineMap.lineMap p s (1 / 2 : ℝ)
+    have hzps : z ∈ openSegment ℝ p s :=
+      lineMap_mem_openSegment (𝕜 := ℝ) p s (by norm_num)
+    have hzp : z ≠ p := by
+      intro h
+      rw [h] at hzps
+      exact hsp (left_mem_openSegment_iff.mp hzps).symm
+    have hzs : z ≠ s := by
+      intro h
+      rw [h] at hzps
+      exact hsp (right_mem_openSegment_iff.mp hzps).symm
+    have hzstrict : Sbtw ℝ p z s :=
+      ⟨mem_segment_iff_wbtw.mp (openSegment_subset_segment ℝ p s hzps), hzp, hzs⟩
+    have hzpr := hsr.trans_sbtw_left hzstrict
+    exact ⟨z, mem_openSegment_of_ne_left_right hzpr.left_ne hzpr.right_ne
+      hzpr.wbtw.mem_segment, hzps⟩
+
+private lemma emcg_crossing_occ_unique_at_endpoint
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing)
+    (α : cd.D.Q.Form) (p q : Pt) (hpq : p ≠ q)
+    (t u : cd.D.Typ) (i : cd.D.Side t) (j : cd.D.Side u)
+    (ht : cd.D.owner t = α) (hu : cd.D.owner u = α)
+    (hti : cd.D.IsOuter ⟨t, i⟩) (huj : cd.D.IsOuter ⟨u, j⟩)
+    (htov : OverlapPos (cd.D.occSide ⟨t, i⟩) (segment ℝ p q))
+    (huov : OverlapPos (cd.D.occSide ⟨u, j⟩) (segment ℝ p q))
+    (hpt : p ∈ cd.D.occSide ⟨t, i⟩) (hpu : p ∈ cd.D.occSide ⟨u, j⟩) :
+    (⟨t, i⟩ : cd.D.SideOcc) = ⟨u, j⟩ := by
+  have htseg : cd.D.occSide ⟨t, i⟩ =
+      segment ℝ ((cd.D.childTile t).vertex i)
+        ((cd.D.childTile t).vertex (finRotate _ i)) :=
+    tile_side_eq (cd.D.childTile t) i
+  have huseg : cd.D.occSide ⟨u, j⟩ =
+      segment ℝ ((cd.D.childTile u).vertex j)
+        ((cd.D.childTile u).vertex (finRotate _ j)) :=
+    tile_side_eq (cd.D.childTile u) j
+  have hcommon : OverlapPos (cd.D.occSide ⟨t, i⟩) (cd.D.occSide ⟨u, j⟩) := by
+    obtain ⟨x, y, hxy, hxySub⟩ := htov
+    obtain ⟨x', y', hxy', hxySub'⟩ := huov
+    have htr : ∃ r, r ≠ p ∧ r ∈ cd.D.occSide ⟨t, i⟩ ∧ r ∈ segment ℝ p q := by
+      by_cases hxp : x = p
+      · refine ⟨y, ?_, (hxySub (right_mem_segment ℝ x y)).1,
+          (hxySub (right_mem_segment ℝ x y)).2⟩
+        intro hyp
+        exact hxy (hxp.trans hyp.symm)
+      · exact ⟨x, hxp, (hxySub (left_mem_segment ℝ x y)).1,
+          (hxySub (left_mem_segment ℝ x y)).2⟩
+    have hus : ∃ r, r ≠ p ∧ r ∈ cd.D.occSide ⟨u, j⟩ ∧ r ∈ segment ℝ p q := by
+      by_cases hxp : x' = p
+      · refine ⟨y', ?_, (hxySub' (right_mem_segment ℝ x' y')).1,
+          (hxySub' (right_mem_segment ℝ x' y')).2⟩
+        intro hyp
+        exact hxy' (hxp.trans hyp.symm)
+      · exact ⟨x', hxp, (hxySub' (left_mem_segment ℝ x' y')).1,
+          (hxySub' (left_mem_segment ℝ x' y')).2⟩
+    obtain ⟨r, hrp, hrt, hrpq⟩ := htr
+    obtain ⟨r', hr'p, hr'u, hr'pq⟩ := hus
+    obtain ⟨z, hzpr, hzpr'⟩ :=
+      emcg_crossing_common_open hpq hrp hr'p hrpq hr'pq
+    have hpr_t : segment ℝ p r ⊆ cd.D.occSide ⟨t, i⟩ := by
+      rw [htseg]
+      apply (convex_segment _ _).segment_subset
+      · rwa [← htseg]
+      · rwa [← htseg]
+    have hpr'_u : segment ℝ p r' ⊆ cd.D.occSide ⟨u, j⟩ := by
+      rw [huseg]
+      apply (convex_segment _ _).segment_subset
+      · rwa [← huseg]
+      · rwa [← huseg]
+    have hpz_r : segment ℝ p z ⊆ segment ℝ p r :=
+      (convex_segment _ _).segment_subset (left_mem_segment ℝ p r)
+        (openSegment_subset_segment ℝ _ _ hzpr)
+    have hpz_r' : segment ℝ p z ⊆ segment ℝ p r' :=
+      (convex_segment _ _).segment_subset (left_mem_segment ℝ p r')
+        (openSegment_subset_segment ℝ _ _ hzpr')
+    have hzp : z ≠ p := by
+      intro h
+      rw [h] at hzpr
+      exact hrp (left_mem_openSegment_iff.mp hzpr).symm
+    refine ⟨p, z, hzp.symm, ?_⟩
+    intro w hw
+    exact ⟨hpr_t (hpz_r hw), hpr'_u (hpz_r' hw)⟩
+  have hAt : cd.D.childTile t ∈ (cd.D.σ.rule α).tiles := by
+    rw [cd.tmpl.rule_eq α]
+    exact ⟨t, ht, rfl⟩
+  have hAu : cd.D.childTile u ∈ (cd.D.σ.rule α).tiles := by
+    rw [cd.tmpl.rule_eq α]
+    exact ⟨u, hu, rfl⟩
+  have hside : (cd.D.childTile t).side i = (cd.D.childTile u).side j :=
+    cd.tmpl.template_sts α _ hAt _ hAu i j hcommon
+  have htile : cd.D.childTile t = cd.D.childTile u := by
+    by_contra hne
+    let z := AffineMap.lineMap ((cd.D.childTile t).vertex i)
+      ((cd.D.childTile t).vertex (finRotate _ i)) (1 / 2 : ℝ)
+    have hz : z ∈ openSegment ℝ ((cd.D.childTile t).vertex i)
+        ((cd.D.childTile t).vertex (finRotate _ i)) :=
+      lineMap_mem_openSegment (𝕜 := ℝ) _ _ (by norm_num)
+    obtain ⟨r, hr, σ, hσ, hlocal⟩ := two_sides (cd.D.σ.rule α).disjoint
+      hAt hAu hne i j hside.symm hz
+    have hzint : z ∈ interior (support (cd.D.σ.rule α).tiles) := by
+      rw [mem_interior_iff_mem_nhds]
+      apply Filter.mem_of_superset (Metric.ball_mem_nhds z hr)
+      intro w hw
+      by_cases hval : 0 ≤ σ * jcr
+          ((cd.D.childTile t).vertex (finRotate _ i) - (cd.D.childTile t).vertex i)
+          (w - (cd.D.childTile t).vertex i)
+      · exact carrier_subset_support hAt ((hlocal w hw).2.2 hval)
+      · exact carrier_subset_support hAu
+          (interior_subset ((hlocal w hw).2.1 (lt_of_not_ge hval)))
+    rw [cd.D.σ.support_eq α] at hzint
+    have hzfront : z ∈ cd.D.macroBoundary α := by
+      rw [← ht]
+      apply hti
+      rw [htseg]
+      exact openSegment_subset_segment ℝ _ _ hz
+    exact hzfront.2 hzint
+  have hform : cd.D.form t = cd.D.form u :=
+    congrArg (fun A : PlacedTile cd.D.Q => A.form) htile
+  have hanchor : cd.D.anchor t = cd.D.anchor u :=
+    congrArg (fun A : PlacedTile cd.D.Q => A.anchor) htile
+  have htu : t = u := cd.tmpl.type_injective t u (ht.trans hu.symm) hform hanchor
+  subst u
+  have hinj : Function.Injective (cd.D.childTile t).vertex := by
+    intro a b hab
+    apply (cd.D.Q.disk (cd.D.form t)).vertex_injective
+    simpa [PlacedTile.vertex] using hab
+  have hij : i = j := by
+    apply cyc_seg_inj (cd.D.Q.disk (cd.D.form t)).three_le hinj
+    simpa only [tile_side_eq] using hside
+  subst j
+  rfl
+
 private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_crossing
     (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
@@ -46155,7 +46471,69 @@ private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_crossing
       Set.ncard {o : cd.D.SideOcc | cd.D.owner o.1 = α ∧ cd.D.IsOuter o ∧
         OverlapPos (cd.D.occSide o) (cd.D.macroSide α d) ∧
         ¬ cd.D.occSide o ⊆ cd.D.macroSide α d} ≤ 2 := by
-  sorry
+  classical
+  intro α d
+  let p := cd.D.σ.θ • (cd.D.Q.disk α).vertex d
+  let q := cd.D.σ.θ • (cd.D.Q.disk α).vertex (finRotate _ d)
+  have hmacro : cd.D.macroSide α d = segment ℝ p q := by
+    simp only [MacroData.macroSide, PolygonalDisk.side, emcg_smul_segment, p, q]
+  have hpq : p ≠ q := by
+    intro h
+    have h' := smul_right_injective Pt (ne_of_gt (lt_trans zero_lt_one cd.D.σ.one_lt)) h
+    exact emcg_finRotate_ne (by have := (cd.D.Q.disk α).three_le; omega) d
+      ((cd.D.Q.disk α).vertex_injective h').symm
+  let S := {o : cd.D.SideOcc | cd.D.owner o.1 = α ∧ cd.D.IsOuter o ∧
+    OverlapPos (cd.D.occSide o) (cd.D.macroSide α d) ∧
+    ¬ cd.D.occSide o ⊆ cd.D.macroSide α d}
+  let L := {o ∈ S | p ∈ cd.D.occSide o}
+  let R := {o ∈ S | q ∈ cd.D.occSide o}
+  have hSfin : S.Finite := Set.toFinite S
+  have hLfin : L.Finite := hSfin.sep _
+  have hRfin : R.Finite := hSfin.sep _
+  have hL : L.ncard ≤ 1 := by
+    rw [Set.ncard_le_one hLfin]
+    rintro ⟨t, i⟩ hti ⟨u, j⟩ huj
+    apply emcg_crossing_occ_unique_at_endpoint τ g s l routing cd α p q hpq
+    · exact hti.1.1
+    · exact huj.1.1
+    · exact hti.1.2.1
+    · exact huj.1.2.1
+    · simpa [hmacro] using hti.1.2.2.1
+    · simpa [hmacro] using huj.1.2.2.1
+    · exact hti.2
+    · exact huj.2
+  have hR : R.ncard ≤ 1 := by
+    rw [Set.ncard_le_one hRfin]
+    rintro ⟨t, i⟩ hti ⟨u, j⟩ huj
+    apply emcg_crossing_occ_unique_at_endpoint τ g s l routing cd α q p hpq.symm
+    · exact hti.1.1
+    · exact huj.1.1
+    · exact hti.1.2.1
+    · exact huj.1.2.1
+    · simpa [hmacro, segment_symm] using hti.1.2.2.1
+    · simpa [hmacro, segment_symm] using huj.1.2.2.1
+    · exact hti.2
+    · exact huj.2
+  have hsub : S ⊆ L ∪ R := by
+    rintro o ho
+    have hocc : cd.D.occSide o = segment ℝ ((cd.D.childTile o.1).vertex o.2)
+        ((cd.D.childTile o.1).vertex (finRotate _ o.2)) :=
+      tile_side_eq (cd.D.childTile o.1) o.2
+    have hcases := emcg_crossing_inside_or_endpoint hpq (by
+      rw [← hocc, ← hmacro]
+      exact ho.2.2.1)
+    rcases hcases with hopen | hp | hq
+    · exfalso
+      apply ho.2.2.2
+      rw [hmacro, hocc]
+      exact hopen.trans (openSegment_subset_segment ℝ p q)
+    · exact Or.inl ⟨ho, by rwa [← hocc] at hp⟩
+    · exact Or.inr ⟨ho, by rwa [← hocc] at hq⟩
+  change S.ncard ≤ 2
+  calc
+    S.ncard ≤ (L ∪ R).ncard := Set.ncard_le_ncard hsub (hLfin.union hRfin)
+    _ ≤ L.ncard + R.ncard := Set.ncard_union_le L R
+    _ ≤ 2 := by omega
 
 private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_five
     (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)

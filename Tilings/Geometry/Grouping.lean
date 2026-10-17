@@ -45591,6 +45591,38 @@ faces are connected through the finite fan at each boundary vertex ... Faces tou
 boundary only at a vertex must be included in this fan"; every belt type has a boundary side
 because it is not the whole macrotile; "The retained centre is strictly interior"
 (`RoutingSetup.clearance`). -/
+private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_belt_connected
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) :
+    ∀ _α, (cd.D.beltGraph _α).Connected := by
+  sorry
+
+private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_belt_edge
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) :
+    ∀ _t, cd.D.IsBeltType (cd.D.owner _t) _t →
+      ∃ _i, cd.D.IsBoundary (cd.D.occ _t _i) := by
+  sorry
+
+private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_central
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
+    (cd : existsMacroCertificate_CertData τ g s l routing) :
+    ∀ _α _i, ¬ cd.D.IsOuter (cd.D.occ (cd.D.central _α) _i) ∧
+      ¬ cd.D.IsBoundary (cd.D.occ (cd.D.central _α) _i) := by
+  sorry
+
 private lemma existsMacroCertificate_seed2_routing_step5_g2 (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
@@ -45598,7 +45630,11 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2 (τ : Substitution P
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding))
     (cd : existsMacroCertificate_CertData τ g s l routing) :
     existsMacroCertificate_G2Data cd.D := by
-  sorry
+  exact {
+    belt_connected := existsMacroCertificate_seed2_routing_step5_g2_aux_belt_connected
+      τ g s l routing cd
+    belt_edge := existsMacroCertificate_seed2_routing_step5_g2_aux_belt_edge τ g s l routing cd
+    central := existsMacroCertificate_seed2_routing_step5_g2_aux_central τ g s l routing cd }
 
 private lemma existsMacroCertificate_seed2_routing_step6_g3_aux_crossing
     (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)

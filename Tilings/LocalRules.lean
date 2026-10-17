@@ -3132,6 +3132,38 @@ theorem Core.hereditary_sts_substitution_sofic (τ : Substitution P) (hsts : τ.
 
 /-! ### The hereditary STS hierarchy assembly steps -/
 
+private noncomputable def hereditary_sts_hierarchy_sofic_step1_control_decoration
+    (C : Geometry.MacroCertificate P) : Decoration C.Q where
+  P' :=
+    { Form := C.Q.Form ⊕ Planned.DecTile C
+      disk := fun
+        | Sum.inl α => C.Q.disk α
+        | Sum.inr A => C.Q.disk (C.form A.typ) }
+  proj := fun
+    | Sum.inl α => α
+    | Sum.inr A => C.form A.typ
+  surj α := ⟨Sum.inl α, rfl⟩
+  carrier_eq := fun
+    | Sum.inl _ => rfl
+    | Sum.inr _ => rfl
+
+/-- Step 1 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step1_control`: the control rule. -/
+private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule
+    (C : Geometry.MacroCertificate P) :
+    ∃ R : LocalRule (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
+      (∀ T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
+        R.Proper T' → ∃ U : PlaneTiling (Planned.typedDecoration C),
+          Planned.IsProper C U ∧
+          (∀ X ∈ U.tiles, Planned.headerLegal C (Planned.tileDec X)) ∧
+          ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles = Planned.eraseSet C U.tiles) ∧
+      (∀ U : PlaneTiling (Planned.typedDecoration C),
+        Planned.IsProper C U →
+        (∀ X ∈ U.tiles, Planned.headerLegal C (Planned.tileDec X)) →
+        ∃ T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
+          R.Proper T' ∧
+          ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles = Planned.eraseSet C U.tiles) := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: the repaired
 control presentation makes the grouped hierarchical family sofic once every grouped
 hierarchy has side-to-side finite supertiles. -/
@@ -3142,7 +3174,36 @@ private theorem hereditary_sts_hierarchy_sofic_step1_control
         (∀ n, C.σ.IsComposition (seq (n + 1)) (seq n)) ∧
         Planned.HierarchySupertilesSTS C seq) :
     IsSofic {T : PlaneTiling C.Q | C.σ.IsHierarchical T} := by
-  sorry
+  obtain ⟨R, hR1, hR2⟩ := hereditary_sts_hierarchy_sofic_step1_control_control_rule C
+  use hereditary_sts_hierarchy_sofic_step1_control_decoration C, R
+  intro T
+  constructor
+  · intro hT
+    obtain ⟨seq, hseq0, hcomp, hSTS⟩ := hsts T hT
+    have h_proj := Planned.projects_to_hierarchy C hH
+    obtain ⟨U, hU, hleg, herase⟩ := h_proj.2.1 T ⟨seq, hseq0, hcomp, hSTS⟩
+    obtain ⟨T', hProp, herase_proj⟩ := hR2 U hU hleg
+    use T'
+    constructor
+    · exact hProp
+    · have hT'_tiles : ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles = T.tiles := by
+        rw [herase_proj, herase]
+      have h_cases : ∀ T₁ T₂ : PlaneTiling C.Q, T₁.tiles = T₂.tiles → T₁ = T₂ := by
+        intro T₁ T₂ h
+        cases T₁; cases T₂; congr
+      exact h_cases _ _ hT'_tiles
+  · rintro ⟨T', hProp, rfl⟩
+    obtain ⟨U, hU, hleg, herase_proj⟩ := hR1 T' hProp
+    have h_proj := Planned.projects_to_hierarchy C hH
+    obtain ⟨T₀, herase0, hhier⟩ := h_proj.1 U hU hleg
+    have hT0 : T₀.tiles = ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles := by
+      rw [herase0, ← herase_proj]
+    have h_cases : ∀ T₁ T₂ : PlaneTiling C.Q, T₁.tiles = T₂.tiles → T₁ = T₂ := by
+      intro T₁ T₂ h
+      cases T₁; cases T₂; congr
+    have h_eq : T₀ = (hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T' := by
+      exact h_cases _ _ hT0
+    rwa [← h_eq]
 
 /-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: the STS
 certificate supplies the side-to-side-supertiling instantiation needed by the

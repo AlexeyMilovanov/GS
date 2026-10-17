@@ -3342,6 +3342,111 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
   have h5 := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking τ h g s l hl hidem routing
   exact ⟨h1, h2.1, h2.2.1, h2.2.2, h3.1, h3.2.1, h3.2.2.1, h3.2.2.2, h4.1, h4.2.1, h4.2.2.1, h4.2.2.2, h5.1, h5.2.1, h5.2.2⟩
 
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub4_representation`:
+"Put `m = kl`": the grouped power of the routing setup is the power `k` of the grouping seed. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_power
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) : s.setup.GS.k = g.k := by
+  rw [s.setup_grouped]; exact g.grouped_power
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub4_representation`:
+"every original form is a singleton": the base form of `emcdOriginalForm p` dissects into the
+single tile `⟨p, 0⟩`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_original
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (p : P.Form) :
+    (s.setup.GS.G.dissect (emcdBaseForm g s l (emcdOriginalForm g s l p))).tiles = {⟨p, 0⟩} := by
+  have key : ∀ (GS : GroupedSubstitution τ) (e : GS = g.GS),
+      (GS.G.dissect (e.symm ▸ g.original p)).tiles = {⟨p, 0⟩} := by
+    rintro GS rfl; exact g.original_dissect p
+  exact key _ s.setup_grouped
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub4_representation`:
+"every group lies in a supertile", transported from `g.inside_supertile` to the grouped family of
+the routing setup. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_inside
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (α : s.setup.GS.G.P'.Form) :
+    ∃ (n : ℕ) (p : P.Form) (v : Pt), translateSet v (s.setup.GS.G.dissect α).tiles ⊆ τ.supertile n p := by
+  have key : ∀ (GS : GroupedSubstitution τ) (_ : GS = g.GS) (α : GS.G.P'.Form),
+      ∃ (n : ℕ) (p : P.Form) (v : Pt), translateSet v (GS.G.dissect α).tiles ⊆ τ.supertile n p := by
+    rintro GS rfl α; exact g.inside_supertile α
+  exact key _ s.setup_grouped α
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub4_representation`:
+"scattering commutes with the retained/scattered rule": scattering a retained catalogue child
+through the dissection of its base form is the mixed scattering of the child. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_scatterTile
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (X : PlacedTile s.setup.GS.G.mixed)
+    (hX : emcdIsRetainedForm g s l X.form) :
+    translateSet X.anchor (s.setup.GS.G.dissect (emcdBaseForm g s l ⟨X.form, hX⟩)).tiles =
+      s.setup.GS.G.mixedScatterTile X := by
+  rcases X with ⟨f, v⟩
+  cases f with
+  | inl γ => rfl
+  | inr p =>
+    have h0 := existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_original
+      g s l p
+    simp only [emcdOriginalForm] at h0
+    change translateSet v (s.setup.GS.G.dissect (emcdBaseForm g s l ⟨Sum.inr p, hX⟩)).tiles = {⟨p, v⟩}
+    rw [h0]
+    simp [translateSet, PlacedTile.translate]
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub4_representation`:
+"the dissections are side-to-side": the side-to-side property descends from a translate. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_sts_of_translate
+    {S : Set (PlacedTile P)} (v : Pt) (hS : SideToSideSet (translateSet v S)) : SideToSideSet S := by
+  intro A hA B hB i j ⟨x, y, hxy, hseg⟩
+  have key := hS (A.translate v) ⟨A, hA, rfl⟩ (B.translate v) ⟨B, hB, rfl⟩ i j ⟨v + x, v + y,
+    fun hc => hxy (add_left_cancel hc), by
+      intro z hz
+      rw [← segment_translate_image] at hz
+      obtain ⟨w, hw, rfl⟩ := hz
+      rw [emcg_translate_side, emcg_translate_side]
+      exact ⟨vadd_mem_vadd_set (hseg hw).1, vadd_mem_vadd_set (hseg hw).2⟩⟩
+  rw [emcg_translate_side, emcg_translate_side] at key
+  have := congrArg (fun t : Set Pt => (-v) +ᵥ t) key
+  simpa [neg_vadd_vadd] using this
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub4_representation`:
+"every group lies in a supertile", so by STS every iterated decomposition of a group is
+side-to-side. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_iter_sts
+    {τ : Substitution P} (h : τ.STS) {S : Set (PlacedTile P)} (m : ℕ)
+    (hS : ∃ (n : ℕ) (p : P.Form) (v : Pt), translateSet v S ⊆ τ.supertile n p) :
+    SideToSideSet (τ.decomposeIter m S) := by
+  obtain ⟨n, p, v, hsub⟩ := hS
+  apply existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_sts_of_translate
+    ((τ.θ ^ m) • v)
+  rw [← emcg_iter_translate]
+  refine emcg_sts_subset (h (n + m) p) ?_
+  rw [Substitution.supertile, ← emcg_iter_add]
+  exact emcg_iter_mono τ m hsub
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub4_representation`:
+"heredity transfers": macro data satisfying the representation equations of a grouped
+substitution for `τ^m` (whose decompositions are side-to-side) inherits hereditary listed sides
+from `τ`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_hereditary
+    {τ : Substitution P} (D : MacroData P) (m : ℕ) (hm : 0 < m) (hθ : D.σ.θ = τ.θ ^ m)
+    (hcompat : ∀ α, (⋃ A ∈ (D.σ.rule α).tiles, translateSet A.anchor (D.Δ A.form).tiles) =
+      τ.decomposeIter m (D.Δ α).tiles)
+    (hsupp : ∀ α, support (D.Δ α).tiles = (D.Q.disk α).carrier)
+    (hsts : ∀ α, SideToSideSet (D.Δ α).tiles)
+    (hdual : ∀ α, DualConnected (D.Δ α).tiles)
+    (hside : ∀ α (i : Fin (D.Q.disk α).n), ∃ A ∈ (D.Δ α).tiles, HasEdge A ((D.Q.disk α).side i))
+    (hvert : ∀ α v, Substitution.IsVertexOf (D.Δ α).tiles v →
+      v ∈ frontier (D.Q.disk α).carrier → v ∈ (D.Q.disk α).vertexSet)
+    (hiter : ∀ α, SideToSideSet (τ.decomposeIter m (D.Δ α).tiles))
+    (hτ : τ.HereditarySides) : D.Hereditary := by
+  let G : GroupedFamily P :=
+    { P' := D.Q, dissect := D.Δ, support_eq := hsupp, sts := hsts, dualConnected := hdual
+      side_whole := hside, vertex_retained := hvert }
+  let GS : GroupedSubstitution τ :=
+    { G := G, k := m, k_pos := hm, σ := D.σ, θ_eq := hθ, compat := hcompat }
+  exact emcg_grouped_hereditary GS hτ hiter
+
 /-- Step 4 of `lem:certificate-exists`: the representation package
 `existsMacroCertificate_RepresentationData τ (g.k * l) D`: scattering the children of `D.σ.rule α`
 equals `s.setup.GS.G.mixedScatter (s.setup.retained l (emcdBaseForm g s l α)).children.tiles =
@@ -3357,7 +3462,59 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representatio
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     existsMacroCertificate_RepresentationData τ (g.k * l)
       (emcdMacroData τ h g s l hl routing) := by
-  sorry
+  have H := existsMacroCertificate_seed2_routing_step3_data_sub1_macroData τ h g s l hl routing
+  have hσ : (emcdMacroData τ h g s l hl routing).σ = H.choose := rfl
+  have hΔ : ∀ α, (emcdMacroData τ h g s l hl routing).Δ α = s.setup.GS.G.dissect (emcdBaseForm g s l α) :=
+    fun _ => rfl
+  have hQ : ∀ α, ((emcdMacroData τ h g s l hl routing).Q.disk α) =
+      s.setup.GS.G.P'.disk (emcdBaseForm g s l α) := fun _ => rfl
+  have hθ : (emcdMacroData τ h g s l hl routing).σ.θ = τ.θ ^ (g.k * l) := by
+    rw [hσ]; exact H.choose_spec.1
+  have hcompat : ∀ α, (⋃ A ∈ ((emcdMacroData τ h g s l hl routing).σ.rule α).tiles,
+      translateSet A.anchor ((emcdMacroData τ h g s l hl routing).Δ A.form).tiles) =
+      τ.decomposeIter (g.k * l) ((emcdMacroData τ h g s l hl routing).Δ α).tiles := by
+    intro α
+    rw [hΔ α, ← existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_power g s,
+      ← s.setup.scatter_eq l (emcdBaseForm g s l α), hσ, H.choose_spec.2 α]
+    ext x
+    simp only [Set.mem_iUnion, Set.mem_image, Set.mem_setOf_eq, GroupedFamily.mixedScatter, exists_prop]
+    constructor
+    · rintro ⟨A, ⟨t, rfl, rfl⟩, hx⟩
+      refine ⟨t.2.1, t.2.2, ?_⟩
+      rw [← existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_scatterTile g s l
+        t.2.1 (emcdChildForm g s l t).2]
+      exact hx
+    · rintro ⟨X, hX, hx⟩
+      refine ⟨_, ⟨⟨α, ⟨X, hX⟩⟩, rfl, rfl⟩, ?_⟩
+      rw [← existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_scatterTile g s l
+        X (emcdChildForm g s l ⟨α, ⟨X, hX⟩⟩).2] at hx
+      exact hx
+  have hsupp : ∀ α, support ((emcdMacroData τ h g s l hl routing).Δ α).tiles =
+      ((emcdMacroData τ h g s l hl routing).Q.disk α).carrier := by
+    intro α; rw [hΔ, hQ]; exact s.setup.GS.G.support_eq _
+  have hsts : ∀ α, SideToSideSet ((emcdMacroData τ h g s l hl routing).Δ α).tiles := by
+    intro α; rw [hΔ]; exact s.setup.GS.G.sts _
+  have hdual : ∀ α, DualConnected ((emcdMacroData τ h g s l hl routing).Δ α).tiles := by
+    intro α; rw [hΔ]; exact s.setup.GS.G.dualConnected _
+  have hside : ∀ α (i : Fin ((emcdMacroData τ h g s l hl routing).Q.disk α).n),
+      ∃ A ∈ ((emcdMacroData τ h g s l hl routing).Δ α).tiles,
+        HasEdge A (((emcdMacroData τ h g s l hl routing).Q.disk α).side i) := by
+    intro α i; rw [hΔ]; exact s.setup.GS.G.side_whole _ i
+  have hvert : ∀ α v, Substitution.IsVertexOf ((emcdMacroData τ h g s l hl routing).Δ α).tiles v →
+      v ∈ frontier ((emcdMacroData τ h g s l hl routing).Q.disk α).carrier →
+        v ∈ ((emcdMacroData τ h g s l hl routing).Q.disk α).vertexSet := by
+    intro α v hv hfr; rw [hΔ] at hv; rw [hQ] at hfr ⊢; exact s.setup.GS.G.vertex_retained _ v hv hfr
+  have hinside : ∀ α, ∃ (n : ℕ) (p : P.Form) (v : Pt),
+      translateSet v ((emcdMacroData τ h g s l hl routing).Δ α).tiles ⊆ τ.supertile n p := by
+    intro α; rw [hΔ]
+    exact existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_inside g s _
+  have hm : 0 < g.k * l := Nat.mul_pos g.k_pos hl
+  refine ⟨hm, hθ, hcompat, hsupp, hsts, hdual, hside, hvert, ?_, hinside, ?_⟩
+  · intro p; exact ⟨emcdOriginalForm g s l p,
+      existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_original g s l p⟩
+  · exact existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_hereditary _ _ hm hθ
+      hcompat hsupp hsts hdual hside hvert (fun α =>
+        existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_iter_sts h _ (hinside α))
 
 /-- Step 1 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: the internal

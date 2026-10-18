@@ -4467,6 +4467,60 @@ private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_ste
   rfl
 
 
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step3_generate_decodes_child_step2_interior`: off the
+macroboundary the star of the decomposed collar is the star of `τ^m Δ(owner t)`, because the whole
+neighbourhood of the positioned vertex lies in the parent support. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step2_interior_step1_crown_eq
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t)))
+    (hv : C.anchor t + v.1 ∉ frontier (C.σ.θ • (C.Q.disk (C.owner t)).carrier)) :
+    Substitution.crown
+        (τ.decomposeIter m
+          (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1))
+        (C.anchor t + v.1) =
+      Substitution.crown (τ.decomposeIter m (C.Δ (C.owner t)).tiles) (C.anchor t + v.1) := by
+  obtain ⟨X, hX, k, hk⟩ :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_step4_child_vertex
+      τ hsts C m hC t v
+  have hxD : C.anchor t + v.1 ∈ support (τ.decomposeIter m (C.Δ (C.owner t)).tiles) := by
+    simp only [support, mem_iUnion]
+    refine ⟨X, hX, ?_⟩
+    rw [← hk]
+    exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_carrier X k
+  have hsupp : support (τ.decomposeIter m (C.Δ (C.owner t)).tiles) =
+      C.σ.θ • (C.Q.disk (C.owner t)).carrier := by
+    rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_support_decomposeIter,
+      C.scatter_support, hC.θ_eq]
+  have hint : C.anchor t + v.1 ∈ interior (support (τ.decomposeIter m (C.Δ (C.owner t)).tiles)) := by
+    rw [hsupp] at hxD ⊢
+    by_contra hni
+    exact hv ⟨subset_closure hxD, hni⟩
+  have hsub : τ.decomposeIter m (C.Δ (C.owner t)).tiles ⊆ τ.decomposeIter m
+      (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1) :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_mono τ m
+      subset_union_left
+  obtain ⟨n, p, u, hu⟩ :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_step6_supertile
+      τ hsts C m (C.owner t) γ
+  have hdisj : DisjointInteriors (τ.decomposeIter m
+      (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1)) :=
+    hereditary_sts_substitution_sofic_step2_child_catalog_closed_disjoint
+      (Set.PairwiseDisjoint.subset
+        (hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_supertile_disjoint τ n p) hu)
+  have hfin : (τ.decomposeIter m (C.Δ (C.owner t)).tiles).Finite :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_finite τ m
+      (C.Δ (C.owner t)).finite
+  ext Y
+  constructor
+  · rintro ⟨hY, hxY⟩
+    exact ⟨hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_mem_of_interior
+      hdisj hsub hfin hint hY hxY, hxY⟩
+  · rintro ⟨hY, hxY⟩
+    exact ⟨hsub hY, hxY⟩
+
 /-- Step 2 of the blueprint proof of
   `hereditary_sts_substitution_sofic_step3_generate_decodes_child`: the interior vertices of the
   child decode to the translated scatter crown. -/
@@ -4485,7 +4539,11 @@ private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_ste
             (Substitution.crown
               (τ.decomposeIter m (C.Δ (C.owner t)).tiles)
               (C.anchor t + v.1)) := by
-  sorry
+  have _ := hγ
+  intro v hv
+  show translateSet (-(C.anchor t + v.1)) _ = _
+  rw [hereditary_sts_substitution_sofic_step3_generate_decodes_child_step2_interior_step1_crown_eq
+    τ hsts C m hC t (ht ▸ γ) v hv]
 
 /-- Step 3 of the reviewed proof: generation preserves packet consistency and
 the physical decoder returns exactly `F_t(γ)`. -/

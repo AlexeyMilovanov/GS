@@ -3233,6 +3233,32 @@ private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts
   intro n k hk X hX
   exact hlocal X k
 
+/-- Step 1 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step3_power_scatter`:
+one decomposition by the power substitution `τ^m` is the `m`-fold decomposition by `τ`. -/
+private lemma hereditary_sts_hierarchy_sofic_step3_power_scatter_step1_pow_decompose
+    (τ : Substitution P) (m : ℕ) (hm : 0 < m) (S : Set (PlacedTile P)) :
+    (τ.pow m hm).decompose S = τ.decomposeIter m S := by
+  have hS : S = ⋃ A ∈ S, ({A} : Set (PlacedTile P)) := by ext; simp
+  conv_rhs => rw [hS]
+  rw [hierarchy_lift_iff_decomposeIter_iUnion₂]
+  simp only [Substitution.decompose]
+  apply Set.iUnion₂_congr
+  intro A _
+  have hA : ({A} : Set (PlacedTile P)) = translateSet A.anchor {⟨A.form, 0⟩} := by
+    ext B
+    simp [translateSet, PlacedTile.translate, PlacedTile.ext_iff]
+  rw [hA, hierarchy_lift_iff_decomposeIter_translate]
+  rfl
+
+/-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step3_power_scatter`:
+the positive-power hierarchy equivalence (`τ`-hierarchies are exactly `τ^m`-hierarchies). -/
+private lemma hereditary_sts_hierarchy_sofic_step3_power_scatter_step2_power_hierarchy
+    (τ : Substitution P) (m : ℕ) (hm : 0 < m) (T : PlaneTiling P) :
+    Grouping.IsPowerHierarchy τ m T ↔ τ.IsHierarchical T := by
+  rw [hierarchical_power_iff τ m hm T]
+  simp only [Grouping.IsPowerHierarchy, Substitution.IsHierarchical, Substitution.IsComposition,
+    hereditary_sts_hierarchy_sofic_step3_power_scatter_step1_pow_decompose]
+
 /-- Step 3 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: grouping,
 scattering, and the positive-power hierarchy equivalence identify the scattered
 grouped family with the original hierarchical family. -/
@@ -3243,7 +3269,16 @@ private theorem hereditary_sts_hierarchy_sofic_step3_power_scatter
         (Geometry.MacroCertificate.Represents.groupedFamily hC)
         {T : PlaneTiling C.Q | C.σ.IsHierarchical T} =
       {T : PlaneTiling P | τ.IsHierarchical T} := by
-  sorry
+  ext T
+  simp only [Geometry.GroupedFamily.scatterFamily, Set.mem_setOf_eq]
+  rw [← hereditary_sts_hierarchy_sofic_step3_power_scatter_step2_power_hierarchy τ m hC.m_pos T]
+  have hlift := Grouping.hierarchy_lift_iff τ hC.groupedSubstitution hC.singleton T
+  refine Iff.trans ?_ hlift.symm
+  constructor
+  · rintro ⟨T', ⟨seq', h0, hc⟩, hs⟩
+    exact ⟨seq', hc, by rw [h0]; exact hs⟩
+  · rintro ⟨seq', hc, hs⟩
+    exact ⟨seq' 0, ⟨seq', rfl, hc⟩, hs⟩
 
 /-- `thm:hereditary-hierarchy`: an STS substitution with hereditary listed
 sides has a sofic family of hierarchical plane tilings. -/

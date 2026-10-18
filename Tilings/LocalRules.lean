@@ -4054,6 +4054,144 @@ private noncomputable def hereditary_sts_substitution_sofic_childVector
   fun v => ⟨hereditary_sts_substitution_sofic_rawChildCrown τ hsts C m t γ v,
     hereditary_sts_substitution_sofic_step2_raw_child_is_full τ hsts C m hC t γ v⟩
 
+/-- Iterated decomposition is monotone in the decomposed set (helper for Step 2b). -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed_mono
+    (τ : Substitution P) (j : ℕ) {S S' : Set (PlacedTile P)} (h : S ⊆ S') :
+    τ.decomposeIter j S ⊆ τ.decomposeIter j S' := by
+  induction j with
+  | zero => exact h
+  | succ j ih => exact Set.biUnion_subset_biUnion_left ih
+
+/-- Iterated decompositions add up (helper for Step 2b). -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed_add
+    (τ : Substitution P) (j n : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter j (τ.decomposeIter n S) = τ.decomposeIter (n + j) S := by
+  induction j with
+  | zero => rfl
+  | succ j ih =>
+    show τ.decompose (τ.decomposeIter j (τ.decomposeIter n S)) =
+      τ.decompose (τ.decomposeIter (n + j) S)
+    rw [ih]
+
+/-- A set of placed tiles whose translate has pairwise disjoint interiors has pairwise disjoint
+interiors itself (helper for Step 2b). -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed_disjoint
+    {S : Set (PlacedTile P)} {v : Pt} (h : DisjointInteriors (translateSet v S)) :
+    DisjointInteriors S := by
+  intro A hA B hB hne
+  have hne' : A.translate v ≠ B.translate v := by
+    intro heq
+    apply hne
+    have := congrArg (fun Z : PlacedTile P => Z.translate (-v)) heq
+    simpa only [cc_translate_translate, neg_add_cancel, cc_translate_zero] using this
+  have hd := h (cc_translate_mem v hA) (cc_translate_mem v hB) hne'
+  simp only [Function.onFun, dissection_preserves_sofic_carrier_translate, interior_vadd] at hd
+  exact (Set.disjoint_image_iff (add_right_injective v)).mp hd
+
+/-- Witness transport (helper for Step 2b): if the translate of `K` by `b` lies in the
+decomposed collar `τ^m Col`, and a translate of `Col` lies in the supertile `τ^n p`, then a
+translate of `K` lies in the supertile `τ^(n+m) p`. -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed_transport
+    (τ : Substitution P) (m n : ℕ) (p : P.Form) (a b : Pt) {Col K : Set (PlacedTile P)}
+    (hKD : translateSet b K ⊆ τ.decomposeIter m Col)
+    (hCol : translateSet a Col ⊆ τ.supertile n p) :
+    translateSet (τ.θ ^ m • a + b) K ⊆ τ.supertile (n + m) p := by
+  calc translateSet (τ.θ ^ m • a + b) K
+      = translateSet (τ.θ ^ m • a) (translateSet b K) :=
+        (cc_translateSet_translateSet K b (τ.θ ^ m • a)).symm
+    _ ⊆ translateSet (τ.θ ^ m • a) (τ.decomposeIter m Col) := cc_translateSet_mono _ hKD
+    _ = τ.decomposeIter m (translateSet a Col) :=
+        (hierarchy_lift_iff_decomposeIter_translate τ m a Col).symm
+    _ ⊆ τ.decomposeIter m (τ.supertile n p) :=
+        hereditary_sts_substitution_sofic_step2_child_catalog_closed_mono τ m hCol
+    _ = τ.supertile (n + m) p := by
+        change τ.decomposeIter m (τ.decomposeIter n {⟨p, 0⟩}) =
+          τ.decomposeIter (n + m) {⟨p, 0⟩}
+        exact hereditary_sts_substitution_sofic_step2_child_catalog_closed_add τ m n _
+
+/-- Membership in a raw child crown (helper for Step 2b): a tile `Z` lies in the raw child crown
+at the marked vertex `v` iff its translate by the positioned vertex `a_t + v` lies in the physical
+star of the decomposed parent collar at that vertex. -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed_mem_raw
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t)))
+    (Z : PlacedTile P) :
+    Z ∈ hereditary_sts_substitution_sofic_rawChildCrown τ hsts C m t γ v ↔
+      Z.translate (C.anchor t + v.1) ∈ Substitution.crown
+        (τ.decomposeIter m
+          (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1))
+        (C.anchor t + v.1) := by
+  show Z ∈ translateSet (-(C.anchor t + v.1)) _ ↔ _
+  rw [cc_mem_translateSet, neg_neg]
+
+/-- The key inclusion of Step 2b: the child collar `coll(F_t(γ))`, translated by the anchor
+`a_t`, is a subpatch of the decomposed parent collar `τ^m coll(γ)`.  The scattered group of
+`form t` is covered by the compatibility equation `Δσ' = τ^m Δ` and the recorded child crowns
+are, by definition, stars of the decomposed collar. -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed_collar_subset
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)) :
+    translateSet (C.anchor t)
+      (hereditary_sts_substitution_sofic_collar τ hsts C (C.form t)
+        (hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ)) ⊆
+      τ.decomposeIter m
+        (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1) := by
+  rintro X ⟨Y, hY, rfl⟩
+  rcases hY with hY | hY
+  · have hmem : Y.translate (C.anchor t) ∈ ⋃ A ∈ (C.σ.rule (C.owner t)).tiles,
+        translateSet A.anchor (C.Δ A.form).tiles := by
+      rw [Set.mem_iUnion₂]
+      refine ⟨⟨C.form t, C.anchor t⟩, ?_, Y, hY, rfl⟩
+      rw [C.rule_eq]
+      exact ⟨t, rfl, rfl⟩
+    rw [hC.compat] at hmem
+    exact hereditary_sts_substitution_sofic_step2_child_catalog_closed_mono τ m
+      Set.subset_union_left hmem
+  · obtain ⟨v, hv⟩ := Set.mem_iUnion.mp hY
+    have h1 := cc_mem_translateSet.mp hv
+    have h2 := (hereditary_sts_substitution_sofic_step2_child_catalog_closed_mem_raw
+      τ hsts C m t γ v _).mp h1
+    rw [cc_translate_translate, show C.anchor t + v.1 + -v.1 = C.anchor t by abel] at h2
+    exact h2.1
+
+/-- The crown condition of Step 2b: in the child collar, the physical crown at each marked vertex
+`v` of `form t` is exactly the recorded child crown translated to `v`. -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed_crown_eq
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t))) :
+    Substitution.crown
+        (hereditary_sts_substitution_sofic_collar τ hsts C (C.form t)
+          (hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ)) v.1 =
+      translateSet v.1
+        ((hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ) v).1 := by
+  ext X
+  have hraw := hereditary_sts_substitution_sofic_step2_child_catalog_closed_mem_raw
+    τ hsts C m t γ v (X.translate (-v.1))
+  rw [cc_translate_translate, show C.anchor t + v.1 + -v.1 = C.anchor t by abel] at hraw
+  have hcar : ∀ y : Pt, y ∈ (X.translate (C.anchor t)).carrier ↔
+      -C.anchor t + y ∈ X.carrier := by
+    intro y
+    rw [dissection_preserves_sofic_carrier_translate, Set.mem_vadd_set_iff_neg_vadd_mem]
+    rfl
+  constructor
+  · rintro ⟨hXK, hXv⟩
+    rw [cc_mem_translateSet]
+    refine hraw.mpr ⟨?_, ?_⟩
+    · exact hereditary_sts_substitution_sofic_step2_child_catalog_closed_collar_subset
+        τ hsts C m hC t γ ⟨X, hXK, rfl⟩
+    · rw [hcar, show -C.anchor t + (C.anchor t + v.1) = v.1 by abel]
+      exact hXv
+  · intro hX
+    have hX' := cc_mem_translateSet.mp hX
+    have h := (hraw.mp hX').2
+    rw [hcar, show -C.anchor t + (C.anchor t + v.1) = v.1 by abel] at h
+    exact ⟨Or.inr (Set.mem_iUnion.mpr ⟨v, hX⟩), h⟩
+
 /-- Step 2b of the reviewed proof: `F_t(γ)` satisfies all four catalogue
 conditions, including a single joint supertile witness. -/
 private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed
@@ -4074,7 +4212,17 @@ private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed
           ((hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ) v).1) ∧
     hereditary_sts_substitution_sofic_JointAllowed τ hsts C (C.form t)
       (hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ) := by
-  sorry
+  obtain ⟨n, p, a, ha⟩ := γ.2.2.2.2
+  have hsub := hereditary_sts_substitution_sofic_step2_child_catalog_closed_transport
+    τ m n p a (C.anchor t)
+    (hereditary_sts_substitution_sofic_step2_child_catalog_closed_collar_subset
+      τ hsts C m hC t γ) ha
+  refine ⟨?_, ?_, fun v =>
+    hereditary_sts_substitution_sofic_step2_child_catalog_closed_crown_eq
+      τ hsts C m hC t γ v, ⟨n + m, p, _, hsub⟩⟩
+  · exact hereditary_sts_substitution_sofic_step2_child_catalog_closed_disjoint
+      (Set.PairwiseDisjoint.subset (Crowns.supertile_disjoint τ (n + m) p) hsub)
+  · exact Substitution.STS.decomposeIter_sts_of_subset_supertile hsts hsub 0
 
 /-- The catalogue-valued child operator. -/
 private noncomputable def hereditary_sts_substitution_sofic_childCatalog

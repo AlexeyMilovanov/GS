@@ -4865,6 +4865,532 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
     ∃ F : PlaneTiling X.dec.P', X.dec.Proper F ∧ X.dec.toDecoration.project F = T :=
   hT
 
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — the interface identities carried by a founded-legal
+extended tile.  Such a tile is the generated child of its parent, so a print carries its interface
+identity in the fifth cell, a non-print carries zero there, an inner non-print carries its interface
+identity in the first cell and an outer side carries zero in the first cell. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step1_identity_cells
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A) (i : C.Side A.1) :
+    (C.IsPrint (C.occ A.1 i) →
+      A.2 i 4 = Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ A.1 i)))) ∧
+    (¬ C.IsPrint (C.occ A.1 i) → A.2 i 4 = Sum.inl 0) ∧
+    (C.IsInner (C.occ A.1 i) → ¬ C.IsPrint (C.occ A.1 i) →
+      A.2 i 0 = Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ A.1 i)))) ∧
+    (C.IsOuter (C.occ A.1 i) → A.2 i 0 = Sum.inl 0) := by
+  obtain ⟨ch, h0, hch, -, -⟩ := hA
+  obtain ⟨hown, hgen⟩ := hch 0
+  rw [h0] at hown hgen
+  obtain ⟨t, f⟩ := A
+  have hf : f = (hereditary_sts_substitution_sofic_generate τ hsts C m hC (ch 1) t).2 :=
+    eq_of_heq (Sigma.mk.inj hgen).2
+  dsimp only at hown i ⊢
+  subst hf
+  have hinner : C.IsPrint (C.occ t i) → C.IsInner (C.occ t i) := by
+    rintro ⟨d, hm, ho | ho⟩
+    · rw [ho]; exact C.g4_print_inner _ d hm
+    · rw [ho]
+      have hin := C.g4_print_inner _ d hm
+      have hp := C.g1_partner _ hin
+      unfold MacroData.IsInner MacroData.IsOuter at hin ⊢
+      rw [hp.2.2, hp.2.1]
+      exact hin
+  have hc4 : ¬ (Planned.copySource C (C.form (ch 1).1) (C.occ t i) 4).Nonempty := by
+    rintro ⟨p, hp | hp⟩
+    · exact hp.2.1 rfl
+    · exact absurd hp.2.1 (by decide)
+  refine ⟨fun hp => ?_, fun hp => ?_, fun hin hp => ?_, fun ho => ?_⟩
+  · unfold hereditary_sts_substitution_sofic_generate
+    dsimp only
+    simp only [dif_neg hc4, dif_pos hp, ↓reduceIte]
+  · unfold hereditary_sts_substitution_sofic_generate
+    dsimp only
+    simp only [dif_neg hc4, dif_neg hp, if_neg (show ¬ ((4 : Fin 5) = 0) by decide),
+      if_neg (show ¬ ((4 : Fin 5) = 1) by decide), if_neg (show ¬ ((4 : Fin 5) = 3) by decide)]
+  · have hc0 :=
+      hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step2_copy_empty
+        C t (C.form (ch 1).1) hown i 0 (by decide) hp
+    unfold hereditary_sts_substitution_sofic_generate
+    dsimp only
+    simp only [dif_neg hc0, dif_neg hp, ↓reduceIte, if_pos hin]
+  · have hp : ¬ C.IsPrint (C.occ t i) := fun hp => hinner hp ho
+    have hc0 :=
+      hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step2_copy_empty
+        C t (C.form (ch 1).1) hown i 0 (by decide) hp
+    have hni : ¬ C.IsInner (C.occ t i) := fun h => h ho
+    unfold hereditary_sts_substitution_sofic_generate
+    dsimp only
+    simp only [dif_neg hc0, dif_neg hp, ↓reduceIte, if_neg hni]
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — equal five-cell arrays on an inner side of a legal tile
+and a side of another legal tile force the second side to be inner with the same interface
+identity. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step2_identity_match
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A)
+    (hB : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC B)
+    (i : C.Side A.1) (j : C.Side B.1) (hi : C.IsInner (C.occ A.1 i)) (hc : A.2 i = B.2 j) :
+    C.IsInner (C.occ B.1 j) ∧ C.edge (C.occ B.1 j) = C.edge (C.occ A.1 i) := by
+  have hne : ∀ e : C.EdgeId, Planned.Strict.identSU C hC e ≠ 0 := fun e => by
+    simp [Planned.Strict.identSU]
+  have hinj : ∀ e e' : C.EdgeId, Planned.Strict.identSU C hC e = Planned.Strict.identSU C hC e' →
+      e = e' := fun e e' h => by simpa [Planned.Strict.identSU] using h
+  obtain ⟨hA4p, hA4n, hA0, hA0o⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step1_identity_cells
+      τ hsts C m hC A hA i
+  obtain ⟨hB4p, hB4n, hB0, hB0o⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step1_identity_cells
+      τ hsts C m hC B hB j
+  have hc4 : A.2 i 4 = B.2 j 4 := congrFun hc 4
+  have hc0 : A.2 i 0 = B.2 j 0 := congrFun hc 0
+  have hprintInner : ∀ o : C.SideOcc, C.IsPrint o → C.IsInner o := by
+    rintro o ⟨d, hm, ho | ho⟩
+    · rw [ho]; exact C.g4_print_inner _ d hm
+    · rw [ho]
+      have hin := C.g4_print_inner _ d hm
+      have hp := C.g1_partner _ hin
+      unfold MacroData.IsInner MacroData.IsOuter at hin ⊢
+      rw [hp.2.2, hp.2.1]
+      exact hin
+  by_cases hp : C.IsPrint (C.occ A.1 i)
+  · by_cases hq : C.IsPrint (C.occ B.1 j)
+    · refine ⟨hprintInner _ hq, hinj _ _ ?_⟩
+      have := hc4
+      rw [hA4p hp, hB4p hq] at this
+      exact (Sum.inl.inj this).symm
+    · exfalso
+      have := hc4
+      rw [hA4p hp, hB4n hq] at this
+      exact hne _ (Sum.inl.inj this)
+  · have hq : ¬ C.IsPrint (C.occ B.1 j) := by
+      intro hq
+      have := hc4
+      rw [hA4n hp, hB4p hq] at this
+      exact hne _ (Sum.inl.inj this).symm
+    have hin : C.IsInner (C.occ B.1 j) := by
+      intro ho
+      have := hc0
+      rw [hA0 hi hp, hB0o ho] at this
+      exact hne _ (Sum.inl.inj this)
+    refine ⟨hin, hinj _ _ ?_⟩
+    have := hc0
+    rw [hA0 hi hp, hB0 hin hq] at this
+    exact (Sum.inl.inj this).symm
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — geometry of typed tiles of the presentation: a tile of
+old positioned type `t` has the disk and the carrier of the form of `t`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step3_typed_disk
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (Z : PlacedTile X.dec.P') (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (h : X.formEquiv Z.form = Sum.inl B) :
+    X.dec.proj Z.form = C.form B.1 ∧ X.dec.P'.disk Z.form = C.Q.disk (C.form B.1) ∧
+      Z.carrier = Z.anchor +ᵥ (C.Q.disk (C.form B.1)).carrier := by
+  have hZ : Z.form = X.formEquiv.symm (Sum.inl B) := (Equiv.eq_symm_apply _).2 h
+  have hp : X.dec.proj Z.form = C.form B.1 := by
+    rw [hZ]
+    exact X.proj_typed B
+  refine ⟨hp, by rw [X.dec.disk_eq Z.form, hp], ?_⟩
+  unfold PlacedTile.carrier
+  rw [X.dec.carrier_eq, hp]
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — two translates of one compact nonempty set coincide only
+for equal translation vectors. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step4_vadd_cancel
+    {S : Set Pt} (hS : IsCompact S) (hne : S.Nonempty) {a b : Pt} (h : a +ᵥ S = b +ᵥ S) :
+    a = b := by
+  obtain ⟨x0, hx0, hmax⟩ := hS.exists_isMaxOn hne
+    ((continuous_id.inner continuous_const :
+      Continuous fun x : Pt => inner ℝ x (a - b)).continuousOn)
+  have h1 : a +ᵥ x0 ∈ b +ᵥ S := h ▸ Set.vadd_mem_vadd_set hx0
+  obtain ⟨y, hy, hxy⟩ := h1
+  have hy' : y = (a - b) + x0 := by
+    simp only [vadd_eq_add] at hxy
+    rw [sub_add_eq_add_sub, ← hxy]
+    abel
+  have h2 := hmax hy
+  simp only [Set.mem_setOf_eq, id] at h2
+  rw [hy', inner_add_left, real_inner_self_eq_norm_sq] at h2
+  have h3 : ‖a - b‖ = 0 := by nlinarith [norm_nonneg (a - b)]
+  exact sub_eq_zero.mp (norm_eq_zero.mp h3)
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — two tiles of a plane tiling with the same carrier
+coincide. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step5_same_carrier
+    {Q : Protoset} (T : PlaneTiling Q) {Y Z : PlacedTile Q} (hY : Y ∈ T.tiles) (hZ : Z ∈ T.tiles)
+    (h : (interior Y.carrier ∩ interior Z.carrier).Nonempty) : Y = Z := by
+  by_contra hne
+  obtain ⟨z, hz1, hz2⟩ := h
+  exact Set.disjoint_left.1 (T.disjoint hY hZ hne) hz1 hz2
+
+/-- Step 6 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — across an inner side of a fine tile of type `s` lies,
+in the proper fine colouring, the fine tile of the partner type at the position prescribed by the
+template (the interface identities are unique, Lemma comp/assembly). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step6_neighbour
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (Z : PlacedTile X.dec.P') (hZ : Z ∈ F.tiles)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hZA : X.formEquiv Z.form = Sum.inl A) (i : C.Side A.1) (hi : C.IsInner (C.occ A.1 i)) :
+    ∃ Y ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      X.formEquiv Y.form = Sum.inl B ∧ B.1 = (C.partner (C.occ A.1 i)).1 ∧
+        Y.anchor = Z.anchor - C.anchor A.1 + C.anchor (C.partner (C.occ A.1 i)).1 := by
+  let sideAt : Pt → C.SideOcc → Set Pt := fun a o => a +ᵥ (C.Q.disk (C.form o.1)).side o.2
+  have hcancel : ∀ {a b : Pt} {o : C.SideOcc}, sideAt a o = sideAt b o → a = b := by
+    intro a b o h
+    refine hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step4_vadd_cancel
+      ?_ ⟨_, left_mem_segment ℝ _ _⟩ h
+    show IsCompact (segment ℝ _ _)
+    rw [segment_eq_image']
+    exact isCompact_Icc.image (by fun_prop)
+  obtain ⟨-, hZd, hZc⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step3_typed_disk
+      τ hsts C m hC X Z A hZA
+  have hcast : ∀ {B B' : PolygonalDisk} (h : B = B') (i : Fin B.n),
+      ∃ j : Fin B'.n, HEq i j ∧ B'.side j = B.side i := by
+    intro B B' h i; subst h; exact ⟨i, HEq.rfl, rfl⟩
+  have hcast' : ∀ {B B' : PolygonalDisk} (h : B = B') (j : Fin B'.n),
+      ∃ i : Fin B.n, HEq i j ∧ B'.side j = B.side i := by
+    intro B B' h j; subst h; exact ⟨j, HEq.rfl, rfl⟩
+  obtain ⟨i', hi', hi's⟩ := hcast hZd.symm i
+  obtain ⟨Y, hY, hYZ, j', hj'⟩ := Planned.Strict.exists_coincident_side F hF.1 hZ i'
+  obtain ⟨A', hZA', hlA⟩ := X.proper_typed_legal F hF Z hZ
+  have hA' : A' = A := Sum.inl.inj (hZA'.symm.trans hZA)
+  subst hA'
+  obtain ⟨B, hYB, hlB⟩ := X.proper_typed_legal F hF Y hY
+  obtain ⟨-, hYd, hYc⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step3_typed_disk
+      τ hsts C m hC X Y B hYB
+  obtain ⟨j, hj, hj's⟩ := hcast' hYd.symm j'
+  have hc : A'.2 i = B.2 j :=
+    X.proper_cells_match F hF Z hZ Y hY (Ne.symm hYZ) A' B hZA hYB i j ⟨i', j', hi', hj, hj'.symm⟩
+  obtain ⟨hjin, hje⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step2_identity_match
+      τ hsts C m hC A' B hlA hlB i j hi hc
+  have hside : sideAt Y.anchor (C.occ B.1 j) = sideAt Z.anchor (C.occ A'.1 i) := by
+    have e1 : Y.side j' = sideAt Y.anchor (C.occ B.1 j) := by
+      show Y.anchor +ᵥ _ = _
+      rw [hj's]
+    have e2 : Z.side i' = sideAt Z.anchor (C.occ A'.1 i) := by
+      show Z.anchor +ᵥ _ = _
+      rw [hi's]
+    rw [← e1, ← e2, hj']
+  obtain ⟨Bt, Bc⟩ := B
+  rcases C.g1_edge_unique _ _ hi hjin hje.symm with ho | ho
+  · exfalso
+    have ht : Bt = A'.1 := congrArg Sigma.fst ho
+    rw [ho] at hside
+    have ha := hcancel hside
+    apply hYZ
+    apply hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step5_same_carrier
+      F hY hZ
+    have hcar : Y.carrier = Z.carrier := by
+      rw [hYc, hZc, ha]
+      dsimp only at ht ⊢
+      rw [ht]
+    rw [hcar]
+    obtain ⟨z, hz⟩ := (C.Q.disk (C.form A'.1)).interior_nonempty
+    refine ⟨Z.anchor +ᵥ z, ?_, ?_⟩ <;>
+    · rw [hZc, interior_vadd]; exact Set.vadd_mem_vadd_set hz
+  · refine ⟨Y, hY, ⟨Bt, Bc⟩, hYB, congrArg Sigma.fst ho, ?_⟩
+    rw [ho] at hside
+    obtain ⟨-, -, hp3⟩ := C.g1_partner _ hi
+    have hp3' : sideAt (C.anchor (C.partner (C.occ A'.1 i)).1) (C.partner (C.occ A'.1 i)) =
+        sideAt (C.anchor A'.1) (C.occ A'.1 i) := hp3
+    apply hcancel (o := C.partner (C.occ A'.1 i))
+    rw [hside]
+    simp only [sideAt] at hp3' ⊢
+    rw [← vadd_vadd, hp3', vadd_vadd, sub_add_cancel]
+
+/-- Step 7 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — by connectivity of the inner-side dual graph of the
+template (G1), every sibling type of a fine tile is present in the proper fine colouring at its
+template position: the macroblock of every fine tile is complete. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step7_all_present
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (Z : PlacedTile X.dec.P') (hZ : Z ∈ F.tiles)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hZA : X.formEquiv Z.form = Sum.inl A) (t : C.Typ) (ht : C.owner t = C.owner A.1) :
+    ∃ Y ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      X.formEquiv Y.form = Sum.inl B ∧ B.1 = t ∧
+        Y.anchor = Z.anchor - C.anchor A.1 + C.anchor t := by
+  let Pres : {s : C.Typ // C.owner s = C.owner A.1} → Prop := fun u =>
+    ∃ Y ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      X.formEquiv Y.form = Sum.inl B ∧ B.1 = u.1 ∧
+        Y.anchor = Z.anchor - C.anchor A.1 + C.anchor u.1
+  have step : ∀ u w, (C.innerGraph (C.owner A.1)).Adj u w → Pres u → Pres w := by
+    intro u w hadj hu
+    obtain ⟨Y, hY, B, hYB, hBu, hYa⟩ := hu
+    rw [MacroData.innerGraph, SimpleGraph.fromRel_adj] at hadj
+    obtain ⟨hne, hR⟩ := hadj
+    have core : ∀ (p : C.Side u.1) (q : C.Side w.1), C.IsInner (C.occ u.1 p) →
+        C.occSide (C.occ w.1 q) = C.occSide (C.occ u.1 p) → Pres w := by
+      intro p q hp hs
+      have hw : C.occ w.1 q = C.partner (C.occ u.1 p) :=
+        C.g1_side_unique (C.occ u.1 p) (C.occ w.1 q) hp (w.2.trans u.2.symm)
+          (fun h => hne (Subtype.ext h.symm)) hs
+      obtain ⟨Bt, Bc⟩ := B
+      dsimp only at hBu
+      subst hBu
+      have hp' : C.IsInner (C.occ (⟨u.1, Bc⟩ : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC).1 p) := hp
+      obtain ⟨Y', hY', B', hY'B, hB't, hY'a⟩ :=
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step6_neighbour
+          τ hsts C m hC X F hF Y hY ⟨u.1, Bc⟩ hYB p hp'
+      refine ⟨Y', hY', B', hY'B, ?_, ?_⟩
+      · rw [hB't]; exact (congrArg Sigma.fst hw).symm
+      · rw [hY'a, hYa]
+        have hw1 : (C.partner (C.occ u.1 p)).1 = w.1 := (congrArg Sigma.fst hw).symm
+        dsimp only
+        rw [hw1, add_sub_cancel_right]
+    rcases hR with ⟨p, q, hp, hs⟩ | ⟨q, p, hq, hs⟩
+    · exact core p q hp hs.symm
+    · refine core p q ?_ hs
+      have hown : C.owner w.1 = C.owner u.1 := w.2.trans u.2.symm
+      unfold MacroData.IsInner MacroData.IsOuter at hq ⊢
+      rw [← hs, ← hown]
+      exact hq
+  have base : Pres ⟨A.1, rfl⟩ := ⟨Z, hZ, A, hZA, rfl, by rw [sub_add_cancel]⟩
+  obtain ⟨w⟩ := (C.g1_connected (C.owner A.1)).preconnected ⟨A.1, rfl⟩ ⟨t, ht⟩
+  suffices H : ∀ u w' (p : (C.innerGraph (C.owner A.1)).Walk u w'), Pres u → Pres w' from
+    H _ _ w base
+  intro u w' p
+  induction p with
+  | nil => exact id
+  | cons h p ih => exact fun hu => ih (step _ _ h hu)
+
+/-- Step 8 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — an open nonempty set covered by finitely many closed
+sets meets the interior of one of them. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step8_open_meets_interior
+    {ι : Type*} (G : ι → Set Pt) (hG : ∀ i, IsClosed (G i)) (s : Finset ι) :
+    ∀ U : Set Pt, IsOpen U → U.Nonempty → U ⊆ ⋃ i ∈ s, G i →
+      ∃ i ∈ s, (U ∩ interior (G i)).Nonempty := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => intro U _ ⟨x, hx⟩ hs; simpa using hs hx
+  | insert a s ha ih =>
+    intro U hU hne hsub
+    by_cases h : (U ∩ interior (G a)).Nonempty
+    · exact ⟨a, Finset.mem_insert_self _ _, h⟩
+    · have hne' : (U \ G a).Nonempty := by
+        by_contra h'
+        rw [Set.not_nonempty_iff_eq_empty, Set.diff_eq_empty] at h'
+        exact h (by rw [Set.inter_eq_left.mpr (interior_maximal h' hU)]; exact hne)
+      obtain ⟨i, hi, hx⟩ := ih (U \ G a) (hU.sdiff (hG a)) hne' (by
+        intro x hx
+        have := hsub hx.1
+        simp only [Finset.set_biUnion_insert, Set.mem_union] at this
+        exact this.resolve_left hx.2)
+      exact ⟨i, Finset.mem_insert_of_mem hi, hx.mono (Set.inter_subset_inter_left _ Set.diff_subset)⟩
+
+/-- Step 9 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — a point of the scaled carrier `θ • D` of a grouped tile
+lies in one of the children of the template `σ' D` placed at `θ x_D`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step9_block_cover
+    (C : Geometry.MacroCertificate P) (D : PlacedTile C.Q) (u : Pt)
+    (hu : u ∈ C.σ.θ • D.carrier) :
+    ∃ t, C.owner t = D.form ∧
+      u ∈ (⟨C.form t, C.σ.θ • D.anchor + C.anchor t⟩ : PlacedTile C.Q).carrier := by
+  obtain ⟨w, hw, rfl⟩ := Set.mem_smul_set.1 hu
+  obtain ⟨k, hk, rfl⟩ := Set.mem_vadd_set.1 hw
+  have hk' : C.σ.θ • k ∈ support (C.σ.rule D.form).tiles := by
+    rw [C.σ.support_eq]; exact Set.smul_mem_smul_set hk
+  rw [C.rule_eq] at hk'
+  simp only [support, Set.mem_image, Set.mem_setOf_eq, Set.iUnion_exists, Set.biUnion_and',
+    Set.iUnion_iUnion_eq_right, Set.mem_iUnion, exists_prop] at hk'
+  obtain ⟨t, ht, hkt⟩ := hk'
+  refine ⟨t, ht, ?_⟩
+  obtain ⟨y, hy, hyk⟩ := Set.mem_vadd_set.1 hkt
+  refine Set.mem_vadd_set.2 ⟨y, hy, ?_⟩
+  simp only [vadd_eq_add] at hyk ⊢
+  rw [smul_add, ← hyk]
+  abel
+
+/-- Step 10 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — the child of type `t` of a template lies in the scaled
+parent disk. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step10_child_subset
+    (C : Geometry.MacroCertificate P) (t : C.Typ) (y : Pt)
+    (hy : y ∈ (C.Q.disk (C.form t)).carrier) :
+    C.anchor t + y ∈ C.σ.θ • (C.Q.disk (C.owner t)).carrier := by
+  rw [← C.σ.support_eq, C.rule_eq]
+  refine Set.mem_biUnion (x := (⟨C.form t, C.anchor t⟩ : PlacedTile C.Q)) ⟨t, rfl, rfl⟩ ?_
+  exact Set.mem_vadd_set.2 ⟨y, hy, rfl⟩
+
+/-- Step 11 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks`:
+"assemble macroblocks from interface IDs" — once every macroblock of the proper fine colouring is
+complete (Step 7), the assembled macroblocks, scaled down by `θ`, form a grouped plane tiling `𝒯'`
+which is a `σ'` composition of the projected control tiling and whose blocks are aligned with the
+positioned types. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step11_compose
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P')
+    (htyped : ∀ Z ∈ F.tiles, ∃ A, X.formEquiv Z.form = Sum.inl A)
+    (hall : ∀ Z ∈ F.tiles, ∀ A, X.formEquiv Z.form = Sum.inl A → ∀ t, C.owner t = C.owner A.1 →
+      ∃ Y ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+        X.formEquiv Y.form = Sum.inl B ∧ B.1 = t ∧
+          Y.anchor = Z.anchor - C.anchor A.1 + C.anchor t) :
+    ∃ T' : PlaneTiling C.Q, C.σ.IsComposition T' (X.dec.toDecoration.project F) ∧
+      ∀ D ∈ T'.tiles, ∀ t, C.owner t = D.form →
+        ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+          X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
+            Z.anchor = C.σ.θ • D.anchor + C.anchor t := by
+  have hθ : C.σ.θ ≠ 0 := (zero_lt_one.trans C.σ.one_lt).ne'
+  let S : Set (PlacedTile C.Q) := {D | ∃ Z ∈ F.tiles, ∃ A, X.formEquiv Z.form = Sum.inl A ∧
+    D = ⟨C.owner A.1, C.σ.θ⁻¹ • (Z.anchor - C.anchor A.1)⟩}
+  -- alignment of the candidate blocks
+  have halign : ∀ D ∈ S, ∀ t, C.owner t = D.form →
+      ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+        X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
+          Z.anchor = C.σ.θ • D.anchor + C.anchor t := by
+    rintro D ⟨Z, hZ, A, hZA, rfl⟩ t ht
+    obtain ⟨Y, hY, B, hYB, hBt, hYa⟩ := hall Z hZ A hZA t ht
+    refine ⟨Y, hY, B, hYB, hBt, ?_⟩
+    rw [hYa]
+    dsimp only
+    rw [smul_inv_smul₀ hθ]
+  have hcarY : ∀ Y ∈ F.tiles, ∀ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      X.formEquiv Y.form = Sum.inl B →
+      Y.carrier = (⟨C.form B.1, Y.anchor⟩ : PlacedTile C.Q).carrier := by
+    intro Y _ B hYB
+    exact (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step3_typed_disk
+      τ hsts C m hC X Y B hYB).2.2
+  refine ⟨⟨S, ?_, ?_⟩, ?_, halign⟩
+  · -- the scaled-down macroblocks cover the plane
+    refine Set.eq_univ_of_forall fun x => ?_
+    have hx : C.σ.θ • x ∈ support (X.dec.toDecoration.project F).tiles :=
+      (X.dec.toDecoration.project F).cover ▸ Set.mem_univ _
+    simp only [support, Set.mem_iUnion, exists_prop] at hx
+    obtain ⟨_, ⟨Z, hZ, rfl⟩, hxZ⟩ := hx
+    obtain ⟨A, hZA⟩ := htyped Z hZ
+    obtain ⟨hp, -, -⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step3_typed_disk
+        τ hsts C m hC X Z A hZA
+    have hxZ' : C.σ.θ • x ∈ Z.anchor +ᵥ (C.Q.disk (C.form A.1)).carrier := by
+      have : (X.dec.toDecoration.projTile Z).carrier =
+          Z.anchor +ᵥ (C.Q.disk (X.dec.proj Z.form)).carrier := rfl
+      rw [this, hp] at hxZ
+      exact hxZ
+    obtain ⟨y, hy, hyx⟩ := Set.mem_vadd_set.1 hxZ'
+    have hown := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step10_child_subset
+      C A.1 y hy
+    obtain ⟨k, hk, hkk⟩ := Set.mem_smul_set.1 hown
+    refine Set.mem_biUnion (x := (⟨C.owner A.1, C.σ.θ⁻¹ • (Z.anchor - C.anchor A.1)⟩ :
+      PlacedTile C.Q)) ⟨Z, hZ, A, hZA, rfl⟩ ?_
+    refine Set.mem_vadd_set.2 ⟨k, hk, ?_⟩
+    simp only [vadd_eq_add] at hyx hkk ⊢
+    rw [← inv_smul_smul₀ hθ k, ← smul_add, hkk,
+      show Z.anchor - C.anchor A.1 + (C.anchor A.1 + y) = Z.anchor + y by abel, hyx,
+      inv_smul_smul₀ hθ]
+  · -- the scaled-down macroblocks have disjoint interiors
+    intro D hD D' hD' hne
+    show Disjoint (interior D.carrier) (interior D'.carrier)
+    rw [Set.disjoint_left]
+    intro z hz hz'
+    apply hne
+    let U : Set Pt := C.σ.θ • (interior D.carrier ∩ interior D'.carrier)
+    have hU : IsOpen U := (isOpen_interior.inter isOpen_interior).smul₀ hθ
+    have hUne : U.Nonempty := ⟨_, Set.smul_mem_smul_set ⟨hz, hz'⟩⟩
+    let G : PlacedTile C.Q → C.Typ → Set Pt := fun E t =>
+      (⟨C.form t, C.σ.θ • E.anchor + C.anchor t⟩ : PlacedTile C.Q).carrier
+    have hG : ∀ E t, IsClosed (G E t) := fun E t =>
+      ((C.Q.disk (C.form t)).compact.vadd _).isClosed
+    have hcov : ∀ E : PlacedTile C.Q, ∀ V ⊆ C.σ.θ • E.carrier,
+        V ⊆ ⋃ t ∈ Finset.univ.filter (fun t => C.owner t = E.form), G E t := by
+      intro E V hV u hu
+      obtain ⟨t, ht, hut⟩ :=
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step9_block_cover
+          C E u (hV hu)
+      exact Set.mem_biUnion (Finset.mem_filter.2 ⟨Finset.mem_univ _, ht⟩) hut
+    have hUD : U ⊆ C.σ.θ • D.carrier :=
+      Set.smul_set_mono (Set.inter_subset_left.trans interior_subset)
+    have hUD' : U ⊆ C.σ.θ • D'.carrier :=
+      Set.smul_set_mono (Set.inter_subset_right.trans interior_subset)
+    obtain ⟨t, ht, hUt⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step8_open_meets_interior
+        (G D) (hG D) _ U hU hUne (hcov D U hUD)
+    obtain ⟨t', ht', hUt'⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step8_open_meets_interior
+        (G D') (hG D') _ (U ∩ interior (G D t)) (hU.inter isOpen_interior) hUt
+        (hcov D' _ (Set.inter_subset_left.trans hUD'))
+    obtain ⟨p, ⟨-, hp⟩, hp'⟩ := hUt'
+    have ht1 : C.owner t = D.form := (Finset.mem_filter.1 ht).2
+    have ht1' : C.owner t' = D'.form := (Finset.mem_filter.1 ht').2
+    obtain ⟨Y, hY, B, hYB, hBt, hYa⟩ := halign D hD t ht1
+    obtain ⟨Y', hY', B', hY'B, hB't, hY'a⟩ := halign D' hD' t' ht1'
+    have hYc : Y.carrier = G D t := by
+      rw [hcarY Y hY B hYB, hBt, hYa]
+    have hY'c : Y'.carrier = G D' t' := by
+      rw [hcarY Y' hY' B' hY'B, hB't, hY'a]
+    have hYY : Y = Y' :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step5_same_carrier
+        F hY hY' ⟨p, by rw [hYc]; exact hp, by rw [hY'c]; exact hp'⟩
+    subst hYY
+    have hBB : B = B' := Sum.inl.inj (hYB.symm.trans hY'B)
+    subst hBB
+    have htt : t = t' := hBt.symm.trans hB't
+    subst htt
+    have ha : C.σ.θ • D.anchor = C.σ.θ • D'.anchor := by
+      have := hYa.symm.trans hY'a
+      exact add_right_cancel this
+    exact PlacedTile.ext (ht1.symm.trans ht1') (smul_right_injective _ hθ ha)
+  · -- `σ'` decomposes the macroblocks into the projected fine tiling
+    show C.σ.decompose S = Decoration.projTile _ '' F.tiles
+    apply Set.Subset.antisymm
+    · intro E hE
+      simp only [Substitution.decompose, Set.mem_iUnion, exists_prop] at hE
+      obtain ⟨D, hD, hED⟩ := hE
+      unfold Substitution.decomposeTile translateSet at hED
+      obtain ⟨E₀, hE₀, rfl⟩ := hED
+      rw [C.rule_eq] at hE₀
+      obtain ⟨t, ht, rfl⟩ := hE₀
+      obtain ⟨Y, hY, B, hYB, hBt, hYa⟩ := halign D hD t ht
+      obtain ⟨hp, -, -⟩ :=
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step3_typed_disk
+          τ hsts C m hC X Y B hYB
+      refine ⟨Y, hY, ?_⟩
+      simp only [Decoration.projTile, PlacedTile.translate, vadd_eq_add]
+      rw [hp, hBt, hYa]
+    · rintro _ ⟨Z, hZ, rfl⟩
+      obtain ⟨A, hZA⟩ := htyped Z hZ
+      obtain ⟨hp, -, -⟩ :=
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step3_typed_disk
+          τ hsts C m hC X Z A hZA
+      simp only [Substitution.decompose, Set.mem_iUnion, exists_prop]
+      refine ⟨⟨C.owner A.1, C.σ.θ⁻¹ • (Z.anchor - C.anchor A.1)⟩, ⟨Z, hZ, A, hZA, rfl⟩, ?_⟩
+      unfold Substitution.decomposeTile translateSet
+      refine ⟨⟨C.form A.1, C.anchor A.1⟩, ?_, ?_⟩
+      · rw [C.rule_eq]; exact ⟨A.1, rfl, rfl⟩
+      · simp only [Decoration.projTile, PlacedTile.translate, vadd_eq_add]
+        rw [hp, smul_inv_smul₀ hθ, sub_add_cancel]
+
 /-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
 "assemble macroblocks from interface IDs (Lemma comp/assembly)" — a proper fine colouring of a
 control tiling determines a grouped `σ'` composition `𝒯'` whose blocks are aligned with the
@@ -4882,7 +5408,15 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
         ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
           X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
             Z.anchor = C.σ.θ • D.anchor + C.anchor t := by
-  sorry
+  have _ := hher
+  obtain ⟨T', hcomp, halign⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step11_compose
+      τ hsts C m hC X F (fun Z hZ => (X.proper_typed_legal F hF Z hZ).imp fun _ h => h.1)
+      (fun Z hZ A hZA t ht =>
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks_step7_all_present
+          τ hsts C m hC X F hF Z hZ A hZA t ht)
+  subst hFT
+  exact ⟨T', hcomp, halign⟩
 
 /-- Auxiliary for step 1 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`:

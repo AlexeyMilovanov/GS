@@ -1,3 +1,4 @@
+import Tilings.StrictPresentation
 import Tilings.Basic
 import Tilings.Hierarchy
 
@@ -27,7 +28,30 @@ theorem sts_substitution_sofic (h : τ.STS) :
 hierarchical plane tilings are side-to-side sofic. -/
 theorem sts_side_to_side_hierarchy_sofic (h : τ.STS) :
     IsSideToSideSofic {T | τ.IsSideToSideHierarchical T} := by
-  sorry
+  obtain ⟨Sys, hsingle, hSTS, hcomp, hcompl⟩ := Alignment.exists_strict_schedule_system τ h
+  have H : IsSideToSideSofic {T : PlaneTiling Sys.GS.G.P' |
+      ∃ T' : PlaneTiling Sys.dec.P', Sys.dec.Proper T' ∧ Sys.dec.project T' = T} := by
+    use Sys.dec
+    intro T
+    rfl
+  have H2 := Decoration.dissection_preserves_sts_sofic Sys.GS.G H
+  convert H2 using 1
+  ext S
+  simp only [Set.mem_setOf_eq, Geometry.GroupedFamily.scatterFamily]
+  constructor
+  · intro hS
+    obtain ⟨T, hProper, hEq⟩ :=
+      Alignment.exists_strict_proper_of_sts_hierarchical h Sys hsingle hcompl hS
+    use Sys.dec.project T
+    refine ⟨⟨T, hProper, rfl⟩, ?_⟩
+    cases S
+    dsimp at hEq ⊢
+    congr
+  · rintro ⟨T', ⟨T, hProper, rfl⟩, hEq⟩
+    have hEq' : S.tiles = Sys.GS.G.scatter (Sys.dec.project T).tiles := by
+      rw [hEq]
+    exact Alignment.sts_hierarchical_of_strict_proper h Sys hSTS hcomp hProper hEq'
+
 
 /-- Theorem 2(a) (`thm:flc-substitution`): under FLC the substitution plane
 tilings are sofic. -/

@@ -4556,6 +4556,167 @@ private structure hereditary_sts_substitution_sofic_Reconstruction
           (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t) ∧
         Z.anchor = C.σ.θ • Y.anchor + C.anchor t
 
+/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
+"a proper colouring of `𝒯`" — membership in the control family supplies a proper fine colouring
+projecting to the given control tiling. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step1_proper_fine_colouring
+    (τ : Substitution P) (hsts : τ.STS)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (hT : T ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X) :
+    ∃ F : PlaneTiling X.dec.P', X.dec.Proper F ∧ X.dec.toDecoration.project F = T :=
+  hT
+
+/-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
+"assemble macroblocks from interface IDs (Lemma comp/assembly)" — a proper fine colouring of a
+control tiling determines a grouped `σ'` composition `𝒯'` whose blocks are aligned with the
+positioned types: every coarse tile `D` has, for each child type `t` of its form, a fine tile of
+old positioned type `t` at `θ x_D + a_t`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (hFT : X.dec.toDecoration.project F = T) :
+    ∃ T' : PlaneTiling C.Q, C.σ.IsComposition T' T ∧
+      ∀ D ∈ T'.tiles, ∀ t, C.owner t = D.form →
+        ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+          X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
+            Z.anchor = C.σ.θ • D.anchor + C.anchor t := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
+"Heredity makes each parent listed side a union of whole fine sides" — the aligned grouped
+composition assembled from a proper fine colouring is side-to-side. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (hFT : X.dec.toDecoration.project F = T)
+    (T' : PlaneTiling C.Q) (hcomp : C.σ.IsComposition T' T)
+    (halign : ∀ D ∈ T'.tiles, ∀ t, C.owner t = D.form →
+        ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+          X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
+            Z.anchor = C.σ.θ • D.anchor + C.anchor t) :
+    T'.SideToSide := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
+the side-to-side property of the parent passes to any side-decorated colouring of it, since a
+side decoration keeps exactly the original polygonal disks. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_coarse_sideToSide
+    {Q : Protoset} (dec : SideDecoration Q) (T : PlaneTiling dec.P')
+    (h : (dec.toDecoration.project T).SideToSide) : T.SideToSide := by
+  have key : ∀ (A : PlacedTile dec.P') (i : Fin (dec.P'.disk A.form).n),
+      ∃ j : Fin (Q.disk (dec.proj A.form)).n, (dec.toDecoration.projTile A).side j = A.side i := by
+    intro A i
+    have aux : ∀ (B B' : PolygonalDisk), B = B' → ∀ i : Fin B.n, ∃ j : Fin B'.n,
+        B'.side j = B.side i := by
+      rintro B _ rfl i
+      exact ⟨i, rfl⟩
+    obtain ⟨j, hj⟩ := aux _ _ (dec.disk_eq A.form) i
+    refine ⟨j, ?_⟩
+    simp only [PlacedTile.side, Decoration.projTile]
+    rw [hj]
+  intro A hA B hB i j hov
+  obtain ⟨i', hi⟩ := key A i
+  obtain ⟨j', hj⟩ := key B j
+  rw [← hi, ← hj] at hov ⊢
+  exact h _ ⟨A, hA, rfl⟩ _ ⟨B, hB, rfl⟩ i' j' hov
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
+"read one extended header `(t,z,γ)` on the connected boundary belt (Lemma comp/boundary-header),
+and reconstruct the parent cells from the third cells of the five ports on each parent side
+(Lemma comp/reconstruction)" — every block of the aligned composition receives an extended
+array of its form which decodes, whose generated children are exactly the fine tiles of the
+block (Lemma comp/exact with Step 3), and these arrays match on coincident typed sides. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (hFT : X.dec.toDecoration.project F = T)
+    (T' : PlaneTiling C.Q) (hcomp : C.σ.IsComposition T' T)
+    (halign : ∀ D ∈ T'.tiles, ∀ t, C.owner t = D.form →
+        ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+          X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
+            Z.anchor = C.σ.θ • D.anchor + C.anchor t) :
+    ∃ choice : PlacedTile C.Q → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      (∀ D ∈ T'.tiles, C.form (choice D).1 = D.form ∧
+        (hereditary_sts_substitution_sofic_decode τ hsts C hC (choice D)).isSome ∧
+        ∀ t, C.owner t = C.form (choice D).1 →
+          ∃ Z ∈ F.tiles,
+            X.formEquiv Z.form = Sum.inl
+              (hereditary_sts_substitution_sofic_generate τ hsts C m hC (choice D) t) ∧
+            Z.anchor = C.σ.θ • D.anchor + C.anchor t) ∧
+      ∀ D ∈ T'.tiles, ∀ E ∈ T'.tiles, D ≠ E →
+        ∀ (i : C.Side (choice D).1) (j : C.Side (choice E).1),
+          hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec
+            (⟨X.formEquiv.symm (Sum.inl (choice D)), D.anchor⟩ : PlacedTile X.dec.P')
+            (⟨X.formEquiv.symm (Sum.inl (choice E)), E.anchor⟩ : PlacedTile X.dec.P')
+            (choice D) (choice E) i j →
+          (choice D).2 i = (choice E).2 j := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
+"a colouring of `𝒯'`" — placing the reconstructed extended array of each block at its anchor
+gives a decorated plane tiling projecting exactly to `𝒯'`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step5_lift_parent_tiling
+    (τ : Substitution P) (hsts : τ.STS)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T' : PlaneTiling C.Q)
+    (choice : PlacedTile C.Q → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hform : ∀ D ∈ T'.tiles, C.form (choice D).1 = D.form) :
+    ∃ coarse : PlaneTiling X.dec.P',
+      coarse.tiles = (fun D => (⟨X.formEquiv.symm (Sum.inl (choice D)), D.anchor⟩ :
+        PlacedTile X.dec.P')) '' T'.tiles ∧
+      X.dec.toDecoration.project coarse = T' := by
+  have hproj : ∀ D ∈ T'.tiles, X.dec.toDecoration.projTile
+      (⟨X.formEquiv.symm (Sum.inl (choice D)), D.anchor⟩ : PlacedTile X.dec.P') = D := by
+    intro D hD
+    show (⟨X.dec.proj (X.formEquiv.symm (Sum.inl (choice D))), D.anchor⟩ : PlacedTile C.Q) = D
+    rw [X.proj_typed, hform D hD]
+  have hcar : ∀ L : PlacedTile X.dec.P', (X.dec.toDecoration.projTile L).carrier = L.carrier := by
+    intro L
+    simp only [PlacedTile.carrier, Decoration.projTile]
+    rw [X.dec.carrier_eq]
+  let lift : PlacedTile C.Q → PlacedTile X.dec.P' := fun D =>
+    ⟨X.formEquiv.symm (Sum.inl (choice D)), D.anchor⟩
+  refine ⟨{ tiles := lift '' T'.tiles, cover := ?_, disjoint := ?_ }, rfl, ?_⟩
+  · have hc := T'.cover
+    simp only [support] at hc ⊢
+    rw [biUnion_image, ← hc]
+    refine iUnion₂_congr fun D hD => ?_
+    rw [← hcar, hproj D hD]
+  · rintro _ ⟨D, hD, rfl⟩ _ ⟨E, hE, rfl⟩ hne
+    have hDE : D ≠ E := by
+      rintro rfl
+      exact hne rfl
+    have hd := T'.disjoint hD hE hDE
+    simp only [Function.onFun] at hd ⊢
+    rw [← hcar, hproj D hD, ← hcar, hproj E hE]
+    exact hd
+  · have htiles : X.dec.toDecoration.projTile '' (lift '' T'.tiles) = T'.tiles := by
+      rw [Set.image_image]
+      ext D
+      constructor
+      · rintro ⟨E, hE, rfl⟩
+        have h := hproj E hE
+        simp only [lift] at h ⊢
+        rw [h]
+        exact hE
+      · intro hD
+        exact ⟨D, hD, hproj D hD⟩
+    obtain ⟨tiles, cover, disjoint⟩ := T'
+    simp only [Decoration.project, PlaneTiling.mk.injEq]
+    exact htiles
+
 /-- Step 5 of the reviewed proof (one level only): a proper crown-controlled
 tiling has a proper reconstructed parent, exact generated children, and a
 grouped composition.  No iteration and no substitution conclusion occur in
@@ -4569,7 +4730,54 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction
     ∃ T' : PlaneTiling C.Q,
       Nonempty (hereditary_sts_substitution_sofic_Reconstruction
         τ hsts C m hC X T T') := by
-  sorry
+  obtain ⟨F, hF, hFT⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step1_proper_fine_colouring
+      τ hsts C m hC X T hT
+  obtain ⟨T', hcomp, halign⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step2_assemble_macroblocks
+      τ hsts hher C m hC X T F hF hFT
+  have hside :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide
+      τ hsts hher C m hC X T F hF hFT T' hcomp halign
+  obtain ⟨choice, hgood, hmatch⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells
+      τ hsts hher C m hC X T F hF hFT T' hcomp halign
+  obtain ⟨coarse, hcoarse, hproj⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step5_lift_parent_tiling
+      τ hsts C m hC X T' choice fun D hD => (hgood D hD).1
+  refine ⟨T', ⟨{
+    fine := F
+    fine_proper := hF
+    fine_project := hFT
+    coarse := coarse
+    coarse_project := hproj
+    composition := hcomp
+    coarse_sideToSide := ?_
+    coarse_typed := ?_
+    coarse_cells_match := ?_
+    coarse_parents := ?_ }⟩⟩
+  · refine hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_coarse_sideToSide
+      X.dec coarse ?_
+    rw [hproj]
+    exact hside
+  · intro Y hY
+    rw [hcoarse] at hY
+    obtain ⟨D, hD, rfl⟩ := hY
+    exact ⟨choice D, by simp, (hgood D hD).2.1⟩
+  · intro Y hY Z hZ hne A B hA hB i j hco
+    rw [hcoarse] at hY hZ
+    obtain ⟨D, hD, rfl⟩ := hY
+    obtain ⟨E, hE, rfl⟩ := hZ
+    simp only [Equiv.apply_symm_apply, Sum.inl.injEq] at hA hB
+    subst hA hB
+    have hDE : D ≠ E := by
+      rintro rfl
+      exact hne rfl
+    exact hmatch D hD E hE hDE i j hco
+  · intro Y hY
+    rw [hcoarse] at hY
+    obtain ⟨D, hD, rfl⟩ := hY
+    exact ⟨choice D, by simp, (hgood D hD).2.2⟩
 
 /-- Step 6 of the reviewed proof: legality of every reconstructed parent is
 proved before reconstruction is iterated, by the cyclic, noncentral and

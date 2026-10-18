@@ -11472,7 +11472,8 @@ private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_ste
     hform ▸ H.gamma n Z hZ =
       hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t
         (ht ▸ H.gamma (n + 1) Y hY) := by
-  sorry
+  exact hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2_gamma_child
+    τ hsts C m hC T H n Z hZ Y hY t ht hZeq hform
 
 /-- Step 14 of the blueprint proof: the second cell of an outer side of a chain tile is the
 packet of the genuine catalogue value of the tile. -/

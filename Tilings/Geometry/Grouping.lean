@@ -6395,6 +6395,505 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub4_representatio
       hcompat hsupp hsts hdual hside hvert (fun α =>
         existsMacroCertificate_seed2_routing_step3_data_sub4_representation_step4_iter_sts h _ (hinside α))
 
+/-- Step 5 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"an inner side has exactly two owners, because the
+template is side-to-side" (existence): in a finite side-to-side cellulation, a side of a cell
+which is not contained in the frontier of the support is a whole side of a second cell. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_partner_exists
+    {Q : Protoset} {S : Set (PlacedTile Q)} (hfin : S.Finite)
+    (hdisj : DisjointInteriors S) (hsts : SideToSideSet S) {A : PlacedTile Q} (hA : A ∈ S)
+    (i : Fin (Q.disk A.form).n) (hnot : ¬ A.side i ⊆ frontier (support S)) :
+    ∃ B ∈ S, B ≠ A ∧ ∃ j, B.side j = A.side i := by
+  classical
+  obtain ⟨p, hpA, hpf⟩ := Set.not_subset.1 hnot
+  have hpS : p ∈ support S := carrier_subset_support hA (tile_side_subset A i hpA)
+  have hpint : p ∈ interior (support S) := by
+    by_contra h
+    exact hpf ((mem_frontier_iff_of_closed (support_isClosed hfin)).2 ⟨hpS, h⟩)
+  obtain ⟨ε, hε, hεS⟩ := Metric.isOpen_iff.1 isOpen_interior p hpint
+  have hab : A.vertex i ≠ A.vertex (finRotate _ i) := tile_vertex_ne_next A i
+  rw [tile_side_eq, segment_eq_image_lineMap] at hpA
+  obtain ⟨t0, ht0, rfl⟩ := hpA
+  have hcont : Continuous (AffineMap.lineMap (A.vertex i) (A.vertex (finRotate _ i)) : ℝ → Pt) :=
+    AffineMap.lineMap_continuous
+  obtain ⟨δ, hδ, hδε⟩ := Metric.continuous_iff.1 hcont t0 ε hε
+  have hlt : max 0 (t0 - δ) < min 1 (t0 + δ) := by
+    rcases ht0 with ⟨h0, h1⟩
+    exact max_lt (lt_min (by norm_num) (by linarith)) (lt_min (by linarith) (by linarith))
+  have hIinf : (Ioo (max 0 (t0 - δ)) (min 1 (t0 + δ))).Infinite := Set.Ioo_infinite hlt
+  have hV : (⋃ B ∈ S, B.vertexSet).Finite := hfin.biUnion fun B _ => Set.finite_range _
+  have hinj : Function.Injective
+      (AffineMap.lineMap (A.vertex i) (A.vertex (finRotate _ i)) : ℝ → Pt) :=
+    AffineMap.lineMap_injective ℝ hab
+  obtain ⟨q, ⟨t, htI, rfl⟩, hqV⟩ := ((hIinf.image hinj.injOn).diff hV).nonempty
+  have htI' := htI
+  rcases htI' with ⟨h1, h2⟩
+  have hqo : AffineMap.lineMap (A.vertex i) (A.vertex (finRotate _ i)) t ∈
+      openSegment ℝ (A.vertex i) (A.vertex (finRotate _ i)) := by
+    rw [openSegment_eq_image_lineMap]
+    exact ⟨t, ⟨lt_of_le_of_lt (le_max_left _ _) h1, lt_of_lt_of_le h2 (min_le_left _ _)⟩, rfl⟩
+  set q := AffineMap.lineMap (A.vertex i) (A.vertex (finRotate _ i)) t with hqdef
+  have hqp : dist q (AffineMap.lineMap (A.vertex i) (A.vertex (finRotate _ i)) t0) < ε := by
+    apply hδε
+    rw [Real.dist_eq, abs_lt]
+    constructor
+    · linarith [le_max_right 0 (t0 - δ)]
+    · linarith [min_le_right 1 (t0 + δ)]
+  set ε' := ε - dist q (AffineMap.lineMap (A.vertex i) (A.vertex (finRotate _ i)) t0)
+  have hε' : 0 < ε' := by simp only [ε']; linarith
+  have hball : Metric.ball q ε' ⊆ interior (support S) := by
+    intro x hx
+    apply hεS
+    rw [Metric.mem_ball] at hx ⊢
+    have := dist_triangle x q (AffineMap.lineMap (A.vertex i) (A.vertex (finRotate _ i)) t0)
+    simp only [ε'] at hx
+    linarith
+  have hqB : ∃ B ∈ S, B ≠ A ∧ q ∈ B.carrier := by
+    by_contra hno
+    push_neg at hno
+    have hKc : IsClosed (⋃ B ∈ S \ {A}, B.carrier) :=
+      (hfin.diff).isClosed_biUnion fun B _ => tile_isClosed B
+    have hqK : q ∉ ⋃ B ∈ S \ {A}, B.carrier := by
+      simp only [mem_iUnion]
+      rintro ⟨B, ⟨hB, hBA⟩, hqB⟩
+      exact hno B hB hBA hqB
+    obtain ⟨ρ, hρ, hρK⟩ := Metric.isOpen_iff.1 hKc.isOpen_compl q hqK
+    have hqfr : q ∈ frontier A.carrier := by
+      rw [tile_frontier_eq]
+      exact mem_iUnion.2 ⟨i, by rw [tile_side_eq]; exact openSegment_subset_segment ℝ _ _ hqo⟩
+    rw [frontier_eq_closure_inter_closure] at hqfr
+    obtain ⟨x, hxA, hxq⟩ := Metric.mem_closure_iff.1 hqfr.2 (min ρ ε') (lt_min hρ hε')
+    have hxb : x ∈ Metric.ball q ε' := by
+      rw [Metric.mem_ball, dist_comm]; exact lt_of_lt_of_le hxq (min_le_right _ _)
+    have hxρ : x ∈ Metric.ball q ρ := by
+      rw [Metric.mem_ball, dist_comm]; exact lt_of_lt_of_le hxq (min_le_left _ _)
+    obtain ⟨B, hB, hxB⟩ := mem_support_iff'.1 (interior_subset (hball hxb))
+    apply hρK hxρ
+    simp only [mem_iUnion]
+    refine ⟨B, ⟨hB, ?_⟩, hxB⟩
+    rintro rfl
+    exact hxA hxB
+  obtain ⟨B, hB, hBA, hqB⟩ := hqB
+  obtain ⟨j, hj⟩ := tile_partner hdisj hsts hA hB (Ne.symm hBA) i hqo hqB
+    (fun hv => hqV (mem_biUnion hB hv))
+  exact ⟨B, hB, hBA, j, hj⟩
+
+/-- Step 5 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"three polygons with disjoint interiors cannot share a
+whole segment": two cells sharing a whole side with a given cell coincide. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_two_owners
+    {Q : Protoset} {S : Set (PlacedTile Q)} (hdisj : DisjointInteriors S)
+    {A B C : PlacedTile Q} (hA : A ∈ S) (hB : B ∈ S) (hC : C ∈ S) (hBA : B ≠ A) (hCA : C ≠ A)
+    (i : Fin (Q.disk A.form).n) (j : Fin (Q.disk B.form).n) (k : Fin (Q.disk C.form).n)
+    (hj : B.side j = A.side i) (hk : C.side k = A.side i) : B = C := by
+  by_contra hBC
+  set a := A.vertex i with ha
+  set b := A.vertex (finRotate _ i) with hb
+  have hab : a ≠ b := tile_vertex_ne_next A i
+  set q := midpoint ℝ a b with hq
+  have hqo : q ∈ openSegment ℝ a b := by
+    apply mem_openSegment_of_ne_left_right
+    · intro h
+      exact hab (by rw [eq_comm, midpoint_eq_left_iff] at h; exact h)
+    · intro h
+      exact hab (by rw [eq_comm, midpoint_eq_right_iff] at h; exact h)
+    · exact midpoint_mem_segment _ _
+  obtain ⟨r, hr, σ, hσ, h1⟩ := two_sides hdisj hA hB hBA.symm i j hj hqo
+  obtain ⟨r', hr', σ', hσ', h2⟩ := two_sides hdisj hA hC hCA.symm i k hk hqo
+  set d := b - a with hd
+  have hd0 : d ≠ 0 := sub_ne_zero.2 hab.symm
+  set N := d 0 * d 0 + d 1 * d 1 with hN
+  have hNpos : 0 < N := by
+    rcases (show d 0 ≠ 0 ∨ d 1 ≠ 0 by
+      by_contra hc
+      push_neg at hc
+      apply hd0
+      ext m
+      fin_cases m <;> simp [hc.1, hc.2]) with h | h
+    · have := mul_self_pos.2 h; nlinarith [mul_self_nonneg (d 1)]
+    · have := mul_self_pos.2 h; nlinarith [mul_self_nonneg (d 0)]
+  set n : Pt := mkPt (-d 1) (d 0) with hn
+  set m := min r r' with hm
+  have hmpos : 0 < m := lt_min hr hr'
+  set s := m / (2 * (‖n‖ + 1)) with hs
+  have hspos : 0 < s := by positivity
+  have hsn : ‖s • n‖ < m := by
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos hspos, hs]
+    have hn0 : 0 ≤ ‖n‖ := norm_nonneg _
+    rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+    nlinarith
+  have hjq : jcr d (q - a) = 0 := by
+    have : q - a = (1 / 2 : ℝ) • d := by
+      rw [hq, hd, midpoint_eq_smul_add, invOf_eq_inv]; module
+    rw [this, jcr, PiLp.smul_apply, PiLp.smul_apply, smul_eq_mul, smul_eq_mul]; ring
+  have hJ : ∀ c : ℝ, jcr d (q + c • n - a) = c * N := by
+    intro c
+    have : q + c • n - a = (q - a) + c • n := by abel
+    rw [this]
+    have e : jcr d ((q - a) + c • n) = jcr d (q - a) + c * jcr d n := by
+      simp only [jcr, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]; ring
+    rw [e, hjq, zero_add]
+    simp only [jcr, hn, rg_mkPt0, rg_mkPt1, hN]; ring
+  have hmem : ∀ c : ℝ, |c| ≤ s → q + c • n ∈ Metric.ball q r ∧ q + c • n ∈ Metric.ball q r' := by
+    intro c hc
+    have hlt : dist (q + c • n) q < m := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs]
+      calc |c| * ‖n‖ ≤ s * ‖n‖ := mul_le_mul_of_nonneg_right hc (norm_nonneg _)
+        _ = ‖s • n‖ := by rw [norm_smul, Real.norm_eq_abs, abs_of_pos hspos]
+        _ < m := hsn
+    exact ⟨Metric.mem_ball.2 (lt_of_lt_of_le hlt (min_le_left _ _)),
+      Metric.mem_ball.2 (lt_of_lt_of_le hlt (min_le_right _ _))⟩
+  have hp := hmem s (by rw [abs_of_pos hspos])
+  have hm' := hmem (-s) (by rw [abs_neg, abs_of_pos hspos])
+  have hJp := hJ s
+  have hJm := hJ (-s)
+  have hsN : 0 < s * N := mul_pos hspos hNpos
+  rcases hσ with rfl | rfl <;> rcases hσ' with rfl | rfl
+  · have hyB := (h1 _ hm'.1).2.1 (by rw [hJm]; linarith)
+    have hyC := (h2 _ hm'.2).2.1 (by rw [hJm]; linarith)
+    exact interior_not_mem_other hdisj hB hC hBC hyB (interior_subset hyC)
+  · have hyA := (h1 _ hp.1).1 (by rw [hJp]; linarith)
+    have hyC := (h2 _ hp.2).2.1 (by rw [hJp]; linarith)
+    exact interior_not_mem_other hdisj hA hC hCA.symm hyA (interior_subset hyC)
+  · have hyA := (h1 _ hm'.1).1 (by rw [hJm]; linarith)
+    have hyC := (h2 _ hm'.2).2.1 (by rw [hJm]; linarith)
+    exact interior_not_mem_other hdisj hA hC hCA.symm hyA (interior_subset hyC)
+  · have hyB := (h1 _ hp.1).2.1 (by rw [hJp]; linarith)
+    have hyC := (h2 _ hp.2).2.1 (by rw [hJp]; linarith)
+    exact interior_not_mem_other hdisj hB hC hBC hyB (interior_subset hyC)
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"the types are the positioned children of the retained
+templates": every listed side of a type is a listed side of its template child. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_child_side
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ t i, ∃ j, D.occSide ⟨t, i⟩ = (emcdTemplateChild g s l t).side j := by
+  classical
+  dsimp only
+  rintro ⟨α, ⟨⟨β | p, v⟩, hX⟩⟩ i
+  · exact ⟨i, rfl⟩
+  · obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, hbase_original, _⟩ :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue τ h g s l hl routing
+    have hdis :
+        (s.setup.GS.G.dissect (emcdBaseForm g s l (emcdChildForm g s l
+          ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩))).tiles = {⟨p, 0⟩} := by
+      simpa [emcdChildForm, emcdOriginalForm] using hbase_original p
+    obtain ⟨A, hA, j, hj⟩ :=
+      s.setup.GS.G.side_whole (emcdBaseForm g s l (emcdChildForm g s l
+        ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩)) i
+    rw [hdis, Set.mem_singleton_iff] at hA
+    subst A
+    refine ⟨j, ?_⟩
+    have hsides :
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdChildForm g s l
+          ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩))).side i = (P.disk p).side j := by
+      simpa [PlacedTile.side] using hj.symm
+    change v +ᵥ
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdChildForm g s l
+          ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩))).side i = v +ᵥ (P.disk p).side j
+    rw [hsides]
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"the relabelling between the listing of a
+certificate disk and the listing of its grouped disk is a bijection of side indices": the listed
+sides of a polygonal disk are pairwise distinct. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_side_injective
+    (B : PolygonalDisk) : Function.Injective B.side := by
+  intro i j hij
+  apply cyc_seg_inj B.three_le B.vertex_injective
+  simpa only [PolygonalDisk.side] using hij
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"the relabelling between the counterclockwise listing
+of a certificate disk and the listing of its grouped disk is a bijection of side indices":
+every listed side of a template child is a listed side of its type. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_side_child
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ t j, ∃ i, D.occSide ⟨t, i⟩ = (emcdTemplateChild g s l t).side j := by
+  classical
+  dsimp only
+  rintro ⟨α, ⟨⟨β | p, v⟩, hX⟩⟩ k
+  · exact ⟨k, rfl⟩
+  · obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, hbase_original, _⟩ :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue τ h g s l hl routing
+    set x := emcdBaseForm g s l (emcdChildForm g s l ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩) with hxdef
+    have hdis : (s.setup.GS.G.dissect x).tiles = {⟨p, 0⟩} := by
+      simpa [x, emcdChildForm, emcdOriginalForm] using hbase_original p
+    have hf : ∀ i, ∃ j, (s.setup.GS.G.P'.disk x).side i = (P.disk p).side j := by
+      intro i
+      obtain ⟨A, hA, j, hj⟩ := s.setup.GS.G.side_whole x i
+      rw [hdis, Set.mem_singleton_iff] at hA
+      subst A
+      exact ⟨j, by simpa [PlacedTile.side] using hj.symm⟩
+    choose f hf using hf
+    have hfinj : Function.Injective f := by
+      intro i i' hii'
+      apply existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_side_injective
+      rw [hf i, hf i', hii']
+    have hvs := existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_singleton_vertexSet
+      s.setup.GS.G x p hdis
+    have hn : (s.setup.GS.G.P'.disk x).n = (P.disk p).n := by
+      have h1 := Set.ncard_range_of_injective (s.setup.GS.G.P'.disk x).vertex_injective
+      have h2 := Set.ncard_range_of_injective (P.disk p).vertex_injective
+      simp only [PolygonalDisk.vertexSet] at hvs
+      rw [hvs, h2] at h1
+      simpa using h1.symm
+    have hbij : Function.Bijective f :=
+      (Fintype.bijective_iff_injective_and_card f).2 ⟨hfinj, by simp [hn]⟩
+    obtain ⟨i, hi⟩ := hbij.2 k
+    refine ⟨i, ?_⟩
+    change v +ᵥ (s.setup.GS.G.P'.disk x).side i = v +ᵥ (P.disk p).side k
+    rw [hf i, hi]
+
+/-- Step 5 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+the scaled parent region of a certificate form is
+the region of its retained template. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_region
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α, D.macroRegion α = (s.setup.retained l (emcdBaseForm g s l α)).region := by
+  dsimp only
+  intro α
+  have htheta :=
+    (existsMacroCertificate_seed2_routing_step3_data_sub4_representation
+      τ h g s l hl routing).θ_eq
+  have hk : s.setup.GS.k = g.k := by
+    calc
+      s.setup.GS.k = g.GS.k := congrArg GroupedSubstitution.k s.setup_grouped
+      _ = g.k := g.grouped_power
+  rw [s.setup.region_eq]
+  unfold MacroData.macroRegion
+  rw [htheta, ← hk]
+  rfl
+
+/-- Step 5 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"an inner side has exactly two owners, because the
+template is side-to-side" (existence of the second owner): every inner side occurrence has a
+second occurrence of the same segment, in a different child of the same template. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_twin_exists
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ o : D.SideOcc, D.IsInner o →
+      ∃ o' : D.SideOcc, o'.1 ≠ o.1 ∧ D.owner o'.1 = D.owner o.1 ∧ D.occSide o' = D.occSide o := by
+  classical
+  intro D
+  rintro ⟨⟨α, X⟩, i⟩ hin
+  obtain ⟨j, hj⟩ := existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_child_side τ h g s l hl routing ⟨α, X⟩ i
+  let T := s.setup.retained l (emcdBaseForm g s l α)
+  have hnot : ¬ X.1.side j ⊆ frontier (support T.children.tiles) := by
+    intro hsub
+    apply hin
+    change D.occSide ⟨⟨α, X⟩, i⟩ ⊆ frontier (D.macroRegion α)
+    rw [existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_region τ h g s l hl routing α, ← T.support_eq]
+    exact hj ▸ hsub
+  obtain ⟨Y, hY, hYX, k, hk⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_partner_exists
+      T.children.finite T.children.disjoint
+    T.sts X.2 j hnot
+  obtain ⟨i', hi'⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_side_child
+      τ h g s l hl routing ⟨α, ⟨Y, hY⟩⟩ k
+  refine ⟨⟨⟨α, ⟨Y, hY⟩⟩, i'⟩, ?_, rfl, ?_⟩
+  · intro he
+    exact hYX (congrArg (emcdTemplateChild g s l) he)
+  · exact hi'.trans (hk.trans hj.symm)
+
+/-- Step 5 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"three polygons with disjoint interiors cannot share a
+whole segment" (uniqueness of the second owner): two occurrences of the segment of a side
+occurrence, in children different from its own child of the same template, coincide. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_twin_unique
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ o o₁ o₂ : D.SideOcc,
+      (o₁.1 ≠ o.1 ∧ D.owner o₁.1 = D.owner o.1 ∧ D.occSide o₁ = D.occSide o) →
+      (o₂.1 ≠ o.1 ∧ D.owner o₂.1 = D.owner o.1 ∧ D.occSide o₂ = D.occSide o) → o₁ = o₂ := by
+  classical
+  intro D
+  rintro ⟨⟨α, X⟩, i⟩ ⟨⟨α₁, X₁⟩, i₁⟩ ⟨⟨α₂, X₂⟩, i₂⟩ ⟨hne₁, how₁, hs₁⟩ ⟨hne₂, how₂, hs₂⟩
+  change α₁ = α at how₁
+  change α₂ = α at how₂
+  subst α₁
+  subst α₂
+  obtain ⟨j, hj⟩ := existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_child_side τ h g s l hl routing ⟨α, X⟩ i
+  obtain ⟨j₁, hj₁⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_child_side
+      τ h g s l hl routing ⟨α, X₁⟩ i₁
+  obtain ⟨j₂, hj₂⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_child_side
+      τ h g s l hl routing ⟨α, X₂⟩ i₂
+  have hX₁ : X₁.1 ≠ X.1 := fun he => hne₁ (by
+    have e : X₁ = X := Subtype.ext he
+    subst e
+    rfl)
+  have hX₂ : X₂.1 ≠ X.1 := fun he => hne₂ (by
+    have e : X₂ = X := Subtype.ext he
+    subst e
+    rfl)
+  by_cases h12 : X₁.1 = X₂.1
+  · have h12' : X₁ = X₂ := Subtype.ext h12
+    subst h12'
+    have hii : i₁ = i₂ := by
+      apply existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_side_injective
+      have hs : D.occSide ⟨⟨α, X₁⟩, i₁⟩ = D.occSide ⟨⟨α, X₁⟩, i₂⟩ := hs₁.trans hs₂.symm
+      exact AddAction.injective (D.anchor ⟨α, X₁⟩) hs
+    subst hii
+    rfl
+  · exfalso
+    let T := s.setup.retained l (emcdBaseForm g s l α)
+    exact h12 (existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_two_owners
+        T.children.disjoint X.2 X₁.2 X₂.2 hX₁ hX₂ j j₁ j₂
+      (hj₁.symm.trans (hs₁.trans hj)) (hj₂.symm.trans (hs₂.trans hj)))
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"the partner of an inner side occurrence is the other
+occurrence of the same geometric side in the same template; the interface identifier of an inner
+side is its unordered pair of occurrences, with the two type tags recorded in a fixed order":
+given existence and uniqueness of the second occurrence (Step 5), the geometric partner,
+interface and type-tag maps satisfy the interface specifications. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_partner_edge
+    (B : MacroData P)
+    (hE : ∀ o : B.SideOcc, B.IsInner o →
+      ∃ o' : B.SideOcc, o'.1 ≠ o.1 ∧ B.owner o'.1 = B.owner o.1 ∧ B.occSide o' = B.occSide o)
+    (hU : ∀ o o₁ o₂ : B.SideOcc,
+      (o₁.1 ≠ o.1 ∧ B.owner o₁.1 = B.owner o.1 ∧ B.occSide o₁ = B.occSide o) →
+      (o₂.1 ≠ o.1 ∧ B.owner o₂.1 = B.owner o.1 ∧ B.occSide o₂ = B.occSide o) → o₁ = o₂)
+    (T : B.SideOcc → B.Typ × B.Typ) (hT : ∀ e, T e = (e.1, (emcdGeometricPartner B e).1)) :
+    (∀ o : B.SideOcc, B.IsInner o →
+      (emcdGeometricPartner B o).1 ≠ o.1 ∧ B.owner (emcdGeometricPartner B o).1 = B.owner o.1 ∧
+        B.occSide (emcdGeometricPartner B o) = B.occSide o) ∧
+    (∀ o o' : B.SideOcc, B.IsInner o → B.IsInner o' →
+      (emcdGeometricEdge B o = emcdGeometricEdge B o' ↔ o' = o ∨ o' = emcdGeometricPartner B o)) ∧
+    (∀ o : B.SideOcc, B.IsInner o →
+      T (emcdGeometricEdge B o) = (o.1, (emcdGeometricPartner B o).1) ∨
+        T (emcdGeometricEdge B o) = ((emcdGeometricPartner B o).1, o.1)) := by
+  classical
+  have hP : ∀ o, B.IsInner o → (emcdGeometricPartner B o).1 ≠ o.1 ∧
+      B.owner (emcdGeometricPartner B o).1 = B.owner o.1 ∧
+        B.occSide (emcdGeometricPartner B o) = B.occSide o := by
+    intro o ho
+    have hex := hE o ho
+    unfold emcdGeometricPartner
+    rw [dif_pos hex]
+    exact hex.choose_spec
+  have hIn : ∀ o o' : B.SideOcc, B.owner o'.1 = B.owner o.1 → B.occSide o' = B.occSide o →
+      B.IsInner o → B.IsInner o' := by
+    intro o o' h1 h2 ho
+    unfold MacroData.IsInner MacroData.IsOuter at ho ⊢
+    rw [h1, h2]
+    exact ho
+  have hPin : ∀ o, B.IsInner o → B.IsInner (emcdGeometricPartner B o) := fun o ho =>
+    hIn o _ (hP o ho).2.1 (hP o ho).2.2 ho
+  have hPP : ∀ o, B.IsInner o → emcdGeometricPartner B (emcdGeometricPartner B o) = o := by
+    intro o ho
+    obtain ⟨h1, h2, h3⟩ := hP o ho
+    exact hU _ _ _ (hP _ (hPin o ho)) ⟨h1.symm, h2.symm, h3.symm⟩
+  have hEd : ∀ o, emcdGeometricEdge B o = o ∨ emcdGeometricEdge B o = emcdGeometricPartner B o := by
+    intro o
+    unfold emcdGeometricEdge
+    dsimp only
+    split_ifs
+    · exact Or.inl rfl
+    · exact Or.inr rfl
+  have hEs : ∀ o, B.IsInner o →
+      emcdGeometricEdge B (emcdGeometricPartner B o) = emcdGeometricEdge B o := by
+    intro o ho
+    unfold emcdGeometricEdge
+    dsimp only
+    rw [hPP o ho]
+    split_ifs with h1 h2 h2
+    · exact (Fintype.equivFin B.SideOcc).injective (le_antisymm h1 h2)
+    · rfl
+    · rfl
+    · exact absurd (le_of_not_ge h1) h2
+  refine ⟨hP, ?_, ?_⟩
+  · intro o o' ho ho'
+    constructor
+    · intro he
+      rcases hEd o with e1 | e1 <;> rcases hEd o' with e2 | e2 <;> rw [e1, e2] at he
+      · exact Or.inl he.symm
+      · right
+        rw [← hPP o' ho', ← he]
+      · exact Or.inr he.symm
+      · left
+        obtain ⟨h1, h2, h3⟩ := hP o ho
+        obtain ⟨h1', h2', h3'⟩ := hP o' ho'
+        refine hU (emcdGeometricPartner B o) o' o ⟨?_, ?_, ?_⟩ ⟨h1.symm, h2.symm, h3.symm⟩
+        · rw [he]; exact h1'.symm
+        · rw [he]; exact h2'.symm
+        · rw [he]; exact h3'.symm
+    · rintro (rfl | rfl)
+      · rfl
+      · exact (hEs o ho).symm
+  · intro o ho
+    rw [hT]
+    rcases hEd o with e | e
+    · left
+      rw [e]
+    · right
+      rw [e, hPP o ho]
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"the partner of an inner side occurrence is the other occurrence of the same geometric side in
+the same template": construction equation of the partner map. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_partner_eq
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    ∀ o : (emcdMacroData τ h g s l hl routing).SideOcc,
+      (emcdMacroData τ h g s l hl routing).partner o =
+        emcdGeometricPartner (emcdGeometryData τ h g s l hl routing) o :=
+  fun _ => rfl
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces`:
+"the interface identifier of an inner side is its unordered pair of occurrences": construction
+equation of the interface map. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_edge_eq
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    ∀ o : (emcdMacroData τ h g s l hl routing).SideOcc,
+      (emcdMacroData τ h g s l hl routing).edge o =
+        emcdGeometricEdge (emcdGeometryData τ h g s l hl routing) o :=
+  fun _ => rfl
+
 /-- Step 1 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: the internal
 interface specifications (`partner_spec`, `edge_spec`, `edgeTypes_spec` from the two-owner
@@ -6414,7 +6913,21 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_an
     (∀ o : D.SideOcc, D.IsInner o →
       D.edgeTypes (D.edge o) = (o.1, (D.partner o).1) ∨
         D.edgeTypes (D.edge o) = ((D.partner o).1, o.1)) := by
-  sorry
+  intro D
+  have key := existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_partner_edge
+    (emcdGeometryData τ h g s l hl routing)
+    (existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_twin_exists τ h g s l hl routing)
+    (existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step5_twin_unique τ h g s l hl routing)
+    D.edgeTypes (fun _ => rfl)
+  have hP := existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_partner_eq τ h g s l hl routing
+  have hE := existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces_step4_edge_eq τ h g s l hl routing
+  refine ⟨fun o ho => ?_, fun o o' ho ho' => ?_, fun o ho => ?_⟩
+  · rw [hP]
+    exact key.1 o ho
+  · rw [hE, hE, hP]
+    exact key.2.1 o o' ho ho'
+  · rw [hE, hP]
+    exact key.2.2 o ho
 
 private lemma
     emcd_outer_step2_child_side

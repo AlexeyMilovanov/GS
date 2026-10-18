@@ -4295,6 +4295,264 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slot
   rw [hib, hk, ha, hb]
   rfl
 
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+"these sides" are sides of the central child
+`L`: the carrier of the grouped disk of `g.large p` is the carrier of the inside-anchored group `L`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step1_carrier
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form) :
+    (g.GS.G.P'.disk (g.large p)).carrier = (g.annular p).L.carrier := by
+  rw [← g.GS.G.support_eq, g.large_dissect]
+  exact (g.annular p).L.carrier_eq.symm
+
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+"these sides" lie on the boundary of the
+central child -- a point of a listed side of the grouped disk of `g.large p` lies on the frontier of
+`L`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step1_frontier
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form)
+    (i : Fin (g.GS.G.P'.disk (g.large p)).n) {y : Pt} (hy : y ∈ (g.GS.G.P'.disk (g.large p)).side i) :
+    y ∈ frontier (g.annular p).L.carrier := by
+  rw [← existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step1_carrier τ g p]
+  exact pd_segment_subset_frontier _ i hy
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+the sides are "whole sides" of original
+tiles, so two points of one listed side of the grouped disk of `g.large p` are at distance at most
+`D`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step2_side_short
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form)
+    (i : Fin (g.GS.G.P'.disk (g.large p)).n) {x z : Pt} (hx : x ∈ (g.GS.G.P'.disk (g.large p)).side i)
+    (hz : z ∈ (g.GS.G.P'.disk (g.large p)).side i) : dist x z ≤ g.M.D := by
+  obtain ⟨A, -, iA, hAe⟩ := g.GS.G.side_whole (g.large p) i
+  exact step5_tile_dist_le g.M A (tile_side_subset A iA (by rw [hAe]; exact hx))
+    (tile_side_subset A iA (by rw [hAe]; exact hz))
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+points selected in distinct sectors are far
+apart -- a point within `20 D` of `T_t` and a point `50 D`-far from `T_t` are more than `25 D`
+apart. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step2_sep {c ya yb : Pt} {N : ℕ} {R D : ℝ}
+    (hD : 0 < D) {t : ℕ} (hya : ya ∈ Metric.cthickening (20 * D) (idealTrapezoid c N R D t))
+    (hyb : ∀ q ∈ idealTrapezoid c N R D t, 50 * D ≤ dist yb q) : 25 * D < dist ya yb := by
+  have h := Metric.cthickening_subset_thickening' (by linarith : (0 : ℝ) < 25 * D)
+    (by linarith : 20 * D < 25 * D) _ hya
+  obtain ⟨q, hq, hdq⟩ := Metric.mem_thickening_iff.1 h
+  have h1 := hyb q hq
+  have h2 := dist_triangle yb ya q
+  rw [dist_comm yb ya] at h2
+  linarith
+
+open private pgLoop pgL finRotate_val_eq_mod pd_vertex_ne_next from Tilings.Geometry.Grouping.Foundation in
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+"these sides occur counterclockwise" along
+the boundary parametrization -- at parameter `t` the counterclockwise boundary loop of a polygonal
+disk lies on the listed side with index `⌊n · fract t⌋`, and any other listed side through that
+point is the preceding one. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_loop_side (B : PolygonalDisk) (t : ℝ) :
+    ∃ h : ⌊(B.n : ℝ) * Int.fract t⌋₊ < B.n, pgLoop (pgL B) t ∈ B.side ⟨_, h⟩ ∧
+      ∀ s : Fin B.n, pgLoop (pgL B) t ∈ B.side s →
+        (s : ℕ) = ⌊(B.n : ℝ) * Int.fract t⌋₊ ∨ (s : ℕ) + 1 = ⌊(B.n : ℝ) * Int.fract t⌋₊ ∨
+          (⌊(B.n : ℝ) * Int.fract t⌋₊ = 0 ∧ (s : ℕ) + 1 = B.n) := by
+  have hn : 0 < B.n := by have := B.three_le; omega
+  set τ := Int.fract t with hτdef
+  have hτ0 : 0 ≤ τ := Int.fract_nonneg t
+  have hτ1 : τ < 1 := Int.fract_lt_one t
+  have hu0 : 0 ≤ (B.n : ℝ) * τ := mul_nonneg (by positivity) hτ0
+  set i := ⌊(B.n : ℝ) * τ⌋₊ with hidef
+  have hi1 : (i : ℝ) ≤ B.n * τ := Nat.floor_le hu0
+  have hi2 : (B.n : ℝ) * τ < i + 1 := Nat.lt_floor_add_one _
+  have hil : i < B.n := by
+    have : (B.n : ℝ) * τ < B.n := by
+      have := mul_lt_mul_of_pos_left hτ1 (show (0:ℝ) < B.n by exact_mod_cast hn)
+      linarith
+    have : (i : ℝ) < B.n := lt_of_le_of_lt hi1 this
+    exact_mod_cast this
+  refine ⟨hil, ?_⟩
+  set iF : Fin B.n := ⟨i, hil⟩
+  have hlen : (pgL B).length = B.n := by simp [pgL]
+  have hget : ∀ k (hk : k < B.n), (pgL B).getD k 0 = B.vertex ⟨k, hk⟩ := by
+    intro k hk
+    rw [List.getD_eq_getElem _ _ (by rw [hlen]; exact hk)]
+    simp [pgL]
+  have hnext : (pgL B).getD ((i + 1) % B.n) 0 = B.vertex (finRotate B.n iF) := by
+    rw [hget _ (Nat.mod_lt _ hn)]
+    congr 1
+    ext
+    rw [finRotate_val_eq_mod]
+  set θ := (B.n : ℝ) * τ - i with hθ
+  have hθ0 : 0 ≤ θ := by linarith
+  have hθ1 : θ < 1 := by linarith
+  have hloop : pgLoop (pgL B) t = AffineMap.lineMap (B.vertex iF) (B.vertex (finRotate B.n iF)) θ := by
+    simp only [pgLoop, hlen]
+    rw [← hτdef, ← hidef, Nat.mod_eq_of_lt hil, hget _ hil, hnext]
+  have hmem : pgLoop (pgL B) t ∈ B.side iF := by
+    rw [hloop, PolygonalDisk.side, segment_eq_image_lineMap]
+    exact ⟨θ, ⟨hθ0, hθ1.le⟩, rfl⟩
+  refine ⟨hmem, fun s hs => ?_⟩
+  by_cases hsi : s = iF
+  · left; rw [hsi]
+  have hsub := B.simple iF s (Ne.symm hsi) ⟨hmem, hs⟩
+  obtain ⟨h1, h2⟩ := hsub
+  have hne : pgLoop (pgL B) t ≠ B.vertex (finRotate B.n iF) := by
+    rw [hloop]
+    intro h
+    have h' : AffineMap.lineMap (B.vertex iF) (B.vertex (finRotate B.n iF)) θ =
+        AffineMap.lineMap (B.vertex iF) (B.vertex (finRotate B.n iF)) (1 : ℝ) := by
+      rw [h, AffineMap.lineMap_apply_one]
+    have := (AffineMap.lineMap_injective ℝ (pd_vertex_ne_next B iF)) h'
+    linarith
+  have hx : pgLoop (pgL B) t = B.vertex iF := by
+    rcases h1 with h1 | h1
+    · exact h1
+    · exact absurd h1 hne
+  rcases h2 with h2 | h2
+  · exact absurd (B.vertex_injective (hx.symm.trans h2)) (Ne.symm hsi)
+  · have := B.vertex_injective (hx.symm.trans h2)
+    have hv := congrArg Fin.val this
+    rw [finRotate_val_eq_mod] at hv
+    simp only [iF] at hv
+    have := s.isLt
+    rcases Nat.lt_or_ge (s.val + 1) B.n with h | h
+    · rw [Nat.mod_eq_of_lt h] at hv; right; left; omega
+    · have : s.val + 1 = B.n := by omega
+      rw [this, Nat.mod_self] at hv; right; right; omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+"occur counterclockwise in the order" --
+three loop parameters in cyclic order within one period give cyclically ordered (distinct) side
+indices `⌊n · fract t⌋`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_fract_order {n : ℕ} (hn : 0 < n) {t0 t1 t2 : ℝ}
+    (h01 : t0 < t1) (h12 : t1 < t2) (h20 : t2 < t0 + 1)
+    (h01' : ⌊(n : ℝ) * Int.fract t0⌋₊ ≠ ⌊(n : ℝ) * Int.fract t1⌋₊)
+    (h02' : ⌊(n : ℝ) * Int.fract t0⌋₊ ≠ ⌊(n : ℝ) * Int.fract t2⌋₊)
+    (h12' : ⌊(n : ℝ) * Int.fract t1⌋₊ ≠ ⌊(n : ℝ) * Int.fract t2⌋₊) :
+    CycLt3 ⌊(n : ℝ) * Int.fract t0⌋₊ ⌊(n : ℝ) * Int.fract t1⌋₊ ⌊(n : ℝ) * Int.fract t2⌋₊ := by
+  have hmono : ∀ u v : ℝ, Int.fract u ≤ Int.fract v →
+      ⌊(n : ℝ) * Int.fract u⌋₊ ≤ ⌊(n : ℝ) * Int.fract v⌋₊ := fun u v h =>
+    Nat.floor_le_floor (mul_le_mul_of_nonneg_left h (by positivity))
+  have f0 := Int.floor_le t0
+  have f0' := Int.lt_floor_add_one t0
+  have g1 := Int.floor_le t1
+  have g1' := Int.lt_floor_add_one t1
+  have g2 := Int.floor_le t2
+  have g2' := Int.lt_floor_add_one t2
+  have e1 : ⌊t1⌋ = ⌊t0⌋ ∨ ⌊t1⌋ = ⌊t0⌋ + 1 := by
+    have a : ⌊t0⌋ ≤ ⌊t1⌋ := Int.floor_le_floor h01.le
+    have b : ⌊t1⌋ ≤ ⌊t0⌋ + 1 := by
+      rw [← Int.floor_add_one]; exact Int.floor_le_floor (by linarith)
+    omega
+  have e2 : ⌊t2⌋ = ⌊t0⌋ ∨ ⌊t2⌋ = ⌊t0⌋ + 1 := by
+    have a : ⌊t0⌋ ≤ ⌊t2⌋ := Int.floor_le_floor (by linarith)
+    have b : ⌊t2⌋ ≤ ⌊t0⌋ + 1 := by
+      rw [← Int.floor_add_one]; exact Int.floor_le_floor (by linarith)
+    omega
+  have e12 : ⌊t1⌋ ≤ ⌊t2⌋ := Int.floor_le_floor h12.le
+  unfold CycLt3
+  rcases e1 with e1 | e1 <;> rcases e2 with e2 | e2
+  · have a := hmono t0 t1 (by simp only [Int.fract, e1]; linarith)
+    have b := hmono t1 t2 (by simp only [Int.fract, e1, e2]; linarith)
+    omega
+  · have a := hmono t0 t1 (by simp only [Int.fract, e1]; linarith)
+    have b := hmono t2 t0 (by simp only [Int.fract, e2]; push_cast; linarith)
+    omega
+  · rw [e1, e2] at e12; omega
+  · have a := hmono t1 t2 (by simp only [Int.fract, e1, e2]; linarith)
+    have b := hmono t2 t0 (by simp only [Int.fract, e2]; push_cast; linarith)
+    omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+"in the order of the sectors" survives the
+vertex ambiguity -- replacing cyclically ordered indices by themselves or their cyclic predecessors,
+without hitting the other indices, keeps the cyclic order. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_index_shift {n i0 i1 i2 s0 s1 s2 : ℕ}
+    (hi0 : i0 < n) (hi1 : i1 < n) (hi2 : i2 < n) (hc : CycLt3 i0 i1 i2)
+    (h0 : s0 = i0 ∨ s0 + 1 = i0 ∨ (i0 = 0 ∧ s0 + 1 = n))
+    (h1 : s1 = i1 ∨ s1 + 1 = i1 ∨ (i1 = 0 ∧ s1 + 1 = n))
+    (h2 : s2 = i2 ∨ s2 + 1 = i2 ∨ (i2 = 0 ∧ s2 + 1 = n))
+    (h01 : s0 ≠ i1) (h02 : s0 ≠ i2) (h10 : s1 ≠ i0) (h12 : s1 ≠ i2) (h20 : s2 ≠ i0) (h21 : s2 ≠ i1) :
+    CycLt3 s0 s1 s2 := by
+  unfold CycLt3 at *
+  omega
+
+open private pgLoop pgL from Tilings.Geometry.Grouping.Foundation in
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+"these sides occur counterclockwise in the
+order" of the points -- if three points appear in this order along the counterclockwise boundary
+loop of a polygonal disk, lie on listed sides `s 0, s 1, s 2`, and no listed side contains two of
+them, then the side indices are in cyclic order. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_side_order (B : PolygonalDisk) (x : Fin 3 → Pt)
+    (hord : PointsInOrder (pgLoop (pgL B)) x) (s : Fin 3 → Fin B.n)
+    (hx : ∀ k, x k ∈ B.side (s k))
+    (hsep : ∀ k l, k ≠ l → ∀ i, x k ∈ B.side i → x l ∉ B.side i) :
+    CycLt3 (s 0) (s 1) (s 2) := by
+  obtain ⟨t, htm, ht1, htx⟩ := hord
+  have hn : 0 < B.n := by have := B.three_le; omega
+  have L := fun k => existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_loop_side B (t k)
+  choose hlt hmem hrel using L
+  simp only [htx] at hmem hrel
+  have hd : ∀ k l, k ≠ l → ⌊(B.n : ℝ) * Int.fract (t k)⌋₊ ≠ ⌊(B.n : ℝ) * Int.fract (t l)⌋₊ := by
+    intro k l hkl he
+    apply hsep k l hkl _ (hmem k)
+    have := hmem l
+    simp only [← he] at this
+    exact this
+  have hne : ∀ k l, k ≠ l → (s k : ℕ) ≠ ⌊(B.n : ℝ) * Int.fract (t l)⌋₊ := by
+    intro k l hkl he
+    apply hsep k l hkl _ (hx k)
+    have := hmem l
+    have e : s k = ⟨_, hlt l⟩ := Fin.ext he
+    rw [e]; exact this
+  have hc := existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_fract_order hn (htm (show (0 : Fin 3) < 1 by decide))
+    (htm (show (1 : Fin 3) < 2 by decide))
+    (ht1 0 2) (hd 0 1 (by decide)) (hd 0 2 (by decide)) (hd 1 2 (by decide))
+  exact existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_index_shift
+    (hlt 0) (hlt 1) (hlt 2) hc (hrel 0 _ (hx 0)) (hrel 1 _ (hx 1)) (hrel 2 _ (hx 2))
+    (hne 0 1 (by decide)) (hne 0 2 (by decide)) (hne 1 0 (by decide)) (hne 1 2 (by decide))
+    (hne 2 0 (by decide)) (hne 2 1 (by decide))
+
+open private quantitativeAnnularGrouping_innerOrder from Tilings.Geometry.Grouping.Foundation in
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order`:
+"by Lemma `inner-sector-order` these sides
+occur counterclockwise in the order of the sectors" -- for sectors `a < b < c` the selected sides
+are in cyclic order. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step4_sorted
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form)
+    (side : Fin (4 * g.N) → Fin (g.GS.G.P'.disk (g.large p)).n) (y : Fin (4 * g.N) → Pt)
+    (hy : ∀ j, y j ∈ (g.GS.G.P'.disk (g.large p)).side (side j))
+    (hloc : ∀ j : Fin (4 * g.N), y j ∈ Metric.cthickening (20 * g.M.D)
+      (idealTrapezoid (g.centre p) g.N g.R g.M.D (j : ℕ)))
+    (hfar : ∀ j : Fin (4 * g.N), ∀ t : Fin (4 * g.N), t ≠ j →
+      ∀ q ∈ idealTrapezoid (g.centre p) g.N g.R g.M.D (t : ℕ), 50 * g.M.D ≤ dist (y j) q)
+    (a b c : Fin (4 * g.N)) (hab : a < b) (hbc : b < c) :
+    CycLt3 (side a) (side b) (side c) := by
+  have hD := g.M.D_pos
+  have hR : 1000 * g.M.D ≤ g.R := by
+    have := g.R_separates
+    rw [g.Csep_eq] at this
+    exact this
+  set jj : Fin 3 → Fin (4 * g.N) := ![a, b, c] with hjj
+  have hmono : StrictMono jj := by
+    rw [hjj, Fin.strictMono_iff_lt_succ]
+    intro i
+    fin_cases i
+    · exact hab
+    · exact hbc
+  have hinj : Function.Injective jj := hmono.injective
+  have hord := quantitativeAnnularGrouping_innerOrder (g.centre p) g.N_two hR (g.annular p)
+    (g.GS.G.P'.disk (g.large p)) (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step1_carrier τ g p)
+    (g.ccw (g.large p)) jj hmono
+    (fun k => y (jj k)) (fun k => existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step1_frontier τ g p _ (hy (jj k)))
+    (fun k => hloc (jj k)) (fun k => hfar (jj k))
+  have hsep : ∀ k l, k ≠ l → ∀ i, y (jj k) ∈ (g.GS.G.P'.disk (g.large p)).side i →
+      y (jj l) ∉ (g.GS.G.P'.disk (g.large p)).side i := by
+    intro k l hkl i hk hl
+    have h1 := existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step2_side_short τ g p i hk hl
+    have h2 := existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step2_sep hD (hloc (jj k))
+      (hfar (jj l) (jj k) (fun h => hkl (hinj h)))
+    linarith
+  exact existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step3_side_order _ (fun k => y (jj k)) hord (fun k => side (jj k))
+    (fun k => hy (jj k)) hsep
+
 /-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
 "by Lemma `inner-sector-order` these sides occur counterclockwise in the order of the sectors, so the
 print map preserves cyclic order" -- if each sector `j` selects a listed side `side j` of the
@@ -4309,7 +4567,16 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slot
     (hfar : ∀ j : Fin (4 * g.N), ∀ t : Fin (4 * g.N), t ≠ j →
       ∀ q ∈ idealTrapezoid (g.centre p) g.N g.R g.M.D (t : ℕ), 50 * g.M.D ≤ dist (y j) q) :
     ∀ j₁ j₂ j₃ : Fin (4 * g.N), CycLt3 j₁ j₂ j₃ → CycLt3 (side j₁) (side j₂) (side j₃) := by
-  sorry
+  intro j₁ j₂ j₃ h
+  have hs := existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order_step4_sorted τ g p side y hy hloc hfar
+  rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · exact hs j₁ j₂ j₃ (Fin.lt_def.2 h1) (Fin.lt_def.2 h2)
+  · have := hs j₂ j₃ j₁ (Fin.lt_def.2 h1) (Fin.lt_def.2 h2)
+    unfold CycLt3 at this ⊢
+    omega
+  · have := hs j₃ j₁ j₂ (Fin.lt_def.2 h1) (Fin.lt_def.2 h2)
+    unfold CycLt3 at this ⊢
+    omega
 
 /-- Step 6 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
 "an order-preserving injection between two cyclically ordered boundary families" -- a map between

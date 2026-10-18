@@ -5016,6 +5016,1582 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction
     obtain ⟨D, hD, rfl⟩ := hY
     exact ⟨choice D, by simp, (hgood D hD).2.2⟩
 
+/-- Extended normality, the analogue of `Planned.Strict.IsStrictNormal` for the crown alphabet:
+every strict local cell of an extended tile carries, in the old summand, the value prescribed
+by its type.  Cell two is local only on unmarked sides, where the (absent) packet is literally
+the old zero symbol. -/
+private def hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) : Prop :=
+  ∀ (i : C.Side A.1) (k : Fin 5),
+    Planned.Strict.IsStrictLocal C (C.occ A.1 i) k →
+      A.2 i k = Sum.inl (Planned.Strict.strictPrescribedCell C hC (C.occ A.1 i) k)
+
+/-- Extended identity-correctness, the analogue of `Planned.Strict.IsStrictIdentityCorrect`:
+every inner nonprint side carries its interface identity in position 1 and every print carries
+it in position 5, in the old summand. -/
+private def hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) : Prop :=
+  ∀ i : C.Side A.1,
+    (C.IsInner (C.occ A.1 i) → ¬ C.IsPrint (C.occ A.1 i) →
+      A.2 i 0 = Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ A.1 i)))) ∧
+    (C.IsPrint (C.occ A.1 i) →
+      A.2 i 4 = Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ A.1 i))))
+
+/-- The cell of an extended tile indexed by the numerical value of a side index (the old zero
+symbol out of range); it compares tiles of different types but equal forms. -/
+private def hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (v : ℕ) (k : Fin 5) :
+    hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC :=
+  if h : v < (C.Q.disk (C.form A.1)).n then A.2 ⟨v, h⟩ k else Sum.inl 0
+
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (i : C.Side A.1) (k : Fin 5) :
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv τ hsts C hC A
+      i.val k = A.2 i k := by
+  unfold hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+  rw [dif_pos i.isLt]
+
+/-- The partner of an inner side is inner (copy of a private lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_inner_partner
+    (C : Geometry.MacroCertificate P) {o : C.SideOcc} (h : C.IsInner o) :
+    C.IsInner (C.partner o) := by
+  have hp := C.g1_partner _ h
+  unfold MacroData.IsInner MacroData.IsOuter at h ⊢
+  rw [hp.2.2, hp.2.1]
+  exact h
+
+/-- Prints are inner sides (copy of a private lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_inner_of_print
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) : C.IsInner o := by
+  rcases h with ⟨hm, rfl | rfl⟩
+  · exact C.g4_print_inner α d hm
+  · exact
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_inner_partner
+        C (C.g4_print_inner α d hm)
+
+/-- The printed parent side of a print is unique (copy of a private lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_unique
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d d' : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) (h' : C.IsPrintOf α d' o) : d = d' := by
+  have key : ∀ {e e' : Fin (C.Q.disk α).n}, C.marked α e → C.marked α e' →
+      C.printOcc α e = C.printOcc α e' → e = e' := by
+    intro e e' he he' hpe
+    apply C.g4_print_injective α e e' he he'
+    simp only [MacroData.printOcc, Sigma.mk.injEq, heq_eq_eq, true_and] at hpe
+    exact hpe
+  obtain ⟨hm, h1⟩ := h
+  obtain ⟨hm', h2⟩ := h'
+  have hin := C.g4_print_inner α d hm
+  have hin' := C.g4_print_inner α d' hm'
+  rcases h1 with rfl | rfl <;> rcases h2 with h2 | h2
+  · exact key hm hm' h2
+  · exact absurd (by rw [← h2]; rfl) (C.g1_partner _ hin').1
+  · exact absurd (by rw [h2]; rfl) (C.g1_partner _ hin).1
+  · exact key hm hm' (by
+      rw [← C.g1_partner_partner _ hin, h2, C.g1_partner_partner _ hin'])
+
+/-- A nonprint side lies on at most one path of its template (copy of a private lemma of
+`Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_path_unique
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {o : C.SideOcc} (hα : C.owner o.1 = α)
+    (hnp : ¬ C.IsPrint o) {d d' : Fin (C.Q.disk α).n} {j j' : Fin 5}
+    (h : o ∈ C.path α d j) (h' : o ∈ C.path α d' j') : d = d' ∧ j = j' := by
+  by_contra hne
+  have hne' : (d, j) ≠ (d', j') := fun e => hne (Prod.mk.inj e)
+  obtain ⟨rfl, hpr⟩ := C.g4_path_disjoint α d d' j j' hne' o h h'
+  by_cases hm : C.marked α d
+  · apply hnp
+    unfold MacroData.IsPrint
+    rw [hα]
+    exact ⟨d, hm, hpr⟩
+  · have htriv := C.g4_path_trivial α d j (fun hg => hm hg.1)
+    rw [htriv, Option.mem_toList] at h
+    have hmem : o ∈ C.outerList α d := List.mem_iff_getElem?.mpr ⟨_, h⟩
+    have hout : C.IsOuter o := ((C.g3_outerList_mem α d o).1 hmem).2.1
+    have hin : C.IsInner (C.printOcc α d) := (C.g2_central α (C.print α d)).1
+    rcases hpr with rfl | rfl
+    · exact hin hout
+    · exact
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_inner_partner
+          C hin hout
+
+/-- A side is a print iff it is a print of a marked side of the template owning it. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+    (C : Geometry.MacroCertificate P) {s : C.Typ} {β : C.Q.Form} (hs : C.owner s = β)
+    (i : C.Side s) :
+    C.IsPrint (C.occ s i) ↔ ∃ d : Fin (C.Q.disk β).n, C.IsPrintOf β d (C.occ s i) := by
+  subst hs
+  rfl
+
+/-- An unmarked side lies on no path (copy of a private lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_not_on_path
+    (C : Geometry.MacroCertificate P) {s : C.Typ} {β : C.Q.Form} (hs : C.owner s = β)
+    (i : C.Side s) (hm : ¬ C.IsMarked (C.occ s i)) (d : Fin (C.Q.disk β).n) (j : Fin 5) :
+    C.occ s i ∉ C.path β d j := by
+  subst hs
+  intro hmem
+  by_cases hg : C.IsGenuinePath (C.owner s) d j
+  · exact hm (C.g7_marking _ (Or.inr (Or.inr (Or.inr ⟨d, j, hg, hmem⟩))))
+  · rw [C.g4_path_trivial _ d j hg, Option.mem_toList] at hmem
+    have hmem' : C.occ s i ∈ C.outerList _ d := List.mem_iff_getElem?.mpr ⟨_, hmem⟩
+    exact hm (C.g7_marking _ (Or.inl ((C.g3_outerList_mem _ d _).1 hmem').2.1))
+
+/-- The packet of an inner nonboundary side is absent, i.e. encoded by the old zero symbol: no
+endpoint of such a side lies on the macroboundary of its owner. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_packet_absent
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t)) (i : C.Side t)
+    (hin : C.IsInner (C.occ t i)) (hnb : ¬ C.IsBoundary (C.occ t i)) :
+    hereditary_sts_substitution_sofic_encodePacket τ hsts C hC
+      (hereditary_sts_substitution_sofic_packetOf τ hsts C t γ i) = Sum.inl 0 := by
+  have hx : ¬ (C.anchor t + (C.Q.disk (C.form t)).vertex i ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner t)).carrier)) := fun h => hnb ⟨hin, Or.inl h⟩
+  have hy : ¬ (C.anchor t + (C.Q.disk (C.form t)).vertex
+      (finRotate (C.Q.disk (C.form t)).n i) ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner t)).carrier)) := fun h => hnb ⟨hin, Or.inr h⟩
+  simp [hereditary_sts_substitution_sofic_packetOf,
+    hereditary_sts_substitution_sofic_encodePacket, hx, hy]
+
+/-- The cells of a generated child, clause by clause (the extended analogue of
+`strictChild_cells`): copied cells on prints and paths, generated origins elsewhere, and the
+absent packet in cell two of an inner nonboundary side. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (t : C.Typ)
+    (ht : C.owner t = C.form A.1) (i : C.Side t) :
+    (∀ d : C.Side A.1, C.IsPrintOf (C.form A.1) d (C.occ t i) →
+      (∀ k : Fin 5, k ≠ 4 →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i k = A.2 d k) ∧
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 4 =
+        Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ t i)))) ∧
+    (¬ C.IsPrint (C.occ t i) →
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 0 =
+        Sum.inl (if C.IsInner (C.occ t i)
+          then Planned.Strict.identSU C hC (C.edge (C.occ t i)) else 0) ∧
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 4 = Sum.inl 0 ∧
+      (∀ (d : C.Side A.1) (j : Fin 5), C.occ t i ∈ C.path (C.form A.1) d j →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 2 = A.2 d j) ∧
+      ((∀ (d : C.Side A.1) (j : Fin 5), C.occ t i ∉ C.path (C.form A.1) d j) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 2 = Sum.inl 0) ∧
+      (C.IsOuter (C.occ t i) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+          Sum.inl (Planned.Strict.schedU C hC (C.occ t i))) ∧
+      (C.IsInner (C.occ t i) → ¬ C.IsBoundary (C.occ t i) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+          Sum.inl (Planned.Strict.botSU C hC)) ∧
+      (C.IsInner (C.occ t i) → ¬ C.IsBoundary (C.occ t i) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 1 = Sum.inl 0) ∧
+      (C.IsBoundary (C.occ t i) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+          Sum.inr (Sum.inr (hereditary_sts_substitution_sofic_header τ hsts C hC A)))) := by
+  have ht' : C.owner (C.occ t i).1 = C.form A.1 := ht
+  refine ⟨fun d hd => ?_, fun hnp => ?_⟩
+  · have hpr : C.IsPrint (C.occ t i) := by
+      unfold MacroData.IsPrint
+      rw [ht']
+      exact ⟨d, hd⟩
+    refine ⟨fun k hk => ?_, ?_⟩
+    · have hne : (Planned.copySource C (C.form A.1) (C.occ t i) k).Nonempty :=
+        ⟨(d, k), Or.inl ⟨hd, hk, rfl⟩⟩
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_pos hne]
+      rcases hne.some_mem with ⟨hp1, -, hp2⟩ | ⟨hnp, -, -⟩
+      · rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_unique
+          C hp1 hd, hp2]
+      · exact absurd hpr hnp
+    · have hne : ¬ (Planned.copySource C (C.form A.1) (C.occ t i) 4).Nonempty := by
+        rintro ⟨p, ⟨-, h4, -⟩ | ⟨hnp, -, -⟩⟩
+        · exact h4 rfl
+        · exact hnp hpr
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg hne, dif_pos hpr]
+      simp
+  · have hnp' : ¬ ∃ d, C.IsPrintOf (C.form A.1) d (C.occ t i) := by
+      rw [← ht']
+      exact hnp
+    have hcs : ∀ k, k ≠ 2 →
+        ¬ (Planned.copySource C (C.form A.1) (C.occ t i) k).Nonempty := by
+      rintro k hk ⟨p, ⟨hp, -, -⟩ | ⟨-, hk2, -⟩⟩
+      · exact hnp' ⟨_, hp⟩
+      · exact hk hk2
+    refine ⟨?_, ?_, fun d j hdj => ?_, fun hno => ?_, fun hout => ?_, fun hin hnb => ?_,
+      fun hin hnb => ?_, fun hb => ?_⟩
+    · unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 0 (by decide)), dif_neg hnp]
+      by_cases hin : C.IsInner (C.occ t i) <;> simp [hin]
+    · unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 4 (by decide)), dif_neg hnp]
+      simp
+    · have hne : (Planned.copySource C (C.form A.1) (C.occ t i) 2).Nonempty :=
+        ⟨(d, j), Or.inr ⟨hnp, rfl, hdj⟩⟩
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_pos hne]
+      rcases hne.some_mem with ⟨hp1, -, -⟩ | ⟨-, -, hp3⟩
+      · exact absurd ⟨_, hp1⟩ hnp'
+      · obtain ⟨h1, h2⟩ :=
+          hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_path_unique
+            C ht' hnp hp3 hdj
+        rw [h1, h2]
+    · have hne : ¬ (Planned.copySource C (C.form A.1) (C.occ t i) 2).Nonempty := by
+        rintro ⟨p, ⟨hp, -, -⟩ | ⟨-, -, hp3⟩⟩
+        · exact hnp' ⟨_, hp⟩
+        · exact hno p.1 p.2 hp3
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg hne, dif_neg hnp]
+      simp
+    · unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 3 (by decide)), dif_neg hnp]
+      simp [hout]
+    · have hout : ¬ C.IsOuter (C.occ t i) := hin
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 3 (by decide)), dif_neg hnp]
+      simp [hout, hnb]
+    · unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 1 (by decide)), dif_neg hnp]
+      have h10 : ¬ ((1 : Fin 5) = 0) := by decide
+      rw [if_neg h10, if_pos rfl]
+      split
+      · rfl
+      · rw [dif_pos ht]
+        exact
+          hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_packet_absent
+            τ hsts C hC t _ i hin hnb
+    · have hout : ¬ C.IsOuter (C.occ t i) := hb.1
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 3 (by decide)), dif_neg hnp]
+      simp [hout, hb]
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal`: a generated extended
+child is normal and identity-correct.  For every extended tile `A` and every child type `t` of
+the form of `A`, the child `generate A t` has the prescribed value in every strict local cell
+and carries its interface identities.  This is the crown analogue of `rhe_child_normal` in
+`Tilings/Control/Strict.lean`: a local cell is never a copied cell, so it is a fixed generated
+origin.  The only new cell is cell two, which is local only on unmarked sides; an unmarked side
+is inner and nonboundary by (G7), so neither of its endpoints lies on the macroboundary, its
+packet is absent and the absent packet is encoded by the old zero symbol. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step1_child_normal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (t : C.Typ)
+    (ht : C.owner t = C.form A.1) :
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t) ∧
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t) := by
+  have hcells :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells
+      τ hsts C m hC A t ht
+  have key : ∀ (i : C.Side t) (k : Fin 5), Planned.Strict.IsStrictLocal C (C.occ t i) k →
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i k =
+        Sum.inl (Planned.Strict.strictPrescribedCell C hC (C.occ t i) k) := by
+    intro i k hloc
+    by_cases hp : C.IsPrint (C.occ t i)
+    · obtain ⟨d, hd⟩ :=
+        (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+          C ht i).1 hp
+      have hin :=
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_inner_of_print
+          C hd
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, ⟨-, hnp⟩, -⟩) | ⟨hout, -⟩
+      · exact absurd (C.g7_marking _ (Or.inr (Or.inr (Or.inl hp)))) hnm
+      · rw [((hcells i).1 d hd).2]
+        simp [Planned.Strict.strictPrescribedCell, hp]
+      · exact absurd hp hnp
+      · exact absurd hout hin
+    · obtain ⟨h0, h4, -, hno, hout, hib, h1, -⟩ := (hcells i).2 hp
+      rcases hloc with (hnm | ⟨-, -, rfl⟩ | ⟨-, -, rfl | rfl⟩) | ⟨hout', rfl⟩
+      · have hnout : ¬ C.IsOuter (C.occ t i) := fun h => hnm (C.g7_marking _ (Or.inl h))
+        have hnb : ¬ C.IsBoundary (C.occ t i) :=
+          fun h => hnm (C.g7_marking _ (Or.inr (Or.inl h)))
+        have hnpath :=
+          hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_not_on_path
+            C ht i hnm
+        obtain rfl | rfl | rfl | rfl | rfl : k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 := by
+          fin_cases k <;> simp
+        · rw [h0]; simp [Planned.Strict.strictPrescribedCell]
+        · rw [h1 hnout hnb]; simp [Planned.Strict.strictPrescribedCell]
+        · rw [hno hnpath]; simp [Planned.Strict.strictPrescribedCell]
+        · rw [hib hnout hnb]
+          simp [Planned.Strict.strictPrescribedCell, hnout, hnb, hp]
+          exact fun h => absurd hnout h
+        · rw [h4]; simp [Planned.Strict.strictPrescribedCell, hp]
+      · rw [h4]; simp [Planned.Strict.strictPrescribedCell, hp]
+      · rw [h0]; simp [Planned.Strict.strictPrescribedCell]
+      · rw [h4]; simp [Planned.Strict.strictPrescribedCell, hp]
+      · rw [hout hout']; simp [Planned.Strict.strictPrescribedCell, hout']
+  refine ⟨fun i k hloc => key i k hloc, fun i => ⟨fun hin hnp => ?_, fun hp => ?_⟩⟩
+  · show (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 0 =
+      Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ t i)))
+    rw [((hcells i).2 hnp).1]
+    have hin' : C.IsInner (C.occ t i) := hin
+    simp [hin']
+  · obtain ⟨d, hd⟩ :=
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+        C ht i).1 hp
+    exact ((hcells i).1 d hd).2
+
+/-- Two normal extended tiles of the same type which agree (outside the local cells) on the
+cells other than the fifth of all marked sides are equal: every other cell is local. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_eq_of_normal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (hty : A.1 = B.1)
+    (hAN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC A)
+    (hBN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC B)
+    (hcell : ∀ i : C.Side A.1, C.marked (C.form A.1) i → ∀ k : Fin 5, k ≠ 4 →
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC B i.val k = A.2 i k) : B = A := by
+  obtain ⟨tA, cA⟩ := A
+  obtain ⟨tB, cB⟩ := B
+  simp only at hty
+  subst hty
+  congr
+  funext i k
+  by_cases hk : C.marked (C.form tA) i ∧ k ≠ 4
+  · have := hcell i hk.1 k hk.2
+    rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+      τ hsts C hC ⟨tA, cB⟩ i] at this
+    exact this
+  · have hloc : Planned.Strict.IsStrictLocal C (C.occ tA i) k := by
+      by_cases hm : C.marked (C.form tA) i
+      · have hk4 : k = 4 := by
+          by_contra h4
+          exact hk ⟨hm, h4⟩
+        by_cases hsp : C.special (C.occ tA i) ∨ C.IsPrint (C.occ tA i)
+        · exact Or.inl (Or.inr (Or.inl ⟨hm, hsp, hk4⟩))
+        · push_neg at hsp
+          exact Or.inl (Or.inr (Or.inr ⟨hm, hsp, Or.inr hk4⟩))
+      · exact Or.inl (Or.inl hm)
+    exact (hBN i k hloc).trans (hAN i k hloc).symm
+
+/-- Pulling a reflexive-transitive path back along a map which lifts single steps. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_rtg_pull
+    {α β : Type*} (r : α → α → Prop) (r' : β → β → Prop) (φ : β → α)
+    (h : ∀ b c, r (φ b) c → ∃ c', r' b c' ∧ φ c' = c) {b : β} {s : α}
+    (hs : Relation.ReflTransGen r (φ b) s) :
+    ∃ s', Relation.ReflTransGen r' b s' ∧ φ s' = s := by
+  induction hs with
+  | refl => exact ⟨b, Relation.ReflTransGen.refl, rfl⟩
+  | tail _ hbc ih =>
+    obtain ⟨b', hb', rfl⟩ := ih
+    obtain ⟨c', hc', rfl⟩ := h b' _ hbc
+    exact ⟨c', hb'.tail hc', rfl⟩
+
+/-- Origins along a shifted chain: an origin of `ch (a + n)` along `ch` is an origin along the
+chain `fun l => ch (a + l)`. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_hasOrigin_shift
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (a n : ℕ)
+    (i : C.Side (ch (a + n)).1) (k : Fin 5)
+    (h : hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC ch (a + n) i k) :
+    hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC (fun l => ch (a + l)) n i k := by
+  dsimp only [hereditary_sts_substitution_sofic_ExtHasOrigin] at h ⊢
+  obtain ⟨s, hs, hempty⟩ := h
+  refine Exists.imp (fun s' hs'' => ⟨hs''.1, ?_⟩)
+    (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_rtg_pull _ _
+      (fun st : (Σ r : ℕ, C.Side (ch (a + r)).1 × Fin 5) =>
+        (⟨a + st.1, st.2⟩ : Σ r : ℕ, C.Side (ch r).1 × Fin 5))
+      ?_ (b := (⟨n, i, k⟩ : Σ r : ℕ, C.Side (ch (a + r)).1 × Fin 5)) hs)
+  · obtain ⟨-, rfl⟩ := hs''
+    exact hempty
+  · rintro ⟨r, d0, k0⟩ c ⟨d, k', hmem, rfl⟩
+    exact ⟨⟨r + 1, d, k'⟩, ⟨d, k', hmem, rfl⟩, rfl⟩
+
+/-- Every tile of a legal chain is founded-legal. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_shift
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hch : ∀ n, hereditary_sts_substitution_sofic_IsExtChild τ hsts C m hC (ch (n + 1)) (ch n))
+    (hdec : ∀ n, (hereditary_sts_substitution_sofic_decode τ hsts C hC (ch n)).isSome)
+    (horig : ∀ (n : ℕ) (i : C.Side (ch n).1) (k : Fin 5),
+      (Planned.copySource C (C.form (ch (n + 1)).1) (C.occ (ch n).1 i) k).Nonempty →
+      ¬ hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC ch n i k →
+      (ch n).2 i k = Sum.inl 0)
+    (a : ℕ) : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC (ch a) :=
+  ⟨fun n => ch (a + n), rfl, fun n => hch (a + n), fun n => hdec (a + n),
+    fun n i k hne hno => horig (a + n) i k hne (fun ho => hno
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_hasOrigin_shift
+        τ hsts C hC ch a n i k ho))⟩
+
+/-- A founded-legal tile is the generated child of a founded-legal parent. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_parent
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hB : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC B) :
+    ∃ E : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC E ∧
+      hereditary_sts_substitution_sofic_IsExtChild τ hsts C m hC E B := by
+  obtain ⟨ch, h0, hch, hdec, horig⟩ := hB
+  refine ⟨ch 1,
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_shift
+      τ hsts C m hC ch hch hdec horig 1, ?_⟩
+  rw [← h0]
+  exact hch 0
+
+/-- A founded-legal tile is normal and identity-correct. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_normal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hB : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC B) :
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC B ∧
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC B := by
+  obtain ⟨E, -, hown, hgen⟩ :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_parent
+      τ hsts C m hC B hB
+  have h :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step1_child_normal
+      τ hsts C m hC E B.1 hown
+  rw [← hgen] at h
+  exact h
+
+/-- The central child of `B` copies the cells other than the fifth of every marked side `d` of
+`B` onto its print of `d`. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_copy
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (β : C.Q.Form)
+    (hβ : C.form B.1 = β) (d : Fin (C.Q.disk β).n) (hd : C.marked β d) (k : Fin 5)
+    (hk : k ≠ 4) :
+    (hereditary_sts_substitution_sofic_generate τ hsts C m hC B (C.central β)).2
+        (C.print β d) k =
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC B d.val k := by
+  subst hβ
+  have hcells :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells
+      τ hsts C m hC B (C.central (C.form B.1)) (C.g5_central_owner _)
+      (C.print (C.form B.1) d)
+  rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+    τ hsts C hC B d k]
+  exact (hcells.1 d ⟨hd, Or.inl rfl⟩).1 k hk
+
+/-- For a large form the print of a marked side `d` has the same side number `d`, so the central
+child of `B` has the same numbered cell as `B` there. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_val
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (β : C.Q.Form)
+    (hβ : C.form B.1 = β) (hl : C.kind β = .large) (d : Fin (C.Q.disk β).n)
+    (hd : C.marked β d) (k : Fin 5) (hk : k ≠ 4) :
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv τ hsts C hC
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC B (C.central β)) d.val k =
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC B d.val k := by
+  have hval := C.g5_print_id_large β d hl hd
+  have h :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_copy
+      τ hsts C m hC B β hβ d hd k hk
+  rw [← hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+    τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC B (C.central β))
+    (C.print β d) k, hval] at h
+  exact h
+
+/-- Equal nondegenerate segments have the same endpoints (copy of a private lemma of
+`Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_seg_endpoints
+    {a b c d : Pt} (hab : a ≠ b) (h : segment ℝ a b = segment ℝ c d) :
+    (c = a ∧ d = b) ∨ (c = b ∧ d = a) := by
+  have mem_segment_iff' {x y z : Pt} :
+      z ∈ segment ℝ x y ↔ ∃ t : ℝ, 0 ≤ t ∧ t ≤ 1 ∧ z = x + t • (y - x) := by
+    rw [segment_eq_image']
+    constructor
+    · rintro ⟨t, ⟨ht0, ht1⟩, rfl⟩
+      exact ⟨t, ht0, ht1, rfl⟩
+    · rintro ⟨t, ht0, ht1, rfl⟩
+      exact ⟨t, ⟨ht0, ht1⟩, rfl⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [mem_segment_iff'] at hc hd ha hb
+  obtain ⟨s, hs0, hs1, rfl⟩ := hc
+  obtain ⟨t, ht0, ht1, rfl⟩ := hd
+  obtain ⟨α, ha0, ha1, hα⟩ := ha
+  obtain ⟨β, hb0, hb1, hβ⟩ := hb
+  have hu : b - a ≠ 0 := sub_ne_zero.2 hab.symm
+  have k1 : a + s • (b - a) + α • (a + t • (b - a) - (a + s • (b - a))) =
+      a + (s + α * (t - s)) • (b - a) := by module
+  have k2 : a + s • (b - a) + β • (a + t • (b - a) - (a + s • (b - a))) =
+      a + (s + β * (t - s)) • (b - a) := by module
+  rw [k1] at hα
+  rw [k2] at hβ
+  have e1 : (0 : ℝ) • (b - a) = (s + α * (t - s)) • (b - a) := by
+    rw [zero_smul]
+    exact (add_eq_left.1 hα.symm).symm
+  have e2 : (1 : ℝ) • (b - a) = (s + β * (t - s)) • (b - a) := by
+    rw [one_smul]
+    have h' : a + (b - a) = a + (s + β * (t - s)) • (b - a) := by
+      rw [← hβ]
+      abel
+    exact add_left_cancel h'
+  have f1 := smul_left_injective ℝ hu e1
+  have f2 := smul_left_injective ℝ hu e2
+  have key : (s = 0 ∧ t = 1) ∨ (s = 1 ∧ t = 0) := by
+    have h3 : s * (1 - α) = 0 := by
+      nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+    have h4 : α * t = 0 := by
+      nlinarith [mul_nonneg hs0 (sub_nonneg.2 ha1), mul_nonneg ha0 ht0]
+    rcases mul_eq_zero.1 h3 with h3 | h3
+    · subst h3
+      have h' : β * t = 1 := by linarith
+      left
+      refine ⟨rfl, ?_⟩
+      nlinarith
+    · have hα1 : α = 1 := by linarith
+      subst hα1
+      have ht : t = 0 := by linarith
+      subst ht
+      right
+      refine ⟨?_, rfl⟩
+      nlinarith
+  rcases key with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · left
+    constructor <;> simp
+  · right
+    constructor <;> simp
+
+/-- `finRotate` has no fixed point on `Fin N`, `N ≥ 2` (copy of a private lemma of
+`Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_rot_ne_self
+    {N : ℕ} (hN : 2 ≤ N) (x : Fin N) : finRotate N x ≠ x := by
+  obtain ⟨k, rfl⟩ : ∃ k, N = k + 1 + 1 := ⟨N - 2, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have := congrArg (· - x) h
+  simp at this
+
+/-- A print side is strictly internal to its template and therefore cannot be a boundary side
+(copy of a private lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_not_bdry
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc) (h_print : C.IsPrint o) :
+    ¬ C.IsBoundary o := by
+  obtain ⟨d, hpd⟩ := h_print
+  let α : C.Q.Form := C.owner o.1
+  change C.marked α d ∧ (o = C.printOcc α d ∨ o = C.partner (C.printOcc α d)) at hpd
+  rcases hpd with ⟨hmarked, hprint | hpartner⟩
+  · rw [hprint]
+    exact (C.g2_central α (C.print α d)).2
+  · have hprint_inner := C.g4_print_inner α d hmarked
+    obtain ⟨_hneq, howner, hside⟩ := C.g1_partner (C.printOcc α d) hprint_inner
+    intro hboundary
+    rw [hpartner] at hboundary
+    unfold MacroData.IsBoundary at hboundary
+    have howner_print : C.owner (C.printOcc α d).1 = α := by
+      change C.owner (C.central α) = α
+      exact C.g5_central_owner α
+    rw [howner, howner_print] at hboundary
+    have hboundary_print : C.IsBoundary (C.printOcc α d) := by
+      unfold MacroData.IsBoundary
+      rw [howner_print]
+      refine ⟨hprint_inner, ?_⟩
+      have hne : C.occStart (C.printOcc α d) ≠ C.occEnd (C.printOcc α d) := by
+        intro hend
+        have hvertex :
+            (C.Q.disk (C.form (C.printOcc α d).1)).vertex (C.printOcc α d).2 =
+              (C.Q.disk (C.form (C.printOcc α d).1)).vertex
+                (finRotate _ (C.printOcc α d).2) := by
+          exact vadd_left_cancel (C.anchor (C.printOcc α d).1) hend
+        have hindex := (C.Q.disk (C.form (C.printOcc α d).1)).vertex_injective hvertex
+        exact
+          hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_rot_ne_self
+          (by have := (C.Q.disk (C.form (C.printOcc α d).1)).three_le; omega)
+          (C.printOcc α d).2 hindex.symm
+      have hside' :
+          segment ℝ (C.occStart (C.printOcc α d)) (C.occEnd (C.printOcc α d)) =
+            segment ℝ (C.occStart (C.partner (C.printOcc α d)))
+              (C.occEnd (C.partner (C.printOcc α d))) := by
+        simpa [MacroData.occSide, MacroData.childTile, PlacedTile.side,
+          PolygonalDisk.side, MacroData.occStart, MacroData.occEnd, vadd_segment] using hside.symm
+      have hends :=
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_seg_endpoints
+          hne hside'
+      rcases hboundary.2 with hstart | hend
+      · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+        · left
+          rw [← h1]
+          exact hstart
+        · right
+          rw [← h1]
+          exact hstart
+      · rcases hends with ⟨h1, h2⟩ | ⟨h1, h2⟩
+        · right
+          rw [← h2]
+          exact hend
+        · left
+          rw [← h2]
+          exact hend
+    exact (C.g2_central α (C.print α d)).2 hboundary_print
+
+/-- Every port exists ((G3): every outer list has at least five entries). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_port_some
+    (C : Geometry.MacroCertificate P) (β : C.Q.Form) (d : Fin (C.Q.disk β).n) (k : Fin 5) :
+    ∃ o, C.port β d k = some o := by
+  unfold MacroData.port
+  have h5 := C.g3_five_le β d
+  have hr : MacroData.portRank (C.outerList β d).length k ≤ (C.outerList β d).length := by
+    unfold MacroData.portRank
+    have : (k.val + 1) * (C.outerList β d).length ≤ 5 * (C.outerList β d).length :=
+      Nat.mul_le_mul_right _ (by omega)
+    omega
+  exact ⟨_, List.getElem?_eq_getElem (by omega)⟩
+
+/-- A nonprint side on the path `P_j(d)` carries the parent cell `(d, j)` as third cell of the
+generated child. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_path_copy
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (s : C.Typ) (β : C.Q.Form)
+    (hβ : C.form B.1 = β) (hs : C.owner s = β) (i : C.Side s)
+    (hnp : ¬ C.IsPrint (C.occ s i)) (d : Fin (C.Q.disk β).n) (j : Fin 5)
+    (hmem : C.occ s i ∈ C.path β d j) :
+    (hereditary_sts_substitution_sofic_generate τ hsts C m hC B s).2 i 2 =
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC B d.val j := by
+  subst hβ
+  rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+    τ hsts C hC B d j]
+  exact
+    ((hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells
+      τ hsts C m hC B s hs i).2 hnp).2.2.1 d j hmem
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal` (port recovery, the crown
+analogue of `lem:comp/reconstruction`, giving normality of the reconstructed parent): if every
+generated child of an extended tile `A` is founded-legal, then `A` is extended normal and
+identity-correct.  Proof idea: for a side `d` of `A` and `k < 5`, the port `k` of `d` is an
+outer nonprint side `o` of a child type `s` of the form of `A`, and the third cell of
+`generate A s` at `o` is the copied cell `A.2 d k`.  By legality `generate A s = generate P s`
+for a founded-legal parent `P` of the same form (`IsExtChild`), so `A.2 d k = P.2 d k`.  The
+child type `s` has an outer side, hence (`exists_boundary_side_of_outer`) a boundary side; a
+boundary side is not a print, so its fourth cell is the extended header of the parent, whence
+`header P = header A` and `P.1 = A.1`.  Now `P` is normal and identity-correct by Step 1
+applied to its own parent, so each cell `A.2 d k` is a cell of a normal identity-correct tile
+of the type `A.1`. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step2_port_recovery
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hchild : ∀ t, C.owner t = C.form A.1 →
+      hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t)) :
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC A ∧
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC A := by
+  -- every cell `(d, k)` of `A` is the same numbered cell of a founded-legal tile of type `A.1`
+  have key : ∀ (d : C.Side A.1) (k : Fin 5),
+      ∃ E : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+        hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC E ∧ E.1 = A.1 ∧
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+          τ hsts C hC E d.val k = A.2 d k := by
+    intro d k
+    obtain ⟨o, ho⟩ :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_port_some
+        C (C.form A.1) d k
+    have hmem : o ∈ C.outerList (C.form A.1) d := List.mem_of_getElem? ho
+    obtain ⟨hown, hout, -⟩ := (C.g3_outerList_mem _ d o).1 hmem
+    have hmemP : o ∈ C.path (C.form A.1) d k := by
+      by_cases hg : C.IsGenuinePath (C.form A.1) d k
+      · exact List.mem_of_mem_head? ((C.g4_path_head _ d k hg).trans ho)
+      · rw [C.g4_path_trivial _ d k hg, ho]
+        simp
+    obtain ⟨s, i⟩ := o
+    have hnp : ¬ C.IsPrint (C.occ s i) := fun ⟨_, hp⟩ =>
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_inner_of_print
+        C hp hout
+    obtain ⟨E, hE, hEown, hEgen⟩ :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_parent
+        τ hsts C m hC _ (hchild s hown)
+    have hEgen' :
+        hereditary_sts_substitution_sofic_generate τ hsts C m hC A s =
+          hereditary_sts_substitution_sofic_generate τ hsts C m hC E s := hEgen
+    have hEown' : C.owner s = C.form E.1 := hEown
+    have hfE : C.form E.1 = C.form A.1 := hEown'.symm.trans hown
+    -- the third cell of the child at the port is the copied cell `(d, k)`, of `A` and of `E`
+    have h1 :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_path_copy
+        τ hsts C m hC A s (C.form A.1) rfl hown i hnp d k hmemP
+    have h2 :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_path_copy
+        τ hsts C m hC E s (C.form A.1) hfE hown i hnp d k hmemP
+    have h3 := congrArg
+      (fun X => hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC X i.val 2) hEgen'
+    try simp only at h3
+    rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC A s) i 2,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC E s) i 2] at h3
+    -- the type of `E` is read on a boundary side of the child, which carries the header
+    obtain ⟨b, hb⟩ := Planned.Strict.exists_boundary_side_of_outer C s i hout
+    have hbnp : ¬ C.IsPrint (C.occ s b) := fun hp =>
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_not_bdry
+        C _ hp hb
+    have hAh :=
+      ((hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells
+        τ hsts C m hC A s hown b).2 hbnp).2.2.2.2.2.2.2 hb
+    have hEh :=
+      ((hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells
+        τ hsts C m hC E s hEown' b).2 hbnp).2.2.2.2.2.2.2 hb
+    have h5 := congrArg
+      (fun X => hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC X b.val 3) hEgen'
+    try simp only at h5
+    rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC A s) b 3,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC E s) b 3,
+      hAh, hEh] at h5
+    have h6 := Sum.inr.inj (Sum.inr.inj h5)
+    have hty : E.1 = A.1 := (congrArg Sigma.fst h6).symm
+    refine ⟨E, hE, hty, ?_⟩
+    exact (h1.symm.trans (h3.trans h2)).symm.trans
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC A d k)
+  refine ⟨fun i k hloc => ?_, fun i => ⟨fun hin hnp => ?_, fun hp => ?_⟩⟩
+  · obtain ⟨E, hE, hty, hcell⟩ := key i k
+    obtain ⟨hEN, -⟩ :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_normal
+        τ hsts C m hC E hE
+    obtain ⟨tE, cE⟩ := E
+    simp only at hty
+    subst hty
+    rw [← hcell,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC ⟨A.1, cE⟩ i k]
+    exact hEN i k hloc
+  · obtain ⟨E, hE, hty, hcell⟩ := key i 0
+    obtain ⟨-, hEI⟩ :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_normal
+        τ hsts C m hC E hE
+    obtain ⟨tE, cE⟩ := E
+    simp only at hty
+    subst hty
+    rw [← hcell,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC ⟨A.1, cE⟩ i 0]
+    exact (hEI i).1 hin hnp
+  · obtain ⟨E, hE, hty, hcell⟩ := key i 4
+    obtain ⟨-, hEI⟩ :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_normal
+        τ hsts C m hC E hE
+    obtain ⟨tE, cE⟩ := E
+    simp only at hty
+    subst hty
+    rw [← hcell,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC ⟨A.1, cE⟩ i 4]
+    exact (hEI i).2 hp
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal` (the cyclic case,
+`lem:comp/cyclic-legal`): a normal extended tile `A` of cyclic type (`central (form A.1) = A.1`)
+is its own generated central child, `generate A A.1 = A`, so it is founded-legal as soon as
+that child is.  Every marked side of a cyclic (large) form is a print of the central child at
+the same side index (`g5_print_id_large`), so the cells other than the fifth are copied from `A`
+itself; every other cell is local (unmarked sides, fifth cells of prints), and the central child
+has no outer or boundary sides, so its generated packets are absent. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step3_cyclic
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hcyc : C.IsCyclic A.1)
+    (hN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC A)
+    (hchild : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A A.1)) :
+    hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A := by
+  have hcyc' : C.central (C.form A.1) = A.1 := hcyc
+  have hown : C.owner A.1 = C.form A.1 := by
+    have h := C.g5_central_owner (C.form A.1)
+    rw [hcyc'] at h
+    exact h
+  have hl : C.kind (C.form A.1) = .large :=
+    (C.g5_large_iff A.1).2 (by rw [hown]; exact hcyc'.symm)
+  have hGN :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step1_child_normal
+      τ hsts C m hC A A.1 hown
+  have hcells :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells
+      τ hsts C m hC A A.1 hown
+  -- every marked side of a cyclic type is a print of itself, at the same side index
+  have hmarkedPrint : ∀ i : C.Side A.1, C.marked (C.form A.1) i → C.IsPrint (C.occ A.1 i) := by
+    intro i hm
+    rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+      C hown]
+    refine ⟨i, hm, Or.inl ?_⟩
+    have hval := C.g5_print_id_large (C.form A.1) i hl hm
+    show (⟨A.1, i⟩ : C.SideOcc) = ⟨C.central (C.form A.1), C.print (C.form A.1) i⟩
+    generalize C.print (C.form A.1) i = p at hval
+    revert p
+    rw [hcyc']
+    intro p hp
+    exact Sigma.ext rfl (heq_of_eq (Fin.ext hp.symm))
+  have hEq : hereditary_sts_substitution_sofic_generate τ hsts C m hC A A.1 = A := by
+    refine
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_eq_of_normal
+        τ hsts C hC A _ rfl hN hGN.1 ?_
+    intro i hm k hk
+    obtain ⟨d, hd⟩ :=
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+        C hown i).1 (hmarkedPrint i hm)
+    have hdi : d = i := by
+      obtain ⟨hmd, hcase⟩ := hd
+      rcases hcase with h | h
+      · have hv := C.g5_print_id_large (C.form A.1) d hl hmd
+        have h2 := congrArg (fun o : C.SideOcc => o.2.val) h
+        exact Fin.ext (h2.trans hv).symm
+      · exfalso
+        have h1 := congrArg Sigma.fst h
+        have h2 := C.g4_print_small (C.form A.1) d hmd
+        rw [← h1] at h2
+        change C.kind (C.form A.1) = .small at h2
+        rw [hl] at h2
+        cases h2
+    rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+      τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC A A.1) i,
+      ((hcells i).1 d hd).1 k hk, hdi]
+  rw [hEq] at hchild
+  exact hchild
+
+/-- Interface identities are injective (copy of a private lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_identSU_inj
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) {m : ℕ} (hC : C.Represents τ m)
+    {e e' : C.EdgeId}
+    (h : Planned.Strict.identSU C hC e = Planned.Strict.identSU C hC e') : e = e' := by
+  simp only [Planned.Strict.identSU] at h
+  cases h
+  rfl
+
+/-- Casting a side index along an equality of forms preserves being marked (copy of a private
+lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_marked_cast_iff
+    (C : Geometry.MacroCertificate P) {β β' : C.Q.Form} (h : β = β') (d : Fin (C.Q.disk β).n) :
+    C.marked β' (Fin.cast (congrArg (fun u => (C.Q.disk u).n) h) d) ↔ C.marked β d := by
+  subst h
+  rfl
+
+/-- Two placed tiles of equal forms sharing a side have the same anchor (copy of a private
+lemma of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_anchor_eq
+    (C : Geometry.MacroCertificate P) {q q' : C.Q.Form} (h : q' = q) (v w : Pt)
+    (i : Fin (C.Q.disk q).n)
+    (hs : (⟨q', w⟩ : PlacedTile C.Q).side
+        (Fin.cast (congrArg (fun u => (C.Q.disk u).n) h.symm) i) =
+      (⟨q, v⟩ : PlacedTile C.Q).side i) : w = v := by
+  subst h
+  exact Planned.Strict.anchor_eq_of_side_eq i hs
+
+/-- A print side of a noncentral type is its special side (copy of a private lemma of
+`Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_special
+    (C : Geometry.MacroCertificate P) {s : C.Typ} (hs : ¬ C.IsCentral s) (i : C.Side s)
+    (hp : C.IsPrint (C.occ s i)) : C.special (C.occ s i) := by
+  obtain ⟨d, hm, h | h⟩ := hp
+  · exact absurd (congrArg Sigma.fst h).symm hs
+  · rw [h]
+    exact C.g4_print_special _ d hm
+
+/-- Interface identities are nonzero. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_ident_ne_zero
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) {m : ℕ} (hC : C.Represents τ m)
+    (e : C.EdgeId) : Planned.Strict.identSU C hC e ≠ 0 := by
+  intro h
+  cases h
+
+/-- A marked outer side of a normal extended tile has first cell zero. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_outer_cell0
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (Z : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC Z)
+    (i : C.Side Z.1) (hm : C.marked (C.form Z.1) i) (ho : C.IsOuter (C.occ Z.1 i)) :
+    Z.2 i 0 = Sum.inl 0 := by
+  have hsp : ¬ C.special (C.occ Z.1 i) := fun h => C.g6_special_inner _ h ho
+  have hpr : ¬ C.IsPrint (C.occ Z.1 i) := fun ⟨_, hd⟩ =>
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_inner_of_print
+      C hd ho
+  rw [hN i 0 (Or.inl (Or.inr (Or.inr ⟨hm, ⟨hsp, hpr⟩, Or.inl rfl⟩)))]
+  simp [Planned.Strict.strictPrescribedCell, MacroData.IsInner, ho]
+
+/-- The type components of a first-cell interface identity (in the old summand). -/
+private def hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) :
+    hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC → Multiset C.Typ
+  | Sum.inl (.ordinary (Sum.inr (Sum.inr (Sum.inl e)))) =>
+      {(C.edgeTypes e).1, (C.edgeTypes e).2}
+  | _ => 0
+
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp_card
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (x : hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC) :
+    Multiset.card
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp τ hsts C hC x)
+      ≤ 2 := by
+  unfold hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp
+  split <;> simp
+
+/-- The marked first-cell fingerprint of a normal identity-correct small noncentral extended
+tile is one of the possible fingerprints of its type (copy of `ncl_fp_mem` of
+`Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp_mem
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (Z : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (hZc : ¬ C.IsCentral Z.1)
+    (hs : C.kind (C.form Z.1) = .small)
+    (hN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC Z)
+    (hI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC Z) :
+    (∑ i : C.Side Z.1, if C.marked (C.form Z.1) i then
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp
+        τ hsts C hC (Z.2 i 0) else 0) ∈ C.possibleFingerprints Z.1 := by
+  obtain ⟨s, hs1, hs2⟩ := C.g6_special_unique Z.1 hs
+  unfold MacroData.possibleFingerprints
+  rw [if_pos hs]
+  refine ⟨if C.marked (C.form Z.1) s then
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp
+      τ hsts C hC (Z.2 s 0) else 0, ?_, ?_⟩
+  · split_ifs
+    · exact
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp_card
+          τ hsts C hC _
+    · simp
+  · have hx : (if C.marked (C.form Z.1) s then
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp
+          τ hsts C hC (Z.2 s 0) else 0) =
+        ∑ i : C.Side Z.1,
+          if i = s then (if C.marked (C.form Z.1) i then
+            hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp
+              τ hsts C hC (Z.2 i 0) else 0)
+          else 0 := by
+      simp
+    unfold MacroData.baseFingerprint
+    rw [hx, Finset.sum_filter, ← Finset.sum_add_distrib]
+    apply Finset.sum_congr rfl
+    intro i _
+    by_cases his : i = s
+    · subst his
+      have hnfp : ¬ C.IsFingerprintSide (C.occ Z.1 i) := fun h => h.2.1.1 hs1
+      simp [hnfp]
+    · rw [if_neg his, add_zero]
+      by_cases hm : C.marked (C.form Z.1) i
+      · rw [if_pos hm]
+        by_cases hin : C.IsInner (C.occ Z.1 i)
+        · have hsp : ¬ C.special (C.occ Z.1 i) := fun h => his (hs2 i h)
+          have hpr : ¬ C.IsPrint (C.occ Z.1 i) := fun h => hsp
+            (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_special
+              C hZc i h)
+          have hfp : C.IsFingerprintSide (C.occ Z.1 i) := ⟨hin, ⟨hsp, hpr⟩, fun _ => hm⟩
+          rw [if_pos hfp, (hI i).1 hin hpr]
+          rfl
+        · have hnfp : ¬ C.IsFingerprintSide (C.occ Z.1 i) := fun h => hin h.1
+          rw [if_neg hnfp,
+            hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_outer_cell0
+              τ hsts C hC Z hN i hm (not_not.1 hin)]
+          rfl
+      · have hnfp : ¬ C.IsFingerprintSide (C.occ Z.1 i) := fun h => hm (h.2.2 hs)
+        rw [if_neg hm, if_neg hnfp]
+
+/-- Step 4a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal` (the fingerprint
+identification of `lem:comp/noncentral-legal`, the extended analogue of `ncl_typ_eq` in
+`Tilings/Control/Strict.lean`): two normal identity-correct extended tiles `A`, `E` of
+noncentral types and the same form, which agree in the cells other than the fifth on all marked
+sides, have the same type.  For an original form (G1) applies: a marked inner ordinary side
+exists (`g5_original_marked`), and its interface identity in cell one (`identSU`, read in the old
+summand) determines the type through `g1_edge_unique` and `type_injective`.  For a small form the
+multiset of type components of the identities on the marked sides is the fingerprint of the type
+(up to the at most two components coming from the special side), and the fingerprint certificate
+(G6) `g6_fingerprint` separates two distinct noncentral types. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step4a_nc_type
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A E : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hAc : ¬ C.IsCentral A.1) (hEc : ¬ C.IsCentral E.1) (hf : C.form E.1 = C.form A.1)
+    (hAN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC A)
+    (hAI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC A)
+    (hEN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC E)
+    (hEI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC E)
+    (hcell : ∀ i : C.Side A.1, C.marked (C.form A.1) i → ∀ k : Fin 5, k ≠ 4 →
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC E i.val k = A.2 i k) :
+    E.1 = A.1 := by
+  have hn : (C.Q.disk (C.form A.1)).n = (C.Q.disk (C.form E.1)).n :=
+    congrArg (fun u => (C.Q.disk u).n) hf.symm
+  have hcast : ∀ d : C.Side A.1,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC E d.val 0 = E.2 (Fin.cast hn d) 0 := by
+    intro d
+    rw [← hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+      τ hsts C hC E (Fin.cast hn d) 0, Fin.val_cast]
+  have hmk : ∀ d : C.Side A.1, C.marked (C.form E.1) (Fin.cast hn d) ↔
+      C.marked (C.form A.1) d :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_marked_cast_iff
+      C hf.symm
+  have hnl : C.kind (C.form A.1) ≠ .large := fun hl => hAc ((C.g5_large_iff _).1 hl).symm
+  by_contra hne
+  cases hk : C.kind (C.form A.1) with
+  | large => exact hnl hk
+  | original =>
+    obtain ⟨i, hin, hm⟩ := C.g5_original_marked A.1 hk
+    have hAp : ¬ C.IsPrint (C.occ A.1 i) := by
+      intro hp
+      have h1 := C.g6_special_small _
+        (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_special
+          C hAc i hp)
+      change C.kind (C.form A.1) = .small at h1
+      rw [hk] at h1
+      cases h1
+    have hEk : C.kind (C.form E.1) = .original := by rw [hf]; exact hk
+    have hEp : ¬ C.IsPrint (C.occ E.1 (Fin.cast hn i)) := by
+      intro hp
+      have h1 := C.g6_special_small _
+        (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_print_special
+          C hEc _ hp)
+      change C.kind (C.form E.1) = .small at h1
+      rw [hEk] at h1
+      cases h1
+    have e3 := hcell i hm 0 (by decide)
+    rw [hcast, (hAI i).1 hin hAp] at e3
+    have hEin : C.IsInner (C.occ E.1 (Fin.cast hn i)) := by
+      intro ho
+      rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_outer_cell0
+        τ hsts C hC E hEN _ ((hmk i).2 hm) ho] at e3
+      exact
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_ident_ne_zero
+          τ C hC _ (Sum.inl.inj e3.symm)
+    rw [(hEI _).1 hEin hEp] at e3
+    have hedge :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_identSU_inj
+        τ C hC (Sum.inl.inj e3)
+    rcases C.g1_edge_unique _ _ hin hEin hedge.symm with h | h
+    · have h' := congrArg Sigma.fst h
+      exact hne h'
+    · obtain ⟨hpne, hown, hside⟩ := C.g1_partner _ hin
+      rw [← h] at hpne hown hside
+      have ha : C.anchor E.1 = C.anchor A.1 :=
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_anchor_eq
+          C hf _ _ i hside
+      exact hpne (C.type_injective _ _ hown hf ha)
+  | small =>
+    have hEs : C.kind (C.form E.1) = .small := by rw [hf]; exact hk
+    refine Set.disjoint_left.1 (C.g6_fingerprint _ _ hne hEc hAc)
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp_mem
+        τ hsts C hC E hEc hEs hEN hEI) ?_
+    convert hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_fp_mem
+      τ hsts C hC A hAc hk hAN hAI using 1
+    rw [← Equiv.sum_comp (finCongr hn)]
+    apply Finset.sum_congr rfl
+    intro i _
+    simp only [finCongr_apply]
+    by_cases hm : C.marked (C.form A.1) i
+    · rw [if_pos ((hmk i).2 hm), if_pos hm, ← hcast, hcell i hm 0 (by decide)]
+    · rw [if_neg hm, if_neg (fun h => hm ((hmk i).1 h))]
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal` (the noncentral case,
+`lem:comp/noncentral-legal`): a normal identity-correct extended tile `A` of noncentral type
+whose generated central child is founded-legal is itself founded-legal.  Proof idea: the legal
+central child `c = generate A (central (form A.1))` is the generated child of a founded-legal
+parent `E` (the next link of its chain), which is normal and identity-correct (Step 1) and of
+noncentral type (its form is that of `A`).  `A` and `E` have the same form and, through the
+prints of the central child, the same cells other than the fifth on all marked sides; the
+fingerprint certificate (G1) for original forms and (G6) for small forms (the identities
+`identSU` in cell one of the marked sides determine the type) gives `A.1 = E.1`, and then all
+remaining cells are local, so `A = E` is founded-legal (shift the chain of `c` by one). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step4_noncentral
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hnc : ¬ C.IsCentral A.1)
+    (hN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC A)
+    (hI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC A)
+    (hchild : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A
+        (C.central (C.form A.1)))) :
+    hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A := by
+  obtain ⟨E, hE, hEown, hEgen⟩ :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_parent
+      τ hsts C m hC _ hchild
+  have hcc : C.owner (C.central (C.form A.1)) = C.form A.1 := C.g5_central_owner _
+  have hfE : C.form E.1 = C.form A.1 := hEown.symm.trans hcc
+  have hEgen' :
+      hereditary_sts_substitution_sofic_generate τ hsts C m hC A (C.central (C.form A.1)) =
+        hereditary_sts_substitution_sofic_generate τ hsts C m hC E
+          (C.central (C.form A.1)) := hEgen
+  have hnE : ¬ C.IsCentral E.1 := by
+    intro h
+    apply hnc
+    have hl : C.kind (C.form E.1) = .large := (C.g5_large_iff E.1).2 h.symm
+    rw [hfE] at hl
+    exact ((C.g5_large_iff A.1).1 hl).symm
+  obtain ⟨hEN, hEI⟩ :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_normal
+      τ hsts C m hC E hE
+  have hcell : ∀ i : C.Side A.1, C.marked (C.form A.1) i → ∀ k : Fin 5, k ≠ 4 →
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC E i.val k = A.2 i k := by
+    intro i hm k hk
+    have h1 :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_copy
+        τ hsts C m hC E (C.form A.1) hfE i hm k hk
+    have h2 :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_copy
+        τ hsts C m hC A (C.form A.1) rfl i hm k hk
+    have h3 := congrArg
+      (fun X => hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC X (C.print (C.form A.1) i).val k) hEgen'
+    try simp only at h3
+    rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC A
+          (C.central (C.form A.1))) (C.print (C.form A.1) i) k,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC (hereditary_sts_substitution_sofic_generate τ hsts C m hC E
+          (C.central (C.form A.1))) (C.print (C.form A.1) i) k] at h3
+    rw [← h1, ← h3, h2,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+        τ hsts C hC A i k]
+  have hty : A.1 = E.1 :=
+    (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step4a_nc_type
+      τ hsts C m hC A E hnc hnE hfE hN hI hEN hEI hcell).symm
+  have hEA : E = A :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_eq_of_normal
+      τ hsts C hC A E hty hN hEN hcell
+  rw [← hEA]
+  exact hE
+
+/-- The form of a central type is large. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_large_central
+    (C : Geometry.MacroCertificate P) {s : C.Typ} (hs : C.IsCentral s) :
+    C.kind (C.form s) = .large :=
+  (C.g5_large_iff s).2 hs.symm
+
+/-- The owner of a central acyclic type is not large (copy of a private lemma of
+`Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_owner_not_large
+    (C : Geometry.MacroCertificate P) {s : C.Typ} (hs : C.IsCentral s) (ha : ¬ C.IsCyclic s) :
+    C.kind (C.owner s) ≠ .large := by
+  intro hl
+  apply ha
+  have h1 := C.g5_central_fixes_large _ hl
+  rw [hs] at h1
+  show C.central (C.form s) = s
+  rw [h1]
+  exact hs
+
+/-- A central type has no outer and no boundary sides. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_sides
+    (C : Geometry.MacroCertificate P) {s : C.Typ} (hs : C.IsCentral s) (i : C.Side s) :
+    ¬ C.IsOuter (C.occ s i) ∧ ¬ C.IsBoundary (C.occ s i) := by
+  have h := C.g2_central (C.owner s)
+  rw [hs] at h
+  exact h i
+
+/-- Two central acyclic types of the same form have a common marked side which is a print in
+neither (copy of `acyc_exists_good_side` of `Control/Strict`; a counting argument with
+`L = 4N > 3Q`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_good_side
+    (C : Geometry.MacroCertificate P) (s s' : C.Typ) (hf : C.form s' = C.form s)
+    (hs : C.IsCentral s) (hsa : ¬ C.IsCyclic s) (hs' : C.IsCentral s') (hsa' : ¬ C.IsCyclic s') :
+    ∃ d : C.Side s, C.marked (C.form s) d ∧ ¬ C.IsPrint (C.occ s d) ∧
+      ¬ C.IsPrint (C.occ s' (Fin.cast (congrArg (fun u => (C.Q.disk u).n) hf.symm) d)) := by
+  classical
+  have hP : ∀ u : C.Typ, C.IsCentral u → ¬ C.IsCyclic u →
+      (Finset.univ.filter fun i : C.Side u => C.IsPrint (C.occ u i)).card ≤ C.Qmax := by
+    intro u hu hua
+    have hlu :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_large_central
+        C hu
+    have hnl :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_owner_not_large
+        C hu hua
+    let g : Fin (C.Q.disk (C.owner u)).n → C.Side u := fun e =>
+      Fin.cast (congrArg (fun t => (C.Q.disk (C.form t)).n) hu) (C.print (C.owner u) e)
+    calc _ ≤ ((Finset.univ.filter fun e => C.marked (C.owner u) e).image g).card := by
+          apply Finset.card_le_card
+          intro i hi
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi
+          obtain ⟨e, hm, ho⟩ := hi
+          rcases ho with ho | ho
+          · refine Finset.mem_image.2 ⟨e, by simpa using hm, ?_⟩
+            apply Fin.ext
+            have := congrArg (fun o : C.SideOcc => o.2.val) ho
+            simp only [g, Fin.val_cast]
+            exact this.symm
+          · exfalso
+            have h1 := congrArg Sigma.fst ho
+            have h2 := C.g4_print_small _ e hm
+            rw [← h1] at h2
+            change C.kind (C.form u) = .small at h2
+            rw [hlu] at h2
+            cases h2
+      _ ≤ (Finset.univ.filter fun e => C.marked (C.owner u) e).card := Finset.card_image_le
+      _ ≤ C.Qmax := by
+          have := C.g5_card_marked_small _ hnl
+          rw [Nat.card_eq_fintype_card, Fintype.card_subtype] at this
+          exact this
+  have hM : (Finset.univ.filter fun d : C.Side s => C.marked (C.form s) d).card = 4 * C.N := by
+    have := C.g5_card_marked_large _
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_large_central
+        C hs)
+    rw [Nat.card_eq_fintype_card, Fintype.card_subtype] at this
+    exact this
+  have hn : (C.Q.disk (C.form s)).n = (C.Q.disk (C.form s')).n :=
+    congrArg (fun u => (C.Q.disk u).n) hf.symm
+  have hP' : (Finset.univ.filter fun d : C.Side s =>
+      C.IsPrint (C.occ s' (Fin.cast hn d))).card ≤ C.Qmax := by
+    refine le_trans (Finset.card_le_card_of_injOn (Fin.cast hn) ?_ ?_) (hP s' hs' hsa')
+    · intro d hd
+      simpa using hd
+    · intro a _ b _ h
+      exact Fin.cast_injective _ h
+  by_contra hcon
+  have hsub : (Finset.univ.filter fun d : C.Side s => C.marked (C.form s) d) ⊆
+      (Finset.univ.filter fun i : C.Side s => C.IsPrint (C.occ s i)) ∪
+      (Finset.univ.filter fun d : C.Side s => C.IsPrint (C.occ s' (Fin.cast hn d))) := by
+    intro d hd
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union] at hd ⊢
+    by_contra h2
+    push_neg at h2
+    exact hcon ⟨d, hd, h2.1, h2.2⟩
+  have := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
+  have h3 := C.g5_three_Q_lt
+  have h4 := hP s hs hsa
+  omega
+
+/-- Step 5a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal` (the identification of
+`lem:comp/acyclic-legal`, the extended analogue of `acyc_ident` in
+`Tilings/Control/Strict.lean`): two identity-correct extended tiles `A`, `Y` of central
+acyclic type and the same form, which agree in the cells other than the fifth on all marked
+sides, have the same type.  A large form has `4N` marked sides, while a central acyclic type
+has at most `Q < 4N / 3` prints, so there is a marked side `d` which is a print in neither tile
+(`g5_card_marked_large`, `g5_card_marked_small`, `g5_three_Q_lt`); the interface identity in
+cell one of `d` is the same in `A` and `Y`, and `g1_edge_unique` together with centrality
+identifies the types. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step5a_acyclic_type
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A Y : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hAc : C.IsCentral A.1) (hAa : ¬ C.IsCyclic A.1)
+    (hYc : C.IsCentral Y.1) (hYa : ¬ C.IsCyclic Y.1) (hf : C.form Y.1 = C.form A.1)
+    (hAI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC A)
+    (hYI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC Y)
+    (hcell : ∀ i : C.Side A.1, C.marked (C.form A.1) i → ∀ k : Fin 5, k ≠ 4 →
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC Y i.val k = A.2 i k) :
+    Y.1 = A.1 := by
+  obtain ⟨d, hdm, hdA, hdY⟩ :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_good_side
+      C A.1 Y.1 hf hAc hAa hYc hYa
+  have hinA : C.IsInner (C.occ A.1 d) :=
+    (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_sides
+      C hAc d).1
+  have hinY := (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_sides
+    C hYc (Fin.cast (congrArg (fun u => (C.Q.disk u).n) hf.symm) d)).1
+  have e1 := (hAI d).1 hinA hdA
+  have e2 := (hYI _).1 hinY hdY
+  have e3 := hcell d hdm 0 (by decide)
+  rw [← hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+    τ hsts C hC Y (Fin.cast (congrArg (fun u => (C.Q.disk u).n) hf.symm) d) 0,
+    Fin.val_cast] at e2
+  rw [e2, e1] at e3
+  have hedge :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_identSU_inj
+      τ C hC (Sum.inl.inj e3)
+  rcases C.g1_edge_unique _ _ hinA hinY hedge.symm with h | h
+  · have h' := congrArg Sigma.fst h
+    exact h'
+  · exfalso
+    have h1' := congrArg Sigma.fst h
+    have h1 : Y.1 = (C.partner (C.occ A.1 d)).1 := h1'
+    obtain ⟨hne, hown, -⟩ := C.g1_partner _ hinA
+    apply hne
+    rw [← h1]
+    calc Y.1 = C.central (C.owner Y.1) := hYc.symm
+      _ = C.central (C.owner A.1) := by rw [h1, hown]
+      _ = A.1 := hAc
+
+/-- Every marked side of a cyclic type is a print (copy of `acyc_isPrint_of_cyclic` of
+`Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_cyc_mark_print
+    (C : Geometry.MacroCertificate P) {s : C.Typ} (hcyc : C.central (C.form s) = s)
+    (hl : C.kind (C.form s) = .large) (d : C.Side s) (hd : C.marked (C.form s) d) :
+    C.IsPrint (C.occ s d) := by
+  have hown : C.owner s = C.form s := by
+    have := C.g5_central_owner (C.form s)
+    rw [hcyc] at this
+    exact this
+  have hval := C.g5_print_id_large (C.form s) d hl hd
+  rw [hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+    C hown]
+  refine ⟨d, hd, Or.inl ?_⟩
+  show (⟨s, d⟩ : C.SideOcc) = ⟨C.central (C.form s), C.print (C.form s) d⟩
+  generalize C.print (C.form s) d = p at hval
+  revert p
+  rw [hcyc]
+  intro p hp
+  exact Sigma.ext rfl (heq_of_eq (Fin.ext hp.symm))
+
+/-- An invariant preserved by the steps of a relation holds along reflexive-transitive paths. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_rtg_invariant
+    {α : Type*} (r : α → α → Prop) (P : α → Prop) (hstep : ∀ a b, P a → r a b → P b)
+    {a b : α} (h : Relation.ReflTransGen r a b) (ha : P a) : P b := by
+  induction h with
+  | refl => exact ha
+  | tail _ hbc ih => exact hstep _ _ ih hbc
+
+/-- Along a chain of cyclic types, a cell copied onto a print (other than the fifth cell) never
+reaches an origin (copy of `acyc_no_origin` of `Control/Strict`). -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_no_origin
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hown : ∀ n, C.owner (ch n).1 = C.form (ch (n + 1)).1)
+    (hall : ∀ n, C.central (C.form (ch (n + 1)).1) = (ch (n + 1)).1 ∧
+      C.kind (C.form (ch (n + 1)).1) = .large)
+    (n : ℕ) (i : C.Side (ch n).1) (k : Fin 5)
+    (h : hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC ch n i k) :
+    C.IsPrint (C.occ (ch n).1 i) → k ≠ 4 → False := by
+  intro hp0 hk0
+  dsimp only [hereditary_sts_substitution_sofic_ExtHasOrigin] at h
+  obtain ⟨s, hs, hempty⟩ := h
+  have hP := hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_rtg_invariant
+    _ (fun st : (Σ r : ℕ, C.Side (ch r).1 × Fin 5) =>
+      C.IsPrint (C.occ (ch st.1).1 st.2.1) ∧ st.2.2 ≠ 4) ?_ hs ⟨hp0, hk0⟩
+  · obtain ⟨hp, hk⟩ := hP
+    obtain ⟨e, he⟩ :=
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+        C (hown s.1) s.2.1).1 hp
+    have hmem : (e, s.2.2) ∈ Planned.copySource C (C.form (ch (s.1 + 1)).1)
+        (C.occ (ch s.1).1 s.2.1) s.2.2 := Or.inl ⟨he, hk, rfl⟩
+    rw [hempty] at hmem
+    exact hmem
+  · rintro ⟨r, d0, k0⟩ b ⟨hp, hk⟩ ⟨d, k', hmem, rfl⟩
+    rcases hmem with ⟨hpd, -, hkk⟩ | ⟨hnp, -, -⟩
+    · refine ⟨
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_cyc_mark_print
+          C (hall r).1 (hall r).2 d hpd.1, ?_⟩
+      show k' ≠ 4
+      intro h4
+      exact hk (hkk.symm.trans h4)
+    · exact absurd hp hnp
+
+/-- Step 5b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal` (the "first noncentral
+ancestor" of `lem:comp/acyclic-legal`, cf. `hex1` in `strict_reconstructed_acyclic_legal` of
+`Tilings/Control/Strict.lean`): let `A` be an identity-correct extended tile of central acyclic
+type and `ch` a founded-legal chain of its generated central child (`ch 0 = generate A c`,
+`c = central (form A.1)`, every level generated from the next, every copied cell without origin
+zero).  Then the chain does not consist of the central child type `c` only: some `ch (n+1)` has a
+type different from `c`.  Otherwise every `ch (n+1)` is a cyclic type, every marked side of which
+is a print, so a cell copied onto a print of `ch 0` never reaches an origin (induction along the
+chain); but `A` has a marked side `d0` which is not a print of `A` (`g5_card_marked_large`,
+`g5_card_marked_small`, `g5_three_Q_lt`), whose cell one is a nonzero interface identity, and
+that cell is copied onto the print of `d0` in `ch 0`, so legality would force it to be zero. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step5b_ancestor
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hcent : C.IsCentral A.1) (hacyc : ¬ C.IsCyclic A.1)
+    (hI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC A)
+    (ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (h0 : ch 0 = hereditary_sts_substitution_sofic_generate τ hsts C m hC A
+      (C.central (C.form A.1)))
+    (hch : ∀ n, hereditary_sts_substitution_sofic_IsExtChild τ hsts C m hC (ch (n + 1)) (ch n))
+    (horig : ∀ (n : ℕ) (i : C.Side (ch n).1) (k : Fin 5),
+      (Planned.copySource C (C.form (ch (n + 1)).1) (C.occ (ch n).1 i) k).Nonempty →
+      ¬ hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC ch n i k →
+      (ch n).2 i k = Sum.inl 0) :
+    ∃ n, (ch (n + 1)).1 ≠ C.central (C.form A.1) := by
+  by_contra hcon
+  push_neg at hcon
+  have hl : C.kind (C.form A.1) = .large := (C.g5_large_iff A.1).2 hcent.symm
+  have hcf : C.form (C.central (C.form A.1)) = C.form A.1 := C.g5_central_fixes_large _ hl
+  have hco : C.owner (C.central (C.form A.1)) = C.form A.1 := C.g5_central_owner _
+  have hall' : ∀ n, C.central (C.form (ch (n + 1)).1) = (ch (n + 1)).1 ∧
+      C.kind (C.form (ch (n + 1)).1) = .large := by
+    intro n
+    rw [hcon n, hcf]
+    exact ⟨rfl, hl⟩
+  obtain ⟨d0, hd0m, hd0p, -⟩ :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_good_side
+      C A.1 A.1 rfl hcent hacyc hcent hacyc
+  have hinA : C.IsInner (C.occ A.1 d0) :=
+    (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_sides
+      C hcent d0).1
+  -- the nonzero identity of the unprinted marked side `d0` is copied onto the print of `ch 0`
+  have hne : A.2 d0 0 ≠ Sum.inl 0 := by
+    rw [(hI d0).1 hinA hd0p]
+    intro h
+    have h' := Sum.inl.inj h
+    cases h'
+  have hA0 : (hereditary_sts_substitution_sofic_generate τ hsts C m hC A
+      (C.central (C.form A.1))).2 (C.print (C.form A.1) d0) 0 = A.2 d0 0 := by
+    have h :=
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_copy
+        τ hsts C m hC A (C.form A.1) rfl d0 hd0m 0 (by decide)
+    rw [h, hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+      τ hsts C hC A d0 0]
+  have hz : ∀ i : C.Side (ch 0).1, C.IsPrint (C.occ (ch 0).1 i) → (ch 0).2 i 0 = Sum.inl 0 := by
+    intro i hp
+    obtain ⟨e, he⟩ :=
+      (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+        C (hch 0).1 i).1 hp
+    apply horig 0 i 0
+    · exact ⟨(e, 0), Or.inl ⟨he, by decide, rfl⟩⟩
+    · intro ho
+      exact
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_no_origin
+          τ hsts C hC ch (fun n => (hch n).1) hall' 0 i 0 ho hp (by decide)
+  rw [h0] at hz
+  have hpA : C.IsPrint (C.occ (C.central (C.form A.1)) (C.print (C.form A.1) d0)) :=
+    (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_isPrint_iff
+      C hco _).2 ⟨d0, hd0m, Or.inl rfl⟩
+  exact hne (hA0.symm.trans (hz (C.print (C.form A.1) d0) hpA))
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal` (the central acyclic
+case, `lem:comp/acyclic-legal`): a normal identity-correct extended tile `A` of central acyclic
+type (`A.1 = central (owner A.1)` but `central (form A.1) ≠ A.1`) whose generated central child
+is founded-legal is itself founded-legal.  Proof idea: let `ch` be a chain of the legal central
+child `c`.  The chain cannot consist of central children of one cyclic type only: `A` has a
+marked nonprint side `d0` (the number of prints of a central acyclic type is at most `Q`, while
+a large form has `4N > 3Q` marked sides), whose cell one is a nonzero identity copied onto the
+print of `c`, and a cell copied along a chain of cyclic types never reaches an origin, so it
+would be zero.  Hence there is a first `n` with `(ch (n+1)).1 ≠ central (form A.1)`; the
+tile `Y = ch (n+1)` is central acyclic of the form of `A`, normal and identity-correct, and
+agrees with `A` on all marked sides in the cells other than the fifth (they are copied
+unchanged along the central children `ch 0, …, ch n`).  The identities of a good side
+(`acyc_exists_good_side`) force `Y.1 = A.1`, all remaining cells are local, so `A = Y`, which
+is founded-legal by shifting the chain. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step5_acyclic
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hcent : C.IsCentral A.1) (hacyc : ¬ C.IsCyclic A.1)
+    (hN : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtNormal
+      τ hsts C hC A)
+    (hI : hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_ExtIdentityCorrect
+      τ hsts C hC A)
+    (hchild : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A
+        (C.central (C.form A.1)))) :
+    hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A := by
+  obtain ⟨ch, h0, hch, hdec, horig⟩ := hchild
+  have hex :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step5b_ancestor
+      τ hsts C m hC A hcent hacyc hI ch h0 hch horig
+  have hl : C.kind (C.form A.1) = .large := (C.g5_large_iff A.1).2 hcent.symm
+  have hco : C.owner (C.central (C.form A.1)) = C.form A.1 := C.g5_central_owner _
+  have hn0 : (ch (Nat.find hex + 1)).1 ≠ C.central (C.form A.1) := Nat.find_spec hex
+  have hlt : ∀ j ≤ Nat.find hex, (ch j).1 = C.central (C.form A.1) := by
+    intro j hj
+    cases j with
+    | zero => rw [h0]; rfl
+    | succ j =>
+      by_contra h
+      exact Nat.find_min hex (show j < Nat.find hex by omega) h
+  -- the marked cells other than the fifth are copied unchanged along the central children
+  have hform : ∀ j ≤ Nat.find hex, C.form (ch (j + 1)).1 = C.form A.1 := by
+    intro j hj
+    rw [← (hch j).1, hlt j hj, hco]
+  have htr : ∀ j ≤ Nat.find hex + 1, ∀ d : C.Side A.1, C.marked (C.form A.1) d →
+      ∀ k : Fin 5, k ≠ 4 →
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+          τ hsts C hC (ch j) d.val k = A.2 d k := by
+    intro j
+    induction j with
+    | zero =>
+      intro _ d hd k hk
+      rw [h0,
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_val
+          τ hsts C m hC A (C.form A.1) rfl hl d hd k hk,
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv_side
+          τ hsts C hC A d k]
+    | succ j ih =>
+      intro hj d hd k hk
+      rw [← ih (by omega) d hd k hk]
+      have hgen : ch j = hereditary_sts_substitution_sofic_generate τ hsts C m hC (ch (j + 1))
+          (C.central (C.form A.1)) := by
+        have h := (hch j).2
+        rw [hlt j (by omega)] at h
+        exact h
+      rw [hgen]
+      exact
+        (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_central_val
+          τ hsts C m hC (ch (j + 1)) (C.form A.1) (hform j (by omega)) hl d hd k hk).symm
+  have hYf : C.form (ch (Nat.find hex + 1)).1 = C.form A.1 := hform _ le_rfl
+  have hYc : C.IsCentral (ch (Nat.find hex + 1)).1 :=
+    ((C.g5_large_iff _).1 (by rw [hYf]; exact hl)).symm
+  have hYa : ¬ C.IsCyclic (ch (Nat.find hex + 1)).1 := by
+    intro h
+    apply hn0
+    have h' : C.central (C.form (ch (Nat.find hex + 1)).1) = (ch (Nat.find hex + 1)).1 := h
+    rw [hYf] at h'
+    exact h'.symm
+  have hYleg :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_shift
+      τ hsts C m hC ch hch hdec horig (Nat.find hex + 1)
+  obtain ⟨hYN, hYI⟩ :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_legal_normal
+      τ hsts C m hC _ hYleg
+  have hcell : ∀ i : C.Side A.1, C.marked (C.form A.1) i → ∀ k : Fin 5, k ≠ 4 →
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_cellv
+        τ hsts C hC (ch (Nat.find hex + 1)) i.val k = A.2 i k :=
+    fun i hm k hk => htr _ le_rfl i hm k hk
+  have hty : A.1 = (ch (Nat.find hex + 1)).1 :=
+    (hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step5a_acyclic_type
+      τ hsts C m hC A _ hcent hacyc hYc hYa hYf hI hYI hcell).symm
+  have hYA : ch (Nat.find hex + 1) = A :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_eq_of_normal
+      τ hsts C hC A _ hty hN hYN hcell
+  rw [← hYA]
+  exact hYleg
+
 /-- Step 6 of the reviewed proof: legality of every reconstructed parent is
 proved before reconstruction is iterated, by the cyclic, noncentral and
 central-acyclic cases.  This isolates exactly that non-circular argument. -/
@@ -5027,7 +6603,42 @@ private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal
     (hrec : hereditary_sts_substitution_sofic_Reconstruction
       τ hsts C m hC X T T') :
     T' ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X := by
-  sorry
+  have _ := hher
+  refine ⟨hrec.coarse, ?_, hrec.coarse_project⟩
+  refine X.proper_of_typed_legal hrec.coarse hrec.coarse_sideToSide ?_ hrec.coarse_cells_match
+  intro Y hY
+  obtain ⟨A, hA, hpar⟩ := hrec.coarse_parents Y hY
+  refine ⟨A, hA, ?_⟩
+  -- every generated child of the coarse tile is a tile of the proper fine tiling, hence legal
+  have hchild : ∀ t, C.owner t = C.form A.1 →
+      hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t) := by
+    intro t ht
+    obtain ⟨Z, hZ, hZA, -⟩ := hpar t ht
+    obtain ⟨B, hB, hBleg⟩ := X.proper_typed_legal hrec.fine hrec.fine_proper Z hZ
+    have hBA : B = hereditary_sts_substitution_sofic_generate τ hsts C m hC A t :=
+      Sum.inl.inj (hB.symm.trans hZA)
+    rw [← hBA]
+    exact hBleg
+  have hcentralOwner : C.owner (C.central (C.form A.1)) = C.form A.1 :=
+    C.g5_central_owner (C.form A.1)
+  obtain ⟨hN, hI⟩ :=
+    hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step2_port_recovery
+      τ hsts C m hC A hchild
+  by_cases hcyc : C.IsCyclic A.1
+  · refine
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step3_cyclic
+        τ hsts C m hC A hcyc hN (hchild A.1 ?_)
+    have h := hcentralOwner
+    rw [show C.central (C.form A.1) = A.1 from hcyc] at h
+    exact h
+  · by_cases hcent : C.IsCentral A.1
+    · exact
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step5_acyclic
+          τ hsts C m hC A hcent hcyc hN hI (hchild _ hcentralOwner)
+    · exact
+        hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_step4_noncentral
+          τ hsts C m hC A hcent hN hI (hchild _ hcentralOwner)
 
 /-- A hierarchy whose adjacent coloured levels are related by the exact
 pre-legal reconstruction contract.  Keeping these witnesses prevents the

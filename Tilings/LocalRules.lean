@@ -7054,6 +7054,334 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
   rw [← hi, ← hj] at hov ⊢
   exact h _ ⟨A, hA, rfl⟩ _ ⟨B, hB, rfl⟩ i' j' hov
 
+/-! #### Helpers for `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`
+
+A block of the aligned composition is described by its form `α`, its offset `v = θ · anchor`
+and the arrays `col t` of its fine children (one per positioned type `t` owned by `α`); the
+placed child of type `t` is the tile `⟨t, col t⟩` at `v + anchor t`.  The reconstructed
+parent reads its cell `(d, k)` off the third cell of port `k` of the macroside `d`.  The
+helpers below are the extended analogues of the strict chain
+`strict_boundary_header_constant` → `strict_reconstructed_header_eq` →
+`strict_path_and_print_recovery` → `strict_macroblock_is_decomposition` of
+`Tilings/Control/Strict.lean`. -/
+
+/-- The placed fine child of old positioned type `t` of a block at offset `v`, carrying the
+extended array `col t`. -/
+private def hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} {hC : C.Represents τ m}
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (t : C.Typ) : PlacedTile X.dec.P' :=
+  ⟨X.formEquiv.symm (Sum.inl ⟨t, col t⟩), v + C.anchor t⟩
+
+/-- The reconstructed parent of type `s` of a block with child arrays `col`: its cell `(d, k)`
+is the third cell of port `k` of the macroside `d` (the old zero symbol if the port does not
+exist; by `g3_five_le` every port exists). -/
+private noncomputable def hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (s : C.Typ) : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC :=
+  ⟨s, fun d k => match C.port (C.form s) d k with
+    | some o => col o.1 o.2 2
+    | none => Sum.inl 0⟩
+
+/-- The conclusion of the boundary-header lemma for a block of form `α` with child arrays
+`col`: the extended header `h` has `form h.1 = α`, carries a successfully decoded catalogue
+value, and every boundary fourth cell of the block is the header cell of `h`. -/
+private def hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) (α : C.Q.Form)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C) : Prop :=
+  C.form h.1 = α ∧ h.2.2.isSome ∧
+    ∀ (t : C.Typ) (i : C.Side t), C.owner t = α → C.IsBoundary (C.occ t i) →
+      col t i 3 = Sum.inr (Sum.inr h)
+
+/-- A sigma pair is determined by its first component and the transported second one. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_sigma_cast
+    {ι : Type*} {β : ι → Type*} (B : Σ i, β i) (t : ι) (h : B.1 = t) :
+    (⟨t, h ▸ B.2⟩ : Σ i, β i) = B := by
+  obtain ⟨s, f⟩ := B
+  subst h
+  rfl
+
+/-- The aligned fine tiles of a block (one per child type, of that old positioned type at the
+prescribed anchor) are the placed children of one family of arrays `col`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_choose_col
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (α : C.Q.Form) (v : Pt)
+    (hal : ∀ t, C.owner t = α →
+      ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+        X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧ Z.anchor = v + C.anchor t) :
+    ∃ col : (t : C.Typ) → C.Side t → Fin 5 →
+        hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC,
+      ∀ t, C.owner t = α →
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+          τ hsts C X v col t ∈ F.tiles := by
+  classical
+  choose Z hZ B hB hB1 hZa using hal
+  refine ⟨fun t => if h : C.owner t = α then hB1 t h ▸ (B t h).2 else fun _ _ => Sum.inl 0, ?_⟩
+  intro t h
+  have hBt : (⟨t, hB1 t h ▸ (B t h).2⟩ : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) =
+      B t h :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_sigma_cast
+      (B t h) t (hB1 t h)
+  have hform : (Z t h).form = X.formEquiv.symm (Sum.inl (B t h)) := by
+    rw [← hB t h, Equiv.symm_apply_apply]
+  have e : (⟨X.formEquiv.symm (Sum.inl (B t h)), v + C.anchor t⟩ : PlacedTile X.dec.P') =
+      Z t h := by
+    ext1
+    · exact hform.symm
+    · exact (hZa t h).symm
+  simp only [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed,
+    dif_pos h]
+  rw [hBt, e]
+  exact hZ t h
+
+/-- The cells of a tile equal to a reconstructed parent are the third cells of the ports. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_cells
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (s : C.Typ) (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : A = hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+      τ hsts C hC col s)
+    (i : C.Side A.1) (k : Fin 5) (o : C.SideOcc) (ho : C.port (C.form A.1) i k = some o) :
+    A.2 i k = col o.1 o.2 2 := by
+  subst hA
+  have ho' : C.port (C.form s) i k = some o := ho
+  simp only [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct,
+    ho']
+
+/-- A tile whose header is `h` decodes when `h` carries a decoded value. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_decode_isSome
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C)
+    (hh : hereditary_sts_substitution_sofic_header τ hsts C hC A = h) (hs : h.2.2.isSome) :
+    (hereditary_sts_substitution_sofic_decode τ hsts C hC A).isSome := by
+  subst hh
+  exact hs
+
+/-- Every port exists ((G3): every outer list has at least five entries; declared again here
+because `hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_port_some` comes
+later in this file). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_some
+    (C : Geometry.MacroCertificate P) (β : C.Q.Form) (d : Fin (C.Q.disk β).n) (k : Fin 5) :
+    ∃ o, C.port β d k = some o := by
+  unfold MacroData.port
+  have h5 := C.g3_five_le β d
+  have hr : MacroData.portRank (C.outerList β d).length k ≤ (C.outerList β d).length := by
+    unfold MacroData.portRank
+    have : (k.val + 1) * (C.outerList β d).length ≤ 5 * (C.outerList β d).length :=
+      Nat.mul_le_mul_right _ (by omega)
+    omega
+  exact ⟨_, List.getElem?_eq_getElem (by omega)⟩
+
+/-- A port of a parent side is an outer side of a child of the template. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_owner
+    (C : Geometry.MacroCertificate P) (β : C.Q.Form) (d : Fin (C.Q.disk β).n) (k : Fin 5)
+    (o : C.SideOcc) (ho : C.port β d k = some o) : C.owner o.1 = β ∧ C.IsOuter o := by
+  have hmem : o ∈ C.outerList β d := by
+    unfold MacroData.port at ho
+    exact List.mem_of_getElem? ho
+  obtain ⟨hown, hout, -⟩ := (C.g3_outerList_mem β d o).1 hmem
+  exact ⟨hown, hout⟩
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`
+(the block is a matched realization of its template; from Lemma comp/assembly): the two
+occurrences of an inner side of the template carry equal arrays in the proper fine colouring.
+The placed children of types `t` and `(partner (t, i)).1` are distinct tiles of `F` whose sides
+`i` and `(partner (t, i)).2` are the same segment (`g1_partner`, the side of a typed tile is the
+translate of the side of the grouped disk of its form), so `X.proper_cells_match` applies. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (t : C.Typ) (ht : C.owner t = α) (i : C.Side t) (hi : C.IsInner (C.occ t i)) :
+    col t i = col (C.partner (C.occ t i)).1 (C.partner (C.occ t i)).2 := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:
+"read one extended header `(t,z,γ)` on the connected boundary belt (Lemma comp/boundary-header)"
+— in a block of a proper fine colouring the boundary fourth cells carry one common extended
+header `h` with `form h.1 = α` and a decoded component `some γ`.  Every child is a founded-legal
+tile of `F` (`X.proper_typed_legal`), hence the generated child of a decoding parent whose
+header sits in the fourth cell of each of its boundary sides (boundary sides are neither outer
+nor prints); the headers of two children sharing a boundary side agree (Step 1); the belt graph
+is connected (`g2_belt_connected`), every belt type has a boundary side (`g2_belt_edge`), and
+the belt is nonempty (`g3_five_le` gives an outer side).  Extended analogue of
+`Planned.Strict.strict_boundary_header_constant`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles) :
+    ∃ h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C,
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
+        τ hsts C hC α col h := by
+  sorry
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:
+"reconstruct the parent cells from the third cells of the five ports on each parent side
+(Lemma comp/reconstruction)" — the reconstructed parent of a block with common header `h` has
+header exactly `h`; in particular it decodes the common value.  The child at port `k` of `d`
+has an outer side, hence a boundary side (`exists_boundary_side_of_outer`), so its founded-legal
+parent `Pr` has header `h` (type `h.1`, decoded value `γ`, zero-mode bits of `h`), and the port's
+third cell is `Pr.2 d k` (the copy source of a port side is the unique pair `(d, k)`, `g4`).
+Hence the nonprint second cells of the reconstructed parent are the packets of `γ`, its outer
+fourth cells give the bits of `h`, the off-boundary clause of `Decodes` depends on the type
+only, and `hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step4_decode_unique` (declared
+later in this file: copy it verbatim before use) gives `decode = some γ`.  Extended analogue of
+`Planned.Strict.strict_reconstructed_header_eq`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C)
+    (hh : hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
+      τ hsts C hC α col h) :
+    hereditary_sts_substitution_sofic_header τ hsts C hC
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+        τ hsts C hC col h.1) = h := by
+  sorry
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`
+(Lemma comp/signals for the extended alphabet): every nonprint third cell on the path `P_j(d)`
+equals the reconstructed cell `(d, j)`, and the small owner of the print of a marked side `d`
+carries the reconstructed cells `(d, 0), …, (d, 3)` on that print.  Along a path consecutive
+sides belong to one child (both copy the parent cell `(d, j)` of its legal parent,
+`g4_path_chain`) or are the two occurrences of an inner side (Step 1); the path starts at the
+port (`g4_path_head`, `g4_path_trivial`), where the reconstructed cell is read; the penultimate
+side of a genuine path is an ordinary side of the small owner of the print
+(`g4_path_penultimate`), whose legal parent therefore agrees with the reconstructed parent on
+`(d, k)`, and the print copies that parent's cells `k ≠ 4`.  Extended analogue of
+`Planned.Strict.strict_path_and_print_recovery`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C)
+    (hh : hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
+      τ hsts C hC α col h) :
+    (∀ (d : C.Side h.1) (j : Fin 5) (o : C.SideOcc), o ∈ C.path (C.form h.1) d j →
+      ¬ C.IsPrint o →
+      col o.1 o.2 2 =
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+          τ hsts C hC col h.1).2 d j) ∧
+    (∀ d : C.Side h.1, C.marked (C.form h.1) d → ∀ k : Fin 5, k ≠ 4 →
+      col (C.partner (C.printOcc (C.form h.1) d)).1 (C.partner (C.printOcc (C.form h.1) d)).2 k =
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+          τ hsts C hC col h.1).2 d k) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:
+"generation of every child of the block then follows from Lemma comp/exact together with
+Step 3" — every child of a block with common header `h` is the generated child of the
+reconstructed parent.  The child `⟨t, col t⟩` is the generated child of its own founded-legal
+parent `Pr`; cell by cell (the clauses of
+`hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal_aux_generate_cells`, declared
+later in this file: copy it verbatim before use): cells
+copied from the parent (prints, path sides) agree by Step 4, boundary fourth cells carry
+`h = header (reconstructed parent)` (Step 3) and `header Pr = h` (a child with a boundary side),
+packet cells use `decode Pr = decode (reconstructed parent) = γ` for belt children (which have
+a boundary side) and are the absent packet `0` for children off the macroboundary, and all other
+cells are fixed by `t`.  Extended analogue of `Planned.Strict.strict_macroblock_is_decomposition`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step5_exact
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C)
+    (hh : hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
+      τ hsts C hC α col h)
+    (t : C.Typ) (ht : C.owner t = α) :
+    hereditary_sts_substitution_sofic_generate τ hsts C m hC
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+        τ hsts C hC col h.1) t = ⟨t, col t⟩ := by
+  sorry
+
+/-- Step 6 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:
+"Heredity makes each parent listed side a union of whole fine sides" (Lemma whole-ports) — the
+port `k` of a parent side of a block and the port `k` of a coincident typed side of a distinct
+block are carried by distinct fine tiles of the proper colouring whose port sides are coincident
+typed sides.  The outer-side lists of the two macrosides consist of the whole fine outer sides
+contained in the same segment, ordered in the global positive direction
+(`g3_outerList_mem`, `g3_outerList_sorted`); as `F` is side-to-side and the fine sides of the
+two blocks along that segment are the same segments, the two lists coincide position by
+position.  Extended analogue of `Planned.Strict.strict_lift_matched_step6_ports_step1_whole_ports`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (hFT : X.dec.toDecoration.project F = T)
+    (T' : PlaneTiling C.Q) (hcomp : C.σ.IsComposition T' T)
+    (D : PlacedTile C.Q) (hD : D ∈ T'.tiles) (E : PlacedTile C.Q) (hE : E ∈ T'.tiles)
+    (hDE : D ≠ E)
+    (colD colE : (t : C.Typ) → C.Side t → Fin 5 →
+      hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcolD : ∀ t, C.owner t = D.form →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • D.anchor) colD t ∈ F.tiles)
+    (hcolE : ∀ t, C.owner t = E.form →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • E.anchor) colE t ∈ F.tiles)
+    (A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hAD : C.form A.1 = D.form) (hBE : C.form B.1 = E.form)
+    (i : C.Side A.1) (j : C.Side B.1)
+    (hij : hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec
+      (⟨X.formEquiv.symm (Sum.inl A), D.anchor⟩ : PlacedTile X.dec.P')
+      (⟨X.formEquiv.symm (Sum.inl B), E.anchor⟩ : PlacedTile X.dec.P') A B i j)
+    (k : Fin 5) (o o' : C.SideOcc)
+    (ho : C.port (C.form A.1) i k = some o) (ho' : C.port (C.form B.1) j k = some o') :
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • D.anchor) colD o.1 ≠
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • E.anchor) colE o'.1 ∧
+    hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • D.anchor) colD o.1)
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • E.anchor) colE o'.1)
+      ⟨o.1, colD o.1⟩ ⟨o'.1, colE o'.1⟩ o.2 o'.2 := by
+  sorry
+
 /-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
 "read one extended header `(t,z,γ)` on the connected boundary belt (Lemma comp/boundary-header),
 and reconstruct the parent cells from the third cells of the five ports on each parent side
@@ -7087,7 +7415,81 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
             (⟨X.formEquiv.symm (Sum.inl (choice E)), E.anchor⟩ : PlacedTile X.dec.P')
             (choice D) (choice E) i j →
           (choice D).2 i = (choice E).2 j := by
-  sorry
+  classical
+  have hcol : ∀ D ∈ T'.tiles, ∃ col : (t : C.Typ) → C.Side t → Fin 5 →
+      hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC,
+      ∀ t, C.owner t = D.form →
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+          τ hsts C X (C.σ.θ • D.anchor) col t ∈ F.tiles :=
+    fun D hD => hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_choose_col
+      τ hsts C m hC X F D.form (C.σ.θ • D.anchor) (halign D hD)
+  choose col hcol using hcol
+  have hhdr : ∀ D (hD : D ∈ T'.tiles), ∃ h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C,
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
+        τ hsts C hC D.form (col D hD) h :=
+    fun D hD => hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header
+      τ hsts C m hC X F hF D.form (C.σ.θ • D.anchor) (col D hD) (hcol D hD)
+  choose hdr hhdr using hhdr
+  obtain ⟨D₀, hD₀⟩ : ∃ D₀, D₀ ∈ T'.tiles := by
+    have h0 : (0 : Pt) ∈ support T'.tiles := by rw [T'.cover]; trivial
+    simp only [support, Set.mem_iUnion] at h0
+    obtain ⟨D₀, hD₀, -⟩ := h0
+    exact ⟨D₀, hD₀⟩
+  obtain ⟨choice, hch⟩ : ∃ choice : PlacedTile C.Q → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      ∀ D (hD : D ∈ T'.tiles), choice D =
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+          τ hsts C hC (col D hD) (hdr D hD).1 :=
+    ⟨fun D => if hD : D ∈ T'.tiles then
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+          τ hsts C hC (col D hD) (hdr D hD).1
+      else
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+          τ hsts C hC (col D₀ hD₀) (hdr D₀ hD₀).1,
+      fun D hD => dif_pos hD⟩
+  have hfst : ∀ D (hD : D ∈ T'.tiles), C.form (choice D).1 = D.form := by
+    intro D hD
+    have h1 : (choice D).1 = (hdr D hD).1 := (congrArg Sigma.fst (hch D hD)).trans rfl
+    rw [h1]
+    exact (hhdr D hD).1
+  refine ⟨choice, fun D hD => ?_, fun D hD E hE hDE i j hco => ?_⟩
+  · refine ⟨hfst D hD, ?_, ?_⟩
+    · refine hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_decode_isSome
+        τ hsts C hC (choice D) (hdr D hD) ?_ (hhdr D hD).2.1
+      rw [hch D hD]
+      exact hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq
+        τ hsts C m hC X F hF D.form (C.σ.θ • D.anchor) (col D hD) (hcol D hD) (hdr D hD) (hhdr D hD)
+    · intro t ht
+      have ht' : C.owner t = D.form := ht.trans (hfst D hD)
+      refine ⟨hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • D.anchor) (col D hD) t, hcol D hD t ht', ?_, rfl⟩
+      show X.formEquiv (X.formEquiv.symm (Sum.inl ⟨t, col D hD t⟩)) = _
+      rw [Equiv.apply_symm_apply, hch D hD,
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step5_exact
+          τ hsts C m hC X F hF D.form (C.σ.θ • D.anchor) (col D hD) (hcol D hD) (hdr D hD)
+          (hhdr D hD) t ht']
+  · funext k
+    obtain ⟨o, ho⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_some
+      C (C.form (choice D).1) i k
+    obtain ⟨o', ho'⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_some
+      C (C.form (choice E).1) j k
+    obtain ⟨hne, hcoinc⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide
+        τ hsts hher C m hC X T F hF hFT T' hcomp D hD E hE hDE (col D hD) (col E hE)
+        (hcol D hD) (hcol E hE) (choice D) (choice E) (hfst D hD) (hfst E hE) i j hco k o o' ho ho'
+    have hownD : C.owner o.1 = D.form :=
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_owner C _ i k o ho).1.trans
+        (hfst D hD)
+    have hownE : C.owner o'.1 = E.form :=
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_owner C _ j k o' ho').1.trans
+        (hfst E hE)
+    have hm := X.proper_cells_match F hF _ (hcol D hD o.1 hownD) _ (hcol E hE o'.1 hownE) hne
+      ⟨o.1, col D hD o.1⟩ ⟨o'.1, col E hE o'.1⟩ (Equiv.apply_symm_apply _ _)
+      (Equiv.apply_symm_apply _ _) o.2 o'.2 hcoinc
+    rw [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_cells
+        τ hsts C hC (col D hD) (hdr D hD).1 (choice D) (hch D hD) i k o ho,
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_cells
+        τ hsts C hC (col E hE) (hdr E hE).1 (choice E) (hch E hE) j k o' ho']
+    exact congrFun hm 2
 
 /-- Step 5 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
 "a colouring of `𝒯'`" — placing the reconstructed extended array of each block at its anchor

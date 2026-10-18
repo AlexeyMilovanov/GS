@@ -4394,6 +4394,121 @@ private noncomputable def hereditary_sts_substitution_sofic_generate
       else Sum.inl (Planned.Strict.botSU C hC)
     else Sum.inl 0⟩
 
+/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique`: a segment determines its endpoints up to order. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_seg_endpoints
+    {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hc hd ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+  obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+  simp only at hu hw
+  have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+    have : a + s • (b - a) + u • (a + t • (b - a) - (a + s • (b - a))) - a =
+        (s + u * (t - s)) • (b - a) := by module
+    rw [← this, hu, sub_self]
+  have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+    have : a + s • (b - a) + w • (a + t • (b - a) - (a + s • (b - a))) - b =
+        (s + w * (t - s) - 1) • (b - a) := by module
+    rw [← this, hw, sub_self]
+  have f1 := (smul_eq_zero.1 e1).resolve_right hv
+  have f2 := (smul_eq_zero.1 e2).resolve_right hv
+  rcases lt_trichotomy s t with hst | hst | hst
+  · have hs : s = 0 := by nlinarith
+    subst hs
+    have ht : t = 1 := by nlinarith
+    subst ht
+    left; constructor <;> simp
+  · subst hst; simp at f1 f2; linarith
+  · have ht : t = 0 := by nlinarith
+    subst ht
+    have hs : s = 1 := by nlinarith
+    subst hs
+    right; constructor <;> simp
+
+/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique`: the listed side of a side occurrence is the segment
+between its endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_occSide_eq
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc) :
+    C.occSide o = segment ℝ (C.occStart o) (C.occEnd o) := by
+  have hv : ∀ (w a b : Pt), w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+    intro w a b
+    rw [← segment_translate_image]
+    rfl
+  simp only [MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side, hv,
+    MacroData.occStart, MacroData.occEnd]
+
+/-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique`: neither endpoint of a print lies on the boundary of
+its owner template (prints lie strictly inside the template). -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step2_print_endpoints
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) :
+    C.occStart o ∉ C.macroBoundary α ∧ C.occEnd o ∉ C.macroBoundary α := by
+  obtain ⟨hm, h⟩ := h
+  have hin := C.g4_print_inner α d hm
+  have hpo : C.occStart (C.printOcc α d) ∉ C.macroBoundary α ∧
+      C.occEnd (C.printOcc α d) ∉ C.macroBoundary α := by
+    have h0 := (C.g2_central α (C.print α d)).2
+    have e : C.owner (C.central α) = α := C.g5_central_owner α
+    unfold MacroData.IsBoundary at h0
+    have hnb : ¬ (C.IsInner (C.printOcc α d) ∧ (C.occStart (C.printOcc α d) ∈ C.macroBoundary α ∨
+        C.occEnd (C.printOcc α d) ∈ C.macroBoundary α)) := by
+      simpa only [e] using h0
+    exact ⟨fun hs => hnb ⟨hin, Or.inl hs⟩, fun he => hnb ⟨hin, Or.inr he⟩⟩
+  rcases h with rfl | rfl
+  · exact hpo
+  · have hp := C.g1_partner _ hin
+    have hseg : segment ℝ (C.occStart (C.partner (C.printOcc α d)))
+        (C.occEnd (C.partner (C.printOcc α d))) =
+        segment ℝ (C.occStart (C.printOcc α d)) (C.occEnd (C.printOcc α d)) := by
+      rw [← hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_occSide_eq,
+        ← hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_occSide_eq]
+      exact hp.2.2
+    rcases hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_seg_endpoints hseg with
+      ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]
+      exact hpo
+    · rw [h1, h2]
+      exact ⟨hpo.2, hpo.1⟩
+
+/-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique`: the encoding of endpoint packets is injective. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step3_encode_inj
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (p q : hereditary_sts_substitution_sofic_CrownPacket τ hsts)
+    (h : hereditary_sts_substitution_sofic_encodePacket τ hsts C hC p =
+      hereditary_sts_substitution_sofic_encodePacket τ hsts C hC q) : p = q := by
+  have e1 : ∀ p : hereditary_sts_substitution_sofic_CrownPacket τ hsts, p ≠ (none, none) →
+      hereditary_sts_substitution_sofic_encodePacket τ hsts C hC p = Sum.inr (Sum.inl p) := by
+    rintro ⟨_ | a, _ | b⟩ hp
+    · exact absurd rfl hp
+    all_goals rfl
+  by_cases hp : p = (none, none)
+  · by_cases hq : q = (none, none)
+    · exact hp.trans hq.symm
+    · subst hp
+      rw [e1 q hq] at h
+      exact absurd h (by simp [hereditary_sts_substitution_sofic_encodePacket])
+  · by_cases hq : q = (none, none)
+    · subst hq
+      rw [e1 p hp] at h
+      exact absurd h (by simp [hereditary_sts_substitution_sofic_encodePacket])
+    · rw [e1 p hp, e1 q hq] at h
+      exact Sum.inl.inj (Sum.inr.inj h)
+
 /-- Step 1 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet`: the catalogue value
 decoded by A is unique (transplant of
@@ -4404,7 +4519,70 @@ private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_ste
     (γ₁ γ₂ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
     (h₁ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₁)
     (h₂ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₂) : γ₁ = γ₂ := by
-  sorry
+  apply Subtype.ext
+  funext v
+  apply Subtype.ext
+  by_cases hfr : C.anchor A.1 + v.1 ∈ frontier (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier)
+  swap
+  · rw [h₁.2 v hfr, h₂.2 v hfr]
+  have hvmem : Substitution.IsVertexOf (C.Δ (C.form A.1)).tiles v.1 := by
+    have hv := v.2
+    unfold hereditary_sts_substitution_sofic_macroVertices at hv
+    rw [Set.Finite.mem_toFinset] at hv
+    exact hv
+  have hvc : ∀ (D : PolygonalDisk) (i : Fin D.n), D.vertex i ∈ D.carrier := by
+    intro D i
+    apply D.compact.isClosed.frontier_subset
+    rw [D.frontier_eq]
+    exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+  have hcar : v.1 ∈ (C.Q.disk (C.form A.1)).carrier := by
+    obtain ⟨B, hB, hvB⟩ := hvmem
+    obtain ⟨i, hi⟩ := hvB
+    have hBc : B.carrier ⊆ (C.Q.disk (C.form A.1)).carrier := by
+      rw [← C.scatter_support]
+      exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hB
+    apply hBc
+    rw [← hi]
+    exact Set.vadd_mem_vadd_set (hvc _ i)
+  have hchild : C.anchor A.1 +ᵥ (C.Q.disk (C.form A.1)).carrier ⊆
+      C.σ.θ • (C.Q.disk (C.owner A.1)).carrier := by
+    have hmem : (⟨C.form A.1, C.anchor A.1⟩ : PlacedTile C.Q) ∈
+        (C.σ.rule (C.owner A.1)).tiles := by
+      rw [C.rule_eq]
+      exact ⟨A.1, rfl, rfl⟩
+    rw [← C.σ.support_eq]
+    exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hmem
+  have hfront : v.1 ∈ frontier (C.Q.disk (C.form A.1)).carrier := by
+    refine ⟨subset_closure hcar, fun hint => ?_⟩
+    have hin : C.anchor A.1 + v.1 ∈ interior (C.anchor A.1 +ᵥ (C.Q.disk (C.form A.1)).carrier) := by
+      rw [interior_vadd]
+      exact Set.vadd_mem_vadd_set hint
+    exact hfr.2 (interior_mono hchild hin)
+  obtain ⟨j, hj⟩ := hC.vertex_retained (C.form A.1) v.1 hvmem hfront
+  have hnp : ¬ C.IsPrint (C.occ A.1 j) := by
+    rintro ⟨d, hd⟩
+    apply (hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step2_print_endpoints C hd).1
+    show C.anchor A.1 + (C.Q.disk (C.form A.1)).vertex j ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier)
+    rw [hj]
+    exact hfr
+  have hpk := hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step3_encode_inj τ hsts C hC
+    _ _ ((h₁.1 j hnp).symm.trans (h₂.1 j hnp))
+  simp only [hereditary_sts_substitution_sofic_packetOf] at hpk
+  rw [hj] at hpk
+  have hx : hereditary_sts_substitution_sofic_lookupCrown τ hsts C (C.form A.1) γ₁ v.1 =
+      hereditary_sts_substitution_sofic_lookupCrown τ hsts C (C.form A.1) γ₂ v.1 := by
+    by_cases hlt : hereditary_sts_substitution_sofic_pointLT v.1
+        ((C.Q.disk (C.form A.1)).vertex (finRotate (C.Q.disk (C.form A.1)).n j))
+    · rw [if_pos hlt, if_pos hlt] at hpk
+      have h3 := congrArg Prod.fst hpk
+      simpa only [if_pos hfr] using h3
+    · rw [if_neg hlt, if_neg hlt] at hpk
+      have h3 := congrArg Prod.snd hpk
+      simpa only [if_pos hfr] using h3
+  unfold hereditary_sts_substitution_sofic_lookupCrown at hx
+  rw [dif_pos v.2, dif_pos v.2] at hx
+  exact congrArg Subtype.val (Option.some.inj hx)
 
 /-- Step 2 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet`: the copy source

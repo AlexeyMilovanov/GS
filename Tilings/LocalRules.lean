@@ -3790,6 +3790,314 @@ private structure hereditary_sts_substitution_sofic_GenuineCrownHierarchy
         (Substitution.crown (hC.groupedFamily.scatter (seq n).tiles)
           (A.anchor + v.1))
 
+/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+repeatedly compose the substitution tiling (`exists_composition`) to obtain an `m`-spaced hierarchy
+of substitution tilings. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step1_power_hierarchy
+    (τ : Substitution P) (m : ℕ) (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T) :
+    ∃ seq : ℕ → PlaneTiling P, seq 0 = T ∧
+      (∀ n, τ.decomposeIter m (seq (n + 1)).tiles = (seq n).tiles) ∧
+      ∀ n, τ.IsSubstitutionTiling (seq n) := by
+  classical
+  let comp : {S : PlaneTiling P // τ.IsSubstitutionTiling S} →
+      {S : PlaneTiling P // τ.IsSubstitutionTiling S} := fun S =>
+    ⟨Classical.choose (SubstitutionTiling.exists_composition τ S.2),
+      (Classical.choose_spec (SubstitutionTiling.exists_composition τ S.2)).2⟩
+  have hcomp : ∀ S, τ.decompose (comp S).1.tiles = S.1.tiles := fun S =>
+    (Classical.choose_spec (SubstitutionTiling.exists_composition τ S.2)).1
+  let c : ℕ → {S : PlaneTiling P // τ.IsSubstitutionTiling S} := fun k => comp^[k] ⟨T, hT⟩
+  have hc : ∀ k, τ.decompose (c (k + 1)).1.tiles = (c k).1.tiles := by
+    intro k
+    simp only [c, Function.iterate_succ_apply']
+    exact hcomp _
+  have hiter : ∀ j k, τ.decomposeIter j (c (k + j)).1.tiles = (c k).1.tiles := by
+    intro j
+    induction j with
+    | zero => intro k; rfl
+    | succ j ih =>
+      intro k
+      change τ.decompose (τ.decomposeIter j (c (k + (j + 1))).1.tiles) = _
+      rw [show k + (j + 1) = (k + 1) + j by omega, ih, hc]
+  refine ⟨fun n => (c (m * n)).1, rfl, ?_, fun n => (c (m * n)).2⟩
+  intro n
+  have := hiter m (m * n)
+  rwa [show m * n + m = m * (n + 1) by ring] at this
+
+/-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+every substitution tiling of an STS substitution is side-to-side. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step2_levels_sts (τ : Substitution P) (hsts : τ.STS) (S : PlaneTiling P)
+    (hS : τ.IsSubstitutionTiling S) : S.SideToSide := by
+  intro A hA B hB i j hover
+  obtain ⟨n, p, u, hu⟩ := hS {A, B} (by simp [insert_subset_iff, hA, hB]) (by simp)
+  have hA' : A.translate u ∈ τ.supertile n p := hu ⟨A, by simp, rfl⟩
+  have hB' : B.translate u ∈ τ.supertile n p := hu ⟨B, by simp, rfl⟩
+  have hside : ∀ (X : PlacedTile P) (k : Fin (P.disk X.form).n), (X.translate u).side k = u +ᵥ X.side k := by
+    intro X k
+    show (u +ᵥ X.anchor) +ᵥ _ = u +ᵥ (X.anchor +ᵥ _)
+    rw [vadd_vadd]; rfl
+  have hov : OverlapPos ((A.translate u).side i) ((B.translate u).side j) := by
+    rw [hside, hside]
+    obtain ⟨x, y, hxy, hseg⟩ := hover
+    refine ⟨u +ᵥ x, u +ᵥ y, fun h => hxy (add_left_cancel h), ?_⟩
+    rw [← vadd_segment]
+    rintro z ⟨w, hw, rfl⟩
+    exact ⟨⟨w, (hseg hw).1, rfl⟩, ⟨w, (hseg hw).2, rfl⟩⟩
+  have h := hsts n p _ hA' _ hB' i j hov
+  rw [hside, hside] at h
+  ext x
+  have hx := Set.ext_iff.mp h (u +ᵥ x)
+  rwa [vadd_mem_vadd_set_iff, vadd_mem_vadd_set_iff] at hx
+
+/-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+the full crown at a point of a plane tiling is finite (local finiteness). -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step3_crown_finite
+    (S : PlaneTiling P) (w : Pt) : (Substitution.crown S.tiles w).Finite := by
+  apply (PlaneTiling.locallyFinite S (isCompact_singleton (x := w))).subset
+  rintro A ⟨hA, hw⟩
+  exact ⟨hA, w, hw, rfl⟩
+
+/-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+the full crown at a point of a plane tiling covers a neighbourhood of that point. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step3_crown_nhds (S : PlaneTiling P) (w : Pt) :
+    w ∈ interior (support (Substitution.crown S.tiles w)) := by
+  have hB := PlaneTiling.locallyFinite S (isCompact_closedBall w 1)
+  let E := {A ∈ S.tiles | (A.carrier ∩ Metric.closedBall w 1).Nonempty} \ Substitution.crown S.tiles w
+  have hE : E.Finite := hB.subset diff_subset
+  have hclosed : IsClosed (⋃ A ∈ E, A.carrier) :=
+    hE.isClosed_biUnion fun A _ => (P.disk A.form).compact.isClosed.vadd A.anchor
+  rw [mem_interior]
+  refine ⟨Metric.ball w 1 \ ⋃ A ∈ E, A.carrier, ?_, Metric.isOpen_ball.sdiff hclosed, ?_⟩
+  · rintro x ⟨hx, hxE⟩
+    have hcov : x ∈ support S.tiles := by rw [S.cover]; trivial
+    simp only [support, mem_iUnion] at hcov
+    obtain ⟨A, hA, hxA⟩ := hcov
+    by_cases hc : A ∈ Substitution.crown S.tiles w
+    · simp only [support, mem_iUnion]; exact ⟨A, hc, hxA⟩
+    · exfalso; apply hxE
+      simp only [mem_iUnion]
+      exact ⟨A, ⟨⟨hA, x, hxA, Metric.ball_subset_closedBall hx⟩, hc⟩, hxA⟩
+  · refine ⟨Metric.mem_ball_self one_pos, ?_⟩
+    simp only [mem_iUnion, not_exists]
+    intro A hA hwA
+    exact hA.2 ⟨hA.1.1, hwA⟩
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+translating a placed tile translates its carrier. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_tile_carrier_translate (X : PlacedTile P) (u : Pt) :
+    (X.translate u).carrier = u +ᵥ X.carrier := by
+  show (u +ᵥ X.anchor) +ᵥ _ = u +ᵥ (X.anchor +ᵥ _)
+  rw [vadd_vadd]; rfl
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+a tile of an interior-disjoint set containing an interior point of the support of a finite subfamily
+belongs to that subfamily. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_mem_of_interior
+    {D F : Set (PlacedTile P)} (hD : DisjointInteriors D) (hFD : F ⊆ D)
+    (hF : F.Finite) {w : Pt} (hw : w ∈ interior (support F)) {Y : PlacedTile P} (hY : Y ∈ D)
+    (hwY : w ∈ Y.carrier) : Y ∈ F := by
+  by_contra hYF
+  have hreg : closure (interior Y.carrier) = Y.carrier := by
+    show closure (interior (Y.anchor +ᵥ (P.disk Y.form).carrier)) = Y.anchor +ᵥ (P.disk Y.form).carrier
+    rw [interior_vadd, closure_vadd, (P.disk Y.form).regular_closed]
+  rw [← hreg] at hwY
+  obtain ⟨z, hzV, hzY⟩ := mem_closure_iff.mp hwY _ isOpen_interior hw
+  have hsupp : support F = closure (⋃ Z ∈ F, interior Z.carrier) := by
+    rw [hF.closure_biUnion]
+    apply iUnion₂_congr
+    intro Z _
+    show Z.anchor +ᵥ (P.disk Z.form).carrier = closure (interior (Z.anchor +ᵥ (P.disk Z.form).carrier))
+    rw [interior_vadd, closure_vadd, (P.disk Z.form).regular_closed]
+  have hz : z ∈ closure (⋃ Z ∈ F, interior Z.carrier) := hsupp ▸ interior_subset hzV
+  obtain ⟨y, ⟨hyV, hyY⟩, hyU⟩ := mem_closure_iff.mp hz _ (isOpen_interior.inter isOpen_interior) ⟨hzV, hzY⟩
+  simp only [mem_iUnion] at hyU
+  obtain ⟨Z, hZ, hyZ⟩ := hyU
+  have hne : Y ≠ Z := fun h => hYF (h ▸ hZ)
+  exact Set.disjoint_left.mp (hD hY (hFD hZ) hne) hyY hyZ
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+supertiles have disjoint interiors. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_supertile_disjoint (τ : Substitution P) (n : ℕ) (p : P.Form) :
+    DisjointInteriors (τ.supertile n p) := by
+  cases n with
+  | zero =>
+    change DisjointInteriors ({⟨p, 0⟩} : Set (PlacedTile P))
+    exact Set.pairwiseDisjoint_singleton _ _
+  | succ n => exact ((τ.pow (n + 1) (Nat.succ_pos n)).rule p).disjoint
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+a listed vertex lies in the carrier. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_vertex_mem_carrier (X : PlacedTile P) (i : Fin (P.disk X.form).n) :
+    X.vertex i ∈ X.carrier := by
+  refine ⟨(P.disk X.form).vertex i, ?_, rfl⟩
+  apply (P.disk X.form).compact.isClosed.frontier_subset
+  rw [(P.disk X.form).frontier_eq]
+  exact Set.mem_iUnion.mpr ⟨i, left_mem_segment ℝ _ _⟩
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+the support of a translated set is the translated support. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_support_translate (S : Set (PlacedTile P)) (v : Pt) :
+    support (translateSet v S) = v +ᵥ support S := by
+  simp only [support, translateSet, biUnion_image, Set.vadd_set_iUnion₂,
+    hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_tile_carrier_translate]
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+composition of translations of tile sets. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_translateSet_translateSet (S : Set (PlacedTile P)) (v w : Pt) :
+    translateSet w (translateSet v S) = translateSet (w + v) S := by
+  simp only [translateSet, image_image]
+  congr 1
+  funext X
+  exact PlacedTile.ext rfl (by simp [PlacedTile.translate, add_assoc])
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+a full crown of a tiling which occurs in a supertile is an allowed crown. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_allowed_crown (τ : Substitution P) (S : PlaneTiling P) (w : Pt)
+    (hv : Substitution.IsVertexOf S.tiles w) {n : ℕ} {p : P.Form} {u : Pt}
+    (hu : translateSet u (Substitution.crown S.tiles w) ⊆ τ.supertile n p) :
+    τ.IsAllowedCrown (translateSet (-w) (Substitution.crown S.tiles w)) := by
+  obtain ⟨X, hX, i, rfl⟩ := hv
+  set w := X.vertex i with hw
+  have hXc : X ∈ Substitution.crown S.tiles w := ⟨hX, hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_vertex_mem_carrier X i⟩
+  have hcrown : Substitution.crown (τ.supertile n p) (u + w) =
+      translateSet u (Substitution.crown S.tiles w) := by
+    ext Y
+    constructor
+    · rintro ⟨hY, hwY⟩
+      have hint : u + w ∈ interior (support (translateSet u (Substitution.crown S.tiles w))) := by
+        rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_support_translate, interior_vadd]
+        exact vadd_mem_vadd_set (hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step3_crown_nhds S w)
+      exact hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_mem_of_interior
+        (hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_supertile_disjoint τ n p) hu
+        ((hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step3_crown_finite S w).image _) hint hY hwY
+    · rintro hY
+      refine ⟨hu hY, ?_⟩
+      obtain ⟨Z, hZ, rfl⟩ := hY
+      rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_tile_carrier_translate]
+      exact vadd_mem_vadd_set hZ.2
+  refine ⟨n, p, u + w, ⟨X.translate u, hu ⟨X, hXc, rfl⟩, i, ?_⟩, ?_⟩
+  · show (u +ᵥ X.anchor) +ᵥ (P.disk X.form).vertex i = u + (X.anchor +ᵥ (P.disk X.form).vertex i)
+    simp only [vadd_eq_add, add_assoc]
+  · rw [hcrown, hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_translateSet_translateSet]
+    congr 1
+    abel
+
+/-- Step 5 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+a translate of a subfamily of an interior-disjoint side-to-side family is again interior-disjoint
+and side-to-side. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step5_translate_subset
+    {D F : Set (PlacedTile P)} (hD : DisjointInteriors D) (hDs : SideToSideSet D) (hFD : F ⊆ D) (u : Pt) :
+    DisjointInteriors (translateSet u F) ∧ SideToSideSet (translateSet u F) := by
+  constructor
+  · rintro _ ⟨X, hX, rfl⟩ _ ⟨Y, hY, rfl⟩ hne
+    have hXY : X ≠ Y := fun h => hne (h ▸ rfl)
+    have hd := hD (hFD hX) (hFD hY) hXY
+    dsimp [Function.onFun] at hd ⊢
+    rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_tile_carrier_translate,
+      hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_tile_carrier_translate,
+      interior_vadd, interior_vadd]
+    exact (Set.disjoint_vadd_set).mpr hd
+  · rintro _ ⟨X, hX, rfl⟩ _ ⟨Y, hY, rfl⟩ i j hover
+    rw [dissection_preserves_sts_sofic_step1_local_rule_side_translate,
+      dissection_preserves_sts_sofic_step1_local_rule_side_translate] at hover ⊢
+    have hover' := dissection_preserves_sts_sofic_step1_local_rule_overlap_vadd (-u) hover
+    rw [neg_vadd_vadd, neg_vadd_vadd] at hover'
+    rw [hDs X (hFD hX) Y (hFD hY) i j hover']
+
+/-- Step 5 of the blueprint proof of `hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy`:
+choosing the record of the actual crowns. For a grouped tile whose scattering lies in a substitution
+tiling `S` of an STS substitution, the vector of actual full crowns of `S` at its marked vertices is
+a jointly allowed catalogue entry. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step5_actual_catalog
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (S : PlaneTiling P) (hS : τ.IsSubstitutionTiling S)
+    (A : PlacedTile C.Q) (hA : hC.groupedFamily.scatterTile A ⊆ S.tiles) :
+    ∃ γ : hereditary_sts_substitution_sofic_Catalog τ hsts C A.form,
+      ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C A.form),
+        (γ.1 v).1 = translateSet (-(A.anchor + v.1)) (Substitution.crown S.tiles (A.anchor + v.1)) := by
+  set a := A.anchor with ha
+  set q := A.form with hq
+  have hvert : ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C q),
+      Substitution.IsVertexOf S.tiles (a + v.1) := by
+    intro v
+    have hv := v.2
+    simp only [hereditary_sts_substitution_sofic_macroVertices, Set.Finite.mem_toFinset,
+      Set.mem_setOf_eq] at hv
+    obtain ⟨B, hB, i, hi⟩ := hv
+    refine ⟨B.translate a, hA ⟨B, hB, rfl⟩, i, ?_⟩
+    rw [← hi]
+    show (a +ᵥ B.anchor) +ᵥ (P.disk B.form).vertex i = a + (B.anchor +ᵥ (P.disk B.form).vertex i)
+    simp only [vadd_eq_add, add_assoc]
+  let F : Set (PlacedTile P) := hC.groupedFamily.scatterTile A ∪
+    ⋃ v : ↥(hereditary_sts_substitution_sofic_macroVertices C q), Substitution.crown S.tiles (a + v.1)
+  have hFS : F ⊆ S.tiles := by
+    refine union_subset hA (iUnion_subset fun v => fun X hX => hX.1)
+  have hFfin : F.Finite := by
+    refine Set.Finite.union ?_ (Set.finite_iUnion fun v =>
+      hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step3_crown_finite S _)
+    exact (C.Δ q).finite.image _
+  obtain ⟨n, p, u, hu⟩ := hS F hFS hFfin
+  have hcrownF : ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C q),
+      Substitution.crown S.tiles (a + v.1) ⊆ F := fun v =>
+    subset_union_right.trans' (subset_iUnion (fun v : ↥(hereditary_sts_substitution_sofic_macroVertices C q) =>
+      Substitution.crown S.tiles (a + v.1)) v)
+  have hK : ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C q),
+      translateSet (-(a + v.1)) (Substitution.crown S.tiles (a + v.1)) ∈
+        hereditary_sts_substitution_sofic_fullCrowns τ hsts := by
+    intro v
+    simp only [hereditary_sts_substitution_sofic_fullCrowns, Finset.mem_filter, Set.Finite.mem_toFinset,
+      Set.mem_setOf_eq]
+    refine ⟨hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_allowed_crown τ S _
+      (hvert v) ((image_mono (hcrownF v)).trans hu), ?_⟩
+    rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_support_translate,
+      interior_vadd]
+    have h := vadd_mem_vadd_set (a := -(a + v.1))
+      (hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step3_crown_nhds S (a + v.1))
+    simpa only [vadd_eq_add, neg_add_cancel] using h
+  let γ : hereditary_sts_substitution_sofic_CrownVector τ hsts C q := fun v => ⟨_, hK v⟩
+  have htr : ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C q),
+      translateSet v.1 (γ v).1 = translateSet (-a) (Substitution.crown S.tiles (a + v.1)) := by
+    intro v
+    show translateSet v.1 (translateSet (-(a + v.1)) _) = _
+    rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_translateSet_translateSet]
+    congr 1
+    abel
+  have hcollar : hereditary_sts_substitution_sofic_collar τ hsts C q γ = translateSet (-a) F := by
+    have hF' : translateSet (-a) F = translateSet (-a) (hC.groupedFamily.scatterTile A) ∪
+        ⋃ v : ↥(hereditary_sts_substitution_sofic_macroVertices C q),
+          translateSet (-a) (Substitution.crown S.tiles (a + v.1)) := by
+      simp only [F, translateSet, image_union, image_iUnion]
+    rw [hF', hereditary_sts_substitution_sofic_collar]
+    congr 1
+    swap
+    · exact iUnion_congr htr
+    show (C.Δ q).tiles = translateSet (-a) (translateSet a (C.Δ q).tiles)
+    rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_translateSet_translateSet,
+      neg_add_cancel, cc_translateSet_zero]
+  have hDS := hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step5_translate_subset
+    S.disjoint (hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step2_levels_sts τ hsts S hS)
+    hFS (-a)
+  refine ⟨⟨γ, ?_, ?_, ?_, ?_⟩, fun v => rfl⟩
+  · rw [hcollar]; exact hDS.1
+  · rw [hcollar]; exact hDS.2
+  · intro v
+    rw [hcollar, htr]
+    ext Y
+    simp only [Substitution.crown, Set.mem_setOf_eq, cc_mem_translateSet, neg_neg]
+    rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_tile_carrier_translate]
+    constructor
+    · rintro ⟨hYF, hvY⟩
+      exact ⟨hFS hYF, by simpa using vadd_mem_vadd_set (a := a) hvY⟩
+    · rintro ⟨hYS, hvY⟩
+      refine ⟨hcrownF v ⟨hYS, by
+        rw [hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_tile_carrier_translate]
+        exact hvY⟩, ?_⟩
+      have h := vadd_mem_vadd_set (a := -a) hvY
+      simpa using h
+  · refine ⟨n, p, u + a, ?_⟩
+    rw [hcollar, hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step4_translateSet_translateSet,
+      add_neg_cancel_right]
+    exact hu
+
 /-- Step 10a of the reviewed proof: repeatedly compose the substitution
 tiling, lift the `m`-spaced levels through grouping, and assign their genuine
 jointly allowed full crown vectors. -/
@@ -3799,7 +4107,33 @@ private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy
     (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T) :
     Nonempty (hereditary_sts_substitution_sofic_GenuineCrownHierarchy
       τ hsts C m hC T) := by
-  sorry
+  have _ := hher
+  obtain ⟨seqP, hseq0, hseq, hsub⟩ :=
+    hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step1_power_hierarchy τ m T hT
+  obtain ⟨seq', hcomp, hscat, hsts'⟩ := Grouping.hierarchy_lift_sts τ hC.groupedSubstitution hC.singleton
+    seqP hseq (fun n => hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step2_levels_sts
+      τ hsts (seqP n) (hsub n))
+  have hcat : ∀ n (A : PlacedTile C.Q), A ∈ (seq' n).tiles →
+      ∃ γ : hereditary_sts_substitution_sofic_Catalog τ hsts C A.form,
+        ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C A.form),
+          (γ.1 v).1 = translateSet (-(A.anchor + v.1))
+            (Substitution.crown (hC.groupedFamily.scatter (seq' n).tiles) (A.anchor + v.1)) := by
+    intro n A hA
+    have hscat' : hC.groupedFamily.scatter (seq' n).tiles = (seqP n).tiles := hscat n
+    rw [hscat']
+    refine hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy_step5_actual_catalog
+      τ hsts C m hC (seqP n) (hsub n) A ?_
+    rw [← hscat']
+    exact fun X hX => Set.mem_iUnion₂.mpr ⟨A, hA, hX⟩
+  exact ⟨{
+    seq := seq'
+    composition := hcomp
+    sts := hsts'
+    bottom := by
+      have h0 : hC.groupedFamily.scatter (seq' 0).tiles = (seqP 0).tiles := hscat 0
+      rw [h0, hseq0]
+    gamma := fun n A hA => Classical.choose (hcat n A hA)
+    gamma_actual := fun n A hA => Classical.choose_spec (hcat n A hA) }⟩
 
 /-- Exact provenance of one extended tile through the chosen genuine grouped
 hierarchy.  Besides generation and positions, it records at every ancestor

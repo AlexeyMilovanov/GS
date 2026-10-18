@@ -5198,6 +5198,293 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_
     rw [vadd_vadd]
     rfl
 
+open private segRatio toC toC_smul toC_add from Tilings.Geometry.Grouping.Foundation in
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+"both disks are listed counterclockwise" -- the angle ratio of a segment seen from a point is invariant
+under a common positive scaling and translation. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_segRatio_affine
+    (s : ℝ) (hs : s ≠ 0) (v a b p : Pt) :
+    segRatio (s • a + v) (s • b + v) (s • p + v) = segRatio a b p := by
+  unfold segRatio
+  rw [toC_add, toC_add, toC_add, toC_smul, toC_smul, toC_smul]
+  have hs' : (s : ℂ) ≠ 0 := by exact_mod_cast hs
+  rw [show (s : ℂ) * toC b + toC v - ((s : ℂ) * toC p + toC v) = (s : ℂ) * (toC b - toC p) by ring,
+    show (s : ℂ) * toC a + toC v - ((s : ℂ) * toC p + toC v) = (s : ℂ) * (toC a - toC p) by ring,
+    mul_div_mul_left _ _ hs']
+
+open private wind from Tilings.Geometry.Grouping.Foundation in
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+"positive scaling and translation preserve this orientation" -- the winding sum is invariant under a
+common nonzero scaling and translation of the polygon and the point. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_wind_affine
+    {m : ℕ} (s : ℝ) (hs : s ≠ 0) (v : Pt) (c : Fin m → Pt) (p : Pt) :
+    wind (fun i => s • c i + v) (s • p + v) = wind c p := by
+  unfold wind
+  simp only [existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_segRatio_affine
+    s hs]
+
+open private wind existsRoutingAfterPower_step4_routes_step6_R3_scaleDisk from Tilings.Geometry.Grouping.Foundation in
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+a positive scaling of a counterclockwise polygonal disk is counterclockwise. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_ccw_scale
+    (A : PolygonalDisk) (s : ℝ) (hs : 0 < s) (hA : pdCCW A) :
+    pdCCW (existsRoutingAfterPower_step4_routes_step6_R3_scaleDisk A s hs.ne') := by
+  intro x hx
+  change x ∈ interior (s • A.carrier) at hx
+  rw [interior_smul₀ hs.ne'] at hx
+  obtain ⟨y, hy, rfl⟩ := hx
+  have := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_wind_affine
+    s hs.ne' 0 A.vertex y
+  simp only [add_zero] at this
+  change wind (fun i => s • A.vertex i) (s • y) = _
+  rw [this]; exact hA y hy
+
+open private wind from Tilings.Geometry.Grouping.Foundation in
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+a translate of a counterclockwise polygonal disk is counterclockwise. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_ccw_translate
+    (C : PolygonalDisk) (v : Pt) (hC : pdCCW C) :
+    pdCCW (pdTranslate C v) := by
+  intro x hx
+  change x ∈ interior (v +ᵥ C.carrier) at hx
+  rw [interior_vadd] at hx
+  obtain ⟨y, hy, rfl⟩ := hx
+  have := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_wind_affine
+    1 one_ne_zero v C.vertex y
+  simp only [one_smul] at this
+  change wind (fun i => v +ᵥ C.vertex i) (v +ᵥ y) = _
+  simp only [vadd_eq_add]
+  rw [show (fun i => v + C.vertex i) = fun i => C.vertex i + v from funext fun i => add_comm _ _,
+    add_comm v y, this]
+  exact hC y hy
+
+open private pgLoop pgL pd_annulus toC existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one
+  existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+  from Tilings.Geometry.Grouping.Foundation in
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+"choose compatible boundary loops in the annulus" -- for two nested counterclockwise polygonal disks the
+two counterclockwise uniform boundary loops are freely homotopic in the closed annulus (the reversed
+inner loop has the opposite degree about an inner point). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step4_annulus
+    (A C : PolygonalDisk) (hA : pdCCW A) (hC : pdCCW C) (hCA : C.carrier ⊆ interior A.carrier) :
+    LoopsHomotopicIn (A.carrier \ interior C.carrier) (pgLoop (pgL A)) (pgLoop (pgL C)) := by
+  obtain ⟨c, hcC⟩ := C.interior_nonempty
+  have hcA : c ∈ interior A.carrier := hCA (interior_subset hcC)
+  obtain ⟨gammaC, hgammaC, hAnn⟩ := pd_annulus A C hCA
+  rcases hgammaC with h | h
+  · rw [← h]; exact hAnn
+  · exfalso
+    obtain ⟨ThetaA, hThetaAC, hThetaA, hThetaAIncr⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one A hA hcA
+    obtain ⟨ThetaC, hThetaCC, hThetaC, hThetaCIncr⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one C hC hcC
+    let Psi : ℝ → ℂ := fun t => ThetaC (-t)
+    have hPsiC : Continuous Psi := hThetaCC.comp continuous_neg
+    have hPsi : ∀ t, Complex.exp (Psi t) = toC (gammaC t - c) := by
+      intro t
+      dsimp only [Psi]
+      rw [hThetaC, h]
+    have hPsiIncr : ∀ t, Psi (t + 1) =
+        Psi t + (-1 : ℤ) * (2 * Real.pi * Complex.I) := by
+      intro t
+      dsimp only [Psi]
+      have hs := hThetaCIncr (-(t + 1))
+      simp only [show -(t + 1) + 1 = -t by ring] at hs
+      rw [hs]
+      push_cast
+      ring
+    have hdeg :=
+      existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
+        hAnn (fun hcU => hcU.2 hcC) hThetaAC hThetaA hPsiC hPsi hThetaAIncr hPsiIncr
+    omega
+
+open private pgLoop pgL pgLoop_eq_of pgL_length finRotate_val_eq_mod from Tilings.Geometry.Grouping.Foundation in
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+the uniform boundary loop passes through the midpoint of the `i`-th listed side at parameter
+`(i + 1/2) / n`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step4_mid
+    (B : PolygonalDisk) (i : Fin B.n) :
+    pgLoop (pgL B) (((i : ℝ) + 1 / 2) / B.n) = diskSideMid B i := by
+  have hn : 0 < B.n := by have := B.three_le; omega
+  have hnR : (0 : ℝ) < B.n := by exact_mod_cast hn
+  have hlen : ((pgL B).length : ℝ) = B.n := by rw [pgL_length]
+  have hmul : ((pgL B).length : ℝ) * (((i : ℝ) + 1 / 2) / B.n) = (i : ℝ) + 1 / 2 := by
+    rw [hlen]; field_simp
+  have hi : (i : ℝ) + 1 < B.n + 1/2 := by
+    have : (i : ℝ) + 1 ≤ B.n := by exact_mod_cast i.isLt
+    linarith
+  rw [pgLoop_eq_of (by rw [pgL_length]; exact hn) (i := i) ?_ (by rw [hmul]; linarith)
+    (by rw [hmul]; linarith)]
+  · rw [hmul]
+    have h1 : (pgL B).getD i 0 = B.vertex i := by
+      rw [List.getD_eq_getElem _ _ (by rw [pgL_length]; exact i.isLt)]
+      simp [pgL]
+    have h2 : (pgL B).getD ((i + 1) % (pgL B).length) 0 = B.vertex (finRotate B.n i) := by
+      rw [List.getD_eq_getElem _ _ (Nat.mod_lt _ (by rw [pgL_length]; exact hn))]
+      simp only [pgL, List.getElem_ofFn, List.length_ofFn]
+      congr 1
+      ext
+      simp [finRotate_val_eq_mod]
+    rw [h1, h2, show (i : ℝ) + 1 / 2 - (i : ℝ) = 1/2 by ring]
+    unfold diskSideMid midpoint
+    norm_num
+  · constructor
+    · positivity
+    · rw [div_lt_one hnR]; linarith
+
+open private pgLoop pgL existsRoutingAfterPower_step4_routes_step6_R3_scaleDisk
+  from Tilings.Geometry.Grouping.Foundation in
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+"for two nested counterclockwise polygonal disks, choose compatible period-one boundary loops in the
+annulus" -- for a positive scaling of a counterclockwise disk `A` strictly containing a translate of a
+counterclockwise disk `C`, there are boundary loops, freely homotopic in the annulus, passing through the
+transported side midpoints at the parameters `(i + 1/2) / n`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step4_loops
+    (A C : PolygonalDisk) (s : ℝ) (hs : 0 < s) (v : Pt)
+    (hA : pdCCW A) (hC : pdCCW C) (hCA : v +ᵥ C.carrier ⊆ interior (s • A.carrier)) :
+    ∃ γo γi : ℝ → Pt, IsLoopParam (frontier (s • A.carrier)) γo ∧
+      IsLoopParam (frontier (v +ᵥ C.carrier)) γi ∧
+      LoopsHomotopicIn (s • A.carrier \ interior (v +ᵥ C.carrier)) γo γi ∧
+      (∀ i : Fin A.n, γo (((i : ℝ) + 1 / 2) / A.n) = s • diskSideMid A i) ∧
+      ∀ j : Fin C.n, γi (((j : ℝ) + 1 / 2) / C.n) = v +ᵥ diskSideMid C j := by
+  let A' := existsRoutingAfterPower_step4_routes_step6_R3_scaleDisk A s hs.ne'
+  let C' := pdTranslate C v
+  refine ⟨pgLoop (pgL A'), pgLoop (pgL C'), pgLoop_isLoopParam A', pgLoop_isLoopParam C',
+    existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step4_annulus A' C'
+      (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_ccw_scale
+        A s hs hA)
+      (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step2_ccw_translate
+        C v hC) hCA,
+    fun i => ?_, fun j => ?_⟩
+  · refine (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step4_mid
+      A' i).trans ?_
+    change midpoint ℝ (s • A.vertex i) (s • A.vertex (finRotate A.n i)) = s • midpoint ℝ _ _
+    simp only [midpoint_eq_smul_add, smul_add, smul_comm s]
+  · refine (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step4_mid
+      C' j).trans ?_
+    change midpoint ℝ (v +ᵥ C.vertex j) (v +ᵥ C.vertex (finRotate C.n j)) = v +ᵥ midpoint ℝ _ _
+    simp only [vadd_eq_add, midpoint_eq_smul_add, smul_add, invOf_eq_inv]
+    module
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+"the existing clearance supplies strictly positive distance of every central point from the complement
+of the retained region" -- the central child lies in the interior of the retained region. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step3_central_interior
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) (l : ℕ)
+    (α : g.GS.G.P'.Form) (hl : 0 < l) :
+    (emcsCentralPlaced τ g l α).carrier ⊆ interior (emcsRetained τ h g l α).region := by
+  obtain ⟨ρ, hρ, hclear⟩ := existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance τ h g
+  have hspec := (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose_spec
+  have hmem : emcsCentralPlaced τ g l α ∈ (emcsRetained τ h g l α).children.tiles := hspec.2.2.1 l α
+  intro x hx
+  have hxR : x ∈ (emcsRetained τ h g l α).region := by
+    rw [← (emcsRetained τ h g l α).support_eq]
+    exact Set.mem_biUnion hmem hx
+  have hpos : 0 < ρ * τ.θ ^ (g.GS.k * l) := mul_pos hρ (pow_pos (by linarith [τ.one_lt]) _)
+  have hxF : x ∉ frontier (emcsRetained τ h g l α).region := by
+    intro hF
+    have h0 := Metric.infDist_zero_of_mem hF
+    have := hclear l α hl x hx
+    linarith
+  rw [← self_diff_frontier]
+  exact ⟨hxR, hxF⟩
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+the boundary parameters `(i + 1/2) / n` increase with the side index. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_param_lt {n : ℕ} (hn : 0 < n) {a b : ℕ} (h : a < b) :
+    ((a : ℝ) + 1 / 2) / n < ((b : ℝ) + 1 / 2) / n := by
+  have : (a : ℝ) < b := by exact_mod_cast h
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  exact div_lt_div_of_pos_right (by linarith) hnR
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+the boundary parameters `(i + 1/2) / n` lie in the open unit interval. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_param_mem {n : ℕ} (a : Fin n) :
+    0 < ((a : ℝ) + 1 / 2) / n ∧ ((a : ℝ) + 1 / 2) / n < 1 := by
+  have hn : 0 < n := Fin.pos a
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+  have : (a : ℝ) + 1 ≤ n := by exact_mod_cast a.isLt
+  exact ⟨by positivity, by rw [div_lt_one hnR]; linarith⟩
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+"the outer marked midpoints occur in increasing parameter order" along the loop. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_outer {m n : ℕ} (γ : ℝ → Pt) (z : Fin n → Pt)
+    (hγ : ∀ i : Fin n, γ (((i : ℝ) + 1 / 2) / n) = z i) (a : Fin m → Fin n) (ha : StrictMono a) :
+    PointsInOrder γ (fun k => z (a k)) := by
+  refine ⟨fun k => (((a k : ℕ) : ℝ) + 1 / 2) / n, fun i j hij => ?_, fun i j => ?_, fun k => hγ (a k)⟩
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_param_lt (Fin.pos (a i)) (ha hij)
+  · have := (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_param_mem (a j)).2
+    have := (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_param_mem (a i)).1
+    linarith
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order`:
+"the cyclic injection `f` supplies a one-period strictly increasing lift of the corresponding inner
+midpoint parameters" (vacuous for zero points). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_inner {m n : ℕ} (γ : ℝ → Pt) (hper : Function.Periodic γ 1) (z : Fin n → Pt)
+    (hγ : ∀ i : Fin n, γ (((i : ℝ) + 1 / 2) / n) = z i) (b : Fin m → Fin n) (hb : Function.Injective b)
+    (hcyc : ∀ i j k : Fin m, i < j → j < k → CycLt3 (b i) (b j) (b k)) :
+    PointsInOrder γ (fun k => z (b k)) := by
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · exact ⟨Fin.elim0, fun i => Fin.elim0 i, fun i => Fin.elim0 i, fun i => Fin.elim0 i⟩
+  set i0 : Fin m := ⟨0, hm⟩
+  set r : Fin m → ℝ := fun k => (((b k : ℕ) : ℝ) + 1 / 2) / n with hr
+  set w : Fin m → ℝ := fun k => if (b k : ℕ) < b i0 then 1 else 0 with hw
+  have hn : 0 < n := Fin.pos (b i0)
+  have hrlt : ∀ i j, (b i : ℕ) < b j → r i < r j := fun i j h => existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_param_lt hn h
+  have hrmem : ∀ k, 0 < r k ∧ r k < 1 := fun k => existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_param_mem (b k)
+  have hbne : ∀ i j, i ≠ j → (b i : ℕ) ≠ b j := fun i j h h' => h (hb (Fin.ext h'))
+  have hi0 : ∀ k, i0 ≤ k := fun k => Fin.mk_le_of_le_val (Nat.zero_le _)
+  refine ⟨fun k => r k + w k, fun i j hij => ?_, fun i j => ?_, fun k => ?_⟩
+  · simp only [hw]
+    by_cases hi : (b i : ℕ) < b i0 <;> by_cases hj : (b j : ℕ) < b i0 <;> simp only [hi, hj, if_true, if_false]
+    · -- both below b0
+      have hipos : i0 < i := lt_of_le_of_ne (hi0 i) (fun h => by rw [← h] at hi; omega)
+      have hc := hcyc i0 i j hipos hij
+      unfold CycLt3 at hc
+      have : (b i : ℕ) < b j := by omega
+      linarith [hrlt i j this]
+    · -- b i < b0 ≤ b j : impossible
+      exfalso
+      have hipos : i0 < i := lt_of_le_of_ne (hi0 i) (fun h => by rw [← h] at hi; omega)
+      have hc := hcyc i0 i j hipos hij
+      have hne := hbne i0 j (ne_of_lt (hipos.trans hij))
+      unfold CycLt3 at hc
+      omega
+    · have := (hrmem i).2; have := (hrmem j).1; linarith
+    · rcases eq_or_lt_of_le (hi0 i) with h | h
+      · have hjpos : i0 < j := h ▸ hij
+        have hne := hbne i0 j (ne_of_lt hjpos)
+        rw [← h]
+        have : (b i0 : ℕ) < b j := by omega
+        linarith [hrlt i0 j this]
+      · have hc := hcyc i0 i j h hij
+        have hne := hbne i0 i (ne_of_lt h)
+        have hne' := hbne i0 j (ne_of_lt (h.trans hij))
+        unfold CycLt3 at hc
+        have : (b i : ℕ) < b j := by omega
+        linarith [hrlt i j this]
+  · -- every value lies in [r i0, r i0 + 1)
+    have hbound : ∀ k, r i0 ≤ r k + w k ∧ r k + w k < r i0 + 1 := by
+      intro k
+      simp only [hw]
+      by_cases hk : (b k : ℕ) < b i0
+      · simp only [hk, if_true]
+        have := hrlt k i0 hk; have := (hrmem k).1; have := (hrmem i0).2
+        constructor <;> linarith
+      · simp only [hk, if_false, add_zero]
+        rcases eq_or_lt_of_le (not_lt.1 hk) with h | h
+        · have : r k = r i0 := by simp only [hr]; rw [h]
+          have := (hrmem i0).2
+          constructor <;> linarith
+        · have := hrlt i0 k h; have := (hrmem k).2; have := (hrmem i0).1
+          constructor <;> linarith
+    have := hbound i; have := hbound j
+    linarith
+  · simp only [hw]
+    split_ifs
+    · rw [hper]; exact hγ (b k)
+    · rw [add_zero]; exact hγ (b k)
+
 /-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
 "the print slots of `α` send its marked sides injectively to contact sides of the central child,
 preserving cyclic order and in planar matching order with the marked sides (both disks are listed
@@ -5211,7 +5498,37 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_
     (hcyc : CyclicOrderPreservingOn (emcsMarkedSides τ g α) f) :
     PhysicalPrintOrder (emcsRetained τ h g l α).region (g.GS.G.P'.disk α)
       (τ.θ ^ (g.GS.k * l)) (emcsCentralPlaced τ g l α) (emcsMarkedSides τ g α) f := by
-  sorry
+  classical
+  set s : ℝ := τ.θ ^ (g.GS.k * l) with hs_def
+  have hs : 0 < s := pow_pos (by linarith [τ.one_lt]) _
+  have hreg : (emcsRetained τ h g l α).region = s • (g.GS.G.P'.disk α).carrier :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose_spec.1 l α
+  have hint := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step3_central_interior
+    τ h g l α hl
+  rw [hreg] at hint
+  rw [PhysicalPrintOrder, hreg]
+  set β := (emcsCentralForm τ g)^[l] α with hβ
+  set v := emcsCentralAnchor τ g l α with hv
+  obtain ⟨γo, γi, hγo, hγi, hhom, hmo, hmi⟩ :=
+    existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step4_loops
+      (g.GS.G.P'.disk α) (g.GS.G.P'.disk β) s hs v (g.ccw α) (g.ccw β) hint
+  set a := (emcsMarkedSides τ g α).orderEmbOfFin rfl with ha
+  refine ⟨γo, γi, hγo, hγi, hhom, ?_, ?_⟩
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_outer
+      γo _ hmo (fun k => a k) a.strictMono
+  · refine existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order_step5_inner
+      γi hγi.2.1 (fun j => v +ᵥ diskSideMid (g.GS.G.P'.disk β) j) hmi (fun k => f (a k)) ?_ ?_
+    · intro i j hij
+      have hai := Finset.orderEmbOfFin_mem (emcsMarkedSides τ g α) rfl i
+      have haj := Finset.orderEmbOfFin_mem (emcsMarkedSides τ g α) rfl j
+      exact a.injective (hf hai haj hij)
+    · intro i j k hij hjk
+      have hai := Finset.orderEmbOfFin_mem (emcsMarkedSides τ g α) rfl i
+      have haj := Finset.orderEmbOfFin_mem (emcsMarkedSides τ g α) rfl j
+      have hak := Finset.orderEmbOfFin_mem (emcsMarkedSides τ g α) rfl k
+      refine hcyc _ hai _ haj _ hak (Or.inl ⟨?_, ?_⟩)
+      · exact a.strictMono hij
+      · exact a.strictMono hjk
 
 /-- Step 3 of `lem:certificate-exists`: under injectivity of `g.large` (implied by the disjoint
 centre squares of `existsMacroCertificate_seed1_grouping`), `emcsMarkedSides` marks every side of

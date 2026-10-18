@@ -44913,6 +44913,499 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R6_assemble
   intro b r x hx y hy
   exact (mul_le_mul_of_nonneg_right hc₀P hs.le).trans (hballP b r x hx y hy)
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"Fix the normalized collar length `κ < ρ/4` once and for all".  With the canonical radius
+`κ = ρ/4` (`ρ` the uniform centre clearance of `Rs.clearance`), the disk of radius `κ s` about the
+centre lies in the open region and is at distance at least `(ρ/2) s` from every outer port. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step1_ballPortClearance
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ} :
+    ∀ (l : ℕ) (_hl : 0 < l) (α : Rs.GS.G.P'.Form)
+      (ports : existsRoutingAfterPower_PortData τ M Rs l α cp),
+      Metric.closedBall (Rs.centre l α)
+          (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs * τ.θ ^ (Rs.GS.k * l)) ⊆
+          interior (Rs.retained l α).region ∧
+        ∀ b r, ∀ x ∈ Metric.closedBall (Rs.centre l α)
+            (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs * τ.θ ^ (Rs.GS.k * l)),
+          ∀ y ∈ ports.port b r,
+            existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs / 2 *
+              τ.θ ^ (Rs.GS.k * l) ≤ dist x y := by
+  let ρ := existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs
+  have hρ := (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).1
+  have hclear := (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).2
+  intro l hl α ports
+  let s := τ.θ ^ (Rs.GS.k * l)
+  let c := Rs.centre l α
+  have hs : 0 < s := pow_pos (lt_trans zero_lt_one τ.one_lt) _
+  have hR : 0 < Rs.R α := by
+    have hK : (0 : ℝ) ≤ M.K0 := Nat.cast_nonneg _
+    have hlarge := Rs.R_large α
+    have hD := M.D_pos
+    nlinarith
+  have hhalf : 0 ≤ (Rs.N α : ℝ) * Rs.R α / 2 := by positivity
+  have hcSquare : c ∈ square c ((Rs.N α : ℝ) * Rs.R α / 2) := by
+    exact ⟨by simp [hhalf], by simp [hhalf]⟩
+  have hcCentral : c ∈ (Rs.central l α).carrier := by
+    rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_scatter_carrier,
+      Rs.central_scatter l α hl, ← (Rs.annulus l α hl).L.carrier_eq]
+    exact (Rs.annulus l α hl).L_lower hcSquare
+  have hcRegion : c ∈ (Rs.retained l α).region := by
+    rw [← (Rs.retained l α).support_eq]
+    exact carrier_subset_support (Rs.central_mem l α) hcCentral
+  have hcompact : IsCompact (Rs.retained l α).region := by
+    rw [Rs.region_eq]
+    exact (Rs.GS.G.P'.disk α).compact.smul s
+  obtain ⟨z, hz, hzdist⟩ := hcompact.exists_mem_frontier_infDist_compl_eq_dist hcRegion
+  have hclearc : ρ * s ≤
+      Metric.infDist c (frontier (Rs.retained l α).region) := hclear l α hl c hcCentral
+  have hclearComp : ρ * s ≤ Metric.infDist c ((Rs.retained l α).region)ᶜ := by
+    calc
+      ρ * s ≤ Metric.infDist c (frontier (Rs.retained l α).region) := hclearc
+      _ ≤ dist c z := Metric.infDist_le_dist_of_mem hz
+      _ = Metric.infDist c ((Rs.retained l α).region)ᶜ := hzdist.symm
+  have hball : Metric.closedBall c ((ρ / 4) * s) ⊆
+      interior (Rs.retained l α).region := by
+    intro x hx
+    have hcx : dist c x ≤ (ρ / 4) * s := by
+      rw [dist_comm]
+      exact Metric.mem_closedBall.1 hx
+    have hcx' : dist c x < ρ * s := by nlinarith
+    have hxRegion : x ∈ (Rs.retained l α).region :=
+      Metric.ball_infDist_compl_subset (Metric.mem_ball'.2 (hcx'.trans_le hclearComp))
+    have hxFrontier : x ∉ frontier (Rs.retained l α).region :=
+      Metric.notMem_of_dist_lt_infDist (hcx'.trans_le hclearc)
+    rw [← self_diff_frontier]
+    exact ⟨hxRegion, hxFrontier⟩
+  refine ⟨by
+    simpa [existsRoutingAfterPower_step4_routes_step6_R1_kappa, ρ] using hball, ?_⟩
+  intro b r x hx y hy
+  have hx' : x ∈ Metric.closedBall c ((ρ / 4) * s) := by
+    simpa [existsRoutingAfterPower_step4_routes_step6_R1_kappa, ρ] using hx
+  have hcx : dist c x ≤ (ρ / 4) * s := by
+    rw [dist_comm]
+    exact Metric.mem_closedBall.1 hx'
+  have hyFrontier : y ∈ frontier (Rs.retained l α).region := (ports.outer b r).1.2 hy
+  have hcy : ρ * s ≤ dist c y :=
+    hclearc.trans (Metric.infDist_le_dist_of_mem hyFrontier)
+  nlinarith [dist_triangle c x y]
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"Insert positive normal and radial collars ... The carrier of the prepared arc splits into three
+compact parts: the outer collar, the middle part and the inner radial collar."  Prepared normalized
+routes at a configuration `cfg`: the `R4_Good` clauses with clearance `δ`, together with the
+collar structure used for local stability.  Each route starts at the midpoint `x` of its port,
+its first segment is a collar `[x, x + v]` which, translated to the port midpoint of any nearby
+admissible configuration, enters the open parent disk; its last segment is the radial collar from
+`cfg.1 + (κ + h) u` to `cfg.1 + κ u` with `0 < h ≤ κ`; the outer collar keeps distance at least
+`κ + m` from the centre, and every middle segment keeps a ball of radius `m` inside the open disk
+and distance at least `κ + m` from the centre. -/
+private def existsRoutingAfterPower_step4_routes_step6_outerRouting_step2_prepared
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (cp : ℝ)
+    (α : Rs.GS.G.P'.Form) (κ δ m ε₀ : ℝ)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (perm : Fin (Rs.GS.G.P'.disk α).n → Equiv.Perm (Fin 4))
+    (γ : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc) : Prop :=
+  ∀ a, ∀ ha : a ∈ Rs.markedSides α, ∀ i,
+    ((γ a i).start ∈ segment ℝ (cfg.2.1 a i.castSucc).1 (cfg.2.1 a i.castSucc).2 ∧
+      (γ a i).stop = cfg.1 + κ • cfg.2.2 ⟨a, ha⟩ (perm a i) ∧
+      (γ a i).carrier \ {(γ a i).start} ⊆ interior (Rs.GS.G.P'.disk α).carrier ∧
+      Disjoint (γ a i).carrier (Metric.ball cfg.1 κ) ∧
+      (∀ b, ∀ hb : b ∈ Rs.markedSides α, ∀ j, (a, i) ≠ (b, j) →
+        ∀ x ∈ (γ a i).carrier,
+        (∀ y ∈ (γ b j).carrier, δ ≤ dist x y) ∧
+        ∀ y ∈ segment ℝ cfg.1 (cfg.1 + κ • cfg.2.2 ⟨b, hb⟩ (perm b j)), δ ≤ dist x y) ∧
+      ∀ b r, (b, r) ≠ (a, i.castSucc) → ∀ x ∈ (γ a i).carrier,
+        ∀ y ∈ segment ℝ (cfg.2.1 b r).1 (cfg.2.1 b r).2, δ ≤ dist x y) ∧
+    2 ≤ (γ a i).n ∧
+    (γ a i).pt 0 = existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg (⟨a, ha⟩, i) ∧
+    (∀ cfg' ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp κ α,
+      dist cfg cfg' < ε₀ → ∀ t : ℝ, 0 < t → t ≤ 1 →
+        existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i) +
+          t • ((γ a i).pt 1 - (γ a i).pt 0) ∈ interior (Rs.GS.G.P'.disk α).carrier) ∧
+    (∀ w ∈ (γ a i).seg 0, κ + m ≤ dist w cfg.1) ∧
+    (∀ k : Fin ((γ a i).n + 1), 1 ≤ k.val → k.val < (γ a i).n → ∀ w ∈ (γ a i).seg k,
+      Metric.ball w m ⊆ interior (Rs.GS.G.P'.disk α).carrier ∧ κ + m ≤ dist w cfg.1) ∧
+    ∃ h : ℝ, 0 < h ∧ h ≤ κ ∧
+      (γ a i).pt (Fin.last (γ a i).n).castSucc = cfg.1 + (κ + h) • cfg.2.2 ⟨a, ha⟩ (perm a i)
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"every realized normalized configuration satisfies the weak cyclic order condition
+`R2_WeakOrderAdmissible`" (quantitative angular order of the entrances; an inversion between
+different sector blocks would force two entrances within `172 D` of each other). -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder
+    (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    (hcp : 0 < cp) :
+    ∀ (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
+      (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+      (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl),
+        existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α
+          (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries) := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"Its ordered outer port points and inner points `b_i(z)` have disjoint simple polygonal arcs ...
+Insert positive normal and radial collars ... For one parameter tuple the compact arcs have
+positive mutual distance and positive distance from the annulus boundary off these endpoint
+collars."  Annular routing with prescribed collars at an admissible normalized configuration in
+weak cyclic order, for the canonical radius `κ = ρ/4`: prepared routes with positive clearance and
+positive collar margins exist. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_preparedOfWeakOrder
+    (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp
+      (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) α)
+    (horder : existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α cfg) :
+    ∃ δ > (0 : ℝ), ∃ m > (0 : ℝ), ∃ ε₀ > (0 : ℝ),
+      ∃ (perm : Fin (Rs.GS.G.P'.disk α).n → Equiv.Perm (Fin 4))
+        (γ : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc),
+        existsRoutingAfterPower_step4_routes_step6_outerRouting_step2_prepared τ M Rs cp α
+          (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) δ m ε₀ cfg perm γ := by
+  sorry
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"Routes are built for every parameter in the closure of the set of realized tuples": since the
+weak order is closed, it holds on the whole admissible compactum, so prepared routes exist at every
+admissible normalized configuration. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_preparedRoutes
+    (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
+    (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
+    (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp
+      (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) α) :
+    ∃ δ > (0 : ℝ), ∃ m > (0 : ℝ), ∃ ε₀ > (0 : ℝ),
+      ∃ (perm : Fin (Rs.GS.G.P'.disk α).n → Equiv.Perm (Fin 4))
+        (γ : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc),
+        existsRoutingAfterPower_step4_routes_step6_outerRouting_step2_prepared τ M Rs cp α
+          (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) δ m ε₀ cfg perm γ :=
+  existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_preparedOfWeakOrder
+    τ hτ M Rs hcp α cfg hcfg
+    (existsRoutingAfterPower_step4_routes_step6_R2_Kadm_weakOrder_of_realized τ M Rs
+      (existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder
+        τ hτ M Rs hcp) α hcfg)
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"Perturb only four vertices": the arc with the same middle vertices whose two first vertices are
+`x, x + v` and whose two last vertices are `b, q`. -/
+private def existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc
+    (γ : PolyArc) (x v b q : Pt) : PolyArc where
+  n := γ.n
+  pt k := if k.val = 0 then x else if k.val = 1 then x + v else
+    if k.val = γ.n then b else if k.val = γ.n + 1 then q else γ.pt k
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+the moved arc starts at the new port point and stops at the new radial endpoint. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_ends
+    (γ : PolyArc) (x v b q : Pt) (hn : 2 ≤ γ.n) :
+    (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc γ x v b q).start = x ∧
+      (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc γ x v b q).stop =
+        q := by
+  constructor
+  · simp [existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc, PolyArc.start]
+  · simp only [existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc,
+      PolyArc.stop, Fin.val_last]
+    split_ifs <;> first | rfl | (exfalso; omega)
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"Estimate the displacement of every vertex": if the four moved vertices move by at most `V`,
+every vertex does. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_vertex
+    (γ : PolyArc) (x v b q : Pt) {V : ℝ} (hV : 0 ≤ V)
+    (h0 : dist (γ.pt 0) x ≤ V) (h1 : γ.pt 1 = γ.pt 0 + v)
+    (hb : dist (γ.pt (Fin.last γ.n).castSucc) b ≤ V)
+    (hq : dist (γ.pt (Fin.last (γ.n + 1))) q ≤ V) (k : Fin (γ.n + 2)) :
+    dist (γ.pt k)
+      ((existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc γ x v b q).pt k) ≤
+      V := by
+  simp only [existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc]
+  split_ifs with hk0 hk1 hkn hkn1
+  · have : k = 0 := Fin.ext (by simpa using hk0)
+    rw [this]; exact h0
+  · have : k = 1 := Fin.ext (by rw [hk1]; simp)
+    rw [this, h1, dist_add_right]; exact h0
+  · have : k = (Fin.last γ.n).castSucc := Fin.ext (by simpa using hkn)
+    rw [this]; exact hb
+  · have : k = Fin.last (γ.n + 1) := Fin.ext (by simpa using hkn1)
+    rw [this]; exact hq
+  · rw [dist_self]; exact hV
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"for any point of a moved segment, the point with the same parameter on the old segment is within
+twice the vertex displacement". -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_near
+    (γ : PolyArc) (x v b q : Pt) {V : ℝ}
+    (hvert : ∀ k : Fin (γ.n + 2), dist (γ.pt k)
+      ((existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc γ x v b q).pt k) ≤
+        V)
+    (k : Fin (γ.n + 1)) :
+    ∀ y ∈ (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc γ x v b q).seg k,
+      ∃ w ∈ γ.seg k, dist w y ≤ 2 * V := by
+  intro y hy
+  obtain ⟨w, hw, hdist⟩ := existsRoutingAfterPower_step4_routes_step6_R4_segment_correspondence
+    _ _ (γ.pt k.castSucc) (γ.pt k.succ) y hy
+  refine ⟨w, hw, ?_⟩
+  rw [dist_comm]
+  have h1 := hvert k.castSucc
+  have h2 := hvert k.succ
+  rw [dist_comm] at h1 h2
+  exact hdist.trans (by linarith)
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+the first moved segment is the translated outer collar `[x, x + v]`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_seg_zero
+    (γ : PolyArc) (x v b q : Pt) (k : Fin (γ.n + 1)) (hk : k.val = 0) :
+    (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc γ x v b q).seg k =
+      segment ℝ x (x + v) := by
+  simp only [PolyArc.seg, existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc,
+    Fin.val_castSucc, Fin.val_succ, hk]
+  simp
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+the last moved segment is the new radial collar `[b, q]`. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_seg_last
+    (γ : PolyArc) (x v b q : Pt) (hn : 2 ≤ γ.n) (k : Fin (γ.n + 1)) (hk : k.val = γ.n) :
+    (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc γ x v b q).seg k =
+      segment ℝ b q := by
+  simp only [PolyArc.seg, existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc,
+    Fin.val_castSucc, Fin.val_succ, hk]
+  split_ifs <;> first | rfl | (exfalso; omega)
+
+/-- Step 4 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"Define the new polygonal arc by moving only four vertices ... For sufficiently small
+`d = dist(cfg, cfg')` every route satisfies the domain and ball conditions; the fixed-routes
+estimate then gives clearance `δ / 2`."  Local stability of prepared routes relative to the
+admissible compactum. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_stability
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp δ m ε₀ : ℝ}
+    (α : Rs.GS.G.P'.Form)
+    {cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α}
+    {perm : Fin (Rs.GS.G.P'.disk α).n → Equiv.Perm (Fin 4)}
+    {γ : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc}
+    (hδ : 0 < δ) (hm : 0 < m) (hε₀ : 0 < ε₀)
+    (hprep : existsRoutingAfterPower_step4_routes_step6_outerRouting_step2_prepared τ M Rs cp α
+      (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) δ m ε₀ cfg perm γ) :
+    ∃ ε > (0 : ℝ), ∀ cfg' ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp
+        (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) α,
+      cfg' ∈ Metric.ball cfg ε →
+        existsRoutingAfterPower_step4_routes_step6_R4_Good τ M Rs α
+          (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) cfg' (δ / 2) := by
+  classical
+  set κ := existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs with hκdef
+  have hκ : 0 < κ := existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  have hC : 0 < 4 + 4 * κ := by linarith
+  refine ⟨min ε₀ (min (m / (2 * (4 + 4 * κ + 1))) (δ / (4 * (2 * (4 + 4 * κ) + 2 + κ)))),
+    by positivity, ?_⟩
+  intro cfg' hcfg' hball'
+  have hd0 : 0 ≤ dist cfg cfg' := dist_nonneg
+  have hdlt : dist cfg cfg' < min ε₀ (min (m / (2 * (4 + 4 * κ + 1)))
+      (δ / (4 * (2 * (4 + 4 * κ) + 2 + κ)))) := by
+    rw [Metric.mem_ball, dist_comm] at hball'; exact hball'
+  have hdε₀ : dist cfg cfg' < ε₀ := lt_of_lt_of_le hdlt (min_le_left _ _)
+  have hdm : dist cfg cfg' < m / (2 * (4 + 4 * κ + 1)) :=
+    lt_of_lt_of_le hdlt ((min_le_right _ _).trans (min_le_left _ _))
+  have hdδ : dist cfg cfg' < δ / (4 * (2 * (4 + 4 * κ) + 2 + κ)) :=
+    lt_of_lt_of_le hdlt ((min_le_right _ _).trans (min_le_right _ _))
+  rw [lt_div_iff₀ (by positivity)] at hdm hdδ
+  have hdm' : (4 + 4 * κ + 1) * dist cfg cfg' < m := by nlinarith
+  have hsmall : 2 * ((4 + 4 * κ) * dist cfg cfg') + (2 + |κ|) * dist cfg cfg' ≤ δ / 2 := by
+    rw [abs_of_pos hκ]; nlinarith
+  -- the radial collar lengths
+  have hhex : ∀ a, ∀ ha : a ∈ Rs.markedSides α, ∀ i, ∃ h : ℝ, 0 < h ∧ h ≤ κ ∧
+      (γ a i).pt (Fin.last (γ a i).n).castSucc = cfg.1 + (κ + h) • cfg.2.2 ⟨a, ha⟩ (perm a i) :=
+    fun a ha i => (hprep a ha i).2.2.2.2.2.2
+  choose hh hhpos hhle hheq using hhex
+  let γ' : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc := fun a i =>
+    if ha : a ∈ Rs.markedSides α then
+      existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc (γ a i)
+        (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i))
+        ((γ a i).pt 1 - (γ a i).pt 0)
+        (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+        (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+    else γ a i
+  have hγ' : ∀ a, ∀ ha : a ∈ Rs.markedSides α, ∀ i, γ' a i =
+      existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc (γ a i)
+        (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i))
+        ((γ a i).pt 1 - (γ a i).pt 0)
+        (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+        (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i)) := by
+    intro a ha i
+    simp only [γ', dif_pos ha]
+  -- vertex displacement
+  have hvert : ∀ a, ∀ ha : a ∈ Rs.markedSides α, ∀ i, ∀ k : Fin ((γ a i).n + 2),
+      dist ((γ a i).pt k)
+        ((existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc (γ a i)
+          (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i))
+          ((γ a i).pt 1 - (γ a i).pt 0)
+          (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+          (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i))).pt k) ≤
+        (2 + 2 * κ) * dist cfg cfg' := by
+    intro a ha i k
+    obtain ⟨hgood, hn, hpt0, -, -, -, -⟩ := hprep a ha i
+    have hc := existsRoutingAfterPower_step4_routes_step6_R4_config_center_dist τ M Rs α cfg cfg'
+    have hu := existsRoutingAfterPower_step4_routes_step6_R4_config_direction_dist τ M Rs α
+      cfg cfg' ⟨a, ha⟩ (perm a i)
+    apply existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_vertex _ _ _ _ _
+    · positivity
+    · rw [hpt0]
+      obtain ⟨hp1, hp2⟩ := existsRoutingAfterPower_step4_routes_step6_R4_config_port_dist
+        τ M Rs α cfg cfg' a i.castSucc
+      have := existsRoutingAfterPower_step4_routes_step6_R4_lineMap_dist
+        (cfg.2.1 a i.castSucc).1 (cfg.2.1 a i.castSucc).2
+        (cfg'.2.1 a i.castSucc).1 (cfg'.2.1 a i.castSucc).2
+        (t := 1 / 2) ⟨by norm_num, by norm_num⟩
+      have hle : dist (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg (⟨a, ha⟩, i))
+          (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i)) ≤
+          2 * dist cfg cfg' := by
+        simp only [existsRoutingAfterPower_step4_routes_step6_R2_portMid,
+          existsRoutingAfterPower_step4_routes_step6_R2_portAt]
+        linarith
+      nlinarith
+    · abel
+    · rw [hheq a ha i]
+      have := existsRoutingAfterPower_step4_routes_step6_R4_radialEnd_dist cfg.1 cfg'.1
+        (cfg.2.2 ⟨a, ha⟩ (perm a i)) (cfg'.2.2 ⟨a, ha⟩ (perm a i)) (κ + hh a ha i)
+      rw [abs_of_pos (by linarith [hhpos a ha i])] at this
+      have h2 : (κ + hh a ha i) * dist (cfg.2.2 ⟨a, ha⟩ (perm a i))
+          (cfg'.2.2 ⟨a, ha⟩ (perm a i)) ≤ (2 * κ) * dist cfg cfg' :=
+        mul_le_mul (by linarith [hhle a ha i]) hu dist_nonneg (by linarith)
+      nlinarith
+    · have hstop := hgood.2.1
+      rw [PolyArc.stop] at hstop
+      rw [hstop]
+      have := existsRoutingAfterPower_step4_routes_step6_R4_radialEnd_dist cfg.1 cfg'.1
+        (cfg.2.2 ⟨a, ha⟩ (perm a i)) (cfg'.2.2 ⟨a, ha⟩ (perm a i)) κ
+      rw [abs_of_pos hκ] at this
+      have h2 : κ * dist (cfg.2.2 ⟨a, ha⟩ (perm a i))
+          (cfg'.2.2 ⟨a, ha⟩ (perm a i)) ≤ κ * dist cfg cfg' :=
+        mul_le_mul_of_nonneg_left hu hκ.le
+      nlinarith
+  -- pointwise geometric conditions on the new routes
+  have hgeom : ∀ a, ∀ ha : a ∈ Rs.markedSides α, ∀ i, ∀ k : Fin ((γ a i).n + 1),
+      ∀ x ∈ (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc (γ a i)
+          (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i))
+          ((γ a i).pt 1 - (γ a i).pt 0)
+          (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+          (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i))).seg k,
+        (x ≠ (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc (γ a i)
+          (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i))
+          ((γ a i).pt 1 - (γ a i).pt 0)
+          (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+          (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i))).start →
+          x ∈ interior (Rs.GS.G.P'.disk α).carrier) ∧
+        κ ≤ dist x cfg'.1 := by
+    intro a ha i k x hx
+    obtain ⟨hgood, hn, hpt0, hcollar, hseg0, hmid, -⟩ := hprep a ha i
+    have hstart := (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_ends
+      (γ a i) (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i))
+      ((γ a i).pt 1 - (γ a i).pt 0)
+      (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+      (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i)) hn).1
+    rw [hstart]
+    have hc := existsRoutingAfterPower_step4_routes_step6_R4_config_center_dist τ M Rs α cfg cfg'
+    by_cases hkn : k.val = (γ a i).n
+    · rw [existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_seg_last
+        _ _ _ _ _ hn k hkn, segment_eq_image_lineMap] at hx
+      obtain ⟨t, ht, rfl⟩ := hx
+      have hnorm := existsRoutingAfterPower_step4_routes_step6_R2_Kadm_direction_norm
+        τ M Rs cp κ α hcfg' ⟨a, ha⟩ (perm a i)
+      have hdiff : AffineMap.lineMap (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+          (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i)) t - cfg'.1 =
+          (κ + (1 - t) * hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i) := by
+        rw [AffineMap.lineMap_apply_module']
+        module
+      have hdist : dist (AffineMap.lineMap (cfg'.1 + (κ + hh a ha i) • cfg'.2.2 ⟨a, ha⟩ (perm a i))
+          (cfg'.1 + κ • cfg'.2.2 ⟨a, ha⟩ (perm a i)) t) cfg'.1 = κ + (1 - t) * hh a ha i := by
+        rw [dist_eq_norm, hdiff, norm_smul, hnorm, mul_one, Real.norm_eq_abs, abs_of_nonneg]
+        nlinarith [ht.2, hhpos a ha i]
+      have h1t : 0 ≤ (1 - t) * hh a ha i := mul_nonneg (by linarith [ht.2]) (hhpos a ha i).le
+      have h1t' : (1 - t) * hh a ha i ≤ hh a ha i := by nlinarith [ht.1, hhpos a ha i]
+      refine ⟨fun _ => ?_, by rw [hdist]; linarith⟩
+      apply existsRoutingAfterPower_step4_routes_step6_R2_Kadm_threeBall_subset_interior
+        τ M Rs cp κ α hcfg'
+      rw [Metric.mem_closedBall, hdist]
+      linarith [hhle a ha i]
+    · obtain ⟨w, hw, hwx⟩ :=
+        existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_near _ _ _ _ _
+          (hvert a ha i) k x hx
+      have hwx' : dist w x ≤ (4 + 4 * κ) * dist cfg cfg' := by linarith
+      have hmargin : κ + m ≤ dist w cfg.1 := by
+        by_cases hk0 : k.val = 0
+        · have : k = 0 := Fin.ext (by simpa using hk0)
+          subst this
+          exact hseg0 w hw
+        · exact (hmid k (by omega) (by omega) w hw).2
+      have htri : dist w cfg.1 ≤ dist w x + dist x cfg'.1 + dist cfg'.1 cfg.1 :=
+        dist_triangle4 _ _ _ _
+      rw [dist_comm cfg'.1 cfg.1] at htri
+      refine ⟨fun hxs => ?_, by nlinarith⟩
+      by_cases hk0 : k.val = 0
+      · rw [existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_seg_zero
+          _ _ _ _ _ k hk0, segment_eq_image_lineMap] at hx
+        obtain ⟨t, ht, rfl⟩ := hx
+        have ht0 : t ≠ 0 := by
+          rintro rfl
+          exact hxs (by simp)
+        have hform : AffineMap.lineMap
+            (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i))
+            (existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i) +
+              ((γ a i).pt 1 - (γ a i).pt 0)) t =
+            existsRoutingAfterPower_step4_routes_step6_R2_portMid cfg' (⟨a, ha⟩, i) +
+              t • ((γ a i).pt 1 - (γ a i).pt 0) := by
+          rw [AffineMap.lineMap_apply_module']
+          module
+        rw [hform]
+        exact hcollar cfg' hcfg' hdε₀ t (lt_of_le_of_ne ht.1 (Ne.symm ht0)) ht.2
+      · apply (hmid k (by omega) (by omega) w hw).1
+        rw [Metric.mem_ball, dist_comm]
+        nlinarith
+  refine existsRoutingAfterPower_step4_routes_step6_R4_Good_fixedRoutes_eta τ M Rs α κ δ
+    ((4 + 4 * κ) * dist cfg cfg') cfg cfg' perm γ γ' (by positivity)
+    (fun a ha i => (hprep a ha i).1) ?_ ?_ ?_ ?_ ?_ hsmall
+  · intro a ha i x hx
+    rw [hγ' a ha i, PolyArc.carrier, Set.mem_iUnion] at hx
+    obtain ⟨k, hk⟩ := hx
+    obtain ⟨w, hw, hwx⟩ :=
+      existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_near _ _ _ _ _
+        (hvert a ha i) k x hk
+    exact ⟨w, Set.mem_iUnion.2 ⟨k, hw⟩, by linarith⟩
+  · intro a ha i
+    rw [hγ' a ha i, (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_ends
+      _ _ _ _ _ (hprep a ha i).2.1).1]
+    exact existsRoutingAfterPower_step4_routes_step6_R2_portMid_mem cfg' (⟨a, ha⟩, i)
+  · intro a ha i
+    rw [hγ' a ha i, (existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_movedArc_ends
+      _ _ _ _ _ (hprep a ha i).2.1).2]
+  · intro a ha i x hx
+    obtain ⟨hxc, hxs⟩ := hx
+    rw [hγ' a ha i] at hxc hxs
+    rw [PolyArc.carrier, Set.mem_iUnion] at hxc
+    obtain ⟨k, hk⟩ := hxc
+    exact (hgeom a ha i k x hk).1 hxs
+  · intro a ha i
+    rw [Set.disjoint_left]
+    intro x hxc hxb
+    rw [hγ' a ha i, PolyArc.carrier, Set.mem_iUnion] at hxc
+    obtain ⟨k, hk⟩ := hxc
+    have := (hgeom a ha i k x hk).2
+    rw [Metric.mem_ball] at hxb
+    linarith
+
+/-- Step 5 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
+"This proves the local stability `R4e_LocalStability τ M Rs cp κ α κ` for every parent form `α`." -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step5_localStability
+    (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    (hcp : 0 < cp) (α : Rs.GS.G.P'.Form) :
+    existsRoutingAfterPower_step4_routes_step6_R4e_LocalStability τ M Rs cp
+      (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) α
+      (existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs) := by
+  intro cfg hcfg
+  obtain ⟨δ, hδ, m, hm, ε₀, hε₀, perm, γ, hprep⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_preparedRoutes
+      τ hτ M Rs hcp α cfg hcfg
+  obtain ⟨ε, hε, hstable⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_outerRouting_step4_stability τ M Rs α
+      hδ hm hε₀ hprep
+  exact ⟨δ, hδ, ⟨perm, γ, fun a ha i => (hprep a ha i).1⟩, ε, hε, hstable⟩
+
 /-- Step 6 of the blueprint proof of `existsRoutingAfterPower_step4_routes`: the routing in
 normalized coordinates with uniform clearance.  "For a normalized centre `z ∈ K_A`, take the
 intermediate square `C_z` ... Its ordered outer port points and inner points `b_i(z)` have disjoint
@@ -44954,7 +45447,14 @@ private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting (τ : Subs
                 c₀ * τ.θ ^ (Rs.GS.k * l) ≤ dist x y) ∧
             ∀ b r, (b, r) ≠ (a, i.castSucc) → ∀ x ∈ (γ a i).carrier, ∀ y ∈ ports.port b r,
               c₀ * τ.θ ^ (Rs.GS.k * l) ≤ dist x y := by
-  sorry
+  have hρ := (existsRoutingAfterPower_step4_routes_step6_R1_clearance_spec τ M Rs).1
+  have hκ := existsRoutingAfterPower_step4_routes_step6_R1_kappa_pos τ M Rs
+  refine ⟨existsRoutingAfterPower_step4_routes_step6_R1_kappa τ M Rs, hκ, ?_⟩
+  exact existsRoutingAfterPower_step4_routes_step6_R6_assemble τ M Rs hcp hκ
+    (by positivity : 0 < existsRoutingAfterPower_step4_routes_step6_R1_clearance τ M Rs / 2)
+    (existsRoutingAfterPower_step4_routes_step6_outerRouting_step1_ballPortClearance τ M Rs)
+    (fun α => existsRoutingAfterPower_step4_routes_step6_outerRouting_step5_localStability
+      τ hτ M Rs hcp α)
 
 /-- Step 7 of the blueprint proof of `existsRoutingAfterPower_step4_routes`: "Different routes
 cannot cross the same original face: their `D` tubes are disjoint": sets at distance at least

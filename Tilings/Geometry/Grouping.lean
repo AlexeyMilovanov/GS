@@ -5985,6 +5985,56 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_sp
     ∀ α d, D.marked α d → D.special (D.partner (D.printOcc α d)) := by
   sorry
 
+private lemma
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing_aux1
+    (G : GroupedFamily P) (α : G.P'.Form) (p : P.Form)
+    (hsingle : (G.dissect α).tiles = {⟨p, 0⟩}) :
+    Set.range (G.P'.disk α).side = Set.range (P.disk p).side := by
+  classical
+  have hforward : ∀ i, ∃ j, (G.P'.disk α).side i = (P.disk p).side j := by
+    intro i
+    obtain ⟨A, hA, j, hj⟩ := G.side_whole α i
+    have hAeq : A = (⟨p, 0⟩ : PlacedTile P) := by
+      rw [hsingle] at hA
+      simpa using hA
+    subst A
+    exact ⟨j, by simpa [PlacedTile.side] using hj.symm⟩
+  choose f hf using hforward
+  have hfinj : Function.Injective f := by
+    intro i j hij
+    apply
+      existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_side_injective
+    rw [hf i, hf j, hij]
+  have hvertices : ∀ i, ∃ j, (G.P'.disk α).vertex j = (P.disk p).vertex i := by
+    intro i
+    apply G.vertex_retained α
+    · refine ⟨⟨p, 0⟩, ?_, ?_⟩
+      · rw [hsingle]
+        simp
+      · exact ⟨i, by simp [PlacedTile.vertex]⟩
+    · rw [← G.support_eq α, hsingle, emcg_support_singleton_zero]
+      rw [(P.disk p).frontier_eq]
+      exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+  choose v hv using hvertices
+  have hvinj : Function.Injective v := by
+    intro i j hij
+    apply (P.disk p).vertex_injective
+    rw [← hv i, ← hv j, hij]
+  have hcard : (G.P'.disk α).n = (P.disk p).n := by
+    apply Nat.le_antisymm
+    · simpa using Fintype.card_le_of_injective f hfinj
+    · simpa using Fintype.card_le_of_injective v hvinj
+  have hfsurj : Function.Surjective f :=
+    ((Fintype.bijective_iff_injective_and_card f).2
+      ⟨hfinj, by simp [hcard]⟩).2
+  ext e
+  constructor
+  · rintro ⟨i, rfl⟩
+    exact ⟨f i, (hf i).symm⟩
+  · rintro ⟨j, rfl⟩
+    obtain ⟨i, rfl⟩ := hfsurj j
+    exact ⟨i, hf i⟩
+
 /-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: from_routing -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -5997,7 +6047,301 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_f
       @List.destutter (Set Pt) (· ≠ ·) (Classical.decRel _)
         ((D.path α d i.castSucc).map D.occSide) =
         (routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d) i) := by
-  sorry
+  classical
+  intro D α d i hd
+  have hgen : D.IsGenuinePath α d i.castSucc := ⟨hd, by simp⟩
+  have hidx : (⟨i.castSucc.val, hgen.2⟩ : Fin 4) = i := Fin.ext rfl
+  have hzip : ∀ xs : List (Set Pt), 2 ≤ xs.length → xs.IsChain (· ≠ ·) →
+      ((xs.zip xs.tail).flatMap fun p => [p.1, p.2]).destutter (· ≠ ·) = xs := by
+    intro xs hlen hchain
+    induction xs with
+    | nil => contradiction
+    | cons x xs ih =>
+      cases xs with
+      | nil => contradiction
+      | cons y ys =>
+        cases ys with
+        | nil =>
+          change List.destutter (· ≠ ·) [x, y] = [x, y]
+          have hxy : x ≠ y := by
+            cases hchain with
+            | cons_cons h _ => exact h
+          rw [List.destutter_cons_cons, if_pos hxy]
+          rfl
+        | cons z zs =>
+          have hxy : x ≠ y := by
+            cases hchain with
+            | cons_cons h _ => exact h
+          have hrest : 2 ≤ (y :: z :: zs).length := by simp
+          have hrest_chain : (y :: z :: zs).IsChain (· ≠ ·) := by
+            cases hchain with
+            | cons_cons _ h => exact h
+          have ih_res := ih hrest hrest_chain
+          change List.destutter (· ≠ ·)
+            (x :: y :: y :: z ::
+              ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) = _
+          rw [List.destutter_cons_cons, if_pos hxy]
+          have hd1 :
+              List.destutter' (· ≠ ·) y
+                (y :: z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) =
+              List.destutter' (· ≠ ·) y
+                (z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) := by
+            have heq :
+                List.destutter' (· ≠ ·) y
+                    (y :: z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) =
+                  if y ≠ y then
+                    y :: List.destutter' (· ≠ ·) y
+                      (z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2])
+                  else List.destutter' (· ≠ ·) y
+                    (z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) := rfl
+            rw [heq, if_neg (not_not.mpr rfl)]
+          rw [hd1]
+          change List.destutter (· ≠ ·)
+            (y :: z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) =
+              y :: z :: zs at ih_res
+          have hyz : y ≠ z := by
+            cases hrest_chain with
+            | cons_cons h _ => exact h
+          rw [List.destutter_cons_cons, if_pos hyz] at ih_res
+          have hd2 :
+              List.destutter' (· ≠ ·) z
+                (((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) = z :: zs := by
+            injection ih_res
+          have hd3 :
+              List.destutter' (· ≠ ·) y
+                  (z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) =
+                y :: List.destutter' (· ≠ ·) z
+                  (((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) := by
+            have heq :
+                List.destutter' (· ≠ ·) y
+                    (z :: ((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) =
+                  if y ≠ z then
+                    y :: List.destutter' (· ≠ ·) z
+                      (((z :: zs).zip zs).flatMap fun p => [p.1, p.2])
+                  else List.destutter' (· ≠ ·) y
+                    (((z :: zs).zip zs).flatMap fun p => [p.1, p.2]) := rfl
+            rw [heq, if_pos hyz]
+          rw [hd3, hd2]
+  let β := emcdBaseForm g s l α
+  let par := emcdParentSide g s l α d
+  let xs := (routing β).pathSides par i
+  have htiles_len : ((routing β).pathTiles par i).length + 1 = xs.length :=
+    (routing β).path_length par (by assumption) i
+  have hlen : 2 ≤ xs.length := by
+    by_contra hnot
+    have hlt : xs.length < 2 := not_le.mp hnot
+    have htiles_lt : ((routing β).pathTiles par i).length + 1 < 2 := by omega
+    have htiles_zero : ((routing β).pathTiles par i).length = 0 := by omega
+    have hxs_one : xs.length = 1 := by omega
+    have hhead := (routing β).path_head par (by assumption) i
+    have hlast := (routing β).path_last par (by assumption) i
+    obtain ⟨x, hx⟩ := List.length_eq_one_iff.mp hxs_one
+    change xs.head? = some ((routing β).port par i.castSucc) at hhead
+    change xs.getLast? =
+      some ((s.setup.central l β).side ((routing β).printIdx par)) at hlast
+    rw [hx] at hhead hlast
+    simp only [List.head?_cons, List.getLast?_singleton, Option.some.injEq] at hhead hlast
+    have heq := hhead.symm.trans hlast
+    have houter := (routing β).port_outer par i.castSucc
+    have hinner := (routing β).print_inner par (by assumption)
+    rw [heq] at houter
+    obtain ⟨A, hA, B, hB, hAB, ⟨j, hj⟩, ⟨k, hk⟩⟩ := hinner
+    let q := A.vertex j + (1 / 2 : ℝ) • (A.vertex (finRotate _ j) - A.vertex j)
+    have hqopen : q ∈ openSegment ℝ (A.vertex j) (A.vertex (finRotate _ j)) := by
+      have hqline : q = AffineMap.lineMap (A.vertex j)
+          (A.vertex (finRotate _ j)) (1 / 2 : ℝ) := by
+        simp only [q, AffineMap.lineMap_apply_module']
+        module
+      rw [hqline]
+      exact lineMap_mem_openSegment (𝕜 := ℝ) _ _ (by norm_num)
+    obtain ⟨r, hr, σ, _, hsides⟩ :=
+      two_sides (s.setup.retained l β).children.disjoint hA hB hAB j k
+        (hk.trans hj.symm) hqopen
+    have hqint : q ∈ interior (support (s.setup.retained l β).children.tiles) := by
+      rw [mem_interior_iff_mem_nhds]
+      apply Filter.mem_of_superset (Metric.ball_mem_nhds q hr)
+      intro z hz
+      by_cases hside : 0 ≤ σ * jcr
+          (A.vertex (finRotate _ j) - A.vertex j) (z - A.vertex j)
+      · exact carrier_subset_support hA ((hsides z hz).2.2 hside)
+      · exact carrier_subset_support hB
+          (interior_subset ((hsides z hz).2.1 (lt_of_not_ge hside)))
+    have hqint_region : q ∈ interior (s.setup.retained l β).region := by
+      rw [← (s.setup.retained l β).support_eq]
+      exact hqint
+    have hqedge : q ∈ (s.setup.central l β).side ((routing β).printIdx par) := by
+      rw [← hj, tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hqopen
+    exact Set.disjoint_left.1 disjoint_interior_frontier hqint_region (houter.1.2 hqedge)
+  have hchain : xs.IsChain (· ≠ ·) := by
+    have hnonempty : xs ≠ [] := by
+      intro hempty
+      rw [hempty] at hlen
+      contradiction
+    have happend : xs = xs.dropLast ++ [xs.getLast hnonempty] :=
+      (List.dropLast_append_getLast hnonempty).symm
+    have hnodup : xs.dropLast.Nodup :=
+      (routing β).path_nodup par (by assumption) i
+    have hdrop_chain : xs.dropLast.IsChain (· ≠ ·) := by
+      apply List.Pairwise.isChain
+      exact List.Nodup.pairwise_of_forall_ne hnodup (fun _ _ _ _ hne => hne)
+    have happend_chain :
+        (xs.dropLast ++ [xs.getLast hnonempty]).IsChain (· ≠ ·) := by
+      apply List.IsChain.append hdrop_chain (List.isChain_singleton _)
+      intro x hx y hy
+      have hdrop_nonempty : xs.dropLast ≠ [] := by
+        intro hempty
+        have hdrop_zero : xs.dropLast.length = 0 := by rw [hempty]; rfl
+        rw [List.length_dropLast] at hdrop_zero
+        omega
+      obtain ⟨hlast, hxlast⟩ := List.mem_getLast?_eq_getLast hx
+      have hxmem : x ∈ xs.dropLast := hxlast ▸ List.getLast_mem hlast
+      have hyeq : y = xs.getLast hnonempty := by
+        change y ∈ [xs.getLast hnonempty].head? at hy
+        simp at hy
+        exact hy.symm
+      subst y
+      have hnot_central : ¬ HasEdge (s.setup.central l β) x :=
+        (routing β).path_central par (by assumption) i x hxmem
+      have hcentral : HasEdge (s.setup.central l β) (xs.getLast hnonempty) := by
+        have hroute_last := (routing β).path_last par (by assumption) i
+        have hlast_get : xs.getLast? = some (xs.getLast hnonempty) :=
+          List.getLast?_eq_getLast_of_ne_nil hnonempty
+        rw [hlast_get] at hroute_last
+        injection hroute_last with heq
+        rw [heq]
+        exact ⟨(routing β).printIdx par, rfl⟩
+      intro heq
+      apply hnot_central
+      rw [heq]
+      exact hcentral
+    rw [← happend] at happend_chain
+    exact happend_chain
+  have hcalc : (D.path α d i.castSucc).map D.occSide =
+      (xs.zip xs.tail).flatMap fun p => [p.1, p.2] := by
+    have hpath : D.path α d i.castSucc =
+        if hi : D.IsGenuinePath α d i.castSucc then
+          emcdLiftPath D (emcdTemplateChild g s l) α
+            ((routing (emcdBaseForm g s l α)).pathTiles
+              (emcdParentSide g s l α d) ⟨i.castSucc.val, hi.2⟩)
+            ((routing (emcdBaseForm g s l α)).pathSides
+              (emcdParentSide g s l α d) ⟨i.castSucc.val, hi.2⟩)
+        else (D.port α d i.castSucc).toList := rfl
+    rw [hpath, dif_pos hgen]
+    simp only [hidx]
+    have hmap :
+        (emcdLiftPath D (emcdTemplateChild g s l) α
+          ((routing β).pathTiles par i) xs).map D.occSide =
+        (((routing β).pathTiles par i).zip
+          (xs.zip xs.tail)).flatMap fun entry =>
+            (emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1
+                entry.2.1).map D.occSide ++
+              (emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1
+                entry.2.2).map D.occSide := by
+      rw [emcdLiftPath, List.map_flatMap]
+      congr
+      ext entry
+      rw [List.map_append]
+    rw [hmap]
+    have hocc : ∀ entry : PlacedTile s.setup.GS.G.mixed × Set Pt × Set Pt,
+        entry ∈ ((routing β).pathTiles par i).zip (xs.zip xs.tail) →
+          (emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1
+              entry.2.1).map D.occSide ++
+            (emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1
+              entry.2.2).map D.occSide = [entry.2.1, entry.2.2] := by
+      intro entry hentry
+      rcases entry with ⟨⟨form, a⟩, e1, e2⟩
+      let entry : PlacedTile s.setup.GS.G.mixed × Set Pt × Set Pt :=
+        (⟨form, a⟩, e1, e2)
+      obtain ⟨k, hk⟩ : ∃ k : ℕ,
+          (((routing β).pathTiles par i).zip (xs.zip xs.tail))[k]? =
+            some (⟨form, a⟩, e1, e2) :=
+        List.mem_iff_getElem?.mp hentry
+      have hkzip := List.getElem?_zip_eq_some.mp hk
+      have hktile : ((routing β).pathTiles par i)[k]? = some entry.1 := hkzip.1
+      have hksides : (xs.zip xs.tail)[k]? = some entry.2 := hkzip.2
+      have hksidezip := List.getElem?_zip_eq_some.mp hksides
+      have hkside1 : xs[k]? = some entry.2.1 := hksidezip.1
+      have hkside2 : xs.tail[k]? = some entry.2.2 := hksidezip.2
+      have hkside2' : xs[k + 1]? = some entry.2.2 := by simpa using hkside2
+      have hstep := (routing β).path_step par (by assumption) i k entry.1
+        entry.2.1 entry.2.2 hktile hkside1 hkside2'
+      have hmem := hstep.1
+      have hedge1 := hstep.2.1
+      have hedge2 := hstep.2.2
+      let t : D.Typ := ⟨α, ⟨entry.1, hmem⟩⟩
+      have hoccurrence : ∀ e, HasEdge entry.1 e →
+          ∃ j : D.Side t, D.occSide ⟨t, j⟩ = e := by
+        intro e hedge
+        obtain ⟨j, hj⟩ := hedge
+        rcases form with γ | p
+        · exact ⟨j, hj⟩
+        · have hrange :
+              Set.range
+                  (s.setup.GS.G.P'.disk
+                    (s.setup_grouped.symm ▸ g.original p)).side =
+                Set.range (P.disk p).side := by
+            have key : ∀ (GS : GroupedSubstitution τ) (heq : GS = g.GS),
+                Set.range (GS.G.P'.disk (heq.symm ▸ g.original p)).side =
+                  Set.range (P.disk p).side := by
+              intro GS heq
+              subst heq
+              exact
+                existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing_aux1
+                  g.GS.G (g.original p) p (g.original_dissect p)
+            exact key _ s.setup_grouped
+          have hjmem : (P.disk p).side j ∈
+              Set.range
+                (s.setup.GS.G.P'.disk
+                  (s.setup_grouped.symm ▸ g.original p)).side := by
+            rw [hrange]
+            exact ⟨j, rfl⟩
+          obtain ⟨k, hk⟩ := hjmem
+          refine ⟨k, ?_⟩
+          change a +ᵥ
+              (s.setup.GS.G.P'.disk
+                (s.setup_grouped.symm ▸ g.original p)).side k = e
+          rw [hk]
+          exact hj
+      have hlift : ∀ e, HasEdge entry.1 e →
+          (emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1
+            e).map D.occSide = [e] := by
+        intro e hedge
+        unfold emcdLiftOccurrence
+        obtain ⟨j, hj⟩ := hoccurrence e hedge
+        have hex : ∃ o : D.SideOcc,
+            D.owner o.1 = α ∧ emcdTemplateChild g s l o.1 = entry.1 ∧
+              D.occSide o = e := by
+          refine ⟨⟨t, j⟩, rfl, rfl, ?_⟩
+          exact hj
+        rw [dif_pos hex]
+        simp
+        exact hex.choose_spec.2.2
+      rw [hlift entry.2.1 hedge1, hlift entry.2.2 hedge2]
+      rfl
+    have hlen_zip : ((routing β).pathTiles par i).length =
+        (xs.zip xs.tail).length := by
+      simp only [List.length_zip, List.length_tail]
+      omega
+    have hsnd :
+        (((routing β).pathTiles par i).zip (xs.zip xs.tail)).map Prod.snd =
+          xs.zip xs.tail := List.map_snd_zip hlen_zip.ge
+    calc
+      _ = (((routing β).pathTiles par i).zip (xs.zip xs.tail)).flatMap
+          (fun entry => [entry.2.1, entry.2.2]) := List.flatMap_congr hocc
+      _ = ((((routing β).pathTiles par i).zip
+          (xs.zip xs.tail)).map Prod.snd).flatMap (fun p => [p.1, p.2]) := by
+            rw [List.flatMap_map]
+      _ = _ := by rw [hsnd]
+  change @List.destutter (Set Pt) (· ≠ ·) (Classical.decRel _) _ = xs
+  rw [hcalc]
+  have hdec :
+      @List.destutter (Set Pt) (· ≠ ·) (Classical.decRel _)
+        ((xs.zip xs.tail).flatMap fun p => [p.1, p.2]) =
+      List.destutter (· ≠ ·) ((xs.zip xs.tail).flatMap fun p => [p.1, p.2]) := by
+    congr
+  rw [hdec]
+  exact hzip xs hlen hchain
 
 /-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: head -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step2_head

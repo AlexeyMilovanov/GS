@@ -4633,6 +4633,1543 @@ private lemma hereditary_sts_substitution_sofic_step7_iterated_reconstruction
   refine ⟨?_⟩
   simpa only [levels, Function.iterate_succ_apply'] using hrec
 
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the full crown at a point of a
+plane tiling is finite (local finiteness). -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_finite
+    (S : PlaneTiling P) (w : Pt) : (Substitution.crown S.tiles w).Finite := by
+  apply (PlaneTiling.locallyFinite S (isCompact_singleton (x := w))).subset
+  rintro A ⟨hA, hw⟩
+  exact ⟨hA, w, hw, rfl⟩
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the full crown at a point of a
+plane tiling covers a neighbourhood of that point. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_nhds
+    (S : PlaneTiling P) (w : Pt) :
+    w ∈ interior (support (Substitution.crown S.tiles w)) := by
+  have hB := PlaneTiling.locallyFinite S (isCompact_closedBall w 1)
+  let E := {A ∈ S.tiles | (A.carrier ∩ Metric.closedBall w 1).Nonempty} \
+    Substitution.crown S.tiles w
+  have hE : E.Finite := hB.subset diff_subset
+  have hclosed : IsClosed (⋃ A ∈ E, A.carrier) :=
+    hE.isClosed_biUnion fun A _ => (P.disk A.form).compact.isClosed.vadd A.anchor
+  rw [mem_interior]
+  refine ⟨Metric.ball w 1 \ ⋃ A ∈ E, A.carrier, ?_, Metric.isOpen_ball.sdiff hclosed, ?_⟩
+  · rintro x ⟨hx, hxE⟩
+    have hcov : x ∈ support S.tiles := by rw [S.cover]; trivial
+    simp only [support, mem_iUnion] at hcov
+    obtain ⟨A, hA, hxA⟩ := hcov
+    by_cases hc : A ∈ Substitution.crown S.tiles w
+    · simp only [support, mem_iUnion]; exact ⟨A, hc, hxA⟩
+    · exfalso; apply hxE
+      simp only [mem_iUnion]
+      exact ⟨A, ⟨⟨hA, x, hxA, Metric.ball_subset_closedBall hx⟩, hc⟩, hxA⟩
+  · refine ⟨Metric.mem_ball_self one_pos, ?_⟩
+    simp only [mem_iUnion, not_exists]
+    intro A hA hwA
+    exact hA.2 ⟨hA.1.1, hwA⟩
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: translating a placed tile
+translates its carrier. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate
+    (X : PlacedTile P) (u : Pt) : (X.translate u).carrier = u +ᵥ X.carrier := by
+  show (u +ᵥ X.anchor) +ᵥ _ = u +ᵥ (X.anchor +ᵥ _)
+  rw [vadd_vadd]; rfl
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a tile of an interior-disjoint
+set containing an interior point of the support of a finite subfamily belongs to that subfamily. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_mem_of_interior
+    {D F : Set (PlacedTile P)} (hD : DisjointInteriors D) (hFD : F ⊆ D)
+    (hF : F.Finite) {w : Pt} (hw : w ∈ interior (support F)) {Y : PlacedTile P} (hY : Y ∈ D)
+    (hwY : w ∈ Y.carrier) : Y ∈ F := by
+  by_contra hYF
+  have hreg : closure (interior Y.carrier) = Y.carrier := by
+    show closure (interior (Y.anchor +ᵥ (P.disk Y.form).carrier)) =
+      Y.anchor +ᵥ (P.disk Y.form).carrier
+    rw [interior_vadd, closure_vadd, (P.disk Y.form).regular_closed]
+  rw [← hreg] at hwY
+  obtain ⟨z, hzV, hzY⟩ := mem_closure_iff.mp hwY _ isOpen_interior hw
+  have hsupp : support F = closure (⋃ Z ∈ F, interior Z.carrier) := by
+    rw [hF.closure_biUnion]
+    apply iUnion₂_congr
+    intro Z _
+    show Z.anchor +ᵥ (P.disk Z.form).carrier =
+      closure (interior (Z.anchor +ᵥ (P.disk Z.form).carrier))
+    rw [interior_vadd, closure_vadd, (P.disk Z.form).regular_closed]
+  have hz : z ∈ closure (⋃ Z ∈ F, interior Z.carrier) := hsupp ▸ interior_subset hzV
+  obtain ⟨y, ⟨hyV, hyY⟩, hyU⟩ :=
+    mem_closure_iff.mp hz _ (isOpen_interior.inter isOpen_interior) ⟨hzV, hzY⟩
+  simp only [mem_iUnion] at hyU
+  obtain ⟨Z, hZ, hyZ⟩ := hyU
+  have hne : Y ≠ Z := fun h => hYF (h ▸ hZ)
+  exact Set.disjoint_left.mp (hD hY (hFD hZ) hne) hyY hyZ
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: supertiles have disjoint
+interiors. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_supertile_disjoint
+    (τ : Substitution P) (n : ℕ) (p : P.Form) : DisjointInteriors (τ.supertile n p) := by
+  cases n with
+  | zero =>
+    change DisjointInteriors ({⟨p, 0⟩} : Set (PlacedTile P))
+    exact Set.pairwiseDisjoint_singleton _ _
+  | succ n => exact ((τ.pow (n + 1) (Nat.succ_pos n)).rule p).disjoint
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a listed vertex lies in the
+carrier. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_mem_carrier
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) : X.vertex i ∈ X.carrier := by
+  refine ⟨(P.disk X.form).vertex i, ?_, rfl⟩
+  apply (P.disk X.form).compact.isClosed.frontier_subset
+  rw [(P.disk X.form).frontier_eq]
+  exact Set.mem_iUnion.mpr ⟨i, left_mem_segment ℝ _ _⟩
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the support of a translated set
+is the translated support. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_support_translate
+    (S : Set (PlacedTile P)) (v : Pt) : support (translateSet v S) = v +ᵥ support S := by
+  simp only [support, translateSet, biUnion_image, Set.vadd_set_iUnion₂,
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate]
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a full crown of a tiling which
+occurs in a supertile is an allowed crown. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_allowed_crown
+    (τ : Substitution P) (S : PlaneTiling P) (w : Pt)
+    (hv : Substitution.IsVertexOf S.tiles w) {n : ℕ} {p : P.Form} {u : Pt}
+    (hu : translateSet u (Substitution.crown S.tiles w) ⊆ τ.supertile n p) :
+    τ.IsAllowedCrown (translateSet (-w) (Substitution.crown S.tiles w)) := by
+  obtain ⟨X, hX, i, rfl⟩ := hv
+  set w := X.vertex i with hw
+  have hXc : X ∈ Substitution.crown S.tiles w :=
+    ⟨hX, hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_mem_carrier X i⟩
+  have hcrown : Substitution.crown (τ.supertile n p) (u + w) =
+      translateSet u (Substitution.crown S.tiles w) := by
+    ext Y
+    constructor
+    · rintro ⟨hY, hwY⟩
+      have hint : u + w ∈
+          interior (support (translateSet u (Substitution.crown S.tiles w))) := by
+        rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_support_translate,
+          interior_vadd]
+        exact vadd_mem_vadd_set
+          (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_nhds S w)
+      exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_mem_of_interior
+        (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_supertile_disjoint
+          τ n p) hu
+        ((hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_finite S w).image
+          _) hint hY hwY
+    · rintro hY
+      refine ⟨hu hY, ?_⟩
+      obtain ⟨Z, hZ, rfl⟩ := hY
+      rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate]
+      exact vadd_mem_vadd_set hZ.2
+  refine ⟨n, p, u + w, ⟨X.translate u, hu ⟨X, hXc, rfl⟩, i, ?_⟩, ?_⟩
+  · show (u +ᵥ X.anchor) +ᵥ (P.disk X.form).vertex i =
+      u + (X.anchor +ᵥ (P.disk X.form).vertex i)
+    simp only [vadd_eq_add, add_assoc]
+  · rw [hcrown, cc_translateSet_translateSet]
+    congr 1
+    abel
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a translate of a subfamily of an
+interior-disjoint side-to-side family is again interior-disjoint and side-to-side. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_translate_subset
+    {D F : Set (PlacedTile P)} (hD : DisjointInteriors D) (hDs : SideToSideSet D)
+    (hFD : F ⊆ D) (u : Pt) :
+    DisjointInteriors (translateSet u F) ∧ SideToSideSet (translateSet u F) := by
+  constructor
+  · rintro _ ⟨X, hX, rfl⟩ _ ⟨Y, hY, rfl⟩ hne
+    have hXY : X ≠ Y := fun h => hne (h ▸ rfl)
+    have hd := hD (hFD hX) (hFD hY) hXY
+    dsimp [Function.onFun] at hd ⊢
+    rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate,
+      hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate,
+      interior_vadd, interior_vadd]
+    exact (Set.disjoint_vadd_set).mpr hd
+  · rintro _ ⟨X, hX, rfl⟩ _ ⟨Y, hY, rfl⟩ i j hover
+    rw [dissection_preserves_sts_sofic_step1_local_rule_side_translate,
+      dissection_preserves_sts_sofic_step1_local_rule_side_translate] at hover ⊢
+    have hover' := dissection_preserves_sts_sofic_step1_local_rule_overlap_vadd (-u) hover
+    rw [neg_vadd_vadd, neg_vadd_vadd] at hover'
+    rw [hDs X (hFD hX) Y (hFD hY) i j hover']
+
+/-- Step 1a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: `decomposeIter` is monotone. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_decomposeIter_mono
+    (τ : Substitution P) (n : ℕ) {S S' : Set (PlacedTile P)} (h : S ⊆ S') :
+    τ.decomposeIter n S ⊆ τ.decomposeIter n S' := by
+  induction n with
+  | zero => exact h
+  | succ n ih =>
+    change τ.decompose (τ.decomposeIter n S) ⊆ τ.decompose (τ.decomposeIter n S')
+    intro C hC
+    simp only [Substitution.decompose, Set.mem_iUnion] at hC ⊢
+    obtain ⟨A, hA, hCA⟩ := hC
+    exact ⟨A, ih hA, hCA⟩
+
+/-- Step 1a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: iterated decomposition adds
+exponents. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_decomposeIter_add
+    (τ : Substitution P) (n k : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter n (τ.decomposeIter k S) = τ.decomposeIter (n + k) S := by
+  induction n with
+  | zero => rw [Nat.zero_add]; rfl
+  | succ n ih =>
+    change τ.decompose (τ.decomposeIter n (τ.decomposeIter k S)) =
+      τ.decomposeIter (n + 1 + k) S
+    rw [ih, show n + 1 + k = (n + k) + 1 by omega]
+    rfl
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a vertex in the interior of a
+macroblock.  The scattered tiles of the block of a coarse tile `E` form the patch
+`τ^m Δ(form E)`, which lies in a supertile (`inside_supertile`); a tile of the scattered tiling
+through an interior point of the block belongs to the block, so the crown at that point occurs in a
+supertile. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_step1_block_interior
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    {T T' : PlaneTiling C.Q} (hcomp : C.σ.IsComposition T' T)
+    {E : PlacedTile C.Q} (hE : E ∈ T'.tiles) {w : Pt}
+    (hw : w ∈ interior (C.σ.θ • E.carrier)) :
+    ∃ (k : ℕ) (p : P.Form) (u : Pt),
+      translateSet u (Substitution.crown (hC.groupedFamily.scatter T.tiles) w) ⊆
+        τ.supertile k p := by
+  have hcomp' : C.σ.decompose T'.tiles = T.tiles := hcomp
+  obtain ⟨k, p, v, hv⟩ := hC.inside_supertile E.form
+  have hs := hierarchy_lift_iff_scatter_decomposeTile τ hC.groupedSubstitution E
+  change hC.groupedFamily.scatter (C.σ.decomposeTile E) =
+    τ.decomposeIter m (hC.groupedFamily.scatterTile E) at hs
+  have hFT : hC.groupedFamily.scatter (C.σ.decomposeTile E) ⊆
+      hC.groupedFamily.scatter T.tiles := by
+    intro Z hZ
+    obtain ⟨D, hD, hZD⟩ := Set.mem_iUnion₂.mp hZ
+    have hDT : D ∈ T.tiles := by
+      rw [← hcomp']
+      exact Set.mem_iUnion₂.mpr ⟨E, hE, hD⟩
+    exact Set.mem_iUnion₂.mpr ⟨D, hDT, hZD⟩
+  have hdfin : (C.σ.decomposeTile E).Finite := (C.σ.rule E.form).finite.image _
+  have hFfin : (hC.groupedFamily.scatter (C.σ.decomposeTile E)).Finite :=
+    Set.Finite.biUnion hdfin (fun D _ => (C.Δ D.form).finite.image _)
+  have hsupp : support (hC.groupedFamily.scatter (C.σ.decomposeTile E)) =
+      C.σ.θ • E.carrier := by
+    rw [hierarchy_lift_iff_scatter_support, hierarchy_lift_iff_decomposeTile_carrier]
+  have hsub : Substitution.crown (hC.groupedFamily.scatter T.tiles) w ⊆
+      hC.groupedFamily.scatter (C.σ.decomposeTile E) := fun Y hY =>
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_mem_of_interior
+      (hierarchy_lift_iff_scatterTiling hC.groupedFamily T).disjoint hFT hFfin
+      (by rw [hsupp]; exact hw) hY.1 hY.2
+  rw [hs] at hsub
+  have hdec : τ.decomposeIter m (hC.groupedFamily.scatterTile E) =
+      translateSet (τ.θ ^ m • E.anchor) (τ.decomposeIter m (C.Δ E.form).tiles) := by
+    change τ.decomposeIter m (translateSet E.anchor (C.Δ E.form).tiles) = _
+    rw [hierarchy_lift_iff_decomposeIter_translate]
+  have hv' : translateSet (τ.θ ^ m • v) (τ.decomposeIter m (C.Δ E.form).tiles) ⊆
+      τ.supertile (m + k) p := by
+    have h1 :=
+      hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_decomposeIter_mono τ m hv
+    rw [hierarchy_lift_iff_decomposeIter_translate] at h1
+    have h2 : τ.decomposeIter m (τ.supertile k p) = τ.supertile (m + k) p :=
+      hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_decomposeIter_add
+        τ m k _
+    rw [h2] at h1
+    exact h1
+  refine ⟨m + k, p, τ.θ ^ m • v - τ.θ ^ m • E.anchor, ?_⟩
+  calc translateSet (τ.θ ^ m • v - τ.θ ^ m • E.anchor)
+        (Substitution.crown (hC.groupedFamily.scatter T.tiles) w)
+      ⊆ translateSet (τ.θ ^ m • v - τ.θ ^ m • E.anchor)
+          (translateSet (τ.θ ^ m • E.anchor) (τ.decomposeIter m (C.Δ E.form).tiles)) :=
+        cc_translateSet_mono _ (hsub.trans hdec.subset)
+    _ = translateSet (τ.θ ^ m • v) (τ.decomposeIter m (C.Δ E.form).tiles) := by
+        rw [cc_translateSet_translateSet]; congr 2; abel
+    _ ⊆ τ.supertile (m + k) p := hv'
+
+/-- Step 4a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the endpoint of a segment is an
+endpoint of any segment with the same support. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint
+    (x y a b : Pt) (h : segment ℝ x y = segment ℝ a b) : x = a ∨ x = b := by
+  by_contra hcon
+  push_neg at hcon
+  have hx : x ∈ segment ℝ a b := h ▸ left_mem_segment ℝ x y
+  have ha : a ∈ segment ℝ x y := h.symm ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ x y := h.symm ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hx ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, hxs⟩ := hx
+  obtain ⟨α, ⟨hα0, -⟩, rfl⟩ := ha
+  obtain ⟨β, ⟨hβ0, -⟩, rfl⟩ := hb
+  simp only at hxs hcon
+  have e : ((1 - s) * α + s * β) • (y - x) = 0 := by
+    have : x + α • (y - x) + s • (x + β • (y - x) - (x + α • (y - x))) - x =
+        ((1 - s) * α + s * β) • (y - x) := by module
+    rw [← this, hxs, sub_self]
+  rcases smul_eq_zero.1 e with h0 | h0
+  · have hα : α ≠ 0 := by rintro rfl; exact hcon.1 (by simp)
+    have hβ : β ≠ 0 := by rintro rfl; exact hcon.2 (by simp)
+    have hα' : 0 < α := lt_of_le_of_ne hα0 (Ne.symm hα)
+    have hβ' : 0 < β := lt_of_le_of_ne hβ0 (Ne.symm hβ)
+    have h3 : (1 - s) * α = 0 := by
+      nlinarith [mul_nonneg (sub_nonneg.2 hs1) hα0, mul_nonneg hs0 hβ0]
+    have h4 : s * β = 0 := by
+      nlinarith [mul_nonneg (sub_nonneg.2 hs1) hα0, mul_nonneg hs0 hβ0]
+    rcases mul_eq_zero.1 h3 with h5 | h5 <;> rcases mul_eq_zero.1 h4 with h6 | h6
+    · linarith
+    · exact hβ h6
+    · exact hα h5
+    · exact hα h5
+  · exact hcon.1 (by simp [h0])
+
+/-- Step 2a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a listed vertex of a polygonal
+disk lying on a listed side is an endpoint of that side. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_mem_side
+    (Q : PolygonalDisk) {k i : Fin Q.n} (h : Q.vertex k ∈ Q.side i) :
+    k = i ∨ k = finRotate Q.n i := by
+  by_cases hki : k = i
+  · exact Or.inl hki
+  · have hs := Q.simple i k (Ne.symm hki)
+    have hk : Q.vertex k ∈ segment ℝ (Q.vertex k) (Q.vertex (finRotate Q.n k)) :=
+      left_mem_segment ℝ _ _
+    have hmem := hs ⟨h, hk⟩
+    rcases hmem.1 with h1 | h1
+    · exact absurd (Q.vertex_injective h1) hki
+    · exact Or.inr (Q.vertex_injective (Set.mem_singleton_iff.mp h1))
+
+/-- Step 2a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: placed version. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_tile_vertex_mem_side
+    {Q : Protoset} (X : PlacedTile Q) {k i : Fin (Q.disk X.form).n}
+    (h : X.vertex k ∈ X.side i) : k = i ∨ k = finRotate _ i := by
+  apply hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_mem_side
+    (Q.disk X.form)
+  have h' : X.anchor +ᵥ (Q.disk X.form).vertex k ∈ X.anchor +ᵥ (Q.disk X.form).side i := h
+  exact vadd_mem_vadd_set_iff.mp h'
+
+/-- Step 2a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: equal listed sides have the same
+endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_side_endpoints
+    {Q : Protoset} {X Y : PlacedTile Q} {i : Fin (Q.disk X.form).n} {j : Fin (Q.disk Y.form).n}
+    (h : Y.side j = X.side i) {w : Pt} (hw : X.vertex i = w ∨ X.vertex (finRotate _ i) = w) :
+    Y.vertex j = w ∨ Y.vertex (finRotate _ j) = w := by
+  have h' : segment ℝ (X.vertex i) (X.vertex (finRotate _ i)) =
+      segment ℝ (Y.vertex j) (Y.vertex (finRotate _ j)) := by
+    have h2 := h.symm
+    simp only [PlacedTile.side, PolygonalDisk.side] at h2
+    rw [vadd_segment, vadd_segment] at h2
+    exact h2
+  rcases hw with rfl | rfl
+  · rcases hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint
+      _ _ _ _ h' with h1 | h1
+    · exact Or.inl h1.symm
+    · exact Or.inr h1.symm
+  · have h3 : segment ℝ (X.vertex (finRotate _ i)) (X.vertex i) =
+        segment ℝ (Y.vertex j) (Y.vertex (finRotate _ j)) := by
+      rw [segment_symm ℝ (X.vertex (finRotate _ i)) (X.vertex i)]; exact h'
+    rcases hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint
+      _ _ _ _ h3 with h1 | h1
+    · exact Or.inl h1.symm
+    · exact Or.inr h1.symm
+
+/-- Step 2b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: `cc_key` with the contact point
+recorded on the side of the first tile. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_key
+    {A B : PlacedTile P} (hd : Disjoint (interior A.carrier) (interior B.carrier))
+    {x : Pt} (hxA : x ∈ A.carrier) (hxB : x ∈ B.carrier) (hvA : x ∉ A.vertexSet)
+    (hvB : x ∉ B.vertexSet) :
+    ∃ i j, OverlapPos (A.side i) (B.side j) ∧ x ∈ A.side i := by
+  have hnotint : ∀ {A B : PlacedTile P}, Disjoint (interior A.carrier) (interior B.carrier) →
+      x ∈ B.carrier → x ∉ interior A.carrier := by
+    intro A B hd hxB hxA
+    rw [← cc_tile_regular B, mem_closure_iff_nhds] at hxB
+    obtain ⟨z, hz1, hz2⟩ := hxB _ (isOpen_interior.mem_nhds hxA)
+    exact Set.disjoint_left.mp hd hz1 hz2
+  obtain ⟨i, ε₁, d₁, n₁, hε₁, hd₁, hn₁, hnd₁, hs₁, hy₁⟩ :=
+    cc_halfdisk_tile A hxA (hnotint hd hxB) hvA
+  obtain ⟨j, ε₂, d₂, n₂, hε₂, hd₂, hn₂, hnd₂, hs₂, hy₂⟩ :=
+    cc_halfdisk_tile B hxB (hnotint hd.symm hxA) hvB
+  have key : inner ℝ n₂ d₁ = 0 := by
+    by_contra hne
+    obtain ⟨w, hw2, hw1⟩ : ∃ w : Pt, 0 < inner ℝ n₂ w ∧ inner ℝ n₁ w = 0 := by
+      rcases lt_or_gt_of_ne hne with h | h
+      · exact ⟨-d₁, by rw [inner_neg_right]; linarith, by rw [inner_neg_right, hnd₁, neg_zero]⟩
+      · exact ⟨d₁, h, hnd₁⟩
+    set τ := (|inner ℝ n₂ n₁| + 1) / inner ℝ n₂ w with hτ
+    set u := n₁ + τ • w with hu
+    have hu2 : 0 < inner ℝ n₂ u := by
+      rw [hu, inner_add_right, inner_smul_right, hτ, div_mul_cancel₀ _ hw2.ne']
+      have := neg_abs_le (inner ℝ n₂ n₁); linarith
+    have hu1 : 0 < inner ℝ n₁ u := by
+      rw [hu, inner_add_right, inner_smul_right, hw1, mul_zero, add_zero,
+        real_inner_self_eq_norm_sq]
+      have := norm_pos_iff.mpr hn₁; positivity
+    have hu0 : u ≠ 0 := by rintro h; rw [h, inner_zero_right] at hu1; exact lt_irrefl _ hu1
+    have hunorm : 0 < ‖u‖ := norm_pos_iff.mpr hu0
+    set δ := min ε₁ ε₂ / (2 * ‖u‖) with hδ
+    have hδpos : 0 < δ := div_pos (lt_min hε₁ hε₂) (by positivity)
+    have hdist : dist (x + δ • u) x = min ε₁ ε₂ / 2 := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hδpos.le, hδ]
+      field_simp
+    have hm1 := min_le_left ε₁ ε₂
+    have hm2 := min_le_right ε₁ ε₂
+    have hmpos : 0 < min ε₁ ε₂ := lt_min hε₁ hε₂
+    have h1 : x + δ • u ∈ interior A.carrier := by
+      apply hy₁ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]; positivity
+    have h2 : x + δ • u ∈ interior B.carrier := by
+      apply hy₂ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]; positivity
+    exact Set.disjoint_left.mp hd h1 h2
+  obtain ⟨c, hc⟩ := cc_parallel hn₂ hd₂ key hnd₂
+  have hc0 : c ≠ 0 := by rintro rfl; apply hd₁; rw [hc, zero_smul]
+  have hcpos : 0 < |c| := abs_pos.mpr hc0
+  set s₀ := min ε₁ (ε₂ / |c|) / 2 with hs₀
+  have hs₀pos : 0 < s₀ := by
+    have : 0 < min ε₁ (ε₂ / |c|) := lt_min hε₁ (div_pos hε₂ hcpos)
+    positivity
+  refine ⟨i, j, ⟨x + (-s₀) • d₁, x + s₀ • d₁, ?_, ?_⟩, ?_⟩
+  · intro h
+    have : (2 * s₀) • d₁ = 0 := by
+      have h' := congrArg (fun z => z - x) h
+      simp only [add_sub_cancel_left] at h'
+      have e : (2 * s₀) • d₁ = s₀ • d₁ - (-s₀) • d₁ := by
+        rw [neg_smul, sub_neg_eq_add, ← add_smul, two_mul]
+      rw [e, h', sub_self]
+    rcases smul_eq_zero.mp this with h | h
+    · linarith
+    · exact hd₁ h
+  · rw [segment_eq_image']
+    rintro _ ⟨θ, ⟨hθ0, hθ1⟩, rfl⟩
+    have he : x + (-s₀) • d₁ + θ • (x + s₀ • d₁ - (x + (-s₀) • d₁)) =
+        x + ((2 * θ - 1) * s₀) • d₁ := by
+      rw [add_sub_add_left_eq_sub, ← sub_smul]
+      rw [smul_smul, add_assoc, ← add_smul]; congr 2; ring
+    simp only
+    rw [he]
+    have hab : |(2 * θ - 1) * s₀| ≤ s₀ := by
+      rw [abs_mul, abs_of_pos hs₀pos]
+      have : |2 * θ - 1| ≤ 1 := abs_le.mpr ⟨by linarith, by linarith⟩
+      nlinarith [abs_nonneg (2 * θ - 1)]
+    have hm1 := min_le_left ε₁ (ε₂ / |c|)
+    have hm2 := min_le_right ε₁ (ε₂ / |c|)
+    refine ⟨hs₁ _ (by linarith), ?_⟩
+    rw [hc, smul_smul]
+    apply hs₂
+    rw [abs_mul]
+    calc |(2 * θ - 1) * s₀| * |c| ≤ s₀ * |c| := by gcongr
+      _ < ε₂ / |c| * |c| := by gcongr; linarith
+      _ = ε₂ := div_mul_cancel₀ _ hcpos.ne'
+  · have h0 := hs₁ 0 (by simpa using hε₁)
+    simpa using h0
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the finite cyclic fan.  In a
+side-to-side plane tiling, if `w` is a listed vertex of the tile `A₀`, then any tile `A₁`
+containing `w` is joined to `A₀` by a chain of tiles containing `w`, consecutive tiles being
+distinct and sharing a whole listed side which has `w` as an endpoint (in both tiles). -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_step2_fan
+    {Q : Protoset} (T : PlaneTiling Q) (hT : T.SideToSide) (w : Pt)
+    {A₀ A₁ : PlacedTile Q} (hA₀ : A₀ ∈ T.tiles) (hA₁ : A₁ ∈ T.tiles)
+    (hw₀ : w ∈ A₀.vertexSet) (hw₁ : w ∈ A₁.carrier) :
+    Relation.ReflTransGen
+      (fun X Y : PlacedTile Q =>
+        X ∈ T.tiles ∧ w ∈ X.carrier ∧ Y ∈ T.tiles ∧ w ∈ Y.carrier ∧ X ≠ Y ∧
+          ∃ (i : Fin (Q.disk X.form).n) (j : Fin (Q.disk Y.form).n),
+            Y.side j = X.side i ∧
+              (X.vertex i = w ∨ X.vertex (finRotate _ i) = w) ∧
+              (Y.vertex j = w ∨ Y.vertex (finRotate _ j) = w)) A₀ A₁ := by
+  classical
+  let Rw : PlacedTile Q → PlacedTile Q → Prop := fun X Y =>
+    X ∈ T.tiles ∧ w ∈ X.carrier ∧ Y ∈ T.tiles ∧ w ∈ Y.carrier ∧ X ≠ Y ∧
+      ∃ (i : Fin (Q.disk X.form).n) (j : Fin (Q.disk Y.form).n),
+        Y.side j = X.side i ∧
+          (X.vertex i = w ∨ X.vertex (finRotate _ i) = w) ∧
+          (Y.vertex j = w ∨ Y.vertex (finRotate _ j) = w)
+  change Relation.ReflTransGen Rw A₀ A₁
+  have hreach : ∀ X, Relation.ReflTransGen Rw A₀ X → w ∈ X.vertexSet := by
+    intro X hX
+    induction hX with
+    | refl => exact hw₀
+    | @tail b c _ hbc _ =>
+      obtain ⟨-, -, -, -, -, i, j, -, -, hj⟩ := hbc
+      rcases hj with h | h
+      · exact ⟨j, h⟩
+      · exact ⟨finRotate _ j, h⟩
+  let G : Set (PlacedTile Q) := {X ∈ T.tiles | w ∈ X.carrier}
+  have hGfin : G.Finite :=
+    (PlaneTiling.locallyFinite T (isCompact_singleton (x := w))).subset
+      (fun X hX => ⟨hX.1, w, hX.2, rfl⟩)
+  -- tiles near `w` which do not contain `w`
+  have hBfin := PlaneTiling.locallyFinite T (isCompact_closedBall w 1)
+  let Nb : Set (PlacedTile Q) :=
+    {A ∈ T.tiles | (A.carrier ∩ Metric.closedBall w 1).Nonempty} \ G
+  have hNbfin : Nb.Finite := hBfin.subset diff_subset
+  have hNbclosed : IsClosed (⋃ X ∈ Nb, X.carrier) :=
+    hNbfin.isClosed_biUnion fun X _ => cc_tile_carrier_closed X
+  have hwNb : w ∉ ⋃ X ∈ Nb, X.carrier := by
+    simp only [mem_iUnion, not_exists]
+    intro X hX hwX
+    exact hX.2 ⟨hX.1.1, hwX⟩
+  obtain ⟨δ1, hδ1, hδ1sub⟩ := Metric.isOpen_iff.1 hNbclosed.isOpen_compl w hwNb
+  -- sides not through `w`
+  have hsideClosed : ∀ (X : PlacedTile Q) (i : Fin (Q.disk X.form).n), IsClosed (X.side i) :=
+    fun X i => (cc_vadd_segment_compact X.anchor _ _).isClosed
+  let K : Set Pt := ⋃ X ∈ G, ⋃ i ∈ {i : Fin (Q.disk X.form).n | w ∉ X.side i}, X.side i
+  have hKclosed : IsClosed K := by
+    refine hGfin.isClosed_biUnion fun X _ => ?_
+    exact (Set.toFinite _).isClosed_biUnion fun i _ => hsideClosed X i
+  have hwK : w ∉ K := by
+    intro hK
+    simp only [K, Set.mem_iUnion] at hK
+    obtain ⟨X, hXG, i, hi, hwi⟩ := hK
+    exact hi hwi
+  obtain ⟨δ2, hδ2, hδ2sub⟩ := Metric.isOpen_iff.1 hKclosed.isOpen_compl w hwK
+  -- listed vertices other than `w`
+  let V : Set Pt := (⋃ X ∈ G, X.vertexSet) \ {w}
+  have hVfin : V.Finite :=
+    (hGfin.biUnion fun X _ => cc_finite_vertexSet X).subset diff_subset
+  have hwV : w ∉ V := fun h => h.2 rfl
+  obtain ⟨δ3, hδ3, hδ3sub⟩ := Metric.isOpen_iff.1 hVfin.isClosed.isOpen_compl w hwV
+  set r := min 1 (min δ1 (min δ2 δ3))
+  have hr : 0 < r := lt_min one_pos (lt_min hδ1 (lt_min hδ2 hδ3))
+  have hr1 : r ≤ 1 := min_le_left _ _
+  have hrδ1 : r ≤ δ1 := (min_le_right _ _).trans (min_le_left _ _)
+  have hrδ2 : r ≤ δ2 := (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_left _ _))
+  have hrδ3 : r ≤ δ3 := (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
+  have hFtile : ∀ X ∈ T.tiles, (X.carrier ∩ Metric.ball w r).Nonempty → X ∈ G := by
+    intro X hX ⟨y, hyX, hyb⟩
+    by_contra hXG
+    have hXNb : X ∈ Nb := ⟨⟨hX, y, hyX, Metric.ball_subset_closedBall
+      (Metric.ball_subset_ball hr1 hyb)⟩, hXG⟩
+    apply hδ1sub (Metric.ball_subset_ball hrδ1 hyb)
+    exact Set.mem_biUnion hXNb hyX
+  have hFside : ∀ X ∈ G, ∀ i : Fin (Q.disk X.form).n, ∀ y ∈ X.side i,
+      y ∈ Metric.ball w r → w ∈ X.side i := by
+    intro X hX i y hyi hyb
+    by_contra hwi
+    apply hδ2sub (Metric.ball_subset_ball hrδ2 hyb)
+    simp only [K, Set.mem_iUnion]
+    exact ⟨X, hX, i, hwi, hyi⟩
+  have hFvert : ∀ X ∈ G, ∀ y ∈ X.vertexSet, y ∈ Metric.ball w r → y = w := by
+    intro X hX y hy hyb
+    by_contra hyw
+    apply hδ3sub (Metric.ball_subset_ball hrδ3 hyb)
+    exact ⟨Set.mem_biUnion hX hy, hyw⟩
+  by_contra hA₁C
+  let C : Set (PlacedTile Q) := {X ∈ G | Relation.ReflTransGen Rw A₀ X}
+  let D : Set (PlacedTile Q) := G \ C
+  have hA₀G : A₀ ∈ G := by
+    obtain ⟨k, hk⟩ := hw₀
+    refine ⟨hA₀, ?_⟩
+    rw [← hk]
+    exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_mem_carrier A₀ k
+  have hA₀C : A₀ ∈ C := ⟨hA₀G, Relation.ReflTransGen.refl⟩
+  have hA₁G : A₁ ∈ G := ⟨hA₁, hw₁⟩
+  have hA₁D : A₁ ∈ D := ⟨hA₁G, fun h => hA₁C h.2⟩
+  have hcl : ∀ S ⊆ G, IsClosed (⋃ X ∈ S, X.carrier) := fun S hS =>
+    (hGfin.subset hS).isClosed_biUnion fun X _ => cc_tile_carrier_closed X
+  have hWconn := cc_ball_diff_conn w hr (Set.finite_singleton w)
+  rw [isPreconnected_closed_iff] at hWconn
+  have hpt : ∀ Y ∈ G, ∃ y ∈ Metric.ball w r \ {w}, y ∈ Y.carrier := by
+    intro Y hY
+    have hwY := hY.2
+    rw [← cc_tile_regular Y, mem_closure_iff_nhds] at hwY
+    obtain ⟨z, hz1, hz2⟩ := hwY _ (Metric.isOpen_ball.mem_nhds (Metric.mem_ball_self hr))
+    have hopen : IsOpen (interior Y.carrier ∩ Metric.ball w r) :=
+      isOpen_interior.inter Metric.isOpen_ball
+    obtain ⟨u, hu1, hu2⟩ :=
+      ((Set.finite_singleton w).countable.dense_compl ℝ).inter_open_nonempty _ hopen
+        ⟨z, hz2, hz1⟩
+    exact ⟨u, ⟨hu1.2, hu2⟩, interior_subset hu1.1⟩
+  obtain ⟨y, hyW, hy1, hy2⟩ := hWconn (⋃ X ∈ C, X.carrier) (⋃ X ∈ D, X.carrier)
+    (hcl C (fun X hX => hX.1)) (hcl D (fun X hX => hX.1))
+    (by
+      intro y hy
+      have hcov : y ∈ support T.tiles := by rw [T.cover]; trivial
+      simp only [support, mem_iUnion, exists_prop] at hcov
+      obtain ⟨Y, hYT, hyY⟩ := hcov
+      have hYG : Y ∈ G := hFtile Y hYT ⟨y, hyY, hy.1⟩
+      by_cases hYC : Y ∈ C
+      · exact Or.inl (Set.mem_biUnion hYC hyY)
+      · exact Or.inr (Set.mem_biUnion ⟨hYG, hYC⟩ hyY))
+    (by
+      obtain ⟨y, hyW, hyA⟩ := hpt A₀ hA₀G
+      exact ⟨y, hyW, Set.mem_biUnion hA₀C hyA⟩)
+    (by
+      obtain ⟨y, hyW, hyA⟩ := hpt A₁ hA₁G
+      exact ⟨y, hyW, Set.mem_biUnion hA₁D hyA⟩)
+  simp only [mem_iUnion, exists_prop] at hy1 hy2
+  obtain ⟨X, hXC, hyX⟩ := hy1
+  obtain ⟨Y, hYD, hyY⟩ := hy2
+  have hne : X ≠ Y := by rintro rfl; exact hYD.2 hXC
+  have hnvX : y ∉ X.vertexSet := fun h => hyW.2 (hFvert X hXC.1 y h hyW.1)
+  have hnvY : y ∉ Y.vertexSet := fun h => hyW.2 (hFvert Y hYD.1 y h hyW.1)
+  obtain ⟨i, j, hover, hyi⟩ := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_key
+    (T.disjoint hXC.1.1 hYD.1.1 hne) hyX hyY hnvX hnvY
+  have hside : X.side i = Y.side j := hT X hXC.1.1 Y hYD.1.1 i j hover
+  have hwi : w ∈ X.side i := hFside X hXC.1 i y hyi hyW.1
+  obtain ⟨k, hk⟩ := hreach X hXC.2
+  have hk' : X.vertex k ∈ X.side i := by rw [hk]; exact hwi
+  have hend : X.vertex i = w ∨ X.vertex (finRotate _ i) = w := by
+    rcases hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_tile_vertex_mem_side
+      X hk' with rfl | rfl
+    · exact Or.inl hk
+    · exact Or.inr hk
+  have hj := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_side_endpoints
+    hside.symm hend
+  apply hYD.2
+  exact ⟨hYD.1, Relation.ReflTransGen.tail hXC.2
+    ⟨hXC.1.1, hXC.1.2, hYD.1.1, hYD.1.2, hne, i, j, hside.symm, hend, hj⟩⟩
+
+/-- Step 3a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the order `pointLT` is
+translation invariant. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pointLT_add
+    (a x y : Pt) : hereditary_sts_substitution_sofic_pointLT (a + x) (a + y) ↔
+      hereditary_sts_substitution_sofic_pointLT x y := by
+  simp [hereditary_sts_substitution_sofic_pointLT]
+
+/-- Step 3a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: `pointLT` is total on distinct
+points. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pointLT_total
+    {x y : Pt} (h : x ≠ y) :
+    hereditary_sts_substitution_sofic_pointLT x y ∨
+      hereditary_sts_substitution_sofic_pointLT y x := by
+  unfold hereditary_sts_substitution_sofic_pointLT
+  by_contra hcon
+  push_neg at hcon
+  obtain ⟨⟨h1, h2⟩, ⟨h3, h4⟩⟩ := hcon
+  have e0 : x 0 = y 0 := le_antisymm h3 h1
+  have e1 : x 1 = y 1 := le_antisymm (h4 e0.symm) (h2 e0)
+  apply h
+  ext k
+  fin_cases k
+  · exact e0
+  · exact e1
+
+/-- Step 3a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: `pointLT` is asymmetric. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pointLT_asymm
+    {x y : Pt} (h : hereditary_sts_substitution_sofic_pointLT x y) :
+    ¬ hereditary_sts_substitution_sofic_pointLT y x := by
+  unfold hereditary_sts_substitution_sofic_pointLT at *
+  rintro h'
+  rcases h with h | ⟨h0, h1⟩ <;> rcases h' with h' | ⟨h0', h1'⟩ <;> linarith
+
+/-- Step 3a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: equal ordered pairs of entries
+at the endpoints of one segment give equal entries at both endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pair_eq
+    {β : Type*} (P Q P' Q' : Pt) (f f' : Pt → β) (hPQ : P ≠ Q)
+    (hends : (P = P' ∧ Q = Q') ∨ (P = Q' ∧ Q = P'))
+    (h : (if hereditary_sts_substitution_sofic_pointLT P Q then (f P, f Q) else (f Q, f P)) =
+      (if hereditary_sts_substitution_sofic_pointLT P' Q' then (f' P', f' Q')
+        else (f' Q', f' P'))) :
+    f P = f' P ∧ f Q = f' Q := by
+  rcases hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · by_cases hlt : hereditary_sts_substitution_sofic_pointLT P Q
+    · rw [if_pos hlt, if_pos hlt] at h
+      exact ⟨congrArg Prod.fst h, congrArg Prod.snd h⟩
+    · rw [if_neg hlt, if_neg hlt] at h
+      exact ⟨congrArg Prod.snd h, congrArg Prod.fst h⟩
+  · by_cases hlt : hereditary_sts_substitution_sofic_pointLT P Q
+    · have hn := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pointLT_asymm hlt
+      rw [if_pos hlt, if_neg hn] at h
+      exact ⟨congrArg Prod.fst h, congrArg Prod.snd h⟩
+    · have hlt' : hereditary_sts_substitution_sofic_pointLT Q P :=
+        (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pointLT_total
+          hPQ).resolve_left hlt
+      rw [if_neg hlt, if_pos hlt'] at h
+      exact ⟨congrArg Prod.snd h, congrArg Prod.fst h⟩
+
+/-- Step 3a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a pair with a non-absent
+entry is not the doubly absent pair. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pair_ne
+    {β : Type*} (P Q : Pt) (f : Pt → Option β) (h : f P ≠ none ∨ f Q ≠ none) :
+    (if hereditary_sts_substitution_sofic_pointLT P Q then (f P, f Q) else (f Q, f P)) ≠
+      (none, none) := by
+  by_cases hlt : hereditary_sts_substitution_sofic_pointLT P Q
+  · rw [if_pos hlt]
+    intro h'
+    rcases h with h | h
+    · exact h (congrArg Prod.fst h')
+    · exact h (congrArg Prod.snd h')
+  · rw [if_neg hlt]
+    intro h'
+    rcases h with h | h
+    · exact h (congrArg Prod.snd h')
+    · exact h (congrArg Prod.fst h')
+
+/-- Step 3a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a packet with a present entry
+is encoded as itself. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_encodePacket_of_ne
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) {m : ℕ}
+    (hC : C.Represents τ m)
+    {p : hereditary_sts_substitution_sofic_CrownPacket τ hsts} (hp : p ≠ (none, none)) :
+    hereditary_sts_substitution_sofic_encodePacket τ hsts C hC p = Sum.inr (Sum.inl p) := by
+  obtain ⟨p1, p2⟩ := p
+  cases p1 <;> cases p2
+  · exact absurd rfl hp
+  all_goals rfl
+
+/-- Step 3a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: `encodePacket` is injective on
+packets with a present entry. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_encodePacket_eq
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) {m : ℕ}
+    (hC : C.Represents τ m)
+    {p p' : hereditary_sts_substitution_sofic_CrownPacket τ hsts}
+    (hp : p ≠ (none, none)) (hp' : p' ≠ (none, none))
+    (h : hereditary_sts_substitution_sofic_encodePacket τ hsts C hC p =
+      hereditary_sts_substitution_sofic_encodePacket τ hsts C hC p') : p = p' := by
+  rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_encodePacket_of_ne
+      τ hsts C hC hp,
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_encodePacket_of_ne
+      τ hsts C hC hp'] at h
+  exact Sum.inl.inj (Sum.inr.inj h)
+/-- Step 3b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a polygonal disk has no
+fixed point of the cyclic rotation of its listed vertices. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_finRotate_ne
+    {n : ℕ} (hn : 2 ≤ n) (i : Fin n) : finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h1 : (1 : Fin (m + 1)) = 0 := by
+    have := congrArg (fun x => x - i) h
+    simpa using this
+  have : NeZero (m + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h1
+  omega
+
+/-- Step 3b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the two endpoints of a listed
+side are distinct. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_ne
+    (Q : PolygonalDisk) (i : Fin Q.n) : Q.vertex i ≠ Q.vertex (finRotate Q.n i) := by
+  intro h
+  exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_finRotate_ne
+    (by have := Q.three_le; omega) i (Q.vertex_injective h).symm
+
+/-- Step 3b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the geometric segment of a
+side occurrence joins its two endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_occSide_eq
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc) :
+    C.occSide o = segment ℝ (C.occStart o) (C.occEnd o) := by
+  show C.anchor o.1 +ᵥ segment ℝ ((C.Q.disk (C.form o.1)).vertex o.2)
+    ((C.Q.disk (C.form o.1)).vertex (finRotate _ o.2)) = _
+  rw [vadd_segment]
+  rfl
+
+/-- Step 3b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a side occurrence with an
+endpoint on the macroboundary of its owner template is not a print (prints lie on the central
+child, which has no boundary side, and on its partner, which has the same segment). -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_not_print_aux
+    (C : Geometry.MacroCertificate P) (α : C.Q.Form) (d : Fin (C.Q.disk α).n)
+    (hmark : C.marked α d) (o : C.SideOcc)
+    (hd : o = C.printOcc α d ∨ o = C.partner (C.printOcc α d))
+    (ho : C.occStart o ∈ C.macroBoundary α ∨ C.occEnd o ∈ C.macroBoundary α) : False := by
+  have hinner := C.g4_print_inner α d hmark
+  have h5 : C.owner (C.printOcc α d).1 = α := C.g5_central_owner α
+  have hb : (C.occStart (C.printOcc α d) ∈ C.macroBoundary α ∨
+      C.occEnd (C.printOcc α d) ∈ C.macroBoundary α) → False := by
+    intro hbd
+    refine (C.g2_central α (C.print α d)).2 ⟨hinner, ?_⟩
+    show C.occStart (C.printOcc α d) ∈ C.macroBoundary (C.owner (C.printOcc α d).1) ∨
+      C.occEnd (C.printOcc α d) ∈ C.macroBoundary (C.owner (C.printOcc α d).1)
+    rw [h5]
+    exact hbd
+  rcases hd with hd | hd
+  · rw [hd] at ho
+    exact hb ho
+  · rw [hd] at ho
+    have hsame := C.g1_partner (C.printOcc α d) hinner
+    have hseg : segment ℝ (C.occStart (C.partner (C.printOcc α d)))
+        (C.occEnd (C.partner (C.printOcc α d))) =
+        segment ℝ (C.occStart (C.printOcc α d)) (C.occEnd (C.printOcc α d)) := by
+      rw [← hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_occSide_eq C
+          (C.partner (C.printOcc α d)),
+        ← hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_occSide_eq C
+          (C.printOcc α d)]
+      exact hsame.2.2
+    have hs1 := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint
+      _ _ _ _ hseg
+    have hs2 := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint
+      (C.occEnd (C.partner (C.printOcc α d))) (C.occStart (C.partner (C.printOcc α d)))
+      (C.occStart (C.printOcc α d)) (C.occEnd (C.printOcc α d))
+      (by rw [segment_symm ℝ (C.occEnd (C.partner (C.printOcc α d)))
+        (C.occStart (C.partner (C.printOcc α d)))]; exact hseg)
+    apply hb
+    rcases ho with ho | ho
+    · rcases hs1 with h | h
+      · exact Or.inl (h ▸ ho)
+      · exact Or.inr (h ▸ ho)
+    · rcases hs2 with h | h
+      · exact Or.inl (h ▸ ho)
+      · exact Or.inr (h ▸ ho)
+
+/-- Step 3b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a side occurrence with an
+endpoint on the macroboundary of its owner template is not a print. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_not_print
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc)
+    (ho : C.occStart o ∈ C.macroBoundary (C.owner o.1) ∨
+      C.occEnd o ∈ C.macroBoundary (C.owner o.1)) : ¬ C.IsPrint o := by
+  rintro ⟨d, hmark, hd⟩
+  exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_not_print_aux
+    C (C.owner o.1) d hmark o hd ho
+
+/-- Step 4a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: every listed vertex of a grouped
+disk is a marked vertex of its dissection (the listed sides are whole sides of the dissection). -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_listed_vertex_marked
+    (C : Geometry.MacroCertificate P) {τ : Substitution P} {m : ℕ} (hC : C.Represents τ m)
+    (α : C.Q.Form) (i : Fin (C.Q.disk α).n) :
+    (C.Q.disk α).vertex i ∈ hereditary_sts_substitution_sofic_macroVertices C α := by
+  obtain ⟨A, hA, k, hk⟩ := hC.side_whole α i
+  have hk' : segment ℝ (A.anchor +ᵥ (P.disk A.form).vertex k)
+      (A.anchor +ᵥ (P.disk A.form).vertex (finRotate _ k)) =
+      segment ℝ ((C.Q.disk α).vertex i) ((C.Q.disk α).vertex (finRotate _ i)) := by
+    have h := hk
+    simp only [PlacedTile.side, PolygonalDisk.side] at h
+    rw [vadd_segment] at h
+    exact h
+  have hv := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint _ _ _ _
+    hk'.symm
+  simp only [hereditary_sts_substitution_sofic_macroVertices, Set.Finite.mem_toFinset,
+    Set.mem_setOf_eq]
+  rcases hv with h | h
+  · exact ⟨A, hA, k, h.symm⟩
+  · exact ⟨A, hA, finRotate _ k, h.symm⟩
+
+/-- Step 4b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: transport of a listed side
+along an equality of polygonal disks. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_disk_side_cast
+    {D E : PolygonalDisk} (hd : D = E) (i : Fin E.n) :
+    D.side (Fin.cast (congrArg (fun Q : PolygonalDisk => Q.n) hd).symm i) = E.side i := by
+  cases hd
+  rfl
+
+/-- Step 4b of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the projection of a
+side-to-side decorated plane tiling is side-to-side. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_project_sideToSide
+    {Q : Protoset} (dec : SideDecoration Q) (T : PlaneTiling dec.P')
+    (hT : T.SideToSide) : SideToSideSet (dec.toDecoration.project T).tiles := by
+  intro A hA B hB i j h
+  rcases hA with ⟨A', hA', rfl⟩
+  rcases hB with ⟨B', hB', rfl⟩
+  let hdA := dec.disk_eq A'.form
+  let hdB := dec.disk_eq B'.form
+  let i' : Fin (dec.P'.disk A'.form).n :=
+    Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdA).symm i
+  let j' : Fin (dec.P'.disk B'.form).n :=
+    Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdB).symm j
+  have hi : A'.side i' = (dec.toDecoration.projTile A').side i := by
+    change A'.anchor +ᵥ (dec.P'.disk A'.form).side i' =
+      A'.anchor +ᵥ (Q.disk (dec.proj A'.form)).side i
+    exact congrArg (fun s : Set Pt => A'.anchor +ᵥ s)
+      (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_disk_side_cast hdA i)
+  have hj : B'.side j' = (dec.toDecoration.projTile B').side j := by
+    change B'.anchor +ᵥ (dec.P'.disk B'.form).side j' =
+      B'.anchor +ᵥ (Q.disk (dec.proj B'.form)).side j
+    exact congrArg (fun s : Set Pt => B'.anchor +ᵥ s)
+      (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_disk_side_cast hdB j)
+  have h' : OverlapPos (A'.side i') (B'.side j') := by
+    rw [hi, hj]
+    exact h
+  have heq := hT A' hA' B' hB' i' j' h'
+  rw [hi, hj] at heq
+  exact heq
+
+/-- Step 4c of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: translating a set of tiles
+translates its crowns. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_translateSet
+    (S : Set (PlacedTile P)) (a v : Pt) :
+    Substitution.crown (translateSet a S) (a + v) = translateSet a (Substitution.crown S v) := by
+  ext Y
+  constructor
+  · rintro ⟨hY, hv⟩
+    obtain ⟨Y0, hY0, rfl⟩ := hY
+    refine ⟨Y0, ⟨hY0, ?_⟩, rfl⟩
+    rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate]
+      at hv
+    have hv' : a +ᵥ v ∈ a +ᵥ Y0.carrier := by simpa using hv
+    exact (vadd_mem_vadd_set_iff.mp hv')
+  · rintro ⟨Y0, ⟨hY0, hv⟩, rfl⟩
+    refine ⟨⟨Y0, hY0, rfl⟩, ?_⟩
+    rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate]
+    simpa using vadd_mem_vadd_set (a := a) hv
+
+/-- Step 4d of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed` (saturation): a family with
+disjoint interiors which contains the full crown of a plane tiling at `w` has exactly that crown
+at `w`; an additional tile through `w` would overlap the complete fan. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_saturation
+    (S : PlaneTiling P) (w : Pt) {U : Set (PlacedTile P)} (hU : DisjointInteriors U)
+    (hsub : Substitution.crown S.tiles w ⊆ U) :
+    Substitution.crown U w = Substitution.crown S.tiles w := by
+  apply Set.Subset.antisymm
+  · rintro Y ⟨hYU, hwY⟩
+    exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_mem_of_interior
+      hU hsub (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_finite S w)
+      (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_nhds S w)
+      hYU hwY
+  · exact fun Y hY => ⟨hsub hY, hY.2⟩
+
+/-- Step 3c of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the recorded crowns of two
+tiles of a proper colouring with coincident non-print sides agree at a common endpoint lying on
+the macroboundaries of the owner templates (cast-free form of the packet argument). -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_core
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    {F : PlaneTiling X.dec.P'} (hF : X.dec.Proper F)
+    {Z Z' : PlacedTile X.dec.P'} (hZ : Z ∈ F.tiles) (hZ' : Z' ∈ F.tiles) (hne : Z ≠ Z')
+    {A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC}
+    (hA : X.formEquiv Z.form = Sum.inl A) (hB : X.formEquiv Z'.form = Sum.inl B)
+    (γA : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (γB : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form B.1))
+    (hdA : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γA)
+    (hdB : hereditary_sts_substitution_sofic_Decodes τ hsts C hC B γB)
+    (i : C.Side A.1) (j : C.Side B.1)
+    (hside : Z'.anchor +ᵥ (C.Q.disk (C.form B.1)).side j =
+      Z.anchor +ᵥ (C.Q.disk (C.form A.1)).side i)
+    (w : Pt)
+    (hwi : Z.anchor + (C.Q.disk (C.form A.1)).vertex i = w ∨
+      Z.anchor + (C.Q.disk (C.form A.1)).vertex (finRotate _ i) = w)
+    (hwj : Z'.anchor + (C.Q.disk (C.form B.1)).vertex j = w ∨
+      Z'.anchor + (C.Q.disk (C.form B.1)).vertex (finRotate _ j) = w)
+    (hbA : C.anchor A.1 + (w - Z.anchor) ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier))
+    (hbB : C.anchor B.1 + (w - Z'.anchor) ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner B.1)).carrier))
+    (hv : w - Z.anchor ∈ hereditary_sts_substitution_sofic_macroVertices C (C.form A.1))
+    (hv' : w - Z'.anchor ∈ hereditary_sts_substitution_sofic_macroVertices C (C.form B.1)) :
+    (γA.1 ⟨w - Z.anchor, hv⟩).1 = (γB.1 ⟨w - Z'.anchor, hv'⟩).1 := by
+  -- the grouped forms and disks
+  have hZform : X.formEquiv.symm (Sum.inl A) = Z.form := by
+    rw [← hA]; exact X.formEquiv.symm_apply_apply _
+  have hZform' : X.formEquiv.symm (Sum.inl B) = Z'.form := by
+    rw [← hB]; exact X.formEquiv.symm_apply_apply _
+  have hprojA : X.dec.proj Z.form = C.form A.1 := by
+    rw [← hZform]; exact X.proj_typed A
+  have hprojB : X.dec.proj Z'.form = C.form B.1 := by
+    rw [← hZform']; exact X.proj_typed B
+  have hdiskA : X.dec.P'.disk Z.form = C.Q.disk (C.form A.1) :=
+    (X.dec.disk_eq Z.form).trans (congrArg C.Q.disk hprojA)
+  have hdiskB : X.dec.P'.disk Z'.form = C.Q.disk (C.form B.1) :=
+    (X.dec.disk_eq Z'.form).trans (congrArg C.Q.disk hprojB)
+  -- the two sides are not prints
+  have hnpA : ¬ C.IsPrint (C.occ A.1 i) := by
+    apply hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_not_print
+    rcases hwi with h | h
+    · left
+      have h1 : (C.Q.disk (C.form A.1)).vertex i = w - Z.anchor := by rw [← h]; abel
+      show C.anchor A.1 + (C.Q.disk (C.form A.1)).vertex i ∈
+        C.macroBoundary (C.owner A.1)
+      rw [h1]; exact hbA
+    · right
+      have h1 : (C.Q.disk (C.form A.1)).vertex (finRotate _ i) = w - Z.anchor := by
+        rw [← h]; abel
+      show C.anchor A.1 + (C.Q.disk (C.form A.1)).vertex (finRotate _ i) ∈
+        C.macroBoundary (C.owner A.1)
+      rw [h1]; exact hbA
+  have hnpB : ¬ C.IsPrint (C.occ B.1 j) := by
+    apply hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_not_print
+    rcases hwj with h | h
+    · left
+      have h1 : (C.Q.disk (C.form B.1)).vertex j = w - Z'.anchor := by rw [← h]; abel
+      show C.anchor B.1 + (C.Q.disk (C.form B.1)).vertex j ∈
+        C.macroBoundary (C.owner B.1)
+      rw [h1]; exact hbB
+    · right
+      have h1 : (C.Q.disk (C.form B.1)).vertex (finRotate _ j) = w - Z'.anchor := by
+        rw [← h]; abel
+      show C.anchor B.1 + (C.Q.disk (C.form B.1)).vertex (finRotate _ j) ∈
+        C.macroBoundary (C.owner B.1)
+      rw [h1]; exact hbB
+  -- coincidence of the typed sides
+  have hcoin : hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec
+      Z Z' A B i j := by
+    refine ⟨Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdiskA).symm i,
+      Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdiskB).symm j, ?_, ?_, ?_⟩
+    · exact (Fin.heq_ext_iff (congrArg (fun D : PolygonalDisk => D.n) hdiskA).symm).mpr rfl
+    · exact (Fin.heq_ext_iff (congrArg (fun D : PolygonalDisk => D.n) hdiskB).symm).mpr rfl
+    · have h1 : Z.side (Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdiskA).symm i) =
+          Z.anchor +ᵥ (C.Q.disk (C.form A.1)).side i := by
+        show Z.anchor +ᵥ (X.dec.P'.disk Z.form).side
+          (Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdiskA).symm i) = _
+        rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_disk_side_cast
+          hdiskA i]
+      have h2 : Z'.side (Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdiskB).symm j) =
+          Z'.anchor +ᵥ (C.Q.disk (C.form B.1)).side j := by
+        show Z'.anchor +ᵥ (X.dec.P'.disk Z'.form).side
+          (Fin.cast (congrArg (fun D : PolygonalDisk => D.n) hdiskB).symm j) = _
+        rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_disk_side_cast
+          hdiskB j]
+      rw [h1, h2]
+      exact hside.symm
+  have hcell := X.proper_cells_match F hF Z hZ Z' hZ' hne A B hA hB i j hcoin
+  have hc1 : A.2 i 1 = B.2 j 1 := congrFun hcell 1
+  have hEnc := (hdA.1 i hnpA).symm.trans (hc1.trans (hdB.1 j hnpB))
+  -- the packets
+  obtain ⟨rdA, hrdA⟩ : ∃ rd : Pt → Option (hereditary_sts_substitution_sofic_FullCrown τ hsts),
+      rd = fun v => if C.anchor A.1 + v ∈ frontier (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier)
+        then hereditary_sts_substitution_sofic_lookupCrown τ hsts C (C.form A.1) γA v
+        else none := ⟨_, rfl⟩
+  obtain ⟨rdB, hrdB⟩ : ∃ rd : Pt → Option (hereditary_sts_substitution_sofic_FullCrown τ hsts),
+      rd = fun v => if C.anchor B.1 + v ∈ frontier (C.σ.θ • (C.Q.disk (C.owner B.1)).carrier)
+        then hereditary_sts_substitution_sofic_lookupCrown τ hsts C (C.form B.1) γB v
+        else none := ⟨_, rfl⟩
+  have hPA : hereditary_sts_substitution_sofic_packetOf τ hsts C A.1 γA i =
+      if hereditary_sts_substitution_sofic_pointLT ((C.Q.disk (C.form A.1)).vertex i)
+          ((C.Q.disk (C.form A.1)).vertex (finRotate _ i))
+        then (rdA ((C.Q.disk (C.form A.1)).vertex i),
+          rdA ((C.Q.disk (C.form A.1)).vertex (finRotate _ i)))
+        else (rdA ((C.Q.disk (C.form A.1)).vertex (finRotate _ i)),
+          rdA ((C.Q.disk (C.form A.1)).vertex i)) := by
+    rw [hrdA]; rfl
+  have hPB : hereditary_sts_substitution_sofic_packetOf τ hsts C B.1 γB j =
+      if hereditary_sts_substitution_sofic_pointLT ((C.Q.disk (C.form B.1)).vertex j)
+          ((C.Q.disk (C.form B.1)).vertex (finRotate _ j))
+        then (rdB ((C.Q.disk (C.form B.1)).vertex j),
+          rdB ((C.Q.disk (C.form B.1)).vertex (finRotate _ j)))
+        else (rdB ((C.Q.disk (C.form B.1)).vertex (finRotate _ j)),
+          rdB ((C.Q.disk (C.form B.1)).vertex j)) := by
+    rw [hrdB]; rfl
+  -- global endpoints
+  set P := Z.anchor + (C.Q.disk (C.form A.1)).vertex i with hP
+  set Q := Z.anchor + (C.Q.disk (C.form A.1)).vertex (finRotate _ i) with hQ
+  set P' := Z'.anchor + (C.Q.disk (C.form B.1)).vertex j with hP'
+  set Q' := Z'.anchor + (C.Q.disk (C.form B.1)).vertex (finRotate _ j) with hQ'
+  have hPQ : P ≠ Q := fun h =>
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_ne
+      (C.Q.disk (C.form A.1)) i (add_left_cancel h)
+  have hseg : segment ℝ P' Q' = segment ℝ P Q := by
+    have h := hside
+    simp only [PolygonalDisk.side] at h
+    rw [vadd_segment, vadd_segment] at h
+    simpa only [vadd_eq_add] using h
+  have h1 := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint
+    P Q P' Q' hseg.symm
+  have h2 := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_seg_endpoint
+    Q P P' Q' (by rw [segment_symm ℝ Q P]; exact hseg.symm)
+  have hends : (P = P' ∧ Q = Q') ∨ (P = Q' ∧ Q = P') := by
+    rcases h1 with h1 | h1
+    · left
+      refine ⟨h1, ?_⟩
+      rcases h2 with h2 | h2
+      · exact absurd (h1.trans h2.symm) hPQ
+      · exact h2
+    · right
+      refine ⟨h1, ?_⟩
+      rcases h2 with h2 | h2
+      · exact h2
+      · exact absurd (h1.trans h2.symm) hPQ
+  -- the entries at the endpoints
+  have hfw : rdA (w - Z.anchor) = some (γA.1 ⟨w - Z.anchor, hv⟩) := by
+    rw [hrdA]
+    dsimp only
+    rw [if_pos hbA]
+    unfold hereditary_sts_substitution_sofic_lookupCrown
+    rw [dif_pos hv]
+  have hfw' : rdB (w - Z'.anchor) = some (γB.1 ⟨w - Z'.anchor, hv'⟩) := by
+    rw [hrdB]
+    dsimp only
+    rw [if_pos hbB]
+    unfold hereditary_sts_substitution_sofic_lookupCrown
+    rw [dif_pos hv']
+  have hUA : (if hereditary_sts_substitution_sofic_pointLT P Q
+      then (rdA (P - Z.anchor), rdA (Q - Z.anchor)) else (rdA (Q - Z.anchor), rdA (P - Z.anchor))) =
+      hereditary_sts_substitution_sofic_packetOf τ hsts C A.1 γA i := by
+    rw [hPA, hP, hQ]
+    simp only [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pointLT_add,
+      add_sub_cancel_left]
+  have hUB : (if hereditary_sts_substitution_sofic_pointLT P' Q'
+      then (rdB (P' - Z'.anchor), rdB (Q' - Z'.anchor))
+      else (rdB (Q' - Z'.anchor), rdB (P' - Z'.anchor))) =
+      hereditary_sts_substitution_sofic_packetOf τ hsts C B.1 γB j := by
+    rw [hPB, hP', hQ']
+    simp only [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pointLT_add,
+      add_sub_cancel_left]
+  -- the packets are not doubly absent
+  have hnA : hereditary_sts_substitution_sofic_packetOf τ hsts C A.1 γA i ≠ (none, none) := by
+    rw [← hUA]
+    refine hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pair_ne P Q
+      (fun e => rdA (e - Z.anchor)) ?_
+    rcases hwi with h | h
+    · left
+      show rdA (P - Z.anchor) ≠ none
+      rw [h, hfw]; simp
+    · right
+      show rdA (Q - Z.anchor) ≠ none
+      rw [h, hfw]; simp
+  have hnB : hereditary_sts_substitution_sofic_packetOf τ hsts C B.1 γB j ≠ (none, none) := by
+    rw [← hUB]
+    refine hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pair_ne P' Q'
+      (fun e => rdB (e - Z'.anchor)) ?_
+    rcases hwj with h | h
+    · left
+      show rdB (P' - Z'.anchor) ≠ none
+      rw [h, hfw']; simp
+    · right
+      show rdB (Q' - Z'.anchor) ≠ none
+      rw [h, hfw']; simp
+  have hUU := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_encodePacket_eq
+    τ hsts C hC hnA hnB hEnc
+  have hmain : (if hereditary_sts_substitution_sofic_pointLT P Q
+      then (rdA (P - Z.anchor), rdA (Q - Z.anchor)) else (rdA (Q - Z.anchor), rdA (P - Z.anchor))) =
+      (if hereditary_sts_substitution_sofic_pointLT P' Q'
+      then (rdB (P' - Z'.anchor), rdB (Q' - Z'.anchor))
+      else (rdB (Q' - Z'.anchor), rdB (P' - Z'.anchor))) := by
+    rw [hUA, hUB]; exact hUU
+  have hkey := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_pair_eq P Q P' Q'
+    (fun e => rdA (e - Z.anchor)) (fun e => rdB (e - Z'.anchor)) hPQ hends hmain
+  have hw_eq : rdA (w - Z.anchor) = rdB (w - Z'.anchor) := by
+    rcases hwi with h | h
+    · rw [← h]; exact hkey.1
+    · rw [← h]; exact hkey.2
+  rw [hfw, hfw'] at hw_eq
+  exact congrArg Subtype.val (Option.some.inj hw_eq)
+
+/-- Step 3d of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: scaling a translate. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_smul_vadd
+    (θ : ℝ) (a : Pt) (K : Set Pt) : θ • (a +ᵥ K) = (θ • a) +ᵥ (θ • K) := by
+  ext x
+  constructor
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    refine ⟨θ • z, ⟨z, hz, rfl⟩, ?_⟩
+    simp [smul_add]
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    refine ⟨a +ᵥ z, ⟨z, hz, rfl⟩, ?_⟩
+    simp [smul_add]
+
+/-- Step 3d of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the frontier of a translate. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_frontier_vadd
+    (c : Pt) (S : Set Pt) : frontier (c +ᵥ S) = c +ᵥ frontier S := by
+  have h1 : frontier (c +ᵥ S) = closure (c +ᵥ S) \ interior (c +ᵥ S) := rfl
+  have h2 : c +ᵥ frontier S = c +ᵥ (closure S \ interior S) := rfl
+  rw [h1, h2, closure_vadd, interior_vadd, Set.vadd_set_sdiff]
+
+/-- Step 3d of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: a boundary point of a scaled
+translated block, read in the coordinates of the template. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_frontier_shift
+    (θ : ℝ) (a w : Pt) (K : Set Pt) (h : w ∈ frontier (θ • (a +ᵥ K))) :
+    w - θ • a ∈ frontier (θ • K) := by
+  rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_smul_vadd,
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_frontier_vadd] at h
+  have h' := mem_vadd_set_iff_neg_vadd_mem.mp h
+  simpa [neg_add_eq_sub] using h'
+
+/-- Step 3e of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: the type of a tile of the proper
+colouring `R.fine` records its position in the template of the parent (`coarse_parents`). -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_typed_child
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    {T T' : PlaneTiling C.Q}
+    (R : hereditary_sts_substitution_sofic_Reconstruction τ hsts C m hC X T T')
+    {Z : PlacedTile X.dec.P'} (hZ : Z ∈ R.fine.tiles)
+    {A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC}
+    (hA : X.formEquiv Z.form = Sum.inl A)
+    {E : PlacedTile C.Q} (hE : E ∈ T'.tiles)
+    (hDE : X.dec.toDecoration.projTile Z ∈ C.σ.decomposeTile E) :
+    C.owner A.1 = E.form ∧ Z.anchor = C.σ.θ • E.anchor + C.anchor A.1 := by
+  obtain ⟨B, hB, hBD⟩ := hDE
+  rw [C.rule_eq] at hB
+  obtain ⟨t, ht, rfl⟩ := hB
+  have hform_t : X.dec.proj Z.form = C.form t := (congrArg PlacedTile.form hBD).symm
+  have hanch : Z.anchor = C.σ.θ • E.anchor + C.anchor t := (congrArg PlacedTile.anchor hBD).symm
+  have hEc : E ∈ (X.dec.toDecoration.project R.coarse).tiles := by
+    rw [R.coarse_project]; exact hE
+  obtain ⟨Y, hY, hYE⟩ := hEc
+  obtain ⟨A', hA', hpar⟩ := R.coarse_parents Y hY
+  have hYform : X.formEquiv.symm (Sum.inl A') = Y.form := by
+    rw [← hA']; exact X.formEquiv.symm_apply_apply _
+  have hformE : C.form A'.1 = E.form := by
+    rw [← X.proj_typed A', hYform]
+    exact congrArg PlacedTile.form hYE
+  have hownt : C.owner t = E.form := ht
+  obtain ⟨Zt, hZt, hZtA, hZtanch⟩ := hpar t (hownt.trans hformE.symm)
+  have hZtform : X.dec.proj Zt.form = C.form t := by
+    have h := X.proj_typed (hereditary_sts_substitution_sofic_generate τ hsts C m hC A' t)
+    have hz : X.formEquiv.symm (Sum.inl
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A' t)) = Zt.form := by
+      rw [← hZtA]; exact X.formEquiv.symm_apply_apply _
+    rw [hz] at h
+    exact h
+  have hYanch : Y.anchor = E.anchor := congrArg PlacedTile.anchor hYE
+  have hproj_eq : X.dec.toDecoration.projTile Zt = X.dec.toDecoration.projTile Z := by
+    apply PlacedTile.ext
+    · exact hZtform.trans hform_t.symm
+    · show Zt.anchor = Z.anchor
+      rw [hZtanch, hanch, hYanch]
+  have hZeq : Zt = Z := cc_proj_injOn X.dec.toDecoration R.fine.disjoint hZt hZ hproj_eq
+  subst hZeq
+  have hAeq : A = hereditary_sts_substitution_sofic_generate τ hsts C m hC A' t :=
+    Sum.inl.inj (hA.symm.trans hZtA)
+  have hA1 : A.1 = t := congrArg Sigma.fst hAeq
+  refine ⟨?_, ?_⟩
+  · rw [hA1]; exact hownt
+  · rw [hA1]; exact hanch
+
+/-- Step 3f of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: transport of a catalogue
+vector along an equality of grouped forms. -/
+private def hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_castCat
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {q₁ q₂ : C.Q.Form} (h : q₁ = q₂)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C q₁) :
+    hereditary_sts_substitution_sofic_Catalog τ hsts C q₂ := h ▸ γ
+
+/-- Step 3f of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: agreement of the transported
+decoded vectors of two tiles of the proper colouring `R.fine`. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_agree
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    {T T' : PlaneTiling C.Q}
+    (R : hereditary_sts_substitution_sofic_Reconstruction τ hsts C m hC X T T')
+    {Z Z' : PlacedTile X.dec.P'} (hZ : Z ∈ R.fine.tiles) (hZ' : Z' ∈ R.fine.tiles) (hne : Z ≠ Z')
+    {A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC}
+    (hA : X.formEquiv Z.form = Sum.inl A) (hB : X.formEquiv Z'.form = Sum.inl B)
+    (γA : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (γB : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form B.1))
+    (hdA : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γA)
+    (hdB : hereditary_sts_substitution_sofic_Decodes τ hsts C hC B γB)
+    {q q' : C.Q.Form} (hq : C.form A.1 = q) (hq' : C.form B.1 = q')
+    {E E' : PlacedTile C.Q}
+    (hownA : C.owner A.1 = E.form) (hancA : Z.anchor = C.σ.θ • E.anchor + C.anchor A.1)
+    (hownB : C.owner B.1 = E'.form) (hancB : Z'.anchor = C.σ.θ • E'.anchor + C.anchor B.1)
+    {a a' : Pt} (hza : Z.anchor = a) (hza' : Z'.anchor = a')
+    (i : Fin (C.Q.disk q).n) (j : Fin (C.Q.disk q').n)
+    (hside : a' +ᵥ (C.Q.disk q').side j = a +ᵥ (C.Q.disk q).side i)
+    (w : Pt)
+    (hwi : a + (C.Q.disk q).vertex i = w ∨ a + (C.Q.disk q).vertex (finRotate _ i) = w)
+    (hwj : a' + (C.Q.disk q').vertex j = w ∨ a' + (C.Q.disk q').vertex (finRotate _ j) = w)
+    (hwE : w ∈ frontier (C.σ.θ • E.carrier)) (hwE' : w ∈ frontier (C.σ.θ • E'.carrier))
+    (hv : w - a ∈ hereditary_sts_substitution_sofic_macroVertices C q)
+    (hv' : w - a' ∈ hereditary_sts_substitution_sofic_macroVertices C q') :
+    ((hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_castCat τ hsts C hq
+        γA).1 ⟨w - a, hv⟩).1 =
+      ((hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_castCat τ hsts C hq'
+        γB).1 ⟨w - a', hv'⟩).1 := by
+  subst hq hq' hza hza'
+  have hbA : C.anchor A.1 + (w - Z.anchor) ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier) := by
+    have h := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_frontier_shift
+      C.σ.θ E.anchor w (C.Q.disk E.form).carrier hwE
+    have h1 : C.anchor A.1 + (w - Z.anchor) = w - C.σ.θ • E.anchor := by
+      rw [hancA]; abel
+    rw [hownA, h1]
+    exact h
+  have hbB : C.anchor B.1 + (w - Z'.anchor) ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner B.1)).carrier) := by
+    have h := hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_frontier_shift
+      C.σ.θ E'.anchor w (C.Q.disk E'.form).carrier hwE'
+    have h1 : C.anchor B.1 + (w - Z'.anchor) = w - C.σ.θ • E'.anchor := by
+      rw [hancB]; abel
+    rw [hownB, h1]
+    exact h
+  exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_core τ hsts C m hC X
+    R.fine_proper hZ hZ' hne hA hB γA γB hdA hdB i j hside w hwi hwj hbA hbB hv hv'
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed`: decoded records of side-adjacent
+border tiles agree at their common endpoint.  Let `R` be a one-level reconstruction of the level
+`T` from the level `T'`.  The decoded catalogue values of the tiles of the proper colouring
+`R.fine` give a family `γ` of catalogue vectors indexed by the tiles `D` of `T` such that:
+whenever two distinct tiles `D, D'` of `T`, children of the coarse tiles `E, E'` of `T'`
+(`D ∈ C.σ.decomposeTile E`), have coincident listed sides `D'.side j = D.side i` with common
+endpoint `w` lying on the macroboundary of both parent blocks, then both record the same full
+crown at `w`. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_step3_adj_records
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    {T T' : PlaneTiling C.Q}
+    (R : hereditary_sts_substitution_sofic_Reconstruction τ hsts C m hC X T T') :
+    ∃ γ : (D : PlacedTile C.Q) → D ∈ T.tiles →
+        hereditary_sts_substitution_sofic_Catalog τ hsts C D.form,
+      ∀ (D D' : PlacedTile C.Q) (hD : D ∈ T.tiles) (hD' : D' ∈ T.tiles), D ≠ D' →
+        ∀ (E E' : PlacedTile C.Q), E ∈ T'.tiles → E' ∈ T'.tiles →
+          D ∈ C.σ.decomposeTile E → D' ∈ C.σ.decomposeTile E' →
+          ∀ (i : Fin (C.Q.disk D.form).n) (j : Fin (C.Q.disk D'.form).n),
+            D'.side j = D.side i →
+            ∀ (w : Pt), (D.vertex i = w ∨ D.vertex (finRotate _ i) = w) →
+              (D'.vertex j = w ∨ D'.vertex (finRotate _ j) = w) →
+              w ∈ frontier (C.σ.θ • E.carrier) → w ∈ frontier (C.σ.θ • E'.carrier) →
+              ∀ (hv : w - D.anchor ∈ hereditary_sts_substitution_sofic_macroVertices C D.form)
+                (hv' : w - D'.anchor ∈
+                  hereditary_sts_substitution_sofic_macroVertices C D'.form),
+                ((γ D hD).1 ⟨w - D.anchor, hv⟩).1 = ((γ D' hD').1 ⟨w - D'.anchor, hv'⟩).1 := by
+  have hfine : ∀ D ∈ T.tiles, ∃ Z ∈ R.fine.tiles, X.dec.toDecoration.projTile Z = D := by
+    intro D hD
+    rw [← R.fine_project] at hD
+    exact hD
+  have hdata : ∀ (D : PlacedTile C.Q) (_ : D ∈ T.tiles),
+      ∃ (Z : PlacedTile X.dec.P') (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+        (γA : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1)),
+        Z ∈ R.fine.tiles ∧ X.dec.toDecoration.projTile Z = D ∧
+        X.formEquiv Z.form = Sum.inl A ∧
+        hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γA := by
+    intro D hD
+    obtain ⟨Z, hZ, hZD⟩ := hfine D hD
+    obtain ⟨A, hA, ch, hch0, -, hdecsome, -⟩ :=
+      X.proper_typed_legal R.fine R.fine_proper Z hZ
+    have h0 := hdecsome 0
+    rw [hch0] at h0
+    by_cases hex : ∃! γ, hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ
+    · exact ⟨Z, A, hex.exists.choose, hZ, hZD, hA, hex.exists.choose_spec⟩
+    · exfalso
+      unfold hereditary_sts_substitution_sofic_decode at h0
+      rw [dif_neg hex] at h0
+      simp at h0
+  choose Zc Ac γc hZc hproj hAc hdec using hdata
+  have hform : ∀ (D : PlacedTile C.Q) (hD : D ∈ T.tiles), C.form (Ac D hD).1 = D.form := by
+    intro D hD
+    have h1 : X.formEquiv.symm (Sum.inl (Ac D hD)) = (Zc D hD).form := by
+      rw [← hAc D hD]; exact X.formEquiv.symm_apply_apply _
+    have h2 := X.proj_typed (Ac D hD)
+    rw [h1] at h2
+    rw [← h2]
+    exact congrArg PlacedTile.form (hproj D hD)
+  refine ⟨fun D hD =>
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_castCat τ hsts C
+      (hform D hD) (γc D hD), ?_⟩
+  intro D D' hD hD' hne E E' hE hE' hDE hDE' i j hside w hwi hwj hwE hwE' hv hv'
+  have hZne : Zc D hD ≠ Zc D' hD' := by
+    intro h
+    exact hne ((hproj D hD).symm.trans
+      ((congrArg X.dec.toDecoration.projTile h).trans (hproj D' hD')))
+  have hDE1 : X.dec.toDecoration.projTile (Zc D hD) ∈ C.σ.decomposeTile E := by
+    rw [hproj D hD]; exact hDE
+  have hDE1' : X.dec.toDecoration.projTile (Zc D' hD') ∈ C.σ.decomposeTile E' := by
+    rw [hproj D' hD']; exact hDE'
+  obtain ⟨hownA, hancA⟩ :=
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_typed_child
+      τ hsts C m hC X R (hZc D hD) (hAc D hD) hE hDE1
+  obtain ⟨hownB, hancB⟩ :=
+    hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_typed_child
+      τ hsts C m hC X R (hZc D' hD') (hAc D' hD') hE' hDE1'
+  have hza : (Zc D hD).anchor = D.anchor := congrArg PlacedTile.anchor (hproj D hD)
+  have hza' : (Zc D' hD').anchor = D'.anchor := congrArg PlacedTile.anchor (hproj D' hD')
+  exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_agree τ hsts C m hC X R
+    (hZc D hD) (hZc D' hD') hZne (hAc D hD) (hAc D' hD') (γc D hD) (γc D' hD')
+    (hdec D hD) (hdec D' hD') (hform D hD) (hform D' hD')
+    hownA hancA hownB hancB hza hza' i j hside w hwi hwj hwE hwE' hv hv'
+
+/-- Steps 5-8 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed` at one level: a vertex in the
+interior of a macroblock is handled by Step 1; at a macroboundary vertex the decoded records of all
+border tiles agree along the fan (Steps 2 and 3), contain every incident original tile, hence
+(disjoint interiors, Step 4d) equal the ambient crown, which is a full allowed crown. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_level
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    {T T' : PlaneTiling C.Q}
+    (R : hereditary_sts_substitution_sofic_Reconstruction τ hsts C m hC X T T')
+    (w : Pt) (hw : Substitution.IsVertexOf (hC.groupedFamily.scatter T.tiles) w) :
+    τ.IsAllowedCrown
+      (translateSet (-w) (Substitution.crown (hC.groupedFamily.scatter T.tiles) w)) := by
+  have hcomp : C.σ.IsComposition T' T := R.composition
+  have hcomp' : C.σ.decompose T'.tiles = T.tiles := hcomp
+  by_cases hint : ∃ E ∈ T'.tiles, w ∈ interior (C.σ.θ • E.carrier)
+  · obtain ⟨E, hE, hwE⟩ := hint
+    obtain ⟨k, p, u, hu⟩ :=
+      hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_step1_block_interior
+        τ C m hC hcomp hE hwE
+    exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_allowed_crown τ
+      (hierarchy_lift_iff_scatterTiling hC.groupedFamily T) w hw hu
+  · push_neg at hint
+    have hTsts : T.SideToSide := by
+      have h :=
+        hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_project_sideToSide
+          X.dec R.fine R.fine_proper.1
+      rw [R.fine_project] at h
+      exact h
+    -- the parent block of every tile
+    have hsubpar : ∀ D ∈ T.tiles, ∃ E ∈ T'.tiles, D ∈ C.σ.decomposeTile E ∧
+        D.carrier ⊆ C.σ.θ • E.carrier := by
+      intro D hD
+      have hD' : D ∈ C.σ.decompose T'.tiles := by rw [hcomp']; exact hD
+      simp only [Substitution.decompose, Set.mem_iUnion] at hD'
+      obtain ⟨E, hE, hDE⟩ := hD'
+      refine ⟨E, hE, hDE, ?_⟩
+      rw [← hierarchy_lift_iff_decomposeTile_carrier]
+      intro x hx
+      exact Set.mem_iUnion₂.mpr ⟨D, hDE, hx⟩
+    have hpar : ∀ D ∈ T.tiles, w ∈ D.carrier →
+        ∃ E ∈ T'.tiles, D ∈ C.σ.decomposeTile E ∧ w ∈ frontier (C.σ.θ • E.carrier) := by
+      intro D hD hwD
+      obtain ⟨E, hE, hDE, hsub⟩ := hsubpar D hD
+      exact ⟨E, hE, hDE, ⟨subset_closure (hsub hwD), hint E hE⟩⟩
+    -- a tile of which `w` is a listed vertex
+    obtain ⟨A, hA, k, hk⟩ := hw
+    have hA' : A ∈ ⋃ D ∈ T.tiles, hC.groupedFamily.scatterTile D := hA
+    obtain ⟨D0, hD0, hAD0⟩ := Set.mem_iUnion₂.mp hA'
+    obtain ⟨A0, hA0, rfl⟩ := hAD0
+    have hvA : (A0.translate D0.anchor).vertex k = D0.anchor + A0.vertex k := by
+      show (D0.anchor +ᵥ A0.anchor) +ᵥ (P.disk A0.form).vertex k =
+        D0.anchor + (A0.anchor +ᵥ (P.disk A0.form).vertex k)
+      simp only [vadd_eq_add, add_assoc]
+    have hv0 : w - D0.anchor = A0.vertex k := by
+      rw [← hk, hvA]; abel
+    have hA0car : A0.vertex k ∈ A0.carrier :=
+      hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_vertex_mem_carrier A0 k
+    have hA0disk : A0.carrier ⊆ (C.Q.disk D0.form).carrier := by
+      rw [← C.scatter_support D0.form]
+      exact fun x hx => Set.mem_iUnion₂.mpr ⟨A0, hA0, hx⟩
+    have hcar : w - D0.anchor ∈ (C.Q.disk D0.form).carrier := by
+      rw [hv0]; exact hA0disk hA0car
+    obtain ⟨E0, hE0, -, hsub0⟩ := hsubpar D0 hD0
+    have hnotint : w - D0.anchor ∉ interior (C.Q.disk D0.form).carrier := by
+      intro h
+      apply hint E0 hE0
+      apply interior_mono hsub0
+      show w ∈ interior (D0.anchor +ᵥ (C.Q.disk D0.form).carrier)
+      rw [interior_vadd]
+      exact ⟨w - D0.anchor, h, by simp⟩
+    have hfr : w - D0.anchor ∈ frontier (C.Q.disk D0.form).carrier :=
+      ⟨subset_closure hcar, hnotint⟩
+    obtain ⟨i0, hi0⟩ := hC.vertex_retained D0.form (w - D0.anchor) ⟨A0, hA0, k, hv0.symm⟩ hfr
+    have hw0 : w ∈ D0.vertexSet := ⟨i0, by
+      show D0.anchor +ᵥ (C.Q.disk D0.form).vertex i0 = w
+      rw [hi0]; simp⟩
+    -- the fan
+    let Rw : PlacedTile C.Q → PlacedTile C.Q → Prop := fun X Y =>
+      X ∈ T.tiles ∧ w ∈ X.carrier ∧ Y ∈ T.tiles ∧ w ∈ Y.carrier ∧ X ≠ Y ∧
+        ∃ (i : Fin (C.Q.disk X.form).n) (j : Fin (C.Q.disk Y.form).n),
+          Y.side j = X.side i ∧
+            (X.vertex i = w ∨ X.vertex (finRotate _ i) = w) ∧
+            (Y.vertex j = w ∨ Y.vertex (finRotate _ j) = w)
+    have hfan : ∀ D ∈ T.tiles, w ∈ D.carrier → Relation.ReflTransGen Rw D0 D :=
+      fun D hD hwD =>
+        hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_step2_fan T hTsts w
+          hD0 hD hw0 hwD
+    obtain ⟨γ, hγ⟩ :=
+      hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_step3_adj_records
+        τ hsts C m hC X R
+    have hvD0 : w - D0.anchor ∈ hereditary_sts_substitution_sofic_macroVertices C D0.form := by
+      rw [← hi0]
+      exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_listed_vertex_marked
+        C hC D0.form i0
+    set K0 := ((γ D0 hD0).1 ⟨w - D0.anchor, hvD0⟩).1
+    have hinv : ∀ D, Relation.ReflTransGen Rw D0 D →
+        ∃ (hD : D ∈ T.tiles) (hv : w - D.anchor ∈
+          hereditary_sts_substitution_sofic_macroVertices C D.form),
+          ((γ D hD).1 ⟨w - D.anchor, hv⟩).1 = K0 := by
+      intro D hch
+      induction hch with
+      | refl => exact ⟨hD0, hvD0, rfl⟩
+      | @tail b c _ hbc ih =>
+        obtain ⟨hb, hvb, hrecb⟩ := ih
+        obtain ⟨-, hwb, hc, hwc, hne, i, j, hside, hi, hj⟩ := hbc
+        obtain ⟨jj, hjj⟩ : ∃ jj, c.vertex jj = w := by
+          rcases hj with h | h
+          · exact ⟨j, h⟩
+          · exact ⟨finRotate _ j, h⟩
+        have hvc : w - c.anchor ∈ hereditary_sts_substitution_sofic_macroVertices C c.form := by
+          have h1 : (C.Q.disk c.form).vertex jj = w - c.anchor := by
+            rw [← hjj]
+            show (C.Q.disk c.form).vertex jj =
+              (c.anchor +ᵥ (C.Q.disk c.form).vertex jj) - c.anchor
+            simp
+          rw [← h1]
+          exact
+            hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_listed_vertex_marked
+              C hC c.form jj
+        obtain ⟨Eb, hEb, hbEb, hwEb⟩ := hpar b hb hwb
+        obtain ⟨Ec, hEc, hcEc, hwEc⟩ := hpar c hc hwc
+        refine ⟨hc, hvc, ?_⟩
+        exact (hγ b c hb hc hne Eb Ec hEb hEc hbEb hcEc i j hside w hi hj hwEb hwEc hvb
+          hvc).symm.trans hrecb
+    -- the recorded crown is the ambient crown
+    have hstar0 : Substitution.crown
+        (hereditary_sts_substitution_sofic_collar τ hsts C D0.form (γ D0 hD0).1)
+        (w - D0.anchor) = translateSet (w - D0.anchor) K0 :=
+      (γ D0 hD0).2.2.2.1 ⟨w - D0.anchor, hvD0⟩
+    have hUdis : DisjointInteriors (translateSet D0.anchor
+        (hereditary_sts_substitution_sofic_collar τ hsts C D0.form (γ D0 hD0).1)) :=
+      (hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_translate_subset
+        (γ D0 hD0).2.1 (γ D0 hD0).2.2.1 subset_rfl D0.anchor).1
+    have hwv : D0.anchor + (w - D0.anchor) = w := by abel
+    have hcrownU : Substitution.crown (translateSet D0.anchor
+        (hereditary_sts_substitution_sofic_collar τ hsts C D0.form (γ D0 hD0).1)) w =
+        translateSet w K0 := by
+      have h :=
+        hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_crown_translateSet
+          (hereditary_sts_substitution_sofic_collar τ hsts C D0.form (γ D0 hD0).1)
+          D0.anchor (w - D0.anchor)
+      rw [hwv] at h
+      rw [h, hstar0, cc_translateSet_translateSet, hwv]
+    have hAmb : Substitution.crown (hC.groupedFamily.scatter T.tiles) w ⊆ translateSet w K0 := by
+      rintro Y ⟨hYS, hwY⟩
+      obtain ⟨D, hD, hYD⟩ := Set.mem_iUnion₂.mp hYS
+      have hwD : w ∈ D.carrier := by
+        rw [← hierarchy_lift_iff_scatterTile_support hC.groupedFamily D]
+        exact Set.mem_iUnion₂.mpr ⟨Y, hYD, hwY⟩
+      obtain ⟨_, hv, hrec⟩ := hinv D (hfan D hD hwD)
+      obtain ⟨Y0, hY0, rfl⟩ := hYD
+      have hwY0 : w - D.anchor ∈ Y0.carrier := by
+        rw [hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_carrier_translate]
+          at hwY
+        have h := mem_vadd_set_iff_neg_vadd_mem.mp hwY
+        simpa [neg_add_eq_sub] using h
+      have hY0c : Y0 ∈ Substitution.crown
+          (hereditary_sts_substitution_sofic_collar τ hsts C D.form (γ D hD).1)
+          (w - D.anchor) := ⟨Or.inl hY0, hwY0⟩
+      have hstar : Substitution.crown
+          (hereditary_sts_substitution_sofic_collar τ hsts C D.form (γ D hD).1)
+          (w - D.anchor) = translateSet (w - D.anchor) ((γ D hD).1 ⟨w - D.anchor, hv⟩).1 :=
+        (γ D hD).2.2.2.1 ⟨w - D.anchor, hv⟩
+      rw [hstar, hrec] at hY0c
+      obtain ⟨Z, hZ, hZY⟩ := hY0c
+      refine ⟨Z, hZ, ?_⟩
+      rw [← hZY]
+      show Z.translate w = (Z.translate (w - D.anchor)).translate D.anchor
+      rw [cc_translate_translate]
+      congr 1
+      abel
+    have hRecSub : translateSet w K0 ⊆ translateSet D0.anchor
+        (hereditary_sts_substitution_sofic_collar τ hsts C D0.form (γ D0 hD0).1) := by
+      rw [← hcrownU]; exact fun Y hY => hY.1
+    have hsat : Substitution.crown (translateSet D0.anchor
+        (hereditary_sts_substitution_sofic_collar τ hsts C D0.form (γ D0 hD0).1)) w =
+        Substitution.crown (hC.groupedFamily.scatter T.tiles) w :=
+      hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_saturation
+        (hierarchy_lift_iff_scatterTiling hC.groupedFamily T) w hUdis (hAmb.trans hRecSub)
+    have hEq : Substitution.crown (hC.groupedFamily.scatter T.tiles) w = translateSet w K0 := by
+      rw [← hsat, hcrownU]
+    rw [hEq, cc_translateSet_translateSet, neg_add_cancel, cc_translateSet_zero]
+    have hmem := ((γ D0 hD0).1 ⟨w - D0.anchor, hvD0⟩).2
+    simp only [hereditary_sts_substitution_sofic_fullCrowns, Finset.mem_filter,
+      Set.Finite.mem_toFinset, Set.mem_setOf_eq] at hmem
+    exact hmem.1
+
 /-- Step 8 of the reviewed proof: recorded catalogue crowns equal the actual
 full crowns at every reconstructed level (including vertices on interfaces).
 This is the finite cyclic-fan and saturation argument, stated independently
@@ -4649,7 +6186,11 @@ private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed
       τ.IsAllowedCrown
         (translateSet (-w)
           (Substitution.crown (hC.groupedFamily.scatter (H.seq n).tiles) w)) := by
-  sorry
+  have _ := hher
+  intro n w hw
+  obtain ⟨R⟩ := H.step n
+  exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed_level
+    τ hsts C m hC X R w hw
 
 /-- One decomposition by the positive power substitution is the corresponding
 finite iterate of the original decomposition. -/

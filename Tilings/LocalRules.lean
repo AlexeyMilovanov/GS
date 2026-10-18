@@ -3623,7 +3623,75 @@ private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certi
     (hfine : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles)) :
     ∀ (X : PlacedTile C.Q) (k : ℕ),
       SideToSideSet (C.σ.decomposeIter k {X}) := by
-  sorry
+  intro X k
+  let GS := hC.groupedSubstitution
+  have hadd : ∀ r n (S : Set (PlacedTile P)),
+      τ.decomposeIter r (τ.decomposeIter n S) = τ.decomposeIter (n + r) S := by
+    intro r
+    induction r with
+    | zero => intro n S; rfl
+    | succ r ihr =>
+      intro n S
+      change τ.decompose (τ.decomposeIter r (τ.decomposeIter n S)) = _
+      rw [ihr]
+      rw [show n + (r + 1) = (n + r) + 1 by omega]
+      rfl
+  have hiter : ∀ (k : ℕ) (S : Set (PlacedTile C.Q)),
+      GS.G.scatter (C.σ.decomposeIter k S) = τ.decomposeIter (m * k) (GS.G.scatter S) := by
+    intro k
+    induction k with
+    | zero => intro S; rfl
+    | succ k ih =>
+      intro S
+      change GS.G.scatter (GS.σ.decompose (C.σ.decomposeIter k S)) = _
+      rw [hierarchy_lift_iff_scatter_decompose τ GS, ih, hadd, Nat.mul_succ]
+      rfl
+  have hover_tr : ∀ (w : Pt) (s t : Set Pt), OverlapPos s t → OverlapPos (w +ᵥ s) (w +ᵥ t) := by
+    intro w s t hover
+    obtain ⟨x, y, hxy, hseg⟩ := hover
+    refine ⟨w + x, w + y, ?_, ?_⟩
+    · intro heq
+      exact hxy (add_left_cancel heq)
+    · intro z hz
+      rw [← segment_translate_image] at hz
+      obtain ⟨u, hu, rfl⟩ := hz
+      exact ⟨vadd_mem_vadd_set (hseg hu).1, vadd_mem_vadd_set (hseg hu).2⟩
+  have hside_tr : ∀ (v : Pt) (A : PlacedTile P) (i : Fin (P.disk A.form).n),
+      (A.translate v).side i = v +ᵥ A.side i := by
+    intro v A i
+    simp only [PlacedTile.side, PlacedTile.translate, vadd_vadd, vadd_eq_add]
+  have hsts_tr : ∀ (v : Pt) (S : Set (PlacedTile P)), SideToSideSet S →
+      SideToSideSet (translateSet v S) := by
+    intro v S hS A hA B hB i l hover
+    obtain ⟨A₀, hA₀, rfl⟩ := hA
+    obtain ⟨B₀, hB₀, rfl⟩ := hB
+    rw [hside_tr, hside_tr] at hover ⊢
+    have h := hover_tr (-v) _ _ hover
+    rw [neg_vadd_vadd, neg_vadd_vadd] at h
+    rw [hS A₀ hA₀ B₀ hB₀ i l h]
+  have hF : SideToSideSet (τ.decomposeIter (m * k) (GS.G.scatter {X})) := by
+    have hs : GS.G.scatter {X} = translateSet X.anchor (C.Δ X.form).tiles := by
+      simp only [GroupedFamily.scatter, Set.mem_singleton_iff, Set.iUnion_iUnion_eq_left]
+      rfl
+    rw [hs, hierarchy_lift_iff_decomposeIter_translate]
+    exact hsts_tr _ _ (hfine X.form (m * k))
+  have hmem : ∀ Y ∈ C.σ.decomposeIter k {X}, ∀ A ∈ (C.Δ Y.form).tiles,
+      A.translate Y.anchor ∈ τ.decomposeIter (m * k) (GS.G.scatter {X}) := by
+    intro Y hY A hA
+    rw [← hiter]
+    simp only [GroupedFamily.scatter, Set.mem_iUnion]
+    exact ⟨Y, hY, A, hA, rfl⟩
+  have hside : ∀ (Y : PlacedTile C.Q) (A : PlacedTile P) (i : Fin (C.Q.disk Y.form).n)
+      (j : Fin (P.disk A.form).n), A.side j = (C.Q.disk Y.form).side i →
+      (A.translate Y.anchor).side j = Y.side i := by
+    intro Y A i j h
+    rw [hside_tr, h]
+    rfl
+  intro Y₁ hY₁ Y₂ hY₂ i₁ i₂ hover
+  obtain ⟨A₁, hA₁, j₁, hj₁⟩ := hC.side_whole Y₁.form i₁
+  obtain ⟨A₂, hA₂, j₂, hj₂⟩ := hC.side_whole Y₂.form i₂
+  rw [← hside Y₁ A₁ i₁ j₁ hj₁, ← hside Y₂ A₂ i₂ j₂ hj₂] at hover ⊢
+  exact hF _ (hmem Y₁ hY₁ A₁ hA₁) _ (hmem Y₂ hY₂ A₂ hA₂) j₁ j₂ hover
 
 /-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step2_certificate_sts`:
 construct an STS macrocertificate whose every grouped supertile iterate is side-to-side. -/

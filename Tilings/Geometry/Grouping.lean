@@ -6343,17 +6343,6 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_f
   rw [hdec]
   exact hzip xs hlen hchain
 
-/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: head -/
-private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step2_head
-    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
-    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
-    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
-      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
-    let D := emcdMacroData τ h g s l hl routing
-    (∀ α d i, D.IsGenuinePath α d i → (D.path α d i).head? = D.port α d i) := by
-  sorry
-
 /-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: last -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step3_last
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -7961,6 +7950,108 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_
   unfold MacroData.port at hp
   rw [← hlen, ← heq, List.getElem?_map, hp] at h1
   exact Option.some.inj h1
+
+private lemma emcd_paths_head_destutter {A : Type*} (R : A → A → Prop)
+    [DecidableRel R] (xs : List A) : (xs.destutter R).head? = xs.head? := by
+  cases xs with
+  | nil => rfl
+  | cons x xs =>
+      rw [List.destutter_cons']
+      induction xs generalizing x with
+      | nil => rfl
+      | cons y ys ih =>
+          rw [List.destutter'_cons]
+          split
+          · rfl
+          · exact ih x
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: head -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step2_head
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i → (D.path α d i).head? = D.port α d i) := by
+  classical
+  intro D α d i hi
+  let j : Fin 4 := ⟨i.val, hi.2⟩
+  have hji : j.castSucc = i := Fin.ext rfl
+  have hfrom :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing
+      τ h g s l hl routing α d j hi.1
+  have hfromHead := congrArg List.head? hfrom
+  rw [emcd_paths_head_destutter] at hfromHead
+  have hrouteHead :=
+    (routing (emcdBaseForm g s l α)).path_head
+      (emcdParentSide g s l α d) hi.1 j
+  have hpathSide : ((D.path α d i).map D.occSide).head? =
+      some ((routing (emcdBaseForm g s l α)).port
+        (emcdParentSide g s l α d) i) := by
+    rw [← hji]
+    exact hfromHead.trans hrouteHead
+  obtain ⟨L, hLmem, hLnd, hLs, hLport⟩ :=
+    (routing (emcdBaseForm g s l α)).port_quantile
+      (emcdParentSide g s l α d)
+  have hom :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_mem
+      τ h g s l hl routing α d
+  have heq : (D.outerList α d).map D.occSide = L := by
+    apply existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_list_eq
+    · intro e
+      rw [hom, hLmem]
+    · exact
+        existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_nodup
+          τ h g s l hl routing α d
+    · exact hLnd
+    · exact
+        existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_sorted
+          τ h g s l hl routing α d
+    · exact hLs
+    · intro e he
+      rw [hom] at he
+      obtain ⟨⟨⟨A, -, k, rfl⟩, -⟩, -⟩ := he
+      exact ⟨A.vertex k, by rw [emcg_side_eq_segment]; exact left_mem_segment ℝ _ _⟩
+  have hlen : (D.outerList α d).length = L.length := by
+    rw [← heq, List.length_map]
+  have hportRoute := hLport i
+  have hportSome : ∃ o, D.port α d i = some o := by
+    unfold MacroData.port
+    rw [← hlen, ← heq, List.getElem?_map] at hportRoute
+    cases hp : (D.outerList α d)[MacroData.portRank (D.outerList α d).length i - 1]? with
+    | none => simp [hp] at hportRoute
+    | some o => exact ⟨o, rfl⟩
+  obtain ⟨o, ho⟩ := hportSome
+  have hoside :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_port_side
+      τ h g s l hl routing α d i o ho
+  cases hhead : (D.path α d i).head? with
+  | none =>
+      rw [List.head?_map, hhead] at hpathSide
+      contradiction
+  | some o' =>
+      rw [List.head?_map, hhead] at hpathSide
+      simp only [Option.map_some, Option.some.injEq] at hpathSide
+      have hmem : o' ∈ D.path α d i := List.mem_of_mem_head? hhead
+      have howner' :=
+        existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner
+          τ h g s l hl routing α d i o' hmem
+      have hportMem : o ∈ D.outerList α d := List.mem_of_getElem? ho
+      have hportProps :=
+        (existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step2_orientation_outer
+          τ h g s l hl routing).2.1 α d o |>.1 hportMem
+      have hsides : D.occSide o' = D.occSide o := hpathSide.trans hoside.symm
+      have houter' : D.IsOuter o' := by
+        have houter := hportProps.2.1
+        unfold MacroData.IsOuter at houter ⊢
+        rw [howner', hsides]
+        rw [hportProps.1] at houter
+        exact houter
+      have hoo' : o' = o :=
+        emcd_outer_step2_occ_injective τ h g s l hl routing
+          (howner'.trans hportProps.1.symm) houter' hportProps.2.1 hsides
+      rw [ho, hoo']
 
 /-- Step 8 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
 "the outer list of a parent declared side is the list of whole outer fine sides of the template

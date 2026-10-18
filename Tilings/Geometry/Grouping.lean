@@ -10042,18 +10042,6 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step11_
           _ = s.setup.central l β := rfl
       · simp only [List.not_mem_nil] at hocc
 
-/-- Step 12 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: penultimate -/
-private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step12_penultimate
-    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
-    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
-    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
-      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
-      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
-    let D := emcdMacroData τ h g s l hl routing
-    (∀ α d i, D.IsGenuinePath α d i →
-      ∀ o : D.SideOcc, (D.path α d i)[(D.path α d i).length - 2]? = some o →
-        o.1 = (D.partner (D.printOcc α d)).1 ∧ D.IsOrdinary o) := by
-  sorry
 
 /-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup`:
 a lifted occurrence of the side `e` in the crossed child `X` is an occurrence of `e` in `X`. -/
@@ -11347,6 +11335,134 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_
         τ h g s l hl routing α d i' o hp')
     have hii := (routing (emcdBaseForm g s l α)).port_injective _ hports
     exact absurd (by rw [hii]) hne
+
+/-- Step 12 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: penultimate -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step12_penultimate
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i →
+      ∀ o : D.SideOcc, (D.path α d i)[(D.path α d i).length - 2]? = some o →
+        o.1 = (D.partner (D.printOcc α d)).1 ∧ D.IsOrdinary o) := by
+  classical
+  dsimp only
+  let D := emcdMacroData τ h g s l hl routing
+  obtain ⟨hpartner, hedge, -⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces
+      τ h g s l hl routing
+  obtain ⟨-, houter, -, -⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step2_orientation_outer
+      τ h g s l hl routing
+  obtain ⟨-, -, -, hprintInner, hprintSmall, -, hspecialUnique, -, hspecialPrint⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_special
+      τ h g s l hl routing (fun β => (routing β).print_partner_injOn)
+  have partner_partner : ∀ (x : D.SideOcc), D.IsInner x → D.partner (D.partner x) = x := by
+    intro x hx
+    have hpx := hpartner x hx
+    have hpxInner : D.IsInner (D.partner x) := by
+      unfold MacroData.IsInner MacroData.IsOuter at hx ⊢
+      rw [hpx.2.2, hpx.2.1]
+      exact hx
+    have he : D.edge x = D.edge (D.partner x) :=
+      (hedge x (D.partner x) hx hpxInner).2 (Or.inr rfl)
+    rcases (hedge (D.partner x) x hpxInner hx).1 he.symm with heq | heq
+    · exact False.elim (hpx.1 (congrArg Sigma.fst heq.symm))
+    · exact heq.symm
+  intro α d i hgi
+  rintro ⟨ot, oi⟩ ho
+  let terminal := D.partner (D.printOcc α d)
+  have hpInner : D.IsInner (D.printOcc α d) := hprintInner α d hgi.1
+  have hpData := hpartner (D.printOcc α d) hpInner
+  have hterminalInner : D.IsInner terminal := by
+    unfold MacroData.IsInner MacroData.IsOuter at hpInner ⊢
+    rw [hpData.2.2, hpData.2.1]
+    exact hpInner
+  have hportNe : D.port α d i ≠ some terminal := by
+    intro heq
+    have hmem : terminal ∈ D.outerList α d := by
+      unfold MacroData.port at heq
+      exact List.mem_of_getElem? heq
+    exact hterminalInner ((houter α d terminal).1 hmem).2.1
+  have hhead :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step2_head
+      τ h g s l hl routing α d i hgi
+  have hlast :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step3_last
+      τ h g s l hl routing α d i hgi
+  have hlen : 2 ≤ (D.path α d i).length := by
+    generalize hpath : D.path α d i = path at hhead hlast
+    cases path with
+    | nil => simp at hlast
+    | cons x path =>
+        cases path with
+        | nil =>
+            simp at hhead hlast
+            exact False.elim (hportNe (hhead.symm.trans (congrArg some hlast)))
+        | cons y path => simp
+  have hlastIdx :
+      (D.path α d i)[(D.path α d i).length - 1]? = some terminal := by
+    rw [← List.getLast?_eq_getElem?]
+    exact hlast
+  have hchain :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step4_chain
+      τ h g s l hl routing α d i ((D.path α d i).length - 2)
+        ⟨ot, oi⟩ terminal ho
+  have hnext : (D.path α d i)[(D.path α d i).length - 2 + 1]? = some terminal := by
+    rw [show (D.path α d i).length - 2 + 1 = (D.path α d i).length - 1 by omega]
+    exact hlastIdx
+  have hot : ot = terminal.1 := by
+    rcases hchain hnext with hot | ⟨hoInner, hstep⟩
+    · exact hot
+    · have hbackO : D.partner terminal = ⟨ot, oi⟩ := by
+        rw [hstep, partner_partner ⟨ot, oi⟩ hoInner]
+      have hbackPrint : D.partner terminal = D.printOcc α d := by
+        exact partner_partner (D.printOcc α d) hpInner
+      have hoeq : (⟨ot, oi⟩ : D.SideOcc) = D.printOcc α d :=
+        hbackO.symm.trans hbackPrint
+      have homem : (⟨ot, oi⟩ : D.SideOcc) ∈ D.path α d i :=
+        List.mem_of_getElem? ho
+      have hnc :=
+        existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step11_not_central
+          τ h g s l hl routing α d i hgi ⟨ot, oi⟩ homem
+      exact False.elim (hnc (congrArg Sigma.fst hoeq))
+  subst ot
+  have hnodup : (D.path α d i).Nodup :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup
+      τ h g s l hl routing α d i
+  have hne : (⟨terminal.1, oi⟩ : D.SideOcc) ≠ terminal := by
+    intro heq
+    have hdistinct := (List.nodup_iff_getElem?_ne_getElem?.1 hnodup)
+      ((D.path α d i).length - 2) ((D.path α d i).length - 1)
+      (by omega) (by omega)
+    apply hdistinct
+    rw [ho, hlastIdx, heq]
+  have hterminalSmall : D.kind (D.form terminal.1) = .small :=
+    hprintSmall α d hgi.1
+  obtain ⟨specialSide, hspecialSide, hspecialSideUnique⟩ :=
+    hspecialUnique terminal.1 hterminalSmall
+  have hterminalSpecial : D.special terminal := hspecialPrint α d hgi.1
+  have hnotSpecial : ¬ D.special (⟨terminal.1, oi⟩ : D.SideOcc) := by
+    intro hspecial
+    have hoi : oi = terminal.2 :=
+      (hspecialSideUnique oi hspecial).trans
+        (hspecialSideUnique terminal.2 hterminalSpecial).symm
+    exact hne (Sigma.ext rfl (heq_of_eq hoi))
+  have homem : (⟨terminal.1, oi⟩ : D.SideOcc) ∈ D.path α d i :=
+    List.mem_of_getElem? ho
+  have howner :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner
+      τ h g s l hl routing α d i ⟨terminal.1, oi⟩ homem
+  have hnotPrint : ¬ D.IsPrint (⟨terminal.1, oi⟩ : D.SideOcc) := by
+    rintro ⟨d', hd', hcentral | hpartner'⟩
+    · have htype := congrArg Sigma.fst hcentral
+      exact hpData.1 (htype.trans (congrArg D.central howner))
+    · apply hnotSpecial
+      rw [hpartner']
+      exact hspecialPrint (D.owner terminal.1) d' hd'
+  exact ⟨rfl, hnotSpecial, hnotPrint⟩
 
 /-- Step 4 of `lem:certificate-exists`: the path clauses for `emcdMacroData`: lifting each routed
 geometric side list `(routing (emcdBaseForm g s l α)).pathSides d i` and tile list `pathTiles d i`

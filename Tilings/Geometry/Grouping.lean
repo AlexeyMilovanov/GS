@@ -5064,6 +5064,30 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue
   · rintro ⟨μ, hμ⟩ ⟨ν, hν⟩ h
     exact Subtype.ext h
 
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step1_templateData`:
+"each with its disk relisted counterclockwise and translated to the origin": every listed side of
+the relabelled child of a type is a listed side of the template child (for an original singleton
+because the sides of the singleton group are whole sides of the original tile). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step1_templateData_step4_childSide
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (t : emcdTyp g s l)
+    (i : Fin ((emcdQ g s l).disk (emcdChildForm g s l t)).n) :
+    ∃ j : Fin (s.setup.GS.G.mixed.disk t.2.1.form).n,
+      (⟨emcdChildForm g s l t, emcdAnchor g s l t⟩ : PlacedTile (emcdQ g s l)).side i =
+        t.2.1.side j := by
+  obtain ⟨α, ⟨μ, an⟩, hX⟩ := t
+  simp only [PlacedTile.side, emcdAnchor]
+  rcases μ with γ | p
+  · exact ⟨i, rfl⟩
+  · have hx := existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_original g s l p
+    obtain ⟨A, hA, j, hj⟩ := s.setup.GS.G.side_whole (emcdBaseForm g s l (emcdOriginalForm g s l p)) i
+    rw [hx, Set.mem_singleton_iff] at hA
+    subst hA
+    refine ⟨j, ?_⟩
+    have hj' : (P.disk p).side j = (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdOriginalForm g s l p))).side i := by
+      simpa [PlacedTile.side] using hj
+    exact congrArg (an +ᵥ ·) hj'.symm
+
 /-- Step 4 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: `D.σ` satisfies
 `existsMacroCertificate_TemplateData D`. -/
@@ -5076,7 +5100,32 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     let D := emcdMacroData τ h g s l hl routing
     existsMacroCertificate_TemplateData D := by
-  sorry
+  intro D
+  have hσ := (existsMacroCertificate_seed2_routing_step3_data_sub1_macroData τ h g s l hl routing).choose_spec
+  have hrule : ∀ α, (D.σ.rule α).tiles =
+      (fun t => (⟨emcdChildForm g s l t, emcdAnchor g s l t⟩ : PlacedTile (emcdQ g s l))) ''
+        {t | emcdOwner g s l t = α} := hσ.2
+  refine ⟨hrule, ?_, ?_⟩
+  · rintro ⟨α, X, hX⟩ ⟨α', X', hX'⟩ ho hf ha
+    change α = α' at ho
+    subst ho
+    have hf' : X.form = X'.form := congrArg Subtype.val hf
+    have ha' : X.anchor = X'.anchor := ha
+    have hXX : X = X' := PlacedTile.ext hf' ha'
+    subst hXX
+    rfl
+  · intro α
+    rw [hrule α]
+    rintro _ ⟨t, ht, rfl⟩ _ ⟨t', ht', rfl⟩ i j hov
+    obtain ⟨i', hi'⟩ := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step1_templateData_step4_childSide g s l t i
+    obtain ⟨j', hj'⟩ := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step1_templateData_step4_childSide g s l t' j
+    rw [hi', hj'] at hov ⊢
+    obtain ⟨β, X, hX⟩ := t
+    obtain ⟨β', X', hX'⟩ := t'
+    change β = α at ht
+    change β' = α at ht'
+    subst ht ht'
+    exact (s.setup.retained l _).sts X hX X' hX' i' j' hov
 
 /-- Step 4 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`:

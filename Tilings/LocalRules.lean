@@ -12401,6 +12401,383 @@ private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_ste
     (T.disjoint hAp hBp hne)
   exact Set.disjoint_left.mp hdisj hq1 hq2'
 
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port` (auxiliary
+geometry): a translated segment is the segment of the translated endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_vadd_segment
+    (w a b : Pt) : w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+  rw [← segment_translate_image]; rfl
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port` (auxiliary
+geometry): scaling commutes with translation of a region, `θ v + θ S = θ (v + S)`. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_smul_vadd
+    (θ : ℝ) (v : Pt) (S : Set Pt) : (θ • v) +ᵥ θ • S = θ • (v +ᵥ S) := by
+  ext x
+  simp only [Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨v + y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨θ • y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port` (auxiliary
+geometry): a nondegenerate segment covered by finitely many convex sets shares a nondegenerate
+subsegment with one of them. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_cover
+    {x y : Pt} (hxy : x ≠ y) {S : Set (Set Pt)} (hS : S.Finite)
+    (hconv : ∀ T ∈ S, Convex ℝ T) (hcov : segment ℝ x y ⊆ ⋃₀ S) :
+    ∃ T ∈ S, ∃ u v : Pt, u ≠ v ∧ segment ℝ u v ⊆ segment ℝ x y ∩ T := by
+  by_contra hcon
+  push_neg at hcon
+  have hsub : ∀ T ∈ S, (segment ℝ x y ∩ T).Subsingleton := by
+    intro T hT u hu v hv
+    by_contra huv
+    exact hcon T hT u v huv (((convex_segment x y).inter (hconv T hT)).segment_subset hu hv)
+  have hinf : (segment ℝ x y).Infinite := by
+    rw [segment_eq_image_lineMap]
+    exact (Set.Icc_infinite (zero_lt_one' ℝ)).image (AffineMap.lineMap_injective ℝ hxy).injOn
+  apply hinf
+  refine Set.Finite.subset (hS.biUnion fun T hT => (hsub T hT).finite) ?_
+  intro z hz
+  obtain ⟨T, hT, hzT⟩ := hcov hz
+  exact Set.mem_biUnion hT ⟨hz, hzT⟩
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port` (auxiliary
+geometry): a nondegenerate segment in two scaled sets gives a positive overlap of the sets. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_unscale
+    {s : ℝ} (hs : s ≠ 0) {u v : Pt} (huv : u ≠ v) {X Y : Set Pt}
+    (h : segment ℝ u v ⊆ s • X ∩ s • Y) : OverlapPos X Y := by
+  have hseg : segment ℝ (s⁻¹ • u) (s⁻¹ • v) = s⁻¹ • segment ℝ u v := by
+    let f : Pt →ᵃ[ℝ] Pt := (LinearMap.lsmul ℝ Pt s⁻¹).toAffineMap
+    exact (image_segment ℝ f u v).symm
+  refine ⟨s⁻¹ • u, s⁻¹ • v, fun h' => huv (smul_right_injective Pt (inv_ne_zero hs) h'), ?_⟩
+  rw [hseg]
+  rintro _ ⟨w, hw, rfl⟩
+  obtain ⟨hwX, hwY⟩ := h hw
+  obtain ⟨a, ha, rfl⟩ := Set.mem_smul_set.mp hwX
+  obtain ⟨b, hb, hab⟩ := Set.mem_smul_set.mp hwY
+  have : b = a := smul_right_injective Pt hs hab
+  subst this
+  show s⁻¹ • s • _ ∈ X ∩ Y
+  rw [inv_smul_smul₀ hs]
+  exact ⟨ha, hb⟩
+
+/-- Step 0 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port` (auxiliary
+geometry): the frontier of a placed tile is the union of its sides. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_frontier
+    {Q : Protoset} (B : PlacedTile Q) : frontier B.carrier = ⋃ i, B.side i := by
+  have h := (Homeomorph.addLeft B.anchor).image_frontier (Q.disk B.form).carrier
+  rw [Homeomorph.coe_addLeft] at h
+  show frontier (B.anchor +ᵥ (Q.disk B.form).carrier) = _
+  rw [show B.anchor +ᵥ (Q.disk B.form).carrier = (B.anchor + ·) '' (Q.disk B.form).carrier from rfl,
+    ← h, (Q.disk B.form).frontier_eq, Set.image_iUnion]
+  rfl
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: an outer side on the
+path `P_jj(d)` is its initial port. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step1_port
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {jj : Fin 5} {o : C.SideOcc} (hout : C.IsOuter o)
+    (h : o ∈ C.path α d jj) : C.port α d jj = some o := by
+  by_cases hg : C.IsGenuinePath α d jj
+  · obtain ⟨r, hr⟩ := List.mem_iff_getElem?.1 h
+    cases r with
+    | zero =>
+      rw [← C.g4_path_head α d jj hg, List.head?_eq_getElem?]
+      exact hr
+    | succ r => exact absurd hout (C.g4_path_inner α d jj hg r o hr)
+  · rw [C.g4_path_trivial α d jj hg, Option.mem_toList] at h
+    exact h
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: the port `jj` of `d`
+lies on the path `P_jj(d)`. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step2_path
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {jj : Fin 5} {q : C.SideOcc} (h : C.port α d jj = some q) :
+    q ∈ C.path α d jj := by
+  by_cases hg : C.IsGenuinePath α d jj
+  · apply List.mem_of_mem_head?
+    rw [C.g4_path_head α d jj hg, h]
+    rfl
+  · rw [C.g4_path_trivial α d jj hg, Option.mem_toList]
+    exact h
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: two lists strictly
+ordered along the same direction with the same elements (the midpoints of the fine outer sides
+along a parent side, on both sides of the interface) agree position by position. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step3_sorted
+    {ι : Type*} (L1 L2 : List ι) (g1 g2 : ι → Pt) (u : Pt) (hu : u ≠ 0)
+    (h1 : (L1.map g1).Pairwise fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • u)
+    (h2 : (L2.map g2).Pairwise fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • u)
+    (hmem : ∀ x, x ∈ L1.map g1 ↔ x ∈ L2.map g2)
+    (r : ℕ) (o o' : ι) (ho : L1[r]? = some o) (ho' : o' ∈ L2) (hg : g1 o = g2 o') :
+    L2[r]? = some o' ∧ L1.length = L2.length := by
+  have hne : ∀ x y : Pt, (∃ c : ℝ, 0 < c ∧ y - x = c • u) → x ≠ y := by
+    rintro x y ⟨c, hc, h⟩ rfl
+    rw [sub_self] at h
+    exact hu ((smul_eq_zero.1 h.symm).resolve_left hc.ne')
+  have nd1 : (L1.map g1).Nodup := h1.imp fun h => hne _ _ h
+  have nd2 : (L2.map g2).Nodup := h2.imp fun h => hne _ _ h
+  have heq : L1.map g1 = L2.map g2 := by
+    refine List.Perm.eq_of_pairwise ?_ h1 h2 ((List.perm_ext_iff_of_nodup nd1 nd2).2 hmem)
+    rintro a b - - ⟨c, hc, hab⟩ ⟨c', hc', hba⟩
+    exfalso
+    have : (c + c') • u = 0 := by
+      rw [add_smul, ← hab, ← hba]; abel
+    exact hu ((smul_eq_zero.1 this).resolve_left (by linarith))
+  have hlen : L1.length = L2.length := by
+    have := congrArg List.length heq
+    simpa using this
+  refine ⟨?_, hlen⟩
+  obtain ⟨r', hr'⟩ := List.mem_iff_getElem?.1 ho'
+  have hm1 : (L2.map g2)[r]? = some (g2 o') := by
+    rw [← heq, List.getElem?_map, ho, Option.map_some, hg]
+  have hm2 : (L2.map g2)[r']? = some (g2 o') := by
+    rw [List.getElem?_map, hr', Option.map_some]
+  have hlt : r < (L2.map g2).length := by
+    rw [List.getElem?_eq_some_iff] at hm1
+    exact hm1.1
+  have := List.getElem?_inj hlt nd2 (hm1.trans hm2.symm)
+  subst this
+  exact hr'
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: coincident parent
+sides have the same positive direction ("in the same global direction"). -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step4_dir
+    (C : Geometry.MacroCertificate P) {α β : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {d' : Fin (C.Q.disk β).n} {vp wp : Pt}
+    (h : vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d') :
+    C.macroSideDir α d = C.macroSideDir β d' := by
+  rw [PolygonalDisk.side, PolygonalDisk.side,
+    hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_vadd_segment,
+    hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_vadd_segment] at h
+  have hne : (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' ≠ 0 :=
+    sub_ne_zero.2 (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_vertex_ne _ d').symm
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  unfold MacroData.macroSideDir MacroData.posDir
+  rw [← smul_sub, ← smul_sub, ← smul_sub, ← smul_sub]
+  rcases hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_endpoints h with
+    ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · have e : (C.Q.disk α).vertex (finRotate _ d) - (C.Q.disk α).vertex d =
+        (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' := by
+      have := congrArg₂ (· - ·) h2 h1
+      simpa only [add_sub_add_left_eq_sub] using this
+    have e' : (C.Q.disk α).vertex d - (C.Q.disk α).vertex (finRotate _ d) =
+        (C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d') := by
+      rw [← neg_sub, e, neg_sub]
+    rw [e, e']
+  · have e : (C.Q.disk α).vertex (finRotate _ d) - (C.Q.disk α).vertex d =
+        (C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d') := by
+      have := congrArg₂ (· - ·) h2 h1
+      simpa only [add_sub_add_left_eq_sub] using this
+    have e' : (C.Q.disk α).vertex d - (C.Q.disk α).vertex (finRotate _ d) =
+        (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' := by
+      rw [← neg_sub, e, neg_sub]
+    rw [e, e']
+    set δ := C.σ.θ • ((C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d')
+    have hδ : δ ≠ 0 := smul_ne_zero hθ hne
+    have hneg : C.σ.θ • ((C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d')) = -δ := by
+      rw [← neg_sub, smul_neg]
+    rw [hneg]
+    have hp := C.g3_pos_iff δ hδ
+    by_cases hpos : C.IsPositive δ
+    · have : ¬ C.IsPositive (-δ) := fun h' => (hp.1 hpos) h'
+      rw [if_neg this, if_pos hpos]
+    · have : C.IsPositive (-δ) := by
+        by_contra h'
+        exact hpos (hp.2 h')
+      rw [if_pos this, if_neg hpos]
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port` (auxiliary): the
+positive direction of a scaled parent side is nonzero. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step4_dir_ne
+    (C : Geometry.MacroCertificate P) (α : C.Q.Form) (d : Fin (C.Q.disk α).n) :
+    C.macroSideDir α d ≠ 0 := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have hne : C.σ.θ • (C.Q.disk α).vertex (finRotate _ d) - C.σ.θ • (C.Q.disk α).vertex d ≠ 0 := by
+    rw [← smul_sub]
+    exact smul_ne_zero hθ
+      (sub_ne_zero.2 (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_vertex_ne _ d).symm)
+  unfold MacroData.macroSideDir MacroData.posDir
+  split_ifs
+  · exact hne
+  · intro h; apply hne; rw [← neg_sub, h, neg_zero]
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: physically
+coincident side occurrences have the same physical midpoint. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step5_mid
+    (C : Geometry.MacroCertificate P) (vp wp : Pt)
+    (p q : C.SideOcc) (h : vp +ᵥ C.occSide p = wp +ᵥ C.occSide q) :
+    vp + C.occMid p = wp + C.occMid q := by
+  rw [hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_occSide_eq,
+    hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_occSide_eq,
+    hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_vadd_segment,
+    hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_vadd_segment] at h
+  have hm : ∀ (v a b : Pt), v + midpoint ℝ a b = midpoint ℝ (v + a) (v + b) := by
+    intro v a b
+    rw [midpoint_eq_smul_add, midpoint_eq_smul_add, invOf_eq_inv]
+    module
+  simp only [MacroData.occMid]
+  rw [hm, hm]
+  rcases hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_endpoints h with
+    ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [h1, h2]
+  · rw [h1, h2, midpoint_comm]
+
+/-- Step 6 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: the positioned
+children of a block of the composed level are tiles of the decomposed level. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step6_child_mem
+    (C : Geometry.MacroCertificate P) (T1 T0 : PlaneTiling C.Q) (hcomp : C.σ.IsComposition T1 T0)
+    {β : C.Q.Form} {wp : Pt} (hBp : (⟨β, wp⟩ : PlacedTile C.Q) ∈ T1.tiles)
+    (s : C.Typ) (hs : C.owner s = β) :
+    (⟨C.form s, C.σ.θ • wp + C.anchor s⟩ : PlacedTile C.Q) ∈ T0.tiles := by
+  rw [← hcomp]
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet, C.rule_eq,
+    Set.mem_iUnion, Set.mem_image, Set.mem_setOf_eq]
+  exact ⟨_, hBp, _, ⟨s, hs, rfl⟩, rfl⟩
+
+/-- Step 7 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: a placed child side
+is the translate of the side occurrence in its template. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step7_placed
+    (C : Geometry.MacroCertificate P) (v : Pt) (s : C.Typ) (k : C.Side s) :
+    (v + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k = v +ᵥ C.occSide ⟨s, k⟩ := by
+  rw [← vadd_vadd]
+  rfl
+
+/-- Step 8 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: a nondegenerate
+segment on a scaled parent side `d` of the block `⟨α, vp⟩` and on the scaled boundary of the
+neighbouring block `⟨β, wp⟩` lies on a parent side `d'` of the latter, which coincides with `d`
+(the composed level is side-to-side). -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step8_parent
+    (C : Geometry.MacroCertificate P) (T1 : PlaneTiling C.Q) (hsts1 : T1.SideToSide)
+    (α β : C.Q.Form) (vp wp : Pt)
+    (hAp : (⟨α, vp⟩ : PlacedTile C.Q) ∈ T1.tiles) (hBp : (⟨β, wp⟩ : PlacedTile C.Q) ∈ T1.tiles)
+    (d : Fin (C.Q.disk α).n) (x y : Pt) (hxy : x ≠ y)
+    (h1 : segment ℝ x y ⊆ C.σ.θ • (vp +ᵥ (C.Q.disk α).side d))
+    (h2 : segment ℝ x y ⊆ (C.σ.θ • wp) +ᵥ C.macroBoundary β) :
+    ∃ d' : Fin (C.Q.disk β).n, vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d' := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have hcov : segment ℝ x y ⊆ ⋃₀ Set.range (fun d' : Fin (C.Q.disk β).n =>
+      C.σ.θ • (wp +ᵥ (C.Q.disk β).side d')) := by
+    intro z hz
+    have hz2 := h2 hz
+    have hfs : frontier (C.σ.θ • (C.Q.disk β).carrier) = C.σ.θ • frontier (C.Q.disk β).carrier :=
+      ((Homeomorph.smulOfNeZero C.σ.θ hθ).image_frontier _).symm
+    rw [MacroData.macroBoundary, MacroData.macroRegion, hfs, (C.Q.disk _).frontier_eq] at hz2
+    rw [hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_smul_vadd, Set.vadd_set_iUnion, Set.smul_set_iUnion, Set.mem_iUnion] at hz2
+    obtain ⟨d', hd'⟩ := hz2
+    exact ⟨_, ⟨d', rfl⟩, hd'⟩
+  obtain ⟨_, ⟨d', rfl⟩, u, v, huv, hsub⟩ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_cover hxy (Set.finite_range _)
+    (by rintro _ ⟨d', rfl⟩; exact ((convex_segment _ _).vadd _).smul _) hcov
+  exact ⟨d', hsts1 _ hAp _ hBp d d'
+    (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_unscale hθ huv fun z hz => ⟨h1 (hsub hz).1, (hsub hz).2⟩)⟩
+
+/-- Step 9 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: a side of a tile of
+the decomposed level lying on the scaled parent side `d'` of a block `⟨β, wp⟩` is a whole
+listed outer side of that block along `d'` (the decomposed level is side-to-side). -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step9_cover
+    (C : Geometry.MacroCertificate P) (T1 T0 : PlaneTiling C.Q)
+    (hcomp : C.σ.IsComposition T1 T0) (hsts0 : T0.SideToSide)
+    (β : C.Q.Form) (wp : Pt) (hBp : (⟨β, wp⟩ : PlacedTile C.Q) ∈ T1.tiles)
+    (d' : Fin (C.Q.disk β).n) (Z : PlacedTile C.Q) (hZ : Z ∈ T0.tiles)
+    (k0 : Fin (C.Q.disk Z.form).n)
+    (hsub : Z.side k0 ⊆ C.σ.θ • (wp +ᵥ (C.Q.disk β).side d')) :
+    ∃ q ∈ C.outerList β d', Z.side k0 = (C.σ.θ • wp) +ᵥ C.occSide q := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have hfs : ∀ S : Set Pt, frontier (C.σ.θ • S) = C.σ.θ • frontier S := fun S =>
+    ((Homeomorph.smulOfNeZero C.σ.θ hθ).image_frontier S).symm
+  have hdfr : C.σ.θ • (C.Q.disk β).side d' ⊆ C.macroBoundary β := by
+    rw [MacroData.macroBoundary, MacroData.macroRegion, hfs]
+    refine Set.smul_set_mono fun z hz => ?_
+    rw [(C.Q.disk _).frontier_eq]
+    exact Set.mem_iUnion.2 ⟨d', hz⟩
+  have hsub' : Z.side k0 ⊆ (C.σ.θ • wp) +ᵥ C.macroBoundary β := by
+    rw [← hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_smul_vadd] at hsub
+    exact hsub.trans (Set.vadd_set_mono hdfr)
+  have hcov : Z.side k0 ⊆ ⋃₀ Set.range (fun x : (Σ s : {s : C.Typ // C.owner s = β}, C.Side s.1) =>
+      (C.σ.θ • wp + C.anchor x.1.1) +ᵥ (C.Q.disk (C.form x.1.1)).side x.2) := by
+    intro z hz
+    obtain ⟨y, hy, rfl⟩ := hsub' hz
+    have hcl : IsClosed (C.σ.θ • (C.Q.disk β).carrier) :=
+      ((C.Q.disk _).compact.smul C.σ.θ).isClosed
+    have hyR : y ∈ C.σ.θ • (C.Q.disk β).carrier := hcl.frontier_subset hy
+    rw [← C.σ.support_eq, C.rule_eq] at hyR
+    simp only [support, Set.mem_iUnion] at hyR
+    obtain ⟨_, ⟨s, hs, rfl⟩, hys⟩ := hyR
+    have hcs : (C.childTile s).carrier ⊆ C.σ.θ • (C.Q.disk β).carrier := by
+      rw [← C.σ.support_eq, ← hs]
+      have hm : C.childTile s ∈ (C.σ.rule (C.owner s)).tiles := by
+        rw [C.rule_eq]
+        exact ⟨s, rfl, rfl⟩
+      exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hm
+    have hyf : y ∈ frontier ((⟨C.form s, C.anchor s⟩ : PlacedTile C.Q).carrier) :=
+      ⟨subset_closure hys, fun hint => hy.2 (interior_mono hcs hint)⟩
+    rw [hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_frontier, Set.mem_iUnion] at hyf
+    obtain ⟨k, hk⟩ := hyf
+    refine ⟨_, ⟨⟨⟨s, hs⟩, k⟩, rfl⟩, ?_⟩
+    show C.σ.θ • wp +ᵥ y ∈ (C.σ.θ • wp + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k
+    rw [← vadd_vadd]
+    exact Set.vadd_mem_vadd_set hk
+  have hZs : Z.side k0 = segment ℝ (Z.anchor + (C.Q.disk Z.form).vertex k0)
+      (Z.anchor + (C.Q.disk Z.form).vertex (finRotate _ k0)) := by
+    rw [PlacedTile.side, PolygonalDisk.side, hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_vadd_segment]
+  have hne : Z.anchor + (C.Q.disk Z.form).vertex k0 ≠
+      Z.anchor + (C.Q.disk Z.form).vertex (finRotate _ k0) := fun h =>
+    hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_vertex_ne _ k0
+      (add_left_cancel h)
+  rw [hZs] at hcov
+  obtain ⟨_, ⟨⟨⟨s, hs⟩, k⟩, rfl⟩, u, v, huv, hsub2⟩ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_cover hne (Set.finite_range _)
+    (by rintro _ ⟨x, rfl⟩; exact (convex_segment _ _).vadd _) hcov
+  have hY := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step6_child_mem C T1 T0 hcomp hBp s hs
+  have heq : Z.side k0 = (⟨C.form s, C.σ.θ • wp + C.anchor s⟩ : PlacedTile C.Q).side k :=
+    hsts0 Z hZ _ hY k0 k ⟨u, v, huv, fun z hz => ⟨hZs ▸ (hsub2 hz).1, (hsub2 hz).2⟩⟩
+  have heq' : Z.side k0 = (C.σ.θ • wp) +ᵥ C.occSide ⟨s, k⟩ :=
+    heq.trans (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step7_placed C _ s k)
+  have hq : C.occSide ⟨s, k⟩ ⊆ C.σ.θ • (C.Q.disk β).side d' := by
+    have h := hsub
+    rw [heq', ← hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_smul_vadd] at h
+    exact Set.vadd_set_subset_vadd_set_iff.1 h
+  refine ⟨⟨s, k⟩, (C.g3_outerList_mem _ _ _).2 ⟨hs, ?_, hq⟩, heq'⟩
+  show C.occSide _ ⊆ C.macroBoundary (C.owner s)
+  rw [hs]
+  exact hq.trans hdfr
+
+/-- Step 10 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port`: along coincident
+parent sides, every listed outer side of one block has a listed outer side of the other block
+with the same placed midpoint. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step10_match
+    (C : Geometry.MacroCertificate P) (T1 T0 : PlaneTiling C.Q)
+    (hcomp : C.σ.IsComposition T1 T0) (hsts0 : T0.SideToSide)
+    (α β : C.Q.Form) (vp wp : Pt)
+    (hAp : (⟨α, vp⟩ : PlacedTile C.Q) ∈ T1.tiles) (hBp : (⟨β, wp⟩ : PlacedTile C.Q) ∈ T1.tiles)
+    (d : Fin (C.Q.disk α).n) (d' : Fin (C.Q.disk β).n)
+    (hd : vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d')
+    (p : C.SideOcc) (hp : p ∈ C.outerList α d) :
+    ∃ q ∈ C.outerList β d', C.σ.θ • vp + C.occMid p = C.σ.θ • wp + C.occMid q := by
+  obtain ⟨hown, -, hpS⟩ := (C.g3_outerList_mem _ d p).1 hp
+  obtain ⟨s, k⟩ := p
+  have hZ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step6_child_mem C T1 T0 hcomp hAp s hown
+  obtain ⟨q, hq, hZq⟩ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step9_cover C T1 T0 hcomp hsts0 β wp hBp d' _ hZ k (by
+      show (C.σ.θ • vp + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k ⊆ _
+      rw [hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step7_placed, ← hd, ← hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_smul_vadd]
+      exact Set.vadd_set_mono hpS)
+  exact ⟨q, hq, hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step5_mid C _ _ _ _ ((hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step7_placed C (C.σ.θ • vp) s k).symm.trans hZq)⟩
+
 /-- Step 8 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step10c_source_pair_geometry` (aligned ports of the copied
 third cell, `lem:whole-ports`).  Let `T0 = σ' T1` be a grouped level and its grouped composition,
@@ -12430,7 +12807,60 @@ private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_ste
     (d : Fin (C.Q.disk α).n) (jj : Fin 5) (hpath : C.occ t i ∈ C.path α d jj) :
     ∃ d' : Fin (C.Q.disk β).n, C.occ t' j ∈ C.path β d' jj ∧
       vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d' := by
-  sorry
+  have hport := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step1_port C hout hpath
+  have ho : (C.outerList α d)[MacroData.portRank (C.outerList α d).length jj - 1]? =
+      some (C.occ t i) := hport
+  have hoL : C.occ t i ∈ C.outerList α d := List.mem_of_getElem? ho
+  obtain ⟨-, -, hoS⟩ := (C.g3_outerList_mem _ d _).1 hoL
+  have hFeq : (C.σ.θ • vp) +ᵥ C.occSide (C.occ t i) = (C.σ.θ • wp) +ᵥ C.occSide (C.occ t' j) :=
+    (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step7_placed C _ t i).symm.trans (hside.trans (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step7_placed C _ t' j))
+  have hFsub : (C.σ.θ • vp) +ᵥ C.occSide (C.occ t i) ⊆ C.σ.θ • (vp +ᵥ (C.Q.disk α).side d) := by
+    rw [← hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_smul_vadd]
+    exact Set.vadd_set_mono hoS
+  have hseg : (C.σ.θ • vp) +ᵥ C.occSide (C.occ t i) =
+      segment ℝ (C.σ.θ • vp + C.occStart (C.occ t i)) (C.σ.θ • vp + C.occEnd (C.occ t i)) := by
+    rw [hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_occSide_eq,
+      hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_vadd_segment]
+  have hxy : C.σ.θ • vp + C.occStart (C.occ t i) ≠ C.σ.θ • vp + C.occEnd (C.occ t i) := fun h =>
+    hereditary_sts_substitution_sofic_step10c_source_pair_geometry_aux_vertex_ne _ (C.occ t i).2
+      (add_left_cancel (add_left_cancel h))
+  obtain ⟨d', hd'⟩ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step8_parent C T1 hsts1 α β vp wp hAp hBp d _ _ hxy (hseg ▸ hFsub) (by
+      rw [← hseg, hFeq]
+      refine Set.vadd_set_mono ?_
+      rw [← ht']
+      exact hout')
+  have ho'L : C.occ t' j ∈ C.outerList β d' := by
+    refine (C.g3_outerList_mem _ _ _).2 ⟨ht', hout', ?_⟩
+    have h := hFsub
+    rw [hFeq, hd', ← hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step0_smul_vadd] at h
+    exact Set.vadd_set_subset_vadd_set_iff.1 h
+  have hdir := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step4_dir C hd'
+  have hsorted : ∀ (γ : C.Q.Form) (e : Fin (C.Q.disk γ).n) (v : Pt),
+      ((C.outerList γ e).map fun p => C.σ.θ • v + C.occMid p).Pairwise
+        fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • C.macroSideDir γ e := by
+    intro γ e v
+    rw [List.pairwise_map]
+    refine (C.g3_outerList_sorted γ e).imp ?_
+    intro p q h
+    rwa [add_sub_add_left_eq_sub]
+  obtain ⟨hr, hlen⟩ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step3_sorted (C.outerList α d) (C.outerList β d')
+    (fun p => C.σ.θ • vp + C.occMid p) (fun q => C.σ.θ • wp + C.occMid q)
+    (C.macroSideDir α d) (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step4_dir_ne C _ d) (hsorted _ d vp)
+    (by rw [hdir]; exact hsorted _ d' wp) (by
+      intro x
+      simp only [List.mem_map]
+      constructor
+      · rintro ⟨p, hp, rfl⟩
+        obtain ⟨q, hq, he⟩ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step10_match C T1 T0 hcomp hsts0 α β vp wp hAp hBp d d' hd' p hp
+        exact ⟨q, hq, he.symm⟩
+      · rintro ⟨q, hq, rfl⟩
+        obtain ⟨p, hp, he⟩ := hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step10_match C T1 T0 hcomp hsts0 β α wp vp hBp hAp d' d hd'.symm q hq
+        exact ⟨p, hp, he.symm⟩)
+    _ _ _ ho ho'L (hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step5_mid C _ _ _ _ hFeq)
+  refine ⟨d', hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step8_port_step2_path C (q := C.occ t' j) ?_, hd'⟩
+  show (C.outerList β d')[MacroData.portRank (C.outerList β d').length jj - 1]? = some _
+  rw [← hlen]
+  exact hr
 
 /-- Step 9 of the blueprint proof: the intermediate scattered levels are side-to-side. -/
 private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step9_levels_sts

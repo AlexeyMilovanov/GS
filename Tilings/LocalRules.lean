@@ -3205,6 +3205,15 @@ private theorem hereditary_sts_hierarchy_sofic_step1_control
       exact h_cases _ _ hT0
     rwa [← h_eq]
 
+/-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step2_certificate_sts`:
+construct an STS macrocertificate whose every grouped supertile iterate is side-to-side. -/
+private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts
+    (τ : Substitution P) (hτ : τ.STS) :
+    ∃ (C : Geometry.MacroCertificate P) (m : ℕ), C.Represents τ m ∧
+      ∀ (X : PlacedTile C.Q) (k : ℕ),
+        SideToSideSet (C.σ.decomposeIter k {X}) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: the STS
 certificate supplies the side-to-side-supertiling instantiation needed by the
 repaired hierarchy lift for every grouped hierarchy. -/
@@ -3215,7 +3224,14 @@ private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts
         ∃ seq : ℕ → PlaneTiling C.Q, seq 0 = T ∧
           (∀ n, C.σ.IsComposition (seq (n + 1)) (seq n)) ∧
           Planned.HierarchySupertilesSTS C seq := by
-  sorry
+  obtain ⟨C, m, hC, hlocal⟩ :=
+    hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts τ hτ
+  refine ⟨C, m, hC, ?_⟩
+  rintro T ⟨seq, hzero, hcomp⟩
+  refine ⟨seq, hzero, hcomp, ?_⟩
+  change ∀ n k, k ≤ n → ∀ X ∈ (seq n).tiles, SideToSideSet (C.σ.decomposeIter k {X})
+  intro n k hk X hX
+  exact hlocal X k
 
 /-- Step 3 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: grouping,
 scattering, and the positive-power hierarchy equivalence identify the scattered

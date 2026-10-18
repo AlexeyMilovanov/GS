@@ -3200,7 +3200,54 @@ private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule_step3_
         hereditary_sts_hierarchy_sofic_step1_control_control_rule_locallyCompatible C T' ∧
         ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles =
           Planned.eraseSet C U.tiles := by
-  sorry
+  intro U hU hleg
+  let f : PlacedTile (Planned.typedDecoration C) →
+      PlacedTile (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P' :=
+    fun X => ⟨Sum.inr X.form, X.anchor⟩
+  let T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P' :=
+    { tiles := f '' U.tiles
+      cover := by
+        simpa [support, f, PlacedTile.carrier] using U.cover
+      disjoint := by
+        intro A hA B hB hAB
+        rcases hA with ⟨X, hX, rfl⟩
+        rcases hB with ⟨Y, hY, rfl⟩
+        have hXY : X ≠ Y := by
+          intro h
+          apply hAB
+          subst h
+          rfl
+        simpa [f, PlacedTile.carrier] using U.disjoint hX hY hXY }
+  refine ⟨T', ?_, ?_⟩
+  · constructor
+    · intro X hX
+      rcases hX with ⟨Y, hY, rfl⟩
+      exact ⟨Y.form, rfl, hleg Y hY⟩
+    · intro X hX A hXA i hi
+      rcases hX with ⟨Y, hY, rfl⟩
+      have hA : A = Y.form := by
+        change (Sum.inr Y.form : C.Q.Form ⊕ Planned.DecTile C) = Sum.inr A at hXA
+        exact (Sum.inr.inj hXA).symm
+      subst A
+      obtain ⟨Z, hZ, hYZ, j, hside, hcell⟩ := hU Y hY i hi
+      refine ⟨f Z, ⟨Z, hZ, rfl⟩, ?_, Z.form, j, rfl, ?_, ?_⟩
+      · intro h
+        apply hYZ
+        cases Z with
+        | mk zform zanchor =>
+          cases Y with
+          | mk yform yanchor =>
+            have hform := congrArg (fun W => W.form) h
+            change (Sum.inr zform : C.Q.Form ⊕ Planned.DecTile C) = Sum.inr yform at hform
+            apply PlacedTile.ext
+            · exact Sum.inr.inj hform
+            · exact congrArg (fun W => W.anchor) h
+      · simpa [f, Planned.sideOf] using hside
+      · exact hcell
+  · ext X
+    simp [T', f, hereditary_sts_hierarchy_sofic_step1_control_decoration,
+      Decoration.project, Decoration.projTile, Planned.tileDec, Planned.eraseSet,
+      Planned.erase]
 
 /-- Step 1 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step1_control`: the control rule. -/
 private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule

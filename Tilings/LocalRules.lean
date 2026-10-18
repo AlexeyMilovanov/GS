@@ -3269,6 +3269,82 @@ private theorem hereditary_sts_hierarchy_sofic_step1_control
       exact h_cases _ _ hT0
     rwa [← h_eq]
 
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts`: use the
+representing certificate's supertile containment to obtain side-to-side fine iterates. -/
+private lemma hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts_aux1
+    (τ : Substitution P) (hτ : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) :
+    ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles) := by
+  have hmono : ∀ r {S T : Set (PlacedTile P)}, S ⊆ T →
+      τ.decomposeIter r S ⊆ τ.decomposeIter r T := by
+    intro r
+    induction r with
+    | zero => intro S T hST; exact hST
+    | succ r ihr =>
+      intro S T hST B hB
+      change B ∈ τ.decompose (τ.decomposeIter r S) at hB
+      change B ∈ τ.decompose (τ.decomposeIter r T)
+      simp only [Substitution.decompose, Set.mem_iUnion] at hB ⊢
+      obtain ⟨A, hA, hBA⟩ := hB
+      exact ⟨A, ihr hST hA, hBA⟩
+  have hadd : ∀ r n (S : Set (PlacedTile P)),
+      τ.decomposeIter r (τ.decomposeIter n S) = τ.decomposeIter (n + r) S := by
+    intro r
+    induction r with
+    | zero => intro n S; rfl
+    | succ r ihr =>
+      intro n S
+      change τ.decompose (τ.decomposeIter r (τ.decomposeIter n S)) = _
+      rw [ihr]
+      rw [show n + (r + 1) = (n + r) + 1 by omega]
+      rfl
+  intro α j
+  obtain ⟨n, p, v, hsub⟩ := hC.inside_supertile α
+  have hsub' : τ.decomposeIter j (translateSet v (C.Δ α).tiles) ⊆
+      τ.supertile (n + j) p := by
+    calc
+      τ.decomposeIter j (translateSet v (C.Δ α).tiles) ⊆
+          τ.decomposeIter j (τ.supertile n p) := hmono j hsub
+      _ = τ.supertile (n + j) p := by
+        change τ.decomposeIter j (τ.decomposeIter n {⟨p, 0⟩}) =
+          τ.decomposeIter (n + j) {⟨p, 0⟩}
+        exact hadd j n {⟨p, 0⟩}
+  have hsts : SideToSideSet (τ.decomposeIter j (translateSet v (C.Δ α).tiles)) := by
+    intro A hA B hB i l hover
+    exact hτ (n + j) p A (hsub' hA) B (hsub' hB) i l hover
+  rw [hierarchy_lift_iff_decomposeIter_translate] at hsts
+  set w : Pt := (τ.θ ^ j) • v
+  intro A hA B hB i l hover
+  have hover' : OverlapPos ((A.translate w).side i) ((B.translate w).side l) := by
+    obtain ⟨x, y, hxy, hseg⟩ := hover
+    refine ⟨w + x, w + y, ?_, ?_⟩
+    · intro heq
+      apply hxy
+      exact add_left_cancel heq
+    · intro z hz
+      rw [← segment_translate_image] at hz
+      obtain ⟨u, hu, rfl⟩ := hz
+      refine ⟨?_, ?_⟩
+      · simpa [PlacedTile.side, PlacedTile.translate, add_vadd] using
+          (show w +ᵥ u ∈ w +ᵥ A.side i from vadd_mem_vadd_set (hseg hu).1)
+      · simpa [PlacedTile.side, PlacedTile.translate, add_vadd] using
+          (show w +ᵥ u ∈ w +ᵥ B.side l from vadd_mem_vadd_set (hseg hu).2)
+  have heq := hsts (A.translate w) ⟨A, hA, rfl⟩ (B.translate w) ⟨B, hB, rfl⟩ i l hover'
+  have heq' := congrArg (fun s : Set Pt => (-w) +ᵥ s) heq
+  simpa [PlacedTile.side, PlacedTile.translate, vadd_eq_add, vadd_vadd] using heq'
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts`: transfer
+side-to-side fine iterates through the grouped substitution to every grouped supertile. -/
+private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts_aux2
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (hfine : ∀ α j, SideToSideSet (τ.decomposeIter j (C.Δ α).tiles)) :
+    ∀ (X : PlacedTile C.Q) (k : ℕ),
+      SideToSideSet (C.σ.decomposeIter k {X}) := by
+  sorry
+
 /-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step2_certificate_sts`:
 construct an STS macrocertificate whose every grouped supertile iterate is side-to-side. -/
 private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts
@@ -3276,7 +3352,12 @@ private theorem hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certi
     ∃ (C : Geometry.MacroCertificate P) (m : ℕ), C.Represents τ m ∧
       ∀ (X : PlacedTile C.Q) (k : ℕ),
         SideToSideSet (C.σ.decomposeIter k {X}) := by
-  sorry
+  obtain ⟨C, m, hC⟩ := Geometry.existsMacroCertificate τ hτ
+  refine ⟨C, m, hC, ?_⟩
+  exact hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts_aux2
+    τ C m hC
+    (hereditary_sts_hierarchy_sofic_step2_certificate_sts_step1_certificate_sts_aux1
+      τ hτ C m hC)
 
 /-- Step 2 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: the STS
 certificate supplies the side-to-side-supertiling instantiation needed by the

@@ -1,5 +1,6 @@
 import Tilings.Alignment
 import Tilings.Control.Composition
+import Tilings.Control.Strict
 
 /-!
 # Local-rule transfers and the hereditary STS core (statements only)
@@ -3124,11 +3125,931 @@ theorem Grouping.hierarchy_lift_sts (τ : Substitution P) (GS : GroupedSubstitut
 
 /-! ## The hereditary STS core -/
 
+/-! ### The finite crown control used by `thm:hereditary-substitution`
+
+The ordinary strict control alphabet remembers a hierarchy, but it deliberately
+does not remember which crowns occur across a persistent hierarchy boundary.
+The following data are the extra, physical crown channel from the reviewed
+proof.  In particular, the catalogue uses one *jointly allowed collar*, rather
+than choosing its crowns independently. -/
+
+open Classical
+
+/-- The finite list of allowed crowns which cover a neighbourhood of their
+centre.  The neighbourhood condition removes incomplete crowns occurring on
+the boundary of a finite supertile. -/
+private noncomputable def hereditary_sts_substitution_sofic_fullCrowns
+    (τ : Substitution P) (hsts : τ.STS) : Finset (Set (PlacedTile P)) :=
+  (Substitution.STS.finite_crowns τ hsts).toFinset.filter
+    (fun K => 0 ∈ interior (support K))
+
+/-- A full allowed crown, represented by its entry in the finite list above. -/
+private abbrev hereditary_sts_substitution_sofic_FullCrown
+    (τ : Substitution P) (hsts : τ.STS) :=
+  ↥(hereditary_sts_substitution_sofic_fullCrowns τ hsts)
+
+/-- Step 1 of the reviewed proof: the marked vertices in a finite grouped
+dissection form a finite set.  This is only the elementary finite-union
+statement; no control rule or tiling is involved. -/
+private lemma hereditary_sts_substitution_sofic_step1_macro_vertices_finite
+    (C : Geometry.MacroCertificate P) (q : C.Q.Form) :
+    {v : Pt | Substitution.IsVertexOf (C.Δ q).tiles v}.Finite := by
+  have hset : {v : Pt | Substitution.IsVertexOf (C.Δ q).tiles v} =
+      ⋃ A ∈ (C.Δ q).tiles, A.vertexSet := by
+    ext v
+    simp [Substitution.IsVertexOf]
+  rw [hset]
+  exact (C.Δ q).finite.biUnion fun A _ => Set.finite_range A.vertex
+
+/-- The actual finite set of original marked vertices in a grouped tile. -/
+private noncomputable def hereditary_sts_substitution_sofic_macroVertices
+    (C : Geometry.MacroCertificate P) (q : C.Q.Form) : Finset Pt :=
+  (hereditary_sts_substitution_sofic_step1_macro_vertices_finite C q).toFinset
+
+/-- A vector of full crowns, one at every original marked vertex of a grouped
+tile. -/
+private abbrev hereditary_sts_substitution_sofic_CrownVector
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (q : C.Q.Form) :=
+  (v : ↥(hereditary_sts_substitution_sofic_macroVertices C q)) →
+    hereditary_sts_substitution_sofic_FullCrown τ hsts
+
+/-- The collar obtained by adjoining every translated crown in a crown
+vector to the grouped dissection. -/
+private def hereditary_sts_substitution_sofic_collar
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (q : C.Q.Form)
+    (γ : hereditary_sts_substitution_sofic_CrownVector τ hsts C q) :
+    Set (PlacedTile P) :=
+  (C.Δ q).tiles ∪ ⋃ v, translateSet v.1 (γ v).1
+
+/-- Joint occurrence of the entire collar in one supertile.  This is the
+condition that prevents independently chosen, mutually incompatible crowns. -/
+private def hereditary_sts_substitution_sofic_JointAllowed
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (q : C.Q.Form)
+    (γ : hereditary_sts_substitution_sofic_CrownVector τ hsts C q) : Prop :=
+  ∃ (n : ℕ) (p : P.Form) (a : Pt),
+    translateSet a (hereditary_sts_substitution_sofic_collar τ hsts C q γ) ⊆
+      τ.supertile n p
+
+/-- The jointly allowed catalogue `Γ(q)`: disjoint and STS collars, exact
+stars at every recorded vertex, and one common supertile witness. -/
+private def hereditary_sts_substitution_sofic_Catalog
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (q : C.Q.Form) :=
+  {γ : hereditary_sts_substitution_sofic_CrownVector τ hsts C q //
+    DisjointInteriors
+        (hereditary_sts_substitution_sofic_collar τ hsts C q γ) ∧
+    SideToSideSet
+        (hereditary_sts_substitution_sofic_collar τ hsts C q γ) ∧
+    (∀ v,
+      Substitution.crown (hereditary_sts_substitution_sofic_collar τ hsts C q γ) v.1 =
+        translateSet v.1 (γ v).1) ∧
+    hereditary_sts_substitution_sofic_JointAllowed τ hsts C q γ}
+
+/-- The raw child crown at a marked vertex, obtained by decomposing the whole
+parent collar and taking the physical star at the positioned child vertex. -/
+private def hereditary_sts_substitution_sofic_rawChildCrown
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t))) :
+    Set (PlacedTile P) :=
+  let x := C.anchor t + v.1
+  translateSet (-x)
+    (Substitution.crown
+      (τ.decomposeIter m
+        (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1)) x)
+
+/-- Step 2a of the reviewed proof: each raw child star is again a full allowed
+crown.  The proof uses joint allowedness, collar neighbourhood saturation and
+the certificate compatibility equation. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t))) :
+    hereditary_sts_substitution_sofic_rawChildCrown τ hsts C m t γ v ∈
+      hereditary_sts_substitution_sofic_fullCrowns τ hsts := by
+  sorry
+
+/-- The child crown vector `F_t(γ)`. -/
+private noncomputable def hereditary_sts_substitution_sofic_childVector
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)) :
+    hereditary_sts_substitution_sofic_CrownVector τ hsts C (C.form t) :=
+  fun v => ⟨hereditary_sts_substitution_sofic_rawChildCrown τ hsts C m t γ v,
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full τ hsts C m hC t γ v⟩
+
+/-- Step 2b of the reviewed proof: `F_t(γ)` satisfies all four catalogue
+conditions, including a single joint supertile witness. -/
+private lemma hereditary_sts_substitution_sofic_step2_child_catalog_closed
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)) :
+    DisjointInteriors
+        (hereditary_sts_substitution_sofic_collar τ hsts C (C.form t)
+          (hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ)) ∧
+    SideToSideSet
+        (hereditary_sts_substitution_sofic_collar τ hsts C (C.form t)
+          (hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ)) ∧
+    (∀ v,
+      Substitution.crown
+          (hereditary_sts_substitution_sofic_collar τ hsts C (C.form t)
+            (hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ)) v.1 =
+        translateSet v.1
+          ((hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ) v).1) ∧
+    hereditary_sts_substitution_sofic_JointAllowed τ hsts C (C.form t)
+      (hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ) := by
+  sorry
+
+/-- The catalogue-valued child operator. -/
+private noncomputable def hereditary_sts_substitution_sofic_childCatalog
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)) :
+    hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t) :=
+  ⟨hereditary_sts_substitution_sofic_childVector τ hsts C m hC t γ,
+    hereditary_sts_substitution_sofic_step2_child_catalog_closed
+      τ hsts C m hC t γ⟩
+
+/-- A physical endpoint packet.  `none` is the absent endpoint marker; a
+nonempty entry contains an actual member of the full-crown list. -/
+private abbrev hereditary_sts_substitution_sofic_CrownPacket
+    (τ : Substitution P) (hsts : τ.STS) :=
+  Option (hereditary_sts_substitution_sofic_FullCrown τ hsts) ×
+    Option (hereditary_sts_substitution_sofic_FullCrown τ hsts)
+
+/-- The nonrecursive header: old positioned type, zero-mode bits, and the
+catalogue value decoded from physical endpoint packets. -/
+private abbrev hereditary_sts_substitution_sofic_CrownHeader
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) :=
+  Σ t : C.Typ,
+    (C.Side t → Bool) ×
+      Option (hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t))
+
+/-- The extended finite symbol alphabet.  Old strict symbols remain a
+separate summand, so crown packets cannot be confused with identities,
+schedules, zero, bottom, or headers. -/
+private abbrev hereditary_sts_substitution_sofic_ExtSymbol
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) :=
+  Planned.Strict.SU C hC ⊕
+    (hereditary_sts_substitution_sofic_CrownPacket τ hsts ⊕
+      hereditary_sts_substitution_sofic_CrownHeader τ hsts C)
+
+/-- Extended tiles retain the old positioned type and five cells per listed
+side; only the finite cell alphabet is enlarged. -/
+private abbrev hereditary_sts_substitution_sofic_ExtTile
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) :=
+  Σ t : C.Typ,
+    C.Side t → Fin 5 →
+      hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC
+
+/-- A global, translation-invariant strict order of two distinct endpoints. -/
+private def hereditary_sts_substitution_sofic_pointLT (x y : Pt) : Prop :=
+  x 0 < y 0 ∨ (x 0 = y 0 ∧ x 1 < y 1)
+
+/-- Look up the crown recorded at a physical marked vertex. -/
+private noncomputable def hereditary_sts_substitution_sofic_lookupCrown
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (q : C.Q.Form)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C q) (v : Pt) :
+    Option (hereditary_sts_substitution_sofic_FullCrown τ hsts) :=
+  if hv : v ∈ hereditary_sts_substitution_sofic_macroVertices C q then
+    some (γ.1 ⟨v, hv⟩)
+  else none
+
+/-- The canonically ordered packet at the two endpoints of a grouped side. -/
+private noncomputable def hereditary_sts_substitution_sofic_packetOf
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t))
+    (i : C.Side t) :
+    hereditary_sts_substitution_sofic_CrownPacket τ hsts :=
+  let x := (C.Q.disk (C.form t)).vertex i
+  let y := (C.Q.disk (C.form t)).vertex
+    (finRotate (C.Q.disk (C.form t)).n i)
+  let atOwnerBoundary := fun v : Pt =>
+    C.anchor t + v ∈ frontier (C.σ.θ • (C.Q.disk (C.owner t)).carrier)
+  let read := fun v : Pt =>
+    if atOwnerBoundary v then
+      hereditary_sts_substitution_sofic_lookupCrown τ hsts C (C.form t) γ v
+    else none
+  if hereditary_sts_substitution_sofic_pointLT x y then
+    (read x, read y)
+  else
+    (read y, read x)
+
+/-- Encode an endpoint packet in the extended alphabet.  The doubly absent
+packet is literally the old zero symbol; this is the convention needed on
+ordinary internal non-print sides and along cyclic central chains. -/
+private def hereditary_sts_substitution_sofic_encodePacket
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (p : hereditary_sts_substitution_sofic_CrownPacket τ hsts) :
+    hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC :=
+  match p with
+  | (none, none) => Sum.inl 0
+  | _ => Sum.inr (Sum.inl p)
+
+/-- A tile physically decodes a catalogue value when every non-print second
+cell is exactly the endpoint packet of that value.  Print second cells are
+deliberately ignored: they are transit channels, not physical crown records. -/
+private def hereditary_sts_substitution_sofic_Decodes
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+  (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+  (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1)) : Prop :=
+  (∀ i : C.Side A.1, ¬ C.IsPrint (C.occ A.1 i) →
+    A.2 i 1 = hereditary_sts_substitution_sofic_encodePacket τ hsts C hC
+      (hereditary_sts_substitution_sofic_packetOf τ hsts C A.1 γ i)) ∧
+  ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form A.1)),
+    C.anchor A.1 + v.1 ∉ frontier
+        (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier) →
+      (γ.1 v).1 =
+        translateSet (-(C.anchor A.1 + v.1))
+          (Substitution.crown
+            (τ.decomposeIter m (C.Δ (C.owner A.1)).tiles)
+            (C.anchor A.1 + v.1))
+
+/-- The total decoder used by the header.  Ambiguous or malformed arrays
+decode to `none`, which the incidence colours below reject. -/
+private noncomputable def hereditary_sts_substitution_sofic_decode
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) :
+    Option (hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1)) :=
+  if h : ∃! γ, hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ then
+    some h.exists.choose
+  else none
+
+/-- The nonrecursive header computed from the old type, actual fourth cells,
+and the physical packet decoder. -/
+private noncomputable def hereditary_sts_substitution_sofic_header
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) :
+    hereditary_sts_substitution_sofic_CrownHeader τ hsts C :=
+  ⟨A.1,
+    (fun d => C.outerB A.1 d && decide (A.2 d 3 = Sum.inl 0)),
+    hereditary_sts_substitution_sofic_decode τ hsts C hC A⟩
+
+/-- Generated children use the reviewed packet channel in cell two, the
+extended header in cell four, and the old strict copying graph everywhere. -/
+private noncomputable def hereditary_sts_substitution_sofic_generate
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (t : C.Typ) : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC :=
+  ⟨t, fun i k =>
+    if hs : (Planned.copySource C (C.form A.1) (C.occ t i) k).Nonempty then
+      A.2 hs.some.1 hs.some.2
+    else if _hp : C.IsPrint (C.occ t i) then
+      if k = 4 then
+        Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ t i)))
+      else Sum.inl 0
+    else if k = 0 then
+      if C.IsInner (C.occ t i) then
+        Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ t i)))
+      else Sum.inl 0
+    else if k = 1 then
+      match hereditary_sts_substitution_sofic_decode τ hsts C hC A with
+      | none => Sum.inl 0
+      | some γ =>
+          if ht : C.owner t = C.form A.1 then
+            hereditary_sts_substitution_sofic_encodePacket τ hsts C hC
+              (hereditary_sts_substitution_sofic_packetOf τ hsts C t
+                (hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t
+                  (ht ▸ γ)) i)
+          else Sum.inl 0
+    else if k = 3 then
+      if C.IsOuter (C.occ t i) then
+        Sum.inl (Planned.Strict.schedU C hC (C.occ t i))
+      else if C.IsBoundary (C.occ t i) then
+        Sum.inr (Sum.inr
+          (hereditary_sts_substitution_sofic_header τ hsts C hC A))
+      else Sum.inl (Planned.Strict.botSU C hC)
+    else Sum.inl 0⟩
+
+/-- Step 3 of the reviewed proof: generation preserves packet consistency and
+the physical decoder returns exactly `F_t(γ)`. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (hγ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ)
+    (t : C.Typ) (ht : C.owner t = C.form A.1) :
+    hereditary_sts_substitution_sofic_Decodes τ hsts C hC
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t)
+      (hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t (ht ▸ γ)) := by
+  sorry
+
+/-- The child relation for the extended arrays. -/
+private def hereditary_sts_substitution_sofic_IsExtChild
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) : Prop :=
+  C.owner B.1 = C.form A.1 ∧
+    B = hereditary_sts_substitution_sofic_generate τ hsts C m hC A B.1
+
+/-- A copied cell reaches a generated source in finitely many ancestor
+steps.  This is the reflexive-transitive closure of the old `copySource`
+graph on the new finite alphabet. -/
+private def hereditary_sts_substitution_sofic_ExtHasOrigin
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (n : ℕ) (i : C.Side (ch n).1) (k : Fin 5) : Prop :=
+  let State := Σ r : ℕ, C.Side (ch r).1 × Fin 5
+  let step : State → State → Prop := fun a b =>
+    ∃ (d : C.Side (ch (a.1 + 1)).1) (k' : Fin 5),
+      (d, k') ∈ Planned.copySource C (C.form (ch (a.1 + 1)).1)
+        (C.occ (ch a.1).1 a.2.1) a.2.2 ∧
+      b = ⟨a.1 + 1, d, k'⟩
+  ∃ s : State,
+    Relation.ReflTransGen step ⟨n, i, k⟩ s ∧
+    Planned.copySource C (C.form (ch (s.1 + 1)).1)
+      (C.occ (ch s.1).1 s.2.1) s.2.2 = ∅
+
+/-- Founded legality: every level decodes, every level is the generated child
+of the next one, and a copied value on an infinite source-free chain is zero. -/
+private def hereditary_sts_substitution_sofic_ExtLegal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) : Prop :=
+  ∃ ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+    ch 0 = A ∧
+    (∀ n, hereditary_sts_substitution_sofic_IsExtChild
+      τ hsts C m hC (ch (n + 1)) (ch n)) ∧
+    (∀ n, (hereditary_sts_substitution_sofic_decode τ hsts C hC (ch n)).isSome) ∧
+    ∀ (n : ℕ) (i : C.Side (ch n).1) (k : Fin 5),
+      (Planned.copySource C (C.form (ch (n + 1)).1)
+        (C.occ (ch n).1 i) k).Nonempty →
+      ¬ hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC ch n i k →
+      (ch n).2 i k = Sum.inl 0
+
+/-- A typed side index and a decorated-form side index denote the same
+geometric incidence.  `HEq` performs only the transport forced by the
+presentation's exact disk/projection equations. -/
+private def hereditary_sts_substitution_sofic_CoincidentTypedSides
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) (dec : SideDecoration C.Q)
+    (X Y : PlacedTile dec.P')
+    (A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (i : C.Side A.1) (j : C.Side B.1) : Prop :=
+  ∃ (i' : Fin (dec.P'.disk X.form).n) (j' : Fin (dec.P'.disk Y.form).n),
+    HEq i i' ∧ HEq j j' ∧ X.side i' = Y.side j'
+
+/-- A crown-control presentation packages the finite side decoration together
+with the exact contracts supplied by its illegal-incidence colours.  These
+fields prevent the constant-colour degeneracy rejected in the earlier attempt. -/
+private structure hereditary_sts_substitution_sofic_CrownPresentation
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) where
+  dec : SideDecoration C.Q
+  formEquiv : dec.P'.Form ≃
+    hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form
+  proj_typed : ∀ A, dec.proj (formEquiv.symm (Sum.inl A)) = C.form A.1
+  proper_typed_legal : ∀ (T : PlaneTiling dec.P'), dec.Proper T →
+    ∀ X ∈ T.tiles, ∃ A,
+      formEquiv X.form = Sum.inl A ∧
+      hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A
+  proper_cells_match : ∀ (T : PlaneTiling dec.P'), dec.Proper T →
+    ∀ X ∈ T.tiles, ∀ Y ∈ T.tiles, X ≠ Y →
+      ∀ A B, formEquiv X.form = Sum.inl A → formEquiv Y.form = Sum.inl B →
+      ∀ (i : C.Side A.1) (j : C.Side B.1),
+        hereditary_sts_substitution_sofic_CoincidentTypedSides
+          τ hsts C hC dec X Y A B i j →
+        A.2 i = B.2 j
+  proper_of_typed_legal : ∀ (T : PlaneTiling dec.P'), T.SideToSide →
+    (∀ X ∈ T.tiles, ∃ A, formEquiv X.form = Sum.inl A ∧
+      hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A) →
+    (∀ X ∈ T.tiles, ∀ Y ∈ T.tiles, X ≠ Y →
+      ∀ A B, formEquiv X.form = Sum.inl A → formEquiv Y.form = Sum.inl B →
+      ∀ (i : C.Side A.1) (j : C.Side B.1),
+        hereditary_sts_substitution_sofic_CoincidentTypedSides
+          τ hsts C hC dec X Y A B i j → A.2 i = B.2 j) →
+    dec.Proper T
+
+/-- Step 4 of the reviewed proof: compile the implemented packet decoder,
+generator, founded legality predicate and illegal-incidence colours into a
+finite side decoration.  This step is only the finite encoding; it asserts no
+completeness or reconstruction theorem. -/
+private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) :
+    Nonempty (hereditary_sts_substitution_sofic_CrownPresentation
+      τ hsts C m hC) := by
+  sorry
+
+/-- The grouped tilings presented by the concrete crown side decoration. -/
+private def hereditary_sts_substitution_sofic_controlFamily
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} {hC : C.Represents τ m}
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC) :
+    Set (PlaneTiling C.Q) :=
+  {T | ∃ T' : PlaneTiling X.dec.P', X.dec.Proper T' ∧
+    X.dec.toDecoration.project T' = T}
+
+/-- The family presented by any concrete crown presentation is immediately
+side-to-side sofic; this is just the defining witness, not a soundness claim. -/
+private lemma hereditary_sts_substitution_sofic_step4_control_family_sofic
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} {hC : C.Represents τ m}
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC) :
+    IsSideToSideSofic
+      (hereditary_sts_substitution_sofic_controlFamily τ hsts C X) := by
+  exact ⟨X.dec, fun T => Iff.rfl⟩
+
+/-- The exact pre-legal one-level reconstruction contract.  `fine` is the
+proper input colouring; `coarse` already has decoded and matched extended
+arrays, but founded legality is intentionally not assumed here. -/
+private structure hereditary_sts_substitution_sofic_Reconstruction
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T T' : PlaneTiling C.Q) where
+  fine : PlaneTiling X.dec.P'
+  fine_proper : X.dec.Proper fine
+  fine_project : X.dec.toDecoration.project fine = T
+  coarse : PlaneTiling X.dec.P'
+  coarse_project : X.dec.toDecoration.project coarse = T'
+  composition : C.σ.IsComposition T' T
+  coarse_sideToSide : coarse.SideToSide
+  coarse_typed : ∀ Y ∈ coarse.tiles, ∃ A,
+    X.formEquiv Y.form = Sum.inl A ∧
+      (hereditary_sts_substitution_sofic_decode τ hsts C hC A).isSome
+  coarse_cells_match : ∀ Y ∈ coarse.tiles, ∀ Z ∈ coarse.tiles, Y ≠ Z →
+    ∀ A B, X.formEquiv Y.form = Sum.inl A → X.formEquiv Z.form = Sum.inl B →
+    ∀ (i : C.Side A.1) (j : C.Side B.1),
+      hereditary_sts_substitution_sofic_CoincidentTypedSides
+        τ hsts C hC X.dec Y Z A B i j → A.2 i = B.2 j
+  coarse_parents : ∀ Y ∈ coarse.tiles, ∃ A,
+    X.formEquiv Y.form = Sum.inl A ∧
+    ∀ t, C.owner t = C.form A.1 →
+      ∃ Z ∈ fine.tiles,
+        X.formEquiv Z.form = Sum.inl
+          (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t) ∧
+        Z.anchor = C.σ.θ • Y.anchor + C.anchor t
+
+/-- Step 5 of the reviewed proof (one level only): a proper crown-controlled
+tiling has a proper reconstructed parent, exact generated children, and a
+grouped composition.  No iteration and no substitution conclusion occur in
+this statement. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (hT : T ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X) :
+    ∃ T' : PlaneTiling C.Q,
+      Nonempty (hereditary_sts_substitution_sofic_Reconstruction
+        τ hsts C m hC X T T') := by
+  sorry
+
+/-- Step 6 of the reviewed proof: legality of every reconstructed parent is
+proved before reconstruction is iterated, by the cyclic, noncentral and
+central-acyclic cases.  This isolates exactly that non-circular argument. -/
+private lemma hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T T' : PlaneTiling C.Q)
+    (hrec : hereditary_sts_substitution_sofic_Reconstruction
+      τ hsts C m hC X T T') :
+    T' ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X := by
+  sorry
+
+/-- A hierarchy whose adjacent coloured levels are related by the exact
+pre-legal reconstruction contract.  Keeping these witnesses prevents the
+levels from silently choosing unrelated proper colourings. -/
+private structure hereditary_sts_substitution_sofic_CrownHierarchy
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q) where
+  seq : ℕ → PlaneTiling C.Q
+  zero : seq 0 = T
+  mem : ∀ n, seq n ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X
+  step : ∀ n, Nonempty (hereditary_sts_substitution_sofic_Reconstruction
+    τ hsts C m hC X (seq n) (seq (n + 1)))
+
+/-- Step 7 of the reviewed proof: iterating the now-legal one-level
+reconstruction gives a grouped hierarchy. -/
+private lemma hereditary_sts_substitution_sofic_step7_iterated_reconstruction
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (hT : T ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X) :
+    Nonempty (hereditary_sts_substitution_sofic_CrownHierarchy
+      τ hsts C m hC X T) := by
+  let Good := {U : PlaneTiling C.Q //
+    U ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X}
+  let parent : Good → PlaneTiling C.Q := fun U => Classical.choose
+    (hereditary_sts_substitution_sofic_step5_one_level_reconstruction
+      τ hsts hher C m hC X U.1 U.2)
+  let reconstruction : (U : Good) →
+      hereditary_sts_substitution_sofic_Reconstruction
+        τ hsts C m hC X U.1 (parent U) := fun U => Classical.choice
+    (Classical.choose_spec
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction
+        τ hsts hher C m hC X U.1 U.2))
+  let advance : Good → Good := fun U =>
+    ⟨parent U,
+      hereditary_sts_substitution_sofic_step6_reconstructed_parent_legal
+        τ hsts hher C m hC X U.1 (parent U) (reconstruction U)⟩
+  let levels : ℕ → Good := fun n => (advance^[n]) ⟨T, hT⟩
+  refine ⟨{
+    seq := fun n => (levels n).1
+    zero := by rfl
+    mem := fun n => (levels n).2
+    step := fun n => ?_ }⟩
+  have hrec := reconstruction (levels n)
+  refine ⟨?_⟩
+  simpa only [levels, Function.iterate_succ_apply'] using hrec
+
+/-- Step 8 of the reviewed proof: recorded catalogue crowns equal the actual
+full crowns at every reconstructed level (including vertices on interfaces).
+This is the finite cyclic-fan and saturation argument, stated independently
+of the final allowed-hierarchy theorem. -/
+private lemma hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    {T : PlaneTiling C.Q}
+    (H : hereditary_sts_substitution_sofic_CrownHierarchy
+      τ hsts C m hC X T) :
+    ∀ n (w : Pt), Substitution.IsVertexOf
+        (hC.groupedFamily.scatter (H.seq n).tiles) w →
+      τ.IsAllowedCrown
+        (translateSet (-w)
+          (Substitution.crown (hC.groupedFamily.scatter (H.seq n).tiles) w)) := by
+  sorry
+
+/-- One decomposition by the positive power substitution is the corresponding
+finite iterate of the original decomposition. -/
+private lemma hereditary_sts_substitution_sofic_step9a_power_decompose
+    (τ : Substitution P) (m : ℕ) (hm : 0 < m)
+    (S : Set (PlacedTile P)) :
+    (τ.pow m hm).decompose S = τ.decomposeIter m S := by
+  have hS : S = ⋃ A ∈ S, ({A} : Set (PlacedTile P)) := by ext; simp
+  conv_rhs => rw [hS]
+  rw [hierarchy_lift_iff_decomposeIter_iUnion₂]
+  simp only [Substitution.decompose]
+  apply Set.iUnion₂_congr
+  intro A _
+  have hA : ({A} : Set (PlacedTile P)) =
+      translateSet A.anchor {⟨A.form, 0⟩} := by
+    ext B
+    simp [translateSet, PlacedTile.translate, PlacedTile.ext_iff]
+  rw [hA, hierarchy_lift_iff_decomposeIter_translate]
+  rfl
+
+/-- Step 9a: certificate compatibility transports each exact grouped
+composition in the witnessed coloured hierarchy to a `τ^m` composition after
+scattering. -/
+private lemma hereditary_sts_substitution_sofic_step9a_scatter_compositions
+    (τ : Substitution P) (hsts : τ.STS)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    {T : PlaneTiling C.Q}
+    (H : hereditary_sts_substitution_sofic_CrownHierarchy
+      τ hsts C m hC X T) :
+    ∀ n, (τ.pow m hC.m_pos).IsComposition
+      (hierarchy_lift_iff_scatterTiling hC.groupedFamily (H.seq (n + 1)))
+      (hierarchy_lift_iff_scatterTiling hC.groupedFamily (H.seq n)) := by
+  intro n
+  let R := Classical.choice (H.step n)
+  change (τ.pow m hC.m_pos).decompose
+      (hC.groupedFamily.scatter (H.seq (n + 1)).tiles) =
+    hC.groupedFamily.scatter (H.seq n).tiles
+  rw [hereditary_sts_substitution_sofic_step9a_power_decompose]
+  have hs := hierarchy_lift_iff_scatter_decompose τ hC.groupedSubstitution
+    (H.seq (n + 1)).tiles
+  change hC.groupedFamily.scatter (C.σ.decompose (H.seq (n + 1)).tiles) =
+    τ.decomposeIter m (hC.groupedFamily.scatter (H.seq (n + 1)).tiles) at hs
+  rw [← hs]
+  exact congrArg hC.groupedFamily.scatter R.composition
+
+/-- Step 9 of the reviewed proof (soundness): scatter a reconstructed grouped
+hierarchy, use compatibility to obtain a `τ^m` hierarchy, use Step 8 at every
+level, and only then apply `allowed_crowns_hierarchy_is_substitutive`. -/
+private lemma hereditary_sts_substitution_sofic_step9_soundness
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (hT : T ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X)
+    (S : PlaneTiling P) (hscatter : hC.groupedFamily.scatter T.tiles = S.tiles) :
+    τ.IsSubstitutionTiling S := by
+  let H := Classical.choice
+    (hereditary_sts_substitution_sofic_step7_iterated_reconstruction
+      τ hsts hher C m hC X T hT)
+  let seq : ℕ → PlaneTiling P := fun n =>
+    hierarchy_lift_iff_scatterTiling hC.groupedFamily (H.seq n)
+  have hseq : ∀ n, (τ.pow m hC.m_pos).IsComposition (seq (n + 1)) (seq n) :=
+    hereditary_sts_substitution_sofic_step9a_scatter_compositions
+      τ hsts C m hC X H
+  have hcrown : ∀ n (w : Pt), Substitution.IsVertexOf (seq n).tiles w →
+      τ.IsAllowedCrown
+        (translateSet (-w) (Substitution.crown (seq n).tiles w)) := by
+    intro n w hw
+    exact hereditary_sts_substitution_sofic_step8_all_level_crowns_allowed
+      τ hsts hher C m hC X H n w hw
+  have hsub := allowed_crowns_hierarchy_is_substitutive
+    τ (Substitution.STS.finite_crowns τ hsts) m hC.m_pos seq hseq hcrown
+  have hzero : seq 0 = S := by
+    apply dissection_preserves_sofic_PlaneTiling_ext
+    change hC.groupedFamily.scatter (H.seq 0).tiles = S.tiles
+    rw [H.zero]
+    exact hscatter
+  rwa [hzero] at hsub
+
+/-- Genuine crown data on a grouped lift of a substitution hierarchy.  The
+catalogue value is fixed before any control cell is assigned and is required
+to equal the actual full crown in the scattered tiling. -/
+private structure hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (T : PlaneTiling P) where
+  seq : ℕ → PlaneTiling C.Q
+  composition : ∀ n, C.σ.IsComposition (seq (n + 1)) (seq n)
+  sts : ∀ n, (seq n).SideToSide
+  bottom : hC.groupedFamily.scatter (seq 0).tiles = T.tiles
+  gamma : ∀ n (A : PlacedTile C.Q), A ∈ (seq n).tiles →
+    hereditary_sts_substitution_sofic_Catalog τ hsts C A.form
+  gamma_actual : ∀ n (A : PlacedTile C.Q) (hA : A ∈ (seq n).tiles)
+      (v : ↥(hereditary_sts_substitution_sofic_macroVertices C A.form)),
+    ((gamma n A hA).1 v).1 =
+      translateSet (-(A.anchor + v.1))
+        (Substitution.crown (hC.groupedFamily.scatter (seq n).tiles)
+          (A.anchor + v.1))
+
+/-- Step 10a of the reviewed proof: repeatedly compose the substitution
+tiling, lift the `m`-spaced levels through grouping, and assign their genuine
+jointly allowed full crown vectors. -/
+private lemma hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T) :
+    Nonempty (hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+      τ hsts C m hC T) := by
+  sorry
+
+/-- Exact provenance of one extended tile through the chosen genuine grouped
+hierarchy.  Besides generation and positions, it records at every ancestor
+that the physical decoder returns the preassigned catalogue value `H.gamma`.
+The final clause is origin-or-zero for this actual ancestor chain, rather than
+for an unrelated legality witness. -/
+private def hereditary_sts_substitution_sofic_FollowsHierarchyBy
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+      τ hsts C m hC T)
+    (coloured : ℕ → PlaneTiling X.dec.P') (n : ℕ)
+    (Y : PlacedTile X.dec.P')
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (placed : ℕ → PlacedTile X.dec.P')
+    (ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) : Prop :=
+  placed 0 = Y ∧ ch 0 = A ∧
+  (∀ r,
+    placed r ∈ (coloured (n + r)).tiles ∧
+    X.formEquiv (placed r).form = Sum.inl (ch r) ∧
+    hereditary_sts_substitution_sofic_IsExtChild
+      τ hsts C m hC (ch (r + 1)) (ch r) ∧
+    (placed r).anchor = C.σ.θ • (placed (r + 1)).anchor + C.anchor (ch r).1 ∧
+    ∃ (G : PlacedTile C.Q) (hG : G ∈ (H.seq (n + r)).tiles)
+        (hform : G.form = C.form (ch r).1),
+      G.anchor = (placed r).anchor ∧
+      hereditary_sts_substitution_sofic_decode τ hsts C hC (ch r) =
+        some (hform ▸ H.gamma (n + r) G hG)) ∧
+  ∀ (r : ℕ) (i : C.Side (ch r).1) (k : Fin 5),
+    (Planned.copySource C (C.form (ch (r + 1)).1)
+      (C.occ (ch r).1 i) k).Nonempty →
+    ¬ hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC ch r i k →
+    (ch r).2 i k = Sum.inl 0
+
+/-- The founded lift is tied to one `GenuineCrownHierarchy`.  It colours every
+level, projects levelwise to `H.seq`, and gives every tile an actual ancestor
+chain satisfying `FollowsHierarchyBy`.  Thus different sides cannot silently
+choose unrelated legal chains or unrelated crown vectors. -/
+private structure hereditary_sts_substitution_sofic_FoundedLift
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+      τ hsts C m hC T) where
+  coloured : ℕ → PlaneTiling X.dec.P'
+  project : ∀ n, X.dec.toDecoration.project (coloured n) = H.seq n
+  sideToSide : ∀ n, (coloured n).SideToSide
+  follows : ∀ n (Y : PlacedTile X.dec.P'), Y ∈ (coloured n).tiles →
+    ∃ A, X.formEquiv Y.form = Sum.inl A ∧
+      hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A ∧
+      ∃ placed ch,
+        hereditary_sts_substitution_sofic_FollowsHierarchyBy
+          τ hsts C m hC X T H coloured n Y A placed ch
+
+/-- Step 10b of the reviewed proof: assign every cell by finite origin or
+zero along the genuine hierarchy and prove the decoder returns the previously
+chosen physical crown vector. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+      τ hsts C m hC T) :
+    Nonempty (hereditary_sts_substitution_sofic_FoundedLift
+      τ hsts C m hC X T H) := by
+  sorry
+
+/-- Step 10c of the reviewed proof: the geometric five-coordinate argument.
+For two coincident sides following the fixed hierarchy, a finite source on
+either actual ancestor chain forces equality of the initial cell values.  Its
+cases are sibling prints, sibling non-prints, external packets and schedules,
+and the aligned port of a copied third cell. -/
+private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+      τ hsts C m hC T)
+    (L : hereditary_sts_substitution_sofic_FoundedLift
+      τ hsts C m hC X T H) :
+    ∀ n (Y : PlacedTile X.dec.P') (_hY : Y ∈ (L.coloured n).tiles)
+      (Z : PlacedTile X.dec.P') (_hZ : Z ∈ (L.coloured n).tiles), Y ≠ Z →
+      ∀ A B, X.formEquiv Y.form = Sum.inl A →
+      X.formEquiv Z.form = Sum.inl B →
+      ∀ (placedA placedB : ℕ → PlacedTile X.dec.P')
+        (chA chB : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC),
+      hereditary_sts_substitution_sofic_FollowsHierarchyBy
+          τ hsts C m hC X T H L.coloured n Y A placedA chA →
+      hereditary_sts_substitution_sofic_FollowsHierarchyBy
+          τ hsts C m hC X T H L.coloured n Z B placedB chB →
+      ∀ (i : C.Side A.1) (j : C.Side B.1),
+      hereditary_sts_substitution_sofic_CoincidentTypedSides
+          τ hsts C hC X.dec Y Z A B i j →
+      ∀ k : Fin 5,
+      ((∃ iA : C.Side (chA 0).1, HEq i iA ∧
+          hereditary_sts_substitution_sofic_ExtHasOrigin
+            τ hsts C hC chA 0 iA k) ∨
+        (∃ jB : C.Side (chB 0).1, HEq j jB ∧
+          hereditary_sts_substitution_sofic_ExtHasOrigin
+            τ hsts C hC chB 0 jB k)) →
+      A.2 i k = B.2 j k := by
+  sorry
+
+/-- Step 10d: combine finite-source matching with the origin-or-zero clauses
+of the two actual hierarchy chains.  If either side has a finite source use
+Step 10c; if neither does, both copied values are literally zero. -/
+private lemma hereditary_sts_substitution_sofic_step10d_all_cells_match
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+      τ hsts C m hC T)
+    (L : hereditary_sts_substitution_sofic_FoundedLift
+      τ hsts C m hC X T H) :
+    ∀ n (Y : PlacedTile X.dec.P') (_hY : Y ∈ (L.coloured n).tiles)
+      (Z : PlacedTile X.dec.P') (_hZ : Z ∈ (L.coloured n).tiles), Y ≠ Z →
+      ∀ A B, X.formEquiv Y.form = Sum.inl A →
+      X.formEquiv Z.form = Sum.inl B →
+      ∀ (i : C.Side A.1) (j : C.Side B.1),
+      hereditary_sts_substitution_sofic_CoincidentTypedSides
+          τ hsts C hC X.dec Y Z A B i j →
+      A.2 i = B.2 j := by
+  intro n Y hY Z hZ hYZ A B hA hB i j hij
+  obtain ⟨A', hA', _, placedA, chA, hfollowA⟩ := L.follows n Y hY
+  obtain ⟨B', hB', _, placedB, chB, hfollowB⟩ := L.follows n Z hZ
+  have hAA' : A = A' := Sum.inl.inj (hA.symm.trans hA')
+  have hBB' : B = B' := Sum.inl.inj (hB.symm.trans hB')
+  subst A'
+  subst B'
+  rcases hfollowA with ⟨hplacedA, hchA, hlevelsA, hzeroA⟩
+  rcases hfollowB with ⟨hplacedB, hchB, hlevelsB, hzeroB⟩
+  subst A
+  subst B
+  funext k
+  by_cases horiginA :
+      hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC chA 0 i k
+  · exact hereditary_sts_substitution_sofic_step10c_source_pair_geometry
+      τ hsts hher C m hC X T H L n Y hY Z hZ hYZ (chA 0) (chB 0)
+      hA hB placedA placedB chA chB
+      ⟨hplacedA, rfl, hlevelsA, hzeroA⟩
+      ⟨hplacedB, rfl, hlevelsB, hzeroB⟩ i j hij k
+      (Or.inl ⟨i, HEq.rfl, horiginA⟩)
+  · by_cases horiginB :
+        hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC chB 0 j k
+    · exact hereditary_sts_substitution_sofic_step10c_source_pair_geometry
+        τ hsts hher C m hC X T H L n Y hY Z hZ hYZ (chA 0) (chB 0)
+        hA hB placedA placedB chA chB
+        ⟨hplacedA, rfl, hlevelsA, hzeroA⟩
+        ⟨hplacedB, rfl, hlevelsB, hzeroB⟩ i j hij k
+        (Or.inr ⟨j, HEq.rfl, horiginB⟩)
+    · have hsourceA :
+          (Planned.copySource C (C.form (chA 1).1)
+            (C.occ (chA 0).1 i) k).Nonempty := by
+        rw [Set.nonempty_iff_ne_empty]
+        intro hempty
+        apply horiginA
+        exact ⟨⟨0, i, k⟩, Relation.ReflTransGen.refl, by simpa using hempty⟩
+      have hsourceB :
+          (Planned.copySource C (C.form (chB 1).1)
+            (C.occ (chB 0).1 j) k).Nonempty := by
+        rw [Set.nonempty_iff_ne_empty]
+        intro hempty
+        apply horiginB
+        exact ⟨⟨0, j, k⟩, Relation.ReflTransGen.refl, by simpa using hempty⟩
+      rw [hzeroA 0 i k hsourceA horiginA, hzeroB 0 j k hsourceB horiginB]
+
+/-- Step 10e: the presentation's illegal-incidence contract turns founded
+legality and the now-proved equality of all coincident five-cell arrays into
+properness of the bottom colouring. -/
+private lemma hereditary_sts_substitution_sofic_step10e_bottom_proper
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy
+      τ hsts C m hC T)
+    (L : hereditary_sts_substitution_sofic_FoundedLift
+      τ hsts C m hC X T H) :
+    X.dec.Proper (L.coloured 0) := by
+  apply X.proper_of_typed_legal (L.coloured 0) (L.sideToSide 0)
+  · intro Y hY
+    obtain ⟨A, hA, hlegal, _⟩ := L.follows 0 Y hY
+    exact ⟨A, hA, hlegal⟩
+  · intro Y hY Z hZ hYZ A B hA hB i j hij
+    exact hereditary_sts_substitution_sofic_step10d_all_cells_match
+      τ hsts hher C m hC X T H L 0 Y hY Z hZ hYZ A B hA hB i j hij
+
+/-- Step 10: assemble the two independent completeness obligations. -/
+private lemma hereditary_sts_substitution_sofic_step10_completeness
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling P) (hT : τ.IsSubstitutionTiling T) :
+    ∃ U : PlaneTiling C.Q,
+      U ∈ hereditary_sts_substitution_sofic_controlFamily τ hsts C X ∧
+      hC.groupedFamily.scatter U.tiles = T.tiles := by
+  let H := Classical.choice
+    (hereditary_sts_substitution_sofic_step10a_genuine_crown_hierarchy
+      τ hsts hher C m hC T hT)
+  let L := Classical.choice
+    (hereditary_sts_substitution_sofic_step10b_founded_cell_lift
+      τ hsts hher C m hC X T H)
+  refine ⟨H.seq 0, ?_, H.bottom⟩
+  exact ⟨L.coloured 0,
+    hereditary_sts_substitution_sofic_step10e_bottom_proper
+      τ hsts hher C m hC X T H L,
+    L.project 0⟩
+
+/-- Step 11: the two separately proved inclusions give the exact scattered
+family. -/
+private lemma hereditary_sts_substitution_sofic_step11_exact_family
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC) :
+    hC.groupedFamily.scatterFamily
+        (hereditary_sts_substitution_sofic_controlFamily τ hsts C X) =
+      {T | τ.IsSubstitutionTiling T} := by
+  ext T
+  constructor
+  · rintro ⟨U, hU, hscatter⟩
+    exact hereditary_sts_substitution_sofic_step9_soundness
+      τ hsts hher C m hC X U hU T hscatter
+  · intro hT
+    obtain ⟨U, hU, hscatter⟩ :=
+      hereditary_sts_substitution_sofic_step10_completeness
+        τ hsts hher C m hC X T hT
+    exact ⟨U, hU, hscatter⟩
+
 /-- `thm:hereditary-substitution`: an STS substitution with hereditary
 listed sides has a side-to-side sofic substitution family. -/
 theorem Core.hereditary_sts_substitution_sofic (τ : Substitution P) (hsts : τ.STS)
     (hher : τ.HereditarySides) : IsSideToSideSofic {T | τ.IsSubstitutionTiling T} := by
-  sorry
+  obtain ⟨C, m, hC⟩ := Geometry.existsMacroCertificate τ hsts
+  let X := Classical.choice
+    (hereditary_sts_substitution_sofic_step4_finite_side_encoding
+      τ hsts C m hC)
+  have hcontrol :=
+    hereditary_sts_substitution_sofic_step4_control_family_sofic
+      τ hsts C X
+  have hscatter := Decoration.dissection_preserves_sts_sofic
+    hC.groupedFamily hcontrol
+  rw [hereditary_sts_substitution_sofic_step11_exact_family
+    τ hsts hher C m hC X] at hscatter
+  exact hscatter
 
 /-! ### The hereditary STS hierarchy assembly steps -/
 

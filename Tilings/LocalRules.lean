@@ -4528,6 +4528,161 @@ private structure hereditary_sts_substitution_sofic_CrownPresentation
           τ hsts C hC dec X Y A B i j → A.2 i = B.2 j) →
     dec.Proper T
 
+/-- Step 4 (finite encoding) of the blueprint proof of
+`hereditary_sts_substitution_sofic_step4_finite_side_encoding`: the extended
+tile type is finite. -/
+private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding_extTile_finite
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) :
+    Finite (hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) := by
+  haveI : ∀ q, Finite (hereditary_sts_substitution_sofic_Catalog τ hsts C q) := by
+    intro q; unfold hereditary_sts_substitution_sofic_Catalog; infer_instance
+  infer_instance
+
+/-- The extended symbol alphabet is finite. -/
+private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding_symbol_finite
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) :
+    Finite (hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC) := by
+  haveI : ∀ q, Finite (hereditary_sts_substitution_sofic_Catalog τ hsts C q) := by
+    intro q; unfold hereditary_sts_substitution_sofic_Catalog; infer_instance
+  infer_instance
+
+/-- Projection of the encoded forms: typed extended tiles project to their
+grouped form, inert forms to themselves. -/
+private def hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) :
+    hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form → C.Q.Form
+  | Sum.inl A => C.form A.1
+  | Sum.inr q => q
+
+/-- The encoded protoset. -/
+private noncomputable def hereditary_sts_substitution_sofic_step4_finite_side_encoding_proto
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) : Protoset where
+  Form := hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form
+  fintype := by
+    haveI := hereditary_sts_substitution_sofic_step4_finite_side_encoding_extTile_finite τ hsts C hC
+    exact Fintype.ofFinite _
+  decEq := Classical.decEq _
+  disk := fun f => C.Q.disk (hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj τ hsts C hC f)
+
+/-- The colour alphabet: legal five-cell arrays, or a unique self-matching
+colour for every side of an illegal or inert form. -/
+private abbrev hereditary_sts_substitution_sofic_step4_finite_side_encoding_Colour
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) : Type :=
+  (Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC) ⊕
+    (Σ f : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form,
+      Fin (C.Q.disk (hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj τ hsts C hC f)).n)
+
+open Classical in
+/-- The side colouring of the encoded presentation. -/
+private noncomputable def hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) :
+    (f : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form) →
+      Fin (C.Q.disk (hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj τ hsts C hC f)).n →
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_Colour τ hsts C hC
+  | Sum.inl A, i =>
+      if hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A then Sum.inl (A.2 i)
+      else Sum.inr ⟨Sum.inl A, i⟩
+  | Sum.inr q, i => Sum.inr ⟨Sum.inr q, i⟩
+
+/-- The finite side decoration compiled from the extended tiles. -/
+private noncomputable def hereditary_sts_substitution_sofic_step4_finite_side_encoding_dec
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) : SideDecoration C.Q where
+  P' := hereditary_sts_substitution_sofic_step4_finite_side_encoding_proto τ hsts C hC
+  proj := hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj τ hsts C hC
+  surj := fun q => ⟨Sum.inr q, rfl⟩
+  carrier_eq := fun _ => rfl
+  disk_eq := fun _ => rfl
+  Colour := hereditary_sts_substitution_sofic_step4_finite_side_encoding_Colour τ hsts C hC
+  colourFintype := by
+    haveI := hereditary_sts_substitution_sofic_step4_finite_side_encoding_extTile_finite τ hsts C hC
+    haveI := hereditary_sts_substitution_sofic_step4_finite_side_encoding_symbol_finite τ hsts C hC
+    exact Fintype.ofFinite _
+  colour := hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC
+
+/-- A self-matching colour determines its form and side. -/
+private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_inr
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (f g : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form)
+    (i : Fin (C.Q.disk (hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj τ hsts C hC f)).n)
+    (k : Fin (C.Q.disk (hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj τ hsts C hC g)).n)
+    (h : hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC f i =
+      Sum.inr ⟨g, k⟩) : f = g ∧ HEq i k := by
+  cases f with
+  | inl A =>
+    simp only [hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour] at h
+    split_ifs at h with hA
+    simp only [Sum.inr.injEq, Sigma.mk.injEq] at h
+    exact h
+  | inr q =>
+    simp only [hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour,
+      Sum.inr.injEq, Sigma.mk.injEq] at h
+    exact h
+
+/-- An illegal or inert form carries its self-matching colour. -/
+private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_illegal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (f : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form)
+    (hf : ∀ A, f = Sum.inl A → ¬ hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A)
+    (i : Fin (C.Q.disk (hereditary_sts_substitution_sofic_step4_finite_side_encoding_proj τ hsts C hC f)).n) :
+    hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC f i =
+      Sum.inr ⟨f, i⟩ := by
+  cases f with
+  | inl A =>
+    simp only [hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour]
+    rw [if_neg (hf A rfl)]
+  | inr q => rfl
+
+/-- A legal typed form carries its five-cell array. -/
+private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_legal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A) (i : C.Side A.1) :
+    hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC (Sum.inl A) i =
+      Sum.inl (A.2 i) := by
+  simp only [hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour]
+  rw [if_pos hA]
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step4_finite_side_encoding`: in a proper
+tiling every tile is a founded-legal extended tile, because an illegal or inert
+form has a unique self-matching colour on each side, while every tile of a
+side-to-side plane tiling shares a side with a distinct tile. -/
+private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding_proper_legal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (T : PlaneTiling (hereditary_sts_substitution_sofic_step4_finite_side_encoding_dec τ hsts C m hC).P')
+    (hT : (hereditary_sts_substitution_sofic_step4_finite_side_encoding_dec τ hsts C m hC).Proper T)
+    (X : PlacedTile (hereditary_sts_substitution_sofic_step4_finite_side_encoding_dec τ hsts C m hC).P')
+    (hX : X ∈ T.tiles) :
+    ∃ A, X.form = Sum.inl A ∧ hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A := by
+  by_contra hcon
+  push_neg at hcon
+  obtain ⟨Y, hY, hne, i, j, hij⟩ := cc_has_neighbour T hT.1 hX
+  have hc := hT.2 X hX Y hY hne i j hij
+  change hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC X.form i =
+    hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC Y.form j at hc
+  rw [hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_illegal τ hsts C m hC X.form
+    hcon i] at hc
+  obtain ⟨hf, hk⟩ := hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_inr τ hsts C m hC
+    Y.form X.form j i hc.symm
+  rcases X with ⟨Xf, Xa⟩
+  rcases Y with ⟨Yf, Ya⟩
+  dsimp only at hf
+  subst hf
+  have hji : j = i := eq_of_heq hk
+  subst hji
+  exact hne (by rw [cc_side_inj hij])
+
 /-- Step 4 of the reviewed proof: compile the implemented packet decoder,
 generator, founded legality predicate and illegal-incidence colours into a
 finite side decoration.  This step is only the finite encoding; it asserts no
@@ -4537,7 +4692,56 @@ private lemma hereditary_sts_substitution_sofic_step4_finite_side_encoding
     (m : ℕ) (hC : C.Represents τ m) :
     Nonempty (hereditary_sts_substitution_sofic_CrownPresentation
       τ hsts C m hC) := by
-  sorry
+  refine ⟨{
+    dec := hereditary_sts_substitution_sofic_step4_finite_side_encoding_dec τ hsts C m hC
+    formEquiv := Equiv.refl _
+    proj_typed := fun _ => rfl
+    proper_typed_legal := fun T hT X hX =>
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_proper_legal τ hsts C m hC T hT X hX
+    proper_cells_match := ?_
+    proper_of_typed_legal := ?_ }⟩
+  · intro T hT X hX Y hY hne A B hXA hYB i j hco
+    obtain ⟨i', j', hi, hj, hs⟩ := hco
+    obtain ⟨A', hA', hlA⟩ :=
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_proper_legal τ hsts C m hC T hT X hX
+    obtain ⟨B', hB', hlB⟩ :=
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_proper_legal τ hsts C m hC T hT Y hY
+    have hc := hT.2 X hX Y hY hne i' j' hs
+    change X.form = Sum.inl A at hXA
+    change Y.form = Sum.inl B at hYB
+    rw [hXA, Sum.inl.injEq] at hA'
+    rw [hYB, Sum.inl.injEq] at hB'
+    subst hA' hB'
+    rcases X with ⟨Xf, Xa⟩
+    rcases Y with ⟨Yf, Ya⟩
+    dsimp only at hXA hYB
+    subst hXA hYB
+    have hii : i = i' := eq_of_heq hi
+    have hjj : j = j' := eq_of_heq hj
+    subst hii hjj
+    change hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC (Sum.inl A) i =
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC (Sum.inl B) j at hc
+    rw [hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_legal τ hsts C m hC A hlA,
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_legal τ hsts C m hC B hlB,
+      Sum.inl.injEq] at hc
+    exact hc
+  · intro T hT hleg hmatch
+    refine ⟨hT, ?_⟩
+    intro X hX Y hY hne i j hs
+    obtain ⟨A, hA, hlA⟩ := hleg X hX
+    obtain ⟨B, hB, hlB⟩ := hleg Y hY
+    have hm := hmatch X hX Y hY hne A B hA hB
+    change X.form = Sum.inl A at hA
+    change Y.form = Sum.inl B at hB
+    rcases X with ⟨Xf, Xa⟩
+    rcases Y with ⟨Yf, Ya⟩
+    dsimp only at hA hB
+    subst hA hB
+    have := hm i j ⟨i, j, HEq.rfl, HEq.rfl, hs⟩
+    change hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC (Sum.inl A) i =
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour τ hsts C m hC (Sum.inl B) j
+    rw [hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_legal τ hsts C m hC A hlA,
+      hereditary_sts_substitution_sofic_step4_finite_side_encoding_colour_legal τ hsts C m hC B hlB, this]
 
 /-- The grouped tilings presented by the concrete crown side decoration. -/
 private def hereditary_sts_substitution_sofic_controlFamily

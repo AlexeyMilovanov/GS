@@ -6933,6 +6933,133 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step12_
         o.1 = (D.partner (D.printOcc α d)).1 ∧ D.IsOrdinary o) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup`:
+a lifted occurrence of the side `e` in the crossed child `X` is an occurrence of `e` in `X`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step1_lift_occurrence
+    {Q : Protoset} (D : MacroData P) (templateChild : D.Typ → PlacedTile Q) (α : D.Q.Form)
+    (X : PlacedTile Q) (e : Set Pt) :
+    List.Sublist ((emcdLiftOccurrence D templateChild α X e).map (fun o => (templateChild o.1, D.occSide o)))
+      [(X, e)] := by
+  unfold emcdLiftOccurrence
+  split_ifs with hex
+  · obtain ⟨-, h1, h2⟩ := hex.choose_spec
+    simp [h1, h2]
+  · simp
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup`:
+the occurrence chain `(X₀,e₀),(X₀,e₁),(X₁,e₁),…` projects (child, side) into the list of pairs
+`(X_k, e_k), (X_k, e_{k+1})`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step2_lift_path
+    {Q : Protoset} (D : MacroData P) (templateChild : D.Typ → PlacedTile Q) (α : D.Q.Form)
+    (tiles : List (PlacedTile Q)) (sides : List (Set Pt)) :
+    List.Sublist ((emcdLiftPath D templateChild α tiles sides).map (fun o => (templateChild o.1, D.occSide o)))
+      ((tiles.zip (sides.zip sides.tail)).flatMap (fun en => [(en.1, en.2.1), (en.1, en.2.2)])) := by
+  unfold emcdLiftPath
+  induction (tiles.zip (sides.zip sides.tail)) with
+  | nil => simp
+  | cons en ens ih =>
+    simp only [List.flatMap_cons, List.map_append]
+    refine List.Sublist.append ?_ ih
+    exact (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step1_lift_occurrence
+      D templateChild α en.1 en.2.1).append
+      (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step1_lift_occurrence
+      D templateChild α en.1 en.2.2)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup`:
+in the chain of pairs, the side of an entry is a later side, or the entry is the initial pair `(X₀, e₀)`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step3_mem
+    {α β : Type*} (tiles : List α) (sides : List β) (Y : α) (e : β)
+    (h : (Y, e) ∈ (tiles.zip (sides.zip sides.tail)).flatMap (fun en => [(en.1, en.2.1), (en.1, en.2.2)])) :
+    e ∈ sides.tail ∨ (tiles.head? = some Y ∧ sides.head? = some e) := by
+  induction tiles generalizing sides with
+  | nil => simp at h
+  | cons X Xs ih =>
+    match sides, h with
+    | [], h => simp at h
+    | [x], h => simp at h
+    | x :: y :: ys, h =>
+      have hL : ((X :: Xs).zip ((x :: y :: ys).zip (x :: y :: ys).tail)).flatMap
+          (fun en => [(en.1, en.2.1), (en.1, en.2.2)]) =
+          (X, x) :: (X, y) :: (Xs.zip ((y :: ys).zip (y :: ys).tail)).flatMap
+            (fun en => [(en.1, en.2.1), (en.1, en.2.2)]) := rfl
+      rw [hL] at h
+      rcases List.mem_cons.1 h with h | h
+      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+        exact Or.inr ⟨rfl, rfl⟩
+      rcases List.mem_cons.1 h with h | h
+      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
+        exact Or.inl (by simp)
+      rcases ih (y :: ys) h with h' | ⟨-, h'⟩
+      · exact Or.inl (List.mem_cons_of_mem _ h')
+      · simp only [List.head?_cons, Option.some.injEq] at h'
+        subst h'
+        exact Or.inl (by simp)
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup`:
+if the routed sides are distinct and consecutive crossed children are distinct, the chain of pairs
+`(X_k, e_k), (X_k, e_{k+1})` has no repetition. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step4_pairs_nodup
+    {α β : Type*} (tiles : List α) (sides : List β) (hs : sides.Nodup)
+    (hc : ∀ (k : ℕ) (X Y : α), tiles[k]? = some X → tiles[k + 1]? = some Y → X ≠ Y) :
+    ((tiles.zip (sides.zip sides.tail)).flatMap (fun en => [(en.1, en.2.1), (en.1, en.2.2)])).Nodup := by
+  induction tiles generalizing sides with
+  | nil => simp
+  | cons X Xs ih =>
+    match sides, hs with
+    | [], _ => simp
+    | [x], _ => simp
+    | x :: y :: ys, hs =>
+      have hL : ((X :: Xs).zip ((x :: y :: ys).zip (x :: y :: ys).tail)).flatMap
+          (fun en => [(en.1, en.2.1), (en.1, en.2.2)]) =
+          (X, x) :: (X, y) :: (Xs.zip ((y :: ys).zip (y :: ys).tail)).flatMap
+            (fun en => [(en.1, en.2.1), (en.1, en.2.2)]) := rfl
+      rw [hL]
+      have hx : x ∉ y :: ys := (List.nodup_cons.1 hs).1
+      have hy : y ∉ ys := (List.nodup_cons.1 (List.nodup_cons.1 hs).2).1
+      have hc' : ∀ (k : ℕ) (X Y : α), Xs[k]? = some X → Xs[k + 1]? = some Y → X ≠ Y :=
+        fun k X Y h1 h2 => hc (k + 1) X Y (by simpa using h1) (by simpa using h2)
+      refine List.nodup_cons.2 ⟨?_, List.nodup_cons.2 ⟨?_, ih (y :: ys) (List.nodup_cons.1 hs).2 hc'⟩⟩
+      · intro hmem
+        rcases List.mem_cons.1 hmem with h | h
+        · exact hx (by rw [(Prod.mk.inj h).2]; simp)
+        rcases existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step3_mem
+          Xs (y :: ys) X x h with h' | ⟨-, h'⟩
+        · exact hx (List.mem_cons_of_mem _ h')
+        · simp only [List.head?_cons, Option.some.injEq] at h'
+          exact hx (by simp [h'])
+      · intro hmem
+        rcases existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step3_mem
+          Xs (y :: ys) X y hmem with h' | ⟨h', -⟩
+        · exact hy h'
+        · cases Xs with
+          | nil => simp at h'
+          | cons X' Xs' =>
+            simp only [List.head?_cons, Option.some.injEq] at h'
+            exact hc 0 X X' rfl (by simp) h'.symm
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup`:
+the routed side list of a marked side has no repetition: its non-terminal sides are distinct
+(`path_nodup`) and none of them is a central side (`path_central`), while the terminal print is. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step5_sides_nodup
+    {Q : Protoset} {T : Template Q} {par : PolygonalDisk} {sc : ℝ} {central : PlacedTile Q}
+    {marked : Finset (Fin par.n)} {cm : Finset ℕ} (R : RoutingData T par sc central marked cm)
+    (a : Fin par.n) (ha : a ∈ marked) (i : Fin 4) : (R.pathSides a i).Nodup := by
+  have hlast := R.path_last a ha i
+  have hnd := R.path_nodup a ha i
+  have hc := R.path_central a ha i
+  rw [← List.dropLast_append_getLast? _ hlast]
+  refine List.nodup_append.2 ⟨hnd, List.nodup_singleton _, ?_⟩
+  intro x hx y hy hxy
+  rw [List.mem_singleton] at hy
+  rw [hxy, hy] at hx
+  exact hc _ hx ⟨_, rfl⟩
+
+/-- Step 6 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup`:
+the singleton port paths have no repetition. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step6_port
+    {α : Type*} (o : Option α) : o.toList.Nodup := by
+  cases o <;> simp
+
 /-- Step 13 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: nodup -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -6942,7 +7069,31 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d i, (D.path α d i).Nodup) := by
-  sorry
+  classical
+  intro D α d i
+  have hpath : D.path α d i =
+      if hi : D.IsGenuinePath α d i then
+        emcdLiftPath D (emcdTemplateChild g s l) α
+          ((routing (emcdBaseForm g s l α)).pathTiles
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+          ((routing (emcdBaseForm g s l α)).pathSides
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+      else (D.port α d i).toList := rfl
+  rw [hpath]
+  split_ifs with hgen
+  · have ha : emcdParentSide g s l α d ∈ s.setup.markedSides (emcdBaseForm g s l α) := hgen.1
+    set R := routing (emcdBaseForm g s l α)
+    set a := emcdParentSide g s l α d
+    set j : Fin 4 := ⟨i.val, hgen.2⟩
+    apply List.Nodup.of_map (fun o => (emcdTemplateChild g s l o.1, D.occSide o))
+    exact List.Nodup.sublist
+      (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step2_lift_path
+        D (emcdTemplateChild g s l) α (R.pathTiles a j) (R.pathSides a j))
+      (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step4_pairs_nodup
+        (R.pathTiles a j) (R.pathSides a j)
+        (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step5_sides_nodup R a ha j)
+        (fun k X Y h1 h2 => R.path_cross a ha j k X Y h1 h2))
+  · exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_nodup_step6_port _
 
 /-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
 "no occurrence repeats" (index arithmetic): in a cycle of at least three listed sides, the side two

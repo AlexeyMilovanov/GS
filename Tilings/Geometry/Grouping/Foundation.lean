@@ -45027,6 +45027,799 @@ private def existsRoutingAfterPower_step4_routes_step6_outerRouting_step2_prepar
     ∃ h : ℝ, 0 < h ∧ h ≤ κ ∧
       (γ a i).pt (Fin.last (γ a i).n).castSucc = cfg.1 + (κ + h) • cfg.2.2 ⟨a, ha⟩ (perm a i)
 
+/-- Step 1 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder`:
+"the four entrances of one marked side are relabelled so that their radial order matches the port
+order" ("Reverse the four entrance labels where the port numbering is opposite to counterclockwise
+boundary order").  Abstract relabelling inside every block of four: if the points of every block
+have loop parameters in `[0, 2]`, all parameters of an earlier block are at most those of a later
+block, and all parameters lie in one period window, then sorting every block by its parameters
+gives the closed weak cyclic order in lexicographic block order. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder_step1_sortBlocks
+    {A : Type*} [LinearOrder A] {k : ℕ} (e : Fin k ≃o A ×ₗ Fin 4) (γ : ℝ → Pt)
+    (x : A → Fin 4 → Pt) (t : A → Fin 4 → ℝ) (hval : ∀ a i, γ (t a i) = x a i)
+    (hrange : ∀ a i, t a i ∈ Icc (0 : ℝ) 2)
+    (hblock : ∀ a b, a < b → ∀ i j, t a i ≤ t b j)
+    (hwin : ∀ a b i j, t b j ≤ t a i + 1) :
+    ∃ p : A → Equiv.Perm (Fin 4),
+      existsRoutingAfterPower_step4_routes_step6_WeakPointsInOrder γ
+        (fun j => x (e j).1 (p (e j).1 (e j).2)) := by
+  refine ⟨fun a => Tuple.sort (t a), fun j => t (e j).1 (Tuple.sort (t (e j).1) (e j).2),
+    fun j => hrange _ _, ?_, fun i j => hwin _ _ _ _, fun j => hval _ _⟩
+  intro i j hij
+  have he : e i ≤ e j := e.monotone hij
+  rcases Prod.Lex.le_iff.1 he with hlt | ⟨heq, hle⟩
+  · exact hblock _ _ hlt _ _
+  · have key : ∀ (a b : A) (u v : Fin 4), a = b → u ≤ v →
+        t a (Tuple.sort (t a) u) ≤ t b (Tuple.sort (t b) v) := by
+      rintro a _ u v rfl huv
+      exact Tuple.monotone_sort (t a) huv
+    exact key _ _ _ _ heq hle
+
+/-- Step 2 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder`:
+"the polygon loop of a parent is the positively oriented boundary parametrization used in the
+matching-order clauses": the normalized midpoint of every realized port of a marked side `a` lies
+in the open parent side `a`, which the uniform polygon loop traverses during the parameter interval
+`[a / n, (a + 1) / n]`.  Hence the port midpoints have loop parameters in `[0, 1]`, and the
+parameters of the ports of an earlier marked side are at most those of a later one. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder_step2_outerLift
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    ∃ t : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} → Fin 4 → ℝ,
+      (∀ a i, pgLoop (pgL (Rs.GS.G.P'.disk α)) (t a i) =
+        existsRoutingAfterPower_step4_routes_step6_R2_portAt
+          (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries)
+          a.1 i.castSucc (1 / 2)) ∧
+      (∀ a i, t a i ∈ Icc (0 : ℝ) 1) ∧
+      (∀ a b, a < b → ∀ i j, t a i ≤ t b j) := by
+  have hn : 0 < (Rs.GS.G.P'.disk α).n := by have := (Rs.GS.G.P'.disk α).three_le; omega
+  have hnR : (0 : ℝ) < (Rs.GS.G.P'.disk α).n := by exact_mod_cast hn
+  have hμ : ∀ (a : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}) (i : Fin 4),
+      ∃ μ ∈ Ioo (0 : ℝ) 1,
+        AffineMap.lineMap ((Rs.GS.G.P'.disk α).vertex a.1)
+          ((Rs.GS.G.P'.disk α).vertex (finRotate (Rs.GS.G.P'.disk α).n a.1)) μ =
+        existsRoutingAfterPower_step4_routes_step6_R2_portAt
+          (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries)
+          a.1 i.castSucc (1 / 2) := by
+    intro a i
+    have h := existsRoutingAfterPower_step4_routes_step6_R2_admConfig_portMid_openSide
+      τ M Rs ports entries a.1 i
+    rw [openSegment_eq_image_lineMap] at h
+    exact h
+  choose μ hμI hμeq using hμ
+  refine ⟨fun a i => (((a.1 : ℕ) : ℝ) + μ a i) / (Rs.GS.G.P'.disk α).n, ?_, ?_, ?_⟩
+  · intro a i
+    have hlen : (pgL (Rs.GS.G.P'.disk α)).length = (Rs.GS.G.P'.disk α).n :=
+      pgL_length (Rs.GS.G.P'.disk α)
+    have h := pgLoop_eval (pgL (Rs.GS.G.P'.disk α)) 0 (i := (a.1 : ℕ))
+      (by rw [hlen]; exact a.1.isLt) (μ := μ a i) ⟨(hμI a i).1.le, (hμI a i).2⟩
+    rw [List.getD_eq_getElem _ _ (by rw [hlen]; exact a.1.isLt),
+      List.getD_eq_getElem _ _ (Nat.mod_lt _ (by rw [hlen]; exact hn))] at h
+    simp only [Int.cast_zero, zero_add, hlen] at h
+    rw [h, ← hμeq a i]
+    simp only [pgL, List.getElem_ofFn]
+    congr 2
+    exact congrArg (Rs.GS.G.P'.disk α).vertex (Fin.ext (by simp [finRotate_val_eq_mod]))
+  · intro a i
+    have ha : ((a.1 : ℕ) : ℝ) + 1 ≤ (Rs.GS.G.P'.disk α).n := by exact_mod_cast a.1.isLt
+    have h0 : (0 : ℝ) ≤ ((a.1 : ℕ) : ℝ) := Nat.cast_nonneg _
+    constructor
+    · exact div_nonneg (by linarith [(hμI a i).1]) hnR.le
+    · rw [div_le_one hnR]
+      linarith [(hμI a i).2]
+  · intro a b hab i j
+    have hab' : ((a.1 : ℕ) : ℝ) + 1 ≤ ((b.1 : ℕ) : ℝ) := by
+      have : (a.1 : ℕ) < (b.1 : ℕ) := hab
+      exact_mod_cast this
+    apply div_le_div_of_nonneg_right _ hnR.le
+    linarith [(hμI a i).2, (hμI b j).1]
+
+private lemma rwoInner_pt_ext {u v : Pt} (h0 : u 0 = v 0) (h1 : u 1 = v 1) : u = v := by
+  ext i; fin_cases i <;> assumption
+
+private lemma rwoInner_norm_sq (u : Pt) : ‖u‖ ^ 2 = u 0 ^ 2 + u 1 ^ 2 := by
+  rw [EuclideanSpace.norm_eq, Real.sq_sqrt (by positivity), Fin.sum_univ_two]
+  simp [Real.norm_eq_abs, sq_abs]
+
+private lemma rwoInner_loop_apply (t : ℝ) :
+    existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop t 0 = Real.cos (2 * Real.pi * t) ∧
+    existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop t 1 = Real.sin (2 * Real.pi * t) := by
+  simp only [existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop,
+    AddCircle.homeomorphCircle_apply]
+  rw [AddCircle.toCircle_apply_mk]
+  simp [Circle.coe_exp, Complex.exp_re, Complex.exp_im]
+
+private lemma rwoInner_loop_add_int (t : ℝ) (k : ℤ) :
+    existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop (t + k) =
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop t := by
+  apply rwoInner_pt_ext
+  · rw [(rwoInner_loop_apply _).1, (rwoInner_loop_apply _).1,
+      show 2 * Real.pi * (t + k) = 2 * Real.pi * t + k * (2 * Real.pi) by ring,
+      Real.cos_add_int_mul_two_pi]
+  · rw [(rwoInner_loop_apply _).2, (rwoInner_loop_apply _).2,
+      show 2 * Real.pi * (t + k) = 2 * Real.pi * t + k * (2 * Real.pi) by ring,
+      Real.sin_add_int_mul_two_pi]
+
+private lemma rwoInner_loop_norm (t : ℝ) :
+    ‖existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop t‖ = 1 := by
+  have h := rwoInner_norm_sq (existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop t)
+  rw [(rwoInner_loop_apply _).1, (rwoInner_loop_apply _).2, Real.cos_sq_add_sin_sq] at h
+  have h0 := norm_nonneg (existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop t)
+  nlinarith
+
+private lemma rwoInner_loop_chord_sq (a b : ℝ) :
+    ‖existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop a -
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop b‖ ^ 2 =
+      (2 * Real.sin (Real.pi * (a - b))) ^ 2 := by
+  rw [rwoInner_norm_sq]
+  simp only [PiLp.sub_apply, (rwoInner_loop_apply _).1, (rwoInner_loop_apply _).2]
+  have h1 : 2 * Real.pi * a = 2 * (Real.pi * (a - b)) + 2 * Real.pi * b := by ring
+  rw [h1]
+  set x := Real.pi * (a - b)
+  set y := 2 * Real.pi * b
+  rw [Real.cos_add, Real.sin_add, Real.cos_two_mul, Real.sin_two_mul]
+  have hx := Real.sin_sq_add_cos_sq x
+  have hy := Real.sin_sq_add_cos_sq y
+  linear_combination ((2 * Real.cos x ^ 2 - 2) ^ 2 + 4 * Real.sin x ^ 2 * Real.cos x ^ 2) * hy
+    + 4 * (Real.cos x ^ 2 - 1) * hx
+
+private lemma rwoInner_loop_chord (a b : ℝ) :
+    ‖existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop a -
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop b‖ =
+      |2 * Real.sin (Real.pi * (a - b))| := by
+  rw [← Real.sqrt_sq (norm_nonneg _), rwoInner_loop_chord_sq, Real.sqrt_sq_eq_abs]
+
+private lemma rwoInner_loop_chord_le (a b : ℝ) :
+    ‖existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop a -
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop b‖ ≤
+      2 * Real.pi * |a - b| := by
+  rw [rwoInner_loop_chord, abs_mul, abs_two]
+  have := Real.abs_sin_le_abs (x := Real.pi * (a - b))
+  rw [abs_mul, abs_of_pos Real.pi_pos] at this
+  nlinarith
+
+private lemma rwoInner_loop_chord_ge (a b : ℝ) (h : |a - b| ≤ 1 / 2) :
+    4 * |a - b| ≤
+      ‖existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop a -
+        existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop b‖ := by
+  rw [rwoInner_loop_chord, abs_mul, abs_two]
+  have hpi := Real.pi_pos
+  have key : ∀ x : ℝ, 0 ≤ x → x ≤ 1 / 2 → 2 * x ≤ Real.sin (Real.pi * x) := by
+    intro x hx0 hx1
+    have := Real.mul_le_sin (x := Real.pi * x) (by positivity) (by nlinarith)
+    have e : 2 / Real.pi * (Real.pi * x) = 2 * x := by field_simp
+    linarith
+  rcases le_total 0 (a - b) with hab | hab
+  · rw [abs_of_nonneg hab] at h ⊢
+    have := key _ hab h
+    rw [abs_of_nonneg (by linarith)]
+    linarith
+  · rw [abs_of_nonpos hab] at h ⊢
+    have := key _ (by linarith) h
+    rw [show Real.pi * -(a - b) = -(Real.pi * (a - b)) by ring, Real.sin_neg] at this
+    rw [abs_of_nonpos (by linarith)]
+    linarith
+
+private lemma rwoInner_loop_surj (d : Pt) (hd : ‖d‖ = 1) :
+    ∃ φ, existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop φ = d := by
+  set z : ℂ := (d 0 : ℂ) + (d 1 : ℂ) * Complex.I with hz
+  have hzre : z.re = d 0 := by simp [hz]
+  have hzim : z.im = d 1 := by simp [hz]
+  have hzn : ‖z‖ = 1 := by
+    have h1 := rwoInner_norm_sq d
+    rw [hd] at h1
+    rw [Complex.norm_def, Complex.normSq_apply, hzre, hzim]
+    rw [show d 0 * d 0 + d 1 * d 1 = 1 by nlinarith, Real.sqrt_one]
+  have hz0 : z ≠ 0 := by
+    intro h; rw [h, norm_zero] at hzn; exact zero_ne_one hzn
+  refine ⟨Complex.arg z / (2 * Real.pi), ?_⟩
+  have e : 2 * Real.pi * (Complex.arg z / (2 * Real.pi)) = Complex.arg z := by
+    field_simp
+  apply rwoInner_pt_ext
+  · rw [(rwoInner_loop_apply _).1, e, Complex.cos_arg hz0, hzn, hzre, div_one]
+  · rw [(rwoInner_loop_apply _).2, e, Complex.sin_arg, hzn, hzim, div_one]
+
+private lemma rwoInner_loop_lift (d : Pt) (hd : ‖d‖ = 1) (θ : ℝ) :
+    ∃ φ, existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop φ = d ∧
+      |φ - θ| ≤ ‖d - existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop θ‖ / 4 := by
+  obtain ⟨φ0, hφ0⟩ := rwoInner_loop_surj d hd
+  refine ⟨φ0 + round (θ - φ0), ?_, ?_⟩
+  · rw [rwoInner_loop_add_int, hφ0]
+  · have h1 : |φ0 + round (θ - φ0) - θ| ≤ 1 / 2 := by
+      have := abs_sub_round (θ - φ0)
+      rw [show φ0 + round (θ - φ0) - θ = -((θ - φ0) - round (θ - φ0)) by ring, abs_neg]
+      exact this
+    have h2 := rwoInner_loop_chord_ge _ _ h1
+    rw [rwoInner_loop_add_int, hφ0] at h2
+    linarith
+
+/-- Turn coordinate of the direction of `squarePerimeterPoint A t`. -/
+private def rwoInner_theta (A t : ℝ) : ℝ :=
+  if t ≤ 2 * A then Real.arctan ((t - A) / A) / (2 * Real.pi)
+  else if t ≤ 4 * A then 1 / 4 + Real.arctan ((t - 3 * A) / A) / (2 * Real.pi)
+  else if t ≤ 6 * A then 1 / 2 + Real.arctan ((t - 5 * A) / A) / (2 * Real.pi)
+  else 3 / 4 + Real.arctan ((t - 7 * A) / A) / (2 * Real.pi)
+
+private lemma rwoInner_pw_mono {A s t f0 f1 f2 f3 g0 g1 g2 g3 : ℝ} (hst : s ≤ t)
+    (m0 : f0 ≤ g0) (m1 : f1 ≤ g1) (m2 : f2 ≤ g2) (m3 : f3 ≤ g3)
+    (u0 : s ≤ 2 * A → f0 ≤ 1 / 8) (u1 : s ≤ 4 * A → f1 ≤ 1 / 8) (u2 : s ≤ 6 * A → f2 ≤ 1 / 8)
+    (l1 : 2 * A < t → -(1 / 8) ≤ g1) (l2 : 4 * A < t → -(1 / 8) ≤ g2)
+    (l3 : 6 * A < t → -(1 / 8) ≤ g3) :
+    (if s ≤ 2 * A then f0 else if s ≤ 4 * A then 1 / 4 + f1
+      else if s ≤ 6 * A then 1 / 2 + f2 else 3 / 4 + f3) ≤
+    (if t ≤ 2 * A then g0 else if t ≤ 4 * A then 1 / 4 + g1
+      else if t ≤ 6 * A then 1 / 2 + g2 else 3 / 4 + g3) := by
+  split_ifs with h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 <;>
+    first
+    | linarith
+    | (exfalso; linarith)
+    | linarith [u0 (by linarith), l1 (by linarith)]
+    | linarith [u0 (by linarith), l2 (by linarith)]
+    | linarith [u0 (by linarith), l3 (by linarith)]
+    | linarith [u1 (by linarith), l2 (by linarith)]
+    | linarith [u1 (by linarith), l3 (by linarith)]
+    | linarith [u2 (by linarith), l3 (by linarith)]
+
+private lemma rwoInner_theta_mono {A : ℝ} (hA : 0 < A) : Monotone (rwoInner_theta A) := by
+  have hpi := Real.pi_pos
+  have up : ∀ u : ℝ, u ≤ 1 → Real.arctan u / (2 * Real.pi) ≤ 1 / 8 := by
+    intro u hu
+    have := Real.arctan_mono hu
+    rw [Real.arctan_one] at this
+    rw [div_le_iff₀ (by positivity)]; linarith
+  have lo : ∀ u : ℝ, -1 ≤ u → -(1 / 8) ≤ Real.arctan u / (2 * Real.pi) := by
+    intro u hu
+    have := Real.arctan_mono hu
+    rw [Real.arctan_neg, Real.arctan_one] at this
+    rw [le_div_iff₀ (by positivity)]; linarith
+  have mono : ∀ u v : ℝ, u ≤ v → Real.arctan u / (2 * Real.pi) ≤ Real.arctan v / (2 * Real.pi) :=
+    fun u v h => div_le_div_of_nonneg_right (Real.arctan_mono h) (by positivity)
+  have qu : ∀ (c d t : ℝ), t ≤ c * A → c - 1 = d → (t - d * A) / A ≤ 1 := by
+    intro c d t h hcd; rw [div_le_iff₀ hA]; subst hcd; linarith
+  have ql : ∀ (c d t : ℝ), c * A < t → c + 1 = d → -1 ≤ (t - d * A) / A := by
+    intro c d t h hcd; rw [le_div_iff₀ hA]; subst hcd; linarith
+  intro s t hst
+  have hm : ∀ d : ℝ, (s - d * A) / A ≤ (t - d * A) / A := fun d =>
+    div_le_div_of_nonneg_right (by linarith) hA.le
+  unfold rwoInner_theta
+  have e1 : ∀ x : ℝ, x - A = x - 1 * A := fun x => by ring
+  simp only [e1]
+  exact rwoInner_pw_mono hst (mono _ _ (hm 1)) (mono _ _ (hm 3)) (mono _ _ (hm 5)) (mono _ _ (hm 7))
+    (fun h => up _ (qu 2 1 s h (by norm_num))) (fun h => up _ (qu 4 3 s h (by norm_num)))
+    (fun h => up _ (qu 6 5 s h (by norm_num))) (fun h => lo _ (ql 2 3 t h (by norm_num)))
+    (fun h => lo _ (ql 4 5 t h (by norm_num))) (fun h => lo _ (ql 6 7 t h (by norm_num)))
+
+private lemma rwoInner_theta_zero {A : ℝ} (hA : 0 < A) : rwoInner_theta A 0 = -(1 / 8) := by
+  have hpi := Real.pi_pos
+  unfold rwoInner_theta
+  rw [if_pos (by linarith), show (0 - A) / A = -1 by field_simp; ring, Real.arctan_neg,
+    Real.arctan_one]
+  field_simp; ring
+
+private lemma rwoInner_theta_eight {A : ℝ} (hA : 0 < A) : rwoInner_theta A (8 * A) = 7 / 8 := by
+  have hpi := Real.pi_pos
+  unfold rwoInner_theta
+  rw [if_neg (by linarith), if_neg (by linarith), if_neg (by linarith),
+    show (8 * A - 7 * A) / A = 1 by field_simp; ring, Real.arctan_one]
+  field_simp; ring
+
+private lemma rwoInner_mkPt0 (x y : ℝ) : mkPt x y 0 = x := by simp [mkPt]
+private lemma rwoInner_mkPt1 (x y : ℝ) : mkPt x y 1 = y := by simp [mkPt]
+
+private lemma rwoInner_spp_eq_smul {A : ℝ} (hA : 0 < A) (t : ℝ) :
+    ∃ r : ℝ, 0 < r ∧ squarePerimeterPoint A t =
+      r • existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop (rwoInner_theta A t) := by
+  have hpi := Real.pi_pos
+  have key0 : ∀ (u : ℝ), 2 * Real.pi * (Real.arctan u / (2 * Real.pi)) = Real.arctan u := by
+    intro u; field_simp
+  have hsq : ∀ u : ℝ, 0 < Real.sqrt (1 + u ^ 2) := fun u => Real.sqrt_pos.2 (by positivity)
+  have c0 : ∀ u : ℝ, A * Real.sqrt (1 + u ^ 2) * (1 / Real.sqrt (1 + u ^ 2)) = A := by
+    intro u; have := hsq u; field_simp
+  have c1 : ∀ u : ℝ, A * Real.sqrt (1 + u ^ 2) * (u / Real.sqrt (1 + u ^ 2)) = A * u := by
+    intro u; have := hsq u; field_simp
+  have cu : ∀ d : ℝ, A * ((t - d) / A) = t - d := fun d => by field_simp
+  unfold squarePerimeterPoint rwoInner_theta
+  split_ifs with h1 h2 h3
+  · set u := (t - A) / A with hu
+    refine ⟨A * Real.sqrt (1 + u ^ 2), mul_pos hA (hsq u), rwoInner_pt_ext ?_ ?_⟩
+    · rw [rwoInner_mkPt0, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).1, key0,
+        Real.cos_arctan, c0]
+    · rw [rwoInner_mkPt1, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).2, key0,
+        Real.sin_arctan, c1, hu, cu]; ring
+  · set u := (t - 3 * A) / A with hu
+    refine ⟨A * Real.sqrt (1 + u ^ 2), mul_pos hA (hsq u), rwoInner_pt_ext ?_ ?_⟩
+    · rw [rwoInner_mkPt0, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).1,
+        show 2 * Real.pi * (1 / 4 + Real.arctan u / (2 * Real.pi)) =
+          Real.arctan u + Real.pi / 2 by field_simp; ring,
+        Real.cos_add_pi_div_two, Real.sin_arctan, mul_neg, c1, hu, cu]; ring
+    · rw [rwoInner_mkPt1, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).2,
+        show 2 * Real.pi * (1 / 4 + Real.arctan u / (2 * Real.pi)) =
+          Real.arctan u + Real.pi / 2 by field_simp; ring,
+        Real.sin_add_pi_div_two, Real.cos_arctan, c0]
+  · set u := (t - 5 * A) / A with hu
+    refine ⟨A * Real.sqrt (1 + u ^ 2), mul_pos hA (hsq u), rwoInner_pt_ext ?_ ?_⟩
+    · rw [rwoInner_mkPt0, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).1,
+        show 2 * Real.pi * (1 / 2 + Real.arctan u / (2 * Real.pi)) =
+          Real.arctan u + Real.pi by field_simp; ring,
+        Real.cos_add_pi, Real.cos_arctan, mul_neg, c0]
+    · rw [rwoInner_mkPt1, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).2,
+        show 2 * Real.pi * (1 / 2 + Real.arctan u / (2 * Real.pi)) =
+          Real.arctan u + Real.pi by field_simp; ring,
+        Real.sin_add_pi, Real.sin_arctan, mul_neg, c1, hu, cu]; ring
+  · set u := (t - 7 * A) / A with hu
+    refine ⟨A * Real.sqrt (1 + u ^ 2), mul_pos hA (hsq u), rwoInner_pt_ext ?_ ?_⟩
+    · rw [rwoInner_mkPt0, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).1,
+        show 2 * Real.pi * (3 / 4 + Real.arctan u / (2 * Real.pi)) =
+          (Real.arctan u + Real.pi) + Real.pi / 2 by field_simp; ring,
+        Real.cos_add_pi_div_two, Real.sin_add_pi, neg_neg, Real.sin_arctan, c1, hu, cu]; ring
+    · rw [rwoInner_mkPt1, PiLp.smul_apply, smul_eq_mul, (rwoInner_loop_apply _).2,
+        show 2 * Real.pi * (3 / 4 + Real.arctan u / (2 * Real.pi)) =
+          (Real.arctan u + Real.pi) + Real.pi / 2 by field_simp; ring,
+        Real.sin_add_pi_div_two, Real.cos_add_pi, Real.cos_arctan, mul_neg, c0]
+
+private lemma rwoInner_normalize_smul {v : Pt} {r θ : ℝ} (hr : 0 < r)
+    (hv : v = r • existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop θ) :
+    ‖v‖⁻¹ • v = existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop θ := by
+  rw [hv, norm_smul, rwoInner_loop_norm, mul_one, Real.norm_eq_abs, abs_of_pos hr, smul_smul,
+    inv_mul_cancel₀ hr.ne', one_smul]
+
+private lemma rwoInner_unit_sub_le {u v : Pt} (hv : v ≠ 0) :
+    ‖‖v‖⁻¹ • v - ‖u‖⁻¹ • u‖ ≤ 2 * ‖v - u‖ / ‖v‖ := by
+  have hvn : 0 < ‖v‖ := norm_pos_iff.2 hv
+  by_cases hu : u = 0
+  · subst hu
+    simp only [norm_zero, inv_zero, smul_zero, sub_zero, norm_smul, norm_inv, norm_norm]
+    rw [inv_mul_cancel₀ hvn.ne', le_div_iff₀ hvn]
+    linarith
+  have hun : 0 < ‖u‖ := norm_pos_iff.2 hu
+  have e : ‖v‖⁻¹ • v - ‖u‖⁻¹ • u = ‖v‖⁻¹ • (v - u) + (‖v‖⁻¹ - ‖u‖⁻¹) • u := by
+    rw [smul_sub, sub_smul]; abel
+  rw [e]
+  refine (norm_add_le _ _).trans ?_
+  rw [norm_smul, norm_smul, norm_inv, norm_norm, Real.norm_eq_abs]
+  have h2 : |‖v‖⁻¹ - ‖u‖⁻¹| * ‖u‖ = |‖u‖ - ‖v‖| / ‖v‖ := by
+    rw [show ‖v‖⁻¹ - ‖u‖⁻¹ = (‖u‖ - ‖v‖) / (‖v‖ * ‖u‖) by field_simp, abs_div,
+      abs_of_pos (mul_pos hvn hun)]
+    field_simp
+  rw [h2]
+  have h3 : |‖u‖ - ‖v‖| ≤ ‖v - u‖ := by
+    rw [norm_sub_rev]; exact abs_norm_sub_norm_le u v
+  rw [show 2 * ‖v - u‖ / ‖v‖ = ‖v‖⁻¹ * ‖v - u‖ + ‖v - u‖ / ‖v‖ by field_simp; ring]
+  gcongr
+
+private lemma rwoInner_norm_le_two_sw3N (u : Pt) : ‖u‖ ≤ 2 * sw3N u := by
+  have h := rwoInner_norm_sq u
+  have h0 : |u 0| ≤ sw3N u := le_max_left _ _
+  have h1 : |u 1| ≤ sw3N u := le_max_right _ _
+  have hn := norm_nonneg u
+  have hs : 0 ≤ sw3N u := (abs_nonneg _).trans h0
+  have e0 : u 0 ^ 2 ≤ sw3N u ^ 2 := by rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) h0 2
+  have e1 : u 1 ^ 2 ≤ sw3N u ^ 2 := by rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) h1 2
+  nlinarith
+
+private lemma rwoInner_pure_close {v1 v2 : Pt} {H D : ℝ} (hD : 0 < D) (hH : 1000 * D ≤ H)
+    (h1 : H < sw3N v1) (h1' : sw3N v1 ≤ H + D) (h2 : H < sw3N v2) (h2' : sw3N v2 ≤ H + D)
+    (hd : ‖‖v1‖⁻¹ • v1 - ‖v2‖⁻¹ • v2‖ ≤ 154 * D / H) : ‖v1 - v2‖ ≤ 1000 * D := by
+  have hHpos : 0 < H := by linarith
+  set r1 := ‖v1‖ with hr1d
+  set r2 := ‖v2‖ with hr2d
+  set ρ1 := sw3N v1
+  set ρ2 := sw3N v2
+  set η := 154 * D / H with hηd
+  have hηH : η * H = 154 * D := by rw [hηd]; field_simp
+  have hη0 : 0 ≤ η := by positivity
+  have hr1 : ρ1 ≤ r1 := sw3N_le_norm v1
+  have hr2 : ρ2 ≤ r2 := sw3N_le_norm v2
+  have hr1' : r1 ≤ 2 * (H + D) := (rwoInner_norm_le_two_sw3N v1).trans (by linarith)
+  have hr2' : r2 ≤ 2 * (H + D) := (rwoInner_norm_le_two_sw3N v2).trans (by linarith)
+  have hr1p : 0 < r1 := by linarith
+  have hr2p : 0 < r2 := by linarith
+  -- the main decomposition
+  have hv1 : v1 = r1 • (r1⁻¹ • v1) := by rw [smul_smul, mul_inv_cancel₀ hr1p.ne', one_smul]
+  have hv2 : v2 = r2 • (r2⁻¹ • v2) := by rw [smul_smul, mul_inv_cancel₀ hr2p.ne', one_smul]
+  have hd2 : ‖r2⁻¹ • v2‖ = 1 := by
+    rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hr2p.ne']
+  have hsplit : v1 - v2 = r1 • (r1⁻¹ • v1 - r2⁻¹ • v2) + (r1 - r2) • (r2⁻¹ • v2) := by
+    rw [smul_sub, smul_smul, smul_smul, mul_inv_cancel₀ hr1p.ne', one_smul, smul_smul, sub_mul,
+      mul_inv_cancel₀ hr2p.ne', sub_smul, one_smul]
+    abel
+  -- comparison of the two radii through the sup norm
+  have hkey : ∀ (a b : Pt) (ra rb ρa ρb : ℝ), sw3N a = ρa →
+      sw3N b = ρb → 0 < ra → 0 < rb → ‖ra⁻¹ • a - rb⁻¹ • b‖ ≤ η →
+      ρa * rb - ρb * ra ≤ ra * rb * η := by
+    intro a b ra rb ρa ρb hρa hρb hra hrb hab
+    have e1 : sw3N ((ra / rb) • b) = ra / rb * ρb := by
+      rw [sw3N_smul, abs_of_pos (div_pos hra hrb), hρb]
+    have e2 : a - (ra / rb) • b = ra • (ra⁻¹ • a - rb⁻¹ • b) := by
+      rw [smul_sub, smul_smul, smul_smul, mul_inv_cancel₀ hra.ne', one_smul, div_eq_mul_inv]
+    have e3 := sw3N_sub_le a ((ra / rb) • b)
+    have e4 := sw3N_le_norm (a - (ra / rb) • b)
+    rw [e2, norm_smul, Real.norm_eq_abs, abs_of_pos hra] at e4
+    rw [e1, hρa, e2] at e3
+    have e5 : ρa - ra / rb * ρb ≤ ra * η := by
+      have := mul_le_mul_of_nonneg_left hab hra.le
+      linarith
+    have e6 : (ρa - ra / rb * ρb) * rb ≤ ra * η * rb := mul_le_mul_of_nonneg_right e5 hrb.le
+    have e7 : (ρa - ra / rb * ρb) * rb = ρa * rb - ρb * ra := by
+      field_simp
+    linarith
+  have k12 := hkey v1 v2 r1 r2 ρ1 ρ2 rfl rfl hr1p hr2p hd
+  have hd' : ‖r2⁻¹ • v2 - r1⁻¹ • v1‖ ≤ η := by rw [norm_sub_rev]; exact hd
+  have k21 := hkey v2 v1 r2 r1 ρ2 ρ1 rfl rfl hr2p hr1p hd'
+  have hHD : H + D ≤ 1.001 * H := by linarith
+  have hprod : r1 * r2 * η ≤ 620 * D * H := by
+    have : r1 * r2 ≤ (2 * (H + D)) * (2 * (H + D)) := mul_le_mul hr1' hr2' hr2p.le (by linarith)
+    have h3 : r1 * r2 * η ≤ (2 * (H + D)) * (2 * (H + D)) * η :=
+      mul_le_mul_of_nonneg_right this hη0
+    have h4 : (2 * (H + D)) * (2 * (H + D)) * η = 4 * (H + D) * (H + D) / H * (154 * D) := by
+      rw [← hηH]; field_simp; ring
+    have h5 : 4 * (H + D) * (H + D) / H ≤ 4.01 * H := by
+      rw [div_le_iff₀ hHpos]
+      have := mul_le_mul hHD hHD (by linarith) (by linarith)
+      nlinarith
+    have h6 := mul_le_mul_of_nonneg_right h5 (by linarith : (0 : ℝ) ≤ 154 * D)
+    nlinarith
+  have hDD : 0 < D * D := mul_pos hD hD
+  have hDH : 1000 * D * D ≤ H * D := mul_le_mul_of_nonneg_right hH hD.le
+  have hdiff : |r1 - r2| ≤ 625 * D := by
+    rw [abs_le]
+    constructor
+    · by_contra hc
+      push_neg at hc
+      have t0 : H * (r2 - r1) ≤ ρ1 * (r2 - r1) := mul_le_mul_of_nonneg_right h1.le (by linarith)
+      have t1 : r1 * (ρ2 - ρ1) ≤ r1 * D := mul_le_mul_of_nonneg_left (by linarith) hr1p.le
+      have t2 : ρ1 * (r2 - r1) = (ρ1 * r2 - ρ2 * r1) + r1 * (ρ2 - ρ1) := by ring
+      have t4 : r1 * D ≤ 2 * (H + D) * D := mul_le_mul_of_nonneg_right hr1' hD.le
+      have t5 : H * (625 * D) < H * (r2 - r1) :=
+        mul_lt_mul_of_pos_left (by linarith) hHpos
+      linarith
+    · by_contra hc
+      push_neg at hc
+      have t0 : H * (r1 - r2) ≤ ρ2 * (r1 - r2) := mul_le_mul_of_nonneg_right h2.le (by linarith)
+      have t1 : r2 * (ρ1 - ρ2) ≤ r2 * D := mul_le_mul_of_nonneg_left (by linarith) hr2p.le
+      have t2 : ρ2 * (r1 - r2) = (ρ2 * r1 - ρ1 * r2) + r2 * (ρ1 - ρ2) := by ring
+      have t4 : r2 * D ≤ 2 * (H + D) * D := mul_le_mul_of_nonneg_right hr2' hD.le
+      have t5 : H * (625 * D) < H * (r1 - r2) := mul_lt_mul_of_pos_left hc hHpos
+      have t6 : r2 * r1 * η = r1 * r2 * η := by ring
+      linarith
+  rw [hsplit]
+  refine (norm_add_le _ _).trans ?_
+  rw [norm_smul, norm_smul, hd2, Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos hr1p, mul_one]
+  have h7 : r1 * ‖r1⁻¹ • v1 - r2⁻¹ • v2‖ ≤ 2 * (H + D) * η :=
+    mul_le_mul hr1' hd (norm_nonneg _) (by linarith)
+  have h6 : 2 * (H + D) * η ≤ 310 * D := by
+    have e : 2 * (H + D) * η = 2 * (H + D) / H * (154 * D) := by rw [← hηH]; field_simp
+    rw [e]
+    have : 2 * (H + D) / H ≤ 2.002 := by rw [div_le_iff₀ hHpos]; linarith
+    have := mul_le_mul_of_nonneg_right this (by linarith : (0 : ℝ) ≤ 154 * D)
+    linarith
+  linarith
+
+/-- A point outside `square c h + Binf r` is at sup-distance more than `h + r` from `c`. -/
+private lemma rwoInner_lt_sw3N_of_not_mem {c x : Pt} {h r : ℝ} (hh : 0 ≤ h) (hr : 0 ≤ r)
+    (hhr : 0 < h + r) (hx : x ∉ square c h + Binf r) : h + r < sw3N (x - c) := by
+  by_contra hc
+  push_neg at hc
+  apply hx
+  have h0 : |(x - c) 0| ≤ h + r := (le_max_left _ _).trans hc
+  have h1 : |(x - c) 1| ≤ h + r := (le_max_right _ _).trans hc
+  have hx : x = (c + (h / (h + r)) • (x - c)) + (r / (h + r)) • (x - c) := by
+    rw [add_assoc, ← add_smul, ← add_div, div_self hhr.ne', one_smul]; abel
+  rw [hx]
+  refine Set.add_mem_add ⟨?_, ?_⟩ ⟨?_, ?_⟩
+  · simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul, add_sub_cancel_left, abs_mul,
+      abs_of_nonneg (div_nonneg hh hhr.le)]
+    calc h / (h + r) * |(x - c) 0| ≤ h / (h + r) * (h + r) :=
+          mul_le_mul_of_nonneg_left h0 (div_nonneg hh hhr.le)
+      _ = h := by field_simp
+  · simp only [PiLp.add_apply, PiLp.smul_apply, smul_eq_mul, add_sub_cancel_left, abs_mul,
+      abs_of_nonneg (div_nonneg hh hhr.le)]
+    calc h / (h + r) * |(x - c) 1| ≤ h / (h + r) * (h + r) :=
+          mul_le_mul_of_nonneg_left h1 (div_nonneg hh hhr.le)
+      _ = h := by field_simp
+  · simp only [PiLp.smul_apply, smul_eq_mul, abs_mul, abs_of_nonneg (div_nonneg hr hhr.le)]
+    calc r / (h + r) * |(x - c) 0| ≤ r / (h + r) * (h + r) :=
+          mul_le_mul_of_nonneg_left h0 (div_nonneg hr hhr.le)
+      _ = r := by field_simp
+  · simp only [PiLp.smul_apply, smul_eq_mul, abs_mul, abs_of_nonneg (div_nonneg hr hhr.le)]
+    calc r / (h + r) * |(x - c) 1| ≤ r / (h + r) * (h + r) :=
+          mul_le_mul_of_nonneg_left h1 (div_nonneg hr hhr.le)
+      _ = r := by field_simp
+
+/-- Angular localization of a point near an ideal trapezoid. -/
+private lemma rwoInner_sector_lift {c x : Pt} {N : ℕ} {R D H : ℝ} {j : ℕ}
+    (hA : 0 < (N : ℝ) * R / 2) (hD : 0 < D) (hHpos : 0 < H)
+    (hx : x ∈ Metric.cthickening (21 * D) (idealTrapezoid c N R D j))
+    (hH : H < sw3N (x - c)) :
+    ∃ φ, existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop φ =
+        ‖x - c‖⁻¹ • (x - c) ∧
+      ∃ t ∈ Icc ((j : ℝ) * R) (((j : ℝ) + 1) * R),
+        |φ - rwoInner_theta ((N : ℝ) * R / 2) t| ≤ 11 * D / H := by
+  rw [Metric.mem_cthickening_iff] at hx
+  have hlt : Metric.infEDist x (idealTrapezoid c N R D j) < ENNReal.ofReal (22 * D) :=
+    hx.trans_lt ((ENNReal.ofReal_lt_ofReal_iff (by linarith)).2 (by linarith))
+  obtain ⟨w, hw, hxw⟩ := Metric.infEDist_lt_iff.1 hlt
+  rw [edist_dist, ENNReal.ofReal_lt_ofReal_iff (by linarith)] at hxw
+  obtain ⟨t, ht, μ, hμ, rfl⟩ := hw
+  obtain ⟨r, hr, hS⟩ := rwoInner_spp_eq_smul hA t
+  have hu : ‖μ • squarePerimeterPoint ((N : ℝ) * R / 2) t‖⁻¹ •
+      (μ • squarePerimeterPoint ((N : ℝ) * R / 2) t) =
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+        (rwoInner_theta ((N : ℝ) * R / 2) t) := by
+    exact rwoInner_normalize_smul (r := μ * r) (mul_pos (by linarith [hμ.1]) hr)
+      (by rw [hS, smul_smul])
+  have hvpos : H < ‖x - c‖ := hH.trans_le (sw3N_le_norm _)
+  have hv0 : x - c ≠ 0 := by
+    intro h; rw [h, norm_zero] at hvpos; linarith
+  have hchord := rwoInner_unit_sub_le (u := μ • squarePerimeterPoint ((N : ℝ) * R / 2) t) hv0
+  rw [hu] at hchord
+  have hdist : ‖x - c - μ • squarePerimeterPoint ((N : ℝ) * R / 2) t‖ < 22 * D := by
+    have e : x - c - μ • squarePerimeterPoint ((N : ℝ) * R / 2) t =
+        x - (c + μ • squarePerimeterPoint ((N : ℝ) * R / 2) t) := by abel
+    rw [e, ← dist_eq_norm]; exact hxw
+  obtain ⟨φ, hφ, hφθ⟩ := rwoInner_loop_lift (‖x - c‖⁻¹ • (x - c))
+    (by rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ (norm_pos_iff.2 hv0).ne'])
+    (rwoInner_theta ((N : ℝ) * R / 2) t)
+  refine ⟨φ, hφ, t, ht, hφθ.trans ?_⟩
+  have h1 : 2 * ‖x - c - μ • squarePerimeterPoint ((N : ℝ) * R / 2) t‖ / ‖x - c‖ ≤
+      44 * D / H := by
+    rw [div_le_div_iff₀ (by linarith) hHpos]
+    have := mul_le_mul_of_nonneg_left hvpos.le (by linarith : (0 : ℝ) ≤ 44 * D)
+    nlinarith [norm_nonneg (x - c - μ • squarePerimeterPoint ((N : ℝ) * R / 2) t)]
+  have h2 : 44 * D / H / 4 = 11 * D / H := by ring
+  linarith [div_le_div_of_nonneg_right (hchord.trans h1) (by norm_num : (0 : ℝ) ≤ 4)]
+
+/-- Cyclic bookkeeping: angular lifts in which earlier pieces precede later pieces and every
+pair lies within one period can be shifted, past the piece of minimal index, to an ordered
+one-period lift in `[0, 2]`. -/
+private lemma rwoInner_cyclic_lift {ι : Type*} [LinearOrder ι] [Finite ι]
+    (p : ι → ℕ) (hinj : Function.Injective p)
+    (hcyc : ∀ a b e : ι, a < b → b < e → CycLt3 (p a) (p b) (p e))
+    (L : ℝ → Pt) (hL : ∀ (t : ℝ) (k : ℤ), L (t + k) = L t)
+    (d : ι → Fin 4 → Pt) (φ : ι → Fin 4 → ℝ) (hφ : ∀ a i, L (φ a i) = d a i)
+    (hlt : ∀ a b i j, p a < p b → φ a i < φ b j)
+    (hwin : ∀ a b i j, φ b j < φ a i + 1) :
+    ∃ t : ι → Fin 4 → ℝ, (∀ a i, L (t a i) = d a i) ∧ (∀ a i, t a i ∈ Icc (0 : ℝ) 2) ∧
+      (∀ a b, a < b → ∀ i j, t a i ≤ t b j) ∧ (∀ a b i j, t b j ≤ t a i + 1) := by
+  rcases isEmpty_or_nonempty ι with hι | hι
+  · exact ⟨fun _ _ => 0, fun a => isEmptyElim a, fun a => isEmptyElim a,
+      fun a => isEmptyElim a, fun a => isEmptyElim a⟩
+  obtain ⟨m, hm⟩ := Finite.exists_min p
+  have hne : ∀ a b, a ≠ b → p a ≠ p b := fun a b h h' => h (hinj h')
+  have key1 : ∀ a b, a < b → (m ≤ a ∨ b < m) → p a < p b := by
+    intro a b hab h
+    have hmb := hm b
+    have hma := hm a
+    have hab' := hne a b hab.ne
+    rcases h with h | h
+    · rcases h.lt_or_eq with h | h
+      · have := hcyc m a b h hab
+        unfold CycLt3 at this
+        omega
+      · subst h
+        omega
+    · have := hcyc a b m hab h
+      unfold CycLt3 at this
+      omega
+  have key2 : ∀ a b, a < m → m ≤ b → p b < p a := by
+    intro a b ham hmb
+    have hab' := hne a b (ham.trans_le hmb).ne
+    have hb := hm b
+    have ha := hm a
+    have ham' := hne a m ham.ne
+    rcases hmb.lt_or_eq with h | h
+    · have := hcyc a m b ham h
+      unfold CycLt3 at this
+      omega
+    · subst h
+      omega
+  set s : ι → ℤ := fun a => if m ≤ a then 1 else 0 with hs
+  set t0 : ι → Fin 4 → ℝ := fun a i => φ a i + (s a : ℝ) with ht0
+  have hord : ∀ a b, a < b → ∀ i j, t0 a i ≤ t0 b j := by
+    intro a b hab i j
+    simp only [ht0, hs]
+    by_cases ha : m ≤ a
+    · have hb : m ≤ b := ha.trans hab.le
+      rw [if_pos ha, if_pos hb]
+      linarith [hlt a b i j (key1 a b hab (Or.inl ha))]
+    · push_neg at ha
+      by_cases hb : m ≤ b
+      · rw [if_neg (not_le.2 ha), if_pos hb]
+        push_cast
+        linarith [hwin b a j i]
+      · push_neg at hb
+        rw [if_neg (not_le.2 ha), if_neg (not_le.2 hb)]
+        linarith [hlt a b i j (key1 a b hab (Or.inr hb))]
+  have hw0 : ∀ a b i j, t0 b j ≤ t0 a i + 1 := by
+    intro a b i j
+    simp only [ht0, hs]
+    by_cases ha : m ≤ a <;> by_cases hb : m ≤ b
+    · rw [if_pos ha, if_pos hb]; linarith [hwin a b i j]
+    · rw [if_pos ha, if_neg hb]; push_cast; linarith [hwin a b i j]
+    · rw [if_neg ha, if_pos hb]
+      push_cast
+      linarith [hlt b a j i (key2 a b (not_le.1 ha) hb)]
+    · rw [if_neg ha, if_neg hb]; linarith [hwin a b i j]
+  obtain ⟨⟨a0, i0⟩, h0⟩ := Finite.exists_min (fun q : ι × Fin 4 => t0 q.1 q.2)
+  refine ⟨fun a i => t0 a i - ⌊t0 a0 i0⌋, ?_, ?_, ?_, ?_⟩
+  · intro a i
+    have e : t0 a i - ⌊t0 a0 i0⌋ = φ a i + ((s a - ⌊t0 a0 i0⌋ : ℤ) : ℝ) := by
+      simp only [ht0]; push_cast; ring
+    show L (t0 a i - ⌊t0 a0 i0⌋) = d a i
+    rw [e, hL, hφ]
+  · intro a i
+    have hmin : t0 a0 i0 ≤ t0 a i := h0 (a, i)
+    have hwa := hw0 a0 a i0 i
+    have f1 := Int.floor_le (t0 a0 i0)
+    have f2 := Int.lt_floor_add_one (t0 a0 i0)
+    constructor <;> linarith
+  · intro a b hab i j
+    have := hord a b hab i j
+    linarith
+  · intro a b i j
+    have := hw0 a b i j
+    linarith
+
+/-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder`:
+"the radial directions of the entrances of distinct marked sides are in the cyclic order of the
+sides (entrances of adjacent sectors cannot cross their common ray: two points outside `K₁` within
+`21D` of that ray and of `∂K₁` are within `100D < R/10` of each other)".  The stored normalized
+entrance directions have lifts to the counterclockwise unit-circle loop with parameters in
+`[0, 2]`, inside one period window, such that all directions of an earlier marked side precede all
+directions of a later one. -/
+private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder_step3_innerLift
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    {l : ℕ} {hl : 0 < l} {α : Rs.GS.G.P'.Form}
+    (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
+    (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl) :
+    ∃ t : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} → Fin 4 → ℝ,
+      (∀ a i, existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop (t a i) =
+        (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries).2.2 a i) ∧
+      (∀ a i, t a i ∈ Icc (0 : ℝ) 2) ∧
+      (∀ a b, a < b → ∀ i j, t a i ≤ t b j) ∧
+      (∀ a b i j, t b j ≤ t a i + 1) := by
+  classical
+  obtain ⟨H, hHdef⟩ : ∃ H : ℝ, H = (Rs.N α : ℝ) * Rs.R α / 2 + Rs.R α + 3 * M.D := ⟨_, rfl⟩
+  have hD := M.D_pos
+  have hK : (0 : ℝ) ≤ M.K0 := Nat.cast_nonneg _
+  have hRl := Rs.R_large α
+  have hR30 : 30000 * M.D ≤ Rs.R α := by nlinarith
+  have hN2 : (2 : ℝ) ≤ (Rs.N α : ℝ) := by exact_mod_cast Rs.N_two α
+  have hA0R : Rs.R α ≤ (Rs.N α : ℝ) * Rs.R α / 2 := by nlinarith
+  have hA0 : 0 < (Rs.N α : ℝ) * Rs.R α / 2 := by linarith
+  have hH1000 : 1000 * M.D ≤ H := by rw [hHdef]; linarith
+  have hHpos : 0 < H := by linarith
+  -- the entrance points lie in the thin square belt `H < ‖x - c‖∞ ≤ H + D`
+  have hlow : ∀ (a : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}) (i : Fin 4),
+      H < sw3N (entries.point a.1 i - Rs.centre l α) := by
+    intro a i
+    have := rwoInner_lt_sw3N_of_not_mem (by linarith) (by linarith) (by linarith)
+      (entries.point_out a.1 a.2 i)
+    rw [hHdef]; exact this
+  have hup : ∀ (a : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}) (i : Fin 4),
+      sw3N (entries.point a.1 i - Rs.centre l α) ≤ H + M.D := by
+    intro a i
+    have := (existsRoutingAfterPower_step4_routes_step2_entryNear τ M Rs entries a.2 i).2
+    rw [sw3_mem_square_iff] at this
+    rw [hHdef]; linarith
+  -- sector localization: angular lifts close to the ideal sector of the piece
+  have hloc : ∀ (a : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}) (i : Fin 4),
+      ∃ φ, existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop φ =
+          ‖entries.point a.1 i - Rs.centre l α‖⁻¹ • (entries.point a.1 i - Rs.centre l α) ∧
+        ∃ t ∈ Icc (((entries.piece a.1 : ℕ) : ℝ) * Rs.R α)
+            ((((entries.piece a.1 : ℕ) : ℝ) + 1) * Rs.R α),
+          |φ - rwoInner_theta ((Rs.N α : ℝ) * Rs.R α / 2) t| ≤ 11 * M.D / H := fun a i =>
+    rwoInner_sector_lift hA0 hD hHpos
+      (existsRoutingAfterPower_step4_routes_step6_R2_entryPoint_localized τ M Rs entries
+        a.1 a.2 i) (hlow a i)
+  choose φ hφ tt htt hφt using hloc
+  -- two distinct entrances cannot have angular lifts within `22 D / H` of each other
+  have hclose : ∀ (a b : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}) (i j : Fin 4),
+      (a.1, i) ≠ (b.1, j) → ∀ ψ1 ψ2 : ℝ,
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop ψ1 =
+        ‖entries.point a.1 i - Rs.centre l α‖⁻¹ • (entries.point a.1 i - Rs.centre l α) →
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop ψ2 =
+        ‖entries.point b.1 j - Rs.centre l α‖⁻¹ • (entries.point b.1 j - Rs.centre l α) →
+      |ψ1 - ψ2| ≤ 22 * M.D / H → False := by
+    intro a b i j hab ψ1 ψ2 h1 h2 hψ
+    have hchord := rwoInner_loop_chord_le ψ1 ψ2
+    rw [h1, h2] at hchord
+    have hpi := Real.pi_lt_d2
+    have hc : 2 * Real.pi * |ψ1 - ψ2| ≤ 154 * M.D / H := by
+      have e1 : 2 * Real.pi * |ψ1 - ψ2| ≤ 2 * Real.pi * (22 * M.D / H) :=
+        mul_le_mul_of_nonneg_left hψ (by positivity)
+      have e2 : 2 * Real.pi * (22 * M.D / H) ≤ 154 * M.D / H := by
+        rw [show 2 * Real.pi * (22 * M.D / H) = (44 * Real.pi) * M.D / H by ring]
+        apply div_le_div_of_nonneg_right _ hHpos.le
+        nlinarith
+      linarith
+    have hcl := rwoInner_pure_close hD hH1000 (hlow a i) (hup a i) (hlow b j) (hup b j)
+      (hchord.trans hc)
+    have hsep := existsRoutingAfterPower_step4_routes_step6_R2_entryPoint_separated τ M Rs
+      entries a.1 b.1 a.2 b.2 i j hab
+    rw [dist_eq_norm, show entries.point a.1 i - entries.point b.1 j =
+      (entries.point a.1 i - Rs.centre l α) - (entries.point b.1 j - Rs.centre l α) by abel]
+      at hsep
+    linarith
+  -- bounds on the turn coordinates of the sector parameters
+  have hmono := rwoInner_theta_mono hA0
+  have hpiece : ∀ (a : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}),
+      (((entries.piece a.1 : ℕ) : ℝ) + 1) * Rs.R α ≤ 8 * ((Rs.N α : ℝ) * Rs.R α / 2) := by
+    intro a
+    have h1 : (entries.piece a.1 : ℕ) + 1 ≤ 4 * Rs.N α := (entries.piece a.1).isLt
+    have h2 : ((entries.piece a.1 : ℕ) : ℝ) + 1 ≤ 4 * (Rs.N α : ℝ) := by exact_mod_cast h1
+    nlinarith
+  have hΘlo : ∀ a i, -(1 / 8) ≤ rwoInner_theta ((Rs.N α : ℝ) * Rs.R α / 2) (tt a i) := by
+    intro a i
+    rw [← rwoInner_theta_zero hA0]
+    apply hmono
+    have := (htt a i).1
+    have : (0 : ℝ) ≤ ((entries.piece a.1 : ℕ) : ℝ) * Rs.R α :=
+      mul_nonneg (Nat.cast_nonneg _) (by linarith)
+    linarith
+  have hΘhi : ∀ a i, rwoInner_theta ((Rs.N α : ℝ) * Rs.R α / 2) (tt a i) ≤ 7 / 8 := by
+    intro a i
+    rw [← rwoInner_theta_eight hA0]
+    apply hmono
+    linarith [(htt a i).2, hpiece a]
+  have hlt : ∀ (a b : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}) (i j : Fin 4),
+      (entries.piece a.1 : ℕ) < (entries.piece b.1 : ℕ) → φ a i < φ b j := by
+    intro a b i j hp
+    by_contra hc
+    push_neg at hc
+    have hab : (a.1, i) ≠ (b.1, j) := by
+      intro h
+      have : a.1 = b.1 := congrArg Prod.fst h
+      rw [this] at hp
+      exact lt_irrefl _ hp
+    have hp' : ((entries.piece a.1 : ℕ) : ℝ) + 1 ≤ ((entries.piece b.1 : ℕ) : ℝ) := by
+      exact_mod_cast hp
+    have htab : tt a i ≤ tt b j := by
+      have := (htt a i).2
+      have := (htt b j).1
+      have : (((entries.piece a.1 : ℕ) : ℝ) + 1) * Rs.R α ≤
+          ((entries.piece b.1 : ℕ) : ℝ) * Rs.R α :=
+        mul_le_mul_of_nonneg_right hp' (by linarith)
+      linarith
+    have hΘ := hmono htab
+    obtain ⟨ha1, ha2⟩ := abs_le.1 (hφt a i)
+    obtain ⟨hb1, hb2⟩ := abs_le.1 (hφt b j)
+    have hδ : 0 ≤ 11 * M.D / H := by positivity
+    have e22 : 22 * M.D / H = 2 * (11 * M.D / H) := by ring
+    exact hclose a b i j hab (φ a i) (φ b j) (hφ a i) (hφ b j)
+      (abs_le.2 ⟨by linarith, by linarith⟩)
+  have hwin : ∀ (a b : {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α}) (i j : Fin 4),
+      φ b j < φ a i + 1 := by
+    intro a b i j
+    by_cases hab : (b.1, j) = (a.1, i)
+    · have h1 : b = a := Subtype.ext (congrArg Prod.fst hab)
+      have h2 : j = i := congrArg Prod.snd hab
+      subst h1; subst h2
+      linarith
+    by_contra hc
+    push_neg at hc
+    obtain ⟨ha1, ha2⟩ := abs_le.1 (hφt a i)
+    obtain ⟨hb1, hb2⟩ := abs_le.1 (hφt b j)
+    have ha3 := hΘlo a i
+    have hb3 := hΘhi b j
+    have hδ : 0 ≤ 11 * M.D / H := by positivity
+    have e22 : 22 * M.D / H = 2 * (11 * M.D / H) := by ring
+    have hshift : existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop (φ a i + 1) =
+        ‖entries.point a.1 i - Rs.centre l α‖⁻¹ • (entries.point a.1 i - Rs.centre l α) := by
+      have := rwoInner_loop_add_int (φ a i) 1
+      push_cast at this
+      rw [this, hφ a i]
+    exact hclose b a j i hab (φ b j) (φ a i + 1) (hφ b j) hshift
+      (abs_le.2 ⟨by linarith, by linarith⟩)
+  exact rwoInner_cyclic_lift (ι := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α})
+    (fun a => (entries.piece a.1 : ℕ))
+    (fun a b h => Subtype.ext (entries.piece_injOn a.2 b.2 (Fin.ext h)))
+    (fun a b e hab hbe => entries.piece_cyclic a.1 a.2 b.1 b.2 e.1 e.2 (Or.inl ⟨hab, hbe⟩))
+    existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop rwoInner_loop_add_int
+    (fun a i => (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries).2.2
+      a i) φ hφ hlt hwin
+
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
 "every realized normalized configuration satisfies the weak cyclic order condition
 `R2_WeakOrderAdmissible`" (quantitative angular order of the entrances; an inversion between
@@ -45039,7 +45832,31 @@ private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_real
       (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl),
         existsRoutingAfterPower_step4_routes_step6_R2_WeakOrderAdmissible τ M Rs α
           (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries) := by
-  sorry
+  intro l hl α ports entries
+  obtain ⟨tO, hto, htoI, htoB⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder_step2_outerLift
+      τ M Rs ports entries
+  obtain ⟨ti, hti, htiI, htiB, htiW⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder_step3_innerLift
+      τ M Rs ports entries
+  obtain ⟨p, hp⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder_step1_sortBlocks
+      (Fintype.orderIsoFinOfCardEq ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4)
+        rfl)
+      (pgLoop (pgL (Rs.GS.G.P'.disk α)))
+      (fun a i => existsRoutingAfterPower_step4_routes_step6_R2_portAt
+        (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries)
+        a.1 i.castSucc (1 / 2))
+      tO hto (fun a i => ⟨(htoI a i).1, (htoI a i).2.trans (by norm_num)⟩) htoB
+      (fun a b i j => by linarith [(htoI b j).2, (htoI a i).1])
+  obtain ⟨q, hq⟩ :=
+    existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder_step1_sortBlocks
+      (Fintype.orderIsoFinOfCardEq ({a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} ×ₗ Fin 4)
+        rfl)
+      existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop
+      (fun a i => (existsRoutingAfterPower_step4_routes_step6_R2_admConfig τ M Rs ports entries).2.2 a i)
+      ti hti htiI htiB htiW
+  exact ⟨p, q, hp, hq⟩
 
 /-- Step 3 of the blueprint proof of `existsRoutingAfterPower_step4_routes_step6_outerRouting`:
 "Its ordered outer port points and inner points `b_i(z)` have disjoint simple polygonal arcs ...

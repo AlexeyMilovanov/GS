@@ -5950,6 +5950,387 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_an
   exact ⟨hpart, hedge, hedge_t, hpos, hout_mem, hout_nodup, hout_sort,
     hN, hQmax, hrank_ge, hrank_max⟩
 
+private lemma emcd_scatter_covers_child (G : GroupedFamily P) (C : PlacedTile G.mixed) :
+    C.carrier ⊆ support (G.mixedScatterTile C) := by
+  rcases C with ⟨f, a⟩
+  rcases f with β | q
+  · intro x hx
+    simp only [PlacedTile.carrier] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    change y ∈ (G.P'.disk β).carrier at hy
+    rw [← G.support_eq β] at hy
+    obtain ⟨T, hT, hyT⟩ := mem_support_iff'.1 hy
+    refine mem_support_iff'.2 ⟨T.translate a, ?_, ?_⟩
+    · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inl, translateSet]
+      exact ⟨T, hT, rfl⟩
+    · simp only [PlacedTile.carrier, PlacedTile.translate] at hyT ⊢
+      obtain ⟨w, hw, rfl⟩ := hyT
+      exact ⟨w, hw, by simp [vadd_eq_add, add_assoc]⟩
+  · intro x hx
+    refine mem_support_iff'.2 ⟨⟨q, a⟩, ?_, hx⟩
+    simp [GroupedFamily.mixedScatterTile]
+
+private lemma emcd_scatter_tile_carrier (G : GroupedFamily P) (C : PlacedTile G.mixed)
+    {A : PlacedTile P} (hA : A ∈ G.mixedScatterTile C) : A.carrier ⊆ C.carrier := by
+  rcases C with ⟨f, a⟩
+  rcases f with β | q
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inl, translateSet,
+      Set.mem_image] at hA
+    obtain ⟨T, hT, rfl⟩ := hA
+    have hsub : T.carrier ⊆ (G.P'.disk β).carrier := by
+      rw [← G.support_eq β]
+      exact carrier_subset_support hT
+    intro x hx
+    simp only [PlacedTile.carrier, PlacedTile.translate] at hx ⊢
+    obtain ⟨y, hy, rfl⟩ := hx
+    refine ⟨T.anchor +ᵥ y, hsub ⟨y, hy, rfl⟩, ?_⟩
+    simp [vadd_eq_add, add_assoc]
+  · simp only [GroupedFamily.mixedScatterTile, Sum.elim_inr,
+      Set.mem_singleton_iff] at hA
+    subst hA
+    intro x hx
+    exact hx
+
+private lemma emcd_tile_coord (M : MeshConstants P) (A : PlacedTile P)
+    {x y : Pt} (hx : x ∈ A.carrier) (hy : y ∈ A.carrier) (i : Fin 2) :
+    |x i - y i| ≤ M.D := by
+  have hcoord : |x i - y i| ≤ dist x y := by
+    have hi := PiLp.norm_apply_le (x - y) i
+    rw [Real.norm_eq_abs, PiLp.sub_apply] at hi
+    rwa [dist_eq_norm]
+  refine hcoord.trans
+    ((Metric.dist_le_diam_of_mem (tileDisk A).compact.isBounded hx hy).trans ?_)
+  have hdiam : Metric.diam A.carrier = Metric.diam (P.disk A.form).carrier := by
+    rw [PlacedTile.carrier]
+    exact diam_vadd _ _
+  show Metric.diam A.carrier ≤ M.D
+  rw [hdiam]
+  exact M.diam_le _
+
+private lemma emcd_original_child_annular_member
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {p : P.Form} {X : PlacedTile Rs.GS.G.mixed}
+    (hX : X ∈ (Rs.retained l α).children.tiles) (hXc : X ≠ Rs.central l α)
+    {k : Fin (Rs.GS.G.mixed.disk (Rs.central l α).form).n}
+    (hk : HasEdge X ((Rs.central l α).side k)) (hXp : X.form = Sum.inr p) :
+    ∃ j : Fin (4 * Rs.N α),
+      (⟨p, X.anchor⟩ : PlacedTile P) ∈ ((Rs.annulus l α hl).spokes.piece j).faces := by
+  set A : PlacedTile P := ⟨p, X.anchor⟩
+  have hdisj := (Rs.retained l α).children.disjoint
+  have hAX : A.carrier = X.carrier := by simp [A, PlacedTile.carrier, hXp]
+  have hscX : Rs.GS.G.mixedScatterTile X = {A} := by
+    simp [GroupedFamily.mixedScatterTile, hXp, A]
+  have hAS : A ∈ Rs.GS.G.mixedScatter (Rs.retained l α).children.tiles :=
+    Set.mem_biUnion hX (by rw [hscX]; rfl)
+  obtain ⟨z, hz⟩ : (interior X.carrier).Nonempty := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact (Rs.GS.G.mixed.disk X.form).interior_nonempty.vadd_set
+  have hAL : A ∉ (Rs.annulus l α hl).L.faces := by
+    intro hA
+    rw [← Rs.central_scatter l α hl] at hA
+    have hsub := emcd_scatter_tile_carrier Rs.GS.G _ hA
+    rw [hAX] at hsub
+    exact interior_not_mem_other hdisj hX (Rs.central_mem l α) hXc hz
+      (hsub (interior_subset hz))
+  have hR : 0 ≤ Rs.R α := by
+    have h1 := Rs.R_large α
+    have h2 := M.D_pos
+    have h3 : 0 ≤ 10000 * ((M.K0 : ℝ) + 3) * M.D := by positivity
+    linarith
+  have hXH : X.carrier ⊆ (Rs.annulus l α hl).H.carrier := by
+    obtain ⟨i, hi⟩ := hk
+    set y := (Rs.central l α).vertex k
+    have hyside : y ∈ (Rs.central l α).side k := by
+      rw [tile_side_eq]
+      exact left_mem_segment ℝ _ _
+    have hyX : y ∈ X.carrier := tile_side_subset X i (hi ▸ hyside)
+    have hyL : y ∈ (Rs.annulus l α hl).L.carrier := by
+      have h1 := emcd_scatter_covers_child Rs.GS.G (Rs.central l α)
+        (tile_side_subset _ k hyside)
+      rw [Rs.central_scatter l α hl, ← (Rs.annulus l α hl).L.carrier_eq] at h1
+      exact h1
+    obtain ⟨u, hu, v, hv, huv⟩ := (Rs.annulus l α hl).L_upper hyL
+    intro x hx
+    apply (Rs.annulus l α hl).H_lower
+    have hcoord : ∀ i : Fin 2, |x i - y i| ≤ M.D := fun i =>
+      emcd_tile_coord M A (hAX ▸ hx) (hAX ▸ hyX) i
+    refine ⟨u, ⟨?_, ?_⟩, x - u, ⟨?_, ?_⟩, add_sub_cancel u x⟩
+    · exact hu.1.trans (by linarith)
+    · exact hu.2.trans (by linarith)
+    · have hc := hcoord 0
+      have hv0 := hv.1
+      rw [← huv] at hc
+      simp only [PiLp.sub_apply, PiLp.add_apply] at hc ⊢
+      calc
+        |x 0 - u 0| = |(x 0 - (u 0 + v 0)) + v 0| := by ring_nf
+        _ ≤ |x 0 - (u 0 + v 0)| + |v 0| := abs_add_le _ _
+        _ ≤ 2 * M.D := by linarith
+    · have hc := hcoord 1
+      have hv1 := hv.2
+      rw [← huv] at hc
+      simp only [PiLp.sub_apply, PiLp.add_apply] at hc ⊢
+      calc
+        |x 1 - u 1| = |(x 1 - (u 1 + v 1)) + v 1| := by ring_nf
+        _ ≤ |x 1 - (u 1 + v 1)| + |v 1| := abs_add_le _ _
+        _ ≤ 2 * M.D := by linarith
+  have hAH : A ∈ (Rs.annulus l α hl).H.faces := by
+    have hzH : z ∈ (Rs.annulus l α hl).H.carrier := hXH (interior_subset hz)
+    change z ∈ (Rs.annulus l α hl).H.disk.carrier at hzH
+    rw [(Rs.annulus l α hl).H.carrier_eq] at hzH
+    obtain ⟨F, hF, hzF⟩ := mem_support_iff'.1 hzH
+    have hFS := (Rs.annulus l α hl).H.faces_sub hF
+    simp only [GroupedFamily.mixedScatter, Set.mem_iUnion] at hFS
+    obtain ⟨Y, hY, hFY⟩ := hFS
+    have hFYc := emcd_scatter_tile_carrier Rs.GS.G Y hFY
+    by_cases hYX : Y = X
+    · subst hYX
+      rw [hscX] at hFY
+      rw [Set.mem_singleton_iff] at hFY
+      exact hFY ▸ hF
+    · exact absurd (hFYc hzF)
+        (interior_not_mem_other hdisj hX hY (Ne.symm hYX) hz)
+  obtain ⟨j, hj, -⟩ := ((Rs.annulus l α hl).spokes.piece_partition A hAS).1 ⟨hAH, hAL⟩
+  exact ⟨j, hj⟩
+
+private lemma emcd_annular_child_collision
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) {p : P.Form}
+    {X Y : PlacedTile Rs.GS.G.mixed} {j : Fin (4 * Rs.N α)}
+    (hX : X ∈ (Rs.retained l α).children.tiles) (hXc : X ≠ Rs.central l α)
+    (hXp : X.form = Sum.inr p) (hY : Y ∈ (Rs.retained l α).children.tiles)
+    (hYc : Y ≠ Rs.central l α)
+    (hYj : Rs.GS.G.mixedScatterTile Y = ((Rs.annulus l α hl).spokes.piece j).faces)
+    (hXj : (⟨p, X.anchor⟩ : PlacedTile P) ∈
+      ((Rs.annulus l α hl).spokes.piece j).faces) : Y = X := by
+  have _ := hXc
+  have _ := hYc
+  have hmem : (⟨p, X.anchor⟩ : PlacedTile P) ∈ Rs.GS.G.mixedScatterTile Y := by
+    rw [hYj]
+    exact hXj
+  have hsub : (⟨p, X.anchor⟩ : PlacedTile P).carrier ⊆ Y.carrier :=
+    emcd_scatter_tile_carrier Rs.GS.G Y hmem
+  have hXsub : X.carrier ⊆ Y.carrier := by
+    intro x hx
+    apply hsub
+    simpa [PlacedTile.carrier, hXp] using hx
+  by_contra hYX
+  have hXY : X ≠ Y := fun h => hYX h.symm
+  have hdisj := (Rs.retained l α).children.disjoint hX hY hXY
+  have hnonempty : (interior X.carrier).Nonempty := by
+    rw [PlacedTile.carrier, interior_vadd]
+    exact (Rs.GS.G.mixed.disk X.form).interior_nonempty.vadd_set
+  obtain ⟨x, hx⟩ := hnonempty
+  exact Set.disjoint_left.1 hdisj hx (interior_mono hXsub hx)
+
+private lemma emcd_annular_piece_two_faces
+    (τ : Substitution P) (M : MeshConstants P) (Rs : RoutingSetup τ M) (l : ℕ)
+    (hl : 0 < l) (α : Rs.GS.G.P'.Form) :
+    ∀ j : Fin (4 * Rs.N α), ∃ A B : PlacedTile P,
+      A ∈ ((Rs.annulus l α hl).spokes.piece j).faces ∧
+      B ∈ ((Rs.annulus l α hl).spokes.piece j).faces ∧ A ≠ B := by
+  intro j
+  obtain ⟨e, he, hsep⟩ := Rs.windows l α hl
+  obtain ⟨⟨A, hA, i, hAi⟩, -⟩ := he j 0
+  obtain ⟨⟨B, hB, k, hBk⟩, -⟩ := he j 1
+  refine ⟨A, B, hA, hB, ?_⟩
+  rintro rfl
+  have hxs : A.vertex i ∈ A.side i :=
+    ⟨(P.disk A.form).vertex i, left_mem_segment ℝ _ _, rfl⟩
+  have hys : A.vertex k ∈ A.side k :=
+    ⟨(P.disk A.form).vertex k, left_mem_segment ℝ _ _, rfl⟩
+  have hx : A.vertex i ∈ e j 0 := hAi ▸ hxs
+  have hy : A.vertex k ∈ e j 1 := hBk ▸ hys
+  have h1 := hsep j 0 j 1 (by simp) _ hx _ hy
+  have h2 := step5_tile_dist_le M A (tile_side_subset A i hxs) (tile_side_subset A k hys)
+  have h3 := Rs.R_large α
+  have hD := M.D_pos
+  have hK : (0 : ℝ) ≤ M.K0 := Nat.cast_nonneg _
+  nlinarith
+
+private lemma emcd_noncentral_edge_grouped
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (α : s.setup.GS.G.P'.Form) {X : PlacedTile s.setup.GS.G.mixed}
+    (hX : X ∈ (s.setup.retained l α).children.tiles)
+    (hXc : X ≠ s.setup.central l α)
+    {k : Fin (s.setup.GS.G.mixed.disk (s.setup.central l α).form).n}
+    (hk : HasEdge X ((s.setup.central l α).side k)) :
+    ∃ β, X.form = Sum.inl β := by
+  cases hform : X.form with
+  | inl β => exact ⟨β, rfl⟩
+  | inr p =>
+    exfalso
+    obtain ⟨j, hXj⟩ := emcd_original_child_annular_member
+      τ g.M s.setup l hl α hX hXc hk hform
+    obtain ⟨Y, hY, hYc, hYj⟩ := s.setup.piece_child l α hl j
+    have hYX := emcd_annular_child_collision
+      τ g.M s.setup l hl α hX hXc hform hY hYc hYj hXj
+    rw [hYX] at hYj
+    have hscatter : s.setup.GS.G.mixedScatterTile X =
+        ({⟨p, X.anchor⟩} : Set (PlacedTile P)) := by
+      simp [GroupedFamily.mixedScatterTile, hform]
+    rw [hscatter] at hYj
+    obtain ⟨A, B, hA, hB, hAB⟩ :=
+      emcd_annular_piece_two_faces τ g.M s.setup l hl α j
+    have hA' : A ∈ ({⟨p, X.anchor⟩} : Set (PlacedTile P)) := hYj.symm ▸ hA
+    have hB' : B ∈ ({⟨p, X.anchor⟩} : Set (PlacedTile P)) := hYj.symm ▸ hB
+    have hAe : A = ⟨p, X.anchor⟩ := by simpa using hA'
+    have hBe : B = ⟨p, X.anchor⟩ := by simpa using hB'
+    exact hAB (hAe.trans hBe.symm)
+
+private lemma emcd_prints_grouped_side
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (X : PlacedTile s.setup.GS.G.mixed) (γ : s.setup.GS.G.P'.Form)
+    (hX : X.form = Sum.inl γ) (hμ : emcdIsRetainedForm g s l X.form)
+    (j : Fin (s.setup.GS.G.mixed.disk X.form).n) :
+    ∃ i, (⟨⟨X.form, hμ⟩, X.anchor⟩ : PlacedTile (emcdQ g s l)).side i = X.side j := by
+  obtain ⟨f, a⟩ := X
+  simp only at hX
+  subst hX
+  exact ⟨j, rfl⟩
+
+private lemma emcd_prints_grouped_side_val
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ)
+    (X : PlacedTile s.setup.GS.G.mixed) (γ : s.setup.GS.G.P'.Form)
+    (hX : X.form = Sum.inl γ) (hμ : emcdIsRetainedForm g s l X.form)
+    (j : Fin (s.setup.GS.G.mixed.disk X.form).n) :
+    ∃ i, i.val = j.val ∧
+      (⟨⟨X.form, hμ⟩, X.anchor⟩ : PlacedTile (emcdQ g s l)).side i = X.side j := by
+  obtain ⟨f, a⟩ := X
+  simp only at hX
+  subst hX
+  exact ⟨j, rfl, rfl⟩
+
+private lemma emcd_prints_grouped_occ_side
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ (t : D.Typ) (γ : s.setup.GS.G.P'.Form),
+      (emcdTemplateChild g s l t).form = Sum.inl γ → ∀ i : D.Side t,
+        ∃ j : Fin (s.setup.GS.G.mixed.disk (emcdTemplateChild g s l t).form).n,
+          j.val = i.val ∧ D.occSide (D.occ t i) = (emcdTemplateChild g s l t).side j := by
+  intro D t γ ht i
+  rcases t with ⟨α, ⟨⟨f, a⟩, hf⟩⟩
+  simp only at ht
+  subst ht
+  exact ⟨i, rfl, rfl⟩
+
+private lemma emcd_prints_occ_eq_of_type_eq
+    (D : MacroData P) (o o' : D.SideOcc) (ht : o.1 = o'.1)
+    (hs : D.occSide o = D.occSide o') : o = o' := by
+  cases o with
+  | mk t i =>
+      cases o' with
+      | mk t' i' =>
+          simp only at ht
+          subst t'
+          have hii : i = i' := by
+            apply emcd_outer_step2_side_injective
+            apply Set.Subset.antisymm
+            · apply (Set.vadd_set_subset_vadd_set_iff (a := D.anchor t)).1
+              exact hs.subset
+            · apply (Set.vadd_set_subset_vadd_set_iff (a := D.anchor t)).1
+              exact hs.symm.subset
+          subst i'
+          rfl
+
+private lemma emcd_print_occ_transport (D : MacroData P) {alpha beta : D.Q.Form}
+    (hab : alpha = beta) (d : Fin (D.Q.disk alpha).n) :
+    D.printOcc alpha d = D.printOcc beta (hab ▸ d) := by
+  subst beta
+  rfl
+
+private lemma emcd_marked_transport (D : MacroData P) {alpha beta : D.Q.Form}
+    (hab : alpha = beta) (d : Fin (D.Q.disk alpha).n) (hd : D.marked alpha d) :
+    D.marked beta (hab ▸ d) := by
+  subst beta
+  exact hd
+
+set_option maxHeartbeats 3000000 in
+private lemma emcd_prints_other_is_partner
+    (tau : Substitution P) (h : tau.STS) (g : existsMacroCertificate_GroupingSeed tau)
+    (s : existsMacroCertificate_SetupSeed tau g) (l : Nat) (hl : 0 < l)
+    (routing : ∀ alpha, RoutingData (s.setup.retained l alpha) (s.setup.GS.G.P'.disk alpha)
+      (tau.θ ^ (s.setup.GS.k * l)) (s.setup.central l alpha) (s.setup.markedSides alpha)
+      ((s.setup.markedSides (s.setup.c^[l] alpha)).map Fin.valEmbedding)) :
+    let D := emcdMacroData tau h g s l hl routing
+    ∀ o o' : D.SideOcc, D.owner o'.1 = D.owner o.1 → o'.1 ≠ o.1 →
+      D.occSide o' = D.occSide o → D.IsInner o ∧ o' = D.partner o := by
+  intro D o o' howner hne hside
+  have hinner : D.IsInner o := by
+    intro hout
+    have hout' : D.IsOuter o' := by
+      simpa only [MacroData.IsOuter, howner, hside] using hout
+    have heq := emcd_outer_step2_occ_injective tau h g s l hl routing
+      howner.symm hout hout' hside.symm
+    exact hne (congrArg Sigma.fst heq).symm
+  refine ⟨hinner, ?_⟩
+  let B := emcdGeometryData tau h g s l hl routing
+  have hex : ∃ z : B.SideOcc, z.1 ≠ o.1 ∧ B.owner z.1 = B.owner o.1 ∧
+      B.occSide z = B.occSide o := ⟨o', hne, howner, hside⟩
+  have hpartner_eq : D.partner o = hex.choose := by
+    change emcdGeometricPartner B o = hex.choose
+    unfold emcdGeometricPartner
+    rw [dif_pos hex]
+  have hp_ne : (D.partner o).1 ≠ o.1 := by
+    rw [hpartner_eq]
+    exact hex.choose_spec.1
+  have hp_owner : D.owner (D.partner o).1 = D.owner o.1 := by
+    rw [hpartner_eq]
+    exact hex.choose_spec.2.1
+  have hp_side : D.occSide (D.partner o) = D.occSide o := by
+    rw [hpartner_eq]
+    exact hex.choose_spec.2.2
+  have htype : ∀ t u : D.Typ, D.owner t = D.owner u →
+      emcdTemplateChild g s l t = emcdTemplateChild g s l u → t = u := by
+    rintro ⟨alpha, X⟩ ⟨beta, Y⟩ hab hXY
+    change alpha = beta at hab
+    subst beta
+    change X.1 = Y.1 at hXY
+    have : X = Y := Subtype.ext hXY
+    subst Y
+    rfl
+  let T := s.setup.retained l (emcdBaseForm g s l (D.owner o.1))
+  have hmem : ∀ t : D.Typ, emcdTemplateChild g s l t ∈
+      (s.setup.retained l (emcdBaseForm g s l (D.owner t))).children.tiles := by
+    rintro ⟨alpha, X⟩
+    exact X.2
+  have hom : emcdTemplateChild g s l o.1 ∈ T.children.tiles := hmem o.1
+  have hpm : emcdTemplateChild g s l (D.partner o).1 ∈ T.children.tiles := by
+    have hm := hmem (D.partner o).1
+    rw [hp_owner] at hm
+    exact hm
+  have ho'm : emcdTemplateChild g s l o'.1 ∈ T.children.tiles := by
+    have hm := hmem o'.1
+    rw [howner] at hm
+    exact hm
+  obtain ⟨io, hio⟩ := emcd_outer_step2_child_side tau h g s l hl routing o.1 o.2
+  obtain ⟨ip, hip⟩ :=
+    emcd_outer_step2_child_side tau h g s l hl routing (D.partner o).1 (D.partner o).2
+  obtain ⟨io', hio'⟩ := emcd_outer_step2_child_side tau h g s l hl routing o'.1 o'.2
+  have hop_ne : emcdTemplateChild g s l o.1 ≠
+      emcdTemplateChild g s l (D.partner o).1 := by
+    intro heq
+    exact hp_ne (htype o.1 (D.partner o).1 hp_owner.symm heq).symm
+  have hoo'_ne : emcdTemplateChild g s l o.1 ≠ emcdTemplateChild g s l o'.1 := by
+    intro heq
+    exact hne (htype o'.1 o.1 howner heq.symm)
+  have hchildren : emcdTemplateChild g s l (D.partner o).1 =
+      emcdTemplateChild g s l o'.1 := by
+    apply side_partner_unique T.children.disjoint hom hpm ho'm hop_ne hoo'_ne io ip io'
+    · exact hip.symm.trans (hp_side.trans hio)
+    · exact hio'.symm.trans (hside.trans hio)
+  have htypes : o'.1 = (D.partner o).1 :=
+    htype o'.1 (D.partner o).1 (howner.trans hp_owner.symm) hchildren.symm
+  exact emcd_prints_occ_eq_of_type_eq D o' (D.partner o) htypes
+    (hside.trans hp_side.symm)
+
+set_option maxHeartbeats 3000000 in
 /-- Step 4 of `lem:certificate-exists`: the print and special-side clauses for `emcdMacroData`:
 prints use `(routing (emcdBaseForm g s l α)).printIdx`, inheriting injectivity, cyclic order, and
 innerness from `RoutingData` (`print_injOn`, `print_cyclic`, `print_inner`), their opposite partner
@@ -5983,7 +6364,365 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_sp
     (∀ o : D.SideOcc, D.special o →
       D.IsInner o ∧ (D.partner o).1 = D.central (D.owner o.1)) ∧
     ∀ α d, D.marked α d → D.special (D.partner (D.printOcc α d)) := by
-  sorry
+  classical
+  intro D
+  have htype : ∀ t u : D.Typ, D.owner t = D.owner u →
+      emcdTemplateChild g s l t = emcdTemplateChild g s l u → t = u := by
+    rintro ⟨α, X⟩ ⟨β, Y⟩ hab hXY
+    change α = β at hab
+    subst β
+    change X.1 = Y.1 at hXY
+    have : X = Y := Subtype.ext hXY
+    subst Y
+    rfl
+  have hcentralChild : ∀ α,
+      emcdTemplateChild g s l (D.central α) =
+        s.setup.central l (emcdBaseForm g s l α) := by
+    intro α
+    rfl
+  have hcentralOwner : ∀ α, D.owner (D.central α) = α := by
+    intro α
+    rfl
+  have hcentralOcc : ∀ α
+      (j : Fin (s.setup.GS.G.mixed.disk
+        (s.setup.central l (emcdBaseForm g s l α)).form).n),
+      ∃ i, i.val = j.val ∧ D.occSide ⟨D.central α, i⟩ =
+        (s.setup.central l (emcdBaseForm g s l α)).side j := by
+    intro α j
+    exact emcd_prints_grouped_side_val g s l
+      (s.setup.central l (emcdBaseForm g s l α)) _
+      (s.setup.central_form l (emcdBaseForm g s l α)) _ j
+  have hprintRoute : ∀ α d, D.occSide (D.printOcc α d) =
+      (s.setup.central l (emcdBaseForm g s l α)).side
+        ((routing (emcdBaseForm g s l α)).printIdx
+          (emcdParentSide g s l α d)) := by
+    intro α d
+    obtain ⟨i, _, hi⟩ := hcentralOcc α
+      ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d))
+    have hp : ∃ i : D.Side (D.central α), D.occSide ⟨D.central α, i⟩ =
+        (s.setup.central l (emcdBaseForm g s l α)).side
+          ((routing (emcdBaseForm g s l α)).printIdx
+            (emcdParentSide g s l α d)) := ⟨i, hi⟩
+    have hprintEq : D.print α d = hp.choose := by
+      show (if hp : _ then _ else _) = _
+      split
+      · rfl
+      · rename_i hn
+        exact absurd hp hn
+    show D.occSide ⟨D.central α, D.print α d⟩ = _
+    rw [hprintEq]
+    exact hp.choose_spec
+  have hprintVal : ∀ α d, (D.print α d).val =
+      ((routing (emcdBaseForm g s l α)).printIdx
+        (emcdParentSide g s l α d)).val := by
+    intro α d
+    let r := (routing (emcdBaseForm g s l α)).printIdx
+      (emcdParentSide g s l α d)
+    obtain ⟨i, hival, hi⟩ := hcentralOcc α r
+    have hoi : D.printOcc α d = D.occ (D.central α) i :=
+      emcd_prints_occ_eq_of_type_eq D _ _ rfl ((hprintRoute α d).trans hi.symm)
+    exact (congrArg (fun z : D.SideOcc => z.2.val) hoi).trans hival
+  have hmarked : ∀ α d, D.marked α d →
+      emcdParentSide g s l α d ∈ s.setup.markedSides (emcdBaseForm g s l α) := by
+    intro α d hd
+    exact hd
+  have hprintData : ∀ α d, D.marked α d →
+      D.IsInner (D.printOcc α d) ∧
+        (D.partner (D.printOcc α d)).1 ≠ (D.printOcc α d).1 ∧
+        D.owner (D.partner (D.printOcc α d)).1 = D.owner (D.printOcc α d).1 ∧
+        D.occSide (D.partner (D.printOcc α d)) = D.occSide (D.printOcc α d) := by
+    intro α d hd
+    let β := emcdBaseForm g s l α
+    let a := emcdParentSide g s l α d
+    have hr := (routing β).print_inner a (hmarked α d hd)
+    obtain ⟨A, hA, B, hB, hAB, hAe, hBe⟩ := hr
+    have hc : HasEdge (s.setup.central l β)
+        ((s.setup.central l β).side ((routing β).printIdx a)) :=
+      ⟨(routing β).printIdx a, rfl⟩
+    obtain ⟨X, hX, hXc, hXe⟩ : ∃ X,
+        X ∈ (s.setup.retained l β).children.tiles ∧ X ≠ s.setup.central l β ∧
+          HasEdge X ((s.setup.central l β).side ((routing β).printIdx a)) := by
+      by_cases hAc : A = s.setup.central l β
+      · exact ⟨B, hB, fun hBc => hAB (hAc.trans hBc.symm), hBe⟩
+      · exact ⟨A, hA, hAc, hAe⟩
+    obtain ⟨γ, hXf⟩ := emcd_noncentral_edge_grouped τ g s l hl β hX hXc hXe
+    obtain ⟨j, hj⟩ := hXe
+    let t : D.Typ := ⟨α, ⟨X, hX⟩⟩
+    obtain ⟨i, hi⟩ := emcd_prints_grouped_side g s l X γ hXf
+      (show emcdIsRetainedForm g s l X.form by
+        change emcdIsRetainedForm g s l (emcdTemplateChild g s l t).form
+        exact (D.form t).2) j
+    let o : D.SideOcc := ⟨t, i⟩
+    have howner : D.owner o.1 = α := rfl
+    have hside : D.occSide o = D.occSide (D.printOcc α d) := by
+      exact hi.trans (hj.trans (hprintRoute α d).symm)
+    have hne : o.1 ≠ (D.printOcc α d).1 := by
+      intro heq
+      apply hXc
+      have hchild := congrArg (emcdTemplateChild g s l) heq
+      simpa [o, MacroData.printOcc] using hchild
+    have hc := emcd_prints_other_is_partner τ h g s l hl routing
+      (D.printOcc α d) o (by simpa using howner.trans (hcentralOwner α).symm)
+      hne hside
+    refine ⟨hc.1, ?_⟩
+    rw [← hc.2]
+    exact ⟨hne, howner.trans (hcentralOwner α).symm, hside⟩
+  have hprintInner : ∀ α d, D.marked α d → D.IsInner (D.printOcc α d) := by
+    intro α d hd
+    exact (hprintData α d hd).1
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, hkindSmall, _, _, _⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue τ h g s l hl routing
+  have hprintSmall : ∀ α d, D.marked α d →
+      D.kind (D.form (D.partner (D.printOcc α d)).1) = .small := by
+    intro α d hd
+    have hp := (hprintData α d hd).2
+    let t := (D.partner (D.printOcc α d)).1
+    let X := emcdTemplateChild g s l t
+    have hXmem : X ∈ (s.setup.retained l
+        (emcdBaseForm g s l (D.owner t))).children.tiles := by
+      rcases t with ⟨β, Y⟩
+      exact Y.2
+    have hown : D.owner t = α := hp.2.1.trans (hcentralOwner α)
+    have hXc : X ≠ s.setup.central l (emcdBaseForm g s l (D.owner t)) := by
+      intro heq
+      have htcent : t = D.central (D.owner t) :=
+        htype t (D.central (D.owner t)) rfl (heq.trans (hcentralChild _).symm)
+      apply hp.1
+      change t = (D.printOcc α d).1
+      exact htcent.trans ((congrArg D.central hown).trans rfl)
+    obtain ⟨j, hj⟩ := emcd_outer_step2_child_side τ h g s l hl routing t
+      (D.partner (D.printOcc α d)).2
+    have hroute : D.occSide (D.partner (D.printOcc α d)) =
+        (s.setup.central l (emcdBaseForm g s l α)).side
+          ((routing (emcdBaseForm g s l α)).printIdx
+            (emcdParentSide g s l α d)) := hp.2.2.trans (hprintRoute α d)
+    have hXmem' : X ∈ (s.setup.retained l
+        (emcdBaseForm g s l α)).children.tiles := by
+      simpa only [hown] using hXmem
+    have hXc' : X ≠ s.setup.central l (emcdBaseForm g s l α) := by
+      simpa only [hown] using hXc
+    have hXe : HasEdge X ((s.setup.central l
+        (emcdBaseForm g s l α)).side
+          ((routing (emcdBaseForm g s l α)).printIdx
+            (emcdParentSide g s l α d))) :=
+      ⟨j, hj.symm.trans hroute⟩
+    obtain ⟨γ, hXf⟩ := emcd_noncentral_edge_grouped τ g s l hl
+      (emcdBaseForm g s l α) hXmem' hXc' hXe
+    apply (hkindSmall (D.form t)).2
+    refine ⟨emcdBaseForm g s l α, γ, X, hXmem', hXc', hXf, ?_⟩
+    change (emcdTemplateChild g s l t).form = Sum.inl γ
+    exact hXf
+  have hspecialSmall : ∀ o : D.SideOcc, D.special o →
+      D.kind (D.form o.1) = .small := by
+    intro o ho
+    exact ho.1
+  have hspecialDef : ∀ o : D.SideOcc, D.special o ↔
+      D.kind (D.form o.1) = .small ∧
+        (if hp : ∃ i : D.Side o.1,
+            ∃ d : Fin (D.Q.disk (D.owner o.1)).n, D.marked (D.owner o.1) d ∧
+              D.partner (D.printOcc (D.owner o.1) d) = D.occ o.1 i
+          then o.2 = hp.choose
+          else if hc : ∃ i : D.Side o.1,
+            D.IsInner (D.occ o.1 i) ∧
+              (D.partner (D.occ o.1 i)).1 = D.central (D.owner o.1)
+          then o.2 = hc.choose
+          else False) := by
+    intro o
+    rfl
+  have hsmallContact : ∀ t, D.kind (D.form t) = .small →
+      ∃ i, D.IsInner (D.occ t i) ∧
+        (D.partner (D.occ t i)).1 = D.central (D.owner t) := by
+    intro t ht
+    obtain ⟨β, γ, Y, hY, hYc, hYf, hcat⟩ := (hkindSmall (D.form t)).1 ht
+    let X := emcdTemplateChild g s l t
+    have hXmem : X ∈ (s.setup.retained l
+        (emcdBaseForm g s l (D.owner t))).children.tiles := by
+      rcases t with ⟨α, Z⟩
+      exact Z.2
+    have hXf : X.form = Sum.inl γ := by
+      change (emcdCatalogueTile g s l (D.form t)).form = Sum.inl γ
+      exact hcat
+    have hXc : X ≠ s.setup.central l (emcdBaseForm g s l (D.owner t)) := by
+      intro hxc
+      have hcf := congrArg PlacedTile.form hxc
+      rw [s.setup.central_form] at hcf
+      have hgamma : γ = s.setup.c^[l] (emcdBaseForm g s l (D.owner t)) :=
+        Sum.inl_injective (hXf.symm.trans hcf)
+      obtain ⟨m, rfl⟩ : ∃ m, l = m + 1 := ⟨l - 1, by omega⟩
+      rw [Function.iterate_succ_apply'] at hgamma
+      exact s.noncentral_not_large (m + 1) β hl Y hY hYc _
+        (hYf.trans (congrArg Sum.inl hgamma))
+    rcases s.setup.others l (emcdBaseForm g s l (D.owner t)) X hXmem hXc with
+      horig | hshare
+    · obtain ⟨p, hp⟩ := horig
+      rw [hXf] at hp
+      contradiction
+    · obtain ⟨_, e, ⟨i, hi⟩, ⟨j, hj⟩⟩ := hshare
+      obtain ⟨ii, hii⟩ := emcd_prints_grouped_side g s l X γ hXf
+        (show emcdIsRetainedForm g s l X.form by
+          change emcdIsRetainedForm g s l (emcdTemplateChild g s l t).form
+          exact (D.form t).2) i
+      let oi : D.SideOcc := D.occ t ii
+      obtain ⟨k, _, hk⟩ := hcentralOcc (D.owner t) j
+      let oc : D.SideOcc := D.occ (D.central (D.owner t)) k
+      have hside : D.occSide oc = D.occSide oi := by
+        exact hk.trans (hj.trans (hi.symm.trans hii.symm))
+      have hne : oc.1 ≠ oi.1 := by
+        intro heq
+        apply hXc
+        have hchild := congrArg (emcdTemplateChild g s l) heq
+        simpa [oi, oc] using hchild.symm.trans (hcentralChild (D.owner t))
+      have hc := emcd_prints_other_is_partner τ h g s l hl routing oi oc
+        (by simpa [oi, oc] using hcentralOwner (D.owner t)) hne hside
+      exact ⟨ii, hc.1, congrArg Sigma.fst hc.2 ▸ rfl⟩
+  have hprintPartnerContact : ∀ α d, D.marked α d →
+      D.IsInner (D.partner (D.printOcc α d)) ∧
+        (D.partner (D.partner (D.printOcc α d))).1 = D.central α := by
+    intro α d hd
+    have hp := (hprintData α d hd).2
+    have hc := emcd_prints_other_is_partner τ h g s l hl routing
+      (D.partner (D.printOcc α d)) (D.printOcc α d)
+      (by exact (hcentralOwner α).trans hp.2.1.symm) hp.1.symm hp.2.2.symm
+    exact ⟨hc.1, (congrArg Sigma.fst hc.2).symm⟩
+  refine ⟨hprintRoute, ?_, ?_, hprintInner, hprintSmall, hspecialSmall, ?_, ?_, ?_⟩
+  · intro α d d' hd hd' heq
+    have ha := hmarked α d hd
+    have ha' := hmarked α d' hd'
+    have hroute : (routing (emcdBaseForm g s l α)).printIdx
+        (emcdParentSide g s l α d) =
+        (routing (emcdBaseForm g s l α)).printIdx
+          (emcdParentSide g s l α d') := by
+      apply Fin.ext
+      rw [← hprintVal α d, ← hprintVal α d']
+      exact congrArg Fin.val heq
+    have hp := (routing (emcdBaseForm g s l α)).print_injOn ha ha' hroute
+    exact hp
+  · intro α a b e ha hb he hcyc
+    have hr := (routing (emcdBaseForm g s l α)).print_cyclic
+      (emcdParentSide g s l α a) (hmarked α a ha)
+      (emcdParentSide g s l α b) (hmarked α b hb)
+      (emcdParentSide g s l α e) (hmarked α e he) hcyc
+    unfold CycLt3 at hr ⊢
+    simpa only [hprintVal α a, hprintVal α b, hprintVal α e] using hr
+  · intro t ht
+    have hc : ∃ i : D.Side t, D.IsInner (D.occ t i) ∧
+        (D.partner (D.occ t i)).1 = D.central (D.owner t) := hsmallContact t ht
+    by_cases hp : ∃ i : D.Side t,
+        ∃ d : Fin (D.Q.disk (D.owner t)).n, D.marked (D.owner t) d ∧
+          D.partner (D.printOcc (D.owner t) d) = D.occ t i
+    · refine ⟨hp.choose, ?_, ?_⟩
+      · change D.special (D.occ t hp.choose)
+        rw [hspecialDef]
+        exact ⟨ht, by simp only [dif_pos hp]⟩
+      · intro y hy
+        change D.special (D.occ t y) at hy
+        rw [hspecialDef] at hy
+        simpa only [dif_pos hp] using hy.2
+    · refine ⟨hc.choose, ?_, ?_⟩
+      · change D.special (D.occ t hc.choose)
+        rw [hspecialDef]
+        exact ⟨ht, by simp only [dif_neg hp, dif_pos hc]⟩
+      · intro y hy
+        change D.special (D.occ t y) at hy
+        rw [hspecialDef] at hy
+        simpa only [dif_neg hp, dif_pos hc] using hy.2
+  · rintro ⟨t, i⟩ ho
+    rw [hspecialDef] at ho
+    change D.kind (D.form t) = .small ∧
+      (if hp : ∃ j : D.Side t,
+          ∃ d : Fin (D.Q.disk (D.owner t)).n, D.marked (D.owner t) d ∧
+            D.partner (D.printOcc (D.owner t) d) = D.occ t j
+        then i = hp.choose
+        else if hc : ∃ j : D.Side t, D.IsInner (D.occ t j) ∧
+            (D.partner (D.occ t j)).1 = D.central (D.owner t)
+          then i = hc.choose
+          else False) at ho
+    by_cases hp : ∃ j : D.Side t,
+        ∃ d : Fin (D.Q.disk (D.owner t)).n, D.marked (D.owner t) d ∧
+          D.partner (D.printOcc (D.owner t) d) = D.occ t j
+    · have hi : i = hp.choose := by simpa only [dif_pos hp] using ho.2
+      obtain ⟨d, hd, heq⟩ := hp.choose_spec
+      subst i
+      change D.IsInner (D.occ t hp.choose) ∧
+        (D.partner (D.occ t hp.choose)).1 = D.central (D.owner t)
+      rw [← heq]
+      exact hprintPartnerContact (D.owner t) d hd
+    · have hc : ∃ j : D.Side t, D.IsInner (D.occ t j) ∧
+          (D.partner (D.occ t j)).1 = D.central (D.owner t) := by
+        by_contra hn
+        simpa only [dif_neg hp, dif_neg hn] using ho.2
+      have hi : i = hc.choose := by simpa only [dif_neg hp, dif_pos hc] using ho.2
+      subst i
+      exact hc.choose_spec
+  · intro α d hd
+    let o := D.partner (D.printOcc α d)
+    have hps := (hprintData α d hd).2
+    have hown : D.owner o.1 = α := hps.2.1.trans (hcentralOwner α)
+    have hsmall : D.kind (D.form o.1) = .small := hprintSmall α d hd
+    rw [hspecialDef]
+    refine ⟨hsmall, ?_⟩
+    let d0 : Fin (D.Q.disk (D.owner o.1)).n := hown.symm ▸ d
+    have hd0 : D.marked (D.owner o.1) d0 :=
+      emcd_marked_transport D hown.symm d hd
+    have hpo : D.printOcc α d = D.printOcc (D.owner o.1) d0 :=
+      emcd_print_occ_transport D hown.symm d
+    have hoPartner : D.partner (D.printOcc (D.owner o.1) d0) = o := by
+      rw [← hpo]
+    have hp : ∃ i : D.Side o.1,
+        ∃ e : Fin (D.Q.disk (D.owner o.1)).n, D.marked (D.owner o.1) e ∧
+          D.partner (D.printOcc (D.owner o.1) e) = D.occ o.1 i := by
+      exact ⟨o.2, d0, hd0, by simpa [o] using hoPartner⟩
+    rw [dif_pos hp]
+    obtain ⟨d', hd', heq'⟩ := hp.choose_spec
+    have hXmem : emcdTemplateChild g s l o.1 ∈
+        (s.setup.retained l (emcdBaseForm g s l (D.owner o.1))).children.tiles := by
+      rcases o.1 with ⟨β, X⟩
+      exact X.2
+    have hXc : emcdTemplateChild g s l o.1 ≠
+        s.setup.central l (emcdBaseForm g s l (D.owner o.1)) := by
+      intro heq
+      have hot : o.1 = D.central (D.owner o.1) :=
+        htype o.1 (D.central (D.owner o.1)) rfl (heq.trans (hcentralChild _).symm)
+      apply hps.1
+      calc
+        o.1 = D.central (D.owner o.1) := hot
+        _ = D.central α := congrArg D.central hown
+        _ = (D.printOcc α d).1 := rfl
+    obtain ⟨j, hj⟩ := emcd_outer_step2_child_side τ h g s l hl routing o.1 o.2
+    have hps0 := (hprintData (D.owner o.1) d0 hd0).2
+    have hroute0 : D.occSide o =
+        (s.setup.central l (emcdBaseForm g s l (D.owner o.1))).side
+          ((routing (emcdBaseForm g s l (D.owner o.1))).printIdx
+            (emcdParentSide g s l (D.owner o.1) d0)) := by
+      exact (congrArg D.occSide hoPartner).symm.trans
+        (hps0.2.2.trans (hprintRoute (D.owner o.1) d0))
+    have hedge : HasEdge (emcdTemplateChild g s l o.1)
+        ((s.setup.central l (emcdBaseForm g s l (D.owner o.1))).side
+          ((routing (emcdBaseForm g s l (D.owner o.1))).printIdx
+            (emcdParentSide g s l (D.owner o.1) d0))) :=
+      ⟨j, hj.symm.trans hroute0⟩
+    obtain ⟨j', hj'⟩ := emcd_outer_step2_child_side τ h g s l hl routing o.1 hp.choose
+    have hps' := (hprintData (D.owner o.1) d' hd').2
+    have hedge' : HasEdge (emcdTemplateChild g s l o.1)
+        ((s.setup.central l (emcdBaseForm g s l (D.owner o.1))).side
+          ((routing (emcdBaseForm g s l (D.owner o.1))).printIdx
+            (emcdParentSide g s l (D.owner o.1) d'))) := by
+      refine ⟨j', ?_⟩
+      exact hj'.symm.trans ((congrArg D.occSide heq').symm.trans
+        (hps'.2.2.trans (hprintRoute (D.owner o.1) d')))
+    have hdd := hpartner_inj (emcdBaseForm g s l (D.owner o.1))
+      (emcdParentSide g s l (D.owner o.1) d0)
+      (hmarked _ _ hd0)
+      (emcdParentSide g s l (D.owner o.1) d') (hmarked _ _ hd')
+      (emcdTemplateChild g s l o.1) hXmem hXc hedge hedge'
+    have hdeq : d0 = d' := hdd
+    have hocc : D.occ o.1 o.2 = D.occ o.1 hp.choose := by
+      have hoOcc : D.occ o.1 o.2 = D.partner (D.printOcc (D.owner o.1) d0) := by
+        simpa [o] using hoPartner.symm
+      exact hoOcc.trans
+        ((congrArg D.partner (congrArg (D.printOcc (D.owner o.1)) hdeq)).trans heq')
+    apply Fin.ext
+    exact congrArg (fun z : D.SideOcc => z.2.val) hocc
 
 private lemma
     existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing_aux1

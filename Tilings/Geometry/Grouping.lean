@@ -4675,6 +4675,544 @@ private noncomputable def emcsMarkedSides (τ : Substitution P)
   else
     Finset.univ
 
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a large form `L_p` has exactly `4N` marked sides, the side it shares with each of the `4N` annular
+pieces"; in particular the `4N` contact slots are distinct sides, so a large form has more than
+`Q` listed sides ("a non-large form has at most `Q < 4N/3` sides while the centre has `4N` contact
+sides"). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_large_sides
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form) :
+    g.Qmax < (g.GS.G.P'.disk (g.large p)).n := by
+  have h1 := Fintype.card_le_of_injective (emcsSlotSide τ g p)
+    ((existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.1 p)
+  simp only [Fintype.card_fin] at h1
+  have := g.N_dominates
+  omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"The marked sides are fixed by the marking rule: every side of a form that is not a central image is
+marked" (here: every side of a form that is not a large catalogue form). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_not_large
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (α : g.GS.G.P'.Form)
+    (hα : ∀ p, g.large p ≠ α) : emcsMarkedSides τ g α = Finset.univ := by
+  unfold emcsMarkedSides
+  rw [dif_neg]
+  rintro ⟨p, hp⟩
+  exact hα p hp
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+a form with at most `Q` listed sides is not large, hence all its sides are marked. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_of_le_Qmax
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (α : g.GS.G.P'.Form)
+    (hα : (g.GS.G.P'.disk α).n ≤ g.Qmax) : emcsMarkedSides τ g α = Finset.univ := by
+  apply existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_not_large
+  rintro p rfl
+  have := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_large_sides τ g p
+  omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+transport of a contact slot along an equality of original forms. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_cast_slot
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p q : P.Form) (hq : q = p)
+    (e : (g.GS.G.P'.disk (g.large q)).n = (g.GS.G.P'.disk (g.large p)).n) (j : Fin (4 * g.N)) :
+    Fin.cast e (emcsSlotSide τ g q j) = emcsSlotSide τ g p j := by
+  subst hq
+  rfl
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a large form `L_p` has exactly `4N` marked sides, the side it shares with each of the `4N` annular
+pieces (one per piece)": the marked sides of `g.large p` are exactly its contact slots. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mem_marked_large
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (hlarge_inj : Function.Injective g.large) (p : P.Form) (a : Fin (g.GS.G.P'.disk (g.large p)).n) :
+    a ∈ emcsMarkedSides τ g (g.large p) ↔ ∃ j, emcsSlotSide τ g p j = a := by
+  unfold emcsMarkedSides
+  have hex : ∃ q : P.Form, g.large q = g.large p := ⟨p, rfl⟩
+  rw [dif_pos hex]
+  simp only [Finset.mem_image, Finset.mem_univ, true_and]
+  have hc : hex.choose = p := hlarge_inj hex.choose_spec
+  constructor
+  · rintro ⟨j, hj⟩
+    exact ⟨j, by
+      rw [← hj, existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_cast_slot
+        τ g p _ hc]⟩
+  · rintro ⟨j, hj⟩
+    exact ⟨j, by
+      rw [← hj, existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_cast_slot
+        τ g p _ hc]⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a large form `L_p` has exactly `4N` marked sides". -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_card_large
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form) :
+    (emcsMarkedSides τ g (g.large p)).card = 4 * g.N := by
+  unfold emcsMarkedSides
+  have hex : ∃ q : P.Form, g.large q = g.large p := ⟨p, rfl⟩
+  rw [dif_pos hex, Finset.card_image_of_injective]
+  · simp
+  · intro i j hij
+    exact (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.1 _
+      (Fin.cast_injective _ hij)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a large form `L_p` has exactly `4N` marked sides, the side it shares with each of the `4N` annular
+pieces (one per piece; these are whole sides of `L_p`)". -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_contact_large
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ)
+    (hlarge_inj : Function.Injective g.large) (p : P.Form) :
+    ∃ (piece : Fin (g.GS.G.P'.disk (g.large p)).n → Fin (4 * g.N)),
+      (g.GS.G.dissect (g.large p)).tiles = (g.annular p).L.faces ∧
+      Set.InjOn piece (emcsMarkedSides τ g (g.large p) : Set _) ∧
+      ∀ a ∈ emcsMarkedSides τ g (g.large p),
+        (g.GS.G.P'.disk (g.large p)).side a ⊆
+          support ((g.annular p).spokes.piece (piece a)).faces := by
+  haveI : Nonempty (Fin (4 * g.N)) := ⟨⟨0, by have := g.N_two; omega⟩⟩
+  have hinj : Function.Injective (emcsSlotSide τ g p) :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.1 p
+  have hside := (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.2.2 p
+  have hmem := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mem_marked_large
+    τ g hlarge_inj p
+  refine ⟨Function.invFun (emcsSlotSide τ g p), g.large_dissect p, ?_, ?_⟩
+  · intro a ha b hb hab
+    obtain ⟨i, rfl⟩ := (hmem a).1 ha
+    obtain ⟨j, rfl⟩ := (hmem b).1 hb
+    have hl : Function.LeftInverse (Function.invFun (emcsSlotSide τ g p)) (emcsSlotSide τ g p) :=
+      Function.leftInverse_invFun hinj
+    rw [hl i, hl j] at hab
+    rw [hab]
+  · intro a ha
+    obtain ⟨i, rfl⟩ := (hmem a).1 ha
+    rw [Function.leftInverse_invFun hinj i]
+    exact (hside i).1
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a non-large form has at most `Q` sides": every grouped form which is not a large catalogue form is
+a small annular piece or an original singleton, and both have at most `Q` listed sides. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_nonlarge_sides
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (α : g.GS.G.P'.Form)
+    (hα : ∀ p, g.large p ≠ α) : (g.GS.G.P'.disk α).n ≤ g.Qmax := by
+  rcases g.catalogue_exact α with ⟨p, rfl⟩ | ⟨p, j, rfl⟩ | ⟨p, rfl⟩
+  · exact absurd rfl (hα p)
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_small_sides τ g p j
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_singleton_sides τ g _ p
+      (g.original_dissect p)
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"this is possible because a non-large form has at most `Q < 4N/3` sides while the centre has `4N`
+contact sides": every grouped form has at most `4N` marked sides. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_card_le
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (α : g.GS.G.P'.Form) :
+    (emcsMarkedSides τ g α).card ≤ 4 * g.N := by
+  by_cases hα : ∃ p, g.large p = α
+  · obtain ⟨p, rfl⟩ := hα
+    exact (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_card_large τ g p).le
+  · push_neg at hα
+    rw [existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_not_large τ g α hα,
+      Finset.card_univ, Fintype.card_fin]
+    have := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_nonlarge_sides τ g α hα
+    have := g.N_dominates
+    omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a large form `L_p`" consists of more than one original tile: a set of tiles whose support contains
+two points further apart than the mesh diameter `D` has at least two tiles. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_nontrivial_of_far
+    (M : MeshConstants P) {S : Set (PlacedTile P)} {x y : Pt}
+    (hx : x ∈ support S) (hy : y ∈ support S) (hxy : M.D < dist x y) : S.Nontrivial := by
+  simp only [support, Set.mem_iUnion, exists_prop] at hx hy
+  obtain ⟨A, hA, hxA⟩ := hx
+  obtain ⟨B, hB, hyB⟩ := hy
+  refine ⟨A, hA, B, hB, ?_⟩
+  rintro rfl
+  obtain ⟨x', hx', rfl⟩ := hxA
+  obtain ⟨y', hy', rfl⟩ := hyB
+  have h1 : dist x' y' ≤ M.D :=
+    (Metric.dist_le_diam_of_mem (P.disk A.form).compact.isBounded hx' hy').trans (M.diam_le _)
+  simp only [vadd_eq_add, dist_add_left] at hxy
+  linarith
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+the large group `L_p` contains the square `Q₀` of half side `NR/2 ≥ R > D`, so it has at least two
+faces. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_L_nontrivial
+    {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S c N R) (hN : 2 ≤ N) (hR : M.D < R) : G.L.faces.Nontrivial := by
+  have hD := M.D_pos
+  have hN' : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hR0 : 0 ≤ R := by linarith
+  have hpos : 0 ≤ (N : ℝ) * R / 2 := by positivity
+  apply existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_nontrivial_of_far M
+    (x := c) (y := c + mkPt ((N : ℝ) * R / 2) 0)
+  · rw [← G.L.carrier_eq]
+    exact G.L_lower ⟨by simpa using hpos, by simpa using hpos⟩
+  · rw [← G.L.carrier_eq]
+    exact G.L_lower ⟨by simp [mkPt, abs_of_nonneg hpos], by simp [mkPt]; positivity⟩
+  · rw [dist_self_add_right]
+    have : ‖mkPt ((N : ℝ) * R / 2) 0‖ = (N : ℝ) * R / 2 := by
+      rw [EuclideanSpace.norm_eq]
+      simp [mkPt, Real.sqrt_sq_eq_abs, abs_of_nonneg hpos]
+    rw [this]
+    nlinarith
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"for a large parent `α = c^l β` the print map is the identity (its `4N` marked sides are its own
+contact sides)": a grouped form with the disk of the large form `L_p` is `L_p` itself (non-large
+forms have at most `Q` sides, and distinct nontrivial groups have distinct disks). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_large_disk_eq
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form) (α : g.GS.G.P'.Form)
+    (hD : g.GS.G.P'.disk (g.large p) = g.GS.G.P'.disk α) : α = g.large p := by
+  have hR : g.M.D < g.R := by
+    have := g.R_separates
+    rw [g.Csep_eq] at this
+    nlinarith [g.M.D_pos]
+  have hnt : ∀ q, (g.GS.G.dissect (g.large q)).tiles.Nontrivial := fun q => by
+    rw [g.large_dissect]
+    exact existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_L_nontrivial
+      (g.annular q) g.N_two hR
+  by_cases hα : ∃ q, g.large q = α
+  · obtain ⟨q, rfl⟩ := hα
+    exact g.grouped_disks_distinct _ _ (hnt q) (hnt p) hD.symm
+  · push_neg at hα
+    have h1 := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_nonlarge_sides τ g α hα
+    have h2 := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_large_sides τ g p
+    rw [hD] at h2
+    omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"thus `c` maps grouped forms to large catalogue forms `L_p`": at a positive power the central
+chain form is the large form of the central constituent of the previous step. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_iterate_large
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (l : ℕ) (α : g.GS.G.P'.Form)
+    (hl : 0 < l) :
+    (emcsCentralForm τ g)^[l] α =
+      g.large (emcsCentralTile τ g ((emcsCentralForm τ g)^[l - 1] α)).form := by
+  obtain ⟨m, rfl⟩ : ∃ m, l = m + 1 := ⟨l - 1, by omega⟩
+  rw [Function.iterate_succ_apply']
+  rfl
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a large form `L_p` has exactly `4N` marked sides, the side it shares with each of the `4N` annular
+pieces", stated on side indices for any form equal to `L_p`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mem_marked_eq
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (γ : g.GS.G.P'.Form) (p : P.Form)
+    (hγ : γ = g.large p) (a : Fin (g.GS.G.P'.disk γ).n) :
+    a ∈ emcsMarkedSides τ g γ ↔ ∃ j, (emcsSlotSide τ g p j : ℕ) = a := by
+  subst hγ
+  rw [existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mem_marked_large τ g
+    g.large_injective p a]
+  simp only [Fin.ext_iff]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"for the marked sides `a₁ < ⋯ < aₘ` in index order take distinct pieces `j₁ < ⋯ < jₘ`": a finite set
+of at most `m` indices admits a strictly increasing, hence injective and cyclic-order preserving,
+selection of indices in `Fin m`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mono_select
+    {n m : ℕ} (s : Finset (Fin n)) (hs : s.card ≤ m) (hm : 0 < m) :
+    ∃ ι : Fin n → Fin m, Set.InjOn ι (s : Set (Fin n)) ∧ CyclicOrderPreservingOn s ι := by
+  classical
+  let r : Fin n → ℕ := fun a => (s.filter (· < a)).card
+  have hlt : ∀ a ∈ s, r a < m := by
+    intro a ha
+    have : (s.filter (· < a)).card < s.card :=
+      Finset.card_lt_card ⟨Finset.filter_subset _ _, fun h => by
+        have := h ha
+        simp at this⟩
+    show (s.filter (· < a)).card < m
+    omega
+  have hmono : ∀ a ∈ s, ∀ b ∈ s, a < b → r a < r b := by
+    intro a ha b hb hab
+    apply Finset.card_lt_card
+    refine ⟨fun x hx => ?_, fun h => ?_⟩
+    · simp only [Finset.mem_filter] at hx ⊢
+      exact ⟨hx.1, hx.2.trans hab⟩
+    · have := h (Finset.mem_filter.2 ⟨ha, hab⟩)
+      simp at this
+  let ι : Fin n → Fin m := fun a => ⟨min (r a) (m - 1), by omega⟩
+  have hι : ∀ a ∈ s, (ι a : ℕ) = r a := by
+    intro a ha
+    have := hlt a ha
+    simp only [ι]
+    omega
+  have hsm : ∀ a ∈ s, ∀ b ∈ s, (a : ℕ) < b → (ι a : ℕ) < ι b := by
+    intro a ha b hb hab
+    rw [hι a ha, hι b hb]
+    exact hmono a ha b hb hab
+  refine ⟨ι, fun a ha b hb hab => ?_, fun a ha b hb e he hc => ?_⟩
+  · have hv : (ι a : ℕ) = ι b := by rw [hab]
+    by_contra hne
+    rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with h | h
+    · have := hsm a ha b hb h; omega
+    · have := hsm b hb a ha h; omega
+  · have h1 := hsm a ha b hb
+    have h2 := hsm b hb e he
+    have h3 := hsm e he a ha
+    have h4 := hsm a ha e he
+    have h5 := hsm b hb a ha
+    have h6 := hsm e he b hb
+    unfold CycLt3 at hc ⊢
+    omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"for a large parent `α = c^l β` the print map is the identity (its `4N` marked sides are its own
+contact sides)": on the marked sides of `L_p` the inverse of the contact-slot map is injective,
+preserves cyclic order and recovers each marked side from its slot. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_inverse_select
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (γ : g.GS.G.P'.Form) (p : P.Form)
+    (hγ : γ = g.large p) :
+    ∃ ι : Fin (g.GS.G.P'.disk γ).n → Fin (4 * g.N),
+      Set.InjOn ι (emcsMarkedSides τ g γ : Set _) ∧ CyclicOrderPreservingOn (emcsMarkedSides τ g γ) ι ∧
+      ∀ a ∈ emcsMarkedSides τ g γ, (emcsSlotSide τ g p (ι a) : ℕ) = a := by
+  classical
+  have hmem := existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mem_marked_eq
+    τ g γ p hγ
+  have hinj : Function.Injective (emcsSlotSide τ g p) :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.1 p
+  have hcyc := (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.2.1 p
+  have h0 : 0 < 4 * g.N := by have := g.N_two; omega
+  let ι : Fin (g.GS.G.P'.disk γ).n → Fin (4 * g.N) := fun a =>
+    if h : ∃ j, (emcsSlotSide τ g p j : ℕ) = a then h.choose else ⟨0, h0⟩
+  have hι : ∀ a ∈ emcsMarkedSides τ g γ, (emcsSlotSide τ g p (ι a) : ℕ) = a := by
+    intro a ha
+    have h := (hmem a).1 ha
+    simp only [ι, dif_pos h]
+    exact h.choose_spec
+  clear_value ι
+  refine ⟨ι, fun a ha b hb hab => ?_, fun a ha b hb e he hc => ?_, hι⟩
+  · apply Fin.ext
+    rw [← hι a ha, ← hι b hb, hab]
+  · rw [← hι a ha, ← hι b hb, ← hι e he] at hc
+    have hia : ι a ≠ ι b := fun h => by rw [h] at hc; unfold CycLt3 at hc; omega
+    have hib : ι b ≠ ι e := fun h => by rw [h] at hc; unfold CycLt3 at hc; omega
+    have hic : ι a ≠ ι e := fun h => by rw [h] at hc; unfold CycLt3 at hc; omega
+    by_contra hn
+    have hrev : CycLt3 (ι a) (ι e) (ι b) := by
+      have := Fin.val_ne_of_ne hia
+      have := Fin.val_ne_of_ne hib
+      have := Fin.val_ne_of_ne hic
+      unfold CycLt3 at hn ⊢
+      omega
+    have := hcyc _ _ _ hrev
+    change CycLt3 (emcsSlotSide τ g p (ι a) : ℕ) (emcsSlotSide τ g p (ι e)) (emcsSlotSide τ g p (ι b)) at this
+    unfold CycLt3 at hc this
+    omega
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"take distinct pieces": distinct annular pieces of an annular grouping have distinct face sets (the
+pieces partition the faces of `H \ L`, and each piece is nonempty). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_pieces_distinct
+    {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt} {N : ℕ} {R : ℝ}
+    (G : AnnularGrouping M S c N R) {j j' : Fin (4 * N)}
+    (h : (G.spokes.piece j).faces = (G.spokes.piece j').faces) : j = j' := by
+  obtain ⟨x, hx⟩ := (G.spokes.contact_nondegenerate j).nonempty
+  have hx1 : x ∈ support (G.spokes.piece j).faces := by
+    rw [← (G.spokes.piece j).carrier_eq]
+    exact hx.1
+  simp only [support, Set.mem_iUnion, exists_prop] at hx1
+  obtain ⟨A, hA, -⟩ := hx1
+  have hAS : A ∈ S := (G.spokes.piece j).faces_sub hA
+  have hAH := G.spokes.piece_sub j hA
+  obtain ⟨k, -, hk⟩ := (G.spokes.piece_partition A hAS).1 hAH
+  have e1 := hk j hA
+  have hA' : A ∈ (G.spokes.piece j').faces := h ▸ hA
+  have e2 := hk j' hA'
+  rw [e1, e2]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+positive overlap of two sides is invariant under a common translation. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_overlap_vadd
+    {u : Pt} {s t : Set Pt} (h : OverlapPos (u +ᵥ s) (u +ᵥ t)) : OverlapPos s t := by
+  obtain ⟨x, y, hxy, hseg⟩ := h
+  refine ⟨-u +ᵥ x, -u +ᵥ y, fun h' => hxy (by simpa using h'), fun z hz => ?_⟩
+  have hz' : u +ᵥ z ∈ segment ℝ x y := by
+    have : u +ᵥ z ∈ u +ᵥ segment ℝ (-u +ᵥ x) (-u +ᵥ y) := Set.vadd_mem_vadd_set hz
+    rwa [vadd_segment, vadd_neg_vadd, vadd_neg_vadd] at this
+  obtain ⟨h1, h2⟩ := hseg hz'
+  rw [Set.mem_vadd_set_iff_neg_vadd_mem, neg_vadd_vadd] at h1 h2
+  exact ⟨h1, h2⟩
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"the side it shares with each of the `4N` annular pieces (one per piece; these are whole sides of
+`L_p` by the whole-side property of groups)": the contact slot `j` of `L_p` lies on the boundary of
+the `j`-th annular piece, and by the side-to-side property of the supertile it is a whole listed
+side of every grouped form whose scattering is a translate of that piece. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_whole_contact
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form)
+    (j : Fin (4 * g.N)) (γ : g.GS.G.P'.Form) (u : Pt)
+    (hγ : (g.GS.G.dissect γ).tiles = translateSet u ((g.annular p).spokes.piece j).faces) :
+    ∃ a, (g.GS.G.P'.disk γ).side a =
+      u +ᵥ (g.GS.G.P'.disk (g.large p)).side (emcsSlotSide τ g p j) := by
+  classical
+  set L := (g.annular p).L
+  set Pc := (g.annular p).spokes.piece j
+  set D1 := g.GS.G.P'.disk (g.large p)
+  set D2 := g.GS.G.P'.disk γ
+  set s := D1.side (emcsSlotSide τ g p j) with hs_def
+  obtain ⟨hsub, B, hB, ib, hBs⟩ :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.2.2 p j
+  replace hBs : B.side ib = s := hBs
+  have hD1 : D1.carrier = support L.faces := by
+    rw [← g.GS.G.support_eq, g.large_dissect]
+  have hdisjF : Disjoint L.faces Pc.faces :=
+    Set.disjoint_left.2 fun A hA hA' => ((g.annular p).spokes.piece_sub j hA').2 hA
+  have hint : Disjoint (interior (support L.faces)) (interior (support Pc.faces)) :=
+    emcg_disjoint_interior_support (emcg_supertile_disjoint τ g.k p) L.faces_sub Pc.faces_sub
+      L.finite Pc.finite hdisjF
+  have hsD1 : s ⊆ D1.carrier := by
+    intro x hx
+    have : x ∈ frontier D1.carrier := by
+      rw [D1.frontier_eq]
+      exact Set.mem_iUnion.2 ⟨_, hx⟩
+    exact D1.compact.isClosed.frontier_subset this
+  have hsfr : s ⊆ frontier (support Pc.faces) := by
+    intro x hx
+    refine ⟨subset_closure (hsub hx), fun hxi => ?_⟩
+    have hx1 : x ∈ closure (interior D1.carrier) := by
+      rw [D1.regular_closed]
+      exact hsD1 hx
+    obtain ⟨y, hy1, hy2⟩ := mem_closure_iff.1 hx1 _ isOpen_interior hxi
+    rw [hD1] at hy2
+    exact Set.disjoint_left.mp hint hy2 hy1
+  have hD2 : D2.carrier = u +ᵥ support Pc.faces := by
+    rw [← g.GS.G.support_eq, hγ, emcg_support_translateSet]
+  have hfr2 : u +ᵥ s ⊆ ⋃ a, D2.side a := by
+    intro x hx
+    have hx' : x ∈ frontier D2.carrier := by
+      have hfv : frontier (u +ᵥ support Pc.faces) = u +ᵥ frontier (support Pc.faces) := by
+        have := (Homeomorph.addLeft u).image_frontier (support Pc.faces)
+        rw [← Set.image_vadd, ← Set.image_vadd]
+        exact this.symm
+      rw [hD2, hfv]
+      exact Set.vadd_set_mono hsfr hx
+    rw [D2.frontier_eq] at hx'
+    exact hx'
+  have hK : u +ᵥ s = segment ℝ (u +ᵥ D1.vertex (emcsSlotSide τ g p j))
+      (u +ᵥ D1.vertex (finRotate D1.n (emcsSlotSide τ g p j))) := by
+    rw [hs_def, PolygonalDisk.side, vadd_segment]
+  have hne : D1.vertex (emcsSlotSide τ g p j) ≠ D1.vertex (finRotate D1.n (emcsSlotSide τ g p j)) := by
+    intro he
+    have key : ∀ {n : ℕ} (i : Fin n), 2 ≤ n → finRotate n i ≠ i := by
+      intro n i hn h
+      obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+      rw [finRotate_succ_apply] at h
+      have := congrArg Fin.val h
+      rw [Fin.val_add_one] at this
+      split_ifs at this with hi
+      · subst hi; simp at this; omega
+      · omega
+    exact key _ (by have := D1.three_le; omega) (D1.vertex_injective he).symm
+  have hinf : (u +ᵥ s).Infinite := by
+    rw [hK]
+    apply IsPreconnected.infinite_of_nontrivial (convex_segment _ _).isPreconnected
+    refine ⟨_, left_mem_segment ℝ _ _, _, right_mem_segment ℝ _ _, fun he => hne ?_⟩
+    simpa using he
+  obtain ⟨a, ha⟩ : ∃ a, ((u +ᵥ s) ∩ D2.side a).Infinite := by
+    by_contra hno
+    push_neg at hno
+    refine hinf ((Set.finite_iUnion fun a => hno a).subset ?_)
+    intro x hx
+    obtain ⟨a, ha⟩ := Set.mem_iUnion.1 (hfr2 hx)
+    exact Set.mem_iUnion.2 ⟨a, hx, ha⟩
+  obtain ⟨x, hx, y, hy, hxy⟩ := ha.nontrivial
+  have hov : OverlapPos (D2.side a) (u +ᵥ s) := by
+    refine ⟨x, y, hxy, ?_⟩
+    have hc : Convex ℝ (D2.side a ∩ (u +ᵥ s)) := by
+      rw [hK]
+      exact (convex_segment _ _).inter (convex_segment _ _)
+    exact hc.segment_subset ⟨hx.2, hx.1⟩ ⟨hy.2, hy.1⟩
+  obtain ⟨A', hA', ia, hA'side⟩ := g.GS.G.side_whole γ a
+  rw [hγ] at hA'
+  obtain ⟨A, hA, rfl⟩ := emcg_mem_translateSet.1 hA'
+  rw [← hA'side, emcg_translate_side, ← hBs] at hov
+  have heq : A.side ia = B.side ib :=
+    h g.k p A (Pc.faces_sub hA) B (Pc.faces_sub hB) ia ib
+      (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_overlap_vadd hov)
+  refine ⟨a, ?_⟩
+  rw [← hA'side, emcg_translate_side, heq, hBs]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+transport of the contact slot side along an equality `γ = L_p` of grouped forms. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_side_cast
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (γ : g.GS.G.P'.Form) (p : P.Form)
+    (hγ : γ = g.large p) (j : Fin (4 * g.N)) (i : Fin (g.GS.G.P'.disk γ).n)
+    (hi : (i : ℕ) = emcsSlotSide τ g p j) :
+    (g.GS.G.P'.disk γ).side i = (g.GS.G.P'.disk (g.large p)).side (emcsSlotSide τ g p j) := by
+  subst hγ
+  rw [show i = emcsSlotSide τ g p j from Fin.ext hi]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"a large form `L_p` has exactly `4N` marked sides, the side it shares with each of the `4N` annular
+pieces (one per piece; these are whole sides of `L_p` by the whole-side property of groups)": the
+contact slot `j` of the central child `L_p` is a whole listed side of the retained annular child
+whose scattering is the `j`-th annular piece. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_contact_child
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) (l : ℕ)
+    (α : g.GS.G.P'.Form) (hl : 0 < l) (p : P.Form) (hp : (emcsCentralForm τ g)^[l] α = g.large p)
+    (j : Fin (4 * g.N)) (i : Fin (g.GS.G.mixed.disk (emcsCentralPlaced τ g l α).form).n)
+    (hi : (i : ℕ) = emcsSlotSide τ g p j) (X : PlacedTile g.GS.G.mixed)
+    (hXs : g.GS.G.mixedScatterTile X = ((emcsAnnulus τ h g l α hl).spokes.piece j).faces) :
+    HasEdge X ((emcsCentralPlaced τ g l α).side i) := by
+  obtain ⟨m, rfl⟩ : ∃ m, l = m + 1 := ⟨l - 1, by omega⟩
+  have hp' : (emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α)).form = p := by
+    apply g.large_injective
+    rw [← hp, existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_iterate_large τ g
+      (m + 1) α (Nat.succ_pos m)]
+    rfl
+  have hfaces := emcsAnnulus_canonical τ h g m α j
+  rw [hp'] at hfaces
+  rw [hfaces] at hXs
+  set v := emcsCentralAnchor τ g (m + 1) α
+  have hside : (emcsCentralPlaced τ g (m + 1) α).side i =
+      v +ᵥ (g.GS.G.P'.disk (g.large p)).side (emcsSlotSide τ g p j) := by
+    show v +ᵥ (g.GS.G.P'.disk ((emcsCentralForm τ g)^[m + 1] α)).side i = _
+    rw [existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_side_cast τ g _ p hp j i hi]
+  rw [hside]
+  obtain ⟨xf, w⟩ := X
+  cases xf with
+  | inl γ =>
+    have hd : (g.GS.G.dissect γ).tiles = translateSet (-w + v) ((g.annular p).spokes.piece j).faces := by
+      have hXs' : translateSet w (g.GS.G.dissect γ).tiles =
+          translateSet v ((g.annular p).spokes.piece j).faces := hXs
+      have := congrArg (translateSet (-w)) hXs'
+      rwa [emcg_translateSet_translateSet, emcg_translateSet_translateSet, neg_add_cancel,
+        emcg_translateSet_zero] at this
+    obtain ⟨a, ha⟩ :=
+      existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_whole_contact τ h g p j γ
+        (-w + v) hd
+    refine ⟨a, ?_⟩
+    show w +ᵥ (g.GS.G.P'.disk γ).side a = _
+    rw [ha, vadd_vadd, add_neg_cancel_left]
+  | inr q =>
+    obtain ⟨-, B, hB, ib, hBs⟩ :=
+      (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec.2.2 p j
+    replace hBs : B.side ib = (g.GS.G.P'.disk (g.large p)).side (emcsSlotSide τ g p j) := hBs
+    have hXs' : ({⟨q, w⟩} : Set (PlacedTile P)) = translateSet v ((g.annular p).spokes.piece j).faces := hXs
+    have hmem : B.translate v ∈ ({⟨q, w⟩} : Set (PlacedTile P)) := by
+      rw [hXs']
+      exact Set.mem_image_of_mem _ hB
+    obtain ⟨bq, ba⟩ := B
+    simp only [Set.mem_singleton_iff, PlacedTile.translate, PlacedTile.mk.injEq] at hmem
+    obtain ⟨rfl, rfl⟩ := hmem
+    refine ⟨ib, ?_⟩
+    rw [← hBs]
+    show (v +ᵥ ba) +ᵥ (P.disk bq).side ib = v +ᵥ (ba +ᵥ (P.disk bq).side ib)
+    rw [vadd_vadd]
+    rfl
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints`:
+"the print slots of `α` send its marked sides injectively to contact sides of the central child,
+preserving cyclic order and in planar matching order with the marked sides (both disks are listed
+counterclockwise, and an order-preserving injection between two cyclically ordered boundary families
+is in matching cyclic order in the annulus between them)". -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) (l : ℕ)
+    (α : g.GS.G.P'.Form) (hl : 0 < l)
+    (f : Fin (g.GS.G.P'.disk α).n → Fin (g.GS.G.mixed.disk (emcsCentralPlaced τ g l α).form).n)
+    (hf : Set.InjOn f (emcsMarkedSides τ g α : Set _))
+    (hcyc : CyclicOrderPreservingOn (emcsMarkedSides τ g α) f) :
+    PhysicalPrintOrder (emcsRetained τ h g l α).region (g.GS.G.P'.disk α)
+      (τ.θ ^ (g.GS.k * l)) (emcsCentralPlaced τ g l α) (emcsMarkedSides τ g α) f := by
+  sorry
+
 /-- Step 3 of `lem:certificate-exists`: under injectivity of `g.large` (implied by the disjoint
 centre squares of `existsMacroCertificate_seed1_grouping`), `emcsMarkedSides` marks every side of
 every non-central grouped child and of every singleton group, marks `4N` contact sides on every
@@ -4720,7 +5258,80 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_
         g' a ∈ (emcsRetained τ h g l α).children.tiles ∧
         g' a ≠ emcsCentralPlaced τ g l α ∧
         HasEdge (g' a) ((emcsCentralPlaced τ g l α).side (f a)) := by
-  sorry
+  classical
+  have hspec := (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose_spec
+  have hsmall : ∀ l α (_hl : 0 < l), ∀ X ∈ (emcsRetained τ h g l α).children.tiles,
+      X ≠ emcsCentralPlaced τ g l α → ∀ γ, X.form = Sum.inl γ → (g.GS.G.P'.disk γ).n ≤ g.Qmax :=
+    hspec.2.2.2.2.2.1
+  have hslot := (existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots τ g).choose_spec
+  refine ⟨fun l α hl X hX hne γ hγ => ?_, fun α p hα => ?_, fun β => ?_, fun β => ?_, ?_⟩
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_of_le_Qmax τ g γ
+      (hsmall l α hl X hX hne γ hγ)
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_of_le_Qmax τ g α
+      (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_singleton_sides τ g α p hα)
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_card_large τ g _
+  · obtain ⟨piece, h1, h2, h3⟩ :=
+      existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_contact_large τ g hlarge_inj
+        (emcsCentralTile τ g β).form
+    exact ⟨_, piece, h1, h2, h3⟩
+  intro l α hl
+  set p := (emcsCentralTile τ g ((emcsCentralForm τ g)^[l - 1] α)).form with hp_def
+  have hp : (emcsCentralForm τ g)^[l] α = g.large p :=
+    existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_iterate_large τ g l α hl
+  have h0 : 0 < 4 * g.N := by have := g.N_two; omega
+  -- the piece selection `ι` (strictly increasing, or the inverse slot map for a large parent)
+  obtain ⟨ι, hιinj, hιcyc, hιid⟩ : ∃ ι : Fin (g.GS.G.P'.disk α).n → Fin (4 * g.N),
+      Set.InjOn ι (emcsMarkedSides τ g α : Set _) ∧ CyclicOrderPreservingOn (emcsMarkedSides τ g α) ι ∧
+      (g.GS.G.P'.disk (g.large p) = g.GS.G.P'.disk α →
+        ∀ a ∈ emcsMarkedSides τ g α, (emcsSlotSide τ g p (ι a) : ℕ) = a) := by
+    by_cases hD : g.GS.G.P'.disk (g.large p) = g.GS.G.P'.disk α
+    · obtain ⟨ι, h1, h2, h3⟩ :=
+        existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_inverse_select τ g α p
+          (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_large_disk_eq τ g p α hD)
+      exact ⟨ι, h1, h2, fun _ => h3⟩
+    · obtain ⟨ι, h1, h2⟩ :=
+        existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mono_select
+          (emcsMarkedSides τ g α)
+          (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_marked_card_le τ g α) h0
+      exact ⟨ι, h1, h2, fun h' => absurd h' hD⟩
+  -- the retained annular child carrying each piece
+  choose X hXmem hXne hXsc using (existsMacroCertificate_seed2_routing_step1_setup_sub3_annulus τ h g).2.2.2.1 l α hl
+  have hcast : (g.GS.G.P'.disk (g.large p)).n = (g.GS.G.P'.disk ((emcsCentralForm τ g)^[l] α)).n := by
+    rw [hp]
+  let f : Fin (g.GS.G.P'.disk α).n → Fin (g.GS.G.mixed.disk (emcsCentralPlaced τ g l α).form).n :=
+    fun a => Fin.cast hcast (emcsSlotSide τ g p (ι a))
+  have hfv : ∀ a, (f a : ℕ) = emcsSlotSide τ g p (ι a) := fun a => rfl
+  have hfinj : Set.InjOn f (emcsMarkedSides τ g α : Set _) := by
+    intro a ha b hb hab
+    have hv : (emcsSlotSide τ g p (ι a) : ℕ) = emcsSlotSide τ g p (ι b) := by
+      rw [← hfv, ← hfv, hab]
+    exact hιinj ha hb (hslot.1 p (Fin.ext hv))
+  have hfcyc : CyclicOrderPreservingOn (emcsMarkedSides τ g α) f := by
+    intro a ha b hb e he hc
+    rw [hfv, hfv, hfv]
+    exact hslot.2.1 p _ _ _ (hιcyc a ha b hb e he hc)
+  refine ⟨f, fun a => X (ι a), ι, hfinj, ?_, hfcyc, hιinj, hιcyc, fun a _ => hXsc (ι a), ?_,
+    existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_physical_order τ h g l α hl f
+      hfinj hfcyc, ?_, ?_⟩
+  · intro a ha b hb hab
+    have hs := (hXsc (ι a)).symm.trans ((congrArg g.GS.G.mixedScatterTile hab).trans (hXsc (ι b)))
+    exact hιinj ha hb
+      (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_pieces_distinct _ hs)
+  · intro a _
+    simp only [Finset.mem_map, Fin.valEmbedding_apply]
+    refine ⟨f a, ?_, rfl⟩
+    exact (existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_mem_marked_eq τ g _ p hp
+      (f a)).2 ⟨ι a, rfl⟩
+  · intro hD a ha
+    have hD' : g.GS.G.P'.disk (g.large p) = g.GS.G.P'.disk α := by
+      rw [← hp]
+      exact hD
+    rw [hfv]
+    exact hιid hD' a ha
+  · intro a _
+    exact ⟨hXmem (ι a), hXne (ι a),
+      existsMacroCertificate_seed2_routing_step1_setup_sub6_marking_and_prints_step3_contact_child τ h g l α hl p hp
+        (ι a) (f a) (hfv a) (X (ι a)) (hXsc (ι a))⟩
 
 /-- Step 3 of `lem:certificate-exists`: "Scattering a group and applying the grouped substitution
 to each constituent defines `σ`"; the central child of a template is the inside-anchored group

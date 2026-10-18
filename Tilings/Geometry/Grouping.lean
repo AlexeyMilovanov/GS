@@ -5410,6 +5410,289 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_an
         D.edgeTypes (D.edge o) = ((D.partner o).1, o.1)) := by
   sorry
 
+private lemma
+    emcd_outer_step2_child_side
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ t i, ∃ j, D.occSide ⟨t, i⟩ = (emcdTemplateChild g s l t).side j := by
+  classical
+  dsimp only
+  rintro ⟨α, ⟨⟨β | p, v⟩, hX⟩⟩ i
+  · exact ⟨i, rfl⟩
+  · obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, hbase_original, _⟩ :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue τ h g s l hl routing
+    have hdis :
+        (s.setup.GS.G.dissect (emcdBaseForm g s l (emcdChildForm g s l
+          ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩))).tiles = {⟨p, 0⟩} := by
+      simpa [emcdChildForm, emcdOriginalForm] using hbase_original p
+    obtain ⟨A, hA, j, hj⟩ :=
+      s.setup.GS.G.side_whole (emcdBaseForm g s l (emcdChildForm g s l
+        ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩)) i
+    rw [hdis, Set.mem_singleton_iff] at hA
+    subst A
+    refine ⟨j, ?_⟩
+    have hsides :
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdChildForm g s l
+          ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩))).side i = (P.disk p).side j := by
+      simpa [PlacedTile.side] using hj.symm
+    change v +ᵥ
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdChildForm g s l
+          ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩))).side i = v +ᵥ (P.disk p).side j
+    exact Set.vadd_set_mono hsides.subset |>.antisymm
+      (Set.vadd_set_mono hsides.symm.subset)
+
+private lemma
+    emcd_outer_step2_region
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α, D.macroRegion α =
+      (s.setup.retained l (emcdBaseForm g s l α)).region := by
+  dsimp only
+  intro α
+  have htheta :=
+    (existsMacroCertificate_seed2_routing_step3_data_sub4_representation
+      τ h g s l hl routing).θ_eq
+  have hk : s.setup.GS.k = g.k := by
+    calc
+      s.setup.GS.k = g.GS.k := congrArg GroupedSubstitution.k s.setup_grouped
+      _ = g.k := g.grouped_power
+  rw [s.setup.region_eq]
+  unfold MacroData.macroRegion
+  rw [htheta, ← hk]
+  rfl
+
+private lemma
+    emcd_outer_step2_side_injective
+    (B : PolygonalDisk) : Function.Injective B.side := by
+  intro i j hij
+  apply cyc_seg_inj B.three_le B.vertex_injective
+  simpa only [PolygonalDisk.side] using hij
+
+private lemma
+    emcd_outer_step2_occ_injective
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ {o o' : D.SideOcc}, D.owner o.1 = D.owner o'.1 → D.IsOuter o →
+      D.IsOuter o' → D.occSide o = D.occSide o' → o = o' := by
+  classical
+  dsimp only
+  let D := emcdMacroData τ h g s l hl routing
+  change ∀ {o o' : D.SideOcc}, D.owner o.1 = D.owner o'.1 → D.IsOuter o →
+    D.IsOuter o' → D.occSide o = D.occSide o' → o = o'
+  rintro ⟨⟨α, X⟩, i⟩ ⟨⟨β, Y⟩, i'⟩ howner hout hout' heq
+  change α = β at howner
+  subst β
+  obtain ⟨j, hj⟩ :=
+    emcd_outer_step2_child_side
+      τ h g s l hl routing ⟨α, X⟩ i
+  obtain ⟨k, hk⟩ :=
+    emcd_outer_step2_child_side
+      τ h g s l hl routing ⟨α, Y⟩ i'
+  have hside : X.1.side j = Y.1.side k := hj.symm.trans (heq.trans hk)
+  by_cases hXY : X.1 = Y.1
+  · have hXY' : X = Y := Subtype.ext hXY
+    subst Y
+    have hii : i = i' := by
+      apply
+      emcd_outer_step2_side_injective
+      apply Set.Subset.antisymm
+      · apply (Set.vadd_set_subset_vadd_set_iff
+          (a := D.anchor ⟨α, X⟩)).1
+        change D.occSide ⟨⟨α, X⟩, i⟩ ⊆ D.occSide ⟨⟨α, X⟩, i'⟩
+        exact heq.subset
+      · apply (Set.vadd_set_subset_vadd_set_iff
+          (a := D.anchor ⟨α, X⟩)).1
+        change D.occSide ⟨⟨α, X⟩, i'⟩ ⊆ D.occSide ⟨⟨α, X⟩, i⟩
+        exact heq.symm.subset
+    subst i'
+    rfl
+  · let T := s.setup.retained l (emcdBaseForm g s l α)
+    have hXmem : X.1 ∈ T.children.tiles := X.2
+    have hYmem : Y.1 ∈ T.children.tiles := Y.2
+    let q := midpoint ℝ (X.1.vertex j) (X.1.vertex (finRotate _ j))
+    have hqopen : q ∈ openSegment ℝ (X.1.vertex j)
+        (X.1.vertex (finRotate _ j)) := by
+      apply mem_openSegment_of_ne_left_right
+      · intro hq
+        exact tile_vertex_ne_next X.1 j (by
+          dsimp [q] at hq
+          rw [eq_comm, midpoint_eq_left_iff] at hq
+          exact hq)
+      · intro hq
+        exact tile_vertex_ne_next X.1 j (by
+          dsimp [q] at hq
+          rw [eq_comm, midpoint_eq_right_iff] at hq
+          exact hq)
+      · exact midpoint_mem_segment _ _
+    obtain ⟨r, hr, σ, _, hlocal⟩ :=
+      two_sides T.children.disjoint hXmem hYmem hXY j k hside.symm hqopen
+    have hqint : q ∈ interior (support T.children.tiles) := by
+      rw [mem_interior_iff_mem_nhds]
+      apply Filter.mem_of_superset (Metric.ball_mem_nhds q hr)
+      intro x hx
+      by_cases hnonneg : 0 ≤ σ * jcr (X.1.vertex (finRotate _ j) - X.1.vertex j)
+          (x - X.1.vertex j)
+      · exact carrier_subset_support hXmem ((hlocal x hx).2.2 hnonneg)
+      · exact carrier_subset_support hYmem
+          (interior_subset ((hlocal x hx).2.1 (lt_of_not_ge hnonneg)))
+    have hqfront : q ∈ D.macroBoundary α := by
+      apply hout
+      rw [hj, tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hqopen
+    unfold MacroData.macroBoundary at hqfront
+    rw [emcd_outer_step2_region
+      τ h g s l hl routing] at hqfront
+    rw [T.support_eq] at hqint
+    exact False.elim (hqfront.2 hqint)
+
+private lemma
+    emcd_outer_step2_mid_mem
+    (D : MacroData P) (o : D.SideOcc) : D.occMid o ∈ D.occSide o := by
+  rw [MacroData.occSide, tile_side_eq]
+  exact midpoint_mem_segment _ _
+
+private lemma
+    emcd_outer_step2_parallel
+    (D : MacroData P) (α : D.Q.Form) (d : Fin (D.Q.disk α).n) {x y : Pt}
+    (hx : x ∈ D.macroSide α d) (hy : y ∈ D.macroSide α d) :
+    ∃ r : ℝ, y - x = r • D.macroSideDir α d := by
+  classical
+  let p := D.σ.θ • (D.Q.disk α).vertex d
+  let q := D.σ.θ • (D.Q.disk α).vertex (finRotate _ d)
+  have hside : D.macroSide α d = segment ℝ p q := by
+    simp only [MacroData.macroSide, PolygonalDisk.side, emcg_smul_segment, p, q]
+  rw [hside] at hx hy
+  obtain ⟨a, _, _, ha⟩ := mem_segment_iff'.mp hx
+  obtain ⟨b, _, _, hb⟩ := mem_segment_iff'.mp hy
+  unfold MacroData.macroSideDir MacroData.posDir
+  change ∃ r : ℝ, y - x = r • (if D.IsPositive (q - p) then q - p else p - q)
+  by_cases hpos : D.IsPositive (q - p)
+  · refine ⟨b - a, ?_⟩
+    rw [if_pos hpos, ha, hb]
+    module
+  · refine ⟨a - b, ?_⟩
+    rw [if_neg hpos, ha, hb]
+    module
+
+private lemma
+    emcd_outer_step2_dir_pos
+    (D : MacroData P) (hpositive : D.IsPositive = LexPositive) :
+    ∀ α d, LexPositive (D.macroSideDir α d) := by
+  classical
+  intro α d
+  let v := D.σ.θ • (D.Q.disk α).vertex (finRotate _ d) -
+    D.σ.θ • (D.Q.disk α).vertex d
+  have hv : v ≠ 0 := by
+    dsimp only [v]
+    rw [← smul_sub]
+    apply smul_ne_zero (ne_of_gt (zero_lt_one.trans D.σ.one_lt))
+    apply sub_ne_zero.mpr
+    intro heq
+    exact emcg_finRotate_ne
+      (le_trans (by decide : 2 ≤ 3) (D.Q.disk α).three_le) d
+      ((D.Q.disk α).vertex_injective heq)
+  unfold MacroData.macroSideDir MacroData.posDir
+  rw [hpositive]
+  change LexPositive (if LexPositive v then v else
+    D.σ.θ • (D.Q.disk α).vertex d -
+      D.σ.θ • (D.Q.disk α).vertex (finRotate _ d))
+  by_cases hpos : LexPositive v
+  · simp [hpos]
+  · rw [if_neg hpos]
+    have hneg :
+        D.σ.θ • (D.Q.disk α).vertex d -
+          D.σ.θ • (D.Q.disk α).vertex (finRotate _ d) = -v := by
+      dsimp only [v]
+      module
+    rw [hneg]
+    exact
+      (existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_lex_neg hv).resolve_left
+        hpos
+
+private lemma
+    emcd_outer_step2_lex_smul
+    {v : Pt} (hv : LexPositive v) {r : ℝ} (hr : LexPositive (r • v)) : 0 < r := by
+  rcases hv with hv | ⟨hv0, hv1⟩
+  · rcases hr with hr | ⟨hr0, hr1⟩
+    · simp only [PiLp.smul_apply, smul_eq_mul] at hr
+      nlinarith
+    · simp only [PiLp.smul_apply, smul_eq_mul] at hr0 hr1
+      have : r = 0 := (mul_eq_zero.mp hr0).resolve_right hv.ne'
+      subst r
+      simp at hr1
+  · rcases hr with hr | ⟨_, hr1⟩
+    · simp only [PiLp.smul_apply, smul_eq_mul, hv0, mul_zero] at hr
+      exact (lt_irrefl 0 hr).elim
+    · simp only [PiLp.smul_apply, smul_eq_mul] at hr1
+      nlinarith
+
+private lemma
+    emcd_outer_step2_mid_ne
+    (D : MacroData P) {o o' : D.SideOcc}
+    (hrel : ∀ x ∈ D.occSide o, ∀ y ∈ D.occSide o',
+      x = y ∨ LexPositive (y - x)) : D.occMid o ≠ D.occMid o' := by
+  let a := D.occStart o
+  let b := D.occEnd o
+  have hab : a ≠ b := tile_vertex_ne_next (D.childTile o.1) o.2
+  have ha : a ∈ D.occSide o := by
+    rw [MacroData.occSide, tile_side_eq]
+    exact left_mem_segment ℝ _ _
+  have hb : b ∈ D.occSide o := by
+    rw [MacroData.occSide, tile_side_eq]
+    exact right_mem_segment ℝ _ _
+  have hm :=
+    emcd_outer_step2_mid_mem
+      D o'
+  intro heq
+  have ham : a ≠ D.occMid o' := by
+    intro haeq
+    apply hab
+    rw [← heq, MacroData.occMid] at haeq
+    exact (midpoint_eq_left_iff ℝ).mp haeq.symm
+  have hbm : b ≠ D.occMid o' := by
+    intro hbeq
+    apply hab
+    rw [← heq, MacroData.occMid] at hbeq
+    exact (midpoint_eq_right_iff ℝ).mp hbeq.symm
+  have hlexa := (hrel a ha (D.occMid o') hm).resolve_left ham
+  have hlexb := (hrel b hb (D.occMid o') hm).resolve_left hbm
+  have hneg : D.occMid o' - b = -(D.occMid o' - a) := by
+    rw [← heq]
+    change midpoint ℝ a b - b = -(midpoint ℝ a b - a)
+    rw [midpoint_eq_smul_add, invOf_eq_inv]
+    module
+  rw [hneg] at hlexb
+  simp only [LexPositive, PiLp.neg_apply] at hlexa hlexb
+  rcases hlexa with h0 | ⟨h0, h1⟩ <;>
+    rcases hlexb with h0' | ⟨h0', h1'⟩ <;> simp_all <;> linarith
+
+private lemma
+    emcd_outer_step2_pairwise
+    {A : Type*} {R : A → A → Prop} {L : List A} (hp : L.Pairwise R)
+    {a b : A} (ha : a ∈ L) (hb : b ∈ L) (hne : a ≠ b) : R a b ∨ R b a := by
+  induction L with
+  | nil => simp at ha
+  | cons x L ih =>
+      rw [List.pairwise_cons] at hp
+      simp only [List.mem_cons] at ha hb
+      rcases ha with rfl | ha <;> rcases hb with rfl | hb
+      · exact (hne rfl).elim
+      · exact Or.inl (hp.1 _ hb)
+      · exact Or.inr (hp.1 _ ha)
+      · exact ih hp.2 ha hb
+
 /-- Step 2 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: the global
 orientation `LexPositive` and the sorted outer-side lists `outerList`. -/
@@ -5426,7 +5709,164 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_an
     (∀ α d, (D.outerList α d).Nodup) ∧
     (∀ α d, (D.outerList α d).Pairwise fun o o' =>
       ∃ r : ℝ, 0 < r ∧ D.occMid o' - D.occMid o = r • D.macroSideDir α d) := by
-  sorry
+  classical
+  dsimp only
+  refine ⟨rfl, ?_, ?_, ?_⟩
+  · intro α d o
+    change o ∈ emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d ↔
+      (emcdGeometryData τ h g s l hl routing).owner o.1 = α ∧
+        (emcdGeometryData τ h g s l hl routing).IsOuter o ∧
+        (emcdGeometryData τ h g s l hl routing).occSide o ⊆
+          (emcdGeometryData τ h g s l hl routing).macroSide α d
+    simp [emcdGeometricOuterList]
+  · intro α d
+    change (emcdGeometricOuterList
+      (emcdGeometryData τ h g s l hl routing) α d).Nodup
+    rw [emcdGeometricOuterList, List.nodup_mergeSort]
+    exact Finset.nodup_toList _
+  · intro α d
+    let B := emcdGeometryData τ h g s l hl routing
+    let outer := Finset.univ.filter fun o : B.SideOcc =>
+      B.owner o.1 = α ∧ B.IsOuter o ∧ B.occSide o ⊆ B.macroSide α d
+    let coordinate := fun o : B.SideOcc =>
+      (B.occMid o) 0 * (B.macroSideDir α d) 0 +
+        (B.occMid o) 1 * (B.macroSideDir α d) 1
+    letI : IsTrans B.SideOcc
+        (fun o o' => coordinate o ≤ coordinate o') :=
+      ⟨fun _ _ _ h₁ h₂ => h₁.trans h₂⟩
+    letI : Std.Total (fun o o' : B.SideOcc => coordinate o ≤ coordinate o') :=
+      ⟨fun o o' => le_total (coordinate o) (coordinate o')⟩
+    change (outer.toList.mergeSort fun o o' => decide (coordinate o ≤ coordinate o')).Pairwise
+      fun o o' => ∃ r : ℝ, 0 < r ∧
+        B.occMid o' - B.occMid o = r • B.macroSideDir α d
+    have hsorted :
+        (outer.toList.mergeSort fun o o' => decide (coordinate o ≤ coordinate o')).Pairwise
+          (fun o o' => coordinate o ≤ coordinate o') := by
+      exact List.pairwise_mergeSort' (fun o o' => coordinate o ≤ coordinate o') _
+    have hnodup :
+        (outer.toList.mergeSort fun o o' => decide (coordinate o ≤ coordinate o')).Nodup := by
+      rw [List.nodup_mergeSort]
+      exact Finset.nodup_toList _
+    let base := emcdBaseForm g s l α
+    let T := s.setup.retained l base
+    obtain ⟨L, hLmem, _, hLpair, _⟩ :=
+      (routing base).port_quantile (emcdParentSide g s l α d)
+    have hregion : B.macroRegion α = T.region := by
+      exact
+        emcd_outer_step2_region
+          τ h g s l hl routing α
+    have htheta :=
+      (existsMacroCertificate_seed2_routing_step3_data_sub4_representation
+        τ h g s l hl routing).θ_eq
+    change B.σ.θ = τ.θ ^ (g.k * l) at htheta
+    have hpower : s.setup.GS.k = g.k := by
+      calc
+        s.setup.GS.k = g.GS.k := congrArg GroupedSubstitution.k s.setup_grouped
+        _ = g.k := g.grouped_power
+    have hmacro : B.macroSide α d =
+        (τ.θ ^ (s.setup.GS.k * l)) •
+          (s.setup.GS.G.P'.disk base).side (emcdParentSide g s l α d) := by
+      unfold MacroData.macroSide
+      rw [htheta, ← hpower]
+      rfl
+    have hdir : LexPositive (B.macroSideDir α d) := by
+      exact
+        emcd_outer_step2_dir_pos
+          B rfl α d
+    apply List.Pairwise.imp_of_mem _ (List.pairwise_and_iff.mpr ⟨hsorted, hnodup⟩)
+    intro o o' ho ho' hle
+    have homem : B.owner o.1 = α ∧ B.IsOuter o ∧
+        B.occSide o ⊆ B.macroSide α d := by
+      have hm := (List.mergeSort_perm outer.toList _).mem_iff.mp ho
+      simpa [outer] using hm
+    have ho'mem : B.owner o'.1 = α ∧ B.IsOuter o' ∧
+        B.occSide o' ⊆ B.macroSide α d := by
+      have hm := (List.mergeSort_perm outer.toList _).mem_iff.mp ho'
+      simpa [outer] using hm
+    have htemplate : ∀ {z : B.SideOcc}, B.owner z.1 = α → B.IsOuter z →
+        T.IsOuter (B.occSide z) := by
+      rintro ⟨⟨β, X⟩, i⟩ hzowner hzouter
+      change β = α at hzowner
+      subst β
+      obtain ⟨j, hj⟩ :=
+        emcd_outer_step2_child_side
+          τ h g s l hl routing ⟨α, X⟩ i
+      constructor
+      · exact ⟨emcdTemplateChild g s l ⟨α, X⟩, X.2, j, hj.symm⟩
+      · change B.occSide ⟨⟨α, X⟩, i⟩ ⊆ frontier T.region
+        rw [← hregion]
+        exact hzouter
+    have hoL : B.occSide o ∈ L := (hLmem _).2 ⟨htemplate homem.1 homem.2.1, by
+      rw [← hmacro]
+      exact homem.2.2⟩
+    have ho'L : B.occSide o' ∈ L := (hLmem _).2
+      ⟨htemplate ho'mem.1 ho'mem.2.1, by rw [← hmacro]; exact ho'mem.2.2⟩
+    have hsides : B.occSide o ≠ B.occSide o' := by
+      intro hs
+      apply hle.2
+      exact
+        emcd_outer_step2_occ_injective
+          τ h g s l hl routing (o := o) (o' := o')
+            (homem.1.trans ho'mem.1.symm) homem.2.1 ho'mem.2.1 hs
+    have horient :=
+      emcd_outer_step2_pairwise
+        hLpair hoL ho'L hsides
+    have hmid :=
+      emcd_outer_step2_mid_mem
+        B
+    obtain ⟨r, hr⟩ :=
+      emcd_outer_step2_parallel
+        B α d (homem.2.2 (hmid o)) (ho'mem.2.2 (hmid o'))
+    rcases horient with horient | horient
+    · have hmn :=
+        emcd_outer_step2_mid_ne
+          B horient
+      have hlex := (horient (B.occMid o) (hmid o) (B.occMid o') (hmid o')).resolve_left hmn
+      rw [hr] at hlex
+      exact ⟨r,
+        emcd_outer_step2_lex_smul
+          hdir hlex, hr⟩
+    · have hmn :=
+        emcd_outer_step2_mid_ne
+          B horient
+      have hlex := (horient (B.occMid o') (hmid o') (B.occMid o) (hmid o)).resolve_left hmn
+      have hneg : B.occMid o - B.occMid o' = (-r) • B.macroSideDir α d := by
+        rw [← neg_sub, hr]
+        module
+      rw [hneg] at hlex
+      have hrneg :=
+        emcd_outer_step2_lex_smul
+          hdir hlex
+      have hr0 := congrArg (fun z : Pt => z 0) hr
+      have hr1 := congrArg (fun z : Pt => z 1) hr
+      simp only [PiLp.sub_apply, PiLp.smul_apply, smul_eq_mul] at hr0 hr1
+      dsimp only [coordinate] at hle
+      have hnorm : 0 < (B.macroSideDir α d 0) ^ 2 +
+          (B.macroSideDir α d 1) ^ 2 := by
+        rcases hdir with hdir | ⟨hdir0, hdir1⟩
+        · nlinarith [sq_nonneg (B.macroSideDir α d 1)]
+        · nlinarith [sq_nonneg (B.macroSideDir α d 0)]
+      have hcoord :
+          ((B.occMid o') 0 * (B.macroSideDir α d) 0 +
+              (B.occMid o') 1 * (B.macroSideDir α d) 1) -
+            ((B.occMid o) 0 * (B.macroSideDir α d) 0 +
+              (B.occMid o) 1 * (B.macroSideDir α d) 1) =
+            r * ((B.macroSideDir α d 0) ^ 2 +
+              (B.macroSideDir α d 1) ^ 2) := by
+        calc
+          _ = ((B.occMid o') 0 - (B.occMid o) 0) *
+                (B.macroSideDir α d) 0 +
+              ((B.occMid o') 1 - (B.occMid o) 1) *
+                (B.macroSideDir α d) 1 := by ring
+          _ = (r * (B.macroSideDir α d) 0) *
+                (B.macroSideDir α d) 0 +
+              (r * (B.macroSideDir α d) 1) *
+                (B.macroSideDir α d) 1 := by rw [hr0, hr1]
+          _ = _ := by ring
+      have hprod : r * ((B.macroSideDir α d 0) ^ 2 +
+          (B.macroSideDir α d 1) ^ 2) < 0 :=
+        mul_neg_of_neg_of_pos (by linarith) hnorm
+      linarith [hle.1, hcoord, hprod]
 
 /-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer`: constants N and Qmax. -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step3_constants

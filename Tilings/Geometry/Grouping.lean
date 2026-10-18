@@ -6801,6 +6801,39 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step8_f
   change (if hi : D.IsGenuinePath α d (4 : Fin 5) then _ else _) = _
   exact dif_neg h_not_genuine
 
+private lemma emcd_paths_step9_expanded_mem
+    {A : Type*} {xs : List A} {x : A}
+    (h : x ∈ (xs.zip xs.tail).flatMap fun p => [p.1, p.2]) : x ∈ xs := by
+  simp only [List.mem_flatMap] at h
+  obtain ⟨p, hp, hx⟩ := h
+  obtain ⟨k, hk⟩ := List.mem_iff_getElem?.mp hp
+  rw [List.getElem?_zip_eq_some] at hk
+  simp only [List.mem_cons] at hx
+  rcases hx with rfl | hx
+  · exact List.mem_iff_getElem?.2 ⟨k, hk.1⟩
+  · rcases hx with rfl | hx
+    · exact List.mem_of_mem_tail (List.mem_iff_getElem?.2 ⟨k, hk.2⟩)
+    · contradiction
+
+private lemma emcd_paths_step9_expanded_positive_mem_tail
+    {A : Type*} (xs : List A) (n : ℕ) (x : A)
+    (h : ((xs.zip xs.tail).flatMap fun p => [p.1, p.2])[n + 1]? = some x) :
+    x ∈ xs.tail := by
+  have htail : x ∈ ((xs.zip xs.tail).flatMap fun p => [p.1, p.2]).tail := by
+    rw [List.mem_iff_getElem?]
+    exact ⟨n, by simpa only [List.getElem?_tail] using h⟩
+  cases xs with
+  | nil => simp at h
+  | cons a xs =>
+      cases xs with
+      | nil => simp at h
+      | cons b ys =>
+          simp only [List.tail_cons]
+          change x ∈ b :: (((b :: ys).zip (b :: ys).tail).flatMap fun p => [p.1, p.2]) at htail
+          rcases List.mem_cons.mp htail with rfl | hrest
+          · exact List.mem_cons_self
+          · exact emcd_paths_step9_expanded_mem hrest
+
 /-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: inner -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step9_inner
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -6811,7 +6844,91 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step9_i
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d i, D.IsGenuinePath α d i →
       ∀ (n : ℕ) (o : D.SideOcc), (D.path α d i)[n + 1]? = some o → D.IsInner o) := by
-  sorry
+  classical
+  intro D α d i hgen n o ho
+  let β := emcdBaseForm g s l α
+  let a := emcdParentSide g s l α d
+  let j : Fin 4 := ⟨i.val, hgen.2⟩
+  let tiles := (routing β).pathTiles a j
+  let sides := (routing β).pathSides a j
+  have ha : a ∈ s.setup.markedSides β := hgen.1
+  have hpath : D.path α d i =
+      emcdLiftPath D (emcdTemplateChild g s l) α tiles sides := by
+    have hpath' : D.path α d i =
+        if hi : D.IsGenuinePath α d i then
+          emcdLiftPath D (emcdTemplateChild g s l) α
+            ((routing (emcdBaseForm g s l α)).pathTiles
+              (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+            ((routing (emcdBaseForm g s l α)).pathSides
+              (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+        else (D.port α d i).toList := rfl
+    rw [hpath', dif_pos hgen]
+  have hmap : (D.path α d i).map D.occSide =
+      (sides.zip sides.tail).flatMap fun p => [p.1, p.2] := by
+    rw [hpath]
+    unfold emcdLiftPath
+    rw [List.map_flatMap]
+    have hentry : ∀ entry ∈ tiles.zip (sides.zip sides.tail),
+        (emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1 entry.2.1 ++
+          emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1 entry.2.2).map D.occSide =
+            [entry.2.1, entry.2.2] := by
+      intro entry he
+      obtain ⟨k, hk⟩ := List.mem_iff_getElem?.mp he
+      rw [List.getElem?_zip_eq_some] at hk
+      obtain ⟨hktile, hksides⟩ := hk
+      rw [List.getElem?_zip_eq_some] at hksides
+      have hside2 : sides[k + 1]? = some entry.2.2 := by
+        simpa only [List.getElem?_tail] using hksides.2
+      obtain ⟨hmem, hedge1, hedge2⟩ :=
+        (routing β).path_step a ha j k entry.1 entry.2.1 entry.2.2
+          hktile hksides.1 hside2
+      obtain ⟨u, hu, -, -, huside⟩ :=
+        emcd_paths_step4_lift_occurrence τ h g s l hl routing α entry.1 hmem entry.2.1 hedge1
+      obtain ⟨v, hv, -, -, hvside⟩ :=
+        emcd_paths_step4_lift_occurrence τ h g s l hl routing α entry.1 hmem entry.2.2 hedge2
+      rw [hu, hv]
+      change [D.occSide u, D.occSide v] = [entry.2.1, entry.2.2]
+      rw [huside, hvside]
+    rw [List.flatMap_congr hentry]
+    have hlen : tiles.length = (sides.zip sides.tail).length := by
+      have := (routing β).path_length a ha j
+      change tiles.length + 1 = sides.length at this
+      simp only [List.length_zip, List.length_tail]
+      omega
+    calc
+      _ = ((tiles.zip (sides.zip sides.tail)).map Prod.snd).flatMap
+          (fun p => [p.1, p.2]) := by rw [List.flatMap_map]
+      _ = _ := by rw [List.map_snd_zip hlen.ge]
+  have hside_index :
+      ((D.path α d i).map D.occSide)[n + 1]? = some (D.occSide o) := by
+    simpa only [List.getElem?_map] using congrArg (Option.map D.occSide) ho
+  rw [hmap] at hside_index
+  have hside_tail : D.occSide o ∈ sides.tail :=
+    emcd_paths_step9_expanded_positive_mem_tail sides n (D.occSide o) hside_index
+  have htemplate_inner :
+      (s.setup.retained l β).IsInner (D.occSide o) :=
+    (routing β).path_inner a ha j (D.occSide o) hside_tail
+  have homem : o ∈ D.path α d i :=
+    List.mem_iff_getElem?.2 ⟨n + 1, ho⟩
+  have howner : D.owner o.1 = α :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner
+      τ h g s l hl routing α d i o homem
+  obtain ⟨A, hA, B, hB, hAB, hAe, hBe⟩ := htemplate_inner
+  let X := emcdTemplateChild g s l o.1
+  obtain ⟨Y, hY, hYX, hYe⟩ : ∃ Y ∈ (s.setup.retained l β).children.tiles,
+      Y ≠ X ∧ HasEdge Y (D.occSide o) := by
+    by_cases hXA : X = A
+    · exact ⟨B, hB, fun hBX => hAB (hXA.symm.trans hBX.symm), hBe⟩
+    · exact ⟨A, hA, fun hAX => hXA hAX.symm, hAe⟩
+  obtain ⟨o', -, ho'owner, ho'child, ho'side⟩ :=
+    emcd_paths_step4_lift_occurrence τ h g s l hl routing α Y hY (D.occSide o) hYe
+  have hne : o'.1 ≠ o.1 := by
+    intro heq
+    apply hYX
+    rw [← ho'child]
+    exact congrArg (emcdTemplateChild g s l) heq
+  exact (emcd_paths_step4_other_is_partner τ h g s l hl routing o o'
+    (ho'owner.trans howner.symm) hne ho'side).1
 
 /-- Step 10 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: marked -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked

@@ -8601,6 +8601,171 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_f
   rw [hdec]
   exact hzip xs hlen hchain
 
+private lemma emcd_paths_step3_getLast_flatMap
+    {A B : Type} (f : A → List B) (xs : List A) (a : A)
+    (hxs : xs.getLast? = some a) (ha : f a ≠ []) :
+    (xs.flatMap f).getLast? = (f a).getLast? := by
+  induction xs with
+  | nil => simp at hxs
+  | cons b bs ih =>
+      cases bs with
+      | nil =>
+          simp only [List.getLast?_singleton, Option.some.injEq] at hxs
+          subst a
+          simp
+      | cons c cs =>
+          have htail : (c :: cs).getLast? = some a := by
+            simpa only [List.getLast?_cons_cons] using hxs
+          have hflat_ne : ((c :: cs).flatMap f) ≠ [] := by
+            intro hempty
+            have heq := ih htail
+            rw [hempty] at heq
+            cases hfa : f a with
+            | nil => exact ha hfa
+            | cons z zs =>
+                have hsome : (z :: zs).getLast? ≠ none := by
+                  cases zs <;> simp
+                rw [hfa] at heq
+                exact hsome heq.symm
+          rw [List.flatMap_cons, List.getLast?_append_of_ne_nil _ hflat_ne]
+          exact ih htail
+
+private lemma emcd_paths_step3_occ_eq_of_type_eq
+    (D : MacroData P) (o o' : D.SideOcc) (ht : o.1 = o'.1)
+    (hs : D.occSide o = D.occSide o') : o = o' := by
+  cases o with
+  | mk t i =>
+      cases o' with
+      | mk t' i' =>
+          simp only at ht
+          subst t'
+          have hii : i = i' := by
+            apply emcd_outer_step2_side_injective
+            apply Set.Subset.antisymm
+            · apply (Set.vadd_set_subset_vadd_set_iff (a := D.anchor t)).1
+              exact hs.subset
+            · apply (Set.vadd_set_subset_vadd_set_iff (a := D.anchor t)).1
+              exact hs.symm.subset
+          subst i'
+          rfl
+
+private lemma emcd_paths_step3_other_is_partner
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ o o' : D.SideOcc, D.IsInner o → D.owner o'.1 = D.owner o.1 → o'.1 ≠ o.1 →
+      D.occSide o' = D.occSide o → o' = D.partner o := by
+  intro D o o' hinner howner hne hside
+  classical
+  have hspec :=
+    (existsMacroCertificate_seed2_routing_step3_data_sub5_interfaces_and_outer_step1_interfaces
+      τ h g s l hl routing).1 o hinner
+  have hp_ne : (D.partner o).1 ≠ o.1 := hspec.1
+  have hp_owner : D.owner (D.partner o).1 = D.owner o.1 := hspec.2.1
+  have hp_side : D.occSide (D.partner o) = D.occSide o := hspec.2.2
+  have htype : ∀ t u : D.Typ, D.owner t = D.owner u →
+      emcdTemplateChild g s l t = emcdTemplateChild g s l u → t = u := by
+    rintro ⟨α, X⟩ ⟨β, Y⟩ hab hXY
+    change α = β at hab
+    subst β
+    change X.1 = Y.1 at hXY
+    have : X = Y := Subtype.ext hXY
+    subst Y
+    rfl
+  let T := s.setup.retained l (emcdBaseForm g s l (D.owner o.1))
+  have hmem : ∀ t : D.Typ,
+      emcdTemplateChild g s l t ∈
+        (s.setup.retained l (emcdBaseForm g s l (D.owner t))).children.tiles := by
+    rintro ⟨α, X⟩
+    exact X.2
+  have hom : emcdTemplateChild g s l o.1 ∈ T.children.tiles := hmem o.1
+  have hpm : emcdTemplateChild g s l (D.partner o).1 ∈ T.children.tiles := by
+    have hm := hmem (D.partner o).1
+    rw [hp_owner] at hm
+    exact hm
+  have ho'm : emcdTemplateChild g s l o'.1 ∈ T.children.tiles := by
+    have hm := hmem o'.1
+    rw [howner] at hm
+    exact hm
+  obtain ⟨io, hio⟩ := emcd_outer_step2_child_side τ h g s l hl routing o.1 o.2
+  obtain ⟨ip, hip⟩ :=
+    emcd_outer_step2_child_side τ h g s l hl routing (D.partner o).1 (D.partner o).2
+  obtain ⟨io', hio'⟩ := emcd_outer_step2_child_side τ h g s l hl routing o'.1 o'.2
+  have hop_ne : emcdTemplateChild g s l o.1 ≠ emcdTemplateChild g s l (D.partner o).1 := by
+    intro heq
+    exact hp_ne (htype o.1 (D.partner o).1 hp_owner.symm heq).symm
+  have hoo'_ne : emcdTemplateChild g s l o.1 ≠ emcdTemplateChild g s l o'.1 := by
+    intro heq
+    exact hne (htype o'.1 o.1 howner heq.symm)
+  have hchildren : emcdTemplateChild g s l (D.partner o).1 =
+      emcdTemplateChild g s l o'.1 := by
+    apply side_partner_unique T.children.disjoint hom hpm ho'm hop_ne hoo'_ne io ip io'
+    · exact hip.symm.trans (hp_side.trans hio)
+    · exact hio'.symm.trans (hside.trans hio)
+  have htypes : o'.1 = (D.partner o).1 :=
+    htype o'.1 (D.partner o).1 (howner.trans hp_owner.symm) hchildren.symm
+  apply emcd_paths_step3_occ_eq_of_type_eq D o' (D.partner o) htypes
+  exact hside.trans hp_side.symm
+
+private lemma emcd_paths_step3_lift_occurrence
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ (α : D.Q.Form) (X : PlacedTile s.setup.GS.G.mixed),
+      X ∈ (s.setup.retained l (emcdBaseForm g s l α)).children.tiles →
+      ∀ e, HasEdge X e → ∃ o : D.SideOcc,
+        emcdLiftOccurrence D (emcdTemplateChild g s l) α X e = [o] ∧
+          D.owner o.1 = α ∧ emcdTemplateChild g s l o.1 = X ∧ D.occSide o = e := by
+  classical
+  intro D α X hX e hedge
+  let t : D.Typ := ⟨α, ⟨X, hX⟩⟩
+  have hoccurrence : ∃ j : D.Side t, D.occSide ⟨t, j⟩ = e := by
+    obtain ⟨j, hj⟩ := hedge
+    rcases X with ⟨form, a⟩
+    cases form with
+    | inl γ => exact ⟨j, hj⟩
+    | inr p =>
+        have hrange :
+            Set.range
+                (s.setup.GS.G.P'.disk
+                  (s.setup_grouped.symm ▸ g.original p)).side =
+              Set.range (P.disk p).side := by
+          have key : ∀ (GS : GroupedSubstitution τ) (heq : GS = g.GS),
+              Set.range (GS.G.P'.disk (heq.symm ▸ g.original p)).side =
+                Set.range (P.disk p).side := by
+            intro GS heq
+            subst heq
+            exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step1_from_routing_aux1
+              g.GS.G (g.original p) p (g.original_dissect p)
+          exact key _ s.setup_grouped
+        have hjmem : (P.disk p).side j ∈
+            Set.range
+              (s.setup.GS.G.P'.disk
+                (s.setup_grouped.symm ▸ g.original p)).side := by
+          rw [hrange]
+          exact ⟨j, rfl⟩
+        obtain ⟨k, hk⟩ := hjmem
+        refine ⟨k, ?_⟩
+        change a +ᵥ
+            (s.setup.GS.G.P'.disk
+              (s.setup_grouped.symm ▸ g.original p)).side k = e
+        rw [hk]
+        exact hj
+  obtain ⟨j, hj⟩ := hoccurrence
+  have hex : ∃ o : D.SideOcc,
+      D.owner o.1 = α ∧ emcdTemplateChild g s l o.1 = X ∧ D.occSide o = e := by
+    exact ⟨⟨t, j⟩, rfl, rfl, hj⟩
+  unfold emcdLiftOccurrence
+  rw [dif_pos hex]
+  exact ⟨hex.choose, rfl, hex.choose_spec⟩
+
+set_option maxHeartbeats 4000000 in
 /-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: last -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step3_last
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -8611,7 +8776,135 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step3_l
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d i, D.IsGenuinePath α d i →
       (D.path α d i).getLast? = some (D.partner (D.printOcc α d))) := by
-  sorry
+  classical
+  intro D α d i hi
+  let β := emcdBaseForm g s l α
+  let a := emcdParentSide g s l α d
+  let j : Fin 4 := ⟨i.val, hi.2⟩
+  let tiles := (routing β).pathTiles a j
+  let sides := (routing β).pathSides a j
+  have ha : a ∈ s.setup.markedSides β := hi.1
+  have hlen : tiles.length + 1 = sides.length := (routing β).path_length a ha j
+  have hlast : sides.getLast? =
+      some ((s.setup.central l β).side ((routing β).printIdx a)) :=
+    (routing β).path_last a ha j
+  have htiles_ne : tiles ≠ [] := by
+    intro hnil
+    have hsides_one : sides.length = 1 := by simp [tiles, hnil] at hlen ⊢; omega
+    obtain ⟨e, hsides⟩ := List.length_eq_one_iff.mp hsides_one
+    have hhead := (routing β).path_head a ha j
+    have houter := (routing β).port_outer a j.castSucc
+    have hinner := (routing β).print_inner a ha
+    change sides.head? = some ((routing β).port a j.castSucc) at hhead
+    rw [hsides] at hhead hlast
+    simp only [List.head?_cons, List.getLast?_singleton, Option.some.injEq] at hhead hlast
+    have heq := hhead.symm.trans hlast
+    rw [heq] at houter
+    obtain ⟨A, hA, B, hB, hAB, ⟨k, hk⟩, ⟨m, hm⟩⟩ := hinner
+    let q := A.vertex k + (1 / 2 : ℝ) • (A.vertex (finRotate _ k) - A.vertex k)
+    have hqopen : q ∈ openSegment ℝ (A.vertex k) (A.vertex (finRotate _ k)) := by
+      have hqline : q = AffineMap.lineMap (A.vertex k)
+          (A.vertex (finRotate _ k)) (1 / 2 : ℝ) := by
+        simp only [q, AffineMap.lineMap_apply_module']
+        module
+      rw [hqline]
+      exact lineMap_mem_openSegment (𝕜 := ℝ) _ _ (by norm_num)
+    obtain ⟨r, hr, σ, _, hlocal⟩ :=
+      two_sides (s.setup.retained l β).children.disjoint hA hB hAB k m
+        (hm.trans hk.symm) hqopen
+    have hqint : q ∈ interior (support (s.setup.retained l β).children.tiles) := by
+      rw [mem_interior_iff_mem_nhds]
+      apply Filter.mem_of_superset (Metric.ball_mem_nhds q hr)
+      intro z hz
+      by_cases hside : 0 ≤ σ * jcr
+          (A.vertex (finRotate _ k) - A.vertex k) (z - A.vertex k)
+      · exact carrier_subset_support hA ((hlocal z hz).2.2 hside)
+      · exact carrier_subset_support hB
+          (interior_subset ((hlocal z hz).2.1 (lt_of_not_ge hside)))
+    have hqint_region : q ∈ interior (s.setup.retained l β).region := by
+      rw [← (s.setup.retained l β).support_eq]
+      exact hqint
+    have hqedge : q ∈ (s.setup.central l β).side ((routing β).printIdx a) := by
+      rw [← hk, tile_side_eq]
+      exact openSegment_subset_segment ℝ _ _ hqopen
+    exact Set.disjoint_left.1 disjoint_interior_frontier hqint_region (houter.1.2 hqedge)
+  let X := tiles.getLast htiles_ne
+  have hXlast : tiles.getLast? = some X := List.getLast?_eq_getLast_of_ne_nil htiles_ne
+  have hk : tiles.length - 1 < tiles.length := by
+    have : 0 < tiles.length := List.length_pos_of_ne_nil htiles_ne
+    omega
+  have hind : tiles.length - 1 + 1 = tiles.length := by
+    have : 0 < tiles.length := List.length_pos_of_ne_nil htiles_ne
+    omega
+  have hXidx : tiles[tiles.length - 1]? = some X := by
+    rw [← hXlast, List.getLast?_eq_getElem?]
+  have hlast' := hlast
+  rw [List.getLast?_eq_getElem?] at hlast'
+  have hidx : sides.length - 1 = tiles.length := by omega
+  have hfinal : sides[tiles.length]? =
+      some ((s.setup.central l β).side ((routing β).printIdx a)) := by
+    simpa [hidx] using hlast'
+  let eprev := sides[tiles.length - 1]'(by omega)
+  let eprint := (s.setup.central l β).side ((routing β).printIdx a)
+  have hprev : sides[tiles.length - 1]? = some eprev := List.getElem?_eq_getElem _
+  have hentry : (tiles.zip (sides.zip sides.tail)).getLast? =
+      some (X, (eprev, eprint)) := by
+    have hpairs_len : (tiles.zip (sides.zip sides.tail)).length = tiles.length := by
+      simp only [List.length_zip, List.length_tail]
+      omega
+    rw [List.getLast?_eq_getElem?, hpairs_len]
+    refine (List.getElem?_zip_eq_some).2 ⟨?_, ?_⟩
+    · simpa using hXidx
+    · refine (List.getElem?_zip_eq_some).2 ⟨?_, ?_⟩
+      · simpa using hprev
+      · rw [List.getElem?_tail, hind]
+        simpa [eprint] using hfinal
+  have hfinal_step : sides[(tiles.length - 1) + 1]? = some eprint := by
+    rw [hind]
+    simpa [eprint] using hfinal
+  have hstep := (routing β).path_step a ha j (tiles.length - 1) X eprev eprint
+    hXidx hprev hfinal_step
+  obtain ⟨o, ho_lift, ho_owner, ho_child, ho_side⟩ :=
+    emcd_paths_step3_lift_occurrence τ h g s l hl routing α X hstep.1 eprint hstep.2.2
+  have hX_ne : X ≠ s.setup.central l β := (routing β).path_last_tile a ha j X hXlast
+  have ho_ne : o.1 ≠ (D.printOcc α d).1 := by
+    intro heq
+    apply hX_ne
+    rw [← ho_child, heq]
+    rfl
+  obtain ⟨hprint, -, -, hprint_inner, -⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_special
+      τ h g s l hl routing (fun γ => (routing γ).print_partner_injOn)
+  have ho_partner : o = D.partner (D.printOcc α d) := by
+    apply emcd_paths_step3_other_is_partner τ h g s l hl routing
+    · exact hprint_inner α d hi.1
+    · exact ho_owner
+    · exact ho_ne
+    · exact ho_side.trans (hprint α d).symm
+  have hchunk :
+      (emcdLiftOccurrence D (emcdTemplateChild g s l) α X eprev ++
+        emcdLiftOccurrence D (emcdTemplateChild g s l) α X eprint) ≠ [] := by
+    rw [ho_lift]
+    simp
+  have hflat := emcd_paths_step3_getLast_flatMap
+    (fun entry =>
+      emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1 entry.2.1 ++
+        emcdLiftOccurrence D (emcdTemplateChild g s l) α entry.1 entry.2.2)
+    (tiles.zip (sides.zip sides.tail)) (X, (eprev, eprint)) hentry hchunk
+  change (if hgen : D.IsGenuinePath α d i then
+      emcdLiftPath D (emcdTemplateChild g s l) α
+        ((routing β).pathTiles a ⟨i.val, hgen.2⟩)
+        ((routing β).pathSides a ⟨i.val, hgen.2⟩)
+    else (D.port α d i).toList).getLast? = _
+  rw [dif_pos hi]
+  change (emcdLiftPath D (emcdTemplateChild g s l) α tiles sides).getLast? = _
+  unfold emcdLiftPath
+  rw [hflat]
+  change (emcdLiftOccurrence D (emcdTemplateChild g s l) α X eprev ++
+    emcdLiftOccurrence D (emcdTemplateChild g s l) α X eprint).getLast? = _
+  rw [ho_lift, List.getLast?_append_of_ne_nil _ (by simp)]
+  simpa [ho_partner]
+
 
 set_option maxHeartbeats 800000 in
 private lemma emcd_paths_step4_occ_eq_of_type_eq

@@ -3586,6 +3586,143 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub3_annulus
             translateSet v ((g.annular p).spokes.piece j').faces := by
   exact ((existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose_spec.2.2.2.2.2.2.2).choose_spec.1
 
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance`: "at higher powers
+`(emcsCentralPlaced τ g (m + 1) α).carrier` lies inside the scaled carrier of the previous central child" (the chosen
+centre lies strictly inside the scaled parent). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_central_nested
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (m : ℕ) (α : g.GS.G.P'.Form) :
+    (emcsCentralPlaced τ g (m + 1) α).carrier ⊆
+      (τ.θ ^ g.GS.k) • (emcsCentralPlaced τ g m α).carrier := by
+  obtain ⟨hq₀, -, hsucc, -, -⟩ :=
+    (existsMacroCertificate_seed2_routing_step1_setup_sub1_central_chain τ g).choose_spec.choose_spec
+  set q := emcsCentralTile τ g ((emcsCentralForm τ g)^[m] α) with hq
+  have hdisk : (g.GS.G.P'.disk (g.large q.form)).carrier ⊆
+      (τ.θ ^ g.GS.k) • (P.disk q.form).carrier := by
+    rw [← g.GS.G.support_eq, g.large_dissect, g.grouped_power]
+    have hsub : support (g.annular q.form).L.faces ⊆ support (τ.supertile g.k q.form) := by
+      intro z hz
+      simp only [support, Set.mem_iUnion] at hz ⊢
+      obtain ⟨A, hA, hz⟩ := hz
+      exact ⟨A, (g.annular q.form).L.faces_sub hA, hz⟩
+    have hsup : support (τ.supertile g.k q.form) = τ.θ ^ g.k • (P.disk q.form).carrier :=
+      (τ.pow g.k g.k_pos).support_eq q.form
+    exact hsup ▸ hsub
+  have hform : (emcsCentralForm τ g)^[m + 1] α = g.large q.form := by
+    rw [Function.iterate_succ_apply']
+    rfl
+  have hanchor : emcsCentralAnchor τ g (m + 1) α =
+      (τ.θ ^ g.GS.k) • (emcsCentralAnchor τ g m α + q.anchor) := by
+    rw [g.grouped_power]
+    exact hsucc m α
+  have hqmem : q.carrier ⊆ (g.GS.G.P'.disk ((emcsCentralForm τ g)^[m] α)).carrier := by
+    rw [← g.GS.G.support_eq]
+    intro z hz
+    simp only [support, Set.mem_iUnion]
+    exact ⟨q, hq₀ _, hz⟩
+  intro x hx
+  simp only [emcsCentralPlaced, PlacedTile.carrier] at hx ⊢
+  obtain ⟨y, hy, rfl⟩ := Set.mem_vadd_set.mp hx
+  change y ∈ (g.GS.G.P'.disk ((emcsCentralForm τ g)^[m + 1] α)).carrier at hy
+  rw [hform] at hy
+  obtain ⟨z, hz, rfl⟩ := Set.mem_smul_set.mp (hdisk hy)
+  refine Set.mem_smul_set.mpr ⟨emcsCentralAnchor τ g m α + (q.anchor + z), ?_, ?_⟩
+  · refine Set.mem_vadd_set.mpr ⟨q.anchor + z, hqmem ?_, rfl⟩
+    exact Set.mem_vadd_set.mpr ⟨z, hz, rfl⟩
+  · rw [hanchor, vadd_eq_add, ← smul_add, add_assoc]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance`: "the retained
+template of a power `l + 1` is the scaled retained template of the power `l`": its region is
+`θ^k • (retained l α).region`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_region_succ
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) (m : ℕ)
+    (α : g.GS.G.P'.Form) :
+    (emcsRetained τ h g (m + 1) α).region = (τ.θ ^ g.GS.k) • (emcsRetained τ h g m α).region := by
+  have hreg := (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose_spec.1
+  unfold emcsRetained
+  rw [hreg, hreg, smul_smul, ← pow_add, Nat.mul_succ, add_comm]
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance`: "after
+normalization by `θ^{kl}`": scaling by a positive factor `c` multiplies the distance to the (scaled) frontier by `c`
+(at least). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_infDist_smul
+    {c : ℝ} (hc : 0 < c) (y : Pt) (S : Set Pt) :
+    c * Metric.infDist y (frontier S) ≤ Metric.infDist (c • y) (frontier (c • S)) := by
+  rw [existsRoutingAfterPower_step2_ports_step1_intra_step2_clearance_frontier_smul hc.ne']
+  rcases (frontier S).eq_empty_or_nonempty with hF | hF
+  · simp [hF]
+  · rw [Metric.le_infDist hF.smul_set]
+    intro z hz
+    obtain ⟨w, hw, rfl⟩ := Set.mem_smul_set.mp hz
+    rw [dist_smul₀, Real.norm_of_nonneg hc.le]
+    exact mul_le_mul_of_nonneg_left (Metric.infDist_le_dist_of_mem hw) hc.le
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance`: "at `l = 1`
+the central child `L_{q₀}` lies inside `square (centre p) (N R / 2 + R)` which has clearance `R` from the frontier of
+`(retained 1 α).region` by `g.square_margin`" (here for every power `l > 0`, from the annulus of the retained
+template). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_base
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ) (l : ℕ) (hl : 0 < l)
+    (α : g.GS.G.P'.Form) :
+    ∀ x ∈ (emcsCentralPlaced τ g l α).carrier,
+      g.R ≤ Metric.infDist x (frontier (emcsRetained τ h g l α).region) := by
+  obtain ⟨hsq, hL, -⟩ := existsMacroCertificate_seed2_routing_step1_setup_sub3_annulus τ h g
+  have hD := g.M.D_pos
+  have hR : 0 ≤ g.R := le_trans (mul_nonneg g.constants_pos.1.le hD.le) g.R_separates
+  have hcar : (emcsCentralPlaced τ g l α).carrier = (emcsAnnulus τ h g l α hl).L.carrier := by
+    rw [FaceGroup.carrier, (emcsAnnulus τ h g l α hl).L.carrier_eq, ← hL l α hl]
+    simp only [emcsCentralPlaced, GroupedFamily.mixedScatterTile, Sum.elim_inl, PlacedTile.carrier]
+    rw [emcg_support_translateSet, g.GS.G.support_eq]
+  have hup := (emcsAnnulus τ h g l α hl).L_upper
+  have hin := hsq l α hl
+  set e := emcsCentre τ g l α
+  set Ω := (emcsRetained τ h g l α).region
+  have hcpt : IsCompact Ω := by
+    have hreg := (existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose_spec.1
+    change IsCompact ((existsMacroCertificate_seed2_routing_step1_setup_sub2_templates τ h g).choose l α).region
+    rw [hreg]
+    exact (g.GS.G.P'.disk α).compact.smul _
+  have heΩ : e ∈ Ω := by
+    refine interior_subset (hin ⟨e, ?_, 0, ?_, add_zero e⟩)
+    · have hN : (0 : ℝ) ≤ (g.N : ℝ) * g.R / 2 + g.R := by positivity
+      exact ⟨by simpa using hN, by simpa using hN⟩
+    · have h10 : (0 : ℝ) ≤ 10 * g.M.D := by positivity
+      exact ⟨by simpa using h10, by simpa using h10⟩
+  have hF : (frontier Ω).Nonempty := by
+    rw [Set.nonempty_iff_ne_empty]
+    intro hfe
+    rcases isClopen_iff.mp (isClopen_iff_frontier_eq_empty.mpr hfe) with h0 | h1
+    · exact (Set.eq_empty_iff_forall_notMem.mp h0) e heΩ
+    · exact noncompact_univ Pt (h1 ▸ hcpt)
+  intro x hx
+  rw [hcar] at hx
+  obtain ⟨u, hu, v, hv, rfl⟩ := hup hx
+  rw [Metric.le_infDist hF]
+  intro y hy
+  by_contra hlt
+  push_neg at hlt
+  have hc : ∀ i : Fin 2, |y i - (u + v) i| ≤ g.R := by
+    intro i
+    have h1 := PiLp.norm_apply_le (y - (u + v)) i
+    rw [dist_comm, dist_eq_norm] at hlt
+    simp only [Real.norm_eq_abs] at h1
+    exact le_trans h1 hlt.le
+  have hyin : y ∈ interior Ω := by
+    refine hin ⟨u + (y - (u + v)), ?_, v, ?_, by abel_nf⟩
+    · constructor
+      · have := hc 0
+        have := hu.1
+        simp only [PiLp.add_apply, PiLp.sub_apply] at *
+        calc |u 0 + (y 0 - (u 0 + v 0)) - e 0| = |(u 0 - e 0) + (y 0 - (u 0 + v 0))| := by ring_nf
+          _ ≤ |u 0 - e 0| + |y 0 - (u 0 + v 0)| := abs_add_le _ _
+          _ ≤ _ := by linarith
+      · have := hc 1
+        have := hu.2
+        simp only [PiLp.add_apply, PiLp.sub_apply] at *
+        calc |u 1 + (y 1 - (u 1 + v 1)) - e 1| = |(u 1 - e 1) + (y 1 - (u 1 + v 1))| := by ring_nf
+          _ ≤ |u 1 - e 1| + |y 1 - (u 1 + v 1)| := abs_add_le _ _
+          _ ≤ _ := by linarith
+    · exact ⟨le_trans hv.1 (by linarith), le_trans hv.2 (by linarith)⟩
+  exact hy.2 hyin
 
 /-- Step 3 of `lem:certificate-exists`: "The retained centre is strictly interior": because at
 `l = 1` the central child `L_{q₀}` lies inside `square (centre p) (N R / 2 + R)` which has
@@ -3598,7 +3735,28 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance
     ∃ ρ : ℝ, 0 < ρ ∧ ∀ l α, 0 < l → ∀ x ∈ (emcsCentralPlaced τ g l α).carrier,
       ρ * τ.θ ^ (g.GS.k * l) ≤
         Metric.infDist x (frontier (emcsRetained τ h g l α).region) := by
-  sorry
+  have hθ : 0 < τ.θ ^ g.GS.k := pow_pos (by linarith [τ.one_lt]) _
+  have hR : 0 < g.R :=
+    lt_of_lt_of_le (mul_pos g.constants_pos.1 g.M.D_pos) g.R_separates
+  refine ⟨g.R / τ.θ ^ g.GS.k, div_pos hR hθ, ?_⟩
+  intro l α hl
+  obtain ⟨m, rfl⟩ : ∃ m, l = m + 1 := ⟨l - 1, by omega⟩
+  clear hl
+  induction m generalizing α with
+  | zero =>
+    intro x hx
+    rw [zero_add, mul_one, div_mul_cancel₀ _ hθ.ne']
+    exact existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_base τ h g 1 one_pos α x hx
+  | succ m ih =>
+    intro x hx
+    obtain ⟨y, hy, rfl⟩ := Set.mem_smul_set.mp
+      (existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_central_nested τ g (m + 1) α hx)
+    rw [existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_region_succ τ h g (m + 1) α]
+    refine le_trans ?_ (existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance_step3_infDist_smul hθ y _)
+    calc g.R / τ.θ ^ g.GS.k * τ.θ ^ (g.GS.k * (m + 1 + 1))
+        = τ.θ ^ g.GS.k * (g.R / τ.θ ^ g.GS.k * τ.θ ^ (g.GS.k * (m + 1))) := by
+          rw [Nat.mul_succ, pow_add]; ring
+      _ ≤ _ := mul_le_mul_of_nonneg_left (ih α y hy) hθ.le
 
 /-- Step 3 of `lem:certificate-exists` and `lem:inner-sector-order`
 (`quantitativeAnnularGrouping_innerOrder`): for each original form `p`, the ray from `g.centre p`

@@ -3975,6 +3975,197 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slot
     have h6 := (ENNReal.ofReal_le_ofReal_iff (by positivity)).1 (h2.trans hzt)
     linarith
 
+private lemma emcg_contact_segment_scalar {r s u v : ℝ}
+    (h0 : segment ℝ (0 : ℝ) 1 ⊆ segment ℝ r s ∩ segment ℝ u v)
+    (heq : ({r, s} : Set ℝ) ∩ segment ℝ u v = {u, v} ∩ segment ℝ r s) :
+    segment ℝ r s = segment ℝ u v := by
+  have hrs_set : ({r, s} : Set ℝ) = {min r s, max r s} := by
+    rcases le_total r s with hrs | hrs
+    · simp [min_eq_left hrs, max_eq_right hrs]
+    · simp [min_eq_right hrs, max_eq_left hrs, Set.pair_comm]
+  have huv_set : ({u, v} : Set ℝ) = {min u v, max u v} := by
+    rcases le_total u v with huv | huv
+    · simp [min_eq_left huv, max_eq_right huv]
+    · simp [min_eq_right huv, max_eq_left huv, Set.pair_comm]
+  simp only [segment_eq_Icc'] at h0 ⊢
+  norm_num at h0
+  rw [hrs_set, huv_set] at heq
+  simp only [segment_eq_Icc'] at heq
+  let l := min r s
+  let R := max r s
+  let p := min u v
+  let q := max u v
+  change Icc l R = Icc p q
+  change ({l, R} : Set ℝ) ∩ Icc p q = {p, q} ∩ Icc l R at heq
+  have h0' : Icc 0 1 ⊆ Icc l R ∩ Icc p q := by
+    intro z hz
+    exact ⟨h0.1 hz, h0.2 hz⟩
+  have hl0 : l ≤ 0 := (h0' (by simp)).1.1
+  have hp0 : p ≤ 0 := (h0' (by simp)).2.1
+  have h1R : 1 ≤ R := (h0' (by simp)).1.2
+  have h1q : 1 ≤ q := (h0' (by simp)).2.2
+  have hlp : l = p := by
+    by_contra hne
+    rcases lt_or_gt_of_ne hne with hlt | hgt
+    · have hp_mem : p ∈ Icc l R := ⟨by linarith, by linarith⟩
+      have hp' : p ∈ ({l, R} : Set ℝ) ∩ Icc p q := by
+        rw [heq]
+        exact ⟨by simp, hp_mem⟩
+      rcases (by simpa using hp'.1 : p = l ∨ p = R) with h | h <;> linarith
+    · have hl_mem : l ∈ Icc p q := ⟨by linarith, by linarith⟩
+      have hl' : l ∈ ({p, q} : Set ℝ) ∩ Icc l R := by
+        rw [← heq]
+        exact ⟨by simp, hl_mem⟩
+      rcases (by simpa using hl'.1 : l = p ∨ l = q) with h | h <;> linarith
+  have hRq : R = q := by
+    by_contra hne
+    rcases lt_or_gt_of_ne hne with hlt | hgt
+    · have hR_mem : R ∈ Icc p q := ⟨by linarith, by linarith⟩
+      have hR' : R ∈ ({p, q} : Set ℝ) ∩ Icc l R := by
+        rw [← heq]
+        exact ⟨by simp, hR_mem⟩
+      rcases (by simpa using hR'.1 : R = p ∨ R = q) with h | h <;> linarith
+    · have hq_mem : q ∈ Icc l R := ⟨by linarith, by linarith⟩
+      have hq' : q ∈ ({l, R} : Set ℝ) ∩ Icc p q := by
+        rw [heq]
+        exact ⟨by simp, hq_mem⟩
+      rcases (by simpa using hq'.1 : q = l ∨ q = R) with h | h <;> linarith
+  simp [hlp, hRq]
+
+private lemma emcg_contact_segment_eq {a b c d : Pt}
+    (hov : OverlapPos (segment ℝ a b) (segment ℝ c d))
+    (hend : ({a, b} : Set Pt) ∩ segment ℝ c d = {c, d} ∩ segment ℝ a b) :
+    segment ℝ a b = segment ℝ c d := by
+  rcases hov with ⟨x, y, hxy, hsub⟩
+  have hxa := (hsub (left_mem_segment ℝ x y)).1
+  have hya := (hsub (right_mem_segment ℝ x y)).1
+  have hxc := (hsub (left_mem_segment ℝ x y)).2
+  have hyc := (hsub (right_mem_segment ℝ x y)).2
+  have hline : line[ℝ, x, y] = line[ℝ, a, b] :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne
+      (mem_segment_iff_wbtw.mp hxa).mem_affineSpan
+      (mem_segment_iff_wbtw.mp hya).mem_affineSpan hxy
+  have hline' : line[ℝ, x, y] = line[ℝ, c, d] :=
+    affineSpan_pair_eq_of_mem_of_mem_of_ne
+      (mem_segment_iff_wbtw.mp hxc).mem_affineSpan
+      (mem_segment_iff_wbtw.mp hyc).mem_affineSpan hxy
+  let f : ℝ →ᵃ[ℝ] Pt := AffineMap.lineMap x y
+  have hf : Function.Injective f := AffineMap.lineMap_injective ℝ hxy
+  have ha : a ∈ line[ℝ, x, y] := hline ▸ left_mem_affineSpan_pair ℝ a b
+  have hb : b ∈ line[ℝ, x, y] := hline ▸ right_mem_affineSpan_pair ℝ a b
+  have hc : c ∈ line[ℝ, x, y] := hline' ▸ left_mem_affineSpan_pair ℝ c d
+  have hd : d ∈ line[ℝ, x, y] := hline' ▸ right_mem_affineSpan_pair ℝ c d
+  obtain ⟨r, hr⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp ha
+  obtain ⟨s, hs⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hb
+  obtain ⟨u, hu⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hc
+  obtain ⟨v, hv⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hd
+  have hfrs : f '' segment ℝ r s = segment ℝ a b := by
+    rw [← hr, ← hs, image_segment]
+  have hfuv : f '' segment ℝ u v = segment ℝ c d := by
+    rw [← hu, ← hv, image_segment]
+  have hab (t : ℝ) : f t ∈ segment ℝ a b ↔ t ∈ segment ℝ r s := by
+    rw [← hfrs]
+    exact ⟨fun ⟨z, hz, he⟩ => hf he ▸ hz, fun ht => ⟨t, ht, rfl⟩⟩
+  have hcd (t : ℝ) : f t ∈ segment ℝ c d ↔ t ∈ segment ℝ u v := by
+    rw [← hfuv]
+    exact ⟨fun ⟨z, hz, he⟩ => hf he ▸ hz, fun ht => ⟨t, ht, rfl⟩⟩
+  have hea (t : ℝ) : f t ∈ ({a, b} : Set Pt) ↔ t ∈ ({r, s} : Set ℝ) := by
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+    constructor
+    · rintro (ht | ht)
+      · left; exact hf (ht.trans hr.symm)
+      · right; exact hf (ht.trans hs.symm)
+    · rintro (ht | ht)
+      · left; exact (congrArg f ht).trans hr
+      · right; exact (congrArg f ht).trans hs
+  have hec (t : ℝ) : f t ∈ ({c, d} : Set Pt) ↔ t ∈ ({u, v} : Set ℝ) := by
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+    constructor
+    · rintro (ht | ht)
+      · left; exact hf (ht.trans hu.symm)
+      · right; exact hf (ht.trans hv.symm)
+    · rintro (ht | ht)
+      · left; exact (congrArg f ht).trans hu
+      · right; exact (congrArg f ht).trans hv
+  have h0 : segment ℝ (0 : ℝ) 1 ⊆ segment ℝ r s ∩ segment ℝ u v := by
+    intro t ht
+    rw [segment_eq_Icc (by norm_num)] at ht
+    have hft : f t ∈ segment ℝ x y := by
+      rw [segment_eq_image_lineMap]
+      exact ⟨t, ht, rfl⟩
+    exact ⟨(hab t).mp (hsub hft).1, (hcd t).mp (hsub hft).2⟩
+  have heq : ({r, s} : Set ℝ) ∩ segment ℝ u v = {u, v} ∩ segment ℝ r s := by
+    ext t
+    constructor
+    · intro ht
+      have hft : f t ∈ ({a, b} : Set Pt) ∩ segment ℝ c d :=
+        ⟨(hea t).mpr ht.1, (hcd t).mpr ht.2⟩
+      rw [hend] at hft
+      exact ⟨(hec t).mp hft.1, (hab t).mp hft.2⟩
+    · intro ht
+      have hft : f t ∈ ({c, d} : Set Pt) ∩ segment ℝ a b :=
+        ⟨(hec t).mpr ht.1, (hab t).mpr ht.2⟩
+      rw [← hend] at hft
+      exact ⟨(hea t).mp hft.1, (hcd t).mp hft.2⟩
+  have hsides := emcg_contact_segment_scalar h0 heq
+  calc
+    segment ℝ a b = f '' segment ℝ r s := hfrs.symm
+    _ = f '' segment ℝ u v := congrArg (fun z => f '' z) hsides
+    _ = segment ℝ c d := hfuv
+
+private lemma emcg_disk_vertex_on_side_endpoint (D : PolygonalDisk)
+    (k i : Fin D.n) (h : D.vertex k ∈ D.side i) :
+    D.vertex k = D.vertex i ∨ D.vertex k = D.vertex (finRotate D.n i) := by
+  by_cases hki : k = i
+  · exact Or.inl (congrArg D.vertex hki)
+  have hk : D.vertex k ∈ D.side k := by
+    rw [PolygonalDisk.side]
+    exact left_mem_segment ℝ _ _
+  exact (D.simple i k (Ne.symm hki) ⟨h, hk⟩).1
+
+private lemma emcg_disk_side_of_vertex_segment (D : PolygonalDisk) (a b : Fin D.n)
+    (hab : D.vertex a ≠ D.vertex b)
+    (hfr : segment ℝ (D.vertex a) (D.vertex b) ⊆ frontier D.carrier)
+    (hopen : ∀ k, D.vertex k ∉ openSegment ℝ (D.vertex a) (D.vertex b)) :
+    ∃ i, D.side i = segment ℝ (D.vertex a) (D.vertex b) := by
+  rw [D.frontier_eq] at hfr
+  obtain ⟨i, hov⟩ := emcg_exists_overlap (fun i => D.side i)
+    (fun i => convex_segment _ _) hab hfr
+  refine ⟨i, ?_⟩
+  rw [PolygonalDisk.side]
+  apply emcg_contact_segment_eq hov
+  ext x
+  constructor
+  · rintro ⟨hx, hxi⟩
+    rcases hx with hx | hx
+    · subst x
+      have he : D.vertex i = D.vertex a ∨ D.vertex i = D.vertex b := by
+        by_cases hia : D.vertex i = D.vertex a
+        · exact Or.inl hia
+        by_cases hib : D.vertex i = D.vertex b
+        · exact Or.inr hib
+        exact False.elim
+          (hopen i (mem_openSegment_of_ne_left_right (fun h => hia h.symm)
+            (fun h => hib h.symm) hxi))
+      exact ⟨he, left_mem_segment ℝ _ _⟩
+    · subst x
+      have he : D.vertex (finRotate D.n i) = D.vertex a ∨
+          D.vertex (finRotate D.n i) = D.vertex b := by
+        by_cases hia : D.vertex (finRotate D.n i) = D.vertex a
+        · exact Or.inl hia
+        by_cases hib : D.vertex (finRotate D.n i) = D.vertex b
+        · exact Or.inr hib
+        exact False.elim
+          (hopen _ (mem_openSegment_of_ne_left_right (fun h => hia h.symm)
+            (fun h => hib h.symm) hxi))
+      exact ⟨he, right_mem_segment ℝ _ _⟩
+  · rintro ⟨hx, hxab⟩
+    rcases hx with hx | hx
+    · subst x
+      exact ⟨emcg_disk_vertex_on_side_endpoint D a i hxab, left_mem_segment ℝ _ _⟩
+    · subst x
+      exact ⟨emcg_disk_vertex_on_side_endpoint D b i hxab, right_mem_segment ℝ _ _⟩
+
 /-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
 "the contact side of the central child" is "a whole side" shared with the piece -- a listed side of
 the grouped disk of `g.large p` contained in the support of the `j`-th annular piece is a complete
@@ -3987,7 +4178,122 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slot
     (hsub : (g.GS.G.P'.disk (g.large p)).side i ⊆ support ((g.annular p).spokes.piece j).faces) :
     ∃ B ∈ ((g.annular p).spokes.piece j).faces,
       HasEdge B ((g.GS.G.P'.disk (g.large p)).side i) := by
-  sorry
+  classical
+  let D := g.GS.G.P'.disk (g.large p)
+  let L := (g.annular p).L
+  let K := (g.annular p).spokes.piece j
+  change Fin D.n at i
+  have hDL : D.carrier = L.carrier := by
+    dsimp [D, L, FaceGroup.carrier]
+    rw [← g.GS.G.support_eq, g.large_dissect]
+    exact L.carrier_eq.symm
+  obtain ⟨A, hAL, ia, hAe⟩ := g.GS.G.side_whole (g.large p) i
+  have hAL' : A ∈ L.faces := by simpa [L] using g.large_dissect p ▸ hAL
+  have hdisjFaces : Disjoint L.faces K.faces := by
+    rw [Set.disjoint_left]
+    intro X hXL hXK
+    exact ((g.annular p).spokes.piece_sub j hXK).2 hXL
+  have hdisjSupport : Disjoint (interior (support L.faces)) (interior (support K.faces)) :=
+    emcg_disjoint_interior_support (emcg_supertile_disjoint τ g.k p) L.faces_sub K.faces_sub
+      L.finite K.finite hdisjFaces
+  have heFrontier : D.side i ⊆ frontier K.carrier := by
+    intro x hx
+    apply (mem_frontier_iff_of_closed K.disk.compact.isClosed).2
+    constructor
+    · change x ∈ K.disk.carrier
+      rw [K.carrier_eq]
+      exact hsub hx
+    · intro hxKi
+      have hxD : x ∈ D.carrier := pd_frontier_subset_carrier D
+        (emcg_disk_side_subset_frontier D i hx)
+      have hxLcl : x ∈ closure (interior (support L.faces)) := by
+        rw [← L.carrier_eq, L.disk.regular_closed]
+        have hDL' : D.carrier = L.disk.carrier := hDL
+        exact hDL' ▸ hxD
+      obtain ⟨y, hyK, hyL⟩ := mem_closure_iff.1 hxLcl (interior (support K.faces))
+        isOpen_interior (by simpa [FaceGroup.carrier, K.carrier_eq] using hxKi)
+      exact Set.disjoint_left.mp hdisjSupport hyL hyK
+  have hseg : segment ℝ (A.vertex ia) (A.vertex (finRotate _ ia)) =
+      segment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+    simpa [emcg_side_eq_segment, PolygonalDisk.side] using hAe
+  have hends := emcg_segment_endpoints hseg
+  have hendVertex : ∀ x ∈ ({D.vertex i, D.vertex (finRotate D.n i)} : Set Pt),
+      Substitution.IsVertexOf (τ.supertile g.k p) x := by
+    intro x hx
+    rcases hends with hends | hends
+    · rcases hx with rfl | rfl
+      · exact ⟨A, L.faces_sub hAL', ia, hends.1⟩
+      · exact ⟨A, L.faces_sub hAL', finRotate _ ia, hends.2⟩
+    · rcases hx with rfl | rfl
+      · exact ⟨A, L.faces_sub hAL', finRotate _ ia, hends.2⟩
+      · exact ⟨A, L.faces_sub hAL', ia, hends.1⟩
+  have hendK : ∀ x ∈ ({D.vertex i, D.vertex (finRotate D.n i)} : Set Pt),
+      x ∈ K.disk.vertexSet := by
+    intro x hx
+    apply K.vertex_retained x (hendVertex x hx)
+    exact heFrontier (by
+      rw [PolygonalDisk.side]
+      rcases hx with rfl | rfl
+      · exact left_mem_segment ℝ _ _
+      · exact right_mem_segment ℝ _ _)
+  obtain ⟨a, ha⟩ := hendK (D.vertex i) (by simp)
+  obtain ⟨b, hb⟩ := hendK (D.vertex (finRotate D.n i)) (by simp)
+  have hab : K.disk.vertex a ≠ K.disk.vertex b := by
+    rw [ha, hb]
+    intro h
+    exact emcg_finRotate_ne (n := D.n) (by have := D.three_le; omega) i
+      (D.vertex_injective h).symm
+  have hopen : ∀ k, K.disk.vertex k ∉
+      openSegment ℝ (K.disk.vertex a) (K.disk.vertex b) := by
+    intro k hk
+    have hk' : K.disk.vertex k ∈ openSegment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+      simpa [ha, hb] using hk
+    obtain ⟨B, hBK, ib, hBside⟩ := K.side_whole k
+    have hvS : Substitution.IsVertexOf (τ.supertile g.k p) (K.disk.vertex k) := by
+      have hbe := emcg_segment_endpoints (by
+        simpa [emcg_side_eq_segment, PolygonalDisk.side] using hBside)
+      rcases hbe with hbe | hbe
+      · exact ⟨B, K.faces_sub hBK, ib, hbe.1⟩
+      · exact ⟨B, K.faces_sub hBK, finRotate _ ib, hbe.2⟩
+    have hvLf : K.disk.vertex k ∈ frontier L.disk.carrier := by
+      change K.disk.vertex k ∈ frontier L.carrier
+      rw [← hDL]
+      exact emcg_disk_side_subset_frontier D i (openSegment_subset_segment ℝ _ _ hk')
+    obtain ⟨l, hl⟩ := L.vertex_retained _ hvS hvLf
+    obtain ⟨C, hCL, ic, hCside⟩ := L.side_whole l
+    have hvLarge : Substitution.IsVertexOf (g.GS.G.dissect (g.large p)).tiles
+        (K.disk.vertex k) := by
+      rw [g.large_dissect]
+      have hce := emcg_segment_endpoints (by
+        simpa [emcg_side_eq_segment, PolygonalDisk.side] using hCside)
+      rcases hce with hce | hce
+      · exact ⟨C, hCL, ic, hce.1.trans hl⟩
+      · exact ⟨C, hCL, finRotate _ ic, hce.2.trans hl⟩
+    obtain ⟨m, hm⟩ := g.GS.G.vertex_retained (g.large p) _ hvLarge (by
+      exact emcg_disk_side_subset_frontier D i
+        (openSegment_subset_segment ℝ _ _ hk'))
+    have := emcg_disk_vertex_on_side_endpoint D m i
+      (by rw [hm, PolygonalDisk.side]; exact openSegment_subset_segment ℝ _ _ hk')
+    have hdne : D.vertex i ≠ D.vertex (finRotate D.n i) := by
+      intro h
+      exact emcg_finRotate_ne (n := D.n) (by have := D.three_le; omega) i
+        (D.vertex_injective h).symm
+    rcases this with hm0 | hm1
+    · have hbad : D.vertex i ∈ openSegment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+        exact (hm.symm.trans hm0) ▸ hk'
+      exact hdne (left_mem_openSegment_iff.mp hbad)
+    · have hbad : D.vertex (finRotate D.n i) ∈
+          openSegment ℝ (D.vertex i) (D.vertex (finRotate D.n i)) := by
+        exact (hm.symm.trans hm1) ▸ hk'
+      exact hdne (right_mem_openSegment_iff.mp hbad)
+  obtain ⟨k, hk⟩ := emcg_disk_side_of_vertex_segment K.disk a b hab
+    (by simpa [ha, hb, FaceGroup.carrier] using heFrontier) hopen
+  obtain ⟨B, hBK, hB⟩ := K.side_whole k
+  refine ⟨B, hBK, ?_⟩
+  obtain ⟨ib, hib⟩ := hB
+  refine ⟨ib, ?_⟩
+  rw [hib, hk, ha, hb]
+  rfl
 
 /-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
 "by Lemma `inner-sector-order` these sides occur counterclockwise in the order of the sectors, so the

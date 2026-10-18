@@ -4884,6 +4884,1360 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
             Z.anchor = C.σ.θ • D.anchor + C.anchor t := by
   sorry
 
+/-- Auxiliary for step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`:
+the cells of a tile which is the generated child of `E` are the cells of `generate`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux1
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (E B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (h : B = hereditary_sts_substitution_sofic_generate τ hsts C m hC E B.1)
+    (i : C.Side B.1) (k : Fin 5) :
+    B.2 i k = (hereditary_sts_substitution_sofic_generate τ hsts C m hC E B.1).2 i k := by
+  obtain ⟨t, col⟩ := B
+  have h2 := (Sigma.ext_iff.mp h).2
+  exact congrFun (congrFun (eq_of_heq h2) i) k
+
+/-- Auxiliary for step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`:
+a macroside index may be transported along an equality of forms. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux2
+    (C : Geometry.MacroCertificate P) {α β : C.Q.Form}
+    (h : α = β) (d : Fin (C.Q.disk β).n) :
+    C.macroSide α (Fin.cast (by rw [h]) d) = C.macroSide β d := by
+  subst h
+  rfl
+
+/-- Auxiliary for step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`:
+the `θ`-scaling of a placed side of a tile is the macroside of its form placed at `θ` times
+its anchor. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux3
+    (C : Geometry.MacroCertificate P) (D : PlacedTile C.Q)
+    (i : Fin (C.Q.disk D.form).n) :
+    C.σ.θ • D.side i = (C.σ.θ • D.anchor) +ᵥ C.macroSide D.form i := by
+  unfold PlacedTile.side MacroData.macroSide
+  ext z
+  simp only [Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+
+/-- Auxiliary for step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`:
+prints are inner sides. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux5
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) : C.IsInner o := by
+  rcases h with ⟨hm, rfl | rfl⟩
+  · exact C.g4_print_inner α d hm
+  · have hin := C.g4_print_inner α d hm
+    have hp := C.g1_partner _ hin
+    unfold MacroData.IsInner MacroData.IsOuter at hin ⊢
+    rw [hp.2.2, hp.2.1]
+    exact hin
+
+/-- Auxiliary for step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`:
+the fourth and fifth cells of a generated child (the clauses of `strictChild_cells` that are
+needed): a print has its interface identity in the fifth cell; a nonprint side has a zero fifth
+cell and, in the fourth cell, its schedule tag if outer, the header of the parent if boundary
+and `⊥` on the other inner sides. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux4
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (t : C.Typ)
+    (ht : C.owner t = C.form A.1) (i : C.Side t) :
+    (C.IsPrint (C.occ t i) →
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 4 =
+        Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ t i)))) ∧
+    (¬ C.IsPrint (C.occ t i) →
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 4 = Sum.inl 0 ∧
+      (C.IsOuter (C.occ t i) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+          Sum.inl (Planned.Strict.schedU C hC (C.occ t i))) ∧
+      (C.IsInner (C.occ t i) → ¬ C.IsBoundary (C.occ t i) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+          Sum.inl (Planned.Strict.botSU C hC)) ∧
+      (C.IsBoundary (C.occ t i) →
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+          Sum.inr (Sum.inr (hereditary_sts_substitution_sofic_header τ hsts C hC A)))) := by
+  have ht' : C.owner (C.occ t i).1 = C.form A.1 := ht
+  refine ⟨fun hpr => ?_, fun hnp => ?_⟩
+  · have hne : ¬ (Planned.copySource C (C.form A.1) (C.occ t i) 4).Nonempty := by
+      rintro ⟨p, ⟨-, h4, -⟩ | ⟨hnp, -, -⟩⟩
+      · exact h4 rfl
+      · exact hnp hpr
+    unfold hereditary_sts_substitution_sofic_generate
+    dsimp only
+    rw [dif_neg hne, dif_pos hpr]
+    simp
+  · have hnp' : ¬ ∃ d, C.IsPrintOf (C.form A.1) d (C.occ t i) := by
+      rw [← ht']
+      exact hnp
+    have hcs : ∀ k, k ≠ 2 →
+        ¬ (Planned.copySource C (C.form A.1) (C.occ t i) k).Nonempty := by
+      rintro k hk ⟨p, ⟨hp, -, -⟩ | ⟨-, hk2, -⟩⟩
+      · exact hnp' ⟨_, hp⟩
+      · exact hk hk2
+    refine ⟨?_, fun hout => ?_, fun hin hnb => ?_, fun hb => ?_⟩
+    · unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 4 (by decide)), dif_neg hnp]
+      simp
+    · unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 3 (by decide)), dif_neg hnp]
+      simp [hout]
+    · have hout : ¬ C.IsOuter (C.occ t i) := hin
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 3 (by decide)), dif_neg hnp]
+      simp [hout, hnb]
+    · have hout : ¬ C.IsOuter (C.occ t i) := hb.1
+      unfold hereditary_sts_substitution_sofic_generate
+      dsimp only
+      rw [dif_neg (hcs 3 (by decide)), dif_neg hnp]
+      simp [hout, hb]
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`
+(the extended analogue of `Planned.Strict.som_legal_outer_cells` and `som_legal_outer_cell`):
+the cells of a founded-legal extended tile on its outer sides.  An outer side carries a zero
+fifth cell and its own schedule tag in the fourth cell; conversely a side whose fifth cell is
+zero and whose fourth cell is some schedule tag is outer (an inner nonprint side has `⊥` or a
+header in its fourth cell, a print has its interface identity in its fifth cell). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_step1
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A) (i : C.Side A.1) :
+    (C.IsOuter (C.occ A.1 i) → A.2 i 4 = Sum.inl 0 ∧
+        A.2 i 3 = Sum.inl (Planned.Strict.schedU C hC (C.occ A.1 i))) ∧
+    (A.2 i 4 = Sum.inl 0 →
+      (∃ o : C.SideOcc, A.2 i 3 = Sum.inl (Planned.Strict.schedU C hC o)) →
+      C.IsOuter (C.occ A.1 i)) := by
+  obtain ⟨ch, h0, hch, -⟩ := hA
+  have hc := hch 0
+  rw [h0] at hc
+  obtain ⟨hown, hgen⟩ := hc
+  have hcell :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux1
+      τ hsts C m hC (ch (0 + 1)) A hgen i
+  have hgc :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux4
+      τ hsts C m hC (ch (0 + 1)) A.1 hown i
+  constructor
+  · intro ho
+    have hpr : ¬ C.IsPrint (C.occ A.1 i) := fun ⟨_, hd⟩ =>
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux5
+        C hd ho
+    obtain ⟨h4, hout, -, -⟩ := hgc.2 hpr
+    exact ⟨(hcell 4).trans h4, (hcell 3).trans (hout ho)⟩
+  · rintro h4 ⟨o, h3⟩
+    by_contra hno
+    by_cases hpr : C.IsPrint (C.occ A.1 i)
+    · have h := hgc.1 hpr
+      rw [← hcell 4, h4] at h
+      have h' := Sum.inl.inj h
+      cases h'
+    · obtain ⟨-, -, hbot, hbd⟩ := hgc.2 hpr
+      by_cases hb : C.IsBoundary (C.occ A.1 i)
+      · have h := hbd hb
+        rw [← hcell 3, h3] at h
+        cases h
+      · have h := hbot hno hb
+        rw [← hcell 3, h3] at h
+        have h' := Sum.inl.inj h
+        simp [Planned.Strict.schedU, Planned.Strict.botSU] at h'
+
+namespace hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s2
+
+/-- A segment determines its endpoints up to order. -/
+private theorem PSS_s2aux_segment_endpoints {a b c d : Pt}
+    (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hc hd ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+  obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+  simp only at hu hw
+  have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+    have : a + s • (b - a) + u • (a + t • (b - a) - (a + s • (b - a))) - a =
+        (s + u * (t - s)) • (b - a) := by module
+    rw [← this, hu, sub_self]
+  have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+    have : a + s • (b - a) + w • (a + t • (b - a) - (a + s • (b - a))) - b =
+        (s + w * (t - s) - 1) • (b - a) := by module
+    rw [← this, hw, sub_self]
+  have f1 := (smul_eq_zero.1 e1).resolve_right hv
+  have f2 := (smul_eq_zero.1 e2).resolve_right hv
+  rcases lt_trichotomy s t with hst | hst | hst
+  · have hs : s = 0 := by nlinarith
+    subst hs
+    have ht : t = 1 := by nlinarith
+    subst ht
+    left; constructor <;> simp
+  · subst hst; simp at f1 f2; linarith
+  · have ht : t = 0 := by nlinarith
+    subst ht
+    have hs : s = 1 := by nlinarith
+    subst hs
+    right; constructor <;> simp
+
+private theorem PSS_s2aux_cond_neg (v : Pt) (hv : v ≠ 0) :
+    (0 < (-v) 0 ∨ ((-v) 0 = 0 ∧ 0 < (-v) 1)) ↔ ¬ (0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)) := by
+  have hv' : v 0 ≠ 0 ∨ v 1 ≠ 0 := by
+    by_contra h
+    push_neg at h
+    apply hv
+    ext i; fin_cases i
+    · exact h.1
+    · exact h.2
+  simp only [PiLp.neg_apply]
+  constructor
+  · rintro (h | ⟨h1, h2⟩) <;> intro h' <;> rcases h' with h' | ⟨h1', h2'⟩ <;> linarith
+  · intro h
+    push_neg at h
+    rcases lt_trichotomy (v 0) 0 with h0 | h0 | h0
+    · left; linarith
+    · right
+      refine ⟨by rw [h0]; simp, ?_⟩
+      have := h.2 h0
+      rcases hv' with h' | h'
+      · exact absurd h0 h'
+      · have : v 1 < 0 := lt_of_le_of_ne this h'
+        linarith
+    · exact absurd h0 (not_lt.2 h.1)
+
+private theorem PSS_s2aux_canonDir_neg (v : Pt) (hv : v ≠ 0) :
+    Alignment.canonDir (-v) = Alignment.canonDir v := by
+  unfold Alignment.canonDir
+  rw [norm_neg]
+  by_cases h : 0 < v 0 ∨ (v 0 = 0 ∧ 0 < v 1)
+  · rw [if_pos h, if_neg ((PSS_s2aux_cond_neg v hv).not.2 (not_not.2 h))]
+    simp
+  · rw [if_neg h, if_pos ((PSS_s2aux_cond_neg v hv).2 h)]
+    simp
+
+private theorem PSS_s2aux_frameOrigin_swap (x y : Pt) (hxy : x ≠ y) :
+    Alignment.frameOrigin y x = Alignment.frameOrigin x y := by
+  unfold Alignment.frameOrigin
+  have hv : y - x ≠ 0 := sub_ne_zero.2 hxy.symm
+  have hneg : x - y = -(y - x) := by abel
+  rw [hneg]
+  by_cases h : 0 < (y - x) 0 ∨ ((y - x) 0 = 0 ∧ 0 < (y - x) 1)
+  · rw [if_pos h, if_neg ((PSS_s2aux_cond_neg _ hv).not.2 (not_not.2 h))]
+  · rw [if_neg h, if_pos ((PSS_s2aux_cond_neg _ hv).2 h)]
+
+private theorem PSS_s2aux_segCoord_swap (x y z : Pt) (hxy : x ≠ y) :
+    Alignment.segCoord y x z = Alignment.segCoord x y z := by
+  unfold Alignment.segCoord
+  rw [PSS_s2aux_frameOrigin_swap x y hxy]
+  have hneg : x - y = -(y - x) := by abel
+  rw [hneg, PSS_s2aux_canonDir_neg _ (sub_ne_zero.2 hxy.symm)]
+
+private theorem PSS_s2aux_segCoord_translate (x y z v : Pt) :
+    Alignment.segCoord (v + x) (v + y) (v + z) = Alignment.segCoord x y z := by
+  unfold Alignment.segCoord Alignment.frameOrigin Alignment.coord
+  rw [add_sub_add_left_eq_sub]
+  split_ifs <;> simp
+
+private theorem PSS_s2aux_coord_eq_inner (o u z : Pt) :
+    Alignment.coord o u z = inner ℝ (z - o) u := by
+  simp [Alignment.coord, PiLp.inner_apply, Fin.sum_univ_two]
+
+private theorem PSS_s2aux_canonDir_spec (v : Pt) (hv : v ≠ 0) :
+    ‖Alignment.canonDir v‖ = 1 ∧
+      ∃ s : ℝ, (s = 1 ∨ s = -1) ∧ v = (s * ‖v‖) • Alignment.canonDir v := by
+  have hn : 0 < ‖v‖ := norm_pos_iff.2 hv
+  unfold Alignment.canonDir
+  split_ifs
+  · refine ⟨?_, 1, Or.inl rfl, ?_⟩
+    · rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hn.ne']
+    · rw [smul_smul, one_mul, mul_inv_cancel₀ hn.ne', one_smul]
+  · refine ⟨?_, -1, Or.inr rfl, ?_⟩
+    · rw [norm_neg, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hn.ne']
+    · rw [smul_neg, smul_smul, neg_one_mul, neg_mul, mul_inv_cancel₀ hn.ne', neg_smul, one_smul,
+        neg_neg]
+
+/-- A point of the line of a nondegenerate segment is recovered from its canonical
+coordinate. -/
+private theorem PSS_s2aux_line_recover (x y z : Pt) (hxy : x ≠ y)
+    (hz : ∃ r : ℝ, z = x + r • (y - x)) :
+    z = Alignment.frameOrigin x y + Alignment.segCoord x y z • Alignment.canonDir (y - x) := by
+  obtain ⟨r, rfl⟩ := hz
+  have hv : y - x ≠ 0 := sub_ne_zero.2 hxy.symm
+  obtain ⟨hu, s, hs, hvs⟩ := PSS_s2aux_canonDir_spec (y - x) hv
+  set u := Alignment.canonDir (y - x)
+  have hfo : ∃ μ : ℝ, x + r • (y - x) - Alignment.frameOrigin x y = μ • u := by
+    unfold Alignment.frameOrigin
+    split_ifs
+    · exact ⟨r * (s * ‖y - x‖), by rw [add_sub_cancel_left, mul_smul, ← hvs]⟩
+    · refine ⟨(r - 1) * (s * ‖y - x‖), ?_⟩
+      rw [mul_smul, ← hvs]; module
+  obtain ⟨μ, hμ⟩ := hfo
+  unfold Alignment.segCoord
+  rw [PSS_s2aux_coord_eq_inner, hμ, inner_smul_left, real_inner_self_eq_norm_sq, hu]
+  simp only [RCLike.conj_to_real, one_pow, mul_one]
+  rw [← hμ]; abel
+
+/-- The endpoints of a segment overlapping a nondegenerate segment with positive length lie on
+the line of the latter. -/
+private theorem PSS_s2aux_on_line_of_overlap {x y c₁ c₂ : Pt}
+    (h : OverlapPos (segment ℝ c₁ c₂) (segment ℝ x y)) :
+    (∃ r : ℝ, c₁ = x + r • (y - x)) ∧ (∃ r : ℝ, c₂ = x + r • (y - x)) := by
+  obtain ⟨p, q, hpq, hs⟩ := h
+  have hp := hs (left_mem_segment ℝ p q)
+  have hq := hs (right_mem_segment ℝ p q)
+  obtain ⟨hp1, hp2⟩ := hp
+  obtain ⟨hq1, hq2⟩ := hq
+  rw [segment_eq_image'] at hp1 hp2 hq1 hq2
+  obtain ⟨α, -, hα⟩ := hp1
+  obtain ⟨β, -, hβ⟩ := hq1
+  obtain ⟨γ, -, hγ⟩ := hp2
+  obtain ⟨δ, -, hδ⟩ := hq2
+  simp only at hα hβ hγ hδ
+  have hαβ : β - α ≠ 0 := by
+    intro h0
+    apply hpq
+    rw [← hα, ← hβ, sub_eq_zero.1 h0]
+  have heq : (β - α) • (c₂ - c₁) = (δ - γ) • (y - x) := by
+    have : (β - α) • (c₂ - c₁) = (c₁ + β • (c₂ - c₁)) - (c₁ + α • (c₂ - c₁)) := by module
+    rw [this, hα, hβ, ← hγ, ← hδ]; module
+  set κ := (β - α)⁻¹ * (δ - γ)
+  have hdir : c₂ - c₁ = κ • (y - x) := by
+    have := congrArg ((β - α)⁻¹ • ·) heq
+    simp only [smul_smul, inv_mul_cancel₀ hαβ, one_smul] at this
+    exact this
+  have hc₁ : c₁ = x + (γ - α * κ) • (y - x) := by
+    have h1 : c₁ = (c₁ + α • (c₂ - c₁)) - α • (c₂ - c₁) := by abel
+    rw [h1, hα, ← hγ, hdir]; module
+  refine ⟨⟨_, hc₁⟩, ⟨γ - α * κ + κ, ?_⟩⟩
+  have h2 : c₂ = c₁ + (c₂ - c₁) := by abel
+  rw [h2, hdir, hc₁]; module
+
+/-- Atoms determine coarse sides.  If coincident fine sides carry equal atoms of two
+coarse sides overlapping them, the placed coarse sides coincide. -/
+private theorem PSS_s2aux_atom_seg {x y x' y' v w : Pt} {c c' : Pt × Pt} (hxy : x ≠ y)
+    (hseg : segment ℝ (v + x) (v + y) = segment ℝ (w + x') (w + y'))
+    (hc : OverlapPos (segment ℝ c.1 c.2) (segment ℝ x y))
+    (hc' : OverlapPos (segment ℝ c'.1 c'.2) (segment ℝ x' y'))
+    (hat : Alignment.atom (x, y) c = Alignment.atom (x', y') c') :
+    segment ℝ (v + c.1) (v + c.2) = segment ℝ (w + c'.1) (w + c'.2) := by
+  have hend := PSS_s2aux_segment_endpoints hseg
+  have hx'y' : x' ≠ y' := by
+    rintro rfl
+    rcases hend with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · exact hxy (add_left_cancel (h1.trans h2.symm))
+    · exact hxy (add_left_cancel (h1.trans h2.symm))
+  have hrel : ∀ z, Alignment.segCoord x y z = Alignment.segCoord x' y' (z + (v - w)) := by
+    intro z
+    have hz : v + z = w + (z + (v - w)) := by abel
+    rw [← PSS_s2aux_segCoord_translate x y z v]
+    rcases hend with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2, hz, PSS_s2aux_segCoord_translate]
+    · rw [h1, h2, hz, PSS_s2aux_segCoord_translate, PSS_s2aux_segCoord_swap _ _ _ hx'y']
+  obtain ⟨hl₁, hl₂⟩ := PSS_s2aux_on_line_of_overlap hc
+  obtain ⟨hl₁', hl₂'⟩ := PSS_s2aux_on_line_of_overlap hc'
+  set d₁ := c'.1 + (w - v)
+  set d₂ := c'.2 + (w - v)
+  have hd : ∀ z, (∃ r : ℝ, z = x' + r • (y' - x')) →
+      ∃ r : ℝ, z + (w - v) = x + r • (y - x) := by
+    rintro z ⟨r, rfl⟩
+    rcases hend with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · refine ⟨r, ?_⟩
+      have hx : x = x' + (w - v) := by rw [← add_sub_cancel_left v x, h1]; abel
+      have hy : y = y' + (w - v) := by rw [← add_sub_cancel_left v y, h2]; abel
+      rw [hx, hy]; module
+    · refine ⟨1 - r, ?_⟩
+      have hx : x = y' + (w - v) := by rw [← add_sub_cancel_left v x, h1]; abel
+      have hy : y = x' + (w - v) := by rw [← add_sub_cancel_left v y, h2]; abel
+      rw [hx, hy]; module
+  have hsd : ∀ z, Alignment.segCoord x' y' z = Alignment.segCoord x y (z + (w - v)) := by
+    intro z; rw [hrel]; congr 1; abel
+  have hmin : min (Alignment.segCoord x y c.1) (Alignment.segCoord x y c.2) =
+      min (Alignment.segCoord x y d₁) (Alignment.segCoord x y d₂) := by
+    have := congrArg (fun t => t.2.2.1) hat
+    simp only [Alignment.atom] at this
+    rw [this, hsd, hsd]
+  have hmax : max (Alignment.segCoord x y c.1) (Alignment.segCoord x y c.2) =
+      max (Alignment.segCoord x y d₁) (Alignment.segCoord x y d₂) := by
+    have := congrArg (fun t => t.2.2.2) hat
+    simp only [Alignment.atom] at this
+    rw [this, hsd, hsd]
+  have hpair : (Alignment.segCoord x y c.1 = Alignment.segCoord x y d₁ ∧
+        Alignment.segCoord x y c.2 = Alignment.segCoord x y d₂) ∨
+      (Alignment.segCoord x y c.1 = Alignment.segCoord x y d₂ ∧
+        Alignment.segCoord x y c.2 = Alignment.segCoord x y d₁) := by
+    rcases le_total (Alignment.segCoord x y c.1) (Alignment.segCoord x y c.2) with h | h <;>
+      rcases le_total (Alignment.segCoord x y d₁) (Alignment.segCoord x y d₂) with h' | h'
+    · rw [min_eq_left h, min_eq_left h'] at hmin; rw [max_eq_right h, max_eq_right h'] at hmax
+      exact Or.inl ⟨hmin, hmax⟩
+    · rw [min_eq_left h, min_eq_right h'] at hmin; rw [max_eq_right h, max_eq_left h'] at hmax
+      exact Or.inr ⟨hmin, hmax⟩
+    · rw [min_eq_right h, min_eq_left h'] at hmin; rw [max_eq_left h, max_eq_right h'] at hmax
+      exact Or.inr ⟨hmax, hmin⟩
+    · rw [min_eq_right h, min_eq_right h'] at hmin; rw [max_eq_left h, max_eq_left h'] at hmax
+      exact Or.inl ⟨hmax, hmin⟩
+  have hrec : ∀ z z', (∃ r : ℝ, z = x + r • (y - x)) → (∃ r : ℝ, z' = x + r • (y - x)) →
+      Alignment.segCoord x y z = Alignment.segCoord x y z' → z = z' := by
+    intro z z' hz hz' he
+    rw [PSS_s2aux_line_recover x y z hxy hz, PSS_s2aux_line_recover x y z' hxy hz', he]
+  have hw₁ : w + c'.1 = v + d₁ := by simp only [d₁]; abel
+  have hw₂ : w + c'.2 = v + d₂ := by simp only [d₂]; abel
+  rw [hw₁, hw₂]
+  rcases hpair with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [hrec _ _ hl₁ (hd _ hl₁') h1, hrec _ _ hl₂ (hd _ hl₂') h2]
+  · rw [hrec _ _ hl₁ (hd _ hl₂') h1, hrec _ _ hl₂ (hd _ hl₁') h2, segment_symm]
+
+/-- The affine map `z ↦ w + θ • z` as a homeomorphism. -/
+private def PSS_s2aux_homeo (θ : ℝ) (hθ : θ ≠ 0) (w : Pt) : Pt ≃ₜ Pt :=
+  (Homeomorph.smulOfNeZero θ hθ).trans (Homeomorph.addLeft w)
+
+private theorem PSS_s2aux_homeo_apply (θ : ℝ) (hθ : θ ≠ 0) (w z : Pt) :
+    PSS_s2aux_homeo θ hθ w z = w + θ • z := rfl
+
+private theorem PSS_s2aux_homeo_image (θ : ℝ) (hθ : θ ≠ 0) (w : Pt) (s : Set Pt) :
+    PSS_s2aux_homeo θ hθ w '' s = w +ᵥ θ • s := by
+  ext z
+  simp only [Set.mem_image, PSS_s2aux_homeo_apply, Set.mem_vadd_set, Set.mem_smul_set,
+    vadd_eq_add]
+  constructor
+  · rintro ⟨y, hy, rfl⟩; exact ⟨θ • y, ⟨y, hy, rfl⟩, rfl⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩; exact ⟨y, hy, rfl⟩
+
+private theorem PSS_s2aux_homeo_segment (θ : ℝ) (hθ : θ ≠ 0) (w a b : Pt) :
+    PSS_s2aux_homeo θ hθ w '' segment ℝ a b = segment ℝ (w + θ • a) (w + θ • b) := by
+  rw [segment_eq_image', segment_eq_image', Set.image_image]
+  refine Set.image_congr fun t _ => ?_
+  rw [PSS_s2aux_homeo_apply]; module
+
+private theorem PSS_s2aux_vadd_segment (w a b : Pt) :
+    w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+  rw [← segment_translate_image]; rfl
+
+private theorem PSS_s2aux_affine_segment (θ : ℝ) (hθ : θ ≠ 0) (w a b : Pt) :
+    w +ᵥ θ • segment ℝ a b = segment ℝ (w + θ • a) (w + θ • b) := by
+  rw [← PSS_s2aux_homeo_image θ hθ w, PSS_s2aux_homeo_segment]
+
+private theorem PSS_s2aux_finRotate_ne {N : ℕ} (hN : 2 ≤ N) (x : Fin N) :
+    finRotate N x ≠ x := by
+  obtain ⟨k, rfl⟩ : ∃ k, N = k + 1 + 1 := ⟨N - 2, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have := congrArg (· - x) h
+  simp at this
+
+private theorem PSS_s2aux_vertex_ne (D : PolygonalDisk) (i : Fin D.n) :
+    D.vertex i ≠ D.vertex (finRotate _ i) := fun h =>
+  PSS_s2aux_finRotate_ne (by have := D.three_le; omega) i (D.vertex_injective h).symm
+
+private theorem PSS_s2aux_occSide_eq (C : Geometry.MacroCertificate P) (o : C.SideOcc) :
+    C.occSide o = segment ℝ (C.occStart o) (C.occEnd o) := by
+  simp only [MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side,
+    PSS_s2aux_vadd_segment, MacroData.occStart, MacroData.occEnd]
+
+private theorem PSS_s2aux_occStart_ne (C : Geometry.MacroCertificate P) (o : C.SideOcc) :
+    C.occStart o ≠ C.occEnd o := by
+  intro h
+  exact PSS_s2aux_vertex_ne _ o.2 (add_left_cancel h)
+
+private theorem PSS_s2aux_theta_ne (C : Geometry.MacroCertificate P) : C.σ.θ ≠ 0 := by
+  linarith [C.σ.one_lt]
+
+private theorem PSS_s2aux_macroSide_segment
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (α : C.Q.Form) (d : Fin (C.Q.disk α).n) :
+    C.macroSide α d = segment ℝ (Alignment.parentSide τ hC.groupedFamily m α d).1
+      (Alignment.parentSide τ hC.groupedFamily m α d).2 := by
+  have := PSS_s2aux_affine_segment C.σ.θ (PSS_s2aux_theta_ne C) 0
+    ((C.Q.disk α).vertex d) ((C.Q.disk α).vertex (finRotate _ d))
+  rw [zero_vadd, zero_add, zero_add] at this
+  rw [MacroData.macroSide, PolygonalDisk.side, this, hC.θ_eq]
+  rfl
+
+/-- The scaled parent side containing an outer fine side contributes its atom to the top layer
+of the schedule of that side. -/
+private theorem PSS_s2aux_top_atom
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (o : C.SideOcc) (d : Fin (C.Q.disk (C.owner o.1)).n)
+    (hsub : C.occSide o ⊆ C.macroSide (C.owner o.1) d) :
+    Alignment.atom (C.occStart o, C.occEnd o)
+        (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d) ∈
+        (Planned.Strict.schedOf C hC o) Alignment.LayerTag.top ∧
+      OverlapPos (segment ℝ (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).1
+        (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).2)
+        (segment ℝ (C.occStart o) (C.occEnd o)) := by
+  have hov : OverlapPos
+      (segment ℝ (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).1
+        (Alignment.parentSide τ hC.groupedFamily m (C.owner o.1) d).2)
+      (segment ℝ (C.occStart o) (C.occEnd o)) := by
+    refine ⟨C.occStart o, C.occEnd o, PSS_s2aux_occStart_ne C o, Set.subset_inter ?_ le_rfl⟩
+    rw [← PSS_s2aux_macroSide_segment τ C m hC, ← PSS_s2aux_occSide_eq]
+    exact hsub
+  exact ⟨⟨_, ⟨d, rfl⟩, hov, rfl⟩, hov⟩
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`
+(schedule alignment: the `Alignment.EndpointSchedule` part of `Planned.Strict.som_opposite`,
+the proof of `Planned.Strict.strict_opposing_macroside`).  Two side occurrences `o`, `o₂` of
+grouped templates, placed at the offsets `v`, `v₂`, whose placed segments coincide and which
+carry the same endpoint schedule `W(α, e)` (`Planned.Strict.schedOf`), lie on coinciding placed
+macrosides: if `o ⊆ θ d` then `v₂ + θ e = v + θ d` for some side `e` of the owner of `o₂`.
+Proof: the top layer of `schedOf o` contains the atom of `θ d` on `o`, so the top layer of
+`schedOf o₂` contains an equal atom of some `θ e` on `o₂`; equal atoms on coincident placed fine
+sides give coincident placed coarse sides, and `hC.θ_eq` identifies `C.macroSide` with the
+`Alignment.parentSide` segments. -/
+private lemma main
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (o o₂ : C.SideOcc) (d : Fin (C.Q.disk (C.owner o.1)).n) (v v₂ : Pt)
+    (hsub : C.occSide o ⊆ C.macroSide (C.owner o.1) d)
+    (hsch : Planned.Strict.schedOf C hC o = Planned.Strict.schedOf C hC o₂)
+    (hseg : v +ᵥ C.occSide o = v₂ +ᵥ C.occSide o₂) :
+    ∃ e : Fin (C.Q.disk (C.owner o₂.1)).n,
+      v₂ +ᵥ C.macroSide (C.owner o₂.1) e = v +ᵥ C.macroSide (C.owner o.1) d := by
+  obtain ⟨hat, hov⟩ := PSS_s2aux_top_atom τ C m hC o d hsub
+  rw [hsch] at hat
+  obtain ⟨c', ⟨a, rfl⟩, hov', hat'⟩ := hat
+  refine ⟨a, ?_⟩
+  have hseg' : segment ℝ (v + C.occStart o) (v + C.occEnd o) =
+      segment ℝ (v₂ + C.occStart o₂) (v₂ + C.occEnd o₂) := by
+    rw [← PSS_s2aux_vadd_segment, ← PSS_s2aux_vadd_segment, ← PSS_s2aux_occSide_eq,
+      ← PSS_s2aux_occSide_eq]
+    exact hseg
+  have hcs := PSS_s2aux_atom_seg (PSS_s2aux_occStart_ne C _) hseg' hov hov' hat'
+  rw [PSS_s2aux_macroSide_segment τ C m hC, PSS_s2aux_macroSide_segment τ C m hC,
+    PSS_s2aux_vadd_segment, PSS_s2aux_vadd_segment, hcs]
+
+end hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s2
+
+
+namespace hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s5
+
+/-- Auxiliary for step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`:
+a nondegenerate segment is infinite. -/
+private lemma segment_infinite {x y : Pt} (hxy : x ≠ y) : (segment ℝ x y).Infinite := by
+  rw [segment_eq_image_lineMap]
+  refine (Set.Icc_infinite (zero_lt_one' ℝ)).image ?_
+  exact (AffineMap.lineMap_injective ℝ hxy).injOn
+
+/-- Auxiliary for step 5: a listed side of a placed tile lies in its carrier. -/
+private lemma side_subset_carrier {Q : Protoset} (A : PlacedTile Q)
+    (i : Fin (Q.disk A.form).n) : A.side i ⊆ A.carrier := by
+  unfold PlacedTile.side PlacedTile.carrier
+  apply Set.vadd_set_mono
+  intro z hz
+  have hf : z ∈ frontier (Q.disk A.form).carrier := by
+    rw [(Q.disk A.form).frontier_eq, Set.mem_iUnion]
+    exact ⟨i, hz⟩
+  exact (Q.disk A.form).compact.isClosed.frontier_subset hf
+
+/-- Auxiliary for step 5: a point of the carrier of `B` is not interior to a tile whose interior
+is disjoint from that of `B`. -/
+private lemma notint {Q : Protoset} {A B : PlacedTile Q}
+    (hd : Disjoint (interior A.carrier) (interior B.carrier)) {x : Pt} (hxB : x ∈ B.carrier) :
+    x ∉ interior A.carrier := by
+  intro hxA
+  rw [← cc_tile_regular B, mem_closure_iff_nhds] at hxB
+  obtain ⟨z, hz1, hz2⟩ := hxB _ (isOpen_interior.mem_nhds hxA)
+  exact Set.disjoint_left.mp hd hz1 hz2
+
+/-- Auxiliary for step 5: the inner product in coordinates. -/
+private lemma inner_coord (a w : Pt) : inner ℝ a w = a 0 * w 0 + a 1 * w 1 := by
+  simp [PiLp.inner_apply, Fin.sum_univ_two]
+  ring
+
+/-- Auxiliary for step 5: a nonzero vector has positive squared length in coordinates. -/
+private lemma npos {v : Pt} (hv : v ≠ 0) : 0 < v 0 * v 0 + v 1 * v 1 := by
+  have h1 : 0 < ‖v‖ ^ 2 := by
+    have := norm_pos_iff.mpr hv
+    positivity
+  rw [← real_inner_self_eq_norm_sq, inner_coord] at h1
+  exact h1
+
+/-- Auxiliary for step 5: two open half-planes through the origin with no common point are
+antiparallel. -/
+private lemma pair {a b : Pt}
+    (h : ¬ ∃ w : Pt, 0 < inner ℝ a w ∧ 0 < inner ℝ b w) :
+    a 0 * b 1 - a 1 * b 0 = 0 ∧ a 0 * b 0 + a 1 * b 1 ≤ 0 := by
+  constructor
+  · by_contra hc
+    apply h
+    refine ⟨!₂[(b 1 - a 1) / (a 0 * b 1 - a 1 * b 0), (a 0 - b 0) / (a 0 * b 1 - a 1 * b 0)],
+      ?_, ?_⟩
+    · rw [inner_coord]
+      have e : a 0 * ((b 1 - a 1) / (a 0 * b 1 - a 1 * b 0)) +
+          a 1 * ((a 0 - b 0) / (a 0 * b 1 - a 1 * b 0)) = 1 := by
+        have e' : a 0 * ((b 1 - a 1) / (a 0 * b 1 - a 1 * b 0)) +
+            a 1 * ((a 0 - b 0) / (a 0 * b 1 - a 1 * b 0)) =
+            (a 0 * b 1 - a 1 * b 0) / (a 0 * b 1 - a 1 * b 0) := by ring
+        rw [e', div_self hc]
+      simp [e]
+    · rw [inner_coord]
+      have e : b 0 * ((b 1 - a 1) / (a 0 * b 1 - a 1 * b 0)) +
+          b 1 * ((a 0 - b 0) / (a 0 * b 1 - a 1 * b 0)) = 1 := by
+        have e' : b 0 * ((b 1 - a 1) / (a 0 * b 1 - a 1 * b 0)) +
+            b 1 * ((a 0 - b 0) / (a 0 * b 1 - a 1 * b 0)) =
+            (a 0 * b 1 - a 1 * b 0) / (a 0 * b 1 - a 1 * b 0) := by ring
+        rw [e', div_self hc]
+      simp [e]
+  · by_contra hc
+    push_neg at hc
+    apply h
+    have ha : 0 < a 0 * a 0 + a 1 * a 1 := by
+      by_contra hneg
+      push_neg at hneg
+      have h0 : a 0 * a 0 = 0 := le_antisymm (by nlinarith [mul_self_nonneg (a 1)])
+        (mul_self_nonneg _)
+      have h1 : a 1 * a 1 = 0 := le_antisymm (by nlinarith [mul_self_nonneg (a 0)])
+        (mul_self_nonneg _)
+      have h0' : a 0 = 0 := mul_self_eq_zero.mp h0
+      have h1' : a 1 = 0 := mul_self_eq_zero.mp h1
+      rw [h0', h1'] at hc
+      simp at hc
+    refine ⟨a, ?_, ?_⟩
+    · rw [inner_coord]
+      exact ha
+    · rw [inner_coord]
+      linarith [mul_comm (b 0) (a 0), mul_comm (b 1) (a 1)]
+
+/-- Auxiliary for step 5: three nonzero vectors of the plane cannot have pairwise disjoint open
+half-planes. -/
+private lemma halfplane3 {a b c : Pt} (ha : a ≠ 0) (hb : b ≠ 0) (hc : c ≠ 0)
+    (hab : ¬ ∃ w : Pt, 0 < inner ℝ a w ∧ 0 < inner ℝ b w)
+    (hac : ¬ ∃ w : Pt, 0 < inner ℝ a w ∧ 0 < inner ℝ c w)
+    (hbc : ¬ ∃ w : Pt, 0 < inner ℝ b w ∧ 0 < inner ℝ c w) : False := by
+  obtain ⟨cab, dab⟩ := pair hab
+  obtain ⟨cac, dac⟩ := pair hac
+  obtain ⟨cbc, dbc⟩ := pair hbc
+  have na := npos ha
+  have nb := npos hb
+  have nc := npos hc
+  have lag : ∀ u v : Pt, u 0 * v 1 - u 1 * v 0 = 0 → u ≠ 0 → v ≠ 0 →
+      u 0 * v 0 + u 1 * v 1 ≠ 0 := by
+    intro u v hcr hu hv hdot
+    have hpu := npos hu
+    have hpv := npos hv
+    have e : (u 0 * u 0 + u 1 * u 1) * (v 0 * v 0 + v 1 * v 1) =
+        (u 0 * v 0 + u 1 * v 1) ^ 2 + (u 0 * v 1 - u 1 * v 0) ^ 2 := by ring
+    rw [hdot, hcr] at e
+    have := mul_pos hpu hpv
+    rw [e] at this
+    norm_num at this
+  have sab : a 0 * b 0 + a 1 * b 1 < 0 := lt_of_le_of_ne dab (lag a b cab ha hb)
+  have sac : a 0 * c 0 + a 1 * c 1 < 0 := lt_of_le_of_ne dac (lag a c cac ha hc)
+  have sbc : b 0 * c 0 + b 1 * c 1 < 0 := lt_of_le_of_ne dbc (lag b c cbc hb hc)
+  have key : (a 0 * b 0 + a 1 * b 1) * (a 0 * c 0 + a 1 * c 1) =
+      (a 0 * a 0 + a 1 * a 1) * (b 0 * c 0 + b 1 * c 1) := by
+    linear_combination (-(a 0 * c 1 - a 1 * c 0)) * cab
+  have h1 : 0 < (a 0 * b 0 + a 1 * b 1) * (a 0 * c 0 + a 1 * c 1) :=
+    mul_pos_of_neg_of_neg sab sac
+  have h2 : (a 0 * a 0 + a 1 * a 1) * (b 0 * c 0 + b 1 * c 1) < 0 :=
+    mul_neg_of_pos_of_neg na sbc
+  linarith
+
+/-- Auxiliary for step 5: two tiles with disjoint interiors have no common direction into their
+half-discs at a common boundary point. -/
+private lemma no_common {Q : Protoset} {X Y : PlacedTile Q}
+    (hd : Disjoint (interior X.carrier) (interior Y.carrier)) {p nX nY : Pt} {εX εY : ℝ}
+    (hεX : 0 < εX) (hεY : 0 < εY)
+    (hX : ∀ y, dist y p < εX → 0 < inner ℝ nX (y - p) → y ∈ interior X.carrier)
+    (hY : ∀ y, dist y p < εY → 0 < inner ℝ nY (y - p) → y ∈ interior Y.carrier) :
+    ¬ ∃ w : Pt, 0 < inner ℝ nX w ∧ 0 < inner ℝ nY w := by
+  rintro ⟨w, hw1, hw2⟩
+  have hw0 : w ≠ 0 := by
+    rintro rfl
+    rw [inner_zero_right] at hw1
+    exact lt_irrefl _ hw1
+  have hwn : 0 < ‖w‖ := norm_pos_iff.mpr hw0
+  have hmpos : 0 < min εX εY := lt_min hεX hεY
+  set δ := min εX εY / (2 * ‖w‖) with hδ
+  have hδpos : 0 < δ := div_pos hmpos (by positivity)
+  have hdist : dist (p + δ • w) p = min εX εY / 2 := by
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hδpos.le, hδ]
+    field_simp
+  have hm1 := min_le_left εX εY
+  have hm2 := min_le_right εX εY
+  have h1 : p + δ • w ∈ interior X.carrier := by
+    apply hX _ (by rw [hdist]; linarith)
+    rw [add_sub_cancel_left, inner_smul_right]
+    positivity
+  have h2 : p + δ • w ∈ interior Y.carrier := by
+    apply hY _ (by rw [hdist]; linarith)
+    rw [add_sub_cancel_left, inner_smul_right]
+    positivity
+  exact Set.disjoint_left.mp hd h1 h2
+
+/-- Auxiliary for step 5: three tiles with pairwise disjoint interiors cannot share a segment of
+their sides. -/
+private lemma three {Q : Protoset} {A B C : PlacedTile Q}
+    (hAB : Disjoint (interior A.carrier) (interior B.carrier))
+    (hAC : Disjoint (interior A.carrier) (interior C.carrier))
+    (hBC : Disjoint (interior B.carrier) (interior C.carrier))
+    {i : Fin (Q.disk A.form).n} {j : Fin (Q.disk B.form).n} {k : Fin (Q.disk C.form).n}
+    {x y : Pt} (hxy : x ≠ y)
+    (hA : segment ℝ x y ⊆ A.side i) (hB : segment ℝ x y ⊆ B.side j)
+    (hC : segment ℝ x y ⊆ C.side k) : False := by
+  obtain ⟨p, hpseg, hpA, hpB, hpC⟩ : ∃ p ∈ segment ℝ x y,
+      p ∉ A.vertexSet ∧ p ∉ B.vertexSet ∧ p ∉ C.vertexSet := by
+    have hfin : (A.vertexSet ∪ B.vertexSet ∪ C.vertexSet).Finite :=
+      ((cc_finite_vertexSet A).union (cc_finite_vertexSet B)).union (cc_finite_vertexSet C)
+    obtain ⟨p, hp, hpn⟩ := ((segment_infinite hxy).diff hfin).nonempty
+    refine ⟨p, hp, ?_, ?_, ?_⟩ <;> intro h <;> exact hpn (by simp [h])
+  have hpA' := side_subset_carrier A i (hA hpseg)
+  have hpB' := side_subset_carrier B j (hB hpseg)
+  have hpC' := side_subset_carrier C k (hC hpseg)
+  obtain ⟨iA, εA, dA, nA, hεA, hdA, hnA, hnAd, hsA, hyA⟩ :=
+    cc_halfdisk_tile A hpA' (notint hAB hpB') hpA
+  obtain ⟨iB, εB, dB, nB, hεB, hdB, hnB, hnBd, hsB, hyB⟩ :=
+    cc_halfdisk_tile B hpB' (notint hAB.symm hpA') hpB
+  obtain ⟨iC, εC, dC, nC, hεC, hdC, hnC, hnCd, hsC, hyC⟩ :=
+    cc_halfdisk_tile C hpC' (notint hAC.symm hpA') hpC
+  exact halfplane3 hnA hnB hnC
+    (no_common hAB hεA hεB hyA hyB)
+    (no_common hAC hεA hεC hyA hyC)
+    (no_common hBC hεB hεC hyB hyC)
+
+/-- Auxiliary for step 5: two listed sides of one tile that overlap with positive length
+coincide. -/
+private lemma same_tile {Q : Protoset} (A : PlacedTile Q)
+    (i j : Fin (Q.disk A.form).n) (hov : OverlapPos (A.side i) (A.side j)) :
+    A.side i = A.side j := by
+  by_cases hij : i = j
+  · rw [hij]
+  · exfalso
+    obtain ⟨x, y, hxy, hsub⟩ := hov
+    have hfin : (A.side i ∩ A.side j).Finite := by
+      have heq : A.side i ∩ A.side j =
+          A.anchor +ᵥ ((Q.disk A.form).side i ∩ (Q.disk A.form).side j) := by
+        unfold PlacedTile.side
+        exact (Set.vadd_set_inter).symm
+      rw [heq]
+      refine Set.Finite.vadd_set ?_
+      exact (((Set.finite_singleton _).insert _).inter_of_left _).subset
+        ((Q.disk A.form).simple i j hij)
+    exact segment_infinite hxy (hfin.subset hsub)
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`
+(a geometric fact about plane tilings by polygonal disks, the three-block argument of
+`Planned.Strict.strict_composed_proper_step4_matched_step1_sides`): a plane tiling in which every
+listed side of every tile equals a listed side of a different tile is side-to-side, because
+three pairwise distinct tiles with disjoint interiors cannot share a segment of positive length
+in their sides, and two listed sides of one polygonal disk overlap only in a point unless they
+are equal. -/
+private lemma main {Q : Protoset} (T' : PlaneTiling Q)
+    (h : ∀ D ∈ T'.tiles, ∀ i : Fin (Q.disk D.form).n,
+      ∃ E ∈ T'.tiles, E ≠ D ∧ ∃ j : Fin (Q.disk E.form).n, E.side j = D.side i) :
+    T'.SideToSide := by
+  intro A hA B hB i j hov
+  by_cases hAB : A = B
+  · subst hAB
+    exact same_tile A i j hov
+  · obtain ⟨A₂, hA₂, hA₂A, i₂, hi₂⟩ := h A hA i
+    by_cases hA₂B : A₂ = B
+    · subst hA₂B
+      have h1 : A₂.side i₂ = A₂.side j :=
+        same_tile A₂ i₂ j (by rw [hi₂]; exact hov)
+      rw [← hi₂]
+      exact h1
+    · exfalso
+      obtain ⟨x, y, hxy, hsub⟩ := hov
+      have hd12 : Disjoint (interior A.carrier) (interior A₂.carrier) :=
+        T'.disjoint hA hA₂ (Ne.symm hA₂A)
+      have hd13 : Disjoint (interior A.carrier) (interior B.carrier) :=
+        T'.disjoint hA hB hAB
+      have hd23 : Disjoint (interior A₂.carrier) (interior B.carrier) :=
+        T'.disjoint hA₂ hB hA₂B
+      refine three (i := i) (j := i₂) (k := j) hd12 hd13 hd23 hxy ?_ ?_ ?_
+      · exact fun z hz => (hsub hz).1
+      · rw [hi₂]
+        exact fun z hz => (hsub hz).1
+      · exact fun z hz => (hsub hz).2
+
+end hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s5
+
+namespace hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s3
+
+open hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s5
+
+/-- A nondegenerate segment is infinite. -/
+private lemma PSS_s3a_segment_infinite {x y : Pt} (hxy : x ≠ y) : (segment ℝ x y).Infinite := by
+  rw [segment_eq_image_lineMap]
+  refine (Set.Icc_infinite (zero_lt_one' ℝ)).image ?_
+  exact (AffineMap.lineMap_injective ℝ hxy).injOn
+
+/-- In a side-to-side plane tiling every listed side of a tile coincides with a listed side of
+another tile. -/
+private lemma PSS_s3a_coincident_side {Q : Protoset} (T : PlaneTiling Q) (hT : T.SideToSide)
+    {X : PlacedTile Q} (hX : X ∈ T.tiles) (i : Fin (Q.disk X.form).n) :
+    ∃ Y ∈ T.tiles, Y ≠ X ∧ ∃ j : Fin (Q.disk Y.form).n, Y.side j = X.side i := by
+  classical
+  have hkey := @hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_key Q
+  have hsni := @hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_not_interior Q
+  have hseg := @hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment Q
+  have hvne := @hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_ne Q
+  have hsub :=
+    @hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_subset_carrier Q
+  set a := X.vertex i with ha
+  set b := X.vertex (finRotate _ i) with hb
+  have hab : a ≠ b := hvne X i
+  have hSeg : X.side i = segment ℝ a b := hseg X i
+  set R : ℝ := dist a b + 1 with hR
+  obtain ⟨N, hN⟩ := cc_count Q R
+  have hF := (hN T.tiles T.disjoint a).1
+  set F := {Y ∈ T.tiles | (Y.carrier ∩ Metric.ball a R).Nonempty} with hFdef
+  have hzball : ∀ z ∈ X.side i, dist z a < R := by
+    intro z hz
+    rw [hSeg, segment_eq_image'] at hz
+    obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hz
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht0, hR, dist_eq_norm]
+    have h1 : ‖b - a‖ = ‖a - b‖ := norm_sub_rev b a
+    nlinarith [norm_nonneg (b - a)]
+  have hV : (X.vertexSet ∪ ⋃ Y ∈ F, Y.vertexSet).Finite :=
+    (cc_finite_vertexSet X).union (hF.biUnion fun Y _ => cc_finite_vertexSet Y)
+  have hinf : (X.side i).Infinite := by
+    rw [hSeg]
+    exact PSS_s3a_segment_infinite hab
+  obtain ⟨z, hzS, hzV⟩ := (hinf.diff hV).nonempty
+  have hzX : z ∈ X.carrier := hsub X i hzS
+  have hzni : z ∉ interior X.carrier := hsni X i hzS
+  have hzvX : z ∉ X.vertexSet := fun h => hzV (Or.inl h)
+  have hzvF : ∀ Y ∈ F, z ∉ Y.vertexSet := fun Y hY h => hzV (Or.inr (Set.mem_biUnion hY h))
+  have hY : ∃ Y ∈ F, Y ≠ X ∧ z ∈ Y.carrier := by
+    by_contra hcon
+    push_neg at hcon
+    have hev : ∀ᶠ y in nhds z, ∀ Y ∈ F, Y ≠ X → y ∉ Y.carrier := by
+      rw [Filter.eventually_all_finite hF]
+      intro Y hY
+      by_cases hYX : Y = X
+      · exact Filter.Eventually.of_forall fun _ h => absurd hYX h
+      · filter_upwards [(cc_tile_carrier_closed Y).isOpen_compl.mem_nhds (hcon Y hY hYX)]
+          with y hy _
+        exact hy
+    have hball : ∀ᶠ y in nhds z, y ∈ Metric.ball a R :=
+      Metric.isOpen_ball.mem_nhds (Metric.mem_ball.2 (hzball z hzS))
+    have hmem : ∀ᶠ y in nhds z, y ∈ X.carrier := by
+      filter_upwards [hev, hball] with y hy1 hy2
+      have hycov : y ∈ support T.tiles := by rw [T.cover]; trivial
+      obtain ⟨W, hW, hyW⟩ := Set.mem_iUnion₂.1 hycov
+      by_cases hWX : W = X
+      · exact hWX ▸ hyW
+      · exact absurd hyW (hy1 W ⟨hW, y, hyW, hy2⟩ hWX)
+    exact hzni (mem_interior_iff_mem_nhds.2 hmem)
+  obtain ⟨Y, hYF, hYX, hzY⟩ := hY
+  have hd : Disjoint (interior X.carrier) (interior Y.carrier) :=
+    T.disjoint hX hYF.1 (Ne.symm hYX)
+  obtain ⟨j, hj⟩ := hkey hd hzS hzY hzvX (hzvF Y hYF)
+  exact ⟨Y, hYF.1, hYX, j, (hT X hX Y hYF.1 i j hj).symm⟩
+
+private lemma PSS_s3b_finRotate_ne {N : ℕ} (hN : 2 ≤ N) (x : Fin N) : finRotate N x ≠ x := by
+  obtain ⟨k, rfl⟩ : ∃ k, N = k + 1 + 1 := ⟨N - 2, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have := congrArg (· - x) h
+  simp at this
+
+/-- The two listed endpoints of a side of a placed tile differ. -/
+private lemma PSS_s3b_vertex_ne {Q : Protoset} (X : PlacedTile Q) (i : Fin (Q.disk X.form).n) :
+    X.vertex i ≠ X.vertex (finRotate _ i) := by
+  intro h
+  have h' : (Q.disk X.form).vertex i = (Q.disk X.form).vertex (finRotate _ i) :=
+    add_left_cancel h
+  exact PSS_s3b_finRotate_ne (by have := (Q.disk X.form).three_le; omega) i
+    ((Q.disk X.form).vertex_injective h').symm
+
+/-- The translate of a segment. -/
+private lemma PSS_s3b_vadd_segment (w a b : Pt) :
+    w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+  rw [← segment_translate_image]
+  rfl
+
+/-- A listed side of a placed tile is the segment between its two listed endpoints. -/
+private lemma PSS_s3b_side_eq {Q : Protoset} (X : PlacedTile Q) (i : Fin (Q.disk X.form).n) :
+    X.side i = segment ℝ (X.vertex i) (X.vertex (finRotate _ i)) := by
+  unfold PlacedTile.side PlacedTile.vertex PolygonalDisk.side
+  rw [PSS_s3b_vadd_segment]
+  rfl
+
+/-- The midpoint of a segment is not an endpoint of any segment equal to it. -/
+private lemma PSS_s3b_midpoint_ne {a b c d : Pt} (hab : a ≠ b)
+    (h : segment ℝ a b = segment ℝ c d) :
+    midpoint ℝ a b ≠ c ∧ midpoint ℝ a b ≠ d := by
+  have key : ∀ {c d : Pt}, segment ℝ a b = segment ℝ c d → midpoint ℝ a b ≠ c := by
+    intro c d h hm
+    have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+    have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+    rw [segment_eq_image'] at ha hb
+    obtain ⟨s, ⟨hs0, hs1⟩, hsa⟩ := ha
+    obtain ⟨t, ⟨ht0, ht1⟩, htb⟩ := hb
+    have hmid : midpoint ℝ a b = c + ((s + t) / 2) • (d - c) := by
+      rw [← hsa, ← htb, midpoint_eq_smul_add, invOf_eq_inv]
+      module
+    rw [hmid] at hm
+    have h0 : ((s + t) / 2) • (d - c) = 0 := by
+      have : c + ((s + t) / 2) • (d - c) = c + 0 := by rw [hm, add_zero]
+      exact add_left_cancel this
+    rcases smul_eq_zero.mp h0 with h1 | h1
+    · have hs : s = 0 := by linarith
+      have ht : t = 0 := by linarith
+      apply hab
+      rw [← hsa, ← htb, hs, ht]
+    · have hdc : d = c := sub_eq_zero.mp h1
+      apply hab
+      rw [← hsa, ← htb, hdc]
+      simp
+  exact ⟨key h, key (by rw [h, segment_symm])⟩
+
+/-- A point of a listed side of a placed tile, other than the two endpoints of the side, is not
+a listed vertex of the tile. -/
+private lemma PSS_s3b_not_vertex {Q : Protoset} (A : PlacedTile Q) (i : Fin (Q.disk A.form).n)
+    {x : Pt} (hx : x ∈ A.side i) (h1 : x ≠ A.vertex i) (h2 : x ≠ A.vertex (finRotate _ i)) :
+    x ∉ A.vertexSet := by
+  rintro ⟨k, hk⟩
+  by_cases hki : k = i
+  · subst hki
+    exact h1 hk.symm
+  · have hxk : x ∈ A.side k := by
+      rw [← hk]
+      unfold PlacedTile.side PlacedTile.vertex PolygonalDisk.side
+      exact Set.vadd_mem_vadd_set (left_mem_segment ℝ _ _)
+    have hx' : -A.anchor + x ∈ (Q.disk A.form).side i := by
+      unfold PlacedTile.side at hx
+      rw [Set.mem_vadd_set_iff_neg_vadd_mem] at hx
+      exact hx
+    have hxk' : -A.anchor + x ∈ (Q.disk A.form).side k := by
+      unfold PlacedTile.side at hxk
+      rw [Set.mem_vadd_set_iff_neg_vadd_mem] at hxk
+      exact hxk
+    have := (Q.disk A.form).simple i k (Ne.symm hki) ⟨hx', hxk'⟩
+    rcases this.1 with h | h
+    · apply h1
+      unfold PlacedTile.vertex
+      rw [vadd_eq_add, ← h]
+      abel
+    · apply h2
+      unfold PlacedTile.vertex
+      rw [vadd_eq_add, ← h]
+      abel
+
+/-- Two nonzero vectors whose open half-planes have no common point: every vector in the open
+half-plane opposite to the first lies in the open half-plane of the second. -/
+private lemma PSS_s3b_cover {a b : Pt} (ha : a ≠ 0) (hb : b ≠ 0)
+    (h : ¬ ∃ w : Pt, 0 < inner ℝ a w ∧ 0 < inner ℝ b w) {w : Pt} (hw : inner ℝ a w < 0) :
+    0 < inner ℝ b w := by
+  obtain ⟨hcr, hdot⟩ := pair h
+  have na := npos ha
+  have nb := npos hb
+  have hne : a 0 * b 0 + a 1 * b 1 ≠ 0 := by
+    intro hdot0
+    have e : (a 0 * a 0 + a 1 * a 1) * (b 0 * b 0 + b 1 * b 1) =
+        (a 0 * b 0 + a 1 * b 1) ^ 2 + (a 0 * b 1 - a 1 * b 0) ^ 2 := by ring
+    rw [hdot0, hcr] at e
+    have := mul_pos na nb
+    rw [e] at this
+    norm_num at this
+  have hlt : a 0 * b 0 + a 1 * b 1 < 0 := lt_of_le_of_ne hdot hne
+  rw [inner_coord] at hw ⊢
+  have key : (a 0 * a 0 + a 1 * a 1) * (b 0 * w 0 + b 1 * w 1) =
+      (a 0 * b 0 + a 1 * b 1) * (a 0 * w 0 + a 1 * w 1) := by
+    linear_combination (a 0 * w 1 - a 1 * w 0) * hcr
+  have hpos : 0 < (a 0 * b 0 + a 1 * b 1) * (a 0 * w 0 + a 1 * w 1) :=
+    mul_pos_of_neg_of_neg hlt hw
+  rw [← key] at hpos
+  by_contra hcon
+  push_neg at hcon
+  nlinarith [mul_nonneg na.le (neg_nonneg.mpr hcon)]
+
+/-- Pushing a point of a ball slightly along a vector stays in the ball. -/
+private lemma PSS_s3b_push (x z nv : Pt) (ε δ : ℝ) (hz : dist z x < ε) (hδ : 0 < δ)
+    (hn : nv ≠ 0) (σ : ℝ) (hσ : σ = 1 ∨ σ = -1) :
+    ∃ t : ℝ, 0 < t ∧ dist (z + (σ * t) • nv) z < δ ∧ dist (z + (σ * t) • nv) x < ε ∧
+      inner ℝ (z + (σ * t) • nv - x) nv = inner ℝ (z - x) nv + σ * t * ‖nv‖ ^ 2 := by
+  have hnp : 0 < ‖nv‖ := norm_pos_iff.mpr hn
+  set r := min δ (ε - dist z x) with hr
+  have hr0 : 0 < r := lt_min hδ (by linarith)
+  have hq : 0 < r / (2 * ‖nv‖) := by positivity
+  have h1 : dist (z + (σ * (r / (2 * ‖nv‖))) • nv) z = r / 2 := by
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_mul]
+    rcases hσ with rfl | rfl <;> simp [abs_of_pos hq] <;> field_simp
+  refine ⟨r / (2 * ‖nv‖), hq, ?_, ?_, ?_⟩
+  · rw [h1]; linarith [min_le_left δ (ε - dist z x)]
+  · have := dist_triangle (z + (σ * (r / (2 * ‖nv‖))) • nv) z x
+    linarith [min_le_right δ (ε - dist z x)]
+  · rw [add_sub_right_comm, inner_add_left, inner_smul_left, real_inner_self_eq_norm_sq]
+    simp
+
+/-- Two placed tiles with disjoint interiors sharing a listed side, both contained in a closed set
+`R`: the midpoint of the shared side is an interior point of `R`. -/
+private lemma PSS_s3b_two_tiles {Q : Protoset} {X Y : PlacedTile Q}
+    (hd : Disjoint (interior X.carrier) (interior Y.carrier))
+    {i : Fin (Q.disk X.form).n} {j : Fin (Q.disk Y.form).n} (hs : Y.side j = X.side i)
+    {R : Set Pt} (hR : IsClosed R) (hXR : X.carrier ⊆ R) (hYR : Y.carrier ⊆ R) :
+    midpoint ℝ (X.vertex i) (X.vertex (finRotate _ i)) ∈ interior R := by
+  have hab : X.vertex i ≠ X.vertex (finRotate _ i) := PSS_s3b_vertex_ne X i
+  have hXs : X.side i = segment ℝ (X.vertex i) (X.vertex (finRotate _ i)) :=
+    PSS_s3b_side_eq X i
+  have hYs : segment ℝ (X.vertex i) (X.vertex (finRotate _ i)) =
+      segment ℝ (Y.vertex j) (Y.vertex (finRotate _ j)) :=
+    hXs.symm.trans (hs.symm.trans (PSS_s3b_side_eq Y j))
+  obtain ⟨hxc, hxd⟩ := PSS_s3b_midpoint_ne hab hYs
+  obtain ⟨hxa, hxb⟩ := PSS_s3b_midpoint_ne hab rfl
+  set x := midpoint ℝ (X.vertex i) (X.vertex (finRotate _ i)) with hx
+  have hxXs : x ∈ X.side i := by
+    rw [hXs]
+    exact midpoint_mem_segment _ _
+  have hxYs : x ∈ Y.side j := by
+    rw [hs]
+    exact hxXs
+  have hxX : x ∈ X.carrier := side_subset_carrier X i hxXs
+  have hxY : x ∈ Y.carrier := side_subset_carrier Y j hxYs
+  have hxXv : x ∉ X.vertexSet := PSS_s3b_not_vertex X i hxXs hxa hxb
+  have hxYv : x ∉ Y.vertexSet := PSS_s3b_not_vertex Y j hxYs hxc hxd
+  obtain ⟨iX, εX, dX, nX, hεX, hdX, hnX, hnXd, hsX, hyX⟩ :=
+    cc_halfdisk_tile X hxX (notint hd hxY) hxXv
+  obtain ⟨iY, εY, dY, nY, hεY, hdY, hnY, hnYd, hsY, hyY⟩ :=
+    cc_halfdisk_tile Y hxY (notint hd.symm hxX) hxYv
+  have hno := no_common hd hεX hεY hyX hyY
+  have hεpos : 0 < min εX εY := lt_min hεX hεY
+  have hball : Metric.ball x (min εX εY) ⊆ R := by
+    intro z hz
+    have hzd : dist z x < min εX εY := Metric.mem_ball.mp hz
+    have hzX : dist z x < εX := lt_of_lt_of_le hzd (min_le_left _ _)
+    have hzY : dist z x < εY := lt_of_lt_of_le hzd (min_le_right _ _)
+    rcases lt_trichotomy (inner ℝ nX (z - x)) 0 with h | h | h
+    · exact hYR (interior_subset (hyY z hzY (PSS_s3b_cover hnX hnY hno h)))
+    · rw [← hR.closure_eq, Metric.mem_closure_iff]
+      intro δ hδ
+      obtain ⟨t, ht, hdt, hdx, hi⟩ :=
+        PSS_s3b_push x z nX (min εX εY) δ hzd hδ hnX 1 (Or.inl rfl)
+      refine ⟨z + (1 * t) • nX, ?_, by rw [dist_comm]; exact hdt⟩
+      have hc : inner ℝ (z - x) nX = 0 := (real_inner_comm nX (z - x)).trans h
+      have hn2 : 0 < ‖nX‖ ^ 2 := pow_pos (norm_pos_iff.mpr hnX) 2
+      have hpos : 0 < inner ℝ nX (z + (1 * t) • nX - x) := by
+        rw [← real_inner_comm nX (z + (1 * t) • nX - x), hi, hc]
+        have := mul_pos ht hn2
+        linarith
+      exact hXR (interior_subset
+        (hyX _ (lt_of_lt_of_le hdx (min_le_left _ _)) hpos))
+    · exact hXR (interior_subset (hyX z hzX h))
+  exact interior_maximal hball Metric.isOpen_ball (Metric.mem_ball_self hεpos)
+private lemma PSS_aux_cast_side {B B' : PolygonalDisk} (h : B = B') (i : Fin B.n) :
+    ∃ j : Fin B'.n, HEq i j ∧ B'.side j = B.side i := by
+  subst h
+  exact ⟨i, HEq.rfl, rfl⟩
+
+private lemma PSS_aux_cast_side' {B B' : PolygonalDisk} (h : B = B') (j : Fin B'.n) :
+    ∃ i : Fin B.n, HEq i j ∧ B'.side j = B.side i := by
+  subst h
+  exact ⟨j, HEq.rfl, rfl⟩
+
+private lemma PSS_aux_vadd_segment (w a b : Pt) :
+    w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+  rw [← segment_translate_image]
+  rfl
+
+private lemma PSS_aux_smul_side (C : Geometry.MacroCertificate P) (D : PlacedTile C.Q)
+    (i : Fin (C.Q.disk D.form).n) :
+    C.σ.θ • D.side i = (C.σ.θ • D.anchor) +ᵥ C.macroSide D.form i := by
+  unfold PlacedTile.side MacroData.macroSide
+  ext z
+  simp only [Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨_, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+
+private lemma PSS_aux_mid_mem_side {Q : Protoset} (Z : PlacedTile Q)
+    (i : Fin (Q.disk Z.form).n) :
+    midpoint ℝ (Z.vertex i) (Z.vertex (finRotate _ i)) ∈ Z.side i := by
+  have : Z.side i = segment ℝ (Z.vertex i) (Z.vertex (finRotate _ i)) := by
+    unfold PlacedTile.side PolygonalDisk.side PlacedTile.vertex
+    exact PSS_aux_vadd_segment _ _ _
+  rw [this]
+  exact midpoint_mem_segment _ _
+
+private lemma PSS_aux_frontier_vadd (v : Pt) (s : Set Pt) :
+    frontier (v +ᵥ s) = v +ᵥ frontier s := by
+  have := (Homeomorph.addLeft v).image_frontier s
+  rw [Homeomorph.coe_addLeft] at this
+  exact this.symm
+
+private lemma PSS_aux_frontier_smul {c : ℝ} (hc : c ≠ 0) (s : Set Pt) :
+    frontier (c • s) = c • frontier s :=
+  ((Homeomorph.smulOfNeZero c hc).image_frontier s).symm
+
+private lemma PSS_aux_side_subset_frontier {Q : Protoset} (D : PlacedTile Q)
+    (d : Fin (Q.disk D.form).n) : D.side d ⊆ frontier D.carrier := by
+  unfold PlacedTile.side PlacedTile.carrier
+  rw [PSS_aux_frontier_vadd]
+  apply Set.vadd_set_mono
+  intro z hz
+  rw [(Q.disk D.form).frontier_eq, Set.mem_iUnion]
+  exact ⟨d, hz⟩
+
+private lemma PSS_aux_child_carrier_subset (C : Geometry.MacroCertificate P)
+    (D : PlacedTile C.Q) (t : C.Typ) (ht : C.owner t = D.form) :
+    ((C.σ.θ • D.anchor) +ᵥ (C.childTile t).carrier) ⊆ C.σ.θ • D.carrier := by
+  have hmem : C.childTile t ∈ (C.σ.rule (C.owner t)).tiles := by
+    rw [C.rule_eq]
+    exact ⟨t, rfl, rfl⟩
+  have h1 : (C.childTile t).carrier ⊆ C.σ.θ • (C.Q.disk D.form).carrier := by
+    rw [← C.σ.support_eq D.form, ← ht]
+    exact Set.subset_biUnion_of_mem hmem
+  intro z hz
+  obtain ⟨y, hy, rfl⟩ := Set.mem_vadd_set.1 hz
+  obtain ⟨k, hk, rfl⟩ := Set.mem_smul_set.1 (h1 hy)
+  refine Set.mem_smul_set.2 ⟨D.anchor + k, ?_, ?_⟩
+  · exact Set.mem_vadd_set.2 ⟨k, hk, rfl⟩
+  · simp [smul_add]
+
+private lemma PSS_aux_form_disk
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) {m : ℕ}
+    (hC : C.Represents τ m) (dec : SideDecoration C.Q)
+    (formEquiv : dec.P'.Form ≃ hereditary_sts_substitution_sofic_ExtTile τ hsts C hC ⊕ C.Q.Form)
+    (proj_typed : ∀ A, dec.proj (formEquiv.symm (Sum.inl A)) = C.form A.1)
+    (Zf : dec.P'.Form) (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (h : formEquiv Zf = Sum.inl B) :
+    dec.proj Zf = C.form B.1 ∧ dec.P'.disk Zf = C.Q.disk (C.form B.1) := by
+  have hZ : Zf = formEquiv.symm (Sum.inl B) := (Equiv.eq_symm_apply _).2 h
+  have hp : dec.proj Zf = C.form B.1 := by
+    rw [hZ]
+    exact proj_typed B
+  exact ⟨hp, by rw [dec.disk_eq Zf, hp]⟩
+
+private lemma PSS_aux_interior_nonempty {Q : Protoset} (Y : PlacedTile Q) :
+    (interior Y.carrier).Nonempty := by
+  obtain ⟨z, hz⟩ := (Q.disk Y.form).interior_nonempty
+  refine ⟨Y.anchor +ᵥ z, ?_⟩
+  rw [PlacedTile.carrier, interior_vadd]
+  exact Set.vadd_mem_vadd_set hz
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`
+(the tile across an outer fine side lies in another block; the first half of
+`Planned.Strict.som_opposite`, with the blocks of the partition replaced by the children
+`halign` places in the proper fine colouring `F`).  Let `D` be a tile of `T'` and `o` a whole
+fine outer side of the template of `D` lying in the scaled side `θ d` (`o ∈ outerList D.form d`).
+The proper tiling `F` is side-to-side, so the fine tile `Z` of `F` placed at `θ D.anchor +
+C.anchor o.1` (by `halign`) has, across its side `o`, a different tile `Y` of `F` with a listed
+side equal to it (`coincident_side`).  Both are typed founded-legal tiles
+(`X.proper_typed_legal`), their arrays agree on the coincident sides (`X.proper_cells_match`),
+and `Y` is a child `B₂.1` of a tile `E` of the composition `T'` (`hcomp`, `C.rule_eq`, `halign`
+and the fact that two tiles of `F` with the same projection coincide), with `E ≠ D` because two
+distinct children of one template cannot share a side lying in the boundary of the scaled
+region `θ • disk D.form` (`two_tiles`, the midpoint of the shared side would be interior to the
+scaled region).  The conclusion records the two typed tiles, the two side occurrences, the
+equality of the placed fine segments and of the five-cell arrays. -/
+private lemma main
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (hFT : X.dec.toDecoration.project F = T)
+    (T' : PlaneTiling C.Q) (hcomp : C.σ.IsComposition T' T)
+    (halign : ∀ D ∈ T'.tiles, ∀ t, C.owner t = D.form →
+        ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+          X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
+            Z.anchor = C.σ.θ • D.anchor + C.anchor t)
+    (D : PlacedTile C.Q) (hD : D ∈ T'.tiles) (d : Fin (C.Q.disk D.form).n)
+    (o : C.SideOcc) (ho : o ∈ C.outerList D.form d) :
+    ∃ E ∈ T'.tiles, E ≠ D ∧
+      ∃ (B₁ B₂ : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+        (i : C.Side B₁.1) (j : C.Side B₂.1),
+        (⟨B₁.1, i⟩ : C.SideOcc) = o ∧
+        hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC B₁ ∧
+        hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC B₂ ∧
+        C.owner B₂.1 = E.form ∧
+        (C.σ.θ • D.anchor) +ᵥ C.occSide ⟨B₁.1, i⟩ =
+          (C.σ.θ • E.anchor) +ᵥ C.occSide ⟨B₂.1, j⟩ ∧
+        B₁.2 i = B₂.2 j := by
+  have _ := hher
+  rcases X with ⟨dec, formEquiv, proj_typed, ptl, pcm, _pot⟩
+  obtain ⟨t, i₀⟩ := o
+  obtain ⟨hown, -, hsub⟩ := (C.g3_outerList_mem D.form d ⟨t, i₀⟩).1 ho
+  obtain ⟨Z, hZ, B₁, hZB, hB₁t, hZa⟩ := halign D hD t hown
+  subst hB₁t
+  obtain ⟨-, hZd⟩ := PSS_aux_form_disk τ hsts C hC dec formEquiv proj_typed Z.form B₁ hZB
+  obtain ⟨i', hi', hi's⟩ := PSS_aux_cast_side hZd.symm i₀
+  obtain ⟨Y, hY, hYZ, j', hj'⟩ := PSS_s3a_coincident_side F hF.1 hZ i'
+  obtain ⟨B₁', hZB', hl₁⟩ := ptl F hF Z hZ
+  have hB₁' : B₁' = B₁ := Sum.inl.inj (hZB'.symm.trans hZB)
+  subst hB₁'
+  obtain ⟨B₂, hYB, hl₂⟩ := ptl F hF Y hY
+  obtain ⟨-, hYd⟩ := PSS_aux_form_disk τ hsts C hC dec formEquiv proj_typed Y.form B₂ hYB
+  obtain ⟨j₀, hj₀, hj₀s⟩ := PSS_aux_cast_side' hYd.symm j'
+  have hc : B₁'.2 i₀ = B₂.2 j₀ :=
+    pcm F hF Z hZ Y hY (Ne.symm hYZ) B₁' B₂ hZB hYB i₀ j₀ ⟨i', j', hi', hj₀, hj'.symm⟩
+  -- the block of `Y`
+  have hcomp' : C.σ.decompose T'.tiles = T.tiles := hcomp
+  have hYT : dec.toDecoration.projTile Y ∈ T.tiles := by
+    rw [← hFT]
+    exact ⟨Y, hY, rfl⟩
+  have hdec : dec.toDecoration.projTile Y ∈ C.σ.decompose T'.tiles := by
+    rw [hcomp']
+    exact hYT
+  unfold Substitution.decompose at hdec
+  obtain ⟨E, hE, hYE⟩ := Set.mem_iUnion₂.1 hdec
+  unfold Substitution.decomposeTile translateSet at hYE
+  obtain ⟨A₀, hA₀, hA₀e⟩ := hYE
+  rw [C.rule_eq] at hA₀
+  obtain ⟨t₂, ht₂, rfl⟩ := hA₀
+  have hYform : C.form t₂ = dec.proj Y.form := congrArg PlacedTile.form hA₀e
+  have hYanch : C.σ.θ • E.anchor + C.anchor t₂ = Y.anchor := congrArg PlacedTile.anchor hA₀e
+  obtain ⟨Y', hY', B', hY'B, hB't, hY'a⟩ := halign E hE t₂ ht₂
+  obtain ⟨hY'p, -⟩ := PSS_aux_form_disk τ hsts C hC dec formEquiv proj_typed Y'.form B' hY'B
+  have hYY' : Y' = Y := by
+    by_contra hne
+    have hd : Disjoint (interior Y'.carrier) (interior Y.carrier) := F.disjoint hY' hY hne
+    have hcar : Y'.carrier = Y.carrier := by
+      unfold PlacedTile.carrier
+      rw [dec.carrier_eq, dec.carrier_eq, hY'p, hB't, hYform, hY'a, ← hYanch]
+    rw [hcar] at hd
+    obtain ⟨z, hz⟩ := PSS_aux_interior_nonempty Y
+    exact Set.disjoint_left.1 hd hz hz
+  rw [hYY'] at hY'B
+  have hB'B₂ : B' = B₂ := Sum.inl.inj (hY'B.symm.trans hYB)
+  have hB₂t : B₂.1 = t₂ := by rw [← hB'B₂]; exact hB't
+  have hownE : C.owner B₂.1 = E.form := by rw [hB₂t]; exact ht₂
+  have hYanch' : Y.anchor = C.σ.θ • E.anchor + C.anchor B₂.1 := by
+    rw [hB₂t]
+    exact hYanch.symm
+  have hZs : (C.σ.θ • D.anchor) +ᵥ C.occSide ⟨B₁'.1, i₀⟩ = Z.side i' := by
+    show _ +ᵥ (C.anchor B₁'.1 +ᵥ (C.Q.disk (C.form B₁'.1)).side i₀) =
+      Z.anchor +ᵥ (dec.P'.disk Z.form).side i'
+    rw [hi's, hZa, vadd_vadd]
+  have hYs : (C.σ.θ • E.anchor) +ᵥ C.occSide ⟨B₂.1, j₀⟩ = Y.side j' := by
+    show _ +ᵥ (C.anchor B₂.1 +ᵥ (C.Q.disk (C.form B₂.1)).side j₀) =
+      Y.anchor +ᵥ (dec.P'.disk Y.form).side j'
+    rw [hj₀s, hYanch', vadd_vadd]
+  have hEne : E ≠ D := by
+    rintro rfl
+    have hθ : C.σ.θ ≠ 0 := (zero_lt_one.trans C.σ.one_lt).ne'
+    have hR : IsClosed (C.σ.θ • E.carrier) :=
+      (Homeomorph.smulOfNeZero C.σ.θ hθ).isClosed_image.2 (cc_tile_carrier_closed E)
+    have hZcar : Z.carrier = (C.σ.θ • E.anchor) +ᵥ (C.childTile B₁'.1).carrier := by
+      unfold PlacedTile.carrier
+      show Z.anchor +ᵥ (dec.P'.disk Z.form).carrier =
+        _ +ᵥ (C.anchor B₁'.1 +ᵥ (C.Q.disk (C.form B₁'.1)).carrier)
+      rw [hZd, vadd_vadd, hZa]
+    have hYcar : Y.carrier = (C.σ.θ • E.anchor) +ᵥ (C.childTile t₂).carrier := by
+      unfold PlacedTile.carrier
+      show Y.anchor +ᵥ (dec.P'.disk Y.form).carrier =
+        _ +ᵥ (C.anchor t₂ +ᵥ (C.Q.disk (C.form t₂)).carrier)
+      rw [dec.carrier_eq, ← hYform, vadd_vadd, hYanch]
+    have hZR : Z.carrier ⊆ C.σ.θ • E.carrier :=
+      hZcar ▸ PSS_aux_child_carrier_subset C E B₁'.1 hown
+    have hYR : Y.carrier ⊆ C.σ.θ • E.carrier :=
+      hYcar ▸ PSS_aux_child_carrier_subset C E t₂ ht₂
+    have hmid := PSS_s3b_two_tiles (F.disjoint hZ hY (Ne.symm hYZ)) hj' hR hZR hYR
+    have hfr : Z.side i' ⊆ frontier (C.σ.θ • E.carrier) := by
+      rw [← hZs, PSS_aux_frontier_smul hθ]
+      intro z hz
+      have h1 : z ∈ (C.σ.θ • E.anchor) +ᵥ C.macroSide E.form d := Set.vadd_set_mono hsub hz
+      rw [← PSS_aux_smul_side C E d] at h1
+      exact Set.smul_set_mono (PSS_aux_side_subset_frontier E d) h1
+    exact (hfr (PSS_aux_mid_mem_side Z i')).2 hmid
+  exact ⟨E, hE, hEne, B₁', B₂, i₀, j₀, rfl, hl₁, hl₂, hownE, by rw [hZs, hYs]; exact hj'.symm, hc⟩
+
+
+end hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s3
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide`
+(the extended analogue of `Planned.Strict.strict_opposing_macroside`, which needs only one
+fine outer side of each macroside, available by `g3_five_le`): every listed side of every tile
+of the aligned composition `T'` has an opposing tile, a different tile of `T'` with a listed
+side equal to it.  The tile across the first fine outer side of the block lies in another block
+(step 3), its fourth cell is then a schedule tag with the same fifth cell, so by step 1 both
+fine sides carry their own schedule, equal schedules (step 2) give coinciding macrosides, and
+`θ`-scaling is injective. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_step4
+    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (T : PlaneTiling C.Q)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
+    (hFT : X.dec.toDecoration.project F = T)
+    (T' : PlaneTiling C.Q) (hcomp : C.σ.IsComposition T' T)
+    (halign : ∀ D ∈ T'.tiles, ∀ t, C.owner t = D.form →
+        ∃ Z ∈ F.tiles, ∃ B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+          X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
+            Z.anchor = C.σ.θ • D.anchor + C.anchor t) :
+    ∀ D ∈ T'.tiles, ∀ i : Fin (C.Q.disk D.form).n,
+      ∃ E ∈ T'.tiles, E ≠ D ∧ ∃ j : Fin (C.Q.disk E.form).n, E.side j = D.side i := by
+  intro D hD i
+  obtain ⟨o, ho⟩ := List.exists_mem_of_length_pos
+    (lt_of_lt_of_le (by norm_num) (C.g3_five_le D.form i))
+  obtain ⟨hown, hout, hsub⟩ := (C.g3_outerList_mem D.form i o).1 ho
+  obtain ⟨E, hE, hED, B₁, B₂, i₁, j₁, hio, hl₁, hl₂, hownE, hseg, hcells⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s3.main
+      τ hsts hher C m hC X T F hF hFT T' hcomp halign D hD i o ho
+  subst hio
+  obtain ⟨h4, h3⟩ :=
+    (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_step1
+      τ hsts C m hC B₁ hl₁ i₁).1 hout
+  have h4' : B₂.2 j₁ 4 = Sum.inl 0 := (congrFun hcells 4).symm.trans h4
+  have h3' : B₂.2 j₁ 3 = Sum.inl (Planned.Strict.schedU C hC (C.occ B₁.1 i₁)) :=
+    (congrFun hcells 3).symm.trans h3
+  have hout₂ : C.IsOuter (C.occ B₂.1 j₁) :=
+    (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_step1
+      τ hsts C m hC B₂ hl₂ j₁).2 h4' ⟨_, h3'⟩
+  have h3'' :=
+    ((hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_step1
+      τ hsts C m hC B₂ hl₂ j₁).1 hout₂).2
+  have hsch : Planned.Strict.schedOf C hC (C.occ B₁.1 i₁) =
+      Planned.Strict.schedOf C hC (C.occ B₂.1 j₁) := by
+    have h5 := Sum.inl.inj (h3'.symm.trans h3'')
+    simp only [Planned.Strict.schedU] at h5
+    injection h5 with h6
+    injection h6 with h7
+    exact congrArg Subtype.val h7
+  have hc₁ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux2
+      C hown i
+  have hsub' : C.occSide (C.occ B₁.1 i₁) ⊆
+      C.macroSide (C.owner B₁.1) (Fin.cast (by rw [hown]) i) := by
+    rw [hc₁]
+    exact hsub
+  obtain ⟨e, he⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s2.main
+      τ C m hC (C.occ B₁.1 i₁) (C.occ B₂.1 j₁) (Fin.cast (by rw [hown]) i)
+      (C.σ.θ • D.anchor) (C.σ.θ • E.anchor) hsub' hsch hseg
+  refine ⟨E, hE, hED, Fin.cast (by rw [hownE]) e, ?_⟩
+  have hθ : C.σ.θ ≠ 0 := (zero_lt_one.trans C.σ.one_lt).ne'
+  have hc₂ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux2
+      C hownE.symm e
+  have hs₁ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux3
+      C D i
+  have hs₂ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_aux3
+      C E (Fin.cast (by rw [hownE]) e)
+  have key : C.σ.θ • E.side (Fin.cast (by rw [hownE]) e) = C.σ.θ • D.side i := by
+    rw [hs₂, hs₁, hc₂, ← hc₁]
+    exact he
+  exact Set.image_injective.mpr (smul_right_injective Pt hθ) key
+
 /-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
 "Heredity makes each parent listed side a union of whole fine sides" — the aligned grouped
 composition assembled from a proper fine colouring is side-to-side. -/
@@ -4900,7 +6254,12 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
           X.formEquiv Z.form = Sum.inl B ∧ B.1 = t ∧
             Z.anchor = C.σ.θ • D.anchor + C.anchor t) :
     T'.SideToSide := by
-  sorry
+  have hopp :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_step4
+      τ hsts hher C m hC X T F hF hFT T' hcomp halign
+  exact
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step3_parent_sideToSide_s5.main
+      T' hopp
 
 /-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
 the side-to-side property of the parent passes to any side-decorated colouring of it, since a

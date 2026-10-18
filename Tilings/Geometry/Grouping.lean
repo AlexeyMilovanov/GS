@@ -5082,6 +5082,55 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
 `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`:
 `emcdTemplateChild` bijects `{t | D.owner t = α}` onto the children of
 `s.setup.retained l (emcdBaseForm g s l α)` preserving carriers and side sets. -/
+private lemma
+    existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step2_children_aux1
+    (G : GroupedFamily P) (α : G.P'.Form) (p : P.Form)
+    (hsingle : (G.dissect α).tiles = {⟨p, 0⟩}) :
+    Set.range (G.P'.disk α).side = Set.range (P.disk p).side := by
+  classical
+  have hforward : ∀ i, ∃ j, (G.P'.disk α).side i = (P.disk p).side j := by
+    intro i
+    obtain ⟨A, hA, j, hj⟩ := G.side_whole α i
+    have hAeq : A = (⟨p, 0⟩ : PlacedTile P) := by
+      rw [hsingle] at hA
+      simpa using hA
+    subst A
+    exact ⟨j, by simpa [PlacedTile.side] using hj.symm⟩
+  choose f hf using hforward
+  have hfinj : Function.Injective f := by
+    intro i j hij
+    apply existsMacroCertificate_seed2_routing_step1_setup_sub2_templates_step3_side_injective
+    rw [hf i, hf j, hij]
+  have hvertices : ∀ i, ∃ j, (G.P'.disk α).vertex j = (P.disk p).vertex i := by
+    intro i
+    apply G.vertex_retained α
+    · refine ⟨⟨p, 0⟩, ?_, ?_⟩
+      · rw [hsingle]
+        simp
+      · exact ⟨i, by simp [PlacedTile.vertex]⟩
+    · rw [← G.support_eq α, hsingle, emcg_support_singleton_zero]
+      rw [(P.disk p).frontier_eq]
+      exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+  choose v hv using hvertices
+  have hvinj : Function.Injective v := by
+    intro i j hij
+    apply (P.disk p).vertex_injective
+    rw [← hv i, ← hv j, hij]
+  have hcard : (G.P'.disk α).n = (P.disk p).n := by
+    apply Nat.le_antisymm
+    · simpa using Fintype.card_le_of_injective f hfinj
+    · simpa using Fintype.card_le_of_injective v hvinj
+  have hfsurj : Function.Surjective f :=
+    ((Fintype.bijective_iff_injective_and_card f).2
+      ⟨hfinj, by simp [hcard]⟩).2
+  ext e
+  constructor
+  · rintro ⟨i, rfl⟩
+    exact ⟨f i, (hf i).symm⟩
+  · rintro ⟨j, rfl⟩
+    obtain ⟨i, rfl⟩ := hfsurj j
+    exact ⟨i, hf i⟩
+
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step2_children
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
@@ -5095,7 +5144,77 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
     (∀ t, (D.childTile t).carrier = (emcdTemplateChild g s l t).carrier) ∧
     (∀ t, Set.range (fun i : D.Side t => D.occSide ⟨t, i⟩) =
       Set.range (fun j => (emcdTemplateChild g s l t).side j)) := by
-  sorry
+  intro D
+  have _ := hidem
+  have hsingleton :=
+    existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step2_children_aux1
+      (P := P)
+  have hbase : ∀ p, (s.setup.GS.G.dissect
+      (emcdBaseForm g s l (emcdOriginalForm g s l p))).tiles = {⟨p, 0⟩} :=
+    existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_original
+      g s l
+  have hchild : ∀ t : D.Typ,
+      (D.childTile t).carrier = (emcdTemplateChild g s l t).carrier := by
+    intro t
+    exact existsMacroCertificate_seed2_routing_step3_data_sub1_macroData_step4_childCarrier
+      g s l t
+  have hside : ∀ t : D.Typ,
+      Set.range (fun i : D.Side t => D.occSide ⟨t, i⟩) =
+        Set.range (fun j => (emcdTemplateChild g s l t).side j) := by
+    rintro ⟨α, ⟨⟨form, v⟩, hX⟩⟩
+    cases form with
+    | inl γ =>
+        rfl
+    | inr p =>
+        let β := emcdBaseForm g s l
+          (emcdChildForm g s l ⟨α, ⟨⟨Sum.inr p, v⟩, hX⟩⟩)
+        have hsides :=
+          hsingleton s.setup.GS.G β p
+            (by simpa [β, emcdChildForm, emcdOriginalForm] using hbase p)
+        ext e
+        constructor
+        · rintro ⟨i, rfl⟩
+          have hi : (s.setup.GS.G.P'.disk β).side i ∈
+              Set.range (s.setup.GS.G.P'.disk β).side := ⟨i, rfl⟩
+          obtain ⟨j, hj⟩ := Set.mem_range.1 (hsides ▸ hi)
+          refine ⟨j, ?_⟩
+          change v +ᵥ (P.disk p).side j =
+            v +ᵥ (s.setup.GS.G.P'.disk β).side i
+          have heq : (s.setup.GS.G.P'.disk β).side i = (P.disk p).side j :=
+            hj.symm
+          exact (Set.vadd_set_mono heq.symm.subset).antisymm
+            (Set.vadd_set_mono heq.subset)
+        · rintro ⟨j, rfl⟩
+          have hj : (P.disk p).side j ∈ Set.range (P.disk p).side := ⟨j, rfl⟩
+          obtain ⟨i, hi⟩ := Set.mem_range.1 (hsides.symm ▸ hj)
+          refine ⟨i, ?_⟩
+          change v +ᵥ (s.setup.GS.G.P'.disk β).side i =
+            v +ᵥ (P.disk p).side j
+          have heq : (s.setup.GS.G.P'.disk β).side i = (P.disk p).side j := hi
+          exact (Set.vadd_set_mono heq.subset).antisymm
+            (Set.vadd_set_mono heq.symm.subset)
+  refine ⟨?_, ?_, ?_⟩
+  · intro α
+    refine Set.BijOn.mk ?_ ?_ ?_
+    · rintro ⟨β, X⟩ hβ
+      change β = α at hβ
+      subst β
+      exact X.2
+    · rintro ⟨β, X⟩ hβ ⟨γ, Y⟩ hγ hXY
+      change β = α at hβ
+      change γ = α at hγ
+      subst β
+      subst γ
+      change X.1 = Y.1 at hXY
+      have hXY' : X = Y := Subtype.ext hXY
+      subst Y
+      rfl
+    · intro X hX
+      exact ⟨⟨α, ⟨X, hX⟩⟩, by rfl, rfl⟩
+  · intro t
+    exact hchild t
+  · intro t
+    exact hside t
 
 /-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: properties of the central child. -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step3_central

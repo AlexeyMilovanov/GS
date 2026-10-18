@@ -11875,7 +11875,38 @@ private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_ste
     (hne : t ≠ t') (i : C.Side t) (j : C.Side t')
     (hside : C.occSide (C.occ t i) = C.occSide (C.occ t' j)) :
     C.IsInner (C.occ t i) := by
-  sorry
+  intro hout
+  -- both child tiles belong to the template of their common owner
+  have hm1 : C.childTile t ∈ (C.σ.rule (C.owner t)).tiles := by
+    rw [C.rule_eq]
+    exact ⟨t, rfl, rfl⟩
+  have hm2 : C.childTile t' ∈ (C.σ.rule (C.owner t)).tiles := by
+    rw [C.rule_eq, hown]
+    exact ⟨t', rfl, rfl⟩
+  -- distinct children have disjoint interiors
+  have hAB : Disjoint (interior (C.childTile t).carrier) (interior (C.childTile t').carrier) := by
+    refine (C.σ.rule (C.owner t)).disjoint hm1 hm2 ?_
+    intro h
+    injection h with h1 h2
+    exact hne (C.type_injective t t' hown h1 h2)
+  -- the midpoint of the common side is a vertex of neither child
+  have hab : (C.childTile t).vertex i ≠ (C.childTile t).vertex (finRotate _ i) :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_ne (C.childTile t) i
+  have hy : midpoint ℝ ((C.childTile t).vertex i) ((C.childTile t).vertex (finRotate _ i)) ∈
+      (C.childTile t).side i := by
+    rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment]
+    exact midpoint_mem_segment _ _
+  -- the two children cover a neighbourhood of it
+  have hint := hereditary_sts_substitution_sofic_step2_raw_child_is_full_step2_common_side_nhds
+    (i := i) (j := j) hAB hside hy (fun h => hab ((midpoint_eq_left_iff ℝ).1 h))
+    (fun h => hab ((midpoint_eq_right_iff ℝ).1 h))
+  -- both children lie in the scaled parent disk, so the midpoint is interior to it
+  have hsub : (C.childTile t).carrier ∪ (C.childTile t').carrier ⊆
+      C.σ.θ • (C.Q.disk (C.owner t)).carrier := by
+    rw [← C.σ.support_eq]
+    exact union_subset (subset_biUnion_of_mem (u := fun B => B.carrier) hm1)
+      (subset_biUnion_of_mem (u := fun B => B.carrier) hm2)
+  exact (hout hy).2 (interior_mono hsub hint)
 
 /-- Step 4 of the blueprint proof: two distinct children of one template that share a side
 lie on both sides of it, so the side is inner (Step 4a) and the second occurrence is its

@@ -1,6 +1,8 @@
 import Tilings.StrictPresentation
 import Tilings.Basic
+import Tilings.FLC.Clones
 import Tilings.Hierarchy
+import Tilings.LocalRules
 
 /-!
 # The five principal theorems (statements only)
@@ -63,7 +65,18 @@ theorem flc_substitution_sofic (h : τ.FLC) :
 tilings are sofic. -/
 theorem flc_hierarchy_sofic (h : τ.FLC) :
     IsSofic {T | τ.IsHierarchical T} := by
-  sorry
+  have hsts := FLC.refinedSubstitution_sts τ h
+  have hher := FLC.refinedSubstitution_hereditary τ h
+  have hsofic := Core.hereditary_sts_hierarchy_sofic _ hsts hher
+  have hlift : {T | τ.IsHierarchical T} =
+      (FLC.cloneDecoration τ h).project ''
+        {T | (FLC.refinedSubstitution τ h).IsHierarchical T} := by
+    ext T
+    simp only [FLC.hierarchy_clone_lift_iff τ h T, Set.mem_setOf_eq, Set.mem_image]
+    tauto
+  rw [hlift]
+  exact FLC.forget_vertices_preserves_sofic (FLC.cloneDecoration τ h)
+    {T | (FLC.refinedSubstitution τ h).IsHierarchical T} (Or.inl hsofic)
 
 /-- `lem:sts-flc`: STS implies FLC. -/
 theorem STS.flc (h : τ.STS) : τ.FLC :=

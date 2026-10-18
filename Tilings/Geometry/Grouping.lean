@@ -6944,6 +6944,945 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step13_
     (∀ α d i, (D.path α d i).Nodup) := by
   sorry
 
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"no occurrence repeats" (index arithmetic): in a cycle of at least three listed sides, the side two
+steps after `j` is not `j`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step1_finRotate_two
+    {n : ℕ} (hn : 3 ≤ n) (j : Fin n) : finRotate n (finRotate n j) ≠ j := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply, finRotate_succ_apply]
+  intro h
+  rw [Fin.ext_iff, Fin.val_add, Fin.val_add, Fin.val_one', Nat.add_mod_mod] at h
+  have hj := j.isLt
+  have h1 : 1 % (m + 1) = 1 := Nat.mod_eq_of_lt (by omega)
+  rw [h1] at h
+  by_cases hc : j.val + 1 < m + 1
+  · rw [Nat.mod_eq_of_lt hc] at h
+    by_cases hc2 : j.val + 1 + 1 < m + 1
+    · rw [Nat.mod_eq_of_lt hc2] at h; omega
+    · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)] at h; omega
+  · have he : j.val + 1 = m + 1 := by omega
+    rw [he, Nat.mod_self, Nat.zero_add, h1] at h; omega
+
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"no occurrence repeats": distinct listed sides of one placed tile are distinct segments (the
+listed vertices are injective and there are at least three of them). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step1_side_injective
+    {Q : Protoset} (A : PlacedTile Q) (i j : Fin (Q.disk A.form).n) (hij : A.side i = A.side j) :
+    i = j := by
+  have hinj : Function.Injective A.vertex := fun a b hab => by
+    simp only [PlacedTile.vertex, vadd_eq_add, add_right_inj] at hab
+    exact (Q.disk A.form).vertex_injective hab
+  rw [emcg_side_eq_segment, emcg_side_eq_segment] at hij
+  rcases emcg_segment_endpoints hij with ⟨h1, -⟩ | ⟨h1, h2⟩
+  · exact hinj h1
+  · exfalso
+    have e1 := hinj h1
+    have e2 := hinj h2
+    subst e1
+    exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step1_finRotate_two
+      (Q.disk A.form).three_le j e2
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the genuine paths are the occurrence chains of the routed side lists": every occurrence on a
+genuine path lies in a crossed child `X_k` of the routed tile list and carries the routed side
+`e_k` or `e_{k+1}`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step2_lift_mem
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d (i : Fin 5) (hi : D.IsGenuinePath α d i) (o : D.SideOcc), o ∈ D.path α d i →
+      ∃ (k : ℕ) (X : PlacedTile s.setup.GS.G.mixed),
+        ((routing (emcdBaseForm g s l α)).pathTiles (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)[k]? =
+          some X ∧
+        emcdTemplateChild g s l o.1 = X ∧
+        (((routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)[k]? =
+            some (D.occSide o) ∨
+          ((routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d)
+            ⟨i.val, hi.2⟩)[k + 1]? = some (D.occSide o)) := by
+  intro D α d i hi o ho
+  classical
+  have hpath : D.path α d i =
+      if hi : D.IsGenuinePath α d i then
+        emcdLiftPath D (emcdTemplateChild g s l) α
+          ((routing (emcdBaseForm g s l α)).pathTiles
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+          ((routing (emcdBaseForm g s l α)).pathSides
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+      else (D.port α d i).toList := rfl
+  rw [hpath, dif_pos hi] at ho
+  unfold emcdLiftPath at ho
+  simp only [List.mem_flatMap, List.mem_append] at ho
+  obtain ⟨⟨X, ⟨e, e'⟩⟩, hmem, ho⟩ := ho
+  obtain ⟨k, hk⟩ := List.mem_iff_getElem?.mp hmem
+  rw [List.getElem?_zip_eq_some] at hk
+  obtain ⟨hk_tile, hk_sides⟩ := hk
+  rw [List.getElem?_zip_eq_some] at hk_sides
+  obtain ⟨hk_e, hk_e'⟩ := hk_sides
+  rw [List.getElem?_tail] at hk_e'
+  refine ⟨k, X, hk_tile, ?_⟩
+  rcases ho with hocc | hocc
+  · unfold emcdLiftOccurrence at hocc
+    split_ifs at hocc with hex
+    · have hoeq : o = Classical.choose hex := by
+        simpa only [List.mem_singleton] using hocc
+      obtain ⟨-, hchild, hside⟩ := Classical.choose_spec hex
+      rw [← hoeq] at hchild hside
+      exact ⟨hchild, Or.inl (hk_e.trans (congrArg some hside.symm))⟩
+    · simp only [List.not_mem_nil] at hocc
+  · unfold emcdLiftOccurrence at hocc
+    split_ifs at hocc with hex
+    · have hoeq : o = Classical.choose hex := by
+        simpa only [List.mem_singleton] using hocc
+      obtain ⟨-, hchild, hside⟩ := Classical.choose_spec hex
+      rw [← hoeq] at hchild hside
+      exact ⟨hchild, Or.inr (hk_e'.trans (congrArg some hside.symm))⟩
+    · simp only [List.not_mem_nil] at hocc
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"no central side occurs before the print, the side before the print is a side of the small owner":
+the side of an occurrence of a genuine path is either a nonterminal routed side, or the print
+side of the central child, carried by a non-central crossed child. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step3_cases
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d (i : Fin 5) (hi : D.IsGenuinePath α d i) (o : D.SideOcc), o ∈ D.path α d i →
+      D.occSide o ∈
+          ((routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d) ⟨i.val, hi.2⟩).dropLast ∨
+        (D.occSide o = (s.setup.central l (emcdBaseForm g s l α)).side
+            ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d)) ∧
+          emcdTemplateChild g s l o.1 ≠ s.setup.central l (emcdBaseForm g s l α)) := by
+  intro D α d i hi o ho
+  obtain ⟨k, X, hk_tile, hchild, hside⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step2_lift_mem
+      τ h g s l hl routing α d i hi o ho
+  have ha : emcdParentSide g s l α d ∈ s.setup.markedSides (emcdBaseForm g s l α) := hi.1
+  have hlen := (routing (emcdBaseForm g s l α)).path_length _ ha ⟨i.val, hi.2⟩
+  have hlast := (routing (emcdBaseForm g s l α)).path_last _ ha ⟨i.val, hi.2⟩
+  have hlastT := (routing (emcdBaseForm g s l α)).path_last_tile _ ha ⟨i.val, hi.2⟩
+  have hk := (List.getElem?_eq_some_iff.mp hk_tile).1
+  have hdrop : ∀ (m : ℕ) (e : Set Pt),
+      m + 1 < ((routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d)
+        ⟨i.val, hi.2⟩).length →
+      ((routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)[m]? =
+        some e →
+      e ∈ ((routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d)
+        ⟨i.val, hi.2⟩).dropLast := by
+    intro m e hm he
+    rw [List.mem_iff_getElem?]
+    refine ⟨m, ?_⟩
+    rw [List.getElem?_dropLast, if_pos (by omega)]
+    exact he
+  rcases hside with hs | hs
+  · exact Or.inl (hdrop k _ (by omega) hs)
+  · by_cases hkl : k + 2 < ((routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d)
+        ⟨i.val, hi.2⟩).length
+    · exact Or.inl (hdrop (k + 1) _ hkl hs)
+    · right
+      rw [List.getLast?_eq_getElem?, show ((routing (emcdBaseForm g s l α)).pathSides
+        (emcdParentSide g s l α d) ⟨i.val, hi.2⟩).length - 1 = k + 1 by omega, hs] at hlast
+      refine ⟨Option.some.inj hlast, ?_⟩
+      rw [hchild]
+      apply hlastT
+      rw [List.getLast?_eq_getElem?, show ((routing (emcdBaseForm g s l α)).pathTiles
+        (emcdParentSide g s l α d) ⟨i.val, hi.2⟩).length - 1 = k by omega]
+      exact hk_tile
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the central child has the parent's catalogue disk": every listed side of a grouped mixed child is a
+listed side of its relabelled catalogue tile. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step4_grouped_side
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (X : PlacedTile s.setup.GS.G.mixed)
+    (γ : s.setup.GS.G.P'.Form) (hX : X.form = Sum.inl γ) (hμ : emcdIsRetainedForm g s l X.form)
+    (j : Fin (s.setup.GS.G.mixed.disk X.form).n) :
+    ∃ i, (⟨⟨X.form, hμ⟩, X.anchor⟩ : PlacedTile (emcdQ g s l)).side i = X.side j := by
+  obtain ⟨f, a⟩ := X
+  simp only at hX
+  subst hX
+  exact ⟨j, rfl⟩
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the print of a marked parent side is the routing's print slot": every listed side of the central
+child of the retained template is carried by an occurrence of the central type. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step4_central_occ
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α (j : Fin (s.setup.GS.G.mixed.disk (s.setup.central l (emcdBaseForm g s l α)).form).n),
+      ∃ i, D.occSide ⟨D.central α, i⟩ = (s.setup.central l (emcdBaseForm g s l α)).side j := by
+  intro D α j
+  exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step4_grouped_side
+    g s l (s.setup.central l (emcdBaseForm g s l α)) _
+    (s.setup.central_form l (emcdBaseForm g s l α)) _ j
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"an inner side has exactly two owners, because the template is side-to-side and three polygons with
+disjoint interiors cannot share a whole segment": two non-central occurrences of the same template
+carrying the same side of the central child coincide. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step5_unique
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α (o o' : D.SideOcc), D.owner o.1 = α → D.owner o'.1 = α →
+      o.1 ≠ D.central α → o'.1 ≠ D.central α → ∀ i : D.Side (D.central α),
+        D.occSide o = D.occSide ⟨D.central α, i⟩ → D.occSide o' = D.occSide ⟨D.central α, i⟩ →
+          o = o' := by
+  intro D α o o' ho ho' hc hc' i h1 h2
+  classical
+  have H := existsMacroCertificate_seed2_routing_step3_data_sub1_macroData τ h g s l hl routing
+  have hrule : (D.σ.rule α).tiles =
+      (fun t => (⟨emcdChildForm g s l t, emcdAnchor g s l t⟩ : PlacedTile (emcdQ g s l))) ''
+        {t | emcdOwner g s l t = α} := H.choose_spec.2 α
+  have hmem : ∀ t : D.Typ, D.owner t = α → D.childTile t ∈ (D.σ.rule α).tiles := by
+    intro t ht
+    rw [hrule]
+    exact ⟨t, ht, rfl⟩
+  have hinj : ∀ t t' : D.Typ, D.owner t = D.owner t' → D.childTile t = D.childTile t' → t = t' := by
+    rintro ⟨a, X, hX⟩ ⟨a', X', hX'⟩ hown heq
+    change a = a' at hown
+    subst hown
+    have e1 : X.form = X'.form := congrArg Subtype.val (congrArg PlacedTile.form heq)
+    have e2 : X.anchor = X'.anchor := by
+      have h' := congrArg PlacedTile.anchor heq
+      exact h'
+    have e3 : X = X' := by
+      cases X
+      cases X'
+      simp only at e1 e2
+      subst e1
+      subst e2
+      rfl
+    subst e3
+    rfl
+  have hcen : D.owner (D.central α) = α := rfl
+  have hAo : D.childTile (D.central α) ≠ D.childTile o.1 := fun e =>
+    hc (hinj _ _ (hcen.trans ho.symm) e).symm
+  have hAo' : D.childTile (D.central α) ≠ D.childTile o'.1 := fun e =>
+    hc' (hinj _ _ (hcen.trans ho'.symm) e).symm
+  have hBC := side_partner_unique (D.σ.rule α).disjoint (hmem _ hcen) (hmem _ ho) (hmem _ ho')
+    hAo hAo' i o.2 o'.2 h1 h2
+  have h11 : o.1 = o'.1 := hinj _ _ (ho.trans ho'.symm) hBC
+  obtain ⟨t, k⟩ := o
+  obtain ⟨t', k'⟩ := o'
+  change t = t' at h11
+  subst h11
+  have hk : k = k' :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step1_side_injective
+      (D.childTile t) k k' (h1.trans h2.symm)
+  subst hk
+  rfl
+
+/-- Step 6 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the partner of an inner side occurrence is the other occurrence of the same geometric side in the
+same template": a non-central occurrence carrying the print side is the partner of the print. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step6_print_partner
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d (o : D.SideOcc), D.owner o.1 = α →
+      emcdTemplateChild g s l o.1 ≠ s.setup.central l (emcdBaseForm g s l α) →
+      D.occSide o = (s.setup.central l (emcdBaseForm g s l α)).side
+          ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d)) →
+        o = D.partner (D.printOcc α d) := by
+  intro D α d o hown hX hside
+  classical
+  obtain ⟨i0, hi0⟩ :=
+    existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step4_central_occ
+      τ h g s l hl routing α ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d))
+  have hp : ∃ i : D.Side (D.central α), D.occSide ⟨D.central α, i⟩ =
+      (s.setup.central l (emcdBaseForm g s l α)).side
+        ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d)) := ⟨i0, hi0⟩
+  have hprintEq : D.print α d = hp.choose := by
+    show (if hp : _ then _ else _) = _
+    split
+    · rfl
+    · rename_i hn
+      exact absurd hp hn
+  have hprint : D.occSide (D.printOcc α d) = (s.setup.central l (emcdBaseForm g s l α)).side
+      ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d)) := by
+    show D.occSide ⟨D.central α, D.print α d⟩ = _
+    rw [hprintEq]
+    exact hp.choose_spec
+  have hc : o.1 ≠ D.central α := by
+    intro e
+    apply hX
+    rw [e]
+    rfl
+  have hex : ∃ o' : D.SideOcc, o'.1 ≠ (D.printOcc α d).1 ∧
+      D.owner o'.1 = D.owner (D.printOcc α d).1 ∧ D.occSide o' = D.occSide (D.printOcc α d) :=
+    ⟨o, hc, hown, hside.trans hprint.symm⟩
+  have hpart : D.partner (D.printOcc α d) = hex.choose := by
+    show emcdGeometricPartner (emcdGeometryData τ h g s l hl routing) (D.printOcc α d) = _
+    unfold emcdGeometricPartner
+    split
+    · rfl
+    · rename_i hn
+      exact absurd hex hn
+  obtain ⟨e1, e2, e3⟩ := hex.choose_spec
+  rw [hpart]
+  exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step5_unique
+    τ h g s l hl routing α o hex.choose hown e2 hc e1 (D.print α d) (hside.trans hprint.symm) e3
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the lists are without repetition, in the lexicographically positive direction of the supporting line":
+two repetition-free lists of nonempty segments with the same members, both ordered by the
+`LexPositive` order of their points, coincide. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_list_eq
+    (L L' : List (Set Pt)) (hmem : ∀ e, e ∈ L ↔ e ∈ L') (hL : L.Nodup) (hL' : L'.Nodup)
+    (hs : L.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)))
+    (hs' : L'.Pairwise (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)))
+    (hne : ∀ e ∈ L, e.Nonempty) : L = L' := by
+  refine List.Perm.eq_of_pairwise ?_ hs hs' ((List.perm_ext_iff_of_nodup hL hL').2 hmem)
+  intro a b ha hb hab hba
+  obtain ⟨x0, hx0⟩ := hne a ha
+  obtain ⟨y0, hy0⟩ := hne b ((hmem b).2 hb)
+  have key : ∀ x ∈ a, ∀ y ∈ b, x = y := by
+    intro x hx y hy
+    rcases hab x hx y hy with h1 | h1
+    · exact h1
+    rcases hba y hy x hx with h2 | h2
+    · exact h2.symm
+    exfalso
+    unfold LexPositive at h1 h2
+    simp only [PiLp.sub_apply] at h1 h2
+    rcases h1 with h1 | ⟨h1, h1'⟩ <;> rcases h2 with h2 | ⟨h2, h2'⟩ <;> linarith
+  ext z
+  constructor
+  · intro hz
+    rw [key z hz y0 hy0]
+    exact hy0
+  · intro hz
+    rw [← key x0 hx0 z hz]
+    exact hx0
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"every original form is a singleton": a grouped form scattering to the single tile `⟨p, 0⟩` has
+exactly the listed sides of the original form `p` (its sides are whole sides of `p`, and they cover
+the common boundary). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_singleton_side
+    (G : GroupedFamily P) (x : G.P'.Form) (p : P.Form) (hx : (G.dissect x).tiles = {⟨p, 0⟩})
+    (e : Set Pt) : (∃ i, (G.P'.disk x).side i = e) ↔ (∃ j, (P.disk p).side j = e) := by
+  have hdir : ∀ i, ∃ j, (P.disk p).side j = (G.P'.disk x).side i := by
+    intro i
+    obtain ⟨A, hA, j, hj⟩ := G.side_whole x i
+    rw [hx, Set.mem_singleton_iff] at hA
+    subst hA
+    refine ⟨j, ?_⟩
+    simpa [PlacedTile.side] using hj
+  constructor
+  · rintro ⟨i, rfl⟩
+    exact hdir i
+  · rintro ⟨j, rfl⟩
+    have hcar :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_singleton_carrier G x p hx
+    have hab : (P.disk p).vertex j ≠ (P.disk p).vertex (finRotate _ j) := fun h =>
+      emcg_finRotate_ne (by have := (P.disk p).three_le; omega) j ((P.disk p).vertex_injective h).symm
+    have hcov : segment ℝ ((P.disk p).vertex j) ((P.disk p).vertex (finRotate _ j)) ⊆
+        ⋃ i, (G.P'.disk x).side i := by
+      intro y hy
+      have hy' : y ∈ frontier (G.P'.disk x).carrier := by
+        rw [hcar]
+        exact emcg_disk_side_subset_frontier (P.disk p) j hy
+      rw [(G.P'.disk x).frontier_eq] at hy'
+      exact hy'
+    obtain ⟨i, hi⟩ := emcg_exists_overlap (fun i => (G.P'.disk x).side i)
+      (fun i => convex_segment _ _) hab hcov
+    obtain ⟨k, hk⟩ := hdir i
+    refine ⟨i, ?_⟩
+    rw [← hk]
+    by_cases hkj : k = j
+    · rw [hkj]
+    · exfalso
+      rw [← hk] at hi
+      obtain ⟨y, z, hyz, hsub⟩ := hi
+      have hfin : (segment ℝ y z).Finite := by
+        refine Set.Finite.subset
+          (Set.toFinite ({(P.disk p).vertex k, (P.disk p).vertex (finRotate _ k)} : Set Pt)) ?_
+        intro w hw
+        exact ((P.disk p).simple k j hkj (hsub hw)).1
+      exact emcg_segment_infinite hyz hfin
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the listed sides of a type and of its template child are the same segments": a segment is a listed
+side of a type iff it is a listed side of its template child. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_child_side
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ (t : D.Typ) (e : Set Pt),
+      (∃ i, D.occSide ⟨t, i⟩ = e) ↔ (∃ j, (emcdTemplateChild g s l t).side j = e) := by
+  intro D t e
+  obtain ⟨α, X, hX⟩ := t
+  obtain ⟨f, a⟩ := X
+  rcases f with γ | p
+  · constructor
+    · rintro ⟨i, rfl⟩
+      exact ⟨i, rfl⟩
+    · rintro ⟨j, rfl⟩
+      exact ⟨j, rfl⟩
+  · have key := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_singleton_side
+      s.setup.GS.G (emcdBaseForm g s l (emcdOriginalForm g s l p)) p
+      (existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_original g s l p)
+    constructor
+    · rintro ⟨i, rfl⟩
+      obtain ⟨j, hj⟩ := (key _).1 ⟨i, rfl⟩
+      refine ⟨j, ?_⟩
+      show a +ᵥ (P.disk p).side j =
+        a +ᵥ (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdOriginalForm g s l p))).side i
+      rw [hj]
+    · rintro ⟨j, rfl⟩
+      obtain ⟨i, hi⟩ := (key _).2 ⟨j, rfl⟩
+      refine ⟨i, ?_⟩
+      show a +ᵥ (s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdOriginalForm g s l p))).side i =
+        a +ᵥ (P.disk p).side j
+      rw [hi]
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the outer list of a parent declared side is the list of whole outer fine sides of the template
+contained in the scaled side": the sides of the certificate outer list are exactly the whole outer
+sides of the retained template contained in the scaled parent side (the listed sides of a type and of
+its template child are the same segments, and `σ' α` covers the scaled parent disk). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_mem
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d (e : Set Pt), e ∈ (D.outerList α d).map D.occSide ↔
+      (s.setup.retained l (emcdBaseForm g s l α)).IsOuter e ∧
+        e ⊆ (τ.θ ^ (s.setup.GS.k * l)) •
+          (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).side (emcdParentSide g s l α d) := by
+  intro D α d e
+  classical
+  have H := existsMacroCertificate_seed2_routing_step3_data_sub1_macroData τ h g s l hl routing
+  have hk : s.setup.GS.k = g.k := by rw [s.setup_grouped, g.grouped_power]
+  have hθ : D.σ.θ = τ.θ ^ (s.setup.GS.k * l) := by
+    rw [hk]
+    exact H.choose_spec.1
+  have hreg := s.setup.region_eq l (emcdBaseForm g s l α)
+  have hmemIff : ∀ o, o ∈ D.outerList α d ↔
+      D.owner o.1 = α ∧ D.IsOuter o ∧ D.occSide o ⊆ D.macroSide α d := by
+    intro o
+    have h_outer : D.outerList α d =
+        emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d := rfl
+    rw [h_outer]
+    unfold emcdGeometricOuterList
+    simp only [List.mem_mergeSort, Finset.mem_toList, Finset.mem_filter,
+      Finset.mem_univ, true_and]
+    exact Iff.rfl
+  have hside := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_child_side
+    τ h g s l hl routing
+  have hfr : ∀ o : D.SideOcc, D.owner o.1 = α →
+      (D.IsOuter o ↔ D.occSide o ⊆ frontier (s.setup.retained l (emcdBaseForm g s l α)).region) := by
+    intro o hown
+    show D.occSide o ⊆ frontier (D.σ.θ • (D.Q.disk (D.owner o.1)).carrier) ↔ _
+    rw [hown, hreg, hθ]
+    exact Iff.rfl
+  have hms : D.macroSide α d = (τ.θ ^ (s.setup.GS.k * l)) •
+      (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).side (emcdParentSide g s l α d) := by
+    show D.σ.θ • _ = _
+    rw [hθ]
+    rfl
+  rw [List.mem_map]
+  constructor
+  · rintro ⟨⟨⟨β', X, hX⟩, k⟩, ho, rfl⟩
+    obtain ⟨hown, hout, hsub⟩ := (hmemIff _).1 ho
+    change β' = α at hown
+    subst hown
+    obtain ⟨j, hj⟩ := (hside _ _).1 ⟨k, rfl⟩
+    refine ⟨⟨⟨X, hX, j, hj⟩, (hfr _ rfl).1 hout⟩, ?_⟩
+    rw [← hms]
+    exact hsub
+  · rintro ⟨⟨⟨X, hX, j, rfl⟩, hfr'⟩, hsub⟩
+    obtain ⟨i, hi⟩ := (hside ⟨α, ⟨X, hX⟩⟩ (X.side j)).2 ⟨j, rfl⟩
+    refine ⟨⟨⟨α, ⟨X, hX⟩⟩, i⟩, (hmemIff _).2 ⟨rfl, (hfr _ rfl).2 ?_, ?_⟩, hi⟩
+    · rw [hi]
+      exact hfr'
+    · rw [hms, hi]
+      exact hsub
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"without repetition": distinct occurrences of the outer list of a parent side carry distinct
+segments (an outer side has a single owner, and the listed sides of one child are distinct). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_nodup
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d, ((D.outerList α d).map D.occSide).Nodup := by
+  intro D α d
+  classical
+  have H := existsMacroCertificate_seed2_routing_step3_data_sub1_macroData τ h g s l hl routing
+  have hrule : (D.σ.rule α).tiles =
+      (fun t => (⟨emcdChildForm g s l t, emcdAnchor g s l t⟩ : PlacedTile (emcdQ g s l))) ''
+        {t | emcdOwner g s l t = α} := H.choose_spec.2 α
+  have hmemR : ∀ t : D.Typ, D.owner t = α → D.childTile t ∈ (D.σ.rule α).tiles := by
+    intro t ht
+    rw [hrule]
+    exact ⟨t, ht, rfl⟩
+  have hinj : ∀ t t' : D.Typ, D.owner t = D.owner t' → D.childTile t = D.childTile t' → t = t' := by
+    rintro ⟨a, X, hX⟩ ⟨a', X', hX'⟩ hown heq
+    change a = a' at hown
+    subst hown
+    have e1 : X.form = X'.form := congrArg Subtype.val (congrArg PlacedTile.form heq)
+    have e2 : X.anchor = X'.anchor := by
+      have h' := congrArg PlacedTile.anchor heq
+      exact h'
+    have e3 : X = X' := by
+      cases X
+      cases X'
+      simp only at e1 e2
+      subst e1
+      subst e2
+      rfl
+    subst e3
+    rfl
+  have hmemL : ∀ o, o ∈ D.outerList α d → D.owner o.1 = α ∧ D.IsOuter o := by
+    intro o H1
+    have h_outer : D.outerList α d =
+        emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d := rfl
+    rw [h_outer] at H1
+    unfold emcdGeometricOuterList at H1
+    simp only [List.mem_mergeSort, Finset.mem_toList, Finset.mem_filter,
+      Finset.mem_univ, true_and] at H1
+    exact ⟨H1.1, H1.2.1⟩
+  have hnd : (D.outerList α d).Nodup := by
+    show (emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d).Nodup
+    unfold emcdGeometricOuterList
+    exact (List.mergeSort_perm _ _).nodup_iff.2 (Finset.nodup_toList _)
+  refine List.Nodup.map_on ?_ hnd
+  intro o ho o' ho' heq
+  obtain ⟨hown, hout⟩ := hmemL o ho
+  obtain ⟨hown', -⟩ := hmemL o' ho'
+  by_cases h11 : o.1 = o'.1
+  · obtain ⟨t, k⟩ := o
+    obtain ⟨t', k'⟩ := o'
+    change t = t' at h11
+    subst h11
+    have hk : k = k' :=
+      existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step1_side_injective
+        (D.childTile t) k k' heq
+    subst hk
+    rfl
+  · exfalso
+    have hne : D.childTile o.1 ≠ D.childTile o'.1 := fun e =>
+      h11 (hinj _ _ (hown.trans hown'.symm) e)
+    have hq : (D.childTile o.1).vertex o.2 + (1 / 2 : ℝ) • ((D.childTile o.1).vertex (finRotate _ o.2) -
+        (D.childTile o.1).vertex o.2) ∈
+        openSegment ℝ ((D.childTile o.1).vertex o.2) ((D.childTile o.1).vertex (finRotate _ o.2)) :=
+      by rw [openSegment_eq_image']; exact ⟨1 / 2, ⟨by norm_num, by norm_num⟩, rfl⟩
+    obtain ⟨r, hr, σ, -, hball⟩ := two_sides (D.σ.rule α).disjoint (hmemR _ hown) (hmemR _ hown')
+      hne o.2 o'.2 heq.symm hq
+    have hsub : Metric.ball ((D.childTile o.1).vertex o.2 + (1 / 2 : ℝ) •
+        ((D.childTile o.1).vertex (finRotate _ o.2) - (D.childTile o.1).vertex o.2)) r ⊆
+        D.σ.θ • (D.Q.disk α).carrier := by
+      intro x hx
+      rw [← D.σ.support_eq α]
+      show x ∈ ⋃ B ∈ (D.σ.rule α).tiles, B.carrier
+      obtain ⟨-, h2, h3⟩ := hball x hx
+      by_cases hs : x ∈ (D.childTile o.1).carrier
+      · exact Set.mem_biUnion (hmemR _ hown) hs
+      · exact Set.mem_biUnion (hmemR _ hown')
+          (interior_subset (h2 (lt_of_not_ge (fun hge => hs (h3 hge)))))
+    have hint := mem_interior.2 ⟨_, hsub, Metric.isOpen_ball, Metric.mem_ball_self hr⟩
+    have hqs : (D.childTile o.1).vertex o.2 + (1 / 2 : ℝ) • ((D.childTile o.1).vertex (finRotate _ o.2) -
+        (D.childTile o.1).vertex o.2) ∈ D.occSide o := by
+      show _ ∈ (D.childTile o.1).side o.2
+      rw [emcg_side_eq_segment]
+      exact openSegment_subset_segment ℝ _ _ hq
+    have hqf := hout hqs
+    unfold MacroData.macroBoundary MacroData.macroRegion at hqf
+    rw [hown] at hqf
+    exact hqf.2 hint
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"for every nonzero direction exactly one of `v`, `-v` is positive": a nonzero direction which is not
+lexicographically positive has a lexicographically positive opposite. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_lex_neg
+    (v : Pt) (hv : v ≠ 0) (hnp : ¬ LexPositive v) : LexPositive (-v) := by
+  unfold LexPositive at hnp ⊢
+  simp only [PiLp.neg_apply]
+  push_neg at hnp
+  obtain ⟨h0, h1⟩ := hnp
+  rcases h0.lt_or_eq with h0 | h0
+  · left; linarith
+  · right
+    refine ⟨by rw [h0]; simp, ?_⟩
+    rcases (h1 h0).lt_or_eq with h1' | h1'
+    · linarith
+    · exfalso; apply hv; ext i; fin_cases i <;> simp [h0, h1']
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"in the lexicographically positive direction of the supporting line": two non-overlapping
+nondegenerate segments of a line with lexicographically positive direction `dir`, whose midpoints are
+ordered along `dir`, have all their points ordered in the `LexPositive` order. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_line_order
+    (u dir a b a' b' : Pt) (hdir : LexPositive dir)
+    (hline : ∀ z ∈ segment ℝ a b ∪ segment ℝ a' b', ∃ t : ℝ, z = u + t • dir)
+    (hab : a ≠ b) (hab' : a' ≠ b')
+    (hno : ¬ OverlapPos (segment ℝ a b) (segment ℝ a' b'))
+    (hmid : (midpoint ℝ a b) 0 * dir 0 + (midpoint ℝ a b) 1 * dir 1 ≤
+      (midpoint ℝ a' b') 0 * dir 0 + (midpoint ℝ a' b') 1 * dir 1) :
+    ∀ x ∈ segment ℝ a b, ∀ y ∈ segment ℝ a' b', x = y ∨ LexPositive (y - x) := by
+  set F : Pt → ℝ := fun z => z 0 * dir 0 + z 1 * dir 1 with hF
+  have hFadd : ∀ (z v : Pt) (c : ℝ), F (z + c • v) = F z + c * F v := by
+    intro z v c; simp only [hF, PiLp.add_apply, PiLp.smul_apply, smul_eq_mul]; ring
+  have hFsub : ∀ z z' : Pt, F (z' - z) = F z' - F z := by
+    intro z z'; simp only [hF, PiLp.sub_apply]; ring
+  have hFd : 0 < F dir := by
+    simp only [hF]
+    rcases hdir with h | ⟨h0, h1⟩
+    · nlinarith [sq_nonneg (dir 1)]
+    · rw [h0]; nlinarith
+  have hL : ∀ z z' : Pt, (∃ t : ℝ, z = u + t • dir) → (∃ t : ℝ, z' = u + t • dir) →
+      z' - z = ((F z' - F z) / F dir) • dir := by
+    rintro z z' ⟨t, rfl⟩ ⟨t', rfl⟩
+    rw [hFadd, hFadd]
+    have : (F u + t' * F dir - (F u + t * F dir)) / F dir = t' - t := by
+      field_simp; ring
+    rw [this, sub_smul]; abel
+  have hlex : ∀ c : ℝ, 0 < c → LexPositive (c • dir) := by
+    intro c hc
+    rcases hdir with h | ⟨h0, h1⟩
+    · left; simp only [PiLp.smul_apply, smul_eq_mul]; positivity
+    · right; simp only [PiLp.smul_apply, smul_eq_mul, h0, mul_zero, true_and]; positivity
+  have hon1 : ∀ z ∈ segment ℝ a b, ∃ t : ℝ, z = u + t • dir := fun z hz => hline z (Or.inl hz)
+  have hon2 : ∀ z ∈ segment ℝ a' b', ∃ t : ℝ, z = u + t • dir := fun z hz => hline z (Or.inr hz)
+  have hrange : ∀ p q z : Pt, z ∈ segment ℝ p q →
+      min (F p) (F q) ≤ F z ∧ F z ≤ max (F p) (F q) := by
+    intro p q z hz
+    rw [segment_eq_image'] at hz
+    obtain ⟨c, ⟨hc0, hc1⟩, rfl⟩ := hz
+    rw [hFadd, hFsub]
+    constructor
+    · rcases le_total (F p) (F q) with h | h
+      · rw [min_eq_left h]; nlinarith
+      · rw [min_eq_right h]; nlinarith
+    · rcases le_total (F p) (F q) with h | h
+      · rw [max_eq_right h]; nlinarith
+      · rw [max_eq_left h]; nlinarith
+  have hmem : ∀ p q z : Pt, (∃ t : ℝ, p = u + t • dir) → (∃ t : ℝ, q = u + t • dir) →
+      (∃ t : ℝ, z = u + t • dir) → F p ≠ F q →
+      min (F p) (F q) ≤ F z → F z ≤ max (F p) (F q) → z ∈ segment ℝ p q := by
+    intro p q z hp hq hz hpq h1 h2
+    have e1 := hL p z hp hz
+    have e2 := hL p q hp hq
+    rw [segment_eq_image']
+    refine ⟨(F z - F p) / (F q - F p), ?_, ?_⟩
+    · rcases lt_or_gt_of_ne hpq with h | h
+      · rw [min_eq_left h.le] at h1; rw [max_eq_right h.le] at h2
+        constructor
+        · apply div_nonneg <;> linarith
+        · rw [div_le_one (by linarith)]; linarith
+      · rw [min_eq_right h.le] at h1; rw [max_eq_left h.le] at h2
+        constructor
+        · apply div_nonneg_of_nonpos <;> linarith
+        · rw [div_le_one_of_neg (by linarith)]; linarith
+    · have hne : F q - F p ≠ 0 := sub_ne_zero.2 (Ne.symm hpq)
+      simp only
+      rw [e2, smul_smul]
+      have : (F z - F p) / (F q - F p) * ((F q - F p) / F dir) = (F z - F p) / F dir := by
+        field_simp
+      rw [this, ← e1]; abel
+  have hFab : F a ≠ F b := by
+    intro h
+    apply hab
+    have := hL a b (hon1 a (left_mem_segment ℝ a b)) (hon1 b (right_mem_segment ℝ a b))
+    rw [h, sub_self, zero_div, zero_smul, sub_eq_zero] at this
+    exact this.symm
+  have hFab' : F a' ≠ F b' := by
+    intro h
+    apply hab'
+    have := hL a' b' (hon2 a' (left_mem_segment ℝ a' b')) (hon2 b' (right_mem_segment ℝ a' b'))
+    rw [h, sub_self, zero_div, zero_smul, sub_eq_zero] at this
+    exact this.symm
+  have hmid' : F a + F b ≤ F a' + F b' := by
+    have e1 : F (midpoint ℝ a b) = (F a + F b) / 2 := by
+      rw [midpoint_eq_smul_add]
+      simp only [hF, PiLp.smul_apply, PiLp.add_apply, smul_eq_mul, invOf_eq_inv]; ring
+    have e2 : F (midpoint ℝ a' b') = (F a' + F b') / 2 := by
+      rw [midpoint_eq_smul_add]
+      simp only [hF, PiLp.smul_apply, PiLp.add_apply, smul_eq_mul, invOf_eq_inv]; ring
+    have : F (midpoint ℝ a b) ≤ F (midpoint ℝ a' b') := hmid
+    rw [e1, e2] at this; linarith
+  have key : ∀ x ∈ segment ℝ a b, ∀ y ∈ segment ℝ a' b', F x ≤ F y := by
+    intro x hx y hy
+    by_contra hlt
+    push_neg at hlt
+    obtain ⟨hx1, hx2⟩ := hrange a b x hx
+    obtain ⟨hy1, hy2⟩ := hrange a' b' y hy
+    have hs : max (min (F a) (F b)) (min (F a') (F b')) <
+        min (max (F a) (F b)) (max (F a') (F b')) := by
+      rcases lt_or_gt_of_ne hFab with h1 | h1 <;> rcases lt_or_gt_of_ne hFab' with h2 | h2 <;>
+        simp only [min_def, max_def] at hx1 hx2 hy1 hy2 ⊢ <;>
+        split_ifs at * <;> linarith
+    set s1 := max (min (F a) (F b)) (min (F a') (F b'))
+    set s2 := min (max (F a) (F b)) (max (F a') (F b'))
+    have hp : ∀ s : ℝ, F (u + ((s - F u) / F dir) • dir) = s := by
+      intro s; rw [hFadd]; field_simp; ring
+    have hon : ∀ s : ℝ, ∃ t : ℝ, u + ((s - F u) / F dir) • dir = u + t • dir := fun s => ⟨_, rfl⟩
+    have hin : ∀ s, s1 ≤ s → s ≤ s2 →
+        u + ((s - F u) / F dir) • dir ∈ segment ℝ a b ∩ segment ℝ a' b' := by
+      intro s h1 h2
+      refine ⟨hmem a b _ (hon1 a (left_mem_segment ℝ a b)) (hon1 b (right_mem_segment ℝ a b))
+        (hon s) hFab ?_ ?_, hmem a' b' _ (hon2 a' (left_mem_segment ℝ a' b'))
+        (hon2 b' (right_mem_segment ℝ a' b')) (hon s) hFab' ?_ ?_⟩ <;> rw [hp]
+      · exact le_trans (le_max_left _ _) h1
+      · exact le_trans h2 (min_le_left _ _)
+      · exact le_trans (le_max_right _ _) h1
+      · exact le_trans h2 (min_le_right _ _)
+    apply hno
+    refine ⟨u + ((s1 - F u) / F dir) • dir, u + ((s2 - F u) / F dir) • dir, ?_, ?_⟩
+    · intro he
+      have := congrArg F he
+      rw [hp, hp] at this
+      linarith
+    · exact ((convex_segment a b).inter (convex_segment a' b')).segment_subset
+        (hin s1 le_rfl hs.le) (hin s2 hs.le le_rfl)
+  intro x hx y hy
+  have h := key x hx y hy
+  have e := hL x y (hon1 x hx) (hon2 y hy)
+  rcases h.lt_or_eq with h | h
+  · right; rw [e]; exact hlex _ (div_pos (by linarith) hFd)
+  · left; rw [h, sub_self, zero_div, zero_smul, sub_eq_zero] at e; exact e.symm
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"in the lexicographically positive direction of the supporting line": the outer list, sorted by the
+midpoint coordinate along the positive direction of the scaled side, lists its (non-overlapping,
+collinear) sides in the `LexPositive` order. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_sorted
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d, ((D.outerList α d).map D.occSide).Pairwise
+      (fun e e' => ∀ x ∈ e, ∀ y ∈ e', x = y ∨ LexPositive (y - x)) := by
+  intro D α d
+  classical
+  have hmemIff : ∀ o, o ∈ D.outerList α d ↔
+      D.owner o.1 = α ∧ D.IsOuter o ∧ D.occSide o ⊆ D.macroSide α d := by
+    intro o
+    have h_outer : D.outerList α d =
+        emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d := rfl
+    rw [h_outer]
+    unfold emcdGeometricOuterList
+    simp only [List.mem_mergeSort, Finset.mem_toList, Finset.mem_filter,
+      Finset.mem_univ, true_and]
+    exact Iff.rfl
+  have hsort : (D.outerList α d).Pairwise (fun o o' =>
+      (D.occMid o) 0 * (D.macroSideDir α d) 0 + (D.occMid o) 1 * (D.macroSideDir α d) 1 ≤
+        (D.occMid o') 0 * (D.macroSideDir α d) 0 + (D.occMid o') 1 * (D.macroSideDir α d) 1) := by
+    show (emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d).Pairwise _
+    unfold emcdGeometricOuterList
+    dsimp only
+    refine (List.pairwise_mergeSort ?_ ?_ _).imp ?_
+    · intro a b c hab hbc
+      simp only [decide_eq_true_eq] at hab hbc ⊢
+      linarith
+    · intro a b
+      simp only [Bool.or_eq_true, decide_eq_true_eq]
+      exact le_total _ _
+    · intro a b hab
+      exact of_decide_eq_true hab
+  have hdist : (D.outerList α d).Pairwise (fun o o' => D.occSide o ≠ D.occSide o') :=
+    List.pairwise_map.1
+      (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_nodup
+        τ h g s l hl routing α d)
+  have hside := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_child_side
+    τ h g s l hl routing
+  have hchild : ∀ t : D.Typ, D.owner t = α →
+      emcdTemplateChild g s l t ∈ (s.setup.retained l (emcdBaseForm g s l α)).children.tiles := by
+    rintro ⟨β', X, hX⟩ hown
+    change β' = α at hown
+    subst hown
+    exact hX
+  have hθ0 : D.σ.θ ≠ 0 := (lt_trans zero_lt_one D.σ.one_lt).ne'
+  have hpq : (D.Q.disk α).vertex d ≠ (D.Q.disk α).vertex (finRotate _ d) := fun h' =>
+    emcg_finRotate_ne (by have := (D.Q.disk α).three_le; omega) d ((D.Q.disk α).vertex_injective h').symm
+  have hdirP : LexPositive (D.macroSideDir α d) ∧ ∀ z ∈ D.macroSide α d,
+      ∃ t : ℝ, z = D.σ.θ • (D.Q.disk α).vertex d + t • D.macroSideDir α d := by
+    have hmem : ∀ z ∈ D.macroSide α d, ∃ t : ℝ, z = D.σ.θ • (D.Q.disk α).vertex d +
+        t • (D.σ.θ • (D.Q.disk α).vertex (finRotate _ d) - D.σ.θ • (D.Q.disk α).vertex d) := by
+      intro z hz
+      obtain ⟨z0, hz0, rfl⟩ := hz
+      unfold PolygonalDisk.side at hz0
+      rw [segment_eq_image'] at hz0
+      obtain ⟨t, -, rfl⟩ := hz0
+      exact ⟨t, by module⟩
+    have hne : D.σ.θ • (D.Q.disk α).vertex (finRotate _ d) - D.σ.θ • (D.Q.disk α).vertex d ≠ 0 := by
+      rw [sub_ne_zero]
+      intro h'
+      exact hpq (smul_right_injective Pt hθ0 h').symm
+    unfold MacroData.macroSideDir MacroData.posDir
+    split_ifs with hpos
+    · exact ⟨hpos, hmem⟩
+    · refine ⟨?_, fun z hz => ?_⟩
+      · rw [← neg_sub]
+        exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_lex_neg
+          _ hne hpos
+      · obtain ⟨t, rfl⟩ := hmem z hz
+        exact ⟨-t, by module⟩
+  have hseg : ∀ o : D.SideOcc, D.occSide o = segment ℝ (D.occStart o) (D.occEnd o) :=
+    fun o => emcg_side_eq_segment _ _
+  rw [List.pairwise_map]
+  refine (hsort.and hdist).imp_of_mem ?_
+  rintro o o' ho ho' ⟨hle, hne⟩
+  obtain ⟨hown, -, hsub⟩ := (hmemIff o).1 ho
+  obtain ⟨hown', -, hsub'⟩ := (hmemIff o').1 ho'
+  have hno : ¬ OverlapPos (D.occSide o) (D.occSide o') := by
+    intro hov
+    apply hne
+    obtain ⟨j, hj⟩ := (hside o.1 _).1 ⟨o.2, rfl⟩
+    obtain ⟨j', hj'⟩ := (hside o'.1 _).1 ⟨o'.2, rfl⟩
+    rw [← hj, ← hj']
+    refine (s.setup.retained l (emcdBaseForm g s l α)).sts _ (hchild _ hown) _ (hchild _ hown') j j' ?_
+    rw [hj, hj']
+    exact hov
+  rw [hseg o, hseg o'] at hno ⊢
+  refine existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_line_order
+    (D.σ.θ • (D.Q.disk α).vertex d) (D.macroSideDir α d) _ _ _ _ hdirP.1 ?_
+    (emcg_vertex_ne (D.childTile o.1) o.2) (emcg_vertex_ne (D.childTile o'.1) o'.2) hno hle
+  rintro z (hz | hz)
+  · exact hdirP.2 z (hsub (by rw [hseg o]; exact hz))
+  · exact hdirP.2 z (hsub' (by rw [hseg o']; exact hz))
+
+/-- Step 7 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"each list has at least five entries because the five ports of the routing are distinct entries of it
+(they are the quantiles of this very list)": the certificate port `i` of a parent side carries the
+routing port `i` of that side (the globally ordered outer list of the certificate is the
+`LexPositive`-ordered list of whole outer sides of the routing). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_port_side
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d (i : Fin 5) (o : D.SideOcc), D.port α d i = some o →
+      D.occSide o = (routing (emcdBaseForm g s l α)).port (emcdParentSide g s l α d) i := by
+  intro D α d i o hp
+  obtain ⟨L, hLmem, hLnd, hLs, hLport⟩ :=
+    (routing (emcdBaseForm g s l α)).port_quantile (emcdParentSide g s l α d)
+  have hom := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_mem
+    τ h g s l hl routing α d
+  have heq : (D.outerList α d).map D.occSide = L := by
+    apply existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_list_eq
+    · intro e
+      rw [hom, hLmem]
+    · exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_nodup
+        τ h g s l hl routing α d
+    · exact hLnd
+    · exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_outer_sorted
+        τ h g s l hl routing α d
+    · exact hLs
+    · intro e he
+      rw [hom] at he
+      obtain ⟨⟨⟨A, -, j, rfl⟩, -⟩, -⟩ := he
+      exact ⟨A.vertex j, by rw [emcg_side_eq_segment]; exact left_mem_segment ℝ _ _⟩
+  have hlen : (D.outerList α d).length = L.length := by
+    rw [← heq, List.length_map]
+  have h1 := hLport i
+  unfold MacroData.port at hp
+  rw [← hlen, ← heq, List.getElem?_map, hp] at h1
+  exact Option.some.inj h1
+
+/-- Step 8 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"the outer list of a parent declared side is the list of whole outer fine sides of the template
+contained in the scaled side": a port of a parent side lies in that scaled side. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step8_port_sub
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d (i : Fin 5) (o : D.SideOcc), D.port α d i = some o → D.occSide o ⊆ D.macroSide α d := by
+  intro D α d i o hp
+  classical
+  have H1 : o ∈ D.outerList α d := List.mem_of_getElem? hp
+  have h_outer : D.outerList α d =
+      emcdGeometricOuterList (emcdGeometryData τ h g s l hl routing) α d := rfl
+  rw [h_outer] at H1
+  unfold emcdGeometricOuterList at H1
+  simp only [List.mem_mergeSort, Finset.mem_toList, Finset.mem_filter,
+    Finset.mem_univ, true_and] at H1
+  exact H1.2.2
+
+/-- Step 9 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint`:
+"three polygons with disjoint interiors cannot share a whole segment" (the parent polygon is
+simple): a whole fine side contained in two scaled parent sides determines the parent side. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step9_macroSide
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α (d d' : Fin (D.Q.disk α).n) (o : D.SideOcc),
+      D.occSide o ⊆ D.macroSide α d → D.occSide o ⊆ D.macroSide α d' → d = d' := by
+  intro D α d d' o h1 h2
+  by_contra hne
+  have hθ : D.σ.θ ≠ 0 := (lt_trans zero_lt_one D.σ.one_lt).ne'
+  have hsub : D.occSide o ⊆
+      D.σ.θ • ({(D.Q.disk α).vertex d, (D.Q.disk α).vertex (finRotate _ d)} : Set Pt) := by
+    intro x hx
+    have hx1 := h1 hx
+    have hx2 := h2 hx
+    unfold MacroData.macroSide at hx1 hx2
+    have hx3 : x ∈ D.σ.θ • ((D.Q.disk α).side d ∩ (D.Q.disk α).side d') := by
+      rw [Set.smul_set_inter₀ hθ]
+      exact ⟨hx1, hx2⟩
+    obtain ⟨y, hy, rfl⟩ := hx3
+    exact Set.smul_mem_smul_set (((D.Q.disk α).simple d d' hne hy).1)
+  rw [Set.smul_set_insert, Set.smul_set_singleton] at hsub
+  have hseg : D.occSide o = segment ℝ ((D.childTile o.1).vertex o.2)
+      ((D.childTile o.1).vertex (finRotate _ o.2)) := emcg_side_eq_segment _ _
+  have hab := emcg_vertex_ne (D.childTile o.1) o.2
+  rw [hseg] at hsub
+  have ha := hsub (left_mem_segment ℝ _ _)
+  have hb := hsub (right_mem_segment ℝ _ _)
+  have hm := hsub (midpoint_mem_segment ((D.childTile o.1).vertex o.2)
+    ((D.childTile o.1).vertex (finRotate _ o.2)))
+  have hma : midpoint ℝ ((D.childTile o.1).vertex o.2) ((D.childTile o.1).vertex (finRotate _ o.2)) ≠
+      (D.childTile o.1).vertex o.2 := by
+    rw [Ne, midpoint_eq_left_iff]
+    exact hab
+  have hmb : midpoint ℝ ((D.childTile o.1).vertex o.2) ((D.childTile o.1).vertex (finRotate _ o.2)) ≠
+      (D.childTile o.1).vertex (finRotate _ o.2) := by
+    rw [Ne, midpoint_eq_right_iff]
+    exact hab
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at ha hb hm
+  rcases ha with ha | ha <;> rcases hb with hb | hb <;> rcases hm with hm | hm <;>
+    first
+    | exact hab (ha.trans hb.symm)
+    | exact hma (hm.trans ha.symm)
+    | exact hmb (hm.trans hb.symm)
+
 /-- Step 14 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: disjoint -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -6955,7 +7894,84 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_
     ∀ α (d d' : Fin (D.Q.disk α).n) (i i' : Fin 5), (d, i) ≠ (d', i') →
       ∀ o, o ∈ D.path α d i → o ∈ D.path α d' i' →
         d = d' ∧ (o = D.printOcc α d ∨ o = D.partner (D.printOcc α d)) := by
-  sorry
+  intro D α d d' i i' hne o ho ho'
+  classical
+  have hsing : ∀ (d : Fin (D.Q.disk α).n) (i : Fin 5), ¬ D.IsGenuinePath α d i →
+      o ∈ D.path α d i → D.port α d i = some o := by
+    intro d i hg hmem
+    rw [existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step7_trivial τ h g s l hl routing
+      α d i hg] at hmem
+    exact Option.mem_toList.mp hmem
+  have hgen_mem : ∀ (d : Fin (D.Q.disk α).n) (i : Fin 5) (hg : D.IsGenuinePath α d i),
+      o ∈ D.path α d i → D.occSide o ∈
+        (routing (emcdBaseForm g s l α)).pathSides (emcdParentSide g s l α d) ⟨i.val, hg.2⟩ := by
+    intro d i hg hmem
+    obtain ⟨k, X, -, -, hk | hk⟩ :=
+      existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step2_lift_mem
+        τ h g s l hl routing α d i hg o hmem
+    · exact List.mem_of_getElem? hk
+    · exact List.mem_of_getElem? hk
+  have hmixed : ∀ (d d' : Fin (D.Q.disk α).n) (i i' : Fin 5), D.IsGenuinePath α d i →
+      ¬ D.IsGenuinePath α d' i' → o ∈ D.path α d i → o ∈ D.path α d' i' → False := by
+    intro d d' i i' hg hg' hm hm'
+    have hp := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_port_side
+      τ h g s l hl routing α d' i' o (hsing d' i' hg' hm')
+    have hunm : emcdParentSide g s l α d' ∉ s.setup.markedSides (emcdBaseForm g s l α) ∨ i' = 4 := by
+      by_cases hmk : D.marked α d'
+      · right
+        have : ¬ i'.val < 4 := fun hlt => hg' ⟨hmk, hlt⟩
+        have hlt := i'.isLt
+        ext
+        show (i' : ℕ) = 4
+        omega
+      · left
+        exact hmk
+    have hmem := hgen_mem d i hg hm
+    rw [hp] at hmem
+    exact (routing (emcdBaseForm g s l α)).singleton_disjoint _ i' hunm _ hg.1 ⟨i.val, hg.2⟩ hmem
+  by_cases hg : D.IsGenuinePath α d i <;> by_cases hg' : D.IsGenuinePath α d' i'
+  · have hne' : (emcdParentSide g s l α d, (⟨i.val, hg.2⟩ : Fin 4)) ≠
+        (emcdParentSide g s l α d', (⟨i'.val, hg'.2⟩ : Fin 4)) := by
+      intro heq
+      apply hne
+      simp only [Prod.mk.injEq, Fin.mk.injEq] at heq
+      obtain ⟨h1, h2⟩ := heq
+      have h3 : i = i' := Fin.ext h2
+      exact Prod.ext h1 h3
+    have hcases := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step3_cases
+      τ h g s l hl routing
+    rcases hcases α d i hg o ho with h1 | ⟨h1, h1c⟩ <;>
+      rcases hcases α d' i' hg' o ho' with h2 | ⟨h2, h2c⟩
+    · exact ((routing (emcdBaseForm g s l α)).path_disjoint _ hg.1 _ hg'.1 _ _ hne' h1 h2).elim
+    · exact ((routing (emcdBaseForm g s l α)).path_central _ hg.1 _ _ h1 ⟨_, h2.symm⟩).elim
+    · exact ((routing (emcdBaseForm g s l α)).path_central _ hg'.1 _ _ h2 ⟨_, h1.symm⟩).elim
+    · have hidx := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step1_side_injective
+        _ _ _ (h1.symm.trans h2)
+      have hdd : emcdParentSide g s l α d = emcdParentSide g s l α d' :=
+        (routing (emcdBaseForm g s l α)).print_injOn (Finset.mem_coe.2 hg.1) (Finset.mem_coe.2 hg'.1) hidx
+      refine ⟨hdd, Or.inr ?_⟩
+      exact existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step6_print_partner
+        τ h g s l hl routing α d o
+        (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner τ h g s l hl routing
+          α d i o ho) h1c h1
+  · exact (hmixed d d' i i' hg hg' ho ho').elim
+  · exact (hmixed d' d i' i hg' hg ho' ho).elim
+  · have hp := hsing d i hg ho
+    have hp' := hsing d' i' hg' ho'
+    have hdd : d = d' :=
+      existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step9_macroSide
+        τ h g s l hl routing α d d' o
+        (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step8_port_sub
+          τ h g s l hl routing α d i o hp)
+        (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step8_port_sub
+          τ h g s l hl routing α d' i' o hp')
+    subst hdd
+    have hports := (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_port_side
+      τ h g s l hl routing α d i o hp).symm.trans
+      (existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step14_disjoint_step7_port_side
+        τ h g s l hl routing α d i' o hp')
+    have hii := (routing (emcdBaseForm g s l α)).port_injective _ hports
+    exact absurd (by rw [hii]) hne
 
 /-- Step 4 of `lem:certificate-exists`: the path clauses for `emcdMacroData`: lifting each routed
 geometric side list `(routing (emcdBaseForm g s l α)).pathSides d i` and tile list `pathTiles d i`

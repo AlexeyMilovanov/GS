@@ -6930,6 +6930,117 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step9_i
   exact (emcd_paths_step4_other_is_partner τ h g s l hl routing o o'
     (ho'owner.trans howner.symm) hne ho'side).1
 
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked`:
+"every side is marked (sides of non-large children)": every side of the form of a non-central child
+of a retained template (an annular piece or an original singleton) is marked. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked_step1_noncentral_univ
+    {τ : Substitution P} (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l) (t : emcdTyp g s l)
+    (ht : t.2.1 ≠ s.setup.central l (emcdBaseForm g s l t.1)) :
+    s.setup.markedSides (emcdBaseForm g s l (emcdChildForm g s l t)) = Finset.univ := by
+  rcases hform : t.2.1.form with γ | p
+  · have hb : emcdBaseForm g s l (emcdChildForm g s l t) = γ :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l _ γ hform
+    rw [hb]
+    exact s.marked_child l _ hl t.2.1 t.2.2 ht γ hform
+  · have hb : emcdBaseForm g s l (emcdChildForm g s l t) =
+        emcdBaseForm g s l (emcdOriginalForm g s l p) := by
+      show (match t.2.1.form with
+        | Sum.inl γ => γ
+        | Sum.inr p => s.setup_grouped.symm ▸ g.original p) = _
+      rw [hform]
+      rfl
+    rw [hb]
+    exact s.marked_singleton _ p
+      (existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_original g s l p)
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked`:
+"no central side occurs before the print": every occurrence on a genuine path lies in a non-central
+child of its template (the print is recorded in its small owner only). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked_step2_not_central
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    (∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, o.1 ≠ D.central α) := by
+  intro D α d i hG o ho
+  classical
+  have hpath : D.path α d i =
+      if hi : D.IsGenuinePath α d i then
+        emcdLiftPath D (emcdTemplateChild g s l) α
+          ((routing (emcdBaseForm g s l α)).pathTiles
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+          ((routing (emcdBaseForm g s l α)).pathSides
+            (emcdParentSide g s l α d) ⟨i.val, hi.2⟩)
+      else (D.port α d i).toList := rfl
+  rw [hpath] at ho
+  split_ifs at ho
+  · unfold emcdLiftPath at ho
+    simp only [List.mem_flatMap, List.mem_append] at ho
+    rcases ho with ⟨⟨X, ⟨e, e'⟩⟩, hmem, ho⟩
+    let β := emcdBaseForm g s l α
+    let a := emcdParentSide g s l α d
+    let j : Fin 4 := ⟨i.val, hG.2⟩
+    have ha : a ∈ s.setup.markedSides β := by
+      dsimp only [a, β]
+      exact hG.1
+    obtain ⟨k, hk⟩ := List.mem_iff_getElem?.mp hmem
+    rw [List.getElem?_zip_eq_some] at hk
+    have hk_sides := hk.2
+    rw [List.getElem?_zip_eq_some] at hk_sides
+    have hk_tile : ((routing β).pathTiles a j)[k]? = some X := hk.1
+    have hk_e : ((routing β).pathSides a j)[k]? = some e := hk_sides.1
+    have hk_e' : ((routing β).pathSides a j).tail[k]? = some e' := hk_sides.2
+    have hk_e'_orig : ((routing β).pathSides a j)[k + 1]? = some e' := by
+      simpa only [List.getElem?_tail] using hk_e'
+    have hstep := (routing β).path_step a ha j k X e e' hk_tile hk_e hk_e'_orig
+    have hlen := (routing β).path_length a ha j
+    have hk_tiles := (List.getElem?_eq_some_iff.mp hk_tile).1
+    have hk_drop : k < ((routing β).pathSides a j).dropLast.length := by
+      rw [List.length_dropLast]
+      omega
+    have he_drop : e ∈ ((routing β).pathSides a j).dropLast := by
+      rw [List.mem_iff_getElem?]
+      refine ⟨k, List.getElem?_eq_some_iff.mpr ⟨hk_drop, ?_⟩⟩
+      rw [List.getElem_dropLast]
+      exact (List.getElem?_eq_some_iff.mp hk_e).2
+    have hXne : X ≠ s.setup.central l β := by
+      intro hX
+      apply (routing β).path_central a ha j e he_drop
+      rw [← hX]
+      exact hstep.2.1
+    cases ho with
+    | inl hocc =>
+      unfold emcdLiftOccurrence at hocc
+      split_ifs at hocc with hex
+      · have hoeq : o = Classical.choose hex := by
+          simpa only [List.mem_singleton] using hocc
+        have hchild := (Classical.choose_spec hex).2.1
+        rw [← hoeq] at hchild
+        intro hcentral
+        apply hXne
+        calc
+          X = emcdTemplateChild g s l o.1 := hchild.symm
+          _ = emcdTemplateChild g s l (D.central α) := congrArg _ hcentral
+          _ = s.setup.central l β := rfl
+      · simp only [List.not_mem_nil] at hocc
+    | inr hocc =>
+      unfold emcdLiftOccurrence at hocc
+      split_ifs at hocc with hex
+      · have hoeq : o = Classical.choose hex := by
+          simpa only [List.mem_singleton] using hocc
+        have hchild := (Classical.choose_spec hex).2.1
+        rw [← hoeq] at hchild
+        intro hcentral
+        apply hXne
+        calc
+          X = emcdTemplateChild g s l o.1 := hchild.symm
+          _ = emcdTemplateChild g s l (D.central α) := congrArg _ hcentral
+          _ = s.setup.central l β := rfl
+      · simp only [List.not_mem_nil] at hocc
+
 /-- Step 10 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: marked -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
@@ -6939,7 +7050,23 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     let D := emcdMacroData τ h g s l hl routing
     (∀ α d i, D.IsGenuinePath α d i → ∀ o ∈ D.path α d i, D.IsMarked o) := by
-  sorry
+  intro D α d i hG o ho
+  have hnc := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked_step2_not_central
+    τ h g s l hl routing α d i hG o ho
+  have hown := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step5_owner
+    τ h g s l hl routing α d i o ho
+  obtain ⟨⟨β, X, hX⟩, j⟩ := o
+  change β = α at hown
+  subst hown
+  have hXc : X ≠ s.setup.central l (emcdBaseForm g s l β) := by
+    rintro rfl
+    exact hnc rfl
+  have hu := existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step10_marked_step1_noncentral_univ
+    g s l hl ⟨β, X, hX⟩ hXc
+  show emcdParentSide g s l (emcdChildForm g s l ⟨β, X, hX⟩) j ∈
+    s.setup.markedSides (emcdBaseForm g s l (emcdChildForm g s l ⟨β, X, hX⟩))
+  rw [hu]
+  exact Finset.mem_univ _
 
 /-- Step 11 of the blueprint proof of `existsMacroCertificate_seed2_routing_step3_data_sub7_paths`: not_central -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step11_not_central

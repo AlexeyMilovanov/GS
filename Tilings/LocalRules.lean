@@ -3163,6 +3163,143 @@ private def hereditary_sts_hierarchy_sofic_step1_control_control_rule_locallyCom
           Planned.sideOf C ⟨B, Y.anchor⟩ j = Planned.sideOf C ⟨A, X.anchor⟩ i ∧
           (∀ k : Fin 5, B.cell j k = A.cell i k))
 
+private abbrev controlEncodingProtoset (C : Geometry.MacroCertificate P) : Protoset :=
+  (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P'
+
+private def controlEncodingValid (C : Geometry.MacroCertificate P)
+    (X : PlacedTile (controlEncodingProtoset C)) : Prop :=
+  ∃ A : Planned.DecTile C, X.form = Sum.inr A ∧ Planned.headerLegal C A
+
+private def controlEncodingMatch (C : Geometry.MacroCertificate P)
+    (X : PlacedTile (controlEncodingProtoset C)) (A : Planned.DecTile C)
+    (i : C.Side A.typ) (Y : PlacedTile (controlEncodingProtoset C)) : Prop :=
+  Y ≠ X ∧ ∃ B : Planned.DecTile C, ∃ j : C.Side B.typ,
+    Y.form = Sum.inr B ∧
+      Planned.sideOf C ⟨B, Y.anchor⟩ j = Planned.sideOf C ⟨A, X.anchor⟩ i ∧
+      ∀ k : Fin 5, B.cell j k = A.cell i k
+
+private def controlEncodingFailure (C : Geometry.MacroCertificate P)
+    (F : Set (PlacedTile (controlEncodingProtoset C)))
+    (X : PlacedTile (controlEncodingProtoset C)) : Prop :=
+  ¬ controlEncodingValid C X ∨
+    ∃ (A : Planned.DecTile C) (_hA : X.form = Sum.inr A) (i : C.Side A.typ),
+      Planned.IsNontrivial C A i ∧ ∀ Y ∈ F, ¬ controlEncodingMatch C X A i Y
+
+private def controlEncodingSize (Q : Protoset) : ℝ :=
+  ∑ q : Q.Form, Metric.diam (Q.disk q).carrier
+
+private def controlEncodingRadius (Q : Protoset) : ℝ :=
+  1 + 2 * controlEncodingSize Q
+
+private lemma controlEncodingSize_nonneg (Q : Protoset) : 0 ≤ controlEncodingSize Q := by
+  exact Finset.sum_nonneg fun _ _ => Metric.diam_nonneg
+
+private lemma controlEncodingRadius_pos (Q : Protoset) : 0 < controlEncodingRadius Q := by
+  unfold controlEncodingRadius
+  linarith [controlEncodingSize_nonneg Q]
+
+private lemma controlEncoding_tile_diam_le (Q : Protoset) (X : PlacedTile Q) :
+    Metric.diam X.carrier ≤ controlEncodingSize Q := by
+  rw [PlacedTile.carrier, diam_vadd]
+  exact Finset.single_le_sum
+    (f := fun q : Q.Form => Metric.diam (Q.disk q).carrier)
+    (fun _ _ => Metric.diam_nonneg) (Finset.mem_univ X.form)
+
+private def controlEncodingForbidden (C : Geometry.MacroCertificate P)
+    (F : Set (PlacedTile (controlEncodingProtoset C))) : Prop :=
+  F.Finite ∧ ∃ X ∈ F, ∃ c ∈ X.carrier,
+    Metric.ball c (controlEncodingRadius (controlEncodingProtoset C)) ⊆ support F ∧
+      (∀ Y ∈ F,
+        (Y.carrier ∩ Metric.ball c (controlEncodingRadius (controlEncodingProtoset C))).Nonempty) ∧
+      controlEncodingFailure C F X
+
+private def controlEncodingRule (C : Geometry.MacroCertificate P) :
+    LocalRule (controlEncodingProtoset C) where
+  forbidden := {F | controlEncodingForbidden C F}
+  D := 2 * (controlEncodingRadius (controlEncodingProtoset C) +
+    controlEncodingSize (controlEncodingProtoset C))
+  bounded := by
+    rintro F ⟨hF, X, hXF, c, hcX, hcover, hmeet, hfail⟩
+    refine ⟨hF, ?_⟩
+    apply Metric.diam_le_of_forall_dist_le
+    · have hs := controlEncodingSize_nonneg (controlEncodingProtoset C)
+      have hr := (controlEncodingRadius_pos (controlEncodingProtoset C)).le
+      positivity
+    · intro x hx y hy
+      simp only [support, Set.mem_iUnion] at hx hy
+      obtain ⟨A, hAF, hxA⟩ := hx
+      obtain ⟨B, hBF, hyB⟩ := hy
+      obtain ⟨a, haA, hac⟩ := hmeet A hAF
+      obtain ⟨b, hbB, hbc⟩ := hmeet B hBF
+      have hxa : dist x a ≤ controlEncodingSize (controlEncodingProtoset C) :=
+        (Metric.dist_le_diam_of_mem (cc_tile_compact A).isBounded hxA haA).trans
+          (controlEncoding_tile_diam_le _ A)
+      have hyb : dist b y ≤ controlEncodingSize (controlEncodingProtoset C) :=
+        (Metric.dist_le_diam_of_mem (cc_tile_compact B).isBounded hbB hyB).trans
+          (controlEncoding_tile_diam_le _ B)
+      have hac' : dist a c < controlEncodingRadius (controlEncodingProtoset C) :=
+        Metric.mem_ball.mp hac
+      have hcb' : dist c b < controlEncodingRadius (controlEncodingProtoset C) := by
+        rw [dist_comm]
+        exact Metric.mem_ball.mp hbc
+      calc
+        dist x y ≤ dist x a + dist a y := dist_triangle _ _ _
+        _ ≤ dist x a + (dist a c + dist c y) := by gcongr; exact dist_triangle _ _ _
+        _ ≤ dist x a + (dist a c + (dist c b + dist b y)) := by
+          gcongr
+          exact dist_triangle _ _ _
+        _ ≤ 2 * (controlEncodingRadius (controlEncodingProtoset C) +
+            controlEncodingSize (controlEncodingProtoset C)) := by linarith
+
+private lemma controlEncoding_vertex_mem_carrier (Q : Protoset) (X : PlacedTile Q)
+    (i : Fin (Q.disk X.form).n) : X.vertex i ∈ X.carrier := by
+  apply dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset X i
+  exact ⟨(Q.disk X.form).vertex i, left_mem_segment ℝ _ _, rfl⟩
+
+private lemma controlEncoding_failure_occurs (C : Geometry.MacroCertificate P)
+    (T : PlaneTiling (controlEncodingProtoset C)) (X : PlacedTile (controlEncodingProtoset C))
+    (hXT : X ∈ T.tiles) (hfail : controlEncodingFailure C T.tiles X) :
+    ∃ F ∈ (controlEncodingRule C).forbidden, OccursIn F T.tiles := by
+  let i0 : Fin ((controlEncodingProtoset C).disk X.form).n :=
+    ⟨0, by have := ((controlEncodingProtoset C).disk X.form).three_le; omega⟩
+  let c : Pt := X.vertex i0
+  let r : ℝ := controlEncodingRadius (controlEncodingProtoset C)
+  let F : Set (PlacedTile (controlEncodingProtoset C)) :=
+    {Y ∈ T.tiles | (Y.carrier ∩ Metric.ball c r).Nonempty}
+  obtain ⟨N, hN⟩ := cc_count (controlEncodingProtoset C) r
+  have hFfin : F.Finite := (hN T.tiles T.disjoint c).1
+  have hcX : c ∈ X.carrier := controlEncoding_vertex_mem_carrier _ X i0
+  have hXF : X ∈ F := by
+    exact ⟨hXT, c, hcX, Metric.mem_ball_self (controlEncodingRadius_pos _)⟩
+  have hFsub : F ⊆ T.tiles := fun _ hY => hY.1
+  have hcover : Metric.ball c r ⊆ support F := by
+    intro x hx
+    have hxT : x ∈ support T.tiles := by rw [T.cover]; trivial
+    simp only [support, Set.mem_iUnion] at hxT ⊢
+    obtain ⟨Y, hYT, hxY⟩ := hxT
+    exact ⟨Y, ⟨hYT, x, hxY, hx⟩, hxY⟩
+  have hfailF : controlEncodingFailure C F X := by
+    rcases hfail with hbad | ⟨A, hA, i, hi, hnone⟩
+    · exact Or.inl hbad
+    · exact Or.inr ⟨A, hA, i, hi, fun Y hY hmatch => hnone Y (hFsub hY) hmatch⟩
+  refine ⟨F, ⟨hFfin, X, hXF, c, hcX, hcover, ?_, hfailF⟩, ?_⟩
+  · exact fun Y hY => hY.2
+  · refine ⟨0, ?_⟩
+    simpa [translateSet, PlacedTile.translate] using hFsub
+
+private lemma controlEncodingMatch_of_translate (C : Geometry.MacroCertificate P)
+    (X : PlacedTile (controlEncodingProtoset C)) (A : Planned.DecTile C)
+    (i : C.Side A.typ) (Y : PlacedTile (controlEncodingProtoset C)) (v : Pt)
+    (h : controlEncodingMatch C (X.translate v) A i (Y.translate v)) :
+    controlEncodingMatch C X A i Y := by
+  obtain ⟨hne, B, j, hform, hside, hcell⟩ := h
+  refine ⟨?_, B, j, ?_, ?_, hcell⟩
+  · intro hXY
+    exact hne (congrArg (fun Z : PlacedTile (controlEncodingProtoset C) => Z.translate v) hXY)
+  · simpa [PlacedTile.translate] using hform
+  · have hside' := congrArg (fun s : Set Pt => (-v) +ᵥ s) hside
+    simpa [Planned.sideOf, PlacedTile.translate, vadd_vadd] using hside'
+
 /-- Step 1 of the blueprint proof of
 `hereditary_sts_hierarchy_sofic_step1_control_control_rule`: encode the finite
 local compatibility conditions of the decorated alphabet by a bounded rule. -/
@@ -3172,7 +3309,103 @@ private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule_step1_
       ∀ T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
         R.Proper T' ↔
           hereditary_sts_hierarchy_sofic_step1_control_control_rule_locallyCompatible C T' := by
-  sorry
+  refine ⟨controlEncodingRule C, fun T => ?_⟩
+  constructor
+  · intro hproper
+    have hnofail : ∀ X ∈ T.tiles, ¬ controlEncodingFailure C T.tiles X := by
+      intro X hXT hfail
+      obtain ⟨F, hFR, hocc⟩ := controlEncoding_failure_occurs C T X hXT hfail
+      exact hproper F hFR hocc
+    constructor
+    · intro X hXT
+      by_contra hbad
+      exact hnofail X hXT (Or.inl hbad)
+    · intro X hXT A hXA i hi
+      by_contra hnone
+      apply hnofail X hXT
+      refine Or.inr ⟨A, hXA, i, hi, ?_⟩
+      intro Y hYT hmatch
+      apply hnone
+      obtain ⟨hYX, B, j, hYB, hside, hcell⟩ := hmatch
+      exact ⟨Y, hYT, hYX, B, j, hYB, hside, hcell⟩
+  · rintro ⟨hvalid, hmatched⟩ F hforbidden ⟨v, hv⟩
+    obtain ⟨hFfin, X, hXF, c, hcX, hcover, hmeet, hfail⟩ := hforbidden
+    have hXvT : X.translate v ∈ T.tiles := hv ⟨X, hXF, rfl⟩
+    rcases hfail with hbad | ⟨A, hXA, i, hi, hnone⟩
+    · apply hbad
+      obtain ⟨A, hform, hlegal⟩ := hvalid (X.translate v) hXvT
+      exact ⟨A, by simpa [PlacedTile.translate] using hform, hlegal⟩
+    · have hXAv : (X.translate v).form = Sum.inr A := by
+        simpa [PlacedTile.translate] using hXA
+      obtain ⟨Y, hYT, hYX, B, j, hYB, hside, hcell⟩ :=
+        hmatched (X.translate v) hXvT A hXAv i hi
+      have hmatchv : controlEncodingMatch C (X.translate v) A i Y :=
+        ⟨hYX, B, j, hYB, hside, hcell⟩
+      let Ft : Set (PlacedTile (controlEncodingProtoset C)) := translateSet v F
+      have hFtfin : Ft.Finite := by
+        dsimp [Ft, translateSet]
+        exact hFfin.image (fun Z => Z.translate v)
+      have hFtdisj : DisjointInteriors Ft := by
+        intro Z hZ W hW hZW
+        exact T.disjoint (hv hZ) (hv hW) hZW
+      let Fpatch : Patch (controlEncodingProtoset C) := ⟨Ft, hFtfin, hFtdisj⟩
+      have hYsub : Y.carrier ⊆ support Ft := by
+        intro y hyY
+        let p : Pt :=
+          (X.translate v).anchor +ᵥ (C.Q.disk (C.form A.typ)).vertex i
+        have hpXside : p ∈ Planned.sideOf C ⟨A, (X.translate v).anchor⟩ i := by
+          exact ⟨(C.Q.disk (C.form A.typ)).vertex i, left_mem_segment ℝ _ _, rfl⟩
+        have hpX : p ∈ (X.translate v).carrier := by
+          have hp := dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset
+            (⟨A, (X.translate v).anchor⟩ : PlacedTile (Planned.typedDecoration C)) i hpXside
+          simpa [PlacedTile.carrier, hXAv] using hp
+        have hpYside : p ∈ Planned.sideOf C ⟨B, Y.anchor⟩ j := by
+          rw [hside]
+          exact hpXside
+        have hpY : p ∈ Y.carrier := by
+          have hp := dissection_preserves_sts_sofic_step1_local_rule_tile_side_subset
+            (⟨B, Y.anchor⟩ : PlacedTile (Planned.typedDecoration C)) j hpYside
+          simpa [PlacedTile.carrier, hYB] using hp
+        have hcvX : v +ᵥ c ∈ (X.translate v).carrier := by
+          simpa [PlacedTile.carrier, PlacedTile.translate, vadd_vadd] using
+            (show v +ᵥ c ∈ v +ᵥ X.carrier from vadd_mem_vadd_set hcX)
+        have hyp : dist y p ≤ controlEncodingSize (controlEncodingProtoset C) :=
+          (Metric.dist_le_diam_of_mem (cc_tile_compact Y).isBounded hyY hpY).trans
+            (controlEncoding_tile_diam_le _ Y)
+        have hpc : dist p (v +ᵥ c) ≤ controlEncodingSize (controlEncodingProtoset C) :=
+          (Metric.dist_le_diam_of_mem (cc_tile_compact (X.translate v)).isBounded hpX hcvX).trans
+            (controlEncoding_tile_diam_le _ (X.translate v))
+        have hyball : y ∈ Metric.ball (v +ᵥ c)
+            (controlEncodingRadius (controlEncodingProtoset C)) := by
+          rw [Metric.mem_ball]
+          calc
+            dist y (v +ᵥ c) ≤ dist y p + dist p (v +ᵥ c) := dist_triangle _ _ _
+            _ < controlEncodingRadius (controlEncodingProtoset C) := by
+              unfold controlEncodingRadius
+              linarith
+        change y ∈ support (translateSet v F)
+        rw [cc_support_translate]
+        let y0 : Pt := -v +ᵥ y
+        have hy0 : y0 ∈ Metric.ball c (controlEncodingRadius (controlEncodingProtoset C)) := by
+          rw [Metric.mem_ball]
+          rw [Metric.mem_ball] at hyball
+          have heq : dist y0 c = dist y (v +ᵥ c) := by
+            rw [dist_eq_norm, dist_eq_norm]
+            congr 1
+            simp only [y0, vadd_eq_add]
+            abel
+          rwa [heq]
+        exact ⟨y0, hcover hy0, by simp [y0]⟩
+      have hYFt : Y ∈ Ft := by
+        apply Patch.mem_of_carrier_subset_union Fpatch Y
+        · intro Z hZ hZY
+          exact T.disjoint hYT (hv hZ) hZY.symm
+        · exact hYsub
+      rcases hYFt with ⟨Z, hZF, hZY⟩
+      apply hnone Z hZF
+      apply controlEncodingMatch_of_translate C X A i Z v
+      rw [← hZY] at hmatchv
+      exact hmatchv
 
 /-- Step 2 of the blueprint proof of
 `hereditary_sts_hierarchy_sofic_step1_control_control_rule`: decode a locally

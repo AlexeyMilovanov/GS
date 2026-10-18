@@ -3222,6 +3222,797 @@ private def hereditary_sts_substitution_sofic_rawChildCrown
       (τ.decomposeIter m
         (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1)) x)
 
+/-! #### Helpers for `hereditary_sts_substitution_sofic_step2_raw_child_is_full` -/
+
+/-- Translating a placed tile translates its carrier. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_carrier_translate
+    (X : PlacedTile P) (u : Pt) : (X.translate u).carrier = u +ᵥ X.carrier := by
+  show (u +ᵥ X.anchor) +ᵥ _ = u +ᵥ (X.anchor +ᵥ _)
+  rw [vadd_vadd]; rfl
+
+/-- Translating a placed tile translates its listed vertices. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_translate
+    (X : PlacedTile P) (u : Pt) (k : Fin (P.disk X.form).n) :
+    (X.translate u).vertex k = u + X.vertex k := by
+  show (u +ᵥ X.anchor) +ᵥ (P.disk X.form).vertex k =
+    u + (X.anchor +ᵥ (P.disk X.form).vertex k)
+  simp only [vadd_eq_add, add_assoc]
+
+/-- A listed vertex of a placed tile lies in its carrier. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_carrier
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) : X.vertex i ∈ X.carrier := by
+  refine ⟨(P.disk X.form).vertex i, ?_, rfl⟩
+  apply (P.disk X.form).compact.isClosed.frontier_subset
+  rw [(P.disk X.form).frontier_eq]
+  exact Set.mem_iUnion.mpr ⟨i, left_mem_segment ℝ _ _⟩
+
+/-- Supertiles have pairwise disjoint interiors. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_supertile_disjoint
+    (τ : Substitution P) (n : ℕ) (p : P.Form) : DisjointInteriors (τ.supertile n p) := by
+  cases n with
+  | zero =>
+    change DisjointInteriors ({⟨p, 0⟩} : Set (PlacedTile P))
+    exact Set.pairwiseDisjoint_singleton _ _
+  | succ n => exact ((τ.pow (n + 1) (Nat.succ_pos n)).rule p).disjoint
+
+/-- A tile of an interior-disjoint family containing an interior point of the support of a
+finite subfamily belongs to that subfamily. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_mem_of_interior
+    {D F : Set (PlacedTile P)} (hD : DisjointInteriors D) (hFD : F ⊆ D)
+    (hF : F.Finite) {w : Pt} (hw : w ∈ interior (support F)) {Y : PlacedTile P} (hY : Y ∈ D)
+    (hwY : w ∈ Y.carrier) : Y ∈ F := by
+  by_contra hYF
+  rw [← cc_tile_regular Y] at hwY
+  obtain ⟨z, hzV, hzY⟩ := mem_closure_iff.mp hwY _ isOpen_interior hw
+  have hsupp : support F = closure (⋃ Z ∈ F, interior Z.carrier) := by
+    rw [hF.closure_biUnion]
+    apply iUnion₂_congr
+    intro Z _
+    exact (cc_tile_regular Z).symm
+  have hz : z ∈ closure (⋃ Z ∈ F, interior Z.carrier) := hsupp ▸ interior_subset hzV
+  obtain ⟨y, ⟨hyV, hyY⟩, hyU⟩ :=
+    mem_closure_iff.mp hz _ (isOpen_interior.inter isOpen_interior) ⟨hzV, hzY⟩
+  simp only [mem_iUnion] at hyU
+  obtain ⟨Z, hZ, hyZ⟩ := hyU
+  have hne : Y ≠ Z := fun h => hYF (h ▸ hZ)
+  exact Set.disjoint_left.mp (hD hY (hFD hZ) hne) hyY hyZ
+
+/-- Iterated decomposition is monotone. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_mono
+    (τ : Substitution P) (k : ℕ) {S S' : Set (PlacedTile P)} (h : S ⊆ S') :
+    τ.decomposeIter k S ⊆ τ.decomposeIter k S' := by
+  induction k with
+  | zero => exact h
+  | succ k ih =>
+    intro A hA
+    change A ∈ τ.decompose (τ.decomposeIter k S) at hA
+    change A ∈ τ.decompose (τ.decomposeIter k S')
+    simp only [Substitution.decompose, Set.mem_iUnion] at hA ⊢
+    obtain ⟨B, hB, hAB⟩ := hA
+    exact ⟨B, ih hB, hAB⟩
+
+/-- Iterated decompositions compose additively. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_add
+    (τ : Substitution P) (n k : ℕ) (S : Set (PlacedTile P)) :
+    τ.decomposeIter k (τ.decomposeIter n S) = τ.decomposeIter (n + k) S := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    change τ.decompose (τ.decomposeIter k (τ.decomposeIter n S)) =
+      τ.decompose (τ.decomposeIter (n + k) S)
+    rw [ih]
+
+/-- Iterated decomposition preserves finiteness. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_finite
+    (τ : Substitution P) (k : ℕ) {S : Set (PlacedTile P)} (hS : S.Finite) :
+    (τ.decomposeIter k S).Finite := by
+  induction k with
+  | zero => exact hS
+  | succ k ih =>
+    change (τ.decompose (τ.decomposeIter k S)).Finite
+    exact ih.biUnion fun A _ => (τ.rule A.form).finite.image _
+
+/-- The support of an iterated decomposition is the scaled support. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_support_decomposeIter
+    (τ : Substitution P) (k : ℕ) (S : Set (PlacedTile P)) :
+    support (τ.decomposeIter k S) = (τ.θ ^ k) • support S := by
+  induction k with
+  | zero =>
+    show support S = (τ.θ ^ 0) • support S
+    rw [pow_zero, one_smul]
+  | succ k ih =>
+    change support (τ.decompose (τ.decomposeIter k S)) = _
+    rw [hierarchy_lift_iff_decompose_support, ih, smul_smul, ← pow_succ']
+
+/-- Equal segments have the same endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_segment_endpoints
+    {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  · have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+    have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+    have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+    rw [segment_eq_image'] at hc hd ha hb
+    obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+    obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+    obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+    obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+    simp only at hu hw
+    have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+    have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+      have h' : a + s • (b - a) + u • (a + t • (b - a) -
+          (a + s • (b - a))) - a = (s + u * (t - s)) • (b - a) := by
+        module
+      rw [← h', hu, sub_self]
+    have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+      have h' : a + s • (b - a) + w • (a + t • (b - a) -
+          (a + s • (b - a))) - b = (s + w * (t - s) - 1) • (b - a) := by
+        module
+      rw [← h', hw, sub_self]
+    have f1 := (smul_eq_zero.1 e1).resolve_right hv
+    have f2 := (smul_eq_zero.1 e2).resolve_right hv
+    rcases lt_trichotomy s t with hst | hst | hst
+    · have hs : s = 0 := by nlinarith
+      subst hs
+      have ht : t = 1 := by nlinarith
+      subst ht
+      left; constructor <;> simp
+    · subst hst; simp at f1 f2; linarith
+    · have ht : t = 0 := by nlinarith
+      subst ht
+      have hs : s = 1 := by nlinarith
+      subst hs
+      right; constructor <;> simp
+
+/-- A listed side of a placed tile is the segment between its endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) :
+    X.side i = segment ℝ (X.vertex i) (X.vertex (finRotate _ i)) := by
+  simp only [PlacedTile.side, PlacedTile.vertex, PolygonalDisk.side]
+  exact vadd_segment ℝ _ _ _
+
+/-- A listed side of a placed tile lies in its carrier. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_subset_carrier
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) : X.side i ⊆ X.carrier := by
+  simp only [PlacedTile.side, PlacedTile.carrier]
+  refine vadd_set_mono ?_
+  have h1 : (P.disk X.form).side i ⊆ frontier (P.disk X.form).carrier := by
+    rw [(P.disk X.form).frontier_eq]
+    exact subset_iUnion (fun i => segment ℝ ((P.disk X.form).vertex i)
+      ((P.disk X.form).vertex (finRotate (P.disk X.form).n i))) i
+  refine h1.trans ?_
+  rw [((P.disk X.form).compact.isClosed).frontier_eq]
+  exact diff_subset
+
+/-- A listed vertex of a placed tile lies on the listed side starting there. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_side
+    (X : PlacedTile P) (k : Fin (P.disk X.form).n) : X.vertex k ∈ X.side k := by
+  rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment]
+  exact left_mem_segment ℝ _ _
+
+/-- Two distinct listed sides of a placed tile meet only in listed endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_inter
+    (X : PlacedTile P) {k i : Fin (P.disk X.form).n} (hki : k ≠ i) {z : Pt}
+    (hzk : z ∈ X.side k) (hzi : z ∈ X.side i) :
+    z = X.vertex i ∨ z = X.vertex (finRotate _ i) := by
+  rw [PlacedTile.side, mem_vadd_set_iff_neg_vadd_mem] at hzk hzi
+  have h := ((P.disk X.form).simple k i hki ⟨hzk, hzi⟩).2
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at h
+  rcases h with h | h
+  · left
+    rw [PlacedTile.vertex, ← h, vadd_neg_vadd]
+  · right
+    rw [PlacedTile.vertex, ← h, vadd_neg_vadd]
+
+/-- A point of one tile is not an interior point of a second tile with disjoint interior. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_not_interior
+    {A B : PlacedTile P} (hd : Disjoint (interior A.carrier) (interior B.carrier)) {x : Pt}
+    (hxB : x ∈ B.carrier) : x ∉ interior A.carrier := by
+  intro hxA
+  rw [← cc_tile_regular B, mem_closure_iff_nhds] at hxB
+  obtain ⟨z, hz1, hz2⟩ := hxB _ (isOpen_interior.mem_nhds hxA)
+  exact Set.disjoint_left.mp hd hz1 hz2
+
+/-- A point of a listed side is not an interior point of the tile. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_not_interior
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) {z : Pt} (hz : z ∈ X.side i) :
+    z ∉ interior X.carrier := by
+  rw [PlacedTile.side, mem_vadd_set_iff_neg_vadd_mem] at hz
+  rw [PlacedTile.carrier, interior_vadd, mem_vadd_set_iff_neg_vadd_mem]
+  have h1 : (P.disk X.form).side i ⊆ frontier (P.disk X.form).carrier := by
+    rw [(P.disk X.form).frontier_eq]
+    exact subset_iUnion (fun i => segment ℝ ((P.disk X.form).vertex i)
+      ((P.disk X.form).vertex (finRotate (P.disk X.form).n i))) i
+  exact (h1 hz).2
+
+/-- `finRotate` has no fixed point on `Fin n` for `2 ≤ n`. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_finRotate_ne
+    {n : ℕ} (hn : 2 ≤ n) (i : Fin n) : finRotate n i ≠ i := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have h1 : (1 : Fin (m + 1)) = 0 := by
+    have := congrArg (fun x => x - i) h
+    simpa using this
+  have : NeZero (m + 1) := ⟨by omega⟩
+  rw [Fin.one_eq_zero_iff] at h1
+  omega
+
+/-- The two endpoints of a listed side are distinct. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_ne
+    (X : PlacedTile P) (i : Fin (P.disk X.form).n) :
+    X.vertex i ≠ X.vertex (finRotate _ i) := by
+  intro h
+  simp only [PlacedTile.vertex, vadd_eq_add, add_right_inj] at h
+  exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_finRotate_ne
+    (by have := (P.disk X.form).three_le; omega) i ((P.disk X.form).vertex_injective h).symm
+
+/-- Two tiles with disjoint interiors meeting at a point of the side `A.side i` which is a
+listed vertex of neither tile share a segment of positive length of `A.side i` with a listed
+side of `B`. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_key
+    {A B : PlacedTile P} (hd : Disjoint (interior A.carrier) (interior B.carrier)) {x : Pt}
+    {i : Fin (P.disk A.form).n} (hxi : x ∈ A.side i) (hxB : x ∈ B.carrier)
+    (hvA : x ∉ A.vertexSet) (hvB : x ∉ B.vertexSet) :
+    ∃ j, OverlapPos (A.side i) (B.side j) := by
+  have hxA : x ∈ A.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_subset_carrier A i hxi
+  obtain ⟨i₁, ε₁, d₁, n₁, hε₁, hd₁, hn₁, hnd₁, hs₁, hy₁⟩ := cc_halfdisk_tile A hxA
+    (hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_not_interior hd hxB) hvA
+  obtain ⟨j, ε₂, d₂, n₂, hε₂, hd₂, hn₂, hnd₂, hs₂, hy₂⟩ := cc_halfdisk_tile B hxB
+    (hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_not_interior hd.symm hxA) hvB
+  have hi₁ : i₁ = i := by
+    by_contra hne
+    have hx₁ : x ∈ A.side i₁ := by simpa using hs₁ 0 (by simpa using hε₁)
+    rcases hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_inter A hne
+        hx₁ hxi with h | h
+    · exact hvA ⟨i, h.symm⟩
+    · exact hvA ⟨_, h.symm⟩
+  subst hi₁
+  have key : inner ℝ n₂ d₁ = 0 := by
+    by_contra hne
+    obtain ⟨w, hw2, hw1⟩ : ∃ w : Pt, 0 < inner ℝ n₂ w ∧ inner ℝ n₁ w = 0 := by
+      rcases lt_or_gt_of_ne hne with h | h
+      · exact ⟨-d₁, by rw [inner_neg_right]; linarith, by rw [inner_neg_right, hnd₁, neg_zero]⟩
+      · exact ⟨d₁, h, hnd₁⟩
+    set c := (|inner ℝ n₂ n₁| + 1) / inner ℝ n₂ w with hc
+    set u := n₁ + c • w with hu
+    have hu2 : 0 < inner ℝ n₂ u := by
+      rw [hu, inner_add_right, inner_smul_right, hc, div_mul_cancel₀ _ hw2.ne']
+      have := neg_abs_le (inner ℝ n₂ n₁); linarith
+    have hu1 : 0 < inner ℝ n₁ u := by
+      rw [hu, inner_add_right, inner_smul_right, hw1, mul_zero, add_zero,
+        real_inner_self_eq_norm_sq]
+      have := norm_pos_iff.mpr hn₁; positivity
+    have hu0 : u ≠ 0 := by rintro h; rw [h, inner_zero_right] at hu1; exact lt_irrefl _ hu1
+    have hunorm : 0 < ‖u‖ := norm_pos_iff.mpr hu0
+    set δ := min ε₁ ε₂ / (2 * ‖u‖) with hδ
+    have hδpos : 0 < δ := div_pos (lt_min hε₁ hε₂) (by positivity)
+    have hdist : dist (x + δ • u) x = min ε₁ ε₂ / 2 := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hδpos.le, hδ]
+      field_simp
+    have hm1 := min_le_left ε₁ ε₂
+    have hm2 := min_le_right ε₁ ε₂
+    have hmpos : 0 < min ε₁ ε₂ := lt_min hε₁ hε₂
+    have h1 : x + δ • u ∈ interior A.carrier := by
+      apply hy₁ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]; positivity
+    have h2 : x + δ • u ∈ interior B.carrier := by
+      apply hy₂ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]; positivity
+    exact Set.disjoint_left.mp hd h1 h2
+  obtain ⟨c, hc⟩ := cc_parallel hn₂ hd₂ key hnd₂
+  have hc0 : c ≠ 0 := by rintro rfl; apply hd₁; rw [hc, zero_smul]
+  have hcpos : 0 < |c| := abs_pos.mpr hc0
+  set s₀ := min ε₁ (ε₂ / |c|) / 2 with hs₀
+  have hs₀pos : 0 < s₀ := by
+    have : 0 < min ε₁ (ε₂ / |c|) := lt_min hε₁ (div_pos hε₂ hcpos)
+    positivity
+  refine ⟨j, x + (-s₀) • d₁, x + s₀ • d₁, ?_, ?_⟩
+  · intro h
+    have : (2 * s₀) • d₁ = 0 := by
+      have h' := congrArg (fun z => z - x) h
+      simp only [add_sub_cancel_left] at h'
+      have e : (2 * s₀) • d₁ = s₀ • d₁ - (-s₀) • d₁ := by
+        rw [neg_smul, sub_neg_eq_add, ← add_smul, two_mul]
+      rw [e, h', sub_self]
+    rcases smul_eq_zero.mp this with h | h
+    · linarith
+    · exact hd₁ h
+  · rw [segment_eq_image']
+    rintro _ ⟨θ, ⟨hθ0, hθ1⟩, rfl⟩
+    have he : x + (-s₀) • d₁ + θ • (x + s₀ • d₁ - (x + (-s₀) • d₁)) =
+        x + ((2 * θ - 1) * s₀) • d₁ := by
+      rw [add_sub_add_left_eq_sub, ← sub_smul]
+      rw [smul_smul, add_assoc, ← add_smul]; congr 2; ring
+    simp only
+    rw [he]
+    have hab : |(2 * θ - 1) * s₀| ≤ s₀ := by
+      rw [abs_mul, abs_of_pos hs₀pos]
+      have : |2 * θ - 1| ≤ 1 := abs_le.mpr ⟨by linarith, by linarith⟩
+      nlinarith [abs_nonneg (2 * θ - 1)]
+    have hm1 := min_le_left ε₁ (ε₂ / |c|)
+    have hm2 := min_le_right ε₁ (ε₂ / |c|)
+    refine ⟨hs₁ _ (by linarith), ?_⟩
+    rw [hc, smul_smul]
+    apply hs₂
+    rw [abs_mul]
+    calc |(2 * θ - 1) * s₀| * |c| ≤ s₀ * |c| := by gcongr
+      _ < ε₂ / |c| * |c| := by gcongr; linarith
+      _ = ε₂ := div_mul_cancel₀ _ hcpos.ne'
+
+/-- A collar is a finite set of placed tiles: full crowns are finite. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_collar_finite
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (q : C.Q.Form)
+    (γ : hereditary_sts_substitution_sofic_CrownVector τ hsts C q) :
+    (hereditary_sts_substitution_sofic_collar τ hsts C q γ).Finite := by
+  unfold hereditary_sts_substitution_sofic_collar
+  refine (C.Δ q).finite.union (Set.finite_iUnion fun v => ?_)
+  have hK := (γ v).2
+  simp only [hereditary_sts_substitution_sofic_fullCrowns, Finset.mem_filter,
+    Set.Finite.mem_toFinset, Set.mem_setOf_eq] at hK
+  obtain ⟨⟨n, p, w, -, hw⟩, -⟩ := hK
+  rw [hw]
+  have hsup : (τ.supertile n p).Finite :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_finite τ n
+      (Set.finite_singleton _)
+  exact ((hsup.subset (sep_subset _ _)).image _).image _
+
+/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+side saturation of a catalogue collar.  Let `γ ∈ Γ(q)`.  Every listed side `A.side i` of every
+original tile `A` of the grouped dissection `Δ q` is also a listed side of a second, different
+tile `B` of the collar of `γ`.  (The exact full star `translateSet a (γ a)` of the collar at the
+endpoint `a = A.vertex i ∈ V(q)` covers a neighbourhood of `a`, so a tile `B ≠ A` of this star
+shares with `A.side i` a segment of positive length near `a`; side-to-side matching inside the
+collar then makes the two listed sides equal.) -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step1_side_partner
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (q : C.Q.Form)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C q)
+    (A : PlacedTile P) (hA : A ∈ (C.Δ q).tiles) (i : Fin (P.disk A.form).n) :
+    ∃ B ∈ hereditary_sts_substitution_sofic_collar τ hsts C q γ.1, B ≠ A ∧
+      ∃ j : Fin (P.disk B.form).n, B.side j = A.side i := by
+  set Col := hereditary_sts_substitution_sofic_collar τ hsts C q γ.1 with hCol
+  have hAcol : A ∈ Col := Or.inl hA
+  have hab : A.vertex i ≠ A.vertex (finRotate _ i) :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_ne A i
+  set a := A.vertex i with ha_def
+  set b := A.vertex (finRotate _ i) with hb_def
+  have haV : a ∈ hereditary_sts_substitution_sofic_macroVertices C q := by
+    simp only [hereditary_sts_substitution_sofic_macroVertices, Set.Finite.mem_toFinset,
+      Set.mem_setOf_eq]
+    exact ⟨A, hA, i, rfl⟩
+  -- the exact full star at `a` covers a ball around `a`
+  have hcr : Substitution.crown Col a = translateSet a (γ.1 ⟨a, haV⟩).1 := γ.2.2.2.1 ⟨a, haV⟩
+  have hfull := (γ.1 ⟨a, haV⟩).2
+  simp only [hereditary_sts_substitution_sofic_fullCrowns, Finset.mem_filter] at hfull
+  have hint : a ∈ interior (support (Substitution.crown Col a)) := by
+    rw [hcr, cc_support_translate, interior_vadd]
+    have h := vadd_mem_vadd_set (a := a) hfull.2
+    simpa only [vadd_eq_add, add_zero] using h
+  obtain ⟨r, hr, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hint)
+  have hKfin : (Substitution.crown Col a).Finite :=
+    (hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_collar_finite
+      τ hsts C q γ.1).subset (sep_subset _ _)
+  -- a point `z` of the side near `a`, avoiding all listed vertices of the star
+  have hVfin : (⋃ B ∈ Substitution.crown Col a, B.vertexSet).Finite :=
+    hKfin.biUnion fun B _ => Set.finite_range B.vertex
+  have hba0 : b - a ≠ 0 := sub_ne_zero.mpr (Ne.symm hab)
+  have hba : 0 < ‖b - a‖ := norm_pos_iff.mpr hba0
+  have hs₀pos : 0 < min 1 (r / ‖b - a‖) := lt_min one_pos (div_pos hr hba)
+  have hinj : Function.Injective fun s : ℝ => a + s • (b - a) := by
+    intro s s' h
+    have h' : s • (b - a) = s' • (b - a) := add_left_cancel h
+    exact smul_left_injective ℝ hba0 h'
+  have hbad : ((fun s : ℝ => a + s • (b - a)) ⁻¹'
+      (⋃ B ∈ Substitution.crown Col a, B.vertexSet)).Finite :=
+    hVfin.preimage hinj.injOn
+  obtain ⟨s, ⟨hs0, hs1⟩, hsV⟩ := ((Set.Ioo_infinite hs₀pos).diff hbad).nonempty
+  have hs1' : s < 1 := lt_of_lt_of_le hs1 (min_le_left _ _)
+  have hsr : s < r / ‖b - a‖ := lt_of_lt_of_le hs1 (min_le_right _ _)
+  have hzside : a + s • (b - a) ∈ A.side i := by
+    rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment,
+      segment_eq_image']
+    exact ⟨s, ⟨hs0.le, hs1'.le⟩, rfl⟩
+  have hzball : a + s • (b - a) ∈ Metric.ball a r := by
+    rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hs0.le]
+    exact (lt_div_iff₀ hba).mp hsr
+  have hzA : a + s • (b - a) ∉ interior A.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_not_interior A i hzside
+  have hzvert : ∀ B ∈ Substitution.crown Col a, a + s • (b - a) ∉ B.vertexSet := by
+    intro B hB hzB
+    apply hsV
+    show a + s • (b - a) ∈ ⋃ B ∈ Substitution.crown Col a, B.vertexSet
+    exact mem_biUnion hB hzB
+  have hAK : A ∈ Substitution.crown Col a :=
+    ⟨hAcol, hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_carrier A i⟩
+  -- a second tile of the star contains `z`
+  have hexB : ∃ B ∈ Substitution.crown Col a, B ≠ A ∧ a + s • (b - a) ∈ B.carrier := by
+    by_contra hno
+    push_neg at hno
+    have hFfin : {B ∈ Substitution.crown Col a | B ≠ A}.Finite := hKfin.subset (sep_subset _ _)
+    have hFcl : IsClosed (⋃ B ∈ {B ∈ Substitution.crown Col a | B ≠ A}, B.carrier) :=
+      hFfin.isClosed_biUnion fun B _ => cc_tile_carrier_closed B
+    have hzF : a + s • (b - a) ∉ ⋃ B ∈ {B ∈ Substitution.crown Col a | B ≠ A}, B.carrier := by
+      simp only [mem_iUnion, not_exists]
+      intro B hB hzB
+      exact hno B hB.1 hB.2 hzB
+    apply hzA
+    rw [mem_interior_iff_mem_nhds]
+    have hU : Metric.ball a r ∩ (⋃ B ∈ {B ∈ Substitution.crown Col a | B ≠ A}, B.carrier)ᶜ ∈
+        nhds (a + s • (b - a)) :=
+      (Metric.isOpen_ball.inter hFcl.isOpen_compl).mem_nhds ⟨hzball, hzF⟩
+    refine Filter.mem_of_superset hU ?_
+    rintro w ⟨hw1, hw2⟩
+    have hwK := hball hw1
+    simp only [support, mem_iUnion] at hwK
+    obtain ⟨B, hB, hwB⟩ := hwK
+    by_cases hBA : B = A
+    · rw [← hBA]
+      exact hwB
+    · exfalso
+      apply hw2
+      simp only [mem_iUnion]
+      exact ⟨B, ⟨hB, hBA⟩, hwB⟩
+  obtain ⟨B, hBK, hBA, hzB⟩ := hexB
+  have hBcol : B ∈ Col := hBK.1
+  have hdisj : Disjoint (interior A.carrier) (interior B.carrier) :=
+    γ.2.1 hAcol hBcol (Ne.symm hBA)
+  obtain ⟨j, hj⟩ := hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_key hdisj
+    hzside hzB (hzvert A hAK) (hzvert B hBK)
+  exact ⟨B, hBcol, hBA, j, (γ.2.2.1 A hAcol B hBcol i j hj).symm⟩
+
+/-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+two placed tiles with disjoint interiors and a common listed side cover a neighbourhood of every
+point of that side other than its two endpoints (near such a point the two tiles lie on the two
+opposite sides of the common segment). -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step2_common_side_nhds
+    {A B : PlacedTile P} (hAB : Disjoint (interior A.carrier) (interior B.carrier))
+    {i : Fin (P.disk A.form).n} {j : Fin (P.disk B.form).n} (hside : A.side i = B.side j)
+    {y : Pt} (hy : y ∈ A.side i) (hya : y ≠ A.vertex i)
+    (hyb : y ≠ A.vertex (finRotate (P.disk A.form).n i)) :
+    y ∈ interior (A.carrier ∪ B.carrier) := by
+  have hyA : y ∈ A.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_subset_carrier A i hy
+  have hyBj : y ∈ B.side j := hside ▸ hy
+  have hyB : y ∈ B.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_subset_carrier B j hyBj
+  have hnA : y ∉ interior A.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_not_interior hAB hyB
+  have hnB : y ∉ interior B.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_not_interior hAB.symm hyA
+  have hvA : y ∉ A.vertexSet := by
+    rintro ⟨k, hk⟩
+    by_cases hki : k = i
+    · rw [hki] at hk
+      exact hya hk.symm
+    · have hyk : y ∈ A.side k := by
+        rw [← hk]
+        exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_side A k
+      rcases hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_inter A hki
+          hyk hy with h | h
+      · exact hya h
+      · exact hyb h
+  have hvB : y ∉ B.vertexSet := by
+    rintro ⟨k, hk⟩
+    have hend : y = B.vertex j ∨ y = B.vertex (finRotate _ j) := by
+      by_cases hkj : k = j
+      · rw [hkj] at hk
+        exact Or.inl hk.symm
+      · have hyk : y ∈ B.side k := by
+          rw [← hk]
+          exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_side B k
+        exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_inter B hkj
+          hyk hyBj
+    have hseg := hside
+    rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment,
+      hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment] at hseg
+    rcases hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_segment_endpoints hseg
+      with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rcases hend with h | h
+      · exact hya (h.trans h1.symm)
+      · exact hyb (h.trans h2.symm)
+    · rcases hend with h | h
+      · exact hyb (h.trans h2.symm)
+      · exact hya (h.trans h1.symm)
+  obtain ⟨_, ε₁, d₁, n₁, hε₁, hd₁, hn₁, hnd₁, _, hy₁⟩ := cc_halfdisk_tile A hyA hnA hvA
+  obtain ⟨_, ε₂, _, n₂, hε₂, _, hn₂, _, _, hy₂⟩ := cc_halfdisk_tile B hyB hnB hvB
+  have hm1 := min_le_left ε₁ ε₂
+  have hm2 := min_le_right ε₁ ε₂
+  have hmpos : 0 < min ε₁ ε₂ := lt_min hε₁ hε₂
+  have key : inner ℝ n₂ d₁ = 0 := by
+    by_contra hne
+    obtain ⟨w, hw2, hw1⟩ : ∃ w : Pt, 0 < inner ℝ n₂ w ∧ inner ℝ n₁ w = 0 := by
+      rcases lt_or_gt_of_ne hne with h | h
+      · exact ⟨-d₁, by rw [inner_neg_right]; linarith, by rw [inner_neg_right, hnd₁, neg_zero]⟩
+      · exact ⟨d₁, h, hnd₁⟩
+    set c := (|inner ℝ n₂ n₁| + 1) / inner ℝ n₂ w with hc
+    set u := n₁ + c • w with hu
+    have hu2 : 0 < inner ℝ n₂ u := by
+      rw [hu, inner_add_right, inner_smul_right, hc, div_mul_cancel₀ _ hw2.ne']
+      have := neg_abs_le (inner ℝ n₂ n₁); linarith
+    have hu1 : 0 < inner ℝ n₁ u := by
+      rw [hu, inner_add_right, inner_smul_right, hw1, mul_zero, add_zero,
+        real_inner_self_eq_norm_sq]
+      have := norm_pos_iff.mpr hn₁; positivity
+    have hu0 : u ≠ 0 := by rintro h; rw [h, inner_zero_right] at hu1; exact lt_irrefl _ hu1
+    have hunorm : 0 < ‖u‖ := norm_pos_iff.mpr hu0
+    set δ := min ε₁ ε₂ / (2 * ‖u‖) with hδ
+    have hδpos : 0 < δ := div_pos (lt_min hε₁ hε₂) (by positivity)
+    have hdist : dist (y + δ • u) y = min ε₁ ε₂ / 2 := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hδpos.le, hδ]
+      field_simp
+    have h1 : y + δ • u ∈ interior A.carrier := by
+      apply hy₁ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]; positivity
+    have h2 : y + δ • u ∈ interior B.carrier := by
+      apply hy₂ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, inner_smul_right]; positivity
+    exact Set.disjoint_left.mp hAB h1 h2
+  have hpar1 : inner ℝ d₁ n₂ = 0 := by rw [real_inner_comm]; exact key
+  have hpar2 : inner ℝ d₁ n₁ = 0 := by rw [real_inner_comm]; exact hnd₁
+  obtain ⟨c, hc⟩ := cc_parallel (n := d₁) (a := n₂) (b := n₁) hd₁ hn₁ hpar1 hpar2
+  have hn1 : 0 < inner ℝ n₁ n₁ := by
+    rw [real_inner_self_eq_norm_sq]
+    have := norm_pos_iff.mpr hn₁
+    positivity
+  have hc0 : c < 0 := by
+    by_contra hcn
+    push_neg at hcn
+    have hcpos : 0 < c := by
+      rcases hcn.lt_or_eq with h | h
+      · exact h
+      · exfalso
+        apply hn₂
+        rw [hc, ← h, zero_smul]
+    have hnorm : 0 < ‖n₁‖ := norm_pos_iff.mpr hn₁
+    set δ := min ε₁ ε₂ / (2 * ‖n₁‖) with hδ
+    have hδpos : 0 < δ := div_pos (lt_min hε₁ hε₂) (by positivity)
+    have hdist : dist (y + δ • n₁) y = min ε₁ ε₂ / 2 := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hδpos.le, hδ]
+      field_simp
+    have h1 : y + δ • n₁ ∈ interior A.carrier := by
+      apply hy₁ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, real_inner_smul_right]
+      positivity
+    have h2 : y + δ • n₁ ∈ interior B.carrier := by
+      apply hy₂ _ (by rw [hdist]; linarith)
+      rw [add_sub_cancel_left, real_inner_smul_right, hc, real_inner_smul_left]
+      positivity
+    exact Set.disjoint_left.mp hAB h1 h2
+  rw [mem_interior_iff_mem_nhds, Metric.mem_nhds_iff]
+  refine ⟨min ε₁ ε₂, hmpos, fun z hz => ?_⟩
+  have hzy : dist z y < min ε₁ ε₂ := Metric.mem_ball.mp hz
+  have hz1 : dist z y < ε₁ := lt_of_lt_of_le hzy hm1
+  have hz2 : dist z y < ε₂ := lt_of_lt_of_le hzy hm2
+  rcases lt_trichotomy (inner ℝ n₁ (z - y)) 0 with hneg | hzero | hpos
+  · apply Set.mem_union_right
+    apply interior_subset
+    apply hy₂ z hz2
+    rw [hc, real_inner_smul_left]
+    exact mul_pos_of_neg_of_neg hc0 hneg
+  · apply Set.mem_union_left
+    rw [← cc_tile_regular A, Metric.mem_closure_iff]
+    intro e he
+    have hnorm : 0 < ‖n₁‖ := norm_pos_iff.mpr hn₁
+    have hgap : 0 < ε₁ - dist z y := by linarith
+    have hmin : 0 < min e (ε₁ - dist z y) := lt_min he hgap
+    set δ := min e (ε₁ - dist z y) / (2 * ‖n₁‖) with hδ
+    have hδpos : 0 < δ := div_pos hmin (by positivity)
+    have hdz : dist (z + δ • n₁) z = min e (ε₁ - dist z y) / 2 := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hδpos.le, hδ]
+      field_simp
+    have hme1 := min_le_left e (ε₁ - dist z y)
+    have hme2 := min_le_right e (ε₁ - dist z y)
+    refine ⟨z + δ • n₁, ?_, ?_⟩
+    · apply hy₁
+      · calc dist (z + δ • n₁) y ≤ dist (z + δ • n₁) z + dist z y := dist_triangle _ _ _
+          _ < ε₁ := by rw [hdz]; linarith
+      · have hsplit : z + δ • n₁ - y = (z - y) + δ • n₁ := by abel
+        rw [hsplit, inner_add_right, hzero, zero_add, real_inner_smul_right]
+        positivity
+    · rw [dist_comm, hdz]
+      linarith
+  · exact Set.mem_union_left _ (interior_subset (hy₁ z hz1 hpos))
+
+/-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+collar neighbourhood saturation.  For `γ ∈ Γ(q)` the collar covers an open neighbourhood of the
+support of `Δ q`: interior points of tiles are trivial, marked vertices are covered by their
+exact full stars, and the remaining frontier points lie in the relative interior of a side which
+is shared with a second collar tile (Steps 1 and 2). -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step3_collar_nhds
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (q : C.Q.Form)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C q) :
+    support (C.Δ q).tiles ⊆
+      interior (support (hereditary_sts_substitution_sofic_collar τ hsts C q γ.1)) := by
+  intro y hy
+  simp only [support, mem_iUnion] at hy
+  obtain ⟨A, hA, hyA⟩ := hy
+  have hAcol : A ∈ hereditary_sts_substitution_sofic_collar τ hsts C q γ.1 := Or.inl hA
+  have hsub : ∀ X ∈ hereditary_sts_substitution_sofic_collar τ hsts C q γ.1,
+      X.carrier ⊆ support (hereditary_sts_substitution_sofic_collar τ hsts C q γ.1) := by
+    intro X hX z hz
+    simp only [support, mem_iUnion]
+    exact ⟨X, hX, hz⟩
+  by_cases hint : y ∈ interior A.carrier
+  · exact interior_mono (hsub A hAcol) hint
+  by_cases hv : y ∈ A.vertexSet
+  · have hyV : y ∈ hereditary_sts_substitution_sofic_macroVertices C q := by
+      simp only [hereditary_sts_substitution_sofic_macroVertices, Set.Finite.mem_toFinset,
+        Set.mem_setOf_eq]
+      exact ⟨A, hA, hv⟩
+    have hcr : Substitution.crown (hereditary_sts_substitution_sofic_collar τ hsts C q γ.1) y =
+        translateSet y (γ.1 ⟨y, hyV⟩).1 := γ.2.2.2.1 ⟨y, hyV⟩
+    have hfull := (γ.1 ⟨y, hyV⟩).2
+    simp only [hereditary_sts_substitution_sofic_fullCrowns, Finset.mem_filter] at hfull
+    have hy' : y ∈ interior (support (Substitution.crown
+        (hereditary_sts_substitution_sofic_collar τ hsts C q γ.1) y)) := by
+      rw [hcr, cc_support_translate, interior_vadd]
+      have h := vadd_mem_vadd_set (a := y) hfull.2
+      simpa only [vadd_eq_add, add_zero] using h
+    refine interior_mono ?_ hy'
+    intro z hz
+    simp only [support, mem_iUnion] at hz ⊢
+    obtain ⟨B, hB, hzB⟩ := hz
+    exact ⟨B, hB.1, hzB⟩
+  · obtain ⟨i, ε, d, n, hε, -, -, -, hs, -⟩ := cc_halfdisk_tile A hyA hint hv
+    have hyi : y ∈ A.side i := by simpa using hs 0 (by simpa using hε)
+    obtain ⟨B, hB, hBA, j, hBj⟩ :=
+      hereditary_sts_substitution_sofic_step2_raw_child_is_full_step1_side_partner
+        τ hsts C q γ A hA i
+    have hdisj : Disjoint (interior A.carrier) (interior B.carrier) :=
+      γ.2.1 hAcol hB (Ne.symm hBA)
+    have hy1 : y ≠ A.vertex i := fun h => hv ⟨i, h.symm⟩
+    have hy2 : y ≠ A.vertex (finRotate _ i) := fun h => hv ⟨_, h.symm⟩
+    have h := hereditary_sts_substitution_sofic_step2_raw_child_is_full_step2_common_side_nhds
+      hdisj hBj.symm hyi hy1 hy2
+    exact interior_mono (union_subset (hsub A hAcol) (hsub B hB)) h
+
+/-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+certificate compatibility.  The positioned child vertex `a_t + v` is a listed vertex of the
+decomposition `τ^m (Δ (owner t))`, since `Δ σ' = τ^m Δ` and the child `t` belongs to the
+template `σ' (owner t)`. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step4_child_vertex
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t))) :
+    ∃ X ∈ τ.decomposeIter m (C.Δ (C.owner t)).tiles, ∃ k, X.vertex k = C.anchor t + v.1 := by
+  have _ := hsts
+  have hv := v.2
+  simp only [hereditary_sts_substitution_sofic_macroVertices, Set.Finite.mem_toFinset,
+    Set.mem_setOf_eq] at hv
+  obtain ⟨A, hA, k, hk⟩ := hv
+  refine ⟨A.translate (C.anchor t), ?_, k, ?_⟩
+  · rw [← hC.compat (C.owner t)]
+    simp only [Set.mem_iUnion]
+    refine ⟨⟨C.form t, C.anchor t⟩, ?_, A, hA, rfl⟩
+    rw [C.rule_eq]
+    exact ⟨t, rfl, rfl⟩
+  · rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_translate, hk]
+
+/-- Step 5 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+the decomposed collar `τ^m coll(γ)` covers a neighbourhood of the positioned child vertex
+`a_t + v` (Steps 3 and 4, scaled by `θ^m`). -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step5_child_nhds
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t))) :
+    C.anchor t + v.1 ∈ interior (support (τ.decomposeIter m
+      (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1))) := by
+  obtain ⟨X, hX, k, hk⟩ :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_step4_child_vertex
+      τ hsts C m hC t v
+  have hθ : τ.θ ^ m ≠ 0 := pow_ne_zero _ (by linarith [τ.one_lt])
+  have hxD : C.anchor t + v.1 ∈ support (τ.decomposeIter m (C.Δ (C.owner t)).tiles) := by
+    simp only [support, mem_iUnion]
+    refine ⟨X, hX, ?_⟩
+    rw [← hk]
+    exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_carrier X k
+  rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_support_decomposeIter]
+    at hxD ⊢
+  rw [interior_smul₀ hθ]
+  exact smul_set_mono
+    (hereditary_sts_substitution_sofic_step2_raw_child_is_full_step3_collar_nhds
+      τ hsts C (C.owner t) γ) hxD
+
+/-- Step 6 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+joint allowedness is inherited by the decomposed collar: if a translate of `coll(γ)` lies in
+`τ^n p`, then a translate of `τ^m coll(γ)` lies in `τ^(n+m) p`. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step6_supertile
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (q : C.Q.Form) (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C q) :
+    ∃ (n : ℕ) (p : P.Form) (u : Pt),
+      translateSet u (τ.decomposeIter m (hereditary_sts_substitution_sofic_collar τ hsts C q γ.1))
+        ⊆ τ.supertile n p := by
+  obtain ⟨n, p, a, ha⟩ := γ.2.2.2.2
+  refine ⟨n + m, p, τ.θ ^ m • a, ?_⟩
+  rw [← hierarchy_lift_iff_decomposeIter_translate]
+  calc τ.decomposeIter m (translateSet a
+        (hereditary_sts_substitution_sofic_collar τ hsts C q γ.1))
+      ⊆ τ.decomposeIter m (τ.supertile n p) :=
+        hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_mono τ m ha
+    _ = τ.supertile (n + m) p :=
+        hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_add τ n m _
+
+/-- Step 7 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+allowedness of the star.  If a translate of a family `D` lies in a supertile and `x` is a listed
+vertex of `D` and an interior point of its support, then the star of `D` at `x`, translated to the
+origin, is the star of the supertile at the translated vertex, hence an allowed crown. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step7_allowed
+    {τ : Substitution P} {D : Set (PlacedTile P)} {x u : Pt} {n : ℕ} {p : P.Form}
+    (hD : translateSet u D ⊆ τ.supertile n p) (hv : Substitution.IsVertexOf D x)
+    (hx : x ∈ interior (support D)) :
+    τ.IsAllowedCrown (translateSet (-x) (Substitution.crown D x)) := by
+  obtain ⟨X, hX, k, hk⟩ := hv
+  have hfin : (translateSet u D).Finite :=
+    (hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_finite τ n
+      (Set.finite_singleton (⟨p, 0⟩ : PlacedTile P))).subset hD
+  have hcrown : Substitution.crown (τ.supertile n p) (u + x) =
+      translateSet u (Substitution.crown D x) := by
+    ext Y
+    constructor
+    · rintro ⟨hY, hxY⟩
+      have hint : u + x ∈ interior (support (translateSet u D)) := by
+        rw [cc_support_translate, interior_vadd]
+        exact vadd_mem_vadd_set hx
+      have hYD := hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_mem_of_interior
+        (hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_supertile_disjoint τ n p)
+        hD hfin hint hY hxY
+      obtain ⟨Z, hZ, rfl⟩ := hYD
+      refine ⟨Z, ⟨hZ, ?_⟩, rfl⟩
+      rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_carrier_translate,
+        ← vadd_eq_add, vadd_mem_vadd_set_iff] at hxY
+      exact hxY
+    · rintro ⟨Z, ⟨hZ, hxZ⟩, rfl⟩
+      refine ⟨hD ⟨Z, hZ, rfl⟩, ?_⟩
+      rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_carrier_translate]
+      exact vadd_mem_vadd_set hxZ
+  refine ⟨n, p, u + x, ⟨X.translate u, hD ⟨X, hX, rfl⟩, k, ?_⟩, ?_⟩
+  · rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_translate, hk]
+  · rw [hcrown, cc_translateSet_translateSet]
+    congr 1
+    abel
+
+/-- Step 8 of the blueprint proof of `hereditary_sts_substitution_sofic_step2_raw_child_is_full`:
+fullness of the star.  If `x` is an interior point of the support of a finite family `D`, then
+the star of `D` at `x` covers a neighbourhood of `x`, so its translate to the origin covers a
+neighbourhood of `0`. -/
+private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full_step8_full
+    {D : Set (PlacedTile P)} (hD : D.Finite) {x : Pt} (hx : x ∈ interior (support D)) :
+    (0 : Pt) ∈ interior (support (translateSet (-x) (Substitution.crown D x))) := by
+  have hE : {Y ∈ D | x ∉ Y.carrier}.Finite := hD.subset (sep_subset _ _)
+  have hclosed : IsClosed (⋃ Y ∈ {Y ∈ D | x ∉ Y.carrier}, Y.carrier) :=
+    hE.isClosed_biUnion fun Y _ => cc_tile_carrier_closed Y
+  have hxint : x ∈ interior (support (Substitution.crown D x)) := by
+    rw [mem_interior]
+    refine ⟨interior (support D) \ ⋃ Y ∈ {Y ∈ D | x ∉ Y.carrier}, Y.carrier, ?_,
+      isOpen_interior.sdiff hclosed, ?_⟩
+    · rintro z ⟨hz, hzE⟩
+      have hzD := interior_subset hz
+      simp only [support, mem_iUnion] at hzD ⊢
+      obtain ⟨Y, hY, hzY⟩ := hzD
+      by_cases hxY : x ∈ Y.carrier
+      · exact ⟨Y, ⟨hY, hxY⟩, hzY⟩
+      · exfalso
+        apply hzE
+        simp only [mem_iUnion]
+        exact ⟨Y, ⟨hY, hxY⟩, hzY⟩
+    · refine ⟨hx, ?_⟩
+      simp only [mem_iUnion, not_exists]
+      intro Y hY hxY
+      exact hY.2 hxY
+  rw [cc_support_translate, interior_vadd]
+  have h := vadd_mem_vadd_set (a := -x) hxint
+  simpa only [vadd_eq_add, neg_add_cancel] using h
+
 /-- Step 2a of the reviewed proof: each raw child star is again a full allowed
 crown.  The proof uses joint allowedness, collar neighbourhood saturation and
 the certificate compatibility equation. -/
@@ -3232,7 +4023,27 @@ private lemma hereditary_sts_substitution_sofic_step2_raw_child_is_full
     (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t))) :
     hereditary_sts_substitution_sofic_rawChildCrown τ hsts C m t γ v ∈
       hereditary_sts_substitution_sofic_fullCrowns τ hsts := by
-  sorry
+  obtain ⟨X, hX, k, hk⟩ :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_step4_child_vertex
+      τ hsts C m hC t v
+  have hx := hereditary_sts_substitution_sofic_step2_raw_child_is_full_step5_child_nhds
+    τ hsts C m hC t γ v
+  obtain ⟨n, p, u, hu⟩ :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_step6_supertile
+      τ hsts C m (C.owner t) γ
+  have hvert : Substitution.IsVertexOf (τ.decomposeIter m
+      (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1)) (C.anchor t + v.1) :=
+    ⟨X, hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_mono τ m
+      subset_union_left hX, k, hk⟩
+  have hfin : (τ.decomposeIter m
+      (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1)).Finite :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_decomposeIter_finite τ m
+      (hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_collar_finite
+        τ hsts C (C.owner t) γ.1)
+  simp only [hereditary_sts_substitution_sofic_fullCrowns, Finset.mem_filter,
+    Set.Finite.mem_toFinset, Set.mem_setOf_eq]
+  exact ⟨hereditary_sts_substitution_sofic_step2_raw_child_is_full_step7_allowed hu hvert hx,
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_step8_full hfin hx⟩
 
 /-- The child crown vector `F_t(γ)`. -/
 private noncomputable def hereditary_sts_substitution_sofic_childVector

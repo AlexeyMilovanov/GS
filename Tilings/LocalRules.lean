@@ -3147,6 +3147,61 @@ private noncomputable def hereditary_sts_hierarchy_sofic_step1_control_decoratio
     | Sum.inl _ => rfl
     | Sum.inr _ => rfl
 
+/-! The control rule is separated into its finite encoding and its two decoding
+directions.  The intermediate predicate mentions only the decorated alphabet;
+in particular, it does not choose a witness tiling or erase any tiles. -/
+
+private def hereditary_sts_hierarchy_sofic_step1_control_control_rule_locallyCompatible
+    (C : Geometry.MacroCertificate P)
+    (T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P') : Prop :=
+  (∀ X ∈ T'.tiles, ∃ A : Planned.DecTile C,
+    X.form = Sum.inr A ∧ Planned.headerLegal C A) ∧
+  (∀ X ∈ T'.tiles, ∀ A : Planned.DecTile C, X.form = Sum.inr A →
+    ∀ i : C.Side A.typ, Planned.IsNontrivial C A i →
+      ∃ Y ∈ T'.tiles, Y ≠ X ∧ ∃ B : Planned.DecTile C,
+        ∃ j : C.Side B.typ, Y.form = Sum.inr B ∧
+          Planned.sideOf C ⟨B, Y.anchor⟩ j = Planned.sideOf C ⟨A, X.anchor⟩ i ∧
+          (∀ k : Fin 5, B.cell j k = A.cell i k))
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_hierarchy_sofic_step1_control_control_rule`: encode the finite
+local compatibility conditions of the decorated alphabet by a bounded rule. -/
+private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule_step1_local_encoding
+    (C : Geometry.MacroCertificate P) :
+    ∃ R : LocalRule (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
+      ∀ T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
+        R.Proper T' ↔
+          hereditary_sts_hierarchy_sofic_step1_control_control_rule_locallyCompatible C T' := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_hierarchy_sofic_step1_control_control_rule`: decode a locally
+compatible decorated tiling into a proper legal typed tiling. -/
+private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule_step2_soundness
+    (C : Geometry.MacroCertificate P) :
+    ∀ T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
+      hereditary_sts_hierarchy_sofic_step1_control_control_rule_locallyCompatible C T' →
+      ∃ U : PlaneTiling (Planned.typedDecoration C),
+        Planned.IsProper C U ∧
+        (∀ X ∈ U.tiles, Planned.headerLegal C (Planned.tileDec X)) ∧
+        ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles =
+          Planned.eraseSet C U.tiles := by
+  sorry
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_hierarchy_sofic_step1_control_control_rule`: realize every
+proper legal typed tiling in the decorated alphabet with the same projection. -/
+private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule_step3_completeness
+    (C : Geometry.MacroCertificate P) :
+    ∀ U : PlaneTiling (Planned.typedDecoration C),
+      Planned.IsProper C U →
+      (∀ X ∈ U.tiles, Planned.headerLegal C (Planned.tileDec X)) →
+      ∃ T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
+        hereditary_sts_hierarchy_sofic_step1_control_control_rule_locallyCompatible C T' ∧
+        ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles =
+          Planned.eraseSet C U.tiles := by
+  sorry
+
 /-- Step 1 of the blueprint proof of `hereditary_sts_hierarchy_sofic_step1_control`: the control rule. -/
 private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule
     (C : Geometry.MacroCertificate P) :
@@ -3162,7 +3217,16 @@ private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule
         ∃ T' : PlaneTiling (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P',
           R.Proper T' ∧
           ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles = Planned.eraseSet C U.tiles) := by
-  sorry
+  obtain ⟨R, hR⟩ :=
+    hereditary_sts_hierarchy_sofic_step1_control_control_rule_step1_local_encoding C
+  refine ⟨R, ?_, ?_⟩
+  · intro T' hT'
+    exact hereditary_sts_hierarchy_sofic_step1_control_control_rule_step2_soundness C T'
+      ((hR T').mp hT')
+  · intro U hU hleg
+    obtain ⟨T', hcompat, hproj⟩ :=
+      hereditary_sts_hierarchy_sofic_step1_control_control_rule_step3_completeness C U hU hleg
+    exact ⟨T', (hR T').mpr hcompat, hproj⟩
 
 /-- Step 1 of the blueprint proof of `hereditary_sts_hierarchy_sofic`: the repaired
 control presentation makes the grouped hierarchical family sofic once every grouped

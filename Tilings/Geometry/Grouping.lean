@@ -5272,6 +5272,221 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
     rw [hθ, hk]
 
 /-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`: "the
+relabelling between the counterclockwise listing of a certificate disk and the listing of its grouped
+disk is a bijection of side indices": distinct listed sides of a polygonal disk are distinct
+segments. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_side_injective (B : PolygonalDisk) :
+    Function.Injective B.side := by
+  intro i j hij
+  rcases emcg_segment_endpoints hij with ⟨h1, _⟩ | ⟨h1, h2⟩
+  · exact B.vertex_injective h1
+  · exfalso
+    have e1 := B.vertex_injective h1
+    have e2 := B.vertex_injective h2
+    have h3 := B.three_le
+    subst e1
+    have key : ∀ (n : ℕ), 3 ≤ n → ∀ j : Fin n, finRotate n (finRotate n j) ≠ j := by
+      intro n hn j hj
+      obtain ⟨k, rfl⟩ : ∃ k, n = k + 3 := ⟨n - 3, by omega⟩
+      rw [finRotate_succ_apply, finRotate_succ_apply, add_assoc, add_eq_left] at hj
+      have := congrArg Fin.val hj
+      rw [Fin.val_add, Fin.val_zero, Fin.val_one, Nat.mod_eq_of_lt (by omega)] at this
+      omega
+    exact key _ h3 j e2
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"Marking follows the marking rule of Step 3 through the parent sides": membership in the marked
+sides transports along an equality of grouped forms and of side indices. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_mem_transport {τ : Substitution P}
+    {g : existsMacroCertificate_GroupingSeed τ} (s : existsMacroCertificate_SetupSeed τ g)
+    {x y : s.setup.GS.G.P'.Form} (hxy : x = y)
+    (i : Fin (s.setup.GS.G.P'.disk x).n) (j : Fin (s.setup.GS.G.P'.disk y).n) (hij : (i : ℕ) = j)
+    (hi : i ∈ s.setup.markedSides x) : j ∈ s.setup.markedSides y := by
+  subst hxy
+  have : i = j := Fin.ext hij
+  rwa [← this]
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"every original form is a singleton": the base form of a catalogue form `Sum.inr p` is the base
+form of the original catalogue entry of `p`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_base_inr {τ : Substitution P}
+    (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (α : emcdForm g s l) (p : P.Form)
+    (h : α.1 = Sum.inr p) : emcdBaseForm g s l α = emcdBaseForm g s l (emcdOriginalForm g s l p) := by
+  obtain ⟨μ, hμ⟩ := α
+  subst h
+  rfl
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"every side of a form that is not a central image is marked": every side of a non-central child
+type (an annular piece or an original singleton) is marked, by `s.marked_child` and
+`s.marked_singleton`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_noncentral_marked
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ t : D.Typ, t ≠ D.central (D.owner t) → ∀ i, D.marked (D.form t) i := by
+  intro D t ht i
+  obtain ⟨α, X, hX⟩ := t
+  have hXc : X ≠ s.setup.central l (emcdBaseForm g s l α) := by
+    rintro rfl
+    exact ht rfl
+  show emcdParentSide g s l (emcdChildForm g s l ⟨α, X, hX⟩) i ∈
+    s.setup.markedSides (emcdBaseForm g s l (emcdChildForm g s l ⟨α, X, hX⟩))
+  suffices hu : s.setup.markedSides (emcdBaseForm g s l (emcdChildForm g s l ⟨α, X, hX⟩)) =
+      Finset.univ by
+    rw [hu]
+    exact Finset.mem_univ _
+  rcases hf : X.form with γ | p
+  · rw [existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l _ γ hf]
+    exact s.marked_child l _ hl X hX hXc γ hf
+  · rw [existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_base_inr g s l _ p hf]
+    exact s.marked_singleton _ p
+      (existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_original g s l p)
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"A type is large ... according as its form is a central image": the central type of every
+template is large. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_central_large
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α, D.kind (D.form (D.central α)) = .large := by
+  intro D α
+  have h1 : (emcdChildForm g s l (emcdCentral g s l α)).1 =
+      Sum.inl (s.setup.c^[l] (emcdBaseForm g s l α)) := s.setup.central_form l _
+  have hn : ¬ ∃ p : P.Form, (emcdChildForm g s l (emcdCentral g s l α)).1 = Sum.inr p := by
+    rintro ⟨p, hp⟩
+    rw [h1] at hp
+    cases hp
+  have hy : ∃ β, (emcdChildForm g s l (emcdCentral g s l α)).1 = Sum.inl (s.setup.c^[l] β) :=
+    ⟨_, h1⟩
+  show emcdKind g s l (emcdChildForm g s l (emcdCentral g s l α)) = .large
+  unfold emcdKind
+  rw [if_neg hn, if_pos hy]
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"A type is large ... according as its form is a central image": by
+`s.noncentral_not_large`, a type with a large form is the central type of its template. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_large_central
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ t : D.Typ, D.kind (D.form t) = .large → t = D.central (D.owner t) := by
+  intro D t hk
+  by_contra ht
+  obtain ⟨α, X, hX⟩ := t
+  have hXc : X ≠ s.setup.central l (emcdBaseForm g s l α) := by
+    rintro rfl
+    exact ht rfl
+  change emcdKind g s l (emcdChildForm g s l ⟨α, X, hX⟩) = .large at hk
+  unfold emcdKind at hk
+  split_ifs at hk with h1 h2
+  obtain ⟨β, hβ⟩ := h2
+  obtain ⟨m, rfl⟩ : ∃ m, l = m + 1 := ⟨l - 1, by omega⟩
+  apply s.noncentral_not_large (m + 1) _ hl X hX hXc (s.setup.c^[m] β)
+  rw [← Function.iterate_succ_apply' s.setup.c m β]
+  exact hβ
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"The print of a marked parent side is the routing's print slot": the index of the print of `d`
+is the routing print index of `d`. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_print_val
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d, (D.print α d : ℕ) =
+      ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d) : ℕ) := by
+  intro D α d
+  let B := emcdGeometryData τ h g s l hl routing
+  have hdisk : (emcdQ g s l).disk (emcdChildForm g s l (emcdCentral g s l α)) =
+      s.setup.GS.G.mixed.disk (s.setup.central l (emcdBaseForm g s l α)).form := by
+    show s.setup.GS.G.P'.disk (emcdBaseForm g s l (emcdChildForm g s l (emcdCentral g s l α))) =
+      Sum.elim s.setup.GS.G.P'.disk P.disk (s.setup.central l (emcdBaseForm g s l α)).form
+    rw [existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l _ _
+      (s.setup.central_form l _), s.setup.central_form]
+    rfl
+  have hwit : ∀ (D1 D2 : PolygonalDisk) (_e : D1 = D2) (j : Fin D2.n), ∃ i : Fin D1.n,
+      D1.side i = D2.side j := by
+    rintro D1 _ rfl j
+    exact ⟨j, rfl⟩
+  have key : ∀ (D1 D2 : PolygonalDisk) (_e : D1 = D2) (v : Pt) (i : Fin D1.n) (j : Fin D2.n),
+      v +ᵥ D1.side i = v +ᵥ D2.side j → (i : ℕ) = j := by
+    rintro D1 _ rfl v i j hij
+    have := congrArg ((-v) +ᵥ ·) hij
+    simp only [neg_vadd_vadd] at this
+    exact congrArg Fin.val (existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_side_injective D1 this)
+  have hp : ∃ i : B.Side (B.central α), B.occSide ⟨B.central α, i⟩ =
+      (s.setup.central l (emcdBaseForm g s l α)).side
+        ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d)) := by
+    obtain ⟨i, hi⟩ := hwit _ _ hdisk ((routing (emcdBaseForm g s l α)).printIdx (emcdParentSide g s l α d))
+    exact ⟨i, congrArg ((s.setup.central l (emcdBaseForm g s l α)).anchor +ᵥ ·) hi⟩
+  have hprint : D.print α d = hp.choose := dif_pos hp
+  rw [hprint]
+  exact key _ _ hdisk (s.setup.central l (emcdBaseForm g s l α)).anchor _ _ hp.choose_spec
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"prints are marked" (`RoutingData.print_marked`): the print occurrence of a marked parent side,
+in the central child, is marked. -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_print_marked
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d, D.marked α d → D.IsMarked (D.printOcc α d) := by
+  intro D α d hd
+  have hm := (routing (emcdBaseForm g s l α)).print_marked (emcdParentSide g s l α d) hd
+  obtain ⟨a, ha, hav⟩ := Finset.mem_map.1 hm
+  have hv := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_print_val τ h g s l hl routing α d
+  exact existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_mem_transport s
+    (existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l _ _
+      (s.setup.central_form l _)).symm a (D.print α d) (by rw [hv]; exact hav) ha
+
+/-- Step 4 of the blueprint proof of
+`existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking`:
+"the print in its small owner": the partner occurrence of the print of a marked parent side is
+marked (it lies in a non-central child, or is the print itself). -/
+private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_partner_marked
+    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
+    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+      (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
+      ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
+    let D := emcdMacroData τ h g s l hl routing
+    ∀ α d, D.marked α d → D.IsMarked (D.partner (D.printOcc α d)) := by
+  intro D α d hd
+  show D.IsMarked (emcdGeometricPartner (emcdGeometryData τ h g s l hl routing) (D.printOcc α d))
+  unfold emcdGeometricPartner
+  split_ifs with hex
+  · have hs := hex.choose_spec
+    apply existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_noncentral_marked τ h g s l hl routing
+    intro heq
+    exact hs.1 (heq.trans (congrArg D.central hs.2.1))
+  · exact existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_print_marked τ h g s l hl routing α d hd
+
+/-- Step 4 of the blueprint proof of
 `existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates`: the marking
 discipline (`marked_rule_nonlarge`, `marked_rule_large`) follows from `s.marked_child`,
 `s.marked_singleton`, `RoutingData.print_marked`, `RoutingData.print_id`, and `hidem`. -/
@@ -5288,7 +5503,57 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
     (∀ o : D.SideOcc, D.kind (D.form o.1) ≠ .large ∨ D.IsPrint o → D.IsMarked o) ∧
     ∀ o : D.SideOcc, D.kind (D.owner o.1) = .large →
       D.kind (D.form o.1) = .large → D.IsMarked o → D.IsPrint o := by
-  sorry
+  intro D
+  have hcl : ∀ β, s.setup.c^[l] (s.setup.c^[l] β) = s.setup.c^[l] β := fun β => by
+    rw [← Function.iterate_add_apply, ← two_mul, hidem]
+  refine ⟨fun α d => Iff.rfl, ?_, ?_⟩
+  · intro o ho
+    rcases ho with hk | ⟨d, hd, heq | heq⟩
+    · by_cases hc : o.1 = D.central (D.owner o.1)
+      · rw [hc] at hk
+        exact absurd (existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_central_large τ h g s l hl routing _) hk
+      · exact existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_noncentral_marked τ h g s l hl routing o.1 hc
+          o.2
+    · rw [heq]
+      exact existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_print_marked τ h g s l hl routing _ d hd
+    · rw [heq]
+      exact existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_partner_marked τ h g s l hl routing _ d hd
+  · intro o hown hform hmk
+    have hc := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_large_central τ h g s l hl routing o.1 hform
+    obtain ⟨⟨α, X, hX⟩, i⟩ := o
+    have hXe : X = s.setup.central l (emcdBaseForm g s l α) :=
+      congrArg (fun t : emcdTyp g s l => t.2.1) hc
+    subst hXe
+    change emcdKind g s l α = .large at hown
+    unfold emcdKind at hown
+    split_ifs at hown with h1 h2
+    obtain ⟨β, hβ⟩ := h2
+    have hb : emcdBaseForm g s l α = s.setup.c^[l] β :=
+      existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l α _ hβ
+    have hbc : emcdBaseForm g s l (D.form ⟨α, s.setup.central l (emcdBaseForm g s l α), hX⟩) =
+        emcdBaseForm g s l α := by
+      rw [existsMacroCertificate_seed2_routing_step3_data_sub2_catalogue_step4_base_inl g s l _ _
+        (s.setup.central_form l _), hb, hcl]
+    have hn : (D.Q.disk (D.form ⟨α, s.setup.central l (emcdBaseForm g s l α), hX⟩)).n =
+        (D.Q.disk α).n := by
+      show (s.setup.GS.G.P'.disk (emcdBaseForm g s l
+        (D.form ⟨α, s.setup.central l (emcdBaseForm g s l α), hX⟩))).n =
+        (s.setup.GS.G.P'.disk (emcdBaseForm g s l α)).n
+      rw [hbc]
+    let d : Fin (D.Q.disk α).n := Fin.cast hn i
+    have hd : D.marked α d := existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_mem_transport s hbc i d rfl hmk
+    refine ⟨d, hd, Or.inl ?_⟩
+    have hdisk : s.setup.GS.G.mixed.disk (s.setup.central l (emcdBaseForm g s l α)).form =
+        s.setup.GS.G.P'.disk (emcdBaseForm g s l α) := by
+      rw [s.setup.central_form]
+      show s.setup.GS.G.P'.disk (s.setup.c^[l] (emcdBaseForm g s l α)) = _
+      rw [hb, hcl]
+    show (⟨D.central α, i⟩ : D.SideOcc) = ⟨D.central α, D.print α d⟩
+    congr 1
+    apply Fin.ext
+    rw [existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step5_marking_step4_print_val τ h g s l hl routing α d,
+      (routing _).print_id hdisk (emcdParentSide g s l α d) hd]
+    rfl
 
 /-- Step 4 of `lem:certificate-exists`: the positioned-child, template, parent-side, and marking
 clauses for `emcdMacroData`: `emcdTemplateChild` bijects `{t | D.owner t = α}` onto the children

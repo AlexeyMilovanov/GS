@@ -3758,6 +3758,288 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub4_clearance
           rw [Nat.mul_succ, pow_add]; ring
       _ ≤ _ := mul_le_mul_of_nonneg_left (ih α y hy) hθ.le
 
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
+"the ray from the centre through the middle of the sector `T_{j_k}`" -- the cross products of the
+middle point `v(jR + R/2)` of the `j`-th length-`R` window of `∂Q₀` with the window endpoints are
+`A R / 2`, the middle point lies on `∂Q₀` (one coordinate of sup-norm exactly `A`). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step1_mid_window
+    (A R u : ℝ) (k : ℕ) (hk : k < 4) (hA : 0 < A) (hR : 0 < R)
+    (hu1 : 2 * k * A ≤ u) (hu2 : u + R ≤ 2 * (k + 1) * A) :
+    jcr (squarePerimeterPoint A u) (squarePerimeterPoint A (u + R / 2)) = A * R / 2 ∧
+    jcr (squarePerimeterPoint A (u + R / 2)) (squarePerimeterPoint A (u + R)) = A * R / 2 ∧
+    (|squarePerimeterPoint A (u + R / 2) 0| ≤ A ∧ |squarePerimeterPoint A (u + R / 2) 1| ≤ A) ∧
+    (|squarePerimeterPoint A (u + R / 2) 0| = A ∨ |squarePerimeterPoint A (u + R / 2) 1| = A) := by
+  interval_cases k <;> norm_num at hu1 hu2
+  · rw [step5_spp0 (t := u) (by linarith), step5_spp0 (t := u + R / 2) (by linarith),
+      step5_spp0 (t := u + R) (by linarith)]
+    simp only [jcr, rg_mkPt0, rg_mkPt1]
+    refine ⟨by ring, by ring, ⟨by rw [abs_of_pos hA], abs_le.2 ⟨by linarith, by linarith⟩⟩,
+      Or.inl (abs_of_pos hA)⟩
+  · rw [step5_spp1 (t := u) (by linarith) (by linarith),
+      step5_spp1 (t := u + R / 2) (by linarith) (by linarith),
+      step5_spp1 (t := u + R) (by linarith) (by linarith)]
+    simp only [jcr, rg_mkPt0, rg_mkPt1]
+    refine ⟨by ring, by ring, ⟨abs_le.2 ⟨by linarith, by linarith⟩, by rw [abs_of_pos hA]⟩,
+      Or.inr (abs_of_pos hA)⟩
+  · rw [step5_spp2 hA.le (t := u) (by linarith) (by linarith),
+      step5_spp2 hA.le (t := u + R / 2) (by linarith) (by linarith),
+      step5_spp2 hA.le (t := u + R) (by linarith) (by linarith)]
+    simp only [jcr, rg_mkPt0, rg_mkPt1]
+    refine ⟨by ring, by ring, ⟨by rw [abs_neg, abs_of_pos hA], abs_le.2 ⟨by linarith, by linarith⟩⟩,
+      Or.inl (by rw [abs_neg, abs_of_pos hA])⟩
+  · rw [step5_spp3 hA.le (t := u) (by linarith), step5_spp3 hA.le (t := u + R / 2) (by linarith),
+      step5_spp3 hA.le (t := u + R) (by linarith)]
+    simp only [jcr, rg_mkPt0, rg_mkPt1]
+    refine ⟨by ring, by ring, ⟨abs_le.2 ⟨by linarith, by linarith⟩, by rw [abs_neg, abs_of_pos hA]⟩,
+      Or.inr (by rw [abs_neg, abs_of_pos hA])⟩
+
+/-- Step 1 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
+"for each `j_k` the contact side of the central child met by the ray from the centre through the
+middle of the sector `T_{j_k}`" -- the ray from `c` through the middle point of the `j`-th window
+of `∂Q₀` leaves the inside-anchored group `L` (which lies between `Q₀` and `Q₀ + B∞(D)`) at a
+point of `∂L` lying in the ideal sector `T_j` and `50 D`-far from every other ideal sector. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step1_ray_exit
+    {M : MeshConstants P} {S : Set (PlacedTile P)} {c : Pt} {N : ℕ} {R : ℝ} (hN : 2 ≤ N)
+    (hR : 1000 * M.D ≤ R) (G : AnnularGrouping M S c N R) (j : Fin (4 * N)) :
+    ∃ y ∈ frontier G.L.carrier, y ∈ idealTrapezoid c N R M.D (j : ℕ) ∧
+      ∀ t : Fin (4 * N), t ≠ j →
+        ∀ q ∈ idealTrapezoid c N R M.D (t : ℕ), 50 * M.D ≤ dist y q := by
+  have hD := M.D_pos
+  have hRpos : 0 < R := by linarith
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hA : 0 < (N : ℝ) * R / 2 := by positivity
+  obtain ⟨k, hk, hk1, hk2⟩ :
+      ∃ k, k < 4 ∧ k * N ≤ (j : ℕ) ∧ (j : ℕ) + 1 ≤ (k + 1) * N := by
+    refine ⟨(j : ℕ) / N, (Nat.div_lt_iff_lt_mul (by omega)).2 j.isLt,
+      Nat.div_mul_le_self _ _, ?_⟩
+    have h1 := Nat.div_add_mod (j : ℕ) N
+    have h2 := Nat.mod_lt (j : ℕ) (show N > 0 by omega)
+    nlinarith
+  have hk1' : (k : ℝ) * N ≤ (j : ℕ) := by exact_mod_cast hk1
+  have hk2' : ((j : ℕ) : ℝ) + 1 ≤ ((k : ℝ) + 1) * N := by exact_mod_cast hk2
+  have hu1 : 2 * k * ((N : ℝ) * R / 2) ≤ ((j : ℕ) : ℝ) * R := by nlinarith
+  have hu2 : ((j : ℕ) : ℝ) * R + R ≤ 2 * (k + 1) * ((N : ℝ) * R / 2) := by nlinarith
+  obtain ⟨hj1, hj2, ⟨hb0, hb1⟩, hside⟩ :=
+    existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step1_mid_window
+      _ _ _ k hk hA hRpos hu1 hu2
+  set A := (N : ℝ) * R / 2 with hAdef
+  set u := ((j : ℕ) : ℝ) * R with hudef
+  set s := squarePerimeterPoint A (u + R / 2) with hsdef
+  let γ : ℝ → Pt := fun μ => c + μ • s
+  have hγ : Continuous γ := continuous_const.add (continuous_id.smul continuous_const)
+  have hγc : ∀ μ, γ μ - c = μ • s := fun μ => by simp [γ]
+  have hγi : ∀ μ i, γ μ i - c i = μ * s i := fun μ i => by simp [γ]
+  have h0 : γ 1 ∈ G.L.carrier := by
+    apply G.L_lower
+    refine ⟨?_, ?_⟩
+    · rw [hγi, one_mul]; exact hb0
+    · rw [hγi, one_mul]; exact hb1
+  have hpos : (0 : ℝ) ≤ 3 * M.D / A := by positivity
+  have hmul : (1 + 3 * M.D / A) * A = A + 3 * M.D := by field_simp
+  have h1 : γ (1 + 3 * M.D / A) ∉ G.L.carrier := by
+    intro hmem
+    have hsq := step5_square_add_subset (G.L_upper hmem)
+    obtain ⟨hs0, hs1⟩ := hsq
+    rw [hγi, abs_mul, abs_of_pos (by linarith : (0 : ℝ) < 1 + 3 * M.D / A)] at hs0 hs1
+    rcases hside with h | h
+    · rw [h, hmul] at hs0; linarith
+    · rw [h, hmul] at hs1; linarith
+  obtain ⟨μ, ⟨hμ1, hμ2⟩, hy⟩ := step5_frontier_hit hγ (by linarith) h0 h1
+  refine ⟨γ μ, hy, ⟨u + R / 2, ⟨by linarith, by linarith⟩, μ, ⟨hμ1, ?_⟩, rfl⟩, ?_⟩
+  · rw [le_div_iff₀ hA]
+    nlinarith
+  · intro t ht q hq
+    have hjs : ∀ a b : Pt, jcr a (μ • b) = μ * jcr a b ∧ jcr (μ • b) a = μ * jcr b a := by
+      intro a b
+      simp only [jcr, PiLp.smul_apply, smul_eq_mul]
+      constructor <;> ring
+    have hAR : 0 < A * R := by positivity
+    have hc1 : 3 * A * R / 16 ≤ jcr (squarePerimeterPoint A u) (γ μ - c) := by
+      rw [hγc, (hjs _ _).1, hj1]
+      nlinarith
+    have hc2 : 3 * A * R / 16 ≤ jcr (γ μ - c) (squarePerimeterPoint A (u + R)) := by
+      rw [hγc, (hjs _ _).2, hj2]
+      nlinarith
+    have := emcg_window_farFromOthers hN hD hR j k hk hu1 hu2 (γ μ) hc1 hc2 t ht q hq
+    linarith
+
+/-- Step 2 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
+"the contact side of the central child met by the ray" -- the grouped disk of `g.large p` has the
+carrier of `(g.annular p).L`, so every point of `∂L` lies on one of its listed sides. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step2_side_through
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form) {y : Pt}
+    (hy : y ∈ frontier (g.annular p).L.carrier) :
+    ∃ i : Fin (g.GS.G.P'.disk (g.large p)).n, y ∈ (g.GS.G.P'.disk (g.large p)).side i := by
+  have hcar : (g.GS.G.P'.disk (g.large p)).carrier = (g.annular p).L.carrier := by
+    rw [← g.GS.G.support_eq, g.large_dissect]
+    exact (g.annular p).L.carrier_eq.symm
+  rw [← hcar, (g.GS.G.P'.disk (g.large p)).frontier_eq, mem_iUnion] at hy
+  exact hy
+
+/-- Step 3 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
+"by the sector localization the face across that side lies in the piece `j_k`" -- a listed side of
+the grouped disk of `g.large p` passing through a point `50 D`-far from every ideal sector other
+than `T_j` is contained in the support of the `j`-th annular piece: every point of the side is a
+limit of points outside `L`, which lie in faces of `H` not in `L`, hence (sector localization) in
+faces of the `j`-th piece. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step3_contact_support
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form)
+    (j : Fin (4 * g.N)) (i : Fin (g.GS.G.P'.disk (g.large p)).n) (y : Pt)
+    (hyi : y ∈ (g.GS.G.P'.disk (g.large p)).side i)
+    (hfar : ∀ t : Fin (4 * g.N), t ≠ j →
+      ∀ q ∈ idealTrapezoid (g.centre p) g.N g.R g.M.D (t : ℕ), 50 * g.M.D ≤ dist y q) :
+    (g.GS.G.P'.disk (g.large p)).side i ⊆ support ((g.annular p).spokes.piece j).faces := by
+  have hD := g.M.D_pos
+  have hR : 1000 * g.M.D ≤ g.R := by
+    have := g.R_separates
+    rw [g.Csep_eq] at this
+    exact this
+  have hNr : (2 : ℝ) ≤ g.N := by exact_mod_cast g.N_two
+  have hA : 0 < (g.N : ℝ) * g.R / 2 := by
+    have : 0 < g.R := by linarith
+    positivity
+  have hloc := (g.annular_quantitative p).1
+  rw [g.Cloc_eq] at hloc
+  have hcar : (g.GS.G.P'.disk (g.large p)).carrier = (g.annular p).L.carrier := by
+    rw [← g.GS.G.support_eq, g.large_dissect]
+    exact (g.annular p).L.carrier_eq.symm
+  obtain ⟨A, hA', iA, hAe⟩ := g.GS.G.side_whole (g.large p) i
+  intro x hx
+  have hxy : dist x y ≤ g.M.D :=
+    step5_tile_dist_le g.M A (tile_side_subset A iA (by rw [hAe]; exact hx))
+      (tile_side_subset A iA (by rw [hAe]; exact hyi))
+  have hxfr : x ∈ frontier (g.annular p).L.carrier := by
+    rw [← hcar]
+    exact pd_segment_subset_frontier _ i hx
+  have hxL : x ∈ (g.annular p).L.carrier := by
+    rw [← hcar]
+    exact pd_frontier_subset_carrier _ (by rw [hcar]; exact hxfr)
+  have hpclosed : IsClosed (support ((g.annular p).spokes.piece j).faces) := by
+    rw [← ((g.annular p).spokes.piece j).carrier_eq]
+    exact ((g.annular p).spokes.piece j).disk.compact.isClosed
+  apply hpclosed.closure_subset
+  rw [Metric.mem_closure_iff]
+  intro ε hε
+  have hxcl : x ∈ closure ((g.annular p).L.carrier)ᶜ :=
+    (frontier_eq_closure_inter_closure.subset hxfr).2
+  obtain ⟨z, hzL, hxz⟩ := Metric.mem_closure_iff.1 hxcl (min ε g.M.D) (lt_min hε hD)
+  refine ⟨z, ?_, lt_of_lt_of_le hxz (min_le_left _ _)⟩
+  have hxz' : dist x z ≤ g.M.D := le_trans hxz.le (min_le_right _ _)
+  have hxsq := step5_square_add_subset ((g.annular p).L_upper hxL)
+  have hcoord : ∀ k : Fin 2, |z k - g.centre p k| ≤ (g.N : ℝ) * g.R / 2 + g.R + 2 * g.M.D := by
+    intro k
+    have h1 : |z k - x k| ≤ g.M.D := by
+      have := (step5_coord_lipschitz x k).dist_le_mul z x
+      rw [Real.dist_eq, sub_self, sub_zero, NNReal.coe_one, one_mul, dist_comm] at this
+      linarith
+    have h2 : |x k - g.centre p k| ≤ (g.N : ℝ) * g.R / 2 + g.M.D := by
+      fin_cases k
+      · exact hxsq.1
+      · exact hxsq.2
+    calc |z k - g.centre p k| = |(z k - x k) + (x k - g.centre p k)| := by ring_nf
+      _ ≤ |z k - x k| + |x k - g.centre p k| := abs_add_le _ _
+      _ ≤ _ := by linarith
+  have hzH : z ∈ (g.annular p).H.carrier :=
+    (g.annular p).H_lower (rg_square_add (by linarith) (by linarith) ⟨hcoord 0, hcoord 1⟩)
+  have hzH' : z ∈ support (g.annular p).H.faces := by
+    rw [← (g.annular p).H.carrier_eq]
+    exact hzH
+  obtain ⟨F, hFH, hzF⟩ := mem_support_iff'.1 hzH'
+  have hFL : F ∉ (g.annular p).L.faces := by
+    intro hFL
+    apply hzL
+    show z ∈ (g.annular p).L.disk.carrier
+    rw [(g.annular p).L.carrier_eq]
+    exact carrier_subset_support hFL hzF
+  obtain ⟨t, ht, -⟩ :=
+    ((g.annular p).spokes.piece_partition F ((g.annular p).H.faces_sub hFH)).1 ⟨hFH, hFL⟩
+  by_cases htj : t = j
+  · subst htj
+    exact carrier_subset_support ht hzF
+  · exfalso
+    have hzt := hloc t (show z ∈ ((g.annular p).spokes.piece t).disk.carrier by
+      rw [((g.annular p).spokes.piece t).carrier_eq]
+      exact carrier_subset_support ht hzF)
+    rw [Metric.mem_cthickening_iff] at hzt
+    have h2 : ENNReal.ofReal (22 * g.M.D) ≤
+        Metric.infEDist z (idealTrapezoid (g.centre p) g.N g.R g.M.D (t : ℕ)) := by
+      rw [Metric.le_infEDist]
+      intro q hq
+      rw [edist_dist]
+      apply ENNReal.ofReal_le_ofReal
+      have h3 := hfar t htj q hq
+      have h4 := dist_triangle y x q
+      have h5 := dist_triangle x z q
+      rw [dist_comm] at hxy
+      linarith
+    have h6 := (ENNReal.ofReal_le_ofReal_iff (by positivity)).1 (h2.trans hzt)
+    linarith
+
+/-- Step 4 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
+"the contact side of the central child" is "a whole side" shared with the piece -- a listed side of
+the grouped disk of `g.large p` contained in the support of the `j`-th annular piece is a complete
+listed side of one of the faces of that piece (the piece and `L` are face groups: their listed
+sides are whole original sides and they retain every original vertex on their boundary, so the
+piece side running along this side of `L` has the same endpoints). -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step4_contact_edge
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form)
+    (j : Fin (4 * g.N)) (i : Fin (g.GS.G.P'.disk (g.large p)).n)
+    (hsub : (g.GS.G.P'.disk (g.large p)).side i ⊆ support ((g.annular p).spokes.piece j).faces) :
+    ∃ B ∈ ((g.annular p).spokes.piece j).faces,
+      HasEdge B ((g.GS.G.P'.disk (g.large p)).side i) := by
+  sorry
+
+/-- Step 5 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
+"by Lemma `inner-sector-order` these sides occur counterclockwise in the order of the sectors, so the
+print map preserves cyclic order" -- if each sector `j` selects a listed side `side j` of the
+counterclockwise grouped disk of `g.large p` through a point `y j` within `20 D` of the ideal
+sector `T_j` and `50 D`-far from every other ideal sector, then `side` preserves `CycLt3`. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order
+    (τ : Substitution P) (g : existsMacroCertificate_GroupingSeed τ) (p : P.Form)
+    (side : Fin (4 * g.N) → Fin (g.GS.G.P'.disk (g.large p)).n) (y : Fin (4 * g.N) → Pt)
+    (hy : ∀ j, y j ∈ (g.GS.G.P'.disk (g.large p)).side (side j))
+    (hloc : ∀ j : Fin (4 * g.N), y j ∈ Metric.cthickening (20 * g.M.D)
+      (idealTrapezoid (g.centre p) g.N g.R g.M.D (j : ℕ)))
+    (hfar : ∀ j : Fin (4 * g.N), ∀ t : Fin (4 * g.N), t ≠ j →
+      ∀ q ∈ idealTrapezoid (g.centre p) g.N g.R g.M.D (t : ℕ), 50 * g.M.D ≤ dist (y j) q) :
+    ∀ j₁ j₂ j₃ : Fin (4 * g.N), CycLt3 j₁ j₂ j₃ → CycLt3 (side j₁) (side j₂) (side j₃) := by
+  sorry
+
+/-- Step 6 of the blueprint proof of `existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots`:
+"an order-preserving injection between two cyclically ordered boundary families" -- a map between
+finite index sets with at least three elements which preserves the cyclic order `CycLt3` is
+injective. -/
+private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step6_injective
+    {n m : ℕ} (hn : 3 ≤ n) (f : Fin n → Fin m)
+    (h : ∀ a b c : Fin n, CycLt3 a b c → CycLt3 (f a) (f b) (f c)) : Function.Injective f := by
+  intro a b hab
+  by_contra hne
+  obtain ⟨c, hca, hcb⟩ : ∃ c : Fin n, c ≠ a ∧ c ≠ b := by
+    by_contra hc
+    push_neg at hc
+    have hsub : (Finset.univ : Finset (Fin n)) ⊆ {a, b} := fun x _ => by
+      by_cases hx : x = a
+      · simp [hx]
+      · simp [hc x hx]
+    have h1 := Finset.card_le_card hsub
+    simp only [Finset.card_univ, Fintype.card_fin] at h1
+    have h2 := Finset.card_le_two (a := a) (b := b)
+    omega
+  have hval : (a : ℕ) ≠ b := fun h' => hne (Fin.ext h')
+  have hca' : (c : ℕ) ≠ a := fun h' => hca (Fin.ext h')
+  have hcb' : (c : ℕ) ≠ b := fun h' => hcb (Fin.ext h')
+  have key : CycLt3 a b c ∨ CycLt3 b a c := by
+    unfold CycLt3; omega
+  rcases key with k | k
+  · have := h a b c k
+    rw [hab] at this
+    unfold CycLt3 at this
+    omega
+  · have := h b a c k
+    rw [hab] at this
+    unfold CycLt3 at this
+    omega
+
 /-- Step 3 of `lem:certificate-exists` and `lem:inner-sector-order`
 (`quantitativeAnnularGrouping_innerOrder`): for each original form `p`, the ray from `g.centre p`
 through the midpoint of sector `T_j` (perimeter parameter `(j + 1/2) R`) exits `(g.annular p).L`
@@ -3775,7 +4057,31 @@ private lemma existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slot
           support ((g.annular p).spokes.piece j).faces ∧
         ∃ B ∈ ((g.annular p).spokes.piece j).faces,
           HasEdge B ((g.GS.G.P'.disk (g.large p)).side (slotSide p j)) := by
-  sorry
+  have hR : 1000 * g.M.D ≤ g.R := by
+    have := g.R_separates
+    rw [g.Csep_eq] at this
+    exact this
+  have hray := fun p j =>
+    existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step1_ray_exit
+      g.N_two hR (g.annular p) j
+  choose y hyfr hytr hyfar using hray
+  have hside := fun p j =>
+    existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step2_side_through
+      τ g p (hyfr p j)
+  choose side hside using hside
+  have hcyc : ∀ p (j₁ j₂ j₃ : Fin (4 * g.N)), CycLt3 j₁ j₂ j₃ →
+      CycLt3 (side p j₁) (side p j₂) (side p j₃) := fun p =>
+    existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step5_order τ g p
+      (side p) (y p) (hside p) (fun j : Fin (4 * g.N) => Metric.self_subset_cthickening _ (hytr p j)) (hyfar p)
+  refine ⟨side, fun p => ?_, hcyc, fun p j => ?_⟩
+  · exact existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step6_injective
+      (by have := g.N_two; omega) (side p) (hcyc p)
+  · have hsub :=
+      existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step3_contact_support τ g p j
+        (side p j) (y p j) (hside p j) (hyfar p j)
+    exact ⟨hsub,
+      existsMacroCertificate_seed2_routing_step1_setup_sub5_contact_slots_step4_contact_edge τ g p j
+        (side p j) hsub⟩
 
 private noncomputable def emcsSlotSide (τ : Substitution P)
     (g : existsMacroCertificate_GroupingSeed τ) :

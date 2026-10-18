@@ -4394,6 +4394,39 @@ private noncomputable def hereditary_sts_substitution_sofic_generate
       else Sum.inl (Planned.Strict.botSU C hC)
     else Sum.inl 0⟩
 
+/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child`: the physical packet decoder is exactly the packet of the child catalogue. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (hγ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ)
+    (t : C.Typ) (ht : C.owner t = C.form A.1) :
+    ∀ i : C.Side t, ¬ C.IsPrint (C.occ t i) →
+      (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 1 =
+        hereditary_sts_substitution_sofic_encodePacket τ hsts C hC
+          (hereditary_sts_substitution_sofic_packetOf τ hsts C t
+            (hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t (ht ▸ γ)) i) := by
+  sorry
+
+/-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child`: the interior vertices of the child decode to the translated scatter crown. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step2_interior
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (hγ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ)
+    (t : C.Typ) (ht : C.owner t = C.form A.1) :
+    ∀ v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t)),
+      C.anchor t + v.1 ∉ frontier
+          (C.σ.θ • (C.Q.disk (C.owner t)).carrier) →
+        ((hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t (ht ▸ γ)).1 v).1 =
+          translateSet (-(C.anchor t + v.1))
+            (Substitution.crown
+              (τ.decomposeIter m (C.Δ (C.owner t)).tiles)
+              (C.anchor t + v.1)) := by
+  sorry
+
 /-- Step 3 of the reviewed proof: generation preserves packet consistency and
 the physical decoder returns exactly `F_t(γ)`. -/
 private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child
@@ -4406,7 +4439,7 @@ private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child
     hereditary_sts_substitution_sofic_Decodes τ hsts C hC
       (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t)
       (hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t (ht ▸ γ)) := by
-  sorry
+  exact ⟨hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet τ hsts C m hC A γ hγ t ht, hereditary_sts_substitution_sofic_step3_generate_decodes_child_step2_interior τ hsts C m hC A γ hγ t ht⟩
 
 /-- The child relation for the extended arrays. -/
 private def hereditary_sts_substitution_sofic_IsExtChild

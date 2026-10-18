@@ -4191,6 +4191,1180 @@ private structure hereditary_sts_substitution_sofic_FoundedLift
         hereditary_sts_substitution_sofic_FollowsHierarchyBy
           τ hsts C m hC X T H coloured n Y A placed ch
 
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift`: every tile of a level of a
+grouped composition is the positioned child, of some type owned by the parent form, of a
+tile of the next level. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step1_parent
+    (C : Geometry.MacroCertificate P) {T' T : PlaneTiling C.Q}
+    (h : C.σ.IsComposition T' T) {Z : PlacedTile C.Q} (hZ : Z ∈ T.tiles) :
+    ∃ Y ∈ T'.tiles, ∃ t, C.owner t = Y.form ∧
+      Z = ⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ := by
+  rw [← h] at hZ
+  simp only [Substitution.decompose, Substitution.decomposeTile, translateSet, C.rule_eq,
+    Set.mem_iUnion, Set.mem_image, Set.mem_setOf_eq] at hZ
+  obtain ⟨Y, hY, _, ⟨t, ht, rfl⟩, rfl⟩ := hZ
+  exact ⟨Y, hY, t, ht, rfl⟩
+
+/-- The `r`-th ancestor of a tile of level `n` along a parent function. -/
+private def hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc
+    {Q : Protoset} {seq : ℕ → PlaneTiling Q}
+    (par : ∀ n, (seq n).tiles → (seq (n + 1)).tiles) (n : ℕ) (Z : (seq n).tiles) :
+    (r : ℕ) → (seq (n + r)).tiles
+  | 0 => Z
+  | r + 1 => par (n + r)
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r)
+
+/-- A lifted tile has the carrier of the grouped tile it lifts. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_lt_carrier
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (F : PlacedTile C.Q)
+    (hF : C.form A.1 = F.form) :
+    (⟨X.formEquiv.symm (Sum.inl A), F.anchor⟩ : PlacedTile X.dec.P').carrier = F.carrier := by
+  simp only [PlacedTile.carrier]
+  rw [X.dec.carrier_eq, X.proj_typed, hF]
+
+/-- The plane tiling obtained by lifting every tile `Z` of a grouped tiling `S` to the
+decorated tile `f Z`. -/
+private def hereditary_sts_substitution_sofic_step10b_founded_cell_lift_liftTiling
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (S : PlaneTiling C.Q) (f : S.tiles → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hf : ∀ Z, C.form (f Z).1 = Z.1.form) : PlaneTiling X.dec.P' where
+  tiles := Set.range fun Z : S.tiles =>
+    (⟨X.formEquiv.symm (Sum.inl (f Z)), Z.1.anchor⟩ : PlacedTile X.dec.P')
+  cover := by
+    rw [Set.eq_univ_iff_forall]
+    intro z
+    have hz : z ∈ support S.tiles := by rw [S.cover]; exact Set.mem_univ z
+    simp only [support, Set.mem_iUnion] at hz ⊢
+    obtain ⟨Z, hZ, hz⟩ := hz
+    refine ⟨_, ⟨⟨Z, hZ⟩, rfl⟩, ?_⟩
+    rw [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_lt_carrier τ hsts C m hC X
+      (f ⟨Z, hZ⟩) Z (hf ⟨Z, hZ⟩)]
+    exact hz
+  disjoint := by
+    rintro _ ⟨Z, rfl⟩ _ ⟨Z', rfl⟩ hne
+    simp only [Function.onFun]
+    rw [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_lt_carrier τ hsts C m hC X
+        (f Z) Z.1 (hf Z),
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_lt_carrier τ hsts C m hC X
+        (f Z') Z'.1 (hf Z')]
+    apply S.disjoint Z.2 Z'.2
+    intro he
+    apply hne
+    rw [Subtype.ext he]
+
+/-- Two plane tilings with the same tiles are equal. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_ext
+    {Q : Protoset} {T U : PlaneTiling Q} (h : T.tiles = U.tiles) : T = U := by
+  cases T
+  cases U
+  congr
+
+/-- The lifted tiling projects back to the grouped tiling it lifts. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_project
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (S : PlaneTiling C.Q) (f : S.tiles → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hf : ∀ Z, C.form (f Z).1 = Z.1.form) :
+    X.dec.toDecoration.project
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_liftTiling
+        τ hsts C m hC X S f hf) = S := by
+  apply hereditary_sts_substitution_sofic_step10b_founded_cell_lift_ext
+  ext W
+  constructor
+  · rintro ⟨_, ⟨Z, rfl⟩, rfl⟩
+    convert Z.2 using 1
+    exact PlacedTile.ext (by simp only [Decoration.projTile, X.proj_typed]; exact hf Z) rfl
+  · intro hW
+    refine ⟨_, ⟨⟨W, hW⟩, rfl⟩, ?_⟩
+    exact PlacedTile.ext (by simp only [Decoration.projTile, X.proj_typed]; exact hf ⟨W, hW⟩) rfl
+
+/-- Listed sides of equal polygonal disks correspond under the index cast. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_side_cast
+    {D D' : PolygonalDisk} (e : D = D') (i : Fin D.n) :
+    D.side i = D'.side (Fin.cast (congrArg PolygonalDisk.n e) i) := by
+  subst e
+  rfl
+
+/-- A tiling of a side decoration is side-to-side as soon as its projection is. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_sideToSide
+    {Q : Protoset} (dec : SideDecoration Q) (T : PlaneTiling dec.P')
+    (h : (dec.toDecoration.project T).SideToSide) : T.SideToSide := by
+  have key : ∀ (E : PlacedTile dec.P') (i : Fin (dec.P'.disk E.form).n),
+      E.side i = (dec.toDecoration.projTile E).side
+        (Fin.cast (congrArg PolygonalDisk.n (dec.disk_eq E.form)) i) := by
+    intro E i
+    simp only [PlacedTile.side, Decoration.projTile]
+    rw [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_side_cast
+      (dec.disk_eq E.form) i]
+  intro A hA B hB i j hov
+  have := h _ ⟨A, hA, rfl⟩ _ ⟨B, hB, rfl⟩
+    (Fin.cast (congrArg PolygonalDisk.n (dec.disk_eq A.form)) i)
+    (Fin.cast (congrArg PolygonalDisk.n (dec.disk_eq B.form)) j)
+    (by rw [← key, ← key]; exact hov)
+  rw [key A i, key B j]
+  exact this
+
+/-- Step 5.1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift`: along a deterministic partial
+copy chain `next`, one can assign a value to every state that is constant along copy steps,
+equals the prescribed origin value at a state without successor, and is `zero` on states
+whose chain never terminates. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_fv
+    {α V : Type} (next : α → Option α) (zero : V) (origin : α → V) :
+    ∃ value : α → V,
+      (∀ s s', next s = some s' → value s = value s') ∧
+      (∀ s, next s = none → value s = origin s) ∧
+      (∀ s, (¬ ∃ a, Relation.ReflTransGen (fun x y => next x = some y) s a ∧ next a = none) →
+        value s = zero) := by
+  classical
+  have hR : Relator.RightUnique (fun x y => next x = some y) := by
+    intro x y z hy hz
+    rw [hy] at hz
+    exact Option.some.inj hz
+  have huniq : ∀ {s a b : α}, Relation.ReflTransGen (fun x y => next x = some y) s a →
+      next a = none → Relation.ReflTransGen (fun x y => next x = some y) s b →
+      next b = none → a = b := by
+    intro s a b ha hna hb hnb
+    rcases Relation.ReflTransGen.total_of_right_unique hR ha hb with h | h
+    · rcases Relation.ReflTransGen.cases_head h with h | ⟨c, hc, _⟩
+      · exact h
+      · rw [hna] at hc
+        cases hc
+    · rcases Relation.ReflTransGen.cases_head h with h | ⟨c, hc, _⟩
+      · exact h.symm
+      · rw [hnb] at hc
+        cases hc
+  refine ⟨fun s => if h : ∃ a, Relation.ReflTransGen (fun x y => next x = some y) s a ∧
+      next a = none then origin h.choose else zero, ?_, ?_, ?_⟩
+  · intro s s' hs
+    have hiff : (∃ a, Relation.ReflTransGen (fun x y => next x = some y) s a ∧ next a = none) ↔
+        (∃ a, Relation.ReflTransGen (fun x y => next x = some y) s' a ∧ next a = none) := by
+      constructor
+      · rintro ⟨a, ha, hna⟩
+        rcases Relation.ReflTransGen.cases_head ha with rfl | ⟨c, hc, hca⟩
+        · rw [hs] at hna
+          cases hna
+        · have : c = s' := by
+            rw [hs] at hc
+            exact (Option.some.inj hc).symm
+          subst this
+          exact ⟨a, hca, hna⟩
+      · rintro ⟨a, ha, hna⟩
+        exact ⟨a, Relation.ReflTransGen.head hs ha, hna⟩
+    by_cases h : ∃ a, Relation.ReflTransGen (fun x y => next x = some y) s a ∧ next a = none
+    · have h' := hiff.1 h
+      simp only [dif_pos h, dif_pos h']
+      congr 1
+      exact huniq h.choose_spec.1 h.choose_spec.2
+        (Relation.ReflTransGen.head hs h'.choose_spec.1) h'.choose_spec.2
+    · have h' : ¬ ∃ a, Relation.ReflTransGen (fun x y => next x = some y) s' a ∧
+          next a = none := fun h'' => h (hiff.2 h'')
+      simp only [dif_neg h, dif_neg h']
+  · intro s hs
+    have h : ∃ a, Relation.ReflTransGen (fun x y => next x = some y) s a ∧ next a = none :=
+      ⟨s, Relation.ReflTransGen.refl, hs⟩
+    simp only [dif_pos h]
+    congr 1
+    exact huniq h.choose_spec.1 h.choose_spec.2 Relation.ReflTransGen.refl hs
+  · intro s hs
+    simp only [dif_neg hs]
+
+/-- Transport of a catalogue value along two composable equalities of forms. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_cast_comp
+    {α : Type} (F : α → Type) {a b c : α} (e : c = a) (hf : a = b) (hown : c = b) (u : F a) :
+    (hown ▸ (hf ▸ u : F b) : F c) = (e ▸ u : F c) := by
+  subst e
+  subst hf
+  rfl
+
+/-- A nonprint side of a child of the form `α` has no copy source in a cell other than the
+third. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_src_empty_nonprint
+    (C : Geometry.MacroCertificate P) (t : C.Typ) (α : C.Q.Form) (hα : C.owner t = α)
+    (i : C.Side t) (k : Fin 5) (hk : k ≠ 2) (hnp : ¬ C.IsPrint (C.occ t i)) :
+    ¬ (Planned.copySource C α (C.occ t i) k).Nonempty := by
+  subst hα
+  rintro ⟨⟨d, k'⟩, hmem | hmem⟩
+  · exact hnp ⟨d, hmem.1⟩
+  · exact hk hmem.2.1
+
+/-- A side occurrence that is a print of a marked parent side is inner. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_inner_of_print
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) : C.IsInner o := by
+  have hpartner : ∀ {o : C.SideOcc}, C.IsInner o → C.IsInner (C.partner o) := by
+    intro o ho
+    have hp := C.g1_partner _ ho
+    unfold MacroData.IsInner MacroData.IsOuter at ho ⊢
+    rw [hp.2.2, hp.2.1]
+    exact ho
+  rcases h with ⟨hm, rfl | rfl⟩
+  · exact C.g4_print_inner α d hm
+  · exact hpartner (C.g4_print_inner α d hm)
+
+/-- An outer side occurrence has no copy source in a cell other than the third. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_src_empty_outer
+    (C : Geometry.MacroCertificate P) (α : C.Q.Form) (o : C.SideOcc) (k : Fin 5) (hk : k ≠ 2)
+    (ho : C.IsOuter o) : ¬ (Planned.copySource C α o k).Nonempty := by
+  rintro ⟨⟨d, k'⟩, hmem | hmem⟩
+  · exact hereditary_sts_substitution_sofic_step10b_founded_cell_lift_inner_of_print C hmem.1 ho
+  · exact hk hmem.2.1
+
+/-- The states of the copy chains along a hierarchy: a level, a tile of it, a side of the type
+of the tile and a cell position. -/
+private abbrev hereditary_sts_substitution_sofic_step10b_founded_cell_lift_State
+    {τ : Substitution P} {hsts : τ.STS} {C : Geometry.MacroCertificate P}
+    {m : ℕ} {hC : C.Represents τ m} {T : PlaneTiling P}
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy τ hsts C m hC T)
+    (typ : ∀ n, (H.seq n).tiles → C.Typ) : Type :=
+  Σ n : ℕ, Σ x : (H.seq n).tiles, C.Side (typ n x) × Fin 5
+
+/-- The deterministic copy step: a cell with a copy source follows the chosen source in the
+parent. -/
+private noncomputable def hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next
+    {τ : Substitution P} {hsts : τ.STS} {C : Geometry.MacroCertificate P}
+    {m : ℕ} {hC : C.Represents τ m} {T : PlaneTiling P}
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy τ hsts C m hC T)
+    (par : ∀ n, (H.seq n).tiles → (H.seq (n + 1)).tiles)
+    (typ : ∀ n, (H.seq n).tiles → C.Typ) :
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_State H typ →
+      Option (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_State H typ)
+  | ⟨n, x, i, k⟩ =>
+    if h : (Planned.copySource C (C.form (typ (n + 1) (par n x)))
+        (C.occ (typ n x) i) k).Nonempty then
+      some ⟨n + 1, par n x, h.some.1, h.some.2⟩
+    else none
+
+/-- The generated (origin) value of a cell without copy source, read off from the
+preassigned crown vectors `gam`: this is the non-copy part of `generate`. -/
+private noncomputable def hereditary_sts_substitution_sofic_step10b_founded_cell_lift_origin
+    {τ : Substitution P} {hsts : τ.STS} {C : Geometry.MacroCertificate P}
+    {m : ℕ} {hC : C.Represents τ m} {T : PlaneTiling P}
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy τ hsts C m hC T)
+    (par : ∀ n, (H.seq n).tiles → (H.seq (n + 1)).tiles)
+    (typ : ∀ n, (H.seq n).tiles → C.Typ)
+    (gam : ∀ n (x : (H.seq n).tiles),
+      hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form (typ n x))) :
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_State H typ →
+      hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC
+  | ⟨n, x, i, k⟩ =>
+    if C.IsPrint (C.occ (typ n x) i) then
+      (if k = 4 then
+        Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ (typ n x) i)))
+      else Sum.inl 0)
+    else if k = 0 then
+      (if C.IsInner (C.occ (typ n x) i) then
+        Sum.inl (Planned.Strict.identSU C hC (C.edge (C.occ (typ n x) i)))
+      else Sum.inl 0)
+    else if k = 1 then
+      hereditary_sts_substitution_sofic_encodePacket τ hsts C hC
+        (hereditary_sts_substitution_sofic_packetOf τ hsts C (typ n x) (gam n x) i)
+    else if k = 3 then
+      (if C.IsOuter (C.occ (typ n x) i) then
+        Sum.inl (Planned.Strict.schedU C hC (C.occ (typ n x) i))
+      else if C.IsBoundary (C.occ (typ n x) i) then
+        Sum.inr (Sum.inr ⟨typ (n + 1) (par n x), fun _ => false,
+          some (gam (n + 1) (par n x))⟩)
+      else Sum.inl (Planned.Strict.botSU C hC))
+    else Sum.inl 0
+
+/-- A tile of the decomposition of a single tile lies in the scaled tile. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decompose_carrier
+    (σ : Substitution P) (u B : PlacedTile P) (hB : B ∈ σ.decompose {u}) :
+    B.carrier ⊆ σ.θ • u.carrier := by
+  simp only [Substitution.decompose, Set.mem_iUnion, Set.mem_singleton_iff, exists_prop,
+    exists_eq_left] at hB
+  simp only [Substitution.decomposeTile, translateSet, Set.mem_image] at hB
+  obtain ⟨B', hB', rfl⟩ := hB
+  have hsub : B'.carrier ⊆ σ.θ • (P.disk u.form).carrier := by
+    rw [← σ.support_eq]
+    exact Set.subset_biUnion_of_mem (u := fun X => X.carrier) hB'
+  intro z hz
+  simp only [PlacedTile.carrier, PlacedTile.translate, Set.mem_vadd_set] at hz
+  obtain ⟨w, hw, rfl⟩ := hz
+  have hw' : B'.anchor +ᵥ w ∈ σ.θ • (P.disk u.form).carrier :=
+    hsub (Set.vadd_mem_vadd_set hw)
+  obtain ⟨y, hy, hy'⟩ := Set.mem_smul_set.1 hw'
+  refine Set.mem_smul_set.2 ⟨u.anchor +ᵥ y, Set.vadd_mem_vadd_set hy, ?_⟩
+  simp only [vadd_eq_add, smul_add] at hy' ⊢
+  rw [hy']
+  abel
+
+/-- Membership in an iterated decomposition splits over the tiles of the decomposed set. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decomposeIter_mem
+    (τ : Substitution P) (n : ℕ) (S : Set (PlacedTile P)) (B : PlacedTile P) :
+    B ∈ τ.decomposeIter n S ↔ ∃ u ∈ S, B ∈ τ.decomposeIter n {u} := by
+  have hS : S = ⋃ u ∈ S, ({u} : Set (PlacedTile P)) := by ext; simp
+  conv_lhs => rw [hS]
+  rw [hierarchy_lift_iff_decomposeIter_iUnion₂]
+  simp
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift` (interior vertices of a child
+vector): for any catalogue value `γ` of the owner form, the child vector `F_t(γ)` records,
+at every marked vertex of the child that is not on the boundary of the scaled owner, the star
+computed in the `τ^m`-decomposition of the owner's dissection alone.  (The tiles of the
+collar other than those of the dissection have interiors disjoint from the interior of the
+owner, by `DisjointInteriors` of the collar, so their decompositions miss such a vertex.) -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step3_child_interior
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (t : C.Typ)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t)))
+    (hv : C.anchor t + v.1 ∉ frontier (C.σ.θ • (C.Q.disk (C.owner t)).carrier)) :
+    ((hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t γ).1 v).1 =
+      translateSet (-(C.anchor t + v.1))
+        (Substitution.crown (τ.decomposeIter m (C.Δ (C.owner t)).tiles)
+          (C.anchor t + v.1)) := by
+  have hθne : τ.θ ^ m ≠ 0 := pow_ne_zero _ (by have := τ.one_lt; positivity)
+  have hvc : ∀ (D : PolygonalDisk) (i : Fin D.n), D.vertex i ∈ D.carrier := by
+    intro D i
+    apply D.compact.isClosed.frontier_subset
+    rw [D.frontier_eq]
+    exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+  have hvmem : Substitution.IsVertexOf (C.Δ (C.form t)).tiles v.1 := by
+    have hv0 := v.2
+    unfold hereditary_sts_substitution_sofic_macroVertices at hv0
+    rw [Set.Finite.mem_toFinset] at hv0
+    exact hv0
+  have hcar : v.1 ∈ (C.Q.disk (C.form t)).carrier := by
+    obtain ⟨B, hB, hvB⟩ := hvmem
+    obtain ⟨i, hi⟩ := hvB
+    have hBc : B.carrier ⊆ (C.Q.disk (C.form t)).carrier := by
+      rw [← C.scatter_support]
+      exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hB
+    apply hBc
+    rw [← hi]
+    exact Set.vadd_mem_vadd_set (hvc _ i)
+  have hchild : C.anchor t +ᵥ (C.Q.disk (C.form t)).carrier ⊆
+      C.σ.θ • (C.Q.disk (C.owner t)).carrier := by
+    have hmem : (⟨C.form t, C.anchor t⟩ : PlacedTile C.Q) ∈ (C.σ.rule (C.owner t)).tiles := by
+      rw [C.rule_eq]
+      exact ⟨t, rfl, rfl⟩
+    rw [← C.σ.support_eq]
+    exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hmem
+  have hxmem : C.anchor t + v.1 ∈ C.σ.θ • (C.Q.disk (C.owner t)).carrier :=
+    hchild (Set.vadd_mem_vadd_set hcar)
+  have hxint : C.anchor t + v.1 ∈ interior (C.σ.θ • (C.Q.disk (C.owner t)).carrier) := by
+    by_contra hni
+    exact hv ⟨subset_closure hxmem, hni⟩
+  have hint : C.anchor t + v.1 ∈ τ.θ ^ m • interior (C.Q.disk (C.owner t)).carrier := by
+    rw [← interior_smul₀ hθne, ← hC.θ_eq]
+    exact hxint
+  show translateSet (-(C.anchor t + v.1)) (Substitution.crown (τ.decomposeIter m
+      (hereditary_sts_substitution_sofic_collar τ hsts C (C.owner t) γ.1)) (C.anchor t + v.1)) = _
+  congr 1
+  ext B
+  simp only [Substitution.crown, Set.mem_setOf_eq]
+  rw [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decomposeIter_mem,
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decomposeIter_mem]
+  constructor
+  · rintro ⟨⟨u, hu, hBu⟩, hxB⟩
+    refine ⟨⟨u, ?_, hBu⟩, hxB⟩
+    by_contra hnu
+    -- the carrier of `B` lies in the scaled carrier of `u`
+    have hBu' : B ∈ (τ.pow m hC.m_pos).decompose {u} := by
+      rw [hereditary_sts_substitution_sofic_step9a_power_decompose]
+      exact hBu
+    have hsubB := hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decompose_carrier
+      (τ.pow m hC.m_pos) u B hBu' hxB
+    obtain ⟨p, hpu, hpx⟩ := Set.mem_smul_set.1 hsubB
+    obtain ⟨p', hp', hp'x⟩ := Set.mem_smul_set.1 hint
+    have hpp : p = p' := smul_right_injective _ hθne (hpx.trans hp'x.symm)
+    subst hpp
+    have hDisj := γ.2.1
+    have hz : (interior (C.Q.disk (C.owner t)).carrier ∩ interior u.carrier).Nonempty := by
+      have hcl : p ∈ closure (interior u.carrier) := by
+        rw [cc_tile_regular u]
+        exact hpu
+      exact mem_closure_iff.1 hcl _ isOpen_interior hp'
+    obtain ⟨z, hz1, hz2⟩ := hz
+    have hsup : (C.Q.disk (C.owner t)).carrier = ⋃ w ∈ (C.Δ (C.owner t)).tiles, w.carrier :=
+      (C.scatter_support _).symm
+    have hzcl : z ∈ closure (⋃ w ∈ (C.Δ (C.owner t)).tiles, interior w.carrier) := by
+      rw [(C.Δ (C.owner t)).finite.closure_biUnion]
+      have hzc : z ∈ (C.Q.disk (C.owner t)).carrier := interior_subset hz1
+      rw [hsup] at hzc
+      simp only [Set.mem_iUnion] at hzc ⊢
+      obtain ⟨w, hw, hzw⟩ := hzc
+      exact ⟨w, hw, by rw [cc_tile_regular w]; exact hzw⟩
+    obtain ⟨y, hy1, hy2⟩ := mem_closure_iff.1 hzcl
+      (interior (C.Q.disk (C.owner t)).carrier ∩ interior u.carrier)
+      (isOpen_interior.inter isOpen_interior) ⟨hz1, hz2⟩
+    simp only [Set.mem_iUnion] at hy2
+    obtain ⟨w, hw, hyw⟩ := hy2
+    have hne : u ≠ w := fun h => hnu (h ▸ hw)
+    exact Set.disjoint_left.1 (hDisj hu (Or.inl hw) hne) hy1.2 hyw
+  · rintro ⟨⟨u, hu, hBu⟩, hxB⟩
+    exact ⟨⟨u, Or.inl hu, hBu⟩, hxB⟩
+
+/-- A segment determines its endpoints up to order. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_seg_endpoints
+    {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hc hd ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+  obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+  simp only at hu hw
+  have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+    have : a + s • (b - a) + u • (a + t • (b - a) - (a + s • (b - a))) - a =
+        (s + u * (t - s)) • (b - a) := by module
+    rw [← this, hu, sub_self]
+  have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+    have : a + s • (b - a) + w • (a + t • (b - a) - (a + s • (b - a))) - b =
+        (s + w * (t - s) - 1) • (b - a) := by module
+    rw [← this, hw, sub_self]
+  have f1 := (smul_eq_zero.1 e1).resolve_right hv
+  have f2 := (smul_eq_zero.1 e2).resolve_right hv
+  rcases lt_trichotomy s t with hst | hst | hst
+  · have hs : s = 0 := by nlinarith
+    subst hs
+    have ht : t = 1 := by nlinarith
+    subst ht
+    left; constructor <;> simp
+  · subst hst; simp at f1 f2; linarith
+  · have ht : t = 0 := by nlinarith
+    subst ht
+    have hs : s = 1 := by nlinarith
+    subst hs
+    right; constructor <;> simp
+
+/-- The listed side of a side occurrence is the segment between its endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_occSide_eq
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc) :
+    C.occSide o = segment ℝ (C.occStart o) (C.occEnd o) := by
+  have hv : ∀ (w a b : Pt), w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+    intro w a b
+    rw [← segment_translate_image]
+    rfl
+  simp only [MacroData.occSide, MacroData.childTile, PlacedTile.side, PolygonalDisk.side, hv,
+    MacroData.occStart, MacroData.occEnd]
+
+/-- Neither endpoint of a print lies on the boundary of its owner template: the central
+child has no boundary side, and the partner of its print has the same segment. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_print_endpoints
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) :
+    C.occStart o ∉ C.macroBoundary α ∧ C.occEnd o ∉ C.macroBoundary α := by
+  obtain ⟨hm, h⟩ := h
+  have hin := C.g4_print_inner α d hm
+  have hpo : C.occStart (C.printOcc α d) ∉ C.macroBoundary α ∧
+      C.occEnd (C.printOcc α d) ∉ C.macroBoundary α := by
+    have h0 := (C.g2_central α (C.print α d)).2
+    have e : C.owner (C.central α) = α := C.g5_central_owner α
+    unfold MacroData.IsBoundary at h0
+    have hnb : ¬ (C.IsInner (C.printOcc α d) ∧ (C.occStart (C.printOcc α d) ∈ C.macroBoundary α ∨
+        C.occEnd (C.printOcc α d) ∈ C.macroBoundary α)) := by
+      simpa only [e] using h0
+    exact ⟨fun hs => hnb ⟨hin, Or.inl hs⟩, fun he => hnb ⟨hin, Or.inr he⟩⟩
+  rcases h with rfl | rfl
+  · exact hpo
+  · have hp := C.g1_partner _ hin
+    have hseg : segment ℝ (C.occStart (C.partner (C.printOcc α d)))
+        (C.occEnd (C.partner (C.printOcc α d))) =
+        segment ℝ (C.occStart (C.printOcc α d)) (C.occEnd (C.printOcc α d)) := by
+      rw [← hereditary_sts_substitution_sofic_step10b_founded_cell_lift_occSide_eq,
+        ← hereditary_sts_substitution_sofic_step10b_founded_cell_lift_occSide_eq]
+      exact hp.2.2
+    rcases hereditary_sts_substitution_sofic_step10b_founded_cell_lift_seg_endpoints hseg with
+      ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [h1, h2]
+      exact hpo
+    · rw [h1, h2]
+      exact ⟨hpo.2, hpo.1⟩
+
+/-- The encoding of endpoint packets is injective. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_encode_inj
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (p q : hereditary_sts_substitution_sofic_CrownPacket τ hsts)
+    (h : hereditary_sts_substitution_sofic_encodePacket τ hsts C hC p =
+      hereditary_sts_substitution_sofic_encodePacket τ hsts C hC q) : p = q := by
+  have e1 : ∀ p : hereditary_sts_substitution_sofic_CrownPacket τ hsts, p ≠ (none, none) →
+      hereditary_sts_substitution_sofic_encodePacket τ hsts C hC p = Sum.inr (Sum.inl p) := by
+    rintro ⟨_ | a, _ | b⟩ hp
+    · exact absurd rfl hp
+    all_goals rfl
+  by_cases hp : p = (none, none)
+  · by_cases hq : q = (none, none)
+    · exact hp.trans hq.symm
+    · subst hp
+      rw [e1 q hq] at h
+      exact absurd h (by simp [hereditary_sts_substitution_sofic_encodePacket])
+  · by_cases hq : q = (none, none)
+    · subst hq
+      rw [e1 p hp] at h
+      exact absurd h (by simp [hereditary_sts_substitution_sofic_encodePacket])
+    · rw [e1 p hp, e1 q hq] at h
+      exact Sum.inl.inj (Sum.inr.inj h)
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift` (the physical decoder is
+well defined): an extended tile decodes at most one catalogue value.  A marked vertex off the
+scaled owner boundary is determined by the second clause of `Decodes`; a marked vertex on it
+is a listed vertex of the form (`hC.vertex_retained`), hence an endpoint of a non-print side
+(prints and their partners are inner sides of or next to the central child, which has no
+boundary side, by `g2_central`, `g4_print_inner`, `g1_partner`), and the packet of that side
+records the crown at the vertex. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step4_decode_unique
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (γ₁ γ₂ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (h₁ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₁)
+    (h₂ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₂) : γ₁ = γ₂ := by
+  apply Subtype.ext
+  funext v
+  apply Subtype.ext
+  by_cases hfr : C.anchor A.1 + v.1 ∈ frontier (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier)
+  swap
+  · rw [h₁.2 v hfr, h₂.2 v hfr]
+  have hvmem : Substitution.IsVertexOf (C.Δ (C.form A.1)).tiles v.1 := by
+    have hv := v.2
+    unfold hereditary_sts_substitution_sofic_macroVertices at hv
+    rw [Set.Finite.mem_toFinset] at hv
+    exact hv
+  have hvc : ∀ (D : PolygonalDisk) (i : Fin D.n), D.vertex i ∈ D.carrier := by
+    intro D i
+    apply D.compact.isClosed.frontier_subset
+    rw [D.frontier_eq]
+    exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+  have hcar : v.1 ∈ (C.Q.disk (C.form A.1)).carrier := by
+    obtain ⟨B, hB, hvB⟩ := hvmem
+    obtain ⟨i, hi⟩ := hvB
+    have hBc : B.carrier ⊆ (C.Q.disk (C.form A.1)).carrier := by
+      rw [← C.scatter_support]
+      exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hB
+    apply hBc
+    rw [← hi]
+    exact Set.vadd_mem_vadd_set (hvc _ i)
+  have hchild : C.anchor A.1 +ᵥ (C.Q.disk (C.form A.1)).carrier ⊆
+      C.σ.θ • (C.Q.disk (C.owner A.1)).carrier := by
+    have hmem : (⟨C.form A.1, C.anchor A.1⟩ : PlacedTile C.Q) ∈
+        (C.σ.rule (C.owner A.1)).tiles := by
+      rw [C.rule_eq]
+      exact ⟨A.1, rfl, rfl⟩
+    rw [← C.σ.support_eq]
+    exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hmem
+  have hfront : v.1 ∈ frontier (C.Q.disk (C.form A.1)).carrier := by
+    refine ⟨subset_closure hcar, fun hint => ?_⟩
+    have hin : C.anchor A.1 + v.1 ∈ interior (C.anchor A.1 +ᵥ (C.Q.disk (C.form A.1)).carrier) := by
+      rw [interior_vadd]
+      exact Set.vadd_mem_vadd_set hint
+    exact hfr.2 (interior_mono hchild hin)
+  obtain ⟨j, hj⟩ := hC.vertex_retained (C.form A.1) v.1 hvmem hfront
+  have hnp : ¬ C.IsPrint (C.occ A.1 j) := by
+    rintro ⟨d, hd⟩
+    apply (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_print_endpoints C hd).1
+    show C.anchor A.1 + (C.Q.disk (C.form A.1)).vertex j ∈
+      frontier (C.σ.θ • (C.Q.disk (C.owner A.1)).carrier)
+    rw [hj]
+    exact hfr
+  have hpk := hereditary_sts_substitution_sofic_step10b_founded_cell_lift_encode_inj τ hsts C hC
+    _ _ ((h₁.1 j hnp).symm.trans (h₂.1 j hnp))
+  simp only [hereditary_sts_substitution_sofic_packetOf] at hpk
+  rw [hj] at hpk
+  have hx : hereditary_sts_substitution_sofic_lookupCrown τ hsts C (C.form A.1) γ₁ v.1 =
+      hereditary_sts_substitution_sofic_lookupCrown τ hsts C (C.form A.1) γ₂ v.1 := by
+    by_cases hlt : hereditary_sts_substitution_sofic_pointLT v.1
+        ((C.Q.disk (C.form A.1)).vertex (finRotate (C.Q.disk (C.form A.1)).n j))
+    · rw [if_pos hlt, if_pos hlt] at hpk
+      have h3 := congrArg Prod.fst hpk
+      simpa only [if_pos hfr] using h3
+    · rw [if_neg hlt, if_neg hlt] at hpk
+      have h3 := congrArg Prod.snd hpk
+      simpa only [if_pos hfr] using h3
+  unfold hereditary_sts_substitution_sofic_lookupCrown at hx
+  rw [dif_pos v.2, dif_pos v.2] at hx
+  exact congrArg Subtype.val (Option.some.inj hx)
+
+/-- A listed vertex of a grouped tile is a vertex of an original tile of its scattering: the
+listed side starting there is a complete side of an original tile (`hC.side_whole`). -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_listed_vertex
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (Y : PlacedTile C.Q) (p : Pt) (hp : p ∈ Y.vertexSet) :
+    Substitution.IsVertexOf (hC.groupedFamily.scatterTile Y) p := by
+  obtain ⟨j, rfl⟩ := hp
+  obtain ⟨A, hA, k, hk⟩ := hC.side_whole Y.form j
+  have hv : ∀ (w a b : Pt), w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+    intro w a b
+    rw [← segment_translate_image]
+    rfl
+  simp only [PlacedTile.side, PolygonalDisk.side, hv] at hk
+  refine ⟨A.translate Y.anchor, ⟨A, hA, rfl⟩, ?_⟩
+  rcases hereditary_sts_substitution_sofic_step10b_founded_cell_lift_seg_endpoints hk with
+    ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · refine ⟨k, ?_⟩
+    simp only [PlacedTile.vertex, PlacedTile.translate, vadd_eq_add] at h1 ⊢
+    rw [add_assoc, h1]
+  · refine ⟨finRotate _ k, ?_⟩
+    simp only [PlacedTile.vertex, PlacedTile.translate, vadd_eq_add] at h2 ⊢
+    rw [add_assoc, h2]
+
+/-- Step 2a of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift` (planar geometry of a
+side-to-side grouped level): let `Y` be a tile of a side-to-side grouped tiling `S`, let `u`
+be an original tile of the scattering of `S` and let `p` be a common point of the carriers of
+`Y` and `u` which is not a listed vertex of `Y`.  Then `u` belongs to the scattering of `Y`
+itself, or `u` contains a vertex of an original tile of the scattering of `Y`.  (If `u` is in
+the scattering of `Y` there is nothing to prove.  Otherwise `u` lies in another tile `Y'` of
+`S`, whose interior is disjoint from that of `Y`, so `p` lies on the frontier of both and, not
+being a listed vertex of `Y`, is interior to a listed side `e` of `Y`.  Since the grouped
+level is side-to-side and covers the plane, the tile across `e` is `Y'` and `e` is a complete
+listed side of `Y'` too (a listed vertex of `Y'` inside a listed side of `Y` would violate
+side-to-sideness); `u` is then the original tile of `Y'` carrying `e` (`hC.side_whole`,
+disjointness of interiors inside a group, `hC.sts`), and the endpoints of `e` are vertices of
+`u` and of the original tile of `Y` carrying `e`.  The half-disk lemmas `cc_halfdisk_tile`
+and `cc_key` of this file are available for the local structure at `p`.) -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (S : PlaneTiling C.Q) (hS : S.SideToSide) (Y : PlacedTile C.Q) (hY : Y ∈ S.tiles)
+    (u : PlacedTile P) (hu : u ∈ hC.groupedFamily.scatter S.tiles) (p : Pt)
+    (hpY : p ∈ Y.carrier) (hpu : p ∈ u.carrier) (hpv : p ∉ Y.vertexSet) :
+    u ∈ hC.groupedFamily.scatterTile Y ∨
+      ∃ w, Substitution.IsVertexOf (hC.groupedFamily.scatterTile Y) w ∧ w ∈ u.carrier := by
+  sorry
+
+/-- The carrier of a translated tile. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_translate_carrier
+    {Q : Protoset} (X : PlacedTile Q) (v : Pt) : (X.translate v).carrier = v +ᵥ X.carrier := by
+  ext x
+  simp only [PlacedTile.carrier, PlacedTile.translate, mem_vadd_set_iff_neg_vadd_mem,
+    vadd_eq_add, neg_add_rev]
+  rw [← add_assoc]
+
+/-- Crowns commute with translations. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_crown_translate
+    (V : Set (PlacedTile P)) (b x : Pt) :
+    Substitution.crown (translateSet b V) (b + x) = translateSet b (Substitution.crown V x) := by
+  ext X
+  simp only [Substitution.crown, Set.mem_setOf_eq, cc_mem_translateSet,
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_translate_carrier,
+    mem_vadd_set_iff_neg_vadd_mem, vadd_eq_add, neg_neg]
+
+/-- A vertex of a translated set of tiles is a translate of a vertex. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_vertex_translate
+    {S : Set (PlacedTile P)} {a w : Pt} (h : Substitution.IsVertexOf (translateSet a S) w) :
+    Substitution.IsVertexOf S (w - a) := by
+  obtain ⟨A, ⟨B, hB, rfl⟩, i, hi⟩ := h
+  refine ⟨B, hB, i, ?_⟩
+  rw [← hi]
+  simp only [PlacedTile.vertex, PlacedTile.translate, vadd_eq_add]
+  abel
+
+/-- A child tile lies in the scaled carrier of its parent. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_child_carrier
+    (C : Geometry.MacroCertificate P) (t : C.Typ) (Y : PlacedTile C.Q)
+    (ht : C.owner t = Y.form) :
+    (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q).carrier ⊆
+      C.σ.θ • Y.carrier := by
+  have hmem : (⟨C.form t, C.anchor t⟩ : PlacedTile C.Q) ∈ (C.σ.rule Y.form).tiles := by
+    rw [C.rule_eq]
+    exact ⟨t, ht, rfl⟩
+  have hsub : (⟨C.form t, C.anchor t⟩ : PlacedTile C.Q).carrier ⊆
+      C.σ.θ • (C.Q.disk Y.form).carrier := by
+    rw [← C.σ.support_eq]
+    exact Set.subset_biUnion_of_mem (u := fun A => A.carrier) hmem
+  intro z hz
+  simp only [PlacedTile.carrier, Set.mem_vadd_set] at hz
+  obtain ⟨w, hw, rfl⟩ := hz
+  have hw' : C.anchor t +ᵥ w ∈ C.σ.θ • (C.Q.disk Y.form).carrier :=
+    hsub (Set.vadd_mem_vadd_set hw)
+  obtain ⟨u, hu, hu'⟩ := Set.mem_smul_set.1 hw'
+  refine Set.mem_smul_set.2 ⟨Y.anchor +ᵥ u, Set.vadd_mem_vadd_set hu, ?_⟩
+  simp only [vadd_eq_add, smul_add] at hu' ⊢
+  rw [hu']
+  abel
+
+/-- The coordinates of a transported catalogue vector. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_cast_vec
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {q q' : C.Q.Form} (e : q = q')
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C q')
+    (w : ↥(hereditary_sts_substitution_sofic_macroVertices C q)) :
+    ((e ▸ γ : hereditary_sts_substitution_sofic_Catalog τ hsts C q).1 w).1 =
+      (γ.1 ⟨w.1, e ▸ w.2⟩).1 := by
+  subst e
+  rfl
+
+/-- One level of the scattered hierarchy is the `τ^m`-decomposition of the next. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_scatter_level
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy τ hsts C m hC T) (n : ℕ) :
+    hC.groupedFamily.scatter (H.seq n).tiles =
+      τ.decomposeIter m (hC.groupedFamily.scatter (H.seq (n + 1)).tiles) := by
+  have hs := hierarchy_lift_iff_scatter_decompose τ hC.groupedSubstitution
+    (H.seq (n + 1)).tiles
+  change hC.groupedFamily.scatter (C.σ.decompose (H.seq (n + 1)).tiles) =
+    τ.decomposeIter m (hC.groupedFamily.scatter (H.seq (n + 1)).tiles) at hs
+  rw [← hs]
+  exact congrArg hC.groupedFamily.scatter (H.composition n).symm
+
+/-- A marked vertex of a grouped form lies in its carrier. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_vertex_mem
+    (C : Geometry.MacroCertificate P) (q : C.Q.Form)
+    (v : ↥(hereditary_sts_substitution_sofic_macroVertices C q)) :
+    v.1 ∈ (C.Q.disk q).carrier := by
+  have hvc : ∀ (D : PolygonalDisk) (i : Fin D.n), D.vertex i ∈ D.carrier := by
+    intro D i
+    apply D.compact.isClosed.frontier_subset
+    rw [D.frontier_eq]
+    exact Set.mem_iUnion.2 ⟨i, left_mem_segment ℝ _ _⟩
+  have hvmem : Substitution.IsVertexOf (C.Δ q).tiles v.1 := by
+    have hv0 := v.2
+    unfold hereditary_sts_substitution_sofic_macroVertices at hv0
+    rw [Set.Finite.mem_toFinset] at hv0
+    exact hv0
+  obtain ⟨B, hB, i, hi⟩ := hvmem
+  have hBc : B.carrier ⊆ (C.Q.disk q).carrier := by
+    rw [← C.scatter_support]
+    exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hB
+  apply hBc
+  rw [← hi]
+  exact Set.vadd_mem_vadd_set (hvc _ i)
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift` (coherence of the preassigned
+crown vectors along the hierarchy): if `Z` is the child of type `t` of the tile `Y` of the
+next level, then the genuine crown vector of `Z` is the child vector `F_t(γ_Y)` of the genuine
+crown vector of `Y`.  Both are full crown vectors of the scattered levels (`H.gamma_actual`);
+the scattered level `n` is the `τ^m`-decomposition of the scattered level `n + 1`
+(`hC.compat`), and the collar of `Y` contains every tile of the scattered level `n + 1`
+meeting `Y` (Step 2a), so the star of the decomposed collar at a vertex of `Z` is the actual
+star there. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2_gamma_child
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy τ hsts C m hC T)
+    (n : ℕ) (Z : PlacedTile C.Q) (hZ : Z ∈ (H.seq n).tiles)
+    (Y : PlacedTile C.Q) (hY : Y ∈ (H.seq (n + 1)).tiles) (t : C.Typ)
+    (ht : C.owner t = Y.form)
+    (hZeq : Z = ⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩) (hform : Z.form = C.form t) :
+    hform ▸ H.gamma n Z hZ =
+      hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t
+        (ht ▸ H.gamma (n + 1) Y hY) := by
+  subst hZeq
+  have hθ : C.σ.θ = τ.θ ^ m := hC.θ_eq
+  have hθne : τ.θ ^ m ≠ 0 := pow_ne_zero _ (by have := τ.one_lt; positivity)
+  have hcast : ∀ w : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.owner t)),
+      ((ht ▸ H.gamma (n + 1) Y hY :
+        hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)).1 w).1 =
+        translateSet (-(Y.anchor + w.1))
+          (Substitution.crown (hC.groupedFamily.scatter (H.seq (n + 1)).tiles)
+            (Y.anchor + w.1)) := by
+    intro w
+    rw [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_cast_vec τ hsts C ht
+      (H.gamma (n + 1) Y hY) w]
+    exact H.gamma_actual (n + 1) Y hY ⟨w.1, ht ▸ w.2⟩
+  have hK1 : translateSet Y.anchor (hereditary_sts_substitution_sofic_collar τ hsts C
+        (C.owner t) (ht ▸ H.gamma (n + 1) Y hY :
+          hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)).1) =
+      hC.groupedFamily.scatterTile Y ∪
+        ⋃ w : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.owner t)),
+          Substitution.crown (hC.groupedFamily.scatter (H.seq (n + 1)).tiles)
+            (Y.anchor + w.1) := by
+    unfold hereditary_sts_substitution_sofic_collar
+    have tu : ∀ (A B : Set (PlacedTile P)),
+        translateSet Y.anchor (A ∪ B) = translateSet Y.anchor A ∪ translateSet Y.anchor B :=
+      fun A B => Set.image_union _ A B
+    have ti : ∀ (f : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.owner t)) →
+        Set (PlacedTile P)), translateSet Y.anchor (⋃ i, f i) =
+          ⋃ i, translateSet Y.anchor (f i) := fun f => Set.image_iUnion
+    rw [tu, ti]
+    congr 1
+    · rw [show C.Δ (C.owner t) = C.Δ Y.form from congrArg C.Δ ht]
+      rfl
+    · apply Set.iUnion_congr
+      intro w
+      rw [hcast w, cc_translateSet_translateSet, cc_translateSet_translateSet]
+      have h0 : Y.anchor + w.1 + -(Y.anchor + w.1) = 0 := by abel
+      rw [h0, cc_translateSet_zero]
+  obtain ⟨U, hUdef⟩ : ∃ U : Set (PlacedTile P), U = hC.groupedFamily.scatterTile Y ∪
+      ⋃ w : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.owner t)),
+        Substitution.crown (hC.groupedFamily.scatter (H.seq (n + 1)).tiles)
+          (Y.anchor + w.1) := ⟨_, rfl⟩
+  rw [← hUdef] at hK1
+  have hUsub : U ⊆ hC.groupedFamily.scatter (H.seq (n + 1)).tiles := by
+    rw [hUdef]
+    intro u hu
+    rcases hu with hu | hu
+    · exact Set.mem_iUnion₂.2 ⟨Y, hY, hu⟩
+    · obtain ⟨w, hw⟩ := Set.mem_iUnion.1 hu
+      exact hw.1
+  have hcov : ∀ P' ∈ (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q).carrier,
+      Substitution.crown (τ.decomposeIter m U) P' =
+        Substitution.crown (hC.groupedFamily.scatter (H.seq n).tiles) P' := by
+    intro P' hP'
+    rw [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_scatter_level
+      τ hsts C m hC T H n]
+    ext B
+    simp only [Substitution.crown, Set.mem_setOf_eq]
+    rw [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decomposeIter_mem,
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decomposeIter_mem]
+    constructor
+    · rintro ⟨⟨u, hu, hBu⟩, hxB⟩
+      exact ⟨⟨u, hUsub hu, hBu⟩, hxB⟩
+    · rintro ⟨⟨u, hu, hBu⟩, hxB⟩
+      refine ⟨⟨u, ?_, hBu⟩, hxB⟩
+      have hBu' : B ∈ (τ.pow m hC.m_pos).decompose {u} := by
+        rw [hereditary_sts_substitution_sofic_step9a_power_decompose]
+        exact hBu
+      have hsubB :=
+        hereditary_sts_substitution_sofic_step10b_founded_cell_lift_decompose_carrier
+          (τ.pow m hC.m_pos) u B hBu' hxB
+      obtain ⟨p, hpu, hpx⟩ := Set.mem_smul_set.1 hsubB
+      have hZY := hereditary_sts_substitution_sofic_step10b_founded_cell_lift_child_carrier
+        C t Y ht hP'
+      rw [hθ] at hZY
+      obtain ⟨p', hp', hp'x⟩ := Set.mem_smul_set.1 hZY
+      have hpp : p = p' := smul_right_injective _ hθne (hpx.trans hp'x.symm)
+      subst hpp
+      have hres : u ∈ hC.groupedFamily.scatterTile Y ∨ ∃ w,
+          Substitution.IsVertexOf (hC.groupedFamily.scatterTile Y) w ∧ w ∈ u.carrier := by
+        by_cases hpv : p ∈ Y.vertexSet
+        · exact Or.inr ⟨p, hereditary_sts_substitution_sofic_step10b_founded_cell_lift_listed_vertex
+            τ C m hC Y p hpv, hpu⟩
+        · exact hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile
+            τ C m hC (H.seq (n + 1)) (H.sts (n + 1)) Y hY u hu p hp' hpu hpv
+      rcases hres with h | ⟨w, hw, hwu⟩
+      · rw [hUdef]
+        exact Or.inl h
+      · rw [hUdef]
+        right
+        have hmv : w - Y.anchor ∈
+            hereditary_sts_substitution_sofic_macroVertices C (C.owner t) := by
+          unfold hereditary_sts_substitution_sofic_macroVertices
+          rw [Set.Finite.mem_toFinset]
+          show Substitution.IsVertexOf (C.Δ (C.owner t)).tiles (w - Y.anchor)
+          rw [ht]
+          exact hereditary_sts_substitution_sofic_step10b_founded_cell_lift_vertex_translate hw
+        refine Set.mem_iUnion.2 ⟨⟨w - Y.anchor, hmv⟩, hu, ?_⟩
+        show Y.anchor + (w - Y.anchor) ∈ u.carrier
+        rw [show Y.anchor + (w - Y.anchor) = w by abel]
+        exact hwu
+  apply Subtype.ext
+  funext v
+  apply Subtype.ext
+  have hPcar : (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q).anchor + v.1 ∈
+      (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q).carrier :=
+    Set.vadd_mem_vadd_set
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_vertex_mem C (C.form t) v)
+  have hPeq : (⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q).anchor + v.1 =
+      τ.θ ^ m • Y.anchor + (C.anchor t + v.1) := by
+    show (C.σ.θ • Y.anchor +ᵥ C.anchor t) + v.1 = _
+    rw [hθ, vadd_eq_add]
+    abel
+  show ((H.gamma n _ hZ).1 v).1 = translateSet (-(C.anchor t + v.1))
+    (Substitution.crown (τ.decomposeIter m (hereditary_sts_substitution_sofic_collar τ hsts C
+      (C.owner t) (ht ▸ H.gamma (n + 1) Y hY :
+        hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)).1)) (C.anchor t + v.1))
+  rw [H.gamma_actual n _ hZ v]
+  have hkey : Substitution.crown (hC.groupedFamily.scatter (H.seq n).tiles)
+      ((⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩ : PlacedTile C.Q).anchor + v.1) =
+      translateSet (τ.θ ^ m • Y.anchor)
+        (Substitution.crown (τ.decomposeIter m (hereditary_sts_substitution_sofic_collar
+          τ hsts C (C.owner t) (ht ▸ H.gamma (n + 1) Y hY :
+            hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t)).1))
+          (C.anchor t + v.1)) := by
+    rw [← hcov _ hPcar, ← hK1, hierarchy_lift_iff_decomposeIter_translate, hPeq,
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_crown_translate]
+  rw [hkey, cc_translateSet_translateSet]
+  congr 1
+  rw [hPeq]
+  abel
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift` (the founded cell assignment):
+given the parent and type functions of the genuine hierarchy and the three geometric facts of
+Steps 2-4, there are extended tiles `cell n Z`, one for each tile `Z` of each level, of the
+type `typ n Z`, each the generated child (`generate`) of the extended tile of its parent,
+physically decoding to the preassigned genuine crown vector `H.gamma n Z`, and such that along
+the ancestor chain of every tile every copied cell without a finite origin is zero.  (Every
+cell is the value at the end of its copy chain, where the generated value is read off from
+`H.gamma`; and `0` on an infinite chain.) -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step5_cells
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (T : PlaneTiling P)
+    (H : hereditary_sts_substitution_sofic_GenuineCrownHierarchy τ hsts C m hC T)
+    (par : ∀ n, (H.seq n).tiles → (H.seq (n + 1)).tiles)
+    (typ : ∀ n, (H.seq n).tiles → C.Typ)
+    (hspec : ∀ n Z, C.owner (typ n Z) = (par n Z).1.form ∧
+      Z.1 = ⟨C.form (typ n Z), C.σ.θ • (par n Z).1.anchor +ᵥ C.anchor (typ n Z)⟩)
+    (hgamma : ∀ (n : ℕ) (Z : PlacedTile C.Q) (hZ : Z ∈ (H.seq n).tiles)
+      (Y : PlacedTile C.Q) (hY : Y ∈ (H.seq (n + 1)).tiles) (t : C.Typ)
+      (ht : C.owner t = Y.form)
+      (_hZeq : Z = ⟨C.form t, C.σ.θ • Y.anchor +ᵥ C.anchor t⟩) (hform : Z.form = C.form t),
+      hform ▸ H.gamma n Z hZ =
+        hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t
+          (ht ▸ H.gamma (n + 1) Y hY))
+    (hinterior : ∀ (t : C.Typ)
+      (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.owner t))
+      (v : ↥(hereditary_sts_substitution_sofic_macroVertices C (C.form t))),
+      C.anchor t + v.1 ∉ frontier (C.σ.θ • (C.Q.disk (C.owner t)).carrier) →
+      ((hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t γ).1 v).1 =
+        translateSet (-(C.anchor t + v.1))
+          (Substitution.crown (τ.decomposeIter m (C.Δ (C.owner t)).tiles)
+            (C.anchor t + v.1)))
+    (hunique : ∀ (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+      (γ₁ γ₂ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1)),
+      hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₁ →
+      hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₂ → γ₁ = γ₂) :
+    ∃ cell : ∀ n, (H.seq n).tiles → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      (∀ n Z, (cell n Z).1 = typ n Z) ∧
+      (∀ n Z, cell n Z = hereditary_sts_substitution_sofic_generate τ hsts C m hC
+        (cell (n + 1) (par n Z)) (cell n Z).1) ∧
+      (∀ n Z (hf : Z.1.form = C.form (cell n Z).1),
+        hereditary_sts_substitution_sofic_decode τ hsts C hC (cell n Z) =
+          some (hf ▸ H.gamma n Z.1 Z.2)) ∧
+      ∀ (n : ℕ) (Z : (H.seq n).tiles) (r : ℕ)
+        (i : C.Side (cell (n + r)
+          (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r)).1)
+        (k : Fin 5),
+        (Planned.copySource C (C.form (cell (n + (r + 1))
+            (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z
+              (r + 1))).1)
+          (C.occ (cell (n + r)
+            (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r)).1 i)
+          k).Nonempty →
+        ¬ hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC
+          (fun r => cell (n + r)
+            (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r))
+          r i k →
+        (cell (n + r)
+          (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r)).2 i k =
+          Sum.inl 0 := by
+  have hform0 : ∀ n (x : (H.seq n).tiles), x.1.form = C.form (typ n x) := fun n x =>
+    congrArg PlacedTile.form (hspec n x).2
+  have hown : ∀ n (x : (H.seq n).tiles),
+      C.owner (typ n x) = C.form (typ (n + 1) (par n x)) := fun n x =>
+    (hspec n x).1.trans (hform0 (n + 1) (par n x))
+  obtain ⟨gam, hgam⟩ : ∃ gam : ∀ n (x : (H.seq n).tiles),
+      hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form (typ n x)),
+      ∀ n x, gam n x = hform0 n x ▸ H.gamma n x.1 x.2 :=
+    ⟨fun n x => hform0 n x ▸ H.gamma n x.1 x.2, fun _ _ => rfl⟩
+  have hK : ∀ n (x : (H.seq n).tiles), gam n x =
+      hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC (typ n x)
+        (hown n x ▸ gam (n + 1) (par n x)) := by
+    intro n x
+    have h := hgamma n x.1 x.2 (par n x).1 (par n x).2 (typ n x) (hspec n x).1
+      (hspec n x).2 (hform0 n x)
+    rw [hgam n x, h]
+    congr 1
+    rw [hgam (n + 1) (par n x)]
+    exact (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_cast_comp
+      (hereditary_sts_substitution_sofic_Catalog τ hsts C) (hspec n x).1
+      (hform0 (n + 1) (par n x)) (hown n x) _).symm
+  obtain ⟨value, hstep, hstop, hzero⟩ :=
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_fv
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next H par typ)
+      (Sum.inl 0 : hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_origin H par typ gam)
+  have hnext_some : ∀ n (x : (H.seq n).tiles) (i : C.Side (typ n x)) (k : Fin 5)
+      (hs : (Planned.copySource C (C.form (typ (n + 1) (par n x)))
+        (C.occ (typ n x) i) k).Nonempty),
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next H par typ ⟨n, x, i, k⟩ =
+        some ⟨n + 1, par n x, hs.some.1, hs.some.2⟩ := by
+    intro n x i k hs
+    simp only [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next, dif_pos hs]
+  have hnext_none : ∀ n (x : (H.seq n).tiles) (i : C.Side (typ n x)) (k : Fin 5),
+      ¬ (Planned.copySource C (C.form (typ (n + 1) (par n x)))
+        (C.occ (typ n x) i) k).Nonempty →
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next H par typ
+        ⟨n, x, i, k⟩ = none := by
+    intro n x i k hs
+    simp only [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next, dif_neg hs]
+  have hdecode : ∀ n (x : (H.seq n).tiles),
+      hereditary_sts_substitution_sofic_decode τ hsts C hC
+        (⟨typ n x, fun i k => value ⟨n, x, i, k⟩⟩ :
+          hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) = some (gam n x) := by
+    intro n x
+    have hD : hereditary_sts_substitution_sofic_Decodes τ hsts C hC
+        (⟨typ n x, fun i k => value ⟨n, x, i, k⟩⟩ :
+          hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (gam n x) := by
+      refine ⟨?_, ?_⟩
+      · intro i hnp
+        show value ⟨n, x, i, 1⟩ = hereditary_sts_substitution_sofic_encodePacket τ hsts C hC
+          (hereditary_sts_substitution_sofic_packetOf τ hsts C (typ n x) (gam n x) i)
+        rw [hstop _ (hnext_none n x i 1
+          (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_src_empty_nonprint
+            C (typ n x) _ (hown n x) i 1 (by decide) hnp))]
+        simp only [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_origin]
+        rw [if_neg hnp, if_neg (by decide : ¬ ((1 : Fin 5) = 0))]
+        exact if_true _ _
+      · intro v hv
+        show ((gam n x).1 v).1 = _
+        rw [hK n x]
+        exact hinterior (typ n x) _ v hv
+    have hex : ∃! γ, hereditary_sts_substitution_sofic_Decodes τ hsts C hC
+        (⟨typ n x, fun i k => value ⟨n, x, i, k⟩⟩ :
+          hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) γ :=
+      ⟨gam n x, hD, fun γ hγ => hunique _ γ (gam n x) hγ hD⟩
+    unfold hereditary_sts_substitution_sofic_decode
+    rw [dif_pos hex]
+    congr 1
+    exact hunique _ _ _ hex.exists.choose_spec hD
+  have hout3 : ∀ n (x : (H.seq n).tiles) (d : C.Side (typ n x)),
+      C.IsOuter (C.occ (typ n x) d) →
+      value ⟨n, x, d, 3⟩ = Sum.inl (Planned.Strict.schedU C hC (C.occ (typ n x) d)) := by
+    intro n x d ho
+    have hnp : ¬ C.IsPrint (C.occ (typ n x) d) := fun ⟨_, hd⟩ =>
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_inner_of_print C hd ho
+    rw [hstop _ (hnext_none n x d 3
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_src_empty_outer
+        C _ _ 3 (by decide) ho))]
+    simp only [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_origin]
+    rw [if_neg hnp, if_neg (by decide : ¬ ((3 : Fin 5) = 0)),
+      if_neg (by decide : ¬ ((3 : Fin 5) = 1))]
+    rw [if_pos ho]
+    exact if_true _ _
+  have key : ∀ (n : ℕ) (Z : (H.seq n).tiles)
+      (s a : hereditary_sts_substitution_sofic_step10b_founded_cell_lift_State H typ),
+      Relation.ReflTransGen (fun x y =>
+        hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next H par typ x = some y)
+        s a →
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next H par typ a = none →
+      ∀ (r : ℕ) (i : C.Side (typ (n + r)
+          (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r)))
+        (k : Fin 5),
+        s = ⟨n + r, hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r,
+          i, k⟩ →
+        hereditary_sts_substitution_sofic_ExtHasOrigin τ hsts C hC
+          (fun r => (⟨typ (n + r)
+              (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r),
+            fun i k => value ⟨n + r,
+              hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r, i, k⟩⟩ :
+            hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)) r i k := by
+    intro n Z s a hsa
+    induction hsa using Relation.ReflTransGen.head_induction_on with
+    | refl =>
+      intro hna r i k hs
+      subst hs
+      have hne : ¬ (Planned.copySource C (C.form (typ (n + r + 1)
+          (par (n + r) (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc
+            par n Z r)))) (C.occ (typ (n + r)
+          (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r)) i)
+          k).Nonempty := by
+        intro hne
+        rw [hnext_some _ _ i k hne] at hna
+        cases hna
+      exact ⟨⟨r, i, k⟩, Relation.ReflTransGen.refl, Set.not_nonempty_iff_eq_empty.mp hne⟩
+    | @head s s' hss' hrest ih =>
+      intro hna r i k hs
+      subst hs
+      have hs' : (Planned.copySource C (C.form (typ (n + r + 1)
+          (par (n + r) (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc
+            par n Z r)))) (C.occ (typ (n + r)
+          (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r)) i)
+          k).Nonempty := by
+        by_contra hne
+        have hss'' : hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next H par typ
+            ⟨n + r, hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r,
+              i, k⟩ = some s' := hss'
+        rw [hnext_none _ _ i k hne] at hss''
+        cases hss''
+      have hs'eq : s' = ⟨n + r + 1, par (n + r)
+          (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r),
+          hs'.some.1, hs'.some.2⟩ := by
+        have hss'' : hereditary_sts_substitution_sofic_step10b_founded_cell_lift_next H par typ
+            ⟨n + r, hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r,
+              i, k⟩ = some s' := hss'
+        rw [hnext_some _ _ i k hs'] at hss''
+        exact (Option.some.inj hss'').symm
+      obtain ⟨s0, hs0, hemp⟩ := ih hna (r + 1) hs'.some.1 hs'.some.2 hs'eq
+      exact ⟨s0, Relation.ReflTransGen.head ⟨hs'.some.1, hs'.some.2, hs'.some_mem, rfl⟩ hs0,
+        hemp⟩
+  refine ⟨fun n x => ⟨typ n x, fun i k => value ⟨n, x, i, k⟩⟩, fun n x => rfl, ?_, ?_, ?_⟩
+  · intro n x
+    show (⟨typ n x, fun i k => value ⟨n, x, i, k⟩⟩ :
+        hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) =
+      hereditary_sts_substitution_sofic_generate τ hsts C m hC
+        ⟨typ (n + 1) (par n x), fun i k => value ⟨n + 1, par n x, i, k⟩⟩ (typ n x)
+    refine Sigma.ext rfl (heq_of_eq ?_)
+    funext i k
+    show value ⟨n, x, i, k⟩ = (hereditary_sts_substitution_sofic_generate τ hsts C m hC
+      ⟨typ (n + 1) (par n x), fun i k => value ⟨n + 1, par n x, i, k⟩⟩ (typ n x)).2 i k
+    unfold hereditary_sts_substitution_sofic_generate
+    dsimp only
+    by_cases hs : (Planned.copySource C (C.form (typ (n + 1) (par n x)))
+        (C.occ (typ n x) i) k).Nonempty
+    · rw [dif_pos hs, hstep _ _ (hnext_some n x i k hs)]
+    · rw [dif_neg hs, hstop _ (hnext_none n x i k hs)]
+      simp only [hereditary_sts_substitution_sofic_step10b_founded_cell_lift_origin]
+      by_cases hp : C.IsPrint (C.occ (typ n x) i)
+      · rw [dif_pos hp, if_pos hp]
+      · rw [dif_neg hp, if_neg hp]
+        by_cases hk0 : k = 0
+        · rw [if_pos hk0, if_pos hk0]
+        · rw [if_neg hk0, if_neg hk0]
+          by_cases hk1 : k = 1
+          · rw [if_pos hk1, if_pos hk1, hdecode (n + 1) (par n x)]
+            dsimp only
+            rw [dif_pos (hown n x), ← hK n x]
+          · rw [if_neg hk1, if_neg hk1]
+            by_cases hk3 : k = 3
+            · rw [if_pos hk3, if_pos hk3]
+              by_cases hout : C.IsOuter (C.occ (typ n x) i)
+              · rw [if_pos hout, if_pos hout]
+              · rw [if_neg hout, if_neg hout]
+                by_cases hb : C.IsBoundary (C.occ (typ n x) i)
+                · rw [if_pos hb, if_pos hb]
+                  unfold hereditary_sts_substitution_sofic_header
+                  rw [hdecode (n + 1) (par n x)]
+                  dsimp only
+                  have hbits : (fun _ => false) = (fun d => C.outerB (typ (n + 1) (par n x)) d &&
+                      decide (value ⟨n + 1, par n x, d, 3⟩ = Sum.inl 0)) := by
+                    funext d
+                    by_cases ho : C.IsOuter (C.occ (typ (n + 1) (par n x)) d)
+                    · rw [hout3 (n + 1) (par n x) d ho]
+                      have hne : (Planned.Strict.schedU C hC
+                          (C.occ (typ (n + 1) (par n x)) d) : Planned.Strict.SU C hC) ≠ 0 := by
+                        intro h
+                        cases h
+                      have hne' : ¬ ((Sum.inl (Planned.Strict.schedU C hC
+                          (C.occ (typ (n + 1) (par n x)) d)) :
+                          hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC) =
+                            Sum.inl 0) := fun h => hne (Sum.inl.inj h)
+                      simp [hne']
+                    · simp [MacroData.outerB, ho]
+                  rw [← hbits]
+                · rw [if_neg hb, if_neg hb]
+            · rw [if_neg hk3, if_neg hk3]
+  · intro n Z hf
+    show hereditary_sts_substitution_sofic_decode τ hsts C hC
+      (⟨typ n Z, fun i k => value ⟨n, Z, i, k⟩⟩ :
+        hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) = _
+    rw [hdecode n Z, hgam n Z]
+  · intro n Z r i k _ hno
+    show value ⟨n + r,
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z r, i, k⟩ =
+        Sum.inl 0
+    apply hzero
+    rintro ⟨a, ha, hna⟩
+    apply hno
+    exact key n Z _ a ha hna r i k rfl
+
 /-- Step 10b of the reviewed proof: assign every cell by finite origin or
 zero along the genuine hierarchy and prove the decoder returns the previously
 chosen physical crown vector. -/
@@ -4203,7 +5377,76 @@ private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift
       τ hsts C m hC T) :
     Nonempty (hereditary_sts_substitution_sofic_FoundedLift
       τ hsts C m hC X T H) := by
-  sorry
+  have _ := hher
+  have hpar : ∀ n (Z : (H.seq n).tiles), ∃ Y : (H.seq (n + 1)).tiles, ∃ t,
+      C.owner t = Y.1.form ∧ Z.1 = ⟨C.form t, C.σ.θ • Y.1.anchor +ᵥ C.anchor t⟩ := by
+    intro n Z
+    obtain ⟨Y, hY, t, ht, he⟩ :=
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step1_parent C
+        (H.composition n) Z.2
+    exact ⟨⟨Y, hY⟩, t, ht, he⟩
+  choose par typ hspec using hpar
+  obtain ⟨cell, ha, hb, hc, hd⟩ :=
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step5_cells τ hsts C m hC T H
+      par typ hspec
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2_gamma_child
+        τ hsts C m hC T H)
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step3_child_interior
+        τ hsts C m hC)
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step4_decode_unique
+        τ hsts C m hC)
+  have hform : ∀ n (Z : (H.seq n).tiles), C.form (cell n Z).1 = Z.1.form := by
+    intro n Z
+    rw [ha]
+    exact (congrArg PlacedTile.form (hspec n Z).2).symm
+  let col : ℕ → PlaneTiling X.dec.P' := fun n =>
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_liftTiling τ hsts C m hC X
+      (H.seq n) (cell n) (hform n)
+  have hproj : ∀ n, X.dec.toDecoration.project (col n) = H.seq n := fun n =>
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_project τ hsts C m hC X
+      (H.seq n) (cell n) (hform n)
+  refine ⟨{
+    coloured := col
+    project := hproj
+    sideToSide := fun n =>
+      hereditary_sts_substitution_sofic_step10b_founded_cell_lift_sideToSide X.dec (col n)
+        (by rw [hproj n]; exact H.sts n)
+    follows := ?_ }⟩
+  intro n Y hY
+  obtain ⟨Z, rfl⟩ := hY
+  let anc := hereditary_sts_substitution_sofic_step10b_founded_cell_lift_anc par n Z
+  let ch : ℕ → hereditary_sts_substitution_sofic_ExtTile τ hsts C hC :=
+    fun r => cell (n + r) (anc r)
+  let placed : ℕ → PlacedTile X.dec.P' := fun r =>
+    ⟨X.formEquiv.symm (Sum.inl (ch r)), (anc r).1.anchor⟩
+  have hext : ∀ r, hereditary_sts_substitution_sofic_IsExtChild τ hsts C m hC
+      (ch (r + 1)) (ch r) := by
+    intro r
+    refine ⟨?_, hb (n + r) (anc r)⟩
+    have h1 := (hspec (n + r) (anc r)).1
+    have h2 := congrArg PlacedTile.form (hspec (n + r + 1) (par (n + r) (anc r))).2
+    change C.owner (cell (n + r) (anc r)).1 = C.form (cell (n + (r + 1)) (par (n + r) (anc r))).1
+    rw [ha, ha]
+    exact h1.trans h2
+  have hdec : ∀ r (hf : (anc r).1.form = C.form (ch r).1),
+      hereditary_sts_substitution_sofic_decode τ hsts C hC (ch r) =
+        some (hf ▸ H.gamma (n + r) (anc r).1 (anc r).2) := fun r hf =>
+    hc (n + r) (anc r) hf
+  have hformr : ∀ r, (anc r).1.form = C.form (ch r).1 := fun r =>
+    (hform (n + r) (anc r)).symm
+  have hfollow : hereditary_sts_substitution_sofic_FollowsHierarchyBy τ hsts C m hC X T H
+      col n ⟨X.formEquiv.symm (Sum.inl (cell n Z)), Z.1.anchor⟩ (cell n Z) placed ch := by
+    refine ⟨rfl, rfl, fun r => ⟨⟨anc r, rfl⟩, X.formEquiv.apply_symm_apply _, hext r, ?_,
+      (anc r).1, (anc r).2, hformr r, rfl, hdec r (hformr r)⟩, hd n Z⟩
+    have h := congrArg PlacedTile.anchor (hspec (n + r) (anc r)).2
+    change (anc r).1.anchor =
+      C.σ.θ • (par (n + r) (anc r)).1.anchor + C.anchor (cell (n + r) (anc r)).1
+    rw [ha]
+    exact h
+  refine ⟨cell n Z, X.formEquiv.apply_symm_apply _, ?_, placed, ch, hfollow⟩
+  refine ⟨ch, rfl, hext, fun r => ?_, hd n Z⟩
+  rw [hdec r (hformr r)]
+  rfl
 
 /-- Step 10c of the reviewed proof: the geometric five-coordinate argument.
 For two coincident sides following the fixed hierarchy, a finite source on

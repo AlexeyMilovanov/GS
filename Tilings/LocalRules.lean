@@ -9378,6 +9378,158 @@ private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_listed
     simp only [PlacedTile.vertex, PlacedTile.translate, vadd_eq_add] at h2 ⊢
     rw [add_assoc, h2]
 
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile`: local
+exclusion.  If a point `p` is an interior point of the union of the carriers of two tiles `X`
+and `Z`, then no tile `W` whose interior is disjoint from the interiors of `X` and `Z` contains
+`p` (its carrier is the closure of its interior). -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step1_union_excl
+    {X Z W : PlacedTile P} {p : Pt} (hp : p ∈ interior (X.carrier ∪ Z.carrier))
+    (hW : p ∈ W.carrier) (hX : Disjoint (interior W.carrier) (interior X.carrier))
+    (hZ : Disjoint (interior W.carrier) (interior Z.carrier)) : False := by
+  rw [← cc_tile_regular W, mem_closure_iff] at hW
+  obtain ⟨y, hyO, hyW⟩ := hW _ isOpen_interior hp
+  by_cases hyZ : y ∈ Z.carrier
+  · rw [← cc_tile_regular Z, mem_closure_iff] at hyZ
+    obtain ⟨y', hy'O, hy'Z⟩ := hyZ _ (isOpen_interior.inter isOpen_interior) ⟨hyO, hyW⟩
+    exact Set.disjoint_left.mp hZ hy'O.2 hy'Z
+  · have hopen : IsOpen (interior (X.carrier ∪ Z.carrier) ∩ (Z.carrier)ᶜ) :=
+      isOpen_interior.inter (cc_tile_carrier_closed Z).isOpen_compl
+    have hsub : interior (X.carrier ∪ Z.carrier) ∩ (Z.carrier)ᶜ ⊆ X.carrier := by
+      rintro w ⟨hw1, hw2⟩
+      rcases interior_subset hw1 with h | h
+      · exact h
+      · exact absurd h hw2
+    have hyX : y ∈ interior X.carrier := interior_maximal hsub hopen ⟨hyO, hyZ⟩
+    exact Set.disjoint_left.mp hX hyW hyX
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile`: the tile
+across a side.  In a side-to-side plane tiling, a listed side of a tile `Y` containing a point
+which is not a listed vertex of `Y` is also a complete listed side of a second tile `B ≠ Y`
+(points of the side near that point which avoid the finitely many nearby listed vertices are
+covered by another tile, which overlaps the side with positive length). -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step2_side_partner
+    (T : PlaneTiling P) (hT : T.SideToSide) {Y : PlacedTile P} (hY : Y ∈ T.tiles)
+    {i : Fin (P.disk Y.form).n} {p : Pt} (hpi : p ∈ Y.side i) (hpv : p ∉ Y.vertexSet) :
+    ∃ B ∈ T.tiles, B ≠ Y ∧ ∃ j, B.side j = Y.side i := by
+  set b := Y.vertex (finRotate _ i) with hb_def
+  have hbp : b ≠ p := fun h => hpv ⟨_, h⟩
+  obtain ⟨N, hN⟩ := cc_count P 1
+  set K := {X ∈ T.tiles | (X.carrier ∩ Metric.ball p 1).Nonempty} with hK
+  have hKfin : K.Finite := (hN T.tiles T.disjoint p).1
+  have hVfin : (⋃ X ∈ K, X.vertexSet).Finite := hKfin.biUnion fun X _ => Set.finite_range X.vertex
+  have hbp0 : b - p ≠ 0 := sub_ne_zero.mpr hbp
+  have hbpn : 0 < ‖b - p‖ := norm_pos_iff.mpr hbp0
+  have hs₀pos : 0 < min 1 (1 / ‖b - p‖) := lt_min one_pos (div_pos one_pos hbpn)
+  have hinj : Function.Injective fun s : ℝ => p + s • (b - p) := by
+    intro s s' h
+    have h' : s • (b - p) = s' • (b - p) := add_left_cancel h
+    exact smul_left_injective ℝ hbp0 h'
+  have hbad : ((fun s : ℝ => p + s • (b - p)) ⁻¹' (⋃ X ∈ K, X.vertexSet)).Finite :=
+    hVfin.preimage hinj.injOn
+  obtain ⟨s, ⟨hs0, hs1⟩, hsV⟩ := ((Set.Ioo_infinite hs₀pos).diff hbad).nonempty
+  have hs1' : s < 1 := lt_of_lt_of_le hs1 (min_le_left _ _)
+  have hsr : s < 1 / ‖b - p‖ := lt_of_lt_of_le hs1 (min_le_right _ _)
+  set z := p + s • (b - p) with hz_def
+  have hbi : b ∈ Y.side i := by
+    rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment]
+    exact right_mem_segment ℝ _ _
+  have hzside : z ∈ Y.side i := by
+    have hconv : Convex ℝ (Y.side i) := by
+      rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment]
+      exact convex_segment _ _
+    apply hconv.segment_subset hpi hbi
+    rw [segment_eq_image']
+    exact ⟨s, ⟨hs0.le, hs1'.le⟩, rfl⟩
+  have hzball : z ∈ Metric.ball p 1 := by
+    rw [Metric.mem_ball, dist_eq_norm, hz_def, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hs0.le]
+    rw [lt_div_iff₀ hbpn] at hsr
+    exact hsr
+  have hzY : z ∉ interior Y.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_not_interior Y i hzside
+  have hzvert : ∀ X ∈ K, z ∉ X.vertexSet := by
+    intro X hX hzX
+    apply hsV
+    show z ∈ ⋃ X ∈ K, X.vertexSet
+    exact mem_biUnion hX hzX
+  have hYK : Y ∈ K := ⟨hY, z,
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_subset_carrier Y i hzside,
+    hzball⟩
+  have hexB : ∃ B ∈ K, B ≠ Y ∧ z ∈ B.carrier := by
+    by_contra hno
+    push_neg at hno
+    have hFfin : {X ∈ K | X ≠ Y}.Finite := hKfin.subset (sep_subset _ _)
+    have hFcl : IsClosed (⋃ X ∈ {X ∈ K | X ≠ Y}, X.carrier) :=
+      hFfin.isClosed_biUnion fun X _ => cc_tile_carrier_closed X
+    have hzF : z ∉ ⋃ X ∈ {X ∈ K | X ≠ Y}, X.carrier := by
+      simp only [mem_iUnion, not_exists]
+      intro X hX hzX
+      exact hno X hX.1 hX.2 hzX
+    apply hzY
+    rw [mem_interior_iff_mem_nhds]
+    have hU : Metric.ball p 1 ∩ (⋃ X ∈ {X ∈ K | X ≠ Y}, X.carrier)ᶜ ∈ nhds z :=
+      (Metric.isOpen_ball.inter hFcl.isOpen_compl).mem_nhds ⟨hzball, hzF⟩
+    refine Filter.mem_of_superset hU ?_
+    rintro w ⟨hw1, hw2⟩
+    have hwT : w ∈ support T.tiles := by rw [T.cover]; trivial
+    simp only [support, mem_iUnion, exists_prop] at hwT
+    obtain ⟨X, hXT, hwX⟩ := hwT
+    by_cases hXY : X = Y
+    · rw [← hXY]; exact hwX
+    · exfalso
+      apply hw2
+      simp only [mem_iUnion]
+      exact ⟨X, ⟨⟨hXT, w, hwX, hw1⟩, hXY⟩, hwX⟩
+  obtain ⟨B, hBK, hBY, hzB⟩ := hexB
+  have hdisj : Disjoint (interior Y.carrier) (interior B.carrier) :=
+    T.disjoint hY hBK.1 (Ne.symm hBY)
+  obtain ⟨j, hj⟩ := hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_key hdisj
+    hzside hzB (hzvert Y hYK) (hzvert B hBK)
+  exact ⟨B, hBK.1, hBY, j, (hT Y hY B hBK.1 i j hj).symm⟩
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile`: an original
+tile of the scattering of a grouped tile lies in the carrier of that grouped tile. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step3_carrier_subset
+    (G : GroupedFamily P) {A : PlacedTile G.P'} {X : PlacedTile P} (hX : X ∈ G.scatterTile A) :
+    X.carrier ⊆ A.carrier := by
+  rw [← hierarchy_lift_iff_scatterTile_support G A]
+  exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hX
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile`: every
+listed side of a grouped tile is a complete listed side of an original tile of its scattering
+(`hC.side_whole`). -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step4_side_whole
+    (τ : Substitution P) (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
+    (Y : PlacedTile C.Q) (i : Fin (C.Q.disk Y.form).n) :
+    ∃ A ∈ hC.groupedFamily.scatterTile Y, ∃ l, A.side l = Y.side i := by
+  obtain ⟨A₀, hA₀, l, hl⟩ := hC.side_whole Y.form i
+  refine ⟨A₀.translate Y.anchor, ⟨A₀, hA₀, rfl⟩, l, ?_⟩
+  rw [cc_side_translate, hl]
+  rfl
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile`: distinct
+original tiles of the scattering of one grouped tile have disjoint interiors. -/
+private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step5_scatter_disjoint
+    (G : GroupedFamily P) {A : PlacedTile G.P'} {X X' : PlacedTile P}
+    (hX : X ∈ G.scatterTile A) (hX' : X' ∈ G.scatterTile A) (hne : X ≠ X') :
+    Disjoint (interior X.carrier) (interior X'.carrier) := by
+  obtain ⟨X₀, hX₀, rfl⟩ := hX
+  obtain ⟨X₀', hX₀', rfl⟩ := hX'
+  have hne' : X₀ ≠ X₀' := fun h => hne (by rw [h])
+  have hd : Disjoint (interior X₀.carrier) (interior X₀'.carrier) :=
+    (G.dissect A.form).disjoint hX₀ hX₀' hne'
+  have hc : ∀ W : PlacedTile P, (W.translate A.anchor).carrier = A.anchor +ᵥ W.carrier := by
+    intro W
+    show (A.anchor +ᵥ W.anchor) +ᵥ _ = A.anchor +ᵥ (W.anchor +ᵥ _)
+    rw [vadd_vadd]; rfl
+  rw [hc, hc, interior_vadd, interior_vadd]
+  exact (disjoint_image_iff (add_right_injective A.anchor)).mpr hd
+
 /-- Step 2a of the blueprint proof of
 `hereditary_sts_substitution_sofic_step10b_founded_cell_lift` (planar geometry of a
 side-to-side grouped level): let `Y` be a tile of a side-to-side grouped tiling `S`, let `u`
@@ -9400,7 +9552,76 @@ private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a
     (hpY : p ∈ Y.carrier) (hpu : p ∈ u.carrier) (hpv : p ∉ Y.vertexSet) :
     u ∈ hC.groupedFamily.scatterTile Y ∨
       ∃ w, Substitution.IsVertexOf (hC.groupedFamily.scatterTile Y) w ∧ w ∈ u.carrier := by
-  sorry
+  simp only [GroupedFamily.scatter, Set.mem_iUnion, exists_prop] at hu
+  obtain ⟨Y', hY', huY'⟩ := hu
+  by_cases hYY' : Y' = Y
+  · subst hYY'
+    exact Or.inl huY'
+  right
+  have hdYY' : Disjoint (interior Y.carrier) (interior Y'.carrier) :=
+    S.disjoint hY hY' (Ne.symm hYY')
+  have huY'c : u.carrier ⊆ Y'.carrier :=
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step3_carrier_subset
+      _ huY'
+  have hpY' : p ∈ Y'.carrier := huY'c hpu
+  have hpint : p ∉ interior Y.carrier :=
+    hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_not_interior hdYY' hpY'
+  obtain ⟨i, ε, d, n, hε, -, -, -, hs, -⟩ := cc_halfdisk_tile Y hpY hpint hpv
+  have hpi : p ∈ Y.side i := by simpa using hs 0 (by simpa using hε)
+  obtain ⟨B, hB, hBY, j, hBj⟩ :=
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step2_side_partner
+      S hS hY hpi hpv
+  have hpa : p ≠ Y.vertex i := fun h => hpv ⟨i, h.symm⟩
+  have hpb : p ≠ Y.vertex (finRotate _ i) := fun h => hpv ⟨_, h.symm⟩
+  have hdYB : Disjoint (interior Y.carrier) (interior B.carrier) := S.disjoint hY hB (Ne.symm hBY)
+  have hnbhd := hereditary_sts_substitution_sofic_step2_raw_child_is_full_step2_common_side_nhds
+    hdYB hBj.symm hpi hpa hpb
+  have hY'B : Y' = B := by
+    by_contra hne
+    exact hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step1_union_excl
+      hnbhd hpY' hdYY'.symm (S.disjoint hY' hB hne)
+  subst hY'B
+  obtain ⟨A, hA, l, hAl⟩ :=
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step4_side_whole
+      τ C m hC Y' j
+  obtain ⟨A₁, hA₁, l₁, hA₁l⟩ :=
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step4_side_whole
+      τ C m hC Y i
+  have hintA : interior A.carrier ⊆ interior Y'.carrier := interior_mono
+    (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step3_carrier_subset
+      _ hA)
+  have hintA₁ : interior A₁.carrier ⊆ interior Y.carrier := interior_mono
+    (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step3_carrier_subset
+      _ hA₁)
+  have hintu : interior u.carrier ⊆ interior Y'.carrier := interior_mono huY'c
+  have hA₁A : Disjoint (interior A₁.carrier) (interior A.carrier) :=
+    hdYY'.mono hintA₁ hintA
+  have hside : A₁.side l₁ = A.side l := by rw [hA₁l, hAl, hBj]
+  have hpA₁ : p ∈ A₁.side l₁ := by rw [hA₁l]; exact hpi
+  have hend : (A₁.vertex l₁ = Y.vertex i ∧ A₁.vertex (finRotate _ l₁) = Y.vertex (finRotate _ i)) ∨
+      (A₁.vertex l₁ = Y.vertex (finRotate _ i) ∧ A₁.vertex (finRotate _ l₁) = Y.vertex i) := by
+    have h := hA₁l
+    rw [hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment,
+      hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_eq_segment] at h
+    exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_segment_endpoints h
+  have hpa₁ : p ≠ A₁.vertex l₁ := by
+    rcases hend with ⟨h1, -⟩ | ⟨h1, -⟩ <;> rw [h1] <;> assumption
+  have hpb₁ : p ≠ A₁.vertex (finRotate _ l₁) := by
+    rcases hend with ⟨-, h2⟩ | ⟨-, h2⟩ <;> rw [h2] <;> assumption
+  have hnbhd' := hereditary_sts_substitution_sofic_step2_raw_child_is_full_step2_common_side_nhds
+    hA₁A hside hpA₁ hpa₁ hpb₁
+  have huA : u = A := by
+    by_contra hne
+    exact hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step1_union_excl
+      hnbhd' hpu (hdYY'.symm.mono hintu hintA₁)
+      (hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2a_touching_tile_step5_scatter_disjoint
+        _ huY' hA hne)
+  subst huA
+  refine ⟨Y.vertex i,
+    hereditary_sts_substitution_sofic_step10b_founded_cell_lift_listed_vertex τ C m hC Y _ ⟨i, rfl⟩, ?_⟩
+  apply hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_side_subset_carrier u l
+  rw [hAl, hBj]
+  exact hereditary_sts_substitution_sofic_step2_raw_child_is_full_aux_vertex_mem_side Y i
 
 /-- The carrier of a translated tile. -/
 private lemma hereditary_sts_substitution_sofic_step10b_founded_cell_lift_translate_carrier

@@ -4394,7 +4394,53 @@ private noncomputable def hereditary_sts_substitution_sofic_generate
       else Sum.inl (Planned.Strict.botSU C hC)
     else Sum.inl 0⟩
 
-/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child`: the physical packet decoder is exactly the packet of the child catalogue. -/
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet`: the catalogue value
+decoded by A is unique (transplant of
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step4_decode_unique`). -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m) (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (γ₁ γ₂ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (h₁ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₁)
+    (h₂ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ₂) : γ₁ = γ₂ := by
+  sorry
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet`: the copy source
+for the packet channel of a non-print side is empty. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step2_copy_empty
+    (C : Geometry.MacroCertificate P) (t : C.Typ) (α : C.Q.Form) (hα : C.owner t = α)
+    (i : C.Side t) (k : Fin 5) (hk : k ≠ 2) (hnp : ¬C.IsPrint (C.occ t i)) :
+    ¬(Planned.copySource C α (C.occ t i) k).Nonempty := by
+  subst hα
+  rintro ⟨⟨d, k'⟩, hmem | hmem⟩
+  · exact hnp ⟨d, hmem.1⟩
+  · exact hk hmem.2.1
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet`: the total decoder
+correctly returns the unique catalogue value. -/
+private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step3_decode
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (hγ : hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ) :
+    hereditary_sts_substitution_sofic_decode τ hsts C hC A = some γ := by
+  have hex : ∃! γ', hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ' :=
+    ⟨γ, hγ, fun γ' h =>
+      hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique
+        τ hsts C m hC A γ' γ h hγ⟩
+  unfold hereditary_sts_substitution_sofic_decode
+  rw [dif_pos hex]
+  congr 1
+  exact hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique
+    τ hsts C m hC A _ _ hex.exists.choose_spec hγ
+
+/-- Step 1 of the blueprint proof of
+  `hereditary_sts_substitution_sofic_step3_generate_decodes_child`: the physical packet decoder is
+  exactly the packet of the child catalogue. -/
 private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet
     (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
     (m : ℕ) (hC : C.Represents τ m)
@@ -4407,9 +4453,23 @@ private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_ste
         hereditary_sts_substitution_sofic_encodePacket τ hsts C hC
           (hereditary_sts_substitution_sofic_packetOf τ hsts C t
             (hereditary_sts_substitution_sofic_childCatalog τ hsts C m hC t (ht ▸ γ)) i) := by
-  sorry
+  intro i hnp
+  have hdec :=
+    hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step3_decode
+      τ hsts C m hC A γ hγ
+  have hcopy :=
+    hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step2_copy_empty
+      C t (C.form A.1) ht i 1 (by decide) hnp
+  unfold hereditary_sts_substitution_sofic_generate
+  dsimp only
+  simp only [dif_neg hcopy, dif_neg hnp, if_neg (show ¬ ((1 : Fin 5) = 0) by decide),
+    if_pos (rfl : (1 : Fin 5) = 1), hdec, dif_pos ht]
+  rfl
 
-/-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step3_generate_decodes_child`: the interior vertices of the child decode to the translated scatter crown. -/
+
+/-- Step 2 of the blueprint proof of
+  `hereditary_sts_substitution_sofic_step3_generate_decodes_child`: the interior vertices of the
+  child decode to the translated scatter crown. -/
 private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_step2_interior
     (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
     (m : ℕ) (hC : C.Represents τ m)

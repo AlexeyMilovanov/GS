@@ -3419,7 +3419,69 @@ private theorem hereditary_sts_hierarchy_sofic_step1_control_control_rule_step2_
         (∀ X ∈ U.tiles, Planned.headerLegal C (Planned.tileDec X)) ∧
         ((hereditary_sts_hierarchy_sofic_step1_control_decoration C).project T').tiles =
           Planned.eraseSet C U.tiles := by
-  sorry
+  rintro T' ⟨hvalid, hmatch⟩
+  let f : PlacedTile (Planned.typedDecoration C) →
+      PlacedTile (hereditary_sts_hierarchy_sofic_step1_control_decoration C).P' :=
+    fun X => ⟨Sum.inr X.form, X.anchor⟩
+  have hf_carrier : ∀ X, (f X).carrier = X.carrier := fun _ => rfl
+  have hf_inj : Function.Injective f := by
+    intro X Y h
+    have hform := congrArg (fun W => W.form) h
+    have hanchor := congrArg (fun W => W.anchor) h
+    change (Sum.inr X.form : C.Q.Form ⊕ Planned.DecTile C) = Sum.inr Y.form at hform
+    exact PlacedTile.ext (Sum.inr.inj hform) hanchor
+  have hf_mk : ∀ Z ∈ T'.tiles, ∀ A : Planned.DecTile C, Z.form = Sum.inr A →
+      f ⟨A, Z.anchor⟩ = Z := by
+    intro Z _ A hZA
+    cases Z with
+    | mk zform zanchor =>
+      change zform = Sum.inr A at hZA
+      subst hZA
+      rfl
+  have himage : f '' {X | f X ∈ T'.tiles} = T'.tiles := by
+    apply Set.Subset.antisymm
+    · rintro _ ⟨X, hX, rfl⟩
+      exact hX
+    · intro Z hZ
+      obtain ⟨A, hZA, _⟩ := hvalid Z hZ
+      exact ⟨⟨A, Z.anchor⟩, by simpa [hf_mk Z hZ A hZA] using hZ, hf_mk Z hZ A hZA⟩
+  have hcover : support {X | f X ∈ T'.tiles} = Set.univ := by
+    have hcov := T'.cover
+    rw [← himage, support, Set.biUnion_image] at hcov
+    simp only [hf_carrier] at hcov
+    exact hcov
+  have hdisj : DisjointInteriors {X | f X ∈ T'.tiles} := by
+    intro X hX Y hY hXY
+    have h := T'.disjoint hX hY (hf_inj.ne hXY)
+    simpa only [Function.onFun, hf_carrier] using h
+  obtain ⟨U, hU⟩ : ∃ U : PlaneTiling (Planned.typedDecoration C), U.tiles = {X | f X ∈ T'.tiles} :=
+    ⟨⟨_, hcover, hdisj⟩, rfl⟩
+  refine ⟨U, ?_, ?_, ?_⟩
+  · intro X hX i hi
+    rw [hU] at hX
+    obtain ⟨Y, hYT, hYX, B, j, hYB, hside, hcell⟩ := hmatch (f X) hX X.form rfl i hi
+    let Y' : PlacedTile (Planned.typedDecoration C) := ⟨B, Y.anchor⟩
+    have hY' : f Y' = Y := hf_mk Y hYT B hYB
+    refine ⟨Y', ?_, ?_, j, hside, hcell⟩
+    · rw [hU]
+      change f Y' ∈ T'.tiles
+      rw [hY']
+      exact hYT
+    · intro h
+      apply hYX
+      rw [← hY', h]
+  · intro X hX
+    rw [hU] at hX
+    obtain ⟨A, hXA, hleg⟩ := hvalid (f X) hX
+    have hA : X.form = A := Sum.inr.inj hXA
+    change Planned.headerLegal C X.form
+    rw [hA]
+    exact hleg
+  · change (hereditary_sts_hierarchy_sofic_step1_control_decoration C).projTile '' T'.tiles =
+      Planned.erase C '' U.tiles
+    rw [hU]
+    conv_lhs => rw [← himage, Set.image_image]
+    rfl
 
 /-- Step 3 of the blueprint proof of
 `hereditary_sts_hierarchy_sofic_step1_control_control_rule`: realize every

@@ -5,13 +5,13 @@ import Tilings.Hierarchy
 import Tilings.LocalRules
 
 /-!
-# The five principal theorems (statements only)
+# The five principal theorems
 
 Theorem 1(a,b,c) and Theorem 2(a,b) of arXiv:2606.25005v2 in the corrected
 form of the blueprint (revision of 12 October 2026).  Every statement is
-about plane tilings.  All proofs are `sorry`: these are the final goals of
-the formalization and must not be marked proved before the geometric
-certificate is instantiated.
+about plane tilings.  All five theorems are proved; `sts_substitution_sofic`
+and `flc_substitution_sofic` depend only on `propext`, `Classical.choice`
+and `Quot.sound` (see the README for the full check).
 -/
 
 namespace Tilings

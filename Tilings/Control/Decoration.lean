@@ -18,9 +18,10 @@ Blueprint nodes (chapter `composition.tex`):
 Cell positions `1, …, 5` of the blueprint are `0, …, 4 : Fin 5` here.
 The child relation is defined for an arbitrary boundary-fourth rule
 (`IsChildOfWith`), so that the article's old rule (boundary fourth cell =
-parent type) can be stated in the regression file with the same machinery.
+parent type) could be stated with the same machinery (the regression file that
+used it was removed, see `docs/removed-regressions.md`).
 
-All definitions are real; no theorem is proved in this file.
+This file contains definitions and their basic lemmas.
 -/
 
 open Set Pointwise

@@ -1,0 +1,927 @@
+\section{A repaired grouping construction and its geometric obligations}
+
+This chapter replaces the arbitrary tile-to-square assignment in
+\S\S3.1--3.4 of the paper.  It applies to simple polygonal disks, including
+nonconvex polygons.  It does not assume convex prototiles.  Throughout,
+collinear original vertices are retained on the boundaries of grouped tiles.
+Consequently a grouped side remains a complete original side and scattering
+does not introduce a side-to-side defect.
+
+The construction uses one central group and $4N$ annular groups, instead of
+the $4(N+1)$ independent small squares in the original drawing.  The four
+corner squares are absorbed into adjacent annular groups.  Every new annular
+group meets the centre along one connected arc and supplies one print.
+There are still exactly $4N$ marked central sides, as required later.
+
+All Lean names below are planned declaration names.  No declaration in this
+chapter is claimed to have been checked by Lean.  The two formerly open
+geometric estimates are proved below using polygonal Jordan theory,
+piecewise-linear annulus routing, and an explicit compactness argument.
+Those classical helper lemmas still require Lean implementations; no
+geometric certificate is accepted as an assumption of the final theorem.
+
+\begin{definition}[Mesh constants and the finite cellulation]
+\label{def:mesh}
+\lean{Tilings.Geometry.MeshConstants}
+\uses{def:polygon,def:protoset,def:placed,def:tiling,def:sts}
+Let $P$ be a finite family of full-dimensional simple polygonal disks.  Choose
+$D>0$, $a>0$, $\gamma>0$, and $K_0\in\mathbb N$ such that every original
+tile has diameter at most $D$, area at least $a$, every original side has
+length at least $\gamma$, and every original tile has at most $K_0$ sides.
+
+A finite STS patch covering a polygonal disk $\Omega$ is regarded as a finite
+planar cellulation: original tiles are its closed faces, original sides are
+its edges, and original vertices are its vertices.  A face interior is
+connected, and distinct face interiors are disjoint.  We write
+$B_\infty(r)=[-r,r]^2$ and use Minkowski sums $Q+B_\infty(r)$ for square
+buffers.  A Euclidean diameter bound $D$ also bounds the coordinate diameter.
+\end{definition}
+
+The constants exist because $P$ is finite.  Neither FLC nor the crown-cover
+lemma is used to obtain them.  In particular the grouping construction must
+not depend on the final soficity theorem, on the desired routing certificate,
+or on the FLC conclusion derived from that certificate.
+
+\begin{lemma}[Regular grouping with an inside anchor]
+\label{lem:regular-grouping}
+\lean{Tilings.Geometry.regularGrouping}
+\uses{def:mesh,def:tiling}
+Let a finite STS patch of mesh $D$ cover $\Omega$, and let $Q$ be a square
+with $Q+B_\infty(3D)\subset\operatorname{int}\Omega$.  There is a finite
+union $L$ of complete original faces such that
+\[
+ Q\subset L\subset Q+B_\infty(D),
+\]
+$L$ is a polygonal disk, and the dual graph of its faces is connected.
+Every edge of $\partial L$ adjoins on its inside an original face $F$ such
+that $\operatorname{int}F\cap\operatorname{int}Q\ne\varnothing$.
+\end{lemma}
+
+\begin{proof}
+Select the faces whose interiors meet $\operatorname{int}Q$ and let their
+union be $U$.  The open square is contained in $\operatorname{int}U$.
+Every selected face interior is connected and meets that square; thus
+$\operatorname{int}U$ is connected.  The union is finite and regular closed.
+Since every selected face has diameter at most $D$,
+$U\subset Q+B_\infty(D)$.
+
+Add every bounded connected component of the \emph{open} complement
+$\mathbb R^2\setminus U$, taking its closure together with $U$.  A connected
+face interior disjoint from $U$ is contained in one complementary component.
+The added region therefore consists of complete original faces; no original
+face is cut.  There are finitely many such components, since their boundaries
+are contained in the finite original skeleton.
+
+The complement outside the convex square $Q+B_\infty(D)$ is connected to
+infinity, so every filled component lies inside that square.  This gives the
+support bounds.  Filling a complementary component joins its face interiors
+to the existing interior across boundary edges.  Hence the filled interior
+is connected, and its open complement is the unbounded complementary
+component and is connected.
+
+Here is the classical planar fact needed in the formalization.  A finite
+regular closed union of polygonal faces, with connected interior and
+connected open complement, has a single simple polygonal boundary.  At a
+boundary vertex there cannot be alternating blocks of inside and outside
+faces: interior arcs joining the two inside blocks, together with a small
+local arc, would separate the two outside blocks by the polygonal Jordan
+theorem.  The outside could not be connected.  Therefore the boundary graph
+has degree two at every boundary vertex.  It is a union of disjoint cycles;
+connected interior and connected exterior exclude more than one cycle.
+There are no zero-area appendages, since the region is a union of complete
+faces.  Thus the boundary is one simple cycle and $L$ is a polygonal disk.
+
+Filling deletes interior boundary edges and creates no new exterior edge.
+The inside face along every remaining boundary edge was selected for $U$;
+this proves the anchoring statement.  Finally join two face-interior points
+by a generic polygonal path in $\operatorname{int}L$.  Perturb it away from
+the finite vertices.  Its consecutive faces share complete sides, giving
+a walk in the face-dual graph.
+\end{proof}
+
+For Lean, the proof should be divided into a finite-face complement lemma,
+a polygonal Jordan-boundary lemma, and a generic-path-to-dual-walk lemma.
+The Jordan-boundary lemma is a genuine topological result and must be proved
+or obtained from a proved polygonal topology API; the definition of a
+``group'' must not simply declare the filled union to be a disk.
+
+\begin{lemma}[The dual outside-anchored cycle]
+\label{lem:outside-grouping}
+\lean{Tilings.Geometry.outsideAnchoredGrouping}
+\uses{def:mesh,lem:regular-grouping}
+Let $Q_1+B_\infty(10D)\subset\operatorname{int}\Omega$ and put
+$K_1=Q_1+B_\infty(3D)$.  There is a polygonal disk $H$, made of complete
+original faces, such that
+\[
+ Q_1+B_\infty(2D)\subset H\subset Q_1+B_\infty(3D).
+\]
+Every edge of $\partial H$ adjoins on its outside a face whose interior
+meets the open exterior of $K_1$.
+\end{lemma}
+
+\begin{proof}
+Let $E$ be the closed exterior of $\Omega$, together with every original
+face whose interior meets the open exterior of $K_1$.  The open exterior
+of $K_1$ is contained in $\operatorname{int}E$, and every selected face
+interior meets it.  Thus $\operatorname{int}E$ is connected.
+
+No selected face can enter $\operatorname{int}(Q_1+B_\infty(2D))$:
+one of its coordinates would have to change by more than its diameter $D$
+between that point and its point outside $K_1$.  Let $H$ be the closure of
+the component of $\mathbb R^2\setminus E$ containing $Q_1$.  This gives
+the lower inclusion.  The open exterior of $K_1$ lies in $E$, giving the
+upper inclusion.  As in the preceding lemma, face interiors belong to
+single complementary components, so $H$ is a union of complete faces.
+
+Its interior is connected by its definition.  The open complement
+$\mathbb R^2\setminus H$ is \emph{not} simply $\operatorname{int}E$: it
+also contains the \emph{pockets}, the other components of
+$\mathbb R^2\setminus E$, which consist of unselected faces.  Each pocket
+borders selected faces across whole edges, so it is joined to
+$\operatorname{int}E$ through those edges, and $\operatorname{int}E$ is
+connected and disjoint from $H$.  Hence $\mathbb R^2\setminus H$ is
+connected and $H$ has no holes.  A pocket face cannot sit across an edge
+of $\partial H$, because the far side of such an edge lies in
+$\operatorname{int}E$.  With connected interior and connected open
+complement, alternating boundary sectors are excluded by the same
+polygonal Jordan argument as before.  Hence $H$ is a polygonal disk.  Each exterior
+boundary edge adjoins a face selected for $E$, proving the outside anchor.
+The margin $10D$ ensures that this face is an original face of the patch
+rather than the artificial unbounded exterior region.
+\end{proof}
+
+The distinction between inside and outside anchors matters.  A cycle lying
+in a thin band around a square may run backwards along the band for a long
+distance.  Its mere Hausdorff proximity to the square does not give a
+uniform diameter bound for sectors between selected endpoints.
+
+\begin{lemma}[Disjoint skeletal spokes]
+\label{lem:annular-spokes}
+\lean{Tilings.Geometry.existsAnnularSpokes}
+\uses{def:mesh,lem:regular-grouping,lem:outside-grouping}
+Let $N\ge2$ and $R$ be sufficiently large compared with $D$.  Take concentric
+squares $Q_0,Q_1$ of side lengths $NR,(N+2)R$ respectively, with the margin
+required above.  Construct $L,H$ by the preceding lemmas.  The annulus
+$H\setminus\operatorname{int}L$ admits $4N$ mutually disjoint simple arcs
+in the original skeleton, each joining $\partial L$ to $\partial H$ and
+meeting those cycles only at its endpoints.  Their endpoints are distinct
+and appear in the same cyclic order on the two cycles.  (The index $j$ of
+the $j$th cut disk is matched with the ideal sector $T_j$ only in the next
+lemma, through the walls: each wall crosses $\partial L$ exactly once, and
+pigeonhole over the ideal wedges fixes the correspondence.)  The components
+obtained by cutting along the arcs are $4N$ polygonal disks consisting of
+complete original faces.  Each has a connected face-dual graph and shares
+one connected nondegenerate arc with $\partial L$.
+\end{lemma}
+
+\begin{proof}
+Mark the $4N$ positions subdividing the four sides of $Q_0$ into intervals
+of length $R$, including the corners.  Draw the radial segments from the
+square centre through these positions to the corresponding positions of
+$K_1=Q_1+B_\infty(3D)$.  In the square annulus, successive radial segments
+have separation at least a universal positive multiple of $R$.  This
+follows by considering a straight side and the two sides adjacent to a
+corner; the homothety factor is $1+2/N+6D/(NR)$.  Extending each segment
+a bounded number of mesh diameters past the two cycles preserves disjoint
+tubes when $R/D$ is sufficiently large.
+
+Follow the finite sequence of original faces crossed by one extended
+segment.  Consecutive faces share a side or vertex, and every face boundary
+is a connected polygonal cycle.  Their boundary graphs form a connected
+finite graph, all of whose edges lie within $D$ of the segment.  It meets
+both $\partial L$ and $\partial H$.  Select a graph path, erase loops,
+and take the part from its last point on $\partial L$ to its first
+subsequent point on $\partial H$.  The part lies in the annulus and has
+no other point on either cycle.  Planarity of the skeleton ensures that
+an edge cannot cross a cycle without meeting it at a vertex.
+
+The separated tubes give disjoint arcs and distinct endpoints.  Disjoint
+arcs joining the two boundary components of an annulus have compatible
+cyclic endpoint order.  Cutting a polygonal annulus along such $4N$ arcs
+gives $4N$ disks, one between each successive pair; this is a direct
+polygonal Jordan argument, or the elementary polygonal annulus theorem.
+All cuts use original edges, so the disks are unions of whole original
+faces.  Their inner boundary arcs have distinct endpoints and positive
+length.  Their face-dual graphs are connected by the generic-path argument
+used in Lemma~\ref{lem:regular-grouping}.
+\end{proof}
+
+\begin{lemma}[Quantitative sector localization and private neighbours]
+\label{lem:quantitative-sector}
+\lean{Tilings.Geometry.quantitativeAnnularGrouping}
+\uses{def:mesh,lem:regular-grouping,lem:outside-grouping,lem:annular-spokes}
+There are finite positive constants $C_{\rm sep},C_{\rm loc},C_{\rm len}$
+and $C_{\rm err}$, independent of $N$, the substitution power, and the
+particular STS patch, with the following property.  For
+$R\ge C_{\rm sep}D$, the cycles and spokes above can be selected so that
+each annular group $S_j$ lies in the $C_{\rm loc}D$ neighbourhood of the
+corresponding ideal radial trapezoid $T_j$.  Along its outer boundary it
+has at least
+\[
+ b(R,D)=\left\lfloor {R\over C_{\rm len}D}\right\rfloor-C_{\rm err}
+\]
+distinct fine edges whose outside neighbouring original faces meet no
+other annular group $S_t$, $t\ne j$.  In particular, after choosing $R$
+so that $b(R,D)\ge K_0+2$, every small group has at least $K_0+2$ ordinary
+marked inner sides and at least three private neighbour occurrences
+relative to every other small group.
+
+There is consequently a constant $C$ independent of $N$ such that
+$\operatorname{diam}S_j\le CR$, and
+\[
+ Q(P,R)=K_0\left\lceil {4C^2R^2\over a}\right\rceil
+\]
+bounds the number of retained sides of every small group.
+\end{lemma}
+
+\begin{proof}
+Translate the common square centre to zero.  Put $A=NR/2$,
+$h=A+R+3D$, and $\lambda=h/A$.  Let $v_j$ be the successive length-$R$
+positions on $\partial Q_0$; the corresponding outer positions are
+$\lambda v_j$ on $\partial K_1$.  Assume $R\ge1000D$.
+
+An inner spoke endpoint $u_j$ satisfies
+$A\le\|u_j\|_\infty\le A+D$ and lies within Euclidean distance $D$
+of the ray through $v_j$.  If $|u_j-tv_j|\le D$, then
+$A-D\le tA\le A+2D$.  Since $|v_j|\le\sqrt2A$,
+\[
+ |u_j-v_j|\le D+2\sqrt2D<4D.
+\]
+The outer endpoint $w_j$ satisfies
+$h-D\le\|w_j\|_\infty\le h$, giving similarly
+$|w_j-\lambda v_j|<4D$.
+
+Use the inside-anchored face at $u_j$ to join it through that face's
+interior to $p_j\in\operatorname{int}Q_0$.  The collar lies in the
+$5D$ ball about $v_j$.  Join $p_j$ radially to zero inside $Q_0$.
+Use the outside-anchored face at $w_j$ to reach
+$q_j\notin K_1$, in the $5D$ ball about $\lambda v_j$; continue its
+radial ray to infinity outside the convex square $K_1$.
+
+These continuations are disjoint.  On a straight side, adjacent ideal
+positions have determinant $AR$.  Perturbations of size at most $5D$
+change it by at most $10\sqrt2AD+25D^2$, strictly less than $AR$.
+The corner cases are rotations of the same estimate.  Applying it also
+throughout the linear perturbation preserves cyclic angular order.
+The endpoint boxes are separated by at least $R-10D$; the other radial
+segments are separated there by at least $R/4$ before perturbation.
+Thus a collar cannot meet another continuation.  Remove any self-loop
+within its own endpoint box.  We obtain proper simple walls $W_j$ from
+zero to infinity, pairwise disjoint except at zero.  In
+$H\setminus\operatorname{int}L$ their portions are precisely the
+skeletal spokes and stay within $5D$ of the ideal radial rays.
+
+Let $T_j$ be the ideal trapezoid between successive radial segments and
+the square boundaries $Q_0,K_1$.  For a point
+$x\in\operatorname{int}K_1\setminus Q_0$ outside the two $5D$ radial
+tubes, truncate $W_j,W_{j+1}$ on a sufficiently large circle and close
+them along that circle.  The resulting polygonal Jordan loop determines
+its wedge.  Deform the core portions inside $Q_0$, straighten the
+annular portions inside their convex radial tubes, and deform the
+exterior portions outside $K_1$.  The three pieces of each wall are glued
+at the two points where the wall crosses $\partial L$ and $\partial H$;
+the three homotopies are chosen to agree at these transition points, so
+they assemble to one homotopy of the whole loop.  The exterior of $K_1$
+is not simply connected, and the exterior deformation is legitimate only
+because the exterior portion of a wall is a collar of diameter at most
+$5D$ followed by a radial ray: it does not wind around $K_1$, so it is
+homotopic, within the exterior of $K_1$ and through curves of increasing
+infinity norm, to the ideal radial ray of the same angular order.  None
+of these homotopies meets $x$.  Winding number is unchanged, so the actual and ideal wedge
+labels agree away from the tubes.  This proves localization there.
+
+If $x$ lies in one of the tubes, clip its nearest radial-line point to
+the segment between infinity norms $A$ and $h$.  The clipping moves it
+by at most $5\sqrt2D$.  Its distance to the corresponding boundary
+segment of $T_j$ is therefore less than
+$(1+\sqrt2)5D<13D$.  Taking closures gives the safe bound
+\[
+ S_j\subset T_j+B(0,20D).
+\]
+This argument does not assume that the square-band cycles have short or
+monotone boundary arcs.
+
+Take the middle half $J$ of the outer edge of $T_j$; its length is
+$\lambda R/2\ge R/2$.  Its distance to every other ideal trapezoid is
+at least $R/(4\sqrt2)$, by the distance to either bordering radial line.
+The inward normal from each $y\in J$ meets $\partial H$ within its
+first $D$ of length: $H$ contains the square with halfside $h-D$ and
+is contained in the square with halfside $h$.  The middle interval is
+at least $R/4$ from the outer corners.  Except at finitely many projected
+vertices the intersection lies in an original fine edge $e$.
+
+That intersection has distance at least
+$R/(4\sqrt2)-21D>D$ from every other $S_t$.  Its outside original
+face, of diameter at most $D$, cannot meet another small group.  Thus
+$e$ is an ordinary marked private edge of $S_j$.  The projections of
+these private edges cover $J$ apart from finitely many points, and each
+has projected length at most $D$.  There are consequently at least
+$|J|/D\ge R/(2D)$ distinct private edge occurrences.  Repeated outside
+neighbour faces do not affect this occurrence count.
+
+We may take $C_{\rm sep}=1000$, $C_{\rm loc}=20$,
+$C_{\rm len}=2$, and $C_{\rm err}=0$.  Since
+$\lambda\le2+3D/R$, each ideal trapezoid has span at most $5R$ along
+its square side and at most $2R$ across it (the roles of the coordinates
+swap for the side sectors), hence diameter less than $6R$.
+Localization gives $\operatorname{diam}S_j\le7R$.  A square of side
+$14R$ contains $S_j$, so disjoint constituent interiors of area at
+least $a$ bound their number by $\lceil196R^2/a\rceil$.
+Thus $Q(P,R)=K_0\lceil196R^2/a\rceil$ is admissible.  Retaining all
+original vertices proves the stated side bound.
+\end{proof}
+
+\begin{lemma}[Inner sector order]
+\label{lem:inner-sector-order}
+\lean{Tilings.Geometry.quantitativeAnnularGrouping_innerOrder}
+\uses{def:mesh,lem:regular-grouping,lem:quantitative-sector}
+Let $N\ge2$, $R\ge1000D$, and let $L$ be the inside-anchored group of $Q_0$
+with $Q_0\subseteq L\subseteq Q_0+B_\infty(D)$, listed counterclockwise
+(winding number $2\pi$ about every interior point).  Let
+$y_1,\dots,y_m\in\partial L$ with $y_k$ in the $20D$-neighbourhood of the
+ideal sector $T_{j_k}$, where $j_1<\dots<j_m$, and with $y_k$ at distance at
+least $50D$ from every other ideal sector $T_t$, $t\ne j_k$.  Then
+$y_1,\dots,y_m$ appear in this cyclic order along the counterclockwise
+boundary parametrization of $L$.
+\end{lemma}
+
+\begin{proof}
+This is the inside-anchored counterpart of the outer order statement in the
+proof of Lemma~\ref{lem:quantitative-sector} (points of $\partial H$ near
+the extended radial segments appear in index order along $\partial H$), and
+the remark before Lemma~\ref{lem:annular-spokes} explains why anchoring is
+needed: a cycle in the band $Q_0+B_\infty(D)\setminus\operatorname{int}Q_0$
+may run backwards along the band for a long distance, so Hausdorff proximity
+to $Q_0$ alone does not order its points.  Join every $y_k$ through its
+inside-anchoring face (a face of $L$ of diameter at most $D$ whose interior
+meets $\operatorname{int}Q_0$) to a point $z_k\in\operatorname{int}Q_0$ with
+$|z_k-y_k|\le D$, and then radially to the centre $c$.  These paths lie in
+$L$, stay within $D$ of the sectors $T_{j_k}$, which are at least $50D$
+apart at the points $y_k$, and meet only at $c$; they cut the disk $L$ into
+$m$ sectors whose boundary arcs between consecutive points $y_k,y_{k+1}$
+contain no other $y_i$.  A boundary parametrization visiting the points out
+of sector order would have to run through the perimeter parameter (the
+radial projection to $\partial Q_0$) backwards by at least one sector gap,
+which the winding separators of the outer order argument, transplanted to
+the inner band with the radial escape paths above in place of the
+outside-anchored escape faces, exclude; a parametrization running clockwise
+contradicts the winding number $2\pi$ of the counterclockwise listing.  The
+constants are those of the Lean statement: $20D$ localization, $50D$
+separation, $R\ge1000D$.
+\end{proof}
+
+Choose $R$ using that lemma before choosing $N$.  Then choose $N\ge2$ with
+$4N>3Q(P,R)$.  Only afterwards choose $k$ so that every $\tau^k$-macrotile
+contains the required squares and margin.  Each original polygon has a
+chosen interior ball of positive radius; scaling that ball suffices, even
+for a nonconvex polygon.  There is no circular dependence of $Q$ on $N$.
+
+Apply the grouping independently to the finitely many fixed patches
+$\tau^k\alpha$, $\alpha\in P$.  Their finitely many resulting labelled
+groups form $P'$.  This argument needs no claim that arbitrary patches have
+only finitely many geometric neighbourhoods.  Such a claim is needed later
+for FLC clones and must follow separately from
+Lemma~\ref{lem:crown-cover-supertile}, whose proof is independent of routing.
+
+\begin{definition}[Finite geometric macrocertificate]
+\label{def:certificate}
+\lean{Tilings.Geometry.MacroCertificate}
+\uses{def:polygon,def:protoset,def:placed,def:substitution,def:sts,def:mesh}
+A macrocertificate consists of finite form and type sets, a finite
+side-to-side polygonal template for each form, and the following explicit
+finite data and properties.
+\begin{enumerate}
+\item[(G1)] Every template covers the scaled parent disk, has connected
+full inner-side dual graph, and has at least three children.  Every type
+has an inner side.  Type tags of different templates are disjoint.
+Each internal template edge has its own unique interface identifier,
+carried by both incident owners; an inner side is carried by exactly two
+children of its template (the side and its partner occurrence).  It records the template, the two type
+tags, their incident declared-side slots, and their relative placement;
+different interfaces between the same two types remain distinguishable.
+In the decorated implementation the identity is
+stored in the first component except on a print, where it is stored in
+the fifth component.  A special side which is not a print still uses the
+first component; specialness alone does not move identity to the fifth.
+\item[(G2)] The boundary belt graph is connected.  Its vertices are
+\emph{all} types having a vertex on the macroboundary, including types
+touching it only at a vertex.  Its edges are inner sides having an endpoint
+on the macroboundary.  Each boundary-belt type has such an edge.  The
+central child has neither outer nor boundary sides.
+\item[(G3)] For each parent declared side, take the ordered list of whole
+fine outer sides contained strictly inside its scaled side interval.
+At most two fine sides are omitted for crossing its endpoints.  There
+are five distinct ports in this list, chosen by a fixed interior-quantile
+convention.  Ranks and port numbers are counted in one global positive
+direction fixed for each unoriented supporting-line direction, never in
+the boundary traversal order of the owner: the quantiles
+$\lceil iL/6\rceil$ are not symmetric under reversal (for $L=12$ they are
+$2,4,6,8,10$ one way and $11,9,7,5,3$ the other), and the properness
+lemma needs port $i$ of a side to face port $i$ of the coincident
+opposing side.  Since only translations act, both owners of a coincident
+side compute the same direction.  Full matching of a parent declared
+interval and its fine tiling then induces identical contained lists and
+port numbers.  A parent
+dummy endpoint may lie inside a fine child side: no nested subdivision
+or hereditary-cut assumption is made.  The finite template also records
+the interval intersections with each parent declared side and with the
+declared boundary partitions at all required intermediate levels.
+Their exact endpoint/frame encoding and matching implications are proved
+in the boundary-transport chapter; scalar ordinal ranks alone do not
+establish them for arbitrary collinear dummy vertices.
+\item[(G4)] Marked parent sides have distinct central prints in cyclic
+order.  Cyclic order is the index order of the listed sides, which agrees
+with the planar order only when all listed polygons are traversed in the
+same rotational sense; the certificate therefore lists \emph{every} form
+of its alphabet, the original singleton forms included, counterclockwise
+(an original form whose given listing is clockwise is relisted; this
+changes side indices but no carrier, side set or scattering).  For every marked side $d$ there are four paths $P_i(d)$ from port
+$i$ to its print.  Every side occurrence is used by at most one path,
+except the terminal print in either of its two incident owners.  Thus
+the central and small owners of that same print are both exempt at the
+shared terminal side.  Every path uses marked sides only.  \emph{A path is a sequence of geometric sides, so a genuine path contains both occurrences (both owners) of every inner side it crosses}, the terminal print excepted: the path records the print in its small owner only.  Without this clause the third cell $A_i(d)$ would sit on one occurrence of a crossed side and $0$ on its partner, and the lifting theorem fails for the same reason as below (found by Aristotle, 12 October 2026).  \emph{Every
+side of a genuine path other than its initial port is an inner side of the
+template}: a path never passes through an outer side of another macroside.
+Without this clause the lifting theorem fails, because a path crossing an
+outer side $b$ of an adjacent macroside would put a nonzero parent signal
+into the third cell of $b$ while the coincident side of the neighbouring
+block, lying on no path, carries zero.  The only central side on a genuine
+path is its final print.  In its small owner the print is the unique
+special side of that owner (the one side of a small type whose cells are
+copied from the parent; this is the exception allowed in (G6)).  Its preceding
+side is an ordinary side of the small child sharing that print.  The
+fifth path and all five paths of unmarked parent sides are singleton
+ports, disjoint from genuine paths.  This is a finite routing certificate.
+\item[(G5)] There is a unique large central child and all other forms are
+original or small.  The central-form map fixes every retained large form.
+For a large parent the print map is the identity on its marked sides.
+There are $L=4N$ marked central sides, at most $Q$ marked sides on a
+noncentral form, and $L>3Q$.  Every original type has a marked inner side.
+\item[(G6)] Noncentral fingerprints distinguish types.  For an original
+type its fingerprint is the multiset of type components of its ordinary
+inner-side identity pairs.  For a small type use its ordinary marked-side
+identity pairs and allow at most two further type components from its
+unique special side, which is an inner side (the side shared with the
+central child).  The possible fingerprint multisets for two
+distinct noncentral types are disjoint.  This is a finite separating
+property, not an assertion that a composed decorated tile already exists.
+\item[(G7)] Marking discipline.  Every outer side, every boundary side
+(inner side with an endpoint on the macroboundary), every print, and every
+side occurring on a genuine path is marked.  Consequently an unmarked side
+is an inner, nonprint, nonboundary side lying on no path; in the
+construction these are exactly the sides shared by the central child and
+its ring other than the prints.  This condition is what makes the
+``local cells'' of Definition~\ref{def:control/typed-decoration} genuinely
+type-determined: without it an unmarked boundary side, whose fourth cell
+is the parent header, or an unmarked path side, whose third cell is a
+parent signal, would carry a parent-dependent value declared local, which
+is the error type of the source article.  The paper's own instantiation
+satisfies (G7), since it marks every side not belonging to a large
+quasi-square.
+\end{enumerate}
+\end{definition}
+
+The certificate does \emph{not} assume the final soficity statement,
+existence of a coloured composition, or a matching-rule system with the
+desired language.  These are the conclusions proved from the finite data
+in the combinatorial chapter.  Conversely, the final geometric theorem
+must construct the certificate from the hypotheses on $\tau$; accepting
+the certificate as an unproved input would only prove a conditional core.
+
+\begin{lemma}[A finite sufficient fingerprint criterion]
+\label{lem:fingerprint}
+\lean{Tilings.Geometry.fingerprintSeparation}
+\uses{def:certificate,lem:quantitative-sector}
+Suppose (G1) holds, every original form has at most $K_0$ sides, every small
+type has at least $K_0+2$ ordinary marked inner sides and one special side,
+and, for each pair of distinct small types in one template, the first has
+at least three ordinary marked-side occurrences adjacent to original
+types which are not ordinary marked-side neighbours of the second.
+Then (G6) holds.
+\end{lemma}
+
+\begin{proof}
+An original fingerprint has at most $2K_0$ components.  A small fingerprint
+has at least $2(K_0+2)$ components before its special contribution.  Thus
+an original and a small type cannot have equal fingerprints.
+
+Ordinary components of types in different templates lie in disjoint tag
+sets.  Every original fingerprint is nonempty.  A small type has more
+than two ordinary components, whereas another template can supply at most
+two such foreign components through its special side.  This separates
+types in different templates.
+
+Consider two original types $u,v$ in one template.  In the fingerprint of
+$u$, the multiplicity of $u$ is its inner-side degree, and the multiplicity
+of $v$ is the number of its sides adjacent to $v$.  Equal fingerprints
+force both degrees to equal the number of $u$--$v$ sides.  All their inner
+sides therefore join them to one another.  They form a two-vertex connected
+component, contradicting (G1).
+
+For two distinct small types in one template, count the three private
+original-neighbour occurrences of the first.  None occurs in the ordinary
+fingerprint of the second.  Its special side can add at most two type
+components, so it cannot supply all three.  Repeated occurrences of the
+same private neighbour are allowed: the argument is about multiset
+multiplicity, not distinct neighbour names.  The fingerprints differ.
+\end{proof}
+
+\begin{lemma}[Wide routing after a sufficiently large power]
+\label{lem:routing}
+\lean{Tilings.Geometry.existsRoutingAfterPower}
+\uses{def:mesh,def:certificate,lem:quantitative-sector,lem:finite-idempotent}
+For the finite grouped family $P'$ constructed above, extend the grouped
+substitution $\sigma$ to every group by scattering its original
+constituents and applying $\sigma$ to them.  Choose central children as
+in the paper and let $c:P'\to P'$ be their form map.  There is an
+arbitrarily large power exponent $l$ with $c^{2l}=c^l$ such that, after
+retaining the chosen central child and its annular small neighbours and
+scattering all other groups in each $\sigma^l$-template, the finite data
+required by (G4) exist; the print of every marked parent side is one of the
+$4N$ designated marked sides of the central form (the side it shares with one
+annular piece), distinct prints on distinct pieces, in cyclic and planar
+matching order with the marked parent sides, and the identity on a large
+parent.  The setup also records the sector localization of the annular
+pieces (Lemma~\ref{lem:quantitative-sector}) and the piece of every print;
+the pieces of the prints of the marked sides are pairwise distinct and in
+the cyclic order of the marked sides (Lemma~\ref{lem:inner-sector-order},
+applied in the construction of Lemma~\ref{lem:certificate-exists}).  The
+input is the annular structure of the retained
+templates from Lemma~\ref{lem:quantitative-sector}: the central child is the
+inside-anchored group $L$, the small neighbours are the $4N$ annular groups
+between $L$ and the outside-anchored group $H$ (so every private outer edge
+adjoins a face reaching the exterior of $K_1$), $R\ge10000(K_0+3)D$, and
+every annular group has four private outer edges in separated windows,
+pairwise at distance at least $R/10$; all grouped disks are listed
+counterclockwise (as in the construction of
+Lemma~\ref{lem:certificate-exists}), so that the polygon loop of a parent
+is the positively oriented boundary parametrization used in the
+matching-order clauses.  Without the anchoring, the private
+faces of a small neighbour could lie in cavities closed off by fewer than
+four sides, and the four disjoint paths cannot exist.
+\end{lemma}
+
+\begin{proof}
+The finite idempotence lemma permits arbitrarily large suitable $l$.
+The final chosen centre lies inside the scaled first-generation central
+child.  That first-generation child is strictly inside its parent
+template.  The finitely many parent templates have a positive minimum
+clearance.  After normalizing a $\sigma^l$-template by its expansion
+$s=\theta^{kl}$, its central positions consequently lie in a fixed compact
+set $K_A\subset\operatorname{int}A$, uniformly over $l$.
+For the finite parent catalogue put
+\[
+ \rho=\min_A\operatorname{dist}(K_A,\partial A)>0.
+\]
+This handles the moving centre without assuming convergence or convexity.
+
+Outside the retained central annulus every child is an original tile,
+so the mesh remains $D$ and every fine outer side has length in
+$[\gamma,D]$.  A scaled parent declared side of length $s\ell$ contains
+an ordered list of whole fine sides of cardinality
+$L\ge s\ell/D-2$: only the at most two sides crossing its endpoints
+are omitted.  Choose five ports by the sixth-quantiles
+$\lceil iL/6\rceil$, $i=1,\ldots,5$, for sufficiently large $L$.
+Their separation from one another and from the ends is bounded below by
+\[
+ \gamma\bigl(\lfloor L/6\rfloor-1\bigr)-D.
+\]
+After normalization this gives a positive lower bound depending only on
+the finite parent catalogue.  Closed portions of different sides away
+from their endpoints also have positive mutual Euclidean separation:
+they are disjoint compact subsets of a simple polygonal boundary.
+Thus all realized genuine port tuples belong to a compact set of ordered
+boundary configurations with uniform separation, including separation
+from every other designated or singleton port.  No dummy endpoint is
+assumed to be a fine child vertex.
+
+In each selected small group's middle outer interval, choose four
+separated windows, for example at relative parameters
+$0.30,0.43,0.57,0.70$, and use the projection argument of
+Lemma~\ref{lem:quantitative-sector} to choose a private fine edge in
+each window.  Let $p_i$ be its midpoint.  Its outside-anchored original
+face contains a point $q_i$ outside $K_1$; join $p_i$ to $q_i$ through
+that face.  This collar has diameter at most $D$.  The windows are
+separated by a fixed multiple of $R$, so the four faces are distinct.
+Taking $R\ge10000(K_0+3)D$ makes all these collars and radial rays from
+$q_i$ to infinity separated by more than $10D$ outside $K_1$.
+The rays remain outside $H$.  These choices are fixed for the finitely
+many central annulus catalogues.  Reverse the four entrance labels
+where the port numbering is opposite to counterclockwise boundary order;
+the paired lists then have the same cyclic order.
+
+For a normalized centre $z\in K_A$, take the intermediate square
+$C_z=z+[-\rho/4,\rho/4]^2$.  Its circumradius is less than $\rho/2$,
+so it lies strictly in $A$.  Each fixed radial direction meets its
+boundary at a point $b_i(z)$.  Consider the polygonal annulus
+$A\setminus\operatorname{int}C_z$.  Its ordered outer port points and
+inner points $b_i(z)$ admit disjoint simple polygonal arcs.  To prove this
+classical helper, cut the annulus along a polygonal crosscut, apply the
+piecewise-linear disk theorem, and route ordered lines in the resulting
+strip.  Explicitly: for nested simple closed polygons $C\subset\operatorname{int}A$
+there is a continuous map $\Psi\colon[0,1]\times\mathbb R\to A\setminus\operatorname{int}C$,
+$1$-periodic in the second coordinate and injective on $[0,1]\times[0,1)$,
+sending $\{0\}\times\mathbb R$ onto $\partial A$ and $\{1\}\times\mathbb R$ onto
+$\partial C$ as loop parametrizations and $(0,1)\times\mathbb R$ onto
+$\operatorname{int}A\setminus C$.  It is obtained from the polygonal disk
+theorem (ear decomposition of a simple polygon, gluing of disk models along
+a diagonal, Alexander-trick boundary reparametrization) applied to the
+annulus cut open along one crosscut, by identifying the two copies of the
+crosscut; the strip $[0,1]\times[0,1]$ is the cut-annulus model.  The
+entrance points and directions below are not a finite catalogue fixed in
+advance: the routing statement is uniform over \emph{all} admissible
+entrance data, so the compactification argument must include, besides the
+normalized centre and the whole port segments, the radial entrance
+directions, and the cyclic order of the entrance pieces must be derived
+from the planar order of the prints on the contact arcs (the
+\texttt{print\_order} datum), not from their indices.  Concretely, the
+setup records the piece of every print, and these pieces are in the cyclic
+order of the marked sides (Lemma~\ref{lem:inner-sector-order}); every
+entrance point lies within $21D$ of the ideal sector of its piece (the
+sector localization of Lemma~\ref{lem:quantitative-sector} plus one face of
+diameter at most $D$) and outside $K_1$, and entrance points of distinct
+marked sides are at least $R/10$ apart, so the radial directions of the
+entrances of distinct marked sides are in the cyclic order of the sides
+(entrances of adjacent sectors cannot cross their common ray: two points
+outside $K_1$ within $21D$ of that ray and of $\partial K_1$ are within
+$100D<R/10$ of each other); the four entrances of one marked side are
+relabelled so that their radial order matches the port order.  Short disjoint inward-normal outer collars and outward-radial
+inner collars can be prescribed first: remove thin attached fingers
+around them, route between their tips in the remaining annulus, and
+concatenate.  This does not require $A$ to be star shaped.
+
+For one parameter tuple the compact arcs have positive mutual distance
+and positive distance from the annulus boundary off these endpoint
+collars.  We now prove local stability of these bounds.  A small movement
+of a port along its open side is realized in a local rectangle by a PL
+slide $(t,n)\mapsto(t+\delta\psi(t,n),n)$, with $\psi=1$ on its
+collar and zero at the rectangle boundary.  If
+$|\delta|\operatorname{Lip}\psi<1/2$, this is bi-Lipschitz and
+preserves the parent disk and the straight normal collar.  The supports
+for different ports are disjoint and avoid the central region.
+
+A small change $z\mapsto z'$ is realized by
+\[
+ H(x)=x+\phi(x)(z'-z),
+\]
+where a PL bump $\phi$ is one on $B(z,\rho/2)$ and zero outside
+$B(z,3\rho/4)$.  The support lies in $\operatorname{int}A$.  Fix the
+normalized collar length $\kappa<\rho/4$ once and for all; then the slide
+rectangles at the outer ports and the bump support $B(z,3\rho/4)$ are
+disjoint from each other and from the outer collars, so the bump fixes
+every outer collar and each slide fixes the inner square.
+For $|z'-z|\operatorname{Lip}\phi<1/2$, the lower Lipschitz bound
+gives injectivity and the contraction equation
+$x=y-\phi(x)(z'-z)$ gives surjectivity.  Thus $H$ is a bi-Lipschitz
+homeomorphism, translates $C_z$ and its short radial collars exactly,
+and fixes $\partial A$.  Compose these maps and shrink the parameter
+neighbourhood so the total distortion is at most two.  The old routes
+then give routes for every nearby tuple with at least half the old
+clearance and the required straight collars.
+
+The centre and port parameter space is compact and there are only
+finitely many parent, annulus, and pairing patterns.  Routes are built,
+and the local stability argument is applied, for every parameter in the
+\emph{closure} of the set of realized tuples, not only for realized ones;
+this is legitimate because the separation bounds defining the parameter
+space are closed conditions, and it is needed because a finite subcover
+is taken of that compact closure.  The subcover therefore gives a uniform
+$c_0>0$ for mutual and off-collar boundary clearance in normalized
+coordinates.  Choose $l$ larger, still with
+$c^{2l}=c^l$, so that $c_0s>100D$ and the physical intermediate square
+contains the fixed central annulus.  Join each inner radial ray at its
+intermediate-square endpoint to the outer PL route, whose initial
+inner collar has the same radial direction.  The two portions meet
+only at that endpoint, since one is inside the square and the other
+outside it.  Different radial portions are separated by a multiple of
+$R$; different outer portions by a multiple of $s$.  Mixed pairs are
+also separated: middle outer portions stay $c_0s$ from the whole square,
+and distinct endpoint collars are separated from the other rays by the
+finite direction separation scaled by $s$.
+
+The first $O(D)$ part of an outer normal collar crosses only faces in
+an $O(D)$ ball about its own port, which contains no other port tile.
+Afterwards it is more than $D$ from the parent boundary.  The collar may
+cross several ordinary original faces; it need not remain in its own
+port face.  It avoids every other designated and singleton port tile,
+which is the condition actually required.
+
+Finally perturb the routes away from the finite original vertices and
+list their crossed faces.  Consecutive faces share whole sides.  Erase
+repeated-face loops while preserving the first port face and final
+outside-anchored face.  Begin the resulting side sequence with the
+port, end it with the private entry edge, and append the print.  The
+entry and print belong to the same small group, hence are consecutive
+sides of a path in the paper's exact sense.  Different routes cannot
+cross the same original face: their $D$ tubes are disjoint away from
+the collars, their inner collar faces are distinct, and their outer
+collar balls are separated.  Thus every nonterminal side occurrence
+is used at most once.  The shared terminal print is exempt in both
+its central and small owners.  No central side is met earlier.
+All traversed original sides, small entry sides, and prints are marked.
+Every singleton port path remains disjoint from the genuine routes.
+\end{proof}
+
+\begin{lemma}[Construction of the geometric macrocertificate]
+\label{lem:certificate-exists}
+\lean{Tilings.Geometry.existsMacroCertificate}
+\uses{def:substitution,def:sts,def:certificate,lem:regular-grouping,lem:outside-grouping,lem:annular-spokes,lem:quantitative-sector,lem:fingerprint,lem:routing,lem:finite-idempotent,lem:inner-sector-order}
+For every STS polygonal substitution $\tau$, there are a finite grouped
+family $P'$, a scattering map $\Delta$, an integer $m>0$, and a grouped
+substitution $\sigma'$ satisfying
+\[
+ \Delta\sigma'\alpha=\tau^m\Delta\alpha
+ \quad\hbox{for all }\alpha\in P',
+\]
+together with a macrocertificate (G1)--(G7).  The grouped family contains
+every original form as a singleton group and every group is a group of tiles
+of a supertile (the hypotheses of
+Lemma~\ref{lem:grouping-lift}), and when $\tau$ has hereditary listed
+sides so has $\sigma'$.
+\end{lemma}
+
+\begin{proof}
+Choose $R$, then $Q$, then $N$, then $k$ in the noncircular order described
+above.  Group each fixed $\tau^k\alpha$ by the inside/outside cycles and
+the spokes.  Keep the finite labelled groups in $P'$.  Their supports are
+disks and their constituent dual graphs are connected.  Scattering a group
+and applying the grouped substitution to each constituent defines $\sigma$
+and gives $\Delta\sigma=\tau^k\Delta$.
+
+\emph{Step 3 (the routing setup).}  For every grouped form $\alpha$ the
+template $\sigma\alpha$ is the regrouping of $\tau^k\Delta\alpha$: each
+constituent $q\in\Delta\alpha$ contributes the translated groups of its
+supertile $\tau^kq$ (its $L_q$, its $4N$ annular pieces, singletons).  The
+\emph{central child} $c(\alpha)$ of $\sigma\alpha$ is the group $L_q$ of the
+constituent $q$ whose centre $z_q$ is nearest to the centre of $\alpha$; thus
+$c$ maps grouped forms to large catalogue forms $L_p$.  For a power $l$ the
+retained template of $\alpha$ keeps, inside $\sigma^l\alpha$, only the
+central chain $c^l(\alpha)$ (the central child of the central child, $l$
+times) and its $4N$ annular neighbours, and scatters every other group into
+original tiles.  Its annulus is a translate of the catalogue annulus of one
+original supertile, so the quantitative data ($N$, $R$, the four separated
+windows of every piece, the private-edge count) are those of the grouping
+step.  The clearance of the central child grows geometrically along the
+central chain: at each step the chosen centre lies in the square of
+Lemma~\ref{lem:quantitative-sector} with its margin, strictly inside the
+scaled parent, so after normalization by $\theta^{kl}$ the central child
+stays at a positive distance $\rho$ from the boundary of the retained region,
+uniformly in $l$ and $\alpha$ (a geometric series with ratio $\theta^{-k}$).
+The marked sides are fixed by the marking rule: every side of a form that is
+not a central image is marked; a large form $L_p$ has exactly $4N$ marked
+sides, the side it shares with each of the $4N$ annular pieces (one per
+piece; these are whole sides of $L_p$ by the whole-side property of groups).
+The print slots of $\alpha$ send its marked sides injectively to contact
+sides of the central child, preserving cyclic order and in planar matching
+order with the marked sides (both disks are listed counterclockwise, and an
+order-preserving injection between two cyclically ordered boundary families
+is in matching cyclic order in the annulus between them); this is possible
+because a non-large form has at most $Q<4N/3$ sides while the centre has $4N$
+contact sides, and for a large parent $\alpha=c^l\beta$ the print map is the
+identity (its $4N$ marked sides are its own contact sides).  The prints
+are chosen sector by sector: for the marked sides $a_1<\dots<a_m$ in index
+order take distinct pieces $j_1<\dots<j_m$ (all $4N$ pieces for a large
+parent) and for each $j_k$ the contact side of the central child met by the
+ray from the centre through the middle of the sector $T_{j_k}$; by the
+sector localization the face across that side lies in the piece $j_k$, so
+the piece map preserves cyclic order by construction, and by
+Lemma~\ref{lem:inner-sector-order} these sides occur counterclockwise in
+the order of the sectors, so the print map preserves cyclic order as well;
+the sector localization itself is retained from
+Lemma~\ref{lem:quantitative-sector}.
+
+\emph{Step 3$'$ (the routed power).}  Lemma~\ref{lem:routing} applied to this
+setup gives $l>0$ with $c^{2l}=c^l$ (Lemma~\ref{lem:finite-idempotent}) and
+routing data for every retained template at the power $l$.  Keep only central
+large forms in $\operatorname{im}c^l$.  For a retained large form
+$\alpha=c^l\beta$, $c^l\alpha=c^{2l}\beta=c^l\beta=\alpha$.  Thus the central
+form is fixed.  Put $m=kl$ and call the resulting substitution $\sigma'$.
+Scattering commutes with its decomposition, proving the displayed
+compatibility.
+
+\emph{Step 4 (the finite certificate data).}  The forms of the certificate
+are the retained catalogue tiles (the central chain forms, the annular
+pieces, and the original singletons), each with its disk relisted
+counterclockwise and translated to the origin.  The types are the positioned
+children of the retained templates; the owner of a type is its template and
+its anchor is its position.  A type is large, small or original according as
+its form is a central image, an annular piece or an original singleton.  The
+partner of an inner side occurrence is the other occurrence of the same
+geometric side in the same template (templates are side-to-side, so an inner
+side has exactly two owners, Step 5); the interface identifier of an inner
+side is its unordered pair of occurrences, with the two type tags recorded in
+a fixed order.  Marking follows the marking rule of Step 3 through the parent
+sides.  The special side of a small type is its designated contact side with
+the central child: the print when the type receives one (prints land on
+distinct pieces), an arbitrary fixed contact side otherwise.  The print of a
+marked parent side is the routing's print slot.  The outer list of a parent
+declared side is the list of whole outer fine sides of the template contained
+in the scaled side, without repetition, in the lexicographically positive
+direction of the supporting line.  The genuine paths are the occurrence
+chains of the routed side lists: for a routed side list $e_0$ (the port),
+$e_1,\dots,e_r$ (the print) with crossed children $X_0,\dots,X_{r-1}$ the
+chain is $(X_0,e_0),(X_0,e_1),(X_1,e_1),(X_1,e_2),\dots,(X_{r-1},e_r)$: both
+occurrences of every crossed inner side, the print in its small owner only;
+its side projection with consecutive repetitions removed is the routed list.
+The fifth path and all paths of unmarked sides are singleton ports.  The
+chains inherit from the routing data that every side after the port is
+inner, that every side is marked, that no central side occurs before the
+print, that the side before the print is an ordinary side of the small
+owner, that no occurrence repeats, and that distinct paths share only the
+terminal print in either owner.  The central child of a template is owned
+by that template; the mixed form of a type's child is the catalogue form of
+its own form; each mixed form has one catalogue entry; and the relabelling
+between the counterclockwise listing of a certificate disk and the listing
+of its grouped disk is a bijection of side indices.  The
+constants are $N$ and $Q$ as chosen, and the rank bound is the largest outer
+list length.  This data represents $\tau$ at the power $m$: $\Delta\sigma'=
+\tau^{kl}\Delta$ because scattering commutes with the retained/scattered rule;
+the dissections are side-to-side with connected duals, whole sides and
+retained vertices because they are catalogue groups; every original form is a
+singleton; every group lies in a supertile; heredity transfers.  The retained
+templates are side-to-side because scattering a group of a side-to-side patch
+along whole sides preserves the side-to-side property.
+
+\emph{Step 5 (G1).}  Disk cellulations with at least the centre and its ring
+have connected inner-side duals and at least three children.  Every child has
+an inner side: a child whose sides are all outer is the whole template.  An
+inner side has exactly two owners, because the template is side-to-side and
+three polygons with disjoint interiors cannot share a whole segment.  The
+partner and identifier clauses are the definitions of Step 4.
+
+\emph{Step 6 (G2).}  Around the macroboundary, consecutive boundary faces are
+connected through the finite fan at each boundary vertex.  Its connecting
+edges are precisely inner sides with an endpoint on that boundary.  Faces
+touching the boundary only at a vertex must be included in this fan.  Every
+boundary type has such an inner edge because it is not the whole macrotile.
+The retained centre is strictly interior, by the clearance of Step 3.
+
+\emph{Step 7 (G3).}  The lexicographic order is a global positive
+orientation.  The finite boundary interval intersections give the outer
+lists; at most two fine sides are omitted for crossing the endpoints of a
+scaled side (Lemma~\ref{lem:whole-ports}); each list has at least five
+entries because the five ports of the routing are distinct entries of it
+(they are the quantiles of this very list); the lists are bounded by the rank
+bound.  Ranks and ports are numbered in the global supporting-line direction,
+as (G3) requires.  No nested-cut assumption is used.  The exact matching
+implications of the endpoint/frame schedules are proved separately in the
+boundary-transport chapter.
+
+\emph{Step 8 (G4).}  The print map is the routing's print slot map: injective
+and cyclic-order preserving on the marked sides, with inner prints whose other
+owner is a small child, where the print is the special side.  The occurrence
+chains of Step 4 inherit from the routing that every side after the port is
+inner, that every side is marked (sides of non-large children and prints),
+that no central side occurs before the print, that the side before the print
+is an ordinary side of the small owner (the entry edge and the print belong
+to the same small group), that no occurrence repeats, and that distinct paths
+share only the terminal print in either owner (their crossed faces are
+distinct).
+
+\emph{Step 9 (G5).}  The central child belongs to its template and is its
+unique large child.  For a retained large form $\alpha=c^l\beta$,
+$c^l\alpha=\alpha$, so the central form is fixed and the print map is the
+identity on its marked sides (the central child has the parent's own disk).
+A large form has exactly $4N$ marked sides (Step 3); a non-large form has at
+most $Q$ marked sides, because all its sides are marked and an annular piece
+has at most $Q$ sides (Lemma~\ref{lem:quantitative-sector}) while an original
+tile has at most $K_0\le Q$ sides; $4N>3Q$ by the choice of $N$.  Every
+original type has a marked inner side: all its sides are marked and it has an
+inner side (Step 5).
+
+\emph{Step 10 (G6).}  The special sides are those of Step 4: inner, shared
+with the centre, unique per small type.  Every small type has at least
+$K_0+2$ private outer edges (Lemma~\ref{lem:quantitative-sector}), so the
+private-neighbour estimate and Lemma~\ref{lem:fingerprint} give the
+disjointness of the possible fingerprint multisets of distinct noncentral
+types.
+
+\emph{Step 11 (G7).}  The marking rule ``every side not belonging to the large
+central group, plus the prints'' gives (G7): outer and boundary sides belong
+to non-large children (the centre is strictly interior), prints are marked,
+and every occurrence on a genuine path lies in a non-large child, since no
+central side is met before the print.
+
+This constructs the finite geometric certificate.  Neither a coloured
+composition theorem nor the final soficity conclusion has been assumed.
+All Lean implementations, including the classical polygonal topology
+helpers used in this chapter, remain unverified.
+\end{proof}
+
+\paragraph{Why a citation to an earlier matching-rule theorem is insufficient.}
+Fernique--Ollinger's theorem assumes a \emph{good} combinatorial
+substitution; its connecting condition is the very information-routing
+condition at issue here.  The implication from arbitrary planar STS data
+to that condition must still be proved.  Goodman--Strauss assumes
+hereditary sides and sibling-side-to-side conditions, and directly treats
+substitution tilings.  Using it as an alternate route requires verification
+of those exact hypotheses and a proved theorem supporting the hierarchical
+variant as well.  Neither a bibliographic citation nor an unproved Lean
+axiom supplies these constructions or their Lean implementations.
+
+\paragraph{Triangulation is not an unproved refinement reduction.}
+The suggested polygonal triangulation is only an auxiliary tool in the
+continuous wide-routing proof.  Replacing prototiles by triangles would
+require a separate finite substitution-compatible refinement and a proof
+of projection equivalence for both substitution and hierarchical tilings.
+No such reduction is assumed here.

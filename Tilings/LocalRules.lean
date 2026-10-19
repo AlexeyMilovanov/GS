@@ -3,15 +3,15 @@ import Tilings.Control.Composition
 import Tilings.Control.Strict
 
 /-!
-# Local-rule transfers and the hereditary STS core (statements only)
+# Local-rule transfers and the hereditary STS core
 
-Skeleton for `main.tex`: finite collar conversion (`lem:collar-conversion`),
+Formalization of the part of `main.tex` that assembles the principal theorems: finite collar conversion (`lem:collar-conversion`),
 dissection and glue colours (`lem:glues`), the compatible grouped hierarchy
 lift (`lem:grouping-lift`) and the hereditary STS core theorems
 (`thm:hereditary-substitution`, `thm:hereditary-hierarchy`).
 
-The five principal theorems themselves are stated in `Tilings/Main.lean`.
-All proofs are `sorry`.
+The five principal theorems themselves are stated and proved in `Tilings/Main.lean`.
+All proofs in this file are complete (no `sorry`).
 -/
 
 open Set Pointwise
@@ -16662,11 +16662,9 @@ private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_ste
 genuine crown vectors along the hierarchy.  If `Z` is the child of type `t` of the tile `Y` of the
 next level, the genuine crown vector of `Z` is the child vector `F_t(γ_Y)` of the genuine crown
 vector of `Y`.  This is exactly the statement of
-`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2_gamma_child`, whose proof (in
-the decomposition of `step10b_founded_cell_lift`) currently relies on that decomposition's
-still-`sorry` helper `..._step2a_touching_tile`; it is restated here so that the only `sorry`s
-below the target are the new helpers.  Once `..._step2a_touching_tile` is proved, this helper is
-discharged by `step2_gamma_child`. -/
+`hereditary_sts_substitution_sofic_step10b_founded_cell_lift_step2_gamma_child`; it was restated
+here while that decomposition was still open, so that the two parts could be proved
+independently.  Both are now proved. -/
 private lemma hereditary_sts_substitution_sofic_step10c_source_pair_geometry_step14a_gamma_child
     (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
     (hC : C.Represents τ m) (T : PlaneTiling P)

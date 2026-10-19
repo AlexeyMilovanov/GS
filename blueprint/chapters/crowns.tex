@@ -1,0 +1,442 @@
+\section{A corrected uniform crown-cover lemma}
+\label{sec:corrected-crowns}
+
+This section gives an ordinary mathematical proof of the uniform
+crown-cover statement used in the FLC reduction.  All Lean declarations
+attached to the nodes below are planned declarations.  None of these nodes
+is marked as formally proved.  The proof uses full pointed crowns, including
+incomplete crowns on supertile boundaries, and replaces both problematic
+estimates in the Appendix: the endpoint estimate by a minimal prototile side
+length, and the sine of an exterior angle exceeding $\pi$.
+
+Throughout, polygons are compact simple polygonal disks with nonempty
+interior, positive-length edges, and carrier equal to the closure of their
+interior.  They may be nonconvex.  All distances and diameters are Euclidean.
+Write $B(v,r)$ for the open ball of radius $r$ about $v$.
+
+\begin{definition}[Pointed crown catalogue and sectors]
+\label{def:crown-sector}
+\lean{Tilings.Crowns.pointedCatalogue}
+\uses{def:polygon,def:protoset,def:placed,def:tiling,def:crown,def:flc}
+A \emph{full pointed crown} at a tile vertex $v$ consists of $v$ together
+with every tile whose closed carrier contains $v$.  Fix a finite catalogue
+$\mathcal C$ of such pointed configurations, up to translation.  Every crown
+to which the following results are applied must occur in this catalogue.
+For supertiles the catalogue includes incomplete boundary crowns, rather
+than only complete crowns from plane tilings.
+
+If a polygon $A$ contains $v$, let $T_vA$ be its closed local tangent cone:
+the whole plane when $v$ is an interior point, its inward halfplane when
+$v$ lies strictly inside a straight boundary edge, and its interior wedge
+when $v$ is a genuine corner.  Collinear listed vertices use the halfplane
+case.  For a pointed crown $K$ set
+\[
+  \Omega(K)=\bigcup_{A\in K}T_vA,
+  \qquad \operatorname{Sec}(K,r)=B(v,r)\cap\Omega(K).
+\]
+The union here includes tiles for which the centre $v$ lies on an edge
+rather than at one of their own listed vertices.
+\end{definition}
+
+\begin{lemma}[Local polygon cones]
+\label{lem:polygon-local-cone}
+\lean{Tilings.Crowns.polygonLocalCone}
+\uses{def:polygon,def:placed,def:crown-sector}
+For every polygon $A$ and every $v\in A$, there is a number $r>0$ such that
+\[
+  A\cap B(v,r)=T_vA\cap B(v,r).
+\]
+\end{lemma}
+\begin{proof}
+For an interior point take a ball contained in the interior.  At a boundary
+point, merge consecutive collinear boundary segments for this local
+argument.  The compact union of boundary edges not incident to the point
+has positive distance from it.  Decrease the radius further to avoid the
+other endpoints of the one or two incident edges.  The boundary inside the
+ball is consequently one straight line segment, or the two rays at a
+genuine corner.  The simple polygonal disk lies locally on its prescribed
+interior side, giving respectively the inward halfplane or interior wedge.
+Keeping collinear vertices in the original vertex list changes neither
+the disk nor this local description.
+\end{proof}
+
+\begin{lemma}[A covered tile belongs to the covering patch]
+\label{lem:covered-tile-belongs}
+\lean{Tilings.Patch.mem_of_carrier_subset_union}
+\uses{def:polygon,def:placed}
+Let $F$ be a finite patch and let $X$ be a tile whose interior is disjoint
+from the interior of every tile of $F$ other than $X$ itself. If the
+carrier of $X$ is contained in $\bigcup F$, then $X\in F$.
+\end{lemma}
+\begin{proof}
+If $X\notin F$, the nonempty open set $\operatorname{int}X$ is covered by
+the finitely many carriers of $F$ while meeting none of their interiors.
+It is therefore covered by their finitely many boundary segments, which
+have empty interior; a finite union of segments cannot contain a nonempty
+open set. This is the regular-closedness step used, without being named,
+in the paper's Lemma~2 (``covers and hence includes'') and in
+Lemma~\ref{lem:finite-neighbourhoods}; both cite this lemma.
+\end{proof}
+
+\begin{lemma}[Uniform sector radius and vertex separation in crowns]
+\label{lem:sector-radius}
+\lean{Tilings.Crowns.uniformSectorRadius}
+\uses{def:crown-sector,lem:polygon-local-cone}
+There are $r_*>0$ and $\delta_*>0$, depending only on $\mathcal C$, such that
+every represented pointed crown $K$ with centre $v$ satisfies
+\[
+  \bigl(\bigcup K\bigr)\cap B(v,r_*)
+       =\Omega(K)\cap B(v,r_*),
+\]
+and every listed vertex $w\ne v$ of any tile of $K$ satisfies
+$\lVert w-v\rVert\ge\delta_*$.  In particular a complete crown covers
+$B(v,r_*)$.
+\end{lemma}
+\begin{proof}
+For one crown take the minimum of the finitely many radii in
+Lemma~\ref{lem:polygon-local-cone}, one for each incident tile.  This gives
+the displayed equality.  Take a positive minimum of these radii over the
+finite catalogue, capping them by $1$ if desired.  A largest admissible
+radius need not be attained and is not used.
+
+The collection of positive distances from the distinguished centre of a
+catalogue crown to a listed vertex of one of its tiles is finite.  Its
+minimum is positive; if the collection were empty, use $\delta_*=1$.
+Translations preserve both conclusions.  Collinear listed vertices can be
+included in this minimum.  A complete crown has cone equal to the whole
+plane, so its sector is the ball.
+\end{proof}
+
+\begin{definition}[Geometric macro boundary]
+\label{def:macro-boundary}
+\lean{Tilings.Crowns.geometricMacroBoundary}
+\uses{def:polygon,def:protoset,def:substitution}
+Let $P$ be the finite prototile family and let $\theta>1$ be the expansion
+factor.  A finite patch $M$ considered below has pairwise disjoint tile
+interiors and union
+\[
+ R=u+\theta^j A,\qquad A\in P,\quad j\in\mathbb N.
+\]
+For geometric arguments merge consecutive collinear edges of the root
+polygon $A$.  Their scaled copies are called \emph{geometric macro edges},
+and their endpoints \emph{genuine macro corners}.  Every genuine corner
+has interior angle different from $\pi$.  Dummy collinear vertices remain
+in child-tile and crown data; only the geometric macro boundary is simplified.
+\end{definition}
+
+\begin{lemma}[Genuine macro corners are child vertices]
+\label{lem:macrocorner}
+\lean{Tilings.Crowns.macrocornerIsChildVertex}
+\uses{def:tiling,def:macro-boundary,lem:polygon-local-cone}
+Every genuine macro corner $q$ is a listed vertex of at least one child
+tile of $M$.
+\end{lemma}
+\begin{proof}
+Because $M$ is finite and its carriers are compact, a sufficiently small
+ball at $q$ meets only child tiles containing $q$.  If none has a vertex
+there, each incident tile has either the whole plane or a halfplane as
+its local cone.  The whole-plane case would make $q$ interior to $R$.
+Two open halfplanes have nonempty intersection unless they are the two
+opposite halfplanes of the same line.  Such intersection would violate
+disjoint child interiors.  Thus the local union is one halfplane, or the
+whole plane in the opposite-halfplane case.  Neither is the nonstraight
+wedge at a genuine macro corner.  This contradiction proves the assertion.
+
+A dummy $180$-degree macro vertex need not be a child vertex.  We never
+apply this assertion to such a vertex.
+\end{proof}
+
+\begin{lemma}[Corrected distance to a macro edge endpoint]
+\label{lem:endpoint-gap}
+\lean{Tilings.Crowns.incidentMacroEdgeVertexGap}
+\uses{def:crown-sector,def:macro-boundary,lem:sector-radius,lem:macrocorner}
+Assume all full crowns of $M$ are represented in $\mathcal C$.  Put
+$h=\min(r_*,\delta_*)$.  If $q$ is a genuine macro corner and $v$ is a
+child-tile vertex in the relative interior of an incident geometric macro
+edge, then
+\[
+  \lVert v-q\rVert\ge h>0.
+\]
+\end{lemma}
+\begin{proof}
+Suppose $\lVert v-q\rVert<h$, and let $B$ be a child tile with vertex $v$.
+By Lemma~\ref{lem:macrocorner} the crown $K_M(q)$ is represented in
+$\mathcal C$.  Near $v$, both $R$ and the tangent wedge of $R$ at $q$
+agree with the inward halfplane of the incident macro edge.  Choose this
+neighbourhood inside $B(q,r_*)$ and away from the other ray at $q$.
+Lemma~\ref{lem:sector-radius} shows that the inward half-neighbourhood is
+covered by the tiles of $K_M(q)$.
+
+Regular closedness of $B$ supplies a nonempty open subset of its interior
+arbitrarily close to $v$.  It lies in that inward half-neighbourhood.  If
+$B$ were not in $K_M(q)$, this open subset would be covered by the finite
+union of its other tile carriers.  The finitely many boundary line
+segments cannot cover a nonempty plane open set.  A remaining point would
+belong to the interiors of $B$ and of a crown tile, a contradiction.
+Hence $B\in K_M(q)$.  Its vertex $v\ne q$ is then among the vertices used
+to define $\delta_*$, giving $\lVert v-q\rVert\ge\delta_*$, again a
+contradiction.
+
+The restriction to an incident macro edge is essential to this argument.
+For a vertex on a nonincident macro edge we use the separate root
+separation constant below.  Merely belonging to the closed union of a
+crown does not imply that every tile containing the point is in the crown.
+\end{proof}
+
+\begin{definition}[Positive root separation constants]
+\label{def:crown-separation}
+\lean{Tilings.Crowns.rootSeparationConstants}
+\uses{def:protoset,def:macro-boundary}
+Choose $\nu>0$ bounded above by every distance from a genuine root corner
+to a root edge other than its two incident edges.  Choose $\lambda>0$
+bounded above by every distance between two nonadjacent geometric root
+edges.  These are positive finite minima of distances between disjoint
+compact sets.  If a relevant collection is empty, use $1$ for that bound.
+
+For each reflex root corner let $\beta\in(0,\pi)$ be its exterior wedge
+angle.  Define
+\[
+  \mu_* =\min\bigl(\{\pi/2\}\cup
+          \{\beta:\text{reflex root corners}\}\bigr).
+\]
+Thus $0<\mu_*\le\pi/2$.  Convex exterior angles greater than $\pi$ and
+dummy straight corners are excluded.  Scaling by $\theta^j\ge1$ does
+not decrease the distance bounds $\nu$ and $\lambda$.
+\end{definition}
+
+\begin{lemma}[Distance to an adjacent ray]
+\label{lem:ray-bound}
+\lean{Tilings.Crowns.distanceToReflexBoundaryRay}
+\uses{def:crown-separation}
+Let two rays from $q$ enclose an angle $\beta\in(0,\pi)$, and let $v$ be
+on the first ray at distance $t>0$ from $q$.  Its distance to the second
+ray is $t\sin\beta$ when $\beta\le\pi/2$, and $t$ when
+$\beta\ge\pi/2$.  For a reflex root angle it is therefore at least
+$t\sin\mu_*$.
+\end{lemma}
+\begin{proof}
+For unit directions $a,b$ with $a\mathbin{\cdot}b=\cos\beta$, minimize
+\[
+  \lVert ta-sb\rVert^2=t^2+s^2-2ts\cos\beta
+\]
+over $s\ge0$.  The minimum occurs at $s=t\cos\beta$ when this is
+nonnegative, and at $s=0$ otherwise.  This gives the two formulas.  On
+$(0,\pi/2]$ sine is increasing, and for larger angles the ray-distance
+formula gives $t\ge t\sin\mu_*$.  Using the whole supporting line in
+the obtuse case would give the wrong estimate.
+\end{proof}
+
+\begin{lemma}[Uniform relative crown neighbourhood]
+\label{lem:relative-crown-ball}
+\lean{Tilings.Crowns.uniformRelativeCrownBall}
+\uses{def:crown-sector,def:macro-boundary,def:crown-separation,lem:sector-radius,lem:macrocorner,lem:endpoint-gap,lem:ray-bound}
+Put
+\[
+ d=\tfrac12\min\{r_*,\nu,\lambda,h\sin\mu_*\}>0.
+\]
+For every child vertex $v$ of $M$,
+\[
+ R\cap B(v,d)\subseteq\Omega(K_M(v))\cap B(v,d)
+                    \subseteq\bigcup K_M(v).
+\]
+\end{lemma}
+\begin{proof}
+The local tangent cone of $R$ at $v$ equals the union of the child cones
+at $v$: intersect the finite patch with a sufficiently small ball and
+use Lemma~\ref{lem:polygon-local-cone}.  If $v$ is interior to $R$, that
+cone is the whole plane and its crown is complete.
+
+At a genuine macro corner, a ray outside its tangent wedge is outside
+$R$ initially.  A first reentry cannot meet either incident ray again,
+so lies on a nonincident macro edge at distance at least
+$\theta^j\nu\ge\nu>d$.  No outside-wedge point of $R$ is within $d$.
+
+At an interior point of a geometric macro edge the cone is its inward
+halfplane.  A ray into the open outward halfplane cannot reenter through
+a nonadjacent macro edge before travelling $\theta^j\lambda\ge\lambda$.
+An adjacent edge at a convex endpoint is wholly on the inward side, so
+cannot cause reentry.  At a reflex endpoint $q$,
+Lemma~\ref{lem:endpoint-gap} gives $\lVert v-q\rVert\ge h$, and
+Lemma~\ref{lem:ray-bound} gives distance at least $h\sin\mu_*>d$ to
+the adjacent edge.  This excludes reentry in all cases.  Finally
+$d\le r_*$ and Lemma~\ref{lem:sector-radius} give the last inclusion.
+\end{proof}
+
+\begin{lemma}[A uniform ball across a trimmed tile edge]
+\label{lem:trimmed-edge-ball}
+\lean{Tilings.Crowns.trimmedEdgeTwoTileBall}
+\uses{def:polygon,def:protoset,def:tiling,lem:polygon-local-cone,lem:relative-crown-ball}
+For the number $d$ above there is $\eta>0$, depending only on $P$ and
+$d$, with the following property.  If translated tiles $A,B$ have
+disjoint interiors, their edges overlap near $e$, the tiles lie locally
+on opposite sides there, and $e$ has distance at least $d/2$ from every
+endpoint of those edges, then $B(e,\eta)\subseteq A\cup B$.
+\end{lemma}
+\begin{proof}
+For each prototile edge take its closed trimmed segment of points at
+distance at least $d/2$ from both endpoints.  Whenever nonempty, this
+compact segment is disjoint from the compact union of all other boundary
+edges of that polygon.  Take a positive lower bound $\eta$ for all these
+finitely many distances; use $1$ if there are no nonempty trimmed
+segments.  Translations preserve the bound.
+
+Inside $B(e,\eta)$ neither tile has another boundary edge.  Its one edge
+separates the ball into two connected half-balls, and the local inward
+half-ball remains in its interior because no other boundary can be
+crossed.  The two opposite inward half-balls, together with their common
+line, cover the ball.
+\end{proof}
+
+\begin{lemma}[Exterior excursions across nearby macro edges]
+\label{lem:exterior-excursion}
+\lean{Tilings.Crowns.noShortExteriorExcursion}
+\uses{def:macro-boundary,def:crown-separation,lem:macrocorner,lem:relative-crown-ball}
+Let $H$ be convex with diameter less than
+$\min\{\lambda,d\sin(\mu_*/2)\}$.  If every point of $H$ has distance
+at least $d/2$ from every child vertex, then $H\cap R$ is convex.
+\end{lemma}
+\begin{proof}
+Otherwise a segment joining two points of $H\cap R$ has an open exterior
+excursion.  Let $E,F$ be its exit and reentry points on the macro boundary.
+The finite polygonal boundary gives such endpoints; a segment contained
+in the boundary is not an exterior excursion.  Both endpoints are in $H$.
+They cannot lie on the same macro edge, since the segment between two
+points of one edge lies in $R$.  Nonadjacent edges give
+$\lVert E-F\rVert\ge\lambda$, contradicting the diameter bound.
+
+For adjacent edges let $q$ be their genuine common corner.  It is a child
+vertex by Lemma~\ref{lem:macrocorner}, so both distances from $E,F$ to
+$q$ are at least $d/2$.  The excursion must cross a reflex exterior
+wedge: at a convex corner a chord to the adjacent edge goes into the
+inward halfplane at its exit point.  Writing $a=\lVert E-q\rVert$,
+$b=\lVert F-q\rVert$ and using the reflex exterior angle $\beta$ gives
+\[
+ \lVert E-F\rVert^2=(a-b)^2+4ab\sin^2(\beta/2)
+       \ge d^2\sin^2(\beta/2)
+       \ge d^2\sin^2(\mu_*/2).
+\]
+Here $\beta/2\in(0,\pi/2)$, where sine is increasing.  Again this
+contradicts the diameter bound.  Every segment in $H\cap R$ stays in $R$.
+\end{proof}
+
+\begin{lemma}[Convexification preserves the diameter bound]
+\label{lem:crown-convexification}
+\lean{Tilings.Crowns.closedConvexHullDiameter}
+\uses{def:polygon}
+If $S$ has finite diameter, its closed convex hull $H$ has diameter no
+greater than that of $S$.
+\end{lemma}
+\begin{proof}
+For finite convex combinations $x=\sum_i a_i p_i$ and
+$y=\sum_j b_j q_j$ of points of $S$, use
+$x-y=\sum_{i,j}a_i b_j(p_i-q_j)$ and the triangle inequality.
+The coefficients sum to $1$, giving the desired distance bound.
+Passing to limits gives the same bound in the closed convex hull.
+\end{proof}
+
+\begin{lemma}[Uniform crown cover for a plane tiling]
+\label{lem:crown-cover-plane}
+\lean{Tilings.Crowns.uniformCrownCoverPlane}
+\uses{def:tiling,def:crown-sector,lem:localfinite,lem:sector-radius,lem:trimmed-edge-ball,lem:crown-convexification}
+There is $\varepsilon>0$ such that, in every plane tiling by $P$ whose
+full pointed crowns are represented in $\mathcal C$, every set $S$ of
+diameter less than $\varepsilon$ is contained in one crown.
+\end{lemma}
+\begin{proof}
+Use $\varepsilon<\min\{\eta,d/2\}$ and replace $S$ by its closed convex
+hull $H$.  If $H$ comes within $d/2$ of a tile vertex $v$, all of $H$ is
+within distance $d$ of $v$.  The complete crown at $v$ covers this ball.
+
+Otherwise $H$ stays at distance at least $d/2$ from every vertex.  If one
+tile contains $H$, take any crown containing that tile.  If not, choose
+a tile $A$ meeting $H$, a point of $A\cap H$, and a point of $H\setminus A$.
+Their segment exits $A$ at a nonvertex point $e$ of an edge.  Near $e$
+incident tile carriers are halfplanes.  Disjoint interiors and plane
+coverage force a tile $B$ on the opposite side.  The point $e$ is at
+distance at least $d/2$ from both tiles' edge endpoints, so
+Lemma~\ref{lem:trimmed-edge-ball} covers $H\subset B(e,\eta)$ by $A\cup B$.
+Their shared edge segment has an endpoint which is a vertex of at least
+one tile.  The full crown there contains both tiles and hence $H$.
+An empty $S$ is covered by any crown.
+\end{proof}
+
+\begin{lemma}[Uniform relative crown cover for a supertile]
+\label{lem:crown-cover-supertile}
+\lean{Tilings.Crowns.uniformCrownCoverSupertile}
+\uses{def:substitution,def:crown,def:flc,def:crown-sector,def:macro-boundary,lem:relative-crown-ball,lem:trimmed-edge-ball,lem:exterior-excursion,lem:crown-convexification}
+There is $\varepsilon>0$ such that every finite supertile patch $M$ above,
+whose full pointed crowns are represented in $\mathcal C$, has a crown
+covering $S\cap R$ whenever $\operatorname{diam}(S)<\varepsilon$.
+One may take
+\[
+ \varepsilon=\tfrac12\min
+   \{\eta,d/2,\lambda,d\sin(\mu_*/2)\}>0.
+\]
+\end{lemma}
+\begin{proof}
+Replace $S$ by its closed convex hull $H$ before dividing into cases.
+Lemma~\ref{lem:crown-convexification} preserves the strict diameter
+bound.  If $H$ comes within $d/2$ of a child vertex $v$, every point of
+$H$ is within $d$ of $v$.  Lemma~\ref{lem:relative-crown-ball} therefore
+covers $H\cap R$ by $K_M(v)$.
+
+In the remaining case $H$ stays at distance at least $d/2$ from all child
+vertices.  Lemma~\ref{lem:exterior-excursion} shows that $W=H\cap R$ is
+convex.  If empty, any crown suffices; if contained in one tile, any crown
+containing that tile suffices.  Otherwise choose $A$ meeting $W$ and a
+segment in $W$ from $A$ to a point outside $A$.  Let $e$ be an exit point.
+It is not a child vertex.  A small neighbourhood meets only incident
+tiles, each with a halfplane cone.  A segment leaving $A$ while staying
+in $R$ requires an incident tile $B$ on the opposite side of the edge.
+Indeed, with only the inward halfplane of $A$ present, such an exit is
+locally impossible; a segment tangent to the edge remains in $A$ until
+an endpoint, which has been excluded.
+
+All relevant endpoints are at least $d/2$ from $e$.  Hence
+Lemma~\ref{lem:trimmed-edge-ball} gives $B(e,\eta)\subset A\cup B$.
+Since $e\in W$ and $\operatorname{diam}(W)<\varepsilon<\eta$, this union
+covers $W$.  An endpoint of the positive-length overlap of the two edges
+is a vertex of at least one of the tiles, and its full crown contains
+$A\cup B$.  It therefore covers $W$ and the original $S\cap R$.
+The overlap need not be an entire edge of both tiles: the argument does
+not assume side-to-side matching.
+\end{proof}
+
+\begin{lemma}[Pointing a finite crown catalogue]
+\label{lem:pointed-flc}
+\lean{Tilings.Crowns.pointedFLCOfFLC}
+\uses{def:crown,def:flc,lem:localfinite}
+If the allowed full crown patches have only finitely many translation
+classes, their pointed versions also have only finitely many translation
+classes.
+\end{lemma}
+\begin{proof}
+Choose one finite patch for each unpointed translation class.  A crown
+centre is a listed vertex of at least one of its tiles, so each chosen
+patch has only finitely many possible centres.  Retain all centre choices
+which realize an allowed full crown.  This gives a finite pointed
+catalogue, including incomplete crowns whenever the original catalogue
+includes boundary crowns of finite supertiles.
+\end{proof}
+
+\begin{theorem}[Corrected FLC crown-cover statement]
+\label{thm:corrected-crown-cover}
+\lean{Tilings.Crowns.flcUniformCrownCover}
+\uses{def:substitution,def:flc,lem:pointed-flc,lem:crown-cover-plane,lem:crown-cover-supertile}
+For a finite polygonal substitution with the article's FLC condition,
+using all allowed full crowns, there is a uniform $\varepsilon>0$ satisfying both
+the plane and supertile crown-cover conclusions above.
+\end{theorem}
+\begin{proof}
+Lemma~\ref{lem:pointed-flc} gives representatives for the finite translation
+classes of allowed pointed crowns.  Every crown of the tilings in the plane conclusion is
+allowed by assumption, and every full crown of a supertile is allowed
+by the definition of the substitution catalogue, including those on its
+boundary.  Apply the preceding two lemmas, decreasing the two positive
+constants to their minimum if needed.
+\end{proof}
+
+This proves the geometric statement required by the FLC argument.  It
+does not address the independent geometric grouping and routing
+obligations for quasi-squares, nor the decoration repair in the
+composition construction.

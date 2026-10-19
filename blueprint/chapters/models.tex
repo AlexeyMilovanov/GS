@@ -1,0 +1,252 @@
+\section{Scope, status, and exact models}
+
+This blueprint covers all five conclusions of Theorems 1 and 2 of
+\href{https://arxiv.org/abs/2606.25005v2}{arXiv:2606.25005v2}.
+It distinguishes three statuses: an ordinary mathematical proof supplied
+below, a Lean declaration checked in the small header kernel, and a
+geometric construction obligation still requiring a complete proof.
+Only nodes corresponding exactly to the checked header kernel carry
+\texttt{leanok}. All other Lean names are planned names.
+In particular, the universal main theorems are goals until the outstanding
+geometric instantiation is established. A certificate theorem is an
+intermediate theorem, not a replacement for constructing its certificate.
+
+The new construction changes the boundary control colour in the hierarchical
+case. The crown-cover proof uses new positive constants. These changes do
+not add convexity, primitivity, recognizability, or lattice assumptions.
+We interpret polygonal tiles as compact simple polygonal disks. Collinear
+listed vertices are permitted. Rotations are represented by distinct forms
+before the construction; only translations act on placed tiles.
+
+\begin{definition}[Polygonal disk]\label{def:polygon}
+\lean{Tilings.Geometry.PolygonalDisk}
+A polygonal disk is a compact regular-closed set $B\subset\R^2$ with
+nonempty interior and a finite simple polygonal boundary. It carries
+indexed boundary vertices and nonzero segments. Consecutive collinear
+vertices may be retained as data. Its interior is path connected.
+\end{definition}
+
+For Lean, use $\operatorname{EuclideanSpace}\R(\operatorname{Fin}2)$.
+The usual product metric on $\R\times\R$ is not silently substituted for
+the Euclidean metric in the distance and sine estimates. A vertex-only
+\texttt{Polygon} interface is not yet a filled polygonal disk; the bridge
+between boundary data and the carrier is a separate development.
+
+\begin{definition}[Finite protoset and placements]\label{def:protoset}
+\lean{Tilings.Protoset}
+\uses{def:polygon}
+A protoset is a finite type $P$ with a polygonal disk $B_p$ for each $p\in P$.
+A placed tile is $(p,v)$, with carrier $v+B_p$. Colours belong to the form,
+so congruent coloured forms remain distinct.
+\end{definition}
+
+\begin{definition}[Placed tiles and patches]\label{def:placed}
+\lean{Tilings.PlacedTile,Tilings.Patch}
+\uses{def:protoset}
+Write $|A|$ for the carrier of a placed tile and $|F|$ for the union of the
+carriers in a patch. A patch is a finite set of placed tiles with pairwise
+disjoint interiors. Translations act on the anchor coordinates.
+\end{definition}
+
+\begin{definition}[Plane tilings and side-to-side]\label{def:tiling}
+\lean{Tilings.PlaneTiling,Tilings.SideToSide}
+\uses{def:placed}
+A plane tiling $T$ is a set of placed tiles whose carriers cover $\R^2$ and
+whose interiors are pairwise disjoint. It is side-to-side if two tile sides
+with positive-length overlap coincide as whole segments. Local finiteness
+is a derived property, not an extra hypothesis of the final theorem.
+
+\emph{Plane coverage is part of every theorem statement below.} The
+paper's introductory word ``tiling'' (main.tex, line 92) also admits an
+arbitrary nonoverlapping set; that usage is kept here only for finite
+patches. Properness of a mere nonoverlapping set is not the notion used:
+without coverage a single inert decorated tile would be a proper tiling
+projecting outside the family, the surjectivity device of
+Lemma~\ref{lem:glues} and the reverse direction of the collar conversion
+would fail, and nontrivial sides could lack an opposite neighbour.
+\end{definition}
+
+\begin{lemma}[Local finiteness and countability]\label{lem:localfinite}
+\lean{Tilings.PlaneTiling.locallyFinite,Tilings.PlaneTiling.countable}
+\uses{def:tiling}
+Every plane tiling by a finite protoset is locally finite and countable.
+\end{lemma}
+\begin{proof}
+Choose an open disk in the interior of each form. The minimum of these
+finitely many positive radii is $r>0$, and the maximum of the form diameters
+is $D<\infty$. If a tile meets a compact set $K$, its chosen interior disk
+centre lies in the closed $D$-neighbourhood of $K$. Centres belonging to
+distinct tiles are at distance at least $2r$, since their open interior
+disks are disjoint. A compact metric set has only finitely many
+$2r$-separated points, by a finite cover with disks of radius $r/2$.
+This proves local finiteness.
+For countability choose, for each tile, a rational point in its nonempty
+open interior. Chosen rational points for different tiles are distinct.
+The injection into $\mathbb Q^2$ proves countability. This proof does not
+require rational polygon coordinates.
+\end{proof}
+
+\begin{definition}[Substitution]\label{def:substitution}
+\lean{Tilings.Substitution}
+\uses{def:placed}
+A substitution $\tau$ has a common scale $\theta>1$ and a finite patch
+$\tau p$ with support $\theta B_p$ for each $p\in P$. On a placed tile
+$(p,v)$ it produces the translates by $\theta v$ of $\tau p$.
+Iterates are defined recursively. A supertile is a translate of $\tau^n p$,
+$n\in\N$. A composition is an inverse decomposition of a plane tiling.
+Decorated substitutions are allowed to be relations rather than functions.
+\end{definition}
+
+\begin{lemma}[Supports and finite parents]\label{lem:finiteparents}
+\lean{Tilings.Substitution.iterate_support,Tilings.Substitution.finite_parents}
+\uses{def:substitution}
+The support of $\tau^n p$ is $\theta^n B_p$. A fixed placed child has only
+finitely many possible placed parents under $\tau$.
+\end{lemma}
+\begin{proof}
+The support identity follows by induction, using the exact support identity
+for every child and distribution of a homothety over a union.
+A possible parent is determined by its form and the child position in that
+form's finite substitution patch. If the child's anchor is $v$ and the
+chosen child offset is $w$, the parent's anchor is $(v-w)/\theta$.
+There are finitely many such pairs of form and position.
+\end{proof}
+
+\begin{definition}[Substitution and hierarchical families]\label{def:hierarchy}
+\lean{Tilings.IsSubstitutionTiling,Tilings.IsHierarchical,Tilings.IsSideToSideHierarchical}
+\uses{def:tiling,def:substitution}
+A plane tiling is a substitution tiling if every finite patch in it occurs,
+up to translation, in a supertile. It is hierarchical if there are plane
+tilings $T_0=T,T_1,\ldots$ with $\tau T_{n+1}=T_n$.
+It is side-to-side hierarchical if every $T_n$ is side-to-side.
+\end{definition}
+
+\begin{lemma}[Substitution tilings admit substitution compositions]
+\label{lem:substitution-hierarchy}
+\lean{Tilings.SubstitutionTiling.exists_composition}
+\uses{def:hierarchy,lem:finiteparents,lem:localfinite}
+Every substitution plane tiling has a composition which is again a
+substitution plane tiling.
+\end{lemma}
+\begin{proof}
+Enumerate its tiles $A_1,A_2,\ldots$. Each initial finite set is contained in
+a supertile of positive order: enlarge the patch by sufficiently many
+tiles if necessary to exclude order zero. Choose the previous-level
+supertile as a parent cover. By the finite-parent lemma, thin this sequence
+to stabilize the parent of $A_1$, then of $A_2$, and so forth. The diagonal
+sequence yields parents $B_i$ such that every finite set of the $B_i$ is
+contained in a supertile. Thus they have disjoint interiors and form a
+substitution patch at every finite scale. Their decompositions contain
+every $A_i$. No extra child can occur: a child has nonempty interior, and
+the plane is already covered by $T$ with disjoint interiors. Consequently
+the decomposition is exactly $T$; scaling gives coverage of the parent
+plane. Iterate this existence statement using dependent choice.
+The Lean proof may equivalently use a finite inverse system of partial
+parent assignments and K\"onig's lemma.
+\end{proof}
+
+\begin{lemma}[Powers and hierarchical tilings]\label{lem:hierarchy-step}
+\lean{Tilings.hierarchical_power_iff}
+\uses{def:hierarchy}
+$\tau$-hierarchy and $\tau^m$-hierarchy coincide for $m>0$.
+Side-to-side hierarchy requires a separate check on the inserted levels.
+\end{lemma}
+\begin{proof}
+Take every $m$th level in one direction. In the other, between two levels
+insert the $m-1$ intermediate decompositions of the upper tiling. Exact
+supports and disjoint interiors ensure that these are plane tilings.
+Side-to-side at the two endpoints does not by itself imply side-to-side
+at the intermediate levels, which is why the alignment tuples are needed.
+\end{proof}
+
+\begin{definition}[Crowns, FLC, and STS]\label{def:crown}
+\lean{Tilings.Crown,Tilings.AllowedCrown}
+\uses{def:placed,def:substitution,lem:localfinite}
+The full pointed crown at a listed tile vertex $v$ consists of all tiles
+whose closed carriers contain $v$, with distinguished centre $v$.
+A crown is allowed if it occurs in a supertile. Equality up to translation
+preserves the distinguished centre.
+\end{definition}
+
+\begin{definition}[Finite local complexity]\label{def:flc}
+\lean{Tilings.Substitution.FLC}
+\uses{def:crown}
+FLC means that the set of allowed full pointed crowns, including incomplete
+crowns on supertile boundaries, is finite up to translation.
+\end{definition}
+
+\begin{definition}[STS hypothesis]\label{def:sts}
+\lean{Tilings.Substitution.STS}
+\uses{def:tiling,def:substitution}
+STS means that every supertile is side-to-side.
+\end{definition}
+
+
+\begin{definition}[Hereditary listed sides]\label{def:hereditary}
+\lean{Tilings.Substitution.HereditarySides}
+\uses{def:substitution,def:sts}
+Every image of a listed prototile vertex is a listed child vertex, and each
+scaled parent listed side is a union of complete child listed sides.
+This is an extra core hypothesis, not a consequence of STS: an irrational
+dummy cut on unit-square sides is not hereditary for a $2\times2$ subdivision.
+Finite refinement retaining such a cut cannot repair heredity, since it
+would contain the infinite orbit $\{2^n a\}\bmod1$.
+The final main theorems remove this extra hypothesis explicitly.
+\end{definition}
+
+\begin{lemma}[STS gives FLC]\label{lem:sts-flc}
+\lean{Tilings.Substitution.STS.finite_crowns}
+\uses{def:sts,def:flc}
+Under STS the allowed pointed crowns form a finite set up to translation.
+\end{lemma}
+\begin{proof}
+At a vertex, a tile in the crown is fixed by its form and the listed vertex
+identified with the centre. In a face-to-face polygonal patch there is no
+vertex strictly inside another tile side with an incident open sector:
+the sector on that side would force a partial side overlap. The number of
+incident tiles is bounded by the smallest positive angle among the finite
+forms. Hence a crown is a subset of a finite list of positioned forms.
+Incomplete crowns are subsets of the same list.
+The proof of the no-partial-side assertion uses that a supertile fills its
+simple polygonal carrier, rather than an arbitrary disconnected patch.
+\end{proof}
+
+\begin{definition}[Bounded local rules and finite decorations]\label{def:localrule}
+\lean{Tilings.LocalRule,Tilings.Decoration,Tilings.Proper}
+\uses{def:tiling}
+A local rule is a possibly infinite set $\mathcal R$ of finite forbidden
+patches, together with $D<\infty$ bounding all their support diameters.
+A full plane tiling is proper if it contains no translated occurrence of
+a member of $\mathcal R$. A decoration is a finite decorated form type,
+with a surjection to the original forms preserving carriers after anchor
+normalization. Its induced projection acts tilewise.
+\end{definition}
+
+\begin{definition}[Soficity]\label{def:sofic}
+\lean{Tilings.IsSofic,Tilings.IsSideToSideSofic}
+\uses{def:localrule}
+A family is sofic if it is exactly the projections of the proper plane
+tilings for a finite decoration and a bounded local rule.
+It is side-to-side sofic if the rule is equality of colours on complete
+matching sides, together with side-to-side adjacency.
+\end{definition}
+
+This is the continuous geometric notion in the paper. It is not replaced
+by a $\mathbb Z^2$ subshift of finite type. The forbidden set may be infinite;
+the decoration alphabet and the radius are finite. Both quantifiers in the
+definition of soficity range over plane tilings only, as fixed in
+Definition~\ref{def:tiling}.
+
+\begin{lemma}[Finite endofunction has an idempotent power]
+\label{lem:finite-idempotent}
+\lean{Tilings.FiniteMap.exists_idempotent_iterate}
+For a function $c$ on a finite set there is $\ell>0$ with $c^{2\ell}=c^\ell$.
+\end{lemma}
+\begin{proof}
+Finitely many functions imply $c^a=c^{a+b}$ for some $a\geq0,b>0$.
+Then $c^{a+i}=c^{a+b+i}$ for every $i\geq0$. Choose a positive multiple
+$\ell$ of $b$ with $\ell\geq a$. Both $\ell$ and $2\ell$ lie in the periodic
+tail and have the same residue modulo $b$, giving the equality.
+Restricting the image of $c^\ell$ makes every retained image point fixed
+by $c^\ell$. This is the central-form stabilization used below.
+\end{proof}

@@ -1,0 +1,59 @@
+\section{Measured comparison and estimated Lean size}
+
+The comparison snapshot is
+\href{https://github.com/AlexeyMilovanov/kolmogorov-complexity-lean/tree/42df7b843d6727291dfd0cbc1ceb299723ce5cb6}
+{AlexeyMilovanov/kolmogorov-complexity-lean at commit 42df7b8}.
+Its library directories and two root aggregators contain 1,172 Lean files,
+436,473 physical lines, and 346,662 nonblank code lines after lexical
+removal of nested block comments and line comments.
+The active library alone has 429,620 physical lines in 1,153 files.
+Dependencies such as mathlib are excluded. The same physical count was
+verified on the VM checkout \texttt{/home/lesha/public-release-4331}.
+The working \texttt{KolmogorovMathlib2-port434} checkout has the same count.
+Another working branch, \texttt{KolmogorovMathlib2-merging}, contains 467,097
+physical lines in 1,228 Lean files with the stated exclusions.
+
+This article's full development is estimated at \textbf{40,000--80,000
+physical lines}, or about \textbf{30,000--60,000 code lines}, with a planning
+centre of 50,000--60,000 physical lines. This is an estimate, not a measured
+ratio of pages to code or a guaranteed upper bound. It is approximately
+9--18 percent of the public comparison snapshot. The finite certified
+control core is estimated at 13,000--26,000 physical lines. Without a
+proved geometric instantiation, that core gives conditional theorems.
+
+\begin{center}
+\begin{tabular}{lr}
+Module family & Estimated code lines\\ \hline
+Polygonal disks, placements, tilings, substitutions & 4,000--8,000\\
+Local rules, crowns, positive uniform radii & 4,000--7,000\\
+Compactness and infinite hierarchies & 2,000--4,000\\
+Regular grouping, channels, ports, routing & 8,000--16,000\\
+Decorations, origins, repaired composition & 5,000--9,000\\
+STS soundness, completeness, glue dissection & 2,000--4,000\\
+FLC neighbourhoods and clone reduction & 3,000--6,000\\
+Integration, regression statements, final API & 2,000--6,000\\ \hline
+Total & 30,000--60,000
+\end{tabular}
+\end{center}
+
+The comparison project uses mature computability infrastructure from
+mathlib. Here the dominant cost is geometric infrastructure rather than
+the finite header algebra. Current
+\href{https://leanprover-community.github.io/mathlib4_docs/Mathlib/Geometry/Polygon/Basic.html}
+{Polygon.Basic} is a boundary and vertex interface, and
+\href{https://leanprover-community.github.io/mathlib4_docs/Mathlib/Combinatorics/Tiling/Tile.html}
+{Tiling.Tile} explicitly concerns discrete tilings. Neither search result
+supplies the polygonal-disk grouping and routing needed here.
+
+Useful existing interfaces include finite dependent function types,
+K\"onig's finite inverse-system lemma, finite-product compactness,
+\texttt{Multiset.count}, and graph walks. Fingerprints must preserve
+multiplicity; a \texttt{Finset} of neighbour types is insufficient.
+Exact APIs must be checked against the pinned mathlib commit.
+
+A suitable first milestone is the finite control system, its repaired
+composition theorem, and explicit regression statements for the old
+failure. The next milestone establishes the regular geometric certificate.
+Only after it is instantiated should the universal final theorem names
+be marked proved. The detailed dependency graph is part of the HTML
+blueprint; green kernel nodes currently cover only the header algebra.

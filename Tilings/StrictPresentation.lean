@@ -5,7 +5,7 @@ import Tilings.Control.Strict
 /-!
 # Strict presentation of an STS substitution (`thm:sts-stshierarchy`)
 
-Bridge statements between the strict schedule system of `Tilings.Alignment`
+Bridge theorems between the strict schedule system of `Tilings.Alignment`
 and Theorem 1(b): existence of the strict presentation together with its
 composition and completeness properties, and the two halves (soundness and
 completeness) of the proof of `thm:sts-stshierarchy`.

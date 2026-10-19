@@ -1,21 +1,21 @@
 import Tilings.Basic
 
 /-!
-# Hierarchies, compositions, powers (skeleton)
+# Hierarchies, compositions, powers
 
-Statements of the blueprint nodes of `models.tex` and two nodes of
+The blueprint nodes of `models.tex` and two nodes of
 `crowns.tex`/`main.tex` that only need the basic model:
 
 * `lem:localfinite`        — `PlaneTiling.locallyFinite`, `PlaneTiling.countable`
 * `lem:finiteparents`      — `Substitution.iterate_support`, `Substitution.finite_parents`
 * `lem:substitution-hierarchy` — `SubstitutionTiling.exists_composition`
 * `lem:hierarchy-step`     — `hierarchical_power_iff`
-* `lem:finite-idempotent`  — `FiniteMap.exists_idempotent_iterate` (proved)
+* `lem:finite-idempotent`  — `FiniteMap.exists_idempotent_iterate`
 * `lem:sts-flc`            — `Substitution.STS.finite_crowns`
 * `lem:covered-tile-belongs` — `Patch.mem_of_carrier_subset_union`
 * `lem:allowed-hierarchy`  — `allowed_crowns_hierarchy_is_substitutive`
 
-All proofs except `FiniteMap.exists_idempotent_iterate` are `sorry`.
+All proofs are complete.
 -/
 
 open Set Pointwise Metric

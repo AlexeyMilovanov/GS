@@ -1,0 +1,713 @@
+% A chapter fragment. The main document supplies theorem environments and
+% the leanblueprint macros \lean, \leanok, and \uses.
+% Only the two HeaderKernel nodes below are marked leanok.
+
+\section{A boundary-header repair of coloured composition}
+
+This chapter proves the hereditary-side core composition statement. The
+flexible zero/rank definition requires hereditary listed sides, as defined
+in Definition~\ref{def:hereditary}: (G3) allows a fine outer side to cross
+a dummy parent endpoint, and for such a side the clause ``$b\subset\sigma'd$''
+of Definition~\ref{def:control/substitution} is undefined. Accordingly
+\emph{every theorem and lemma of this chapter carries the standing
+hypothesis that the macrotemplate system has hereditary listed sides}, so
+that each fine outer side lies in a unique scaled parent listed side; the
+hypothesis is repeated in the statements of Theorems~\ref{thm:compose},
+\ref{lem:lift-hierarchy} and~\ref{thm:comp/soundness} and in their Lean
+targets. Original nonhereditary dummy cuts are
+handled separately by the strict schedule proof in the final chapter.
+This chapter proves a corrected composition statement for an already
+constructed macrotemplate system. It is conditional on the finite geometric,
+routing, and separation certificate of Definition~\ref{def:certificate}.
+It does not establish that certificate for every STS substitution. In
+particular, the arbitrary assignment of tiles to grid squares in the source
+article does not establish connectedness or the required routing data.
+Every internal interface has a distinct finite ID naming its exact two
+owner-side slots and relative displacement. Identity data are triples
+$(s,r,e)$; fingerprints project them to the ordered type pair $(s,r)$,
+so all occurrence counts are unchanged.
+All declarations in the namespace \texttt{Tilings.Planned} below are proposed
+formalization targets, with mathematical proofs given here; they have not
+been compiled. Only the two explicitly marked nodes in
+\texttt{Tilings.HeaderKernel} refer to the compiled Lean kernel.
+
+The certificate interfaces used here must include the following conventions.
+Outer sides are marked. A child's type determines its owner template and
+therefore the form of its parent. Print maps depend only on that form, and
+copy-source maps depend only on the child position and the parent form.
+The boundary belt is connected, the central tile has no outer or boundary
+side, and identity data determine rigid relative placements. All polygon
+patches have disjoint interiors and cover their parent polygon. These
+conventions are essential uses of the certificate, rather than conclusions
+derived from normality alone.
+
+\begin{definition}[Typed decorations and normality]
+\label{def:control/typed-decoration}
+\lean{Tilings.Planned.typedDecoration}
+\uses{def:certificate,def:substitution}
+Let $F$ be the finite set of forms and $T$ the finite set of positioned child
+types. Write $\operatorname{form}:T\to F$, and let $S(t)$ be the finite
+indexed side set of $\operatorname{form}(t)$. The owner of a child type is
+its parent form, not necessarily its own form. Side identifiers are retained
+even when consecutive polygonal sides are collinear.
+
+An index belongs to a finite tagged alphabet $U$. Its tags distinguish zero,
+positive alignment ranks, type labels, exact interface identities, the symbol
+$\bot$, and the headers defined below. A decoration of type $t$ consists
+of a five-tuple $c_A(d)\in U^5$ on each $d\in S(t)$; its centre stores $t$.
+In the hierarchical variant considered here, position $2$ is zero. The
+geometric polygon has form $\operatorname{form}(t)$.
+
+The local cells are all cells of an unmarked side, the fifth cell of a special
+side, and the first and fifth cells of a marked ordinary side. A decoration
+is \emph{normal} when these cells have the values prescribed by its type.
+Thus ordinary inner first cells contain the relevant ordered interface identity.
+On a special side, the local fifth value is the interface identity if that side
+is a print in its owner template, and zero if it is not a print. In particular,
+special does not mean print. Call a decoration \emph{identity-correct} when
+every inner nonprint side carries its prescribed identity in position $1$
+and every print carries it in position $5$. Normality alone does not impose
+the first value on a special nonprint side. In the flexible variant of
+this chapter an outer fourth cell is not local: an outer side is marked,
+and its zero-versus-rank value depends on the parent's mode. In the strict
+variant of the final chapter the outer fourth cell is the generated
+schedule $W$, which is determined by the type alone and is therefore local
+there. The list of local cells relies on the marking discipline (G7): an
+unmarked side is inner, nonprint, nonboundary and on no path, so all its
+cells are fixed by the type.
+\end{definition}
+
+\begin{lemma}[A tile with an outer side has a boundary side]
+\label{lem:comp/outer-boundary}
+\lean{Tilings.Planned.boundary_side_of_outer_side,Tilings.Planned.Strict.exists_boundary_side_of_outer}
+\uses{def:certificate}
+In a macrotemplate every child type with an outer side also has a boundary
+side, that is, an inner side with an endpoint on the macroboundary.
+\end{lemma}
+\begin{proof}
+By (G1) the type has an inner side, so not all of its sides are outer.
+Walk around its boundary polygon from an outer side; the first side that
+is not outer starts at the endpoint of the last outer side, which lies on
+the macroboundary. That side is inner (the template covers the parent
+polygon, so a side not on the macroboundary is shared) and has an endpoint
+on the macroboundary. Collinear listed vertices do not affect the walk.
+\end{proof}
+
+\begin{definition}[The finite parent header]
+\label{def:control/header}
+\lean{Tilings.HeaderKernel.makeHeader}
+\leanok
+\uses{def:control/typed-decoration}
+For a type $t$, a Boolean outer-side predicate $o_t:S(t)\to\{0,1\}$,
+and a fourth-index vector $a:S(t)\to U$, set
+\[
+ z_{t,a}(d)=o_t(d)\mathbin{\wedge}[a(d)=0],\qquad
+ H(t,a)=\bigl\langle t,z_{t,a}\bigr\rangle
+ \in\sum_{t\in T}\bigl(S(t)\to\{0,1\}\bigr).
+\]
+The Lean definitions are \texttt{Header}, \texttt{zeroMode}, and
+\texttt{makeHeader}, with precisely these dependent types and formulas.
+The sum is finite when $T$ and each $S(t)$ are finite; the compiled instance
+\texttt{headerFintype} uses classical decidable equality and is
+\texttt{noncomputable}. For a decorated tile $A$ write $H(A)$ for the header
+computed from its type and its fourth vector. This is computed data, not a
+new local field fixed by the type.
+\end{definition}
+
+\begin{lemma}[Recovery of a header from fourth-port data]
+\label{lem:comp/port-recovery}
+\lean{Tilings.HeaderKernel.makeHeader_eq_of_port_recovery}
+\leanok
+\uses{def:control/header}
+Fix a type $t$ and fourth vectors $a,b:S(t)\to U$. If a vector
+$p:S(t)\to U$ satisfies $p(d)=a(d)$ and $p(d)=b(d)$ for every $d$, then
+$H(t,a)=H(t,b)$.
+\end{lemma}
+\begin{proof}
+ \leanok
+For each $d$, transitivity gives $a(d)=p(d)=b(d)$. Consequently
+$o_t(d)\wedge[a(d)=0]=o_t(d)\wedge[b(d)=0]$. Function extensionality
+identifies the two Boolean vectors, and their type components are already
+the same. This is the proof implemented in the kernel. If types are initially
+identified by an equality $t=s$, their dependent side sets must first be
+transported along that equality; the compiled auxiliary lemma
+\texttt{makeHeader\_eq\_of\_aligned\_fourth} performs this transport.
+\end{proof}
+
+\begin{definition}[The repaired decorated substitution]
+\label{def:control/substitution}
+\lean{Tilings.Planned.headerSubstitution}
+\uses{def:certificate,def:substitution,def:control/header}
+The uncoloured substitution $\sigma'$ and its finite templates are unchanged.
+For a decorated parent $A$, its repaired decomposition $\widehat\sigma A$
+has the prescribed child types. Prints carry the first four cells of the
+corresponding parent side, and their fifth cell is the interface identity of the
+shared interior side. This prescription applies to \emph{both} owners of a
+print. A side which is not a print, including a special nonprint side,
+has its prescribed first identity cell, zero second
+cell, zero fifth cell, and third cell equal to $A_i(d)$ when it belongs to
+the path $P_i(d)$, and zero otherwise. Its fourth cell is
+\[
+ B_4(b)=
+ \begin{cases}
+  0,&b\subset\sigma'd\text{ is outer and }z_A(d)=1,\\
+  \operatorname{rank}(b),&b\text{ is outer and }z_A(d)=0,\\
+  \operatorname{header}(H(A)),&b\text{ is boundary},\\
+  \bot,&b\text{ is any remaining inner nonprint side}.
+ \end{cases}
+\]
+The print prescription has precedence. Prints lie strictly inside the
+macrotemplate and hence do not conflict with the boundary clause. Each
+header tag is distinct from zero. The change from the article is the
+boundary clause: it carries the entire parent header, rather than only the
+parent type. This introduces finite control data and no new paths.
+\end{definition}
+
+\begin{definition}[Copy sources and origins]
+\label{def:control/origin}
+\lean{Tilings.Planned.copySource}
+\uses{def:control/substitution,def:certificate}
+Copied cells are positions $1$--$4$ on prints and position $3$ on ordinary
+sides assigned to paths. Their source is the corresponding parent cell.
+The source is determined by the child position and parent form. All other
+cells, including the centre type and the synthesized boundary header, are
+origins. Thus a boundary header is \emph{not} falsely treated as a literal
+copy of the sixth cell.
+
+Along an ancestor chain, repeatedly follow the source of a copied cell.
+If a noncopied cell is eventually reached, it is the origin of the chain.
+Otherwise the copied cell has no origin. A print or path may copy a
+header-valued fourth cell; its source chain then stops at the synthesized
+boundary cell. Values are unchanged along actual copy edges.
+\end{definition}
+
+\begin{definition}[Legality and properness]
+\label{def:control/legal}
+\lean{Tilings.Planned.headerLegal}
+\uses{def:control/origin,def:control/substitution,def:tiling}
+A decoration $A$ is legal when it has an infinite ancestor chain
+$A=A_0,A_1,A_2,\ldots$, with $A_i$ a child of $A_{i+1}$, such that every
+copied cell at every $A_i$ with no origin has value zero. All types and
+colours lie in fixed finite sets; legality selects a subset of that finite
+decorated tile set.
+
+A side is nontrivial if its fourth and fifth cells are not both zero.
+A plane tiling is proper if every nontrivial side has a complete, coincident
+opposing side with the same full five-tuple. A trivial outer side may have
+shifted contacts. Equality of colours is required only for contacts forced
+by this rule.
+\end{definition}
+
+\begin{lemma}[Elementary legality properties]
+\label{lem:comp/legal-properties}
+\lean{Tilings.Planned.headerLegal_properties,Tilings.Planned.Strict.strictLegal_properties}
+\uses{def:control/legal,def:control/typed-decoration,def:control/substitution}
+A legal tile has a legal parent and is normal and identity-correct;
+every child of a legal parent
+is legal. All boundary fourth cells of a legal tile equal one parent header.
+Third signals belonging to the same path are equal through a legal tile.
+Every inner side of a legal tile is nontrivial. On an outer side, triviality
+is equivalent to a zero fourth cell.
+\end{lemma}
+\begin{proof}
+Delete the first term of a witnessing ancestor chain to obtain legality of
+its parent. The child clauses fix every local cell, giving normality, and
+supply first identities on all inner nonprint sides and fifth identities
+on all prints, giving identity-correctness.
+To prove legality of a child, prepend it to a chain for the parent. A copied
+cell in the new first tile either reaches an origin there, or reaches the
+corresponding parent cell. If the source chain is infinite, the parent's
+legality forces its value, and hence the child's value, to be zero. All
+requirements farther up the chain are unchanged.
+
+The boundary and path equalities follow by choosing the first legal parent:
+its single header supplies every boundary cell, and its single cell $A_i(d)$
+supplies all appearances of a path signal in that child. At a print, the
+fifth cell is a nonzero interface identity. At a boundary side, the fourth cell
+is a nonzero header tag. At any other inner side, the fourth cell is $\bot$.
+These cases exhaust inner sides. On outer sides the fifth cell is zero,
+so the last assertion follows directly.
+\end{proof}
+
+\begin{lemma}[Assembly from active identity sides]
+\label{lem:comp/assembly}
+\lean{Tilings.Planned.assembleMacrotemplates,Tilings.Planned.Strict.strict_assembleMacrotemplates}
+\uses{def:certificate,def:control/typed-decoration,def:control/legal,def:tiling}
+A proper plane tiling of normal identity-correct typed tiles in which every
+inner side is nontrivial admits a partition into positioned $\sigma'$ macrotemplates.
+In particular, every proper legal tiling has such a partition.
+\end{lemma}
+\begin{proof}
+On an inner nonprint side, identity-correctness gives its ordered identity
+pair in the first cell. On a print, the fifth cell gives that pair.
+Nontriviality forces a complete matching side. The pair identifies the
+neighbouring type and the relative placement specified by the certificate.
+Starting with one tile, traverse the connected finite inner-side graph of
+its owner template. Each graph edge forces its required neighbour. Relative
+placements agree because they are the placements of that fixed template;
+an existing tile cannot occupy a different positive-area position while
+matching the same rigid side placement.
+
+Traversal therefore recovers the full template. Repeated traversal cannot
+produce an additional occurrence at the same position, since tile interiors
+are disjoint. Two recovered blocks sharing a tile have the same owner type
+set and the same rigid placement, and hence are the same block. Every tile
+belongs to a recovered block, so the blocks partition the plane. Trivial
+outer contacts are not used in this argument. The final assertion follows
+from Lemma~\ref{lem:comp/legal-properties}. Notice the hypothesis that inner
+sides are active and identities are correct: normality alone would neither
+force adjacency on an ordinary marked side whose fourth and fifth cells
+were both zero, nor prescribe the first identity on a special nonprint side.
+\end{proof}
+
+\begin{lemma}[A common boundary header]
+\label{lem:comp/boundary-header}
+\lean{Tilings.Planned.boundary_header_constant,Tilings.Planned.Strict.strict_boundary_header_constant}
+\uses{def:certificate,lem:comp/legal-properties,def:control/header}
+Let $M$ be a proper finite coloured realization of the template $\sigma'\alpha$,
+with the prescribed child types. Assume every tile except possibly the
+centre is legal. Every boundary fourth cell then carries the same header
+$h=(t,v)$, and $\operatorname{form}(t)=\alpha$.
+\end{lemma}
+\begin{proof}
+Every boundary tile is noncentral and legal. Its boundary cells all equal
+the header of any chosen legal parent. If two boundary tiles share a boundary
+side, that side is nontrivial; properness identifies the two header tags.
+Connectedness of the boundary belt propagates equality to every boundary
+cell of $M$. Choose one boundary tile $B$ and a legal parent $C$ of it.
+The type of $B$ determines the owner form $\alpha$, so $C$ has form $\alpha$.
+Its header equals $h$; equality of type components gives $\operatorname{type}(C)=t$.
+Thus $t$ has form $\alpha$, as required. Connectedness of this belt is an
+explicit certificate obligation, not an inference from a sufficiently
+large substitution scale.
+\end{proof}
+
+\begin{lemma}[Parent reconstruction and its exact header]
+\label{lem:comp/reconstruction}
+\lean{Tilings.Planned.reconstructed_header_eq,Tilings.Planned.Strict.strict_reconstructed_header_eq}
+\uses{lem:comp/boundary-header,lem:comp/port-recovery,def:control/typed-decoration}
+In the situation of Lemma~\ref{lem:comp/boundary-header}, define $D$ to have
+type $t$ and, for every parent side $d$ and $1\le i\le5$, set
+\[
+ D_i(d)=\text{the third cell of port }i\text{ on }\sigma'd.
+\]
+Then $D$ is normal and identity-correct, $H(D)=h$, and every inner side of
+$D$ is nontrivial.
+\end{lemma}
+\begin{proof}
+Fix a local cell $(i,d)$ of $D$. Its port lies in a legal boundary tile $B$,
+which has a boundary side by Lemma~\ref{lem:comp/outer-boundary} and hence
+a legal parent $C$ with $H(C)=h$.
+In particular $C$ has type $t$. The port clause says $D_i(d)=B_3(p_i)=C_i(d)$.
+Since $C$ is normal of type $t$, this is the required local value of $D$.
+Applying this separately to every local cell proves normality; no equality
+of the whole parents $C$ chosen for different ports is needed.
+
+For each $d$, choose its fourth port and a legal parent $C_d$ of that port
+tile. We have $H(C_d)=h$ and $D_4(d)=(C_d)_4(d)$. Thus
+\[
+ v(d)=[d\text{ outer in }t]\wedge[(C_d)_4(d)=0]
+     =[d\text{ outer in }t]\wedge[D_4(d)=0]=z_D(d).
+\]
+The dependent side sets have first been aligned using the established
+equality of parent types. Extensionality gives $H(D)=h$. The kernel recovery
+lemma is the algebraic component of this argument; obtaining the legal
+parents and their common type remains part of this mathematical lemma.
+
+For an inner nonprint side $d$, use its first port and a legal parent of
+that port tile. Its type is $t$, so the child clauses force its first cell
+to be the prescribed identity of $d$. This port recovers exactly $D_1(d)$.
+For a print, the fifth cell of $D$ is its nonzero prescribed identity by
+normality. Thus $D$ is identity-correct. For an inner nonprint side, the
+legal parent $C_d$ chosen at its fourth port has a nonzero fourth cell: it
+is a header or $\bot$. Hence $D_4(d)\ne0$. For a print, the normal fifth
+identity cell is nonzero. Therefore every inner side of $D$ is nontrivial,
+even before legality of $D$ has been established. This argument explicitly
+covers special nonprints, whose fifth cell is zero.
+\end{proof}
+
+\begin{lemma}[Signals reach the prints]
+\label{lem:comp/signals}
+\lean{Tilings.Planned.path_and_print_recovery,Tilings.Planned.Strict.strict_path_and_print_recovery}
+\uses{def:certificate,lem:comp/legal-properties,lem:comp/reconstruction}
+Every nonprint third signal on $P_i(d)$ in $M$ equals $D_i(d)$.
+The noncentral owner of the print of $d$ has first four cells
+$(D_1(d),\ldots,D_4(d))$ on that print.
+\end{lemma}
+\begin{proof}
+Begin at port $i$, whose third cell is $D_i(d)$ by construction.
+Consecutive nonprint sides of the path belong to the same noncentral legal
+tile, or are common sides of two such tiles. In the first case, their
+signals agree because both copy the same parent cell. In the second case,
+the common side is inner and nontrivial, so properness gives equality of
+its signals. Induction along the finite path proves the first assertion.
+
+Let $B$ be the small noncentral tile sharing the final print, and choose a
+legal parent $C$ of $B$. Its parent form is $\alpha$, so the same form-based
+print and path maps are used for $C$ and $D$. The predecessor of the print
+on $P_j(d)$ is an ordinary side of $B$, by the routing certificate. Its
+third cell equals $C_j(d)$ by the child clause and equals $D_j(d)$ by the
+first assertion. The print clause therefore supplies $D_j(d)$ for each
+$j\le4$. This argument uses the predecessor in the small owner, rather
+than an unsupported claim that the central tile is already legal.
+\end{proof}
+
+\begin{lemma}[Exact repaired decomposition]
+\label{lem:comp/exact}
+\lean{Tilings.Planned.macroblock_is_decomposition,Tilings.Planned.Strict.strict_macroblock_is_decomposition}
+\uses{lem:comp/reconstruction,lem:comp/signals,def:control/substitution}
+The finite patch $M$ is an exact member of $\widehat\sigma D$.
+\end{lemma}
+\begin{proof}
+Check the clauses cell by cell. Child types and fixed first, second, and
+fifth cells agree because each noncentral child has a parent of form $\alpha$.
+Remaining inner nonprint fourth cells are $\bot$. Boundary fourth cells carry
+$h=H(D)$. For an outer child side $b\subset\sigma'd$, its legal owner $B$
+has a parent $C$ with $H(C)=h=H(D)$. Hence its choice between zero and its
+fixed positive rank is exactly the choice prescribed by $D$. This is the
+case missing from the unchanged composition argument in the source article:
+the outer fourth value depends on the parent's mode, even though it is
+not an ordinary copied cell.
+
+Lemma~\ref{lem:comp/signals} verifies all ordinary third signals and all
+four print cells in the noncentral owners. Remaining third cells are zero
+by the child clause. Thus every noncentral tile has the required colours
+as a child of $D$. (The outer-side owners used above have boundary sides
+by Lemma~\ref{lem:comp/outer-boundary}.) Every side of the central tile is
+a complete shared inner side with one of these legal noncentral neighbours. The neighbour forces
+equality of the full colour by properness. The repaired substitution
+prescribes equal colours to both owners of such a side, including the
+borrowed tuple on a print. Consequently the central tile also has all the
+required child cells. No initial legality assumption about the centre
+has been used.
+\end{proof}
+
+\begin{lemma}[Cyclic reconstructed parents are legal]
+\label{lem:comp/cyclic-legal}
+\lean{Tilings.Planned.reconstructed_cyclic_legal,Tilings.Planned.Strict.strict_reconstructed_cyclic_legal}
+\uses{lem:comp/exact,def:certificate,def:control/legal,lem:finite-idempotent}
+Suppose the centre $A$ of $M$ is legal and the type $t$ of $D$ is cyclic:
+it is the central child type in the template of its own form. Then $D=A$
+as typed decorations, and $D$ is legal.
+\end{lemma}
+\begin{proof}
+Both tiles have type $t$. The retained large form is fixed by the central
+form map, obtained using Lemma~\ref{lem:finite-idempotent} in the geometric
+construction. Its print map is the identity on marked sides. Hence every
+marked first-four cell of $A$, as central child of $D$, copies the
+corresponding cell of $D$. The remaining cells are local and agree because
+both tiles are normal. The header is computed from the type and fourth
+vector and therefore agrees as well. Thus $A=D$, proving the claim.
+\end{proof}
+
+\begin{lemma}[Noncentral reconstructed parents are legal]
+\label{lem:comp/noncentral-legal}
+\lean{Tilings.Planned.reconstructed_noncentral_legal,Tilings.Planned.Strict.strict_reconstructed_noncentral_legal}
+\uses{lem:comp/exact,lem:comp/cyclic-legal,def:certificate,def:control/legal}
+If the centre $A$ is legal and $t$ is noncentral, then $D$ is legal.
+\end{lemma}
+\begin{proof}
+A normal noncentral tile has a marked ordinary inner side with a nonzero
+first identity cell, by the separating certificate. Its print in $A$
+contains that nonzero value. A legality chain of $A$ with only central
+types would copy this marked first cell forever: all parent forms would
+be retained large forms, whose print maps are identities. The cell would
+have no origin and would be zero, a contradiction. Therefore the chain
+reaches a legal noncentral ancestor.
+
+Choose a shortest central-child chain ending at such an ancestor. Passing
+to the central child fixes large forms. All but possibly the last two
+vertices are therefore cyclic tiles of the same type and, by the argument
+of Lemma~\ref{lem:comp/cyclic-legal}, identical decorations. Delete these
+repetitions. The chain has length $n\le2$. Length two is impossible here:
+the immediate parent of $A$ would have a large form, whereas its known
+parent $D$ has a noncentral form. A child's position determines its parent
+form, so these cannot both be parents. Thus $A$ has a legal noncentral
+parent $E$ immediately above it.
+
+The parents $E,D$ have the same form. Their print maps depend only on this
+form, so their marked first-four fields agree through the common child $A$.
+Let $\Phi$ be the multiset of type components of first-cell interface identitys
+on marked sides. We have $\Phi(E)=\Phi(D)$. The noncentral fingerprint
+certificate implies that their types agree. Their local fields then agree
+by normality, while their marked first-four fields already agree. Hence
+$E=D$, and $D$ is legal.
+
+The fingerprint condition can be checked from exact finite data: original
+types have a nonempty inner identity set; a template's connected dual graph
+has more than two vertices; small types have enough ordinary marked inner
+sides to separate their cardinalities from original types; and each pair
+of small types has at least three private ordinary original-neighbour
+occurrences. The exceptional special side contributes at most two arbitrary
+components. These are finite separating conditions, not informal estimates
+that sufficiently large quasi-squares will automatically have them.
+\end{proof}
+
+\begin{lemma}[Positive ranks align an entire macroside]
+\label{lem:comp/alignment}
+\lean{Tilings.Planned.alignment_complete}
+\uses{def:certificate,def:tiling,def:control/substitution}
+Let the macroblocks of a proper plane tiling of legal typed tiles form a
+plane partition with disjoint interiors (legality makes every outer fourth
+cell zero or the generated rank of its side; without this a constant
+colouring satisfies the hypotheses below on the three-block counterexample).
+If every child side of one macroside has a complete opposing side with the
+same positive alignment rank, \emph{and every macroside of an opposing
+macroblock is mode-uniform} (either all of its child sides carry positive
+ranks, or all carry zero), then this macroside has a complete opposing
+macroside with the same ordered subdivision.
+
+Without the mode-uniformity hypothesis the statement is false: let $d$
+have children of ranks $1,2,3$, each completely matched by the children of
+ranks $1,2,3$ of an opposing macroside $e$ which has five children, the
+last two facing trivial children of a third block. The hypothesis on $d$
+holds, yet $d$ has no complete opposing macroside. This example is a
+counterexample only under the weaker legality ``every outer fourth cell is
+zero or the generated rank of its side''; under the full-header legality of
+the repaired child relation every macroblock of a proper legal tiling has a
+common boundary header, so mode-uniformity follows from legality and the
+hypothesis is automatic. In
+Lemma~\ref{lem:comp/proper} mode-uniformity is available, because every
+block is an exact decomposition of its reconstructed parent and the parent
+header fixes one mode per side.
+\end{lemma}
+\begin{proof}
+Use the global orientation of ranks along straight sides, required by (G3).
+The child side
+of rank one coincides completely with a child side of rank one on an
+opposing macroblock. Their first endpoints, and thus the beginnings of
+their macrosides, coincide. Continue along the finite ordered list of child
+segments. An opposing macroblock cannot end inside one of these segments:
+the segment has a complete matching side. If it ends between consecutive
+segments, the next opposing macroside would have to begin there and its
+first rank would be one, whereas the next given rank is larger than one.
+
+The other end needs the mode-uniformity hypothesis. Let the given side
+have $L$ children and the opposing side $e$ have $L'$ children, and suppose
+$L'>L$. Since child $1$ of $e$ carries a positive rank, mode-uniformity
+makes child $L+1$ of $e$ ranked, hence nontrivial, so it needs a complete
+match of rank $L+1$. Beyond the end of the given side, on the same side of
+the line, lies either the next listed side of the same block, whose first
+child has rank $1$, or a side of a different block, which would have to
+begin $L$ children earlier and overlap the given block, or a trivial side,
+which cannot match a nontrivial one. All three are impossible, so $L'=L$.
+
+For completeness, an alternative opposing macroside cannot have begun
+earlier and merely join the contact at this switch. An open portion of that
+earlier side would lie opposite the same open portion of the original
+opposing block, with their interiors on the same half-plane side. Local
+polygonal interior neighbourhoods would overlap, contradicting the
+disjointness of macroblock interiors. Coverage supplies an opposing block
+after each endpoint, so the rank-reset obstruction cannot be avoided by
+leaving a gap. Applying the argument at the other end shows that the
+opposing side terminates exactly with the given side. Complete child-side
+matching then identifies the whole ordered subdivision. This geometric
+lemma must be formalized separately from the algebraic header kernel.
+\end{proof}
+
+\begin{lemma}[The reconstructed plane tiling is proper]
+\label{lem:comp/proper}
+\lean{Tilings.Planned.composed_proper,Tilings.Planned.Strict.strict_composed_proper}
+\uses{lem:comp/assembly,lem:comp/exact,lem:comp/alignment,lem:comp/reconstruction,lem:comp/boundary-header}
+For a proper legal plane tiling $\mathcal T$, replace each assembled
+macroblock by its reconstructed parent and scale down by the substitution
+factor. Each assembled macroblock is replaced by its reconstructed parent in
+the sense of Lemma~\ref{lem:comp/reconstruction}, i.e.\ the parent whose
+type is the type of the common boundary header of the block given by
+Lemma~\ref{lem:comp/boundary-header}. The result $\mathcal T'$ is a proper tiling of normal identity-correct decorations
+with active inner sides, and $\mathcal T$ is an exact repaired decomposition
+of $\mathcal T'$.
+\end{lemma}
+\begin{proof}
+Assembly partitions the plane into the macroblocks. Their underlying
+polygons are scaled parent polygons, so replacing and scaling them preserves
+coverage and disjoint interiors. Exact decomposition follows block by block
+from Lemma~\ref{lem:comp/exact}; normality, identity-correctness, and activity of inner sides follow
+from Lemma~\ref{lem:comp/reconstruction}.
+
+Every macroside of every block is mode-uniform: the block is an exact
+decomposition of its reconstructed parent $E$ (Lemma~\ref{lem:comp/exact}),
+and the outer fourth cells on $\sigma'e$ are all zero or all positive
+ranks according to $z_E(e)$. So the alignment lemma applies.
+
+Consider a nontrivial side $d$ of a reconstructed parent $D$. If it is
+inner, $z_D(d)=0$ by definition. If it is outer, its fifth cell is zero,
+so nontriviality gives $D_4(d)\ne0$ and again $z_D(d)=0$. Thus all its
+child outer fourth cells are positive ranks. Properness of $\mathcal T$
+matches each completely with an equal positive rank. The alignment lemma
+gives a complete opposing parent side and the same subdivision. Its five
+ports consequently coincide with the corresponding five ports on the
+given side. The third cells on those ports agree in $\mathcal T$. These
+five values are exactly the five reconstructed parent cells, proving full
+colour equality. A trivial outer side imposes no requirement. Hence
+$\mathcal T'$ is proper.
+\end{proof}
+
+\begin{lemma}[Central acyclic reconstructed parents are legal]
+\label{lem:comp/acyclic-legal}
+\lean{Tilings.Planned.reconstructed_acyclic_legal,Tilings.Planned.Strict.strict_reconstructed_acyclic_legal}
+\uses{lem:comp/proper,lem:comp/exact,lem:comp/noncentral-legal,lem:comp/cyclic-legal,def:certificate}
+Every reconstructed parent of central acyclic type in $\mathcal T'$ is legal.
+\end{lemma}
+\begin{proof}
+Let $D$ be such a parent, of type $t$, and let $A$ be its original legal
+central child. Every noncentral or cyclic tile of $\mathcal T'$ is already
+legal by the preceding legality lemmas. All reconstructed tiles are normal
+and identity-correct with active inner sides, so the assembly lemma also applies to
+$\mathcal T'$. In the second-level macroblock containing $D$, every
+noncentral tile is legal. The full repaired reconstruction and exactness
+lemmas give a normal parent $C$ of type $r$, with $D$ its central child.
+No unproved inheritance of a single-scale flag rule is needed.
+
+The type $r$ is noncentral. If it were central, its large form would be
+fixed by the central-child form map. It and its central child $t$ would
+have the same large form, and hence the same central child type, making
+$t$ cyclic. This contradicts the assumption on $D$.
+
+The nonzero marked first cell of normal noncentral $C$ is copied into
+$D$ and then into $A$. The origin argument from the noncentral legality
+lemma therefore shows that a legal ancestry chain of $A$ reaches a
+noncentral type; removing cyclic repetitions gives length at most two.
+An immediate parent of $A$ has the same large form as $D$, and hence a
+central type. The chain must have length exactly two:
+\[
+ A\ \longleftarrow\ E\ \longleftarrow\ F,
+\]
+where $E,F$ are legal and $F$ is noncentral.
+
+The parents $E,D$ have the same form and agree in their marked first-four
+fields through $A$, so $\Phi(E)=\Phi(D)$. Write $L=4N$ for the number
+of marked sides of a large form, and $Q$ for the maximum on a noncentral
+form. At most $Q$ marked sides of $D$, the central child of $C$, are prints.
+On each of the remaining at least $L-Q$ sides its first interface identity
+contains $t$. Thus the multiplicity of $t$ in $\Phi(D)$ is at least $L-Q$.
+Suppose $E$ had a different central type $t'$. Its nonprint identities
+contain $t'$ and a small neighbour type, neither equal to $t$. Only its
+at most $Q$ prints can contribute $t$; a copied print cell contributes at
+most one occurrence of $t$ per print under the type projection, so the
+multiplicity is at most $Q$, and in any case at most $2Q$.
+This contradicts $L-Q>2Q$, supplied by the certificate. Therefore $E$
+also has type $t$. Normal local cells and the marked copied cells now
+identify $E=D$. Since $E$ is legal, $D$ is legal.
+\end{proof}
+
+\begin{theorem}[The repaired composition theorem]
+\label{thm:compose}
+\lean{Tilings.Planned.compose_legal_exists}
+\uses{def:certificate,def:hereditary,lem:comp/proper,lem:comp/noncentral-legal,lem:comp/cyclic-legal,lem:comp/acyclic-legal}
+For every macrotemplate system satisfying Definition~\ref{def:certificate}
+with hereditary listed sides (Definition~\ref{def:hereditary})
+and the explicit header substitution of Definition~\ref{def:control/substitution},
+every proper legal plane tiling has a proper exact repaired composition
+whose tiles are legal.
+\end{theorem}
+\begin{proof}
+Construct $\mathcal T'$ by assembly and reconstruction. The properness
+lemma proves that it is a plane tiling, is proper, and decomposes exactly
+to the input. Its reconstructed types are either noncentral, central cyclic,
+or central acyclic. The three legality lemmas cover these disjoint cases.
+Thus every tile of $\mathcal T'$ is legal. The conclusion uses the same
+properness and legality predicates as the input, so the theorem can be
+iterated. The header modification is what provides this closure.
+\end{proof}
+
+\begin{theorem}[Lifting an actual side-to-side-supertiling hierarchy]
+\label{lem:lift-hierarchy}
+\lean{Tilings.Planned.lift_hierarchy}
+\uses{def:certificate,def:hereditary,def:hierarchy,def:control/origin,def:control/substitution}
+Suppose the macrotemplate system has hereditary listed sides, so that no
+fine outer side straddles a parent listed vertex and ``the unique
+containing side'' below is defined. Suppose an actual $\sigma'$ hierarchy
+is given and its finite supertiles
+are side-to-side at every level: for every tile $X$ of level $n$ and every
+$k\le n$ the patch $\sigma'^{\,k}X$ of level-$(n-k)$ tiles is side-to-side
+(the full decomposition alone is not enough: two level-$1$ siblings with
+partially overlapping sides would give coincident fine sides different port
+ranks). Then it admits compatible legal decorations at every
+level under the repaired substitution; its decorated level-zero tiling
+is proper. This side-to-side-supertiling assumption is an additional
+geometric instantiation obligation, supplied by a correctly grouped STS
+construction, not proved by the header kernel.
+\end{theorem}
+\begin{proof}
+At each level the hierarchy specifies each child's type and its parent.
+On an outer side, follow the unique containing side through parent levels.
+If it stays outer forever, put its fourth cell equal to zero at all levels
+of that chain. If it eventually becomes inner, assign the fixed positive
+alignment ranks on the outer levels below the first inner side. These
+choices obey the outer-fourth substitution clause. Set remaining inner nonprint
+fourth cells to $\bot$, and boundary fourth cells to the computed header
+of their parent.
+
+Set every remaining noncopied fresh cell to its prescribed child value;
+this includes fixed local cells and first identities on special nonprints.
+For a recursively copied cell, follow its source: use the origin value if an origin is reached, and
+zero if it is not. Copy-source uniqueness makes this assignment
+unambiguous. Equality along a copy edge holds in both cases. A header depends
+only on the type and the outer fourth cells, all of which were assigned
+before the copying step: inner entries of its mode vector are false regardless
+of their fourth values. Its assignment therefore introduces no additional
+recursive choice. The child clauses are now
+all satisfied. Each actual ancestor chain witnesses legality, including
+the no-origin condition at every level.
+
+Inside a macroblock, shared side colours agree because both owners receive
+the same parent data; synthesized boundary headers also agree. For an outer
+side with nonzero fourth cell, its ancestor side becomes inner at a finite
+level. Both overlapping sides therefore belong to one finite higher
+supertile. The assumed STS property makes their descendant sides coincide
+completely, with matching ranks and ports. Their copied cells either reach
+the same shared origin, or matching origins on a shared side, or both have
+no origin and are zero. The second alternative is an induction on the
+level: the two copied cells on the coincident sides $b\subset\sigma'd$ and
+$b'\subset\sigma'd'$ copy the cells of the parent sides $d,d'$, which are
+again coincident sides in the next level with one fewer level to go before
+the chain becomes inner; the induction hypothesis gives equality there.
+The third cell of an outer side is nonzero only when that side is a port,
+by the inner-side clause of (G4); hence no outer side other than a port
+carries a parent signal, and the coincident side of a port is the port of
+the same number of the opposing block. Hence their full colours agree. The same argument
+applies to inner sides, already lying in a finite supertile. An outer side
+whose chain stays outer forever has zero fourth and fifth cells and is
+trivial, so its shifted contacts are permitted. The level-zero decoration
+is proper, and the construction is compatible across all hierarchy levels.
+\end{proof}
+
+\begin{theorem}[Soundness and the conditional representation]
+\label{thm:comp/soundness}
+\lean{Tilings.Planned.projects_to_hierarchy}
+\uses{thm:compose,lem:lift-hierarchy,def:hierarchy,def:certificate,def:hereditary}
+Under the certificate assumptions, with hereditary listed sides, erasing
+the colours of every proper
+legal tiling gives a $\sigma'$-hierarchical tiling. If in addition the
+actual hierarchies to be represented have side-to-side finite supertiles,
+then the erasures of proper legal tilings are exactly those hierarchical
+tilings. The resulting decorated tile alphabet is finite.
+\end{theorem}
+\begin{proof}
+Apply the repaired composition theorem repeatedly. Classical dependent
+choice, or recursive selection of a witness for each natural-number level,
+gives proper legal tilings $\mathcal T^{(0)},\mathcal T^{(1)},\ldots$,
+each an exact composition of its predecessor. Erasure commutes with the
+repaired substitution, since the underlying geometry was unchanged.
+Thus their erased sequence witnesses the required $\sigma'$ hierarchy.
+This direction uses no assumed existence of a coloured hierarchy.
+
+Conversely, the lifting theorem supplies a proper legal decoration of
+every hierarchy satisfying its geometric STS condition. Finiteness follows
+because there are finitely many forms, types, side positions, and ordinary
+index tags, while the dependent header sum is finite. Legality is a subset
+of this finite alphabet. These two implications prove the conditional
+representation statement.
+
+This theorem is deliberately conditional on the geometric certificate and
+the stated realization condition. It is not a completed proof of the
+general STS/FLC soficity theorems. Establishing a valid connected grouping,
+the routing and separation certificates, the compatibility with the
+original substitution, and the repaired FLC geometric reduction remains
+outside this chapter. In the crown-bearing variants, positive outer
+fourth cells make every header mode vector false; the header then carries
+the former parent type with redundant control bits. Crown consistency and
+the additional language argument require their own nodes and are not
+inferred from the conditional hierarchical representation proved here.
+\end{proof}

@@ -4,9 +4,9 @@ import Tilings.Crowns
 import Tilings.Hierarchy
 
 /-!
-# The repaired grouping construction (statements only)
+# The repaired grouping construction
 
-Skeleton for the chapter `grouping.tex` of the blueprint: mesh constants
+Formalization of the chapter `grouping.tex` of the blueprint: mesh constants
 (`def:mesh`), the anchored inside/outside groupings
 (`lem:regular-grouping`, `lem:outside-grouping`), disjoint skeletal spokes
 (`lem:annular-spokes`), quantitative sector localization
@@ -17,10 +17,10 @@ The existence of the macrocertificate (`lem:certificate-exists`) is stated at
 the end, against `Tilings.Geometry.MacroCertificate` from
 `Tilings/Control/Certificate.lean` (which imports only `Tilings.Basic`).
 
-All theorems are `sorry`.  The two classical polygonal-topology helpers
-`polygonalJordanBoundary` and `plAnnulusRouting` are stated separately; they
-must be *proved* (or obtained from a proved polygonal topology API), never
-assumed.
+All theorems are proved.  The two classical polygonal-topology helpers
+`polygonalJordanBoundary` and `plAnnulusRouting` are proved here from scratch
+(winding numbers, polygonal Schoenflies via ear decomposition, cut-open
+annulus model); nothing is assumed.
 
 Planar notation: `Binf r` is the closed sup-norm ball `[-r,r]^2`,
 `square c h` the closed axis-parallel square with centre `c` and half side `h`;

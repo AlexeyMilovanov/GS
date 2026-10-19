@@ -1,11 +1,10 @@
 import Tilings.Hierarchy
 
 /-!
-# The corrected uniform crown-cover lemma (skeleton)
+# The corrected uniform crown-cover lemma
 
-Statements of the nodes of `crowns.tex` (section "A corrected uniform
-crown-cover lemma").  All theorems are `sorry` except
-`closedConvexHullDiameter`.
+The nodes of `crowns.tex` (section "A corrected uniform crown-cover
+lemma").  All theorems are proved.
 
 ## Modelling choices
 
@@ -7251,7 +7250,6 @@ private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
     have := τ.one_lt
     positivity
 
-#print axioms allowed_crowns_hierarchy_is_substitutive_step1_radius_step4_supp
 private lemma allowed_crowns_hierarchy_is_substitutive_step1_radius_step5_tile_decompose_translate
     (σ : Substitution P) (v : Pt) (S : Set (PlacedTile P)) :
     σ.decompose (translateSet v S) = translateSet (σ.θ • v) (σ.decompose S) := by

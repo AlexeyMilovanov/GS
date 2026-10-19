@@ -3,9 +3,9 @@ import Tilings.Crowns
 import Mathlib.Analysis.SpecificLimits.Basic
 
 /-!
-# Endpoint schedules and whole-side ports (statements only)
+# Endpoint schedules and whole-side ports
 
-Skeleton for the alignment part of `main.tex`: finite endpoint schedules
+The alignment part of `main.tex`: finite endpoint schedules
 (`def:endpoint-schedule`), alignment of all intermediate levels
 (`lem:alignment-tuple`), whole-side ports without nested subdivisions
 (`lem:whole-ports`) and the STS part of strict schedule composition

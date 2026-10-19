@@ -1,10 +1,10 @@
 import Tilings.Control.Decoration
 
 /-!
-# A boundary-header repair of coloured composition (statements)
+# A boundary-header repair of coloured composition
 
-Statements of chapter `composition.tex` of the blueprint, with the planned
-Lean names of the manifest.  Every proof is `sorry`.
+Chapter `composition.tex` of the blueprint, with the Lean names of the
+manifest.  Every proof is complete.
 
 Every theorem carries the standing hypothesis of the chapter that the
 macrotemplate system has hereditary listed sides (`hH : c.Hereditary`).

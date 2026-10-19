@@ -2,7 +2,7 @@ import Tilings.Control.Composition
 import Tilings.Alignment
 
 /-!
-# The strict variant of the control chapter (statements)
+# The strict variant of the control chapter
 
 Blueprint: `main.tex`, `lem:schedule-compose` ("In the strict variant replace generated outer
 fourth ranks by tagged `W` ... This repeats the finite control proof with a different
@@ -45,11 +45,10 @@ flexible alphabet `U c`, and with it `DecTile`, `IsChildOfWith` (whose outer cla
 zero/rank rule), `IsNormal`, `headerLegal`, `ColouredBlock` and the composition statements, is
 hard-wired to ranks, so strict copies of the same shape are defined here.
 
-Definitions are real and `sorry`-free; all fields of `strictSystem` are proved.  Also proved:
-`strictChild_cells` (the strict child satisfies the clauses of `IsChildOfWith` with the
-schedule clause), `exists_boundary_side_of_outer`, `strict_proper_iff` (modulo the planar
-lemma `exists_coincident_side`), `Substitution.STS.decomposeIter_sts_of_subset_supertile` and
-the final assemblies.  Theorems proved by `sorry` are proof targets.
+All definitions and all theorems of this file are proved (no `sorry`), including the fields
+of `strictSystem`, `strictChild_cells` (the strict child satisfies the clauses of
+`IsChildOfWith` with the schedule clause), `exists_boundary_side_of_outer`, `strict_proper_iff`,
+`Substitution.STS.decomposeIter_sts_of_subset_supertile` and the final assemblies.
 -/
 
 open Set Pointwise

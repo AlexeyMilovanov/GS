@@ -1,0 +1,3249 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=23mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath,amsthm,mathtools}
+\usepackage[unicode,colorlinks=true,linkcolor=blue,urlcolor=blue]{hyperref}
+\usepackage{microtype}
+\setlength{\emergencystretch}{2em}
+\newcommand{\R}{\mathbb R}
+\newcommand{\N}{\mathbb N}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\carrier}[1]{\left|#1\right|}
+\newcommand{\typeOf}{\operatorname{type}}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{lemma}[definition]{Lemma}
+\newtheorem{theorem}[definition]{Theorem}
+\newtheorem{proposition}[definition]{Proposition}
+\newtheorem{corollary}[definition]{Corollary}
+\theoremstyle{remark}
+\newtheorem{remark}[definition]{Remark}
+
+\newcommand{\lean}[1]{}
+\newcommand{\uses}[1]{}
+\newcommand{\proves}[1]{}
+\newcommand{\discussion}[1]{}
+\newcommand{\mathlibok}{}
+\newcommand{\leanok}{\textit{Lean kernel checked.}\ }
+\newcommand{\notready}{\textbf{Open construction dependency.}\ }
+
+\title{A Lean Blueprint for Substitution and Hierarchical Tilings}
+\author{Formalization design and proof repair}
+\date{12 October 2026, review revision}
+\begin{document}
+\maketitle
+\tableofcontents
+\section{Scope, status, and exact models}
+
+This blueprint covers all five conclusions of Theorems 1 and 2 of
+\href{https://arxiv.org/abs/2606.25005v2}{arXiv:2606.25005v2}.
+It distinguishes three statuses: an ordinary mathematical proof supplied
+below, a Lean declaration checked in the small header kernel, and a
+geometric construction obligation still requiring a complete proof.
+Only nodes corresponding exactly to the checked header kernel carry
+\texttt{leanok}. All other Lean names are planned names.
+In particular, the universal main theorems are goals until the outstanding
+geometric instantiation is established. A certificate theorem is an
+intermediate theorem, not a replacement for constructing its certificate.
+
+The new construction changes the boundary control colour in the hierarchical
+case. The crown-cover proof uses new positive constants. These changes do
+not add convexity, primitivity, recognizability, or lattice assumptions.
+We interpret polygonal tiles as compact simple polygonal disks. Collinear
+listed vertices are permitted. Rotations are represented by distinct forms
+before the construction; only translations act on placed tiles.
+
+\begin{definition}[Polygonal disk]\label{def:polygon}
+\lean{Tilings.Geometry.PolygonalDisk}
+A polygonal disk is a compact regular-closed set $B\subset\R^2$ with
+nonempty interior and a finite simple polygonal boundary. It carries
+indexed boundary vertices and nonzero segments. Consecutive collinear
+vertices may be retained as data. Its interior is path connected.
+\end{definition}
+
+For Lean, use $\operatorname{EuclideanSpace}\R(\operatorname{Fin}2)$.
+The usual product metric on $\R\times\R$ is not silently substituted for
+the Euclidean metric in the distance and sine estimates. A vertex-only
+\texttt{Polygon} interface is not yet a filled polygonal disk; the bridge
+between boundary data and the carrier is a separate development.
+
+\begin{definition}[Finite protoset and placements]\label{def:protoset}
+\lean{Tilings.Protoset}
+\uses{def:polygon}
+A protoset is a finite type $P$ with a polygonal disk $B_p$ for each $p\in P$.
+A placed tile is $(p,v)$, with carrier $v+B_p$. Colours belong to the form,
+so congruent coloured forms remain distinct.
+\end{definition}
+
+\begin{definition}[Placed tiles and patches]\label{def:placed}
+\lean{Tilings.PlacedTile,Tilings.Patch}
+\uses{def:protoset}
+Write $|A|$ for the carrier of a placed tile and $|F|$ for the union of the
+carriers in a patch. A patch is a finite set of placed tiles with pairwise
+disjoint interiors. Translations act on the anchor coordinates.
+\end{definition}
+
+\begin{definition}[Plane tilings and side-to-side]\label{def:tiling}
+\lean{Tilings.PlaneTiling,Tilings.SideToSide}
+\uses{def:placed}
+A plane tiling $T$ is a set of placed tiles whose carriers cover $\R^2$ and
+whose interiors are pairwise disjoint. It is side-to-side if two tile sides
+with positive-length overlap coincide as whole segments. Local finiteness
+is a derived property, not an extra hypothesis of the final theorem.
+
+\emph{Plane coverage is part of every theorem statement below.} The
+paper's introductory word ``tiling'' (main.tex, line 92) also admits an
+arbitrary nonoverlapping set; that usage is kept here only for finite
+patches. Properness of a mere nonoverlapping set is not the notion used:
+without coverage a single inert decorated tile would be a proper tiling
+projecting outside the family, the surjectivity device of
+Lemma~\ref{lem:glues} and the reverse direction of the collar conversion
+would fail, and nontrivial sides could lack an opposite neighbour.
+\end{definition}
+
+\begin{lemma}[Local finiteness and countability]\label{lem:localfinite}
+\lean{Tilings.PlaneTiling.locallyFinite,Tilings.PlaneTiling.countable}
+\uses{def:tiling}
+Every plane tiling by a finite protoset is locally finite and countable.
+\end{lemma}
+\begin{proof}
+Choose an open disk in the interior of each form. The minimum of these
+finitely many positive radii is $r>0$, and the maximum of the form diameters
+is $D<\infty$. If a tile meets a compact set $K$, its chosen interior disk
+centre lies in the closed $D$-neighbourhood of $K$. Centres belonging to
+distinct tiles are at distance at least $2r$, since their open interior
+disks are disjoint. A compact metric set has only finitely many
+$2r$-separated points, by a finite cover with disks of radius $r/2$.
+This proves local finiteness.
+For countability choose, for each tile, a rational point in its nonempty
+open interior. Chosen rational points for different tiles are distinct.
+The injection into $\mathbb Q^2$ proves countability. This proof does not
+require rational polygon coordinates.
+\end{proof}
+
+\begin{definition}[Substitution]\label{def:substitution}
+\lean{Tilings.Substitution}
+\uses{def:placed}
+A substitution $\tau$ has a common scale $\theta>1$ and a finite patch
+$\tau p$ with support $\theta B_p$ for each $p\in P$. On a placed tile
+$(p,v)$ it produces the translates by $\theta v$ of $\tau p$.
+Iterates are defined recursively. A supertile is a translate of $\tau^n p$,
+$n\in\N$. A composition is an inverse decomposition of a plane tiling.
+Decorated substitutions are allowed to be relations rather than functions.
+\end{definition}
+
+\begin{lemma}[Supports and finite parents]\label{lem:finiteparents}
+\lean{Tilings.Substitution.iterate_support,Tilings.Substitution.finite_parents}
+\uses{def:substitution}
+The support of $\tau^n p$ is $\theta^n B_p$. A fixed placed child has only
+finitely many possible placed parents under $\tau$.
+\end{lemma}
+\begin{proof}
+The support identity follows by induction, using the exact support identity
+for every child and distribution of a homothety over a union.
+A possible parent is determined by its form and the child position in that
+form's finite substitution patch. If the child's anchor is $v$ and the
+chosen child offset is $w$, the parent's anchor is $(v-w)/\theta$.
+There are finitely many such pairs of form and position.
+\end{proof}
+
+\begin{definition}[Substitution and hierarchical families]\label{def:hierarchy}
+\lean{Tilings.IsSubstitutionTiling,Tilings.IsHierarchical,Tilings.IsSideToSideHierarchical}
+\uses{def:tiling,def:substitution}
+A plane tiling is a substitution tiling if every finite patch in it occurs,
+up to translation, in a supertile. It is hierarchical if there are plane
+tilings $T_0=T,T_1,\ldots$ with $\tau T_{n+1}=T_n$.
+It is side-to-side hierarchical if every $T_n$ is side-to-side.
+\end{definition}
+
+\begin{lemma}[Substitution tilings admit substitution compositions]
+\label{lem:substitution-hierarchy}
+\lean{Tilings.SubstitutionTiling.exists_composition}
+\uses{def:hierarchy,lem:finiteparents,lem:localfinite}
+Every substitution plane tiling has a composition which is again a
+substitution plane tiling.
+\end{lemma}
+\begin{proof}
+Enumerate its tiles $A_1,A_2,\ldots$. Each initial finite set is contained in
+a supertile of positive order: enlarge the patch by sufficiently many
+tiles if necessary to exclude order zero. Choose the previous-level
+supertile as a parent cover. By the finite-parent lemma, thin this sequence
+to stabilize the parent of $A_1$, then of $A_2$, and so forth. The diagonal
+sequence yields parents $B_i$ such that every finite set of the $B_i$ is
+contained in a supertile. Thus they have disjoint interiors and form a
+substitution patch at every finite scale. Their decompositions contain
+every $A_i$. No extra child can occur: a child has nonempty interior, and
+the plane is already covered by $T$ with disjoint interiors. Consequently
+the decomposition is exactly $T$; scaling gives coverage of the parent
+plane. Iterate this existence statement using dependent choice.
+The Lean proof may equivalently use a finite inverse system of partial
+parent assignments and K\"onig's lemma.
+\end{proof}
+
+\begin{lemma}[Powers and hierarchical tilings]\label{lem:hierarchy-step}
+\lean{Tilings.hierarchical_power_iff}
+\uses{def:hierarchy}
+$\tau$-hierarchy and $\tau^m$-hierarchy coincide for $m>0$.
+Side-to-side hierarchy requires a separate check on the inserted levels.
+\end{lemma}
+\begin{proof}
+Take every $m$th level in one direction. In the other, between two levels
+insert the $m-1$ intermediate decompositions of the upper tiling. Exact
+supports and disjoint interiors ensure that these are plane tilings.
+Side-to-side at the two endpoints does not by itself imply side-to-side
+at the intermediate levels, which is why the alignment tuples are needed.
+\end{proof}
+
+\begin{definition}[Crowns, FLC, and STS]\label{def:crown}
+\lean{Tilings.Crown,Tilings.AllowedCrown}
+\uses{def:placed,def:substitution,lem:localfinite}
+The full pointed crown at a listed tile vertex $v$ consists of all tiles
+whose closed carriers contain $v$, with distinguished centre $v$.
+A crown is allowed if it occurs in a supertile. Equality up to translation
+preserves the distinguished centre.
+\end{definition}
+
+\begin{definition}[Finite local complexity]\label{def:flc}
+\lean{Tilings.Substitution.FLC}
+\uses{def:crown}
+FLC means that the set of allowed full pointed crowns, including incomplete
+crowns on supertile boundaries, is finite up to translation.
+\end{definition}
+
+\begin{definition}[STS hypothesis]\label{def:sts}
+\lean{Tilings.Substitution.STS}
+\uses{def:tiling,def:substitution}
+STS means that every supertile is side-to-side.
+\end{definition}
+
+
+\begin{definition}[Hereditary listed sides]\label{def:hereditary}
+\lean{Tilings.Substitution.HereditarySides}
+\uses{def:substitution,def:sts}
+Every image of a listed prototile vertex is a listed child vertex, and each
+scaled parent listed side is a union of complete child listed sides.
+This is an extra core hypothesis, not a consequence of STS: an irrational
+dummy cut on unit-square sides is not hereditary for a $2\times2$ subdivision.
+Finite refinement retaining such a cut cannot repair heredity, since it
+would contain the infinite orbit $\{2^n a\}\bmod1$.
+The final main theorems remove this extra hypothesis explicitly.
+\end{definition}
+
+\begin{lemma}[STS gives FLC]\label{lem:sts-flc}
+\lean{Tilings.Substitution.STS.finite_crowns}
+\uses{def:sts,def:flc}
+Under STS the allowed pointed crowns form a finite set up to translation.
+\end{lemma}
+\begin{proof}
+At a vertex, a tile in the crown is fixed by its form and the listed vertex
+identified with the centre. In a face-to-face polygonal patch there is no
+vertex strictly inside another tile side with an incident open sector:
+the sector on that side would force a partial side overlap. The number of
+incident tiles is bounded by the smallest positive angle among the finite
+forms. Hence a crown is a subset of a finite list of positioned forms.
+Incomplete crowns are subsets of the same list.
+The proof of the no-partial-side assertion uses that a supertile fills its
+simple polygonal carrier, rather than an arbitrary disconnected patch.
+\end{proof}
+
+\begin{definition}[Bounded local rules and finite decorations]\label{def:localrule}
+\lean{Tilings.LocalRule,Tilings.Decoration,Tilings.Proper}
+\uses{def:tiling}
+A local rule is a possibly infinite set $\mathcal R$ of finite forbidden
+patches, together with $D<\infty$ bounding all their support diameters.
+A full plane tiling is proper if it contains no translated occurrence of
+a member of $\mathcal R$. A decoration is a finite decorated form type,
+with a surjection to the original forms preserving carriers after anchor
+normalization. Its induced projection acts tilewise.
+\end{definition}
+
+\begin{definition}[Soficity]\label{def:sofic}
+\lean{Tilings.IsSofic,Tilings.IsSideToSideSofic}
+\uses{def:localrule}
+A family is sofic if it is exactly the projections of the proper plane
+tilings for a finite decoration and a bounded local rule.
+It is side-to-side sofic if the rule is equality of colours on complete
+matching sides, together with side-to-side adjacency.
+\end{definition}
+
+This is the continuous geometric notion in the paper. It is not replaced
+by a $\mathbb Z^2$ subshift of finite type. The forbidden set may be infinite;
+the decoration alphabet and the radius are finite. Both quantifiers in the
+definition of soficity range over plane tilings only, as fixed in
+Definition~\ref{def:tiling}.
+
+\begin{lemma}[Finite endofunction has an idempotent power]
+\label{lem:finite-idempotent}
+\lean{Tilings.FiniteMap.exists_idempotent_iterate}
+For a function $c$ on a finite set there is $\ell>0$ with $c^{2\ell}=c^\ell$.
+\end{lemma}
+\begin{proof}
+Finitely many functions imply $c^a=c^{a+b}$ for some $a\geq0,b>0$.
+Then $c^{a+i}=c^{a+b+i}$ for every $i\geq0$. Choose a positive multiple
+$\ell$ of $b$ with $\ell\geq a$. Both $\ell$ and $2\ell$ lie in the periodic
+tail and have the same residue modulo $b$, giving the equality.
+Restricting the image of $c^\ell$ makes every retained image point fixed
+by $c^\ell$. This is the central-form stabilization used below.
+\end{proof}
+
+\section{A corrected uniform crown-cover lemma}
+\label{sec:corrected-crowns}
+
+This section gives an ordinary mathematical proof of the uniform
+crown-cover statement used in the FLC reduction.  All Lean declarations
+attached to the nodes below are planned declarations.  None of these nodes
+is marked as formally proved.  The proof uses full pointed crowns, including
+incomplete crowns on supertile boundaries, and replaces both problematic
+estimates in the Appendix: the endpoint estimate by a minimal prototile side
+length, and the sine of an exterior angle exceeding $\pi$.
+
+Throughout, polygons are compact simple polygonal disks with nonempty
+interior, positive-length edges, and carrier equal to the closure of their
+interior.  They may be nonconvex.  All distances and diameters are Euclidean.
+Write $B(v,r)$ for the open ball of radius $r$ about $v$.
+
+\begin{definition}[Pointed crown catalogue and sectors]
+\label{def:crown-sector}
+\lean{Tilings.Crowns.pointedCatalogue}
+\uses{def:polygon,def:protoset,def:placed,def:tiling,def:crown,def:flc}
+A \emph{full pointed crown} at a tile vertex $v$ consists of $v$ together
+with every tile whose closed carrier contains $v$.  Fix a finite catalogue
+$\mathcal C$ of such pointed configurations, up to translation.  Every crown
+to which the following results are applied must occur in this catalogue.
+For supertiles the catalogue includes incomplete boundary crowns, rather
+than only complete crowns from plane tilings.
+
+If a polygon $A$ contains $v$, let $T_vA$ be its closed local tangent cone:
+the whole plane when $v$ is an interior point, its inward halfplane when
+$v$ lies strictly inside a straight boundary edge, and its interior wedge
+when $v$ is a genuine corner.  Collinear listed vertices use the halfplane
+case.  For a pointed crown $K$ set
+\[
+  \Omega(K)=\bigcup_{A\in K}T_vA,
+  \qquad \operatorname{Sec}(K,r)=B(v,r)\cap\Omega(K).
+\]
+The union here includes tiles for which the centre $v$ lies on an edge
+rather than at one of their own listed vertices.
+\end{definition}
+
+\begin{lemma}[Local polygon cones]
+\label{lem:polygon-local-cone}
+\lean{Tilings.Crowns.polygonLocalCone}
+\uses{def:polygon,def:placed,def:crown-sector}
+For every polygon $A$ and every $v\in A$, there is a number $r>0$ such that
+\[
+  A\cap B(v,r)=T_vA\cap B(v,r).
+\]
+\end{lemma}
+\begin{proof}
+For an interior point take a ball contained in the interior.  At a boundary
+point, merge consecutive collinear boundary segments for this local
+argument.  The compact union of boundary edges not incident to the point
+has positive distance from it.  Decrease the radius further to avoid the
+other endpoints of the one or two incident edges.  The boundary inside the
+ball is consequently one straight line segment, or the two rays at a
+genuine corner.  The simple polygonal disk lies locally on its prescribed
+interior side, giving respectively the inward halfplane or interior wedge.
+Keeping collinear vertices in the original vertex list changes neither
+the disk nor this local description.
+\end{proof}
+
+\begin{lemma}[A covered tile belongs to the covering patch]
+\label{lem:covered-tile-belongs}
+\lean{Tilings.Patch.mem_of_carrier_subset_union}
+\uses{def:polygon,def:placed}
+Let $F$ be a finite patch and let $X$ be a tile whose interior is disjoint
+from the interior of every tile of $F$ other than $X$ itself. If the
+carrier of $X$ is contained in $\bigcup F$, then $X\in F$.
+\end{lemma}
+\begin{proof}
+If $X\notin F$, the nonempty open set $\operatorname{int}X$ is covered by
+the finitely many carriers of $F$ while meeting none of their interiors.
+It is therefore covered by their finitely many boundary segments, which
+have empty interior; a finite union of segments cannot contain a nonempty
+open set. This is the regular-closedness step used, without being named,
+in the paper's Lemma~2 (``covers and hence includes'') and in
+Lemma~\ref{lem:finite-neighbourhoods}; both cite this lemma.
+\end{proof}
+
+\begin{lemma}[Uniform sector radius and vertex separation in crowns]
+\label{lem:sector-radius}
+\lean{Tilings.Crowns.uniformSectorRadius}
+\uses{def:crown-sector,lem:polygon-local-cone}
+There are $r_*>0$ and $\delta_*>0$, depending only on $\mathcal C$, such that
+every represented pointed crown $K$ with centre $v$ satisfies
+\[
+  \bigl(\bigcup K\bigr)\cap B(v,r_*)
+       =\Omega(K)\cap B(v,r_*),
+\]
+and every listed vertex $w\ne v$ of any tile of $K$ satisfies
+$\lVert w-v\rVert\ge\delta_*$.  In particular a complete crown covers
+$B(v,r_*)$.
+\end{lemma}
+\begin{proof}
+For one crown take the minimum of the finitely many radii in
+Lemma~\ref{lem:polygon-local-cone}, one for each incident tile.  This gives
+the displayed equality.  Take a positive minimum of these radii over the
+finite catalogue, capping them by $1$ if desired.  A largest admissible
+radius need not be attained and is not used.
+
+The collection of positive distances from the distinguished centre of a
+catalogue crown to a listed vertex of one of its tiles is finite.  Its
+minimum is positive; if the collection were empty, use $\delta_*=1$.
+Translations preserve both conclusions.  Collinear listed vertices can be
+included in this minimum.  A complete crown has cone equal to the whole
+plane, so its sector is the ball.
+\end{proof}
+
+\begin{definition}[Geometric macro boundary]
+\label{def:macro-boundary}
+\lean{Tilings.Crowns.geometricMacroBoundary}
+\uses{def:polygon,def:protoset,def:substitution}
+Let $P$ be the finite prototile family and let $\theta>1$ be the expansion
+factor.  A finite patch $M$ considered below has pairwise disjoint tile
+interiors and union
+\[
+ R=u+\theta^j A,\qquad A\in P,\quad j\in\mathbb N.
+\]
+For geometric arguments merge consecutive collinear edges of the root
+polygon $A$.  Their scaled copies are called \emph{geometric macro edges},
+and their endpoints \emph{genuine macro corners}.  Every genuine corner
+has interior angle different from $\pi$.  Dummy collinear vertices remain
+in child-tile and crown data; only the geometric macro boundary is simplified.
+\end{definition}
+
+\begin{lemma}[Genuine macro corners are child vertices]
+\label{lem:macrocorner}
+\lean{Tilings.Crowns.macrocornerIsChildVertex}
+\uses{def:tiling,def:macro-boundary,lem:polygon-local-cone}
+Every genuine macro corner $q$ is a listed vertex of at least one child
+tile of $M$.
+\end{lemma}
+\begin{proof}
+Because $M$ is finite and its carriers are compact, a sufficiently small
+ball at $q$ meets only child tiles containing $q$.  If none has a vertex
+there, each incident tile has either the whole plane or a halfplane as
+its local cone.  The whole-plane case would make $q$ interior to $R$.
+Two open halfplanes have nonempty intersection unless they are the two
+opposite halfplanes of the same line.  Such intersection would violate
+disjoint child interiors.  Thus the local union is one halfplane, or the
+whole plane in the opposite-halfplane case.  Neither is the nonstraight
+wedge at a genuine macro corner.  This contradiction proves the assertion.
+
+A dummy $180$-degree macro vertex need not be a child vertex.  We never
+apply this assertion to such a vertex.
+\end{proof}
+
+\begin{lemma}[Corrected distance to a macro edge endpoint]
+\label{lem:endpoint-gap}
+\lean{Tilings.Crowns.incidentMacroEdgeVertexGap}
+\uses{def:crown-sector,def:macro-boundary,lem:sector-radius,lem:macrocorner}
+Assume all full crowns of $M$ are represented in $\mathcal C$.  Put
+$h=\min(r_*,\delta_*)$.  If $q$ is a genuine macro corner and $v$ is a
+child-tile vertex in the relative interior of an incident geometric macro
+edge, then
+\[
+  \lVert v-q\rVert\ge h>0.
+\]
+\end{lemma}
+\begin{proof}
+Suppose $\lVert v-q\rVert<h$, and let $B$ be a child tile with vertex $v$.
+By Lemma~\ref{lem:macrocorner} the crown $K_M(q)$ is represented in
+$\mathcal C$.  Near $v$, both $R$ and the tangent wedge of $R$ at $q$
+agree with the inward halfplane of the incident macro edge.  Choose this
+neighbourhood inside $B(q,r_*)$ and away from the other ray at $q$.
+Lemma~\ref{lem:sector-radius} shows that the inward half-neighbourhood is
+covered by the tiles of $K_M(q)$.
+
+Regular closedness of $B$ supplies a nonempty open subset of its interior
+arbitrarily close to $v$.  It lies in that inward half-neighbourhood.  If
+$B$ were not in $K_M(q)$, this open subset would be covered by the finite
+union of its other tile carriers.  The finitely many boundary line
+segments cannot cover a nonempty plane open set.  A remaining point would
+belong to the interiors of $B$ and of a crown tile, a contradiction.
+Hence $B\in K_M(q)$.  Its vertex $v\ne q$ is then among the vertices used
+to define $\delta_*$, giving $\lVert v-q\rVert\ge\delta_*$, again a
+contradiction.
+
+The restriction to an incident macro edge is essential to this argument.
+For a vertex on a nonincident macro edge we use the separate root
+separation constant below.  Merely belonging to the closed union of a
+crown does not imply that every tile containing the point is in the crown.
+\end{proof}
+
+\begin{definition}[Positive root separation constants]
+\label{def:crown-separation}
+\lean{Tilings.Crowns.rootSeparationConstants}
+\uses{def:protoset,def:macro-boundary}
+Choose $\nu>0$ bounded above by every distance from a genuine root corner
+to a root edge other than its two incident edges.  Choose $\lambda>0$
+bounded above by every distance between two nonadjacent geometric root
+edges.  These are positive finite minima of distances between disjoint
+compact sets.  If a relevant collection is empty, use $1$ for that bound.
+
+For each reflex root corner let $\beta\in(0,\pi)$ be its exterior wedge
+angle.  Define
+\[
+  \mu_* =\min\bigl(\{\pi/2\}\cup
+          \{\beta:\text{reflex root corners}\}\bigr).
+\]
+Thus $0<\mu_*\le\pi/2$.  Convex exterior angles greater than $\pi$ and
+dummy straight corners are excluded.  Scaling by $\theta^j\ge1$ does
+not decrease the distance bounds $\nu$ and $\lambda$.
+\end{definition}
+
+\begin{lemma}[Distance to an adjacent ray]
+\label{lem:ray-bound}
+\lean{Tilings.Crowns.distanceToReflexBoundaryRay}
+\uses{def:crown-separation}
+Let two rays from $q$ enclose an angle $\beta\in(0,\pi)$, and let $v$ be
+on the first ray at distance $t>0$ from $q$.  Its distance to the second
+ray is $t\sin\beta$ when $\beta\le\pi/2$, and $t$ when
+$\beta\ge\pi/2$.  For a reflex root angle it is therefore at least
+$t\sin\mu_*$.
+\end{lemma}
+\begin{proof}
+For unit directions $a,b$ with $a\mathbin{\cdot}b=\cos\beta$, minimize
+\[
+  \lVert ta-sb\rVert^2=t^2+s^2-2ts\cos\beta
+\]
+over $s\ge0$.  The minimum occurs at $s=t\cos\beta$ when this is
+nonnegative, and at $s=0$ otherwise.  This gives the two formulas.  On
+$(0,\pi/2]$ sine is increasing, and for larger angles the ray-distance
+formula gives $t\ge t\sin\mu_*$.  Using the whole supporting line in
+the obtuse case would give the wrong estimate.
+\end{proof}
+
+\begin{lemma}[Uniform relative crown neighbourhood]
+\label{lem:relative-crown-ball}
+\lean{Tilings.Crowns.uniformRelativeCrownBall}
+\uses{def:crown-sector,def:macro-boundary,def:crown-separation,lem:sector-radius,lem:macrocorner,lem:endpoint-gap,lem:ray-bound}
+Put
+\[
+ d=\tfrac12\min\{r_*,\nu,\lambda,h\sin\mu_*\}>0.
+\]
+For every child vertex $v$ of $M$,
+\[
+ R\cap B(v,d)\subseteq\Omega(K_M(v))\cap B(v,d)
+                    \subseteq\bigcup K_M(v).
+\]
+\end{lemma}
+\begin{proof}
+The local tangent cone of $R$ at $v$ equals the union of the child cones
+at $v$: intersect the finite patch with a sufficiently small ball and
+use Lemma~\ref{lem:polygon-local-cone}.  If $v$ is interior to $R$, that
+cone is the whole plane and its crown is complete.
+
+At a genuine macro corner, a ray outside its tangent wedge is outside
+$R$ initially.  A first reentry cannot meet either incident ray again,
+so lies on a nonincident macro edge at distance at least
+$\theta^j\nu\ge\nu>d$.  No outside-wedge point of $R$ is within $d$.
+
+At an interior point of a geometric macro edge the cone is its inward
+halfplane.  A ray into the open outward halfplane cannot reenter through
+a nonadjacent macro edge before travelling $\theta^j\lambda\ge\lambda$.
+An adjacent edge at a convex endpoint is wholly on the inward side, so
+cannot cause reentry.  At a reflex endpoint $q$,
+Lemma~\ref{lem:endpoint-gap} gives $\lVert v-q\rVert\ge h$, and
+Lemma~\ref{lem:ray-bound} gives distance at least $h\sin\mu_*>d$ to
+the adjacent edge.  This excludes reentry in all cases.  Finally
+$d\le r_*$ and Lemma~\ref{lem:sector-radius} give the last inclusion.
+\end{proof}
+
+\begin{lemma}[A uniform ball across a trimmed tile edge]
+\label{lem:trimmed-edge-ball}
+\lean{Tilings.Crowns.trimmedEdgeTwoTileBall}
+\uses{def:polygon,def:protoset,def:tiling,lem:polygon-local-cone,lem:relative-crown-ball}
+For the number $d$ above there is $\eta>0$, depending only on $P$ and
+$d$, with the following property.  If translated tiles $A,B$ have
+disjoint interiors, their edges overlap near $e$, the tiles lie locally
+on opposite sides there, and $e$ has distance at least $d/2$ from every
+endpoint of those edges, then $B(e,\eta)\subseteq A\cup B$.
+\end{lemma}
+\begin{proof}
+For each prototile edge take its closed trimmed segment of points at
+distance at least $d/2$ from both endpoints.  Whenever nonempty, this
+compact segment is disjoint from the compact union of all other boundary
+edges of that polygon.  Take a positive lower bound $\eta$ for all these
+finitely many distances; use $1$ if there are no nonempty trimmed
+segments.  Translations preserve the bound.
+
+Inside $B(e,\eta)$ neither tile has another boundary edge.  Its one edge
+separates the ball into two connected half-balls, and the local inward
+half-ball remains in its interior because no other boundary can be
+crossed.  The two opposite inward half-balls, together with their common
+line, cover the ball.
+\end{proof}
+
+\begin{lemma}[Exterior excursions across nearby macro edges]
+\label{lem:exterior-excursion}
+\lean{Tilings.Crowns.noShortExteriorExcursion}
+\uses{def:macro-boundary,def:crown-separation,lem:macrocorner,lem:relative-crown-ball}
+Let $H$ be convex with diameter less than
+$\min\{\lambda,d\sin(\mu_*/2)\}$.  If every point of $H$ has distance
+at least $d/2$ from every child vertex, then $H\cap R$ is convex.
+\end{lemma}
+\begin{proof}
+Otherwise a segment joining two points of $H\cap R$ has an open exterior
+excursion.  Let $E,F$ be its exit and reentry points on the macro boundary.
+The finite polygonal boundary gives such endpoints; a segment contained
+in the boundary is not an exterior excursion.  Both endpoints are in $H$.
+They cannot lie on the same macro edge, since the segment between two
+points of one edge lies in $R$.  Nonadjacent edges give
+$\lVert E-F\rVert\ge\lambda$, contradicting the diameter bound.
+
+For adjacent edges let $q$ be their genuine common corner.  It is a child
+vertex by Lemma~\ref{lem:macrocorner}, so both distances from $E,F$ to
+$q$ are at least $d/2$.  The excursion must cross a reflex exterior
+wedge: at a convex corner a chord to the adjacent edge goes into the
+inward halfplane at its exit point.  Writing $a=\lVert E-q\rVert$,
+$b=\lVert F-q\rVert$ and using the reflex exterior angle $\beta$ gives
+\[
+ \lVert E-F\rVert^2=(a-b)^2+4ab\sin^2(\beta/2)
+       \ge d^2\sin^2(\beta/2)
+       \ge d^2\sin^2(\mu_*/2).
+\]
+Here $\beta/2\in(0,\pi/2)$, where sine is increasing.  Again this
+contradicts the diameter bound.  Every segment in $H\cap R$ stays in $R$.
+\end{proof}
+
+\begin{lemma}[Convexification preserves the diameter bound]
+\label{lem:crown-convexification}
+\lean{Tilings.Crowns.closedConvexHullDiameter}
+\uses{def:polygon}
+If $S$ has finite diameter, its closed convex hull $H$ has diameter no
+greater than that of $S$.
+\end{lemma}
+\begin{proof}
+For finite convex combinations $x=\sum_i a_i p_i$ and
+$y=\sum_j b_j q_j$ of points of $S$, use
+$x-y=\sum_{i,j}a_i b_j(p_i-q_j)$ and the triangle inequality.
+The coefficients sum to $1$, giving the desired distance bound.
+Passing to limits gives the same bound in the closed convex hull.
+\end{proof}
+
+\begin{lemma}[Uniform crown cover for a plane tiling]
+\label{lem:crown-cover-plane}
+\lean{Tilings.Crowns.uniformCrownCoverPlane}
+\uses{def:tiling,def:crown-sector,lem:localfinite,lem:sector-radius,lem:trimmed-edge-ball,lem:crown-convexification}
+There is $\varepsilon>0$ such that, in every plane tiling by $P$ whose
+full pointed crowns are represented in $\mathcal C$, every set $S$ of
+diameter less than $\varepsilon$ is contained in one crown.
+\end{lemma}
+\begin{proof}
+Use $\varepsilon<\min\{\eta,d/2\}$ and replace $S$ by its closed convex
+hull $H$.  If $H$ comes within $d/2$ of a tile vertex $v$, all of $H$ is
+within distance $d$ of $v$.  The complete crown at $v$ covers this ball.
+
+Otherwise $H$ stays at distance at least $d/2$ from every vertex.  If one
+tile contains $H$, take any crown containing that tile.  If not, choose
+a tile $A$ meeting $H$, a point of $A\cap H$, and a point of $H\setminus A$.
+Their segment exits $A$ at a nonvertex point $e$ of an edge.  Near $e$
+incident tile carriers are halfplanes.  Disjoint interiors and plane
+coverage force a tile $B$ on the opposite side.  The point $e$ is at
+distance at least $d/2$ from both tiles' edge endpoints, so
+Lemma~\ref{lem:trimmed-edge-ball} covers $H\subset B(e,\eta)$ by $A\cup B$.
+Their shared edge segment has an endpoint which is a vertex of at least
+one tile.  The full crown there contains both tiles and hence $H$.
+An empty $S$ is covered by any crown.
+\end{proof}
+
+\begin{lemma}[Uniform relative crown cover for a supertile]
+\label{lem:crown-cover-supertile}
+\lean{Tilings.Crowns.uniformCrownCoverSupertile}
+\uses{def:substitution,def:crown,def:flc,def:crown-sector,def:macro-boundary,lem:relative-crown-ball,lem:trimmed-edge-ball,lem:exterior-excursion,lem:crown-convexification}
+There is $\varepsilon>0$ such that every finite supertile patch $M$ above,
+whose full pointed crowns are represented in $\mathcal C$, has a crown
+covering $S\cap R$ whenever $\operatorname{diam}(S)<\varepsilon$.
+One may take
+\[
+ \varepsilon=\tfrac12\min
+   \{\eta,d/2,\lambda,d\sin(\mu_*/2)\}>0.
+\]
+\end{lemma}
+\begin{proof}
+Replace $S$ by its closed convex hull $H$ before dividing into cases.
+Lemma~\ref{lem:crown-convexification} preserves the strict diameter
+bound.  If $H$ comes within $d/2$ of a child vertex $v$, every point of
+$H$ is within $d$ of $v$.  Lemma~\ref{lem:relative-crown-ball} therefore
+covers $H\cap R$ by $K_M(v)$.
+
+In the remaining case $H$ stays at distance at least $d/2$ from all child
+vertices.  Lemma~\ref{lem:exterior-excursion} shows that $W=H\cap R$ is
+convex.  If empty, any crown suffices; if contained in one tile, any crown
+containing that tile suffices.  Otherwise choose $A$ meeting $W$ and a
+segment in $W$ from $A$ to a point outside $A$.  Let $e$ be an exit point.
+It is not a child vertex.  A small neighbourhood meets only incident
+tiles, each with a halfplane cone.  A segment leaving $A$ while staying
+in $R$ requires an incident tile $B$ on the opposite side of the edge.
+Indeed, with only the inward halfplane of $A$ present, such an exit is
+locally impossible; a segment tangent to the edge remains in $A$ until
+an endpoint, which has been excluded.
+
+All relevant endpoints are at least $d/2$ from $e$.  Hence
+Lemma~\ref{lem:trimmed-edge-ball} gives $B(e,\eta)\subset A\cup B$.
+Since $e\in W$ and $\operatorname{diam}(W)<\varepsilon<\eta$, this union
+covers $W$.  An endpoint of the positive-length overlap of the two edges
+is a vertex of at least one of the tiles, and its full crown contains
+$A\cup B$.  It therefore covers $W$ and the original $S\cap R$.
+The overlap need not be an entire edge of both tiles: the argument does
+not assume side-to-side matching.
+\end{proof}
+
+\begin{lemma}[Pointing a finite crown catalogue]
+\label{lem:pointed-flc}
+\lean{Tilings.Crowns.pointedFLCOfFLC}
+\uses{def:crown,def:flc,lem:localfinite}
+If the allowed full crown patches have only finitely many translation
+classes, their pointed versions also have only finitely many translation
+classes.
+\end{lemma}
+\begin{proof}
+Choose one finite patch for each unpointed translation class.  A crown
+centre is a listed vertex of at least one of its tiles, so each chosen
+patch has only finitely many possible centres.  Retain all centre choices
+which realize an allowed full crown.  This gives a finite pointed
+catalogue, including incomplete crowns whenever the original catalogue
+includes boundary crowns of finite supertiles.
+\end{proof}
+
+\begin{theorem}[Corrected FLC crown-cover statement]
+\label{thm:corrected-crown-cover}
+\lean{Tilings.Crowns.flcUniformCrownCover}
+\uses{def:substitution,def:flc,lem:pointed-flc,lem:crown-cover-plane,lem:crown-cover-supertile}
+For a finite polygonal substitution with the article's FLC condition,
+using all allowed full crowns, there is a uniform $\varepsilon>0$ satisfying both
+the plane and supertile crown-cover conclusions above.
+\end{theorem}
+\begin{proof}
+Lemma~\ref{lem:pointed-flc} gives representatives for the finite translation
+classes of allowed pointed crowns.  Every crown of the tilings in the plane conclusion is
+allowed by assumption, and every full crown of a supertile is allowed
+by the definition of the substitution catalogue, including those on its
+boundary.  Apply the preceding two lemmas, decreasing the two positive
+constants to their minimum if needed.
+\end{proof}
+
+This proves the geometric statement required by the FLC argument.  It
+does not address the independent geometric grouping and routing
+obligations for quasi-squares, nor the decoration repair in the
+composition construction.
+
+\section{A repaired grouping construction and its geometric obligations}
+
+This chapter replaces the arbitrary tile-to-square assignment in
+\S\S3.1--3.4 of the paper.  It applies to simple polygonal disks, including
+nonconvex polygons.  It does not assume convex prototiles.  Throughout,
+collinear original vertices are retained on the boundaries of grouped tiles.
+Consequently a grouped side remains a complete original side and scattering
+does not introduce a side-to-side defect.
+
+The construction uses one central group and $4N$ annular groups, instead of
+the $4(N+1)$ independent small squares in the original drawing.  The four
+corner squares are absorbed into adjacent annular groups.  Every new annular
+group meets the centre along one connected arc and supplies one print.
+There are still exactly $4N$ marked central sides, as required later.
+
+All Lean names below are planned declaration names.  No declaration in this
+chapter is claimed to have been checked by Lean.  The two formerly open
+geometric estimates are proved below using polygonal Jordan theory,
+piecewise-linear annulus routing, and an explicit compactness argument.
+Those classical helper lemmas still require Lean implementations; no
+geometric certificate is accepted as an assumption of the final theorem.
+
+\begin{definition}[Mesh constants and the finite cellulation]
+\label{def:mesh}
+\lean{Tilings.Geometry.MeshConstants}
+\uses{def:polygon,def:protoset,def:placed,def:tiling,def:sts}
+Let $P$ be a finite family of full-dimensional simple polygonal disks.  Choose
+$D>0$, $a>0$, $\gamma>0$, and $K_0\in\mathbb N$ such that every original
+tile has diameter at most $D$, area at least $a$, every original side has
+length at least $\gamma$, and every original tile has at most $K_0$ sides.
+
+A finite STS patch covering a polygonal disk $\Omega$ is regarded as a finite
+planar cellulation: original tiles are its closed faces, original sides are
+its edges, and original vertices are its vertices.  A face interior is
+connected, and distinct face interiors are disjoint.  We write
+$B_\infty(r)=[-r,r]^2$ and use Minkowski sums $Q+B_\infty(r)$ for square
+buffers.  A Euclidean diameter bound $D$ also bounds the coordinate diameter.
+\end{definition}
+
+The constants exist because $P$ is finite.  Neither FLC nor the crown-cover
+lemma is used to obtain them.  In particular the grouping construction must
+not depend on the final soficity theorem, on the desired routing certificate,
+or on the FLC conclusion derived from that certificate.
+
+\begin{lemma}[Regular grouping with an inside anchor]
+\label{lem:regular-grouping}
+\lean{Tilings.Geometry.regularGrouping}
+\uses{def:mesh,def:tiling}
+Let a finite STS patch of mesh $D$ cover $\Omega$, and let $Q$ be a square
+with $Q+B_\infty(3D)\subset\operatorname{int}\Omega$.  There is a finite
+union $L$ of complete original faces such that
+\[
+ Q\subset L\subset Q+B_\infty(D),
+\]
+$L$ is a polygonal disk, and the dual graph of its faces is connected.
+Every edge of $\partial L$ adjoins on its inside an original face $F$ such
+that $\operatorname{int}F\cap\operatorname{int}Q\ne\varnothing$.
+\end{lemma}
+
+\begin{proof}
+Select the faces whose interiors meet $\operatorname{int}Q$ and let their
+union be $U$.  The open square is contained in $\operatorname{int}U$.
+Every selected face interior is connected and meets that square; thus
+$\operatorname{int}U$ is connected.  The union is finite and regular closed.
+Since every selected face has diameter at most $D$,
+$U\subset Q+B_\infty(D)$.
+
+Add every bounded connected component of the \emph{open} complement
+$\mathbb R^2\setminus U$, taking its closure together with $U$.  A connected
+face interior disjoint from $U$ is contained in one complementary component.
+The added region therefore consists of complete original faces; no original
+face is cut.  There are finitely many such components, since their boundaries
+are contained in the finite original skeleton.
+
+The complement outside the convex square $Q+B_\infty(D)$ is connected to
+infinity, so every filled component lies inside that square.  This gives the
+support bounds.  Filling a complementary component joins its face interiors
+to the existing interior across boundary edges.  Hence the filled interior
+is connected, and its open complement is the unbounded complementary
+component and is connected.
+
+Here is the classical planar fact needed in the formalization.  A finite
+regular closed union of polygonal faces, with connected interior and
+connected open complement, has a single simple polygonal boundary.  At a
+boundary vertex there cannot be alternating blocks of inside and outside
+faces: interior arcs joining the two inside blocks, together with a small
+local arc, would separate the two outside blocks by the polygonal Jordan
+theorem.  The outside could not be connected.  Therefore the boundary graph
+has degree two at every boundary vertex.  It is a union of disjoint cycles;
+connected interior and connected exterior exclude more than one cycle.
+There are no zero-area appendages, since the region is a union of complete
+faces.  Thus the boundary is one simple cycle and $L$ is a polygonal disk.
+
+Filling deletes interior boundary edges and creates no new exterior edge.
+The inside face along every remaining boundary edge was selected for $U$;
+this proves the anchoring statement.  Finally join two face-interior points
+by a generic polygonal path in $\operatorname{int}L$.  Perturb it away from
+the finite vertices.  Its consecutive faces share complete sides, giving
+a walk in the face-dual graph.
+\end{proof}
+
+For Lean, the proof should be divided into a finite-face complement lemma,
+a polygonal Jordan-boundary lemma, and a generic-path-to-dual-walk lemma.
+The Jordan-boundary lemma is a genuine topological result and must be proved
+or obtained from a proved polygonal topology API; the definition of a
+``group'' must not simply declare the filled union to be a disk.
+
+\begin{lemma}[The dual outside-anchored cycle]
+\label{lem:outside-grouping}
+\lean{Tilings.Geometry.outsideAnchoredGrouping}
+\uses{def:mesh,lem:regular-grouping}
+Let $Q_1+B_\infty(10D)\subset\operatorname{int}\Omega$ and put
+$K_1=Q_1+B_\infty(3D)$.  There is a polygonal disk $H$, made of complete
+original faces, such that
+\[
+ Q_1+B_\infty(2D)\subset H\subset Q_1+B_\infty(3D).
+\]
+Every edge of $\partial H$ adjoins on its outside a face whose interior
+meets the open exterior of $K_1$.
+\end{lemma}
+
+\begin{proof}
+Let $E$ be the closed exterior of $\Omega$, together with every original
+face whose interior meets the open exterior of $K_1$.  The open exterior
+of $K_1$ is contained in $\operatorname{int}E$, and every selected face
+interior meets it.  Thus $\operatorname{int}E$ is connected.
+
+No selected face can enter $\operatorname{int}(Q_1+B_\infty(2D))$:
+one of its coordinates would have to change by more than its diameter $D$
+between that point and its point outside $K_1$.  Let $H$ be the closure of
+the component of $\mathbb R^2\setminus E$ containing $Q_1$.  This gives
+the lower inclusion.  The open exterior of $K_1$ lies in $E$, giving the
+upper inclusion.  As in the preceding lemma, face interiors belong to
+single complementary components, so $H$ is a union of complete faces.
+
+Its interior is connected by its definition.  The open complement
+$\mathbb R^2\setminus H$ is \emph{not} simply $\operatorname{int}E$: it
+also contains the \emph{pockets}, the other components of
+$\mathbb R^2\setminus E$, which consist of unselected faces.  Each pocket
+borders selected faces across whole edges, so it is joined to
+$\operatorname{int}E$ through those edges, and $\operatorname{int}E$ is
+connected and disjoint from $H$.  Hence $\mathbb R^2\setminus H$ is
+connected and $H$ has no holes.  A pocket face cannot sit across an edge
+of $\partial H$, because the far side of such an edge lies in
+$\operatorname{int}E$.  With connected interior and connected open
+complement, alternating boundary sectors are excluded by the same
+polygonal Jordan argument as before.  Hence $H$ is a polygonal disk.  Each exterior
+boundary edge adjoins a face selected for $E$, proving the outside anchor.
+The margin $10D$ ensures that this face is an original face of the patch
+rather than the artificial unbounded exterior region.
+\end{proof}
+
+The distinction between inside and outside anchors matters.  A cycle lying
+in a thin band around a square may run backwards along the band for a long
+distance.  Its mere Hausdorff proximity to the square does not give a
+uniform diameter bound for sectors between selected endpoints.
+
+\begin{lemma}[Disjoint skeletal spokes]
+\label{lem:annular-spokes}
+\lean{Tilings.Geometry.existsAnnularSpokes}
+\uses{def:mesh,lem:regular-grouping,lem:outside-grouping}
+Let $N\ge2$ and $R$ be sufficiently large compared with $D$.  Take concentric
+squares $Q_0,Q_1$ of side lengths $NR,(N+2)R$ respectively, with the margin
+required above.  Construct $L,H$ by the preceding lemmas.  The annulus
+$H\setminus\operatorname{int}L$ admits $4N$ mutually disjoint simple arcs
+in the original skeleton, each joining $\partial L$ to $\partial H$ and
+meeting those cycles only at its endpoints.  Their endpoints are distinct
+and appear in the same cyclic order on the two cycles.  (The index $j$ of
+the $j$th cut disk is matched with the ideal sector $T_j$ only in the next
+lemma, through the walls: each wall crosses $\partial L$ exactly once, and
+pigeonhole over the ideal wedges fixes the correspondence.)  The components
+obtained by cutting along the arcs are $4N$ polygonal disks consisting of
+complete original faces.  Each has a connected face-dual graph and shares
+one connected nondegenerate arc with $\partial L$.
+\end{lemma}
+
+\begin{proof}
+Mark the $4N$ positions subdividing the four sides of $Q_0$ into intervals
+of length $R$, including the corners.  Draw the radial segments from the
+square centre through these positions to the corresponding positions of
+$K_1=Q_1+B_\infty(3D)$.  In the square annulus, successive radial segments
+have separation at least a universal positive multiple of $R$.  This
+follows by considering a straight side and the two sides adjacent to a
+corner; the homothety factor is $1+2/N+6D/(NR)$.  Extending each segment
+a bounded number of mesh diameters past the two cycles preserves disjoint
+tubes when $R/D$ is sufficiently large.
+
+Follow the finite sequence of original faces crossed by one extended
+segment.  Consecutive faces share a side or vertex, and every face boundary
+is a connected polygonal cycle.  Their boundary graphs form a connected
+finite graph, all of whose edges lie within $D$ of the segment.  It meets
+both $\partial L$ and $\partial H$.  Select a graph path, erase loops,
+and take the part from its last point on $\partial L$ to its first
+subsequent point on $\partial H$.  The part lies in the annulus and has
+no other point on either cycle.  Planarity of the skeleton ensures that
+an edge cannot cross a cycle without meeting it at a vertex.
+
+The separated tubes give disjoint arcs and distinct endpoints.  Disjoint
+arcs joining the two boundary components of an annulus have compatible
+cyclic endpoint order.  Cutting a polygonal annulus along such $4N$ arcs
+gives $4N$ disks, one between each successive pair; this is a direct
+polygonal Jordan argument, or the elementary polygonal annulus theorem.
+All cuts use original edges, so the disks are unions of whole original
+faces.  Their inner boundary arcs have distinct endpoints and positive
+length.  Their face-dual graphs are connected by the generic-path argument
+used in Lemma~\ref{lem:regular-grouping}.
+\end{proof}
+
+\begin{lemma}[Quantitative sector localization and private neighbours]
+\label{lem:quantitative-sector}
+\lean{Tilings.Geometry.quantitativeAnnularGrouping}
+\uses{def:mesh,lem:regular-grouping,lem:outside-grouping,lem:annular-spokes}
+There are finite positive constants $C_{\rm sep},C_{\rm loc},C_{\rm len}$
+and $C_{\rm err}$, independent of $N$, the substitution power, and the
+particular STS patch, with the following property.  For
+$R\ge C_{\rm sep}D$, the cycles and spokes above can be selected so that
+each annular group $S_j$ lies in the $C_{\rm loc}D$ neighbourhood of the
+corresponding ideal radial trapezoid $T_j$.  Along its outer boundary it
+has at least
+\[
+ b(R,D)=\left\lfloor {R\over C_{\rm len}D}\right\rfloor-C_{\rm err}
+\]
+distinct fine edges whose outside neighbouring original faces meet no
+other annular group $S_t$, $t\ne j$.  In particular, after choosing $R$
+so that $b(R,D)\ge K_0+2$, every small group has at least $K_0+2$ ordinary
+marked inner sides and at least three private neighbour occurrences
+relative to every other small group.
+
+There is consequently a constant $C$ independent of $N$ such that
+$\operatorname{diam}S_j\le CR$, and
+\[
+ Q(P,R)=K_0\left\lceil {4C^2R^2\over a}\right\rceil
+\]
+bounds the number of retained sides of every small group.
+\end{lemma}
+
+\begin{proof}
+Translate the common square centre to zero.  Put $A=NR/2$,
+$h=A+R+3D$, and $\lambda=h/A$.  Let $v_j$ be the successive length-$R$
+positions on $\partial Q_0$; the corresponding outer positions are
+$\lambda v_j$ on $\partial K_1$.  Assume $R\ge1000D$.
+
+An inner spoke endpoint $u_j$ satisfies
+$A\le\|u_j\|_\infty\le A+D$ and lies within Euclidean distance $D$
+of the ray through $v_j$.  If $|u_j-tv_j|\le D$, then
+$A-D\le tA\le A+2D$.  Since $|v_j|\le\sqrt2A$,
+\[
+ |u_j-v_j|\le D+2\sqrt2D<4D.
+\]
+The outer endpoint $w_j$ satisfies
+$h-D\le\|w_j\|_\infty\le h$, giving similarly
+$|w_j-\lambda v_j|<4D$.
+
+Use the inside-anchored face at $u_j$ to join it through that face's
+interior to $p_j\in\operatorname{int}Q_0$.  The collar lies in the
+$5D$ ball about $v_j$.  Join $p_j$ radially to zero inside $Q_0$.
+Use the outside-anchored face at $w_j$ to reach
+$q_j\notin K_1$, in the $5D$ ball about $\lambda v_j$; continue its
+radial ray to infinity outside the convex square $K_1$.
+
+These continuations are disjoint.  On a straight side, adjacent ideal
+positions have determinant $AR$.  Perturbations of size at most $5D$
+change it by at most $10\sqrt2AD+25D^2$, strictly less than $AR$.
+The corner cases are rotations of the same estimate.  Applying it also
+throughout the linear perturbation preserves cyclic angular order.
+The endpoint boxes are separated by at least $R-10D$; the other radial
+segments are separated there by at least $R/4$ before perturbation.
+Thus a collar cannot meet another continuation.  Remove any self-loop
+within its own endpoint box.  We obtain proper simple walls $W_j$ from
+zero to infinity, pairwise disjoint except at zero.  In
+$H\setminus\operatorname{int}L$ their portions are precisely the
+skeletal spokes and stay within $5D$ of the ideal radial rays.
+
+Let $T_j$ be the ideal trapezoid between successive radial segments and
+the square boundaries $Q_0,K_1$.  For a point
+$x\in\operatorname{int}K_1\setminus Q_0$ outside the two $5D$ radial
+tubes, truncate $W_j,W_{j+1}$ on a sufficiently large circle and close
+them along that circle.  The resulting polygonal Jordan loop determines
+its wedge.  Deform the core portions inside $Q_0$, straighten the
+annular portions inside their convex radial tubes, and deform the
+exterior portions outside $K_1$.  The three pieces of each wall are glued
+at the two points where the wall crosses $\partial L$ and $\partial H$;
+the three homotopies are chosen to agree at these transition points, so
+they assemble to one homotopy of the whole loop.  The exterior of $K_1$
+is not simply connected, and the exterior deformation is legitimate only
+because the exterior portion of a wall is a collar of diameter at most
+$5D$ followed by a radial ray: it does not wind around $K_1$, so it is
+homotopic, within the exterior of $K_1$ and through curves of increasing
+infinity norm, to the ideal radial ray of the same angular order.  None
+of these homotopies meets $x$.  Winding number is unchanged, so the actual and ideal wedge
+labels agree away from the tubes.  This proves localization there.
+
+If $x$ lies in one of the tubes, clip its nearest radial-line point to
+the segment between infinity norms $A$ and $h$.  The clipping moves it
+by at most $5\sqrt2D$.  Its distance to the corresponding boundary
+segment of $T_j$ is therefore less than
+$(1+\sqrt2)5D<13D$.  Taking closures gives the safe bound
+\[
+ S_j\subset T_j+B(0,20D).
+\]
+This argument does not assume that the square-band cycles have short or
+monotone boundary arcs.
+
+Take the middle half $J$ of the outer edge of $T_j$; its length is
+$\lambda R/2\ge R/2$.  Its distance to every other ideal trapezoid is
+at least $R/(4\sqrt2)$, by the distance to either bordering radial line.
+The inward normal from each $y\in J$ meets $\partial H$ within its
+first $D$ of length: $H$ contains the square with halfside $h-D$ and
+is contained in the square with halfside $h$.  The middle interval is
+at least $R/4$ from the outer corners.  Except at finitely many projected
+vertices the intersection lies in an original fine edge $e$.
+
+That intersection has distance at least
+$R/(4\sqrt2)-21D>D$ from every other $S_t$.  Its outside original
+face, of diameter at most $D$, cannot meet another small group.  Thus
+$e$ is an ordinary marked private edge of $S_j$.  The projections of
+these private edges cover $J$ apart from finitely many points, and each
+has projected length at most $D$.  There are consequently at least
+$|J|/D\ge R/(2D)$ distinct private edge occurrences.  Repeated outside
+neighbour faces do not affect this occurrence count.
+
+We may take $C_{\rm sep}=1000$, $C_{\rm loc}=20$,
+$C_{\rm len}=2$, and $C_{\rm err}=0$.  Since
+$\lambda\le2+3D/R$, each ideal trapezoid has span at most $5R$ along
+its square side and at most $2R$ across it (the roles of the coordinates
+swap for the side sectors), hence diameter less than $6R$.
+Localization gives $\operatorname{diam}S_j\le7R$.  A square of side
+$14R$ contains $S_j$, so disjoint constituent interiors of area at
+least $a$ bound their number by $\lceil196R^2/a\rceil$.
+Thus $Q(P,R)=K_0\lceil196R^2/a\rceil$ is admissible.  Retaining all
+original vertices proves the stated side bound.
+\end{proof}
+
+\begin{lemma}[Inner sector order]
+\label{lem:inner-sector-order}
+\lean{Tilings.Geometry.quantitativeAnnularGrouping_innerOrder}
+\uses{def:mesh,lem:regular-grouping,lem:quantitative-sector}
+Let $N\ge2$, $R\ge1000D$, and let $L$ be the inside-anchored group of $Q_0$
+with $Q_0\subseteq L\subseteq Q_0+B_\infty(D)$, listed counterclockwise
+(winding number $2\pi$ about every interior point).  Let
+$y_1,\dots,y_m\in\partial L$ with $y_k$ in the $20D$-neighbourhood of the
+ideal sector $T_{j_k}$, where $j_1<\dots<j_m$, and with $y_k$ at distance at
+least $50D$ from every other ideal sector $T_t$, $t\ne j_k$.  Then
+$y_1,\dots,y_m$ appear in this cyclic order along the counterclockwise
+boundary parametrization of $L$.
+\end{lemma}
+
+\begin{proof}
+This is the inside-anchored counterpart of the outer order statement in the
+proof of Lemma~\ref{lem:quantitative-sector} (points of $\partial H$ near
+the extended radial segments appear in index order along $\partial H$), and
+the remark before Lemma~\ref{lem:annular-spokes} explains why anchoring is
+needed: a cycle in the band $Q_0+B_\infty(D)\setminus\operatorname{int}Q_0$
+may run backwards along the band for a long distance, so Hausdorff proximity
+to $Q_0$ alone does not order its points.  Join every $y_k$ through its
+inside-anchoring face (a face of $L$ of diameter at most $D$ whose interior
+meets $\operatorname{int}Q_0$) to a point $z_k\in\operatorname{int}Q_0$ with
+$|z_k-y_k|\le D$, and then radially to the centre $c$.  These paths lie in
+$L$, stay within $D$ of the sectors $T_{j_k}$, which are at least $50D$
+apart at the points $y_k$, and meet only at $c$; they cut the disk $L$ into
+$m$ sectors whose boundary arcs between consecutive points $y_k,y_{k+1}$
+contain no other $y_i$.  A boundary parametrization visiting the points out
+of sector order would have to run through the perimeter parameter (the
+radial projection to $\partial Q_0$) backwards by at least one sector gap,
+which the winding separators of the outer order argument, transplanted to
+the inner band with the radial escape paths above in place of the
+outside-anchored escape faces, exclude; a parametrization running clockwise
+contradicts the winding number $2\pi$ of the counterclockwise listing.  The
+constants are those of the Lean statement: $20D$ localization, $50D$
+separation, $R\ge1000D$.
+\end{proof}
+
+Choose $R$ using that lemma before choosing $N$.  Then choose $N\ge2$ with
+$4N>3Q(P,R)$.  Only afterwards choose $k$ so that every $\tau^k$-macrotile
+contains the required squares and margin.  Each original polygon has a
+chosen interior ball of positive radius; scaling that ball suffices, even
+for a nonconvex polygon.  There is no circular dependence of $Q$ on $N$.
+
+Apply the grouping independently to the finitely many fixed patches
+$\tau^k\alpha$, $\alpha\in P$.  Their finitely many resulting labelled
+groups form $P'$.  This argument needs no claim that arbitrary patches have
+only finitely many geometric neighbourhoods.  Such a claim is needed later
+for FLC clones and must follow separately from
+Lemma~\ref{lem:crown-cover-supertile}, whose proof is independent of routing.
+
+\begin{definition}[Finite geometric macrocertificate]
+\label{def:certificate}
+\lean{Tilings.Geometry.MacroCertificate}
+\uses{def:polygon,def:protoset,def:placed,def:substitution,def:sts,def:mesh}
+A macrocertificate consists of finite form and type sets, a finite
+side-to-side polygonal template for each form, and the following explicit
+finite data and properties.
+\begin{enumerate}
+\item[(G1)] Every template covers the scaled parent disk, has connected
+full inner-side dual graph, and has at least three children.  Every type
+has an inner side.  Type tags of different templates are disjoint.
+Each internal template edge has its own unique interface identifier,
+carried by both incident owners; an inner side is carried by exactly two
+children of its template (the side and its partner occurrence).  It records the template, the two type
+tags, their incident declared-side slots, and their relative placement;
+different interfaces between the same two types remain distinguishable.
+In the decorated implementation the identity is
+stored in the first component except on a print, where it is stored in
+the fifth component.  A special side which is not a print still uses the
+first component; specialness alone does not move identity to the fifth.
+\item[(G2)] The boundary belt graph is connected.  Its vertices are
+\emph{all} types having a vertex on the macroboundary, including types
+touching it only at a vertex.  Its edges are inner sides having an endpoint
+on the macroboundary.  Each boundary-belt type has such an edge.  The
+central child has neither outer nor boundary sides.
+\item[(G3)] For each parent declared side, take the ordered list of whole
+fine outer sides contained strictly inside its scaled side interval.
+At most two fine sides are omitted for crossing its endpoints.  There
+are five distinct ports in this list, chosen by a fixed interior-quantile
+convention.  Ranks and port numbers are counted in one global positive
+direction fixed for each unoriented supporting-line direction, never in
+the boundary traversal order of the owner: the quantiles
+$\lceil iL/6\rceil$ are not symmetric under reversal (for $L=12$ they are
+$2,4,6,8,10$ one way and $11,9,7,5,3$ the other), and the properness
+lemma needs port $i$ of a side to face port $i$ of the coincident
+opposing side.  Since only translations act, both owners of a coincident
+side compute the same direction.  Full matching of a parent declared
+interval and its fine tiling then induces identical contained lists and
+port numbers.  A parent
+dummy endpoint may lie inside a fine child side: no nested subdivision
+or hereditary-cut assumption is made.  The finite template also records
+the interval intersections with each parent declared side and with the
+declared boundary partitions at all required intermediate levels.
+Their exact endpoint/frame encoding and matching implications are proved
+in the boundary-transport chapter; scalar ordinal ranks alone do not
+establish them for arbitrary collinear dummy vertices.
+\item[(G4)] Marked parent sides have distinct central prints in cyclic
+order.  Cyclic order is the index order of the listed sides, which agrees
+with the planar order only when all listed polygons are traversed in the
+same rotational sense; the certificate therefore lists \emph{every} form
+of its alphabet, the original singleton forms included, counterclockwise
+(an original form whose given listing is clockwise is relisted; this
+changes side indices but no carrier, side set or scattering).  For every marked side $d$ there are four paths $P_i(d)$ from port
+$i$ to its print.  Every side occurrence is used by at most one path,
+except the terminal print in either of its two incident owners.  Thus
+the central and small owners of that same print are both exempt at the
+shared terminal side.  Every path uses marked sides only.  \emph{A path is a sequence of geometric sides, so a genuine path contains both occurrences (both owners) of every inner side it crosses}, the terminal print excepted: the path records the print in its small owner only.  Without this clause the third cell $A_i(d)$ would sit on one occurrence of a crossed side and $0$ on its partner, and the lifting theorem fails for the same reason as below (found by Aristotle, 12 October 2026).  \emph{Every
+side of a genuine path other than its initial port is an inner side of the
+template}: a path never passes through an outer side of another macroside.
+Without this clause the lifting theorem fails, because a path crossing an
+outer side $b$ of an adjacent macroside would put a nonzero parent signal
+into the third cell of $b$ while the coincident side of the neighbouring
+block, lying on no path, carries zero.  The only central side on a genuine
+path is its final print.  In its small owner the print is the unique
+special side of that owner (the one side of a small type whose cells are
+copied from the parent; this is the exception allowed in (G6)).  Its preceding
+side is an ordinary side of the small child sharing that print.  The
+fifth path and all five paths of unmarked parent sides are singleton
+ports, disjoint from genuine paths.  This is a finite routing certificate.
+\item[(G5)] There is a unique large central child and all other forms are
+original or small.  The central-form map fixes every retained large form.
+For a large parent the print map is the identity on its marked sides.
+There are $L=4N$ marked central sides, at most $Q$ marked sides on a
+noncentral form, and $L>3Q$.  Every original type has a marked inner side.
+\item[(G6)] Noncentral fingerprints distinguish types.  For an original
+type its fingerprint is the multiset of type components of its ordinary
+inner-side identity pairs.  For a small type use its ordinary marked-side
+identity pairs and allow at most two further type components from its
+unique special side, which is an inner side (the side shared with the
+central child).  The possible fingerprint multisets for two
+distinct noncentral types are disjoint.  This is a finite separating
+property, not an assertion that a composed decorated tile already exists.
+\item[(G7)] Marking discipline.  Every outer side, every boundary side
+(inner side with an endpoint on the macroboundary), every print, and every
+side occurring on a genuine path is marked.  Consequently an unmarked side
+is an inner, nonprint, nonboundary side lying on no path; in the
+construction these are exactly the sides shared by the central child and
+its ring other than the prints.  This condition is what makes the
+``local cells'' of Definition~\ref{def:control/typed-decoration} genuinely
+type-determined: without it an unmarked boundary side, whose fourth cell
+is the parent header, or an unmarked path side, whose third cell is a
+parent signal, would carry a parent-dependent value declared local, which
+is the error type of the source article.  The paper's own instantiation
+satisfies (G7), since it marks every side not belonging to a large
+quasi-square.
+\end{enumerate}
+\end{definition}
+
+The certificate does \emph{not} assume the final soficity statement,
+existence of a coloured composition, or a matching-rule system with the
+desired language.  These are the conclusions proved from the finite data
+in the combinatorial chapter.  Conversely, the final geometric theorem
+must construct the certificate from the hypotheses on $\tau$; accepting
+the certificate as an unproved input would only prove a conditional core.
+
+\begin{lemma}[A finite sufficient fingerprint criterion]
+\label{lem:fingerprint}
+\lean{Tilings.Geometry.fingerprintSeparation}
+\uses{def:certificate,lem:quantitative-sector}
+Suppose (G1) holds, every original form has at most $K_0$ sides, every small
+type has at least $K_0+2$ ordinary marked inner sides and one special side,
+and, for each pair of distinct small types in one template, the first has
+at least three ordinary marked-side occurrences adjacent to original
+types which are not ordinary marked-side neighbours of the second.
+Then (G6) holds.
+\end{lemma}
+
+\begin{proof}
+An original fingerprint has at most $2K_0$ components.  A small fingerprint
+has at least $2(K_0+2)$ components before its special contribution.  Thus
+an original and a small type cannot have equal fingerprints.
+
+Ordinary components of types in different templates lie in disjoint tag
+sets.  Every original fingerprint is nonempty.  A small type has more
+than two ordinary components, whereas another template can supply at most
+two such foreign components through its special side.  This separates
+types in different templates.
+
+Consider two original types $u,v$ in one template.  In the fingerprint of
+$u$, the multiplicity of $u$ is its inner-side degree, and the multiplicity
+of $v$ is the number of its sides adjacent to $v$.  Equal fingerprints
+force both degrees to equal the number of $u$--$v$ sides.  All their inner
+sides therefore join them to one another.  They form a two-vertex connected
+component, contradicting (G1).
+
+For two distinct small types in one template, count the three private
+original-neighbour occurrences of the first.  None occurs in the ordinary
+fingerprint of the second.  Its special side can add at most two type
+components, so it cannot supply all three.  Repeated occurrences of the
+same private neighbour are allowed: the argument is about multiset
+multiplicity, not distinct neighbour names.  The fingerprints differ.
+\end{proof}
+
+\begin{lemma}[Wide routing after a sufficiently large power]
+\label{lem:routing}
+\lean{Tilings.Geometry.existsRoutingAfterPower}
+\uses{def:mesh,def:certificate,lem:quantitative-sector,lem:finite-idempotent}
+For the finite grouped family $P'$ constructed above, extend the grouped
+substitution $\sigma$ to every group by scattering its original
+constituents and applying $\sigma$ to them.  Choose central children as
+in the paper and let $c:P'\to P'$ be their form map.  There is an
+arbitrarily large power exponent $l$ with $c^{2l}=c^l$ such that, after
+retaining the chosen central child and its annular small neighbours and
+scattering all other groups in each $\sigma^l$-template, the finite data
+required by (G4) exist; the print of every marked parent side is one of the
+$4N$ designated marked sides of the central form (the side it shares with one
+annular piece), distinct prints on distinct pieces, in cyclic and planar
+matching order with the marked parent sides, and the identity on a large
+parent.  The setup also records the sector localization of the annular
+pieces (Lemma~\ref{lem:quantitative-sector}) and the piece of every print;
+the pieces of the prints of the marked sides are pairwise distinct and in
+the cyclic order of the marked sides (Lemma~\ref{lem:inner-sector-order},
+applied in the construction of Lemma~\ref{lem:certificate-exists}).  The
+input is the annular structure of the retained
+templates from Lemma~\ref{lem:quantitative-sector}: the central child is the
+inside-anchored group $L$, the small neighbours are the $4N$ annular groups
+between $L$ and the outside-anchored group $H$ (so every private outer edge
+adjoins a face reaching the exterior of $K_1$), $R\ge10000(K_0+3)D$, and
+every annular group has four private outer edges in separated windows,
+pairwise at distance at least $R/10$; all grouped disks are listed
+counterclockwise (as in the construction of
+Lemma~\ref{lem:certificate-exists}), so that the polygon loop of a parent
+is the positively oriented boundary parametrization used in the
+matching-order clauses.  Without the anchoring, the private
+faces of a small neighbour could lie in cavities closed off by fewer than
+four sides, and the four disjoint paths cannot exist.
+\end{lemma}
+
+\begin{proof}
+The finite idempotence lemma permits arbitrarily large suitable $l$.
+The final chosen centre lies inside the scaled first-generation central
+child.  That first-generation child is strictly inside its parent
+template.  The finitely many parent templates have a positive minimum
+clearance.  After normalizing a $\sigma^l$-template by its expansion
+$s=\theta^{kl}$, its central positions consequently lie in a fixed compact
+set $K_A\subset\operatorname{int}A$, uniformly over $l$.
+For the finite parent catalogue put
+\[
+ \rho=\min_A\operatorname{dist}(K_A,\partial A)>0.
+\]
+This handles the moving centre without assuming convergence or convexity.
+
+Outside the retained central annulus every child is an original tile,
+so the mesh remains $D$ and every fine outer side has length in
+$[\gamma,D]$.  A scaled parent declared side of length $s\ell$ contains
+an ordered list of whole fine sides of cardinality
+$L\ge s\ell/D-2$: only the at most two sides crossing its endpoints
+are omitted.  Choose five ports by the sixth-quantiles
+$\lceil iL/6\rceil$, $i=1,\ldots,5$, for sufficiently large $L$.
+Their separation from one another and from the ends is bounded below by
+\[
+ \gamma\bigl(\lfloor L/6\rfloor-1\bigr)-D.
+\]
+After normalization this gives a positive lower bound depending only on
+the finite parent catalogue.  Closed portions of different sides away
+from their endpoints also have positive mutual Euclidean separation:
+they are disjoint compact subsets of a simple polygonal boundary.
+Thus all realized genuine port tuples belong to a compact set of ordered
+boundary configurations with uniform separation, including separation
+from every other designated or singleton port.  No dummy endpoint is
+assumed to be a fine child vertex.
+
+In each selected small group's middle outer interval, choose four
+separated windows, for example at relative parameters
+$0.30,0.43,0.57,0.70$, and use the projection argument of
+Lemma~\ref{lem:quantitative-sector} to choose a private fine edge in
+each window.  Let $p_i$ be its midpoint.  Its outside-anchored original
+face contains a point $q_i$ outside $K_1$; join $p_i$ to $q_i$ through
+that face.  This collar has diameter at most $D$.  The windows are
+separated by a fixed multiple of $R$, so the four faces are distinct.
+Taking $R\ge10000(K_0+3)D$ makes all these collars and radial rays from
+$q_i$ to infinity separated by more than $10D$ outside $K_1$.
+The rays remain outside $H$.  These choices are fixed for the finitely
+many central annulus catalogues.  Reverse the four entrance labels
+where the port numbering is opposite to counterclockwise boundary order;
+the paired lists then have the same cyclic order.
+
+For a normalized centre $z\in K_A$, take the intermediate square
+$C_z=z+[-\rho/4,\rho/4]^2$.  Its circumradius is less than $\rho/2$,
+so it lies strictly in $A$.  Each fixed radial direction meets its
+boundary at a point $b_i(z)$.  Consider the polygonal annulus
+$A\setminus\operatorname{int}C_z$.  Its ordered outer port points and
+inner points $b_i(z)$ admit disjoint simple polygonal arcs.  To prove this
+classical helper, cut the annulus along a polygonal crosscut, apply the
+piecewise-linear disk theorem, and route ordered lines in the resulting
+strip.  Explicitly: for nested simple closed polygons $C\subset\operatorname{int}A$
+there is a continuous map $\Psi\colon[0,1]\times\mathbb R\to A\setminus\operatorname{int}C$,
+$1$-periodic in the second coordinate and injective on $[0,1]\times[0,1)$,
+sending $\{0\}\times\mathbb R$ onto $\partial A$ and $\{1\}\times\mathbb R$ onto
+$\partial C$ as loop parametrizations and $(0,1)\times\mathbb R$ onto
+$\operatorname{int}A\setminus C$.  It is obtained from the polygonal disk
+theorem (ear decomposition of a simple polygon, gluing of disk models along
+a diagonal, Alexander-trick boundary reparametrization) applied to the
+annulus cut open along one crosscut, by identifying the two copies of the
+crosscut; the strip $[0,1]\times[0,1]$ is the cut-annulus model.  The
+entrance points and directions below are not a finite catalogue fixed in
+advance: the routing statement is uniform over \emph{all} admissible
+entrance data, so the compactification argument must include, besides the
+normalized centre and the whole port segments, the radial entrance
+directions, and the cyclic order of the entrance pieces must be derived
+from the planar order of the prints on the contact arcs (the
+\texttt{print\_order} datum), not from their indices.  Concretely, the
+setup records the piece of every print, and these pieces are in the cyclic
+order of the marked sides (Lemma~\ref{lem:inner-sector-order}); every
+entrance point lies within $21D$ of the ideal sector of its piece (the
+sector localization of Lemma~\ref{lem:quantitative-sector} plus one face of
+diameter at most $D$) and outside $K_1$, and entrance points of distinct
+marked sides are at least $R/10$ apart, so the radial directions of the
+entrances of distinct marked sides are in the cyclic order of the sides
+(entrances of adjacent sectors cannot cross their common ray: two points
+outside $K_1$ within $21D$ of that ray and of $\partial K_1$ are within
+$100D<R/10$ of each other); the four entrances of one marked side are
+relabelled so that their radial order matches the port order.  Short disjoint inward-normal outer collars and outward-radial
+inner collars can be prescribed first: remove thin attached fingers
+around them, route between their tips in the remaining annulus, and
+concatenate.  This does not require $A$ to be star shaped.
+
+For one parameter tuple the compact arcs have positive mutual distance
+and positive distance from the annulus boundary off these endpoint
+collars.  We now prove local stability of these bounds.  A small movement
+of a port along its open side is realized in a local rectangle by a PL
+slide $(t,n)\mapsto(t+\delta\psi(t,n),n)$, with $\psi=1$ on its
+collar and zero at the rectangle boundary.  If
+$|\delta|\operatorname{Lip}\psi<1/2$, this is bi-Lipschitz and
+preserves the parent disk and the straight normal collar.  The supports
+for different ports are disjoint and avoid the central region.
+
+A small change $z\mapsto z'$ is realized by
+\[
+ H(x)=x+\phi(x)(z'-z),
+\]
+where a PL bump $\phi$ is one on $B(z,\rho/2)$ and zero outside
+$B(z,3\rho/4)$.  The support lies in $\operatorname{int}A$.  Fix the
+normalized collar length $\kappa<\rho/4$ once and for all; then the slide
+rectangles at the outer ports and the bump support $B(z,3\rho/4)$ are
+disjoint from each other and from the outer collars, so the bump fixes
+every outer collar and each slide fixes the inner square.
+For $|z'-z|\operatorname{Lip}\phi<1/2$, the lower Lipschitz bound
+gives injectivity and the contraction equation
+$x=y-\phi(x)(z'-z)$ gives surjectivity.  Thus $H$ is a bi-Lipschitz
+homeomorphism, translates $C_z$ and its short radial collars exactly,
+and fixes $\partial A$.  Compose these maps and shrink the parameter
+neighbourhood so the total distortion is at most two.  The old routes
+then give routes for every nearby tuple with at least half the old
+clearance and the required straight collars.
+
+The centre and port parameter space is compact and there are only
+finitely many parent, annulus, and pairing patterns.  Routes are built,
+and the local stability argument is applied, for every parameter in the
+\emph{closure} of the set of realized tuples, not only for realized ones;
+this is legitimate because the separation bounds defining the parameter
+space are closed conditions, and it is needed because a finite subcover
+is taken of that compact closure.  The subcover therefore gives a uniform
+$c_0>0$ for mutual and off-collar boundary clearance in normalized
+coordinates.  Choose $l$ larger, still with
+$c^{2l}=c^l$, so that $c_0s>100D$ and the physical intermediate square
+contains the fixed central annulus.  Join each inner radial ray at its
+intermediate-square endpoint to the outer PL route, whose initial
+inner collar has the same radial direction.  The two portions meet
+only at that endpoint, since one is inside the square and the other
+outside it.  Different radial portions are separated by a multiple of
+$R$; different outer portions by a multiple of $s$.  Mixed pairs are
+also separated: middle outer portions stay $c_0s$ from the whole square,
+and distinct endpoint collars are separated from the other rays by the
+finite direction separation scaled by $s$.
+
+The first $O(D)$ part of an outer normal collar crosses only faces in
+an $O(D)$ ball about its own port, which contains no other port tile.
+Afterwards it is more than $D$ from the parent boundary.  The collar may
+cross several ordinary original faces; it need not remain in its own
+port face.  It avoids every other designated and singleton port tile,
+which is the condition actually required.
+
+Finally perturb the routes away from the finite original vertices and
+list their crossed faces.  Consecutive faces share whole sides.  Erase
+repeated-face loops while preserving the first port face and final
+outside-anchored face.  Begin the resulting side sequence with the
+port, end it with the private entry edge, and append the print.  The
+entry and print belong to the same small group, hence are consecutive
+sides of a path in the paper's exact sense.  Different routes cannot
+cross the same original face: their $D$ tubes are disjoint away from
+the collars, their inner collar faces are distinct, and their outer
+collar balls are separated.  Thus every nonterminal side occurrence
+is used at most once.  The shared terminal print is exempt in both
+its central and small owners.  No central side is met earlier.
+All traversed original sides, small entry sides, and prints are marked.
+Every singleton port path remains disjoint from the genuine routes.
+\end{proof}
+
+\begin{lemma}[Construction of the geometric macrocertificate]
+\label{lem:certificate-exists}
+\lean{Tilings.Geometry.existsMacroCertificate}
+\uses{def:substitution,def:sts,def:certificate,lem:regular-grouping,lem:outside-grouping,lem:annular-spokes,lem:quantitative-sector,lem:fingerprint,lem:routing,lem:finite-idempotent,lem:inner-sector-order}
+For every STS polygonal substitution $\tau$, there are a finite grouped
+family $P'$, a scattering map $\Delta$, an integer $m>0$, and a grouped
+substitution $\sigma'$ satisfying
+\[
+ \Delta\sigma'\alpha=\tau^m\Delta\alpha
+ \quad\hbox{for all }\alpha\in P',
+\]
+together with a macrocertificate (G1)--(G7).  The grouped family contains
+every original form as a singleton group and every group is a group of tiles
+of a supertile (the hypotheses of
+Lemma~\ref{lem:grouping-lift}), and when $\tau$ has hereditary listed
+sides so has $\sigma'$.
+\end{lemma}
+
+\begin{proof}
+Choose $R$, then $Q$, then $N$, then $k$ in the noncircular order described
+above.  Group each fixed $\tau^k\alpha$ by the inside/outside cycles and
+the spokes.  Keep the finite labelled groups in $P'$.  Their supports are
+disks and their constituent dual graphs are connected.  Scattering a group
+and applying the grouped substitution to each constituent defines $\sigma$
+and gives $\Delta\sigma=\tau^k\Delta$.
+
+\emph{Step 3 (the routing setup).}  For every grouped form $\alpha$ the
+template $\sigma\alpha$ is the regrouping of $\tau^k\Delta\alpha$: each
+constituent $q\in\Delta\alpha$ contributes the translated groups of its
+supertile $\tau^kq$ (its $L_q$, its $4N$ annular pieces, singletons).  The
+\emph{central child} $c(\alpha)$ of $\sigma\alpha$ is the group $L_q$ of the
+constituent $q$ whose centre $z_q$ is nearest to the centre of $\alpha$; thus
+$c$ maps grouped forms to large catalogue forms $L_p$.  For a power $l$ the
+retained template of $\alpha$ keeps, inside $\sigma^l\alpha$, only the
+central chain $c^l(\alpha)$ (the central child of the central child, $l$
+times) and its $4N$ annular neighbours, and scatters every other group into
+original tiles.  Its annulus is a translate of the catalogue annulus of one
+original supertile, so the quantitative data ($N$, $R$, the four separated
+windows of every piece, the private-edge count) are those of the grouping
+step.  The clearance of the central child grows geometrically along the
+central chain: at each step the chosen centre lies in the square of
+Lemma~\ref{lem:quantitative-sector} with its margin, strictly inside the
+scaled parent, so after normalization by $\theta^{kl}$ the central child
+stays at a positive distance $\rho$ from the boundary of the retained region,
+uniformly in $l$ and $\alpha$ (a geometric series with ratio $\theta^{-k}$).
+The marked sides are fixed by the marking rule: every side of a form that is
+not a central image is marked; a large form $L_p$ has exactly $4N$ marked
+sides, the side it shares with each of the $4N$ annular pieces (one per
+piece; these are whole sides of $L_p$ by the whole-side property of groups).
+The print slots of $\alpha$ send its marked sides injectively to contact
+sides of the central child, preserving cyclic order and in planar matching
+order with the marked sides (both disks are listed counterclockwise, and an
+order-preserving injection between two cyclically ordered boundary families
+is in matching cyclic order in the annulus between them); this is possible
+because a non-large form has at most $Q<4N/3$ sides while the centre has $4N$
+contact sides, and for a large parent $\alpha=c^l\beta$ the print map is the
+identity (its $4N$ marked sides are its own contact sides).  The prints
+are chosen sector by sector: for the marked sides $a_1<\dots<a_m$ in index
+order take distinct pieces $j_1<\dots<j_m$ (all $4N$ pieces for a large
+parent) and for each $j_k$ the contact side of the central child met by the
+ray from the centre through the middle of the sector $T_{j_k}$; by the
+sector localization the face across that side lies in the piece $j_k$, so
+the piece map preserves cyclic order by construction, and by
+Lemma~\ref{lem:inner-sector-order} these sides occur counterclockwise in
+the order of the sectors, so the print map preserves cyclic order as well;
+the sector localization itself is retained from
+Lemma~\ref{lem:quantitative-sector}.
+
+\emph{Step 3$'$ (the routed power).}  Lemma~\ref{lem:routing} applied to this
+setup gives $l>0$ with $c^{2l}=c^l$ (Lemma~\ref{lem:finite-idempotent}) and
+routing data for every retained template at the power $l$.  Keep only central
+large forms in $\operatorname{im}c^l$.  For a retained large form
+$\alpha=c^l\beta$, $c^l\alpha=c^{2l}\beta=c^l\beta=\alpha$.  Thus the central
+form is fixed.  Put $m=kl$ and call the resulting substitution $\sigma'$.
+Scattering commutes with its decomposition, proving the displayed
+compatibility.
+
+\emph{Step 4 (the finite certificate data).}  The forms of the certificate
+are the retained catalogue tiles (the central chain forms, the annular
+pieces, and the original singletons), each with its disk relisted
+counterclockwise and translated to the origin.  The types are the positioned
+children of the retained templates; the owner of a type is its template and
+its anchor is its position.  A type is large, small or original according as
+its form is a central image, an annular piece or an original singleton.  The
+partner of an inner side occurrence is the other occurrence of the same
+geometric side in the same template (templates are side-to-side, so an inner
+side has exactly two owners, Step 5); the interface identifier of an inner
+side is its unordered pair of occurrences, with the two type tags recorded in
+a fixed order.  Marking follows the marking rule of Step 3 through the parent
+sides.  The special side of a small type is its designated contact side with
+the central child: the print when the type receives one (prints land on
+distinct pieces), an arbitrary fixed contact side otherwise.  The print of a
+marked parent side is the routing's print slot.  The outer list of a parent
+declared side is the list of whole outer fine sides of the template contained
+in the scaled side, without repetition, in the lexicographically positive
+direction of the supporting line.  The genuine paths are the occurrence
+chains of the routed side lists: for a routed side list $e_0$ (the port),
+$e_1,\dots,e_r$ (the print) with crossed children $X_0,\dots,X_{r-1}$ the
+chain is $(X_0,e_0),(X_0,e_1),(X_1,e_1),(X_1,e_2),\dots,(X_{r-1},e_r)$: both
+occurrences of every crossed inner side, the print in its small owner only;
+its side projection with consecutive repetitions removed is the routed list.
+The fifth path and all paths of unmarked sides are singleton ports.  The
+chains inherit from the routing data that every side after the port is
+inner, that every side is marked, that no central side occurs before the
+print, that the side before the print is an ordinary side of the small
+owner, that no occurrence repeats, and that distinct paths share only the
+terminal print in either owner.  The central child of a template is owned
+by that template; the mixed form of a type's child is the catalogue form of
+its own form; each mixed form has one catalogue entry; and the relabelling
+between the counterclockwise listing of a certificate disk and the listing
+of its grouped disk is a bijection of side indices.  The
+constants are $N$ and $Q$ as chosen, and the rank bound is the largest outer
+list length.  This data represents $\tau$ at the power $m$: $\Delta\sigma'=
+\tau^{kl}\Delta$ because scattering commutes with the retained/scattered rule;
+the dissections are side-to-side with connected duals, whole sides and
+retained vertices because they are catalogue groups; every original form is a
+singleton; every group lies in a supertile; heredity transfers.  The retained
+templates are side-to-side because scattering a group of a side-to-side patch
+along whole sides preserves the side-to-side property.
+
+\emph{Step 5 (G1).}  Disk cellulations with at least the centre and its ring
+have connected inner-side duals and at least three children.  Every child has
+an inner side: a child whose sides are all outer is the whole template.  An
+inner side has exactly two owners, because the template is side-to-side and
+three polygons with disjoint interiors cannot share a whole segment.  The
+partner and identifier clauses are the definitions of Step 4.
+
+\emph{Step 6 (G2).}  Around the macroboundary, consecutive boundary faces are
+connected through the finite fan at each boundary vertex.  Its connecting
+edges are precisely inner sides with an endpoint on that boundary.  Faces
+touching the boundary only at a vertex must be included in this fan.  Every
+boundary type has such an inner edge because it is not the whole macrotile.
+The retained centre is strictly interior, by the clearance of Step 3.
+
+\emph{Step 7 (G3).}  The lexicographic order is a global positive
+orientation.  The finite boundary interval intersections give the outer
+lists; at most two fine sides are omitted for crossing the endpoints of a
+scaled side (Lemma~\ref{lem:whole-ports}); each list has at least five
+entries because the five ports of the routing are distinct entries of it
+(they are the quantiles of this very list); the lists are bounded by the rank
+bound.  Ranks and ports are numbered in the global supporting-line direction,
+as (G3) requires.  No nested-cut assumption is used.  The exact matching
+implications of the endpoint/frame schedules are proved separately in the
+boundary-transport chapter.
+
+\emph{Step 8 (G4).}  The print map is the routing's print slot map: injective
+and cyclic-order preserving on the marked sides, with inner prints whose other
+owner is a small child, where the print is the special side.  The occurrence
+chains of Step 4 inherit from the routing that every side after the port is
+inner, that every side is marked (sides of non-large children and prints),
+that no central side occurs before the print, that the side before the print
+is an ordinary side of the small owner (the entry edge and the print belong
+to the same small group), that no occurrence repeats, and that distinct paths
+share only the terminal print in either owner (their crossed faces are
+distinct).
+
+\emph{Step 9 (G5).}  The central child belongs to its template and is its
+unique large child.  For a retained large form $\alpha=c^l\beta$,
+$c^l\alpha=\alpha$, so the central form is fixed and the print map is the
+identity on its marked sides (the central child has the parent's own disk).
+A large form has exactly $4N$ marked sides (Step 3); a non-large form has at
+most $Q$ marked sides, because all its sides are marked and an annular piece
+has at most $Q$ sides (Lemma~\ref{lem:quantitative-sector}) while an original
+tile has at most $K_0\le Q$ sides; $4N>3Q$ by the choice of $N$.  Every
+original type has a marked inner side: all its sides are marked and it has an
+inner side (Step 5).
+
+\emph{Step 10 (G6).}  The special sides are those of Step 4: inner, shared
+with the centre, unique per small type.  Every small type has at least
+$K_0+2$ private outer edges (Lemma~\ref{lem:quantitative-sector}), so the
+private-neighbour estimate and Lemma~\ref{lem:fingerprint} give the
+disjointness of the possible fingerprint multisets of distinct noncentral
+types.
+
+\emph{Step 11 (G7).}  The marking rule ``every side not belonging to the large
+central group, plus the prints'' gives (G7): outer and boundary sides belong
+to non-large children (the centre is strictly interior), prints are marked,
+and every occurrence on a genuine path lies in a non-large child, since no
+central side is met before the print.
+
+This constructs the finite geometric certificate.  Neither a coloured
+composition theorem nor the final soficity conclusion has been assumed.
+All Lean implementations, including the classical polygonal topology
+helpers used in this chapter, remain unverified.
+\end{proof}
+
+\paragraph{Why a citation to an earlier matching-rule theorem is insufficient.}
+Fernique--Ollinger's theorem assumes a \emph{good} combinatorial
+substitution; its connecting condition is the very information-routing
+condition at issue here.  The implication from arbitrary planar STS data
+to that condition must still be proved.  Goodman--Strauss assumes
+hereditary sides and sibling-side-to-side conditions, and directly treats
+substitution tilings.  Using it as an alternate route requires verification
+of those exact hypotheses and a proved theorem supporting the hierarchical
+variant as well.  Neither a bibliographic citation nor an unproved Lean
+axiom supplies these constructions or their Lean implementations.
+
+\paragraph{Triangulation is not an unproved refinement reduction.}
+The suggested polygonal triangulation is only an auxiliary tool in the
+continuous wide-routing proof.  Replacing prototiles by triangles would
+require a separate finite substitution-compatible refinement and a proof
+of projection equivalence for both substitution and hierarchical tilings.
+No such reduction is assumed here.
+
+% A chapter fragment. The main document supplies theorem environments and
+% the leanblueprint macros \lean, \leanok, and \uses.
+% Only the two HeaderKernel nodes below are marked leanok.
+
+\section{A boundary-header repair of coloured composition}
+
+This chapter proves the hereditary-side core composition statement. The
+flexible zero/rank definition requires hereditary listed sides, as defined
+in Definition~\ref{def:hereditary}: (G3) allows a fine outer side to cross
+a dummy parent endpoint, and for such a side the clause ``$b\subset\sigma'd$''
+of Definition~\ref{def:control/substitution} is undefined. Accordingly
+\emph{every theorem and lemma of this chapter carries the standing
+hypothesis that the macrotemplate system has hereditary listed sides}, so
+that each fine outer side lies in a unique scaled parent listed side; the
+hypothesis is repeated in the statements of Theorems~\ref{thm:compose},
+\ref{lem:lift-hierarchy} and~\ref{thm:comp/soundness} and in their Lean
+targets. Original nonhereditary dummy cuts are
+handled separately by the strict schedule proof in the final chapter.
+This chapter proves a corrected composition statement for an already
+constructed macrotemplate system. It is conditional on the finite geometric,
+routing, and separation certificate of Definition~\ref{def:certificate}.
+It does not establish that certificate for every STS substitution. In
+particular, the arbitrary assignment of tiles to grid squares in the source
+article does not establish connectedness or the required routing data.
+Every internal interface has a distinct finite ID naming its exact two
+owner-side slots and relative displacement. Identity data are triples
+$(s,r,e)$; fingerprints project them to the ordered type pair $(s,r)$,
+so all occurrence counts are unchanged.
+All declarations in the namespace \texttt{Tilings.Planned} below are proposed
+formalization targets, with mathematical proofs given here; they have not
+been compiled. Only the two explicitly marked nodes in
+\texttt{Tilings.HeaderKernel} refer to the compiled Lean kernel.
+
+The certificate interfaces used here must include the following conventions.
+Outer sides are marked. A child's type determines its owner template and
+therefore the form of its parent. Print maps depend only on that form, and
+copy-source maps depend only on the child position and the parent form.
+The boundary belt is connected, the central tile has no outer or boundary
+side, and identity data determine rigid relative placements. All polygon
+patches have disjoint interiors and cover their parent polygon. These
+conventions are essential uses of the certificate, rather than conclusions
+derived from normality alone.
+
+\begin{definition}[Typed decorations and normality]
+\label{def:control/typed-decoration}
+\lean{Tilings.Planned.typedDecoration}
+\uses{def:certificate,def:substitution}
+Let $F$ be the finite set of forms and $T$ the finite set of positioned child
+types. Write $\operatorname{form}:T\to F$, and let $S(t)$ be the finite
+indexed side set of $\operatorname{form}(t)$. The owner of a child type is
+its parent form, not necessarily its own form. Side identifiers are retained
+even when consecutive polygonal sides are collinear.
+
+An index belongs to a finite tagged alphabet $U$. Its tags distinguish zero,
+positive alignment ranks, type labels, exact interface identities, the symbol
+$\bot$, and the headers defined below. A decoration of type $t$ consists
+of a five-tuple $c_A(d)\in U^5$ on each $d\in S(t)$; its centre stores $t$.
+In the hierarchical variant considered here, position $2$ is zero. The
+geometric polygon has form $\operatorname{form}(t)$.
+
+The local cells are all cells of an unmarked side, the fifth cell of a special
+side, and the first and fifth cells of a marked ordinary side. A decoration
+is \emph{normal} when these cells have the values prescribed by its type.
+Thus ordinary inner first cells contain the relevant ordered interface identity.
+On a special side, the local fifth value is the interface identity if that side
+is a print in its owner template, and zero if it is not a print. In particular,
+special does not mean print. Call a decoration \emph{identity-correct} when
+every inner nonprint side carries its prescribed identity in position $1$
+and every print carries it in position $5$. Normality alone does not impose
+the first value on a special nonprint side. In the flexible variant of
+this chapter an outer fourth cell is not local: an outer side is marked,
+and its zero-versus-rank value depends on the parent's mode. In the strict
+variant of the final chapter the outer fourth cell is the generated
+schedule $W$, which is determined by the type alone and is therefore local
+there. The list of local cells relies on the marking discipline (G7): an
+unmarked side is inner, nonprint, nonboundary and on no path, so all its
+cells are fixed by the type.
+\end{definition}
+
+\begin{lemma}[A tile with an outer side has a boundary side]
+\label{lem:comp/outer-boundary}
+\lean{Tilings.Planned.boundary_side_of_outer_side,Tilings.Planned.Strict.exists_boundary_side_of_outer}
+\uses{def:certificate}
+In a macrotemplate every child type with an outer side also has a boundary
+side, that is, an inner side with an endpoint on the macroboundary.
+\end{lemma}
+\begin{proof}
+By (G1) the type has an inner side, so not all of its sides are outer.
+Walk around its boundary polygon from an outer side; the first side that
+is not outer starts at the endpoint of the last outer side, which lies on
+the macroboundary. That side is inner (the template covers the parent
+polygon, so a side not on the macroboundary is shared) and has an endpoint
+on the macroboundary. Collinear listed vertices do not affect the walk.
+\end{proof}
+
+\begin{definition}[The finite parent header]
+\label{def:control/header}
+\lean{Tilings.HeaderKernel.makeHeader}
+\leanok
+\uses{def:control/typed-decoration}
+For a type $t$, a Boolean outer-side predicate $o_t:S(t)\to\{0,1\}$,
+and a fourth-index vector $a:S(t)\to U$, set
+\[
+ z_{t,a}(d)=o_t(d)\mathbin{\wedge}[a(d)=0],\qquad
+ H(t,a)=\bigl\langle t,z_{t,a}\bigr\rangle
+ \in\sum_{t\in T}\bigl(S(t)\to\{0,1\}\bigr).
+\]
+The Lean definitions are \texttt{Header}, \texttt{zeroMode}, and
+\texttt{makeHeader}, with precisely these dependent types and formulas.
+The sum is finite when $T$ and each $S(t)$ are finite; the compiled instance
+\texttt{headerFintype} uses classical decidable equality and is
+\texttt{noncomputable}. For a decorated tile $A$ write $H(A)$ for the header
+computed from its type and its fourth vector. This is computed data, not a
+new local field fixed by the type.
+\end{definition}
+
+\begin{lemma}[Recovery of a header from fourth-port data]
+\label{lem:comp/port-recovery}
+\lean{Tilings.HeaderKernel.makeHeader_eq_of_port_recovery}
+\leanok
+\uses{def:control/header}
+Fix a type $t$ and fourth vectors $a,b:S(t)\to U$. If a vector
+$p:S(t)\to U$ satisfies $p(d)=a(d)$ and $p(d)=b(d)$ for every $d$, then
+$H(t,a)=H(t,b)$.
+\end{lemma}
+\begin{proof}
+ \leanok
+For each $d$, transitivity gives $a(d)=p(d)=b(d)$. Consequently
+$o_t(d)\wedge[a(d)=0]=o_t(d)\wedge[b(d)=0]$. Function extensionality
+identifies the two Boolean vectors, and their type components are already
+the same. This is the proof implemented in the kernel. If types are initially
+identified by an equality $t=s$, their dependent side sets must first be
+transported along that equality; the compiled auxiliary lemma
+\texttt{makeHeader\_eq\_of\_aligned\_fourth} performs this transport.
+\end{proof}
+
+\begin{definition}[The repaired decorated substitution]
+\label{def:control/substitution}
+\lean{Tilings.Planned.headerSubstitution}
+\uses{def:certificate,def:substitution,def:control/header}
+The uncoloured substitution $\sigma'$ and its finite templates are unchanged.
+For a decorated parent $A$, its repaired decomposition $\widehat\sigma A$
+has the prescribed child types. Prints carry the first four cells of the
+corresponding parent side, and their fifth cell is the interface identity of the
+shared interior side. This prescription applies to \emph{both} owners of a
+print. A side which is not a print, including a special nonprint side,
+has its prescribed first identity cell, zero second
+cell, zero fifth cell, and third cell equal to $A_i(d)$ when it belongs to
+the path $P_i(d)$, and zero otherwise. Its fourth cell is
+\[
+ B_4(b)=
+ \begin{cases}
+  0,&b\subset\sigma'd\text{ is outer and }z_A(d)=1,\\
+  \operatorname{rank}(b),&b\text{ is outer and }z_A(d)=0,\\
+  \operatorname{header}(H(A)),&b\text{ is boundary},\\
+  \bot,&b\text{ is any remaining inner nonprint side}.
+ \end{cases}
+\]
+The print prescription has precedence. Prints lie strictly inside the
+macrotemplate and hence do not conflict with the boundary clause. Each
+header tag is distinct from zero. The change from the article is the
+boundary clause: it carries the entire parent header, rather than only the
+parent type. This introduces finite control data and no new paths.
+\end{definition}
+
+\begin{definition}[Copy sources and origins]
+\label{def:control/origin}
+\lean{Tilings.Planned.copySource}
+\uses{def:control/substitution,def:certificate}
+Copied cells are positions $1$--$4$ on prints and position $3$ on ordinary
+sides assigned to paths. Their source is the corresponding parent cell.
+The source is determined by the child position and parent form. All other
+cells, including the centre type and the synthesized boundary header, are
+origins. Thus a boundary header is \emph{not} falsely treated as a literal
+copy of the sixth cell.
+
+Along an ancestor chain, repeatedly follow the source of a copied cell.
+If a noncopied cell is eventually reached, it is the origin of the chain.
+Otherwise the copied cell has no origin. A print or path may copy a
+header-valued fourth cell; its source chain then stops at the synthesized
+boundary cell. Values are unchanged along actual copy edges.
+\end{definition}
+
+\begin{definition}[Legality and properness]
+\label{def:control/legal}
+\lean{Tilings.Planned.headerLegal}
+\uses{def:control/origin,def:control/substitution,def:tiling}
+A decoration $A$ is legal when it has an infinite ancestor chain
+$A=A_0,A_1,A_2,\ldots$, with $A_i$ a child of $A_{i+1}$, such that every
+copied cell at every $A_i$ with no origin has value zero. All types and
+colours lie in fixed finite sets; legality selects a subset of that finite
+decorated tile set.
+
+A side is nontrivial if its fourth and fifth cells are not both zero.
+A plane tiling is proper if every nontrivial side has a complete, coincident
+opposing side with the same full five-tuple. A trivial outer side may have
+shifted contacts. Equality of colours is required only for contacts forced
+by this rule.
+\end{definition}
+
+\begin{lemma}[Elementary legality properties]
+\label{lem:comp/legal-properties}
+\lean{Tilings.Planned.headerLegal_properties,Tilings.Planned.Strict.strictLegal_properties}
+\uses{def:control/legal,def:control/typed-decoration,def:control/substitution}
+A legal tile has a legal parent and is normal and identity-correct;
+every child of a legal parent
+is legal. All boundary fourth cells of a legal tile equal one parent header.
+Third signals belonging to the same path are equal through a legal tile.
+Every inner side of a legal tile is nontrivial. On an outer side, triviality
+is equivalent to a zero fourth cell.
+\end{lemma}
+\begin{proof}
+Delete the first term of a witnessing ancestor chain to obtain legality of
+its parent. The child clauses fix every local cell, giving normality, and
+supply first identities on all inner nonprint sides and fifth identities
+on all prints, giving identity-correctness.
+To prove legality of a child, prepend it to a chain for the parent. A copied
+cell in the new first tile either reaches an origin there, or reaches the
+corresponding parent cell. If the source chain is infinite, the parent's
+legality forces its value, and hence the child's value, to be zero. All
+requirements farther up the chain are unchanged.
+
+The boundary and path equalities follow by choosing the first legal parent:
+its single header supplies every boundary cell, and its single cell $A_i(d)$
+supplies all appearances of a path signal in that child. At a print, the
+fifth cell is a nonzero interface identity. At a boundary side, the fourth cell
+is a nonzero header tag. At any other inner side, the fourth cell is $\bot$.
+These cases exhaust inner sides. On outer sides the fifth cell is zero,
+so the last assertion follows directly.
+\end{proof}
+
+\begin{lemma}[Assembly from active identity sides]
+\label{lem:comp/assembly}
+\lean{Tilings.Planned.assembleMacrotemplates,Tilings.Planned.Strict.strict_assembleMacrotemplates}
+\uses{def:certificate,def:control/typed-decoration,def:control/legal,def:tiling}
+A proper plane tiling of normal identity-correct typed tiles in which every
+inner side is nontrivial admits a partition into positioned $\sigma'$ macrotemplates.
+In particular, every proper legal tiling has such a partition.
+\end{lemma}
+\begin{proof}
+On an inner nonprint side, identity-correctness gives its ordered identity
+pair in the first cell. On a print, the fifth cell gives that pair.
+Nontriviality forces a complete matching side. The pair identifies the
+neighbouring type and the relative placement specified by the certificate.
+Starting with one tile, traverse the connected finite inner-side graph of
+its owner template. Each graph edge forces its required neighbour. Relative
+placements agree because they are the placements of that fixed template;
+an existing tile cannot occupy a different positive-area position while
+matching the same rigid side placement.
+
+Traversal therefore recovers the full template. Repeated traversal cannot
+produce an additional occurrence at the same position, since tile interiors
+are disjoint. Two recovered blocks sharing a tile have the same owner type
+set and the same rigid placement, and hence are the same block. Every tile
+belongs to a recovered block, so the blocks partition the plane. Trivial
+outer contacts are not used in this argument. The final assertion follows
+from Lemma~\ref{lem:comp/legal-properties}. Notice the hypothesis that inner
+sides are active and identities are correct: normality alone would neither
+force adjacency on an ordinary marked side whose fourth and fifth cells
+were both zero, nor prescribe the first identity on a special nonprint side.
+\end{proof}
+
+\begin{lemma}[A common boundary header]
+\label{lem:comp/boundary-header}
+\lean{Tilings.Planned.boundary_header_constant,Tilings.Planned.Strict.strict_boundary_header_constant}
+\uses{def:certificate,lem:comp/legal-properties,def:control/header}
+Let $M$ be a proper finite coloured realization of the template $\sigma'\alpha$,
+with the prescribed child types. Assume every tile except possibly the
+centre is legal. Every boundary fourth cell then carries the same header
+$h=(t,v)$, and $\operatorname{form}(t)=\alpha$.
+\end{lemma}
+\begin{proof}
+Every boundary tile is noncentral and legal. Its boundary cells all equal
+the header of any chosen legal parent. If two boundary tiles share a boundary
+side, that side is nontrivial; properness identifies the two header tags.
+Connectedness of the boundary belt propagates equality to every boundary
+cell of $M$. Choose one boundary tile $B$ and a legal parent $C$ of it.
+The type of $B$ determines the owner form $\alpha$, so $C$ has form $\alpha$.
+Its header equals $h$; equality of type components gives $\operatorname{type}(C)=t$.
+Thus $t$ has form $\alpha$, as required. Connectedness of this belt is an
+explicit certificate obligation, not an inference from a sufficiently
+large substitution scale.
+\end{proof}
+
+\begin{lemma}[Parent reconstruction and its exact header]
+\label{lem:comp/reconstruction}
+\lean{Tilings.Planned.reconstructed_header_eq,Tilings.Planned.Strict.strict_reconstructed_header_eq}
+\uses{lem:comp/boundary-header,lem:comp/port-recovery,def:control/typed-decoration}
+In the situation of Lemma~\ref{lem:comp/boundary-header}, define $D$ to have
+type $t$ and, for every parent side $d$ and $1\le i\le5$, set
+\[
+ D_i(d)=\text{the third cell of port }i\text{ on }\sigma'd.
+\]
+Then $D$ is normal and identity-correct, $H(D)=h$, and every inner side of
+$D$ is nontrivial.
+\end{lemma}
+\begin{proof}
+Fix a local cell $(i,d)$ of $D$. Its port lies in a legal boundary tile $B$,
+which has a boundary side by Lemma~\ref{lem:comp/outer-boundary} and hence
+a legal parent $C$ with $H(C)=h$.
+In particular $C$ has type $t$. The port clause says $D_i(d)=B_3(p_i)=C_i(d)$.
+Since $C$ is normal of type $t$, this is the required local value of $D$.
+Applying this separately to every local cell proves normality; no equality
+of the whole parents $C$ chosen for different ports is needed.
+
+For each $d$, choose its fourth port and a legal parent $C_d$ of that port
+tile. We have $H(C_d)=h$ and $D_4(d)=(C_d)_4(d)$. Thus
+\[
+ v(d)=[d\text{ outer in }t]\wedge[(C_d)_4(d)=0]
+     =[d\text{ outer in }t]\wedge[D_4(d)=0]=z_D(d).
+\]
+The dependent side sets have first been aligned using the established
+equality of parent types. Extensionality gives $H(D)=h$. The kernel recovery
+lemma is the algebraic component of this argument; obtaining the legal
+parents and their common type remains part of this mathematical lemma.
+
+For an inner nonprint side $d$, use its first port and a legal parent of
+that port tile. Its type is $t$, so the child clauses force its first cell
+to be the prescribed identity of $d$. This port recovers exactly $D_1(d)$.
+For a print, the fifth cell of $D$ is its nonzero prescribed identity by
+normality. Thus $D$ is identity-correct. For an inner nonprint side, the
+legal parent $C_d$ chosen at its fourth port has a nonzero fourth cell: it
+is a header or $\bot$. Hence $D_4(d)\ne0$. For a print, the normal fifth
+identity cell is nonzero. Therefore every inner side of $D$ is nontrivial,
+even before legality of $D$ has been established. This argument explicitly
+covers special nonprints, whose fifth cell is zero.
+\end{proof}
+
+\begin{lemma}[Signals reach the prints]
+\label{lem:comp/signals}
+\lean{Tilings.Planned.path_and_print_recovery,Tilings.Planned.Strict.strict_path_and_print_recovery}
+\uses{def:certificate,lem:comp/legal-properties,lem:comp/reconstruction}
+Every nonprint third signal on $P_i(d)$ in $M$ equals $D_i(d)$.
+The noncentral owner of the print of $d$ has first four cells
+$(D_1(d),\ldots,D_4(d))$ on that print.
+\end{lemma}
+\begin{proof}
+Begin at port $i$, whose third cell is $D_i(d)$ by construction.
+Consecutive nonprint sides of the path belong to the same noncentral legal
+tile, or are common sides of two such tiles. In the first case, their
+signals agree because both copy the same parent cell. In the second case,
+the common side is inner and nontrivial, so properness gives equality of
+its signals. Induction along the finite path proves the first assertion.
+
+Let $B$ be the small noncentral tile sharing the final print, and choose a
+legal parent $C$ of $B$. Its parent form is $\alpha$, so the same form-based
+print and path maps are used for $C$ and $D$. The predecessor of the print
+on $P_j(d)$ is an ordinary side of $B$, by the routing certificate. Its
+third cell equals $C_j(d)$ by the child clause and equals $D_j(d)$ by the
+first assertion. The print clause therefore supplies $D_j(d)$ for each
+$j\le4$. This argument uses the predecessor in the small owner, rather
+than an unsupported claim that the central tile is already legal.
+\end{proof}
+
+\begin{lemma}[Exact repaired decomposition]
+\label{lem:comp/exact}
+\lean{Tilings.Planned.macroblock_is_decomposition,Tilings.Planned.Strict.strict_macroblock_is_decomposition}
+\uses{lem:comp/reconstruction,lem:comp/signals,def:control/substitution}
+The finite patch $M$ is an exact member of $\widehat\sigma D$.
+\end{lemma}
+\begin{proof}
+Check the clauses cell by cell. Child types and fixed first, second, and
+fifth cells agree because each noncentral child has a parent of form $\alpha$.
+Remaining inner nonprint fourth cells are $\bot$. Boundary fourth cells carry
+$h=H(D)$. For an outer child side $b\subset\sigma'd$, its legal owner $B$
+has a parent $C$ with $H(C)=h=H(D)$. Hence its choice between zero and its
+fixed positive rank is exactly the choice prescribed by $D$. This is the
+case missing from the unchanged composition argument in the source article:
+the outer fourth value depends on the parent's mode, even though it is
+not an ordinary copied cell.
+
+Lemma~\ref{lem:comp/signals} verifies all ordinary third signals and all
+four print cells in the noncentral owners. Remaining third cells are zero
+by the child clause. Thus every noncentral tile has the required colours
+as a child of $D$. (The outer-side owners used above have boundary sides
+by Lemma~\ref{lem:comp/outer-boundary}.) Every side of the central tile is
+a complete shared inner side with one of these legal noncentral neighbours. The neighbour forces
+equality of the full colour by properness. The repaired substitution
+prescribes equal colours to both owners of such a side, including the
+borrowed tuple on a print. Consequently the central tile also has all the
+required child cells. No initial legality assumption about the centre
+has been used.
+\end{proof}
+
+\begin{lemma}[Cyclic reconstructed parents are legal]
+\label{lem:comp/cyclic-legal}
+\lean{Tilings.Planned.reconstructed_cyclic_legal,Tilings.Planned.Strict.strict_reconstructed_cyclic_legal}
+\uses{lem:comp/exact,def:certificate,def:control/legal,lem:finite-idempotent}
+Suppose the centre $A$ of $M$ is legal and the type $t$ of $D$ is cyclic:
+it is the central child type in the template of its own form. Then $D=A$
+as typed decorations, and $D$ is legal.
+\end{lemma}
+\begin{proof}
+Both tiles have type $t$. The retained large form is fixed by the central
+form map, obtained using Lemma~\ref{lem:finite-idempotent} in the geometric
+construction. Its print map is the identity on marked sides. Hence every
+marked first-four cell of $A$, as central child of $D$, copies the
+corresponding cell of $D$. The remaining cells are local and agree because
+both tiles are normal. The header is computed from the type and fourth
+vector and therefore agrees as well. Thus $A=D$, proving the claim.
+\end{proof}
+
+\begin{lemma}[Noncentral reconstructed parents are legal]
+\label{lem:comp/noncentral-legal}
+\lean{Tilings.Planned.reconstructed_noncentral_legal,Tilings.Planned.Strict.strict_reconstructed_noncentral_legal}
+\uses{lem:comp/exact,lem:comp/cyclic-legal,def:certificate,def:control/legal}
+If the centre $A$ is legal and $t$ is noncentral, then $D$ is legal.
+\end{lemma}
+\begin{proof}
+A normal noncentral tile has a marked ordinary inner side with a nonzero
+first identity cell, by the separating certificate. Its print in $A$
+contains that nonzero value. A legality chain of $A$ with only central
+types would copy this marked first cell forever: all parent forms would
+be retained large forms, whose print maps are identities. The cell would
+have no origin and would be zero, a contradiction. Therefore the chain
+reaches a legal noncentral ancestor.
+
+Choose a shortest central-child chain ending at such an ancestor. Passing
+to the central child fixes large forms. All but possibly the last two
+vertices are therefore cyclic tiles of the same type and, by the argument
+of Lemma~\ref{lem:comp/cyclic-legal}, identical decorations. Delete these
+repetitions. The chain has length $n\le2$. Length two is impossible here:
+the immediate parent of $A$ would have a large form, whereas its known
+parent $D$ has a noncentral form. A child's position determines its parent
+form, so these cannot both be parents. Thus $A$ has a legal noncentral
+parent $E$ immediately above it.
+
+The parents $E,D$ have the same form. Their print maps depend only on this
+form, so their marked first-four fields agree through the common child $A$.
+Let $\Phi$ be the multiset of type components of first-cell interface identitys
+on marked sides. We have $\Phi(E)=\Phi(D)$. The noncentral fingerprint
+certificate implies that their types agree. Their local fields then agree
+by normality, while their marked first-four fields already agree. Hence
+$E=D$, and $D$ is legal.
+
+The fingerprint condition can be checked from exact finite data: original
+types have a nonempty inner identity set; a template's connected dual graph
+has more than two vertices; small types have enough ordinary marked inner
+sides to separate their cardinalities from original types; and each pair
+of small types has at least three private ordinary original-neighbour
+occurrences. The exceptional special side contributes at most two arbitrary
+components. These are finite separating conditions, not informal estimates
+that sufficiently large quasi-squares will automatically have them.
+\end{proof}
+
+\begin{lemma}[Positive ranks align an entire macroside]
+\label{lem:comp/alignment}
+\lean{Tilings.Planned.alignment_complete}
+\uses{def:certificate,def:tiling,def:control/substitution}
+Let the macroblocks of a proper plane tiling of legal typed tiles form a
+plane partition with disjoint interiors (legality makes every outer fourth
+cell zero or the generated rank of its side; without this a constant
+colouring satisfies the hypotheses below on the three-block counterexample).
+If every child side of one macroside has a complete opposing side with the
+same positive alignment rank, \emph{and every macroside of an opposing
+macroblock is mode-uniform} (either all of its child sides carry positive
+ranks, or all carry zero), then this macroside has a complete opposing
+macroside with the same ordered subdivision.
+
+Without the mode-uniformity hypothesis the statement is false: let $d$
+have children of ranks $1,2,3$, each completely matched by the children of
+ranks $1,2,3$ of an opposing macroside $e$ which has five children, the
+last two facing trivial children of a third block. The hypothesis on $d$
+holds, yet $d$ has no complete opposing macroside. This example is a
+counterexample only under the weaker legality ``every outer fourth cell is
+zero or the generated rank of its side''; under the full-header legality of
+the repaired child relation every macroblock of a proper legal tiling has a
+common boundary header, so mode-uniformity follows from legality and the
+hypothesis is automatic. In
+Lemma~\ref{lem:comp/proper} mode-uniformity is available, because every
+block is an exact decomposition of its reconstructed parent and the parent
+header fixes one mode per side.
+\end{lemma}
+\begin{proof}
+Use the global orientation of ranks along straight sides, required by (G3).
+The child side
+of rank one coincides completely with a child side of rank one on an
+opposing macroblock. Their first endpoints, and thus the beginnings of
+their macrosides, coincide. Continue along the finite ordered list of child
+segments. An opposing macroblock cannot end inside one of these segments:
+the segment has a complete matching side. If it ends between consecutive
+segments, the next opposing macroside would have to begin there and its
+first rank would be one, whereas the next given rank is larger than one.
+
+The other end needs the mode-uniformity hypothesis. Let the given side
+have $L$ children and the opposing side $e$ have $L'$ children, and suppose
+$L'>L$. Since child $1$ of $e$ carries a positive rank, mode-uniformity
+makes child $L+1$ of $e$ ranked, hence nontrivial, so it needs a complete
+match of rank $L+1$. Beyond the end of the given side, on the same side of
+the line, lies either the next listed side of the same block, whose first
+child has rank $1$, or a side of a different block, which would have to
+begin $L$ children earlier and overlap the given block, or a trivial side,
+which cannot match a nontrivial one. All three are impossible, so $L'=L$.
+
+For completeness, an alternative opposing macroside cannot have begun
+earlier and merely join the contact at this switch. An open portion of that
+earlier side would lie opposite the same open portion of the original
+opposing block, with their interiors on the same half-plane side. Local
+polygonal interior neighbourhoods would overlap, contradicting the
+disjointness of macroblock interiors. Coverage supplies an opposing block
+after each endpoint, so the rank-reset obstruction cannot be avoided by
+leaving a gap. Applying the argument at the other end shows that the
+opposing side terminates exactly with the given side. Complete child-side
+matching then identifies the whole ordered subdivision. This geometric
+lemma must be formalized separately from the algebraic header kernel.
+\end{proof}
+
+\begin{lemma}[The reconstructed plane tiling is proper]
+\label{lem:comp/proper}
+\lean{Tilings.Planned.composed_proper,Tilings.Planned.Strict.strict_composed_proper}
+\uses{lem:comp/assembly,lem:comp/exact,lem:comp/alignment,lem:comp/reconstruction,lem:comp/boundary-header}
+For a proper legal plane tiling $\mathcal T$, replace each assembled
+macroblock by its reconstructed parent and scale down by the substitution
+factor. Each assembled macroblock is replaced by its reconstructed parent in
+the sense of Lemma~\ref{lem:comp/reconstruction}, i.e.\ the parent whose
+type is the type of the common boundary header of the block given by
+Lemma~\ref{lem:comp/boundary-header}. The result $\mathcal T'$ is a proper tiling of normal identity-correct decorations
+with active inner sides, and $\mathcal T$ is an exact repaired decomposition
+of $\mathcal T'$.
+\end{lemma}
+\begin{proof}
+Assembly partitions the plane into the macroblocks. Their underlying
+polygons are scaled parent polygons, so replacing and scaling them preserves
+coverage and disjoint interiors. Exact decomposition follows block by block
+from Lemma~\ref{lem:comp/exact}; normality, identity-correctness, and activity of inner sides follow
+from Lemma~\ref{lem:comp/reconstruction}.
+
+Every macroside of every block is mode-uniform: the block is an exact
+decomposition of its reconstructed parent $E$ (Lemma~\ref{lem:comp/exact}),
+and the outer fourth cells on $\sigma'e$ are all zero or all positive
+ranks according to $z_E(e)$. So the alignment lemma applies.
+
+Consider a nontrivial side $d$ of a reconstructed parent $D$. If it is
+inner, $z_D(d)=0$ by definition. If it is outer, its fifth cell is zero,
+so nontriviality gives $D_4(d)\ne0$ and again $z_D(d)=0$. Thus all its
+child outer fourth cells are positive ranks. Properness of $\mathcal T$
+matches each completely with an equal positive rank. The alignment lemma
+gives a complete opposing parent side and the same subdivision. Its five
+ports consequently coincide with the corresponding five ports on the
+given side. The third cells on those ports agree in $\mathcal T$. These
+five values are exactly the five reconstructed parent cells, proving full
+colour equality. A trivial outer side imposes no requirement. Hence
+$\mathcal T'$ is proper.
+\end{proof}
+
+\begin{lemma}[Central acyclic reconstructed parents are legal]
+\label{lem:comp/acyclic-legal}
+\lean{Tilings.Planned.reconstructed_acyclic_legal,Tilings.Planned.Strict.strict_reconstructed_acyclic_legal}
+\uses{lem:comp/proper,lem:comp/exact,lem:comp/noncentral-legal,lem:comp/cyclic-legal,def:certificate}
+Every reconstructed parent of central acyclic type in $\mathcal T'$ is legal.
+\end{lemma}
+\begin{proof}
+Let $D$ be such a parent, of type $t$, and let $A$ be its original legal
+central child. Every noncentral or cyclic tile of $\mathcal T'$ is already
+legal by the preceding legality lemmas. All reconstructed tiles are normal
+and identity-correct with active inner sides, so the assembly lemma also applies to
+$\mathcal T'$. In the second-level macroblock containing $D$, every
+noncentral tile is legal. The full repaired reconstruction and exactness
+lemmas give a normal parent $C$ of type $r$, with $D$ its central child.
+No unproved inheritance of a single-scale flag rule is needed.
+
+The type $r$ is noncentral. If it were central, its large form would be
+fixed by the central-child form map. It and its central child $t$ would
+have the same large form, and hence the same central child type, making
+$t$ cyclic. This contradicts the assumption on $D$.
+
+The nonzero marked first cell of normal noncentral $C$ is copied into
+$D$ and then into $A$. The origin argument from the noncentral legality
+lemma therefore shows that a legal ancestry chain of $A$ reaches a
+noncentral type; removing cyclic repetitions gives length at most two.
+An immediate parent of $A$ has the same large form as $D$, and hence a
+central type. The chain must have length exactly two:
+\[
+ A\ \longleftarrow\ E\ \longleftarrow\ F,
+\]
+where $E,F$ are legal and $F$ is noncentral.
+
+The parents $E,D$ have the same form and agree in their marked first-four
+fields through $A$, so $\Phi(E)=\Phi(D)$. Write $L=4N$ for the number
+of marked sides of a large form, and $Q$ for the maximum on a noncentral
+form. At most $Q$ marked sides of $D$, the central child of $C$, are prints.
+On each of the remaining at least $L-Q$ sides its first interface identity
+contains $t$. Thus the multiplicity of $t$ in $\Phi(D)$ is at least $L-Q$.
+Suppose $E$ had a different central type $t'$. Its nonprint identities
+contain $t'$ and a small neighbour type, neither equal to $t$. Only its
+at most $Q$ prints can contribute $t$; a copied print cell contributes at
+most one occurrence of $t$ per print under the type projection, so the
+multiplicity is at most $Q$, and in any case at most $2Q$.
+This contradicts $L-Q>2Q$, supplied by the certificate. Therefore $E$
+also has type $t$. Normal local cells and the marked copied cells now
+identify $E=D$. Since $E$ is legal, $D$ is legal.
+\end{proof}
+
+\begin{theorem}[The repaired composition theorem]
+\label{thm:compose}
+\lean{Tilings.Planned.compose_legal_exists}
+\uses{def:certificate,def:hereditary,lem:comp/proper,lem:comp/noncentral-legal,lem:comp/cyclic-legal,lem:comp/acyclic-legal}
+For every macrotemplate system satisfying Definition~\ref{def:certificate}
+with hereditary listed sides (Definition~\ref{def:hereditary})
+and the explicit header substitution of Definition~\ref{def:control/substitution},
+every proper legal plane tiling has a proper exact repaired composition
+whose tiles are legal.
+\end{theorem}
+\begin{proof}
+Construct $\mathcal T'$ by assembly and reconstruction. The properness
+lemma proves that it is a plane tiling, is proper, and decomposes exactly
+to the input. Its reconstructed types are either noncentral, central cyclic,
+or central acyclic. The three legality lemmas cover these disjoint cases.
+Thus every tile of $\mathcal T'$ is legal. The conclusion uses the same
+properness and legality predicates as the input, so the theorem can be
+iterated. The header modification is what provides this closure.
+\end{proof}
+
+\begin{theorem}[Lifting an actual side-to-side-supertiling hierarchy]
+\label{lem:lift-hierarchy}
+\lean{Tilings.Planned.lift_hierarchy}
+\uses{def:certificate,def:hereditary,def:hierarchy,def:control/origin,def:control/substitution}
+Suppose the macrotemplate system has hereditary listed sides, so that no
+fine outer side straddles a parent listed vertex and ``the unique
+containing side'' below is defined. Suppose an actual $\sigma'$ hierarchy
+is given and its finite supertiles
+are side-to-side at every level: for every tile $X$ of level $n$ and every
+$k\le n$ the patch $\sigma'^{\,k}X$ of level-$(n-k)$ tiles is side-to-side
+(the full decomposition alone is not enough: two level-$1$ siblings with
+partially overlapping sides would give coincident fine sides different port
+ranks). Then it admits compatible legal decorations at every
+level under the repaired substitution; its decorated level-zero tiling
+is proper. This side-to-side-supertiling assumption is an additional
+geometric instantiation obligation, supplied by a correctly grouped STS
+construction, not proved by the header kernel.
+\end{theorem}
+\begin{proof}
+At each level the hierarchy specifies each child's type and its parent.
+On an outer side, follow the unique containing side through parent levels.
+If it stays outer forever, put its fourth cell equal to zero at all levels
+of that chain. If it eventually becomes inner, assign the fixed positive
+alignment ranks on the outer levels below the first inner side. These
+choices obey the outer-fourth substitution clause. Set remaining inner nonprint
+fourth cells to $\bot$, and boundary fourth cells to the computed header
+of their parent.
+
+Set every remaining noncopied fresh cell to its prescribed child value;
+this includes fixed local cells and first identities on special nonprints.
+For a recursively copied cell, follow its source: use the origin value if an origin is reached, and
+zero if it is not. Copy-source uniqueness makes this assignment
+unambiguous. Equality along a copy edge holds in both cases. A header depends
+only on the type and the outer fourth cells, all of which were assigned
+before the copying step: inner entries of its mode vector are false regardless
+of their fourth values. Its assignment therefore introduces no additional
+recursive choice. The child clauses are now
+all satisfied. Each actual ancestor chain witnesses legality, including
+the no-origin condition at every level.
+
+Inside a macroblock, shared side colours agree because both owners receive
+the same parent data; synthesized boundary headers also agree. For an outer
+side with nonzero fourth cell, its ancestor side becomes inner at a finite
+level. Both overlapping sides therefore belong to one finite higher
+supertile. The assumed STS property makes their descendant sides coincide
+completely, with matching ranks and ports. Their copied cells either reach
+the same shared origin, or matching origins on a shared side, or both have
+no origin and are zero. The second alternative is an induction on the
+level: the two copied cells on the coincident sides $b\subset\sigma'd$ and
+$b'\subset\sigma'd'$ copy the cells of the parent sides $d,d'$, which are
+again coincident sides in the next level with one fewer level to go before
+the chain becomes inner; the induction hypothesis gives equality there.
+The third cell of an outer side is nonzero only when that side is a port,
+by the inner-side clause of (G4); hence no outer side other than a port
+carries a parent signal, and the coincident side of a port is the port of
+the same number of the opposing block. Hence their full colours agree. The same argument
+applies to inner sides, already lying in a finite supertile. An outer side
+whose chain stays outer forever has zero fourth and fifth cells and is
+trivial, so its shifted contacts are permitted. The level-zero decoration
+is proper, and the construction is compatible across all hierarchy levels.
+\end{proof}
+
+\begin{theorem}[Soundness and the conditional representation]
+\label{thm:comp/soundness}
+\lean{Tilings.Planned.projects_to_hierarchy}
+\uses{thm:compose,lem:lift-hierarchy,def:hierarchy,def:certificate,def:hereditary}
+Under the certificate assumptions, with hereditary listed sides, erasing
+the colours of every proper
+legal tiling gives a $\sigma'$-hierarchical tiling. If in addition the
+actual hierarchies to be represented have side-to-side finite supertiles,
+then the erasures of proper legal tilings are exactly those hierarchical
+tilings. The resulting decorated tile alphabet is finite.
+\end{theorem}
+\begin{proof}
+Apply the repaired composition theorem repeatedly. Classical dependent
+choice, or recursive selection of a witness for each natural-number level,
+gives proper legal tilings $\mathcal T^{(0)},\mathcal T^{(1)},\ldots$,
+each an exact composition of its predecessor. Erasure commutes with the
+repaired substitution, since the underlying geometry was unchanged.
+Thus their erased sequence witnesses the required $\sigma'$ hierarchy.
+This direction uses no assumed existence of a coloured hierarchy.
+
+Conversely, the lifting theorem supplies a proper legal decoration of
+every hierarchy satisfying its geometric STS condition. Finiteness follows
+because there are finitely many forms, types, side positions, and ordinary
+index tags, while the dependent header sum is finite. Legality is a subset
+of this finite alphabet. These two implications prove the conditional
+representation statement.
+
+This theorem is deliberately conditional on the geometric certificate and
+the stated realization condition. It is not a completed proof of the
+general STS/FLC soficity theorems. Establishing a valid connected grouping,
+the routing and separation certificates, the compatibility with the
+original substitution, and the repaired FLC geometric reduction remains
+outside this chapter. In the crown-bearing variants, positive outer
+fourth cells make every header mode vector false; the header then carries
+the former parent type with redundant control bits. Crown consistency and
+the additional language argument require their own nodes and are not
+inferred from the conditional hierarchical representation proved here.
+\end{proof}
+
+\section{From the repaired construction to the main theorems}
+
+The grouping chapter now gives ordinary mathematical proofs of the
+quantitative localization and uniform routing lemmas. The polygonal Jordan
+and PL annulus facts used there remain substantial Lean library work.
+No main theorem below has been checked by Lean. Compactness is applied only
+to geometric group/clone labels. After obtaining an actual infinite
+hierarchy, compute zero statuses, headers and copy-origin values in that
+order. Origin-based legality is not asserted to be closed under arbitrary
+limits of finite coloured hierarchies. We distinguish the
+hereditary-side core from the original hypotheses; the FLC reduction and
+endpoint schedules bridge that distinction without assuming the result.
+
+\begin{lemma}[Hierarchy with allowed crowns is substitutive]
+\label{lem:allowed-hierarchy}
+\lean{Tilings.allowed_crowns_hierarchy_is_substitutive}
+\uses{def:hierarchy,def:flc,lem:crown-cover-plane}
+Suppose $\tau$ has FLC and $T=T_0,T_m,T_{2m},\ldots$ is a $\tau^m$-hierarchy
+whose crowns at every listed level are allowed. Then $T$ is a substitution
+tiling.
+\end{lemma}
+\begin{proof}
+Given a finite patch $F\subset T$, choose $k$ with
+$\theta^{-km}\operatorname{diam}|F|<\varepsilon$.
+The inverse-scaled support is covered by a crown $C$ of $T_{km}$.
+All the level-zero tiles of $F$ belong to descendants of this crown:
+coverage by the descendants and disjoint interiors give actual tile
+inclusion, not only support inclusion, by
+Lemma~\ref{lem:covered-tile-belongs}. The allowed crown $C$ occurs in
+some supertile $S$. Thus $F\subset\tau^{km}S$, which is a supertile.
+\end{proof}
+
+\begin{lemma}[Crown colours enforce actual allowed crowns]
+\label{lem:crown-colours}
+\lean{Tilings.Decoration.crown_indices_sound}
+\uses{def:certificate,def:crown,def:flc}
+In the hereditary-side crown-coloured core construction, the uncoloured scattered
+tiling at every reconstructed level has only allowed crowns.
+\end{lemma}
+\begin{proof}
+Inside a macroblock the scattered tiles are a patch of an original
+supertile, so full crowns away from its boundary are allowed.
+Only generated fields at macrotemplate-boundary vertices are used here.
+A copied print-second field is not asserted to be a crown at its physical
+endpoint; prints are strictly inside the template.
+At a macroboundary vertex every incident border tile records the crown
+at that vertex. Legality gives the within-tile consistency of records on
+two sides with that vertex; side matching gives equality across tiles.
+The finite cyclic incident fan is connected through these sides, so all
+records identify one allowed crown. Each incident original tile is included
+in that record, including every constituent of a quasi-tile at the vertex.
+The ambient fan is complete. An additional recorded tile would have an
+open angular sector overlapping this complete fan, contrary to disjoint
+interiors. Hence the recorded crown is exactly the ambient full crown.
+This argument needs full pointed crown records, not merely a list of
+neighbour colours or unpointed polygon shapes.
+\end{proof}
+
+\begin{lemma}[Dissection and glue colours]\label{lem:glues}
+\lean{Tilings.Decoration.dissection_preserves_sofic,Tilings.Planned.Strict.exists_coincident_side}
+\uses{def:certificate,def:localrule}
+If the added quasi-forms are finite connected polygonal unions of original
+tiles with connected dual graphs, their coloured local-rule presentations
+can be transferred back to a finite decoration of the original forms.
+\end{lemma}
+\begin{proof}
+For every added coloured form and every internal constituent side,
+introduce a unique glue carrying the form identity and the two constituent
+positions. Keep the old colour on its exposed boundary segments.
+In a proper scattered tiling, each glue forces the rigidly positioned
+partner. Connectedness of the finite constituent dual graph forces the
+whole added tile; uniqueness of position tags prevents competing copies.
+Conversely, scattering a proper quasi-tile tiling gives these matching
+glues. Thus assembly and scattering are inverse on the presentations.
+All checks involve tiles within a uniformly bounded diameter, since there
+are only finitely many added forms. After every final transfer restore
+surjectivity onto any unused original forms by inert decorations. In the
+generic presentation forbid their singleton tiles. In the strict
+presentation give an owner-side incidence a fresh colour whose only possible
+matching incidence would force coincident interiors. These decorations
+occur in no proper plane tiling and change no projected family.
+The disconnected assignment counterexample fails exactly at this
+connected-dual hypothesis.
+\end{proof}
+
+\begin{definition}[Finite endpoint schedules]\label{def:endpoint-schedule}
+\lean{Tilings.Alignment.EndpointSchedule}
+\uses{def:certificate,def:substitution,def:sts}
+Fix the simulation power $m$, $s=\theta^m$, and one positive unit direction
+for each unoriented supporting-line direction. Every whole fine outer side
+$e$ has coordinates $[0,|e|]$ from its first endpoint in this direction.
+For a parent group $A$ use the boundary layers of $sA$ with its listed sides,
+and of $\theta^{m-j}\tau^j\Delta A$, $j=0,\ldots,m-1$.
+In each layer, intersect its listed boundary sides with $e$. Each positive
+atom $[u,v]$ has a unique containing coarse listed side with coordinates
+$[p,q]$; record $(u,v;p,q)$, allowing $p,q$ outside $e$.
+The layered ordered tuple is $W(A,e)$. Its tag is the geometric data,
+not the owner form or edge ID: different forms with equal data share a tag.
+The layer index ($G$, or $j=0,\ldots,m-1$) is itself a uniform tag that
+does not depend on the form, so that schedules of different parent forms
+are compared layer by layer. Layer $G$ records the same data as layer
+$j=0$; it is kept as an explicit safeguard and is harmless.
+The alphabet is finite because the templates, $m$, and their sides are finite.
+No fine side is physically split and no repeated scaling orbit is stored.
+\end{definition}
+
+\begin{lemma}[Schedules align all intermediate levels]\label{lem:alignment-tuple}
+\lean{Tilings.Alignment.schedule_intermediate_sts}
+\uses{def:endpoint-schedule,def:sts}
+After a proper fine STS tiling is assembled into the fixed macrotemplates,
+equal schedules on shared whole outer fine sides force the grouped parents,
+their scattered original tiles, and every inserted original level to be STS.
+\end{lemma}
+\begin{proof}
+Choose any positively overlapping coarse listed sides $c,d$ on opposite
+macroblock boundaries, in the same layer tag. Pick a point of their overlap
+away from the finite fine and schedule endpoints. The whole fine sides
+through it coincide by fine STS. Their canonical origins and directions
+therefore coincide. Equal schedules give the same atom through that point
+and the same two coordinates $p,q$ for its coarse containing side.
+Thus $c,d$ have exactly the same endpoints. Inside a block each original
+layer is already an STS supertile patch. This proves every layer separately,
+even at a persistent interface with no common higher ancestor.
+A genuine corner cannot lie inside a fine side: its wedge must be covered
+by child sectors, and STS excludes a partial overlapping edge at that point.
+Only collinear dummy endpoints can be interior schedule cuts.
+\end{proof}
+
+\begin{lemma}[Whole-side ports without nested subdivisions]\label{lem:whole-ports}
+\lean{Tilings.Alignment.whole_side_ports}
+\uses{def:mesh,def:endpoint-schedule,lem:alignment-tuple}
+For each parent listed side $a$, order the complete fine outer sides whose
+closed segments lie strictly inside $sa$, in the same global direction.
+This list has at least $(s|a|-2D)/D$ entries. Its five interior sixth-quantiles
+$\lceil iL/6\rceil$, $i=1,\ldots,5$, give five distinct ports for large $s$. After schedule
+alignment, corresponding parent sides have the same physical port lists.
+\end{lemma}
+\begin{proof}
+Only the at most two fine edges meeting the endpoints of $sa$ are omitted;
+their total covered length is at most $2D$. The count uses no side-to-side
+hypothesis: the at most two fine sides covering pieces of the parent side
+near its endpoints---an outer side across a dummy vertex, or a non-outer side
+through a reflex corner---are absorbed in the $2D$ term. Every remaining edge is at most
+$D$ long, proving the count. The positive minimum fine-edge length gives
+the quantile separation estimates with a fixed $O(D)$ error. All five ports,
+including the singleton fifth one, stay uniformly separated from the listed
+endpoints and from one another in normalized coordinates.
+Once two parent sides coincide, fine STS gives identical whole-edge
+subdivision of their common support; the endpoint exclusion is identical.
+Number from the global supporting-line orientation, not opposite boundary
+traversal orders. All five paths of an unmarked parent side remain singleton
+ports; all five parent components are still transported.
+\end{proof}
+
+\begin{lemma}[Strict composition with schedules]\label{lem:schedule-compose}
+\lean{Tilings.Alignment.strict_schedule_composition,Tilings.Planned.Strict.strict_opposing_macroside,Tilings.Planned.Strict.strict_compose_exists}
+\uses{lem:whole-ports,lem:alignment-tuple,lem:comp/assembly,lem:comp/boundary-header,lem:comp/signals,lem:comp/cyclic-legal,lem:comp/noncentral-legal,lem:comp/acyclic-legal}
+In the strict variant replace generated outer fourth ranks by tagged $W$.
+Every proper legal tiling has an exact proper legal coloured composition,
+and its scattered intermediate levels are STS.
+\end{lemma}
+\begin{proof}
+Use disjoint tags for schedules, headers, identities, zero and $\bot$.
+In this variant the outer fourth cell $W(A,e)$ of a legal fine tile is
+fixed by its type, since legality makes the tile a child of its parent's
+form; so it is a local cell here, unlike the flexible variant. The parent's
+own fourth value is transported separately through port $4$; equality of
+these transported values across a persistent fault line follows from
+completeness one level up, with originless copied cells set to zero.
+A schedule fourth cell with fifth zero can match only another outer side.
+The assembly and fingerprint arguments use inner identities and are unchanged.
+The boundary belt gives a common parent type/header; each parent's cells
+are recovered from its five port third cells. Legal boundary witnesses
+identify the template, so its fixed generated $W(A,e)$ agrees with the
+reconstructed parent's decomposition independently of that parent's fourth
+value. The other cells and the centre follow by the same path/print recovery.
+Schedule alignment gives complete parent sides, and the whole-port lemma
+then pairs equal numbered ports. Equality of their third cells identifies
+all five parent components, including the transported fourth value.
+Legality uses the same finite copy-origin argument and the cyclic,
+noncentral and second-scale acyclic fingerprint cases. Schedule tags are
+generated origins, replacing integer ranks without altering these cases.
+This repeats the finite control proof with a different generated field;
+it does not claim the two decorated substitutions are the same function.
+\end{proof}
+
+\begin{lemma}[Projection of a strict composition]\label{lem:strict-projection}
+\lean{Tilings.Alignment.StrictScheduleSystem.isComposition_project}
+\uses{lem:schedule-compose}
+In a strict schedule system the projection of a coloured composition is a
+grouped composition.
+\end{lemma}
+\begin{proof}
+The coloured rules project onto the grouped rules and the expansions agree,
+so the projection of the decomposition of $T''$ is the decomposition of the
+projection of $T''$.
+\end{proof}
+
+\begin{lemma}[Strict presentation of an STS substitution]\label{lem:strict-presentation}
+\lean{Tilings.Alignment.exists_strict_schedule_system,Tilings.Alignment.StrictScheduleSystem.HasCompositions,Tilings.Alignment.StrictScheduleSystem.Complete,Tilings.Planned.Strict.strictSystem,Tilings.Planned.Strict.strictSystem_hasCompositions,Tilings.Planned.Strict.strictSystem_complete,Tilings.Planned.Strict.strict_actual_schedules_aligned,Tilings.Planned.Strict.strict_lift_decorations,Tilings.Planned.Strict.strict_lift_matched,Tilings.Planned.Strict.exists_strict_schedule_system_of_certificate}
+\uses{def:sts,lem:certificate-exists,lem:schedule-compose,lem:whole-ports,def:endpoint-schedule}
+For every STS substitution $\tau$ there is a strict schedule system (the
+strict typed decoration of the certificate of
+Lemma~\ref{lem:certificate-exists}, with second component zero, endpoint
+schedules and whole-side ports) whose grouped family contains every original
+form as a singleton group and whose dissections remain side-to-side under
+all decompositions, such that every proper strict coloured plane tiling has
+an exact proper coloured composition, and every grouped $\sigma'$-hierarchy
+all of whose levels and scattered intermediate original levels are
+side-to-side is the projection of a proper strict coloured plane tiling.
+\end{lemma}
+\begin{proof}
+Construct the finite groups on the original STS cellulations, retaining all
+original listed vertices (Lemma~\ref{lem:certificate-exists}); every original
+form is kept as a singleton group. Use strict matching, second component
+zero, endpoint schedules and whole-side ports. Exact proper compositions are
+the existence half of Lemma~\ref{lem:schedule-compose}. For completeness, at
+each shared fine side $e$ between blocks $A$ and $A'$, a layer-$j$ side $c$
+of $A$ on the boundary of $sA$ lies wholly on the interface with a single
+neighbour: by STS of the actual level its far side is one layer-$j$ tile,
+which lies in one block, namely $A'$. Hence the actual original intermediate
+levels have identical endpoints on both sides of $e$, so their schedules and
+port signals match. Origin chains give legal tiles.
+\end{proof}
+
+\begin{lemma}[Soundness of the strict presentation]\label{lem:strict-sound}
+\lean{Tilings.Alignment.sts_hierarchical_of_strict_proper}
+\uses{lem:strict-presentation,lem:strict-projection,lem:schedule-compose,lem:alignment-tuple,def:hierarchy}
+For a strict schedule system with exact proper compositions whose
+dissections remain side-to-side under all decompositions, the scattering of
+the projection of a proper strict coloured plane tiling is a side-to-side
+$\tau$-hierarchical plane tiling.
+\end{lemma}
+\begin{proof}
+Repeatedly apply strict schedule composition. At each step insert the
+original levels $j=0,\ldots,m-1$, all STS by schedule alignment. This yields
+an infinite original $\tau$ STS hierarchy.
+\end{proof}
+
+\begin{lemma}[Completeness of the strict presentation]\label{lem:strict-complete}
+\lean{Tilings.Alignment.exists_strict_proper_of_sts_hierarchical}
+\uses{lem:strict-presentation,lem:grouping-lift,def:hierarchy}
+For a complete strict schedule system whose grouped family contains every
+original form as a singleton group, every side-to-side $\tau$-hierarchical
+plane tiling is the scattering of the projection of a proper strict coloured
+plane tiling.
+\end{lemma}
+\begin{proof}
+Lift the given STS hierarchy by finite-height grouping compactness
+(Lemma~\ref{lem:grouping-lift}, STS levels); all its levels and scattered
+intermediate levels are the given STS levels. Completeness of the system
+gives the proper strict coloured tiling.
+\end{proof}
+
+\begin{lemma}[Finite collar conversion]\label{lem:collar-conversion}
+\lean{Tilings.LocalRule.side_presentation_of_sts_sofic}
+\uses{def:localrule,def:sofic,def:sts,def:mesh,lem:localfinite}
+A sofic family consisting entirely of original STS plane tilings is
+side-to-side sofic on those original listed sides.
+\end{lemma}
+\begin{proof}
+All tilings here cover the plane; this is used when the reverse direction
+needs every side to have an opposite neighbour, and when inert decorations
+are excluded. Let $r$ bound the old forbidden diameters, $D$ bound tile
+diameters, and $a>0$ be the minimum area. A generic segment joining interiors of two
+tiles in a bounded geometric patch crosses whole-side neighbours and avoids
+vertices. All crossed tiles lie in a fixed ball of radius $r+4D$.
+Disjoint interiors and area at least $a$ bound their number by a uniform
+integer $K$ (increase it once for all endpoint perturbations); erase loops.
+Thus any old forbidden patch meeting a chosen root tile fits in its
+dual-graph ball of radius $K$.
+
+There are finitely many embedded labelled graph balls of radius $K+1$:
+side degree and labels are finite, and a whole-side match has finitely many
+relative placements. A candidate collar is a connected STS patch rooted at
+its old decorated tile, with every tile at graph distance at most $K+1$,
+and every side of a tile at distance at most $K$ having its opposite
+neighbour inside the patch. Retain only candidates containing no old
+forbidden patch. Global extendibility is not required.
+On a shared side $A,B$, its colour records both canonically side-anchored
+embedded labelled $K$-balls, in the common left/right owner order. Each
+ball is contained in either owner's $(K+1)$-collar. Equality identifies
+old labels and placements on both restrictions.
+
+Prove simultaneously for all actual roots and $k=0,\ldots,K+1$ that the
+state's intrinsic $k$-ball is its actual old-labelled dual $k$-ball.
+The case zero is the root label. Edge equality identifies each predicted
+neighbour with the actual one, and identifies its $K$-ball in the two
+states. For $k\leq K$, restrict this to its $k$-ball and use the induction
+hypothesis. The identity
+$B_{k+1}(A)=\{A\}\cup\bigcup_{B\sim A}B_k(B)$, valid inside a complete
+collar at these depths, proves the next case including placements.
+Thus every actual bounded old forbidden patch lies in a locally admissible
+stored collar, contradiction. Conversely actual proper old tilings give
+these consistent collars. Forgetting the old decoration yields precisely
+the given family. For a form absent from all proper tilings add an inert
+decoration with a fresh distinct colour on each side. Its only possible
+same-colour mate is the same owner-side incidence of an identical translate,
+forcing coincident interiors; it cannot occur in a proper plane tiling.
+This supplies surjectivity onto otherwise unused original forms.
+\end{proof}
+
+\begin{theorem}[Theorem 1(a), STS substitution tilings]\label{thm:sts-substitution}
+\lean{Tilings.Main.sts_substitution_sofic}
+\uses{def:sofic,def:sts,lem:sts-flc,thm:flc-substitution,lem:collar-conversion}
+If $\tau$ satisfies STS, its substitution plane tilings are side-to-side sofic.
+\end{theorem}
+\begin{proof}
+STS gives FLC, so Theorem~\ref{thm:flc-substitution} gives a generic sofic
+presentation. Every projected substitution tiling is original STS: each
+finite pair occurs in an STS supertile. Apply finite collar conversion.
+This proof retains original dummy vertices and avoids using a crown field
+on a fine edge which straddles an ancestor's dummy endpoint.
+\end{proof}
+
+\begin{theorem}[Theorem 1(b), STS hierarchical tilings]\label{thm:sts-stshierarchy}
+\lean{Tilings.Main.sts_side_to_side_hierarchy_sofic}
+\uses{def:sofic,def:sts,lem:strict-presentation,lem:strict-sound,lem:strict-complete,lem:glues}
+If $\tau$ satisfies STS, its original side-to-side hierarchical plane
+tilings are side-to-side sofic.
+\end{theorem}
+\begin{proof}
+By Lemma~\ref{lem:strict-presentation} take a strict schedule system with
+exact proper compositions and completeness whose grouped family contains
+every original form as a singleton group. The family of projections of its
+proper strict coloured plane tilings is side-to-side sofic by definition,
+and glue dissection (Lemma~\ref{lem:glues}) transfers this presentation to
+the scatterings, on the original listed tile sides. By
+Lemma~\ref{lem:strict-sound} every such scattering is a side-to-side
+hierarchical plane tiling, and by Lemma~\ref{lem:strict-complete} every
+side-to-side hierarchical plane tiling arises this way; hence the scattered
+family is exactly the family of original side-to-side hierarchical plane
+tilings.
+\end{proof}
+
+\begin{theorem}[Theorem 1(c), unrestricted hierarchical tilings]\label{thm:sts-hierarchy}
+\lean{Tilings.Main.sts_hierarchy_sofic}
+\uses{def:sofic,def:sts,lem:sts-flc,thm:flc-hierarchy}
+If $\tau$ satisfies STS, its hierarchical plane tilings are sofic.
+\end{theorem}
+\begin{proof}
+STS implies FLC; apply Theorem~\ref{thm:flc-hierarchy}. The hierarchy itself
+may have shifted persistent interfaces and need not be STS.
+\end{proof}
+
+\begin{lemma}[Compatible grouped hierarchy lift]\label{lem:grouping-lift}
+\lean{Tilings.Grouping.hierarchy_lift_iff}
+\uses{def:certificate,def:hierarchy,lem:localfinite}
+Original $\tau^m$ hierarchies lift to grouped $\sigma'$ hierarchies.
+When the given original levels are STS, the lifted grouped levels are STS.
+\end{lemma}
+\begin{proof}
+For a finite height start with original-form tiles at its top and apply the
+fixed grouped substitution downwards, identifying scattered tiles by
+$\Delta\sigma'=\tau^m\Delta$. Do not retain a separate ring independently
+in every constituent: the grouped-parent rule retains only its chosen centre.
+Each fixed original tile position has finitely many possible group labels
+and positions. Diagonal finite-alphabet compactness over all countably many
+positions and levels preserves every finite parent-child constraint.
+The limit is compatible at all levels. Retaining every original boundary
+vertex ensures original whole-side contacts induce whole grouped contacts.
+Projection/scattering proves the converse immediately.
+\end{proof}
+
+\begin{theorem}[Hereditary STS core, substitution family]\label{thm:hereditary-substitution}
+\lean{Tilings.Core.hereditary_sts_substitution_sofic}
+\uses{def:hereditary,def:sts,lem:sts-flc,lem:certificate-exists,lem:substitution-hierarchy,lem:grouping-lift,lem:crown-colours,lem:allowed-hierarchy,lem:glues,thm:compose}
+An STS substitution with hereditary listed sides has a side-to-side sofic
+substitution family.
+\end{theorem}
+\begin{proof}
+Use the repaired geometry, exact interface IDs, strict matching, crown
+records and positive exterior ranks.  The crown-bearing rule is the strict
+positive-rank rule of the composition chapter with one additional finite
+component: at every macrotemplate-boundary vertex each incident border
+tile records in its second cell a fresh crown record (the finite pointed
+crown of Lemma~\ref{lem:crown-colours}); these generated records are
+distinguished from copied print-second cells, are generated only at
+boundary vertices, and are transported along port two like the other
+finite data.  Legality is origin-based as in the strict rule, with the
+crown records as additional generated origins.  Fix a certificate for a
+power $\tau^m$ (Lemma~\ref{lem:certificate-exists}) with grouped
+substitution $\sigma'$, expansion $\theta$ and compatibility
+$\Delta\sigma'=\tau^m\Delta$; a child type $t$ has an owner form
+$\operatorname{owner}(t)$, a form $\operatorname{form}(t)$ and an anchor
+$a_t$ in the template $\sigma'\operatorname{owner}(t)$.  For a grouped
+form $q$ let $V(q)$ be the set of original marked vertices of the scattered
+dissection $\Delta q$.  Since $\tau$ is STS, it has FLC
+(Lemma~\ref{lem:sts-flc}), and the allowed full pointed crowns whose
+support covers a neighbourhood of their centre form a finite list up to
+translation; we call them \emph{full crowns}.  The neighbourhood condition
+removes the incomplete crowns occurring on the boundary of a finite
+supertile.
+
+\emph{Step 1 (finitely many marked vertices).}  For every grouped form
+$q$ the set $V(q)$ is finite, being a finite union of the vertex sets of the
+finitely many original tiles of $\Delta q$.  This elementary statement
+involves no control rule and no tiling; it makes every vector of crowns
+indexed by $V(q)$ a finite datum.
+
+\emph{Step 2 (the crown catalogue and the child operator).}  A \emph{crown
+vector} for $q$ is a family $\gamma=(\gamma_v)_{v\in V(q)}$ of full crowns,
+and its \emph{collar} is
+$\operatorname{coll}(\gamma)=\Delta q\cup\bigcup_{v\in V(q)}(v+\gamma_v)$.
+The vector is \emph{jointly allowed} if a translate of the entire collar
+lies in a single supertile $\tau^n p$; this prevents independently chosen,
+mutually incompatible crowns at different vertices.  The \emph{crown
+catalogue} $\Gamma(q)$ is the finite set of crown vectors whose collar has
+disjoint interiors, is side-to-side, has exactly the pointed crown
+$v+\gamma_v$ at every $v\in V(q)$, and is jointly allowed.  For a child type
+$t$ and $\gamma\in\Gamma(\operatorname{owner}t)$ decompose the whole collar
+by $\tau^m$ and take, at every $v\in V(\operatorname{form}t)$, the physical
+star of $\tau^m\operatorname{coll}(\gamma)$ at $a_t+v$, translated back to
+the origin.  Each such raw child star is again a full crown (Step~2a): the
+collar covers an open neighbourhood of the support of $\Delta q$, because
+side-to-side matching and the exact stars at the endpoints of every
+boundary side saturate it, so by compatibility the decomposed collar covers
+a neighbourhood of the child group $a_t+\Delta(\operatorname{form}t)$; the
+star is allowed because the decomposed collar lies in the supertile
+$\tau^{n+m}p$.  The resulting vector $F_t(\gamma)$ satisfies all four
+catalogue conditions with the single joint witness $\tau^{n+m}p$, since the
+child collar is a subpatch of $\tau^m\operatorname{coll}(\gamma)$
+(Step~2b).  Hence $F_t$ is a map
+$\Gamma(\operatorname{owner}t)\to\Gamma(\operatorname{form}t)$.
+
+\emph{Step 3 (the packet channel in cell two).}  Order the two endpoints of
+every grouped side by a fixed translation-invariant lexicographic order of
+the plane.  For a tile of type $t$ carrying $\gamma\in\Gamma(\operatorname
+{form}t)$, the \emph{packet} of its side $i$ is the ordered pair of optional
+full crowns at the two endpoints $v$ of $i$: the entry is $\gamma_v$ if
+$a_t+v$ lies on the macroboundary $\partial(\theta\operatorname{owner}t)$
+and is absent otherwise.  The doubly absent packet is encoded by the old
+zero symbol, which is what ordinary internal nonprint sides and cyclic
+central chains carry.  A tile $A$ \emph{decodes} $\gamma\in\Gamma(\operatorname
+{form}A)$ if every nonprint second cell of $A$ is the packet of $\gamma$
+and, at every $v\in V(\operatorname{form}A)$ with $a_A+v$ off the
+macroboundary, $\gamma_v$ is the crown of $\tau^m\Delta(\operatorname
+{owner}A)$ at $a_A+v$.  Print second cells are deliberately ignored: they
+are transit channels, not physical crown records, and prints lie strictly
+inside the template.  The decoder returns $\gamma$ when it is unique and
+otherwise fails; failure is rejected by the incidence colours of Step~4.
+If $A$ decodes $\gamma$ and $t$ is a child type of $\operatorname{form}A$,
+the generated child of type $t$ writes the packets of $F_t(\gamma)$ into its
+nonprint second cells, and it decodes exactly $F_t(\gamma)$: at the
+macroboundary its packets are those of $F_t(\gamma)$ by construction, and
+off the macroboundary the star of the decomposed collar is the star of
+$\tau^m\Delta(\operatorname{owner}t)$ because the whole neighbourhood lies
+in the parent support.
+
+\emph{Step 4 (the finite encoding).}  Enlarge the finite cell alphabet to
+the disjoint sum of the old strict symbols, the packets, and the
+\emph{extended headers} $(t,z,\operatorname{dec}(A))$, consisting of the
+old positioned type, the zero-mode bits computed from the fourth cells, and
+the decoded catalogue value; old symbols remain a separate summand, so a
+packet cannot be confused with an identity, a schedule, zero, $\bot$ or a
+header.  Extended tiles keep the old positioned type and five cells per
+listed side.  The generated child of $A$ of type $t$ copies along the old
+strict copying graph, gives prints their interface identity in the fifth
+cell, gives inner nonprint sides their identity in the first cell, writes
+the packet of $F_t(\operatorname{dec}A)$ in cell two of nonprint sides, the
+schedule rank on outer sides, the extended header of $A$ on boundary sides
+and $\bot$ on the remaining inner sides in cell four, and zero elsewhere.
+An extended tile is \emph{founded-legal} if it has an infinite ancestor
+chain in which every level is the generated child of the next one, every
+level decodes, and every copied cell with no finite origin in the
+reflexive-transitive closure of the copy-source graph is zero.  This finite
+data is compiled into a finite side decoration by giving every
+founded-illegal or inert form a unique self-matching colour on each side;
+the resulting presentation satisfies three exact contracts: in a proper
+tiling every tile is a founded-legal extended tile, distinct tiles with
+coincident typed sides carry equal five-cell arrays there, and conversely a
+side-to-side tiling by founded-legal extended tiles with matching arrays is
+proper.  These contracts exclude the constant-colour degeneracy of an
+earlier attempt.  The projected family of proper tilings is the control
+family; it is side-to-side sofic by definition.  This step asserts no
+reconstruction or completeness statement.
+
+\emph{Step 5 (one-level reconstruction).}  The reconstruction contract
+between a control tiling $\mathcal T$ and a grouped tiling $\mathcal T'$
+consists of a proper colouring of $\mathcal T$, a colouring of $\mathcal T'$
+which is side-to-side, decodes at every tile and matches on coincident
+typed sides, the statement that $\mathcal T'$ is a $\sigma'$ composition of
+$\mathcal T$, and the clause that every coarse tile $D$ has, for each child
+type $t$ of its form, a fine tile at $\theta x_D+a_t$ equal to the
+generated child of $D$ of type $t$.  Founded legality of the coarse tiles is
+intentionally not part of the contract.  Every control tiling admits such
+a parent: assemble macroblocks from interface IDs
+(Lemma~\ref{lem:comp/assembly}), read one extended header $(t,z,\gamma)$ on
+the connected boundary belt (Lemma~\ref{lem:comp/boundary-header}), and
+reconstruct the parent cells from the third cells of the five ports on each
+parent side (Lemma~\ref{lem:comp/reconstruction}).  Heredity makes each
+parent listed side a union of whole fine sides, and the zero-mode header is
+everywhere false on outer sides.  The reconstructed parent $D$ has the
+nonprint second cells of the legal parents chosen at its ports, all of
+which decode the common value $\gamma$, so $D$ decodes $\gamma$; generation
+of every child of the block then follows from Lemma~\ref{lem:comp/exact}
+together with Step~3, since a child off the macroboundary carries only
+absent packets and its decoded value is forced by the template.
+
+\emph{Step 6 (legality of reconstructed parents).}  Legality of each
+reconstructed parent is proved before reconstruction is iterated, so the
+argument is not circular.  The three cases of Theorem~\ref{thm:compose}
+apply verbatim to the extended rule.  If the type of $D$ is central cyclic,
+then $D$ is its own generated central child, and the constant chain
+decodes at every level (Lemma~\ref{lem:comp/cyclic-legal}).  If it is
+noncentral, the fingerprint identification of
+Lemma~\ref{lem:comp/noncentral-legal} identifies $D$ with the legal parent
+of a central child.  If it is central acyclic, one passes to the first
+noncentral ancestor (Lemma~\ref{lem:comp/acyclic-legal}).  The crown
+component does not disturb these identifications: unmarked sides and
+central nonprint sides carry the absent packet, which is literally the old
+zero symbol in cell two, and the decoded value of $D$ is part of the
+extended header recovered at its ports.  Hence the reconstructed parent
+tiling again belongs to the control family.
+
+\emph{Step 7 (iterated reconstruction).}  Starting from a control tiling,
+Steps~5 and~6 give a parent in the control family together with the
+reconstruction contract, and dependent choice iterates this to a grouped
+hierarchy $\mathcal T=\mathcal T_0,\mathcal T_1,\ldots$ of control tilings.
+The contract witnesses between adjacent levels are retained; they prevent
+the levels from silently choosing unrelated proper colourings, so that the
+colouring of level $n+1$ is the one whose generated children are the tiles
+of level $n$.
+
+\emph{Step 8 (all-level allowed crowns).}  At every level $n$, every vertex
+$w$ of the scattered tiling $\Delta\mathcal T_n$ has an allowed full crown;
+this includes vertices on interfaces between macroblocks.  Inside a
+macroblock the scattered tiles form the patch $\tau^m\Delta(\operatorname
+{form}D)$ of a decoded collar lying in a supertile, so full crowns away
+from its boundary are allowed.  At a macroboundary vertex every incident
+border tile records, by Step~3, the crown at that vertex in the packets of
+both of its sides through $w$; decoding gives within-tile consistency of
+these two records, matching of coincident typed sides gives equality across
+tiles, and the finite cyclic incident fan is connected through these
+sides.  Hence all records identify one full crown, which contains every
+incident original tile; an additional recorded tile would overlap the
+complete fan, so by disjoint interiors the recorded crown is exactly the
+ambient crown (Lemma~\ref{lem:crown-colours}).  It is allowed because the
+catalogue consists of full crowns.
+
+\emph{Step 9 (soundness).}  One decomposition by the power $\tau^m$ is the
+$m$-fold iterate of the decomposition by $\tau$.  Compatibility
+$\Delta\sigma'=\tau^m\Delta$ transports each exact grouped composition
+$\mathcal T_{n+1}\to\mathcal T_n$ of Step~7 to a $\tau^m$ composition of the
+scattered tilings, so $\Delta\mathcal T_0,\Delta\mathcal T_1,\ldots$ is a
+$\tau^m$ hierarchy.  By Step~8 its crowns are allowed at every listed level,
+and only then Lemma~\ref{lem:allowed-hierarchy} shows that the scattered
+bottom tiling $\Delta\mathcal T$ is a substitution tiling.
+
+\emph{Step 10 (completeness).}  Let $T$ be a substitution tiling.
+(10a)~Repeatedly compose it by Lemma~\ref{lem:substitution-hierarchy} to a
+hierarchy of substitution tilings $T=T_0,T_m,T_{2m},\ldots$, and lift the
+$m$-spaced levels through grouping (Lemma~\ref{lem:grouping-lift}) to an
+STS grouped $\sigma'$ hierarchy $\mathcal U_0,\mathcal U_1,\ldots$ with
+$\Delta\mathcal U_0=T$.  To every tile $A$ of $\mathcal U_n$ attach the
+\emph{genuine} crown vector, whose entry at $v$ is the actual full crown of
+$\Delta\mathcal U_n$ at $x_A+v$; its collar is a patch of
+$\Delta\mathcal U_n=T_{nm}$, and it is jointly allowed because every finite
+patch of a substitution tiling lies in a supertile.  This catalogue value is
+fixed before any control cell is assigned.  (10b)~Colour every level as in
+Lemma~\ref{lem:lift-hierarchy}, choosing the record of the actual crown:
+zero statuses first, headers second, then every cell by its finite origin
+along the actual ancestor chain in the fixed hierarchy, or zero if it has
+none.  The decoder returns the preassigned genuine vector at every
+ancestor, since decomposing a genuine collar yields the genuine collars of
+the children, i.e.\ $F_t$ of a genuine vector is genuine.  This founded
+lift is tied to the one hierarchy of (10a), so different sides cannot
+choose unrelated legal chains or unrelated crown vectors.  (10c)~For two
+coincident typed sides of distinct tiles of one level and a coordinate
+$k\in\{1,\ldots,5\}$ for which either ancestor chain has a finite source,
+the two values coincide.  The cases are: sibling prints, whose two owners
+receive the same parent cells and the same interface identity; sibling
+nonprints, prescribed by the same template; external packets and schedules,
+where both packets read the genuine crowns of the same physical endpoints
+in $\Delta\mathcal U_n$ and the positive ranks agree as in the strict
+construction; and the aligned port of a copied third cell, whose chain
+reaches the first level at which the interface becomes inner, where the
+two ports of the same number copy one shared parent cell.  (10d)~If neither
+chain has a finite source, both values are zero by the origin-or-zero
+clause, so all five cells match.  (10e)~The third contract of Step~4 turns
+founded legality and this matching into properness of the bottom
+colouring, whose projection $\mathcal U_0$ lies in the control family and
+scatters to $T$.
+
+\emph{Step 11 (the exact family).}  Steps~9 and~10 are the two inclusions:
+the scattered control family equals the family of substitution tilings of
+$\tau$.  The control family is side-to-side sofic by Step~4.  Finally
+scatter the finite groups using glue colours (Lemma~\ref{lem:glues}).  This
+is the core result applied to hereditary clones below, not an assumption
+about original dummy vertices.
+\end{proof}
+
+\begin{theorem}[Hereditary STS core, arbitrary hierarchy]\label{thm:hereditary-hierarchy}
+\lean{Tilings.Core.hereditary_sts_hierarchy_sofic}
+\uses{def:hereditary,def:sts,lem:certificate-exists,lem:grouping-lift,lem:lift-hierarchy,thm:compose,lem:hierarchy-step,lem:glues}
+An STS substitution with hereditary listed sides has a sofic arbitrary
+hierarchical family.
+\end{theorem}
+\begin{proof}
+Use zero crown component, the repaired header and the nontrivial-side rule.
+The hierarchy-lift proof assigns zero exactly to permanently outer ancestry
+statuses first, computes headers second, then propagates copied origins.
+Heredity makes each fine side belong to a unique parent listed side; no
+whole edge can straddle inconsistent parent zero modes.
+Completeness follows from the lifted hierarchy and shared-higher-supertile
+matching for every interface which eventually becomes inner. Permanently
+outer interfaces have trivial colours and may shift. Exact proper legal
+composition iterates; scattering and inserting intermediate levels gives
+an original hierarchy. Glue transfer is a bounded generic local rule.
+\end{proof}
+
+\begin{lemma}[Finitely many supertile neighbourhoods]\label{lem:finite-neighbourhoods}
+\lean{Tilings.FLC.finite_neighbourhoods}
+\uses{def:flc,lem:crown-cover-supertile,lem:finiteparents}
+Under FLC there are finitely many tile neighbourhoods in supertiles up to
+translation, where a neighbourhood contains every tile sharing any point
+with the selected tile.
+\end{lemma}
+\begin{proof}
+All neighbourhood supports have diameter at most $3D$, where $D$ bounds
+the original tile diameters. Choose $k$ with
+$3D\theta^{-k}<\varepsilon$. In a supertile $\tau^n p$ of order $n\geq k$,
+the inverse-scaled support of the selected neighbourhood lies in the
+support of $\tau^{n-k}p$ and is covered by one of its full pointed crowns,
+by the corrected supertile version of the crown lemma. Decomposing this
+crown $k$ times covers the entire neighbourhood, and
+Lemma~\ref{lem:covered-tile-belongs} turns coverage into membership of
+every neighbourhood tile in the decomposed crown. There are finitely many
+allowed crowns and each has a finite $k$th image, with finitely many
+selected subpatches and distinguished tiles. Orders $n<k$ have finitely
+many possibilities directly. Consequently the neighbourhood catalogue is
+finite.
+This proof needs the supertile version, not only the plane version, and
+includes incomplete crowns.
+\end{proof}
+
+\begin{definition}[Genuine-corner collared clones]\label{def:clones}
+\lean{Tilings.FLC.GenuineCornerClone,Tilings.FLC.refinedSubstitution}
+\uses{lem:finite-neighbourhoods,def:substitution}
+First erase original collinear listed vertices, keeping each original form
+label and geometric carrier; coarsened forms with identical carriers but
+different original labels remain distinct forms. FLC survives because crowns at genuine vertices
+are obtained from the old finite catalogue by forgetting listed cuts.
+A clone records such a form $A$ and its full realized supertile neighbourhood
+$S_A$, including incomplete boundary contexts and singleton order-zero ones.
+Add to the boundary of $A$ only genuine nonstraight vertices of underlying
+neighbour carriers in $S_A$. Do not add their artificial clone vertices.
+A child $B$ receives context $(\tau S_A)_B$. The finite catalogue is taken
+for the carrier-labelled coarsened system, not for arbitrary plane contacts.
+\end{definition}
+
+\begin{lemma}[Clone STS, well-definedness and heredity]\label{lem:clone-sts}
+\lean{Tilings.FLC.refinedSubstitution_sts,Tilings.FLC.refinedSubstitution_hereditary}
+\uses{def:clones,def:sts,def:hereditary,lem:macrocorner}
+The clone substitution is finite, commutes with forgetting labels, has STS,
+and has hereditary listed sides.
+\end{lemma}
+\begin{proof}
+Touching children have touching original parents, so the full one-ring
+context determines every child context. Here ``listed'' for a clone vertex
+$v$ of $B$ means $v\in\partial B$, so $v$ lies on an edge of $B$; and the
+witness child used below lies in the decomposed context of $B$ also when
+the witness tile is $B$'s own parent $A$ or a context tile touching $A$
+only at a point. It is realized in the decomposed
+witnessing supertile. Iteration gives the actual neighbourhood in the
+iterated ambient witness, including needed boundary neighbours.
+On overlapping sides, endpoints and further cuts are genuine vertices of
+underlying incident carriers visible in both contexts. Hence the resulting
+subdivision agrees on both sides, proving clone-supertiles STS.
+
+Every clone vertex $v$ has a witness genuine corner of a context tile $C$.
+Its image $\theta v$ is a genuine corner of $\theta C$, hence a genuine
+corner of some child of $C$ by the local halfplane argument. Every child of
+$A$ incident to that point sees this witness child in its new context and
+retains the cut. Thus every scaled clone listed vertex is a child clone
+vertex; the sides are unions of whole child sides. This proof adds no
+irrational orbit of old dummy endpoints.
+\end{proof}
+
+\begin{lemma}[Substitution tilings lift to clones]\label{lem:clone-substitution-lift}
+\lean{Tilings.FLC.substitution_clone_lift_iff}
+\uses{def:clones,lem:clone-sts,def:hierarchy}
+A plane tiling is a $\tau$-substitution tiling exactly when it is the
+projection of a refined-substitution tiling.
+\end{lemma}
+\begin{proof}
+Projection of a finite refined supertile is an original supertile, proving
+one direction. In the other, label each tile of the original plane tiling
+by its actual full neighbourhood. Each is realized in a supertile:
+take a finite larger patch containing the neighbourhood and its incident
+context. Given any finite collared patch, surround it by a finite original
+patch containing it strictly in the interior. This larger patch occurs in
+some original supertile $S=\tau^n p$. The neighbourhoods of the selected
+interior tiles agree with those in $S$. The singleton clone $(p,\{p\})$
+exists, and its $n$th refined image contains the selected collared patch.
+Thus the lifted plane tiling is substitutive.
+\end{proof}
+
+\begin{lemma}[Arbitrary hierarchies lift to clones]\label{lem:clone-hierarchy-lift}
+\lean{Tilings.FLC.hierarchy_clone_lift_iff}
+\uses{def:clones,lem:clone-sts,def:hierarchy,lem:localfinite}
+A plane tiling is $\tau$-hierarchical exactly when it is the projection of
+a refined-substitution hierarchy.
+\end{lemma}
+\begin{proof}
+Projection gives one direction immediately. Fix an original hierarchy for
+the other. For each finite height $n$, label its top-level tiles by
+singleton clones and decompose the labels downwards for $n$ steps.
+Every resulting label is a realized clone. The values on the countable
+set of all tiles at all levels lie in finite alphabets. For each finite
+set of levels and tile positions, the compatibility conditions are
+satisfied by every sufficiently high finite-height construction.
+Finite-alphabet product compactness, or a finite inverse-system argument,
+therefore gives a simultaneous infinite assignment respecting every
+decomposition. It need not record the entire ambient neighbourhood across
+a permanent hierarchical interface; partial realized clone contexts are
+allowed. No invalid assertion that every hierarchical crown is allowed is
+used.
+\end{proof}
+
+\begin{lemma}[Forgetting extra vertices preserves sofic presentations]
+\label{lem:segment-rules}
+\lean{Tilings.FLC.forget_vertices_preserves_sofic}
+\uses{def:localrule,def:sofic,def:clones}
+A finite presentation on refined sides translates to a bounded local rule
+on the original carriers by colouring their finitely many virtual segments.
+\end{lemma}
+\begin{proof}
+The transfer is stated for an arbitrary bounded local rule on clone tiles,
+not only for side-colour rules: the core's hierarchical presentation also
+contains glue and scattering rules. Since clone tiles share carriers with
+the original forms, any bounded forbidden patch on clone tiles is a
+bounded forbidden patch on original tiles with the clone data read as
+colours. Keep the clone choice as finite tile colour and its virtual straight
+boundary intervals and colours. A virtual interval may cross an old
+collinear dummy vertex. The generic rule reads it as one interval; restoring
+old listed cuts does not impose new segment-to-segment restrictions.
+For strict matching require segment-to-segment coincidence and colour
+equality. For the flexible hierarchical rule require it only for
+nontrivial segments. These conditions are expressed by forbidden
+two-tile configurations with overlapping segments. Full plane coverage
+ensures that a nontrivial side has an opposite neighbour; forbidding
+partial or mismatched overlaps forces a whole matching segment.
+All interacting tile pairs have bounded diameter, since the carrier forms
+are finite. The forbidden set can be infinite as translations across
+interfaces vary continuously. Reinstating virtual vertices is inverse to
+forgetting them at the level of these presentations.
+\end{proof}
+
+\begin{theorem}[Theorem 2(a), FLC substitution tilings]\label{thm:flc-substitution}
+\lean{Tilings.Main.flc_substitution_sofic}
+\uses{def:flc,def:sofic}
+Every FLC substitution has a sofic family of substitution plane tilings.
+\end{theorem}
+\begin{proof}
+\uses{lem:finite-neighbourhoods,lem:clone-sts,lem:clone-substitution-lift,thm:hereditary-substitution,lem:segment-rules}
+Build the finite genuine-corner clone substitution; it has hereditary STS.
+Apply Theorem\ref{thm:hereditary-substitution}. Lift and project with Lemma
+\ref{lem:clone-substitution-lift}, and transfer the rule by
+Lemma~\ref{lem:segment-rules}. Composition of the finite projections is
+a finite carrier-preserving decoration of the original protoset.
+No forbidden pattern at an unbounded scale is introduced by this transfer.
+\end{proof}
+
+\begin{theorem}[Theorem 2(b), FLC hierarchical tilings]\label{thm:flc-hierarchy}
+\lean{Tilings.Main.flc_hierarchy_sofic}
+\uses{def:flc,def:sofic}
+Every FLC substitution has a sofic family of hierarchical plane tilings.
+\end{theorem}
+\begin{proof}
+\uses{lem:finite-neighbourhoods,lem:clone-sts,lem:clone-hierarchy-lift,thm:hereditary-hierarchy,lem:segment-rules}
+Use the same hereditary clone substitution and Theorem~\ref{thm:hereditary-hierarchy}.
+The hierarchy lift is the compactness lift, not the actual-neighbourhood
+lift for substitution tilings. Transfer the flexible segment rule back to
+the original carriers. The geometric construction is supplied by the grouping chapter.
+Clone hierarchies may have shifted permanent interfaces; only their
+supertiles are required to be STS.
+\end{proof}
+
+\section{Implementation boundaries and acceptance criteria}
+
+Keep geometry and finite control separate. A practical module order is:
+\texttt{Geometry/PolygonalDisk}, \texttt{PlacedTile}, \texttt{Patch},
+\texttt{PlaneTiling}, \texttt{Substitution}, \texttt{Crowns},
+\texttt{Geometry/RegularGrouping}, \texttt{Geometry/Routing},
+\texttt{Control/Indices}, \texttt{Control/Origins},
+\texttt{Composition/Reconstruction}, \texttt{Composition/Legality},
+\texttt{LocalRules}, \texttt{FLC/Clones}, and \texttt{Main}.
+
+An intermediate certificate may state exact support equalities, connected
+finite incidence graphs, valid finite routes, and finite fingerprint
+separation. It must not contain \emph{a legal parent exists},
+\emph{proper composition exists}, or \emph{the family is sofic} as a field.
+Those are the theorems proved from it. The final public statements must
+construct the certificate from the polygon and substitution hypotheses.
+
+The regression examples (the old mixed exterior-flag example, the
+point-attached quasi-square assignment, the negative sine example, the FLC
+endpoint-gap example, the irrational-mark square (STS without heredity), and
+the three-block counterexample to the alignment lemma without mode
+uniformity) are not Lean targets: they are counterexamples about the
+article's original rules or about dropped hypotheses, not parts of the proof,
+and are kept as prose in the relevant lemmas (for the three-block example,
+under the full-header legality of Definition~\ref{def:control/legal} mode
+uniformity follows from legality, see Lemma~\ref{lem:comp/alignment}).
+The final project must compile without
+\texttt{sorry}, \texttt{axiom}, \texttt{admit}, \texttt{native\_decide}, or
+an unadvertised stronger polygon assumption. \texttt{Classical.choice}
+and the usual kernel axioms remain the ordinary mathlib foundations.
+
+The current archive contains a checked header kernel, not the final Lean
+proof of these main goals. Its independent certificate and proof statuses
+are recorded in the manifest.
+
+\section{Measured comparison and estimated Lean size}
+
+The comparison snapshot is
+\href{https://github.com/AlexeyMilovanov/kolmogorov-complexity-lean/tree/42df7b843d6727291dfd0cbc1ceb299723ce5cb6}
+{AlexeyMilovanov/kolmogorov-complexity-lean at commit 42df7b8}.
+Its library directories and two root aggregators contain 1,172 Lean files,
+436,473 physical lines, and 346,662 nonblank code lines after lexical
+removal of nested block comments and line comments.
+The active library alone has 429,620 physical lines in 1,153 files.
+Dependencies such as mathlib are excluded. The same physical count was
+verified on the VM checkout \texttt{/home/lesha/public-release-4331}.
+The working \texttt{KolmogorovMathlib2-port434} checkout has the same count.
+Another working branch, \texttt{KolmogorovMathlib2-merging}, contains 467,097
+physical lines in 1,228 Lean files with the stated exclusions.
+
+This article's full development is estimated at \textbf{40,000--80,000
+physical lines}, or about \textbf{30,000--60,000 code lines}, with a planning
+centre of 50,000--60,000 physical lines. This is an estimate, not a measured
+ratio of pages to code or a guaranteed upper bound. It is approximately
+9--18 percent of the public comparison snapshot. The finite certified
+control core is estimated at 13,000--26,000 physical lines. Without a
+proved geometric instantiation, that core gives conditional theorems.
+
+\begin{center}
+\begin{tabular}{lr}
+Module family & Estimated code lines\\ \hline
+Polygonal disks, placements, tilings, substitutions & 4,000--8,000\\
+Local rules, crowns, positive uniform radii & 4,000--7,000\\
+Compactness and infinite hierarchies & 2,000--4,000\\
+Regular grouping, channels, ports, routing & 8,000--16,000\\
+Decorations, origins, repaired composition & 5,000--9,000\\
+STS soundness, completeness, glue dissection & 2,000--4,000\\
+FLC neighbourhoods and clone reduction & 3,000--6,000\\
+Integration, regression statements, final API & 2,000--6,000\\ \hline
+Total & 30,000--60,000
+\end{tabular}
+\end{center}
+
+The comparison project uses mature computability infrastructure from
+mathlib. Here the dominant cost is geometric infrastructure rather than
+the finite header algebra. Current
+\href{https://leanprover-community.github.io/mathlib4_docs/Mathlib/Geometry/Polygon/Basic.html}
+{Polygon.Basic} is a boundary and vertex interface, and
+\href{https://leanprover-community.github.io/mathlib4_docs/Mathlib/Combinatorics/Tiling/Tile.html}
+{Tiling.Tile} explicitly concerns discrete tilings. Neither search result
+supplies the polygonal-disk grouping and routing needed here.
+
+Useful existing interfaces include finite dependent function types,
+K\"onig's finite inverse-system lemma, finite-product compactness,
+\texttt{Multiset.count}, and graph walks. Fingerprints must preserve
+multiplicity; a \texttt{Finset} of neighbour types is insufficient.
+Exact APIs must be checked against the pinned mathlib commit.
+
+A suitable first milestone is the finite control system, its repaired
+composition theorem, and explicit regression statements for the old
+failure. The next milestone establishes the regular geometric certificate.
+Only after it is instantiated should the universal final theorem names
+be marked proved. The detailed dependency graph is part of the HTML
+blueprint; green kernel nodes currently cover only the header algebra.
+
+\end{document}

@@ -1,0 +1,813 @@
+\section{From the repaired construction to the main theorems}
+
+The grouping chapter now gives ordinary mathematical proofs of the
+quantitative localization and uniform routing lemmas. The polygonal Jordan
+and PL annulus facts used there remain substantial Lean library work.
+No main theorem below has been checked by Lean. Compactness is applied only
+to geometric group/clone labels. After obtaining an actual infinite
+hierarchy, compute zero statuses, headers and copy-origin values in that
+order. Origin-based legality is not asserted to be closed under arbitrary
+limits of finite coloured hierarchies. We distinguish the
+hereditary-side core from the original hypotheses; the FLC reduction and
+endpoint schedules bridge that distinction without assuming the result.
+
+\begin{lemma}[Hierarchy with allowed crowns is substitutive]
+\label{lem:allowed-hierarchy}
+\lean{Tilings.allowed_crowns_hierarchy_is_substitutive}
+\uses{def:hierarchy,def:flc,lem:crown-cover-plane}
+Suppose $\tau$ has FLC and $T=T_0,T_m,T_{2m},\ldots$ is a $\tau^m$-hierarchy
+whose crowns at every listed level are allowed. Then $T$ is a substitution
+tiling.
+\end{lemma}
+\begin{proof}
+Given a finite patch $F\subset T$, choose $k$ with
+$\theta^{-km}\operatorname{diam}|F|<\varepsilon$.
+The inverse-scaled support is covered by a crown $C$ of $T_{km}$.
+All the level-zero tiles of $F$ belong to descendants of this crown:
+coverage by the descendants and disjoint interiors give actual tile
+inclusion, not only support inclusion, by
+Lemma~\ref{lem:covered-tile-belongs}. The allowed crown $C$ occurs in
+some supertile $S$. Thus $F\subset\tau^{km}S$, which is a supertile.
+\end{proof}
+
+\begin{lemma}[Crown colours enforce actual allowed crowns]
+\label{lem:crown-colours}
+\lean{Tilings.Decoration.crown_indices_sound}
+\uses{def:certificate,def:crown,def:flc}
+In the hereditary-side crown-coloured core construction, the uncoloured scattered
+tiling at every reconstructed level has only allowed crowns.
+\end{lemma}
+\begin{proof}
+Inside a macroblock the scattered tiles are a patch of an original
+supertile, so full crowns away from its boundary are allowed.
+Only generated fields at macrotemplate-boundary vertices are used here.
+A copied print-second field is not asserted to be a crown at its physical
+endpoint; prints are strictly inside the template.
+At a macroboundary vertex every incident border tile records the crown
+at that vertex. Legality gives the within-tile consistency of records on
+two sides with that vertex; side matching gives equality across tiles.
+The finite cyclic incident fan is connected through these sides, so all
+records identify one allowed crown. Each incident original tile is included
+in that record, including every constituent of a quasi-tile at the vertex.
+The ambient fan is complete. An additional recorded tile would have an
+open angular sector overlapping this complete fan, contrary to disjoint
+interiors. Hence the recorded crown is exactly the ambient full crown.
+This argument needs full pointed crown records, not merely a list of
+neighbour colours or unpointed polygon shapes.
+\end{proof}
+
+\begin{lemma}[Dissection and glue colours]\label{lem:glues}
+\lean{Tilings.Decoration.dissection_preserves_sofic,Tilings.Planned.Strict.exists_coincident_side}
+\uses{def:certificate,def:localrule}
+If the added quasi-forms are finite connected polygonal unions of original
+tiles with connected dual graphs, their coloured local-rule presentations
+can be transferred back to a finite decoration of the original forms.
+\end{lemma}
+\begin{proof}
+For every added coloured form and every internal constituent side,
+introduce a unique glue carrying the form identity and the two constituent
+positions. Keep the old colour on its exposed boundary segments.
+In a proper scattered tiling, each glue forces the rigidly positioned
+partner. Connectedness of the finite constituent dual graph forces the
+whole added tile; uniqueness of position tags prevents competing copies.
+Conversely, scattering a proper quasi-tile tiling gives these matching
+glues. Thus assembly and scattering are inverse on the presentations.
+All checks involve tiles within a uniformly bounded diameter, since there
+are only finitely many added forms. After every final transfer restore
+surjectivity onto any unused original forms by inert decorations. In the
+generic presentation forbid their singleton tiles. In the strict
+presentation give an owner-side incidence a fresh colour whose only possible
+matching incidence would force coincident interiors. These decorations
+occur in no proper plane tiling and change no projected family.
+The disconnected assignment counterexample fails exactly at this
+connected-dual hypothesis.
+\end{proof}
+
+\begin{definition}[Finite endpoint schedules]\label{def:endpoint-schedule}
+\lean{Tilings.Alignment.EndpointSchedule}
+\uses{def:certificate,def:substitution,def:sts}
+Fix the simulation power $m$, $s=\theta^m$, and one positive unit direction
+for each unoriented supporting-line direction. Every whole fine outer side
+$e$ has coordinates $[0,|e|]$ from its first endpoint in this direction.
+For a parent group $A$ use the boundary layers of $sA$ with its listed sides,
+and of $\theta^{m-j}\tau^j\Delta A$, $j=0,\ldots,m-1$.
+In each layer, intersect its listed boundary sides with $e$. Each positive
+atom $[u,v]$ has a unique containing coarse listed side with coordinates
+$[p,q]$; record $(u,v;p,q)$, allowing $p,q$ outside $e$.
+The layered ordered tuple is $W(A,e)$. Its tag is the geometric data,
+not the owner form or edge ID: different forms with equal data share a tag.
+The layer index ($G$, or $j=0,\ldots,m-1$) is itself a uniform tag that
+does not depend on the form, so that schedules of different parent forms
+are compared layer by layer. Layer $G$ records the same data as layer
+$j=0$; it is kept as an explicit safeguard and is harmless.
+The alphabet is finite because the templates, $m$, and their sides are finite.
+No fine side is physically split and no repeated scaling orbit is stored.
+\end{definition}
+
+\begin{lemma}[Schedules align all intermediate levels]\label{lem:alignment-tuple}
+\lean{Tilings.Alignment.schedule_intermediate_sts}
+\uses{def:endpoint-schedule,def:sts}
+After a proper fine STS tiling is assembled into the fixed macrotemplates,
+equal schedules on shared whole outer fine sides force the grouped parents,
+their scattered original tiles, and every inserted original level to be STS.
+\end{lemma}
+\begin{proof}
+Choose any positively overlapping coarse listed sides $c,d$ on opposite
+macroblock boundaries, in the same layer tag. Pick a point of their overlap
+away from the finite fine and schedule endpoints. The whole fine sides
+through it coincide by fine STS. Their canonical origins and directions
+therefore coincide. Equal schedules give the same atom through that point
+and the same two coordinates $p,q$ for its coarse containing side.
+Thus $c,d$ have exactly the same endpoints. Inside a block each original
+layer is already an STS supertile patch. This proves every layer separately,
+even at a persistent interface with no common higher ancestor.
+A genuine corner cannot lie inside a fine side: its wedge must be covered
+by child sectors, and STS excludes a partial overlapping edge at that point.
+Only collinear dummy endpoints can be interior schedule cuts.
+\end{proof}
+
+\begin{lemma}[Whole-side ports without nested subdivisions]\label{lem:whole-ports}
+\lean{Tilings.Alignment.whole_side_ports}
+\uses{def:mesh,def:endpoint-schedule,lem:alignment-tuple}
+For each parent listed side $a$, order the complete fine outer sides whose
+closed segments lie strictly inside $sa$, in the same global direction.
+This list has at least $(s|a|-2D)/D$ entries. Its five interior sixth-quantiles
+$\lceil iL/6\rceil$, $i=1,\ldots,5$, give five distinct ports for large $s$. After schedule
+alignment, corresponding parent sides have the same physical port lists.
+\end{lemma}
+\begin{proof}
+Only the at most two fine edges meeting the endpoints of $sa$ are omitted;
+their total covered length is at most $2D$. The count uses no side-to-side
+hypothesis: the at most two fine sides covering pieces of the parent side
+near its endpoints---an outer side across a dummy vertex, or a non-outer side
+through a reflex corner---are absorbed in the $2D$ term. Every remaining edge is at most
+$D$ long, proving the count. The positive minimum fine-edge length gives
+the quantile separation estimates with a fixed $O(D)$ error. All five ports,
+including the singleton fifth one, stay uniformly separated from the listed
+endpoints and from one another in normalized coordinates.
+Once two parent sides coincide, fine STS gives identical whole-edge
+subdivision of their common support; the endpoint exclusion is identical.
+Number from the global supporting-line orientation, not opposite boundary
+traversal orders. All five paths of an unmarked parent side remain singleton
+ports; all five parent components are still transported.
+\end{proof}
+
+\begin{lemma}[Strict composition with schedules]\label{lem:schedule-compose}
+\lean{Tilings.Alignment.strict_schedule_composition,Tilings.Planned.Strict.strict_opposing_macroside,Tilings.Planned.Strict.strict_compose_exists}
+\uses{lem:whole-ports,lem:alignment-tuple,lem:comp/assembly,lem:comp/boundary-header,lem:comp/signals,lem:comp/cyclic-legal,lem:comp/noncentral-legal,lem:comp/acyclic-legal}
+In the strict variant replace generated outer fourth ranks by tagged $W$.
+Every proper legal tiling has an exact proper legal coloured composition,
+and its scattered intermediate levels are STS.
+\end{lemma}
+\begin{proof}
+Use disjoint tags for schedules, headers, identities, zero and $\bot$.
+In this variant the outer fourth cell $W(A,e)$ of a legal fine tile is
+fixed by its type, since legality makes the tile a child of its parent's
+form; so it is a local cell here, unlike the flexible variant. The parent's
+own fourth value is transported separately through port $4$; equality of
+these transported values across a persistent fault line follows from
+completeness one level up, with originless copied cells set to zero.
+A schedule fourth cell with fifth zero can match only another outer side.
+The assembly and fingerprint arguments use inner identities and are unchanged.
+The boundary belt gives a common parent type/header; each parent's cells
+are recovered from its five port third cells. Legal boundary witnesses
+identify the template, so its fixed generated $W(A,e)$ agrees with the
+reconstructed parent's decomposition independently of that parent's fourth
+value. The other cells and the centre follow by the same path/print recovery.
+Schedule alignment gives complete parent sides, and the whole-port lemma
+then pairs equal numbered ports. Equality of their third cells identifies
+all five parent components, including the transported fourth value.
+Legality uses the same finite copy-origin argument and the cyclic,
+noncentral and second-scale acyclic fingerprint cases. Schedule tags are
+generated origins, replacing integer ranks without altering these cases.
+This repeats the finite control proof with a different generated field;
+it does not claim the two decorated substitutions are the same function.
+\end{proof}
+
+\begin{lemma}[Projection of a strict composition]\label{lem:strict-projection}
+\lean{Tilings.Alignment.StrictScheduleSystem.isComposition_project}
+\uses{lem:schedule-compose}
+In a strict schedule system the projection of a coloured composition is a
+grouped composition.
+\end{lemma}
+\begin{proof}
+The coloured rules project onto the grouped rules and the expansions agree,
+so the projection of the decomposition of $T''$ is the decomposition of the
+projection of $T''$.
+\end{proof}
+
+\begin{lemma}[Strict presentation of an STS substitution]\label{lem:strict-presentation}
+\lean{Tilings.Alignment.exists_strict_schedule_system,Tilings.Alignment.StrictScheduleSystem.HasCompositions,Tilings.Alignment.StrictScheduleSystem.Complete,Tilings.Planned.Strict.strictSystem,Tilings.Planned.Strict.strictSystem_hasCompositions,Tilings.Planned.Strict.strictSystem_complete,Tilings.Planned.Strict.strict_actual_schedules_aligned,Tilings.Planned.Strict.strict_lift_decorations,Tilings.Planned.Strict.strict_lift_matched,Tilings.Planned.Strict.exists_strict_schedule_system_of_certificate}
+\uses{def:sts,lem:certificate-exists,lem:schedule-compose,lem:whole-ports,def:endpoint-schedule}
+For every STS substitution $\tau$ there is a strict schedule system (the
+strict typed decoration of the certificate of
+Lemma~\ref{lem:certificate-exists}, with second component zero, endpoint
+schedules and whole-side ports) whose grouped family contains every original
+form as a singleton group and whose dissections remain side-to-side under
+all decompositions, such that every proper strict coloured plane tiling has
+an exact proper coloured composition, and every grouped $\sigma'$-hierarchy
+all of whose levels and scattered intermediate original levels are
+side-to-side is the projection of a proper strict coloured plane tiling.
+\end{lemma}
+\begin{proof}
+Construct the finite groups on the original STS cellulations, retaining all
+original listed vertices (Lemma~\ref{lem:certificate-exists}); every original
+form is kept as a singleton group. Use strict matching, second component
+zero, endpoint schedules and whole-side ports. Exact proper compositions are
+the existence half of Lemma~\ref{lem:schedule-compose}. For completeness, at
+each shared fine side $e$ between blocks $A$ and $A'$, a layer-$j$ side $c$
+of $A$ on the boundary of $sA$ lies wholly on the interface with a single
+neighbour: by STS of the actual level its far side is one layer-$j$ tile,
+which lies in one block, namely $A'$. Hence the actual original intermediate
+levels have identical endpoints on both sides of $e$, so their schedules and
+port signals match. Origin chains give legal tiles.
+\end{proof}
+
+\begin{lemma}[Soundness of the strict presentation]\label{lem:strict-sound}
+\lean{Tilings.Alignment.sts_hierarchical_of_strict_proper}
+\uses{lem:strict-presentation,lem:strict-projection,lem:schedule-compose,lem:alignment-tuple,def:hierarchy}
+For a strict schedule system with exact proper compositions whose
+dissections remain side-to-side under all decompositions, the scattering of
+the projection of a proper strict coloured plane tiling is a side-to-side
+$\tau$-hierarchical plane tiling.
+\end{lemma}
+\begin{proof}
+Repeatedly apply strict schedule composition. At each step insert the
+original levels $j=0,\ldots,m-1$, all STS by schedule alignment. This yields
+an infinite original $\tau$ STS hierarchy.
+\end{proof}
+
+\begin{lemma}[Completeness of the strict presentation]\label{lem:strict-complete}
+\lean{Tilings.Alignment.exists_strict_proper_of_sts_hierarchical}
+\uses{lem:strict-presentation,lem:grouping-lift,def:hierarchy}
+For a complete strict schedule system whose grouped family contains every
+original form as a singleton group, every side-to-side $\tau$-hierarchical
+plane tiling is the scattering of the projection of a proper strict coloured
+plane tiling.
+\end{lemma}
+\begin{proof}
+Lift the given STS hierarchy by finite-height grouping compactness
+(Lemma~\ref{lem:grouping-lift}, STS levels); all its levels and scattered
+intermediate levels are the given STS levels. Completeness of the system
+gives the proper strict coloured tiling.
+\end{proof}
+
+\begin{lemma}[Finite collar conversion]\label{lem:collar-conversion}
+\lean{Tilings.LocalRule.side_presentation_of_sts_sofic}
+\uses{def:localrule,def:sofic,def:sts,def:mesh,lem:localfinite}
+A sofic family consisting entirely of original STS plane tilings is
+side-to-side sofic on those original listed sides.
+\end{lemma}
+\begin{proof}
+All tilings here cover the plane; this is used when the reverse direction
+needs every side to have an opposite neighbour, and when inert decorations
+are excluded. Let $r$ bound the old forbidden diameters, $D$ bound tile
+diameters, and $a>0$ be the minimum area. A generic segment joining interiors of two
+tiles in a bounded geometric patch crosses whole-side neighbours and avoids
+vertices. All crossed tiles lie in a fixed ball of radius $r+4D$.
+Disjoint interiors and area at least $a$ bound their number by a uniform
+integer $K$ (increase it once for all endpoint perturbations); erase loops.
+Thus any old forbidden patch meeting a chosen root tile fits in its
+dual-graph ball of radius $K$.
+
+There are finitely many embedded labelled graph balls of radius $K+1$:
+side degree and labels are finite, and a whole-side match has finitely many
+relative placements. A candidate collar is a connected STS patch rooted at
+its old decorated tile, with every tile at graph distance at most $K+1$,
+and every side of a tile at distance at most $K$ having its opposite
+neighbour inside the patch. Retain only candidates containing no old
+forbidden patch. Global extendibility is not required.
+On a shared side $A,B$, its colour records both canonically side-anchored
+embedded labelled $K$-balls, in the common left/right owner order. Each
+ball is contained in either owner's $(K+1)$-collar. Equality identifies
+old labels and placements on both restrictions.
+
+Prove simultaneously for all actual roots and $k=0,\ldots,K+1$ that the
+state's intrinsic $k$-ball is its actual old-labelled dual $k$-ball.
+The case zero is the root label. Edge equality identifies each predicted
+neighbour with the actual one, and identifies its $K$-ball in the two
+states. For $k\leq K$, restrict this to its $k$-ball and use the induction
+hypothesis. The identity
+$B_{k+1}(A)=\{A\}\cup\bigcup_{B\sim A}B_k(B)$, valid inside a complete
+collar at these depths, proves the next case including placements.
+Thus every actual bounded old forbidden patch lies in a locally admissible
+stored collar, contradiction. Conversely actual proper old tilings give
+these consistent collars. Forgetting the old decoration yields precisely
+the given family. For a form absent from all proper tilings add an inert
+decoration with a fresh distinct colour on each side. Its only possible
+same-colour mate is the same owner-side incidence of an identical translate,
+forcing coincident interiors; it cannot occur in a proper plane tiling.
+This supplies surjectivity onto otherwise unused original forms.
+\end{proof}
+
+\begin{theorem}[Theorem 1(a), STS substitution tilings]\label{thm:sts-substitution}
+\lean{Tilings.Main.sts_substitution_sofic}
+\uses{def:sofic,def:sts,lem:sts-flc,thm:flc-substitution,lem:collar-conversion}
+If $\tau$ satisfies STS, its substitution plane tilings are side-to-side sofic.
+\end{theorem}
+\begin{proof}
+STS gives FLC, so Theorem~\ref{thm:flc-substitution} gives a generic sofic
+presentation. Every projected substitution tiling is original STS: each
+finite pair occurs in an STS supertile. Apply finite collar conversion.
+This proof retains original dummy vertices and avoids using a crown field
+on a fine edge which straddles an ancestor's dummy endpoint.
+\end{proof}
+
+\begin{theorem}[Theorem 1(b), STS hierarchical tilings]\label{thm:sts-stshierarchy}
+\lean{Tilings.Main.sts_side_to_side_hierarchy_sofic}
+\uses{def:sofic,def:sts,lem:strict-presentation,lem:strict-sound,lem:strict-complete,lem:glues}
+If $\tau$ satisfies STS, its original side-to-side hierarchical plane
+tilings are side-to-side sofic.
+\end{theorem}
+\begin{proof}
+By Lemma~\ref{lem:strict-presentation} take a strict schedule system with
+exact proper compositions and completeness whose grouped family contains
+every original form as a singleton group. The family of projections of its
+proper strict coloured plane tilings is side-to-side sofic by definition,
+and glue dissection (Lemma~\ref{lem:glues}) transfers this presentation to
+the scatterings, on the original listed tile sides. By
+Lemma~\ref{lem:strict-sound} every such scattering is a side-to-side
+hierarchical plane tiling, and by Lemma~\ref{lem:strict-complete} every
+side-to-side hierarchical plane tiling arises this way; hence the scattered
+family is exactly the family of original side-to-side hierarchical plane
+tilings.
+\end{proof}
+
+\begin{theorem}[Theorem 1(c), unrestricted hierarchical tilings]\label{thm:sts-hierarchy}
+\lean{Tilings.Main.sts_hierarchy_sofic}
+\uses{def:sofic,def:sts,lem:sts-flc,thm:flc-hierarchy}
+If $\tau$ satisfies STS, its hierarchical plane tilings are sofic.
+\end{theorem}
+\begin{proof}
+STS implies FLC; apply Theorem~\ref{thm:flc-hierarchy}. The hierarchy itself
+may have shifted persistent interfaces and need not be STS.
+\end{proof}
+
+\begin{lemma}[Compatible grouped hierarchy lift]\label{lem:grouping-lift}
+\lean{Tilings.Grouping.hierarchy_lift_iff}
+\uses{def:certificate,def:hierarchy,lem:localfinite}
+Original $\tau^m$ hierarchies lift to grouped $\sigma'$ hierarchies.
+When the given original levels are STS, the lifted grouped levels are STS.
+\end{lemma}
+\begin{proof}
+For a finite height start with original-form tiles at its top and apply the
+fixed grouped substitution downwards, identifying scattered tiles by
+$\Delta\sigma'=\tau^m\Delta$. Do not retain a separate ring independently
+in every constituent: the grouped-parent rule retains only its chosen centre.
+Each fixed original tile position has finitely many possible group labels
+and positions. Diagonal finite-alphabet compactness over all countably many
+positions and levels preserves every finite parent-child constraint.
+The limit is compatible at all levels. Retaining every original boundary
+vertex ensures original whole-side contacts induce whole grouped contacts.
+Projection/scattering proves the converse immediately.
+\end{proof}
+
+\begin{theorem}[Hereditary STS core, substitution family]\label{thm:hereditary-substitution}
+\lean{Tilings.Core.hereditary_sts_substitution_sofic}
+\uses{def:hereditary,def:sts,lem:sts-flc,lem:certificate-exists,lem:substitution-hierarchy,lem:grouping-lift,lem:crown-colours,lem:allowed-hierarchy,lem:glues,thm:compose}
+An STS substitution with hereditary listed sides has a side-to-side sofic
+substitution family.
+\end{theorem}
+\begin{proof}
+Use the repaired geometry, exact interface IDs, strict matching, crown
+records and positive exterior ranks.  The crown-bearing rule is the strict
+positive-rank rule of the composition chapter with one additional finite
+component: at every macrotemplate-boundary vertex each incident border
+tile records in its second cell a fresh crown record (the finite pointed
+crown of Lemma~\ref{lem:crown-colours}); these generated records are
+distinguished from copied print-second cells, are generated only at
+boundary vertices, and are transported along port two like the other
+finite data.  Legality is origin-based as in the strict rule, with the
+crown records as additional generated origins.  Fix a certificate for a
+power $\tau^m$ (Lemma~\ref{lem:certificate-exists}) with grouped
+substitution $\sigma'$, expansion $\theta$ and compatibility
+$\Delta\sigma'=\tau^m\Delta$; a child type $t$ has an owner form
+$\operatorname{owner}(t)$, a form $\operatorname{form}(t)$ and an anchor
+$a_t$ in the template $\sigma'\operatorname{owner}(t)$.  For a grouped
+form $q$ let $V(q)$ be the set of original marked vertices of the scattered
+dissection $\Delta q$.  Since $\tau$ is STS, it has FLC
+(Lemma~\ref{lem:sts-flc}), and the allowed full pointed crowns whose
+support covers a neighbourhood of their centre form a finite list up to
+translation; we call them \emph{full crowns}.  The neighbourhood condition
+removes the incomplete crowns occurring on the boundary of a finite
+supertile.
+
+\emph{Step 1 (finitely many marked vertices).}  For every grouped form
+$q$ the set $V(q)$ is finite, being a finite union of the vertex sets of the
+finitely many original tiles of $\Delta q$.  This elementary statement
+involves no control rule and no tiling; it makes every vector of crowns
+indexed by $V(q)$ a finite datum.
+
+\emph{Step 2 (the crown catalogue and the child operator).}  A \emph{crown
+vector} for $q$ is a family $\gamma=(\gamma_v)_{v\in V(q)}$ of full crowns,
+and its \emph{collar} is
+$\operatorname{coll}(\gamma)=\Delta q\cup\bigcup_{v\in V(q)}(v+\gamma_v)$.
+The vector is \emph{jointly allowed} if a translate of the entire collar
+lies in a single supertile $\tau^n p$; this prevents independently chosen,
+mutually incompatible crowns at different vertices.  The \emph{crown
+catalogue} $\Gamma(q)$ is the finite set of crown vectors whose collar has
+disjoint interiors, is side-to-side, has exactly the pointed crown
+$v+\gamma_v$ at every $v\in V(q)$, and is jointly allowed.  For a child type
+$t$ and $\gamma\in\Gamma(\operatorname{owner}t)$ decompose the whole collar
+by $\tau^m$ and take, at every $v\in V(\operatorname{form}t)$, the physical
+star of $\tau^m\operatorname{coll}(\gamma)$ at $a_t+v$, translated back to
+the origin.  Each such raw child star is again a full crown (Step~2a): the
+collar covers an open neighbourhood of the support of $\Delta q$, because
+side-to-side matching and the exact stars at the endpoints of every
+boundary side saturate it, so by compatibility the decomposed collar covers
+a neighbourhood of the child group $a_t+\Delta(\operatorname{form}t)$; the
+star is allowed because the decomposed collar lies in the supertile
+$\tau^{n+m}p$.  The resulting vector $F_t(\gamma)$ satisfies all four
+catalogue conditions with the single joint witness $\tau^{n+m}p$, since the
+child collar is a subpatch of $\tau^m\operatorname{coll}(\gamma)$
+(Step~2b).  Hence $F_t$ is a map
+$\Gamma(\operatorname{owner}t)\to\Gamma(\operatorname{form}t)$.
+
+\emph{Step 3 (the packet channel in cell two).}  Order the two endpoints of
+every grouped side by a fixed translation-invariant lexicographic order of
+the plane.  For a tile of type $t$ carrying $\gamma\in\Gamma(\operatorname
+{form}t)$, the \emph{packet} of its side $i$ is the ordered pair of optional
+full crowns at the two endpoints $v$ of $i$: the entry is $\gamma_v$ if
+$a_t+v$ lies on the macroboundary $\partial(\theta\operatorname{owner}t)$
+and is absent otherwise.  The doubly absent packet is encoded by the old
+zero symbol, which is what ordinary internal nonprint sides and cyclic
+central chains carry.  A tile $A$ \emph{decodes} $\gamma\in\Gamma(\operatorname
+{form}A)$ if every nonprint second cell of $A$ is the packet of $\gamma$
+and, at every $v\in V(\operatorname{form}A)$ with $a_A+v$ off the
+macroboundary, $\gamma_v$ is the crown of $\tau^m\Delta(\operatorname
+{owner}A)$ at $a_A+v$.  Print second cells are deliberately ignored: they
+are transit channels, not physical crown records, and prints lie strictly
+inside the template.  The decoder returns $\gamma$ when it is unique and
+otherwise fails; failure is rejected by the incidence colours of Step~4.
+If $A$ decodes $\gamma$ and $t$ is a child type of $\operatorname{form}A$,
+the generated child of type $t$ writes the packets of $F_t(\gamma)$ into its
+nonprint second cells, and it decodes exactly $F_t(\gamma)$: at the
+macroboundary its packets are those of $F_t(\gamma)$ by construction, and
+off the macroboundary the star of the decomposed collar is the star of
+$\tau^m\Delta(\operatorname{owner}t)$ because the whole neighbourhood lies
+in the parent support.
+
+\emph{Step 4 (the finite encoding).}  Enlarge the finite cell alphabet to
+the disjoint sum of the old strict symbols, the packets, and the
+\emph{extended headers} $(t,z,\operatorname{dec}(A))$, consisting of the
+old positioned type, the zero-mode bits computed from the fourth cells, and
+the decoded catalogue value; old symbols remain a separate summand, so a
+packet cannot be confused with an identity, a schedule, zero, $\bot$ or a
+header.  Extended tiles keep the old positioned type and five cells per
+listed side.  The generated child of $A$ of type $t$ copies along the old
+strict copying graph, gives prints their interface identity in the fifth
+cell, gives inner nonprint sides their identity in the first cell, writes
+the packet of $F_t(\operatorname{dec}A)$ in cell two of nonprint sides, the
+schedule rank on outer sides, the extended header of $A$ on boundary sides
+and $\bot$ on the remaining inner sides in cell four, and zero elsewhere.
+An extended tile is \emph{founded-legal} if it has an infinite ancestor
+chain in which every level is the generated child of the next one, every
+level decodes, and every copied cell with no finite origin in the
+reflexive-transitive closure of the copy-source graph is zero.  This finite
+data is compiled into a finite side decoration by giving every
+founded-illegal or inert form a unique self-matching colour on each side;
+the resulting presentation satisfies three exact contracts: in a proper
+tiling every tile is a founded-legal extended tile, distinct tiles with
+coincident typed sides carry equal five-cell arrays there, and conversely a
+side-to-side tiling by founded-legal extended tiles with matching arrays is
+proper.  These contracts exclude the constant-colour degeneracy of an
+earlier attempt.  The projected family of proper tilings is the control
+family; it is side-to-side sofic by definition.  This step asserts no
+reconstruction or completeness statement.
+
+\emph{Step 5 (one-level reconstruction).}  The reconstruction contract
+between a control tiling $\mathcal T$ and a grouped tiling $\mathcal T'$
+consists of a proper colouring of $\mathcal T$, a colouring of $\mathcal T'$
+which is side-to-side, decodes at every tile and matches on coincident
+typed sides, the statement that $\mathcal T'$ is a $\sigma'$ composition of
+$\mathcal T$, and the clause that every coarse tile $D$ has, for each child
+type $t$ of its form, a fine tile at $\theta x_D+a_t$ equal to the
+generated child of $D$ of type $t$.  Founded legality of the coarse tiles is
+intentionally not part of the contract.  Every control tiling admits such
+a parent: assemble macroblocks from interface IDs
+(Lemma~\ref{lem:comp/assembly}), read one extended header $(t,z,\gamma)$ on
+the connected boundary belt (Lemma~\ref{lem:comp/boundary-header}), and
+reconstruct the parent cells from the third cells of the five ports on each
+parent side (Lemma~\ref{lem:comp/reconstruction}).  Heredity makes each
+parent listed side a union of whole fine sides, and the zero-mode header is
+everywhere false on outer sides.  The reconstructed parent $D$ has the
+nonprint second cells of the legal parents chosen at its ports, all of
+which decode the common value $\gamma$, so $D$ decodes $\gamma$; generation
+of every child of the block then follows from Lemma~\ref{lem:comp/exact}
+together with Step~3, since a child off the macroboundary carries only
+absent packets and its decoded value is forced by the template.
+
+\emph{Step 6 (legality of reconstructed parents).}  Legality of each
+reconstructed parent is proved before reconstruction is iterated, so the
+argument is not circular.  The three cases of Theorem~\ref{thm:compose}
+apply verbatim to the extended rule.  If the type of $D$ is central cyclic,
+then $D$ is its own generated central child, and the constant chain
+decodes at every level (Lemma~\ref{lem:comp/cyclic-legal}).  If it is
+noncentral, the fingerprint identification of
+Lemma~\ref{lem:comp/noncentral-legal} identifies $D$ with the legal parent
+of a central child.  If it is central acyclic, one passes to the first
+noncentral ancestor (Lemma~\ref{lem:comp/acyclic-legal}).  The crown
+component does not disturb these identifications: unmarked sides and
+central nonprint sides carry the absent packet, which is literally the old
+zero symbol in cell two, and the decoded value of $D$ is part of the
+extended header recovered at its ports.  Hence the reconstructed parent
+tiling again belongs to the control family.
+
+\emph{Step 7 (iterated reconstruction).}  Starting from a control tiling,
+Steps~5 and~6 give a parent in the control family together with the
+reconstruction contract, and dependent choice iterates this to a grouped
+hierarchy $\mathcal T=\mathcal T_0,\mathcal T_1,\ldots$ of control tilings.
+The contract witnesses between adjacent levels are retained; they prevent
+the levels from silently choosing unrelated proper colourings, so that the
+colouring of level $n+1$ is the one whose generated children are the tiles
+of level $n$.
+
+\emph{Step 8 (all-level allowed crowns).}  At every level $n$, every vertex
+$w$ of the scattered tiling $\Delta\mathcal T_n$ has an allowed full crown;
+this includes vertices on interfaces between macroblocks.  Inside a
+macroblock the scattered tiles form the patch $\tau^m\Delta(\operatorname
+{form}D)$ of a decoded collar lying in a supertile, so full crowns away
+from its boundary are allowed.  At a macroboundary vertex every incident
+border tile records, by Step~3, the crown at that vertex in the packets of
+both of its sides through $w$; decoding gives within-tile consistency of
+these two records, matching of coincident typed sides gives equality across
+tiles, and the finite cyclic incident fan is connected through these
+sides.  Hence all records identify one full crown, which contains every
+incident original tile; an additional recorded tile would overlap the
+complete fan, so by disjoint interiors the recorded crown is exactly the
+ambient crown (Lemma~\ref{lem:crown-colours}).  It is allowed because the
+catalogue consists of full crowns.
+
+\emph{Step 9 (soundness).}  One decomposition by the power $\tau^m$ is the
+$m$-fold iterate of the decomposition by $\tau$.  Compatibility
+$\Delta\sigma'=\tau^m\Delta$ transports each exact grouped composition
+$\mathcal T_{n+1}\to\mathcal T_n$ of Step~7 to a $\tau^m$ composition of the
+scattered tilings, so $\Delta\mathcal T_0,\Delta\mathcal T_1,\ldots$ is a
+$\tau^m$ hierarchy.  By Step~8 its crowns are allowed at every listed level,
+and only then Lemma~\ref{lem:allowed-hierarchy} shows that the scattered
+bottom tiling $\Delta\mathcal T$ is a substitution tiling.
+
+\emph{Step 10 (completeness).}  Let $T$ be a substitution tiling.
+(10a)~Repeatedly compose it by Lemma~\ref{lem:substitution-hierarchy} to a
+hierarchy of substitution tilings $T=T_0,T_m,T_{2m},\ldots$, and lift the
+$m$-spaced levels through grouping (Lemma~\ref{lem:grouping-lift}) to an
+STS grouped $\sigma'$ hierarchy $\mathcal U_0,\mathcal U_1,\ldots$ with
+$\Delta\mathcal U_0=T$.  To every tile $A$ of $\mathcal U_n$ attach the
+\emph{genuine} crown vector, whose entry at $v$ is the actual full crown of
+$\Delta\mathcal U_n$ at $x_A+v$; its collar is a patch of
+$\Delta\mathcal U_n=T_{nm}$, and it is jointly allowed because every finite
+patch of a substitution tiling lies in a supertile.  This catalogue value is
+fixed before any control cell is assigned.  (10b)~Colour every level as in
+Lemma~\ref{lem:lift-hierarchy}, choosing the record of the actual crown:
+zero statuses first, headers second, then every cell by its finite origin
+along the actual ancestor chain in the fixed hierarchy, or zero if it has
+none.  The decoder returns the preassigned genuine vector at every
+ancestor, since decomposing a genuine collar yields the genuine collars of
+the children, i.e.\ $F_t$ of a genuine vector is genuine.  This founded
+lift is tied to the one hierarchy of (10a), so different sides cannot
+choose unrelated legal chains or unrelated crown vectors.  (10c)~For two
+coincident typed sides of distinct tiles of one level and a coordinate
+$k\in\{1,\ldots,5\}$ for which either ancestor chain has a finite source,
+the two values coincide.  The cases are: sibling prints, whose two owners
+receive the same parent cells and the same interface identity; sibling
+nonprints, prescribed by the same template; external packets and schedules,
+where both packets read the genuine crowns of the same physical endpoints
+in $\Delta\mathcal U_n$ and the positive ranks agree as in the strict
+construction; and the aligned port of a copied third cell, whose chain
+reaches the first level at which the interface becomes inner, where the
+two ports of the same number copy one shared parent cell.  (10d)~If neither
+chain has a finite source, both values are zero by the origin-or-zero
+clause, so all five cells match.  (10e)~The third contract of Step~4 turns
+founded legality and this matching into properness of the bottom
+colouring, whose projection $\mathcal U_0$ lies in the control family and
+scatters to $T$.
+
+\emph{Step 11 (the exact family).}  Steps~9 and~10 are the two inclusions:
+the scattered control family equals the family of substitution tilings of
+$\tau$.  The control family is side-to-side sofic by Step~4.  Finally
+scatter the finite groups using glue colours (Lemma~\ref{lem:glues}).  This
+is the core result applied to hereditary clones below, not an assumption
+about original dummy vertices.
+\end{proof}
+
+\begin{theorem}[Hereditary STS core, arbitrary hierarchy]\label{thm:hereditary-hierarchy}
+\lean{Tilings.Core.hereditary_sts_hierarchy_sofic}
+\uses{def:hereditary,def:sts,lem:certificate-exists,lem:grouping-lift,lem:lift-hierarchy,thm:compose,lem:hierarchy-step,lem:glues}
+An STS substitution with hereditary listed sides has a sofic arbitrary
+hierarchical family.
+\end{theorem}
+\begin{proof}
+Use zero crown component, the repaired header and the nontrivial-side rule.
+The hierarchy-lift proof assigns zero exactly to permanently outer ancestry
+statuses first, computes headers second, then propagates copied origins.
+Heredity makes each fine side belong to a unique parent listed side; no
+whole edge can straddle inconsistent parent zero modes.
+Completeness follows from the lifted hierarchy and shared-higher-supertile
+matching for every interface which eventually becomes inner. Permanently
+outer interfaces have trivial colours and may shift. Exact proper legal
+composition iterates; scattering and inserting intermediate levels gives
+an original hierarchy. Glue transfer is a bounded generic local rule.
+\end{proof}
+
+\begin{lemma}[Finitely many supertile neighbourhoods]\label{lem:finite-neighbourhoods}
+\lean{Tilings.FLC.finite_neighbourhoods}
+\uses{def:flc,lem:crown-cover-supertile,lem:finiteparents}
+Under FLC there are finitely many tile neighbourhoods in supertiles up to
+translation, where a neighbourhood contains every tile sharing any point
+with the selected tile.
+\end{lemma}
+\begin{proof}
+All neighbourhood supports have diameter at most $3D$, where $D$ bounds
+the original tile diameters. Choose $k$ with
+$3D\theta^{-k}<\varepsilon$. In a supertile $\tau^n p$ of order $n\geq k$,
+the inverse-scaled support of the selected neighbourhood lies in the
+support of $\tau^{n-k}p$ and is covered by one of its full pointed crowns,
+by the corrected supertile version of the crown lemma. Decomposing this
+crown $k$ times covers the entire neighbourhood, and
+Lemma~\ref{lem:covered-tile-belongs} turns coverage into membership of
+every neighbourhood tile in the decomposed crown. There are finitely many
+allowed crowns and each has a finite $k$th image, with finitely many
+selected subpatches and distinguished tiles. Orders $n<k$ have finitely
+many possibilities directly. Consequently the neighbourhood catalogue is
+finite.
+This proof needs the supertile version, not only the plane version, and
+includes incomplete crowns.
+\end{proof}
+
+\begin{definition}[Genuine-corner collared clones]\label{def:clones}
+\lean{Tilings.FLC.GenuineCornerClone,Tilings.FLC.refinedSubstitution}
+\uses{lem:finite-neighbourhoods,def:substitution}
+First erase original collinear listed vertices, keeping each original form
+label and geometric carrier; coarsened forms with identical carriers but
+different original labels remain distinct forms. FLC survives because crowns at genuine vertices
+are obtained from the old finite catalogue by forgetting listed cuts.
+A clone records such a form $A$ and its full realized supertile neighbourhood
+$S_A$, including incomplete boundary contexts and singleton order-zero ones.
+Add to the boundary of $A$ only genuine nonstraight vertices of underlying
+neighbour carriers in $S_A$. Do not add their artificial clone vertices.
+A child $B$ receives context $(\tau S_A)_B$. The finite catalogue is taken
+for the carrier-labelled coarsened system, not for arbitrary plane contacts.
+\end{definition}
+
+\begin{lemma}[Clone STS, well-definedness and heredity]\label{lem:clone-sts}
+\lean{Tilings.FLC.refinedSubstitution_sts,Tilings.FLC.refinedSubstitution_hereditary}
+\uses{def:clones,def:sts,def:hereditary,lem:macrocorner}
+The clone substitution is finite, commutes with forgetting labels, has STS,
+and has hereditary listed sides.
+\end{lemma}
+\begin{proof}
+Touching children have touching original parents, so the full one-ring
+context determines every child context. Here ``listed'' for a clone vertex
+$v$ of $B$ means $v\in\partial B$, so $v$ lies on an edge of $B$; and the
+witness child used below lies in the decomposed context of $B$ also when
+the witness tile is $B$'s own parent $A$ or a context tile touching $A$
+only at a point. It is realized in the decomposed
+witnessing supertile. Iteration gives the actual neighbourhood in the
+iterated ambient witness, including needed boundary neighbours.
+On overlapping sides, endpoints and further cuts are genuine vertices of
+underlying incident carriers visible in both contexts. Hence the resulting
+subdivision agrees on both sides, proving clone-supertiles STS.
+
+Every clone vertex $v$ has a witness genuine corner of a context tile $C$.
+Its image $\theta v$ is a genuine corner of $\theta C$, hence a genuine
+corner of some child of $C$ by the local halfplane argument. Every child of
+$A$ incident to that point sees this witness child in its new context and
+retains the cut. Thus every scaled clone listed vertex is a child clone
+vertex; the sides are unions of whole child sides. This proof adds no
+irrational orbit of old dummy endpoints.
+\end{proof}
+
+\begin{lemma}[Substitution tilings lift to clones]\label{lem:clone-substitution-lift}
+\lean{Tilings.FLC.substitution_clone_lift_iff}
+\uses{def:clones,lem:clone-sts,def:hierarchy}
+A plane tiling is a $\tau$-substitution tiling exactly when it is the
+projection of a refined-substitution tiling.
+\end{lemma}
+\begin{proof}
+Projection of a finite refined supertile is an original supertile, proving
+one direction. In the other, label each tile of the original plane tiling
+by its actual full neighbourhood. Each is realized in a supertile:
+take a finite larger patch containing the neighbourhood and its incident
+context. Given any finite collared patch, surround it by a finite original
+patch containing it strictly in the interior. This larger patch occurs in
+some original supertile $S=\tau^n p$. The neighbourhoods of the selected
+interior tiles agree with those in $S$. The singleton clone $(p,\{p\})$
+exists, and its $n$th refined image contains the selected collared patch.
+Thus the lifted plane tiling is substitutive.
+\end{proof}
+
+\begin{lemma}[Arbitrary hierarchies lift to clones]\label{lem:clone-hierarchy-lift}
+\lean{Tilings.FLC.hierarchy_clone_lift_iff}
+\uses{def:clones,lem:clone-sts,def:hierarchy,lem:localfinite}
+A plane tiling is $\tau$-hierarchical exactly when it is the projection of
+a refined-substitution hierarchy.
+\end{lemma}
+\begin{proof}
+Projection gives one direction immediately. Fix an original hierarchy for
+the other. For each finite height $n$, label its top-level tiles by
+singleton clones and decompose the labels downwards for $n$ steps.
+Every resulting label is a realized clone. The values on the countable
+set of all tiles at all levels lie in finite alphabets. For each finite
+set of levels and tile positions, the compatibility conditions are
+satisfied by every sufficiently high finite-height construction.
+Finite-alphabet product compactness, or a finite inverse-system argument,
+therefore gives a simultaneous infinite assignment respecting every
+decomposition. It need not record the entire ambient neighbourhood across
+a permanent hierarchical interface; partial realized clone contexts are
+allowed. No invalid assertion that every hierarchical crown is allowed is
+used.
+\end{proof}
+
+\begin{lemma}[Forgetting extra vertices preserves sofic presentations]
+\label{lem:segment-rules}
+\lean{Tilings.FLC.forget_vertices_preserves_sofic}
+\uses{def:localrule,def:sofic,def:clones}
+A finite presentation on refined sides translates to a bounded local rule
+on the original carriers by colouring their finitely many virtual segments.
+\end{lemma}
+\begin{proof}
+The transfer is stated for an arbitrary bounded local rule on clone tiles,
+not only for side-colour rules: the core's hierarchical presentation also
+contains glue and scattering rules. Since clone tiles share carriers with
+the original forms, any bounded forbidden patch on clone tiles is a
+bounded forbidden patch on original tiles with the clone data read as
+colours. Keep the clone choice as finite tile colour and its virtual straight
+boundary intervals and colours. A virtual interval may cross an old
+collinear dummy vertex. The generic rule reads it as one interval; restoring
+old listed cuts does not impose new segment-to-segment restrictions.
+For strict matching require segment-to-segment coincidence and colour
+equality. For the flexible hierarchical rule require it only for
+nontrivial segments. These conditions are expressed by forbidden
+two-tile configurations with overlapping segments. Full plane coverage
+ensures that a nontrivial side has an opposite neighbour; forbidding
+partial or mismatched overlaps forces a whole matching segment.
+All interacting tile pairs have bounded diameter, since the carrier forms
+are finite. The forbidden set can be infinite as translations across
+interfaces vary continuously. Reinstating virtual vertices is inverse to
+forgetting them at the level of these presentations.
+\end{proof}
+
+\begin{theorem}[Theorem 2(a), FLC substitution tilings]\label{thm:flc-substitution}
+\lean{Tilings.Main.flc_substitution_sofic}
+\uses{def:flc,def:sofic}
+Every FLC substitution has a sofic family of substitution plane tilings.
+\end{theorem}
+\begin{proof}
+\uses{lem:finite-neighbourhoods,lem:clone-sts,lem:clone-substitution-lift,thm:hereditary-substitution,lem:segment-rules}
+Build the finite genuine-corner clone substitution; it has hereditary STS.
+Apply Theorem\ref{thm:hereditary-substitution}. Lift and project with Lemma
+\ref{lem:clone-substitution-lift}, and transfer the rule by
+Lemma~\ref{lem:segment-rules}. Composition of the finite projections is
+a finite carrier-preserving decoration of the original protoset.
+No forbidden pattern at an unbounded scale is introduced by this transfer.
+\end{proof}
+
+\begin{theorem}[Theorem 2(b), FLC hierarchical tilings]\label{thm:flc-hierarchy}
+\lean{Tilings.Main.flc_hierarchy_sofic}
+\uses{def:flc,def:sofic}
+Every FLC substitution has a sofic family of hierarchical plane tilings.
+\end{theorem}
+\begin{proof}
+\uses{lem:finite-neighbourhoods,lem:clone-sts,lem:clone-hierarchy-lift,thm:hereditary-hierarchy,lem:segment-rules}
+Use the same hereditary clone substitution and Theorem~\ref{thm:hereditary-hierarchy}.
+The hierarchy lift is the compactness lift, not the actual-neighbourhood
+lift for substitution tilings. Transfer the flexible segment rule back to
+the original carriers. The geometric construction is supplied by the grouping chapter.
+Clone hierarchies may have shifted permanent interfaces; only their
+supertiles are required to be STS.
+\end{proof}
+
+\section{Implementation boundaries and acceptance criteria}
+
+Keep geometry and finite control separate. A practical module order is:
+\texttt{Geometry/PolygonalDisk}, \texttt{PlacedTile}, \texttt{Patch},
+\texttt{PlaneTiling}, \texttt{Substitution}, \texttt{Crowns},
+\texttt{Geometry/RegularGrouping}, \texttt{Geometry/Routing},
+\texttt{Control/Indices}, \texttt{Control/Origins},
+\texttt{Composition/Reconstruction}, \texttt{Composition/Legality},
+\texttt{LocalRules}, \texttt{FLC/Clones}, and \texttt{Main}.
+
+An intermediate certificate may state exact support equalities, connected
+finite incidence graphs, valid finite routes, and finite fingerprint
+separation. It must not contain \emph{a legal parent exists},
+\emph{proper composition exists}, or \emph{the family is sofic} as a field.
+Those are the theorems proved from it. The final public statements must
+construct the certificate from the polygon and substitution hypotheses.
+
+The regression examples (the old mixed exterior-flag example, the
+point-attached quasi-square assignment, the negative sine example, the FLC
+endpoint-gap example, the irrational-mark square (STS without heredity), and
+the three-block counterexample to the alignment lemma without mode
+uniformity) are not Lean targets: they are counterexamples about the
+article's original rules or about dropped hypotheses, not parts of the proof,
+and are kept as prose in the relevant lemmas (for the three-block example,
+under the full-header legality of Definition~\ref{def:control/legal} mode
+uniformity follows from legality, see Lemma~\ref{lem:comp/alignment}).
+The final project must compile without
+\texttt{sorry}, \texttt{axiom}, \texttt{admit}, \texttt{native\_decide}, or
+an unadvertised stronger polygon assumption. \texttt{Classical.choice}
+and the usual kernel axioms remain the ordinary mathlib foundations.
+
+The current archive contains a checked header kernel, not the final Lean
+proof of these main goals. Its independent certificate and proof statuses
+are recorded in the manifest.

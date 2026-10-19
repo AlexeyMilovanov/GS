@@ -2,9 +2,9 @@ import Mathlib.Analysis.Normed.Affine.AddTorsorBases
 import Tilings.Crowns
 
 /-!
-# Genuine-corner collared clones (skeleton)
+# Genuine-corner collared clones
 
-Statements of the FLC-reduction nodes of `main.tex`:
+The FLC-reduction nodes of `main.tex` (all proved):
 
 * `lem:finite-neighbourhoods` — `FLC.finite_neighbourhoods`
 * `def:clones`                — `FLC.coarsen`, `FLC.GenuineCornerClone`,
@@ -26,7 +26,7 @@ Statements of the FLC-reduction nodes of `main.tex`:
   are included and its collinear dummy vertices are not).  This is the same
   as first coarsening (`FLC.coarsen`) and then adding context corners.
 * A clone disk with a prescribed finite vertex set on the boundary is
-  obtained from a `sorry`'d existence lemma (`exists_cloneDisk`) by choice.
+  obtained from the existence lemma `exists_cloneDisk` by choice.
 * Contexts are normalized: the selected tile sits at anchor `0`.
 -/
 

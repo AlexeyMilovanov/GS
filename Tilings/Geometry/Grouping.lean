@@ -3,8 +3,10 @@ import Tilings.Geometry.Grouping.Foundation
 /-!
 # The geometric macrocertificate construction
 
-The geometric, grouping and routing foundation is compiled separately. This file
-contains the certificate construction and retains the original theorem names.
+The geometric, grouping and routing foundation (`Foundation.lean`) is compiled
+separately.  This file contains the certificate construction
+(`lem:certificate-exists`, `existsMacroCertificate`) and retains the original
+theorem names.  All proofs are complete.
 -/
 
 open Set Pointwise

@@ -7213,6 +7213,342 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
     col t i = col (C.partner (C.occ t i)).1 (C.partner (C.occ t i)).2 := by
   sorry
 
+/-- A print side is never a boundary side: neither endpoint of a print lies on the boundary of
+its owner template (`...step1_packet_step1_unique_step2_print_endpoints`). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_print_not_bdry
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc) (h : C.IsPrint o) :
+    ¬ C.IsBoundary o := by
+  obtain ⟨d, hd⟩ := h
+  have hend :=
+    hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step2_print_endpoints
+      C hd
+  rintro ⟨-, hs | he⟩
+  · exact hend.1 hs
+  · exact hend.2 he
+
+/-- A boundary side stays a boundary side when it is replaced by another occurrence of the same
+geometric segment in a template of the same owner. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_bdry_of_occSide
+    (C : Geometry.MacroCertificate P) {o o' : C.SideOcc}
+    (ho : C.IsBoundary o) (hown : C.owner o'.1 = C.owner o.1)
+    (hside : C.occSide o' = C.occSide o) : C.IsBoundary o' := by
+  have hin : C.IsInner o' := by
+    intro hout
+    apply ho.1
+    unfold MacroData.IsOuter at hout ⊢
+    rwa [hside, hown] at hout
+  have hseg : segment ℝ (C.occStart o') (C.occEnd o') =
+      segment ℝ (C.occStart o) (C.occEnd o) := by
+    rw [← hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_occSide_eq
+        C o',
+      ← hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_occSide_eq
+        C o]
+    exact hside
+  refine ⟨hin, ?_⟩
+  rw [hown]
+  rcases
+    hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step1_seg_endpoints
+      hseg with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [h1, h2]
+    exact ho.2
+  · rw [h1, h2]
+    exact ho.2.symm
+
+/-- Any type with a boundary side belongs to the boundary belt of its owner template (the
+side's endpoint lies on the macroboundary and on the closed child tile). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_belt_type
+    (C : Geometry.MacroCertificate P) (α : C.Q.Form) (t : C.Typ) (ht : C.owner t = α)
+    (i : C.Side t) (hi : C.IsBoundary (C.occ t i)) : C.IsBeltType α t := by
+  dsimp [MacroData.IsBeltType]
+  refine ⟨ht, ?_⟩
+  dsimp [MacroData.IsBoundary] at hi
+  rcases hi with ⟨_, h | h⟩
+  · use C.occStart (C.occ t i)
+    refine ⟨?_, by rw [← ht]; exact h⟩
+    have h_mem_frontier : (C.Q.disk (C.form t)).vertex i ∈
+        frontier (C.Q.disk (C.form t)).carrier := by
+      rw [(C.Q.disk (C.form t)).frontier_eq]
+      simp only [mem_iUnion]
+      exact ⟨i, left_mem_segment ℝ _ _⟩
+    have h_closed : IsClosed (C.Q.disk (C.form t)).carrier := by
+      rw [← (C.Q.disk (C.form t)).regular_closed]
+      exact isClosed_closure
+    exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
+  · use C.occEnd (C.occ t i)
+    refine ⟨?_, by rw [← ht]; exact h⟩
+    have h_mem_frontier : (C.Q.disk (C.form t)).vertex (finRotate _ i) ∈
+        frontier (C.Q.disk (C.form t)).carrier := by
+      rw [(C.Q.disk (C.form t)).frontier_eq]
+      simp only [mem_iUnion]
+      exact ⟨i, right_mem_segment ℝ _ _⟩
+    have h_closed : IsClosed (C.Q.disk (C.form t)).carrier := by
+      rw [← (C.Q.disk (C.form t)).regular_closed]
+      exact isClosed_closure
+    exact vadd_mem_vadd_set_iff.mpr (h_closed.closure_eq ▸ frontier_subset_closure h_mem_frontier)
+
+/-- The fourth cell of a boundary side of a generated child is the extended header of the
+parent: a boundary side is neither outer nor a print, hence not copied, and `generate` writes the
+extended header of its parent there. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_generate_bdry
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (t : C.Typ)
+    (ht : C.owner t = C.form A.1) (i : C.Side t) (hb : C.IsBoundary (C.occ t i)) :
+    (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+      Sum.inr (Sum.inr (hereditary_sts_substitution_sofic_header τ hsts C hC A)) := by
+  have ht' : C.owner (C.occ t i).1 = C.form A.1 := ht
+  have hnp : ¬ C.IsPrint (C.occ t i) := fun hp =>
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_print_not_bdry
+      C _ hp hb
+  have hnp' : ¬ ∃ d, C.IsPrintOf (C.form A.1) d (C.occ t i) := by
+    rw [← ht']
+    exact hnp
+  have hcs : ¬ (Planned.copySource C (C.form A.1) (C.occ t i) 3).Nonempty := by
+    rintro ⟨p, ⟨hp, -, -⟩ | ⟨-, hk2, -⟩⟩
+    · exact hnp' ⟨_, hp⟩
+    · exact absurd hk2 (by decide)
+  have hout : ¬ C.IsOuter (C.occ t i) := hb.1
+  unfold hereditary_sts_substitution_sofic_generate
+  dsimp only
+  rw [dif_neg hcs, dif_neg hnp]
+  simp [hout, hb]
+
+/-- A founded-legal extended tile is the generated child of a decoding parent (the first step of
+its ancestor chain). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_legal_parent
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A) :
+    ∃ Pr : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      C.owner A.1 = C.form Pr.1 ∧
+      A = hereditary_sts_substitution_sofic_generate τ hsts C m hC Pr A.1 ∧
+      (hereditary_sts_substitution_sofic_decode τ hsts C hC Pr).isSome := by
+  obtain ⟨ch, h0, hch, hdec, -⟩ := hA
+  refine ⟨ch 1, ?_, ?_, hdec 1⟩
+  · have h := (hch 0).1
+    rwa [h0] at h
+  · have h := (hch 0).2
+    rwa [h0] at h
+
+/-- The boundary fourth cells of a founded-legal extended tile are all the extended header of
+one decoding parent: the header has the form of the owner and a decoded catalogue value. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_header_of_legal
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : hereditary_sts_substitution_sofic_ExtLegal τ hsts C m hC A) (α : C.Q.Form)
+    (hα : C.owner A.1 = α) :
+    ∃ h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C,
+      C.form h.1 = α ∧ h.2.2.isSome ∧
+        ∀ j : C.Side A.1, C.IsBoundary (C.occ A.1 j) → A.2 j 3 = Sum.inr (Sum.inr h) := by
+  obtain ⟨Pr, hP1, hP2, hP3⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_legal_parent
+      τ hsts C m hC A hA
+  refine ⟨hereditary_sts_substitution_sofic_header τ hsts C hC Pr, ?_, hP3, ?_⟩
+  · exact hP1.symm.trans hα
+  · intro j hj
+    have hgen :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_generate_bdry
+        τ hsts C m hC Pr A.1 hP1 j hj
+    have hcell : A.2 j 3 =
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC Pr A.1).2 j 3 := by
+      obtain ⟨t, f⟩ := A
+      injection hP2 with h1 h2
+      exact congrFun (congrFun h2 j) 3
+    rw [hcell, hgen]
+
+/-- Every placed child of a block of a proper fine colouring is a founded-legal tile
+(`X.proper_typed_legal`), so its boundary fourth cells carry the extended header of one decoding
+parent. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_tile_header
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (t : C.Typ) (ht : C.owner t = α) :
+    ∃ h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C,
+      C.form h.1 = α ∧ h.2.2.isSome ∧
+        ∀ j : C.Side t, C.IsBoundary (C.occ t j) → col t j 3 = Sum.inr (Sum.inr h) := by
+  obtain ⟨A, hA, hleg⟩ := X.proper_typed_legal F hF _ (hcol t ht)
+  have hA' : X.formEquiv
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t).form = Sum.inl ⟨t, col t⟩ :=
+    Equiv.apply_symm_apply _ _
+  rw [hA'] at hA
+  have hAeq : (⟨t, col t⟩ : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) = A :=
+    Sum.inl.inj hA
+  subst hAeq
+  exact
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_header_of_legal
+      τ hsts C m hC _ hleg α ht
+
+/-- Two placed typed tiles whose grouped sides have the same placed segment have coincident
+typed sides (the geometric half of `hereditary_sts_substitution_sofic_CoincidentTypedSides`). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_coincident_of_geom
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (Y Z : PlacedTile X.dec.P')
+    (A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : X.formEquiv Y.form = Sum.inl A) (hB : X.formEquiv Z.form = Sum.inl B)
+    (i : C.Side A.1) (j : C.Side B.1)
+    (hs : Y.anchor +ᵥ (C.Q.disk (C.form A.1)).side i =
+      Z.anchor +ᵥ (C.Q.disk (C.form B.1)).side j) :
+    hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec Y Z A B i j := by
+  have hYf : Y.form = X.formEquiv.symm (Sum.inl A) := by
+    rw [← hA, Equiv.symm_apply_apply]
+  have hZf : Z.form = X.formEquiv.symm (Sum.inl B) := by
+    rw [← hB, Equiv.symm_apply_apply]
+  have hdY : X.dec.P'.disk Y.form = C.Q.disk (C.form A.1) := by
+    rw [X.dec.disk_eq Y.form, hYf, X.proj_typed A]
+  have hdZ : X.dec.P'.disk Z.form = C.Q.disk (C.form B.1) := by
+    rw [X.dec.disk_eq Z.form, hZf, X.proj_typed B]
+  have key : ∀ (D D' : PolygonalDisk) (h : D = D') (i : Fin D.n) (i' : Fin D'.n),
+      HEq i i' → D.side i = D'.side i' := by
+    intro D D' h
+    subst h
+    intro i i' hh
+    rw [eq_of_heq hh]
+  have key2 : ∀ (D D' : PolygonalDisk) (h : D = D') (i : Fin D.n),
+      ∃ i' : Fin D'.n, HEq i i' := by
+    intro D D' h
+    subst h
+    intro i
+    exact ⟨i, HEq.rfl⟩
+  obtain ⟨i', hi⟩ := key2 _ _ hdY.symm i
+  obtain ⟨j', hj⟩ := key2 _ _ hdZ.symm j
+  refine ⟨i', j', hi, hj, ?_⟩
+  have h1 := key _ _ hdY.symm i i' hi
+  have h2 := key _ _ hdZ.symm j j' hj
+  unfold PlacedTile.side
+  rw [← h1, ← h2]
+  exact hs
+
+/-- The two occurrences of an inner side of the template carry equal arrays in the proper fine
+colouring: the placed children of types `t` and `(partner (t, i)).1` are distinct tiles of `F`
+whose sides `i` and `(partner (t, i)).2` are the same segment (`g1_partner`), so
+`X.proper_cells_match` applies.  (This is the content of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched`,
+reproved here so that the boundary-header lemma is independent of that separate target.) -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_matched
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (t : C.Typ) (ht : C.owner t = α) (i : C.Side t) (hi : C.IsInner (C.occ t i)) :
+    col t i = col (C.partner (C.occ t i)).1 (C.partner (C.occ t i)).2 := by
+  obtain ⟨hne, hown, hside⟩ := C.g1_partner (C.occ t i) hi
+  have hZ := hcol t ht
+  have hZ' := hcol (C.partner (C.occ t i)).1 (hown.trans ht)
+  have hneZ :
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ≠
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col (C.partner (C.occ t i)).1 := by
+    intro heq
+    have hf := congrArg PlacedTile.form heq
+    have hf' := Sum.inl.inj (X.formEquiv.symm.injective hf)
+    exact hne (congrArg Sigma.fst hf').symm
+  have hgeom : (v + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i =
+      (v + C.anchor (C.partner (C.occ t i)).1) +ᵥ
+        (C.Q.disk (C.form (C.partner (C.occ t i)).1)).side (C.partner (C.occ t i)).2 := by
+    rw [add_vadd, add_vadd]
+    exact congrArg (fun S => v +ᵥ S) hside.symm
+  have hA : X.formEquiv
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t).form = Sum.inl ⟨t, col t⟩ :=
+    Equiv.apply_symm_apply _ _
+  have hB : X.formEquiv
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col (C.partner (C.occ t i)).1).form =
+      Sum.inl ⟨(C.partner (C.occ t i)).1, col (C.partner (C.occ t i)).1⟩ :=
+    Equiv.apply_symm_apply _ _
+  have hcoin :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_coincident_of_geom
+      τ hsts C m hC X _ _ ⟨t, col t⟩
+      ⟨(C.partner (C.occ t i)).1, col (C.partner (C.occ t i)).1⟩ hA hB i
+      (C.partner (C.occ t i)).2 hgeom
+  exact X.proper_cells_match F hF _ hZ _ hZ' hneZ ⟨t, col t⟩
+    ⟨(C.partner (C.occ t i)).1, col (C.partner (C.occ t i)).1⟩ hA hB i
+    (C.partner (C.occ t i)).2 hcoin
+
+/-- Adjacent types of the boundary belt share a boundary side at which their fourth cells agree:
+they are the two owners of an inner side (`g1_side_unique`), which is a boundary side of both, and
+the two occurrences of an inner side carry equal arrays. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_adj
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (u w : {t : C.Typ // C.IsBeltType α t}) (hadj : (C.beltGraph α).Adj u w) :
+    ∃ (i : C.Side u.1) (j : C.Side w.1), C.IsBoundary (C.occ u.1 i) ∧
+      C.IsBoundary (C.occ w.1 j) ∧ col u.1 i 3 = col w.1 j 3 := by
+  rw [MacroData.beltGraph, SimpleGraph.fromRel_adj] at hadj
+  have hne : u.1 ≠ w.1 := fun huw => hadj.1 (Subtype.ext huw)
+  have edge : ∀ (s r : {t : C.Typ // C.IsBeltType α t}) (i : C.Side s.1) (j : C.Side r.1),
+      s.1 ≠ r.1 → C.IsBoundary (C.occ s.1 i) →
+      C.occSide (C.occ s.1 i) = C.occSide (C.occ r.1 j) →
+      ∃ (i' : C.Side s.1) (j' : C.Side r.1), C.IsBoundary (C.occ s.1 i') ∧
+        C.IsBoundary (C.occ r.1 j') ∧ col s.1 i' 3 = col r.1 j' 3 := by
+    intro s r i j hsr hi hside
+    have hinner : C.IsInner (C.occ s.1 i) := hi.1
+    have hown : C.owner r.1 = C.owner s.1 := r.2.1.trans s.2.1.symm
+    have hpartner : C.occ r.1 j = C.partner (C.occ s.1 i) :=
+      C.g1_side_unique (C.occ s.1 i) (C.occ r.1 j) hinner hown hsr.symm hside.symm
+    have hm :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_matched
+        τ hsts C m hC X F hF α v col hcol s.1 s.2.1 i hinner
+    rw [← hpartner] at hm
+    refine ⟨i, j, hi, ?_, congrFun hm 3⟩
+    exact
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_bdry_of_occSide
+        C hi hown hside.symm
+  rcases hadj.2 with h | h
+  · obtain ⟨i, j, hi, hside⟩ := h
+    exact edge u w i j hne hi hside
+  · obtain ⟨j, i, hj, hside⟩ := h
+    obtain ⟨j', i', hj', hi', hc⟩ := edge w u j i hne.symm hj hside
+    exact ⟨i', j', hi', hj', hc.symm⟩
+
+/-- Equality of the boundary fourth cells propagates along reachability in the belt graph, given
+that the boundary fourth cells of a single type agree and that adjacent types share a boundary
+side with equal fourth cells. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_reach
+    {β : Type*} (C : Geometry.MacroCertificate P) (α : C.Q.Form)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → β)
+    (hsame : ∀ t, C.owner t = α → ∀ i j : C.Side t, C.IsBoundary (C.occ t i) →
+      C.IsBoundary (C.occ t j) → col t i 3 = col t j 3)
+    (hadj : ∀ u w : {t : C.Typ // C.IsBeltType α t}, (C.beltGraph α).Adj u w →
+      ∃ (i : C.Side u.1) (j : C.Side w.1), C.IsBoundary (C.occ u.1 i) ∧
+        C.IsBoundary (C.occ w.1 j) ∧ col u.1 i 3 = col w.1 j 3)
+    (u w : {t : C.Typ // C.IsBeltType α t}) (hreach : (C.beltGraph α).Reachable u w) :
+    ∀ (i : C.Side u.1) (j : C.Side w.1), C.IsBoundary (C.occ u.1 i) →
+      C.IsBoundary (C.occ w.1 j) → col u.1 i 3 = col w.1 j 3 := by
+  obtain ⟨p⟩ := hreach
+  induction p with
+  | @nil x =>
+    intro i j hi hj
+    exact hsame _ x.2.1 i j hi hj
+  | @cons x y z hxy p ih =>
+    intro i k hi hk
+    obtain ⟨i', j', hi', hj', hc⟩ := hadj x y hxy
+    calc col x.1 i 3 = col x.1 i' 3 := hsame _ x.2.1 i i' hi hi'
+      _ = col y.1 j' 3 := hc
+      _ = col z.1 k 3 := ih j' k hj' hk
+
 /-- Step 2 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:
 "read one extended header `(t,z,γ)` on the connected boundary belt (Lemma comp/boundary-header)"
@@ -7236,7 +7572,33 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
     ∃ h : hereditary_sts_substitution_sofic_CrownHeader τ hsts C,
       hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
         τ hsts C hC α col h := by
-  sorry
+  have hsame : ∀ t, C.owner t = α → ∀ i j : C.Side t, C.IsBoundary (C.occ t i) →
+      C.IsBoundary (C.occ t j) → col t i 3 = col t j 3 := by
+    intro t ht i j hi hj
+    obtain ⟨h, -, -, hh⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_tile_header
+        τ hsts C m hC X F hF α v col hcol t ht
+    rw [hh i hi, hh j hj]
+  have hadj :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_adj
+      τ hsts C m hC X F hF α v col hcol
+  have hbel :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_reach
+      C α col hsame hadj
+  obtain ⟨u⟩ := (C.g2_belt_connected α).nonempty
+  have hu_belt : C.IsBeltType (C.owner u.1) u.1 := by
+    rw [u.2.1]
+    exact u.2
+  obtain ⟨i₀, hi₀⟩ := C.g2_belt_edge u.1 hu_belt
+  obtain ⟨h, hh1, hh2, hh3⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_tile_header
+      τ hsts C m hC X F hF α v col hcol u.1 u.2.1
+  refine ⟨h, hh1, hh2, fun t j ht hj => ?_⟩
+  have htb : C.IsBeltType α t :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step2_boundary_header_belt_type
+      C α t ht j hj
+  rw [hbel ⟨t, htb⟩ u ((C.g2_belt_connected α).preconnected _ _) j i₀ hj hi₀]
+  exact hh3 i₀ hi₀
 
 /-- Step 3 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:

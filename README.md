@@ -93,9 +93,5 @@ Further statement-level corrections made while proving (all recorded in the
 change log, items 8–33) concern the precise contracts of the certificate
 and of the composition lemmas; none of them changed the principal theorems.
 
-## History
-
-The proofs were produced between 12 and 19 October 2026 by an automated
-pipeline (Aristotle, Google Jules and Claude models proving blueprint nodes,
 with mechanical acceptance gates, an independent judge and per-commit
 audits), with hand decompositions and interface repairs where needed.

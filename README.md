@@ -14,7 +14,7 @@ proofs are what is formalized here, see "Relation to the paper" below).
 ## Status (19 October 2026)
 
 * Toolchain: `leanprover/lean4:v4.28.0`, Mathlib `v4.28.0`.
-* `lake build`: 0 errors, 0 `sorry` warnings (8042 jobs).
+* `lake build`: 0 errors, 0 warnings, 0 `sorry` (8042 jobs).
 * Axioms of the principal theorems (`Tilings/Main.lean`):
 
 ```

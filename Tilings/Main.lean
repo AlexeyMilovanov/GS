@@ -136,7 +136,22 @@ theorem sts_side_to_side_hierarchy_sofic (h : τ.STS) :
 tilings are sofic. -/
 theorem flc_substitution_sofic (h : τ.FLC) :
     IsSofic {T | τ.IsSubstitutionTiling T} := by
-  sorry
+  have hsts := FLC.refinedSubstitution_sts τ h
+  have hher := FLC.refinedSubstitution_hereditary τ h
+  have hrefined := Core.hereditary_sts_substitution_sofic
+    (FLC.refinedSubstitution τ h) hsts hher
+  have hprojected := FLC.forget_vertices_preserves_sofic
+    (FLC.cloneDecoration τ h)
+    {T | (FLC.refinedSubstitution τ h).IsSubstitutionTiling T}
+    (Or.inr hrefined)
+  have hfamily :
+      (FLC.cloneDecoration τ h).project ''
+          {T | (FLC.refinedSubstitution τ h).IsSubstitutionTiling T} =
+        {T | τ.IsSubstitutionTiling T} := by
+    ext T
+    simpa only [Set.mem_image, Set.mem_setOf_eq] using
+      (FLC.substitution_clone_lift_iff τ h T).symm
+  rwa [hfamily] at hprojected
 
 /-- Theorem 2(b) (`thm:flc-hierarchy`): under FLC the hierarchical plane
 tilings are sofic. -/

@@ -7984,6 +7984,336 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
       (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_recon_cell
         τ hsts C m hC X F hF α v col hcol t z (some γ) hh)
 
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+(auxiliary) the partner of an inner side is inner. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_inner_partner
+    (C : Geometry.MacroCertificate P) {o : C.SideOcc} (h : C.IsInner o) :
+    C.IsInner (C.partner o) := by
+  have hp := C.g1_partner _ h
+  unfold MacroData.IsInner MacroData.IsOuter at h ⊢
+  rw [hp.2.2, hp.2.1]
+  exact h
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+(auxiliary) the printed parent side of a print is unique. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_print_unique
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d d' : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) (h' : C.IsPrintOf α d' o) : d = d' := by
+  have key : ∀ {e e' : Fin (C.Q.disk α).n}, C.marked α e → C.marked α e' →
+      C.printOcc α e = C.printOcc α e' → e = e' := by
+    intro e e' he he' hpe
+    apply C.g4_print_injective α e e' he he'
+    simp only [MacroData.printOcc, Sigma.mk.injEq, heq_eq_eq, true_and] at hpe
+    exact hpe
+  obtain ⟨hm, h1⟩ := h
+  obtain ⟨hm', h2⟩ := h'
+  have hin := C.g4_print_inner α d hm
+  have hin' := C.g4_print_inner α d' hm'
+  rcases h1 with rfl | rfl <;> rcases h2 with h2 | h2
+  · exact key hm hm' h2
+  · exact absurd (by rw [← h2]; rfl) (C.g1_partner _ hin').1
+  · exact absurd (by rw [h2]; rfl) (C.g1_partner _ hin).1
+  · exact key hm hm' (by
+      rw [← C.g1_partner_partner _ hin, h2, C.g1_partner_partner _ hin'])
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+(auxiliary) a nonprint side lies on at most one path of its template. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_path_unique
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {o : C.SideOcc} (hα : C.owner o.1 = α)
+    (hnp : ¬ C.IsPrint o) {d d' : Fin (C.Q.disk α).n} {j j' : Fin 5}
+    (h : o ∈ C.path α d j) (h' : o ∈ C.path α d' j') : d = d' ∧ j = j' := by
+  by_contra hne
+  have hne' : (d, j) ≠ (d', j') := fun e => hne (Prod.mk.inj e)
+  obtain ⟨rfl, hpr⟩ := C.g4_path_disjoint α d d' j j' hne' o h h'
+  by_cases hm : C.marked α d
+  · apply hnp
+    unfold MacroData.IsPrint
+    rw [hα]
+    exact ⟨d, hm, hpr⟩
+  · have htriv := C.g4_path_trivial α d j (fun hg => hm hg.1)
+    rw [htriv, Option.mem_toList] at h
+    have hmem : o ∈ C.outerList α d := List.mem_iff_getElem?.mpr ⟨_, h⟩
+    have hout : C.IsOuter o := ((C.g3_outerList_mem α d o).1 hmem).2.1
+    have hin : C.IsInner (C.printOcc α d) := (C.g2_central α (C.print α d)).1
+    rcases hpr with rfl | rfl
+    · exact hin hout
+    · exact
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_inner_partner
+          C hin hout
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+"both copy the parent cell `(d, j)` of its legal parent" — a nonprint side on the path `P_j(d)`
+carries the parent cell `(d, j)` as third cell of the generated child. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_copy_path
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (s : C.Typ) (β : C.Q.Form)
+    (hβ : C.form B.1 = β) (hs : C.owner s = β) (i : C.Side s)
+    (hnp : ¬ C.IsPrint (C.occ s i)) (d : Fin (C.Q.disk β).n) (j : Fin 5)
+    (hmem : C.occ s i ∈ C.path β d j) :
+    (hereditary_sts_substitution_sofic_generate τ hsts C m hC B s).2 i 2 =
+      B.2 (Fin.cast (by rw [hβ]) d) j := by
+  subst hβ
+  have hs' : C.owner (C.occ s i).1 = C.form B.1 := hs
+  have hnp' : ¬ ∃ d, C.IsPrintOf (C.form B.1) d (C.occ s i) := by
+    rw [← hs']
+    exact hnp
+  have hne : (Planned.copySource C (C.form B.1) (C.occ s i) 2).Nonempty :=
+    ⟨(d, j), Or.inr ⟨hnp, rfl, hmem⟩⟩
+  unfold hereditary_sts_substitution_sofic_generate
+  dsimp only
+  rw [dif_pos hne]
+  rcases hne.some_mem with ⟨hp1, -, -⟩ | ⟨-, -, hp3⟩
+  · exact absurd ⟨_, hp1⟩ hnp'
+  · obtain ⟨h1, h2⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_path_unique
+        C hs' hnp hp3 hmem
+    rw [h1, h2]
+    rfl
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+"the print copies that parent's cells `k ≠ 4`" — a print of the parent side `d` carries the
+parent cell `(d, k)`, `k ≠ 4`, in the generated child. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_copy_print
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (s : C.Typ) (β : C.Q.Form)
+    (hβ : C.form B.1 = β) (hs : C.owner s = β) (i : C.Side s) (d : Fin (C.Q.disk β).n)
+    (hd : C.IsPrintOf β d (C.occ s i)) (k : Fin 5) (hk : k ≠ 4) :
+    (hereditary_sts_substitution_sofic_generate τ hsts C m hC B s).2 i k =
+      B.2 (Fin.cast (by rw [hβ]) d) k := by
+  subst hβ
+  have hs' : C.owner (C.occ s i).1 = C.form B.1 := hs
+  have hpr : C.IsPrint (C.occ s i) := by
+    unfold MacroData.IsPrint
+    rw [hs']
+    exact ⟨d, hd⟩
+  have hne : (Planned.copySource C (C.form B.1) (C.occ s i) k).Nonempty :=
+    ⟨(d, k), Or.inl ⟨hd, hk, rfl⟩⟩
+  unfold hereditary_sts_substitution_sofic_generate
+  dsimp only
+  rw [dif_pos hne]
+  rcases hne.some_mem with ⟨hp1, -, hp2⟩ | ⟨hnp, -, -⟩
+  · rw [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_print_unique
+      C hp1 hd, hp2]
+    rfl
+  · exact absurd hpr hnp
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+"its legal parent" — every child of the block is a founded-legal tile of the proper colouring,
+hence the generated child of a parent whose form is the owner form of the child. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_legal_parent
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (t : C.Typ) (ht : C.owner t = α) :
+    ∃ Pr : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC, C.owner t = C.form Pr.1 ∧
+      ∀ (i : C.Side t) (k : Fin 5),
+        (hereditary_sts_substitution_sofic_generate τ hsts C m hC Pr t).2 i k = col t i k := by
+  obtain ⟨A, hA, ch, h0, hchild, -, -⟩ := X.proper_typed_legal F hF _ (hcol t ht)
+  have hA' : A = ⟨t, col t⟩ := by
+    have e : X.formEquiv
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+          τ hsts C X v col t).form = Sum.inl ⟨t, col t⟩ := by
+      simp [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed]
+    exact Sum.inl.inj (hA.symm.trans e)
+  subst hA'
+  obtain ⟨hown, hgen⟩ := hchild 0
+  rw [h0] at hown hgen
+  refine ⟨ch 1, hown, fun i k => ?_⟩
+  have hgen' : (⟨t, (hereditary_sts_substitution_sofic_generate τ hsts C m hC (ch 1) t).2⟩ :
+      hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) = ⟨t, col t⟩ := hgen.symm
+  have h2 := eq_of_heq (Sigma.mk.inj_iff.mp hgen').2
+  exact congrFun (congrFun h2 i) k
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+a print occurrence on a genuine path is the terminal print in its small owner. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step2_print_last
+    (C : Geometry.MacroCertificate P)
+    {α : C.Q.Form} {d : Fin (C.Q.disk α).n} {j : Fin 5}
+    (hG : C.IsGenuinePath α d j) {o : C.SideOcc}
+    (ho : o ∈ C.path α d j) (hp : C.IsPrint o) :
+    o = C.partner (C.printOcc α d) := by
+  have hown : C.owner o.1 = α := C.g4_path_owner α d j o ho
+  have hp' : ∃ e : Fin (C.Q.disk α).n, C.IsPrintOf α e o := by
+    unfold MacroData.IsPrint at hp
+    rwa [hown] at hp
+  obtain ⟨e, hme, hcase⟩ := hp'
+  rcases hcase with rfl | rfl
+  · exact absurd rfl (C.g4_path_not_central α d j hG _ ho)
+  · by_cases hde : e = d
+    · rw [hde]
+    · exfalso
+      have hlast : (C.path α e 0).getLast? =
+          some (C.partner (C.printOcc α e)) := C.g4_path_last α e 0 ⟨hme, by decide⟩
+      rw [List.getLast?_eq_getElem?] at hlast
+      have hterm : C.partner (C.printOcc α e) ∈ C.path α e 0 :=
+        List.mem_of_getElem? hlast
+      have hne' : (d, j) ≠ (e, (0 : Fin 5)) :=
+        fun heq => hde (congrArg Prod.fst heq).symm
+      obtain ⟨hde', -⟩ := C.g4_path_disjoint α d e j 0 hne' _ ho hterm
+      exact hde hde'.symm
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+only the final position of a genuine path can carry a print occurrence. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step2_not_print
+    (C : Geometry.MacroCertificate P)
+    {α : C.Q.Form} {d : Fin (C.Q.disk α).n} {j : Fin 5}
+    (hG : C.IsGenuinePath α d j) {n : ℕ}
+    (hn : n + 1 < (C.path α d j).length) {o : C.SideOcc}
+    (ho : (C.path α d j)[n]? = some o) : ¬ C.IsPrint o := by
+  intro hp
+  have hmem : o ∈ C.path α d j := List.mem_of_getElem? ho
+  have heq :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step2_print_last
+      C hG hmem hp
+  have hlast : (C.path α d j).getLast? = some o := by
+    rw [heq]
+    exact C.g4_path_last α d j hG
+  rw [List.getLast?_eq_getElem?] at hlast
+  have hnodup := C.g4_path_nodup α d j
+  have hne := (List.nodup_iff_getElem?_ne_getElem?).1 hnodup n
+    ((C.path α d j).length - 1) (by omega) (by omega)
+  exact hne (ho.trans hlast.symm)
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+"Along a path consecutive sides belong to one child (both copy the parent cell `(d, j)` of its
+legal parent, `g4_path_chain`) or are the two occurrences of an inner side (Step 1)" — two
+consecutive nonprint sides of a path carry equal third cells. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step3_chain
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    {d : Fin (C.Q.disk α).n} {j : Fin 5} {o o' : C.SideOcc}
+    (hmem : o ∈ C.path α d j) (hmem' : o' ∈ C.path α d j)
+    (hchain : o.1 = o'.1 ∨ (C.IsInner o ∧ o' = C.partner o))
+    (hnp : ¬ C.IsPrint o) (hnp' : ¬ C.IsPrint o') :
+    col o.1 o.2 2 = col o'.1 o'.2 2 := by
+  rcases hchain with hsame | ⟨hinner, hpartner⟩
+  · obtain ⟨t, i⟩ := o
+    obtain ⟨t', i'⟩ := o'
+    dsimp only at hsame
+    subst hsame
+    have hown : C.owner t = α := C.g4_path_owner α d j _ hmem
+    obtain ⟨Pr, hPr, hc⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_legal_parent
+        τ hsts C m hC X F hF α v col hcol t hown
+    have e1 :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_copy_path
+        τ hsts C m hC Pr t α (hPr.symm.trans hown) hown i hnp d j hmem
+    have e2 :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_copy_path
+        τ hsts C m hC Pr t α (hPr.symm.trans hown) hown i' hnp' d j hmem'
+    rw [hc] at e1 e2
+    exact e1.trans e2.symm
+  · subst hpartner
+    have hown : C.owner o.1 = α := C.g4_path_owner α d j o hmem
+    exact congrFun
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched
+        τ hsts C m hC X F hF α v col hcol o.1 hown o.2 hinner) 2
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+"the path starts at the port (`g4_path_head`)" — induction along a genuine path from its port:
+every nonprint side of the path carries the third cell of the port. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step4_induction
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    {d : Fin (C.Q.disk α).n} {j : Fin 5} (hG : C.IsGenuinePath α d j)
+    (p : C.SideOcc) (hp : C.port α d j = some p) :
+    ∀ n : ℕ, ∀ o : C.SideOcc, (C.path α d j)[n]? = some o → ¬ C.IsPrint o →
+      col o.1 o.2 2 = col p.1 p.2 2 := by
+  intro n
+  induction n with
+  | zero =>
+    intro o ho _
+    have h0 : (C.path α d j)[0]? = C.port α d j := by
+      rw [← List.head?_eq_getElem?]
+      exact C.g4_path_head α d j hG
+    rw [ho, hp] at h0
+    cases h0
+    rfl
+  | succ n ih =>
+    intro o' ho' hnp'
+    obtain ⟨hlt1, -⟩ := (List.getElem?_eq_some_iff).1 ho'
+    have hlt0 : n < (C.path α d j).length := by omega
+    obtain ⟨o, ho⟩ : ∃ o, (C.path α d j)[n]? = some o :=
+      ⟨(C.path α d j)[n], List.getElem?_eq_some_iff.mpr ⟨hlt0, rfl⟩⟩
+    have hnp :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step2_not_print
+        C hG hlt1 ho
+    have heqD := ih o ho hnp
+    have hchain := C.g4_path_chain α d j n o o' ho ho'
+    have heq2 :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step3_chain
+        τ hsts C m hC X F hF α v col hcol (List.mem_of_getElem? ho) (List.mem_of_getElem? ho')
+        hchain hnp hnp'
+    rw [← heq2]
+    exact heqD
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals`:
+"the penultimate side of a genuine path is an ordinary side of the small owner of the print
+(`g4_path_penultimate`)" — a genuine path has a penultimate side, of the small owner. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step4_penultimate
+    (C : Geometry.MacroCertificate P) (β : C.Q.Form) (d : Fin (C.Q.disk β).n) (k : Fin 5)
+    (hg : C.IsGenuinePath β d k) :
+    ∃ o, (C.path β d k)[(C.path β d k).length - 2]? = some o ∧
+      o.1 = (C.partner (C.printOcc β d)).1 ∧ C.IsOrdinary o := by
+  obtain ⟨p, hp⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_some
+      C β d k
+  have hhead := (C.g4_path_head _ _ _ hg).trans hp
+  have hlast := C.g4_path_last _ _ _ hg
+  have hpout : C.IsOuter p :=
+    ((C.g3_outerList_mem _ _ _).1 (List.mem_of_getElem? hp)).2.1
+  have hpin := C.g4_print_inner β d hg.1
+  have hne : p ≠ C.partner (C.printOcc β d) := by
+    intro e
+    exact
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_inner_partner
+        C hpin (e ▸ hpout)
+  have hlen : 2 ≤ (C.path β d k).length := by
+    generalize hpath : C.path β d k = l
+    rw [hpath] at hhead hlast
+    cases l with
+    | nil => simp at hhead
+    | cons x l =>
+        cases l with
+        | nil =>
+            simp at hhead hlast
+            exact absurd (hhead.symm.trans hlast) hne
+        | cons y l => simp
+  obtain ⟨o, ho⟩ : ∃ o, (C.path β d k)[(C.path β d k).length - 2]? = some o :=
+    ⟨_, List.getElem?_eq_getElem (by omega)⟩
+  obtain ⟨hop, hord⟩ := C.g4_path_penultimate _ _ _ hg o ho
+  exact ⟨o, ho, hop, hord⟩
+
 /-- Step 4 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`
 (Lemma comp/signals for the extended alphabet): every nonprint third cell on the path `P_j(d)`
@@ -8017,7 +8347,54 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
       col (C.partner (C.printOcc (C.form h.1) d)).1 (C.partner (C.printOcc (C.form h.1) d)).2 k =
         (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
           τ hsts C hC col h.1).2 d k) := by
-  sorry
+  have hα : C.form h.1 = α := hh.1
+  subst hα
+  have part1 : ∀ (d : C.Side h.1) (j : Fin 5) (o : C.SideOcc), o ∈ C.path (C.form h.1) d j →
+      ¬ C.IsPrint o →
+      col o.1 o.2 2 =
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+          τ hsts C hC col h.1).2 d j := by
+    intro d j o ho hnp
+    obtain ⟨p, hp⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_some
+        C (C.form h.1) d j
+    rw [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_cells
+      τ hsts C hC col h.1 _ rfl d j p hp]
+    by_cases hG : C.IsGenuinePath (C.form h.1) d j
+    · obtain ⟨n, hlt, hn⟩ := List.getElem_of_mem ho
+      exact
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step4_induction
+          τ hsts C m hC X F hF (C.form h.1) v col hcol hG p hp n o
+          (List.getElem?_eq_some_iff.mpr ⟨hlt, hn⟩) hnp
+    · rw [C.g4_path_trivial _ d j hG, hp, Option.mem_toList, Option.some_inj] at ho
+      subst ho
+      rfl
+  refine ⟨part1, fun d hd k hk => ?_⟩
+  have hk4 : k.val < 4 := by
+    have h1 := k.isLt
+    have h2 : k.val ≠ 4 := fun e => hk (Fin.ext e)
+    omega
+  have hg : C.IsGenuinePath (C.form h.1) d k := ⟨hd, hk4⟩
+  obtain ⟨⟨s, io⟩, ho, hop, hord⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step4_penultimate
+      C (C.form h.1) d k hg
+  have hmem : (⟨s, io⟩ : C.SideOcc) ∈ C.path (C.form h.1) d k := List.mem_of_getElem? ho
+  have h1 := part1 d k _ hmem hord.2
+  have hown : C.owner s = C.form h.1 := C.g4_path_owner _ d k _ hmem
+  dsimp only at hop h1 hown
+  subst hop
+  obtain ⟨Pr, hPr, hc⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_legal_parent
+      τ hsts C m hC X F hF (C.form h.1) v col hcol _ hown
+  have e1 :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_copy_path
+      τ hsts C m hC Pr _ (C.form h.1) (hPr.symm.trans hown) hown io hord.2 d k hmem
+  have e2 :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step4_signals_step1_copy_print
+      τ hsts C m hC Pr _ (C.form h.1) (hPr.symm.trans hown) hown
+      (C.partner (C.printOcc (C.form h.1) d)).2 d ⟨hd, Or.inr rfl⟩ k hk
+  rw [hc] at e1 e2
+  rw [e2, ← e1, h1]
 
 /-- Step 5 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:

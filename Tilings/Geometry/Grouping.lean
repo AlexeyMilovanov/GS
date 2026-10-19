@@ -6035,9 +6035,9 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub1_macroData_ste
 /-- Relabel the retained template as a substitution on the retained catalogue.  This
 choice specifies only the substitution; all finite certificate maps are constructed below. -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub1_macroData
-    (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
+    (τ : Substitution P) (_h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
-    (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
+    (_routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
     ∃ σ : Substitution (emcdQ g s l),
@@ -6597,7 +6597,7 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step1_templateData
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
-    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (_hidem : s.setup.c^[2 * l] = s.setup.c^[l])
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
@@ -6772,7 +6772,7 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step3_central
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
-    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (_hidem : s.setup.c^[2 * l] = s.setup.c^[l])
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
@@ -6790,7 +6790,7 @@ is the identity relabelling and has the required parent-side properties. -/
 private lemma existsMacroCertificate_seed2_routing_step3_data_sub3_children_and_templates_step4_parentSide
     (τ : Substitution P) (h : τ.STS) (g : existsMacroCertificate_GroupingSeed τ)
     (s : existsMacroCertificate_SetupSeed τ g) (l : ℕ) (hl : 0 < l)
-    (hidem : s.setup.c^[2 * l] = s.setup.c^[l])
+    (_hidem : s.setup.c^[2 * l] = s.setup.c^[l])
     (routing : ∀ α, RoutingData (s.setup.retained l α) (s.setup.GS.G.P'.disk α)
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)) :
@@ -9833,7 +9833,7 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step3_l
   change (emcdLiftOccurrence D (emcdTemplateChild g s l) α X eprev ++
     emcdLiftOccurrence D (emcdTemplateChild g s l) α X eprint).getLast? = _
   rw [ho_lift, List.getLast?_append_of_ne_nil _ (by simp)]
-  simpa [ho_partner]
+  simp [ho_partner]
 
 
 set_option maxHeartbeats 800000 in
@@ -10556,7 +10556,7 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step6_p
       change tiles.length + 1 = sides.length at hsides_length
       have hlast_side : sides.getLast? = some e₂ := by
         rw [List.getLast?_eq_getElem?]
-        convert hside_succ using 2 <;> omega
+        convert hside_succ using 2; omega
       have he₂print : e₂ =
           (s.setup.central l β).side ((routing β).printIdx a) := by
         have hp := (routing β).path_last a hgen.1 ii
@@ -10564,7 +10564,7 @@ private lemma existsMacroCertificate_seed2_routing_step3_data_sub7_paths_step6_p
         exact Option.some.inj hp
       have hlast_tile : tiles.getLast? = some X := by
         rw [List.getLast?_eq_getElem?]
-        convert htile_k using 2 <;> omega
+        convert htile_k using 2; omega
       have hXcentral := (routing β).path_last_tile a hgen.1 ii X hlast_tile
       obtain ⟨hprint_side, -, -, hprint_inner, -⟩ :=
         existsMacroCertificate_seed2_routing_step3_data_sub6_prints_and_special
@@ -12743,7 +12743,7 @@ private lemma emcg_g1_three_le
     Fin.cases ⟨tc, htc⟩ (fun i => Fin.cases ⟨t0, ht0⟩ (fun _ => ⟨t1, ht1⟩) i) i
   have hf : Function.Injective f := by
     intro i j hij
-    fin_cases i <;> fin_cases j <;> simp only [f, Fin.cases_zero, Fin.cases_succ] at hij ⊢
+    fin_cases i <;> fin_cases j <;> simp only [f] at hij ⊢
     · exact (hct0 (congrArg Subtype.val hij)).elim
     · exact (hct1 (congrArg Subtype.val hij)).elim
     · exact (hct0 (congrArg Subtype.val hij).symm).elim
@@ -13321,7 +13321,7 @@ private lemma existsMacroCertificate_seed2_routing_step5_g2_aux_belt_edge
       have hr : (finRotate _)^[(j - a).val] a = j := by
         rw [← finCycle_eq_finRotate_iterate]
         change a + (j - a) = j
-        simpa [add_comm] using sub_add_cancel j a
+        simp
       exact hj (hr ▸ hall (j - a).val)
     obtain ⟨k, hk, hk'⟩ := htrans
     refine ⟨finRotate _ k, hk', Or.inl ?_⟩
@@ -14738,7 +14738,7 @@ private lemma existsMacroCertificate_seed2_routing_step9_g6_side_of_template
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
     (cd : existsMacroCertificate_CertData τ g s l routing) (t : cd.D.Typ)
     {γ : s.setup.GS.G.P'.Form}
-    (hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inl γ)
+    (_hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inl γ)
     {e : Set Pt} (he : HasEdge (cd.templateChild t) e) :
     ∃ i : cd.D.Side t, cd.D.occSide (cd.D.occ t i) = e := by
   have hemem : e ∈ Set.range (fun j => (cd.templateChild t).side j) := by
@@ -14754,7 +14754,7 @@ private lemma existsMacroCertificate_seed2_routing_step9_g6_side_of_original
       (τ.θ ^ (s.setup.GS.k * l)) (s.setup.central l α) (s.setup.markedSides α)
       ((s.setup.markedSides (s.setup.c^[l] α)).map Fin.valEmbedding)}
     (cd : existsMacroCertificate_CertData τ g s l routing) (t : cd.D.Typ)
-    {p : P.Form} (hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inr p)
+    {p : P.Form} (_hform : (cd.catalogueTile (cd.D.form t)).form = Sum.inr p)
     {e : Set Pt} (he : HasEdge (cd.templateChild t) e) :
     ∃ i : cd.D.Side t, cd.D.occSide (cd.D.occ t i) = e := by
   have hemem : e ∈ Set.range (fun j => (cd.templateChild t).side j) := by

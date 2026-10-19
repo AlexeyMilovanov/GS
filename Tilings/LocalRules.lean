@@ -4641,7 +4641,7 @@ private lemma hereditary_sts_substitution_sofic_step3_generate_decodes_child_ste
   unfold hereditary_sts_substitution_sofic_generate
   dsimp only
   simp only [dif_neg hcopy, dif_neg hnp, if_neg (show ¬ ((1 : Fin 5) = 0) by decide),
-    if_pos (rfl : (1 : Fin 5) = 1), hdec, dif_pos ht]
+    hdec, dif_pos ht]
   rfl
 
 
@@ -9532,14 +9532,14 @@ contained in the same segment, ordered in the global positive direction
 two blocks along that segment are the same segments, the two lists coincide position by
 position.  Extended analogue of `Planned.Strict.strict_lift_matched_step6_ports_step1_whole_ports`. -/
 private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide
-    (τ : Substitution P) (hsts : τ.STS) (hher : τ.HereditarySides)
+    (τ : Substitution P) (hsts : τ.STS) (_hher : τ.HereditarySides)
     (C : Geometry.MacroCertificate P) (m : ℕ) (hC : C.Represents τ m)
     (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
     (T : PlaneTiling C.Q)
     (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F)
-    (hFT : X.dec.toDecoration.project F = T)
-    (T' : PlaneTiling C.Q) (hcomp : C.σ.IsComposition T' T)
-    (D : PlacedTile C.Q) (hD : D ∈ T'.tiles) (E : PlacedTile C.Q) (hE : E ∈ T'.tiles)
+    (_hFT : X.dec.toDecoration.project F = T)
+    (T' : PlaneTiling C.Q) (_hcomp : C.σ.IsComposition T' T)
+    (D : PlacedTile C.Q) (_hD : D ∈ T'.tiles) (E : PlacedTile C.Q) (_hE : E ∈ T'.tiles)
     (hDE : D ≠ E)
     (colD colE : (t : C.Typ) → C.Side t → Fin 5 →
       hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)

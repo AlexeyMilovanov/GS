@@ -2564,7 +2564,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_pointsInOrder_weak
       let n : ℤ := ⌊t 0⌋
       let s : Fin (k + 1) → ℝ := fun i => t i - n
       have hnle : (n : ℝ) ≤ t 0 := by simpa [n] using Int.floor_le (t 0)
-      have htn : t 0 < (n : ℝ) + 1 := by simpa [n] using Int.lt_floor_add_one (t 0)
+      have htn : t 0 < (n : ℝ) + 1 := by simp [n]
       refine ⟨s, ?_, ?_, ?_, ?_⟩
       · intro i
         have hfirst : t 0 ≤ t i := ht.monotone (Fin.zero_le i)
@@ -2581,7 +2581,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_pointsInOrder_weak
         linarith [htw i j]
       · intro i
         dsimp only [s]
-        rw [show t i - (n : ℝ) = t i - n * 1 by push_cast; ring]
+        rw [show t i - (n : ℝ) = t i - n * 1 by ring]
         rw [hper.sub_int_mul_eq]
         exact htx i
 
@@ -2675,9 +2675,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop_isLoo
   · ext z
     constructor
     · rintro ⟨t, -, rfl⟩
-      simpa [existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop,
-        Metric.mem_sphere, dist_zero_right, L.norm_map] using
-          (E (t : AddCircle (1 : ℝ))).property
+      simp [existsRoutingAfterPower_step4_routes_step6_R2_unitCircleLoop]
     · intro hz
       let w : Circle := ⟨L.symm z, by
         simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right,
@@ -2723,9 +2721,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_circleLoop_isLoopPar
           ((AddCircle.homeomorphCircle one_ne_zero
             (t : AddCircle (1 : ℝ)) : Circle) : ℂ)‖ = 1
         rw [LinearIsometryEquiv.norm_map]
-        simpa [Submonoid.unitSphere] using
-          (AddCircle.homeomorphCircle one_ne_zero
-            (t : AddCircle (1 : ℝ))).property
+        simp [Submonoid.unitSphere]
       rw [Metric.mem_sphere, dist_eq_norm]
       change ‖c + kappa • u t - c‖ = kappa
       rw [add_sub_cancel_left, norm_smul,
@@ -14908,7 +14904,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareLoop_edges 
     simp only [hfr _ h]
     rw [(hq _).2.1 ⟨by linarith [hx.1], by linarith [hx.2]⟩,
       plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
-    constructor <;> simp <;> ring
+    constructor <;> simp; ring
   · intro x hx
     rcases eq_or_lt_of_le hx.1 with rfl | hx0
     · rw [show ((4 - (0 : ℝ)) / 4) = 1 by norm_num]
@@ -14920,7 +14916,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_cutModel_step4_squareLoop_edges 
       simp only [hfr _ h]
       rw [(hq _).2.2.2 ⟨by linarith [hx.2], by linarith [hx.1]⟩,
         plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
-      constructor <;> simp <;> ring
+      constructor <;> simp; ring
 
 /-- Step 4 of the blueprint proof of `plAnnulusRouting_polygonalAnnulus_cutModel`: the boundary of the unit square has
 a period-one loop parametrization running up the left side (`s = 0`) and then down the right side (`s = 1`). -/
@@ -15119,7 +15115,6 @@ private lemma plAnnulusRouting_polygonalAnnulus_isLoopParam_add
   · intro s hs t ht hst
     obtain ⟨m, hm⟩ := pg_param_eq hδ hst
     have hmlo : (-1 : ℝ) < m := by
-      push_cast
       linarith [hm, hs.1, ht.2]
     have hmhi : (m : ℝ) < 1 := by
       linarith [hm, ht.1, hs.2]
@@ -15156,12 +15151,10 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorSquareHomeomorph
       (∀ x, x.1 0 ∈ Ioo (0 : ℝ) 1 ∧ x.1 1 ∈ Ioo (0 : ℝ) 1 →
         (H x).1 ∈ interior D.carrier) ∧
       (∀ (s : ℝ) (hs : s ∈ Icc (0 : ℝ) 1),
-        (H ⟨!₂[0, s], by simp only [Matrix.cons_val_zero,
-          Matrix.cons_val_one]; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩).1 =
+        (H ⟨!₂[0, s], by simp only; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩).1 =
           AffineMap.lineMap b d s) ∧
       (∀ (s : ℝ) (hs : s ∈ Icc (0 : ℝ) 1),
-        (H ⟨!₂[1, s], by simp only [Matrix.cons_val_zero,
-          Matrix.cons_val_one]; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩).1 =
+        (H ⟨!₂[1, s], by simp only; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩).1 =
           AffineMap.lineMap a c s) ∧
       (∀ (u : ℝ) (hu : u ∈ Icc (0 : ℝ) 1),
         (H ⟨!₂[1 - u, 0], by
@@ -15251,7 +15244,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorSquareHomeomorph
   · intro s hs
     let q : {P : Pt | P 0 ∈ Icc (0 : ℝ) 1 ∧ P 1 ∈ Icc (0 : ℝ) 1} :=
       ⟨!₂[0, s], by
-        simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
+        simp only
         exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩
     let z : Metric.closedBall (0 : ℂ) 1 :=
       ⟨Complex.exp (((2 * Real.pi * (s / 4) : ℝ) : ℂ) * Complex.I),
@@ -15265,11 +15258,11 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorSquareHomeomorph
     change (HD (HQ.symm (E q))).1 = _
     rw [hz, hDcircle]
     change l0 (s / 4 + 1 / 4) = _
-    convert hD0 s hs using 1 <;> ring
+    convert hD0 s hs using 1; ring
   · intro s hs
     let q : {P : Pt | P 0 ∈ Icc (0 : ℝ) 1 ∧ P 1 ∈ Icc (0 : ℝ) 1} :=
       ⟨!₂[1, s], by
-        simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
+        simp only
         exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩
     let z : Metric.closedBall (0 : ℂ) 1 :=
       ⟨Complex.exp (((2 * Real.pi * ((3 - s) / 4) : ℝ) : ℂ) * Complex.I),
@@ -15283,7 +15276,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorSquareHomeomorph
     change (HD (HQ.symm (E q))).1 = _
     rw [hz, hDcircle]
     change l0 ((3 - s) / 4 + 1 / 4) = _
-    convert hD1 s hs using 1 <;> ring
+    convert hD1 s hs using 1; ring
   · intro u hu
     let q : {P : Pt | P 0 ∈ Icc (0 : ℝ) 1 ∧ P 1 ∈ Icc (0 : ℝ) 1} :=
       ⟨!₂[1 - u, 0], by
@@ -15387,8 +15380,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorRectangleModel
       exact Subtype.ext hpr
     have h0 := congrArg (fun z => z.1 0) hqr
     have h1 := congrArg (fun z => z.1 1) hqr
-    simp only [q, Matrix.cons_val_zero, Matrix.cons_val_one,
-      hcl p.2 hp.2, hcl r.2 hr.2] at h0
+    simp only [q, Matrix.cons_val_zero, hcl p.2 hp.2, hcl r.2 hr.2] at h0
     simp only [q, Matrix.cons_val_zero, Matrix.cons_val_one,
       hcl p.1 hp.1, hcl r.1 hr.1] at h1
     apply Prod.ext h1
@@ -15423,20 +15415,18 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorRectangleModel
   · intro s hs
     change (H (q (s, 0))).1 = _
     have hq0 : q (s, 0) =
-        ⟨!₂[1, s], by simp only [Matrix.cons_val_zero,
-          Matrix.cons_val_one]; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩ := by
+        ⟨!₂[1, s], by simp only; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩ := by
       apply Subtype.ext
       rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
-      simp [q, hcl _ hs, cl, projIcc_of_mem]
+      simp [q, hcl _ hs, cl]
     rw [hq0, Hright s hs]
   · intro s hs
     change (H (q (s, 1))).1 = _
     have hq1 : q (s, 1) =
-        ⟨!₂[0, s], by simp only [Matrix.cons_val_zero,
-          Matrix.cons_val_one]; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩ := by
+        ⟨!₂[0, s], by simp only; exact ⟨⟨by norm_num, by norm_num⟩, hs⟩⟩ := by
       apply Subtype.ext
       rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
-      simp [q, hcl _ hs, cl, projIcc_of_mem]
+      simp [q, hcl _ hs, cl]
     rw [hq1, Hleft s hs]
   · intro u hu
     change (H (q (0, u))).1 = _
@@ -15449,7 +15439,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorRectangleModel
             norm_num⟩ := by
       apply Subtype.ext
       rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
-      simp [q, hcl _ hu, cl, projIcc_of_mem]
+      simp [q, hcl _ hu, cl]
     rw [hq0, Hbottom u hu]
   · intro u hu
     change (H (q (1, u))).1 = _
@@ -15462,7 +15452,7 @@ private lemma plAnnulusRouting_polygonalAnnulus_sectorRectangleModel
             norm_num⟩ := by
       apply Subtype.ext
       rw [plAnnulusRouting_polygonalAnnulus_cutModel_step4_pointEqIff]
-      simp [q, hcl _ hu, cl, projIcc_of_mem]
+      simp [q, hcl _ hu, cl]
     rw [hq1, Htop u hu]
 
 /-- The two radial boundary rows of a sector rectangle lie on the corresponding
@@ -34367,7 +34357,7 @@ private lemma quantitativeAnnularGrouping_innerOrder_step4_arcProps {l : List Pt
   refine ⟨hst, hsp, ?_, ?_, ?_⟩
   · intro x hx
     obtain ⟨i, hi⟩ := mem_iUnion.1 hx
-    simp only [PolyArc.seg, quantitativeAnnularGrouping_innerOrder_step4_arc, Fin.coe_castSucc, Fin.val_succ] at hi
+    simp only [PolyArc.seg, quantitativeAnnularGrouping_innerOrder_step4_arc, Fin.val_castSucc, Fin.val_succ] at hi
     have hi1 : (i : ℕ) + 1 < l.length := by have := i.isLt; simp only [quantitativeAnnularGrouping_innerOrder_step4_arc] at this; omega
     rw [hgi _ (by omega), hgi _ hi1] at hi
     exact hT.getElem i hi1 hi
@@ -39275,7 +39265,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_sort_real
 /-- The midpoint of a nondegenerate subsegment lies in the relative interior of the ambient
 nondegenerate segment. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R2_subsegment_midpoint_open
-    {a b p q : Pt} (hab : a ≠ b) (hpq : p ≠ q)
+    {a b p q : Pt} (_hab : a ≠ b) (hpq : p ≠ q)
     (hp : p ∈ segment ℝ a b) (hq : q ∈ segment ℝ a b) :
     AffineMap.lineMap p q (1 / 2 : ℝ) ∈ openSegment ℝ a b := by
   rw [segment_eq_image_lineMap] at hp hq
@@ -40351,7 +40341,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_bound
 /-- Every point of the centred square boundary is at Euclidean distance at least `kappa` from
 the centre. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_frontier_norm
-    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (c : Pt) {kappa : ℝ} (_hkappa : 0 < kappa) (C : PolygonalDisk)
     (hC : C.carrier = square c kappa) {x : Pt} (hx : x ∈ frontier C.carrier) :
     kappa ≤ ‖x - c‖ := by
   by_contra hnorm
@@ -40456,7 +40446,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_squareEndpoint_injec
   exact smul_right_injective Pt hkappa.ne' (add_left_cancel heq)
 
 private lemma existsRoutingAfterPower_step4_routes_step6_R3_centeredSquare_frontier_sw3N
-    (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (C : PolygonalDisk)
+    (c : Pt) {kappa : ℝ} (_hkappa : 0 < kappa) (C : PolygonalDisk)
     (hC : C.carrier = square c kappa) {x : Pt} (hx : x ∈ frontier C.carrier) :
     sw3N (x - c) = kappa := by
   have hxC : x ∈ square c kappa := by
@@ -40610,7 +40600,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_circle_square_homoto
   · intro t
     simp [F, radius]
   · intro t
-    simp only [F, radius, one_mul, one_div, sub_self, zero_mul, zero_add]
+    simp only [F, radius, one_mul, sub_self, zero_mul, zero_add]
     rfl
   · intro s hs t
     have hNle : sw3N (gamma t) ≤ 1 := by
@@ -40704,7 +40694,6 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_pointsInOrder_of_pun
       have hstep := hm (phi t - 1)
       rw [show phi t - 1 + 1 = phi t by ring] at hstep
       rw [hstep]
-      push_cast
       ring
     have hself : LoopsHomotopicIn ({c}ᶜ) gamma gamma :=
       pg_lh_refl hgamma.1 hgamma.2.1 fun t => by
@@ -40768,7 +40757,6 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_pgLoop_degree_one
       rw [pgW_pgL]
       exact hccw c hc
     rw [hwind] at hdegree
-    push_cast at hdegree
     have hnR : (n : ℝ) = 1 := by nlinarith [Real.pi_pos]
     exact_mod_cast hnR
   subst n
@@ -40891,7 +40879,6 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R2_parent_circle_homoto
         have hs := hThetaSquareIncr (-(t + 1))
         simp only [show -(t + 1) + 1 = -t by ring] at hs
         rw [hs]
-        push_cast
         ring
       have hdeg :=
         existsAnnularSpokes_step5_crosscuts_step3_order_transfer_step1_k3_step6_homotopy_degree
@@ -41503,7 +41490,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_crosscut_outerFronti
   apply Set.Subset.antisymm
   · rintro z ⟨hzγ, hzA⟩
     by_cases hzs : z = γ.start
-    · simpa [hzs]
+    · simp [hzs]
     by_cases hzt : z = γ.stop
     · subst z
       exact False.elim (hzA.2 hstop)
@@ -41525,7 +41512,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_crosscut_innerCarrie
   apply Set.Subset.antisymm
   · rintro z ⟨hzγ, hzC⟩
     by_cases hzs : z = γ.stop
-    · simpa [hzs]
+    · simp [hzs]
     by_cases hzt : z = γ.start
     · subst z
       exact False.elim (hstart.2 (hCA hzC))
@@ -41549,7 +41536,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R3_route_otherPort_disj
     have := hsep p hpS p hqT
     rw [dist_self] at this
     linarith
-  · exact (hT hqT).2 (hinside ⟨hqK, by simpa [hqp]⟩)
+  · exact (hT hqT).2 (hinside ⟨hqK, by simp [hqp]⟩)
 
 /-- Appending the canonical square-to-circle collars to pairwise disjoint annular routes keeps
 the routes pairwise disjoint, inside the parent away from their starts, and outside the protected
@@ -42101,7 +42088,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_finiteInterpolation
       let L := existsRoutingAfterPower_step4_routes_step6_R4_linearInterpolation
         (t j) (t last) (t' j) (t' last)
       have hjlast : j < last := by
-        rw [Fin.lt_iff_val_lt_val]
+        rw [Fin.lt_def]
         simp [j, last]
       have htab : t j < t last := ht hjlast
       have htab' : t' j < t' last := ht' hjlast
@@ -42330,7 +42317,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_periodicStrictMono_o
     have hnle : (n : ℝ) ≤ y - f 0 := by
       simpa [n] using Int.floor_le (y - f 0)
     have hylt : y - f 0 < (n : ℝ) + 1 := by
-      simpa [n] using Int.lt_floor_add_one (y - f 0)
+      simp [n]
     have hflo : f n ≤ y := by rw [hfinteger]; linarith
     have hfhi : y ≤ f ((n : ℝ) + 1) := by
       rw [hdegree, hfinteger]
@@ -42414,7 +42401,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_circleMap_of_periodi
     have heq : Set.restrict (Metric.sphere (0 : ℂ) 1) f =
         fun z : Metric.sphere (0 : ℂ) 1 =>
           ((H ⟨z.1, by
-            simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right] using z.2⟩ :
+            simp [Submonoid.unitSphere]⟩ :
               Circle) : ℂ) := by
       funext z
       simp [f]
@@ -42422,7 +42409,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_circleMap_of_periodi
     exact continuous_subtype_val.comp (H.continuous.comp (by fun_prop))
   · intro z hz
     simp only [f, dif_pos hz]
-    simpa [Metric.mem_sphere, dist_zero_right] using (H _).property
+    simp
   · intro z hz w hw heq
     simp only [f, dif_pos hz, dif_pos hw] at heq
     exact congrArg Subtype.val (H.injective (Subtype.ext heq))
@@ -42430,7 +42417,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_circleMap_of_periodi
     let w : Circle := H.symm ⟨z, by
       simpa [Submonoid.unitSphere, Metric.mem_sphere, dist_zero_right] using hz⟩
     have hw : (w : ℂ) ∈ Metric.sphere (0 : ℂ) 1 := by
-      simpa [Metric.mem_sphere, dist_zero_right] using w.property
+      simp
     refine ⟨w, hw, ?_⟩
     simp only [f, dif_pos hw]
     exact congrArg Subtype.val (H.apply_symm_apply ⟨z, by
@@ -42446,7 +42433,6 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_circleMap_of_periodi
             (t : AddCircle (1 : ℝ)) := by
       apply Subtype.ext
       rw [AddCircle.homeomorphCircle_apply, AddCircle.toCircle_apply_mk, Circle.coe_exp]
-      congr 2
       norm_num
     rw [hsource]
     have hmap : H (AddCircle.homeomorphCircle one_ne_zero (t : AddCircle (1 : ℝ))) =
@@ -42464,7 +42450,7 @@ one is available, radial coning gives the required angular deformation: exact en
 preservation of every ball about the fixed centre. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_R4_angularDeformation_of_circleMap
     {I : Type*} (c : Pt) {kappa : ℝ} (hkappa : 0 < kappa) (u u' : I → Pt)
-    (hu : ∀ i, ‖u i‖ = 1) (hu' : ∀ i, ‖u' i‖ = 1)
+    (hu : ∀ i, ‖u i‖ = 1) (_hu' : ∀ i, ‖u' i‖ = 1)
     (f : ℂ → ℂ) (hfc : ContinuousOn f (Metric.sphere 0 1))
     (hfm : MapsTo f (Metric.sphere 0 1) (Metric.sphere 0 1))
     (hfi : InjOn f (Metric.sphere 0 1))
@@ -43417,7 +43403,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_portStart_parentInte
   refine ⟨x', hx', e, hmap, ?_, ?_, hinterior⟩
   · intro z hz
     apply hfix z
-    convert hz using 1 <;> dsimp [epsilon] <;> ring
+    convert hz using 1; dsimp [epsilon]; ring
   · intro z
     exact (hmove z).trans hxx'
 
@@ -43509,7 +43495,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_oneDirectionBump
   refine ⟨e, hep, ?_, ?_, ?_⟩
   · intro x hx
     apply hfix x
-    convert hx using 1 <;> dsimp only [w] <;> ring
+    convert hx using 1; dsimp only [w]; ring
   · intro x
     exact (hmove x).trans hpp'
   · intro x y
@@ -43729,7 +43715,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_portStartFamily_pare
     (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
     (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp rho α)
     (gamma : Fin (Rs.GS.G.P'.disk α).n → Fin 4 → PolyArc)
-    (hstart : ∀ a, ∀ ha : a ∈ Rs.markedSides α, ∀ i,
+    (hstart : ∀ a, ∀ _ha : a ∈ Rs.markedSides α, ∀ i,
       (gamma a i).start ∈ segment ℝ (cfg.2.1 a i.castSucc).1
         (cfg.2.1 a i.castSucc).2) :
     let I := {a : Fin (Rs.GS.G.P'.disk α).n // a ∈ Rs.markedSides α} × Fin 4
@@ -44289,7 +44275,7 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_Good_fixedRoutes
     (perm : Fin (Rs.GS.G.P'.disk alpha).n → Equiv.Perm (Fin 4))
     (gamma : Fin (Rs.GS.G.P'.disk alpha).n → Fin 4 → PolyArc)
     (gamma' : Fin (Rs.GS.G.P'.disk alpha).n → Fin 4 → PolyArc)
-    (hdelta : 0 < delta)
+    (_hdelta : 0 < delta)
     (hgamma : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
       (gamma a i).start ∈ segment ℝ (cfg.2.1 a i.castSucc).1 (cfg.2.1 a i.castSucc).2 ∧
       (gamma a i).stop = cfg.1 + kappa • cfg.2.2 ⟨a, ha⟩ (perm a i) ∧
@@ -44303,17 +44289,17 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_Good_fixedRoutes
           (cfg.1 + kappa • cfg.2.2 ⟨b, hb⟩ (perm b j)), delta ≤ dist x y) ∧
       ∀ b r, (b, r) ≠ (a, i.castSucc) → ∀ x ∈ (gamma a i).carrier,
         ∀ y ∈ segment ℝ (cfg.2.1 b r).1 (cfg.2.1 b r).2, delta ≤ dist x y)
-    (hnear : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hnear : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       ∀ x ∈ (gamma' a i).carrier, ∃ x₀ ∈ (gamma a i).carrier,
         dist x₀ x ≤ dist cfg cfg')
-    (hstart : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hstart : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       (gamma' a i).start ∈ segment ℝ (cfg'.2.1 a i.castSucc).1 (cfg'.2.1 a i.castSucc).2)
     (hstop : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
       (gamma' a i).stop = cfg'.1 + kappa • cfg'.2.2 ⟨a, ha⟩ (perm a i))
-    (hinterior : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hinterior : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       (gamma' a i).carrier \ {(gamma' a i).start} ⊆
         interior (Rs.GS.G.P'.disk alpha).carrier)
-    (hball : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hball : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       Disjoint (gamma' a i).carrier (Metric.ball cfg'.1 kappa))
     (hsmall : (3 + |kappa|) * dist cfg cfg' ≤ delta / 2) :
     existsRoutingAfterPower_step4_routes_step6_R4_Good
@@ -44401,16 +44387,16 @@ private lemma existsRoutingAfterPower_step4_routes_step6_R4_Good_fixedRoutes_eta
           (cfg.1 + kappa • cfg.2.2 ⟨b, hb⟩ (perm b j)), delta ≤ dist x y) ∧
       ∀ b r, (b, r) ≠ (a, i.castSucc) → ∀ x ∈ (gamma a i).carrier,
         ∀ y ∈ segment ℝ (cfg.2.1 b r).1 (cfg.2.1 b r).2, delta ≤ dist x y)
-    (hnear : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hnear : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       ∀ x ∈ (gamma' a i).carrier, ∃ x₀ ∈ (gamma a i).carrier, dist x₀ x ≤ eta)
-    (hstart : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hstart : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       (gamma' a i).start ∈ segment ℝ (cfg'.2.1 a i.castSucc).1 (cfg'.2.1 a i.castSucc).2)
     (hstop : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
       (gamma' a i).stop = cfg'.1 + kappa • cfg'.2.2 ⟨a, ha⟩ (perm a i))
-    (hinterior : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hinterior : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       (gamma' a i).carrier \ {(gamma' a i).start} ⊆
         interior (Rs.GS.G.P'.disk alpha).carrier)
-    (hball : ∀ a, ∀ ha : a ∈ Rs.markedSides alpha, ∀ i,
+    (hball : ∀ a, ∀ _ha : a ∈ Rs.markedSides alpha, ∀ i,
       Disjoint (gamma' a i).carrier (Metric.ball cfg'.1 kappa))
     (hsmall : 2 * eta + (2 + |kappa|) * dist cfg cfg' ≤ delta / 2) :
     existsRoutingAfterPower_step4_routes_step6_R4_Good
@@ -45253,7 +45239,6 @@ private lemma rwoInner_pw_mono {A s t f0 f1 f2 f3 g0 g1 g2 g3 : ℝ} (hst : s �
   split_ifs with h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 <;>
     first
     | linarith
-    | (exfalso; linarith)
     | linarith [u0 (by linarith), l1 (by linarith)]
     | linarith [u0 (by linarith), l2 (by linarith)]
     | linarith [u0 (by linarith), l3 (by linarith)]
@@ -45825,8 +45810,8 @@ private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_real
 `R2_WeakOrderAdmissible`" (quantitative angular order of the entrances; an inversion between
 different sector blocks would force two entrances within `172 D` of each other). -/
 private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_realizedWeakOrder
-    (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
-    (hcp : 0 < cp) :
+    (τ : Substitution P) (_hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    (_hcp : 0 < cp) :
     ∀ (l : ℕ) (hl : 0 < l) (α : Rs.GS.G.P'.Form)
       (ports : existsRoutingAfterPower_PortData τ M Rs l α cp)
       (entries : existsRoutingAfterPower_EntryData τ M Rs l α hl),
@@ -46874,7 +46859,7 @@ collars."  Annular routing with prescribed collars at an admissible normalized c
 weak cyclic order, for the canonical radius `κ = ρ/4`: prepared routes with positive clearance and
 positive collar margins exist. -/
 private lemma existsRoutingAfterPower_step4_routes_step6_outerRouting_step3_preparedOfWeakOrder
-    (τ : Substitution P) (hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
+    (τ : Substitution P) (_hτ : τ.STS) (M : MeshConstants P) (Rs : RoutingSetup τ M) {cp : ℝ}
     (hcp : 0 < cp) (α : Rs.GS.G.P'.Form)
     (cfg : existsRoutingAfterPower_step4_routes_step6_R2_AdmConfig τ M Rs α)
     (hcfg : cfg ∈ existsRoutingAfterPower_step4_routes_step6_R2_Kadm τ M Rs cp

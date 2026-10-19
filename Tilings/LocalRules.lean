@@ -7600,6 +7600,275 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
   rw [hbel ⟨t, htb⟩ u ((C.g2_belt_connected α).preconnected _ _) j i₀ hj hi₀]
   exact hh3 i₀ hi₀
 
+/-- The partner of an inner side is inner. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_inner_partner
+    (C : Geometry.MacroCertificate P) {o : C.SideOcc} (h : C.IsInner o) :
+    C.IsInner (C.partner o) := by
+  have hp := C.g1_partner _ h
+  unfold MacroData.IsInner MacroData.IsOuter at h ⊢
+  rw [hp.2.2, hp.2.1]
+  exact h
+
+/-- Prints are inner sides. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_inner_of_print
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {d : Fin (C.Q.disk α).n}
+    {o : C.SideOcc} (h : C.IsPrintOf α d o) : C.IsInner o := by
+  rcases h with ⟨hm, rfl | rfl⟩
+  · exact C.g4_print_inner α d hm
+  · exact hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_inner_partner
+      C (C.g4_print_inner α d hm)
+
+/-- A print is never a boundary side. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_print_not_boundary
+    (C : Geometry.MacroCertificate P) {o : C.SideOcc} (hp : C.IsPrint o) :
+    ¬ C.IsBoundary o := by
+  obtain ⟨d, hd⟩ := hp
+  obtain ⟨h1, h2⟩ :=
+    hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step1_unique_step2_print_endpoints
+      C hd
+  rintro ⟨-, h | h⟩
+  · exact h1 h
+  · exact h2 h
+
+/-- A nonprint side lies on at most one path of its template. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_path_unique
+    (C : Geometry.MacroCertificate P) {α : C.Q.Form} {o : C.SideOcc} (hα : C.owner o.1 = α)
+    (hnp : ¬ C.IsPrint o) {d d' : Fin (C.Q.disk α).n} {j j' : Fin 5}
+    (h : o ∈ C.path α d j) (h' : o ∈ C.path α d' j') : d = d' ∧ j = j' := by
+  by_contra hne
+  have hne' : (d, j) ≠ (d', j') := fun e => hne (Prod.mk.inj e)
+  obtain ⟨rfl, hpr⟩ := C.g4_path_disjoint α d d' j j' hne' o h h'
+  by_cases hm : C.marked α d
+  · apply hnp
+    unfold MacroData.IsPrint
+    rw [hα]
+    exact ⟨d, hm, hpr⟩
+  · have htriv := C.g4_path_trivial α d j (fun hg => hm hg.1)
+    rw [htriv, Option.mem_toList] at h
+    have hmem : o ∈ C.outerList α d := List.mem_iff_getElem?.mpr ⟨_, h⟩
+    have hout : C.IsOuter o := ((C.g3_outerList_mem α d o).1 hmem).2.1
+    have hin : C.IsInner (C.printOcc α d) := (C.g2_central α (C.print α d)).1
+    rcases hpr with rfl | rfl
+    · exact hin hout
+    · exact
+        hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_inner_partner
+          C hin hout
+
+/-- The third cell of a nonprint side on a path of the parent is the parent cell. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_generate_path
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (t : C.Typ)
+    (ht : C.owner t = C.form A.1) (i : C.Side t) (hnp : ¬ C.IsPrint (C.occ t i))
+    (d : C.Side A.1) (j : Fin 5) (hdj : C.occ t i ∈ C.path (C.form A.1) d j) :
+    (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 2 = A.2 d j := by
+  have ht' : C.owner (C.occ t i).1 = C.form A.1 := ht
+  have hnp' : ¬ ∃ d, C.IsPrintOf (C.form A.1) d (C.occ t i) := by
+    rw [← ht']
+    exact hnp
+  have hne : (Planned.copySource C (C.form A.1) (C.occ t i) 2).Nonempty :=
+    ⟨(d, j), Or.inr ⟨hnp, rfl, hdj⟩⟩
+  unfold hereditary_sts_substitution_sofic_generate
+  dsimp only
+  rw [dif_pos hne]
+  rcases hne.some_mem with ⟨hp1, -, -⟩ | ⟨-, -, hp3⟩
+  · exact absurd ⟨_, hp1⟩ hnp'
+  · obtain ⟨h1, h2⟩ :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_path_unique
+        C ht' hnp hp3 hdj
+    rw [h1, h2]
+
+/-- The fourth cell of a nonprint boundary side of a generated child is the header of the
+parent. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_generate_boundary
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) (t : C.Typ)
+    (ht : C.owner t = C.form A.1) (i : C.Side t) (hnp : ¬ C.IsPrint (C.occ t i))
+    (hb : C.IsBoundary (C.occ t i)) :
+    (hereditary_sts_substitution_sofic_generate τ hsts C m hC A t).2 i 3 =
+      Sum.inr (Sum.inr (hereditary_sts_substitution_sofic_header τ hsts C hC A)) := by
+  have ht' : C.owner (C.occ t i).1 = C.form A.1 := ht
+  have hnp' : ¬ ∃ d, C.IsPrintOf (C.form A.1) d (C.occ t i) := by
+    rw [← ht']
+    exact hnp
+  have hcs : ¬ (Planned.copySource C (C.form A.1) (C.occ t i) 3).Nonempty := by
+    rintro ⟨p, ⟨hp, -, -⟩ | ⟨-, hk2, -⟩⟩
+    · exact hnp' ⟨_, hp⟩
+    · exact absurd hk2 (by decide)
+  have hout : ¬ C.IsOuter (C.occ t i) := hb.1
+  unfold hereditary_sts_substitution_sofic_generate
+  dsimp only
+  rw [dif_neg hcs, dif_neg hnp]
+  simp [hout, hb]
+
+/-- The decoder returns the decoded value only when the tile decodes it. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_decode_spec
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m)
+    (A : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form A.1))
+    (h : hereditary_sts_substitution_sofic_decode τ hsts C hC A = some γ) :
+    hereditary_sts_substitution_sofic_Decodes τ hsts C hC A γ := by
+  unfold hereditary_sts_substitution_sofic_decode at h
+  split at h
+  · rename_i hex
+    have hγ : hex.exists.choose = γ := Option.some.inj h
+    rw [← hγ]
+    exact hex.exists.choose_spec
+  · exact absurd h (by simp)
+
+/-- The components of an equality of headers. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_header_inj
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) (t : C.Typ)
+    (c : C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (z : C.Side t → Bool)
+    (o : Option (hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t)))
+    (h : hereditary_sts_substitution_sofic_header τ hsts C hC ⟨t, c⟩ = ⟨t, z, o⟩) :
+    (∀ d : C.Side t, (C.outerB t d && decide (c d 3 = Sum.inl 0)) = z d) ∧
+      hereditary_sts_substitution_sofic_decode τ hsts C hC ⟨t, c⟩ = o := by
+  have h2 := eq_of_heq (Sigma.mk.inj h).2
+  exact ⟨fun d => congrFun (congrArg Prod.fst h2) d, congrArg Prod.snd h2⟩
+
+/-- Extended analogue of `rhe_recon_cell` of `Control/Strict.lean`: the cell `(i, k)` of the
+reconstructed parent of type `t` is the cell `(i, k)` of a tile `⟨t, c⟩` whose header is the common
+header `⟨t, z, o⟩`.  The child at port `k` of `i` has an outer side, hence a boundary side, so
+its founded-legal parent `E` has header `⟨t, z, o⟩` (the fourth cell of the boundary side is the
+header of `E`); the port lies on the path `P_k(i)`, so its third cell is the cell `E.2 i k`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_recon_cell
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (hF : X.dec.Proper F) (α : C.Q.Form) (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (hcol : ∀ t, C.owner t = α →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ∈ F.tiles)
+    (t : C.Typ) (z : C.Side t → Bool)
+    (o : Option (hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t)))
+    (hh : hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_CommonHeader
+      τ hsts C hC α col ⟨t, z, o⟩)
+    (i : C.Side t) (k : Fin 5) :
+    ∃ c : C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC,
+      hereditary_sts_substitution_sofic_header τ hsts C hC ⟨t, c⟩ = ⟨t, z, o⟩ ∧
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
+          τ hsts C hC col t).2 i k = c i k := by
+  have htf : C.form t = α := hh.1
+  subst htf
+  obtain ⟨p, hp⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_some
+      C (C.form t) i k
+  obtain ⟨hown, hout⟩ :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_owner
+      C (C.form t) i k p hp
+  obtain ⟨A, hA, hlegal⟩ := X.proper_typed_legal F hF _ (hcol p.1 hown)
+  have hAeq : A = ⟨p.1, col p.1⟩ := by
+    have h1 : X.formEquiv
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+          τ hsts C X v col p.1).form = Sum.inl ⟨p.1, col p.1⟩ := Equiv.apply_symm_apply _ _
+    exact Sum.inl.inj (hA.symm.trans h1)
+  subst hAeq
+  obtain ⟨E, hEown, hEgen⟩ : ∃ E : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC,
+      C.owner p.1 = C.form E.1 ∧
+      (⟨p.1, col p.1⟩ : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) =
+        hereditary_sts_substitution_sofic_generate τ hsts C m hC E p.1 := by
+    obtain ⟨ch, h0, hch, -⟩ := hlegal
+    refine ⟨ch 1, ?_⟩
+    have h1 := hch 0
+    rw [h0] at h1
+    exact h1
+  have h2 : (⟨p.1, col p.1⟩ : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC) =
+      ⟨p.1, (hereditary_sts_substitution_sofic_generate τ hsts C m hC E p.1).2⟩ := hEgen
+  have hcol3 : col p.1 = (hereditary_sts_substitution_sofic_generate τ hsts C m hC E p.1).2 :=
+    eq_of_heq (Sigma.mk.inj h2).2
+  obtain ⟨j, hj⟩ := Planned.Strict.exists_boundary_side_of_outer C p.1 p.2 hout
+  have hjnp : ¬ C.IsPrint (C.occ p.1 j) := fun hpr =>
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_print_not_boundary
+      C hpr hj
+  have e1 : col p.1 j 3 = Sum.inr (Sum.inr ⟨t, z, o⟩) := hh.2.2 p.1 j hown hj
+  have e2 : col p.1 j 3 =
+      Sum.inr (Sum.inr (hereditary_sts_substitution_sofic_header τ hsts C hC E)) :=
+    (congrFun (congrFun hcol3 j) 3).trans
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_generate_boundary
+        τ hsts C m hC E p.1 hEown j hjnp hj)
+  have hEh : hereditary_sts_substitution_sofic_header τ hsts C hC E = ⟨t, z, o⟩ :=
+    Sum.inr.inj (Sum.inr.inj (e2.symm.trans e1))
+  have hmemP : p ∈ C.path (C.form t) i k := by
+    by_cases hg : C.IsGenuinePath (C.form t) i k
+    · exact List.mem_of_mem_head? ((C.g4_path_head _ _ _ hg).trans hp)
+    · rw [C.g4_path_trivial _ _ _ hg, hp]
+      simp
+  have hnp : ¬ C.IsPrint p := fun ⟨_, hpr⟩ =>
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_inner_of_print
+      C hpr hout
+  obtain ⟨tE, cE⟩ := E
+  have htE : tE = t := (Sigma.mk.inj hEh).1
+  subst htE
+  refine ⟨cE, hEh, ?_⟩
+  have hval : col p.1 p.2 2 = cE i k :=
+    (congrFun (congrFun hcol3 p.2) 2).trans
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_generate_path
+        τ hsts C m hC ⟨tE, cE⟩ p.1 hEown p.2 hnp i k hmemP)
+  exact
+    (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_cells
+      τ hsts C hC col tE _ rfl i k p hp).trans hval
+
+/-- A tile of type `t` all of whose cells are cells of tiles with the common header
+`⟨t, z, some γ⟩` decodes `γ`: the nonprint second cells are the packets of `γ`, and the
+off-boundary clause of `Decodes` depends on the type only. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_decodes
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} (hC : C.Represents τ m) (t : C.Typ) (z : C.Side t → Bool)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t))
+    (c0 : C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (key : ∀ (i : C.Side t) (k : Fin 5),
+      ∃ c : C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC,
+        hereditary_sts_substitution_sofic_header τ hsts C hC ⟨t, c⟩ = ⟨t, z, some γ⟩ ∧
+          c0 i k = c i k) :
+    hereditary_sts_substitution_sofic_Decodes τ hsts C hC ⟨t, c0⟩ γ := by
+  refine ⟨fun i hnp => ?_, fun w hw => ?_⟩
+  · obtain ⟨c, hc, hcell⟩ := key i 1
+    have hD :=
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_decode_spec
+        τ hsts C hC ⟨t, c⟩ γ
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_header_inj
+          τ hsts C hC t c z _ hc).2
+    exact hcell.trans (hD.1 i hnp)
+  · obtain ⟨c, hc, -⟩ := key ⟨0, by have := (C.Q.disk (C.form t)).three_le; omega⟩ 0
+    exact
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_decode_spec
+        τ hsts C hC ⟨t, c⟩ γ
+        (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_header_inj
+          τ hsts C hC t c z _ hc).2).2 w hw
+
+/-- A tile of type `t` all of whose cells are cells of tiles with the common header
+`⟨t, z, some γ⟩` has this header: the zero-mode bits are read off the fourth cells, and the tile
+decodes `γ` (`aux_decodes`), hence `decode = some γ`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_assemble
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    (m : ℕ) (hC : C.Represents τ m) (t : C.Typ) (z : C.Side t → Bool)
+    (γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t))
+    (c0 : C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (key : ∀ (i : C.Side t) (k : Fin 5),
+      ∃ c : C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC,
+        hereditary_sts_substitution_sofic_header τ hsts C hC ⟨t, c⟩ = ⟨t, z, some γ⟩ ∧
+          c0 i k = c i k) :
+    hereditary_sts_substitution_sofic_header τ hsts C hC ⟨t, c0⟩ = ⟨t, z, some γ⟩ := by
+  have hdec : hereditary_sts_substitution_sofic_decode τ hsts C hC ⟨t, c0⟩ = some γ :=
+    hereditary_sts_substitution_sofic_step3_generate_decodes_child_step1_packet_step3_decode
+      τ hsts C m hC ⟨t, c0⟩ γ
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_decodes
+        τ hsts C hC t z γ c0 key)
+  have hz : (fun d => C.outerB t d && decide (c0 d 3 = Sum.inl 0)) = z := by
+    funext d
+    obtain ⟨c, hc, hcell⟩ := key d 3
+    rw [hcell]
+    exact
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_header_inj
+        τ hsts C hC t c z _ hc).1 d
+  exact congrArg (Sigma.mk t) (Prod.ext hz hdec)
+
 /-- Step 3 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:
 "reconstruct the parent cells from the third cells of the five ports on each parent side
@@ -7628,7 +7897,14 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
     hereditary_sts_substitution_sofic_header τ hsts C hC
       (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_reconstruct
         τ hsts C hC col h.1) = h := by
-  sorry
+  obtain ⟨t, z, o⟩ := h
+  obtain ⟨γ, rfl⟩ : ∃ γ : hereditary_sts_substitution_sofic_Catalog τ hsts C (C.form t),
+      o = some γ := Option.isSome_iff_exists.1 hh.2.1
+  exact
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_assemble
+      τ hsts C m hC t z γ _
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step3_header_eq_aux_recon_cell
+        τ hsts C m hC X F hF α v col hcol t z (some γ) hh)
 
 /-- Step 4 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`

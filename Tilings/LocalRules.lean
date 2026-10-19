@@ -7334,6 +7334,502 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
         τ hsts C hC col h.1) t = ⟨t, col t⟩ := by
   sorry
 
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) a segment determines its endpoints up to order. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_endpoints
+    {a b c d : Pt} (h : segment ℝ a b = segment ℝ c d) :
+    (a = c ∧ b = d) ∨ (a = d ∧ b = c) := by
+  by_cases hab : a = b
+  · subst hab
+    rw [segment_same] at h
+    have hc : c ∈ ({a} : Set Pt) := h ▸ left_mem_segment ℝ c d
+    have hd : d ∈ ({a} : Set Pt) := h ▸ right_mem_segment ℝ c d
+    rw [Set.mem_singleton_iff] at hc hd
+    exact Or.inl ⟨hc.symm, hd.symm⟩
+  have hc : c ∈ segment ℝ a b := h ▸ left_mem_segment ℝ c d
+  have hd : d ∈ segment ℝ a b := h ▸ right_mem_segment ℝ c d
+  have ha : a ∈ segment ℝ c d := h ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ c d := h ▸ right_mem_segment ℝ a b
+  rw [segment_eq_image'] at hc hd ha hb
+  obtain ⟨s, ⟨hs0, hs1⟩, rfl⟩ := hc
+  obtain ⟨t, ⟨ht0, ht1⟩, rfl⟩ := hd
+  obtain ⟨u, ⟨hu0, hu1⟩, hu⟩ := ha
+  obtain ⟨w, ⟨hw0, hw1⟩, hw⟩ := hb
+  simp only at hu hw
+  have hv : b - a ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have e1 : (s + u * (t - s)) • (b - a) = 0 := by
+    have : a + s • (b - a) + u • (a + t • (b - a) - (a + s • (b - a))) - a =
+        (s + u * (t - s)) • (b - a) := by module
+    rw [← this, hu, sub_self]
+  have e2 : (s + w * (t - s) - 1) • (b - a) = 0 := by
+    have : a + s • (b - a) + w • (a + t • (b - a) - (a + s • (b - a))) - b =
+        (s + w * (t - s) - 1) • (b - a) := by module
+    rw [← this, hw, sub_self]
+  have f1 := (smul_eq_zero.1 e1).resolve_right hv
+  have f2 := (smul_eq_zero.1 e2).resolve_right hv
+  rcases lt_trichotomy s t with hst | hst | hst
+  · have hs : s = 0 := by nlinarith
+    subst hs
+    have ht : t = 1 := by nlinarith
+    subst ht
+    left; constructor <;> simp
+  · subst hst; simp at f1 f2; linarith
+  · have ht : t = 0 := by nlinarith
+    subst ht
+    have hs : s = 1 := by nlinarith
+    subst hs
+    right; constructor <;> simp
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) the cyclic rotation of `Fin N`, `N ≥ 2`, has no fixed point. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_finRotate_ne
+    {N : ℕ} (hN : 2 ≤ N) (x : Fin N) : finRotate N x ≠ x := by
+  obtain ⟨k, rfl⟩ : ∃ k, N = k + 1 + 1 := ⟨N - 2, by omega⟩
+  rw [finRotate_succ_apply]
+  intro h
+  have := congrArg (· - x) h
+  simp at this
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) consecutive listed vertices of a polygonal disk are distinct. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vertex_ne
+    (D : PolygonalDisk) (i : Fin D.n) : D.vertex i ≠ D.vertex (finRotate _ i) := fun h =>
+  hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_finRotate_ne (by have := D.three_le; omega) i (D.vertex_injective h).symm
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) a side occurrence is the segment between its endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_occSide_eq
+    (C : Geometry.MacroCertificate P) (o : C.SideOcc) :
+    C.occSide o = segment ℝ (C.occStart o) (C.occEnd o) := by
+  unfold MacroData.occSide MacroData.childTile PlacedTile.side PolygonalDisk.side
+    MacroData.occStart MacroData.occEnd
+  rw [vadd_segment]
+  rfl
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) a translated segment is the segment of the translated endpoints. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vadd_segment
+    (w a b : Pt) : w +ᵥ segment ℝ a b = segment ℝ (w + a) (w + b) := by
+  rw [← segment_translate_image]; rfl
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) scaling commutes with translation, `θ v + θ S = θ (v + S)`. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_smul_vadd
+    (θ : ℝ) (v : Pt) (S : Set Pt) : (θ • v) +ᵥ θ • S = θ • (v +ᵥ S) := by
+  ext x
+  simp only [Set.mem_vadd_set, Set.mem_smul_set, vadd_eq_add]
+  constructor
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨v + y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+  · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+    exact ⟨θ • y, ⟨y, hy, rfl⟩, by rw [smul_add]⟩
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) a nondegenerate segment covered by finitely many convex sets shares
+a nondegenerate subsegment with one of them. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_cover
+    {x y : Pt} (hxy : x ≠ y) {S : Set (Set Pt)} (hS : S.Finite)
+    (hconv : ∀ T ∈ S, Convex ℝ T) (hcov : segment ℝ x y ⊆ ⋃₀ S) :
+    ∃ T ∈ S, ∃ u v : Pt, u ≠ v ∧ segment ℝ u v ⊆ segment ℝ x y ∩ T := by
+  by_contra hcon
+  push_neg at hcon
+  have hsub : ∀ T ∈ S, (segment ℝ x y ∩ T).Subsingleton := by
+    intro T hT u hu v hv
+    by_contra huv
+    exact hcon T hT u v huv (((convex_segment x y).inter (hconv T hT)).segment_subset hu hv)
+  have hinf : (segment ℝ x y).Infinite := by
+    rw [segment_eq_image_lineMap]
+    exact (Set.Icc_infinite (zero_lt_one' ℝ)).image (AffineMap.lineMap_injective ℝ hxy).injOn
+  apply hinf
+  refine Set.Finite.subset (hS.biUnion fun T hT => (hsub T hT).finite) ?_
+  intro z hz
+  obtain ⟨T, hT, hzT⟩ := hcov hz
+  exact Set.mem_biUnion hT ⟨hz, hzT⟩
+
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (auxiliary geometry) the frontier of a placed tile is the union of its sides. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_frontier
+    {Q : Protoset} (B : PlacedTile Q) : frontier B.carrier = ⋃ i, B.side i := by
+  have h := (Homeomorph.addLeft B.anchor).image_frontier (Q.disk B.form).carrier
+  rw [Homeomorph.coe_addLeft] at h
+  show frontier (B.anchor +ᵥ (Q.disk B.form).carrier) = _
+  rw [show B.anchor +ᵥ (Q.disk B.form).carrier = (B.anchor + ·) '' (Q.disk B.form).carrier from rfl,
+    ← h, (Q.disk _).frontier_eq, Set.image_iUnion]
+  rfl
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (transport) a side index of a grouped form `q` corresponds, through the exact disk
+equation of the decoration, to a side index of a decorated form projecting to `q`, with the
+same side. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport
+    (C : Geometry.MacroCertificate P) (dec : SideDecoration C.Q) (f : dec.P'.Form) (q : C.Q.Form)
+    (h : dec.proj f = q) (i : Fin (C.Q.disk q).n) :
+    ∃ i' : Fin (dec.P'.disk f).n, HEq i i' ∧ (dec.P'.disk f).side i' = (C.Q.disk q).side i := by
+  have e : dec.P'.disk f = C.Q.disk q := (dec.disk_eq f).trans (congrArg _ h)
+  revert e
+  generalize dec.P'.disk f = D
+  intro e
+  subst e
+  exact ⟨i, HEq.rfl, rfl⟩
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (transport, converse) `HEq`-related side indices of a decorated form and of its projection
+denote the same side. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport_heq
+    (C : Geometry.MacroCertificate P) (dec : SideDecoration C.Q) (f : dec.P'.Form) (q : C.Q.Form)
+    (h : dec.proj f = q) (i : Fin (C.Q.disk q).n) (i' : Fin (dec.P'.disk f).n) (hi : HEq i i') :
+    (dec.P'.disk f).side i' = (C.Q.disk q).side i := by
+  have e : dec.P'.disk f = C.Q.disk q := (dec.disk_eq f).trans (congrArg _ h)
+  revert i' e
+  generalize dec.P'.disk f = D
+  intro i' hi e
+  subst e
+  cases hi
+  rfl
+
+/-- Step 2 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (transport) the projection of a side-to-side tiling of the decorated protoset is a
+side-to-side set of grouped tiles. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_proj_sts
+    (C : Geometry.MacroCertificate P) (dec : SideDecoration C.Q) (F : PlaneTiling dec.P')
+    (hF : F.SideToSide) :
+    SideToSideSet ((fun Y : PlacedTile dec.P' => (⟨dec.proj Y.form, Y.anchor⟩ : PlacedTile C.Q)) ''
+      F.tiles) := by
+  rintro _ ⟨Y1, hY1, rfl⟩ _ ⟨Y2, hY2, rfl⟩ i1 i2 hov
+  obtain ⟨i1', -, h1⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport C dec Y1.form _ rfl i1
+  obtain ⟨i2', -, h2⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport C dec Y2.form _ rfl i2
+  have := hF Y1 hY1 Y2 hY2 i1' i2'
+  simp only [PlacedTile.side] at this hov ⊢
+  rw [h1, h2] at this
+  exact this hov
+
+/-- Step 3 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: two lists strictly ordered along the same direction with the same elements (the midpoints
+of the fine outer sides along a parent side, on both sides of the interface) agree position by
+position. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step3_sorted
+    {ι : Type*} (L1 L2 : List ι) (g1 g2 : ι → Pt) (u : Pt) (hu : u ≠ 0)
+    (h1 : (L1.map g1).Pairwise fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • u)
+    (h2 : (L2.map g2).Pairwise fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • u)
+    (hmem : ∀ x, x ∈ L1.map g1 ↔ x ∈ L2.map g2)
+    (r : ℕ) (o o' : ι) (ho : L1[r]? = some o) (ho' : o' ∈ L2) (hg : g1 o = g2 o') :
+    L2[r]? = some o' ∧ L1.length = L2.length := by
+  have hne : ∀ x y : Pt, (∃ c : ℝ, 0 < c ∧ y - x = c • u) → x ≠ y := by
+    rintro x y ⟨c, hc, h⟩ rfl
+    rw [sub_self] at h
+    exact hu ((smul_eq_zero.1 h.symm).resolve_left hc.ne')
+  have nd1 : (L1.map g1).Nodup := h1.imp fun h => hne _ _ h
+  have nd2 : (L2.map g2).Nodup := h2.imp fun h => hne _ _ h
+  have heq : L1.map g1 = L2.map g2 := by
+    refine List.Perm.eq_of_pairwise ?_ h1 h2 ((List.perm_ext_iff_of_nodup nd1 nd2).2 hmem)
+    rintro a b - - ⟨c, hc, hab⟩ ⟨c', hc', hba⟩
+    exfalso
+    have : (c + c') • u = 0 := by
+      rw [add_smul, ← hab, ← hba]; abel
+    exact hu ((smul_eq_zero.1 this).resolve_left (by linarith))
+  have hlen : L1.length = L2.length := by
+    have := congrArg List.length heq
+    simpa using this
+  refine ⟨?_, hlen⟩
+  obtain ⟨r', hr'⟩ := List.mem_iff_getElem?.1 ho'
+  have hm1 : (L2.map g2)[r]? = some (g2 o') := by
+    rw [← heq, List.getElem?_map, ho, Option.map_some, hg]
+  have hm2 : (L2.map g2)[r']? = some (g2 o') := by
+    rw [List.getElem?_map, hr', Option.map_some]
+  have hlt : r < (L2.map g2).length := by
+    rw [List.getElem?_eq_some_iff] at hm1
+    exact hm1.1
+  have := List.getElem?_inj hlt nd2 (hm1.trans hm2.symm)
+  subst this
+  exact hr'
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: coincident parent sides have the same positive direction ("ordered in the global positive
+direction"). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step4_dir
+    (C : Geometry.MacroCertificate P) {α β : C.Q.Form}
+    {d : Fin (C.Q.disk α).n} {d' : Fin (C.Q.disk β).n} {vp wp : Pt}
+    (h : vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d') :
+    C.macroSideDir α d = C.macroSideDir β d' := by
+  rw [PolygonalDisk.side, PolygonalDisk.side, hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vadd_segment, hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vadd_segment] at h
+  have hne : (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' ≠ 0 :=
+    sub_ne_zero.2 (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vertex_ne _ d').symm
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  unfold MacroData.macroSideDir MacroData.posDir
+  rw [← smul_sub, ← smul_sub, ← smul_sub, ← smul_sub]
+  rcases hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_endpoints h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · have e : (C.Q.disk α).vertex (finRotate _ d) - (C.Q.disk α).vertex d =
+        (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' := by
+      have := congrArg₂ (· - ·) h2 h1
+      simpa only [add_sub_add_left_eq_sub] using this
+    have e' : (C.Q.disk α).vertex d - (C.Q.disk α).vertex (finRotate _ d) =
+        (C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d') := by
+      rw [← neg_sub, e, neg_sub]
+    rw [e, e']
+  · have e : (C.Q.disk α).vertex (finRotate _ d) - (C.Q.disk α).vertex d =
+        (C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d') := by
+      have := congrArg₂ (· - ·) h2 h1
+      simpa only [add_sub_add_left_eq_sub] using this
+    have e' : (C.Q.disk α).vertex d - (C.Q.disk α).vertex (finRotate _ d) =
+        (C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d' := by
+      rw [← neg_sub, e, neg_sub]
+    rw [e, e']
+    set δ := C.σ.θ • ((C.Q.disk β).vertex (finRotate _ d') - (C.Q.disk β).vertex d')
+    have hδ : δ ≠ 0 := smul_ne_zero hθ hne
+    have hneg : C.σ.θ • ((C.Q.disk β).vertex d' - (C.Q.disk β).vertex (finRotate _ d')) = -δ := by
+      rw [← neg_sub, smul_neg]
+    rw [hneg]
+    have hp := C.g3_pos_iff δ hδ
+    by_cases hpos : C.IsPositive δ
+    · have : ¬ C.IsPositive (-δ) := fun h' => (hp.1 hpos) h'
+      rw [if_neg this, if_pos hpos]
+    · have : C.IsPositive (-δ) := by
+        by_contra h'
+        exact hpos (hp.2 h')
+      rw [if_pos this, if_neg hpos]
+
+/-- Step 4 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: the positive direction of a scaled parent side is nonzero. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step4_dir_ne
+    (C : Geometry.MacroCertificate P) (α : C.Q.Form) (d : Fin (C.Q.disk α).n) :
+    C.macroSideDir α d ≠ 0 := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have hne : C.σ.θ • (C.Q.disk α).vertex (finRotate _ d) - C.σ.θ • (C.Q.disk α).vertex d ≠ 0 := by
+    rw [← smul_sub]
+    exact smul_ne_zero hθ (sub_ne_zero.2 (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vertex_ne _ d).symm)
+  unfold MacroData.macroSideDir MacroData.posDir
+  split_ifs
+  · exact hne
+  · intro h; apply hne; rw [← neg_sub, h, neg_zero]
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: physically coincident side occurrences have the same physical midpoint. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_mid
+    (C : Geometry.MacroCertificate P) (vp wp : Pt)
+    (p q : C.SideOcc) (h : vp +ᵥ C.occSide p = wp +ᵥ C.occSide q) :
+    vp + C.occMid p = wp + C.occMid q := by
+  rw [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_occSide_eq, hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_occSide_eq, hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vadd_segment,
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vadd_segment] at h
+  have hm : ∀ (v a b : Pt), v + midpoint ℝ a b = midpoint ℝ (v + a) (v + b) := by
+    intro v a b
+    rw [midpoint_eq_smul_add, midpoint_eq_smul_add, invOf_eq_inv]
+    module
+  simp only [MacroData.occMid]
+  rw [hm, hm]
+  rcases hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_endpoints h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  · rw [h1, h2]
+  · rw [h1, h2, midpoint_comm]
+
+/-- Step 5 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: a placed child side is the translate of the side occurrence in its template. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_placed
+    (C : Geometry.MacroCertificate P) (v : Pt) (s : C.Typ) (k : C.Side s) :
+    (v + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k = v +ᵥ C.occSide ⟨s, k⟩ := by
+  rw [← vadd_vadd]
+  rfl
+
+/-- Step 6 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: in a side-to-side set of grouped tiles containing all the positioned children of a block
+`⟨β, wp⟩`, a side of a tile lying on the scaled parent side `d'` of the block is a whole listed
+outer side of that block along `d'` ("the outer-side lists consist of the whole fine outer sides
+contained in the segment", `g3_outerList_mem`). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step6_cover
+    (C : Geometry.MacroCertificate P) (S : Set (PlacedTile C.Q)) (hS : SideToSideSet S)
+    (β : C.Q.Form) (wp : Pt)
+    (hch : ∀ s, C.owner s = β → (⟨C.form s, C.σ.θ • wp + C.anchor s⟩ : PlacedTile C.Q) ∈ S)
+    (d' : Fin (C.Q.disk β).n) (Z : PlacedTile C.Q) (hZ : Z ∈ S)
+    (k0 : Fin (C.Q.disk Z.form).n)
+    (hsub : Z.side k0 ⊆ C.σ.θ • (wp +ᵥ (C.Q.disk β).side d')) :
+    ∃ q ∈ C.outerList β d', Z.side k0 = (C.σ.θ • wp) +ᵥ C.occSide q := by
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have hfs : ∀ S : Set Pt, frontier (C.σ.θ • S) = C.σ.θ • frontier S := fun S =>
+    ((Homeomorph.smulOfNeZero C.σ.θ hθ).image_frontier S).symm
+  have hdfr : C.σ.θ • (C.Q.disk β).side d' ⊆ C.macroBoundary β := by
+    rw [MacroData.macroBoundary, MacroData.macroRegion, hfs]
+    refine Set.smul_set_mono fun z hz => ?_
+    rw [(C.Q.disk _).frontier_eq]
+    exact Set.mem_iUnion.2 ⟨d', hz⟩
+  have hsub' : Z.side k0 ⊆ (C.σ.θ • wp) +ᵥ C.macroBoundary β := by
+    rw [← hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_smul_vadd] at hsub
+    exact hsub.trans (Set.vadd_set_mono hdfr)
+  have hcov : Z.side k0 ⊆ ⋃₀ Set.range (fun x : (Σ s : {s : C.Typ // C.owner s = β}, C.Side s.1) =>
+      (C.σ.θ • wp + C.anchor x.1.1) +ᵥ (C.Q.disk (C.form x.1.1)).side x.2) := by
+    intro z hz
+    obtain ⟨y, hy, rfl⟩ := hsub' hz
+    have hcl : IsClosed (C.σ.θ • (C.Q.disk β).carrier) :=
+      ((C.Q.disk _).compact.smul C.σ.θ).isClosed
+    have hyR : y ∈ C.σ.θ • (C.Q.disk β).carrier := hcl.frontier_subset hy
+    rw [← C.σ.support_eq, C.rule_eq] at hyR
+    simp only [support, Set.mem_iUnion] at hyR
+    obtain ⟨_, ⟨s, hs, rfl⟩, hys⟩ := hyR
+    have hcs : (C.childTile s).carrier ⊆ C.σ.θ • (C.Q.disk β).carrier := by
+      rw [← C.σ.support_eq, ← hs]
+      have hm : C.childTile s ∈ (C.σ.rule (C.owner s)).tiles := by
+        rw [C.rule_eq]
+        exact ⟨s, rfl, rfl⟩
+      exact Set.subset_biUnion_of_mem (u := fun B => B.carrier) hm
+    have hyf : y ∈ frontier ((⟨C.form s, C.anchor s⟩ : PlacedTile C.Q).carrier) :=
+      ⟨subset_closure hys, fun hint => hy.2 (interior_mono hcs hint)⟩
+    rw [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_frontier, Set.mem_iUnion] at hyf
+    obtain ⟨k, hk⟩ := hyf
+    refine ⟨_, ⟨⟨⟨s, hs⟩, k⟩, rfl⟩, ?_⟩
+    show C.σ.θ • wp +ᵥ y ∈ (C.σ.θ • wp + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k
+    rw [← vadd_vadd]
+    exact Set.vadd_mem_vadd_set hk
+  have hZs : Z.side k0 = segment ℝ (Z.anchor + (C.Q.disk Z.form).vertex k0)
+      (Z.anchor + (C.Q.disk Z.form).vertex (finRotate _ k0)) := by
+    rw [PlacedTile.side, PolygonalDisk.side, hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vadd_segment]
+  have hne : Z.anchor + (C.Q.disk Z.form).vertex k0 ≠
+      Z.anchor + (C.Q.disk Z.form).vertex (finRotate _ k0) := fun h =>
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_vertex_ne _ k0 (add_left_cancel h)
+  rw [hZs] at hcov
+  obtain ⟨_, ⟨⟨⟨s, hs⟩, k⟩, rfl⟩, u, v, huv, hsub2⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_cover hne (Set.finite_range _)
+    (by rintro _ ⟨x, rfl⟩; exact (convex_segment _ _).vadd _) hcov
+  have hY := hch s hs
+  have heq : Z.side k0 = (⟨C.form s, C.σ.θ • wp + C.anchor s⟩ : PlacedTile C.Q).side k :=
+    hS Z hZ _ hY k0 k ⟨u, v, huv, fun z hz => ⟨hZs ▸ (hsub2 hz).1, (hsub2 hz).2⟩⟩
+  have heq' : Z.side k0 = (C.σ.θ • wp) +ᵥ C.occSide ⟨s, k⟩ :=
+    heq.trans (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_placed C _ s k)
+  have hq : C.occSide ⟨s, k⟩ ⊆ C.σ.θ • (C.Q.disk β).side d' := by
+    have h := hsub
+    rw [heq', ← hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_smul_vadd] at h
+    exact Set.vadd_set_subset_vadd_set_iff.1 h
+  refine ⟨⟨s, k⟩, (C.g3_outerList_mem _ _ _).2 ⟨hs, ?_, hq⟩, heq'⟩
+  show C.occSide _ ⊆ C.macroBoundary (C.owner s)
+  rw [hs]
+  exact hq.trans hdfr
+
+/-- Step 7 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: along coincident parent sides, every listed outer side of one block has a listed outer side
+of the other block with the same placed midpoint ("the fine sides of the two blocks along that
+segment are the same segments"). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step7_match
+    (C : Geometry.MacroCertificate P) (S : Set (PlacedTile C.Q)) (hS : SideToSideSet S)
+    (α β : C.Q.Form) (vp wp : Pt)
+    (hchA : ∀ s, C.owner s = α → (⟨C.form s, C.σ.θ • vp + C.anchor s⟩ : PlacedTile C.Q) ∈ S)
+    (hchB : ∀ s, C.owner s = β → (⟨C.form s, C.σ.θ • wp + C.anchor s⟩ : PlacedTile C.Q) ∈ S)
+    (d : Fin (C.Q.disk α).n) (d' : Fin (C.Q.disk β).n)
+    (hd : vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d')
+    (p : C.SideOcc) (hp : p ∈ C.outerList α d) :
+    ∃ q ∈ C.outerList β d', C.σ.θ • vp + C.occMid p = C.σ.θ • wp + C.occMid q ∧
+      (C.σ.θ • vp) +ᵥ C.occSide p = (C.σ.θ • wp) +ᵥ C.occSide q := by
+  obtain ⟨hown, -, hpS⟩ := (C.g3_outerList_mem _ d p).1 hp
+  obtain ⟨s, k⟩ := p
+  have hZ := hchA s hown
+  obtain ⟨q, hq, hZq⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step6_cover C S hS β wp hchB d' _ hZ k (by
+      show (C.σ.θ • vp + C.anchor s) +ᵥ (C.Q.disk (C.form s)).side k ⊆ _
+      rw [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_placed, ← hd, ← hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step1_smul_vadd]
+      exact Set.vadd_set_mono hpS)
+  have hside : (C.σ.θ • vp) +ᵥ C.occSide ⟨s, k⟩ = (C.σ.θ • wp) +ᵥ C.occSide q :=
+    (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_placed C (C.σ.θ • vp) s k).symm.trans hZq
+  exact ⟨q, hq, hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_mid C _ _ _ _ hside, hside⟩
+
+/-- Step 8 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: (whole ports) in a side-to-side set of grouped tiles containing the positioned children of
+two blocks with coincident parent sides `d`, `d'`, the ports `k` of `d` and of `d'` are the same
+placed segment: the two outer-side lists are strictly ordered along the same global direction
+(`g3_outerList_sorted`) and have the same placed midpoints, so they coincide position by
+position. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step8_whole_ports
+    (C : Geometry.MacroCertificate P) (S : Set (PlacedTile C.Q)) (hS : SideToSideSet S)
+    (α β : C.Q.Form) (vp wp : Pt)
+    (hchA : ∀ s, C.owner s = α → (⟨C.form s, C.σ.θ • vp + C.anchor s⟩ : PlacedTile C.Q) ∈ S)
+    (hchB : ∀ s, C.owner s = β → (⟨C.form s, C.σ.θ • wp + C.anchor s⟩ : PlacedTile C.Q) ∈ S)
+    (d : Fin (C.Q.disk α).n) (d' : Fin (C.Q.disk β).n)
+    (hd : vp +ᵥ (C.Q.disk α).side d = wp +ᵥ (C.Q.disk β).side d')
+    (k : Fin 5) (o o' : C.SideOcc) (ho : C.port α d k = some o) (ho' : C.port β d' k = some o') :
+    (C.σ.θ • vp + C.anchor o.1) +ᵥ (C.Q.disk (C.form o.1)).side o.2 =
+      (C.σ.θ • wp + C.anchor o'.1) +ᵥ (C.Q.disk (C.form o'.1)).side o'.2 := by
+  have ho1 : (C.outerList α d)[MacroData.portRank (C.outerList α d).length k - 1]? = some o := ho
+  have ho2 : (C.outerList β d')[MacroData.portRank (C.outerList β d').length k - 1]? = some o' :=
+    ho'
+  have hoL : o ∈ C.outerList α d := List.mem_of_getElem? ho1
+  obtain ⟨q, hq, hmid, hside⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step7_match C S hS α β vp wp hchA hchB d d' hd o hoL
+  have hdir := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step4_dir C hd
+  have hsorted : ∀ (γ : C.Q.Form) (e : Fin (C.Q.disk γ).n) (v : Pt),
+      ((C.outerList γ e).map fun p => C.σ.θ • v + C.occMid p).Pairwise
+        fun x y => ∃ c : ℝ, 0 < c ∧ y - x = c • C.macroSideDir γ e := by
+    intro γ e v
+    rw [List.pairwise_map]
+    refine (C.g3_outerList_sorted γ e).imp ?_
+    intro p q h
+    rwa [add_sub_add_left_eq_sub]
+  obtain ⟨hr, hlen⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step3_sorted
+    (C.outerList α d) (C.outerList β d')
+    (fun p => C.σ.θ • vp + C.occMid p) (fun q => C.σ.θ • wp + C.occMid q)
+    (C.macroSideDir α d) (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step4_dir_ne C _ d) (hsorted _ d vp)
+    (by rw [hdir]; exact hsorted _ d' wp) (by
+      intro x
+      simp only [List.mem_map]
+      constructor
+      · rintro ⟨p, hp, rfl⟩
+        obtain ⟨q, hq, he, -⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step7_match C S hS α β vp wp hchA hchB d d' hd p hp
+        exact ⟨q, hq, he.symm⟩
+      · rintro ⟨q, hq, rfl⟩
+        obtain ⟨p, hp, he, -⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step7_match C S hS β α wp vp hchB hchA d' d hd.symm q hq
+        exact ⟨p, hp, he.symm⟩)
+    _ _ _ ho1 hq hmid
+  have hqo : q = o' := by
+    rw [← hlen, hr] at ho2
+    exact Option.some_injective _ ho2
+  subst hqo
+  rw [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_placed C _ o.1 o.2, hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step5_placed C _ q.1 q.2]
+  exact hside
+
+/-- Step 9 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: the placed fine children of a block of the proper colouring project to the positioned
+children of the block in the grouped tiling. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step9_child_mem
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} {hC : C.Represents τ m}
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (F : PlaneTiling X.dec.P') (v : Pt)
+    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (β : C.Q.Form)
+    (hcol : ∀ t, C.owner t = β →
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • v) col t ∈ F.tiles) :
+    ∀ s, C.owner s = β → (⟨C.form s, C.σ.θ • v + C.anchor s⟩ : PlacedTile C.Q) ∈
+      (fun Y : PlacedTile X.dec.P' => (⟨X.dec.proj Y.form, Y.anchor⟩ : PlacedTile C.Q)) '' F.tiles := by
+  intro s hs
+  refine ⟨_, hcol s hs, ?_⟩
+  simp only [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed]
+  rw [X.proj_typed]
+
+/-- Step 10 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide`: the fine tiles carrying the two ports are distinct, since they lie in distinct blocks
+(equal placed children force equal types, hence equal parent forms and anchors). -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step10_distinct
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
+    {m : ℕ} {hC : C.Represents τ m}
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (D E : PlacedTile C.Q) (hDE : D ≠ E)
+    (colD colE : (t : C.Typ) → C.Side t → Fin 5 →
+      hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
+    (o o' : C.SideOcc) (hoD : C.owner o.1 = D.form) (hoE : C.owner o'.1 = E.form) :
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • D.anchor) colD o.1 ≠
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X (C.σ.θ • E.anchor) colE o'.1 := by
+  intro h
+  simp only [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed,
+    PlacedTile.mk.injEq] at h
+  obtain ⟨h1, h2⟩ := h
+  have h1' := X.formEquiv.symm.injective h1
+  simp only [Sum.inl.injEq, Sigma.mk.injEq] at h1'
+  obtain ⟨h11, -⟩ := h1'
+  rw [h11] at h2
+  have hθ : C.σ.θ ≠ 0 := by linarith [C.σ.one_lt]
+  have ha : D.anchor = E.anchor := smul_right_injective Pt hθ (add_right_cancel h2)
+  have hf : D.form = E.form := by rw [← hoD, ← hoE, h11]
+  apply hDE
+  cases D
+  cases E
+  simp only at hf ha
+  subst hf
+  subst ha
+  rfl
+
 /-- Step 6 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`:
 "Heredity makes each parent listed side a union of whole fine sides" (Lemma whole-ports) — the
@@ -7380,7 +7876,34 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
       (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
         τ hsts C X (C.σ.θ • E.anchor) colE o'.1)
       ⟨o.1, colD o.1⟩ ⟨o'.1, colE o'.1⟩ o.2 o'.2 := by
-  sorry
+  have hown := (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_owner
+    C _ i k o ho).1
+  have hown' := (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_port_owner
+    C _ j k o' ho').1
+  refine ⟨hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step10_distinct τ hsts C X D E hDE colD colE o o' (hown.trans hAD) (hown'.trans hBE), ?_⟩
+  unfold hereditary_sts_substitution_sofic_CoincidentTypedSides at hij ⊢
+  obtain ⟨i', j', hii, hjj, hside⟩ := hij
+  have hd : D.anchor +ᵥ (C.Q.disk (C.form A.1)).side i =
+      E.anchor +ᵥ (C.Q.disk (C.form B.1)).side j := by
+    have h1 := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport_heq C X.dec _ _ (X.proj_typed A) i i' hii
+    have h2 := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport_heq C X.dec _ _ (X.proj_typed B) j j' hjj
+    simp only [PlacedTile.side] at hside
+    rw [h1, h2] at hside
+    exact hside
+  have hS := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_proj_sts C X.dec F hF.1
+  have hgeo := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step8_whole_ports C _ hS (C.form A.1) (C.form B.1) D.anchor E.anchor
+    (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step9_child_mem τ hsts C X F D.anchor colD _ fun t ht => hcolD t (ht.trans hAD))
+    (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step9_child_mem τ hsts C X F E.anchor colE _ fun t ht => hcolE t (ht.trans hBE))
+    i j hd k o o' ho ho'
+  obtain ⟨i'', hi'', hs1⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport C X.dec
+    (X.formEquiv.symm (Sum.inl ⟨o.1, colD o.1⟩)) (C.form o.1) (X.proj_typed _) o.2
+  obtain ⟨j'', hj'', hs2⟩ := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step6_ports_coincide_step2_transport C X.dec
+    (X.formEquiv.symm (Sum.inl ⟨o'.1, colE o'.1⟩)) (C.form o'.1) (X.proj_typed _) o'.2
+  refine ⟨i'', j'', hi'', hj'', ?_⟩
+  simp only [hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed,
+    PlacedTile.side] at hs1 hs2 ⊢
+  rw [hs1, hs2]
+  exact hgeo
 
 /-- Step 4 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction`:
 "read one extended header `(t,z,γ)` on the connected boundary belt (Lemma comp/boundary-header),

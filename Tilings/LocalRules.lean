@@ -7193,38 +7193,50 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
   obtain ⟨hown, hout, -⟩ := (C.g3_outerList_mem β d o).1 hmem
   exact ⟨hown, hout⟩
 
-/-- Step 1 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched`: owner of partner is the same. -/
-private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step1_owner
-    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
-    (α : C.Q.Form) (t : C.Typ) (ht : C.owner t = α) (i : C.Side t) (hi : C.IsInner (C.occ t i)) :
-    C.owner (C.partner (C.occ t i)).1 = α := by sorry
-
-/-- Step 2 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched`: placed tiles are distinct. -/
-private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step2_distinct
-    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
-    (m : ℕ) (hC : C.Represents τ m)
-    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC) (v : Pt)
-    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
-    (t : C.Typ) (i : C.Side t) (hi : C.IsInner (C.occ t i)) :
-    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
-        τ hsts C X v col t ≠
-      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
-        τ hsts C X v col (C.partner (C.occ t i)).1 := by sorry
-
-/-- Step 3 of the blueprint proof of `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched`: typed sides coincide geometrically. -/
-private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step3_coincident
-    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P)
-    (m : ℕ) (hC : C.Represents τ m)
-    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC) (v : Pt)
-    (col : (t : C.Typ) → C.Side t → Fin 5 → hereditary_sts_substitution_sofic_ExtSymbol τ hsts C hC)
-    (t : C.Typ) (i : C.Side t) (hi : C.IsInner (C.occ t i)) :
-    hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec
-      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
-        τ hsts C X v col t)
-      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
-        τ hsts C X v col (C.partner (C.occ t i)).1)
-      ⟨t, col t⟩ ⟨(C.partner (C.occ t i)).1, col (C.partner (C.occ t i)).1⟩
-      i (C.partner (C.occ t i)).2 := by sorry
+/-- Step 1 of the blueprint proof of
+`hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched`:
+"sides `i` and `(partner (t, i)).2` are the same segment (... the side of a typed tile is the translate of
+the side of the grouped disk of its form)" -- two placed typed tiles whose grouped sides have the same
+placed segment have coincident typed sides. -/
+private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step1_coincident_of_geom
+    (τ : Substitution P) (hsts : τ.STS) (C : Geometry.MacroCertificate P) (m : ℕ)
+    (hC : C.Represents τ m)
+    (X : hereditary_sts_substitution_sofic_CrownPresentation τ hsts C m hC)
+    (Y Z : PlacedTile X.dec.P')
+    (A B : hereditary_sts_substitution_sofic_ExtTile τ hsts C hC)
+    (hA : X.formEquiv Y.form = Sum.inl A) (hB : X.formEquiv Z.form = Sum.inl B)
+    (i : C.Side A.1) (j : C.Side B.1)
+    (hs : Y.anchor +ᵥ (C.Q.disk (C.form A.1)).side i =
+      Z.anchor +ᵥ (C.Q.disk (C.form B.1)).side j) :
+    hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec Y Z A B i j := by
+  have hYf : Y.form = X.formEquiv.symm (Sum.inl A) := by
+    rw [← hA, Equiv.symm_apply_apply]
+  have hZf : Z.form = X.formEquiv.symm (Sum.inl B) := by
+    rw [← hB, Equiv.symm_apply_apply]
+  have hdY : X.dec.P'.disk Y.form = C.Q.disk (C.form A.1) := by
+    rw [X.dec.disk_eq Y.form, hYf, X.proj_typed A]
+  have hdZ : X.dec.P'.disk Z.form = C.Q.disk (C.form B.1) := by
+    rw [X.dec.disk_eq Z.form, hZf, X.proj_typed B]
+  have key : ∀ (D D' : PolygonalDisk) (h : D = D') (i : Fin D.n) (i' : Fin D'.n),
+      HEq i i' → D.side i = D'.side i' := by
+    intro D D' h
+    subst h
+    intro i i' hh
+    rw [eq_of_heq hh]
+  have key2 : ∀ (D D' : PolygonalDisk) (h : D = D') (i : Fin D.n),
+      ∃ i' : Fin D'.n, HEq i i' := by
+    intro D D' h
+    subst h
+    intro i
+    exact ⟨i, HEq.rfl⟩
+  obtain ⟨i', hi⟩ := key2 _ _ hdY.symm i
+  obtain ⟨j', hj⟩ := key2 _ _ hdZ.symm j
+  refine ⟨i', j', hi, hj, ?_⟩
+  have h1 := key _ _ hdY.symm i i' hi
+  have h2 := key _ _ hdZ.symm j j' hj
+  unfold PlacedTile.side
+  rw [← h1, ← h2]
+  exact hs
 
 /-- Step 1 of the blueprint proof of
 `hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells`
@@ -7244,22 +7256,40 @@ private lemma hereditary_sts_substitution_sofic_step5_one_level_reconstruction_s
         τ hsts C X v col t ∈ F.tiles)
     (t : C.Typ) (ht : C.owner t = α) (i : C.Side t) (hi : C.IsInner (C.occ t i)) :
     col t i = col (C.partner (C.occ t i)).1 (C.partner (C.occ t i)).2 := by
-  let t' := (C.partner (C.occ t i)).1
-  let j := (C.partner (C.occ t i)).2
-  let Z := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed τ hsts C X v col t
-  let Z' := hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed τ hsts C X v col t'
-  have ht' : C.owner t' = α :=
-    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step1_owner τ hsts C α t ht i hi
-  have hZ : Z ∈ F.tiles := hcol t ht
-  have hZ' : Z' ∈ F.tiles := hcol t' ht'
-  have hne : Z ≠ Z' :=
-    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step2_distinct τ hsts C m hC X v col t i hi
-  have hcoin : hereditary_sts_substitution_sofic_CoincidentTypedSides τ hsts C hC X.dec Z Z' ⟨t, col t⟩ ⟨t', col t'⟩ i j :=
-    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step3_coincident τ hsts C m hC X v col t i hi
-  have hz_form : X.formEquiv Z.form = Sum.inl ⟨t, col t⟩ := Equiv.apply_symm_apply _ _
-  have hz'_form : X.formEquiv Z'.form = Sum.inl ⟨t', col t'⟩ := Equiv.apply_symm_apply _ _
-  have hc := X.proper_cells_match F hF Z hZ Z' hZ' hne ⟨t, col t⟩ ⟨t', col t'⟩ hz_form hz'_form i j hcoin
-  exact hc
+  obtain ⟨hne, hown, hside⟩ := C.g1_partner (C.occ t i) hi
+  have hZ := hcol t ht
+  have hZ' := hcol (C.partner (C.occ t i)).1 (hown.trans ht)
+  have hneZ :
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t ≠
+      hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col (C.partner (C.occ t i)).1 := by
+    intro heq
+    have hf := congrArg PlacedTile.form heq
+    have hf' := Sum.inl.inj (X.formEquiv.symm.injective hf)
+    exact hne (congrArg Sigma.fst hf').symm
+  have hgeom : (v + C.anchor t) +ᵥ (C.Q.disk (C.form t)).side i =
+      (v + C.anchor (C.partner (C.occ t i)).1) +ᵥ
+        (C.Q.disk (C.form (C.partner (C.occ t i)).1)).side (C.partner (C.occ t i)).2 := by
+    rw [add_vadd, add_vadd]
+    exact congrArg (fun S => v +ᵥ S) hside.symm
+  have hA : X.formEquiv
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col t).form = Sum.inl ⟨t, col t⟩ :=
+    Equiv.apply_symm_apply _ _
+  have hB : X.formEquiv
+      (hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_placed
+        τ hsts C X v col (C.partner (C.occ t i)).1).form =
+      Sum.inl ⟨(C.partner (C.occ t i)).1, col (C.partner (C.occ t i)).1⟩ :=
+    Equiv.apply_symm_apply _ _
+  have hcoin :=
+    hereditary_sts_substitution_sofic_step5_one_level_reconstruction_step4_reconstruct_parent_cells_step1_matched_step1_coincident_of_geom
+      τ hsts C m hC X _ _ ⟨t, col t⟩
+      ⟨(C.partner (C.occ t i)).1, col (C.partner (C.occ t i)).1⟩ hA hB i
+      (C.partner (C.occ t i)).2 hgeom
+  exact X.proper_cells_match F hF _ hZ _ hZ' hneZ ⟨t, col t⟩
+    ⟨(C.partner (C.occ t i)).1, col (C.partner (C.occ t i)).1⟩ hA hB i
+    (C.partner (C.occ t i)).2 hcoin
 
 /-- A print side is never a boundary side: neither endpoint of a print lies on the boundary of
 its owner template (`...step1_packet_step1_unique_step2_print_endpoints`). -/

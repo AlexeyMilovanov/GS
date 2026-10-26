@@ -19,3 +19,6 @@ import Enforce.Compiler
 import Enforce.Parser.Invariant
 import Enforce.Parser.Host
 import Enforce.Parser.Assembly
+import Enforce.Observer
+import Enforce.Recognition
+import Enforce.Symmetry

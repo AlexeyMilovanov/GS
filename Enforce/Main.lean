@@ -1,4 +1,5 @@
 import Enforce.Rules
+import Enforce.Symmetry
 
 /-!
 # Theorem F, statement stage
@@ -132,6 +133,72 @@ theorem symmetry_finiteOrder (Y : MarkedTiling D.M) (hY : MProper Y)
 
 end EnforcementData
 
+/-- F/O10, V4 4.10, §5.5: the language of the assembled family is exactly the
+full source language. Transport of a chosen hierarchy along its underlying tiling
+equality preserves every node and its frame. -/
+theorem chosenLanguage_section {S : SubstSystem d} {P : Params S}
+    (C : ClusterData S P) (n : ℕ) (A : S.ι) :
+    chosenLanguage
+      (fun Z hZ => honestLift C (sourceSection C ⟨Z, hZ⟩))
+      (sectionHierarchy C) n A = sourceLanguage C n A := by
+  rw [← (sourceSection_spec C).languages n A]
+  ext q
+  constructor
+  · rintro ⟨Z, hZ, φ, hN, hq⟩
+    rw [sectionHierarchy_nodes] at hN
+    exact ⟨⟨Z, hZ⟩, φ, hN, hq⟩
+  · rintro ⟨⟨Z, hZ⟩, φ, hN, hq⟩
+    exact ⟨Z, hZ, φ, (sectionHierarchy_nodes C Z hZ n).symm ▸ hN, hq⟩
+
+/-- F(2)/O10, V4 4.10, §5.5: family-language emptiness is exactly absence of
+nodes in that very same family. This is a definitional fact, independent of
+finite languages or the all-source section construction. -/
+theorem chosenLanguage_eq_empty_iff {S : SubstSystem d} {X : Type}
+    {M : C1System d X} (lift : ∀ Z ∈ S.Species, MarkedTiling M)
+    (hier : ∀ Z ∈ S.Species, CoherentHierarchy S Z) (n : ℕ) (A : S.ι) :
+    chosenLanguage lift hier n A = ∅ ↔
+      ¬ ∃ (Z : Tiling S) (hZ : Z ∈ S.Species) (φ : Iso d),
+        (⟨A, φ⟩ : FramedNode S) ∈ (hier Z hZ).nodes n := by
+  constructor
+  · intro h ⟨Z, hZ, φ, hN⟩
+    have hmem : normalisedPattern (lift Z hZ) n A φ ∈
+        chosenLanguage lift hier n A := ⟨Z, hZ, φ, hN, rfl⟩
+    rw [h] at hmem
+    exact hmem
+  · intro h
+    apply Set.eq_empty_iff_forall_notMem.mpr
+    rintro q ⟨Z, hZ, φ, hN, _⟩
+    exact h ⟨Z, hZ, φ, hN⟩
+
+/-- F(4)/O7/O8, V4 4.7--4.8, §5.5: assemble an intrinsic hierarchy from
+nodes = WF and the frame-equivariance consequence. Determination by the marking
+is proved at positive heights directly from that equivalence, and at height zero
+from the exact children of height-one nodes. No additional recognition hypothesis
+on ground frames is inserted into Theorem F. -/
+def intrinsicHierarchyOfNodes {S : SubstSystem d} {X : Type} {M : C1System d X}
+    {π : X → Option S.ι} (D : NativeDecoration S M π)
+    (L : ∀ n A, Set (Pattern S X n A)) (Y : MarkedTiling M)
+    (H : CoherentHierarchy S (Y.project D))
+    (hnode : ∀ n, 1 ≤ n → ∀ N : FramedNode S,
+      N ∈ H.nodes n ↔ IsWFConfig L Y n N)
+    (hequiv : ∀ g : Iso d, Y.IsSymmetry g → ∀ n,
+      (fun N : FramedNode S => N.move g) '' H.nodes n = H.nodes n) :
+    IntrinsicHierarchy D L Y where
+  hierarchy := H
+  nodes_iff := hnode
+  marking_determines := by
+    intro Y' H' hnode' hmark n
+    have hpos : ∀ m, 1 ≤ m → H'.nodes m = H.nodes m := by
+      intro m hm
+      ext N
+      rw [hnode' m hm N, hnode m hm N]
+      unfold IsWFConfig normalisedPattern
+      rw [hmark]
+    cases n with
+    | zero => exact H'.ground_eq_of_one_eq H (hpos 1 le_rfl)
+    | succ n => exact hpos (n + 1) (by omega)
+  equivariant := hequiv
+
 /-- F, V4 Main Theorem (§5.5), formalization edition F-STATEMENT.md §F.2:
 every system satisfying (H1)--(H6), with species defined by (H7), admits finite
 bounded-configuration matching rules satisfying exactly conclusions F(1)--F(5).
@@ -140,6 +207,43 @@ output above that member. All Euclidean isometries and general expanding `σ`
 are allowed. This statement does not assert equality of all projections with the
 species, and does not include the Stage 2 geometric fitting compiler. -/
 theorem enforce (S : SubstSystem d) : Nonempty (EnforcementData S) := by
-  sorry
+  classical
+  let P : Params S := Classical.choice (params_exist S)
+  let C : ClusterData S P := Classical.choice (clusterData_exists S P)
+  let lift : ∀ Z ∈ S.Species, MarkedTiling (systemM S P C) :=
+    fun Z hZ => honestLift C (sourceSection C ⟨Z, hZ⟩)
+  let hier : ∀ Z ∈ S.Species, CoherentHierarchy S Z := sectionHierarchy C
+  have hlanguage : chosenLanguage lift hier = sourceLanguage C := by
+    funext n A
+    exact chosenLanguage_section C n A
+  refine ⟨{
+    X := Colour S P
+    colors_finite := colourFintype S P
+    π := Enforce.π S P
+    M := systemM S P C
+    decoration := nativeDecoration S P C
+    lift := lift
+    hier := hier
+    lift_proper := fun Z hZ => (sourceSection_spec C).proper ⟨Z, hZ⟩
+    lift_tiles := fun Z hZ => (sourceSection_spec C).tiles ⟨Z, hZ⟩
+    lift_projection := fun Z hZ x => (sourceSection_spec C).projection ⟨Z, hZ⟩ x
+    finite_languages := ?_
+    point_uniqueness := ?_
+    intrinsic_hierarchy := ?_
+    finite_symmetry := symmetry_finite }⟩
+  · intro n _ A
+    refine ⟨?_, chosenLanguage_eq_empty_iff lift hier n A⟩
+    rw [hlanguage]
+    exact sourceLanguage_finite C n A
+  · intro Y hY n hn x hx
+    rw [hlanguage]
+    exact Enforce.point_uniqueness Y hY n hn x hx
+  · intro Y hY
+    refine ⟨intrinsicHierarchyOfNodes (nativeDecoration S P C)
+      (chosenLanguage lift hier) Y (parsedHierarchy Y hY) ?_
+      (parsedHierarchy_equivariant Y hY)⟩
+    intro n hn N
+    rw [hlanguage]
+    exact parsed_nodes_iff Y hY n hn N
 
 end Enforce

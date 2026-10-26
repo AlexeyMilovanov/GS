@@ -193,6 +193,709 @@ theorem newState_readout :
     decode r.packet r.parentSlot = some (newState Y hY n hn D hD N A) :=
   (Parser.readableFacet Y hY n hn D hD N A (Parser.firstChild N.ty)).parent_decode
 
+section RoutingConstant
+
+omit hY hn hD A
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 8.3):
+"Every primitive facet f in E_P" is an actual positioned birth. This relation
+retains its birth depth, full birth frame, and carrier, in the normalized
+coordinates used by Lemma 1.25. -/
+private def routing_constant_step1_realizes (N : FramedNode S) (m : ℕ)
+    (f : PrimitiveFacet S N.ty) (g : Parser.BornFacet P) : Prop :=
+  g.height + f.depth = m ∧
+    g.birth = (f.birthNode m).move N.frame ∧
+    g.carrier = N.prototypeFrame m '' f.carrier
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 8.3):
+"born strictly below P" refers to the prescribed subdivision. A normalized
+birth realization gives the actual framed descendant relation. -/
+private theorem routing_constant_step1_descendant (N : FramedNode S) (m : ℕ)
+    (f : PrimitiveFacet S N.ty) (g : Parser.BornFacet P)
+    (h : routing_constant_step1_realizes N m f g) :
+    g.birth.IsDescendant g.height N m := by
+  refine ⟨f.depth, h.1.symm, f.word, ?_⟩
+  have hsum := h.1
+  have hh : m - f.depth = g.height := by omega
+  simpa only [PrimitiveFacet.birthNode, hh] using h.2.1
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 3.10):
+"applied inside P". Transport the normalized birth frame to the assembled
+parent, retaining the full anisotropic prototype frame. -/
+private theorem routing_constant_step1_frame (N : FramedNode S) (m : ℕ)
+    (f : PrimitiveFacet S N.ty) (hf : f.depth ≤ m) :
+    ((f.birthNode m).move N.frame).prototypeFrame (m - f.depth) =
+      f.birthFrame.trans (N.prototypeFrame m) := by
+  have h := (f.birthFrame_spec m hf).2
+  apply AffineEquiv.ext
+  intro x
+  have hx := congrArg (fun e : E d ≃ᵃ[ℝ] E d => e x) h
+  change (S.σ ^ m).symm ((f.birthNode m).prototypeFrame (m - f.depth)
+    x) = f.birthFrame x at hx
+  have hx' := congrArg (fun z => N.frame ((S.σ ^ m) z)) hx
+  simpa only [LinearEquiv.apply_symm_apply] using hx'
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 3.10):
+"For b = n+1 the facet is first-generation in P". A descendant at the same
+height is exactly the root, including its frame. -/
+private theorem routing_constant_step1_equal_height (N M : FramedNode S) (m : ℕ)
+    (h : M.IsDescendant m N m) : M = N := by
+  obtain ⟨r, hr, w, hw⟩ := h
+  have : r = 0 := by omega
+  subst r
+  simpa only [SubstSystem.descendantNode, FramedNode.move,
+    AffineIsometryEquiv.refl_trans] using hw
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 8.3):
+"its address gives the actual path up to P". The type at the end of a fixed
+role word is independent of the absolute height. -/
+private theorem routing_constant_step1_descendant_type (T : S.ι) (h r : ℕ)
+    (w : S.RoleWord T r) :
+    (S.descendantNode T h r w).ty = (S.nativeTile T r w).ty := by
+  induction r generalizing T with
+  | zero => rfl
+  | succ r ih => exact ih (S.child T w.1).ty w.2
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 3.10):
+"born in a node P_b inside P". Express a born facet using the normalized
+incidence and the prototype frame of that birth node. -/
+private theorem routing_constant_step1_carrier (g : Parser.BornFacet P) :
+    g.carrier = g.birth.prototypeFrame g.height ''
+      (S.σ.symm '' g.incidence.val.positioned) := by
+  simp only [Parser.BornFacet.carrier, Params.incidencePlacement,
+    PrimitiveIncidence.positioned, placedSet, Set.image_image]
+  rfl
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 8.3):
+"Every primitive facet f in E_P". Normalize an actual principal birth by
+its own descendant address; principal membership follows from the carrier
+and depth, without assuming uniqueness of primitive addresses. -/
+private theorem routing_constant_step1_normalize (N : FramedNode S) (m : ℕ)
+    (g : Parser.BornFacet P) (hbirth : g.birth.IsDescendant g.height N m)
+    (hdepth : m - g.height < P.k) (hprincipal : P.InPrincipal N m g.carrier) :
+    ∃ f ∈ P.E_A N.ty, routing_constant_step1_realizes N m f g := by
+  obtain ⟨r, hr, w, hw⟩ := hbirth
+  have ht : (S.nativeTile N.ty r w).ty = g.incidence.val.ty :=
+    ((congrArg FramedNode.ty hw).trans
+      (routing_constant_step1_descendant_type N.ty g.height r w)).symm.trans
+        g.parent_type.symm
+  let f : PrimitiveFacet S N.ty := {
+    depth := r
+    word := w
+    localCarrier := g.incidence.val.positioned
+    realization := by
+      rw [ht]
+      exact ⟨g.incidence.val.left, g.incidence.val.leftFacet, rfl,
+        g.incidence.val.internal⟩ }
+  have hd : f.depth < P.k := by change r < P.k; omega
+  have hm : f.depth ≤ m := by change r ≤ m; omega
+  have hh : m - f.depth = g.height := by change m - r = g.height; omega
+  have hb : g.birth = (f.birthNode m).move N.frame := by
+    simpa only [PrimitiveFacet.birthNode, hh] using hw
+  have hframe : g.birth.prototypeFrame g.height =
+      f.birthFrame.trans (N.prototypeFrame m) := by
+    rw [hb, ← hh]
+    exact routing_constant_step1_frame N m f hm
+  have hcarrier : g.carrier = N.prototypeFrame m '' f.carrier := by
+    rw [routing_constant_step1_carrier, hframe]
+    simp only [PrimitiveFacet.carrier, Set.image_image]
+    rfl
+  refine ⟨f, ?_, hr.symm, hb, hcarrier⟩
+  obtain ⟨e, he, hec⟩ := hprincipal
+  have he' : e ∈ principalFacets S N.ty P.k (P.component N.ty) := by
+    rw [← P.E_A_eq N.ty]
+    exact he
+  have hfe : f.carrier = e.carrier :=
+    (N.prototypeFrame m).injective.image_injective (hcarrier.symm.trans hec.symm)
+  change f ∈ (P.E_A N.ty : Set (PrimitiveFacet S N.ty))
+  rw [P.E_A_eq]
+  exact ⟨hd, hfe.symm ▸ he'.2⟩
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 8.3):
+"first-generation facets". At native height the conjugated child placement
+is the original prescribed isometry. -/
+private theorem routing_constant_step1_ground_child (T : S.ι) (i : S.I T)
+    (e : Cell d) :
+    ((⟨T, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S).child 0 i).cell 0 e =
+      placedSet (S.child T i).frame e.carrier := by
+  have hp : S.placeChild 0 i = (S.child T i).frame := by
+    ext x
+    simp [SubstSystem.placeChild_apply, linearConj, Child.frame, rigidMotion]
+  simp [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child, hp, placedSet]
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 3.10):
+"the record with incidence iota(g)". Whole-facet pairing and the canonical
+transversal assign the normalized facet its side-independent incidence. -/
+private theorem routing_constant_step1_incidence {T : S.ι}
+    (f : PrimitiveFacet S T) :
+    ∃ a : P.Incidence, a.val.ty = f.birthType ∧ a.val.positioned = f.localCarrier := by
+  obtain ⟨i, e, he, hint⟩ := f.realization
+  let B : FramedNode S := ⟨f.birthType, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hc : B.carrier (0 + 1) = S.supertile 1 f.birthType := by
+    simp [B, FramedNode.carrier, placedSet]
+  have hne : (relint (placedSet (S.child f.birthType i).frame e.val.carrier)).Nonempty := by
+    change (intrinsicInterior ℝ
+      ((S.child f.birthType i).frame.toAffineIsometry '' e.val.carrier)).Nonempty
+    rw [AffineIsometry.image_intrinsicInterior]
+    exact e.val.flat.relint_nonempty.image _
+  have hpair := internal_facet_pairing B 0 i e (by
+    rw [routing_constant_step1_ground_child, hc]
+    rw [he] at hint
+    exact hne.mono (fun _ hx => ⟨hx, hint hx⟩))
+  obtain ⟨j, ⟨hji, e', he', _⟩, _⟩ := hpair.2
+  let a : PrimitiveIncidence S := {
+    ty := f.birthType
+    left := i
+    right := j
+    distinct := Ne.symm hji
+    leftFacet := e
+    rightFacet := e'
+    paired := by
+      rw [routing_constant_step1_ground_child, routing_constant_step1_ground_child] at he'
+      exact he'.symm
+    internal := by rw [he] at hint; exact hint }
+  refine ⟨P.canonical a, (P.canonical_spec a).1.symm, ?_⟩
+  exact (P.canonical_spec a).2.symm.trans he.symm
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 8.3):
+"Every primitive facet f in E_P has a well-defined attached packet".
+First realize each normalized facet as a positive-height framed birth. -/
+private theorem routing_constant_step1_realize (N : FramedNode S) (m : ℕ)
+    (f : PrimitiveFacet S N.ty) (hf : f.depth < m) :
+    ∃ g : Parser.BornFacet P, routing_constant_step1_realizes N m f g := by
+  obtain ⟨a, hat, hac⟩ := routing_constant_step1_incidence (P := P) f
+  let g : Parser.BornFacet P := {
+    height := m - f.depth
+    positive := by omega
+    birth := (f.birthNode m).move N.frame
+    incidence := a
+    parent_type := hat.trans (f.birthFrame_spec m (Nat.le_of_lt hf)).1.symm }
+  refine ⟨g, ?_, rfl, ?_⟩
+  · change m - f.depth + f.depth = m
+    omega
+  · rw [routing_constant_step1_carrier]
+    change ((f.birthNode m).move N.frame).prototypeFrame (m - f.depth) ''
+      (S.σ.symm '' a.val.positioned) = N.prototypeFrame m '' f.carrier
+    rw [routing_constant_step1_frame N m f (Nat.le_of_lt hf), hac]
+    simp only [PrimitiveFacet.carrier, Set.image_image]
+    rfl
+
+/-- Step 1 of the V4 proof of `routing_constant` (V4 8.3):
+"the attached packet". A fixed normalized facet has a unique born-facet
+representation: its height and frame are fixed, and the incidence catalogue
+has one representative of each positioned provider. -/
+private theorem routing_constant_step1_unique (N : FramedNode S) (m : ℕ)
+    (f : PrimitiveFacet S N.ty) (g g' : Parser.BornFacet P)
+    (hg : routing_constant_step1_realizes N m f g)
+    (hg' : routing_constant_step1_realizes N m f g') : g = g' := by
+  have hh : g.height = g'.height := by have := hg.1; have := hg'.1; omega
+  have hb : g.birth = g'.birth := hg.2.1.trans hg'.2.1.symm
+  have hc : g.carrier = g'.carrier := hg.2.2.trans hg'.2.2.symm
+  rw [routing_constant_step1_carrier, routing_constant_step1_carrier, hb, hh] at hc
+  have hp : g.incidence.val.positioned = g'.incidence.val.positioned :=
+    S.σ.symm.injective.image_injective
+      ((g'.birth.prototypeFrame g'.height).injective.image_injective hc)
+  have hi : g.incidence = g'.incidence := by
+    have h := P.canonical_unique g.incidence.val g'.incidence
+      ⟨g.parent_type.trans ((congrArg FramedNode.ty hb).trans g'.parent_type.symm), hp⟩
+    simpa only [P.canonical_idempotent] using h
+  cases g
+  cases g'
+  cases hh
+  cases hb
+  cases hi
+  rfl
+
+/-- Step 2 of the V4 proof of `routing_constant` (V4 8.3):
+"For a facet born strictly below P, this follows from (I5) and Lemma 3.4
+inside a child; for a first-generation facet of P, it follows from the second
+assertion of Lemma 3.4". Both cases supply an actual honest packet. -/
+private theorem routing_constant_step2_attachment
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (g : Parser.BornFacet P) (hbirth : g.birth.IsDescendant g.height N (n + 1)) :
+    ∃ hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode,
+      ∃ q : Packet P, g.packet hl = some q ∧ q ∈ honestPackets S P := by
+  have hle := Parser.descendant_height_le _ _ _ _ hbirth
+  by_cases hlt : g.height < n + 1
+  · have hg := Parser.assembled_inner_mem D N A g.height g.birth hlt hbirth
+    obtain ⟨hl, _, _, q, hq, _, hread, _⟩ := two_sided_constancy Y hY n hn D hD g hg
+    exact ⟨hl, q, hread, hq⟩
+  · have hh : g.height = n + 1 := by omega
+    have hb : g.birth = N := routing_constant_step1_equal_height N g.birth (n + 1)
+      (by simpa only [hh] using hbirth)
+    obtain ⟨hl, _, _, q, hq, _, hread⟩ :=
+      two_sided_constancy_assembled Y hY n hn D hD N A g hh hb
+    exact ⟨hl, q, hread, hq⟩
+
+/-- Step 2 of the V4 proof of `routing_constant` (V4 8.3):
+"the head is the state of its birth node". The old two-sided theorem also
+identifies the incidence, independently of the supplied constancy proof. -/
+private theorem routing_constant_step2_old_readout
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (q : Packet P) (hq : g.packet hl = some q) :
+    q.incidence = g.incidence ∧ q.head = D.stateAt g.height g.birth hg := by
+  obtain ⟨hl', _, _, q', _, hi, ha, _, hh⟩ := two_sided_constancy Y hY n hn D hD g hg
+  have he : q = q' := Option.some.inj (hq.symm.trans ha)
+  simpa only [he] using And.intro hi hh
+
+/-- Step 2 of the V4 proof of `routing_constant` (V4 8.3):
+"its address gives the actual path up to P". To read the address, realize
+one honest old state at its actual height and frame, using the congruent
+scale transfer of V4 1.13(c). No joint realization of the new parent is assumed. -/
+private theorem routing_constant_step2_source_realization
+    (s : State P) (hs : s ∈ honestStates S P) (N : FramedNode S) (n : ℕ)
+    (hty : s.ty = N.ty) (hres : s.residue.val = n % P.L) :
+    ∃ (U : HonestSource S) (hN : N ∈ U.hierarchy.nodes n),
+      stateOf U P ⟨n, ⟨N, hN⟩⟩ = s := by
+  obtain ⟨U, q, rfl⟩ := hs
+  have hmod : q.1 % P.L = n % P.L := hres
+  have hshift : (q.1 - n) % P.L = (n - q.1) % P.L := by
+    rcases le_total q.1 n with h | h
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact (Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod)).symm
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod.symm)
+  obtain ⟨V, e, N', he⟩ := exactScaleTransfer U q.1 q.2.val q.2.property n
+    (AffineIsometryEquiv.refl ℝ (E d))
+  have hs' : stateOf V P ⟨n, N'⟩ = stateOf U P q := by
+    have h := state_scaleTransfer P e hshift ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.symm
+  have hty' : N'.val.ty = N.ty := by
+    have h := e.types ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.trans hty
+  let J := N'.val.frame.symm.trans N.frame
+  obtain ⟨W, f, N'', hf⟩ := exactScaleTransfer V n N'.val N'.property n J
+  have hs'' : stateOf W P ⟨n, N''⟩ = stateOf V P ⟨n, N'⟩ := by
+    have h := state_scaleTransfer P f rfl ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+    rw [hf] at h
+    exact h.symm
+  have hnode : N''.val = N := by
+    apply FramedNode.ext
+    · have h := f.types ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      exact h.trans hty'
+    · have h := f.frames ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      apply AffineIsometryEquiv.ext
+      intro x
+      have hx := congrArg (fun g : E d ≃ᵃ[ℝ] E d => g ((S.σ ^ n).symm x)) h
+      simpa [FramedNode.prototypeFrame, J] using hx
+  obtain ⟨N'', hN''⟩ := N''
+  dsimp only at hnode
+  subst N''
+  exact ⟨W, hN'', hs''.trans hs'⟩
+
+
+/-- Step 2 of the V4 proof of `routing_constant` (V4 8.3):
+"by (I2) and the children's first letters". Inside one old child, (I2)
+identifies every descendant state and its ancestor in a fixed honest
+realization of that child's state. -/
+private theorem routing_constant_step2_source_descent
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (U : HonestSource S) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ D.geometry.nodes (h + r)) (hU : N ∈ U.hierarchy.nodes (h + r))
+    (hs : stateOf U P ⟨h + r, ⟨N, hU⟩⟩ = D.stateAt (h + r) N hN)
+    (w : S.RoleWord N.ty r) :
+    let M := (S.descendantNode N.ty h r w).move N.frame
+    ∃ (hM : M ∈ D.geometry.nodes h) (hMU : M ∈ U.hierarchy.nodes h),
+      stateOf U P ⟨h, ⟨M, hMU⟩⟩ = D.stateAt h M hM ∧
+        U.hierarchy.ancestor ⟨h, ⟨M, hMU⟩⟩ r = ⟨h + r, ⟨N, hU⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+    have hnode : (S.descendantNode N.ty h 0 w).move N.frame = N := by
+      cases N
+      simp [SubstSystem.descendantNode, FramedNode.move]
+    simp only [hnode]
+    exact ⟨hN, hU, hs, rfl⟩
+  | succ r ih =>
+    let i := w.1
+    let N' := N.child (h + r) i
+    have hN' : N' ∈ D.geometry.nodes (h + r) := D.geometry.child_mem _ N hN i
+    have hU' : N' ∈ U.hierarchy.nodes (h + r) := U.hierarchy.children_mem _ N hU i
+    have hs' : stateOf U P ⟨h + r, ⟨N', hU'⟩⟩ = D.stateAt (h + r) N' hN' := by
+      rw [hD.I2.1 (h + r) N hN i]
+      simp only [Nat.add_assoc]
+      rw [← hs]
+      have hc := childMap_spec U P ⟨h + r + 1, ⟨N, hU⟩⟩
+        (by change 1 ≤ h + r + 1; omega) i
+      simpa [HonestSource.childNode, N'] using hc
+    obtain ⟨hM, hMU, hstate, hanc⟩ := ih N' hN' hU' hs' w.2
+    have hnode : (S.descendantNode N.ty h (r + 1) w).move N.frame =
+        (S.descendantNode N'.ty h r w.2).move N'.frame := by
+      simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child, N', i,
+        AffineIsometryEquiv.trans_assoc]
+    simp only [hnode]
+    refine ⟨hM, hMU, hstate, ?_⟩
+    rw [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor _ r) = _
+    rw [hanc]
+    apply Sigma.ext
+    · simp [CoherentHierarchy.parentNode, Nat.add_assoc]
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (U.hierarchy.parent_unique (h + r) ⟨N', hU'⟩ N hU ⟨i, rfl⟩).symm
+
+
+/-- Step 2 of the V4 proof of `routing_constant` (V4 8.3):
+"the children's first letters". A prescribed child and its globally distinct
+role determine the parent type and full frame. -/
+private theorem routing_constant_step2_parent_from_child
+    (M N : FramedNode S) (m : ℕ) (j : S.I M.ty) (i : S.I N.ty)
+    (hr : (⟨M.ty, j⟩ : S.Role) = ⟨N.ty, i⟩) (hc : M.child m j = N.child m i) : M = N := by
+  rcases M with ⟨T, φ⟩
+  rcases N with ⟨T', ψ⟩
+  obtain ⟨ht, hj⟩ := Sigma.mk.inj_iff.mp hr
+  dsimp only at ht hj
+  subst T'
+  have hi : j = i := eq_of_heq hj
+  subst i
+  congr 1
+  have hf := congrArg FramedNode.frame hc
+  apply AffineIsometryEquiv.ext
+  intro x
+  have hx := congrArg (fun e : Iso d => e ((S.placeChild m j).symm x)) hf
+  simpa only [FramedNode.child, AffineIsometryEquiv.coe_trans, Function.comp_apply,
+    AffineIsometryEquiv.apply_symm_apply] using hx
+
+/-- Step 2 of the V4 proof of `routing_constant` (V4 8.3):
+"Its P-slot is consequently PRESENT by Lemma 2.6(a)". Realize the containing
+old child, descend to the birth using (I2), and identify the next source
+parent by that child's first letter. Then apply the geometric mask theorem. -/
+private theorem routing_constant_step2_address_mask
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (hD : Inv D) (N : FramedNode S)
+    (A : Parser.AssembledParent D N) (g : Parser.BornFacet P)
+    (hg : g.birth ∈ D.geometry.nodes g.height)
+    (hbirth : g.birth.IsDescendant g.height N (n + 1))
+    (hdepth : n + 1 - g.height < P.k) (hprincipal : P.InPrincipal N (n + 1) g.carrier) :
+    packetMask P g.incidence (D.stateAt g.height g.birth hg)
+      ⟨n + 1 - g.height, hdepth⟩ := by
+  have hle := D.geometry.nodes_height _ _ hg
+  obtain ⟨r, hr, w, hw⟩ := hbirth
+  have hrpos : 0 < r := by omega
+  obtain ⟨r, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hrpos)
+  have hn : n = g.height + r := by omega
+  subst n
+  let B := N.child (g.height + r) w.1
+  have hB : B ∈ D.geometry.nodes (g.height + r) := by
+    change N.child (g.height + r) w.1 ∈ D.geometry.nodes (g.height + r)
+    rw [← A.child_eq w.1]
+    exact D.geometry.root_mem (A.children w.1).val (A.children w.1).property
+  obtain ⟨U, hU, hs⟩ := routing_constant_step2_source_realization
+    (D.stateAt (g.height + r) B hB) (D.state_honest _ _)
+    B (g.height + r) (hD.node_type_residue _ _ hB).1 (hD.node_type_residue _ _ hB).2
+  have hnode : (S.descendantNode B.ty g.height r w.2).move B.frame = g.birth := by
+    rw [hw]
+    simp [B, SubstSystem.descendantNode, FramedNode.move, FramedNode.child,
+      AffineIsometryEquiv.trans_assoc]
+  have hdown := routing_constant_step2_source_descent D hD U g.height r B hB hU hs w.2
+  dsimp only at hdown
+  rw [hnode] at hdown
+  obtain ⟨_, hGU, hstate, hanc⟩ := hdown
+  let c : U.Node := ⟨g.height + r, ⟨B, hU⟩⟩
+  have hrole : U.hierarchy.nodeRole c = ⟨N.ty, w.1⟩ := by
+    change (stateOf U P c).address ⟨0, P.k_pos⟩ = _
+    rw [hs]
+    have h := A.first_letters w.1
+    simpa only [firstRole, DecodedLevel.blockState, A.child_eq] using h
+  have hparent : (U.hierarchy.parentNode c).2.val = N := by
+    have hc := U.hierarchy.child_eq (g.height + r) c.2
+    exact routing_constant_step2_parent_from_child (U.hierarchy.parentNode c).2.val N
+      (g.height + r) (U.hierarchy.role (g.height + r) c.2) w.1 hrole hc.symm
+  let occ : PrimitiveOccurrence U P := {
+    birth := ⟨g.height, ⟨g.birth, hGU⟩⟩
+    positive := g.positive
+    incidence := g.incidence
+    parent_type := g.parent_type }
+  have hanc' : U.hierarchy.ancestor occ.birth (r + 1) = U.hierarchy.parentNode c := by
+    rw [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor occ.birth r) = _
+    rw [hanc]
+  have hm : mask U P occ ⟨g.height + r + 1 - g.height, hdepth⟩ := by
+    change P.InPrincipal (U.hierarchy.ancestor occ.birth _).2.val
+      (U.hierarchy.ancestor occ.birth _).1 g.carrier
+    dsimp only [Fin.val_mk]
+    have he : g.height + r + 1 - g.height = r + 1 := by omega
+    rw [he, hanc', hparent]
+    exact hprincipal
+  have hmask := (packet_mask_fn U P occ ⟨g.height + r + 1 - g.height, hdepth⟩).mp hm
+  change packetMask P g.incidence (stateOf U P ⟨g.height, ⟨g.birth, hGU⟩⟩) _ at hmask
+  simpa only [hstate] using hmask
+
+/-- Step 2 of the V4 proof of `routing_constant` (V4 8.3):
+"If b = n+1, the P-slot is its head, always PRESENT". Below the new parent,
+the address mask and honesty give presence; at the new parent use slot zero. -/
+private theorem routing_constant_step2_present
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (g : Parser.BornFacet P) (hbirth : g.birth.IsDescendant g.height N (n + 1))
+    (hdepth : n + 1 - g.height < P.k) (hprincipal : P.InPrincipal N (n + 1) g.carrier)
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (q : Packet P) (hq : g.packet hl = some q) (hhon : q ∈ honestPackets S P) :
+    ∃ s, decode q ⟨n + 1 - g.height, hdepth⟩ = some s := by
+  have hle := Parser.descendant_height_le _ _ _ _ hbirth
+  by_cases hlt : g.height < n + 1
+  · have hg := Parser.assembled_inner_mem D N A g.height g.birth hlt hbirth
+    obtain ⟨hi, hh⟩ := routing_constant_step2_old_readout Y hY n hn D hD g hg hl q hq
+    have hm : q.mask ⟨n + 1 - g.height, hdepth⟩ := by
+      change packetMask P q.incidence q.head _
+      rw [hi, hh]
+      exact routing_constant_step2_address_mask D hD N A g hg hbirth hdepth hprincipal
+    have hj := (honest_packet_admissible P q hhon).2.2.2.1 _ hm
+    refine ⟨q.reconstructed ⟨n + 1 - g.height, hdepth⟩, ?_⟩
+    unfold decode
+    exact if_pos ⟨hj, hm⟩
+  · have he : (⟨n + 1 - g.height, hdepth⟩ : Fin P.k) = ⟨0, P.k_pos⟩ := by
+      apply Fin.ext
+      change n + 1 - g.height = 0
+      omega
+    exact ⟨q.head, he ▸ (honest_packet_admissible P q hhon).1⟩
+
+/-- Step 3 of the V4 proof of `routing_constant` (V4 8.3):
+"Theorem 2.17 and Lemma 3.3 put the ports of both facets into the endpoint
+template." For a same-parent link, construct one actual END template and
+primitive ports reading the two attached packets. This includes a birth at
+the new parent: its children's age-one records come from their first letters.
+No equality of packet slots is part of this geometric obligation. -/
+private theorem routing_constant_step3_same_parent_ports
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (f f' : PrimitiveFacet S N.ty) (g g' : Parser.BornFacet P)
+    (hg : routing_constant_step1_realizes N (n + 1) f g)
+    (hg' : routing_constant_step1_realizes N (n + 1) f' g')
+    (hlink : SameParentLink f f')
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (hl' : Parser.BoundaryPackets Y (g'.height - 1) g'.leftNode)
+    (q q' : Packet P) (hq : g.packet hl = some q) (hq' : g'.packet hl' = some q') :
+    ∃ t ∈ Y.tiles, ∃ (slot : EndSlot (compilerLeaf C t)) (T : EndTemplate slot),
+      TemplateOccurs C Y (compilerFrame C t) T.configuration ∧ endRow T ∧
+        ∃ (a b : PrimitivePort P) (u v : LeafType P),
+          a ∈ T.geometry.primitivePorts ∧ b ∈ T.geometry.primitivePorts ∧
+          (a.tile, u) ∈ T.configuration.tiles ∧ (b.tile, v) ∈ T.configuration.tiles ∧
+          leafPacket u a.facet.val = some q ∧ leafPacket v b.facet.val = some q' := by
+  sorry
+
+/-- Step 3 of the V4 proof of `routing_constant` (V4 8.3):
+"Row (E4) equates their slots". Once both primitive ports are identified,
+E4 gives equality at every common PRESENT index. -/
+private theorem routing_constant_step3_same_parent_agree
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (f f' : PrimitiveFacet S N.ty) (g g' : Parser.BornFacet P)
+    (hg : routing_constant_step1_realizes N (n + 1) f g)
+    (hg' : routing_constant_step1_realizes N (n + 1) f' g')
+    (hlink : SameParentLink f f')
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (hl' : Parser.BoundaryPackets Y (g'.height - 1) g'.leftNode)
+    (q q' : Packet P) (hq : g.packet hl = some q) (hq' : g'.packet hl' = some q') :
+    AgreePresent q q' := by
+  obtain ⟨t, ht, slot, T, _, hrow, a, b, u, v, ha, hb, hu, hv, hqu, hqv⟩ :=
+    routing_constant_step3_same_parent_ports Y hY n hn D hD N A f f' g g'
+      hg hg' hlink hl hl' q q' hq hq'
+  obtain ⟨p, hp, _, hagree⟩ := hrow.2.2.2.1 a ha u hu
+  have he : p = q := Option.some.inj (hp.symm.trans hqu)
+  exact he ▸ hagree b hb v hv q' hqv
+
+/-- Step 4 of the V4 proof of `routing_constant` (V4 8.3):
+"start with the age-one record in the child of Q' and restrict down to Q
+using (I2) and Proposition 2.3". The actual descendant boundary facet has
+the higher birth's incidence and exact age. The strict age-cap hypothesis
+excludes saturation, and the strict height inequality excludes age zero.
+The higher birth may be the newly assembled parent. -/
+private theorem routing_constant_step4_inherited_record
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (hD : Inv D) (N : FramedNode S)
+    (A : Parser.AssembledParent D N) (b : ℕ) (M : FramedNode S)
+    (hM : M ∈ D.geometry.nodes b) (g : Parser.BornFacet P)
+    (hbirth : g.birth.IsDescendant g.height N (n + 1))
+    (hdesc : M.IsDescendant b g.birth g.height) (hb : b < g.height)
+    (e : FacetName S M.ty) (he : M.cell b e.val ⊆ g.carrier)
+    (huncapped : g.height - b < P.C) :
+    ∃ r : FacetRecord P, stateRecordAt (D.stateAt b M hM) e.val = some r ∧
+      r.incidence = g.incidence ∧ r.age.val = g.height - b := by
+  sorry
+
+/-- Step 4 of the V4 proof of `routing_constant` (V4 8.3):
+"The common-listed vertex and the e-facing port given by Lemma 1.25 belong
+to an END template with cone T_q Q". Transport the ascent to the actual
+frames and identify a boundary port reading the higher facet's packet in
+an END event whose central packet is the lower facet's packet. The named
+boundary facet and its recorded cone are retained for applying E3. -/
+private theorem routing_constant_step4_ascent_ports
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (f f' : PrimitiveFacet S N.ty) (hf : f.depth < P.k) (hf' : f'.depth < P.k)
+    (g g' : Parser.BornFacet P)
+    (hg : routing_constant_step1_realizes N (n + 1) f g)
+    (hg' : routing_constant_step1_realizes N (n + 1) f' g')
+    (hlink : AscentLink P.k f f')
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (hl' : Parser.BoundaryPackets Y (g'.height - 1) g'.leftNode)
+    (q q' : Packet P) (hq : g.packet hl = some q) (hq' : g'.packet hl' = some q') :
+    g.birth.IsDescendant g.height g'.birth g'.height ∧
+      ∃ e : FacetName S g.birth.ty, g.birth.cell g.height e.val ⊆ g'.carrier ∧
+        ∃ t ∈ Y.tiles, ∃ (slot : EndSlot (compilerLeaf C t)) (T : EndTemplate slot),
+          TemplateOccurs C Y (compilerFrame C t) T.configuration ∧ endRow T ∧
+            slot.packet = q ∧
+            ∃ (a : BoundaryPort P T.geometry.header.birthType) (u : LeafType P),
+              a ∈ T.geometry.boundaryPorts ∧ (a.tile, u) ∈ T.configuration.tiles ∧
+              a.parentFacet.val = e.val ∧
+              (∃ G, T.geometry.header.boundaryCones a.parentFacet = some G) ∧
+              leafPacket u a.facet.val = some q' := by
+  sorry
+
+/-- Step 4 of the V4 proof of `routing_constant` (V4 8.3):
+"Row (E3) gives P(g)[s] = P(f)[s+delta]". The lower birth is old, so its
+packet head is its assigned state. The uncapped record and actual boundary
+port identify the GROUP packet, giving the exact height shift. -/
+private theorem routing_constant_step4_ascent_agree
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (f f' : PrimitiveFacet S N.ty) (hf : f.depth < P.k) (hf' : f'.depth < P.k)
+    (g g' : Parser.BornFacet P)
+    (hg : routing_constant_step1_realizes N (n + 1) f g)
+    (hg' : routing_constant_step1_realizes N (n + 1) f' g')
+    (hlink : AscentLink P.k f f')
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (hl' : Parser.BoundaryPackets Y (g'.height - 1) g'.leftNode)
+    (q q' : Packet P) (hq : g.packet hl = some q) (hq' : g'.packet hl' = some q') :
+    ShiftedAgree q' q (g'.height - g.height) := by
+  have hsum := hg.1
+  have hsum' := hg'.1
+  have hdepth := hlink.1
+  have hh : g.height < g'.height := by omega
+  have hold : g.height < n + 1 := by omega
+  have huncapped : g'.height - g.height < P.C := by rw [P.C_eq]; omega
+  have hbirth := routing_constant_step1_descendant N (n + 1) f g hg
+  have hbirth' := routing_constant_step1_descendant N (n + 1) f' g' hg'
+  have hM := Parser.assembled_inner_mem D N A g.height g.birth hold hbirth
+  obtain ⟨hdesc, e, he, t, ht, slot, T, _, hrow, hslot, a, u, ha, hu, heq, hcone, hport⟩ :=
+    routing_constant_step4_ascent_ports Y hY n hn D hD N A f f' hf hf' g g'
+      hg hg' hlink hl hl' q q' hq hq'
+  obtain ⟨r, hr, _, hage⟩ := routing_constant_step4_inherited_record D hD N A
+    g.height g.birth hM g' hbirth' hdesc hh e he huncapped
+  have hhead := (routing_constant_step2_old_readout Y hY n hn D hD g hM hl q hq).2
+  have hread : stateRecordAt slot.packet.head a.parentFacet.val = some r := by
+    rw [hslot, hhead, heq]
+    exact hr
+  have hgroup := hrow.2.2.1.2 a.parentFacet hcone
+  rw [hread] at hgroup
+  obtain ⟨p, _, _, _, hports, hshift⟩ := hgroup
+  have hp : p = q' := Option.some.inj ((hports a ha rfl u hu).symm.trans hport)
+  have hshift' := hshift (by simpa only [hage] using huncapped)
+  simpa only [hp, hslot, hage] using hshift'
+
+/-- Step 5 of the V4 proof of `routing_constant` (V4 8.3):
+"this finite union of closed sets". Every primitive carrier is a nonempty
+compact affine image of its realizing facet cell. -/
+private theorem routing_constant_step5_facet_compact {T : S.ι}
+    (f : PrimitiveFacet S T) : IsCompact f.carrier ∧ f.carrier.Nonempty := by
+  obtain ⟨i, e, he, _⟩ := f.realization
+  have hc : IsCompact f.localCarrier := by
+    rw [he]
+    exact e.val.flat.compact.image (S.child _ i).frame.continuous
+  have hn : f.localCarrier.Nonempty := by
+    rw [he]
+    exact e.val.flat.connected.nonempty.image _
+  exact ⟨(hc.image (LinearMap.continuous_of_finiteDimensional
+    (S.σ.symm : E d →ₗ[ℝ] E d))).image
+      f.birthFrame.toAffineMap.continuous_of_finiteDimensional,
+    (hn.image _).image _⟩
+
+/-- Step 5 of the V4 proof of `routing_constant` (V4 8.3):
+"a disconnected intersection graph would split this finite union of closed
+sets into two disjoint nonempty closed subsets". Values agreeing on
+intersections are constant on a preconnected finite union. Nonemptiness of
+each member is explicit, so empty members cannot carry arbitrary values. -/
+private theorem routing_constant_step5_finite_closed_values
+    {X ι V : Type*} [TopologicalSpace X] [Finite ι]
+    (K : ι → Set X) (v : ι → V)
+    (hc : ∀ i, IsClosed (K i)) (hne : ∀ i, (K i).Nonempty)
+    (hconn : IsPreconnected (⋃ i, K i))
+    (hlocal : ∀ i j, (K i ∩ K j).Nonempty → v i = v j) (i j : ι) :
+    v i = v j := by
+  classical
+  by_contra hij
+  let U : Set X := ⋃ a ∈ {a | v a = v i}, K a
+  let W : Set X := ⋃ a ∈ {a | v a ≠ v i}, K a
+  have hU : IsClosed U := (Set.toFinite _).isClosed_biUnion (fun a _ => hc a)
+  have hW : IsClosed W := (Set.toFinite _).isClosed_biUnion (fun a _ => hc a)
+  have hcover : (⋃ a, K a) ⊆ U ∪ W := by
+    intro x hx
+    obtain ⟨a, ha⟩ := Set.mem_iUnion.mp hx
+    by_cases hv : v a = v i
+    · exact Or.inl (Set.mem_iUnion₂.mpr ⟨a, hv, ha⟩)
+    · exact Or.inr (Set.mem_iUnion₂.mpr ⟨a, hv, ha⟩)
+  obtain ⟨x, hx⟩ := hne i
+  obtain ⟨y, hy⟩ := hne j
+  have hi : ((⋃ a, K a) ∩ U).Nonempty :=
+    ⟨x, Set.mem_iUnion.mpr ⟨i, hx⟩, Set.mem_iUnion₂.mpr ⟨i, rfl, hx⟩⟩
+  have hj : ((⋃ a, K a) ∩ W).Nonempty :=
+    ⟨y, Set.mem_iUnion.mpr ⟨j, hy⟩,
+      Set.mem_iUnion₂.mpr ⟨j, Ne.symm hij, hy⟩⟩
+  obtain ⟨z, _, hzU, hzW⟩ :=
+    (isPreconnected_closed_iff.mp hconn) U W hU hW hcover hi hj
+  obtain ⟨a, ha, hza⟩ := Set.mem_iUnion₂.mp hzU
+  obtain ⟨b, hb, hzb⟩ := Set.mem_iUnion₂.mp hzW
+  exact hb ((hlocal a b ⟨z, hza, hzb⟩).symm.trans ha)
+
+/-- Step 5 of the V4 proof of `routing_constant` (V4 8.3):
+"At an intersection point, Lemma 1.25 connects the facets by same-parent
+and ascent links." Apply that route at each intersection, then use the
+finite closed cover of the selected connected component. -/
+private theorem routing_constant_step5_connected_values (T : S.ι) {V : Type*}
+    (v : {f : PrimitiveFacet S T // f ∈ P.E_A T} → V)
+    (hlink : ∀ f g, RoutingLink P.k f.val g.val → v f = v g)
+    (f g : {f : PrimitiveFacet S T // f ∈ P.E_A T}) : v f = v g := by
+  classical
+  have hmem : ∀ a : PrimitiveFacet S T,
+      a ∈ P.E_A T ↔ a ∈ principalFacets S T P.k (P.component T) := by
+    intro a
+    exact Set.ext_iff.mp (P.E_A_eq T) a
+  have hconn : IsPreconnected (P.component T) := by
+    obtain ⟨x, hx, he⟩ := P.component_valid T
+    rw [he]
+    exact isPreconnected_connectedComponentIn
+  have hunion : (⋃ a : {f : PrimitiveFacet S T // f ∈ P.E_A T}, a.val.carrier) =
+      P.component T := by
+    rw [(principalFacets_spec T P.k (P.component T) (P.component_valid T)).2.2]
+    ext x
+    simp only [Set.mem_iUnion, exists_prop, Subtype.exists]
+    exact exists_congr (fun a => and_congr_left (fun _ => hmem a))
+  apply routing_constant_step5_finite_closed_values (fun a => a.val.carrier) v
+    (fun a => (routing_constant_step5_facet_compact a.val).1.isClosed)
+    (fun a => (routing_constant_step5_facet_compact a.val).2)
+    (hunion.symm ▸ hconn) ?_ f g
+  intro a b hab
+  obtain ⟨x, hxa, hxb⟩ := hab
+  have route := birth_ascent_routing T P.k (P.component T) (P.component_valid T)
+    x a.val b.val ((hmem a.val).mp a.property) ((hmem b.val).mp b.property) hxa hxb
+  have H : ∀ c, Relation.ReflTransGen
+      (ThroughLink (principalFacets S T P.k (P.component T)) x (RoutingLink P.k))
+      a.val c → ∀ hc : c ∈ P.E_A T, v a = v ⟨c, hc⟩ := by
+    intro c route
+    induction route with
+    | refl => intro _; rfl
+    | @tail c e _ hce ih =>
+      intro he
+      have hc := (hmem c).mpr hce.1
+      exact (ih hc).trans (hlink ⟨c, hc⟩ ⟨e, he⟩ hce.2.2.2.2)
+  exact H b.val route b.property
+
+end RoutingConstant
+
 /-- R9, V4 3.10, replacement V4 8.3: every primitive facet of E_P born
 inside P within depth k-1 has its P-slot PRESENT and equal to newState.
 The attached packet is honest. First-generation births of P are included,
@@ -203,7 +906,84 @@ theorem routing_constant (g : Parser.BornFacet P)
     ∃ hleft : Parser.BoundaryPackets Y (g.height - 1) g.leftNode,
       ∃ q : Packet P, g.packet hleft = some q ∧ q ∈ honestPackets S P ∧
         decode q ⟨n + 1 - g.height, hdepth⟩ = some (newState Y hY n hn D hD N A) := by
-  sorry
+  classical
+  let F := {f : PrimitiveFacet S N.ty // f ∈ P.E_A N.ty}
+  have hex (f : F) : ∃ (G : Parser.BornFacet P)
+      (hl : Parser.BoundaryPackets Y (G.height - 1) G.leftNode)
+      (q : Packet P) (s : State P),
+      routing_constant_step1_realizes N (n + 1) f.val G ∧
+      G.packet hl = some q ∧ q ∈ honestPackets S P ∧
+      decode q ⟨f.val.depth, P.principal_depth _ _ f.property⟩ = some s := by
+    have hf := P.principal_depth _ _ f.property
+    obtain ⟨G, hG⟩ := routing_constant_step1_realize (P := P) N (n + 1) f.val
+      (by have := P.K_address; omega)
+    have hb := routing_constant_step1_descendant N (n + 1) f.val G hG
+    have hd : n + 1 - G.height = f.val.depth := by have := hG.1; omega
+    have hdp : n + 1 - G.height < P.k := by omega
+    have hp : P.InPrincipal N (n + 1) G.carrier := ⟨f.val, f.property, hG.2.2.symm⟩
+    obtain ⟨hl, q, hq, hhon⟩ := routing_constant_step2_attachment Y hY n hn D hD N A G hb
+    obtain ⟨s, hs⟩ := routing_constant_step2_present Y hY n hn D hD N A G hb hdp hp hl q hq hhon
+    exact ⟨G, hl, q, s, hG, hq, hhon, by simpa only [hd] using hs⟩
+  choose G HL Q V HG HQ HH HV using hex
+  have hlinks : ∀ (f f' : F), RoutingLink P.k f.val f'.val → V f = V f' := by
+    intro f f' hlink
+    rcases hlink with hs | ha | ha
+    · have h := routing_constant_step3_same_parent_agree Y hY n hn D hD N A
+        f.val f'.val (G f) (G f') (HG f) (HG f') hs (HL f) (HL f') (Q f) (Q f')
+        (HQ f) (HQ f')
+      have hd : f.val.depth = f'.val.depth := congrArg Sigma.fst hs.1
+      exact h _ _ _ (HV f) (by simpa only [hd] using HV f')
+    · have h := routing_constant_step4_ascent_agree Y hY n hn D hD N A
+        f.val f'.val (P.principal_depth _ _ f.property) (P.principal_depth _ _ f'.property)
+        (G f) (G f') (HG f) (HG f') ha (HL f) (HL f') (Q f) (Q f') (HQ f) (HQ f')
+      have he : f.val.depth = f'.val.depth + ((G f').height - (G f).height) := by
+        have := (HG f).1; have := (HG f').1; have := ha.1; omega
+      exact (h _ _ _ _ he (HV f') (HV f)).symm
+    · have h := routing_constant_step4_ascent_agree Y hY n hn D hD N A
+        f'.val f.val (P.principal_depth _ _ f'.property) (P.principal_depth _ _ f.property)
+        (G f') (G f) (HG f') (HG f) ha (HL f') (HL f) (Q f') (Q f) (HQ f') (HQ f)
+      have he : f'.val.depth = f.val.depth + ((G f).height - (G f').height) := by
+        have := (HG f).1; have := (HG f').1; have := ha.1; omega
+      exact h _ _ _ _ he (HV f) (HV f')
+  let r := Parser.readableFacet Y hY n hn D hD N A (Parser.firstChild N.ty)
+  have hrbirth : r.birthFacet.birth.IsDescendant r.birthFacet.height N (n + 1) :=
+    Parser.descendant_trans _ _ _ _ _ _ r.inside_child (by
+      rw [A.child_eq]
+      exact Parser.child_descendant N n _)
+  have hrdepth : n + 1 - r.birthFacet.height < P.k := by
+    rw [← r.parentSlot_eq]
+    exact r.parentSlot.isLt
+  obtain ⟨f₀, hf₀, hr⟩ := routing_constant_step1_normalize N (n + 1) r.birthFacet
+    hrbirth hrdepth r.parent_principal
+  let a₀ : F := ⟨f₀, hf₀⟩
+  have hG₀ : G a₀ = r.birthFacet :=
+    routing_constant_step1_unique N (n + 1) f₀ (G a₀) r.birthFacet (HG a₀) hr
+  have hQ₀ : Q a₀ = r.packet := by
+    have hread : r.birthFacet.packet r.constancy = some (Q a₀) := by
+      simpa only [hG₀] using HQ a₀
+    exact Option.some.inj (hread.symm.trans r.attached)
+  have hj₀ : (⟨f₀.depth, P.principal_depth _ _ hf₀⟩ : Fin P.k) = r.parentSlot := by
+    apply Fin.ext
+    have := hr.1
+    have := r.parentSlot_eq
+    dsimp only
+    omega
+  have hV₀ : V a₀ = newState Y hY n hn D hD N A := by
+    have h := HV a₀
+    change decode (Q a₀) ⟨f₀.depth, _⟩ = some (V a₀) at h
+    rw [hQ₀, hj₀] at h
+    exact Option.some.inj (h.symm.trans r.parent_decode)
+  obtain ⟨f, hf, hg⟩ := routing_constant_step1_normalize N (n + 1) g hbirth hdepth hprincipal
+  let a : F := ⟨f, hf⟩
+  have hG : G a = g := routing_constant_step1_unique N (n + 1) f (G a) g (HG a) hg
+  have hV : V a = newState Y hY n hn D hD N A :=
+    (routing_constant_step5_connected_values N.ty V hlinks a a₀).trans hV₀
+  subst g
+  refine ⟨HL a, Q a, HQ a, HH a, ?_⟩
+  have hd : n + 1 - (G a).height = f.depth := by
+    have hsum : (G a).height + f.depth = n + 1 := (HG a).1
+    omega
+  simpa only [hd] using (HV a).trans (congrArg some hV)
 
 /-- R9, V4 3.10: in particular every first-generation primitive facet of P
 has head S(P), the entire compressed packet's reconstructed bottom state. -/

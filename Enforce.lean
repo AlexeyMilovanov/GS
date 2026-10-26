@@ -15,3 +15,4 @@ import Enforce.State.Parameters
 import Enforce.State.State
 import Enforce.State.Packets
 import Enforce.State.Rows
+import Enforce.Compiler

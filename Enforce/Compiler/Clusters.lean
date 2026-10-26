@@ -1,0 +1,392 @@
+import Enforce.State.Rows
+import Enforce.Rules
+
+/-!
+# Geometric clusters and the augmented alphabet
+
+M2, V4 2.10, with the frame marker of V4 §2.4. Choices are explicit fields,
+including all clearances and the common microball radius. No source is assumed
+nonempty. Honest ranges supply the finite alphabets, even for an empty species.
+
+DEVIATION: the optional state-ball encoding and the enclosing cluster balls are
+chosen together here, since stage 3 records pre-pattern symbols without a state
+ball. The state ball is fixed per prototype and carries the entire honest
+pre-pattern symbol. The same symbol colours the remaining interior, as specified
+in Construction 2.10. This retains all state and packet data.
+-/
+
+open Set Metric
+
+noncomputable section
+
+namespace Enforce
+
+variable {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
+
+attribute [local instance] Classical.decEq
+
+/-- M2, V4 2.10: the finite alphabet of actual pre-pattern symbols. -/
+abbrev PrePatternSymbol (S : SubstSystem d) (P : Params S) :=
+  {w // w ∈ honestPrePatterns S P}
+
+/-- M2, V4 2.10: the finite alphabet of actual certificate blocks. -/
+abbrev CertificateSymbol (S : SubstSystem d) (P : Params S) :=
+  {D // D ∈ honestCerts S P}
+
+/-- M2, V4 2.10: enumeration of the honest pre-pattern alphabet. -/
+instance prePatternSymbolFintype (P : Params S) : Fintype (PrePatternSymbol S P) :=
+  (prePatterns_finite S P).fintype
+
+/-- M2, V4 2.10: enumeration of the honest certificate alphabet. -/
+instance certificateSymbolFintype (P : Params S) : Fintype (CertificateSymbol S P) :=
+  (certs_finite S P).fintype
+
+/-- M2, V4 2.10: enumeration of the finite leaf alphabet from stage 3. -/
+instance leafTypeFintype (P : Params S) : Fintype (LeafType P) := by
+  letI := leafTypes_finite P
+  exact Fintype.ofFinite _
+
+/-- M2, V4 2.10: enumeration of all slots of a fixed leaf. -/
+instance eventSlotFintype {P : Params S} (l : LeafType P) : Fintype (EventSlot l) := by
+  letI := eventSlots_finite P l
+  exact Fintype.ofFinite _
+
+/-- M2, V4 2.10: enclosing regions, one CORE, one RO and one TRIG per slot. -/
+inductive ClusterKind {P : Params S} (l : LeafType P)
+  /-- M2, V4 2.10: certificate pinning. -/
+  | core : ClusterKind l
+  /-- M2, V4 2.10: template readout pinning. -/
+  | readout : ClusterKind l
+  /-- M2, V4 2.10: pinning the central tile of an event. -/
+  | trigger : EventSlot l → ClusterKind l
+
+/-- M2, V4 2.10: the enclosing-region index type is finite. -/
+theorem clusterKinds_finite {P : Params S} (l : LeafType P) :
+    Finite (ClusterKind l) := by
+  sorry
+
+/-- M2, V4 2.10: enumeration of enclosing-region kinds. -/
+instance clusterKindFintype {P : Params S} (l : LeafType P) :
+    Fintype (ClusterKind l) := by
+  letI := clusterKinds_finite l
+  exact Fintype.ofFinite _
+
+/-- M2, V4 2.10: the genuine global choices of balls, anchors and small constants.
+The fields give the printed order-of-choices inequalities. Additional containment
+fields spell out their geometric consequences, rather than assuming rigidity.
+DEVIATION: state balls are chosen here with the compiler balls, as explained above.
+Existence is `clusterData_exists`; an actual source is not required. -/
+structure ClusterData (S : SubstSystem d) (P : Params S) where
+  /-- M2, V4 2.10: centre of the further small state ball for each prototype. -/
+  stateCentre : S.ι → E d
+  /-- M2, V4 2.10: state-ball radii, chosen before cluster regions. -/
+  stateRadius : S.ι → ℝ
+  /-- M2, V4 2.10: nondegenerate state balls. -/
+  stateRadius_pos : ∀ A, 0 < stateRadius A
+  /-- M2, V4 2.10: closed state balls are strictly inside their prototypes. -/
+  state_inside : ∀ A, closedBall (stateCentre A) (stateRadius A) ⊆
+    interior (S.proto A).carrier
+  /-- M2, V4 2.10: state balls avoid all fixed frame-marker balls. -/
+  state_marker_disjoint : ∀ A a, Disjoint
+    (closedBall (stateCentre A) (stateRadius A))
+    (closedBall ((P.marker A).centre a) (P.marker A).radius)
+  /-- M2, V4 2.10: centres of closed enclosing balls. -/
+  enclosingCentre : ∀ l : LeafType P, ClusterKind l → E d
+  /-- M2, V4 2.10: radii of the enclosing balls. -/
+  enclosingRadius : ∀ l : LeafType P, ClusterKind l → ℝ
+  /-- M2, V4 2.10: every enclosing ball has positive radius. -/
+  enclosingRadius_pos : ∀ l κ, 0 < enclosingRadius l κ
+  /-- M2, V4 2.10: closed enclosing balls lie in the leaf interior. -/
+  enclosing_inside : ∀ l κ, closedBall (enclosingCentre l κ) (enclosingRadius l κ) ⊆
+    interior (S.proto l.prototype).carrier
+  /-- M2, V4 2.10: different enclosing balls of one leaf are disjoint. -/
+  enclosing_disjoint : ∀ l, Pairwise (fun κ η : ClusterKind l => Disjoint
+    (closedBall (enclosingCentre l κ) (enclosingRadius l κ))
+    (closedBall (enclosingCentre l η) (enclosingRadius l η)))
+  /-- M2, V4 2.10: enclosing balls avoid the fixed labelled frame markers. -/
+  enclosing_marker_disjoint : ∀ l κ a, Disjoint
+    (closedBall (enclosingCentre l κ) (enclosingRadius l κ))
+    (closedBall ((P.marker l.prototype).centre a) (P.marker l.prototype).radius)
+  /-- M2, V4 2.10: enclosing balls avoid the state ball. -/
+  enclosing_state_disjoint : ∀ l κ, Disjoint
+    (closedBall (enclosingCentre l κ) (enclosingRadius l κ))
+    (closedBall (stateCentre l.prototype) (stateRadius l.prototype))
+  /-- M2, V4 2.10: cluster anchors, chosen before the clearance constant. -/
+  anchor : ∀ l : LeafType P, ClusterKind l → E d
+  /-- M2, V4 2.10: each anchor lies strictly inside its enclosing ball. -/
+  anchor_inside : ∀ l κ, anchor l κ ∈ ball (enclosingCentre l κ) (enclosingRadius l κ)
+  /-- M2, V4 2.10: uniform clearance constant. -/
+  δ : ℝ
+  /-- M2, V4 2.10: strictly positive clearance. -/
+  δ_pos : 0 < δ
+  /-- M2, V4 2.10: delta is less than half every anchor-to-boundary distance. -/
+  anchor_boundary : ∀ l κ x, x ∈ frontier (S.proto l.prototype).carrier →
+    δ < dist (anchor l κ) x / 2
+  /-- M2, V4 2.10: delta is less than a quarter of inter-anchor distances. -/
+  anchor_separation : ∀ l κ η, κ ≠ η → δ < dist (anchor l κ) (anchor l η) / 4
+  /-- M2, V4 2.10: uniform upper bound on complete cluster diameters. -/
+  ε : ℝ
+  /-- M2, V4 2.10: positive diameter budget. -/
+  ε_pos : 0 < ε
+  /-- M2, V4 2.10: the printed epsilon/delta inequality. -/
+  ε_lt : ε < δ / 4
+  /-- M2, V4 2.10: all d+1 labelled microball centres. -/
+  centre : ∀ l : LeafType P, ClusterKind l → Fin (d + 1) → E d
+  /-- M2, V4 2.10: centres are chosen within epsilon/2 of their anchor. -/
+  centre_near : ∀ l κ a, dist (centre l κ a) (anchor l κ) < ε / 2
+  /-- M2, V4 2.10: each complete labelled cluster fixes a full affine frame. -/
+  independent : ∀ l κ, AffineIndependent ℝ (centre l κ)
+  /-- M2, V4 2.10: one common microball radius throughout the finite catalogue. -/
+  ρ : ℝ
+  /-- M2, V4 2.10: positive microball radius. -/
+  ρ_pos : 0 < ρ
+  /-- M2, V4 2.10: radius is chosen after epsilon. -/
+  ρ_lt : ρ < ε / 4
+  /-- M2, V4 2.10: closed microballs lie strictly inside the enclosing ball. -/
+  micro_inside : ∀ l κ a, closedBall (centre l κ a) ρ ⊆
+    ball (enclosingCentre l κ) (enclosingRadius l κ)
+  /-- M2, V4 2.10: microballs in one cluster are pairwise disjoint. -/
+  micro_disjoint : ∀ l κ, Pairwise (fun a b : Fin (d + 1) => Disjoint
+    (closedBall (centre l κ a) ρ) (closedBall (centre l κ b) ρ))
+  /-- M2, V4 2.10: diameter bound for the entire union, including microball radii. -/
+  cluster_diameter : ∀ l κ, diam (⋃ a, closedBall (centre l κ a) ρ) < ε
+  /-- M2, V4 2.10: the resulting centres have strict delta-clearance. -/
+  centre_boundary : ∀ l κ a x, x ∈ frontier (S.proto l.prototype).carrier →
+    δ < dist (centre l κ a) x
+  /-- M2, V4 2.10: clearance stated also as a neighbourhood containment. -/
+  centre_clearance : ∀ l κ a, closedBall (centre l κ a) δ ⊆
+    interior (S.proto l.prototype).carrier
+
+/-- M2, V4 2.10: all geometric choices exist over the finite catalogues.
+Prototype interiors provide room outside the finitely many disjoint marker balls;
+empty source catalogues cause no difficulty and require no extra hypotheses. -/
+theorem clusterData_exists (S : SubstSystem d) (P : Params S) :
+    Nonempty (ClusterData S P) := by
+  sorry
+
+namespace ClusterData
+
+variable {P : Params S} (C : ClusterData S P)
+
+/-- M2, V4 2.10: a closed enclosing ball in prototype coordinates. -/
+def enclosing (l : LeafType P) (κ : ClusterKind l) : Set (E d) :=
+  closedBall (C.enclosingCentre l κ) (C.enclosingRadius l κ)
+
+/-- M2, V4 2.10: the open hole omitted from a CORE carrier. -/
+def openTrigger (l : LeafType P) (j : EventSlot l) : Set (E d) :=
+  ball (C.enclosingCentre l (.trigger j)) (C.enclosingRadius l (.trigger j))
+
+/-- M2, V4 2.10: one closed microball. -/
+def microball (l : LeafType P) (κ : ClusterKind l) (a : Fin (d + 1)) : Set (E d) :=
+  closedBall (C.centre l κ a) C.ρ
+
+/-- M2, V4 2.10: an entire cluster is the union of its d+1 closed microballs. -/
+def cluster (l : LeafType P) (κ : ClusterKind l) : Set (E d) :=
+  ⋃ a, C.microball l κ a
+
+/-- M2, V4 2.10: all cluster points lie in the physical leaf interior. -/
+theorem cluster_inside (l : LeafType P) (κ : ClusterKind l) :
+    C.cluster l κ ⊆ interior (S.proto l.prototype).carrier := by
+  sorry
+
+/-- M2, V4 2.10: all microballs in a leaf, across all kinds, are disjoint. -/
+theorem all_microballs_disjoint (l : LeafType P) :
+    Pairwise (fun u v : ClusterKind l × Fin (d + 1) =>
+      Disjoint (C.microball l u.1 u.2) (C.microball l v.1 v.2)) := by
+  sorry
+
+end ClusterData
+
+/-- M2, V4 2.10: the honest pre-pattern component of an admissible leaf. -/
+def LeafType.symbol {P : Params S} (l : LeafType P) : PrePatternSymbol S P :=
+  ⟨l.prePattern, (certificate_components_honest P l.1.val l.1.property).1 l.2⟩
+
+/-- M2, V4 2.10: the full finite colour alphabet, with disjoint tagged families.
+Frame colours retain the prototype. State and background colours retain the honest
+pre-pattern, which includes the prototype, state and every facet packet. -/
+inductive Colour (S : SubstSystem d) (P : Params S)
+  /-- M2, V4 2.10: interior colour (type, pre-pattern), with type stored in the symbol. -/
+  | inside : PrePatternSymbol S P → Colour S P
+  /-- M2, V4 §2.4, 2.10: fixed labelled frame-marker colour. -/
+  | frame : S.ι → Fin (d + 1) → Colour S P
+  /-- M2, V4 2.10: encoding of the same pre-pattern on the further state ball. -/
+  | state : PrePatternSymbol S P → Colour S P
+  /-- M2, V4 2.10: CORE microball colour. -/
+  | core : LeafType P → Fin (d + 1) → Colour S P
+  /-- M2, V4 2.10: READOUT microball colour. -/
+  | readout : LeafType P → Fin (d + 1) → Colour S P
+  /-- M2, V4 2.10: TRIGGER colour includes its exact slot. -/
+  | trigger : (l : LeafType P) → EventSlot l → Fin (d + 1) → Colour S P
+  /-- M2, V4 2.10: the common boundary colour @. -/
+  | boundary : Colour S P
+
+/-- M2, V4 2.10: finiteness follows from pre-patterns, leaf types and slot finiteness. -/
+theorem colours_finite (S : SubstSystem d) (P : Params S) : Finite (Colour S P) := by
+  sorry
+
+/-- M2, V4 2.10: a noncomputable finite enumeration of all tagged colours. -/
+instance colourFintype (S : SubstSystem d) (P : Params S) : Fintype (Colour S P) := by
+  letI := colours_finite S P
+  exact Fintype.ofFinite _
+
+/-- M2, V4 2.10: colour of one labelled microball of the indicated kind. -/
+def microColour {P : Params S} (l : LeafType P) (κ : ClusterKind l)
+    (a : Fin (d + 1)) : Colour S P :=
+  match κ with
+  | .core => .core l a
+  | .readout => .readout l a
+  | .trigger j => .trigger l j a
+
+/-- M2, V4 2.10: exact native projection; only @ projects to the boundary symbol. -/
+def π (S : SubstSystem d) (P : Params S) : Colour S P → Option S.ι
+  | .inside w => some w.val.ty
+  | .frame A _ => some A
+  | .state w => some w.val.ty
+  | .core l _ => some l.prototype
+  | .readout l _ => some l.prototype
+  | .trigger l _ _ => some l.prototype
+  | .boundary => none
+
+/-- M2, V4 2.10: ambient extension of the augmented leaf marking by @.
+On the interior the disjoint microballs override the pre-pattern, followed by
+frame markers, the state ball, and the background symbol. On the whole complement
+of the interior the extension is @; physical markings restrict to the closed leaf. -/
+def augmentedColour {P : Params S} (C : ClusterData S P) (l : LeafType P)
+    (x : E d) : Colour S P := by
+  classical
+  exact if x ∈ interior (S.proto l.prototype).carrier then
+    if hm : ∃ z : ClusterKind l × Fin (d + 1), x ∈ C.microball l z.1 z.2 then
+      microColour l (Classical.choose hm).1 (Classical.choose hm).2
+    else if hf : ∃ a, x ∈ closedBall ((P.marker l.prototype).centre a)
+        (P.marker l.prototype).radius then
+      .frame l.prototype (Classical.choose hf)
+    else if x ∈ closedBall (C.stateCentre l.prototype) (C.stateRadius l.prototype) then
+      .state l.symbol
+    else .inside l.symbol
+    else .boundary
+
+/-- M2, V4 2.10: the genuine marking function on the closed prototype carrier. -/
+def augmentedMarking {P : Params S} (C : ClusterData S P) (l : LeafType P) :
+    (S.proto l.prototype).carrier → Colour S P := fun x => augmentedColour C l x
+
+/-- M2, V4 2.10: every point of a closed microball has its exact tagged colour. -/
+theorem augmentedMarking_microball {P : Params S} (C : ClusterData S P)
+    (l : LeafType P) (κ : ClusterKind l) (a : Fin (d + 1)) (x : E d)
+    (hx : x ∈ C.microball l κ a) : augmentedColour C l x = microColour l κ a := by
+  sorry
+
+/-- M2, V4 2.10: a microball colour occurs precisely on that one closed microball.
+The statement includes all points of the ambient extension and all source leaves. -/
+theorem augmentedColour_micro_iff {P : Params S} (C : ClusterData S P)
+    (l u : LeafType P) (κ : ClusterKind l) (a : Fin (d + 1)) (x : E d) :
+    augmentedColour C u x = microColour l κ a ↔ u = l ∧ x ∈ C.microball l κ a := by
+  sorry
+
+/-- M2, V4 §2.4, 2.10: the prescribed frame-marker balls retain their colours. -/
+theorem augmentedMarking_frame {P : Params S} (C : ClusterData S P)
+    (l : LeafType P) (a : Fin (d + 1)) (x : E d)
+    (hx : x ∈ closedBall ((P.marker l.prototype).centre a) (P.marker l.prototype).radius) :
+    augmentedColour C l x = Colour.frame l.prototype a := by
+  sorry
+
+/-- M2, V4 2.10: the small state ball encodes the complete pre-pattern. -/
+theorem augmentedMarking_state {P : Params S} (C : ClusterData S P)
+    (l : LeafType P) (x : E d)
+    (hx : x ∈ closedBall (C.stateCentre l.prototype) (C.stateRadius l.prototype)) :
+    augmentedColour C l x = Colour.state l.symbol := by
+  sorry
+
+/-- M2, V4 2.10: projection is the native type at every interior point. -/
+theorem augmentedMarking_projection {P : Params S} (C : ClusterData S P)
+    (l : LeafType P) (x : E d) (hx : x ∈ interior (S.proto l.prototype).carrier) :
+    π S P (augmentedColour C l x) = some l.prototype := by
+  sorry
+
+/-- M2, V4 2.10: all physical boundary points have the common colour @. -/
+theorem augmentedMarking_boundary {P : Params S} (C : ClusterData S P)
+    (l : LeafType P) (x : E d) (hx : x ∈ frontier (S.proto l.prototype).carrier) :
+    augmentedColour C l x = Colour.boundary := by
+  sorry
+
+/-- M2/M3, V4 2.10--2.11: an augmented physical prototype has the native carrier. -/
+def augmentedLeaf {P : Params S} (C : ClusterData S P) (l : LeafType P) :
+    MarkedPrototile d (Colour S P) where
+  carrier := (S.proto l.prototype).carrier
+  mark := augmentedMarking C l
+  compact := (S.proto l.prototype).compact
+  regularClosed := (S.proto l.prototype).regularClosed
+
+/-- M2, V4 §2.4, 2.10: the complete marked carrier pins both label and frame.
+The CORE colours identify the leaf type, and the affinely independent labelled
+frame markers identify the isometry, including possible reflections. -/
+theorem augmentedLeaf_rigid {P : Params S} (C : ClusterData S P)
+    (l u : LeafType P) (φ ψ : Iso d)
+    (h : (augmentedLeaf C l).toMarkedSet.move φ =
+      (augmentedLeaf C u).toMarkedSet.move ψ) : l = u ∧ φ = ψ := by
+  sorry
+
+variable {P : Params S}
+
+namespace ClusterData
+
+variable (C : ClusterData S P)
+
+/-- M2/M5, V4 2.10, 2.13: the full cluster diameter is below the separation scale. -/
+theorem cluster_diam_lt_two_delta (l : LeafType P) (κ : ClusterKind l) :
+    diam (C.cluster l κ) < 2 * C.δ := by
+  have hε := C.ε_lt
+  have hδ := C.δ_pos
+  have hdiam := C.cluster_diameter l κ
+  change diam (⋃ a, closedBall (C.centre l κ a) C.ρ) < 2 * C.δ
+  linarith
+
+/-- M2, V4 2.10: an entire closed microball lies in its enclosing region. -/
+theorem microball_subset_enclosing (l : LeafType P) (κ : ClusterKind l)
+    (a : Fin (d + 1)) : C.microball l κ a ⊆ C.enclosing l κ :=
+  (C.micro_inside l κ a).trans ball_subset_closedBall
+
+/-- M2, V4 2.10: every complete cluster lies in its enclosing region. -/
+theorem cluster_subset_enclosing (l : LeafType P) (κ : ClusterKind l) :
+    C.cluster l κ ⊆ C.enclosing l κ := by
+  intro x hx
+  obtain ⟨a, ha⟩ := Set.mem_iUnion.mp hx
+  exact C.microball_subset_enclosing l κ a ha
+
+/-- M2/M4, V4 2.10, 2.12(ii): a TRIG cluster is wholly inside the open CORE hole. -/
+theorem trigger_cluster_subset_open (l : LeafType P) (j : EventSlot l) :
+    C.cluster l (.trigger j) ⊆ C.openTrigger l j := by
+  intro x hx
+  obtain ⟨a, ha⟩ := Set.mem_iUnion.mp hx
+  exact C.micro_inside l (.trigger j) a ha
+
+/-- M2/M4, V4 2.10, 2.12: each closed cluster is disjoint from the enclosing
+regions of all different kinds, so reading a whole RO ball introduces no CORE or TRIG. -/
+theorem cluster_disjoint_enclosing (l : LeafType P) (κ η : ClusterKind l)
+    (hne : κ ≠ η) : Disjoint (C.cluster l κ) (C.enclosing l η) := by
+  exact (C.enclosing_disjoint l hne).mono_left (C.cluster_subset_enclosing l κ)
+
+/-- M2/M4, V4 2.10, 2.12(iii): a delta-neighbourhood of every centre is interior. -/
+theorem centre_ball_inside (l : LeafType P) (κ : ClusterKind l) (a : Fin (d + 1)) :
+    ball (C.centre l κ a) C.δ ⊆ interior (S.proto l.prototype).carrier :=
+  ball_subset_closedBall.trans (C.centre_clearance l κ a)
+
+end ClusterData
+
+/-- M2, V4 2.10: only the boundary colour projects to the boundary symbol. -/
+theorem colour_projection_none_iff (c : Colour S P) :
+    π S P c = none ↔ c = Colour.boundary := by
+  cases c <;> simp only [π, reduceCtorEq, iff_self]
+
+/-- M2, V4 2.10: every microcolour projects to exactly its native prototype. -/
+theorem microColour_projection (l : LeafType P) (κ : ClusterKind l)
+    (a : Fin (d + 1)) : π S P (microColour l κ a) = some l.prototype := by
+  cases κ <;> rfl
+
+/-- M2/M5, V4 2.10, 2.13: equal microcolours identify the full leaf, kind and label.
+Heterogeneous kind equality retains the dependent slot index when the kind is TRIG. -/
+theorem microColour_injective (l u : LeafType P) (κ : ClusterKind l) (η : ClusterKind u)
+    (a b : Fin (d + 1)) (h : microColour l κ a = microColour u η b) :
+    l = u ∧ HEq κ η ∧ a = b := by
+  sorry
+
+end Enforce

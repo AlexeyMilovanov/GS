@@ -2364,6 +2364,234 @@ private theorem exists_childMap_step6_internal_header
       simpa only [← hvv', ← hfg] using hv
     simp only [HonestSource.headerRecordOf, dif_neg hv, dif_neg hv']
 
+section InheritedHeaderGeometry
+
+omit hrole hvv' hfg
+
+/-- Step 1 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"then ... has dimension 0". Full affine frames preserve cell dimension. -/
+private theorem exists_childMap_step6_inherited_header_step1_dimension
+    (T : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+    Module.finrank ℝ (cellDirection (T '' e.carrier)) = e.dim := by
+  change Module.finrank ℝ (affineSpan ℝ (T.toAffineMap '' e.carrier)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  exact (T.linear.finrank_map_eq (cellDirection e.carrier)).trans e.flat.dimension
+
+/-- Step 1 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"so dim t = 0 (Lemma 1.7(b))". The dimension bound also holds for the
+canonical provider-side names used by the recorded stratum map. -/
+private theorem exists_childMap_step6_inherited_header_step1_tau_dimension
+    (P : Params S) (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : CellsInFacet q.2.val.ty f) :
+    e.val.val.dim ≤ (U.recordTau P q f hf e).val.val.dim := by
+  have h := (Classical.choose_spec (U.recordTau_exists P q f hf e)).1
+  have hd := congrArg (fun K => Module.finrank ℝ (cellDirection K)) h
+  change Module.finrank ℝ
+      (cellDirection (U.providerPlacement P q f hf ''
+        (U.recordTau P q f hf e).val.val.carrier)) =
+    Module.finrank ℝ (cellDirection
+      ((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1 ''
+        (U.hierarchy.stratumMap q f hf e.val (U.cellInFacet_placed q f e)).val.carrier)) at hd
+  rw [exists_childMap_step6_inherited_header_step1_dimension,
+    exists_childMap_step6_inherited_header_step1_dimension] at hd
+  exact (U.hierarchy.stratumMap_spec q f hf e.val
+    (U.cellInFacet_placed q f e)).2.1.trans_eq hd.symm
+
+/-- Step 2 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"if f' ... is inherited". Its provider is finite exactly when the parent
+facet's provider is finite. -/
+private theorem exists_childMap_step6_inherited_header_step2_fault
+    (U : HonestSource S) (c p : U.Node) (hp : U.hierarchy.parentNode c = p)
+    (f : FacetName S c.2.val.ty) (F : FacetName S p.2.val.ty)
+    (hsub : c.2.val.cell c.1 f.val ⊆ p.2.val.cell p.1 F.val) :
+    U.hierarchy.IsFault c f ↔ U.hierarchy.IsFault p F := by
+  subst p
+  constructor
+  · intro hf
+    by_contra hF
+    exact (U.hierarchy.restriction_det_inherited c F f hF hsub).choose hf
+  · intro hF
+    exact U.hierarchy.restriction_det_fault c F f hF hsub
+
+/-- Step 2 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"v' is a vertex v of B ... and the record of (v,f) in S(B) exists".
+A present inherited child header has a parent-vertex name at the same point. -/
+private theorem exists_childMap_step6_inherited_header_step2_vertex
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (v : VertexName S (U.childNode q hq i).2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty) (F : FacetName S q.2.val.ty)
+    (hsub : rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier)
+    (hh : U.headerRecordOf P (U.childNode q hq i) v f ≠ none) :
+    ∃ w : VertexName S q.2.val.ty,
+      rolePlacement ⟨q.2.val.ty, i⟩ '' v.val.carrier = w.val.carrier := by
+  classical
+  unfold HonestSource.headerRecordOf at hh
+  split at hh
+  next hv =>
+    split at hh
+    next hf => exact False.elim (hh rfl)
+    next hf =>
+      split at hh
+      next hzero =>
+        have hsub' := (exists_childMap_step4_containment U q hq i f.val F.val).mpr hsub
+        have hF := mt (exists_childMap_step6_inherited_header_step2_fault U _ _
+          (exists_childMap_step2_parent U q hq i) f F hsub').mpr hf
+        obtain ⟨t, hrel, htau⟩ := exists_childMap_step4_inherited_tau P U _ _
+          (exists_childMap_step2_parent U q hq i) f F hf hF hsub' ⟨vertexCell v, hv⟩
+        have hdim := exists_childMap_step6_inherited_header_step1_tau_dimension P U q F hF t
+        have htzero : t.val.val.dim = 0 := by
+          rw [← htau, hzero] at hdim
+          exact Nat.eq_zero_of_le_zero hdim
+        let w : VertexName S q.2.val.ty :=
+          ⟨t.val.val, Finset.mem_filter.mpr ⟨t.val.property, htzero⟩⟩
+        refine ⟨w, ?_⟩
+        have hrel' := (exists_childMap_step4_relint_containment U q hq i
+          v.val t.val.val).mp hrel
+        change relint (rolePlacement ⟨q.2.val.ty, i⟩ '' v.val.carrier) ⊆
+          relint w.val.carrier at hrel'
+        simpa only [vertexPoint_spec, Set.image_singleton, relint,
+          intrinsicInterior_singleton, Set.singleton_subset_iff,
+          Set.mem_singleton_iff, Set.singleton_eq_singleton_iff] using hrel'
+      next hzero => exact False.elim (hh rfl)
+  next hv => exact False.elim (hh rfl)
+
+/-- Step 2 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"tau_f(t) = tau_f'({v'})". When the child vertex names a parent vertex,
+uniqueness of the parent cell identifies their recorded provider strata. -/
+private theorem exists_childMap_step6_inherited_header_step2_tau
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (v : VertexName S (U.childNode q hq i).2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty) (F : FacetName S q.2.val.ty)
+    (hsub : rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier)
+    (w : VertexName S q.2.val.ty)
+    (hw : rolePlacement ⟨q.2.val.ty, i⟩ '' v.val.carrier = w.val.carrier)
+    (hv : v.val.carrier ⊆ f.val.carrier) (hwF : w.val.carrier ⊆ F.val.carrier)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (hF : ¬ U.hierarchy.IsFault q F) :
+    (U.recordTau P (U.childNode q hq i) f hf ⟨vertexCell v, hv⟩).val.val =
+      (U.recordTau P q F hF ⟨vertexCell w, hwF⟩).val.val := by
+  obtain ⟨t, hrel, htau⟩ := exists_childMap_step4_inherited_tau P U _ _
+    (exists_childMap_step2_parent U q hq i) f F hf hF
+    ((exists_childMap_step4_containment U q hq i f.val F.val).mpr hsub)
+    ⟨vertexCell v, hv⟩
+  have hrel' := (exists_childMap_step4_relint_containment U q hq i
+    v.val t.val.val).mp hrel
+  rw [hw] at hrel'
+  have he : t.val.val = w.val := by
+    by_contra hne
+    have hd := (S.cx q.2.val.ty).relint_disjoint _ t.val.property _
+      (vertexCell w).property hne
+    obtain ⟨x, hx⟩ := w.val.flat.relint_nonempty
+    exact Set.disjoint_left.mp hd (hrel' hx) hx
+  have ht : t = ⟨vertexCell w, hwF⟩ := Subtype.ext (Subtype.ext he)
+  simpa only [ht] using htau
+
+/-- Step 3 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"the same cones, re-expressed in C's frame". Apply a linear change of frame
+to every cone, retaining every presence test and the endpoint orientation. -/
+private def exists_childMap_step6_inherited_header_step3_reframe
+    {P : Params S} (L : E d ≃ₗ[ℝ] E d) (H : State.Header P) : State.Header P where
+  birthType := H.birthType
+  parentCone := L '' H.parentCone
+  childCones := fun i => (H.childCones i).map (fun K => L '' K)
+  boundaryCones := fun F => (H.boundaryCones F).map (fun K => L '' K)
+  primitiveCones := fun a => (H.primitiveCones a).map (fun K => L '' K)
+  flagTangent := fun a => (H.flagTangent a).map (fun T => {
+    cones := fun j => L '' T.cones j
+    initial := T.initial
+    sides := fun j => L '' T.sides j })
+
+/-- Step 3 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"a vector u in B's frame becomes R_i^-1 sigma u in C's frame".
+Inverse full linear frames compose with the inverse normalized role placement. -/
+private theorem exists_childMap_step6_inherited_header_step3_cone
+    (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
+    (K : Set (E d)) :
+    U.normalizeCone (U.childNode q hq i) K =
+      (rolePlacement ⟨q.2.val.ty, i⟩).linear.symm '' U.normalizeCone q K := by
+  have hframe : (U.childNode q hq i).2.val.prototypeFrame (U.childNode q hq i).1 =
+      (rolePlacement ⟨q.2.val.ty, i⟩).trans (q.2.val.prototypeFrame q.1) := by
+    simpa only [Nat.sub_add_cancel hq] using exists_childMap_step1_frame q.2.val (q.1-1) i
+  unfold HonestSource.normalizeCone
+  rw [hframe, Set.image_image]
+  rfl
+
+/-- Step 3 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"the record of (v',f') is ... (record of (v,f))". With the same birth parent
+and apex, the literal geometric header changes only its normalizing frame. -/
+private theorem exists_childMap_step6_inherited_header_step3_header
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (v : VertexName S (U.childNode q hq i).2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty) (F : FacetName S q.2.val.ty)
+    (w : VertexName S q.2.val.ty)
+    (hw : rolePlacement ⟨q.2.val.ty, i⟩ '' v.val.carrier = w.val.carrier)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (hF : ¬ U.hierarchy.IsFault q F)
+    (hb : U.hierarchy.birthParent (U.childNode q hq i) f hf =
+      U.hierarchy.birthParent q F hF) :
+    U.headerOf P (U.childNode q hq i) f hf v =
+      exists_childMap_step6_inherited_header_step3_reframe
+        (rolePlacement ⟨q.2.val.ty, i⟩).linear.symm (U.headerOf P q F hF w) := by
+  have hp : rolePlacement ⟨q.2.val.ty, i⟩ (vertexPoint v) = vertexPoint w := by
+    simpa only [vertexPoint_spec, Set.image_singleton, Set.singleton_eq_singleton_iff] using hw
+  have hframe : (U.childNode q hq i).2.val.prototypeFrame (U.childNode q hq i).1 =
+      (rolePlacement ⟨q.2.val.ty, i⟩).trans (q.2.val.prototypeFrame q.1) := by
+    simpa only [Nat.sub_add_cancel hq] using exists_childMap_step1_frame q.2.val (q.1-1) i
+  have hx : (U.childNode q hq i).2.val.prototypeFrame (U.childNode q hq i).1 (vertexPoint v) =
+      q.2.val.prototypeFrame q.1 (vertexPoint w) := by
+    rw [hframe]
+    exact congrArg (q.2.val.prototypeFrame q.1) hp
+  unfold HonestSource.headerOf
+  rw [hb, hx]
+  unfold exists_childMap_step6_inherited_header_step3_reframe
+  simp only [exists_childMap_step6_inherited_header_step3_cone,
+    apply_ite, Option.map_some, Option.map_none]
+
+/-- Step 4 of the V4 proof of `exists_childMap_step6_inherited_header` (V4 2.3):
+"the record of (v,f) in S(B) exists; the record of (v',f') is ...".
+At a shared vertex, the inherited header entry is the parent entry with all
+cones re-expressed in the child frame, including the absent-entry cases. -/
+private theorem exists_childMap_step6_inherited_header_step4_record
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (v : VertexName S (U.childNode q hq i).2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty) (F : FacetName S q.2.val.ty)
+    (hsub : rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier)
+    (w : VertexName S q.2.val.ty)
+    (hw : rolePlacement ⟨q.2.val.ty, i⟩ '' v.val.carrier = w.val.carrier)
+    (hv : v.val.carrier ⊆ f.val.carrier) :
+    U.headerRecordOf P (U.childNode q hq i) v f =
+      (U.headerRecordOf P q w F).map
+        (exists_childMap_step6_inherited_header_step3_reframe
+          (rolePlacement ⟨q.2.val.ty, i⟩).linear.symm) := by
+  classical
+  have hwF : w.val.carrier ⊆ F.val.carrier := by
+    rw [← hw]
+    exact (Set.image_mono hv).trans hsub
+  have hsub' := (exists_childMap_step4_containment U q hq i f.val F.val).mpr hsub
+  have hfault := exists_childMap_step6_inherited_header_step2_fault U _ _
+    (exists_childMap_step2_parent U q hq i) f F hsub'
+  by_cases hF : U.hierarchy.IsFault q F
+  · simp only [HonestSource.headerRecordOf, dif_pos hv, dif_pos hwF,
+      dif_pos hF, dif_pos (hfault.mpr hF), Option.map_none]
+  · have hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f := mt hfault.mp hF
+    have hp : U.hierarchy.ancestor (U.childNode q hq i) 1 = q := by
+      simpa only [CoherentHierarchy.ancestor, Function.iterate_one] using
+        exists_childMap_step2_parent U q hq i
+    obtain ⟨_, _, hb⟩ := U.hierarchy.provider_inherited q (U.childNode q hq i) 1 hp F f hF hsub'
+    have htau := exists_childMap_step6_inherited_header_step2_tau P U q hq i v f F
+      hsub w hw hv hwF hf hF
+    simp only [HonestSource.headerRecordOf, dif_pos hv, dif_pos hwF, dif_neg hf,
+      dif_neg hF, htau]
+    by_cases hz : (U.recordTau P q F hF ⟨vertexCell w, hwF⟩).val.val.dim = 0
+    · simp only [if_pos hz, Option.map_some]
+      exact congrArg some
+        (exists_childMap_step6_inherited_header_step3_header P U q hq i v f F w hw hf hF hb)
+    · simp only [if_neg hz, Option.map_none]
+
+end InheritedHeaderGeometry
+
 /-- Step 6 of the V4 proof of `exists_childMap` (V4 2.3):
 "if f' ... is inherited ... v' is a vertex v of B" and its record is
 "the same cones, re-expressed in C's frame". Thus the parent header table on
@@ -2376,7 +2604,37 @@ private theorem exists_childMap_step6_inherited_header
       w.val = w'.val → U.headerRecordOf P q w F = V.headerRecordOf P q' w' G) :
     U.headerRecordOf P (U.childNode q hq i) v f =
       V.headerRecordOf P (V.childNode q' hq' i') v' g := by
-  sorry
+  classical
+  have hty : q.2.val.ty = q'.2.val.ty := congrArg Sigma.fst hrole
+  have hsub' : rolePlacement ⟨q'.2.val.ty, i'⟩ '' g.val.carrier ⊆ G.val.carrier := by
+    simpa only [← hrole, ← hfg, ← hFG] using hsub
+  by_cases hv : v.val.carrier ⊆ f.val.carrier
+  · have hv' : v'.val.carrier ⊆ g.val.carrier := by
+      simpa only [← hvv', ← hfg] using hv
+    by_cases hw : ∃ w : VertexName S q.2.val.ty,
+        rolePlacement ⟨q.2.val.ty, i⟩ '' v.val.carrier = w.val.carrier
+    · obtain ⟨w, hw⟩ := hw
+      let w' : VertexName S q'.2.val.ty := ⟨w.val, hty ▸ w.property⟩
+      have hw' : rolePlacement ⟨q'.2.val.ty, i'⟩ '' v'.val.carrier = w'.val.carrier := by
+        simpa only [← hrole, ← hvv'] using hw
+      rw [exists_childMap_step6_inherited_header_step4_record P U q hq i v f F hsub w hw hv,
+        exists_childMap_step6_inherited_header_step4_record P V q' hq' i' v' g G hsub' w' hw' hv',
+        hrole, hheaders w w' rfl]
+    · have hnone : U.headerRecordOf P (U.childNode q hq i) v f = none := by
+        by_contra hh
+        exact hw (exists_childMap_step6_inherited_header_step2_vertex P U q hq i v f F hsub hh)
+      have hnone' : V.headerRecordOf P (V.childNode q' hq' i') v' g = none := by
+        by_contra hh
+        obtain ⟨w', hw'⟩ := exists_childMap_step6_inherited_header_step2_vertex
+          P V q' hq' i' v' g G hsub' hh
+        let w : VertexName S q.2.val.ty := ⟨w'.val, hty.symm ▸ w'.property⟩
+        apply hw
+        refine ⟨w, ?_⟩
+        simpa only [hrole, hvv'] using hw'
+      exact hnone.trans hnone'.symm
+  · have hv' : ¬ v'.val.carrier ⊆ g.val.carrier := by
+      simpa only [← hvv', ← hfg] using hv
+    simp only [HonestSource.headerRecordOf, dif_neg hv, dif_neg hv']
 
 end HeaderComparison
 

@@ -471,13 +471,1078 @@ def ObservedPattern (C : ClusterData S P) (n : ℕ) (a : Observer P)
     observerOf Y hY ⟨n, ⟨⟨a.ty, φ⟩, hN⟩⟩ = a ∧
       q = normalisedPattern Y n a.ty φ
 
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"at their fixed positions". Read an observer along a fixed downward role word. -/
+private def observedPattern_unique_down (a : Observer P) :
+    (A : S.ι) → (r : ℕ) → S.RoleWord A r → Observer P
+  | _, 0, _ => a
+  | A, r + 1, w => observedPattern_unique_down
+      (a.transition ⟨A, w.1⟩) (S.child A w.1).ty r w.2
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"at their fixed positions". A cell-indexed packet readout avoids dependent casts. -/
+private def observedPattern_unique_packet (a : Observer P) (f : Cell d) :
+    Option (Packet P) := by
+  classical
+  exact if hf : f ∈ (S.cx a.ty).facets then a.packets ⟨f, hf⟩ else none
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the states of all nodes inside B_t" and "the packets on their facets".
+These are precisely the non-geometric fields of a certificate. -/
+private def observedPattern_unique_readout (a : Observer P)
+    (D : CertificateSymbol S P) : Prop :=
+  D.val.ty = a.ty ∧
+    (∀ r hr w, D.val.table r hr w =
+      (observedPattern_unique_down a D.val.ty r w).window.head) ∧
+    ∀ w f, leafPacket (⟨D, w⟩ : LeafType P) f =
+      observedPattern_unique_packet (observedPattern_unique_down a D.val.ty P.K w) f
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"fixed by position". Moving a standard descendant twice composes its frames. -/
+private theorem observedPattern_unique_step1_move (N : FramedNode S) (φ ψ : Iso d) :
+    (N.move φ).move ψ = N.move (φ.trans ψ) := rfl
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"fixed by position". Equal heights and frames identify hierarchy nodes. -/
+private theorem observedPattern_unique_step1_node_eq {T : Tiling S}
+    (H : CoherentHierarchy S T) {n m : ℕ} {N M : FramedNode S}
+    (hn : N ∈ H.nodes n) (hm : M ∈ H.nodes m) (h : n = m) (hNM : N = M) :
+    (⟨n, ⟨N, hn⟩⟩ : H.Node) = ⟨m, ⟨M, hm⟩⟩ := by
+  cases h
+  cases hNM
+  rfl
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the K-ancestor B_t of t lies inside A". The parent of a prescribed child is its root. -/
+private theorem observedPattern_unique_step1_parent {T : Tiling S}
+    (H : CoherentHierarchy S T) (n : ℕ) (N : FramedNode S)
+    (hN : N ∈ H.nodes (n + 1)) (i : S.I N.ty)
+    (hc : N.child n i ∈ H.nodes n) :
+    H.parentNode ⟨n, ⟨N.child n i, hc⟩⟩ = ⟨n + 1, ⟨N, hN⟩⟩ := by
+  apply Sigma.ext
+  · rfl
+  · apply heq_of_eq
+    apply Subtype.ext
+    exact (H.parent_unique n _ N hN ⟨i, rfl⟩).symm
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the K-ancestor B_t of t lies inside A". Exact downward addresses invert ancestry. -/
+private theorem observedPattern_unique_step1_ancestor {T : Tiling S}
+    (H : CoherentHierarchy S T) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ H.nodes (h + r)) (w : S.RoleWord N.ty r)
+    (hc : (S.descendantNode N.ty h r w).move N.frame ∈ H.nodes h) :
+    H.ancestor ⟨h, ⟨(S.descendantNode N.ty h r w).move N.frame, hc⟩⟩ r =
+      ⟨h + r, ⟨N, hN⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+      simp [CoherentHierarchy.ancestor, SubstSystem.descendantNode, FramedNode.move]
+  | succ r ih =>
+      have hchild := H.children_mem (h + r) N (by simpa [Nat.add_assoc] using hN) w.1
+      have hc' : (S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+          (N.child (h + r) w.1).frame ∈ H.nodes h := by
+        simpa only [SubstSystem.descendantNode, observedPattern_unique_step1_move,
+          FramedNode.child] using hc
+      have hi := ih (N.child (h + r) w.1) hchild w.2 hc'
+      rw [← H.ancestor_add]
+      change H.parentNode (H.ancestor _ r) = _
+      have he : (⟨h, ⟨(S.descendantNode N.ty h (r + 1) w).move N.frame, hc⟩⟩ :
+          H.Node) = ⟨h, ⟨(S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+            (N.child (h + r) w.1).frame, hc'⟩⟩ := rfl
+      rw [he, hi]
+      exact observedPattern_unique_step1_parent H (h + r) N hN w.1 hchild
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"type and frame (fixed)". The affine prototype frame obeys the child equation. -/
+private theorem observedPattern_unique_step1_child_frame (N : FramedNode S)
+    (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).prototypeFrame n =
+      (rolePlacement (⟨N.ty, i⟩ : S.Role)).trans (N.prototypeFrame (n + 1)) := by
+  apply AffineEquiv.ext
+  intro x
+  change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    N.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child N.ty i).frame x)))
+  congr 1
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
+    LinearEquiv.mul_apply, ← map_add]
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"i_t ... (fixed by position)". Distinct roles have disjoint nonempty interiors. -/
+private theorem observedPattern_unique_step1_role_injective (N : FramedNode S) (n : ℕ) :
+    Function.Injective (N.child n) := by
+  intro i j h
+  have hty : (S.child N.ty i).ty = (S.child N.ty j).ty := congrArg FramedNode.ty h
+  have he := congrArg (fun M : FramedNode S => M.prototypeFrame n) h
+  dsimp only at he
+  rw [observedPattern_unique_step1_child_frame, observedPattern_unique_step1_child_frame] at he
+  have hframe : (S.child N.ty i).frame = (S.child N.ty j).frame := by
+    apply AffineIsometryEquiv.ext
+    intro x
+    have hx := congrArg (fun e : E d ≃ᵃ[ℝ] E d => e x) he
+    exact S.σ.symm.injective ((N.prototypeFrame (n + 1)).injective hx)
+  by_contra hij
+  have hd := S.children_disjoint N.ty hij
+  dsimp only at hd
+  rw [hty, hframe] at hd
+  have hn : (interior (placedSet (S.child N.ty j).frame
+      (S.proto (S.child N.ty j).ty).carrier)).Nonempty := by
+    change (interior ((S.child N.ty j).frame.toHomeomorph ''
+      (S.proto (S.child N.ty j).ty).carrier)).Nonempty
+    rw [← Homeomorph.image_interior]
+    exact (S.proto (S.child N.ty j).ty).interior_nonempty.image _
+  obtain ⟨x, hx⟩ := hn
+  exact Set.disjoint_left.mp hd hx hx
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"i_t ... (fixed by position)". A prescribed child's hierarchy role is its index. -/
+private theorem observedPattern_unique_step1_role {T : Tiling S}
+    (H : CoherentHierarchy S T) (n : ℕ) (N : FramedNode S)
+    (hN : N ∈ H.nodes (n + 1)) (i : S.I N.ty) (hc : N.child n i ∈ H.nodes n) :
+    H.nodeRole ⟨n, ⟨N.child n i, hc⟩⟩ = ⟨N.ty, i⟩ := by
+  have hp : (H.parent n ⟨N.child n i, hc⟩).val = N :=
+    (H.parent_unique n _ N hN ⟨i, rfl⟩).symm
+  have he := H.child_eq n ⟨N.child n i, hc⟩
+  have aux (M : FramedNode S) (j : S.I M.ty) (hM : M = N)
+      (h : N.child n i = M.child n j) : (⟨M.ty, j⟩ : S.Role) = ⟨N.ty, i⟩ := by
+    subst M
+    exact congrArg (Sigma.mk N.ty) ((observedPattern_unique_step1_role_injective N n h).symm)
+  exact aux _ _ hp he
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"all listed in Ĵ(A)". The compressed window shifts using its actual parent
+and role; the highest new state is the old offset w-2. -/
+private theorem observedPattern_unique_step2_window {T : Tiling S}
+    (H : CoherentHierarchy S T) (state : H.Node → State P) (c q : H.Node)
+    (r : S.Role) (hp : H.parentNode c = q) (hr : H.nodeRole c = r)
+    (hat : (ObserverWindow.ofHierarchy H state q).stateAt
+      ⟨P.w - 2, by have := P.observer_window_bound; omega⟩ =
+        state (H.ancestor q (P.w - 2))) :
+    ObserverWindow.ofHierarchy H state c = (ObserverWindow.ofHierarchy H state q).child r := by
+  apply ObserverWindow.ext
+  · change state (H.ancestor c (P.w - 1)) =
+      (ObserverWindow.ofHierarchy H state q).stateAt _
+    rw [hat]
+    have hw : P.w - 1 = P.w - 2 + 1 := by have := P.observer_window_bound; omega
+    rw [hw]
+    simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hp]
+  · funext j
+    change H.nodeRole (H.ancestor c j.val) =
+      if hj : j.val = 0 then r else H.nodeRole (H.ancestor q (j.val - 1))
+    by_cases hj : j.val = 0
+    · simp only [hj, dif_pos, CoherentHierarchy.ancestor, Function.iterate_zero, id_eq, hr]
+    · rw [dif_neg hj]
+      have he : H.ancestor c j.val = H.ancestor q (j.val - 1) := by
+        conv_lhs => rw [show j.val = (j.val - 1) + 1 by omega]
+        simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hp]
+      rw [he]
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the attached packet is O_F(A)". Inherited containment is checked in the
+fixed first-generation coordinates. -/
+private theorem observedPattern_unique_step2_containment (N : FramedNode S)
+    (n : ℕ) (i : S.I N.ty) (f F : Cell d) :
+    (N.child n i).cell n f ⊆ N.cell (n + 1) F ↔
+      placedSet (S.child N.ty i).frame f.carrier ⊆ S.σ '' F.carrier := by
+  change (N.child n i).prototypeFrame n '' f.carrier ⊆
+    N.prototypeFrame (n + 1) '' F.carrier ↔ _
+  rw [observedPattern_unique_step1_child_frame]
+  change (N.prototypeFrame (n + 1) ∘ rolePlacement (⟨N.ty, i⟩ : S.Role)) ''
+    f.carrier ⊆ N.prototypeFrame (n + 1) '' F.carrier ↔ _
+  rw [Set.image_comp, Set.image_subset_image_iff (N.prototypeFrame (n + 1)).injective]
+  change (S.σ.symm ∘ (S.child N.ty i).frame) '' f.carrier ⊆ F.carrier ↔ _
+  rw [Set.image_comp]
+  constructor
+  · intro h x hx
+    exact ⟨S.σ.symm x, h ⟨x, hx, rfl⟩, S.σ.apply_symm_apply x⟩
+  · rintro h x ⟨y, hy, rfl⟩
+    obtain ⟨z, hz, he⟩ := h hy
+    simpa only [← he, S.σ.symm_apply_apply] using hz
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"μ determined by ι(g) and ... S(P_b)". An honest compressed packet is exactly
+the birth computation when the window supplies its highest state and roles. -/
+private theorem observedPattern_unique_step2_born_eq (a : Observer P) (p : Packet P)
+    (hp : p ∈ honestPackets S P) (hh : p.head = a.window.head)
+    (hs : p.sstar = a.window.stateAt
+      ⟨p.jstar.val, by have := p.jstar.isLt; rw [P.w_eq]; exact this⟩)
+    (hr : ∀ j : Fin p.jstar.val, p.roles j =
+      a.window.roles ⟨j.val, by have := p.jstar.isLt; have := j.isLt; rw [P.w_eq]; omega⟩) :
+    a.bornPacket p.incidence = some p := by
+  classical
+  let slots := Finset.univ.filter (packetMask P p.incidence a.window.head)
+  have hmem (j : Fin P.k) : j ∈ slots ↔ p.mask j := by
+    simp only [slots, Finset.mem_filter, Finset.mem_univ, true_and, Packet.mask, hh]
+  have hadm := honest_packet_admissible P p hp
+  have hn : slots.Nonempty := ⟨p.jstar, (hmem _).mpr hadm.2.2.1⟩
+  have hmax : slots.max' hn = p.jstar := by
+    apply le_antisymm
+    · exact Finset.max'_le _ _ _ (fun j hj => hadm.2.2.2.1 j ((hmem j).mp hj))
+    · exact Finset.le_max' _ _ ((hmem _).mpr hadm.2.2.1)
+  have hbuild (j : Fin P.k) (hj : j = p.jstar) :
+      ({ incidence := p.incidence
+         jstar := j
+         sstar := a.window.stateAt ⟨j.val, by rw [P.w_eq]; exact j.isLt⟩
+         roles := fun t => a.window.roles ⟨t.val, by
+           have := t.isLt; have := j.isLt; rw [P.w_eq]; omega⟩ } : Packet P) = p := by
+    cases hj
+    cases p with
+    | mk incidence jstar sstar roles =>
+        dsimp only at hs hr ⊢
+        congr 1
+        · exact hs.symm
+        · funext j
+          exact (hr j).symm
+  unfold Observer.bornPacket
+  change (if h : slots.Nonempty then some _ else none) = some p
+  rw [dif_pos hn]
+  exact congrArg some (hbuild (slots.max' hn) hmax)
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"Definition 2.5 in sources". The honest window supplies the state and roles
+retained by the packet at a specified primitive birth. -/
+private theorem observedPattern_unique_step2_source_born
+    (U : HonestSource S) (g : PrimitiveOccurrence U P) :
+    (U.observerOf P g.birth).bornPacket g.incidence = some (packetOf U P g) := by
+  apply observedPattern_unique_step2_born_eq _ (packetOf U P g) ⟨U, g, rfl⟩
+  · exact (packet_head U P g).trans
+      (honestWindow_at U P g.birth ⟨0, by have := P.observer_window_bound; omega⟩).symm
+  · exact (honestWindow_at U P g.birth
+      ⟨(topSlot U P g).val, by have := (topSlot U P g).isLt; rw [P.w_eq]; exact this⟩).symm
+  · intro j
+    rfl
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"by W4 (Theorem 3.13 in Y)". Calibration identifies the entire compressed
+primitive packet, including roles and the maximum PRESENT slot. -/
+private theorem observedPattern_unique_step2_output_born
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ (parsedHierarchy Y hY).nodes g.height) :
+    (observerOf Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)).bornPacket g.incidence =
+      parsedPrimitivePacket Y hY g hg := by
+  obtain ⟨hl, hr, _, p, hp, hhonest, hinc, hhead, hslots⟩ := calibration_W4 Y hY g hg
+  have hread : parsedPrimitivePacket Y hY g hg = some p := hp
+  rw [hread, ← hinc]
+  apply observedPattern_unique_step2_born_eq _ p hhonest
+  · exact hhead.trans (parsedWindow_at Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
+      ⟨0, by have := P.observer_window_bound; omega⟩).symm
+  · have ht := (packet_top_spec P p hhonest).1
+    have hm := (honest_packet_admissible P p hhonest).2.2.1
+    have hs := (hslots p.jstar).2 hm
+    have he := Option.some.inj (ht.symm.trans hs)
+    exact he.trans (parsedWindow_at Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
+      ⟨p.jstar.val, by have := p.jstar.isLt; rw [P.w_eq]; exact this⟩).symm
+  · intro j
+    rw [packet_roles_from_head P p hhonest j, hhead,
+      parsedState_address Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
+        ⟨j.val, lt_trans j.isLt p.jstar.isLt⟩]
+    rfl
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"which g ... is determined by the position". Canonical incidences of the
+same parent type and positioned facet coincide. -/
+private theorem observedPattern_unique_step2_incidence_eq (ι η : P.Incidence)
+    (ht : ι.val.ty = η.val.ty) (hp : ι.val.positioned = η.val.positioned) : ι = η :=
+  (P.canonical_idempotent ι).symm.trans (P.canonical_unique ι.val η ⟨ht, hp⟩)
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"which g, P_b ... is determined by the position". Equality of actual child
+and primitive carriers is equality in first-generation coordinates. -/
+private theorem observedPattern_unique_step2_positioned (N : FramedNode S)
+    (n : ℕ) (i : S.I N.ty) (f : Cell d) (ι : P.Incidence)
+    (h : P.incidencePlacement N (n + 1) ι '' ι.val.leftFacet.val.carrier =
+      (N.child n i).cell n f) :
+    ι.val.positioned = placedSet (S.child N.ty i).frame f.carrier := by
+  apply Set.image_injective.mpr S.σ.symm.injective
+  apply Set.image_injective.mpr (N.prototypeFrame (n + 1)).injective
+  rw [FramedNode.cell, observedPattern_unique_step1_child_frame] at h
+  simpa only [Params.incidencePlacement, PrimitiveIncidence.positioned, rolePlacement,
+    placedSet, Set.image_image, AffineEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
+    AffineIsometryEquiv.coe_toAffineEquiv, Function.comp_def] using h
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"by W4 ... Definition 2.5 in sources" or "O_F(A) ... Lemma 2.6(d)".
+One source child facet is computed by the internal-birth/inherited-facet formula. -/
+private theorem observedPattern_unique_step2_source_packet
+    (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty) :
+    U.facetPacket P (U.childNode q hq i) f =
+      (U.observerOf P q).childPacket ⟨q.2.val.ty, i⟩ f.val := by
+  classical
+  rcases q with ⟨m, N, hN⟩
+  cases m with
+  | zero => change 1 ≤ 0 at hq; omega
+  | succ n =>
+      let hc := U.hierarchy.children_mem n N hN i
+      let c : U.Node := ⟨n, ⟨N.child n i, hc⟩⟩
+      let q : U.Node := ⟨n + 1, ⟨N, hN⟩⟩
+      have hp : U.hierarchy.parentNode c = q :=
+        observedPattern_unique_step1_parent U.hierarchy n N hN i hc
+      change U.facetPacket P c f = (U.observerOf P q).childPacket ⟨N.ty, i⟩ f.val
+      by_cases hb : ∃ F : FacetName S N.ty,
+          placedSet (S.child N.ty i).frame f.val.carrier ⊆ S.σ '' F.val.carrier
+      · unfold Observer.childPacket
+        dsimp only [HonestSource.observerOf]
+        rw [dif_pos hb]
+        apply packet_inherited U P q c 1
+          (by simpa only [CoherentHierarchy.ancestor, Function.iterate_one] using hp)
+          (Classical.choose hb) f
+        exact (observedPattern_unique_step2_containment N n i f.val _).mpr (Classical.choose_spec hb)
+      · have hi : relint ((N.child n i).cell n f.val) ⊆ interior (N.carrier (n + 1)) := by
+          rcases facet_dichotomy N (N.child n i) (n + 1) n (Parser.child_descendant N n i) f with
+            ⟨F, hF, _⟩ | hi
+          · exact False.elim (hb ⟨F, (observedPattern_unique_step2_containment N n i f.val F.val).mp hF⟩)
+          · exact hi
+        obtain ⟨hf, hcarrier, hbirth, _⟩ := U.hierarchy.restriction_det_internal c f
+          (by rw [hp]; exact hi)
+        let g := U.providerOccurrence P c f hf
+        have hg : g.birth = q := hbirth.trans hp
+        have hty : g.incidence.val.ty = N.ty :=
+          g.parent_type.trans (congrArg (fun t : U.Node => t.2.val.ty) hg)
+        have hplaced : P.incidencePlacement N (n + 1) g.incidence ''
+            g.incidence.val.leftFacet.val.carrier = (N.child n i).cell n f.val := by
+          have h := record_provider_carrier U P c f hf
+          change P.incidencePlacement g.birth.2.val g.birth.1 g.incidence ''
+            g.incidence.val.leftFacet.val.carrier = _ at h
+          rw [hg] at h
+          exact h.trans hcarrier
+        have hpos := observedPattern_unique_step2_positioned N n i f.val g.incidence hplaced
+        have hex : ∃ ι : P.Incidence, ι.val.ty = N.ty ∧
+            ι.val.positioned = placedSet (S.child N.ty i).frame f.val.carrier :=
+          ⟨g.incidence, hty, hpos⟩
+        unfold Observer.childPacket
+        dsimp only [HonestSource.observerOf]
+        rw [dif_neg hb, dif_pos hex]
+        have he : Classical.choose hex = g.incidence :=
+          observedPattern_unique_step2_incidence_eq _ _
+            ((Classical.choose_spec hex).1.trans hty.symm)
+            ((Classical.choose_spec hex).2.trans hpos.symm)
+        rw [he, HonestSource.facetPacket, dif_neg hf]
+        change some (packetOf U P g) = (U.observerOf P q).bornPacket g.incidence
+        rw [← hg]
+        exact (observedPattern_unique_step2_source_born U g).symm
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"fixed subdivision geometry". At native height the conjugated child frame is
+the original prescribed isometry. -/
+private theorem observedPattern_unique_step1_place_zero (A : S.ι) (i : S.I A) :
+    S.placeChild 0 i = (S.child A i).frame := by
+  apply AffineIsometryEquiv.ext
+  intro x
+  simp [SubstSystem.placeChild_apply, linearConj, Child.frame, rigidMotion]
+
+/-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"which ... F is determined by the position". A cell's carrier fixes its
+dimension and hence its full cell name. -/
+private theorem observedPattern_unique_step1_cell_eq (e f : Cell d)
+    (h : e.carrier = f.carrier) : e = f := by
+  rcases e with ⟨K, j, hj⟩
+  rcases f with ⟨L, k, hk⟩
+  cases h
+  have hjk : j = k := hj.dimension.symm.trans hk.dimension
+  cases hjk
+  rfl
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"either in a primitive facet g ... or in a facet F of A". An internal
+first-generation facet has an honest age-one record in the child state. -/
+private theorem observedPattern_unique_step2_internal_record
+    (s : State P) (hs : s ∈ honestStates S P) (r : S.Role)
+    (hr : s.address ⟨0, P.k_pos⟩ = r) (f : FacetName S s.ty)
+    (hb : ¬ ∃ F : FacetName S r.1,
+      placedSet (S.child r.1 r.2).frame f.val.carrier ⊆ S.σ '' F.val.carrier) :
+    ∃ R : FacetRecord P, s.facetRecord f = some R ∧ AgeOneRecord s R := by
+  let N : FramedNode S := ⟨r.1, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have ht : (S.child r.1 r.2).ty = s.ty := by rw [← hr]; exact s.address_start
+  let f' : FacetName S (N.child 0 r.2).ty := ⟨f.val, by
+    change f.val ∈ (S.cx (S.child r.1 r.2).ty).facets
+    rw [ht]
+    exact f.property⟩
+  have hc (e : Cell d) : (N.child 0 r.2).cell 0 e =
+      placedSet (S.child r.1 r.2).frame e.carrier := by
+    simp [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child,
+      observedPattern_unique_step1_place_zero, N, placedSet]
+  have hF (e : Cell d) : N.cell 1 e = S.σ '' e.carrier := by
+    simp [FramedNode.cell, FramedNode.prototypeFrame, N]
+  have hint : s.InternalFacet f := by
+    rcases facet_dichotomy N (N.child 0 r.2) 1 0
+      (Parser.child_descendant N 0 r.2) f' with ⟨F, hF', _⟩ | hi
+    · exact False.elim (hb ⟨F, by simpa only [hc, hF] using hF'⟩)
+    · unfold State.InternalFacet
+      rw [hr]
+      simpa [hc, FramedNode.carrier, N, placedSet] using hi
+  exact (state_semantics_a P s hs f).1.mp hint
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"which g ... is determined by the position". Both canonical side names
+refer to the same positioned primitive facet. -/
+private theorem observedPattern_unique_step2_side_positioned (ι : P.Incidence) (b : Bool) :
+    ι.val.positioned = placedSet
+      (S.child (ι.val.sideRole b).1 (ι.val.sideRole b).2).frame
+      (ι.val.sideFacet b).val.carrier := by
+  cases b
+  · rfl
+  · exact ι.val.paired
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"which g, P_b ... is determined by the position". Honest age-one semantics
+identify the canonical side, including its actual facet name. -/
+private theorem observedPattern_unique_step2_record_side
+    (s : State P) (r : S.Role) (hr : s.address ⟨0, P.k_pos⟩ = r)
+    (f : FacetName S s.ty) (R : FacetRecord P) (hR : s.facetRecord f = some R)
+    (hA : AgeOneRecord s R) :
+    R.incidence.val.sideRole R.sideIndex = r ∧
+      R.incidence.val.positioned = placedSet (S.child r.1 r.2).frame f.val.carrier ∧
+      (R.incidence.val.sideFacet R.sideIndex).val = f.val := by
+  have hs : R.servingRole = r := hA.2.1.trans hr
+  have hrole : R.incidence.val.sideRole R.sideIndex = r := R.side_eq.symm.trans hs
+  have hpos : R.incidence.val.positioned = placedSet (S.child r.1 r.2).frame f.val.carrier := by
+    rw [hA.2.2.1, (s.facetRecord_valid f R hR).2,
+      congrArg (fun t : S.Role => (S.child t.1 t.2).frame) hs]
+  refine ⟨hrole, hpos, ?_⟩
+  apply observedPattern_unique_step1_cell_eq
+  apply Set.image_injective.mpr (S.child r.1 r.2).frame.injective
+  have hside := observedPattern_unique_step2_side_positioned R.incidence R.sideIndex
+  rw [hrole] at hside
+  exact hside.symm.trans hpos
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the attached packet". Equal hierarchy nodes and equal facet names give
+the same parsed packet; membership proofs carry no extra data. -/
+private theorem observedPattern_unique_step2_output_packet_congr
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q q' : (parsedHierarchy Y hY).Node) (he : q = q')
+    (f : FacetName S q.2.val.ty) (f' : FacetName S q'.2.val.ty) (hf : f.val = f'.val) :
+    parsedFacetPacket Y hY q f = parsedFacetPacket Y hY q' f' := by
+  cases he
+  have hff : f = f' := Subtype.ext hf
+  cases hff
+  rfl
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"by W4 (Theorem 3.13 in Y)" or "O_F(A) by (I5)".
+One output child facet is computed without assigning providers to faults. -/
+private theorem observedPattern_unique_step2_output_packet
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q : (parsedHierarchy Y hY).Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
+    (f : FacetName S (parsedChild Y hY q hq i).2.val.ty) :
+    parsedFacetPacket Y hY (parsedChild Y hY q hq i) f =
+      (observerOf Y hY q).childPacket ⟨q.2.val.ty, i⟩ f.val := by
+  classical
+  rcases q with ⟨m, N, hN⟩
+  cases m with
+  | zero => change 1 ≤ 0 at hq; omega
+  | succ n =>
+      let H := parsedHierarchy Y hY
+      let hc := H.children_mem n N hN i
+      let c : H.Node := ⟨n, ⟨N.child n i, hc⟩⟩
+      let q : H.Node := ⟨n + 1, ⟨N, hN⟩⟩
+      change parsedFacetPacket Y hY c f = (observerOf Y hY q).childPacket ⟨N.ty, i⟩ f.val
+      by_cases hb : ∃ F : FacetName S N.ty,
+          placedSet (S.child N.ty i).frame f.val.carrier ⊆ S.σ '' F.val.carrier
+      · unfold Observer.childPacket
+        dsimp only [observerOf]
+        rw [dif_pos hb]
+        symm
+        apply parsedFacetPacket_inherited Y hY q c
+          (Parser.child_descendant N n i) (Classical.choose hb) f
+        exact (observedPattern_unique_step2_containment N n i f.val _).mpr (Classical.choose_spec hb)
+      · let s := parsedState Y hY c
+        have hsty : s.ty = (S.child N.ty i).ty := (parsedState_type_residue Y hY c).2.1
+        let fs : FacetName S s.ty := ⟨f.val, by rw [hsty]; exact f.property⟩
+        have hrole : s.address ⟨0, P.k_pos⟩ = (⟨N.ty, i⟩ : S.Role) :=
+          (parsedState_role Y hY c).trans (observedPattern_unique_step1_role H n N hN i hc)
+        obtain ⟨R, hR, hA⟩ := observedPattern_unique_step2_internal_record s
+          (parsedState_type_residue Y hY c).1 ⟨N.ty, i⟩ hrole fs hb
+        obtain ⟨hside, hpos, hfacet⟩ := observedPattern_unique_step2_record_side s
+          ⟨N.ty, i⟩ hrole fs R hR hA
+        have hty : R.incidence.val.ty = N.ty := congrArg Sigma.fst hside
+        let g : Parser.BornFacet P :=
+          ⟨n + 1, Nat.succ_le_succ (Nat.zero_le n), N, R.incidence, hty⟩
+        have hex : ∃ ι : P.Incidence, ι.val.ty = N.ty ∧
+            ι.val.positioned = placedSet (S.child N.ty i).frame f.val.carrier :=
+          ⟨R.incidence, hty, hpos⟩
+        unfold Observer.childPacket
+        dsimp only [observerOf]
+        rw [dif_neg hb, dif_pos hex]
+        have he : Classical.choose hex = R.incidence :=
+          observedPattern_unique_step2_incidence_eq _ _
+            ((Classical.choose_spec hex).1.trans hty.symm)
+            ((Classical.choose_spec hex).2.trans hpos.symm)
+        rw [he]
+        change parsedFacetPacket Y hY c f = (observerOf Y hY q).bornPacket g.incidence
+        have hborn := observedPattern_unique_step2_output_born Y hY g hN
+        change (observerOf Y hY q).bornPacket g.incidence = parsedPrimitivePacket Y hY g hN at hborn
+        rw [hborn]
+        cases hbside : R.sideIndex with
+        | false =>
+            have hnode : g.leftNode = N.child n i := by
+              have he := congrArg (fun r : S.Role =>
+                (⟨r.1, N.frame⟩ : FramedNode S).child n r.2) hside
+              simpa only [hbside, PrimitiveIncidence.sideRole, PrimitiveIncidence.sideIndex,
+                Bool.false_eq_true, ↓reduceIte] using he
+            exact observedPattern_unique_step2_output_packet_congr Y hY c
+              ⟨g.height - 1, ⟨g.leftNode, g.left_mem H hN⟩⟩
+              (observedPattern_unique_step1_node_eq H hc _ rfl hnode.symm) f
+              g.incidence.val.leftFacet (by
+                have h := hfacet.symm
+                rw [hbside] at h
+                exact h)
+        | true =>
+            have hnode : g.rightNode = N.child n i := by
+              have he := congrArg (fun r : S.Role =>
+                (⟨r.1, N.frame⟩ : FramedNode S).child n r.2) hside
+              simpa only [hbside, PrimitiveIncidence.sideRole, PrimitiveIncidence.sideIndex,
+                ↓reduceIte] using he
+            have hp := observedPattern_unique_step2_output_packet_congr Y hY c
+              ⟨g.height - 1, ⟨g.rightNode, g.right_mem H hN⟩⟩
+              (observedPattern_unique_step1_node_eq H hc _ rfl hnode.symm) f
+              g.incidence.val.rightFacet (by
+                have h := hfacet.symm
+                rw [hbside] at h
+                exact h)
+            exact hp.trans (parsedPrimitivePacket_spec Y hY g hN).1.symm
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"all listed in Ĵ(A) or determined ... by D_S". The window shift and the
+one-facet packet formulas give the entire source child observer at every height. -/
+private theorem observedPattern_unique_step2_source_child
+    (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty) :
+    U.observerOf P (U.childNode q hq i) =
+      (U.observerOf P q).transition ⟨q.2.val.ty, i⟩ := by
+  rcases q with ⟨m, N, hN⟩
+  cases m with
+  | zero => change 1 ≤ 0 at hq; omega
+  | succ n =>
+      let hc := U.hierarchy.children_mem n N hN i
+      let c : U.Node := ⟨n, ⟨N.child n i, hc⟩⟩
+      let q : U.Node := ⟨n + 1, ⟨N, hN⟩⟩
+      have hw := observedPattern_unique_step2_window U.hierarchy (stateOf U P) c q ⟨N.ty, i⟩
+        (observedPattern_unique_step1_parent U.hierarchy n N hN i hc)
+        (observedPattern_unique_step1_role U.hierarchy n N hN i hc)
+        (honestWindow_at U P q ⟨P.w - 2, by have := P.observer_window_bound; omega⟩)
+      have hhead : ((U.observerOf P q).window.child ⟨N.ty, i⟩).head.ty = (S.child N.ty i).ty := by
+        change ((ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).child ⟨N.ty, i⟩).head.ty = _
+        rw [← hw]
+        exact honestWindow_type U P c
+      change U.observerOf P c = (U.observerOf P q).transition ⟨N.ty, i⟩
+      unfold Observer.transition
+      rw [dif_pos ⟨rfl, hhead⟩]
+      apply Observer.ext
+      · rfl
+      · exact hw
+      · apply heq_of_eq
+        funext f
+        exact observedPattern_unique_step2_source_packet U q hq i f
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"by W4 (Theorem 3.13 in Y)" and "the attached packet is O_F(A) by (I5)".
+The one-step formula includes certificate-subdivision nodes below the floor. -/
+private theorem observedPattern_unique_step2_output_child
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q : (parsedHierarchy Y hY).Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty) :
+    observerOf Y hY (parsedChild Y hY q hq i) =
+      (observerOf Y hY q).transition ⟨q.2.val.ty, i⟩ := by
+  rcases q with ⟨m, N, hN⟩
+  cases m with
+  | zero => change 1 ≤ 0 at hq; omega
+  | succ n =>
+      let hc := (parsedHierarchy Y hY).children_mem n N hN i
+      let c : (parsedHierarchy Y hY).Node := ⟨n, ⟨N.child n i, hc⟩⟩
+      let q : (parsedHierarchy Y hY).Node := ⟨n + 1, ⟨N, hN⟩⟩
+      have hw := observedPattern_unique_step2_window (parsedHierarchy Y hY) (parsedState Y hY)
+        c q ⟨N.ty, i⟩
+        (observedPattern_unique_step1_parent (parsedHierarchy Y hY) n N hN i hc)
+        (observedPattern_unique_step1_role (parsedHierarchy Y hY) n N hN i hc)
+        (parsedWindow_at Y hY q ⟨P.w - 2, by have := P.observer_window_bound; omega⟩)
+      have hhead : ((observerOf Y hY q).window.child ⟨N.ty, i⟩).head.ty = (S.child N.ty i).ty := by
+        change ((ObserverWindow.ofHierarchy (parsedHierarchy Y hY) (parsedState Y hY) q).child
+          ⟨N.ty, i⟩).head.ty = _
+        rw [← hw]
+        exact parsedWindow_type Y hY c
+      change observerOf Y hY c = (observerOf Y hY q).transition ⟨N.ty, i⟩
+      unfold Observer.transition
+      rw [dif_pos ⟨rfl, hhead⟩]
+      apply Observer.ext
+      · rfl
+      · exact hw
+      · apply heq_of_eq
+        funext f
+        exact observedPattern_unique_step2_output_packet Y hY q hq i f
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"all listed in Ĵ(A) or determined ... by D_S". Iterating the one-step formula
+recovers the observer at every fixed descendant, without a provider-height bound. -/
+private theorem observedPattern_unique_step2_descend {T : Tiling S}
+    (H : CoherentHierarchy S T) (o : H.Node → Observer P)
+    (hstep : ∀ n N (hN : N ∈ H.nodes (n + 1)) (i : S.I N.ty),
+      o ⟨n, ⟨N.child n i, H.children_mem n N hN i⟩⟩ =
+        (o ⟨n + 1, ⟨N, hN⟩⟩).transition ⟨N.ty, i⟩)
+    (h r : ℕ) (N : FramedNode S) (hN : N ∈ H.nodes (h + r))
+    (w : S.RoleWord N.ty r)
+    (hc : (S.descendantNode N.ty h r w).move N.frame ∈ H.nodes h) :
+    o ⟨h, ⟨(S.descendantNode N.ty h r w).move N.frame, hc⟩⟩ =
+      observedPattern_unique_down (o ⟨h + r, ⟨N, hN⟩⟩) N.ty r w := by
+  induction r generalizing N with
+  | zero =>
+      simp [observedPattern_unique_down, SubstSystem.descendantNode, FramedNode.move]
+  | succ r ih =>
+      have hchild := H.children_mem (h + r) N (by simpa [Nat.add_assoc] using hN) w.1
+      have hc' : (S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+          (N.child (h + r) w.1).frame ∈ H.nodes h := by
+        simpa only [SubstSystem.descendantNode, observedPattern_unique_step1_move,
+          FramedNode.child] using hc
+      change o ⟨h, ⟨(S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+          (N.child (h + r) w.1).frame, hc'⟩⟩ = _
+      rw [ih _ hchild _ hc', hstep]
+      rfl
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"D_t = cert(B_t) consists of (i) ... states ...; (ii) the pre-patterns".
+The complete table and every facet packet determine the certificate, including
+its fixed frame markers and all leaf states. -/
+private def observedPattern_unique_prepacket (u : PrePattern P) (f : Cell d) :
+    Option (Packet P) := by
+  classical
+  exact if hf : f ∈ (S.cx u.ty).facets then u.packets ⟨f, hf⟩ else none
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"type and frame (fixed), state (as in (i)), and the packets on their facets".
+These fields identify the entire pre-pattern. -/
+private theorem observedPattern_unique_step3_prepattern_ext
+    (u v : PrePattern P) (hty : u.ty = v.ty) (hs : u.state = v.state)
+    (hp : ∀ f : Cell d, observedPattern_unique_prepacket u f =
+      observedPattern_unique_prepacket v f) : u = v := by
+  classical
+  rcases u with ⟨A, marker, hm, s, hst, packets⟩
+  rcases v with ⟨A', marker', hm', s', hst', packets'⟩
+  dsimp only at hty hs hp
+  cases hty
+  cases hs
+  have hpack : packets = packets' := by
+    funext f
+    simpa only [observedPattern_unique_prepacket, dif_pos f.property] using hp f.val
+  subst packets'
+  subst marker
+  subst marker'
+  rfl
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"D_t = cert(B_t) consists of (i) ... states ...; (ii) the pre-patterns".
+Equality includes the whole certificate, not merely the indicated leaf. -/
+private theorem observedPattern_unique_step3_certificate_ext
+    (a : Observer P) (D E : CertificateSymbol S P)
+    (hD : observedPattern_unique_readout a D)
+    (hE : observedPattern_unique_readout a E) : D = E := by
+  obtain ⟨hDty, hDt, hDp⟩ := hD
+  obtain ⟨hEty, hEt, hEp⟩ := hE
+  have hty : D.val.ty = E.val.ty := hDty.trans hEty.symm
+  apply Subtype.ext
+  rcases D with ⟨⟨A, leaves, leaf_ty, table, table_ty⟩, hD⟩
+  rcases E with ⟨⟨A', leaves', leaf_ty', table', table_ty'⟩, hE⟩
+  dsimp only at hty
+  subst A'
+  have ht : table = table' := by
+    funext r hr w
+    exact (hDt r hr w).trans (hEt r hr w).symm
+  have hl : leaves = leaves' := by
+    funext w
+    have hs : (leaves w).state = (leaves' w).state := by
+      exact (certificate_leaf_state ⟨_, hD⟩ w).symm.trans
+        ((congrFun (congrFun (congrFun ht P.K) le_rfl) w).trans
+          (certificate_leaf_state ⟨_, hE⟩ w))
+    exact observedPattern_unique_step3_prepattern_ext _ _
+      ((leaf_ty w).trans (leaf_ty' w).symm) hs (fun f => (hDp w f).trans (hEp w f).symm)
+  subst leaves'
+  subst table'
+  rfl
+
+/-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"determined ... via D_S (Proposition 2.3 in sources)". Source descent uses the
+same role-word computation as the parsed descent. -/
+private theorem observedPattern_unique_step2_source_descend
+    (U : HonestSource S) (n : ℕ) (N : FramedNode S) (hN : N ∈ U.hierarchy.nodes n)
+    (r : ℕ) (hr : r ≤ n) (w : S.RoleWord N.ty r) :
+    U.observerOf P (U.descendant ⟨n, ⟨N, hN⟩⟩ r hr w) =
+      observedPattern_unique_down (U.observerOf P ⟨n, ⟨N, hN⟩⟩) N.ty r w := by
+  have hstep : ∀ m M (hM : M ∈ U.hierarchy.nodes (m + 1)) (i : S.I M.ty),
+      U.observerOf P ⟨m, ⟨M.child m i, U.hierarchy.children_mem m M hM i⟩⟩ =
+        (U.observerOf P ⟨m + 1, ⟨M, hM⟩⟩).transition ⟨M.ty, i⟩ := by
+    intro m M hM i
+    simpa only [HonestSource.childNode, Nat.add_sub_cancel] using
+      observedPattern_unique_step2_source_child (P := P) U ⟨m + 1, ⟨M, hM⟩⟩
+        (Nat.succ_le_succ (Nat.zero_le m)) i
+  have hd := observedPattern_unique_step2_descend U.hierarchy (U.observerOf P) hstep
+    (n - r) r N (by simpa only [Nat.sub_add_cancel hr] using hN) w
+      (U.descendant_mem ⟨n, ⟨N, hN⟩⟩ r hr w)
+  rw [observedPattern_unique_step1_node_eq U.hierarchy _ hN (Nat.sub_add_cancel hr) rfl] at hd
+  exact hd
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"D_t = cert(B_t)". A source certificate has exactly the reconstructed state
+table and the reconstructed leaf packets. -/
+private theorem observedPattern_unique_step3_source_readout
+    (U : HonestSource S) (N : FramedNode S) (hN : N ∈ U.hierarchy.nodes P.K) :
+    observedPattern_unique_readout (U.observerOf P ⟨P.K, ⟨N, hN⟩⟩)
+      ⟨certOf U P N hN, ⟨U, N, hN, rfl⟩⟩ := by
+  refine ⟨rfl, ?_, ?_⟩
+  · intro r hr w
+    change stateOf U P (U.descendant ⟨P.K, ⟨N, hN⟩⟩ r hr w) =
+      (observedPattern_unique_down (U.observerOf P ⟨P.K, ⟨N, hN⟩⟩) N.ty r w).window.head
+    rw [← observedPattern_unique_step2_source_descend (P := P) U P.K N hN r hr w]
+    have hh := honestWindow_at U P (U.descendant ⟨P.K, ⟨N, hN⟩⟩ r hr w)
+      ⟨0, by have := P.observer_window_bound; omega⟩
+    exact hh.symm
+  · intro w f
+    change leafPacket (⟨⟨certOf U P N hN, ⟨U, N, hN, rfl⟩⟩, w⟩ : LeafType P) f =
+      observedPattern_unique_packet
+        (observedPattern_unique_down (U.observerOf P ⟨P.K, ⟨N, hN⟩⟩) N.ty P.K w) f
+    rw [← observedPattern_unique_step2_source_descend (P := P) U P.K N hN P.K le_rfl w]
+    rfl
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"i_t is the role word of t below B_t (fixed by position)". At height K the
+source leaf tuple consists of the one root certificate with its respective words. -/
+private theorem observedPattern_unique_step3_source_labels
+    (U : HonestSource S) (N : FramedNode S) (hN : N ∈ U.hierarchy.nodes P.K)
+    (w : S.RoleWord N.ty P.K) :
+    leafTypeOf U P (U.descendant ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w) (Nat.sub_self P.K) =
+      (⟨⟨certOf U P N hN, ⟨U, N, hN, rfl⟩⟩, w⟩ : LeafType P) := by
+  have ha := observedPattern_unique_step1_ancestor U.hierarchy 0 P.K N
+    (by simpa using hN) w
+    (by simpa only [Nat.sub_self] using U.descendant_mem ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w)
+  have ha' : U.hierarchy.ancestor
+      (U.descendant ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w) P.K = ⟨P.K, ⟨N, hN⟩⟩ := by
+    have hc := observedPattern_unique_step1_node_eq U.hierarchy
+      (M := (S.descendantNode N.ty 0 P.K w).move N.frame)
+      (U.descendant_mem ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w)
+      (by simpa only [Nat.sub_self] using U.descendant_mem ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w)
+      (Nat.sub_self P.K)
+      (by simp only [Nat.sub_self])
+    change U.hierarchy.ancestor ⟨P.K - P.K, _⟩ P.K = _
+    rw [hc]
+    exact ha.trans (observedPattern_unique_step1_node_eq U.hierarchy _ hN
+      (Nat.zero_add P.K) rfl)
+  have hw := (Classical.choose_spec (U.leafIndex_exists P
+    (U.descendant ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w) (Nat.sub_self P.K))).1
+  change (S.nativeTile _ P.K (U.leafIndex P
+    (U.descendant ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w) (Nat.sub_self P.K))).move _ = _ at hw
+  unfold leafTypeOf
+  generalize hi : U.leafIndex P (U.descendant ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w)
+    (Nat.sub_self P.K) = i at hw ⊢
+  have hunique := U.leafIndex_exists P
+    (U.descendant ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w) (Nat.sub_self P.K)
+  rw [ha'] at hunique
+  have aux (M : FramedNode S) (hM : M ∈ U.hierarchy.nodes P.K) (he : M = N)
+      (j : S.RoleWord M.ty P.K)
+      (hj : (S.nativeTile M.ty P.K j).move M.frame =
+        (U.descendant ⟨P.K, ⟨N, hN⟩⟩ P.K le_rfl w).2.val) :
+      (⟨⟨certOf U P M hM, ⟨U, M, hM, rfl⟩⟩, j⟩ : LeafType P) =
+        ⟨⟨certOf U P N hN, ⟨U, N, hN, rfl⟩⟩, w⟩ := by
+    subst M
+    have hjw : j = w := ExistsUnique.unique hunique hj
+      (by simp only [HonestSource.descendant, Nat.sub_self, SubstSystem.nativeTile])
+    subst j
+    rfl
+  exact aux _ _ (congrArg (fun q : U.Node => q.2.val) ha') i hw
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the packets on their facets". At height zero the parsed attachment reads the
+physical leaf itself, including NULL. -/
+private theorem observedPattern_unique_step3_ground_packet
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (hN : tileNode t ∈ (parsedHierarchy Y hY).nodes 0) (f : Cell d) :
+    leafPacket (compilerLeaf C t) f = observedPattern_unique_packet
+      (observerOf Y hY ⟨0, ⟨tileNode t, hN⟩⟩) f := by
+  classical
+  by_cases hf : f ∈ (S.cx (tileNode t).ty).facets
+  · have he := parsedFacetPacket_spec Y hY ⟨0, ⟨tileNode t, hN⟩⟩ ⟨f, hf⟩
+      t ⟨f, hf⟩ ⟨ht, Parser.descendant_refl _ _, Set.Subset.rfl⟩
+    simpa only [observedPattern_unique_packet, observerOf, dif_pos hf] using he
+  · have hpre : ¬ f ∈ (S.cx (compilerLeaf C t).prePattern.ty).facets := by
+      rw [LeafType.prePattern_type]
+      exact hf
+    simp only [leafPacket, dif_neg hpre, observedPattern_unique_packet,
+      observerOf, dif_neg hf]
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the states of all nodes inside B_t ... (I2) in Y". The certificate table is
+the actual global parsed state assignment on its exact inner nodes. -/
+private theorem observedPattern_unique_step3_output_table
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (B : KBlock Y)
+    (r : ℕ) (hr : r ≤ P.K) (w : S.RoleWord B.certificate.val.ty r) :
+    ∃ hc : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r),
+      B.table r hr w = parsedState Y hY ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ := by
+  obtain ⟨hc, he⟩ := (parsedHierarchy_base Y hY).2 B r hr w
+  have hc' : B.innerNode r hr w ∈
+      (parsedDecodedLevel Y hY P.K).geometry.nodes (P.K - r) := by
+    rw [parsedDecodedLevel_upper Y hY P.K le_rfl]
+    exact hc
+  have hm : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r) := by
+    rw [← parsedHierarchy_inner_nodes Y hY P.K (P.K - r) (Nat.sub_le _ _)]
+    exact hc'
+  refine ⟨hm, ?_⟩
+  have hagree := parsedState_agrees Y hY P.K (P.K - r) (B.innerNode r hr w) hc' hm
+  have htable : ∀ hc' : B.innerNode r hr w ∈
+      (parsedDecodedLevel Y hY P.K).geometry.nodes (P.K - r),
+      (parsedDecodedLevel Y hY P.K).stateAt (P.K - r) (B.innerNode r hr w) hc' =
+        B.table r hr w := by
+    rw [parsedDecodedLevel_upper Y hY P.K le_rfl]
+    intro hc'
+    exact he
+  exact (htable hc').symm.trans hagree
+
+/-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"D_t = cert(B_t)". An output certificate has the reconstructed table and all
+reconstructed leaf packets, with no interpretation of boundary faults as providers. -/
+private theorem observedPattern_unique_step3_output_readout
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (B : KBlock Y)
+    (hB : B.node ∈ (parsedHierarchy Y hY).nodes P.K) :
+    observedPattern_unique_readout (observerOf Y hY ⟨P.K, ⟨B.node, hB⟩⟩)
+      B.certificate := by
+  have hstep : ∀ m M (hM : M ∈ (parsedHierarchy Y hY).nodes (m + 1)) (i : S.I M.ty),
+      observerOf Y hY ⟨m, ⟨M.child m i, (parsedHierarchy Y hY).children_mem m M hM i⟩⟩ =
+        (observerOf Y hY ⟨m + 1, ⟨M, hM⟩⟩).transition ⟨M.ty, i⟩ := by
+    intro m M hM i
+    simpa only [parsedChild, Nat.add_sub_cancel] using
+      observedPattern_unique_step2_output_child Y hY ⟨m + 1, ⟨M, hM⟩⟩
+        (Nat.succ_le_succ (Nat.zero_le m)) i
+  have hdown (r : ℕ) (hr : r ≤ P.K) (w : S.RoleWord B.certificate.val.ty r)
+      (hc : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r)) :
+      observerOf Y hY ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ =
+        observedPattern_unique_down (observerOf Y hY ⟨P.K, ⟨B.node, hB⟩⟩)
+          B.certificate.val.ty r w := by
+    have hd := observedPattern_unique_step2_descend (parsedHierarchy Y hY)
+      (observerOf Y hY) hstep (P.K - r) r B.node
+      (by simpa only [Nat.sub_add_cancel hr] using hB) w hc
+    rw [observedPattern_unique_step1_node_eq (parsedHierarchy Y hY) _ hB
+      (Nat.sub_add_cancel hr) rfl] at hd
+    exact hd
+  refine ⟨rfl, ?_, ?_⟩
+  · intro r hr w
+    obtain ⟨hc, ht⟩ := observedPattern_unique_step3_output_table Y hY B r hr w
+    rw [← hdown r hr w hc]
+    exact ht.trans (parsedWindow_at Y hY ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩
+      ⟨0, by have := P.observer_window_bound; omega⟩).symm
+  · intro w f
+    obtain ⟨hc, _⟩ := observedPattern_unique_step3_output_table Y hY B P.K le_rfl w
+    rw [← hdown P.K le_rfl w hc]
+    have he : tileNode (B.leaf w) = B.innerNode P.K le_rfl w := by
+      apply FramedNode.ext
+      · change (compilerLeaf C (B.leaf w)).prototype = _
+        rw [(B.leaf_data w).1]
+        simp only [LeafType.prototype, KBlock.innerNode, Nat.sub_self,
+          FramedNode.move, SubstSystem.nativeTile]
+      · change compilerFrame C (B.leaf w) = _
+        rw [(B.leaf_data w).2]
+        simp only [LeafType.position, KBlock.innerNode, Nat.sub_self,
+          FramedNode.move, SubstSystem.nativeTile]
+    have hm : tileNode (B.leaf w) ∈ (parsedHierarchy Y hY).nodes 0 := by
+      simpa only [he, Nat.sub_self] using hc
+    have hn := observedPattern_unique_step1_node_eq (parsedHierarchy Y hY) hc hm
+      (Nat.sub_self P.K) he.symm
+    rw [hn, ← (B.leaf_data w).1]
+    exact observedPattern_unique_step3_ground_packet Y hY (B.leaf w) (B.leaf_mem w) hm f
+
+/-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"The pattern is the union of the augmented markings of the leaves ... at their
+fixed positions (Proposition 2.16)". This also holds for an arbitrary output. -/
+private theorem observedPattern_unique_step4_render
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (A : S.ι) (φ : Iso d)
+    (labels : S.RoleWord A n → LeafType P)
+    (hlabels : ∀ w, ∃ t ∈ Y.tiles, compilerLeaf C t = labels w ∧
+      tileNode t = (S.nativeTile A n w).move φ) :
+    normalisedPattern Y n A φ = renderLeafTuple C n A labels := by
+  classical
+  funext x
+  have hcover : ∃ w : S.RoleWord A n,
+      x.val ∈ placedSet (S.nativeTile A n w).frame
+        (S.proto (S.nativeTile A n w).ty).carrier := by
+    have hx := (S.native_cover A n).symm.subset x.property
+    simpa [FramedNode.carrier, SubstSystem.supertile] using hx
+  let w := Classical.choose hcover
+  obtain ⟨t, ht, hl, hn⟩ := hlabels w
+  have hty := congrArg FramedNode.ty hn
+  change (compilerLeaf C t).prototype = (S.nativeTile A n w).ty at hty
+  have hframe : compilerFrame C t = (S.nativeTile A n w).frame.trans φ :=
+    congrArg FramedNode.frame hn
+  have hx : φ x.val ∈ t.carrier := by
+    rw [compilerFrame_carrier, hty, hframe]
+    obtain ⟨u, hu, he⟩ := Classical.choose_spec hcover
+    exact ⟨u, hu, congrArg φ he⟩
+  change Y.marking (φ x.val) = _
+  rw [Y.marking_eq_tile t ht _ hx, compilerFrame_marking, hl, hframe]
+  simp only [renderLeafTuple, dif_pos hcover]
+  congr 1
+  change (S.nativeTile A n w).frame.symm (φ.symm (φ x.val)) =
+    (S.nativeTile A n w).frame.symm x.val
+  rw [φ.symm_apply_apply]
+
+/-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the leaf type (D_t,i_t)" at "fixed positions". A forced certificate has
+exactly its prescribed physical leaves, in their full isometric frames. -/
+private theorem observedPattern_unique_step4_block_leaf
+    {Y : MarkedTiling (systemM S P C)} (B : KBlock Y)
+    (w : S.RoleWord B.certificate.val.ty P.K) :
+    tileNode (B.leaf w) = (S.nativeTile B.certificate.val.ty P.K w).move B.frame := by
+  apply FramedNode.ext
+  · change (compilerLeaf C (B.leaf w)).prototype = _
+    rw [(B.leaf_data w).1]
+    rfl
+  · change compilerFrame C (B.leaf w) = _
+    exact (B.leaf_data w).2
+
+/-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"Since n ≥ K, the K-ancestor B_t of t lies inside A". At the base height the
+whole pattern is the rendering of the single reconstructed certificate. -/
+private theorem observedPattern_unique_step4_base
+    (a : Observer P) (q : Pattern S (Colour S P) P.K a.ty)
+    (hq : ObservedPattern C P.K a q) :
+    ∃ D : CertificateSymbol S P, observedPattern_unique_readout a D ∧
+      HEq q (renderLeafTuple C P.K D.val.ty (fun w => ⟨D, w⟩)) := by
+  rcases hq with ⟨U, φ, hN, ho, rfl⟩ | ⟨Y, hY, φ, hN, ho, rfl⟩
+  · let D : CertificateSymbol S P := ⟨certOf U P ⟨a.ty, φ⟩ hN, ⟨U, _, hN, rfl⟩⟩
+    refine ⟨D, ?_, ?_⟩
+    · have hr := observedPattern_unique_step3_source_readout (P := P) U ⟨a.ty, φ⟩ hN
+      change observedPattern_unique_readout (U.observerOf P ⟨P.K, ⟨⟨a.ty, φ⟩, hN⟩⟩) D at hr
+      rwa [ho] at hr
+    · apply heq_of_eq
+      rw [renderLeafTuple_source C U P.K a.ty φ hN]
+      congr 1
+      funext w
+      exact observedPattern_unique_step3_source_labels U ⟨a.ty, φ⟩ hN w
+  · have hroots : (parsedLevels Y hY P.K le_rfl).geometry.roots =
+        (parsedHierarchy Y hY).nodes P.K := by
+      rw [← parsedDecodedLevel_upper Y hY P.K le_rfl]
+      exact parsedHierarchy_nodes Y hY P.K
+    have hcert : (⟨a.ty, φ⟩ : FramedNode S) ∈ Set.range (fun B : KBlock Y => B.node) := by
+      rw [← (parsedHierarchy_base Y hY).1, hroots]
+      exact hN
+    obtain ⟨B, he⟩ := hcert
+    change B.node = ⟨a.ty, φ⟩ at he
+    have hB : B.node ∈ (parsedHierarchy Y hY).nodes P.K := by
+      rw [he]
+      exact hN
+    have honode := observedPattern_unique_step1_node_eq (parsedHierarchy Y hY) hB hN rfl he
+    have hoB : observerOf Y hY ⟨P.K, ⟨B.node, hB⟩⟩ = a :=
+      (congrArg (observerOf Y hY) honode).trans ho
+    refine ⟨B.certificate, ?_, ?_⟩
+    · have hr := observedPattern_unique_step3_output_readout Y hY B hB
+      rwa [hoB] at hr
+    · have hr := observedPattern_unique_step4_render Y P.K B.certificate.val.ty B.frame
+        (fun w => (⟨B.certificate, w⟩ : LeafType P))
+        (fun w => ⟨B.leaf w, B.leaf_mem w, (B.leaf_data w).1,
+          observedPattern_unique_step4_block_leaf B w⟩)
+      have htransport (M N : FramedNode S) (heq : M = N) :
+          HEq (normalisedPattern Y P.K M.ty M.frame)
+            (normalisedPattern Y P.K N.ty N.frame) := by
+        cases heq
+        rfl
+      exact (htransport B.node ⟨a.ty, φ⟩ he).symm.trans (heq_of_eq hr)
+
+/-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the pattern is the union ... at their fixed positions". The immediate closed
+children cover the closed parent, also for a general linear expansion. -/
+private theorem observedPattern_unique_step4_children_cover (n : ℕ) (A : S.ι) :
+    S.supertile (n + 1) A =
+      ⋃ i : S.I A, placedSet (S.placeChild n i) (S.supertile n (S.child A i).ty) := by
+  have hplace (i : S.I A) (x : E d) : S.placeChild n i ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child A i).frame x) := by
+    change linearConj S.σ (n : ℤ) (S.child A i).rotation.toLinearEquiv
+        ((S.σ ^ n) x) + (S.σ ^ n) (S.child A i).offset =
+      (S.σ ^ n) ((S.child A i).rotation x + (S.child A i).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  calc
+    S.supertile (n + 1) A = (S.σ ^ n) '' (S.σ '' (S.proto A).carrier) := by
+      simp only [SubstSystem.supertile, pow_succ, Set.image_image]
+      rfl
+    _ = ⋃ i : S.I A,
+        (S.σ ^ n) '' placedSet (S.child A i).frame (S.proto (S.child A i).ty).carrier := by
+      rw [S.children_cover, Set.image_iUnion]
+    _ = _ := by
+      apply Set.iUnion_congr
+      intro i
+      simp only [placedSet, SubstSystem.supertile, Set.image_image]
+      congr 1
+      funext x
+      exact (hplace i x).symm
+
+/-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"restriction of the marking ... transported ... by the inverse isometric frame".
+Restriction to a prescribed child is a fixed function of the parent pattern. -/
+private def observedPattern_unique_restrict {n : ℕ} {A : S.ι}
+    (q : Pattern S (Colour S P) (n + 1) A) (i : S.I A) :
+    Pattern S (Colour S P) n (S.child A i).ty :=
+  fun x => q ⟨S.placeChild n i x.val,
+    (observedPattern_unique_step4_children_cover n A).symm.subset
+      (Set.mem_iUnion.mpr ⟨i, ⟨x.val, x.property, rfl⟩⟩)⟩
+
+/-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"the pattern is the union". Equality on each prescribed closed child gives
+equality on the complete closed parent. -/
+private theorem observedPattern_unique_step4_children_ext {n : ℕ} {A : S.ι}
+    (q q' : Pattern S (Colour S P) (n + 1) A)
+    (h : ∀ i : S.I A, observedPattern_unique_restrict q i =
+      observedPattern_unique_restrict q' i) : q = q' := by
+  funext x
+  have hx := (observedPattern_unique_step4_children_cover n A).subset x.property
+  obtain ⟨i, y, hy, he⟩ := Set.mem_iUnion.mp hx
+  have hh := congrFun (h i) ⟨y, hy⟩
+  change q ⟨S.placeChild n i y, _⟩ = q' ⟨S.placeChild n i y, _⟩ at hh
+  simpa only [he] using hh
+
+/-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
+"determined ... by D_S" and "Which case applies ... is determined by the
+position". Restricting an observed pattern follows the common observer transition. -/
+private theorem observedPattern_unique_step4_child
+    (n : ℕ) (a : Observer P) (q : Pattern S (Colour S P) (n + 1) a.ty)
+    (hq : ObservedPattern C (n + 1) a q) (i : S.I a.ty) :
+    ∃ b : Observer P, b = a.transition ⟨a.ty, i⟩ ∧
+      ∃ p : Pattern S (Colour S P) n b.ty, ObservedPattern C n b p ∧
+        HEq p (observedPattern_unique_restrict q i) := by
+  rcases hq with ⟨U, φ, hN, ho, rfl⟩ | ⟨Y, hY, φ, hN, ho, rfl⟩
+  · let N : FramedNode S := ⟨a.ty, φ⟩
+    let hc := U.hierarchy.children_mem n N hN i
+    let c : U.Node := ⟨n, ⟨N.child n i, hc⟩⟩
+    refine ⟨U.observerOf P c, ?_, normalisedPattern (honestLift C U) n
+      (S.child a.ty i).ty ((S.placeChild n i).trans φ), ?_, HEq.rfl⟩
+    · have hs := observedPattern_unique_step2_source_child (P := P) U
+        ⟨n + 1, ⟨N, hN⟩⟩ (Nat.succ_le_succ (Nat.zero_le n)) i
+      change U.observerOf P c = (U.observerOf P ⟨n + 1, ⟨N, hN⟩⟩).transition ⟨a.ty, i⟩ at hs
+      exact hs.trans (congrArg (fun b : Observer P => b.transition ⟨a.ty, i⟩) ho)
+    · exact Or.inl ⟨U, (S.placeChild n i).trans φ, hc, rfl, rfl⟩
+  · let N : FramedNode S := ⟨a.ty, φ⟩
+    let hc := (parsedHierarchy Y hY).children_mem n N hN i
+    let c : (parsedHierarchy Y hY).Node := ⟨n, ⟨N.child n i, hc⟩⟩
+    refine ⟨observerOf Y hY c, ?_, normalisedPattern Y n
+      (S.child a.ty i).ty ((S.placeChild n i).trans φ), ?_, HEq.rfl⟩
+    · have hs := observedPattern_unique_step2_output_child Y hY
+        ⟨n + 1, ⟨N, hN⟩⟩ (Nat.succ_le_succ (Nat.zero_le n)) i
+      change observerOf Y hY c = (observerOf Y hY ⟨n + 1, ⟨N, hN⟩⟩).transition ⟨a.ty, i⟩ at hs
+      exact hs.trans (congrArg (fun b : Observer P => b.transition ⟨a.ty, i⟩) ho)
+    · exact Or.inr ⟨Y, hY, (S.placeChild n i).trans φ, hc, rfl, rfl⟩
+
 /-- O2, V4 4.2: the complete closed pattern is determined by the joint observer.
 This compares any source/output pair. Leaf certificates use the reconstructed
 window and all facet packets; no height-bounded assumption on providers is made. -/
 theorem observedPattern_unique (C : ClusterData S P) (n : ℕ) (hn : P.K ≤ n)
     (a : Observer P) (q q' : Pattern S (Colour S P) n a.ty)
     (hq : ObservedPattern C n a q) (hq' : ObservedPattern C n a q') : q = q' := by
-  sorry
+  induction n, hn using Nat.le_induction generalizing a with
+  | base =>
+      obtain ⟨D, hD, hqD⟩ := observedPattern_unique_step4_base a q hq
+      obtain ⟨E, hE, hqE⟩ := observedPattern_unique_step4_base a q' hq'
+      have he := observedPattern_unique_step3_certificate_ext a D E hD hE
+      subst E
+      exact eq_of_heq (hqD.trans hqE.symm)
+  | succ n hn ih =>
+      apply observedPattern_unique_step4_children_ext q q'
+      intro i
+      obtain ⟨b, hb, p, hp, he⟩ := observedPattern_unique_step4_child n a q hq i
+      obtain ⟨b', hb', p', hp', he'⟩ := observedPattern_unique_step4_child n a q' hq' i
+      have hbb : b' = b := hb'.trans hb.symm
+      cases hbb
+      exact eq_of_heq (he.symm.trans ((heq_of_eq (ih b p p' hp hp')).trans he'))
 
 /-- O2, V4 4.2: the common rendering function `Rend_n`.
 A realized pattern supplies the choice; unused raw observers receive the constant

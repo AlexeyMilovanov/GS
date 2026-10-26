@@ -3041,6 +3041,305 @@ private theorem host_step_step4_full_edge
     exact host_step_step4_subsegment_eq _ _ _ _
       (fun h => hab ((H.prototypeFrame n).injective h)) hsub hdiam
 
+/-- Step 1 of the V4 proof of `host_step_step5_frame` (V4 3.6):
+"with the orientation of h". The chain vector orders the two actual endpoints. -/
+private theorem host_step_step5_frame_step1_chain_segment (z : host_step_Chain P) :
+    ∃ p q : E d, p ≠ q ∧ (host_step_edge z).val.carrier = segment ℝ p q ∧
+      chainVector z.2 = q - p := by
+  let e : EdgeName S := ⟨z.1.ty, host_step_edge z⟩
+  let ab := Classical.choose (edge_endpoints_exist e)
+  have hab : ab.1 ≠ ab.2 := (Classical.choose_spec (edge_endpoints_exist e)).1
+  have he : (host_step_edge z).val.carrier = segment ℝ ab.1 ab.2 :=
+    (Classical.choose_spec (edge_endpoints_exist e)).2
+  cases hforward : z.2.forward
+  · refine ⟨ab.2, ab.1, hab.symm, he.trans (segment_symm ℝ _ _), ?_⟩
+    change (if z.2.forward then edgeVector e else -edgeVector e) = _
+    simp only [hforward, Bool.false_eq_true, ↓reduceIte]
+    change -(ab.2 - ab.1) = ab.1 - ab.2
+    exact neg_sub _ _
+  · refine ⟨ab.1, ab.2, hab, he, ?_⟩
+    change (if z.2.forward then edgeVector e else -edgeVector e) = _
+    simp only [hforward, ↓reduceIte]
+    rfl
+
+/-- Step 1 of the V4 proof of `host_step_step5_frame` (V4 3.6):
+"its flag edge is h ... with the orientation of h". Equal segments have
+only two endpoint orderings, and the two positive inner products exclude reversal. -/
+private theorem host_step_step5_frame_step1_oriented_endpoints
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (p q v : E d) (hpq : p ≠ q)
+    (hedge : ψ '' segment ℝ p q = φ '' segment ℝ p q)
+    (hφ : 0 < inner ℝ v (φ.linear (q - p)))
+    (hψ : 0 < inner ℝ v (ψ.linear (q - p))) :
+    ψ p = φ p ∧ ψ q = φ q := by
+  have hψseg : ψ '' segment ℝ p q = segment ℝ (ψ p) (ψ q) :=
+    image_segment ℝ ψ.toAffineMap _ _
+  have hφseg : φ '' segment ℝ p q = segment ℝ (φ p) (φ q) :=
+    image_segment ℝ φ.toAffineMap _ _
+  rw [hψseg, hφseg] at hedge
+  rcases host_step_step4_age_one_flag_step4_endpoints (φ p) (φ q) (ψ p) (ψ q)
+      (φ.injective.ne hpq) hedge with h | ⟨hfirst, hlast⟩
+  · exact h
+  · have hφ' : φ.linear (q - p) = φ q - φ p := φ.toAffineMap.linearMap_vsub q p
+    have hψ' : ψ.linear (q - p) = ψ q - ψ p := ψ.toAffineMap.linearMap_vsub q p
+    rw [hψ', hfirst, hlast, ← neg_sub (φ q) (φ p), inner_neg_right, ← hφ'] at hψ
+    linarith
+
+/-- Step 2 of the V4 proof of `host_step_step5_frame` (V4 3.6):
+"with the orientation of h and the sides of 𝓕". An orthogonal map fixing the wall
+pointwise and preserving one closed side fixes the whole containing space. -/
+private theorem host_step_step5_frame_step2_fix_side
+    (R : Ortho d) (W V : Submodule ℝ (E d)) (ℓ : E d →ₗ[ℝ] ℝ)
+    (hWV : W ≤ V) (hker : ∀ x ∈ V, ℓ x = 0 ↔ x ∈ W)
+    (hfix : ∀ x ∈ W, R x = x)
+    (hside : R '' {x | x ∈ V ∧ 0 ≤ ℓ x} = {x | x ∈ V ∧ 0 ≤ ℓ x}) :
+    ∀ x ∈ V, R x = x := by
+  have hmap (x : E d) (hx : x ∈ V) : R x ∈ V := by
+    rcases le_total 0 (ℓ x) with hpos | hneg
+    · exact (show R x ∈ {x | x ∈ V ∧ 0 ≤ ℓ x} from
+          hside ▸ mem_image_of_mem R ⟨hx, hpos⟩).1
+    · have hm : R (-x) ∈ V :=
+        (show R (-x) ∈ {x | x ∈ V ∧ 0 ≤ ℓ x} from
+          hside ▸ mem_image_of_mem R ⟨V.neg_mem hx, by simpa using hneg⟩).1
+      simpa only [map_neg, neg_mem_iff] using hm
+  intro x hx
+  let p := W.starProjection x
+  let u := x - p
+  have hp : p ∈ W := W.starProjection_apply_mem x
+  have huV : u ∈ V := V.sub_mem hx (hWV hp)
+  have huO : u ∈ Wᗮ := W.sub_starProjection_mem_orthogonal x
+  by_cases hu : u = 0
+  · have hxp : x = p := sub_eq_zero.mp hu
+    rw [hxp]
+    exact hfix p hp
+  have hℓ : ℓ u ≠ 0 := by
+    intro hz
+    have huW := (hker u huV).mp hz
+    have hzero : u ∈ (⊥ : Submodule ℝ (E d)) := by
+      rw [← W.orthogonal_disjoint.eq_bot]
+      exact ⟨huW, huO⟩
+    exact hu hzero
+  have hRuO : R u ∈ Wᗮ := by
+    intro w hw
+    rw [← hfix w hw, R.inner_map_map]
+    exact huO w hw
+  let a := ℓ (R u) / ℓ u
+  have heq : R u = a • u := by
+    have hzV : R u - a • u ∈ V := V.sub_mem (hmap u huV) (V.smul_mem a huV)
+    have hzW : R u - a • u ∈ W := (hker _ hzV).mp (by
+      simp only [map_sub, map_smul, smul_eq_mul, a, div_mul_cancel₀ _ hℓ, sub_self])
+    have hzO : R u - a • u ∈ Wᗮ := Wᗮ.sub_mem hRuO (Wᗮ.smul_mem a huO)
+    have hz : R u - a • u = 0 := by
+      have hm : R u - a • u ∈ W ⊓ Wᗮ := ⟨hzW, hzO⟩
+      simpa only [W.orthogonal_disjoint.eq_bot, Submodule.mem_bot] using hm
+    exact sub_eq_zero.mp hz
+  have ha : |a| = 1 := by
+    have hn := R.norm_map u
+    rw [heq, norm_smul, Real.norm_eq_abs] at hn
+    exact (mul_eq_right₀ (norm_ne_zero_iff.mpr hu)).mp hn
+  have ha1 : a = 1 := by
+    rcases (abs_eq (by norm_num : (0 : ℝ) ≤ 1)).mp ha with h | h
+    · exact h
+    · have hflip : R u = -u := by simpa only [h, neg_one_smul] using heq
+      rcases lt_or_gt_of_ne hℓ with hneg | hpos
+      · have hm : R (-u) ∈ {x | x ∈ V ∧ 0 ≤ ℓ x} :=
+          hside ▸ mem_image_of_mem R ⟨V.neg_mem huV, by simpa using hneg.le⟩
+        have := hm.2
+        simp only [map_neg, hflip, neg_neg] at this
+        linarith
+      · have hm : R u ∈ {x | x ∈ V ∧ 0 ≤ ℓ x} :=
+          hside ▸ mem_image_of_mem R ⟨huV, hpos.le⟩
+        have := hm.2
+        simp only [hflip, map_neg] at this
+        linarith
+  have hRu : R u = u := by simpa only [ha1, one_smul] using heq
+  have hxp : x = p + u := by dsimp [u]; abel
+  rw [hxp, map_add, hfix p hp, hRu]
+
+
+/-- Step 2 of the V4 proof of `host_step_step5_frame` (V4 3.6):
+"with the same positioned oriented flag and the same inward side". The one-side rigidity argument survives an arbitrary
+invertible linear placement, including the anisotropic expansion. -/
+private theorem host_step_step5_frame_step2_transport_side
+    (R : Ortho d) (L : E d ≃ₗ[ℝ] E d) (W V : Submodule ℝ (E d)) (K : Set (E d))
+    (hgeom : ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      (∀ x, x ∈ W ↔ x ∈ V ∧ ℓ x = 0) ∧ K = {x | x ∈ V ∧ 0 ≤ ℓ x})
+    (hfix : ∀ x ∈ W, R (L x) = L x)
+    (hside : R '' (L '' K) = L '' K) :
+    ∀ x ∈ V, R (L x) = L x := by
+  obtain ⟨ℓ, hwall, hK⟩ := hgeom
+  let W' := W.map L.toLinearMap
+  let V' := V.map L.toLinearMap
+  let ℓ' : E d →ₗ[ℝ] ℝ := ℓ.comp L.symm.toLinearMap
+  have heval (x : E d) : ℓ' (L x) = ℓ x := by
+    simp only [ℓ', LinearMap.comp_apply, LinearEquiv.coe_coe, L.symm_apply_apply]
+  have hhalf : L '' K = {y | y ∈ V' ∧ 0 ≤ ℓ' y} := by
+    rw [hK]
+    ext y
+    constructor
+    · rintro ⟨x, ⟨hx, hpos⟩, rfl⟩
+      exact ⟨⟨x, hx, rfl⟩, by simpa only [heval] using hpos⟩
+    · rintro ⟨⟨x, hx, rfl⟩, hpos⟩
+      change 0 ≤ ℓ' (L x) at hpos
+      exact ⟨x, ⟨hx, by simpa only [heval] using hpos⟩, rfl⟩
+  have hWV : W' ≤ V' := by
+    rintro y ⟨x, hx, rfl⟩
+    exact ⟨x, ((hwall x).mp hx).1, rfl⟩
+  have hker : ∀ y ∈ V', ℓ' y = 0 ↔ y ∈ W' := by
+    rintro y ⟨x, hx, rfl⟩
+    change ℓ' (L x) = 0 ↔ L x ∈ W'
+    rw [heval]
+    constructor
+    · intro hz
+      exact ⟨x, (hwall x).mpr ⟨hx, hz⟩, rfl⟩
+    · rintro ⟨w, hw, he⟩
+      have he' : w = x := L.injective he
+      exact ((hwall x).mp (he' ▸ hw)).2
+  have hfix' : ∀ y ∈ W', R y = y := by
+    rintro y ⟨x, hx, rfl⟩
+    exact hfix x hx
+  rw [hhalf] at hside
+  intro x hx
+  exact host_step_step5_frame_step2_fix_side R W' V' ℓ' hWV hker hfix' hside
+    (L x) ⟨x, hx, rfl⟩
+
+
+/-- Step 3 of the V4 proof of `host_step_step5_frame` (V4 3.6, 1.0(a)):
+"near a point of the relative interior ... a half-space".
+The tangent cone reads exactly the half-space in a local half-ball. -/
+private theorem host_step_step5_frame_step3_tangent_halfball
+    (K : Set (E d)) (p v : E d) (r : ℝ) (hr : 0 < r)
+    (hlocal : K ∩ ball p r = {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r) :
+    tangentCone K p = {u | 0 ≤ inner ℝ v u} := by
+  ext u
+  let δ := r / (‖u‖ + 1)
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  have hδ : 0 < δ := div_pos hr hden
+  have hnear (t : ℝ) (ht : 0 < t) (htδ : t < δ) : p + t • u ∈ ball p r := by
+    change dist (p + t • u) p < r
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+    have := (lt_div_iff₀ hden).mp htδ
+    nlinarith [norm_nonneg u]
+  constructor
+  · rintro ⟨ε, hε, hmem⟩
+    let t := min ε δ / 2
+    have ht : 0 < t := div_pos (lt_min hε hδ) (by norm_num)
+    have htε : t < ε := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_left ε δ)
+    have htδ : t < δ := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_right ε δ)
+    have hm : p + t • u ∈ {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r :=
+      hlocal ▸ ⟨hmem t ht htε, hnear t ht htδ⟩
+    have hnonneg := hm.1
+    change 0 ≤ inner ℝ v (p + t • u - p) at hnonneg
+    rw [add_sub_cancel_left, inner_smul_right] at hnonneg
+    exact nonneg_of_mul_nonneg_right hnonneg ht
+  · intro hu
+    refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+    have hm : p + t • u ∈ K ∩ ball p r := by
+      rw [hlocal]
+      refine ⟨?_, hnear t ht htδ⟩
+      change 0 ≤ inner ℝ v (p + t • u - p)
+      rw [add_sub_cancel_left, inner_smul_right]
+      exact mul_nonneg ht.le hu
+    exact hm.1
+
+/-- Step 3 of the V4 proof of `host_step_step5_frame` (V4 3.6, F1):
+"moving ... into relint". Every direction of an affine span is locally
+available at a relative-interior point. -/
+private theorem host_step_step5_frame_step3_relint_directions
+    (K : Set (E d)) (p : E d) (hp : p ∈ relint K) :
+    (cellDirection K : Set (E d)) ⊆ tangentCone K p := by
+  obtain ⟨q, hq, rfl⟩ := hp
+  obtain ⟨r, hr, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hq)
+  intro u hu
+  let δ := r / (‖u‖ + 1)
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  refine ⟨δ, div_pos hr hden, fun t ht htδ => ?_⟩
+  have hmem : q.val + t • u ∈ affineSpan ℝ K := by
+    simpa only [vadd_eq_add, add_comm] using
+      AffineSubspace.vadd_mem_of_mem_direction ((cellDirection K).smul_mem t hu) q.property
+  apply hball (a := ⟨q.val + t • u, hmem⟩)
+  change dist (q.val + t • u) q.val < r
+  rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+  have := (lt_div_iff₀ hden).mp htδ
+  nlinarith [norm_nonneg u]
+
+
+/-- Step 3 of the V4 proof of `host_step_step5_frame` (V4 3.6, 1.0(a)):
+"its inward side at g_j". The inward tangent cone is a closed half-space
+whose wall is precisely the direction of the listed facet. -/
+private theorem host_step_step5_frame_step3_inward_side
+    (A : S.ι) (f : FacetName S A) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      (∀ x, x ∈ cellDirection f.val.carrier ↔ x ∈ (⊤ : Submodule ℝ (E d)) ∧ ℓ x = 0) ∧
+      tangentCone (S.proto A).carrier (cellAnchor f.val) =
+        {x | x ∈ (⊤ : Submodule ℝ (E d)) ∧ 0 ≤ ℓ x} := by
+  obtain ⟨r, hr, v, hv, _, _, hlocal⟩ :=
+    facet_halfball (S.proto A) (S.cx A) f.val f.property _ (cellAnchor_mem f.val)
+  have hcone := host_step_step5_frame_step3_tangent_halfball _ _ v r hr hlocal
+  let ℓ : E d →ₗ[ℝ] ℝ := innerₛₗ ℝ v
+  have hsub : f.val.carrier ⊆ (S.proto A).carrier := by
+    have hm := (Finset.mem_filter.mp f.property).1
+    have hfront : relint f.val.carrier ⊆ frontier (S.proto A).carrier := by
+      intro x hx
+      rw [← (S.cx A).cover]
+      exact mem_iUnion.mpr ⟨f.val, mem_iUnion.mpr ⟨hm, hx⟩⟩
+    rw [← f.val.flat.regularClosed]
+    exact closure_minimal (hfront.trans frontier_subset_closure)
+      (isClosed_closure) |>.trans_eq (S.proto A).compact.isClosed.closure_eq
+  have hle : cellDirection f.val.carrier ≤ ℓ.ker := by
+    intro u hu
+    have hpos (w : E d) (hw : w ∈ cellDirection f.val.carrier) : 0 ≤ ℓ w := by
+      have ht := host_step_step5_frame_step3_relint_directions _ _ (cellAnchor_mem f.val) hw
+      have ht' : w ∈ tangentCone (S.proto A).carrier (cellAnchor f.val) := by
+        obtain ⟨ε, hε, hmem⟩ := ht
+        exact ⟨ε, hε, fun t ht htε => hsub (hmem t ht htε)⟩
+      simpa only [hcone] using ht'
+    have h₁ := hpos u hu
+    have h₂ := hpos (-u) ((cellDirection f.val.carrier).neg_mem hu)
+    change ℓ u = 0
+    rw [map_neg] at h₂
+    linarith
+  have hvv : ℓ v ≠ 0 := by
+    change inner ℝ v v ≠ 0
+    rw [real_inner_self_eq_norm_sq, hv]
+    norm_num
+  have hproper : ℓ.ker ≠ ⊤ := by
+    intro he
+    exact hvv (show v ∈ ℓ.ker from he ▸ Submodule.mem_top)
+  have hdim := Submodule.finrank_lt_finrank_of_lt (lt_top_iff_ne_top.mpr hproper)
+  have hfdim : Module.finrank ℝ (cellDirection f.val.carrier) = d - 1 :=
+    f.val.flat.dimension.trans (Finset.mem_filter.mp f.property).2
+  have heq : cellDirection f.val.carrier = ℓ.ker := by
+    apply Submodule.eq_of_le_of_finrank_le hle
+    simp only [finrank_top, finrank_euclideanSpace_fin] at hdim
+    omega
+  refine ⟨ℓ, ?_, ?_⟩
+  · intro x
+    simp only [heq, LinearMap.mem_ker, Submodule.mem_top, true_and]
+  · simpa only [Submodule.mem_top, true_and] using hcone
+
+
+/-- Step 3 of the V4 proof of `host_step_step5_frame` (V4 3.6, F1):
+"near a point of the relative interior of a codimension-one face,
+a polyhedral manifold cell is a half-space on the recorded side".
+For a single consecutive pair of listed flag cells, the local side is a
+half-space in the upper cell's direction space, with the lower cell as wall. -/
+private theorem host_step_step5_frame_step3_flag_side
+    {A : S.ι} (F : FacetFlag S A) (j : FlagStep d) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      (∀ x, x ∈ cellDirection (F.cell ⟨j.val, j.property.1, by omega⟩).val.carrier ↔
+        x ∈ cellDirection (F.cell ⟨j.val + 1, by omega, j.property.2⟩).val.carrier ∧
+          ℓ x = 0) ∧
+      flagSide F j =
+        {x | x ∈ cellDirection (F.cell ⟨j.val + 1, by omega, j.property.2⟩).val.carrier ∧
+          0 ≤ ℓ x} := by
+  -- Work in the affine span of the upper cell. Properness puts the relative
+  -- interior of the lower cell in its relative boundary. The relative version
+  -- of V4 1.0(a) gives the local half-space; its wall is the lower affine span.
+  -- Translating the anchor to zero gives the stated kernel and tangent cone.
+  sorry
+
 /-- Step 5 of the V4 proof of `host_step` (V4 3.6): "the positioned
 oriented flag together with the side determines the frame". Equal edge carriers
 fix translation; all flag spans, orientations and sides fix the orthogonal part. -/
@@ -3054,7 +3353,109 @@ private theorem host_step_step5_frame (H N : FramedNode S) (n : ℕ)
     (halign : host_step_aligned H n ι b N n z)
     (hedge : N.cell n (host_step_edge z).val = host_step_flagEdge H n ι b) :
     N = H := by
-  sorry
+  obtain ⟨p, q, hpq, hseg, hvec⟩ := host_step_step5_frame_step1_chain_segment z
+  obtain ⟨_, hsides, hNorient, hinward⟩ := halign
+  have heq : N.prototypeFrame n '' segment ℝ p q =
+      H.prototypeFrame n '' segment ℝ p q := by
+    change N.prototypeFrame n '' (host_step_edge z).val.carrier =
+      H.prototypeFrame n '' ((P.sideFlag ι b).cell edgeIndex).val.carrier at hedge
+    rw [← hchain edgeIndex] at hedge
+    change N.prototypeFrame n '' (host_step_edge z).val.carrier =
+      H.prototypeFrame n '' (host_step_edge z).val.carrier at hedge
+    rwa [hseg] at hedge
+  rw [hvec] at horient hNorient
+  obtain ⟨hp, hq⟩ := host_step_step5_frame_step1_oriented_endpoints
+    (H.prototypeFrame n) (N.prototypeFrame n) p q
+    ((host_step_flagFrame H n ι b).linear (P.flag ι).direction) hpq heq horient hNorient
+  let L := (H.prototypeFrame n).linear
+  let R : Ortho d := H.frame.linearIsometryEquiv.symm.trans N.frame.linearIsometryEquiv
+  have hR (x : E d) : R (L x) = (N.prototypeFrame n).linear x := by
+    change N.frame.linearIsometryEquiv
+      (H.frame.linearIsometryEquiv.symm (H.frame.linearIsometryEquiv ((S.σ ^ n) x))) =
+        N.frame.linearIsometryEquiv ((S.σ ^ n) x)
+    rw [LinearIsometryEquiv.symm_apply_apply]
+  have hdir : R (L (q - p)) = L (q - p) := by
+    rw [hR]
+    change (N.prototypeFrame n).linear (q - p) = (H.prototypeFrame n).linear (q - p)
+    change (N.prototypeFrame n).toAffineMap.linear (q -ᵥ p) =
+      (H.prototypeFrame n).toAffineMap.linear (q -ᵥ p)
+    rw [AffineMap.linearMap_vsub, AffineMap.linearMap_vsub]
+    change N.prototypeFrame n q - N.prototypeFrame n p =
+      H.prototypeFrame n q - H.prototypeFrame n p
+    rw [hp, hq]
+  have hfixedge : ∀ x ∈ cellDirection ((P.sideFlag ι b).cell edgeIndex).val.carrier,
+      R (L x) = L x := by
+    rw [← hchain edgeIndex]
+    change ∀ x ∈ cellDirection (host_step_edge z).val.carrier, R (L x) = L x
+    rw [hseg, cellDirection, direction_affineSpan, vectorSpan_segment]
+    intro x hx
+    obtain ⟨a, rfl⟩ := Submodule.mem_span_singleton.mp hx
+    simp only [vsub_eq_sub, map_smul, hdir]
+  have hside (j : FlagStep d) : R '' (L '' flagSide (P.sideFlag ι b) j) =
+      L '' flagSide (P.sideFlag ι b) j := by
+    have hc : flagSide z.2.chain.val j = flagSide (P.sideFlag ι b) j := by
+      unfold flagSide
+      rw [hchain, hchain]
+    calc
+      _ = (N.prototypeFrame n).linear '' flagSide (P.sideFlag ι b) j := by
+        rw [image_image]
+        congr 1
+        funext x
+        exact hR x
+      _ = _ := by simpa only [hc] using hsides j
+  have hfixflag : ∀ (j : ℕ) (hj : 1 ≤ j ∧ j < d),
+      ∀ x ∈ cellDirection ((P.sideFlag ι b).cell ⟨j, hj⟩).val.carrier,
+        R (L x) = L x := by
+    intro j
+    induction j using Nat.strong_induction_on with
+    | h j ih =>
+      intro hj
+      by_cases hj1 : j = 1
+      · subst j
+        exact hfixedge
+      · let k : FlagStep d := ⟨j - 1, by omega, by omega⟩
+        have hlow := ih (j - 1) (by omega) (show 1 ≤ j - 1 ∧ j - 1 < d by omega)
+        have hstep := host_step_step5_frame_step2_transport_side R L _ _ _
+          (host_step_step5_frame_step3_flag_side (P.sideFlag ι b) k) hlow (hside k)
+        simpa only [k, Nat.sub_add_cancel hj.1] using hstep
+  let f : FacetName S H.ty := ⟨(ι.val.sideFacet b).val, by
+    rw [hH]
+    exact (ι.val.sideFacet b).property⟩
+  have hfixfacet : ∀ x ∈ cellDirection f.val.carrier, R (L x) = L x := by
+    have ht := hfixflag facetIndex.val facetIndex.property
+    rwa [host_step_step4_age_one_flag_step6_top ι b] at ht
+  have hinside : R '' (L '' tangentCone (S.proto H.ty).carrier (cellAnchor f.val)) =
+      L '' tangentCone (S.proto H.ty).carrier (cellAnchor f.val) := by
+    calc
+      _ = (N.prototypeFrame n).linear ''
+          tangentCone (S.proto H.ty).carrier (cellAnchor f.val) := by
+        rw [image_image]
+        congr 1
+        funext x
+        exact hR x
+      _ = _ := by simpa only [hty, hf] using hinward
+  have hall := host_step_step5_frame_step2_transport_side R L _ _ _
+    (host_step_step5_frame_step3_inward_side H.ty f) hfixfacet hinside
+  have hlin (x : E d) : (N.prototypeFrame n).linear x = (H.prototypeFrame n).linear x :=
+    (hR x).symm.trans (hall x Submodule.mem_top)
+  have hproto : N.prototypeFrame n = H.prototypeFrame n := by
+    apply AffineEquiv.ext
+    intro x
+    have hx := hlin (x - p)
+    change (N.prototypeFrame n).toAffineMap.linear (x -ᵥ p) =
+      (H.prototypeFrame n).toAffineMap.linear (x -ᵥ p) at hx
+    rw [AffineMap.linearMap_vsub, AffineMap.linearMap_vsub] at hx
+    change N.prototypeFrame n x - N.prototypeFrame n p =
+      H.prototypeFrame n x - H.prototypeFrame n p at hx
+    rw [hp] at hx
+    exact sub_left_injective hx
+  apply FramedNode.ext hty
+  apply AffineIsometryEquiv.ext
+  intro x
+  have hx := congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ ((S.σ ^ n).symm x)) hproto
+  change N.frame ((S.σ ^ n) ((S.σ ^ n).symm x)) =
+    H.frame ((S.σ ^ n) ((S.σ ^ n).symm x)) at hx
+  simpa only [LinearEquiv.apply_symm_apply] using hx
 
 /-- Step 5 of the V4 proof of `host_step` (V4 3.6): "these open
 half-balls lie in int B'". The common facet and the disjoint interiors of the

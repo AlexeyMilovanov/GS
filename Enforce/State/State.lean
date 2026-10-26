@@ -2161,6 +2161,152 @@ private theorem exists_childMap_step5_tracks (U : HonestSource S) (q : U.Node)
       · rw [hkcell]
         exact hG'.trans hGK
 
+/-- Step 1 of the V4 proof of `exists_childMap_step6_internal_header` (V4 2.3):
+"the same cones, re-expressed in C's frame". An affine change of frame sends
+the positive-time radial tangent cone by its linear part. -/
+private theorem exists_childMap_step6_internal_header_step1_tangent_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) (x : E d) :
+    tangentCone (e '' K) (e x) = e.linear '' tangentCone K x := by
+  have hmap (y u : E d) (t : ℝ) : e (y + t • u) = e y + t • e.linear u := by
+    simpa only [vadd_eq_add, add_comm, map_smul] using e.map_vadd y (t • u)
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hu⟩
+    refine ⟨e.linear.symm u, ⟨ε, hε, ?_⟩, e.linear.apply_symm_apply u⟩
+    intro t ht htε
+    apply e.injective.mem_set_image.mp
+    simpa only [hmap, e.linear.apply_symm_apply] using hu t ht htε
+  · rintro ⟨u, ⟨ε, hε, hu⟩, rfl⟩
+    refine ⟨ε, hε, ?_⟩
+    intro t ht htε
+    rw [← hmap]
+    exact Set.mem_image_of_mem e (hu t ht htε)
+
+/-- Step 2 of the V4 proof of `exists_childMap_step6_internal_header` (V4 2.3):
+"expressed in C's frame". Normalizing a parent-frame direction set by the
+full child frame cancels the parent frame, leaving the inverse role map. -/
+private theorem exists_childMap_step6_internal_header_step2_normalize_linear
+    (e r : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    (r.trans e).linear.symm '' (e.linear '' K) = r.linear.symm '' K := by
+  rw [Set.image_image]
+  congr 1
+  funext x
+  change r.linear.symm (e.linear.symm (e.linear x)) = r.linear.symm x
+  rw [e.linear.symm_apply_apply]
+
+/-- Step 3 of the V4 proof of `exists_childMap_step6_internal_header` (V4 2.3):
+"the header of the immediate substitution ... (a fixed finite lookup)".
+The lookup uses the unexpanded parent prototype and then the inverse role
+linear map, including all incident child, boundary, primitive and flag data. -/
+private def exists_childMap_step6_internal_header_step3_lookup
+    (P : Params S) (r : S.Role) (x : E d) : State.Header P := by
+  classical
+  let y := rolePlacement r x
+  let normalize := fun K : Set (E d) => (rolePlacement r).linear.symm '' K
+  let pos := fun a : P.Incidence => rolePlacement ⟨a.val.ty, a.val.left⟩
+  exact {
+    birthType := r.1
+    parentCone := normalize (tangentCone (S.proto r.1).carrier y)
+    childCones := fun j =>
+      let K := rolePlacement ⟨r.1, j⟩ '' (S.proto (S.child r.1 j).ty).carrier
+      if y ∈ K then some (normalize (tangentCone K y)) else none
+    boundaryCones := fun F => if y ∈ F.val.carrier then
+      some (normalize (tangentCone F.val.carrier y)) else none
+    primitiveCones := fun a => if a.val.ty = r.1 ∧
+        y ∈ pos a '' a.val.leftFacet.val.carrier then
+      some (normalize (tangentCone (pos a '' a.val.leftFacet.val.carrier) y))
+      else none
+    flagTangent := fun a => if a.val.ty = r.1 ∧
+        (y = pos a (P.flag a).initial ∨ y = pos a (P.flag a).terminal) then
+      some {
+        cones := fun j => normalize
+          (tangentCone (pos a '' ((P.flag a).flag.cell j).val.carrier) y)
+        initial := decide (y = pos a (P.flag a).initial)
+        sides := fun j => normalize ((pos a).linear '' (P.flag a).sides j) }
+      else none }
+
+/-- Step 4 of the V4 proof of `exists_childMap_step6_internal_header` (V4 2.3):
+"the record is the header of the immediate substitution ... expressed in C's
+frame". Once the birth parent is the immediate parent, each geometric header
+field equals its fixed prototype lookup. -/
+private theorem exists_childMap_step6_internal_header_step4_header_lookup
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (f : FacetName S (U.childNode q hq i).2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (v : VertexName S (U.childNode q hq i).2.val.ty)
+    (hbirth : U.hierarchy.birthParent (U.childNode q hq i) f hf = q) :
+    U.headerOf P (U.childNode q hq i) f hf v =
+      exists_childMap_step6_internal_header_step3_lookup P ⟨q.2.val.ty, i⟩
+        (vertexPoint v) := by
+  classical
+  have hframe : (U.childNode q hq i).2.val.prototypeFrame (U.childNode q hq i).1 =
+      (rolePlacement ⟨q.2.val.ty, i⟩).trans (q.2.val.prototypeFrame q.1) := by
+    simpa only [Nat.sub_add_cancel hq] using exists_childMap_step1_frame q.2.val (q.1-1) i
+  have hcarrier (N : FramedNode S) (n : ℕ) :
+      N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    rw [FramedNode.carrier, placedSet, SubstSystem.supertile, Set.image_image]
+    rfl
+  have hchild (j : S.I q.2.val.ty) :
+      (q.2.val.child (q.1-1) j).carrier (q.1-1) = q.2.val.prototypeFrame q.1 ''
+        (rolePlacement ⟨q.2.val.ty, j⟩ '' (S.proto (S.child q.2.val.ty j).ty).carrier) := by
+    rw [hcarrier, exists_childMap_step1_frame, Nat.sub_add_cancel hq, Set.image_image]
+    rfl
+  have hpos (a : P.Incidence) : P.incidencePlacement q.2.val q.1 a =
+      (rolePlacement ⟨a.val.ty, a.val.left⟩).trans (q.2.val.prototypeFrame q.1) := rfl
+  have hposimage (a : P.Incidence) (K : Set (E d)) :
+      P.incidencePlacement q.2.val q.1 a '' K = q.2.val.prototypeFrame q.1 ''
+        (rolePlacement ⟨a.val.ty, a.val.left⟩ '' K) := by
+    rw [hpos, Set.image_image]
+    rfl
+  have hpospoint (a : P.Incidence) (x : E d) :
+      P.incidencePlacement q.2.val q.1 a x = q.2.val.prototypeFrame q.1
+        (rolePlacement ⟨a.val.ty, a.val.left⟩ x) := rfl
+  have hposlinear (a : P.Incidence) (K : Set (E d)) :
+      (P.incidencePlacement q.2.val q.1 a).linear '' K =
+        (q.2.val.prototypeFrame q.1).linear ''
+          ((rolePlacement ⟨a.val.ty, a.val.left⟩).linear '' K) := by
+    rw [hpos, Set.image_image]
+    rfl
+  have hnorm (K : Set (E d)) :
+      U.normalizeCone (U.childNode q hq i) ((q.2.val.prototypeFrame q.1).linear '' K) =
+        (rolePlacement ⟨q.2.val.ty, i⟩).linear.symm '' K := by
+    rw [HonestSource.normalizeCone, hframe]
+    exact exists_childMap_step6_internal_header_step2_normalize_linear _ _ _
+  have hpoint : (U.childNode q hq i).2.val.prototypeFrame (U.childNode q hq i).1
+      (vertexPoint v) = q.2.val.prototypeFrame q.1
+        (rolePlacement ⟨q.2.val.ty, i⟩ (vertexPoint v)) := by rw [hframe]; rfl
+  unfold HonestSource.headerOf
+  rw [hbirth]
+  simp only [hpoint, hchild, hcarrier q.2.val q.1,
+    FramedNode.cell, hposimage, exists_childMap_step6_internal_header_step1_tangent_image,
+    hnorm, (q.2.val.prototypeFrame q.1).injective.mem_set_image,
+    exists_childMap_step6_internal_header_step3_lookup]
+  simp only [hpospoint, hposlinear, (q.2.val.prototypeFrame q.1).injective.eq_iff, hnorm]
+
+/-- Step 5 of the V4 proof of `exists_childMap_step6_internal_header` (V4 2.3):
+"tau = id" for an internal facet. A vertex on that facet has a singleton
+canonical provider stratum, hence dimension zero. -/
+private theorem exists_childMap_step6_internal_header_step5_zero_stratum
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (f : FacetName S (U.childNode q hq i).2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (hint : ¬ ∃ F : FacetName S q.2.val.ty,
+      rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier)
+    (v : VertexName S (U.childNode q hq i).2.val.ty) (hv : v.val.carrier ⊆ f.val.carrier) :
+    (U.recordTau P (U.childNode q hq i) f hf ⟨vertexCell v, hv⟩).val.val.dim = 0 := by
+  let a := U.recordIncidence P (U.childNode q hq i) f hf
+  let e := U.recordTau P (U.childNode q hq i) f hf ⟨vertexCell v, hv⟩
+  let t := rolePlacement ⟨a.val.ty, a.val.left⟩
+  have he := exists_childMap_step4_internal_tau P U q hq i f hf hint ⟨vertexCell v, hv⟩
+  change t '' e.val.val.carrier = rolePlacement ⟨q.2.val.ty, i⟩ '' v.val.carrier at he
+  rw [vertexPoint_spec, Set.image_singleton] at he
+  have hsingleton : e.val.val.carrier = {t.symm (rolePlacement ⟨q.2.val.ty, i⟩ (vertexPoint v))} := by
+    apply t.injective.image_injective
+    simpa only [Set.image_singleton, t.apply_symm_apply] using he
+  change e.val.val.dim = 0
+  rw [← e.val.val.flat.dimension, hsingleton]
+  simp [cellDirection, direction_affineSpan]
+
 section HeaderComparison
 variable (P : Params S) {U V : HonestSource S}
   (q : U.Node) (q' : V.Node) (hq : 1 ≤ q.1) (hq' : 1 ≤ q'.1)
@@ -2183,7 +2329,40 @@ private theorem exists_childMap_step6_internal_header
       rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier) :
     U.headerRecordOf P (U.childNode q hq i) v f =
       V.headerRecordOf P (V.childNode q' hq' i') v' g := by
-  sorry
+  classical
+  have hty : q.2.val.ty = q'.2.val.ty := congrArg Sigma.fst hrole
+  have hint' : ¬ ∃ G : FacetName S q'.2.val.ty,
+      rolePlacement ⟨q'.2.val.ty, i'⟩ '' g.val.carrier ⊆ G.val.carrier := by
+    rintro ⟨G, hG⟩
+    let F : FacetName S q.2.val.ty := ⟨G.val, hty.symm ▸ G.property⟩
+    exact hint ⟨F, by simpa only [hrole, hfg] using hG⟩
+  by_cases hv : v.val.carrier ⊆ f.val.carrier
+  · have hv' : v'.val.carrier ⊆ g.val.carrier := by
+      simpa only [← hvv', ← hfg] using hv
+    have hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f := by
+      intro h
+      obtain ⟨F, hF, _⟩ := (exists_childMap_step4_fault U q hq i f).mp h
+      exact hint ⟨F, hF⟩
+    have hg : ¬ V.hierarchy.IsFault (V.childNode q' hq' i') g := by
+      intro h
+      obtain ⟨G, hG, _⟩ := (exists_childMap_step4_fault V q' hq' i' g).mp h
+      exact hint' ⟨G, hG⟩
+    have hz := exists_childMap_step6_internal_header_step5_zero_stratum P U q hq i f hf hint v hv
+    have hz' := exists_childMap_step6_internal_header_step5_zero_stratum P V q' hq' i' g hg hint' v' hv'
+    have hb := (exists_childMap_step4_internal_provider U q hq i f hf hint).2.1
+    have hb' := (exists_childMap_step4_internal_provider V q' hq' i' g hg hint').2.1
+    have hp : vertexPoint v = vertexPoint v' := by
+      apply Set.singleton_injective
+      exact (vertexPoint_spec v).symm.trans
+        ((congrArg Cell.carrier hvv').trans (vertexPoint_spec v'))
+    simp only [HonestSource.headerRecordOf, dif_pos hv, dif_pos hv', dif_neg hf,
+      dif_neg hg, if_pos hz, if_pos hz', Option.some.injEq]
+    rw [exists_childMap_step6_internal_header_step4_header_lookup P U q hq i f hf v hb,
+      exists_childMap_step6_internal_header_step4_header_lookup P V q' hq' i' g hg v' hb']
+    exact congrArg₂ (exists_childMap_step6_internal_header_step3_lookup P) hrole hp
+  · have hv' : ¬ v'.val.carrier ⊆ g.val.carrier := by
+      simpa only [← hvv', ← hfg] using hv
+    simp only [HonestSource.headerRecordOf, dif_neg hv, dif_neg hv']
 
 /-- Step 6 of the V4 proof of `exists_childMap` (V4 2.3):
 "if f' ... is inherited ... v' is a vertex v of B" and its record is

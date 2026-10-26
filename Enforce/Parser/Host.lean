@@ -1821,6 +1821,477 @@ private theorem host_step_step2_distinct_jumps
   · obtain ⟨i, hiV, rfl⟩ := Finset.mem_image.mp hx
     exact ⟨hvertices i, Or.inr ⟨i, rfl, (Finset.mem_filter.mp hiV).2⟩⟩
 
+/-- Step 1 of the V4 proof of `host_step_step3_roots` (V4 3.6):
+"Each u_m lies in a unique block B_m of the level." Existence follows by
+covering an interior point of the tile and using the actual leaves of that block. -/
+private theorem host_step_step3_roots_step1_owner
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) :
+    ∃ B ∈ G.blocks, t.carrier ⊆ B.carrier ∧
+      (tileNode t).IsDescendant 0 B.node n := by
+  classical
+  have hnonempty : (interior t.carrier).Nonempty := by
+    rw [compilerFrame_carrier C t]
+    change (interior ((compilerFrame C t).toHomeomorph ''
+      (S.proto (compilerLeaf C t).prototype).carrier)).Nonempty
+    rw [← Homeomorph.image_interior]
+    exact (S.proto (compilerLeaf C t).prototype).interior_nonempty.image _
+  obtain ⟨x, hxt⟩ := hnonempty
+  obtain ⟨B, hB, hxB⟩ := G.cover x
+  rw [B.union_tiles] at hxB
+  obtain ⟨v, hxv⟩ := Set.mem_iUnion.mp hxB
+  obtain ⟨hv, hxv⟩ := Set.mem_iUnion.mp hxv
+  have htv : t = v := by
+    by_contra hne
+    have hreg : closure (interior v.carrier) = v.carrier := by
+      obtain ⟨A, _, φ, hcarrier, _⟩ := v.realization
+      rw [hcarrier]
+      change closure (interior (φ.toHomeomorph '' A.carrier)) =
+        φ.toHomeomorph '' A.carrier
+      rw [← φ.toHomeomorph.image_interior, ← φ.toHomeomorph.image_closure,
+        A.regularClosed]
+    have hd := (Y.disjoint ht hv.1 hne).closure_right isOpen_interior
+    rw [hreg] at hd
+    exact Set.disjoint_left.mp hd hxt hxv
+  subst v
+  have hexact : t ∈ {t | t ∈ Y.tiles ∧ ∃ w : S.RoleWord B.node.ty n,
+      tileNode t = (S.nativeTile B.node.ty n w).move B.node.frame} := by
+    rw [← B.tiles_exact]
+    exact ⟨ht, hv.2⟩
+  obtain ⟨w, hw⟩ := hexact.2
+  exact ⟨B, hB, hv.2, n, by omega, w, hw⟩
+
+/-- Step 2 of the V4 proof of `host_step_step3_roots` (V4 3.6, F1):
+"the same affine spans". Relative interiors commute with the full affine
+prototype frames, including the anisotropic expansion. -/
+private theorem host_step_step3_roots_step2_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 2 of the V4 proof of `host_step_step3_roots` (V4 3.6, F1):
+"the same composite displacement from x gives a point" in both interiors.
+Two full flags with the same spans, successive sides and inward side have
+overlapping relative interiors at every coface whenever their open edges meet. -/
+private theorem host_step_step3_roots_step2_flag_overlap
+    (N M : FramedNode S) (n m : ℕ) {A A' : S.ι}
+    (F : FacetFlag S A) (G : FacetFlag S A') (hN : N.ty = A) (hM : M.ty = A')
+    (hspans : ∀ k, affineSpan ℝ (N.cell n (F.cell k).val) =
+      affineSpan ℝ (M.cell m (G.cell k).val))
+    (hsides : ∀ k, (N.prototypeFrame n).linear '' flagSide F k =
+      (M.prototypeFrame m).linear '' flagSide G k)
+    (hinward : (N.prototypeFrame n).linear ''
+        tangentCone (S.proto N.ty).carrier (cellAnchor (F.cell facetIndex).val) =
+      (M.prototypeFrame m).linear ''
+        tangentCone (S.proto M.ty).carrier (cellAnchor (G.cell facetIndex).val))
+    (hmeet : (relint (N.cell n (F.cell edgeIndex).val) ∩
+      relint (M.cell m (G.cell edgeIndex).val)).Nonempty) :
+    (∀ k, (relint (N.cell n (F.cell k).val) ∩
+      relint (M.cell m (G.cell k).val)).Nonempty) ∧
+    (interior (N.carrier n) ∩ interior (M.carrier m)).Nonempty := by
+  sorry
+
+/-- Step 2 of the V4 proof of `host_step_step3_roots` (V4 3.6, F1):
+"the cells ... of the actual flag". The top of either named side flag is
+exactly the incidence's facet, as follows from equality of positioned carriers. -/
+private theorem host_step_step3_roots_step2_flag_top (ι : P.Incidence) (b : Bool) :
+    ((P.sideFlag ι b).cell facetIndex).val = (ι.val.sideFacet b).val := by
+  have h := P.sideFlag_eq ι b facetIndex
+  rw [(P.flag ι).top] at h
+  have hcarrier : ((P.sideFlag ι b).cell facetIndex).val.carrier =
+      (ι.val.sideFacet b).val.carrier := by
+    apply Set.image_injective.mpr (S.child ι.val.ty (ι.val.sideIndex b)).frame.injective
+    change placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame _ = _
+    rw [h]
+    cases b
+    · rfl
+    · exact ι.val.paired
+  have cell_eq (e f : Cell d) (h : e.carrier = f.carrier) : e = f := by
+    rcases e with ⟨K, j, hj⟩
+    rcases f with ⟨L, k, hk⟩
+    cases h
+    have hjk : j = k := hj.dimension.symm.trans hk.dimension
+    cases hjk
+    rfl
+  exact cell_eq _ _ hcarrier
+
+/-- Step 2 of the V4 proof of `host_step_step3_roots` (V4 3.6, F1):
+"the i-side points ... lie in int B" and the j-side points in its sibling.
+Distinct prescribed children have disjoint interiors at every height. -/
+private theorem host_step_step3_roots_step2_children_disjoint
+    (Q : FramedNode S) (n : ℕ) (i j : S.I Q.ty) (hij : i ≠ j) :
+    Disjoint (interior ((Q.child n i).carrier n))
+      (interior ((Q.child n j).carrier n)) := by
+  let e := ((S.σ ^ n).toContinuousLinearEquiv.toHomeomorph).trans Q.frame.toHomeomorph
+  have hcarrier (i : S.I Q.ty) : (Q.child n i).carrier n =
+      e '' placedSet (S.child Q.ty i).frame (S.proto (S.child Q.ty i).ty).carrier := by
+    simp only [FramedNode.carrier, FramedNode.child, SubstSystem.supertile,
+      placedSet, Set.image_image]
+    congr 1
+    funext x
+    change Q.frame (S.placeChild n i ((S.σ ^ n) x)) =
+      Q.frame ((S.σ ^ n) ((S.child Q.ty i).frame x))
+    congr 1
+    rw [S.placeChild_apply]
+    simp [linearConj, Child.frame, rigidMotion, zpow_neg,
+      LinearEquiv.mul_apply, ← map_add]
+  rw [hcarrier i, hcarrier j, ← e.image_interior, ← e.image_interior]
+  exact Set.disjoint_image_of_injective e.injective (S.children_disjoint Q.ty hij)
+
+/-- Step 2 of the V4 proof of `host_step_step3_roots` (V4 3.6):
+"otherwise B_m would contain interior points on both sides ... overlapping
+int B". The port facet is therefore contained in a facet of its owning block. -/
+private theorem host_step_step3_roots_step2_boundary
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f) (u : host_step_Port C)
+    (hu : host_step_portValid Y n (proposedSibling D B hB f a)
+      a.record.incidence (!a.record.sideIndex) u)
+    (hinside : relint (host_step_portEdge u) ⊆
+      relint (host_step_flagEdge (proposedSibling D B hB f a) n
+        a.record.incidence (!a.record.sideIndex)))
+    (B' : Block Y n) (hB' : B' ∈ D.geometry.blocks)
+    (hsub : u.1.carrier ⊆ B'.carrier)
+    (hdesc : (tileNode u.1).IsDescendant 0 B'.node n) :
+    ∃ F : FacetName S B'.node.ty,
+      (tileNode u.1).cell 0 u.2.1.facet.val ⊆ B'.node.cell n F.val := by
+  classical
+  let H := proposedSibling D B hB f a
+  let ι := a.record.incidence
+  let b := !a.record.sideIndex
+  rcases hu with ⟨ht, hrec, hty, hactive, hinc, hs, hβ, halign, hpacket⟩
+  have he : (relint (host_step_portEdge u)).Nonempty := by
+    change (relint ((tileNode u.1).prototypeFrame 0 ''
+      (host_step_edge u.2).val.carrier)).Nonempty
+    rw [host_step_step3_roots_step2_relint_image]
+    exact (host_step_edge u.2).val.flat.relint_nonempty.image _
+  obtain ⟨x, hx⟩ := he
+  obtain ⟨hfaces, hinter⟩ := host_step_step3_roots_step2_flag_overlap
+    (tileNode u.1) H 0 n u.2.2.chain.val (P.sideFlag ι b) hty.symm rfl
+    halign.1 halign.2.1
+    (by simpa only [u.2.2.chain.property, host_step_step3_roots_step2_flag_top]
+      using halign.2.2.2) ⟨x, hx, hinside hx⟩
+  let g : FacetName S (tileNode u.1).ty :=
+    ⟨u.2.1.facet.val, by rw [← hty]; exact u.2.1.facet.property⟩
+  rcases facet_dichotomy B'.node (tileNode u.1) n 0 hdesc g with hboundary | hint
+  · obtain ⟨F, hF, _⟩ := hboundary
+    exact ⟨F, hF⟩
+  have hsem := Parser.ageOneFacet_semantics D hD B hB f a
+  have hrole : firstRole D B hB = ι.val.sideRole a.record.sideIndex :=
+    hsem.2.2.1.symm.trans a.record.side_eq
+  have hBH : Disjoint (interior B.carrier) (interior (H.carrier n)) := by
+    let Q : FramedNode S := ⟨ι.val.ty, (proposedParent D B hB).frame⟩
+    have hnode : Q.child n (ι.val.sideIndex a.record.sideIndex) = B.node := by
+      have hc := Parser.proposedParent_child D hD B hB
+      change (⟨(S.child (firstRole D B hB).1 (firstRole D B hB).2).ty,
+        (S.placeChild n (firstRole D B hB).2).trans (proposedParent D B hB).frame⟩ :
+        FramedNode S) = B.node at hc
+      rw [hrole] at hc
+      exact hc
+    have hne : ι.val.sideIndex a.record.sideIndex ≠ ι.val.sideIndex b := by
+      cases hb : a.record.sideIndex <;>
+        simp [b, hb, PrimitiveIncidence.sideIndex, ι.val.distinct, Ne.symm ι.val.distinct]
+    have hd := host_step_step3_roots_step2_children_disjoint Q n _ _ hne
+    change Disjoint (interior ((Q.child n (ι.val.sideIndex a.record.sideIndex)).carrier n))
+      (interior (H.carrier n)) at hd
+    rwa [hnode] at hd
+  obtain ⟨y, hy, hyf⟩ := hfaces facetIndex
+  rw [u.2.2.chain.property] at hy
+  rw [host_step_step3_roots_step2_flag_top] at hyf
+  change y ∈ relint ((proposedSibling D B hB f a).cell n
+    (a.record.incidence.val.sideFacet (!a.record.sideIndex)).val) at hyf
+  rw [hsem.2.2.2] at hyf
+  have hyB : y ∈ B.carrier := by
+    obtain ⟨z, hz, rfl⟩ := (intrinsicInterior_subset (𝕜 := ℝ) hyf)
+    have hzB : z ∈ (S.proto B.node.ty).carrier := by
+      have hzfront : z ∈ frontier (S.proto B.node.ty).carrier := by
+        rw [← (S.cx B.node.ty).carriers_cover]
+        exact Set.mem_iUnion.mpr ⟨f.val, Set.mem_iUnion.mpr
+          ⟨(facetCell f).property, hz⟩⟩
+      exact (S.proto B.node.ty).compact.isClosed.frontier_subset hzfront
+    exact ⟨(S.σ ^ n) z, ⟨z, hzB, rfl⟩, rfl⟩
+  have heq : B = B' := by
+    by_contra hne
+    have hd := (D.geometry.disjoint hB hB' hne).closure_left isOpen_interior
+    rw [B.carrier_regular.2.1] at hd
+    exact Set.disjoint_left.mp hd hyB (hint hy)
+  obtain ⟨z, hzt, hzH⟩ := hinter
+  have hcarrier : (tileNode u.1).carrier 0 = u.1.carrier := by
+    rw [compilerFrame_carrier C u.1]
+    simp [tileNode, FramedNode.carrier, SubstSystem.supertile, placedSet]
+  rw [hcarrier] at hzt
+  have hzB' := interior_mono hsub hzt
+  rw [← heq] at hzB'
+  exact False.elim (Set.disjoint_left.mp hBH hzB' hzH)
+
+/-- Step 3 of the V4 proof of `host_step_step3_roots` (V4 3.6; V4 2.3):
+"a chain of u_m is active iff the chain of containing cells of B_m is active".
+On one inherited boundary facet, (I2) lifts the finite record and the full active
+chain, preserving incidence, side, beta, affine spans and all orientations. -/
+private theorem host_step_step3_roots_step3_lift
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (H : FramedNode S) (ι : P.Incidence) (b : Bool) (u : host_step_Port C)
+    (hu : host_step_portValid Y n H ι b u)
+    (B' : Block Y n) (hB' : B' ∈ D.geometry.blocks)
+    (hdesc : (tileNode u.1).IsDescendant 0 B'.node n)
+    (F : FacetName S B'.node.ty)
+    (hfacet : (tileNode u.1).cell 0 u.2.1.facet.val ⊆ B'.node.cell n F.val) :
+    ∃ z : host_step_Chain P,
+      z.1.facet.val = F.val ∧ host_step_rootValid D H ι b (⟨B', hB'⟩, z) ∧
+      ∀ k, (tileNode u.1).cell 0 (u.2.2.chain.val.cell k).val ⊆
+        B'.node.cell n (z.2.chain.val.cell k).val := by
+  sorry
+
+/-- Step 4 of the V4 proof of `host_step_step3_roots` (V4 3.6, Containment):
+"Row (E1) gives tau({p_N})={p_N}" but "by (I2) ... tau(c_m)=h".
+An endpoint END event excludes that endpoint from the relative interior of
+any aligned active opposite root edge. The initial endpoint uses the same argument. -/
+private theorem host_step_step3_roots_step4_endpoint
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f) (p : E d)
+    (hp : p = host_step_flagFrame (proposedSibling D B hB f a) n
+        a.record.incidence (!a.record.sideIndex) (P.flag a.record.incidence).initial ∨
+      p = host_step_flagFrame (proposedSibling D B hB f a) n
+        a.record.incidence (!a.record.sideIndex) (P.flag a.record.incidence).terminal)
+    (hend : host_step_endEvent Y n B f (proposedParent D B hB) p)
+    (R : host_step_Root D)
+    (hR : host_step_rootValid D (proposedSibling D B hB f a)
+      a.record.incidence (!a.record.sideIndex) R) :
+    p ∉ relint (host_step_rootEdge R) := by
+  sorry
+
+/-- Step 5 of the V4 proof of `host_step_step3_roots` (V4 3.6, Containment):
+"a segment of aff h". A nondegenerate oriented segment admits an isometric
+real coordinate with its endpoints at zero and a positive number. -/
+private theorem host_step_step3_roots_step5_coordinate (p q : E d) (hpq : p ≠ q) :
+    ∃ (φ : ℝ →ᵃⁱ[ℝ] E d) (L : ℝ), 0 < L ∧ φ 0 = p ∧ φ L = q := by
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let v := L⁻¹ • (q - p)
+  have hv : ‖v‖ = 1 := by
+    dsimp [v]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • v + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight v
+      map_vadd' := by
+        intro t s
+        change (s + t) • v + p = s • v + (t • v + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • v‖ = ‖t‖
+      rw [norm_smul, hv, mul_one] }
+  refine ⟨φ, L, hL, ?_, ?_⟩
+  · change (0 : ℝ) • v + p = p
+    simp
+  · change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+
+/-- Step 5 of the V4 proof of `host_step_step3_roots` (V4 3.6, Containment):
+"one of p_0,p_N lies in relint c_m". In real coordinates relative interiors
+of nondegenerate closed intervals are their open intervals. -/
+private theorem host_step_step3_roots_step5_interval (a b : ℝ) (hab : a < b) :
+    intrinsicInterior ℝ (Icc a b) = Ioo a b := by
+  have hspan : affineSpan ℝ (Icc a b) = ⊤ :=
+    (convex_Icc a b).interior_nonempty_iff_affineSpan_eq_top.mp
+      (by rw [interior_Icc]; exact nonempty_Ioo.mpr hab)
+  rw [intrinsicInterior, hspan]
+  change (Homeomorph.Set.univ ℝ) ''
+    interior ((Homeomorph.Set.univ ℝ) ⁻¹' Icc a b) = Ioo a b
+  rw [(Homeomorph.Set.univ ℝ).image_interior]
+  simp
+
+/-- Step 5 of the V4 proof of `host_step_step3_roots` (V4 3.6, Containment):
+"Otherwise ... one of p_0,p_N lies in relint c_m." A segment on the same
+line, meeting the open reference segment and avoiding its endpoints in its
+own relative interior, is contained in the reference segment. -/
+private theorem host_step_step3_roots_step5_segment_trap
+    (p q a b : E d) (hpq : p ≠ q) (hab : a ≠ b)
+    (hspan : affineSpan ℝ (segment ℝ a b) = affineSpan ℝ (segment ℝ p q))
+    (hp : p ∉ relint (segment ℝ a b)) (hq : q ∉ relint (segment ℝ a b))
+    (hmeet : (segment ℝ a b ∩ relint (segment ℝ p q)).Nonempty) :
+    segment ℝ a b ⊆ segment ℝ p q := by
+  obtain ⟨φ, L, hL, hφ0, hφL⟩ := host_step_step3_roots_step5_coordinate p q hpq
+  have href : segment ℝ p q = φ '' Icc 0 L := by
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hrange : (affineSpan ℝ (segment ℝ p q) : Set (E d)) = Set.range φ := by
+    have hfull : affineSpan ℝ (Icc 0 L) = ⊤ :=
+      (convex_Icc 0 L).interior_nonempty_iff_affineSpan_eq_top.mp
+        (by rw [interior_Icc]; exact nonempty_Ioo.mpr hL)
+    rw [href, ← AffineIsometry.coe_toAffineMap, ← AffineSubspace.map_span, hfull]
+    change φ '' (Set.univ : Set ℝ) = Set.range φ
+    exact Set.image_univ
+  have ha : a ∈ Set.range φ := by
+    rw [← hrange, ← hspan]
+    exact subset_affineSpan ℝ _ (left_mem_segment ℝ a b)
+  have hb : b ∈ Set.range φ := by
+    rw [← hrange, ← hspan]
+    exact subset_affineSpan ℝ _ (right_mem_segment ℝ a b)
+  obtain ⟨s, rfl⟩ := ha
+  obtain ⟨t, rfl⟩ := hb
+  have hst : s ≠ t := fun h => hab (congrArg φ h)
+  have hroot : segment ℝ (φ s) (φ t) = φ '' Icc (min s t) (max s t) := by
+    simpa only [AffineIsometry.coe_toAffineMap, segment_eq_Icc'] using
+      (image_segment ℝ φ.toAffineMap s t).symm
+  have hrelroot : relint (segment ℝ (φ s) (φ t)) =
+      φ '' Ioo (min s t) (max s t) := by
+    rw [hroot, relint, φ.image_intrinsicInterior,
+      host_step_step3_roots_step5_interval _ _ (min_lt_max.mpr hst)]
+  have hrelref : relint (segment ℝ p q) = φ '' Ioo 0 L := by
+    rw [href, relint, φ.image_intrinsicInterior,
+      host_step_step3_roots_step5_interval _ _ hL]
+  obtain ⟨x, hxroot, hxref⟩ := hmeet
+  rw [hroot] at hxroot
+  rw [hrelref] at hxref
+  obtain ⟨v, hv, rfl⟩ := hxroot
+  obtain ⟨w, hw, hwv⟩ := hxref
+  have hwv' : w = v := φ.injective hwv
+  subst w
+  have hlo : 0 ≤ min s t := by
+    by_contra h
+    apply hp
+    rw [hrelroot]
+    exact ⟨0, ⟨lt_of_not_ge h, hw.1.trans_le hv.2⟩, hφ0⟩
+  have hhi : max s t ≤ L := by
+    by_contra h
+    apply hq
+    rw [hrelroot]
+    exact ⟨L, ⟨hv.1.trans_lt hw.2, lt_of_not_ge h⟩, hφL⟩
+  rw [hroot, href]
+  exact Set.image_mono (fun _ hx => ⟨hlo.trans hx.1, hx.2.trans hhi⟩)
+
+/-- Step 5 of the V4 proof of `host_step_step3_roots` (V4 3.6, Containment):
+"p_0,p_N the initial and terminal vertices of h". Both side names give
+the same transported oriented flag segment. -/
+private theorem host_step_step3_roots_step5_flag_segment
+    (H : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) :
+    host_step_flagEdge H n ι b =
+      segment ℝ (host_step_flagFrame H n ι b (P.flag ι).initial)
+        (host_step_flagFrame H n ι b (P.flag ι).terminal) := by
+  have hcell := congrArg
+    (fun K : Set (E d) => (S.child ι.val.ty (ι.val.sideIndex b)).frame.symm '' K)
+    (P.sideFlag_eq ι b edgeIndex)
+  change (S.child ι.val.ty (ι.val.sideIndex b)).frame.symm ''
+      ((S.child ι.val.ty (ι.val.sideIndex b)).frame '' _) = _ at hcell
+  rw [Set.image_image] at hcell
+  simp only [AffineIsometryEquiv.symm_apply_apply,
+    Set.image_id'] at hcell
+  have hedge : host_step_flagEdge H n ι b =
+      host_step_flagFrame H n ι b '' ((P.flag ι).flag.cell edgeIndex).val.carrier := by
+    change H.prototypeFrame n '' _ = _
+    rw [hcell]
+    simp only [placedSet, Set.image_image]
+    rfl
+  rw [hedge, (P.flag ι).edge_eq]
+  exact image_segment ℝ (host_step_flagFrame H n ι b).toAffineMap _ _
+
+/-- Step 5 of the V4 proof of `host_step_step3_roots` (V4 3.6, Containment):
+"Hence every root edge lies in h." The END exclusions and the common
+line turn one point on the open flag edge into containment of the whole root. -/
+private theorem host_step_step3_roots_step5_contained
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n)
+    (H : FramedNode S) (ι : P.Incidence) (b : Bool) (R : host_step_Root D)
+    (hR : host_step_rootValid D H ι b R)
+    (hp : host_step_flagFrame H n ι b (P.flag ι).initial ∉
+      relint (host_step_rootEdge R))
+    (hq : host_step_flagFrame H n ι b (P.flag ι).terminal ∉
+      relint (host_step_rootEdge R))
+    (hmeet : (host_step_rootEdge R ∩ relint (host_step_flagEdge H n ι b)).Nonempty) :
+    host_step_rootEdge R ⊆ host_step_flagEdge H n ι b := by
+  obtain ⟨ab, hab, he⟩ := edge_endpoints_exist
+    (⟨R.2.1.ty, host_step_edge R.2⟩ : EdgeName S)
+  let ψ := R.1.val.node.prototypeFrame n
+  have hroot : host_step_rootEdge R = segment ℝ (ψ ab.1) (ψ ab.2) := by
+    change ψ '' (host_step_edge R.2).val.carrier = _
+    rw [he]
+    exact image_segment ℝ ψ.toAffineMap _ _
+  have hspan := hR.2.2.2.2.2.2.1 edgeIndex
+  change affineSpan ℝ (host_step_rootEdge R) =
+    affineSpan ℝ (host_step_flagEdge H n ι b) at hspan
+  rw [hroot, host_step_step3_roots_step5_flag_segment] at hspan hmeet ⊢
+  rw [hroot] at hp hq
+  exact host_step_step3_roots_step5_segment_trap _ _ _ _
+    (fun h => (P.flag ι).distinct ((host_step_flagFrame H n ι b).injective h))
+    (fun h => hab (ψ.injective h)) hspan hp hq hmeet
+
+/-- Step 6 of the V4 proof of `host_step_step3_roots` (V4 3.6, Disjointness):
+"B_m=B_m'" and "cells of one complex with overlapping relative interiors".
+Overlapping open root edges force the same block and the same positioned cell
+at every level of their aligned chains. -/
+private theorem host_step_step3_roots_step6_overlap
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n)
+    (H : FramedNode S) (ι : P.Incidence) (b : Bool) (R T : host_step_Root D)
+    (hR : host_step_rootValid D H ι b R) (hT : host_step_rootValid D H ι b T)
+    (hmeet : (relint (host_step_rootEdge R) ∩ relint (host_step_rootEdge T)).Nonempty) :
+    R.1.val = T.1.val ∧ ∀ k,
+      R.1.val.node.cell n (R.2.2.chain.val.cell k).val =
+        T.1.val.node.cell n (T.2.2.chain.val.cell k).val := by
+  classical
+  have hRA := hR.2.2.2.2.2.2
+  have hTA := hT.2.2.2.2.2.2
+  obtain ⟨hfaces, hinter⟩ := host_step_step3_roots_step2_flag_overlap
+    R.1.val.node T.1.val.node n n R.2.2.chain.val T.2.2.chain.val
+    hR.2.1.symm hT.2.1.symm
+    (fun k => (hRA.1 k).trans (hTA.1 k).symm)
+    (fun k => (hRA.2.1 k).trans (hTA.2.1 k).symm)
+    (by simpa only [R.2.2.chain.property, T.2.2.chain.property] using
+      hRA.2.2.2.trans hTA.2.2.2.symm) hmeet
+  have hblock : R.1.val = T.1.val := by
+    by_contra hne
+    obtain ⟨x, hx, hy⟩ := hinter
+    exact Set.disjoint_left.mp (D.geometry.disjoint R.1.property T.1.property hne) hx hy
+  refine ⟨hblock, ?_⟩
+  have hnode := congrArg Block.node hblock
+  intro k
+  have hmemR : (R.2.2.chain.val.cell k).val ∈ (S.cx R.1.val.node.ty).cells := by
+    rw [← hR.2.1]
+    exact (R.2.2.chain.val.cell k).property
+  have hmemT : (T.2.2.chain.val.cell k).val ∈ (S.cx R.1.val.node.ty).cells := by
+    rw [hnode, ← hT.2.1]
+    exact (T.2.2.chain.val.cell k).property
+  have hcells : (R.2.2.chain.val.cell k).val = (T.2.2.chain.val.cell k).val := by
+    by_contra hne
+    have hd := (S.cx R.1.val.node.ty).relint_disjoint _ hmemR _ hmemT hne
+    have hd' := Set.disjoint_image_of_injective (R.1.val.node.prototypeFrame n).injective hd
+    have hh := hfaces k
+    rw [← hnode] at hh
+    simp only [FramedNode.cell, host_step_step3_roots_step2_relint_image] at hh
+    obtain ⟨x, hx, hy⟩ := hh
+    exact Set.disjoint_left.mp hd' hx hy
+  rw [hnode, hcells]
+
 /-- Step 3 of the V4 proof of `host_step` (V4 3.6): "the opposite root
 edges"; "they have disjoint relative interiors, lie in h, and cover h".
 This lifts the entire chain of each strand port to its chosen level-n block.
@@ -1835,7 +2306,90 @@ private theorem host_step_step3_roots (Y : MarkedTiling (systemM S P C))
     ∃ q : ℕ, ∃ R : Fin q → host_step_Root D, ∃ owner : Fin (m + 1) → Fin q,
       host_step_rootCover D (proposedSibling D B hB f a)
         a.record.incidence (!a.record.sideIndex) u R owner := by
-  sorry
+  classical
+  let H := proposedSibling D B hB f a
+  let ι := a.record.incidence
+  let b := !a.record.sideIndex
+  rcases hu with ⟨hvalid, _, _, _, _, _, _, _, hcover, _, _, _, hinside⟩
+  have lifts : ∀ i, ∃ V : host_step_Root D, host_step_rootValid D H ι b V ∧
+      (tileNode (u i).1).IsDescendant 0 V.1.val.node n ∧
+      ∀ k, (tileNode (u i).1).cell 0 ((u i).2.2.chain.val.cell k).val ⊆
+        V.1.val.node.cell n (V.2.2.chain.val.cell k).val := by
+    intro i
+    obtain ⟨B', hB', hsub, hdesc⟩ :=
+      host_step_step3_roots_step1_owner D.geometry (u i).1 (hvalid i).1
+    obtain ⟨F, hF⟩ := host_step_step3_roots_step2_boundary D hD B hB f a
+      (u i) (hvalid i) (hinside i) B' hB' hsub hdesc
+    obtain ⟨z, _, hz, hchain⟩ := host_step_step3_roots_step3_lift D hD H ι b
+      (u i) (hvalid i) B' hB' hdesc F hF
+    exact ⟨(⟨B', hB'⟩, z), hz, hdesc, hchain⟩
+  choose V hV hdesc hchain using lifts
+  obtain ⟨he₀, heN, _⟩ := host_step_step1_seed Y hY n hn D hD B hB f a
+  have hcontained : ∀ i, host_step_rootEdge (V i) ⊆ host_step_flagEdge H n ι b := by
+    intro i
+    apply host_step_step3_roots_step5_contained D H ι b (V i) (hV i)
+    · exact host_step_step3_roots_step4_endpoint Y hY n hn D hD B hB f a _
+        (Or.inl rfl) he₀ (V i) (hV i)
+    · exact host_step_step3_roots_step4_endpoint Y hY n hn D hD B hB f a _
+        (Or.inr rfl) heN (V i) (hV i)
+    · have hne : (relint (host_step_portEdge (u i))).Nonempty := by
+        change (relint ((tileNode (u i).1).prototypeFrame 0 ''
+          (host_step_edge (u i).2).val.carrier)).Nonempty
+        rw [host_step_step3_roots_step2_relint_image]
+        exact (host_step_edge (u i).2).val.flat.relint_nonempty.image _
+      obtain ⟨x, hx⟩ := hne
+      exact ⟨x, hchain i edgeIndex (intrinsicInterior_subset (𝕜 := ℝ) hx), hinside i hx⟩
+  let edges : Finset (Set (E d)) := Finset.univ.image (fun i => host_step_rootEdge (V i))
+  let J := {K // K ∈ edges}
+  have representatives : ∀ K : J, ∃ i, host_step_rootEdge (V i) = K.val := by
+    intro K
+    obtain ⟨i, _, hi⟩ := Finset.mem_image.mp K.property
+    exact ⟨i, hi⟩
+  choose rep hrep using representatives
+  let e := (Fintype.equivFin J).symm
+  let R : Fin (Fintype.card J) → host_step_Root D := fun j => V (rep (e j))
+  let owner : Fin (m + 1) → Fin (Fintype.card J) := fun i =>
+    e.symm ⟨host_step_rootEdge (V i), Finset.mem_image.mpr ⟨i, Finset.mem_univ i, rfl⟩⟩
+  have howner : ∀ i, host_step_rootEdge (R (owner i)) = host_step_rootEdge (V i) := by
+    intro i
+    have h := hrep (e (owner i))
+    simpa only [R, owner, Equiv.apply_symm_apply] using h
+  refine ⟨Fintype.card J, R, owner, ?_⟩
+  refine ⟨(fun j => hV (rep (e j))), (fun j => hcontained (rep (e j))), ?_, ?_, ?_⟩
+  · intro i j hij
+    apply Set.disjoint_left.mpr
+    intro x hxi hxj
+    have hh := host_step_step3_roots_step6_overlap D H ι b (R i) (R j)
+      (hV (rep (e i))) (hV (rep (e j))) ⟨x, hxi, hxj⟩
+    have hedge : host_step_rootEdge (R i) = host_step_rootEdge (R j) := hh.2 edgeIndex
+    apply hij
+    apply e.injective
+    apply Subtype.ext
+    exact (hrep (e i)).symm.trans (hedge.trans (hrep (e j)))
+  · apply Set.Subset.antisymm
+    · exact Set.iUnion_subset (fun j => hcontained (rep (e j)))
+    · intro x hx
+      rw [← hcover] at hx
+      obtain ⟨i, hxi⟩ := Set.mem_iUnion.mp hx
+      apply Set.mem_iUnion.mpr
+      refine ⟨owner i, ?_⟩
+      rw [howner i]
+      exact hchain i edgeIndex hxi
+  · intro i
+    have hne : (relint (host_step_rootEdge (V i))).Nonempty := by
+      change (relint ((V i).1.val.node.prototypeFrame n ''
+        (host_step_edge (V i).2).val.carrier)).Nonempty
+      rw [host_step_step3_roots_step2_relint_image]
+      exact (host_step_edge (V i).2).val.flat.relint_nonempty.image _
+    obtain ⟨x, hx⟩ := hne
+    have hh := host_step_step3_roots_step6_overlap D H ι b (V i) (R (owner i))
+      (hV i) (hV (rep (e (owner i)))) ⟨x, hx, by rwa [howner i]⟩
+    refine ⟨?_, ?_⟩
+    · rw [← hh.1]
+      exact hdesc i
+    · intro k
+      rw [← hh.2 k]
+      exact hchain i k
 
 /-- Step 3 of the V4 proof of `host_step` (V4 3.6): "that record is finite".
 A successful cell-keyed readout supplies a genuine facet of the state. -/

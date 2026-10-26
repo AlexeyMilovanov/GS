@@ -2641,6 +2641,795 @@ private theorem host_step_step4_pigeonhole (J E : Finset (E d)) (q : ℕ)
   have := P.N_eq
   omega
 
+/-- Step 1 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"the root edges ... have disjoint relative interiors". In a common affine
+span, the closure of one relative interior still misses the other one. -/
+private theorem host_step_step4_lift_jump_step1_separation
+    (A B : Set (E d)) (hspan : affineSpan ℝ A = affineSpan ℝ B)
+    (hclosure : closure (relint A) = A)
+    (hdis : Disjoint (relint A) (relint B)) : Disjoint A (relint B) := by
+  let F := affineSpan ℝ A
+  let a : Set F := (Subtype.val : F → E d) ⁻¹' A
+  let b : Set F := (Subtype.val : F → E d) ⁻¹' B
+  have ha : relint A = (Subtype.val : F → E d) '' interior a := rfl
+  have hb : relint B = (Subtype.val : F → E d) '' interior b := by
+    unfold relint intrinsicInterior
+    rw [← hspan]
+  have hd : Disjoint (interior a) (interior b) := by
+    refine Set.disjoint_left.mpr ?_
+    intro x hx hy
+    rw [ha, hb] at hdis
+    exact Set.disjoint_left.mp hdis ⟨x, hx, rfl⟩ ⟨x, hy, rfl⟩
+  have hc : closure (interior a) = a := by
+    rw [Topology.IsEmbedding.subtypeVal.closure_eq_preimage_closure_image,
+      ← ha, hclosure]
+  have hd' : Disjoint a (interior b) := hc ▸ hd.closure_left isOpen_interior
+  refine Set.disjoint_left.mpr ?_
+  intro x hx hy
+  rw [hb] at hy
+  obtain ⟨y, hy, rfl⟩ := hy
+  exact Set.disjoint_left.mp hd' hx hy
+
+/-- Step 2 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"their edges lie in c ... by disjointness". A port touching the relative
+interior of a root is owned by that root, even at a port endpoint. -/
+private theorem host_step_step4_lift_jump_step2_owner
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n)
+    (H : FramedNode S) (ι : P.Incidence) (b : Bool)
+    {m q : ℕ} (u : Fin (m + 1) → host_step_Port C)
+    (R : Fin q → host_step_Root D) (owner : Fin (m + 1) → Fin q)
+    (hR : host_step_rootCover D H ι b u R owner)
+    (i : Fin (m + 1)) (j : Fin q) (x : E d)
+    (hi : x ∈ host_step_portEdge (u i))
+    (hj : x ∈ relint (host_step_rootEdge (R j))) : owner i = j := by
+  by_contra hne
+  have hsub : host_step_portEdge (u i) ⊆ host_step_rootEdge (R (owner i)) :=
+    (hR.2.2.2.2 i).2 edgeIndex
+  have hspan : affineSpan ℝ (host_step_rootEdge (R (owner i))) =
+      affineSpan ℝ (host_step_rootEdge (R j)) :=
+    ((hR.1 (owner i)).2.2.2.2.2.2.1 edgeIndex).trans
+      ((hR.1 j).2.2.2.2.2.2.1 edgeIndex).symm
+  have hclosure : closure (relint (host_step_rootEdge (R (owner i)))) =
+      host_step_rootEdge (R (owner i)) := by
+    rw [host_step_rootEdge, FramedNode.cell,
+      host_step_step2_port_sites_step2_relint_image]
+    change closure (((R (owner i)).1.val.node.prototypeFrame n).toHomeomorphOfFiniteDimensional
+      '' relint (host_step_edge (R (owner i)).2).val.carrier) = _
+    rw [← Homeomorph.image_closure, (host_step_edge (R (owner i)).2).val.flat.regularClosed]
+    rfl
+  exact Set.disjoint_left.mp
+    (host_step_step4_lift_jump_step1_separation _ _ hspan hclosure
+      (hR.2.2.1 hne)) (hsub hi) hj
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6, 1.13(c)):
+"the restriction of S(B)'s profile". An honest root state with the correct
+residue has a source realization at the root's actual height and full frame. -/
+private theorem host_step_step4_lift_jump_step3_realise
+    (s : State P) (hs : s ∈ honestStates S P) (N : FramedNode S) (n : ℕ)
+    (hty : s.ty = N.ty) (hres : s.residue.val = n % P.L) :
+    ∃ (U : HonestSource S) (hN : N ∈ U.hierarchy.nodes n),
+      stateOf U P ⟨n, ⟨N, hN⟩⟩ = s := by
+  obtain ⟨U, q, rfl⟩ := hs
+  have hmod : q.1 % P.L = n % P.L := hres
+  have hshift : (q.1 - n) % P.L = (n - q.1) % P.L := by
+    rcases le_total q.1 n with h | h
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact (Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod)).symm
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod.symm)
+  obtain ⟨V, e, N', he⟩ := exactScaleTransfer U q.1 q.2.val q.2.property n
+    (AffineIsometryEquiv.refl ℝ (E d))
+  have hs' : stateOf V P ⟨n, N'⟩ = stateOf U P q := by
+    have h := state_scaleTransfer P e hshift ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.symm
+  have hty' : N'.val.ty = N.ty := by
+    have h := e.types ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.trans hty
+  let J := N'.val.frame.symm.trans N.frame
+  obtain ⟨W, f, N'', hf⟩ := exactScaleTransfer V n N'.val N'.property n J
+  have hs'' : stateOf W P ⟨n, N''⟩ = stateOf V P ⟨n, N'⟩ := by
+    have h := state_scaleTransfer P f rfl ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+    rw [hf] at h
+    exact h.symm
+  have hnode : N''.val = N := by
+    apply FramedNode.ext
+    · have h := f.types ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      exact h.trans hty'
+    · have h := f.frames ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      apply AffineIsometryEquiv.ext
+      intro x
+      have hx := congrArg (fun g : E d ≃ᵃ[ℝ] E d => g ((S.σ ^ n).symm x)) h
+      simpa [FramedNode.prototypeFrame, J] using hx
+  obtain ⟨N'', hN''⟩ := N''
+  dsimp only at hnode
+  subst N''
+  exact ⟨W, hN'', hs''.trans hs'⟩
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6, 2.3):
+"by (I2)". Deterministic child equations identify every descendant state with
+that of the same descendant in one fixed honest realization of the root. -/
+private theorem host_step_step4_lift_jump_step3_descent
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (U : HonestSource S) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ D.geometry.nodes (h + r)) (hU : N ∈ U.hierarchy.nodes (h + r))
+    (hs : stateOf U P ⟨h + r, ⟨N, hU⟩⟩ = D.stateAt (h + r) N hN)
+    (w : S.RoleWord N.ty r) :
+    let M := (S.descendantNode N.ty h r w).move N.frame
+    ∃ (hM : M ∈ D.geometry.nodes h) (hMU : M ∈ U.hierarchy.nodes h),
+      stateOf U P ⟨h, ⟨M, hMU⟩⟩ = D.stateAt h M hM ∧
+        U.hierarchy.ancestor ⟨h, ⟨M, hMU⟩⟩ r = ⟨h + r, ⟨N, hU⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+    have hnode : (S.descendantNode N.ty h 0 w).move N.frame = N := by
+      cases N
+      simp [SubstSystem.descendantNode, FramedNode.move]
+    simp only [hnode]
+    exact ⟨hN, hU, hs, rfl⟩
+  | succ r ih =>
+    let i := w.1
+    let N' := N.child (h + r) i
+    have hN' : N' ∈ D.geometry.nodes (h + r) := D.geometry.child_mem _ N hN i
+    have hU' : N' ∈ U.hierarchy.nodes (h + r) := U.hierarchy.children_mem _ N hU i
+    have hs' : stateOf U P ⟨h + r, ⟨N', hU'⟩⟩ = D.stateAt (h + r) N' hN' := by
+      rw [hD.I2.1 (h + r) N hN i]
+      simp only [Nat.add_assoc]
+      rw [← hs]
+      have hc := childMap_spec U P ⟨h + r + 1, ⟨N, hU⟩⟩
+        (by change 1 ≤ h + r + 1; omega) i
+      simpa [HonestSource.childNode, N'] using hc
+    obtain ⟨hM, hMU, hstate, hanc⟩ := ih N' hN' hU' hs' w.2
+    have hnode : (S.descendantNode N.ty h (r + 1) w).move N.frame =
+        (S.descendantNode N'.ty h r w.2).move N'.frame := by
+      simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child, N', i,
+        AffineIsometryEquiv.trans_assoc]
+    simp only [hnode]
+    refine ⟨hM, hMU, hstate, ?_⟩
+    rw [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor _ r) = _
+    rw [hanc]
+    apply Sigma.ext
+    · simp [CoherentHierarchy.parentNode, Nat.add_assoc]
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (U.hierarchy.parent_unique (h + r) ⟨N', hU'⟩ N hU ⟨i, rfl⟩).symm
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"the germs ... of the profile". Finite threshold counts on an interval
+attain both endpoint germs and stay between them. The ordered-count premise
+also handles a constant or decreasing affine coordinate. -/
+private theorem host_step_step4_lift_jump_step3_interval_counts
+    {N : ℕ} (p : Fin N → ℝ) (a b : ℝ)
+    (hcounter : (Finset.univ.filter (fun i => p i ≤ a)).card ≤
+      (Finset.univ.filter (fun i => p i < b)).card) :
+    let lo := (Finset.univ.filter (fun i => p i ≤ a)).card
+    let hi := (Finset.univ.filter (fun i => p i < b)).card
+    let count := fun t : ℝ => (Finset.univ.filter (fun i =>
+      p i < (1 - t) * a + t * b)).card
+    (∀ t ∈ Ioo (0 : ℝ) 1, lo ≤ count t ∧ count t ≤ hi) ∧
+      (∃ t ∈ Ioo (0 : ℝ) 1, count t = lo) ∧
+      (∃ t ∈ Ioo (0 : ℝ) 1, count t = hi) := by
+  classical
+  dsimp only
+  by_cases hab : a < b
+  · have hbounds (x : ℝ) (hx : x ∈ Ioo a b) :
+        (Finset.univ.filter (fun i => p i ≤ a)).card ≤
+          (Finset.univ.filter (fun i => p i < x)).card ∧
+        (Finset.univ.filter (fun i => p i < x)).card ≤
+          (Finset.univ.filter (fun i => p i < b)).card := by
+      constructor <;> apply Finset.card_le_card <;> intro i hi
+      · exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+          (Finset.mem_filter.mp hi).2.trans_lt hx.1⟩
+      · exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+          (Finset.mem_filter.mp hi).2.trans hx.2⟩
+    have hparam (x : ℝ) (hx : x ∈ Ioo a b) :
+        ∃ t ∈ Ioo (0 : ℝ) 1, (1 - t) * a + t * b = x := by
+      refine ⟨(x - a) / (b - a), ?_, ?_⟩
+      · exact ⟨div_pos (sub_pos.mpr hx.1) (sub_pos.mpr hab),
+          (div_lt_one (sub_pos.mpr hab)).mpr (by linarith [hx.2])⟩
+      · field_simp [sub_ne_zero.mpr hab.ne']
+        ring
+    refine ⟨?_, ?_, ?_⟩
+    · intro t ht
+      apply hbounds
+      constructor <;> nlinarith [ht.1, ht.2]
+    · let F := insert b ((Finset.univ.filter (fun i => a < p i)).image p)
+      have hF : F.Nonempty := ⟨b, Finset.mem_insert_self _ _⟩
+      have ham : a < F.min' hF := by
+        apply (Finset.lt_min'_iff _ _).mpr
+        intro x hx
+        rcases Finset.mem_insert.mp hx with rfl | hx
+        · exact hab
+        · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hx
+          exact (Finset.mem_filter.mp hi).2
+      obtain ⟨x, hax, hxm⟩ := exists_between ham
+      have hxb : x < b := hxm.trans_le (Finset.min'_le F b (Finset.mem_insert_self _ _))
+      have hfilter : Finset.univ.filter (fun i => p i < x) =
+          Finset.univ.filter (fun i => p i ≤ a) := by
+        ext i
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+        constructor
+        · intro hi
+          by_contra ha
+          have hm : F.min' hF ≤ p i := Finset.min'_le F (p i)
+            (Finset.mem_insert_of_mem (Finset.mem_image.mpr
+              ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, lt_of_not_ge ha⟩, rfl⟩))
+          linarith
+        · exact fun hi => hi.trans_lt hax
+      obtain ⟨t, ht, heq⟩ := hparam x ⟨hax, hxb⟩
+      exact ⟨t, ht, by rw [heq, hfilter]⟩
+    · let F := insert a ((Finset.univ.filter (fun i => p i < b)).image p)
+      have hF : F.Nonempty := ⟨a, Finset.mem_insert_self _ _⟩
+      have hmb : F.max' hF < b := by
+        apply (Finset.max'_lt_iff _ _).mpr
+        intro x hx
+        rcases Finset.mem_insert.mp hx with rfl | hx
+        · exact hab
+        · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hx
+          exact (Finset.mem_filter.mp hi).2
+      obtain ⟨x, hmx, hxb⟩ := exists_between hmb
+      have hax : a < x := (Finset.le_max' F a (Finset.mem_insert_self _ _)).trans_lt hmx
+      have hfilter : Finset.univ.filter (fun i => p i < x) =
+          Finset.univ.filter (fun i => p i < b) := by
+        ext i
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+        constructor
+        · exact fun hi => hi.trans hxb
+        · intro hi
+          have hm : p i ≤ F.max' hF := Finset.le_max' F (p i)
+            (Finset.mem_insert_of_mem (Finset.mem_image.mpr
+              ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩, rfl⟩))
+          exact hm.trans_lt hmx
+      obtain ⟨t, ht, heq⟩ := hparam x ⟨hax, hxb⟩
+      exact ⟨t, ht, by rw [heq, hfilter]⟩
+  · have hba : b ≤ a := le_of_not_gt hab
+    have heq : (Finset.univ.filter (fun i => p i ≤ a)).card =
+        (Finset.univ.filter (fun i => p i < b)).card := by
+      apply le_antisymm hcounter
+      apply Finset.card_le_card
+      intro i hi
+      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+        ((Finset.mem_filter.mp hi).2.trans_le hba).le⟩
+    have hc (t : ℝ) (ht : t ∈ Ioo (0 : ℝ) 1) :
+        (Finset.univ.filter (fun i => p i < (1 - t) * a + t * b)).card =
+          (Finset.univ.filter (fun i => p i ≤ a)).card := by
+      have hlo : b ≤ (1 - t) * a + t * b := by nlinarith [ht.1, ht.2]
+      have hhi : (1 - t) * a + t * b ≤ a := by nlinarith [ht.1, ht.2]
+      apply le_antisymm
+      · apply Finset.card_le_card
+        intro i hi
+        exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+          ((Finset.mem_filter.mp hi).2.trans_le hhi).le⟩
+      · rw [heq]
+        apply Finset.card_le_card
+        intro i hi
+        exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+          (Finset.mem_filter.mp hi).2.trans_le hlo⟩
+    refine ⟨fun t ht => ?_, ⟨1 / 2, by norm_num, hc _ (by norm_num)⟩,
+      ⟨1 / 2, by norm_num, (hc _ (by norm_num)).trans heq⟩⟩
+    rw [hc t ht, heq]
+    exact ⟨le_rfl, le_rfl⟩
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"restrictions of the profile of c". An invertible affine frame preserves
+order along a line when its direction is transported by the linear part. -/
+private theorem host_step_step4_lift_jump_step3_line_order
+    {d : ℕ} (φ : E d ≃ᵃ[ℝ] E d) (p q : E d) (hpq : p ≠ q)
+    (x y : E d) (hx : x ∈ affineSpan ℝ ({p, q} : Set (E d)))
+    (hy : y ∈ affineSpan ℝ ({p, q} : Set (E d))) :
+    (inner ℝ (φ.linear (q - p)) (φ x - φ y) ≤ 0 ↔ inner ℝ (q - p) (x - y) ≤ 0) ∧
+    (inner ℝ (φ.linear (q - p)) (φ x - φ y) < 0 ↔ inner ℝ (q - p) (x - y) < 0) := by
+  obtain ⟨a, rfl⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hx
+  obtain ⟨b, rfl⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hy
+  have hsub : AffineMap.lineMap p q a - AffineMap.lineMap p q b = (a - b) • (q - p) := by
+    simp only [AffineMap.lineMap_apply_module']
+    module
+  have hmap : φ (AffineMap.lineMap p q a) - φ (AffineMap.lineMap p q b) =
+      (a - b) • φ.linear (q - p) := by
+    have hm := φ.toAffineMap.linearMap_vsub (AffineMap.lineMap p q a) (AffineMap.lineMap p q b)
+    change φ.linear (AffineMap.lineMap p q a - AffineMap.lineMap p q b) = _ at hm
+    rw [hsub, map_smul] at hm
+    exact hm.symm
+  have hv : 0 < inner ℝ (q - p) (q - p) := real_inner_self_pos.mpr (sub_ne_zero.mpr hpq.symm)
+  have hw : 0 < inner ℝ (φ.linear (q - p)) (φ.linear (q - p)) :=
+    real_inner_self_pos.mpr (φ.linear.map_ne_zero_iff.mpr (sub_ne_zero.mpr hpq.symm))
+  rw [hmap, hsub, real_inner_smul_right, real_inner_smul_right]
+  constructor <;> constructor <;> intro hh
+  · have hc : a - b ≤ 0 := by nlinarith
+    exact mul_nonpos_of_nonpos_of_nonneg hc hv.le
+  · have hc : a - b ≤ 0 := by nlinarith
+    exact mul_nonpos_of_nonpos_of_nonneg hc hw.le
+  · have hc : a - b < 0 := by nlinarith
+    exact mul_neg_of_neg_of_pos hc hv
+  · have hc : a - b < 0 := by nlinarith
+    exact mul_neg_of_neg_of_pos hc hw
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"in relint c". The open affine interpolation parameterizes precisely the
+relative interior of a nondegenerate edge. -/
+private theorem host_step_step4_lift_jump_step3_segment_relint
+    {d : ℕ} (p q : E d) (hpq : p ≠ q) :
+    relint (segment ℝ p q) = AffineMap.lineMap p q '' Ioo (0 : ℝ) 1 := by
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let u := L⁻¹ • (q - p)
+  have hu : ‖u‖ = 1 := by
+    dsimp [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • u + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight u
+      map_vadd' := by
+        intro t s
+        change (s + t) • u + p = s • u + (t • u + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • u‖ = ‖t‖
+      rw [norm_smul, hu, mul_one] }
+  have hφ0 : φ 0 = p := by change (0 : ℝ) • u + p = p; simp
+  have hφL : φ L = q := by
+    change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+  have hseg : segment ℝ p q = φ '' Icc 0 L := by
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hir : intrinsicInterior ℝ (Icc (0 : ℝ) L) = Ioo 0 L := by
+    have hspan : affineSpan ℝ (Icc (0 : ℝ) L) = ⊤ :=
+      (convex_Icc 0 L).interior_nonempty_iff_affineSpan_eq_top.mp
+        (by rw [interior_Icc]; exact nonempty_Ioo.mpr hL)
+    rw [intrinsicInterior, hspan]
+    change (Homeomorph.Set.univ ℝ) ''
+      interior ((Homeomorph.Set.univ ℝ) ⁻¹' Icc 0 L) = Ioo 0 L
+    rw [(Homeomorph.Set.univ ℝ).image_interior]
+    simp
+  rw [hseg, relint, φ.image_intrinsicInterior, hir]
+  ext x
+  constructor
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t / L, ⟨div_pos ht.1 hL, (div_lt_one hL).mpr ht.2⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L (t / L)
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL, hL.ne'] using he.symm
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t * L, ⟨mul_pos ht.1 hL, by nlinarith [ht.2]⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L t
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL] using he
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6, 2.3):
+"the restriction of S(B)'s profile". The serving child's full frame factors
+through its side's isometry to the canonical provider coordinates. -/
+private theorem host_step_step4_lift_jump_step3_serving_frame
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) :
+    (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1 =
+      (S.child (U.recordIncidence P q f hf).val.ty
+        ((U.recordIncidence P q f hf).val.sideIndex (U.recordSide P q f hf))).frame.toAffineEquiv.trans
+      ((S.child (U.recordIncidence P q f hf).val.ty
+        (U.recordIncidence P q f hf).val.left).frame.symm.toAffineEquiv.trans
+        (U.providerPlacement P q f hf)) := by
+  have hr := (Classical.choose_spec (U.recordSide_exists P q f hf)).1
+  rw [host_step_step2_port_sites_step1_parent_frame]
+  change (rolePlacement (U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf))).trans
+    ((U.hierarchy.birthParent q f hf).2.val.prototypeFrame (U.hierarchy.birthHeight q f hf)) = _
+  rw [← hr]
+  ext x
+  simp [rolePlacement, HonestSource.providerPlacement, Params.incidencePlacement,
+    PrimitiveIncidence.sideRole, HonestSource.recordSide]
+
+set_option maxHeartbeats 800000 in
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6, §2.2(S4d)):
+"the germs ... are restrictions of the profile of c". The shallow word's
+endpoint counts equal the counts of physical source sites. Active-chain
+alignment puts all compared points on the same line, so arbitrary invertible
+expansion preserves the signs used by both counters. -/
+private theorem host_step_step4_lift_jump_step3_shallow_germs
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q f hf).ChainActive (edgeCell e))
+    (w : ShortProfile P) (hw : (U.recordOf P q f hf).counter = .inr w) :
+    (U.recordOf P q f hf).kappaMinus e =
+      (Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q f hf)
+        (U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) ≤ 0)).card ∧
+    (U.recordOf P q f hf).kappaPlus e =
+      (Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q f hf)
+        (U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2) < 0)).card := by
+  classical
+  let ι := U.recordIncidence P q f hf
+  let b := U.recordSide P q f hf
+  let F := P.flag ι
+  let K : Iso d := (S.child ι.val.ty (ι.val.sideIndex b)).frame.trans
+    (S.child ι.val.ty ι.val.left).frame.symm
+  let p₀ := K.symm F.initial
+  let p₁ := K.symm F.terminal
+  let Ψ := K.toAffineEquiv.trans (U.providerPlacement P q f hf)
+  have hp : p₀ ≠ p₁ := fun h => F.distinct (K.symm.injective h)
+  have hdir : p₁ - p₀ = (U.recordOf P q f hf).servingDirection := by
+    have hh := K.symm.toAffineEquiv.toAffineMap.linearMap_vsub F.terminal F.initial
+    change K.symm.linearIsometryEquiv (F.terminal - F.initial) = p₁ - p₀ at hh
+    exact hh.symm
+  have hdir' : Ψ.linear (p₁ - p₀) = U.counterDirection P q f hf := by
+    change (U.providerPlacement P q f hf).linear (K.linearIsometryEquiv (p₁ - p₀)) = _
+    have hh := K.toAffineEquiv.toAffineMap.linearMap_vsub p₁ p₀
+    change K.linearIsometryEquiv (p₁ - p₀) = K p₁ - K p₀ at hh
+    rw [hh]
+    simp [p₀, p₁, HonestSource.counterDirection, F, ι, OrientedFullFlag.direction]
+  have hserv : (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+      (U.hierarchy.servingChild q f hf).1 = Ψ := by
+    apply AffineEquiv.ext
+    intro x
+    exact congrArg (fun g : E d ≃ᵃ[ℝ] E d => g x)
+      (host_step_step4_lift_jump_step3_serving_frame (P := P) U q f hf)
+  have hword : w.word = U.downRoles q (U.hierarchy.firstProvider q f hf).1 := by
+    change U.counterProfile P q f hf = .inr w at hw
+    unfold HonestSource.counterProfile at hw
+    dsimp only at hw
+    split at hw
+    · cases Sum.inr.inj hw
+      rfl
+    · contradiction
+  have hframe : q.2.val.prototypeFrame q.1 = (wordPlacement w.word).trans Ψ := by
+    rw [hword, host_step_step2_port_sites_step1_word_frame]
+    exact congrArg (fun g => (wordPlacement (U.downRoles q
+      (U.hierarchy.firstProvider q f hf).1)).trans g) hserv
+  have hsite (a : Fin P.N) : U.sitePoint P q f hf a = Ψ (P.sites ι b a) := by
+    rw [host_step_step2_port_sites_step1_site_frame, hserv]
+  have hside : ((P.sideFlag ι b).cell edgeIndex).val.carrier = segment ℝ p₀ p₁ := by
+    have hh := congrArg (fun A : Set (E d) =>
+      (S.child ι.val.ty ι.val.left).frame.symm '' A) (P.sideFlag_eq ι b edgeIndex)
+    have hK : K '' ((P.sideFlag ι b).cell edgeIndex).val.carrier =
+        (F.flag.cell edgeIndex).val.carrier := by
+      simpa [placedSet, Set.image_image, K, F] using hh
+    have hh := congrArg (fun A : Set (E d) => K.symm '' A) hK
+    simp only [Set.image_image, K.symm_apply_apply, Set.image_id'] at hh
+    rw [F.edge_eq] at hh
+    exact hh.trans (image_segment ℝ K.symm.toAffineEquiv.toAffineMap F.initial F.terminal)
+  have hs (a : Fin P.N) : P.sites ι b a ∈ affineSpan ℝ ({p₀, p₁} : Set (E d)) := by
+    have hh := intrinsicInterior_subset (P.sites_relint ι b a)
+    rw [hside] at hh
+    simpa only [← convexHull_pair, affineSpan_convexHull] using
+      (subset_affineSpan ℝ (segment ℝ p₀ p₁) hh)
+  obtain ⟨c, hc, hce⟩ := he
+  have hspan : affineSpan ℝ (q.2.val.cell q.1 e.val) =
+      affineSpan ℝ (Ψ '' segment ℝ p₀ p₁) := by
+    obtain ⟨_, _, hh⟩ := ((record_chains_spec U P q f hf c).mp hc).1 edgeIndex
+    rw [hce] at hh
+    have hfedge : U.providerPlacement P q f hf '' (F.flag.cell edgeIndex).val.carrier =
+        Ψ '' segment ℝ p₀ p₁ := by
+      rw [F.edge_eq]
+      change (U.providerPlacement P q f hf).toAffineMap '' segment ℝ F.initial F.terminal =
+        Ψ.toAffineMap '' segment ℝ p₀ p₁
+      rw [image_segment, image_segment]
+      simp [Ψ, p₀, p₁]
+    exact hh.trans (congrArg (affineSpan ℝ) hfedge)
+  have hmem (y : E d) (hy : y ∈ e.val.carrier) :
+      wordPlacement w.word y ∈ affineSpan ℝ ({p₀, p₁} : Set (E d)) := by
+    have hh := subset_affineSpan ℝ (q.2.val.cell q.1 e.val) (Set.mem_image_of_mem _ hy)
+    rw [hspan] at hh
+    change q.2.val.prototypeFrame q.1 y ∈
+      affineSpan ℝ (Ψ.toAffineMap '' segment ℝ p₀ p₁) at hh
+    rw [← AffineSubspace.map_span] at hh
+    change q.2.val.prototypeFrame q.1 y ∈ Ψ ''
+      (affineSpan ℝ (segment ℝ p₀ p₁) : Set (E d)) at hh
+    rw [hframe] at hh
+    have hh := Ψ.injective.mem_set_image.mp hh
+    simpa only [← convexHull_pair, affineSpan_convexHull] using hh
+  have hends : ((U.recordOf P q f hf).endpoints e).1 ∈ e.val.carrier ∧
+      ((U.recordOf P q f hf).endpoints e).2 ∈ e.val.carrier := by
+    have hh := (Classical.choose_spec (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S))).2
+    rw [hh]
+    unfold FacetRecord.endpoints
+    split
+    · exact ⟨left_mem_segment ℝ _ _, right_mem_segment ℝ _ _⟩
+    · exact ⟨right_mem_segment ℝ _ _, left_mem_segment ℝ _ _⟩
+  have horder (a : Fin P.N) (y : E d) (hy : y ∈ e.val.carrier) :
+      (inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 y) ≤ 0 ↔
+        inner ℝ (U.recordOf P q f hf).servingDirection
+          (P.sites ι b a - wordPlacement w.word y) ≤ 0) ∧
+      (inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 y) < 0 ↔
+        inner ℝ (U.recordOf P q f hf).servingDirection
+          (P.sites ι b a - wordPlacement w.word y) < 0) := by
+    have hh := host_step_step4_lift_jump_step3_line_order Ψ p₀ p₁ hp
+      (P.sites ι b a) (wordPlacement w.word y) (hs a) (hmem y hy)
+    rw [hdir', hdir] at hh
+    simpa only [hsite, hframe, AffineEquiv.trans_apply] using hh
+  constructor
+  · rw [FacetRecord.kappaMinus, hw]
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro a _
+    exact (horder a _ hends.1).1.symm
+  · rw [FacetRecord.kappaPlus, hw]
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro a _
+    exact (horder a _ hends.2).2.symm
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6, §2.2(S4d)):
+"the germs ... of the profile of c". On one honest active edge, every
+interior counter value lies between the endpoint germs, and both endpoint
+germs occur at interior points sufficiently close to their endpoints. -/
+private theorem host_step_step4_lift_jump_step3_source_range
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q f hf).ChainActive (edgeCell e)) :
+    (∀ x ∈ relint (q.2.val.cell q.1 e.val),
+      (U.recordOf P q f hf).kappaMinus e ≤ (U.sitesBefore P q f hf x).val ∧
+        (U.sitesBefore P q f hf x).val ≤ (U.recordOf P q f hf).kappaPlus e) ∧
+    (∃ x ∈ relint (q.2.val.cell q.1 e.val),
+      (U.sitesBefore P q f hf x).val = (U.recordOf P q f hf).kappaMinus e) ∧
+    (∃ x ∈ relint (q.2.val.cell q.1 e.val),
+      (U.sitesBefore P q f hf x).val = (U.recordOf P q f hf).kappaPlus e) := by
+  classical
+  by_cases hm : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
+      (U.hierarchy.firstProvider q f hf).1
+  · have hc := (record_mature_iff U P q f hf).mpr hm
+    have hval (x : E d) (hx : x ∈ relint (q.2.val.cell q.1 e.val)) :
+        (U.recordOf P q f hf).kappaMinus e = (U.sitesBefore P q f hf x).val ∧
+        (U.recordOf P q f hf).kappaPlus e = (U.sitesBefore P q f hf x).val := by
+      have hv := mature_counter_value U P q f hf hm (edgeCell e) he x hx
+      simp [FacetRecord.kappaMinus, FacetRecord.kappaPlus, hc, hv]
+    obtain ⟨x, hx⟩ : (relint (q.2.val.cell q.1 e.val)).Nonempty := by
+      rw [FramedNode.cell, host_step_step2_port_sites_step2_relint_image]
+      exact e.val.flat.relint_nonempty.image _
+    refine ⟨fun y hy => ?_, ⟨x, hx, (hval x hx).1.symm⟩,
+      ⟨x, hx, (hval x hx).2.symm⟩⟩
+    exact ⟨(hval y hy).1.le, (hval y hy).2.ge⟩
+  · obtain ⟨w, hw, _⟩ := (record_shallow_iff U P q f hf).mpr (lt_of_not_ge hm)
+    have hgerms := host_step_step4_lift_jump_step3_shallow_germs U q f hf e he w hw
+    let p₀ := q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1
+    let p₁ := q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2
+    let v := U.counterDirection P q f hf
+    let sites := fun a : Fin P.N => inner ℝ v (U.sitePoint P q f hf a)
+    let a := inner ℝ v p₀
+    let b := inner ℝ v p₁
+    have hlo : (U.recordOf P q f hf).kappaMinus e =
+        (Finset.univ.filter (fun i => sites i ≤ a)).card := by
+      rw [hgerms.1]
+      simp only [inner_sub_right, sub_nonpos]
+      rfl
+    have hhi : (U.recordOf P q f hf).kappaPlus e =
+        (Finset.univ.filter (fun i => sites i < b)).card := by
+      rw [hgerms.2]
+      simp only [inner_sub_right, sub_lt_zero]
+      rfl
+    have hord : (Finset.univ.filter (fun i => sites i ≤ a)).card ≤
+        (Finset.univ.filter (fun i => sites i < b)).card := by
+      rw [← hlo, ← hhi]
+      exact (honest_counter_germs U P q f hf e he).1
+    have hcounts := host_step_step4_lift_jump_step3_interval_counts sites a b hord
+    have hegeom : ((U.recordOf P q f hf).endpoints e).1 ≠
+          ((U.recordOf P q f hf).endpoints e).2 ∧
+        e.val.carrier = segment ℝ ((U.recordOf P q f hf).endpoints e).1
+          ((U.recordOf P q f hf).endpoints e).2 := by
+      have hh := Classical.choose_spec (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S))
+      unfold FacetRecord.endpoints
+      split
+      · exact hh
+      · exact ⟨hh.1.symm, hh.2.trans (segment_symm ℝ _ _)⟩
+    have hp : p₀ ≠ p₁ := fun h => hegeom.1 ((q.2.val.prototypeFrame q.1).injective h)
+    have hseg : q.2.val.cell q.1 e.val = segment ℝ p₀ p₁ := by
+      rw [FramedNode.cell, hegeom.2]
+      exact image_segment ℝ (q.2.val.prototypeFrame q.1).toAffineMap _ _
+    have hrel : relint (q.2.val.cell q.1 e.val) =
+        AffineMap.lineMap p₀ p₁ '' Ioo (0 : ℝ) 1 := by
+      rw [hseg, host_step_step4_lift_jump_step3_segment_relint p₀ p₁ hp]
+    have hcount (t : ℝ) :
+        (U.sitesBefore P q f hf (AffineMap.lineMap p₀ p₁ t)).val =
+          (Finset.univ.filter (fun i => sites i < (1 - t) * a + t * b)).card := by
+      change (Finset.univ.filter (fun i : Fin P.N =>
+        inner ℝ v (U.sitePoint P q f hf i - AffineMap.lineMap p₀ p₁ t) < 0)).card = _
+      apply congrArg Finset.card
+      apply Finset.filter_congr
+      intro i _
+      simp only [inner_sub_right, sub_lt_zero, AffineMap.lineMap_apply_module,
+        inner_add_right, real_inner_smul_right]
+      rfl
+    rw [hlo, hhi]
+    refine ⟨?_, ?_, ?_⟩
+    · intro x hx
+      rw [hrel] at hx
+      obtain ⟨t, ht, rfl⟩ := hx
+      rw [hcount]
+      exact hcounts.1 t ht
+    · obtain ⟨t, ht, hc⟩ := hcounts.2.1
+      exact ⟨_, hrel.symm ▸ Set.mem_image_of_mem _ ht, (hcount t).trans hc⟩
+    · obtain ⟨t, ht, hc⟩ := hcounts.2.2
+      exact ⟨_, hrel.symm ▸ Set.mem_image_of_mem _ ht, (hcount t).trans hc⟩
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6, 2.3):
+"the germs ... are restrictions of the profile of c". For two active chains
+in one honest source, with the smaller chain on the larger one's boundary
+track, each smaller-edge germ is bounded by the larger-edge germs. -/
+private theorem host_step_step4_lift_jump_step3_source_bounds
+    (U : HonestSource S) (B t : U.Node) (a : ℕ)
+    (hanc : U.hierarchy.ancestor t a = B)
+    (v z : host_step_Chain P)
+    (hv : stateRecordAt (stateOf U P B) v.1.facet.val = some v.1)
+    (hz : stateRecordAt (stateOf U P t) z.1.facet.val = some z.1)
+    (hvc : v.2 ∈ v.1.chains) (hzc : z.2 ∈ z.1.chains)
+    (hι : z.1.incidence = v.1.incidence) (hb : z.1.sideIndex = v.1.sideIndex)
+    (hchain : ∀ k, t.2.val.cell t.1 (z.2.chain.val.cell k).val ⊆
+      B.2.val.cell B.1 (v.2.chain.val.cell k).val) :
+    v.1.kappaMinus (host_step_edge v) ≤ z.1.kappaMinus (host_step_edge z) ∧
+      z.1.kappaPlus (host_step_edge z) ≤ v.1.kappaPlus (host_step_edge v) := by
+  classical
+  rcases v with ⟨rv, cv⟩
+  rcases z with ⟨rz, cz⟩
+  obtain ⟨F, _, hv⟩ := host_step_step3_readout _ _ _ hv
+  obtain ⟨f, _, hz⟩ := host_step_step3_readout _ _ _ hz
+  change U.facetRecordOf P B F = some rv at hv
+  change U.facetRecordOf P t f = some rz at hz
+  unfold HonestSource.facetRecordOf at hv hz
+  split at hv
+  · contradiction
+  · rename_i hF
+    cases Option.some.inj hv
+    split at hz
+    · contradiction
+    · rename_i hf
+      cases Option.some.inj hz
+      have hsub : t.2.val.cell t.1 f.val ⊆ B.2.val.cell B.1 F.val := by
+        simpa only [cv.chain.property, cz.chain.property] using hchain facetIndex
+      obtain ⟨_, _, hbirth⟩ := U.hierarchy.provider_inherited B t a hanc F f hF hsub
+      change U.recordIncidence P t f hf = U.recordIncidence P B F hF at hι
+      change U.recordSide P t f hf = U.recordSide P B F hF at hb
+      have hpos : U.providerPlacement P t f hf = U.providerPlacement P B F hF := by
+        unfold HonestSource.providerPlacement CoherentHierarchy.birthHeight
+        rw [hbirth, hι]
+      have hcount (x : E d) : U.sitesBefore P t f hf x = U.sitesBefore P B F hF x := by
+        apply Fin.ext
+        change (Finset.univ.filter (fun a : Fin P.N =>
+          inner ℝ (U.counterDirection P t f hf) (U.sitePoint P t f hf a - x) < 0)).card =
+          (Finset.univ.filter (fun a : Fin P.N =>
+          inner ℝ (U.counterDirection P B F hF) (U.sitePoint P B F hF a - x) < 0)).card
+        unfold HonestSource.sitePoint HonestSource.counterDirection
+        rw [hpos, hι, hb]
+      let ev := host_step_edge ⟨U.recordOf P B F hF, cv⟩
+      let ez := host_step_edge ⟨U.recordOf P t f hf, cz⟩
+      have hspan : affineSpan ℝ (t.2.val.cell t.1 ez.val) =
+          affineSpan ℝ (B.2.val.cell B.1 ev.val) := by
+        obtain ⟨_, _, hvspan⟩ := ((record_chains_spec U P B F hF cv).mp hvc).1 edgeIndex
+        obtain ⟨_, _, hzspan⟩ := ((record_chains_spec U P t f hf cz).mp hzc).1 edgeIndex
+        change affineSpan ℝ (t.2.val.cell t.1 ez.val) = _ at hzspan
+        change affineSpan ℝ (B.2.val.cell B.1 ev.val) = _ at hvspan
+        rw [hpos, hι] at hzspan
+        exact hzspan.trans hvspan.symm
+      have hinside : relint (t.2.val.cell t.1 ez.val) ⊆
+          relint (B.2.val.cell B.1 ev.val) := by
+        unfold relint intrinsicInterior
+        rw [hspan]
+        exact Set.image_mono (interior_mono (Set.preimage_mono (hchain edgeIndex)))
+      have hvbounds := host_step_step4_lift_jump_step3_source_range U B F hF ev ⟨cv, hvc, rfl⟩
+      have hzbounds := host_step_step4_lift_jump_step3_source_range U t f hf ez ⟨cz, hzc, rfl⟩
+      obtain ⟨x, hx, hlo⟩ := hzbounds.2.1
+      obtain ⟨y, hy, hhi⟩ := hzbounds.2.2
+      have hl := (hvbounds.1 x (hinside hx)).1
+      have hh := (hvbounds.1 y (hinside hy)).2
+      rw [← hcount x, hlo] at hl
+      rw [← hcount y, hhi] at hh
+      exact ⟨hl, hh⟩
+
+/-- Step 3 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"the germs ... are restrictions of the profile of c". I2 along one native
+descendant chain bounds its endpoint germs by the containing root's germs.
+This is the monotonicity part of the inherited profile rule of V4 2.3. -/
+private theorem host_step_step4_lift_jump_step3_germ_bounds
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (H : FramedNode S) (ι : P.Incidence) (b : Bool)
+    (u : host_step_Port C) (hu : host_step_portValid Y n H ι b u)
+    (R : host_step_Root D) (hR : host_step_rootValid D H ι b R)
+    (hdesc : (tileNode u.1).IsDescendant 0 R.1.val.node n)
+    (hchain : ∀ k, (tileNode u.1).cell 0 (u.2.2.chain.val.cell k).val ⊆
+      R.1.val.node.cell n (R.2.2.chain.val.cell k).val) :
+    R.2.1.kappaMinus (host_step_edge R.2) ≤ u.2.1.kappaMinus (host_step_edge u.2) ∧
+      u.2.1.kappaPlus (host_step_edge u.2) ≤ R.2.1.kappaPlus (host_step_edge R.2) := by
+  obtain ⟨U, hU, hs⟩ := host_step_step4_lift_jump_step3_realise
+    (D.blockState R.1.val R.1.property) (hD.I1 R.1.val R.1.property).1
+    R.1.val.node n (hD.I1 R.1.val R.1.property).2.1
+    (hD.I1 R.1.val R.1.property).2.2
+  obtain ⟨r, hr, w, htile⟩ := hdesc
+  have hrn : r = n := by omega
+  subst r
+  have hreal {k : ℕ} (hk : k = n) (hN : R.1.val.node ∈ D.geometry.nodes k)
+      (hU' : R.1.val.node ∈ U.hierarchy.nodes k) :
+      stateOf U P ⟨k, ⟨R.1.val.node, hU'⟩⟩ = D.stateAt k R.1.val.node hN := by
+    subst k
+    exact hs
+  have hnode {k : ℕ} (hk : k = n) (hU' : R.1.val.node ∈ U.hierarchy.nodes k) :
+      (⟨k, ⟨R.1.val.node, hU'⟩⟩ : U.Node) = ⟨n, ⟨R.1.val.node, hU⟩⟩ := by
+    subst k
+    rfl
+  have hdesc : ∃ (htD : tileNode u.1 ∈ D.geometry.nodes 0)
+      (htU : tileNode u.1 ∈ U.hierarchy.nodes 0),
+      stateOf U P ⟨0, ⟨tileNode u.1, htU⟩⟩ = D.stateAt 0 (tileNode u.1) htD ∧
+        U.hierarchy.ancestor ⟨0, ⟨tileNode u.1, htU⟩⟩ n = ⟨n, ⟨R.1.val.node, hU⟩⟩ := by
+    obtain ⟨htD, htU, htstate, hanc⟩ :=
+      host_step_step4_lift_jump_step3_descent D hD U 0 n R.1.val.node
+        (by simpa only [Nat.zero_add] using D.geometry.root_mem R.1.val R.1.property)
+        (by simpa only [Nat.zero_add] using hU)
+        (hreal (Nat.zero_add n) _ _) w
+    rw [htile]
+    exact ⟨htD, htU, htstate, hanc.trans (hnode (Nat.zero_add n) _)⟩
+  obtain ⟨htD, htU, htstate, hanc⟩ := hdesc
+  apply host_step_step4_lift_jump_step3_source_bounds U
+    ⟨n, ⟨R.1.val.node, hU⟩⟩ ⟨0, ⟨tileNode u.1, htU⟩⟩ n hanc R.2 u.2
+  · rw [hs]
+    exact hR.1
+  · rw [htstate, hD.I2.2 (tileNode u.1) htD u.1 hu.1 rfl]
+    exact hu.2.1
+  · exact hR.2.2.1
+  · exact hu.2.2.2.1
+  · exact hu.2.2.2.2.1.trans hR.2.2.2.1.symm
+  · exact hu.2.2.2.2.2.1.trans hR.2.2.2.2.1.symm
+  · exact hchain
+
+/-- Step 4 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"a site ... in relint e_m ... is nonconstant". The honest count includes
+the specified local site, so the port's two germs are strictly ordered. -/
+private theorem host_step_step4_lift_jump_step4_site_strict
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (H : FramedNode S)
+    (ι : P.Incidence) (b : Bool) (u : host_step_Port C)
+    (hu : host_step_portValid Y n H ι b u) (x : E d)
+    (hx : host_step_localJump u x) :
+    u.2.1.kappaMinus (host_step_edge u.2) < u.2.1.kappaPlus (host_step_edge u.2) := by
+  classical
+  obtain ⟨w, hw, k, rfl, hx⟩ := hx
+  have hs : (compilerLeaf C u.1).prePattern.state ∈ honestStates S P :=
+    (prePattern_components_honest P _
+      ((certificate_components_honest P (compilerLeaf C u.1).1.val
+        (compilerLeaf C u.1).1.property).1 (compilerLeaf C u.1).2)).1
+  have hc := host_step_step2_port_sites_step2_readout_count _ hs
+    u.2.1.facet.val u.2.1 hu.2.1 (host_step_edge u.2)
+    ⟨u.2.2, hu.2.2.2.1, rfl⟩ w hw
+  have hframe : (tileNode u.1).prototypeFrame 0 =
+      (compilerFrame C u.1).toAffineEquiv := by
+    ext z
+    simp [FramedNode.prototypeFrame, tileNode]
+  change _ ∈ relint ((tileNode u.1).prototypeFrame 0 ''
+    (host_step_edge u.2).val.carrier) at hx
+  rw [hframe, host_step_step2_port_sites_step2_relint_image] at hx
+  have hk : (wordPlacement w.word).symm (P.sites u.2.1.incidence u.2.1.sideIndex k)
+      ∈ relint (host_step_edge u.2).val.carrier :=
+    (compilerFrame C u.1).injective.mem_set_image.mp hx
+  have hpos : 0 < (Finset.univ.filter (fun a : Fin P.N =>
+      (wordPlacement w.word).symm (P.sites u.2.1.incidence u.2.1.sideIndex a)
+        ∈ relint (host_step_edge u.2).val.carrier)).card :=
+    Finset.card_pos.mpr ⟨k, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hk⟩⟩
+  omega
+
+/-- Step 5 of the V4 proof of `host_step_step4_lift_jump` (V4 3.6):
+"a strand vertex v_(m+1)". Both recorded endpoints belong to the actual
+port edge, including when its chosen orientation reverses the endpoint pair. -/
+private theorem host_step_step4_lift_jump_step5_endpoints (u : host_step_Port C) :
+    (host_step_portEnds u).1 ∈ host_step_portEdge u ∧
+      (host_step_portEnds u).2 ∈ host_step_portEdge u := by
+  have he := (Classical.choose_spec
+    (edge_endpoints_exist (⟨u.2.1.ty, host_step_edge u.2⟩ : EdgeName S))).2
+  have hends : (u.2.1.endpoints (host_step_edge u.2)).1 ∈
+      (host_step_edge u.2).val.carrier ∧
+      (u.2.1.endpoints (host_step_edge u.2)).2 ∈
+        (host_step_edge u.2).val.carrier := by
+    rw [he]
+    unfold FacetRecord.endpoints
+    split
+    · exact ⟨left_mem_segment ℝ _ _, right_mem_segment ℝ _ _⟩
+    · exact ⟨right_mem_segment ℝ _ _, left_mem_segment ℝ _ _⟩
+  constructor
+  · refine ⟨_, hends.1, ?_⟩
+    simp [FramedNode.prototypeFrame, tileNode, host_step_portEnds]
+  · refine ⟨_, hends.2, ?_⟩
+    simp [FramedNode.prototypeFrame, tileNode, host_step_portEnds]
+
 /-- Step 4 of the V4 proof of `host_step` (V4 3.6): "the germs ... are
 restrictions of the profile of c". An interior site or an interior unit CONT
 jump makes the containing root profile nonconstant, by I2 and site persistence. -/
@@ -2655,7 +3444,33 @@ private theorem host_step_step4_lift_jump
     (hj : x ∈ relint (host_step_rootEdge (R j))) :
     (R j).2.1.kappaPlus (host_step_edge (R j).2) ≠
       (R j).2.1.kappaMinus (host_step_edge (R j).2) := by
-  sorry
+  have hbounds (i : Fin (m + 1)) (hi : x ∈ host_step_portEdge (u i)) :
+      (R j).2.1.kappaMinus (host_step_edge (R j).2) ≤
+          (u i).2.1.kappaMinus (host_step_edge (u i).2) ∧
+        (u i).2.1.kappaMinus (host_step_edge (u i).2) ≤
+          (u i).2.1.kappaPlus (host_step_edge (u i).2) ∧
+        (u i).2.1.kappaPlus (host_step_edge (u i).2) ≤
+          (R j).2.1.kappaPlus (host_step_edge (R j).2) := by
+    have ho := host_step_step4_lift_jump_step2_owner D H ι b u R owner hR i j x hi hj
+    have hb := host_step_step4_lift_jump_step3_germ_bounds D hD H ι b
+      (u i) (hu.1 i) (R (owner i)) (hR.1 (owner i))
+      (hR.2.2.2.2 i).1 (hR.2.2.2.2 i).2
+    rw [ho] at hb
+    obtain ⟨J, hcount, _⟩ := host_step_step2_port_sites Y n H ι b (u i) (hu.1 i)
+    exact ⟨hb.1, by omega, hb.2⟩
+  rcases hx with ⟨i, hi⟩ | ⟨i, hxi, hunit⟩
+  · have hstrict := host_step_step4_lift_jump_step4_site_strict Y n H ι b (u i) (hu.1 i) x hi
+    have hmem := hi.choose_spec.2.choose_spec.2
+    have hb := hbounds i (intrinsicInterior_subset hmem)
+    omega
+  · have hleft : x ∈ host_step_portEdge (u i.castSucc) :=
+      hxi ▸ (host_step_step4_lift_jump_step5_endpoints (u i.castSucc)).2
+    have hright : x ∈ host_step_portEdge (u i.succ) := by
+      rw [hxi, (hu.2.2.2.2.2.1 i).1]
+      exact (host_step_step4_lift_jump_step5_endpoints (u i.succ)).1
+    have hl := hbounds i.castSucc hleft
+    have hr := hbounds i.succ hright
+    omega
 
 /-- Step 4 of the V4 proof of `host_step` (V4 3.6): "a ≡ 0 mod L ...
 a=0". A nonconstant honest root profile with β equal to the root residue has

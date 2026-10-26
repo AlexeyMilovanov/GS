@@ -1392,6 +1392,1033 @@ def routeAscents {A : S.ι} (k : ℕ) (path : List (PrimitiveFacet S A)) : ℕ :
   classical
   exact ((path.zip path.tail).filter (fun q => AscentLink k q.1 q.2)).length
 
+/-- Step 1 of the V4 proof of `birth_ascent_top` (V4 1.25): "Let `P₀` be
+the least common ancestor within `A`'s subdivision of all native ... tiles
+of `A` containing `p`". The root is a common ancestor, so the set of possible
+heights has a least element, even before positivity is established. -/
+private theorem birth_ascent_top_step1_least_height (A : S.ι) (k : ℕ) (p : E d) :
+    ∃ (b : ℕ) (P : FramedNode S), b ≤ k ∧ IsTopBirth A k p b P := by
+  classical
+  let Q : ℕ → Prop := fun b => ∃ P : FramedNode S,
+    S.IsStandardNode A k b P ∧
+      ∀ w : S.RoleWord A k, (S.σ ^ k) p ∈ (S.nativeTile A k w).carrier 0 →
+        (S.nativeTile A k w).IsDescendant 0 P b
+  have hroot : Q k := by
+    refine ⟨⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩,
+      ⟨0, by omega, (), rfl⟩, ?_⟩
+    intro w _
+    refine ⟨k, by omega, w, ?_⟩
+    simp [SubstSystem.nativeTile, FramedNode.move]
+  have hex : ∃ b, Q b := ⟨k, hroot⟩
+  obtain ⟨P, hP, hleaves⟩ := Nat.find_spec hex
+  refine ⟨Nat.find hex, P, Nat.find_min' hex hroot, hP, hleaves, ?_⟩
+  intro b' P' hP' hleaves'
+  exact Nat.find_min' hex ⟨P', hP', hleaves'⟩
+
+open scoped Topology in
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "Any vertex `q` of `κ`".
+An extreme point in the relative interior of a cell forces that cell to be a singleton. -/
+private theorem birth_ascent_top_step2_extreme_relint_singleton (K L : Set (E d)) (hLK : L ⊆ K)
+    (q : E d) (hq : q ∈ K.extremePoints ℝ) (hqL : q ∈ relint L) : L = {q} := by
+  obtain ⟨q', hq', rfl⟩ := mem_intrinsicInterior.mp hqL
+  have hqL : (q' : E d) ∈ L := (show q' ∈ Subtype.val ⁻¹' L from interior_subset hq')
+  apply Set.Subset.antisymm
+  · intro x hx
+    let γ : ℝ → affineSpan ℝ L := fun t =>
+      ⟨AffineMap.lineMap (q' : E d) x t,
+        AffineMap.lineMap_mem t q'.property (subset_affineSpan ℝ L hx)⟩
+    have hγ : Continuous γ := by fun_prop
+    have hsmall : ∀ᶠ t : ℝ in 𝓝 0,
+        (γ t : E d) ∈ L ∧ (γ (-t) : E d) ∈ L := by
+      have h₁ : Filter.Tendsto γ (𝓝 0) (𝓝 q') := by
+        simpa [γ] using hγ.tendsto 0
+      have h₂ : Filter.Tendsto (fun t => γ (-t)) (𝓝 0) (𝓝 q') := by
+        simpa [γ] using (hγ.comp continuous_neg).tendsto 0
+      exact Filter.Eventually.and (h₁ (mem_interior_iff_mem_nhds.mp hq'))
+        (h₂ (mem_interior_iff_mem_nhds.mp hq'))
+    obtain ⟨ε, hε, hεL⟩ := Metric.eventually_nhds_iff.mp hsmall
+    let t := ε / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have htε : dist t 0 < ε := by simp [t, abs_of_pos hε]; linarith
+    obtain ⟨hplus, hminus⟩ := hεL htε
+    have hseg : (q' : E d) ∈ openSegment ℝ (γ t : E d) (γ (-t) : E d) := by
+      refine ⟨(1 / 2 : ℝ), (1 / 2 : ℝ), by norm_num, by norm_num, by norm_num, ?_⟩
+      simp only [γ, AffineMap.lineMap_apply, vadd_eq_add, vsub_eq_sub]
+      module
+    have hplus_eq : (γ t : E d) = (q' : E d) := hq.2 (hLK hplus) (hLK hminus) hseg
+    have hzero : t • (x - (q' : E d)) = 0 := by
+      simpa [γ, AffineMap.lineMap_apply] using hplus_eq
+    have hxeq : x = (q' : E d) := sub_eq_zero.mp ((smul_eq_zero.mp hzero).resolve_left ht.ne')
+    exact Set.mem_singleton_iff.mpr hxeq
+  · exact singleton_subset_iff.mpr hqL
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "Any vertex `q` of `κ`".
+Every listed cell contains a listed vertex, obtained from an extreme point and its minimal cell. -/
+private theorem birth_ascent_top_step2_cell_vertex (P : PolyManifoldDomain d) (C : CellComplex P)
+    (e : Cell d) (he : e ∈ C.cells) :
+    ∃ v ∈ C.vertices, v.carrier ⊆ e.carrier := by
+  obtain ⟨q, hq⟩ := e.flat.compact.extremePoints_nonempty e.flat.connected.nonempty
+  have hqP : q ∈ frontier P.carrier := by
+    rw [← C.carriers_cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hq.1⟩
+  let v := C.minimalCell q hqP
+  have hv := C.minimalCell_mem q hqP
+  have hvsub := C.minimalCell_subset q hqP e he hq.1
+  have hvsing : v.carrier = {q} := birth_ascent_top_step2_extreme_relint_singleton e.carrier v.carrier hvsub q hq
+    (C.mem_relint_minimalCell q hqP)
+  refine ⟨v, Finset.mem_filter.mpr ⟨hv, ?_⟩, hvsub⟩
+  have hdim := v.flat.dimension
+  rw [cellDirection, hvsing, direction_affineSpan, vectorSpan_singleton, finrank_bot] at hdim
+  exact hdim.symm
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "by Lemma 1.1 within `C`".
+The descendant relation includes the node itself with its exact frame. -/
+private theorem birth_ascent_top_step2_desc_refl (N : FramedNode S) (n : ℕ) : N.IsDescendant n N n := by
+  refine ⟨0, by omega, (), ?_⟩
+  simp [SubstSystem.descendantNode, FramedNode.move]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "Lemma 1.1 for the ancestor cell `e` of `P_b` and its child `C`".
+An immediate child has the required exact descendant witness. -/
+private theorem birth_ascent_top_step2_child_desc (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).IsDescendant n N (n + 1) := by
+  refine ⟨1, rfl, ⟨i, ()⟩, ?_⟩
+  simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "take the minimal cell `κ = mc_C(p)`".
+Every placed listed cell belongs to its owner’s frontier. -/
+private theorem birth_ascent_top_step2_cell_front (N : FramedNode S) (n : ℕ)
+    (e : Cell d) (he : e ∈ (S.cx N.ty).cells) : N.cell n e ⊆ frontier (N.carrier n) := by
+  have hsub : e.carrier ⊆ frontier (S.proto N.ty).carrier := by
+    rw [← (S.cx N.ty).carriers_cover]
+    exact Set.subset_iUnion₂_of_subset e he (Set.Subset.refl _)
+  have hcarrier : N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  rw [hcarrier]
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  change H '' e.carrier ⊆ frontier (H '' (S.proto N.ty).carrier)
+  rw [← H.image_frontier]
+  exact Set.image_mono hsub
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "Any vertex `q` of `κ` is a vertex of `C`".
+Transport a listed vertex through the full prototype frame. -/
+private theorem birth_ascent_top_step2_placed_vertex (N : FramedNode S) (n : ℕ)
+    (e : CellName S N.ty) : ∃ q ∈ N.cell n e.val, N.Lists n q := by
+  obtain ⟨v, hv, hve⟩ := birth_ascent_top_step2_cell_vertex (S.proto N.ty) (S.cx N.ty) e.val e.property
+  obtain ⟨q, hq⟩ := v.flat.connected.nonempty
+  refine ⟨N.prototypeFrame n q, Set.mem_image_of_mem _ (hve hq), v, hv, ?_⟩
+  exact Set.mem_image_of_mem _ hq
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "`κ` is a cell of `C′` ... contained in `f′`".
+Sibling minimal-cell equality and vertex inheritance give a common-listed seed. -/
+private theorem birth_ascent_top_step2_sibling_seed (P : FramedNode S) (n : ℕ) (i j : S.I P.ty)
+    (f : FacetName S (P.child n i).ty) (g : FacetName S (P.child n j).ty)
+    (hint : relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1)))
+    (hmeet : ((P.child n i).cell n f.val ∩ (P.child n j).cell n g.val).Nonempty) :
+    ∃ q : E d, q ∈ (P.child n i).cell n f.val ∧ q ∈ (P.child n j).cell n g.val ∧
+      (P.child n i).Lists n q ∧ (P.child n j).Lists n q ∧
+      ∀ l : S.I P.ty, q ∈ (P.child n l).carrier n → (P.child n l).Lists n q := by
+  obtain ⟨p, hpf, hpg⟩ := hmeet
+  have hf := (Finset.mem_filter.mp f.property).1
+  have hg := (Finset.mem_filter.mp g.property).1
+  have hpi := birth_ascent_top_step2_cell_front (P.child n i) n f.val hf hpf
+  have hpj := birth_ascent_top_step2_cell_front (P.child n j) n g.val hg hpg
+  let e := placedMinimalCell (P.child n i) n p hpi
+  have he := placedMinimalCell_spec (P.child n i) n p hpi
+  have hef : (P.child n i).cell n e.val ⊆ (P.child n i).cell n f.val :=
+    hereditary_trace _ _ n n (birth_ascent_top_step2_desc_refl _ _) f.val e.val hf e.property ⟨p, he, hpf⟩
+  have heg : (P.child n i).cell n e.val ⊆ (P.child n j).cell n g.val := by
+    by_cases hij : i = j
+    · subst j
+      exact hereditary_trace _ _ n n (birth_ascent_top_step2_desc_refl _ _) g.val e.val hg e.property ⟨p, he, hpg⟩
+    · let e' := placedMinimalCell (P.child n j) n p hpj
+      have he' := placedMinimalCell_spec (P.child n j) n p hpj
+      rw [sibling_minimalCell_eq P n i j hij p e e' he he']
+      exact hereditary_trace _ _ n n (birth_ascent_top_step2_desc_refl _ _) g.val e'.val hg e'.property ⟨p, he', hpg⟩
+  obtain ⟨q, hqe, hqi⟩ := birth_ascent_top_step2_placed_vertex (P.child n i) n e
+  have hall := primitive_vertex_listed P n i f hint q hqi (hef hqe)
+  refine ⟨q, hef hqe, heg hqe, hqi, hall j ?_, hall⟩
+  have hc : IsClosed ((P.child n j).carrier n) := by
+    exact (((S.proto (P.child n j).ty).compact.image
+      (S.σ ^ n).toContinuousLinearEquiv.continuous).image (P.child n j).frame.continuous).isClosed
+  exact (frontier_subset_iff_isClosed.mpr hc) (birth_ascent_top_step2_cell_front _ _ _ hg (heg hqe))
+
+/-- Step 6 of the V4 proof of `birth_ascent_top` (V4 1.25): "at least one child containing `q` has a facet piece inside `e`".
+Hereditary trace puts a vertex of the minimal child cell on the parent facet; the boundary-facet cover supplies its facing port. -/
+private theorem birth_ascent_top_step6_parent_seed_port (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (f : FacetName S (P.child n i).ty) (e : FacetName S P.ty)
+    (hint : relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1)))
+    (hmeet : ((P.child n i).cell n f.val ∩ P.cell (n + 1) e.val).Nonempty) :
+    ∃ q : E d, q ∈ (P.child n i).cell n f.val ∧ q ∈ P.cell (n + 1) e.val ∧
+      (P.child n i).Lists n q ∧
+      (∀ j : S.I P.ty, q ∈ (P.child n j).carrier n → (P.child n j).Lists n q) ∧
+      ∃ (j : S.I P.ty) (c : FacetName S (P.child n j).ty),
+        q ∈ (P.child n j).cell n c.val ∧ (P.child n j).cell n c.val ⊆ P.cell (n + 1) e.val := by
+  obtain ⟨p, hpf, hpe⟩ := hmeet
+  have hf := (Finset.mem_filter.mp f.property).1
+  have hpi := birth_ascent_top_step2_cell_front (P.child n i) n f.val hf hpf
+  let κ := placedMinimalCell (P.child n i) n p hpi
+  have hκ := placedMinimalCell_spec (P.child n i) n p hpi
+  have hκf : (P.child n i).cell n κ.val ⊆ (P.child n i).cell n f.val :=
+    hereditary_trace _ _ n n (birth_ascent_top_step2_desc_refl _ _) f.val κ.val hf κ.property ⟨p, hκ, hpf⟩
+  have hκe : (P.child n i).cell n κ.val ⊆ P.cell (n + 1) e.val :=
+    hereditary_trace _ _ (n + 1) n (birth_ascent_top_step2_child_desc P n i) e.val κ.val
+      (Finset.mem_filter.mp e.property).1 κ.property ⟨p, hκ, hpe⟩
+  obtain ⟨q, hqκ, hqi⟩ := birth_ascent_top_step2_placed_vertex (P.child n i) n κ
+  refine ⟨q, hκf hqκ, hκe hqκ, hqi,
+    primitive_vertex_listed P n i f hint q hqi (hκf hqκ), ?_⟩
+  have hqe := hκe hqκ
+  rw [← (boundary_facet_adjacency P n e).1] at hqe
+  obtain ⟨a, hqa⟩ := Set.mem_iUnion.mp hqe
+  exact ⟨a.val.1, a.val.2, hqa, a.property⟩
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "both first-generation facets of `P₀`".
+At height zero the prescribed child placement is the original rigid frame. -/
+private theorem birth_ascent_top_step2_place_zero (B : S.ι) (i : S.I B) : S.placeChild 0 i = (S.child B i).frame := by
+  ext x
+  simp [SubstSystem.placeChild, SubstSystem.childRotation, linearConj, Child.frame, rigidMotion]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "both first-generation facets of `P₀`".
+Identify the listed cell of a standard ground child with its prescribed placement. -/
+private theorem birth_ascent_top_step2_child_cell_zero (B : S.ι) (i : S.I B) (e : Cell d) :
+    ((⟨B, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S).child 0 i).cell 0 e =
+      placedSet (S.child B i).frame e.carrier := by
+  simp [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child, birth_ascent_top_step2_place_zero, placedSet]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "owners ... children of `P₀`".
+Identify the ground child support in the same coordinates. -/
+private theorem birth_ascent_top_step2_child_support_zero (B : S.ι) (i : S.I B) :
+    ((⟨B, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S).child 0 i).carrier 0 =
+      placedSet (S.child B i).frame (S.proto (S.child B i).ty).carrier := by
+  simp [FramedNode.carrier, SubstSystem.supertile, FramedNode.child, birth_ascent_top_step2_place_zero, placedSet]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "common-listed in `P₀`’s immediate subdivision".
+Common listedness is preserved by the normalized birth frame. -/
+private theorem birth_ascent_top_step2_local_common {A : S.ι} (f : PrimitiveFacet S A) (q : E d)
+    (h : ∀ i : S.I f.birthType,
+      q ∈ placedSet (S.child f.birthType i).frame (S.proto (S.child f.birthType i).ty).carrier →
+        ∃ v ∈ (S.cx (S.child f.birthType i).ty).vertices,
+          q ∈ placedSet (S.child f.birthType i).frame v.carrier) :
+    f.CommonListed (f.birthFrame (S.σ.symm q)) := by
+  intro i hqi
+  obtain ⟨a, ⟨b, hb, hab⟩, ha⟩ := hqi
+  have hqb : q = b := S.σ.symm.injective (f.birthFrame.injective ha |>.symm.trans hab.symm)
+  obtain ⟨v, hv, hqv⟩ := h i (hqb.symm ▸ hb)
+  exact ⟨v, hv, S.σ.symm q, ⟨q, hqv, rfl⟩, rfl⟩
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "Any vertex `q` of `κ` is a vertex ... of `f` and `f′`".
+The sibling seed transfers to primitive facets with the same full address. -/
+private theorem birth_ascent_top_step2_same_address_seed {A : S.ι} (f g : PrimitiveFacet S A)
+    (hparent : f.birthAddress = g.birthAddress)
+    (hmeet : (f.carrier ∩ g.carrier).Nonempty) : SameParentLink f g := by
+  rcases f with ⟨a, u, F, hF⟩
+  rcases g with ⟨b, v, G, hG⟩
+  have hab : a = b := congrArg Sigma.fst hparent
+  subst b
+  have huv : u = v := eq_of_heq (Sigma.mk.inj hparent).2
+  subst v
+  let f : PrimitiveFacet S A := ⟨a, u, F, hF⟩
+  let g : PrimitiveFacet S A := ⟨a, u, G, hG⟩
+  change SameParentLink f g
+  change (f.carrier ∩ g.carrier).Nonempty at hmeet
+  have hF' := hF
+  have hG' := hG
+  obtain ⟨i, f₀, hFc, hint⟩ := hF'
+  obtain ⟨j, g₀, hGc, -⟩ := hG'
+  let P : FramedNode S := ⟨f.birthType, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hfcell : (P.child 0 i).cell 0 f₀.val = F := by
+    rw [birth_ascent_top_step2_child_cell_zero]; exact hFc.symm
+  have hgcell : (P.child 0 j).cell 0 g₀.val = G := by
+    rw [birth_ascent_top_step2_child_cell_zero]; exact hGc.symm
+  have hmeet' : ((P.child 0 i).cell 0 f₀.val ∩ (P.child 0 j).cell 0 g₀.val).Nonempty := by
+    rw [hfcell, hgcell]
+    obtain ⟨p, ⟨a, ⟨q, hq, hqa⟩, hap⟩, ⟨b, ⟨r, hr, hrb⟩, hbp⟩⟩ := hmeet
+    have hqr : q = r := S.σ.symm.injective
+      (hqa.trans ((f.birthFrame.injective (hap.trans hbp.symm)).trans hrb.symm))
+    exact ⟨q, hq, hqr.symm ▸ hr⟩
+  have hint' : relint ((P.child 0 i).cell 0 f₀.val) ⊆ interior (P.carrier 1) := by
+    rw [hfcell]
+    simpa [P, f, PrimitiveFacet.birthType, FramedNode.carrier, placedSet] using hint
+  obtain ⟨q, hqf, hqg, hqi, hqj, hall⟩ := birth_ascent_top_step2_sibling_seed P 0 i j f₀ g₀ hint' hmeet'
+  rw [hfcell] at hqf
+  rw [hgcell] at hqg
+  refine ⟨rfl, f.birthFrame (S.σ.symm q), ?_, ?_, ?_⟩
+  · refine ⟨⟨S.σ.symm q, ⟨q, hqf, rfl⟩, rfl⟩, i, f₀, hFc, ?_⟩
+    obtain ⟨v, hv, hqv⟩ := hqi
+    rw [birth_ascent_top_step2_child_cell_zero] at hqv
+    exact ⟨v, hv, S.σ.symm q, ⟨q, hqv, rfl⟩, rfl⟩
+  · refine ⟨⟨S.σ.symm q, ⟨q, hqg, rfl⟩, rfl⟩, j, g₀, hGc, ?_⟩
+    obtain ⟨v, hv, hqv⟩ := hqj
+    rw [birth_ascent_top_step2_child_cell_zero] at hqv
+    exact ⟨v, hv, S.σ.symm q, ⟨q, hqv, rfl⟩, rfl⟩
+  · apply birth_ascent_top_step2_local_common f q
+    intro l hql
+    obtain ⟨v, hv, hqv⟩ := hall l (by simpa [P, birth_ascent_top_step2_child_support_zero] using hql)
+    rw [birth_ascent_top_step2_child_cell_zero] at hqv
+    exact ⟨v, hv, hqv⟩
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "both first-generation facets of `P₀`".
+Changing the standard height conjugates each child frame by the expansion. -/
+private theorem birth_ascent_top_step2_place_scaled (n : ℕ) {A : S.ι} (i : S.I A) (x : E d) :
+    S.placeChild n i ((S.σ ^ n) x) = (S.σ ^ n) ((S.child A i).frame x) := by
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, LinearEquiv.mul_apply,
+    zpow_natCast, zpow_neg, AffineIsometryEquiv.coe_trans]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "both first-generation facets of `P₀`".
+The same conjugacy compares any two base heights. -/
+private theorem birth_ascent_top_step2_place_shift (h k : ℕ) {A : S.ι} (i : S.I A) (x : E d) :
+    S.placeChild (h + k) i ((S.σ ^ h) x) = (S.σ ^ h) (S.placeChild k i x) := by
+  have h₁ := birth_ascent_top_step2_place_scaled (h + k) i ((S.σ ^ k).symm x)
+  have h₂ := birth_ascent_top_step2_place_scaled k i ((S.σ ^ k).symm x)
+  simp only [pow_add, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply] at h₁ h₂
+  rw [← h₂] at h₁
+  exact h₁
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "both first-generation facets of `P₀`".
+Iterating child conjugacy compares the complete descendant frames. -/
+private theorem birth_ascent_top_step2_descendant_scaled (A : S.ι) (h j : ℕ)
+    (w : S.RoleWord A j) (x : E d) :
+    (S.descendantNode A h j w).frame ((S.σ ^ h) x) =
+      (S.σ ^ h) ((S.nativeTile A j w).frame x) := by
+  induction j generalizing A with
+  | zero => rfl
+  | succ j ih =>
+    change S.placeChild (h + j) w.1
+      ((S.descendantNode (S.child A w.1).ty h j w.2).frame ((S.σ ^ h) x)) =
+      (S.σ ^ h) (S.placeChild (0 + j) w.1
+        ((S.nativeTile (S.child A w.1).ty j w.2).frame x))
+    rw [ih, birth_ascent_top_step2_place_shift, Nat.zero_add]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "both first-generation facets of `P₀`".
+The type at the end of an address is independent of its base height. -/
+private theorem birth_ascent_top_step2_descendant_type (A : S.ι) (h j : ℕ) (w : S.RoleWord A j) :
+    (S.descendantNode A h j w).ty = (S.nativeTile A j w).ty := by
+  induction j generalizing A with
+  | zero => rfl
+  | succ j ih => exact ih (S.child A w.1).ty w.2
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "both first-generation facets of `P₀`".
+The level at height `h` is the linear image of the corresponding native partition. -/
+private theorem birth_ascent_top_step2_descendant_carrier (A : S.ι) (h j : ℕ) (w : S.RoleWord A j) :
+    (S.descendantNode A h j w).carrier h = (S.σ ^ h) '' (S.nativeTile A j w).carrier 0 := by
+  have hz : (S.nativeTile A j w).carrier 0 =
+      (S.nativeTile A j w).frame '' (S.proto (S.nativeTile A j w).ty).carrier := by
+    simp [FramedNode.carrier, SubstSystem.supertile, placedSet]
+  rw [hz]
+  simp only [FramedNode.carrier, SubstSystem.supertile, placedSet, birth_ascent_top_step2_descendant_type]
+  rw [Set.image_image, Set.image_image]
+  congr 1
+  funext x
+  exact birth_ascent_top_step2_descendant_scaled A h j w x
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "born in the same node".
+Native interior disjointness makes the address-to-standard-node map injective. -/
+private theorem birth_ascent_top_step2_descendant_injective (A : S.ι) (h j : ℕ) :
+    Function.Injective (S.descendantNode A h j) := by
+  intro u v huv
+  by_contra hne
+  have hcar : (S.nativeTile A j u).carrier 0 = (S.nativeTile A j v).carrier 0 := by
+    apply Set.image_injective.mpr (S.σ ^ h).injective
+    rw [← birth_ascent_top_step2_descendant_carrier, ← birth_ascent_top_step2_descendant_carrier, huv]
+  have hdisj := S.native_disjoint A j hne
+  dsimp only at hdisj
+  rw [hcar, disjoint_self] at hdisj
+  have hnonempty : (interior ((S.nativeTile A j v).carrier 0)).Nonempty := by
+    have hz : (S.nativeTile A j v).carrier 0 =
+        (S.nativeTile A j v).frame.toHomeomorph '' (S.proto (S.nativeTile A j v).ty).carrier := by
+      simp [FramedNode.carrier, SubstSystem.supertile, placedSet]
+    rw [hz, ← (S.nativeTile A j v).frame.toHomeomorph.image_interior]
+    exact (S.proto _).interior_nonempty.image _
+  exact hnonempty.ne_empty hdisj
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "born in the same node".
+Equal positive birth heights and equal standard frames recover the full birth address. -/
+private theorem birth_ascent_top_step2_equal_address {A : S.ι} (k : ℕ) (f g : PrimitiveFacet S A)
+    (hf : f.depth < k) (hg : g.depth < k) (hheight : k - f.depth = k - g.depth)
+    (hnode : f.birthNode k = g.birthNode k) : f.birthAddress = g.birthAddress := by
+  rcases f with ⟨a, u, F, hF⟩
+  rcases g with ⟨b, v, G, hG⟩
+  have hab : a = b := by change a < k at hf; change b < k at hg; change k - a = k - b at hheight; omega
+  subst b
+  have huv : u = v := birth_ascent_top_step2_descendant_injective A (k - a) a hnode
+  subst v
+  rfl
+
+/-- Step 2 of the V4 proof of `birth_ascent_top` (V4 1.25): "Any vertex
+`q` of `κ` is a vertex ... of `f` and `f'` ... and common-listed in `P₀`'s
+immediate subdivision". Equal standard birth nodes at equal positive heights
+identify the full birth address, and meeting facets have a same-parent seed. -/
+private theorem birth_ascent_top_step2_same_parent {A : S.ι} (k : ℕ)
+    (f g : PrimitiveFacet S A) (hf : f.depth < k) (hg : g.depth < k)
+    (hheight : k - f.depth = k - g.depth) (hnode : f.birthNode k = g.birthNode k)
+    (hmeet : (f.carrier ∩ g.carrier).Nonempty) : SameParentLink f g := by
+  exact birth_ascent_top_step2_same_address_seed f g
+    (birth_ascent_top_step2_equal_address k f g hf hg hheight hnode) hmeet
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Ambient motion preserves exact node identity. -/
+private theorem birth_ascent_top_step3_move_inj (g : Iso d) : Function.Injective (fun N : FramedNode S => N.move g) := by
+  intro N M h
+  apply FramedNode.ext
+  · have ht := congrArg (fun N : FramedNode S => N.ty) h
+    exact ht
+  · ext x : 1
+    exact g.injective (congrArg (fun N : FramedNode S => N.frame x) h)
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Split a role word at an intermediate ancestor, retaining its complete frame. -/
+private theorem birth_ascent_top_step3_split_word (A : S.ι) (h m j : ℕ) (w : S.RoleWord A (m + j)) :
+    ∃ u : S.RoleWord A j, ∃ v : S.RoleWord (S.descendantNode A (h + m) j u).ty m,
+      S.descendantNode A h (m + j) w =
+        (S.descendantNode (S.descendantNode A (h + m) j u).ty h m v).move
+          (S.descendantNode A (h + m) j u).frame := by
+  induction j generalizing A with
+  | zero =>
+    refine ⟨(), w, ?_⟩
+    simp [SubstSystem.descendantNode, FramedNode.move]
+  | succ j ih =>
+    obtain ⟨u, v, hv⟩ := ih (S.child A w.1).ty w.2
+    refine ⟨⟨w.1, u⟩, v, ?_⟩
+    change (S.descendantNode (S.child A w.1).ty h (m + j) w.2).move
+      (S.placeChild (h + (m + j)) w.1) = _
+    rw [hv]
+    simp [SubstSystem.descendantNode, FramedNode.move, Nat.add_assoc,
+      ← AffineIsometryEquiv.trans_assoc]
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Concatenate the path to an ancestor with the path inside that ancestor. -/
+private theorem birth_ascent_top_step3_join_words (A : S.ι) (h m j : ℕ) (u : S.RoleWord A j)
+    (v : S.RoleWord (S.descendantNode A (h + m) j u).ty m) :
+    ∃ w : S.RoleWord A (m + j),
+      S.descendantNode A h (m + j) w =
+        (S.descendantNode (S.descendantNode A (h + m) j u).ty h m v).move
+          (S.descendantNode A (h + m) j u).frame := by
+  induction j generalizing A with
+  | zero =>
+    refine ⟨v, ?_⟩
+    simp [SubstSystem.descendantNode, FramedNode.move]
+  | succ j ih =>
+    obtain ⟨w, hw⟩ := ih (S.child A u.1).ty u.2 v
+    refine ⟨⟨u.1, w⟩, ?_⟩
+    change (S.descendantNode (S.child A u.1).ty h (m + j) w).move
+      (S.placeChild (h + (m + j)) u.1) = _
+    rw [hw]
+    simp [SubstSystem.descendantNode, FramedNode.move, Nat.add_assoc,
+      ← AffineIsometryEquiv.trans_assoc]
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Compose exact descendant witnesses and their frames. -/
+private theorem birth_ascent_top_step3_desc_trans (L N P : FramedNode S) (a b c : ℕ)
+    (hLN : L.IsDescendant a N b) (hNP : N.IsDescendant b P c) : L.IsDescendant a P c := by
+  obtain ⟨m, rfl, v, rfl⟩ := hLN
+  obtain ⟨j, rfl, u, rfl⟩ := hNP
+  obtain ⟨w, hw⟩ := birth_ascent_top_step3_join_words P.ty a m j u v
+  refine ⟨m + j, by omega, w, ?_⟩
+  rw [hw]
+  rfl
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Every prescribed child carrier is contained in its parent carrier. -/
+private theorem birth_ascent_top_step3_child_subset (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).carrier n ⊆ N.carrier (n + 1) := by
+  rintro z ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hmem : (S.child N.ty i).frame x ∈ S.σ '' (S.proto N.ty).carrier := by
+    rw [S.children_cover]
+    exact mem_iUnion.mpr ⟨i, ⟨x, hx, rfl⟩⟩
+  obtain ⟨y, hy, he⟩ := hmem
+  refine ⟨(S.σ ^ (n + 1)) y, ⟨y, hy, rfl⟩, ?_⟩
+  change N.frame ((S.σ ^ (n + 1)) y) = N.frame (S.placeChild n i ((S.σ ^ n) x))
+  rw [birth_ascent_top_step2_place_scaled, ← he, pow_succ]
+  rfl
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Iterate child containment along the exact descendant address. -/
+private theorem birth_ascent_top_step3_desc_subset (D N : FramedNode S) (m n : ℕ)
+    (h : D.IsDescendant m N n) : D.carrier m ⊆ N.carrier n := by
+  obtain ⟨r, rfl, w, rfl⟩ := h
+  induction r generalizing N with
+  | zero => simpa [SubstSystem.descendantNode, FramedNode.move] using
+      (Subset.rfl : N.carrier m ⊆ N.carrier m)
+  | succ r ih =>
+    have he : (S.descendantNode N.ty m (r + 1) w).move N.frame =
+        (S.descendantNode (N.child (m + r) w.1).ty m r w.2).move
+          (N.child (m + r) w.1).frame := rfl
+    rw [he]
+    exact (ih (N.child (m + r) w.1) w.2).trans (birth_ascent_top_step3_child_subset N (m + r) w.1)
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Descendants of a standard node remain standard in the same root. -/
+private theorem birth_ascent_top_step3_standard_desc (A : S.ι) (k a b : ℕ) (N P : FramedNode S)
+    (hP : S.IsStandardNode A k b P) (hN : N.IsDescendant a P b) :
+    S.IsStandardNode A k a N := by
+  obtain ⟨m, rfl, v, rfl⟩ := hN
+  obtain ⟨j, hj, u, rfl⟩ := hP
+  obtain ⟨w, hw⟩ := birth_ascent_top_step3_join_words A a m j u v
+  exact ⟨m + j, by omega, w, hw.symm⟩
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+A standard node has a standard ancestor at each intermediate height. -/
+private theorem birth_ascent_top_step3_standard_raise (A : S.ι) (k a b : ℕ) (N : FramedNode S)
+    (hN : S.IsStandardNode A k a N) (hab : a ≤ b) (hbk : b ≤ k) :
+    ∃ P : FramedNode S, S.IsStandardNode A k b P ∧ N.IsDescendant a P b := by
+  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hab
+  obtain ⟨j, hj, w, rfl⟩ := hN
+  have hmj : m ≤ j := by omega
+  obtain ⟨l, rfl⟩ := Nat.exists_eq_add_of_le hmj
+  obtain ⟨u, v, hv⟩ := birth_ascent_top_step3_split_word A a m l w
+  exact ⟨S.descendantNode A (a + m) l u, ⟨l, by omega, u, rfl⟩, m, rfl, v, hv⟩
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Different standard nodes at one height have disjoint interiors. -/
+private theorem birth_ascent_top_step3_standard_disjoint (A : S.ι) (k n : ℕ) (N P : FramedNode S)
+    (hN : S.IsStandardNode A k n N) (hP : S.IsStandardNode A k n P) (hne : N ≠ P) :
+    Disjoint (interior (N.carrier n)) (interior (P.carrier n)) := by
+  obtain ⟨j, hj, u, rfl⟩ := hN
+  obtain ⟨l, hl, v, rfl⟩ := hP
+  have hjl : j = l := by omega
+  subst l
+  have huv : u ≠ v := fun h => hne (h ▸ rfl)
+  rw [birth_ascent_top_step2_descendant_carrier, birth_ascent_top_step2_descendant_carrier]
+  let e := (S.σ ^ n).toContinuousLinearEquiv.toHomeomorph
+  change Disjoint (interior (e '' _)) (interior (e '' _))
+  rw [← e.image_interior, ← e.image_interior]
+  exact Set.disjoint_image_of_injective e.injective (S.native_disjoint A j huv)
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Every placed node has nonempty interior. -/
+private theorem birth_ascent_top_step3_node_interior_nonempty (N : FramedNode S) (n : ℕ) :
+    (interior (N.carrier n)).Nonempty := by
+  let e := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hc : N.carrier n = e '' (S.proto N.ty).carrier := by
+    simp [e, FramedNode.prototypeFrame, FramedNode.carrier, SubstSystem.supertile, placedSet,
+      Set.image_image]
+  rw [hc, ← e.image_interior]
+  exact (S.proto N.ty).interior_nonempty.image _
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Two standard nodes at one height sharing a descendant are equal. -/
+private theorem birth_ascent_top_step3_common_desc_eq (A : S.ι) (k n l : ℕ) (N P L : FramedNode S)
+    (hN : S.IsStandardNode A k n N) (hP : S.IsStandardNode A k n P)
+    (hLN : L.IsDescendant l N n) (hLP : L.IsDescendant l P n) : N = P := by
+  by_contra hne
+  have hdisj := birth_ascent_top_step3_standard_disjoint A k n N P hN hP hne
+  obtain ⟨x, hx⟩ := birth_ascent_top_step3_node_interior_nonempty L l
+  exact Set.disjoint_left.mp hdisj
+    (interior_mono (birth_ascent_top_step3_desc_subset L N l n hLN) hx)
+    (interior_mono (birth_ascent_top_step3_desc_subset L P l n hLP) hx)
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Standard ancestors of a common descendant are comparable by height. -/
+private theorem birth_ascent_top_step3_common_desc_compare (A : S.ι) (k a b l : ℕ) (N P L : FramedNode S)
+    (hN : S.IsStandardNode A k a N) (hP : S.IsStandardNode A k b P)
+    (hLN : L.IsDescendant l N a) (hLP : L.IsDescendant l P b) (hab : a ≤ b) :
+    N.IsDescendant a P b := by
+  have hbk : b ≤ k := by obtain ⟨j, hj, _⟩ := hP; omega
+  obtain ⟨Q, hQ, hNQ⟩ := birth_ascent_top_step3_standard_raise A k a b N hN hab hbk
+  have hQP := birth_ascent_top_step3_common_desc_eq A k b l Q P L hQ hP (birth_ascent_top_step3_desc_trans L N Q l a b hLN hNQ) hLP
+  exact hQP ▸ hNQ
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Native coverage supplies a leaf through any point of a node. -/
+private theorem birth_ascent_top_step3_leaf_through (N : FramedNode S) (n : ℕ) (x : E d) (hx : x ∈ N.carrier n) :
+    ∃ L : FramedNode S, L.IsDescendant 0 N n ∧ x ∈ L.carrier 0 := by
+  obtain ⟨y, hy, rfl⟩ := hx
+  rw [← S.native_cover] at hy
+  obtain ⟨w, hw⟩ := Set.mem_iUnion.mp hy
+  refine ⟨(S.nativeTile N.ty n w).move N.frame, ⟨n, by omega, w, rfl⟩, ?_⟩
+  obtain ⟨z, hz, rfl⟩ := hw
+  exact ⟨z, hz, rfl⟩
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Distinct child roles give distinct framed nodes. -/
+private theorem birth_ascent_top_step3_child_injective (N : FramedNode S) (n : ℕ) : Function.Injective (N.child n) := by
+  intro i j hij
+  have hh : (S.descendantNode N.ty n 1 ⟨i, ()⟩).move N.frame =
+      (S.descendantNode N.ty n 1 ⟨j, ()⟩).move N.frame := by
+    simpa [SubstSystem.descendantNode, FramedNode.child, FramedNode.move] using hij
+  have hw := birth_ascent_top_step2_descendant_injective N.ty n 1 (birth_ascent_top_step3_move_inj N.frame hh)
+  exact congrArg Sigma.fst hw
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+A listed cell lies in its closed owner. -/
+private theorem birth_ascent_top_step3_cell_subset (N : FramedNode S) (n : ℕ)
+    (e : Cell d) (he : e ∈ (S.cx N.ty).cells) : N.cell n e ⊆ N.carrier n := by
+  have hc : IsClosed (N.carrier n) :=
+    (((S.proto N.ty).compact.image (S.σ ^ n).toContinuousLinearEquiv.continuous).image N.frame.continuous).isClosed
+  exact (birth_ascent_top_step2_cell_front N n e he).trans (frontier_subset_iff_isClosed.mpr hc)
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+The normalized birth frame and the standard height-k prototype frame agree after expansion. -/
+private theorem birth_ascent_top_step3_birth_frame {A : S.ι} (f : PrimitiveFacet S A) (k : ℕ)
+    (hf : f.depth ≤ k) (x : E d) :
+    (S.σ ^ k) (f.birthFrame x) = (f.birthNode k).prototypeFrame (k - f.depth) x := by
+  change (S.σ ^ k) ((S.σ ^ f.depth).symm ((S.nativeTile A f.depth f.word).frame x)) =
+    (S.descendantNode A (k - f.depth) f.depth f.word).frame ((S.σ ^ (k - f.depth)) x)
+  rw [birth_ascent_top_step2_descendant_scaled]
+  have hp : S.σ ^ k = (S.σ ^ (k - f.depth)) * (S.σ ^ f.depth) := by
+    rw [← pow_add, Nat.sub_add_cancel hf]
+  rw [hp]
+  simp
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"their least common ancestor `P_b` is a descendant of `P₀`".
+Internal-facet pairing gives two distinct immediate children through the point, in the standard coordinates. -/
+private theorem birth_ascent_top_step3_primitive_two_children {A : S.ι} (k : ℕ)
+    (f : PrimitiveFacet S A) (hf : f.depth < k) (p : E d) (hp : p ∈ f.carrier) :
+    ∃ (n : ℕ) (N : FramedNode S), k - f.depth = n + 1 ∧ N = f.birthNode k ∧
+      ∃ i j : S.I N.ty, i ≠ j ∧
+        (S.σ ^ k) p ∈ (N.child n i).carrier n ∧ (S.σ ^ k) p ∈ (N.child n j).carrier n := by
+  have hb : 0 < k - f.depth := by omega
+  obtain ⟨n, hn⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hb)
+  let N : FramedNode S := ⟨f.birthType, (f.birthNode k).frame⟩
+  have hN : N = f.birthNode k := by
+    apply FramedNode.ext
+    · exact (birth_ascent_top_step2_descendant_type A (k - f.depth) f.depth f.word).symm
+    · rfl
+  obtain ⟨i, f₀, hF, hint⟩ := f.realization
+  let R : FramedNode S := ⟨f.birthType, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hcell : (R.child 0 i).cell 0 f₀.val = f.localCarrier := by
+    rw [birth_ascent_top_step2_child_cell_zero]; exact hF.symm
+  have hint' : relint ((R.child 0 i).cell 0 f₀.val) ⊆ interior (R.carrier 1) := by
+    rw [hcell]
+    simpa [R, FramedNode.carrier, placedSet] using hint
+  have hne : (relint ((R.child 0 i).cell 0 f₀.val)).Nonempty := by
+    rw [birth_ascent_top_step2_child_cell_zero]
+    change (intrinsicInterior ℝ ((S.child f.birthType i).frame.toAffineIsometry '' f₀.val.carrier)).Nonempty
+    rw [(S.child f.birthType i).frame.toAffineIsometry.image_intrinsicInterior]
+    exact f₀.val.flat.relint_nonempty.image _
+  obtain ⟨x, hx⟩ := hne
+  obtain ⟨j, ⟨hji, f₁, heq, -⟩, -⟩ := (internal_facet_pairing R 0 i f₀ ⟨x, hx, hint' hx⟩).2
+  obtain ⟨a, ⟨q, hq, hqa⟩, hap⟩ := hp
+  have hpoint : (S.σ ^ k) p = N.frame ((S.σ ^ n) q) := by
+    rw [← hap, ← hqa, birth_ascent_top_step3_birth_frame f k hf.le]
+    change (f.birthNode k).frame ((S.σ ^ (k - f.depth)) (S.σ.symm q)) = _
+    rw [hn, pow_succ]
+    simp [N]
+  have hq₀ : q ∈ (R.child 0 i).cell 0 f₀.val := hcell.symm ▸ hq
+  have hq₁ : q ∈ (R.child 0 j).cell 0 f₁.val := heq.symm ▸ hq₀
+  have hqi := birth_ascent_top_step3_cell_subset (R.child 0 i) 0 f₀.val (Finset.mem_filter.mp f₀.property).1 hq₀
+  have hqj := birth_ascent_top_step3_cell_subset (R.child 0 j) 0 f₁.val (Finset.mem_filter.mp f₁.property).1 hq₁
+  have hlift (l : S.I f.birthType) (hql : q ∈ (R.child 0 l).carrier 0) :
+      (S.σ ^ k) p ∈ (N.child n l).carrier n := by
+    rw [birth_ascent_top_step2_child_support_zero] at hql
+    obtain ⟨y, hy, hyq⟩ := hql
+    refine ⟨(S.σ ^ n) y, ⟨y, hy, rfl⟩, ?_⟩
+    change N.frame (S.placeChild n l ((S.σ ^ n) y)) = (S.σ ^ k) p
+    rw [birth_ascent_top_step2_place_scaled, hyq, hpoint]
+  exact ⟨n, N, hn, hN, i, j, hji.symm, hlift i hqi, hlift j hqj⟩
+
+/-- Step 3 of the V4 proof of `birth_ascent_top` (V4 1.25): "`f` is shared
+by two children of `P_b` ... which both contain `p`, hence contain `A`-owned
+native tiles through `p`, so their least common ancestor `P_b` is a descendant
+of `P₀`". This concerns only ancestry, without selecting an ascent. -/
+private theorem birth_ascent_top_step3_birth_below_top {A : S.ι} (k : ℕ)
+    (p : E d) (b : ℕ) (P : FramedNode S) (hP : IsTopBirth A k p b P)
+    (f : PrimitiveFacet S A) (hf : f.depth < k) (hp : p ∈ f.carrier) :
+    (f.birthNode k).IsDescendant (k - f.depth) P b := by
+  obtain ⟨n, N, hn, hN, i, j, hij, hpi, hpj⟩ := birth_ascent_top_step3_primitive_two_children k f hf p hp
+  have hstd : S.IsStandardNode A k (n + 1) N := by
+    rw [hN, ← hn]
+    exact ⟨f.depth, by omega, f.word, rfl⟩
+  have hstdi := birth_ascent_top_step3_standard_desc A k n (n + 1) (N.child n i) N hstd (birth_ascent_top_step2_child_desc N n i)
+  have hstdj := birth_ascent_top_step3_standard_desc A k n (n + 1) (N.child n j) N hstd (birth_ascent_top_step2_child_desc N n j)
+  obtain ⟨L, hLi, hpL⟩ := birth_ascent_top_step3_leaf_through (N.child n i) n _ hpi
+  obtain ⟨M, hMj, hpM⟩ := birth_ascent_top_step3_leaf_through (N.child n j) n _ hpj
+  have hcover (L : FramedNode S) (hL : S.IsStandardNode A k 0 L)
+      (hpL : (S.σ ^ k) p ∈ L.carrier 0) : L.IsDescendant 0 P b := by
+    obtain ⟨r, hr, w, rfl⟩ := hL
+    have hrk : r = k := by omega
+    subst r
+    exact hP.2.1 w hpL
+  have hLP := hcover L (birth_ascent_top_step3_standard_desc A k 0 n L (N.child n i) hstdi hLi) hpL
+  have hMP := hcover M (birth_ascent_top_step3_standard_desc A k 0 n M (N.child n j) hstdj hMj) hpM
+  have hLN := birth_ascent_top_step3_desc_trans L (N.child n i) N 0 n (n + 1) hLi (birth_ascent_top_step2_child_desc N n i)
+  have hle : n + 1 ≤ b := by
+    by_contra hnb
+    have hbn : b ≤ n := by omega
+    have hnk : n ≤ k := by obtain ⟨r, hr, _⟩ := hstd; omega
+    obtain ⟨Q, hQ, hPQ⟩ := birth_ascent_top_step3_standard_raise A k b n P hP.1 hbn hnk
+    have hiQ := birth_ascent_top_step3_common_desc_eq A k n 0 (N.child n i) Q L hstdi hQ hLi
+      (birth_ascent_top_step3_desc_trans L P Q 0 b n hLP hPQ)
+    have hjQ := birth_ascent_top_step3_common_desc_eq A k n 0 (N.child n j) Q M hstdj hQ hMj
+      (birth_ascent_top_step3_desc_trans M P Q 0 b n hMP hPQ)
+    exact hij (birth_ascent_top_step3_child_injective N n (hiQ.trans hjQ.symm))
+  rw [hn, ← hN]
+  exact birth_ascent_top_step3_common_desc_compare A k (n + 1) b 0 N P L hstd hP.1 hLN hLP hle
+
+/-- Step 4 of the V4 proof of `birth_ascent_top` (V4 1.25): "At the first
+exit from `P_b` the path crosses a facet `e` ... lying in `int P₀`"; choosing
+the ball smaller than the distances to cells not containing `p` ensures
+"the crossed facet `e` contains `p`". All sets in this conclusion are compared
+in the standard height-`k` coordinates. -/
+private theorem birth_ascent_top_step4_exit_facet {A : S.ι} (k : ℕ)
+    (p : E d) (b : ℕ) (P : FramedNode S) (hP : IsTopBirth A k p b P)
+    (f : PrimitiveFacet S A) (hf : f.depth < k) (hp : p ∈ f.carrier)
+    (hancestor : (f.birthNode k).IsDescendant (k - f.depth) P b)
+    (hstrict : k - f.depth < b) :
+    ∃ e : FacetName S f.birthType, p ∈ f.birthCell e.val ∧
+      relint ((S.σ ^ k) '' f.birthCell e.val) ⊆ interior (P.carrier b) := by
+  sorry
+
+/-- Step 5 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"`e` has a finite first provider `g` ... and `e ⊆ g`".
+Relative interiors commute with the full affine frames, including anisotropic expansion. -/
+private theorem birth_ascent_top_step5_relint_image (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 5 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"`e` has a finite first provider `g` ... and `e ⊆ g`".
+Every placed facet has nonempty relative interior, so interior containment cannot be vacuous. -/
+private theorem birth_ascent_top_step5_cell_relint_nonempty (N : FramedNode S) (n : ℕ) (e : Cell d) :
+    (relint (N.cell n e)).Nonempty := by
+  rw [FramedNode.cell, birth_ascent_top_step5_relint_image]
+  exact e.flat.relint_nonempty.image _
+
+/-- Step 5 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"`e` has a finite first provider `g` ... and `e ⊆ g`".
+An internal child facet of a standard node gives a primitive facet with the exact birth address and normalized carrier. -/
+private theorem birth_ascent_top_step5_primitive_from_child (A : S.ι) (k n : ℕ) (Q : FramedNode S)
+    (hQ : S.IsStandardNode A k (n + 1) Q) (i : S.I Q.ty)
+    (e : FacetName S (Q.child n i).ty)
+    (hint : relint ((Q.child n i).cell n e.val) ⊆ interior (Q.carrier (n + 1))) :
+    ∃ g : PrimitiveFacet S A, k - g.depth = n + 1 ∧ g.birthNode k = Q ∧
+      (S.σ ^ k) '' g.carrier = (Q.child n i).cell n e.val := by
+  obtain ⟨j, hk, w, hQ⟩ := hQ
+  have hty : (S.nativeTile A j w).ty = Q.ty :=
+    (birth_ascent_top_step2_descendant_type A (n + 1) j w).symm.trans (congrArg FramedNode.ty hQ.symm)
+  let F := placedSet (S.child Q.ty i).frame e.val.carrier
+  let T : E d ≃ᵃ[ℝ] E d := (S.σ ^ n).toAffineEquiv.trans Q.frame.toAffineEquiv
+  have hcell : (Q.child n i).cell n e.val = T '' F := by
+    simp only [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child,
+      AffineEquiv.coe_trans, AffineIsometryEquiv.coe_toAffineEquiv,
+      AffineIsometryEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
+      T, F, placedSet, Set.image_image]
+    congr 1
+    funext x
+    exact congrArg Q.frame (birth_ascent_top_step2_place_scaled n i x)
+  have hcarrier : Q.carrier (n + 1) = T '' S.supertile 1 Q.ty := by
+    simp [FramedNode.carrier, SubstSystem.supertile, placedSet, T,
+      Set.image_image, pow_succ, LinearEquiv.mul_apply]
+  have hlocal : relint F ⊆ interior (S.supertile 1 Q.ty) := by
+    intro x hx
+    have hh : T x ∈ interior (Q.carrier (n + 1)) := by
+      apply hint
+      rw [hcell, birth_ascent_top_step5_relint_image]
+      exact Set.mem_image_of_mem T hx
+    rw [hcarrier] at hh
+    let H := T.toHomeomorphOfFiniteDimensional
+    change H x ∈ interior (H '' S.supertile 1 Q.ty) at hh
+    rw [← H.image_interior] at hh
+    exact H.injective.mem_set_image.mp hh
+  have hreal : ∃ (i : S.I (S.nativeTile A j w).ty)
+      (e : FacetName S (S.child (S.nativeTile A j w).ty i).ty),
+      F = placedSet (S.child (S.nativeTile A j w).ty i).frame e.val.carrier ∧
+        relint F ⊆ interior (S.supertile 1 (S.nativeTile A j w).ty) := by
+    rw [hty]
+    exact ⟨i, e, rfl, hlocal⟩
+  let g : PrimitiveFacet S A := ⟨j, w, F, hreal⟩
+  have hg : k - g.depth = n + 1 := by change k - j = n + 1; omega
+  have hgj : g.depth < k := by change j < k; omega
+  have hnode : g.birthNode k = Q := by
+    change S.descendantNode A (k - j) j w = Q
+    rw [show k - j = n + 1 by omega]
+    exact hQ.symm
+  refine ⟨g, hg, hnode, ?_⟩
+  rw [hcell]
+  change (S.σ ^ k) '' (g.birthFrame '' (S.σ.symm '' F)) = T '' F
+  rw [Set.image_image, Set.image_image]
+  apply Set.image_congr
+  intro x _
+  change (S.σ ^ k) (g.birthFrame (S.σ.symm x)) = T x
+  rw [birth_ascent_top_step3_birth_frame g k hgj.le, hg, hnode]
+  change Q.frame ((S.σ ^ (n + 1)) (S.σ.symm x)) = Q.frame ((S.σ ^ n) x)
+  rw [pow_succ]
+  simp
+
+/-- Step 5 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"`e` has a finite first provider `g` ... and `e ⊆ g`".
+A strict descendant has an immediate predecessor inside the given standard ancestor. -/
+private theorem birth_ascent_top_step5_parent_within (A : S.ι) (k h b : ℕ) (N P : FramedNode S)
+    (hN : S.IsStandardNode A k h N) (hP : S.IsStandardNode A k b P)
+    (hNP : N.IsDescendant h P b) (hlt : h < b) :
+    ∃ Q : FramedNode S, S.IsStandardNode A k (h + 1) Q ∧ Q.IsDescendant (h + 1) P b ∧
+      ∃ i : S.I Q.ty, N = Q.child h i := by
+  have hbk : b ≤ k := by obtain ⟨j, hj, _⟩ := hP; omega
+  obtain ⟨Q, hQ, hNQ⟩ := birth_ascent_top_step3_standard_raise A k h (h + 1) N hN (by omega) (by omega)
+  have hQP := birth_ascent_top_step3_common_desc_compare A k (h + 1) b h Q P N hQ hP hNQ hNP (by omega)
+  obtain ⟨r, hr, w, hw⟩ := hNQ
+  have hrone : r = 1 := by omega
+  subst r
+  refine ⟨Q, hQ, hQP, w.1, ?_⟩
+  simpa [SubstSystem.descendantNode, FramedNode.child, FramedNode.move] using hw
+
+/-- Step 5 of the V4 proof of `birth_ascent_top` (V4 1.25):
+"`e` has a finite first provider `g` ... and `e ⊆ g`".
+Ascend through boundary facets until the first internal facet. Facet dichotomy and the finite ancestor distance ensure termination. -/
+private theorem birth_ascent_top_step5_finite_provider (A : S.ι) (k b : ℕ) (P : FramedNode S)
+    (hP : S.IsStandardNode A k b P) (h : ℕ) (N : FramedNode S)
+    (hN : S.IsStandardNode A k h N) (hNP : N.IsDescendant h P b)
+    (e : FacetName S N.ty)
+    (hint : relint (N.cell h e.val) ⊆ interior (P.carrier b)) :
+    ∃ g : PrimitiveFacet S A, g.depth < k ∧ h < k - g.depth ∧
+      N.IsDescendant h (g.birthNode k) (k - g.depth) ∧
+      N.cell h e.val ⊆ (S.σ ^ k) '' g.carrier := by
+  have aux : ∀ r h : ℕ, b = h + r → ∀ N : FramedNode S,
+      S.IsStandardNode A k h N → N.IsDescendant h P b →
+      ∀ e : FacetName S N.ty, relint (N.cell h e.val) ⊆ interior (P.carrier b) →
+      ∃ g : PrimitiveFacet S A, g.depth < k ∧ h < k - g.depth ∧
+        N.IsDescendant h (g.birthNode k) (k - g.depth) ∧
+        N.cell h e.val ⊆ (S.σ ^ k) '' g.carrier := by
+    intro r
+    induction r with
+    | zero =>
+      intro h hb N hN hNP e hint
+      have hbh : b = h := by omega
+      subst b
+      obtain ⟨r, hr, w, hw⟩ := hNP
+      have hr0 : r = 0 := by omega
+      subst r
+      have hNP : N = P := by simpa [SubstSystem.descendantNode, FramedNode.move] using hw
+      subst N
+      obtain ⟨x, hx⟩ := birth_ascent_top_step5_cell_relint_nonempty P h e.val
+      exact False.elim ((birth_ascent_top_step2_cell_front P h e.val (Finset.mem_filter.mp e.property).1
+        (intrinsicInterior_subset hx)).2 (hint hx))
+    | succ r ih =>
+      intro h hb N hN hNP e hint
+      obtain ⟨Q, hQ, hQP, i, rfl⟩ := birth_ascent_top_step5_parent_within A k h b N P hN hP hNP (by omega)
+      rcases facet_dichotomy Q (Q.child h i) (h + 1) h (birth_ascent_top_step2_child_desc Q h i) e with hboundary | hinternal
+      · obtain ⟨F, hF, -⟩ := hboundary
+        have hFint : relint (Q.cell (h + 1) F.val) ⊆ interior (P.carrier b) := by
+          rcases facet_dichotomy P Q b (h + 1) hQP F with hboundary' | hinternal'
+          · obtain ⟨F₀, hF₀, -⟩ := hboundary'
+            obtain ⟨x, hx⟩ := birth_ascent_top_step5_cell_relint_nonempty (Q.child h i) h e.val
+            exact False.elim ((birth_ascent_top_step2_cell_front P b F₀.val (Finset.mem_filter.mp F₀.property).1
+              (hF₀ (hF (intrinsicInterior_subset hx)))).2 (hint hx))
+          · exact hinternal'
+        obtain ⟨g, hg, hheight, hQg, hFg⟩ := ih (h + 1) (by omega) Q hQ hQP F hFint
+        exact ⟨g, hg, by omega, birth_ascent_top_step3_desc_trans _ _ _ h (h + 1) (k - g.depth)
+          (birth_ascent_top_step2_child_desc Q h i) hQg, hF.trans hFg⟩
+      · obtain ⟨g, hg, hnode, hcell⟩ := birth_ascent_top_step5_primitive_from_child A k h Q hQ i e hinternal
+        refine ⟨g, by omega, by omega, ?_, ?_⟩
+        · rw [hg, hnode]
+          exact birth_ascent_top_step2_child_desc Q h i
+        · rw [hcell]
+  have hNP' := hNP
+  obtain ⟨r, hr, _⟩ := hNP'
+  exact aux r h hr N hN hNP e hint
+
+/-- Step 5 of the V4 proof of `birth_ascent_top` (V4 1.25): "`e` has a
+finite first provider `g` with birth parent `P_{b'}`, `b < b' ≤` height of
+`P₀`, and `e ⊆ g`". This is the finite provider construction for a boundary
+facet internal to a specified standard ancestor; no vertex or port is asserted. -/
+private theorem birth_ascent_top_step5_provider {A : S.ι} (k b : ℕ)
+    (P : FramedNode S) (hP : S.IsStandardNode A k b P)
+    (f : PrimitiveFacet S A) (hf : f.depth < k)
+    (hancestor : (f.birthNode k).IsDescendant (k - f.depth) P b)
+    (e : FacetName S f.birthType)
+    (he : relint ((S.σ ^ k) '' f.birthCell e.val) ⊆ interior (P.carrier b)) :
+    ∃ g : PrimitiveFacet S A, g.depth < f.depth ∧
+      (f.birthNode k).IsDescendant (k - f.depth) (g.birthNode k) (k - g.depth) ∧
+      f.birthCell e.val ⊆ g.carrier := by
+  let N : FramedNode S := ⟨f.birthType, (f.birthNode k).frame⟩
+  have hN : N = f.birthNode k := by
+    apply FramedNode.ext
+    · exact (birth_ascent_top_step2_descendant_type A (k - f.depth) f.depth f.word).symm
+    · rfl
+  have hstd : S.IsStandardNode A k (k - f.depth) N := by
+    rw [hN]
+    exact ⟨f.depth, by omega, f.word, rfl⟩
+  have hcell : N.cell (k - f.depth) e.val = (S.σ ^ k) '' f.birthCell e.val := by
+    change N.prototypeFrame (k - f.depth) '' e.val.carrier =
+      (S.σ ^ k) '' (f.birthFrame '' e.val.carrier)
+    rw [Set.image_image]
+    apply Set.image_congr
+    intro x _
+    rw [hN]
+    exact (birth_ascent_top_step3_birth_frame f k hf.le x).symm
+  obtain ⟨g, hg, hheight, hNg, hsub⟩ := birth_ascent_top_step5_finite_provider A k b P hP (k - f.depth) N hstd
+    (hN.symm ▸ hancestor) e (by rwa [hcell])
+  refine ⟨g, by omega, hN ▸ hNg, ?_⟩
+  rw [hcell] at hsub
+  exact (Set.image_subset_image_iff (S.σ ^ k).injective).mp hsub
+
+/-- Step 6 of the V4 proof of `birth_ascent_top` (V4 1.25): "let `q` be a
+vertex of `mc_C(p)` ... `q` is common-listed" and "at least one child
+containing `q` has a facet piece inside `e`". The hypothesis is precisely a
+nonempty intersection of the primitive facet with the birth-parent facet. -/
+private theorem birth_ascent_top_step6_seed_port {A : S.ι}
+    (f : PrimitiveFacet S A) (e : FacetName S f.birthType)
+    (hmeet : (f.carrier ∩ f.birthCell e.val).Nonempty) :
+    ∃ q : E d, f.IsVertex q ∧ q ∈ f.birthCell e.val ∧ f.CommonListed q ∧
+      ∃ (i : S.I f.birthType) (c : FacetName S (S.child f.birthType i).ty),
+        q ∈ f.childCell i c.val ∧ f.childCell i c.val ⊆ f.birthCell e.val := by
+  obtain ⟨i, f₀, hF, hint⟩ := f.realization
+  let P : FramedNode S := ⟨f.birthType, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hfcell : (P.child 0 i).cell 0 f₀.val = f.localCarrier := by
+    rw [birth_ascent_top_step2_child_cell_zero]; exact hF.symm
+  have hpcell : P.cell 1 e.val = S.σ '' e.val.carrier := by
+    simp [P, FramedNode.cell, FramedNode.prototypeFrame]
+  have hmeet' : ((P.child 0 i).cell 0 f₀.val ∩ P.cell 1 e.val).Nonempty := by
+    rw [hfcell, hpcell]
+    obtain ⟨p, ⟨a, ⟨q, hq, hqa⟩, hap⟩, ⟨z, hz, hzp⟩⟩ := hmeet
+    have hqz : S.σ.symm q = z := hqa.trans (f.birthFrame.injective (hap.trans hzp.symm))
+    exact ⟨q, hq, z, hz, (congrArg S.σ hqz).symm.trans (S.σ.apply_symm_apply q)⟩
+  have hint' : relint ((P.child 0 i).cell 0 f₀.val) ⊆ interior (P.carrier 1) := by
+    rw [hfcell]
+    simpa [P, FramedNode.carrier, placedSet] using hint
+  obtain ⟨q, hqf, hqe, hqi, hall, j, c, hqc, hce⟩ :=
+    birth_ascent_top_step6_parent_seed_port P 0 i f₀ e hint' hmeet'
+  rw [hfcell] at hqf
+  have hqe' : S.σ.symm q ∈ e.val.carrier := by
+    rw [hpcell] at hqe
+    obtain ⟨z, hz, rfl⟩ := hqe
+    simpa using hz
+  have hlists : f.ChildLists i (f.birthFrame (S.σ.symm q)) := by
+    obtain ⟨v, hv, hqv⟩ := hqi
+    rw [birth_ascent_top_step2_child_cell_zero] at hqv
+    exact ⟨v, hv, S.σ.symm q, ⟨q, hqv, rfl⟩, rfl⟩
+  refine ⟨f.birthFrame (S.σ.symm q), ⟨?_, i, f₀, hF, hlists⟩,
+    ⟨S.σ.symm q, hqe', rfl⟩, ?_, j, c, ?_, ?_⟩
+  · exact ⟨S.σ.symm q, ⟨q, hqf, rfl⟩, rfl⟩
+  · apply birth_ascent_top_step2_local_common f q
+    intro l hql
+    obtain ⟨v, hv, hqv⟩ := hall l (by simpa [P, birth_ascent_top_step2_child_support_zero] using hql)
+    rw [birth_ascent_top_step2_child_cell_zero] at hqv
+    exact ⟨v, hv, hqv⟩
+  · rw [birth_ascent_top_step2_child_cell_zero] at hqc
+    exact ⟨S.σ.symm q, ⟨q, hqc, rfl⟩, rfl⟩
+  · rintro z ⟨a, ⟨b, hb, hba⟩, haz⟩
+    have hbe : b ∈ S.σ '' e.val.carrier := by
+      rw [← hpcell]
+      exact hce (by simpa [P, birth_ascent_top_step2_child_cell_zero] using hb)
+    obtain ⟨x, hx, hxb⟩ := hbe
+    refine ⟨x, hx, ?_⟩
+    have hxa : x = a := (S.σ.symm_apply_apply x).symm.trans ((congrArg S.σ.symm hxb).trans hba)
+    exact congrArg f.birthFrame hxa |>.trans haz
+
+/-- Step 7 of the V4 proof of `birth_ascent_top` (V4 1.25): "`g` meets
+`E` at `p ∈ f ⊆ E`, so `g ∈ E_A` by component closure". The exit facet,
+its provider, and its common-listed facing port give one directed ascent. -/
+private theorem birth_ascent_top_step7_one_ascent (A : S.ι) (k : ℕ)
+    (E₀ : Set (E d)) (hE : IsSkeletonComponent S A k E₀) (p : E d)
+    (b : ℕ) (P : FramedNode S) (hP : IsTopBirth A k p b P)
+    (f : PrimitiveFacet S A) (hf : f ∈ principalFacets S A k E₀)
+    (hp : p ∈ f.carrier) (hnot : f ∉ topClass A k E₀ p b P) :
+    ∃ g ∈ principalFacets S A k E₀, p ∈ g.carrier ∧ AscentLink k f g := by
+  have hancestor := birth_ascent_top_step3_birth_below_top k p b P hP f hf.1 hp
+  have hstrict : k - f.depth < b := by
+    obtain ⟨r, hr, w, hw⟩ := hancestor
+    by_cases hzero : r = 0
+    · subst r
+      have heq : b = k - f.depth := by omega
+      have hnode : f.birthNode k = P := by
+        simpa [SubstSystem.descendantNode, FramedNode.move] using hw
+      exact False.elim (hnot ⟨hf, hp, heq.symm, hnode⟩)
+    · omega
+  obtain ⟨e, hpe, he⟩ :=
+    birth_ascent_top_step4_exit_facet k p b P hP f hf.1 hp hancestor hstrict
+  obtain ⟨g, hdepth, hfg, heg⟩ :=
+    birth_ascent_top_step5_provider k b P hP.1 f hf.1 hancestor e he
+  have hpE : p ∈ E₀ := (principalFacets_spec A k E₀ hE).2.1 f hf hp
+  exact ⟨g, ⟨hdepth.trans hf.1, p, heg hpe, hpE⟩, heg hpe,
+    hdepth, hfg, e, heg, birth_ascent_top_step6_seed_port f e ⟨p, hp, hpe⟩⟩
+
+/-- Step 8 of the V4 proof of `birth_ascent_top` (V4 1.25): "Birth height
+strictly increases ... so at most `k` steps". Induction on the starting depth
+constructs a route of strict ascents and proves the stronger bound by that depth. -/
+private theorem birth_ascent_top_step8_routes {A : S.ι} (k : ℕ)
+    (Q T : Set (PrimitiveFacet S A)) (p : E d)
+    (hstep : ∀ f ∈ Q, p ∈ f.carrier → f ∉ T →
+      ∃ g ∈ Q, p ∈ g.carrier ∧ AscentLink k f g)
+    (u : PrimitiveFacet S A) (hu : u ∈ Q) (hpu : p ∈ u.carrier) :
+    ∃ (v : PrimitiveFacet S A) (path : List (PrimitiveFacet S A)),
+      v ∈ T ∧ path.head? = some u ∧ path.getLast? = some v ∧
+      (∀ z ∈ path, z ∈ Q ∧ p ∈ z.carrier) ∧
+      path.IsChain (fun a c => SameParentLink a c ∨ AscentLink k a c) ∧
+      routeAscents k path ≤ u.depth := by
+  classical
+  have hroute : ∀ n : ℕ, ∀ u : PrimitiveFacet S A, u.depth = n →
+      u ∈ Q → p ∈ u.carrier →
+      ∃ (v : PrimitiveFacet S A) (path : List (PrimitiveFacet S A)),
+        v ∈ T ∧ path.head? = some u ∧ path.getLast? = some v ∧
+        (∀ z ∈ path, z ∈ Q ∧ p ∈ z.carrier) ∧
+        path.IsChain (fun a c => SameParentLink a c ∨ AscentLink k a c) ∧
+        routeAscents k path ≤ u.depth := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+      intro u hun hu hpu
+      by_cases hut : u ∈ T
+      · refine ⟨u, [u], hut, rfl, rfl, ?_, by simp, ?_⟩
+        · simpa using And.intro hu hpu
+        · simp [routeAscents]
+      · obtain ⟨g, hg, hpg, hlink⟩ := hstep u hu hpu hut
+        obtain ⟨v, path, hv, hhead, hlast, hmem, hchain, hbound⟩ :=
+          ih g.depth (hun ▸ hlink.1) g rfl hg hpg
+        cases path with
+        | nil => simp at hhead
+        | cons a tail =>
+          have hag : a = g := by simpa using hhead
+          subst a
+          refine ⟨v, u :: g :: tail, hv, rfl, ?_, ?_, ?_, ?_⟩
+          · simpa using hlast
+          · intro z hz
+            rcases List.mem_cons.mp hz with rfl | hz
+            · exact ⟨hu, hpu⟩
+            · exact hmem z hz
+          · exact List.isChain_cons_cons.mpr ⟨Or.inr hlink, hchain⟩
+          · have hcount : routeAscents k (u :: g :: tail) =
+                routeAscents k (g :: tail) + 1 := by
+              simp [routeAscents, hlink]
+            rw [hcount]
+            have hdepth := hlink.1
+            omega
+  exact hroute u.depth u rfl hu hpu
+
 /-- P21, V4 1.25 (moreover): from every facet through `p`, an upward route
 reaches the nonempty top class with at most `k` ascents. The top class itself is
 connected by same-parent links. Two distinct facets ensure a positive birth height. -/
@@ -1412,7 +2439,24 @@ theorem birth_ascent_top (A : S.ι) (k : ℕ) (E₀ : Set (E d))
           (∀ z ∈ path, z ∈ principalFacets S A k E₀ ∧ p ∈ z.carrier) ∧
           path.IsChain (fun a c => SameParentLink a c ∨ AscentLink k a c) ∧
           routeAscents k path ≤ k := by
-  sorry
+  obtain ⟨b, P, hbk, hP⟩ := birth_ascent_top_step1_least_height A k p
+  have hpos : 1 ≤ b := by
+    obtain ⟨r, hr, -⟩ := birth_ascent_top_step3_birth_below_top k p b P hP f hf.1 hpf
+    have hdepth := hf.1
+    omega
+  have hroutes := birth_ascent_top_step8_routes k (principalFacets S A k E₀)
+    (topClass A k E₀ p b P) p (birth_ascent_top_step7_one_ascent A k E₀ hE p b P hP)
+  obtain ⟨v, _, hv, _⟩ := hroutes f hf hpf
+  refine ⟨b, P, hpos, hbk, hP, ⟨v, hv⟩, ?_, ?_⟩
+  · intro u hu v hv
+    apply Relation.ReflTransGen.single
+    refine ⟨hu, hu.2.1, hv, hv.2.1, ?_⟩
+    exact birth_ascent_top_step2_same_parent k u v hu.1.1 hv.1.1
+      (hu.2.2.1.trans hv.2.2.1.symm) (hu.2.2.2.trans hv.2.2.2.symm)
+      ⟨p, hu.2.1, hv.2.1⟩
+  · intro u hu hpu
+    obtain ⟨v, path, hv, hhead, hlast, hmem, hchain, hbound⟩ := hroutes u hu hpu
+    exact ⟨v, path, hv, hhead, hlast, hmem, hchain, hbound.trans (Nat.le_of_lt hu.1)⟩
 
 /-- P22, V4 8.3: a role word follows the unique child at every step. -/
 def OnlyChildWord (S : SubstSystem d) :

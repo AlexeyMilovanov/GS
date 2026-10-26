@@ -136,6 +136,468 @@ bounded components of its complement; points of the set have empty components. -
 private def principal_component_step1_filledHull (t : Set (E d)) : Set (E d) :=
   {x | Bornology.IsBounded (connectedComponentIn tᶜ x)}
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"`K(t) = ℝᵈ ∖ U(t)`". Points of the original set belong to the filled hull. -/
+private theorem principal_component_step1_hull_geometry_step1_contains (t : Set (E d)) :
+    t ⊆ principal_component_step1_filledHull t := by
+  intro x hx
+  change Bornology.IsBounded (connectedComponentIn tᶜ x)
+  rw [connectedComponentIn_eq_empty (by simpa using hx)]
+  exact Bornology.isBounded_empty
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"cavities ... are filled in `K(t)`". Each bounded complementary component is open
+and is contained in the interior of the filled hull. -/
+private theorem principal_component_step1_hull_geometry_step2_cavity_open
+    {t : Set (E d)} (ht : IsClosed t) {x : E d}
+    (hx : x ∈ principal_component_step1_filledHull t) :
+    connectedComponentIn tᶜ x ⊆ interior (principal_component_step1_filledHull t) := by
+  apply interior_maximal _ ht.isOpen_compl.connectedComponentIn
+  intro y hy
+  change Bornology.IsBounded (connectedComponentIn tᶜ y)
+  exact connectedComponentIn_eq hy ▸ hx
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"`U(t)` is open ... and its frontier is contained in `∂t`". -/
+private theorem principal_component_step1_hull_geometry_step3_closed_frontier
+    {t : Set (E d)} (ht : IsClosed t) :
+    IsClosed (principal_component_step1_filledHull t) ∧
+      frontier (principal_component_step1_filledHull t) ⊆ frontier t := by
+  have hcontains := principal_component_step1_hull_geometry_step1_contains t
+  have hclosed : IsClosed (principal_component_step1_filledHull t) := by
+    rw [← isOpen_compl_iff]
+    apply isOpen_iff_forall_mem_open.mpr
+    intro x hx
+    have hxt : x ∈ tᶜ := fun h => hx (hcontains h)
+    refine ⟨connectedComponentIn tᶜ x, ?_, ht.isOpen_compl.connectedComponentIn,
+      mem_connectedComponentIn hxt⟩
+    intro y hy hyK
+    apply hx
+    change Bornology.IsBounded (connectedComponentIn tᶜ x)
+    change Bornology.IsBounded (connectedComponentIn tᶜ y) at hyK
+    exact (connectedComponentIn_eq hy).symm ▸ hyK
+  refine ⟨hclosed, ?_⟩
+  intro x hx
+  have hxK := (frontier_subset_iff_isClosed.mpr hclosed) hx
+  have hxt : x ∈ t := by
+    by_contra hxt
+    exact hx.2 (principal_component_step1_hull_geometry_step2_cavity_open ht hxK
+      (mem_connectedComponentIn hxt))
+  exact ⟨ht.closure_eq.symm ▸ hxt, fun hi => hx.2 (interior_mono hcontains hi)⟩
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"every point ... is a limit of points of `int t` (regular closedness)".
+Adding open complementary components preserves regular closedness. -/
+private theorem principal_component_step1_hull_geometry_step4_regular
+    {t : Set (E d)} (ht : IsClosed t) (hreg : IsRegularClosed t) :
+    IsRegularClosed (principal_component_step1_filledHull t) := by
+  have hclosed := (principal_component_step1_hull_geometry_step3_closed_frontier ht).1
+  apply Set.Subset.antisymm (closure_minimal interior_subset hclosed)
+  intro x hx
+  by_cases hxt : x ∈ t
+  · rw [← hreg] at hxt
+    exact closure_mono
+      (interior_mono (principal_component_step1_hull_geometry_step1_contains t)) hxt
+  · exact subset_closure (principal_component_step1_hull_geometry_step2_cavity_open ht hx
+      (mem_connectedComponentIn hxt))
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"a point outside `conv t` is separated from `t` by a hyperplane, hence joined to
+infinity in the complement of `t`". -/
+private theorem principal_component_step1_hull_geometry_step5_convex_bound
+    {t : Set (E d)} (hne : t.Nonempty) (hc : IsClosed (convexHull ℝ t)) :
+    principal_component_step1_filledHull t ⊆ convexHull ℝ t := by
+  intro x hx
+  by_contra hxc
+  obtain ⟨f, a, hfa, hax⟩ := geometric_hahn_banach_closed_point
+    (convex_convexHull ℝ t) hc hxc
+  obtain ⟨y, hy⟩ := hne
+  have hfy : f y < f x := (hfa y (subset_convexHull ℝ t hy)).trans hax
+  have hhalf : {z | f x ≤ f z} ⊆ connectedComponentIn tᶜ x := by
+    apply (convex_halfSpace_ge f.toLinearMap.isLinear (f x)).isPreconnected.subset_connectedComponentIn
+      (show f x ≤ f x from le_rfl)
+    intro z hz hzt
+    exact (not_lt_of_ge hz) ((hfa z (subset_convexHull ℝ t hzt)).trans hax)
+  have hb : Bornology.IsBounded (f '' connectedComponentIn tᶜ x) :=
+    f.lipschitz.isBounded_image hx
+  obtain ⟨M, hM⟩ := hb.bddAbove
+  let r := (max 0 (M - f x) + 1) / (f x - f y)
+  have hr : 0 ≤ r := le_of_lt (div_pos (by positivity) (sub_pos.mpr hfy))
+  have hrval : r * (f x - f y) = max 0 (M - f x) + 1 :=
+    div_mul_cancel₀ _ (ne_of_gt (sub_pos.mpr hfy))
+  have hzval : f (x + r • (x - y)) = f x + r * (f x - f y) := by
+    simp only [map_add, map_smul, map_sub, smul_eq_mul]
+  have hz : x + r • (x - y) ∈ connectedComponentIn tᶜ x := by
+    apply hhalf
+    change f x ≤ f (x + r • (x - y))
+    rw [hzval]
+    nlinarith
+  have hMz := hM (Set.mem_image_of_mem f hz)
+  rw [hzval, hrval] at hMz
+  linarith [le_max_right 0 (M - f x)]
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"`∂t` is ... compact" and "`K(t) ⊆ conv t`". The finite polyhedral presentation
+makes the convex hull compact, also after an affine change of coordinates. -/
+private theorem principal_component_step1_hull_geometry_step6_convex_compact
+    (P : PolyManifoldDomain d) (F : E d ≃ᵃ[ℝ] E d) :
+    IsCompact (convexHull ℝ (F '' P.carrier)) := by
+  classical
+  obtain ⟨s, hs⟩ := P.polyhedral
+  let v : Finset (E d) := s.biUnion id
+  have hconv : convexHull ℝ P.carrier = convexHull ℝ (v : Set (E d)) := by
+    apply Set.Subset.antisymm
+    · apply convexHull_min _ (convex_convexHull ℝ _)
+      rw [hs]
+      intro x hx
+      obtain ⟨p, hp, hxp⟩ := Set.mem_iUnion₂.mp hx
+      apply convexHull_mono (t := (v : Set (E d))) _ hxp
+      intro z hz
+      exact Finset.mem_biUnion.mpr ⟨p, hp, hz⟩
+    · apply convexHull_mono
+      intro x hx
+      obtain ⟨p, hp, hxp⟩ := Finset.mem_biUnion.mp hx
+      rw [hs]
+      exact Set.mem_iUnion₂.mpr ⟨p, hp, subset_convexHull ℝ _ hxp⟩
+  change IsCompact (convexHull ℝ (F.toAffineMap '' P.carrier))
+  rw [← F.toAffineMap.image_convexHull, hconv]
+  exact (Set.Finite.isCompact_convexHull v.finite_toSet).image
+    F.toHomeomorphOfFiniteDimensional.continuous
+
+/-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"a connected union of facets of `t`". Lower-dimensional cells cannot separate
+an open convex set: two segments through a generic intermediate point avoid them. -/
+private theorem principal_component_step1_hull_geometry_step7_avoid_cells
+    (L : Finset (Cell d)) (hL : ∀ e ∈ L, e.dim + 1 < d)
+    {V : Set (E d)} (hV : IsOpen V) (hVconv : Convex ℝ V)
+    {a b : E d} (haV : a ∈ V) (hbV : b ∈ V)
+    (ha : ∀ e ∈ L, a ∉ e.carrier) (hb : ∀ e ∈ L, b ∉ e.carrier) :
+    ∃ J : Set (E d), IsPreconnected J ∧ a ∈ J ∧ b ∈ J ∧ J ⊆ V ∧
+      ∀ e ∈ L, Disjoint J e.carrier := by
+  classical
+  have hspan (e : Cell d) (he : e.dim + 1 < d) (a : E d) :
+      Dense (affineSpan ℝ (insert a e.carrier) : Set (E d))ᶜ := by
+    have hdim := finrank_vectorSpan_insert_le_set ℝ e.carrier a
+    have hedim : Module.finrank ℝ (vectorSpan ℝ e.carrier) = e.dim := by
+      rw [← direction_affineSpan]
+      exact e.flat.dimension
+    have hproper : affineSpan ℝ (insert a e.carrier) ≠ ⊤ := by
+      intro htop
+      have hh := congrArg (fun S : AffineSubspace ℝ (E d) =>
+        Module.finrank ℝ S.direction) htop
+      change Module.finrank ℝ (affineSpan ℝ (insert a e.carrier)).direction =
+        Module.finrank ℝ (⊤ : AffineSubspace ℝ (E d)).direction at hh
+      rw [direction_affineSpan, AffineSubspace.direction_top, finrank_top,
+        finrank_euclideanSpace, Fintype.card_fin] at hh
+      omega
+    apply interior_eq_empty_iff_dense_compl.mp
+    apply Set.eq_empty_iff_forall_notMem.mpr
+    intro x hx
+    have hconv := (affineSpan ℝ (insert a e.carrier)).convex
+    have htop := hconv.interior_nonempty_iff_affineSpan_eq_top.mp ⟨x, hx⟩
+    rw [AffineSubspace.affineSpan_coe] at htop
+    exact hproper htop
+  have hsegment (e : Cell d) {a z : E d} (ha : a ∉ e.carrier)
+      (hz : z ∉ affineSpan ℝ (insert a e.carrier)) :
+      Disjoint (segment ℝ a z) e.carrier := by
+    apply Set.disjoint_left.mpr
+    intro q hq hqe
+    rw [segment_eq_image_lineMap] at hq
+    obtain ⟨r, hr, rfl⟩ := hq
+    have hr0 : r ≠ 0 := by
+      intro hr0
+      subst r
+      exact ha (by simpa using hqe)
+    have haA : a ∈ affineSpan ℝ (insert a e.carrier) := mem_affineSpan ℝ (mem_insert a _)
+    have hqA : AffineMap.lineMap a z r ∈ affineSpan ℝ (insert a e.carrier) :=
+      mem_affineSpan ℝ (mem_insert_of_mem _ hqe)
+    have hzA := AffineMap.lineMap_mem (r⁻¹) haA hqA
+    rw [AffineMap.lineMap_lineMap_right, inv_mul_cancel₀ hr0, AffineMap.lineMap_apply_one] at hzA
+    exact hz hzA
+  have hdense (x : E d) : Dense (⋂ e ∈ L,
+      (affineSpan ℝ (insert x e.carrier) : Set (E d))ᶜ) := by
+    apply dense_biInter_of_isOpen
+      (fun e _ => (affineSpan ℝ (insert x e.carrier)).closed_of_finiteDimensional.isOpen_compl)
+      L.finite_toSet.countable
+    intro e he
+    exact hspan e (hL e he) x
+  have hopen (x : E d) : IsOpen (⋂ e ∈ L,
+      (affineSpan ℝ (insert x e.carrier) : Set (E d))ᶜ) :=
+    isOpen_biInter_finset (fun e _ =>
+      (affineSpan ℝ (insert x e.carrier)).closed_of_finiteDimensional.isOpen_compl)
+  obtain ⟨z, hzV, hz⟩ :=
+    ((hdense a).inter_of_isOpen_left (hdense b) (hopen a)).inter_open_nonempty V hV ⟨a, haV⟩
+  refine ⟨segment ℝ a z ∪ segment ℝ b z,
+    IsPreconnected.union' ⟨z, right_mem_segment ℝ _ _, right_mem_segment ℝ _ _⟩
+      (convex_segment (𝕜 := ℝ) a z).isPreconnected
+      (convex_segment (𝕜 := ℝ) b z).isPreconnected,
+    Or.inl (left_mem_segment ℝ _ _), Or.inr (left_mem_segment ℝ _ _),
+    union_subset (hVconv.segment_subset haV hzV) (hVconv.segment_subset hbV hzV), ?_⟩
+  intro e he
+  exact disjoint_union_left.mpr
+    ⟨hsegment e (ha e he) (Set.mem_iInter₂.mp hz.1 e he),
+      hsegment e (hb e he) (Set.mem_iInter₂.mp hz.2 e he)⟩
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"its frontier is contained in `∂t`; it is nonempty". A proper closed filling
+has a frontier point in the relative interior of a facet of the original domain. -/
+private theorem principal_component_step1_hull_geometry_step8_frontier_facet
+    (P : PolyManifoldDomain d) (C : CellComplex P) {H : Set (E d)}
+    (hHclosed : IsClosed H) (hPH : P.carrier ⊆ H) (hHproper : H ≠ univ)
+    (hHfront : frontier H ⊆ frontier P.carrier) :
+    ∃ (p : E d) (f : Cell d), p ∈ frontier H ∧ f ∈ C.facets ∧ p ∈ relint f.carrier := by
+  classical
+  obtain ⟨a, ha⟩ := P.interior_nonempty
+  obtain ⟨b, hb⟩ := (Set.ne_univ_iff_exists_notMem H).mp hHproper
+  have hcellfront (e : Cell d) (he : e ∈ C.cells) : e.carrier ⊆ frontier P.carrier := by
+    rw [← e.flat.regularClosed]
+    apply closure_minimal _ isClosed_frontier
+    intro x hx
+    rw [← C.cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hx⟩
+  let L := C.cells.filter (fun e => e.dim + 1 < d)
+  obtain ⟨J, hJ, haJ, hbJ, -, hJL⟩ :=
+    principal_component_step1_hull_geometry_step7_avoid_cells L
+      (fun e he => (Finset.mem_filter.mp he).2) isOpen_univ convex_univ
+      (Set.mem_univ a) (Set.mem_univ b)
+      (fun e he hae => (hcellfront e (Finset.mem_filter.mp he).1 hae).2 ha)
+      (fun e he hbe => hb (hPH ((frontier_subset_iff_isClosed.mpr P.compact.isClosed)
+        (hcellfront e (Finset.mem_filter.mp he).1 hbe))))
+  have hmeet : (J ∩ frontier H).Nonempty := by
+    by_contra hmeet
+    have havoid : ∀ x ∈ J, x ∉ frontier H := fun x hx hxf => hmeet ⟨x, hx, hxf⟩
+    have hsplit : J ⊆ interior H ∪ Hᶜ := by
+      intro x hx
+      by_cases hxH : x ∈ H
+      · left
+        by_contra hxint
+        exact havoid x hx ⟨hHclosed.closure_eq.symm ▸ hxH, hxint⟩
+      · exact Or.inr hxH
+    obtain ⟨x, -, hxint, hxout⟩ := hJ (interior H) Hᶜ isOpen_interior hHclosed.isOpen_compl
+      hsplit ⟨a, haJ, interior_mono hPH ha⟩ ⟨b, hbJ, hb⟩
+    exact hxout (interior_subset hxint)
+  obtain ⟨p, hpJ, hpH⟩ := hmeet
+  have hpP := hHfront hpH
+  rw [← C.cover] at hpP
+  obtain ⟨f, hf, hpf⟩ := Set.mem_iUnion₂.mp hpP
+  refine ⟨p, f, hpH, ?_, hpf⟩
+  apply Finset.mem_filter.mpr
+  refine ⟨hf, ?_⟩
+  by_contra hdim
+  have hfL : f ∈ L := Finset.mem_filter.mpr ⟨hf, by
+    have := C.dim_lt f hf
+    have hd : 2 ≤ d := Fact.out
+    omega⟩
+  exact Set.disjoint_left.mp (hJL f hfL) hpJ (f.flat.regularClosed ▸ subset_closure hpf)
+
+/-- Step 9 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"near which the complement locally is on the other side". At a relative-interior
+facet point this follows from the half-ball description of V4 1.0(a). -/
+private theorem principal_component_step1_hull_geometry_step9_facet_side
+    (P : PolyManifoldDomain d) (C : CellComplex P) (F : E d ≃ᵃ[ℝ] E d)
+    (f : Cell d) (hf : f ∈ C.facets) (p : E d) (hp : p ∈ relint f.carrier) :
+    ∃ V : Set (E d), IsOpen V ∧ F p ∈ V ∧
+      IsPreconnected (V ∩ (F '' P.carrier)ᶜ) := by
+  obtain ⟨r, hr, v, -, -, -, hhalf⟩ := facet_halfball P C f hf p hp
+  have hcompl : Metric.ball p r ∩ P.carrierᶜ =
+      Metric.ball p r ∩ {x | inner ℝ v x < inner ℝ v p} := by
+    ext x
+    have hh := Set.ext_iff.mp hhalf x
+    simp only [Set.mem_inter_iff, Set.mem_setOf_eq, inner_sub_right] at hh
+    simp only [Set.mem_inter_iff, Set.mem_compl_iff, Set.mem_setOf_eq]
+    constructor
+    · rintro ⟨hx, hxc⟩
+      refine ⟨hx, ?_⟩
+      by_contra hn
+      exact hxc ((hh.mpr ⟨sub_nonneg.mpr (le_of_not_gt hn), hx⟩).1)
+    · rintro ⟨hx, hxv⟩
+      exact ⟨hx, fun hxc => (not_le_of_gt hxv) (sub_nonneg.mp (hh.mp ⟨hxc, hx⟩).1)⟩
+  have hconn : IsPreconnected (Metric.ball p r ∩ P.carrierᶜ) := by
+    rw [hcompl]
+    exact ((convex_ball p r).inter
+      (convex_halfSpace_lt (innerSL ℝ v).toLinearMap.isLinear (inner ℝ v p))).isPreconnected
+  let e := F.toHomeomorphOfFiniteDimensional
+  refine ⟨e '' Metric.ball p r, e.isOpenMap _ Metric.isOpen_ball,
+    Set.mem_image_of_mem e (Metric.mem_ball_self hr), ?_⟩
+  change IsPreconnected ((e '' Metric.ball p r) ∩ (e '' P.carrier)ᶜ)
+  rw [← e.image_compl, ← Set.image_inter e.injective]
+  exact hconn.image _ e.continuous.continuousOn
+
+/-- Step 10 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"each a closed hypersurface separating `ℝᵈ` into a bounded and an unbounded part
+(Jordan–Brouwer)". This is separation by one connected boundary component. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer
+    (P : PolyManifoldDomain d) (F : E d ≃ᵃ[ℝ] E d)
+    (p : E d) (hp : p ∈ frontier (F '' P.carrier)) :
+    let Γ := connectedComponentIn (frontier (F '' P.carrier)) p
+    ∃ B U : Set (E d),
+      IsOpen B ∧ IsConnected B ∧ Bornology.IsBounded B ∧
+      IsOpen U ∧ IsConnected U ∧ ¬ Bornology.IsBounded U ∧
+      Disjoint B U ∧ Γᶜ = B ∪ U ∧ frontier B = Γ ∧ frontier U = Γ := by
+  sorry
+
+/-- Step 11 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"a connected union of facets of `t`". The boundary complex is pure: its facet
+carriers cover the frontier, including all lower-dimensional cells. -/
+private theorem principal_component_step1_hull_geometry_step11_facets_cover
+    (P : PolyManifoldDomain d) (C : CellComplex P) :
+    frontier P.carrier ⊆ ⋃ e : {e // e ∈ C.facets}, e.val.carrier := by
+  classical
+  have hd : 2 ≤ d := Fact.out
+  let Q : Set (E d) := ⋃ e ∈ C.facets, e.carrier
+  have hQclosed : IsClosed Q := isClosed_biUnion_finset (fun e _ => e.flat.compact.isClosed)
+  intro p hp
+  by_contra hpF
+  have hpQ : p ∉ Q := by
+    intro hpQ
+    obtain ⟨e, he, hpe⟩ := Set.mem_iUnion₂.mp hpQ
+    exact hpF (Set.mem_iUnion.mpr ⟨⟨e, he⟩, hpe⟩)
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hQclosed.isOpen_compl p hpQ
+  have hpclosure : p ∈ closure (interior P.carrier) := by
+    rw [P.regularClosed]
+    exact (frontier_subset_iff_isClosed.mpr P.compact.isClosed) hp
+  obtain ⟨a, haB, ha⟩ := mem_closure_iff.mp hpclosure (Metric.ball p r) Metric.isOpen_ball
+    (Metric.mem_ball_self hr)
+  have hpout : p ∈ closure P.carrierᶜ := by
+    rw [frontier_eq_closure_inter_closure] at hp
+    exact hp.2
+  obtain ⟨b, hbB, hb⟩ := mem_closure_iff.mp hpout (Metric.ball p r)
+    Metric.isOpen_ball (Metric.mem_ball_self hr)
+  let L := C.cells.filter (fun e => e.dim + 1 < d)
+  have hcellfront (e : Cell d) (he : e ∈ C.cells) : e.carrier ⊆ frontier P.carrier := by
+    rw [← e.flat.regularClosed]
+    apply closure_minimal _ isClosed_frontier
+    intro x hx
+    rw [← C.cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hx⟩
+  have haout (e : Cell d) (he : e ∈ C.cells) : a ∉ e.carrier :=
+    fun hae => (hcellfront e he hae).2 ha
+  have hbout (e : Cell d) (he : e ∈ C.cells) : b ∉ e.carrier :=
+    fun hbe => hb ((frontier_subset_iff_isClosed.mpr P.compact.isClosed) (hcellfront e he hbe))
+  obtain ⟨J, hJconn, haJ, hbJ, hJB, hJL⟩ :=
+    principal_component_step1_hull_geometry_step7_avoid_cells L
+      (fun e he => (Finset.mem_filter.mp he).2) Metric.isOpen_ball (convex_ball p r)
+      haB hbB (fun e he => haout e (Finset.mem_filter.mp he).1)
+      (fun e he => hbout e (Finset.mem_filter.mp he).1)
+  have hJfront : ∀ x ∈ J, x ∉ frontier P.carrier := by
+    intro x hx hxf
+    rw [← C.cover] at hxf
+    obtain ⟨e, he, hxe⟩ := Set.mem_iUnion₂.mp hxf
+    have hxec : x ∈ e.carrier := e.flat.regularClosed ▸ subset_closure hxe
+    by_cases heF : e ∈ C.facets
+    · exact hball (hJB hx) (Set.mem_iUnion₂.mpr ⟨e, heF, hxec⟩)
+    · have heL : e ∈ L := by
+        apply Finset.mem_filter.mpr
+        refine ⟨he, ?_⟩
+        have hdim := C.dim_lt e he
+        have hne : e.dim ≠ d - 1 := by
+          intro hh
+          exact heF (Finset.mem_filter.mpr ⟨he, hh⟩)
+        omega
+      exact Set.disjoint_left.mp (hJL e heL) hx hxec
+  have hsplit : J ⊆ interior P.carrier ∪ P.carrierᶜ := by
+    intro x hx
+    by_cases hxt : x ∈ P.carrier
+    · left
+      by_contra hxint
+      exact hJfront x hx ⟨P.compact.isClosed.closure_eq.symm ▸ hxt, hxint⟩
+    · exact Or.inr hxt
+  obtain ⟨x, _, hxint, hxout⟩ := hJconn (interior P.carrier) P.carrierᶜ
+    isOpen_interior P.compact.isClosed.isOpen_compl hsplit
+    ⟨a, haJ, ha⟩
+    ⟨b, hbJ, hb⟩
+  exact hxout (interior_subset hxint)
+
+/-- Step 12 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"Components other than `Σ₀` bound bounded complementary components ... which are
+filled in `K(t)`". Local one-sidedness puts a cavity's frontier inside the hull. -/
+private theorem principal_component_step1_hull_geometry_step12_cavity_frontier
+    (P : PolyManifoldDomain d) (F : E d ≃ᵃ[ℝ] E d)
+    {B : Set (E d)} (hB : IsOpen B) (hBconn : IsConnected B)
+    (hBbdd : Bornology.IsBounded B) (hBsub : B ⊆ (F '' P.carrier)ᶜ)
+    (hBfront : frontier B ⊆ F '' P.carrier)
+    {p : E d} (hp : p ∈ frontier B)
+    (hlocal : ∃ V : Set (E d), IsOpen V ∧ p ∈ V ∧
+      IsPreconnected (V ∩ (F '' P.carrier)ᶜ)) :
+    p ∈ interior (principal_component_step1_filledHull (F '' P.carrier)) := by
+  let t := F '' P.carrier
+  obtain ⟨V, hV, hpV, hVconn⟩ := hlocal
+  obtain ⟨q, hqV, hqB⟩ := mem_closure_iff.mp hp.1 V hV hpV
+  have hcomp : connectedComponentIn tᶜ q = B := by
+    apply Set.Subset.antisymm
+    · apply isPreconnected_connectedComponentIn.subset_of_closure_inter_subset hB
+        ⟨q, mem_connectedComponentIn (hBsub hqB), hqB⟩
+      intro x hx
+      by_contra hxB
+      exact connectedComponentIn_subset tᶜ q hx.2
+        (hBfront ⟨hx.1, by simpa only [hB.interior_eq] using hxB⟩)
+    · exact hBconn.isPreconnected.subset_connectedComponentIn hqB hBsub
+  have hVsub : V ∩ tᶜ ⊆ B := by
+    rw [← hcomp]
+    exact hVconn.subset_connectedComponentIn ⟨hqV, hBsub hqB⟩ inter_subset_right
+  apply mem_interior.mpr
+  refine ⟨V, ?_, hV, hpV⟩
+  intro x hxV
+  by_cases hxt : x ∈ t
+  · exact principal_component_step1_hull_geometry_step1_contains t hxt
+  · have hxB := hVsub ⟨hxV, hxt⟩
+    change Bornology.IsBounded (connectedComponentIn tᶜ x)
+    rw [← connectedComponentIn_eq (hcomp.symm ▸ hxB), hcomp]
+    exact hBbdd
+
+/-- Step 13 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"separating ... into a bounded and an unbounded part". The closure of either
+Jordan–Brouwer side is the complement of the other side. -/
+private theorem principal_component_step1_hull_geometry_step13_side_closure
+    {Γ B U : Set (E d)} (hdisj : Disjoint B U) (hcover : Γᶜ = B ∪ U)
+    (hfront : frontier B = Γ) : closure B = Uᶜ := by
+  rw [closure_eq_self_union_frontier, hfront]
+  apply Set.Subset.antisymm
+  · intro x hx hxU
+    rcases hx with hxB | hxΓ
+    · exact Set.disjoint_left.mp hdisj hxB hxU
+    · have hxout : x ∈ Γᶜ := by rw [hcover]; exact Or.inr hxU
+      exact hxout hxΓ
+  · intro x hxU
+    by_cases hxΓ : x ∈ Γ
+    · exact Or.inr hxΓ
+    · have hxBU : x ∈ B ∪ U := by rw [← hcover]; exact hxΓ
+      exact Or.inl (hxBU.resolve_right hxU)
+
+/-- Step 14 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
+"`int t` on its bounded side and `U(t)` on its unbounded side". Once this side
+is identified, the definition by bounded complementary components fills it. -/
+private theorem principal_component_step1_hull_geometry_step14_fill_side
+    {t Γ B U : Set (E d)} (hBopen : IsOpen B) (hBbdd : Bornology.IsBounded B)
+    (hUopen : IsOpen U) (hUconn : IsConnected U) (hUbdd : ¬ Bornology.IsBounded U)
+    (hdisj : Disjoint B U) (hcover : Γᶜ = B ∪ U)
+    (hclB : closure B = Uᶜ) (hΓt : Γ ⊆ t) (htB : t ⊆ closure B) :
+    principal_component_step1_filledHull t = Uᶜ := by
+  have hUt : U ⊆ tᶜ := by
+    intro x hxU hxt
+    have := htB hxt
+    rw [hclB] at this
+    exact this hxU
+  apply Set.Subset.antisymm
+  · intro x hxK hxU
+    change Bornology.IsBounded (connectedComponentIn tᶜ x) at hxK
+    exact hUbdd (hxK.subset
+      (hUconn.isPreconnected.subset_connectedComponentIn hxU hUt))
+  · intro x hxU
+    by_cases hxt : x ∈ t
+    · exact principal_component_step1_hull_geometry_step1_contains t hxt
+    · have hxB : x ∈ B := by
+        have hxΓ : x ∈ Γᶜ := fun hx => hxt (hΓt hx)
+        rw [hcover] at hxΓ
+        exact hxΓ.resolve_right hxU
+      have hc : connectedComponentIn tᶜ x ⊆ B := by
+        apply isPreconnected_connectedComponentIn.subset_left_of_subset_union
+          hBopen hUopen hdisj _ ⟨x, mem_connectedComponentIn hxt, hxB⟩
+        intro y hy
+        rw [← hcover]
+        exact fun hyΓ => connectedComponentIn_subset tᶜ x hy (hΓt hyΓ)
+      exact hBbdd.subset hc
+
 /-- Step 1 of the V4 proof of `principal_component` (V4 1.24): "`K(t)` has
 connected interior, its boundary is a connected union of facets of `t`, and
 `K(t) ⊆ conv t`". The affine frame permits normalized prototype coordinates.
@@ -148,7 +610,108 @@ private theorem principal_component_step1_hull_geometry
       IsConnected (interior K) ∧ IsConnected (frontier K) ∧
       K ⊆ convexHull ℝ t ∧
       frontier K ⊆ ⋃ e : {e // e ∈ C.facets}, F '' e.val.carrier := by
-  sorry
+  let t := F '' P.carrier
+  let K := principal_component_step1_filledHull t
+  change t ⊆ K ∧ IsCompact K ∧ IsRegularClosed K ∧
+    IsConnected (interior K) ∧ IsConnected (frontier K) ∧
+    K ⊆ convexHull ℝ t ∧
+    frontier K ⊆ ⋃ e : {e // e ∈ C.facets}, F '' e.val.carrier
+  let e := F.toHomeomorphOfFiniteDimensional
+  have htcompact : IsCompact t := P.compact.image e.continuous
+  have htreg : IsRegularClosed t := by
+    change closure (interior (e '' P.carrier)) = e '' P.carrier
+    rw [← e.image_interior, ← e.image_closure, P.regularClosed]
+  have htconn : IsConnected (interior t) := by
+    change IsConnected (interior (e '' P.carrier))
+    rw [← e.image_interior]
+    exact P.interior_connected.image _ e.continuous.continuousOn
+  have hcontains : t ⊆ K := principal_component_step1_hull_geometry_step1_contains t
+  obtain ⟨hKclosed, hKfront⟩ :=
+    principal_component_step1_hull_geometry_step3_closed_frontier htcompact.isClosed
+  have hconvcompact := principal_component_step1_hull_geometry_step6_convex_compact P F
+  have hconv : K ⊆ convexHull ℝ t :=
+    principal_component_step1_hull_geometry_step5_convex_bound
+      (htconn.nonempty.mono interior_subset) hconvcompact.isClosed
+  have hKcompact : IsCompact K := hconvcompact.of_isClosed_subset hKclosed hconv
+  have hKreg : IsRegularClosed K :=
+    principal_component_step1_hull_geometry_step4_regular htcompact.isClosed htreg
+  haveI : NeZero d := ⟨by have hd : 2 ≤ d := Fact.out; omega⟩
+  -- Choose a facet point of the hull frontier in prototype coordinates.
+  let H := e ⁻¹' K
+  have hHclosed : IsClosed H := hKclosed.preimage e.continuous
+  have hPH : P.carrier ⊆ H := fun x hx => hcontains ⟨x, hx, rfl⟩
+  have hHproper : H ≠ univ := by
+    intro hH
+    apply hKcompact.ne_univ
+    apply Set.eq_univ_of_forall
+    intro x
+    have hx : e.symm x ∈ H := hH.symm ▸ Set.mem_univ _
+    simpa only [H, Set.mem_preimage, e.apply_symm_apply] using hx
+  have hHfront : frontier H ⊆ frontier P.carrier := by
+    intro x hx
+    have hxK : e x ∈ frontier K := by
+      rw [show frontier H = e ⁻¹' frontier K from (e.preimage_frontier K).symm] at hx
+      exact hx
+    have hxP : e x ∈ frontier (e '' P.carrier) := hKfront hxK
+    rw [← e.image_frontier] at hxP
+    obtain ⟨y, hy, hxy⟩ := hxP
+    exact e.injective hxy ▸ hy
+  obtain ⟨q, f, hq, hf, hqf⟩ :=
+    principal_component_step1_hull_geometry_step8_frontier_facet P C hHclosed hPH hHproper hHfront
+  let p := e q
+  have hp : p ∈ frontier K := by
+    rw [show frontier H = e ⁻¹' frontier K from (e.preimage_frontier K).symm] at hq
+    exact hq
+  have hlocal := principal_component_step1_hull_geometry_step9_facet_side P C F f hf q hqf
+  have hpt : p ∈ frontier t := hKfront hp
+  let Γ := connectedComponentIn (frontier t) p
+  have hpΓ : p ∈ Γ := mem_connectedComponentIn hpt
+  have hΓfront : Γ ⊆ frontier t := connectedComponentIn_subset _ _
+  have hΓt : Γ ⊆ t := hΓfront.trans
+    (frontier_subset_iff_isClosed.mpr htcompact.isClosed)
+  obtain ⟨B, U, hBopen, hBconn, hBbdd, hUopen, hUconn, hUbdd,
+      hdisj, hcover, hBfront, hUfront⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer P F p hpt
+  have hclB : closure B = Uᶜ :=
+    principal_component_step1_hull_geometry_step13_side_closure hdisj hcover hBfront
+  have hclU : closure U = Bᶜ :=
+    principal_component_step1_hull_geometry_step13_side_closure hdisj.symm
+      (hcover.trans (union_comm _ _)) hUfront
+  have hside : interior t ⊆ B ∨ interior t ⊆ U := by
+    apply htconn.isPreconnected.subset_or_subset hBopen hUopen hdisj
+    intro x hx
+    rw [← hcover]
+    exact fun hxΓ => (hΓfront hxΓ).2 hx
+  -- The selected component cannot bound a cavity: its local exterior would then
+  -- be filled, making the selected frontier point an interior point of K.
+  have htB : t ⊆ closure B := by
+    rcases hside with hside | hside
+    · rw [← htreg]
+      exact closure_mono hside
+    · have htU : t ⊆ closure U := by rw [← htreg]; exact closure_mono hside
+      have hBout : B ⊆ tᶜ := by
+        intro x hxB hxt
+        have := htU hxt
+        rw [hclU] at this
+        exact this hxB
+      have hpint := principal_component_step1_hull_geometry_step12_cavity_frontier
+        P F hBopen hBconn hBbdd hBout (by rw [hBfront]; exact hΓt)
+        (by rw [hBfront]; exact hpΓ) hlocal
+      exact (hp.2 hpint).elim
+  have hKU : K = Uᶜ := principal_component_step1_hull_geometry_step14_fill_side
+    hBopen hBbdd hUopen hUconn hUbdd hdisj hcover hclB hΓt htB
+  have hKint : interior K = B := by rw [hKU, interior_compl, hclU, compl_compl]
+  have hKboundary : frontier K = Γ := by rw [hKU, frontier_compl]; exact hUfront
+  refine ⟨hcontains, hKcompact, hKreg, hKint.symm ▸ hBconn,
+    hKboundary.symm ▸ isConnected_connectedComponentIn_iff.mpr hpt, hconv, ?_⟩
+  intro x hx
+  have hxfront : x ∈ e '' frontier P.carrier := by
+    rw [e.image_frontier]
+    exact hKfront hx
+  obtain ⟨y, hy, rfl⟩ := hxfront
+  obtain ⟨f, hyf⟩ := Set.mem_iUnion.mp
+    (principal_component_step1_hull_geometry_step11_facets_cover P C hy)
+  exact Set.mem_iUnion.mpr ⟨f, y, hyf, rfl⟩
 
 /-- Step 2 of the V4 proof of `principal_component` (V4 1.24): "filled hulls
 of distinct native tiles are nested or have disjoint interiors". This is a

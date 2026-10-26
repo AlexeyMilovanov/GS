@@ -16,3 +16,6 @@ import Enforce.State.State
 import Enforce.State.Packets
 import Enforce.State.Rows
 import Enforce.Compiler
+import Enforce.Parser.Invariant
+import Enforce.Parser.Host
+import Enforce.Parser.Assembly

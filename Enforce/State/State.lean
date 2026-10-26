@@ -1952,6 +1952,941 @@ private theorem exists_childMap_step4_chains :
       (fun G F h => (hrecords F G h.symm).symm) g f hfg.symm hg hf c' c
       (fun j => (hcell j).symm) hb.symm
 
+section ProfileSteps
+omit hrole hrecords hfg
+
+/-- Step 1 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"append i to the role word". The downward list reverses the ancestor list,
+so the immediate role is its last letter. -/
+private theorem exists_childMap_step4_profile_step1_downRoles
+    (U : HonestSource S) (c : U.Node) (a : ℕ) :
+    U.downRoles c (a + 1) =
+      U.downRoles (U.hierarchy.parentNode c) a ++ [U.hierarchy.nodeRole c] := by
+  simp only [HonestSource.downRoles, List.ofFn_succ, List.reverse_cons,
+    Fin.val_succ, Fin.val_zero, CoherentHierarchy.ancestor, Function.iterate_zero, id_eq,
+    Function.iterate_succ_apply]
+
+/-- Step 2 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"the depth of B below H" increases by one on an inherited facet. -/
+private theorem exists_childMap_step4_profile_step2_depth
+    (U : HonestSource S) (c p : U.Node) (hp : U.hierarchy.parentNode c = p)
+    (f : FacetName S c.2.val.ty) (F : FacetName S p.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault c f) (hF : ¬ U.hierarchy.IsFault p F)
+    (hsub : c.2.val.cell c.1 f.val ⊆ p.2.val.cell p.1 F.val) :
+    (U.hierarchy.firstProvider c f hf).1 = (U.hierarchy.firstProvider p F hF).1 + 1 := by
+  obtain ⟨_, ha, _⟩ := exists_childMap_step4_inherited_numbers U c p hp f F hf hsub
+  have hc := (U.hierarchy.birthHeight_age_spec c f hf).2.1
+  have hp := (U.hierarchy.birthHeight_age_spec p F hF).2.1
+  omega
+
+/-- Step 3 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"compute from the finite lookup". A downward word places the recorded node
+in its ancestor's prototype, using the full affine frames. -/
+private theorem exists_childMap_step4_profile_step3_word_frame
+    (U : HonestSource S) (c : U.Node) (a : ℕ) :
+    c.2.val.prototypeFrame c.1 =
+      (wordPlacement (U.downRoles c a)).trans
+        ((U.hierarchy.ancestor c a).2.val.prototypeFrame (U.hierarchy.ancestor c a).1) := by
+  induction a generalizing c with
+  | zero => simp [HonestSource.downRoles, wordPlacement, CoherentHierarchy.ancestor]
+  | succ a ih =>
+    have hw (v w : List S.Role) : wordPlacement (v ++ w) =
+        (wordPlacement w).trans (wordPlacement v) := by
+      induction v with
+      | nil => simp [wordPlacement]
+      | cons r v ih => simp [wordPlacement, ih, AffineEquiv.trans_assoc]
+    have hc : c.2.val.prototypeFrame c.1 =
+        (rolePlacement (U.hierarchy.nodeRole c)).trans
+          ((U.hierarchy.parentNode c).2.val.prototypeFrame (U.hierarchy.parentNode c).1) := by
+      have h := congrArg (fun N : FramedNode S => N.prototypeFrame c.1)
+        (U.hierarchy.child_eq c.1 c.2)
+      exact h.trans (exists_childMap_step1_frame _ _ _)
+    rw [exists_childMap_step4_profile_step1_downRoles, hw]
+    simp only [wordPlacement, AffineEquiv.refl_trans]
+    rw [hc, ih (U.hierarchy.parentNode c), AffineEquiv.trans_assoc]
+    rfl
+
+/-- Step 4 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"same ... side" identifies the serving child's full affine frame. -/
+private theorem exists_childMap_step4_profile_step4_serving_frame
+    (P : Params S) (U : HonestSource S) (c : U.Node)
+    (f : FacetName S c.2.val.ty) (hf : ¬ U.hierarchy.IsFault c f) :
+    (U.hierarchy.servingChild c f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild c f hf).1 =
+      (rolePlacement ((U.recordIncidence P c f hf).val.sideRole (U.recordSide P c f hf))).trans
+        ((U.hierarchy.birthParent c f hf).2.val.prototypeFrame (U.hierarchy.birthHeight c f hf)) := by
+  let H := U.hierarchy.servingChild c f hf
+  have hrole := (Classical.choose_spec (U.recordSide_exists P c f hf)).1
+  change (U.recordIncidence P c f hf).val.sideRole (U.recordSide P c f hf) =
+    U.hierarchy.nodeRole H at hrole
+  have hframe : H.2.val.prototypeFrame H.1 =
+      (rolePlacement (U.hierarchy.nodeRole H)).trans
+        ((U.hierarchy.parentNode H).2.val.prototypeFrame (U.hierarchy.parentNode H).1) := by
+    have h := congrArg (fun N : FramedNode S => N.prototypeFrame H.1)
+      (U.hierarchy.child_eq H.1 H.2)
+    exact h.trans (exists_childMap_step1_frame _ _ _)
+  exact hframe.trans (congrArg (fun r : S.Role => (rolePlacement r).trans
+    ((U.hierarchy.parentNode H).2.val.prototypeFrame (U.hierarchy.parentNode H).1)) hrole.symm)
+
+/-- Step 4 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"the sites are named vertices ... of H". The ambient site is its fixed
+side-specific coordinate placed by H's full frame. -/
+private theorem exists_childMap_step4_profile_step4_site_placement
+    (P : Params S) (U : HonestSource S) (c : U.Node)
+    (f : FacetName S c.2.val.ty) (hf : ¬ U.hierarchy.IsFault c f) (a : Fin P.N) :
+    U.sitePoint P c f hf a =
+      (U.hierarchy.servingChild c f hf).2.val.prototypeFrame (U.hierarchy.servingChild c f hf).1
+        (P.sites (U.recordIncidence P c f hf) (U.recordSide P c f hf) a) := by
+  rw [exists_childMap_step4_profile_step4_serving_frame P U c f hf]
+  simp [HonestSource.sitePoint, HonestSource.providerPlacement, Params.incidencePlacement,
+    Params.canonicalSite, rolePlacement, PrimitiveIncidence.sideRole]
+
+/-- Step 4 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"the sites are named vertices of the depth-r subdivision of H". Their
+coordinates in H are exactly the fixed side-specific sites. -/
+private theorem exists_childMap_step4_profile_step4_site_coordinates
+    (P : Params S) (U : HonestSource S) (c : U.Node)
+    (f : FacetName S c.2.val.ty) (hf : ¬ U.hierarchy.IsFault c f)
+    (a : Fin P.N) (x : E d) :
+    U.sitePoint P c f hf a = c.2.val.prototypeFrame c.1 x ↔
+      P.sites (U.recordIncidence P c f hf) (U.recordSide P c f hf) a =
+        wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x := by
+  rw [exists_childMap_step4_profile_step4_site_placement P U c f hf a,
+    exists_childMap_step4_profile_step3_word_frame U c
+    (U.hierarchy.firstProvider c f hf).1]
+  exact ((U.hierarchy.servingChild c f hf).2.val.prototypeFrame
+    (U.hierarchy.servingChild c f hf).1).injective.eq_iff
+
+/-- Step 5 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3, S4d):
+"the sites" lie on the selected provider edge, on either serving side. -/
+private theorem exists_childMap_step4_profile_step5_site_in_flag
+    (P : Params S) (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) (a : Fin P.N) :
+    U.sitePoint P q f hf a ∈ U.providerPlacement P q f hf ''
+      ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier := by
+  let ι := U.recordIncidence P q f hf
+  let b := U.recordSide P q f hf
+  have h := Set.mem_image_of_mem (S.child ι.val.ty (ι.val.sideIndex b)).frame
+    (intrinsicInterior_subset (P.sites_relint ι b a))
+  change (S.child ι.val.ty (ι.val.sideIndex b)).frame (P.sites ι b a) ∈
+    placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame
+      ((P.sideFlag ι b).cell edgeIndex).val.carrier at h
+  rw [P.sideFlag_eq] at h
+  obtain ⟨y, hy, hyeq⟩ := h
+  have hy' : y = P.canonicalSite ι b a := by
+    apply (S.child ι.val.ty ι.val.left).frame.injective
+    simpa only [Params.canonicalSite, AffineIsometryEquiv.apply_symm_apply] using hyeq
+  exact ⟨y, hy, congrArg (U.providerPlacement P q f hf) hy'⟩
+
+/-- Step 5 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3, S4d):
+the counter is read "along" the oriented flag edge. Differences of points on
+its supporting line are scalar multiples of the transported direction. -/
+private theorem exists_childMap_step4_profile_step5_flag_line
+    {ι : PrimitiveIncidence S} (F : OrientedFullFlag ι) (φ : E d ≃ᵃ[ℝ] E d)
+    (x y : E d)
+    (hx : x ∈ affineSpan ℝ (φ '' (F.flag.cell edgeIndex).val.carrier))
+    (hy : y ∈ affineSpan ℝ (φ '' (F.flag.cell edgeIndex).val.carrier)) :
+    ∃ t : ℝ, t • φ.linear F.direction = x - y := by
+  have hedge : φ '' (F.flag.cell edgeIndex).val.carrier =
+      segment ℝ (φ F.initial) (φ F.terminal) := by
+    rw [F.edge_eq]
+    exact image_segment ℝ φ.toAffineMap _ _
+  have hv := AffineSubspace.vsub_mem_direction hx hy
+  rw [hedge, ← convexHull_pair, affineSpan_convexHull, direction_affineSpan] at hv
+  obtain ⟨t, ht⟩ := mem_vectorSpan_pair_rev.mp hv
+  refine ⟨t, ?_⟩
+  have hdir : φ.linear F.direction = φ F.terminal - φ F.initial :=
+    φ.toAffineMap.linearMap_vsub F.terminal F.initial
+  rw [hdir]
+  exact ht
+
+/-- Step 5 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3, S4d):
+the full-chain test puts an active edge in the flag edge's affine span.
+Consequently its points and all sites share one counter direction. -/
+private theorem exists_childMap_step4_profile_step5_site_line
+    (P : Params S) (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : CellName S q.2.val.ty) (he : (U.recordOf P q f hf).ChainActive e)
+    (a : Fin P.N) (x : E d) (hx : x ∈ affineSpan ℝ (q.2.val.cell q.1 e.val)) :
+    ∃ t : ℝ, t • U.counterDirection P q f hf = U.sitePoint P q f hf a - x := by
+  classical
+  obtain ⟨z, hz, hze⟩ := he
+  have hza : U.ActiveChain P q f hf z := (Finset.mem_filter.mp hz).2
+  obtain ⟨_, _, hspan⟩ := hza.1 edgeIndex
+  rw [hze] at hspan
+  rw [hspan] at hx
+  exact exists_childMap_step4_profile_step5_flag_line (P.flag (U.recordIncidence P q f hf))
+    (U.providerPlacement P q f hf) _ x
+    (mem_affineSpan ℝ (exists_childMap_step4_profile_step5_site_in_flag P U q f hf a)) hx
+
+omit [Fact (2 ≤ d)] in
+/-- Step 5 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"compute from the finite lookup" is invariant under a full affine frame.
+An invertible linear map preserves the sign of the inner product of two
+collinear vectors; no similarity or uniform scaling is assumed. -/
+private theorem exists_childMap_step4_profile_step5_linear_order
+    (L : E d ≃ₗ[ℝ] E d) (u v : E d) (hv : ∃ t : ℝ, t • u = v) :
+    inner ℝ (L u) (L v) < 0 ↔ inner ℝ u v < 0 := by
+  obtain ⟨t, rfl⟩ := hv
+  by_cases hu : u = 0
+  · simp [hu]
+  · have hLu : L u ≠ 0 := by
+      intro h
+      exact hu (L.injective (h.trans (map_zero L).symm))
+    rw [map_smul, real_inner_smul_right, real_inner_smul_right]
+    have hp := real_inner_self_pos.mpr hu
+    have hp' := real_inner_self_pos.mpr hLu
+    simp only [mul_neg_iff, hp, hp', not_lt_of_ge hp.le, not_lt_of_ge hp'.le,
+      and_true, and_false]
+
+/-- Step 5 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"compute from the finite lookup the constants kappa(e')". On an active edge,
+the order of its anchor and the sites can be tested in the serving prototype. -/
+private theorem exists_childMap_step4_profile_step5_word_count
+    (P : Params S) (U : HonestSource S) (c : U.Node)
+    (f : FacetName S c.2.val.ty) (hf : ¬ U.hierarchy.IsFault c f)
+    (e : CellName S c.2.val.ty) (he : (U.recordOf P c f hf).ChainActive e) :
+    (U.sitesBefore P c f hf (c.2.val.prototypeFrame c.1 (cellAnchor e.val))).val =
+      (Finset.univ.filter (fun a : Fin P.N =>
+        inner ℝ (U.recordOf P c f hf).servingDirection
+          (P.sites (U.recordIncidence P c f hf) (U.recordSide P c f hf) a -
+            wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1)
+              (cellAnchor e.val)) < 0)).card := by
+  classical
+  let ι := U.recordIncidence P c f hf
+  let b := U.recordSide P c f hf
+  let H := U.hierarchy.servingChild c f hf
+  let ψ := H.2.val.prototypeFrame H.1
+  let R := (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.trans
+    (S.child ι.val.ty (ι.val.sideIndex b)).frame.symm.toAffineEquiv
+  have hframes : R.trans ψ = U.providerPlacement P c f hf := by
+    dsimp only [ψ, H]
+    rw [exists_childMap_step4_profile_step4_serving_frame P U c f hf]
+    apply AffineEquiv.ext
+    intro x
+    simp [R, rolePlacement, PrimitiveIncidence.sideRole, HonestSource.providerPlacement,
+      Params.incidencePlacement, ι, b]
+  have hdir : ψ.linear (U.recordOf P c f hf).servingDirection = U.counterDirection P c f hf :=
+    congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ.linear (P.flag ι).direction) hframes
+  have hpoint := congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ (cellAnchor e.val))
+    (exists_childMap_step4_profile_step3_word_frame U c (U.hierarchy.firstProvider c f hf).1)
+  change c.2.val.prototypeFrame c.1 (cellAnchor e.val) =
+    ψ (wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) (cellAnchor e.val)) at hpoint
+  dsimp only [HonestSource.sitesBefore]
+  apply congrArg Finset.card
+  apply Finset.filter_congr
+  intro a _
+  have hsite := exists_childMap_step4_profile_step4_site_placement P U c f hf a
+  have hdiff : ψ.linear (P.sites ι b a -
+      wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) (cellAnchor e.val)) =
+      U.sitePoint P c f hf a - c.2.val.prototypeFrame c.1 (cellAnchor e.val) := by
+    calc
+      _ = ψ (P.sites ι b a) - ψ
+          (wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) (cellAnchor e.val)) :=
+        ψ.toAffineMap.linearMap_vsub _ _
+      _ = _ := by rw [← hsite, ← hpoint]
+  obtain ⟨t, ht⟩ := exists_childMap_step4_profile_step5_site_line P U c f hf e he a _
+    (mem_affineSpan ℝ (Set.mem_image_of_mem _ (intrinsicInterior_subset (cellAnchor_mem e.val))))
+  have hscalar : t • (U.recordOf P c f hf).servingDirection =
+      P.sites ι b a - wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1)
+        (cellAnchor e.val) := by
+    apply ψ.linear.injective
+    rw [map_smul, hdir, hdiff]
+    exact ht
+  have h := exists_childMap_step4_profile_step5_linear_order ψ.linear
+    (U.recordOf P c f hf).servingDirection _ ⟨t, hscalar⟩
+  rwa [hdir, hdiff] at h
+
+/-- Step 6 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"every chain-active edge of C lies in a chain-active edge of B".
+The containing edge is specified by relative-interior containment in the fixed
+one-step geometry, not by an isolated stratum test. -/
+private theorem exists_childMap_step4_profile_step6_parent_edge
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (f : FacetName S (U.childNode q hq i).2.val.ty)
+    (F : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (hF : ¬ U.hierarchy.IsFault q F)
+    (hsub : rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier)
+    (e : CellName S (U.childNode q hq i).2.val.ty)
+    (he : (U.recordOf P (U.childNode q hq i) f hf).ChainActive e) :
+    ∃ E : CellName S q.2.val.ty, (U.recordOf P q F hF).ChainActive E ∧
+      relint (rolePlacement ⟨q.2.val.ty, i⟩ '' e.val.carrier) ⊆ relint E.val.carrier := by
+  classical
+  let c := U.childNode q hq i
+  have hp : U.hierarchy.parentNode c = q := exists_childMap_step2_parent U q hq i
+  have hancestor : U.hierarchy.ancestor c 1 = q := by
+    simpa only [CoherentHierarchy.ancestor, Function.iterate_one] using hp
+  have hsub' := (exists_childMap_step4_containment U q hq i f.val F.val).mpr hsub
+  obtain ⟨z, hz, hze⟩ := he
+  have hza : U.ActiveChain P c f hf z := (Finset.mem_filter.mp hz).2
+  obtain ⟨F₀, _, hF₀, _, _⟩ := chain_active_owner U P c f hf z hz
+  have hflag : U.hierarchy.ActiveFlag c f hf z.chain.val F₀ := by
+    intro j
+    obtain ⟨hsub, hτ, _⟩ := hza.1 j
+    refine ⟨hsub, ?_⟩
+    apply exists_childMap_step4_cell_eq
+    exact ((U.hierarchy.servingChild c f hf).2.val.prototypeFrame
+      (U.hierarchy.servingChild c f hf).1).injective.image_injective
+        (hτ.trans (hF₀ j).symm)
+  obtain ⟨t, ht⟩ := U.hierarchy.active_flags_hereditary q c 1 hancestor F f hF hf
+    hsub' z.chain.val F₀ hflag
+  have htop : (t.cell facetIndex).val = F.val := by
+    let T : FacetName S q.2.val.ty := ⟨(t.cell facetIndex).val,
+      Finset.mem_filter.mpr ⟨(t.cell facetIndex).property, t.dimension facetIndex⟩⟩
+    have hct : c.2.val.cell c.1 f.val ⊆ q.2.val.cell q.1 T.val := by
+      have h := closure_mono (ht facetIndex).1
+      simpa only [exists_childMap_step5_cell_closure, z.chain.property] using h
+    have hd : c.2.val.IsDescendant c.1 q.2.val q.1 :=
+      by
+        convert exists_childMap_step1_descendant q.2.val (q.1-1) i using 1
+        exact (Nat.sub_add_cancel hq).symm
+    obtain huniq | hi := facet_dichotomy q.2.val c.2.val q.1 c.1 hd f
+    · obtain ⟨G, _, hu⟩ := huniq
+      exact congrArg Subtype.val ((hu T hct).trans (hu F hsub').symm)
+    · have hbd := hsub'.trans (U.hierarchy.boundaryOffsets_downward q F).1
+      obtain ⟨x, hx⟩ := exists_childMap_step5_cell_nonempty c.2.val c.1 f.val
+      exact False.elim ((hbd (intrinsicInterior_subset hx)).2 (hi hx))
+  obtain ⟨_, _, hb⟩ := U.hierarchy.provider_inherited q c 1 hancestor F f hF hsub'
+  obtain ⟨_, hi, _⟩ := exists_childMap_step4_inherited_incidence P U c q hp f F hf hsub'
+  have hplace : U.providerPlacement P c f hf = U.providerPlacement P q F hF :=
+    congrArg₂ (fun (B : U.Node) (a : P.Incidence) => P.incidencePlacement B.2.val B.1 a) hb hi
+  have hdata (j : FlagIndex d) :
+      U.providerPlacement P c f hf '' ((P.flag (U.recordIncidence P c f hf)).flag.cell j).val.carrier =
+        U.providerPlacement P q F hF '' ((P.flag (U.recordIncidence P q F hF)).flag.cell j).val.carrier :=
+    congrArg₂ (fun (φ : E d ≃ᵃ[ℝ] E d) (a : P.Incidence) =>
+      φ '' ((P.flag a).flag.cell j).val.carrier) hplace hi
+  have hgeom : ∀ j, ∃ hs : q.2.val.cell q.1 (t.cell j).val ⊆ q.2.val.cell q.1 F.val,
+      (U.hierarchy.servingChild q F hF).2.val.cell (U.hierarchy.servingChild q F hF).1
+          (U.hierarchy.stratumMap q F hF (t.cell j) hs).val =
+        U.providerPlacement P q F hF '' ((P.flag (U.recordIncidence P q F hF)).flag.cell j).val.carrier ∧
+      affineSpan ℝ (q.2.val.cell q.1 (t.cell j).val) =
+        affineSpan ℝ (U.providerPlacement P q F hF ''
+          ((P.flag (U.recordIncidence P q F hF)).flag.cell j).val.carrier) := by
+    intro j
+    obtain ⟨hrel, hs, hτ⟩ := ht j
+    have hτ' := hτ.trans ((hF₀ j).trans (hdata j))
+    refine ⟨hs, hτ', ?_⟩
+    have hsubC : c.2.val.cell c.1 (z.chain.val.cell j).val ⊆
+        q.2.val.cell q.1 (t.cell j).val := by
+      simpa only [exists_childMap_step5_cell_closure] using closure_mono hrel
+    have hstratum := (U.hierarchy.stratumMap_spec q F hF (t.cell j) hs).1
+    rw [hτ] at hstratum
+    have hsubP : q.2.val.cell q.1 (t.cell j).val ⊆
+        U.providerPlacement P q F hF '' ((P.flag (U.recordIncidence P q F hF)).flag.cell j).val.carrier := by
+      have h := closure_mono hstratum
+      simp only [exists_childMap_step5_cell_closure] at h
+      rwa [(hF₀ j).trans (hdata j)] at h
+    apply le_antisymm (affineSpan_mono ℝ hsubP)
+    obtain ⟨_, _, hspan⟩ := hza.1 j
+    rw [hdata j] at hspan
+    rw [← hspan]
+    exact affineSpan_mono ℝ hsubC
+  have horient : ∃ w : OrientedChain F, w.chain.val = t ∧ U.ActiveChain P q F hF w := by
+    let T : FlagChain F := ⟨t, htop⟩
+    by_cases h : U.ActiveChain P q F hF ⟨T, true⟩
+    · exact ⟨⟨T, true⟩, rfl, h⟩
+    · refine ⟨⟨T, false⟩, rfl, hgeom, ?_⟩
+      simp only [Bool.false_eq_true, false_iff]
+      intro hh
+      apply h
+      exact ⟨hgeom, by simpa using hh⟩
+  obtain ⟨w, hw, hwa⟩ := horient
+  refine ⟨t.cell edgeIndex, ⟨w, ?_, ?_⟩, ?_⟩
+  · change w ∈ U.recordChains P q F hF
+    simp only [HonestSource.recordChains, Finset.mem_filter]
+    exact ⟨by simp [allOrientedChains], hwa⟩
+  · exact congrArg (fun T : FacetFlag S q.2.val.ty => (T.cell edgeIndex).val) hw
+  · apply (exists_childMap_step4_relint_containment U q hq i e.val (t.cell edgeIndex).val).mp
+    simpa only [hze] using (ht edgeIndex).1
+
+/-- Step 8 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3, 1.23(c)):
+"sites on chain-active edges of B are vertices of B when a >= r".
+The active-edge hypothesis retains the selected-owner condition of site persistence. -/
+private theorem exists_childMap_step4_profile_step8_mature_site
+    (P : Params S) (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (hm : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
+      (U.hierarchy.firstProvider q f hf).1)
+    (e : CellName S q.2.val.ty) (he : (U.recordOf P q f hf).ChainActive e)
+    (a : Fin P.N) (ha : U.sitePoint P q f hf a ∈ q.2.val.cell q.1 e.val) :
+    ∃ v : VertexName S q.2.val.ty,
+      U.sitePoint P q f hf a = q.2.val.prototypeFrame q.1 (vertexPoint v) := by
+  let H := U.hierarchy.servingChild q f hf
+  let b := (U.hierarchy.firstProvider q f hf).1
+  let ι := U.recordIncidence P q f hf
+  let s := U.recordSide P q f hf
+  let r := P.siteDepth ι s
+  have hheight : H.1 = q.1 + b := U.hierarchy.ancestor_height q b
+  have hb : b ≤ H.1 := by omega
+  have hdiff : H.1 - b = q.1 := by omega
+  have hrn : r ≤ H.1 := by change r ≤ b at hm; omega
+  obtain ⟨z, hz, hze⟩ := he
+  obtain ⟨F, t, hF, ht, hcells⟩ := chain_active_owner U P q f hf z hz
+  have hsidecells (j : FlagIndex d) :
+      H.2.val.prototypeFrame H.1 '' ((P.sideFlag ι s).cell j).val.carrier =
+        U.providerPlacement P q f hf '' ((P.flag ι).flag.cell j).val.carrier := by
+    rw [exists_childMap_step4_profile_step4_serving_frame P U q f hf]
+    have h := congrArg (fun K : Set (E d) =>
+      (U.hierarchy.birthParent q f hf).2.val.prototypeFrame (U.hierarchy.birthHeight q f hf) ''
+        (S.σ.symm '' K)) (P.sideFlag_eq ι s j)
+    simpa only [placedSet, Set.image_image] using h
+  have hcellsF (j : FlagIndex d) : (F.cell j).val = ((P.sideFlag ι s).cell j).val := by
+    apply exists_childMap_step4_cell_eq
+    exact (H.2.val.prototypeFrame H.1).injective.image_injective
+      ((hF j).trans (hsidecells j).symm)
+  have hrole := (Classical.choose_spec (U.recordSide_exists P q f hf)).1
+  change ι.val.sideRole s = U.hierarchy.nodeRole H at hrole
+  have hnode := congrArg FramedNode.ty (U.hierarchy.child_eq H.1 H.2)
+  have htype : ι.val.sideType s = H.2.val.ty :=
+    (congrArg (fun r : S.Role => (S.child r.1 r.2).ty) hrole).trans hnode.symm
+  have transfer {A B : S.ι} (hAB : A = B) (F : FacetFlag S A) (G : FacetFlag S B)
+      (hFG : ∀ j, (F.cell j).val = (G.cell j).val) (r : ℕ) (x : E d) :
+      IsSite A F r x → IsSite B G r x := by
+    cases hAB
+    have heq : F = G := by
+      cases F with | mk fc fd fn =>
+        cases G with | mk gc gd gn =>
+          have he : fc = gc := funext fun j => Subtype.ext (hFG j)
+          cases he
+          rfl
+    cases heq
+    exact id
+  have hsite : IsSite H.2.val.ty F r ((S.σ ^ r) (P.sites ι s a)) :=
+    transfer htype (P.sideFlag ι s) F (fun j => (hcellsF j).symm) r _ (P.sites_valid ι s a)
+  have hesub : e.val.carrier ⊆ t.bottom.val.carrier := by
+    rw [← hze]
+    change _ ⊆ (t.chain.cell TracePiece.bottomIndex).val.carrier
+    rw [hcells TracePiece.bottomIndex]
+    exact z.chain.val.nested _ _ traceDimension_pos
+  have htrace := placedTraceOwner_cells H.2.val H.1 b hb F t t.bottom.val
+  rw [ht, hdiff] at htrace
+  change q.2.val.cell q.1 t.bottom.val = placedTraceCarrier H.2.val H.1 b F t at htrace
+  have hxtrace : U.sitePoint P q f hf a ∈ placedTraceCarrier H.2.val H.1 b F t := by
+    rw [← htrace]
+    exact Set.image_mono hesub ha
+  have hposition : tracePlacement H.2.val H.1 r ((S.σ ^ r) (P.sites ι s a)) =
+      U.sitePoint P q f hf a := by
+    rw [exists_childMap_step4_profile_step4_site_placement P U q f hf a]
+    change H.2.val.frame ((S.σ ^ (H.1-r)) ((S.σ ^ r) (P.sites ι s a))) =
+      H.2.val.frame ((S.σ ^ H.1) (P.sites ι s a))
+    rw [← LinearEquiv.mul_apply, ← pow_add, Nat.sub_add_cancel hrn]
+  have hlisted := placed_site_listed H.2.val H.1 r b hm hb F _ hsite t
+    (by rw [hposition]; exact hxtrace)
+  rw [ht, hdiff] at hlisted
+  obtain ⟨v, hv, hxv⟩ := hlisted
+  refine ⟨⟨v, hv⟩, ?_⟩
+  obtain ⟨y, hy, hyx⟩ := hxv
+  rw [vertexPoint_spec (⟨v, hv⟩ : VertexName S q.2.val.ty)] at hy
+  cases Set.mem_singleton_iff.mp hy
+  simpa only [hposition] using hyx.symm
+
+/-- Step 7 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3, S4d):
+"kappa is constant on relint e" once the owner reaches its side's site depth.
+Listed vertices cannot lie in the relative interior of a listed edge. Each
+site's continuous signed coordinate therefore has a constant sign there. -/
+private theorem exists_childMap_step4_profile_step7_mature_constant
+    (P : Params S) (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (hm : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
+      (U.hierarchy.firstProvider q f hf).1)
+    (e : CellName S q.2.val.ty) (he : (U.recordOf P q f hf).ChainActive e)
+    (x y : E d) (hx : x ∈ relint (q.2.val.cell q.1 e.val))
+    (hy : y ∈ relint (q.2.val.cell q.1 e.val)) :
+    U.sitesBefore P q f hf x = U.sitesBefore P q f hf y := by
+  classical
+  have hdim : e.val.dim = 1 := by
+    obtain ⟨z, _, hze⟩ := he
+    rw [← hze]
+    exact z.chain.val.dimension edgeIndex
+  have hnosite (a : Fin P.N) : U.sitePoint P q f hf a ∉ relint (q.2.val.cell q.1 e.val) := by
+    intro ha
+    obtain ⟨v, hv⟩ := exists_childMap_step4_profile_step8_mature_site P U q f hf hm e he a
+      (intrinsicInterior_subset ha)
+    rw [hv, FramedNode.cell, exists_childMap_step5_relint_image] at ha
+    have hvrel : vertexPoint v ∈ relint e.val.carrier :=
+      (q.2.val.prototypeFrame q.1).injective.mem_set_image.mp ha
+    have hvdim : v.val.dim = 0 := (Finset.mem_filter.mp v.property).2
+    have hvne : v.val ≠ e.val := by intro h; rw [h, hdim] at hvdim; omega
+    have hvself : vertexPoint v ∈ relint v.val.carrier := by
+      rw [vertexPoint_spec]
+      simp only [relint, intrinsicInterior_singleton, Set.mem_singleton_iff]
+    exact Set.disjoint_left.mp ((S.cx q.2.val.ty).relint_disjoint v.val
+      (Finset.mem_filter.mp v.property).1 e.val e.property hvne) hvself hvrel
+  have hconn : IsPreconnected (relint (q.2.val.cell q.1 e.val)) := by
+    rw [FramedNode.cell, exists_childMap_step5_relint_image]
+    exact e.val.flat.relint_connected.isPreconnected.image _
+      (q.2.val.prototypeFrame q.1).toHomeomorphOfFiniteDimensional.continuous.continuousOn
+  by_cases hD : U.counterDirection P q f hf = 0
+  · simp only [HonestSource.sitesBefore, hD, inner_zero_left]
+  · have hpos := real_inner_self_pos.mpr hD
+    have hnonzero (a : Fin P.N) (z : E d) (hz : z ∈ relint (q.2.val.cell q.1 e.val)) :
+        inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - z) ≠ 0 := by
+      obtain ⟨t, ht⟩ := exists_childMap_step4_profile_step5_site_line P U q f hf e he a z
+        (mem_affineSpan ℝ (intrinsicInterior_subset hz))
+      intro hzero
+      rw [← ht, real_inner_smul_right] at hzero
+      have ht0 : t = 0 := (mul_eq_zero.mp hzero).resolve_right (ne_of_gt hpos)
+      have heq : U.sitePoint P q f hf a = z := sub_eq_zero.mp (by rw [← ht, ht0, zero_smul])
+      exact hnosite a (heq.symm ▸ hz)
+    apply Fin.ext
+    dsimp only [HonestSource.sitesBefore]
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro a _
+    have hcont : ContinuousOn
+        (fun z : E d => inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - z))
+        (relint (q.2.val.cell q.1 e.val)) :=
+      (continuous_const.inner (continuous_const.sub continuous_id)).continuousOn
+    exact ⟨fun h => hconn.gt_of_ne hcont (hnonzero a) ⟨x, hx, h⟩ hy,
+      fun h => hconn.gt_of_ne hcont (hnonzero a) ⟨y, hy, h⟩ hx⟩
+
+/-- Step 9 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"same ... provider" and "same ... side" preserve the ambient sites and their
+counting function along an inherited facet. -/
+private theorem exists_childMap_step4_profile_step9_inherited_sites
+    (P : Params S) (U : HonestSource S) (c p : U.Node)
+    (hp : U.hierarchy.parentNode c = p)
+    (f : FacetName S c.2.val.ty) (F : FacetName S p.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault c f) (hF : ¬ U.hierarchy.IsFault p F)
+    (hsub : c.2.val.cell c.1 f.val ⊆ p.2.val.cell p.1 F.val) :
+    (∀ a, U.sitePoint P c f hf a = U.sitePoint P p F hF a) ∧
+      ∀ x, U.sitesBefore P c f hf x = U.sitesBefore P p F hF x := by
+  subst p
+  obtain ⟨_, _, hb, _, _⟩ := U.hierarchy.restriction_det_inherited c F f hF hsub
+  obtain ⟨_, hi, hs⟩ := exists_childMap_step4_inherited_incidence P U c
+    (U.hierarchy.parentNode c) rfl f F hf hsub
+  have hplace : U.providerPlacement P c f hf =
+      U.providerPlacement P (U.hierarchy.parentNode c) F hF := by
+    exact congrArg₂ (fun (b : U.Node) (j : P.Incidence) =>
+      P.incidencePlacement b.2.val b.1 j) hb hi
+  have hsite (a : Fin P.N) : U.sitePoint P c f hf a =
+      U.sitePoint P (U.hierarchy.parentNode c) F hF a := by
+    simp only [HonestSource.sitePoint, hplace, hi, hs]
+  refine ⟨hsite, fun x => ?_⟩
+  have hdir : U.counterDirection P c f hf =
+      U.counterDirection P (U.hierarchy.parentNode c) F hF :=
+    congrArg₂ (fun (p : E d ≃ᵃ[ℝ] E d) (j : P.Incidence) =>
+      p.linear (P.flag j).direction) hplace hi
+  simp only [HonestSource.sitesBefore, hdir, hsite]
+
+/-- Step 10 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"activity being decided by the full-chain test". Equal chain tables give equal
+edge support and endpoint support tests, including empty tables. -/
+private theorem exists_childMap_step4_profile_step10_chain_tests
+    {A B : S.ι} (hAB : A = B) {f : FacetName S A} {g : FacetName S B}
+    (hfg : f.val = g.val) (C : Finset (OrientedChain f)) (D : Finset (OrientedChain g))
+    (hCD : HEq C D) :
+    (∀ (e : CellName S A) (e' : CellName S B), e.val = e'.val →
+      ((∃ c ∈ C, (c.chain.val.cell edgeIndex).val = e.val) ↔
+        ∃ c ∈ D, (c.chain.val.cell edgeIndex).val = e'.val)) ∧
+    (∀ x : E d, (∃ c ∈ C, x ∈ (c.chain.val.cell edgeIndex).val.carrier) ↔
+      ∃ c ∈ D, x ∈ (c.chain.val.cell edgeIndex).val.carrier) := by
+  cases hAB
+  cases Subtype.ext hfg
+  cases eq_of_heq hCD
+  refine ⟨?_, fun _ => Iff.rfl⟩
+  intro e e' he
+  cases Subtype.ext he
+  rfl
+
+/-- Step 11 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"the sites are named vertices". Equal vertex cells name the same point even
+when their prototype indices differ. -/
+private theorem exists_childMap_step4_profile_step11_vertex
+    {A B : S.ι} (v : VertexName S A) (w : VertexName S B) (h : v.val = w.val) :
+    vertexPoint v = vertexPoint w := by
+  apply Set.singleton_injective
+  exact (vertexPoint_spec v).symm.trans ((congrArg Cell.carrier h).trans (vertexPoint_spec w))
+
+/-- Step 12 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"constants ... and the site statuses of their endpoints" are the two fields
+of the mature profile. Pointwise agreement determines that profile. -/
+private theorem exists_childMap_step4_profile_step12_constant_ext
+    {P : Params S} {A B : S.ι} (hAB : A = B)
+    (C : ConstantProfile P A) (D : ConstantProfile P B)
+    (hv : ∀ e e', e.val = e'.val → C.value e = D.value e')
+    (hs : ∀ v v', v.val = v'.val → C.endpointSite v = D.endpointSite v') : HEq C D := by
+  cases hAB
+  apply heq_of_eq
+  cases C with | mk cv cs =>
+    cases D with | mk dv ds =>
+      have hv' : cv = dv := funext fun e => hv e e rfl
+      have hs' : cs = ds := funext fun v => hs v v rfl
+      cases hv'
+      cases hs'
+      rfl
+
+/-- Step 13 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"append i and compute from the finite lookup". The full downward word, incidence,
+side and chain table determine the constants, also at the transition depth. -/
+private theorem exists_childMap_step4_profile_step13_word_constants
+    (P : Params S) (U V : HonestSource S) (c : U.Node) (c' : V.Node)
+    (f : FacetName S c.2.val.ty) (g : FacetName S c'.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault c f) (hg : ¬ V.hierarchy.IsFault c' g)
+    (hty : c.2.val.ty = c'.2.val.ty) (hfg : f.val = g.val)
+    (hi : U.recordIncidence P c f hf = V.recordIncidence P c' g hg)
+    (hs : U.recordSide P c f hf = V.recordSide P c' g hg)
+    (hc : HEq (U.recordChains P c f hf) (V.recordChains P c' g hg))
+    (hw : U.downRoles c (U.hierarchy.firstProvider c f hf).1 =
+      V.downRoles c' (V.hierarchy.firstProvider c' g hg).1) :
+    HEq (U.constantProfile P c f hf) (V.constantProfile P c' g hg) := by
+  classical
+  obtain ⟨hedge, hend⟩ := exists_childMap_step4_profile_step10_chain_tests hty hfg _ _ hc
+  have hdir : (U.recordOf P c f hf).servingDirection =
+      (V.recordOf P c' g hg).servingDirection :=
+    congrArg₂ (fun (j : P.Incidence) (b : Bool) =>
+      (S.child j.val.ty (j.val.sideIndex b)).rotation.symm
+        ((S.child j.val.ty j.val.left).rotation (P.flag j).direction)) hi hs
+  apply exists_childMap_step4_profile_step12_constant_ext hty
+  · intro e e' he
+    have hae := hedge e e' he
+    change (if _ then some _ else none) = (if _ then some _ else none)
+    by_cases ha : ∃ z ∈ U.recordChains P c f hf, (z.chain.val.cell edgeIndex).val = e.val
+    · rw [if_pos ha, if_pos (hae.mp ha)]
+      congr 1
+      apply Fin.ext
+      rw [exists_childMap_step4_profile_step5_word_count P U c f hf e ha,
+        exists_childMap_step4_profile_step5_word_count P V c' g hg e' (hae.mp ha)]
+      simp only [hdir, hi, hs, hw, he]
+    · rw [if_neg ha, if_neg (fun h => ha (hae.mpr h))]
+  · intro v v' hv
+    have hp := exists_childMap_step4_profile_step11_vertex v v' hv
+    have hae := hend (vertexPoint v)
+    rw [hp] at hae
+    change (if _ then some _ else none) = (if _ then some _ else none)
+    by_cases ha : ∃ z ∈ U.recordChains P c f hf,
+        vertexPoint v ∈ (z.chain.val.cell edgeIndex).val.carrier
+    · have ha' : ∃ z ∈ V.recordChains P c' g hg,
+          vertexPoint v' ∈ (z.chain.val.cell edgeIndex).val.carrier := hae.mp (hp ▸ ha)
+      rw [if_pos ha, if_pos ha']
+      congr 1
+      apply List.any_congr rfl
+      intro a
+      simp only [exists_childMap_step4_profile_step4_site_coordinates, hi, hs, hw, hp]
+    · have ha' : ¬ ∃ z ∈ V.recordChains P c' g hg,
+          vertexPoint v' ∈ (z.chain.val.cell edgeIndex).val.carrier := by
+        intro h
+        exact ha (hp.symm ▸ hae.mpr h)
+      rw [if_neg ha, if_neg ha']
+
+/-- Step 14 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"if a+1 < r ...; if a+1 >= r ...". Equal depths and words select the same
+profile branch; at maturity the word lookup supplies its two fields. -/
+private theorem exists_childMap_step4_profile_step14_word_profile
+    (P : Params S) (U V : HonestSource S) (c : U.Node) (c' : V.Node)
+    (f : FacetName S c.2.val.ty) (g : FacetName S c'.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault c f) (hg : ¬ V.hierarchy.IsFault c' g)
+    (hty : c.2.val.ty = c'.2.val.ty) (hfg : f.val = g.val)
+    (hi : U.recordIncidence P c f hf = V.recordIncidence P c' g hg)
+    (hs : U.recordSide P c f hf = V.recordSide P c' g hg)
+    (hc : HEq (U.recordChains P c f hf) (V.recordChains P c' g hg))
+    (ha : (U.hierarchy.firstProvider c f hf).1 = (V.hierarchy.firstProvider c' g hg).1)
+    (hw : U.downRoles c (U.hierarchy.firstProvider c f hf).1 =
+      V.downRoles c' (V.hierarchy.firstProvider c' g hg).1) :
+    HEq (U.counterProfile P c f hf) (V.counterProfile P c' g hg) := by
+  classical
+  have hshort : ((U.hierarchy.firstProvider c f hf).1 <
+      P.siteDepth (U.recordIncidence P c f hf) (U.recordSide P c f hf)) ↔
+      ((V.hierarchy.firstProvider c' g hg).1 <
+        P.siteDepth (V.recordIncidence P c' g hg) (V.recordSide P c' g hg)) := by
+    rw [ha, hi, hs]
+  unfold HonestSource.counterProfile
+  dsimp only
+  by_cases h : (U.hierarchy.firstProvider c f hf).1 <
+      P.siteDepth (U.recordIncidence P c f hf) (U.recordSide P c f hf)
+  · rw [dif_pos h, dif_pos (hshort.mp h)]
+    have aux {A B : S.ι} (hAB : A = B) (w w' : ShortProfile P)
+        (hw : w.word = w'.word) :
+        HEq (Sum.inr w : ConstantProfile P A ⊕ ShortProfile P)
+          (Sum.inr w' : ConstantProfile P B ⊕ ShortProfile P) := by
+      cases hAB
+      cases w
+      cases w'
+      cases hw
+      rfl
+    exact aux hty _ _ hw
+  · rw [dif_neg h, dif_neg (fun h' => h (hshort.mpr h'))]
+    have hconst := exists_childMap_step4_profile_step13_word_constants P U V c c' f g
+      hf hg hty hfg hi hs hc hw
+    have aux {A B : S.ι} (hAB : A = B) (C : ConstantProfile P A)
+        (D : ConstantProfile P B) (hCD : HEq C D) :
+        HEq (Sum.inl C : ConstantProfile P A ⊕ ShortProfile P)
+          (Sum.inl D : ConstantProfile P B ⊕ ShortProfile P) := by
+      cases hAB
+      cases eq_of_heq hCD
+      rfl
+    exact aux hty _ _ hconst
+
+/-- Step 15 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"if the profile is a role word, let a be its length". Equal parent records
+either expose equal depths and words or are both already mature. -/
+private theorem exists_childMap_step4_profile_step15_parent_branch
+    (P : Params S) (U V : HonestSource S) (q : U.Node) (q' : V.Node)
+    (F : FacetName S q.2.val.ty) (G : FacetName S q'.2.val.ty)
+    (hF : ¬ U.hierarchy.IsFault q F) (hG : ¬ V.hierarchy.IsFault q' G)
+    (hr : U.recordOf P q F hF = V.recordOf P q' G hG) :
+    ((U.hierarchy.firstProvider q F hF).1 = (V.hierarchy.firstProvider q' G hG).1 ∧
+      U.downRoles q (U.hierarchy.firstProvider q F hF).1 =
+        V.downRoles q' (V.hierarchy.firstProvider q' G hG).1) ∨
+    (P.siteDepth (U.recordIncidence P q F hF) (U.recordSide P q F hF) ≤
+        (U.hierarchy.firstProvider q F hF).1 ∧
+      P.siteDepth (V.recordIncidence P q' G hG) (V.recordSide P q' G hG) ≤
+        (V.hierarchy.firstProvider q' G hG).1) := by
+  classical
+  have htag := congrArg (fun r : FacetRecord P => r.counter.isLeft) hr
+  by_cases h : (U.hierarchy.firstProvider q F hF).1 <
+      P.siteDepth (U.recordIncidence P q F hF) (U.recordSide P q F hF)
+  · have h' : (V.hierarchy.firstProvider q' G hG).1 <
+        P.siteDepth (V.recordIncidence P q' G hG) (V.recordSide P q' G hG) := by
+      by_contra hn
+      simp [HonestSource.recordOf, HonestSource.counterProfile, h, hn] at htag
+    have hw := congrArg (fun r : FacetRecord P =>
+      match r.counter with | .inl _ => [] | .inr w => w.word) hr
+    simp only [HonestSource.recordOf, HonestSource.counterProfile, dif_pos h, dif_pos h'] at hw
+    have hl := congrArg List.length hw
+    simp only [HonestSource.downRoles, List.length_reverse, List.length_ofFn] at hl
+    exact Or.inl ⟨hl, hw⟩
+  · right
+    refine ⟨Nat.le_of_not_lt h, ?_⟩
+    by_contra hn
+    have h' := Nat.lt_of_not_ge hn
+    simp [HonestSource.recordOf, HonestSource.counterProfile, h, h'] at htag
+
+/-- Step 16 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"if the profile already consists of constants". Equality of mature parent
+records preserves every named counter and endpoint entry. -/
+private theorem exists_childMap_step4_profile_step16_parent_entries
+    (P : Params S) (U V : HonestSource S) (q : U.Node) (q' : V.Node)
+    (F : FacetName S q.2.val.ty) (G : FacetName S q'.2.val.ty)
+    (hF : ¬ U.hierarchy.IsFault q F) (hG : ¬ V.hierarchy.IsFault q' G)
+    (hr : U.recordOf P q F hF = V.recordOf P q' G hG)
+    (hm : P.siteDepth (U.recordIncidence P q F hF) (U.recordSide P q F hF) ≤
+      (U.hierarchy.firstProvider q F hF).1)
+    (hm' : P.siteDepth (V.recordIncidence P q' G hG) (V.recordSide P q' G hG) ≤
+      (V.hierarchy.firstProvider q' G hG).1) :
+    (∀ e e', e.val = e'.val →
+      (U.constantProfile P q F hF).value e = (V.constantProfile P q' G hG).value e') ∧
+    (∀ v v', v.val = v'.val →
+      (U.constantProfile P q F hF).endpointSite v =
+        (V.constantProfile P q' G hG).endpointSite v') := by
+  have aux {r t : FacetRecord P} (h : r = t)
+      (C : ConstantProfile P r.ty) (D : ConstantProfile P t.ty)
+      (hC : r.counter = .inl C) (hD : t.counter = .inl D) :
+      (∀ e e', e.val = e'.val → C.value e = D.value e') ∧
+      (∀ v v', v.val = v'.val → C.endpointSite v = D.endpointSite v') := by
+    cases h
+    cases Sum.inl.inj (hC.symm.trans hD)
+    constructor
+    · intro e e' he
+      cases Subtype.ext he
+      rfl
+    · intro v v' hv
+      cases Subtype.ext hv
+      rfl
+  exact aux hr _ _
+    (by simp only [HonestSource.recordOf, HonestSource.counterProfile, dif_neg (not_lt.mpr hm)])
+    (by simp only [HonestSource.recordOf, HonestSource.counterProfile, dif_neg (not_lt.mpr hm')])
+
+/-- Step 17 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"inherits kappa(e') = kappa(e)". The child's anchor is inside its containing
+parent edge, where the unchanged ambient counting function is constant. -/
+private theorem exists_childMap_step4_profile_step17_inherited_value
+    (P : Params S) (U : HonestSource S) (q : U.Node) (hq : 1 ≤ q.1)
+    (i : S.I q.2.val.ty) (f : FacetName S (U.childNode q hq i).2.val.ty)
+    (F : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (hF : ¬ U.hierarchy.IsFault q F)
+    (hsub : rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier)
+    (hm : P.siteDepth (U.recordIncidence P q F hF) (U.recordSide P q F hF) ≤
+      (U.hierarchy.firstProvider q F hF).1)
+    (e : CellName S (U.childNode q hq i).2.val.ty) (E : CellName S q.2.val.ty)
+    (he : (U.recordOf P (U.childNode q hq i) f hf).ChainActive e)
+    (hE : (U.recordOf P q F hF).ChainActive E)
+    (heE : relint (rolePlacement ⟨q.2.val.ty, i⟩ '' e.val.carrier) ⊆ relint E.val.carrier) :
+    (U.constantProfile P (U.childNode q hq i) f hf).value e =
+      (U.constantProfile P q F hF).value E := by
+  classical
+  change ∃ z ∈ U.recordChains P (U.childNode q hq i) f hf,
+    (z.chain.val.cell edgeIndex).val = e.val at he
+  change ∃ z ∈ U.recordChains P q F hF, (z.chain.val.cell edgeIndex).val = E.val at hE
+  change (if _ then some _ else none) = (if _ then some _ else none)
+  rw [if_pos he, if_pos hE]
+  congr 1
+  have hsub' := (exists_childMap_step4_containment U q hq i f.val F.val).mpr hsub
+  rw [(exists_childMap_step4_profile_step9_inherited_sites P U _ _
+    (exists_childMap_step2_parent U q hq i) f F hf hF hsub').2]
+  apply exists_childMap_step4_profile_step7_mature_constant P U q F hF hm E hE
+  · apply (exists_childMap_step4_relint_containment U q hq i e.val E.val).mpr heE
+    rw [FramedNode.cell, exists_childMap_step5_relint_image]
+    exact Set.mem_image_of_mem _ (cellAnchor_mem e.val)
+  · rw [FramedNode.cell, exists_childMap_step5_relint_image]
+    exact Set.mem_image_of_mem _ (cellAnchor_mem E.val)
+
+/-- Step 18 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"the site status ... is inherited if v' is a vertex of B ... and is not a site
+otherwise". On a mature active edge, a site is precisely a flagged parent vertex. -/
+private theorem exists_childMap_step4_profile_step18_endpoint_lookup
+    (P : Params S) (U : HonestSource S) (q : U.Node)
+    (F : FacetName S q.2.val.ty) (hF : ¬ U.hierarchy.IsFault q F)
+    (hm : P.siteDepth (U.recordIncidence P q F hF) (U.recordSide P q F hF) ≤
+      (U.hierarchy.firstProvider q F hF).1)
+    (E : CellName S q.2.val.ty) (hE : (U.recordOf P q F hF).ChainActive E)
+    (x : Enforce.E d) (hx : x ∈ q.2.val.cell q.1 E.val) :
+    (∃ a, U.sitePoint P q F hF a = x) ↔
+      ∃ v : VertexName S q.2.val.ty, q.2.val.prototypeFrame q.1 (vertexPoint v) = x ∧
+        (U.constantProfile P q F hF).endpointSite v = some true := by
+  classical
+  constructor
+  · rintro ⟨a, rfl⟩
+    obtain ⟨v, hv⟩ := exists_childMap_step4_profile_step8_mature_site P U q F hF hm E hE a hx
+    refine ⟨v, hv.symm, ?_⟩
+    have hvE : vertexPoint v ∈ E.val.carrier := by
+      rw [hv] at hx
+      exact (q.2.val.prototypeFrame q.1).injective.mem_set_image.mp hx
+    obtain ⟨z, hz, hze⟩ := hE
+    have hendpoint : ∃ z ∈ U.recordChains P q F hF,
+        vertexPoint v ∈ (z.chain.val.cell edgeIndex).val.carrier :=
+      ⟨z, hz, by simpa only [hze] using hvE⟩
+    simp only [HonestSource.constantProfile, if_pos hendpoint, Option.some.injEq,
+      List.any_eq_true, Finset.mem_toList, Finset.mem_univ, true_and, decide_eq_true_eq]
+    exact ⟨a, hv⟩
+  · rintro ⟨v, hv, hflag⟩
+    have ha : ∃ a, U.sitePoint P q F hF a = q.2.val.prototypeFrame q.1 (vertexPoint v) := by
+      simp only [HonestSource.constantProfile] at hflag
+      split_ifs at hflag with h
+      simpa only [Option.some.injEq, List.any_eq_true, Finset.mem_toList,
+        Finset.mem_univ, true_and, decide_eq_true_eq] using hflag
+    obtain ⟨a, ha⟩ := ha
+    exact ⟨a, ha.trans hv⟩
+
+/-- Step 19 of the V4 proof of `exists_childMap_step4_profile` (V4 2.3):
+"each chain-active edge ... inherits" and old endpoint flags inherit.
+Apply the single-edge laws to the equal mature parent entries; the containing
+edge and the old-vertex test use only the common substitution geometry. -/
+private theorem exists_childMap_step4_profile_step19_mature_constants
+    (P : Params S) (U V : HonestSource S) (q : U.Node) (q' : V.Node)
+    (hq : 1 ≤ q.1) (hq' : 1 ≤ q'.1) (i : S.I q.2.val.ty) (i' : S.I q'.2.val.ty)
+    (hrole : (⟨q.2.val.ty, i⟩ : S.Role) = ⟨q'.2.val.ty, i'⟩)
+    (f : FacetName S (U.childNode q hq i).2.val.ty)
+    (g : FacetName S (V.childNode q' hq' i').2.val.ty) (hfg : f.val = g.val)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (hg : ¬ V.hierarchy.IsFault (V.childNode q' hq' i') g)
+    (F : FacetName S q.2.val.ty) (G : FacetName S q'.2.val.ty)
+    (hF : ¬ U.hierarchy.IsFault q F) (hG : ¬ V.hierarchy.IsFault q' G)
+    (hsub : rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier)
+    (hsub' : rolePlacement ⟨q'.2.val.ty, i'⟩ '' g.val.carrier ⊆ G.val.carrier)
+    (hr : U.recordOf P q F hF = V.recordOf P q' G hG)
+    (hm : P.siteDepth (U.recordIncidence P q F hF) (U.recordSide P q F hF) ≤
+      (U.hierarchy.firstProvider q F hF).1)
+    (hm' : P.siteDepth (V.recordIncidence P q' G hG) (V.recordSide P q' G hG) ≤
+      (V.hierarchy.firstProvider q' G hG).1)
+    (hc : HEq (U.recordChains P (U.childNode q hq i) f hf)
+      (V.recordChains P (V.childNode q' hq' i') g hg)) :
+    HEq (U.constantProfile P (U.childNode q hq i) f hf)
+      (V.constantProfile P (V.childNode q' hq' i') g hg) := by
+  classical
+  have hty : q.2.val.ty = q'.2.val.ty := congrArg Sigma.fst hrole
+  have hchild : (U.childNode q hq i).2.val.ty = (V.childNode q' hq' i').2.val.ty :=
+    congrArg (fun r : S.Role => (S.child r.1 r.2).ty) hrole
+  obtain ⟨hedge, hend⟩ := exists_childMap_step4_profile_step10_chain_tests hchild hfg _ _ hc
+  obtain ⟨hvalues, hflags⟩ := exists_childMap_step4_profile_step16_parent_entries P U V
+    q q' F G hF hG hr hm hm'
+  have hactive (E : CellName S q.2.val.ty) (E' : CellName S q'.2.val.ty)
+      (hEE : E.val = E'.val) :
+      (U.recordOf P q F hF).ChainActive E ↔ (V.recordOf P q' G hG).ChainActive E' := by
+    have aux {r t : FacetRecord P} (h : r = t) (e : CellName S r.ty)
+        (e' : CellName S t.ty) (he : e.val = e'.val) : r.ChainActive e ↔ t.ChainActive e' := by
+      cases h
+      cases Subtype.ext he
+      rfl
+    exact aux hr E E' hEE
+  have hframe (W : HonestSource S) (p : W.Node) (hp : 1 ≤ p.1)
+      (j : S.I p.2.val.ty) (x : E d) :
+      (W.childNode p hp j).2.val.prototypeFrame (W.childNode p hp j).1 x =
+        p.2.val.prototypeFrame p.1 (rolePlacement ⟨p.2.val.ty, j⟩ x) := by
+    change (p.2.val.child (p.1-1) j).prototypeFrame (p.1-1) x = _
+    rw [exists_childMap_step1_frame, Nat.sub_add_cancel hp]
+    rfl
+  apply exists_childMap_step4_profile_step12_constant_ext hchild
+  · intro e e' he
+    have hae := hedge e e' he
+    by_cases ha : ∃ z ∈ U.recordChains P (U.childNode q hq i) f hf,
+        (z.chain.val.cell edgeIndex).val = e.val
+    · obtain ⟨E, hE, heE⟩ := exists_childMap_step4_profile_step6_parent_edge P U q hq i
+        f F hf hF hsub e ha
+      let E' : CellName S q'.2.val.ty := ⟨E.val, hty ▸ E.property⟩
+      have hE' := (hactive E E' rfl).mp hE
+      have heE' : relint (rolePlacement ⟨q'.2.val.ty, i'⟩ '' e'.val.carrier) ⊆
+          relint E'.val.carrier := by simpa only [← hrole, ← he] using heE
+      exact (exists_childMap_step4_profile_step17_inherited_value P U q hq i f F hf hF
+        hsub hm e E ha hE heE).trans ((hvalues E E' rfl).trans
+          (exists_childMap_step4_profile_step17_inherited_value P V q' hq' i' g G hg hG
+            hsub' hm' e' E' (hae.mp ha) hE' heE').symm)
+    · simp only [HonestSource.constantProfile, if_neg ha, if_neg (fun h => ha (hae.mpr h))]
+  · intro v v' hv
+    have hp := exists_childMap_step4_profile_step11_vertex v v' hv
+    have hae : (∃ z ∈ U.recordChains P (U.childNode q hq i) f hf,
+        vertexPoint v ∈ (z.chain.val.cell edgeIndex).val.carrier) ↔
+        ∃ z ∈ V.recordChains P (V.childNode q' hq' i') g hg,
+          vertexPoint v' ∈ (z.chain.val.cell edgeIndex).val.carrier := by
+      rw [hp]
+      exact hend _
+    by_cases ha : ∃ z ∈ U.recordChains P (U.childNode q hq i) f hf,
+        vertexPoint v ∈ (z.chain.val.cell edgeIndex).val.carrier
+    · change (if _ then some _ else none) = (if _ then some _ else none)
+      rw [if_pos ha, if_pos (hae.mp ha)]
+      apply congrArg some
+      apply Bool.eq_iff_iff.mpr
+      simp only [List.any_eq_true, Finset.mem_toList, Finset.mem_univ, true_and, decide_eq_true_eq]
+      obtain ⟨z, hz, hvz⟩ := ha
+      let e := z.chain.val.cell edgeIndex
+      have he : (U.recordOf P (U.childNode q hq i) f hf).ChainActive e := ⟨z, hz, rfl⟩
+      obtain ⟨E, hE, heE⟩ := exists_childMap_step4_profile_step6_parent_edge P U q hq i
+        f F hf hF hsub e he
+      let E' : CellName S q'.2.val.ty := ⟨E.val, hty ▸ E.property⟩
+      have hE' := (hactive E E' rfl).mp hE
+      have hclosed : rolePlacement ⟨q.2.val.ty, i⟩ '' e.val.carrier ⊆ E.val.carrier := by
+        have h := closure_mono ((exists_childMap_step4_relint_containment U q hq i e.val E.val).mpr heE)
+        rw [exists_childMap_step5_cell_closure, exists_childMap_step5_cell_closure] at h
+        exact (exists_childMap_step4_containment U q hq i e.val E.val).mp h
+      have hx : rolePlacement ⟨q.2.val.ty, i⟩ (vertexPoint v) ∈ E.val.carrier :=
+        hclosed (Set.mem_image_of_mem _ hvz)
+      have hx' : rolePlacement ⟨q'.2.val.ty, i'⟩ (vertexPoint v') ∈ E'.val.carrier := by
+        simpa only [← hrole, ← hp] using hx
+      have hxU : (U.childNode q hq i).2.val.prototypeFrame (U.childNode q hq i).1
+          (vertexPoint v) ∈ q.2.val.cell q.1 E.val := by
+        rw [hframe]
+        exact Set.mem_image_of_mem _ hx
+      have hxV : (V.childNode q' hq' i').2.val.prototypeFrame (V.childNode q' hq' i').1
+          (vertexPoint v') ∈ q'.2.val.cell q'.1 E'.val := by
+        rw [hframe]
+        exact Set.mem_image_of_mem _ hx'
+      have hsites := (exists_childMap_step4_profile_step9_inherited_sites P U _ _
+        (exists_childMap_step2_parent U q hq i) f F hf hF
+        ((exists_childMap_step4_containment U q hq i f.val F.val).mpr hsub)).1
+      have hsites' := (exists_childMap_step4_profile_step9_inherited_sites P V _ _
+        (exists_childMap_step2_parent V q' hq' i') g G hg hG
+        ((exists_childMap_step4_containment V q' hq' i' g.val G.val).mpr hsub')).1
+      simp only [hsites, hsites']
+      rw [exists_childMap_step4_profile_step18_endpoint_lookup P U q F hF hm E hE _ hxU,
+        exists_childMap_step4_profile_step18_endpoint_lookup P V q' G hG hm' E' hE' _ hxV]
+      simp only [hframe, AffineEquiv.apply_eq_iff_eq]
+      constructor
+      · rintro ⟨w, hw, hs⟩
+        let w' : VertexName S q'.2.val.ty := ⟨w.val, hty ▸ w.property⟩
+        have hw' := exists_childMap_step4_profile_step11_vertex w w' rfl
+        refine ⟨w', ?_, (hflags w w' rfl).symm.trans hs⟩
+        simpa only [← hrole, ← hp, ← hw'] using hw
+      · rintro ⟨w', hw, hs⟩
+        let w : VertexName S q.2.val.ty := ⟨w'.val, hty.symm ▸ w'.property⟩
+        have hw' := exists_childMap_step4_profile_step11_vertex w w' rfl
+        refine ⟨w, ?_, (hflags w w' rfl).trans hs⟩
+        simpa only [hrole, hp, hw'] using hw
+    · simp only [HonestSource.constantProfile, if_neg ha, if_neg (fun h => ha (hae.mpr h))]
+
+end ProfileSteps
+
 /-- Step 4 of the V4 proof of `exists_childMap` (V4 2.3):
 (S4d): "append i to the role word"; after maturity each active edge
 "inherits kappa(e') = kappa(e)", and a new endpoint is "not a site".
@@ -1960,7 +2895,81 @@ transition at the chosen side's site depth. -/
 private theorem exists_childMap_step4_profile :
     HEq (U.recordOf P (U.childNode q hq i) f hf).counter
       (V.recordOf P (V.childNode q' hq' i') g hg).counter := by
-  sorry
+  classical
+  have hty : q.2.val.ty = q'.2.val.ty := congrArg Sigma.fst hrole
+  have hchild : (U.childNode q hq i).2.val.ty = (V.childNode q' hq' i').2.val.ty :=
+    congrArg (fun r : S.Role => (S.child r.1 r.2).ty) hrole
+  obtain ⟨hi, hs⟩ := exists_childMap_step4_incidence P q q' hq hq' i i' hrole hrecords f g hfg hf hg
+  have hc := exists_childMap_step4_chains P q q' hq hq' i i' hrole hrecords f g hfg hf hg
+  change U.recordIncidence P (U.childNode q hq i) f hf =
+    V.recordIncidence P (V.childNode q' hq' i') g hg at hi
+  change U.recordSide P (U.childNode q hq i) f hf =
+    V.recordSide P (V.childNode q' hq' i') g hg at hs
+  change HEq (U.recordChains P (U.childNode q hq i) f hf)
+    (V.recordChains P (V.childNode q' hq' i') g hg) at hc
+  change HEq (U.counterProfile P (U.childNode q hq i) f hf)
+    (V.counterProfile P (V.childNode q' hq' i') g hg)
+  by_cases hint : ∃ F : FacetName S q.2.val.ty,
+      rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier
+  · obtain ⟨F, hsub⟩ := hint
+    let G : FacetName S q'.2.val.ty := ⟨F.val, hty ▸ F.property⟩
+    have hsub' : rolePlacement ⟨q'.2.val.ty, i'⟩ '' g.val.carrier ⊆ G.val.carrier := by
+      simpa only [← hrole, ← hfg] using hsub
+    have hplaced := (exists_childMap_step4_containment U q hq i f.val F.val).mpr hsub
+    have hplaced' := (exists_childMap_step4_containment V q' hq' i' g.val G.val).mpr hsub'
+    obtain ⟨hF, hiF, hsF⟩ := exists_childMap_step4_inherited_incidence P U _ _
+      (exists_childMap_step2_parent U q hq i) f F hf hplaced
+    obtain ⟨hG, hiG, hsG⟩ := exists_childMap_step4_inherited_incidence P V _ _
+      (exists_childMap_step2_parent V q' hq' i') g G hg hplaced'
+    have hr := hrecords F G rfl
+    simp only [HonestSource.facetRecordOf, dif_neg hF, dif_neg hG, Option.some.injEq] at hr
+    have ha := exists_childMap_step4_profile_step2_depth U _ _
+      (exists_childMap_step2_parent U q hq i) f F hf hF hplaced
+    have ha' := exists_childMap_step4_profile_step2_depth V _ _
+      (exists_childMap_step2_parent V q' hq' i') g G hg hG hplaced'
+    obtain ⟨hdepth, hword⟩ | ⟨hm, hm'⟩ :=
+      exists_childMap_step4_profile_step15_parent_branch P U V q q' F G hF hG hr
+    · apply exists_childMap_step4_profile_step14_word_profile P U V _ _ f g hf hg hchild hfg hi hs hc
+      · omega
+      · rw [ha, ha', exists_childMap_step4_profile_step1_downRoles,
+          exists_childMap_step4_profile_step1_downRoles,
+          exists_childMap_step2_parent, exists_childMap_step2_parent,
+          exists_childMap_step2_role, exists_childMap_step2_role, hword, hrole]
+    · have hmC : ¬ (U.hierarchy.firstProvider (U.childNode q hq i) f hf).1 <
+          P.siteDepth (U.recordIncidence P (U.childNode q hq i) f hf)
+            (U.recordSide P (U.childNode q hq i) f hf) := by
+        rw [ha, hiF, hsF]
+        omega
+      have hmC' : ¬ (V.hierarchy.firstProvider (V.childNode q' hq' i') g hg).1 <
+          P.siteDepth (V.recordIncidence P (V.childNode q' hq' i') g hg)
+            (V.recordSide P (V.childNode q' hq' i') g hg) := by
+        rw [ha', hiG, hsG]
+        omega
+      simp only [HonestSource.counterProfile, dif_neg hmC, dif_neg hmC']
+      have hconst := exists_childMap_step4_profile_step19_mature_constants P U V q q'
+        hq hq' i i' hrole f g hfg hf hg F G hF hG hsub hsub' hr hm hm' hc
+      have aux {A B : S.ι} (hAB : A = B) (C : ConstantProfile P A)
+          (D : ConstantProfile P B) (hCD : HEq C D) :
+          HEq (Sum.inl C : ConstantProfile P A ⊕ ShortProfile P)
+            (Sum.inl D : ConstantProfile P B ⊕ ShortProfile P) := by
+        cases hAB
+        cases eq_of_heq hCD
+        rfl
+      exact aux hchild _ _ hconst
+  · have hint' : ¬ ∃ G : FacetName S q'.2.val.ty,
+        rolePlacement ⟨q'.2.val.ty, i'⟩ '' g.val.carrier ⊆ G.val.carrier := by
+      rintro ⟨G, hG⟩
+      let F : FacetName S q.2.val.ty := ⟨G.val, hty.symm ▸ G.property⟩
+      exact hint ⟨F, by simpa only [hrole, hfg] using hG⟩
+    obtain ⟨_, _, hage⟩ := exists_childMap_step4_internal_provider U q hq i f hf hint
+    obtain ⟨_, _, hage'⟩ := exists_childMap_step4_internal_provider V q' hq' i' g hg hint'
+    have hage0 := (U.hierarchy.birthHeight_age_spec (U.childNode q hq i) f hf).2.1
+    have hage0' := (V.hierarchy.birthHeight_age_spec (V.childNode q' hq' i') g hg).2.1
+    have hz : (U.hierarchy.firstProvider (U.childNode q hq i) f hf).1 = 0 := by omega
+    have hz' : (V.hierarchy.firstProvider (V.childNode q' hq' i') g hg).1 = 0 := by omega
+    apply exists_childMap_step4_profile_step14_word_profile P U V _ _ f g hf hg hchild hfg hi hs hc
+    · omega
+    · simp only [hz, hz', HonestSource.downRoles, List.ofFn_zero, List.reverse_nil]
 
 end ChildComparison
 

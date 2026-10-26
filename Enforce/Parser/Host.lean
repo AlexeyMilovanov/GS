@@ -306,6 +306,478 @@ private def host_step_rootCover {Y : MarkedTiling (systemM S P C)} {n : ℕ}
     ∀ k, (tileNode (u i).1).cell 0 ((u i).2.2.chain.val.cell k).val ⊆
       (R (owner i)).1.val.node.cell n ((R (owner i)).2.2.chain.val.cell k).val
 
+/-- Step 1 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"the actual header of P at p₀: the cone G_p₀, the children's cones, and
+the flag tangent data". This is that geometric header, expressed in a native
+tile's frame, without asserting that the proposed parent is an actual block. -/
+private def host_step_step1_seed_step1_header (Q : FramedNode S) (n : ℕ)
+    (φ : Iso d) (p : E d) : State.Header P := by
+  classical
+  let normalize := fun K : Set (E d) => φ.linearIsometryEquiv.symm '' K
+  let pos := fun ι : P.Incidence => P.incidencePlacement Q (n + 1) ι
+  exact {
+    birthType := Q.ty
+    parentCone := normalize (tangentCone (Q.carrier (n + 1)) p)
+    childCones := fun i =>
+      let N := Q.child n i
+      if p ∈ N.carrier n then some (normalize (tangentCone (N.carrier n) p)) else none
+    boundaryCones := fun F => if p ∈ Q.cell (n + 1) F.val then
+      some (normalize (tangentCone (Q.cell (n + 1) F.val) p)) else none
+    primitiveCones := fun ι => if ι.val.ty = Q.ty ∧
+        p ∈ pos ι '' ι.val.leftFacet.val.carrier then
+      some (normalize (tangentCone (pos ι '' ι.val.leftFacet.val.carrier) p)) else none
+    flagTangent := fun ι => if ι.val.ty = Q.ty ∧
+        (p = pos ι (P.flag ι).initial ∨ p = pos ι (P.flag ι).terminal) then
+      some {
+        cones := fun j => normalize
+          (tangentCone (pos ι '' ((P.flag ι).flag.cell j).val.carrier) p)
+        initial := decide (p = pos ι (P.flag ι).initial)
+        sides := fun j => normalize ((pos ι).linear '' (P.flag ι).sides j) }
+      else none }
+
+/-- Step 1 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"the oriented flag ... transported to P". The sibling-coordinate formula
+is the canonical incidence placement in the proposed parent, also for a
+general anisotropic expansion. -/
+private theorem host_step_step1_seed_step1_flag_frame (Q : FramedNode S) (n : ℕ)
+    (ι : P.Incidence) (b : Bool) :
+    host_step_flagFrame
+        ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)) n ι b =
+      P.incidencePlacement Q (n + 1) ι := by
+  have hplace (x : E d) : S.placeChild n (ι.val.sideIndex b) ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child ι.val.ty (ι.val.sideIndex b)).frame x) := by
+    change linearConj S.σ (n : ℤ)
+        (S.child ι.val.ty (ι.val.sideIndex b)).rotation.toLinearEquiv ((S.σ ^ n) x) +
+        (S.σ ^ n) (S.child ι.val.ty (ι.val.sideIndex b)).offset =
+      (S.σ ^ n) ((S.child ι.val.ty (ι.val.sideIndex b)).rotation x +
+        (S.child ι.val.ty (ι.val.sideIndex b)).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  apply AffineEquiv.ext
+  intro x
+  change Q.frame (S.placeChild n (ι.val.sideIndex b) ((S.σ ^ n)
+      ((S.child ι.val.ty (ι.val.sideIndex b)).frame.symm
+        ((S.child ι.val.ty ι.val.left).frame x)))) =
+    Q.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child ι.val.ty ι.val.left).frame x)))
+  rw [hplace]
+  simp only [AffineIsometryEquiv.apply_symm_apply, pow_succ, LinearEquiv.mul_apply,
+    LinearEquiv.apply_symm_apply]
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"Tiles t ⊆ B with a facet piece on f". A listed closed cell lies in the
+prototype support, including at its boundary. -/
+private theorem host_step_step1_seed_step2_cell_subset (A : S.ι) (e : Cell d) (he : e ∈ (S.cx A).cells) :
+    e.carrier ⊆ (S.proto A).carrier := by
+  intro x hx
+  apply (S.proto A).compact.isClosed.frontier_subset
+  rw [← (S.cx A).carriers_cover]
+  exact mem_iUnion₂.mpr ⟨e, he, hx⟩
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed` (V4 3.6, 1.5, 1.8):
+"Tiles t ⊆ B with a facet piece on f containing p₀ exist". Iterated
+heredity covers the entire closed facet; listedness then passes to the
+chosen actual native descendant, even at a boundary point of the piece. -/
+private theorem host_step_step1_seed_step2_facet_at_vertex
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (B : Block Y n)
+    (f : FacetName S B.node.ty) (p : E d) (hp : B.node.Lists n p)
+    (hpf : p ∈ B.node.cell n f.val) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+      (v : VertexName S (tileNode t).ty),
+      Parser.IsFacetPiece Y n B.node f t g ∧ v.val.carrier ⊆ g.val.carrier ∧
+        compilerFrame C t (vertexPoint v) = p := by
+  classical
+  obtain ⟨parts, hparts⟩ := S.heredity_iter B.node.ty n f.val
+    (Finset.mem_filter.mp f.property).1
+  obtain ⟨x, hxf, hxp⟩ := hpf
+  have hσx : (S.σ ^ n) x ∈ (S.σ ^ n) '' f.val.carrier := ⟨x, hxf, rfl⟩
+  rw [hparts] at hσx
+  obtain ⟨q, hq, y, hy, hxy⟩ := mem_iUnion₂.mp hσx
+  obtain ⟨t, ht, hnode⟩ := B.actual q.1
+  let g : FacetName S (tileNode t).ty := ⟨q.2.val, by
+    rw [hnode]
+    exact Finset.mem_filter.mpr ⟨q.2.property.1,
+      q.2.property.2.trans (Finset.mem_filter.mp f.property).2⟩⟩
+  have hdesc : (tileNode t).IsDescendant 0 B.node n := ⟨n, by omega, q.1, hnode⟩
+  have hsub : (tileNode t).cell 0 g.val ⊆ B.node.cell n f.val := by
+    rintro z ⟨w, hw, rfl⟩
+    have hmem : (S.nativeTile B.node.ty n q.1).frame w ∈ (S.σ ^ n) '' f.val.carrier := by
+      rw [hparts]
+      exact mem_iUnion₂.mpr ⟨q, hq, w, hw, rfl⟩
+    obtain ⟨z, hz, he⟩ := hmem
+    refine ⟨z, hz, ?_⟩
+    rw [hnode]
+    change B.node.frame ((S.σ ^ n) z) = B.node.frame ((S.nativeTile B.node.ty n q.1).frame w)
+    exact congrArg B.node.frame he
+  have hpoint : (tileNode t).prototypeFrame 0 y = p := by
+    rw [hnode]
+    change B.node.frame ((S.nativeTile B.node.ty n q.1).frame y) = p
+    rw [hxy]
+    exact hxp
+  have hmem : p ∈ (tileNode t).carrier 0 := by
+    rw [← hpoint, hnode]
+    refine ⟨(S.σ ^ 0) y, ⟨y, ?_, rfl⟩, rfl⟩
+    exact host_step_step1_seed_step2_cell_subset _ q.2.val q.2.property.1 hy
+  obtain ⟨v, hv, hvp⟩ := commonListed_inherited B.node (tileNode t) n 0 hdesc p hp hmem
+  let v' : VertexName S (tileNode t).ty := ⟨v, hv⟩
+  have hvpoint : compilerFrame C t (vertexPoint v') = p := by
+    obtain ⟨z, hz, hzp⟩ := hvp
+    change z ∈ v'.val.carrier at hz
+    have hzv : z = vertexPoint v' := by simpa only [vertexPoint_spec v', mem_singleton_iff] using hz
+    subst z
+    exact hzp
+  have hvg : v.carrier ⊆ g.val.carrier := by
+    rw [vertexPoint_spec v']
+    apply singleton_subset_iff.mpr
+    have hyv : y = vertexPoint v' := by
+      apply (compilerFrame C t).injective
+      exact hpoint.trans hvpoint.symm
+    simpa only [← hyv] using hy
+  exact ⟨t, g, v', ⟨ht, hdesc, hsub⟩, hvg, hvpoint⟩
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed` (V4 3.6, 1.4(a)):
+"p₀, p_N the initial and terminal vertices of h". Both endpoints are
+listed vertices on both incidence sides. Sibling conformity transfers the
+canonical singleton cell to the other side without identifying prototypes. -/
+private theorem host_step_step1_seed_step2_side_vertex (ι : P.Incidence) (b : Bool) (p : E d)
+    (hp : p = (P.flag ι).initial ∨ p = (P.flag ι).terminal) :
+    ∃ v ∈ (S.cx (ι.val.sideType b)).vertices,
+      v.carrier = {(S.child ι.val.ty (ι.val.sideIndex b)).frame.symm
+        ((S.child ι.val.ty ι.val.left).frame p)} ∧
+      v.carrier ⊆ (ι.val.sideFacet b).val.carrier := by
+  classical
+  have hpedge : p ∈ ((P.flag ι).flag.cell edgeIndex).val.carrier := by
+    rw [(P.flag ι).edge_eq]
+    rcases hp with rfl | rfl
+    · exact left_mem_segment ℝ _ _
+    · exact right_mem_segment ℝ _ _
+  have hpf : p ∈ ι.val.leftFacet.val.carrier := by
+    have hsub := (P.flag ι).flag.nested edgeIndex facetIndex (by
+      change 1 ≤ d - 1
+      have := (Fact.out : 2 ≤ d)
+      omega)
+    rw [(P.flag ι).top] at hsub
+    exact hsub hpedge
+  obtain ⟨v, hv, hvc⟩ : ∃ v ∈ (S.cx (S.child ι.val.ty ι.val.left).ty).vertices,
+      v.carrier = {p} := by
+    rcases hp with rfl | rfl
+    · exact (P.flag ι).initial_listed
+    · exact (P.flag ι).terminal_listed
+  cases b with
+  | false =>
+    refine ⟨v, hv, ?_, ?_⟩
+    · simpa only [PrimitiveIncidence.sideIndex, Bool.false_eq_true, ↓reduceIte,
+        AffineIsometryEquiv.symm_apply_apply] using hvc
+    · simpa only [hvc, singleton_subset_iff] using hpf
+  | true =>
+    have hleft : (S.child ι.val.ty ι.val.left).frame p ∈
+        placedSet (S.child ι.val.ty ι.val.left).frame
+          (S.proto (S.child ι.val.ty ι.val.left).ty).carrier := by
+      exact ⟨p, host_step_step1_seed_step2_cell_subset _ _ (Finset.mem_filter.mp ι.val.leftFacet.property).1 hpf, rfl⟩
+    have hrightfacet : (S.child ι.val.ty ι.val.left).frame p ∈
+        placedSet (S.child ι.val.ty ι.val.right).frame ι.val.rightFacet.val.carrier := by
+      rw [← ι.val.paired]
+      exact ⟨p, hpf, rfl⟩
+    have hright : (S.child ι.val.ty ι.val.left).frame p ∈
+        placedSet (S.child ι.val.ty ι.val.right).frame
+          (S.proto (S.child ι.val.ty ι.val.right).ty).carrier := by
+      exact Set.image_mono
+        (host_step_step1_seed_step2_cell_subset _ _ (Finset.mem_filter.mp ι.val.rightFacet.property).1) hrightfacet
+    obtain ⟨w, hw, hplace⟩ := S.sibling_conformity ι.val.ty ι.val.left ι.val.right
+      ι.val.distinct ((S.child ι.val.ty ι.val.left).frame p) hleft hright v
+      (Finset.mem_filter.mp hv).1
+      (by simp only [AffineIsometryEquiv.symm_apply_apply, hvc, relint,
+        intrinsicInterior_singleton, mem_singleton_iff])
+      (by have hd := (Finset.mem_filter.mp hv).2; omega)
+    let p' := (S.child ι.val.ty ι.val.right).frame.symm
+      ((S.child ι.val.ty ι.val.left).frame p)
+    have hwc : w.carrier = {p'} := by
+      apply (Set.image_injective.mpr (S.child ι.val.ty ι.val.right).frame.injective)
+      change placedSet (S.child ι.val.ty ι.val.right).frame w.carrier = _
+      rw [← hplace, hvc]
+      simp only [placedSet, image_singleton, p', AffineIsometryEquiv.apply_symm_apply]
+    have hdim : w.dim = 0 := by
+      rw [← w.flat.dimension, cellDirection, hwc]
+      simp [direction_affineSpan]
+    refine ⟨w, Finset.mem_filter.mpr ⟨hw, hdim⟩, hwc, ?_⟩
+    rw [hwc]
+    apply singleton_subset_iff.mpr
+    obtain ⟨z, hz, he⟩ := hrightfacet
+    have hz' : z = p' := (S.child ι.val.ty ι.val.right).frame.injective
+      (he.trans ((S.child ι.val.ty ι.val.right).frame.apply_symm_apply _).symm)
+    simpa only [← hz'] using hz
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"the oriented flag ... transported to P". The two endpoint singleton cells
+remain listed, and lie on the named facet, in every placed incidence child. -/
+private theorem host_step_step1_seed_step2_child_endpoint
+    (Q : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) (p : E d)
+    (hp : p = (P.flag ι).initial ∨ p = (P.flag ι).terminal) :
+    let H := (⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)
+    H.Lists n (P.incidencePlacement Q (n + 1) ι p) ∧
+      P.incidencePlacement Q (n + 1) ι p ∈ H.cell n (ι.val.sideFacet b).val := by
+  obtain ⟨v, hv, hvc, hsub⟩ := host_step_step1_seed_step2_side_vertex ι b p hp
+  let x := (S.child ι.val.ty (ι.val.sideIndex b)).frame.symm
+    ((S.child ι.val.ty ι.val.left).frame p)
+  have hx : x ∈ v.carrier := by rw [hvc]; exact mem_singleton _
+  dsimp only
+  rw [← host_step_step1_seed_step1_flag_frame Q n ι b]
+  exact ⟨⟨v, hv, x, hx, rfl⟩, ⟨x, hsub hx, rfl⟩⟩
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed` (V4 3.6, 1.5, 1.8):
+"Tiles t ⊆ B with a facet piece on f containing p₀ exist".
+Hereditary subdivision supplies an actual native facet piece and a listed
+vertex on it at either flag endpoint; this asserts no event or leaf readout. -/
+private theorem host_step_step1_seed_step2_endpoint_piece
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f) (p : E d)
+    (hp : p = host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex) (P.flag a.record.incidence).initial ∨
+      p = host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex) (P.flag a.record.incidence).terminal) :
+    B.node.Lists n p ∧
+      ∃ (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+        (v : VertexName S (tileNode t).ty),
+        Parser.IsFacetPiece Y n B.node f t g ∧ v.val.carrier ⊆ g.val.carrier ∧
+          compilerFrame C t (vertexPoint v) = p := by
+  let Q := proposedParent D B hB
+  let ι := a.record.incidence
+  have hs := Parser.ageOneFacet_semantics D hD B hB f a
+  have hrole : firstRole D B hB = ι.val.sideRole a.record.sideIndex :=
+    hs.2.2.1.symm.trans a.record.side_eq
+  have hBnode : B.node =
+      (⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex a.record.sideIndex) := by
+    have hc := Parser.proposedParent_child D hD B hB
+    exact hc.symm.trans (congrArg
+      (fun r : S.Role => (⟨r.1, Q.frame⟩ : FramedNode S).child n r.2) hrole)
+  have hflag : host_step_flagFrame (proposedSibling D B hB f a) n ι
+      (!a.record.sideIndex) = P.incidencePlacement Q (n + 1) ι :=
+    host_step_step1_seed_step1_flag_frame Q n ι (!a.record.sideIndex)
+  have hgeom : ∀ x, x = (P.flag ι).initial ∨ x = (P.flag ι).terminal →
+      B.node.Lists n (P.incidencePlacement Q (n + 1) ι x) ∧
+        P.incidencePlacement Q (n + 1) ι x ∈ B.node.cell n f.val := by
+    intro x hx
+    have hown := host_step_step1_seed_step2_child_endpoint Q n ι a.record.sideIndex x hx
+    have hopp := host_step_step1_seed_step2_child_endpoint Q n ι (!a.record.sideIndex) x hx
+    refine ⟨by simpa only [← hBnode] using hown.1, ?_⟩
+    rw [← hs.2.2.2]
+    exact hopp.2
+  have hp' : p = P.incidencePlacement Q (n + 1) ι (P.flag ι).initial ∨
+      p = P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal := by
+    dsimp only [ι] at hflag
+    simpa only [hflag] using hp
+  have hlisted : B.node.Lists n p ∧ p ∈ B.node.cell n f.val := by
+    rcases hp' with rfl | rfl
+    · exact hgeom _ (Or.inl rfl)
+    · exact hgeom _ (Or.inr rfl)
+  exact ⟨hlisted.1, host_step_step1_seed_step2_facet_at_vertex Y n B f p hlisted.1 hlisted.2⟩
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed` (V4 3.6, 2.3):
+"by (I2) their record on that piece is the restriction of the age-1 record"
+and "their (S6) record is the header ... in t's frame".
+This is only the iterated restriction/readout assertion for an already given
+native facet piece and listed block vertex. No template is asserted. -/
+private theorem host_step_step1_seed_step3_restricted_header
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f) (p : E d) (hp : B.node.Lists n p)
+    (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+    (v : VertexName S (tileNode t).ty) (hpiece : Parser.IsFacetPiece Y n B.node f t g)
+    (hv : v.val.carrier ⊆ g.val.carrier) (hvp : compilerFrame C t (vertexPoint v) = p) :
+    ∃ j : EndSlot (compilerLeaf C t), j.facet = g ∧
+      Compiler.endVertex (compilerFrame C t) j = p ∧
+      j.record.incidence = a.record.incidence ∧ j.record.beta.val = n % P.L ∧
+      j.header = host_step_step1_seed_step1_header (proposedParent D B hB) n
+        (compilerFrame C t) p := by
+  -- Realize the root state at height n, using exact scale transfer if needed,
+  -- then iterate I2 along the native address supplied by hpiece. Provider
+  -- inheritance preserves incidence and beta; the listed block vertex has
+  -- a zero-dimensional provider stratum. Unfolding headerOf gives the header.
+  sorry
+
+/-- Step 4 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"Theorem 2.17(b) yields a template ... realised by actual tiles".
+Once an actual facet piece carries the geometric header, compilation supplies
+the required END event; the sector equality is just change of frame. -/
+private theorem host_step_step1_seed_step4_event
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (n : ℕ)
+    (B : Block Y n) (f : FacetName S B.node.ty) (Q : FramedNode S) (p : E d)
+    (t : PlacedMarkedTile (systemM S P C)) (j : EndSlot (compilerLeaf C t))
+    (hpiece : Parser.IsFacetPiece Y n B.node f t j.facet)
+    (hp : Compiler.endVertex (compilerFrame C t) j = p)
+    (hheader : j.header = host_step_step1_seed_step1_header Q n (compilerFrame C t) p) :
+    ∃ T : EndTemplate j, endRow T ∧
+      TemplateOccurs C Y (compilerFrame C t) T.configuration ∧
+      host_step_endEvent Y n B f Q p := by
+  obtain ⟨θ, hθ, _, hactual⟩ := compiler_events C Y hY t hpiece.1 (.end_ j)
+  obtain ⟨T, rfl, hrow⟩ := hθ
+  refine ⟨T, hrow, hactual, t, hpiece.1, j, T.configuration,
+    hpiece, hp, ?_, ⟨T, rfl, hrow⟩, hactual⟩
+  simp only [Compiler.endSector, hp, hheader, host_step_step1_seed_step1_header,
+    Set.image_image, LinearIsometryEquiv.apply_symm_apply]
+
+/-- Step 5 of the V4 proof of `host_step_step1_seed` (V4 3.6, 1.22):
+"consider the recursive trace ... and the selected owner ... adjacent to h′
+at its initial endpoint". An honest END geometry supplies a port on either
+child side and an unlabelled full chain fitting its recorded flag tangent.
+The edge has the exact endpoint ray. This involves no output tiling, record
+activity, counter, or chosen scale. -/
+private theorem host_step_step1_seed_step5_trace
+    (Z : EndGeometry P) (hZ : Z ∈ honestEndGeometries S P)
+    (ι : P.Incidence) (b : Bool) (G : State.FlagTangent (d := d))
+    (hG : Z.header.flagTangent ι = some G) :
+    ∃ a ∈ Z.primitivePorts, a.incidence = ι ∧ a.sideIndex = b ∧
+      ∃ F : FlagChain a.facet,
+        (∀ k, vertexPoint Z.vertex ∈ placedSet a.tile.frame (F.val.cell k).val.carrier ∧
+          affineSpan ℝ (placedSet a.tile.frame (F.val.cell k).val.carrier) =
+            affineSpan ℝ ((fun v => vertexPoint Z.vertex + v) '' G.cones k) ∧
+          tangentCone (placedSet a.tile.frame (F.val.cell k).val.carrier)
+            (vertexPoint Z.vertex) ⊆ G.cones k) ∧
+        tangentCone (placedSet a.tile.frame (F.val.cell edgeIndex).val.carrier)
+          (vertexPoint Z.vertex) = G.cones edgeIndex := by
+  -- Unpack the honest source witnessing hZ. Use the recursive trace in the
+  -- selected child, and edge heredity in its endpoint trace piece. The full
+  -- chain belongs to a native owner in the complete owned star. The primitive
+  -- port biconditional in EndGeometryRealizes places this port in Z.
+  sorry
+
+/-- Step 6 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"Row (E1) gives u₀'s record on its port". A cell-keyed record has the
+prototype and facet of the leaf from which it was read. -/
+private theorem host_step_step1_seed_step6_readout (l : LeafType P) (f : Cell d)
+    (r : FacetRecord P) (hr : leafRecord l f = some r) :
+    r.ty = l.prototype ∧ r.facet.val = f := by
+  classical
+  unfold leafRecord stateRecordAt at hr
+  split at hr
+  · obtain ⟨hty, hf⟩ := l.prePattern.state.facetRecord_valid _ r hr
+    exact ⟨hty.trans (l.prePattern.state_type.trans l.prePattern_type), hf⟩
+  · contradiction
+
+/-- Step 6 of the V4 proof of `host_step_step1_seed` (V4 3.6, 2.6(c)):
+"its packet equals 𝒫_B(f)". In particular a finite port has a non-NULL
+packet: the record and packet come from the same honest leaf pre-pattern. -/
+private theorem host_step_step1_seed_step6_packet (l : LeafType P) (f : Cell d)
+    (r : FacetRecord P) (hr : leafRecord l f = some r) :
+    ∃ q : Packet P, leafPacket l f = some q := by
+  classical
+  obtain ⟨U, t, ht, hw⟩ := (certificate_components_honest P l.1.val l.1.property).1 l.2
+  change prePatternOf U P t ht = l.prePattern at hw
+  unfold leafRecord at hr
+  rw [← hw] at hr
+  change stateRecordAt (stateOf U P t) f = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  next hf =>
+    change f ∈ (S.cx t.2.val.ty).facets at hf
+    change U.facetRecordOf P t ⟨f, hf⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    next hn =>
+      refine ⟨packetOf U P (U.providerOccurrence P t ⟨f, hf⟩ hn), ?_⟩
+      unfold leafPacket
+      rw [← hw]
+      simp only [prePatternOf, dif_pos hf, HonestSource.facetPacket, dif_neg hn]
+  · contradiction
+
+/-- Step 6 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"incidence ι, side (A_P,j)". Globally distinct child roles determine the
+Boolean side index; no distinct-prototype assumption is needed. -/
+private theorem host_step_step1_seed_step6_side (r : FacetRecord P)
+    (ι : P.Incidence) (b : Bool) (hi : r.incidence = ι)
+    (hs : r.side = ι.val.sideRole b) : r.sideIndex = b := by
+  have hroles : ι.val.sideRole r.sideIndex = ι.val.sideRole b := by
+    simpa only [hi] using r.side_eq.symm.trans hs
+  have hd := ι.val.distinct
+  cases hr : r.sideIndex <;> cases b <;>
+    simp_all [PrimitiveIncidence.sideRole, PrimitiveIncidence.sideIndex]
+
+/-- Step 7 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"cells are determined by type and frame". Re-keying a geometric chain by
+the finite record preserves its cells, tangent fit, and bottom-edge ray. -/
+private theorem host_step_step1_seed_step7_chain
+    (a : PrimitivePort P) (r : FacetRecord P) (ht : r.ty = a.tile.ty)
+    (hf : r.facet.val = a.facet.val) (F : FlagChain a.facet)
+    (x : E d) (G : State.FlagTangent (d := d))
+    (hfit : ∀ k, x ∈ placedSet a.tile.frame (F.val.cell k).val.carrier ∧
+      affineSpan ℝ (placedSet a.tile.frame (F.val.cell k).val.carrier) =
+        affineSpan ℝ ((fun v => x + v) '' G.cones k) ∧
+      tangentCone (placedSet a.tile.frame (F.val.cell k).val.carrier) x ⊆ G.cones k)
+    (hray : tangentCone (placedSet a.tile.frame (F.val.cell edgeIndex).val.carrier) x =
+      G.cones edgeIndex) :
+    ∃ F' : FlagChain r.facet, ChainFitsTangent r a.tile.frame x F' G ∧
+      tangentCone (placedSet a.tile.frame (F'.val.cell edgeIndex).val.carrier) x =
+        G.cones edgeIndex := by
+  let F' : FacetFlag S r.ty := {
+    cell := fun k => ⟨(F.val.cell k).val, by rw [ht]; exact (F.val.cell k).property⟩
+    dimension := F.val.dimension
+    nested := F.val.nested }
+  have htop : (F'.cell facetIndex).val = r.facet.val := F.property.trans hf.symm
+  exact ⟨⟨F', htop⟩, hfit, hray⟩
+
+/-- Step 8 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"the realised flag tangent cones ... equal the actual T_p₀ F_j" and
+"u₀ lies on the j-side". Transporting an already active, oriented chain
+in a primitive port of an honest star gives its affine flag, inward side,
+and initial endpoint in the ambient frame. There is no existence assertion
+for a port or active chain here, and no counter assertion. -/
+private theorem host_step_step1_seed_step8_transport
+    (Q : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) (hι : ι.val.ty = Q.ty)
+    (φ : Iso d) (l : LeafType P) (j : EndSlot l)
+    (hp : Compiler.endVertex φ j = P.incidencePlacement Q (n + 1) ι (P.flag ι).initial)
+    (hh : j.header = host_step_step1_seed_step1_header Q n φ
+      (P.incidencePlacement Q (n + 1) ι (P.flag ι).initial))
+    (T : EndTemplate j) (a : PrimitivePort P) (ha : a ∈ T.geometry.primitivePorts)
+    (hai : a.incidence = ι) (hab : a.sideIndex = b)
+    (u : LeafType P) (hu : (a.tile, u) ∈ T.configuration.tiles)
+    (r : FacetRecord P) (hr : leafRecord u a.facet.val = some r)
+    (c : OrientedChain r.facet) (hc : c ∈ r.chains)
+    (G : State.FlagTangent (d := d))
+    (hG : T.geometry.header.flagTangent ι = some G) (hi : G.initial = true)
+    (hfit : ChainFitsTangent r a.tile.frame (vertexPoint T.geometry.vertex) c.chain G)
+    (ho : OrientationFitsTangent r a.tile.frame c G)
+    (hray : tangentCone (placedSet a.tile.frame (host_step_edge ⟨r, c⟩).val.carrier)
+      (vertexPoint T.geometry.vertex) = G.cones edgeIndex) :
+    host_step_aligned
+        ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)) n ι b
+        ⟨u.prototype, a.tile.frame.trans φ⟩ 0 ⟨r, c⟩ ∧
+      (a.tile.frame.trans φ) (r.endpoints (host_step_edge ⟨r, c⟩)).1 =
+        P.incidencePlacement Q (n + 1) ι (P.flag ι).initial := by
+  -- The full header equality identifies flag cones, coface sides, and the
+  -- selected child's cone. The primitive-port geometry fixes the inward
+  -- half-space. Honest activity makes the record's edge orientation agree
+  -- with c; the initial flag ray therefore starts at the event vertex.
+  sorry
+
+/-- Step 9 of the V4 proof of `host_step_step1_seed` (V4 3.6):
+"by alignment, the chain ... is recorded active" and "by the endpoint
+counters, κ⁻(e₀)=0". These are the two clauses of row (E2), applied to the
+selected geometric chain and its exact initial flag ray. -/
+private theorem host_step_step1_seed_step9_counter {l : LeafType P}
+    {j : EndSlot l} (T : EndTemplate j) (hrow : endRow T)
+    (a : PrimitivePort P) (ha : a ∈ T.geometry.primitivePorts)
+    (u : LeafType P) (hu : (a.tile, u) ∈ T.configuration.tiles)
+    (r : FacetRecord P) (hr : leafRecord u a.facet.val = some r)
+    (G : State.FlagTangent (d := d))
+    (hG : T.geometry.header.flagTangent a.incidence = some G) (hi : G.initial = true)
+    (F : FlagChain r.facet)
+    (hfit : ChainFitsTangent r a.tile.frame (vertexPoint T.geometry.vertex) F G)
+    (hray : tangentCone (placedSet a.tile.frame (F.val.cell edgeIndex).val.carrier)
+      (vertexPoint T.geometry.vertex) = G.cones edgeIndex) :
+    ∃ c ∈ r.chains, c.chain = F ∧ OrientationFitsTangent r a.tile.frame c G ∧
+      r.kappaMinus (host_step_edge ⟨r, c⟩) = 0 := by
+  have he2 := hrow.2.1.2 a ha u hu r hr G hG
+  obtain ⟨c, hc, hF, ho⟩ := he2.1 F hfit
+  have hx : vertexPoint T.geometry.vertex ∈
+      placedSet a.tile.frame (host_step_edge ⟨r, c⟩).val.carrier := by
+    simpa only [host_step_edge, hF] using (hfit edgeIndex).1
+  have hcone : tangentCone
+      (placedSet a.tile.frame (host_step_edge ⟨r, c⟩).val.carrier)
+        (vertexPoint T.geometry.vertex) = G.cones edgeIndex := by
+    simpa only [host_step_edge, hF] using hray
+  have hz := he2.2 (host_step_edge ⟨r, c⟩) ⟨c, hc, rfl⟩ hx hcone
+  exact ⟨c, hc, hF, ho, by simpa only [hi, Bool.true_eq, ite_true] using hz⟩
+
 /-- Step 1 of the V4 proof of `host_step` (V4 3.6): "the endpoint events
 and the first strand tile"; "by the endpoint counters, κ⁻(e₀)=0".
 The seed records the full flag and the opposite inward side, and the two END
@@ -324,7 +796,81 @@ private theorem host_step_step1_seed (Y : MarkedTiling (systemM S P C))
     ∃ u : host_step_Port C, host_step_portValid Y n H ι b u ∧
       (host_step_portEnds u).1 = host_step_flagFrame H n ι b (P.flag ι).initial ∧
       u.2.1.kappaMinus (host_step_edge u.2) = 0 := by
-  sorry
+  classical
+  let Q := proposedParent D B hB
+  let H := proposedSibling D B hB f a
+  let ι := a.record.incidence
+  let b := !a.record.sideIndex
+  let p₀ := host_step_flagFrame H n ι b (P.flag ι).initial
+  let pN := host_step_flagFrame H n ι b (P.flag ι).terminal
+  have hframe : host_step_flagFrame H n ι b = P.incidencePlacement Q (n + 1) ι :=
+    host_step_step1_seed_step1_flag_frame Q n ι b
+  have hι : ι.val.ty = Q.ty := (Parser.ageOneFacet_semantics D hD B hB f a).2.1
+  obtain ⟨hlisted₀, t₀, g₀, v₀, hpiece₀, hv₀, hpv₀⟩ :=
+    host_step_step1_seed_step2_endpoint_piece Y n D hD B hB f a p₀ (Or.inl rfl)
+  obtain ⟨j₀, hjfacet₀, hjp₀, _, hbeta₀, hheader₀⟩ :=
+    host_step_step1_seed_step3_restricted_header Y n D hD B hB f a p₀ hlisted₀
+      t₀ g₀ v₀ hpiece₀ hv₀ hpv₀
+  have hpiece₀' : Parser.IsFacetPiece Y n B.node f t₀ j₀.facet := by
+    simpa only [hjfacet₀] using hpiece₀
+  obtain ⟨T, hrow, hactual, he₀⟩ :=
+    host_step_step1_seed_step4_event Y hY n B f Q p₀ t₀ j₀ hpiece₀' hjp₀ hheader₀
+  obtain ⟨hlistedN, tN, gN, vN, hpieceN, hvN, hpvN⟩ :=
+    host_step_step1_seed_step2_endpoint_piece Y n D hD B hB f a pN (Or.inr rfl)
+  obtain ⟨jN, hjfacetN, hjpN, _, _, hheaderN⟩ :=
+    host_step_step1_seed_step3_restricted_header Y n D hD B hB f a pN hlistedN
+      tN gN vN hpieceN hvN hpvN
+  have hpieceN' : Parser.IsFacetPiece Y n B.node f tN jN.facet := by
+    simpa only [hjfacetN] using hpieceN
+  obtain ⟨_, _, _, heN⟩ :=
+    host_step_step1_seed_step4_event Y hY n B f Q pN tN jN hpieceN' hjpN hheaderN
+  refine ⟨he₀, heN, ?_⟩
+  obtain ⟨G, hG, hinitial⟩ : ∃ G : State.FlagTangent (d := d),
+      T.geometry.header.flagTangent ι = some G ∧ G.initial = true := by
+    rw [T.header_eq, hheader₀]
+    simp [host_step_step1_seed_step1_header, p₀, hframe, hι, Q]
+  obtain ⟨port, hport, hportι, hportb, F, hfit, hray⟩ :=
+    host_step_step1_seed_step5_trace T.geometry T.honest_geometry ι b G hG
+  have htile : port.tile ∈ T.configuration.tiles.image Prod.fst := by
+    rw [T.tiles_eq]
+    exact T.geometry.primitive_tiles port hport
+  obtain ⟨⟨N, l⟩, hl, hN⟩ := Finset.mem_image.mp htile
+  change N = port.tile at hN
+  subst N
+  obtain ⟨r, hr, hrι, hrs, _, hrβ⟩ := hrow.1.1 port hport l hl
+  obtain ⟨hty, hfacet⟩ := host_step_step1_seed_step6_readout l port.facet.val r hr
+  have hrb : r.sideIndex = b := host_step_step1_seed_step6_side r ι b
+    (hrι.trans hportι) (by simpa only [hportι, hportb] using hrs.trans port.side_eq)
+  obtain ⟨q, hq⟩ := host_step_step1_seed_step6_packet l port.facet.val r hr
+  obtain ⟨F', hfit', hray'⟩ := host_step_step1_seed_step7_chain port r
+    (hty.trans (T.configuration.types_match _ hl).symm) hfacet F
+    (vertexPoint T.geometry.vertex) G hfit hray
+  obtain ⟨c, hc, hcF, ho, hz⟩ := host_step_step1_seed_step9_counter T hrow port hport l hl
+    r hr G (by simpa only [hportι] using hG) hinitial F' hfit' hray'
+  have hfitc : ChainFitsTangent r port.tile.frame (vertexPoint T.geometry.vertex) c.chain G := by
+    simpa only [hcF] using hfit'
+  have hrayc : tangentCone
+      (placedSet port.tile.frame (host_step_edge ⟨r, c⟩).val.carrier)
+        (vertexPoint T.geometry.vertex) = G.cones edgeIndex := by
+    simpa only [host_step_edge, hcF] using hray'
+  obtain ⟨halign, hstart⟩ := host_step_step1_seed_step8_transport Q n ι b hι
+    (compilerFrame C t₀) (compilerLeaf C t₀) j₀
+    (by simpa only [p₀, hframe] using hjp₀)
+    (by simpa only [p₀, hframe] using hheader₀)
+    T port hport hportι hportb l hl r hr c hc G hG hinitial hfitc ho hrayc
+  obtain ⟨t, ht, hleaf, hφ⟩ := TemplateOccurs.tile_data C Y (compilerFrame C t₀)
+    T.configuration hactual (port.tile, l) hl
+  have hnode : tileNode t = ⟨l.prototype, port.tile.frame.trans (compilerFrame C t₀)⟩ := by
+    simp only [tileNode, hleaf, hφ]
+  refine ⟨(t, ⟨r, c⟩), ?_, ?_, hz⟩
+  · refine ⟨ht, ?_, ?_, hc, hrι.trans hportι, hrb, ?_, ?_, q, ?_⟩
+    · simpa only [hleaf, hfacet] using hr
+    · simpa only [hnode] using hty
+    · exact (congrArg Fin.val hrβ).trans hbeta₀
+    · simpa only [hnode] using halign
+    · simpa only [hleaf, hfacet] using hq
+  · change compilerFrame C t (r.endpoints (host_step_edge ⟨r, c⟩)).1 = p₀
+    simpa only [hφ, p₀, hframe] using hstart
 
 /-- Step 2 of the V4 proof of `host_step` (V4 3.6): "The strand never
 passes p_N" and "No false interior endpoint". CONT extends the seed, the

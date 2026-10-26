@@ -352,6 +352,206 @@ private theorem host_step_step2_strand (Y : MarkedTiling (systemM S P C))
         a.record.incidence (!a.record.sideIndex) m u := by
   sorry
 
+/-- Step 1 of the V4 proof of `host_step_step2_port_sites` (V4 2.3):
+"re-expressed in C's frame". A child frame factors through its normalized role. -/
+private theorem host_step_step2_port_sites_step1_child_frame
+    (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).prototypeFrame n =
+      (rolePlacement ⟨N.ty, i⟩).trans (N.prototypeFrame (n + 1)) := by
+  apply AffineEquiv.ext
+  intro x
+  change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    N.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child N.ty i).frame x)))
+  congr 1
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
+    LinearEquiv.mul_apply, ← map_add]
+
+/-- Step 1 of the V4 proof of `host_step_step2_port_sites` (V4 2.3):
+"re-expressed in C's frame". The honest parent relation has that same factorization. -/
+private theorem host_step_step2_port_sites_step1_parent_frame
+    (U : HonestSource S) (q : U.Node) :
+    q.2.val.prototypeFrame q.1 =
+      (rolePlacement (U.hierarchy.nodeRole q)).trans
+        ((U.hierarchy.parentNode q).2.val.prototypeFrame
+          (U.hierarchy.parentNode q).1) := by
+  conv_lhs => rw [U.hierarchy.child_eq q.1 q.2]
+  exact host_step_step2_port_sites_step1_child_frame _ _ _
+
+/-- Step 1 of the V4 proof of `host_step_step2_port_sites` (V4 2.3):
+"re-expressed in C's frame". Iterating the role placements gives the full ancestor frame. -/
+private theorem host_step_step2_port_sites_step1_word_frame
+    (U : HonestSource S) (q : U.Node) (a : ℕ) :
+    q.2.val.prototypeFrame q.1 =
+      (wordPlacement (U.downRoles q a)).trans
+        ((U.hierarchy.ancestor q a).2.val.prototypeFrame
+          (U.hierarchy.ancestor q a).1) := by
+  induction a with
+  | zero =>
+    simp [HonestSource.downRoles, CoherentHierarchy.ancestor, wordPlacement]
+  | succ a ih =>
+    have hroles : U.downRoles q (a + 1) =
+        U.hierarchy.nodeRole (U.hierarchy.ancestor q a) :: U.downRoles q a := by
+      unfold HonestSource.downRoles
+      rw [List.ofFn_succ']
+      simp only [List.concat_eq_append, List.reverse_append, List.reverse_singleton,
+        List.singleton_append, Fin.val_last, Fin.val_castSucc]
+    have ha : U.hierarchy.ancestor q (a + 1) =
+        U.hierarchy.parentNode (U.hierarchy.ancestor q a) := by
+      exact Function.iterate_succ_apply' _ _ _
+    rw [hroles, wordPlacement, ha, AffineEquiv.trans_assoc,
+      ← host_step_step2_port_sites_step1_parent_frame]
+    exact ih
+
+/-- Step 1 of the V4 proof of `host_step_step2_port_sites` (V4 3.6(2c)):
+"a site ... recorded in u_m's profile". The canonical site is placed by the
+serving child's full frame, on its recorded side. -/
+private theorem host_step_step2_port_sites_step1_site_frame
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (a : Fin P.N) :
+    U.sitePoint P q f hf a =
+      (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1
+        (P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a) := by
+  have hr : (U.recordIncidence P q f hf).val.sideRole (U.recordSide P q f hf) =
+      U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf) :=
+    (Classical.choose_spec (U.recordSide_exists P q f hf)).1
+  rw [host_step_step2_port_sites_step1_parent_frame]
+  change _ = (U.hierarchy.birthParent q f hf).2.val.prototypeFrame
+    (U.hierarchy.birthHeight q f hf)
+    (rolePlacement (U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf))
+      (P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a))
+  rw [← hr]
+  simp [HonestSource.sitePoint, HonestSource.providerPlacement, Params.incidencePlacement,
+    Params.canonicalSite, rolePlacement, PrimitiveIncidence.sideRole]
+
+/-- Step 1 of the V4 proof of `host_step_step2_port_sites` (V4 3.6(2c)):
+"a site ... recorded in u_m's profile". The shallow word pulls the actual
+source site back to the recording node's prototype. -/
+private theorem host_step_step2_port_sites_step1_shallow_site
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (w : ShortProfile P)
+    (hw : (U.recordOf P q f hf).counter = .inr w) (a : Fin P.N) :
+    U.sitePoint P q f hf a = q.2.val.prototypeFrame q.1
+      ((wordPlacement w.word).symm
+        (P.sites (U.recordOf P q f hf).incidence (U.recordOf P q f hf).sideIndex a)) := by
+  have hword : w.word = U.downRoles q (U.hierarchy.firstProvider q f hf).1 := by
+    change U.counterProfile P q f hf = .inr w at hw
+    unfold HonestSource.counterProfile at hw
+    dsimp only at hw
+    split at hw
+    · cases Sum.inr.inj hw
+      rfl
+    · contradiction
+  rw [hword, host_step_step2_port_sites_step1_word_frame U q
+    (U.hierarchy.firstProvider q f hf).1]
+  simpa only [AffineEquiv.trans_apply, AffineEquiv.apply_symm_apply] using
+    host_step_step2_port_sites_step1_site_frame U q f hf a
+
+omit [Fact (2 ≤ d)] in
+/-- Step 2 of the V4 proof of `host_step_step2_port_sites` (V4 3.6(2c)):
+"q a site in relint e_m". Relative interiors commute with the full affine
+frames, including the anisotropic source frames. -/
+private theorem host_step_step2_port_sites_step2_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 2 of the V4 proof of `host_step_step2_port_sites` (V4 3.6(2c)):
+"there are exactly κ⁺(e_m)-κ⁻(e_m) of them". Transport the honest source
+count to the recording prototype using its shallow word. -/
+private theorem host_step_step2_port_sites_step2_source_count
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q f hf).ChainActive (edgeCell e)) (w : ShortProfile P)
+    (hw : (U.recordOf P q f hf).counter = .inr w) :
+    (U.recordOf P q f hf).kappaPlus e = (U.recordOf P q f hf).kappaMinus e +
+      (by classical exact (Finset.univ.filter (fun a : Fin P.N =>
+        (wordPlacement w.word).symm
+          (P.sites (U.recordOf P q f hf).incidence (U.recordOf P q f hf).sideIndex a)
+            ∈ relint e.val.carrier)).card) := by
+  classical
+  have hcount := honest_counter_jump_count U P q f hf e he
+  have hle := (honest_counter_germs U P q f hf e he).1
+  have hfilter : (Finset.univ.filter (fun a : Fin P.N =>
+      U.sitePoint P q f hf a ∈ relint (q.2.val.cell q.1 e.val))) =
+      Finset.univ.filter (fun a : Fin P.N =>
+        (wordPlacement w.word).symm
+          (P.sites (U.recordOf P q f hf).incidence (U.recordOf P q f hf).sideIndex a)
+            ∈ relint e.val.carrier) := by
+    apply Finset.filter_congr
+    intro a _
+    rw [host_step_step2_port_sites_step1_shallow_site U q f hf w hw,
+      FramedNode.cell, host_step_step2_port_sites_step2_relint_image]
+    exact (q.2.val.prototypeFrame q.1).injective.mem_set_image
+  rw [hfilter] at hcount
+  omega
+
+/-- Step 2 of the V4 proof of `host_step_step2_port_sites` (V4 3.6(2c)):
+"there are exactly κ⁺(e_m)-κ⁻(e_m) of them". An honest state readout has
+the source count, independently of the chosen realization. -/
+private theorem host_step_step2_port_sites_step2_readout_count
+    (s : State P) (hs : s ∈ honestStates S P) (F : Cell d)
+    (r : FacetRecord P) (hr : stateRecordAt s F = some r)
+    (e : PrototypeEdge S r.ty) (he : r.ChainActive (edgeCell e))
+    (w : ShortProfile P) (hw : r.counter = .inr w) :
+    r.kappaPlus e = r.kappaMinus e +
+      (by classical exact (Finset.univ.filter (fun a : Fin P.N =>
+        (wordPlacement w.word).symm (P.sites r.incidence r.sideIndex a)
+          ∈ relint e.val.carrier)).card) := by
+  classical
+  obtain ⟨U, q, rfl⟩ := hs
+  unfold stateRecordAt at hr
+  split at hr
+  · change U.facetRecordOf P q _ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    · cases Option.some.inj hr
+      exact host_step_step2_port_sites_step2_source_count U q _ _ e he w hw
+  · contradiction
+
+/-- Step 3 of the V4 proof of `host_step_step2_port_sites` (V4 3.6(2c)):
+"there are exactly κ⁺(e_m)-κ⁻(e_m) of them". Strictly ordered sites
+are distinct, so taking their image does not lose any events. -/
+private theorem host_step_step2_port_sites_step3_sites_injective
+    (ι : P.Incidence) (b : Bool) : Function.Injective (P.sites ι b) := by
+  intro i j hij
+  by_contra h
+  rcases lt_or_gt_of_ne h with hlt | hlt
+  · have ho := P.sites_order ι b i j hlt
+    rw [hij, sub_self, inner_zero_right] at ho
+    exact lt_irrefl _ ho
+  · have ho := P.sites_order ι b j i hlt
+    rw [hij, sub_self, inner_zero_right] at ho
+    exact lt_irrefl _ ho
+
 /-- Step 2 of the V4 proof of `host_step` (V4 3.6(2c)): "there are exactly
 κ⁺(e_m)-κ⁻(e_m) of them". This is the honest single-port counter jump count,
 expressed in the native tile's frame; mature profiles contribute no interior site. -/
@@ -363,7 +563,42 @@ private theorem host_step_step2_port_sites
       u.2.1.kappaPlus (host_step_edge u.2) =
         u.2.1.kappaMinus (host_step_edge u.2) + J.card ∧
       ∀ x ∈ J, host_step_localJump u x := by
-  sorry
+  classical
+  cases hcounter : u.2.1.counter with
+  | inl c =>
+    refine ⟨∅, ?_, ?_⟩
+    · simp [FacetRecord.kappaPlus, FacetRecord.kappaMinus, hcounter]
+    · simp
+  | inr w =>
+    let A := Finset.univ.filter (fun a : Fin P.N =>
+      (wordPlacement w.word).symm (P.sites u.2.1.incidence u.2.1.sideIndex a)
+        ∈ relint (host_step_edge u.2).val.carrier)
+    let point := fun a : Fin P.N => compilerFrame C u.1
+      ((wordPlacement w.word).symm (P.sites u.2.1.incidence u.2.1.sideIndex a))
+    have hs : (compilerLeaf C u.1).prePattern.state ∈ honestStates S P :=
+      (prePattern_components_honest P _
+        ((certificate_components_honest P (compilerLeaf C u.1).1.val
+          (compilerLeaf C u.1).1.property).1 (compilerLeaf C u.1).2)).1
+    have hcount := host_step_step2_port_sites_step2_readout_count _ hs
+      u.2.1.facet.val u.2.1 hu.2.1 (host_step_edge u.2)
+      ⟨u.2.2, hu.2.2.2.1, rfl⟩ w hcounter
+    have hinj : Function.Injective point :=
+      (compilerFrame C u.1).injective.comp ((wordPlacement w.word).symm.injective.comp
+        (host_step_step2_port_sites_step3_sites_injective u.2.1.incidence u.2.1.sideIndex))
+    refine ⟨A.image point, ?_, ?_⟩
+    · rw [Finset.card_image_of_injective _ hinj]
+      exact hcount
+    · intro x hx
+      obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp hx
+      refine ⟨w, hcounter, a, rfl, ?_⟩
+      have hframe : (tileNode u.1).prototypeFrame 0 =
+          (compilerFrame C u.1).toAffineEquiv := by
+        ext z
+        simp [FramedNode.prototypeFrame, tileNode]
+      change point a ∈ relint ((tileNode u.1).prototypeFrame 0 ''
+        (host_step_edge u.2).val.carrier)
+      rw [hframe, host_step_step2_port_sites_step2_relint_image]
+      exact ⟨_, (Finset.mem_filter.mp ha).2, rfl⟩
 
 /-- Step 2 of the V4 proof of `host_step` (V4 3.6(2c), sharpened in 8.3):
 "the strand gives N distinct jump locations". Interior sites are in disjoint

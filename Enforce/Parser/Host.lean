@@ -1526,6 +1526,245 @@ private theorem host_step_step4_age_one (s : State P) (hs : s ∈ honestStates S
     (Nat.ModEq.add_left_cancel' s.residue.val hcong).eq_of_lt_of_lt hlen P.L_pos
   exact ((state_semantics_a P s hs f).2 z.1 hf (by omega)).2
 
+omit [Fact (2 ≤ d)] in
+/-- Step 1 of the V4 proof of `host_step_step4_age_one_flag` (V4 3.6):
+"the flag cells themselves" have unique cell names once their carriers agree. -/
+private theorem host_step_step4_age_one_flag_step1_cell_ext {e f : Cell d}
+    (h : e.carrier = f.carrier) : e = f := by
+  rcases e with ⟨K, n, hn⟩
+  rcases f with ⟨K', n', hn'⟩
+  cases h
+  have hd : n = n' := hn.dimension.symm.trans hn'.dimension
+  cases hd
+  rfl
+
+/-- Step 2 of the V4 proof of `host_step_step4_age_one_flag` (V4 2.3):
+"the active chains of an age-one record are the flag cells themselves".
+The active stratum and the age-one identity determine each positioned cell. -/
+private theorem host_step_step4_age_one_flag_step2_cells (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (c : OrientedChain f) (hc : U.ActiveChain P q f hf c)
+    (ha : AgeOneRecord (stateOf U P q) (U.recordOf P q f hf)) (j : FlagIndex d) :
+    (c.chain.val.cell j).val =
+      ((P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).cell j).val := by
+  let r := U.recordOf P q f hf
+  let e : CellsInFacet q.2.val.ty f := ⟨c.chain.val.cell j, r.chain_cell_subset c j⟩
+  obtain ⟨hs, hstratum, _⟩ := hc.1 j
+  have htau : (r.tau e).val.val.carrier =
+      ((P.flag r.incidence).flag.cell j).val.carrier := by
+    apply (U.providerPlacement P q f hf).injective.image_injective
+    exact (record_tau_spec U P q f hf e).trans hstratum
+  have hplaced := ha.2.2.2.2.1 e
+  change placedSet (S.child r.incidence.val.ty r.incidence.val.left).frame
+      (r.tau e).val.val.carrier =
+    placedSet (S.child r.side.1 r.side.2).frame (c.chain.val.cell j).val.carrier at hplaced
+  rw [htau, r.side_eq] at hplaced
+  apply host_step_step4_age_one_flag_step1_cell_ext
+  apply (S.child r.incidence.val.ty (r.incidence.val.sideIndex r.sideIndex)).frame.injective.image_injective
+  exact hplaced.symm.trans (P.sideFlag_eq r.incidence r.sideIndex j).symm
+
+/-- Step 3 of the V4 proof of `host_step_step4_age_one_flag` (V4 2.3):
+"internal case": the provider is born in the immediate parent. Its canonical
+placement is the side change followed by the node's full prototype frame. -/
+private theorem host_step_step4_age_one_flag_step3_frame (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (ha : AgeOneRecord (stateOf U P q) (U.recordOf P q f hf)) :
+    U.providerPlacement P q f hf =
+      ((S.child (U.recordIncidence P q f hf).val.ty
+          (U.recordIncidence P q f hf).val.left).frame.toAffineEquiv.trans
+        (S.child (U.recordIncidence P q f hf).val.ty
+          ((U.recordIncidence P q f hf).val.sideIndex
+            (U.recordSide P q f hf))).frame.symm.toAffineEquiv).trans
+        (q.2.val.prototypeFrame q.1) := by
+  let r := U.recordOf P q f hf
+  have hage : U.hierarchy.age q f hf = 1 := by
+    have h := ha.1
+    change min (U.hierarchy.age q f hf) P.C = 1 at h
+    have := P.C_gt_one
+    omega
+  have hoff : (U.hierarchy.firstProvider q f hf).1 = 0 := by
+    have := (U.hierarchy.birthHeight_age_spec q f hf).2.1
+    omega
+  have hserv : U.hierarchy.servingChild q f hf = q := by
+    simp only [CoherentHierarchy.servingChild, hoff, CoherentHierarchy.ancestor,
+      Function.iterate_zero, id_eq]
+  have hbirth : U.hierarchy.birthParent q f hf = U.hierarchy.parentNode q :=
+    congrArg U.hierarchy.parentNode hserv
+  have hrole : r.incidence.val.sideRole r.sideIndex = U.hierarchy.nodeRole q := by
+    exact ha.2.1
+  have hframe : q.2.val.prototypeFrame q.1 =
+      (rolePlacement (U.hierarchy.nodeRole q)).trans
+        ((U.hierarchy.parentNode q).2.val.prototypeFrame (q.1 + 1)) := by
+    rw [U.hierarchy.child_eq q.1 q.2]
+    apply AffineEquiv.ext
+    intro x
+    change (U.hierarchy.parent q.1 q.2).val.frame
+        (S.placeChild q.1 (U.hierarchy.role q.1 q.2) ((S.σ ^ q.1) x)) =
+      (U.hierarchy.parent q.1 q.2).val.frame
+        ((S.σ ^ (q.1 + 1)) (S.σ.symm
+          ((S.child (U.hierarchy.nodeRole q).1 (U.hierarchy.nodeRole q).2).frame x)))
+    congr 1
+    rw [S.placeChild_apply]
+    simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
+      LinearEquiv.mul_apply, ← map_add, CoherentHierarchy.nodeRole]
+  calc
+    _ = (rolePlacement ⟨r.incidence.val.ty, r.incidence.val.left⟩).trans
+        ((U.hierarchy.birthParent q f hf).2.val.prototypeFrame
+          (U.hierarchy.birthParent q f hf).1) := by
+      apply AffineEquiv.ext
+      intro x
+      rfl
+    _ = (rolePlacement ⟨r.incidence.val.ty, r.incidence.val.left⟩).trans
+        ((U.hierarchy.parentNode q).2.val.prototypeFrame (q.1 + 1)) := by rw [hbirth]; rfl
+    _ = _ := by
+      rw [hframe, ← hrole]
+      apply AffineEquiv.ext
+      intro x
+      change (U.hierarchy.parentNode q).2.val.prototypeFrame (q.1 + 1)
+          (S.σ.symm ((S.child r.incidence.val.ty r.incidence.val.left).frame x)) =
+        (U.hierarchy.parentNode q).2.val.prototypeFrame (q.1 + 1)
+          (S.σ.symm ((S.child r.incidence.val.ty (r.incidence.val.sideIndex r.sideIndex)).frame
+            ((S.child r.incidence.val.ty (r.incidence.val.sideIndex r.sideIndex)).frame.symm
+              ((S.child r.incidence.val.ty r.incidence.val.left).frame x))))
+      rw [AffineIsometryEquiv.apply_symm_apply]
+
+omit [Fact (2 ≤ d)] in
+/-- Step 4 of the V4 proof of `host_step_step4_age_one_flag` (V4 3.6):
+"the flag edge" has only its two endpoint orderings. -/
+private theorem host_step_step4_age_one_flag_step4_endpoints (p q a b : E d)
+    (hpq : p ≠ q) (h : segment ℝ a b = segment ℝ p q) :
+    (a = p ∧ b = q) ∨ (a = q ∧ b = p) := by
+  let φ : ℝ →ᵃ[ℝ] E d := AffineMap.lineMap p q
+  have hφ : Function.Injective φ := AffineMap.lineMap_injective ℝ hpq
+  have hseg : segment ℝ p q = φ '' Icc 0 1 := segment_eq_image_lineMap ℝ p q
+  obtain ⟨u, hu, heu⟩ := hseg ▸ h ▸ left_mem_segment ℝ a b
+  obtain ⟨v, hv, hev⟩ := hseg ▸ h ▸ right_mem_segment ℝ a b
+  have hab : segment ℝ a b = φ '' Icc (min u v) (max u v) := by
+    rw [← heu, ← hev]
+    simpa only [segment_eq_Icc'] using (image_segment ℝ φ u v).symm
+  have hi : Icc (min u v) (max u v) = Icc (0 : ℝ) 1 :=
+    hφ.image_injective (hab.symm.trans (h.trans hseg))
+  have hlo : min u v = 0 := by
+    have hleft := hi ▸ (left_mem_Icc.mpr (show min u v ≤ max u v from min_le_max))
+    have hzero := hi.symm ▸ (left_mem_Icc.mpr (show (0 : ℝ) ≤ 1 by norm_num))
+    exact le_antisymm hzero.1 hleft.1
+  have hhi : max u v = 1 := by
+    have hright := hi ▸ (right_mem_Icc.mpr (show min u v ≤ max u v from min_le_max))
+    have hone := hi.symm ▸ (right_mem_Icc.mpr (show (0 : ℝ) ≤ 1 by norm_num))
+    exact le_antisymm hright.2 hone.2
+  rcases le_total u v with huv | hvu
+  · have hu0 : u = 0 := by simpa only [min_eq_left huv] using hlo
+    have hv1 : v = 1 := by simpa only [max_eq_right huv] using hhi
+    left
+    simpa only [hu0, hv1, φ, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
+      using And.intro heu.symm hev.symm
+  · have hv0 : v = 0 := by simpa only [min_eq_right hvu] using hlo
+    have hu1 : u = 1 := by simpa only [max_eq_left hvu] using hhi
+    right
+    simpa only [hu1, hv0, φ, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
+      using And.intro heu.symm hev.symm
+
+/-- Step 5 of the V4 proof of `host_step_step4_age_one_flag` (V4 2.3):
+"with inherited orientations". The active-chain sign selects the ordering
+of the two flag endpoints in the full placed frame. -/
+private theorem host_step_step4_age_one_flag_step5_orientation (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (c : OrientedChain f) (hc : U.ActiveChain P q f hf c)
+    (ha : AgeOneRecord (stateOf U P q) (U.recordOf P q f hf))
+    (he : (c.chain.val.cell edgeIndex).val =
+      ((P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).cell edgeIndex).val) :
+    chainVector c = (U.recordOf P q f hf).servingDirection := by
+  let r := U.recordOf P q f hf
+  let ψ : Iso d := (S.child r.incidence.val.ty r.incidence.val.left).frame.trans
+    (S.child r.incidence.val.ty (r.incidence.val.sideIndex r.sideIndex)).frame.symm
+  let a := ψ (P.flag r.incidence).initial
+  let b := ψ (P.flag r.incidence).terminal
+  have hab : a ≠ b := ψ.injective.ne (P.flag r.incidence).distinct
+  have hdir : b - a = r.servingDirection := by
+    change ψ (P.flag r.incidence).terminal - ψ (P.flag r.incidence).initial =
+      ψ.linearIsometryEquiv ((P.flag r.incidence).terminal - (P.flag r.incidence).initial)
+    exact (ψ.map_vsub _ _).symm
+  have hcarrier : (c.chain.val.cell edgeIndex).val.carrier =
+      ψ '' ((P.flag r.incidence).flag.cell edgeIndex).val.carrier := by
+    apply (S.child r.incidence.val.ty (r.incidence.val.sideIndex r.sideIndex)).frame.injective.image_injective
+    calc
+      _ = (S.child r.incidence.val.ty r.incidence.val.left).frame ''
+          ((P.flag r.incidence).flag.cell edgeIndex).val.carrier := by
+        rw [he]
+        exact P.sideFlag_eq r.incidence r.sideIndex edgeIndex
+      _ = _ := by
+        rw [Set.image_image]
+        apply congrArg (fun φ : E d → E d =>
+          φ '' ((P.flag r.incidence).flag.cell edgeIndex).val.carrier)
+        funext x
+        change (S.child r.incidence.val.ty r.incidence.val.left).frame x =
+          (S.child r.incidence.val.ty (r.incidence.val.sideIndex r.sideIndex)).frame
+            ((S.child r.incidence.val.ty (r.incidence.val.sideIndex r.sideIndex)).frame.symm
+              ((S.child r.incidence.val.ty r.incidence.val.left).frame x))
+        rw [AffineIsometryEquiv.apply_symm_apply]
+  have hseg : (c.chain.val.cell edgeIndex).val.carrier = segment ℝ a b := by
+    rw [hcarrier, (P.flag r.incidence).edge_eq]
+    exact image_segment ℝ ψ.toAffineMap _ _
+  let e : EdgeName S := ⟨q.2.val.ty, ⟨(c.chain.val.cell edgeIndex).val, by
+    classical
+    simp only [CellComplex.edges, Finset.mem_filter]
+    exact ⟨(c.chain.val.cell edgeIndex).property, c.chain.val.dimension edgeIndex⟩⟩⟩
+  let ab := Classical.choose (edge_endpoints_exist e)
+  have habspec : e.2.val.carrier = segment ℝ ab.1 ab.2 :=
+    (Classical.choose_spec (edge_endpoints_exist e)).2
+  have hraw : edgeVector e = r.servingDirection ∨ edgeVector e = -r.servingDirection := by
+    rcases host_step_step4_age_one_flag_step4_endpoints a b ab.1 ab.2 hab
+      (habspec.symm.trans hseg) with ⟨hfirst, hlast⟩ | ⟨hfirst, hlast⟩
+    · left
+      change ab.2 - ab.1 = _
+      rw [hfirst, hlast]
+      exact hdir
+    · right
+      change ab.2 - ab.1 = _
+      rw [hfirst, hlast, ← hdir]
+      exact (neg_sub b a).symm
+  have hframe : (U.providerPlacement P q f hf).linear (P.flag r.incidence).direction =
+      (q.2.val.prototypeFrame q.1).linear r.servingDirection :=
+    congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ.linear (P.flag r.incidence).direction)
+      (host_step_step4_age_one_flag_step3_frame U q f hf ha)
+  have hsign : c.forward = true ↔ 0 < inner ℝ
+      ((q.2.val.prototypeFrame q.1).linear r.servingDirection)
+      ((q.2.val.prototypeFrame q.1).linear (edgeVector e)) := by
+    have h := hc.2
+    change c.forward = true ↔ 0 < inner ℝ
+      ((U.providerPlacement P q f hf).linear (P.flag r.incidence).direction)
+      ((q.2.val.prototypeFrame q.1).linear (edgeVector e)) at h
+    rwa [hframe] at h
+  have hn : r.servingDirection ≠ 0 := by
+    rw [← hdir]
+    exact sub_ne_zero.mpr hab.symm
+  have hpos : 0 < inner ℝ ((q.2.val.prototypeFrame q.1).linear r.servingDirection)
+      ((q.2.val.prototypeFrame q.1).linear r.servingDirection) := by
+    apply real_inner_self_pos.mpr
+    simpa only [map_zero] using (q.2.val.prototypeFrame q.1).linear.injective.ne hn
+  change (if c.forward then edgeVector e else -edgeVector e) = r.servingDirection
+  rcases hraw with hraw | hraw
+  · have hforward : c.forward = true := hsign.mpr (by rw [hraw]; exact hpos)
+    simp [hforward, hraw]
+  · have hforward : c.forward ≠ true := by
+      intro h
+      have hbad := hsign.mp h
+      rw [hraw, map_neg, inner_neg_right] at hbad
+      linarith
+    simp [hforward, hraw]
+
+/-- Step 6 of the V4 proof of `host_step_step4_age_one_flag` (V4 3.6):
+"f is the cell g_j of A_j". The top of the side flag is its paired facet. -/
+private theorem host_step_step4_age_one_flag_step6_top (ι : P.Incidence) (b : Bool) :
+    ((P.sideFlag ι b).cell facetIndex).val = (ι.val.sideFacet b).val := by
+  apply host_step_step4_age_one_flag_step1_cell_ext
+  apply (S.child ι.val.ty (ι.val.sideIndex b)).frame.injective.image_injective
+  change placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame _ = placedSet _ _
+  rw [P.sideFlag_eq, (P.flag ι).top]
+  cases b
+  · rfl
+  · exact ι.val.paired
+
 /-- Step 4 of the V4 proof of `host_step` (V4 3.6): "the active chains
 of an age-one record are the flag cells themselves". This is a statement about
 one honest state in prototype coordinates, including the induced orientation. -/
@@ -1538,7 +1777,29 @@ private theorem host_step_step4_age_one_flag (s : State P)
     (∀ k, (z.2.chain.val.cell k).val =
       ((P.sideFlag z.1.incidence z.1.sideIndex).cell k).val) ∧
     chainVector z.2 = z.1.servingDirection := by
-  sorry
+  classical
+  obtain ⟨U, q, rfl⟩ := hs
+  rcases z with ⟨r, c⟩
+  obtain ⟨f, _, hrec⟩ :=
+    host_step_step3_readout (stateOf U P q) r.facet.val r hr
+  change U.facetRecordOf P q f = some r at hrec
+  unfold HonestSource.facetRecordOf at hrec
+  split at hrec
+  · contradiction
+  · rename_i hf
+    cases Option.some.inj hrec
+    have hactive : U.ActiveChain P q f hf c := (Finset.mem_filter.mp hc).2
+    have hcells := host_step_step4_age_one_flag_step2_cells U q f hf c hactive ha
+    have htype : (U.recordOf P q f hf).ty =
+        (U.recordOf P q f hf).incidence.val.sideType (U.recordOf P q f hf).sideIndex := by
+      have hrole := ha.2.1.symm.trans (U.recordOf P q f hf).side_eq
+      exact (stateOf U P q).address_start.symm.trans
+        (congrArg (fun r : S.Role => (S.child r.1 r.2).ty) hrole)
+    refine ⟨htype, ?_, hcells, ?_⟩
+    · exact c.chain.property.symm.trans ((hcells facetIndex).trans
+        (host_step_step4_age_one_flag_step6_top _ _))
+    · exact host_step_step4_age_one_flag_step5_orientation U q f hf c hactive ha
+        (hcells edgeIndex)
 
 /-- Step 4 of the V4 proof of `host_step` (V4 3.6): "c ⊆ h and |c|=|h|,
 c=h". This metric assertion also allows a degenerate candidate subsegment;

@@ -872,6 +872,500 @@ private theorem host_step_step1_seed (Y : MarkedTiling (systemM S P C))
   · change compilerFrame C t (r.endpoints (host_step_edge ⟨r, c⟩)).1 = p₀
     simpa only [hφ, p₀, hframe] using hstart
 
+/-- Step 1 of the V4 proof of `host_step_step2_strand` (V4 3.6):
+"the initial and terminal vertices of h". The two side names of the flag
+give the same oriented segment after placement. -/
+private theorem host_step_step2_strand_step1_flag_segment
+    (H : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) :
+    host_step_flagEdge H n ι b = segment ℝ
+      (host_step_flagFrame H n ι b (P.flag ι).initial)
+      (host_step_flagFrame H n ι b (P.flag ι).terminal) := by
+  have he : host_step_flagEdge H n ι b =
+      host_step_flagFrame H n ι b '' ((P.flag ι).flag.cell edgeIndex).val.carrier := by
+    change H.prototypeFrame n '' ((P.sideFlag ι b).cell edgeIndex).val.carrier = _
+    ext x
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      have hm : (S.child ι.val.ty (ι.val.sideIndex b)).frame y ∈
+          placedSet (S.child ι.val.ty ι.val.left).frame
+            ((P.flag ι).flag.cell edgeIndex).val.carrier := by
+        rw [← P.sideFlag_eq ι b edgeIndex]
+        exact ⟨y, hy, rfl⟩
+      obtain ⟨z, hz, heq⟩ := hm
+      refine ⟨z, hz, ?_⟩
+      change H.prototypeFrame n
+        ((S.child ι.val.ty (ι.val.sideIndex b)).frame.symm
+          ((S.child ι.val.ty ι.val.left).frame z)) = H.prototypeFrame n y
+      rw [heq, AffineIsometryEquiv.symm_apply_apply]
+    · rintro ⟨z, hz, rfl⟩
+      have hm : (S.child ι.val.ty ι.val.left).frame z ∈
+          placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame
+            ((P.sideFlag ι b).cell edgeIndex).val.carrier := by
+        rw [P.sideFlag_eq ι b edgeIndex]
+        exact ⟨z, hz, rfl⟩
+      obtain ⟨y, hy, heq⟩ := hm
+      refine ⟨y, hy, ?_⟩
+      change H.prototypeFrame n y = H.prototypeFrame n
+        ((S.child ι.val.ty (ι.val.sideIndex b)).frame.symm
+          ((S.child ι.val.ty ι.val.left).frame z))
+      rw [← heq, AffineIsometryEquiv.symm_apply_apply]
+  rw [he, (P.flag ι).edge_eq]
+  exact image_segment ℝ (host_step_flagFrame H n ι b).toAffineMap _ _
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand` (V4 3.6):
+"in the orientation of h". On a nondegenerate real interval the relative
+interior is exactly the open interval. -/
+private theorem host_step_step2_strand_step1_interval_relint (a b : ℝ) (hab : a < b) :
+    intrinsicInterior ℝ (Icc a b) = Ioo a b := by
+  have hspan : affineSpan ℝ (Icc a b) = ⊤ :=
+    (convex_Icc a b).interior_nonempty_iff_affineSpan_eq_top.mp
+      (by rw [interior_Icc]; exact nonempty_Ioo.mpr hab)
+  rw [intrinsicInterior, hspan]
+  change (Homeomorph.Set.univ ℝ) ''
+    interior ((Homeomorph.Set.univ ℝ) ⁻¹' Icc a b) = Ioo a b
+  rw [(Homeomorph.Set.univ ℝ).image_interior]
+  simp
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand` (V4 3.6):
+"in the orientation of h". Use an isometric coordinate increasing from
+the initial endpoint to the terminal endpoint. -/
+private theorem host_step_step2_strand_step1_chart
+    (H : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) :
+    ∃ (φ : ℝ →ᵃⁱ[ℝ] E d) (L : ℝ), 0 < L ∧
+      φ 0 = host_step_flagFrame H n ι b (P.flag ι).initial ∧
+      φ L = host_step_flagFrame H n ι b (P.flag ι).terminal ∧
+      host_step_flagEdge H n ι b = φ '' Icc 0 L ∧
+      relint (host_step_flagEdge H n ι b) = φ '' Ioo 0 L := by
+  let p := host_step_flagFrame H n ι b (P.flag ι).initial
+  let q := host_step_flagFrame H n ι b (P.flag ι).terminal
+  have hpq : p ≠ q := (host_step_flagFrame H n ι b).injective.ne (P.flag ι).distinct
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let v := L⁻¹ • (q - p)
+  have hv : ‖v‖ = 1 := by
+    dsimp [v]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • v + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight v
+      map_vadd' := by
+        intro t s
+        change (s + t) • v + p = s • v + (t • v + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • v‖ = ‖t‖
+      rw [norm_smul, hv, mul_one] }
+  have hφ0 : φ 0 = p := by change (0 : ℝ) • v + p = p; simp
+  have hφL : φ L = q := by
+    change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+  have hseg : host_step_flagEdge H n ι b = φ '' Icc 0 L := by
+    rw [host_step_step2_strand_step1_flag_segment]
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  refine ⟨φ, L, hL, hφ0, hφL, hseg, ?_⟩
+  rw [hseg, relint, φ.image_intrinsicInterior,
+    host_step_step2_strand_step1_interval_relint 0 L hL]
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand` (V4 3.6(2a)):
+"edges of length at least the minimal native edge length". The bound
+uses only the finite native edge catalogue, and also covers an empty catalogue. -/
+private theorem host_step_step2_strand_step1_native_length :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ u : host_step_Port C,
+      ε ≤ dist (host_step_portEnds u).1 (host_step_portEnds u).2 := by
+  classical
+  letI := edgeNames_finite S
+  have hlength (u : host_step_Port C) :
+      dist (host_step_portEnds u).1 (host_step_portEnds u).2 =
+        ‖edgeVector (⟨u.2.1.ty, host_step_edge u.2⟩ : EdgeName S)‖ := by
+    change dist (compilerFrame C u.1 (u.2.1.endpoints (host_step_edge u.2)).1)
+      (compilerFrame C u.1 (u.2.1.endpoints (host_step_edge u.2)).2) = _
+    rw [(compilerFrame C u.1).dist_map]
+    unfold FacetRecord.endpoints
+    split <;> simp only [edgeVector, dist_eq_norm]
+    exact norm_sub_rev _ _
+  by_cases hn : Nonempty (EdgeName S)
+  · obtain ⟨e, _, he⟩ := Set.exists_min_image (Set.univ : Set (EdgeName S))
+      (fun e => ‖edgeVector e‖) Set.finite_univ ⟨Classical.choice hn, Set.mem_univ _⟩
+    refine ⟨‖edgeVector e‖, norm_pos_iff.mpr (edgeVector_spec e).1, ?_⟩
+    intro u
+    rw [hlength]
+    exact he _ (Set.mem_univ _)
+  · refine ⟨1, zero_lt_one, ?_⟩
+    intro u
+    exact (hn ⟨⟨u.2.1.ty, host_step_edge u.2⟩⟩).elim
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand` (V4 3.6):
+"with the recorded orientation". All honest active chains with the
+same bottom edge give that edge the same orientation, so the endpoint
+readout and the chain vector agree. -/
+private theorem host_step_step2_strand_step1_endpoint_vector
+    (s : State P) (hs : s ∈ honestStates S P) (F : Cell d)
+    (r : FacetRecord P) (hr : stateRecordAt s F = some r)
+    (c : OrientedChain r.facet) (hc : c ∈ r.chains) :
+    (r.endpoints (host_step_edge ⟨r, c⟩)).2 -
+      (r.endpoints (host_step_edge ⟨r, c⟩)).1 = chainVector c := by
+  classical
+  obtain ⟨U, q, rfl⟩ := hs
+  unfold stateRecordAt at hr
+  split at hr
+  · rename_i hF
+    change U.facetRecordOf P q ⟨F, hF⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    · rename_i hf
+      have hr' := Option.some.inj hr
+      subst r
+      let r := U.recordOf P q ⟨F, hF⟩ hf
+      let e := host_step_edge (⟨r, c⟩ : host_step_Chain P)
+      have horient (c' : OrientedChain r.facet) (hc' : c' ∈ r.chains) :
+          c'.forward = true ↔ 0 < inner ℝ
+            ((U.providerPlacement P q ⟨F, hF⟩ hf).linear
+              (P.flag (U.recordIncidence P q ⟨F, hF⟩ hf)).direction)
+            ((q.2.val.prototypeFrame q.1).linear
+              (edgeVector ⟨r.ty, host_step_edge ⟨r, c'⟩⟩)) :=
+        (record_chains_spec U P q ⟨F, hF⟩ hf c').mp hc' |>.2
+      have hsame (c' : OrientedChain r.facet) (hc' : c' ∈ r.chains)
+          (he : (c'.chain.val.cell edgeIndex).val = e.val) :
+          c'.forward = c.forward := by
+        have he' : host_step_edge (⟨r, c'⟩ : host_step_Chain P) = e := Subtype.ext he
+        have ho := horient c hc
+        have ho' := horient c' hc'
+        rw [he'] at ho'
+        have heq : (c'.forward = true) ↔ c.forward = true := ho'.trans ho.symm
+        cases h1 : c'.forward <;> cases h2 : c.forward <;> simp_all
+      have hforward : r.edgeForward e = c.forward := by
+        unfold FacetRecord.edgeForward
+        cases hcf : c.forward with
+        | false =>
+            apply Bool.eq_false_iff.mpr
+            intro hh
+            obtain ⟨c', hc', he'⟩ := List.any_eq_true.mp hh
+            have hp : (c'.chain.val.cell edgeIndex).val = e.val ∧ c'.forward = true := by
+              simpa using he'
+            have heq := hsame c' (Finset.mem_toList.mp hc') hp.1
+            simp_all
+        | true =>
+            apply List.any_eq_true.mpr
+            refine ⟨c, Finset.mem_toList.mpr hc, ?_⟩
+            simp [e, host_step_edge, hcf]
+      change (r.endpoints e).2 - (r.endpoints e).1 = chainVector c
+      unfold FacetRecord.endpoints
+      rw [hforward]
+      unfold chainVector
+      cases c.forward <;> simp [e, edgeVector, neg_sub]
+  · contradiction
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand` (V4 3.6):
+"chain-active edges". The native edge is precisely the closed segment
+between its two recorded physical endpoints. -/
+private theorem host_step_step2_strand_step1_port_segment (u : host_step_Port C) :
+    host_step_portEdge u = segment ℝ (host_step_portEnds u).1 (host_step_portEnds u).2 := by
+  have he := (Classical.choose_spec
+    (edge_endpoints_exist (⟨u.2.1.ty, host_step_edge u.2⟩ : EdgeName S))).2
+  have hframe : (tileNode u.1).prototypeFrame 0 = (compilerFrame C u.1).toAffineEquiv := by
+    ext x
+    simp [FramedNode.prototypeFrame, tileNode]
+  unfold host_step_portEdge FramedNode.cell
+  rw [hframe, he]
+  let ab := Classical.choose
+    (edge_endpoints_exist (⟨u.2.1.ty, host_step_edge u.2⟩ : EdgeName S))
+  trans segment ℝ (compilerFrame C u.1 ab.1) (compilerFrame C u.1 ab.2)
+  · exact image_segment ℝ (compilerFrame C u.1).toAffineEquiv.toAffineMap _ _
+  · unfold host_step_portEnds FacetRecord.endpoints
+    split
+    · rfl
+    · exact segment_symm _ _ _
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand` (V4 3.6):
+"chain-active edges ... along the oriented line". Honesty identifies the
+record's endpoint order with its active chain orientation; alignment places
+both endpoints on the reference line. This concerns one port only. -/
+private theorem host_step_step2_strand_step1_port_coordinates
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (H : FramedNode S)
+    (ι : P.Incidence) (b : Bool) (u : host_step_Port C)
+    (hu : host_step_portValid Y n H ι b u)
+    (φ : ℝ →ᵃⁱ[ℝ] E d) (L : ℝ) (hL : 0 < L)
+    (hφ0 : φ 0 = host_step_flagFrame H n ι b (P.flag ι).initial)
+    (hφL : φ L = host_step_flagFrame H n ι b (P.flag ι).terminal) :
+    ∃ x y : ℝ, x < y ∧
+      (host_step_portEnds u).1 = φ x ∧ (host_step_portEnds u).2 = φ y ∧
+      host_step_portEdge u = φ '' Icc x y ∧
+      relint (host_step_portEdge u) = φ '' Ioo x y := by
+  classical
+  rcases hu with ⟨ht, hread, hty, hchain, hι, hb, hβ, halign, hpacket⟩
+  let l := compilerLeaf C u.1
+  have hs : l.prePattern.state ∈ honestStates S P :=
+    (prePattern_components_honest P l.prePattern
+      ((certificate_components_honest P l.1.val l.1.property).1 l.2)).1
+  have hvec := host_step_step2_strand_step1_endpoint_vector l.prePattern.state hs
+    u.2.1.facet.val u.2.1 hread u.2.2 hchain
+  change (u.2.1.endpoints (host_step_edge u.2)).2 -
+    (u.2.1.endpoints (host_step_edge u.2)).1 = chainVector u.2.2 at hvec
+  have hnative : ((tileNode u.1).prototypeFrame 0).linear (chainVector u.2.2) =
+      (host_step_portEnds u).2 - (host_step_portEnds u).1 := by
+    have hv := (compilerFrame C u.1).map_vsub
+      (u.2.1.endpoints (host_step_edge u.2)).2
+      (u.2.1.endpoints (host_step_edge u.2)).1
+    change (compilerFrame C u.1).linearIsometryEquiv
+      ((u.2.1.endpoints (host_step_edge u.2)).2 -
+        (u.2.1.endpoints (host_step_edge u.2)).1) =
+      (host_step_portEnds u).2 - (host_step_portEnds u).1 at hv
+    rw [hvec] at hv
+    simpa [FramedNode.prototypeFrame, tileNode] using hv
+  have hdir : (host_step_flagFrame H n ι b).linear (P.flag ι).direction = φ L - φ 0 := by
+    rw [hφL, hφ0]
+    exact (host_step_flagFrame H n ι b).toAffineMap.linearMap_vsub _ _
+  have hpos : 0 < inner ℝ (φ L - φ 0)
+      ((host_step_portEnds u).2 - (host_step_portEnds u).1) := by
+    rw [← hdir, ← hnative]
+    exact halign.2.2.1
+  have hflag : host_step_flagEdge H n ι b = φ '' Icc 0 L := by
+    rw [host_step_step2_strand_step1_flag_segment, ← hφ0, ← hφL]
+    simpa only [AffineIsometry.coe_toAffineMap, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hspan : affineSpan ℝ (host_step_portEdge u) =
+      affineSpan ℝ (host_step_flagEdge H n ι b) := halign.1 edgeIndex
+  have hrange : affineSpan ℝ (host_step_flagEdge H n ι b) ≤
+      (⊤ : AffineSubspace ℝ ℝ).map φ.toAffineMap := by
+    apply affineSpan_le.mpr
+    rw [hflag]
+    rintro x ⟨t, ht, rfl⟩
+    exact ⟨t, Set.mem_univ _, rfl⟩
+  have hpoint (x : E d) (hx : x ∈ host_step_portEdge u) :
+      x ∈ (⊤ : AffineSubspace ℝ ℝ).map φ.toAffineMap := by
+    apply hrange
+    rw [← hspan]
+    exact mem_affineSpan ℝ hx
+  obtain ⟨x, _, hx⟩ := hpoint (host_step_portEnds u).1
+    (by rw [host_step_step2_strand_step1_port_segment]; exact left_mem_segment ℝ _ _)
+  obtain ⟨y, _, hy⟩ := hpoint (host_step_portEnds u).2
+    (by rw [host_step_step2_strand_step1_port_segment]; exact right_mem_segment ℝ _ _)
+  have hxy : x < y := by
+    rw [← hx, ← hy] at hpos
+    change 0 < inner ℝ (φ L -ᵥ φ 0) (φ y -ᵥ φ x) at hpos
+    rw [← φ.map_vsub, ← φ.map_vsub, φ.linearIsometry.inner_map_map] at hpos
+    change 0 < (y - x) * (L - 0) at hpos
+    nlinarith
+  have he : host_step_portEdge u = φ '' Icc x y := by
+    rw [host_step_step2_strand_step1_port_segment, ← hx, ← hy]
+    simpa only [AffineIsometry.coe_toAffineMap, segment_eq_Icc hxy.le] using
+      (image_segment ℝ φ.toAffineMap x y).symm
+  refine ⟨x, y, hxy, hx.symm, hy.symm, he, ?_⟩
+  rw [he, relint, φ.image_intrinsicInterior,
+    host_step_step2_strand_step1_interval_relint x y hxy]
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand` (V4 3.6(2a)):
+"The strand never passes p_N". A single aligned port starting in h
+strictly before p_N cannot cross p_N: its backward flag displacements
+enter the terminal END sector, whose template lists p_N as a vertex. -/
+private theorem host_step_step2_strand_step2_terminal_bound
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f)
+    (hend : host_step_endEvent Y n B f (proposedParent D B hB)
+      (host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex) (P.flag a.record.incidence).terminal))
+    (u : host_step_Port C)
+    (hu : host_step_portValid Y n (proposedSibling D B hB f a)
+      a.record.incidence (!a.record.sideIndex) u)
+    (hstart : (host_step_portEnds u).1 ∈
+      host_step_flagEdge (proposedSibling D B hB f a) n
+        a.record.incidence (!a.record.sideIndex))
+    (hbefore : (host_step_portEnds u).1 ≠
+      host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex) (P.flag a.record.incidence).terminal) :
+    host_step_portEdge u ⊆ host_step_flagEdge (proposedSibling D B hB f a) n
+      a.record.incidence (!a.record.sideIndex) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand` (V4 3.6(2c)):
+"(E2) at θ_N gives κ⁺(e_s)=N". This is the terminal END row for
+one aligned port ending at p_N, independently of how the port was reached. -/
+private theorem host_step_step2_strand_step2_terminal_counter
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f)
+    (hend : host_step_endEvent Y n B f (proposedParent D B hB)
+      (host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex) (P.flag a.record.incidence).terminal))
+    (u : host_step_Port C)
+    (hu : host_step_portValid Y n (proposedSibling D B hB f a)
+      a.record.incidence (!a.record.sideIndex) u)
+    (hsub : host_step_portEdge u ⊆ host_step_flagEdge (proposedSibling D B hB f a) n
+      a.record.incidence (!a.record.sideIndex))
+    (hterminal : (host_step_portEnds u).2 =
+      host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex) (P.flag a.record.incidence).terminal) :
+    u.2.1.kappaPlus (host_step_edge u.2) = P.N := by
+  sorry
+
+/-- Step 3 of the V4 proof of `host_step_step2_strand` (V4 3.6(2b)):
+"No false interior endpoint". An END record at an interior point would
+force a B-side tile's stratum to be a vertex by (E1), while (I2) restricts
+B's age-one stratum there to h. Thus the terminal vertex has a CONT slot
+with exactly this port's record and edge. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f)
+    (u : host_step_Port C)
+    (hu : host_step_portValid Y n (proposedSibling D B hB f a)
+      a.record.incidence (!a.record.sideIndex) u)
+    (hsub : host_step_portEdge u ⊆ host_step_flagEdge (proposedSibling D B hB f a) n
+      a.record.incidence (!a.record.sideIndex))
+    (hterminal : (host_step_portEnds u).2 ∈
+      relint (host_step_flagEdge (proposedSibling D B hB f a) n
+        a.record.incidence (!a.record.sideIndex))) :
+    ∃ j : ContSlot (compilerLeaf C u.1),
+      j.record = u.2.1 ∧ j.edge.val = (host_step_edge u.2).val := by
+  sorry
+
+/-- Step 4 of the V4 proof of `host_step_step2_strand` (V4 3.6, Step 2):
+"Theorem 2.17(b) gives a template: a tile u_{m+1} ... continuing e_m".
+This extracts a single actual successor from a CONT slot, retaining full
+flag alignment and the row's zero-or-one counter increment. -/
+private theorem host_step_step2_strand_step4_continue
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (n : ℕ)
+    (H : FramedNode S) (ι : P.Incidence) (b : Bool) (u : host_step_Port C)
+    (hu : host_step_portValid Y n H ι b u)
+    (j : ContSlot (compilerLeaf C u.1))
+    (hrecord : j.record = u.2.1) (hedge : j.edge.val = (host_step_edge u.2).val) :
+    ∃ v : host_step_Port C, host_step_portValid Y n H ι b v ∧
+      (host_step_portEnds u).2 = (host_step_portEnds v).1 ∧
+      (v.2.1.kappaMinus (host_step_edge v.2) = u.2.1.kappaPlus (host_step_edge u.2) ∨
+        v.2.1.kappaMinus (host_step_edge v.2) = u.2.1.kappaPlus (host_step_edge u.2) + 1) := by
+  sorry
+
+/-- Step 5 of the V4 proof of `host_step_step2_strand` (V4 3.6(2a)):
+"The sequence, having edges of length at least the minimal native edge length,
+is finite." This is the bounded-progress argument, with the continuation rule
+supplied separately. -/
+private theorem host_step_step2_strand_step5_finite_walk
+    {α : Type*} (good : α → Prop) (lo hi : α → ℝ) (R : α → α → Prop)
+    (L ε : ℝ) (hε : 0 < ε)
+    (hbound : ∀ u, good u → lo u + ε ≤ hi u ∧ hi u ≤ L)
+    (hnext : ∀ u, good u → hi u < L →
+      ∃ v, good v ∧ lo v = hi u ∧ R u v)
+    (u₀ : α) (hu₀ : good u₀) :
+    ∃ m : ℕ, ∃ u : Fin (m + 1) → α,
+      u 0 = u₀ ∧ (∀ i, good (u i)) ∧ hi (u (Fin.last m)) = L ∧
+      ∀ i : Fin m, lo (u i.succ) = hi (u i.castSucc) ∧ R (u i.castSucc) (u i.succ) := by
+  have aux : ∀ k : ℕ, ∀ v, good v → L - lo v < (k : ℝ) * ε →
+      ∃ m : ℕ, ∃ u : Fin (m + 1) → α,
+        u 0 = v ∧ (∀ i, good (u i)) ∧ hi (u (Fin.last m)) = L ∧
+        ∀ i : Fin m, lo (u i.succ) = hi (u i.castSucc) ∧ R (u i.castSucc) (u i.succ) := by
+    intro k
+    induction k with
+    | zero =>
+        intro v hv hk
+        have hb := hbound v hv
+        norm_num at hk
+        linarith
+    | succ k ih =>
+        intro v hv hk
+        by_cases hend : hi v = L
+        · refine ⟨0, fun _ => v, rfl, fun _ => hv, hend, ?_⟩
+          exact Fin.elim0
+        · obtain ⟨w, hw, hwlo, hR⟩ := hnext v hv (lt_of_le_of_ne (hbound v hv).2 hend)
+          have hwk : L - lo w < (k : ℝ) * ε := by
+            have hb := (hbound v hv).1
+            rw [hwlo]
+            push_cast at hk
+            nlinarith
+          obtain ⟨m, u, hu, hg, he, hc⟩ := ih w hw hwk
+          refine ⟨m + 1, Fin.cons v u, rfl, ?_, ?_, ?_⟩
+          · intro i
+            refine Fin.cases hv (fun j => ?_) i
+            exact hg j
+          · exact he
+          · intro i
+            refine Fin.cases ?_ (fun j => ?_) i
+            · simpa [hu] using And.intro hwlo hR
+            · simpa only [Fin.succ_castSucc, Fin.cons_succ] using hc j
+  obtain ⟨k, hk⟩ := exists_nat_gt ((L - lo u₀) / ε)
+  exact aux k u₀ hu₀ ((div_lt_iff₀ hε).mp hk)
+/-- Step 6 of the V4 proof of `host_step_step2_strand` (V4 3.6(2a)):
+"all e_m ⊆ h". Consecutive increasing intervals cover the interval
+between their extreme endpoints. -/
+private theorem host_step_step2_strand_step6_interval_cover
+    (m : ℕ) (lo hi : Fin (m + 1) → ℝ)
+    (hinc : ∀ i, lo i < hi i)
+    (hnext : ∀ i : Fin m, hi i.castSucc = lo i.succ) :
+    (⋃ i, Icc (lo i) (hi i)) = Icc (lo 0) (hi (Fin.last m)) := by
+  induction m with
+  | zero =>
+      have h : ∀ i : Fin 1, i = 0 := fun i => Subsingleton.elim _ _
+      simp only [h, iUnion_const]
+  | succ m ih =>
+      have ht := ih (fun i => lo i.succ) (fun i => hi i.succ)
+        (fun i => hinc i.succ) (fun i => hnext i.succ)
+      have hsplit : (⋃ i, Icc (lo i) (hi i)) =
+          Icc (lo 0) (hi 0) ∪ ⋃ i : Fin (m + 1), Icc (lo i.succ) (hi i.succ) := by
+        ext x
+        simp only [Set.mem_iUnion, Set.mem_union, Fin.exists_fin_succ]
+      rw [hsplit, ht]
+      dsimp only
+      have hj := hnext 0
+      simp only [Fin.castSucc_zero] at hj
+      rw [← hj]
+      exact Set.Icc_union_Icc_eq_Icc (hinc 0).le
+        ((Fin.strictMono_iff_lt_succ.mpr
+          (fun i => (hnext i).trans_lt (hinc i.succ))).monotone (Fin.zero_le _))/-- Step 6 of the V4 proof of `host_step_step2_strand` (V4 3.6(2a)):
+"e_0,e_1,... follow one another in the orientation of h". Ordered
+consecutive intervals have disjoint interiors and distinct interior junctions;
+no junction lies in the interior of one of the intervals. -/
+private theorem host_step_step2_strand_step6_ordered_intervals
+    (m : ℕ) (lo hi : Fin (m + 1) → ℝ) (L : ℝ)
+    (hinc : ∀ i, lo i < hi i) (hfirst : lo 0 = 0) (hlast : hi (Fin.last m) = L)
+    (hnext : ∀ i : Fin m, hi i.castSucc = lo i.succ) :
+    (∀ i, 0 ≤ lo i ∧ hi i ≤ L) ∧
+    Pairwise (fun i j => Disjoint (Ioo (lo i) (hi i)) (Ioo (lo j) (hi j))) ∧
+    (⋃ i, Icc (lo i) (hi i)) = Icc 0 L ∧
+    Function.Injective (fun i : Fin m => hi i.castSucc) ∧
+    (∀ i : Fin m, hi i.castSucc ∈ Ioo 0 L) ∧
+    (∀ i : Fin m, ∀ j, hi i.castSucc ∉ Ioo (lo j) (hi j)) ∧
+    ∀ i, Ioo (lo i) (hi i) ⊆ Ioo 0 L := by
+  have hlo : StrictMono lo := Fin.strictMono_iff_lt_succ.mpr
+    (fun i => (hinc i.castSucc).trans_eq (hnext i))
+  have hhi : StrictMono hi := Fin.strictMono_iff_lt_succ.mpr
+    (fun i => (hnext i).trans_lt (hinc i.succ))
+  have hb : ∀ i, 0 ≤ lo i ∧ hi i ≤ L := by
+    intro i
+    exact ⟨hfirst ▸ hlo.monotone (Fin.zero_le i),
+      hlast ▸ hhi.monotone (Fin.le_last i)⟩
+  have hsep : ∀ i j, i < j → hi i ≤ lo j := by
+    intro i j hij
+    let k : Fin m := ⟨i.val, by have := j.isLt; exact Nat.lt_of_lt_of_le hij (Nat.le_of_lt_succ j.isLt)⟩
+    have he : k.castSucc = i := Fin.ext rfl
+    have hkj : k.succ ≤ j := by change i.val + 1 ≤ j.val; exact hij
+    rw [← he, hnext k]
+    exact hlo.monotone hkj
+  refine ⟨hb, ?_, ?_, hhi.injective.comp (Fin.castSucc_injective m), ?_, ?_, ?_⟩
+  · intro i j hij
+    apply Set.disjoint_left.mpr
+    intro x hx hy
+    rcases lt_or_gt_of_ne hij with hij | hji
+    · exact (not_lt_of_ge (hsep i j hij)) (hy.1.trans hx.2)
+    · exact (not_lt_of_ge (hsep j i hji)) (hx.1.trans hy.2)
+  · rw [host_step_step2_strand_step6_interval_cover m lo hi hinc hnext, hfirst, hlast]
+  · intro i
+    refine ⟨(hb i.castSucc).1.trans_lt (hinc i.castSucc), ?_⟩
+    rw [hnext i]
+    exact (hinc i.succ).trans_le (hb i.succ).2
+  · intro i j hx
+    by_cases hji : j ≤ i.castSucc
+    · exact (not_lt_of_ge (hhi.monotone hji)) hx.2
+    · exact (not_lt_of_ge (hsep i.castSucc j (lt_of_not_ge hji))) hx.1
+  · intro i x hx
+    exact ⟨(hb i).1.trans_lt hx.1, hx.2.trans_le (hb i).2⟩
 /-- Step 2 of the V4 proof of `host_step` (V4 3.6): "The strand never
 passes p_N" and "No false interior endpoint". CONT extends the seed, the
 terminal END event bounds the strand, and the restriction of B's age-one
@@ -896,7 +1390,114 @@ private theorem host_step_step2_strand (Y : MarkedTiling (systemM S P C))
     ∃ m : ℕ, ∃ u : Fin (m + 1) → host_step_Port C, u 0 = u₀ ∧
       host_step_strand Y n (proposedSibling D B hB f a)
         a.record.incidence (!a.record.sideIndex) m u := by
-  sorry
+  classical
+  let H := proposedSibling D B hB f a
+  let ι := a.record.incidence
+  let b := !a.record.sideIndex
+  obtain ⟨φ, L, hL, hφ0, hφL, hflag, hflagopen⟩ :=
+    host_step_step2_strand_step1_chart H n ι b
+  let A := {u : host_step_Port C // host_step_portValid Y n H ι b u}
+  choose lo hi hlt hleft hright hedge hopen using
+    (fun u : A => host_step_step2_strand_step1_port_coordinates
+      Y n H ι b u.val u.property φ L hL hφ0 hφL)
+  obtain ⟨ε, hε, hlength⟩ := host_step_step2_strand_step1_native_length (C := C)
+  let good : A → Prop := fun u => 0 ≤ lo u ∧ lo u < L
+  let R : A → A → Prop := fun u v =>
+    v.val.2.1.kappaMinus (host_step_edge v.val.2) =
+      u.val.2.1.kappaPlus (host_step_edge u.val.2) ∨
+    v.val.2.1.kappaMinus (host_step_edge v.val.2) =
+      u.val.2.1.kappaPlus (host_step_edge u.val.2) + 1
+  have hsub : ∀ u : A, good u → host_step_portEdge u.val ⊆ host_step_flagEdge H n ι b := by
+    intro u hu
+    apply host_step_step2_strand_step2_terminal_bound Y hY n hn D hD B hB f a
+      hends.2 u.val u.property
+    · rw [hleft u, hflag]
+      exact ⟨lo u, ⟨hu.1, hu.2.le⟩, rfl⟩
+    · rw [hleft u, ← hφL]
+      intro heq
+      exact hu.2.ne (φ.injective heq)
+  have hbound : ∀ u : A, good u → lo u + ε ≤ hi u ∧ hi u ≤ L := by
+    intro u hu
+    have hlen := hlength u.val
+    rw [hleft u, hright u, φ.dist_map, Real.dist_eq,
+      abs_of_neg (sub_neg.mpr (hlt u))] at hlen
+    refine ⟨by linarith, ?_⟩
+    have hm : φ (hi u) ∈ host_step_flagEdge H n ι b :=
+      hsub u hu (by rw [hedge u]; exact ⟨hi u, ⟨(hlt u).le, le_rfl⟩, rfl⟩)
+    rw [hflag] at hm
+    obtain ⟨x, hx, heq⟩ := hm
+    exact (φ.injective heq) ▸ hx.2
+  have hnext : ∀ u : A, good u → hi u < L →
+      ∃ v : A, good v ∧ lo v = hi u ∧ R u v := by
+    intro u hu hbefore
+    have hterminal : (host_step_portEnds u.val).2 ∈ relint (host_step_flagEdge H n ι b) := by
+      rw [hright u, hflagopen]
+      exact ⟨hi u, ⟨hu.1.trans_lt (hlt u), hbefore⟩, rfl⟩
+    obtain ⟨j, hjr, hje⟩ := host_step_step2_strand_step3_no_false_endpoint
+      Y hY n hn D hD B hB f a u.val u.property (hsub u hu) hterminal
+    obtain ⟨v, hv, hvpoint, hvcounter⟩ := host_step_step2_strand_step4_continue
+      Y hY n H ι b u.val u.property j hjr hje
+    let v' : A := ⟨v, hv⟩
+    have heq : lo v' = hi u := φ.injective
+      ((hleft v').symm.trans (hvpoint.symm.trans (hright u)))
+    refine ⟨v', ?_, heq, hvcounter⟩
+    change 0 ≤ lo v' ∧ lo v' < L
+    rw [heq]
+    exact ⟨(hu.1.trans_lt (hlt u)).le, hbefore⟩
+  let seed : A := ⟨u₀, hu₀⟩
+  have hlo0 : lo seed = 0 :=
+    φ.injective ((hleft seed).symm.trans (hstart.trans hφ0.symm))
+  have hseed : good seed := by
+    change 0 ≤ lo seed ∧ lo seed < L
+    rw [hlo0]
+    exact ⟨le_rfl, hL⟩
+  obtain ⟨m, w, hw0, hwgood, hwlast, hwcont⟩ :=
+    host_step_step2_strand_step5_finite_walk good lo hi R L ε hε hbound hnext seed hseed
+  have hwfirst : lo (w 0) = 0 := by rw [hw0, hlo0]
+  have hwadj : ∀ i : Fin m, hi (w i.castSucc) = lo (w i.succ) :=
+    fun i => (hwcont i).1.symm
+  obtain ⟨hbounds, hdisj, hcover, hinj, hjunction, havoid, hinside⟩ :=
+    host_step_step2_strand_step6_ordered_intervals m (fun i => lo (w i))
+      (fun i => hi (w i)) L (fun i => hlt (w i)) hwfirst hwlast hwadj
+  let u : Fin (m + 1) → host_step_Port C := fun i => (w i).val
+  have hu0 : u 0 = u₀ := congrArg Subtype.val hw0
+  have hterminal : (host_step_portEnds (u (Fin.last m))).2 =
+      host_step_flagFrame H n ι b (P.flag ι).terminal := by
+    rw [hright, hwlast, hφL]
+  have hcontained : ∀ i, host_step_portEdge (u i) ⊆ host_step_flagEdge H n ι b :=
+    fun i => hsub (w i) (hwgood i)
+  refine ⟨m, u, hu0, ?_⟩
+  refine ⟨fun i => (w i).property, hu0 ▸ hstart, hterminal, hu0 ▸ hzero, ?_, ?_,
+    hcontained, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact host_step_step2_strand_step2_terminal_counter Y hY n hn D hD B hB f a
+      hends.2 _ (w (Fin.last m)).property (hcontained _) hterminal
+  · intro i
+    refine ⟨?_, (hwcont i).2⟩
+    change (host_step_portEnds (w i.castSucc).val).2 =
+      (host_step_portEnds (w i.succ).val).1
+    rw [hright, hleft, hwadj]
+  · intro i j hij
+    rw [hopen (w i), hopen (w j)]
+    exact (Set.disjoint_image_iff φ.injective).mpr (hdisj hij)
+  · change (⋃ i, host_step_portEdge (w i).val) = _
+    simp_rw [hedge]
+    rw [← Set.image_iUnion, hcover, hflag]
+  · intro i j heq
+    apply hinj
+    apply φ.injective
+    exact (hright (w i.castSucc)).symm.trans (heq.trans (hright (w j.castSucc)))
+  · intro i
+    rw [hright (w i.castSucc), hflagopen]
+    exact ⟨_, hjunction i, rfl⟩
+  · intro i j hmem
+    rw [hopen (w j)] at hmem
+    obtain ⟨x, hx, heq⟩ := hmem
+    have hxi : x = hi (w i.castSucc) :=
+      φ.injective (heq.trans (hright (w i.castSucc)))
+    exact havoid i j (hxi ▸ hx)
+  · intro i
+    rw [hopen (w i), hflagopen]
+    exact Set.image_mono (hinside i)
 
 /-- Step 1 of the V4 proof of `host_step_step2_port_sites` (V4 2.3):
 "re-expressed in C's frame". A child frame factors through its normalized role. -/

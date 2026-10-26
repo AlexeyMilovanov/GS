@@ -810,13 +810,25 @@ theorem record_mature_iff (U : HonestSource S) (P : Params S) (q : U.Node)
   sorry
 
 /-- Q3, V4 §2.2 (S4d): a mature counter exists at exactly the chain-active edges.
-Its recorded value is the common value on the relative interior of that edge. -/
+Its value is identified in `mature_counter_value` below. -/
 theorem mature_counter_spec (U : HonestSource S) (P : Params S) (q : U.Node)
     (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
     (hmature : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
       (U.hierarchy.firstProvider q f hf).1) (e : CellName S q.2.val.ty) :
     ((U.constantProfile P q f hf).value e).isSome = true ↔
       (U.recordOf P q f hf).ChainActive e := by
+  sorry
+
+/-- Q3, V4 §2.2 (S4d): on a chain-active edge the stored mature constant is the
+common counter value at every point of the relative interior of the placed edge;
+the anchor used by `constantProfile` is one such point. Added after audit A6 (P2). -/
+theorem mature_counter_value (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (hmature : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
+      (U.hierarchy.firstProvider q f hf).1) (e : CellName S q.2.val.ty)
+    (he : (U.recordOf P q f hf).ChainActive e) (x : E d)
+    (hx : x ∈ relint (q.2.val.cell q.1 e.val)) :
+    (U.constantProfile P q f hf).value e = some (U.sitesBefore P q f hf x) := by
   sorry
 
 /-- Q3, V4 §2.2 (S4d): the two one-sided germs differ by precisely the number

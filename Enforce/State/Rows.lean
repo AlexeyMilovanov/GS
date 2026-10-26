@@ -539,9 +539,12 @@ def ChainsAligned {P : Params S} (r r' : FacetRecord P)
     tangentCone (S.proto r.ty).carrier (cellAnchor r.facet.val) =
       φ.linearIsometryEquiv '' tangentCone (S.proto r'.ty).carrier (cellAnchor r'.facet.val)
 
-/-- Q12, V4 §2.5: a positioned two-tile CONT template.
-The continuation is a physical vertex of both tiles, with the two oriented edges
-forming a segment across it. Membership in active-chain tables is checked by the row. -/
+/-- Q12, V4 §2.5: a positioned CONT template of one or two native tiles.
+The continuation is a physical vertex shared by the two oriented edges, which form
+a segment across it. Membership in active-chain tables is checked by the row.
+The continuing tile may be the central tile itself: (H2) allows flat listed
+vertices, where consecutive listed edges along the flag edge have one owner
+(fix after audit A6, F1). `Template.disjoint` then forces equal leaf labels. -/
 structure ContTemplate {P : Params S} {l : LeafType P} (slot : ContSlot l) where
   /-- Q12, V4 §2.5: the full positioned labelled configuration. -/
   configuration : Template P
@@ -553,11 +556,10 @@ structure ContTemplate {P : Params S} {l : LeafType P} (slot : ContSlot l) where
   label : LeafType P
   /-- Q12, V4 §2.5: the continuation tile is present. -/
   other_mem : (other, label) ∈ configuration.tiles
-  /-- Q12, V4 §2.5: exactly the central tile and this other tile are listed. -/
+  /-- Q12, V4 §2.5: exactly the central tile and the continuing tile are listed;
+  a singleton when the continuation lies in the central tile. -/
   tiles_eq : configuration.tiles =
     {((⟨l.prototype, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S), l), (other, label)}
-  /-- Q12, V4 §2.5: the continuation tile is distinct from the central tile. -/
-  other_ne : other ≠ ⟨l.prototype, AffineIsometryEquiv.refl ℝ (E d)⟩
   /-- Q12, V4 §2.5: CONT has no END annotation. -/
   annotation_none : configuration.annotation = none
   /-- Q12, V4 §2.5: the finite record of the continuing port. -/

@@ -5,3 +5,9 @@ import Enforce.Substitution
 import Enforce.Tiling
 import Enforce.Rules
 import Enforce.Main
+import Enforce.Source.Trace
+import Enforce.Source.Headers
+import Enforce.Source.Edges
+import Enforce.Source.Sites
+import Enforce.Source.Routing
+import Enforce.Combinatorics

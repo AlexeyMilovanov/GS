@@ -518,6 +518,427 @@ private def siteFanGraph {A : S.ι} {F : FacetFlag S A} {r : ℕ}
     exact ⟨hne.symm, G, F, fun i => (hFG i).symm⟩
   loopless := ⟨by intro C h; exact h.1 rfl⟩
 
+/-- Step 1 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.23(b)):
+"The chains ... have direction spaces equal". Affine placement preserves
+cell dimensions, also for the expanded ancestral flag. -/
+private theorem site_fan_finite_step5_listed_step1_dimension
+    (g : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    Module.finrank ℝ (cellDirection (g '' K)) =
+      Module.finrank ℝ (cellDirection K) := by
+  change Module.finrank ℝ (affineSpan ℝ (g.toAffineMap '' K)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  exact LinearEquiv.finrank_map_eq g.linear (cellDirection K)
+
+/-- Step 1 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.23(b)):
+"a vertex of a cell of C is a vertex of C". Every placed listed cell lies
+on its owner's frontier. -/
+private theorem site_fan_finite_step5_listed_step1_cell_frontier
+    (C : FramedNode S) (n : ℕ) (e : CellName S C.ty) :
+    C.cell n e.val ⊆ frontier (C.carrier n) := by
+  have he : e.val.carrier ⊆ frontier (S.proto C.ty).carrier := by
+    rw [← (S.cx C.ty).carriers_cover]
+    exact subset_iUnion_of_subset e.val (subset_iUnion_of_subset e.property Subset.rfl)
+  let g := (C.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hc : C.carrier n = g '' (S.proto C.ty).carrier := by
+    simp [g, FramedNode.prototypeFrame, FramedNode.carrier, SubstSystem.supertile,
+      placedSet, Set.image_image]
+  rw [hc, ← g.image_frontier]
+  exact image_mono he
+
+/-- Step 1 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.23(b)):
+"at native scale". The relative interior and its closure commute with
+an owner's isometric native frame. -/
+private theorem site_fan_finite_step5_listed_step1_native_relint
+    (C : FramedNode S) (e : Cell d) :
+    relint (C.cell 0 e) = C.frame '' relint e.carrier ∧
+      closure (relint (C.cell 0 e)) = C.cell 0 e := by
+  have hc : C.cell 0 e = C.frame '' e.carrier := by
+    simp [FramedNode.cell, FramedNode.prototypeFrame]
+  have hi : relint (C.cell 0 e) = C.frame '' relint e.carrier := by
+    rw [hc]
+    exact C.frame.toAffineIsometry.image_intrinsicInterior e.carrier
+  refine ⟨hi, ?_⟩
+  rw [hi, hc]
+  simpa only [e.flat.regularClosed] using
+    (C.frame.toHomeomorph.image_closure (relint e.carrier)).symm
+
+/-- Step 2 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"applied to the descendant". Child placement at positive height is the
+conjugate of the prescribed native placement. -/
+private theorem site_fan_finite_step5_listed_step2_place_scaled (n : ℕ) {A : S.ι}
+    (i : S.I A) (x : E d) :
+    S.placeChild n i ((S.σ ^ n) x) = (S.σ ^ n) ((S.child A i).frame x) := by
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, LinearEquiv.mul_apply,
+    zpow_natCast, zpow_neg, AffineIsometryEquiv.coe_trans]
+
+/-- Step 2 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"applied to the descendant". Every child is contained in its parent. -/
+private theorem site_fan_finite_step5_listed_step2_child_subset
+    (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).carrier n ⊆ N.carrier (n + 1) := by
+  have hc := Set.subset_iUnion (fun i : S.I N.ty =>
+    placedSet (S.child N.ty i).frame (S.proto (S.child N.ty i).ty).carrier) i
+  rw [← S.children_cover N.ty] at hc
+  rintro y ⟨z, ⟨x, hx, rfl⟩, rfl⟩
+  change N.frame (S.placeChild n i ((S.σ ^ n) x)) ∈ N.frame '' S.supertile (n + 1) N.ty
+  rw [site_fan_finite_step5_listed_step2_place_scaled]
+  obtain ⟨p, hp, heq⟩ := hc ⟨x, hx, rfl⟩
+  refine ⟨(S.σ ^ n) ((S.child N.ty i).frame x), ⟨p, hp, ?_⟩, rfl⟩
+  rw [pow_succ, LinearEquiv.mul_apply, heq]
+
+/-- Step 2 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"applied to the descendant". Iterating child containment gives containment
+for every recorded descendant. -/
+private theorem site_fan_finite_step5_listed_step2_descendant_subset
+    (P C : FramedNode S) (n h : ℕ) (hC : C.IsDescendant h P n) :
+    C.carrier h ⊆ P.carrier n := by
+  obtain ⟨k, rfl, w, rfl⟩ := hC
+  induction k generalizing P with
+  | zero => simpa [SubstSystem.descendantNode, FramedNode.move]
+  | succ k ih =>
+    have hc := ih (P.child (h + k) w.1) w.2
+    have heq : (S.descendantNode P.ty h (k + 1) w).move P.frame =
+        (S.descendantNode (P.child (h + k) w.1).ty h k w.2).move
+          (P.child (h + k) w.1).frame := by
+      simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child,
+        ← AffineIsometryEquiv.trans_assoc]
+    rw [heq]
+    exact hc.trans (site_fan_finite_step5_listed_step2_child_subset P (h + k) w.1)
+
+/-- Step 2 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"the least common ancestor". Concatenation retains the exact standard
+frames, so a child of a standard node is again standard. -/
+private theorem site_fan_finite_step5_listed_step2_join_words
+    (A : S.ι) (h m k : ℕ) (u : S.RoleWord A k)
+    (v : S.RoleWord (S.descendantNode A (h + m) k u).ty m) :
+    ∃ w : S.RoleWord A (m + k),
+      S.descendantNode A h (m + k) w =
+        (S.descendantNode (S.descendantNode A (h + m) k u).ty h m v).move
+          (S.descendantNode A (h + m) k u).frame := by
+  induction k generalizing A with
+  | zero =>
+    refine ⟨v, ?_⟩
+    simp [SubstSystem.descendantNode, FramedNode.move]
+  | succ k ih =>
+    obtain ⟨w, hw⟩ := ih (S.child A u.1).ty u.2 v
+    refine ⟨⟨u.1, w⟩, ?_⟩
+    change (S.descendantNode (S.child A u.1).ty h (m + k) w).move
+      (S.placeChild (h + (m + k)) u.1) = _
+    rw [hw]
+    simp [SubstSystem.descendantNode, FramedNode.move, Nat.add_assoc,
+      ← AffineIsometryEquiv.trans_assoc]
+
+/-- Step 2 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"the least common ancestor". Child occurrences stay in the same standard
+hierarchy as the original flag. -/
+private theorem site_fan_finite_step5_listed_step2_standard_child
+    (A : S.ι) (r n : ℕ) (P : FramedNode S)
+    (hP : S.IsStandardNode A r (n + 1) P) (i : S.I P.ty) :
+    S.IsStandardNode A r n (P.child n i) := by
+  obtain ⟨k, hk, u, rfl⟩ := hP
+  obtain ⟨w, hw⟩ := site_fan_finite_step5_listed_step2_join_words A n 1 k u ⟨i, ()⟩
+  refine ⟨1 + k, by omega, w, ?_⟩
+  simpa [SubstSystem.descendantNode, FramedNode.move, FramedNode.child] using hw.symm
+
+/-- Step 2 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"applied to the descendant". A standard node has the root as an exact
+recorded ancestor, including when it is the root itself. -/
+private theorem site_fan_finite_step5_listed_step2_standard_descendant
+    (A : S.ι) (r h : ℕ) (P : FramedNode S)
+    (hP : S.IsStandardNode A r h P) :
+    P.IsDescendant h ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩ r := by
+  obtain ⟨k, hk, w, rfl⟩ := hP
+  refine ⟨k, hk, w, ?_⟩
+  simp [FramedNode.move]
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"the cell of the ancestor whose relative interior meets" the descendant
+cell is taken inside a closed ancestor carrier. -/
+private theorem site_fan_finite_step5_listed_step3_carrier_closed
+    (C : FramedNode S) (n : ℕ) : IsClosed (C.carrier n) := by
+  have hc : C.carrier n =
+      (C.prototypeFrame n).toHomeomorphOfFiniteDimensional '' (S.proto C.ty).carrier := by
+    simp [FramedNode.prototypeFrame, FramedNode.carrier, SubstSystem.supertile,
+      placedSet, Set.image_image]
+  rw [hc]
+  exact ((S.proto C.ty).compact.image
+    (C.prototypeFrame n).toHomeomorphOfFiniteDimensional.continuous).isClosed
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"the cell of the ancestor whose relative interior meets" the descendant
+cell lies in the same outer flag cell, by heredity. -/
+private theorem site_fan_finite_step5_listed_step3_lift_chain
+    {A : S.ι} {F : FacetFlag S A} {r h j : ℕ}
+    (P C : FramedNode S) (hP : S.IsStandardNode A r h P)
+    (hC : C.IsDescendant 0 P h) (a : ChainOccurrence A F r C 0 j) :
+    ∃ b : ChainOccurrence A F r P h j, ∀ i,
+      relint (C.cell 0 (a.cell i).val) ⊆ relint (P.cell h (b.cell i).val) := by
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hPR : P.IsDescendant h R r :=
+    site_fan_finite_step5_listed_step2_standard_descendant A r h P hP
+  have hPsub := site_fan_finite_step5_listed_step2_descendant_subset R P r h hPR
+  have hCsub := site_fan_finite_step5_listed_step2_descendant_subset P C h 0 hC
+  have hfront (i : ChainIndex d j) :
+      C.cell 0 (a.cell i).val ⊆ frontier (P.carrier h) := by
+    intro x hx
+    have hxC : x ∈ C.carrier 0 :=
+      (site_fan_finite_step5_listed_step3_carrier_closed C 0).frontier_subset
+        (site_fan_finite_step5_listed_step1_cell_frontier C 0 (a.cell i) hx)
+    have hxR : x ∈ frontier (R.carrier r) := by
+      apply site_fan_finite_step5_listed_step1_cell_frontier R r
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩)
+      simpa [R, FramedNode.cell, FramedNode.prototypeFrame] using a.contained i hx
+    exact ⟨subset_closure (hCsub hxC), fun hi => hxR.2 (interior_mono hPsub hi)⟩
+  let c (i : ChainIndex d j) := ancestralStratum P C h 0 hC (a.cell i) (hfront i)
+  have hs (i : ChainIndex d j) :=
+    ancestralStratum_spec P C h 0 hC (a.cell i) (hfront i)
+  have hcont (i : ChainIndex d j) :
+      P.cell h (c i).val ⊆
+        (S.σ ^ r) '' (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier := by
+    have hn : (relint (C.cell 0 (a.cell i).val)).Nonempty := by
+      rw [(site_fan_finite_step5_listed_step1_native_relint C (a.cell i).val).1]
+      exact (a.cell i).val.flat.relint_nonempty.image C.frame
+    obtain ⟨x, hx⟩ := hn
+    have ht := hereditary_trace R P r h hPR
+      (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val (c i).val
+      (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).property (c i).property
+      ⟨x, (hs i).1 hx, by
+        simpa [R, FramedNode.cell, FramedNode.prototypeFrame] using
+          a.contained i (intrinsicInterior_subset hx)⟩
+    simpa [R, FramedNode.cell, FramedNode.prototypeFrame] using ht
+  refine ⟨{ cell := c, dimension := ?_, nested := ?_, contained := hcont }, ?_⟩
+  · intro i
+    have hlo : i.val.val ≤ (c i).val.dim := by simpa [a.dimension i] using (hs i).2
+    have hle := Submodule.finrank_mono
+      (AffineSubspace.direction_le (affineSpan_mono ℝ (hcont i)))
+    have hdimL : Module.finrank ℝ (cellDirection (P.cell h (c i).val)) =
+        (c i).val.dim :=
+      (site_fan_finite_step5_listed_step1_dimension (P.prototypeFrame h) _).trans
+        (c i).val.flat.dimension
+    have hdimR : Module.finrank ℝ (cellDirection ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier)) = i.val.val :=
+      (site_fan_finite_step5_listed_step1_dimension (S.σ ^ r).toAffineEquiv _).trans
+        ((F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.flat.dimension.trans
+          (F.dimension ⟨i.val.val, i.property.2, i.val.isLt⟩))
+    simp only [cellDirection] at hdimL hdimR
+    exact le_antisymm (by simpa only [hdimL, hdimR] using hle) hlo
+  · intro i k hik
+    have ht := ancestralStratum_mono P C h 0 hC (a.cell k) (a.cell i)
+      (hfront k) (hfront i) (image_mono (a.nested i k hik))
+    exact (Set.image_subset_image_iff (P.prototypeFrame h).injective).mp ht
+  · intro i
+    exact (hs i).1
+
+/-- Step 4 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"the two chain occurrences". A role word's first letter selects its
+child, and the remaining letters retain the same native owner frame. -/
+private theorem site_fan_finite_step5_listed_step4_native_tail
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (w : S.RoleWord (S.child P.ty i).ty n) :
+    (S.nativeTile P.ty (n + 1) ⟨i, w⟩).move P.frame =
+      (S.nativeTile (P.child n i).ty n w).move (P.child n i).frame := by
+  simp [SubstSystem.nativeTile, SubstSystem.descendantNode, FramedNode.move,
+    FramedNode.child, ← AffineIsometryEquiv.trans_assoc]
+
+/-- Step 4 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"contradicting Lemma 1.22(c) for the two chain occurrences". Full edge
+chains of distinct native owners have disjoint edge interiors: lift both
+chains to their first distinct children of a common standard ancestor. -/
+private theorem site_fan_finite_step5_listed_step4_edge_chains_disjoint
+    {A : S.ι} {F : FacetFlag S A} {r : ℕ}
+    (n : ℕ) (P : FramedNode S) (hP : S.IsStandardNode A r n P)
+    (u v : S.RoleWord P.ty n) (huv : u ≠ v)
+    (C D : FramedNode S)
+    (hC : C = (S.nativeTile P.ty n u).move P.frame)
+    (hD : D = (S.nativeTile P.ty n v).move P.frame)
+    (a : ChainOccurrence A F r C 0 1) (b : ChainOccurrence A F r D 0 1) :
+    Disjoint
+      (relint (C.cell 0 (a.cell ⟨⟨1, by have := (Fact.out : 2 ≤ d); omega⟩,
+        le_rfl, le_rfl⟩).val))
+      (relint (D.cell 0 (b.cell ⟨⟨1, by have := (Fact.out : 2 ≤ d); omega⟩,
+        le_rfl, le_rfl⟩).val)) := by
+  induction n generalizing P C D with
+  | zero => exact (huv (@Subsingleton.elim Unit _ u v)).elim
+  | succ n ih =>
+    obtain ⟨i, u⟩ := u
+    obtain ⟨l, v⟩ := v
+    have hCi : C = (S.nativeTile (P.child n i).ty n u).move (P.child n i).frame :=
+      hC.trans (site_fan_finite_step5_listed_step4_native_tail P n i u)
+    have hDl : D = (S.nativeTile (P.child n l).ty n v).move (P.child n l).frame :=
+      hD.trans (site_fan_finite_step5_listed_step4_native_tail P n l v)
+    by_cases hil : i = l
+    · subst l
+      have huv' : u ≠ v := by
+        intro heq
+        exact huv (by cases heq; rfl)
+      exact ih (P.child n i)
+        (site_fan_finite_step5_listed_step2_standard_child A r n P hP i)
+        u v huv' C D hCi hDl a b
+    · have hCi' : C.IsDescendant 0 (P.child n i) n :=
+        ⟨n, by omega, u, hCi⟩
+      have hDl' : D.IsDescendant 0 (P.child n l) n :=
+        ⟨n, by omega, v, hDl⟩
+      obtain ⟨a', ha'⟩ := site_fan_finite_step5_listed_step3_lift_chain
+        (P.child n i) C (site_fan_finite_step5_listed_step2_standard_child A r n P hP i)
+        hCi' a
+      obtain ⟨b', hb'⟩ := site_fan_finite_step5_listed_step3_lift_chain
+        (P.child n l) D (site_fan_finite_step5_listed_step2_standard_child A r n P hP l)
+        hDl' b
+      exact (chain_occurrences_disjoint A F r n P hP i l hil 1 le_rfl
+        (by have := (Fact.out : 2 ≤ d); omega) a' b').mono (ha' _) (hb' _)
+
+/-- Step 5 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.23(b)):
+"a vertex of a cell of C is a vertex of C". A cell whose relative interior
+contains the point is contained in every other incident listed cell. -/
+private theorem site_fan_finite_step5_listed_step5_incidence
+    (C : FramedNode S) (e f : CellName S C.ty) (q : E d)
+    (he : q ∈ relint (C.cell 0 e.val)) (hf : q ∈ C.cell 0 f.val) :
+    e.val.carrier ⊆ f.val.carrier := by
+  rw [(site_fan_finite_step5_listed_step1_native_relint C e.val).1] at he
+  obtain ⟨p, hp, rfl⟩ := he
+  have hpf : p ∈ f.val.carrier := by
+    have hc : C.cell 0 f.val = C.frame '' f.val.carrier := by
+      simp [FramedNode.cell, FramedNode.prototypeFrame]
+    rw [hc] at hf
+    exact C.frame.injective.mem_set_image.mp hf
+  have hpA : p ∈ frontier (S.proto C.ty).carrier := by
+    rw [← (S.cx C.ty).cover]
+    exact mem_iUnion.mpr ⟨e.val, mem_iUnion.mpr ⟨e.property, hp⟩⟩
+  have hmin : (S.cx C.ty).minimalCell p hpA = e.val := by
+    by_contra hne
+    exact Set.disjoint_left.mp
+      ((S.cx C.ty).relint_disjoint _ ((S.cx C.ty).minimalCell_mem p hpA)
+        e.val e.property hne)
+      ((S.cx C.ty).mem_relint_minimalCell p hpA) hp
+  simpa only [hmin] using (S.cx C.ty).minimalCell_subset p hpA f.val f.property hpf
+
+/-- Step 5 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.23(a)):
+"an edge through q in its relative interior would have to lie along h".
+Heredity puts the selected owner's minimal cell in the flag edge, so an
+unlisted point lies in the relative interior of a listed one-cell there. -/
+private theorem site_fan_finite_step5_listed_step5_minimal_edge
+    {A : S.ι} {F : FacetFlag S A} {r : ℕ}
+    (a : TracePiece A F r) (q : E d) (ha : q ∈ a.carrier)
+    (hq : q ∈ flagEdge A F r) (hn : ¬ a.tile.Lists 0 q) :
+    ∃ e : CellName S a.tile.ty, e.val.dim = 1 ∧
+      q ∈ relint (a.tile.cell 0 e.val) ∧
+      a.tile.cell 0 e.val ⊆ flagEdge A F r ∧
+      e.val.carrier ⊆ a.bottom.val.carrier := by
+  have hqa := site_fan_finite_step5_listed_step1_cell_frontier a.tile 0 a.bottom ha
+  obtain ⟨e, he, _⟩ := placedMinimalCell_exists_unique a.tile 0 q hqa
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  let k : {j : ℕ // 1 ≤ j ∧ j < d} :=
+    ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩
+  have hdesc : a.tile.IsDescendant 0 R r := by
+    refine ⟨r, by omega, a.owner, ?_⟩
+    simp [TracePiece.tile, SubstSystem.nativeTile, FramedNode.move, R]
+  have hsub : a.tile.cell 0 e.val ⊆ flagEdge A F r := by
+    have ht := hereditary_trace R a.tile r 0 hdesc (F.cell k).val e.val
+      (F.cell k).property e.property
+      ⟨q, he, by simpa [R, k, FramedNode.cell, FramedNode.prototypeFrame, flagEdge] using hq⟩
+    simpa [R, k, FramedNode.cell, FramedNode.prototypeFrame, flagEdge] using ht
+  have hdim : e.val.dim ≤ 1 := by
+    have hle := Submodule.finrank_mono
+      (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
+    have hl : Module.finrank ℝ (cellDirection (a.tile.cell 0 e.val)) = e.val.dim :=
+      (site_fan_finite_step5_listed_step1_dimension (a.tile.prototypeFrame 0) _).trans
+        e.val.flat.dimension
+    have hr : Module.finrank ℝ (cellDirection (flagEdge A F r)) = 1 :=
+      (site_fan_finite_step5_listed_step1_dimension (S.σ ^ r).toAffineEquiv _).trans
+        ((F.cell k).val.flat.dimension.trans (F.dimension k))
+    simp only [cellDirection] at hl hr
+    simpa only [hl, hr] using hle
+  have hzero : e.val.dim ≠ 0 := by
+    intro hz
+    exact hn ⟨e.val, Finset.mem_filter.mpr ⟨e.property, hz⟩, intrinsicInterior_subset he⟩
+  exact ⟨e, by omega, he, hsub,
+    site_fan_finite_step5_listed_step5_incidence a.tile e a.bottom q he ha⟩
+
+/-- Step 6 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.22(c)):
+"a chain occurrence". A listed edge inside the bottom trace cell and
+along the flag edge extends the trace's recorded cofaces down to dimension one. -/
+private theorem site_fan_finite_step5_listed_step6_extend_edge
+    {A : S.ι} {F : FacetFlag S A} {r : ℕ}
+    (a : TracePiece A F r) (e : CellName S a.tile.ty) (he : e.val.dim = 1)
+    (hsub : e.val.carrier ⊆ a.bottom.val.carrier)
+    (hflag : a.tile.cell 0 e.val ⊆ flagEdge A F r) :
+    ∃ b : ChainOccurrence A F r a.tile 0 1,
+      b.cell ⟨⟨1, by have := (Fact.out : 2 ≤ d); omega⟩, le_rfl, le_rfl⟩ = e := by
+  classical
+  have ht : traceDimension d ≤ 2 := min_le_left _ _
+  let c (i : ChainIndex d 1) : CellName S a.tile.ty :=
+    if hi : i.val.val = 1 then e
+    else a.chain.cell ⟨i.val, by omega, i.property.2⟩
+  refine ⟨{ cell := c, dimension := ?_, nested := ?_, contained := ?_ }, ?_⟩
+  · intro i
+    dsimp only [c]
+    split_ifs with hi
+    · exact he.trans hi.symm
+    · exact a.chain.dimension _
+  · intro i k hik
+    by_cases hi : i.val.val = 1
+    · by_cases hk : k.val.val = 1
+      · simp only [c, dif_pos hi, dif_pos hk]
+        exact Subset.rfl
+      · simp only [c, dif_pos hi, dif_neg hk]
+        exact hsub.trans (a.chain.nested TracePiece.bottomIndex _ (by
+          change traceDimension d ≤ k.val.val
+          have := k.property.2
+          omega))
+    · have hk : k.val.val ≠ 1 := by
+        have := i.property.2
+        omega
+      simp only [c, dif_neg hi, dif_neg hk]
+      exact a.chain.nested _ _ hik
+  · intro i
+    dsimp only [c]
+    split_ifs with hi
+    · simpa [flagEdge, hi] using hflag
+    · exact a.chain.contained _
+  · simp [c]
+
+/-- Step 7 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.23(a)):
+"that edge along h". Every native one-cell contained in the flag edge
+has the same affine line as that flag edge. -/
+private theorem site_fan_finite_step5_listed_step7_edge_span
+    {A : S.ι} {F : FacetFlag S A} {r : ℕ}
+    (C : FramedNode S) (e : CellName S C.ty) (he : e.val.dim = 1)
+    (hsub : C.cell 0 e.val ⊆ flagEdge A F r) :
+    affineSpan ℝ (C.cell 0 e.val) = affineSpan ℝ (flagEdge A F r) := by
+  have hl : Module.finrank ℝ (cellDirection (C.cell 0 e.val)) = 1 :=
+    (site_fan_finite_step5_listed_step1_dimension (C.prototypeFrame 0) _).trans
+      (e.val.flat.dimension.trans he)
+  have hr : Module.finrank ℝ (cellDirection (flagEdge A F r)) = 1 :=
+    (site_fan_finite_step5_listed_step1_dimension (S.σ ^ r).toAffineEquiv _).trans
+      ((F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩).val.flat.dimension.trans
+        (F.dimension ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩))
+  have hle := affineSpan_mono ℝ hsub
+  have hn : (relint (C.cell 0 e.val)).Nonempty := by
+    rw [(site_fan_finite_step5_listed_step1_native_relint C e.val).1]
+    exact e.val.flat.relint_nonempty.image C.frame
+  exact AffineSubspace.eq_of_direction_eq_of_nonempty_of_le
+    (Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle) (hl.trans hr.symm))
+    (hn.mono (intrinsicInterior_subset.trans (subset_affineSpan ℝ _))) hle
+
+/-- Step 7 of the V4 proof of `site_fan_finite_step5_listed` (V4 1.23(a)):
+"overlapping the polygon of C₁ or C₂". In a common affine span, the
+relative interior of one set meets any relative interior accumulating at
+one of its points. This includes the one-dimensional boundary trace. -/
+private theorem site_fan_finite_step5_listed_step7_overlap
+    {K L : Set (E d)} (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    {q : E d} (hqK : q ∈ relint K) (hqL : q ∈ closure (relint L)) :
+    (relint K ∩ relint L).Nonempty := by
+  obtain ⟨p, hp, rfl⟩ := hqK
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp isOpen_interior p hp
+  obtain ⟨y, hy, hdist⟩ := Metric.mem_closure_iff.mp hqL ε hε
+  have hyspan : y ∈ affineSpan ℝ K := by
+    rw [hspan]
+    exact subset_affineSpan ℝ L (intrinsicInterior_subset hy)
+  refine ⟨y, ⟨⟨y, hyspan⟩, hball ?_, rfl⟩, hy⟩
+  change dist y (p : E d) < ε
+  simpa only [dist_comm] using hdist
+
 /-- Step 5 of the V4 proof of `site_fan_finite` (V4 1.23(b)):
 "Each selected owner C lists q (as q is a vertex of its polygon ... and
 a vertex of a cell of C is a vertex of C)." The two boundary trace edges
@@ -536,7 +957,27 @@ private theorem site_fan_finite_step5_listed {A : S.ι} {F : FacetFlag S A}
   · simpa [TracePiece.tile, h] using hl
   by_cases h' : a.owner = right.owner
   · simpa [TracePiece.tile, h'] using hr
-  sorry
+  by_contra hn
+  obtain ⟨e, he, hqe, hflage, hsube⟩ :=
+    site_fan_finite_step5_listed_step5_minimal_edge a q ha (intrinsicInterior_subset hq.1) hn
+  obtain ⟨ae, hae⟩ := site_fan_finite_step5_listed_step6_extend_edge a e he hsube hflage
+  obtain ⟨f, hf, rfl, hsubf, hflagf, hqf, _⟩ := hleft
+  have hsubf' : f.val.carrier ⊆ left.bottom.val.carrier :=
+    (Set.image_subset_image_iff (left.tile.prototypeFrame 0).injective).mp hsubf
+  obtain ⟨bf, hbf⟩ := site_fan_finite_step5_listed_step6_extend_edge left f hf hsubf' hflagf
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hd := site_fan_finite_step5_listed_step4_edge_chains_disjoint r R
+    (show S.IsStandardNode A r r R from ⟨0, by omega, (), rfl⟩)
+    a.owner left.owner h a.tile left.tile
+    (by simp [R, FramedNode.move, TracePiece.tile])
+    (by simp [R, FramedNode.move, TracePiece.tile]) ae bf
+  rw [hae, hbf] at hd
+  have hspan := (site_fan_finite_step5_listed_step7_edge_span a.tile e he hflage).trans
+    (site_fan_finite_step5_listed_step7_edge_span left.tile f hf hflagf).symm
+  obtain ⟨p, hpe, hpf⟩ := site_fan_finite_step5_listed_step7_overlap hspan hqe
+    (show q ∈ closure (relint (left.tile.cell 0 f.val)) by
+      rwa [(site_fan_finite_step5_listed_step1_native_relint left.tile f.val).2])
+  exact Set.disjoint_left.mp hd hpe hpf
 
 /-- Step 6 of the V4 proof of `site_fan_finite` (V4 1.23(b)):
 "The chains ... have direction spaces equal to those of F₂ ... F_{d-1}."

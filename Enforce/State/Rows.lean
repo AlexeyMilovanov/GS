@@ -3741,6 +3741,435 @@ def actualTemplate (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 
   | .cont s => (Classical.choose (actualCont_exists U P t ht s)).configuration
   | .end_ s => (Classical.choose (actualEnd_exists U P t ht s)).configuration
 
+/-- Step 1 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"let t be a native tile ... of its facet f (provider g)". A non-NULL leaf
+readout is the actual record of a nonfault facet of that native tile. -/
+private theorem honest_rows_step1_cont_geometry_step1_record
+    (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 0)
+    (r : FacetRecord P)
+    (hr : leafRecord (leafTypeOf U P t ht) r.facet.val = some r) :
+    ∃ (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f),
+      r = U.recordOf P t f hf := by
+  unfold leafRecord at hr
+  rw [← prePattern_of_leafType] at hr
+  change stateRecordAt (stateOf U P t) r.facet.val = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  next h =>
+    change U.facetRecordOf P t ⟨r.facet.val, h⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    next hf => contradiction
+    next hf => exact ⟨_, hf, (Option.some.inj hr).symm⟩
+  next h => contradiction
+
+/-- Step 1 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"with owner t'' ... whose record". The label on an actual native tile reads
+the record of each of its nonfault facets. -/
+private theorem honest_rows_step1_cont_geometry_step1_read
+    (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 0)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f) :
+    leafRecord (leafTypeOf U P t ht) f.val = some (U.recordOf P t f hf) := by
+  unfold leafRecord
+  rw [← prePattern_of_leafType]
+  change stateRecordAt (stateOf U P t) f.val = _
+  simp [stateRecordAt, stateOf, HonestSource.facetRecordOf, f.property, hf]
+
+/-- Step 1 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 Remark 2.1):
+"a j-cell inside the j-cell F_j has its relative interior inside relint F_j".
+Containment of placed cells of equal dimension also identifies their affine spans. -/
+private theorem honest_rows_step1_cont_geometry_step1_spans
+    (g h : E d ≃ᵃ[ℝ] E d) (e f : Cell d) (hd : e.dim = f.dim)
+    (hsub : g '' e.carrier ⊆ h '' f.carrier) :
+    affineSpan ℝ (g '' e.carrier) = affineSpan ℝ (h '' f.carrier) ∧
+      relint (g '' e.carrier) ⊆ relint (h '' f.carrier) := by
+  have hdim (T : E d ≃ᵃ[ℝ] E d) (c : Cell d) :
+      Module.finrank ℝ (affineSpan ℝ (T '' c.carrier)).direction = c.dim := by
+    change Module.finrank ℝ (affineSpan ℝ (T.toAffineMap '' c.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq T.linear _).trans c.flat.dimension
+  have hle := affineSpan_mono ℝ hsub
+  have hs : affineSpan ℝ (g '' e.carrier) = affineSpan ℝ (h '' f.carrier) :=
+    AffineSubspace.eq_of_direction_eq_of_nonempty_of_le
+      (Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle)
+        ((hdim g e).trans (hd.trans (hdim h f).symm)))
+      ((e.flat.connected.nonempty.image g).mono (subset_affineSpan ℝ _)) hle
+  refine ⟨hs, ?_⟩
+  unfold relint intrinsicInterior
+  rw [hs]
+  exact Set.image_mono (interior_mono (Set.preimage_mono hsub))
+
+/-- Step 2 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"the polygons ... adjacent to h tile a neighbourhood of v in h ... so there
+is a polygon ... on the far side of v ... with ... an edge ... with initial
+endpoint v". This is only the subdivision geometry: both full chains lie
+in the given ancestor flag. No record, orientation bit or template is involved.
+The owners may coincide at a flat listed vertex; the positive scalar excludes
+a degenerate continuing edge. -/
+private theorem honest_rows_step1_cont_geometry_step2_successor
+    (U : HonestSource S) (B t : U.Node) (ht : t.1 = 0)
+    (hBt : U.hierarchy.ancestor t B.1 = B)
+    (F : FacetFlag S B.2.val.ty) (c : FacetFlag S t.2.val.ty)
+    (hc : ∀ j, t.2.val.cell t.1 (c.cell j).val ⊆ B.2.val.cell B.1 (F.cell j).val)
+    (v : VertexName S t.2.val.ty) (a : E d)
+    (he : t.2.val.cell t.1 (c.cell edgeIndex).val =
+      segment ℝ a (t.2.val.prototypeFrame t.1 (vertexPoint v)))
+    (hne : a ≠ t.2.val.prototypeFrame t.1 (vertexPoint v))
+    (hv : t.2.val.prototypeFrame t.1 (vertexPoint v) ∈
+      relint (B.2.val.cell B.1 (F.cell edgeIndex).val)) :
+    ∃ (q : U.Node) (hq : q.1 = 0) (c' : FacetFlag S q.2.val.ty)
+      (v' : VertexName S q.2.val.ty) (z : E d) (b : ℝ),
+      U.hierarchy.ancestor q B.1 = B ∧
+      (∀ j, q.2.val.cell q.1 (c'.cell j).val ⊆ B.2.val.cell B.1 (F.cell j).val) ∧
+      q.2.val.prototypeFrame q.1 (vertexPoint v') =
+        t.2.val.prototypeFrame t.1 (vertexPoint v) ∧
+      q.2.val.cell q.1 (c'.cell edgeIndex).val =
+        segment ℝ (t.2.val.prototypeFrame t.1 (vertexPoint v)) z ∧
+      0 < b ∧ z - t.2.val.prototypeFrame t.1 (vertexPoint v) =
+        b • (t.2.val.prototypeFrame t.1 (vertexPoint v) - a) := by
+  sorry
+
+/-- Step 3 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"same provider g, same serving child H". A native descendant facet contained
+in the provider inherits its carrier and birth parent, hence its serving node. -/
+private theorem honest_rows_step1_cont_geometry_step3_provider
+    (U : HonestSource S) (t q : U.Node) (hq : q.1 = 0)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (g : FacetName S q.2.val.ty)
+    (hanc : U.hierarchy.ancestor q (U.hierarchy.servingChild t f hf).1 =
+      U.hierarchy.servingChild t f hf)
+    (hsub : q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier t f hf) :
+    ∃ hg : ¬ U.hierarchy.IsFault q g,
+      U.hierarchy.birthParent q g hg = U.hierarchy.birthParent t f hf ∧
+      U.hierarchy.providerCarrier q g hg = U.hierarchy.providerCarrier t f hf ∧
+      U.hierarchy.servingChild q g hg = U.hierarchy.servingChild t f hf := by
+  let B := U.hierarchy.servingChild t f hf
+  let G : FacetName S B.2.val.ty := (U.hierarchy.firstProvider t f hf).2
+  have hpar : U.hierarchy.ancestor t ((U.hierarchy.firstProvider t f hf).1 + 1) =
+      U.hierarchy.parentNode B := by
+    change (U.hierarchy.parentNode^[((U.hierarchy.firstProvider t f hf).1 + 1)]) t = _
+    rw [Function.iterate_succ_apply']
+    rfl
+  have hint := (U.hierarchy.firstProvider_spec t f hf).2.2
+  rw [hpar] at hint
+  obtain ⟨hG, hcar, hbirth, _⟩ := U.hierarchy.restriction_det_internal B G hint
+  obtain ⟨hg, hcar', hbirth'⟩ :=
+    U.hierarchy.provider_inherited B q B.1 hanc G g hG hsub
+  have hb : U.hierarchy.birthParent q g hg = U.hierarchy.birthParent t f hf :=
+    hbirth'.trans hbirth
+  refine ⟨hg, hb, hcar'.trans hcar, ?_⟩
+  have hh := congrArg (fun x : U.Node => x.1) hb
+  change (U.hierarchy.servingChild q g hg).1 + 1 = B.1 + 1 at hh
+  have hh' := U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q g hg).1
+  have hoff : (U.hierarchy.firstProvider q g hg).1 = B.1 := by
+    change (U.hierarchy.servingChild q g hg).1 = _ at hh'
+    omega
+  change U.hierarchy.ancestor q (U.hierarchy.firstProvider q g hg).1 = B
+  rwa [hoff]
+
+/-- Step 3 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 Remark 2.1):
+"its recorded chain ... has aff = aff F_j ... [so it] is a chain-active edge".
+A full chain contained in the serving flag has exactly its provider strata;
+choose the induced orientation and enter it in the actual chain table. -/
+private theorem honest_rows_step1_cont_geometry_step3_activity
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (B : U.Node) (hB : U.hierarchy.servingChild q f hf = B)
+    (F : FacetFlag S B.2.val.ty)
+    (hF : ∀ j, B.2.val.cell B.1 (F.cell j).val = U.providerPlacement P q f hf ''
+      ((P.flag (U.recordIncidence P q f hf)).flag.cell j).val.carrier)
+    (c : FacetFlag S q.2.val.ty) (hc : (c.cell facetIndex).val = f.val)
+    (hsub : ∀ j, q.2.val.cell q.1 (c.cell j).val ⊆ B.2.val.cell B.1 (F.cell j).val) :
+    ∃ z : OrientedChain f, z.chain.val = c ∧ z ∈ U.recordChains P q f hf := by
+  classical
+  subst B
+  let z : OrientedChain f := ⟨⟨c, hc⟩, decide (0 < inner ℝ
+    (U.counterDirection P q f hf) ((q.2.val.prototypeFrame q.1).linear
+      (edgeVector (restrictionOp_source_step4_chains_step1_edge c))))⟩
+  refine ⟨z, rfl, Finset.mem_filter.mpr ⟨by simp [allOrientedChains], ?_⟩⟩
+  constructor
+  · intro j
+    have hs := U.cellInFacet_placed q f
+      ⟨c.cell j, restrictionOp_source_step4_chains_step1_subset z j⟩
+    obtain ⟨hspan, hrel⟩ := honest_rows_step1_cont_geometry_step1_spans
+      (q.2.val.prototypeFrame q.1)
+      ((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1)
+      (c.cell j).val (F.cell j).val ((c.dimension j).trans (F.dimension j).symm) (hsub j)
+    have hstr : U.hierarchy.stratumMap q f hf (c.cell j) hs = F.cell j :=
+      ((Classical.choose_spec (U.hierarchy.stratum_exists_unique q f hf
+        (c.cell j) hs)).2 (F.cell j) hrel).symm
+    refine ⟨hs, ?_, hspan.trans (congrArg (affineSpan ℝ) (hF j))⟩
+    change (U.hierarchy.servingChild q f hf).2.val.cell
+      (U.hierarchy.servingChild q f hf).1
+      (U.hierarchy.stratumMap q f hf (c.cell j) hs).val = _
+    rw [hstr]
+    exact hF j
+  · exact decide_eq_true_iff
+
+/-- Step 4 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"both chains lie in the positioned flag ... with its orientations".
+The successive coface sides and the inward tile side of a descendant full
+flag contained in an ancestor flag are the ancestor's sides in ambient coordinates. -/
+private theorem honest_rows_step1_cont_geometry_step4_sides
+    (U : HonestSource S) (B t : U.Node)
+    (hBt : U.hierarchy.ancestor t (B.1 - t.1) = B)
+    (F : FacetFlag S B.2.val.ty) (c : FacetFlag S t.2.val.ty)
+    (hc : ∀ j, t.2.val.cell t.1 (c.cell j).val ⊆ B.2.val.cell B.1 (F.cell j).val) :
+    (∀ j, (t.2.val.prototypeFrame t.1).linear '' flagSide c j =
+      (B.2.val.prototypeFrame B.1).linear '' flagSide F j) ∧
+    (t.2.val.prototypeFrame t.1).linear ''
+        tangentCone (S.proto t.2.val.ty).carrier (cellAnchor (c.cell facetIndex).val) =
+      (B.2.val.prototypeFrame B.1).linear ''
+        tangentCone (S.proto B.2.val.ty).carrier (cellAnchor (F.cell facetIndex).val) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"both chains lie in the positioned flag ... with its orientations".
+Cancel the central isometric frame from agreement of the ambient flags and sides. -/
+private theorem honest_rows_step1_cont_geometry_step4_alignment
+    {P : Params S} (r r' : FacetRecord P)
+    (c : OrientedChain r.facet) (c' : OrientedChain r'.facet) (T Q : Iso d)
+    (hspan : ∀ j, affineSpan ℝ (T '' (c.chain.val.cell j).val.carrier) =
+      affineSpan ℝ (Q '' (c'.chain.val.cell j).val.carrier))
+    (hside : ∀ j, T.linearIsometryEquiv '' flagSide c.chain.val j =
+      Q.linearIsometryEquiv '' flagSide c'.chain.val j)
+    (hdir : 0 < inner ℝ (T.linearIsometryEquiv (chainVector c))
+      (Q.linearIsometryEquiv (chainVector c')))
+    (hcone : T.linearIsometryEquiv ''
+        tangentCone (S.proto r.ty).carrier (cellAnchor r.facet.val) =
+      Q.linearIsometryEquiv ''
+        tangentCone (S.proto r'.ty).carrier (cellAnchor r'.facet.val)) :
+    ChainsAligned r r' c c' (Q.trans T.symm) := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro j
+    apply (restrictionOp_source_step4_chains_step2_span T.toAffineEquiv _ _).mp
+    change affineSpan ℝ (T '' (c.chain.val.cell j).val.carrier) =
+      affineSpan ℝ (T '' ((Q.trans T.symm) '' (c'.chain.val.cell j).val.carrier))
+    simpa only [Set.image_image, AffineIsometryEquiv.coe_trans, Function.comp_apply,
+      AffineIsometryEquiv.apply_symm_apply] using hspan j
+  · intro j
+    apply T.linearIsometryEquiv.injective.image_injective
+    change T.linearIsometryEquiv '' flagSide c.chain.val j =
+      T.linearIsometryEquiv ''
+        ((fun x => T.linearIsometryEquiv.symm (Q.linearIsometryEquiv x)) ''
+          flagSide c'.chain.val j)
+    simpa only [Set.image_image, LinearIsometryEquiv.apply_symm_apply] using hside j
+  · change 0 < inner ℝ (chainVector c)
+      (T.linearIsometryEquiv.symm (Q.linearIsometryEquiv (chainVector c')))
+    rw [← T.linearIsometryEquiv.inner_map_map]
+    simpa only [LinearIsometryEquiv.apply_symm_apply] using hdir
+  · apply T.linearIsometryEquiv.injective.image_injective
+    change T.linearIsometryEquiv ''
+        tangentCone (S.proto r.ty).carrier (cellAnchor r.facet.val) =
+      T.linearIsometryEquiv ''
+        ((fun x => T.linearIsometryEquiv.symm (Q.linearIsometryEquiv x)) ''
+          tangentCone (S.proto r'.ty).carrier (cellAnchor r'.facet.val))
+    simpa only [Set.image_image, LinearIsometryEquiv.apply_symm_apply] using hcone
+
+/-- Step 5 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"with its orientations". Every active chain on the same edge has the same
+orientation bit; the record's endpoints therefore agree with its signed vector. -/
+private theorem honest_rows_step1_cont_geometry_step5_endpoints
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (c : OrientedChain f) (hc : c ∈ U.recordChains P q f hf)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (c.chain.val.cell edgeIndex).val = e.val) :
+    e.val.carrier = segment ℝ ((U.recordOf P q f hf).endpoints e).1
+        ((U.recordOf P q f hf).endpoints e).2 ∧
+      ((U.recordOf P q f hf).endpoints e).1 ≠ ((U.recordOf P q f hf).endpoints e).2 ∧
+      chainVector c = ((U.recordOf P q f hf).endpoints e).2 -
+        ((U.recordOf P q f hf).endpoints e).1 := by
+  classical
+  have hedge (z : OrientedChain f) (hz : (z.chain.val.cell edgeIndex).val = e.val) :
+      restrictionOp_source_step4_chains_step1_edge z.chain.val =
+        (⟨q.2.val.ty, e⟩ : EdgeName S) := by
+    exact congrArg (fun e : PrototypeEdge S q.2.val.ty =>
+      (⟨q.2.val.ty, e⟩ : EdgeName S)) (Subtype.ext hz)
+  have horient (z : OrientedChain f) (hz : z ∈ U.recordChains P q f hf)
+      (hze : (z.chain.val.cell edgeIndex).val = e.val) :
+      z.forward = true ↔ 0 < inner ℝ (U.counterDirection P q f hf)
+        ((q.2.val.prototypeFrame q.1).linear (edgeVector ⟨q.2.val.ty, e⟩)) := by
+    have ha := (Finset.mem_filter.mp hz).2.2
+    change z.forward = true ↔ 0 < inner ℝ (U.counterDirection P q f hf)
+      ((q.2.val.prototypeFrame q.1).linear
+        (edgeVector (restrictionOp_source_step4_chains_step1_edge z.chain.val))) at ha
+    rwa [hedge z hze] at ha
+  have hforward : (U.recordOf P q f hf).edgeForward e = c.forward := by
+    apply Bool.eq_iff_iff.mpr
+    simp only [FacetRecord.edgeForward, List.any_eq_true, Finset.mem_toList,
+      Bool.and_eq_true, decide_eq_true_eq]
+    constructor
+    · rintro ⟨z, hz, hze, hztrue⟩
+      exact (horient c hc he).mpr ((horient z hz hze).mp hztrue)
+    · intro h
+      exact ⟨c, hc, he, h⟩
+  have hvec : chainVector c = if c.forward then edgeVector ⟨q.2.val.ty, e⟩
+      else -edgeVector ⟨q.2.val.ty, e⟩ := by
+    change (if c.forward then
+      edgeVector (restrictionOp_source_step4_chains_step1_edge c.chain.val)
+      else -edgeVector (restrictionOp_source_step4_chains_step1_edge c.chain.val)) = _
+    rw [hedge c he]
+  have hab := Classical.choose_spec (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S))
+  rw [hvec]
+  simp only [FacetRecord.endpoints, hforward]
+  cases c.forward <;> simp only [Bool.false_eq_true, ↓reduceIte]
+  · exact ⟨hab.2.trans (segment_symm _ _ _), Ne.symm hab.1, neg_sub _ _⟩
+  · exact ⟨hab.2, hab.1, rfl⟩
+
+/-- Step 5 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"after v in the orientation". The oriented coordinate distinguishes all
+points of a nondegenerate segment. -/
+private theorem honest_rows_step1_cont_geometry_step5_projection
+    (p q : E d) (hpq : p ≠ q) :
+    Set.InjOn (fun x => inner ℝ (q - p) x) (segment ℝ p q) := by
+  intro x hx y hy hxy
+  rw [segment_eq_image_lineMap] at hx hy
+  obtain ⟨s, hs, rfl⟩ := hx
+  obtain ⟨t, ht, rfl⟩ := hy
+  have hpos : 0 < inner ℝ (q - p) (q - p) :=
+    real_inner_self_pos.mpr (sub_ne_zero.mpr hpq.symm)
+  have hst : s = t := by
+    simp only [AffineMap.lineMap_apply, vadd_eq_add, vsub_eq_sub,
+      inner_add_right, inner_smul_right] at hxy
+    nlinarith
+  rw [hst]
+
+/-- Step 5 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"an edge ... with initial endpoint v". Equal segments with agreeing
+nonzero orientations have equal ordered endpoints. -/
+private theorem honest_rows_step1_cont_geometry_step5_ordered_endpoints
+    (a b x y : E d) (hs : segment ℝ a b = segment ℝ x y)
+    (hp : 0 < inner ℝ (b - a) (y - x)) : a = x ∧ b = y := by
+  have hxy : x ≠ y := by rintro rfl; simpa using hp
+  have hbound (p q z w : E d) (hz : z ∈ segment ℝ p q)
+      (hpq : inner ℝ w p ≤ inner ℝ w q) :
+      inner ℝ w p ≤ inner ℝ w z ∧ inner ℝ w z ≤ inner ℝ w q := by
+    obtain ⟨u, v, hu, hv, huv, rfl⟩ := hz
+    simp only [inner_add_right, inner_smul_right]
+    have hu' := mul_nonneg hu (sub_nonneg.mpr hpq)
+    have hv' := mul_nonneg hv (sub_nonneg.mpr hpq)
+    have hp' := congrArg (fun k : ℝ => k * inner ℝ w p) huv
+    have hq' := congrArg (fun k : ℝ => k * inner ℝ w q) huv
+    constructor <;> nlinarith
+  have hab : inner ℝ (y - x) a ≤ inner ℝ (y - x) b := by
+    rw [real_inner_comm, inner_sub_right] at hp
+    linarith
+  have hxy' : inner ℝ (y - x) x ≤ inner ℝ (y - x) y := by
+    have h : 0 ≤ inner ℝ (y - x) (y - x) := real_inner_self_nonneg
+    rw [inner_sub_right] at h
+    linarith
+  have ha : a ∈ segment ℝ x y := hs ▸ left_mem_segment ℝ a b
+  have hb : b ∈ segment ℝ x y := hs ▸ right_mem_segment ℝ a b
+  have hx : x ∈ segment ℝ a b := hs.symm ▸ left_mem_segment ℝ x y
+  have hy : y ∈ segment ℝ a b := hs.symm ▸ right_mem_segment ℝ x y
+  have hinj := honest_rows_step1_cont_geometry_step5_projection x y hxy
+  exact ⟨hinj ha (left_mem_segment ℝ x y)
+    (le_antisymm (hbound a b x _ hx hab).1 (hbound x y a _ ha hxy').1),
+    hinj hb (right_mem_segment ℝ x y)
+      (le_antisymm (hbound x y b _ hb hxy').2 (hbound a b y _ hy hab).2)⟩
+
+/-- Step 5 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"on the far side of v (after v in the orientation)". Two consecutive
+positively oriented collinear segments form one segment across their junction. -/
+private theorem honest_rows_step1_cont_geometry_step5_join
+    (a x z : E d) (b : ℝ) (hb : 0 < b) (hz : z - x = b • (x - a)) :
+    segment ℝ a x ∪ segment ℝ x z = segment ℝ a z ∧ x ∈ openSegment ℝ a z := by
+  let L : ℝ →ᵃ[ℝ] E d := AffineMap.lineMap a x
+  have h0 : L 0 = a := AffineMap.lineMap_apply_zero _ _
+  have h1 : L 1 = x := AffineMap.lineMap_apply_one _ _
+  have hz' : L (1 + b) = z := by
+    rw [sub_eq_iff_eq_add] at hz
+    rw [hz]
+    simp only [L, AffineMap.lineMap_apply, vadd_eq_add, vsub_eq_sub]
+    module
+  have h01 : (0 : ℝ) ≤ 1 := by norm_num
+  have h1b : (1 : ℝ) ≤ 1 + b := by linarith
+  have h0b : (0 : ℝ) < 1 + b := by linarith
+  have hseg (u v : ℝ) (huv : u ≤ v) :
+      segment ℝ (L u) (L v) = L '' Icc u v := by
+    rw [← image_segment, segment_eq_Icc huv]
+  constructor
+  · rw [← h0, ← h1, ← hz', hseg 0 1 h01, hseg 1 (1 + b) h1b,
+      hseg 0 (1 + b) h0b.le, ← Set.image_union, Set.Icc_union_Icc_eq_Icc h01 h1b]
+  · rw [← h0, ← hz', ← image_openSegment, openSegment_eq_Ioo h0b]
+    exact ⟨1, ⟨by norm_num, by linarith⟩, h1⟩
+
+/-- Step 6 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
+"a template realised by actual tiles". Two actual native tiles, with their
+actual leaf labels and relative frames, form an actual configuration. Equal
+owners give a singleton, so no distinct-owner assumption is needed. -/
+private theorem honest_rows_step1_cont_geometry_step6_configuration
+    (U : HonestSource S) (P : Params S) (t q : U.Node) (ht : t.1 = 0) (hq : q.1 = 0) :
+    ∃ θ : Template P, IsActualTemplate U P t ht θ ∧
+      θ.central = leafTypeOf U P t ht ∧
+      θ.tiles =
+        {((⟨(leafTypeOf U P t ht).prototype, AffineIsometryEquiv.refl ℝ (E d)⟩ :
+            FramedNode S), leafTypeOf U P t ht),
+          (q.2.val.move t.2.val.frame.symm, leafTypeOf U P q hq)} ∧
+      θ.annotation = none := by
+  classical
+  let l := leafTypeOf U P t ht
+  let l' := leafTypeOf U P q hq
+  let z : FramedNode S × LeafType P :=
+    (⟨l.prototype, AffineIsometryEquiv.refl ℝ (E d)⟩, l)
+  let w : FramedNode S × LeafType P := (q.2.val.move t.2.val.frame.symm, l')
+  have hz : z.1 = t.2.val.move t.2.val.frame.symm := by
+    simp [z, l, leafTypeOf_type, FramedNode.move]
+  have hreal (a : FramedNode S × LeafType P) (ha : a ∈ ({z, w} : Finset _)) :
+      ∃ (p : U.Node) (hp : p.1 = 0),
+        a.1 = p.2.val.move t.2.val.frame.symm ∧ a.2 = leafTypeOf U P p hp := by
+    rcases Finset.mem_insert.mp ha with rfl | ha
+    · exact ⟨t, ht, hz, rfl⟩
+    · rcases Finset.mem_singleton.mp ha with rfl
+      exact ⟨q, hq, rfl, rfl⟩
+  have hdis : (({z, w} : Finset _) : Set (FramedNode S × LeafType P)).PairwiseDisjoint
+      (fun a => interior (a.1.carrier 0)) := by
+    intro a ha b hb hne
+    apply Set.disjoint_left.mpr
+    intro x hxa hxb
+    obtain ⟨p, hp, hpa, hla⟩ := hreal a ha
+    obtain ⟨r, hr, hrb, hlb⟩ := hreal b hb
+    have hmove (N : FramedNode S) :
+        interior ((N.move t.2.val.frame.symm).carrier 0) =
+          t.2.val.frame.symm '' interior (N.carrier 0) := by
+      have hcarrier : (N.move t.2.val.frame.symm).carrier 0 =
+          t.2.val.frame.symm '' N.carrier 0 := by
+        simp [FramedNode.carrier, FramedNode.move, placedSet, Set.image_image]
+      rw [hcarrier]
+      exact (t.2.val.frame.symm.toHomeomorph.image_interior _).symm
+    dsimp only at hxa hxb
+    rw [hpa, hmove] at hxa
+    rw [hrb, hmove] at hxb
+    obtain ⟨xp, hxp, hxp'⟩ := hxa
+    obtain ⟨xr, hxr, hxr'⟩ := hxb
+    have hxx : xp = xr := t.2.val.frame.symm.injective (hxp'.trans hxr'.symm)
+    have hpr : p.2.val = r.2.val := U.hierarchy.same_height_disjoint 0 p.2.val r.2.val
+      (hp ▸ p.2.property) (hr ▸ r.2.property) xp hxp (hxx.symm ▸ hxr)
+    have hnode : p = r := by
+      rcases p with ⟨n, p, hpm⟩
+      rcases r with ⟨m, r, hrm⟩
+      dsimp only at hp hr hpr
+      subst n
+      subst m
+      cases hpr
+      rfl
+    subst r
+    exact hne (Prod.ext (hpa.trans hrb.symm) (hla.trans hlb.symm))
+  let θ : Template P := {
+    central := l
+    tiles := {z, w}
+    types_match := by
+      intro a ha
+      obtain ⟨p, hp, hp', hl⟩ := hreal a ha
+      rw [hp', hl, leafTypeOf_type]
+      rfl
+    disjoint := hdis
+    central_mem := Finset.mem_insert_self _ _
+    annotation := none }
+  exact ⟨θ, ⟨rfl, hreal⟩, rfl, rfl, rfl⟩
+
 /-- Step 1 of the V4 proof of `honest_rows` (V4 2.8): "CONT: ... By Remark 2.1, $t$ is a
 selected owner of the recursive trace $\mathcal P_2$ of $H$ ... so there is a polygon $s_2''$
 adjacent to $h$ on the far side of $v$ ... with owner $t''$ and an edge $e''$ along $h$ with
@@ -3751,7 +4180,236 @@ private theorem honest_rows_step1_cont_geometry (U : HonestSource S) (P : Params
     (t : U.Node) (ht : t.1 = 0) (slot : ContSlot (leafTypeOf U P t ht)) :
     ∃ T : ContTemplate slot, IsActualTemplate U P t ht T.configuration ∧
       T.centralChain ∈ slot.record.chains ∧ T.otherChain ∈ T.record.chains := by
-  sorry
+  classical
+  rcases slot with ⟨key, r, hr, hty, hfacet, e, he, v, hvf, hterm, htau, packet, hpacket⟩
+  have hread : leafRecord (leafTypeOf U P t ht) r.facet.val = some r := by
+    rw [hfacet]
+    exact hr
+  obtain ⟨f, hf, rfl⟩ := honest_rows_step1_cont_geometry_step1_record U P t ht r hread
+  let slot : ContSlot (leafTypeOf U P t ht) :=
+    ⟨key, U.recordOf P t f hf, hr, hty, hfacet, e, he, v, hvf, hterm, htau,
+      packet, hpacket⟩
+  change ∃ T : ContTemplate slot, IsActualTemplate U P t ht T.configuration ∧
+    T.centralChain ∈ (U.recordOf P t f hf).chains ∧ T.otherChain ∈ T.record.chains
+  obtain ⟨c, hc, hce⟩ := he
+  change (c.chain.val.cell edgeIndex).val = e.val at hce
+  have hca : U.ActiveChain P t f hf c := (Finset.mem_filter.mp hc).2
+  let B := U.hierarchy.servingChild t f hf
+  obtain ⟨F, aTrace, hF, _, _⟩ := chain_active_owner U P t f hf c hc
+  have hBt : U.hierarchy.ancestor t B.1 = B := by
+    have hh : B.1 = (U.hierarchy.firstProvider t f hf).1 := by
+      dsimp only [B, CoherentHierarchy.servingChild]
+      rw [U.hierarchy.ancestor_height, ht, zero_add]
+    rw [hh]
+    rfl
+  have hsub (j : FlagIndex d) :
+      t.2.val.cell t.1 (c.chain.val.cell j).val ⊆ B.2.val.cell B.1 (F.cell j).val := by
+    obtain ⟨hs, hstr, _⟩ := hca.1 j
+    have h := closure_mono (U.hierarchy.stratumMap_spec t f hf (c.chain.val.cell j) hs).1
+    simp only [restrictionOp_source_step5_cell_closure] at h
+    rw [hstr, ← hF j] at h
+    exact h
+  have hvtau : (U.recordTau P t f hf ⟨vertexCell v, hvf⟩).val.val =
+      ((P.flag (U.recordIncidence P t f hf)).flag.cell edgeIndex).val := by
+    have hvlist : v.val ∈ (S.cx t.2.val.ty).cells := (Finset.mem_filter.mp v.property).1
+    unfold FacetRecord.tauAt at htau
+    split at htau
+    next h => exact Option.some.inj htau
+    next h => exact (h hvlist).elim
+  have hvrel : t.2.val.prototypeFrame t.1 (vertexPoint v) ∈
+      relint (B.2.val.cell B.1 (F.cell edgeIndex).val) := by
+    have hτ := record_tau_spec U P t f hf ⟨vertexCell v, hvf⟩
+    change U.providerPlacement P t f hf ''
+      (U.recordTau P t f hf ⟨vertexCell v, hvf⟩).val.val.carrier = _ at hτ
+    rw [hvtau, ← hF edgeIndex] at hτ
+    rw [hτ]
+    apply (U.hierarchy.stratumMap_spec t f hf (vertexCell v)
+      (U.cellInFacet_placed t f ⟨vertexCell v, hvf⟩)).1
+    change t.2.val.prototypeFrame t.1 (vertexPoint v) ∈
+      relint (t.2.val.prototypeFrame t.1 '' v.val.carrier)
+    rw [vertexPoint_spec, Set.image_singleton]
+    simp [relint]
+  obtain ⟨heseg, hene, hevec⟩ :=
+    honest_rows_step1_cont_geometry_step5_endpoints U P t f hf c hc e hce
+  let a := t.2.val.prototypeFrame t.1 ((U.recordOf P t f hf).endpoints e).1
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  have het : t.2.val.cell t.1 (c.chain.val.cell edgeIndex).val = segment ℝ a x := by
+    change t.2.val.prototypeFrame t.1 '' (c.chain.val.cell edgeIndex).val.carrier = _
+    rw [hce, heseg]
+    simpa only [a, x, hterm] using
+      image_segment ℝ (t.2.val.prototypeFrame t.1).toAffineMap
+        ((U.recordOf P t f hf).endpoints e).1 ((U.recordOf P t f hf).endpoints e).2
+  have hax : a ≠ x := by
+    apply (t.2.val.prototypeFrame t.1).injective.ne
+    simpa only [hterm] using hene
+  obtain ⟨q, hq, G, v', z, b, hBq, hsubq, hv', heq, hb, hzx⟩ :=
+    honest_rows_step1_cont_geometry_step2_successor U B t ht hBt F c.chain.val
+      hsub v a het hax hvrel
+  let g : FacetName S q.2.val.ty := ⟨(G.cell facetIndex).val,
+    Finset.mem_filter.mpr ⟨(G.cell facetIndex).property, G.dimension facetIndex⟩⟩
+  have hgsub : q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier t f hf := by
+    have h := hsubq facetIndex
+    rw [hF facetIndex, (P.flag (U.recordIncidence P t f hf)).top,
+      record_provider_carrier] at h
+    exact h
+  obtain ⟨hg, hbirth, hcarrier, hserv⟩ :=
+    honest_rows_step1_cont_geometry_step3_provider U t q hq f hf g hBq hgsub
+  have hi := restrictionOp_source_step4_provider_name P U q t g f hg hf hbirth hcarrier
+  have hplace : U.providerPlacement P q g hg = U.providerPlacement P t f hf :=
+    congrArg₂ (fun (D : U.Node) (i : P.Incidence) =>
+      P.incidencePlacement D.2.val D.1 i) hbirth hi
+  have hdir : U.counterDirection P q g hg = U.counterDirection P t f hf := by
+    unfold HonestSource.counterDirection
+    rw [hplace, hi]
+  have hFq (j : FlagIndex d) : B.2.val.cell B.1 (F.cell j).val =
+      U.providerPlacement P q g hg ''
+        ((P.flag (U.recordIncidence P q g hg)).flag.cell j).val.carrier := by
+    rw [hplace, hi]
+    exact hF j
+  obtain ⟨c', hc'G, hc'⟩ := honest_rows_step1_cont_geometry_step3_activity
+    U P q g hg B hserv F hFq G rfl hsubq
+  let e' : PrototypeEdge S q.2.val.ty := ⟨(G.cell edgeIndex).val,
+    Finset.mem_filter.mpr ⟨(G.cell edgeIndex).property, G.dimension edgeIndex⟩⟩
+  have hc'e : (c'.chain.val.cell edgeIndex).val = e'.val := by rw [hc'G]
+  obtain ⟨he'seg, he'ne, he'vec⟩ :=
+    honest_rows_step1_cont_geometry_step5_endpoints U P q g hg c' hc' e' hc'e
+  let p := q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e').1
+  let w := q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e').2
+  have hpw : p ≠ w := (q.2.val.prototypeFrame q.1).injective.ne he'ne
+  have hsegq : segment ℝ p w = segment ℝ x z := by
+    have hh : q.2.val.cell q.1 e'.val = segment ℝ p w := by
+      change q.2.val.prototypeFrame q.1 '' e'.val.carrier = _
+      rw [he'seg]
+      exact image_segment ℝ (q.2.val.prototypeFrame q.1).toAffineMap _ _
+    exact hh.symm.trans heq
+  obtain ⟨_, α, hα, hcdir⟩ :=
+    (restrictionOp_source_step4_chains_step1_test U P t f hf c).mp hca
+  have hc'a : U.ActiveChain P q g hg c' := (Finset.mem_filter.mp hc').2
+  obtain ⟨_, β, hβ, hc'dir⟩ :=
+    (restrictionOp_source_step4_chains_step1_test U P q g hg c').mp hc'a
+  change U.counterDirection P t f hf =
+    α • (t.2.val.prototypeFrame t.1).linear (chainVector c) at hcdir
+  change U.counterDirection P q g hg =
+    β • (q.2.val.prototypeFrame q.1).linear (chainVector c') at hc'dir
+  have hlinear (T : E d ≃ᵃ[ℝ] E d) (u v : E d) :
+      T.linear (u - v) = T u - T v := T.toAffineMap.linearMap_vsub u v
+  have hcdiff : (t.2.val.prototypeFrame t.1).linear (chainVector c) = x - a := by
+    rw [hevec, hlinear]
+    dsimp only [x, a]
+    rw [hterm]
+  have hc'diff : (q.2.val.prototypeFrame q.1).linear (chainVector c') = w - p := by
+    rw [he'vec, hlinear]
+  have hcommon : β • (w - p) = α • (x - a) := by
+    rw [← hc'diff, ← hc'dir, hdir, hcdir, hcdiff]
+  have hpositive : 0 < inner ℝ (w - p) (x - a) := by
+    have hinner := congrArg (fun u => inner ℝ (w - p) u) hcommon
+    simp only [inner_smul_right] at hinner
+    have hnorm := real_inner_self_pos.mpr (sub_ne_zero.mpr hpw.symm)
+    nlinarith
+  have hpositive' : 0 < inner ℝ (w - p) (z - x) := by
+    rw [hzx, inner_smul_right]
+    exact mul_pos hb hpositive
+  obtain ⟨hpx, hwz⟩ :=
+    honest_rows_step1_cont_geometry_step5_ordered_endpoints p w x z hsegq hpositive'
+  have hvinit : vertexPoint v' = ((U.recordOf P q g hg).endpoints e').1 :=
+    (q.2.val.prototypeFrame q.1).injective (hv'.trans hpx.symm)
+  have htf : t.2.val.prototypeFrame t.1 = t.2.val.frame.toAffineEquiv := by
+    ext u
+    simp [FramedNode.prototypeFrame, ht]
+  have hqf : q.2.val.prototypeFrame q.1 = q.2.val.frame.toAffineEquiv := by
+    ext u
+    simp [FramedNode.prototypeFrame, hq]
+  have hsubq' (j : FlagIndex d) : q.2.val.cell q.1 (c'.chain.val.cell j).val ⊆
+      B.2.val.cell B.1 (F.cell j).val := by rw [hc'G]; exact hsubq j
+  obtain ⟨hst, hct⟩ := honest_rows_step1_cont_geometry_step4_sides U B t
+    (by simpa only [ht, Nat.sub_zero] using hBt) F c.chain.val hsub
+  obtain ⟨hsq, hcq⟩ := honest_rows_step1_cont_geometry_step4_sides U B q
+    (by simpa only [hq, Nat.sub_zero] using hBq) F c'.chain.val hsubq'
+  have halign : ChainsAligned (U.recordOf P t f hf) (U.recordOf P q g hg)
+      c c' (q.2.val.move t.2.val.frame.symm).frame := by
+    apply honest_rows_step1_cont_geometry_step4_alignment
+      (U.recordOf P t f hf) (U.recordOf P q g hg) c c'
+      t.2.val.frame q.2.val.frame
+    · intro j
+      have hst' := (hca.1 j).choose_spec.2
+      have hsq' := (hc'a.1 j).choose_spec.2
+      rw [hplace, hi] at hsq'
+      simpa only [FramedNode.cell, htf, hqf] using hst'.trans hsq'.symm
+    · intro j
+      simpa only [htf, hqf] using (hst j).trans (hsq j).symm
+    · have hpos : 0 < inner ℝ
+          ((t.2.val.prototypeFrame t.1).linear (chainVector c))
+          ((q.2.val.prototypeFrame q.1).linear (chainVector c')) := by
+        rw [hcdiff, hc'diff, real_inner_comm]
+        exact hpositive
+      simpa only [htf, hqf] using hpos
+    · simpa only [htf, hqf, c.chain.property, c'.chain.property] using hct.trans hcq.symm
+  let other := q.2.val.move t.2.val.frame.symm
+  have hrelative (u : E d) : t.2.val.prototypeFrame t.1 (other.frame u) =
+      q.2.val.prototypeFrame q.1 u := by
+    rw [htf, hqf]
+    simp [other, FramedNode.move]
+  have hver : other.frame (vertexPoint v') = vertexPoint v := by
+    apply (t.2.val.prototypeFrame t.1).injective
+    rw [hrelative]
+    exact hv'
+  have hjoin := honest_rows_step1_cont_geometry_step5_join a x z b hb hzx
+  have hsegment : e.val.carrier ∪ placedSet other.frame e'.val.carrier =
+      segment ℝ ((U.recordOf P t f hf).endpoints e).1
+        (other.frame ((U.recordOf P q g hg).endpoints e').2) := by
+    apply (t.2.val.prototypeFrame t.1).injective.image_injective
+    rw [Set.image_union]
+    have hleft : t.2.val.prototypeFrame t.1 '' e.val.carrier = segment ℝ a x := by
+      simpa only [FramedNode.cell, hce] using het
+    have hright : t.2.val.prototypeFrame t.1 '' placedSet other.frame e'.val.carrier =
+        segment ℝ x z := by
+      change t.2.val.prototypeFrame t.1 '' (other.frame '' e'.val.carrier) = _
+      rw [Set.image_image]
+      simpa only [hrelative, FramedNode.cell] using heq
+    rw [hleft, hright]
+    change _ = (t.2.val.prototypeFrame t.1).toAffineMap '' segment ℝ _ _
+    rw [image_segment]
+    change _ = segment ℝ a (t.2.val.prototypeFrame t.1
+      (other.frame ((U.recordOf P q g hg).endpoints e').2))
+    rw [hrelative]
+    change _ = segment ℝ a w
+    rw [hwz]
+    exact hjoin.1
+  have hjunction : vertexPoint v ∈ openSegment ℝ ((U.recordOf P t f hf).endpoints e).1
+      (other.frame ((U.recordOf P q g hg).endpoints e').2) := by
+    apply (t.2.val.prototypeFrame t.1).injective.mem_set_image.mp
+    change x ∈ (t.2.val.prototypeFrame t.1).toAffineMap '' openSegment ℝ _ _
+    rw [image_openSegment]
+    change x ∈ openSegment ℝ a (t.2.val.prototypeFrame t.1
+      (other.frame ((U.recordOf P q g hg).endpoints e').2))
+    rw [hrelative]
+    change x ∈ openSegment ℝ a w
+    rw [hwz]
+    exact hjoin.2
+  obtain ⟨θ, hθ, hcentral, htiles, hannotation⟩ :=
+    honest_rows_step1_cont_geometry_step6_configuration U P t q ht hq
+  refine ⟨{
+    configuration := θ
+    central_eq := hcentral
+    other := other
+    label := leafTypeOf U P q hq
+    other_mem := by rw [htiles]; exact Finset.mem_insert_of_mem (Finset.mem_singleton_self _)
+    tiles_eq := htiles
+    annotation_none := hannotation
+    record := U.recordOf P q g hg
+    record_eq := honest_rows_step1_cont_geometry_step1_read U P q hq g hg
+    type_eq := rfl
+    centralChain := c
+    central_edge := hce
+    otherChain := c'
+    edge := e'
+    other_edge := hc'e
+    vertex := v'
+    initial := hvinit
+    vertex_eq := hver
+    aligned := halign
+    segment_eq := hsegment
+    junction_interior := hjunction }, hθ, hc, hc'⟩
 
 /-- Step 2 of the V4 proof of `honest_rows` (V4 2.8): "by Remark 2.1 (converse part) $e''$ is
 a chain-active edge of the facet $f''$ of $t''$ inside $g$, whose record has the same $\iota$,

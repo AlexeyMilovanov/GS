@@ -596,12 +596,429 @@ def IsLocallyFiniteGroup (G : Subgroup (Iso d)) : Prop :=
   ∀ F : Finset (Iso d), (F : Set (Iso d)) ⊆ G →
     (Subgroup.closure (F : Set (Iso d)) : Set (Iso d)).Finite
 
+section Schur
+
+open Polynomial IntermediateField
+open scoped Matrix
+
+/- Schur's argument can be specialized to orthogonal matrices here. The linear
+part is faithful on a periodic isometry subgroup because the translation kernel
+has no torsion. Finite generation supplies a finitely generated coefficient
+field, which bounds the possible roots of unity among eigenvalues. This makes
+the traces finite; the positive trace pairing then makes the matrix image finite. -/
+
+/-- Step 1 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"viewed as a subgroup of the affine group". We use the orthogonal linear
+part; its translation kernel will be trivial on a periodic subgroup. -/
+private def schur_locally_finite_step1_rotation {d : ℕ} :
+    Iso d →* Matrix (Fin d) (Fin d) ℝ :=
+  (LinearMap.toMatrixAlgEquiv (EuclideanSpace.basisFun (Fin d) ℝ).toBasis).toMonoidHom.comp
+    { toFun := fun g => g.linear.toLinearMap
+      map_one' := rfl
+      map_mul' := fun _ _ => rfl }
+
+/-- Step 1 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"a periodic linear group". The matrix of the inverse linear isometry is
+the transpose, in the standard orthonormal basis. -/
+private theorem schur_locally_finite_step1_transpose {d : ℕ} (g : Iso d) :
+    (schur_locally_finite_step1_rotation g)ᵀ =
+      schur_locally_finite_step1_rotation g⁻¹ := by
+  change (LinearMap.toMatrix (EuclideanSpace.basisFun (Fin d) ℝ).toBasis
+    (EuclideanSpace.basisFun (Fin d) ℝ).toBasis g.linearIsometryEquiv.toLinearMap)ᵀ = _
+  rw [← Matrix.conjTranspose_eq_transpose_of_trivial]
+  rw [← LinearMap.toMatrix_adjoint, LinearIsometryEquiv.adjoint_toLinearMap_eq_symm]
+  rfl
+
+/-- Step 1 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"Every element ... has finite order". A translation of finite order is
+the identity, since a real vector space has no nonzero additive torsion. -/
+private theorem schur_locally_finite_step1_translation {d : ℕ} (g : Iso d)
+    (hg : IsOfFinOrder g) (hrot : schur_locally_finite_step1_rotation g = 1) : g = 1 := by
+  have hlinear : g.linear.toLinearMap = LinearMap.id := by
+    apply (LinearMap.toMatrixAlgEquiv (EuclideanSpace.basisFun (Fin d) ℝ).toBasis).injective
+    simpa only [LinearMap.toMatrixAlgEquiv_id] using hrot
+  have happly (x : E d) : g x = x + g 0 := by
+    have hx : g.linear x = x := congrArg (fun f : E d →ₗ[ℝ] E d => f x) hlinear
+    have h := g.toAffineEquiv.map_vadd (0 : E d) x
+    change g (x + 0) = g.linear x + g 0 at h
+    rwa [add_zero, hx] at h
+  have hpow (n : ℕ) (x : E d) : (g ^ n) x = x + n • g 0 := by
+    induction n with
+    | zero => simp
+    | succ n ih =>
+      rw [pow_succ', AffineIsometryEquiv.coe_mul, Function.comp_apply, happly, ih,
+        succ_nsmul]
+      abel
+  obtain ⟨n, hn, hgn⟩ := hg.exists_pow_eq_one
+  have hz : n • g 0 = 0 := by
+    simpa [hgn] using (hpow n 0).symm
+  have hz' : (n : ℝ) • g 0 = 0 := by simpa only [Nat.cast_smul_eq_nsmul] using hz
+  have hzero : g 0 = 0 := (smul_eq_zero.mp hz').resolve_left (Nat.cast_ne_zero.mpr hn.ne')
+  apply AffineIsometryEquiv.ext
+  intro x
+  change g x = x
+  rw [happly, hzero, add_zero]
+
+/-- Step 1 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"a periodic linear group". The linear-part representation is faithful
+on a periodic subgroup: equal linear parts have a torsion translation as quotient. -/
+private theorem schur_locally_finite_step1_faithful {d : ℕ} (G : Subgroup (Iso d))
+    (hperiodic : ∀ g : G, IsOfFinOrder (g.val : Iso d)) :
+    Set.InjOn schur_locally_finite_step1_rotation (G : Set (Iso d)) := by
+  intro g hg h hh he
+  have hrot : schur_locally_finite_step1_rotation (g⁻¹ * h) = 1 := by
+    rw [map_mul, ← he, ← map_mul, inv_mul_cancel, map_one]
+  have hid := schur_locally_finite_step1_translation (g⁻¹ * h)
+    (hperiodic ⟨g⁻¹ * h, G.mul_mem (G.inv_mem hg) hh⟩) hrot
+  exact inv_mul_eq_one.mp hid
+
+/-- Step 2 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"every finitely generated periodic linear group". Finitely many generator
+entries generate a field over ℚ containing every matrix entry; inversion is transpose. -/
+private theorem schur_locally_finite_step2_coefficients
+    {Γ : Type*} [Group Γ] {n : ℕ} (ρ : Γ →* Matrix (Fin n) (Fin n) ℝ)
+    (htranspose : ∀ g, (ρ g)ᵀ = ρ g⁻¹) (F : Finset Γ) :
+    ∃ K : IntermediateField ℚ ℂ, K.FG ∧
+      ∀ g ∈ Subgroup.closure (F : Set Γ), ∀ i j, (ρ g i j : ℂ) ∈ K := by
+  let s : Set ℂ := Set.range (fun p : F × Fin n × Fin n => (ρ p.1.val p.2.1 p.2.2 : ℂ))
+  let K := IntermediateField.adjoin ℚ s
+  refine ⟨K, IntermediateField.fg_adjoin_of_finite (Set.finite_range _), ?_⟩
+  intro g hg
+  induction hg using Subgroup.closure_induction with
+  | mem g hg =>
+    intro i j
+    exact IntermediateField.subset_adjoin ℚ s ⟨(⟨g, hg⟩, i, j), rfl⟩
+  | one =>
+    intro i j
+    simp only [map_one, Matrix.one_apply]
+    split_ifs <;> simp
+  | mul g h _ _ hg hh =>
+    intro i j
+    rw [map_mul, Matrix.mul_apply, Complex.ofReal_sum]
+    exact K.sum_mem (fun k _ => by simpa only [Complex.ofReal_mul] using K.mul_mem (hg i k) (hh k j))
+  | inv g _ hg =>
+    intro i j
+    rw [← htranspose]
+    exact hg j i
+
+/-- Step 3 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"By Schur's theorem". In the field-theoretic degree bound, adjoining
+an algebraic element costs at most the degree of that finite field extension. -/
+private theorem schur_locally_finite_step3_finite_extension
+    {F K E : Type*} [Field F] [Field K] [Field E]
+    [Algebra F K] [Algebra F E] [Algebra K E] [IsScalarTower F K E]
+    [Module.Finite F K] (z : E) (hz : IsAlgebraic F z) :
+    (minpoly F z).natDegree ≤ Module.finrank F K * (minpoly K z).natDegree := by
+  let L := IntermediateField.adjoin K ({z} : Set E)
+  haveI : Module.Finite K L := IntermediateField.adjoin.finiteDimensional hz.isIntegral.tower_top
+  haveI : Module.Finite F L := Module.Finite.trans K L
+  have h := minpoly.natDegree_le (K := F) (AdjoinSimple.gen K z)
+  rw [← minpoly.algHom_eq (L.val.restrictScalars F) Subtype.val_injective] at h
+  change (minpoly F z).natDegree ≤ Module.finrank F L at h
+  rw [← Module.finrank_mul_finrank F K L,
+    IntermediateField.adjoin.finrank hz.isIntegral.tower_top] at h
+  exact h
+
+/-- Step 3 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"By Schur's theorem". Adjoining a transcendental element preserves the
+degree of an algebraic element: Gauss's lemma preserves its irreducible minimal
+polynomial over the rational function field. -/
+private theorem schur_locally_finite_step3_transcendental_extension
+    {K E : Type*} [Field K] [Field E] [Algebra K E]
+    (t z : E) (ht : Transcendental K t) (hz : IsAlgebraic K z) :
+    (minpoly (IntermediateField.adjoin K ({t} : Set E)) z).natDegree =
+      (minpoly K z).natDegree := by
+  let i : RatFunc K →ₐ[K] E := IsFractionRing.liftAlgHom
+    (K := RatFunc K) (transcendental_iff_injective.mp ht)
+  have hi : i.fieldRange = IntermediateField.adjoin K ({t} : Set E) := by
+    exact IsFractionRing.liftAlgHom_fieldRange_eq_of_range_eq
+      (transcendental_iff_injective.mp ht)
+      (Algebra.adjoin_singleton_eq_range_aeval K t).symm
+  let e : RatFunc K ≃ₐ[K] IntermediateField.adjoin K ({t} : Set E) :=
+    (AlgEquiv.ofInjectiveField i).trans (IntermediateField.equivOfEq hi)
+  let q := minpoly K z
+  have hq : q.Monic := minpoly.monic hz.isIntegral
+  have hirr : Irreducible q := minpoly.irreducible hz.isIntegral
+  have hC : Irreducible (q.map (Polynomial.C : K →+* K[X])) := by
+    rw [← Polynomial.Bivariate.swap_C, MulEquiv.irreducible_iff]
+    exact (Polynomial.prime_C_iff.mpr hirr.prime).irreducible
+  have hrat : Irreducible (q.map (algebraMap K (RatFunc K))) := by
+    have h := (hq.map (Polynomial.C : K →+* K[X])).irreducible_iff_irreducible_map_fraction_map
+      (K := RatFunc K) |>.mp hC
+    simpa only [Polynomial.map_map, ← IsScalarTower.algebraMap_eq K K[X] (RatFunc K),
+      Polynomial.algebraMap_eq] using h
+  have hadjoin : Irreducible (q.map (algebraMap K (IntermediateField.adjoin K ({t} : Set E)))) := by
+    have h : Irreducible (Polynomial.mapEquiv e.toRingEquiv
+        (q.map (algebraMap K (RatFunc K)))) := by
+      rwa [MulEquiv.irreducible_iff]
+    have hmap : Polynomial.mapEquiv e.toRingEquiv (q.map (algebraMap K (RatFunc K))) =
+        q.map (algebraMap K (IntermediateField.adjoin K ({t} : Set E))) := by
+      apply Polynomial.ext
+      intro j
+      simp only [Polynomial.mapEquiv_apply, Polynomial.coeff_map]
+      exact e.commutes (q.coeff j)
+    rwa [hmap] at h
+  have heq : q.map (algebraMap K (IntermediateField.adjoin K ({t} : Set E))) =
+      minpoly (IntermediateField.adjoin K ({t} : Set E)) z := by
+    apply minpoly.eq_of_irreducible_of_monic hadjoin
+    · simp only [Polynomial.aeval_map_algebraMap, q, minpoly.aeval]
+    · exact hq.map _
+  rw [← heq, Polynomial.natDegree_map]
+
+/-- Step 3 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"By Schur's theorem". For a finitely generated field K/ℚ, rational
+algebraic degrees are bounded by a fixed multiple of degrees over K. Induction
+on the field generators separates algebraic and transcendental adjunctions. -/
+private theorem schur_locally_finite_step3_degree_bound
+    (K : IntermediateField ℚ ℂ) (hK : K.FG) :
+    ∃ N : ℕ, ∀ z : ℂ, IsAlgebraic ℚ z →
+      (minpoly ℚ z).natDegree ≤ N * (minpoly K z).natDegree := by
+  apply IntermediateField.induction_on_adjoin_fg
+    (P := fun K : IntermediateField ℚ ℂ => ∃ N : ℕ, ∀ z : ℂ, IsAlgebraic ℚ z →
+      (minpoly ℚ z).natDegree ≤ N * (minpoly K z).natDegree) ?_ ?_ K hK
+  · refine ⟨1, ?_⟩
+    intro z hz
+    have hs : Function.Surjective (algebraMap ℚ (⊥ : IntermediateField ℚ ℂ)) := by
+      intro x
+      obtain ⟨r, hr⟩ := IntermediateField.mem_bot.mp x.property
+      exact ⟨r, Subtype.ext hr⟩
+    have hm := minpoly.map_algebraMap (E := (⊥ : IntermediateField ℚ ℂ)) hz.isIntegral
+      ((Polynomial.mem_lifts _).mpr (Polynomial.map_surjective _ hs (minpoly _ z)))
+    rw [one_mul, ← hm, Polynomial.natDegree_map]
+  · intro L x hL
+    obtain ⟨N, hN⟩ := hL
+    by_cases hx : IsAlgebraic L x
+    · haveI : Module.Finite L (IntermediateField.adjoin L ({x} : Set ℂ)) :=
+        IntermediateField.adjoin.finiteDimensional hx.isIntegral
+      refine ⟨N * Module.finrank L (IntermediateField.adjoin L ({x} : Set ℂ)), ?_⟩
+      intro z hz
+      calc
+        (minpoly ℚ z).natDegree ≤ N * (minpoly L z).natDegree := hN z hz
+        _ ≤ N * (Module.finrank L (IntermediateField.adjoin L ({x} : Set ℂ)) *
+            (minpoly (IntermediateField.adjoin L ({x} : Set ℂ)) z).natDegree) :=
+          Nat.mul_le_mul_left N (schur_locally_finite_step3_finite_extension
+            (K := IntermediateField.adjoin L ({x} : Set ℂ)) z (hz.tower_top L))
+        _ = _ := by rw [Nat.mul_assoc]; rfl
+    · refine ⟨N, ?_⟩
+      intro z hz
+      change (minpoly ℚ z).natDegree ≤ N *
+        (minpoly (IntermediateField.adjoin L ({x} : Set ℂ)) z).natDegree
+      rw [schur_locally_finite_step3_transcendental_extension x z hx (hz.tower_top L)]
+      exact hN z hz
+
+/-- Step 4 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"a periodic linear group". Only finitely many complex roots of unity
+have bounded rational degree: their cyclotomic polynomials have bounded degree
+and Mahler measure one, so polynomial Northcott finiteness applies. -/
+private theorem schur_locally_finite_step4_rational_roots (N : ℕ) :
+    {z : ℂ | IsOfFinOrder z ∧ (minpoly ℚ z).natDegree ≤ N}.Finite := by
+  let P : Set ℤ[X] := {p | p.natDegree ≤ N ∧
+    (p.map (Int.castRingHom ℂ)).mahlerMeasure ≤ (1 : ℝ)}
+  have hP : P.Finite := Polynomial.finite_mahlerMeasure_le N 1
+  have hf : (⋃ p ∈ P, p.rootSet ℂ).Finite :=
+    hP.biUnion (fun p _ => p.rootSet_finite ℂ)
+  apply hf.subset
+  intro z hz
+  let m := orderOf z
+  have hm : 0 < m := hz.1.orderOf_pos
+  have hprim : IsPrimitiveRoot z m := IsPrimitiveRoot.orderOf z
+  refine Set.mem_iUnion₂.mpr ⟨Polynomial.cyclotomic m ℤ, ?_, ?_⟩
+  · constructor
+    · simpa only [← Polynomial.cyclotomic_eq_minpoly_rat hprim hm,
+        Polynomial.natDegree_cyclotomic] using hz.2
+    · exact (Polynomial.cyclotomic_mahlerMeasure_eq_one (R := ℤ) m).le
+  · rw [Polynomial.mem_rootSet_of_ne (Polynomial.cyclotomic.monic m ℤ).ne_zero]
+    simpa [Polynomial.aeval_def, Polynomial.eval₂_eq_eval_map,
+      Polynomial.map_cyclotomic, Polynomial.IsRoot.def] using hprim.isRoot_cyclotomic hm
+
+/-- Step 4 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"By Schur's theorem". The degree comparison reduces roots of unity of
+bounded degree over the coefficient field to bounded rational degree. -/
+private theorem schur_locally_finite_step4_field_roots
+    (K : IntermediateField ℚ ℂ) (hK : K.FG) (n : ℕ) :
+    {z : ℂ | IsOfFinOrder z ∧ (minpoly K z).natDegree ≤ n}.Finite := by
+  obtain ⟨N, hN⟩ := schur_locally_finite_step3_degree_bound K hK
+  apply (schur_locally_finite_step4_rational_roots (N * n)).subset
+  intro z hz
+  refine ⟨hz.1, (hN z ?_).trans (Nat.mul_le_mul_left N hz.2)⟩
+  exact ((IsPrimitiveRoot.orderOf z).isIntegral hz.1.orderOf_pos).tower_top.isAlgebraic
+
+/-- Step 5 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"a periodic linear group". An eigenvalue of a torsion n-by-n matrix is
+a root of unity and satisfies its degree-n characteristic polynomial. This
+also handles n = 0, when the characteristic polynomial has no roots. -/
+private theorem schur_locally_finite_step5_matrix_roots
+    (K : IntermediateField ℚ ℂ) {n : ℕ} (A : Matrix (Fin n) (Fin n) K)
+    (hA : IsOfFinOrder A) {z : ℂ} (hz : z ∈ (A.map K.val).charpoly.roots) :
+    IsOfFinOrder z ∧ (minpoly K z).natDegree ≤ n := by
+  have hroot : (A.map K.val).charpoly.IsRoot z :=
+    (Polynomial.mem_roots (Matrix.charpoly_monic _).ne_zero).mp hz
+  have heval : aeval z A.charpoly = 0 := by
+    simpa only [Polynomial.aeval_def, Polynomial.eval₂_eq_eval_map,
+      ← Matrix.charpoly_map] using hroot
+  constructor
+  · cases n with
+    | zero => simp at hz
+    | succ n =>
+      obtain ⟨m, hm, hpow⟩ := hA.exists_pow_eq_one
+      have hpow' : (A.map K.val) ^ m = 1 := by
+        simpa only [map_pow, map_one] using congrArg K.val.toRingHom.mapMatrix hpow
+      have h := spectrum.pow_mem_pow (A.map K.val) m
+        (Matrix.mem_spectrum_of_isRoot_charpoly hroot)
+      rw [hpow', spectrum.one_eq, Set.mem_singleton_iff] at h
+      exact isOfFinOrder_iff_pow_eq_one.mpr ⟨m, hm, h⟩
+  · simpa only [Matrix.charpoly_natDegree_eq_dim, Fintype.card_fin] using
+      Polynomial.natDegree_le_natDegree (minpoly.min K z A.charpoly_monic heval)
+
+/-- Step 6 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"By Schur's theorem". Sums of a fixed number of elements of a finite
+set form a finite set, including the empty sum. -/
+private theorem schur_locally_finite_step6_finite_sums
+    (s : Set ℂ) (hs : s.Finite) (n : ℕ) :
+    {z : ℂ | ∃ t : Multiset ℂ, t.card = n ∧ (∀ x ∈ t, x ∈ s) ∧ t.sum = z}.Finite := by
+  classical
+  induction n with
+  | zero =>
+    apply (Set.finite_singleton 0).subset
+    rintro z ⟨t, ht, _, rfl⟩
+    simp_all
+  | succ n ih =>
+    apply (hs.add ih).subset
+    rintro z ⟨t, ht, hts, rfl⟩
+    obtain ⟨x, hx⟩ := Multiset.card_pos_iff_exists_mem.mp (by omega : 0 < t.card)
+    obtain ⟨u, rfl⟩ := Multiset.exists_cons_of_mem hx
+    exact ⟨x, hts x (by simp), u.sum,
+      ⟨u, by simpa using ht, fun y hy => hts y (by simp [hy]), rfl⟩, by simp⟩
+
+/-- Step 6 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"every finitely generated periodic linear group is finite". Traces
+of torsion matrices over the coefficient field are sums of n eigenvalues from
+one finite set, hence take only finitely many values. -/
+private theorem schur_locally_finite_step6_matrix_traces
+    (K : IntermediateField ℚ ℂ) (hK : K.FG) (n : ℕ) :
+    {z : ℂ | ∃ A : Matrix (Fin n) (Fin n) K,
+      IsOfFinOrder A ∧ Matrix.trace (A.map K.val) = z}.Finite := by
+  let s : Set ℂ := {z | IsOfFinOrder z ∧ (minpoly K z).natDegree ≤ n}
+  apply (schur_locally_finite_step6_finite_sums s
+    (schur_locally_finite_step4_field_roots K hK n) n).subset
+  rintro z ⟨A, hA, rfl⟩
+  refine ⟨(A.map K.val).charpoly.roots, ?_, ?_, ?_⟩
+  · rw [← (IsAlgClosed.splits (A.map K.val).charpoly).natDegree_eq_card_roots,
+      Matrix.charpoly_natDegree_eq_dim, Fintype.card_fin]
+  · intro z hz
+    exact schur_locally_finite_step5_matrix_roots K A hA hz
+  · exact (Matrix.trace_eq_sum_roots_charpoly _).symm
+
+/-- Step 6 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"viewed as a subgroup ... of GL". Lift the real matrices to their
+complex coefficient field and transport finiteness of traces back to ℝ. -/
+private theorem schur_locally_finite_step6_real_traces
+    {Γ : Type*} [Group Γ] {n : ℕ} (ρ : Γ →* Matrix (Fin n) (Fin n) ℝ)
+    (K : IntermediateField ℚ ℂ) (hK : K.FG)
+    (hcoeff : ∀ g i j, (ρ g i j : ℂ) ∈ K)
+    (hperiodic : ∀ g, IsOfFinOrder (ρ g)) :
+    (Set.range fun g => Matrix.trace (ρ g)).Finite := by
+  have hc : (Set.range fun g => ((Matrix.trace (ρ g) : ℝ) : ℂ)).Finite := by
+    apply (schur_locally_finite_step6_matrix_traces K hK n).subset
+    rintro z ⟨g, rfl⟩
+    let A : Matrix (Fin n) (Fin n) K := fun i j => ⟨(ρ g i j : ℂ), hcoeff g i j⟩
+    have he : A.map K.val = (ρ g).map Complex.ofRealHom := rfl
+    refine ⟨A, ?_, ?_⟩
+    · apply (Matrix.map_injective K.val.injective).isOfFinOrder_iff.mp
+        (show IsOfFinOrder (K.val.toRingHom.mapMatrix A) from ?_)
+      change IsOfFinOrder (A.map K.val)
+      rw [he]
+      exact Complex.ofRealHom.mapMatrix.toMonoidHom.isOfFinOrder (hperiodic g)
+    · rw [he, ← AddMonoidHom.map_trace]
+      rfl
+  apply Set.Finite.of_finite_image (f := Complex.ofReal) ?_ Complex.ofReal_injective.injOn
+  rw [← Set.range_comp]
+  exact hc
+
+/-- Step 7 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"By Schur's theorem". The trace pairings against a finite spanning
+set distinguish real matrices in the span: the pairing of their difference
+with itself is the sum of the squares of its entries. -/
+private theorem schur_locally_finite_step7_trace_separates {n : ℕ}
+    (s : Set (Matrix (Fin n) (Fin n) ℝ))
+    (t : Finset (Matrix (Fin n) (Fin n) ℝ))
+    (ht : Submodule.span ℝ (t : Set _) = Submodule.span ℝ s)
+    {A B : Matrix (Fin n) (Fin n) ℝ} (hA : A ∈ s) (hB : B ∈ s)
+    (he : ∀ C ∈ t, Matrix.trace (A * Cᵀ) = Matrix.trace (B * Cᵀ)) : A = B := by
+  have hall (C : Matrix (Fin n) (Fin n) ℝ) (hC : C ∈ Submodule.span ℝ s) :
+      Matrix.trace (A * Cᵀ) = Matrix.trace (B * Cᵀ) := by
+    rw [← ht] at hC
+    induction hC using Submodule.span_induction with
+    | mem C hC => exact he C hC
+    | zero => simp
+    | add C D _ _ hC hD => simp [Matrix.transpose_add, Matrix.mul_add, hC, hD]
+    | smul r C _ hC => simp [Matrix.transpose_smul, hC]
+  have hzero : Matrix.trace ((A - B) * (A - B)ᵀ) = 0 := by
+    rw [Matrix.sub_mul, Matrix.trace_sub,
+      hall (A - B) (Submodule.sub_mem _ (Submodule.subset_span hA) (Submodule.subset_span hB)),
+      sub_self]
+  have hsum : ∑ i, ∑ j, (A i j - B i j) ^ 2 = 0 := by
+    simpa [Matrix.trace, Matrix.diag, Matrix.mul_apply, pow_two] using hzero
+  have hrow (i : Fin n) : ∑ j, (A i j - B i j) ^ 2 = 0 :=
+    (Finset.sum_eq_zero_iff_of_nonneg (fun k _ => Finset.sum_nonneg (fun j _ => sq_nonneg _))).mp
+      hsum i (Finset.mem_univ _)
+  ext i j
+  have hentry : (A i j - B i j) ^ 2 = 0 :=
+    (Finset.sum_eq_zero_iff_of_nonneg (fun k _ => sq_nonneg _)).mp
+      (hrow i) j (Finset.mem_univ _)
+  exact sub_eq_zero.mp (sq_eq_zero_iff.mp hentry)
+
+/-- Step 7 of the V4 proof of `schur_locally_finite` (V4 5.7, Step 4(ii)):
+"every finitely generated periodic linear group is finite". For an
+orthogonal representation with finitely many traces, pairings against finitely
+many spanning matrices give an injection into a finite product. -/
+private theorem schur_locally_finite_step7_finite_image {Γ : Type*} [Group Γ] {n : ℕ}
+    (ρ : Γ →* Matrix (Fin n) (Fin n) ℝ)
+    (htranspose : ∀ g, (ρ g)ᵀ = ρ g⁻¹)
+    (htrace : (Set.range fun g => Matrix.trace (ρ g)).Finite) :
+    (Set.range ρ).Finite := by
+  classical
+  obtain ⟨t, hts, _, hspan, _⟩ :=
+    Submodule.exists_finset_span_eq_linearIndepOn ℝ (Set.range ρ)
+  let f : Matrix (Fin n) (Fin n) ℝ → (t → ℝ) := fun A C => Matrix.trace (A * C.valᵀ)
+  apply Set.Finite.of_injOn (t := {v : t → ℝ | ∀ C, v C ∈ Set.range (fun g => Matrix.trace (ρ g))})
+    (f := f)
+  · rintro _ ⟨g, rfl⟩ C
+    obtain ⟨h, hh⟩ := hts C.property
+    refine ⟨g * h⁻¹, ?_⟩
+    change Matrix.trace (ρ (g * h⁻¹)) = Matrix.trace (ρ g * C.valᵀ)
+    rw [map_mul, ← hh, htranspose]
+  · intro A hA B hB he
+    apply schur_locally_finite_step7_trace_separates (Set.range ρ) t hspan hA hB
+    intro C hC
+    exact congrFun he ⟨C, hC⟩
+  · exact Set.Finite.pi' (fun _ => htrace)
+
 /-- Y1, V4 5.7, Step 4(ii), Schur: a periodic Euclidean isometry group is locally
 finite. Its faithful affine matrix representation has dimension d+1; no
 orientation, bounded-orbit or finite-generation hypothesis on the whole group is used. -/
 theorem schur_locally_finite (G : Subgroup (Iso d))
     (hperiodic : ∀ g : G, IsOfFinOrder (g.val : Iso d)) : IsLocallyFiniteGroup G := by
-  sorry
+  intro F hF
+  let H := Subgroup.closure (F : Set (Iso d))
+  have hHG : H ≤ G := (Subgroup.closure_le G).mpr hF
+  let ρ := schur_locally_finite_step1_rotation (d := d)
+  obtain ⟨K, hK, hcoeff⟩ := schur_locally_finite_step2_coefficients ρ
+    schur_locally_finite_step1_transpose F
+  let ψ : H →* Matrix (Fin d) (Fin d) ℝ := ρ.comp H.subtype
+  have htrace := schur_locally_finite_step6_real_traces ψ K hK
+    (fun g => hcoeff g.val g.property)
+    (fun g => ρ.isOfFinOrder (hperiodic ⟨g.val, hHG g.property⟩))
+  have himage := schur_locally_finite_step7_finite_image ψ
+    (fun g => schur_locally_finite_step1_transpose g.val) htrace
+  have hinj : Function.Injective ψ := by
+    intro g h he
+    exact Subtype.ext (schur_locally_finite_step1_faithful G hperiodic
+      (hHG g.property) (hHG h.property) he)
+  haveI : Finite H := (Set.finite_range_iff hinj).mp himage
+  exact Set.toFinite (H : Set (Iso d))
+
+end Schur
 
 /-- Y1, V4 5.7, Step 4(iii): a countable locally finite Euclidean isometry group
 has a common fixed point. Finite subgroup barycentres give nested nonempty affine

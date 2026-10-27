@@ -4192,6 +4192,189 @@ private theorem host_step_step3_roots_step2_relint_image
     change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
     rwa [hi]
 
+/-- Step 1 of the V4 proof of `host_step_step3_roots_step2_flag_overlap` (V4 3.6, F1):
+"Moving from x ... by a much smaller displacement". A finite polyhedron is
+locally star-shaped at each of its points: discard the convex pieces missing x. -/
+private theorem host_step_step3_roots_step2_flag_overlap_step1_local_segments
+    (K : Set (E d)) (hK : Polyhedron K) (x : E d) :
+    ∃ U : Set (E d), IsOpen U ∧ x ∈ U ∧
+      ∀ y ∈ K ∩ U, ∀ t : ℝ, 0 ≤ t → t ≤ 1 → x + t • (y - x) ∈ K := by
+  classical
+  obtain ⟨s, hs⟩ := hK
+  let bad := s.filter (fun p : Finset (E d) => x ∉ convexHull ℝ (p : Set (E d)))
+  let U : Set (E d) := (⋃ p ∈ bad, convexHull ℝ (p : Set (E d)))ᶜ
+  have hU : IsOpen U :=
+    (isClosed_biUnion_finset (s := bad)
+      (fun p _ => p.finite_toSet.isCompact_convexHull.isClosed)).isOpen_compl
+  have hxU : x ∈ U := by
+    intro hh
+    obtain ⟨p, hp, hxp⟩ := mem_iUnion₂.mp hh
+    exact (Finset.mem_filter.mp hp).2 hxp
+  refine ⟨U, hU, hxU, ?_⟩
+  rintro y ⟨hy, hyU⟩ t ht ht1
+  rw [hs] at hy ⊢
+  obtain ⟨p, hp, hyp⟩ := mem_iUnion₂.mp hy
+  have hxp : x ∈ convexHull ℝ (p : Set (E d)) := by
+    by_contra h
+    exact hyU (mem_iUnion₂.mpr ⟨p, Finset.mem_filter.mpr ⟨hp, h⟩, hyp⟩)
+  refine mem_iUnion₂.mpr ⟨p, hp, ?_⟩
+  have hm := (convex_convexHull ℝ (p : Set (E d))) hxp hyp
+    (sub_nonneg.mpr ht1) ht (by ring : (1 - t) + t = 1)
+  convert hm using 1 <;> module
+
+set_option maxHeartbeats 800000 in
+/-- Step 2 of the V4 proof of `host_step_step3_roots_step2_flag_overlap` (V4 3.6, F1):
+"the same composite displacement from x gives a point". A common radial tangent
+cone lets a regular closed polyhedral cell enter a closed set of the same affine
+span. Baire's theorem supplies a relatively open set of common displacements. -/
+private theorem host_step_step3_roots_step2_flag_overlap_step2_tangent_overlap
+    (K L : Set (E d)) (hK : Polyhedron K) (hreg : closure (relint K) = K)
+    (hL : IsClosed L) (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    (x : E d) (hx : x ∈ K) (hcone : tangentCone K x ⊆ tangentCone L x) :
+    (relint K ∩ relint L).Nonempty := by
+  obtain ⟨O, hO, hxO, hseg⟩ :=
+    host_step_step3_roots_step2_flag_overlap_step1_local_segments K hK x
+  let A := affineSpan ℝ K
+  have hxA : x ∈ A := mem_affineSpan ℝ hx
+  letI : Nonempty A := ⟨⟨x, hxA⟩⟩
+  let U : Set A := interior ((↑) ⁻¹' K : Set A) ∩ ((↑) ⁻¹' O)
+  have hU : IsOpen U := isOpen_interior.inter (hO.preimage continuous_subtype_val)
+  have hUne : U.Nonempty := by
+    have hxcl : x ∈ closure (relint K) := hreg.symm ▸ hx
+    obtain ⟨y, hyO, z, hz, rfl⟩ := mem_closure_iff.mp hxcl O hO hxO
+    exact ⟨z, hz, hyO⟩
+  let c (j : ℕ) : ℝ := 1 / (j + 1 : ℝ)
+  have hc (j : ℕ) : 0 < c j ∧ c j ≤ 1 := by
+    dsimp [c]
+    constructor
+    · positivity
+    · exact (div_le_one (by positivity)).mpr (by linarith [Nat.cast_nonneg (α := ℝ) j])
+  let g (j : ℕ) : A →ᵃ[ℝ] A := AffineMap.homothety ⟨x, hxA⟩ (c j)
+  have hg (j : ℕ) (y : A) : (g j y).val = x + c j • (y.val - x) := by
+    simp only [g, AffineMap.homothety_apply, AffineSubspace.coe_vadd,
+      Submodule.coe_smul, AffineSubspace.coe_vsub, vsub_eq_sub, vadd_eq_add]
+    exact add_comm _ _
+  let T (j : ℕ) : Set A := (g j) ⁻¹' ((↑) ⁻¹' L : Set A)
+  have hT (j : ℕ) : IsClosed (T j) :=
+    (hL.preimage continuous_subtype_val).preimage (AffineMap.homothety_continuous _ _)
+  have hcover : ∀ y : U, ∃ j, y.val ∈ T j := by
+    intro y
+    have hyK : y.val.val ∈ K :=
+      interior_subset (s := ((↑) ⁻¹' K : Set A)) y.property.1
+    have hycone : y.val.val - x ∈ tangentCone K x :=
+      ⟨1, zero_lt_one, fun t ht ht1 => hseg _ ⟨hyK, y.property.2⟩ t ht.le ht1.le⟩
+    obtain ⟨ε, hε, hyL⟩ := hcone hycone
+    obtain ⟨j, hj⟩ := exists_nat_one_div_lt hε
+    refine ⟨j, ?_⟩
+    change (g j y.val).val ∈ L
+    rw [hg]
+    exact hyL (c j) (hc j).1 hj
+  letI : Nonempty U := hUne.to_subtype
+  letI : IsClosed (A : Set (E d)) := A.closed_of_finiteDimensional
+  letI : CompleteSpace A := IsClosed.completeSpace_coe
+  letI : BaireSpace U := hU.baireSpace
+  obtain ⟨j, y, hy⟩ := nonempty_interior_of_iUnion_of_closed
+    (fun j => (hT j).preimage continuous_subtype_val)
+    (show (⋃ j, ((↑) ⁻¹' T j : Set U)) = univ by
+      apply eq_univ_of_forall
+      intro y
+      obtain ⟨j, hj⟩ := hcover y
+      exact mem_iUnion.mpr ⟨j, hj⟩)
+  have hyT : y.val ∈ interior (T j) :=
+    hU.isOpenMap_subtype_val.interior_preimage_subset_preimage_interior hy
+  let W := U ∩ interior (T j)
+  have hW : IsOpen W := hU.inter isOpen_interior
+  have hgw : IsOpen (g j '' W) :=
+    AffineMap.homothety_isOpenMap _ _ (hc j).1.ne' W hW
+  have hsub : g j '' W ⊆ ((↑) ⁻¹' K : Set A) ∩ ((↑) ⁻¹' L : Set A) := by
+    rintro _ ⟨z, hz, rfl⟩
+    constructor
+    · change (g j z).val ∈ K
+      rw [hg]
+      have hzU : z ∈ U := hz.1
+      have hzK : z.val ∈ K := interior_subset (s := ((↑) ⁻¹' K : Set A)) hzU.1
+      have hzO : z.val ∈ O := hzU.2
+      exact hseg z.val ⟨hzK, hzO⟩ (c j) (hc j).1.le (hc j).2
+    · exact interior_subset (s := T j) hz.2
+  have hmem : g j y.val ∈ interior (((↑) ⁻¹' K : Set A) ∩ ((↑) ⁻¹' L : Set A)) :=
+    interior_maximal hsub hgw ⟨y.val, ⟨y.property, hyT⟩, rfl⟩
+  rw [interior_inter] at hmem
+  refine ⟨(g j y.val).val, ⟨g j y.val, hmem.1, rfl⟩, ?_⟩
+  change (g j y.val).val ∈ intrinsicInterior ℝ L
+  rw [intrinsicInterior, ← hspan]
+  exact ⟨g j y.val, hmem.2, rfl⟩
+
+/-- Step 3 of the V4 proof of `host_step_step3_roots_step2_flag_overlap` (V4 3.6, F1):
+"the same holds ... for any tile ... or block". Affine placement preserves a
+finite polyhedral presentation, including an anisotropic expansion. -/
+private theorem host_step_step3_roots_step2_flag_overlap_step3_polyhedron_image
+    (K : Set (E d)) (hK : Polyhedron K) (φ : E d ≃ᵃ[ℝ] E d) :
+    Polyhedron (φ '' K) := by
+  classical
+  obtain ⟨s, hs⟩ := hK
+  have hmap (p : Finset (E d)) : φ '' convexHull ℝ (p : Set (E d)) =
+      convexHull ℝ (φ '' (p : Set (E d))) := φ.toAffineMap.image_convexHull _
+  refine ⟨s.image (fun p => p.image φ), ?_⟩
+  ext y
+  constructor
+  · rintro ⟨z, hz, rfl⟩
+    rw [hs] at hz
+    obtain ⟨p, hp, hzp⟩ := mem_iUnion₂.mp hz
+    refine mem_iUnion₂.mpr ⟨p.image φ, Finset.mem_image.mpr ⟨p, hp, rfl⟩, ?_⟩
+    rw [Finset.coe_image, ← hmap]
+    exact mem_image_of_mem φ hzp
+  · intro hy
+    obtain ⟨q, hq, hyq⟩ := mem_iUnion₂.mp hy
+    obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hq
+    rw [Finset.coe_image, ← hmap] at hyq
+    obtain ⟨z, hz, rfl⟩ := hyq
+    refine ⟨z, ?_, rfl⟩
+    rw [hs]
+    exact mem_iUnion₂.mpr ⟨p, hp, hz⟩
+
+
+/-- Step 4 of the V4 proof of `host_step_step3_roots_step2_flag_overlap` (V4 3.6, F1):
+"then by a much smaller displacement into relint F₂ on the recorded side".
+For one consecutive pair of flag cells, a common lower relative-interior point
+has the same upper tangent cone in both placements, and hence the upper
+relative interiors meet. -/
+private theorem host_step_step3_roots_step2_flag_overlap_step4_coface
+    {A A' : S.ι} (F : FacetFlag S A) (G : FacetFlag S A')
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (k : FlagStep d)
+    (hspan : affineSpan ℝ (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier))
+    (hside : φ.linear '' flagSide F k = ψ.linear '' flagSide G k)
+    (hmeet : (relint (φ '' (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) ∩
+      relint (ψ '' (G.cell ⟨k.val, k.property.1, by omega⟩).val.carrier)).Nonempty) :
+    (relint (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) ∩
+      relint (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier)).Nonempty := by
+  obtain ⟨x, hxF, hxG⟩ := hmeet
+  let lo : FlagIndex d := ⟨k.val, k.property.1, by omega⟩
+  let hi : FlagIndex d := ⟨k.val + 1, by omega, k.property.2⟩
+  have htransport {B : S.ι} (H : FacetFlag S B) (χ : E d ≃ᵃ[ℝ] E d)
+      (hx : x ∈ relint (χ '' (H.cell lo).val.carrier)) :
+      tangentCone (χ '' (H.cell hi).val.carrier) x = χ.linear '' flagSide H k := by
+    rw [host_step_step3_roots_step2_relint_image] at hx
+    obtain ⟨p, hp, rfl⟩ := hx
+    rw [host_step_step1_seed_step8_transport_step1_tangent_image,
+      host_step_step1_seed_step8_transport_step4_coface H k p hp]
+  have hreg : closure (relint (φ '' (F.cell hi).val.carrier)) =
+      φ '' (F.cell hi).val.carrier := by
+    rw [host_step_step3_roots_step2_relint_image]
+    change closure (φ.toHomeomorphOfFiniteDimensional '' relint (F.cell hi).val.carrier) =
+      φ.toHomeomorphOfFiniteDimensional '' (F.cell hi).val.carrier
+    rw [← φ.toHomeomorphOfFiniteDimensional.image_closure, (F.cell hi).val.flat.regularClosed]
+  have hxK : x ∈ φ '' (F.cell hi).val.carrier := by
+    obtain ⟨p, hp, rfl⟩ := intrinsicInterior_subset (𝕜 := ℝ) hxF
+    exact ⟨p, F.nested lo hi (by dsimp [lo, hi]; omega) hp, rfl⟩
+  apply host_step_step3_roots_step2_flag_overlap_step2_tangent_overlap
+    (φ '' (F.cell hi).val.carrier) (ψ '' (G.cell hi).val.carrier)
+    (host_step_step3_roots_step2_flag_overlap_step3_polyhedron_image _
+      (F.cell hi).val.flat.polyhedral φ) hreg
+    ((G.cell hi).val.flat.compact.image ψ.toHomeomorphOfFiniteDimensional.continuous).isClosed
+    hspan x hxK
+  rw [htransport F φ hxF, htransport G ψ hxG, hside]
+
 /-- Step 2 of the V4 proof of `host_step_step3_roots` (V4 3.6, F1):
 "the same composite displacement from x gives a point" in both interiors.
 Two full flags with the same spans, successive sides and inward side have
@@ -4212,7 +4395,24 @@ private theorem host_step_step3_roots_step2_flag_overlap
     (∀ k, (relint (N.cell n (F.cell k).val) ∩
       relint (M.cell m (G.cell k).val)).Nonempty) ∧
     (interior (N.carrier n) ∩ interior (M.carrier m)).Nonempty := by
-  sorry
+  have hfaces : ∀ (j : ℕ) (hj : 1 ≤ j) (hjd : j < d),
+      (relint (N.cell n (F.cell ⟨j, hj, hjd⟩).val) ∩
+        relint (M.cell m (G.cell ⟨j, hj, hjd⟩).val)).Nonempty := by
+    intro j hj
+    induction j, hj using Nat.le_induction with
+    | base =>
+        intro hjd
+        exact hmeet
+    | succ j hj ih =>
+        intro hjd
+        exact host_step_step3_roots_step2_flag_overlap_step4_coface F G
+          (N.prototypeFrame n) (M.prototypeFrame m) ⟨j, hj, hjd⟩
+          (hspans _) (hsides _) (ih (by omega))
+  refine ⟨fun k => hfaces k.val k.property.1 k.property.2, ?_⟩
+  obtain ⟨x, hx⟩ := hmeet
+  apply Set.Nonempty.of_closure
+  exact ⟨x, host_step_step2_strand_step2_terminal_bound_step1_flag_overlap
+    N M n m F G hN hM hspans hsides hinward x hx⟩
 
 /-- Step 2 of the V4 proof of `host_step_step3_roots` (V4 3.6, F1):
 "the cells ... of the actual flag". The top of either named side flag is

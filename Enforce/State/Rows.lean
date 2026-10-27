@@ -6000,6 +6000,956 @@ private theorem honest_rows_step5_end_E1 (U : HonestSource S) (P : Params S) (t 
       honest_rows_step5_end_E1_step3_boundary U P (U.hierarchy.birthParent t f hf)
         q F g path hp hsub
 
+/-- Step 1 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"the actual star". A positioned native node has a unique actual leaf label. -/
+private theorem honest_rows_step6_end_E2_step1_label (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (θ : Template P) (hθ : IsActualTemplate U P t ht θ)
+    (q : U.Node) (hq : q.1 = 0) (u : LeafType P)
+    (hu : (q.2.val.move t.2.val.frame.symm, u) ∈ θ.tiles) :
+    u = leafTypeOf U P q hq := by
+  obtain ⟨q', hq', hframe, hlabel⟩ := hθ.2 _ hu
+  have hnode : q.2.val = q'.2.val := by
+    apply FramedNode.ext
+    · simpa only [FramedNode.move] using
+        congrArg (fun N : FramedNode S => N.ty) hframe
+    · ext x : 1
+      exact t.2.val.frame.symm.injective
+        (congrArg (fun N : FramedNode S => N.frame x) hframe)
+  have heq : q = q' := by
+    rcases q with ⟨n, Q, hQ⟩
+    rcases q' with ⟨n', Q', hQ'⟩
+    dsimp only at hq hq' hnode
+    subst n
+    subst n'
+    cases hnode
+    rfl
+  subst q'
+  exact hlabel
+
+/-- Step 1 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.6(c)):
+"we attach P(g) to f_t". The packet readout of an actual leaf is its source packet. -/
+private theorem honest_rows_step6_end_E2_step1_packet_readout
+    (U : HonestSource S) (P : Params S) (q : U.Node) (hq : q.1 = 0)
+    (g : FacetName S q.2.val.ty) :
+    leafPacket (leafTypeOf U P q hq) g.val = U.facetPacket P q g := by
+  unfold leafPacket
+  rw [← prePattern_of_leafType U P q hq]
+  simp only [prePatternOf, dif_pos g.property]
+
+/-- Step 1 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"the actual star is the complete P-owned star". A labelled primitive port
+recovers its native source node, its actual record, and its birth parent. -/
+private theorem honest_rows_step6_end_E2_step1_source (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (θ : Template P) (hθ : IsActualTemplate U P t ht θ)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (Z : EndGeometry P)
+    (hZ : EndGeometryRealizes U P t f hf v Z)
+    (a : PrimitivePort P) (ha : a ∈ Z.primitivePorts)
+    (u : LeafType P) (hu : (a.tile, u) ∈ θ.tiles) :
+    ∃ (q : U.Node) (hq : q.1 = 0) (g : FacetName S q.2.val.ty)
+      (hg : ¬ U.hierarchy.IsFault q g),
+      a.tile = q.2.val.move t.2.val.frame.symm ∧ a.facet.val = g.val ∧
+      u = leafTypeOf U P q hq ∧ a.incidence = U.recordIncidence P q g hg ∧
+      U.hierarchy.birthParent q g hg = U.hierarchy.birthParent t f hf := by
+  obtain ⟨q, hq, g, hg, w, hw, hx, hb, hatile, haf, hav, hai, has, haτ⟩ :=
+    (hZ.2.2.2.2.1 a).mp ha
+  have hqset : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+      (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset] using hq
+  refine ⟨q, hqset.1, g, hg, hatile, haf, ?_, hai, hb⟩
+  apply honest_rows_step6_end_E2_step1_label U P t ht θ hθ q hqset.1 u
+  simpa only [← hatile] using hu
+
+/-- Step 2 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.6(c)):
+"all ports on one first-generation facet carry its unique packet".
+Equal birth nodes and canonical incidences identify the entire provider occurrence. -/
+private theorem honest_rows_step6_end_E2_step2_packet (U : HonestSource S) (P : Params S)
+    (q q' : U.Node) (g : FacetName S q.2.val.ty) (g' : FacetName S q'.2.val.ty)
+    (hg : ¬ U.hierarchy.IsFault q g) (hg' : ¬ U.hierarchy.IsFault q' g')
+    (hb : U.hierarchy.birthParent q g hg = U.hierarchy.birthParent q' g' hg')
+    (hi : U.recordIncidence P q g hg = U.recordIncidence P q' g' hg') :
+    U.facetPacket P q g = U.facetPacket P q' g' := by
+  have hp : U.providerOccurrence P q g hg = U.providerOccurrence P q' g' hg' := by
+    have ext_occ (a b : PrimitiveOccurrence U P) (hb : a.birth = b.birth)
+        (hi : a.incidence = b.incidence) : a = b := by
+      cases a
+      cases b
+      dsimp only at hb hi
+      subst_vars
+      rfl
+    exact ext_occ _ _ hb hi
+  simp only [HonestSource.facetPacket, dif_neg hg, dif_neg hg', hp]
+
+open private tangentCone_polyhedral_step2_halfspace_presentation
+  tangentCone_polyhedral_step3_local_cone tangentCone_polyhedral_step5_radial_germ
+  from Enforce.Geometry.Polyhedral in
+open scoped Topology in
+
+/-- Step 3 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"the tangent cones". A finite polyhedron agrees locally with its radial cone. -/
+private theorem honest_rows_step6_end_E2_step3_local_cone
+    {K : Set (E d)} (hK : Polyhedron K) (x : E d) :
+    ∀ᶠ y in 𝓝 x, y ∈ K ↔ y - x ∈ tangentCone K x := by
+  obtain ⟨s, hs⟩ := tangentCone_polyhedral_step2_halfspace_presentation hK
+  obtain ⟨C, hC, hloc⟩ := tangentCone_polyhedral_step3_local_cone s x
+  rw [← hs] at hloc
+  rwa [tangentCone_polyhedral_step5_radial_germ x hC hloc]
+
+/-- Step 3 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"aff s_j = aff F_j". At a point of a regular closed polyhedron,
+its translated tangent cone has the same affine span. -/
+private theorem honest_rows_step6_end_E2_step3_cone_span
+    {K : Set (E d)} (hK : Polyhedron K) (hreg : closure (relint K) = K)
+    (x : E d) (hx : x ∈ K) :
+    affineSpan ℝ ((fun u => x + u) '' tangentCone K x) = affineSpan ℝ K := by
+  let A := affineSpan ℝ K
+  let T := (fun u => x + u) '' tangentCone K x
+  have hxA : x ∈ A := subset_affineSpan ℝ K hx
+  have hle : affineSpan ℝ T ≤ A := by
+    apply affineSpan_le.mpr
+    rintro z ⟨u, ⟨ε, hε, hu⟩, rfl⟩
+    let t := ε / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have hz : x + t • u ∈ A := subset_affineSpan ℝ K
+      (hu t ht (by dsimp [t]; linarith))
+    have hh := A.smul_vsub_vadd_mem t⁻¹ hz hxA hxA
+    have he : t⁻¹ • ((x + t • u) - x) + x = x + u := by
+      rw [add_sub_cancel_left, smul_smul, inv_mul_cancel₀ ht.ne', one_smul]
+      module
+    change x + u ∈ A
+    rw [← he]
+    exact hh
+  obtain ⟨r, hr, hlocal⟩ := Metric.eventually_nhds_iff.mp
+    (honest_rows_step6_end_E2_step3_local_cone hK x)
+  have hxcl : x ∈ closure (relint K) := hreg.symm ▸ hx
+  obtain ⟨y, hyr, hy⟩ := mem_closure_iff.mp hxcl (ball x r) isOpen_ball (by simp [hr])
+  letI : Nonempty A := ⟨⟨x, hxA⟩⟩
+  let V : Set A := interior ((↑) ⁻¹' K : Set A) ∩ ((↑) ⁻¹' ball x r)
+  have hV : IsOpen V := isOpen_interior.inter (isOpen_ball.preimage continuous_subtype_val)
+  have hVne : V.Nonempty := by
+    obtain ⟨z, hz, rfl⟩ := hy
+    exact ⟨z, hz, hyr⟩
+  have hVT : A.subtype '' V ⊆ T := by
+    rintro z ⟨w, hw, rfl⟩
+    have hm : (w : E d) ∈ K :=
+      interior_subset (s := ((↑) ⁻¹' K : Set A)) hw.1
+    exact ⟨w.val - x, (hlocal hw.2).mp hm, by simp⟩
+  have hfull : affineSpan ℝ (A.subtype '' V) = A := by
+    rw [← AffineSubspace.map_span, hV.affineSpan_eq_top hVne]
+    ext z
+    constructor
+    · rintro ⟨w, _, rfl⟩
+      exact w.property
+    · intro hz
+      exact ⟨⟨z, hz⟩, by trivial, rfl⟩
+  apply le_antisymm hle
+  rw [← hfull]
+  exact affineSpan_mono ℝ hVT
+
+open scoped Topology in
+/-- Step 3 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"has points of relint s_j near v inside relint F_j".
+Equal spans and inclusion of polyhedral tangent cones give an interior intersection. -/
+private theorem honest_rows_step6_end_E2_step3_overlap
+    {K L : Set (E d)} (hK : Polyhedron K) (hL : Polyhedron L)
+    (hreg : closure (relint K) = K) (x : E d) (hx : x ∈ K)
+    (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    (hcone : tangentCone K x ⊆ tangentCone L x) :
+    (relint K ∩ relint L).Nonempty := by
+  have hlocal : ∀ᶠ y in 𝓝 x, y ∈ K → y ∈ L := by
+    filter_upwards [honest_rows_step6_end_E2_step3_local_cone hK x,
+      honest_rows_step6_end_E2_step3_local_cone hL x] with y hyK hyL hy
+    exact hyL.mpr (hcone (hyK.mp hy))
+  obtain ⟨r, hr, hlocal⟩ := Metric.eventually_nhds_iff.mp hlocal
+  have hxcl : x ∈ closure (relint K) := hreg.symm ▸ hx
+  obtain ⟨y, hyr, hy⟩ := mem_closure_iff.mp hxcl (ball x r) isOpen_ball (by simp [hr])
+  refine ⟨y, hy, ?_⟩
+  obtain ⟨z, hz, rfl⟩ := hy
+  unfold relint intrinsicInterior
+  rw [← hspan]
+  refine ⟨z, mem_interior_iff_mem_nhds.mpr ?_, rfl⟩
+  have hball : ((↑) ⁻¹' ball x r : Set (affineSpan ℝ K)) ∈ 𝓝 z :=
+    (isOpen_ball.preimage continuous_subtype_val).mem_nhds hyr
+  apply Filter.mem_of_superset (Filter.inter_mem (mem_interior_iff_mem_nhds.mp hz) hball)
+  rintro w ⟨hw, hwr⟩
+  exact hlocal hwr hw
+
+open private states_finite_step4_polyhedron_image from Enforce.State.State in
+/-- Step 3 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"a chain of cells". Placed cells retain polyhedrality and regular closedness. -/
+private theorem honest_rows_step6_end_E2_step3_placed_cell
+    (φ : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+    Polyhedron (φ '' e.carrier) ∧
+      closure (relint (φ '' e.carrier)) = φ '' e.carrier := by
+  refine ⟨states_finite_step4_polyhedron_image φ e.flat.polyhedral, ?_⟩
+  rw [restrictionOp_source_step5_relint_image]
+  change closure (φ.toHomeomorphOfFiniteDimensional '' relint e.carrier) = _
+  rw [← Homeomorph.image_closure, e.flat.regularClosed]
+  rfl
+
+/-- Step 3 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"tau(s_j) = F_j with equal affine spans". The tangent test for one listed
+cell identifies its canonical provider stratum, in any common affine frame. -/
+private theorem honest_rows_step6_end_E2_step3_stratum
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (e : CellsInFacet q.2.val.ty g)
+    (F : ProviderCell (U.recordIncidence P q g hg).val)
+    (φ : E d ≃ᵃ[ℝ] E d) (x : E d)
+    (hx : x ∈ φ '' q.2.val.cell q.1 e.val.val)
+    (hF : x ∈ φ '' (U.providerPlacement P q g hg '' F.val.val.carrier))
+    (hspan : affineSpan ℝ (φ '' q.2.val.cell q.1 e.val.val) =
+      affineSpan ℝ ((fun u => x + u) ''
+        tangentCone (φ '' (U.providerPlacement P q g hg '' F.val.val.carrier)) x))
+    (hcone : tangentCone (φ '' q.2.val.cell q.1 e.val.val) x ⊆
+      tangentCone (φ '' (U.providerPlacement P q g hg '' F.val.val.carrier)) x) :
+    (U.recordTau P q g hg e).val.val = F.val.val ∧
+      affineSpan ℝ (φ '' q.2.val.cell q.1 e.val.val) =
+        affineSpan ℝ (φ '' (U.providerPlacement P q g hg '' F.val.val.carrier)) := by
+  let ψ := (U.providerPlacement P q g hg).trans φ
+  have hK : Polyhedron (φ '' q.2.val.cell q.1 e.val.val) ∧
+    closure (relint (φ '' q.2.val.cell q.1 e.val.val)) =
+      φ '' q.2.val.cell q.1 e.val.val := by
+    simpa only [FramedNode.cell, Set.image_image, AffineEquiv.coe_trans] using
+      honest_rows_step6_end_E2_step3_placed_cell
+        ((q.2.val.prototypeFrame q.1).trans φ) e.val.val
+  have hL : Polyhedron (φ '' (U.providerPlacement P q g hg '' F.val.val.carrier)) ∧
+      closure (relint (φ '' (U.providerPlacement P q g hg '' F.val.val.carrier))) =
+        φ '' (U.providerPlacement P q g hg '' F.val.val.carrier) := by
+    simpa only [Set.image_image, AffineEquiv.coe_trans] using
+      honest_rows_step6_end_E2_step3_placed_cell ψ F.val.val
+  have hspan' := hspan.trans
+    (honest_rows_step6_end_E2_step3_cone_span hL.1 hL.2 x hF)
+  refine ⟨?_, hspan'⟩
+  obtain ⟨y, hy, hyF⟩ := honest_rows_step6_end_E2_step3_overlap
+    hK.1 hL.1 hK.2 x hx hspan' hcone
+  have hrel := (U.hierarchy.stratumMap_spec q g hg e.val
+    (U.cellInFacet_placed q g e)).1
+  rw [← record_tau_spec U P q g hg e] at hrel
+  have hyτ : y ∈ relint (ψ '' (U.recordTau P q g hg e).val.val.carrier) := by
+    rw [restrictionOp_source_step5_relint_image] at hy
+    obtain ⟨z, hz, rfl⟩ := hy
+    have hz' := hrel hz
+    rw [restrictionOp_source_step5_relint_image] at hz'
+    obtain ⟨w, hw, rfl⟩ := hz'
+    rw [restrictionOp_source_step5_relint_image]
+    exact ⟨w, hw, rfl⟩
+  by_contra hne
+  have hdis := (S.cx (S.child (U.recordIncidence P q g hg).val.ty
+    (U.recordIncidence P q g hg).val.left).ty).relint_disjoint
+    _ (U.recordTau P q g hg e).val.property _ F.val.property hne
+  have hdis' := (Set.disjoint_image_iff ψ.injective).mpr hdis
+  rw [restrictionOp_source_step5_relint_image] at hyτ
+  have hyF' : y ∈ relint (ψ '' F.val.val.carrier) := by
+    simpa only [ψ, Set.image_image, AffineEquiv.coe_trans] using hyF
+  rw [restrictionOp_source_step5_relint_image] at hyF'
+  exact Set.disjoint_left.mp hdis' hyτ hyF'
+
+/-- Step 4 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"the orientations transported from the flag". A present header entry gives
+the actual flag cones, sides and endpoint in the central native frame. -/
+private theorem honest_rows_step6_end_E2_step4_header (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (f : FacetName S t.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault t f) (v : VertexName S t.2.val.ty)
+    (q : U.Node) (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (hb : U.hierarchy.birthParent q g hg = U.hierarchy.birthParent t f hf)
+    (G : State.FlagTangent (d := d))
+    (hG : (U.headerOf P t f hf v).flagTangent (U.recordIncidence P q g hg) = some G) :
+    let F := P.flag (U.recordIncidence P q g hg)
+    let ψ := (U.providerPlacement P q g hg).trans t.2.val.frame.symm.toAffineEquiv
+    (vertexPoint v = ψ F.initial ∨ vertexPoint v = ψ F.terminal) ∧
+      G.initial = decide (vertexPoint v = ψ F.initial) ∧
+      (∀ j, G.cones j = tangentCone (ψ '' (F.flag.cell j).val.carrier) (vertexPoint v)) ∧
+      ∀ j, G.sides j = ψ.linear '' flagSide F.flag j := by
+  have hplace : P.incidencePlacement (U.hierarchy.birthParent t f hf).2.val
+      (U.hierarchy.birthParent t f hf).1 (U.recordIncidence P q g hg) =
+        U.providerPlacement P q g hg := by
+    change _ = P.incidencePlacement (U.hierarchy.birthParent q g hg).2.val
+      (U.hierarchy.birthParent q g hg).1 (U.recordIncidence P q g hg)
+    rw [hb]
+  have hx : t.2.val.prototypeFrame t.1 (vertexPoint v) =
+      t.2.val.frame (vertexPoint v) := by simp [FramedNode.prototypeFrame, ht]
+  have hnorm (K : Set (E d)) : U.normalizeCone t K =
+      t.2.val.frame.linearIsometryEquiv.symm '' K := by
+    simp [HonestSource.normalizeCone, FramedNode.prototypeFrame, ht]
+    rfl
+  dsimp only [HonestSource.headerOf] at hG
+  rw [hplace, hx] at hG
+  simp only [hnorm] at hG
+  split at hG
+  · rename_i hend
+    cases Option.some.inj hG
+    have he (y : E d) : t.2.val.frame (vertexPoint v) = y ↔
+        vertexPoint v = t.2.val.frame.symm y := by
+      constructor
+      · intro h
+        rw [← h]
+        simp
+      · intro h
+        rw [h]
+        simp
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · exact hend.2.imp ((he _).mp) ((he _).mp)
+    · simp only [he]
+      rfl
+    · intro j
+      have h := actualCont_exists_step5_tangent_image t.2.val.frame.symm.toAffineEquiv
+        (U.providerPlacement P q g hg ''
+          ((P.flag (U.recordIncidence P q g hg)).flag.cell j).val.carrier)
+        (t.2.val.frame (vertexPoint v))
+      simpa [Set.image_image, AffineEquiv.coe_trans] using h.symm
+    · intro j
+      simp only [OrientedFullFlag.sides_eq, Set.image_image]
+      rfl
+  · contradiction
+
+/-- Step 4 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"with the orientations transported". A positive multiple of a segment's
+direction belongs to its initial tangent ray. -/
+private theorem honest_rows_step6_end_E2_step4_ray (p q u : E d) (a : ℝ)
+    (ha : 0 < a) (hu : q - p = a • u) : u ∈ tangentCone (segment ℝ p q) p := by
+  refine ⟨a, ha, fun t ht hta => ?_⟩
+  rw [segment_eq_image']
+  refine ⟨t / a, ⟨(div_pos ht ha).le, ((div_lt_one ha).mpr hta).le⟩, ?_⟩
+  change p + (t / a) • (q - p) = p + t • u
+  rw [hu, smul_smul, div_mul_cancel₀ _ ha.ne']
+
+/-- Step 4 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"the chain is active, with the orientations transported from the flag".
+The individual tangent tests identify every stratum; the source table records
+the resulting full chain with the unique induced edge orientation. -/
+private theorem honest_rows_step6_end_E2_step4_alignment
+    (U : HonestSource S) (P : Params S) (q : U.Node) (hq : q.1 = 0)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (φ : Iso d) (x : E d) (G : State.FlagTangent (d := d))
+    (hend : x = φ (U.providerPlacement P q g hg
+        (P.flag (U.recordIncidence P q g hg)).initial) ∨
+      x = φ (U.providerPlacement P q g hg
+        (P.flag (U.recordIncidence P q g hg)).terminal))
+    (hinit : G.initial = decide (x = φ (U.providerPlacement P q g hg
+      (P.flag (U.recordIncidence P q g hg)).initial)))
+    (hcones : ∀ j, G.cones j = tangentCone
+      (((U.providerPlacement P q g hg).trans φ.toAffineEquiv) ''
+        ((P.flag (U.recordIncidence P q g hg)).flag.cell j).val.carrier) x)
+    (hsides : ∀ j, G.sides j =
+      ((U.providerPlacement P q g hg).trans φ.toAffineEquiv).linear ''
+        flagSide (P.flag (U.recordIncidence P q g hg)).flag j)
+    (F : FlagChain g)
+    (hfit : ChainFitsTangent (U.recordOf P q g hg) (q.2.val.move φ).frame x F G) :
+    ∃ c ∈ (U.recordOf P q g hg).chains, c.chain = F ∧
+      OrientationFitsTangent (U.recordOf P q g hg) (q.2.val.move φ).frame c G := by
+  classical
+  let ι := U.recordIncidence P q g hg
+  let H := P.flag ι
+  let ψ := (U.providerPlacement P q g hg).trans φ.toAffineEquiv
+  have hcell (e : Cell d) : placedSet (q.2.val.move φ).frame e.carrier =
+      φ '' q.2.val.cell q.1 e := by
+    simp [FramedNode.move, FramedNode.cell, FramedNode.prototypeFrame, hq,
+      placedSet, Set.image_image]
+  have hpoint (j : FlagIndex d) : x ∈ ψ '' (H.flag.cell j).val.carrier := by
+    have hsub := H.flag.nested edgeIndex j j.property.1
+    rcases hend with hx | hx
+    · refine ⟨H.initial, hsub ?_, hx.symm⟩
+      rw [H.edge_eq]
+      exact left_mem_segment ℝ _ _
+    · refine ⟨H.terminal, hsub ?_, hx.symm⟩
+      rw [H.edge_eq]
+      exact right_mem_segment ℝ _ _
+  have hgeom (j : FlagIndex d) :
+      (U.recordTau P q g hg ⟨F.val.cell j,
+        FacetRecord.chain_cell_subset (U.recordOf P q g hg) ⟨F, false⟩ j⟩).val.val =
+          (H.flag.cell j).val ∧
+      affineSpan ℝ (q.2.val.cell q.1 (F.val.cell j).val) =
+        affineSpan ℝ (U.providerPlacement P q g hg '' (H.flag.cell j).val.carrier) := by
+    let e : CellsInFacet q.2.val.ty g :=
+      ⟨F.val.cell j, FacetRecord.chain_cell_subset (U.recordOf P q g hg) ⟨F, false⟩ j⟩
+    let Fj : ProviderCell ι.val := ⟨H.flag.cell j, by
+      have h := H.flag.nested j facetIndex (by
+        change j.val ≤ d - 1
+        have := j.property.2
+        omega)
+      simpa only [H.top] using h⟩
+    have hfits := hfit j
+    rw [hcell, hcones j] at hfits
+    have hp : x ∈ φ.toAffineEquiv ''
+        (U.providerPlacement P q g hg '' Fj.val.val.carrier) := by
+      simpa only [ψ, Set.image_image, AffineEquiv.coe_trans] using hpoint j
+    have hh := honest_rows_step6_end_E2_step3_stratum U P q g hg e Fj
+      φ.toAffineEquiv x hfits.1 hp
+      (by simpa only [ψ, Set.image_image, AffineEquiv.coe_trans] using hfits.2.1)
+      (by simpa only [ψ, Set.image_image, AffineEquiv.coe_trans] using hfits.2.2)
+    exact ⟨hh.1, (restrictionOp_source_step4_chains_step2_span φ.toAffineEquiv _ _).mp
+      hh.2⟩
+  let c : OrientedChain g := ⟨F, decide (0 < inner ℝ (U.counterDirection P q g hg)
+    ((q.2.val.prototypeFrame q.1).linear
+      (edgeVector (restrictionOp_source_step4_chains_step1_edge F.val))))⟩
+  have hactive : U.ActiveChain P q g hg c := by
+    refine ⟨?_, ?_⟩
+    · intro j
+      let e : CellsInFacet q.2.val.ty g :=
+        ⟨F.val.cell j, FacetRecord.chain_cell_subset (U.recordOf P q g hg) c j⟩
+      refine ⟨U.cellInFacet_placed q g e, ?_, (hgeom j).2⟩
+      have hτ := record_tau_spec U P q g hg e
+      change U.providerPlacement P q g hg '' (U.recordTau P q g hg e).val.val.carrier = _
+        at hτ
+      rw [(hgeom j).1] at hτ
+      exact hτ.symm
+    · exact decide_eq_true_iff
+  have hc : c ∈ (U.recordOf P q g hg).chains := by
+    exact Finset.mem_filter.mpr ⟨by simp [allOrientedChains], hactive⟩
+  refine ⟨c, hc, rfl, ?_, ?_⟩
+  · obtain ⟨a, ha, hdir⟩ :=
+      ((restrictionOp_source_step4_chains_step1_test U P q g hg c).mp hactive).2
+    have hdir' : ψ H.terminal - ψ H.initial =
+        a • (q.2.val.move φ).frame.linearIsometryEquiv (chainVector c) := by
+      have hh := congrArg φ.linearIsometryEquiv hdir
+      have hψ := ψ.toAffineMap.linearMap_vsub H.terminal H.initial
+      change ψ.linear H.direction = ψ H.terminal - ψ H.initial at hψ
+      rw [← hψ]
+      simpa [ψ, H, ι, HonestSource.counterDirection, FramedNode.prototypeFrame,
+        hq, FramedNode.move] using hh
+    have hseg : ψ '' (H.flag.cell edgeIndex).val.carrier =
+        segment ℝ (ψ H.initial) (ψ H.terminal) := by
+      rw [H.edge_eq]
+      exact image_segment ℝ ψ.toAffineMap _ _
+    rw [hcones edgeIndex]
+    change (if G.initial then (q.2.val.move φ).frame.linearIsometryEquiv (chainVector c)
+      else -(q.2.val.move φ).frame.linearIsometryEquiv (chainVector c)) ∈
+        tangentCone (ψ '' (H.flag.cell edgeIndex).val.carrier) x
+    rw [hseg]
+    change G.initial = decide (x = ψ H.initial) at hinit
+    by_cases hx : x = ψ H.initial
+    · have hi : G.initial = true := by simpa only [hx, decide_true] using hinit
+      simp only [hi, ite_true]
+      rw [hx]
+      exact honest_rows_step6_end_E2_step4_ray _ _ _ a ha hdir'
+    · have hi : G.initial = false := by
+        change G.initial = decide (x = ψ H.initial) at hinit
+        simpa only [hx, decide_false] using hinit
+      have hx' : x = ψ H.terminal := hend.resolve_left hx
+      simp only [hi, Bool.false_eq_true, ite_false]
+      rw [hx', segment_symm]
+      apply honest_rows_step6_end_E2_step4_ray _ _ _ a ha
+      rw [← neg_sub, hdir', smul_neg]
+  · intro j
+    have fit (k : FlagIndex d) :
+        relint (q.2.val.cell q.1 (F.val.cell k).val) ⊆
+          relint (U.providerPlacement P q g hg '' (H.flag.cell k).val.carrier) := by
+      obtain ⟨hs, hτ, _⟩ := hactive.1 k
+      change (U.hierarchy.servingChild q g hg).2.val.cell
+        (U.hierarchy.servingChild q g hg).1
+        (U.hierarchy.stratumMap q g hg (F.val.cell k) hs).val =
+          U.providerPlacement P q g hg '' (H.flag.cell k).val.carrier at hτ
+      simpa only [hτ] using (U.hierarchy.stratumMap_spec q g hg (F.val.cell k) hs).1
+    have hh := actualCont_exists_step5_coface_side F.val H.flag
+      (q.2.val.prototypeFrame q.1) (U.providerPlacement P q g hg) j
+      (fit _) (fit _) (hgeom _).2 (hgeom _).2
+    rw [hsides j]
+    have hh' := congrArg (fun K : Set (E d) => φ.linearIsometryEquiv '' K) hh
+    simpa [FramedNode.move, FramedNode.prototypeFrame, hq, Set.image_image] using hh'
+
+/-- Step 5 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"all sites lie in relint h". A nondegenerate segment has precisely its
+open affine interpolations as its relative interior. -/
+private theorem honest_rows_step6_end_E2_step5_segment_relint
+    {d : ℕ} (p q : E d) (hpq : p ≠ q) :
+    relint (segment ℝ p q) = AffineMap.lineMap p q '' Ioo (0 : ℝ) 1 := by
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let u := L⁻¹ • (q - p)
+  have hu : ‖u‖ = 1 := by
+    dsimp [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • u + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight u
+      map_vadd' := by
+        intro t s
+        change (s + t) • u + p = s • u + (t • u + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • u‖ = ‖t‖
+      rw [norm_smul, hu, mul_one] }
+  have hφ0 : φ 0 = p := by change (0 : ℝ) • u + p = p; simp
+  have hφL : φ L = q := by
+    change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+  have hseg : segment ℝ p q = φ '' Icc 0 L := by
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hir : intrinsicInterior ℝ (Icc (0 : ℝ) L) = Ioo 0 L := by
+    have hspan : affineSpan ℝ (Icc (0 : ℝ) L) = ⊤ :=
+      (convex_Icc 0 L).interior_nonempty_iff_affineSpan_eq_top.mp
+        (by rw [interior_Icc]; exact nonempty_Ioo.mpr hL)
+    rw [intrinsicInterior, hspan]
+    change (Homeomorph.Set.univ ℝ) ''
+      interior ((Homeomorph.Set.univ ℝ) ⁻¹' Icc 0 L) = Ioo 0 L
+    rw [(Homeomorph.Set.univ ℝ).image_interior]
+    simp
+  rw [hseg, relint, φ.image_intrinsicInterior, hir]
+  ext x
+  constructor
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t / L, ⟨div_pos ht.1 hL, (div_lt_one hL).mpr ht.2⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L (t / L)
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL, hL.ne'] using he.symm
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t * L, ⟨mul_pos ht.1 hL, by nlinarith [ht.2]⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L t
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL] using he
+
+/-- Step 5 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"all sites lie in relint h". This remains true after naming the serving
+side in canonical coordinates and placing the provider in the source. -/
+private theorem honest_rows_step6_end_E2_step5_sites_relint
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g) (a : Fin P.N) :
+    U.sitePoint P q g hg a ∈ relint (U.providerPlacement P q g hg ''
+      ((P.flag (U.recordIncidence P q g hg)).flag.cell edgeIndex).val.carrier) := by
+  let ι := U.recordIncidence P q g hg
+  let b := U.recordSide P q g hg
+  have hh := Set.mem_image_of_mem (S.child ι.val.ty (ι.val.sideIndex b)).frame
+    (P.sites_relint ι b a)
+  change (S.child ι.val.ty (ι.val.sideIndex b)).frame.toAffineEquiv (P.sites ι b a) ∈
+    (S.child ι.val.ty (ι.val.sideIndex b)).frame.toAffineEquiv ''
+      relint ((P.sideFlag ι b).cell edgeIndex).val.carrier at hh
+  rw [← restrictionOp_source_step5_relint_image
+    (S.child ι.val.ty (ι.val.sideIndex b)).frame.toAffineEquiv] at hh
+  change (S.child ι.val.ty (ι.val.sideIndex b)).frame (P.sites ι b a) ∈
+    relint (placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame
+      ((P.sideFlag ι b).cell edgeIndex).val.carrier) at hh
+  rw [P.sideFlag_eq] at hh
+  rw [show placedSet (S.child ι.val.ty ι.val.left).frame
+      ((P.flag ι).flag.cell edgeIndex).val.carrier =
+      (S.child ι.val.ty ι.val.left).frame.toAffineEquiv ''
+        ((P.flag ι).flag.cell edgeIndex).val.carrier from rfl,
+    restrictionOp_source_step5_relint_image] at hh
+  obtain ⟨y, hy, hyeq⟩ := hh
+  have hy' : y = P.canonicalSite ι b a := by
+    apply (S.child ι.val.ty ι.val.left).frame.injective
+    simpa only [Params.canonicalSite, AffineIsometryEquiv.apply_symm_apply] using hyeq
+  rw [restrictionOp_source_step5_relint_image]
+  exact ⟨y, hy, congrArg (U.providerPlacement P q g hg) hy'⟩
+
+/-- Step 5 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"immediately after the initial endpoint ... immediately before the terminal
+endpoint". Every site is strictly after the first and strictly before the second. -/
+private theorem honest_rows_step6_end_E2_step5_site_signs
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g) (a : Fin P.N) :
+    0 < inner ℝ (U.counterDirection P q g hg)
+      (U.sitePoint P q g hg a - U.providerPlacement P q g hg
+        (P.flag (U.recordIncidence P q g hg)).initial) ∧
+    inner ℝ (U.counterDirection P q g hg)
+      (U.sitePoint P q g hg a - U.providerPlacement P q g hg
+        (P.flag (U.recordIncidence P q g hg)).terminal) < 0 := by
+  let F := P.flag (U.recordIncidence P q g hg)
+  let ψ := U.providerPlacement P q g hg
+  let p := ψ F.initial
+  let r := ψ F.terminal
+  have hpr : p ≠ r := fun h => F.distinct (ψ.injective h)
+  have hdir : U.counterDirection P q g hg = r - p :=
+    ψ.toAffineMap.linearMap_vsub F.terminal F.initial
+  have hsite := honest_rows_step6_end_E2_step5_sites_relint U P q g hg a
+  have hseg : ψ '' (F.flag.cell edgeIndex).val.carrier = segment ℝ p r := by
+    rw [F.edge_eq]
+    exact image_segment ℝ ψ.toAffineMap _ _
+  rw [hseg, honest_rows_step6_end_E2_step5_segment_relint p r hpr] at hsite
+  obtain ⟨s, hs, he⟩ := hsite
+  have hv : 0 < inner ℝ (r - p) (r - p) :=
+    real_inner_self_pos.mpr (sub_ne_zero.mpr hpr.symm)
+  have hfirst : U.sitePoint P q g hg a - p = s • (r - p) := by
+    rw [← he, AffineMap.lineMap_apply_module']
+    module
+  have hlast : U.sitePoint P q g hg a - r = (s - 1) • (r - p) := by
+    rw [← he, AffineMap.lineMap_apply_module']
+    module
+  change 0 < inner ℝ (U.counterDirection P q g hg) (_ - p) ∧
+    inner ℝ (U.counterDirection P q g hg) (_ - r) < 0
+  rw [hdir, hfirst, hlast, real_inner_smul_right, real_inner_smul_right]
+  exact ⟨mul_pos hs.1 hv, mul_neg_of_neg_of_pos (sub_neg.mpr hs.2) hv⟩
+
+/-- Step 5 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"the value of kappa". On an active edge, the shallow word and the physical
+source coordinates give the same strict and weak order comparisons. -/
+private theorem honest_rows_step6_end_E2_step5_word_order
+    (P : Params S) (U : HonestSource S) (c : U.Node)
+    (f : FacetName S c.2.val.ty) (hf : ¬ U.hierarchy.IsFault c f)
+    (e : CellName S c.2.val.ty) (he : (U.recordOf P c f hf).ChainActive e)
+    (a : Fin P.N) (x : E d)
+    (hx : c.2.val.prototypeFrame c.1 x ∈ affineSpan ℝ (c.2.val.cell c.1 e.val)) :
+    (inner ℝ (U.counterDirection P c f hf)
+        (U.sitePoint P c f hf a - c.2.val.prototypeFrame c.1 x) < 0 ↔
+      inner ℝ (U.recordOf P c f hf).servingDirection
+        (P.sites (U.recordIncidence P c f hf) (U.recordSide P c f hf) a -
+          wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x) < 0) ∧
+    (inner ℝ (U.counterDirection P c f hf)
+        (U.sitePoint P c f hf a - c.2.val.prototypeFrame c.1 x) ≤ 0 ↔
+      inner ℝ (U.recordOf P c f hf).servingDirection
+        (P.sites (U.recordIncidence P c f hf) (U.recordSide P c f hf) a -
+          wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x) ≤ 0) := by
+  classical
+  let ι := U.recordIncidence P c f hf
+  let b := U.recordSide P c f hf
+  let H := U.hierarchy.servingChild c f hf
+  let ψ := H.2.val.prototypeFrame H.1
+  let R := (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.trans
+    (S.child ι.val.ty (ι.val.sideIndex b)).frame.symm.toAffineEquiv
+  have hframes : R.trans ψ = U.providerPlacement P c f hf := by
+    dsimp only [ψ, H]
+    rw [restrictionOp_source_step4_profile_step4_serving_frame P U c f hf]
+    apply AffineEquiv.ext
+    intro x
+    simp [R, rolePlacement, PrimitiveIncidence.sideRole, HonestSource.providerPlacement,
+      Params.incidencePlacement, ι, b]
+  have hdir : ψ.linear (U.recordOf P c f hf).servingDirection = U.counterDirection P c f hf :=
+    congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ.linear (P.flag ι).direction) hframes
+  have hpoint := congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ x)
+    (restrictionOp_source_step4_profile_step3_word_frame U c (U.hierarchy.firstProvider c f hf).1)
+  change c.2.val.prototypeFrame c.1 x =
+    ψ (wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x) at hpoint
+  have hsite := restrictionOp_source_step4_profile_step4_site_placement P U c f hf a
+  have hdiff : ψ.linear (P.sites ι b a -
+      wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x) =
+      U.sitePoint P c f hf a - c.2.val.prototypeFrame c.1 x := by
+    calc
+      _ = ψ (P.sites ι b a) - ψ
+          (wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x) :=
+        ψ.toAffineMap.linearMap_vsub _ _
+      _ = _ := by rw [← hsite, ← hpoint]
+  obtain ⟨t, ht⟩ := restrictionOp_source_step4_profile_step5_site_line P U c f hf e he a _
+    hx
+  have hscalar : t • (U.recordOf P c f hf).servingDirection =
+      P.sites ι b a - wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1)
+        x := by
+    apply ψ.linear.injective
+    rw [map_smul, hdir, hdiff]
+    exact ht
+  have hlt := restrictionOp_source_step4_profile_step5_linear_order ψ.linear
+    (U.recordOf P c f hf).servingDirection _ ⟨t, hscalar⟩
+  have hle : inner ℝ (ψ.linear (U.recordOf P c f hf).servingDirection)
+      (ψ.linear (P.sites ι b a -
+        wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x)) ≤ 0 ↔
+      inner ℝ (U.recordOf P c f hf).servingDirection
+        (P.sites ι b a -
+          wordPlacement (U.downRoles c (U.hierarchy.firstProvider c f hf).1) x) ≤ 0 := by
+    rw [← hscalar, map_smul, real_inner_smul_right, real_inner_smul_right]
+    by_cases hu : (U.recordOf P c f hf).servingDirection = 0
+    · simp [hu]
+    · have hu' : ψ.linear (U.recordOf P c f hf).servingDirection ≠ 0 :=
+        ψ.linear.map_ne_zero_iff.mpr hu
+      have hp := real_inner_self_pos.mpr hu
+      have hp' := real_inner_self_pos.mpr hu'
+      constructor
+      · intro hh
+        exact mul_nonpos_of_nonpos_of_nonneg (nonpos_of_mul_nonpos_left hh hp') hp.le
+      · intro hh
+        exact mul_nonpos_of_nonpos_of_nonneg (nonpos_of_mul_nonpos_left hh hp) hp'.le
+  rw [hdir, hdiff] at hlt hle
+  exact ⟨hlt, hle⟩
+
+/-- Step 5 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"which is what kappa-minus and kappa-plus say". Shallow readouts count
+physical sites weakly before the first endpoint and strictly before the last. -/
+private theorem honest_rows_step6_end_E2_step5_shallow_germs
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q g hg).ChainActive (edgeCell e))
+    (w : ShortProfile P) (hw : (U.recordOf P q g hg).counter = .inr w) :
+    (U.recordOf P q g hg).kappaMinus e =
+      (Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q g hg)
+        (U.sitePoint P q g hg a - q.2.val.prototypeFrame q.1
+          ((U.recordOf P q g hg).endpoints e).1) ≤ 0)).card ∧
+    (U.recordOf P q g hg).kappaPlus e =
+      (Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q g hg)
+        (U.sitePoint P q g hg a - q.2.val.prototypeFrame q.1
+          ((U.recordOf P q g hg).endpoints e).2) < 0)).card := by
+  classical
+  have hword : w.word = U.downRoles q (U.hierarchy.firstProvider q g hg).1 := by
+    change U.counterProfile P q g hg = .inr w at hw
+    unfold HonestSource.counterProfile at hw
+    dsimp only at hw
+    split at hw
+    · cases Sum.inr.inj hw
+      rfl
+    · contradiction
+  have hends := actualCont_exists_step2_endpoints (U.recordOf P q g hg) e
+  have horder (a : Fin P.N) (x : E d) (hx : x ∈ e.val.carrier) :=
+    honest_rows_step6_end_E2_step5_word_order P U q g hg (edgeCell e) he a x
+      (mem_affineSpan ℝ (Set.mem_image_of_mem _ hx))
+  constructor
+  · rw [FacetRecord.kappaMinus, hw]
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro a _
+    simpa only [hword] using (horder a _
+      (hends.2.symm ▸ left_mem_segment ℝ _ _)).2.symm
+  · rw [FacetRecord.kappaPlus, hw]
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro a _
+    simpa only [hword] using (horder a _
+      (hends.2.symm ▸ right_mem_segment ℝ _ _)).1.symm
+
+open scoped Topology in
+/-- Step 5 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"immediately after ... immediately before". At maturity the constant on
+an active edge equals the count near any incident point away from all sites. -/
+private theorem honest_rows_step6_end_E2_step5_mature_endpoint
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q g hg).ChainActive (edgeCell e))
+    (hm : P.siteDepth (U.recordIncidence P q g hg) (U.recordSide P q g hg) ≤
+      (U.hierarchy.firstProvider q g hg).1)
+    (x : E d) (hx : x ∈ q.2.val.cell q.1 e.val) (initial : Bool)
+    (hsite : ∀ a : Fin P.N, if initial then
+      0 < inner ℝ (U.counterDirection P q g hg) (U.sitePoint P q g hg a - x) else
+      inner ℝ (U.counterDirection P q g hg) (U.sitePoint P q g hg a - x) < 0) :
+    (U.recordOf P q g hg).kappaMinus e = (if initial then 0 else P.N) ∧
+      (U.recordOf P q g hg).kappaPlus e = (if initial then 0 else P.N) := by
+  classical
+  have hnear : ∀ᶠ y in 𝓝 x, ∀ a : Fin P.N, if initial then
+      0 < inner ℝ (U.counterDirection P q g hg) (U.sitePoint P q g hg a - y) else
+      inner ℝ (U.counterDirection P q g hg) (U.sitePoint P q g hg a - y) < 0 := by
+    apply Filter.eventually_all.mpr
+    intro a
+    have hc : Continuous (fun y : E d => inner ℝ (U.counterDirection P q g hg)
+        (U.sitePoint P q g hg a - y)) := by fun_prop
+    cases initial with
+    | false => exact hc.continuousAt.eventually_lt_const (hsite a)
+    | true => exact hc.continuousAt.eventually_const_lt (hsite a)
+  obtain ⟨r, hr, hnear⟩ := Metric.eventually_nhds_iff.mp hnear
+  have hxcl : x ∈ closure (relint (q.2.val.cell q.1 e.val)) := by
+    rw [restrictionOp_source_step5_cell_closure]
+    exact hx
+  obtain ⟨y, hyr, hy⟩ := mem_closure_iff.mp hxcl (ball x r) isOpen_ball (by simp [hr])
+  have hsign := hnear hyr
+  have hcount : (U.sitesBefore P q g hg y).val = (if initial then 0 else P.N) := by
+    cases initial with
+    | false =>
+      have hfilter : Finset.univ.filter (fun a : Fin P.N =>
+          inner ℝ (U.counterDirection P q g hg) (U.sitePoint P q g hg a - y) < 0) =
+          Finset.univ := Finset.filter_eq_self.mpr (fun a _ => hsign a)
+      simp only [HonestSource.sitesBefore, hfilter, Finset.card_univ, Fintype.card_fin]
+      rfl
+    | true =>
+      have hfilter : Finset.univ.filter (fun a : Fin P.N =>
+          inner ℝ (U.counterDirection P q g hg) (U.sitePoint P q g hg a - y) < 0) = ∅ := by
+        apply Finset.filter_eq_empty_iff.mpr
+        intro a _
+        exact not_lt_of_ge (hsign a).le
+      simp only [HonestSource.sitesBefore, hfilter, Finset.card_empty]
+      rfl
+  have hv := mature_counter_value U P q g hg hm (edgeCell e) he y hy
+  have hcounter := (record_mature_iff U P q g hg).mpr hm
+  constructor
+  · simpa [FacetRecord.kappaMinus, hcounter, hv] using hcount
+  · simpa [FacetRecord.kappaPlus, hcounter, hv] using hcount
+
+/-- Step 5 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"kappa-minus(e) = 0, respectively kappa-plus(e) = N". An active edge
+beginning or ending at the corresponding flag endpoint has the required germ. -/
+private theorem honest_rows_step6_end_E2_step5_endpoint_counts
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q g hg).ChainActive (edgeCell e)) :
+    (q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).1 =
+        U.providerPlacement P q g hg (P.flag (U.recordIncidence P q g hg)).initial →
+      (U.recordOf P q g hg).kappaMinus e = 0) ∧
+    (q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).2 =
+        U.providerPlacement P q g hg (P.flag (U.recordIncidence P q g hg)).terminal →
+      (U.recordOf P q g hg).kappaPlus e = P.N) := by
+  classical
+  have hends := actualCont_exists_step2_endpoints (U.recordOf P q g hg) e
+  by_cases hm : P.siteDepth (U.recordIncidence P q g hg) (U.recordSide P q g hg) ≤
+      (U.hierarchy.firstProvider q g hg).1
+  · constructor
+    · intro hstart
+      apply (honest_rows_step6_end_E2_step5_mature_endpoint U P q g hg e he hm
+        _ (Set.mem_image_of_mem _ (hends.2.symm ▸ left_mem_segment ℝ _ _)) true ?_).1
+      intro a
+      simpa only [hstart] using (honest_rows_step6_end_E2_step5_site_signs U P q g hg a).1
+    · intro hend
+      apply (honest_rows_step6_end_E2_step5_mature_endpoint U P q g hg e he hm
+        _ (Set.mem_image_of_mem _ (hends.2.symm ▸ right_mem_segment ℝ _ _)) false ?_).2
+      intro a
+      simpa only [hend] using (honest_rows_step6_end_E2_step5_site_signs U P q g hg a).2
+  · obtain ⟨w, hw, _⟩ := (record_shallow_iff U P q g hg).mpr (lt_of_not_ge hm)
+    have hread := honest_rows_step6_end_E2_step5_shallow_germs U P q g hg e he w hw
+    constructor
+    · intro hstart
+      rw [hread.1]
+      apply Finset.card_eq_zero.mpr
+      apply Finset.filter_eq_empty_iff.mpr
+      intro a _
+      rw [hstart]
+      exact not_le_of_gt (honest_rows_step6_end_E2_step5_site_signs U P q g hg a).1
+    · intro hend
+      rw [hread.2]
+      have hfilter : Finset.univ.filter (fun a : Fin P.N =>
+          inner ℝ (U.counterDirection P q g hg) (U.sitePoint P q g hg a -
+            q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).2) < 0) =
+          Finset.univ := by
+        apply Finset.filter_eq_self.mpr
+        intro a _
+        rw [hend]
+        exact (honest_rows_step6_end_E2_step5_site_signs U P q g hg a).2
+      rw [hfilter, Finset.card_univ, Fintype.card_fin]
+
+/-- Step 6 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"a chain-active edge at the endpoint". Positive orientation identifies
+the first endpoint of a subsegment that contains the first endpoint of its parent. -/
+private theorem honest_rows_step6_end_E2_step6_first_endpoint
+    (p q a b : E d) (ha : a ∈ segment ℝ p q) (hp : p ∈ segment ℝ a b)
+    (hpos : 0 < inner ℝ (q - p) (b - a)) : a = p := by
+  rw [segment_eq_image'] at ha hp
+  obtain ⟨r, hr, he⟩ := ha
+  obtain ⟨s, hs, hp⟩ := hp
+  have hn : 0 ≤ inner ℝ (q - p) (a - p) := by
+    rw [← he]
+    simp only [add_sub_cancel_left, real_inner_smul_right]
+    exact mul_nonneg hr.1 real_inner_self_nonneg
+  have hdiff : a - p = (-s) • (b - a) := by
+    rw [← hp]
+    module
+  rw [hdiff, real_inner_smul_right] at hn
+  have hs0 : s = 0 := by
+    have hle : s * inner ℝ (q - p) (b - a) ≤ 0 := by nlinarith
+    exact le_antisymm (nonpos_of_mul_nonpos_left hle hpos) hs.1
+  simpa only [hs0, zero_smul, add_zero] using hp
+
+/-- Step 6 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"a chain-active edge at the endpoint". An actual active edge lies in its
+provider edge and its recorded endpoints point in the provider's orientation. -/
+private theorem honest_rows_step6_end_E2_step6_active_edge
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q g hg).ChainActive (edgeCell e)) :
+    q.2.val.cell q.1 e.val ⊆ U.providerPlacement P q g hg ''
+      ((P.flag (U.recordIncidence P q g hg)).flag.cell edgeIndex).val.carrier ∧
+    ∃ a : ℝ, 0 < a ∧ U.counterDirection P q g hg = a •
+      (q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).2 -
+        q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).1) := by
+  classical
+  obtain ⟨c, hc, hce⟩ := he
+  have hactive : U.ActiveChain P q g hg c := (Finset.mem_filter.mp hc).2
+  constructor
+  · obtain ⟨hs, hτ, _⟩ := hactive.1 edgeIndex
+    have hrel := (U.hierarchy.stratumMap_spec q g hg (c.chain.val.cell edgeIndex) hs).1
+    rw [hτ, hce] at hrel
+    have hh := closure_mono hrel
+    rw [restrictionOp_source_step5_cell_closure,
+      (honest_rows_step6_end_E2_step3_placed_cell (U.providerPlacement P q g hg)
+        ((P.flag (U.recordIncidence P q g hg)).flag.cell edgeIndex).val).2] at hh
+    exact hh
+  · obtain ⟨a, ha, hdir⟩ :=
+      ((restrictionOp_source_step4_chains_step1_test U P q g hg c).mp hactive).2
+    have hvec := actualCont_exists_step2_vector U P q g hg c hc e hce
+    have hmap := (q.2.val.prototypeFrame q.1).toAffineMap.linearMap_vsub
+      ((U.recordOf P q g hg).endpoints e).2 ((U.recordOf P q g hg).endpoints e).1
+    change (q.2.val.prototypeFrame q.1).linear
+      (((U.recordOf P q g hg).endpoints e).2 - ((U.recordOf P q g hg).endpoints e).1) = _
+      at hmap
+    rw [hvec] at hmap
+    exact ⟨a, ha, hdir.trans (congrArg (fun v : E d => a • v) hmap)⟩
+
+/-- Step 6 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"at the endpoint". Incidence with a flag endpoint identifies the matching
+recorded endpoint of an active edge, on either serving side. -/
+private theorem honest_rows_step6_end_E2_step6_endpoints
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q g hg).ChainActive (edgeCell e)) :
+    (U.providerPlacement P q g hg (P.flag (U.recordIncidence P q g hg)).initial ∈
+        q.2.val.cell q.1 e.val →
+      q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).1 =
+        U.providerPlacement P q g hg (P.flag (U.recordIncidence P q g hg)).initial) ∧
+    (U.providerPlacement P q g hg (P.flag (U.recordIncidence P q g hg)).terminal ∈
+        q.2.val.cell q.1 e.val →
+      q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).2 =
+        U.providerPlacement P q g hg (P.flag (U.recordIncidence P q g hg)).terminal) := by
+  let ψ := U.providerPlacement P q g hg
+  let F := P.flag (U.recordIncidence P q g hg)
+  let p := ψ F.initial
+  let r := ψ F.terminal
+  let a := q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).1
+  let b := q.2.val.prototypeFrame q.1 ((U.recordOf P q g hg).endpoints e).2
+  have hends := actualCont_exists_step2_endpoints (U.recordOf P q g hg) e
+  have hab : a ≠ b := fun h => hends.1 ((q.2.val.prototypeFrame q.1).injective h)
+  have hseg : q.2.val.cell q.1 e.val = segment ℝ a b := by
+    rw [FramedNode.cell, hends.2]
+    exact image_segment ℝ (q.2.val.prototypeFrame q.1).toAffineMap _ _
+  have hflag : ψ '' (F.flag.cell edgeIndex).val.carrier = segment ℝ p r := by
+    rw [F.edge_eq]
+    exact image_segment ℝ ψ.toAffineMap _ _
+  obtain ⟨hsub, k, hk, hdir⟩ := honest_rows_step6_end_E2_step6_active_edge U P q g hg e he
+  rw [hseg, hflag] at hsub
+  have hdir' : r - p = k • (b - a) :=
+    (ψ.toAffineMap.linearMap_vsub F.terminal F.initial).symm.trans hdir
+  have hpos : 0 < inner ℝ (r - p) (b - a) := by
+    rw [hdir', real_inner_smul_left]
+    exact mul_pos hk (real_inner_self_pos.mpr (sub_ne_zero.mpr hab.symm))
+  constructor
+  · intro hp
+    rw [hseg] at hp
+    exact honest_rows_step6_end_E2_step6_first_endpoint p r a b
+      (hsub (left_mem_segment ℝ a b)) hp hpos
+  · intro hr
+    rw [hseg] at hr
+    apply honest_rows_step6_end_E2_step6_first_endpoint r p b a
+    · rw [segment_symm]
+      exact hsub (right_mem_segment ℝ a b)
+    · rwa [segment_symm]
+    · simpa only [← neg_sub p r, ← neg_sub a b, inner_neg_left,
+        inner_neg_right, neg_neg] using hpos
+
+/-- Step 6 of the V4 proof of `honest_rows_step6_end_E2` (V4 2.8):
+"kappa = 0 ... kappa = N". The source endpoint counts can be read in any
+native isometric frame used by the positioned star. -/
+private theorem honest_rows_step6_end_E2_step6_counter
+    (U : HonestSource S) (P : Params S) (q : U.Node) (hq : q.1 = 0)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (φ : Iso d) (x : E d) (initial : Bool)
+    (hend : x = φ (U.providerPlacement P q g hg
+        (P.flag (U.recordIncidence P q g hg)).initial) ∨
+      x = φ (U.providerPlacement P q g hg
+        (P.flag (U.recordIncidence P q g hg)).terminal))
+    (hinit : initial = decide (x = φ (U.providerPlacement P q g hg
+      (P.flag (U.recordIncidence P q g hg)).initial)))
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q g hg).ChainActive (edgeCell e))
+    (hx : x ∈ placedSet (q.2.val.move φ).frame e.val.carrier) :
+    if initial then (U.recordOf P q g hg).kappaMinus e = 0
+      else (U.recordOf P q g hg).kappaPlus e = P.N := by
+  classical
+  have hcell : placedSet (q.2.val.move φ).frame e.val.carrier =
+      φ '' q.2.val.cell q.1 e.val := by
+    simp [FramedNode.move, FramedNode.cell, FramedNode.prototypeFrame, hq,
+      placedSet, Set.image_image]
+  rw [hcell] at hx
+  by_cases hi : x = φ (U.providerPlacement P q g hg
+      (P.flag (U.recordIncidence P q g hg)).initial)
+  · have hib : initial = true := by simpa only [hi, decide_true] using hinit
+    simp only [hib, ite_true]
+    apply (honest_rows_step6_end_E2_step5_endpoint_counts U P q g hg e he).1
+    apply (honest_rows_step6_end_E2_step6_endpoints U P q g hg e he).1
+    rw [hi] at hx
+    exact φ.injective.mem_set_image.mp hx
+  · have hib : initial = false := by simpa only [hi, decide_false] using hinit
+    simp only [hib, Bool.false_eq_true, ite_false]
+    apply (honest_rows_step6_end_E2_step5_endpoint_counts U P q g hg e he).2
+    apply (honest_rows_step6_end_E2_step6_endpoints U P q g hg e he).2
+    rw [hend.resolve_left hi] at hx
+    exact φ.injective.mem_set_image.mp hx
+
 /-- Step 6 of the V4 proof of `honest_rows` (V4 2.8): "(E2): all ports on one
 first-generation facet carry its unique packet (Lemma 2.6(c)); alignment: ... the chain is
 active, with the orientations transported from $\mathcal F_\iota$ ...; counters: all sites
@@ -6013,7 +6963,46 @@ private theorem honest_rows_step6_end_E2 (U : HonestSource S) (P : Params S) (t 
     (hvv : v.val = slot.vertex.val)
     (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
     endRow_E2 T := by
-  sorry
+  classical
+  constructor
+  · intro a ha b hb hab u u' hu hu'
+    obtain ⟨q, hq, g, hg, hatile, haf, hulabel, hai, hbirth⟩ :=
+      honest_rows_step6_end_E2_step1_source U P t ht T.configuration hT f hf v
+        T.geometry hreal a ha u hu
+    obtain ⟨q', hq', g', hg', hbtile, hbf, hu'label, hbi, hbirth'⟩ :=
+      honest_rows_step6_end_E2_step1_source U P t ht T.configuration hT f hf v
+        T.geometry hreal b hb u' hu'
+    rw [hulabel, hu'label, haf, hbf,
+      honest_rows_step6_end_E2_step1_packet_readout U P q hq g,
+      honest_rows_step6_end_E2_step1_packet_readout U P q' hq' g']
+    exact honest_rows_step6_end_E2_step2_packet U P q q' g g' hg hg'
+      (hbirth.trans hbirth'.symm) (hai.symm.trans (hab.trans hbi))
+  · intro a ha u hu r hr G hG
+    obtain ⟨q, hq, g, hg, hatile, haf, hulabel, hai, hbirth⟩ :=
+      honest_rows_step6_end_E2_step1_source U P t ht T.configuration hT f hf v
+        T.geometry hreal a ha u hu
+    have hr' : U.recordOf P q g hg = r := by
+      rw [hulabel, haf, actualCont_exists_step1_readout U P q hq g] at hr
+      simpa only [HonestSource.facetRecordOf, dif_neg hg, Option.some.injEq] using hr
+    subst r
+    have hvpoint : vertexPoint T.geometry.vertex = vertexPoint v := by
+      apply Set.singleton_injective
+      rw [← vertexPoint_spec T.geometry.vertex, ← vertexPoint_spec v, hreal.2.1]
+    have hG' : (U.headerOf P t f hf v).flagTangent (U.recordIncidence P q g hg) =
+        some G := by
+      simpa only [hreal.2.2.1, hai] using hG
+    obtain ⟨hend, hinit, hcones, hsides⟩ :=
+      honest_rows_step6_end_E2_step4_header U P t ht f hf v q g hg hbirth G hG'
+    constructor
+    · intro F hfit
+      rw [hatile, hvpoint] at hfit
+      rw [hatile]
+      exact honest_rows_step6_end_E2_step4_alignment U P q hq g hg
+        t.2.val.frame.symm (vertexPoint v) G hend hinit hcones hsides F hfit
+    · intro e he hx _hray
+      rw [hatile, hvpoint] at hx
+      exact honest_rows_step6_end_E2_step6_counter U P q hq g hg t.2.val.frame.symm
+        (vertexPoint v) G.initial hend hinit e he hx
 
 /-- Step 1 of the V4 proof of `honest_rows_step7_end_E3` (V4 2.8):
 "the record of F in S(P) gives the provider g_F". A native leaf's packet readout

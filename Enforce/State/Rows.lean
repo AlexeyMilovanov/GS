@@ -2652,13 +2652,1074 @@ def IsActualTemplate (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 
     ∃ (q : U.Node) (hq : q.1 = 0),
       z.1 = q.2.val.move t.2.val.frame.symm ∧ z.2 = leafTypeOf U P q hq
 
+/-- Step 1 of the V4 proof of `actualCont_exists` (V4 2.8):
+"a native tile with a chain-active edge e of its facet f". Reading an actual
+leaf recovers the facet record extracted from that same hierarchy node. -/
+private theorem actualCont_exists_step1_readout (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (f : FacetName S t.2.val.ty) :
+    leafRecord (leafTypeOf U P t ht) f.val = U.facetRecordOf P t f := by
+  unfold leafRecord
+  rw [← prePattern_of_leafType U P t ht]
+  simp only [prePatternOf, stateRecordAt, stateOf, dif_pos f.property]
+
+/-- Step 1 of the V4 proof of `actualCont_exists` (V4 2.8):
+"provider g, serving child H". A non-NULL readout of an actual leaf has an
+actual nonfault facet, and its entire record is the geometric extraction. -/
+private theorem actualCont_exists_step1_record (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (k : Cell d) (r : FacetRecord P)
+    (hr : leafRecord (leafTypeOf U P t ht) k = some r) :
+    ∃ (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f),
+      f.val = k ∧ U.recordOf P t f hf = r := by
+  unfold leafRecord at hr
+  rw [← prePattern_of_leafType U P t ht] at hr
+  change stateRecordAt (stateOf U P t) k = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  · rename_i hk
+    change U.facetRecordOf P t ⟨k, hk⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    · rename_i hf
+      exact ⟨⟨k, hk⟩, hf, rfl, Option.some.inj hr⟩
+  · contradiction
+
+/-- Step 2 of the V4 proof of `actualCont_exists` (V4 2.8):
+"the terminal endpoint of e". Either orientation of a listed edge retains
+its nondegenerate segment carrier. -/
+private theorem actualCont_exists_step2_endpoints {P : Params S} (r : FacetRecord P)
+    (e : PrototypeEdge S r.ty) :
+    (r.endpoints e).1 ≠ (r.endpoints e).2 ∧
+      e.val.carrier = segment ℝ (r.endpoints e).1 (r.endpoints e).2 := by
+  have h := Classical.choose_spec (edge_endpoints_exist (⟨r.ty, e⟩ : EdgeName S))
+  unfold FacetRecord.endpoints
+  split
+  · exact h
+  · exact ⟨Ne.symm h.1, h.2.trans (segment_symm ℝ _ _)⟩
+
+/-- Step 2 of the V4 proof of `actualCont_exists` (V4 2.8):
+"after v in the orientation". All actual active chains on the same edge
+give it the same orientation, which is the orientation read by `endpoints`. -/
+private theorem actualCont_exists_step2_vector (U : HonestSource S) (P : Params S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (c : OrientedChain f) (hc : c ∈ U.recordChains P q f hf)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (c.chain.val.cell edgeIndex).val = e.val) :
+    ((U.recordOf P q f hf).endpoints e).2 -
+      ((U.recordOf P q f hf).endpoints e).1 = chainVector c := by
+  classical
+  let r := U.recordOf P q f hf
+  let edgeOf := fun z : OrientedChain f =>
+    (restrictionOp_source_step4_chains_step1_edge z.chain.val).2
+  have hec : edgeOf c = e := Subtype.ext he
+  have horient (z : OrientedChain f) (hz : z ∈ r.chains) :
+      z.forward = true ↔ 0 < inner ℝ (U.counterDirection P q f hf)
+        ((q.2.val.prototypeFrame q.1).linear (edgeVector ⟨q.2.val.ty, edgeOf z⟩)) :=
+    (Finset.mem_filter.mp hz).2.2
+  have hsame (z : OrientedChain f) (hz : z ∈ r.chains)
+      (hzedge : (z.chain.val.cell edgeIndex).val = e.val) : z.forward = c.forward := by
+    have hez : edgeOf z = e := Subtype.ext hzedge
+    have h := horient c hc
+    have h' := horient z hz
+    rw [hec] at h
+    rw [hez] at h'
+    have hiff := h'.trans h.symm
+    cases hzbit : z.forward <;> cases hcbit : c.forward <;> simp_all
+  have hforward : r.edgeForward e = c.forward := by
+    unfold FacetRecord.edgeForward
+    cases hcf : c.forward with
+    | false =>
+      apply Bool.eq_false_iff.mpr
+      intro hh
+      obtain ⟨z, hz, hze⟩ := List.any_eq_true.mp hh
+      have hp : (z.chain.val.cell edgeIndex).val = e.val ∧ z.forward = true := by
+        simpa using hze
+      have heq := hsame z (Finset.mem_toList.mp hz) hp.1
+      simp_all
+    | true =>
+      apply List.any_eq_true.mpr
+      exact ⟨c, Finset.mem_toList.mpr hc, by simp [he, hcf]⟩
+  change (r.endpoints e).2 - (r.endpoints e).1 = _
+  unfold FacetRecord.endpoints
+  rw [hforward]
+  have hvector : chainVector c =
+      if c.forward then edgeVector ⟨q.2.val.ty, e⟩ else -edgeVector ⟨q.2.val.ty, e⟩ := by
+    change (if c.forward then edgeVector ⟨q.2.val.ty, edgeOf c⟩
+      else -edgeVector ⟨q.2.val.ty, edgeOf c⟩) = _
+    rw [hec]
+  rw [hvector]
+  cases c.forward <;> simp [edgeVector, neg_sub]
+
+/-- Step 2 of the V4 proof of `actualCont_exists` (V4 2.8):
+"v in relint h (transported)". The recorded stratum of a listed vertex
+puts its actual physical point in the relative interior of that provider cell. -/
+private theorem actualCont_exists_step2_vertex (U : HonestSource S) (P : Params S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (v : VertexName S q.2.val.ty) (hv : v.val.carrier ⊆ f.val.carrier)
+    (hτ : (U.recordOf P q f hf).tauAt v.val =
+      some ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val) :
+    q.2.val.prototypeFrame q.1 (vertexPoint v) ∈ relint
+      (U.providerPlacement P q f hf ''
+        ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier) := by
+  have hvc : v.val ∈ (S.cx q.2.val.ty).cells := (vertexCell v).property
+  simp only [FacetRecord.tauAt, HonestSource.recordOf, dif_pos hvc, dif_pos hv,
+    Option.some.injEq] at hτ
+  have hpoint : q.2.val.prototypeFrame q.1 (vertexPoint v) ∈
+      relint (q.2.val.cell q.1 v.val) := by
+    simp only [FramedNode.cell, vertexPoint_spec, Set.image_singleton, relint,
+      intrinsicInterior_singleton, Set.mem_singleton_iff]
+  have h := (U.hierarchy.stratumMap_spec q f hf (vertexCell v)
+    (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩)).1 hpoint
+  rw [← record_tau_spec U P q f hf ⟨vertexCell v, hv⟩] at h
+  simpa only [HonestSource.recordOf, vertexCell, hτ] using h
+
+/-- Step 3 of the V4 proof of `actualCont_exists` (V4 2.8):
+"there is a polygon ... on the far side of v ... with an edge ... with initial
+endpoint v". In the recursive trace, a boundary edge ending inside the flag
+edge has a next listed edge, possibly in the same owner. This is solely the
+local trace geometry; it makes no assertion about records or template labels. -/
+private theorem actualCont_exists_step3_trace_successor (N : FramedNode S) (n : ℕ)
+    (F : FacetFlag S N.ty) (a : TracePiece N.ty F n) (e : Cell d)
+    (he : e ∈ (S.cx (placedTraceOwner N n n F a).ty).edges) (p v : E d)
+    (hne : p ≠ v) (hseg : (placedTraceOwner N n n F a).cell 0 e = segment ℝ p v)
+    (hbottom : (placedTraceOwner N n n F a).cell 0 e ⊆
+      placedTraceCarrier N n n F a)
+    (hflag : (placedTraceOwner N n n F a).cell 0 e ⊆
+      N.cell n (F.cell edgeIndex).val)
+    (hv : v ∈ relint (N.cell n (F.cell edgeIndex).val)) :
+    ∃ (b : TracePiece N.ty F n)
+      (e' : PrototypeEdge S (placedTraceOwner N n n F b).ty)
+      (v' : VertexName S (placedTraceOwner N n n F b).ty) (w : E d),
+      (placedTraceOwner N n n F b).frame (vertexPoint v') = v ∧
+      (placedTraceOwner N n n F b).cell 0 e'.val = segment ℝ v w ∧
+      v ≠ w ∧ (∃ k : ℝ, 0 < k ∧ w - v = k • (v - p)) ∧
+      (placedTraceOwner N n n F b).cell 0 e'.val ⊆
+        placedTraceCarrier N n n F b ∧
+      (placedTraceOwner N n n F b).cell 0 e'.val ⊆
+        N.cell n (F.cell edgeIndex).val := by
+  sorry
+
+/-- Step 4 of the V4 proof of `actualCont_exists` (V4 2.8):
+"same ... serving child H". Reindexing the known height retains the exact
+hierarchy node; membership proofs do not change its identity. -/
+private theorem actualCont_exists_step4_reindex (U : HonestSource S) (H : U.Node)
+    (n : ℕ) (hn : H.1 = n) (hN : H.2.val ∈ U.hierarchy.nodes n) :
+    (⟨n, ⟨H.2.val, hN⟩⟩ : U.Node) = H := by
+  rcases H with ⟨m, M⟩
+  dsimp only at hn hN ⊢
+  subst n
+  rfl
+
+/-- Step 4 of the V4 proof of `actualCont_exists` (V4 2.8):
+"with owner t''". An exact native descendant address identifies the
+ancestor in the fixed hierarchy, including its frame and its height. -/
+private theorem actualCont_exists_step4_ancestor (U : HonestSource S)
+    (q : U.Node) (hq : q.1 = 0) (n : ℕ) (N : FramedNode S)
+    (hN : N ∈ U.hierarchy.nodes n) (w : S.RoleWord N.ty n)
+    (hw : q.2.val = (S.nativeTile N.ty n w).move N.frame) :
+    U.hierarchy.ancestor q n = ⟨n, ⟨N, hN⟩⟩ := by
+  induction n generalizing N with
+  | zero =>
+    have hqN : q.2.val = N := by
+      simpa [SubstSystem.nativeTile, SubstSystem.descendantNode, FramedNode.move] using hw
+    change q = _
+    rcases q with ⟨m, Q, hQ⟩
+    dsimp only at hq hqN
+    subst m
+    cases hqN
+    rfl
+  | succ n ih =>
+    let C := N.child n w.1
+    have hC : C ∈ U.hierarchy.nodes n := U.hierarchy.children_mem n N hN w.1
+    have hqC : q.2.val = (S.nativeTile C.ty n w.2).move C.frame := by
+      rw [hw]
+      apply FramedNode.ext
+      · rfl
+      · ext x
+        simp [SubstSystem.nativeTile, SubstSystem.descendantNode, C,
+          FramedNode.move, FramedNode.child]
+    have ha := ih C hC w.2 hqC
+    have hp : U.hierarchy.parentNode ⟨n, ⟨C, hC⟩⟩ = ⟨n+1, ⟨N, hN⟩⟩ := by
+      apply Sigma.ext
+      · rfl
+      · apply heq_of_eq
+        apply Subtype.ext
+        exact (U.hierarchy.parent_unique n ⟨C, hC⟩ N hN ⟨w.1, rfl⟩).symm
+    change U.hierarchy.parentNode^[n+1] q = _
+    rw [Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor q n) = _
+    rw [ha]
+    exact hp
+
+/-- Step 4 of the V4 proof of `actualCont_exists` (V4 2.8):
+"same provider g, same serving child H". Every descendant facet contained
+in the serving facet inherits its provider, birth parent, and serving node. -/
+private theorem actualCont_exists_step4_provider (U : HonestSource S) (P : Params S)
+    (t q : U.Node) (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (g : FacetName S q.2.val.ty) (r : ℕ)
+    (ha : U.hierarchy.ancestor q r = U.hierarchy.servingChild t f hf)
+    (hsub : q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier t f hf) :
+    ∃ hg : ¬ U.hierarchy.IsFault q g,
+      U.hierarchy.servingChild q g hg = U.hierarchy.servingChild t f hf ∧
+      U.recordIncidence P q g hg = U.recordIncidence P t f hf ∧
+      U.providerPlacement P q g hg = U.providerPlacement P t f hf := by
+  let H := U.hierarchy.servingChild t f hf
+  let F : FacetName S H.2.val.ty := (U.hierarchy.firstProvider t f hf).2
+  have hint : relint (H.2.val.cell H.1 F.val) ⊆
+      interior ((U.hierarchy.parentNode H).2.val.carrier (U.hierarchy.parentNode H).1) := by
+    have h := (U.hierarchy.firstProvider_spec t f hf).2.2
+    have hp : U.hierarchy.ancestor t ((U.hierarchy.firstProvider t f hf).1 + 1) =
+        U.hierarchy.parentNode H := by
+      simp only [H, CoherentHierarchy.servingChild, CoherentHierarchy.ancestor,
+        Function.iterate_succ_apply']
+    have heq := congrArg (fun B : U.Node => B.2.val.carrier B.1) hp
+    exact h.trans_eq (congrArg interior heq)
+  obtain ⟨hF, hcarrier, hbirth, _⟩ := U.hierarchy.restriction_det_internal H F hint
+  obtain ⟨hg, hprovider, hbirth'⟩ := U.hierarchy.provider_inherited H q r ha F g hF hsub
+  have hb : U.hierarchy.birthParent q g hg = U.hierarchy.birthParent t f hf :=
+    hbirth'.trans hbirth
+  have hc : U.hierarchy.providerCarrier q g hg = U.hierarchy.providerCarrier t f hf :=
+    hprovider.trans hcarrier
+  have hserv : U.hierarchy.servingChild q g hg = H := by
+    have hheight := congrArg (fun B : U.Node => B.1) hb
+    change (U.hierarchy.servingChild q g hg).1 + 1 = H.1 + 1 at hheight
+    have hh := U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q g hg).1
+    have hh' := U.hierarchy.ancestor_height q r
+    rw [ha] at hh'
+    have hoff : (U.hierarchy.firstProvider q g hg).1 = r := by
+      change H.1 = q.1 + r at hh'
+      change (U.hierarchy.servingChild q g hg).1 =
+        q.1 + (U.hierarchy.firstProvider q g hg).1 at hh
+      omega
+    simpa only [CoherentHierarchy.servingChild, hoff] using ha
+  have hi := restrictionOp_source_step4_provider_name P U q t g f hg hf hb hc
+  refine ⟨hg, hserv, hi, ?_⟩
+  unfold HonestSource.providerPlacement CoherentHierarchy.birthHeight
+  rw [hb, hi]
+
+/-- Step 4 of the V4 proof of `actualCont_exists` (V4 2.8):
+"by Remark 2.1 (converse part)". Reindex the selected trace by its owner's
+actual serving node and depth, retaining the required top-facet equality. -/
+private theorem actualCont_exists_step4_active (U : HonestSource S) (P : Params S)
+    (q H : U.Node) (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (r : ℕ) (hH : U.hierarchy.servingChild q g hg = H)
+    (hr : (U.hierarchy.firstProvider q g hg).1 = r)
+    (F : FacetFlag S H.2.val.ty) (a : TracePiece H.2.val.ty F r)
+    (hF : ∀ j, H.2.val.cell H.1 (F.cell j).val = U.providerPlacement P q g hg ''
+      ((P.flag (U.recordIncidence P q g hg)).flag.cell j).val.carrier)
+    (ha : placedTraceOwner H.2.val H.1 r F a = q.2.val)
+    (htop : (a.chain.cell traceTopIndex).val = g.val)
+    (e : PrototypeEdge S q.2.val.ty)
+    (heB : q.2.val.cell q.1 e.val ⊆ placedTraceCarrier H.2.val H.1 r F a)
+    (heh : q.2.val.cell q.1 e.val ⊆ U.providerPlacement P q g hg ''
+      ((P.flag (U.recordIncidence P q g hg)).flag.cell edgeIndex).val.carrier) :
+    (U.recordOf P q g hg).ChainActive (edgeCell e) := by
+  subst H
+  subst r
+  exact chain_active_owner_converse U P q g hg F hF a ha htop (edgeCell e)
+    (Finset.mem_filter.mp e.property).2 heB heh
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"both chains lie in the positioned flag". Refinement of a consecutive pair
+of flag cells, with the same affine spans, preserves the local coface side. -/
+private theorem actualCont_exists_step5_coface_side {A B : S.ι}
+    (F : FacetFlag S A) (G : FacetFlag S B) (φ ψ : E d ≃ᵃ[ℝ] E d) (k : FlagStep d)
+    (hlow : relint (φ '' (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) ⊆
+      relint (ψ '' (G.cell ⟨k.val, k.property.1, by omega⟩).val.carrier))
+    (hhigh : relint (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) ⊆
+      relint (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier))
+    (hspanlow : affineSpan ℝ (φ '' (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell ⟨k.val, k.property.1, by omega⟩).val.carrier))
+    (hspanhigh : affineSpan ℝ
+        (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier)) :
+    φ.linear '' flagSide F k = ψ.linear '' flagSide G k := by
+  sorry
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"with owner t''". Every listed cell of an owner lies in its closed tile. -/
+private theorem actualCont_exists_step5_cell_subset (A : S.ι) (e : Cell d)
+    (he : e ∈ (S.cx A).cells) : e.carrier ⊆ (S.proto A).carrier := by
+  have hrel : relint e.carrier ⊆ frontier (S.proto A).carrier := by
+    rw [← (S.cx A).cover]
+    exact Set.subset_iUnion_of_subset e
+      (Set.subset_iUnion_of_subset he Subset.rfl)
+  calc
+    e.carrier = closure (relint e.carrier) := e.flat.regularClosed.symm
+    _ ⊆ closure (frontier (S.proto A).carrier) := closure_mono hrel
+    _ = frontier (S.proto A).carrier := isClosed_frontier.closure_eq
+    _ ⊆ (S.proto A).carrier := (S.proto A).compact.isClosed.frontier_subset
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"both chains lie in the positioned flag". Affine transport of a radial
+tangent cone uses exactly the linear part of the affine frame. -/
+private theorem actualCont_exists_step5_tangent_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) (x : E d) :
+    tangentCone (e '' K) (e x) = e.linear '' tangentCone K x := by
+  have hmap (y u : E d) (t : ℝ) : e (y + t • u) = e y + t • e.linear u := by
+    simpa only [vadd_eq_add, add_comm, map_smul] using e.map_vadd y (t • u)
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hu⟩
+    refine ⟨e.linear.symm u, ⟨ε, hε, ?_⟩, e.linear.apply_symm_apply u⟩
+    intro t ht htε
+    apply e.injective.mem_set_image.mp
+    simpa only [hmap, e.linear.apply_symm_apply] using hu t ht htε
+  · rintro ⟨u, ⟨ε, hε, hu⟩, rfl⟩
+    refine ⟨ε, hε, ?_⟩
+    intro t ht htε
+    rw [← hmap]
+    exact Set.mem_image_of_mem e (hu t ht htε)
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"same ... side". Containment preserves radial tangent directions at a
+common point. -/
+private theorem actualCont_exists_step5_tangent_mono
+    {K L : Set (E d)} (h : K ⊆ L) (x : E d) :
+    tangentCone K x ⊆ tangentCone L x := by
+  rintro u ⟨ε, hε, hu⟩
+  exact ⟨ε, hε, fun t ht htε => h (hu t ht htε)⟩
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"same ... side". The local half-ball description of a facet gives its
+closed inward tangent half-space. -/
+private theorem actualCont_exists_step5_halfball
+    (K : Set (E d)) (p v : E d) (r : ℝ) (hr : 0 < r)
+    (hlocal : K ∩ ball p r = {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r) :
+    tangentCone K p = {u | 0 ≤ inner ℝ v u} := by
+  ext u
+  let δ := r / (‖u‖ + 1)
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  have hδ : 0 < δ := div_pos hr hden
+  have hnear (t : ℝ) (ht : 0 < t) (htδ : t < δ) : p + t • u ∈ ball p r := by
+    change dist (p + t • u) p < r
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+    have := (lt_div_iff₀ hden).mp htδ
+    nlinarith [norm_nonneg u]
+  constructor
+  · rintro ⟨ε, hε, hmem⟩
+    let t := min ε δ / 2
+    have ht : 0 < t := div_pos (lt_min hε hδ) (by norm_num)
+    have htε : t < ε := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_left ε δ)
+    have htδ : t < δ := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_right ε δ)
+    have hm : p + t • u ∈ {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r :=
+      hlocal ▸ ⟨hmem t ht htε, hnear t ht htδ⟩
+    have hnonneg := hm.1
+    change 0 ≤ inner ℝ v (p + t • u - p) at hnonneg
+    rw [add_sub_cancel_left, inner_smul_right] at hnonneg
+    exact nonneg_of_mul_nonneg_right hnonneg ht
+  · intro hu
+    refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+    have hm : p + t • u ∈ K ∩ ball p r := by
+      rw [hlocal]
+      refine ⟨?_, hnear t ht htδ⟩
+      change 0 ≤ inner ℝ v (p + t • u - p)
+      rw [add_sub_cancel_left, inner_smul_right]
+      exact mul_nonneg ht.le hu
+    exact hm.1
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"same ... side". Containment of nontrivial closed linear half-spaces
+forces their equality. -/
+private theorem actualCont_exists_step5_halfspace
+    (f g : E d →ₗ[ℝ] ℝ) (hf : f ≠ 0)
+    (hsub : {x | 0 ≤ f x} ⊆ {x | 0 ≤ g x}) :
+    {x | 0 ≤ f x} = {x | 0 ≤ g x} ∨ g = 0 := by
+  classical
+  obtain ⟨v, hv⟩ : ∃ v, f v ≠ 0 := by
+    by_contra h
+    apply hf
+    ext v
+    simpa using not_exists.mp h v
+  let w := (f v)⁻¹ • v
+  have hw : f w = 1 := by simp [w, hv]
+  have hg : 0 ≤ g w := hsub (by simp [hw])
+  have heq (x : E d) : g x = f x * g w := by
+    have hz : f (x - f x • w) = 0 := by simp [hw]
+    have h₁ := hsub (a := x - f x • w) (by simp [hz])
+    have h₂ := hsub (a := -(x - f x • w)) (by change 0 ≤ f (-(x - f x • w)); rw [map_neg, hz]; simp)
+    simp only [Set.mem_setOf_eq, map_sub, map_smul, map_neg, smul_eq_mul] at h₁ h₂
+    linarith
+  by_cases hgw : g w = 0
+  · right
+    ext x
+    simp [heq x, hgw]
+  · left
+    ext x
+    simp only [Set.mem_setOf_eq, heq x]
+    exact (mul_nonneg_iff_of_pos_right (lt_of_le_of_ne hg (Ne.symm hgw))).symm
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"both chains lie in the positioned flag". Every affine-span direction
+is tangent at a relative-interior point of a cell. -/
+private theorem actualCont_exists_step5_relint_directions
+    (K : Set (E d)) (p : E d) (hp : p ∈ relint K) :
+    (cellDirection K : Set (E d)) ⊆ tangentCone K p := by
+  obtain ⟨q, hq, rfl⟩ := hp
+  obtain ⟨r, hr, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hq)
+  intro u hu
+  let δ := r / (‖u‖ + 1)
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  refine ⟨δ, div_pos hr hden, fun t ht htδ => ?_⟩
+  have hmem : q.val + t • u ∈ affineSpan ℝ K := by
+    simpa only [vadd_eq_add, add_comm] using
+      AffineSubspace.vadd_mem_of_mem_direction ((cellDirection K).smul_mem t hu) q.property
+  apply hball (a := ⟨q.val + t • u, hmem⟩)
+  change dist (q.val + t • u) q.val < r
+  rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+  have := (lt_div_iff₀ hden).mp htδ
+  nlinarith [norm_nonneg u]
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"same ... side". The inward tangent cone is constant along the connected
+relative interior of a listed facet. -/
+private theorem actualCont_exists_step5_facet_cone
+    (A : S.ι) (f : FacetName S A) (p q : E d)
+    (hp : p ∈ relint f.val.carrier) (hq : q ∈ relint f.val.carrier) :
+    tangentCone (S.proto A).carrier p = tangentCone (S.proto A).carrier q := by
+  let R := relint f.val.carrier
+  let cone : R → Set (E d) := fun x => tangentCone (S.proto A).carrier x.val
+  have hsub : f.val.carrier ⊆ (S.proto A).carrier :=
+    actualCont_exists_step5_cell_subset A f.val (Finset.mem_filter.mp f.property).1
+  have hloc : IsLocallyConstant cone := by
+    apply (IsLocallyConstant.iff_exists_open cone).mpr
+    intro x
+    obtain ⟨r, hr, v, _, _, _, hlocal⟩ :=
+      facet_halfball (S.proto A) (S.cx A) f.val f.property x.val x.property
+    have hc := actualCont_exists_step5_halfball _ _ v r hr hlocal
+    have hnormal (u : E d) (hu : u ∈ cellDirection f.val.carrier) : inner ℝ v u = 0 := by
+      have hnonneg (w : E d) (hw : w ∈ cellDirection f.val.carrier) : 0 ≤ inner ℝ v w := by
+        have h := actualCont_exists_step5_tangent_mono hsub x.val
+          (actualCont_exists_step5_relint_directions _ _ x.property hw)
+        simpa only [hc, Set.mem_setOf_eq] using h
+      have h₁ := hnonneg u hu
+      have h₂ := hnonneg (-u) ((cellDirection f.val.carrier).neg_mem hu)
+      rw [inner_neg_right] at h₂
+      linarith
+    refine ⟨Subtype.val ⁻¹' ball x.val r, isOpen_ball.preimage continuous_subtype_val,
+      by simpa only [Set.mem_preimage, mem_ball, dist_self] using hr, ?_⟩
+    intro y hy
+    have hyx : inner ℝ v (y.val - x.val) = 0 := hnormal _
+      (AffineSubspace.vsub_mem_direction
+        (subset_affineSpan ℝ _ (intrinsicInterior_subset y.property))
+        (subset_affineSpan ℝ _ (intrinsicInterior_subset x.property)))
+    have hδ : 0 < r - dist y.val x.val := sub_pos.mpr hy
+    have hball : ball y.val (r - dist y.val x.val) ⊆ ball x.val r := by
+      intro z hz
+      change dist z x.val < r
+      have ht := dist_triangle z y.val x.val
+      change dist z y.val < r - dist y.val x.val at hz
+      linarith
+    have htranslate (z : E d) : inner ℝ v (z - x.val) = inner ℝ v (z - y.val) := by
+      have he : z - x.val = (z - y.val) + (y.val - x.val) := by module
+      rw [he, inner_add_right, hyx, add_zero]
+    have hlocal' : (S.proto A).carrier ∩ ball y.val (r - dist y.val x.val) =
+        {z | 0 ≤ inner ℝ v (z - y.val)} ∩ ball y.val (r - dist y.val x.val) := by
+      ext z
+      constructor
+      · rintro ⟨hz, hzball⟩
+        have hm : z ∈ {z | 0 ≤ inner ℝ v (z - x.val)} ∩ ball x.val r :=
+          hlocal ▸ ⟨hz, hball hzball⟩
+        exact ⟨by simpa only [Set.mem_setOf_eq, htranslate z] using hm.1, hzball⟩
+      · rintro ⟨hz, hzball⟩
+        have hm : z ∈ (S.proto A).carrier ∩ ball x.val r := by
+          rw [hlocal]
+          exact ⟨by simpa only [Set.mem_setOf_eq, htranslate z] using hz, hball hzball⟩
+        exact ⟨hm.1, hzball⟩
+    exact (actualCont_exists_step5_halfball _ _ v _ hδ hlocal').trans hc.symm
+  letI : PreconnectedSpace R := isPreconnected_iff_preconnectedSpace.mp
+    f.val.flat.relint_connected.isPreconnected
+  exact hloc.apply_eq_of_preconnectedSpace ⟨p, hp⟩ ⟨q, hq⟩
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"same ... side (same provider g, same serving child H)". A contained
+tile and its ancestor have the same inward half-space along an inherited facet. -/
+private theorem actualCont_exists_step5_inward {A B : S.ι}
+    (f : FacetName S A) (F : FacetName S B) (φ ψ : E d ≃ᵃ[ℝ] E d)
+    (hsub : φ '' (S.proto A).carrier ⊆ ψ '' (S.proto B).carrier)
+    (hrel : relint (φ '' f.val.carrier) ⊆ relint (ψ '' F.val.carrier)) :
+    φ.linear '' tangentCone (S.proto A).carrier (cellAnchor f.val) =
+      ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor F.val) := by
+  let p := cellAnchor f.val
+  let q := ψ.symm (φ p)
+  have hp : p ∈ relint f.val.carrier := cellAnchor_mem _
+  have hq : q ∈ relint F.val.carrier := by
+    have h := hrel (by rw [restrictionOp_source_step5_relint_image]; exact ⟨p, hp, rfl⟩)
+    rw [restrictionOp_source_step5_relint_image] at h
+    obtain ⟨z, hz, he⟩ := h
+    simpa only [q, ← he, AffineEquiv.symm_apply_apply] using hz
+  have hpq : ψ q = φ p := ψ.apply_symm_apply _
+  obtain ⟨r, hr, v, hv, _, _, hlocal⟩ :=
+    facet_halfball (S.proto A) (S.cx A) f.val f.property p hp
+  obtain ⟨s, hs, w, hw, _, _, hlocal'⟩ :=
+    facet_halfball (S.proto B) (S.cx B) F.val F.property q hq
+  have hcp := actualCont_exists_step5_halfball _ _ v r hr hlocal
+  have hcq := actualCont_exists_step5_halfball _ _ w s hs hlocal'
+  let l : E d →ₗ[ℝ] ℝ := (innerₛₗ ℝ v).comp φ.linear.symm.toLinearMap
+  let m : E d →ₗ[ℝ] ℝ := (innerₛₗ ℝ w).comp ψ.linear.symm.toLinearMap
+  have himage (L : E d ≃ₗ[ℝ] E d) (v : E d) :
+      L '' {z | 0 ≤ inner ℝ v z} = {z | 0 ≤ inner ℝ v (L.symm z)} := by
+    ext z
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      simpa only [Set.mem_setOf_eq, LinearEquiv.symm_apply_apply] using hy
+    · intro hz
+      exact ⟨L.symm z, hz, L.apply_symm_apply z⟩
+  have hl : φ.linear '' tangentCone (S.proto A).carrier p = {z | 0 ≤ l z} := by
+    rw [hcp, himage]
+    rfl
+  have hm : ψ.linear '' tangentCone (S.proto B).carrier q = {z | 0 ≤ m z} := by
+    rw [hcq, himage]
+    rfl
+  have hlne : l ≠ 0 := by
+    intro h
+    have he := congrArg (fun k : E d →ₗ[ℝ] ℝ => k (φ.linear v)) h
+    change inner ℝ v (φ.linear.symm (φ.linear v)) = 0 at he
+    rw [LinearEquiv.symm_apply_apply, real_inner_self_eq_norm_sq, hv] at he
+    norm_num at he
+  have hmne : m ≠ 0 := by
+    intro h
+    have he := congrArg (fun k : E d →ₗ[ℝ] ℝ => k (ψ.linear w)) h
+    change inner ℝ w (ψ.linear.symm (ψ.linear w)) = 0 at he
+    rw [LinearEquiv.symm_apply_apply, real_inner_self_eq_norm_sq, hw] at he
+    norm_num at he
+  have hcones : {z | 0 ≤ l z} ⊆ {z | 0 ≤ m z} := by
+    rw [← hl, ← hm,
+      ← actualCont_exists_step5_tangent_image,
+      ← actualCont_exists_step5_tangent_image, hpq]
+    exact actualCont_exists_step5_tangent_mono hsub _
+  have heq := (actualCont_exists_step5_halfspace l m hlne hcones).resolve_right hmne
+  have hconst := actualCont_exists_step5_facet_cone B F q
+    (cellAnchor F.val) hq (cellAnchor_mem _)
+  exact hl.trans (heq.trans (hm.symm.trans (congrArg (ψ.linear '' ·) hconst)))
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"selected owners ... of H". A native descendant is contained in the
+positioned ancestor, as follows from the prescribed native subdivision. -/
+private theorem actualCont_exists_step5_subset (N Q : FramedNode S) (n : ℕ)
+    (hQ : Q.IsDescendant 0 N n) : Q.carrier 0 ⊆ N.carrier n := by
+  obtain ⟨r, hr, w, rfl⟩ := hQ
+  simp only [zero_add] at hr
+  subst r
+  have hnative : (S.nativeTile N.ty n w).carrier 0 ⊆ S.supertile n N.ty := by
+    rw [← S.native_cover N.ty n]
+    exact Set.subset_iUnion_of_subset w Subset.rfl
+  have h := Set.image_mono (f := N.frame) hnative
+  simpa only [FramedNode.carrier, FramedNode.move, placedSet, Set.image_image,
+    AffineIsometryEquiv.coe_trans, Function.comp_apply, SubstSystem.nativeTile] using h
+
+/-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
+"both chains lie in the positioned flag ... with its orientations".
+Active chains with the same placed provider and serving child agree in all
+the affine spans, successive sides, edge orientation, and inward tile side. -/
+private theorem actualCont_exists_step5_aligned (U : HonestSource S) (P : Params S)
+    (t q : U.Node) (ht : t.1 = 0) (hq : q.1 = 0)
+    (f : FacetName S t.2.val.ty) (g : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault t f) (hg : ¬ U.hierarchy.IsFault q g)
+    (c : OrientedChain f) (c' : OrientedChain g)
+    (hc : c ∈ U.recordChains P t f hf) (hc' : c' ∈ U.recordChains P q g hg)
+    (hserv : U.hierarchy.servingChild q g hg = U.hierarchy.servingChild t f hf)
+    (hi : U.recordIncidence P q g hg = U.recordIncidence P t f hf)
+    (hp : U.providerPlacement P q g hg = U.providerPlacement P t f hf) :
+    ChainsAligned (U.recordOf P t f hf) (U.recordOf P q g hg) c c'
+      (q.2.val.frame.trans t.2.val.frame.symm) := by
+  classical
+  have hct : U.ActiveChain P t f hf c := (Finset.mem_filter.mp hc).2
+  have hcq : U.ActiveChain P q g hg c' := (Finset.mem_filter.mp hc').2
+  have fit (x : U.Node) (fx : FacetName S x.2.val.ty)
+      (hfx : ¬ U.hierarchy.IsFault x fx) (cx : OrientedChain fx)
+      (hcx : U.ActiveChain P x fx hfx cx) (j : FlagIndex d) :
+      relint (x.2.val.cell x.1 (cx.chain.val.cell j).val) ⊆
+          relint (U.providerPlacement P x fx hfx ''
+            ((P.flag (U.recordIncidence P x fx hfx)).flag.cell j).val.carrier) ∧
+        affineSpan ℝ (x.2.val.cell x.1 (cx.chain.val.cell j).val) =
+          affineSpan ℝ (U.providerPlacement P x fx hfx ''
+            ((P.flag (U.recordIncidence P x fx hfx)).flag.cell j).val.carrier) := by
+    obtain ⟨hs, hτ, hspan⟩ := hcx.1 j
+    exact ⟨by simpa only [hτ] using
+      (U.hierarchy.stratumMap_spec x fx hfx (cx.chain.val.cell j) hs).1, hspan⟩
+  have side (x : U.Node) (hx : x.1 = 0) (fx : FacetName S x.2.val.ty)
+      (hfx : ¬ U.hierarchy.IsFault x fx) (cx : OrientedChain fx)
+      (hcx : U.ActiveChain P x fx hfx cx) (k : FlagStep d) :
+      x.2.val.frame.linearIsometryEquiv '' flagSide cx.chain.val k =
+        (U.providerPlacement P x fx hfx).linear ''
+          flagSide (P.flag (U.recordIncidence P x fx hfx)).flag k := by
+    have h := actualCont_exists_step5_coface_side cx.chain.val
+      (P.flag (U.recordIncidence P x fx hfx)).flag (x.2.val.prototypeFrame x.1)
+      (U.providerPlacement P x fx hfx) k (fit x fx hfx cx hcx _).1
+      (fit x fx hfx cx hcx _).1 (fit x fx hfx cx hcx _).2
+      (fit x fx hfx cx hcx _).2
+    simpa [FramedNode.prototypeFrame, hx] using h
+  let H := U.hierarchy.servingChild t f hf
+  let F : FacetName S H.2.val.ty := (U.hierarchy.firstProvider t f hf).2
+  have inward (x : U.Node) (hx : x.1 = 0) (fx : FacetName S x.2.val.ty)
+      (hfx : ¬ U.hierarchy.IsFault x fx) (cx : OrientedChain fx)
+      (hcx : U.ActiveChain P x fx hfx cx)
+      (hH : U.hierarchy.servingChild x fx hfx = H)
+      (hcarrier : U.hierarchy.providerCarrier x fx hfx = H.2.val.cell H.1 F.val) :
+      x.2.val.frame.linearIsometryEquiv ''
+        tangentCone (S.proto x.2.val.ty).carrier (cellAnchor fx.val) =
+      (H.2.val.prototypeFrame H.1).linear ''
+        tangentCone (S.proto H.2.val.ty).carrier (cellAnchor F.val) := by
+    have hd := U.hierarchy.ancestor_descendant x (U.hierarchy.firstProvider x fx hfx).1
+    change x.2.val.IsDescendant x.1
+      (U.hierarchy.servingChild x fx hfx).2.val
+      (U.hierarchy.servingChild x fx hfx).1 at hd
+    have hd' : x.2.val.IsDescendant 0 H.2.val H.1 := by
+      have hn := congrArg (fun B : U.Node => B.2.val) hH
+      have hh := congrArg (fun B : U.Node => B.1) hH
+      simpa only [hx, hn, hh] using hd
+    have hsub := actualCont_exists_step5_subset H.2.val x.2.val H.1 hd'
+    have hrel := (fit x fx hfx cx hcx facetIndex).1
+    rw [cx.chain.property, (P.flag (U.recordIncidence P x fx hfx)).top,
+      record_provider_carrier, hcarrier] at hrel
+    have h := actualCont_exists_step5_inward fx F (x.2.val.prototypeFrame 0)
+      (H.2.val.prototypeFrame H.1)
+      (by simpa [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+        SubstSystem.supertile, Set.image_image] using hsub)
+      (by simpa only [hx] using hrel)
+    simpa [FramedNode.prototypeFrame] using h
+  have hcarrier : U.hierarchy.providerCarrier q g hg = H.2.val.cell H.1 F.val := by
+    rw [← record_provider_carrier U P q g hg, hp, hi, record_provider_carrier]
+    rfl
+  have htin := inward t ht f hf c hct rfl rfl
+  have hqin := inward q hq g hg c' hcq hserv hcarrier
+  have hlin (x : E d) : t.2.val.frame.linearIsometryEquiv
+      ((q.2.val.frame.trans t.2.val.frame.symm).linearIsometryEquiv x) =
+        q.2.val.frame.linearIsometryEquiv x := by
+    change t.2.val.frame.linearIsometryEquiv
+      (t.2.val.frame.linearIsometryEquiv.symm (q.2.val.frame.linearIsometryEquiv x)) = _
+    exact t.2.val.frame.linearIsometryEquiv.apply_symm_apply _
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro j
+    have hs := (fit t f hf c hct j).2
+    have hs' := (fit q g hg c' hcq j).2
+    rw [hp, hi] at hs'
+    have heq := hs.trans hs'.symm
+    apply (restrictionOp_source_step4_chains_step2_span t.2.val.frame.toAffineEquiv
+      (c.chain.val.cell j).val.carrier
+      ((q.2.val.frame.trans t.2.val.frame.symm) '' (c'.chain.val.cell j).val.carrier)).mp
+    simpa [FramedNode.cell, FramedNode.prototypeFrame, ht, hq, Set.image_image] using heq
+  · intro k
+    have hs := side t ht f hf c hct k
+    have hs' := side q hq g hg c' hcq k
+    rw [hp, hi] at hs'
+    apply t.2.val.frame.linearIsometryEquiv.injective.image_injective
+    simpa only [Set.image_image, hlin] using hs.trans hs'.symm
+  · obtain ⟨a, ha, hca⟩ :=
+      ((restrictionOp_source_step4_chains_step1_test U P t f hf c).mp hct).2
+    obtain ⟨b, hb, hcb⟩ :=
+      ((restrictionOp_source_step4_chains_step1_test U P q g hg c').mp hcq).2
+    change U.counterDirection P t f hf =
+      a • (t.2.val.prototypeFrame t.1).linear (chainVector c) at hca
+    change U.counterDirection P q g hg =
+      b • (q.2.val.prototypeFrame q.1).linear (chainVector c') at hcb
+    have hcbn : U.counterDirection P q g hg =
+        b • q.2.val.frame.linearIsometryEquiv (chainVector c') := by
+      simpa [FramedNode.prototypeFrame, hq] using hcb
+    have hdir : U.counterDirection P q g hg = U.counterDirection P t f hf := by
+      unfold HonestSource.counterDirection
+      rw [hp, hi]
+    rw [hdir, hca] at hcb
+    have hcb' : a • t.2.val.frame.linearIsometryEquiv (chainVector c) =
+        b • q.2.val.frame.linearIsometryEquiv (chainVector c') := by
+      simpa [FramedNode.prototypeFrame, ht, hq] using hcb
+    have hvec : t.2.val.frame.linearIsometryEquiv (chainVector c) =
+        (b / a) • q.2.val.frame.linearIsometryEquiv (chainVector c') := by
+      calc
+        _ = a⁻¹ • (a • t.2.val.frame.linearIsometryEquiv (chainVector c)) :=
+          (inv_smul_smul₀ (ne_of_gt ha) _).symm
+        _ = _ := by rw [hcb', smul_smul, ← div_eq_inv_mul]
+    have hne : q.2.val.frame.linearIsometryEquiv (chainVector c') ≠ 0 := by
+      have hnonzero : U.counterDirection P q g hg ≠ 0 := by
+        intro hzero
+        have hz := (U.providerPlacement P q g hg).linear.injective
+          (hzero.trans (map_zero _).symm)
+        exact (P.flag (U.recordIncidence P q g hg)).distinct (sub_eq_zero.mp hz).symm
+      intro hz
+      apply hnonzero
+      rw [hcbn, hz, smul_zero]
+    have hpos : 0 < inner ℝ (t.2.val.frame.linearIsometryEquiv (chainVector c))
+        (q.2.val.frame.linearIsometryEquiv (chainVector c')) := by
+      rw [hvec, real_inner_smul_left]
+      exact mul_pos (div_pos hb ha) (real_inner_self_pos.mpr hne)
+    simpa only [LinearIsometryEquiv.inner_map_eq_flip] using hpos
+  · apply t.2.val.frame.linearIsometryEquiv.injective.image_injective
+    simpa only [Set.image_image, hlin, HonestSource.recordOf] using htin.trans hqin.symm
+
+/-- Step 6 of the V4 proof of `actualCont_exists` (V4 2.8):
+"initial endpoint v". The order of the endpoints of a nondegenerate segment
+is determined by a positive inner product of the two directed edge vectors. -/
+private theorem actualCont_exists_step6_order (a b v w : E d)
+    (hseg : segment ℝ a b = segment ℝ v w)
+    (hpos : 0 < inner ℝ (b - a) (w - v)) : a = v ∧ b = w := by
+  have first (a b v w : E d) (hs : segment ℝ a b = segment ℝ v w)
+      (hp : 0 < inner ℝ (b - a) (w - v)) : a = v := by
+    have ha : a ∈ segment ℝ v w := hs ▸ left_mem_segment ℝ a b
+    have hv : v ∈ segment ℝ a b := hs.symm ▸ left_mem_segment ℝ v w
+    rw [segment_eq_image'] at ha hv
+    obtain ⟨s, hs, hsa⟩ := ha
+    obtain ⟨t, ht, htv⟩ := hv
+    have heq : s • (w - v) + t • (b - a) = 0 := by
+      have hs' : s • (w - v) = a - v := by rw [← hsa]; module
+      have ht' : t • (b - a) = v - a := by rw [← htv]; module
+      rw [hs', ht']
+      module
+    have h := congrArg (inner ℝ (b - a)) heq
+    simp only [inner_add_right, real_inner_smul_right, inner_zero_right] at h
+    have hn : 0 ≤ inner ℝ (b - a) (b - a) := real_inner_self_nonneg
+    have hs0 : s = 0 := by nlinarith [mul_nonneg ht.1 hn, hs.1]
+    simpa only [hs0, zero_smul, add_zero] using hsa.symm
+  refine ⟨first a b v w hseg hpos, first b a w v ?_ ?_⟩
+  · simpa only [segment_symm ℝ b a, segment_symm ℝ w v] using hseg
+  · simpa only [← neg_sub a b, ← neg_sub v w, inner_neg_left, inner_neg_right,
+      neg_neg] using hpos
+
+/-- Step 6 of the V4 proof of `actualCont_exists` (V4 2.8):
+"on the far side of v (after v in the orientation)". Two consecutive
+positively directed intervals form their full segment, with the junction inside. -/
+private theorem actualCont_exists_step6_join (p v w : E d)
+    (hnext : ∃ k : ℝ, 0 < k ∧ w - v = k • (v - p)) :
+    segment ℝ p v ∪ segment ℝ v w = segment ℝ p w ∧
+      v ∈ openSegment ℝ p w := by
+  obtain ⟨k, hk, hw⟩ := hnext
+  have hk1 : 0 < 1 + k := by linarith
+  have hwp : w - p = (1 + k) • (v - p) := by
+    calc
+      _ = (w - v) + (v - p) := by module
+      _ = _ := by rw [hw, add_smul, one_smul]; module
+  have hv : v ∈ openSegment ℝ p w := by
+    rw [openSegment_eq_image']
+    refine ⟨(1 + k)⁻¹, ⟨inv_pos.mpr hk1, ?_⟩, ?_⟩
+    · exact (inv_lt_one₀ hk1).mpr (by linarith)
+    · change p + (1 + k)⁻¹ • (w - p) = v
+      rw [hwp, inv_smul_smul₀ (ne_of_gt hk1)]
+      module
+  refine ⟨?_, hv⟩
+  have hvseg := openSegment_subset_segment ℝ p w hv
+  have hconv := convex_segment p w (𝕜 := ℝ)
+  apply Set.Subset.antisymm
+  · exact union_subset
+      (hconv.segment_subset (left_mem_segment ℝ p w) hvseg)
+      (hconv.segment_subset hvseg (right_mem_segment ℝ p w))
+  · intro x hx
+    have hvrange : v ∈ Set.range (AffineMap.lineMap p w : ℝ → E d) := by
+      rw [openSegment_eq_image_lineMap] at hv
+      obtain ⟨s, _, hs⟩ := hv
+      exact ⟨s, hs⟩
+    rw [← insert_endpoints_openSegment] at hx
+    simp only [Set.mem_insert_iff] at hx
+    rcases hx with hxp | hxw | hx
+    · subst x
+      exact Or.inl (left_mem_segment ℝ p v)
+    · subst x
+      exact Or.inr (right_mem_segment ℝ v w)
+    · have hm := openSegment_subset_union p w hvrange hx
+      simp only [Set.mem_insert_iff, Set.mem_union] at hm
+      rcases hm with hxv | hm | hm
+      · subst x
+        exact Or.inl (right_mem_segment ℝ p v)
+      · exact Or.inl (openSegment_subset_segment ℝ p v hm)
+      · exact Or.inr (openSegment_subset_segment ℝ v w hm)
+
+/-- Step 6 of the V4 proof of `actualCont_exists` (V4 2.8):
+"(t,t'') ... realised by actual tiles". Two actual native nodes, including
+the case of equal nodes, give a finite configuration with their actual labels. -/
+private theorem actualCont_exists_step6_configuration (U : HonestSource S) (P : Params S)
+    (t q : U.Node) (ht : t.1 = 0) (hq : q.1 = 0) :
+    ∃ θ : Template P,
+      θ.central = leafTypeOf U P t ht ∧
+      θ.tiles =
+        {((⟨(leafTypeOf U P t ht).prototype, AffineIsometryEquiv.refl ℝ (E d)⟩ :
+          FramedNode S), leafTypeOf U P t ht),
+          (q.2.val.move t.2.val.frame.symm, leafTypeOf U P q hq)} ∧
+      θ.annotation = none ∧ IsActualTemplate U P t ht θ := by
+  classical
+  let zt := (t.2.val.move t.2.val.frame.symm, leafTypeOf U P t ht)
+  let zq := (q.2.val.move t.2.val.frame.symm, leafTypeOf U P q hq)
+  have hcentral : t.2.val.move t.2.val.frame.symm =
+      (⟨(leafTypeOf U P t ht).prototype, AffineIsometryEquiv.refl ℝ (E d)⟩ :
+        FramedNode S) := by
+    apply FramedNode.ext
+    · exact (leafTypeOf_type U P t ht).symm
+    · exact AffineIsometryEquiv.self_trans_symm _
+  have hdis : zt ≠ zq → Disjoint (interior (zt.1.carrier 0))
+      (interior (zq.1.carrier 0)) := by
+    intro hne
+    have hnode : t.2.val ≠ q.2.val := by
+      intro heq
+      have htq : t = q := by
+        rcases t with ⟨m, T, hT⟩
+        rcases q with ⟨n, Q, hQ⟩
+        dsimp only at ht hq heq
+        subst m
+        subst n
+        cases heq
+        rfl
+      cases htq
+      exact hne rfl
+    have hd := U.hierarchy.disjoint 0 (by simpa only [ht] using t.2.property)
+      (by simpa only [hq] using q.2.property) hnode
+    have himage (N : FramedNode S) :
+        interior ((N.move t.2.val.frame.symm).carrier 0) =
+          t.2.val.frame.symm '' interior (N.carrier 0) := by
+      have hc : (N.move t.2.val.frame.symm).carrier 0 =
+          t.2.val.frame.symm.toHomeomorph '' N.carrier 0 := by
+        simp only [FramedNode.carrier, FramedNode.move, placedSet, Set.image_image]
+        rfl
+      rw [hc, ← Homeomorph.image_interior]
+      rfl
+    change Disjoint (interior ((t.2.val.move t.2.val.frame.symm).carrier 0))
+      (interior ((q.2.val.move t.2.val.frame.symm).carrier 0))
+    rw [himage, himage]
+    exact (Set.disjoint_image_iff t.2.val.frame.symm.injective).mpr hd
+  let θ : Template P := {
+    central := leafTypeOf U P t ht
+    tiles := {zt, zq}
+    types_match := by
+      intro z hz
+      simp only [Finset.mem_insert, Finset.mem_singleton] at hz
+      rcases hz with rfl | rfl
+      · exact (leafTypeOf_type U P t ht).symm
+      · exact (leafTypeOf_type U P q hq).symm
+    disjoint := by
+      intro z hz w hw hne
+      simp only [Finset.mem_coe, Finset.mem_insert, Finset.mem_singleton] at hz hw
+      rcases hz with rfl | rfl <;> rcases hw with rfl | rfl
+      · exact (hne rfl).elim
+      · exact hdis hne
+      · exact (hdis (Ne.symm hne)).symm
+      · exact (hne rfl).elim
+    central_mem := by
+      change _ ∈ ({zt, zq} : Finset (FramedNode S × LeafType P))
+      rw [← hcentral]
+      exact Finset.mem_insert_self _ _
+    annotation := none }
+  refine ⟨θ, rfl, ?_, rfl, rfl, ?_⟩
+  · change ({zt, zq} : Finset (FramedNode S × LeafType P)) = _
+    simp only [zt, hcentral]
+    rfl
+  · intro z hz
+    change z ∈ ({zt, zq} : Finset (FramedNode S × LeafType P)) at hz
+    simp only [Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with rfl | rfl
+    · exact ⟨t, ht, rfl, rfl⟩
+    · exact ⟨q, hq, rfl, rfl⟩
+
 /-- Q14, V4 2.8 (CONT geometry): the actual next selected owner supplies a physical
 continuation template. This existence lemma asserts geometry and actual labels only;
 it does not assume or assert the CONT row. -/
 theorem actualCont_exists (U : HonestSource S) (P : Params S) (t : U.Node)
     (ht : t.1 = 0) (slot : ContSlot (leafTypeOf U P t ht)) :
     ∃ T : ContTemplate slot, IsActualTemplate U P t ht T.configuration := by
-  sorry
+  classical
+  rcases slot with ⟨facet, r, hread, htype, hfacet, e, hactive, v, hvf, hterminal,
+    htau, packet, hpacket⟩
+  obtain ⟨f, hf, _, hr⟩ := actualCont_exists_step1_record U P t ht facet.val r hread
+  subst r
+  obtain ⟨c, hc, he⟩ := hactive
+  change (c.chain.val.cell edgeIndex).val = e.val at he
+  have hct : U.ActiveChain P t f hf c := (Finset.mem_filter.mp hc).2
+  let H := U.hierarchy.servingChild t f hf
+  let n := (U.hierarchy.firstProvider t f hf).1
+  have hHheight : H.1 = n := by
+    simpa only [ht, zero_add] using U.hierarchy.ancestor_height t n
+  obtain ⟨F, a, hF, ha, hcells⟩ := chain_active_owner U P t f hf c hc
+  have hF' (j : FlagIndex d) : H.2.val.cell n (F.cell j).val =
+      U.providerPlacement P t f hf ''
+        ((P.flag (U.recordIncidence P t f hf)).flag.cell j).val.carrier := by
+    have h := hF j
+    change H.2.val.cell H.1 (F.cell j).val = _ at h
+    simpa only [hHheight] using h
+  have ha' : placedTraceOwner H.2.val n n F a = t.2.val := by
+    change placedTraceOwner H.2.val H.1 n F a = t.2.val at ha
+    simpa only [hHheight] using ha
+  have hebottom : e.val.carrier ⊆ a.bottom.val.carrier := by
+    rw [← he]
+    change _ ⊆ (a.chain.cell TracePiece.bottomIndex).val.carrier
+    rw [hcells TracePiece.bottomIndex]
+    exact c.chain.val.nested _ _ traceDimension_pos
+  have hbottom : t.2.val.cell 0 e.val ⊆ placedTraceCarrier H.2.val n n F a := by
+    have h := placedTraceOwner_cells H.2.val n n le_rfl F a a.bottom.val
+    rw [ha', Nat.sub_self] at h
+    exact (Set.image_mono hebottom).trans_eq h
+  have hedge : t.2.val.cell 0 e.val ⊆ H.2.val.cell n (F.cell edgeIndex).val := by
+    obtain ⟨hs, hτ, _⟩ := hct.1 edgeIndex
+    have h := closure_mono (U.hierarchy.stratumMap_spec t f hf
+      (c.chain.val.cell edgeIndex) hs).1
+    simp only [restrictionOp_source_step5_cell_closure] at h
+    rw [hτ, ← hF' edgeIndex, he] at h
+    simpa only [ht] using h
+  let p := t.2.val.frame ((U.recordOf P t f hf).endpoints e).1
+  let x := t.2.val.frame (vertexPoint v)
+  have hx : x ∈ relint (H.2.val.cell n (F.cell edgeIndex).val) := by
+    rw [hF' edgeIndex]
+    simpa [x, FramedNode.prototypeFrame, ht] using
+      actualCont_exists_step2_vertex U P t f hf v hvf htau
+  have hseg : t.2.val.cell 0 e.val = segment ℝ p x := by
+    have h := image_segment ℝ t.2.val.frame.toAffineEquiv.toAffineMap
+      ((U.recordOf P t f hf).endpoints e).1 ((U.recordOf P t f hf).endpoints e).2
+    rw [← (actualCont_exists_step2_endpoints (U.recordOf P t f hf) e).2] at h
+    simpa [FramedNode.cell, FramedNode.prototypeFrame, p, x, hterminal] using h
+  have hpx : p ≠ x := by
+    intro h
+    apply (actualCont_exists_step2_endpoints (U.recordOf P t f hf) e).1
+    exact (t.2.val.frame.injective h).trans hterminal
+  obtain ⟨b, e', v', w, hv', hseg', hxw, hnext, hbottom', hedge'⟩ :=
+    actualCont_exists_step3_trace_successor H.2.val n F a e.val
+      (by rw [ha']; exact e.property) p x hpx (by rw [ha']; exact hseg)
+      (by rw [ha']; exact hbottom) (by rw [ha']; exact hedge) hx
+  let Q := placedTraceOwner H.2.val n n F b
+  have hHmem : H.2.val ∈ U.hierarchy.nodes n := by
+    simpa only [hHheight] using H.2.property
+  have hQ : Q ∈ U.hierarchy.nodes 0 := by
+    simpa only [Nat.sub_self] using
+      U.hierarchy.placedTraceOwner_mem H.2.val n n hHmem le_rfl F b
+  let q : U.Node := ⟨0, ⟨Q, hQ⟩⟩
+  have hqty : q.2.val.ty = b.tile.ty := by
+    simp only [q, Q, placedTraceOwner, FramedNode.move, Nat.sub_self,
+      TracePiece.tile, SubstSystem.nativeTile]
+  let g : FacetName S q.2.val.ty := ⟨(b.chain.cell traceTopIndex).val, by
+    rw [hqty]
+    exact Finset.mem_filter.mpr
+      ⟨(b.chain.cell traceTopIndex).property, b.chain.dimension traceTopIndex⟩⟩
+  have hsub : q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier t f hf := by
+    calc
+      _ = tracePlacement H.2.val n n '' (b.tile.cell 0 (b.chain.cell traceTopIndex).val) := by
+        simpa only [Nat.sub_self] using
+          placedTraceOwner_cells H.2.val n n le_rfl F b (b.chain.cell traceTopIndex).val
+      _ ⊆ tracePlacement H.2.val n n ''
+          ((S.σ ^ n) '' (F.cell facetIndex).val.carrier) :=
+        Set.image_mono (b.chain.contained traceTopIndex)
+      _ = H.2.val.cell n (F.cell facetIndex).val := by
+        simp [tracePlacement, FramedNode.cell, FramedNode.prototypeFrame, Set.image_image]
+      _ = U.hierarchy.providerCarrier t f hf := by
+        rw [hF' facetIndex, (P.flag (U.recordIncidence P t f hf)).top,
+          record_provider_carrier]
+  have hroot : (⟨n, ⟨H.2.val, hHmem⟩⟩ : U.Node) = H := by
+    exact actualCont_exists_step4_reindex U H n hHheight hHmem
+  have hanc : U.hierarchy.ancestor q n = H := by
+    apply Eq.trans _ hroot
+    exact actualCont_exists_step4_ancestor U q rfl n H.2.val hHmem b.owner
+      (by simp only [q, Q, placedTraceOwner, Nat.sub_self, SubstSystem.nativeTile])
+  obtain ⟨hg, hserv, hi, hp⟩ := actualCont_exists_step4_provider U P t q f hf g n hanc hsub
+  have hdepth : (U.hierarchy.firstProvider q g hg).1 = n := by
+    have h := U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q g hg).1
+    have hs := congrArg (fun B : U.Node => B.1) hserv
+    change (U.hierarchy.servingChild q g hg).1 = 0 +
+      (U.hierarchy.firstProvider q g hg).1 at h
+    change (U.hierarchy.servingChild q g hg).1 = H.1 at hs
+    omega
+  have hactive' : (U.recordOf P q g hg).ChainActive (edgeCell e') := by
+    apply actualCont_exists_step4_active U P q H g hg n hserv hdepth F b
+      (fun j => by rw [hp, hi]; exact hF j)
+      (congrArg (fun k => placedTraceOwner H.2.val k n F b) hHheight) rfl e'
+    · simpa only [hHheight] using hbottom'
+    · rw [hp, hi, ← hF' edgeIndex]
+      exact hedge'
+  obtain ⟨c', hc', he'⟩ := hactive'
+  have halign := actualCont_exists_step5_aligned U P t q ht rfl f g hf hg c c'
+    hc hc' hserv hi hp
+  have hvec := actualCont_exists_step2_vector U P t f hf c hc e he
+  have hvec' := actualCont_exists_step2_vector U P q g hg c' hc' e' he'
+  let a' := q.2.val.frame ((U.recordOf P q g hg).endpoints e').1
+  let b' := q.2.val.frame ((U.recordOf P q g hg).endpoints e').2
+  have hsegorder : segment ℝ a' b' = segment ℝ x w := by
+    have h := image_segment ℝ q.2.val.frame.toAffineEquiv.toAffineMap
+      ((U.recordOf P q g hg).endpoints e').1 ((U.recordOf P q g hg).endpoints e').2
+    rw [← (actualCont_exists_step2_endpoints (U.recordOf P q g hg) e').2] at h
+    have h' : q.2.val.cell 0 e'.val = segment ℝ a' b' := by
+      simpa [FramedNode.cell, FramedNode.prototypeFrame, a', b'] using h
+    exact h'.symm.trans hseg'
+  have hdir : 0 < inner ℝ (x - p) (b' - a') := by
+    have h := halign.2.2.1
+    have hcvec : x - p = t.2.val.frame.linearIsometryEquiv (chainVector c) := by
+      rw [← hvec]
+      simpa only [p, x, hterminal] using
+        (t.2.val.frame.map_vsub ((U.recordOf P t f hf).endpoints e).2
+          ((U.recordOf P t f hf).endpoints e).1).symm
+    have hcvec' : b' - a' = q.2.val.frame.linearIsometryEquiv (chainVector c') := by
+      rw [← hvec']
+      exact (q.2.val.frame.map_vsub _ _).symm
+    rw [hcvec, hcvec', LinearIsometryEquiv.inner_map_eq_flip]
+    exact h
+  have horder : a' = x ∧ b' = w := by
+    apply actualCont_exists_step6_order a' b' x w hsegorder
+    obtain ⟨k, hk, hkw⟩ := hnext
+    rw [hkw, real_inner_smul_right]
+    exact mul_pos hk (by simpa only [real_inner_comm] using hdir)
+  have hinitial : vertexPoint v' = ((U.recordOf P q g hg).endpoints e').1 :=
+    q.2.val.frame.injective (hv'.trans horder.1.symm)
+  have hvertex : (q.2.val.frame.trans t.2.val.frame.symm) (vertexPoint v') =
+      vertexPoint v := by
+    change t.2.val.frame.symm (q.2.val.frame (vertexPoint v')) = _
+    rw [hv']
+    exact t.2.val.frame.symm_apply_apply _
+  have hj := actualCont_exists_step6_join p x w hnext
+  have houter : t.2.val.frame.symm w =
+      (q.2.val.frame.trans t.2.val.frame.symm) ((U.recordOf P q g hg).endpoints e').2 := by
+    exact congrArg t.2.val.frame.symm horder.2.symm
+  have hsegment : e.val.carrier ∪
+      placedSet (q.2.val.frame.trans t.2.val.frame.symm) e'.val.carrier =
+      segment ℝ ((U.recordOf P t f hf).endpoints e).1
+        ((q.2.val.frame.trans t.2.val.frame.symm)
+          ((U.recordOf P q g hg).endpoints e').2) := by
+    have h := congrArg (fun K : Set (E d) =>
+      t.2.val.frame.symm.toAffineEquiv.toAffineMap '' K) hj.1
+    dsimp only at h
+    rw [Set.image_union, image_segment, image_segment, image_segment] at h
+    simp only [AffineEquiv.coe_toAffineMap, AffineIsometryEquiv.coe_toAffineEquiv,
+      p, x, AffineIsometryEquiv.symm_apply_apply, houter] at h
+    have heq : placedSet (q.2.val.frame.trans t.2.val.frame.symm) e'.val.carrier =
+        segment ℝ (vertexPoint v) (t.2.val.frame.symm w) := by
+      have h' := congrArg (fun K : Set (E d) =>
+        t.2.val.frame.symm.toAffineEquiv.toAffineMap '' K) hseg'
+      dsimp only at h'
+      rw [image_segment] at h'
+      simpa [q, Q, FramedNode.cell, FramedNode.prototypeFrame, placedSet,
+        Set.image_image, x] using h'
+    rw [(actualCont_exists_step2_endpoints (U.recordOf P t f hf) e).2,
+      ← hterminal, heq, houter]
+    exact h
+  have hjunction : vertexPoint v ∈ openSegment ℝ
+      ((U.recordOf P t f hf).endpoints e).1
+      ((q.2.val.frame.trans t.2.val.frame.symm)
+        ((U.recordOf P q g hg).endpoints e').2) := by
+    have h := Set.mem_image_of_mem t.2.val.frame.symm hj.2
+    change t.2.val.frame.symm x ∈
+      t.2.val.frame.symm.toAffineEquiv.toAffineMap '' openSegment ℝ p w at h
+    rw [image_openSegment] at h
+    simpa only [AffineEquiv.coe_toAffineMap, AffineIsometryEquiv.coe_toAffineEquiv,
+      p, x, AffineIsometryEquiv.symm_apply_apply, houter] using h
+  obtain ⟨θ, hcentral, htiles, hnone, hactual⟩ :=
+    actualCont_exists_step6_configuration U P t q ht rfl
+  refine ⟨{
+    configuration := θ
+    central_eq := hcentral
+    other := q.2.val.move t.2.val.frame.symm
+    label := leafTypeOf U P q rfl
+    other_mem := by rw [htiles]; simp
+    tiles_eq := htiles
+    annotation_none := hnone
+    record := U.recordOf P q g hg
+    record_eq := ?_
+    type_eq := rfl
+    centralChain := c
+    central_edge := he
+    otherChain := c'
+    edge := e'
+    other_edge := he'
+    vertex := v'
+    initial := hinitial
+    vertex_eq := hvertex
+    aligned := halign
+    segment_eq := hsegment
+    junction_interior := hjunction }, hactual⟩
+  change leafRecord (leafTypeOf U P q rfl) g.val = some (U.recordOf P q g hg)
+  rw [actualCont_exists_step1_readout U P q rfl g]
+  simp only [HonestSource.facetRecordOf, dif_neg hg]
 
 /-- Q14, V4 2.8 (END geometry): the actual complete P-owned star with its header,
 restriction annotations and actual leaf labels. This does not assume the END row.

@@ -566,12 +566,1080 @@ theorem mem_honestStates (P : Params S) (s : State P) :
 theorem stateOf_mem (U : HonestSource S) (P : Params S) (q : U.Node) :
     stateOf U P q ∈ honestStates S P := ⟨U, q, rfl⟩
 
+/-- Step 1 of the V4 proof of `states_finite` (V4 2.2):
+"take values in finite sets defined by the finite catalogue".
+Encode mature constants and shallow words by finite function tables and a bounded length. -/
+private theorem states_finite_step1_profiles (P : Params S) :
+    (∀ A, Finite (ConstantProfile P A)) ∧ Finite (ShortProfile P) := by
+  constructor
+  · intro A
+    exact Finite.of_surjective
+      (fun x : (CellName S A → Option (Fin (P.N + 1))) ×
+          (VertexName S A → Option Bool) =>
+        (⟨x.1, x.2⟩ : ConstantProfile P A))
+      (by rintro ⟨v, e⟩; exact ⟨⟨v, e⟩, rfl⟩)
+  · let f : (Σ n : Fin P.H_site, Fin n.val → S.Role) → ShortProfile P :=
+      fun x => ⟨List.ofFn x.2, by simpa using x.1.isLt⟩
+    apply Finite.of_surjective f
+    rintro ⟨w, hw⟩
+    refine ⟨⟨⟨w.length, hw⟩, fun i => w[i]⟩, ?_⟩
+    simp [f]
+
+/-- Step 1 of the V4 proof of `states_finite` (V4 2.2):
+"take values in finite sets defined by the finite catalogue".
+Reconstruct every raw facet record from a finite dependent product; the side role is redundant. -/
+private theorem states_finite_step1_records (P : Params S) :
+    Finite (FacetRecord P) := by
+  classical
+  letI : ∀ A, Finite (ConstantProfile P A) := (states_finite_step1_profiles P).1
+  letI : Finite (ShortProfile P) := (states_finite_step1_profiles P).2
+  letI : ∀ (A : S.ι) (f : FacetName S A), Finite (OrientedChain f) :=
+    fun _ f => orientedChains_finite f
+  let Code := Σ A : S.ι, Σ f : FacetName S A, Σ ι : P.Incidence,
+    Bool × Fin (P.C + 1) × Fin P.L ×
+      (CellsInFacet A f → ProviderCell ι.val) × Finset (OrientedChain f) ×
+      (ConstantProfile P A ⊕ ShortProfile P)
+  let decode : Code → FacetRecord P := fun x => {
+    ty := x.1
+    facet := x.2.1
+    incidence := x.2.2.1
+    sideIndex := x.2.2.2.1
+    side := x.2.2.1.val.sideRole x.2.2.2.1
+    side_eq := rfl
+    age := x.2.2.2.2.1
+    beta := x.2.2.2.2.2.1
+    tau := x.2.2.2.2.2.2.1
+    chains := x.2.2.2.2.2.2.2.1
+    counter := x.2.2.2.2.2.2.2.2 }
+  apply Finite.of_surjective decode
+  rintro ⟨A, f, ι, b, side, hside, a, beta, tau, chains, counter⟩
+  subst side
+  exact ⟨⟨A, f, ι, b, a, beta, tau, chains, counter⟩, rfl⟩
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Adding the absent value preserves a finite alphabet. -/
+private theorem states_finite_step2_option {α : Type*} (s : Set α) (hs : s.Finite) :
+    Finite {o : Option α // ∀ a, o = some a → a ∈ s} := by
+  letI := hs.fintype
+  let f : Option s → {o : Option α // ∀ a, o = some a → a ∈ s} := fun o =>
+    ⟨o.map Subtype.val, by
+      cases o with
+      | none => simp
+      | some a => simpa using a.property⟩
+  apply Finite.of_surjective f
+  rintro ⟨o, ho⟩
+  cases o with
+  | none => exact ⟨none, rfl⟩
+  | some a => exact ⟨some ⟨a, ho a rfl⟩, rfl⟩
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Inject states whose headers belong to a fixed finite alphabet into finite dependent tables. -/
+private theorem states_finite_step2_assembly (P : Params S)
+    (Ω : Set (State.Header P)) (hΩ : Ω.Finite) :
+    {s : State P | ∀ v f h, s.header v f = some h → h ∈ Ω}.Finite := by
+  classical
+  letI := states_finite_step1_records P
+  letI := states_finite_step2_option Ω hΩ
+  let Code := Σ A : S.ι, (Fin P.k → S.Role) × Fin P.L ×
+    (FacetName S A → Option (FacetRecord P)) ×
+    (FacetName S A → FacetName S A → Prop) ×
+    (VertexName S A → FacetName S A →
+      {o : Option (State.Header P) // ∀ h, o = some h → h ∈ Ω})
+  let encode : {s : State P // ∀ v f h, s.header v f = some h → h ∈ Ω} → Code :=
+    fun s => ⟨s.val.ty, s.val.address, s.val.residue, s.val.facetRecord, s.val.E,
+      fun v f => ⟨s.val.header v f, s.property v f⟩⟩
+  have hinj : Function.Injective encode := by
+    rintro ⟨s, hs⟩ ⟨t, ht⟩ he
+    apply Subtype.ext
+    cases s with | mk A a ha hc r f hf E hd hr h =>
+      cases t with | mk A' a' ha' hc' r' f' hf' E' hd' hr' h' =>
+        have hA : A = A' := congrArg Sigma.fst he
+        cases hA
+        have he' := Sigma.mk.inj_iff.mp he
+        dsimp only [encode] at he'
+        have hfields := eq_of_heq he'.2
+        simp only [Prod.mk.injEq] at hfields
+        obtain ⟨rfl, rfl, rfl, rfl, hh⟩ := hfields
+        have hhh : h = h' := by
+          funext v f
+          exact congrArg Subtype.val (congrFun (congrFun hh v) f)
+        cases hhh
+        congr
+        exact Subsingleton.elim _ _
+  exact Set.finite_coe_iff.mp (Finite.of_injective encode hinj)
+
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Index all cone fields, including flag sides, by one finite sum of catalogue indices. -/
+private def states_finite_step2_slots (P : Params S) (A : S.ι) : Type :=
+  Unit ⊕ S.I A ⊕ FacetName S A ⊕ P.Incidence ⊕
+    (P.Incidence × (FlagIndex d ⊕ FlagStep d))
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+The flag indices are bounded natural numbers; all the other indices come from the catalogue. -/
+private theorem states_finite_step2_slots_finite (P : Params S) (A : S.ι) :
+    Finite (states_finite_step2_slots P A) := by
+  letI : Finite (FlagIndex d) := Finite.of_injective
+    (fun j : FlagIndex d => (⟨j.val, j.property.2⟩ : Fin d))
+    (by intro a b h; exact Subtype.ext (congrArg Fin.val h))
+  letI : Finite (FlagStep d) := Finite.of_injective
+    (fun j : FlagStep d => (⟨j.val, by have := j.property.2; omega⟩ : Fin d))
+    (by intro a b h; exact Subtype.ext (congrArg Fin.val h))
+  unfold states_finite_step2_slots
+  infer_instance
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Read a literal cone at a slot, padding absent entries by the empty cone. -/
+private def states_finite_step2_coneAt {P : Params S} (h : State.Header P) :
+    states_finite_step2_slots P h.birthType → Set (E d)
+  | .inl _ => h.parentCone
+  | .inr (.inl i) => (h.childCones i).getD ∅
+  | .inr (.inr (.inl f)) => (h.boundaryCones f).getD ∅
+  | .inr (.inr (.inr (.inl i))) => (h.primitiveCones i).getD ∅
+  | .inr (.inr (.inr (.inr (i, .inl j)))) =>
+      ((h.flagTangent i).map (fun t => t.cones j)).getD ∅
+  | .inr (.inr (.inr (.inr (i, .inr j)))) =>
+      ((h.flagTangent i).map (fun t => t.sides j)).getD ∅
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Rebuild a header from its cone tuple while retaining every incidence label and orientation bit. -/
+private def states_finite_step2_rebuild {P : Params S} (h : State.Header P)
+    (c : states_finite_step2_slots P h.birthType → Set (E d)) : State.Header P where
+  birthType := h.birthType
+  parentCone := c (.inl ())
+  childCones := fun i => (h.childCones i).map (fun _ => c (.inr (.inl i)))
+  boundaryCones := fun f => (h.boundaryCones f).map (fun _ => c (.inr (.inr (.inl f))))
+  primitiveCones := fun i =>
+    (h.primitiveCones i).map (fun _ => c (.inr (.inr (.inr (.inl i)))))
+  flagTangent := fun i => (h.flagTangent i).map (fun t => {
+    cones := fun j => c (.inr (.inr (.inr (.inr (i, .inl j)))))
+    initial := t.initial
+    sides := fun j => c (.inr (.inr (.inr (.inr (i, .inr j))))) })
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Apply one set map to every present cone in a header. -/
+private def states_finite_step2_map {P : Params S} (M : Set (E d) → Set (E d))
+    (h : State.Header P) : State.Header P where
+  birthType := h.birthType
+  parentCone := M h.parentCone
+  childCones := fun i => (h.childCones i).map M
+  boundaryCones := fun f => (h.boundaryCones f).map M
+  primitiveCones := fun i => (h.primitiveCones i).map M
+  flagTangent := fun i => (h.flagTangent i).map (fun t => {
+    cones := fun j => M (t.cones j)
+    initial := t.initial
+    sides := fun j => M (t.sides j) })
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Slotwise transport is exactly transport of all the header fields. -/
+private theorem states_finite_step2_rebuild_map {P : Params S} (h : State.Header P)
+    (M : Set (E d) → Set (E d)) :
+    states_finite_step2_rebuild h (fun j => M (states_finite_step2_coneAt h j)) =
+      states_finite_step2_map M h := by
+  unfold states_finite_step2_rebuild states_finite_step2_map
+  congr 1
+  · funext i
+    cases hc : h.childCones i <;> simp [states_finite_step2_coneAt, hc]
+  · funext f
+    cases hc : h.boundaryCones f <;> simp [states_finite_step2_coneAt, hc]
+  · funext i
+    cases hc : h.primitiveCones i <;> simp [states_finite_step2_coneAt, hc]
+  · funext i
+    cases hc : h.flagTangent i <;> simp [states_finite_step2_coneAt, hc]
+
+/-- Step 2 of the V4 proof of `states_finite` (V4 2.2, 1.17):
+"Theorem 1.17 gives finitely many headers" and "plus finitely many combinatorial labels".
+Reindex the cone slots by Fin and apply CompatiblePatch.header_finiteness; decode its finite image. -/
+private theorem states_finite_step2_fixed_template (P : Params S)
+    (patch : CompatiblePatch S) (p : E d) (h : State.Header P)
+    (hG : ∀ j, HPiCone S.hPi (states_finite_step2_coneAt h j)) :
+    {h' : State.Header P | ∃ (n : ℕ) (a : patch.Incident p n),
+      (patch.native n a.val).Lists 0 ((S.σ ^ n) p) ∧
+      h' = states_finite_step2_map (fun K =>
+        (patch.native n a.val).frame.linearIsometryEquiv.symm ''
+          ((S.σ ^ n) '' K)) h}.Finite := by
+  classical
+  letI := states_finite_step2_slots_finite P h.birthType
+  letI := Fintype.ofFinite (states_finite_step2_slots P h.birthType)
+  let e := Fintype.equivFin (states_finite_step2_slots P h.birthType)
+  let G := fun j => states_finite_step2_coneAt h (e.symm j)
+  let decode := fun h' : Header S (Fintype.card (states_finite_step2_slots P h.birthType)) =>
+    states_finite_step2_rebuild h (fun j => h'.cones (e j))
+  apply ((patch.header_finiteness p G (fun j => hG (e.symm j))).image decode).subset
+  rintro h' ⟨n, a, ⟨v, hv, hp⟩, rfl⟩
+  let g : Header S (Fintype.card (states_finite_step2_slots P h.birthType)) :=
+    ⟨(patch.native n a.val).ty, ⟨v, hv⟩, fun j =>
+      (patch.native n a.val).frame.linearIsometryEquiv.symm '' ((S.σ ^ n) '' G j)⟩
+  refine ⟨g, ⟨n, a, hp, rfl, fun _ => rfl⟩, ?_⟩
+  simp only [decode, g, G, Equiv.symm_apply_apply]
+  exact states_finite_step2_rebuild_map h (fun K =>
+    (patch.native n a.val).frame.linearIsometryEquiv.symm '' ((S.σ ^ n) '' K))
+
+/-- Step 3 of the V4 proof of `states_finite` (V4 2.2):
+"fix the finite datum (type of P, the vertex p ... in the immediate subdivision of sigma A_P)".
+Retain the actual prescribed child type and isometric frame. -/
+private def states_finite_step3_child (A : S.ι) (i : S.I A) : FramedNode S :=
+  ⟨(S.child A i).ty, (S.child A i).frame⟩
+
+/-- Step 3 of the V4 proof of `states_finite` (V4 2.2):
+"fix the finite datum (type of P, the vertex p ... in the immediate subdivision of sigma A_P)".
+Each prescribed child rotation is the depth-zero compatible-group generator. -/
+private theorem states_finite_step3_child_compatible (A : S.ι) (i : S.I A) :
+    (states_finite_step3_child A i).frame.linearIsometryEquiv ∈ S.rotGroup := by
+  apply S.rotGroup_spec.1
+  refine ⟨0, A, i, ?_⟩
+  apply LinearIsometryEquiv.ext
+  intro x
+  change (S.child A i).rotation x = linearConj S.σ (0 : ℤ) (S.child A i).rotation.toLinearEquiv x
+  simp [linearConj]
+
+/-- Step 3 of the V4 proof of `states_finite` (V4 2.2):
+"fix the finite datum (type of P, the vertex p ... in the immediate subdivision of sigma A_P)".
+The prescribed children form the finite compatible first-generation patch. -/
+private def states_finite_step3_patch (A : S.ι) : CompatiblePatch S := by
+  classical
+  exact {
+    tiles := Finset.univ.image (states_finite_step3_child A)
+    disjoint := by
+      intro t ht u hu htu
+      obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp ht
+      obtain ⟨j, _, rfl⟩ := Finset.mem_image.mp hu
+      have hij : i ≠ j := by intro h; subst j; exact htu rfl
+      simpa [states_finite_step3_child, FramedNode.carrier,
+        SubstSystem.supertile] using S.children_disjoint A hij
+    compatible := by
+      intro t ht
+      obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp ht
+      exact states_finite_step3_child_compatible A i }
+
+/-- Step 3 of the V4 proof of `states_finite` (V4 2.2):
+"fix the finite datum (type of P, the vertex p ... in the immediate subdivision of sigma A_P)".
+Use a parent type, child index, and listed child vertex as finite anchor data. -/
+private def states_finite_step3_seed (S : SubstSystem d) : Type :=
+  Σ A : S.ι, Σ i : S.I A, VertexName S (S.child A i).ty
+
+/-- Step 3 of the V4 proof of `states_finite` (V4 2.2):
+"fix the finite datum (type of P, the vertex p ... in the immediate subdivision of sigma A_P)".
+Evaluate the listed child vertex in the expanded parent coordinates. -/
+private def states_finite_step3_point (a : states_finite_step3_seed S) : E d :=
+  (S.child a.1 a.2.1).frame (vertexPoint a.2.2)
+
+/-- Step 3 of the V4 proof of `states_finite` (V4 2.2):
+"fix the finite datum (type of P, the vertex p ... in the immediate subdivision of sigma A_P)".
+Record the full immediate-subdivision header in expanded parent coordinates. -/
+private def states_finite_step3_template (P : Params S) (A : S.ι) (p : E d) :
+    State.Header P := by
+  classical
+  let pos := fun i : P.Incidence => (S.child i.val.ty i.val.left).frame.toAffineEquiv
+  exact {
+    birthType := A
+    parentCone := tangentCone (S.σ '' (S.proto A).carrier) p
+    childCones := fun i =>
+      let C := states_finite_step3_child A i
+      if p ∈ C.carrier 0 then some (tangentCone (C.carrier 0) p) else none
+    boundaryCones := fun F => if p ∈ S.σ '' F.val.carrier then
+      some (tangentCone (S.σ '' F.val.carrier) p) else none
+    primitiveCones := fun i => if i.val.ty = A ∧
+        p ∈ pos i '' i.val.leftFacet.val.carrier then
+      some (tangentCone (pos i '' i.val.leftFacet.val.carrier) p) else none
+    flagTangent := fun i => if i.val.ty = A ∧
+        (p = pos i (P.flag i).initial ∨ p = pos i (P.flag i).terminal) then
+      some {
+        cones := fun j => tangentCone (pos i '' ((P.flag i).flag.cell j).val.carrier) p
+        initial := decide (p = pos i (P.flag i).initial)
+        sides := fun j => (pos i).linear '' (P.flag i).sides j }
+      else none }
+
+/-- Step 5 of the V4 proof of `states_finite` (V4 2.2):
+"after rescaling by the frame of P".
+The positive-time radial tangent germ commutes with an affine equivalence. -/
+private theorem states_finite_step5_tangent_image (e : E d ≃ᵃ[ℝ] E d)
+    (K : Set (E d)) (x : E d) :
+    tangentCone (e '' K) (e x) = e.linear '' tangentCone K x := by
+  have hmap (y u : E d) (t : ℝ) : e (y + t • u) = e y + t • e.linear u := by
+    simpa only [vadd_eq_add, add_comm, map_smul] using e.map_vadd y (t • u)
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hu⟩
+    refine ⟨e.linear.symm u, ⟨ε, hε, ?_⟩, e.linear.apply_symm_apply u⟩
+    intro t ht htε
+    apply e.injective.mem_set_image.mp
+    simpa only [hmap, e.linear.apply_symm_apply] using hu t ht htε
+  · rintro ⟨u, ⟨ε, hε, hu⟩, rfl⟩
+    refine ⟨ε, hε, ?_⟩
+    intro t ht htε
+    rw [← hmap]
+    exact Set.mem_image_of_mem e (hu t ht htε)
+
+/-- Step 5 of the V4 proof of `states_finite` (V4 2.2):
+"after rescaling by the frame of P".
+Place the first-generation patch using the birth frame and sigma to the birth height minus one. -/
+private def states_finite_step5_birthFrame (B : FramedNode S) (b : ℕ) :
+    E d ≃ᵃ[ℝ] E d :=
+  (S.σ ^ (b - 1)).toAffineEquiv.trans B.frame.toAffineEquiv
+
+/-- Step 5 of the V4 proof of `states_finite` (V4 2.2):
+"after rescaling by the frame of P".
+Recover the full parent prototype frame by one further expansion. -/
+private theorem states_finite_step5_parent_frame (B : FramedNode S) (b : ℕ)
+    (hb : 1 ≤ b) :
+    B.prototypeFrame b = S.σ.toAffineEquiv.trans (states_finite_step5_birthFrame B b) := by
+  apply AffineEquiv.ext
+  intro x
+  change B.frame ((S.σ ^ b) x) = B.frame ((S.σ ^ (b - 1)) (S.σ x))
+  rw [← LinearEquiv.mul_apply, ← pow_succ, Nat.sub_add_cancel hb]
+
+/-- Step 5 of the V4 proof of `states_finite` (V4 2.2):
+"after rescaling by the frame of P".
+The prescribed child prototype frame equals its ground child frame followed by the birth placement. -/
+private theorem states_finite_step5_child_frame (B : FramedNode S) (n : ℕ)
+    (i : S.I B.ty) :
+    (B.child n i).prototypeFrame n =
+      (S.child B.ty i).frame.toAffineEquiv.trans
+        ((S.σ ^ n).toAffineEquiv.trans B.frame.toAffineEquiv) := by
+  apply AffineEquiv.ext
+  intro x
+  change B.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    B.frame ((S.σ ^ n) ((S.child B.ty i).frame x))
+  congr 1
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, zpow_neg, LinearEquiv.mul_apply, map_add]
+
+/-- Step 5 of the V4 proof of `states_finite` (V4 2.2):
+"after rescaling by the frame of P".
+Check every header field, including optional flags and sides, under the full affine birth placement. -/
+private theorem states_finite_step5_template_transport (P : Params S)
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (v : VertexName S q.2.val.ty) :
+    let B := U.hierarchy.birthParent q f hf
+    let e := states_finite_step5_birthFrame B.2.val B.1
+    let p := e.symm (q.2.val.prototypeFrame q.1 (vertexPoint v))
+    U.headerOf P q f hf v = states_finite_step2_map
+      (fun K => U.normalizeCone q (e.linear '' K))
+      (states_finite_step3_template P B.2.val.ty p) := by
+  classical
+  dsimp only
+  generalize hB : U.hierarchy.birthParent q f hf = B
+  let e := states_finite_step5_birthFrame B.2.val B.1
+  let p := e.symm (q.2.val.prototypeFrame q.1 (vertexPoint v))
+  have hb : 1 ≤ B.1 := by
+    rw [← hB]
+    dsimp [CoherentHierarchy.birthParent, CoherentHierarchy.parentNode]
+    omega
+  have hframe := states_finite_step5_parent_frame B.2.val B.1 hb
+  have hcarrier (N : FramedNode S) (n : ℕ) :
+      N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    rw [FramedNode.carrier, placedSet, SubstSystem.supertile, Set.image_image]
+    rfl
+  have hparent : B.2.val.carrier B.1 = e '' (S.σ '' (S.proto B.2.val.ty).carrier) := by
+    rw [hcarrier, hframe, Set.image_image]
+    rfl
+  have hboundary (F : FacetName S B.2.val.ty) :
+      B.2.val.cell B.1 F.val = e '' (S.σ '' F.val.carrier) := by
+    rw [FramedNode.cell, hframe, Set.image_image]
+    rfl
+  have hchild (i : S.I B.2.val.ty) :
+      (B.2.val.child (B.1 - 1) i).carrier (B.1 - 1) =
+        e '' (states_finite_step3_child B.2.val.ty i).carrier 0 := by
+    rw [hcarrier, states_finite_step5_child_frame]
+    simp only [states_finite_step3_child, FramedNode.carrier, SubstSystem.supertile,
+      pow_zero, placedSet, Set.image_image]
+    rfl
+  have hpos (i : P.Incidence) : P.incidencePlacement B.2.val B.1 i =
+      (S.child i.val.ty i.val.left).frame.toAffineEquiv.trans e := by
+    unfold Params.incidencePlacement
+    rw [hframe]
+    apply AffineEquiv.ext
+    intro x
+    change e (S.σ (S.σ.symm ((S.child i.val.ty i.val.left).frame x))) = _
+    rw [S.σ.apply_symm_apply]
+    rfl
+  have hposimage (i : P.Incidence) (K : Set (E d)) :
+      P.incidencePlacement B.2.val B.1 i '' K =
+        e '' ((S.child i.val.ty i.val.left).frame.toAffineEquiv '' K) := by
+    rw [hpos, Set.image_image]
+    rfl
+  have hpospoint (i : P.Incidence) (x : E d) :
+      P.incidencePlacement B.2.val B.1 i x = e ((S.child i.val.ty i.val.left).frame x) := by
+    rw [hpos]
+    rfl
+  have hposlinear (i : P.Incidence) (K : Set (E d)) :
+      (P.incidencePlacement B.2.val B.1 i).linear '' K =
+        e.linear '' ((S.child i.val.ty i.val.left).frame.toAffineEquiv.linear '' K) := by
+    rw [hpos, Set.image_image]
+    rfl
+  have hpoint : q.2.val.prototypeFrame q.1 (vertexPoint v) = e p :=
+    (e.apply_symm_apply _).symm
+  change U.headerOf P q f hf v = states_finite_step2_map
+    (fun K => U.normalizeCone q (e.linear '' K))
+    (states_finite_step3_template P B.2.val.ty p)
+  unfold HonestSource.headerOf
+  rw [hB]
+  simp only [hpoint, hparent,
+    hboundary, hchild, hposimage, states_finite_step5_tangent_image,
+    e.injective.mem_set_image]
+  simp only [hpospoint, hposlinear, e.injective.eq_iff,
+    states_finite_step2_map, states_finite_step3_template]
+  congr 1
+  · funext i
+    split_ifs <;> rfl
+  · funext F
+    split_ifs <;> rfl
+  · funext i
+    split_ifs <;> rfl
+  · funext i
+    split_ifs <;> first | rfl | contradiction
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+A conjugated child placement at height n transports sigma to the nth power exactly. -/
+private theorem states_finite_step6_place_scaled (n : ℕ) {A : S.ι}
+    (i : S.I A) (x : E d) :
+    S.placeChild n i ((S.σ ^ n) x) = (S.σ ^ n) ((S.child A i).frame x) := by
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, zpow_neg, LinearEquiv.mul_apply, map_add]
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+Changing the base height conjugates the child placement by the corresponding expansion power. -/
+private theorem states_finite_step6_place_shift (h k : ℕ) {A : S.ι}
+    (i : S.I A) (x : E d) :
+    S.placeChild (h + k) i ((S.σ ^ h) x) = (S.σ ^ h) (S.placeChild k i x) := by
+  have h₁ := states_finite_step6_place_scaled (h + k) i ((S.σ ^ k).symm x)
+  have h₂ := states_finite_step6_place_scaled k i ((S.σ ^ k).symm x)
+  simp only [pow_add, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply] at h₁ h₂
+  rw [← h₂] at h₁
+  exact h₁
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+Induct on the role word to transport the complete descendant frame. -/
+private theorem states_finite_step6_descendant_scaled (A : S.ι) (h k : ℕ)
+    (w : S.RoleWord A k) (x : E d) :
+    (S.descendantNode A h k w).frame ((S.σ ^ h) x) =
+      (S.σ ^ h) ((S.nativeTile A k w).frame x) := by
+  induction k generalizing A with
+  | zero => rfl
+  | succ k ih =>
+    change S.placeChild (h + k) w.1
+      ((S.descendantNode (S.child A w.1).ty h k w.2).frame ((S.σ ^ h) x)) =
+      (S.σ ^ h) (S.placeChild (0 + k) w.1
+        ((S.nativeTile (S.child A w.1).ty k w.2).frame x))
+    rw [ih, states_finite_step6_place_shift, Nat.zero_add]
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+A role word has the same terminal type at every base height. -/
+private theorem states_finite_step6_descendant_type (A : S.ι) (h k : ℕ)
+    (w : S.RoleWord A k) : (S.descendantNode A h k w).ty = (S.nativeTile A k w).ty := by
+  induction k generalizing A with
+  | zero => rfl
+  | succ k ih => exact ih (S.child A w.1).ty w.2
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+The compatible inflated frame of an original child is its prescribed placement at the new height. -/
+private theorem states_finite_step6_inflated_child (A : S.ι) (i : S.I A) (n : ℕ) :
+    compatibleInflatedFrame (states_finite_step3_child A i)
+      (states_finite_step3_child_compatible A i) n = S.placeChild n i := by
+  have hrot := Classical.choose_spec (S.rotGroup_conj_zpow (n : ℤ)
+    (states_finite_step3_child A i).frame.linearIsometryEquiv
+    (states_finite_step3_child_compatible A i))
+  apply AffineIsometryEquiv.ext
+  intro x
+  change (Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+      (states_finite_step3_child A i).frame.linearIsometryEquiv
+      (states_finite_step3_child_compatible A i))) x +
+      (S.σ ^ n) ((S.child A i).frame 0) =
+    linearConj S.σ (n : ℤ) (S.child A i).rotation.toLinearEquiv x +
+      (S.σ ^ n) (S.child A i).offset
+  rw [show (Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+      (states_finite_step3_child A i).frame.linearIsometryEquiv
+      (states_finite_step3_child_compatible A i))) x =
+      linearConj S.σ (n : ℤ) (S.child A i).rotation.toLinearEquiv x from
+    congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) hrot.2]
+  congr 2
+  change (S.child A i).rotation 0 + (S.child A i).offset = _
+  simp
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+A positive-depth standard native tile is a native descendant of the first-generation patch. -/
+private theorem states_finite_step6_patch_native (A : S.ι) (n : ℕ)
+    (w : S.RoleWord A (n + 1)) :
+    ∃ a : (states_finite_step3_patch A).Address n,
+      (states_finite_step3_patch A).native n a = S.nativeTile A (n + 1) w := by
+  classical
+  let t : {t // t ∈ (states_finite_step3_patch A).tiles} :=
+    ⟨states_finite_step3_child A w.1, Finset.mem_image.mpr ⟨w.1, Finset.mem_univ _, rfl⟩⟩
+  refine ⟨⟨t, w.2⟩, ?_⟩
+  change (S.nativeTile (S.child A w.1).ty n w.2).move
+      (compatibleInflatedFrame (states_finite_step3_child A w.1) _ n) = _
+  rw [states_finite_step6_inflated_child]
+  simp [SubstSystem.nativeTile, SubstSystem.descendantNode]
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+A listed vertex lies in its closed prototype carrier. -/
+private theorem states_finite_step6_vertex_mem (A : S.ι) (v : VertexName S A) :
+    vertexPoint v ∈ (S.proto A).carrier := by
+  have hv : vertexPoint v ∈ v.val.carrier := by rw [vertexPoint_spec]; exact Set.mem_singleton _
+  have hm : v.val ∈ (S.cx A).cells := (Finset.mem_filter.mp v.property).1
+  have hb : vertexPoint v ∈ frontier (S.proto A).carrier := by
+    rw [← (S.cx A).carriers_cover]
+    exact Set.mem_iUnion.mpr ⟨v.val, Set.mem_iUnion.mpr ⟨hm, hv⟩⟩
+  exact (S.proto A).compact.isClosed.frontier_subset hb
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+Produce the incident native address, its listed vertex, and the exact inverse-frame cone formula. -/
+private theorem states_finite_step6_native_coordinates (C B : FramedNode S)
+    (h b : ℕ) (hd : C.IsDescendant h B b) (hb : h < b) (v : VertexName S C.ty) :
+    let e := states_finite_step5_birthFrame B b
+    let p := e.symm (C.prototypeFrame h (vertexPoint v))
+    ∃ (n : ℕ) (a : (states_finite_step3_patch B.ty).Incident p n),
+      ((states_finite_step3_patch B.ty).native n a.val).Lists 0 ((S.σ ^ n) p) ∧
+      ∀ K : Set (E d), (C.prototypeFrame h).linear.symm '' (e.linear '' K) =
+        ((states_finite_step3_patch B.ty).native n a.val).frame.linearIsometryEquiv.symm ''
+          ((S.σ ^ n) '' K) := by
+  obtain ⟨r, rfl, w, rfl⟩ := hd
+  cases r with
+  | zero => omega
+  | succ n =>
+    obtain ⟨a, ha⟩ := states_finite_step6_patch_native B.ty n w
+    let t := (states_finite_step3_patch B.ty).native n a
+    let e := states_finite_step5_birthFrame B (h + (n + 1))
+    have hty : ((S.descendantNode B.ty h (n + 1) w).move B.frame).ty = t.ty := by
+      rw [show t = S.nativeTile B.ty (n + 1) w from ha]
+      exact states_finite_step6_descendant_type B.ty h (n + 1) w
+    have hframe : ((S.descendantNode B.ty h (n + 1) w).move B.frame).prototypeFrame h =
+        t.frame.toAffineEquiv.trans ((S.σ ^ h).toAffineEquiv.trans B.frame.toAffineEquiv) := by
+      apply AffineEquiv.ext
+      intro x
+      change B.frame ((S.descendantNode B.ty h (n + 1) w).frame ((S.σ ^ h) x)) = _
+      rw [states_finite_step6_descendant_scaled, ← ha]
+      rfl
+    let p := e.symm
+      (((S.descendantNode B.ty h (n + 1) w).move B.frame).prototypeFrame h (vertexPoint v))
+    have hep : e p =
+        ((S.descendantNode B.ty h (n + 1) w).move B.frame).prototypeFrame h (vertexPoint v) :=
+      e.apply_symm_apply _
+    have hp : (S.σ ^ n) p = t.frame (vertexPoint v) := by
+      rw [hframe] at hep
+      change B.frame ((S.σ ^ (h + (n + 1) - 1)) p) =
+        B.frame ((S.σ ^ h) (t.frame (vertexPoint v))) at hep
+      rw [show h + (n + 1) - 1 = h + n by omega, pow_add, LinearEquiv.mul_apply] at hep
+      exact (S.σ ^ h).injective (B.frame.injective hep)
+    have hincident : (S.σ ^ n) p ∈ t.carrier 0 := by
+      rw [hp]
+      have hv := states_finite_step6_vertex_mem _ v
+      have hv' : vertexPoint v ∈ (S.proto t.ty).carrier :=
+        (congrArg (fun A : S.ι => vertexPoint v ∈ (S.proto A).carrier) hty).mp hv
+      simpa [FramedNode.carrier, SubstSystem.supertile, placedSet] using
+        Set.mem_image_of_mem t.frame hv'
+    refine ⟨n, ⟨a, hincident⟩, ?_, ?_⟩
+    · refine ⟨v.val, ?_, ?_⟩
+      · rw [← hty]
+        exact v.property
+      · change (S.σ ^ n) p ∈ t.cell 0 v.val
+        rw [hp]
+        have hv : vertexPoint v ∈ v.val.carrier := by rw [vertexPoint_spec]; exact Set.mem_singleton _
+        simpa [FramedNode.cell, FramedNode.prototypeFrame] using
+          Set.mem_image_of_mem t.frame hv
+    · intro K
+      change _ = t.frame.linearIsometryEquiv.symm '' ((S.σ ^ n) '' K)
+      rw [hframe, Set.image_image, Set.image_image]
+      congr 1
+      funext x
+      change t.frame.linearIsometryEquiv.symm
+        ((S.σ ^ h).symm (B.frame.linearIsometryEquiv.symm
+          (B.frame.linearIsometryEquiv ((S.σ ^ (h + (n + 1) - 1)) x)))) =
+        t.frame.linearIsometryEquiv.symm ((S.σ ^ n) x)
+      rw [B.frame.linearIsometryEquiv.symm_apply_apply,
+        show h + (n + 1) - 1 = h + n by omega, pow_add, LinearEquiv.mul_apply,
+        LinearEquiv.symm_apply_apply]
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+Apply primitive_vertex_listed to every first-generation child containing the anchor. -/
+private theorem states_finite_step6_common_anchor (ι : PrimitiveIncidence S)
+    (v : VertexName S (S.child ι.ty ι.left).ty)
+    (hv : v.val.carrier ⊆ ι.leftFacet.val.carrier) :
+    (states_finite_step3_patch ι.ty).CommonListed
+      ((S.child ι.ty ι.left).frame (vertexPoint v)) := by
+  classical
+  let B : FramedNode S := ⟨ι.ty, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hchild (i : S.I ι.ty) : B.child 0 i = states_finite_step3_child ι.ty i := by
+    apply FramedNode.ext rfl
+    apply AffineIsometryEquiv.ext
+    intro x
+    change S.placeChild 0 i x = (S.child ι.ty i).frame x
+    simpa using states_finite_step6_place_scaled 0 i x
+  have hint : relint ((B.child 0 ι.left).cell 0 ι.leftFacet.val) ⊆
+      interior (B.carrier (0 + 1)) := by
+    simpa [hchild, states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame,
+      B, FramedNode.carrier, SubstSystem.supertile, placedSet] using ι.internal
+  have hvp : vertexPoint v ∈ v.val.carrier := by rw [vertexPoint_spec]; exact Set.mem_singleton _
+  have hlists : (B.child 0 ι.left).Lists 0
+      ((S.child ι.ty ι.left).frame (vertexPoint v)) := by
+    refine ⟨v.val, v.property, ?_⟩
+    simpa [hchild, states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame]
+      using Set.mem_image_of_mem (S.child ι.ty ι.left).frame hvp
+  have hfacet : (S.child ι.ty ι.left).frame (vertexPoint v) ∈
+      (B.child 0 ι.left).cell 0 ι.leftFacet.val := by
+    simpa [hchild, states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame]
+      using Set.mem_image_of_mem (S.child ι.ty ι.left).frame (hv hvp)
+  intro t ht hp
+  obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp ht
+  rw [← hchild] at hp ⊢
+  exact primitive_vertex_listed B 0 ι.left ι.leftFacet hint _ hlists hfacet i hp
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+The zero-dimensional canonical stratum supplies a listed first-generation vertex and its exact point. -/
+private theorem states_finite_step6_provider_anchor (P : Params S)
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (v : VertexName S q.2.val.ty)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hz : (U.recordTau P q f hf ⟨vertexCell v, hv⟩).val.val.dim = 0) :
+    let B := U.hierarchy.birthParent q f hf
+    let p := (states_finite_step5_birthFrame B.2.val B.1).symm
+      (q.2.val.prototypeFrame q.1 (vertexPoint v))
+    ∃ a : states_finite_step3_seed S, a.1 = B.2.val.ty ∧
+      states_finite_step3_point a = p ∧
+      (states_finite_step3_patch a.1).CommonListed (states_finite_step3_point a) := by
+  classical
+  let ι := U.recordIncidence P q f hf
+  let c := U.recordTau P q f hf ⟨vertexCell v, hv⟩
+  let w : VertexName S (S.child ι.val.ty ι.val.left).ty :=
+    ⟨c.val.val, Finset.mem_filter.mpr ⟨c.val.property, hz⟩⟩
+  let a : states_finite_step3_seed S := ⟨ι.val.ty, ι.val.left, w⟩
+  let B := U.hierarchy.birthParent q f hf
+  let e := states_finite_step5_birthFrame B.2.val B.1
+  have hA : ι.val.ty = B.2.val.ty :=
+    (P.canonical_spec (U.hierarchy.providerIncidence q f hf)).1.symm.trans
+      (U.hierarchy.providerIncidence_spec q f hf).1
+  have hb : 1 ≤ B.1 := by
+    dsimp [B, CoherentHierarchy.birthParent, CoherentHierarchy.parentNode]
+    omega
+  have hpos : U.providerPlacement P q f hf =
+      (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.trans e := by
+    unfold HonestSource.providerPlacement Params.incidencePlacement
+    change (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.trans
+      (S.σ.symm.toAffineEquiv.trans (B.2.val.prototypeFrame B.1)) = _
+    rw [states_finite_step5_parent_frame B.2.val B.1 hb]
+    apply AffineEquiv.ext
+    intro x
+    change e (S.σ (S.σ.symm ((S.child ι.val.ty ι.val.left).frame x))) = _
+    rw [S.σ.apply_symm_apply]
+    rfl
+  have hx : q.2.val.prototypeFrame q.1 (vertexPoint v) ∈
+      relint (q.2.val.cell q.1 (vertexCell v).val) := by
+    simp [FramedNode.cell, vertexCell, vertexPoint_spec, relint]
+  have hτ := (Classical.choose_spec (U.recordTau_exists P q f hf ⟨vertexCell v, hv⟩)).1
+  have hx' := intrinsicInterior_subset
+    ((U.hierarchy.stratumMap_spec q f hf (vertexCell v)
+      (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩)).1 hx)
+  rw [← hτ] at hx'
+  change q.2.val.prototypeFrame q.1 (vertexPoint v) ∈ U.providerPlacement P q f hf '' w.val.carrier at hx'
+  rw [vertexPoint_spec w, Set.image_singleton, Set.mem_singleton_iff, hpos] at hx'
+  refine ⟨a, hA, ?_, states_finite_step6_common_anchor ι.val w c.property⟩
+  change (S.child ι.val.ty ι.val.left).frame (vertexPoint w) =
+    e.symm (q.2.val.prototypeFrame q.1 (vertexPoint v))
+  rw [hx']
+  exact (e.symm_apply_apply _).symm
+
+/-- Step 6 of the V4 proof of `states_finite` (V4 2.2, 1.5(c)):
+"B is a native tile of sigma^(b-1-n) Pi" and "p is common-listed".
+The birth parent is the next ancestor after the serving child and has strictly greater height. -/
+private theorem states_finite_step6_birth_descendant (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
+    q.2.val.IsDescendant q.1 (U.hierarchy.birthParent q f hf).2.val
+      (U.hierarchy.birthParent q f hf).1 ∧
+      q.1 < (U.hierarchy.birthParent q f hf).1 := by
+  have hB : U.hierarchy.birthParent q f hf =
+      U.hierarchy.ancestor q ((U.hierarchy.firstProvider q f hf).1 + 1) := by
+    simp only [CoherentHierarchy.birthParent, CoherentHierarchy.servingChild,
+      CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+  rw [hB]
+  refine ⟨U.hierarchy.ancestor_descendant q _, ?_⟩
+  rw [U.hierarchy.ancestor_height]
+  omega
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+Inclusion of carriers implies inclusion of their radial tangent germs. -/
+private theorem states_finite_step4_tangent_mono {K L : Set (E d)}
+    (h : K ⊆ L) (p : E d) : tangentCone K p ⊆ tangentCone L p := by
+  rintro v ⟨ε, hε, hv⟩
+  exact ⟨ε, hε, fun t ht htε => h (hv t ht htε)⟩
+
+open scoped Topology in
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+A nonempty radial tangent germ of a closed carrier forces the apex to belong to that carrier. -/
+private theorem states_finite_step4_tangent_closed {K : Set (E d)}
+    (hK : IsClosed K) (p : E d) (v : E d) (hv : v ∈ tangentCone K p) : p ∈ K := by
+  obtain ⟨ε, hε, hv⟩ := hv
+  have hlim : Filter.Tendsto (fun t : ℝ => p + t • v) (𝓝[>] 0) (𝓝 p) := by
+    have hcont : Continuous (fun t : ℝ => p + t • v) := by fun_prop
+    simpa using (hcont.continuousAt (x := 0)).tendsto.mono_left nhdsWithin_le_nhds
+  apply hK.mem_of_tendsto hlim
+  filter_upwards [self_mem_nhdsWithin,
+    (eventually_lt_nhds hε).filter_mono nhdsWithin_le_nhds] with t ht htε
+  exact hv t ht htε
+
+open scoped Topology in
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+For a finite family of closed convex carriers, a short ray belongs to one containing carrier. -/
+private theorem states_finite_step4_convex_union {ι : Type*} [Finite ι]
+    (K : ι → Set (E d)) (hclosed : ∀ i, IsClosed (K i)) (hconv : ∀ i, Convex ℝ (K i))
+    (p : E d) : tangentCone (⋃ i, K i) p = ⋃ i, tangentCone (K i) p := by
+  classical
+  ext v
+  constructor
+  · rintro ⟨ε, hε, hv⟩
+    have hgood : ∀ᶠ t : ℝ in 𝓝 0, ∀ i, p ∉ K i → p + t • v ∉ K i := by
+      rw [Filter.eventually_all]
+      intro i
+      by_cases hi : p ∈ K i
+      · exact Filter.Eventually.of_forall (fun _ h => (h hi).elim)
+      · have hcont : Continuous (fun t : ℝ => p + t • v) := by fun_prop
+        have hnbd : (K i)ᶜ ∈ 𝓝 p := (hclosed i).isOpen_compl.mem_nhds hi
+        have hlim : Filter.Tendsto (fun t : ℝ => p + t • v) (𝓝 0) (𝓝 p) := by
+          simpa using (hcont.continuousAt (x := 0)).tendsto
+        have h := hlim.eventually hnbd
+        exact h.mono (fun t ht _ => ht)
+    have hgood' : ∀ᶠ t : ℝ in 𝓝[>] 0,
+        0 < t ∧ t < ε ∧ ∀ i, p ∉ K i → p + t • v ∉ K i := by
+      filter_upwards [self_mem_nhdsWithin,
+        (eventually_lt_nhds hε).filter_mono nhdsWithin_le_nhds,
+        hgood.filter_mono nhdsWithin_le_nhds] with t ht htε hg
+      exact ⟨ht, htε, hg⟩
+    obtain ⟨t, ht, htε, hg⟩ := hgood'.exists
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hv t ht htε)
+    have hp : p ∈ K i := by by_contra h; exact hg i h hi
+    apply Set.mem_iUnion.mpr
+    refine ⟨i, t, ht, ?_⟩
+    intro u hu hut
+    have hfrac : u / t ∈ Set.Icc (0 : ℝ) 1 :=
+      ⟨le_of_lt (div_pos hu ht), (div_le_one ht).mpr hut.le⟩
+    have hc := (hconv i).add_smul_mem hp hi hfrac
+    simpa only [smul_smul, div_mul_cancel₀ u ht.ne'] using hc
+  · rintro hv
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hv
+    exact states_finite_step4_tangent_mono (Set.subset_iUnion K i) p hi
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+An affine image preserves the finite convex-hull presentation of a polyhedron. -/
+private theorem states_finite_step4_polyhedron_image (e : E d ≃ᵃ[ℝ] E d)
+    {K : Set (E d)} (hK : Polyhedron K) : Polyhedron (e '' K) := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  refine ⟨s.image (fun t => t.image e), ?_⟩
+  simp only [Set.image_iUnion]
+  ext x
+  simp only [Set.mem_iUnion, exists_prop, Finset.mem_image]
+  constructor
+  · rintro ⟨t, ht, hx⟩
+    refine ⟨t.image e, ⟨t, ht, rfl⟩, ?_⟩
+    rw [Finset.coe_image]
+    exact (AffineMap.image_convexHull e.toAffineMap (t : Set (E d))) ▸ hx
+  · rintro ⟨_, ⟨t, ht, rfl⟩, hx⟩
+    refine ⟨t, ht, ?_⟩
+    rw [Finset.coe_image] at hx
+    exact (AffineMap.image_convexHull e.toAffineMap (t : Set (E d))).symm ▸ hx
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+Flatten the finite convex-hull presentations to commute tangent germs with finite polyhedral unions. -/
+private theorem states_finite_step4_polyhedral_union {ι : Type*} [Finite ι]
+    (K : ι → Set (E d)) (hK : ∀ i, Polyhedron (K i)) (p : E d) :
+    tangentCone (⋃ i, K i) p = ⋃ i, tangentCone (K i) p := by
+  classical
+  choose s hs using hK
+  let J := Σ i : ι, {t // t ∈ s i}
+  let C : J → Set (E d) := fun a => convexHull ℝ (a.2.val : Set (E d))
+  have hU : (⋃ i, K i) = ⋃ a : J, C a := by
+    simp only [hs, C, J, Set.iUnion_sigma, Set.iUnion_subtype]
+  rw [hU, states_finite_step4_convex_union C
+    (fun a => a.2.val.finite_toSet.isClosed_convexHull) (fun _ => convex_convexHull _ _) p]
+  ext v
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨⟨i, t, ht⟩, hv⟩
+    refine ⟨i, states_finite_step4_tangent_mono ?_ p hv⟩
+    rw [hs i]
+    exact Set.subset_iUnion_of_subset t (Set.subset_iUnion_of_subset ht Set.Subset.rfl)
+  · rintro ⟨i, hv⟩
+    have hKi : K i = ⋃ t : {t // t ∈ s i}, convexHull ℝ (t.val : Set (E d)) := by
+      simp only [hs i, Set.iUnion_subtype]
+    rw [hKi, states_finite_step4_convex_union _
+      (fun t => t.val.finite_toSet.isClosed_convexHull) (fun _ => convex_convexHull _ _) p] at hv
+    obtain ⟨t, ht⟩ := Set.mem_iUnion.mp hv
+    exact ⟨⟨i, t⟩, ht⟩
+
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+The empty cone is represented by the empty union. -/
+private theorem states_finite_step4_empty : HPiCone S.hPi (∅ : Set (E d)) := by
+  exact ⟨∅, by simp, by simp⟩
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+A listed placed cell is contained in its placed prototype. -/
+private theorem states_finite_step4_cell_subset (t : FramedNode S) (C : CellName S t.ty) :
+    t.cell 0 C.val ⊆ t.carrier 0 := by
+  have hC : C.val.carrier ⊆ (S.proto t.ty).carrier := by
+    intro x hx
+    apply (S.proto t.ty).compact.isClosed.frontier_subset
+    rw [← (S.cx t.ty).carriers_cover]
+    exact Set.mem_iUnion.mpr ⟨C.val, Set.mem_iUnion.mpr ⟨C.property, hx⟩⟩
+  simpa [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.carrier,
+    SubstSystem.supertile, placedSet] using Set.image_mono (f := t.frame) hC
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+Use child coverage and finite unions of the child tangent cones at the common-listed anchor. -/
+private theorem states_finite_step4_parent_cone (A : S.ι) (p : E d)
+    (hp : (states_finite_step3_patch A).CommonListed p) :
+    HPiCone S.hPi (tangentCone (S.σ '' (S.proto A).carrier) p) := by
+  classical
+  let K := fun i : S.I A => (states_finite_step3_child A i).carrier 0
+  have hK (i : S.I A) : Polyhedron (K i) := by
+    simpa [K, states_finite_step3_child, FramedNode.carrier, SubstSystem.supertile,
+      placedSet] using states_finite_step4_polyhedron_image
+        (S.child A i).frame.toAffineEquiv (S.proto (S.child A i).ty).polyhedral
+  have hclosed (i : S.I A) : IsClosed (K i) := by
+    simpa [K, states_finite_step3_child, FramedNode.carrier, SubstSystem.supertile,
+      placedSet] using ((S.proto (S.child A i).ty).compact.image (S.child A i).frame.continuous).isClosed
+  have hcover : S.σ '' (S.proto A).carrier = ⋃ i, K i := by
+    simpa [K, states_finite_step3_child, FramedNode.carrier, SubstSystem.supertile,
+      placedSet] using S.children_cover A
+  rw [hcover, states_finite_step4_polyhedral_union K hK p]
+  apply HPiCone_finite_union
+  intro i
+  by_cases hi : p ∈ K i
+  · exact tangentCone_tile_isHPiCone (states_finite_step3_child A i)
+      (states_finite_step3_child_compatible A i) p
+      (hp _ (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩) hi)
+  · have he : tangentCone (K i) p = ∅ := by
+      apply Set.eq_empty_of_forall_notMem
+      intro v hv
+      exact hi (states_finite_step4_tangent_closed (hclosed i) p v hv)
+    rw [he]
+    exact states_finite_step4_empty
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+Use heredity of the parent facet and the compatible child-cell tangent cones. -/
+private theorem states_finite_step4_boundary_cone (A : S.ι) (F : FacetName S A)
+    (p : E d) (hp : (states_finite_step3_patch A).CommonListed p)
+    (hF : p ∈ S.σ '' F.val.carrier) :
+    HPiCone S.hPi (tangentCone (S.σ '' F.val.carrier) p) := by
+  classical
+  obtain ⟨s, hs⟩ := S.heredity A F.val (facetCell F).property
+  let K := fun a : {a // a ∈ s} =>
+    placedSet (S.child A a.val.1).frame a.val.2.val.carrier
+  have hK (a : {a // a ∈ s}) : Polyhedron (K a) :=
+    states_finite_step4_polyhedron_image (S.child A a.val.1).frame.toAffineEquiv
+      a.val.2.val.flat.polyhedral
+  have hclosed (a : {a // a ∈ s}) : IsClosed (K a) :=
+    (a.val.2.val.flat.compact.image (S.child A a.val.1).frame.continuous).isClosed
+  have hcover : S.σ '' F.val.carrier = ⋃ a : {a // a ∈ s}, K a := by
+    simpa only [K, Set.iUnion_subtype] using hs
+  rw [hcover, states_finite_step4_polyhedral_union K hK p]
+  apply HPiCone_finite_union
+  intro a
+  by_cases ha : p ∈ K a
+  · let C : CellName S (S.child A a.val.1).ty := ⟨a.val.2.val, a.val.2.property.1⟩
+    have hC : K a = (states_finite_step3_child A a.val.1).cell 0 C.val := by
+      simp [K, C, states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame, placedSet]
+    have hpC : p ∈ (states_finite_step3_child A a.val.1).cell 0 C.val := hC ▸ ha
+    rw [hC]
+    apply tangentCone_isHPiCone _ (states_finite_step3_child_compatible A a.val.1) C p _ hpC
+    exact hp _ (Finset.mem_image.mpr ⟨a.val.1, Finset.mem_univ _, rfl⟩)
+      (states_finite_step4_cell_subset _ C hpC)
+  · have he : tangentCone (K a) p = ∅ := by
+      apply Set.eq_empty_of_forall_notMem
+      intro v hv
+      exact ha (states_finite_step4_tangent_closed (hclosed a) p v hv)
+    rw [he]
+    exact states_finite_step4_empty
+
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"closed sides of such codimension-one pairs".
+At a relative-interior point of a listed codimension-one subcell, the coface germ is one closed side in its direction space. The compatible frame sends both listed direction spaces into S.hPi. -/
+private theorem states_finite_step4_flag_halfspace (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (F : FacetFlag S t.ty)
+    (j : FlagStep d) :
+    IsClosedSide S.hPi (t.frame.toAffineEquiv.linear '' flagSide F j) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+A closed side is a one-piece HPiCone. -/
+private theorem states_finite_step4_flag_side (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (F : FacetFlag S t.ty)
+    (j : FlagStep d) :
+    HPiCone S.hPi (t.frame.toAffineEquiv.linear '' flagSide F j) := by
+  classical
+  let K := t.frame.toAffineEquiv.linear '' flagSide F j
+  refine ⟨{{K}}, by simp [K], ?_⟩
+  intro a ha C hC
+  simp only [Finset.mem_singleton] at ha hC
+  subst a
+  simp only [Finset.mem_singleton] at hC
+  subst C
+  exact Or.inr (states_finite_step4_flag_halfspace t ht F j)
+
+/-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
+"finite unions of H-Pi-cones ... are H-Pi-cones".
+Verify each slot of the template: parent, children, boundary facets, primitive facets, flag cells, and sides. -/
+private theorem states_finite_step4_template_cones (P : Params S) (A : S.ι)
+    (p : E d) (hp : (states_finite_step3_patch A).CommonListed p) :
+    ∀ j, HPiCone S.hPi
+      (states_finite_step2_coneAt (states_finite_step3_template P A p) j) := by
+  classical
+  have hmem (A : S.ι) (i : S.I A) :
+      states_finite_step3_child A i ∈ (states_finite_step3_patch A).tiles :=
+    Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩
+  have hcell (i : P.Incidence) (hi : i.val.ty = A)
+      (C : CellName S (S.child i.val.ty i.val.left).ty)
+      (hC : p ∈ (states_finite_step3_child i.val.ty i.val.left).cell 0 C.val) :
+      HPiCone S.hPi (tangentCone
+        ((states_finite_step3_child i.val.ty i.val.left).cell 0 C.val) p) := by
+    apply tangentCone_isHPiCone _ (states_finite_step3_child_compatible _ _) C p _ hC
+    apply hp _ _ (states_finite_step4_cell_subset _ C hC)
+    simpa only [← hi] using hmem i.val.ty i.val.left
+  have hend (i : P.Incidence)
+      (hi : p = (S.child i.val.ty i.val.left).frame (P.flag i).initial ∨
+        p = (S.child i.val.ty i.val.left).frame (P.flag i).terminal)
+      (j : FlagIndex d) :
+      p ∈ (states_finite_step3_child i.val.ty i.val.left).cell 0
+        ((P.flag i).flag.cell j).val := by
+    have hsub := (P.flag i).flag.nested edgeIndex j j.property.1
+    rw [(P.flag i).edge_eq] at hsub
+    rcases hi with rfl | rfl
+    · simpa [states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame] using
+        Set.mem_image_of_mem (S.child i.val.ty i.val.left).frame
+          (hsub (left_mem_segment ℝ _ _))
+    · simpa [states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame] using
+        Set.mem_image_of_mem (S.child i.val.ty i.val.left).frame
+          (hsub (right_mem_segment ℝ _ _))
+  intro j
+  rcases j with _ | i | F | i | ⟨i, j | j⟩
+  · exact states_finite_step4_parent_cone A p hp
+  · change HPiCone S.hPi ((if p ∈ (states_finite_step3_child A i).carrier 0 then
+        some (tangentCone ((states_finite_step3_child A i).carrier 0) p) else none).getD ∅)
+    split_ifs with h
+    · exact tangentCone_tile_isHPiCone _ (states_finite_step3_child_compatible A i) p
+        (hp _ (hmem A i) h)
+    · exact states_finite_step4_empty
+  · change HPiCone S.hPi ((if p ∈ S.σ '' F.val.carrier then
+        some (tangentCone (S.σ '' F.val.carrier) p) else none).getD ∅)
+    split_ifs with h
+    · exact states_finite_step4_boundary_cone A F p hp h
+    · exact states_finite_step4_empty
+  · dsimp only [states_finite_step2_coneAt, states_finite_step3_template]
+    split_ifs with h
+    · have hC : p ∈ (states_finite_step3_child i.val.ty i.val.left).cell 0 i.val.leftFacet.val := by
+        simpa [states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame] using h.2
+      simpa [states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame] using
+        hcell i h.1 (facetCell i.val.leftFacet) hC
+    · exact states_finite_step4_empty
+  · dsimp only [states_finite_step2_coneAt, states_finite_step3_template]
+    split_ifs with h
+    · simpa [states_finite_step3_child, FramedNode.cell, FramedNode.prototypeFrame] using
+        hcell i h.1 ((P.flag i).flag.cell j) (hend i h.2 j)
+    · exact states_finite_step4_empty
+  · dsimp only [states_finite_step2_coneAt, states_finite_step3_template]
+    split_ifs with h
+    · simpa only [Option.map_some, Option.getD_some, (P.flag i).sides_eq j] using
+        states_finite_step4_flag_side (states_finite_step3_child i.val.ty i.val.left)
+          (states_finite_step3_child_compatible _ _) (P.flag i).flag j
+    · exact states_finite_step4_empty
+
+/-- Step 7 of the V4 proof of `states_finite` (V4 2.2):
+"there are finitely many data (A_P,p)".
+Take the finite union over common-listed seed data and realize each honest header by its native address. -/
+private theorem states_finite_step7_headers (P : Params S) :
+    {h : State.Header P | ∃ (U : HonestSource S) (q : U.Node)
+      (v : VertexName S q.2.val.ty) (f : FacetName S q.2.val.ty),
+      U.headerRecordOf P q v f = some h}.Finite := by
+  classical
+  letI : Finite (states_finite_step3_seed S) := by
+    unfold states_finite_step3_seed
+    infer_instance
+  let Seed := {a : states_finite_step3_seed S //
+    (states_finite_step3_patch a.1).CommonListed (states_finite_step3_point a)}
+  let family (a : Seed) : Set (State.Header P) :=
+    {h' | ∃ (n : ℕ)
+      (t : (states_finite_step3_patch a.val.1).Incident (states_finite_step3_point a.val) n),
+      ((states_finite_step3_patch a.val.1).native n t.val).Lists 0
+        ((S.σ ^ n) (states_finite_step3_point a.val)) ∧
+      h' = states_finite_step2_map (fun K =>
+        ((states_finite_step3_patch a.val.1).native n t.val).frame.linearIsometryEquiv.symm ''
+          ((S.σ ^ n) '' K))
+        (states_finite_step3_template P a.val.1 (states_finite_step3_point a.val))}
+  have hfamily (a : Seed) : (family a).Finite :=
+    states_finite_step2_fixed_template P (states_finite_step3_patch a.val.1)
+      (states_finite_step3_point a.val)
+      (states_finite_step3_template P a.val.1 (states_finite_step3_point a.val))
+      (states_finite_step4_template_cones P a.val.1 (states_finite_step3_point a.val) a.property)
+  apply (Set.finite_iUnion hfamily).subset
+  rintro h ⟨U, q, v, f, hh⟩
+  unfold HonestSource.headerRecordOf at hh
+  split at hh
+  next hv =>
+    split at hh
+    next hf => contradiction
+    next hf =>
+      split at hh
+      next hz =>
+        cases Option.some.inj hh
+        obtain ⟨a, hA, hp, hlisted⟩ := states_finite_step6_provider_anchor P U q f hf v hv hz
+        let z : Seed := ⟨a, hlisted⟩
+        refine Set.mem_iUnion.mpr ⟨z, ?_⟩
+        have hd := states_finite_step6_birth_descendant U q f hf
+        have hn := states_finite_step6_native_coordinates q.2.val
+          (U.hierarchy.birthParent q f hf).2.val q.1
+          (U.hierarchy.birthParent q f hf).1 hd.1 hd.2 v
+        dsimp only at hn hp
+        rw [← hp, ← hA] at hn
+        obtain ⟨n, t, ht, hc⟩ := hn
+        refine ⟨n, t, ht, ?_⟩
+        rw [states_finite_step5_template_transport]
+        dsimp only
+        rw [← hp, ← hA]
+        congr 1
+        funext K
+        exact hc K
+      next hz => contradiction
+  next hv => contradiction
+
+
 /-- Q5, V4 2.2: the full range, including the literal cone sets in headers, is finite.
 The finite-header input is V4 1.17 in `CompatiblePatch.header_finiteness`.
 This does not assert finiteness of the ambient structure `State`. -/
 theorem states_finite (S : SubstSystem d) (P : Params S) :
     (honestStates S P).Finite := by
-  sorry
+  classical
+  refine (states_finite_step2_assembly P _ (states_finite_step7_headers P)).subset ?_
+  rintro s ⟨U, q, rfl⟩ v f h hh
+  exact ⟨U, q, v, f, hh⟩
 
 /-- Q4, V4 Remark 2.1: each chain-active edge belongs to a selected owner of the
 recursive coface trace, with its entire recorded chain (including the planar case).

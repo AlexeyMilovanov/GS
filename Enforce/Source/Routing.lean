@@ -1628,6 +1628,378 @@ private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step14
       (affineSpan ℝ (f : Set (E d)) : Set (E d)) ∩ Metric.ball q r ∧
     a = q + (r / 2) • v ∧ b = q - (r / 2) • v
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples` (V4 1.24):
+"a compact `(d-1)`-manifold". The affine span of a simplex with `d` vertices
+in `E d` is a hyperplane, and hence has a unit normal. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step1_unit_normal
+    (f : Finset (E d)) (hi : AffineIndependent ℝ ((↑) : f → E d))
+    (hne : f.Nonempty) (hcard : f.card = d) {q : E d}
+    (hq : q ∈ affineSpan ℝ (f : Set (E d))) :
+    ∃ v : E d, ‖v‖ = 1 ∧
+      (affineSpan ℝ (f : Set (E d)) : Set (E d)) =
+        {x | inner ℝ v (x - q) = 0} := by
+  classical
+  let V := (affineSpan ℝ (f : Set (E d))).direction
+  haveI : Nonempty f := hne.to_subtype
+  have hdim : Module.finrank ℝ V + 1 = d := by
+    dsimp only [V]
+    rw [direction_affineSpan]
+    have hrange : Set.range ((↑) : f → E d) = (f : Set (E d)) := by
+      ext x
+      constructor
+      · rintro ⟨y, rfl⟩
+        exact y.property
+      · intro hx
+        exact ⟨⟨x, hx⟩, rfl⟩
+    have hdim' := hi.finrank_vectorSpan_add_one
+    rw [hrange] at hdim'
+    simpa only [Fintype.card_coe, hcard] using hdim'
+  have horth : Module.finrank ℝ Vᗮ = 1 := by
+    apply Submodule.finrank_add_finrank_orthogonal'
+    simpa using hdim
+  haveI : Nontrivial Vᗮ := Module.nontrivial_of_finrank_pos
+    (show 0 < Module.finrank ℝ Vᗮ by omega)
+  obtain ⟨v, hv⟩ := exists_norm_eq Vᗮ (show (0 : ℝ) ≤ 1 by norm_num)
+  have hv0 : (v : E d) ≠ 0 := by
+    intro h
+    have hv' : ‖(v : E d)‖ = 1 := hv
+    simpa [h] using hv'
+  have hspan : (ℝ ∙ (v : E d)) = Vᗮ := by
+    apply Submodule.eq_of_le_of_finrank_eq
+    · exact Submodule.span_le.mpr (Set.singleton_subset_iff.mpr v.property)
+    · rw [finrank_span_singleton hv0, horth]
+  have hV : V = (ℝ ∙ (v : E d))ᗮ := by
+    rw [hspan, Submodule.orthogonal_orthogonal]
+  refine ⟨v, hv, ?_⟩
+  ext x
+  have hx : x ∈ affineSpan ℝ (f : Set (E d)) ↔ x - q ∈ V := by
+    simpa using (affineSpan ℝ (f : Set (E d))).vadd_mem_iff_mem_direction (x - q) hq
+  change x ∈ affineSpan ℝ (f : Set (E d)) ↔ inner ℝ (v : E d) (x - q) = 0
+  exact hx.trans ((congrArg (fun W : Submodule ℝ (E d) => x - q ∈ W) hV).to_iff.trans
+    Submodule.mem_orthogonal_singleton_iff_inner_right)
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples` (V4 1.24):
+"the complement locally is on the other side". At an interior point of a
+maximal simplex, all other simplices can be excluded by a ball; within that
+ball the simplex fills its affine span. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step2_flat_patch
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (f : K.facets) {q : E d}
+    (hq : q ∈ relint (convexHull ℝ (f.val : Set (E d)))) :
+    ∃ r : ℝ, 0 < r ∧ K.space ∩ Metric.ball q r =
+      (affineSpan ℝ (f.val : Set (E d)) : Set (E d)) ∩ Metric.ball q r := by
+  classical
+  have hqC : q ∈ convexHull ℝ (f.val : Set (E d)) := intrinsicInterior_subset hq
+  have hqH : q ∈ affineSpan ℝ (f.val : Set (E d)) := convexHull_subset_affineSpan _ hqC
+  have hq' := hq
+  unfold relint intrinsicInterior at hq'
+  rw [affineSpan_convexHull] at hq'
+  obtain ⟨q', hqi, hqe⟩ := hq'
+  obtain ⟨r, hr, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hqi)
+  have hfill : (affineSpan ℝ (f.val : Set (E d)) : Set (E d)) ∩ Metric.ball q r ⊆
+      convexHull ℝ (f.val : Set (E d)) := by
+    intro x hx
+    apply hball (a := ⟨x, hx.1⟩)
+    simpa only [Metric.mem_ball, Subtype.dist_eq, hqe] using hx.2
+  obtain ⟨s, hfs, hsind, hsspan⟩ :=
+    exists_subset_affineIndependent_affineSpan_eq_top (K.indep f.property.1)
+  let b : AffineBasis s ℝ (E d) := ⟨(↑), hsind, by simpa using hsspan⟩
+  have hinc {g : Finset (E d)} (hg : g ∈ K.faces)
+      (hqg : q ∈ convexHull ℝ (g : Set (E d))) : f.val ⊆ g := by
+    intro p hp
+    by_contra hpg
+    let i : s := ⟨p, hfs hp⟩
+    have hnonneg : convexHull ℝ (f.val : Set (E d)) ⊆ {x | 0 ≤ b.coord i x} := by
+      apply convexHull_min ?_ ((convex_Ici (0 : ℝ)).affine_preimage (b.coord i))
+      intro y hy
+      let j : s := ⟨y, hfs hy⟩
+      change 0 ≤ b.coord i (b j)
+      simp only [b.coord_apply]
+      split_ifs <;> norm_num
+    have hzero : convexHull ℝ ((f.val : Set (E d)) ∩ (g : Set (E d))) ⊆
+        {x | b.coord i x = 0} := by
+      apply convexHull_min ?_ ((convex_singleton (0 : ℝ)).affine_preimage (b.coord i))
+      intro y hy
+      let j : s := ⟨y, hfs hy.1⟩
+      have hij : i ≠ j := by
+        intro h
+        have hpy : p = y := congrArg Subtype.val h
+        exact hpg (by simpa only [hpy] using hy.2)
+      change b.coord i (b j) = 0
+      exact b.coord_apply_ne hij
+    have hcoordq : b.coord i q = 0 :=
+      hzero (K.inter_subset_convexHull f.property.1 hg ⟨hqC, hqg⟩)
+    have hcoordp : b.coord i p = 1 := b.coord_apply_eq i
+    obtain ⟨ε, hε, hεr⟩ := exists_pos_mul_lt hr ‖q - p‖
+    let z := q + ε • (q - p)
+    have hzH : z ∈ affineSpan ℝ (f.val : Set (E d)) := by
+      have hpH : p ∈ affineSpan ℝ (f.val : Set (E d)) := subset_affineSpan ℝ _ hp
+      simpa only [vsub_eq_sub, vadd_eq_add, add_comm] using
+        AffineSubspace.vadd_mem_of_mem_direction
+          ((affineSpan ℝ (f.val : Set (E d))).direction.smul_mem ε
+            (AffineSubspace.vsub_mem_direction hqH hpH)) hqH
+    have hzball : z ∈ Metric.ball q r := by
+      simpa [z, Metric.mem_ball, dist_eq_norm, norm_smul, Real.norm_eq_abs,
+        abs_of_pos hε, mul_comm] using hεr
+    have hzcoord : b.coord i z = -ε := by
+      calc
+        b.coord i z = b.coord i (ε • (q -ᵥ p) +ᵥ q) := by
+          simp only [z, vsub_eq_sub, vadd_eq_add, add_comm]
+        _ = ε • (b.coord i q -ᵥ b.coord i p) +ᵥ b.coord i q := by
+          rw [AffineMap.map_vadd, LinearMap.map_smul, AffineMap.linearMap_vsub]
+        _ = -ε := by simp [hcoordq, hcoordp]
+    have := hnonneg (hfill ⟨hzH, hzball⟩)
+    change 0 ≤ b.coord i z at this
+    rw [hzcoord] at this
+    linarith
+  let U : Set (E d) := ⋃ g ∈ K.faces \ {f.val}, convexHull ℝ (g : Set (E d))
+  have hUclosed : IsClosed U :=
+    hfin.diff.isClosed_biUnion (fun g _ => g.finite_toSet.isClosed_convexHull)
+  have hqU : q ∉ U := by
+    intro h
+    obtain ⟨g, hg, hqg⟩ := Set.mem_iUnion₂.mp h
+    exact hg.2 (Set.mem_singleton_iff.mpr (f.property.2 hg.1 (hinc hg.1 hqg)).symm)
+  obtain ⟨t, ht, htball⟩ := Metric.mem_nhds_iff.mp (hUclosed.isOpen_compl.mem_nhds hqU)
+  refine ⟨min r t, lt_min hr ht, ?_⟩
+  ext x
+  constructor
+  · intro hx
+    obtain ⟨g, hg, hxg⟩ := K.mem_space_iff.mp hx.1
+    by_cases hgf : g = f.val
+    · subst g
+      exact ⟨convexHull_subset_affineSpan _ hxg, hx.2⟩
+    · exact False.elim (htball (Metric.ball_subset_ball (min_le_right _ _) hx.2)
+        (Set.mem_iUnion₂.mpr ⟨g, ⟨hg, hgf⟩, hxg⟩))
+  · intro hx
+    exact ⟨K.convexHull_subset_space f.property.1
+      (hfill ⟨hx.1, Metric.ball_subset_ball (min_le_left _ _) hx.2⟩), hx.2⟩
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples` (V4 1.24):
+"every point ... is a limit of points". A nonempty closed simplex has connected
+relative interior, and that relative interior is dense in the simplex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step3_relative_interior
+    (f : Finset (E d)) (hne : f.Nonempty) :
+    IsConnected (relint (convexHull ℝ (f : Set (E d)))) ∧
+      closure (relint (convexHull ℝ (f : Set (E d)))) =
+        convexHull ℝ (f : Set (E d)) := by
+  let C := convexHull ℝ (f : Set (E d))
+  have hconv : Convex ℝ C := convex_convexHull ℝ _
+  have hclosed : IsClosed C := f.finite_toSet.isClosed_convexHull
+  obtain ⟨p, hp⟩ := hne
+  have hpC : p ∈ C := subset_convexHull ℝ _ hp
+  let H := affineSpan ℝ C
+  haveI : Nonempty H := ⟨⟨p, subset_affineSpan ℝ C hpC⟩⟩
+  let e := (AffineIsometryEquiv.constVSub ℝ
+    (⟨p, subset_affineSpan ℝ C hpC⟩ : H)).symm
+  let φ : H.direction →ᵃ[ℝ] E d := H.subtype.comp e.toAffineEquiv.toAffineMap
+  let T : Set H.direction := φ ⁻¹' C
+  have hφ : Continuous φ := φ.continuous_of_finiteDimensional
+  have hT : Convex ℝ T := hconv.affine_preimage φ
+  have hrel : relint C = φ '' interior T := by
+    calc
+      relint C = (Subtype.val : H → E d) '' interior (Subtype.val ⁻¹' C) := rfl
+      _ = Subtype.val '' (e.toHomeomorph ''
+          (e.toHomeomorph ⁻¹' interior (Subtype.val ⁻¹' C))) := by
+        rw [e.toHomeomorph.image_preimage]
+      _ = φ '' interior T := by
+        rw [e.toHomeomorph.preimage_interior, Set.image_image]
+        rfl
+  have hneRel : (relint C).Nonempty :=
+    Set.Nonempty.intrinsicInterior hconv ⟨p, hpC⟩
+  have hneT : (interior T).Nonempty := Set.image_nonempty.mp (hrel ▸ hneRel)
+  refine ⟨⟨hneRel, ?_⟩, Set.Subset.antisymm ?_ ?_⟩
+  · change IsPreconnected (relint C)
+    rw [hrel]
+    exact hT.interior.isPreconnected.image φ hφ.continuousOn
+  · exact hclosed.closure_subset_iff.mpr intrinsicInterior_subset
+  · intro x hx
+    let z : H.direction := e.symm ⟨x, subset_affineSpan ℝ C hx⟩
+    have hz : φ z = x := by simp [φ, z]
+    have hzT : z ∈ T := by change φ z ∈ C; rwa [hz]
+    change x ∈ closure (relint C)
+    rw [hrel]
+    apply image_closure_subset_closure_image hφ
+    refine ⟨z, ?_, hz⟩
+    rw [hT.closure_interior_eq_closure_of_nonempty_interior hneT]
+    exact subset_closure hzT
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples` (V4 1.24):
+"the complement locally is on the other side". A normal half-ball is convex,
+lies in one complementary component, and accumulates at its centre. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step4_half_ball
+    (T : Set (E d)) (q v : E d) (r : ℝ) (hr : 0 < r) (hv : ‖v‖ = 1)
+    (hflat : ∀ x ∈ T ∩ Metric.ball q r, inner ℝ v (x - q) = 0) :
+    (Metric.ball q r ∩ {x | 0 < inner ℝ v (x - q)}) ⊆
+        connectedComponentIn Tᶜ (q + (r / 2) • v) ∧
+      q ∈ closure (connectedComponentIn Tᶜ (q + (r / 2) • v)) := by
+  have hvv : inner ℝ v v = 1 := by rw [real_inner_self_eq_norm_sq, hv]; norm_num
+  have hdist (t : ℝ) (ht : 0 ≤ t) : dist (q + t • v) q = t := by
+    simp [dist_eq_norm, norm_smul, hv, Real.norm_eq_abs, abs_of_nonneg ht]
+  have hmem (t : ℝ) (ht : 0 < t) (htr : t < r) :
+      q + t • v ∈ Metric.ball q r ∩ {x | 0 < inner ℝ v (x - q)} := by
+    constructor
+    · simpa only [Metric.mem_ball, hdist t ht.le] using htr
+    · simpa [inner_smul_right, hvv, hv] using ht
+  have hconv : Convex ℝ (Metric.ball q r ∩ {x | 0 < inner ℝ v (x - q)}) := by
+    apply (convex_ball q r).inter
+    simpa only [inner_sub_right, sub_pos] using
+      (convex_Ioi (inner ℝ v q)).linear_preimage (innerSL ℝ v).toLinearMap
+  have hsub : Metric.ball q r ∩ {x | 0 < inner ℝ v (x - q)} ⊆
+      connectedComponentIn Tᶜ (q + (r / 2) • v) := by
+    apply hconv.isPreconnected.subset_connectedComponentIn
+      (hmem (r / 2) (by linarith) (by linarith))
+    intro x hx hxT
+    exact (ne_of_gt hx.2) (hflat x ⟨hxT, hx.1⟩)
+  refine ⟨hsub, Metric.mem_closure_iff.mpr ?_⟩
+  intro ε hε
+  let t := min (r / 2) (ε / 2)
+  have ht : 0 < t := lt_min (by linarith) (by linarith)
+  have htr : t < r := lt_of_le_of_lt (min_le_left _ _) (by linarith)
+  have htε : t < ε := lt_of_le_of_lt (min_le_right _ _) (by linarith)
+  exact ⟨q + t • v, hsub (hmem t ht htr), by rw [dist_comm, hdist t ht.le]; exact htε⟩
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples` (V4 1.24):
+"has all its points adjacent to the same complementary component". On a
+connected subset of a fixed hyperplane with flat neighbourhoods, the component
+on a chosen normal side is locally constant, hence constant. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step5_side_transport
+    (T R : Set (E d)) (hconn : IsPreconnected R) (q v : E d) (hq : q ∈ R)
+    (hv : ‖v‖ = 1) (hplane : ∀ x ∈ R, inner ℝ v (x - q) = 0)
+    (hlocal : ∀ x ∈ R, ∃ s : ℝ, 0 < s ∧
+      ∀ y ∈ T ∩ Metric.ball x s, inner ℝ v (y - x) = 0)
+    (r : ℝ) (hr : 0 < r)
+    (hflat : ∀ x ∈ T ∩ Metric.ball q r, inner ℝ v (x - q) = 0) :
+    R ⊆ closure (connectedComponentIn Tᶜ (q + (r / 2) • v)) := by
+  classical
+  have hvv : inner ℝ v v = 1 := by rw [real_inner_self_eq_norm_sq, hv]; norm_num
+  have hcompare {x y : E d} {s t : ℝ} (hs : 0 < s) (ht : 0 < t)
+      (hx : ∀ z ∈ T ∩ Metric.ball x s, inner ℝ v (z - x) = 0)
+      (hy : ∀ z ∈ T ∩ Metric.ball y t, inner ℝ v (z - y) = 0)
+      (hxy : inner ℝ v (y - x) = 0) (hnear : dist y x < s) :
+      connectedComponentIn Tᶜ (x + (s / 2) • v) =
+        connectedComponentIn Tᶜ (y + (t / 2) • v) := by
+    let u := min (t / 2) ((s - dist y x) / 2)
+    have hu : 0 < u := lt_min (by linarith) (by linarith)
+    have hut : u < t := lt_of_le_of_lt (min_le_left _ _) (by linarith)
+    have hus : u + dist y x < s := by
+      have := min_le_right (t / 2) ((s - dist y x) / 2)
+      dsimp [u]
+      linarith
+    let z := y + u • v
+    have hzy : dist z y = u := by
+      simp [z, dist_eq_norm, norm_smul, hv, Real.norm_eq_abs, abs_of_pos hu]
+    have hzx : dist z x < s := by
+      calc
+        dist z x ≤ dist z y + dist y x := dist_triangle _ _ _
+        _ = u + dist y x := by rw [hzy]
+        _ < s := hus
+    have hzinner : inner ℝ v (z - x) = u := by
+      have : z - x = (y - x) + u • v := by dsimp [z]; abel
+      rw [this, inner_add_right, inner_smul_right, hxy, hvv]
+      ring
+    have hzinner' : inner ℝ v (z - y) = u := by
+      simp [z, inner_smul_right, hvv, hv]
+    have hz₁ :=
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step4_half_ball
+        T x v s hs hv hx).1 ⟨hzx, by simpa only [Set.mem_setOf_eq, hzinner] using hu⟩
+    have hz₂ : z ∈ connectedComponentIn Tᶜ (y + (t / 2) • v) :=
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step4_half_ball
+        T y v t ht hv hy).1
+        ⟨by simpa only [Metric.mem_ball, hzy] using hut,
+          by simpa only [Set.mem_setOf_eq, hzinner'] using hu⟩
+    exact (connectedComponentIn_eq hz₁).trans (connectedComponentIn_eq hz₂).symm
+  choose ρ hρ hρflat using fun x : R => hlocal x x.property
+  let c (x : R) := connectedComponentIn Tᶜ ((x : E d) + (ρ x / 2) • v)
+  have hconstant : IsLocallyConstant c := by
+    apply (IsLocallyConstant.iff_eventually_eq _).mpr
+    intro x
+    have hnear : ∀ᶠ y : R in nhds x, (y : E d) ∈ Metric.ball (x : E d) (ρ x) :=
+      continuous_subtype_val.continuousAt.eventually
+        (Metric.isOpen_ball.mem_nhds (Metric.mem_ball_self (hρ x)))
+    filter_upwards [hnear] with y hy
+    apply (hcompare (hρ x) (hρ y) (hρflat x) (hρflat y) ?_ hy).symm
+    have hxq := hplane x x.property
+    have hyq := hplane y y.property
+    simp only [inner_sub_right] at hxq hyq ⊢
+    linarith
+  have hcq : c ⟨q, hq⟩ = connectedComponentIn Tᶜ (q + (r / 2) • v) := by
+    apply hcompare (hρ ⟨q, hq⟩) hr (hρflat ⟨q, hq⟩) hflat
+    · simp
+    · simpa using hρ ⟨q, hq⟩
+  have hR : IsPreconnected (Set.univ : Set R) :=
+    (Subtype.preconnectedSpace hconn).isPreconnected_univ
+  intro x hx
+  have hcx : c ⟨x, hx⟩ = connectedComponentIn Tᶜ (q + (r / 2) • v) :=
+    (hconstant.apply_eq_of_isPreconnected hR (Set.mem_univ ⟨x, hx⟩)
+      (Set.mem_univ ⟨q, hq⟩)).trans hcq
+  rw [← hcx]
+  exact
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step4_half_ball
+      T x v (ρ ⟨x, hx⟩) (hρ ⟨x, hx⟩) hv (hρflat ⟨x, hx⟩)).2
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples` (V4 1.24):
+"crosses them transversally at finitely many points". A segment between opposite
+normal samples in a flat facet patch meets the complex exactly at its centre. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step6_single_crossing
+    (K : Geometry.SimplicialComplex ℝ (E d)) (f : K.facets) {a b : E d}
+    (hsides : principal_component_step1_hull_geometry_step10_jordan_brouwer_step14_FacetSides K f.val a b) :
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K a b ∧
+      (segment ℝ a b ∩ K.space).ncard = 1 := by
+  obtain ⟨q, r, v, hq, hr, hv, hplane, hpatch, rfl, rfl⟩ := hsides
+  have hvv : inner ℝ v v = 1 := by rw [real_inner_self_eq_norm_sq, hv]; norm_num
+  have ha : q + (r / 2) • v ∈ Metric.ball q r := by
+    simp only [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_eq_abs, hv, mul_one, abs_of_pos (show 0 < r / 2 by linarith)]
+    linarith
+  have hb : q - (r / 2) • v ∈ Metric.ball q r := by
+    rw [sub_eq_add_neg, ← neg_smul]
+    simpa only [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_eq_abs, abs_neg, hv, mul_one] using ha
+  have haH : q + (r / 2) • v ∉ affineSpan ℝ (f.val : Set (E d)) := by
+    rw [← SetLike.mem_coe, hplane]
+    simp only [Set.mem_setOf_eq, add_sub_cancel_left, inner_smul_right, hvv, mul_one]
+    linarith
+  have hbH : q - (r / 2) • v ∉ affineSpan ℝ (f.val : Set (E d)) := by
+    rw [← SetLike.mem_coe, hplane]
+    simp only [Set.mem_setOf_eq, sub_sub_cancel_left, inner_neg_right, inner_smul_right,
+      hvv, mul_one, neg_eq_zero]
+    linarith
+  have haK : q + (r / 2) • v ∉ K.space :=
+    fun h => haH ((Set.ext_iff.mp hpatch _).mp ⟨h, ha⟩).1
+  have hbK : q - (r / 2) • v ∉ K.space :=
+    fun h => hbH ((Set.ext_iff.mp hpatch _).mp ⟨h, hb⟩).1
+  have hseg : segment ℝ (q + (r / 2) • v) (q - (r / 2) • v) ⊆ Metric.ball q r :=
+    (convex_ball q r).segment_subset ha hb
+  have hcross : segment ℝ (q + (r / 2) • v) (q - (r / 2) • v) ∩ K.space = {q} := by
+    ext x
+    constructor
+    · intro hx
+      have hxH := ((Set.ext_iff.mp hpatch x).mp ⟨hx.2, hseg hx.1⟩).1
+      rw [hplane] at hxH
+      obtain ⟨α, β, hα, hβ, hab, hxeq⟩ := hx.1
+      have heq : x = q + ((α - β) * (r / 2)) • v := by
+        rw [← hxeq]
+        calc
+          _ = (α + β) • q + ((α - β) * (r / 2)) • v := by module
+          _ = _ := by rw [hab, one_smul]
+      rw [heq] at hxH
+      have hz : (α - β) * (r / 2) = 0 := by
+        simpa [inner_smul_right, hvv, hv] using hxH
+      simpa [heq, hz]
+    · rintro rfl
+      constructor
+      · refine ⟨1 / 2, 1 / 2, by norm_num, by norm_num, by norm_num, ?_⟩
+        module
+      · exact K.convexHull_subset_space f.property.1 (intrinsicInterior_subset hq)
+  refine ⟨⟨haK, hbK, ?_, ?_⟩, ?_⟩
+  · rw [hcross]
+    exact Set.finite_singleton q
+  · intro x hx
+    have hxq : x = q := by simpa only [hcross, Set.mem_singleton_iff] using hx
+    subst x
+    exact ⟨f.val, f.property, hq, haH, hbH⟩
+  · rw [hcross, Set.ncard_singleton]
+
 /-- Step 15 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "near which the complement locally is on the other side". Choose normal samples
 at a facet interior. Its two open normal collars are connected, and their closures
@@ -1641,7 +2013,64 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
       (segment ℝ a b ∩ K.space).ncard = 1 ∧
       convexHull ℝ (f.val : Set (E d)) ⊆ frontier (connectedComponentIn K.spaceᶜ a) ∧
       convexHull ℝ (f.val : Set (E d)) ⊆ frontier (connectedComponentIn K.spaceᶜ b) := by
-  sorry
+  have hfne := K.nonempty_of_mem_faces f.property.1
+  obtain ⟨hconn, hclosure⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step3_relative_interior
+      f.val hfne
+  obtain ⟨q, hq⟩ := hconn.nonempty
+  have hqH : q ∈ affineSpan ℝ (f.val : Set (E d)) :=
+    convexHull_subset_affineSpan _ (intrinsicInterior_subset hq)
+  obtain ⟨v, hv, hplane⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step1_unit_normal
+      f.val (K.indep f.property.1) hfne (hpure f.val f.property) hqH
+  obtain ⟨r, hr, hpatch⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step2_flat_patch
+      K hfin f hq
+  have hsides :
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step14_FacetSides K f.val
+        (q + (r / 2) • v) (q - (r / 2) • v) :=
+    ⟨q, r, v, hq, hr, hv, hplane, hpatch, rfl, rfl⟩
+  obtain ⟨hreg, hcard⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step6_single_crossing
+      K f hsides
+  have hfront (w : E d) (hw : ‖w‖ = 1)
+      (hwplane : (affineSpan ℝ (f.val : Set (E d)) : Set (E d)) =
+        {x | inner ℝ w (x - q) = 0}) :
+      convexHull ℝ (f.val : Set (E d)) ⊆
+        frontier (connectedComponentIn K.spaceᶜ (q + (r / 2) • w)) := by
+    have hzero {x : E d} (hx : x ∈ affineSpan ℝ (f.val : Set (E d))) :
+        inner ℝ w (x - q) = 0 := by
+      change x ∈ (affineSpan ℝ (f.val : Set (E d)) : Set (E d)) at hx
+      simpa only [hwplane, Set.mem_setOf_eq] using hx
+    have hrel :=
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step5_side_transport
+        K.space (relint (convexHull ℝ (f.val : Set (E d)))) hconn.isPreconnected q w hq hw
+        (fun x hx => hzero (convexHull_subset_affineSpan _ (intrinsicInterior_subset hx)))
+        (by
+          intro x hx
+          obtain ⟨s, hs, hspatch⟩ :=
+            principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step2_flat_patch
+              K hfin f hx
+          refine ⟨s, hs, ?_⟩
+          intro y hy
+          have hyq := hzero ((Set.ext_iff.mp hspatch y).mp hy).1
+          have hxq := hzero (convexHull_subset_affineSpan _ (intrinsicInterior_subset hx))
+          simp only [inner_sub_right] at hxq hyq ⊢
+          linarith)
+        r hr (fun x hx => hzero ((Set.ext_iff.mp hpatch x).mp hx).1)
+    have hcl : convexHull ℝ (f.val : Set (E d)) ⊆
+        closure (connectedComponentIn K.spaceᶜ (q + (r / 2) • w)) := by
+      rw [← hclosure]
+      exact closure_minimal hrel isClosed_closure
+    intro x hx
+    exact ⟨hcl hx, fun hi =>
+      (connectedComponentIn_subset _ _ (interior_subset hi))
+        (K.convexHull_subset_space f.property.1 hx)⟩
+  refine ⟨q + (r / 2) • v, q - (r / 2) • v, hsides, hreg, hcard, hfront v hv hplane, ?_⟩
+  have hnplane : (affineSpan ℝ (f.val : Set (E d)) : Set (E d)) =
+      {x | inner ℝ (-v) (x - q) = 0} := by
+    simpa only [inner_neg_left, neg_eq_zero] using hplane
+  simpa only [smul_neg, sub_eq_add_neg] using hfront (-v) (by simpa using hv) hnplane
 
 /-- Step 16 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "has all its points adjacent to the same complementary component". Across one

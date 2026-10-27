@@ -51,6 +51,766 @@ structure AssemblyGeometry (D : DecodedLevel Y n) (G : GeometricLevel Y (n + 1))
 
 end Parser
 
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "with the frames
+prescribed by the substitution". Relative interiors commute with the full
+affine prototype frame, including an anisotropic expansion. -/
+private theorem assembly_step1_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "the placed children
+of σⁿ⁺¹ A_P". A child prototype frame factors through its unscaled placement. -/
+private theorem assembly_step1_child_frame (N : FramedNode S) (n : ℕ)
+    (i : S.I N.ty) :
+    (N.child n i).prototypeFrame n =
+      (S.child N.ty i).frame.toAffineEquiv.trans (N.prototypeFrame n) := by
+  apply AffineEquiv.ext
+  intro x
+  change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    N.frame ((S.σ ^ n) ((S.child N.ty i).frame x))
+  congr 1
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, zpow_neg,
+    LinearEquiv.mul_apply, ← map_add]
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "sharing a
+first-generation facet". Normalize the placed facet by the parent's height-n frame. -/
+private theorem assembly_step1_child_cell (N : FramedNode S) (n : ℕ)
+    (i : S.I N.ty) (f : Cell d) :
+    (N.child n i).cell n f = N.prototypeFrame n ''
+      placedSet (S.child N.ty i).frame f.carrier := by
+  rw [FramedNode.cell, assembly_step1_child_frame]
+  simp only [placedSet, Set.image_image]
+  rfl
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "int σ A_P is
+connected". The parent carrier is the same affine image of the first substitution. -/
+private theorem assembly_step1_parent_carrier (N : FramedNode S) (n : ℕ) :
+    N.carrier (n + 1) = N.prototypeFrame n '' S.supertile 1 N.ty := by
+  simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+    placedSet, Set.image_image, pow_one]
+  congr 1
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "children sharing
+that facet". Every named placed boundary cell lies in its closed block carrier. -/
+private theorem assembly_step1_cell_subset (N : FramedNode S) (n : ℕ)
+    (f : CellName S N.ty) : N.cell n f.val ⊆ N.carrier n := by
+  have hf : f.val.carrier ⊆ (S.proto N.ty).carrier := by
+    have hrel : relint f.val.carrier ⊆ frontier (S.proto N.ty).carrier := by
+      intro x hx
+      rw [← (S.cx N.ty).cover]
+      exact Set.mem_iUnion₂.mpr ⟨f.val, f.property, hx⟩
+    have hcl := closure_mono hrel
+    rw [f.val.flat.regularClosed, isClosed_frontier.closure_eq] at hcl
+    exact hcl.trans (S.proto N.ty).compact.isClosed.frontier_subset
+  change N.prototypeFrame n '' f.val.carrier ⊆ _
+  have hcarrier : N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+      placedSet, Set.image_image]
+    rfl
+  rw [hcarrier]
+  exact Set.image_mono hf
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "relative interiors
+of first-generation facets". A nonempty relative interior has positive
+Hausdorff measure in its affine dimension. -/
+private theorem assembly_step1_relint_measure (K : Set (E d))
+    (hne : (relint K).Nonempty) :
+    0 < (MeasureTheory.Measure.hausdorffMeasure
+      (Module.finrank ℝ (affineSpan ℝ K).direction : ℝ)) K := by
+  classical
+  let A := affineSpan ℝ K
+  obtain ⟨z, x, hx, rfl⟩ := hne
+  letI : Nonempty A := ⟨x⟩
+  let e := AffineIsometryEquiv.vaddConst ℝ x
+  let U : Set A := interior ((↑) ⁻¹' K)
+  let V : Set A.direction := e ⁻¹' U
+  have hV : IsOpen V := isOpen_interior.preimage e.continuous
+  have hVne : V.Nonempty := ⟨e.symm x, by simpa [V, U] using hx⟩
+  letI : (MeasureTheory.Measure.hausdorffMeasure (Module.finrank ℝ A.direction : ℝ) :
+      MeasureTheory.Measure A.direction).IsAddHaarMeasure :=
+    MeasureTheory.isAddHaarMeasure_hausdorffMeasure
+  have hpos : 0 < (MeasureTheory.Measure.hausdorffMeasure
+      (Module.finrank ℝ A.direction : ℝ)) V := hV.measure_pos _ hVne
+  have heV : e '' V = U := e.surjective.image_preimage U
+  have hm := e.isometry.hausdorffMeasure_image
+    (Or.inl (Nat.cast_nonneg (Module.finrank ℝ A.direction))) V
+  rw [heV] at hm
+  have hi : Isometry (Subtype.val : A → E d) := fun _ _ => rfl
+  have hm' := hi.hausdorffMeasure_image
+    (Or.inl (Nat.cast_nonneg (Module.finrank ℝ A.direction))) U
+  have hsub : (Subtype.val '' U : Set (E d)) ⊆ K := by
+    rintro y ⟨x, hx, rfl⟩
+    exact interior_subset (s := (Subtype.val ⁻¹' K : Set A)) hx
+  exact (hpos.trans_eq (hm'.trans hm).symm).trans_le (MeasureTheory.measure_mono hsub)
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "pairs sharing a
+first-generation facet". A placed facet has strictly positive facet measure. -/
+private theorem assembly_step1_facet_measure
+    (N : FramedNode S) (n : ℕ) (f : FacetName S N.ty) :
+    0 < MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ) (N.cell n f.val) := by
+  have hdim : Module.finrank ℝ (affineSpan ℝ (N.cell n f.val)).direction = d - 1 := by
+    change Module.finrank ℝ
+      (affineSpan ℝ ((N.prototypeFrame n).toAffineMap '' f.val.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact ((N.prototypeFrame n).linear.finrank_map_eq _).trans
+      (f.val.flat.dimension.trans (Finset.mem_filter.mp f.property).2)
+  have hne : (relint (N.cell n f.val)).Nonempty := by
+    rw [FramedNode.cell, assembly_step1_relint_image]
+    exact f.val.flat.relint_nonempty.image _
+  have h := assembly_step1_relint_measure _ hne
+  have hd : 1 ≤ d := by have := (Fact.out : 2 ≤ d); omega
+  simpa only [hdim, Nat.cast_sub hd, Nat.cast_one] using h
+
+/-- Step 2 of the V4 proof of `assembly` (V4 3.7): "each neighbour
+across a facet". Whole-facet pairing identifies the unique opposite child
+among all prescribed children containing that facet. -/
+private theorem assembly_step2_opposite_unique
+    (N : FramedNode S) (n : ℕ) (i : S.I N.ty)
+    (f : FacetName S (N.child n i).ty)
+    (hint : (relint ((N.child n i).cell n f.val) ∩
+      interior (N.carrier (n + 1))).Nonempty)
+    (j k : S.I N.ty) (hji : j ≠ i) (hki : k ≠ i)
+    (hj : (N.child n i).cell n f.val ⊆ (N.child n j).carrier n)
+    (hk : (N.child n i).cell n f.val ⊆ (N.child n k).carrier n) : j = k := by
+  obtain ⟨l, ⟨hli, g, hcell, hzero⟩, _⟩ := (internal_facet_pairing N n i f hint).2
+  have hpos := assembly_step1_facet_measure (N.child n i) n f
+  have howner (q : S.I N.ty) (hqi : q ≠ i)
+      (hq : (N.child n i).cell n f.val ⊆ (N.child n q).carrier n) : q = l := by
+    by_contra hql
+    have hz := hzero q hqi hql
+    rw [Set.inter_eq_right.mpr hq] at hz
+    exact (ne_of_gt hpos) hz
+  exact (howner j hji hj).trans (howner k hki hk).symm
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "pairs sharing a
+first-generation facet". Edges retain both named facets and their internalness. -/
+private def assembly_step1_adjacent (N : FramedNode S) (n : ℕ)
+    (i j : S.I N.ty) : Prop :=
+  i ≠ j ∧ ∃ (f : FacetName S (N.child n i).ty)
+    (g : FacetName S (N.child n j).ty),
+    (N.child n i).cell n f.val = (N.child n j).cell n g.val ∧
+      relint ((N.child n i).cell n f.val) ⊆ interior (N.carrier (n + 1))
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "avoided by general
+position". A proper affine subspace has dense complement. -/
+private theorem assembly_step1_affine_dense (A : AffineSubspace ℝ (E d))
+    (hA : A ≠ ⊤) : Dense (A : Set (E d))ᶜ := by
+  apply interior_eq_empty_iff_dense_compl.mp
+  apply Set.eq_empty_iff_forall_notMem.mpr
+  intro x hx
+  have htop := A.convex.interior_nonempty_iff_affineSpan_eq_top.mp ⟨x, hx⟩
+  rw [AffineSubspace.affineSpan_coe] at htop
+  exact hA htop
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "dimension ≤ d-2".
+An affine subspace of smaller dimension is proper. -/
+private theorem assembly_step1_affine_proper (A : AffineSubspace ℝ (E d))
+    (hA : Module.finrank ℝ A.direction < d) : A ≠ ⊤ := by
+  intro heq
+  rw [heq, AffineSubspace.direction_top, finrank_top,
+    finrank_euclideanSpace, Fintype.card_fin] at hA
+  exact (lt_irrefl d) hA
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "the lower-dimensional
+cells ... avoided by general position". The complement of finitely many
+proper affine subspaces is dense, also for an empty family. -/
+private theorem assembly_step1_avoid_dense (L : Finset (AffineSubspace ℝ (E d)))
+    (hL : ∀ A ∈ L, Module.finrank ℝ A.direction < d) :
+    Dense (⋂ A ∈ L, (A : Set (E d))ᶜ) := by
+  apply dense_biInter_of_isOpen
+    (fun A _ => A.closed_of_finiteDimensional.isOpen_compl) L.finite_toSet.countable
+  intro A hA
+  exact assembly_step1_affine_dense A (assembly_step1_affine_proper A (hL A hA))
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "a generic path ...
+crosses only relative interiors of first-generation facets". In an open
+convex neighborhood, two segments through a generic point avoid all the
+specified affine subspaces of codimension at least two. -/
+private theorem assembly_step1_avoid_local (L : Finset (AffineSubspace ℝ (E d)))
+    (hL : ∀ A ∈ L, Module.finrank ℝ A.direction + 1 < d)
+    {V : Set (E d)} (hV : IsOpen V) (hconv : Convex ℝ V)
+    {a b : E d} (haV : a ∈ V) (hbV : b ∈ V)
+    (ha : a ∈ ⋂ A ∈ L, (A : Set (E d))ᶜ)
+    (hb : b ∈ ⋂ A ∈ L, (A : Set (E d))ᶜ) :
+    ∃ J : Set (E d), J ⊆ V ∩ (⋂ A ∈ L, (A : Set (E d))ᶜ) ∧
+      a ∈ J ∧ b ∈ J ∧ IsPreconnected J := by
+  classical
+  have hspan (A : AffineSubspace ℝ (E d))
+      (hA : Module.finrank ℝ A.direction + 1 < d) (x : E d) :
+      Dense (affineSpan ℝ (insert x (A : Set (E d))) : Set (E d))ᶜ := by
+    have hdim := finrank_vectorSpan_insert_le_set ℝ (A : Set (E d)) x
+    have hAdim : Module.finrank ℝ (vectorSpan ℝ (A : Set (E d))) =
+        Module.finrank ℝ A.direction := by
+      rw [← direction_affineSpan, AffineSubspace.affineSpan_coe]
+    rw [hAdim] at hdim
+    apply assembly_step1_affine_dense
+    apply assembly_step1_affine_proper
+    rw [direction_affineSpan]
+    omega
+  have hsegment (A : AffineSubspace ℝ (E d)) {x z : E d}
+      (hx : x ∉ A) (hz : z ∉ affineSpan ℝ (insert x (A : Set (E d)))) :
+      Disjoint (segment ℝ x z) (A : Set (E d)) := by
+    apply Set.disjoint_left.mpr
+    intro q hq hqA
+    rw [segment_eq_image_lineMap] at hq
+    obtain ⟨t, ht, rfl⟩ := hq
+    have ht0 : t ≠ 0 := by
+      intro ht0
+      subst t
+      exact hx (by simpa using hqA)
+    have hxA : x ∈ affineSpan ℝ (insert x (A : Set (E d))) :=
+      mem_affineSpan ℝ (mem_insert x _)
+    have hqA' : AffineMap.lineMap x z t ∈ affineSpan ℝ (insert x (A : Set (E d))) :=
+      mem_affineSpan ℝ (mem_insert_of_mem _ hqA)
+    have hzA := AffineMap.lineMap_mem t⁻¹ hxA hqA'
+    rw [AffineMap.lineMap_lineMap_right, inv_mul_cancel₀ ht0,
+      AffineMap.lineMap_apply_one] at hzA
+    exact hz hzA
+  have hdense (x : E d) : Dense (⋂ A ∈ L,
+      (affineSpan ℝ (insert x (A : Set (E d))) : Set (E d))ᶜ) := by
+    apply dense_biInter_of_isOpen
+      (fun (A : AffineSubspace ℝ (E d)) _ =>
+        (affineSpan ℝ (insert x (A : Set (E d)))).closed_of_finiteDimensional.isOpen_compl)
+      L.finite_toSet.countable
+    intro A hA
+    exact hspan A (hL A hA) x
+  have hopen (x : E d) : IsOpen (⋂ A ∈ L,
+      (affineSpan ℝ (insert x (A : Set (E d))) : Set (E d))ᶜ) :=
+    isOpen_biInter_finset fun A _ =>
+      (affineSpan ℝ (insert x (A : Set (E d)))).closed_of_finiteDimensional.isOpen_compl
+  obtain ⟨z, hzV, hz⟩ :=
+    ((hdense a).inter_of_isOpen_left (hdense b) (hopen a)).inter_open_nonempty V hV ⟨a, haV⟩
+  let J := segment ℝ a z ∪ segment ℝ b z
+  have hJ (A : AffineSubspace ℝ (E d)) (hA : A ∈ L) : Disjoint J (A : Set (E d)) :=
+    disjoint_union_left.mpr
+      ⟨hsegment A (Set.mem_iInter₂.mp ha A hA) (Set.mem_iInter₂.mp hz.1 A hA),
+        hsegment A (Set.mem_iInter₂.mp hb A hA) (Set.mem_iInter₂.mp hz.2 A hA)⟩
+  refine ⟨J, ?_, Or.inl (left_mem_segment ℝ _ _),
+    Or.inr (left_mem_segment ℝ _ _), ?_⟩
+  · intro x hx
+    refine ⟨(union_subset (hconv.segment_subset haV hzV)
+      (hconv.segment_subset hbV hzV)) hx, ?_⟩
+    exact Set.mem_iInter₂.mpr fun A hA => Set.disjoint_left.mp (hJ A hA) hx
+  · exact IsPreconnected.union' ⟨z, right_mem_segment ℝ _ _, right_mem_segment ℝ _ _⟩
+      (convex_segment (𝕜 := ℝ) a z).isPreconnected
+      (convex_segment (𝕜 := ℝ) b z).isPreconnected
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "int σ A_P is
+connected ... avoided by general position". Removing finitely many affine
+subspaces of codimension at least two preserves connectedness of an open set.
+The local two-segment construction makes each component's closure open in U. -/
+private theorem assembly_step1_avoid_connected (L : Finset (AffineSubspace ℝ (E d)))
+    (hL : ∀ A ∈ L, Module.finrank ℝ A.direction + 1 < d)
+    {U : Set (E d)} (hU : IsOpen U) (hconn : IsPreconnected U) :
+    IsPreconnected (U ∩ (⋂ A ∈ L, (A : Set (E d))ᶜ)) := by
+  apply isPreconnected_of_forall_pair
+  intro a ha b hb
+  let G := ⋂ A ∈ L, (A : Set (E d))ᶜ
+  let V := U ∩ G
+  let H := connectedComponentIn V a
+  have hdense : Dense G := assembly_step1_avoid_dense L (fun A hA => by
+    have := hL A hA
+    omega)
+  have hV : IsOpen V := hU.inter
+    (isOpen_biInter_finset fun A _ => A.closed_of_finiteDimensional.isOpen_compl)
+  have hHV : H ⊆ V := connectedComponentIn_subset V a
+  have haH : a ∈ H := mem_connectedComponentIn ha
+  have hlocal (p : E d) (hpU : p ∈ U) (hpH : p ∈ closure H) :
+      ∃ r : ℝ, 0 < r ∧ ball p r ⊆ U ∩ closure H := by
+    obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hU p hpU
+    obtain ⟨q, hqball, hqH⟩ := mem_closure_iff.mp hpH (ball p r) isOpen_ball (mem_ball_self hr)
+    have hgood : ball p r ∩ G ⊆ H := by
+      rintro x ⟨hxball, hxG⟩
+      obtain ⟨J, hJ, hqJ, hxJ, hJconn⟩ :=
+        assembly_step1_avoid_local L hL isOpen_ball (convex_ball p r)
+          hqball hxball (hHV hqH).2 hxG
+      have hJV : J ⊆ V := fun y hy => ⟨hball (hJ hy).1, (hJ hy).2⟩
+      have hJH : J ⊆ H := by
+        change J ⊆ connectedComponentIn V a
+        rw [connectedComponentIn_eq hqH]
+        exact hJconn.subset_connectedComponentIn hqJ hJV
+      exact hJH hxJ
+    refine ⟨r, hr, fun x hx => ⟨hball hx, ?_⟩⟩
+    apply _root_.mem_closure_iff.mpr
+    intro O hO hxO
+    obtain ⟨z, hz, hzG⟩ := hdense.inter_open_nonempty (ball p r ∩ O)
+      (isOpen_ball.inter hO) ⟨x, hx, hxO⟩
+    exact ⟨z, hz.2, hgood ⟨hz.1, hzG⟩⟩
+  have hW : IsOpen (U ∩ closure H) := Metric.isOpen_iff.mpr fun p hp =>
+    hlocal p hp.1 hp.2
+  have hUW : U ⊆ U ∩ closure H := by
+    apply hconn.subset_of_closure_inter_subset hW
+      ⟨a, ha.1, ha.1, subset_closure haH⟩
+    rintro p ⟨hp, hpU⟩
+    refine ⟨hpU, ?_⟩
+    have hc := closure_mono (show U ∩ closure H ⊆ closure H from inter_subset_right) hp
+    simpa only [closure_closure] using hc
+  have hbH : b ∈ H := by
+    obtain ⟨z, hz, hzH⟩ := mem_closure_iff.mp (hUW hb.1).2
+      (connectedComponentIn V b) hV.connectedComponentIn (mem_connectedComponentIn hb)
+    have heq : H = connectedComponentIn V b :=
+      (connectedComponentIn_eq hzH).trans (connectedComponentIn_eq hz).symm
+    rw [heq]
+    exact mem_connectedComponentIn hb
+  exact ⟨H, hHV, haH, hbH, isPreconnected_connectedComponentIn⟩
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "placed children".
+The closed carrier is the affine image of the prototype carrier. -/
+private theorem assembly_step1_carrier_image (N : FramedNode S) (n : ℕ) :
+    N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+  simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+    placedSet, Set.image_image]
+  rfl
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "int σ A_P is
+connected". Placed nodes retain closedness, regular closedness and connected
+nonempty interiors from their prototypes. -/
+private theorem assembly_step1_node_regular (N : FramedNode S) (n : ℕ) :
+    IsClosed (N.carrier n) ∧ IsRegularClosed (N.carrier n) ∧
+      IsConnected (interior (N.carrier n)) := by
+  let e := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hcar : N.carrier n = e '' (S.proto N.ty).carrier :=
+    assembly_step1_carrier_image N n
+  rw [hcar]
+  refine ⟨((S.proto N.ty).compact.image e.continuous).isClosed, ?_, ?_⟩
+  · change closure (interior (e '' (S.proto N.ty).carrier)) = _
+    rw [← e.image_interior, ← e.image_closure, (S.proto N.ty).regularClosed]
+  · rw [← e.image_interior]
+    exact (S.proto N.ty).interior_connected.image e e.continuous.continuousOn
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "the children tile
+it". Normalize each child carrier by the common parent frame. -/
+private theorem assembly_step1_child_carrier (N : FramedNode S) (n : ℕ)
+    (i : S.I N.ty) :
+    (N.child n i).carrier n = N.prototypeFrame n ''
+      placedSet (S.child N.ty i).frame (S.proto (S.child N.ty i).ty).carrier := by
+  rw [assembly_step1_carrier_image, assembly_step1_child_frame]
+  simp only [placedSet, Set.image_image]
+  rfl
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "the children tile
+it". The prescribed child carriers cover the placed parent exactly. -/
+private theorem assembly_step1_children_cover (N : FramedNode S) (n : ℕ) :
+    N.carrier (n + 1) = ⋃ i : S.I N.ty, (N.child n i).carrier n := by
+  rw [assembly_step1_parent_carrier]
+  change N.prototypeFrame n '' (S.σ '' (S.proto N.ty).carrier) = _
+  rw [S.children_cover, Set.image_iUnion]
+  apply Set.iUnion_congr
+  intro i
+  exact (assembly_step1_child_carrier N n i).symm
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "the children tile
+it". Different prescribed roles have disjoint interiors at every height. -/
+private theorem assembly_step1_children_disjoint (N : FramedNode S) (n : ℕ)
+    (i j : S.I N.ty) (hij : i ≠ j) :
+    Disjoint (interior ((N.child n i).carrier n))
+      (interior ((N.child n j).carrier n)) := by
+  let e := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  rw [assembly_step1_child_carrier, assembly_step1_child_carrier]
+  change Disjoint
+    (interior (e '' placedSet (S.child N.ty i).frame (S.proto (S.child N.ty i).ty).carrier))
+    (interior (e '' placedSet (S.child N.ty j).frame (S.proto (S.child N.ty j).ty).carrier))
+  rw [← e.image_interior, ← e.image_interior]
+  exact Set.disjoint_image_of_injective e.injective (S.children_disjoint N.ty hij)
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "dimension ≤ d-2".
+Placing a cell with the full affine frame preserves its affine dimension. -/
+private theorem assembly_step1_cell_dimension (N : FramedNode S) (n : ℕ)
+    (f : Cell d) :
+    Module.finrank ℝ (affineSpan ℝ (N.cell n f)).direction = f.dim := by
+  change Module.finrank ℝ
+    (affineSpan ℝ ((N.prototypeFrame n).toAffineMap '' f.carrier)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  exact ((N.prototypeFrame n).linear.finrank_map_eq _).trans f.flat.dimension
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "each crossing
+passing between two children sharing that facet". At an interior point of
+the parent outside all lower-dimensional cells, any two owning children
+share an internal named facet. -/
+private theorem assembly_step1_common_point_edge (N : FramedNode S) (n : ℕ)
+    (x : E d) (hx : x ∈ interior (N.carrier (n + 1)))
+    (havoid : ∀ (k : S.I N.ty) (e : CellName S (N.child n k).ty),
+      e.val.dim + 1 < d → x ∉ (N.child n k).cell n e.val)
+    (i j : S.I N.ty) (hne : i ≠ j)
+    (hxi : x ∈ (N.child n i).carrier n) (hxj : x ∈ (N.child n j).carrier n) :
+    assembly_step1_adjacent N n i j := by
+  have hfront (i j : S.I N.ty) (hne : i ≠ j)
+      (hi : x ∈ (N.child n i).carrier n) (hj : x ∈ (N.child n j).carrier n) :
+      x ∈ frontier ((N.child n i).carrier n) := by
+    rw [(assembly_step1_node_regular (N.child n i) n).1.frontier_eq]
+    refine ⟨hi, ?_⟩
+    have hd := (assembly_step1_children_disjoint N n i j hne).closure_right isOpen_interior
+    rw [(assembly_step1_node_regular (N.child n j) n).2.1] at hd
+    exact fun hxint => Set.disjoint_left.mp hd hxint hj
+  obtain ⟨e, he, _⟩ := placedMinimalCell_exists_unique (N.child n i) n x (hfront i j hne hxi hxj)
+  obtain ⟨e', he', _⟩ := placedMinimalCell_exists_unique (N.child n j) n x (hfront j i hne.symm hxj hxi)
+  have hdim (k : S.I N.ty) (e : CellName S (N.child n k).ty)
+      (he : x ∈ relint ((N.child n k).cell n e.val)) : e.val.dim = d - 1 := by
+    have hlt := (S.cx (N.child n k).ty).dim_lt e.val e.property
+    have hnot : ¬ e.val.dim + 1 < d := fun h => havoid k e h (intrinsicInterior_subset he)
+    omega
+  let f : FacetName S (N.child n i).ty :=
+    ⟨e.val, Finset.mem_filter.mpr ⟨e.property, hdim i e he⟩⟩
+  let g : FacetName S (N.child n j).ty :=
+    ⟨e'.val, Finset.mem_filter.mpr ⟨e'.property, hdim j e' he'⟩⟩
+  exact ⟨hne, f, g, sibling_minimalCell_eq N n i j hne x e e' he he',
+    (internal_facet_pairing N n i f ⟨x, he, hx⟩).1⟩
+
+/-- Step 1 of the V4 proof of `assembly` (V4 3.7): "the dual graph of the
+children of σ A_P ... is connected". This is solely a finite subdivision
+statement; it includes the reflexive path for a one-child type. -/
+private theorem assembly_step1_connected (N : FramedNode S) (n : ℕ)
+    (i j : S.I N.ty) :
+    Relation.ReflTransGen (assembly_step1_adjacent N n) i j := by
+  classical
+  let L : Finset (AffineSubspace ℝ (E d)) := Finset.univ.biUnion fun k : S.I N.ty =>
+    ((S.cx (N.child n k).ty).cells.filter fun e => e.dim + 1 < d).image
+      (fun e => affineSpan ℝ ((N.child n k).cell n e))
+  have hL : ∀ A ∈ L, Module.finrank ℝ A.direction + 1 < d := by
+    intro A hA
+    obtain ⟨k, _, hA⟩ := Finset.mem_biUnion.mp hA
+    obtain ⟨e, he, rfl⟩ := Finset.mem_image.mp hA
+    rw [assembly_step1_cell_dimension]
+    exact (Finset.mem_filter.mp he).2
+  let V := interior (N.carrier (n + 1)) ∩ (⋂ A ∈ L, (A : Set (E d))ᶜ)
+  have hconn : IsPreconnected V := assembly_step1_avoid_connected L hL isOpen_interior
+    (assembly_step1_node_regular N (n + 1)).2.2.isPreconnected
+  have hdense := assembly_step1_avoid_dense L (fun A hA => by
+    have := hL A hA
+    omega)
+  have hchild (k : S.I N.ty) : (N.child n k).carrier n ⊆ N.carrier (n + 1) := by
+    rw [assembly_step1_children_cover]
+    exact Set.subset_iUnion (fun q : S.I N.ty => (N.child n q).carrier n) k
+  have hpoint (k : S.I N.ty) : ∃ x ∈ V, x ∈ (N.child n k).carrier n := by
+    obtain ⟨x, hx, hxG⟩ := hdense.inter_open_nonempty (interior ((N.child n k).carrier n))
+      isOpen_interior (assembly_step1_node_regular (N.child n k) n).2.2.nonempty
+    exact ⟨x, ⟨interior_mono (hchild k) hx, hxG⟩, interior_subset hx⟩
+  by_contra hnot
+  let R := {k | Relation.ReflTransGen (assembly_step1_adjacent N n) i k}
+  let K := ⋃ k ∈ R, (N.child n k).carrier n
+  let K' := ⋃ k ∈ Rᶜ, (N.child n k).carrier n
+  have hK : IsClosed K := R.toFinite.isClosed_biUnion
+    (fun k _ => (assembly_step1_node_regular (N.child n k) n).1)
+  have hK' : IsClosed K' := Rᶜ.toFinite.isClosed_biUnion
+    (fun k _ => (assembly_step1_node_regular (N.child n k) n).1)
+  have hcover : V ⊆ K ∪ K' := by
+    intro x hx
+    have hxN := interior_subset hx.1
+    rw [assembly_step1_children_cover] at hxN
+    obtain ⟨k, hxk⟩ := Set.mem_iUnion.mp hxN
+    by_cases hk : k ∈ R
+    · exact Or.inl (Set.mem_iUnion₂.mpr ⟨k, hk, hxk⟩)
+    · exact Or.inr (Set.mem_iUnion₂.mpr ⟨k, hk, hxk⟩)
+  obtain ⟨x, hxV, hxi⟩ := hpoint i
+  obtain ⟨y, hyV, hyj⟩ := hpoint j
+  have hxK : x ∈ K := Set.mem_iUnion₂.mpr ⟨i, Relation.ReflTransGen.refl, hxi⟩
+  have hyK' : y ∈ K' := Set.mem_iUnion₂.mpr ⟨j, hnot, hyj⟩
+  obtain ⟨z, hzV, hzK, hzK'⟩ := (isPreconnected_closed_iff.mp hconn) K K' hK hK'
+    hcover ⟨x, hxV, hxK⟩ ⟨y, hyV, hyK'⟩
+  obtain ⟨k, hk, hzk⟩ := Set.mem_iUnion₂.mp hzK
+  obtain ⟨l, hl, hzl⟩ := Set.mem_iUnion₂.mp hzK'
+  have hne : k ≠ l := by intro heq; subst l; exact hl hk
+  have havoid (q : S.I N.ty) (e : CellName S (N.child n q).ty)
+      (he : e.val.dim + 1 < d) : z ∉ (N.child n q).cell n e.val := by
+    have hmem : affineSpan ℝ ((N.child n q).cell n e.val) ∈ L :=
+      Finset.mem_biUnion.mpr ⟨q, Finset.mem_univ _, Finset.mem_image.mpr
+        ⟨e.val, Finset.mem_filter.mpr ⟨e.property, he⟩, rfl⟩⟩
+    exact fun hz => (Set.mem_iInter₂.mp hzV.2 _ hmem) (mem_affineSpan ℝ hz)
+  exact hl (hk.tail (assembly_step1_common_point_edge N n z hzV.1 havoid k l hne hzk hzl))
+
+/-- Step 2 of the V4 proof of `assembly` (V4 3.7): "with that child in
+that role and frame is unique". Cancelling the prescribed child isometry
+recovers the entire proposed-parent frame. -/
+private theorem assembly_step2_parent_frame
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (N : FramedNode S) (i : S.I N.ty)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks)
+    (hnode : B.node = N.child n i) (hrole : firstRole D B hB = ⟨N.ty, i⟩) :
+    proposedParent D B hB = N := by
+  calc
+    proposedParent D B hB =
+        ⟨N.ty, (S.placeChild n i).symm.trans B.node.frame⟩ :=
+      congrArg (fun q : S.Role => (⟨q.1,
+        (S.placeChild n q.2).symm.trans B.node.frame⟩ : FramedNode S)) hrole
+    _ = N := by
+      rw [hnode]
+      apply FramedNode.ext
+      · rfl
+      · simp [FramedNode.child, AffineIsometryEquiv.trans_assoc]
+
+/-- Step 2 of the V4 proof of `assembly` (V4 3.7): "each neighbour
+across a facet ... with first address letter equal to its role". The serving
+role and the positioned opposite facet identify the opposite role uniquely. -/
+private theorem assembly_step2_record_role
+    (N : FramedNode S) (n : ℕ) (i j : S.I N.ty)
+    (f : FacetName S (N.child n i).ty)
+    (hint : (relint ((N.child n i).cell n f.val) ∩
+      interior (N.carrier (n + 1))).Nonempty)
+    (hji : j ≠ i) (hj : (N.child n i).cell n f.val ⊆ (N.child n j).carrier n)
+    (r : FacetRecord P)
+    (hrole : r.incidence.val.sideRole r.sideIndex = ⟨N.ty, i⟩)
+    (hfacet : ((⟨r.incidence.val.ty, N.frame⟩ : FramedNode S).child n
+      (r.incidence.val.sideIndex (!r.sideIndex))).cell n
+        (r.incidence.val.sideFacet (!r.sideIndex)).val = (N.child n i).cell n f.val) :
+    r.incidence.val.sideRole (!r.sideIndex) = ⟨N.ty, j⟩ := by
+  rcases N with ⟨T, φ⟩
+  have ht : r.incidence.val.ty = T := congrArg Sigma.fst hrole
+  subst T
+  have hi : r.incidence.val.sideIndex r.sideIndex = i := by
+    simpa only [PrimitiveIncidence.sideRole, Sigma.mk.inj_iff, heq_eq_eq, true_and] using hrole
+  have hki : r.incidence.val.sideIndex (!r.sideIndex) ≠ i := by
+    rw [← hi]
+    cases hb : r.sideIndex <;>
+      simp [PrimitiveIncidence.sideIndex, r.incidence.val.distinct,
+        Ne.symm r.incidence.val.distinct]
+  have hk : ((⟨r.incidence.val.ty, φ⟩ : FramedNode S).child n i).cell n f.val ⊆
+      ((⟨r.incidence.val.ty, φ⟩ : FramedNode S).child n
+        (r.incidence.val.sideIndex (!r.sideIndex))).carrier n := by
+    rw [← hfacet]
+    exact assembly_step1_cell_subset _ n
+      ⟨(r.incidence.val.sideFacet (!r.sideIndex)).val,
+        (Finset.mem_filter.mp (r.incidence.val.sideFacet (!r.sideIndex)).property).1⟩
+  have hkj := assembly_step2_opposite_unique ⟨r.incidence.val.ty, φ⟩ n i f hint
+    (r.incidence.val.sideIndex (!r.sideIndex)) j hki hji hk hj
+  exact congrArg (fun q => (⟨r.incidence.val.ty, q⟩ : S.Role)) hkj
+
+/-- Step 2 of the V4 proof of `assembly` (V4 3.7): "its age-one facets are
+those internal to σ A_P by Corollary 2.4(a)". At one specified dual edge,
+the record names exactly the opposite prescribed role and its full frame. -/
+private theorem assembly_step2_neighbor_record
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (hD : Inv D) (N : FramedNode S)
+    (i j : S.I N.ty) (hij : assembly_step1_adjacent N n i j)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks)
+    (hnode : B.node = N.child n i) (hrole : firstRole D B hB = ⟨N.ty, i⟩) :
+    ∃ (f : FacetName S B.node.ty) (a : Parser.AgeOneFacet D B hB f),
+      proposedSibling D B hB f a = N.child n j ∧
+        a.record.incidence.val.sideRole (!a.record.sideIndex) = ⟨N.ty, j⟩ := by
+  classical
+  obtain ⟨hne, f, g, hfg, hint⟩ := hij
+  let fB : FacetName S B.node.ty :=
+    ⟨f.val, by rw [hnode]; exact f.property⟩
+  let s := D.blockState B hB
+  let fs : FacetName S s.ty :=
+    ⟨f.val, by rw [(hD.I1 B hB).2.1]; exact fB.property⟩
+  have hinternal : s.InternalFacet fs := by
+    change relint (placedSet
+      (S.child (firstRole D B hB).1 (firstRole D B hB).2).frame f.val.carrier) ⊆
+        interior (S.supertile 1 (firstRole D B hB).1)
+    rw [hrole]
+    rw [assembly_step1_child_cell, assembly_step1_relint_image,
+      assembly_step1_parent_carrier] at hint
+    have hi : interior (N.prototypeFrame n '' S.supertile 1 N.ty) =
+        N.prototypeFrame n '' interior (S.supertile 1 N.ty) :=
+      ((N.prototypeFrame n).toHomeomorphOfFiniteDimensional.image_interior _).symm
+    rw [hi] at hint
+    exact (Set.image_subset_image_iff (N.prototypeFrame n).injective).mp hint
+  obtain ⟨r, hr, hage⟩ :=
+    (state_semantics_a P s (hD.I1 B hB).1 fs).1.mp hinternal
+  let a : Parser.AgeOneFacet D B hB fB := {
+    record := r
+    readout := by
+      change stateRecordAt s f.val = some r
+      unfold stateRecordAt
+      split_ifs with hf
+      · exact hr
+      · exact (hf fs.property).elim
+    age_one := hage.1 }
+  have hPP := assembly_step2_parent_frame D N i B hB hnode hrole
+  have hsem := Parser.ageOneFacet_semantics D hD B hB fB a
+  have hserving : a.record.incidence.val.sideRole a.record.sideIndex = ⟨N.ty, i⟩ :=
+    a.record.side_eq.symm.trans (hsem.2.2.1.trans hrole)
+  have hfacet : ((⟨a.record.incidence.val.ty, N.frame⟩ : FramedNode S).child n
+      (a.record.incidence.val.sideIndex (!a.record.sideIndex))).cell n
+        (a.record.incidence.val.sideFacet (!a.record.sideIndex)).val =
+          (N.child n i).cell n f.val := by
+    simpa only [proposedSibling, hPP, hnode] using hsem.2.2.2
+  have hrel : (relint ((N.child n i).cell n f.val)).Nonempty := by
+    rw [FramedNode.cell, assembly_step1_relint_image]
+    exact f.val.flat.relint_nonempty.image _
+  have hj : (N.child n i).cell n f.val ⊆ (N.child n j).carrier n := by
+    rw [hfg]
+    exact assembly_step1_cell_subset _ n ⟨g.val, (Finset.mem_filter.mp g.property).1⟩
+  have hother := assembly_step2_record_role N n i j f
+    (hrel.mono fun _ hx => ⟨hx, hint hx⟩) (Ne.symm hne) hj a.record hserving hfacet
+  refine ⟨fB, a, ?_, hother⟩
+  unfold proposedSibling
+  rw [hPP]
+  exact congrArg (fun q : S.Role => (⟨(S.child q.1 q.2).ty,
+    (S.placeChild n q.2).trans N.frame⟩ : FramedNode S)) hother
+
+/-- Step 2 of the V4 proof of `assembly` (V4 3.7): "applying Proposition
+3.6 along a path of the dual graph". One host step extends the family of
+actual children, retaining the exact first letter supplied by that theorem. -/
+private theorem assembly_step2_host
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (hY : MProper Y) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (i j : S.I N.ty) (hij : assembly_step1_adjacent N n i j)
+    (hi : ∃ B : Block Y n, ∃ hB : B ∈ D.geometry.blocks,
+      B.node = N.child n i ∧ firstRole D B hB = ⟨N.ty, i⟩) :
+    ∃ B : Block Y n, ∃ hB : B ∈ D.geometry.blocks,
+      B.node = N.child n j ∧ firstRole D B hB = ⟨N.ty, j⟩ := by
+  obtain ⟨B, hB, hnode, hrole⟩ := hi
+  obtain ⟨f, a, hsibling, hother⟩ :=
+    assembly_step2_neighbor_record D hD N i j hij B hB hnode hrole
+  obtain ⟨B', hB', hnode', hrole', _⟩ := host_step Y hY n hn D hD B hB f a
+  exact ⟨B', hB', hnode'.trans hsibling, hrole'.trans hother⟩
+
+/-- Step 3 of the V4 proof of `assembly` (V4 3.7): "Starting from B
+(child i)". The recorded first role has the block's type, and the proposed
+parent frame cancels to the block's full frame in that role. -/
+private theorem assembly_step3_original_child
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (hD : Inv D) (B : Block Y n)
+    (hB : B ∈ D.geometry.blocks) :
+    (proposedParent D B hB).child n (firstRole D B hB).2 = B.node := by
+  apply FramedNode.ext
+  · exact (D.blockState B hB).address_start.trans (hD.I1 B hB).2.1
+  · simp [FramedNode.child, proposedParent, AffineIsometryEquiv.trans_assoc]
+
+/-- Step 3 of the V4 proof of `assembly` (V4 3.7): "Starting from B
+(child i) ... all children are present". Induction on a finite dual path
+produces the entire prescribed family, also when the path has length zero. -/
+private theorem assembly_step3_children
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (hY : MProper Y) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) :
+    Nonempty (Parser.AssembledParent D (proposedParent D B hB)) := by
+  classical
+  let N := proposedParent D B hB
+  let i : S.I N.ty := (firstRole D B hB).2
+  have hstart : ∃ B' : Block Y n, ∃ hB' : B' ∈ D.geometry.blocks,
+      B'.node = N.child n i ∧ firstRole D B' hB' = ⟨N.ty, i⟩ :=
+    ⟨B, hB, (assembly_step3_original_child D hD B hB).symm, rfl⟩
+  have hall (j : S.I N.ty) : ∃ B' : Block Y n, ∃ hB' : B' ∈ D.geometry.blocks,
+      B'.node = N.child n j ∧ firstRole D B' hB' = ⟨N.ty, j⟩ := by
+    have hpath := assembly_step1_connected N n i j
+    induction hpath with
+    | refl => exact hstart
+    | tail _ hedge ih => exact assembly_step2_host hY hn D hD N _ _ hedge ih
+  choose child hmem hnode hrole using hall
+  exact ⟨⟨fun j => ⟨child j, hmem j⟩, hnode, hrole⟩⟩
+
+/-- Step 3 of the V4 proof of `assembly` (V4 3.7): "its standard
+subdivision consists of tiles of Y with the right types and frames".
+Split a native address into its first role and its address inside that child. -/
+private theorem assembly_step3_actual
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    {D : DecodedLevel Y n} {N : FramedNode S} (A : Parser.AssembledParent D N) :
+    IsBlock Y (n + 1) N := by
+  intro w
+  have hactual : IsBlock Y n (N.child n w.1) :=
+    (A.child_eq w.1) ▸ (A.children w.1).val.actual
+  obtain ⟨t, ht, hnode⟩ := hactual w.2
+  refine ⟨t, ht, ?_⟩
+  simpa only [SubstSystem.nativeTile, SubstSystem.descendantNode, Nat.zero_add,
+    FramedNode.move, FramedNode.child, AffineIsometryEquiv.trans_assoc] using hnode
+
+/-- Step 3 of the V4 proof of `assembly` (V4 3.7): "each a union of
+level-n blocks (its children)". Substitute the actual child frames into the
+geometric substitution cover. -/
+private theorem assembly_step3_union
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    {D : DecodedLevel Y n} {N : FramedNode S} (A : Parser.AssembledParent D N) :
+    N.carrier (n + 1) = ⋃ i : S.I N.ty, (A.children i).val.carrier := by
+  rw [assembly_step1_children_cover]
+  apply Set.iUnion_congr
+  intro i
+  change (N.child n i).carrier n = (A.children i).val.node.carrier n
+  rw [A.child_eq]
+
+/-- Step 3 of the V4 proof of `assembly` (V4 3.7): "PP(C) = PP(B)
+for all of them". The first letter and full child frame recover the same parent. -/
+private theorem assembly_step3_parent_eq
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    {D : DecodedLevel Y n} {N : FramedNode S}
+    (A : Parser.AssembledParent D N) (i : S.I N.ty) :
+    proposedParent D (A.children i).val (A.children i).property = N :=
+  assembly_step2_parent_frame D N i (A.children i).val (A.children i).property
+    (A.child_eq i) (A.first_letters i)
+
+/-- Step 4 of the V4 proof of `assembly` (V4 3.7): "a common interior
+point ... lies in the interior of a level-n block ... a child of both".
+Regular closedness of the old children gives this directly, by two successive
+interior approximations inside the open overlap. -/
+private theorem assembly_step4_common_child
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (N M : FramedNode S)
+    (A : Parser.AssembledParent D N) (A' : Parser.AssembledParent D M)
+    (hmeet : (interior (N.carrier (n + 1)) ∩
+      interior (M.carrier (n + 1))).Nonempty) :
+    ∃ (i : S.I N.ty) (j : S.I M.ty), A.children i = A'.children j := by
+  let U := interior (N.carrier (n + 1)) ∩ interior (M.carrier (n + 1))
+  have hU : IsOpen U := isOpen_interior.inter isOpen_interior
+  obtain ⟨x, hx⟩ := hmeet
+  have hxN := interior_subset hx.1
+  rw [assembly_step3_union A] at hxN
+  obtain ⟨i, hxi⟩ := Set.mem_iUnion.mp hxN
+  have hxcl : x ∈ closure (interior (A.children i).val.carrier) := by
+    change x ∈ closure (interior ((A.children i).val.node.carrier n))
+    rw [(assembly_step1_node_regular (A.children i).val.node n).2.1]
+    exact hxi
+  obtain ⟨y, hyU, hyi⟩ := mem_closure_iff.mp hxcl U hU hx
+  have hyM := interior_subset hyU.2
+  rw [assembly_step3_union A'] at hyM
+  obtain ⟨j, hyj⟩ := Set.mem_iUnion.mp hyM
+  have hycl : y ∈ closure (interior (A'.children j).val.carrier) := by
+    change y ∈ closure (interior ((A'.children j).val.node.carrier n))
+    rw [(assembly_step1_node_regular (A'.children j).val.node n).2.1]
+    exact hyj
+  obtain ⟨z, hz, hzj⟩ := mem_closure_iff.mp hycl
+    (U ∩ interior (A.children i).val.carrier) (hU.inter isOpen_interior) ⟨hyU, hyi⟩
+  refine ⟨i, j, Subtype.ext ?_⟩
+  by_contra hne
+  exact Set.disjoint_left.mp
+    (D.geometry.disjoint (A.children i).property (A'.children j).property hne) hz.2 hzj
+
+/-- Step 4 of the V4 proof of `assembly` (V4 3.7): "PP(B) = PP(B̂) =
+PP(B̃)". A common old child identifies both parents, including their frames. -/
+private theorem assembly_step4_separation
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (N M : FramedNode S)
+    (A : Parser.AssembledParent D N) (A' : Parser.AssembledParent D M)
+    (hne : N ≠ M) :
+    Disjoint (interior (N.carrier (n + 1))) (interior (M.carrier (n + 1))) := by
+  apply Set.disjoint_left.mpr
+  intro x hxN hxM
+  obtain ⟨i, j, hchild⟩ := assembly_step4_common_child D N M A A' ⟨x, hxN, hxM⟩
+  apply hne
+  calc
+    N = proposedParent D (A.children i).val (A.children i).property :=
+      (assembly_step3_parent_eq A i).symm
+    _ = proposedParent D (A'.children j).val (A'.children j).property := by rw [hchild]
+    _ = M := assembly_step3_parent_eq A' j
+
 /-- R7, V4 3.7: all proposed parents form a genuine geometric level n+1,
 with disjoint interiors and whole-space coverage. Each parent is the union of
 its actual level-n children, in their prescribed frames, and PP(C) = PP(B).
@@ -58,7 +818,48 @@ The one-child case is included; no branching hypothesis is added. -/
 theorem assembly (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D) :
     ∃ G : GeometricLevel Y (n + 1), Parser.AssemblyGeometry D G := by
-  sorry
+  classical
+  have hparents (N : FramedNode S) (hN : N ∈ Parser.proposedParents D) :
+      Nonempty (Parser.AssembledParent D N) := by
+    obtain ⟨B, hB, rfl⟩ := hN
+    exact assembly_step3_children hY hn D hD B hB
+  let A (N : FramedNode S) (hN : N ∈ Parser.proposedParents D) :=
+    Classical.choice (hparents N hN)
+  let parent (N : FramedNode S) (hN : N ∈ Parser.proposedParents D) : Block Y (n + 1) :=
+    ⟨N, assembly_step3_actual (A N hN)⟩
+  let G : GeometricLevel Y (n + 1) := {
+    blocks := {B | B.node ∈ Parser.proposedParents D}
+    disjoint := by
+      intro B hB B' hB' hne
+      exact assembly_step4_separation D B.node B'.node (A B.node hB) (A B'.node hB')
+        (fun heq => hne (Block.ext heq))
+    cover := by
+      intro x
+      obtain ⟨B, hB, hx⟩ := D.geometry.cover x
+      let N := proposedParent D B hB
+      have hN : N ∈ Parser.proposedParents D := ⟨B, hB, rfl⟩
+      let a := A N hN
+      refine ⟨parent N hN, hN, ?_⟩
+      change x ∈ N.carrier (n + 1)
+      rw [assembly_step3_union a]
+      apply Set.mem_iUnion.mpr
+      refine ⟨(firstRole D B hB).2, ?_⟩
+      have heq : (a.children (firstRole D B hB).2).val = B := by
+        apply Block.ext
+        exact (a.child_eq _).trans (assembly_step3_original_child D hD B hB)
+      simpa only [heq] using hx }
+  have hroots : G.roots = Parser.proposedParents D := by
+    ext N
+    constructor
+    · rintro ⟨B, hB, rfl⟩
+      exact hB
+    · intro hN
+      exact ⟨parent N hN, hN, rfl⟩
+  refine ⟨G, hroots, ?_, ?_⟩
+  · intro N hN
+    exact hparents N (hroots ▸ hN)
+  · intro B hB
+    exact ⟨(firstRole D B hB).2, (assembly_step3_original_child D hD B hB).symm⟩
 
 namespace Parser
 

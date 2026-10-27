@@ -3630,11 +3630,72 @@ private theorem host_step_step2_strand_step2_terminal_counter_step2_sector
       (interior (N.carrier 0) ∩
         interior ((fun v => p + v) '' tangentCone (Q.carrier (n + 1)) p) ∩
         ball p ε).Nonempty := by
-  -- Move backwards along the nondegenerate terminal edge, then into the
-  -- successive flag cells on their common recorded sides, and finally into
-  -- the selected child side. The same displacements enter N and Q. At the
-  -- endpoint, their directions are interior directions of the parent cone.
-  sorry
+  classical
+  let H := (⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)
+  let p := P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal
+  change ∀ ε : ℝ, 0 < ε →
+    (interior (N.carrier 0) ∩
+      interior ((fun v => p + v) '' tangentCone (Q.carrier (n + 1)) p) ∩
+      ball p ε).Nonempty
+  have hspan : affineSpan ℝ (N.cell 0 (host_step_edge z).val) =
+      affineSpan ℝ (host_step_flagEdge H n ι b) := halign.1 edgeIndex
+  have hrel : relint (N.cell 0 (host_step_edge z).val) ⊆
+      relint (host_step_flagEdge H n ι b) := by
+    rw [relint, relint, intrinsicInterior, intrinsicInterior, ← hspan]
+    exact Set.image_mono (interior_mono (Set.preimage_mono hsub))
+  have hend : (z.1.endpoints (host_step_edge z)).2 ∈
+      (host_step_edge z).val.carrier := by
+    have he := (Classical.choose_spec
+      (edge_endpoints_exist (⟨z.1.ty, host_step_edge z⟩ : EdgeName S))).2
+    unfold FacetRecord.endpoints
+    split
+    · exact he.symm.subset (right_mem_segment ℝ _ _)
+    · exact he.symm.subset (left_mem_segment ℝ _ _)
+  have hpedge : p ∈ N.cell 0 (host_step_edge z).val := ⟨_, hend, hterminal⟩
+  have hreg : closure (relint (N.cell 0 (host_step_edge z).val)) =
+      N.cell 0 (host_step_edge z).val := by
+    change closure (relint (N.frame '' (host_step_edge z).val.carrier)) =
+      N.frame '' (host_step_edge z).val.carrier
+    have hi : relint (N.frame '' (host_step_edge z).val.carrier) =
+        N.frame '' relint (host_step_edge z).val.carrier :=
+      N.frame.toAffineIsometry.image_intrinsicInterior _
+    rw [hi]
+    simpa only [(host_step_edge z).val.flat.regularClosed] using
+      (N.frame.toHomeomorph.image_closure (relint (host_step_edge z).val.carrier)).symm
+  have hnearEdge : p ∈ closure (relint (N.cell 0 (host_step_edge z).val) ∩
+      relint (host_step_flagEdge H n ι b)) := by
+    rw [Set.inter_eq_left.mpr hrel, hreg]
+    exact hpedge
+  have hnear : p ∈ closure (interior (N.carrier 0) ∩ interior (H.carrier n)) := by
+    apply closure_minimal ?_ isClosed_closure hnearEdge
+    intro x hx
+    apply host_step_step2_strand_step2_terminal_bound_step1_flag_overlap
+      N H 0 n z.2.chain.val (P.sideFlag ι b) hty.symm rfl halign.1 halign.2.1
+    · simpa only [z.2.chain.property,
+        host_step_step2_strand_step2_terminal_bound_step4_flag_top] using halign.2.2.2
+    · exact hx
+  have hpH : H.Lists n p :=
+    (host_step_step1_seed_step2_child_endpoint Q n ι b
+      (P.flag ι).terminal (Or.inr rfl)).1
+  have hHQ : H.carrier n ⊆ Q.carrier (n + 1) := by
+    have h := host_step_step2_strand_step2_terminal_bound_step3_child_subset
+      (⟨ι.val.ty, Q.frame⟩ : FramedNode S) n (ι.val.sideIndex b)
+    have hQ : (⟨ι.val.ty, Q.frame⟩ : FramedNode S) = Q := by
+      apply FramedNode.ext
+      · exact hι
+      · rfl
+    change H.carrier n ⊆ (⟨ι.val.ty, Q.frame⟩ : FramedNode S).carrier (n + 1) at h
+    simpa only [hQ] using h
+  obtain ⟨U, hU, hpU, hUsub⟩ :=
+    host_step_step2_strand_step2_terminal_bound_step2_local_sector
+      H n (Q.carrier (n + 1)) p hpH hHQ
+  intro ε hε
+  obtain ⟨x, ⟨hxU, hxball⟩, hxN, hxH⟩ := mem_closure_iff_nhds.mp hnear
+    (U ∩ ball p ε) ((hU.inter isOpen_ball).mem_nhds ⟨hpU, mem_ball_self hε⟩)
+  refine ⟨x, ⟨hxN, ?_⟩, hxball⟩
+  apply interior_mono hUsub
+  rw [interior_inter, hU.interior_eq]
+  exact ⟨hxH, hxU⟩
 
 /-- Step 3 of the V4 proof of `host_step_step2_strand_step2_terminal_counter` (V4 3.6, 2a):
 "u_m is a port on g at p_N". In a complete honest annotated star, a listed

@@ -2096,6 +2096,222 @@ private theorem host_step_step1_seed_step8_transport_step3_cells
         ((S.child ι.val.ty ι.val.left).frame z))
     rw [← heq, AffineIsometryEquiv.symm_apply_apply]
 
+/-- Step 1 of the V4 proof of `host_step_step1_seed_step8_transport_step4_coface` (V4 1.0(a)):
+"each component is inside or outside A". On a connected set on which boundary
+membership is constant, membership in a closed set is constant as well. -/
+private lemma host_step_step1_seed_step8_transport_step4_coface_step1_connected_membership
+    {X : Type*} [TopologicalSpace X] {S T : Set X}
+    (hS : IsClosed S) (hT : IsPreconnected T)
+    (hb : ∀ x ∈ T, ∀ y ∈ T, x ∈ frontier S ↔ y ∈ frontier S)
+    {x y : X} (hx : x ∈ T) (hy : y ∈ T) : x ∈ S ↔ y ∈ S := by
+  by_cases hxb : x ∈ frontier S
+  · exact iff_of_true (hS.frontier_subset hxb) (hS.frontier_subset ((hb x hx y hy).mp hxb))
+  have havoid : ∀ z ∈ T, z ∉ frontier S := by
+    intro z hz hzb
+    exact hxb ((hb x hx z hz).mpr hzb)
+  have hcover : T ⊆ interior S ∪ Sᶜ := by
+    intro z hz
+    by_cases hzs : z ∈ S
+    · left
+      by_contra hzi
+      exact havoid z hz (by rw [hS.frontier_eq]; exact ⟨hzs, hzi⟩)
+    · exact Or.inr hzs
+  have hdis : Disjoint (interior S) Sᶜ :=
+    Set.disjoint_left.mpr fun _ hi hc => hc (interior_subset hi)
+  rcases hT.subset_or_subset isOpen_interior hS.isOpen_compl hdis hcover with h | h
+  · exact iff_of_true (interior_subset (h hx)) (interior_subset (h hy))
+  · exact iff_of_false (h hx) (h hy)
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step8_transport_step4_coface` (V4 1.0(b)):
+"the local structure is constant by (a) applied to the cell complex". Translation
+invariance of the relative boundary of a closed set extends to the set itself,
+provided the translations are parallel to its affine span. -/
+private lemma host_step_step1_seed_step8_transport_step4_coface_step2_fill
+    {S : Set (E d)} (hS : IsClosed S) (V : Submodule ℝ (E d))
+    (hV : V ≤ (affineSpan ℝ S).direction) (p : E d) (r : ℝ)
+    (hb : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V →
+      (x ∈ relfrontier S ↔ y ∈ relfrontier S)) :
+    ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ S ↔ y ∈ S) := by
+  have hforward : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → x ∈ S → y ∈ S := by
+    intro x hx y hy hyx hxs
+    have hxaff : x ∈ affineSpan ℝ S := subset_affineSpan ℝ S hxs
+    let γ : ℝ → affineSpan ℝ S := fun t =>
+      ⟨t • (y - x) + x,
+        AffineSubspace.vadd_mem_of_mem_direction
+          ((affineSpan ℝ S).direction.smul_mem t (hV hyx)) hxaff⟩
+    have hγcont : Continuous γ := by
+      apply Continuous.subtype_mk
+      fun_prop
+    have hγball : ∀ t ∈ Icc (0 : ℝ) 1, (γ t : E d) ∈ ball p r := by
+      intro t ht
+      have hseg : (γ t : E d) ∈ segment ℝ x y := by
+        rw [segment_eq_image_lineMap]
+        exact ⟨t, ht, rfl⟩
+      exact (convex_ball p r).segment_subset hx hy hseg
+    have hfront (z : affineSpan ℝ S) :
+        z ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ↔ (z : E d) ∈ relfrontier S := by
+      change _ ↔ (z : E d) ∈ Subtype.val '' frontier _
+      exact (Subtype.val_injective.mem_set_image).symm
+    have hinv : ∀ a ∈ γ '' Icc (0 : ℝ) 1, ∀ b ∈ γ '' Icc (0 : ℝ) 1,
+        a ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ↔
+        b ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) := by
+      rintro a ⟨s, hs, rfl⟩ b ⟨t, ht, rfl⟩
+      rw [hfront, hfront]
+      apply hb _ (hγball s hs) _ (hγball t ht)
+      change (t • (y - x) + x) - (s • (y - x) + x) ∈ V
+      simpa only [add_sub_add_right_eq_sub] using
+        V.sub_mem (V.smul_mem t hyx) (V.smul_mem s hyx)
+    have heq := host_step_step1_seed_step8_transport_step4_coface_step1_connected_membership
+      (hS.preimage continuous_subtype_val)
+      (isPreconnected_Icc.image γ hγcont.continuousOn) hinv
+      (mem_image_of_mem γ (left_mem_Icc.mpr (zero_le_one : (0 : ℝ) ≤ 1)))
+      (mem_image_of_mem γ (right_mem_Icc.mpr (zero_le_one : (0 : ℝ) ≤ 1)))
+    simpa [γ] using heq.mp (by simpa [γ] using hxs)
+  intro x hx y hy hyx
+  exact ⟨hforward x hx y hy hyx,
+    hforward y hy x hx (by simpa only [neg_sub] using V.neg_mem hyx)⟩
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step8_transport_step4_coface` (V4 1.0(a)):
+"Cells are closed and finitely many, so some ball U ...". Finitely many local
+translation invariances hold on a common ball, including for an empty family. -/
+private lemma host_step_step1_seed_step8_transport_step4_coface_step3_common_ball
+    {ι : Type*} (s : Finset ι) (C : ι → Set (E d))
+    (V : Submodule ℝ (E d)) (p : E d)
+    (h : ∀ i ∈ s, ∃ r : ℝ, 0 < r ∧
+      ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ C i ↔ y ∈ C i)) :
+    ∃ r : ℝ, 0 < r ∧ ∀ i ∈ s,
+      ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ C i ↔ y ∈ C i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => exact ⟨1, zero_lt_one, by simp⟩
+  | @insert a s ha ih =>
+    obtain ⟨ra, hra, hca⟩ := h a (Finset.mem_insert_self a s)
+    obtain ⟨rs, hrs, hcs⟩ := ih (fun i hi => h i (Finset.mem_insert_of_mem hi))
+    refine ⟨min ra rs, lt_min hra hrs, ?_⟩
+    intro i hi x hx y hy hv
+    rcases Finset.mem_insert.mp hi with rfl | hi
+    · exact hca x (ball_subset_ball (min_le_left _ _) hx)
+        y (ball_subset_ball (min_le_left _ _) hy) hv
+    · exact hcs i hi x (ball_subset_ball (min_le_right _ _) hx)
+        y (ball_subset_ball (min_le_right _ _) hy) hv
+
+/-- Step 4 of the V4 proof of `host_step_step1_seed_step8_transport_step4_coface` (V4 1.0(b)):
+"the local structure is constant by (a) applied to the cell complex". Induction
+through the finite boundary complex proves both incidence and local translation
+invariance in the directions of the cell containing the base point. -/
+private lemma host_step_step1_seed_step8_transport_step4_coface_step4_cell_invariance
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e : Cell d) (he : e ∈ K.cells)
+    (p : E d) (hp : p ∈ relint e.carrier) (f : Cell d) (hf : f ∈ K.cells) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+      y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+  classical
+  let N (f : Cell d) := (K.cells.filter fun g => g.carrier ⊆ f.carrier).card
+  have main : ∀ n : ℕ, ∀ f : Cell d, f ∈ K.cells → N f = n →
+      (p ∈ f.carrier → e.carrier ⊆ f.carrier) ∧
+      ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+        y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+      intro f hf hN
+      by_cases hpf : p ∈ f.carrier
+      · obtain ⟨b, hb, hboundary⟩ := K.boundary_union f hf
+        have hgb (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ relfrontier f.carrier := by
+          intro z hz
+          rw [hboundary]
+          exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+        have hgf (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ f.carrier :=
+          (hgb g hg).trans (intrinsicFrontier_subset f.flat.compact.isClosed)
+        have hsmall : ∀ g ∈ b, N g < N f := by
+          intro g hg
+          have hnfg : ¬ f.carrier ⊆ g.carrier := by
+            intro hfg
+            obtain ⟨z, hz⟩ := f.flat.relint_nonempty
+            have hzb := hgb g hg (hfg (intrinsicInterior_subset hz))
+            change z ∈ intrinsicFrontier ℝ f.carrier at hzb
+            rw [← closure_diff_intrinsicInterior] at hzb
+            exact hzb.2 hz
+          apply Finset.card_lt_card
+          apply (Finset.ssubset_iff_of_subset ?_).mpr
+          · refine ⟨f, Finset.mem_filter.mpr ⟨hf, Subset.rfl⟩, ?_⟩
+            intro hfg
+            exact hnfg (Finset.mem_filter.mp hfg).2
+          · intro g' hg'
+            obtain ⟨hg'K, hg'g⟩ := Finset.mem_filter.mp hg'
+            exact Finset.mem_filter.mpr ⟨hg'K, hg'g.trans (hgf g hg)⟩
+        have hef : e.carrier ⊆ f.carrier := by
+          by_cases hpi : p ∈ relint f.carrier
+          · have hef : e = f := by
+              by_contra hne
+              exact Set.disjoint_left.mp (K.relint_disjoint e he f hf hne) hp hpi
+            exact hef ▸ Subset.rfl
+          · have hpb : p ∈ relfrontier f.carrier := by
+              change p ∈ intrinsicFrontier ℝ f.carrier
+              rw [← closure_diff_intrinsicInterior, f.flat.compact.isClosed.closure_eq]
+              exact ⟨hpf, hpi⟩
+            rw [hboundary] at hpb
+            obtain ⟨g, hpg⟩ := mem_iUnion.mp hpb
+            obtain ⟨hg, hpg⟩ := mem_iUnion.mp hpg
+            exact ((ih (N g) (by simpa only [hN] using hsmall g hg)
+              g (hb hg) rfl).1 hpg).trans (hgf g hg)
+        have hV : cellDirection e.carrier ≤ (affineSpan ℝ f.carrier).direction :=
+          AffineSubspace.direction_le (affineSpan_mono ℝ hef)
+        obtain ⟨r, hr, hc⟩ :=
+          host_step_step1_seed_step8_transport_step4_coface_step3_common_ball b
+            Cell.carrier (cellDirection e.carrier) p (fun g hg =>
+              (ih (N g) (by simpa only [hN] using hsmall g hg) g (hb hg) rfl).2)
+        refine ⟨fun _ => hef, r, hr,
+          host_step_step1_seed_step8_transport_step4_coface_step2_fill
+            f.flat.compact.isClosed (cellDirection e.carrier) hV p r ?_⟩
+        intro x hx y hy hv
+        rw [hboundary]
+        simp only [mem_iUnion, exists_prop]
+        constructor
+        · rintro ⟨g, hg, hxg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mp hxg⟩
+        · rintro ⟨g, hg, hyg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mpr hyg⟩
+      · obtain ⟨r, hr, hball⟩ :=
+          Metric.isOpen_iff.mp f.flat.compact.isClosed.isOpen_compl p hpf
+        exact ⟨fun h => (hpf h).elim, r, hr,
+          fun x hx y hy _ => iff_of_false (hball hx) (hball hy)⟩
+  exact (main (N f) f hf rfl).2
+
+open scoped Topology in
+/-- Step 5 of the V4 proof of `host_step_step1_seed_step8_transport_step4_coface` (V4 1.0(b)):
+"the local structure is constant". Equal translated germs give equal radial
+tangent cones; only sufficiently short positive portions of each ray matter. -/
+private lemma host_step_step1_seed_step8_transport_step4_coface_step5_tangent_germ
+    (S : Set (E d)) (V : Submodule ℝ (E d)) (p q : E d)
+    (r : ℝ) (hr : 0 < r) (hq : q ∈ ball p r) (hv : q - p ∈ V)
+    (hloc : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ S ↔ y ∈ S)) :
+    tangentCone S p = tangentCone S q := by
+  ext v
+  have hnear (a : E d) (ha : a ∈ ball p r) :
+      ∀ᶠ t : ℝ in 𝓝 0, a + t • v ∈ ball p r := by
+    have hc : Continuous (fun t : ℝ => a + t • v) := by fun_prop
+    have ht : Filter.Tendsto (fun t : ℝ => a + t • v) (𝓝 0) (𝓝 a) := by
+      simpa only [zero_smul, add_zero] using hc.tendsto (0 : ℝ)
+    exact ht.eventually (isOpen_ball.mem_nhds ha)
+  obtain ⟨δ, hδ, hδnear⟩ := Metric.eventually_nhds_iff.mp
+    ((hnear p (mem_ball_self hr)).and (hnear q hq))
+  have heq (t : ℝ) (ht : 0 < t) (htδ : t < δ) :
+      p + t • v ∈ S ↔ q + t • v ∈ S := by
+    have hdist : dist t 0 < δ := by
+      simpa only [Real.dist_eq, sub_zero, abs_of_pos ht] using htδ
+    have hpair := hδnear hdist
+    apply hloc _ hpair.1 _ hpair.2
+    simpa only [add_sub_add_right_eq_sub] using hv
+  constructor
+  · rintro ⟨ε, hε, hεray⟩
+    refine ⟨min ε δ, lt_min hε hδ, fun t ht htεδ => ?_⟩
+    exact (heq t ht (lt_of_lt_of_le htεδ (min_le_right _ _))).mp
+      (hεray t ht (lt_of_lt_of_le htεδ (min_le_left _ _)))
+  · rintro ⟨ε, hε, hεray⟩
+    refine ⟨min ε δ, lt_min hε hδ, fun t ht htεδ => ?_⟩
+    exact (heq t ht (lt_of_lt_of_le htεδ (min_le_right _ _))).mpr
+      (hεray t ht (lt_of_lt_of_le htεδ (min_le_left _ _)))
+
 /-- Step 4 of the V4 proof of `host_step_step1_seed_step8_transport` (V4 3.6, F1):
 "near a point of the relative interior of a codimension-one face,
 a polyhedral manifold cell is a half-space on the recorded side".
@@ -2106,11 +2322,29 @@ private theorem host_step_step1_seed_step8_transport_step4_coface
     (hx : x ∈ relint (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) :
     tangentCone (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier x =
       flagSide F k := by
-  -- In the upper cell's affine span, properness puts the lower relative
-  -- interior in its boundary. The relative form of V4 1.0(a) gives a local
-  -- half-space there. Its inward side is locally constant on the connected
-  -- relative interior of the lower cell, hence agrees with its anchor's side.
-  sorry
+  let e := (F.cell ⟨k.val, k.property.1, by omega⟩).val
+  let f := (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val
+  have he : e ∈ (S.cx A).cells := (F.cell _).property
+  have hf : f ∈ (S.cx A).cells := (F.cell _).property
+  have hloc : IsLocallyConstant (fun p : relint e.carrier => tangentCone f.carrier p) := by
+    apply (IsLocallyConstant.iff_eventually_eq _).mpr
+    intro p
+    obtain ⟨r, hr, hball⟩ :=
+      host_step_step1_seed_step8_transport_step4_coface_step4_cell_invariance
+        (S.cx A) e he p p.property f hf
+    have hnear : ∀ᶠ q : relint e.carrier in nhds p, (q : E d) ∈ ball (p : E d) r :=
+      continuous_subtype_val.continuousAt.eventually
+        (isOpen_ball.mem_nhds (mem_ball_self hr))
+    filter_upwards [hnear] with q hq
+    apply (host_step_step1_seed_step8_transport_step4_coface_step5_tangent_germ
+      f.carrier (cellDirection e.carrier) p q r hr hq ?_ hball).symm
+    exact AffineSubspace.vsub_mem_direction
+      (subset_affineSpan ℝ e.carrier (intrinsicInterior_subset q.property))
+      (subset_affineSpan ℝ e.carrier (intrinsicInterior_subset p.property))
+  have hconn : IsPreconnected (univ : Set (relint e.carrier)) :=
+    (Subtype.preconnectedSpace e.flat.relint_connected.isPreconnected).isPreconnected_univ
+  exact hloc.apply_eq_of_isPreconnected hconn
+    (x := ⟨x, hx⟩) (y := ⟨cellAnchor e, cellAnchor_mem e⟩) (mem_univ _) (mem_univ _)
 
 /-- Step 4 of the V4 proof of `host_step_step1_seed_step8_transport` (V4 3.6, F1):
 "with the recorded sides". The common positioned cofaces give identical

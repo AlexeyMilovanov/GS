@@ -4412,6 +4412,648 @@ actual native-packet readout. NULL is retained, so this also covers faults. -/
 theorem packet_constancy : Parser.BoundaryPackets Y (n + 1) N := by
   sorry
 
+section PacketEEquality
+
+omit hY hn hD A
+
+open scoped Topology in
+/-- Step 1 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"we may take q a vertex". An extreme point in the relative interior of
+one of the intersection's cells forces that cell to be a singleton. -/
+private theorem packet_E_equality_step1_extreme_cell (K L : Set (E d)) (hLK : L ⊆ K)
+    (q : E d) (hq : q ∈ K.extremePoints ℝ) (hqL : q ∈ relint L) : L = {q} := by
+  obtain ⟨q', hq', rfl⟩ := mem_intrinsicInterior.mp hqL
+  have hqL : (q' : E d) ∈ L := (show q' ∈ Subtype.val ⁻¹' L from interior_subset hq')
+  apply Set.Subset.antisymm
+  · intro x hx
+    let γ : ℝ → affineSpan ℝ L := fun t =>
+      ⟨AffineMap.lineMap (q' : E d) x t,
+        AffineMap.lineMap_mem t q'.property (subset_affineSpan ℝ L hx)⟩
+    have hγ : Continuous γ := by fun_prop
+    have hsmall : ∀ᶠ t : ℝ in 𝓝 0,
+        (γ t : E d) ∈ L ∧ (γ (-t) : E d) ∈ L := by
+      have h₁ : Filter.Tendsto γ (𝓝 0) (𝓝 q') := by
+        simpa [γ] using hγ.tendsto 0
+      have h₂ : Filter.Tendsto (fun t => γ (-t)) (𝓝 0) (𝓝 q') := by
+        simpa [γ] using (hγ.comp continuous_neg).tendsto 0
+      exact Filter.Eventually.and (h₁ (mem_interior_iff_mem_nhds.mp hq'))
+        (h₂ (mem_interior_iff_mem_nhds.mp hq'))
+    obtain ⟨ε, hε, hεL⟩ := Metric.eventually_nhds_iff.mp hsmall
+    let t := ε / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have htε : dist t 0 < ε := by simp [t, abs_of_pos hε]; linarith
+    obtain ⟨hplus, hminus⟩ := hεL htε
+    have hseg : (q' : E d) ∈ openSegment ℝ (γ t : E d) (γ (-t) : E d) := by
+      refine ⟨(1 / 2 : ℝ), (1 / 2 : ℝ), by norm_num, by norm_num, by norm_num, ?_⟩
+      simp only [γ, AffineMap.lineMap_apply, vadd_eq_add, vsub_eq_sub]
+      module
+    have hplus_eq : (γ t : E d) = (q' : E d) := hq.2 (hLK hplus) (hLK hminus) hseg
+    have hzero : t • (x - (q' : E d)) = 0 := by
+      simpa [γ, AffineMap.lineMap_apply] using hplus_eq
+    have hxeq : x = (q' : E d) := sub_eq_zero.mp ((smul_eq_zero.mp hzero).resolve_left ht.ne')
+    exact Set.mem_singleton_iff.mpr hxeq
+  · exact singleton_subset_iff.mpr hqL
+
+/-- Step 1 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"F ∩ F' is a union of cells". Every listed cell contains a listed
+zero-dimensional cell, so choosing the minimal intersection cell suffices. -/
+private theorem packet_E_equality_step1_cell_vertex
+    (Q : PolyManifoldDomain d) (K : CellComplex Q) (e : Cell d) (he : e ∈ K.cells) :
+    ∃ v ∈ K.vertices, v.carrier ⊆ e.carrier := by
+  obtain ⟨q, hq⟩ := e.flat.compact.extremePoints_nonempty e.flat.connected.nonempty
+  have hqP : q ∈ frontier Q.carrier := by
+    rw [← K.carriers_cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hq.1⟩
+  let v := K.minimalCell q hqP
+  have hv := K.minimalCell_mem q hqP
+  have hvsub := K.minimalCell_subset q hqP e he hq.1
+  have hvsing : v.carrier = {q} := packet_E_equality_step1_extreme_cell e.carrier v.carrier hvsub q hq
+    (K.mem_relint_minimalCell q hqP)
+  refine ⟨v, Finset.mem_filter.mpr ⟨hv, ?_⟩, hvsub⟩
+  have hdim := v.flat.dimension
+  rw [cellDirection, hvsing, direction_affineSpan, vectorSpan_singleton, finrank_bot] at hdim
+  exact hdim.symm
+
+/-- Step 1 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"we may take q a vertex of P in F ∩ F'". The minimal cell at an
+intersection point lies in both facets, and contains a listed vertex. -/
+private theorem packet_E_equality_step1_common_vertex
+    (N : FramedNode S) (m : ℕ) (F F' : FacetName S N.ty)
+    (hmeet : (N.cell m F.val ∩ N.cell m F'.val).Nonempty) :
+    ∃ p : E d, N.Lists m p ∧ p ∈ N.cell m F.val ∧ p ∈ N.cell m F'.val := by
+  obtain ⟨p, ⟨x, hx, hxp⟩, hp'⟩ := hmeet
+  have hx' : x ∈ F'.val.carrier := by
+    rw [← hxp] at hp'
+    exact (N.prototypeFrame m).injective.mem_set_image.mp hp'
+  have hxfront : x ∈ frontier (S.proto N.ty).carrier := by
+    rw [← (S.cx N.ty).carriers_cover]
+    exact mem_iUnion₂.mpr ⟨F.val, (facetCell F).property, hx⟩
+  let e := (S.cx N.ty).minimalCell x hxfront
+  have he := (S.cx N.ty).minimalCell_mem x hxfront
+  have heF := (S.cx N.ty).minimalCell_subset x hxfront F.val (facetCell F).property hx
+  have heF' := (S.cx N.ty).minimalCell_subset x hxfront F'.val (facetCell F').property hx'
+  obtain ⟨v, hv, hve⟩ :=
+    packet_E_equality_step1_cell_vertex
+      (S.proto N.ty) (S.cx N.ty) e he
+  obtain ⟨q, hq⟩ := v.flat.connected.nonempty
+  exact ⟨N.prototypeFrame m q, ⟨v, hv, q, hq, rfl⟩,
+    ⟨q, heF (hve hq), rfl⟩, ⟨q, heF' (hve hq), rfl⟩⟩
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"interior points of two different children containing q" lie on disjoint
+sides. The full affine scale transports the prescribed disjoint interiors. -/
+private theorem packet_E_equality_step2_child_disjoint
+    (N : FramedNode S) (n : ℕ) (i j : S.I N.ty) (hij : i ≠ j) :
+    Disjoint (interior ((N.child n i).carrier n))
+      (interior ((N.child n j).carrier n)) := by
+  let H := ((S.σ ^ n).toAffineEquiv.trans N.frame.toAffineEquiv).toHomeomorphOfFiniteDimensional
+  have hc (k : S.I N.ty) : (N.child n k).carrier n =
+      H '' placedSet (S.child N.ty k).frame (S.proto (S.child N.ty k).ty).carrier := by
+    simp only [FramedNode.carrier, SubstSystem.supertile, placedSet, Set.image_image]
+    apply Set.image_congr
+    intro x _
+    exact congrArg N.frame (routing_constant_step4_ascent_ports_step1_child_scaled n k x)
+  rw [hc i, hc j, ← H.image_interior, ← H.image_interior]
+  exact Set.disjoint_image_of_injective H.injective (S.children_disjoint N.ty hij)
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold
+ domain)". A sufficiently small ball about a boundary point has connected
+intersection with the domain's interior. This is a local assertion for one
+polyhedral manifold domain; it involves no subdivision, states or packets. -/
+private theorem packet_E_equality_step2_boundary_neighborhood
+    (Q : PolyManifoldDomain d) (p : E d) (hp : p ∈ frontier Q.carrier) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ r : ℝ, 0 < r → r < ε →
+      IsPreconnected (interior Q.carrier ∩ ball p r) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold
+domain)". Inside any prescribed open neighborhood of a point of the
+closed domain there is a smaller open neighborhood with connected interior
+trace. No convexity or smoothness of the boundary is assumed. -/
+private theorem packet_E_equality_step2_local_link
+    (N : FramedNode S) (n : ℕ) (p : E d) (hp : p ∈ N.carrier n)
+    (U : Set (E d)) (hU : IsOpen U) (hpU : p ∈ U) :
+    ∃ V : Set (E d), IsOpen V ∧ p ∈ V ∧ V ⊆ U ∧
+      IsPreconnected (interior (N.carrier n) ∩ V) := by
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hc : N.carrier n = H '' (S.proto N.ty).carrier := by
+    simp [H, FramedNode.prototypeFrame, FramedNode.carrier,
+      SubstSystem.supertile, placedSet, Set.image_image]
+  let q := H.symm p
+  have hq : q ∈ (S.proto N.ty).carrier := by
+    rw [hc] at hp
+    obtain ⟨z, hz, rfl⟩ := hp
+    simpa [q] using hz
+  have hqU : q ∈ H ⁻¹' U := by simpa [q] using hpU
+  obtain ⟨r, hr, hrU, hrconn⟩ : ∃ r : ℝ, 0 < r ∧
+      Metric.ball q r ⊆ H ⁻¹' U ∧
+        IsPreconnected (interior (S.proto N.ty).carrier ∩ Metric.ball q r) := by
+    by_cases hi : q ∈ interior (S.proto N.ty).carrier
+    · obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp
+        (isOpen_interior.inter (hU.preimage H.continuous)) q ⟨hi, hqU⟩
+      refine ⟨r, hr, fun x hx => (hball hx).2, ?_⟩
+      rw [inter_eq_right.mpr (fun x hx => (hball hx).1)]
+      exact (convex_ball q r).isPreconnected
+    · have hf : q ∈ frontier (S.proto N.ty).carrier :=
+        ⟨(S.proto N.ty).compact.isClosed.closure_eq.symm ▸ hq, hi⟩
+      obtain ⟨ε, hε, hconn⟩ :=
+        packet_E_equality_step2_boundary_neighborhood
+          (S.proto N.ty) q hf
+      obtain ⟨δ, hδ, hball⟩ := Metric.isOpen_iff.mp (hU.preimage H.continuous) q hqU
+      let r := min ε δ / 2
+      have hr : 0 < r := by dsimp [r]; positivity
+      have hrε : r < ε := by dsimp [r]; linarith [min_le_left ε δ]
+      have hrδ : r ≤ δ := by dsimp [r]; linarith [min_le_right ε δ]
+      exact ⟨r, hr, (Metric.ball_subset_ball hrδ).trans hball, hconn r hr hrε⟩
+  refine ⟨H '' Metric.ball q r, H.isOpenMap _ Metric.isOpen_ball,
+    ⟨q, Metric.mem_ball_self hr, H.apply_symm_apply p⟩, ?_, ?_⟩
+  · rintro _ ⟨x, hx, rfl⟩
+    exact hrU hx
+  · have heq : interior (N.carrier n) ∩ H '' Metric.ball q r =
+        H '' (interior (S.proto N.ty).carrier ∩ Metric.ball q r) := by
+      rw [hc, ← H.image_interior, Set.image_inter H.injective]
+    rw [heq]
+    exact hrconn.image H H.continuous.continuousOn
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"a generic short path" avoids cells of codimension at least two.
+Two segments through a generic intermediate point suffice in a convex open set. -/
+private theorem packet_E_equality_step2_avoid_lower_cells
+    (L : Finset (Cell d)) (hL : ∀ e ∈ L, e.dim + 1 < d)
+    {V : Set (E d)} (hV : IsOpen V) (hVconv : Convex ℝ V)
+    {a b : E d} (haV : a ∈ V) (hbV : b ∈ V)
+    (ha : ∀ e ∈ L, a ∉ e.carrier) (hb : ∀ e ∈ L, b ∉ e.carrier) :
+    ∃ J : Set (E d), IsPreconnected J ∧ a ∈ J ∧ b ∈ J ∧ J ⊆ V ∧
+      ∀ e ∈ L, Disjoint J e.carrier := by
+  classical
+  have hspan (e : Cell d) (he : e.dim + 1 < d) (a : E d) :
+      Dense (affineSpan ℝ (insert a e.carrier) : Set (E d))ᶜ := by
+    have hdim := finrank_vectorSpan_insert_le_set ℝ e.carrier a
+    have hedim : Module.finrank ℝ (vectorSpan ℝ e.carrier) = e.dim := by
+      rw [← direction_affineSpan]
+      exact e.flat.dimension
+    have hproper : affineSpan ℝ (insert a e.carrier) ≠ ⊤ := by
+      intro htop
+      have hh := congrArg (fun S : AffineSubspace ℝ (E d) =>
+        Module.finrank ℝ S.direction) htop
+      change Module.finrank ℝ (affineSpan ℝ (insert a e.carrier)).direction =
+        Module.finrank ℝ (⊤ : AffineSubspace ℝ (E d)).direction at hh
+      rw [direction_affineSpan, AffineSubspace.direction_top, finrank_top,
+        finrank_euclideanSpace, Fintype.card_fin] at hh
+      omega
+    apply interior_eq_empty_iff_dense_compl.mp
+    apply Set.eq_empty_iff_forall_notMem.mpr
+    intro x hx
+    have hconv := (affineSpan ℝ (insert a e.carrier)).convex
+    have htop := hconv.interior_nonempty_iff_affineSpan_eq_top.mp ⟨x, hx⟩
+    rw [AffineSubspace.affineSpan_coe] at htop
+    exact hproper htop
+  have hsegment (e : Cell d) {a z : E d} (ha : a ∉ e.carrier)
+      (hz : z ∉ affineSpan ℝ (insert a e.carrier)) :
+      Disjoint (segment ℝ a z) e.carrier := by
+    apply Set.disjoint_left.mpr
+    intro q hq hqe
+    rw [segment_eq_image_lineMap] at hq
+    obtain ⟨r, hr, rfl⟩ := hq
+    have hr0 : r ≠ 0 := by
+      intro hr0
+      subst r
+      exact ha (by simpa using hqe)
+    have haA : a ∈ affineSpan ℝ (insert a e.carrier) := mem_affineSpan ℝ (mem_insert a _)
+    have hqA : AffineMap.lineMap a z r ∈ affineSpan ℝ (insert a e.carrier) :=
+      mem_affineSpan ℝ (mem_insert_of_mem _ hqe)
+    have hzA := AffineMap.lineMap_mem (r⁻¹) haA hqA
+    rw [AffineMap.lineMap_lineMap_right, inv_mul_cancel₀ hr0, AffineMap.lineMap_apply_one] at hzA
+    exact hz hzA
+  have hdense (x : E d) : Dense (⋂ e ∈ L,
+      (affineSpan ℝ (insert x e.carrier) : Set (E d))ᶜ) := by
+    apply dense_biInter_of_isOpen
+      (fun e _ => (affineSpan ℝ (insert x e.carrier)).closed_of_finiteDimensional.isOpen_compl)
+      L.finite_toSet.countable
+    intro e he
+    exact hspan e (hL e he) x
+  have hopen (x : E d) : IsOpen (⋂ e ∈ L,
+      (affineSpan ℝ (insert x e.carrier) : Set (E d))ᶜ) :=
+    isOpen_biInter_finset (fun e _ =>
+      (affineSpan ℝ (insert x e.carrier)).closed_of_finiteDimensional.isOpen_compl)
+  obtain ⟨z, hzV, hz⟩ :=
+    ((hdense a).inter_of_isOpen_left (hdense b) (hopen a)).inter_open_nonempty V hV ⟨a, haV⟩
+  refine ⟨segment ℝ a z ∪ segment ℝ b z,
+    IsPreconnected.union' ⟨z, right_mem_segment ℝ _ _, right_mem_segment ℝ _ _⟩
+      (convex_segment (𝕜 := ℝ) a z).isPreconnected
+      (convex_segment (𝕜 := ℝ) b z).isPreconnected,
+    Or.inl (left_mem_segment ℝ _ _), Or.inr (left_mem_segment ℝ _ _),
+    union_subset (hVconv.segment_subset haV hzV) (hVconv.segment_subset hbV hzV), ?_⟩
+  intro e he
+  exact disjoint_union_left.mpr
+    ⟨hsegment e (ha e he) (Set.mem_iInter₂.mp hz.1 e he),
+      hsegment e (hb e he) (Set.mem_iInter₂.mp hz.2 e he)⟩
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"crosses a facet h of a child". A finite union of lower-dimensional
+cells cannot separate interior from exterior in an open ball, so the closed
+facets cover the boundary. Flat subdivided facets are included. -/
+private theorem packet_E_equality_step2_facets_cover
+    (P : PolyManifoldDomain d) (C : CellComplex P) :
+    frontier P.carrier ⊆ ⋃ e : {e // e ∈ C.facets}, e.val.carrier := by
+  classical
+  have hd : 2 ≤ d := Fact.out
+  let Q : Set (E d) := ⋃ e ∈ C.facets, e.carrier
+  have hQclosed : IsClosed Q := isClosed_biUnion_finset (fun e _ => e.flat.compact.isClosed)
+  intro p hp
+  by_contra hpF
+  have hpQ : p ∉ Q := by
+    intro hpQ
+    obtain ⟨e, he, hpe⟩ := Set.mem_iUnion₂.mp hpQ
+    exact hpF (Set.mem_iUnion.mpr ⟨⟨e, he⟩, hpe⟩)
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hQclosed.isOpen_compl p hpQ
+  have hpclosure : p ∈ closure (interior P.carrier) := by
+    rw [P.regularClosed]
+    exact (frontier_subset_iff_isClosed.mpr P.compact.isClosed) hp
+  obtain ⟨a, haB, ha⟩ := mem_closure_iff.mp hpclosure (Metric.ball p r) Metric.isOpen_ball
+    (Metric.mem_ball_self hr)
+  have hpout : p ∈ closure P.carrierᶜ := by
+    rw [frontier_eq_closure_inter_closure] at hp
+    exact hp.2
+  obtain ⟨b, hbB, hb⟩ := mem_closure_iff.mp hpout (Metric.ball p r)
+    Metric.isOpen_ball (Metric.mem_ball_self hr)
+  let L := C.cells.filter (fun e => e.dim + 1 < d)
+  have hcellfront (e : Cell d) (he : e ∈ C.cells) : e.carrier ⊆ frontier P.carrier := by
+    rw [← e.flat.regularClosed]
+    apply closure_minimal _ isClosed_frontier
+    intro x hx
+    rw [← C.cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hx⟩
+  have haout (e : Cell d) (he : e ∈ C.cells) : a ∉ e.carrier :=
+    fun hae => (hcellfront e he hae).2 ha
+  have hbout (e : Cell d) (he : e ∈ C.cells) : b ∉ e.carrier :=
+    fun hbe => hb ((frontier_subset_iff_isClosed.mpr P.compact.isClosed) (hcellfront e he hbe))
+  obtain ⟨J, hJconn, haJ, hbJ, hJB, hJL⟩ :=
+    packet_E_equality_step2_avoid_lower_cells L
+      (fun e he => (Finset.mem_filter.mp he).2) Metric.isOpen_ball (convex_ball p r)
+      haB hbB (fun e he => haout e (Finset.mem_filter.mp he).1)
+      (fun e he => hbout e (Finset.mem_filter.mp he).1)
+  have hJfront : ∀ x ∈ J, x ∉ frontier P.carrier := by
+    intro x hx hxf
+    rw [← C.cover] at hxf
+    obtain ⟨e, he, hxe⟩ := Set.mem_iUnion₂.mp hxf
+    have hxec : x ∈ e.carrier := e.flat.regularClosed ▸ subset_closure hxe
+    by_cases heF : e ∈ C.facets
+    · exact hball (hJB hx) (Set.mem_iUnion₂.mpr ⟨e, heF, hxec⟩)
+    · have heL : e ∈ L := by
+        apply Finset.mem_filter.mpr
+        refine ⟨he, ?_⟩
+        have hdim := C.dim_lt e he
+        have hne : e.dim ≠ d - 1 := by
+          intro hh
+          exact heF (Finset.mem_filter.mpr ⟨he, hh⟩)
+        omega
+      exact Set.disjoint_left.mp (hJL e heL) hx hxec
+  have hsplit : J ⊆ interior P.carrier ∪ P.carrierᶜ := by
+    intro x hx
+    by_cases hxt : x ∈ P.carrier
+    · left
+      by_contra hxint
+      exact hJfront x hx ⟨P.compact.isClosed.closure_eq.symm ▸ hxt, hxint⟩
+    · exact Or.inr hxt
+  obtain ⟨x, _, hxint, hxout⟩ := hJconn (interior P.carrier) P.carrierᶜ
+    isOpen_interior P.compact.isClosed.isOpen_compl hsplit
+    ⟨a, haJ, ha⟩
+    ⟨b, hbJ, hb⟩
+  exact hxout (interior_subset hxint)
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"a facet h of a child". The facets of a proper boundary complex cover
+the whole frontier, including its lower-dimensional cells. -/
+private theorem packet_E_equality_step2_frontier_facets
+    (N : FramedNode S) (n : ℕ) {x : E d} (hx : x ∈ frontier (N.carrier n)) :
+    ∃ f : FacetName S N.ty, x ∈ N.cell n f.val := by
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hc : N.carrier n = H '' (S.proto N.ty).carrier := by
+    simp [H, FramedNode.prototypeFrame, FramedNode.carrier,
+      SubstSystem.supertile, placedSet, Set.image_image]
+  rw [hc, ← H.image_frontier] at hx
+  obtain ⟨y, hy, rfl⟩ := hx
+  obtain ⟨e, hye⟩ := Set.mem_iUnion.mp
+    (packet_E_equality_step2_facets_cover
+      (S.proto N.ty) (S.cx N.ty) hy)
+  exact ⟨e, y, hye, rfl⟩
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"smaller than the distance to cells not containing q". The complement
+of the finite closed union of facets missing q is a suitable neighborhood. -/
+private theorem packet_E_equality_step2_avoid_facets
+    (N : FramedNode S) (n : ℕ) (p : E d) :
+    ∃ U : Set (E d), IsOpen U ∧ p ∈ U ∧
+      ∀ (f : FacetName S N.ty) (x : E d), x ∈ U → x ∈ N.cell n f.val →
+        p ∈ N.cell n f.val := by
+  classical
+  let bad := (S.cx N.ty).facets.filter (fun e => p ∉ N.cell n e)
+  let U := (⋃ e ∈ bad, N.cell n e)ᶜ
+  have hc (e : Cell d) : IsClosed (N.cell n e) :=
+    (e.flat.compact.image (N.prototypeFrame n).continuous_of_finiteDimensional).isClosed
+  refine ⟨U, (isClosed_biUnion_finset (fun e _ => hc e)).isOpen_compl, ?_, ?_⟩
+  · intro h
+    obtain ⟨e, he, hpe⟩ := mem_iUnion₂.mp h
+    exact (Finset.mem_filter.mp he).2 hpe
+  · intro f x hx hxf
+    by_contra hpf
+    exact hx (mem_iUnion₂.mpr ⟨f.val, Finset.mem_filter.mpr ⟨f.property, hpf⟩, hxf⟩)
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"crosses a facet h of a child". A connected set meeting the interior
+and the exterior of a closed child must meet its frontier. -/
+private theorem packet_E_equality_step2_crossing
+    {K V : Set (E d)} (hK : IsClosed K) (hV : IsPreconnected V)
+    (hin : (V ∩ interior K).Nonempty) (hout : (V ∩ Kᶜ).Nonempty) :
+    (V ∩ frontier K).Nonempty := by
+  by_contra h
+  have hsplit : V ⊆ interior K ∪ Kᶜ := by
+    intro x hx
+    by_cases hxK : x ∈ K
+    · left
+      by_contra hi
+      exact h ⟨x, hx, hK.closure_eq.symm ▸ hxK, hi⟩
+    · exact Or.inr hxK
+  obtain ⟨x, _, hxi, hxo⟩ := hV (interior K) Kᶜ
+    isOpen_interior hK.isOpen_compl hsplit hin hout
+  exact hxo (interior_subset hxi)
+
+/-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"the interior link of P at q is connected" and the crossing facet contains
+q when the neighborhood avoids all facets missing q. This uses the existing
+local interior-neighborhood lemma for polyhedral manifold domains. -/
+private theorem packet_E_equality_step2_internal_facet
+    (N : FramedNode S) (n : ℕ) (p : E d) (i j : S.I N.ty) (hij : i ≠ j)
+    (hpi : p ∈ (N.child n i).carrier n) (hpj : p ∈ (N.child n j).carrier n) :
+    ∃ f : FacetName S (N.child n i).ty, p ∈ (N.child n i).cell n f.val ∧
+      relint ((N.child n i).cell n f.val) ⊆ interior (N.carrier (n + 1)) := by
+  have hisub := routing_constant_step4_ascent_ports_step6_child_subset N n i
+  have hjsub := routing_constant_step4_ascent_ports_step6_child_subset N n j
+  obtain ⟨U, hU, hpU, hfacets⟩ :=
+    packet_E_equality_step2_avoid_facets
+      (N.child n i) n p
+  obtain ⟨V, hV, hpV, hVU, hconn⟩ :=
+    packet_E_equality_step2_local_link
+      N (n + 1) p (hisub hpi) U hU hpU
+  have hireg := routing_constant_step4_inherited_record_step1_regular (N.child n i) n
+  have hjreg := routing_constant_step4_inherited_record_step1_regular (N.child n j) n
+  have hclosed : IsClosed ((N.child n i).carrier n) := hireg ▸ isClosed_closure
+  obtain ⟨x, hxV, hxi⟩ := mem_closure_iff.mp (hireg.symm ▸ hpi) V hV hpV
+  obtain ⟨y, hyV, hyj⟩ := mem_closure_iff.mp (hjreg.symm ▸ hpj) V hV hpV
+  have hdisj : Disjoint ((N.child n i).carrier n) (interior ((N.child n j).carrier n)) := by
+    rw [← hireg]
+    exact (packet_E_equality_step2_child_disjoint N n i j hij).closure_left isOpen_interior
+  have hyout : y ∉ (N.child n i).carrier n :=
+    fun hyi => Set.disjoint_left.mp hdisj hyi hyj
+  obtain ⟨z, ⟨hzN, hzV⟩, hzfront⟩ :=
+    packet_E_equality_step2_crossing
+      hclosed hconn ⟨x, ⟨interior_mono hisub hxi, hxV⟩, hxi⟩
+      ⟨y, ⟨interior_mono hjsub hyj, hyV⟩, hyout⟩
+  obtain ⟨f, hzf⟩ :=
+    packet_E_equality_step2_frontier_facets
+      (N.child n i) n hzfront
+  refine ⟨f, hfacets f z (hVU hzV) hzf, ?_⟩
+  rcases facet_dichotomy N (N.child n i) (n + 1) n (Parser.child_descendant N n i) f
+    with ⟨F, hfF, _⟩ | hint
+  · exact False.elim ((routing_constant_step4_inherited_record_step1_boundary N (n + 1) F
+      (hfF hzf)).2 hzN)
+  · exact hint
+
+/-- Step 3 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"h is first-generation". Normalize the internal child facet and assign
+its canonical primitive incidence, retaining the actual birth frame. -/
+private theorem packet_E_equality_step3_birth
+    (N : FramedNode S) (n : ℕ) (i : S.I N.ty) (f : FacetName S (N.child n i).ty)
+    (hint : relint ((N.child n i).cell n f.val) ⊆ interior (N.carrier (n + 1))) :
+    ∃ g : Parser.BornFacet P, g.height = n + 1 ∧ g.birth = N ∧
+      g.carrier = (N.child n i).cell n f.val := by
+  let H := ((S.σ ^ n).toAffineEquiv.trans N.frame.toAffineEquiv).toHomeomorphOfFiniteDimensional
+  let K := placedSet (S.child N.ty i).frame f.val.carrier
+  have hf : (N.child n i).cell n f.val = H '' K := by
+    simp only [FramedNode.cell, Set.image_image, K, placedSet]
+    apply Set.image_congr
+    intro x _
+    exact congrArg N.frame (routing_constant_step4_ascent_ports_step1_child_scaled n i x)
+  have hN : N.carrier (n + 1) = H '' S.supertile 1 N.ty := by
+    simp [H, FramedNode.carrier, SubstSystem.supertile, placedSet, Set.image_image,
+      pow_succ, LinearEquiv.mul_apply]
+  have hlocal : relint K ⊆ interior (S.supertile 1 N.ty) := by
+    intro x hx
+    have hm := hint (hf.symm ▸ (routing_constant_step4_ascent_ports_step3_relint_image
+      ((S.σ ^ n).toAffineEquiv.trans N.frame.toAffineEquiv) K).symm ▸
+        Set.mem_image_of_mem H hx)
+    rw [hN, ← H.image_interior] at hm
+    exact H.injective.mem_set_image.mp hm
+  let f₀ : PrimitiveFacet S N.ty := ⟨0, (), K, ⟨i, f, rfl, hlocal⟩⟩
+  obtain ⟨a, hat, hac⟩ := routing_constant_step1_incidence (P := P) f₀
+  let g : Parser.BornFacet P := ⟨n + 1, by omega, N, a, hat⟩
+  refine ⟨g, rfl, rfl, ?_⟩
+  rw [routing_constant_step1_carrier]
+  change N.prototypeFrame (n + 1) '' (S.σ.symm '' a.val.positioned) = _
+  rw [hac]
+  change N.prototypeFrame (n + 1) '' (S.σ.symm '' K) = _
+  rw [hf]
+  simp only [Set.image_image]
+  apply Set.image_congr
+  intro x _
+  change N.frame ((S.σ ^ (n + 1)) (S.σ.symm x)) = N.frame ((S.σ ^ n) x)
+  rw [pow_succ]
+  simp
+
+/-- Step 4 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"The tiles along h at q have END slots at q (cone T_q P)" and
+"the head of P(h) is S(P)". An age-one child readout supplies the
+actual END event; no joint honest realization of its labels is assumed. -/
+private theorem packet_E_equality_step4_event
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (p : E d) (hp : N.Lists (n + 1) p)
+    (g : Parser.BornFacet P) (hh : g.height = n + 1) (hb : g.birth = N)
+    (hpg : p ∈ g.carrier) :
+    ∃ t ∈ Y.tiles, ∃ (j : EndSlot (compilerLeaf C t)) (T : EndTemplate j),
+      Compiler.endVertex (compilerFrame C t) j = p ∧
+      j.header = routing_constant_step4_ascent_ports_step3_header
+        N (n + 1) (compilerFrame C t) p ∧
+      j.packet.head = newState Y hY n hn D hD N A ∧
+      TemplateOccurs C Y (compilerFrame C t) T.configuration ∧ endRow T := by
+  have hdesc : g.birth.IsDescendant g.height N (n + 1) := by
+    rw [hh, hb]
+    exact Parser.descendant_refl N (n + 1)
+  have hL : g.leftNode ∈ D.geometry.nodes (g.height - 1) :=
+    Parser.assembled_inner_mem D N A _ _ (by omega)
+      (Parser.descendant_trans _ _ _ _ _ _ g.sides_descendant.1 hdesc)
+  have hl := hD.boundaryPackets _ _ hL
+  obtain ⟨q, hq, _, hhead⟩ := first_generation_head Y hY n hn D hD N A g hh hb hl
+  have hpf : p ∈ g.leftNode.cell (g.height - 1) g.incidence.val.leftFacet.val := by
+    rwa [g.sides_carrier.1]
+  have hpcar := routing_constant_step4_ascent_ports_step2_cell_carrier
+    g.leftNode (g.height - 1) g.incidence.val.leftFacet hpf
+  have hpL : g.leftNode.Lists (g.height - 1) p := by
+    obtain ⟨i, hi⟩ := routing_constant_step4_ascent_ports_step3_left_child g
+    rw [hi] at hpcar ⊢
+    apply vertex_inherited g.birth (g.height - 1) p _ i hpcar
+    simpa only [hh, hb, Nat.add_sub_cancel] using hp
+  obtain ⟨t, f, v, hpiece, hv, hvp⟩ :=
+    routing_constant_step4_ascent_ports_step2_facet_at_vertex Y (g.height - 1)
+      ⟨g.leftNode, D.geometry.node_actual _ _ hL⟩ g.incidence.val.leftFacet p hpL hpf
+  obtain ⟨j, hjf, hjp, hjheader⟩ :=
+    routing_constant_step3_same_parent_ports_step3_inherited_slot D hD N A g hdesc p
+      hpL t f v hpiece hv hvp hl q hq
+  have hjq : j.packet = q := by
+    apply Option.some.inj
+    calc
+      some j.packet = leafPacket (compilerLeaf C t) f.val := by
+        rw [← hjf]
+        exact j.packet_eq.symm
+      _ = some q := (attachedPacket_spec hl g.incidence.val.leftFacet t f hpiece).trans hq
+  obtain ⟨T, hactual, hrow⟩ :=
+    routing_constant_step4_ascent_ports_step4_event Y hY t hpiece.1 j
+  refine ⟨t, hpiece.1, j, T, hjp, ?_, hjq ▸ hhead, hactual, hrow⟩
+  rw [hh, hb] at hjheader
+  exact hjheader
+
+/-- Step 5 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"tiles inside P with pieces in F ... at q, belonging to theta_q by
+Lemma 3.3". A boundary port of the actual event reads the constant
+packet on its named parent facet, including a NULL packet. -/
+private theorem packet_E_equality_step5_boundary_readout
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (m : ℕ) (N : FramedNode S) (hm : 1 ≤ m) (hN : IsBlock Y m N)
+    (hconst : Parser.BoundaryPackets Y m N)
+    (p : E d) (hp : N.Lists m p) (F : FacetName S N.ty) (hpF : p ∈ N.cell m F.val)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (j : EndSlot (compilerLeaf C t)) (T : EndTemplate j)
+    (hjp : Compiler.endVertex (compilerFrame C t) j = p)
+    (hjheader : j.header = routing_constant_step4_ascent_ports_step3_header
+      N m (compilerFrame C t) p)
+    (hactual : TemplateOccurs C Y (compilerFrame C t) T.configuration) (hrow : endRow T) :
+    ∃ (a : BoundaryPort P T.geometry.header.birthType) (u : LeafType P),
+      a ∈ T.geometry.boundaryPorts ∧ (a.tile, u) ∈ T.configuration.tiles ∧
+      a.parentFacet.val = F.val ∧ leafPacket u a.facet.val = attachedPacket hconst F := by
+  obtain ⟨u, f, v, hpiece, hv, hvp⟩ :=
+    routing_constant_step4_ascent_ports_step2_facet_at_vertex Y m ⟨N, hN⟩ F p hp hpF
+  obtain ⟨a, ha, hu, haF, haf⟩ :=
+    routing_constant_step4_ascent_ports_step5_boundary_port Y hY m N hm hN F p t ht
+      j hjp hjheader T hrow hactual u f v hpiece hv hvp
+  refine ⟨a, compilerLeaf C u, ha, hu, haF, ?_⟩
+  rw [haf]
+  exact (attachedPacket_eq_leaf hconst F u f hpiece).symm
+
+/-- Step 6 of the V4 proof of `packet_E_equality` (V4 3.12(b), 2.3):
+"inherited facets on different parent facets use the parent's relation".
+A coalescence witness for the parent tracks becomes a witness one level
+higher for the two contained child tracks. -/
+private theorem packet_E_equality_step6_tracks
+    (U : HonestSource S) (q c : U.Node) (hparent : U.hierarchy.parentNode c = q)
+    (F F' : FacetName S q.2.val.ty) (f f' : FacetName S c.2.val.ty)
+    (hf : c.2.val.cell c.1 f.val ⊆ q.2.val.cell q.1 F.val)
+    (hf' : c.2.val.cell c.1 f'.val ⊆ q.2.val.cell q.1 F'.val)
+    (hE : U.TracksCoalesce q F F') : U.TracksCoalesce c f f' := by
+  have hanc (a : ℕ) : U.hierarchy.ancestor c (a + 1) = U.hierarchy.ancestor q a := by
+    simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hparent]
+  obtain ⟨a, hboundary, G, hFG, hF'G⟩ := hE
+  let G' : FacetName S (U.hierarchy.ancestor c (a + 1)).2.val.ty :=
+    ⟨G.val, (congrArg (fun z : U.Node => z.2.val.ty) (hanc a).symm) ▸ G.property⟩
+  have hcell := congrArg (fun z : U.Node => z.2.val.cell z.1 G.val) (hanc a)
+  dsimp only at hcell
+  refine ⟨a + 1, ?_, G', ?_, ?_⟩
+  · intro j hj
+    cases j with
+    | zero =>
+      exact ⟨routing_constant_step4_inherited_record_step1_boundary c.2.val c.1 f,
+        routing_constant_step4_inherited_record_step1_boundary c.2.val c.1 f'⟩
+    | succ j =>
+      have hfront := congrArg (fun z : U.Node => frontier (z.2.val.carrier z.1)) (hanc j)
+      dsimp only at hfront
+      have hb := hboundary j (by omega)
+      constructor
+      · change c.2.val.cell c.1 f.val ⊆ _
+        rw [hfront]
+        exact hf.trans hb.1
+      · change c.2.val.cell c.1 f'.val ⊆ _
+        rw [hfront]
+        exact hf'.trans hb.2
+  · change c.2.val.cell c.1 f.val ⊆ (U.hierarchy.ancestor c (a + 1)).2.val.cell
+      (U.hierarchy.ancestor c (a + 1)).1 G.val
+    rw [hcell]
+    exact hf.trans hFG
+  · change c.2.val.cell c.1 f'.val ⊆ (U.hierarchy.ancestor c (a + 1)).2.val.cell
+      (U.hierarchy.ancestor c (a + 1)).1 G.val
+    rw [hcell]
+    exact hf'.trans hF'G
+
+/-- Step 6 of the V4 proof of `packet_E_equality` (V4 3.12(b), 3.11):
+"By the (S5) rule, E_C(f,f') = E_P(F,F') = true". Realize the honest
+parent state in its exact frame, then use deterministic child descent. -/
+private theorem packet_E_equality_step6_child_E
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N) (i : S.I N.ty)
+    (F F' : FacetName S N.ty) (f f' : FacetName S (N.child n i).ty)
+    (hf : (N.child n i).cell n f.val ⊆ N.cell (n + 1) F.val)
+    (hf' : (N.child n i).cell n f'.val ⊆ N.cell (n + 1) F'.val)
+    (hE : stateEAt (newState Y hY n hn D hD N A) F.val F'.val) :
+    stateEAt (childMap P (newState Y hY n hn D hD N A) ⟨N.ty, i⟩) f.val f'.val := by
+  obtain ⟨U, hU, hs⟩ := routing_constant_step2_source_realization
+    (newState Y hY n hn D hD N A) (newState_honest Y hY n hn D hD N A) N (n + 1)
+    (newState_type Y hY n hn D hD N A) (newState_residue Y hY n hn D hD N A)
+  let q : U.Node := ⟨n + 1, ⟨N, hU⟩⟩
+  change stateOf U P q = newState Y hY n hn D hD N A at hs
+  have hq : 1 ≤ q.1 := by change 1 ≤ n + 1; omega
+  let c := U.childNode q hq i
+  have hparent : U.hierarchy.parentNode c = q := by
+    apply Sigma.ext
+    · simp [c, q, HonestSource.childNode, CoherentHierarchy.parentNode]
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (U.hierarchy.parent_unique n _ N hU ⟨i, rfl⟩).symm
+  have htracks : U.TracksCoalesce q F F' := by
+    rw [← hs] at hE
+    obtain ⟨_, _, hE⟩ := hE
+    exact (U.mem_coalescenceTable q F F').mp hE
+  have hchild := packet_E_equality_step6_tracks U q c hparent F F' f f' hf hf' htracks
+  have hEc : stateEAt (stateOf U P c) f.val f'.val :=
+    ⟨f.property, f'.property, (U.mem_coalescenceTable c f f').mpr hchild⟩
+  simpa only [c, childMap_spec U P q hq i, hs] using hEc
+
+/-- Step 7 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
+"By (I5) for C ... and by (a) these are P_P(F), P_P(F')".
+Meeting inherited facets of one old child transfer its packet equality
+to the parent. The child need not be the only child at the meeting point. -/
+private theorem packet_E_equality_step7_inherited_packets
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N) (i : S.I N.ty)
+    (F F' : FacetName S N.ty) (f f' : FacetName S (N.child n i).ty)
+    (hf : (N.child n i).cell n f.val ⊆ N.cell (n + 1) F.val)
+    (hf' : (N.child n i).cell n f'.val ⊆ N.cell (n + 1) F'.val)
+    (hmeet : ((N.child n i).cell n f.val ∩ (N.child n i).cell n f'.val).Nonempty)
+    (hE : stateEAt (newState Y hY n hn D hD N A) F.val F'.val)
+    (hconst : Parser.BoundaryPackets Y (n + 1) N) :
+    attachedPacket hconst F = attachedPacket hconst F' := by
+  have hB : N.child n i ∈ D.geometry.nodes n := by
+    rw [← A.child_eq i]
+    exact D.geometry.root_mem (A.children i).val (A.children i).property
+  have hstate : D.stateAt n (N.child n i) hB =
+      childMap P (newState Y hY n hn D hD N A) ⟨N.ty, i⟩ := by
+    simpa only [DecodedLevel.blockState, A.child_eq] using child_equations Y hY n hn D hD N A i
+  obtain ⟨hc, hEc⟩ := hD.I5 n (N.child n i) hB
+  have hEchild : stateEAt (D.stateAt n (N.child n i) hB) f.val f'.val := by
+    rw [hstate]
+    exact packet_E_equality_step6_child_E Y hY n hn D hD N A i F F' f f' hf hf' hE
+  have heq := hEc f f' hEchild hmeet
+  have hF := Parser.boundaryPacket_inherited Y (n + 1) n N (N.child n i)
+    (D.geometry.node_actual _ _ hB) (Parser.child_descendant N n i) F f hf hconst hc
+  have hF' := Parser.boundaryPacket_inherited Y (n + 1) n N (N.child n i)
+    (D.geometry.node_actual _ _ hB) (Parser.child_descendant N n i) F' f' hf' hconst hc
+  exact hF.trans (heq.trans hF'.symm)
+
+end PacketEEquality
+
 /-- R11, V4 3.12(b): meeting facets related by E in the newly decoded parent
 state have equal attached packets. Attachment uses R11(a), and its value is
 independent of which proof of constancy was supplied. -/
@@ -4420,7 +5062,31 @@ theorem packet_E_equality (F F' : FacetName S N.ty)
     (hmeet : (N.cell (n + 1) F.val ∩ N.cell (n + 1) F'.val).Nonempty)
     (hconst : Parser.BoundaryPackets Y (n + 1) N) :
     attachedPacket hconst F = attachedPacket hconst F' := by
-  sorry
+  classical
+  obtain ⟨p, hp, hpF, hpF'⟩ := packet_E_equality_step1_common_vertex N (n + 1) F F' hmeet
+  obtain ⟨a, hpa⟩ := mem_iUnion.mp ((boundary_facet_adjacency N n F).1.symm ▸ hpF)
+  obtain ⟨b, hpb⟩ := mem_iUnion.mp ((boundary_facet_adjacency N n F').1.symm ▸ hpF')
+  rcases a with ⟨⟨i, f⟩, hf⟩
+  rcases b with ⟨⟨i', f'⟩, hf'⟩
+  dsimp only at hpa hpb hf hf'
+  by_cases hii' : i = i'
+  · subst i'
+    exact packet_E_equality_step7_inherited_packets Y hY n hn D hD N A i F F' f f'
+      hf hf' ⟨p, hpa, hpb⟩ hE hconst
+  · obtain ⟨h, hph, hint⟩ := packet_E_equality_step2_internal_facet N n p i i' hii'
+      (routing_constant_step4_ascent_ports_step2_cell_carrier _ _ f hpa)
+      (routing_constant_step4_ascent_ports_step2_cell_carrier _ _ f' hpb)
+    obtain ⟨g, hh, hb, hg⟩ := packet_E_equality_step3_birth (P := P) N n i h hint
+    obtain ⟨t, ht, j, T, hjp, hjheader, hhead, hactual, hrow⟩ :=
+      packet_E_equality_step4_event Y hY n hn D hD N A p hp g hh hb (hg.symm ▸ hph)
+    obtain ⟨a, u, ha, hu, haF, hread⟩ := packet_E_equality_step5_boundary_readout
+      Y hY (n + 1) N (by omega) A.actual hconst p hp F hpF t ht j T hjp hjheader hactual hrow
+    obtain ⟨b, v, hb, hv, hbF, hread'⟩ := packet_E_equality_step5_boundary_readout
+      Y hY (n + 1) N (by omega) A.actual hconst p hp F' hpF' t ht j T hjp hjheader hactual hrow
+    have hE' : stateEAt j.packet.head a.parentFacet.val b.parentFacet.val := by
+      rw [hhead, haF, hbF]
+      exact hE
+    exact hread.symm.trans ((hrow.2.2.2.2.1 a ha b hb hE' u v hu hv).trans hread')
 
 /-- R9, V4 3.10: every readable child yields the same parent slot value,
 including every choice of facet in its first branching descendant. -/

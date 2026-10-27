@@ -6924,7 +6924,36 @@ private theorem host_step_step3_roots_step3_lift_step4_coface_side
     (hspan : affineSpan ℝ (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) =
       affineSpan ℝ (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier)) :
     φ.linear '' flagSide F k = ψ.linear '' flagSide G k := by
-  sorry
+  let lo : FlagIndex d := ⟨k.val, k.property.1, by omega⟩
+  let hi : FlagIndex d := ⟨k.val + 1, by omega, k.property.2⟩
+  have hclosed (χ : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+      closure (relint (χ '' e.carrier)) = χ '' e.carrier := by
+    rw [host_step_step1_seed_step5_trace_step3_relint_image]
+    change closure (χ.toHomeomorphOfFiniteDimensional '' relint e.carrier) =
+      χ.toHomeomorphOfFiniteDimensional '' e.carrier
+    rw [← Homeomorph.image_closure, e.flat.regularClosed]
+  have hsub : φ '' (F.cell lo).val.carrier ⊆ ψ '' (G.cell lo).val.carrier := by
+    simpa only [hclosed] using closure_mono hlow
+  have hdim (χ : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+      Module.finrank ℝ (affineSpan ℝ (χ '' e.carrier)).direction = e.dim := by
+    change Module.finrank ℝ (affineSpan ℝ (χ.toAffineMap '' e.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq χ.linear _).trans e.flat.dimension
+  have hle := affineSpan_mono ℝ hsub
+  have hspanlow : affineSpan ℝ (φ '' (F.cell lo).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell lo).val.carrier) := by
+    apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le _ _ hle
+    · apply Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle)
+      rw [hdim, hdim, F.dimension, G.dimension]
+    · exact ((F.cell lo).val.flat.connected.nonempty.image φ).mono
+        (subset_affineSpan ℝ _)
+  have hrelhigh : relint (φ '' (F.cell hi).val.carrier) ⊆
+      relint (ψ '' (G.cell hi).val.carrier) := by
+    unfold relint intrinsicInterior
+    rw [hspan]
+    exact Set.image_mono (interior_mono (Set.preimage_mono hhigh))
+  exact host_step_step2_strand_step4_continue_step1_coface_side
+    F G φ ψ k hlow hrelhigh hspanlow hspan
 
 /-- Step 5 of the V4 proof of `host_step_step3_roots_step3_lift` (V4 3.6; V4 1.0(a)):
 "lies on the j-side ... as u_m contained in B_m does". A local half-ball

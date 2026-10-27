@@ -8151,6 +8151,369 @@ private theorem host_step_step5_frame_step3_inward_side
   · simpa only [Submodule.mem_top, true_and] using hcone
 
 
+/-- Step 1 of the V4 proof of `host_step_step5_frame_step3_flag_side` (V4 1.0(a)):
+"a (d-1)-cell inside e ... forces e = F". Strict containment of listed cells
+strictly increases dimension, since their relative interiors are disjoint. -/
+private theorem host_step_step5_frame_step3_flag_side_step1_dimension
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e f : Cell d)
+    (he : e ∈ K.cells) (hf : f ∈ K.cells) (hsub : e.carrier ⊆ f.carrier)
+    (hne : e ≠ f) : e.dim < f.dim := by
+  have hspan := affineSpan_mono ℝ hsub
+  have hdir := AffineSubspace.direction_le hspan
+  have hdim : e.dim ≤ f.dim := by
+    rw [← e.flat.dimension, ← f.flat.dimension]
+    exact Submodule.finrank_mono hdir
+  by_contra hlt
+  have heqdim : e.dim = f.dim := by omega
+  have heq : affineSpan ℝ e.carrier = affineSpan ℝ f.carrier := by
+    apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le _ _ hspan
+    · apply Submodule.eq_of_le_of_finrank_eq hdir
+      exact e.flat.dimension.trans (heqdim.trans f.flat.dimension.symm)
+    · exact e.flat.connected.nonempty.mono (subset_affineSpan ℝ _)
+  have hrel : relint e.carrier ⊆ relint f.carrier := by
+    unfold relint intrinsicInterior
+    rw [heq]
+    exact image_mono (interior_mono (preimage_mono hsub))
+  obtain ⟨x, hx⟩ := e.flat.relint_nonempty
+  exact Set.disjoint_left.mp (K.relint_disjoint e he f hf hne) hx (hrel hx)
+
+/-- Step 2 of the V4 proof of `host_step_step5_frame_step3_flag_side` (V4 1.0(a)):
+"Cells are closed and finitely many, so some ball U around p meets no other cell".
+In the upper cell's relative boundary, a point of the lower relative interior
+meets only that codimension-one cell; locally the boundary is its affine span. -/
+private theorem host_step_step5_frame_step3_flag_side_step2_boundary_patch
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e f : Cell d)
+    (he : e ∈ K.cells) (hf : f ∈ K.cells) (hsub : e.carrier ⊆ f.carrier)
+    (hdim : f.dim = e.dim + 1) (p : E d) (hp : p ∈ relint e.carrier) :
+    ∃ r : ℝ, 0 < r ∧ relfrontier f.carrier ∩ ball p r =
+      (affineSpan ℝ e.carrier : Set (E d)) ∩ ball p r := by
+  classical
+  have hne : e ≠ f := by
+    intro h
+    have := congrArg Cell.dim h
+    omega
+  have hpf : p ∈ relfrontier f.carrier := by
+    rw [relfrontier, ← closure_diff_intrinsicInterior (𝕜 := ℝ), f.flat.compact.isClosed.closure_eq]
+    exact ⟨hsub (intrinsicInterior_subset (𝕜 := ℝ) hp), fun h =>
+      Set.disjoint_left.mp (K.relint_disjoint e he f hf hne) hp h⟩
+  have hpA : p ∈ frontier A.carrier := by
+    rw [← K.cover]
+    exact mem_iUnion₂.mpr ⟨e, he, hp⟩
+  have hmin : K.minimalCell p hpA = e := by
+    by_contra h
+    exact Set.disjoint_left.mp
+      (K.relint_disjoint _ (K.minimalCell_mem p hpA) e he h)
+      (K.mem_relint_minimalCell p hpA) hp
+  obtain ⟨b, hb, hboundary⟩ := K.boundary_union f hf
+  have hgb (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ relfrontier f.carrier := by
+    intro x hx
+    rw [hboundary]
+    exact mem_iUnion₂.mpr ⟨g, hg, hx⟩
+  have hgf (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ f.carrier :=
+    (hgb g hg).trans (intrinsicFrontier_subset (𝕜 := ℝ) f.flat.compact.isClosed)
+  have honly (g : Cell d) (hg : g ∈ b) (hpg : p ∈ g.carrier) : g = e := by
+    have heg : e.carrier ⊆ g.carrier := hmin ▸ K.minimalCell_subset p hpA g (hb hg) hpg
+    have hgfne : g ≠ f := by
+      intro h
+      obtain ⟨x, hx⟩ := f.flat.relint_nonempty
+      have hx' := hgb g hg (h.symm ▸ intrinsicInterior_subset (𝕜 := ℝ) hx)
+      rw [relfrontier, ← closure_diff_intrinsicInterior (𝕜 := ℝ)] at hx'
+      exact hx'.2 hx
+    have hgd := host_step_step5_frame_step3_flag_side_step1_dimension
+      K g f (hb hg) hf (hgf g hg) hgfne
+    by_contra hge
+    have hed := host_step_step5_frame_step3_flag_side_step1_dimension
+      K e g he (hb hg) heg (Ne.symm hge)
+    omega
+  let U : Set (E d) := (⋃ g ∈ b.filter (fun g => g ≠ e), g.carrier)ᶜ
+  have hU : IsOpen U :=
+    (isClosed_biUnion_finset (s := b.filter (fun g => g ≠ e))
+      (fun g _ => g.flat.compact.isClosed)).isOpen_compl
+  have hpU : p ∈ U := by
+    intro h
+    obtain ⟨g, hg, hpg⟩ := mem_iUnion₂.mp h
+    exact (Finset.mem_filter.mp hg).2 (honly g (Finset.mem_filter.mp hg).1 hpg)
+  obtain ⟨r₁, hr₁, hball₁⟩ := Metric.mem_nhds_iff.mp (hU.mem_nhds hpU)
+  obtain ⟨q, hq, hqp⟩ := hp
+  obtain ⟨r₂, hr₂, hball₂⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hq)
+  have hflat : ∀ x ∈ affineSpan ℝ e.carrier, x ∈ ball p r₂ → x ∈ e.carrier := by
+    intro x hx hnear
+    apply hball₂ (a := ⟨x, hx⟩)
+    simpa only [mem_ball, Subtype.dist_eq, hqp] using hnear
+  refine ⟨min r₁ r₂, lt_min hr₁ hr₂, ?_⟩
+  ext x
+  constructor
+  · rintro ⟨hx, hnear⟩
+    rw [hboundary] at hx
+    obtain ⟨g, hg, hxg⟩ := mem_iUnion₂.mp hx
+    have hge : g = e := by
+      by_contra h
+      exact (hball₁ ((ball_subset_ball (min_le_left r₁ r₂)) hnear))
+        (mem_iUnion₂.mpr ⟨g, Finset.mem_filter.mpr ⟨hg, h⟩, hxg⟩)
+    exact ⟨mem_affineSpan ℝ (hge ▸ hxg), hnear⟩
+  · rintro ⟨hx, hnear⟩
+    have hxe := hflat x hx ((ball_subset_ball (min_le_right r₁ r₂)) hnear)
+    have heB : e ∈ b := by
+      rw [hboundary] at hpf
+      obtain ⟨g, hg, hpg⟩ := mem_iUnion₂.mp hpf
+      exact honly g hg hpg ▸ hg
+    exact ⟨hgb e heB hxe, hnear⟩
+
+/-- Step 3 of the V4 proof of `host_step_step5_frame_step3_flag_side` (V4 3.6, F1):
+"a codimension-one face". A codimension-one inclusion of direction spaces
+is the kernel of a real linear functional restricted to the upper space. -/
+private theorem host_step_step5_frame_step3_flag_side_step3_wall
+    (W V : Submodule ℝ (E d)) (hWV : W ≤ V)
+    (hdim : Module.finrank ℝ V = Module.finrank ℝ W + 1) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ, ∀ x, x ∈ W ↔ x ∈ V ∧ ℓ x = 0 := by
+  have hlt : W < V := lt_of_le_of_ne hWV (by
+    intro h
+    rw [h] at hdim
+    omega)
+  obtain ⟨v, hv, hvW⟩ := SetLike.exists_of_lt hlt
+  obtain ⟨ℓ, hvℓ, hWℓ⟩ := Submodule.exists_le_ker_of_notMem hvW
+  have hle : W ≤ V ⊓ ℓ.ker := le_inf hWV hWℓ
+  have hproper : V ⊓ ℓ.ker < V := lt_of_le_of_ne inf_le_left (by
+    intro h
+    have hm : v ∈ V ⊓ ℓ.ker := h.symm ▸ hv
+    exact hvℓ hm.2)
+  have hsmall := Submodule.finrank_lt_finrank_of_lt hproper
+  have heq : W = V ⊓ ℓ.ker := Submodule.eq_of_le_of_finrank_le hle (by omega)
+  refine ⟨ℓ, fun x => ?_⟩
+  simp only [heq, Submodule.mem_inf, LinearMap.mem_ker]
+
+/-- Step 4 of the V4 proof of `host_step_step5_frame_step3_flag_side` (V4 1.0(a)):
+"U \ aff F has two components ... each component is inside or outside A".
+A closed set with a flat boundary patch and an interior point in the ball
+occupies exactly one of its two open half-balls. -/
+private theorem host_step_step5_frame_step3_flag_side_step4_halfball
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (D : Set V) (hD : IsClosed D) (r : ℝ) (hr : 0 < r) (ℓ : V →ₗ[ℝ] ℝ)
+    (hwall : frontier D ∩ ball 0 r = {x | ℓ x = 0} ∩ ball 0 r)
+    (hint : (interior D ∩ ball 0 r).Nonempty) :
+    D ∩ ball 0 r = {x | 0 ≤ ℓ x} ∩ ball 0 r ∨
+      D ∩ ball 0 r = {x | ℓ x ≤ 0} ∩ ball 0 r := by
+  let U : Set V := {x | 0 < ℓ x} ∩ ball 0 r
+  let L : Set V := {x | ℓ x < 0} ∩ ball 0 r
+  have hzero (x : V) (hx : x ∈ ball 0 r) : x ∈ frontier D ↔ ℓ x = 0 := by
+    constructor
+    · intro h
+      exact (show x ∈ {x | ℓ x = 0} ∩ ball 0 r from hwall ▸ ⟨h, hx⟩).1
+    · intro h
+      exact (show x ∈ frontier D ∩ ball 0 r from hwall.symm ▸ ⟨h, hx⟩).1
+  have hclass (T : Set V) (hT : IsPreconnected T) (hball : T ⊆ ball 0 r)
+      (hne : ∀ x ∈ T, ℓ x ≠ 0) : T ⊆ interior D ∨ T ⊆ Dᶜ := by
+    apply hT.subset_or_subset isOpen_interior hD.isOpen_compl
+      (disjoint_compl_right.mono_left interior_subset)
+    intro x hx
+    by_cases hxD : x ∈ D
+    · left
+      by_contra hi
+      have hf : x ∈ frontier D := by
+        rw [hD.frontier_eq]
+        exact ⟨hxD, hi⟩
+      exact hne x hx ((hzero x (hball hx)).mp hf)
+    · exact Or.inr hxD
+  have hU := hclass U
+    ((convex_halfSpace_gt ℓ.isLinear 0).inter (convex_ball (0 : V) r)).isPreconnected
+    inter_subset_right (fun x hx => ne_of_gt hx.1)
+  have hL := hclass L
+    ((convex_halfSpace_lt ℓ.isLinear 0).inter (convex_ball (0 : V) r)).isPreconnected
+    inter_subset_right (fun x hx => ne_of_lt hx.1)
+  have hnotboth (hu : U ⊆ interior D) (hl : L ⊆ interior D) : False := by
+    have hb : ball (0 : V) r ⊆ D := by
+      intro x hx
+      rcases lt_trichotomy (ℓ x) 0 with hn | hz | hp
+      · exact interior_subset (hl ⟨hn, hx⟩)
+      · exact hD.frontier_subset ((hzero x hx).mpr hz)
+      · exact interior_subset (hu ⟨hp, hx⟩)
+    have hi : (0 : V) ∈ interior D :=
+      interior_maximal hb isOpen_ball (mem_ball_self hr)
+    exact Set.disjoint_left.mp disjoint_interior_frontier hi
+      ((hzero 0 (mem_ball_self hr)).mpr (map_zero ℓ))
+  have hnotneither (hu : U ⊆ Dᶜ) (hl : L ⊆ Dᶜ) : False := by
+    obtain ⟨x, hi, hx⟩ := hint
+    rcases lt_trichotomy (ℓ x) 0 with hn | hz | hp
+    · exact hl ⟨hn, hx⟩ (interior_subset hi)
+    · exact Set.disjoint_left.mp disjoint_interior_frontier hi ((hzero x hx).mpr hz)
+    · exact hu ⟨hp, hx⟩ (interior_subset hi)
+  rcases hU with hu | hu <;> rcases hL with hl | hl
+  · exact (hnotboth hu hl).elim
+  · left
+    ext x
+    constructor
+    · rintro ⟨hxD, hx⟩
+      refine ⟨?_, hx⟩
+      change 0 ≤ ℓ x
+      exact le_of_not_gt (fun hn => hl ⟨hn, hx⟩ hxD)
+    · rintro ⟨hpos, hx⟩
+      change 0 ≤ ℓ x at hpos
+      rcases hpos.eq_or_lt with hz | hp
+      · exact ⟨hD.frontier_subset ((hzero x hx).mpr hz.symm), hx⟩
+      · exact ⟨interior_subset (hu ⟨hp, hx⟩), hx⟩
+  · right
+    ext x
+    constructor
+    · rintro ⟨hxD, hx⟩
+      refine ⟨?_, hx⟩
+      change ℓ x ≤ 0
+      exact le_of_not_gt (fun hp => hu ⟨hp, hx⟩ hxD)
+    · rintro ⟨hneg, hx⟩
+      change ℓ x ≤ 0 at hneg
+      rcases hneg.eq_or_lt with hz | hn
+      · exact ⟨hD.frontier_subset ((hzero x hx).mpr hz), hx⟩
+      · exact ⟨interior_subset (hl ⟨hn, hx⟩), hx⟩
+  · exact (hnotneither hu hl).elim
+
+/-- Step 5 of the V4 proof of `host_step_step5_frame_step3_flag_side` (V4 3.6, F1):
+"in the affine span of the upper cell". Translate the flat boundary patch to
+its direction space, apply the two-component argument, and return to ambient
+coordinates. Reversing the functional selects the occupied side. -/
+private theorem host_step_step5_frame_step3_flag_side_step5_relative_halfball
+    (e f : Cell d) (hsub : e.carrier ⊆ f.carrier) (p : E d)
+    (hp : p ∈ relint e.carrier) (r : ℝ) (hr : 0 < r)
+    (hboundary : relfrontier f.carrier ∩ ball p r =
+      (affineSpan ℝ e.carrier : Set (E d)) ∩ ball p r)
+    (ℓ : E d →ₗ[ℝ] ℝ)
+    (hker : ∀ x, x ∈ cellDirection e.carrier ↔
+      x ∈ cellDirection f.carrier ∧ ℓ x = 0) :
+    ∃ m : E d →ₗ[ℝ] ℝ, (∀ x, m x = 0 ↔ ℓ x = 0) ∧
+      f.carrier ∩ ball p r =
+        {x | x - p ∈ cellDirection f.carrier ∧ 0 ≤ m (x - p)} ∩ ball p r := by
+  let B := affineSpan ℝ f.carrier
+  let V := cellDirection f.carrier
+  have hpe : p ∈ e.carrier := intrinsicInterior_subset (𝕜 := ℝ) hp
+  have hpB : p ∈ B := mem_affineSpan ℝ (hsub hpe)
+  have hpE : p ∈ affineSpan ℝ e.carrier := mem_affineSpan ℝ hpe
+  letI : Nonempty B := ⟨⟨p, hpB⟩⟩
+  let i : V ≃ᵃⁱ[ℝ] B := AffineIsometryEquiv.vaddConst ℝ ⟨p, hpB⟩
+  let D : Set V := i ⁻¹' ((↑) ⁻¹' f.carrier : Set B)
+  have hi (u : V) : (i u).val = p + u.val := by
+    change u.val + p = p + u.val
+    exact add_comm _ _
+  have hiB (u : V) : u ∈ ball 0 r ↔ (i u).val ∈ ball p r := by
+    simp only [mem_ball, hi, dist_eq_norm, sub_zero, add_sub_cancel_left,
+      Submodule.coe_norm]
+  have hD : IsClosed D :=
+    (f.flat.compact.isClosed.preimage continuous_subtype_val).preimage i.continuous
+  have hfront (u : V) : u ∈ frontier D ↔ (i u).val ∈ relfrontier f.carrier := by
+    change u ∈ frontier (i.toHomeomorph ⁻¹' ((↑) ⁻¹' f.carrier : Set B)) ↔ _
+    rw [← i.toHomeomorph.preimage_frontier]
+    constructor
+    · intro hu
+      exact ⟨i u, hu, rfl⟩
+    · rintro ⟨a, ha, heq⟩
+      have heq' : a = i u := Subtype.ext heq
+      simpa only [heq'] using ha
+  have hlow (u : V) : (i u).val ∈ affineSpan ℝ e.carrier ↔ ℓ u.val = 0 := by
+    rw [← AffineSubspace.vsub_right_mem_direction_iff_mem hpE]
+    change (i u).val - p ∈ cellDirection e.carrier ↔ _
+    rw [hi, add_sub_cancel_left, hker]
+    exact and_iff_right u.property
+  let ℓV : V →ₗ[ℝ] ℝ := ℓ.comp V.subtype
+  have hwall : frontier D ∩ ball 0 r = {u | ℓV u = 0} ∩ ball 0 r := by
+    ext u
+    constructor
+    · rintro ⟨hu, hnear⟩
+      have hm : (i u).val ∈ (affineSpan ℝ e.carrier : Set (E d)) ∩ ball p r :=
+        hboundary ▸ ⟨(hfront u).mp hu, (hiB u).mp hnear⟩
+      exact ⟨(hlow u).mp hm.1, hnear⟩
+    · rintro ⟨hu, hnear⟩
+      have hm : (i u).val ∈ relfrontier f.carrier ∩ ball p r :=
+        hboundary.symm ▸ ⟨(hlow u).mpr hu, (hiB u).mp hnear⟩
+      exact ⟨(hfront u).mpr hm.1, hnear⟩
+  have hint : (interior D ∩ ball 0 r).Nonempty := by
+    have hpcl : p ∈ closure (relint f.carrier) := f.flat.regularClosed.symm ▸ hsub hpe
+    obtain ⟨y, hyball, a, ha, rfl⟩ :=
+      mem_closure_iff.mp hpcl (ball p r) isOpen_ball (mem_ball_self hr)
+    refine ⟨i.symm a, ?_, ?_⟩
+    · change i.symm a ∈ interior (i.toHomeomorph ⁻¹' ((↑) ⁻¹' f.carrier : Set B))
+      rw [← i.toHomeomorph.preimage_interior]
+      change i (i.symm a) ∈ interior ((↑) ⁻¹' f.carrier : Set B)
+      simpa only [i.apply_symm_apply] using ha
+    · apply (hiB _).mpr
+      simpa only [i.apply_symm_apply] using hyball
+  have htranslate (m : E d →ₗ[ℝ] ℝ)
+      (hm : D ∩ ball 0 r = {u | 0 ≤ m u.val} ∩ ball 0 r) :
+      f.carrier ∩ ball p r =
+        {x | x - p ∈ V ∧ 0 ≤ m (x - p)} ∩ ball p r := by
+    have heval (x : E d) (hx : x - p ∈ V) : (i ⟨x - p, hx⟩).val = x := by
+      rw [hi]
+      exact add_sub_cancel _ _
+    ext x
+    constructor
+    · rintro ⟨hxf, hnear⟩
+      have hxV : x - p ∈ V := AffineSubspace.vsub_mem_direction
+        (mem_affineSpan ℝ hxf) hpB
+      have hu : (⟨x - p, hxV⟩ : V) ∈ D ∩ ball 0 r := by
+        constructor
+        · change (i ⟨x - p, hxV⟩).val ∈ f.carrier
+          rwa [heval]
+        · apply (hiB _).mpr
+          rwa [heval]
+      have hpos := (show (⟨x - p, hxV⟩ : V) ∈ {u | 0 ≤ m u.val} ∩ ball 0 r from hm ▸ hu).1
+      exact ⟨⟨hxV, hpos⟩, hnear⟩
+    · rintro ⟨⟨hxV, hpos⟩, hnear⟩
+      have hu : (⟨x - p, hxV⟩ : V) ∈ D ∩ ball 0 r := by
+        rw [hm]
+        refine ⟨hpos, (hiB _).mpr ?_⟩
+        rwa [heval]
+      refine ⟨?_, hnear⟩
+      have huD := hu.1
+      change (i ⟨x - p, hxV⟩).val ∈ f.carrier at huD
+      rwa [heval] at huD
+  rcases host_step_step5_frame_step3_flag_side_step4_halfball D hD r hr ℓV hwall hint
+    with hpos | hneg
+  · exact ⟨ℓ, fun _ => Iff.rfl, htranslate ℓ hpos⟩
+  · refine ⟨-ℓ, ?_, htranslate (-ℓ) ?_⟩
+    · intro x
+      simp only [LinearMap.neg_apply, neg_eq_zero]
+    · simpa only [LinearMap.neg_apply, neg_nonneg] using hneg
+
+/-- Step 6 of the V4 proof of `host_step_step5_frame_step3_flag_side` (V4 3.6, F1):
+"a half-space on the recorded side". A local relative half-ball has exactly
+its homogeneous half-space as its radial tangent cone. -/
+private theorem host_step_step5_frame_step3_flag_side_step6_tangent
+    (K : Set (E d)) (p : E d) (V : Submodule ℝ (E d))
+    (ℓ : E d →ₗ[ℝ] ℝ) (r : ℝ) (hr : 0 < r)
+    (hlocal : K ∩ ball p r = {x | x - p ∈ V ∧ 0 ≤ ℓ (x - p)} ∩ ball p r) :
+    tangentCone K p = {u | u ∈ V ∧ 0 ≤ ℓ u} := by
+  ext u
+  let δ := r / (‖u‖ + 1)
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  have hδ : 0 < δ := div_pos hr hden
+  have hnear (t : ℝ) (ht : 0 < t) (htδ : t < δ) : p + t • u ∈ ball p r := by
+    change dist (p + t • u) p < r
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+    have := (lt_div_iff₀ hden).mp htδ
+    nlinarith [norm_nonneg u]
+  constructor
+  · rintro ⟨ε, hε, hmem⟩
+    let t := min ε δ / 2
+    have ht : 0 < t := div_pos (lt_min hε hδ) (by norm_num)
+    have htε : t < ε := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_left ε δ)
+    have htδ : t < δ := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_right ε δ)
+    have hm : p + t • u ∈ {x | x - p ∈ V ∧ 0 ≤ ℓ (x - p)} ∩ ball p r :=
+      hlocal ▸ ⟨hmem t ht htε, hnear t ht htδ⟩
+    have hV := hm.1.1
+    have hℓ := hm.1.2
+    change p + t • u - p ∈ V at hV
+    rw [add_sub_cancel_left] at hV
+    change 0 ≤ ℓ (p + t • u - p) at hℓ
+    rw [add_sub_cancel_left, map_smul, smul_eq_mul] at hℓ
+    exact ⟨(Submodule.smul_mem_iff V ht.ne').mp hV, nonneg_of_mul_nonneg_right hℓ ht⟩
+  · rintro ⟨huV, huℓ⟩
+    refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+    have hm : p + t • u ∈ K ∩ ball p r := by
+      rw [hlocal]
+      refine ⟨?_, hnear t ht htδ⟩
+      change p + t • u - p ∈ V ∧ 0 ≤ ℓ (p + t • u - p)
+      rw [add_sub_cancel_left, map_smul, smul_eq_mul]
+      exact ⟨V.smul_mem t huV, mul_nonneg ht.le huℓ⟩
+    exact hm.1
+
 /-- Step 3 of the V4 proof of `host_step_step5_frame` (V4 3.6, F1):
 "near a point of the relative interior of a codimension-one face,
 a polyhedral manifold cell is a half-space on the recorded side".
@@ -8165,11 +8528,31 @@ private theorem host_step_step5_frame_step3_flag_side
       flagSide F j =
         {x | x ∈ cellDirection (F.cell ⟨j.val + 1, by omega, j.property.2⟩).val.carrier ∧
           0 ≤ ℓ x} := by
-  -- Work in the affine span of the upper cell. Properness puts the relative
-  -- interior of the lower cell in its relative boundary. The relative version
-  -- of V4 1.0(a) gives the local half-space; its wall is the lower affine span.
-  -- Translating the anchor to zero gives the stated kernel and tangent cone.
-  sorry
+  let lo : FlagIndex d := ⟨j.val, j.property.1, by omega⟩
+  let hi : FlagIndex d := ⟨j.val + 1, by omega, j.property.2⟩
+  let e := (F.cell lo).val
+  let f := (F.cell hi).val
+  let p := cellAnchor e
+  have hp : p ∈ relint e.carrier := cellAnchor_mem e
+  have hsub : e.carrier ⊆ f.carrier := F.nested lo hi (by dsimp [lo, hi]; omega)
+  have hdim : f.dim = e.dim + 1 := by
+    dsimp [e, f]
+    rw [F.dimension, F.dimension]
+  obtain ⟨r, hr, hboundary⟩ := host_step_step5_frame_step3_flag_side_step2_boundary_patch
+    (S.cx A) e f (F.cell lo).property (F.cell hi).property hsub hdim p hp
+  obtain ⟨ℓ, hker⟩ := host_step_step5_frame_step3_flag_side_step3_wall
+    (cellDirection e.carrier) (cellDirection f.carrier)
+    (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
+    (by rw [e.flat.dimension, f.flat.dimension]; exact hdim)
+  obtain ⟨m, hm, hlocal⟩ := host_step_step5_frame_step3_flag_side_step5_relative_halfball
+    e f hsub p hp r hr hboundary ℓ hker
+  refine ⟨m, ?_, ?_⟩
+  · intro x
+    change x ∈ cellDirection e.carrier ↔ x ∈ cellDirection f.carrier ∧ m x = 0
+    rw [hm]
+    exact hker x
+  · exact host_step_step5_frame_step3_flag_side_step6_tangent
+      f.carrier p (cellDirection f.carrier) m r hr hlocal
 
 /-- Step 5 of the V4 proof of `host_step` (V4 3.6): "the positioned
 oriented flag together with the side determines the frame". Equal edge carriers

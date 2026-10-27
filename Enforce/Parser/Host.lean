@@ -947,6 +947,830 @@ private theorem host_step_step1_seed_step4_event
   simp only [Compiler.endSector, hp, hheader, host_step_step1_seed_step1_header,
     Set.image_image, LinearIsometryEquiv.apply_symm_apply]
 
+/-- Step 1 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"the realised flag tangent cones ... equal the actual tangent cones".
+Radial tangent cones commute with an invertible affine change of coordinates. -/
+private theorem host_step_step1_seed_step5_trace_step1_tangent_image
+    (φ : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) (x : E d) :
+    tangentCone (φ '' K) (φ x) = φ.linear '' tangentCone K x := by
+  have hmap (t : ℝ) (u : E d) : φ (x + t • u) = φ x + t • φ.linear u := by
+    simpa only [vadd_eq_add, map_smul, add_comm] using φ.map_vadd x (t • u)
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hmem⟩
+    refine ⟨φ.linear.symm u, ⟨ε, hε, ?_⟩, φ.linear.apply_symm_apply u⟩
+    intro t ht htε
+    have hm := hmem t ht htε
+    rw [← φ.linear.apply_symm_apply u, ← hmap] at hm
+    exact φ.injective.mem_set_image.mp hm
+  · rintro ⟨u, ⟨ε, hε, hmem⟩, rfl⟩
+    exact ⟨ε, hε, fun t ht htε => hmap t u ▸
+      Set.mem_image_of_mem φ (hmem t ht htε)⟩
+
+/-- Step 1 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"T_p s_j is contained in T_p F_j". Containment of cells implies containment
+of their radial tangent cones, with the same apex. -/
+private theorem host_step_step1_seed_step5_trace_step1_tangent_mono
+    {K L : Set (E d)} (h : K ⊆ L) (x : E d) :
+    tangentCone K x ⊆ tangentCone L x := by
+  rintro u ⟨ε, hε, hu⟩
+  exact ⟨ε, hε, fun t ht htε => h (hu t ht htε)⟩
+
+/-- Step 1 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"aff s_j = aff F_j". A flat polyhedral cell and its tangent cone at a point
+of the cell have the same affine span after translating the cone to that point. -/
+private theorem host_step_step1_seed_step5_trace_step1_cone_span
+    (e : Cell d) (x : E d) (hx : x ∈ e.carrier) :
+    affineSpan ℝ ((fun u => x + u) '' tangentCone e.carrier x) =
+      affineSpan ℝ e.carrier := by
+  classical
+  let A := affineSpan ℝ e.carrier
+  let T := (fun u => x + u) '' tangentCone e.carrier x
+  have hxA : x ∈ A := subset_affineSpan ℝ e.carrier hx
+  have hle : affineSpan ℝ T ≤ A := by
+    apply affineSpan_le.mpr
+    rintro z ⟨u, ⟨ε, hε, hu⟩, rfl⟩
+    let t := ε / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have hz : x + t • u ∈ A := subset_affineSpan ℝ e.carrier
+      (hu t ht (by dsimp [t]; linarith))
+    have hh := A.smul_vsub_vadd_mem t⁻¹ hz hxA hxA
+    have he : t⁻¹ • ((x + t • u) - x) + x = x + u := by
+      rw [add_sub_cancel_left, smul_smul, inv_mul_cancel₀ ht.ne', one_smul]
+      module
+    change x + u ∈ A
+    rw [← he]
+    exact hh
+  obtain ⟨s, hs⟩ := e.flat.polyhedral
+  let bad : Finset (Finset (E d)) :=
+    s.filter (fun p : Finset (E d) => x ∉ convexHull ℝ (p : Set (E d)))
+  let O : Set (E d) := (⋃ p : Finset (E d), ⋃ (_ : p ∈ bad),
+    convexHull ℝ (p : Set (E d)))ᶜ
+  have hO : IsOpen O := by
+    exact (isClosed_biUnion_finset (s := bad)
+      (fun p _ => p.finite_toSet.isCompact_convexHull.isClosed)).isOpen_compl
+  have hxO : x ∈ O := by
+    intro hh
+    obtain ⟨p, hp, hxp⟩ := mem_iUnion₂.mp hh
+    exact (Finset.mem_filter.mp hp).2 hxp
+  have hlocal : e.carrier ∩ O ⊆ T := by
+    rintro y ⟨hy, hyO⟩
+    rw [hs] at hy
+    obtain ⟨p, hp, hyp⟩ := mem_iUnion₂.mp hy
+    have hxp : x ∈ convexHull ℝ (p : Set (E d)) := by
+      by_contra h
+      exact hyO (mem_iUnion₂.mpr ⟨p, Finset.mem_filter.mpr ⟨hp, h⟩, hyp⟩)
+    refine ⟨y - x, ⟨1, zero_lt_one, fun t ht ht1 => ?_⟩, by module⟩
+    rw [hs]
+    refine mem_iUnion₂.mpr ⟨p, hp, ?_⟩
+    have hm := (convex_convexHull ℝ (p : Set (E d))) hxp hyp
+      (by linarith : 0 ≤ 1 - t) ht.le (by ring : (1 - t) + t = 1)
+    convert hm using 1 <;> module
+  have hxcl : x ∈ closure (relint e.carrier) := by
+    rw [e.flat.regularClosed]
+    exact hx
+  obtain ⟨y, hyO, hy⟩ := mem_closure_iff.mp hxcl O hO hxO
+  letI : Nonempty A := ⟨⟨x, hxA⟩⟩
+  let V : Set A := interior ((↑) ⁻¹' e.carrier : Set A) ∩ ((↑) ⁻¹' O)
+  have hV : IsOpen V := isOpen_interior.inter (hO.preimage continuous_subtype_val)
+  have hVne : V.Nonempty := by
+    obtain ⟨z, hz, rfl⟩ := hy
+    exact ⟨z, hz, hyO⟩
+  have hVT : A.subtype '' V ⊆ T := by
+    rintro z ⟨w, hw, rfl⟩
+    have hm : (w : E d) ∈ e.carrier :=
+      interior_subset (s := ((↑) ⁻¹' e.carrier : Set A)) hw.1
+    exact hlocal ⟨hm, hw.2⟩
+  have hfull : affineSpan ℝ (A.subtype '' V) = A := by
+    rw [← AffineSubspace.map_span, hV.affineSpan_eq_top hVne]
+    ext z
+    constructor
+    · rintro ⟨w, _, rfl⟩
+      exact w.property
+    · intro hz
+      exact ⟨⟨z, hz⟩, by trivial, rfl⟩
+  apply le_antisymm hle
+  rw [← hfull]
+  exact affineSpan_mono ℝ hVT
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.1, 1.22(a)):
+"edge heredity". Containment of placed cells bounds their dimensions;
+invertible affine placement preserves the dimension of each affine span. -/
+private theorem host_step_step1_seed_step5_trace_step2_dim_le
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (e f : Cell d)
+    (hsub : φ '' e.carrier ⊆ ψ '' f.carrier) : e.dim ≤ f.dim := by
+  have hdim (φ : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+      Module.finrank ℝ (affineSpan ℝ (φ '' e.carrier)).direction = e.dim := by
+    change Module.finrank ℝ (affineSpan ℝ (φ.toAffineMap '' e.carrier)).direction = e.dim
+    rw [← AffineSubspace.map_span φ.toAffineMap, AffineSubspace.map_direction]
+    exact (φ.linear.finrank_map_eq _).trans e.flat.dimension
+  have h := Submodule.finrank_mono (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
+  simpa only [hdim] using h
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.22(a), 3.6):
+"adjacent to h at its initial endpoint". Finitely many vertices cannot
+leave an endpoint uncovered by a closed family that covers the remaining segment. -/
+private theorem host_step_step1_seed_step5_trace_step2_closed_cover
+    (K V : Set (E d)) (hK : IsClosed K) (hV : V.Finite)
+    (x y : E d) (hxy : x ≠ y) (hcover : segment ℝ x y ⊆ K ∪ V) : x ∈ K := by
+  by_contra hx
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hK.isOpen_compl x hx
+  let δ := min 1 (ε / (‖y - x‖ + 1))
+  have hden : 0 < ‖y - x‖ + 1 := by positivity
+  have hδ : 0 < δ := lt_min zero_lt_one (div_pos hε hden)
+  let L : ℝ → E d := fun t => x + t • (y - x)
+  have hL : Function.Injective L := by
+    intro a b h
+    exact smul_left_injective ℝ (sub_ne_zero.mpr hxy.symm) (add_left_cancel h)
+  obtain ⟨t, ht, htv⟩ := (Set.Ioo_infinite hδ).exists_notMem_finite
+    (hV.preimage hL.injOn)
+  have ht1 : t < 1 := lt_of_lt_of_le ht.2 (min_le_left _ _)
+  have htε : t < ε / (‖y - x‖ + 1) := lt_of_lt_of_le ht.2 (min_le_right _ _)
+  have hseg : L t ∈ segment ℝ x y := by
+    refine ⟨1 - t, t, by linarith [ht.1], ht.1.le, by ring, ?_⟩
+    dsimp [L]
+    module
+  have hnear : L t ∈ ball x ε := by
+    change dist (x + t • (y - x)) x < ε
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht.1]
+    have := (lt_div_iff₀ hden).mp htε
+    nlinarith [norm_nonneg (y - x)]
+  rcases hcover hseg with h | h
+  · exact hball hnear h
+  · exact htv h
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.1, 1.22(a)):
+"edge heredity in its endpoint trace piece". Away from listed vertices,
+the minimal cell of a trace owner on the ancestral edge is a listed edge,
+and it lies in both the trace polygon and the ancestral edge. -/
+private theorem host_step_step1_seed_step5_trace_step2_trace_edge
+    (A : S.ι) (F : FacetFlag S A) (n : ℕ) (a : TracePiece A F n) (z : E d)
+    (hza : z ∈ a.carrier)
+    (hzh : z ∈ (S.σ ^ n) '' (F.cell edgeIndex).val.carrier)
+    (hnv : ¬ a.tile.Lists 0 z) :
+    ∃ e : PrototypeEdge S a.tile.ty,
+      z ∈ a.tile.cell 0 e.val ∧
+      a.tile.cell 0 e.val ⊆ (S.σ ^ n) '' (F.cell edgeIndex).val.carrier ∧
+      e.val.carrier ⊆ a.bottom.val.carrier := by
+  obtain ⟨u, hu, rfl⟩ := hza
+  have hu' : u ∈ frontier (S.proto a.tile.ty).carrier := by
+    rw [← (S.cx a.tile.ty).carriers_cover]
+    exact mem_iUnion₂.mpr ⟨a.bottom.val, a.bottom.property, hu⟩
+  let e := (S.cx a.tile.ty).minimalCell u hu'
+  have he := (S.cx a.tile.ty).minimalCell_mem u hu'
+  have hue := (S.cx a.tile.ty).mem_relint_minimalCell u hu'
+  have hbottom : e.carrier ⊆ a.bottom.val.carrier :=
+    (S.cx a.tile.ty).minimalCell_subset u hu' a.bottom.val a.bottom.property hu
+  have hzrel : a.tile.prototypeFrame 0 u ∈ relint (a.tile.cell 0 e) := by
+    change a.tile.frame u ∈ intrinsicInterior ℝ (a.tile.frame.toAffineIsometry '' e.carrier)
+    rw [a.tile.frame.toAffineIsometry.image_intrinsicInterior]
+    exact Set.mem_image_of_mem _ hue
+  have hze : a.tile.prototypeFrame 0 u ∈ a.tile.cell 0 e :=
+    intrinsicInterior_subset hzrel
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hdesc : a.tile.IsDescendant 0 R n := by
+    refine ⟨n, by omega, a.owner, ?_⟩
+    simp [TracePiece.tile, R, FramedNode.move]
+    rfl
+  have hsub : a.tile.cell 0 e ⊆ (S.σ ^ n) '' (F.cell edgeIndex).val.carrier := by
+    have hh := hereditary_trace R a.tile n 0 hdesc (F.cell edgeIndex).val e
+      (F.cell edgeIndex).property he ⟨a.tile.prototypeFrame 0 u, hzrel, hzh⟩
+    exact hh
+  have hdim : e.dim ≤ 1 := by
+    have hh := host_step_step1_seed_step5_trace_step2_dim_le
+      (a.tile.prototypeFrame 0) (S.σ ^ n).toAffineEquiv e (F.cell edgeIndex).val hsub
+    simpa only [F.dimension edgeIndex] using hh
+  have hnonzero : e.dim ≠ 0 := by
+    intro hz
+    exact hnv ⟨e, Finset.mem_filter.mpr ⟨he, hz⟩, hze⟩
+  exact ⟨⟨e, Finset.mem_filter.mpr ⟨he, by omega⟩⟩, hze, hsub, hbottom⟩
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.22(a), 3.6):
+"the selected owner ... adjacent to h at its initial endpoint".
+In the recursive trace, one selected polygon has a listed edge lying in the
+flag edge and containing its endpoint. This also covers the segment trace in
+dimension two and subdivision depth zero. -/
+private theorem host_step_step1_seed_step5_trace_step2_endpoint_piece
+    (A : S.ι) (F : FacetFlag S A) (n : ℕ) (x y : E d)
+    (hxy : x ≠ y) (hedge : (F.cell edgeIndex).val.carrier = segment ℝ x y) :
+    ∃ a : TracePiece A F n, ∃ e : PrototypeEdge S a.tile.ty,
+      (S.σ ^ n) x ∈ a.tile.cell 0 e.val ∧
+      a.tile.cell 0 e.val ⊆ (S.σ ^ n) '' (F.cell edgeIndex).val.carrier ∧
+      e.val.carrier ⊆ a.bottom.val.carrier := by
+  classical
+  letI : Finite (TracePiece A F n) := tracePieces_finite A F n
+  let Good := {z : Σ a : TracePiece A F n, PrototypeEdge S a.tile.ty //
+    z.1.tile.cell 0 z.2.val ⊆ (S.σ ^ n) '' (F.cell edgeIndex).val.carrier ∧
+      z.2.val.carrier ⊆ z.1.bottom.val.carrier}
+  let K : Set (E d) := ⋃ z : Good, z.val.1.tile.cell 0 z.val.2.val
+  let V : Set (E d) := ⋃ a : TracePiece A F n, ⋃ v : VertexName S a.tile.ty,
+    {a.tile.prototypeFrame 0 (vertexPoint v)}
+  have hK : IsClosed K := by
+    apply isClosed_iUnion_of_finite
+    intro z
+    exact (z.val.2.val.flat.compact.image
+      (z.val.1.tile.prototypeFrame 0).continuous_of_finiteDimensional).isClosed
+  have hV : V.Finite := Set.finite_iUnion fun a =>
+    Set.finite_iUnion fun v => Set.finite_singleton _
+  have hcover : (S.σ ^ n) '' (F.cell edgeIndex).val.carrier ⊆ K ∪ V := by
+    intro z hz
+    by_cases hzV : z ∈ V
+    · exact Or.inr hzV
+    apply Or.inl
+    have hzb : z ∈ (S.σ ^ n) ''
+        (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.carrier :=
+      Set.image_mono (F.nested edgeIndex
+        ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩ traceDimension_pos) hz
+    rw [← (recursiveTrace_tiles A F n).1] at hzb
+    obtain ⟨a, ha, hza⟩ := mem_iUnion₂.mp hzb
+    have hnv : ¬ a.tile.Lists 0 z := by
+      rintro ⟨v, hv, hzv⟩
+      let v' : VertexName S a.tile.ty := ⟨v, hv⟩
+      have hpoint : z = a.tile.prototypeFrame 0 (vertexPoint v') := by
+        change z ∈ a.tile.cell 0 v'.val at hzv
+        simpa only [FramedNode.cell, vertexPoint_spec v', Set.image_singleton,
+          Set.mem_singleton_iff] using hzv
+      exact hzV (Set.mem_iUnion_of_mem a (Set.mem_iUnion_of_mem v' hpoint))
+    obtain ⟨e, hze, heh, heb⟩ :=
+      host_step_step1_seed_step5_trace_step2_trace_edge A F n a z hza hz hnv
+    exact Set.mem_iUnion_of_mem (⟨⟨a, e⟩, heh, heb⟩ : Good) hze
+  have hedge' : (S.σ ^ n) '' (F.cell edgeIndex).val.carrier =
+      segment ℝ ((S.σ ^ n) x) ((S.σ ^ n) y) := by
+    rw [hedge]
+    exact image_segment ℝ (S.σ ^ n).toAffineEquiv.toAffineMap x y
+  have hxK := host_step_step1_seed_step5_trace_step2_closed_cover K V hK hV
+    ((S.σ ^ n) x) ((S.σ ^ n) y) (fun h => hxy ((S.σ ^ n).injective h))
+    (hedge' ▸ hcover)
+  obtain ⟨z, hz⟩ := Set.mem_iUnion.mp hxK
+  exact ⟨z.val.1, z.val.2, hz, z.property.1, z.property.2⟩
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"a segment from p along the ray of h". The radial tangent cone at the first
+endpoint of a closed segment is its nonnegative direction ray. -/
+private theorem host_step_step1_seed_step5_trace_step2_segment_cone
+    (x y : E d) :
+    tangentCone (segment ℝ x y) x = {u | ∃ c : ℝ, 0 ≤ c ∧ u = c • (y - x)} := by
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hmem⟩
+    let t := ε / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    obtain ⟨a, b, ha, hb, hab, he⟩ := hmem t ht (by dsimp [t]; linarith)
+    have ha' : a = 1 - b := by linarith
+    have he' : t • u = b • (y - x) := by
+      have hh := congrArg (fun z : E d => z - x) he
+      dsimp only at hh
+      rw [add_sub_cancel_left] at hh
+      rw [← hh, ha']
+      module
+    refine ⟨b / t, div_nonneg hb ht.le, ?_⟩
+    have hh := congrArg (fun z : E d => t⁻¹ • z) he'
+    simpa only [smul_smul, inv_mul_cancel₀ ht.ne', one_smul, div_eq_mul_inv,
+      mul_comm] using hh
+  · rintro ⟨c, hc, rfl⟩
+    have hden : 0 < c + 1 := by linarith
+    refine ⟨1 / (c + 1), div_pos zero_lt_one hden, fun t ht htε => ?_⟩
+    have htc : t * c < 1 := by
+      have := (lt_div_iff₀ hden).mp htε
+      nlinarith
+    refine ⟨1 - t * c, t * c, by linarith, mul_nonneg ht.le hc, by ring, ?_⟩
+    module
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"T_p e = T_p h". Any nontrivial convex subsegment containing an endpoint
+has the same endpoint ray and affine span as the whole segment. -/
+private theorem host_step_step1_seed_step5_trace_step2_subsegment
+    (K : Set (E d)) (x y z : E d) (hK : Convex ℝ K)
+    (hx : x ∈ K) (hz : z ∈ K) (hzx : z ≠ x) (hsub : K ⊆ segment ℝ x y) :
+    affineSpan ℝ K = affineSpan ℝ (segment ℝ x y) ∧
+      tangentCone K x = tangentCone (segment ℝ x y) x := by
+  obtain ⟨a, b, ha, hb, hab, he⟩ := hsub hz
+  have ha' : a = 1 - b := by linarith
+  have hz' : z = x + b • (y - x) := by rw [← he, ha']; module
+  have hbpos : 0 < b := by
+    apply lt_of_le_of_ne hb
+    intro h
+    apply hzx
+    simp only [← h, zero_smul, add_zero] at hz'
+    exact hz'
+  constructor
+  · apply le_antisymm (affineSpan_mono ℝ hsub)
+    apply affineSpan_le.mpr
+    have hxs := mem_affineSpan ℝ hx
+    have hzs := mem_affineSpan ℝ hz
+    have hy : y ∈ affineSpan ℝ K := by
+      have hh := (affineSpan ℝ K).smul_vsub_vadd_mem b⁻¹ hzs hxs hxs
+      have heq : b⁻¹ • (z - x) + x = y := by
+        rw [hz', add_sub_cancel_left, smul_smul, inv_mul_cancel₀ hbpos.ne', one_smul]
+        module
+      exact heq ▸ hh
+    exact (affineSpan ℝ K).convex.segment_subset hxs hy
+  · apply Set.Subset.antisymm
+      (host_step_step1_seed_step5_trace_step1_tangent_mono hsub x)
+    rw [host_step_step1_seed_step5_trace_step2_segment_cone]
+    rintro u ⟨c, hc, rfl⟩
+    have hden : 0 < c + 1 := by linarith
+    refine ⟨b / (c + 1), div_pos hbpos hden, fun t ht htε => ?_⟩
+    have htc : t * c < b := by
+      have := (lt_div_iff₀ hden).mp htε
+      nlinarith
+    have hs : 0 ≤ t * c / b := div_nonneg (mul_nonneg ht.le hc) hbpos.le
+    have hs' : t * c / b ≤ 1 := (div_le_one hbpos).mpr htc.le
+    have hm := hK hx hz (by linarith : 0 ≤ 1 - t * c / b) hs
+      (by ring : (1 - t * c / b) + t * c / b = 1)
+    have heq : (1 - t * c / b) • x + (t * c / b) • z =
+        x + t • (c • (y - x)) := by
+      rw [hz']
+      have hc' : t * c / b * b = t * c := div_mul_cancel₀ _ hbpos.ne'
+      simp only [smul_add, smul_smul, hc']
+      module
+    exact heq ▸ hm
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.22(a), 3.6):
+"with chain cells s_1 contained in ... contained in s_(d-1)".
+Adjoin the endpoint edge to the trace piece's recorded cofaces. The trace
+theorem supplies the higher affine spans; the subsegment supplies the edge ray. -/
+private theorem host_step_step1_seed_step5_trace_step2_full_chain
+    (A : S.ι) (F : FacetFlag S A) (n : ℕ) (x y : E d)
+    (hxy : x ≠ y) (hedge : (F.cell edgeIndex).val.carrier = segment ℝ x y) :
+    ∃ (a : TracePiece A F n) (F' : FacetFlag S a.tile.ty),
+      (∀ k, (S.σ ^ n) x ∈ a.tile.cell 0 (F'.cell k).val ∧
+        a.tile.cell 0 (F'.cell k).val ⊆ (S.σ ^ n) '' (F.cell k).val.carrier ∧
+        affineSpan ℝ (a.tile.cell 0 (F'.cell k).val) =
+          affineSpan ℝ ((S.σ ^ n) '' (F.cell k).val.carrier)) ∧
+      tangentCone (a.tile.cell 0 (F'.cell edgeIndex).val) ((S.σ ^ n) x) =
+        tangentCone ((S.σ ^ n) '' (F.cell edgeIndex).val.carrier) ((S.σ ^ n) x) := by
+  classical
+  obtain ⟨a, e, hx, hsub, hbottom⟩ :=
+    host_step_step1_seed_step5_trace_step2_endpoint_piece A F n x y hxy hedge
+  have hindex (k : FlagIndex d) (hk : k ≠ edgeIndex) : traceDimension d ≤ k.val := by
+    have hne : k.val ≠ 1 := by
+      intro h
+      apply hk
+      exact Subtype.ext h
+    have hpos := k.property.1
+    unfold traceDimension
+    omega
+  let index (k : FlagIndex d) (hk : k ≠ edgeIndex) : ChainIndex d (traceDimension d) :=
+    ⟨⟨k.val, k.property.2⟩, hindex k hk, k.property.1⟩
+  let F' : FacetFlag S a.tile.ty := {
+    cell := fun k => if hk : k = edgeIndex then edgeCell e else a.chain.cell (index k hk)
+    dimension := by
+      intro k
+      split
+      · next hk => subst k; exact (Finset.mem_filter.mp e.property).2
+      · exact a.chain.dimension _
+    nested := by
+      intro i j hij
+      split <;> split
+      · exact Subset.rfl
+      · exact hbottom.trans (a.chain.nested _ _ (hindex j ‹_›))
+      · next hi hj =>
+          have hne : i.val ≠ 1 := fun h => hi (Subtype.ext h)
+          have hipos := i.property.1
+          subst j
+          change i.val ≤ 1 at hij
+          omega
+      · exact a.chain.nested _ _ hij }
+  have hcell : (F'.cell edgeIndex).val = e.val := by simp [F', edgeCell]
+  obtain ⟨⟨u, v⟩, huv, huvset⟩ := edge_endpoints_exist (⟨a.tile.ty, e⟩ : EdgeName S)
+  have hK : a.tile.cell 0 e.val = segment ℝ (a.tile.frame u) (a.tile.frame v) := by
+    change a.tile.prototypeFrame 0 '' e.val.carrier = _
+    rw [huvset]
+    exact image_segment ℝ (a.tile.prototypeFrame 0).toAffineMap u v
+  have hF : (S.σ ^ n) '' (F.cell edgeIndex).val.carrier =
+      segment ℝ ((S.σ ^ n) x) ((S.σ ^ n) y) := by
+    rw [hedge]
+    exact image_segment ℝ (S.σ ^ n).toAffineEquiv.toAffineMap x y
+  obtain ⟨z, hz, hzx⟩ : ∃ z ∈ a.tile.cell 0 e.val, z ≠ (S.σ ^ n) x := by
+    by_cases hu : a.tile.frame u = (S.σ ^ n) x
+    · exact ⟨a.tile.frame v, hK.symm ▸ right_mem_segment ℝ _ _, fun hv =>
+        huv (a.tile.frame.injective (hu.trans hv.symm))⟩
+    · exact ⟨a.tile.frame u, hK.symm ▸ left_mem_segment ℝ _ _, hu⟩
+  have hgeom := host_step_step1_seed_step5_trace_step2_subsegment
+    (a.tile.cell 0 e.val) ((S.σ ^ n) x) ((S.σ ^ n) y) z
+    (hK.symm ▸ convex_segment _ _) hx hz hzx (hF ▸ hsub)
+  refine ⟨a, F', ?_, ?_⟩
+  · intro k
+    have hcontained : a.tile.cell 0 (F'.cell k).val ⊆
+        (S.σ ^ n) '' (F.cell k).val.carrier := by
+      by_cases hk : k = edgeIndex
+      · subst k; simpa only [hcell] using hsub
+      · simpa only [F', dif_neg hk] using a.chain.contained (index k hk)
+    refine ⟨?_, hcontained, ?_⟩
+    · have hh := Set.image_mono (f := a.tile.prototypeFrame 0)
+        (F'.nested edgeIndex k k.property.1)
+      exact hh (hcell.symm ▸ hx)
+    · by_cases hk : k = edgeIndex
+      · subst k; simpa only [hcell, hF] using hgeom.1
+      · simpa only [F', dif_neg hk] using
+          (recursiveTrace_tiles A F n).2.2 a (index k hk)
+  · simpa only [hcell, hF] using hgeom.2
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.22(a), 3.6):
+"a native descendant of P". The recursive address of a selected owner
+recovers its actual ancestor in the fixed coherent hierarchy. -/
+private theorem host_step_step1_seed_step5_trace_step3_ancestor
+    (U : HonestSource S) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ U.hierarchy.nodes (h + r)) (w : S.RoleWord N.ty r)
+    (hc : (S.descendantNode N.ty h r w).move N.frame ∈ U.hierarchy.nodes h) :
+    U.hierarchy.ancestor ⟨h, ⟨(S.descendantNode N.ty h r w).move N.frame, hc⟩⟩ r =
+      ⟨h + r, ⟨N, hN⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+    simp [CoherentHierarchy.ancestor, SubstSystem.descendantNode, FramedNode.move]
+  | succ r ih =>
+    have hchild := U.hierarchy.children_mem (h + r) N
+      (by simpa only [Nat.add_assoc] using hN) w.1
+    have hc' : (S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+        (N.child (h + r) w.1).frame ∈ U.hierarchy.nodes h := hc
+    have hi := ih (N.child (h + r) w.1) hchild w.2 hc'
+    rw [← U.hierarchy.ancestor_add]
+    change U.hierarchy.parentNode (U.hierarchy.ancestor _ r) = _
+    have he : (⟨h, ⟨(S.descendantNode N.ty h (r + 1) w).move N.frame, hc⟩⟩ : U.Node) =
+        ⟨h, ⟨(S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+          (N.child (h + r) w.1).frame, hc'⟩⟩ := rfl
+    rw [he, hi]
+    apply Sigma.ext
+    · simp only [CoherentHierarchy.parentNode, Nat.add_assoc]
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (U.hierarchy.parent_unique (h + r) _ N hN ⟨w.1, rfl⟩).symm
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.22(a), 3.6):
+"a native descendant ... with chain cells". Place the selected trace and
+its complete chain in an arbitrary honest source node, preserving its owner. -/
+private theorem host_step_step1_seed_step5_trace_step3_source_chain
+    (U : HonestSource S) (N : U.Node) (F : FacetFlag S N.2.val.ty) (x y : E d)
+    (hxy : x ≠ y) (hedge : (F.cell edgeIndex).val.carrier = segment ℝ x y) :
+    ∃ q : U.Node, q.1 = 0 ∧ U.hierarchy.ancestor q N.1 = N ∧
+      ∃ F' : FacetFlag S q.2.val.ty,
+        (∀ k, N.2.val.prototypeFrame N.1 x ∈ q.2.val.cell q.1 (F'.cell k).val ∧
+          q.2.val.cell q.1 (F'.cell k).val ⊆ N.2.val.cell N.1 (F.cell k).val ∧
+          affineSpan ℝ (q.2.val.cell q.1 (F'.cell k).val) =
+            affineSpan ℝ (N.2.val.cell N.1 (F.cell k).val)) ∧
+        tangentCone (q.2.val.cell q.1 (F'.cell edgeIndex).val)
+            (N.2.val.prototypeFrame N.1 x) =
+          tangentCone (N.2.val.cell N.1 (F.cell edgeIndex).val)
+            (N.2.val.prototypeFrame N.1 x) := by
+  obtain ⟨a, F', hfit, hray⟩ :=
+    host_step_step1_seed_step5_trace_step2_full_chain N.2.val.ty F N.1 x y hxy hedge
+  have hm : a.tile.move N.2.val.frame ∈ U.hierarchy.nodes 0 := by
+    simpa only [Nat.sub_self] using U.descendant_mem N N.1 le_rfl a.owner
+  let q : U.Node := ⟨0, ⟨a.tile.move N.2.val.frame, hm⟩⟩
+  have hqcell (e : Cell d) : q.2.val.cell q.1 e = N.2.val.frame '' a.tile.cell 0 e := by
+    simp only [q, FramedNode.cell, FramedNode.prototypeFrame, FramedNode.move,
+      Set.image_image]
+    rfl
+  have hNcell (e : Cell d) : N.2.val.cell N.1 e = N.2.val.frame '' ((S.σ ^ N.1) '' e.carrier) := by
+    simp only [FramedNode.cell, FramedNode.prototypeFrame, Set.image_image]
+    rfl
+  refine ⟨q, rfl, ?_, F', ?_, ?_⟩
+  · have hh := host_step_step1_seed_step5_trace_step3_ancestor U 0 N.1 N.2.val
+        (by simpa only [Nat.zero_add] using N.2.property) a.owner hm
+    rcases N with ⟨n, N, hN⟩
+    refine hh.trans (Sigma.ext (Nat.zero_add n) ?_)
+    exact (Subtype.heq_iff_coe_eq (by
+      intro M
+      change M ∈ U.hierarchy.nodes (0 + n) ↔ M ∈ U.hierarchy.nodes n
+      rw [Nat.zero_add])).mpr rfl
+  · intro k
+    rw [hqcell, hNcell]
+    refine ⟨Set.mem_image_of_mem N.2.val.frame (hfit k).1,
+      Set.image_mono (hfit k).2.1, ?_⟩
+    simpa only [AffineSubspace.map_span] using congrArg
+      (AffineSubspace.map N.2.val.frame.toAffineEquiv.toAffineMap) (hfit k).2.2
+  · rw [hqcell, hNcell]
+    change tangentCone (N.2.val.frame.toAffineEquiv '' _)
+        (N.2.val.frame.toAffineEquiv ((S.σ ^ N.1) x)) =
+      tangentCone (N.2.val.frame.toAffineEquiv '' _)
+        (N.2.val.frame.toAffineEquiv ((S.σ ^ N.1) x))
+    rw [host_step_step1_seed_step5_trace_step1_tangent_image N.2.val.frame.toAffineEquiv,
+      host_step_step1_seed_step5_trace_step1_tangent_image N.2.val.frame.toAffineEquiv,
+      hray]
+
+/-- Step 4 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 1.7(a), 3.6):
+"the selected owner ... a member of the star". A descendant facet of an
+internal child facet retains its birth parent, canonical incidence and child side.
+All three geometric identifications of the child facet are explicit hypotheses. -/
+private theorem host_step_step1_seed_step5_trace_step4_provider
+    (U : HonestSource S) (c q : U.Node) (f : FacetName S c.2.val.ty)
+    (g : FacetName S q.2.val.ty) (r : ℕ) (hanc : U.hierarchy.ancestor q r = c)
+    (hsub : q.2.val.cell q.1 g.val ⊆ c.2.val.cell c.1 f.val)
+    (hint : relint (c.2.val.cell c.1 f.val) ⊆
+      interior ((U.hierarchy.parentNode c).2.val.carrier (U.hierarchy.parentNode c).1))
+    (ι : P.Incidence) (b : Bool)
+    (hrole : U.hierarchy.nodeRole c = ι.val.sideRole b)
+    (hpos : c.2.val.cell c.1 f.val =
+      P.incidencePlacement (U.hierarchy.parentNode c).2.val
+        (U.hierarchy.parentNode c).1 ι '' ι.val.leftFacet.val.carrier) :
+    ∃ hg : ¬ U.hierarchy.IsFault q g,
+      U.hierarchy.birthParent q g hg = U.hierarchy.parentNode c ∧
+      U.hierarchy.servingChild q g hg = c ∧
+      U.recordIncidence P q g hg = ι ∧ U.recordSide P q g hg = b := by
+  obtain ⟨hf, hfc, hfb, _⟩ := U.hierarchy.restriction_det_internal c f hint
+  obtain ⟨hg, hgc, hgb⟩ := U.hierarchy.provider_inherited c q r hanc f g hf hsub
+  have hbirth : U.hierarchy.birthParent q g hg = U.hierarchy.parentNode c := hgb.trans hfb
+  have hserv : U.hierarchy.servingChild q g hg = c := by
+    have hh := congrArg (fun n : U.Node => n.1) hbirth
+    change (U.hierarchy.servingChild q g hg).1 + 1 = c.1 + 1 at hh
+    have hs := U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q g hg).1
+    have ha := U.hierarchy.ancestor_height q r
+    rw [hanc] at ha
+    have hoff : (U.hierarchy.firstProvider q g hg).1 = r := by
+      change (U.hierarchy.servingChild q g hg).1 = _ at hs
+      omega
+    simpa only [CoherentHierarchy.servingChild, hoff] using hanc
+  have hinc : U.recordIncidence P q g hg = ι := by
+    have hs := U.hierarchy.providerIncidence_spec q g hg
+    apply P.canonical_unique
+    constructor
+    · exact hs.1.trans ((congrArg (fun N : U.Node => N.2.val.ty) hbirth).trans
+        (congrArg Sigma.fst hrole))
+    · have hcarrier := hgc.trans (hfc.trans hpos)
+      rw [hs.2.2.2] at hcarrier
+      change (U.hierarchy.birthParent q g hg).2.val.prototypeFrame
+          (U.hierarchy.birthParent q g hg).1 ''
+          (S.σ.symm '' (U.hierarchy.providerIncidence q g hg).positioned) = _ at hcarrier
+      rw [hbirth] at hcarrier
+      have hright : P.incidencePlacement (U.hierarchy.parentNode c).2.val
+          (U.hierarchy.parentNode c).1 ι '' ι.val.leftFacet.val.carrier =
+          (U.hierarchy.parentNode c).2.val.prototypeFrame (U.hierarchy.parentNode c).1 ''
+            (S.σ.symm '' ι.val.positioned) := by
+        simp only [Params.incidencePlacement, PrimitiveIncidence.positioned, placedSet,
+          Set.image_image]
+        rfl
+      rw [hright] at hcarrier
+      exact S.σ.symm.injective.image_injective
+        (((U.hierarchy.parentNode c).2.val.prototypeFrame
+          (U.hierarchy.parentNode c).1).injective.image_injective hcarrier)
+  refine ⟨hg, hbirth, hserv, hinc, ?_⟩
+  apply Eq.symm
+  apply (Classical.choose_spec (U.recordSide_exists P q g hg)).2
+  rw [hinc, hserv, hrole]
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"the flag ... transported to P". Relative interiors commute with the full
+invertible affine prototype frames, including anisotropic expansion. -/
+private theorem host_step_step1_seed_step5_trace_step3_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"the child on the j-side". Distinct prescribed child roles give distinct
+framed children, by disjointness and nonempty prototype interiors. -/
+private theorem host_step_step1_seed_step5_trace_step3_child_injective
+    (N : FramedNode S) (n : ℕ) : Function.Injective (N.child n) := by
+  intro i j h
+  have hty := congrArg FramedNode.ty h
+  have hframe : (S.child N.ty i).frame = (S.child N.ty j).frame := by
+    apply AffineIsometryEquiv.ext
+    intro x
+    have he := congrArg (fun M : FramedNode S => M.prototypeFrame n x) h
+    change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+      N.frame (S.placeChild n j ((S.σ ^ n) x)) at he
+    have hi (k : S.I N.ty) : S.placeChild n k ((S.σ ^ n) x) =
+        (S.σ ^ n) ((S.child N.ty k).frame x) := by
+      rw [S.placeChild_apply]
+      simp [linearConj, Child.frame, rigidMotion, zpow_neg, LinearEquiv.mul_apply,
+        ← map_add]
+    rw [hi, hi] at he
+    exact (S.σ ^ n).injective (N.frame.injective he)
+  by_contra hij
+  have hd := S.children_disjoint N.ty hij
+  change (S.child N.ty i).ty = (S.child N.ty j).ty at hty
+  dsimp only at hd
+  rw [hty, hframe] at hd
+  have hn : (interior (placedSet (S.child N.ty j).frame
+      (S.proto (S.child N.ty j).ty).carrier)).Nonempty := by
+    change (interior ((S.child N.ty j).frame.toHomeomorph ''
+      (S.proto (S.child N.ty j).ty).carrier)).Nonempty
+    rw [← Homeomorph.image_interior]
+    exact (S.proto (S.child N.ty j).ty).interior_nonempty.image _
+  obtain ⟨x, hx⟩ := hn
+  exact Set.disjoint_left.mp hd hx hx
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"the child on the j-side". The actual hierarchy parent and role of a
+prescribed child agree with its prescribed parent and child index. -/
+private theorem host_step_step1_seed_step5_trace_step3_child_role
+    (U : HonestSource S) (N : FramedNode S) (n : ℕ)
+    (hN : N ∈ U.hierarchy.nodes (n + 1)) (i : S.I N.ty)
+    (hc : N.child n i ∈ U.hierarchy.nodes n) :
+    U.hierarchy.parentNode ⟨n, ⟨N.child n i, hc⟩⟩ = ⟨n + 1, ⟨N, hN⟩⟩ ∧
+      U.hierarchy.nodeRole ⟨n, ⟨N.child n i, hc⟩⟩ = ⟨N.ty, i⟩ := by
+  let c : U.Node := ⟨n, ⟨N.child n i, hc⟩⟩
+  have hp : (U.hierarchy.parent n c.2).val = N :=
+    (U.hierarchy.parent_unique n c.2 N hN ⟨i, rfl⟩).symm
+  refine ⟨Sigma.ext rfl (heq_of_eq (Subtype.ext hp)), ?_⟩
+  have he := U.hierarchy.child_eq n c.2
+  change (⟨(U.hierarchy.parent n c.2).val.ty, U.hierarchy.role n c.2⟩ : S.Role) = _
+  have aux (M : FramedNode S) (j : S.I M.ty) (hM : M = N)
+      (h : N.child n i = M.child n j) : (⟨M.ty, j⟩ : S.Role) = ⟨N.ty, i⟩ := by
+    subst M
+    exact congrArg (Sigma.mk N.ty)
+      ((host_step_step1_seed_step5_trace_step3_child_injective N n h).symm)
+  exact aux _ _ hp he
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"with respect to the flag of the incidence". Both side flags end at the
+named incidence facet, since their positioned cell carriers agree. -/
+private theorem host_step_step1_seed_step5_trace_step3_flag_top
+    (ι : P.Incidence) (b : Bool) :
+    ((P.sideFlag ι b).cell facetIndex).val = (ι.val.sideFacet b).val := by
+  have h := P.sideFlag_eq ι b facetIndex
+  rw [(P.flag ι).top] at h
+  have hcarrier : ((P.sideFlag ι b).cell facetIndex).val.carrier =
+      (ι.val.sideFacet b).val.carrier := by
+    apply (S.child ι.val.ty (ι.val.sideIndex b)).frame.injective.image_injective
+    change placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame _ = _
+    rw [h]
+    cases b
+    · rfl
+    · exact ι.val.paired
+  have cell_eq (e f : Cell d) (h : e.carrier = f.carrier) : e = f := by
+    rcases e with ⟨K, j, hj⟩
+    rcases f with ⟨L, k, hk⟩
+    cases h
+    have hjk : j = k := hj.dimension.symm.trans hk.dimension
+    cases hjk
+    rfl
+  exact cell_eq _ _ hcarrier
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"the flag ... transported to P". Either child-side flag has exactly the
+canonical positioned cells, with the full expansion in its prototype frame. -/
+private theorem host_step_step1_seed_step5_trace_step3_side_cells
+    (Q : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) (k : FlagIndex d) :
+    ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)).cell n
+        ((P.sideFlag ι b).cell k).val =
+      P.incidencePlacement Q (n + 1) ι '' ((P.flag ι).flag.cell k).val.carrier := by
+  rw [← host_step_step1_seed_step1_flag_frame Q n ι b]
+  have h := congrArg (fun K : Set (E d) =>
+      ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)).prototypeFrame n ''
+        ((S.child ι.val.ty (ι.val.sideIndex b)).frame.symm '' K)) (P.sideFlag_eq ι b k)
+  simpa only [FramedNode.cell, host_step_flagFrame, placedSet, Set.image_image,
+    AffineIsometryEquiv.symm_apply_apply] using h
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6, 1.4(c)):
+"the child on the j-side with respect to the flag of the incidence".
+The prescribed child has the canonical positioned flag, the listed endpoint,
+and an internal top facet. This constructs no descendant or port. -/
+private theorem host_step_step1_seed_step5_trace_step3_side_child
+    (U : HonestSource S) (B : U.Node) (hB : 1 ≤ B.1)
+    (ι : P.Incidence) (hι : ι.val.ty = B.2.val.ty) (b : Bool)
+    (p : E d) (hp : p = (P.flag ι).initial ∨ p = (P.flag ι).terminal) :
+    ∃ (c : U.Node) (f : FacetName S c.2.val.ty) (F : FlagChain f) (x y : E d),
+      U.hierarchy.parentNode c = B ∧ U.hierarchy.nodeRole c = ι.val.sideRole b ∧
+      x ≠ y ∧ (F.val.cell edgeIndex).val.carrier = segment ℝ x y ∧
+      c.2.val.prototypeFrame c.1 x = P.incidencePlacement B.2.val B.1 ι p ∧
+      c.2.val.Lists c.1 (c.2.val.prototypeFrame c.1 x) ∧
+      (∀ k, c.2.val.cell c.1 (F.val.cell k).val =
+        P.incidencePlacement B.2.val B.1 ι '' ((P.flag ι).flag.cell k).val.carrier) ∧
+      relint (c.2.val.cell c.1 f.val) ⊆ interior (B.2.val.carrier B.1) := by
+  classical
+  rcases B with ⟨m, ⟨⟨A, φ⟩, hN⟩⟩
+  cases m with
+  | zero => change 1 ≤ 0 at hB; omega
+  | succ n =>
+    dsimp only at hι
+    subst A
+    let Q : FramedNode S := ⟨ι.val.ty, φ⟩
+    have hc := U.hierarchy.children_mem n Q hN (ι.val.sideIndex b)
+    let c : U.Node := ⟨n, ⟨Q.child n (ι.val.sideIndex b), hc⟩⟩
+    have hcr := host_step_step1_seed_step5_trace_step3_child_role U Q n hN
+      (ι.val.sideIndex b) hc
+    let J : E d ≃ᵃ[ℝ] E d := (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.trans
+      (S.child ι.val.ty (ι.val.sideIndex b)).frame.symm.toAffineEquiv
+    obtain ⟨p', hpp', hedge⟩ : ∃ p' : E d, p ≠ p' ∧
+        ((P.flag ι).flag.cell edgeIndex).val.carrier = segment ℝ p p' := by
+      rcases hp with rfl | rfl
+      · exact ⟨_, (P.flag ι).distinct, (P.flag ι).edge_eq⟩
+      · exact ⟨_, (P.flag ι).distinct.symm,
+          (P.flag ι).edge_eq.trans (segment_symm ℝ _ _)⟩
+    have hseg : ((P.sideFlag ι b).cell edgeIndex).val.carrier =
+        segment ℝ (J p) (J p') := by
+      apply (S.child ι.val.ty (ι.val.sideIndex b)).frame.injective.image_injective
+      change placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame _ = _
+      rw [P.sideFlag_eq, hedge]
+      change (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.toAffineMap '' segment ℝ p p' =
+        (S.child ι.val.ty (ι.val.sideIndex b)).frame.toAffineEquiv.toAffineMap ''
+          segment ℝ (J p) (J p')
+      rw [image_segment ℝ (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.toAffineMap,
+        image_segment ℝ (S.child ι.val.ty (ι.val.sideIndex b)).frame.toAffineEquiv.toAffineMap]
+      simp only [J, AffineEquiv.trans_apply,
+        AffineIsometryEquiv.coe_toAffineEquiv, AffineEquiv.coe_toAffineMap,
+        AffineIsometryEquiv.apply_symm_apply]
+    have hpoint : c.2.val.prototypeFrame c.1 (J p) =
+        P.incidencePlacement Q (n + 1) ι p := by
+      exact congrArg (fun e : E d ≃ᵃ[ℝ] E d => e p)
+        (host_step_step1_seed_step1_flag_frame Q n ι b)
+    have hcells (k : FlagIndex d) : c.2.val.cell c.1 ((P.sideFlag ι b).cell k).val =
+        P.incidencePlacement Q (n + 1) ι '' ((P.flag ι).flag.cell k).val.carrier :=
+      host_step_step1_seed_step5_trace_step3_side_cells Q n ι b k
+    refine ⟨c, ι.val.sideFacet b,
+      ⟨P.sideFlag ι b, host_step_step1_seed_step5_trace_step3_flag_top ι b⟩,
+      J p, J p', hcr.1, hcr.2, fun he => hpp' (J.injective he), hseg, hpoint, ?_, hcells, ?_⟩
+    · rw [hpoint]
+      exact (host_step_step1_seed_step2_child_endpoint Q n ι b p hp).1
+    · have hfacet := hcells facetIndex
+      rw [host_step_step1_seed_step5_trace_step3_flag_top, (P.flag ι).top] at hfacet
+      rw [hfacet]
+      let H : E d ≃ᵃ[ℝ] E d := (S.σ ^ n).toAffineEquiv.trans φ.toAffineEquiv
+      have hpos : P.incidencePlacement Q (n + 1) ι '' ι.val.leftFacet.val.carrier =
+          H '' ι.val.positioned := by
+        simp only [Params.incidencePlacement, FramedNode.prototypeFrame,
+          PrimitiveIncidence.positioned, placedSet, Set.image_image]
+        congr 1
+        funext z
+        change φ ((S.σ ^ (n + 1)) (S.σ.symm ((S.child ι.val.ty ι.val.left).frame z))) =
+          φ ((S.σ ^ n) ((S.child ι.val.ty ι.val.left).frame z))
+        simp only [pow_succ, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply]
+      have hcarrier : Q.carrier (n + 1) = H '' S.supertile 1 ι.val.ty := by
+        simp only [FramedNode.carrier, SubstSystem.supertile, H, placedSet, pow_succ,
+          pow_zero, one_mul, Set.image_image]
+        rfl
+      change relint _ ⊆ interior (Q.carrier (n + 1))
+      rw [hpos, hcarrier, host_step_step1_seed_step5_trace_step3_relint_image]
+      change H.toHomeomorphOfFiniteDimensional '' relint ι.val.positioned ⊆
+        interior (H.toHomeomorphOfFiniteDimensional '' S.supertile 1 ι.val.ty)
+      rw [← Homeomorph.image_interior]
+      exact Set.image_mono ι.val.internal
+
+/-- Step 5 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"realised ... in the tile's frame". Translating a direction cone to its
+apex commutes with the affine change of frame. -/
+private theorem host_step_step1_seed_step5_trace_step5_span_image
+    (φ : E d ≃ᵃ[ℝ] E d) (x : E d) (K : Set (E d)) :
+    affineSpan ℝ ((fun u => φ x + u) '' (φ.linear '' K)) =
+      (affineSpan ℝ ((fun u => x + u) '' K)).map φ.toAffineMap := by
+  rw [AffineSubspace.map_span]
+  congr 1
+  simp only [Set.image_image]
+  congr 1
+  funext u
+  simpa only [vadd_eq_add, add_comm] using (φ.map_vadd x u).symm
+
+/-- Step 5 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"aff s_j = aff F_j" in the recording frame. The affine span of a placed
+cell is also the affine span of its translated tangent cone. -/
+private theorem host_step_step1_seed_step5_trace_step5_placed_span
+    (φ : E d ≃ᵃ[ℝ] E d) (e : Cell d) (x : E d) (hx : x ∈ φ '' e.carrier) :
+    affineSpan ℝ ((fun u => x + u) '' tangentCone (φ '' e.carrier) x) =
+      affineSpan ℝ (φ '' e.carrier) := by
+  obtain ⟨y, hy, rfl⟩ := hx
+  rw [host_step_step1_seed_step5_trace_step1_tangent_image,
+    host_step_step1_seed_step5_trace_step5_span_image,
+    host_step_step1_seed_step5_trace_step1_cone_span e y hy,
+    AffineSubspace.map_span]
+  rfl
+
+/-- Step 5 of the V4 proof of `host_step_step1_seed_step5_trace` (V4 3.6):
+"aff s_j = aff F_j and T_p s_j is contained in T_p F_j".
+A contained cell with the correct affine span fits the flag tangent after
+normalization in the central tile's frame. -/
+private theorem host_step_step1_seed_step5_trace_step5_fit
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (e : Cell d) (K : Set (E d)) (x : E d)
+    (hx : x ∈ K) (hsub : K ⊆ ψ '' e.carrier)
+    (hspan : affineSpan ℝ K = affineSpan ℝ (ψ '' e.carrier)) :
+    φ x ∈ φ '' K ∧
+      affineSpan ℝ (φ '' K) = affineSpan ℝ ((fun u => φ x + u) ''
+        (φ.linear '' tangentCone (ψ '' e.carrier) x)) ∧
+      tangentCone (φ '' K) (φ x) ⊆ φ.linear '' tangentCone (ψ '' e.carrier) x := by
+  refine ⟨Set.mem_image_of_mem φ hx, ?_, ?_⟩
+  · rw [host_step_step1_seed_step5_trace_step5_span_image,
+      host_step_step1_seed_step5_trace_step5_placed_span ψ e x (hsub hx),
+      ← hspan, AffineSubspace.map_span]
+    rfl
+  · rw [host_step_step1_seed_step5_trace_step1_tangent_image]
+    exact Set.image_mono (host_step_step1_seed_step5_trace_step1_tangent_mono hsub x)
+
 /-- Step 5 of the V4 proof of `host_step_step1_seed` (V4 3.6, 1.22):
 "consider the recursive trace ... and the selected owner ... adjacent to h′
 at its initial endpoint". An honest END geometry supplies a port on either
@@ -966,11 +1790,136 @@ private theorem host_step_step1_seed_step5_trace
             (vertexPoint Z.vertex) ⊆ G.cones k) ∧
         tangentCone (placedSet a.tile.frame (F.val.cell edgeIndex).val.carrier)
           (vertexPoint Z.vertex) = G.cones edgeIndex := by
-  -- Unpack the honest source witnessing hZ. Use the recursive trace in the
-  -- selected child, and edge heredity in its endpoint trace piece. The full
-  -- chain belongs to a native owner in the complete owned star. The primitive
-  -- port biconditional in EndGeometryRealizes places this port in Z.
-  sorry
+  classical
+  obtain ⟨U, t, ht, f, hf, v, hv, hz, hreal⟩ := hZ
+  obtain ⟨htype, hvertex, hheader, htiles, hports, hboundary⟩ := hreal
+  let B := U.hierarchy.birthParent t f hf
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  let pos := P.incidencePlacement B.2.val B.1 ι
+  have hdata : ι.val.ty = B.2.val.ty ∧
+      (x = pos (P.flag ι).initial ∨ x = pos (P.flag ι).terminal) ∧
+      ∀ k, G.cones k = U.normalizeCone t
+        (tangentCone (pos '' ((P.flag ι).flag.cell k).val.carrier) x) := by
+    have hh : (U.headerOf P t f hf v).flagTangent ι = some G := by
+      rw [← hheader]
+      exact hG
+    unfold HonestSource.headerOf at hh
+    dsimp only at hh
+    split at hh
+    · next h =>
+      refine ⟨h.1, h.2, ?_⟩
+      intro k
+      exact congrArg (fun T : State.FlagTangent (d := d) => T.cones k)
+        (Option.some.inj hh).symm
+    · contradiction
+  have hB : 1 ≤ B.1 := by
+    have h := (U.hierarchy.birthHeight_age_spec t f hf).1
+    change B.1 = t.1 + (U.hierarchy.firstProvider t f hf).1 + 1 at h
+    omega
+  obtain ⟨p, hp, hpx⟩ : ∃ p : E d,
+      (p = (P.flag ι).initial ∨ p = (P.flag ι).terminal) ∧ pos p = x := by
+    rcases hdata.2.1 with h | h
+    · exact ⟨_, Or.inl rfl, h.symm⟩
+    · exact ⟨_, Or.inr rfl, h.symm⟩
+  obtain ⟨c, f₀, F₀, p₀, p₁, hparent, hrole, hpne, hedge, hpoint, hlisted,
+      hcells, hint⟩ :=
+    host_step_step1_seed_step5_trace_step3_side_child U B hB ι hdata.1 b p hp
+  have hcpoint : c.2.val.prototypeFrame c.1 p₀ = x := hpoint.trans hpx
+  obtain ⟨q, hq, hanc, F, hfit, hray⟩ :=
+    host_step_step1_seed_step5_trace_step3_source_chain U c F₀.val p₀ p₁ hpne hedge
+  rw [hcpoint] at hfit hray hlisted
+  let g : FacetName S q.2.val.ty := ⟨(F.cell facetIndex).val,
+    Finset.mem_filter.mpr ⟨(F.cell facetIndex).property, F.dimension facetIndex⟩⟩
+  have htop : q.2.val.cell q.1 g.val ⊆ c.2.val.cell c.1 f₀.val := by
+    simpa only [F₀.property] using (hfit facetIndex).2.1
+  have hpos : c.2.val.cell c.1 f₀.val =
+      P.incidencePlacement (U.hierarchy.parentNode c).2.val
+        (U.hierarchy.parentNode c).1 ι '' ι.val.leftFacet.val.carrier := by
+    rw [hparent]
+    simpa only [F₀.property, (P.flag ι).top] using hcells facetIndex
+  obtain ⟨hg, hbirth, hserv, hinc, hside⟩ :=
+    host_step_step1_seed_step5_trace_step4_provider U c q f₀ g c.1 hanc htop
+      (by rw [hparent]; exact hint) ι b hrole hpos
+  have hbirth' : U.hierarchy.birthParent q g hg = B := hbirth.trans hparent
+  have hqmem : x ∈ q.2.val.carrier q.1 := by
+    obtain ⟨z, hz, he⟩ := (hfit edgeIndex).1
+    exact ⟨(S.σ ^ q.1) z,
+      ⟨z, host_step_step1_seed_step2_cell_subset _ _ (F.cell edgeIndex).property hz, rfl⟩, he⟩
+  have hdesc := U.hierarchy.ancestor_descendant q c.1
+  rw [hanc] at hdesc
+  obtain ⟨w, hw, hxw⟩ := commonListed_inherited c.2.val q.2.val c.1 q.1 hdesc x hlisted hqmem
+  let w' : VertexName S q.2.val.ty := ⟨w, hw⟩
+  have hwpoint : q.2.val.prototypeFrame q.1 (vertexPoint w') = x := by
+    change x ∈ q.2.val.cell q.1 w'.val at hxw
+    simpa only [FramedNode.cell, vertexPoint_spec w', Set.image_singleton,
+      Set.mem_singleton_iff, eq_comm] using hxw
+  have hwfacet : w'.val.carrier ⊆ g.val.carrier := by
+    rw [vertexPoint_spec w']
+    apply singleton_subset_iff.mpr
+    have hh := (hfit facetIndex).1
+    change x ∈ q.2.val.prototypeFrame q.1 '' g.val.carrier at hh
+    rw [← hwpoint] at hh
+    exact (q.2.val.prototypeFrame q.1).injective.mem_set_image.mp hh
+  have hzero := host_step_step1_seed_step3_restricted_header_step5_zero (P := P)
+    U q g hg w' hwfacet (by rw [hserv, hwpoint]; exact hlisted)
+  have hstar : q ∈ ownedStar U B x := by
+    change q ∈ (ownedStarSet_finite U B x).toFinset
+    rw [Set.Finite.mem_toFinset]
+    refine ⟨hq, ?_, hqmem⟩
+    have hh := congrArg (fun N : U.Node => N.1) hparent
+    change c.1 + 1 = B.1 at hh
+    rw [← hh, ← U.hierarchy.ancestor_add, hanc]
+    exact hparent
+  let a : PrimitivePort P := {
+    tile := q.2.val.move t.2.val.frame.symm
+    facet := g
+    vertex := w'
+    onFacet := hwfacet
+    incidence := U.recordIncidence P q g hg
+    sideIndex := U.recordSide P q g hg
+    side := (U.recordIncidence P q g hg).val.sideRole (U.recordSide P q g hg)
+    side_eq := rfl
+    providerVertex := U.recordTau P q g hg ⟨vertexCell w', hwfacet⟩
+    provider_zero := hzero }
+  have ha : a ∈ Z.primitivePorts := by
+    apply (hports a).mpr
+    exact ⟨q, hstar, g, hg, w', hwfacet, hwpoint.symm, hbirth',
+      rfl, rfl, rfl, rfl, rfl, rfl⟩
+  let φ : E d ≃ᵃ[ℝ] E d := t.2.val.frame.symm.toAffineEquiv
+  have hvpoint : vertexPoint Z.vertex = vertexPoint v := by
+    have hh := congrArg Cell.carrier hvertex
+    rw [vertexPoint_spec Z.vertex, vertexPoint_spec v] at hh
+    exact Set.singleton_injective hh
+  have htframe : t.2.val.prototypeFrame t.1 = t.2.val.frame.toAffineEquiv := by
+    exact (congrArg (fun n => t.2.val.prototypeFrame n) ht).trans rfl
+  have hφx : φ x = vertexPoint Z.vertex := by
+    change t.2.val.frame.symm (t.2.val.prototypeFrame t.1 (vertexPoint v)) = _
+    rw [htframe]
+    change t.2.val.frame.symm (t.2.val.frame (vertexPoint v)) = _
+    rw [AffineIsometryEquiv.symm_apply_apply]
+    exact hvpoint.symm
+  have hnorm (K : Set (E d)) : U.normalizeCone t K = φ.linear '' K := by
+    unfold HonestSource.normalizeCone
+    rw [htframe]
+    rfl
+  have hcones (k : FlagIndex d) : G.cones k = φ.linear ''
+      tangentCone (pos '' ((P.flag ι).flag.cell k).val.carrier) x := by
+    rw [hdata.2.2 k, hnorm]
+  have hplaced (e : Cell d) : placedSet a.tile.frame e.carrier = φ '' q.2.val.cell q.1 e := by
+    rw [congrArg (fun n => q.2.val.cell n e) hq]
+    simp only [a, φ, FramedNode.move, FramedNode.cell, FramedNode.prototypeFrame,
+      placedSet, Set.image_image]
+    rfl
+  refine ⟨a, ha, hinc, hside, ⟨F, rfl⟩, ?_, ?_⟩
+  · intro k
+    rw [hplaced, ← hφx, hcones]
+    apply host_step_step1_seed_step5_trace_step5_fit φ pos
+      ((P.flag ι).flag.cell k).val (q.2.val.cell q.1 (F.cell k).val) x (hfit k).1
+    · exact (hfit k).2.1.trans_eq (hcells k)
+    · exact (hfit k).2.2.trans (congrArg (affineSpan ℝ) (hcells k))
+  · rw [hplaced, ← hφx, hcones,
+      host_step_step1_seed_step5_trace_step1_tangent_image, hray, hcells edgeIndex]
+
 
 /-- Step 6 of the V4 proof of `host_step_step1_seed` (V4 3.6):
 "Row (E1) gives u₀'s record on its port". A cell-keyed record has the

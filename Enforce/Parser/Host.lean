@@ -1491,6 +1491,156 @@ private theorem host_step_step2_strand_step1_port_coordinates
   rw [he, relint, φ.image_intrinsicInterior,
     host_step_step2_strand_step1_interval_relint x y hxy]
 
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step2_terminal_bound` (V4 3.6(F1)):
+"the same holds ... for any tile ... having a chain of cells ... with the
+recorded sides". Common relative-interior edge points can be displaced into
+both interiors, successively through the common flag spans and sides, in
+every neighbourhood of the chosen relative-interior point.
+This is purely local geometry; neither node is assumed to occur in a tiling. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step1_flag_overlap
+    (N H : FramedNode S) (m n : ℕ) {A A' : S.ι}
+    (F : FacetFlag S A) (G : FacetFlag S A') (hN : N.ty = A) (hH : H.ty = A')
+    (hspans : ∀ k, affineSpan ℝ (N.cell m (F.cell k).val) =
+      affineSpan ℝ (H.cell n (G.cell k).val))
+    (hsides : ∀ k, (N.prototypeFrame m).linear '' flagSide F k =
+      (H.prototypeFrame n).linear '' flagSide G k)
+    (hinward : (N.prototypeFrame m).linear ''
+        tangentCone (S.proto N.ty).carrier (cellAnchor (F.cell facetIndex).val) =
+      (H.prototypeFrame n).linear ''
+        tangentCone (S.proto H.ty).carrier (cellAnchor (G.cell facetIndex).val))
+    (p : E d) (hp : p ∈ relint (N.cell m (F.cell edgeIndex).val) ∩
+      relint (H.cell n (G.cell edgeIndex).val)) :
+    p ∈ closure (interior (N.carrier m) ∩ interior (H.carrier n)) := by
+  -- At each consecutive pair, use the relative half-space structure of the
+  -- upper cell at a relative-interior point of the lower cell. Equal sides
+  -- permit the same arbitrarily small displacement into both upper cells.
+  -- Iterate from dimension one to the facet, then use the common inward side.
+  sorry
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step2_terminal_bound` (V4 3.6(F1), 1.19):
+"these ... are interior directions of T_x P". At a listed point of a
+placed child, a neighbourhood of that child's support lies in the translated
+tangent cone of any containing set. The native cone radius is transported
+by the full affine prototype frame, so no scalar expansion is required. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step2_local_sector
+    (H : FramedNode S) (n : ℕ) (K : Set (E d)) (p : E d)
+    (hp : H.Lists n p) (hHK : H.carrier n ⊆ K) :
+    ∃ U : Set (E d), IsOpen U ∧ p ∈ U ∧
+      H.carrier n ∩ U ⊆ (fun v => p + v) '' tangentCone K p := by
+  let e := H.prototypeFrame n
+  let x := e.symm p
+  let H₀ : FramedNode S := ⟨H.ty, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hcarrier : H.carrier n = e '' (S.proto H.ty).carrier := by
+    simp only [FramedNode.carrier, SubstSystem.supertile, placedSet, image_image]
+    rfl
+  have hzero : H₀.carrier 0 = (S.proto H.ty).carrier := by
+    simp [H₀, FramedNode.carrier, SubstSystem.supertile, placedSet]
+  have hx : H₀.Lists 0 x := by
+    obtain ⟨v, hv, y, hy, hyp⟩ := hp
+    refine ⟨v, hv, x, ?_, ?_⟩
+    · have he : y = x := e.injective (hyp.trans (e.apply_symm_apply p).symm)
+      exact he ▸ hy
+    · simp [H₀, FramedNode.prototypeFrame]
+  obtain ⟨r, hr, hcone⟩ := uniform_prototype_cone_radius S
+  have hlocal := hcone H₀ x hx
+  rw [hzero] at hlocal
+  let U := e '' ball x r
+  have hU : IsOpen U := e.toHomeomorphOfFiniteDimensional.isOpenMap _ isOpen_ball
+  have hpU : p ∈ U := ⟨x, mem_ball_self hr, e.apply_symm_apply p⟩
+  refine ⟨U, hU, hpU, ?_⟩
+  rintro y ⟨hyH, z, hz, rfl⟩
+  have hzH : z ∈ (S.proto H.ty).carrier := by
+    rw [hcarrier] at hyH
+    exact e.injective.mem_set_image.mp hyH
+  have hzcone : z ∈ (fun v => x + v) '' tangentCone (S.proto H.ty).carrier x :=
+    (hlocal ▸ (show z ∈ (S.proto H.ty).carrier ∩ ball x r from ⟨hzH, hz⟩)).1
+  obtain ⟨v, ⟨δ, hδ, hv⟩, rfl⟩ := hzcone
+  have hmap (t : ℝ) : e (x + t • v) = p + t • e.linear v := by
+    have h := e.map_vadd x (t • v)
+    simpa only [vadd_eq_add, map_smul, add_comm, x, e.apply_symm_apply] using h
+  refine ⟨e.linear v, ⟨δ, hδ, ?_⟩, ?_⟩
+  · intro t ht htδ
+    apply hHK
+    rw [hcarrier, ← hmap]
+    exact ⟨x + t • v, hv t ht htδ, rfl⟩
+  · simpa only [one_smul] using (hmap 1).symm
+
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step2_terminal_bound` (V4 3.6(F1)):
+"the honest geometry of P ... and B is its child". Each prescribed
+child, including the proposed sibling, is contained in its placed parent. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step3_child_subset
+    (Q : FramedNode S) (n : ℕ) (i : S.I Q.ty) :
+    (Q.child n i).carrier n ⊆ Q.carrier (n + 1) := by
+  rintro z ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hmem : (S.child Q.ty i).frame x ∈ S.σ '' (S.proto Q.ty).carrier := by
+    rw [S.children_cover]
+    exact mem_iUnion.mpr ⟨i, ⟨x, hx, rfl⟩⟩
+  obtain ⟨y, hy, he⟩ := hmem
+  refine ⟨(S.σ ^ (n + 1)) y, ⟨y, hy, rfl⟩, ?_⟩
+  change Q.frame ((S.σ ^ (n + 1)) y) = Q.frame (S.placeChild n i ((S.σ ^ n) x))
+  have hplace : S.placeChild n i ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child Q.ty i).frame x) := by
+    change linearConj S.σ (n : ℤ) (S.child Q.ty i).rotation.toLinearEquiv
+        ((S.σ ^ n) x) + (S.σ ^ n) (S.child Q.ty i).offset =
+      (S.σ ^ n) ((S.child Q.ty i).rotation x + (S.child Q.ty i).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  rw [hplace, ← he, pow_succ]
+  rfl
+
+/-- Step 4 of the V4 proof of `host_step_step2_strand_step2_terminal_bound` (V4 3.6(F1)):
+"into relint g, and finally ... to either side". The top cell of either
+side's flag is the named incidence facet, with equality of cell names. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step4_flag_top
+    (ι : P.Incidence) (b : Bool) :
+    ((P.sideFlag ι b).cell facetIndex).val = (ι.val.sideFacet b).val := by
+  have h := P.sideFlag_eq ι b facetIndex
+  rw [(P.flag ι).top] at h
+  have hcarrier : ((P.sideFlag ι b).cell facetIndex).val.carrier =
+      (ι.val.sideFacet b).val.carrier := by
+    apply Set.image_injective.mpr (S.child ι.val.ty (ι.val.sideIndex b)).frame.injective
+    change placedSet (S.child ι.val.ty (ι.val.sideIndex b)).frame _ = _
+    rw [h]
+    cases b
+    · rfl
+    · exact ι.val.paired
+  have cell_eq (e f : Cell d) (h : e.carrier = f.carrier) : e = f := by
+    rcases e with ⟨K, j, hj⟩
+    rcases f with ⟨L, k, hk⟩
+    cases h
+    have hjk : j = k := hj.dimension.symm.trans hk.dimension
+    cases hjk
+    rfl
+  exact cell_eq _ _ hcarrier
+
+/-- Step 5 of the V4 proof of `host_step_step2_strand_step2_terminal_bound` (V4 3.6(2a)):
+"relative interiors of distinct cells are disjoint". A listed vertex
+of a native node cannot lie in the relative interior of one of its edges. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step5_vertex_exclusion
+    (N : FramedNode S) (e : PrototypeEdge S N.ty) (p : E d)
+    (hp : N.Lists 0 p) : p ∉ relint (N.cell 0 e.val) := by
+  classical
+  obtain ⟨v, hv, x, hx, rfl⟩ := hp
+  have hcell (c : Cell d) : N.cell 0 c = N.frame '' c.carrier := by
+    rfl
+  have hrel : relint (N.cell 0 e.val) = N.frame '' relint e.val.carrier := by
+    rw [hcell]
+    exact N.frame.toAffineIsometry.image_intrinsicInterior _
+  intro hmem
+  rw [hrel] at hmem
+  have hxe : x ∈ relint e.val.carrier := N.frame.injective.mem_set_image.mp hmem
+  have hxv : x ∈ relint v.carrier := by
+    rw [vertexPoint_spec (⟨v, hv⟩ : VertexName S N.ty)] at hx ⊢
+    simpa only [relint, intrinsicInterior_singleton] using hx
+  have hne : v ≠ e.val := by
+    intro h
+    have hvdim := (Finset.mem_filter.mp hv).2
+    have hedim := (Finset.mem_filter.mp e.property).2
+    rw [h] at hvdim
+    omega
+  exact Set.disjoint_left.mp
+    ((S.cx N.ty).relint_disjoint v (Finset.mem_filter.mp hv).1
+      e.val (Finset.mem_filter.mp e.property).1 hne) hxv hxe
+
 /-- Step 2 of the V4 proof of `host_step_step2_strand` (V4 3.6(2a)):
 "The strand never passes p_N". A single aligned port starting in h
 strictly before p_N cannot cross p_N: its backward flag displacements
@@ -1514,7 +1664,99 @@ private theorem host_step_step2_strand_step2_terminal_bound
         (!a.record.sideIndex) (P.flag a.record.incidence).terminal) :
     host_step_portEdge u ⊆ host_step_flagEdge (proposedSibling D B hB f a) n
       a.record.incidence (!a.record.sideIndex) := by
-  sorry
+  let H := proposedSibling D B hB f a
+  let Q := proposedParent D B hB
+  let ι := a.record.incidence
+  let b := !a.record.sideIndex
+  let p := host_step_flagFrame H n ι b (P.flag ι).terminal
+  obtain ⟨φ, L, hL, hφ0, hφL, hflag, _⟩ :=
+    host_step_step2_strand_step1_chart H n ι b
+  obtain ⟨x, y, hxy, hx, hy, hedge, hopen⟩ :=
+    host_step_step2_strand_step1_port_coordinates Y n H ι b u hu φ L hL hφ0 hφL
+  have hxL : x ∈ Icc 0 L := by
+    rw [hx, hflag] at hstart
+    exact φ.injective.mem_set_image.mp hstart
+  have hxlt : x < L := lt_of_le_of_ne hxL.2 (fun he =>
+    hbefore (hx.trans ((congrArg φ he).trans hφL)))
+  have hyL : y ≤ L := by
+    by_contra h
+    have hLy : L < y := lt_of_not_ge h
+    have hcross : p ∈ relint (host_step_portEdge u) := by
+      rw [hopen]
+      exact ⟨L, ⟨hxlt, hLy⟩, hφL⟩
+    have hnearEdge : p ∈ closure (relint (host_step_portEdge u) ∩
+        relint (host_step_flagEdge H n ι b)) := by
+      have hsub : φ '' Ioo x L ⊆ relint (host_step_portEdge u) ∩
+          relint (host_step_flagEdge H n ι b) := by
+        rintro z ⟨t, ht, rfl⟩
+        rw [hopen]
+        refine ⟨⟨t, ⟨ht.1, ht.2.trans hLy⟩, rfl⟩, ?_⟩
+        rw [hflag, relint, φ.image_intrinsicInterior,
+          host_step_step2_strand_step1_interval_relint 0 L hL]
+        exact ⟨t, ⟨hxL.1.trans_lt ht.1, ht.2⟩, rfl⟩
+      apply closure_mono hsub
+      apply image_closure_subset_closure_image φ.continuous
+      refine ⟨L, ?_, hφL⟩
+      rw [closure_Ioo hxlt.ne]
+      exact ⟨hxlt.le, le_rfl⟩
+    have halign := hu.2.2.2.2.2.2.2.1
+    have hnear : p ∈ closure (interior ((tileNode u.1).carrier 0) ∩
+        interior (H.carrier n)) := by
+      apply closure_minimal ?_ isClosed_closure hnearEdge
+      intro z hz
+      apply host_step_step2_strand_step2_terminal_bound_step1_flag_overlap
+        (tileNode u.1) H 0 n u.2.2.chain.val (P.sideFlag ι b)
+        hu.2.2.1.symm rfl halign.1 halign.2.1
+      · simpa only [u.2.2.chain.property,
+          host_step_step2_strand_step2_terminal_bound_step4_flag_top] using halign.2.2.2
+      · exact hz
+    have hlistedH : H.Lists n p := by
+      have hv := host_step_step1_seed_step2_child_endpoint Q n ι b
+        (P.flag ι).terminal (Or.inr rfl)
+      rw [← host_step_step1_seed_step1_flag_frame Q n ι b] at hv
+      exact hv.1
+    have hsub : H.carrier n ⊆ Q.carrier (n + 1) := by
+      have hty := (Parser.ageOneFacet_semantics D hD B hB f a).2.1
+      have h := host_step_step2_strand_step2_terminal_bound_step3_child_subset
+        (⟨ι.val.ty, Q.frame⟩ : FramedNode S) n (ι.val.sideIndex b)
+      have hQ : (⟨ι.val.ty, Q.frame⟩ : FramedNode S) = Q := by
+        apply FramedNode.ext
+        · exact hty
+        · rfl
+      change H.carrier n ⊆ (⟨ι.val.ty, Q.frame⟩ : FramedNode S).carrier (n + 1) at h
+      simpa only [hQ] using h
+    obtain ⟨U, hU, hpU, hUsub⟩ :=
+      host_step_step2_strand_step2_terminal_bound_step2_local_sector
+        H n (Q.carrier (n + 1)) p hlistedH hsub
+    have happroach : Parser.ApproachesSector u.1 p
+        ((fun v => p + v) '' tangentCone (Q.carrier (n + 1)) p) := by
+      intro ε hε
+      obtain ⟨z, ⟨hzU, hzball⟩, hzt, hzH⟩ := mem_closure_iff_nhds.mp hnear
+        (U ∩ ball p ε) ((hU.inter isOpen_ball).mem_nhds ⟨hpU, mem_ball_self hε⟩)
+      have hzt' : z ∈ interior u.1.carrier := by
+        have hc : (tileNode u.1).carrier 0 = u.1.carrier := by
+          rw [compilerFrame_carrier C u.1]
+          simp [tileNode, FramedNode.carrier, SubstSystem.supertile, placedSet]
+        simpa only [hc] using hzt
+      refine ⟨z, ⟨hzt', ?_⟩, hzball⟩
+      apply interior_mono hUsub
+      rw [interior_inter, hU.interior_eq]
+      exact ⟨hzH, hzU⟩
+    obtain ⟨t, ht, j, θ, hpiece, hpj, hsector, hθ, hactual⟩ := hend
+    have happroach' : Parser.ApproachesSector u.1
+        (Compiler.endVertex (compilerFrame C t) j)
+        (Compiler.endSector (compilerFrame C t) j) := by
+      rw [hpj, hsector]
+      exact happroach
+    have hlisted := (trigger_coverage Y hY t ht j θ hθ hactual u.1 hu.1 happroach').2.1
+    rw [hpj] at hlisted
+    let e : PrototypeEdge S (tileNode u.1).ty := ⟨(host_step_edge u.2).val, by
+      rw [← hu.2.2.1]
+      exact (host_step_edge u.2).property⟩
+    exact host_step_step2_strand_step2_terminal_bound_step5_vertex_exclusion
+      (tileNode u.1) e p hlisted hcross
+  rw [hedge, hflag]
+  exact Set.image_mono (fun _ ht => ⟨hxL.1.trans ht.1, ht.2.trans hyL⟩)
 
 /-- Step 2 of the V4 proof of `host_step_step2_strand` (V4 3.6(2c)):
 "(E2) at θ_N gives κ⁺(e_s)=N". This is the terminal END row for

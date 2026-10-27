@@ -3787,6 +3787,77 @@ private theorem honest_rows_step4_cont_packet (U : HonestSource S) (P : Params S
     leafPacket T.label T.record.facet.val = some slot.packet := by
   sorry
 
+/-- Step 1 of the V4 proof of `honest_rows_step5_end_E1` (V4 2.8):
+"the actual configuration". The relative frame identifies a native source node,
+so an actual configuration assigns that node its own leaf type. -/
+private theorem honest_rows_step5_end_E1_step1_label (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (θ : Template P)
+    (hθ : IsActualTemplate U P t ht θ) (q : U.Node) (hq : q.1 = 0)
+    (u : LeafType P) (hu : (q.2.val.move t.2.val.frame.symm, u) ∈ θ.tiles) :
+    u = leafTypeOf U P q hq := by
+  obtain ⟨q', hq', hframe, hlabel⟩ := hθ.2 _ hu
+  have hnode : q.2.val = q'.2.val := by
+    apply FramedNode.ext
+    · have hty := congrArg FramedNode.ty hframe
+      exact hty
+    · ext x : 1
+      have hx := congrArg (fun N : FramedNode S => N.frame x) hframe
+      exact t.2.val.frame.symm.injective hx
+  have heq : q = q' := by
+    rcases q with ⟨n, N, hN⟩
+    rcases q' with ⟨m, M, hM⟩
+    dsimp only at hq hq' hnode
+    subst n
+    subst m
+    cases hnode
+    rfl
+  subst q'
+  exact hlabel
+
+/-- Step 2 of the V4 proof of `honest_rows_step5_end_E1` (V4 2.8):
+"ports on boundary facets of P carry the restrictions of P's records".
+The central facet's actual packet has the state of its birth parent as its head. -/
+private theorem honest_rows_step5_end_E1_step2_head (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (slot : EndSlot (leafTypeOf U P t ht))
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (hfv : f.val = slot.facet.val) :
+    slot.packet.head = stateOf U P (U.hierarchy.birthParent t f hf) := by
+  have hp := slot.packet_eq
+  rw [← hfv] at hp
+  unfold leafPacket at hp
+  rw [← prePattern_of_leafType U P t ht] at hp
+  simp only [prePatternOf, dif_pos f.property, HonestSource.facetPacket, dif_neg hf] at hp
+  rw [← Option.some.inj hp]
+  exact packet_head U P (U.providerOccurrence P t f hf)
+
+/-- Step 3 of the V4 proof of `honest_rows_step5_end_E1` (V4 1.7(c)):
+"ports on boundary facets of P carry the restrictions of P's records ...
+NULL if P's record is NULL". A contained descendant facet follows its named
+restriction path, including the persistent-fault case. -/
+private theorem honest_rows_step5_end_E1_step3_boundary (U : HonestSource S)
+    (P : Params S) (B q : U.Node) (F : FacetName S B.2.val.ty)
+    (g : FacetName S q.2.val.ty) (path : List (RestrictionStep S))
+    (hp : SourceRestrictionPath U B q F g path)
+    (hsub : q.2.val.cell q.1 g.val ⊆ B.2.val.cell B.1 F.val) :
+    match U.facetRecordOf P B F with
+    | none => U.facetRecordOf P q g = none
+    | some r => U.facetRecordOf P q g = some (restrictionOp path r) := by
+  classical
+  by_cases hF : U.hierarchy.IsFault B F
+  · have hg : U.hierarchy.IsFault q g := by
+      intro k
+      apply (U.hierarchy.boundaryOffsets_downward q g).2 k (B.1 - q.1 + k) (by omega)
+      change q.2.val.cell q.1 g.val ⊆
+        frontier ((U.hierarchy.ancestor q (B.1 - q.1 + k)).2.val.carrier
+          (U.hierarchy.ancestor q (B.1 - q.1 + k)).1)
+      rw [← U.hierarchy.ancestor_add, hp.2.1]
+      exact hsub.trans (hF k)
+    simp only [HonestSource.facetRecordOf, dif_pos hF, dif_pos hg]
+  · obtain ⟨hg, _, _⟩ :=
+      U.hierarchy.provider_inherited B q (B.1 - q.1) hp.2.1 F g hF hsub
+    simp only [HonestSource.facetRecordOf, dif_neg hF, dif_neg hg]
+    exact congrArg some (restrictionOp_source U P B q F g hF hg path hp).symm
+
 /-- Step 5 of the V4 proof of `honest_rows` (V4 2.8): "(E1): the ports on first-generation
 facets of $P$ have finite records with the incidence of their facet and the dictated side
 (Lemma 1.5(b), Lemma 1.7), $\tau(\{v\})=\{p\}$ ... and $\beta=(b-1)\bmod L$ for all of
@@ -3800,7 +3871,51 @@ private theorem honest_rows_step5_end_E1 (U : HonestSource S) (P : Params S) (t 
     (hvv : v.val = slot.vertex.val)
     (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
     endRow_E1 T := by
-  sorry
+  have hrecord : U.recordOf P t f hf = slot.record := by
+    have hr := slot.record_eq
+    rw [← hfv, actualCont_exists_step1_readout U P t ht f] at hr
+    simpa only [HonestSource.facetRecordOf, dif_neg hf, Option.some.injEq] using hr
+  constructor
+  · intro a ha u hu
+    obtain ⟨q, hq, g, hg, w, hw, _, hbirth, htile, hfacet, hvertex, hi, hs, hτ⟩ :=
+      (hreal.2.2.2.2.1 a).mp ha
+    have howned : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+        (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+      simpa only [ownedStar, Set.Finite.mem_toFinset] using hq
+    have hlabel : u = leafTypeOf U P q howned.1 :=
+      honest_rows_step5_end_E1_step1_label U P t ht T.configuration hT q howned.1 u
+        (by simpa only [htile] using hu)
+    refine ⟨U.recordOf P q g hg, ?_, hi.symm, ?_, ?_, ?_⟩
+    · rw [hlabel, hfacet, actualCont_exists_step1_readout U P q howned.1 g]
+      simp only [HonestSource.facetRecordOf, dif_neg hg]
+    · rw [a.side_eq, hi, hs]
+      rfl
+    · rw [hvertex]
+      have hvc : w.val ∈ (S.cx q.2.val.ty).cells := (vertexCell w).property
+      simp only [FacetRecord.tauAt, HonestSource.recordOf, dif_pos hvc, dif_pos hw]
+      exact congrArg some hτ.symm
+    · rw [← hrecord]
+      apply Fin.ext
+      change (U.hierarchy.servingChild q g hg).1 % P.L =
+        (U.hierarchy.servingChild t f hf).1 % P.L
+      have hh := congrArg (fun B : U.Node => B.1) hbirth
+      change (U.hierarchy.servingChild q g hg).1 + 1 =
+        (U.hierarchy.servingChild t f hf).1 + 1 at hh
+      exact congrArg (· % P.L) (Nat.add_right_cancel hh)
+  · intro a ha u hu
+    obtain ⟨q, hq, F, g, w, _, _, hsub, htile, hfacet, _, hparent, path, hp, hop⟩ :=
+      (hreal.2.2.2.2.2 a).mp ha
+    have howned : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+        (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+      simpa only [ownedStar, Set.Finite.mem_toFinset] using hq
+    have hlabel : u = leafTypeOf U P q howned.1 :=
+      honest_rows_step5_end_E1_step1_label U P t ht T.configuration hT q howned.1 u
+        (by simpa only [htile] using hu)
+    rw [honest_rows_step5_end_E1_step2_head U P t ht slot f hf hfv,
+      hparent, hlabel, hfacet, actualCont_exists_step1_readout U P q howned.1 g, hop]
+    simpa only [stateRecordAt, stateOf, dif_pos F.property] using
+      honest_rows_step5_end_E1_step3_boundary U P (U.hierarchy.birthParent t f hf)
+        q F g path hp hsub
 
 /-- Step 6 of the V4 proof of `honest_rows` (V4 2.8): "(E2): all ports on one
 first-generation facet carry its unique packet (Lemma 2.6(c)); alignment: ... the chain is

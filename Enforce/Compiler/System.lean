@@ -896,14 +896,14 @@ theorem event_marks_readout_cluster (C : ClusterData S P) (e : EventIndex S P)
   sorry
 
 /-- M6, V4 2.14(b): the actual event index of a native source slot.
-The existing geometry-only actual template is used; `honest_rows` supplies
-membership in the allowed catalogue without changing the chosen configuration. -/
+Choose an actual allowed configuration supplied by `honest_rows`, retaining both
+its actual-label specification and its membership in the allowed catalogue. -/
 def honestEventIndex (U : HonestSource S) (t : U.Node) (ht : t.1 = 0)
     (j : EventSlot (leafTypeOf U P t ht)) : EventIndex S P where
   leaf := leafTypeOf U P t ht
   slot := j
-  template := actualTemplate U P t ht j
-  allowed := honest_rows U P t ht j
+  template := Classical.choose (honest_rows U P t ht j)
+  allowed := (Classical.choose_spec (honest_rows U P t ht j)).2
 
 /-- M6, V4 2.14(b): the CORE copy in an actual height-K source node agrees everywhere. -/
 theorem honestLift_core_agree (C : ClusterData S P) (U : HonestSource S)

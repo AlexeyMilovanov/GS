@@ -2681,11 +2681,13 @@ def actualTemplate (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 
   | .end_ s => (Classical.choose (actualEnd_exists U P t ht s)).configuration
 
 /-- Q14, V4 2.8: in every honest source, at every event slot of every native tile,
-the actual positioned configuration belongs to the allowed catalogue.
-CONT uses the physical-vertex jump rule; END asserts all six clauses simultaneously. -/
+there is an actual positioned configuration belonging to the allowed catalogue.
+CONT uses the physical-vertex jump rule; END asserts all six clauses simultaneously.
+(repaired after a false-claim verdict 2026-10-27: assert existence of an actual allowed
+configuration because the geometry-only choice need not follow the recorded active chain) -/
 theorem honest_rows (U : HonestSource S) (P : Params S) :
     ∀ (t : U.Node) (ht : t.1 = 0) (slot : EventSlot (leafTypeOf U P t ht)),
-      actualTemplate U P t ht slot ∈ allowedTemplates slot := by
+      ∃ θ : Template P, IsActualTemplate U P t ht θ ∧ θ ∈ allowedTemplates slot := by
   sorry
 
 end Enforce

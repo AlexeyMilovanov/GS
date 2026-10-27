@@ -5356,6 +5356,528 @@ private theorem host_step_step2_strand_step3_no_false_endpoint_step2_sector_patc
   have hcone := hpatch ⟨hx, hxV⟩
   exact ⟨⟨hxB, hcone.1⟩, hcone.2⟩
 
+open private honest_rows_step1_cont_geometry_step1_spans
+  honest_rows_step4_cont_packet_step1_cell_closure
+  honest_rows_step4_cont_packet_step3_relint_ball
+  from Enforce.State.Rows in
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint_step3_facet_port` (V4 3.6(2b), 1.8):
+"the tiles of B with pieces in f cover f near v ... one of them has pieces
+accumulating at v". Iterated heredity gives a finite closed facet cover.
+In the common affine span, its relative interiors still cover densely in
+any relatively open patch, including after intersection with an ambient open set. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step1_piece
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (B : Block Y n)
+    (f : FacetName S B.node.ty) (K O : Set (E d)) (p : E d)
+    (hspan : affineSpan ℝ (B.node.cell n f.val) = affineSpan ℝ K)
+    (hO : IsOpen O)
+    (hnear : p ∈ closure (relint (B.node.cell n f.val) ∩ relint K ∩ O)) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty),
+      Parser.IsFacetPiece Y n B.node f t g ∧
+        affineSpan ℝ ((tileNode t).cell 0 g.val) = affineSpan ℝ K ∧
+        p ∈ closure (relint ((tileNode t).cell 0 g.val) ∩ relint K ∩ O) := by
+  classical
+  obtain ⟨parts, hparts⟩ := S.heredity_iter B.node.ty n f.val
+    (Finset.mem_filter.mp f.property).1
+  let I := Σ w : S.RoleWord B.node.ty n, {e : Cell d //
+    e ∈ (S.cx (S.nativeTile B.node.ty n w).ty).cells ∧ e.dim = f.val.dim}
+  let A (q : I) := ((S.nativeTile B.node.ty n q.1).move B.node.frame).cell 0 q.2.val
+  have hcover : B.node.cell n f.val = ⋃ q ∈ parts, A q := by
+    ext x
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      have hm : (S.σ ^ n) y ∈ (S.σ ^ n) '' f.val.carrier := ⟨y, hy, rfl⟩
+      rw [hparts] at hm
+      obtain ⟨q, hq, z, hz, he⟩ := mem_iUnion₂.mp hm
+      exact mem_iUnion₂.mpr ⟨q, hq, z, hz, congrArg B.node.frame he⟩
+    · intro hx
+      obtain ⟨q, hq, z, hz, rfl⟩ := mem_iUnion₂.mp hx
+      have hm : (S.nativeTile B.node.ty n q.1).frame z ∈ (S.σ ^ n) '' f.val.carrier := by
+        rw [hparts]
+        exact mem_iUnion₂.mpr ⟨q, hq, z, hz, rfl⟩
+      obtain ⟨y, hy, he⟩ := hm
+      exact ⟨y, hy, congrArg B.node.frame he⟩
+  have hsub (q : I) (hq : q ∈ parts) : A q ⊆ B.node.cell n f.val := by
+    rw [hcover]
+    exact fun _ hx => mem_iUnion₂.mpr ⟨q, hq, hx⟩
+  have hsp (q : I) (hq : q ∈ parts) : affineSpan ℝ (A q) = affineSpan ℝ K :=
+    (honest_rows_step1_cont_geometry_step1_spans
+      (((S.nativeTile B.node.ty n q.1).move B.node.frame).prototypeFrame 0)
+      (B.node.prototypeFrame n) q.2.val f.val q.2.property.2 (hsub q hq)).1.trans hspan
+  have hreg (q : I) : closure (relint (A q)) = A q :=
+    honest_rows_step4_cont_packet_step1_cell_closure q.2.val
+      (((S.nativeTile B.node.ty n q.1).move B.node.frame).prototypeFrame 0)
+  have hdense : relint (B.node.cell n f.val) ∩ relint K ∩ O ⊆
+      ⋃ q ∈ parts, closure (relint (A q) ∩ relint K ∩ O) := by
+    rintro x ⟨⟨hxf, hxK⟩, hxO⟩
+    have hxF := intrinsicInterior_subset hxf
+    rw [hcover] at hxF
+    obtain ⟨q, hq, hxq⟩ := mem_iUnion₂.mp hxF
+    refine mem_iUnion₂.mpr ⟨q, hq, ?_⟩
+    obtain ⟨r, hr, hball⟩ := honest_rows_step4_cont_packet_step3_relint_ball hxK
+    have hxcl : x ∈ closure (relint (A q)) := (hreg q).symm ▸ hxq
+    apply closure_mono (s := relint (A q) ∩ (ball x r ∩ O)) ?_
+      ((isOpen_ball.inter hO).closure_inter ⟨hxcl, mem_ball_self hr, hxO⟩)
+    rintro y ⟨hy, hyr, hyO⟩
+    refine ⟨⟨hy, hball y hyr ?_⟩, hyO⟩
+    rw [← hsp q hq]
+    exact subset_affineSpan ℝ _ (intrinsicInterior_subset hy)
+  have hp : p ∈ ⋃ q ∈ parts, closure (relint (A q) ∩ relint K ∩ O) :=
+    closure_minimal hdense (isClosed_biUnion_finset (fun _ _ => isClosed_closure)) hnear
+  obtain ⟨q, hq, hp⟩ := mem_iUnion₂.mp hp
+  obtain ⟨t, ht, hnode⟩ := B.actual q.1
+  let g : FacetName S (tileNode t).ty := ⟨q.2.val, by
+    rw [hnode]
+    exact Finset.mem_filter.mpr ⟨q.2.property.1,
+      q.2.property.2.trans (Finset.mem_filter.mp f.property).2⟩⟩
+  have hcell : (tileNode t).cell 0 g.val = A q := by
+    change (tileNode t).cell 0 q.2.val = A q
+    rw [hnode]
+  refine ⟨t, g, ⟨ht, ⟨n, by omega, q.1, hnode⟩, ?_⟩, ?_, ?_⟩
+  · rw [hcell]
+    exact hsub q hq
+  · rw [hcell]
+    exact hsp q hq
+  · rwa [hcell]
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint_step3_facet_port` (V4 3.3, 3.6(2b)):
+"The tiles of B containing these points ... belong to θ_v". Honest star
+coverage and disjoint interiors identify any actual tile accumulating
+inside the open sector, with its exact template label and frame. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step2_template_tile
+    (Y : MarkedTiling (systemM S P C)) (l : LeafType P) (j : EndSlot l)
+    (φ : Iso d) (T : EndTemplate j) (hactual : TemplateOccurs C Y φ T.configuration)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (hnear : Compiler.endVertex φ j ∈ closure
+      (t.carrier ∩ interior (Compiler.endSector φ j))) :
+    ∃ z ∈ T.configuration.tiles, t = placedLeaf C z.2 (z.1.frame.trans φ) := by
+  classical
+  have hreg (u : PlacedMarkedTile (systemM S P C)) :
+      closure (interior u.carrier) = u.carrier := by
+    obtain ⟨A, _, ψ, hcarrier, _⟩ := u.realization
+    rw [hcarrier]
+    change closure (interior (ψ.toHomeomorph '' A.carrier)) = ψ.toHomeomorph '' A.carrier
+    rw [← ψ.toHomeomorph.image_interior, ← ψ.toHomeomorph.image_closure, A.regularClosed]
+  have hv : vertexPoint T.geometry.vertex = vertexPoint j.vertex := by
+    have hh := congrArg Cell.carrier T.vertex_eq
+    rw [vertexPoint_spec T.geometry.vertex, vertexPoint_spec j.vertex] at hh
+    exact Set.singleton_injective hh
+  let r := Compiler.coneRadius S P
+  have hr : 0 < r := (Compiler.coneRadius_spec S P).1
+  obtain ⟨x, hxr, hxt, hxs⟩ := mem_closure_iff.mp hnear
+    (ball (Compiler.endVertex φ j) r) isOpen_ball (mem_ball_self hr)
+  have hxt' : x ∈ closure (interior t.carrier) := (hreg t).symm ▸ hxt
+  obtain ⟨y, ⟨hys, hyr⟩, hyt⟩ := mem_closure_iff.mp hxt'
+    (interior (Compiler.endSector φ j) ∩ ball (Compiler.endVertex φ j) r)
+    (isOpen_interior.inter isOpen_ball) ⟨hxs, hxr⟩
+  obtain ⟨w, hw, hwy⟩ := interior_subset hys
+  have hmap : φ (vertexPoint T.geometry.vertex + w) = y := by
+    rw [hv, ← hwy]
+    simpa only [Compiler.endVertex, vadd_eq_add, add_comm] using
+      φ.toAffineEquiv.map_vadd (vertexPoint j.vertex) w
+  have hwr : vertexPoint T.geometry.vertex + w ∈ ball (vertexPoint T.geometry.vertex) r := by
+    change dist (vertexPoint T.geometry.vertex + w) (vertexPoint T.geometry.vertex) < r
+    rw [← φ.isometry.dist_eq, hmap, hv]
+    exact hyr
+  have hcov := (Compiler.coneRadius_spec S P).2 T.geometry T.honest_geometry
+    ⟨⟨w, T.header_eq.symm ▸ hw, rfl⟩, hwr⟩
+  obtain ⟨N, hN, hxN⟩ := mem_iUnion₂.mp hcov
+  rw [← T.tiles_eq] at hN
+  obtain ⟨z, hz, hzN⟩ := Finset.mem_image.mp hN
+  have hyN : y ∈ (placedLeaf C z.2 (z.1.frame.trans φ)).carrier := by
+    have hc : (placedLeaf C z.2 (z.1.frame.trans φ)).carrier = φ '' N.carrier 0 := by
+      change placedSet (z.1.frame.trans φ) (S.proto z.2.prototype).carrier = _
+      rw [← T.configuration.types_match z hz, ← hzN]
+      simp only [FramedNode.carrier, SubstSystem.supertile, pow_zero,
+        placedSet, image_image,
+        AffineIsometryEquiv.coe_trans]
+      rfl
+    rw [hc]
+    exact ⟨_, hxN, hmap⟩
+  refine ⟨z, hz, ?_⟩
+  by_contra hne
+  have hd := (Y.disjoint ht (hactual z hz) hne).closure_right isOpen_interior
+  rw [hreg] at hd
+  exact Set.disjoint_left.mp hd hyt hyN
+
+open private birth_ascent_routing_step2_cell_front from Enforce.Source.Routing in
+open private honest_rows_step1_cont_geometry_step1_spans from Enforce.State.Rows in
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint_step3_facet_port` (V4 3.6(2b), 1.3, 1.7):
+"a port on the first-generation facet g'". A descendant facet meeting its
+ancestor's boundary inside that ancestor's parent is born at that parent.
+The two hereditary facet dichotomies locate its serving facet and its birth. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_source_provider
+    (U : HonestSource S) (q c : U.Node) (hq : q.1 = 0)
+    (hanc : U.hierarchy.ancestor q c.1 = c) (g : FacetName S q.2.val.ty)
+    (hmeet : (relint (q.2.val.cell q.1 g.val) ∩ frontier (c.2.val.carrier c.1) ∩
+      interior ((U.hierarchy.parentNode c).2.val.carrier
+        (U.hierarchy.parentNode c).1)).Nonempty) :
+    ∃ hg : ¬ U.hierarchy.IsFault q g,
+      U.hierarchy.birthParent q g hg = U.hierarchy.parentNode c ∧
+      U.hierarchy.servingChild q g hg = c := by
+  obtain ⟨y, ⟨hyq, hyc⟩, hyp⟩ := hmeet
+  have hdesc := U.hierarchy.ancestor_descendant q c.1
+  rw [hanc] at hdesc
+  obtain hboundary | hinside := facet_dichotomy c.2.val q.2.val c.1 q.1 hdesc g
+  · obtain ⟨F, hF, _⟩ := hboundary
+    have hdim : g.val.dim = F.val.dim :=
+      (Finset.mem_filter.mp g.property).2.trans (Finset.mem_filter.mp F.property).2.symm
+    have hyF : y ∈ relint (c.2.val.cell c.1 F.val) :=
+      (honest_rows_step1_cont_geometry_step1_spans
+        (q.2.val.prototypeFrame q.1) (c.2.val.prototypeFrame c.1)
+        g.val F.val hdim hF).2 hyq
+    have hchild : c.2.val.IsDescendant c.1 (U.hierarchy.parentNode c).2.val
+        (U.hierarchy.parentNode c).1 := by
+      simpa only [CoherentHierarchy.ancestor, Function.iterate_one] using
+        U.hierarchy.ancestor_descendant c 1
+    have hint : relint (c.2.val.cell c.1 F.val) ⊆
+        interior ((U.hierarchy.parentNode c).2.val.carrier
+          (U.hierarchy.parentNode c).1) := by
+      obtain hboundary' | hint := facet_dichotomy (U.hierarchy.parentNode c).2.val
+        c.2.val (U.hierarchy.parentNode c).1 c.1 hchild F
+      · obtain ⟨H, hH, _⟩ := hboundary'
+        have hyH := birth_ascent_routing_step2_cell_front
+          (U.hierarchy.parentNode c).2.val (U.hierarchy.parentNode c).1 H.val
+          (Finset.mem_filter.mp H.property).1 (hH (intrinsicInterior_subset hyF))
+        exact (Set.disjoint_left.mp disjoint_interior_frontier hyp hyH).elim
+      · exact hint
+    obtain ⟨hFfinite, _, hbirth, _⟩ := U.hierarchy.restriction_det_internal c F hint
+    obtain ⟨hg, _, hbirthq⟩ := U.hierarchy.provider_inherited c q c.1 hanc F g hFfinite hF
+    have hb : U.hierarchy.birthParent q g hg = U.hierarchy.parentNode c := hbirthq.trans hbirth
+    refine ⟨hg, hb, ?_⟩
+    have hh := congrArg (fun N : U.Node => N.1) hb
+    change (U.hierarchy.servingChild q g hg).1 + 1 = c.1 + 1 at hh
+    have ha := U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q g hg).1
+    have hoff : (U.hierarchy.firstProvider q g hg).1 = c.1 := by
+      change (U.hierarchy.servingChild q g hg).1 = _ at ha
+      omega
+    simpa only [CoherentHierarchy.servingChild, hoff] using hanc
+  · exact (Set.disjoint_left.mp disjoint_interior_frontier (hinside hyq) hyc).elim
+
+open private honest_rows_step2_cont_labels_step5_native_subset from Enforce.State.Rows in
+open private birth_ascent_routing_step2_cell_front from Enforce.Source.Routing in
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint_step3_facet_port` (V4 3.6(2b), 1.3, 1.7):
+"its piece lies in ... the face ... corresponding to g'". Relative-interior
+overlap with a primitive facet forces the native tile's containing child
+to have that piece on its boundary. Its birth is therefore the common parent. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_source_birth
+    (U : HonestSource S) (B q : U.Node) (hB : 1 ≤ B.1) (hq : q.1 = 0)
+    (hanc : U.hierarchy.ancestor q B.1 = B)
+    (ι : P.Incidence) (hι : ι.val.ty = B.2.val.ty) (g : FacetName S q.2.val.ty)
+    (hmeet : (relint (q.2.val.cell q.1 g.val) ∩
+      relint (P.incidencePlacement B.2.val B.1 ι '' ι.val.leftFacet.val.carrier)).Nonempty) :
+    ∃ hg : ¬ U.hierarchy.IsFault q g,
+      U.hierarchy.birthParent q g hg = B ∧
+      U.hierarchy.servingChild q g hg = U.hierarchy.ancestor q (B.1 - 1) := by
+  obtain ⟨a, F, chain, x₀, x₁, haparent, _, _, _, _, _, hcells, hint⟩ :=
+    host_step_step1_seed_step5_trace_step3_side_child U B hB ι hι false
+      (P.flag ι).initial (Or.inl rfl)
+  have hF : a.2.val.cell a.1 F.val =
+      P.incidencePlacement B.2.val B.1 ι '' ι.val.leftFacet.val.carrier := by
+    simpa only [chain.property, (P.flag ι).top] using hcells facetIndex
+  obtain ⟨y, hyq, hyF⟩ := hmeet
+  rw [← hF] at hyF
+  let c := U.hierarchy.ancestor q (B.1 - 1)
+  have hch : c.1 = B.1 - 1 := by
+    simp only [c, U.hierarchy.ancestor_height, hq, Nat.zero_add]
+  have hcparent : U.hierarchy.parentNode c = B := by
+    change U.hierarchy.ancestor (U.hierarchy.ancestor q (B.1 - 1)) 1 = B
+    rw [U.hierarchy.ancestor_add, Nat.sub_add_cancel hB]
+    exact hanc
+  have hach : a.1 = c.1 := by
+    have hh := congrArg (fun N : U.Node => N.1) haparent
+    change a.1 + 1 = B.1 at hh
+    omega
+  have hreg (M : FramedNode S) (m : ℕ) :
+      closure (interior (M.carrier m)) = M.carrier m := by
+    have he : M.carrier m = M.prototypeFrame m '' (S.proto M.ty).carrier := by
+      simp only [FramedNode.carrier, SubstSystem.supertile, placedSet,
+        FramedNode.prototypeFrame, Set.image_image]
+      rfl
+    rw [he]
+    change closure (interior ((M.prototypeFrame m).toHomeomorphOfFiniteDimensional ''
+      (S.proto M.ty).carrier)) = (M.prototypeFrame m).toHomeomorphOfFiniteDimensional '' _
+    rw [← Homeomorph.image_interior, ← Homeomorph.image_closure,
+      (S.proto M.ty).regularClosed]
+  have hclosed (M : FramedNode S) (m : ℕ) : IsClosed (M.carrier m) := by
+    rw [← hreg M m]
+    exact isClosed_closure
+  have hyqcarrier : y ∈ q.2.val.carrier q.1 :=
+    (hclosed _ _).frontier_subset (birth_ascent_routing_step2_cell_front q.2.val q.1
+      g.val (Finset.mem_filter.mp g.property).1 (intrinsicInterior_subset hyq))
+  have hyacarrier : y ∈ a.2.val.carrier a.1 :=
+    (hclosed _ _).frontier_subset (birth_ascent_routing_step2_cell_front a.2.val a.1
+      F.val (Finset.mem_filter.mp F.property).1 (intrinsicInterior_subset hyF))
+  have hyccarrier : y ∈ c.2.val.carrier c.1 := by
+    have hd : q.2.val.IsDescendant 0 c.2.val c.1 :=
+      (congrArg (fun m => q.2.val.IsDescendant m c.2.val c.1) hq).mp
+        (U.hierarchy.ancestor_descendant q (B.1 - 1))
+    exact honest_rows_step2_cont_labels_step5_native_subset q.2.val c.2.val c.1 hd
+      ((congrArg (fun m => y ∈ q.2.val.carrier m) hq).mp hyqcarrier)
+  have hyboundary : y ∈ frontier (c.2.val.carrier c.1) := by
+    rw [(hclosed _ _).frontier_eq]
+    refine ⟨hyccarrier, ?_⟩
+    intro hyc
+    by_cases hsame : c.2.val = a.2.val
+    · have hyfront := birth_ascent_routing_step2_cell_front a.2.val a.1 F.val
+        (Finset.mem_filter.mp F.property).1 (intrinsicInterior_subset hyF)
+      rw [← hsame, hach] at hyfront
+      exact Set.disjoint_left.mp disjoint_interior_frontier hyc hyfront
+    · have hd := (U.hierarchy.disjoint c.1 c.2.property
+        (hach ▸ a.2.property) hsame).closure_right isOpen_interior
+      rw [hreg] at hd
+      exact Set.disjoint_left.mp hd hyc (hach ▸ hyacarrier)
+  obtain ⟨hg, hb, hs⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_source_provider
+      U q c hq (by rw [hch]) g
+      ⟨y, ⟨hyq, hyboundary⟩, by rw [hcparent]; exact hint hyF⟩
+  exact ⟨hg, hb.trans hcparent, hs⟩
+
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint_step3_facet_port` (V4 3.6(2b), 1.5(c)):
+"hence list v as a vertex". The header's provider-zero vertex is listed
+in every first-generation child containing it, by common listedness across
+the primitive subdivision. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_common_vertex
+    (U : HonestSource S) (t : U.Node) (f : FacetName S t.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault t f) (v : VertexName S t.2.val.ty)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hz : (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val.dim = 0)
+    (c : U.Node) (hc : U.hierarchy.parentNode c = U.hierarchy.birthParent t f hf)
+    (hpoint : t.2.val.prototypeFrame t.1 (vertexPoint v) ∈ c.2.val.carrier c.1) :
+    c.2.val.Lists c.1 (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+  let a := U.hierarchy.servingChild t f hf
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  let e := U.hierarchy.stratumMap t f hf (vertexCell v)
+    (U.cellInFacet_placed t f ⟨vertexCell v, hv⟩)
+  let z := U.recordTau P t f hf ⟨vertexCell v, hv⟩
+  have hτ : U.providerPlacement P t f hf '' z.val.val.carrier = a.2.val.cell a.1 e.val :=
+    record_tau_spec U P t f hf ⟨vertexCell v, hv⟩
+  have hezero : e.val.dim = 0 := by
+    have he := host_step_step1_seed_step5_trace_step2_dim_le
+      (a.2.val.prototypeFrame a.1) (U.providerPlacement P t f hf)
+      e.val z.val.val hτ.symm.subset
+    exact Nat.eq_zero_of_le_zero (he.trans_eq hz)
+  have hxvertex : x ∈ relint (t.2.val.cell t.1 (vertexCell v).val) := by
+    simp only [x, FramedNode.cell, vertexCell, vertexPoint_spec, image_singleton,
+      relint, intrinsicInterior_singleton, mem_singleton_iff]
+  have hxstratum : x ∈ relint (a.2.val.cell a.1 e.val) :=
+    (U.hierarchy.stratumMap_spec t f hf (vertexCell v)
+      (U.cellInFacet_placed t f ⟨vertexCell v, hv⟩)).1 hxvertex
+  have hxlisted : a.2.val.Lists a.1 x :=
+    ⟨e.val, Finset.mem_filter.mpr ⟨e.property, hezero⟩, intrinsicInterior_subset hxstratum⟩
+  let F : FacetName S a.2.val.ty := (U.hierarchy.firstProvider t f hf).2
+  have hxF : x ∈ a.2.val.cell a.1 F.val :=
+    (U.hierarchy.stratumMap_spec t f hf (vertexCell v)
+      (U.cellInFacet_placed t f ⟨vertexCell v, hv⟩)).2.2 (intrinsicInterior_subset hxstratum)
+  have hint : relint (a.2.val.cell a.1 F.val) ⊆
+      interior ((U.hierarchy.parentNode a).2.val.carrier (a.1 + 1)) := by
+    have he : U.hierarchy.ancestor t ((U.hierarchy.firstProvider t f hf).1 + 1) =
+        U.hierarchy.parentNode a := by
+      simp only [a, CoherentHierarchy.servingChild, CoherentHierarchy.ancestor,
+        Function.iterate_succ_apply']
+    exact (congrArg (fun N : U.Node => relint (a.2.val.cell a.1 F.val) ⊆
+      interior (N.2.val.carrier N.1)) he).mp (U.hierarchy.firstProvider_spec t f hf).2.2
+  have hparent : U.hierarchy.parentNode c = U.hierarchy.parentNode a := hc
+  have hheight : c.1 = a.1 := by
+    have hh := congrArg (fun N : U.Node => N.1) hparent
+    change c.1 + 1 = a.1 + 1 at hh
+    omega
+  let N := (U.hierarchy.parentNode a).2.val
+  let i : S.I N.ty := U.hierarchy.role a.1 a.2
+  have ha : a.2.val = N.child a.1 i := U.hierarchy.child_eq a.1 a.2
+  have hparentval : (U.hierarchy.parentNode c).2.val = N :=
+    congrArg (fun Q : U.Node => Q.2.val) hparent
+  let k : S.I N.ty := hparentval ▸ U.hierarchy.role c.1 c.2
+  have htransport (M N : FramedNode S) (h : M = N) (i : S.I M.ty) (n : ℕ) :
+      M.child n i = N.child n (h ▸ i) := by
+    subst N
+    rfl
+  have hcnode : c.2.val = N.child a.1 k := by
+    have h := (U.hierarchy.child_eq c.1 c.2).trans
+      (htransport _ N hparentval (U.hierarchy.role c.1 c.2) c.1)
+    simpa only [hheight] using h
+  let F' : FacetName S (N.child a.1 i).ty :=
+    ⟨F.val, (congrArg FramedNode.ty ha) ▸ F.property⟩
+  have hFcell : (N.child a.1 i).cell a.1 F'.val = a.2.val.cell a.1 F.val :=
+    congrArg (fun M : FramedNode S => M.cell a.1 F.val) ha.symm
+  have hlisted : (N.child a.1 i).Lists a.1 x := ha ▸ hxlisted
+  have hmem : x ∈ (N.child a.1 k).carrier a.1 := by
+    rw [← hcnode, ← hheight]
+    exact hpoint
+  have hh := primitive_vertex_listed N a.1 i F' (by rw [hFcell]; exact hint)
+    x hlisted (hFcell.symm ▸ hxF) k hmem
+  rw [← hcnode, ← hheight] at hh
+  exact hh
+
+open private honest_rows_step6_end_E2_step3_placed_cell
+  honest_rows_step4_cont_packet_step1_placed_germ
+  honest_rows_step4_cont_packet_step3_relint_transfer
+  restrictionOp_source_step5_relint_image from Enforce.State.Rows in
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint_step3_facet_port` (V4 3.6(2b), 1.0(b)):
+"the face of G' corresponding to g'". A polyhedral facet agrees locally
+with its translated tangent cone. An accumulating overlap with the cone's
+relative interior therefore gives an overlap with the actual facet interior. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_germ
+    (ψ χ : E d ≃ᵃ[ℝ] E d) (e : Cell d) (x : E d)
+    (hx : x ∈ χ '' e.carrier) (A : Set (E d))
+    (hnear : ψ x ∈ closure (relint (ψ '' A) ∩
+      relint ((fun w => ψ x + ψ.linear w) '' tangentCone (χ '' e.carrier) x))) :
+    (relint A ∩ relint (χ '' e.carrier)).Nonempty := by
+  let K := (fun w => ψ x + ψ.linear w) '' tangentCone (χ '' e.carrier) x
+  obtain ⟨V, hV, hxV, hlocal⟩ := honest_rows_step4_cont_packet_step1_placed_germ
+    (honest_rows_step6_end_E2_step3_placed_cell χ e).1 ψ x
+  have hspan : affineSpan ℝ K = affineSpan ℝ (ψ '' (χ '' e.carrier)) := by
+    have hh := host_step_step1_seed_step5_trace_step5_span_image ψ x
+      (tangentCone (χ '' e.carrier) x)
+    rw [host_step_step1_seed_step5_trace_step5_placed_span χ e x hx,
+      AffineSubspace.map_span] at hh
+    simpa only [K, Set.image_image] using hh
+  have heq : K ∩ V = (ψ '' (χ '' e.carrier)) ∩ V := by
+    ext y
+    constructor
+    · rintro ⟨⟨w, hw, rfl⟩, hyV⟩
+      refine ⟨(hlocal _ hyV).mpr ?_, hyV⟩
+      exact ⟨w, hw, by module⟩
+    · rintro ⟨hy, hyV⟩
+      obtain ⟨w, hw, he⟩ := (hlocal y hyV).mp hy
+      refine ⟨⟨w, hw, ?_⟩, hyV⟩
+      change ψ x + ψ.linear w = y
+      rw [he]
+      module
+  obtain ⟨y, hyV, hyA, hyK⟩ := mem_closure_iff.mp hnear V hV hxV
+  have hyF := honest_rows_step4_cont_packet_step3_relint_transfer hspan hV heq hyK hyV
+  rw [restrictionOp_source_step5_relint_image] at hyA hyF
+  obtain ⟨a, ha, rfl⟩ := hyA
+  exact ⟨a, ha, ψ.injective.mem_set_image.mp hyF⟩
+
+open private honest_rows_step2_cont_labels_step5_native_subset
+  restrictionOp_source_step5_cell_closure from Enforce.State.Rows in
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint_step3_facet_port` (V4 3.6(2b), 1.3, 1.7):
+"the template geometry identifies t_B as a port on the first-generation
+facet g'". For one already identified star tile, a native facet accumulating
+along the recorded primitive facet is a primitive port. This uses only the
+honest source geometry, with no output block, leaf labels, or END row. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_identify
+    (φ : Iso d) (Z : EndGeometry P) (hZ : Z ∈ honestEndGeometries S P)
+    (ι : P.Incidence) (G : Set (E d)) (hG : Z.header.primitiveCones ι = some G)
+    (N : FramedNode S) (hN : N ∈ Z.tiles) (g : FacetName S N.ty)
+    (hnear : φ (vertexPoint Z.vertex) ∈ closure
+      (relint ((N.move φ).cell 0 g.val) ∩
+        relint ((fun w => φ (vertexPoint Z.vertex) + φ.linearIsometryEquiv w) '' G))) :
+    ∃ b ∈ Z.primitivePorts, b.tile = N ∧ b.facet.val = g.val := by
+  classical
+  obtain ⟨U, t, ht, f, hf, v, hv, hz, hreal⟩ := hZ
+  obtain ⟨htype, hvertex, hheader, htiles, hports, _⟩ := hreal
+  let B := U.hierarchy.birthParent t f hf
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  let χ := P.incidencePlacement B.2.val B.1 ι
+  have hdata : ι.val.ty = B.2.val.ty ∧ x ∈ χ '' ι.val.leftFacet.val.carrier ∧
+      G = U.normalizeCone t (tangentCone (χ '' ι.val.leftFacet.val.carrier) x) := by
+    have hh : (U.headerOf P t f hf v).primitiveCones ι = some G := by
+      rw [← hheader]
+      exact hG
+    unfold HonestSource.headerOf at hh
+    dsimp only at hh
+    split at hh
+    · next h => exact ⟨h.1, h.2, (Option.some.inj hh).symm⟩
+    · contradiction
+  rw [htiles] at hN
+  obtain ⟨q, hqstar, hqN⟩ := Finset.mem_image.mp hN
+  have hstar : q.1 = 0 ∧ U.hierarchy.ancestor q B.1 = B ∧
+      x ∈ q.2.val.carrier q.1 := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset] using hqstar
+  let ψ : Iso d := t.2.val.frame.symm.trans φ
+  have htframe : t.2.val.prototypeFrame t.1 = t.2.val.frame.toAffineEquiv :=
+    (congrArg (fun n => t.2.val.prototypeFrame n) ht).trans rfl
+  have hvpoint : vertexPoint Z.vertex = vertexPoint v := by
+    have hh := congrArg Cell.carrier hvertex
+    rw [vertexPoint_spec Z.vertex, vertexPoint_spec v] at hh
+    exact Set.singleton_injective hh
+  have hapex : φ (vertexPoint Z.vertex) = ψ x := by
+    dsimp only [ψ, x]
+    rw [htframe]
+    change φ (vertexPoint Z.vertex) = φ (t.2.val.frame.symm (t.2.val.frame (vertexPoint v)))
+    rw [AffineIsometryEquiv.symm_apply_apply, hvpoint]
+  have hnorm : G = t.2.val.frame.linearIsometryEquiv.symm ''
+      tangentCone (χ '' ι.val.leftFacet.val.carrier) x := by
+    rw [hdata.2.2]
+    unfold HonestSource.normalizeCone
+    rw [htframe]
+    rfl
+  have hcone : (fun w => φ (vertexPoint Z.vertex) + φ.linearIsometryEquiv w) '' G =
+      (fun w => ψ x + ψ.toAffineEquiv.linear w) ''
+        tangentCone (χ '' ι.val.leftFacet.val.carrier) x := by
+    rw [hnorm, Set.image_image, hapex]
+    rfl
+  let gq : FacetName S q.2.val.ty :=
+    ⟨g.val, (congrArg FramedNode.ty hqN).symm ▸ g.property⟩
+  have hcell : (N.move φ).cell 0 g.val = ψ '' q.2.val.cell q.1 gq.val := by
+    change (N.move φ).cell 0 gq.val = _
+    rw [← hqN, congrArg (fun m => q.2.val.cell m gq.val) hstar.1]
+    simp only [FramedNode.move, FramedNode.cell, FramedNode.prototypeFrame,
+      Set.image_image, ψ, AffineIsometryEquiv.coe_trans]
+    rfl
+  have hacc : ψ x ∈ closure (relint (ψ '' q.2.val.cell q.1 gq.val) ∩
+      relint ((fun w => ψ x + ψ.toAffineEquiv.linear w) ''
+        tangentCone (χ '' ι.val.leftFacet.val.carrier) x)) := by
+    rw [hcone, hcell, hapex] at hnear
+    exact hnear
+  have hmeet :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_germ
+      ψ.toAffineEquiv χ ι.val.leftFacet.val x hdata.2.1 (q.2.val.cell q.1 gq.val) hacc
+  have hB : 1 ≤ B.1 := by
+    dsimp only [B, CoherentHierarchy.birthParent, CoherentHierarchy.parentNode]
+    omega
+  obtain ⟨hg, hbirth, hserv⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_source_birth
+      U B q hB hstar.1 hstar.2.1 ι hdata.1 gq hmeet
+  have hxg : x ∈ q.2.val.cell q.1 gq.val := by
+    have hclosed : IsClosed (q.2.val.cell q.1 gq.val) := by
+      rw [← restrictionOp_source_step5_cell_closure q.2.val q.1 gq.val]
+      exact isClosed_closure
+    apply ψ.injective.mem_set_image.mp
+    apply closure_minimal (s := relint (ψ '' q.2.val.cell q.1 gq.val) ∩
+      relint ((fun w => ψ x + ψ.toAffineEquiv.linear w) ''
+        tangentCone (χ '' ι.val.leftFacet.val.carrier) x))
+      (fun _ hy => intrinsicInterior_subset hy.1)
+      (ψ.toHomeomorph.isClosedMap _ hclosed) hacc
+  let c := U.hierarchy.servingChild q gq hg
+  have hdesc : q.2.val.IsDescendant q.1 c.2.val c.1 :=
+    U.hierarchy.ancestor_descendant q (U.hierarchy.firstProvider q gq hg).1
+  have hxC : x ∈ c.2.val.carrier c.1 :=
+    honest_rows_step2_cont_labels_step5_native_subset q.2.val c.2.val c.1
+      ((congrArg (fun m => q.2.val.IsDescendant m c.2.val c.1) hstar.1).mp hdesc)
+      ((congrArg (fun m => x ∈ q.2.val.carrier m) hstar.1).mp hstar.2.2)
+  have hclisted : c.2.val.Lists c.1 x :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_common_vertex
+      U t f hf v hv hz c hbirth hxC
+  obtain ⟨w, hw, hxw⟩ := commonListed_inherited c.2.val q.2.val c.1 q.1 hdesc x
+    hclisted hstar.2.2
+  let w' : VertexName S q.2.val.ty := ⟨w, hw⟩
+  have hwpoint : q.2.val.prototypeFrame q.1 (vertexPoint w') = x := by
+    change x ∈ q.2.val.cell q.1 w'.val at hxw
+    simpa only [FramedNode.cell, vertexPoint_spec w', image_singleton,
+      mem_singleton_iff, eq_comm] using hxw
+  have hwg : w'.val.carrier ⊆ gq.val.carrier := by
+    rw [vertexPoint_spec w', singleton_subset_iff]
+    rw [← hwpoint] at hxg
+    exact (q.2.val.prototypeFrame q.1).injective.mem_set_image.mp hxg
+  have hzero := host_step_step1_seed_step3_restricted_header_step5_zero (P := P)
+    U q gq hg w' hwg (by rw [hwpoint]; exact hclisted)
+  let b : PrimitivePort P := {
+    tile := q.2.val.move t.2.val.frame.symm
+    facet := gq
+    vertex := w'
+    onFacet := hwg
+    incidence := U.recordIncidence P q gq hg
+    sideIndex := U.recordSide P q gq hg
+    side := (U.recordIncidence P q gq hg).val.sideRole (U.recordSide P q gq hg)
+    side_eq := rfl
+    providerVertex := U.recordTau P q gq hg ⟨vertexCell w', hwg⟩
+    provider_zero := hzero }
+  refine ⟨b, (hports b).mpr ?_, hqN, rfl⟩
+  exact ⟨q, hqstar, gq, hg, w', hwg, hwpoint.symm, hbirth,
+    rfl, rfl, rfl, rfl, rfl, rfl⟩
+
 /-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(2b), 3.3, 1.8):
 "among them is a tile t_B ... with a facet piece in f whose closure contains v";
 "the template geometry identifies t_B as a port". Hereditary facet coverage
@@ -5380,12 +5902,65 @@ private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port
           (b.tile, compilerLeaf C t) ∈ T.configuration.tiles ∧
           b.facet.val = g.val ∧ b.vertex.val = v.val ∧
           compilerFrame C t = b.tile.frame.trans φ := by
-  -- In the source realizing T.geometry, a small neighbourhood of the apex
-  -- identifies G with the first-generation facet. In the common affine span,
-  -- the intersection is relatively open. Apply finite hereditary facet covers
-  -- on both sides and actual-tile uniqueness, then select a pair accumulating
-  -- at the apex. Its common native facet is the required primitive port.
-  sorry
+  classical
+  obtain ⟨t, g, hpiece, _, hacc⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step1_piece
+      Y n B f _ _ (Compiler.endVertex φ j) hspan isOpen_interior hnear
+  have hsub : (tileNode t).cell 0 g.val ⊆ t.carrier := by
+    rw [compilerFrame_carrier C t]
+    exact Set.image_mono (host_step_step1_seed_step2_cell_subset _ g.val
+      (Finset.mem_filter.mp g.property).1)
+  have hnearT : Compiler.endVertex φ j ∈ closure
+      (t.carrier ∩ interior (Compiler.endSector φ j)) := by
+    apply closure_mono (t := t.carrier ∩ interior (Compiler.endSector φ j)) ?_ hacc
+    exact fun _ hx => ⟨hsub (intrinsicInterior_subset hx.1.1), hx.2⟩
+  obtain ⟨⟨N, k⟩, hlabel, heq⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step2_template_tile
+      Y l j φ T hactual t hpiece.1 hnearT
+  have hleaf : compilerLeaf C t = k := by
+    rw [heq]
+    exact (compiler_decode_unique C _ _).1
+  have hframe : compilerFrame C t = N.frame.trans φ := by
+    rw [heq]
+    exact (compiler_decode_unique C _ _).2
+  have hnode : tileNode t = N.move φ := by
+    apply FramedNode.ext
+    · change (compilerLeaf C t).prototype = N.ty
+      rw [hleaf]
+      exact (T.configuration.types_match _ hlabel).symm
+    · exact hframe
+  have hN : N ∈ T.geometry.tiles := by
+    rw [← T.tiles_eq]
+    exact Finset.mem_image.mpr ⟨(N, k), hlabel, rfl⟩
+  let gN : FacetName S N.ty := ⟨g.val, by
+    have hty := congrArg FramedNode.ty hnode
+    exact hty ▸ g.property⟩
+  have hcell : (N.move φ).cell 0 gN.val = (tileNode t).cell 0 g.val :=
+    congrArg (fun M : FramedNode S => M.cell 0 g.val) hnode.symm
+  have hvZ : vertexPoint T.geometry.vertex = vertexPoint j.vertex := by
+    have hh := congrArg Cell.carrier T.vertex_eq
+    rw [vertexPoint_spec T.geometry.vertex, vertexPoint_spec j.vertex] at hh
+    exact Set.singleton_injective hh
+  obtain ⟨b, hb, hbN, hbg⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_identify
+      φ T.geometry T.honest_geometry ι G (T.header_eq.symm ▸ hG) N hN gN
+      (by simpa only [hcell, hvZ, Compiler.endVertex] using
+        closure_mono Set.inter_subset_left hacc)
+  have hty : b.tile.ty = (tileNode t).ty := by rw [hbN, hnode]; rfl
+  let v : VertexName S (tileNode t).ty := ⟨b.vertex.val, hty ▸ b.vertex.property⟩
+  have hvpoint : vertexPoint v = vertexPoint b.vertex := by
+    apply Set.singleton_injective
+    exact (vertexPoint_spec v).symm.trans (vertexPoint_spec b.vertex)
+  refine ⟨t, g, v, hpiece, ?_, ?_, b, hb, ?_, hbg, rfl, ?_⟩
+  · exact hbg ▸ b.onFacet
+  · rw [hframe, ← hbN, hvpoint]
+    change φ (b.tile.frame (vertexPoint b.vertex)) = _
+    rw [T.geometry.primitive_anchor b hb, hvZ]
+    rfl
+  · simpa only [hbN, hleaf] using hlabel
+  · rw [hbN]
+    exact hframe
+
 
 /-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(2b), E1):
 "Row (E1) requires τ_{t_B}({v}) = {p′}, a vertex." The exact port-label

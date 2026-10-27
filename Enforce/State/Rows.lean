@@ -4411,6 +4411,298 @@ private theorem honest_rows_step1_cont_geometry (U : HonestSource S) (P : Params
     segment_eq := hsegment
     junction_interior := hjunction }, hθ, hc, hc'⟩
 
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.8):
+"whose record". Read a finite facet record from the actual native pre-pattern. -/
+private theorem honest_rows_step2_cont_labels_step1_read_record
+    (U : HonestSource S) (P : Params S) (q : U.Node) (hq : q.1 = 0)
+    (e : Cell d) (r : FacetRecord P)
+    (hr : leafRecord (leafTypeOf U P q hq) e = some r) :
+    ∃ (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f),
+      f.val = e ∧ r = U.recordOf P q f hf := by
+  unfold leafRecord at hr
+  rw [← prePattern_of_leafType U P q hq] at hr
+  change stateRecordAt (stateOf U P q) e = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  next he =>
+    change e ∈ (S.cx q.2.val.ty).facets at he
+    change U.facetRecordOf P q ⟨e, he⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    next hf => exact ⟨⟨e, he⟩, hf, rfl, (Option.some.inj hr).symm⟩
+  · contradiction
+
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.1):
+"active with induced orientations". Nested cells with equal affine spans inherit
+the successive local sides; containment of their owners also fixes the inward side. -/
+private theorem honest_rows_step2_cont_labels_step2_nested_sides
+    (A B : S.ι) (a : FacetFlag S A) (b : FacetFlag S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d)
+    (hcell : ∀ j, φ '' (a.cell j).val.carrier ⊆ ψ '' (b.cell j).val.carrier)
+    (hspan : ∀ j, affineSpan ℝ (φ '' (a.cell j).val.carrier) =
+      affineSpan ℝ (ψ '' (b.cell j).val.carrier))
+    (howner : φ '' (S.proto A).carrier ⊆ ψ '' (S.proto B).carrier) :
+    (∀ j, φ.linear '' flagSide a j = ψ.linear '' flagSide b j) ∧
+      φ.linear '' tangentCone (S.proto A).carrier (cellAnchor (a.cell facetIndex).val) =
+        ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor (b.cell facetIndex).val) := by
+  -- Equal-dimensional containment puts each smaller anchor in the larger relative interior.
+  -- The two coface germs are half-spaces in the same affine span; inclusion fixes their side.
+  -- The same argument at the top facet uses owner containment for the inward half-space.
+  sorry
+
+/-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.8):
+"both chains lie in the positioned flag ... with its orientations". A common open
+edge portion and matching successive sides give overlapping coface interiors,
+then overlapping owner interiors when their inward sides also match. -/
+private theorem honest_rows_step2_cont_labels_step3_flag_overlap
+    (A B : S.ι) (a : FacetFlag S A) (b : FacetFlag S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d)
+    (hspan : ∀ j, affineSpan ℝ (φ '' (a.cell j).val.carrier) =
+      affineSpan ℝ (ψ '' (b.cell j).val.carrier))
+    (hside : ∀ j, φ.linear '' flagSide a j = ψ.linear '' flagSide b j)
+    (hinward :
+      φ.linear '' tangentCone (S.proto A).carrier (cellAnchor (a.cell facetIndex).val) =
+        ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor (b.cell facetIndex).val))
+    (hedge : (relint (φ '' (a.cell edgeIndex).val.carrier) ∩
+      relint (ψ '' (b.cell edgeIndex).val.carrier)).Nonempty) :
+    (relint (φ '' (a.cell facetIndex).val.carrier) ∩
+      relint (ψ '' (b.cell facetIndex).val.carrier)).Nonempty ∧
+    (interior (φ '' (S.proto A).carrier) ∩ interior (ψ '' (S.proto B).carrier)).Nonempty := by
+  -- Starting at a common relative-interior edge point, pass up one coface at a time.
+  -- Equal side cones give a common relative-interior point in the next cofaces.
+  -- At the top facet, the matching inward sides give a point in both owner interiors.
+  sorry
+
+/-- Step 4 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.8):
+"v in relint h". A cell accumulating at an interior point of a cell in the same
+affine span shares a relative-interior point with it. -/
+private theorem honest_rows_step2_cont_labels_step4_relint_overlap
+    (K L : Set (E d)) (x : E d) (hx : x ∈ closure (relint K))
+    (hL : x ∈ relint L) (hspan : affineSpan ℝ K = affineSpan ℝ L) :
+    (relint K ∩ relint L).Nonempty := by
+  obtain ⟨p, hp, hpx⟩ := hL
+  obtain ⟨ε, hε, hb⟩ := Metric.isOpen_iff.mp isOpen_interior p hp
+  obtain ⟨y, hy, hyx⟩ := Metric.mem_closure_iff.mp hx ε hε
+  have hyspan : y ∈ affineSpan ℝ L := by
+    rw [← hspan]
+    exact subset_affineSpan ℝ K (intrinsicInterior_subset hy)
+  refine ⟨y, hy, ⟨⟨y, hyspan⟩, hb ?_, rfl⟩⟩
+  simpa only [mem_ball, Subtype.dist_eq, hpx, dist_comm] using hyx
+
+/-- Step 5 of the V4 proof of `honest_rows_step2_cont_labels` (V4 1.22(a)):
+"owner ... inside H". A native descendant's support lies in its ancestor. -/
+private theorem honest_rows_step2_cont_labels_step5_native_subset
+    (C N : FramedNode S) (n : ℕ) (h : C.IsDescendant 0 N n) :
+    C.carrier 0 ⊆ N.carrier n := by
+  obtain ⟨r, hr, w, rfl⟩ := h
+  simp only [Nat.zero_add] at hr
+  subst n
+  have hsub : (S.nativeTile N.ty r w).carrier 0 ⊆ S.supertile r N.ty := by
+    rw [← S.native_cover]
+    exact Set.subset_iUnion (fun w : S.RoleWord N.ty r => (S.nativeTile N.ty r w).carrier 0) w
+  simpa only [FramedNode.move, FramedNode.carrier, placedSet, Set.image_image,
+    AffineIsometryEquiv.coe_trans, Function.comp_apply] using Set.image_mono (f := N.frame) hsub
+
+/-- Step 6 of the V4 proof of `honest_rows_step2_cont_labels` (V4 1.22(a), 2.8):
+"same serving child H". An interior point shared with a hierarchy node identifies
+the native tile's ancestor at that height, by disjointness at one level. -/
+private theorem honest_rows_step2_cont_labels_step6_ancestor
+    (U : HonestSource S) (q H : U.Node) (hq : q.1 = 0)
+    (hmeet : (interior (q.2.val.carrier q.1) ∩
+      interior (H.2.val.carrier H.1)).Nonempty) :
+    U.hierarchy.ancestor q H.1 = H := by
+  let Q := U.hierarchy.ancestor q H.1
+  have hheight : Q.1 = H.1 := by
+    simp only [Q, U.hierarchy.ancestor_height, hq, Nat.zero_add]
+  have hsub : q.2.val.carrier q.1 ⊆ Q.2.val.carrier Q.1 := by
+    have hd : q.2.val.IsDescendant 0 Q.2.val Q.1 :=
+      (congrArg (fun n => q.2.val.IsDescendant n Q.2.val Q.1) hq).mp
+        (U.hierarchy.ancestor_descendant q H.1)
+    exact (congrArg (fun n => q.2.val.carrier n) hq).subset.trans
+      (honest_rows_step2_cont_labels_step5_native_subset q.2.val Q.2.val Q.1 hd)
+  obtain ⟨x, hxq, hxH⟩ := hmeet
+  have hval : Q.2.val = H.2.val := by
+    apply U.hierarchy.same_height_disjoint H.1 Q.2.val H.2.val
+      (hheight ▸ Q.2.property) H.2.property x _ hxH
+    exact hheight ▸ interior_mono hsub hxq
+  exact Sigma.ext hheight ((Subtype.heq_iff_coe_eq (by
+    intro N
+    rw [hheight])).mpr hval)
+
+/-- Step 7 of the V4 proof of `honest_rows_step2_cont_labels` (V4 1.1, 1.7(a), 2.8):
+"the facet f'' ... inside g". An inherited facet meeting the provider in its
+relative interior is contained in it and has the same provider and serving node. -/
+private theorem honest_rows_step2_cont_labels_step7_provider
+    (U : HonestSource S) (t q : U.Node) (hq : q.1 = 0)
+    (f : FacetName S t.2.val.ty) (g : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault t f) (hg : ¬ U.hierarchy.IsFault q g)
+    (hanc : U.hierarchy.ancestor q (U.hierarchy.servingChild t f hf).1 =
+      U.hierarchy.servingChild t f hf)
+    (hmeet : (relint (q.2.val.cell q.1 g.val) ∩
+      U.hierarchy.providerCarrier t f hf).Nonempty) :
+    U.hierarchy.providerCarrier q g hg = U.hierarchy.providerCarrier t f hf ∧
+      U.hierarchy.servingChild q g hg = U.hierarchy.servingChild t f hf := by
+  let H := U.hierarchy.servingChild t f hf
+  let F : FacetName S H.2.val.ty := (U.hierarchy.firstProvider t f hf).2
+  have hd : q.2.val.IsDescendant q.1 H.2.val H.1 := by
+    exact (congrArg (fun B : U.Node => q.2.val.IsDescendant q.1 B.2.val B.1) hanc).mp
+      (U.hierarchy.ancestor_descendant q H.1)
+  have hsub : q.2.val.cell q.1 g.val ⊆ H.2.val.cell H.1 F.val :=
+    hereditary_trace H.2.val q.2.val H.1 q.1 hd F.val g.val
+      (Finset.mem_filter.mp F.property).1 (Finset.mem_filter.mp g.property).1 hmeet
+  have hint : relint (H.2.val.cell H.1 F.val) ⊆
+      interior ((U.hierarchy.parentNode H).2.val.carrier (U.hierarchy.parentNode H).1) := by
+    have he : U.hierarchy.ancestor t ((U.hierarchy.firstProvider t f hf).1 + 1) =
+        U.hierarchy.parentNode H := by
+      simp only [H, CoherentHierarchy.servingChild, CoherentHierarchy.ancestor,
+        Function.iterate_succ_apply']
+    exact (congrArg (fun B : U.Node => relint (H.2.val.cell H.1 F.val) ⊆
+      interior (B.2.val.carrier B.1)) he).mp (U.hierarchy.firstProvider_spec t f hf).2.2
+  obtain ⟨hF, hprovider, hbirth, _⟩ := U.hierarchy.restriction_det_internal H F hint
+  obtain ⟨hg', hprovider', hbirth'⟩ :=
+    U.hierarchy.provider_inherited H q H.1 hanc F g hF hsub
+  have hb : U.hierarchy.birthParent q g hg = U.hierarchy.parentNode H :=
+    hbirth'.trans hbirth
+  refine ⟨hprovider'.trans hprovider, ?_⟩
+  have hh := congrArg (fun N : U.Node => N.1) hb
+  change (U.hierarchy.servingChild q g hg).1 + 1 = H.1 + 1 at hh
+  have ha := U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q g hg).1
+  have hoff : (U.hierarchy.firstProvider q g hg).1 = H.1 := by
+    change (U.hierarchy.servingChild q g hg).1 = _ at ha
+    omega
+  simpa only [CoherentHierarchy.servingChild, hoff] using hanc
+
+/-- Step 8 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.8):
+"same provider g, same serving child H". Apply the flag geometry to actual
+records, identify the provider, and read its incidence, role and height residue. -/
+private theorem honest_rows_step2_cont_labels_step8_source_labels
+    (U : HonestSource S) (P : Params S) (t q : U.Node) (ht : t.1 = 0) (hq : q.1 = 0)
+    (f : FacetName S t.2.val.ty) (g : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault t f) (hg : ¬ U.hierarchy.IsFault q g)
+    (r s : FacetRecord P) (hr : r = U.recordOf P t f hf) (hs : s = U.recordOf P q g hg)
+    (c : OrientedChain r.facet) (c' : OrientedChain s.facet) (hc : c ∈ r.chains)
+    (φ : Iso d) (hφ : φ = q.2.val.frame.trans t.2.val.frame.symm)
+    (halign : ChainsAligned r s c c' φ)
+    (v : VertexName S r.ty) (hv : v.val.carrier ⊆ r.facet.val.carrier)
+    (htau : r.tauAt v.val = some ((P.flag r.incidence).flag.cell edgeIndex).val)
+    (hx : vertexPoint v ∈ φ '' (c'.chain.val.cell edgeIndex).val.carrier) :
+    s.incidence = r.incidence ∧ s.side = r.side ∧ s.beta = r.beta := by
+  classical
+  subst r
+  subst s
+  let H := U.hierarchy.servingChild t f hf
+  let τ := t.2.val.prototypeFrame t.1
+  let χ := q.2.val.prototypeFrame q.1
+  have hframe : φ.toAffineEquiv.trans τ = χ := by
+    ext x
+    simp [τ, χ, FramedNode.prototypeFrame, ht, hq, hφ]
+  have himage (K : Set (E d)) : τ '' (φ '' K) = χ '' K := by
+    rw [Set.image_image]
+    change (φ.toAffineEquiv.trans τ) '' K = _
+    rw [hframe]
+  have hlinear (K : Set (E d)) : τ.linear '' (φ.linearIsometryEquiv '' K) =
+      χ.linear '' K := by
+    rw [Set.image_image]
+    change (φ.toAffineEquiv.trans τ).linear '' K = _
+    rw [hframe]
+  have hactive : U.ActiveChain P t f hf c := (Finset.mem_filter.mp hc).2
+  obtain ⟨F, _, hF, _, _⟩ := chain_active_owner U P t f hf c hc
+  have hcells (j : FlagIndex d) :
+      τ '' (c.chain.val.cell j).val.carrier ⊆ H.2.val.cell H.1 (F.cell j).val := by
+    obtain ⟨he, hstr, _⟩ := hactive.1 j
+    have hh := (U.hierarchy.stratumMap_spec t f hf (c.chain.val.cell j) he).1
+    have hsame := hstr.trans (hF j).symm
+    rw [hsame] at hh
+    exact (by simpa only [restrictionOp_source_step5_cell_closure] using closure_mono hh)
+  have hspans (j : FlagIndex d) :
+      affineSpan ℝ (τ '' (c.chain.val.cell j).val.carrier) =
+        affineSpan ℝ (H.2.val.cell H.1 (F.cell j).val) :=
+    (hactive.1 j).choose_spec.2.trans (congrArg (affineSpan ℝ) (hF j).symm)
+  have howner : τ '' (S.proto t.2.val.ty).carrier ⊆
+      H.2.val.prototypeFrame H.1 '' (S.proto H.2.val.ty).carrier := by
+    have hd : t.2.val.IsDescendant 0 H.2.val H.1 :=
+      (congrArg (fun n => t.2.val.IsDescendant n H.2.val H.1) ht).mp
+        (U.hierarchy.ancestor_descendant t (U.hierarchy.firstProvider t f hf).1)
+    have hh := honest_rows_step2_cont_labels_step5_native_subset t.2.val H.2.val H.1 hd
+    simpa only [τ, FramedNode.prototypeFrame, FramedNode.carrier, placedSet,
+      SubstSystem.supertile, Set.image_image, ht] using hh
+  obtain ⟨hsideH, hinwardH⟩ := honest_rows_step2_cont_labels_step2_nested_sides
+    t.2.val.ty H.2.val.ty c.chain.val F τ (H.2.val.prototypeFrame H.1)
+    hcells hspans howner
+  have hspanQ (j : FlagIndex d) :
+      affineSpan ℝ (τ '' (c.chain.val.cell j).val.carrier) =
+        affineSpan ℝ (χ '' (c'.chain.val.cell j).val.carrier) := by
+    have hh := congrArg (AffineSubspace.map τ.toAffineMap) (halign.1 j)
+    simp only [AffineSubspace.map_span] at hh
+    change affineSpan ℝ (τ '' (c.chain.val.cell j).val.carrier) =
+      affineSpan ℝ (τ '' (φ '' (c'.chain.val.cell j).val.carrier)) at hh
+    rwa [himage] at hh
+  have hsideQ (j : FlagStep d) :
+      τ.linear '' flagSide c.chain.val j = χ.linear '' flagSide c'.chain.val j := by
+    simpa only [hlinear] using congrArg (fun K => τ.linear '' K) (halign.2.1 j)
+  have hinwardQ :
+      τ.linear '' tangentCone (S.proto t.2.val.ty).carrier
+          (cellAnchor (c.chain.val.cell facetIndex).val) =
+        χ.linear '' tangentCone (S.proto q.2.val.ty).carrier
+          (cellAnchor (c'.chain.val.cell facetIndex).val) := by
+    simpa only [c.chain.property, c'.chain.property, hlinear] using
+      congrArg (fun K => τ.linear '' K) halign.2.2.2
+  have hvcell : v.val ∈ (S.cx t.2.val.ty).cells := (Finset.mem_filter.mp v.property).1
+  have hτ : (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val =
+      ((P.flag (U.recordIncidence P t f hf)).flag.cell edgeIndex).val := by
+    unfold FacetRecord.tauAt at htau
+    split at htau
+    · exact Option.some.inj htau
+    next hn => exact (hn hvcell).elim
+  have hvertex : τ (vertexPoint v) ∈ relint (t.2.val.cell t.1 v.val) := by
+    rw [FramedNode.cell, vertexPoint_spec, Set.image_singleton]
+    simp only [relint, intrinsicInterior_singleton, Set.mem_singleton_iff]
+    rfl
+  have hxH : τ (vertexPoint v) ∈ relint (H.2.val.cell H.1 (F.cell edgeIndex).val) := by
+    have hh := (U.hierarchy.stratumMap_spec t f hf (vertexCell v)
+      (U.cellInFacet_placed t f ⟨vertexCell v, hv⟩)).1 hvertex
+    have hsame := (record_tau_spec U P t f hf ⟨vertexCell v, hv⟩).symm
+    change H.2.val.cell H.1 _ = U.providerPlacement P t f hf ''
+      (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val.carrier at hsame
+    rw [hτ, ← hF edgeIndex] at hsame
+    exact hsame ▸ hh
+  have hxQ : τ (vertexPoint v) ∈ χ '' (c'.chain.val.cell edgeIndex).val.carrier := by
+    rw [← himage]
+    exact Set.mem_image_of_mem τ hx
+  have hedge : (relint (χ '' (c'.chain.val.cell edgeIndex).val.carrier) ∩
+      relint (H.2.val.cell H.1 (F.cell edgeIndex).val)).Nonempty := by
+    apply honest_rows_step2_cont_labels_step4_relint_overlap _ _ (τ (vertexPoint v))
+      _ hxH ((hspanQ edgeIndex).symm.trans (hspans edgeIndex))
+    change τ (vertexPoint v) ∈ closure (relint (q.2.val.cell q.1 _))
+    rw [restrictionOp_source_step5_cell_closure]
+    exact hxQ
+  obtain ⟨hfacet, htiles⟩ := honest_rows_step2_cont_labels_step3_flag_overlap
+    q.2.val.ty H.2.val.ty c'.chain.val F χ (H.2.val.prototypeFrame H.1)
+    (fun j => (hspanQ j).symm.trans (hspans j))
+    (fun j => (hsideQ j).symm.trans (hsideH j)) (hinwardQ.symm.trans hinwardH) hedge
+  have hanc : U.hierarchy.ancestor q H.1 = H := by
+    apply honest_rows_step2_cont_labels_step6_ancestor U q H hq
+    simpa only [χ, FramedNode.prototypeFrame, FramedNode.carrier, placedSet,
+      SubstSystem.supertile, Set.image_image] using htiles
+  have htop : H.2.val.cell H.1 (F.cell facetIndex).val =
+      U.hierarchy.providerCarrier t f hf := by
+    rw [hF facetIndex, (P.flag (U.recordIncidence P t f hf)).top]
+    exact record_provider_carrier U P t f hf
+  have hmeet : (relint (q.2.val.cell q.1 g.val) ∩
+      U.hierarchy.providerCarrier t f hf).Nonempty := by
+    obtain ⟨y, hyq, hyH⟩ := hfacet
+    refine ⟨y, ?_, htop ▸ intrinsicInterior_subset hyH⟩
+    simpa only [c'.chain.property] using hyq
+  obtain ⟨hprovider, hserving⟩ :=
+    honest_rows_step2_cont_labels_step7_provider U t q hq f g hf hg hanc hmeet
+  refine ⟨restrictionOp_source_step4_provider_name P U q t g f hg hf
+    (congrArg U.hierarchy.parentNode hserving) hprovider, ?_, ?_⟩
+  · exact (record_side_spec U P q g hg).trans
+      ((congrArg U.hierarchy.nodeRole hserving).trans (record_side_spec U P t f hf).symm)
+  · apply Fin.ext
+    exact congrArg (fun N : U.Node => N.1 % P.L) hserving
+
 /-- Step 2 of the V4 proof of `honest_rows` (V4 2.8): "by Remark 2.1 (converse part) $e''$ is
 a chain-active edge of the facet $f''$ of $t''$ inside $g$, whose record has the same $\iota$,
 side and $\beta$ (same provider $g$, same serving child $H$)". -/
@@ -4420,7 +4712,24 @@ private theorem honest_rows_step2_cont_labels (U : HonestSource S) (P : Params S
     (hc : T.centralChain ∈ slot.record.chains) (ho : T.otherChain ∈ T.record.chains) :
     T.record.incidence = slot.record.incidence ∧ T.record.side = slot.record.side ∧
       T.record.beta = slot.record.beta := by
-  sorry
+  obtain ⟨q, hq, hother, hlabel⟩ := hT.2 _ T.other_mem
+  obtain ⟨f, hf, _, hr⟩ := honest_rows_step2_cont_labels_step1_read_record
+    U P t ht slot.facet.val slot.record slot.record_eq
+  have hread : leafRecord (leafTypeOf U P q hq) T.record.facet.val = some T.record := by
+    exact (congrArg (fun l => leafRecord l T.record.facet.val) hlabel).symm.trans T.record_eq
+  obtain ⟨g, hg, _, hs⟩ := honest_rows_step2_cont_labels_step1_read_record
+    U P q hq T.record.facet.val T.record hread
+  apply honest_rows_step2_cont_labels_step8_source_labels U P t q ht hq f g hf hg
+    slot.record T.record hr hs T.centralChain T.otherChain hc T.other.frame
+    (congrArg FramedNode.frame hother) T.aligned slot.vertex slot.onFacet slot.tau_edge
+  refine ⟨vertexPoint T.vertex, ?_, T.vertex_eq⟩
+  rw [T.other_edge, T.initial]
+  have he := (Classical.choose_spec (edge_endpoints_exist ⟨T.record.ty, T.edge⟩)).2
+  rw [he]
+  dsimp only [FacetRecord.endpoints]
+  split_ifs
+  · exact left_mem_segment ℝ _ _
+  · exact right_mem_segment ℝ _ _
 
 /-- Step 1 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
 "both profiles are restrictions of the same site system". A finite readout of an

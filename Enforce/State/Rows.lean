@@ -5593,6 +5593,34 @@ private theorem honest_rows_step7_end_E3 (U : HonestSource S) (P : Params S) (t 
         exact honest_rows_step7_end_E3_step5_shift U P gF g _
           (honest_rows_step7_end_E3_step4_uncapped_birth U P B F' hF hage)
 
+/-- Step 1 of the V4 proof of `honest_rows_step8_end_E4` (V4 2.8):
+"the heads of first-generation facets of P are S(P)". The packet read from an
+actual native leaf is the packet of its facet's provider occurrence. -/
+private theorem honest_rows_step8_end_E4_step1_packet (U : HonestSource S) (P : Params S)
+    (q : U.Node) (hq : q.1 = 0) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) :
+    leafPacket (leafTypeOf U P q hq) f.val =
+      some (packetOf U P (U.providerOccurrence P q f hf)) := by
+  unfold leafPacket
+  rw [← prePattern_of_leafType U P q hq]
+  simp only [prePatternOf, dif_pos f.property, HonestSource.facetPacket, dif_neg hf]
+
+/-- Step 2 of the V4 proof of `honest_rows_step8_end_E4` (V4 2.8):
+"the slots are the ancestors' states". Two primitive occurrences with the same
+birth parent decode to the same state at every common PRESENT index. -/
+private theorem honest_rows_step8_end_E4_step2_present (U : HonestSource S) (P : Params S)
+    (g g' : PrimitiveOccurrence U P) (hb : g.birth = g'.birth) :
+    AgreePresent (packetOf U P g) (packetOf U P g') := by
+  intro j s s' hs hs'
+  rw [decode_spec] at hs hs'
+  split at hs
+  · split at hs'
+    · have h := Option.some.inj hs
+      rw [hb] at h
+      exact h.symm.trans (Option.some.inj hs')
+    · contradiction
+  · contradiction
+
 /-- Step 8 of the V4 proof of `honest_rows` (V4 2.8): "(E4): the heads of first-generation
 facets of $P$ are $S(P)$ and the slots are the ancestors' states." -/
 private theorem honest_rows_step8_end_E4 (U : HonestSource S) (P : Params S) (t : U.Node)
@@ -5603,7 +5631,31 @@ private theorem honest_rows_step8_end_E4 (U : HonestSource S) (P : Params S) (t 
     (hvv : v.val = slot.vertex.val)
     (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
     endRow_E4 T := by
-  sorry
+  have hports : ∀ a ∈ T.geometry.primitivePorts, ∀ u : LeafType P,
+      (a.tile, u) ∈ T.configuration.tiles → ∃ g : PrimitiveOccurrence U P,
+        g.birth = U.hierarchy.birthParent t f hf ∧
+          leafPacket u a.facet.val = some (packetOf U P g) := by
+    intro a ha u hu
+    obtain ⟨q, hq, g, hg, w, hw, _, hbirth, htile, hfacet, _⟩ :=
+      (hreal.2.2.2.2.1 a).mp ha
+    have howned : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+        (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+      simpa only [ownedStar, Set.Finite.mem_toFinset] using hq
+    have hlabel : u = leafTypeOf U P q howned.1 :=
+      honest_rows_step5_end_E1_step1_label U P t ht T.configuration hT q howned.1 u
+        (by simpa only [htile] using hu)
+    refine ⟨U.providerOccurrence P q g hg, hbirth, ?_⟩
+    rw [hlabel, hfacet]
+    exact honest_rows_step8_end_E4_step1_packet U P q howned.1 g hg
+  intro a ha u hu
+  obtain ⟨g, hg, hpacket⟩ := hports a ha u hu
+  refine ⟨packetOf U P g, hpacket, ?_, ?_⟩
+  · rw [packet_head, hg, honest_rows_step5_end_E1_step2_head U P t ht slot f hf hfv]
+  · intro b hb u' hu' q' hq'
+    obtain ⟨g', hg', hpacket'⟩ := hports b hb u' hu'
+    have hq : q' = packetOf U P g' := Option.some.inj (hq'.symm.trans hpacket')
+    rw [hq]
+    exact honest_rows_step8_end_E4_step2_present U P g g' (hg.trans hg'.symm)
 
 /-- Step 9 of the V4 proof of `honest_rows` (V4 2.8): "(E5): $E_P(F,F')$ means coalescence
 of the tracks, hence the same provider occurrence and the same packet, or both NULL." -/

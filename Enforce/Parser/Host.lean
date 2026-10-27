@@ -3183,6 +3183,171 @@ private theorem host_step_step2_strand_step2_terminal_bound
   rw [hedge, hflag]
   exact Set.image_mono (fun _ ht => ⟨hxL.1.trans ht.1, ht.2.trans hyL⟩)
 
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step2_terminal_counter` (V4 3.6, Step 1):
+"their (S6) record is the header of σ A_P ... in t's frame".
+The restriction theorem identifies the header of any END slot on the actual
+facet piece, not just the particular slot chosen when constructing the event. -/
+private theorem host_step_step2_strand_step2_terminal_counter_step1_header
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f) (p : E d) (hp : B.node.Lists n p)
+    (t : PlacedMarkedTile (systemM S P C)) (j : EndSlot (compilerLeaf C t))
+    (hpiece : Parser.IsFacetPiece Y n B.node f t j.facet)
+    (hj : Compiler.endVertex (compilerFrame C t) j = p) :
+    j.header = host_step_step1_seed_step1_header (proposedParent D B hB) n
+      (compilerFrame C t) p := by
+  have cell_ext (e e' : Cell d) (h : e.carrier = e'.carrier) : e = e' := by
+    rcases e with ⟨K, k, hk⟩
+    rcases e' with ⟨K', k', hk'⟩
+    cases h
+    have hd : k = k' := hk.dimension.symm.trans hk'.dimension
+    cases hd
+    rfl
+  let v : VertexName S (tileNode t).ty :=
+    ⟨j.vertex.val, by change _ ∈ (S.cx (compilerLeaf C t).prototype).vertices
+                      rw [← j.type_eq]; exact j.vertex.property⟩
+  have hv : v.val.carrier ⊆ j.facet.val.carrier := by
+    simpa only [v, j.facet_eq] using j.onFacet
+  have hvp : vertexPoint v = vertexPoint j.vertex := by
+    apply Set.singleton_injective
+    exact (vertexPoint_spec v).symm.trans (vertexPoint_spec j.vertex)
+  obtain ⟨j', hfacet, hpoint, _, _, hheader⟩ :=
+    host_step_step1_seed_step3_restricted_header Y n D hD B hB f a p hp
+      t j.facet v hpiece hv (by simpa only [hvp] using hj)
+  have hvertex : j'.vertex.val = j.vertex.val := by
+    apply cell_ext
+    rw [vertexPoint_spec, vertexPoint_spec]
+    exact congrArg (fun x : E d => ({x} : Set (E d)))
+      ((compilerFrame C t).injective (hpoint.trans hj.symm))
+  have hread := j'.header_eq
+  rw [hvertex, hfacet] at hread
+  exact (Option.some.inj (j.header_eq.symm.trans hread)).trans hheader
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step2_terminal_counter` (V4 3.6, F1 and 2a):
+"u_m has interior points in int(p_N + G_p_N) ... arbitrarily close to p_N".
+This is only the flag-displacement assertion for a native geometric tile.
+It assumes neither an output tiling nor an END template or counter row. -/
+private theorem host_step_step2_strand_step2_terminal_counter_step2_sector
+    (Q : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) (hι : ι.val.ty = Q.ty)
+    (N : FramedNode S) (z : host_step_Chain P) (hty : z.1.ty = N.ty)
+    (halign : host_step_aligned
+      ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)) n ι b N 0 z)
+    (hsub : N.cell 0 (host_step_edge z).val ⊆ host_step_flagEdge
+      ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)) n ι b)
+    (hterminal : N.prototypeFrame 0 (z.1.endpoints (host_step_edge z)).2 =
+      P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal) :
+    let p := P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal
+    ∀ ε : ℝ, 0 < ε →
+      (interior (N.carrier 0) ∩
+        interior ((fun v => p + v) '' tangentCone (Q.carrier (n + 1)) p) ∩
+        ball p ε).Nonempty := by
+  -- Move backwards along the nondegenerate terminal edge, then into the
+  -- successive flag cells on their common recorded sides, and finally into
+  -- the selected child side. The same displacements enter N and Q. At the
+  -- endpoint, their directions are interior directions of the parent cone.
+  sorry
+
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step2_terminal_counter` (V4 3.6, 2a):
+"u_m is a port on g at p_N". In a complete honest annotated star, a listed
+tile with the aligned facet germ is one of the primitive ports on that
+incidence. This identifies geometry only; no leaf label or END row is assumed. -/
+private theorem host_step_step2_strand_step2_terminal_counter_step3_primitive_port
+    (Q : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool) (hι : ι.val.ty = Q.ty)
+    (φ : Iso d) (Z : EndGeometry P) (hZ : Z ∈ honestEndGeometries S P)
+    (hheader : Z.header = host_step_step1_seed_step1_header Q n φ
+      (P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal))
+    (hapex : φ (vertexPoint Z.vertex) =
+      P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal)
+    (N : FramedNode S) (hN : N ∈ Z.tiles)
+    (z : host_step_Chain P) (hty : z.1.ty = N.ty)
+    (halign : host_step_aligned
+      ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)) n ι b
+      (N.move φ) 0 z)
+    (hsub : (N.move φ).cell 0 (host_step_edge z).val ⊆ host_step_flagEdge
+      ((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)) n ι b)
+    (hterminal : (N.frame.trans φ) (z.1.endpoints (host_step_edge z)).2 =
+      P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal) :
+    ∃ port ∈ Z.primitivePorts,
+      port.tile = N ∧ port.facet.val = z.1.facet.val ∧ port.incidence = ι := by
+  -- In the honest realization of Z, the header identifies the primitive
+  -- facet germ. Flag displacements put the tile's facet on that germ;
+  -- hereditary facet dichotomy identifies its first-generation provider.
+  -- The primitive-port biconditional in EndGeometryRealizes then lists it.
+  sorry
+
+/-- Step 4 of the V4 proof of `host_step_step2_strand_step2_terminal_counter` (V4 3.6, F2):
+"realised at v by u's frame". Radial tangent cones commute with an
+invertible affine change of frame, using its linear part on directions. -/
+private theorem host_step_step2_strand_step2_terminal_counter_step4_tangent_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) (x : E d) :
+    tangentCone (e '' K) (e x) = e.linear '' tangentCone K x := by
+  have hmap (y u : E d) (t : ℝ) : e (y + t • u) = e y + t • e.linear u := by
+    simpa only [vadd_eq_add, add_comm, map_smul] using e.map_vadd y (t • u)
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hu⟩
+    refine ⟨e.linear.symm u, ⟨ε, hε, ?_⟩, e.linear.apply_symm_apply u⟩
+    intro t ht htε
+    apply e.injective.mem_set_image.mp
+    simpa only [hmap, e.linear.apply_symm_apply] using hu t ht htε
+  · rintro ⟨u, ⟨ε, hε, hu⟩, rfl⟩
+    refine ⟨ε, hε, ?_⟩
+    intro t ht htε
+    rw [← hmap]
+    exact Set.mem_image_of_mem e (hu t ht htε)
+
+/-- Step 4 of the V4 proof of `host_step_step2_strand_step2_terminal_counter` (V4 3.6, 2c):
+"e_s is a chain-active edge at p_N along h". A nondegenerate subsegment
+ending at the same endpoint has exactly the same radial tangent ray there. -/
+private theorem host_step_step2_strand_step2_terminal_counter_step4_terminal_germ
+    (p₀ p q : E d) (hq : q ∈ segment ℝ p₀ p) (hne : q ≠ p) :
+    tangentCone (segment ℝ q p) p = tangentCone (segment ℝ p₀ p) p := by
+  have hsubset : segment ℝ q p ⊆ segment ℝ p₀ p :=
+    (convex_segment p₀ p).segment_subset hq (right_mem_segment ℝ p₀ p)
+  rw [segment_symm, segment_eq_image'] at hq
+  obtain ⟨a, ha, heq⟩ := hq
+  have hapos : 0 < a := by
+    apply lt_of_le_of_ne ha.1
+    intro he
+    apply hne
+    simpa only [← he, zero_smul, add_zero] using heq.symm
+  have hcontract (x : E d) (hx : x ∈ segment ℝ p₀ p) :
+      p + a • (x - p) ∈ segment ℝ q p := by
+    rw [segment_symm, segment_eq_image'] at hx ⊢
+    obtain ⟨b, hb, rfl⟩ := hx
+    refine ⟨b, hb, ?_⟩
+    rw [← heq]
+    simp only [add_sub_cancel_left, smul_smul, mul_comm]
+  apply Set.Subset.antisymm
+  · rintro v ⟨ε, hε, hv⟩
+    exact ⟨ε, hε, fun t ht htε => hsubset (hv t ht htε)⟩
+  · rintro v ⟨ε, hε, hv⟩
+    refine ⟨a * ε, mul_pos hapos hε, ?_⟩
+    intro t ht htε
+    have hm := hcontract _ (hv (t / a) (div_pos ht hapos)
+      ((div_lt_iff₀ hapos).mpr (by simpa only [mul_comm] using htε)))
+    simpa only [add_sub_cancel_left, smul_smul, mul_div_cancel₀ _ hapos.ne'] using hm
+
+/-- Step 5 of the V4 proof of `host_step_step2_strand_step2_terminal_counter` (V4 3.6, 2c; 2.5 E2):
+"(E2) at θ_N gives κ⁺(e_s)=N". Once the primitive port and its terminal
+flag ray are identified, the conclusion is exactly the endpoint-counter row. -/
+private theorem host_step_step2_strand_step2_terminal_counter_step5_row
+    {l : LeafType P} {j : EndSlot l} (T : EndTemplate j) (hrow : endRow T)
+    (port : PrimitivePort P) (hport : port ∈ T.geometry.primitivePorts)
+    (l' : LeafType P) (hl' : (port.tile, l') ∈ T.configuration.tiles)
+    (z : host_step_Chain P) (hr : leafRecord l' port.facet.val = some z.1)
+    (hc : z.2 ∈ z.1.chains) (G : State.FlagTangent (d := d))
+    (hG : T.geometry.header.flagTangent port.incidence = some G)
+    (hi : G.initial = false)
+    (hx : vertexPoint T.geometry.vertex ∈
+      placedSet port.tile.frame (host_step_edge z).val.carrier)
+    (hray : tangentCone (placedSet port.tile.frame (host_step_edge z).val.carrier)
+      (vertexPoint T.geometry.vertex) = G.cones edgeIndex) :
+    z.1.kappaPlus (host_step_edge z) = P.N := by
+  have h := (hrow.2.1.2 port hport l' hl' z.1 hr G hG).2
+    (host_step_edge z) ⟨z.2, hc, rfl⟩ hx hray
+  simpa only [hi, Bool.false_eq_true, ite_false] using h
+
 /-- Step 2 of the V4 proof of `host_step_step2_strand` (V4 3.6(2c)):
 "(E2) at θ_N gives κ⁺(e_s)=N". This is the terminal END row for
 one aligned port ending at p_N, independently of how the port was reached. -/
@@ -3203,7 +3368,140 @@ private theorem host_step_step2_strand_step2_terminal_counter
       host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
         (!a.record.sideIndex) (P.flag a.record.incidence).terminal) :
     u.2.1.kappaPlus (host_step_edge u.2) = P.N := by
-  sorry
+  classical
+  let Q := proposedParent D B hB
+  let H := proposedSibling D B hB f a
+  let ι := a.record.incidence
+  let b := !a.record.sideIndex
+  let p := P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal
+  have hframe : host_step_flagFrame H n ι b = P.incidencePlacement Q (n + 1) ι :=
+    host_step_step1_seed_step1_flag_frame Q n ι b
+  have hι : ι.val.ty = Q.ty := (Parser.ageOneFacet_semantics D hD B hB f a).2.1
+  change (host_step_portEnds u).2 = host_step_flagFrame H n ι b (P.flag ι).terminal
+    at hterminal
+  have hterminal' : (host_step_portEnds u).2 = p := by
+    exact hterminal.trans (congrArg (fun e : E d ≃ᵃ[ℝ] E d => e (P.flag ι).terminal) hframe)
+  obtain ⟨t, ht, j, θ, hpiece, hj, hsector, hθ, hactual⟩ := hend
+  change Compiler.endVertex (compilerFrame C t) j =
+    host_step_flagFrame H n ι b (P.flag ι).terminal at hj
+  have hj' : Compiler.endVertex (compilerFrame C t) j = p := by
+    simpa only [hframe] using hj
+  have hpflag : p = host_step_flagFrame H n ι b (P.flag ι).terminal := by
+    rw [hframe]
+  have hp : B.node.Lists n p :=
+    (host_step_step1_seed_step2_endpoint_piece Y n D hD B hB f a p (Or.inr hpflag)).1
+  have hh := host_step_step2_strand_step2_terminal_counter_step1_header
+    Y n D hD B hB f a p hp t j hpiece hj'
+  change j.header = host_step_step1_seed_step1_header Q n (compilerFrame C t) p at hh
+  obtain ⟨T, rfl, hrow⟩ := hθ
+  rcases hu with ⟨hut, hread, hty, hc, hinc, hside, hβ, halign, hpacket⟩
+  have hnear := host_step_step2_strand_step2_terminal_counter_step2_sector
+    Q n ι b hι (tileNode u.1) u.2 hty halign hsub
+    (by simpa [FramedNode.prototypeFrame, tileNode, host_step_portEnds] using hterminal')
+  have hcarrier : (tileNode u.1).carrier 0 = u.1.carrier := by
+    rw [compilerFrame_carrier C u.1]
+    simp [tileNode, FramedNode.carrier, SubstSystem.supertile, placedSet]
+  change Compiler.endSector (compilerFrame C t) j =
+    (fun v => host_step_flagFrame H n ι b (P.flag ι).terminal + v) ''
+      tangentCone (Q.carrier (n + 1)) (host_step_flagFrame H n ι b (P.flag ι).terminal)
+    at hsector
+  rw [hframe] at hsector
+  have hnear' : Parser.ApproachesSector u.1 (Compiler.endVertex (compilerFrame C t) j)
+      (Compiler.endSector (compilerFrame C t) j) := by
+    intro ε hε
+    rw [hj', hsector]
+    simpa only [hframe, hcarrier] using hnear ε hε
+  obtain ⟨⟨⟨N, l'⟩, hNl, hplaced⟩, _, _⟩ :=
+    trigger_coverage Y hY t ht j T.configuration ⟨T, rfl, hrow⟩ hactual u.1 hut hnear'
+  have hleaf : compilerLeaf C u.1 = l' := by
+    rw [hplaced]
+    exact (compiler_decode_unique C _ _).1
+  have hφ : compilerFrame C u.1 = N.frame.trans (compilerFrame C t) := by
+    rw [hplaced]
+    exact (compiler_decode_unique C _ _).2
+  have hnode : tileNode u.1 = N.move (compilerFrame C t) := by
+    apply FramedNode.ext
+    · change (compilerLeaf C u.1).prototype = N.ty
+      rw [hleaf]
+      exact (T.configuration.types_match _ hNl).symm
+    · exact hφ
+  have hN : N ∈ T.geometry.tiles := by
+    rw [← T.tiles_eq]
+    exact Finset.mem_image.mpr ⟨(N, l'), hNl, rfl⟩
+  have hvertex : vertexPoint T.geometry.vertex = vertexPoint j.vertex := by
+    apply Set.singleton_injective
+    exact (vertexPoint_spec T.geometry.vertex).symm.trans
+      ((congrArg Cell.carrier T.vertex_eq).trans (vertexPoint_spec j.vertex))
+  have hapex : compilerFrame C t (vertexPoint T.geometry.vertex) = p := by
+    rw [hvertex]
+    exact hj'
+  obtain ⟨port, hport, hportN, hfacet, hportι⟩ :=
+    host_step_step2_strand_step2_terminal_counter_step3_primitive_port
+      Q n ι b hι (compilerFrame C t) T.geometry T.honest_geometry
+      (T.header_eq.trans hh) hapex N hN u.2
+      (by simpa only [hnode, FramedNode.move] using hty)
+      (by simpa only [hnode] using halign)
+      (by simpa only [host_step_portEdge, hnode] using hsub)
+      (by simpa only [host_step_portEnds, hφ] using hterminal')
+  have hstart : (host_step_portEnds u).1 ∈ host_step_flagEdge H n ι b :=
+    hsub (by rw [host_step_step2_strand_step1_port_segment]; exact left_mem_segment ℝ _ _)
+  have hne : (host_step_portEnds u).1 ≠ p := by
+    obtain ⟨ε, hε, hlength⟩ := host_step_step2_strand_step1_native_length (C := C)
+    intro heq
+    have hlen := hlength u
+    rw [hterminal', heq, dist_self] at hlen
+    exact (not_le_of_gt hε) hlen
+  have hray : tangentCone (host_step_portEdge u) p =
+      tangentCone (host_step_flagEdge H n ι b) p := by
+    rw [host_step_step2_strand_step1_port_segment, hterminal',
+      host_step_step2_strand_step1_flag_segment, hframe]
+    apply host_step_step2_strand_step2_terminal_counter_step4_terminal_germ _ p _ _ hne
+    simpa only [host_step_step2_strand_step1_flag_segment, hframe] using hstart
+  have hflag : host_step_flagEdge H n ι b =
+      P.incidencePlacement Q (n + 1) ι '' ((P.flag ι).flag.cell edgeIndex).val.carrier := by
+    rw [host_step_step2_strand_step1_flag_segment, hframe, (P.flag ι).edge_eq]
+    exact (image_segment ℝ (P.incidencePlacement Q (n + 1) ι).toAffineMap _ _).symm
+  let G : State.FlagTangent (d := d) := {
+    cones := fun k => (compilerFrame C t).linearIsometryEquiv.symm ''
+      tangentCone (P.incidencePlacement Q (n + 1) ι '' ((P.flag ι).flag.cell k).val.carrier) p
+    initial := false
+    sides := fun k => (compilerFrame C t).linearIsometryEquiv.symm ''
+      ((P.incidencePlacement Q (n + 1) ι).linear '' (P.flag ι).sides k) }
+  have hpne : P.incidencePlacement Q (n + 1) ι (P.flag ι).terminal ≠
+      P.incidencePlacement Q (n + 1) ι (P.flag ι).initial :=
+    (P.incidencePlacement Q (n + 1) ι).injective.ne (P.flag ι).distinct.symm
+  have hG : T.geometry.header.flagTangent ι = some G := by
+    rw [T.header_eq, hh]
+    simp [host_step_step1_seed_step1_header, G, p, hι, hpne]
+  have hGcone : G.cones edgeIndex = (compilerFrame C t).linearIsometryEquiv.symm ''
+      tangentCone (host_step_flagEdge H n ι b) p := by
+    rw [hflag]
+  let K := placedSet port.tile.frame (host_step_edge u.2).val.carrier
+  have hphysical : compilerFrame C t '' K = host_step_portEdge u := by
+    rw [host_step_portEdge, hnode]
+    simp [K, hportN, placedSet, FramedNode.cell, FramedNode.prototypeFrame,
+      FramedNode.move, Set.image_image]
+  have hx : vertexPoint T.geometry.vertex ∈ K := by
+    apply (compilerFrame C t).injective.mem_set_image.mp
+    rw [hapex, hphysical, ← hterminal', host_step_step2_strand_step1_port_segment]
+    exact right_mem_segment ℝ _ _
+  have htransport : tangentCone (host_step_portEdge u) p =
+      (compilerFrame C t).linearIsometryEquiv ''
+        tangentCone K (vertexPoint T.geometry.vertex) := by
+    have he := host_step_step2_strand_step2_terminal_counter_step4_tangent_image
+      (compilerFrame C t).toAffineEquiv K (vertexPoint T.geometry.vertex)
+    change tangentCone (compilerFrame C t '' K)
+      (compilerFrame C t (vertexPoint T.geometry.vertex)) =
+        (compilerFrame C t).linearIsometryEquiv ''
+          tangentCone K (vertexPoint T.geometry.vertex) at he
+    rwa [hphysical, hapex] at he
+  have hlocalray : tangentCone K (vertexPoint T.geometry.vertex) = G.cones edgeIndex := by
+    rw [hGcone, ← hray, htransport]
+    simp only [Set.image_image, LinearIsometryEquiv.symm_apply_apply, Set.image_id']
+  apply host_step_step2_strand_step2_terminal_counter_step5_row T hrow port hport l'
+    (by simpa only [hportN] using hNl) u.2
+    (by simpa only [hfacet, hleaf] using hread) hc G
+    (by simpa only [hportι] using hG) rfl hx hlocalray
 
 /-- Step 3 of the V4 proof of `host_step_step2_strand` (V4 3.6(2b)):
 "No false interior endpoint". An END record at an interior point would

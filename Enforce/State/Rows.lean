@@ -4468,10 +4468,21 @@ private theorem honest_rows_step2_cont_labels_step2_nested_sides
     (∀ j, φ.linear '' flagSide a j = ψ.linear '' flagSide b j) ∧
       φ.linear '' tangentCone (S.proto A).carrier (cellAnchor (a.cell facetIndex).val) =
         ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor (b.cell facetIndex).val) := by
-  -- Equal-dimensional containment puts each smaller anchor in the larger relative interior.
-  -- The two coface germs are half-spaces in the same affine span; inclusion fixes their side.
-  -- The same argument at the top facet uses owner containment for the inward half-space.
-  sorry
+  classical
+  have hrel (j : FlagIndex d) :
+      relint (φ '' (a.cell j).val.carrier) ⊆ relint (ψ '' (b.cell j).val.carrier) := by
+    unfold relint intrinsicInterior
+    rw [hspan j]
+    exact Set.image_mono (interior_mono (Set.preimage_mono (hcell j)))
+  constructor
+  · intro j
+    exact actualCont_exists_step5_coface_side a b φ ψ j
+      (hrel _) (hrel _) (hspan _) (hspan _)
+  · let f : FacetName S A := ⟨(a.cell facetIndex).val,
+      Finset.mem_filter.mpr ⟨(a.cell facetIndex).property, a.dimension facetIndex⟩⟩
+    let g : FacetName S B := ⟨(b.cell facetIndex).val,
+      Finset.mem_filter.mpr ⟨(b.cell facetIndex).property, b.dimension facetIndex⟩⟩
+    exact actualCont_exists_step5_inward f g φ ψ howner (hrel facetIndex)
 
 /-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.8):
 "both chains lie in the positioned flag ... with its orientations". A common open

@@ -7541,6 +7541,18 @@ private theorem honest_rows_step8_end_E4 (U : HonestSource S) (P : Params S) (t 
     rw [hq]
     exact honest_rows_step8_end_E4_step2_present U P g g' (hg.trans hg'.symm)
 
+/-- Step 1 of the V4 proof of `honest_rows_step9_end_E5` (V4 2.8):
+"coalescence of the tracks, hence the same provider occurrence and the same packet,
+or both NULL". Both tracks inherit the packet of their common ancestor facet. -/
+private theorem honest_rows_step9_end_E5_step1_coalescence (U : HonestSource S)
+    (P : Params S) (q : U.Node) (f g : FacetName S q.2.val.ty)
+    (hE : stateEAt (stateOf U P q) f.val g.val) :
+    U.facetPacket P q f = U.facetPacket P q g := by
+  obtain ⟨_, _, hE⟩ := hE
+  obtain ⟨a, _, F, hf, hg⟩ := (U.mem_coalescenceTable q f g).mp hE
+  exact (packet_inherited U P (U.hierarchy.ancestor q a) q a rfl F f hf).trans
+    (packet_inherited U P (U.hierarchy.ancestor q a) q a rfl F g hg).symm
+
 /-- Step 9 of the V4 proof of `honest_rows` (V4 2.8): "(E5): $E_P(F,F')$ means coalescence
 of the tracks, hence the same provider occurrence and the same packet, or both NULL." -/
 private theorem honest_rows_step9_end_E5 (U : HonestSource S) (P : Params S) (t : U.Node)
@@ -7551,7 +7563,36 @@ private theorem honest_rows_step9_end_E5 (U : HonestSource S) (P : Params S) (t 
     (hvv : v.val = slot.vertex.val)
     (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
     endRow_E5 T := by
-  sorry
+  intro a ha b hb hE u u' hu hu'
+  obtain ⟨q, hq, F, g, w, _, _, hsub, htile, hfacet, _, hparent, path, hp, _⟩ :=
+    (hreal.2.2.2.2.2 a).mp ha
+  obtain ⟨q', hq', F', g', w', _, _, hsub', htile', hfacet', _, hparent',
+      path', hp', _⟩ := (hreal.2.2.2.2.2 b).mp hb
+  have howned : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+      (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset] using hq
+  have howned' : q' ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+      (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset] using hq'
+  have hlabel : u = leafTypeOf U P q howned.1 :=
+    honest_rows_step5_end_E1_step1_label U P t ht T.configuration hT q howned.1 u
+      (by simpa only [htile] using hu)
+  have hlabel' : u' = leafTypeOf U P q' howned'.1 :=
+    honest_rows_step5_end_E1_step1_label U P t ht T.configuration hT q' howned'.1 u'
+      (by simpa only [htile'] using hu')
+  rw [honest_rows_step5_end_E1_step2_head U P t ht slot f hf hfv,
+    hparent, hparent'] at hE
+  calc
+    leafPacket u a.facet.val = U.facetPacket P q g := by
+      rw [hlabel, hfacet, honest_rows_step4_cont_packet_step6_readout]
+    _ = U.facetPacket P (U.hierarchy.birthParent t f hf) F :=
+      packet_inherited U P _ q _ hp.2.1 F g hsub
+    _ = U.facetPacket P (U.hierarchy.birthParent t f hf) F' :=
+      honest_rows_step9_end_E5_step1_coalescence U P _ F F' hE
+    _ = U.facetPacket P q' g' :=
+      (packet_inherited U P _ q' _ hp'.2.1 F' g' hsub').symm
+    _ = leafPacket u' b.facet.val := by
+      rw [hlabel', hfacet', honest_rows_step4_cont_packet_step6_readout]
 
 /-- Step 10 of the V4 proof of `honest_rows` (V4 2.8): "(E6): all ports on one facet carry
 its unique packet or are all NULL." -/

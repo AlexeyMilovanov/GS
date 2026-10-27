@@ -4164,6 +4164,244 @@ private theorem host_step_step2_strand_step3_no_false_endpoint
   rw [← hzz, hzero] at hone
   contradiction
 
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step4_continue` (V4 3.6, Step 2):
+"same affine spans, orientation and sides". For one consecutive pair of
+flag cells, refinement preserves its local side: both cells have the provider
+cells' affine spans and their relative interiors lie in the respective provider
+relative interiors. The codimension-one half-space structure in V4 3.6(F1)
+then identifies the tangent sides, after the full affine placements. -/
+private theorem host_step_step2_strand_step4_continue_step1_coface_side
+    {A A' : S.ι} (F : FacetFlag S A) (G : FacetFlag S A')
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (k : FlagStep d)
+    (hlow : relint (φ '' (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) ⊆
+      relint (ψ '' (G.cell ⟨k.val, k.property.1, by omega⟩).val.carrier))
+    (hhigh : relint (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) ⊆
+      relint (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier))
+    (hspanlow : affineSpan ℝ (φ '' (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell ⟨k.val, k.property.1, by omega⟩).val.carrier))
+    (hspanhigh : affineSpan ℝ (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier)) :
+    φ.linear '' flagSide F k = ψ.linear '' flagSide G k := by
+  let low : FlagIndex d := ⟨k.val, k.property.1, by omega⟩
+  let high : FlagIndex d := ⟨k.val + 1, by omega, k.property.2⟩
+  let x := φ (cellAnchor (F.cell low).val)
+  have hx : x ∈ relint (ψ '' (G.cell low).val.carrier) := by
+    apply hlow
+    rw [host_step_step1_seed_step5_trace_step3_relint_image]
+    exact Set.mem_image_of_mem φ (cellAnchor_mem _)
+  have hclosed (χ : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+      closure (relint (χ '' e.carrier)) = χ '' e.carrier := by
+    rw [host_step_step1_seed_step5_trace_step3_relint_image]
+    change closure (χ.toHomeomorphOfFiniteDimensional '' relint e.carrier) =
+      χ.toHomeomorphOfFiniteDimensional '' e.carrier
+    rw [← Homeomorph.image_closure, e.flat.regularClosed]
+  have hsub : φ '' (F.cell high).val.carrier ⊆ ψ '' (G.cell high).val.carrier := by
+    simpa only [hclosed] using closure_mono hhigh
+  have hF : tangentCone (φ '' (F.cell high).val.carrier) x =
+      φ.linear '' flagSide F k := by
+    rw [host_step_step1_seed_step8_transport_step1_tangent_image]
+    rfl
+  have hG : tangentCone (ψ '' (G.cell high).val.carrier) x =
+      ψ.linear '' flagSide G k := by
+    rw [host_step_step1_seed_step5_trace_step3_relint_image] at hx
+    obtain ⟨y, hy, hxy⟩ := hx
+    rw [← hxy, host_step_step1_seed_step8_transport_step1_tangent_image]
+    exact congrArg (fun K : Set (E d) => ψ.linear '' K)
+      (host_step_step1_seed_step8_transport_step4_coface G k y hy)
+  rw [← hF, ← hG]
+  apply Set.Subset.antisymm
+  · exact host_step_step1_seed_step5_trace_step1_tangent_mono hsub x
+  · -- Both cones are nontrivial closed half-spaces in the common upper
+    -- direction space, with the common lower direction space as wall.
+    -- The forward inclusion therefore forces their inward sides to agree.
+    sorry
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step4_continue` (V4 3.6, Step 2):
+"active chain in the same positioned flag (same affine spans, orientation and sides)".
+Every active chain of an honest record has the provider's successive coface
+sides. Cancelling the common source frame compares any two such chains. -/
+private theorem host_step_step2_strand_step4_continue_step1_sides
+    (s : State P) (hs : s ∈ honestStates S P) (F : Cell d)
+    (r : FacetRecord P) (hr : stateRecordAt s F = some r)
+    (c c' : OrientedChain r.facet) (hc : c ∈ r.chains) (hc' : c' ∈ r.chains) :
+    ∀ k, flagSide c.chain.val k = flagSide c'.chain.val k := by
+  classical
+  obtain ⟨U, q, rfl⟩ := hs
+  unfold stateRecordAt at hr
+  split at hr
+  · rename_i hF
+    change U.facetRecordOf P q ⟨F, hF⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    · rename_i hf
+      have hr' := Option.some.inj hr
+      subst r
+      let φ := q.2.val.prototypeFrame q.1
+      let ψ := U.providerPlacement P q ⟨F, hF⟩ hf
+      let G := (P.flag (U.recordIncidence P q ⟨F, hF⟩ hf)).flag
+      have hside (a : OrientedChain (⟨F, hF⟩ : FacetName S q.2.val.ty))
+          (ha : a ∈ (U.recordOf P q ⟨F, hF⟩ hf).chains) (k : FlagStep d) :
+          φ.linear '' flagSide a.chain.val k = ψ.linear '' flagSide G k := by
+        have hactive := (record_chains_spec U P q ⟨F, hF⟩ hf a).mp ha
+        have hfit (i : FlagIndex d) :
+            relint (φ '' (a.chain.val.cell i).val.carrier) ⊆
+                relint (ψ '' (G.cell i).val.carrier) ∧
+              affineSpan ℝ (φ '' (a.chain.val.cell i).val.carrier) =
+                affineSpan ℝ (ψ '' (G.cell i).val.carrier) := by
+          obtain ⟨hsub, hstratum, hspan⟩ := hactive.1 i
+          refine ⟨?_, hspan⟩
+          have h := (U.hierarchy.stratumMap_spec q ⟨F, hF⟩ hf
+            (a.chain.val.cell i) hsub).1
+          simpa only [hstratum] using h
+        exact host_step_step2_strand_step4_continue_step1_coface_side a.chain.val G φ ψ k
+          (hfit _).1 (hfit _).1 (hfit _).2 (hfit _).2
+      intro k
+      exact φ.linear.injective.image_injective ((hside c hc k).trans (hside c' hc' k).symm)
+  · contradiction
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step4_continue` (V4 3.6, Step 2):
+"same affine spans, orientation and sides". The stratum test in an honest
+record gives every active chain the provider's affine spans; on a common
+edge the endpoint readout fixes the oriented vector as well. -/
+private theorem host_step_step2_strand_step4_continue_step2_chains
+    (s : State P) (hs : s ∈ honestStates S P) (F : Cell d)
+    (r : FacetRecord P) (hr : stateRecordAt s F = some r)
+    (c c' : OrientedChain r.facet) (hc : c ∈ r.chains) (hc' : c' ∈ r.chains)
+    (he : (c.chain.val.cell edgeIndex).val = (c'.chain.val.cell edgeIndex).val) :
+    (∀ k, affineSpan ℝ (c.chain.val.cell k).val.carrier =
+      affineSpan ℝ (c'.chain.val.cell k).val.carrier) ∧
+    (∀ k, flagSide c.chain.val k = flagSide c'.chain.val k) ∧
+    chainVector c = chainVector c' := by
+  refine ⟨?_, host_step_step2_strand_step4_continue_step1_sides s hs F r hr c c' hc hc',
+    ?_⟩
+  · classical
+    obtain ⟨U, q, rfl⟩ := hs
+    unfold stateRecordAt at hr
+    split at hr
+    · rename_i hF
+      change U.facetRecordOf P q ⟨F, hF⟩ = some r at hr
+      unfold HonestSource.facetRecordOf at hr
+      split at hr
+      · contradiction
+      · rename_i hf
+        have hr' := Option.some.inj hr
+        subst r
+        intro k
+        have h := ((record_chains_spec U P q ⟨F, hF⟩ hf c).mp hc).1 k
+        have h' := ((record_chains_spec U P q ⟨F, hF⟩ hf c').mp hc').1 k
+        obtain ⟨_, _, hspan⟩ := h
+        obtain ⟨_, _, hspan'⟩ := h'
+        have hsame := hspan.trans hspan'.symm
+        change affineSpan ℝ (q.2.val.prototypeFrame q.1 '' _) =
+          affineSpan ℝ (q.2.val.prototypeFrame q.1 '' _) at hsame
+        have hpull := congrArg
+          (fun A : AffineSubspace ℝ (E d) =>
+            A.map (q.2.val.prototypeFrame q.1).symm.toAffineMap) hsame
+        dsimp only at hpull
+        rw [AffineSubspace.map_span, AffineSubspace.map_span] at hpull
+        simpa only [AffineEquiv.coe_toAffineMap, Set.image_image,
+          AffineEquiv.symm_apply_apply, Set.image_id'] using hpull
+    · contradiction
+  · have he' : host_step_edge (⟨r, c⟩ : host_step_Chain P) = host_step_edge ⟨r, c'⟩ :=
+      Subtype.ext he
+    rw [← host_step_step2_strand_step1_endpoint_vector s hs F r hr c hc,
+      ← host_step_step2_strand_step1_endpoint_vector s hs F r hr c' hc', he']
+
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step4_continue` (V4 3.6, Step 2):
+"continuing ... along the oriented line". The direction of a chain's
+bottom edge is generated by its signed edge vector, after any affine placement. -/
+private theorem host_step_step2_strand_step4_continue_step3_direction
+    (r : FacetRecord P) (c : OrientedChain r.facet) (φ : E d ≃ᵃ[ℝ] E d) :
+    (affineSpan ℝ (φ '' (c.chain.val.cell edgeIndex).val.carrier)).direction =
+      Submodule.span ℝ {φ.linear (chainVector c)} := by
+  let e : EdgeName S := ⟨r.ty, host_step_edge ⟨r, c⟩⟩
+  have he := (Classical.choose_spec (edge_endpoints_exist e)).2
+  change (c.chain.val.cell edgeIndex).val.carrier = _ at he
+  rw [he]
+  change (affineSpan ℝ (φ.toAffineMap '' segment ℝ _ _)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction,
+    direction_affineSpan, vectorSpan_segment, Submodule.map_span, Set.image_singleton]
+  change Submodule.span ℝ {φ.linear (edgeVector e)} =
+    Submodule.span ℝ {φ.linear (if c.forward then edgeVector e else -edgeVector e)}
+  cases c.forward
+  · simp only [Bool.false_eq_true, ↓reduceIte, map_neg]
+    simpa only [Set.neg_singleton] using
+      (Submodule.span_neg (R := ℝ) {φ.linear (edgeVector e)}).symm
+  · rfl
+
+/-- Step 4 of the V4 proof of `host_step_step2_strand_step4_continue` (V4 3.6, Step 2):
+"same affine spans, orientation and sides ... on the same side of aff g".
+Composing the two native frames transports the relative CONT alignment.
+Positivity of orientation is transitive because the edge vectors lie on one line. -/
+private theorem host_step_step2_strand_step4_continue_step4_transport
+    (H : FramedNode S) (n : ℕ) (ι : P.Incidence) (b : Bool)
+    (N N' : FramedNode S) (r r' : FacetRecord P)
+    (c : OrientedChain r.facet) (c' : OrientedChain r'.facet)
+    (hN : r.ty = N.ty) (hN' : r'.ty = N'.ty) (φ : Iso d)
+    (hframe : N'.frame = φ.trans N.frame)
+    (hrelative : ChainsAligned r r' c c' φ)
+    (hcentral : host_step_aligned H n ι b N 0 ⟨r, c⟩) :
+    host_step_aligned H n ι b N' 0 ⟨r', c'⟩ := by
+  have hzero (M : FramedNode S) : M.prototypeFrame 0 = M.frame.toAffineEquiv := by
+    ext x
+    simp [FramedNode.prototypeFrame]
+  have hlinear (x : E d) : (N'.prototypeFrame 0).linear x =
+      (N.prototypeFrame 0).linear (φ.linearIsometryEquiv x) := by
+    rw [hzero, hzero, hframe]
+    rfl
+  have himage (K : Set (E d)) : (N'.prototypeFrame 0).linear '' K =
+      (N.prototypeFrame 0).linear '' (φ.linearIsometryEquiv '' K) := by
+    simp only [Set.image_image, hlinear]
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro k
+    have h := congrArg (fun A : AffineSubspace ℝ (E d) => A.map N.frame.toAffineMap)
+      (hrelative.1 k)
+    dsimp only at h
+    rw [AffineSubspace.map_span, AffineSubspace.map_span] at h
+    change affineSpan ℝ (N.frame '' (c.chain.val.cell k).val.carrier) =
+      affineSpan ℝ (N.frame '' (φ '' (c'.chain.val.cell k).val.carrier)) at h
+    have hcell : N'.cell 0 (c'.chain.val.cell k).val =
+        N.frame '' (φ '' (c'.chain.val.cell k).val.carrier) := by
+      simp only [FramedNode.cell, hzero, hframe, Set.image_image]
+      rfl
+    change affineSpan ℝ (N'.cell 0 (c'.chain.val.cell k).val) = _
+    rw [hcell, ← h]
+    exact hcentral.1 k
+  · intro k
+    rw [himage, ← hrelative.2.1 k]
+    exact hcentral.2.1 k
+  · have hspan := congrArg AffineSubspace.direction (hrelative.1 edgeIndex)
+    have hid := host_step_step2_strand_step4_continue_step3_direction r c
+      (AffineEquiv.refl ℝ (E d))
+    change (affineSpan ℝ ((fun x : E d => x) ''
+      (c.chain.val.cell edgeIndex).val.carrier)).direction =
+      Submodule.span ℝ {chainVector c} at hid
+    simp only [Set.image_id'] at hid
+    change (affineSpan ℝ (c.chain.val.cell edgeIndex).val.carrier).direction =
+      (affineSpan ℝ (φ.toAffineEquiv '' (c'.chain.val.cell edgeIndex).val.carrier)).direction
+      at hspan
+    rw [hid, host_step_step2_strand_step4_continue_step3_direction r' c'
+      φ.toAffineEquiv] at hspan
+    have hmem : φ.linearIsometryEquiv (chainVector c') ∈ Submodule.span ℝ {chainVector c} := by
+      rw [hspan]
+      exact Submodule.mem_span_singleton_self _
+    obtain ⟨a, ha⟩ := Submodule.mem_span_singleton.mp hmem
+    have hpos := hrelative.2.2.1
+    rw [← ha, inner_smul_right] at hpos
+    have ha0 : 0 < a := by
+      by_contra h
+      have hnonpos := mul_nonpos_of_nonpos_of_nonneg (le_of_not_gt h)
+        (real_inner_self_nonneg (x := chainVector c))
+      linarith
+    rw [hlinear, ← ha, map_smul, inner_smul_right]
+    exact mul_pos ha0 hcentral.2.2.1
+  · rw [himage]
+    have h := congrArg (fun K : Set (E d) => (N.prototypeFrame 0).linear '' K)
+      hrelative.2.2.2
+    simp only [hN, hN'] at h
+    exact h.symm.trans hcentral.2.2.2
+
 /-- Step 4 of the V4 proof of `host_step_step2_strand` (V4 3.6, Step 2):
 "Theorem 2.17(b) gives a template: a tile u_{m+1} ... continuing e_m".
 This extracts a single actual successor from a CONT slot, retaining full
@@ -4178,7 +4416,63 @@ private theorem host_step_step2_strand_step4_continue
       (host_step_portEnds u).2 = (host_step_portEnds v).1 ∧
       (v.2.1.kappaMinus (host_step_edge v.2) = u.2.1.kappaPlus (host_step_edge u.2) ∨
         v.2.1.kappaMinus (host_step_edge v.2) = u.2.1.kappaPlus (host_step_edge u.2) + 1) := by
-  sorry
+  classical
+  rcases u with ⟨t, r, c⟩
+  dsimp only at j hrecord hedge hu ⊢
+  subst r
+  rcases hu with ⟨ht, hread, htype, hc, hι, hb, hβ, halign, hpacket⟩
+  have he : j.edge = host_step_edge (⟨j.record, c⟩ : host_step_Chain P) :=
+    Subtype.ext hedge
+  obtain ⟨θ, hθ, _, hactual⟩ := compiler_events C Y hY t ht (.cont j)
+  obtain ⟨T, rfl, hrow⟩ := hθ
+  rcases hrow with ⟨hι', hside, hβ', hc₀, hc', hrelative, hcounter, _, hpacket'⟩
+  have hs : (compilerLeaf C t).prePattern.state ∈ honestStates S P :=
+    (prePattern_components_honest P _
+      ((certificate_components_honest P (compilerLeaf C t).1.val
+        (compilerLeaf C t).1.property).1 (compilerLeaf C t).2)).1
+  obtain ⟨hspans, hsides, hvector⟩ :=
+    host_step_step2_strand_step4_continue_step2_chains _ hs _ j.record hread
+      c T.centralChain hc hc₀ (hedge.symm.trans T.central_edge.symm)
+  have halign₀ : host_step_aligned H n ι b (tileNode t) 0 ⟨j.record, T.centralChain⟩ := by
+    refine ⟨?_, ?_, ?_, halign.2.2.2⟩
+    · intro k
+      have h := congrArg (fun A : AffineSubspace ℝ (E d) =>
+        A.map ((tileNode t).prototypeFrame 0).toAffineMap) (hspans k)
+      dsimp only at h
+      rw [AffineSubspace.map_span, AffineSubspace.map_span] at h
+      exact h.symm.trans (halign.1 k)
+    · intro k
+      rw [← hsides k]
+      exact halign.2.1 k
+    · rw [← hvector]
+      exact halign.2.2.1
+  obtain ⟨t', ht', hleaf, hφ⟩ := TemplateOccurs.tile_data C Y (compilerFrame C t)
+    T.configuration hactual (T.other, T.label) T.other_mem
+  have htype' : T.record.ty = (tileNode t').ty := by
+    change T.record.ty = (compilerLeaf C t').prototype
+    rw [hleaf]
+    exact T.type_eq.trans (T.configuration.types_match _ T.other_mem)
+  have hframe : (tileNode t').frame = T.other.frame.trans (tileNode t).frame := hφ
+  have halign' := host_step_step2_strand_step4_continue_step4_transport H n ι b
+    (tileNode t) (tileNode t') j.record T.record T.centralChain T.otherChain
+    htype htype' T.other.frame hframe hrelative halign₀
+  have hb' : T.record.sideIndex = b :=
+    (host_step_step1_seed_step6_side T.record j.record.incidence j.record.sideIndex
+      hι' (hside.trans j.record.side_eq)).trans hb
+  have he' : host_step_edge (⟨T.record, T.otherChain⟩ : host_step_Chain P) = T.edge :=
+    Subtype.ext T.other_edge
+  refine ⟨(t', ⟨T.record, T.otherChain⟩), ?_, ?_, ?_⟩
+  · refine ⟨ht', ?_, htype', hc', hι'.trans hι, hb', (congrArg Fin.val hβ').trans hβ,
+      halign', j.packet, ?_⟩
+    · simpa only [hleaf] using T.record_eq
+    · simpa only [hleaf] using hpacket'
+  · change compilerFrame C t (j.record.endpoints (host_step_edge ⟨j.record, c⟩)).2 =
+      compilerFrame C t' (T.record.endpoints (host_step_edge ⟨T.record, T.otherChain⟩)).1
+    rw [he', hφ]
+    change compilerFrame C t (j.record.endpoints (host_step_edge ⟨j.record, c⟩)).2 =
+      compilerFrame C t (T.other.frame (T.record.endpoints T.edge).1)
+    rw [← T.initial, T.vertex_eq, j.terminal, he]
+  · simpa only [he', he] using hcounter
 
 /-- Step 5 of the V4 proof of `host_step_step2_strand` (V4 3.6(2a)):
 "The sequence, having edges of length at least the minimal native edge length,

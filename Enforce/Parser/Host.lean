@@ -5230,6 +5230,99 @@ private theorem host_step_step2_strand_step3_no_false_endpoint
   rw [← hzz, hzero] at hone
   contradiction
 
+omit [Fact (2 ≤ d)] in
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step4_continue_step1_coface_side`
+(V4 3.6(F1)): "a half-space on the recorded side". The direction of the
+affine span of a translated linear half-space is its supporting subspace. -/
+private theorem host_step_step2_strand_step4_continue_step1_coface_side_step1_span
+    (V : Submodule ℝ (E d)) (ℓ : E d →ₗ[ℝ] ℝ) (p : E d) :
+    (affineSpan ℝ ((fun u => p + u) '' {u | u ∈ V ∧ 0 ≤ ℓ u})).direction = V := by
+  have hp : p ∈ (fun u => p + u) '' {u | u ∈ V ∧ 0 ≤ ℓ u} :=
+    ⟨0, ⟨V.zero_mem, by simp⟩, add_zero p⟩
+  rw [direction_affineSpan, vectorSpan_eq_span_vsub_set_right ℝ hp]
+  simp only [Set.image_image, vsub_eq_sub, add_sub_cancel_left, Set.image_id']
+  apply le_antisymm (Submodule.span_le.mpr (fun _ hu => hu.1))
+  intro u hu
+  by_cases hpos : 0 ≤ ℓ u
+  · exact Submodule.subset_span ⟨hu, hpos⟩
+  · have hneg : -u ∈ Submodule.span ℝ {u | u ∈ V ∧ 0 ≤ ℓ u} :=
+      Submodule.subset_span ⟨V.neg_mem hu, by
+        simpa only [map_neg, neg_nonneg] using (le_of_not_ge hpos)⟩
+    simpa only [neg_neg] using (Submodule.span ℝ {u | u ∈ V ∧ 0 ≤ ℓ u}).neg_mem hneg
+
+open private states_finite_step4_flag_halfspace from Enforce.State.State in
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step4_continue_step1_coface_side`
+(V4 3.6(F1)): "a polyhedral manifold cell is a half-space on the recorded side".
+An invertible linear placement preserves the half-space description and the
+nonzero restriction of its defining functional to its supporting subspace. -/
+private theorem host_step_step2_strand_step4_continue_step1_coface_side_step2_placed
+    {A : S.ι} (F : FacetFlag S A) (φ : E d ≃ᵃ[ℝ] E d) (k : FlagStep d) :
+    ∃ V : Submodule ℝ (E d), ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      φ.linear '' flagSide F k = {u | u ∈ V ∧ 0 ≤ ℓ u} ∧
+      ∃ u ∈ V, ℓ u ≠ 0 := by
+  let N : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hN : N.frame.linearIsometryEquiv ∈ S.rotGroup := S.rotGroup.one_mem
+  have hside : IsClosedSide S.hPi (flagSide F k) := by
+    have h := states_finite_step4_flag_halfspace N hN F k
+    change IsClosedSide S.hPi ((fun u => u) '' flagSide F k) at h
+    simpa only [Set.image_id'] using h
+  obtain ⟨V, W, _, _, hWV, hdim, ℓ, hker, hside⟩ := hside
+  have hlt : W < V := lt_of_le_of_ne hWV (by
+    intro heq
+    rw [heq] at hdim
+    omega)
+  obtain ⟨u, hu, huW⟩ := SetLike.exists_of_lt hlt
+  have huℓ : ℓ u ≠ 0 := by
+    intro hz
+    apply huW
+    change u ∈ (W : Set (E d))
+    rw [← hker]
+    exact ⟨hu, hz⟩
+  refine ⟨V.map φ.linear.toLinearMap, ℓ.comp φ.linear.symm.toLinearMap, ?_,
+    φ.linear u, ⟨u, hu, rfl⟩, ?_⟩
+  · rw [hside]
+    ext z
+    constructor
+    · rintro ⟨v, ⟨hv, hvℓ⟩, rfl⟩
+      exact ⟨⟨v, hv, rfl⟩, by simpa using hvℓ⟩
+    · rintro ⟨⟨v, hv, rfl⟩, hvℓ⟩
+      exact ⟨v, ⟨hv, by simpa using hvℓ⟩, rfl⟩
+  · simpa using huℓ
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step4_continue_step1_coface_side`
+(V4 3.6, Step 2): "same affine spans, orientation and sides". Inclusion of
+two proper linear half-spaces in one subspace forces equality: their defining
+functionals are positive scalar multiples on that subspace. -/
+private theorem host_step_step2_strand_step4_continue_step1_coface_side_step3_inclusion
+    (V : Submodule ℝ (E d)) (ℓ m : E d →ₗ[ℝ] ℝ)
+    (hℓ : ∃ u ∈ V, ℓ u ≠ 0) (hm : ∃ u ∈ V, m u ≠ 0)
+    (hsub : {u | u ∈ V ∧ 0 ≤ ℓ u} ⊆ {u | u ∈ V ∧ 0 ≤ m u}) :
+    {u | u ∈ V ∧ 0 ≤ ℓ u} = {u | u ∈ V ∧ 0 ≤ m u} := by
+  obtain ⟨v, hv, hvℓ⟩ := hℓ
+  let w := (ℓ v)⁻¹ • v
+  have hwV : w ∈ V := V.smul_mem _ hv
+  have hw : ℓ w = 1 := by simp [w, hvℓ]
+  have hmw : 0 ≤ m w := (hsub ⟨hwV, by simp [hw]⟩).2
+  have hscale (u : E d) (hu : u ∈ V) : m u = ℓ u * m w := by
+    have hz : ℓ (u - ℓ u • w) = 0 := by simp [hw]
+    have hV : u - ℓ u • w ∈ V := V.sub_mem hu (V.smul_mem _ hwV)
+    have h₁ := (hsub ⟨hV, by simp [hz]⟩).2
+    have h₂ := (hsub ⟨V.neg_mem hV, by rw [map_neg, hz]; simp⟩).2
+    simp only [map_sub, map_smul, map_neg, smul_eq_mul] at h₁ h₂
+    linarith
+  have hmwpos : 0 < m w := by
+    apply lt_of_le_of_ne hmw
+    intro hz
+    obtain ⟨u, hu, hmu⟩ := hm
+    exact hmu (by rw [hscale u hu, ← hz, mul_zero])
+  apply Set.Subset.antisymm hsub
+  rintro u ⟨hu, hmu⟩
+  refine ⟨hu, ?_⟩
+  rw [hscale u hu] at hmu
+  exact (mul_nonneg_iff_of_pos_right hmwpos).mp hmu
+
+
 /-- Step 1 of the V4 proof of `host_step_step2_strand_step4_continue` (V4 3.6, Step 2):
 "same affine spans, orientation and sides". For one consecutive pair of
 flag cells, refinement preserves its local side: both cells have the provider
@@ -5280,7 +5373,27 @@ private theorem host_step_step2_strand_step4_continue_step1_coface_side
   · -- Both cones are nontrivial closed half-spaces in the common upper
     -- direction space, with the common lower direction space as wall.
     -- The forward inclusion therefore forces their inward sides to agree.
-    sorry
+    obtain ⟨V, ℓ, hℓ, hℓne⟩ :=
+      host_step_step2_strand_step4_continue_step1_coface_side_step2_placed F φ k
+    obtain ⟨W, m, hm, hmne⟩ :=
+      host_step_step2_strand_step4_continue_step1_coface_side_step2_placed G ψ k
+    have hxF : x ∈ φ '' (F.cell high).val.carrier := by
+      apply Set.mem_image_of_mem
+      exact F.nested low high (by dsimp [low, high]; omega)
+        (intrinsicInterior_subset (cellAnchor_mem _))
+    have hspan := (host_step_step1_seed_step5_trace_step5_placed_span
+      φ (F.cell high).val x hxF).trans
+        (hspanhigh.trans (host_step_step1_seed_step5_trace_step5_placed_span
+          ψ (G.cell high).val x (hsub hxF)).symm)
+    have hVW := congrArg AffineSubspace.direction hspan
+    rw [hF, hG, hℓ, hm,
+      host_step_step2_strand_step4_continue_step1_coface_side_step1_span,
+      host_step_step2_strand_step4_continue_step1_coface_side_step1_span] at hVW
+    subst W
+    have hcones := host_step_step1_seed_step5_trace_step1_tangent_mono hsub x
+    rw [hF, hG, hℓ, hm] at hcones ⊢
+    exact (host_step_step2_strand_step4_continue_step1_coface_side_step3_inclusion
+      V ℓ m hℓne hmne hcones).symm.subset
 
 /-- Step 1 of the V4 proof of `host_step_step2_strand_step4_continue` (V4 3.6, Step 2):
 "active chain in the same positioned flag (same affine spans, orientation and sides)".

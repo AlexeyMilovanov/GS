@@ -237,12 +237,210 @@ theorem rotGroup_spec : S.rotationGenerators ⊆ (S.rotGroup : Set (Ortho d)) �
       (S.rotGroup : Set (Ortho d))) := by
   sorry
 
+/-- The forward inclusion in V4 1.10(a), using minimality of the closed hull. -/
+private theorem rotGroup_conj_forward :
+    ∀ R ∈ S.rotGroup, ∃ Q ∈ S.rotGroup,
+      linearConj S.σ 1 R.toLinearEquiv = Q.toLinearEquiv := by
+  let ρ : Ortho d →* (E d ≃ₗ[ℝ] E d) :=
+    { toFun := LinearIsometryEquiv.toLinearEquiv
+      map_one' := rfl
+      map_mul' := fun _ _ => rfl }
+  let c : (E d ≃ₗ[ℝ] E d) ≃* (E d ≃ₗ[ℝ] E d) := MulAut.conj S.σ
+  let G : Subgroup (Ortho d) := S.rotGroup ⊓ (S.rotGroup.map ρ).comap (c.toMonoidHom.comp ρ)
+  let op : Ortho d → (E d →L[ℝ] E d) :=
+    fun R => R.toLinearIsometry.toContinuousLinearMap
+  let C := S.σ.toContinuousLinearEquiv.conjContinuousAlgEquiv
+  have hclosed : IsClosed (op '' (G : Set (Ortho d))) := by
+    have heq : op '' (G : Set (Ortho d)) =
+        (op '' (S.rotGroup : Set (Ortho d))) ∩
+          C ⁻¹' (op '' (S.rotGroup : Set (Ortho d))) := by
+      ext f
+      constructor
+      · rintro ⟨R, hR, rfl⟩
+        rcases hR with ⟨hR, hconj⟩
+        rcases hconj with ⟨Q, hQ, heq⟩
+        refine ⟨⟨R, hR, rfl⟩, Q, hQ, ?_⟩
+        ext x : 1
+        exact congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) heq
+      · rintro ⟨⟨R, hR, rfl⟩, Q, hQ, heq⟩
+        refine ⟨R, ⟨hR, Q, hQ, ?_⟩, rfl⟩
+        ext x : 1
+        exact congrArg (fun f : E d →L[ℝ] E d => f x) heq
+    rw [heq]
+    exact S.rotGroup_spec.2.inter (S.rotGroup_spec.2.preimage C.continuous)
+  have hgen : S.rotationGenerators ⊆ (G : Set (Ortho d)) := by
+    rintro R ⟨n, A, i, rfl⟩
+    refine ⟨S.rotGroup_spec.1 ⟨n, A, i, rfl⟩,
+      S.childRotation (n + 1) i, S.rotGroup_spec.1 ⟨n + 1, A, i, rfl⟩, ?_⟩
+    change linearConj S.σ ((n + 1 : ℕ) : ℤ) (S.child A i).rotation.toLinearEquiv =
+      S.σ * linearConj S.σ (n : ℤ) (S.child A i).rotation.toLinearEquiv * S.σ⁻¹
+    simp only [linearConj, Nat.cast_add, Nat.cast_one, zpow_add, zpow_one, zpow_neg]
+    group
+  have hle : S.rotGroup ≤ G := sInf_le ⟨hgen, hclosed⟩
+  intro R hR
+  rcases (hle hR).2 with ⟨Q, hQ, heq⟩
+  refine ⟨Q, hQ, ?_⟩
+  simpa [c, ρ, linearConj, MulAut.conj_apply] using heq.symm
+
+/-- Operator columns in a Hilbert sum, whose norm is the Frobenius norm. -/
+private def rotGroup_conj_columns (d : ℕ) :
+    (E d →L[ℝ] E d) →ₗ[ℝ] PiLp 2 (fun _ : Fin d => E d) where
+  toFun f := WithLp.toLp 2 (fun i => f (EuclideanSpace.basisFun (Fin d) ℝ i))
+  map_add' _ _ := rfl
+  map_smul' _ _ := rfl
+
+omit [Fact (2 ≤ d)] in
+/-- An operator is determined by its values on the standard orthonormal basis. -/
+private theorem rotGroup_conj_columns_injective : Function.Injective (rotGroup_conj_columns d) := by
+  intro f g h
+  apply ContinuousLinearMap.coe_injective
+  apply (EuclideanSpace.basisFun (Fin d) ℝ).toBasis.ext
+  intro i
+  exact congrArg (fun v : PiLp 2 (fun _ : Fin d => E d) => v i) h
+
+omit [Fact (2 ≤ d)] in
+/-- Squared Frobenius distance of orthogonal operators, expressed by a trace. -/
+private theorem rotGroup_conj_columns_dist_sq (R Q : Ortho d) :
+    dist (rotGroup_conj_columns d R.toLinearIsometry.toContinuousLinearMap)
+      (rotGroup_conj_columns d Q.toLinearIsometry.toContinuousLinearMap) ^ 2 =
+        2 * (d : ℝ) - 2 * LinearMap.trace ℝ (E d)
+          (R.symm.toLinearEquiv.toLinearMap.comp Q.toLinearEquiv.toLinearMap) := by
+  rw [PiLp.dist_sq_eq_of_L2,
+    LinearMap.trace_eq_sum_inner _ (EuclideanSpace.basisFun (Fin d) ℝ)]
+  simp only [rotGroup_conj_columns, LinearMap.coe_mk, AddHom.coe_mk,
+    PiLp.toLp_apply, LinearIsometry.coe_toContinuousLinearMap, LinearIsometryEquiv.coe_toLinearIsometry,
+    dist_eq_norm, norm_sub_sq_real, LinearIsometryEquiv.norm_map,
+    (EuclideanSpace.basisFun (Fin d) ℝ).norm_eq_one, one_pow,
+    LinearIsometryEquiv.inner_map_eq_flip, LinearMap.comp_apply,
+    LinearEquiv.coe_coe, LinearIsometryEquiv.coe_toLinearEquiv,
+    Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.mul_sum,
+    Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one]
+  ring
+
+omit [Fact (2 ≤ d)] in
+/-- Conjugation preserves Frobenius distances whenever the conjugates are orthogonal. -/
+private theorem rotGroup_conj_columns_conj_dist (σ : E d ≃ₗ[ℝ] E d) (R Q R' Q' : Ortho d)
+    (hR : R'.toLinearEquiv = linearConj σ 1 R.toLinearEquiv)
+    (hQ : Q'.toLinearEquiv = linearConj σ 1 Q.toLinearEquiv) :
+    dist (rotGroup_conj_columns d R'.toLinearIsometry.toContinuousLinearMap)
+      (rotGroup_conj_columns d Q'.toLinearIsometry.toContinuousLinearMap) =
+    dist (rotGroup_conj_columns d R.toLinearIsometry.toContinuousLinearMap)
+      (rotGroup_conj_columns d Q.toLinearIsometry.toContinuousLinearMap) := by
+  apply (sq_eq_sq₀ dist_nonneg dist_nonneg).mp
+  rw [rotGroup_conj_columns_dist_sq, rotGroup_conj_columns_dist_sq]
+  congr 2
+  have heq : R'.symm.toLinearEquiv.toLinearMap.comp Q'.toLinearEquiv.toLinearMap =
+      σ.conj (R.symm.toLinearEquiv.toLinearMap.comp Q.toLinearEquiv.toLinearMap) := by
+    change (R'.toLinearEquiv⁻¹ * Q'.toLinearEquiv).toLinearMap =
+      (σ * (R.toLinearEquiv⁻¹ * Q.toLinearEquiv) * σ⁻¹).toLinearMap
+    congr 1
+    rw [hR, hQ]
+    simp only [linearConj, zpow_one, zpow_neg]
+    group
+  rw [heq, LinearMap.trace_conj']
+
+/-- An isometry from a compact metric space to itself is surjective. -/
+private theorem rotGroup_conj_compact_isometry_surjective {X : Type*} [MetricSpace X] [CompactSpace X]
+    {f : X → X} (hf : Isometry f) : Function.Surjective f := by
+  have hiter : ∀ n : ℕ, Isometry f^[n] := by
+    intro n
+    induction n with
+    | zero => exact isometry_id
+    | succ n ih => simpa only [Function.iterate_succ'] using hf.comp ih
+  intro x
+  have hcl : IsClosed (range f) := (isCompact_range hf.continuous).isClosed
+  suffices hx : x ∈ closure (range f) from hcl.closure_subset hx
+  rw [Metric.mem_closure_iff]
+  intro ε hε
+  obtain ⟨y, φ, hφ, ht⟩ := CompactSpace.tendsto_subseq (fun n => f^[n] x)
+  obtain ⟨N, hN⟩ := Metric.cauchySeq_iff.1 ht.cauchySeq ε hε
+  have hnear := hN N le_rfl (N + 1) (Nat.le_succ N)
+  let k := φ (N + 1) - φ N
+  have hk : 0 < k := Nat.sub_pos_of_lt (hφ (Nat.lt_succ_self N))
+  have heq : φ (N + 1) = φ N + k := (Nat.add_sub_of_le (hφ.monotone (Nat.le_succ N))).symm
+  have hd : dist (f^[φ N] x) (f^[φ (N + 1)] x) = dist x (f^[k] x) := by
+    rw [heq, Function.iterate_add_apply, (hiter (φ N)).dist_eq]
+  refine ⟨f^[k] x, ?_, ?_⟩
+  · refine ⟨f^[k - 1] x, ?_⟩
+    simpa only [Nat.succ_eq_add_one, Nat.sub_add_cancel hk] using
+      (Function.iterate_succ_apply' f (k - 1) x).symm
+  · exact hd ▸ hnear
+
+/-- A distance-preserving self-map of a compact subset has that subset as its image. -/
+private theorem rotGroup_conj_compact_image_eq {X : Type*} [MetricSpace X] {K : Set X}
+    (hK : IsCompact K) {f : X → X} (hmaps : MapsTo f K K)
+    (hdist : ∀ x ∈ K, ∀ y ∈ K, dist (f x) (f y) = dist x y) : f '' K = K := by
+  letI : CompactSpace K := isCompact_iff_compactSpace.mp hK
+  let g : K → K := fun x => ⟨f x, hmaps x.property⟩
+  have hg : Isometry g := Isometry.of_dist_eq fun x y => hdist x x.property y y.property
+  apply Set.Subset.antisymm hmaps.image_subset
+  intro y hy
+  obtain ⟨x, hx⟩ := rotGroup_conj_compact_isometry_surjective hg ⟨y, hy⟩
+  exact ⟨x, x.property, congrArg Subtype.val hx⟩
+
 /-- S6, V4 1.10(a): conjugation by `σ` permutes the compact rotation group. -/
 theorem rotGroup_conj :
     (fun R : Ortho d => linearConj S.σ 1 R.toLinearEquiv) ''
         (S.rotGroup : Set (Ortho d)) =
       (fun R : Ortho d => R.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
-  sorry
+  let op : Ortho d → (E d →L[ℝ] E d) :=
+    fun R => R.toLinearIsometry.toContinuousLinearMap
+  let C := S.σ.toContinuousLinearEquiv.conjContinuousAlgEquiv
+  let K := op '' (S.rotGroup : Set (Ortho d))
+  have hK : IsCompact K := by
+    apply Metric.isCompact_of_isClosed_isBounded S.rotGroup_spec.2
+    rw [isBounded_iff_forall_norm_le]
+    refine ⟨1, ?_⟩
+    rintro f ⟨R, hR, rfl⟩
+    exact R.toLinearIsometry.norm_toContinuousLinearMap_le
+  have hmaps : MapsTo C K K := by
+    rintro f ⟨R, hR, rfl⟩
+    obtain ⟨Q, hQ, heq⟩ := rotGroup_conj_forward S R hR
+    refine ⟨Q, hQ, ?_⟩
+    ext x : 1
+    simpa [C, op, linearConj] using congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) heq.symm
+  -- Work in the Frobenius metric to obtain surjectivity from compactness.
+  let reconstruct : PiLp 2 (fun _ : Fin d => E d) → (E d →L[ℝ] E d) :=
+    fun v => ((EuclideanSpace.basisFun (Fin d) ℝ).toBasis.constr ℝ (fun i => v i)).toContinuousLinearMap
+  have hrec (f : E d →L[ℝ] E d) : reconstruct (rotGroup_conj_columns d f) = f := by
+    apply ContinuousLinearMap.coe_injective
+    exact (EuclideanSpace.basisFun (Fin d) ℝ).toBasis.constr_self ℝ f.toLinearMap
+  let F : PiLp 2 (fun _ : Fin d => E d) → PiLp 2 (fun _ : Fin d => E d) :=
+    fun v => rotGroup_conj_columns d (C (reconstruct v))
+  have hF (f : E d →L[ℝ] E d) : F (rotGroup_conj_columns d f) = rotGroup_conj_columns d (C f) := by
+    dsimp only [F]
+    rw [hrec]
+  have hsurj : F '' (rotGroup_conj_columns d '' K) = rotGroup_conj_columns d '' K := by
+    apply rotGroup_conj_compact_image_eq (hK.image (rotGroup_conj_columns d).continuous_of_finiteDimensional)
+    · rintro _ ⟨f, hf, rfl⟩
+      rw [hF]
+      exact ⟨C f, hmaps hf, rfl⟩
+    · rintro _ ⟨_, ⟨R, hR, rfl⟩, rfl⟩ _ ⟨_, ⟨Q, hQ, rfl⟩, rfl⟩
+      rw [hF, hF]
+      obtain ⟨R', hR', heqR⟩ := rotGroup_conj_forward S R hR
+      obtain ⟨Q', hQ', heqQ⟩ := rotGroup_conj_forward S Q hQ
+      have hCR : C (op R) = op R' := by
+        ext x : 1
+        simpa [C, op, linearConj] using congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) heqR
+      have hCQ : C (op Q) = op Q' := by
+        ext x : 1
+        simpa [C, op, linearConj] using congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) heqQ
+      rw [hCR, hCQ]
+      exact rotGroup_conj_columns_conj_dist S.σ R Q R' Q' heqR.symm heqQ.symm
+  apply Set.Subset.antisymm
+  · rintro _ ⟨R, hR, rfl⟩
+    obtain ⟨Q, hQ, heq⟩ := rotGroup_conj_forward S R hR
+    exact ⟨Q, hQ, heq.symm⟩
+  · rintro _ ⟨R, hR, rfl⟩
+    have hm : rotGroup_conj_columns d (op R) ∈ F '' (rotGroup_conj_columns d '' K) := by
+      rw [hsurj]
+      exact ⟨op R, ⟨R, hR, rfl⟩, rfl⟩
+    obtain ⟨_, ⟨_, ⟨Q, hQ, rfl⟩, rfl⟩, heq⟩ := hm
+    rw [hF] at heq
+    have heq' := rotGroup_conj_columns_injective heq
+    refine ⟨Q, hQ, ?_⟩
+    ext x : 1
+    simpa [C, op, linearConj] using congrArg (fun f : E d →L[ℝ] E d => f x) heq'
 
 /-- S6, V4 1.10(a): all integral conjugates of group elements are orthogonal
 and remain in the same group, including the negative powers used in coarsening. -/

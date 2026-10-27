@@ -4422,6 +4422,523 @@ private theorem honest_rows_step2_cont_labels (U : HonestSource S) (P : Params S
       T.record.beta = slot.record.beta := by
   sorry
 
+/-- Step 1 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"both profiles are restrictions of the same site system". A finite readout of an
+actual leaf is the record computed at that source node. -/
+private theorem honest_rows_step3_cont_counters_step1_readout
+    (U : HonestSource S) (P : Params S) (q : U.Node) (hq : q.1 = 0)
+    (F : Cell d) (r : FacetRecord P)
+    (hr : leafRecord (leafTypeOf U P q hq) F = some r) :
+    ∃ (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f),
+      r = U.recordOf P q f hf := by
+  classical
+  unfold leafRecord at hr
+  rw [← prePattern_of_leafType U P q hq] at hr
+  change stateRecordAt (stateOf U P q) F = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  · change U.facetRecordOf P q _ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    · exact ⟨_, _, (Option.some.inj hr).symm⟩
+  · contradiction
+
+/-- Step 2 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"there is a polygon s2'' adjacent to h on the far side of v ... with owner
+t''". The aligned actual continuation belongs to the same serving child and
+its top facet is contained in that child's provider facet. -/
+private theorem honest_rows_step3_cont_counters_step2_containment
+    (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 0)
+    (slot : ContSlot (leafTypeOf U P t ht)) (T : ContTemplate slot)
+    (q : U.Node) (hq : q.1 = 0)
+    (hother : T.other = q.2.val.move t.2.val.frame.symm)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (hr : slot.record = U.recordOf P t f hf) (hr' : T.record = U.recordOf P q g hg)
+    (hc : T.centralChain ∈ slot.record.chains) (ho : T.otherChain ∈ T.record.chains) :
+    U.hierarchy.ancestor q (U.hierarchy.firstProvider t f hf).1 =
+        U.hierarchy.servingChild t f hf ∧
+      q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier t f hf := by
+  -- The tau readout places the junction in the relative interior of the serving flag edge.
+  -- Near it, the continuing edge and the successive aligned sides enter that same flag.
+  -- Displacing further into the common inward side gives interior overlap with the
+  -- serving child; uniqueness of the same-height ancestor identifies ownership.
+  -- Relative-interior overlap of the top facets then gives containment by hereditary_trace.
+  sorry
+
+/-- Step 2 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"same provider g, same serving child H". The actual continuation of the active
+positioned flag has the same birth parent as the central finite facet. -/
+private theorem honest_rows_step3_cont_counters_step2_common_birth
+    (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 0)
+    (slot : ContSlot (leafTypeOf U P t ht)) (T : ContTemplate slot)
+    (q : U.Node) (hq : q.1 = 0)
+    (hother : T.other = q.2.val.move t.2.val.frame.symm)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (g : FacetName S q.2.val.ty) (hg : ¬ U.hierarchy.IsFault q g)
+    (hr : slot.record = U.recordOf P t f hf) (hr' : T.record = U.recordOf P q g hg)
+    (hc : T.centralChain ∈ slot.record.chains) (ho : T.otherChain ∈ T.record.chains) :
+    U.hierarchy.birthParent t f hf = U.hierarchy.birthParent q g hg := by
+  obtain ⟨hanc, hsub⟩ := honest_rows_step3_cont_counters_step2_containment U P t ht
+    slot T q hq hother f hf g hg hr hr' hc ho
+  let H := U.hierarchy.servingChild t f hf
+  let a := (U.hierarchy.firstProvider t f hf).1
+  let F : FacetName S H.2.val.ty := (U.hierarchy.firstProvider t f hf).2
+  have hnext : U.hierarchy.ancestor t (a + 1) = U.hierarchy.parentNode H :=
+    Function.iterate_succ_apply' _ _ _
+  have hint : relint (H.2.val.cell H.1 F.val) ⊆
+      interior ((U.hierarchy.parentNode H).2.val.carrier
+        (U.hierarchy.parentNode H).1) := by
+    have h := (U.hierarchy.firstProvider_spec t f hf).2.2
+    change relint (H.2.val.cell H.1 F.val) ⊆
+      interior ((U.hierarchy.ancestor t (a + 1)).2.val.carrier
+        (U.hierarchy.ancestor t (a + 1)).1) at h
+    rwa [hnext] at h
+  obtain ⟨hF, _, hbirth, _⟩ := U.hierarchy.restriction_det_internal H F hint
+  obtain ⟨_, _, hbirth'⟩ := U.hierarchy.provider_inherited H q a hanc F g hF hsub
+  exact (hbirth'.trans hbirth).symm
+
+/-- Step 3 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"just before v" and "just after v" refer to the endpoints of the actual edge.
+Reversing its stored orientation exchanges the two distinct endpoints. -/
+private theorem honest_rows_step3_cont_counters_step3_endpoints
+    {P : Params S} (r : FacetRecord P) (e : PrototypeEdge S r.ty) :
+    (r.endpoints e).1 ≠ (r.endpoints e).2 ∧
+      e.val.carrier = segment ℝ (r.endpoints e).1 (r.endpoints e).2 := by
+  have h := Classical.choose_spec (edge_endpoints_exist (⟨r.ty, e⟩ : EdgeName S))
+  unfold FacetRecord.endpoints
+  split
+  · exact h
+  · exact ⟨h.1.symm, h.2.trans (segment_symm ℝ _ _)⟩
+
+/-- Step 4 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"the value of kappa" is independent of the frame used for its finite lookup.
+On the active line, a full affine frame preserves both endpoint order tests. -/
+private theorem honest_rows_step3_cont_counters_step4_word_order
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q f hf).ChainActive (edgeCell e))
+    (x : E d) (hx : x ∈ e.val.carrier) (a : Fin P.N) :
+    (inner ℝ (U.counterDirection P q f hf)
+        (U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 x) ≤ 0 ↔
+      inner ℝ (U.recordOf P q f hf).servingDirection
+        (P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a -
+          wordPlacement (U.downRoles q (U.hierarchy.firstProvider q f hf).1) x) ≤ 0) ∧
+    (inner ℝ (U.counterDirection P q f hf)
+        (U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 x) < 0 ↔
+      inner ℝ (U.recordOf P q f hf).servingDirection
+        (P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a -
+          wordPlacement (U.downRoles q (U.hierarchy.firstProvider q f hf).1) x) < 0) := by
+  let ι := U.recordIncidence P q f hf
+  let b := U.recordSide P q f hf
+  let H := U.hierarchy.servingChild q f hf
+  let ψ := H.2.val.prototypeFrame H.1
+  let R := (S.child ι.val.ty ι.val.left).frame.toAffineEquiv.trans
+    (S.child ι.val.ty (ι.val.sideIndex b)).frame.symm.toAffineEquiv
+  have hframes : R.trans ψ = U.providerPlacement P q f hf := by
+    dsimp only [ψ, H]
+    rw [restrictionOp_source_step4_profile_step4_serving_frame P U q f hf]
+    apply AffineEquiv.ext
+    intro y
+    simp [R, rolePlacement, PrimitiveIncidence.sideRole, HonestSource.providerPlacement,
+      Params.incidencePlacement, ι, b]
+  have hdir : ψ.linear (U.recordOf P q f hf).servingDirection =
+      U.counterDirection P q f hf :=
+    congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ.linear (P.flag ι).direction) hframes
+  have hpoint := congrArg (fun φ : E d ≃ᵃ[ℝ] E d => φ x)
+    (restrictionOp_source_step4_profile_step3_word_frame U q
+      (U.hierarchy.firstProvider q f hf).1)
+  change q.2.val.prototypeFrame q.1 x =
+    ψ (wordPlacement (U.downRoles q (U.hierarchy.firstProvider q f hf).1) x) at hpoint
+  let v := P.sites ι b a -
+    wordPlacement (U.downRoles q (U.hierarchy.firstProvider q f hf).1) x
+  have hdiff : ψ.linear v = U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 x := by
+    calc
+      _ = ψ (P.sites ι b a) -
+          ψ (wordPlacement (U.downRoles q (U.hierarchy.firstProvider q f hf).1) x) :=
+        ψ.toAffineMap.linearMap_vsub _ _
+      _ = _ := by
+        rw [← restrictionOp_source_step4_profile_step4_site_placement P U q f hf a,
+          ← hpoint]
+  obtain ⟨z, hz⟩ := restrictionOp_source_step4_profile_step5_site_line P U q f hf
+    (edgeCell e) he a _ (mem_affineSpan ℝ (Set.mem_image_of_mem _ hx))
+  have hscalar : z • (U.recordOf P q f hf).servingDirection = v := by
+    apply ψ.linear.injective
+    rw [map_smul, hdir, hdiff]
+    exact hz
+  have hlt := restrictionOp_source_step4_profile_step5_linear_order ψ.linear
+    (U.recordOf P q f hf).servingDirection v ⟨z, hscalar⟩
+  have hneg := restrictionOp_source_step4_profile_step5_linear_order ψ.linear
+    (U.recordOf P q f hf).servingDirection (-v)
+    ⟨-z, by rw [neg_smul, hscalar]⟩
+  have hle := not_congr hneg
+  simp only [map_neg, inner_neg_right, neg_lt_zero, not_lt] at hle
+  rw [hdir, hdiff] at hlt hle
+  exact ⟨hle, hlt⟩
+
+/-- Step 4 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"just before" and "just after" use the induced orientation. The active
+chain table gives the same orientation to every occurrence of one edge. -/
+private theorem honest_rows_step3_cont_counters_step4_orientation
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q f hf).ChainActive (edgeCell e)) :
+    0 < inner ℝ (U.counterDirection P q f hf)
+      (q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2 -
+        q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) := by
+  classical
+  obtain ⟨c, hc, hce⟩ := he
+  have heq : e = (restrictionOp_source_step4_chains_step1_edge c.chain.val).2 :=
+    Subtype.ext hce.symm
+  subst e
+  let r := U.recordOf P q f hf
+  let e := (restrictionOp_source_step4_chains_step1_edge c.chain.val).2
+  have horient (c' : OrientedChain f) (hc' : c' ∈ r.chains) :
+      c'.forward = true ↔ 0 < inner ℝ (U.counterDirection P q f hf)
+        ((q.2.val.prototypeFrame q.1).linear
+          (edgeVector (restrictionOp_source_step4_chains_step1_edge c'.chain.val))) :=
+    ((record_chains_spec U P q f hf c').mp hc').2
+  have hsame (c' : OrientedChain f) (hc' : c' ∈ r.chains)
+      (he' : (c'.chain.val.cell edgeIndex).val = e.val) : c'.forward = c.forward := by
+    have he'' : restrictionOp_source_step4_chains_step1_edge c'.chain.val =
+        restrictionOp_source_step4_chains_step1_edge c.chain.val := by
+      exact congrArg (fun z : PrototypeEdge S q.2.val.ty =>
+        (⟨q.2.val.ty, z⟩ : EdgeName S)) (Subtype.ext he')
+    have ho := horient c hc
+    have ho' := horient c' hc'
+    rw [he''] at ho'
+    have hb := ho'.trans ho.symm
+    cases h1 : c'.forward <;> cases h2 : c.forward <;> simp_all
+  have hforward : r.edgeForward e = c.forward := by
+    unfold FacetRecord.edgeForward
+    cases hcf : c.forward with
+    | false =>
+      apply Bool.eq_false_iff.mpr
+      intro hh
+      obtain ⟨c', hc', he'⟩ := List.any_eq_true.mp hh
+      have hp : (c'.chain.val.cell edgeIndex).val = e.val ∧ c'.forward = true := by
+        simpa using he'
+      have hh := hsame c' (Finset.mem_toList.mp hc') hp.1
+      simp_all
+    | true =>
+      apply List.any_eq_true.mpr
+      refine ⟨c, Finset.mem_toList.mpr hc, ?_⟩
+      simp [e, restrictionOp_source_step4_chains_step1_edge, hcf]
+  have hvector : (r.endpoints e).2 - (r.endpoints e).1 =
+      restrictionOp_source_step4_chains_step1_direction c := by
+    unfold FacetRecord.endpoints
+    rw [hforward]
+    unfold restrictionOp_source_step4_chains_step1_direction
+    cases c.forward <;> simp [e, edgeVector, neg_sub]
+  obtain ⟨a, ha, hdir⟩ := ((restrictionOp_source_step4_chains_step1_test U P q f hf c).mp
+    ((record_chains_spec U P q f hf c).mp hc)).2
+  rw [← hvector] at hdir
+  have hv : (q.2.val.prototypeFrame q.1).linear
+      ((r.endpoints e).2 - (r.endpoints e).1) ≠ 0 := by
+    intro h
+    have hz := (q.2.val.prototypeFrame q.1).linear.injective
+      (h.trans (map_zero _).symm)
+    exact (honest_rows_step3_cont_counters_step3_endpoints r e).1
+      (sub_eq_zero.mp hz).symm
+  have hpos : 0 < inner ℝ (U.counterDirection P q f hf)
+      ((q.2.val.prototypeFrame q.1).linear ((r.endpoints e).2 - (r.endpoints e).1)) := by
+    rw [hdir, real_inner_smul_left]
+    exact mul_pos ha (real_inner_self_pos.mpr hv)
+  have hmap : (q.2.val.prototypeFrame q.1).linear
+      ((r.endpoints e).2 - (r.endpoints e).1) =
+      q.2.val.prototypeFrame q.1 (r.endpoints e).2 -
+        q.2.val.prototypeFrame q.1 (r.endpoints e).1 :=
+    (q.2.val.prototypeFrame q.1).toAffineMap.linearMap_vsub _ _
+  rwa [hmap] at hpos
+
+/-- Step 4 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"just before" and "just after" are limits through the open edge. A
+nondegenerate segment's relative interior has interpolation parameter in (0,1). -/
+private theorem honest_rows_step3_cont_counters_step4_segment_relint
+    (p q : E d) (hpq : p ≠ q) :
+    relint (segment ℝ p q) = AffineMap.lineMap p q '' Ioo (0 : ℝ) 1 := by
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let u := L⁻¹ • (q - p)
+  have hu : ‖u‖ = 1 := by
+    dsimp [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • u + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight u
+      map_vadd' := by
+        intro t s
+        change (s + t) • u + p = s • u + (t • u + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • u‖ = ‖t‖
+      rw [norm_smul, hu, mul_one] }
+  have hφ0 : φ 0 = p := by change (0 : ℝ) • u + p = p; simp
+  have hφL : φ L = q := by
+    change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+  have hseg : segment ℝ p q = φ '' Icc 0 L := by
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hir : intrinsicInterior ℝ (Icc (0 : ℝ) L) = Ioo 0 L := by
+    have hspan : affineSpan ℝ (Icc (0 : ℝ) L) = ⊤ :=
+      (convex_Icc 0 L).interior_nonempty_iff_affineSpan_eq_top.mp
+        (by rw [interior_Icc]; exact nonempty_Ioo.mpr hL)
+    rw [intrinsicInterior, hspan]
+    change (Homeomorph.Set.univ ℝ) ''
+      interior ((Homeomorph.Set.univ ℝ) ⁻¹' Icc 0 L) = Ioo 0 L
+    rw [(Homeomorph.Set.univ ℝ).image_interior]
+    simp
+  rw [hseg, relint, φ.image_intrinsicInterior, hir]
+  ext x
+  constructor
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t / L, ⟨div_pos ht.1 hL, (div_lt_one hL).mpr ht.2⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L (t / L)
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL, hL.ne'] using he.symm
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t * L, ⟨mul_pos ht.1 hL, by nlinarith [ht.2]⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L t
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL] using he
+
+/-- Step 4 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"the value of kappa just before v". When no site is in the open edge,
+counting at any interior point gives both one-sided endpoint counts. -/
+private theorem honest_rows_step3_cont_counters_step4_interval
+    (p q u s x : E d) (hpos : 0 < inner ℝ u (q - p))
+    (hs : s ∈ affineSpan ℝ (segment ℝ p q)) (hn : s ∉ relint (segment ℝ p q))
+    (hx : x ∈ relint (segment ℝ p q)) :
+    (inner ℝ u (s - p) ≤ 0 ↔ inner ℝ u (s - x) < 0) ∧
+      (inner ℝ u (s - q) < 0 ↔ inner ℝ u (s - x) < 0) := by
+  have hpq : p ≠ q := by intro h; simp [h] at hpos
+  rw [← convexHull_pair, affineSpan_convexHull] at hs
+  obtain ⟨a, rfl⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hs
+  rw [honest_rows_step3_cont_counters_step4_segment_relint p q hpq] at hn hx
+  obtain ⟨b, hb, rfl⟩ := hx
+  have ha : ¬ (0 < a ∧ a < 1) := fun h => hn ⟨a, h, rfl⟩
+  have hlinear (c e : ℝ) :
+      inner ℝ u (AffineMap.lineMap p q c - AffineMap.lineMap p q e) =
+        (c - e) * inner ℝ u (q - p) := by
+    have hv : AffineMap.lineMap p q c - AffineMap.lineMap p q e = (c - e) • (q - p) := by
+      simp only [AffineMap.lineMap_apply_module]
+      module
+    rw [hv, real_inner_smul_right]
+  have hzero := hlinear a 0
+  have hone := hlinear a 1
+  simp only [AffineMap.lineMap_apply_zero, sub_zero] at hzero
+  simp only [AffineMap.lineMap_apply_one] at hone
+  rw [hzero, hone, hlinear]
+  by_cases ha0 : a ≤ 0
+  · have h0 := mul_nonpos_of_nonpos_of_nonneg ha0 hpos.le
+    have h1 := mul_neg_of_neg_of_pos (show a - 1 < 0 by linarith) hpos
+    have hb' := mul_neg_of_neg_of_pos (show a - b < 0 by linarith [hb.1]) hpos
+    simp only [h0, h1, hb', iff_self, and_self]
+  · have ha1 : 1 ≤ a := by push_neg at ha; exact ha (lt_of_not_ge ha0)
+    have h0 := mul_pos (lt_of_not_ge ha0) hpos
+    have h1 := mul_nonneg (sub_nonneg.mpr ha1) hpos.le
+    have hb' := mul_pos (show 0 < a - b by linarith [hb.2]) hpos
+    simp only [not_le.mpr h0, not_lt.mpr h1, not_lt.mpr hb'.le, iff_self, and_self]
+
+/-- Step 4 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"kappa+(e) is the value of kappa just before v and kappa-(e'') the value just
+after v". In either profile branch these are the strict and non-strict counts
+of physical sites at the oriented endpoints of one honest active edge. -/
+private theorem honest_rows_step3_cont_counters_step4_germs
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (r : FacetRecord P) (hr : r = U.recordOf P q f hf)
+    (e : PrototypeEdge S r.ty) (he : r.ChainActive (edgeCell e)) :
+    r.kappaMinus e = (Finset.univ.filter (fun a : Fin P.N =>
+      inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a -
+        q.2.val.prototypeFrame q.1 (r.endpoints e).1) ≤ 0)).card ∧
+    r.kappaPlus e = (Finset.univ.filter (fun a : Fin P.N =>
+      inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a -
+        q.2.val.prototypeFrame q.1 (r.endpoints e).2) < 0)).card := by
+  classical
+  subst r
+  let r := U.recordOf P q f hf
+  have hegeom := honest_rows_step3_cont_counters_step3_endpoints r e
+  have hends : (r.endpoints e).1 ∈ e.val.carrier ∧
+      (r.endpoints e).2 ∈ e.val.carrier := by
+    rw [hegeom.2]
+    exact ⟨left_mem_segment ℝ _ _, right_mem_segment ℝ _ _⟩
+  by_cases hm : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
+      (U.hierarchy.firstProvider q f hf).1
+  · have hw := (record_mature_iff U P q f hf).mpr hm
+    have hzero : (Finset.univ.filter (fun a : Fin P.N =>
+        U.sitePoint P q f hf a ∈ relint (q.2.val.cell q.1 e.val))).card = 0 := by
+      simpa only [FacetRecord.kappaMinus, FacetRecord.kappaPlus, hw, Nat.sub_self] using
+        (honest_counter_jump_count U P q f hf e he).symm
+    have hnone (a : Fin P.N) :
+        U.sitePoint P q f hf a ∉ relint (q.2.val.cell q.1 e.val) := by
+      intro ha
+      have hmem : a ∈ Finset.univ.filter (fun a : Fin P.N =>
+          U.sitePoint P q f hf a ∈ relint (q.2.val.cell q.1 e.val)) := by simp [ha]
+      rw [Finset.card_eq_zero.mp hzero] at hmem
+      simp at hmem
+    let x := q.2.val.prototypeFrame q.1 (cellAnchor e.val)
+    have hx : x ∈ relint (q.2.val.cell q.1 e.val) := by
+      rw [FramedNode.cell, restrictionOp_source_step5_relint_image]
+      exact Set.mem_image_of_mem _ (cellAnchor_mem e.val)
+    have hvalue := mature_counter_value U P q f hf hm (edgeCell e) he x hx
+    have hminus : r.kappaMinus e = (U.sitesBefore P q f hf x).val := by
+      simp only [r, FacetRecord.kappaMinus, hw, hvalue, Option.getD_some]
+    have hplus : r.kappaPlus e = (U.sitesBefore P q f hf x).val := by
+      simp only [r, FacetRecord.kappaPlus, hw, hvalue, Option.getD_some]
+    let p₀ := q.2.val.prototypeFrame q.1 (r.endpoints e).1
+    let p₁ := q.2.val.prototypeFrame q.1 (r.endpoints e).2
+    have hseg : q.2.val.cell q.1 e.val = segment ℝ p₀ p₁ := by
+      rw [FramedNode.cell, hegeom.2]
+      exact image_segment ℝ (q.2.val.prototypeFrame q.1).toAffineMap _ _
+    have hspan : affineSpan ℝ (q.2.val.cell q.1 e.val) =
+        affineSpan ℝ (U.providerPlacement P q f hf ''
+          ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier) := by
+      obtain ⟨c, hc, hce⟩ := he
+      obtain ⟨_, _, h⟩ := ((record_chains_spec U P q f hf c).mp hc).1 edgeIndex
+      simpa only [hce] using h
+    have hcounts (a : Fin P.N) :
+        (inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - p₀) ≤ 0 ↔
+          inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - x) < 0) ∧
+        (inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - p₁) < 0 ↔
+          inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - x) < 0) := by
+      apply honest_rows_step3_cont_counters_step4_interval
+      · exact honest_rows_step3_cont_counters_step4_orientation U P q f hf e he
+      · rw [← hseg, hspan]
+        exact mem_affineSpan ℝ
+          (restrictionOp_source_step4_profile_step5_site_in_flag P U q f hf a)
+      · simpa only [← hseg] using hnone a
+      · simpa only [← hseg] using hx
+    constructor
+    · rw [hminus]
+      change (Finset.univ.filter (fun a : Fin P.N =>
+        inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - x) < 0)).card = _
+      apply congrArg Finset.card
+      apply Finset.filter_congr
+      intro a _
+      exact (hcounts a).1.symm
+    · rw [hplus]
+      change (Finset.univ.filter (fun a : Fin P.N =>
+        inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - x) < 0)).card = _
+      apply congrArg Finset.card
+      apply Finset.filter_congr
+      intro a _
+      exact (hcounts a).2.symm
+  · obtain ⟨w, hw, hword⟩ := (record_shallow_iff U P q f hf).mpr (lt_of_not_ge hm)
+    constructor
+    · rw [FacetRecord.kappaMinus, hw]
+      apply congrArg Finset.card
+      apply Finset.filter_congr
+      intro a _
+      simpa only [hword] using
+        (honest_rows_step3_cont_counters_step4_word_order U P q f hf e he
+          (r.endpoints e).1 hends.1 a).1.symm
+    · rw [FacetRecord.kappaPlus, hw]
+      apply congrArg Finset.card
+      apply Finset.filter_congr
+      intro a _
+      simpa only [hword] using
+        (honest_rows_step3_cont_counters_step4_word_order U P q f hf e he
+          (r.endpoints e).2 hends.2 a).2.symm
+
+/-- Step 5 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"v is a site iff it is recorded as a site in the profiles". Transport the
+existing physical endpoint-site specification through a record readout. -/
+private theorem honest_rows_step3_cont_counters_step5_site_readout
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (r : FacetRecord P) (hr : r = U.recordOf P q f hf)
+    (e : PrototypeEdge S r.ty) (he : r.ChainActive (edgeCell e))
+    (v : VertexName S r.ty) (hv : vertexPoint v ∈ e.val.carrier) :
+    r.isSite v = true ↔
+      ∃ a : Fin P.N, U.sitePoint P q f hf a = q.2.val.prototypeFrame q.1 (vertexPoint v) := by
+  subst r
+  exact honest_counter_endpoint_site U P q f hf e he v hv
+
+/-- Step 6 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"kappa jumps by 1 exactly at sites". All sites and an active-edge endpoint
+lie on the same line, whose counter direction is nonzero. -/
+private theorem honest_rows_step3_cont_counters_step6_site_line
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (r : FacetRecord P) (hr : r = U.recordOf P q f hf)
+    (e : PrototypeEdge S r.ty) (he : r.ChainActive (edgeCell e))
+    (x : E d) (hx : x ∈ e.val.carrier) :
+    U.counterDirection P q f hf ≠ 0 ∧
+      ∀ a : Fin P.N, ∃ b : ℝ, b • U.counterDirection P q f hf =
+        U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 x := by
+  subst r
+  constructor
+  · intro h
+    have hz := (U.providerPlacement P q f hf).linear.injective
+      (h.trans (map_zero _).symm)
+    exact (P.flag (U.recordIncidence P q f hf)).distinct (sub_eq_zero.mp hz).symm
+  · intro a
+    exact restrictionOp_source_step4_profile_step5_site_line P U q f hf (edgeCell e) he a
+      _ (mem_affineSpan ℝ (Set.mem_image_of_mem _ hx))
+
+/-- Step 7 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"kappa jumps by 1 exactly at sites". The ordered sites remain distinct under
+the serving child's invertible affine placement. -/
+private theorem honest_rows_step3_cont_counters_step7_sites_injective
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
+    Function.Injective (U.sitePoint P q f hf) := by
+  intro a b h
+  simp only [restrictionOp_source_step4_profile_step4_site_placement] at h
+  exact P.sites_injective _ _ (((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+    (U.hierarchy.servingChild q f hf).1).injective h)
+
+/-- Step 8 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
+"kappa jumps by 1 exactly at sites". Passing from a strict count to a
+non-strict count adds the unique site at the point, if there is one. -/
+private theorem honest_rows_step3_cont_counters_step8_count
+    {n : ℕ} (p : Fin n → E d) (hp : Function.Injective p) (u x : E d) (hu : u ≠ 0)
+    (hline : ∀ a, ∃ b : ℝ, b • u = p a - x) :
+    let lo := (Finset.univ.filter (fun a => inner ℝ u (p a - x) < 0)).card
+    let hi := (Finset.univ.filter (fun a => inner ℝ u (p a - x) ≤ 0)).card
+    (hi = lo ∨ hi = lo + 1) ∧ (hi = lo + 1 ↔ ∃ a, p a = x) := by
+  classical
+  let A := Finset.univ.filter (fun a => inner ℝ u (p a - x) < 0)
+  let B := Finset.univ.filter (fun a => inner ℝ u (p a - x) ≤ 0)
+  let Z := Finset.univ.filter (fun a => inner ℝ u (p a - x) = 0)
+  have hz (a : Fin n) : inner ℝ u (p a - x) = 0 ↔ p a = x := by
+    constructor
+    · intro h
+      obtain ⟨b, hb⟩ := hline a
+      rw [← hb, real_inner_smul_right] at h
+      have hb0 : b = 0 := (mul_eq_zero.mp h).resolve_right
+        (ne_of_gt (real_inner_self_pos.mpr hu))
+      exact sub_eq_zero.mp (by rw [← hb, hb0, zero_smul])
+    · intro h
+      simp [h]
+  have hB : B = A ∪ Z := by
+    ext a
+    simp only [A, B, Z, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union]
+    exact le_iff_lt_or_eq
+  have hd : Disjoint A Z := by
+    apply Finset.disjoint_left.mpr
+    intro a ha hz'
+    exact (ne_of_lt (Finset.mem_filter.mp ha).2) (Finset.mem_filter.mp hz').2
+  have hcard : B.card = A.card + Z.card := by rw [hB, Finset.card_union_of_disjoint hd]
+  have hsmall : Z.card ≤ 1 := by
+    apply Finset.card_le_one.mpr
+    intro a ha b hb
+    exact hp (((hz a).mp (Finset.mem_filter.mp ha).2).trans
+      ((hz b).mp (Finset.mem_filter.mp hb).2).symm)
+  have hex : (∃ a, p a = x) ↔ 0 < Z.card := by
+    rw [Finset.card_pos]
+    simp only [Finset.Nonempty, Z, Finset.mem_filter, Finset.mem_univ, true_and, hz]
+  change (B.card = A.card ∨ B.card = A.card + 1) ∧
+    (B.card = A.card + 1 ↔ ∃ a, p a = x)
+  rw [hex]
+  omega
+
 /-- Step 3 of the V4 proof of `honest_rows` (V4 2.8): "Counters: $\kappa^+(e)$ is the value
 of $\kappa$ just before $v$ and $\kappa^-(e'')$ the value just after $v$; $\kappa$ jumps by
 $1$ exactly at sites, so the difference is $1$ iff $v$ is a site, and $v$ is a site iff it is
@@ -4434,7 +4951,76 @@ private theorem honest_rows_step3_cont_counters (U : HonestSource S) (P : Params
       T.record.kappaMinus T.edge = slot.record.kappaPlus slot.edge + 1) ∧
     (T.record.kappaMinus T.edge = slot.record.kappaPlus slot.edge + 1 ↔
       slot.record.isSite slot.vertex = true ∧ T.record.isSite T.vertex = true) := by
-  sorry
+  classical
+  obtain ⟨q, hq, hother, hlabel⟩ := hT.2 _ T.other_mem
+  dsimp only at hother hlabel
+  obtain ⟨f, hf, hr⟩ := honest_rows_step3_cont_counters_step1_readout U P t ht
+    slot.facet.val slot.record slot.record_eq
+  have hread := T.record_eq
+  rw [hlabel] at hread
+  obtain ⟨g, hg, hr'⟩ := honest_rows_step3_cont_counters_step1_readout U P q hq
+    T.record.facet.val T.record hread
+  have hbirth := honest_rows_step3_cont_counters_step2_common_birth U P t ht slot T
+    q hq hother f hf g hg hr hr' hc ho
+  obtain ⟨hi, hs, _⟩ := honest_rows_step2_cont_labels U P t ht slot T hT hc ho
+  have hside : T.record.sideIndex = slot.record.sideIndex := by
+    have hroles : slot.record.incidence.val.sideRole T.record.sideIndex =
+        slot.record.incidence.val.sideRole slot.record.sideIndex := by
+      simpa only [hi] using T.record.side_eq.symm.trans (hs.trans slot.record.side_eq)
+    have hd := slot.record.incidence.val.distinct
+    cases hb : T.record.sideIndex <;> cases hb' : slot.record.sideIndex <;>
+      simp_all [PrimitiveIncidence.sideRole, PrimitiveIncidence.sideIndex]
+  have hinc : U.recordIncidence P q g hg = U.recordIncidence P t f hf := by
+    simpa only [hr, hr', HonestSource.recordOf] using hi
+  have hside' : U.recordSide P q g hg = U.recordSide P t f hf := by
+    simpa only [hr, hr', HonestSource.recordOf] using hside
+  have hplace : U.providerPlacement P q g hg = U.providerPlacement P t f hf := by
+    unfold HonestSource.providerPlacement CoherentHierarchy.birthHeight
+    rw [← hbirth, hinc]
+  have hsites (a : Fin P.N) : U.sitePoint P q g hg a = U.sitePoint P t f hf a := by
+    simp only [HonestSource.sitePoint, hplace, hinc, hside']
+  have hdir : U.counterDirection P q g hg = U.counterDirection P t f hf := by
+    unfold HonestSource.counterDirection
+    rw [hplace, hinc]
+  have hpoint : q.2.val.prototypeFrame q.1 (vertexPoint T.vertex) =
+      t.2.val.prototypeFrame t.1 (vertexPoint slot.vertex) := by
+    have hv := T.vertex_eq
+    rw [hother] at hv
+    have h := congrArg t.2.val.frame hv
+    change t.2.val.frame (t.2.val.frame.symm (q.2.val.frame (vertexPoint T.vertex))) =
+      t.2.val.frame (vertexPoint slot.vertex) at h
+    rw [t.2.val.frame.apply_symm_apply] at h
+    simpa [FramedNode.prototypeFrame, ht, hq] using h
+  have he : T.record.ChainActive (edgeCell T.edge) := ⟨T.otherChain, ho, T.other_edge⟩
+  have hv : vertexPoint slot.vertex ∈ slot.edge.val.carrier := by
+    rw [slot.terminal, (honest_rows_step3_cont_counters_step3_endpoints
+      slot.record slot.edge).2]
+    exact right_mem_segment ℝ _ _
+  have hv' : vertexPoint T.vertex ∈ T.edge.val.carrier := by
+    rw [T.initial, (honest_rows_step3_cont_counters_step3_endpoints T.record T.edge).2]
+    exact left_mem_segment ℝ _ _
+  have hk := (honest_rows_step3_cont_counters_step4_germs U P t f hf
+    slot.record hr slot.edge slot.active).2
+  have hk' := (honest_rows_step3_cont_counters_step4_germs U P q g hg
+    T.record hr' T.edge he).1
+  rw [← slot.terminal] at hk
+  rw [← T.initial, hpoint, hdir] at hk'
+  simp only [hsites] at hk'
+  have hvsite := honest_rows_step3_cont_counters_step5_site_readout U P t f hf
+    slot.record hr slot.edge slot.active slot.vertex hv
+  have hvsite' := honest_rows_step3_cont_counters_step5_site_readout U P q g hg
+    T.record hr' T.edge he T.vertex hv'
+  simp only [hsites, hpoint] at hvsite'
+  obtain ⟨hu, hline⟩ := honest_rows_step3_cont_counters_step6_site_line U P t f hf
+    slot.record hr slot.edge slot.active (vertexPoint slot.vertex) hv
+  have hcount := honest_rows_step3_cont_counters_step8_count (U.sitePoint P t f hf)
+    (honest_rows_step3_cont_counters_step7_sites_injective U P t f hf)
+    (U.counterDirection P t f hf) (t.2.val.prototypeFrame t.1 (vertexPoint slot.vertex))
+    hu hline
+  dsimp only at hcount
+  rw [← hk, ← hk'] at hcount
+  refine ⟨hcount.1, hcount.2.trans ?_⟩
+  exact ⟨fun h => ⟨hvsite.mpr h, hvsite'.mpr h⟩, fun h => hvsite.mp h.1⟩
 
 /-- Step 1 of the V4 proof of `honest_rows_step4_cont_packet` (V4 1.0(b)):
 "A is a polyhedron". A simplex, including a lower-dimensional one, is cut out by

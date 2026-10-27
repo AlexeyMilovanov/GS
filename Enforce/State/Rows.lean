@@ -2680,6 +2680,132 @@ def actualTemplate (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 
   | .cont s => (Classical.choose (actualCont_exists U P t ht s)).configuration
   | .end_ s => (Classical.choose (actualEnd_exists U P t ht s)).configuration
 
+/-- Step 1 of the V4 proof of `honest_rows` (V4 2.8): "CONT: ... By Remark 2.1, $t$ is a
+selected owner of the recursive trace $\mathcal P_2$ of $H$ ... so there is a polygon $s_2''$
+adjacent to $h$ on the far side of $v$ ... with owner $t''$ and an edge $e''$ along $h$ with
+initial endpoint $v$ ... its recorded chain $s_2''\subset\cdots\subset s_{d-1}''$ has
+$\operatorname{aff}=\operatorname{aff}F_j$, so by Remark 2.1 (converse part) $e''$ is a
+chain-active edge". The actual continuation geometry follows the recorded active chains. -/
+private theorem honest_rows_step1_cont_geometry (U : HonestSource S) (P : Params S)
+    (t : U.Node) (ht : t.1 = 0) (slot : ContSlot (leafTypeOf U P t ht)) :
+    ∃ T : ContTemplate slot, IsActualTemplate U P t ht T.configuration ∧
+      T.centralChain ∈ slot.record.chains ∧ T.otherChain ∈ T.record.chains := by
+  sorry
+
+/-- Step 2 of the V4 proof of `honest_rows` (V4 2.8): "by Remark 2.1 (converse part) $e''$ is
+a chain-active edge of the facet $f''$ of $t''$ inside $g$, whose record has the same $\iota$,
+side and $\beta$ (same provider $g$, same serving child $H$)". -/
+private theorem honest_rows_step2_cont_labels (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : ContSlot (leafTypeOf U P t ht)) (T : ContTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (hc : T.centralChain ∈ slot.record.chains) (ho : T.otherChain ∈ T.record.chains) :
+    T.record.incidence = slot.record.incidence ∧ T.record.side = slot.record.side ∧
+      T.record.beta = slot.record.beta := by
+  sorry
+
+/-- Step 3 of the V4 proof of `honest_rows` (V4 2.8): "Counters: $\kappa^+(e)$ is the value
+of $\kappa$ just before $v$ and $\kappa^-(e'')$ the value just after $v$; $\kappa$ jumps by
+$1$ exactly at sites, so the difference is $1$ iff $v$ is a site, and $v$ is a site iff it is
+recorded as a site in the profiles of both tiles". -/
+private theorem honest_rows_step3_cont_counters (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : ContSlot (leafTypeOf U P t ht)) (T : ContTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (hc : T.centralChain ∈ slot.record.chains) (ho : T.otherChain ∈ T.record.chains) :
+    (T.record.kappaMinus T.edge = slot.record.kappaPlus slot.edge ∨
+      T.record.kappaMinus T.edge = slot.record.kappaPlus slot.edge + 1) ∧
+    (T.record.kappaMinus T.edge = slot.record.kappaPlus slot.edge + 1 ↔
+      slot.record.isSite slot.vertex = true ∧ T.record.isSite T.vertex = true) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `honest_rows` (V4 2.8): "the packets attached to $f,f''$ are
+both $\mathcal P(g)$". -/
+private theorem honest_rows_step4_cont_packet (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : ContSlot (leafTypeOf U P t ht)) (T : ContTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (hc : T.centralChain ∈ slot.record.chains) (ho : T.otherChain ∈ T.record.chains) :
+    leafPacket T.label T.record.facet.val = some slot.packet := by
+  sorry
+
+/-- Step 5 of the V4 proof of `honest_rows` (V4 2.8): "(E1): the ports on first-generation
+facets of $P$ have finite records with the incidence of their facet and the dictated side
+(Lemma 1.5(b), Lemma 1.7), $\tau(\{v\})=\{p\}$ ... and $\beta=(b-1)\bmod L$ for all of
+them; ports on boundary facets of $P$ carry the restrictions of $P$'s records (Lemma 1.7(c)),
+NULL if $P$'s record is NULL." -/
+private theorem honest_rows_step5_end_E1 (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : EndSlot (leafTypeOf U P t ht)) (T : EndTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (hfv : f.val = slot.facet.val)
+    (hvv : v.val = slot.vertex.val)
+    (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
+    endRow_E1 T := by
+  sorry
+
+/-- Step 6 of the V4 proof of `honest_rows` (V4 2.8): "(E2): all ports on one
+first-generation facet carry its unique packet (Lemma 2.6(c)); alignment: ... the chain is
+active, with the orientations transported from $\mathcal F_\iota$ ...; counters: all sites
+lie in $\operatorname{relint}h$, so $\kappa=0$ ... immediately after the initial endpoint
+and $\kappa=N$ immediately before the terminal endpoint". -/
+private theorem honest_rows_step6_end_E2 (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : EndSlot (leafTypeOf U P t ht)) (T : EndTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (hfv : f.val = slot.facet.val)
+    (hvv : v.val = slot.vertex.val)
+    (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
+    endRow_E2 T := by
+  sorry
+
+/-- Step 7 of the V4 proof of `honest_rows` (V4 2.8): "(E3): when $\delta_F<C$ the recorded
+age is the actual age, so the record of $F$ in $S(P)$ gives the provider $g_F$ born in
+$P_{b+\delta_F}$ and the slots of $\mathcal P(g_F)$ are the states of the ancestors of
+$P_{b+\delta_F}$ ...; if $F$ is a FAULT of $P$, all ports on $F$ are NULL." -/
+private theorem honest_rows_step7_end_E3 (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : EndSlot (leafTypeOf U P t ht)) (T : EndTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (hfv : f.val = slot.facet.val)
+    (hvv : v.val = slot.vertex.val)
+    (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
+    endRow_E3 T := by
+  sorry
+
+/-- Step 8 of the V4 proof of `honest_rows` (V4 2.8): "(E4): the heads of first-generation
+facets of $P$ are $S(P)$ and the slots are the ancestors' states." -/
+private theorem honest_rows_step8_end_E4 (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : EndSlot (leafTypeOf U P t ht)) (T : EndTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (hfv : f.val = slot.facet.val)
+    (hvv : v.val = slot.vertex.val)
+    (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
+    endRow_E4 T := by
+  sorry
+
+/-- Step 9 of the V4 proof of `honest_rows` (V4 2.8): "(E5): $E_P(F,F')$ means coalescence
+of the tracks, hence the same provider occurrence and the same packet, or both NULL." -/
+private theorem honest_rows_step9_end_E5 (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : EndSlot (leafTypeOf U P t ht)) (T : EndTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (hfv : f.val = slot.facet.val)
+    (hvv : v.val = slot.vertex.val)
+    (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
+    endRow_E5 T := by
+  sorry
+
+/-- Step 10 of the V4 proof of `honest_rows` (V4 2.8): "(E6): all ports on one facet carry
+its unique packet or are all NULL." -/
+private theorem honest_rows_step10_end_E6 (U : HonestSource S) (P : Params S) (t : U.Node)
+    (ht : t.1 = 0) (slot : EndSlot (leafTypeOf U P t ht)) (T : EndTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (hfv : f.val = slot.facet.val)
+    (hvv : v.val = slot.vertex.val)
+    (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
+    endRow_E6 T := by
+  sorry
+
 /-- Q14, V4 2.8: in every honest source, at every event slot of every native tile,
 there is an actual positioned configuration belonging to the allowed catalogue.
 CONT uses the physical-vertex jump rule; END asserts all six clauses simultaneously.
@@ -2688,6 +2814,31 @@ configuration because the geometry-only choice need not follow the recorded acti
 theorem honest_rows (U : HonestSource S) (P : Params S) :
     ∀ (t : U.Node) (ht : t.1 = 0) (slot : EventSlot (leafTypeOf U P t ht)),
       ∃ θ : Template P, IsActualTemplate U P t ht θ ∧ θ ∈ allowedTemplates slot := by
-  sorry
+  intro t ht slot
+  cases slot with
+  | cont s =>
+    obtain ⟨T, hT, hc, ho⟩ := honest_rows_step1_cont_geometry U P t ht s
+    obtain ⟨hi, hs, hb⟩ := honest_rows_step2_cont_labels U P t ht s T hT hc ho
+    obtain ⟨hk1, hk2⟩ := honest_rows_step3_cont_counters U P t ht s T hT hc ho
+    have hp := honest_rows_step4_cont_packet U P t ht s T hT hc ho
+    have hrow : contRow T := by
+      unfold contRow
+      exact ⟨hi, hs, hb, hc, ho, T.aligned, hk1, hk2, hp⟩
+    refine ⟨T.configuration, hT, ?_⟩
+    show ∃ T' : ContTemplate s, T'.configuration = T.configuration ∧ contRow T'
+    exact ⟨T, rfl, hrow⟩
+  | end_ s =>
+    obtain ⟨T, hT, f, hf, v, hfv, hvv, hreal⟩ := actualEnd_exists U P t ht s
+    have hrow : endRow T := by
+      unfold endRow
+      exact ⟨honest_rows_step5_end_E1 U P t ht s T hT f hf v hfv hvv hreal,
+        honest_rows_step6_end_E2 U P t ht s T hT f hf v hfv hvv hreal,
+        honest_rows_step7_end_E3 U P t ht s T hT f hf v hfv hvv hreal,
+        honest_rows_step8_end_E4 U P t ht s T hT f hf v hfv hvv hreal,
+        honest_rows_step9_end_E5 U P t ht s T hT f hf v hfv hvv hreal,
+        honest_rows_step10_end_E6 U P t ht s T hT f hf v hfv hvv hreal⟩
+    refine ⟨T.configuration, hT, ?_⟩
+    show ∃ T' : EndTemplate s, T'.configuration = T.configuration ∧ endRow T'
+    exact ⟨T, rfl, hrow⟩
 
 end Enforce

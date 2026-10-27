@@ -571,6 +571,217 @@ private theorem host_step_step1_seed_step2_endpoint_piece
     · exact hgeom _ (Or.inr rfl)
   exact ⟨hlisted.1, host_step_step1_seed_step2_facet_at_vertex Y n B f p hlisted.1 hlisted.2⟩
 
+/-- Step 1 of the V4 proof of `host_step_step1_seed_step3_restricted_header` (V4 3.6, 1.13(c)):
+"by (I2) their record ... is the restriction of the age-1 record".
+Realize the honest root state at its prescribed height and frame before descent. -/
+private theorem host_step_step1_seed_step3_restricted_header_step1_realise
+    (s : State P) (hs : s ∈ honestStates S P) (N : FramedNode S) (n : ℕ)
+    (hty : s.ty = N.ty) (hres : s.residue.val = n % P.L) :
+    ∃ (U : HonestSource S) (hN : N ∈ U.hierarchy.nodes n),
+      stateOf U P ⟨n, ⟨N, hN⟩⟩ = s := by
+  obtain ⟨U, q, rfl⟩ := hs
+  have hmod : q.1 % P.L = n % P.L := hres
+  have hshift : (q.1 - n) % P.L = (n - q.1) % P.L := by
+    rcases le_total q.1 n with h | h
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact (Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod)).symm
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod.symm)
+  obtain ⟨V, e, N', he⟩ := exactScaleTransfer U q.1 q.2.val q.2.property n
+    (AffineIsometryEquiv.refl ℝ (E d))
+  have hs' : stateOf V P ⟨n, N'⟩ = stateOf U P q := by
+    have h := state_scaleTransfer P e hshift ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.symm
+  have hty' : N'.val.ty = N.ty := by
+    have h := e.types ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.trans hty
+  let J := N'.val.frame.symm.trans N.frame
+  obtain ⟨W, f, N'', hf⟩ := exactScaleTransfer V n N'.val N'.property n J
+  have hs'' : stateOf W P ⟨n, N''⟩ = stateOf V P ⟨n, N'⟩ := by
+    have h := state_scaleTransfer P f rfl ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+    rw [hf] at h
+    exact h.symm
+  have hnode : N''.val = N := by
+    apply FramedNode.ext
+    · have h := f.types ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      exact h.trans hty'
+    · have h := f.frames ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      apply AffineIsometryEquiv.ext
+      intro x
+      have hx := congrArg (fun g : E d ≃ᵃ[ℝ] E d => g ((S.σ ^ n).symm x)) h
+      simpa [FramedNode.prototypeFrame, J] using hx
+  obtain ⟨N'', hN''⟩ := N''
+  dsimp only at hnode
+  subst N''
+  exact ⟨W, hN'', hs''.trans hs'⟩
+
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step3_restricted_header` (V4 3.6, 2.3):
+"by (I2) their record on that piece is the restriction". The child equations
+identify every native descendant state and its ancestor in the fixed source. -/
+private theorem host_step_step1_seed_step3_restricted_header_step2_descent
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (U : HonestSource S) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ D.geometry.nodes (h + r)) (hU : N ∈ U.hierarchy.nodes (h + r))
+    (hs : stateOf U P ⟨h + r, ⟨N, hU⟩⟩ = D.stateAt (h + r) N hN)
+    (w : S.RoleWord N.ty r) :
+    let M := (S.descendantNode N.ty h r w).move N.frame
+    ∃ (hM : M ∈ D.geometry.nodes h) (hMU : M ∈ U.hierarchy.nodes h),
+      stateOf U P ⟨h, ⟨M, hMU⟩⟩ = D.stateAt h M hM ∧
+        U.hierarchy.ancestor ⟨h, ⟨M, hMU⟩⟩ r = ⟨h + r, ⟨N, hU⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+    have hnode : (S.descendantNode N.ty h 0 w).move N.frame = N := by
+      cases N
+      simp [SubstSystem.descendantNode, FramedNode.move]
+    simp only [hnode]
+    exact ⟨hN, hU, hs, rfl⟩
+  | succ r ih =>
+    let i := w.1
+    let N' := N.child (h + r) i
+    have hN' : N' ∈ D.geometry.nodes (h + r) := D.geometry.child_mem _ N hN i
+    have hU' : N' ∈ U.hierarchy.nodes (h + r) := U.hierarchy.children_mem _ N hU i
+    have hs' : stateOf U P ⟨h + r, ⟨N', hU'⟩⟩ = D.stateAt (h + r) N' hN' := by
+      rw [hD.I2.1 (h + r) N hN i]
+      simp only [Nat.add_assoc]
+      rw [← hs]
+      have hc := childMap_spec U P ⟨h + r + 1, ⟨N, hU⟩⟩
+        (by change 1 ≤ h + r + 1; omega) i
+      simpa [HonestSource.childNode, N'] using hc
+    obtain ⟨hM, hMU, hstate, hanc⟩ := ih N' hN' hU' hs' w.2
+    have hnode : (S.descendantNode N.ty h (r + 1) w).move N.frame =
+        (S.descendantNode N'.ty h r w.2).move N'.frame := by
+      simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child, N', i,
+        AffineIsometryEquiv.trans_assoc]
+    simp only [hnode]
+    refine ⟨hM, hMU, hstate, ?_⟩
+    rw [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor _ r) = _
+    rw [hanc]
+    apply Sigma.ext
+    · simp [CoherentHierarchy.parentNode, Nat.add_assoc]
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (U.hierarchy.parent_unique (h + r) ⟨N', hU'⟩ N hU ⟨i, rfl⟩).symm
+
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step3_restricted_header` (V4 2.3):
+"same iota, side, beta and provider". Equal birth nodes and provider carriers
+have equal canonical incidence names. -/
+private theorem host_step_step1_seed_step3_restricted_header_step3_incidence
+    (P : Params S) (U : HonestSource S)
+    (c p : U.Node) (f : FacetName S c.2.val.ty) (F : FacetName S p.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault c f) (hF : ¬ U.hierarchy.IsFault p F)
+    (hb : U.hierarchy.birthParent c f hf = U.hierarchy.birthParent p F hF)
+    (hp : U.hierarchy.providerCarrier c f hf = U.hierarchy.providerCarrier p F hF) :
+    U.recordIncidence P c f hf = U.recordIncidence P p F hF := by
+  have hc := U.hierarchy.providerIncidence_spec c f hf
+  have hpar := U.hierarchy.providerIncidence_spec p F hF
+  apply P.canonical_unique
+  constructor
+  · exact hc.1.trans ((congrArg (fun q : U.Node => q.2.val.ty) hb).trans
+      (hpar.1.symm.trans (P.canonical_spec _).1))
+  · have hplace := congrArg (fun B : U.Node => B.2.val.prototypeFrame B.1 ''
+        (S.σ.symm '' (U.hierarchy.providerIncidence c f hf).positioned)) hb
+    have heq := hplace.symm.trans (hc.2.2.2.symm.trans (hp.trans hpar.2.2.2))
+    exact S.σ.symm.injective.image_injective
+      (((U.hierarchy.birthParent p F hF).2.val.prototypeFrame
+        (U.hierarchy.birthHeight p F hF)).injective.image_injective heq) |>.trans
+          (P.canonical_spec _).2
+
+/-- Step 4 of the V4 proof of `host_step_step1_seed_step3_restricted_header` (V4 3.6):
+"P := PP(B)". The first source role reconstructs the exact source parent frame. -/
+private theorem host_step_step1_seed_step3_restricted_header_step4_parent
+    (U : HonestSource S) (q : U.Node) :
+    (U.hierarchy.parentNode q).2.val =
+      ⟨(U.hierarchy.nodeRole q).1,
+        (S.placeChild q.1 (U.hierarchy.nodeRole q).2).symm.trans q.2.val.frame⟩ := by
+  apply FramedNode.ext
+  · rfl
+  · have hf := congrArg FramedNode.frame (U.hierarchy.child_eq q.1 q.2)
+    change q.2.val.frame = (S.placeChild q.1 (U.hierarchy.nodeRole q).2).trans
+      (U.hierarchy.parentNode q).2.val.frame at hf
+    rw [hf]
+    ext x
+    simp
+
+/-- Step 5 of the V4 proof of `host_step_step1_seed_step3_restricted_header` (V4 3.6, 2.3):
+"tau({p₀}) = {p₀} is a vertex of g". A listed vertex of the serving node
+has a zero-dimensional canonical provider stratum. -/
+private theorem host_step_step1_seed_step3_restricted_header_step5_zero
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (v : VertexName S q.2.val.ty)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hp : (U.hierarchy.servingChild q f hf).2.val.Lists
+      (U.hierarchy.servingChild q f hf).1
+      (q.2.val.prototypeFrame q.1 (vertexPoint v))) :
+    (U.recordTau P q f hf ⟨vertexCell v, hv⟩).val.val.dim = 0 := by
+  obtain ⟨w, hw, hpw⟩ := hp
+  let w' : VertexName S (U.hierarchy.servingChild q f hf).2.val.ty := ⟨w, hw⟩
+  have hpoint : q.2.val.prototypeFrame q.1 (vertexPoint v) =
+      (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1 (vertexPoint w') := by
+    change _ ∈ (U.hierarchy.servingChild q f hf).2.val.cell
+      (U.hierarchy.servingChild q f hf).1 w'.val at hpw
+    simpa only [FramedNode.cell, vertexPoint_spec w', Set.image_singleton,
+      Set.mem_singleton_iff] using hpw
+  have hcell : q.2.val.cell q.1 (vertexCell v).val =
+      (U.hierarchy.servingChild q f hf).2.val.cell
+        (U.hierarchy.servingChild q f hf).1 (vertexCell w').val := by
+    simp only [FramedNode.cell, vertexCell, vertexPoint_spec, Set.image_singleton, hpoint]
+  have hstratum : U.hierarchy.stratumMap q f hf (vertexCell v)
+      (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩) = vertexCell w' := by
+    exact ((Classical.choose_spec (U.hierarchy.stratum_exists_unique q f hf
+      (vertexCell v) (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩))).2
+        (vertexCell w') (by rw [hcell])).symm
+  have htau := record_tau_spec U P q f hf ⟨vertexCell v, hv⟩
+  rw [hstratum] at htau
+  change U.providerPlacement P q f hf ''
+      (U.recordTau P q f hf ⟨vertexCell v, hv⟩).val.val.carrier =
+    (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+      (U.hierarchy.servingChild q f hf).1 '' w'.val.carrier at htau
+  rw [vertexPoint_spec, Set.image_singleton] at htau
+  let e := U.recordTau P q f hf ⟨vertexCell v, hv⟩
+  have hsingleton : e.val.val.carrier =
+      {(U.providerPlacement P q f hf).symm
+        ((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+          (U.hierarchy.servingChild q f hf).1 (vertexPoint w'))} := by
+    apply (U.providerPlacement P q f hf).injective.image_injective
+    simpa only [Set.image_singleton, AffineEquiv.apply_symm_apply] using htau
+  change e.val.val.dim = 0
+  rw [← e.val.val.flat.dimension, hsingleton]
+  simp [cellDirection, direction_affineSpan]
+
+/-- Step 6 of the V4 proof of `host_step_step1_seed_step3_restricted_header` (V4 3.6, 2.6(c)):
+"each such t has an END slot". A finite record in an honest leaf pre-pattern
+has a non-NULL packet on that same facet. -/
+private theorem host_step_step1_seed_step3_restricted_header_step6_packet
+    (l : LeafType P) (f : Cell d)
+    (r : FacetRecord P) (hr : leafRecord l f = some r) :
+    ∃ q : Packet P, leafPacket l f = some q := by
+  classical
+  obtain ⟨U, t, ht, hw⟩ := (certificate_components_honest P l.1.val l.1.property).1 l.2
+  change prePatternOf U P t ht = l.prePattern at hw
+  unfold leafRecord at hr
+  rw [← hw] at hr
+  change stateRecordAt (stateOf U P t) f = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  next hf =>
+    change f ∈ (S.cx t.2.val.ty).facets at hf
+    change U.facetRecordOf P t ⟨f, hf⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    next hn =>
+      refine ⟨packetOf U P (U.providerOccurrence P t ⟨f, hf⟩ hn), ?_⟩
+      unfold leafPacket
+      rw [← hw]
+      simp only [prePatternOf, dif_pos hf, HonestSource.facetPacket, dif_neg hn]
+  · contradiction
+
 /-- Step 3 of the V4 proof of `host_step_step1_seed` (V4 3.6, 2.3):
 "by (I2) their record on that piece is the restriction of the age-1 record"
 and "their (S6) record is the header ... in t's frame".
@@ -588,11 +799,132 @@ private theorem host_step_step1_seed_step3_restricted_header
       j.record.incidence = a.record.incidence ∧ j.record.beta.val = n % P.L ∧
       j.header = host_step_step1_seed_step1_header (proposedParent D B hB) n
         (compilerFrame C t) p := by
-  -- Realize the root state at height n, using exact scale transfer if needed,
-  -- then iterate I2 along the native address supplied by hpiece. Provider
-  -- inheritance preserves incidence and beta; the listed block vertex has
-  -- a zero-dimensional provider stratum. Unfolding headerOf gives the header.
-  sorry
+  classical
+  obtain ⟨U, hU, hs⟩ := host_step_step1_seed_step3_restricted_header_step1_realise
+    (D.blockState B hB) (hD.I1 B hB).1 B.node n
+    (hD.I1 B hB).2.1 (hD.I1 B hB).2.2
+  let q : U.Node := ⟨n, ⟨B.node, hU⟩⟩
+  have hread : U.facetRecordOf P q f = some a.record := by
+    have h := a.readout
+    rw [← hs] at h
+    simpa only [stateRecordAt, stateOf, dif_pos f.property] using h
+  have hf : ¬ U.hierarchy.IsFault q f := by
+    intro hf
+    simp only [HonestSource.facetRecordOf, dif_pos hf] at hread
+    contradiction
+  have hrecord : U.recordOf P q f hf = a.record := by
+    simpa only [HonestSource.facetRecordOf, dif_neg hf, Option.some.injEq] using hread
+  have hoff : (U.hierarchy.firstProvider q f hf).1 = 0 := by
+    have ha := a.age_one
+    rw [← hrecord] at ha
+    change min (U.hierarchy.age q f hf) P.C = 1 at ha
+    have := P.C_gt_one
+    have := (U.hierarchy.birthHeight_age_spec q f hf).2.1
+    omega
+  have hserv : U.hierarchy.servingChild q f hf = q := by
+    simp only [CoherentHierarchy.servingChild, hoff, CoherentHierarchy.ancestor,
+      Function.iterate_zero, id_eq]
+  have hrole : U.hierarchy.nodeRole q = firstRole D B hB := by
+    have h := congrArg (fun s : State P => s.address ⟨0, P.k_pos⟩) hs
+    simpa only [stateOf, CoherentHierarchy.ancestor, Function.iterate_zero, id_eq,
+      firstRole] using h
+  have hparent : (U.hierarchy.parentNode q).2.val = proposedParent D B hB := by
+    rw [host_step_step1_seed_step3_restricted_header_step4_parent, hrole]
+    rfl
+  obtain ⟨r, hr, w, htile⟩ := hpiece.2.1
+  have hrn : r = n := by omega
+  subst r
+  have hreal {k : ℕ} (hk : k = n) (hN : B.node ∈ D.geometry.nodes k)
+      (hU' : B.node ∈ U.hierarchy.nodes k) :
+      stateOf U P ⟨k, ⟨B.node, hU'⟩⟩ = D.stateAt k B.node hN := by
+    subst k
+    exact hs
+  have hnode {k : ℕ} (hk : k = n) (hU' : B.node ∈ U.hierarchy.nodes k) :
+      (⟨k, ⟨B.node, hU'⟩⟩ : U.Node) = q := by
+    subst k
+    rfl
+  have hdesc : ∃ (htD : tileNode t ∈ D.geometry.nodes 0)
+      (htU : tileNode t ∈ U.hierarchy.nodes 0),
+      stateOf U P ⟨0, ⟨tileNode t, htU⟩⟩ = D.stateAt 0 (tileNode t) htD ∧
+        U.hierarchy.ancestor ⟨0, ⟨tileNode t, htU⟩⟩ n = q := by
+    obtain ⟨htD, htU, htstate, hanc⟩ :=
+      host_step_step1_seed_step3_restricted_header_step2_descent D hD U 0 n B.node
+        (by simpa only [Nat.zero_add] using D.geometry.root_mem B hB)
+        (by simpa only [Nat.zero_add] using hU)
+        (hreal (Nat.zero_add n) _ _) w
+    rw [htile]
+    exact ⟨htD, htU, htstate, hanc.trans (hnode (Nat.zero_add n) _)⟩
+  obtain ⟨htD, htU, htstate, hanc⟩ := hdesc
+  let c : U.Node := ⟨0, ⟨tileNode t, htU⟩⟩
+  have hleaf : stateOf U P c = (compilerLeaf C t).prePattern.state :=
+    htstate.trans (hD.I2.2 (tileNode t) htD t hpiece.1 rfl)
+  obtain ⟨hg, hprovider, hbirth⟩ := U.hierarchy.provider_inherited q c n hanc f g hf hpiece.2.2
+  have hbirth' : U.hierarchy.birthParent c g hg = U.hierarchy.parentNode q := by
+    rw [hbirth, CoherentHierarchy.birthParent, hserv]
+  have hcserv : U.hierarchy.servingChild c g hg = q := by
+    have hh := congrArg (fun z : U.Node => z.1) hbirth'
+    have hoff' := (U.hierarchy.birthHeight_age_spec c g hg).1
+    have he : (U.hierarchy.firstProvider c g hg).1 = n := by
+      change U.hierarchy.birthHeight c g hg = n + 1 at hh
+      change U.hierarchy.birthHeight c g hg = 0 + _ + 1 at hoff'
+      omega
+    simpa only [CoherentHierarchy.servingChild, he] using hanc
+  have hι : U.recordIncidence P c g hg = a.record.incidence :=
+    (host_step_step1_seed_step3_restricted_header_step3_incidence P U c q g f hg hf
+      hbirth hprovider).trans (congrArg FacetRecord.incidence hrecord)
+  have hframe : c.2.val.prototypeFrame c.1 = (compilerFrame C t).toAffineEquiv := by
+    ext x
+    rfl
+  have hpoint : c.2.val.prototypeFrame c.1 (vertexPoint v) = p := by
+    rw [hframe]
+    exact hvp
+  have hzero := host_step_step1_seed_step3_restricted_header_step5_zero (P := P)
+    U c g hg v hv (by rw [hcserv, hpoint]; exact hp)
+  have hrleaf : leafRecord (compilerLeaf C t) g.val = some (U.recordOf P c g hg) := by
+    unfold leafRecord
+    rw [← hleaf]
+    simp only [stateRecordAt, stateOf, c, dif_pos g.property,
+      HonestSource.facetRecordOf, dif_neg hg]
+  have hheader : leafHeader (compilerLeaf C t) v.val g.val =
+      some (U.headerOf P c g hg v) := by
+    unfold leafHeader
+    rw [← hleaf]
+    simp only [stateOf, c, dif_pos v.property, dif_pos g.property,
+      HonestSource.headerRecordOf, dif_pos hv, dif_neg hg, hzero, if_pos True.intro]
+  obtain ⟨packet, hpacket⟩ := host_step_step1_seed_step3_restricted_header_step6_packet
+    (compilerLeaf C t) g.val (U.recordOf P c g hg) hrleaf
+  have hvc : v.val ∈ (S.cx (tileNode t).ty).cells := (vertexCell v).property
+  let j : EndSlot (compilerLeaf C t) := {
+    facet := g
+    record := U.recordOf P c g hg
+    record_eq := hrleaf
+    type_eq := rfl
+    facet_eq := rfl
+    vertex := v
+    onFacet := hv
+    providerVertex := U.recordTau P c g hg ⟨vertexCell v, hv⟩
+    tau_vertex := by
+      simp only [FacetRecord.tauAt, HonestSource.recordOf, c,
+        dif_pos hvc, dif_pos hv]
+      rfl
+    provider_zero := hzero
+    header := U.headerOf P c g hg v
+    header_eq := hheader
+    packet := packet
+    packet_eq := hpacket }
+  refine ⟨j, rfl, hvp, hι, ?_, ?_⟩
+  · change (U.hierarchy.servingChild c g hg).1 % P.L = n % P.L
+    rw [hcserv]
+  · change U.headerOf P c g hg v = _
+    have hnorm (K : Set (E d)) : U.normalizeCone c K =
+        (compilerFrame C t).linearIsometryEquiv.symm '' K := by
+      rw [HonestSource.normalizeCone, hframe]
+      rfl
+    rw [← hparent]
+    unfold HonestSource.headerOf
+    rw [hbirth']
+    simp only [show (U.hierarchy.parentNode q).1 = n + 1 from rfl,
+      hpoint, Nat.add_sub_cancel, hnorm, host_step_step1_seed_step1_header]
 
 /-- Step 4 of the V4 proof of `host_step_step1_seed` (V4 3.6):
 "Theorem 2.17(b) yields a template ... realised by actual tiles".

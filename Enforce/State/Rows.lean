@@ -6265,7 +6265,16 @@ private theorem honest_rows_step10_end_E6 (U : HonestSource S) (P : Params S) (t
     (hvv : v.val = slot.vertex.val)
     (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
     endRow_E6 T := by
-  sorry
+  intro a ha b hb hab u w hu hw
+  have htype : T.geometry.header.birthType =
+      (U.hierarchy.birthParent t f hf).2.val.ty :=
+    congrArg State.Header.birthType hreal.2.2.1
+  let F : FacetName S (U.hierarchy.birthParent t f hf).2.val.ty :=
+    ⟨a.parentFacet.val, by rw [← htype]; exact a.parentFacet.property⟩
+  exact (honest_rows_step7_end_E3_step3_boundary_packet U P t ht slot T hT f hf v
+    hreal F a ha rfl u hu).trans
+    (honest_rows_step7_end_E3_step3_boundary_packet U P t ht slot T hT f hf v
+      hreal F b hb hab.symm w hw).symm
 
 /-- Q14, V4 2.8: in every honest source, at every event slot of every native tile,
 there is an actual positioned configuration belonging to the allowed catalogue.

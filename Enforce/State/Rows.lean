@@ -4929,12 +4929,121 @@ private theorem honest_rows_step3_cont_counters_step2_containment
     U.hierarchy.ancestor q (U.hierarchy.firstProvider t f hf).1 =
         U.hierarchy.servingChild t f hf ∧
       q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier t f hf := by
-  -- The tau readout places the junction in the relative interior of the serving flag edge.
-  -- Near it, the continuing edge and the successive aligned sides enter that same flag.
-  -- Displacing further into the common inward side gives interior overlap with the
-  -- serving child; uniqueness of the same-height ancestor identifies ownership.
-  -- Relative-interior overlap of the top facets then gives containment by hereditary_trace.
-  sorry
+  classical
+  rcases slot with ⟨facet, r, hread, htype, hfacet, e, hactive, v, hvf, hterminal,
+    htau, packet, hpacket⟩
+  dsimp only at hr
+  subst r
+  rcases T with ⟨θ, hcentral, Q, l, hmem, htiles, hnone, r', hread', htype', c, he,
+    c', e', he', v', hinitial, hvertex, halign, hsegment, hjunction⟩
+  dsimp only at hother hr' hc ho
+  subst Q
+  subst r'
+  let H := U.hierarchy.servingChild t f hf
+  let τ := t.2.val.prototypeFrame t.1
+  let χ := q.2.val.prototypeFrame q.1
+  let φ := q.2.val.frame.trans t.2.val.frame.symm
+  change ChainsAligned (U.recordOf P t f hf) (U.recordOf P q g hg) c c' φ at halign
+  have hframe : φ.toAffineEquiv.trans τ = χ := by
+    ext x
+    simp [τ, χ, φ, FramedNode.prototypeFrame, ht, hq]
+  have himage (K : Set (E d)) : τ '' (φ '' K) = χ '' K := by
+    rw [Set.image_image]
+    change (φ.toAffineEquiv.trans τ) '' K = _
+    rw [hframe]
+  have hlinear (K : Set (E d)) : τ.linear '' (φ.linearIsometryEquiv '' K) =
+      χ.linear '' K := by
+    rw [Set.image_image]
+    change (φ.toAffineEquiv.trans τ).linear '' K = _
+    rw [hframe]
+  have hchain : U.ActiveChain P t f hf c := (Finset.mem_filter.mp hc).2
+  obtain ⟨F, _, hF, _, _⟩ := chain_active_owner U P t f hf c hc
+  have hcells (j : FlagIndex d) :
+      τ '' (c.chain.val.cell j).val.carrier ⊆ H.2.val.cell H.1 (F.cell j).val := by
+    obtain ⟨he, hstr, _⟩ := hchain.1 j
+    have hh := (U.hierarchy.stratumMap_spec t f hf (c.chain.val.cell j) he).1
+    have hsame := hstr.trans (hF j).symm
+    rw [hsame] at hh
+    exact (by simpa only [restrictionOp_source_step5_cell_closure] using closure_mono hh)
+  have hspans (j : FlagIndex d) :
+      affineSpan ℝ (τ '' (c.chain.val.cell j).val.carrier) =
+        affineSpan ℝ (H.2.val.cell H.1 (F.cell j).val) :=
+    (hchain.1 j).choose_spec.2.trans (congrArg (affineSpan ℝ) (hF j).symm)
+  have howner : τ '' (S.proto t.2.val.ty).carrier ⊆
+      H.2.val.prototypeFrame H.1 '' (S.proto H.2.val.ty).carrier := by
+    have hd : t.2.val.IsDescendant 0 H.2.val H.1 :=
+      (congrArg (fun n => t.2.val.IsDescendant n H.2.val H.1) ht).mp
+        (U.hierarchy.ancestor_descendant t (U.hierarchy.firstProvider t f hf).1)
+    have hh := honest_rows_step2_cont_labels_step5_native_subset t.2.val H.2.val H.1 hd
+    simpa only [τ, FramedNode.prototypeFrame, FramedNode.carrier, placedSet,
+      SubstSystem.supertile, Set.image_image, ht] using hh
+  obtain ⟨hsideH, hinwardH⟩ := honest_rows_step2_cont_labels_step2_nested_sides
+    t.2.val.ty H.2.val.ty c.chain.val F τ (H.2.val.prototypeFrame H.1)
+    hcells hspans howner
+  have hspanQ (j : FlagIndex d) :
+      affineSpan ℝ (τ '' (c.chain.val.cell j).val.carrier) =
+        affineSpan ℝ (χ '' (c'.chain.val.cell j).val.carrier) := by
+    have hh := congrArg (AffineSubspace.map τ.toAffineMap) (halign.1 j)
+    simp only [AffineSubspace.map_span] at hh
+    change affineSpan ℝ (τ '' (c.chain.val.cell j).val.carrier) =
+      affineSpan ℝ (τ '' (φ '' (c'.chain.val.cell j).val.carrier)) at hh
+    rwa [himage] at hh
+  have hsideQ (j : FlagStep d) :
+      τ.linear '' flagSide c.chain.val j = χ.linear '' flagSide c'.chain.val j := by
+    simpa only [hlinear] using congrArg (fun K => τ.linear '' K) (halign.2.1 j)
+  have hinwardQ :
+      τ.linear '' tangentCone (S.proto t.2.val.ty).carrier
+          (cellAnchor (c.chain.val.cell facetIndex).val) =
+        χ.linear '' tangentCone (S.proto q.2.val.ty).carrier
+          (cellAnchor (c'.chain.val.cell facetIndex).val) := by
+    simpa only [c.chain.property, c'.chain.property, hlinear] using
+      congrArg (fun K => τ.linear '' K) halign.2.2.2
+  -- The tau readout places the junction in the open serving flag edge.
+  have hxH : τ (vertexPoint v) ∈ relint (H.2.val.cell H.1 (F.cell edgeIndex).val) := by
+    rw [hF edgeIndex]
+    exact actualCont_exists_step2_vertex U P t f hf v hvf htau
+  have hxQ : τ (vertexPoint v) ∈ χ '' (c'.chain.val.cell edgeIndex).val.carrier := by
+    rw [← himage]
+    apply Set.mem_image_of_mem τ
+    refine ⟨vertexPoint v', ?_, hvertex⟩
+    rw [he', hinitial, (actualCont_exists_step2_endpoints (U.recordOf P q g hg) e').2]
+    exact left_mem_segment ℝ _ _
+  have hedge : (relint (χ '' (c'.chain.val.cell edgeIndex).val.carrier) ∩
+      relint (H.2.val.cell H.1 (F.cell edgeIndex).val)).Nonempty := by
+    apply honest_rows_step2_cont_labels_step4_relint_overlap _ _ (τ (vertexPoint v))
+      _ hxH ((hspanQ edgeIndex).symm.trans (hspans edgeIndex))
+    change τ (vertexPoint v) ∈ closure (relint (q.2.val.cell q.1 _))
+    rw [restrictionOp_source_step5_cell_closure]
+    exact hxQ
+  -- Matching successive sides lift the edge overlap through the facets and into the owners.
+  obtain ⟨hfacet, htiles⟩ := honest_rows_step2_cont_labels_step3_flag_overlap
+    q.2.val.ty H.2.val.ty c'.chain.val F χ (H.2.val.prototypeFrame H.1)
+    (fun j => (hspanQ j).symm.trans (hspans j))
+    (fun j => (hsideQ j).symm.trans (hsideH j)) (hinwardQ.symm.trans hinwardH) hedge
+  have hanc : U.hierarchy.ancestor q H.1 = H := by
+    apply honest_rows_step2_cont_labels_step6_ancestor U q H hq
+    simpa only [χ, FramedNode.prototypeFrame, FramedNode.carrier, placedSet,
+      SubstSystem.supertile, Set.image_image] using htiles
+  have hheight : H.1 = (U.hierarchy.firstProvider t f hf).1 := by
+    simpa only [ht, Nat.zero_add] using
+      U.hierarchy.ancestor_height t (U.hierarchy.firstProvider t f hf).1
+  refine ⟨hheight ▸ hanc, ?_⟩
+  have htop : H.2.val.cell H.1 (F.cell facetIndex).val =
+      U.hierarchy.providerCarrier t f hf := by
+    rw [hF facetIndex, (P.flag (U.recordIncidence P t f hf)).top]
+    exact record_provider_carrier U P t f hf
+  have hmeet : (relint (q.2.val.cell q.1 g.val) ∩
+      U.hierarchy.providerCarrier t f hf).Nonempty := by
+    obtain ⟨y, hyq, hyH⟩ := hfacet
+    refine ⟨y, ?_, htop ▸ intrinsicInterior_subset hyH⟩
+    simpa only [c'.chain.property] using hyq
+  have hd : q.2.val.IsDescendant q.1 H.2.val H.1 := by
+    have hh := U.hierarchy.ancestor_descendant q H.1
+    rw [hanc] at hh
+    exact hh
+  let G : FacetName S H.2.val.ty := (U.hierarchy.firstProvider t f hf).2
+  exact hereditary_trace H.2.val q.2.val H.1 q.1 hd G.val g.val
+    (Finset.mem_filter.mp G.property).1 (Finset.mem_filter.mp g.property).1 hmeet
 
 /-- Step 2 of the V4 proof of `honest_rows_step3_cont_counters` (V4 2.8):
 "same provider g, same serving child H". The actual continuation of the active

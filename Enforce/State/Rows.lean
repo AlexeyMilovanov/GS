@@ -3799,6 +3799,90 @@ private theorem honest_rows_step1_cont_geometry_step1_spans
   rw [hs]
   exact Set.image_mono (interior_mono (Set.preimage_mono hsub))
 
+/-- Step 1 of the V4 proof of `honest_rows_step1_cont_geometry_step2_successor`
+(V4 Remark 2.1): "restricting recursively along the chain, s₂ is a polygon of
+the recursive trace ... with owner B and recorded chain". Normalize an exact
+native descendant and retain the given cofaces as a trace occurrence. -/
+private theorem honest_rows_step1_cont_geometry_step2_successor_step1_trace
+    (N C : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (c : FacetFlag S C.ty)
+    (hC : C.IsDescendant 0 N n)
+    (hc : ∀ j, C.cell 0 (c.cell j).val ⊆ N.cell n (F.cell j).val) :
+    ∃ a : TracePiece N.ty F n, placedTraceOwner N n n F a = C ∧
+      ∀ i : ChainIndex d (traceDimension d),
+        (a.chain.cell i).val = (c.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val := by
+  obtain ⟨r, hr, w, hC⟩ := hC
+  simp only [zero_add] at hr
+  subst r
+  change C = (S.nativeTile N.ty n w).move N.frame at hC
+  subst C
+  let a : TracePiece N.ty F n := {
+    owner := w
+    chain := {
+      cell := fun i => c.cell ⟨i.val.val, i.property.2, i.val.isLt⟩
+      dimension := fun i => c.dimension ⟨i.val.val, i.property.2, i.val.isLt⟩
+      nested := fun i j hij => c.nested _ _ hij
+      contained := by
+        intro i
+        apply (Set.image_subset_image_iff N.frame.injective).mp
+        simpa [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.move,
+          Set.image_image] using hc ⟨i.val.val, i.property.2, i.val.isLt⟩ } }
+  refine ⟨a, ?_, fun _ => rfl⟩
+  simp only [a, placedTraceOwner, Nat.sub_self, SubstSystem.nativeTile]
+
+/-- Step 2 of the V4 proof of `honest_rows_step1_cont_geometry_step2_successor`
+(V4 Remark 2.1): "every selected owner of the trace with its recorded chain ...
+has the 1-cells of G₂ along h as chain-active edges". Append the given boundary
+edge to the recorded cofaces, retaining containment in every ancestral flag cell.
+The same construction includes the one-dimensional trace when d = 2. -/
+private theorem honest_rows_step1_cont_geometry_step2_successor_step2_flag
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (a : TracePiece N.ty F n)
+    (e : PrototypeEdge S a.tile.ty)
+    (heB : (placedTraceOwner N n n F a).cell 0 e.val ⊆
+      placedTraceCarrier N n n F a)
+    (heF : (placedTraceOwner N n n F a).cell 0 e.val ⊆
+      N.cell n (F.cell edgeIndex).val) :
+    ∃ c : FacetFlag S a.tile.ty, (c.cell edgeIndex).val = e.val ∧
+      ∀ j, (placedTraceOwner N n n F a).cell 0 (c.cell j).val ⊆
+        N.cell n (F.cell j).val := by
+  have hcell (f : Cell d) : (placedTraceOwner N n n F a).cell 0 f =
+      tracePlacement N n n '' (a.tile.cell 0 f) := by
+    simpa only [Nat.sub_self] using placedTraceOwner_cells N n n le_rfl F a f
+  have hsub : e.val.carrier ⊆ a.bottom.val.carrier := by
+    rw [hcell] at heB
+    exact (Set.image_subset_image_iff (a.tile.prototypeFrame 0).injective).mp
+      ((Set.image_subset_image_iff (tracePlacement N n n).injective).mp heB)
+  have hdim : traceDimension d ≤ 2 := min_le_left _ _
+  let idx (j : FlagIndex d) (hj : j.val ≠ 1) : ChainIndex d (traceDimension d) :=
+    ⟨⟨j.val, j.property.2⟩,
+      by change traceDimension d ≤ j.val; have := j.property.1; omega, j.property.1⟩
+  let c : FacetFlag S a.tile.ty := {
+    cell := fun j => if hj : j.val = 1 then edgeCell e else a.chain.cell (idx j hj)
+    dimension := by
+      intro j
+      split_ifs with hj
+      · exact (Finset.mem_filter.mp e.property).2.trans hj.symm
+      · exact a.chain.dimension (idx j hj)
+    nested := by
+      intro i j hij
+      split_ifs with hi hj hj
+      · exact Subset.rfl
+      · exact hsub.trans (a.chain.nested TracePiece.bottomIndex (idx j hj)
+          (by have := j.property.1; change traceDimension d ≤ j.val; omega))
+      · have := i.property.1
+        omega
+      · exact a.chain.nested (idx i hi) (idx j hj) hij }
+  refine ⟨c, by simp [c, edgeIndex, edgeCell], ?_⟩
+  intro j
+  by_cases hj : j.val = 1
+  · have hj' : j = edgeIndex := Subtype.ext hj
+    subst j
+    simpa only [c, edgeIndex, dif_pos rfl, edgeCell] using heF
+  · change (placedTraceOwner N n n F a).cell 0
+      (if hj : j.val = 1 then edgeCell e else a.chain.cell (idx j hj)).val ⊆ _
+    rw [dif_neg hj, hcell]
+    refine (Set.image_mono (a.chain.contained (idx j hj))).trans_eq ?_
+    simp [tracePlacement, FramedNode.cell, FramedNode.prototypeFrame, Set.image_image, idx]
+
 /-- Step 2 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
 "the polygons ... adjacent to h tile a neighbourhood of v in h ... so there
 is a polygon ... on the far side of v ... with ... an edge ... with initial
@@ -3827,7 +3911,50 @@ private theorem honest_rows_step1_cont_geometry_step2_successor
         segment ℝ (t.2.val.prototypeFrame t.1 (vertexPoint v)) z ∧
       0 < b ∧ z - t.2.val.prototypeFrame t.1 (vertexPoint v) =
         b • (t.2.val.prototypeFrame t.1 (vertexPoint v) - a) := by
-  sorry
+  have htB : t.2.val.IsDescendant 0 B.2.val B.1 := by
+    have h := U.hierarchy.ancestor_descendant t B.1
+    rw [hBt] at h
+    simpa only [ht] using h
+  obtain ⟨s, hs, hsc⟩ := honest_rows_step1_cont_geometry_step2_successor_step1_trace
+    B.2.val t.2.val B.1 F c htB (by simpa only [ht] using hc)
+  have hbottom : t.2.val.cell 0 (c.cell edgeIndex).val ⊆
+      placedTraceCarrier B.2.val B.1 B.1 F s := by
+    have h := placedTraceOwner_cells B.2.val B.1 B.1 le_rfl F s s.bottom.val
+    rw [hs, Nat.sub_self] at h
+    refine (Set.image_mono ?_).trans_eq h
+    change (c.cell edgeIndex).val.carrier ⊆ (s.chain.cell TracePiece.bottomIndex).val.carrier
+    rw [hsc]
+    exact c.nested _ _ traceDimension_pos
+  obtain ⟨s', e', v', z, hv', he', _, ⟨b, hb, hz⟩, heB, heF⟩ :=
+    actualCont_exists_step3_trace_successor B.2.val B.1 F s (c.cell edgeIndex).val
+      (by rw [hs]; exact Finset.mem_filter.mpr ⟨(c.cell edgeIndex).property,
+        c.dimension edgeIndex⟩) a (t.2.val.prototypeFrame t.1 (vertexPoint v)) hne
+      (by rw [hs]; simpa only [ht] using he)
+      (by rw [hs]; exact hbottom)
+      (by rw [hs]; simpa only [ht] using hc edgeIndex) hv
+  let Q := placedTraceOwner B.2.val B.1 B.1 F s'
+  have hQ : Q ∈ U.hierarchy.nodes 0 := by
+    simpa only [Nat.sub_self] using
+      U.hierarchy.placedTraceOwner_mem B.2.val B.1 B.1 B.2.property le_rfl F s'
+  let q : U.Node := ⟨0, ⟨Q, hQ⟩⟩
+  have hqty : q.2.val.ty = s'.tile.ty := by
+    simp only [q, Q, placedTraceOwner, FramedNode.move, Nat.sub_self,
+      TracePiece.tile, SubstSystem.nativeTile]
+  let en : PrototypeEdge S s'.tile.ty := ⟨e'.val, by rw [← hqty]; exact e'.property⟩
+  obtain ⟨G, hGe, hG⟩ := honest_rows_step1_cont_geometry_step2_successor_step2_flag
+    B.2.val B.1 F s' en heB heF
+  let c' : FacetFlag S q.2.val.ty := {
+    cell := fun j => ⟨(G.cell j).val, by rw [hqty]; exact (G.cell j).property⟩
+    dimension := G.dimension
+    nested := G.nested }
+  refine ⟨q, rfl, c', v', z, b, ?_, hG, ?_, ?_, hb, hz⟩
+  · exact (actualCont_exists_step4_ancestor U q rfl B.1 B.2.val B.2.property s'.owner
+      (by simp only [q, Q, placedTraceOwner, Nat.sub_self, SubstSystem.nativeTile])).trans
+      (actualCont_exists_step4_reindex U B B.1 rfl B.2.property)
+  · simpa [q, FramedNode.prototypeFrame] using hv'
+  · change Q.cell 0 (G.cell edgeIndex).val = _
+    rw [hGe]
+    exact he'
 
 /-- Step 3 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
 "same provider g, same serving child H". A native descendant facet contained

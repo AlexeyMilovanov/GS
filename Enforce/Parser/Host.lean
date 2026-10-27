@@ -2536,6 +2536,203 @@ private theorem host_step_step1_seed_step8_transport_step6_segment
   · exact h
   · exact ⟨h.1.symm, h.2.trans (segment_symm ℝ _ _)⟩
 
+open scoped Topology in
+/-- Step 1 of the V4 proof of `host_step_step1_seed_step8_transport_step7_inward`
+(V4 1.0(b)): "the local structure". Local containment preserves the
+positive-time radial tangent cone. -/
+private theorem host_step_step1_seed_step8_transport_step7_inward_step1_local_mono
+    {K L : Set (E d)} {p : E d}
+    (h : ∀ᶠ x in 𝓝 p, x ∈ K → x ∈ L) :
+    tangentCone K p ⊆ tangentCone L p := by
+  obtain ⟨r, hr, hlocal⟩ := Metric.eventually_nhds_iff.mp h
+  rintro u ⟨ε, hε, hu⟩
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  refine ⟨min ε (r / (‖u‖ + 1)), lt_min hε (div_pos hr hden), ?_⟩
+  intro t ht htε
+  apply hlocal ?_ (hu t ht (lt_of_lt_of_le htε (min_le_left _ _)))
+  rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+  have := (lt_div_iff₀ hden).mp (lt_of_lt_of_le htε (min_le_right _ _))
+  nlinarith [norm_nonneg u]
+
+open private actualCont_exists_step5_facet_cone actualCont_exists_step5_halfball
+  actualCont_exists_step5_halfspace from Enforce.State.Rows in
+open scoped Topology in
+/-- Step 2 of the V4 proof of `host_step_step1_seed_step8_transport_step7_inward`
+(V4 1.0(a)): "near a point of the relative interior of a codimension-one
+face ... a half-space". Local containment at a common relative-interior
+facet point identifies the two inward half-spaces. -/
+private theorem host_step_step1_seed_step8_transport_step7_inward_step2_local_inward
+    {A B : S.ι} (f : FacetName S A) (g : FacetName S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (p : E d)
+    (hp : p ∈ relint (φ '' f.val.carrier))
+    (hq : p ∈ relint (ψ '' g.val.carrier))
+    (hlocal : ∀ᶠ x in 𝓝 p,
+      x ∈ φ '' (S.proto A).carrier → x ∈ ψ '' (S.proto B).carrier) :
+    φ.linear '' tangentCone (S.proto A).carrier (cellAnchor f.val) =
+      ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor g.val) := by
+  rw [host_step_step1_seed_step5_trace_step3_relint_image] at hp hq
+  obtain ⟨a, ha, rfl⟩ := hp
+  obtain ⟨b, hb, hba⟩ := hq
+  obtain ⟨r, hr, v, hv, _, _, hA⟩ :=
+    facet_halfball (S.proto A) (S.cx A) f.val f.property a ha
+  obtain ⟨s, hs, w, hw, _, _, hB⟩ :=
+    facet_halfball (S.proto B) (S.cx B) g.val g.property b hb
+  have hca := actualCont_exists_step5_halfball _ _ v r hr hA
+  have hcb := actualCont_exists_step5_halfball _ _ w s hs hB
+  let l : E d →ₗ[ℝ] ℝ := (innerₛₗ ℝ v).comp φ.linear.symm.toLinearMap
+  let m : E d →ₗ[ℝ] ℝ := (innerₛₗ ℝ w).comp ψ.linear.symm.toLinearMap
+  have himage (L : E d ≃ₗ[ℝ] E d) (u : E d) :
+      L '' {z | 0 ≤ inner ℝ u z} = {z | 0 ≤ inner ℝ u (L.symm z)} := by
+    ext z
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      simpa only [Set.mem_setOf_eq, LinearEquiv.symm_apply_apply] using hy
+    · intro hz
+      exact ⟨L.symm z, hz, L.apply_symm_apply z⟩
+  have hl : φ.linear '' tangentCone (S.proto A).carrier a = {z | 0 ≤ l z} := by
+    rw [hca, himage]
+    rfl
+  have hm : ψ.linear '' tangentCone (S.proto B).carrier b = {z | 0 ≤ m z} := by
+    rw [hcb, himage]
+    rfl
+  have hlne : l ≠ 0 := by
+    intro h
+    have he := congrArg (fun k : E d →ₗ[ℝ] ℝ => k (φ.linear v)) h
+    change inner ℝ v (φ.linear.symm (φ.linear v)) = 0 at he
+    rw [LinearEquiv.symm_apply_apply, real_inner_self_eq_norm_sq, hv] at he
+    norm_num at he
+  have hmne : m ≠ 0 := by
+    intro h
+    have he := congrArg (fun k : E d →ₗ[ℝ] ℝ => k (ψ.linear w)) h
+    change inner ℝ w (ψ.linear.symm (ψ.linear w)) = 0 at he
+    rw [LinearEquiv.symm_apply_apply, real_inner_self_eq_norm_sq, hw] at he
+    norm_num at he
+  have hsub : {z | 0 ≤ l z} ⊆ {z | 0 ≤ m z} := by
+    rw [← hl, ← hm, ← host_step_step1_seed_step8_transport_step1_tangent_image,
+      ← host_step_step1_seed_step8_transport_step1_tangent_image, hba]
+    exact host_step_step1_seed_step8_transport_step7_inward_step1_local_mono hlocal
+  have heq := (actualCont_exists_step5_halfspace l m hlne hsub).resolve_right hmne
+  rw [← actualCont_exists_step5_facet_cone A f a (cellAnchor f.val) ha (cellAnchor_mem _),
+    ← actualCont_exists_step5_facet_cone B g b (cellAnchor g.val) hb (cellAnchor_mem _),
+    hl, hm]
+  exact heq
+
+open private honest_rows_step6_end_E2_step3_local_cone
+  honest_rows_step6_end_E2_step3_placed_cell from Enforce.State.Rows in
+open private states_finite_step4_polyhedron_image from Enforce.State.State in
+open scoped Topology in
+/-- Step 3 of the V4 proof of `host_step_step1_seed_step8_transport_step7_inward`
+(V4 3.6, 1.0(a)): "its position in the template is inside the j-side
+child's cone". Containment of the tile and facet tangent cones gives a
+common relative-interior facet point nearby, where local containment fixes
+the inward side. Both facets have dimension d - 1. -/
+private theorem host_step_step1_seed_step8_transport_step7_inward_step3_cones
+    {A B : S.ι} (f : FacetName S A) (g : FacetName S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (p : E d)
+    (hp : p ∈ φ '' f.val.carrier) (hq : p ∈ ψ '' g.val.carrier)
+    (hfacet : tangentCone (φ '' f.val.carrier) p ⊆
+      tangentCone (ψ '' g.val.carrier) p)
+    (htile : tangentCone (φ '' (S.proto A).carrier) p ⊆
+      tangentCone (ψ '' (S.proto B).carrier) p) :
+    φ.linear '' tangentCone (S.proto A).carrier (cellAnchor f.val) =
+      ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor g.val) := by
+  have hle : affineSpan ℝ (φ '' f.val.carrier) ≤ affineSpan ℝ (ψ '' g.val.carrier) := by
+    rw [← host_step_step1_seed_step5_trace_step5_placed_span φ f.val p hp]
+    apply affineSpan_le.mpr
+    exact (Set.image_mono hfacet).trans
+      (host_step_step1_seed_step8_transport_step1_tangent_span _ p hq)
+  have hspan : affineSpan ℝ (φ '' f.val.carrier) = affineSpan ℝ (ψ '' g.val.carrier) := by
+    apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le _ _ hle
+    · apply Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle)
+      change Module.finrank ℝ (affineSpan ℝ (φ.toAffineMap '' f.val.carrier)).direction =
+        Module.finrank ℝ (affineSpan ℝ (ψ.toAffineMap '' g.val.carrier)).direction
+      rw [← AffineSubspace.map_span, ← AffineSubspace.map_span,
+        AffineSubspace.map_direction, AffineSubspace.map_direction]
+      change Module.finrank ℝ ((affineSpan ℝ f.val.carrier).direction.map
+          (φ.linear : E d →ₗ[ℝ] E d)) =
+        Module.finrank ℝ ((affineSpan ℝ g.val.carrier).direction.map
+          (ψ.linear : E d →ₗ[ℝ] E d))
+      rw [LinearEquiv.finrank_map_eq, LinearEquiv.finrank_map_eq]
+      exact f.val.flat.dimension.trans ((Finset.mem_filter.mp f.property).2.trans
+        ((Finset.mem_filter.mp g.property).2.symm.trans g.val.flat.dimension.symm))
+    · exact ⟨p, mem_affineSpan ℝ hp⟩
+  have hAf := honest_rows_step6_end_E2_step3_placed_cell φ f.val
+  have hBg := honest_rows_step6_end_E2_step3_placed_cell ψ g.val
+  have hlocal : ∀ᶠ x in 𝓝 p,
+      (x ∈ φ '' f.val.carrier → x ∈ ψ '' g.val.carrier) ∧
+      (x ∈ φ '' (S.proto A).carrier → x ∈ ψ '' (S.proto B).carrier) := by
+    filter_upwards [honest_rows_step6_end_E2_step3_local_cone hAf.1 p,
+      honest_rows_step6_end_E2_step3_local_cone hBg.1 p,
+      honest_rows_step6_end_E2_step3_local_cone
+        (states_finite_step4_polyhedron_image φ (S.proto A).polyhedral) p,
+      honest_rows_step6_end_E2_step3_local_cone
+        (states_finite_step4_polyhedron_image ψ (S.proto B).polyhedral) p]
+      with x hxf hxg hxA hxB
+    exact ⟨fun hx => hxg.mpr (hfacet (hxf.mp hx)), fun hx => hxB.mpr (htile (hxA.mp hx))⟩
+  obtain ⟨r, hr, hlocal⟩ := Metric.eventually_nhds_iff.mp hlocal
+  have hpcl : p ∈ closure (relint (φ '' f.val.carrier)) := hAf.2.symm ▸ hp
+  obtain ⟨y, hyr, hy⟩ := mem_closure_iff.mp hpcl (ball p r) isOpen_ball (mem_ball_self hr)
+  have hyg : y ∈ relint (ψ '' g.val.carrier) := by
+    obtain ⟨z, hz, rfl⟩ := hy
+    unfold relint intrinsicInterior
+    rw [← hspan]
+    refine ⟨z, mem_interior_iff_mem_nhds.mpr ?_, rfl⟩
+    have hball : ((↑) ⁻¹' ball p r : Set (affineSpan ℝ (φ '' f.val.carrier))) ∈ 𝓝 z :=
+      (isOpen_ball.preimage continuous_subtype_val).mem_nhds hyr
+    apply Filter.mem_of_superset (Filter.inter_mem (mem_interior_iff_mem_nhds.mp hz) hball)
+    rintro w ⟨hw, hwr⟩
+    exact (hlocal hwr).1 hw
+  apply host_step_step1_seed_step8_transport_step7_inward_step2_local_inward f g φ ψ y hy hyg
+  filter_upwards [isOpen_ball.mem_nhds hyr] with z hz
+  exact (hlocal hz).2
+
+/-- Step 4 of the V4 proof of `host_step_step1_seed_step8_transport_step7_inward`
+(V4 3.6): "with the same header". The complete header identifies the
+selected child cone and the primitive facet cone in the recording frames. -/
+private theorem host_step_step1_seed_step8_transport_step7_inward_step4_header
+    (R Q : FramedNode S) (m n : ℕ) (ι : P.Incidence) (b : Bool)
+    (hR : ι.val.ty = R.ty) (hQ : ι.val.ty = Q.ty)
+    (ρ φ : Iso d) (x p : E d)
+    (hh : host_step_step1_seed_step1_header (P := P) R m ρ x =
+      host_step_step1_seed_step1_header Q n φ p)
+    (hc : x ∈ ((⟨ι.val.ty, R.frame⟩ : FramedNode S).child m
+      (ι.val.sideIndex b)).carrier m)
+    (hf : x ∈ P.incidencePlacement R (m + 1) ι '' ι.val.leftFacet.val.carrier) :
+    ρ.linearIsometryEquiv.symm '' tangentCone
+        (((⟨ι.val.ty, R.frame⟩ : FramedNode S).child m (ι.val.sideIndex b)).carrier m) x =
+      φ.linearIsometryEquiv.symm '' tangentCone
+        (((⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)).carrier n) p ∧
+    ρ.linearIsometryEquiv.symm '' tangentCone
+        (P.incidencePlacement R (m + 1) ι '' ι.val.leftFacet.val.carrier) x =
+      φ.linearIsometryEquiv.symm '' tangentCone
+        (P.incidencePlacement Q (n + 1) ι '' ι.val.leftFacet.val.carrier) p := by
+  classical
+  rcases R with ⟨A, ρR⟩
+  rcases Q with ⟨B, ρQ⟩
+  dsimp only at hR hQ
+  subst A
+  subst B
+  have hchildren := congrArg (fun H : State.Header P =>
+    (⟨H.birthType, H.childCones⟩ : Σ A : S.ι, S.I A → Option (Set (E d)))) hh
+  have hchildren' :
+      (host_step_step1_seed_step1_header (P := P) ⟨ι.val.ty, ρR⟩ m ρ x).childCones =
+        (host_step_step1_seed_step1_header (P := P) ⟨ι.val.ty, ρQ⟩ n φ p).childCones :=
+    eq_of_heq (Sigma.mk.inj hchildren).2
+  have hc' := congrFun hchildren' (ι.val.sideIndex b)
+  have hf' := congrArg (fun H : State.Header P => H.primitiveCones ι) hh
+  constructor
+  · dsimp only [host_step_step1_seed_step1_header] at hc'
+    rw [if_pos hc] at hc'
+    split at hc'
+    · exact Option.some.inj hc'
+    · contradiction
+  · dsimp only [host_step_step1_seed_step1_header] at hf'
+    rw [if_pos ⟨rfl, hf⟩] at hf'
+    split at hf'
+    · exact Option.some.inj hf'
+    · contradiction
+
+open private actualCont_exists_step5_subset from Enforce.State.Rows in
 /-- Step 7 of the V4 proof of `host_step_step1_seed_step8_transport` (V4 3.6):
 "u₀ lies on the j-side of aff g (its position in the template is inside
 the j-side child's cone)". Matching full headers identify the selected
@@ -2556,12 +2753,133 @@ private theorem host_step_step1_seed_step8_transport_step7_inward
           (ι.val.sideIndex b)).prototypeFrame n).linear ''
         tangentCone (S.proto (ι.val.sideType b)).carrier
           (cellAnchor (ι.val.sideFacet b).val) := by
-  -- Unpack T.honest_geometry and its IsSourcePrimitivePort witness. The
-  -- native facet is a piece of the b-side serving child's provider facet.
-  -- In the common header, both the selected child cone and the primitive
-  -- facet cone agree with those of Q. Their local half-spaces at relative
-  -- interior facet directions determine the same inward side by V4 1.0(a).
-  sorry
+  classical
+  obtain ⟨U, t, ht, f, hf, v, hv, hz, hreal⟩ := T.honest_geometry
+  obtain ⟨htype, hvertex, hheader, htiles, hports, hboundary⟩ := hreal
+  obtain ⟨q, hq, g, hg, w, hw, hxw, hbirth, hatile, hafacet, havertex,
+    hainc, haside, haprovider⟩ := (hports a).mp ha
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  let p := P.incidencePlacement Q (n + 1) ι (P.flag ι).initial
+  let H := U.hierarchy.servingChild q g hg
+  let R := (U.hierarchy.parentNode H).2.val
+  let M := (⟨ι.val.ty, Q.frame⟩ : FramedNode S).child n (ι.val.sideIndex b)
+  let ψ := t.2.val.frame.symm.trans φ
+  have htframe : t.2.val.prototypeFrame t.1 = t.2.val.frame.toAffineEquiv :=
+    (congrArg (fun k => t.2.val.prototypeFrame k) ht).trans rfl
+  have hqset : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf) x :=
+    (Set.Finite.mem_toFinset _).mp hq
+  have hqzero : q.1 = 0 := hqset.1
+  have hinc : U.recordIncidence P q g hg = ι := hainc.symm.trans hai
+  have hside : U.recordSide P q g hg = b := haside.symm.trans hab
+  have hrole := (Classical.choose_spec (U.recordSide_exists P q g hg)).1
+  change (U.recordIncidence P q g hg).val.sideRole (U.recordSide P q g hg) =
+    U.hierarchy.nodeRole H at hrole
+  rw [hinc, hside] at hrole
+  have hR : ι.val.ty = R.ty := congrArg Sigma.fst hrole
+  have hchild : H.2.val =
+      (⟨ι.val.ty, R.frame⟩ : FramedNode S).child H.1 (ι.val.sideIndex b) := by
+    calc
+      H.2.val = (⟨(U.hierarchy.nodeRole H).1, R.frame⟩ : FramedNode S).child
+          H.1 (U.hierarchy.nodeRole H).2 := U.hierarchy.child_eq H.1 H.2
+      _ = _ := congrArg (fun r : S.Role =>
+          (⟨r.1, R.frame⟩ : FramedNode S).child H.1 r.2) hrole.symm
+  have hdesc : q.2.val.IsDescendant 0 H.2.val H.1 := by
+    have h := U.hierarchy.ancestor_descendant q (U.hierarchy.firstProvider q g hg).1
+    simpa only [hqzero] using h
+  have hsub := actualCont_exists_step5_subset H.2.val q.2.val H.1 hdesc
+  have hfacet : q.2.val.cell 0 g.val ⊆
+      P.incidencePlacement R (H.1 + 1) ι '' ι.val.leftFacet.val.carrier := by
+    have h := (U.hierarchy.firstProvider_spec q g hg).2.1
+    change q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier q g hg at h
+    rw [← record_provider_carrier U P q g hg] at h
+    unfold HonestSource.providerPlacement at h
+    rw [hinc] at h
+    simpa only [CoherentHierarchy.birthHeight, hqzero] using h
+  have hxg : x ∈ q.2.val.cell 0 g.val := by
+    rw [← hqzero]
+    refine ⟨vertexPoint w, hw ?_, hxw.symm⟩
+    rw [vertexPoint_spec w]
+    exact mem_singleton _
+  have hxc : x ∈ ((⟨ι.val.ty, R.frame⟩ : FramedNode S).child H.1
+      (ι.val.sideIndex b)).carrier H.1 := by
+    rw [← hchild]
+    exact hsub (by simpa only [hqzero] using hqset.2.2)
+  have hsource : U.headerOf P t f hf v =
+      host_step_step1_seed_step1_header R H.1 t.2.val.frame x := by
+    unfold HonestSource.headerOf
+    dsimp only
+    rw [← hbirth]
+    simp only [host_step_step1_seed_step1_header, HonestSource.normalizeCone, x, htframe,
+      CoherentHierarchy.birthParent, CoherentHierarchy.parentNode, Nat.add_sub_cancel]
+    rfl
+  have hhead : host_step_step1_seed_step1_header R H.1 t.2.val.frame x =
+      host_step_step1_seed_step1_header Q n φ p :=
+    hsource.symm.trans (hheader.symm.trans (T.header_eq.trans hh))
+  have hcones := host_step_step1_seed_step8_transport_step7_inward_step4_header
+    R Q H.1 n ι b hR hι t.2.val.frame φ x p hhead hxc (hfacet hxg)
+  have hvj : vertexPoint v = vertexPoint j.vertex := by
+    have h := congrArg Cell.carrier (hvertex.symm.trans T.vertex_eq)
+    rw [vertexPoint_spec, vertexPoint_spec] at h
+    exact Set.singleton_injective h
+  have hψx : ψ x = p := by
+    change φ (t.2.val.frame.symm (t.2.val.prototypeFrame t.1 (vertexPoint v))) = p
+    rw [htframe]
+    change φ (t.2.val.frame.symm (t.2.val.frame (vertexPoint v))) = p
+    rw [AffineIsometryEquiv.symm_apply_apply, hvj]
+    exact hp
+  have hmap {K L : Set (E d)}
+      (h : t.2.val.frame.linearIsometryEquiv.symm '' K =
+        φ.linearIsometryEquiv.symm '' L) : ψ.linearIsometryEquiv '' K = L := by
+    have h' := congrArg (φ.linearIsometryEquiv '' ·) h
+    simpa only [Set.image_image, LinearIsometryEquiv.apply_symm_apply, Set.image_id'] using h'
+  have hMt : M.cell n (ι.val.sideFacet b).val =
+      P.incidencePlacement Q (n + 1) ι '' ι.val.leftFacet.val.carrier := by
+    have h := host_step_step1_seed_step5_trace_step3_side_cells Q n ι b facetIndex
+    simpa only [host_step_step1_seed_step5_trace_step3_flag_top, (P.flag ι).top] using h
+  have hplaced (K : Set (E d)) : ψ '' (q.2.val.prototypeFrame 0 '' K) =
+      (a.tile.frame.trans φ).toAffineEquiv '' K := by
+    rw [hatile]
+    simp only [FramedNode.move, FramedNode.prototypeFrame, pow_zero, Set.image_image]
+    rfl
+  have hplacedFacet : ψ '' q.2.val.cell 0 g.val =
+      (a.tile.frame.trans φ).toAffineEquiv '' a.facet.val.carrier := by
+    rw [hafacet]
+    exact hplaced g.val.carrier
+  have hcarrier (N : FramedNode S) (k : ℕ) :
+      N.carrier k = N.prototypeFrame k '' (S.proto N.ty).carrier := by
+    simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+      placedSet, Set.image_image]
+    rfl
+  have hplacedTile : ψ '' q.2.val.carrier 0 =
+      (a.tile.frame.trans φ).toAffineEquiv '' (S.proto a.tile.ty).carrier := by
+    have hty : a.tile.ty = q.2.val.ty := by
+      simpa only [FramedNode.move] using congrArg (fun N : FramedNode S => N.ty) hatile
+    rw [hty, hcarrier]
+    exact hplaced (S.proto q.2.val.ty).carrier
+  have hψcone (K : Set (E d)) :
+      tangentCone (ψ '' K) p = ψ.linearIsometryEquiv '' tangentCone K x := by
+    rw [← hψx]
+    exact host_step_step1_seed_step8_transport_step1_tangent_image ψ.toAffineEquiv K x
+  have hfacetCone : tangentCone ((a.tile.frame.trans φ).toAffineEquiv ''
+        a.facet.val.carrier) p ⊆ tangentCone (M.cell n (ι.val.sideFacet b).val) p := by
+    rw [← hplacedFacet, hψcone, hMt, ← hmap hcones.2]
+    exact Set.image_mono
+      (host_step_step1_seed_step5_trace_step1_tangent_mono hfacet x)
+  have htileCone : tangentCone ((a.tile.frame.trans φ).toAffineEquiv ''
+        (S.proto a.tile.ty).carrier) p ⊆ tangentCone (M.carrier n) p := by
+    rw [← hplacedTile, hψcone, ← hmap hcones.1, ← hchild]
+    exact Set.image_mono
+      (host_step_step1_seed_step5_trace_step1_tangent_mono hsub x)
+  have hpFacet : p ∈ (a.tile.frame.trans φ).toAffineEquiv '' a.facet.val.carrier := by
+    rw [← hplacedFacet, ← hψx]
+    exact Set.mem_image_of_mem ψ hxg
+  have hpM : p ∈ M.cell n (ι.val.sideFacet b).val :=
+    (host_step_step1_seed_step2_child_endpoint Q n ι b (P.flag ι).initial (Or.inl rfl)).2
+  rw [hcarrier] at htileCone
+  have h := host_step_step1_seed_step8_transport_step7_inward_step3_cones
+    a.facet (ι.val.sideFacet b) (a.tile.frame.trans φ).toAffineEquiv
+    (M.prototypeFrame n) p hpFacet hpM hfacetCone htileCone
+  simpa only [Set.image_image] using h
 
 /-- Step 8 of the V4 proof of `host_step_step1_seed` (V4 3.6):
 "the realised flag tangent cones ... equal the actual T_p₀ F_j" and

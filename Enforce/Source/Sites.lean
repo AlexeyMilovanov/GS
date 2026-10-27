@@ -1013,6 +1013,702 @@ private theorem site_fan_finite_step6_chain_directions {A : S.ι}
         (F.dimension ⟨i.val.val, i.property.2, i.val.isLt⟩))
   exact hleft.trans hright.symm
 
+/-- Step 1 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"the polygons ... meeting q". A positive-dimensional connected cell has
+points other than q in every neighborhood of q. -/
+private theorem site_fan_finite_step6_connected_step1_accumulation
+    (c : Cell d) (hc : 0 < c.dim) (g : Iso d) (q : E d)
+    (hq : q ∈ g '' c.carrier) {ε : ℝ} (hε : 0 < ε) :
+    ∃ x ∈ g '' c.carrier, x ∈ ball q ε ∧ x ≠ q := by
+  have hn : c.carrier.Nontrivial := by
+    apply Set.not_subsingleton_iff.mp
+    intro hs
+    have hz : cellDirection c.carrier = ⊥ := by
+      simpa [cellDirection, direction_affineSpan] using
+        (vectorSpan_eq_bot_iff_subsingleton ℝ).mpr hs
+    have hzero : Module.finrank ℝ (cellDirection c.carrier) = 0 := by
+      rw [hz]
+      exact finrank_bot ℝ (E d)
+    have hh := c.flat.dimension
+    omega
+  have hn' : (g '' c.carrier).Nontrivial := hn.image g.injective
+  have hp := (c.flat.connected.image g g.continuous.continuousOn).isPreconnected
+    |>.preperfect_of_nontrivial hn'
+  obtain ⟨x, hx, hne⟩ := preperfect_iff_nhds.mp hp q hq (ball q ε) (ball_mem_nhds q hε)
+  exact ⟨x, hx.2, hx.1, hne⟩
+
+/-- Step 2 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"the polygons ... meeting q". A small common ball misses every member of a
+finite closed family that does not contain q. -/
+private theorem site_fan_finite_step6_connected_step2_common_ball
+    {ι : Type*} [Finite ι] (K : ι → Set (E d))
+    (hK : ∀ i, IsClosed (K i)) (q : E d) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ i x, x ∈ ball q ε → x ∈ K i → q ∈ K i := by
+  let U : Set (E d) := ⋂ i : {i // q ∉ K i}, (K i.val)ᶜ
+  have hU : IsOpen U := isOpen_iInter_of_finite fun i => (hK i.val).isOpen_compl
+  have hqU : q ∈ U := by simp [U]
+  obtain ⟨ε, hε, hb⟩ := Metric.isOpen_iff.mp hU q hqU
+  refine ⟨ε, hε, ?_⟩
+  intro i x hx hxi
+  by_contra hqi
+  exact (Set.mem_iInter.mp (hb hx) ⟨i, hqi⟩) hxi
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.0(a)):
+"each component is inside or outside A". On a connected set on which boundary
+membership is constant, membership in a closed set is constant as well. -/
+private lemma site_fan_finite_step6_connected_step3_connected_membership
+    {X : Type*} [TopologicalSpace X] {S T : Set X}
+    (hS : IsClosed S) (hT : IsPreconnected T)
+    (hb : ∀ x ∈ T, ∀ y ∈ T, x ∈ frontier S ↔ y ∈ frontier S)
+    {x y : X} (hx : x ∈ T) (hy : y ∈ T) : x ∈ S ↔ y ∈ S := by
+  by_cases hxb : x ∈ frontier S
+  · exact iff_of_true (hS.frontier_subset hxb) (hS.frontier_subset ((hb x hx y hy).mp hxb))
+  have havoid : ∀ z ∈ T, z ∉ frontier S := by
+    intro z hz hzb
+    exact hxb ((hb x hx z hz).mpr hzb)
+  have hcover : T ⊆ interior S ∪ Sᶜ := by
+    intro z hz
+    by_cases hzs : z ∈ S
+    · left
+      by_contra hzi
+      exact havoid z hz (by rw [hS.frontier_eq]; exact ⟨hzs, hzi⟩)
+    · exact Or.inr hzs
+  have hdis : Disjoint (interior S) Sᶜ :=
+    Set.disjoint_left.mpr fun _ hi hc => hc (interior_subset hi)
+  rcases hT.subset_or_subset isOpen_interior hS.isOpen_compl hdis hcover with h | h
+  · exact iff_of_true (interior_subset (h hx)) (interior_subset (h hy))
+  · exact iff_of_false (h hx) (h hy)
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.0(b)):
+"the local structure is constant by (a) applied to the cell complex". Translation
+invariance of the relative boundary of a closed set extends to the set itself,
+provided the translations are parallel to its affine span. -/
+private lemma site_fan_finite_step6_connected_step3_fill
+    {S : Set (E d)} (hS : IsClosed S) (V : Submodule ℝ (E d))
+    (hV : V ≤ (affineSpan ℝ S).direction) (p : E d) (r : ℝ)
+    (hb : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V →
+      (x ∈ relfrontier S ↔ y ∈ relfrontier S)) :
+    ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ S ↔ y ∈ S) := by
+  have hforward : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → x ∈ S → y ∈ S := by
+    intro x hx y hy hyx hxs
+    have hxaff : x ∈ affineSpan ℝ S := subset_affineSpan ℝ S hxs
+    let γ : ℝ → affineSpan ℝ S := fun t =>
+      ⟨t • (y - x) + x,
+        AffineSubspace.vadd_mem_of_mem_direction
+          ((affineSpan ℝ S).direction.smul_mem t (hV hyx)) hxaff⟩
+    have hγcont : Continuous γ := by
+      apply Continuous.subtype_mk
+      fun_prop
+    have hγball : ∀ t ∈ Icc (0 : ℝ) 1, (γ t : E d) ∈ ball p r := by
+      intro t ht
+      have hseg : (γ t : E d) ∈ segment ℝ x y := by
+        rw [segment_eq_image_lineMap]
+        exact ⟨t, ht, rfl⟩
+      exact (convex_ball p r).segment_subset hx hy hseg
+    have hfront (z : affineSpan ℝ S) :
+        z ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ↔ (z : E d) ∈ relfrontier S := by
+      change _ ↔ (z : E d) ∈ Subtype.val '' frontier _
+      exact (Subtype.val_injective.mem_set_image).symm
+    have hinv : ∀ a ∈ γ '' Icc (0 : ℝ) 1, ∀ b ∈ γ '' Icc (0 : ℝ) 1,
+        a ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ↔
+        b ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) := by
+      rintro a ⟨s, hs, rfl⟩ b ⟨t, ht, rfl⟩
+      rw [hfront, hfront]
+      apply hb _ (hγball s hs) _ (hγball t ht)
+      change (t • (y - x) + x) - (s • (y - x) + x) ∈ V
+      simpa only [add_sub_add_right_eq_sub] using
+        V.sub_mem (V.smul_mem t hyx) (V.smul_mem s hyx)
+    have heq := site_fan_finite_step6_connected_step3_connected_membership
+      (hS.preimage continuous_subtype_val)
+      (isPreconnected_Icc.image γ hγcont.continuousOn) hinv
+      (mem_image_of_mem γ (left_mem_Icc.mpr (zero_le_one : (0 : ℝ) ≤ 1)))
+      (mem_image_of_mem γ (right_mem_Icc.mpr (zero_le_one : (0 : ℝ) ≤ 1)))
+    simpa [γ] using heq.mp (by simpa [γ] using hxs)
+  intro x hx y hy hyx
+  exact ⟨hforward x hx y hy hyx,
+    hforward y hy x hx (by simpa only [neg_sub] using V.neg_mem hyx)⟩
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.0(a)):
+"if p ∈ e ... then mc_A(p) ⊆ e". A listed cell meeting the relative interior
+of another listed cell contains the whole latter cell. -/
+private lemma site_fan_finite_step6_connected_step3_incidence
+    {A : PolyManifoldDomain d} (K : CellComplex A)
+    {e f : Cell d} (he : e ∈ K.cells) (hf : f ∈ K.cells)
+    {p : E d} (hp : p ∈ relint e.carrier) (hpf : p ∈ f.carrier) :
+    e.carrier ⊆ f.carrier := by
+  have hpA : p ∈ frontier A.carrier := by
+    rw [← K.cover]
+    exact mem_iUnion.mpr ⟨e, mem_iUnion.mpr ⟨he, hp⟩⟩
+  have hmin : K.minimalCell p hpA = e := by
+    by_contra hne
+    exact Set.disjoint_left.mp
+      (K.relint_disjoint _ (K.minimalCell_mem p hpA) e he hne)
+      (K.mem_relint_minimalCell p hpA) hp
+  simpa only [hmin] using K.minimalCell_subset p hpA f hf hpf
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.0(a)):
+"Cells are closed and finitely many, so some ball U ...". Finitely many local
+translation invariances hold on a common ball, including for an empty family. -/
+private lemma site_fan_finite_step6_connected_step3_invariance_ball
+    {ι : Type*} (s : Finset ι) (C : ι → Set (E d))
+    (V : Submodule ℝ (E d)) (p : E d)
+    (h : ∀ i ∈ s, ∃ r : ℝ, 0 < r ∧
+      ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ C i ↔ y ∈ C i)) :
+    ∃ r : ℝ, 0 < r ∧ ∀ i ∈ s,
+      ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ C i ↔ y ∈ C i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => exact ⟨1, zero_lt_one, by simp⟩
+  | @insert a s ha ih =>
+    obtain ⟨ra, hra, hca⟩ := h a (Finset.mem_insert_self a s)
+    obtain ⟨rs, hrs, hcs⟩ := ih (fun i hi => h i (Finset.mem_insert_of_mem hi))
+    refine ⟨min ra rs, lt_min hra hrs, ?_⟩
+    intro i hi x hx y hy hv
+    rcases Finset.mem_insert.mp hi with rfl | hi
+    · exact hca x (ball_subset_ball (min_le_left _ _) hx)
+        y (ball_subset_ball (min_le_left _ _) hy) hv
+    · exact hcs i hi x (ball_subset_ball (min_le_right _ _) hx)
+        y (ball_subset_ball (min_le_right _ _) hy) hv
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.0(b)):
+"the local structure is constant by (a) applied to the cell complex". Induction
+through relative boundaries makes every listed carrier locally invariant in the
+directions of the cell containing the base point in its relative interior. -/
+private lemma site_fan_finite_step6_connected_step3_cell_invariance
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e : Cell d) (he : e ∈ K.cells)
+    (p : E d) (hp : p ∈ relint e.carrier) (f : Cell d) (hf : f ∈ K.cells) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+      y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+  classical
+  let N (f : Cell d) := (K.cells.filter fun g => g.carrier ⊆ f.carrier).card
+  have main : ∀ n : ℕ, ∀ f : Cell d, f ∈ K.cells → N f = n →
+      ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+        y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+      intro f hf hN
+      by_cases hpf : p ∈ f.carrier
+      · have hef := site_fan_finite_step6_connected_step3_incidence K he hf hp hpf
+        have hV : cellDirection e.carrier ≤ (affineSpan ℝ f.carrier).direction :=
+          AffineSubspace.direction_le (affineSpan_mono ℝ hef)
+        obtain ⟨b, hb, hboundary⟩ := K.boundary_union f hf
+        have hsmall : ∀ g ∈ b, N g < N f := by
+          intro g hg
+          have hgb : g.carrier ⊆ relfrontier f.carrier := by
+            intro z hz
+            rw [hboundary]
+            exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+          have hgf : g.carrier ⊆ f.carrier :=
+            hgb.trans (intrinsicFrontier_subset f.flat.compact.isClosed)
+          have hnfg : ¬ f.carrier ⊆ g.carrier := by
+            intro hfg
+            obtain ⟨z, hz⟩ := f.flat.relint_nonempty
+            have hzb := hgb (hfg (intrinsicInterior_subset hz))
+            change z ∈ intrinsicFrontier ℝ f.carrier at hzb
+            rw [← closure_diff_intrinsicInterior] at hzb
+            exact hzb.2 hz
+          apply Finset.card_lt_card
+          apply (Finset.ssubset_iff_of_subset ?_).mpr
+          · refine ⟨f, Finset.mem_filter.mpr ⟨hf, Subset.rfl⟩, ?_⟩
+            intro hfg
+            exact hnfg (Finset.mem_filter.mp hfg).2
+          · intro g' hg'
+            obtain ⟨hg'K, hg'g⟩ := Finset.mem_filter.mp hg'
+            exact Finset.mem_filter.mpr ⟨hg'K, hg'g.trans hgf⟩
+        obtain ⟨r, hr, hc⟩ := site_fan_finite_step6_connected_step3_invariance_ball b
+          Cell.carrier (cellDirection e.carrier) p (fun g hg =>
+            ih (N g) (by simpa only [hN] using hsmall g hg) g (hb hg) rfl)
+        refine ⟨r, hr, site_fan_finite_step6_connected_step3_fill f.flat.compact.isClosed
+          (cellDirection e.carrier) hV p r ?_⟩
+        intro x hx y hy hv
+        rw [hboundary]
+        simp only [mem_iUnion, exists_prop]
+        constructor
+        · rintro ⟨g, hg, hxg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mp hxg⟩
+        · rintro ⟨g, hg, hyg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mpr hyg⟩
+      · obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp f.flat.compact.isClosed.isOpen_compl p hpf
+        exact ⟨r, hr, fun x hx y hy _ => iff_of_false (hball hx) (hball hy)⟩
+  exact main (N f) f hf rfl
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"at native scale". Relative interiors commute with invertible affine placements. -/
+private theorem site_fan_finite_step6_connected_step3_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"the polygons ... form a finite planar fan". A polyhedron is locally
+star convex at each of its points, by discarding convex pieces missing the point. -/
+private theorem site_fan_finite_step6_connected_step3_local_star
+    {K : Set (E d)} (hK : Polyhedron K) (q : E d) :
+    ∃ ε : ℝ, 0 < ε ∧ StarConvex ℝ q (K ∩ ball q ε) := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  obtain ⟨ε, hε, hnear⟩ := site_fan_finite_step6_connected_step2_common_ball
+    (fun p : s => convexHull ℝ (p.val : Set (E d)))
+    (fun p => p.val.finite_toSet.isCompact_convexHull.isClosed) q
+  refine ⟨ε, hε, ?_⟩
+  intro x hx a b ha hb hab
+  obtain ⟨p, hp, hxp⟩ := Set.mem_iUnion₂.mp hx.1
+  have hqp := hnear ⟨p, hp⟩ x hx.2 hxp
+  exact ⟨Set.mem_iUnion₂.mpr ⟨p, hp,
+    (convex_convexHull ℝ (p : Set (E d))) hqp hxp ha hb hab⟩,
+    (convex_ball q ε) (mem_ball_self hε) hx.2 ha hb hab⟩
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"near a point of relint h ... a half-plane". Relative interior contains
+a small ball in the affine span. -/
+private theorem site_fan_finite_step6_connected_step3_relint_ball
+    {K : Set (E d)} {q : E d} (hq : q ∈ relint K) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ x ∈ ball q ε,
+      x ∈ affineSpan ℝ K → x ∈ relint K := by
+  obtain ⟨p, hp, hpq⟩ := hq
+  obtain ⟨ε, hε, hb⟩ := Metric.isOpen_iff.mp isOpen_interior p hp
+  refine ⟨ε, hε, ?_⟩
+  intro x hx hxaff
+  refine ⟨⟨x, hxaff⟩, hb ?_, rfl⟩
+  simpa only [mem_ball, Subtype.dist_eq, hpq] using hx
+
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"the polygons ... form a finite planar fan". Local radial segments and translation along
+an edge connect the punctured neighborhood through a point off the edge line. -/
+private theorem site_fan_finite_step6_connected_step3_punctured_star
+    (K : Set (E d)) (V : Submodule ℝ (E d)) (q : E d) (ε : ℝ)
+    (hstar : StarConvex ℝ q (K ∩ ball q ε))
+    (hinv : ∀ x ∈ ball q ε, ∀ y ∈ ball q ε, y - x ∈ V → (x ∈ K ↔ y ∈ K))
+    (u w : E d) (hu : u ∈ ball q ε) (huV : u - q ∈ V) (huq : u ≠ q)
+    (hw : w ∈ K ∩ ball q ε) (hwV : w - q ∉ V) :
+    IsPreconnected ((K ∩ ball q ε) \ {q}) := by
+  let U := (K ∩ ball q ε) \ {q}
+  have hjoin (v z : E d) (hv : v ∈ ball q ε) (hvV : v - q ∈ V) (hvq : v ≠ q)
+      (hz : z ∈ K ∩ ball q ε) (hzV : z - q ∉ V) : JoinedIn U v z := by
+    apply JoinedIn.of_segment_subset
+    rintro y ⟨a, b, ha, hb, hab, rfl⟩
+    have hrad := hstar hz ha hb hab
+    have hball := (convex_ball q ε) hv hz.2 ha hb hab
+    have hshift : (a • v + b • z) - (a • q + b • z) ∈ V := by
+      convert V.smul_mem a hvV using 1 <;> module
+    refine ⟨⟨(hinv _ hrad.2 _ hball hshift).mp hrad.1, hball⟩, ?_⟩
+    change a • v + b • z ≠ q
+    intro heq
+    by_cases hb0 : b = 0
+    · have ha1 : a = 1 := by linarith
+      exact hvq (by simpa [ha1, hb0] using heq)
+    · apply hzV
+      have hzmem : b • (z - q) ∈ V := by
+        have hid : b • (z - q) = -(a • (v - q)) := by
+          calc
+            _ = (a • v + b • z - q) - a • (v - q) := by
+              rw [show a = 1 - b by linarith]
+              module
+            _ = _ := by rw [heq, sub_self, zero_sub]
+        rw [hid]
+        exact V.neg_mem (V.smul_mem a hvV)
+      simpa [smul_smul, hb0] using V.smul_mem b⁻¹ hzmem
+  have hwq : w ≠ q := by intro h; exact hwV (by simp [h])
+  have hpath : IsPathConnected U := by
+    refine ⟨w, ⟨hw, hwq⟩, ?_⟩
+    intro x hx
+    by_cases hxV : x - q ∈ V
+    · exact (hjoin x w hx.1.2 hxV hx.2 hw hwV).symm
+    · exact (hjoin u w hu huV huq hw hwV).symm.trans
+        (hjoin u x hu huV huq hx.1 hxV)
+  exact hpath.isConnected.isPreconnected
+
+set_option maxHeartbeats 800000 in
+/-- Step 3 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b), 1.0(a)):
+"the polygons ... form a finite planar fan".
+At a relative-interior edge point of a listed polygon, radial segments and
+local translation along the edge give connected punctured neighborhoods,
+also after an invertible affine placement. -/
+private theorem site_fan_finite_step6_connected_step3_punctured_polygon
+    {P : PolyManifoldDomain d} (K : CellComplex P) (c e : Cell d)
+    (hc : c ∈ K.cells) (he : e ∈ K.cells) (hc2 : c.dim = 2) (he1 : e.dim = 1)
+    (hec : e.carrier ⊆ c.carrier) (g : E d ≃ᵃ[ℝ] E d)
+    (q : E d) (hq : q ∈ relint (g '' e.carrier)) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ ε : ℝ, 0 < ε ∧ ε ≤ δ ∧
+      IsPreconnected ((g '' c.carrier ∩ ball q ε) \ {q}) := by
+  rw [site_fan_finite_step6_connected_step3_relint_image] at hq
+  obtain ⟨p, hp, rfl⟩ := hq
+  have hpe : p ∈ e.carrier := intrinsicInterior_subset hp
+  have hpc : p ∈ c.carrier := hec hpe
+  let V := cellDirection e.carrier
+  let W := V.map g.linear.toLinearMap
+  obtain ⟨ri, hri, hinv⟩ :=
+    site_fan_finite_step6_connected_step3_cell_invariance K e he p hp c hc
+  obtain ⟨rs, hrs, hstar⟩ :=
+    site_fan_finite_step6_connected_step3_local_star c.flat.polyhedral p
+  have hpre : IsOpen (g.symm ⁻¹' ball p (min ri rs)) :=
+    isOpen_ball.preimage g.symm.toHomeomorphOfFiniteDimensional.continuous
+  have hgp : g p ∈ g.symm ⁻¹' ball p (min ri rs) := by
+    simp only [Set.mem_preimage, g.symm_apply_apply]
+    exact mem_ball_self (lt_min hri hrs)
+  obtain ⟨r, hr, hmap⟩ := Metric.isOpen_iff.mp hpre (g p) hgp
+  let ε := min r δ
+  have hε : 0 < ε := lt_min hr hδ
+  have hmap' (x : E d) (hx : x ∈ ball (g p) ε) :
+      g.symm x ∈ ball p ri ∧ g.symm x ∈ ball p rs := by
+    have hh := hmap (ball_subset_ball (min_le_left r δ) hx)
+    exact ⟨ball_subset_ball (min_le_left ri rs) hh,
+      ball_subset_ball (min_le_right ri rs) hh⟩
+  have hinv' : ∀ x ∈ ball (g p) ε, ∀ y ∈ ball (g p) ε,
+      y - x ∈ W → (x ∈ g '' c.carrier ↔ y ∈ g '' c.carrier) := by
+    intro x hx y hy hxy
+    have hxy' : g.symm y - g.symm x ∈ V := by
+      obtain ⟨v, hv, hveq⟩ := hxy
+      have hl : g.linear (g.symm y - g.symm x) = y - x := by
+        simpa using g.toAffineMap.linearMap_vsub (g.symm y) (g.symm x)
+      have hv' : v = g.symm y - g.symm x :=
+        g.linear.injective (hveq.trans hl.symm)
+      simpa only [hv'] using hv
+    change (x ∈ g.toEquiv '' c.carrier ↔ y ∈ g.toEquiv '' c.carrier)
+    simpa only [Set.mem_image_equiv] using
+      hinv (g.symm x) (hmap' x hx).1 (g.symm y) (hmap' y hy).1 hxy'
+  have hstar' : StarConvex ℝ (g p) (g '' c.carrier ∩ ball (g p) ε) := by
+    have hh := (hstar.affine_image g.toAffineMap).inter
+      ((convex_ball (g p) ε) (mem_ball_self hε))
+    have hset : (g '' (c.carrier ∩ ball p rs)) ∩ ball (g p) ε =
+        g '' c.carrier ∩ ball (g p) ε := by
+      ext x
+      constructor
+      · rintro ⟨⟨z, hz, rfl⟩, hx⟩
+        exact ⟨⟨z, hz.1, rfl⟩, hx⟩
+      · rintro ⟨⟨z, hz, hzx⟩, hx⟩
+        refine ⟨⟨z, ⟨hz, ?_⟩, hzx⟩, hx⟩
+        simpa only [← hzx, g.symm_apply_apply] using (hmap' x hx).2
+    change StarConvex ℝ (g p) ((g '' (c.carrier ∩ ball p rs)) ∩ ball (g p) ε) at hh
+    rwa [hset] at hh
+  obtain ⟨re, hre, hedge⟩ := site_fan_finite_step6_connected_step3_relint_ball (K := e.carrier) (q := p) hp
+  have hopen : IsOpen (g ⁻¹' ball (g p) ε) :=
+    isOpen_ball.preimage g.toHomeomorphOfFiniteDimensional.continuous
+  have hpopen : p ∈ g ⁻¹' ball (g p) ε := by
+    change dist (g p) (g p) < ε
+    simpa only [dist_self] using hε
+  obtain ⟨t, ht, htmap⟩ := Metric.isOpen_iff.mp hopen p hpopen
+  let s := min t re
+  have hs : 0 < s := lt_min ht hre
+  have hmapball (z : E d) (hz : z ∈ ball p s) : g z ∈ ball (g p) ε :=
+    htmap (ball_subset_ball (min_le_left t re) hz)
+  obtain ⟨u, hue, hu, hup⟩ := site_fan_finite_step6_connected_step1_accumulation
+    e (by omega) (AffineIsometryEquiv.refl ℝ (E d)) p (by simpa using hpe) hs
+  have hue' : u ∈ e.carrier := by simpa using hue
+  have huV : u - p ∈ V := AffineSubspace.vsub_mem_direction
+    (subset_affineSpan ℝ _ hue') (subset_affineSpan ℝ _ hpe)
+  have hguW : g u - g p ∈ W := by
+    have hlin : g.linear (u - p) = g u - g p := g.toAffineMap.linearMap_vsub u p
+    rw [← hlin]
+    exact Submodule.mem_map_of_mem huV
+  have hpcl : p ∈ closure (relint c.carrier) := by
+    rw [c.flat.regularClosed]
+    exact hpc
+  obtain ⟨w, hwc, hwp⟩ := Metric.mem_closure_iff.mp hpcl s hs
+  have hw : w ∈ ball p s := by simpa only [mem_ball, dist_comm] using hwp
+  have hwV : w - p ∉ V := by
+    intro hwpV
+    have hwspan : w ∈ affineSpan ℝ e.carrier := by
+      simpa using AffineSubspace.vadd_mem_of_mem_direction hwpV
+        (subset_affineSpan ℝ _ hpe)
+    have hwe := hedge w (ball_subset_ball (min_le_right t re) hw) hwspan
+    have hec' : e ≠ c := by intro h; have := congrArg Cell.dim h; omega
+    exact Set.disjoint_left.mp (K.relint_disjoint e he c hc hec') hwe hwc
+  have hgwW : g w - g p ∉ W := by
+    rintro ⟨v, hv, hveq⟩
+    have hv' : v = w - p := g.linear.injective (hveq.trans (g.toAffineMap.linearMap_vsub w p).symm)
+    exact hwV (by simpa only [hv'] using hv)
+  refine ⟨ε, hε, min_le_right r δ, ?_⟩
+  exact site_fan_finite_step6_connected_step3_punctured_star
+    (g '' c.carrier) W (g p) ε hstar' hinv' (g u) (g w)
+    (hmapball u hu) hguW (g.injective.ne hup)
+    ⟨⟨w, intrinsicInterior_subset hwc, rfl⟩, hmapball w hw⟩ hgwW
+
+/-- Step 4 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"the polygons ... form a finite planar fan". In one affine plane, disjoint
+relative interiors keep either polygon's carrier out of the other's interior. -/
+private theorem site_fan_finite_step6_connected_step4_disjoint_interior
+    {K L : Set (E d)} (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    (hL : closure (relint L) = L) (hdis : Disjoint (relint K) (relint L)) :
+    Disjoint (relint K) L := by
+  let V := affineSpan ℝ K
+  have himage : ((↑) : V → E d) '' (((↑) : V → E d) ⁻¹' relint L) = relint L := by
+    apply Set.image_preimage_eq_of_subset
+    intro x hx
+    have hxV : x ∈ V := by
+      change x ∈ affineSpan ℝ K
+      rw [hspan]
+      exact subset_affineSpan ℝ L (intrinsicInterior_subset hx)
+    exact ⟨⟨x, hxV⟩, rfl⟩
+  have hd : Disjoint (interior (((↑) : V → E d) ⁻¹' K))
+      (((↑) : V → E d) ⁻¹' relint L) := by
+    apply Set.disjoint_left.mpr
+    intro x hxK hxL
+    exact Set.disjoint_left.mp hdis ⟨x, hxK, rfl⟩ hxL
+  apply Set.disjoint_left.mpr
+  rintro x ⟨y, hy, rfl⟩ hxL
+  have hyL : y ∈ closure (((↑) : V → E d) ⁻¹' relint L) := by
+    rw [Topology.IsEmbedding.subtypeVal.closure_eq_preimage_closure_image, himage, hL]
+    exact hxL
+  exact Set.disjoint_left.mp (hd.closure_right isOpen_interior) hy hyL
+
+/-- Step 5 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"Consecutive sectors share an edge line". At a boundary point of a listed
+polygon, its minimal cell is an edge if that cell also contains a second point. -/
+private theorem site_fan_finite_step6_connected_step5_boundary_edge
+    {P : PolyManifoldDomain d} (K : CellComplex P) (c : Cell d)
+    (hc : c ∈ K.cells) (hdim : c.dim = 2) (x q : E d) (hxq : x ≠ q)
+    (hx : x ∈ c.carrier) (hxi : x ∉ relint c.carrier)
+    (hnear : ∀ e ∈ K.cells, x ∈ e.carrier → q ∈ e.carrier) :
+    ∃ e ∈ K.cells, e.dim = 1 ∧ x ∈ e.carrier ∧ q ∈ e.carrier ∧
+      e.carrier ⊆ c.carrier := by
+  have hxP : x ∈ frontier P.carrier := by
+    rw [← K.carriers_cover]
+    exact Set.mem_iUnion.mpr ⟨c, Set.mem_iUnion.mpr ⟨hc, hx⟩⟩
+  let e := K.minimalCell x hxP
+  have he : e ∈ K.cells := K.minimalCell_mem x hxP
+  have hxe : x ∈ relint e.carrier := K.mem_relint_minimalCell x hxP
+  have hxem : x ∈ e.carrier := intrinsicInterior_subset hxe
+  have hqe : q ∈ e.carrier := hnear e he hxem
+  have hec : e.carrier ⊆ c.carrier := K.minimalCell_subset x hxP c hc hx
+  have hdir : cellDirection e.carrier ≤ cellDirection c.carrier :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hec)
+  have hle : e.dim ≤ 2 := by
+    have hh := Submodule.finrank_mono hdir
+    rwa [e.flat.dimension, c.flat.dimension, hdim] at hh
+  have hne0 : e.dim ≠ 0 := by
+    intro he0
+    have hz : cellDirection e.carrier = ⊥ :=
+      Submodule.finrank_eq_zero.mp (e.flat.dimension.trans he0)
+    have hs : e.carrier.Subsingleton :=
+      (vectorSpan_eq_bot_iff_subsingleton ℝ).mp (by
+        simpa [cellDirection, direction_affineSpan] using hz)
+    exact hxq (hs hxem hqe)
+  have hne2 : e.dim ≠ 2 := by
+    intro he2
+    have heq : cellDirection e.carrier = cellDirection c.carrier :=
+      Submodule.eq_of_le_of_finrank_eq hdir (by
+        rw [e.flat.dimension, c.flat.dimension, he2, hdim])
+    have hspan : affineSpan ℝ e.carrier = affineSpan ℝ c.carrier :=
+      AffineSubspace.eq_of_direction_eq_of_nonempty_of_le heq
+        ⟨x, subset_affineSpan ℝ _ hxem⟩ (affineSpan_mono ℝ hec)
+    have hrel : relint e.carrier ⊆ relint c.carrier := by
+      unfold relint intrinsicInterior
+      rw [hspan]
+      exact Set.image_mono (interior_mono (Set.preimage_mono hec))
+    exact hxi (hrel hxe)
+  exact ⟨e, he, by omega, hxem, hqe, hec⟩
+
+/-- Step 6 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"Consecutive sectors share an edge line". Two one-dimensional carriers
+containing the same two distinct points have equal direction spaces. -/
+private theorem site_fan_finite_step6_connected_step6_edge_line
+    {K L : Set (E d)} (hK : Module.finrank ℝ (cellDirection K) = 1)
+    (hL : Module.finrank ℝ (cellDirection L) = 1)
+    {x q : E d} (hxq : x ≠ q) (hxK : x ∈ K) (hqK : q ∈ K)
+    (hxL : x ∈ L) (hqL : q ∈ L) : cellDirection K = cellDirection L := by
+  have hv : x - q ≠ 0 := sub_ne_zero.mpr hxq
+  have hdK : x - q ∈ cellDirection K :=
+    AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ K hxK)
+      (subset_affineSpan ℝ K hqK)
+  have hdL : x - q ∈ cellDirection L :=
+    AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ L hxL)
+      (subset_affineSpan ℝ L hqL)
+  have hspanK : ℝ ∙ (x - q) = cellDirection K :=
+    Submodule.eq_of_le_of_finrank_eq
+      ((Submodule.span_singleton_le_iff_mem _ _).mpr hdK)
+      ((finrank_span_singleton hv).trans hK.symm)
+  have hspanL : ℝ ∙ (x - q) = cellDirection L :=
+    Submodule.eq_of_le_of_finrank_eq
+      ((Submodule.span_singleton_le_iff_mem _ _).mpr hdL)
+      ((finrank_span_singleton hv).trans hL.symm)
+  exact hspanK.symm.trans hspanL
+
+/-- Step 7 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"The chains ... have direction spaces equal". Appending a named edge of
+the bottom polygon extends its recorded coface chain to a full flag. -/
+private theorem site_fan_finite_step6_connected_step7_extend_flag
+    {A : S.ι} {F : FacetFlag S A} {r : ℕ} (hd : traceDimension d = 2)
+    (a : TracePiece A F r) (e : CellName S a.tile.ty) (he : e.val.dim = 1)
+    (hsub : e.val.carrier ⊆ a.bottom.val.carrier) :
+    ∃ G : FacetFlag S a.tile.ty,
+      (∀ i, i.val = 1 → G.cell i = e) ∧
+      ∀ (i : {j : ℕ // 1 ≤ j ∧ j < d}) (hi : traceDimension d ≤ i.val),
+        G.cell i = a.chain.cell ⟨⟨i.val, i.property.2⟩, hi, i.property.1⟩ := by
+  let idx (i : {j : ℕ // 1 ≤ j ∧ j < d}) (hi : i.val ≠ 1) :
+      ChainIndex d (traceDimension d) :=
+    ⟨⟨i.val, i.property.2⟩, by change traceDimension d ≤ i.val; have := i.property.1; omega, i.property.1⟩
+  let G : FacetFlag S a.tile.ty :=
+    { cell := fun i => if hi : i.val = 1 then e else a.chain.cell (idx i hi)
+      dimension := by
+        intro i
+        split_ifs with hi
+        · exact he.trans hi.symm
+        · exact a.chain.dimension (idx i hi)
+      nested := by
+        intro i j hij
+        split_ifs with hi hj hj
+        · exact Set.Subset.refl _
+        · exact hsub.trans (a.chain.nested TracePiece.bottomIndex (idx j hj)
+            (by have := j.property.1; change traceDimension d ≤ j.val; omega))
+        · have := i.property.1
+          omega
+        · exact a.chain.nested (idx i hi) (idx j hj) hij }
+  refine ⟨G, ?_, ?_⟩
+  · intro i hi
+    simp [G, hi]
+  · intro i hi
+    have hi' : i.val ≠ 1 := by omega
+    simp [G, hi', idx]
+
+/-- Step 8 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"Consecutive sectors share an edge line". Away from the site, an overlap
+in a ball avoiding nonincident cells gives a common edge direction, which
+completes both recorded coface chains to aligned full flags. -/
+private theorem site_fan_finite_step6_connected_step8_overlap_flags
+    {A : S.ι} {F : FacetFlag S A} {r : ℕ} (hd : traceDimension d = 2)
+    (a b : TracePiece A F r) (hab : a ≠ b) (x q : E d) (hxq : x ≠ q)
+    (hxa : x ∈ a.carrier) (hxb : x ∈ b.carrier)
+    (hnear : ∀ (c : TracePiece A F r) (e : CellName S c.tile.ty),
+      x ∈ c.tile.cell 0 e.val → q ∈ c.tile.cell 0 e.val) :
+    siteFanAligned a.tile b.tile := by
+  have hreg (c : TracePiece A F r) : closure (relint c.carrier) = c.carrier := by
+    change closure (relint (c.tile.cell 0 c.bottom.val)) = c.tile.cell 0 c.bottom.val
+    rw [site_fan_finite_step4_cell_zero]
+    change closure (intrinsicInterior ℝ (c.tile.frame.toAffineIsometry ''
+      c.bottom.val.carrier)) = _
+    rw [AffineIsometry.image_intrinsicInterior]
+    change closure (c.tile.frame.toHomeomorph '' relint c.bottom.val.carrier) = _
+    rw [← c.tile.frame.toHomeomorph.image_closure, c.bottom.val.flat.regularClosed]
+    rfl
+  have hspan : affineSpan ℝ a.carrier = affineSpan ℝ b.carrier :=
+    ((recursiveTrace_tiles A F r).2.2 a TracePiece.bottomIndex).trans
+      ((recursiveTrace_tiles A F r).2.2 b TracePiece.bottomIndex).symm
+  have hdis := (recursiveTrace_tiles A F r).2.1 hab
+  have hna : x ∉ relint a.carrier := fun hx =>
+    Set.disjoint_left.mp
+      (site_fan_finite_step6_connected_step4_disjoint_interior hspan (hreg b) hdis) hx hxb
+  have hnb : x ∉ relint b.carrier := fun hx =>
+    Set.disjoint_left.mp
+      (site_fan_finite_step6_connected_step4_disjoint_interior hspan.symm (hreg a) hdis.symm)
+      hx hxa
+  have hedge (c : TracePiece A F r) (hxc : x ∈ c.carrier)
+      (hnc : x ∉ relint c.carrier) :
+      ∃ e : CellName S c.tile.ty, e.val.dim = 1 ∧
+        x ∈ c.tile.cell 0 e.val ∧ q ∈ c.tile.cell 0 e.val ∧
+        e.val.carrier ⊆ c.bottom.val.carrier := by
+    have hxc' : c.tile.frame.symm x ∈ c.bottom.val.carrier := by
+      obtain ⟨y, hy, hxy⟩ := (show x ∈ c.tile.frame '' c.bottom.val.carrier by
+        simpa [TracePiece.carrier, site_fan_finite_step4_cell_zero] using hxc)
+      simpa [← hxy] using hy
+    have hnc' : c.tile.frame.symm x ∉ relint c.bottom.val.carrier := by
+      intro hi
+      apply hnc
+      change x ∈ intrinsicInterior ℝ (c.tile.cell 0 c.bottom.val)
+      rw [site_fan_finite_step4_cell_zero]
+      change x ∈ intrinsicInterior ℝ (c.tile.frame.toAffineIsometry '' c.bottom.val.carrier)
+      rw [AffineIsometry.image_intrinsicInterior]
+      exact ⟨c.tile.frame.symm x, hi, c.tile.frame.apply_symm_apply x⟩
+    obtain ⟨e, he, he1, hxe, hqe, hec⟩ :=
+      site_fan_finite_step6_connected_step5_boundary_edge (S.cx c.tile.ty)
+        c.bottom.val c.bottom.property ((c.chain.dimension TracePiece.bottomIndex).trans hd)
+        (c.tile.frame.symm x) (c.tile.frame.symm q)
+        (fun h => hxq (c.tile.frame.symm.injective h)) hxc' hnc' (by
+          intro e he hxe
+          have hqe := hnear c ⟨e, he⟩ (by
+            rw [site_fan_finite_step4_cell_zero]
+            exact ⟨c.tile.frame.symm x, hxe, c.tile.frame.apply_symm_apply x⟩)
+          rw [site_fan_finite_step4_cell_zero] at hqe
+          obtain ⟨z, hz, hqz⟩ := hqe
+          simpa [← hqz] using hz)
+    refine ⟨⟨e, he⟩, he1, ?_, ?_, hec⟩
+    · rw [site_fan_finite_step4_cell_zero]
+      exact ⟨c.tile.frame.symm x, hxe, c.tile.frame.apply_symm_apply x⟩
+    · rw [site_fan_finite_step4_cell_zero]
+      exact ⟨c.tile.frame.symm q, hqe, c.tile.frame.apply_symm_apply q⟩
+  obtain ⟨e, he, hxe, hqe, hea⟩ := hedge a hxa hna
+  obtain ⟨f, hf, hxf, hqf, hfb⟩ := hedge b hxb hnb
+  have hdim (c : TracePiece A F r) (e : CellName S c.tile.ty) (he : e.val.dim = 1) :
+      Module.finrank ℝ (cellDirection (c.tile.cell 0 e.val)) = 1 := by
+    rw [site_fan_finite_step4_cell_zero, site_fan_finite_step3_direction_image]
+    exact (LinearEquiv.finrank_map_eq c.tile.frame.linearIsometryEquiv.toLinearEquiv _).trans
+      (e.val.flat.dimension.trans he)
+  have hline := site_fan_finite_step6_connected_step6_edge_line
+    (hdim a e he) (hdim b f hf) hxq hxe hqe hxf hqf
+  obtain ⟨Fa, hFa1, hFa⟩ := site_fan_finite_step6_connected_step7_extend_flag hd a e he hea
+  obtain ⟨Fb, hFb1, hFb⟩ := site_fan_finite_step6_connected_step7_extend_flag hd b f hf hfb
+  refine ⟨Fa, Fb, ?_⟩
+  intro i
+  by_cases hi : i.val = 1
+  · rw [hFa1 i hi, hFb1 i hi]
+    exact hline
+  · have hi' : traceDimension d ≤ i.val := by have := i.property.1; omega
+    rw [hFa i hi', hFb i hi']
+    exact (site_fan_finite_step6_chain_directions a _).trans
+      (site_fan_finite_step6_chain_directions b _).symm
+
+/-- Step 9 of the V4 proof of `site_fan_finite_step6_connected` (V4 1.23(b)):
+"the polygons ... form a finite planar fan". A finite closed cover of a
+preconnected set connects all members meeting that set by overlap transitions. -/
+private theorem site_fan_finite_step6_connected_step9_closed_cover
+    {X ι V : Type*} [TopologicalSpace X] [Finite ι]
+    (G : SimpleGraph V) (f : ι → V) (K : ι → Set X) (U : Set X)
+    (hU : IsPreconnected U) (hK : ∀ i, IsClosed (K i))
+    (hcover : U ⊆ ⋃ i, K i)
+    (hstep : ∀ i j x, x ∈ U → x ∈ K i → x ∈ K j → G.Reachable (f i) (f j))
+    (a b : ι) (ha : (U ∩ K a).Nonempty) (hb : (U ∩ K b).Nonempty) :
+    G.Reachable (f a) (f b) := by
+  classical
+  by_contra hnot
+  let L : Set X := ⋃ i : {i // G.Reachable (f a) (f i)}, K i.val
+  let R : Set X := ⋃ i : {i // ¬G.Reachable (f a) (f i)}, K i.val
+  have hL : IsClosed L := isClosed_iUnion_of_finite fun i => hK i.val
+  have hR : IsClosed R := isClosed_iUnion_of_finite fun i => hK i.val
+  have hcov : U ⊆ L ∪ R := by
+    intro x hx
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hcover hx)
+    by_cases hr : G.Reachable (f a) (f i)
+    · exact Or.inl (Set.mem_iUnion.mpr ⟨⟨i, hr⟩, hi⟩)
+    · exact Or.inr (Set.mem_iUnion.mpr ⟨⟨i, hr⟩, hi⟩)
+  have hUL : (U ∩ L).Nonempty := by
+    obtain ⟨x, hxU, hxa⟩ := ha
+    exact ⟨x, hxU, Set.mem_iUnion.mpr ⟨⟨a, .refl _⟩, hxa⟩⟩
+  have hUR : (U ∩ R).Nonempty := by
+    obtain ⟨x, hxU, hxb⟩ := hb
+    exact ⟨x, hxU, Set.mem_iUnion.mpr ⟨⟨b, hnot⟩, hxb⟩⟩
+  obtain ⟨x, hxU, hxL, hxR⟩ :=
+    isPreconnected_closed_iff.mp hU L R hL hR hcov hUL hUR
+  obtain ⟨i, hxi⟩ := Set.mem_iUnion.mp hxL
+  obtain ⟨j, hxj⟩ := Set.mem_iUnion.mp hxR
+  exact j.property (i.property.trans (hstep i.val j.val x hxU hxi hxj))
+
 /-- Step 6 of the V4 proof of `site_fan_finite` (V4 1.23(b)):
 "the polygons ... form a finite planar fan". Consecutive sectors share an
 edge line, which extends their recorded coface chains to aligned full flags.
@@ -1042,7 +1738,84 @@ private theorem site_fan_finite_step6_connected {A : S.ι} {F : FacetFlag S A}
         (site_fan_finite_step6_chain_directions b (idx i)).symm
     exact SimpleGraph.Adj.reachable (show (siteFanGraph q).Adj C B from
       ⟨hCB, by simpa [hCa, hBb] using hfull⟩)
-  · sorry
+  · classical
+    have hd2 : traceDimension d = 2 := by
+      have hd0 : 2 ≤ d := Fact.out
+      unfold traceDimension at hd ⊢
+      omega
+    letI : Finite (TracePiece A F r) := tracePieces_finite A F r
+    intro C B
+    obtain ⟨a, ha, hCa⟩ := C.property
+    obtain ⟨b, hb, hBb⟩ := B.property
+    obtain ⟨δ, hδ, hnear⟩ := site_fan_finite_step6_connected_step2_common_ball
+      (fun z : Σ c : TracePiece A F r, CellName S c.tile.ty =>
+        z.1.tile.cell 0 z.2.val)
+      (by
+        intro z
+        change IsClosed (z.1.tile.cell 0 z.2.val)
+        rw [site_fan_finite_step4_cell_zero]
+        exact (z.2.val.flat.compact.image z.1.tile.frame.continuous).isClosed) q
+    let i₁ : {j : ℕ // 1 ≤ j ∧ j < d} :=
+      ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩
+    let i₂ : {j : ℕ // 1 ≤ j ∧ j < d} :=
+      ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩
+    let root : Cell d := (F.cell i₂).val
+    let K : Set (E d) := (S.σ ^ r) '' root.carrier
+    obtain ⟨ε, hε, hεδ, hconn⟩ :=
+      site_fan_finite_step6_connected_step3_punctured_polygon (S.cx A) root (F.cell i₁).val
+        (F.cell i₂).property (F.cell i₁).property ((F.dimension i₂).trans hd2)
+        (F.dimension i₁) (F.nested i₁ i₂ traceDimension_pos)
+        (S.σ ^ r).toAffineEquiv q hq.1 δ hδ
+    let I := {c : TracePiece A F r // q ∈ c.carrier}
+    let owner : I → siteFanOwners (A := A) (F := F) (r := r) q :=
+      fun c => ⟨c.val.tile, c.val, c.property, rfl⟩
+    let U : Set (E d) := (K ∩ ball q ε) \ {q}
+    have hcover : U ⊆ ⋃ c : I, c.val.carrier := by
+      intro x hx
+      have hxK : x ∈ (S.σ ^ r) ''
+          (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.carrier := hx.1.1
+      rw [← (recursiveTrace_tiles A F r).1] at hxK
+      obtain ⟨c, hc, hxc⟩ := Set.mem_iUnion₂.mp hxK
+      have hqc : q ∈ c.carrier :=
+        hnear ⟨c, c.bottom⟩ x (ball_subset_ball hεδ hx.1.2) hxc
+      exact Set.mem_iUnion.mpr ⟨⟨c, hqc⟩, hxc⟩
+    have hmeet (c : I) : (U ∩ c.val.carrier).Nonempty := by
+      obtain ⟨x, hxc, hxε, hxq⟩ :=
+        site_fan_finite_step6_connected_step1_accumulation c.val.bottom.val
+          (by
+            have hh := c.val.chain.dimension TracePiece.bottomIndex
+            change c.val.bottom.val.dim = traceDimension d at hh
+            rw [hh, hd2]
+            norm_num)
+          c.val.tile.frame q
+          (by simpa [TracePiece.carrier, site_fan_finite_step4_cell_zero] using c.property) hε
+      have hxc' : x ∈ c.val.carrier := by
+        simpa [TracePiece.carrier, site_fan_finite_step4_cell_zero] using hxc
+      exact ⟨x, ⟨⟨c.val.chain.contained TracePiece.bottomIndex hxc', hxε⟩, hxq⟩, hxc'⟩
+    have hreach := site_fan_finite_step6_connected_step9_closed_cover
+      (siteFanGraph q) owner (fun c : I => c.val.carrier) U hconn
+      (by
+        intro c
+        change IsClosed (c.val.tile.cell 0 c.val.bottom.val)
+        rw [site_fan_finite_step4_cell_zero]
+        exact (c.val.bottom.val.flat.compact.image c.val.tile.frame.continuous).isClosed)
+      hcover (by
+        intro c e x hx hxc hxe
+        by_cases hce : owner c = owner e
+        · exact hce ▸ SimpleGraph.Reachable.refl _
+        · have hce' : c.val ≠ e.val := by
+            intro heq
+            have hh : c = e := Subtype.ext heq
+            exact hce (congrArg owner hh)
+          apply SimpleGraph.Adj.reachable
+          refine ⟨hce, ?_⟩
+          exact site_fan_finite_step6_connected_step8_overlap_flags hd2 c.val e.val hce'
+            x q hx.2 hxc hxe (fun c e he =>
+              hnear ⟨c, e⟩ x (ball_subset_ball hεδ hx.1.2) he))
+      (⟨a, ha⟩ : I) (⟨b, hb⟩ : I) (hmeet ⟨a, ha⟩) (hmeet ⟨b, hb⟩)
+    have hownerA : owner ⟨a, ha⟩ = C := Subtype.ext hCa.symm
+    have hownerB : owner ⟨b, hb⟩ = B := Subtype.ext hBb.symm
+    simpa only [hownerA, hownerB] using hreach
 
 /-- Step 7 of the V4 proof of `site_fan_finite` (V4 1.23(b)):
 "owners of polygons ... meeting q". A selected trace cell is contained

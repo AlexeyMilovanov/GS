@@ -2916,6 +2916,135 @@ private theorem host_step_step2_strand_step1_port_coordinates
   rw [he, relint, φ.image_intrinsicInterior,
     host_step_step2_strand_step1_interval_relint x y hxy]
 
+open private honest_rows_step4_cont_packet_step3_relint_transfer
+  from Enforce.State.Rows in
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step2_terminal_bound_step1_flag_overlap`
+(V4 3.6(F1)): "the half-space structure ... near points of relint F_{j-1}".
+Equal local germs in a common affine span give common relative-interior
+points arbitrarily close to any point of the regular closed first set. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step1_flag_overlap_step1_local_overlap
+    {K L V : Set (E d)} (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    (hreg : closure (relint K) = K) (hV : IsOpen V) (heq : K ∩ V = L ∩ V)
+    {p : E d} (hpK : p ∈ K) (hpV : p ∈ V) :
+    p ∈ closure (relint K ∩ relint L) := by
+  have hsub : relint K ∩ V ⊆ relint K ∩ relint L := by
+    rintro x ⟨hx, hxV⟩
+    exact ⟨hx, honest_rows_step4_cont_packet_step3_relint_transfer hspan hV heq hx hxV⟩
+  exact closure_mono hsub (hV.closure_inter ⟨hreg.symm ▸ hpK, hpV⟩)
+
+open private honest_rows_step4_cont_packet_step2_cell_cone
+  honest_rows_step4_cont_packet_step1_placed_germ
+  honest_rows_step4_cont_packet_step1_cell_closure
+  restrictionOp_source_step5_relint_image
+  from Enforce.State.Rows in
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step2_terminal_bound_step1_flag_overlap`
+(V4 3.6(F1)): "then by a much smaller displacement into relint F_2 on the
+recorded side ... then into relint F_3". For a single consecutive pair,
+equal recorded sides give equal upper-cell germs at a common lower
+relative-interior point, and hence arbitrarily nearby common upper interiors. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step1_flag_overlap_step2_coface
+    {A B : S.ι} (F : FacetFlag S A) (G : FacetFlag S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (k : FlagStep d)
+    (hspan : affineSpan ℝ
+        (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier))
+    (hside : φ.linear '' flagSide F k = ψ.linear '' flagSide G k)
+    (p : E d)
+    (hp : p ∈ relint (φ '' (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) ∩
+      relint (ψ '' (G.cell ⟨k.val, k.property.1, by omega⟩).val.carrier)) :
+    p ∈ closure
+      (relint (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) ∩
+        relint (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier)) := by
+  let i : FlagIndex d := ⟨k.val, k.property.1, by have := k.property.2; omega⟩
+  let j : FlagIndex d := ⟨k.val + 1, by omega, k.property.2⟩
+  rcases hp with ⟨hp, hq⟩
+  rw [restrictionOp_source_step5_relint_image] at hp hq
+  obtain ⟨a, ha, rfl⟩ := hp
+  obtain ⟨b, hb, hba⟩ := hq
+  have hF := honest_rows_step4_cont_packet_step2_cell_cone (S.cx A)
+    (F.cell i).val (F.cell j).val (F.cell i).property (F.cell j).property
+    a (cellAnchor (F.cell i).val) ha (cellAnchor_mem _)
+  have hG := honest_rows_step4_cont_packet_step2_cell_cone (S.cx B)
+    (G.cell i).val (G.cell j).val (G.cell i).property (G.cell j).property
+    b (cellAnchor (G.cell i).val) hb (cellAnchor_mem _)
+  obtain ⟨V, hV, hpV, hVeq⟩ := honest_rows_step4_cont_packet_step1_placed_germ
+    (F.cell j).val.flat.polyhedral φ a
+  obtain ⟨W, hW, hpW, hWeq⟩ := honest_rows_step4_cont_packet_step1_placed_germ
+    (G.cell j).val.flat.polyhedral ψ b
+  rw [hF] at hVeq
+  rw [hG] at hWeq
+  change φ.linear '' tangentCone (F.cell j).val.carrier (cellAnchor (F.cell i).val) =
+    ψ.linear '' tangentCone (G.cell j).val.carrier (cellAnchor (G.cell i).val) at hside
+  have heq : (φ '' (F.cell j).val.carrier) ∩ (V ∩ W) =
+      (ψ '' (G.cell j).val.carrier) ∩ (V ∩ W) := by
+    ext x
+    constructor
+    · rintro ⟨hx, hxV, hxW⟩
+      refine ⟨(hWeq x hxW).mpr ?_, hxV, hxW⟩
+      rw [hba, ← hside]
+      exact (hVeq x hxV).mp hx
+    · rintro ⟨hx, hxV, hxW⟩
+      refine ⟨(hVeq x hxV).mpr ?_, hxV, hxW⟩
+      rw [hside, ← hba]
+      exact (hWeq x hxW).mp hx
+  exact host_step_step2_strand_step2_terminal_bound_step1_flag_overlap_step1_local_overlap
+    hspan (honest_rows_step4_cont_packet_step1_cell_closure _ φ) (hV.inter hW) heq
+    ⟨a, F.nested i j (by dsimp [i, j]; omega) (intrinsicInterior_subset ha), rfl⟩
+    ⟨hpV, hba ▸ hpW⟩
+
+open private actualCont_exists_step5_facet_cone actualCont_exists_step5_cell_subset
+  honest_rows_step4_cont_packet_step1_placed_germ restrictionOp_source_step5_relint_image
+  from Enforce.State.Rows in
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step2_terminal_bound_step1_flag_overlap`
+(V4 3.6(F1)): "finally by a still smaller displacement off aff g".
+At a common relative-interior facet point, equal inward cones give equal
+domain germs. Regular closedness then supplies common ambient interior
+points in every neighbourhood of that point. -/
+private theorem host_step_step2_strand_step2_terminal_bound_step1_flag_overlap_step3_inward
+    {A B : S.ι} (f : FacetName S A) (g : FacetName S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d)
+    (hside : φ.linear '' tangentCone (S.proto A).carrier (cellAnchor f.val) =
+      ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor g.val))
+    (p : E d) (hp : p ∈ relint (φ '' f.val.carrier) ∩ relint (ψ '' g.val.carrier)) :
+    p ∈ closure (interior (φ '' (S.proto A).carrier) ∩
+      interior (ψ '' (S.proto B).carrier)) := by
+  rcases hp with ⟨hp, hq⟩
+  rw [restrictionOp_source_step5_relint_image] at hp hq
+  obtain ⟨a, ha, rfl⟩ := hp
+  obtain ⟨b, hb, hba⟩ := hq
+  have hF := actualCont_exists_step5_facet_cone A f a (cellAnchor f.val)
+    ha (cellAnchor_mem _)
+  have hG := actualCont_exists_step5_facet_cone B g b (cellAnchor g.val)
+    hb (cellAnchor_mem _)
+  obtain ⟨V, hV, hpV, hVeq⟩ := honest_rows_step4_cont_packet_step1_placed_germ
+    (S.proto A).polyhedral φ a
+  obtain ⟨W, hW, hpW, hWeq⟩ := honest_rows_step4_cont_packet_step1_placed_germ
+    (S.proto B).polyhedral ψ b
+  rw [hF] at hVeq
+  rw [hG] at hWeq
+  have hsub : interior (φ '' (S.proto A).carrier) ∩ (V ∩ W) ⊆
+      ψ '' (S.proto B).carrier := by
+    rintro x ⟨hx, hxV, hxW⟩
+    apply (hWeq x hxW).mpr
+    rw [hba, ← hside]
+    exact (hVeq x hxV).mp (interior_subset hx)
+  have hreg : closure (interior (φ '' (S.proto A).carrier)) =
+      φ '' (S.proto A).carrier := by
+    change closure (interior (φ.toHomeomorphOfFiniteDimensional ''
+      (S.proto A).carrier)) = _
+    rw [← Homeomorph.image_interior, ← Homeomorph.image_closure,
+      (S.proto A).regularClosed]
+    rfl
+  have hpK : φ a ∈ closure (interior (φ '' (S.proto A).carrier)) := by
+    rw [hreg]
+    exact ⟨a, actualCont_exists_step5_cell_subset A f.val
+      (Finset.mem_filter.mp f.property).1 (intrinsicInterior_subset ha), rfl⟩
+  have hinside : interior (φ '' (S.proto A).carrier) ∩ (V ∩ W) ⊆
+      interior (φ '' (S.proto A).carrier) ∩ interior (ψ '' (S.proto B).carrier) := by
+    intro x hx
+    exact ⟨hx.1, interior_maximal hsub (isOpen_interior.inter (hV.inter hW)) hx⟩
+  exact closure_mono hinside ((hV.inter hW).closure_inter ⟨hpK, hpV, hba ▸ hpW⟩)
+
 /-- Step 1 of the V4 proof of `host_step_step2_strand_step2_terminal_bound` (V4 3.6(F1)):
 "the same holds ... for any tile ... having a chain of cells ... with the
 recorded sides". Common relative-interior edge points can be displaced into
@@ -2936,11 +3065,37 @@ private theorem host_step_step2_strand_step2_terminal_bound_step1_flag_overlap
     (p : E d) (hp : p ∈ relint (N.cell m (F.cell edgeIndex).val) ∩
       relint (H.cell n (G.cell edgeIndex).val)) :
     p ∈ closure (interior (N.carrier m) ∩ interior (H.carrier n)) := by
-  -- At each consecutive pair, use the relative half-space structure of the
-  -- upper cell at a relative-interior point of the lower cell. Equal sides
-  -- permit the same arbitrarily small displacement into both upper cells.
-  -- Iterate from dimension one to the facet, then use the common inward side.
-  sorry
+  have hfaces : ∀ (j : ℕ) (hj : 1 ≤ j) (hjd : j < d),
+      p ∈ closure (relint (N.cell m (F.cell ⟨j, hj, hjd⟩).val) ∩
+        relint (H.cell n (G.cell ⟨j, hj, hjd⟩).val)) := by
+    intro j hj
+    induction j, hj using Nat.le_induction with
+    | base =>
+        intro hjd
+        exact subset_closure hp
+    | succ j hj ih =>
+        intro hjd
+        apply closure_minimal ?_ isClosed_closure (ih (by omega))
+        intro x hx
+        exact host_step_step2_strand_step2_terminal_bound_step1_flag_overlap_step2_coface
+          F G (N.prototypeFrame m) (H.prototypeFrame n) ⟨j, hj, hjd⟩
+          (hspans _) (hsides _) x hx
+  have htop := hfaces (d - 1) facetIndex.property.1 facetIndex.property.2
+  apply closure_minimal ?_ isClosed_closure htop
+  intro x hx
+  let f : FacetName S A := ⟨(F.cell facetIndex).val,
+    Finset.mem_filter.mpr ⟨(F.cell facetIndex).property, F.dimension facetIndex⟩⟩
+  let g : FacetName S A' := ⟨(G.cell facetIndex).val,
+    Finset.mem_filter.mpr ⟨(G.cell facetIndex).property, G.dimension facetIndex⟩⟩
+  have hside : (N.prototypeFrame m).linear ''
+      tangentCone (S.proto A).carrier (cellAnchor f.val) =
+      (H.prototypeFrame n).linear '' tangentCone (S.proto A').carrier (cellAnchor g.val) := by
+    simpa only [hN, hH] using hinward
+  have h := host_step_step2_strand_step2_terminal_bound_step1_flag_overlap_step3_inward
+    f g (N.prototypeFrame m) (H.prototypeFrame n) hside x hx
+  simpa only [FramedNode.carrier, SubstSystem.supertile, placedSet,
+    FramedNode.prototypeFrame, AffineEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
+    AffineIsometryEquiv.coe_toAffineEquiv, image_image, hN, hH] using h
 
 /-- Step 2 of the V4 proof of `host_step_step2_strand_step2_terminal_bound` (V4 3.6(F1), 1.19):
 "these ... are interior directions of T_x P". At a listed point of a

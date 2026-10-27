@@ -423,6 +423,690 @@ private theorem principal_component_step1_hull_geometry_step9_facet_side
   rw [← e.image_compl, ← Set.image_inter e.injective]
   exact hconn.image _ e.continuous.continuousOn
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"`∂t` is a compact `(d-1)`-manifold". Transport the relative Euclidean charts
+across a homeomorphism, in particular across the affine placement of a tile. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step1_transport_charts
+    {n : ℕ} {K L : Set (E d)} (e : K ≃ₜ L)
+    (hK : IsLocallyEuclidean n K) : IsLocallyEuclidean n L := by
+  intro p
+  obtain ⟨U, hU, hp, V, hV, ⟨f⟩⟩ := hK (e.symm p)
+  refine ⟨e '' U, e.isOpenMap _ hU, ?_, V, hV, ⟨(e.image U).symm.trans f⟩⟩
+  exact ⟨e.symm p, hp, e.apply_symm_apply p⟩
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"with finitely many components, each a closed hypersurface". A manifold is locally
+connected, so its connected components are relatively open and inherit its charts. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step2_component_charts
+    {n : ℕ} {K : Set (E d)} (hK : IsLocallyEuclidean n K)
+    (p : E d) (hp : p ∈ K) :
+    IsLocallyEuclidean n (connectedComponentIn K p) := by
+  letI : LocallyConnectedSpace K := by
+    apply locallyConnectedSpace_iff_subsets_isOpen_isConnected.mpr
+    intro q W hW
+    obtain ⟨U, hU, hqU, V, hV, ⟨e⟩⟩ := hK q
+    letI : LocallyConnectedSpace V := hV.locallyConnectedSpace
+    letI : LocallyConnectedSpace U := e.isOpenEmbedding.locallyConnectedSpace
+    have hW' : (Subtype.val : U → K) ⁻¹' W ∈ nhds (⟨q, hqU⟩ : U) :=
+      continuous_subtype_val.continuousAt.preimage_mem_nhds hW
+    obtain ⟨O, hOW, hO, hqO, hOconn⟩ :=
+      locallyConnectedSpace_iff_subsets_isOpen_isConnected.mp inferInstance _ _ hW'
+    refine ⟨Subtype.val '' O, ?_, hU.isOpenMap_subtype_val _ hO,
+      ⟨⟨q, hqU⟩, hqO, rfl⟩, hOconn.image _ continuous_subtype_val.continuousOn⟩
+    rintro x ⟨y, hy, rfl⟩
+    exact hOW hy
+  let Γ := connectedComponentIn K p
+  have hΓK : Γ ⊆ K := connectedComponentIn_subset _ _
+  have hΓopen : IsOpen ((Subtype.val : K → E d) ⁻¹' Γ) := by
+    dsimp only [Γ]
+    rw [connectedComponentIn_eq_image hp, Set.preimage_image_eq _ Subtype.val_injective]
+    exact isOpen_connectedComponent
+  have hi : Topology.IsOpenEmbedding (Set.inclusion hΓK) :=
+    Topology.IsOpenEmbedding.inclusion hΓK hΓopen
+  intro q
+  obtain ⟨U, hU, hqU, V, hV, ⟨e⟩⟩ := hK (Set.inclusion hΓK q)
+  let f := U.restrictPreimage (Set.inclusion hΓK)
+  have hf : Topology.IsOpenEmbedding f :=
+    hi.restrict (fun _ hx => hx) (hU.preimage hi.continuous)
+  let g := (Subtype.val : V → E n) ∘ e ∘ f
+  have hg : Topology.IsOpenEmbedding g :=
+    hV.isOpenEmbedding_subtypeVal.comp (e.isOpenEmbedding.comp hf)
+  exact ⟨(Set.inclusion hΓK) ⁻¹' U, hU.preimage hi.continuous, hqU,
+    Set.range g, hg.isOpen_range, ⟨hg.isEmbedding.toHomeomorph⟩⟩
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"`∂t` is a compact `(d-1)`-manifold ... each a closed hypersurface". The selected
+boundary component is nonempty, compact, connected, and locally Euclidean. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step3_compact_component
+    (P : PolyManifoldDomain d) (F : E d ≃ᵃ[ℝ] E d)
+    (p : E d) (hp : p ∈ frontier (F '' P.carrier)) :
+    IsCompact (connectedComponentIn (frontier (F '' P.carrier)) p) ∧
+      IsConnected (connectedComponentIn (frontier (F '' P.carrier)) p) ∧
+      IsLocallyEuclidean (d - 1) (connectedComponentIn (frontier (F '' P.carrier)) p) := by
+  have ht : IsCompact (F '' P.carrier) :=
+    P.compact.image F.toHomeomorphOfFiniteDimensional.continuous
+  have hclosed : IsClosed (connectedComponentIn (frontier (F '' P.carrier)) p) := by
+    rw [connectedComponentIn_eq_image hp]
+    exact isClosed_frontier.isClosedMap_subtype_val _ isClosed_connectedComponent
+  have hmanifold : IsLocallyEuclidean (d - 1) (frontier (F '' P.carrier)) := by
+    let e := F.toHomeomorphOfFiniteDimensional
+    exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step1_transport_charts
+      ((e.image (frontier P.carrier)).trans (Homeomorph.setCongr (e.image_frontier P.carrier)))
+      P.frontier_manifold
+  refine ⟨ht.of_isClosed_subset hclosed ?_, isConnected_connectedComponentIn_iff.mpr hp,
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step2_component_charts hmanifold p hp⟩
+  exact (connectedComponentIn_subset _ _).trans
+    (frontier_subset_iff_isClosed.mpr ht.isClosed)
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"placed prototiles". An affine placement preserves the finite
+convex hull presentation of a polyhedron. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step4_affine_polyhedral
+    {Q : Set (E d)} (hQ : Polyhedron Q) (F : E d ≃ᵃ[ℝ] E d) :
+    Polyhedron (F '' Q) := by
+  classical
+  obtain ⟨s, rfl⟩ := hQ
+  refine ⟨s.image (fun p => p.image F), ?_⟩
+  have himage (p : Finset (E d)) :
+      F '' convexHull ℝ (p : Set (E d)) = convexHull ℝ (p.image F : Set (E d)) := by
+    rw [Finset.coe_image]
+    exact F.toAffineMap.image_convexHull (p : Set (E d))
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    obtain ⟨p, hp, hyp⟩ := Set.mem_iUnion₂.mp hy
+    refine Set.mem_iUnion₂.mpr ⟨p.image F, Finset.mem_image.mpr ⟨p, hp, rfl⟩, ?_⟩
+    rw [← himage]
+    exact Set.mem_image_of_mem F hyp
+  · intro hx
+    obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hx
+    obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hq
+    rw [← himage] at hxq
+    obtain ⟨y, hy, rfl⟩ := hxq
+    exact ⟨y, Set.mem_iUnion₂.mpr ⟨p, hp, hy⟩, rfl⟩
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"a connected union of facets of `t`". Subdividing the finitely many convex pieces along their
+supporting hyperplanes expresses the frontier as another finite union of convex
+hulls. This statement makes no manifold or separation assertion. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral
+    {Q : Set (E d)} (hQ : Polyhedron Q) : Polyhedron (frontier Q) := by
+  sorry
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"a connected component of a finite union of closed connected sets contains every
+member it meets". Select exactly those convex pieces meeting the component. The
+argument also covers the empty component of a point outside the polyhedron. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step6_component_polyhedral
+    {Q : Set (E d)} (hQ : Polyhedron Q) (p : E d) :
+    Polyhedron (connectedComponentIn Q p) := by
+  classical
+  obtain ⟨s, hs⟩ := hQ
+  let Γ := connectedComponentIn Q p
+  refine ⟨s.filter (fun t => (convexHull ℝ (t : Set (E d)) ∩ Γ).Nonempty), ?_⟩
+  apply Set.Subset.antisymm
+  · intro x hx
+    have hxQ : x ∈ Q := connectedComponentIn_subset _ _ hx
+    rw [hs] at hxQ
+    obtain ⟨t, ht, hxt⟩ := Set.mem_iUnion₂.mp hxQ
+    exact Set.mem_iUnion₂.mpr ⟨t, Finset.mem_filter.mpr ⟨ht, x, hxt, hx⟩, hxt⟩
+  · intro x hx
+    obtain ⟨t, ht, hxt⟩ := Set.mem_iUnion₂.mp hx
+    obtain ⟨hts, z, hzt, hzΓ⟩ := Finset.mem_filter.mp ht
+    have htQ : convexHull ℝ (t : Set (E d)) ⊆ Q := by
+      rw [hs]
+      exact Set.subset_iUnion₂_of_subset t hts Set.Subset.rfl
+    have hsub := (convex_convexHull ℝ (t : Set (E d))).isPreconnected.subset_connectedComponentIn hzt htQ
+    rw [← connectedComponentIn_eq hzΓ] at hsub
+    exact hsub hxt
+
+/-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"a compact `(d-1)`-manifold". Triangulate a finite polyhedron compatibly with all
+its convex pieces. Local Euclidean dimension makes every maximal simplex have
+`d` vertices. No property of the ambient complement is requested. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation
+    {Q : Set (E d)} (hQ : Polyhedron Q) (hman : IsLocallyEuclidean (d - 1) Q) :
+    ∃ K : Geometry.SimplicialComplex ℝ (E d), K.faces.Finite ∧ K.space = Q ∧
+      ∀ f ∈ K.facets, f.card = d := by
+  sorry
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"`∂t` is a compact `(d-1)`-manifold". Subdivide the finite polyhedral presentation
+of the selected component into a finite pure geometric simplicial complex. This
+asserts triangulation and dimension only, with no claim about its complement. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step8_triangulate
+    (P : PolyManifoldDomain d) (F : E d ≃ᵃ[ℝ] E d)
+    (p : E d) (hp : p ∈ frontier (F '' P.carrier)) :
+    ∃ K : Geometry.SimplicialComplex ℝ (E d), K.faces.Finite ∧
+      K.space = connectedComponentIn (frontier (F '' P.carrier)) p ∧
+      ∀ f ∈ K.facets, f.card = d := by
+  have hplaced :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step4_affine_polyhedral P.polyhedral F
+  have hfront :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral hplaced
+  have hcomponent :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step6_component_polyhedral hfront p
+  exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation
+    hcomponent
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step3_compact_component P F p hp).2.2
+
+/-- Step 9 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"a connected union of facets". In a finite complex every face is contained in a
+maximal face, so the closed facets cover its space. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite) :
+    K.space = ⋃ f : K.facets, convexHull ℝ (f.val : Set (E d)) := by
+  classical
+  apply Set.Subset.antisymm
+  · intro x hx
+    obtain ⟨s, hs, hxs⟩ := K.mem_space_iff.mp hx
+    let L := hfin.toFinset.filter (fun t => s ⊆ t)
+    have hsL : s ∈ L := by simp [L, hs]
+    obtain ⟨t, ht, hmax⟩ := L.exists_max_image Finset.card ⟨s, hsL⟩
+    have htK : t ∈ K.faces := hfin.mem_toFinset.mp (Finset.mem_filter.mp ht).1
+    have hst : s ⊆ t := (Finset.mem_filter.mp ht).2
+    have htf : t ∈ K.facets := by
+      refine ⟨htK, ?_⟩
+      intro u hu htu
+      apply Finset.eq_of_subset_of_card_le htu
+      exact hmax u (Finset.mem_filter.mpr ⟨hfin.mem_toFinset.mpr hu, hst.trans htu⟩)
+    exact Set.mem_iUnion.mpr ⟨⟨t, htf⟩, convexHull_mono (by simpa using hst) hxs⟩
+  · exact Set.iUnion_subset fun f => K.convexHull_subset_space f.property.1
+
+/-- Step 10 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"each a closed hypersurface". At the relative interior of a ridge of a finite
+triangulated manifold without boundary, exactly two top dimensional simplices
+meet. This is the local zero dimensional link calculation. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hman : IsLocallyEuclidean (d - 1) K.space) :
+    ∀ s ∈ K.faces, s.card = d - 1 →
+      {f ∈ K.facets | s ⊆ f}.ncard = 2 := by
+  sorry
+
+/-- Step 11 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"a connected union of facets". The facets in a finite triangulation of a connected
+manifold are joined by chains across ridges. This concerns the manifold itself,
+not components of its ambient complement. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hconn : IsConnected K.space) (hman : IsLocallyEuclidean (d - 1) K.space) :
+    ∀ f g : K.facets, Relation.ReflTransGen
+      (fun u v : K.facets => (u.val ∩ v.val).card = d - 1) f g := by
+  sorry
+
+/-- Step 12 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"crosses them transversally at finitely many points". A regular segment has
+endpoints off the complex and meets it only transversally in facet interiors. -/
+private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment
+    (K : Geometry.SimplicialComplex ℝ (E d)) (a b : E d) : Prop :=
+  a ∉ K.space ∧ b ∉ K.space ∧ (segment ℝ a b ∩ K.space).Finite ∧
+    ∀ x ∈ segment ℝ a b ∩ K.space, ∃ f ∈ K.facets,
+      x ∈ relint (convexHull ℝ (f : Set (E d))) ∧
+      a ∉ (affineSpan ℝ (f : Set (E d)) : Set (E d)) ∧
+      b ∉ (affineSpan ℝ (f : Set (E d)) : Set (E d))
+
+/-- Step 13 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"in general position ... crosses them transversally". For the parity calculation,
+a triangular section avoids faces of codimension at least three and meets each
+ridge it encounters transversally in one point. The disjointness clauses record
+that the three sides have no common crossing at a triangle vertex. -/
+private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step13_TrianglePosition
+    (K : Geometry.SimplicialComplex ℝ (E d)) (a b c : E d) : Prop :=
+  let T := convexHull ℝ ({a, b, c} : Set (E d))
+  let A := (affineSpan ℝ ({a, b, c} : Set (E d)) : Set (E d))
+  AffineIndependent ℝ ![a, b, c] ∧
+  principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K a b ∧
+  principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K b c ∧
+  principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K c a ∧
+  Disjoint (segment ℝ a b ∩ K.space) (segment ℝ b c ∩ K.space) ∧
+  Disjoint ((segment ℝ a b ∩ K.space) ∪ (segment ℝ b c ∩ K.space))
+    (segment ℝ c a ∩ K.space) ∧
+  (∀ s ∈ K.faces, s.card + 1 < d → Disjoint T (convexHull ℝ (s : Set (E d)))) ∧
+  (∀ s ∈ K.faces, s.card = d - 1 →
+    (T ∩ convexHull ℝ (s : Set (E d))).Nonempty →
+    (A ∩ (affineSpan ℝ (s : Set (E d)) : Set (E d))).Subsingleton) ∧
+  ∀ f ∈ K.facets, ¬ A ⊆ (affineSpan ℝ (f : Set (E d)) : Set (E d))
+
+/-- Step 14 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"the complement locally is on the other side". This certificate names two
+opposite normal sample points in one flat facet patch. It imposes no global
+separation or connectedness condition. -/
+private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step14_FacetSides
+    (K : Geometry.SimplicialComplex ℝ (E d)) (f : Finset (E d)) (a b : E d) : Prop :=
+  ∃ q : E d, ∃ r : ℝ, ∃ v : E d,
+    q ∈ relint (convexHull ℝ (f : Set (E d))) ∧ 0 < r ∧ ‖v‖ = 1 ∧
+    (affineSpan ℝ (f : Set (E d)) : Set (E d)) = {x | inner ℝ v (x - q) = 0} ∧
+    K.space ∩ Metric.ball q r =
+      (affineSpan ℝ (f : Set (E d)) : Set (E d)) ∩ Metric.ball q r ∧
+    a = q + (r / 2) • v ∧ b = q - (r / 2) • v
+
+/-- Step 15 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"near which the complement locally is on the other side". Choose normal samples
+at a facet interior. Its two open normal collars are connected, and their closures
+contain the entire closed simplex. The joining segment crosses exactly once. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d) (f : K.facets) :
+    ∃ a b : E d,
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step14_FacetSides K f.val a b ∧
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K a b ∧
+      (segment ℝ a b ∩ K.space).ncard = 1 ∧
+      convexHull ℝ (f.val : Set (E d)) ⊆ frontier (connectedComponentIn K.spaceᶜ a) ∧
+      convexHull ℝ (f.val : Set (E d)) ⊆ frontier (connectedComponentIn K.spaceᶜ b) := by
+  sorry
+
+/-- Step 16 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"has all its points adjacent to the same complementary component". Across one
+ridge incident to exactly two facets, a small normal two dimensional disc has two
+sectors. Each sector joins one normal sample from each facet. Thus the unordered
+pair of complementary components is unchanged across this one ridge. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step16_ridge_transport
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hridge : ∀ s ∈ K.faces, s.card = d - 1 → {f ∈ K.facets | s ⊆ f}.ncard = 2)
+    (f g : K.facets) (hfg : (f.val ∩ g.val).card = d - 1)
+    {a b c e : E d}
+    (hf : principal_component_step1_hull_geometry_step10_jordan_brouwer_step14_FacetSides K f.val a b)
+    (hg : principal_component_step1_hull_geometry_step10_jordan_brouwer_step14_FacetSides K g.val c e) :
+    ({connectedComponentIn K.spaceᶜ a, connectedComponentIn K.spaceᶜ b} : Set (Set (E d))) =
+      {connectedComponentIn K.spaceᶜ c, connectedComponentIn K.spaceᶜ e} := by
+  sorry
+
+/-- Step 17 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"its frontier ... is nonempty". A generic polygonal path to a nonempty finite
+pure codimension one complex first meets a facet interior. Hence any complementary
+component contains one of the chosen normal samples of some facet. No manifold
+or ridge incidence hypothesis is needed for this access argument. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d) (hne : K.space.Nonempty)
+    (a b : K.facets → E d)
+    (hsides : ∀ f, principal_component_step1_hull_geometry_step10_jordan_brouwer_step14_FacetSides
+      K f.val (a f) (b f)) {x : E d} (hx : x ∉ K.space) :
+    ∃ f : K.facets, x ∈ connectedComponentIn K.spaceᶜ (a f) ∨
+      x ∈ connectedComponentIn K.spaceᶜ (b f) := by
+  sorry
+
+/-- Step 18 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"crosses them transversally at finitely many points". Slice the simplices by one
+generic filled triangle. The slice is a finite embedded graph: crossings on the
+triangle boundary have degree one, and interior vertices have degree two, since
+each crossed ridge has exactly two incident facets. This is a finite affine
+intersection calculation; no complementary components occur in its statement. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step18_section_graph
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hridge : ∀ s ∈ K.faces, s.card = d - 1 → {f ∈ K.facets | s ⊆ f}.ncard = 2)
+    {a b c : E d}
+    (hpos : principal_component_step1_hull_geometry_step10_jordan_brouwer_step13_TrianglePosition K a b c) :
+    let T := convexHull ℝ ({a, b, c} : Set (E d))
+    let D := segment ℝ a b ∪ segment ℝ b c ∪ segment ℝ c a
+    ∃ (n : ℕ) (G : SimpleGraph (Fin n)) (v : Fin n → E d),
+      Function.Injective v ∧
+      (∀ i, v i ∈ T ∩ K.space) ∧
+      (T ∩ K.space = ⋃ (i : Fin n) (j : Fin n) (_ : G.Adj i j), segment ℝ (v i) (v j)) ∧
+      (Set.range v ∩ D = K.space ∩ D) ∧
+      (∀ i, v i ∈ D → (G.neighborSet i).ncard = 1) ∧
+      (∀ i, v i ∉ D → (G.neighborSet i).ncard = 2) := by
+  sorry
+
+/-- Step 19 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"separating `ℝᵈ`". The handshaking lemma makes the boundary of a finite section
+graph even: degree one vertices are its boundary and all other degrees are two. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step19_handshake
+    {X : Type*} {n : ℕ} (G : SimpleGraph (Fin n)) (v : Fin n → X)
+    (hinj : Function.Injective v) (D : Set X)
+    (hodd : ∀ i, Odd (G.neighborSet i).ncard ↔ v i ∈ D) :
+    Even (Set.range v ∩ D).ncard := by
+  classical
+  have hdegree (i : Fin n) : (G.neighborSet i).ncard = G.degree i := by
+    rw [Set.ncard_eq_toFinset_card']
+    rfl
+  have heq : Set.range v ∩ D = v '' {i | Odd (G.degree i)} := by
+    ext x
+    constructor
+    · rintro ⟨⟨i, rfl⟩, hi⟩
+      exact ⟨i, by change Odd (G.degree i); rw [← hdegree]; exact (hodd i).mpr hi, rfl⟩
+    · rintro ⟨i, hi, rfl⟩
+      exact ⟨⟨i, rfl⟩, (hodd i).mp (by rwa [hdegree])⟩
+  rw [heq, Set.ncard_image_of_injective _ hinj, Set.ncard_eq_toFinset_card']
+  simpa using G.even_card_odd_degree_vertices
+
+/-- Step 20 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"separating `ℝᵈ`". Apply handshaking to a triangular section. Its three finite
+sets of boundary crossings are disjoint, so their total cardinality is even. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step20_triangle_parity
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hridge : ∀ s ∈ K.faces, s.card = d - 1 → {f ∈ K.facets | s ⊆ f}.ncard = 2)
+    {a b c : E d}
+    (hpos : principal_component_step1_hull_geometry_step10_jordan_brouwer_step13_TrianglePosition K a b c) :
+    Even ((segment ℝ a b ∩ K.space).ncard + (segment ℝ b c ∩ K.space).ncard +
+      (segment ℝ c a ∩ K.space).ncard) := by
+  obtain ⟨n, G, v, hinj, -, -, hboundary, hdeg1, hdeg2⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step18_section_graph
+      K hfin hpure hridge hpos
+  have h := principal_component_step1_hull_geometry_step10_jordan_brouwer_step19_handshake
+    G v hinj (segment ℝ a b ∪ segment ℝ b c ∪ segment ℝ c a) (by
+      intro i
+      by_cases hi : v i ∈ segment ℝ a b ∪ segment ℝ b c ∪ segment ℝ c a
+      · rw [hdeg1 i hi]; simp [hi]
+      · rw [hdeg2 i hi]; simp [hi])
+  rw [hboundary] at h
+  have hsplit : K.space ∩ (segment ℝ a b ∪ segment ℝ b c ∪ segment ℝ c a) =
+      (segment ℝ a b ∩ K.space) ∪ (segment ℝ b c ∩ K.space) ∪
+        (segment ℝ c a ∩ K.space) := by aesop
+  rw [hsplit, Set.ncard_union_eq hpos.2.2.2.2.2.1
+      (hpos.2.1.2.2.1.union hpos.2.2.1.2.2.1) hpos.2.2.2.1.2.2.1,
+    Set.ncard_union_eq hpos.2.2.2.2.1 hpos.2.1.2.2.1 hpos.2.2.1.2.2.1] at h
+  exact h
+
+/-- Step 21 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"in general position". For finitely many nonconstant regular segments, choose one
+cone vertex making every resulting triangle transverse to all simplices. Only
+finitely many proper affine conditions must be avoided. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d) (L : Finset (E d × E d))
+    (hL : ∀ e ∈ L, e.1 ≠ e.2 ∧
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K e.1 e.2) :
+    ∃ z : E d, ∀ e ∈ L,
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step13_TrianglePosition K e.1 e.2 z := by
+  sorry
+
+/-- Step 22 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"choose polygonal paths ... (connected)". In an open connected Euclidean set,
+points are joined by a finite chain of nonconstant segments in that set. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step22_polygonal
+    {U : Set (E d)} (hopen : IsOpen U) (hconn : IsPreconnected U)
+    {a b : E d} (ha : a ∈ U) (hb : b ∈ U) :
+    ∃ L : Finset (E d × E d),
+      (∀ e ∈ L, e.1 ≠ e.2 ∧ segment ℝ e.1 e.2 ⊆ U) ∧
+      Relation.ReflTransGen (fun x y => (x, y) ∈ L) a b := by
+  classical
+  let R := fun x y : E d => x ≠ y ∧ segment ℝ x y ⊆ U
+  let J := {x | Relation.ReflTransGen R a x}
+  have haJ : a ∈ J := Relation.ReflTransGen.refl
+  have hJU : J ⊆ U := by
+    intro x hx
+    induction hx with
+    | refl => exact ha
+    | tail _ hxy _ => exact hxy.2 (right_mem_segment ℝ _ _)
+  have hJopen : IsOpen J := by
+    apply Metric.isOpen_iff.mpr
+    intro x hx
+    obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hopen x (hJU hx)
+    refine ⟨r, hr, ?_⟩
+    intro y hy
+    by_cases hxy : x = y
+    · exact hxy ▸ hx
+    · exact hx.tail ⟨hxy, ((convex_ball x r).segment_subset (Metric.mem_ball_self hr) hy).trans hball⟩
+  have hVopen : IsOpen (U \ J) := by
+    apply Metric.isOpen_iff.mpr
+    intro x hx
+    obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hopen x hx.1
+    refine ⟨r, hr, ?_⟩
+    intro y hy
+    refine ⟨hball hy, ?_⟩
+    intro hyJ
+    apply hx.2
+    by_cases hyx : y = x
+    · exact hyx ▸ hyJ
+    · exact hyJ.tail ⟨hyx,
+        ((convex_ball x r).segment_subset hy (Metric.mem_ball_self hr)).trans hball⟩
+  have hUJ : U ⊆ J := by
+    rcases hconn.subset_or_subset hJopen hVopen disjoint_sdiff_right
+        (by intro x hx; by_cases hxJ : x ∈ J <;> simp_all) with h | h
+    · exact h
+    · exact (h ha).2 haJ |>.elim
+  have hchain := hUJ hb
+  clear hb
+  induction hchain with
+  | refl => exact ⟨∅, by simp, Relation.ReflTransGen.refl⟩
+  | @tail x y hax hxy ih =>
+    obtain ⟨L, hL, hpath⟩ := ih
+    refine ⟨insert (x, y) L, ?_, ?_⟩
+    · intro e he
+      rcases Finset.mem_insert.mp he with rfl | he
+      · exact hxy
+      · exact hL e he
+    · have hmap : ∀ {u v}, Relation.ReflTransGen (fun u v => (u, v) ∈ L) u v →
+          Relation.ReflTransGen (fun u v => (u, v) ∈ insert (x, y) L) u v := by
+        intro u v h
+        induction h with
+        | refl => exact Relation.ReflTransGen.refl
+        | tail _ huv ih => exact ih.tail (Finset.mem_insert_of_mem huv)
+      exact (hmap hpath).tail (Finset.mem_insert_self _ _)
+
+/-- Step 23 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"separating `ℝᵈ`". Opposite normal samples cannot be in the same complementary
+component: a polygonal return path would close their single crossing. Cone all
+its segments to one generic vertex; triangle parity propagates a parity value
+along the return path, while the single crossing changes it. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step23_opposite_distinct
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d) (hclosed : IsClosed K.space)
+    (hridge : ∀ s ∈ K.faces, s.card = d - 1 → {f ∈ K.facets | s ⊆ f}.ncard = 2)
+    {a b : E d}
+    (hreg : principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K a b)
+    (hone : (segment ℝ a b ∩ K.space).ncard = 1) :
+    connectedComponentIn K.spaceᶜ a ≠ connectedComponentIn K.spaceᶜ b := by
+  classical
+  intro heq
+  have hne : a ≠ b := by
+    rintro rfl
+    have hempty : segment ℝ a a ∩ K.space = ∅ := by
+      simp [segment_same, Set.singleton_inter_eq_empty.mpr hreg.1]
+    rw [hempty, Set.ncard_empty] at hone
+    omega
+  let C := connectedComponentIn K.spaceᶜ a
+  have hCa : a ∈ C := mem_connectedComponentIn hreg.1
+  have hCb : b ∈ C := by
+    change b ∈ connectedComponentIn K.spaceᶜ a
+    rw [heq]
+    exact mem_connectedComponentIn hreg.2.1
+  obtain ⟨L, hL, hpath⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step22_polygonal
+      hclosed.isOpen_compl.connectedComponentIn isPreconnected_connectedComponentIn hCa hCb
+  have hLempty : ∀ e ∈ L, segment ℝ e.1 e.2 ∩ K.space = ∅ := by
+    intro e he
+    apply Set.eq_empty_iff_forall_notMem.mpr
+    intro x hx
+    exact connectedComponentIn_subset _ _ ((hL e he).2 hx.1) hx.2
+  have hLreg : ∀ e ∈ L,
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K e.1 e.2 := by
+    intro e he
+    refine ⟨connectedComponentIn_subset _ _ ((hL e he).2 (left_mem_segment ℝ _ _)),
+      connectedComponentIn_subset _ _ ((hL e he).2 (right_mem_segment ℝ _ _)), ?_, ?_⟩
+    · rw [hLempty e he]; exact Set.finite_empty
+    · rw [hLempty e he]; simp
+  obtain ⟨z, hz⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan
+      K hfin hpure (insert (a, b) L) (by
+        intro e he
+        rcases Finset.mem_insert.mp he with rfl | he
+        · exact ⟨hne, hreg⟩
+        · exact ⟨(hL e he).1, hLreg e he⟩)
+  let χ := fun x : E d => (segment ℝ x z ∩ K.space).ncard % 2
+  have hstep : ∀ x y, (x, y) ∈ L → χ x = χ y := by
+    intro x y hxy
+    have h := principal_component_step1_hull_geometry_step10_jordan_brouwer_step20_triangle_parity
+      K hfin hpure hridge (hz (x, y) (Finset.mem_insert_of_mem hxy))
+    rw [hLempty (x, y) hxy, Set.ncard_empty, zero_add, segment_symm ℝ z x] at h
+    have hmod := Nat.even_iff.mp h
+    dsimp only at hmod
+    dsimp [χ]
+    omega
+  have htrans : ∀ {u v}, Relation.ReflTransGen (fun x y => (x, y) ∈ L) u v → χ u = χ v := by
+    intro u v h
+    induction h with
+    | refl => rfl
+    | tail _ hxy ih => exact ih.trans (hstep _ _ hxy)
+  have hχ : χ a = χ b := htrans hpath
+  have h := principal_component_step1_hull_geometry_step10_jordan_brouwer_step20_triangle_parity
+    K hfin hpure hridge (hz (a, b) (Finset.mem_insert_self _ _))
+  rw [hone, segment_symm ℝ z a] at h
+  have hmod := Nat.even_iff.mp h
+  dsimp only at hmod
+  dsimp [χ] at hχ
+  omega
+
+/-- Step 24 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"its frontier is contained in `∂t`". Every complementary component of a closed set
+has frontier in that set, since the other complementary components are open. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step24_frontier_subset
+    {Γ : Set (E d)} (hΓ : IsClosed Γ) {a : E d} :
+    frontier (connectedComponentIn Γᶜ a) ⊆ Γ := by
+  intro x hx
+  by_contra hxΓ
+  have hopen : IsOpen (connectedComponentIn Γᶜ x) := hΓ.isOpen_compl.connectedComponentIn
+  obtain ⟨y, hyx, hya⟩ := mem_closure_iff.mp hx.1 _ hopen (mem_connectedComponentIn hxΓ)
+  have heq : connectedComponentIn Γᶜ x = connectedComponentIn Γᶜ a :=
+    (connectedComponentIn_eq hyx).trans (connectedComponentIn_eq hya).symm
+  have hxa : x ∈ connectedComponentIn Γᶜ a := heq ▸ mem_connectedComponentIn hxΓ
+  apply hx.2
+  rw [hΓ.isOpen_compl.connectedComponentIn.interior_eq]
+  exact hxa
+
+/-- Step 25 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"has all its points adjacent to the same complementary component". Propagate the
+unordered pair of components along facet chains. Every complementary component
+accesses a facet; every closed facet belongs to both frontiers. Crossing parity
+makes the two propagated components distinct. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step25_two_components
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hcompact : IsCompact K.space) (hconn : IsConnected K.space)
+    (hman : IsLocallyEuclidean (d - 1) K.space) :
+    ∃ A D : Set (E d), IsOpen A ∧ IsConnected A ∧ IsOpen D ∧ IsConnected D ∧
+      Disjoint A D ∧ K.spaceᶜ = A ∪ D ∧ frontier A = K.space ∧ frontier D = K.space := by
+  classical
+  have hridge := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree
+    K hfin hpure hman
+  have hchain := principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains
+    K hfin hpure hconn hman
+  have hcover := principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover K hfin
+  choose a b hsides hreg hone hfronta hfrontb using
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples K hfin hpure
+  obtain ⟨q, hq⟩ := hconn.nonempty
+  rw [hcover] at hq
+  obtain ⟨f₀, -⟩ := Set.mem_iUnion.mp hq
+  let A := connectedComponentIn K.spaceᶜ (a f₀)
+  let D := connectedComponentIn K.spaceᶜ (b f₀)
+  have hpairs (f g : K.facets) :
+      ({connectedComponentIn K.spaceᶜ (a f), connectedComponentIn K.spaceᶜ (b f)} : Set (Set (E d))) =
+        {connectedComponentIn K.spaceᶜ (a g), connectedComponentIn K.spaceᶜ (b g)} := by
+    have h := hchain f g
+    induction h with
+    | refl => rfl
+    | @tail u v huv hstep ih =>
+      exact ih.trans
+        (principal_component_step1_hull_geometry_step10_jordan_brouwer_step16_ridge_transport
+          K hfin hpure hridge u v hstep (hsides u) (hsides v))
+  have hfront (T : Set (E d)) (hT : T ∈ ({A, D} : Set (Set (E d)))) : K.space ⊆ frontier T := by
+    intro x hx
+    rw [hcover] at hx
+    obtain ⟨f, hxf⟩ := Set.mem_iUnion.mp hx
+    have hfT : T ∈ ({connectedComponentIn K.spaceᶜ (a f), connectedComponentIn K.spaceᶜ (b f)} :
+        Set (Set (E d))) := by
+      rw [hpairs f f₀]
+      exact hT
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hfT
+    rcases hfT with rfl | rfl
+    · exact hfronta f hxf
+    · exact hfrontb f hxf
+  have hne : A ≠ D :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step23_opposite_distinct
+      K hfin hpure hcompact.isClosed hridge (hreg f₀) (hone f₀)
+  have hdisj : Disjoint A D := Set.disjoint_left.mpr fun x hxA hxD =>
+    hne ((connectedComponentIn_eq hxA).trans (connectedComponentIn_eq hxD).symm)
+  have hcompcover : K.spaceᶜ = A ∪ D := by
+    apply Set.Subset.antisymm
+    · intro x hx
+      obtain ⟨f, hxf⟩ :=
+        principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet
+          K hfin hpure hconn.nonempty a b hsides hx
+      have hsub (T : Set (E d))
+          (hT : T ∈ ({connectedComponentIn K.spaceᶜ (a f), connectedComponentIn K.spaceᶜ (b f)} :
+            Set (Set (E d)))) : T ⊆ A ∪ D := by
+        rw [hpairs f f₀] at hT
+        change T ∈ ({A, D} : Set (Set (E d))) at hT
+        simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hT
+        rcases hT with rfl | rfl
+        · exact Set.subset_union_left
+        · exact Set.subset_union_right
+      rcases hxf with hxa | hxb
+      · exact hsub _ (by simp) hxa
+      · exact hsub _ (by simp) hxb
+    · exact union_subset (connectedComponentIn_subset _ _) (connectedComponentIn_subset _ _)
+  refine ⟨A, D, hcompact.isClosed.isOpen_compl.connectedComponentIn,
+    isConnected_connectedComponentIn_iff.mpr (hreg f₀).1,
+    hcompact.isClosed.isOpen_compl.connectedComponentIn,
+    isConnected_connectedComponentIn_iff.mpr (hreg f₀).2.1,
+    hdisj, hcompcover, ?_, ?_⟩
+  · exact Set.Subset.antisymm
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step24_frontier_subset hcompact.isClosed)
+      (hfront A (by simp))
+  · exact Set.Subset.antisymm
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step24_frontier_subset hcompact.isClosed)
+      (hfront D (by simp))
+
+/-- Step 26 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
+"a bounded and an unbounded part". Two disjoint open connected sides of a bounded
+set cannot both be unbounded: they would both meet a large connected sphere.
+They cannot both be bounded either, since their union is the set's complement. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step26_bounded_side
+    {Γ B U : Set (E d)} (hΓ : Bornology.IsBounded Γ)
+    (hBopen : IsOpen B) (hBconn : IsConnected B)
+    (hUopen : IsOpen U) (hUconn : IsConnected U)
+    (hdisj : Disjoint B U) (hcover : Γᶜ = B ∪ U) :
+    (Bornology.IsBounded B ∧ ¬ Bornology.IsBounded U) ∨
+      (Bornology.IsBounded U ∧ ¬ Bornology.IsBounded B) := by
+  haveI : NeZero d := ⟨by have hd : 2 ≤ d := Fact.out; omega⟩
+  have hrank : 1 < Module.rank ℝ (E d) := by
+    rw [← Module.finrank_eq_rank, finrank_euclideanSpace, Fintype.card_fin]
+    exact_mod_cast (show 1 < d by have hd : 2 ≤ d := Fact.out; omega)
+  have hnotboth : ¬ (Bornology.IsBounded B ∧ Bornology.IsBounded U) := by
+    rintro ⟨hB, hU⟩
+    apply NormedSpace.unbounded_univ ℝ (E d)
+    have hb := hΓ.union (hB.union hU)
+    rwa [← hcover, union_compl_self] at hb
+  have hone : Bornology.IsBounded B ∨ Bornology.IsBounded U := by
+    by_contra h
+    obtain ⟨hB, hU⟩ := not_or.mp h
+    obtain ⟨a, ha⟩ := hBconn.nonempty
+    obtain ⟨b, hb⟩ := hUconn.nonempty
+    obtain ⟨r, hr, hΓr⟩ := hΓ.subset_ball_lt (max ‖a‖ ‖b‖) (0 : E d)
+    have hmeet (C : Set (E d)) (hC : IsPreconnected C)
+        (hCbdd : ¬ Bornology.IsBounded C) {c : E d} (hc : c ∈ C) (hcr : ‖c‖ ≤ r) :
+        (Metric.sphere (0 : E d) r ∩ C).Nonempty := by
+      have hex : ∃ z ∈ C, r < ‖z‖ := by
+        by_contra hex
+        push_neg at hex
+        exact hCbdd (isBounded_iff_forall_norm_le.mpr ⟨r, hex⟩)
+      obtain ⟨z, hz, hrz⟩ := hex
+      obtain ⟨w, hw, hwr⟩ := hC.intermediate_value hc hz continuous_norm.continuousOn
+        (show r ∈ Icc ‖c‖ ‖z‖ from ⟨hcr, hrz.le⟩)
+      exact ⟨w, by simpa only [Metric.mem_sphere, dist_zero_right] using hwr, hw⟩
+    have hScover : Metric.sphere (0 : E d) r ⊆ B ∪ U := by
+      rw [← hcover]
+      intro x hx hxΓ
+      have hin := hΓr hxΓ
+      rw [Metric.mem_ball, dist_zero_right] at hin
+      rw [Metric.mem_sphere, dist_zero_right] at hx
+      exact (ne_of_lt hin) hx
+    obtain ⟨x, -, hxB, hxU⟩ := (isPreconnected_sphere hrank (0 : E d) r) B U
+      hBopen hUopen hScover
+      (hmeet B hBconn.isPreconnected hB ha ((le_max_left _ _).trans hr.le))
+      (hmeet U hUconn.isPreconnected hU hb ((le_max_right _ _).trans hr.le))
+    exact Set.disjoint_left.mp hdisj hxB hxU
+  rcases hone with hB | hU
+  · exact Or.inl ⟨hB, fun hU => hnotboth ⟨hB, hU⟩⟩
+  · exact Or.inr ⟨hU, fun hB => hnotboth ⟨hB, hU⟩⟩
+
 /-- Step 10 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
 "each a closed hypersurface separating `ℝᵈ` into a bounded and an unbounded part
 (Jordan–Brouwer)". This is separation by one connected boundary component. -/
@@ -434,7 +1118,19 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer
       IsOpen B ∧ IsConnected B ∧ Bornology.IsBounded B ∧
       IsOpen U ∧ IsConnected U ∧ ¬ Bornology.IsBounded U ∧
       Disjoint B U ∧ Γᶜ = B ∪ U ∧ frontier B = Γ ∧ frontier U = Γ := by
-  sorry
+  obtain ⟨hcompact, hconn, hman⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step3_compact_component P F p hp
+  obtain ⟨K, hfin, hK, hpure⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step8_triangulate P F p hp
+  rw [← hK] at hcompact hconn hman ⊢
+  obtain ⟨A, D, hAo, hAc, hDo, hDc, hdisj, hcover, hAf, hDf⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step25_two_components
+      K hfin hpure hcompact hconn hman
+  rcases principal_component_step1_hull_geometry_step10_jordan_brouwer_step26_bounded_side
+    hcompact.isBounded hAo hAc hDo hDc hdisj hcover with ⟨hAb, hDb⟩ | ⟨hDb, hAb⟩
+  · exact ⟨A, D, hAo, hAc, hAb, hDo, hDc, hDb, hdisj, hcover, hAf, hDf⟩
+  · exact ⟨D, A, hDo, hDc, hDb, hAo, hAc, hAb,
+      hdisj.symm, hcover.trans (union_comm _ _), hDf, hAf⟩
 
 /-- Step 11 of the V4 proof of `principal_component_step1_hull_geometry` (V4 1.24):
 "a connected union of facets of `t`". The boundary complex is pure: its facet

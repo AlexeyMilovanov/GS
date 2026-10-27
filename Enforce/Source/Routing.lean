@@ -4558,6 +4558,327 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     Set.ncard_union_eq hpos.2.2.2.2.1 hpos.2.1.2.2.1 hpos.2.2.1.2.2.1] at h
   exact h
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". A set of at most `d` vertices has a proper affine span in `E d`. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step1_proper_span (s : Finset (E d)) (hc : s.card ≤ d) :
+    affineSpan ℝ (s : Set (E d)) ≠ ⊤ := by
+  classical
+  rcases s.eq_empty_or_nonempty with rfl | hs
+  · simp
+  haveI : Nonempty s := hs.to_subtype
+  have hdim := finrank_vectorSpan_range_add_one_le ℝ ((↑) : s → E d)
+  have hrange : Set.range ((↑) : s → E d) = (s : Set (E d)) := by
+    ext x
+    simp
+  rw [hrange, Fintype.card_coe] at hdim
+  intro htop
+  have hdir := congrArg AffineSubspace.direction htop
+  rw [direction_affineSpan, AffineSubspace.direction_top] at hdir
+  rw [hdir, finrank_top, finrank_euclideanSpace, Fintype.card_fin] at hdim
+  omega
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". The complement of a proper affine subspace is open and dense. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl (A : AffineSubspace ℝ (E d)) (hA : A ≠ ⊤) :
+    IsOpen (A : Set (E d))ᶜ ∧ Dense (A : Set (E d))ᶜ := by
+  refine ⟨A.closed_of_finiteDimensional.isOpen_compl, ?_⟩
+  apply interior_eq_empty_iff_dense_compl.mp
+  apply Set.eq_empty_iff_forall_notMem.mpr
+  intro p hp
+  apply hA
+  apply top_unique
+  rw [← isOpen_interior.affineSpan_eq_top ⟨p, hp⟩]
+  exact affineSpan_le.mpr interior_subset
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". Intersect the finitely many open dense sets of permitted cone
+vertices. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step3_finite_conditions {ι : Type*} [Finite ι] (P : ι → E d → Prop)
+    (hP : ∀ i, ∃ U : Set (E d), IsOpen U ∧ Dense U ∧ ∀ z ∈ U, P i z) :
+    ∃ U : Set (E d), IsOpen U ∧ Dense U ∧ ∀ z ∈ U, ∀ i, P i z := by
+  classical
+  choose U hU hdU hUP using hP
+  refine ⟨⋂ i, U i, isOpen_iInter_of_finite hU, dense_iInter_of_isOpen hU hdU, ?_⟩
+  intro z hz i
+  exact hUP i z (Set.mem_iInter.mp hz i)
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". A segment from an affine subspace to a point outside it meets that
+subspace only at its initial endpoint. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span (A : AffineSubspace ℝ (E d)) {p z x : E d}
+    (hp : p ∈ A) (hz : z ∉ A) (hx : x ∈ segment ℝ p z) (hxA : x ∈ A) : x = p := by
+  rw [segment_eq_image_lineMap] at hx
+  obtain ⟨t, ht, rfl⟩ := hx
+  by_cases ht0 : t = 0
+  · simp [ht0]
+  · exfalso
+    apply hz
+    have h := AffineMap.lineMap_mem t⁻¹ hp hxA
+    simpa [AffineMap.lineMap_lineMap_right, ht0] using h
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". A segment with one endpoint outside an affine subspace meets that
+subspace in at most one point. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step5_segment_inter_subsingleton (A : AffineSubspace ℝ (E d)) {p z : E d}
+    (hz : z ∉ A) : (segment ℝ p z ∩ (A : Set (E d))).Subsingleton := by
+  intro x hx y hy
+  by_contra hxy
+  have hcol : Collinear ℝ {x, y, z} := by
+    apply collinear_triple_of_mem_affineSpan_pair (p₄ := p) (p₅ := z)
+    · exact convexHull_subset_affineSpan _ (by simpa [convexHull_pair] using hx.1)
+    · exact convexHull_subset_affineSpan _ (by simpa [convexHull_pair] using hy.1)
+    · exact right_mem_affineSpan_pair ℝ p z
+  apply hz
+  exact (affineSpan_le.mpr (Set.pair_subset hx.2 hy.2))
+    (hcol.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hxy)
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". Avoiding facet spans and the spans obtained by adjoining the fixed
+endpoint to smaller faces makes the new segment regular. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step6_regular_from_avoid
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d) {p z : E d}
+    (hp : p ∉ K.space)
+    (hz : ∀ f ∈ K.facets, z ∉ affineSpan ℝ (f : Set (E d)))
+    (hsmall : ∀ s ∈ K.faces, s.card < d →
+      z ∉ affineSpan ℝ (insert p (s : Set (E d)))) :
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K p z := by
+  have hzK : z ∉ K.space := by
+    intro hzK
+    rw [principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover K hfin] at hzK
+    obtain ⟨f, hzf⟩ := Set.mem_iUnion.mp hzK
+    exact hz f.val f.property (convexHull_subset_affineSpan _ hzf)
+  have hfinite : (segment ℝ p z ∩ K.space).Finite := by
+    rw [principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover K hfin,
+      Set.inter_iUnion]
+    haveI : Finite K.facets := (hfin.subset (fun _ h => h.1)).to_subtype
+    apply Set.finite_iUnion
+    intro f
+    exact (principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step5_segment_inter_subsingleton (affineSpan ℝ (f.val : Set (E d)))
+      (hz f.val f.property)).finite.subset (Set.inter_subset_inter_right _ (convexHull_subset_affineSpan _))
+  refine ⟨hp, hzK, hfinite, ?_⟩
+  intro x hx
+  have hxp : x ≠ p := by rintro rfl; exact hp hx.2
+  obtain ⟨f, hxf⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet_step2_lower_skeleton
+      K hfin hpure hx.2 (by
+        intro s hs hc hxs
+        have h := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span (affineSpan ℝ (insert p (s : Set (E d))))
+          (subset_affineSpan ℝ _ (Set.mem_insert p _)) (hsmall s hs hc) hx.1
+          (affineSpan_mono ℝ (Set.subset_insert p _) hxs)
+        exact hxp h)
+  refine ⟨f.val, f.property, hxf, ?_, hz f.val f.property⟩
+  intro hpf
+  exact hxp (principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span (affineSpan ℝ (f.val : Set (E d))) hpf
+    (hz f.val f.property) hx.1 (convexHull_subset_affineSpan _ (intrinsicInterior_subset hxf)))
+
+/-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". A regular segment misses every face of positive codimension inside
+the pure complex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step7_regular_avoids_face
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hpure : ∀ f ∈ K.facets, f.card = d) {a b : E d}
+    (hab : principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K a b)
+    {s : Finset (E d)} (hs : s ∈ K.faces) (hc : s.card < d) :
+    Disjoint (segment ℝ a b) (convexHull ℝ (s : Set (E d))) := by
+  apply Set.disjoint_left.mpr
+  intro x hx hxs
+  obtain ⟨f, hf, hxf, -⟩ := hab.2.2.2 x ⟨hx, K.convexHull_subset_space hs hxs⟩
+  have hfs := principal_component_step1_hull_geometry_step10_jordan_brouwer_step16_ridge_transport_step1_interior_incidence
+    K hf.1 hs hxf hxs
+  have hle := Finset.card_le_card hfs
+  rw [hpure f hf] at hle
+  omega
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". If an affine subspace contains the base and the obstacle, a cone
+vertex outside it cannot create an intersection with the obstacle. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step8_triangle_avoids (C : Set (E d)) (A : AffineSubspace ℝ (E d))
+    {a b z : E d} (ha : a ∈ A) (hb : b ∈ A) (hC : C ⊆ A)
+    (hz : z ∉ A) (hab : Disjoint (segment ℝ a b) C) :
+    Disjoint (convexHull ℝ ({a, b, z} : Set (E d))) C := by
+  apply Set.disjoint_left.mpr
+  intro x hx hxC
+  have heq : ({a, b, z} : Set (E d)) = insert z {a, b} := by ext; simp; tauto
+  rw [heq, convexHull_insert (Set.insert_nonempty a {b}), convexHull_pair,
+    convexJoin_singleton_left] at hx
+  obtain ⟨y, hy, hxy⟩ := Set.mem_iUnion₂.mp hx
+  have hxy' := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span A (A.convex.segment_subset ha hb hy) hz
+    (by simpa only [segment_symm] using hxy) (hC hxC)
+  exact Set.disjoint_left.mp hab (hxy'.symm ▸ hy) hxC
+
+/-- Step 9 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". For a fixed endpoint outside the complex, an open dense set of second
+endpoints gives regular segments and avoids all facet spans. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step9_regular_open
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d) (p : E d) (hp : p ∉ K.space) :
+    ∃ U : Set (E d), IsOpen U ∧ Dense U ∧ ∀ z ∈ U,
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K p z ∧
+      ∀ f ∈ K.facets, z ∉ affineSpan ℝ (f : Set (E d)) := by
+  classical
+  haveI : Finite K.faces := hfin.to_subtype
+  obtain ⟨U, hU, hdU, hUP⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step3_finite_conditions
+    (fun (s : K.faces) z => z ∉ affineSpan ℝ (s.val : Set (E d)) ∧
+      (s.val.card < d → z ∉ affineSpan ℝ (insert p (s.val : Set (E d))))) (by
+        intro s
+        obtain ⟨f, hf, hsf⟩ :=
+          principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step1_facet_extension
+            K hfin s.property
+        have hc : s.val.card ≤ d := (Finset.card_le_card hsf).trans_eq (hpure f hf)
+        obtain ⟨hA, hdA⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl (affineSpan ℝ (s.val : Set (E d))) (principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step1_proper_span s.val hc)
+        by_cases hs : s.val.card < d
+        · have hi : (insert p s.val).card ≤ d := (Finset.card_insert_le p s.val).trans (by omega)
+          obtain ⟨hB, hdB⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl (affineSpan ℝ (insert p (s.val : Set (E d))))
+            (by simpa only [Finset.coe_insert] using principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step1_proper_span (insert p s.val) hi)
+          exact ⟨_, hA.inter hB, hdA.inter_of_isOpen_right hdB hB,
+            fun z hz => ⟨hz.1, fun _ => hz.2⟩⟩
+        · exact ⟨_, hA, hdA, fun z hz => ⟨hz, fun hc => (hs hc).elim⟩⟩)
+  refine ⟨U, hU, hdU, ?_⟩
+  intro z hz
+  have hf : ∀ f ∈ K.facets, z ∉ affineSpan ℝ (f : Set (E d)) :=
+    fun f hf => (hUP z hz ⟨f, hf.1⟩).1
+  exact ⟨principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step6_regular_from_avoid K hfin hpure hp hf
+    (fun s hs hc => (hUP z hz ⟨s, hs⟩).2 hc), hf⟩
+
+/-- Step 10 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". When the base direction is parallel to a ridge, avoid its affine join
+with the base; otherwise avoid the sum of the ridge and base direction spaces. These
+conditions give transverse triangular sections. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step10_ridge_open (s : Finset (E d)) (hs : s.Nonempty) (hc : s.card < d)
+    {a b : E d} (hab : Disjoint (segment ℝ a b) (convexHull ℝ (s : Set (E d)))) :
+    ∃ U : Set (E d), IsOpen U ∧ Dense U ∧ ∀ z ∈ U,
+      (convexHull ℝ ({a, b, z} : Set (E d)) ∩ convexHull ℝ (s : Set (E d))).Nonempty →
+      ((affineSpan ℝ ({a, b, z} : Set (E d)) : Set (E d)) ∩
+        (affineSpan ℝ (s : Set (E d)) : Set (E d))).Subsingleton := by
+  classical
+  let H := affineSpan ℝ (s : Set (E d))
+  by_cases hw : b - a ∈ H.direction
+  · let B := affineSpan ℝ (insert a (s : Set (E d)))
+    have hBproper : B ≠ ⊤ := by
+      simpa only [B, Finset.coe_insert] using
+        principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step1_proper_span (insert a s) (by have := Finset.card_insert_le a s; omega)
+    obtain ⟨hB, hdB⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl B hBproper
+    have hHB : H ≤ B := affineSpan_mono ℝ (Set.subset_insert a _)
+    have haB : a ∈ B := subset_affineSpan ℝ _ (Set.mem_insert a _)
+    have hbB : b ∈ B := by
+      have h := B.vadd_mem_of_mem_direction (AffineSubspace.direction_le hHB hw) haB
+      simpa only [vadd_eq_add, sub_add_cancel] using h
+    refine ⟨(B : Set (E d))ᶜ, hB, hdB, ?_⟩
+    intro z hz hcut
+    have hd := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step8_triangle_avoids (convexHull ℝ (s : Set (E d))) B haB hbB
+      ((convexHull_subset_affineSpan _).trans hHB) hz hab
+    obtain ⟨x, hx, hxs⟩ := hcut
+    exact (Set.disjoint_left.mp hd hx hxs).elim
+  · let W := H.direction ⊔ Submodule.span ℝ {b - a}
+    let B := AffineSubspace.mk' a W
+    haveI : Nonempty s := hs.to_subtype
+    have hdim : Module.finrank ℝ H.direction + 1 ≤ s.card := by
+      have hrange : Set.range ((↑) : s → E d) = (s : Set (E d)) := by ext; simp
+      dsimp only [H]
+      rw [direction_affineSpan]
+      have hh := finrank_vectorSpan_range_add_one_le ℝ ((↑) : s → E d)
+      rw [hrange, Fintype.card_coe] at hh
+      exact hh
+    have hdimW := Submodule.finrank_add_le_finrank_add_finrank
+      H.direction (Submodule.span ℝ {b - a})
+    have hdimspan : Module.finrank ℝ (Submodule.span ℝ {b - a}) ≤ 1 := by
+      simpa using finrank_span_le_card ({b - a} : Set (E d))
+    have hBproper : B ≠ ⊤ := by
+      intro htop
+      have hh := congrArg AffineSubspace.direction htop
+      have hh : W = ⊤ := by
+        simpa only [B, AffineSubspace.direction_mk', AffineSubspace.direction_top] using hh
+      change Module.finrank ℝ W ≤ _ at hdimW
+      rw [hh, finrank_top, finrank_euclideanSpace, Fintype.card_fin] at hdimW
+      omega
+    obtain ⟨hB, hdB⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl B hBproper
+    refine ⟨(B : Set (E d))ᶜ, hB, hdB, ?_⟩
+    intro z hz _
+    have hzW : z - a ∉ W := hz
+    have hwu : Disjoint (Submodule.span ℝ {b - a}) H.direction :=
+      (Submodule.disjoint_span_singleton_of_notMem hw).symm
+    have hzw : Disjoint (Submodule.span ℝ {z - a})
+        (Submodule.span ℝ {b - a} ⊔ H.direction) := by
+      simpa only [W, sup_comm] using (Submodule.disjoint_span_singleton_of_notMem hzW).symm
+    have hdis := hwu.disjoint_sup_left_of_disjoint_sup_right hzw
+    have hAdir : (affineSpan ℝ ({a, b, z} : Set (E d))).direction =
+        Submodule.span ℝ {z - a} ⊔ Submodule.span ℝ {b - a} := by
+      have heq : ({a, b, z} : Set (E d)) = insert z {a, b} := by ext; simp; tauto
+      rw [heq, ← affineSpan_insert_affineSpan,
+        AffineSubspace.direction_affineSpan_insert (left_mem_affineSpan_pair ℝ a b),
+        direction_affineSpan, vectorSpan_pair_rev]
+      rfl
+    intro x hx y hy
+    have hxy : x - y ∈ (Submodule.span ℝ {z - a} ⊔ Submodule.span ℝ {b - a}) ⊓
+        H.direction := by
+      constructor
+      · rw [← hAdir]
+        exact AffineSubspace.vsub_mem_direction hx.1 hy.1
+      · exact AffineSubspace.vsub_mem_direction hx.2 hy.2
+    rw [hdis.eq_bot] at hxy
+    simpa only [Submodule.mem_bot, sub_eq_zero] using hxy
+
+/-- Step 11 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". Adjoining both base vertices to a face of codimension at least three
+still gives a proper affine span, whose complement prevents the triangle from meeting that
+face. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step11_small_face_open (s : Finset (E d)) (hc : s.card + 1 < d)
+    {a b : E d} (hab : Disjoint (segment ℝ a b) (convexHull ℝ (s : Set (E d)))) :
+    ∃ U : Set (E d), IsOpen U ∧ Dense U ∧ ∀ z ∈ U,
+      Disjoint (convexHull ℝ ({a, b, z} : Set (E d))) (convexHull ℝ (s : Set (E d))) := by
+  classical
+  let B := affineSpan ℝ (insert a (insert b (s : Set (E d))))
+  have hcard : (insert a (insert b s)).card ≤ d := by
+    have h1 := Finset.card_insert_le a (insert b s)
+    have h2 := Finset.card_insert_le b s
+    omega
+  have hBproper : B ≠ ⊤ := by
+    simpa only [Finset.coe_insert] using principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step1_proper_span (insert a (insert b s)) hcard
+  obtain ⟨hB, hdB⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl B hBproper
+  refine ⟨(B : Set (E d))ᶜ, hB, hdB, ?_⟩
+  intro z hz
+  apply principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step8_triangle_avoids (convexHull ℝ (s : Set (E d))) B
+    (subset_affineSpan ℝ _ (by simp)) (subset_affineSpan ℝ _ (by simp)) ?_ hz hab
+  exact (convexHull_subset_affineSpan _).trans
+    (affineSpan_mono ℝ ((Set.subset_insert b _).trans (Set.subset_insert a _)))
+
+/-- Step 12 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan` (V4 1.24):
+"in general position". Noncollinear triangle sides meet only at their shared vertices, so
+their crossings with a set avoiding those vertices are disjoint. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step12_triangle_boundary (T : Set (E d)) {a b z : E d} (hab : a ≠ b)
+    (hz : z ∉ affineSpan ℝ ({a, b} : Set (E d))) (haT : a ∉ T) (hbT : b ∉ T) (hzT : z ∉ T) :
+    AffineIndependent ℝ ![a, b, z] ∧
+    Disjoint (segment ℝ a b ∩ T) (segment ℝ b z ∩ T) ∧
+    Disjoint ((segment ℝ a b ∩ T) ∪ (segment ℝ b z ∩ T)) (segment ℝ z a ∩ T) := by
+  have hncol : ¬ Collinear ℝ ({a, b, z} : Set (E d)) := by
+    intro hcol
+    exact hz (hcol.mem_affineSpan_of_mem_of_ne (by simp) (by simp) (by simp) hab)
+  have ha : a ∉ affineSpan ℝ ({b, z} : Set (E d)) := by
+    intro ha
+    exact hncol (collinear_insert_of_mem_affineSpan_pair ha)
+  refine ⟨affineIndependent_iff_not_collinear_set.mpr hncol, ?_, ?_⟩
+  · apply Set.disjoint_left.mpr
+    intro x hx hy
+    have hxA : x ∈ affineSpan ℝ ({a, b} : Set (E d)) :=
+      convexHull_subset_affineSpan _ (by simpa only [convexHull_pair] using hx.1)
+    have heq := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span (affineSpan ℝ ({a, b} : Set (E d)))
+      (right_mem_affineSpan_pair ℝ a b) hz hy.1 hxA
+    exact hbT (heq ▸ hx.2)
+  · apply Set.disjoint_left.mpr
+    intro x hx hy
+    rcases hx with hx | hx
+    · have hxA : x ∈ affineSpan ℝ ({a, b} : Set (E d)) :=
+        convexHull_subset_affineSpan _ (by simpa only [convexHull_pair] using hx.1)
+      have heq := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span (affineSpan ℝ ({a, b} : Set (E d)))
+        (left_mem_affineSpan_pair ℝ a b) hz (by simpa only [segment_symm] using hy.1) hxA
+      exact haT (heq ▸ hx.2)
+    · have hxA : x ∈ affineSpan ℝ ({b, z} : Set (E d)) :=
+        convexHull_subset_affineSpan _ (by simpa only [convexHull_pair] using hx.1)
+      have heq := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span (affineSpan ℝ ({b, z} : Set (E d)))
+        (right_mem_affineSpan_pair ℝ b z) ha hy.1 hxA
+      exact hzT (heq ▸ hx.2)
+
 /-- Step 21 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "in general position". For finitely many nonconstant regular segments, choose one
 cone vertex making every resulting triangle transverse to all simplices. Only
@@ -4569,7 +4890,66 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
       principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment K e.1 e.2) :
     ∃ z : E d, ∀ e ∈ L,
       principal_component_step1_hull_geometry_step10_jordan_brouwer_step13_TrianglePosition K e.1 e.2 z := by
-  sorry
+  classical
+  haveI : Finite K.faces := hfin.to_subtype
+  obtain ⟨U, hU, hdU, hUP⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step3_finite_conditions
+    (fun (e : L) z => principal_component_step1_hull_geometry_step10_jordan_brouwer_step13_TrianglePosition
+      K e.val.1 e.val.2 z) (by
+        intro e
+        obtain ⟨hne, hreg⟩ := hL e.val e.property
+        obtain ⟨Ua, hUa, hdUa, hUaP⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step9_regular_open K hfin hpure e.val.1 hreg.1
+        obtain ⟨Ub, hUb, hdUb, hUbP⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step9_regular_open K hfin hpure e.val.2 hreg.2.1
+        obtain ⟨Us, hUs, hdUs, hUsP⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step3_finite_conditions
+          (fun (s : {s : K.faces // s.val.card + 1 < d}) z =>
+            Disjoint (convexHull ℝ ({e.val.1, e.val.2, z} : Set (E d)))
+              (convexHull ℝ (s.val.val : Set (E d)))) (by
+                intro s
+                exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step11_small_face_open s.val.val s.property
+                  (principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step7_regular_avoids_face K hpure hreg s.val.property (by omega)))
+        obtain ⟨Ur, hUr, hdUr, hUrP⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step3_finite_conditions
+          (fun (s : {s : K.faces // s.val.card = d - 1}) z =>
+            (convexHull ℝ ({e.val.1, e.val.2, z} : Set (E d)) ∩
+              convexHull ℝ (s.val.val : Set (E d))).Nonempty →
+            ((affineSpan ℝ ({e.val.1, e.val.2, z} : Set (E d)) : Set (E d)) ∩
+              (affineSpan ℝ (s.val.val : Set (E d)) : Set (E d))).Subsingleton) (by
+                intro s
+                have hc : s.val.val.card < d := by have hd : 2 ≤ d := Fact.out; omega
+                exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step10_ridge_open s.val.val (K.nonempty_of_mem_faces s.val.property) hc
+                  (principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step7_regular_avoids_face K hpure hreg s.val.property hc))
+        let B := affineSpan ℝ ({e.val.1, e.val.2} : Set (E d))
+        have hBproper : B ≠ ⊤ := by
+          have hd : 2 ≤ d := Fact.out
+          have hc : ({e.val.1, e.val.2} : Finset (E d)).card ≤ d :=
+            Finset.card_le_two.trans hd
+          simpa only [B, Finset.coe_insert, Finset.coe_singleton] using
+            principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step1_proper_span {e.val.1, e.val.2} hc
+        obtain ⟨hB, hdB⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl B hBproper
+        refine ⟨(B : Set (E d))ᶜ ∩ (Ua ∩ (Ub ∩ (Us ∩ Ur))),
+          hB.inter (hUa.inter (hUb.inter (hUs.inter hUr))),
+          hdB.inter_of_isOpen_right (hdUa.inter_of_isOpen_right
+            (hdUb.inter_of_isOpen_right (hdUs.inter_of_isOpen_right hdUr hUr)
+              (hUs.inter hUr)) (hUb.inter (hUs.inter hUr)))
+            (hUa.inter (hUb.inter (hUs.inter hUr))), ?_⟩
+        rintro z ⟨hzB, hza, hzb, hzs, hzr⟩
+        obtain ⟨haz, hzfacets⟩ := hUaP z hza
+        obtain ⟨hbz, -⟩ := hUbP z hzb
+        have hza' : principal_component_step1_hull_geometry_step10_jordan_brouwer_step12_RegularSegment
+            K z e.val.1 := by
+          refine ⟨haz.2.1, haz.1, ?_, ?_⟩
+          · simpa only [segment_symm] using haz.2.2.1
+          · intro x hx
+            obtain ⟨f, hf, hxf, haf, hzf⟩ := haz.2.2.2 x (by simpa only [segment_symm] using hx)
+            exact ⟨f, hf, hxf, hzf, haf⟩
+        obtain ⟨hai, hd1, hd2⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step12_triangle_boundary K.space hne hzB hreg.1 hreg.2.1 haz.2.1
+        refine ⟨hai, hreg, hbz, hza', hd1, hd2, ?_, ?_, ?_⟩
+        · intro s hs hc
+          exact hUsP z hzs ⟨⟨s, hs⟩, hc⟩
+        · intro s hs hc hcut
+          exact hUrP z hzr ⟨⟨s, hs⟩, hc⟩ hcut
+        · intro f hf hsub
+          exact hzfacets f hf (hsub (subset_affineSpan ℝ _ (by simp))))
+  obtain ⟨z, hz⟩ := hdU.nonempty
+  exact ⟨z, fun e he => hUP z hz ⟨e, he⟩⟩
 
 /-- Step 22 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "choose polygonal paths ... (connected)". In an open connected Euclidean set,

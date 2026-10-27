@@ -1129,11 +1129,1128 @@ def headers (p : E d) {s : ℕ} (G : Fin s → Set (E d)) : Set (Header S s) :=
       ∀ j, h.cones j = (P.native n a.val).frame.linearIsometryEquiv.symm ''
         ((S.σ ^ n) '' G j)}
 
+/-- Step 1 of the V4 proof of `header_finiteness` (V4 1.17):
+"acting by ±1 on each". On a real
+line, fixing the norm of a vector leaves at most the two sign choices. -/
+private theorem header_finiteness_step1_line (V : Submodule ℝ (E d))
+    (hV : Module.finrank ℝ V = 1) (z : E d) (hz : z ∈ V) :
+    {x : E d | x ∈ V ∧ ‖x‖ = ‖z‖}.Finite := by
+  apply (Set.toFinite ({z, -z} : Set (E d))).subset
+  rintro x ⟨hx, hn⟩
+  by_cases hzero : z = 0
+  · have hxzero : x = 0 := norm_eq_zero.mp (by simpa [hzero] using hn)
+    simp [hzero, hxzero]
+  have hz' : (⟨z, hz⟩ : V) ≠ 0 := by simpa using hzero
+  obtain ⟨c, hc⟩ := (finrank_eq_one_iff_of_nonzero' (⟨z, hz⟩ : V) hz').mp hV ⟨x, hx⟩
+  have heq : c • z = x := congrArg Subtype.val hc
+  have hcabs : |c| = 1 := by
+    have hnorm : |c| * ‖z‖ = 1 * ‖z‖ := by
+      simpa [← heq, norm_smul, Real.norm_eq_abs] using hn
+    exact mul_right_cancel₀ (norm_ne_zero_iff.mpr hzero) hnorm
+  rcases (abs_eq (by norm_num : (0 : ℝ) ≤ 1)).mp hcabs with hc | hc
+  · simp [← heq, hc]
+  · simp [← heq, hc]
+
+/-- Step 2 of the V4 proof of `header_finiteness` (V4 1.17):
+"acting by ±1 on each". An
+orthogonal stabilizer of a complete flag has finite orbits on vectors. -/
+private theorem header_finiteness_step2_flag_orbit
+    (V : ℕ → Submodule ℝ (E d))
+    (hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i)
+    (hmono : ∀ i < d, V i ≤ V (i + 1)) :
+    ∀ k ≤ d, ∀ x ∈ V k,
+      {R : Ortho d | ∀ i ≤ d, (V i).map R.toLinearEquiv.toLinearMap = V i}.image
+        (fun R => R x) |>.Finite := by
+  intro k
+  induction k with
+  | zero =>
+      intro hk x hx
+      have hV : V 0 = ⊥ := Submodule.finrank_eq_zero.mp (hdim 0 (by omega))
+      have hxzero : x = 0 := by simpa [hV] using hx
+      subst x
+      exact (Set.finite_singleton (0 : E d)).subset
+        (by rintro _ ⟨R, hR, rfl⟩; simp)
+  | succ k ih =>
+      intro hk x hx
+      obtain ⟨y, hy, z, hz, hsum⟩ := (V k).exists_add_mem_mem_orthogonal x
+      have hle : V k ≤ V (k + 1) := hmono k (by omega)
+      have hzV : z ∈ V (k + 1) := by
+        have heq : z = x - y := by rw [hsum]; abel
+        rw [heq]
+        exact (V (k + 1)).sub_mem hx (hle hy)
+      have hline : Module.finrank ℝ ((V k)ᗮ ⊓ V (k + 1) : Submodule ℝ (E d)) = 1 := by
+        have hh := Submodule.finrank_add_inf_finrank_orthogonal hle
+        rw [hdim k (by omega), hdim (k + 1) hk] at hh
+        omega
+      have hyfinite := ih (by omega) y hy
+      have hzfinite := header_finiteness_step1_line ((V k)ᗮ ⊓ V (k + 1)) hline z ⟨hz, hzV⟩
+      apply ((hyfinite.prod hzfinite).image (fun yz : E d × E d => yz.1 + yz.2)).subset
+      rintro _ ⟨R, hR, rfl⟩
+      refine ⟨(R y, R z), ⟨⟨R, hR, rfl⟩, ?_⟩, ?_⟩
+      · refine ⟨⟨?_, ?_⟩, R.norm_map z⟩
+        · have horth : ((V k)ᗮ).map R.toLinearEquiv.toLinearMap = (V k)ᗮ := by
+            rw [Submodule.map_orthogonal_equiv, hR k (by omega)]
+          rw [← horth]
+          exact Submodule.mem_map_of_mem hz
+        · rw [← hR (k + 1) hk]
+          exact Submodule.mem_map_of_mem hzV
+      · simpa [map_add] using (congrArg R hsum).symm
+
+/-- Step 3 of the V4 proof of `header_finiteness` (V4 1.17):
+"acting by ±1 on each". Values on
+one basis turn the finite vector orbits into a finite orthogonal stabilizer. -/
+private theorem header_finiteness_step3_flag_stabilizer
+    (V : ℕ → Submodule ℝ (E d))
+    (hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i)
+    (hmono : ∀ i < d, V i ≤ V (i + 1)) :
+    {R : Ortho d | ∀ i ≤ d, (V i).map R.toLinearEquiv.toLinearMap = V i}.Finite := by
+  let H := {R : Ortho d | ∀ i ≤ d, (V i).map R.toLinearEquiv.toLinearMap = V i}
+  let b := stdOrthonormalBasis ℝ (E d)
+  have htop : V d = ⊤ := Submodule.eq_top_of_finrank_eq (by simpa using hdim d le_rfl)
+  have hpoint : ∀ i, (H.image (fun R => R (b i))).Finite := by
+    intro i
+    exact header_finiteness_step2_flag_orbit V hdim hmono d le_rfl (b i) (by simp [htop])
+  have heval : ((fun R : Ortho d => fun i => R (b i)) '' H).Finite :=
+    (Set.Finite.pi' hpoint).subset (by rintro _ ⟨R, hR, rfl⟩ i; exact ⟨R, hR, rfl⟩)
+  apply Set.Finite.of_finite_image heval
+  intro R hR T hT heq
+  exact b.toBasis.ext_linearIsometryEquiv (fun i => congrFun heq i)
+
+/-- Step 4 of the V4 proof of `header_finiteness` (V4 1.17):
+"the orthogonal maps carrying the complete flag ... to the target form a
+coset of the stabiliser". The transporter is a translate of the finite flag stabilizer. -/
+private theorem header_finiteness_step4_flag_transporters
+    (V W : ℕ → Submodule ℝ (E d))
+    (hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i)
+    (hmono : ∀ i < d, V i ≤ V (i + 1)) :
+    {R : Ortho d | ∀ i ≤ d, (V i).map R.toLinearEquiv.toLinearMap = W i}.Finite := by
+  classical
+  let T := {R : Ortho d | ∀ i ≤ d, (V i).map R.toLinearEquiv.toLinearMap = W i}
+  by_cases hT : T.Nonempty
+  · obtain ⟨R₀, hR₀⟩ := hT
+    apply ((header_finiteness_step3_flag_stabilizer V hdim hmono).image
+      (fun R => R.trans R₀)).subset
+    intro R hR
+    refine ⟨R.trans R₀.symm, ?_, ?_⟩
+    · intro i hi
+      change (V i).map (R₀.symm.toLinearEquiv.toLinearMap.comp
+        R.toLinearEquiv.toLinearMap) = V i
+      rw [Submodule.map_comp, hR i hi, ← hR₀ i hi, ← Submodule.map_comp]
+      simp
+    · apply LinearIsometryEquiv.ext
+      intro x
+      exact R₀.apply_symm_apply (R x)
+  · exact Set.finite_empty.subset (by intro R hR; exact (hT ⟨R, hR⟩).elim)
+
+/-- Step 5 of the V4 proof of `header_finiteness` (V4 1.17):
+"for fixed r ... and fixed target flag". A finite catalogue for each
+component gives only finitely many orthogonal transporters of a complete flag. -/
+private theorem header_finiteness_step5_catalogue_transporters
+    (C : Set (Submodule ℝ (E d))) (hC : C.Finite)
+    (V : ℕ → Submodule ℝ (E d))
+    (hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i)
+    (hmono : ∀ i < d, V i ≤ V (i + 1)) :
+    {R : Ortho d | ∀ i ≤ d, (V i).map R.toLinearEquiv.toLinearMap ∈ C}.Finite := by
+  classical
+  letI : Finite C := hC
+  let W (f : Fin (d + 1) → C) (i : ℕ) : Submodule ℝ (E d) :=
+    if hi : i ≤ d then (f ⟨i, by omega⟩).val else ⊤
+  have hf := Set.finite_iUnion fun f : Fin (d + 1) → C =>
+    header_finiteness_step4_flag_transporters V (W f) hdim hmono
+  apply hf.subset
+  intro R hR
+  let f : Fin (d + 1) → C := fun i =>
+    ⟨(V i.val).map R.toLinearEquiv.toLinearMap, hR i.val (by omega)⟩
+  apply Set.mem_iUnion.mpr
+  refine ⟨f, ?_⟩
+  intro i hi
+  simp [W, hi, f]
+
+/-- Step 6 of the V4 proof of `header_finiteness` (V4 1.17):
+"the finite set of native flags". All their component directions come
+from the finite prototype cell catalogue, with the ambient space adjoined. -/
+private theorem header_finiteness_step6_directions :
+    (S.cellDirections ∪ {⊤}).Finite := by
+  have hf : (⋃ A : S.ι, (fun e : Cell d => cellDirection e.carrier) ''
+      ((S.cx A).cells : Set (Cell d))).Finite :=
+    Set.finite_iUnion fun A : S.ι =>
+      (S.cx A).cells.finite_toSet.image (fun e : Cell d => cellDirection e.carrier)
+  apply (hf.union (Set.finite_singleton ⊤)).subset
+  rintro V (⟨A, e, he, rfl⟩ | hV)
+  · exact Or.inl (Set.mem_iUnion.mpr ⟨A, ⟨e, he, rfl⟩⟩)
+  · exact Or.inr hV
+
+/-- Step 7 of the V4 proof of `header_finiteness` (V4 1.17):
+"by 1.16(c)" applies to flag components as well as cones. A single
+allowed subspace is an `HΠ`-cone, including the full ambient space. -/
+private theorem header_finiteness_step7_subspace_cone
+    (V : Submodule ℝ (E d)) (hV : V ∈ S.hPi ∨ V = ⊤) :
+    HPiCone S.hPi (V : Set (E d)) := by
+  classical
+  refine ⟨{{(V : Set (E d))}}, by simp, ?_⟩
+  intro p hp C hC
+  simp only [Finset.mem_singleton] at hp
+  subst p
+  simp only [Finset.mem_singleton] at hC
+  subst C
+  exact Or.inl ⟨V, hV, rfl⟩
+
+/-- Step 8 of the V4 proof of `header_finiteness` (V4 1.17):
+"direction spaces ... in HΠ". The permutation of direction orbits in
+1.10(c) also gives invariance under inverse powers of the expansion. -/
+private theorem header_finiteness_step8_inverse_directions
+    (n : ℕ) (V : Submodule ℝ (E d)) (hV : V ∈ S.hPi) :
+    V.map ((S.σ ^ n)⁻¹).toLinearMap ∈ S.hPi := by
+  have hone (V : Submodule ℝ (E d)) (hV : V ∈ S.hPi) :
+      V.map S.σ.symm.toLinearMap ∈ S.hPi := by
+    obtain ⟨_, _, p, hp⟩ := S.orbits_finite
+    obtain ⟨U, hU, hVU⟩ := hV
+    let O : S.directionOrbits := ⟨S.directionOrbit U, U, hU, rfl⟩
+    have hm : V ∈ (p (p.symm O)).val := by simpa using hVU
+    rw [hp] at hm
+    obtain ⟨W, hW, rfl⟩ := hm
+    have hW' : W ∈ S.hPi := by
+      obtain ⟨U', hU', hO⟩ := (p.symm O).property
+      exact ⟨U', hU', hO ▸ hW⟩
+    simpa [← Submodule.map_comp] using hW'
+  induction n with
+  | zero => simpa using hV
+  | succ n ih =>
+    have hh := hone _ ih
+    simpa only [pow_succ, mul_inv_rev, LinearEquiv.coe_toLinearMap_mul,
+      Module.End.mul_eq_comp, Submodule.map_comp] using hh
+
+/-- Step 9 of the V4 proof of `header_finiteness` (V4 1.17):
+"Put D_m := B_t⁻¹ R_m ... D_m takes finitely many values". The same
+residual rotation acts on the complete flag and every cone in the tuple. -/
+private theorem header_finiteness_step9_residual_rotations
+    (F : PowerFactorisation S) (N : ℕ) (B : ℕ → Ortho d)
+    (V : ℕ → Submodule ℝ (E d))
+    (hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i)
+    (hmono : ∀ i < d, V i ≤ V (i + 1))
+    (hV : ∀ i ≤ d, V i ∈ S.hPi ∨ V i = ⊤)
+    (hframe : ∀ m i, i ≤ d →
+      ((V i).map (S.σ ^ (N + m)).toLinearMap).map
+        (B m).symm.toLinearEquiv.toLinearMap ∈ S.cellDirections ∪ {⊤})
+    {s : ℕ} (G : Fin s → Set (E d)) (hG : ∀ j, HPiCone S.hPi (G j)) :
+    (Set.range (fun m => fun j => (B m).symm '' ((S.σ ^ (N + m)) '' G j))).Finite := by
+  classical
+  let C := S.cellDirections ∪ {⊤}
+  let T (r : Fin F.power) : Set (Ortho d) :=
+    {R | ∀ i ≤ d, ((V i).map (S.σ ^ r.val).toLinearMap).map
+      R.toLinearEquiv.toLinearMap ∈ C}
+  have hT (r : Fin F.power) : (T r).Finite := by
+    apply header_finiteness_step5_catalogue_transporters C
+      header_finiteness_step6_directions
+      (fun i => (V i).map (S.σ ^ r.val).toLinearMap)
+    · intro i hi
+      rw [LinearEquiv.finrank_map_eq]
+      exact hdim i hi
+    · intro i hi
+      exact Submodule.map_mono (hmono i hi)
+  have hf : (⋃ r : Fin F.power,
+      (T r).image (fun R : Ortho d => fun j : Fin s => R '' ((S.σ ^ r.val) '' G j))).Finite :=
+    Set.finite_iUnion fun r : Fin F.power =>
+      (hT r).image (fun R : Ortho d => fun j : Fin s => R '' ((S.σ ^ r.val) '' G j))
+  apply hf.subset
+  rintro _ ⟨m, rfl⟩
+  let r : Fin F.power := ⟨(N + m) % F.power, Nat.mod_lt _ (by have := F.power_pos; omega)⟩
+  let a := (N + m) / F.power
+  have hn : a * F.power + r.val = N + m := by
+    simpa [a, r, Nat.mul_comm] using Nat.div_add_mod (N + m) F.power
+  obtain ⟨Q, hQ, _, hformula⟩ := (power_cone_formula F a r.val r.isLt).2
+  rw [hn] at hformula
+  let D := Q.trans (B m).symm
+  refine Set.mem_iUnion.mpr ⟨r, ?_⟩
+  refine ⟨D, ?_, ?_⟩
+  · intro i hi
+    have hm : (V i).map (S.σ ^ (N + m)).toLinearMap =
+        ((V i).map (S.σ ^ r.val).toLinearMap).map Q.toLinearEquiv.toLinearMap := by
+      apply SetLike.coe_injective
+      exact hformula (V i) (header_finiteness_step7_subspace_cone (V i) (hV i hi))
+    change (((V i).map (S.σ ^ r.val).toLinearMap).map
+      ((B m).symm.toLinearEquiv.toLinearMap.comp Q.toLinearEquiv.toLinearMap)) ∈ C
+    rw [Submodule.map_comp, ← hm]
+    exact hframe m i hi
+  · funext j
+    change D '' ((S.σ ^ r.val) '' G j) =
+      (B m).symm '' ((S.σ ^ (N + m)) '' G j)
+    rw [hformula (G j) (hG j)]
+    simp only [Set.image_image]
+    rfl
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". Finitely many proper affine
+subspaces have dense complement. -/
+private theorem header_finiteness_step10_dense_avoid
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    {ι : Type*} [Finite ι] (L : ι → AffineSubspace ℝ V) (hL : ∀ i, L i ≠ ⊤) :
+    Dense (⋂ i, ((L i : Set V)ᶜ)) := by
+  apply dense_iInter_of_isOpen (fun i => (L i).closed_of_finiteDimensional.isOpen_compl)
+  intro i
+  rw [← interior_eq_empty_iff_dense_compl]
+  apply Set.eq_empty_iff_forall_notMem.mpr
+  intro x hx
+  have ht := isOpen_interior.affineSpan_eq_top (⟨x, hx⟩ : (interior (L i : Set V)).Nonempty)
+  have hle : affineSpan ℝ (interior (L i : Set V)) ≤ L i :=
+    affineSpan_le.mpr interior_subset
+  rw [ht] at hle
+  exact hL i (top_unique hle)
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". A segment from a point
+outside an affine subspace avoids that subspace if its other endpoint
+avoids the affine span of the subspace and the first point. -/
+private theorem header_finiteness_step10_segment_avoid
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (L : AffineSubspace ℝ V) (x z : V) (hx : x ∉ L)
+    (hz : z ∉ affineSpan ℝ (insert x (L : Set V))) :
+    Disjoint (segment ℝ x z) (L : Set V) := by
+  apply Set.disjoint_left.mpr
+  intro w hw hwL
+  have hwline : w ∈ line[ℝ, x, z] :=
+    (line[ℝ, x, z]).convex.segment_subset (left_mem_affineSpan_pair ℝ x z)
+      (right_mem_affineSpan_pair ℝ x z) hw
+  have hwx : w ≠ x := by rintro rfl; exact hx hwL
+  have hline := affineSpan_pair_eq_of_right_mem_of_ne hwline hwx
+  have hle : line[ℝ, x, w] ≤ affineSpan ℝ (insert x (L : Set V)) :=
+    affineSpan_pair_le_of_mem_of_mem (mem_affineSpan ℝ (Set.mem_insert _ _))
+      (mem_affineSpan ℝ (Set.mem_insert_of_mem _ hwL))
+  rw [hline] at hle
+  exact hz (hle (right_mem_affineSpan_pair ℝ x z))
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". Removing finitely many
+affine subspaces of codimension at least two does not disconnect an
+open convex set: two segments through a generic intermediate point suffice. -/
+private theorem header_finiteness_step10_avoid_connected
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    {ι : Type*} [Finite ι] (L : ι → AffineSubspace ℝ V)
+    (hL : ∀ i, Module.finrank ℝ (L i).direction + 1 < Module.finrank ℝ V)
+    (U : Set V) (hU : IsOpen U) (hc : Convex ℝ U) :
+    IsPreconnected (U ∩ ⋂ i, (L i : Set V)ᶜ) := by
+  apply isPreconnected_of_forall_pair
+  rintro x ⟨hxU, hx⟩ y ⟨hyU, hy⟩
+  let M : Bool × ι → AffineSubspace ℝ V := fun b =>
+    affineSpan ℝ (insert (if b.1 then x else y) (L b.2 : Set V))
+  have hM (b : Bool × ι) : M b ≠ ⊤ := by
+    intro heq
+    have hle := finrank_vectorSpan_insert_le (L b.2) (if b.1 then x else y)
+    rw [← direction_affineSpan] at hle
+    change Module.finrank ℝ (M b).direction ≤ Module.finrank ℝ (L b.2).direction + 1 at hle
+    rw [heq, AffineSubspace.direction_top, finrank_top] at hle
+    exact (hL b.2).not_ge hle
+  obtain ⟨z, hz, hzU⟩ := (header_finiteness_step10_dense_avoid M hM).exists_mem_open hU ⟨x, hxU⟩
+  have hsx : segment ℝ x z ⊆ U ∩ ⋂ i, (L i : Set V)ᶜ := by
+    intro w hw
+    refine ⟨hc.segment_subset hxU hzU hw, Set.mem_iInter.mpr fun i => ?_⟩
+    exact Set.disjoint_left.mp (header_finiteness_step10_segment_avoid (L i) x z
+      (Set.mem_iInter.mp hx i) (by simpa [M] using Set.mem_iInter.mp hz (true, i))) hw
+  have hsy : segment ℝ y z ⊆ U ∩ ⋂ i, (L i : Set V)ᶜ := by
+    intro w hw
+    refine ⟨hc.segment_subset hyU hzU hw, Set.mem_iInter.mpr fun i => ?_⟩
+    exact Set.disjoint_left.mp (header_finiteness_step10_segment_avoid (L i) y z
+      (Set.mem_iInter.mp hy i) (by simpa [M] using Set.mem_iInter.mp hz (false, i))) hw
+  refine ⟨segment ℝ x z ∪ segment ℝ y z, Set.union_subset hsx hsy,
+    Or.inl (left_mem_segment ℝ x z), Or.inr (left_mem_segment ℝ y z), ?_⟩
+  exact (convex_segment (𝕜 := ℝ) x z).isPreconnected.union z
+    (right_mem_segment ℝ x z) (right_mem_segment ℝ y z)
+    (convex_segment (𝕜 := ℝ) y z).isPreconnected
+
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". A boundary of a regular
+closed set cannot locally lie in finitely many affine subspaces of
+codimension at least two: the complement connects the inside to the outside. -/
+private theorem header_finiteness_step10_boundary_not_thin
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    (K : Set V) (hK : IsClosed K) (hreg : closure (interior K) = K)
+    (p : V) (hp : p ∈ frontier K)
+    {ι : Type*} [Finite ι] (L : ι → AffineSubspace ℝ V)
+    (hL : ∀ i, Module.finrank ℝ (L i).direction + 1 < Module.finrank ℝ V)
+    (r : ℝ) (hr : 0 < r) :
+    ¬ frontier K ∩ ball p r ⊆ ⋃ i, (L i : Set V) := by
+  intro hcover
+  have hproper (i : ι) : L i ≠ ⊤ := by
+    intro heq
+    have h := hL i
+    rw [heq, AffineSubspace.direction_top, finrank_top] at h
+    omega
+  have hdense := header_finiteness_step10_dense_avoid L hproper
+  have hxcl : p ∈ closure (interior K) := by
+    rw [hreg]
+    exact hK.frontier_subset hp
+  have hycl : p ∈ closure Kᶜ := by
+    rw [frontier_eq_closure_inter_closure] at hp
+    exact hp.2
+  obtain ⟨x, hx, hxU, hxK⟩ := hdense.exists_mem_open (isOpen_ball.inter isOpen_interior)
+    (mem_closure_iff.mp hxcl (ball p r) isOpen_ball (mem_ball_self hr))
+  obtain ⟨y, hy, hyU, hyK⟩ := hdense.exists_mem_open (isOpen_ball.inter hK.isOpen_compl)
+    (mem_closure_iff.mp hycl (ball p r) isOpen_ball (mem_ball_self hr))
+  have hsides : ball p r ∩ ⋂ i, (L i : Set V)ᶜ ⊆ interior K ∪ Kᶜ := by
+    rintro z ⟨hzU, hz⟩
+    by_cases hzK : z ∈ K
+    · left
+      by_contra hzi
+      have hzf : z ∈ frontier K := by rw [hK.frontier_eq]; exact ⟨hzK, hzi⟩
+      obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hcover ⟨hzf, hzU⟩)
+      exact Set.mem_iInter.mp hz i hi
+    · exact Or.inr hzK
+  have hd : Disjoint (interior K) Kᶜ :=
+    Set.disjoint_left.mpr fun z hz hzc => hzc (interior_subset hz)
+  rcases (header_finiteness_step10_avoid_connected L hL (ball p r)
+      isOpen_ball (convex_ball p r)).subset_or_subset isOpen_interior hK.isOpen_compl hd hsides with h | h
+  · exact hyK (interior_subset (h ⟨hyU, hy⟩))
+  · exact h ⟨hxU, hx⟩ (interior_subset hxK)
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". In a finite closed covering
+of a regular boundary by lower-dimensional pieces, the pieces of
+codimension one already cover the whole boundary. -/
+private theorem header_finiteness_step10_boundary_facets
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    (K : Set V) (hK : IsClosed K) (hreg : closure (interior K) = K)
+    {ι : Type*} [Finite ι] (C : ι → Set V) (hC : ∀ i, IsClosed (C i))
+    (hcover : frontier K ⊆ ⋃ i, C i)
+    (hdim : ∀ i, Module.finrank ℝ (affineSpan ℝ (C i)).direction < Module.finrank ℝ V)
+    (p : V) (hp : p ∈ frontier K) :
+    ∃ i, p ∈ C i ∧ Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 = Module.finrank ℝ V := by
+  classical
+  by_contra hn
+  let J := {i : ι // Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 = Module.finrank ℝ V}
+  let H : Set V := ⋃ i : J, C i.val
+  have hH : IsClosed H := isClosed_iUnion_of_finite fun i : J => hC i.val
+  have hpH : p ∈ Hᶜ := by
+    intro hpH
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hpH
+    exact hn ⟨i.val, hi, i.property⟩
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hH.isOpen_compl p hpH
+  let I := {i : ι // Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 ≠ Module.finrank ℝ V}
+  have hlow (i : I) : Module.finrank ℝ (affineSpan ℝ (C i.val)).direction + 1 < Module.finrank ℝ V := by
+    have := hdim i.val
+    have := i.property
+    omega
+  apply header_finiteness_step10_boundary_not_thin K hK hreg p hp
+    (fun i : I => affineSpan ℝ (C i.val)) hlow r hr
+  rintro x ⟨hxK, hxball⟩
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hcover hxK)
+  have hiI : Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 ≠ Module.finrank ℝ V := by
+    intro heq
+    exact hball hxball (Set.mem_iUnion.mpr ⟨⟨i, heq⟩, hi⟩)
+  exact Set.mem_iUnion.mpr ⟨⟨i, hiI⟩, mem_affineSpan ℝ hi⟩
+
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"facets of that cell". A set with nonempty intrinsic interior but empty
+ambient interior has strictly smaller affine dimension than the ambient space. -/
+private theorem header_finiteness_step10_rank_lt
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    (C : Set V) (hi : (intrinsicInterior ℝ C).Nonempty) (he : interior C = ∅) :
+    Module.finrank ℝ (affineSpan ℝ C).direction < Module.finrank ℝ V := by
+  by_contra hn
+  have hdir : (affineSpan ℝ C).direction = ⊤ :=
+    Submodule.eq_top_of_finrank_eq (le_antisymm (Submodule.finrank_le _) (by omega))
+  have hne : (affineSpan ℝ C : Set V).Nonempty :=
+    (hi.mono intrinsicInterior_subset).mono (subset_affineSpan ℝ C)
+  have hs : affineSpan ℝ C = ⊤ := (AffineSubspace.direction_eq_top_iff_of_nonempty hne).mp hdir
+  rw [intrinsicInterior, hs] at hi
+  have hopen : IsOpenMap ((↑) : (⊤ : AffineSubspace ℝ V) → V) :=
+    (show IsOpen ((⊤ : AffineSubspace ℝ V) : Set V) from isOpen_univ).isOpenMap_subtype_val
+  have hsub := (hopen.image_interior_subset (((↑) : (⊤ : AffineSubspace ℝ V) → V) ⁻¹' C)).trans
+    (interior_mono (Set.image_preimage_subset _ _))
+  have hh := hi.mono hsub
+  simpa [he] using hh
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"∂A is covered by its facets". Apply the boundary covering lemma to the
+finite listed prototype cells. -/
+private theorem header_finiteness_step10_prototype_facets
+    (A : PolyManifoldDomain d) (K : CellComplex A) (p : E d)
+    (hp : p ∈ frontier A.carrier) :
+    ∃ e ∈ K.cells, e.dim = d - 1 ∧ p ∈ e.carrier := by
+  obtain ⟨e, he, hdim⟩ := header_finiteness_step10_boundary_facets A.carrier
+    A.compact.isClosed A.regularClosed (fun e : {e // e ∈ K.cells} => e.val.carrier)
+    (fun e => e.val.flat.compact.isClosed) (by
+      intro x hx
+      rw [← K.carriers_cover] at hx
+      obtain ⟨e, he, hx⟩ := by simpa only [Set.mem_iUnion, exists_prop] using hx
+      exact Set.mem_iUnion.mpr ⟨⟨e, he⟩, hx⟩)
+    (fun e => by
+      change Module.finrank ℝ (cellDirection e.val.carrier) < Module.finrank ℝ (E d)
+      rw [e.val.flat.dimension]
+      simpa using K.dim_lt e.val e.property) p hp
+  refine ⟨e.val, e.property, ?_, he⟩
+  change Module.finrank ℝ (cellDirection e.val.carrier) + 1 = Module.finrank ℝ (E d) at hdim
+  rw [e.val.flat.dimension] at hdim
+  have hh : e.val.dim + 1 = d := by simpa using hdim
+  omega
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"the relative boundary of each cell is covered by the facets of that
+cell". Work in its direction space, using an affine isometry from that
+space onto its affine hull. -/
+private theorem header_finiteness_step10_cell_facets
+    (A : PolyManifoldDomain d) (K : CellComplex A)
+    (e : Cell d) (he : e ∈ K.cells) (p : E d) (hp : p ∈ relfrontier e.carrier) :
+    ∃ f ∈ K.cells, f.dim + 1 = e.dim ∧ p ∈ f.carrier ∧ f.carrier ⊆ e.carrier := by
+  classical
+  let H := affineSpan ℝ e.carrier
+  have hpe : p ∈ e.carrier := intrinsicFrontier_subset e.flat.compact.isClosed hp
+  let q : H := ⟨p, mem_affineSpan ℝ hpe⟩
+  letI : Nonempty H := ⟨q⟩
+  let ψ : H.direction ≃ᵃⁱ[ℝ] H := AffineIsometryEquiv.vaddConst ℝ q
+  let φ : H.direction →ᵃⁱ[ℝ] E d := H.subtypeₐᵢ.comp ψ.toAffineIsometry
+  let C : Set H.direction := φ ⁻¹' e.carrier
+  have himage (D : Set (E d)) (hD : D ⊆ H) : φ '' (φ ⁻¹' D) = D := by
+    apply Set.image_preimage_eq_of_subset
+    intro x hx
+    exact ⟨ψ.symm ⟨x, hD hx⟩, by
+      change (ψ (ψ.symm ⟨x, hD hx⟩) : E d) = x
+      rw [ψ.apply_symm_apply]⟩
+  have heH : e.carrier ⊆ H := subset_affineSpan ℝ e.carrier
+  have hCimage : φ '' C = e.carrier := himage _ heH
+  have hinter : φ '' interior C = relint e.carrier := by
+    change (((↑) : H → E d) ∘ ψ.toHomeomorph) '' interior (ψ.toHomeomorph ⁻¹' (((↑) : H → E d) ⁻¹' e.carrier)) = _
+    rw [Set.image_comp, ψ.toHomeomorph.image_interior, ψ.toHomeomorph.image_preimage]
+    rfl
+  have hfront : φ '' frontier C = relfrontier e.carrier := by
+    change (((↑) : H → E d) ∘ ψ.toHomeomorph) '' frontier (ψ.toHomeomorph ⁻¹' (((↑) : H → E d) ⁻¹' e.carrier)) = _
+    rw [Set.image_comp, ψ.toHomeomorph.image_frontier, ψ.toHomeomorph.image_preimage]
+    rfl
+  have hCclosed : IsClosed C := e.flat.compact.isClosed.preimage φ.continuous
+  have hCreg : closure (interior C) = C := by
+    apply φ.injective.image_injective
+    rw [← φ.isometry.isClosedEmbedding.closure_image_eq, hinter, e.flat.regularClosed, hCimage]
+  obtain ⟨b, hb, hboundary⟩ := K.boundary_union e he
+  have hbsub (f : {f // f ∈ b}) : f.val.carrier ⊆ relfrontier e.carrier := by
+    intro x hx
+    rw [hboundary]
+    exact Set.mem_iUnion.mpr ⟨f.val, Set.mem_iUnion.mpr ⟨f.property, hx⟩⟩
+  have hbH (f : {f // f ∈ b}) : f.val.carrier ⊆ H :=
+    (hbsub f).trans ((intrinsicFrontier_subset e.flat.compact.isClosed).trans heH)
+  let D (f : {f // f ∈ b}) : Set H.direction := φ ⁻¹' f.val.carrier
+  have hDfront (f : {f // f ∈ b}) : D f ⊆ frontier C := by
+    intro x hx
+    have hh := hbsub f hx
+    rw [← hfront] at hh
+    exact φ.injective.mem_set_image.mp hh
+  have hDdim (f : {f // f ∈ b}) :
+      Module.finrank ℝ (affineSpan ℝ (D f)).direction = f.val.dim := by
+    have heq : (affineSpan ℝ f.val.carrier).direction =
+        ((affineSpan ℝ (D f)).direction).map H.direction.subtype := by
+      rw [← himage f.val.carrier (hbH f)]
+      change (affineSpan ℝ (φ.toAffineMap '' D f)).direction = _
+      rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+      rfl
+    have hh := f.val.flat.dimension
+    change Module.finrank ℝ (affineSpan ℝ f.val.carrier).direction = f.val.dim at hh
+    rw [heq, Submodule.finrank_map_subtype_eq] at hh
+    exact hh
+  have hDlow (f : {f // f ∈ b}) :
+      Module.finrank ℝ (affineSpan ℝ (D f)).direction < Module.finrank ℝ H.direction := by
+    apply header_finiteness_step10_rank_lt
+    · have hh := f.val.flat.relint_nonempty
+      change (intrinsicInterior ℝ f.val.carrier).Nonempty at hh
+      rw [← himage f.val.carrier (hbH f), φ.image_intrinsicInterior, Set.image_nonempty] at hh
+      exact hh
+    · apply Set.eq_empty_iff_forall_notMem.mpr
+      intro x hx
+      have hh := interior_mono (hDfront f) hx
+      simpa [interior_frontier hCclosed] using hh
+  have hpC : ψ.symm q ∈ frontier C := by
+    apply φ.injective.mem_set_image.mp
+    rw [hfront]
+    simpa [φ] using hp
+  obtain ⟨f, hpf, hfdim⟩ := header_finiteness_step10_boundary_facets C hCclosed hCreg D
+    (fun f => f.val.flat.compact.isClosed.preimage φ.continuous) (by
+      intro x hx
+      have hh : φ x ∈ relfrontier e.carrier := hfront ▸ Set.mem_image_of_mem φ hx
+      rw [hboundary] at hh
+      obtain ⟨f, hf, hxf⟩ := by simpa only [Set.mem_iUnion, exists_prop] using hh
+      exact Set.mem_iUnion.mpr ⟨⟨f, hf⟩, hxf⟩) hDlow (ψ.symm q) hpC
+  refine ⟨f.val, hb f.property, ?_, ?_,
+    (hbsub f).trans (intrinsicFrontier_subset e.flat.compact.isClosed)⟩
+  · rw [hDdim] at hfdim
+    exact hfdim.trans e.flat.dimension
+  · change φ (ψ.symm q) ∈ f.val.carrier at hpf
+    simpa [φ] using hpf
+
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15):
+"each still containing the vertex". A listed vertex in a positive-dimensional
+listed cell lies in that cell's relative boundary, since listed relative
+interiors are disjoint. -/
+private theorem header_finiteness_step10_vertex_boundary
+    (A : PolyManifoldDomain d) (K : CellComplex A)
+    (v : Cell d) (hv : v ∈ K.vertices) (p : E d) (hp : p ∈ v.carrier)
+    (e : Cell d) (he : e ∈ K.cells) (hpe : p ∈ e.carrier) (hdim : 0 < e.dim) :
+    p ∈ relfrontier e.carrier := by
+  have hvdim : v.dim = 0 := (Finset.mem_filter.mp hv).2
+  have hvK : v ∈ K.cells := (Finset.mem_filter.mp hv).1
+  have hbot : cellDirection v.carrier = ⊥ :=
+    Submodule.finrank_eq_zero.mp (v.flat.dimension.trans hvdim)
+  have hsingle : v.carrier.Subsingleton := by
+    apply (vectorSpan_eq_bot_iff_subsingleton ℝ).mp
+    simpa only [cellDirection, direction_affineSpan] using hbot
+  have hvp : v.carrier = {p} := hsingle.eq_singleton_of_mem hp
+  have hpv : p ∈ relint v.carrier := by simp [relint, hvp]
+  have hne : v ≠ e := by
+    intro h
+    have := h ▸ hvdim
+    omega
+  have hnot : p ∉ relint e.carrier := fun hh =>
+    Set.disjoint_left.mp (K.relint_disjoint v hvK e he hne) hpv hh
+  change p ∈ intrinsicFrontier ℝ e.carrier
+  rw [← closure_diff_intrinsicInterior, e.flat.compact.isClosed.closure_eq]
+  exact ⟨hpe, hnot⟩
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15, used in 1.17):
+"starting from a facet through the vertex one descends through incident
+facets of facets". Reversing this descending sequence gives the complete
+nested flag at the original listed vertex. -/
+private theorem header_finiteness_step10_prototype_flag
+    (A : PolyManifoldDomain d) (K : CellComplex A)
+    (v : Cell d) (hv : v ∈ K.vertices) (p : E d) (hp : p ∈ v.carrier) :
+    ∃ f : CellFlag K, ∀ j, p ∈ (f.cell j).carrier := by
+  classical
+  have hpA : p ∈ frontier A.carrier := by
+    rw [← K.carriers_cover]
+    exact Set.mem_iUnion.mpr ⟨v, Set.mem_iUnion.mpr ⟨(Finset.mem_filter.mp hv).1, hp⟩⟩
+  obtain ⟨e, he, hdim, hpe⟩ := header_finiteness_step10_prototype_facets A K p hpA
+  let I := {e : Cell d // e ∈ K.cells ∧ p ∈ e.carrier}
+  have hnext (e : I) (h : 0 < e.val.dim) :
+      ∃ f : I, f.val.dim + 1 = e.val.dim ∧ f.val.carrier ⊆ e.val.carrier := by
+    obtain ⟨f, hf, hfdim, hpf, hsub⟩ := header_finiteness_step10_cell_facets A K e.val e.property.1 p
+      (header_finiteness_step10_vertex_boundary A K v hv p hp e.val e.property.1 e.property.2 h)
+    exact ⟨⟨f, hf, hpf⟩, hfdim, hsub⟩
+  let next (e : I) : I := if h : 0 < e.val.dim then (hnext e h).choose else e
+  have next_dim (e : I) : (next e).val.dim = e.val.dim - 1 := by
+    by_cases h : 0 < e.val.dim
+    · have hh := (hnext e h).choose_spec.1
+      simp only [next, dif_pos h]
+      omega
+    · have hh : e.val.dim = 0 := by omega
+      simp [next, h, hh]
+  have next_sub (e : I) : (next e).val.carrier ⊆ e.val.carrier := by
+    by_cases h : 0 < e.val.dim
+    · simpa only [next, dif_pos h] using (hnext e h).choose_spec.2
+    · simp [next, h]
+  let c (n : ℕ) : I := next^[n] ⟨e, he, hpe⟩
+  have c_succ (n : ℕ) : c (n + 1) = next (c n) := Function.iterate_succ_apply' next n _
+  have c_dim (n : ℕ) : (c n).val.dim = d - 1 - n := by
+    induction n with
+    | zero => simpa [c] using hdim
+    | succ n ih => rw [c_succ, next_dim, ih]; omega
+  have c_anti : Antitone (fun n => (c n).val.carrier) := by
+    apply antitone_nat_of_succ_le
+    intro n
+    rw [c_succ]
+    exact next_sub (c n)
+  let f : CellFlag K :=
+    { cell := fun j => (c (d - 1 - j.val)).val
+      mem := fun j => (c (d - 1 - j.val)).property.1
+      dimension := fun j => by rw [c_dim]; omega
+      nested := fun i j hij => c_anti (by have := i.isLt; have := j.isLt; omega) }
+  exact ⟨f, fun j => (c (d - 1 - j.val)).property.2⟩
+
+/-- Step 10 of the V4 proof of `header_finiteness` (V4 1.15, used in 1.17):
+"the boundary complex of a polyhedral manifold has a full flag at every
+vertex". This is only the initial flag, before any substitution is applied. -/
+private theorem header_finiteness_step10_vertex_flag
+    (t : FramedNode S) (p : E d) (hp : t.Lists 0 p) :
+    ∃ f : CellFlag (S.cx t.ty), ∀ j, p ∈ t.cell 0 (f.cell j) := by
+  obtain ⟨v, hv, x, hx, hxp⟩ := hp
+  obtain ⟨f, hf⟩ := header_finiteness_step10_prototype_flag (S.proto t.ty) (S.cx t.ty) v hv x hx
+  exact ⟨f, fun j => ⟨x, hf j, hxp⟩⟩
+
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". Conjugated frames intertwine successive expansions. -/
+private theorem header_finiteness_step11_conjugate_succ
+    (R : E d ≃ₗ[ℝ] E d) (n : ℕ) (x : E d) :
+    linearConj S.σ ((n + 1 : ℕ) : ℤ) R (S.σ x) =
+      S.σ (linearConj S.σ (n : ℤ) R x) := by
+  have heq : linearConj S.σ ((n + 1 : ℕ) : ℤ) R * S.σ =
+      S.σ * linearConj S.σ (n : ℤ) R := by
+    simp only [linearConj, Nat.cast_add, Nat.cast_one]
+    group
+  exact congrArg (fun L : E d ≃ₗ[ℝ] E d => L x) heq
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". The prescribed role frame has the same covariance. -/
+private theorem header_finiteness_step11_placeChild_succ
+    {A : S.ι} (i : S.I A) (n : ℕ) (x : E d) :
+    S.placeChild (n + 1) i (S.σ x) = S.σ (S.placeChild n i x) := by
+  rw [S.placeChild_apply, S.placeChild_apply,
+    header_finiteness_step11_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". At height zero the role frame is the prescribed child frame. -/
+private theorem header_finiteness_step11_placeChild_zero
+    {A : S.ι} (i : S.I A) : S.placeChild 0 i = (S.child A i).frame := by
+  apply AffineIsometryEquiv.ext
+  intro x
+  change linearConj S.σ (0 : ℤ) (S.child A i).rotation.toLinearEquiv x +
+      (S.σ ^ 0) (S.child A i).offset =
+    (S.child A i).rotation x + (S.child A i).offset
+  simp [linearConj]
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". Append a child role to a native address,
+leaving its original patch root fixed. -/
+private def header_finiteness_step11_append (S : SubstSystem d) :
+    (A : S.ι) → (n : ℕ) → (w : S.RoleWord A n) →
+      S.I (S.nativeTile A n w).ty → S.RoleWord A (n + 1)
+  | A, 0, _, i => ⟨i, ()⟩
+  | A, n + 1, w, i => ⟨w.1,
+      header_finiteness_step11_append S (S.child A w.1).ty n w.2 i⟩
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the child t_{n+1}". Appending a role retains its prescribed child type. -/
+private theorem header_finiteness_step11_append_type
+    (A : S.ι) (n : ℕ) (w : S.RoleWord A n) (i : S.I (S.nativeTile A n w).ty) :
+    (S.nativeTile A (n + 1) (header_finiteness_step11_append S A n w i)).ty =
+      (S.child (S.nativeTile A n w).ty i).ty := by
+  induction n generalizing A with
+  | zero => rfl
+  | succ n ih => exact ih (S.child A w.1).ty w.2 i
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". Appending a role realizes subdivision after
+inflation, even though the native-address recursion reads roles from the root. -/
+private theorem header_finiteness_step11_append_frame
+    (A : S.ι) (n : ℕ) (w : S.RoleWord A n) (i : S.I (S.nativeTile A n w).ty)
+    (x : E d) :
+    (S.nativeTile A (n + 1) (header_finiteness_step11_append S A n w i)).frame x =
+      S.σ ((S.nativeTile A n w).frame (S.σ.symm ((S.child (S.nativeTile A n w).ty i).frame x))) := by
+  induction n generalizing A with
+  | zero =>
+    change S.placeChild 0 i x = S.σ (S.σ.symm ((S.child A i).frame x))
+    rw [S.σ.apply_symm_apply, header_finiteness_step11_placeChild_zero]
+    rfl
+  | succ n ih =>
+    change S.placeChild (0 + (n + 1)) w.1
+      ((S.nativeTile (S.child A w.1).ty (n + 1)
+        (header_finiteness_step11_append S (S.child A w.1).ty n w.2 i)).frame x) =
+      S.σ (S.placeChild (0 + n) w.1 ((S.nativeTile (S.child A w.1).ty n w.2).frame
+        (S.σ.symm ((S.child (S.nativeTile (S.child A w.1).ty n w.2).ty i).frame x))))
+    simp only [Nat.zero_add]
+    rw [ih, header_finiteness_step11_placeChild_succ]
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". The patch's specified ground frame obeys the
+same covariance as a substitution role frame. -/
+private theorem header_finiteness_step11_inflated_frame_succ
+    (t : FramedNode S) (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup)
+    (n : ℕ) (x : E d) :
+    compatibleInflatedFrame t ht (n + 1) (S.σ x) =
+      S.σ (compatibleInflatedFrame t ht n x) := by
+  have hQ (n : ℕ) (x : E d) :
+      (Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)) x =
+      linearConj S.σ (n : ℤ) t.frame.linearIsometryEquiv.toLinearEquiv x :=
+    congrArg (fun L : E d ≃ₗ[ℝ] E d => L x)
+      (Classical.choose_spec (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)).2
+  change (Classical.choose (S.rotGroup_conj_zpow ((n + 1 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) (S.σ x) + (S.σ ^ (n + 1)) (t.frame 0) =
+    S.σ ((Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+      t.frame.linearIsometryEquiv ht)) x + (S.σ ^ n) (t.frame 0))
+  rw [hQ, hQ, header_finiteness_step11_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". The appended address uses exactly the actual
+frame of the inflated patch tile followed by the prescribed child frame. -/
+private theorem header_finiteness_step11_native_child
+    (P : CompatiblePatch S) (n : ℕ) (a : P.Address n) (i : S.I (P.native n a).ty) :
+    ∃ b : P.Address (n + 1),
+      (P.native (n + 1) b).ty = (S.child (P.native n a).ty i).ty ∧
+      ∀ x, (P.native (n + 1) b).frame x =
+        S.σ ((P.native n a).frame (S.σ.symm ((S.child (P.native n a).ty i).frame x))) := by
+  refine ⟨⟨a.1, header_finiteness_step11_append S a.1.val.ty n a.2 i⟩,
+    header_finiteness_step11_append_type a.1.val.ty n a.2 i, ?_⟩
+  intro x
+  change compatibleInflatedFrame a.1.val (P.compatible _ a.1.property) (n + 1)
+    ((S.nativeTile a.1.val.ty (n + 1)
+      (header_finiteness_step11_append S a.1.val.ty n a.2 i)).frame x) = _
+  rw [header_finiteness_step11_append_frame, header_finiteness_step11_inflated_frame_succ]
+  rfl
+
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"cells of t_n". A ground cell is placed directly by its tile frame. -/
+private theorem header_finiteness_step11_cell_zero (t : FramedNode S) (e : Cell d) :
+    t.cell 0 e = t.frame '' e.carrier := rfl
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"cells of t_n". The ground carrier is the isometric prototype carrier. -/
+private theorem header_finiteness_step11_carrier_zero (t : FramedNode S) :
+    t.carrier 0 = t.frame '' (S.proto t.ty).carrier := by
+  simp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"cells of t_n". A listed cell is contained in its closed tile carrier. -/
+private theorem header_finiteness_step11_cell_subset (t : FramedNode S)
+    (e : Cell d) (he : e ∈ (S.cx t.ty).cells) : t.cell 0 e ⊆ t.carrier 0 := by
+  rw [header_finiteness_step11_cell_zero, header_finiteness_step11_carrier_zero]
+  apply Set.image_mono
+  intro x hx
+  apply (S.proto t.ty).compact.isClosed.frontier_subset
+  rw [← (S.cx t.ty).carriers_cover]
+  exact Set.mem_iUnion.mpr ⟨e, Set.mem_iUnion.mpr ⟨he, hx⟩⟩
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"σ e is a union of placed j-cells of the children". An expanded incident
+cell has an incident native child cell of the same dimension; its carrier
+is contained in the expanded parent cell. No uniqueness is used in this step. -/
+private theorem header_finiteness_step11_refinement
+    (P : CompatiblePatch S) (p : E d) (n : ℕ) (a : P.Incident p n)
+    (e : CellName S (P.native n a.val).ty)
+    (he : (S.σ ^ n) p ∈ (P.native n a.val).cell 0 e.val) :
+    ∃ (b : P.Incident p (n + 1)) (f : CellName S (P.native (n + 1) b.val).ty),
+      P.IncidentChild p n a b ∧ f.val.dim = e.val.dim ∧
+      (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b.val).cell 0 f.val ∧
+      (P.native (n + 1) b.val).cell 0 f.val ⊆
+        S.σ '' (P.native n a.val).cell 0 e.val := by
+  classical
+  rw [header_finiteness_step11_cell_zero] at he
+  obtain ⟨x, hxe, hxp⟩ := he
+  obtain ⟨c, hc⟩ := S.heredity (P.native n a.val).ty e.val e.property
+  have hsx : S.σ x ∈ ⋃ q ∈ c, placedSet (S.child (P.native n a.val).ty q.1).frame q.2.val.carrier := by
+    rw [← hc]
+    exact Set.mem_image_of_mem S.σ hxe
+  obtain ⟨q, hq, y, hy, hyx⟩ := by
+    simpa only [Set.mem_iUnion, exists_prop, placedSet, Set.mem_image] using hsx
+  obtain ⟨b, hty, hframe⟩ := header_finiteness_step11_native_child P n a.val q.1
+  have hmem : q.2.val ∈ (S.cx (P.native (n + 1) b).ty).cells := by
+    rw [hty]
+    exact q.2.property.1
+  have hpoint : (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b).cell 0 q.2.val := by
+    rw [header_finiteness_step11_cell_zero]
+    refine ⟨y, hy, ?_⟩
+    rw [hframe, hyx, S.σ.symm_apply_apply, hxp, pow_succ']
+    rfl
+  have hinc : (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b).carrier 0 :=
+    header_finiteness_step11_cell_subset _ _ hmem hpoint
+  have hsub : ∀ (K L : Set (E d)),
+      (S.child (P.native n a.val).ty q.1).frame '' K ⊆ S.σ '' L →
+      (P.native (n + 1) b).frame '' K ⊆ S.σ '' ((P.native n a.val).frame '' L) := by
+    intro K L h z hz
+    obtain ⟨u, hu, rfl⟩ := hz
+    obtain ⟨v, hv, hvu⟩ := h (Set.mem_image_of_mem _ hu)
+    refine ⟨(P.native n a.val).frame v, Set.mem_image_of_mem _ hv, ?_⟩
+    rw [hframe, ← hvu, S.σ.symm_apply_apply]
+  refine ⟨⟨b, hinc⟩, ⟨q.2.val, hmem⟩, ?_, q.2.property.2, hpoint, ?_⟩
+  · change (P.native (n + 1) b).carrier 0 ⊆ S.σ '' (P.native n a.val).carrier 0
+    rw [header_finiteness_step11_carrier_zero, header_finiteness_step11_carrier_zero, hty]
+    apply hsub
+    rw [S.children_cover]
+    exact Set.subset_iUnion (fun i => placedSet (S.child (P.native n a.val).ty i).frame
+      (S.proto (S.child (P.native n a.val).ty i).ty).carrier) q.1
+  · rw [header_finiteness_step11_cell_zero, header_finiteness_step11_cell_zero]
+    apply hsub
+    rw [hc]
+    intro z hz
+    exact Set.mem_iUnion.mpr ⟨q, Set.mem_iUnion.mpr ⟨hq, hz⟩⟩
+
+/-- Step 12 of the V4 proof of `header_finiteness` (V4 1.17):
+"regarded as the tuple of its direction spaces". Taking directions of a
+placed cell removes translation and retains the actual orthogonal frame. -/
+private theorem header_finiteness_step12_frame_direction
+    (t : FramedNode S) (e : Cell d) :
+    cellDirection (t.cell 0 e) =
+      (cellDirection e.carrier).map t.frame.linearIsometryEquiv.toLinearEquiv.toLinearMap := by
+  change (affineSpan ℝ (t.frame.toAffineEquiv.toAffineMap '' e.carrier)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  rfl
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"its affine hull is σ aff e by dimension". Direction spaces commute
+with every invertible linear map, including the anisotropic expansion. -/
+private theorem header_finiteness_step11_linear_direction
+    (L : E d ≃ₗ[ℝ] E d) (K : Set (E d)) :
+    cellDirection (L '' K) = (cellDirection K).map L.toLinearMap := by
+  change (affineSpan ℝ (L.toAffineEquiv.toAffineMap '' K)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  rfl
+
+/-- Step 11 of the V4 proof of `header_finiteness` (V4 1.15, Claim, used in 1.17):
+"some j-cell ... contains [the vertex] and lies in σ e". Heredity at a
+unique incident child preserves the direction of one listed cell.
+The uniqueness hypothesis excludes branching, and the cell must contain the anchor. -/
+private theorem header_finiteness_step11_child_cell
+    (P : CompatiblePatch S) (p : E d) (n : ℕ)
+    (a : P.Incident p n) (b : P.Incident p (n + 1))
+    (hab : P.IncidentChild p n a b)
+    (hunique : ∀ b' : P.Incident p (n + 1), P.IncidentChild p n a b' → b' = b)
+    (e : CellName S (P.native n a.val).ty)
+    (he : (S.σ ^ n) p ∈ (P.native n a.val).cell 0 e.val) :
+    ∃ f : CellName S (P.native (n + 1) b.val).ty,
+      f.val.dim = e.val.dim ∧
+      (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b.val).cell 0 f.val ∧
+      cellDirection ((P.native (n + 1) b.val).cell 0 f.val) =
+        (cellDirection ((P.native n a.val).cell 0 e.val)).map S.σ.toLinearMap := by
+  obtain ⟨b', f, hb', hdim, hf, hsub⟩ := header_finiteness_step11_refinement P p n a e he
+  obtain rfl := hunique b' hb'
+  refine ⟨f, hdim, hf, ?_⟩
+  have hle := AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
+  change cellDirection ((P.native (n + 1) b'.val).cell 0 f.val) ≤
+    cellDirection (S.σ '' (P.native n a.val).cell 0 e.val) at hle
+  rw [header_finiteness_step11_linear_direction] at hle
+  apply Submodule.eq_of_le_of_finrank_eq hle
+  rw [header_finiteness_step12_frame_direction, header_finiteness_step12_frame_direction]
+  simp only [LinearEquiv.finrank_map_eq]
+  exact f.val.flat.dimension.trans (hdim.trans e.val.flat.dimension.symm)
+
+
+/-- Step 13 of the V4 proof of `header_finiteness` (V4 1.17):
+"the Claim in the proof of 1.15 ... gives a native flag". Iterate the
+single-cell transport along a nonbranching listing tail; the transported
+cells need not be nested, but their direction spaces are a complete flag. -/
+private theorem header_finiteness_step13_tail_flag
+    (P : CompatiblePatch S) (p : E d) (N : ℕ) (t : P.IncidentTail p N)
+    (hunique : ∀ m (b : P.Incident p (N + m + 1)),
+      P.IncidentChild p (N + m) (t.node m) b → b = t.node (m + 1))
+    (hlisted : (P.native N (t.node 0).val).Lists 0 ((S.σ ^ N) p)) :
+    ∃ V : ℕ → Submodule ℝ (E d),
+      (∀ i ≤ d, Module.finrank ℝ (V i) = i) ∧
+      (∀ i < d, V i ≤ V (i + 1)) ∧
+      (∀ i ≤ d, V i ∈ S.hPi ∨ V i = ⊤) ∧
+      ∀ m i, i ≤ d →
+        ((V i).map (S.σ ^ m).toLinearMap).map
+          (P.native (N + m) (t.node m).val).frame.linearIsometryEquiv.symm.toLinearEquiv.toLinearMap
+          ∈ S.cellDirections ∪ {⊤} := by
+  classical
+  obtain ⟨f, hf⟩ := header_finiteness_step10_vertex_flag _ _ hlisted
+  let V (i : ℕ) : Submodule ℝ (E d) :=
+    if hi : i < d then cellDirection ((P.native N (t.node 0).val).cell 0 (f.cell ⟨i, hi⟩))
+    else ⊤
+  have hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i := by
+    intro i hi
+    by_cases hid : i < d
+    · rw [show V i = cellDirection ((P.native N (t.node 0).val).cell 0 (f.cell ⟨i, hid⟩))
+          from dif_pos hid, header_finiteness_step12_frame_direction, LinearEquiv.finrank_map_eq]
+      exact (f.cell ⟨i, hid⟩).flat.dimension.trans (f.dimension ⟨i, hid⟩)
+    · have heq : i = d := by omega
+      rw [show V i = ⊤ from dif_neg hid]
+      simp [heq]
+  have hmono : ∀ i < d, V i ≤ V (i + 1) := by
+    intro i hi
+    by_cases hj : i + 1 < d
+    · simp only [V, dif_pos hi, dif_pos hj, header_finiteness_step12_frame_direction]
+      apply Submodule.map_mono
+      exact AffineSubspace.direction_le (affineSpan_mono ℝ
+        (f.nested ⟨i, hi⟩ ⟨i + 1, hj⟩ (by simp)))
+    · simp [V, hj]
+  have hV : ∀ i ≤ d, V i ∈ S.hPi ∨ V i = ⊤ := by
+    intro i hi
+    by_cases hid : i < d
+    · left
+      refine ⟨cellDirection (f.cell ⟨i, hid⟩).carrier,
+        ⟨(P.native N (t.node 0).val).ty, f.cell ⟨i, hid⟩, f.mem _, rfl⟩,
+        (P.native N (t.node 0).val).frame.linearIsometryEquiv,
+        P.native_compatible N (t.node 0).val, ?_⟩
+      simp only [V, dif_pos hid, header_finiteness_step12_frame_direction]
+    · exact Or.inr (by simp [V, hid])
+  have hcell (i : ℕ) (hi : i < d) : ∀ m : ℕ,
+      ∃ e : CellName S (P.native (N + m) (t.node m).val).ty,
+        (S.σ ^ (N + m)) p ∈ (P.native (N + m) (t.node m).val).cell 0 e.val ∧
+        cellDirection ((P.native (N + m) (t.node m).val).cell 0 e.val) =
+          (V i).map (S.σ ^ m).toLinearMap := by
+    intro m
+    induction m with
+    | zero =>
+      refine ⟨⟨f.cell ⟨i, hi⟩, f.mem _⟩, hf _, ?_⟩
+      simp [V, hi]
+    | succ m ih =>
+      obtain ⟨e, he, hdir⟩ := ih
+      obtain ⟨e', _, he', hdir'⟩ := header_finiteness_step11_child_cell P p
+        (N + m) (t.node m) (t.node (m + 1)) (t.step m) (hunique m) e he
+      refine ⟨e', he', ?_⟩
+      calc
+        _ = (cellDirection ((P.native (N + m) (t.node m).val).cell 0 e.val)).map
+            S.σ.toLinearMap := hdir'
+        _ = _ := by
+          rw [hdir, ← Submodule.map_comp]
+          simp [pow_succ', LinearEquiv.coe_toLinearMap_mul, Module.End.mul_eq_comp]
+  refine ⟨V, hdim, hmono, hV, ?_⟩
+  intro m i hi
+  by_cases hid : i < d
+  · obtain ⟨e, he, hdir⟩ := hcell i hid m
+    rw [← hdir, header_finiteness_step12_frame_direction, ← Submodule.map_comp]
+    simp only [LinearIsometryEquiv.toLinearEquiv_symm, LinearEquiv.comp_coe,
+      LinearEquiv.self_trans_symm, LinearEquiv.refl_toLinearMap, Submodule.map_id]
+    exact Or.inl ⟨(P.native (N + m) (t.node m).val).ty, e.val, e.property, rfl⟩
+  · simp [V, hid, Submodule.map_top]
+
+/-- Step 14 of the V4 proof of `header_finiteness` (V4 1.17):
+"the header ... takes finitely many values" on a listing tail. Pulling
+the initial flag back by σ^N lets the power formula apply to the original
+cone tuple, without assuming that the frames commute with σ. -/
+private theorem header_finiteness_step14_listing_tail
+    (P : CompatiblePatch S) (F : PowerFactorisation S) (p : E d)
+    (N : ℕ) (t : P.IncidentTail p N)
+    (hunique : ∀ m (b : P.Incident p (N + m + 1)),
+      P.IncidentChild p (N + m) (t.node m) b → b = t.node (m + 1))
+    (hlisted : (P.native N (t.node 0).val).Lists 0 ((S.σ ^ N) p))
+    {s : ℕ} (G : Fin s → Set (E d)) (hG : ∀ j, HPiCone S.hPi (G j)) :
+    (Set.range (fun m => fun j =>
+      (P.native (N + m) (t.node m).val).frame.linearIsometryEquiv.symm ''
+        ((S.σ ^ (N + m)) '' G j))).Finite := by
+  obtain ⟨V, hdim, hmono, hV, hframe⟩ :=
+    header_finiteness_step13_tail_flag P p N t hunique hlisted
+  let W (i : ℕ) := (V i).map ((S.σ ^ N)⁻¹).toLinearMap
+  apply header_finiteness_step9_residual_rotations F N
+    (fun m => (P.native (N + m) (t.node m).val).frame.linearIsometryEquiv) W
+    (fun i hi => (LinearEquiv.finrank_map_eq _ _).trans (hdim i hi))
+    (fun i hi => Submodule.map_mono (hmono i hi)) ?_ ?_ G hG
+  · intro i hi
+    rcases hV i hi with h | h
+    · exact Or.inl (header_finiteness_step8_inverse_directions N (V i) h)
+    · exact Or.inr (by simp [W, h])
+  · intro m i hi
+    have heq : (W i).map (S.σ ^ (N + m)).toLinearMap =
+        (V i).map (S.σ ^ m).toLinearMap := by
+      simp only [W, ← Submodule.map_comp, ← Module.End.mul_eq_comp,
+        ← LinearEquiv.coe_toLinearMap_mul]
+      rw [Nat.add_comm N m, pow_add, mul_inv_cancel_right]
+    rw [heq]
+    exact hframe m i hi
+
+/-- Step 15 of the V4 proof of `header_finiteness` (V4 1.17):
+"beyond all branching". Starting at the unique-child cutoff, recursively
+choose the unique children. Every later incident tile belongs to one of
+these tails, indexed by the finite set of incident tiles at the cutoff. -/
+private theorem header_finiteness_step15_tail_cover
+    (P : CompatiblePatch S) [Nonempty S.ι] (p : E d) :
+    ∃ (N : ℕ) (t : P.Incident p N → P.IncidentTail p N),
+      (∀ m, Function.Surjective (fun a => (t a).node m)) ∧
+      ∀ n, N ≤ n → ∀ a : P.Incident p n,
+        ∃! b : P.Incident p (n + 1), P.IncidentChild p n a b := by
+  classical
+  obtain ⟨_, _, N, hN⟩ := P.incidentForest p
+  let next (m : ℕ) (a : P.Incident p (N + m)) : P.Incident p (N + (m + 1)) :=
+    Classical.choose (hN (N + m) (by omega) a)
+  have hnext (m : ℕ) (a : P.Incident p (N + m)) :
+      P.IncidentChild p (N + m) a (next m a) :=
+    (Classical.choose_spec (hN (N + m) (by omega) a)).1
+  let node (a : P.Incident p N) : ∀ m, P.Incident p (N + m) :=
+    fun m => Nat.rec a (fun m b => next m b) m
+  let t (a : P.Incident p N) : P.IncidentTail p N :=
+    ⟨node a, fun m => hnext m (node a m)⟩
+  refine ⟨N, t, ?_, hN⟩
+  intro m
+  induction m with
+  | zero => exact fun a => ⟨a, rfl⟩
+  | succ m ih =>
+    intro b
+    let a := P.incidentParent p (N + m) b
+    obtain ⟨a₀, ha₀⟩ := ih a
+    refine ⟨a₀, ?_⟩
+    change next m (node a₀ m) = b
+    change node a₀ m = a at ha₀
+    rw [ha₀]
+    exact ExistsUnique.unique (hN (N + m) (by omega) a)
+      (hnext m a) (P.incidentParent_spec p (N + m) b)
+
+/-- Step 16 of the V4 proof of `header_finiteness` (V4 1.17):
+"a tail either never lists ... or lists it from some depth on". A tail
+with no listing contributes nothing; otherwise split at a listing depth
+and keep the earlier, finite prefix separately. -/
+private theorem header_finiteness_step16_tail_listings
+    (P : CompatiblePatch S) (F : PowerFactorisation S) (p : E d)
+    (N : ℕ) (t : P.IncidentTail p N)
+    (hunique : ∀ n, N ≤ n → ∀ a : P.Incident p n,
+      ∃! b : P.Incident p (n + 1), P.IncidentChild p n a b)
+    {s : ℕ} (G : Fin s → Set (E d)) (hG : ∀ j, HPiCone S.hPi (G j)) :
+    {K | ∃ m, (P.native (N + m) (t.node m).val).Lists 0 ((S.σ ^ (N + m)) p) ∧
+      K = fun j => (P.native (N + m) (t.node m).val).frame.linearIsometryEquiv.symm ''
+        ((S.σ ^ (N + m)) '' G j)}.Finite := by
+  classical
+  let K (m : ℕ) := fun j =>
+    (P.native (N + m) (t.node m).val).frame.linearIsometryEquiv.symm ''
+      ((S.σ ^ (N + m)) '' G j)
+  by_cases h : ∃ k, (P.native (N + k) (t.node k).val).Lists 0 ((S.σ ^ (N + k)) p)
+  · obtain ⟨k, hk⟩ := h
+    have hcast (n m : ℕ) (h : n = m) (a : P.Incident p m) :
+        P.native n (h.symm ▸ a : P.Incident p n).val = P.native m a.val := by
+      cases h
+      rfl
+    let t' : P.IncidentTail p (N + k) :=
+      { node := fun r => (Nat.add_assoc N k r).symm ▸ t.node (k + r)
+        step := fun r => by
+          rw [hcast _ _ (Nat.add_assoc N k (r + 1)), hcast _ _ (Nat.add_assoc N k r)]
+          simpa only [Nat.add_assoc] using t.step (k + r) }
+    have hu (m : ℕ) (b : P.Incident p (N + k + m + 1))
+        (hb : P.IncidentChild p (N + k + m) (t'.node m) b) : b = t'.node (m + 1) :=
+      ExistsUnique.unique (hunique _ (by omega) (t'.node m)) hb (t'.step m)
+    have hl : (P.native (N + k) (t'.node 0).val).Lists 0 ((S.σ ^ (N + k)) p) := by
+      simpa [t'] using hk
+    have hf : (Set.range (fun r => K (k + r))).Finite := by
+      simpa only [t', K, hcast, Nat.add_assoc] using
+        header_finiteness_step14_listing_tail P F p (N + k) t' hu hl G hG
+    apply ((Set.finite_range (fun r : Fin k => K r.val)).union hf).subset
+    rintro C ⟨m, hm, rfl⟩
+    rcases lt_or_ge m k with hmk | hkm
+    · exact Or.inl ⟨⟨m, hmk⟩, rfl⟩
+    · exact Or.inr ⟨m - k, by simp only [Nat.add_sub_of_le hkm]; rfl⟩
+  · apply Set.finite_empty.subset
+    rintro C ⟨m, hm, _⟩
+    exact (h ⟨m, hm⟩).elim
+
+/-- Step 17 of the V4 proof of `header_finiteness` (V4 1.17):
+"Finitely many tails and the finite prefix give the result". Only listed
+incident tiles enter the union, so no common-listed assumption is needed. -/
+private theorem header_finiteness_step17_cone_tuples
+    (P : CompatiblePatch S) [Nonempty S.ι] (p : E d)
+    {s : ℕ} (G : Fin s → Set (E d)) (hG : ∀ j, HPiCone S.hPi (G j)) :
+    {K | ∃ (n : ℕ) (a : P.Incident p n),
+      (P.native n a.val).Lists 0 ((S.σ ^ n) p) ∧
+      K = fun j => (P.native n a.val).frame.linearIsometryEquiv.symm ''
+        ((S.σ ^ n) '' G j)}.Finite := by
+  classical
+  obtain ⟨F⟩ := power_factorisation S
+  obtain ⟨N, t, hcover, hN⟩ := header_finiteness_step15_tail_cover P p
+  have hpref : (⋃ n : Fin N, Set.range (fun a : P.Incident p n.val =>
+      fun j => (P.native n.val a.val).frame.linearIsometryEquiv.symm ''
+        ((S.σ ^ n.val) '' G j))).Finite :=
+    Set.finite_iUnion fun n => Set.finite_range _
+  have ht := Set.finite_iUnion fun a : P.Incident p N =>
+    header_finiteness_step16_tail_listings P F p N (t a) hN G hG
+  apply (hpref.union ht).subset
+  rintro K ⟨n, a, ha, rfl⟩
+  rcases lt_or_ge n N with hn | hn
+  · exact Or.inl (Set.mem_iUnion.mpr ⟨⟨n, hn⟩, a, rfl⟩)
+  · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hn
+    obtain ⟨a₀, rfl⟩ := hcover m a
+    exact Or.inr (Set.mem_iUnion.mpr ⟨a₀, m, ha, rfl⟩)
+
 /-- P12, V4 1.17: finite actual header tuples over all listing incident tiles.
 No common-listed hypothesis is needed: only tiles listing the anchor contribute. -/
 theorem header_finiteness (p : E d) {s : ℕ} (G : Fin s → Set (E d))
     (hG : ∀ j, HPiCone S.hPi (G j)) : (P.headers p G).Finite := by
-  sorry
+  classical
+  cases isEmpty_or_nonempty S.ι with
+  | inl h =>
+    letI := h
+    exact Set.finite_empty.subset (fun h _ => isEmptyElim h.ty)
+  | inr h =>
+    letI := h
+    let Label := Σ A : S.ι, {e // e ∈ (S.cx A).vertices}
+    have hf := (header_finiteness_step17_cone_tuples P p G hG).biUnion
+      (fun K _ => Set.finite_range (fun l : Label => (⟨l.1, l.2, K⟩ : Header S s)))
+    apply hf.subset
+    intro h hh
+    obtain ⟨n, a, hv, hty, hc⟩ := hh
+    have hlisted : (P.native n a.val).Lists 0 ((S.σ ^ n) p) := by
+      refine ⟨h.vertex.val, ?_, hv⟩
+      rw [← hty]
+      exact h.vertex.property
+    refine Set.mem_iUnion.mpr ⟨h.cones, Set.mem_iUnion.mpr
+      ⟨⟨n, a, hlisted, funext hc⟩, ?_⟩⟩
+    exact ⟨⟨h.ty, h.vertex⟩, by cases h; rfl⟩
 
 /-- P13, V4 1.18: a complete star in a chosen incident tile's isometric frame,
 with arbitrary labels from `Y`. Every incident tile and its vertex name is retained. -/

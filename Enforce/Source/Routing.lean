@@ -1226,6 +1226,320 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     exact Set.mem_iUnion.mpr ⟨⟨t, htf⟩, convexHull_mono (by simpa using hst) hxs⟩
   · exact Set.iUnion_subset fun f => K.convexHull_subset_space f.property.1
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"a connected union of facets". Every face of a finite complex is contained in a
+maximal face. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step1_facet_extension
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    {s : Finset (E d)} (hs : s ∈ K.faces) :
+    ∃ f ∈ K.facets, s ⊆ f := by
+  classical
+  let L := hfin.toFinset.filter (fun t => s ⊆ t)
+  have hsL : s ∈ L := by simp [L, hs]
+  obtain ⟨f, hf, hmax⟩ := L.exists_max_image Finset.card ⟨s, hsL⟩
+  have hfK : f ∈ K.faces := hfin.mem_toFinset.mp (Finset.mem_filter.mp hf).1
+  have hsf : s ⊆ f := (Finset.mem_filter.mp hf).2
+  refine ⟨f, ⟨hfK, ?_⟩, hsf⟩
+  intro g hg hfg
+  apply Finset.eq_of_subset_of_card_le hfg
+  exact hmax g (Finset.mem_filter.mpr ⟨hfin.mem_toFinset.mpr hg, hsf.trans hfg⟩)
+
+open scoped Topology in
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"a connected union of facets". An affine function nonnegative on a set is
+strictly positive at each relative interior point if it is positive somewhere
+on that set. Extrapolating a segment proves this supporting-hyperplane fact. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step2_positive_coordinate
+    {C : Set (E d)} {p x : E d} (hp : p ∈ relint C) (hx : x ∈ C)
+    (l : E d →ᵃ[ℝ] ℝ) (hl : ∀ y ∈ C, 0 ≤ l y) (hxpos : 0 < l x) :
+    0 < l p := by
+  by_contra hn
+  have hpzero : l p = 0 := le_antisymm (le_of_not_gt hn) (hl p (intrinsicInterior_subset hp))
+  obtain ⟨q, hq, rfl⟩ := hp
+  let γ : ℝ → affineSpan ℝ C := fun t =>
+    ⟨AffineMap.lineMap (q : E d) x (-t),
+      AffineMap.lineMap_mem _ q.property (subset_affineSpan ℝ C hx)⟩
+  have hγ : Continuous γ := by
+    apply Continuous.subtype_mk
+    fun_prop
+  have hγ0 : γ 0 = q := by ext; simp [γ]
+  have hev : ∀ᶠ t in 𝓝 (0 : ℝ), (γ t : E d) ∈ C := by
+    exact (hγ.tendsto 0).eventually (show ∀ᶠ (y : affineSpan ℝ C) in 𝓝 (γ 0), (y : E d) ∈ C from by
+      rw [hγ0]
+      exact mem_interior_iff_mem_nhds.mp hq)
+  obtain ⟨δ, hδ, hnear⟩ := Metric.eventually_nhds_iff.mp hev
+  have hmem : (γ (δ / 2) : E d) ∈ C := hnear (by
+    rw [Real.dist_eq, sub_zero, abs_of_pos (by positivity : 0 < δ / 2)]
+    linarith)
+  have hnonneg := hl _ hmem
+  change 0 ≤ l (AffineMap.lineMap (q : E d) x (-(δ / 2))) at hnonneg
+  rw [l.apply_lineMap, AffineMap.lineMap_apply_ring, hpzero] at hnonneg
+  nlinarith
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"a connected union of facets". A simplex containing a relative interior point
+of a face contains that whole face. Barycentric coordinates detect every vertex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step3_relint_incidence
+    (K : Geometry.SimplicialComplex ℝ (E d)) {s t : Finset (E d)}
+    (hs : s ∈ K.faces) (ht : t ∈ K.faces) {p : E d}
+    (hp : p ∈ relint (convexHull ℝ (s : Set (E d))))
+    (hpt : p ∈ convexHull ℝ (t : Set (E d))) : s ⊆ t := by
+  classical
+  obtain ⟨u, hsu, hu, hspan⟩ := exists_subset_affineIndependent_affineSpan_eq_top (K.indep hs)
+  let b : AffineBasis u ℝ (E d) := ⟨(↑), hu, by simpa using hspan⟩
+  intro v hv
+  by_contra hvt
+  let i : u := ⟨v, hsu hv⟩
+  have hnonneg : ∀ y ∈ convexHull ℝ (s : Set (E d)), 0 ≤ b.coord i y := by
+    apply convexHull_min (t := {y | 0 ≤ b.coord i y}) ?_
+      (Convex.affine_preimage (b.coord i) (convex_Ici 0))
+    intro y hy
+    change 0 ≤ b.coord i (b ⟨y, hsu hy⟩)
+    simp only [b.coord_apply]
+    split_ifs <;> norm_num
+  have hpos : 0 < b.coord i p :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step2_positive_coordinate hp (subset_convexHull ℝ _ hv)
+      (b.coord i) hnonneg (by change 0 < b.coord i (b i); simp)
+  have hzero : convexHull ℝ (s ∩ t : Set (E d)) ⊆ {y | b.coord i y = 0} := by
+    apply convexHull_min ?_ (Convex.affine_preimage (b.coord i) (convex_singleton 0))
+    intro y hy
+    let j : u := ⟨y, hsu hy.1⟩
+    have hij : i ≠ j := by
+      intro he
+      have hvy : v = y := congrArg Subtype.val he
+      exact hvt (by simpa only [hvy] using hy.2)
+    change b.coord i (b j) = 0
+    exact b.coord_apply_ne hij
+  exact (ne_of_gt hpos) (hzero (K.inter_subset_convexHull hs ht ⟨intrinsicInterior_subset hp, hpt⟩))
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"with finitely many components, each a closed hypersurface". Remove the finitely
+many closed facets not containing the chosen face. The remaining neighbourhood
+meets only incident facets. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step4_star_neighborhood
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    {s : Finset (E d)} (hs : s ∈ K.faces) {p : E d}
+    (hp : p ∈ relint (convexHull ℝ (s : Set (E d)))) :
+    ∃ O : Set (E d), IsOpen O ∧ p ∈ O ∧
+      K.space ∩ O ⊆ ⋃ f ∈ {f ∈ K.facets | s ⊆ f}, convexHull ℝ (f : Set (E d)) := by
+  let B := {f ∈ K.facets | ¬ s ⊆ f}
+  have hBfin : B.Finite := hfin.subset fun _ hf => hf.1.1
+  have hclosed : IsClosed (⋃ f ∈ B, convexHull ℝ (f : Set (E d))) :=
+    hBfin.isClosed_biUnion fun f _ => f.finite_toSet.isClosed_convexHull
+  refine ⟨(⋃ f ∈ B, convexHull ℝ (f : Set (E d)))ᶜ, hclosed.isOpen_compl, ?_, ?_⟩
+  · intro hpB
+    obtain ⟨f, hf, hpf⟩ := Set.mem_iUnion₂.mp hpB
+    exact hf.2 (principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step3_relint_incidence K hs hf.1.1 hp hpf)
+  · rintro x ⟨hxK, hxO⟩
+    obtain ⟨t, ht, hxt⟩ := K.mem_space_iff.mp hxK
+    obtain ⟨f, hf, htf⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step1_facet_extension K hfin ht
+    have hxf := convexHull_mono (𝕜 := ℝ) htf hxt
+    have hsf : s ⊆ f := by
+      by_contra hns
+      exact hxO (Set.mem_iUnion₂.mpr ⟨f, ⟨hf, hns⟩, hxf⟩)
+    exact Set.mem_iUnion₂.mpr ⟨f, ⟨hf, hsf⟩, hxf⟩
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"each a closed hypersurface". Restrict Euclidean charts to an ambient open set. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step5_open_charts
+    {n : ℕ} {Q O : Set (E d)} (hQ : IsLocallyEuclidean n Q) (hO : IsOpen O) :
+    IsLocallyEuclidean n (Q ∩ O) := by
+  have hsub : Q ∩ O ⊆ Q := Set.inter_subset_left
+  have hopen : IsOpen ((Subtype.val : Q → E d) ⁻¹' (Q ∩ O)) := by
+    have heq : (Subtype.val : Q → E d) ⁻¹' (Q ∩ O) =
+        (Subtype.val : Q → E d) ⁻¹' O := by
+      ext q
+      simp [q.property]
+    rw [heq]
+    exact hO.preimage continuous_subtype_val
+  have hi : Topology.IsOpenEmbedding (Set.inclusion hsub) :=
+    Topology.IsOpenEmbedding.inclusion hsub hopen
+  intro q
+  obtain ⟨U, hU, hqU, V, hV, ⟨e⟩⟩ := hQ (Set.inclusion hsub q)
+  let f := U.restrictPreimage (Set.inclusion hsub)
+  have hf : Topology.IsOpenEmbedding f :=
+    hi.restrict (fun _ hx => hx) (hU.preimage hi.continuous)
+  let g := (Subtype.val : V → E n) ∘ e ∘ f
+  have hg : Topology.IsOpenEmbedding g :=
+    hV.isOpenEmbedding_subtypeVal.comp (e.isOpenEmbedding.comp hf)
+  exact ⟨(Set.inclusion hsub) ⁻¹' U, hU.preimage hi.continuous, hqU,
+    Set.range g, hg.isOpen_range, ⟨hg.isEmbedding.toHomeomorph⟩⟩
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"each a closed hypersurface". A neighbourhood of a point on a proper facet of
+one `(d-1)`-simplex has boundary and cannot be locally Euclidean of dimension
+`d-1`. This is the single half-space obstruction; it involves no complex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary
+    (f s : Finset (E d)) (hf : AffineIndependent ℝ ((↑) : f → E d))
+    (hfc : f.card = d) (hsf : s ⊆ f) (hsc : s.card = d - 1)
+    {p : E d} (hp : p ∈ convexHull ℝ (s : Set (E d)))
+    {O : Set (E d)} (hO : IsOpen O) (hpO : p ∈ O) :
+    ¬ IsLocallyEuclidean (d - 1) (convexHull ℝ (f : Set (E d)) ∩ O) := by
+  sorry
+
+/-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"each a closed hypersurface". Unfold two simplices sharing a codimension-one
+face to a Euclidean patch. Invariance of domain in a chart of the containing
+manifold makes this patch a neighbourhood at each relative interior point of
+that face. This is a statement about two simplices, with no finite complex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood
+    (f g : Finset (E d))
+    (hf : AffineIndependent ℝ ((↑) : f → E d))
+    (hg : AffineIndependent ℝ ((↑) : g → E d))
+    (hfc : f.card = d) (hgc : g.card = d) (hfgc : (f ∩ g).card = d - 1)
+    (hinter : convexHull ℝ (f : Set (E d)) ∩ convexHull ℝ (g : Set (E d)) =
+      convexHull ℝ ((f ∩ g : Finset (E d)) : Set (E d)))
+    {Q : Set (E d)} (hQ : IsLocallyEuclidean (d - 1) Q)
+    (hfQ : convexHull ℝ (f : Set (E d)) ⊆ Q)
+    (hgQ : convexHull ℝ (g : Set (E d)) ⊆ Q)
+    {p : E d} (hp : p ∈ relint (convexHull ℝ ((f ∩ g : Finset (E d)) : Set (E d)))) :
+    ∃ O : Set (E d), IsOpen O ∧ p ∈ O ∧
+      Q ∩ O ⊆ convexHull ℝ (f : Set (E d)) ∪ convexHull ℝ (g : Set (E d)) := by
+  sorry
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"a connected union of facets". Two distinct pure facets containing a ridge
+intersect in precisely that ridge, by counting vertices. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step8_coface_intersection
+    {s f g : Finset (E d)} (hsf : s ⊆ f) (hsg : s ⊆ g)
+    (hsc : s.card = d - 1) (hfc : f.card = d) (hgc : g.card = d) (hne : f ≠ g) :
+    f ∩ g = s := by
+  classical
+  have hsub : s ⊆ f ∩ g := Finset.subset_inter hsf hsg
+  have hlt : (f ∩ g).card < d := by
+    have hle : (f ∩ g).card ≤ d := by
+      calc
+        (f ∩ g).card ≤ f.card := Finset.card_le_card Finset.inter_subset_left
+        _ = d := hfc
+    apply lt_of_le_of_ne hle
+    intro heq
+    have hef : f ∩ g = f := Finset.eq_of_subset_of_card_le Finset.inter_subset_left (by omega)
+    have heg : f ∩ g = g := Finset.eq_of_subset_of_card_le Finset.inter_subset_right (by omega)
+    exact hne (hef.symm.trans heg)
+  exact (Finset.eq_of_subset_of_card_le hsub (by omega)).symm
+
+open scoped Topology in
+/-- Step 9 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"a connected union of facets". At every point of a proper simplex face, points
+of the larger simplex outside that face occur arbitrarily close. A segment to
+an omitted vertex leaves the affine span of the face immediately. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step9_escape_face
+    (f s : Finset (E d)) (hf : AffineIndependent ℝ ((↑) : f → E d))
+    (hsf : s ⊆ f) (hne : s ≠ f) {p : E d}
+    (hp : p ∈ convexHull ℝ (s : Set (E d)))
+    {O : Set (E d)} (hO : IsOpen O) (hpO : p ∈ O) :
+    ∃ x ∈ convexHull ℝ (f : Set (E d)) ∩ O,
+      x ∉ convexHull ℝ (s : Set (E d)) := by
+  classical
+  obtain ⟨v, hvf, hvs⟩ : ∃ v ∈ f, v ∉ s := by
+    by_contra hn
+    push_neg at hn
+    exact hne (Finset.Subset.antisymm hsf hn)
+  have hvspan : v ∉ affineSpan ℝ (s : Set (E d)) := by
+    have himage : (Subtype.val : f → E d) '' {i : f | i.val ∈ s} = (s : Set (E d)) := by
+      ext y
+      constructor
+      · rintro ⟨i, hi, rfl⟩
+        exact hi
+      · intro hy
+        exact ⟨⟨y, hsf hy⟩, hy, rfl⟩
+    have hiff := hf.mem_affineSpan_iff (⟨v, hvf⟩ : f) {i : f | i.val ∈ s}
+    rw [himage] at hiff
+    exact fun hv => hvs (hiff.mp hv)
+  have hpaff : p ∈ affineSpan ℝ (s : Set (E d)) := convexHull_subset_affineSpan (s : Set (E d)) hp
+  have hcont : Continuous (fun t : ℝ => AffineMap.lineMap p v t) := by fun_prop
+  have hev : ∀ᶠ t in 𝓝 (0 : ℝ), AffineMap.lineMap p v t ∈ O := by
+    apply (hcont.tendsto 0).eventually
+    simpa only [AffineMap.lineMap_apply_zero] using hO.mem_nhds hpO
+  obtain ⟨δ, hδ, hnear⟩ := Metric.eventually_nhds_iff.mp hev
+  let t := min δ 1 / 2
+  have ht : 0 < t := by dsimp [t]; positivity
+  have htδ : t < δ := by dsimp [t]; linarith [min_le_left δ 1]
+  have ht1 : t < 1 := by dsimp [t]; linarith [min_le_right δ 1]
+  have hxt : AffineMap.lineMap p v t ∈ convexHull ℝ (f : Set (E d)) := by
+    apply (convex_convexHull ℝ (f : Set (E d))).segment_subset
+      (convexHull_mono hsf hp) (subset_convexHull ℝ _ hvf)
+    rw [segment_eq_image_lineMap]
+    exact ⟨t, ⟨ht.le, ht1.le⟩, rfl⟩
+  refine ⟨AffineMap.lineMap p v t, ⟨hxt, hnear ?_⟩, ?_⟩
+  · simpa [Real.dist_eq, abs_of_pos ht] using htδ
+  · intro hxs
+    have hxaff : AffineMap.lineMap p v t ∈ affineSpan ℝ (s : Set (E d)) :=
+      convexHull_subset_affineSpan (s : Set (E d)) hxs
+    have hv := AffineMap.lineMap_mem t⁻¹ hpaff hxaff
+    rw [AffineMap.lineMap_lineMap_right, inv_mul_cancel₀ (ne_of_gt ht),
+      AffineMap.lineMap_apply_one] at hv
+    exact hvspan hv
+
+/-- Step 10 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"each a closed hypersurface". There must be two distinct incident facets:
+otherwise the finite-star neighbourhood would be a simplex with boundary. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step10_two_facets
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hman : IsLocallyEuclidean (d - 1) K.space)
+    {s : Finset (E d)} (hs : s ∈ K.faces) (hsc : s.card = d - 1)
+    {p : E d} (hp : p ∈ relint (convexHull ℝ (s : Set (E d)))) :
+    ∃ f ∈ K.facets, ∃ g ∈ K.facets, s ⊆ f ∧ s ⊆ g ∧ f ≠ g := by
+  classical
+  obtain ⟨f, hf, hsf⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step1_facet_extension K hfin hs
+  by_contra hn
+  have honly : ∀ g ∈ K.facets, s ⊆ g → g = f := by
+    intro g hg hsg
+    by_contra hne
+    exact hn ⟨f, hf, g, hg, hsf, hsg, Ne.symm hne⟩
+  obtain ⟨O, hO, hpO, hstar⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step4_star_neighborhood K hfin hs hp
+  have heq : K.space ∩ O = convexHull ℝ (f : Set (E d)) ∩ O := by
+    apply Set.Subset.antisymm
+    · rintro x ⟨hxK, hxO⟩
+      obtain ⟨g, hg, hxg⟩ := Set.mem_iUnion₂.mp (hstar ⟨hxK, hxO⟩)
+      exact ⟨honly g hg.1 hg.2 ▸ hxg, hxO⟩
+    · exact Set.inter_subset_inter_left O (K.convexHull_subset_space hf.1)
+  have hm := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step5_open_charts hman hO
+  rw [heq] at hm
+  exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary f s (K.indep hf.1) (hpure f hf) hsf hsc
+    (intrinsicInterior_subset hp) hO hpO hm
+
+/-- Step 11 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
+"each a closed hypersurface". The patch made by two incident facets excludes a
+third: that facet would approach the ridge through points outside the patch. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step11_exhaust_facets
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hman : IsLocallyEuclidean (d - 1) K.space)
+    {s f g : Finset (E d)} (hsc : s.card = d - 1)
+    (hf : f ∈ K.facets) (hg : g ∈ K.facets)
+    (hsf : s ⊆ f) (hsg : s ⊆ g) (hfg : f ≠ g)
+    {p : E d} (hp : p ∈ relint (convexHull ℝ (s : Set (E d)))) :
+    ∀ h ∈ K.facets, s ⊆ h → h = f ∨ h = g := by
+  classical
+  have hfgs := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step8_coface_intersection hsf hsg hsc (hpure f hf) (hpure g hg) hfg
+  have hpc : p ∈ relint (convexHull ℝ ((f ∩ g : Finset (E d)) : Set (E d))) := by simpa only [hfgs] using hp
+  obtain ⟨O, hO, hpO, hpair⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood f g (K.indep hf.1) (K.indep hg.1)
+    (hpure f hf) (hpure g hg) (by simpa only [hfgs] using hsc)
+    (by simpa only [Finset.coe_inter] using K.convexHull_inter_convexHull hf.1 hg.1)
+    hman (K.convexHull_subset_space hf.1) (K.convexHull_subset_space hg.1) hpc
+  intro h hh hsh
+  by_contra hn
+  push_neg at hn
+  have hhfs := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step8_coface_intersection hsh hsf hsc (hpure h hh) (hpure f hf) hn.1
+  have hhgs := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step8_coface_intersection hsh hsg hsc (hpure h hh) (hpure g hg) hn.2
+  have hne : s ≠ h := by
+    intro heq
+    have hd : 2 ≤ d := Fact.out
+    have hc := hpure h hh
+    rw [← heq] at hc
+    omega
+  obtain ⟨x, hx, hxs⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step9_escape_face h s (K.indep hh.1) hsh hne
+    (intrinsicInterior_subset hp) hO hpO
+  rcases hpair ⟨K.convexHull_subset_space hh.1 hx.1, hx.2⟩ with hxf | hxg
+  · apply hxs
+    have hxi := K.inter_subset_convexHull hh.1 hf.1 ⟨hx.1, hxf⟩
+    simpa only [← Finset.coe_inter, hhfs] using hxi
+  · apply hxs
+    have hxi := K.inter_subset_convexHull hh.1 hg.1 ⟨hx.1, hxg⟩
+    simpa only [← Finset.coe_inter, hhgs] using hxi
+
 /-- Step 10 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "each a closed hypersurface". At the relative interior of a ridge of a finite
 triangulated manifold without boundary, exactly two top dimensional simplices
@@ -1236,7 +1550,25 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     (hman : IsLocallyEuclidean (d - 1) K.space) :
     ∀ s ∈ K.faces, s.card = d - 1 →
       {f ∈ K.facets | s ⊆ f}.ncard = 2 := by
-  sorry
+  classical
+  intro s hs hsc
+  obtain ⟨p, hp⟩ := (intrinsicInterior_nonempty (convex_convexHull ℝ (s : Set (E d)))).mpr
+    (convexHull_nonempty_iff.mpr (K.nonempty_of_mem_faces hs))
+  obtain ⟨f, hf, g, hg, hsf, hsg, hfg⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step10_two_facets K hfin hpure hman hs hsc hp
+  have hexhaust := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step11_exhaust_facets K hpure hman hsc hf hg hsf hsg hfg hp
+  have heq : {h ∈ K.facets | s ⊆ h} = {f, g} := by
+    ext h
+    constructor
+    · intro hh
+      simpa only [Set.mem_insert_iff, Set.mem_singleton_iff] using hexhaust h hh.1 hh.2
+    · intro hh
+      rcases Set.mem_insert_iff.mp hh with rfl | hh
+      · exact ⟨hf, hsf⟩
+      · have : h = g := Set.mem_singleton_iff.mp hh
+        subst h
+        exact ⟨hg, hsg⟩
+  rw [heq, Set.ncard_pair hfg]
 
 /-- Step 11 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "a connected union of facets". The facets in a finite triangulation of a connected

@@ -866,6 +866,297 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     rw [← connectedComponentIn_eq hzΓ] at hsub
     exact hsub hxt
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
+"a connected union of facets of `t`". Cut the convex pieces by all their defining
+hyperplanes. The resulting bounded sign cells cover the original polyhedron and
+any two meet in a common convex face, expressed by `IsExtreme`. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step1_common_refinement {Q : Set (E d)} (hQ : Polyhedron Q) :
+    ∃ T : Finset (Finset (E d)),
+      Q = ⋃ p ∈ T, convexHull ℝ (p : Set (E d)) ∧
+      ∀ p ∈ T, ∀ q ∈ T,
+        IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+          (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d))) := by
+  classical
+  have hcompact : IsCompact Q := by
+    obtain ⟨s, hs⟩ := hQ
+    rw [hs]
+    exact s.isCompact_biUnion fun p _ => p.finite_toSet.isCompact_convexHull
+  obtain ⟨S, hS⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step2_halfspace_presentation hQ
+  let A := S.biUnion id
+  let T := A.powerset.filter fun t => ∃ q ∈ S, q ⊆ t
+  let C (t : Finset (E d →ᵃ[ℝ] ℝ)) : Set (E d) :=
+    {x | ∀ f ∈ A, if f ∈ t then 0 ≤ f x else f x ≤ 0}
+  have hsub (t : T) : C t.val ⊆ Q := by
+    obtain ⟨q, hq, hqt⟩ := (Finset.mem_filter.mp t.property).2
+    intro x hx
+    rw [hS]
+    refine Set.mem_iUnion₂.mpr ⟨q, hq, ?_⟩
+    intro f hf
+    have hfA : f ∈ A := Finset.mem_biUnion.mpr ⟨q, hq, hf⟩
+    simpa only [if_pos (hqt hf)] using hx f hfA
+  have hrep (t : T) : ∃ p : Finset (E d), C t.val = convexHull ℝ (p : Set (E d)) := by
+    let q := t.val ∪ (A \ t.val).image (fun f => -f)
+    have hC : C t.val = {x | ∀ f ∈ q, 0 ≤ f x} := by
+      ext x
+      constructor
+      · intro hx f hf
+        rcases Finset.mem_union.mp hf with hf | hf
+        · have hfA := Finset.mem_powerset.mp (Finset.mem_filter.mp t.property).1 hf
+          simpa only [if_pos hf] using hx f hfA
+        · obtain ⟨g, hg, rfl⟩ := Finset.mem_image.mp hf
+          obtain ⟨hgA, hgt⟩ := Finset.mem_sdiff.mp hg
+          have hgx := hx g hgA
+          simpa only [if_neg hgt, AffineMap.coe_neg, Pi.neg_apply, neg_nonneg] using hgx
+      · intro hx f hfA
+        by_cases hft : f ∈ t.val
+        · simpa only [if_pos hft] using hx f (Finset.mem_union_left _ hft)
+        · have hneg := hx (-f) (Finset.mem_union_right _
+            (Finset.mem_image.mpr ⟨f, Finset.mem_sdiff.mpr ⟨hfA, hft⟩, rfl⟩))
+          simpa only [if_neg hft, AffineMap.coe_neg, Pi.neg_apply, neg_nonneg] using hneg
+    rw [hC]
+    apply principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step4_bounded_halfspaces
+    rw [← hC]
+    exact hcompact.isBounded.subset (hsub t)
+  choose p hp using hrep
+  refine ⟨Finset.univ.image p, ?_, ?_⟩
+  · apply Set.Subset.antisymm
+    · intro x hx
+      let t := A.filter fun f => 0 ≤ f x
+      have ht : t ∈ T := by
+        refine Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr (Finset.filter_subset _ _), ?_⟩
+        rw [hS] at hx
+        obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hx
+        refine ⟨q, hq, fun f hf => ?_⟩
+        exact Finset.mem_filter.mpr ⟨Finset.mem_biUnion.mpr ⟨q, hq, hf⟩, hxq f hf⟩
+      let u : T := ⟨t, ht⟩
+      refine Set.mem_iUnion₂.mpr ⟨p u, Finset.mem_image.mpr ⟨u, Finset.mem_univ _, rfl⟩, ?_⟩
+      rw [← hp u]
+      intro f hfA
+      by_cases hfx : 0 ≤ f x
+      · simp only [u, t, Finset.mem_filter, hfA, hfx, and_self, if_true]
+      · simp only [u, t, Finset.mem_filter, hfA, hfx, and_false, if_false]
+        exact (lt_of_not_ge hfx).le
+    · intro x hx
+      obtain ⟨r, hr, hxr⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨t, _, rfl⟩ := Finset.mem_image.mp hr
+      exact hsub t (by rwa [hp t])
+  · intro r hr s hs
+    obtain ⟨t, _, rfl⟩ := Finset.mem_image.mp hr
+    obtain ⟨u, _, rfl⟩ := Finset.mem_image.mp hs
+    rw [← hp t, ← hp u]
+    refine ⟨Set.inter_subset_left, ?_⟩
+    intro x hx y hy z hz hseg
+    refine ⟨hx, ?_⟩
+    rw [openSegment_eq_image_lineMap] at hseg
+    obtain ⟨a, ha, rfl⟩ := hseg
+    intro f hfA
+    have hxf := hx f hfA
+    have hyf := hy f hfA
+    have hzf := hz.2 f hfA
+    rw [f.apply_lineMap, AffineMap.lineMap_apply_ring] at hzf
+    by_cases hfu : f ∈ u.val
+    · simp only [if_pos hfu] at hzf ⊢
+      by_cases hft : f ∈ t.val
+      · simpa only [if_pos hft] using hxf
+      · simp only [if_neg hft] at hxf hyf
+        have hmul : 0 ≤ (1 - a) * f x := by
+          nlinarith [mul_nonpos_of_nonneg_of_nonpos ha.1.le hyf]
+        exact (mul_nonneg_iff_of_pos_left (sub_pos.mpr ha.2)).mp hmul
+    · simp only [if_neg hfu] at hzf ⊢
+      by_cases hft : f ∈ t.val
+      · simp only [if_pos hft] at hxf hyf
+        have hmul : (1 - a) * f x ≤ 0 := by
+          nlinarith [mul_nonneg ha.1.le hyf]
+        exact nonpos_of_mul_nonpos_right hmul (sub_pos.mpr ha.2)
+      · simpa only [if_neg hft] using hxf
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
+"a compact `(d-1)`-manifold". Subdivide a finite family of convex polytopes
+meeting in common faces by taking barycentres of their nonempty faces and simplices
+indexed by chains of faces. This step only constructs a finite geometric complex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells
+    (T : Finset (Finset (E d)))
+    (hface : ∀ p ∈ T, ∀ q ∈ T,
+      IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+        (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d)))) :
+    ∃ K : Geometry.SimplicialComplex ℝ (E d), K.faces.Finite ∧
+      K.space = ⋃ p ∈ T, convexHull ℝ (p : Set (E d)) := by
+  sorry
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
+"a compact `(d-1)`-manifold". Inside a maximal simplex, avoid the affine spans
+of its intersections with the other faces. Finiteness then gives an ambient open
+set on which the complex agrees with the affine span of that simplex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step3_facet_patch
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (f : Finset (E d)) (hf : f ∈ K.facets) :
+    ∃ W : Set (E d), IsOpen W ∧ (W ∩ K.space).Nonempty ∧
+      W ∩ K.space = W ∩ (affineSpan ℝ (f : Set (E d)) : Set (E d)) := by
+  classical
+  let A := affineSpan ℝ (f : Set (E d))
+  obtain ⟨v, hv⟩ := K.nonempty_of_mem_faces hf.1
+  letI : Nonempty A := ⟨⟨v, subset_affineSpan ℝ _ hv⟩⟩
+  have hAclosed : IsClosed (A : Set (E d)) := A.closed_of_finiteDimensional
+  letI : CompleteSpace A := hAclosed.completeSpace_coe
+  let bad := K.faces \ {f}
+  have hbadfin : bad.Finite := hfin.diff
+  let L (g : Finset (E d)) : AffineSubspace ℝ A :=
+    (affineSpan ℝ ((f ∩ g : Finset (E d)) : Set (E d))).comap A.subtype
+  have hLne (g : Finset (E d)) (hg : g ∈ bad) : L g ≠ ⊤ := by
+    intro htop
+    have hfg : ¬ f ⊆ g := by
+      intro hfg
+      exact hg.2 (hf.2 hg.1 hfg).symm
+    obtain ⟨w, hwf, hwg⟩ := Finset.not_subset.mp hfg
+    let wA : A := ⟨w, subset_affineSpan ℝ _ hwf⟩
+    have hwL : wA ∈ L g := by rw [htop]; trivial
+    have hwspan : w ∈ affineSpan ℝ ((f ∩ g : Finset (E d)) : Set (E d)) := hwL
+    have himg : ((↑) : f → E d) '' {i : f | (i : E d) ∈ g} =
+        ((f ∩ g : Finset (E d)) : Set (E d)) := by
+      ext z
+      simp only [Set.mem_image, Set.mem_setOf_eq, Finset.mem_coe, Finset.mem_inter]
+      constructor
+      · rintro ⟨i, hi, rfl⟩
+        exact ⟨i.property, hi⟩
+      · rintro ⟨hzf, hzg⟩
+        exact ⟨⟨z, hzf⟩, hzg, rfl⟩
+    rw [← himg] at hwspan
+    exact hwg ((K.indep hf.1).mem_affineSpan_iff ⟨w, hwf⟩ _ |>.mp hwspan)
+  have hLdense (g : Finset (E d)) (hg : g ∈ bad) : Dense ((L g : Set A)ᶜ) := by
+    apply interior_eq_empty_iff_dense_compl.mp
+    apply Set.eq_empty_iff_forall_notMem.mpr
+    intro x hx
+    have htop := isOpen_interior.affineSpan_eq_top ⟨x, hx⟩
+    apply hLne g hg
+    apply top_unique
+    rw [← htop]
+    exact affineSpan_le.mpr interior_subset
+  have hdense : Dense (⋂ g ∈ bad, (L g : Set A)ᶜ) :=
+    dense_biInter_of_isOpen (fun g _ => (L g).closed_of_finiteDimensional.isOpen_compl)
+      hbadfin.countable hLdense
+  have hri : (interior ((↑) ⁻¹' convexHull ℝ (f : Set (E d)) : Set A)).Nonempty := by
+    have hn := Set.Nonempty.intrinsicInterior (convex_convexHull ℝ (f : Set (E d)))
+      ⟨v, subset_convexHull ℝ (f : Set (E d)) hv⟩
+    rw [intrinsicInterior, Set.image_nonempty, affineSpan_convexHull] at hn
+    exact hn
+  obtain ⟨x, hxri, hxavoid⟩ := hdense.inter_open_nonempty _ isOpen_interior hri
+  have hi : Topology.IsInducing (Subtype.val : A → E d) := .subtypeVal
+  obtain ⟨U, hU, hUri⟩ := hi.isOpen_iff.mp
+    (isOpen_interior : IsOpen (interior ((↑) ⁻¹' convexHull ℝ (f : Set (E d)) : Set A)))
+  let B : Set (E d) := ⋃ g ∈ bad, convexHull ℝ (g : Set (E d))
+  have hBclosed : IsClosed B := hbadfin.isClosed_biUnion fun g _ =>
+    g.finite_toSet.isCompact_convexHull.isClosed
+  have hxf := interior_subset hxri
+  have hxB : (x : E d) ∉ B := by
+    intro hxB
+    obtain ⟨g, hg, hxg⟩ := Set.mem_iUnion₂.mp hxB
+    have hxfg := K.inter_subset_convexHull hf.1 hg.1 ⟨hxf, hxg⟩
+    have hxspan : (x : E d) ∈ affineSpan ℝ ((f ∩ g : Finset (E d)) : Set (E d)) := by
+      apply convexHull_subset_affineSpan
+      simpa only [Finset.coe_inter] using hxfg
+    exact (Set.mem_iInter₂.mp hxavoid g hg) hxspan
+  refine ⟨U \ B, IsOpen.sdiff (show IsOpen U from hU) hBclosed, ?_, ?_⟩
+  · refine ⟨x, ⟨?_, hxB⟩, K.convexHull_subset_space hf.1 hxf⟩
+    change x ∈ (↑) ⁻¹' U
+    rwa [hUri]
+  · ext z
+    constructor
+    · rintro ⟨hzW, hzK⟩
+      refine ⟨hzW, ?_⟩
+      obtain ⟨g, hg, hzg⟩ := K.mem_space_iff.mp hzK
+      by_cases hgf : g = f
+      · subst g
+        exact convexHull_subset_affineSpan _ hzg
+      · exact (hzW.2 (Set.mem_iUnion₂.mpr ⟨g, ⟨hg, hgf⟩, hzg⟩)).elim
+    · rintro ⟨hzW, hzA⟩
+      refine ⟨hzW, K.convexHull_subset_space hf.1 ?_⟩
+      have hzU : (⟨z, hzA⟩ : A) ∈ (↑) ⁻¹' U := hzW.1
+      rw [hUri] at hzU
+      have hz := interior_subset hzU
+      exact hz
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
+"a compact `(d-1)`-manifold". Invariance of Euclidean dimension: nonempty
+open subsets of two Euclidean spaces can be homeomorphic only when their
+dimensions agree. Nonemptiness is essential here. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension
+    {m n : ℕ} {U : Set (E m)} {V : Set (E n)}
+    (hU : IsOpen U) (hV : IsOpen V) (hne : U.Nonempty)
+    (h : Nonempty (U ≃ₜ V)) : m = n := by
+  sorry
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
+"a compact `(d-1)`-manifold". Restrict a manifold chart to a nonempty open
+affine patch. Affine coordinates identify the patch with an open subset of the
+Euclidean space of the affine direction dimension; compare the two charts. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step5_local_dimension
+    {n : ℕ} {Q : Set (E d)} (hman : IsLocallyEuclidean n Q)
+    (A : AffineSubspace ℝ (E d)) (W : Set (E d)) (hW : IsOpen W)
+    (hne : (W ∩ Q).Nonempty) (hmodel : W ∩ Q = W ∩ (A : Set (E d))) :
+    Module.finrank ℝ A.direction = n := by
+  obtain ⟨p, hpW, hpQ⟩ := hne
+  have hQofA {z : E d} (hzW : z ∈ W) (hzA : z ∈ A) : z ∈ Q := by
+    have hz : z ∈ W ∩ (A : Set (E d)) := ⟨hzW, hzA⟩
+    rw [← hmodel] at hz
+    exact hz.2
+  have hAofQ {z : E d} (hzW : z ∈ W) (hzQ : z ∈ Q) : z ∈ A := by
+    have hz : z ∈ W ∩ Q := ⟨hzW, hzQ⟩
+    rw [hmodel] at hz
+    exact hz.2
+  obtain ⟨U, hU, hpU, V, hV, ⟨e⟩⟩ := hman ⟨p, hpQ⟩
+  obtain ⟨Z, hZ, hZU⟩ := isOpen_induced_iff.mp hU
+  have hmemU {z : Q} (hz : (z : E d) ∈ Z) : z ∈ U := by
+    rwa [← hZU]
+  have hmemZ {z : Q} (hz : z ∈ U) : (z : E d) ∈ Z := by
+    rwa [← hZU] at hz
+  let a : A := ⟨p, hAofQ hpW hpQ⟩
+  letI : Nonempty A := ⟨a⟩
+  let c : A ≃ₜ E (Module.finrank ℝ A.direction) :=
+    (AffineIsometryEquiv.constVSub ℝ a).toHomeomorph.trans
+      (toEuclidean (E := A.direction)).toHomeomorph
+  let D : Set A := (Subtype.val : A → E d) ⁻¹' (W ∩ Z)
+  let H : Set U := (fun z : U => (z.val.val : E d)) ⁻¹' W
+  have hD : IsOpen D := (hW.inter hZ).preimage continuous_subtype_val
+  have hH : IsOpen H := hW.preimage (by fun_prop)
+  let eDH : D ≃ₜ H :=
+    { toFun := fun z =>
+        ⟨⟨⟨z.val.val, hQofA z.property.1 z.val.property⟩,
+          hmemU z.property.2⟩, z.property.1⟩
+      invFun := fun z =>
+        ⟨⟨z.val.val.val, hAofQ z.property z.val.val.property⟩,
+          z.property, hmemZ z.val.property⟩
+      left_inv := by intro z; rfl
+      right_inv := by intro z; rfl
+      continuous_toFun := by fun_prop
+      continuous_invFun := by fun_prop }
+  let f : D → E (Module.finrank ℝ A.direction) := c ∘ Subtype.val
+  let g : H → E n := (Subtype.val : V → E n) ∘ e ∘ Subtype.val
+  have hf : Topology.IsOpenEmbedding f :=
+    c.isOpenEmbedding.comp hD.isOpenEmbedding_subtypeVal
+  have hg : Topology.IsOpenEmbedding g :=
+    hV.isOpenEmbedding_subtypeVal.comp (e.isOpenEmbedding.comp hH.isOpenEmbedding_subtypeVal)
+  have hfne : (Set.range f).Nonempty :=
+    ⟨f ⟨a, hpW, hmemZ hpU⟩, ⟨⟨a, hpW, hmemZ hpU⟩, rfl⟩⟩
+  exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension
+    hf.isOpen_range hg.isOpen_range hfne
+    ⟨hf.isEmbedding.toHomeomorph.symm.trans (eDH.trans hg.isEmbedding.toHomeomorph)⟩
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
+"a compact `(d-1)`-manifold". Affine independence makes the number of
+vertices of a nonempty simplex one more than the dimension of its affine span. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step6_simplex_cardinality
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (f : Finset (E d)) (hf : f ∈ K.faces) :
+    Module.finrank ℝ (affineSpan ℝ (f : Set (E d))).direction + 1 = f.card := by
+  classical
+  haveI : Nonempty f := (K.nonempty_of_mem_faces hf).to_subtype
+  rw [direction_affineSpan]
+  have hcard := (K.indep hf).finrank_vectorSpan_add_one
+  have hrange : Set.range ((↑) : f → E d) = (f : Set (E d)) := Subtype.range_val
+  rw [hrange] at hcard
+  exact hcard.trans (Fintype.card_coe f)
+
 /-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "a compact `(d-1)`-manifold". Triangulate a finite polyhedron compatibly with all
 its convex pieces. Local Euclidean dimension makes every maximal simplex have
@@ -874,7 +1165,23 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     {Q : Set (E d)} (hQ : Polyhedron Q) (hman : IsLocallyEuclidean (d - 1) Q) :
     ∃ K : Geometry.SimplicialComplex ℝ (E d), K.faces.Finite ∧ K.space = Q ∧
       ∀ f ∈ K.facets, f.card = d := by
-  sorry
+  obtain ⟨T, hT, hface⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step1_common_refinement hQ
+  obtain ⟨K, hfin, hK⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells T hface
+  have hKQ : K.space = Q := hK.trans hT.symm
+  rw [← hKQ] at hman
+  refine ⟨K, hfin, hKQ, ?_⟩
+  intro f hf
+  obtain ⟨W, hW, hne, hmodel⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step3_facet_patch K hfin f hf
+  have hdim :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step5_local_dimension
+      hman (affineSpan ℝ (f : Set (E d))) W hW hne hmodel
+  have hcard :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step6_simplex_cardinality K f hf.1
+  have hd : 2 ≤ d := Fact.out
+  omega
 
 /-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "`∂t` is a compact `(d-1)`-manifold". Subdivide the finite polyhedral presentation

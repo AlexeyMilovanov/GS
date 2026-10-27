@@ -1830,6 +1830,1443 @@ private theorem routing_constant_step4_inherited_record
     U c ⟨b, ⟨M, hMU⟩⟩ a hanc' F e hF hint ι hty hpos huncapped
   exact ⟨r, by rwa [hs] at hr, hi, ha⟩
 
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"let f be born in Q of height b". The prescribed child frame intertwines
+the full expansion at its height with the original child placement. -/
+private theorem routing_constant_step4_ascent_ports_step1_child_scaled
+    (h : ℕ) {T : S.ι} (i : S.I T) (x : E d) :
+    S.placeChild h i ((S.σ ^ h) x) = (S.σ ^ h) ((S.child T i).frame x) := by
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, LinearEquiv.mul_apply,
+    zpow_natCast, zpow_neg, AffineIsometryEquiv.coe_trans]
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"born in its ancestor Q'". Raising both heights conjugates the same child
+placement, so the role identifying the child is unchanged. -/
+private theorem routing_constant_step4_ascent_ports_step1_child_shift
+    (h k : ℕ) {T : S.ι} (i : S.I T) (x : E d) :
+    S.placeChild (h + k) i ((S.σ ^ h) x) = (S.σ ^ h) (S.placeChild k i x) := by
+  have h₁ := routing_constant_step4_ascent_ports_step1_child_scaled (h + k) i
+    ((S.σ ^ k).symm x)
+  have h₂ := routing_constant_step4_ascent_ports_step1_child_scaled k i
+    ((S.σ ^ k).symm x)
+  simp only [pow_add, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply] at h₁ h₂
+  rw [← h₂] at h₁
+  exact h₁
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"both nodes descendants of A". Iterate the child-frame identity along a
+fixed role word, without imposing scalar expansion. -/
+private theorem routing_constant_step4_ascent_ports_step1_descendant_scaled
+    (T : S.ι) (h r : ℕ) (w : S.RoleWord T r) (x : E d) :
+    (S.descendantNode T h r w).frame ((S.σ ^ h) x) =
+      (S.σ ^ h) ((S.nativeTile T r w).frame x) := by
+  induction r generalizing T with
+  | zero => rfl
+  | succ r ih =>
+    change S.placeChild (h + r) w.1
+      ((S.descendantNode (S.child T w.1).ty h r w.2).frame ((S.σ ^ h) x)) =
+      (S.σ ^ h) (S.placeChild (0 + r) w.1
+        ((S.nativeTile (S.child T w.1).ty r w.2).frame x))
+    rw [ih, routing_constant_step4_ascent_ports_step1_child_shift, Nat.zero_add]
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"both nodes descendants of A". The relative prototype frame of a role word
+does not depend on the absolute height of its root. -/
+private theorem routing_constant_step4_ascent_ports_step1_relative_frame
+    (M : FramedNode S) (h r : ℕ) (w : S.RoleWord M.ty r) :
+    ((S.descendantNode M.ty h r w).move M.frame).prototypeFrame h =
+      (prototypeDescendantFrame M.ty r w).trans (M.prototypeFrame (h + r)) := by
+  apply AffineEquiv.ext
+  intro x
+  change M.frame ((S.descendantNode M.ty h r w).frame ((S.σ ^ h) x)) =
+    M.frame ((S.σ ^ (h + r)) ((S.σ ^ r).symm ((S.nativeTile M.ty r w).frame x)))
+  rw [routing_constant_step4_ascent_ports_step1_descendant_scaled, pow_add]
+  simp only [LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply]
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"born in a strict ancestor". A common affine change of prototype frames
+transports exact descent when it preserves the height difference and types. -/
+private theorem routing_constant_step4_ascent_ports_step1_descent_transport
+    (M Q M' Q' : FramedNode S) (a b a' b' : ℕ) (F : E d ≃ᵃ[ℝ] E d)
+    (hMt : M'.ty = M.ty) (hQt : Q'.ty = Q.ty)
+    (hM : M'.prototypeFrame a' = (M.prototypeFrame a).trans F)
+    (hQ : Q'.prototypeFrame b' = (Q.prototypeFrame b).trans F)
+    (hdiff : b' + a = b + a') (hdesc : M.IsDescendant a Q b) :
+    M'.IsDescendant a' Q' b' := by
+  rcases Q with ⟨T, φ⟩
+  rcases Q' with ⟨T', ψ⟩
+  dsimp only at hQt
+  subst T'
+  obtain ⟨r, hr, w, hw⟩ := hdesc
+  have hr' : b' = a' + r := by omega
+  refine ⟨r, hr', w, ?_⟩
+  apply FramedNode.ext
+  · exact hMt.trans ((congrArg FramedNode.ty hw).trans
+      ((routing_constant_step1_descendant_type T a r w).trans
+        (routing_constant_step1_descendant_type T a' r w).symm))
+  · have hframe : M'.prototypeFrame a' =
+        ((S.descendantNode T a' r w).move ψ).prototypeFrame a' := by
+      rw [hM, hw, routing_constant_step4_ascent_ports_step1_relative_frame, ← hr]
+      rw [routing_constant_step4_ascent_ports_step1_relative_frame
+        (⟨T, ψ⟩ : FramedNode S), ← hr', hQ]
+      exact AffineEquiv.trans_assoc _ _ _
+    apply AffineIsometryEquiv.ext
+    intro x
+    have hx := congrArg (fun e : E d ≃ᵃ[ℝ] E d => e ((S.σ ^ a').symm x)) hframe
+    simpa only [FramedNode.prototypeFrame, AffineEquiv.coe_trans, Function.comp_apply,
+      LinearEquiv.coe_toAffineEquiv, AffineIsometryEquiv.coe_toAffineEquiv,
+      LinearEquiv.apply_symm_apply] using hx
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"let g be born in its ancestor Q'". Transport the ascent's exact descendant
+relation from the height-k model to the assembled parent's actual frame. -/
+private theorem routing_constant_step4_ascent_ports_step1_ancestry
+    (N : FramedNode S) (m : ℕ) (f f' : PrimitiveFacet S N.ty)
+    (hf : f.depth < P.k) (hf' : f'.depth < P.k) (g g' : Parser.BornFacet P)
+    (hg : routing_constant_step1_realizes N m f g)
+    (hg' : routing_constant_step1_realizes N m f' g')
+    (hlink : AscentLink P.k f f') :
+    g.birth.IsDescendant g.height g'.birth g'.height := by
+  have hfm : f.depth ≤ m := by have := hg.1; omega
+  have hfm' : f'.depth ≤ m := by have := hg'.1; omega
+  have hh : m - f.depth = g.height := by have := hg.1; omega
+  have hh' : m - f'.depth = g'.height := by have := hg'.1; omega
+  let F := (S.σ ^ P.k).symm.toAffineEquiv.trans (N.prototypeFrame m)
+  have hframe (a : PrimitiveFacet S N.ty) (G : Parser.BornFacet P)
+      (ha : a.depth < P.k) (ham : a.depth ≤ m)
+      (hG : routing_constant_step1_realizes N m a G)
+      (hheight : m - a.depth = G.height) :
+      G.birth.prototypeFrame G.height =
+        ((a.birthNode P.k).prototypeFrame (P.k - a.depth)).trans F := by
+    rw [hG.2.1, ← hheight, routing_constant_step1_frame N m a ham]
+    change _ = ((a.birthNode P.k).prototypeFrame (P.k - a.depth)).trans
+      ((S.σ ^ P.k).symm.toAffineEquiv.trans (N.prototypeFrame m))
+    rw [← AffineEquiv.trans_assoc, (a.birthFrame_spec P.k ha.le).2]
+  apply routing_constant_step4_ascent_ports_step1_descent_transport
+    (f.birthNode P.k) (f'.birthNode P.k) g.birth g'.birth
+    (P.k - f.depth) (P.k - f'.depth) g.height g'.height F
+  · rw [hg.2.1]
+    exact (f.birthFrame_spec m hfm).1.trans (f.birthFrame_spec P.k hf.le).1.symm
+  · rw [hg'.2.1]
+    exact (f'.birthFrame_spec m hfm').1.trans (f'.birthFrame_spec P.k hf'.le).1.symm
+  · exact hframe f g hf hfm hg hh
+  · exact hframe f' g' hf' hfm' hg' hh'
+  · have := hg.1
+    have := hg'.1
+    omega
+  · exact hlink.2.1
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"with some child ... having a facet piece inside e". Place a child cell
+using its parent's full prototype frame, also at the lowest positive height. -/
+private theorem routing_constant_step4_ascent_ports_step1_child_frame
+    (M : FramedNode S) (b : ℕ) (hb : 1 ≤ b) (i : S.I M.ty) :
+    (M.child (b - 1) i).prototypeFrame (b - 1) =
+      ((S.child M.ty i).frame.toAffineEquiv.trans S.σ.symm.toAffineEquiv).trans
+        (M.prototypeFrame b) := by
+  apply AffineEquiv.ext
+  intro x
+  change M.frame (S.placeChild (b - 1) i ((S.σ ^ (b - 1)) x)) =
+    M.frame ((S.σ ^ b) (S.σ.symm ((S.child M.ty i).frame x)))
+  rw [routing_constant_step4_ascent_ports_step1_child_scaled,
+    show b = (b - 1) + 1 from (Nat.sub_add_cancel hb).symm, pow_succ]
+  simp only [LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply, Nat.add_sub_cancel]
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"both nodes descendants of A". The full prototype frame places the entire
+node support, as well as every one of its named cells. -/
+private theorem routing_constant_step4_ascent_ports_step1_carrier_frame
+    (Q : FramedNode S) (b : ℕ) :
+    Q.carrier b = Q.prototypeFrame b '' (S.proto Q.ty).carrier := by
+  simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+    placedSet, Set.image_image]
+  rfl
+
+/-- Step 1 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"the common-listed vertex and the e-facing port". All named cells, the
+common-listed seed, and the facing child survive the same affine transport. -/
+private theorem routing_constant_step4_ascent_ports_step1_seed_geometry
+    (N : FramedNode S) (m : ℕ) (f : PrimitiveFacet S N.ty)
+    (M : FramedNode S) (b : ℕ) (hb : 1 ≤ b) (ht : M.ty = f.birthType)
+    (hframe : M.prototypeFrame b = f.birthFrame.trans (N.prototypeFrame m))
+    (e : FacetName S f.birthType) (p : E d) (hpe : p ∈ f.birthCell e.val)
+    (hcommon : f.CommonListed p)
+    (hface : ∃ (i : S.I f.birthType) (c : FacetName S (S.child f.birthType i).ty),
+      p ∈ f.childCell i c.val ∧ f.childCell i c.val ⊆ f.birthCell e.val) :
+    ∃ E : FacetName S M.ty, E.val = e.val ∧
+      M.cell b E.val = N.prototypeFrame m '' f.birthCell e.val ∧
+      N.prototypeFrame m p ∈ M.cell b E.val ∧
+      (∀ i : S.I M.ty, N.prototypeFrame m p ∈ (M.child (b - 1) i).carrier (b - 1) →
+        (M.child (b - 1) i).Lists (b - 1) (N.prototypeFrame m p)) ∧
+      ∃ (i : S.I M.ty) (c : FacetName S (M.child (b - 1) i).ty),
+        N.prototypeFrame m p ∈ (M.child (b - 1) i).cell (b - 1) c.val ∧
+          (M.child (b - 1) i).cell (b - 1) c.val ⊆ M.cell b E.val := by
+  rcases M with ⟨T, φ⟩
+  dsimp only at ht
+  subst T
+  let M : FramedNode S := ⟨f.birthType, φ⟩
+  change M.prototypeFrame b = f.birthFrame.trans (N.prototypeFrame m) at hframe
+  have hcell (c : Cell d) : M.cell b c = N.prototypeFrame m '' f.birthCell c := by
+    simp only [FramedNode.cell, hframe, PrimitiveFacet.birthCell, Set.image_image]
+    rfl
+  have hchild (i : S.I f.birthType) (K : Set (E d)) :
+      (M.child (b - 1) i).prototypeFrame (b - 1) '' K =
+        N.prototypeFrame m '' (f.birthFrame ''
+          (S.σ.symm '' placedSet (S.child f.birthType i).frame K)) := by
+    rw [routing_constant_step4_ascent_ports_step1_child_frame M b hb i, hframe]
+    simp only [Set.image_image, placedSet]
+    rfl
+  refine ⟨e, rfl, hcell e.val, (hcell e.val).symm ▸ Set.mem_image_of_mem _ hpe, ?_, ?_⟩
+  · intro i hi
+    change N.prototypeFrame m p ∈ (M.child (b - 1) i).carrier (b - 1) at hi
+    rw [routing_constant_step4_ascent_ports_step1_carrier_frame, hchild] at hi
+    have hpchild : p ∈ f.childSupport i := (N.prototypeFrame m).injective.mem_set_image.mp hi
+    obtain ⟨v, hv, hpv⟩ := hcommon i hpchild
+    refine ⟨v, hv, ?_⟩
+    change N.prototypeFrame m p ∈ (M.child (b - 1) i).prototypeFrame (b - 1) '' v.carrier
+    rw [hchild]
+    exact Set.mem_image_of_mem _ hpv
+  · obtain ⟨i, c, hpc, hce⟩ := hface
+    refine ⟨i, c, ?_, ?_⟩
+    · change N.prototypeFrame m p ∈ (M.child (b - 1) i).prototypeFrame (b - 1) '' c.val.carrier
+      rw [hchild]
+      exact Set.mem_image_of_mem _ hpc
+    · change (M.child (b - 1) i).prototypeFrame (b - 1) '' c.val.carrier ⊆ _
+      rw [hchild, hcell]
+      exact Set.image_mono hce
+
+/-- Step 2 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"some child ... having a facet piece inside e". A listed cell belongs to its closed prototype support. -/
+private theorem routing_constant_step4_ascent_ports_step2_cell_subset (A : S.ι) (e : Cell d) (he : e ∈ (S.cx A).cells) :
+    e.carrier ⊆ (S.proto A).carrier := by
+  intro x hx
+  apply (S.proto A).compact.isClosed.frontier_subset
+  rw [← (S.cx A).carriers_cover]
+  exact mem_iUnion₂.mpr ⟨e, he, hx⟩
+
+/-- Step 2 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"some child ... at q". A placed named facet belongs to its owning node,
+including every point of its closed boundary. -/
+private theorem routing_constant_step4_ascent_ports_step2_cell_carrier
+    (Q : FramedNode S) (b : ℕ) (e : FacetName S Q.ty) :
+    Q.cell b e.val ⊆ Q.carrier b := by
+  rw [routing_constant_step4_ascent_ports_step1_carrier_frame]
+  exact Set.image_mono (routing_constant_step4_ascent_ports_step2_cell_subset
+    _ e.val (facetCell e).property)
+
+
+/-- Step 2 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.5, 1.8):
+"A native descendant along either facet at q". Iterated heredity supplies an actual native facet piece and a listed vertex at the prescribed point. -/
+private theorem routing_constant_step4_ascent_ports_step2_facet_at_vertex
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (B : Block Y n)
+    (f : FacetName S B.node.ty) (p : E d) (hp : B.node.Lists n p)
+    (hpf : p ∈ B.node.cell n f.val) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+      (v : VertexName S (tileNode t).ty),
+      Parser.IsFacetPiece Y n B.node f t g ∧ v.val.carrier ⊆ g.val.carrier ∧
+        compilerFrame C t (vertexPoint v) = p := by
+  classical
+  obtain ⟨parts, hparts⟩ := S.heredity_iter B.node.ty n f.val
+    (Finset.mem_filter.mp f.property).1
+  obtain ⟨x, hxf, hxp⟩ := hpf
+  have hσx : (S.σ ^ n) x ∈ (S.σ ^ n) '' f.val.carrier := ⟨x, hxf, rfl⟩
+  rw [hparts] at hσx
+  obtain ⟨q, hq, y, hy, hxy⟩ := mem_iUnion₂.mp hσx
+  obtain ⟨t, ht, hnode⟩ := B.actual q.1
+  let g : FacetName S (tileNode t).ty := ⟨q.2.val, by
+    rw [hnode]
+    exact Finset.mem_filter.mpr ⟨q.2.property.1,
+      q.2.property.2.trans (Finset.mem_filter.mp f.property).2⟩⟩
+  have hdesc : (tileNode t).IsDescendant 0 B.node n := ⟨n, by omega, q.1, hnode⟩
+  have hsub : (tileNode t).cell 0 g.val ⊆ B.node.cell n f.val := by
+    rintro z ⟨w, hw, rfl⟩
+    have hmem : (S.nativeTile B.node.ty n q.1).frame w ∈ (S.σ ^ n) '' f.val.carrier := by
+      rw [hparts]
+      exact mem_iUnion₂.mpr ⟨q, hq, w, hw, rfl⟩
+    obtain ⟨z, hz, he⟩ := hmem
+    refine ⟨z, hz, ?_⟩
+    rw [hnode]
+    change B.node.frame ((S.σ ^ n) z) = B.node.frame ((S.nativeTile B.node.ty n q.1).frame w)
+    exact congrArg B.node.frame he
+  have hpoint : (tileNode t).prototypeFrame 0 y = p := by
+    rw [hnode]
+    change B.node.frame ((S.nativeTile B.node.ty n q.1).frame y) = p
+    rw [hxy]
+    exact hxp
+  have hmem : p ∈ (tileNode t).carrier 0 := by
+    rw [← hpoint, hnode]
+    refine ⟨(S.σ ^ 0) y, ⟨y, ?_, rfl⟩, rfl⟩
+    exact routing_constant_step4_ascent_ports_step2_cell_subset _ q.2.val q.2.property.1 hy
+  obtain ⟨v, hv, hvp⟩ := commonListed_inherited B.node (tileNode t) n 0 hdesc p hp hmem
+  let v' : VertexName S (tileNode t).ty := ⟨v, hv⟩
+  have hvpoint : compilerFrame C t (vertexPoint v') = p := by
+    obtain ⟨z, hz, hzp⟩ := hvp
+    change z ∈ v'.val.carrier at hz
+    have hzv : z = vertexPoint v' := by simpa only [vertexPoint_spec v', mem_singleton_iff] using hz
+    subst z
+    exact hzp
+  have hvg : v.carrier ⊆ g.val.carrier := by
+    rw [vertexPoint_spec v']
+    apply singleton_subset_iff.mpr
+    have hyv : y = vertexPoint v' := by
+      apply (compilerFrame C t).injective
+      exact hpoint.trans hvpoint.symm
+    simpa only [← hyv] using hy
+  exact ⟨t, g, v', ⟨ht, hdesc, hsub⟩, hvg, hvpoint⟩
+
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 2.3, 8.3):
+"inherits an END header". A vertex listed by the serving child has a zero-dimensional provider stratum after restriction to a native facet piece. -/
+private theorem routing_constant_step4_ascent_ports_step3_provider_zero
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (v : VertexName S q.2.val.ty)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hp : (U.hierarchy.servingChild q f hf).2.val.Lists
+      (U.hierarchy.servingChild q f hf).1
+      (q.2.val.prototypeFrame q.1 (vertexPoint v))) :
+    (U.recordTau P q f hf ⟨vertexCell v, hv⟩).val.val.dim = 0 := by
+  obtain ⟨w, hw, hpw⟩ := hp
+  let w' : VertexName S (U.hierarchy.servingChild q f hf).2.val.ty := ⟨w, hw⟩
+  have hpoint : q.2.val.prototypeFrame q.1 (vertexPoint v) =
+      (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1 (vertexPoint w') := by
+    change _ ∈ (U.hierarchy.servingChild q f hf).2.val.cell
+      (U.hierarchy.servingChild q f hf).1 w'.val at hpw
+    simpa only [FramedNode.cell, vertexPoint_spec w', Set.image_singleton,
+      Set.mem_singleton_iff] using hpw
+  have hcell : q.2.val.cell q.1 (vertexCell v).val =
+      (U.hierarchy.servingChild q f hf).2.val.cell
+        (U.hierarchy.servingChild q f hf).1 (vertexCell w').val := by
+    simp only [FramedNode.cell, vertexCell, vertexPoint_spec, Set.image_singleton, hpoint]
+  have hstratum : U.hierarchy.stratumMap q f hf (vertexCell v)
+      (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩) = vertexCell w' := by
+    exact ((Classical.choose_spec (U.hierarchy.stratum_exists_unique q f hf
+      (vertexCell v) (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩))).2
+        (vertexCell w') (by rw [hcell])).symm
+  have htau := record_tau_spec U P q f hf ⟨vertexCell v, hv⟩
+  rw [hstratum] at htau
+  change U.providerPlacement P q f hf ''
+      (U.recordTau P q f hf ⟨vertexCell v, hv⟩).val.val.carrier =
+    (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+      (U.hierarchy.servingChild q f hf).1 '' w'.val.carrier at htau
+  rw [vertexPoint_spec, Set.image_singleton] at htau
+  let e := U.recordTau P q f hf ⟨vertexCell v, hv⟩
+  have hsingleton : e.val.val.carrier =
+      {(U.providerPlacement P q f hf).symm
+        ((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+          (U.hierarchy.servingChild q f hf).1 (vertexPoint w'))} := by
+    apply (U.providerPlacement P q f hf).injective.image_injective
+    simpa only [Set.image_singleton, AffineEquiv.apply_symm_apply] using htau
+  change e.val.val.dim = 0
+  rw [← e.val.val.flat.dimension, hsingleton]
+  simp [cellDirection, direction_affineSpan]
+
+/-- Step 2 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25, 8.3):
+"the e-facing tiles (tiles inside Q with pieces in e at q)". Refine the
+given facing child facet to one actual native facet piece through the same
+listed vertex. This statement concerns only the prescribed subdivision. -/
+private theorem routing_constant_step4_ascent_ports_step2_boundary_piece
+    (Y : MarkedTiling (systemM S P C)) (b : ℕ) (Q : FramedNode S)
+    (hb : 1 ≤ b) (hQ : IsBlock Y b Q) (e : FacetName S Q.ty) (p : E d)
+    (hcommon : ∀ i : S.I Q.ty, p ∈ (Q.child (b - 1) i).carrier (b - 1) →
+      (Q.child (b - 1) i).Lists (b - 1) p)
+    (hface : ∃ (i : S.I Q.ty) (c : FacetName S (Q.child (b - 1) i).ty),
+      p ∈ (Q.child (b - 1) i).cell (b - 1) c.val ∧
+        (Q.child (b - 1) i).cell (b - 1) c.val ⊆ Q.cell b e.val) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode t).ty)
+      (v : VertexName S (tileNode t).ty),
+      Parser.IsFacetPiece Y b Q e t f ∧ v.val.carrier ⊆ f.val.carrier ∧
+        compilerFrame C t (vertexPoint v) = p := by
+  obtain ⟨i, c, hpc, hce⟩ := hface
+  have hchild : (Q.child (b - 1) i).IsDescendant (b - 1) Q b := by
+    simpa only [Nat.sub_add_cancel hb] using Parser.child_descendant Q (b - 1) i
+  let B : Block Y (b - 1) := (⟨Q, hQ⟩ : Block Y b).innerBlock
+    (b - 1) (Q.child (b - 1) i) hchild
+  have hpcar : p ∈ (Q.child (b - 1) i).carrier (b - 1) := by
+    exact routing_constant_step4_ascent_ports_step2_cell_carrier _ _ c hpc
+  obtain ⟨t, f, v, hpiece, hv, hvp⟩ :=
+    routing_constant_step4_ascent_ports_step2_facet_at_vertex Y (b - 1) B c p
+      (hcommon i hpcar) hpc
+  exact ⟨t, f, v, ⟨hpiece.1,
+    Parser.descendant_trans _ _ _ _ _ _ hpiece.2.1 hchild,
+    hpiece.2.2.trans hce⟩, hv, hvp⟩
+
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.1, 8.3):
+"a facet ... born in Q". Relative interiors commute with the full affine prototype frames, so internality is preserved. -/
+private theorem routing_constant_step4_ascent_ports_step3_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"an END template with cone T_q Q". This is the complete geometric header
+of a positive-height birth, expressed in the distinguished native frame. -/
+private def routing_constant_step4_ascent_ports_step3_header
+    (Q : FramedNode S) (b : ℕ) (φ : Iso d) (p : E d) : State.Header P := by
+  classical
+  let normalize := fun K : Set (E d) => φ.linearIsometryEquiv.symm '' K
+  let pos := fun ι : P.Incidence => P.incidencePlacement Q b ι
+  exact {
+    birthType := Q.ty
+    parentCone := normalize (tangentCone (Q.carrier b) p)
+    childCones := fun i =>
+      let M := Q.child (b - 1) i
+      if p ∈ M.carrier (b - 1) then
+        some (normalize (tangentCone (M.carrier (b - 1)) p)) else none
+    boundaryCones := fun F => if p ∈ Q.cell b F.val then
+      some (normalize (tangentCone (Q.cell b F.val) p)) else none
+    primitiveCones := fun ι => if ι.val.ty = Q.ty ∧
+        p ∈ pos ι '' ι.val.leftFacet.val.carrier then
+      some (normalize (tangentCone (pos ι '' ι.val.leftFacet.val.carrier) p)) else none
+    flagTangent := fun ι => if ι.val.ty = Q.ty ∧
+        (p = pos ι (P.flag ι).initial ∨ p = pos ι (P.flag ι).terminal) then
+      some {
+        cones := fun j => normalize
+          (tangentCone (pos ι '' ((P.flag ι).flag.cell j).val.carrier) p)
+        initial := decide (p = pos ι (P.flag ι).initial)
+        sides := fun j => normalize ((pos ι).linear '' (P.flag ι).sides j) }
+      else none }
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"a native descendant along ... f". The incidence's left owner is a named
+immediate child of its birth parent, with the same full frame. -/
+private theorem routing_constant_step4_ascent_ports_step3_left_child
+    (g : Parser.BornFacet P) :
+    ∃ i : S.I g.birth.ty, g.leftNode = g.birth.child (g.height - 1) i := by
+  rcases g with ⟨b, hb, ⟨T, φ⟩, ι, hι⟩
+  dsimp only at hι
+  subst T
+  exact ⟨ι.val.left, rfl⟩
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"f born in Q". The left incidence facet is internal to the actual birth
+parent; the assertion includes the anisotropic expansion and the ambient frame. -/
+private theorem routing_constant_step4_ascent_ports_step3_internal
+    (g : Parser.BornFacet P) : relint g.carrier ⊆ interior (g.birth.carrier g.height) := by
+  let φ : E d ≃ᵃ[ℝ] E d :=
+    (S.σ ^ (g.height - 1)).toAffineEquiv.trans g.birth.frame.toAffineEquiv
+  have hcarrier : g.carrier = φ '' g.incidence.val.positioned := by
+    rw [routing_constant_step1_carrier]
+    have hp : S.σ ^ g.height = S.σ ^ (g.height - 1) * S.σ := by
+      rw [← pow_succ, Nat.sub_add_cancel g.positive]
+    simp only [FramedNode.prototypeFrame, Set.image_image, AffineEquiv.coe_trans,
+      LinearEquiv.coe_toAffineEquiv, AffineIsometryEquiv.coe_toAffineEquiv,
+      Function.comp_apply, hp, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply]
+    rfl
+  have hbirth : g.birth.carrier g.height = φ '' S.supertile 1 g.incidence.val.ty := by
+    rw [g.parent_type]
+    simp only [FramedNode.carrier, SubstSystem.supertile, placedSet, φ,
+      Set.image_image, AffineEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
+      AffineIsometryEquiv.coe_toAffineEquiv, Function.comp_apply, pow_one]
+    have hp : S.σ ^ g.height = S.σ ^ (g.height - 1) * S.σ := by
+      rw [← pow_succ, Nat.sub_add_cancel g.positive]
+    rw [hp]
+    rfl
+  have hi : φ '' interior (S.supertile 1 g.incidence.val.ty) =
+      interior (φ '' S.supertile 1 g.incidence.val.ty) :=
+    φ.toHomeomorphOfFiniteDimensional.image_interior _
+  rw [hcarrier, routing_constant_step4_ascent_ports_step3_relint_image, hbirth, ← hi]
+  exact Set.image_mono g.incidence.val.internal
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 2.3, 8.3):
+"restrict down ... using (I2)". In a fixed honest realization of an old
+node, every prescribed descendant has its actual decoded state and ancestor. -/
+private theorem routing_constant_step4_ascent_ports_step3_source_descendant
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (U : HonestSource S) (b : ℕ) (Q : FramedNode S)
+    (hQ : Q ∈ D.geometry.nodes b) (hU : Q ∈ U.hierarchy.nodes b)
+    (hs : stateOf U P ⟨b, ⟨Q, hU⟩⟩ = D.stateAt b Q hQ)
+    (a : ℕ) (M : FramedNode S) (hdesc : M.IsDescendant a Q b) :
+    ∃ (hM : M ∈ D.geometry.nodes a) (hMU : M ∈ U.hierarchy.nodes a),
+      stateOf U P ⟨a, ⟨M, hMU⟩⟩ = D.stateAt a M hM ∧
+        U.hierarchy.ancestor ⟨a, ⟨M, hMU⟩⟩ (b - a) = ⟨b, ⟨Q, hU⟩⟩ := by
+  obtain ⟨r, rfl, w, rfl⟩ := hdesc
+  simpa only [Nat.add_sub_cancel_left] using
+    routing_constant_step2_source_descent D hD U a r Q hQ hU hs w
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 2.3, 8.3):
+"A native descendant ... inherits an END header ... from its owner's
+age-one record". Given the native facet piece, identify its provider and
+read its actual header and central packet. No template is asserted here. -/
+private theorem routing_constant_step4_ascent_ports_step3_slot
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (p : E d) (hp : g.leftNode.Lists (g.height - 1) p)
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (q : Packet P) (hq : g.packet hl = some q)
+    (t : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode t).ty)
+    (v : VertexName S (tileNode t).ty)
+    (hpiece : Parser.IsFacetPiece Y (g.height - 1) g.leftNode
+      g.incidence.val.leftFacet t f)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hvp : compilerFrame C t (vertexPoint v) = p) :
+    ∃ j : EndSlot (compilerLeaf C t), j.packet = q ∧
+      Compiler.endVertex (compilerFrame C t) j = p ∧
+      j.header = routing_constant_step4_ascent_ports_step3_header
+        g.birth g.height (compilerFrame C t) p := by
+  classical
+  obtain ⟨U, hU, hs⟩ := routing_constant_step2_source_realization
+    (D.stateAt g.height g.birth hg) (D.state_honest _ _)
+    g.birth g.height (hD.node_type_residue _ _ hg).1 (hD.node_type_residue _ _ hg).2
+  let B : U.Node := ⟨g.height, ⟨g.birth, hU⟩⟩
+  obtain ⟨hL, hLU, hsL, hancL⟩ :=
+    routing_constant_step4_ascent_ports_step3_source_descendant D hD U
+      g.height g.birth hg hU hs (g.height - 1) g.leftNode g.sides_descendant.1
+  let L : U.Node := ⟨g.height - 1, ⟨g.leftNode, hLU⟩⟩
+  have hparent : U.hierarchy.parentNode L = B := by
+    have he : g.height - (g.height - 1) = 1 := by have := g.positive; omega
+    simpa only [he, CoherentHierarchy.ancestor, Function.iterate_one] using hancL
+  obtain ⟨hF, _, hbirthL, _⟩ := U.hierarchy.restriction_det_internal L
+    g.incidence.val.leftFacet (by
+      rw [hparent]
+      change relint (g.leftNode.cell (g.height - 1) g.incidence.val.leftFacet.val) ⊆ _
+      rw [g.sides_carrier.1]
+      exact routing_constant_step4_ascent_ports_step3_internal g)
+  obtain ⟨htD, htU, htstate, hanc⟩ :=
+    routing_constant_step4_ascent_ports_step3_source_descendant D hD U
+      (g.height - 1) g.leftNode hL hLU hsL 0 (tileNode t) hpiece.2.1
+  let c : U.Node := ⟨0, ⟨tileNode t, htU⟩⟩
+  have hleaf : stateOf U P c = (compilerLeaf C t).prePattern.state :=
+    htstate.trans (hD.I2.2 (tileNode t) htD t hpiece.1 rfl)
+  obtain ⟨hf, _, hbirth⟩ := U.hierarchy.provider_inherited L c (g.height - 1)
+    (by simpa only [Nat.sub_zero] using hanc) g.incidence.val.leftFacet f hF hpiece.2.2
+  have hbirth' : U.hierarchy.birthParent c f hf = B :=
+    hbirth.trans (hbirthL.trans hparent)
+  have hserv : U.hierarchy.servingChild c f hf = L := by
+    have hh := congrArg (fun z : U.Node => z.1) hbirth'
+    have hoff := (U.hierarchy.birthHeight_age_spec c f hf).1
+    have he : (U.hierarchy.firstProvider c f hf).1 = g.height - 1 := by
+      change U.hierarchy.birthHeight c f hf = g.height at hh
+      change U.hierarchy.birthHeight c f hf = 0 + _ + 1 at hoff
+      omega
+    simpa only [CoherentHierarchy.servingChild, he, Nat.sub_zero] using hanc
+  have hframe : c.2.val.prototypeFrame c.1 = (compilerFrame C t).toAffineEquiv := by
+    ext x
+    rfl
+  have hpoint : c.2.val.prototypeFrame c.1 (vertexPoint v) = p := by
+    rw [hframe]
+    exact hvp
+  have hzero := routing_constant_step4_ascent_ports_step3_provider_zero (P := P)
+    U c f hf v hv (by rw [hserv, hpoint]; exact hp)
+  have hrleaf : leafRecord (compilerLeaf C t) f.val = some (U.recordOf P c f hf) := by
+    unfold leafRecord
+    rw [← hleaf]
+    simp only [stateRecordAt, stateOf, c, dif_pos f.property,
+      HonestSource.facetRecordOf, dif_neg hf]
+  have hheader : leafHeader (compilerLeaf C t) v.val f.val =
+      some (U.headerOf P c f hf v) := by
+    unfold leafHeader
+    rw [← hleaf]
+    simp only [stateOf, c, dif_pos v.property, dif_pos f.property,
+      HonestSource.headerRecordOf, dif_pos hv, dif_neg hf, hzero, if_pos True.intro]
+  have hpacket : leafPacket (compilerLeaf C t) f.val = some q :=
+    (attachedPacket_eq_leaf hl g.incidence.val.leftFacet t f hpiece).symm.trans hq
+  have hvc : v.val ∈ (S.cx (tileNode t).ty).cells := (vertexCell v).property
+  let j : EndSlot (compilerLeaf C t) := {
+    facet := f
+    record := U.recordOf P c f hf
+    record_eq := hrleaf
+    type_eq := rfl
+    facet_eq := rfl
+    vertex := v
+    onFacet := hv
+    providerVertex := U.recordTau P c f hf ⟨vertexCell v, hv⟩
+    tau_vertex := by
+      simp only [FacetRecord.tauAt, HonestSource.recordOf, c, dif_pos hvc, dif_pos hv]
+      rfl
+    provider_zero := hzero
+    header := U.headerOf P c f hf v
+    header_eq := hheader
+    packet := q
+    packet_eq := hpacket }
+  refine ⟨j, rfl, hvp, ?_⟩
+  change U.headerOf P c f hf v = _
+  have hnorm (K : Set (E d)) : U.normalizeCone c K =
+      (compilerFrame C t).linearIsometryEquiv.symm '' K := by
+    rw [HonestSource.normalizeCone, hframe]
+    rfl
+  unfold HonestSource.headerOf
+  rw [hbirth']
+  simp only [B, hpoint, hnorm, routing_constant_step4_ascent_ports_step3_header]
+
+/-- Step 3 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 8.3):
+"A native descendant along ... f at q inherits an END header". Choose a
+piece on the actual left owner and apply its inherited state and header
+readout. The lower birth is old; no state of the new parent is used. -/
+private theorem routing_constant_step4_ascent_ports_step3_seed
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (p : E d) (hpg : p ∈ g.carrier)
+    (hcommon : ∀ i : S.I g.birth.ty,
+      p ∈ (g.birth.child (g.height - 1) i).carrier (g.height - 1) →
+        (g.birth.child (g.height - 1) i).Lists (g.height - 1) p)
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (q : Packet P) (hq : g.packet hl = some q) :
+    ∃ t ∈ Y.tiles, ∃ j : EndSlot (compilerLeaf C t), j.packet = q ∧
+      Compiler.endVertex (compilerFrame C t) j = p ∧
+      j.header = routing_constant_step4_ascent_ports_step3_header
+        g.birth g.height (compilerFrame C t) p := by
+  have hL := D.geometry.descendant_mem _ _ _ _ hg g.sides_descendant.1
+  let B : Block Y (g.height - 1) :=
+    ⟨g.leftNode, D.geometry.node_actual _ _ hL⟩
+  have hpf : p ∈ g.leftNode.cell (g.height - 1) g.incidence.val.leftFacet.val := by
+    rwa [g.sides_carrier.1]
+  have hpcar : p ∈ g.leftNode.carrier (g.height - 1) :=
+    routing_constant_step4_ascent_ports_step2_cell_carrier _ _ g.incidence.val.leftFacet hpf
+  have hp : g.leftNode.Lists (g.height - 1) p := by
+    obtain ⟨i, hi⟩ := routing_constant_step4_ascent_ports_step3_left_child g
+    rw [hi] at hpcar ⊢
+    exact hcommon i hpcar
+  obtain ⟨t, f, v, hpiece, hv, hvp⟩ :=
+    routing_constant_step4_ascent_ports_step2_facet_at_vertex Y (g.height - 1)
+      B g.incidence.val.leftFacet p hp hpf
+  obtain ⟨j, hqj, hpj, hheader⟩ := routing_constant_step4_ascent_ports_step3_slot
+    D hD g hg p hp hl q hq t f v hpiece hv hvp
+  exact ⟨t, hpiece.1, j, hqj, hpj, hheader⟩
+
+/-- Step 4 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 2.17, 8.3):
+"Theorem 2.17 ... put[s] the ports ... into the endpoint template".
+Compilation of the already constructed END slot supplies an actual labelled
+configuration and all six END rows. -/
+private theorem routing_constant_step4_ascent_ports_step4_event
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (j : EndSlot (compilerLeaf C t)) :
+    ∃ T : EndTemplate j,
+      TemplateOccurs C Y (compilerFrame C t) T.configuration ∧ endRow T := by
+  obtain ⟨θ, ⟨T, rfl, hrow⟩, _, hactual⟩ := compiler_events C Y hY t ht (.end_ j)
+  exact ⟨T, hactual, hrow⟩
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.4, 1.25):
+"g contains a facet e of Q". Nonempty relative interior gives positive
+Hausdorff measure in the affine dimension, including dimension zero. -/
+private theorem routing_constant_step4_ascent_ports_step6_relint_measure (K : Set (E d)) (hne : (relint K).Nonempty) :
+    0 < (MeasureTheory.Measure.hausdorffMeasure (Module.finrank ℝ (affineSpan ℝ K).direction : ℝ)) K := by
+  classical
+  let A := affineSpan ℝ K
+  obtain ⟨z, x, hx, rfl⟩ := hne
+  letI : Nonempty A := ⟨x⟩
+  let e := AffineIsometryEquiv.vaddConst ℝ x
+  let U : Set A := interior ((↑) ⁻¹' K)
+  let V : Set A.direction := e ⁻¹' U
+  have hV : IsOpen V := isOpen_interior.preimage e.continuous
+  have hVne : V.Nonempty := ⟨e.symm x, by simpa [V, U] using hx⟩
+  letI : (MeasureTheory.Measure.hausdorffMeasure (Module.finrank ℝ A.direction : ℝ) :
+      MeasureTheory.Measure A.direction).IsAddHaarMeasure := MeasureTheory.isAddHaarMeasure_hausdorffMeasure
+  have hpos : 0 < (MeasureTheory.Measure.hausdorffMeasure (Module.finrank ℝ A.direction : ℝ)) V :=
+    hV.measure_pos _ hVne
+  have heV : e '' V = U := e.surjective.image_preimage U
+  have hm := e.isometry.hausdorffMeasure_image
+    (Or.inl (Nat.cast_nonneg (Module.finrank ℝ A.direction))) V
+  rw [heV] at hm
+  have hi : Isometry (Subtype.val : A → E d) := fun _ _ => rfl
+  have hm' := hi.hausdorffMeasure_image (Or.inl (Nat.cast_nonneg (Module.finrank ℝ A.direction))) U
+  have hsub : (Subtype.val '' U : Set (E d)) ⊆ K := by
+    rintro y ⟨x, hx, rfl⟩
+    exact interior_subset (s := (Subtype.val ⁻¹' K : Set A)) hx
+  exact (hpos.trans_eq (hm'.trans hm).symm).trans_le (MeasureTheory.measure_mono hsub)
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.4, 1.25):
+"g contains a facet e of Q". Every placed facet has positive facet measure;
+the affine prototype frame preserves its dimension and nonempty relative interior. -/
+private theorem routing_constant_step4_ascent_ports_step6_facet_measure
+    (Q : FramedNode S) (b : ℕ) (e : FacetName S Q.ty) :
+    0 < MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ) (Q.cell b e.val) := by
+  have hdim : Module.finrank ℝ (affineSpan ℝ (Q.cell b e.val)).direction = d - 1 := by
+    change Module.finrank ℝ
+      (affineSpan ℝ ((Q.prototypeFrame b).toAffineMap '' e.val.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact ((Q.prototypeFrame b).linear.finrank_map_eq _).trans
+      (e.val.flat.dimension.trans (Finset.mem_filter.mp e.property).2)
+  have hne : (relint (Q.cell b e.val)).Nonempty := by
+    rw [FramedNode.cell, routing_constant_step4_ascent_ports_step3_relint_image]
+    exact e.val.flat.relint_nonempty.image _
+  have h := routing_constant_step4_ascent_ports_step6_relint_measure _ hne
+  have hd : 1 ≤ d := by have := (Fact.out : 2 ≤ d); omega
+  simpa only [hdim, Nat.cast_sub hd, Nat.cast_one] using h
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"born in its ancestor". A prescribed child is contained in its parent,
+with the full conjugated frame at the given height. -/
+private theorem routing_constant_step4_ascent_ports_step6_child_subset
+    (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).carrier n ⊆ N.carrier (n + 1) := by
+  rintro z ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hmem : (S.child N.ty i).frame x ∈ S.σ '' (S.proto N.ty).carrier := by
+    rw [S.children_cover]
+    exact mem_iUnion.mpr ⟨i, ⟨x, hx, rfl⟩⟩
+  obtain ⟨y, hy, he⟩ := hmem
+  refine ⟨(S.σ ^ (n + 1)) y, ⟨y, hy, rfl⟩, ?_⟩
+  change N.frame ((S.σ ^ (n + 1)) y) = N.frame (S.placeChild n i ((S.σ ^ n) x))
+  rw [routing_constant_step4_ascent_ports_step1_child_scaled, ← he, pow_succ]
+  rfl
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.25):
+"both nodes descendants of A". Iterate child containment along the exact
+role word; this includes the zero-length descendant. -/
+private theorem routing_constant_step4_ascent_ports_step6_descendant_subset
+    (M N : FramedNode S) (m n : ℕ) (h : M.IsDescendant m N n) :
+    M.carrier m ⊆ N.carrier n := by
+  obtain ⟨r, rfl, w, rfl⟩ := h
+  induction r generalizing N with
+  | zero => simpa [SubstSystem.descendantNode, FramedNode.move] using
+      (Subset.rfl : N.carrier m ⊆ N.carrier m)
+  | succ r ih =>
+    have he : (S.descendantNode N.ty m (r + 1) w).move N.frame =
+        (S.descendantNode (N.child (m + r) w.1).ty m r w.2).move
+          (N.child (m + r) w.1).frame := rfl
+    rw [he]
+    exact (ih (N.child (m + r) w.1) w.2).trans
+      (routing_constant_step4_ascent_ports_step6_child_subset N (m + r) w.1)
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.4, 1.25):
+"g contains a facet e of Q". The two owning children are the only children
+with positive facet overlap. The first child on Q's address therefore is one
+of those owners; a whole descendant facet cannot fit in a zero-measure overlap. -/
+private theorem routing_constant_step4_ascent_ports_step6_two_owners
+    (R : FramedNode S) (m : ℕ) (i j : S.I R.ty) (hij : i ≠ j)
+    (F : FacetName S (R.child m i).ty) (G : FacetName S (R.child m j).ty)
+    (hpair : (R.child m j).cell m G.val = (R.child m i).cell m F.val)
+    (hint : relint ((R.child m i).cell m F.val) ⊆ interior (R.carrier (m + 1)))
+    (b : ℕ) (Q : FramedNode S) (hdesc : Q.IsDescendant b R (m + 1))
+    (hb : b < m + 1) (e : FacetName S Q.ty)
+    (he : Q.cell b e.val ⊆ (R.child m i).cell m F.val) :
+    Q.IsDescendant b (R.child m i) m ∨ Q.IsDescendant b (R.child m j) m := by
+  have hne : (relint ((R.child m i).cell m F.val)).Nonempty := by
+    rw [FramedNode.cell, routing_constant_step4_ascent_ports_step3_relint_image]
+    exact F.val.flat.relint_nonempty.image _
+  obtain ⟨x, hx⟩ := hne
+  obtain ⟨j₀, ⟨_, _, _, hzero⟩, _⟩ :=
+    (internal_facet_pairing R m i F ⟨x, hx, hint hx⟩).2
+  have hj : j = j₀ := by
+    by_contra hji
+    have hz := hzero j hij.symm hji
+    have hsub : (R.child m j).cell m G.val ⊆
+        (R.child m j).carrier m ∩ (R.child m i).cell m F.val := by
+      intro y hy
+      exact ⟨routing_constant_step4_ascent_ports_step2_cell_carrier _ _ G hy, hpair ▸ hy⟩
+    exact (ne_of_gt (routing_constant_step4_ascent_ports_step6_facet_measure _ _ G))
+      (MeasureTheory.measure_mono_null hsub hz)
+  subst j₀
+  obtain ⟨r, hr, w, hw⟩ := hdesc
+  have hrpos : 0 < r := by omega
+  obtain ⟨r, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hrpos)
+  have hm : m = b + r := by omega
+  have hdown : Q.IsDescendant b (R.child m w.1) m := by
+    refine ⟨r, hm, w.2, ?_⟩
+    simpa only [SubstSystem.descendantNode, FramedNode.child, FramedNode.move, hm,
+      AffineIsometryEquiv.trans_assoc] using hw
+  by_cases hi : w.1 = i
+  · exact Or.inl (hi ▸ hdown)
+  by_cases hj : w.1 = j
+  · exact Or.inr (hj ▸ hdown)
+  have hsub : Q.cell b e.val ⊆
+      (R.child m w.1).carrier m ∩ (R.child m i).cell m F.val := by
+    intro y hy
+    exact ⟨routing_constant_step4_ascent_ports_step6_descendant_subset _ _ _ _ hdown
+      (routing_constant_step4_ascent_ports_step2_cell_carrier _ _ e hy), he hy⟩
+  exact False.elim ((ne_of_gt (routing_constant_step4_ascent_ports_step6_facet_measure Q b e))
+    (MeasureTheory.measure_mono_null hsub (hzero w.1 hi hj)))
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.4, 1.25):
+"g contains a facet e of Q (so g is the first provider of e)". A strict
+descendant with an entire facet in this primitive provider lies in one of
+its two owning children. Nonempty facet interiors exclude all other children. -/
+private theorem routing_constant_step4_ascent_ports_step6_side_ownership
+    (g : Parser.BornFacet P) (b : ℕ) (Q : FramedNode S)
+    (hdesc : Q.IsDescendant b g.birth g.height) (hb : b < g.height)
+    (e : FacetName S Q.ty) (he : Q.cell b e.val ⊆ g.carrier) :
+    Q.IsDescendant b g.leftNode (g.height - 1) ∨
+      Q.IsDescendant b g.rightNode (g.height - 1) := by
+  rcases g with ⟨h, hpos, ⟨T, φ⟩, ι, hι⟩
+  dsimp only at hι
+  subst T
+  let g : Parser.BornFacet P := ⟨h, hpos, ⟨ι.val.ty, φ⟩, ι, rfl⟩
+  have hh : h - 1 + 1 = h := Nat.sub_add_cancel hpos
+  refine routing_constant_step4_ascent_ports_step6_two_owners
+    g.birth (h - 1) ι.val.left ι.val.right ι.val.distinct
+    ι.val.leftFacet ι.val.rightFacet ?_ ?_ b Q ?_ ?_ e ?_
+  · exact g.sides_carrier.2.trans g.sides_carrier.1.symm
+  · change relint (g.leftNode.cell (g.height - 1) g.incidence.val.leftFacet.val) ⊆
+      interior (g.birth.carrier (h - 1 + 1))
+    rw [hh, g.sides_carrier.1]
+    exact routing_constant_step4_ascent_ports_step3_internal g
+  · simpa only [hh] using hdesc
+  · simpa only [hh] using hb
+  · change Q.cell b e.val ⊆ g.leftNode.cell (g.height - 1) g.incidence.val.leftFacet.val
+    rwa [g.sides_carrier.1]
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 3.4, 8.3):
+"every primitive facet ... has a well-defined attached packet". Retain the
+right-side readout of the higher birth, including a birth at the newly
+assembled parent, where the second clause of two-sided constancy applies. -/
+private theorem routing_constant_step4_ascent_ports_step6_right_packet
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (g : Parser.BornFacet P) (hbirth : g.birth.IsDescendant g.height N (n + 1))
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (q : Packet P) (hq : g.packet hl = some q) :
+    ∃ hr : Parser.BoundaryPackets Y (g.height - 1) g.rightNode,
+      attachedPacket hr g.incidence.val.rightFacet = some q := by
+  have hle := Parser.descendant_height_le _ _ _ _ hbirth
+  by_cases hlt : g.height < n + 1
+  · have hg := Parser.assembled_inner_mem D N A g.height g.birth hlt hbirth
+    obtain ⟨_, hr, hpair, _⟩ := two_sided_constancy Y hY n hn D hD g hg
+    exact ⟨hr, hpair.symm.trans hq⟩
+  · have hh : g.height = n + 1 := by omega
+    have hb : g.birth = N := routing_constant_step1_equal_height N g.birth (n + 1)
+      (by simpa only [hh] using hbirth)
+    obtain ⟨_, hr, hpair, _⟩ := two_sided_constancy_assembled Y hY n hn D hD N A g hh hb
+    exact ⟨hr, hpair.symm.trans hq⟩
+
+/-- Step 6 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 3.4, 8.3):
+"the e-facing port" reads the provider's attached packet. Once its owning
+side is identified, boundary inheritance and two-sided constancy identify the
+whole packet, including when the provider is the newly assembled parent. -/
+private theorem routing_constant_step4_ascent_ports_step6_boundary_packet
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (g : Parser.BornFacet P) (hbirth : g.birth.IsDescendant g.height N (n + 1))
+    (b : ℕ) (Q : FramedNode S) (hQ : Q ∈ D.geometry.nodes b)
+    (hdesc : Q.IsDescendant b g.birth g.height) (hb : b < g.height)
+    (e : FacetName S Q.ty) (he : Q.cell b e.val ⊆ g.carrier)
+    (hl : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (q : Packet P) (hq : g.packet hl = some q)
+    (u : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode u).ty)
+    (hpiece : Parser.IsFacetPiece Y b Q e u f) :
+    leafPacket (compilerLeaf C u) f.val = some q := by
+  let hM := hD.boundaryPackets b Q hQ
+  have hread : attachedPacket hM e = some q := by
+    rcases routing_constant_step4_ascent_ports_step6_side_ownership g b Q hdesc hb e he
+      with hleft | hright
+    · have h := Parser.boundaryPacket_inherited Y (g.height - 1) b g.leftNode Q
+        (D.geometry.node_actual _ _ hQ) hleft g.incidence.val.leftFacet e
+        (by rwa [g.sides_carrier.1]) hl hM
+      exact h.symm.trans hq
+    · obtain ⟨hr, hqr⟩ := routing_constant_step4_ascent_ports_step6_right_packet
+        Y hY n hn D hD N A g hbirth hl q hq
+      have h := Parser.boundaryPacket_inherited Y (g.height - 1) b g.rightNode Q
+        (D.geometry.node_actual _ _ hQ) hright g.incidence.val.rightFacet e
+        (by rwa [g.sides_carrier.2]) hr hM
+      exact h.symm.trans hqr
+  exact (attachedPacket_eq_leaf hM e u f hpiece).symm.trans hread
+
+/-- Step 7 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 2.5, 8.3):
+"with a facet e of Q contained in g". The complete header records exactly
+the boundary facets through the apex; retain this lookup for row (E3). -/
+private theorem routing_constant_step4_ascent_ports_step7_boundary_cone
+    (Q : FramedNode S) (b : ℕ) (φ : Iso d) (p : E d)
+    (e : FacetName S Q.ty) (hp : p ∈ Q.cell b e.val)
+    (H : State.Header P)
+    (hH : H = routing_constant_step4_ascent_ports_step3_header Q b φ p)
+    (F : FacetName S H.birthType) (hF : F.val = e.val) :
+    ∃ G, H.boundaryCones F = some G := by
+  classical
+  subst H
+  change ∃ G, (if p ∈ Q.cell b F.val then
+    some (φ.linearIsometryEquiv.symm '' tangentCone (Q.cell b F.val) p) else none) = some G
+  rw [hF, if_pos hp]
+  exact ⟨_, rfl⟩
+
+open scoped BigOperators Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3, 8.3):
+"with cone T_q Q". A finite simplex, including a lower-dimensional one, has a finite affine half-space presentation. -/
+private lemma routing_constant_step4_ascent_ports_step5_simplex_halfspaces
+    (s : Finset (E d)) (hs : AffineIndependent ℝ ((↑) : s → E d)) :
+    ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      convexHull ℝ (s : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨t, hst, ht, hspan⟩ := exists_subset_affineIndependent_affineSpan_eq_top hs
+  let b : AffineBasis t ℝ (E d) := ⟨(↑), ht, by simpa using hspan⟩
+  letI : Finite t := finite_of_fin_dim_affineIndependent ℝ ht
+  letI : Fintype t := Fintype.ofFinite t
+  let q : Finset (E d →ᵃ[ℝ] ℝ) :=
+    Finset.univ.image b.coord ∪
+      (Finset.univ.filter fun i : t => (i : E d) ∉ s).image (fun i => -b.coord i)
+  refine ⟨q, Set.Subset.antisymm ?_ ?_⟩
+  · intro x hx f hf
+    apply convexHull_min (t := {x | 0 ≤ f x}) ?_
+      (Convex.affine_preimage f (convex_Ici 0)) hx
+    intro y hy
+    let j : t := ⟨y, hst hy⟩
+    change 0 ≤ f (b j)
+    rcases Finset.mem_union.mp hf with hf | hf
+    · obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hf
+      simp only [b.coord_apply]
+      split_ifs <;> norm_num
+    · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hf
+      have hij : i ≠ j := by
+        intro hij
+        have := (Finset.mem_filter.mp hi).2
+        exact this (by simpa [hij, j] using hy)
+      simp [b.coord_apply_ne hij]
+  · intro x hx
+    have hpos (i : t) : 0 ≤ b.coord i x :=
+      hx _ (Finset.mem_union_left _ (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩))
+    have hzero (i : t) (hi : (i : E d) ∉ s) : b.coord i x = 0 := by
+      have hn := hx _ (Finset.mem_union_right _ (Finset.mem_image.mpr
+        ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩, rfl⟩))
+      have hn' : 0 ≤ -b.coord i x := hn
+      exact le_antisymm (by linarith) (hpos i)
+    let u : Finset t := Finset.univ.filter fun i : t => (i : E d) ∈ s
+    have hsum : ∑ i ∈ u, b.coord i x = 1 := by
+      rw [← b.sum_coord_apply_eq_one x]
+      apply Finset.sum_subset (Finset.subset_univ _)
+      intro i _ hi
+      exact hzero i (by simpa [u] using hi)
+    have hsumv : ∑ i ∈ u, b.coord i x • b i = x := by
+      calc
+        _ = ∑ i, b.coord i x • b i := by
+          apply Finset.sum_subset (Finset.subset_univ _)
+          intro i _ hi
+          rw [hzero i (by simpa [u] using hi), zero_smul]
+        _ = x := b.linear_combination_coord_eq_self x
+    rw [← hsumv]
+    apply (convex_convexHull ℝ (s : Set (E d))).sum_mem (fun i _ => hpos i) hsum
+    intro i hi
+    exact subset_convexHull ℝ (s : Set (E d)) (Finset.mem_filter.mp hi).2
+
+open scoped BigOperators Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3, 8.3):
+"with cone T_q Q". A finite polyhedron has a finite union of affine half-space presentations. -/
+private lemma routing_constant_step4_ascent_ports_step5_halfspace_presentation
+    {K : Set (E d)} (hK : Polyhedron K) :
+    ∃ S : Finset (Finset (E d →ᵃ[ℝ] ℝ)),
+      K = ⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  have hrep (t : Finset (E d)) : ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      AffineIndependent ℝ ((↑) : t → E d) →
+        convexHull ℝ (t : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+    by_cases ht : AffineIndependent ℝ ((↑) : t → E d)
+    · obtain ⟨q, hq⟩ := routing_constant_step4_ascent_ports_step5_simplex_halfspaces t ht
+      exact ⟨q, fun _ => hq⟩
+    · exact ⟨∅, fun h => (ht h).elim⟩
+  choose q hq using hrep
+  let S := s.biUnion fun p =>
+    (p.powerset.filter fun t : Finset (E d) =>
+      AffineIndependent ℝ ((↑) : t → E d)).image q
+  refine ⟨S, ?_⟩
+  ext x
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨p, hp, hx⟩
+    rw [convexHull_eq_union] at hx
+    obtain ⟨t, htp, ht, hxt⟩ := by
+      simpa only [Set.mem_iUnion, exists_prop] using hx
+    refine ⟨q t, Finset.mem_biUnion.mpr ⟨p, hp, ?_⟩, ?_⟩
+    · exact Finset.mem_image.mpr ⟨t,
+        Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr htp, ht⟩, rfl⟩
+    · rwa [hq t ht] at hxt
+  · rintro ⟨r, hr, hx⟩
+    obtain ⟨p, hp, hr⟩ := Finset.mem_biUnion.mp hr
+    obtain ⟨t, ht, rfl⟩ := Finset.mem_image.mp hr
+    obtain ⟨htp, ht⟩ := Finset.mem_filter.mp ht
+    refine ⟨p, hp, convexHull_mono (Finset.mem_powerset.mp htp) ?_⟩
+    change x ∈ convexHull ℝ (t : Set (E d))
+    rwa [hq t ht]
+
+open scoped BigOperators Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3, 8.3):
+"with cone T_q Q". Near the apex, inactive affine inequalities keep their sign and active inequalities become homogeneous. -/
+private lemma routing_constant_step4_ascent_ports_step5_local_cone
+    (S : Finset (Finset (E d →ᵃ[ℝ] ℝ))) (p : E d) :
+    ∃ C : Set (E d), IsPolyhedralCone C ∧
+      ∀ᶠ x in 𝓝 p,
+        (x ∈ ⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x}) ↔ x - p ∈ C := by
+  classical
+  let Q (q : Finset (E d →ᵃ[ℝ] ℝ)) : Finset (E d →ₗ[ℝ] ℝ) :=
+    (q.filter fun f => f p = 0).image AffineMap.linear
+  let S₀ := S.filter fun q => ∀ f ∈ q, 0 ≤ f p
+  let C : Set (E d) := ⋃ r ∈ S₀.image Q, {v | ∀ l ∈ r, 0 ≤ l v}
+  have hC (v : E d) : v ∈ C ↔
+      ∃ q ∈ S, (∀ f ∈ q, 0 ≤ f p) ∧ ∀ f ∈ q, f p = 0 → 0 ≤ f.linear v := by
+    simp [C, S₀, Q]
+    constructor
+    · rintro ⟨q, ⟨hq, hpq⟩, hvq⟩
+      exact ⟨q, hq, hpq, fun f hf hf0 => hvq f.linear f hf hf0 rfl⟩
+    · rintro ⟨q, hq, hpq, hvq⟩
+      refine ⟨q, ⟨hq, hpq⟩, ?_⟩
+      rintro l f hf hf0 rfl
+      exact hvq f hf hf0
+  refine ⟨C, ⟨S₀.image Q, rfl⟩, ?_⟩
+  have hsign (f : E d →ᵃ[ℝ] ℝ) : ∀ᶠ x in 𝓝 p,
+      (f p < 0 → f x < 0) ∧ (0 < f p → 0 < f x) := by
+    have hc := f.continuous_of_finiteDimensional.continuousAt (x := p)
+    apply Filter.Eventually.and
+    · by_cases hf : f p < 0
+      · exact (hc.eventually_lt_const hf).mono fun x hx _ => hx
+      · exact Filter.Eventually.of_forall fun x h => (hf h).elim
+    · by_cases hf : 0 < f p
+      · exact (hc.eventually_const_lt hf).mono fun x hx _ => hx
+      · exact Filter.Eventually.of_forall fun x h => (hf h).elim
+  have hall : ∀ᶠ x in 𝓝 p, ∀ q ∈ S, ∀ f ∈ q,
+      (f p < 0 → f x < 0) ∧ (0 < f p → 0 < f x) :=
+    (Filter.eventually_all_finset S).mpr fun q _ =>
+      (Filter.eventually_all_finset q).mpr fun f _ => hsign f
+  filter_upwards [hall] with x hx
+  rw [hC]
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨q, hq, hxq⟩
+    refine ⟨q, hq, ?_, ?_⟩
+    · intro f hf
+      by_contra hn
+      exact (not_lt_of_ge (hxq f hf)) ((hx q hq f hf).1 (lt_of_not_ge hn))
+    · intro f hf hfp
+      have he : f.linear (x - p) = f x - f p := f.linearMap_vsub x p
+      rw [he, hfp, sub_zero]
+      exact hxq f hf
+  · rintro ⟨q, hq, hpq, hvq⟩
+    refine ⟨q, hq, ?_⟩
+    intro f hf
+    rcases eq_or_lt_of_le (hpq f hf) with hfp | hfp
+    · have hv := hvq f hf hfp.symm
+      have he : f.linear (x - p) = f x - f p := f.linearMap_vsub x p
+      simpa [he, hfp.symm] using hv
+    · exact ((hx q hq f hf).2 hfp).le
+
+open scoped BigOperators Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3, 8.3):
+"with cone T_q Q". Positive radial scaling preserves each homogeneous half-space and each finite union of their intersections. -/
+private lemma routing_constant_step4_ascent_ports_step5_positive_scaling
+    {C : Set (E d)} (hC : IsPolyhedralCone C) {r : ℝ} (hr : 0 < r) (v : E d) :
+    r • v ∈ C ↔ v ∈ C := by
+  obtain ⟨S, rfl⟩ := hC
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, map_smul, smul_eq_mul,
+    mul_nonneg_iff_of_pos_left hr]
+
+open scoped BigOperators Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3, 8.3):
+"with cone T_q Q". A local homogeneous model is exactly the radial tangent cone used in the recorded header. -/
+private lemma routing_constant_step4_ascent_ports_step5_radial_germ
+    {K C : Set (E d)} (p : E d) (hC : IsPolyhedralCone C)
+    (hloc : ∀ᶠ x in 𝓝 p, x ∈ K ↔ x - p ∈ C) : tangentCone K p = C := by
+  ext v
+  have htend : Filter.Tendsto (fun t : ℝ => p + t • v) (𝓝 0) (𝓝 p) := by
+    have hc : Continuous (fun t : ℝ => p + t • v) := by fun_prop
+    simpa only [zero_smul, add_zero] using hc.tendsto (0 : ℝ)
+  have hev : ∀ᶠ t in 𝓝 (0 : ℝ), p + t • v ∈ K ↔ t • v ∈ C := by
+    simpa only [add_sub_cancel_left] using htend.eventually hloc
+  obtain ⟨δ, hδ, hδloc⟩ := Metric.eventually_nhds_iff.mp hev
+  constructor
+  · rintro ⟨ε, hε, hv⟩
+    let t := min ε δ / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have htε : t < ε := by dsimp [t]; linarith [min_le_left ε δ]
+    have htδ : t < δ := by dsimp [t]; linarith [min_le_right ε δ]
+    have hnear : dist t 0 < δ := by simpa [Real.dist_eq, abs_of_pos ht] using htδ
+    exact (routing_constant_step4_ascent_ports_step5_positive_scaling hC ht v).mp
+      ((hδloc hnear).mp (hv t ht htε))
+  · intro hv
+    refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+    have hnear : dist t 0 < δ := by simpa [Real.dist_eq, abs_of_pos ht] using htδ
+    exact (hδloc hnear).mpr
+      ((routing_constant_step4_ascent_ports_step5_positive_scaling hC ht v).mpr hv)
+
+open scoped BigOperators Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3, 8.3):
+"the actual frames". An affine prototype frame preserves the finite polyhedral presentation. -/
+private theorem routing_constant_step4_ascent_ports_step5_polyhedron_image
+    (K : Set (E d)) (hK : Polyhedron K) (φ : E d ≃ᵃ[ℝ] E d) :
+    Polyhedron (φ '' K) := by
+  classical
+  obtain ⟨s, hs⟩ := hK
+  have hmap (p : Finset (E d)) : φ '' convexHull ℝ (p : Set (E d)) =
+      convexHull ℝ (φ '' (p : Set (E d))) := φ.toAffineMap.image_convexHull _
+  refine ⟨s.image (fun p => p.image φ), ?_⟩
+  ext y
+  constructor
+  · rintro ⟨z, hz, rfl⟩
+    rw [hs] at hz
+    obtain ⟨p, hp, hzp⟩ := mem_iUnion₂.mp hz
+    refine mem_iUnion₂.mpr ⟨p.image φ, Finset.mem_image.mpr ⟨p, hp, rfl⟩, ?_⟩
+    rw [Finset.coe_image, ← hmap]
+    exact mem_image_of_mem φ hzp
+  · intro hy
+    obtain ⟨q, hq, hyq⟩ := mem_iUnion₂.mp hy
+    obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hq
+    rw [Finset.coe_image, ← hmap] at hyq
+    obtain ⟨z, hz, rfl⟩ := hyq
+    refine ⟨z, ?_, rfl⟩
+    rw [hs]
+    exact mem_iUnion₂.mpr ⟨p, hp, hz⟩
+
+open scoped BigOperators Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3, 8.3):
+"the realised cone T_q Q". Tangent directions transform by the linear part of the full affine frame. -/
+private theorem routing_constant_step4_ascent_ports_step5_tangent_image
+    (φ : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) (x : E d) :
+    tangentCone (φ '' K) (φ x) = φ.linear '' tangentCone K x := by
+  have hmap (t : ℝ) (u : E d) : φ (x + t • u) = φ x + t • φ.linear u := by
+    simpa only [vadd_eq_add, map_smul, add_comm] using φ.map_vadd x (t • u)
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hmem⟩
+    refine ⟨φ.linear.symm u, ⟨ε, hε, ?_⟩, φ.linear.apply_symm_apply u⟩
+    intro t ht htε
+    have hm := hmem t ht htε
+    rw [← φ.linear.apply_symm_apply u, ← hmap] at hm
+    exact φ.injective.mem_set_image.mp hm
+  · rintro ⟨u, ⟨ε, hε, hmem⟩, rfl⟩
+    exact ⟨ε, hε, fun t ht htε => hmap t u ▸
+      Set.mem_image_of_mem φ (hmem t ht htε)⟩
+
+open scoped Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.0(b), 3.3):
+"with cone T_q Q". A finite polyhedron and its radial tangent cone give
+the same membership test in a neighbourhood of the apex. -/
+private theorem routing_constant_step4_ascent_ports_step5_local_model
+    (K : Set (E d)) (hK : Polyhedron K) (p : E d) :
+    ∀ᶠ x in 𝓝 p, x ∈ K ↔ x - p ∈ tangentCone K p := by
+  obtain ⟨s, hs⟩ := routing_constant_step4_ascent_ports_step5_halfspace_presentation hK
+  obtain ⟨G, hG, hlocal⟩ := routing_constant_step4_ascent_ports_step5_local_cone s p
+  rw [← hs] at hlocal
+  rwa [routing_constant_step4_ascent_ports_step5_radial_germ p hG hlocal]
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.1, 3.3):
+"tiles ... with pieces in e at q". Relative interior points of a placed
+cell approach every point of its closed carrier. -/
+private theorem routing_constant_step4_ascent_ports_step5_cell_regular
+    (Q : FramedNode S) (b : ℕ) (e : Cell d) :
+    closure (relint (Q.cell b e)) = Q.cell b e := by
+  have hcl : Q.prototypeFrame b '' closure (relint e.carrier) =
+      closure (Q.prototypeFrame b '' relint e.carrier) :=
+    (Q.prototypeFrame b).toHomeomorphOfFiniteDimensional.image_closure _
+  rw [FramedNode.cell, routing_constant_step4_ascent_ports_step3_relint_image,
+    ← hcl, e.flat.regularClosed]
+
+open scoped Topology in
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.1, 3.3):
+"the geometry ... identifies ... ports". Equal boundary tangent cones give
+a local meeting of relative interiors; hereditary trace extends that meeting
+to the entire named native facet. -/
+private theorem routing_constant_step4_ascent_ports_step5_same_cone_trace
+    (M Q : FramedNode S) (m b : ℕ) (hdesc : M.IsDescendant m Q b)
+    (f : FacetName S M.ty) (e : FacetName S Q.ty)
+    (K : Set (E d)) (hK : Polyhedron K) (hsub : M.cell m f.val ⊆ K)
+    (p : E d) (hp : p ∈ M.cell m f.val)
+    (hcone : tangentCone (Q.cell b e.val) p = tangentCone K p) :
+    M.cell m f.val ⊆ Q.cell b e.val := by
+  have hpoly : Polyhedron (Q.cell b e.val) :=
+    routing_constant_step4_ascent_ports_step5_polyhedron_image _ e.val.flat.polyhedral _
+  have hlocal : ∀ᶠ x in 𝓝 p, x ∈ Q.cell b e.val ↔ x ∈ K := by
+    filter_upwards [routing_constant_step4_ascent_ports_step5_local_model _ hpoly p,
+      routing_constant_step4_ascent_ports_step5_local_model K hK p] with x hx hy
+    rw [hx, hy, hcone]
+  obtain ⟨ε, hε, hnear⟩ := Metric.eventually_nhds_iff.mp hlocal
+  have hpcl : p ∈ closure (relint (M.cell m f.val)) := by
+    rwa [routing_constant_step4_ascent_ports_step5_cell_regular]
+  obtain ⟨x, hx, hxp⟩ := Metric.mem_closure_iff.mp hpcl ε hε
+  apply hereditary_trace Q M b m hdesc e.val f.val (facetCell e).property (facetCell f).property
+  exact ⟨x, hx, (hnear (by simpa only [dist_comm] using hxp)).mpr
+    (hsub (intrinsicInterior_subset hx))⟩
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 3.3):
+"the actual frames". Moving a node carries its named cells by the same
+isometry; raw cell names require no dependent transport. -/
+private theorem routing_constant_step4_ascent_ports_step5_cell_move
+    (Q : FramedNode S) (b : ℕ) (e : Cell d) (φ : Iso d) :
+    (Q.move φ).cell b e = φ '' Q.cell b e := by
+  simp only [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.move, Set.image_image]
+  rfl
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 3.3):
+"the actual frames". A common isometry preserves the exact role word and
+heights in a descendant relation. -/
+private theorem routing_constant_step4_ascent_ports_step5_descendant_move
+    (M Q : FramedNode S) (m b : ℕ) (hdesc : M.IsDescendant m Q b) (φ : Iso d) :
+    (M.move φ).IsDescendant m (Q.move φ) b := by
+  obtain ⟨r, hr, w, hw⟩ := hdesc
+  refine ⟨r, hr, w, ?_⟩
+  rw [hw]
+  simp only [FramedNode.move, AffineIsometryEquiv.trans_assoc]
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 3.3):
+"the common-listed vertex". Equal singleton cells have equal anchor points,
+even when their vertex names belong to different prototype types. -/
+private theorem routing_constant_step4_ascent_ports_step5_vertex_point
+    {A B : S.ι} (v : VertexName S A) (w : VertexName S B) (h : v.val = w.val) :
+    vertexPoint v = vertexPoint w := by
+  have hs : ({vertexPoint v} : Set (E d)) = {vertexPoint w} :=
+    (vertexPoint_spec v).symm.trans ((congrArg Cell.carrier h).trans (vertexPoint_spec w))
+  exact Set.singleton_injective hs
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 1.19, 3.3, 8.3):
+"with interior points in int(q + T_q Q) near q". A native facet piece
+at the event vertex approaches the parent's cone because it is a descendant
+of that parent and its own listed vertex has a local cone neighbourhood. -/
+private theorem routing_constant_step4_ascent_ports_step5_approaches
+    (Y : MarkedTiling (systemM S P C)) (b : ℕ) (Q : FramedNode S)
+    (hQ : IsBlock Y b Q) (e : FacetName S Q.ty) (p : E d)
+    (t : PlacedMarkedTile (systemM S P C)) (j : EndSlot (compilerLeaf C t))
+    (hp : Compiler.endVertex (compilerFrame C t) j = p)
+    (hheader : j.header = routing_constant_step4_ascent_ports_step3_header
+      Q b (compilerFrame C t) p)
+    (u : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode u).ty)
+    (v : VertexName S (tileNode u).ty) (hpiece : Parser.IsFacetPiece Y b Q e u f)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hvp : compilerFrame C u (vertexPoint v) = p) :
+    Parser.ApproachesSector u (Compiler.endVertex (compilerFrame C t) j)
+      (Compiler.endSector (compilerFrame C t) j) := by
+  have hphys : u.carrier = (tileNode u).carrier 0 := by
+    rw [compilerFrame_carrier]
+    simp [tileNode, FramedNode.carrier, SubstSystem.supertile]
+  have hpf : p ∈ (tileNode u).cell 0 f.val :=
+    ⟨vertexPoint v, hv (by rw [vertexPoint_spec]; exact Set.mem_singleton _), hvp⟩
+  have hpcar := routing_constant_step4_ascent_ports_step2_cell_carrier _ _ f hpf
+  have hlisted : (tileNode u).Lists 0 p :=
+    ⟨v.val, v.property, vertexPoint v, by rw [vertexPoint_spec]; exact Set.mem_singleton _, hvp⟩
+  obtain ⟨r, hr, hrad⟩ := uniform_prototype_cone_radius S
+  have hlocal := hrad (tileNode u) p hlisted
+  have hsub := routing_constant_step4_ascent_ports_step6_descendant_subset _ _ _ _ hpiece.2.1
+  have hcones : tangentCone ((tileNode u).carrier 0) p ⊆ tangentCone (Q.carrier b) p := by
+    rintro w ⟨δ, hδ, hw⟩
+    exact ⟨δ, hδ, fun s hs hsδ => hsub (hw s hs hsδ)⟩
+  have hsector : Compiler.endSector (compilerFrame C t) j =
+      (fun w => p + w) '' tangentCone (Q.carrier b) p := by
+    simp only [Compiler.endSector, hp, hheader, routing_constant_step4_ascent_ports_step3_header,
+      Set.image_image, LinearIsometryEquiv.apply_symm_apply]
+  have hregular : IsRegularClosed ((tileNode u).carrier 0) :=
+    ((⟨Q, hQ⟩ : Block Y b).innerBlock 0 (tileNode u) hpiece.2.1).carrier_regular.2.1
+  have hpcl : p ∈ closure (interior ((tileNode u).carrier 0)) := by
+    rw [hregular]
+    exact hpcar
+  intro ε hε
+  obtain ⟨x, hx, hxp⟩ := Metric.mem_closure_iff.mp hpcl (min r ε) (lt_min hr hε)
+  let V := interior ((tileNode u).carrier 0) ∩ ball p (min r ε)
+  have hopen : IsOpen V := isOpen_interior.inter isOpen_ball
+  have hxV : x ∈ V := ⟨hx, by simpa only [mem_ball, dist_comm] using hxp⟩
+  have hVS : V ⊆ Compiler.endSector (compilerFrame C t) j := by
+    rintro y ⟨hy, hyr⟩
+    have hm : y ∈ (tileNode u).carrier 0 ∩ ball p r :=
+      ⟨interior_subset hy, mem_ball.mpr
+        (lt_of_lt_of_le (mem_ball.mp hyr) (min_le_left _ _))⟩
+    rw [hlocal] at hm
+    rw [hsector]
+    exact Set.image_mono hcones hm.1
+  have hVI : V ⊆ interior (Compiler.endSector (compilerFrame C t) j) :=
+    hopen.subset_interior_iff.mpr hVS
+  exact ⟨x, ⟨hphys.symm ▸ hx, hVI hxV⟩,
+    hp.symm ▸ mem_ball.mpr (lt_of_lt_of_le (mem_ball.mp hxV.2) (min_le_right _ _))⟩
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 2.3, 3.3):
+"the realised cone T_q Q". At native height, the honest source header is
+normalized by precisely the central tile's isometric frame. -/
+private theorem routing_constant_step4_ascent_ports_step5_native_header
+    (U : HonestSource S) (t : U.Node) (ht : t.1 = 0)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) :
+    U.headerOf P t f hf v = routing_constant_step4_ascent_ports_step3_header
+      (U.hierarchy.birthParent t f hf).2.val (U.hierarchy.birthParent t f hf).1
+      t.2.val.frame (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+  have hframe : t.2.val.prototypeFrame t.1 = t.2.val.frame.toAffineEquiv := by
+    simp only [ht]
+    ext x
+    rfl
+  have hnorm (K : Set (E d)) : U.normalizeCone t K =
+      t.2.val.frame.linearIsometryEquiv.symm '' K := by
+    rw [HonestSource.normalizeCone, hframe]
+    rfl
+  unfold HonestSource.headerOf
+  simp only [hnorm, routing_constant_step4_ascent_ports_step3_header]
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 2.5, 3.3):
+"the geometry ... identifies ... ports". Equality of complete headers
+identifies the same raw boundary name and its normalized tangent cone. -/
+private theorem routing_constant_step4_ascent_ports_step5_header_boundary
+    (R Q : FramedNode S) (c b : ℕ) (φ ψ : Iso d) (x p : E d)
+    (hheader : routing_constant_step4_ascent_ports_step3_header (P := P) R c φ x =
+      routing_constant_step4_ascent_ports_step3_header Q b ψ p)
+    (e : FacetName S Q.ty) (hp : p ∈ Q.cell b e.val) :
+    ∃ E : FacetName S R.ty, E.val = e.val ∧ x ∈ R.cell c E.val ∧
+      φ.linearIsometryEquiv.symm '' tangentCone (R.cell c E.val) x =
+        ψ.linearIsometryEquiv.symm '' tangentCone (Q.cell b e.val) p := by
+  classical
+  have hty : R.ty = Q.ty := congrArg State.Header.birthType hheader
+  let E : FacetName S R.ty := ⟨e.val, by rw [hty]; exact e.property⟩
+  have hlookup := congrArg (fun H : State.Header P =>
+    if h : e.val ∈ (S.cx H.birthType).facets then H.boundaryCones ⟨e.val, h⟩ else none)
+    hheader
+  have he : e.val ∈ (S.cx R.ty).facets := E.property
+  simp only [routing_constant_step4_ascent_ports_step3_header, dif_pos he,
+    dif_pos e.property, if_pos hp] at hlookup
+  by_cases hx : x ∈ R.cell c e.val
+  · rw [if_pos hx] at hlookup
+    exact ⟨E, rfl, hx, Option.some.inj hlookup⟩
+  · rw [if_neg hx] at hlookup
+    cases hlookup
+
+/-- Step 5 of the V4 proof of `routing_constant_step4_ascent_ports` (V4 3.3, 8.3):
+"the e-facing tiles ... belong to the template". In an already occurring
+complete END star with the actual birth header, a given native boundary piece
+at its apex is one of the annotated ports on that same named parent facet.
+This is only the geometric port identification, without a packet assertion. -/
+private theorem routing_constant_step4_ascent_ports_step5_boundary_port
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (b : ℕ) (Q : FramedNode S) (hb : 1 ≤ b) (hQ : IsBlock Y b Q)
+    (e : FacetName S Q.ty) (p : E d)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (j : EndSlot (compilerLeaf C t))
+    (hp : Compiler.endVertex (compilerFrame C t) j = p)
+    (hheader : j.header = routing_constant_step4_ascent_ports_step3_header
+      Q b (compilerFrame C t) p)
+    (T : EndTemplate j) (hrow : endRow T)
+    (hactual : TemplateOccurs C Y (compilerFrame C t) T.configuration)
+    (u : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode u).ty)
+    (v : VertexName S (tileNode u).ty) (hpiece : Parser.IsFacetPiece Y b Q e u f)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hvp : compilerFrame C u (vertexPoint v) = p) :
+    ∃ a : BoundaryPort P T.geometry.header.birthType,
+      a ∈ T.geometry.boundaryPorts ∧ (a.tile, compilerLeaf C u) ∈ T.configuration.tiles ∧
+        a.parentFacet.val = e.val ∧ a.facet.val = f.val := by
+  classical
+  have hnear := routing_constant_step4_ascent_ports_step5_approaches
+    Y b Q hQ e p t j hp hheader u f v hpiece hv hvp
+  obtain ⟨z, hz, huz⟩ := (trigger_coverage Y hY t ht j T.configuration
+    ⟨T, rfl, hrow⟩ hactual u hpiece.1 hnear).1
+  have hul : compilerLeaf C u = z.2 := by
+    rw [huz]
+    exact (compiler_decode_unique C _ _).1
+  have huframe : compilerFrame C u = z.1.frame.trans (compilerFrame C t) := by
+    rw [huz]
+    exact (compiler_decode_unique C _ _).2
+  obtain ⟨U, t₀, ht₀, f₀, hf₀, v₀, hv₀, _, hreal⟩ := T.honest_geometry
+  let B := U.hierarchy.birthParent t₀ f₀ hf₀
+  let x := t₀.2.val.prototypeFrame t₀.1 (vertexPoint v₀)
+  let J := t₀.2.val.frame.symm.trans (compilerFrame C t)
+  have hgeom : z.1 ∈ T.geometry.tiles := by
+    rw [← T.tiles_eq]
+    exact Finset.mem_image.mpr ⟨z, hz, rfl⟩
+  rw [hreal.2.2.2.1] at hgeom
+  obtain ⟨q₀, hq₀, hqz⟩ := Finset.mem_image.mp hgeom
+  have hstar : q₀.1 = 0 ∧ U.hierarchy.ancestor q₀ B.1 = B ∧
+      x ∈ q₀.2.val.carrier q₀.1 := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset, ownedStarSet, Set.mem_setOf_eq]
+      using hq₀
+  have hqty : q₀.2.val.ty = (tileNode u).ty := by
+    change q₀.2.val.ty = (compilerLeaf C u).prototype
+    rw [hul]
+    exact (congrArg FramedNode.ty hqz).trans (T.configuration.types_match z hz)
+  let F : FacetName S q₀.2.val.ty := ⟨f.val, by rw [hqty]; exact f.property⟩
+  let w : VertexName S q₀.2.val.ty := ⟨v.val, by rw [hqty]; exact v.property⟩
+  have hnode : q₀.2.val.move J = tileNode u := by
+    apply FramedNode.ext
+    · exact hqty
+    · change q₀.2.val.frame.trans J = compilerFrame C u
+      rw [huframe, ← hqz]
+      rfl
+  have hvertex : vertexPoint v₀ = vertexPoint j.vertex :=
+    (routing_constant_step4_ascent_ports_step5_vertex_point T.geometry.vertex v₀
+      hreal.2.1).symm.trans
+    (routing_constant_step4_ascent_ports_step5_vertex_point T.geometry.vertex j.vertex
+      T.vertex_eq)
+  have hx : x = t₀.2.val.frame (vertexPoint v₀) := by
+    dsimp only [x]
+    simp only [ht₀]
+    rfl
+  have hxp : J x = p := by
+    change compilerFrame C t (t₀.2.val.frame.symm x) = p
+    rw [hx, AffineIsometryEquiv.symm_apply_apply, hvertex]
+    exact hp
+  have hpf : p ∈ (tileNode u).cell 0 f.val :=
+    ⟨vertexPoint v, hv (by rw [vertexPoint_spec]; exact Set.mem_singleton _), hvp⟩
+  have hhead : routing_constant_step4_ascent_ports_step3_header (P := P)
+      B.2.val B.1 t₀.2.val.frame x =
+      routing_constant_step4_ascent_ports_step3_header Q b (compilerFrame C t) p :=
+    (routing_constant_step4_ascent_ports_step5_native_header U t₀ ht₀ f₀ hf₀ v₀).symm.trans
+      (hreal.2.2.1.symm.trans (T.header_eq.trans hheader))
+  obtain ⟨e₀, hE, hxE, hcones⟩ :=
+    routing_constant_step4_ascent_ports_step5_header_boundary B.2.val Q B.1 b
+      t₀.2.val.frame (compilerFrame C t) x p hhead e (hpiece.2.2 hpf)
+  have hcone : tangentCone ((B.2.val.move J).cell B.1 e₀.val) p =
+      tangentCone (Q.cell b e.val) p := by
+    rw [routing_constant_step4_ascent_ports_step5_cell_move]
+    have htan := routing_constant_step4_ascent_ports_step5_tangent_image
+      J.toAffineEquiv (B.2.val.cell B.1 e₀.val) x
+    change tangentCone (J '' B.2.val.cell B.1 e₀.val) (J x) = _ at htan
+    rw [hxp] at htan
+    rw [htan]
+    have hc := congrArg (fun K : Set (E d) =>
+      (compilerFrame C t).linearIsometryEquiv '' K) hcones
+    simpa only [Set.image_image, LinearIsometryEquiv.apply_symm_apply,
+      Set.image_id'] using hc
+  have hdesc := U.hierarchy.ancestor_descendant q₀ B.1
+  rw [hstar.2.1] at hdesc
+  have hdescJ := routing_constant_step4_ascent_ports_step5_descendant_move
+    _ _ _ _ hdesc J
+  have htrace : (q₀.2.val.move J).cell q₀.1 F.val ⊆
+      (B.2.val.move J).cell B.1 e₀.val := by
+    apply routing_constant_step4_ascent_ports_step5_same_cone_trace _ _ _ _
+      hdescJ F e₀ (Q.cell b e.val)
+      (routing_constant_step4_ascent_ports_step5_polyhedron_image _ e.val.flat.polyhedral _)
+      (by simpa only [hnode, hstar.1] using hpiece.2.2) p
+      (by simpa only [hnode, hstar.1] using hpf) hcone
+  have htrace₀ : q₀.2.val.cell q₀.1 F.val ⊆ B.2.val.cell B.1 e₀.val := by
+    rw [routing_constant_step4_ascent_ports_step5_cell_move,
+      routing_constant_step4_ascent_ports_step5_cell_move] at htrace
+    intro y hy
+    obtain ⟨z, hz, heq⟩ := htrace (Set.mem_image_of_mem J hy)
+    rwa [J.injective heq] at hz
+  have hw : vertexPoint w = vertexPoint v :=
+    routing_constant_step4_ascent_ports_step5_vertex_point w v rfl
+  have hxw : x = q₀.2.val.prototypeFrame q₀.1 (vertexPoint w) := by
+    apply J.injective
+    rw [hxp]
+    simp only [hstar.1]
+    change p = (q₀.2.val.move J).frame (vertexPoint w)
+    rw [hnode, hw]
+    exact hvp.symm
+  have hbB : 1 ≤ B.1 := (U.providerOccurrence_data P t₀ f₀ hf₀).1
+  obtain ⟨path, hpath⟩ := sourceRestrictionPath_exists U B q₀
+    (by rw [hstar.1]; omega) (by simpa only [hstar.1, Nat.sub_zero] using hstar.2.1)
+    e₀ F htrace₀
+  have hBty : T.geometry.header.birthType = B.2.val.ty :=
+    congrArg State.Header.birthType hreal.2.2.1
+  let a : BoundaryPort P T.geometry.header.birthType := {
+    tile := q₀.2.val.move t₀.2.val.frame.symm
+    facet := F
+    vertex := w
+    onFacet := hv
+    parentFacet := ⟨e₀.val, by rw [hBty]; exact e₀.property⟩
+    restriction := restrictionOp path }
+  refine ⟨a, (hreal.2.2.2.2.2 a).mpr ?_, ?_, hE, rfl⟩
+  · exact ⟨q₀, hq₀, e₀, F, w, hv, hxw, htrace₀, rfl, rfl, rfl, rfl,
+      path, hpath, rfl⟩
+  · change (q₀.2.val.move t₀.2.val.frame.symm, compilerLeaf C u) ∈ _
+    rwa [hqz, hul]
+
 /-- Step 4 of the V4 proof of `routing_constant` (V4 8.3):
 "The common-listed vertex and the e-facing port given by Lemma 1.25 belong
 to an END template with cone T_q Q". Transport the ascent to the actual
@@ -1858,7 +3295,57 @@ private theorem routing_constant_step4_ascent_ports
               a.parentFacet.val = e.val ∧
               (∃ G, T.geometry.header.boundaryCones a.parentFacet = some G) ∧
               leafPacket u a.facet.val = some q' := by
-  sorry
+  classical
+  have hsum := hg.1
+  have hsum' := hg'.1
+  have hdepth := hlink.1
+  have hlt : g.height < g'.height := by omega
+  have hold : g.height < n + 1 := by omega
+  have hfm : f.depth ≤ n + 1 := by omega
+  have hh : n + 1 - f.depth = g.height := by omega
+  have hbirth := routing_constant_step1_descendant N (n + 1) f g hg
+  have hbirth' := routing_constant_step1_descendant N (n + 1) f' g' hg'
+  have hdesc := routing_constant_step4_ascent_ports_step1_ancestry
+    N (n + 1) f f' hf hf' g g' hg hg' hlink
+  obtain ⟨e₀, he₀, p, hp, hpe, hcommon, hface⟩ := hlink.2.2
+  have htype : g.birth.ty = f.birthType := by
+    rw [hg.2.1]
+    exact (f.birthFrame_spec (n + 1) hfm).1
+  have hframe : g.birth.prototypeFrame g.height =
+      f.birthFrame.trans (N.prototypeFrame (n + 1)) := by
+    rw [hg.2.1, ← hh]
+    exact routing_constant_step1_frame N (n + 1) f hfm
+  obtain ⟨e, _, hcell, hpe', hcommon', hface'⟩ :=
+    routing_constant_step4_ascent_ports_step1_seed_geometry N (n + 1) f
+      g.birth g.height g.positive htype hframe e₀ p hpe hcommon hface
+  have he : g.birth.cell g.height e.val ⊆ g'.carrier := by
+    rw [hcell, hg'.2.2]
+    exact Set.image_mono he₀
+  have hpg : N.prototypeFrame (n + 1) p ∈ g.carrier := by
+    rw [hg.2.2]
+    exact Set.mem_image_of_mem _ hp.1
+  have hG := Parser.assembled_inner_mem D N A g.height g.birth hold hbirth
+  obtain ⟨t, ht, slot, hslot, hpoint, hheader⟩ :=
+    routing_constant_step4_ascent_ports_step3_seed D hD g hG
+      (N.prototypeFrame (n + 1) p) hpg hcommon' hl q hq
+  obtain ⟨T, hactual, hrow⟩ :=
+    routing_constant_step4_ascent_ports_step4_event Y hY t ht slot
+  obtain ⟨u, F, v, hpiece, hv, hvp⟩ :=
+    routing_constant_step4_ascent_ports_step2_boundary_piece Y g.height g.birth
+      g.positive (D.geometry.node_actual _ _ hG) e (N.prototypeFrame (n + 1) p)
+      hcommon' hface'
+  obtain ⟨a, ha, hau, hae, haf⟩ :=
+    routing_constant_step4_ascent_ports_step5_boundary_port Y hY g.height g.birth
+      g.positive (D.geometry.node_actual _ _ hG) e (N.prototypeFrame (n + 1) p)
+      t ht slot hpoint hheader T hrow hactual u F v hpiece hv hvp
+  have hcone := routing_constant_step4_ascent_ports_step7_boundary_cone
+    g.birth g.height (compilerFrame C t) (N.prototypeFrame (n + 1) p) e hpe'
+    T.geometry.header (T.header_eq.trans hheader) a.parentFacet hae
+  have hpacket := routing_constant_step4_ascent_ports_step6_boundary_packet
+    Y hY n hn D hD N A g' hbirth' g.height g.birth hG hdesc hlt e he
+      hl' q' hq' u F hpiece
+  exact ⟨hdesc, e, he, t, ht, slot, T, hactual, hrow, hslot,
+    a, compilerLeaf C u, ha, hau, hae, hcone, haf.symm ▸ hpacket⟩
 
 /-- Step 4 of the V4 proof of `routing_constant` (V4 8.3):
 "Row (E3) gives P(g)[s] = P(f)[s+delta]". The lower birth is old, so its

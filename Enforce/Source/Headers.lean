@@ -221,6 +221,528 @@ private theorem L_fixes_directions_sides_step1_orbit_return (F : PowerFactorisat
   ext x
   simp [← hRpow]
 
+open scoped BigOperators
+
+/-- Step 1 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"positive real spectrum". Complex roots lie in the image of ℝ, so the
+characteristic polynomial splits over ℝ and all its real roots are positive. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step1_real_splitting
+    {F : Type*} [AddCommGroup F] [Module ℝ F]
+    [FiniteDimensional ℝ F] (M : Module.End ℝ F)
+    (hpos : ∀ z : ℂ, (M.charpoly.map (algebraMap ℝ ℂ)).IsRoot z →
+      z.im = 0 ∧ 0 < z.re) :
+    M.charpoly.Splits ∧ ∀ r : ℝ, M.charpoly.IsRoot r → 0 < r := by
+  constructor
+  · apply Polynomial.Splits.of_splits_map (algebraMap ℝ ℂ) (IsAlgClosed.splits _)
+    intro z hz
+    have hz' := (Polynomial.mem_roots (Polynomial.map_ne_zero M.charpoly_monic.ne_zero)).mp hz
+    refine ⟨z.re, ?_⟩
+    apply Complex.ext <;> simp [hpos z hz']
+  · intro r hr
+    exact (hpos r (Polynomial.IsRoot.map hr)).2
+
+/-- Step 2 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"decompose u into generalised eigenvectors". Factor the characteristic
+polynomial into coprime powers of linear factors and decompose its kernel;
+Cayley--Hamilton makes that kernel the whole space. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step2_primary_decomposition
+    {F : Type*} [AddCommGroup F] [Module ℝ F]
+    [FiniteDimensional ℝ F] (M : Module.End ℝ F)
+    (hsplit : M.charpoly.Splits) (u : F) :
+    ∃ v : ℝ → F,
+      u = ∑ r ∈ M.charpoly.roots.toFinset, v r ∧
+      ∀ r : ℝ, ((M - r • (1 : Module.End ℝ F)) ^ M.charpoly.roots.card) (v r) = 0 := by
+  classical
+  let p : ℝ → Polynomial ℝ := fun r => (Polynomial.X - Polynomial.C r) ^
+    M.charpoly.rootMultiplicity r
+  have hc (r t : ℝ) (hrt : r ≠ t) : IsCoprime (p r) (p t) :=
+    (Polynomial.isCoprime_X_sub_C_of_isUnit_sub (sub_ne_zero.mpr hrt).isUnit).pow
+  have hker (s : Finset ℝ) :
+      s.sup (fun r => LinearMap.ker (Polynomial.aeval M (p r))) =
+        LinearMap.ker (Polynomial.aeval M (∏ r ∈ s, p r)) := by
+    induction s using Finset.induction_on with
+    | empty => simp [Module.End.one_eq_id]
+    | @insert r s hrs ih =>
+      rw [Finset.sup_insert, Finset.prod_insert hrs, ih]
+      apply Polynomial.sup_ker_aeval_eq_ker_aeval_mul_of_coprime
+      exact IsCoprime.prod_right fun t ht => hc r t (by rintro rfl; exact hrs ht)
+  have hp : ∏ r ∈ M.charpoly.roots.toFinset, p r = M.charpoly := by
+    calc
+      _ = (M.charpoly.roots.map (fun r => Polynomial.X - Polynomial.C r)).prod :=
+        (Polynomial.prod_multiset_root_eq_finset_root (p := M.charpoly)).symm
+      _ = M.charpoly := (hsplit.eq_prod_roots_of_monic M.charpoly_monic).symm
+  have hu : u ∈ ⨆ r ∈ M.charpoly.roots.toFinset,
+      LinearMap.ker (Polynomial.aeval M (p r)) := by
+    rw [← Finset.sup_eq_iSup, hker, hp, LinearMap.aeval_self_charpoly]
+    simp
+  obtain ⟨v, hv⟩ := (Submodule.mem_iSup_finset_iff_exists_sum _ u).mp hu
+  refine ⟨fun r => v r, hv.symm, ?_⟩
+  intro r
+  have hr : ((M - r • (1 : Module.End ℝ F)) ^ M.charpoly.rootMultiplicity r)
+      (v r : F) = 0 := by
+    simpa only [p, map_pow, map_sub, Polynomial.aeval_X, Polynomial.aeval_C,
+      Algebra.algebraMap_eq_smul_one, LinearMap.mem_ker] using (v r).property
+  have hle : M.charpoly.rootMultiplicity r ≤ M.charpoly.roots.card := by
+    rw [← Polynomial.count_roots]
+    exact Multiset.count_le_card _ _
+  rw [← Nat.sub_add_cancel hle, pow_add, Module.End.mul_apply, hr, map_zero]
+
+/-- Step 3 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"the largest Jordan index occurring there". On a generalized eigenvector,
+the binomial expansion of (r I + N)^n terminates at the nilpotence index. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step3_jordan_binomial
+    {F : Type*} [AddCommGroup F] [Module ℝ F]
+    (M : Module.End ℝ F) (r : ℝ) (hr : r ≠ 0) (v : F) (m : ℕ)
+    (hnil : ((M - r • (1 : Module.End ℝ F)) ^ m) v = 0) (n : ℕ) :
+    (M ^ n) v = ∑ j ∈ Finset.range m,
+      (r ^ n * ((n.choose j : ℝ) / r ^ j)) •
+        ((M - r • (1 : Module.End ℝ F)) ^ j) v := by
+  let N := M - r • (1 : Module.End ℝ F)
+  have hcomm : Commute N (r • (1 : Module.End ℝ F)) := by
+    simpa only [Algebra.algebraMap_eq_smul_one] using Algebra.commute_algebraMap_right r N
+  have heq : N + r • (1 : Module.End ℝ F) = M := sub_add_cancel M _
+  have hpow := congrArg (fun T : Module.End ℝ F => T v) (hcomm.add_pow n)
+  rw [heq] at hpow
+  simp only [LinearMap.sum_apply, Module.End.mul_apply, _root_.smul_pow, one_pow,
+    LinearMap.smul_apply, Module.End.one_apply, Module.End.natCast_apply,
+    map_smul, ← Nat.cast_smul_eq_nsmul ℝ, smul_smul] at hpow
+  have hsum : (M ^ n) v = ∑ j ∈ Finset.range (n + 1),
+      (r ^ n * ((n.choose j : ℝ) / r ^ j)) • (N ^ j) v := by
+    rw [hpow]
+    apply Finset.sum_congr rfl
+    intro j hj
+    have hjn : j ≤ n := by simpa only [Finset.mem_range, Nat.lt_succ_iff] using hj
+    rw [pow_sub₀ r hr hjn]
+    congr 1
+    ring
+  rw [hsum]
+  rcases le_total m (n + 1) with hmn | hnm
+  · symm
+    apply Finset.sum_subset (Finset.range_mono hmn)
+    intro j hj hjm
+    have hzero : (N ^ j) v = 0 :=
+      Module.End.pow_map_zero_of_le (by simpa using hjm) hnil
+    rw [hzero, smul_zero]
+  · apply Finset.sum_subset (Finset.range_mono hnm)
+    intro j hj hjn
+    have hn : n < j := by simpa only [Finset.mem_range, not_lt, Nat.succ_le_iff] using hjn
+    simp [Nat.choose_eq_zero_of_lt hn]
+
+/-- Step 4 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"decompose u into generalised eigenvectors". Expand the binomial
+coefficients as polynomials in n to obtain a finite sum of r^n n^j times
+constant vectors, with every exponential base r positive. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step4_jordan_expansion
+    {F : Type*} [AddCommGroup F] [Module ℝ F]
+    [FiniteDimensional ℝ F] (M : Module.End ℝ F)
+    (hsplit : M.charpoly.Splits)
+    (hpos : ∀ r : ℝ, M.charpoly.IsRoot r → 0 < r) (u : F) :
+    ∃ (s : Finset ℝ) (m : ℕ) (a : ℝ → ℕ → F),
+      (∀ r ∈ s, 0 < r) ∧ ∀ n : ℕ,
+        (M ^ n) u = ∑ r ∈ s, ∑ j ∈ Finset.range m,
+          (r ^ n * (n : ℝ) ^ j) • a r j := by
+  classical
+  obtain ⟨v, hv, hnil⟩ := L_fixes_directions_sides_step2_spectral_limit_step2_primary_decomposition M hsplit u
+  let m := M.charpoly.roots.card
+  let N : ℝ → Module.End ℝ F := fun r => M - r • (1 : Module.End ℝ F)
+  let a : ℝ → ℕ → F := fun r j => ∑ t ∈ Finset.range m,
+    ((descPochhammer ℝ t).coeff j / ((t.factorial : ℝ) * r ^ t)) • (N r ^ t) (v r)
+  have hpos' (r : ℝ) (hr : r ∈ M.charpoly.roots.toFinset) : 0 < r :=
+    hpos r ((Polynomial.mem_roots M.charpoly_monic.ne_zero).mp (Multiset.mem_toFinset.mp hr))
+  refine ⟨M.charpoly.roots.toFinset, m, a, hpos', ?_⟩
+  intro n
+  rw [hv, map_sum]
+  apply Finset.sum_congr rfl
+  intro r hr
+  rw [L_fixes_directions_sides_step2_spectral_limit_step3_jordan_binomial M r (hpos' r hr).ne' (v r) m (hnil r) n]
+  change (∑ t ∈ Finset.range m,
+    (r ^ n * ((n.choose t : ℝ) / r ^ t)) • (N r ^ t) (v r)) = _
+  simp only [a, Finset.smul_sum, smul_smul]
+  rw [Finset.sum_comm]
+  apply Finset.sum_congr rfl
+  intro t ht
+  rw [← Finset.sum_smul]
+  congr 1
+  rw [Nat.cast_choose_eq_descPochhammer_div]
+  rw [Polynomial.eval_eq_sum_range' (by simpa using ht :
+    (descPochhammer ℝ t).natDegree < m) (n : ℝ)]
+  simp only [Finset.mul_sum, Finset.sum_div]
+  apply Finset.sum_congr rfl
+  intro j hj
+  ring
+
+/-- Step 5 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"let μ be the largest eigenvalue with nonzero component". Before choosing
+a dominant term, collect all coefficients having the same exponential base
+and polynomial degree; this accounts for cancellations. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step5_collect_terms
+    {ι F : Type*} [AddCommGroup F] [Module ℝ F]
+    (t : Finset ι) (r : ι → ℝ) (j : ι → ℕ) (v : ι → F)
+    (hpos : ∀ i ∈ t, 0 < r i) :
+    ∃ (s : Finset ℝ) (m : ℕ) (a : ℝ → ℕ → F),
+      (∀ μ ∈ s, 0 < μ) ∧ ∀ n : ℕ,
+        (∑ i ∈ t, ((r i) ^ n * (n : ℝ) ^ j i) • v i) =
+          ∑ μ ∈ s, ∑ k ∈ Finset.range m, (μ ^ n * (n : ℝ) ^ k) • a μ k := by
+  classical
+  let s := t.image r
+  let m := t.sup j + 1
+  let a := fun μ k => ∑ i ∈ t.filter (fun i => r i = μ ∧ j i = k), v i
+  have hs (i : ι) (hi : i ∈ t) : r i ∈ s := Finset.mem_image_of_mem r hi
+  have hm (i : ι) (hi : i ∈ t) : j i ∈ Finset.range m :=
+    Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.le_sup hi))
+  refine ⟨s, m, a, ?_, ?_⟩
+  · intro μ hμ
+    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hμ
+    exact hpos i hi
+  · intro n
+    rw [← Finset.sum_fiberwise_of_maps_to hs]
+    apply Finset.sum_congr rfl
+    intro μ hμ
+    rw [← Finset.sum_fiberwise_of_maps_to
+      (fun i hi => hm i (Finset.mem_filter.mp hi).1)]
+    apply Finset.sum_congr rfl
+    intro k hk
+    rw [Finset.filter_filter]
+    simp only [a, Finset.smul_sum]
+    apply Finset.sum_congr rfl
+    intro i hi
+    obtain ⟨hi, hr, hj⟩ := Finset.mem_filter.mp hi
+    rw [hr, hj]
+
+/-- Step 6 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"Λ^{dim V} L^q has positive real spectrum too". The needed consequence
+is obtained directly by multilinearity: a wedge of exponential-polynomial
+sequences has the same form, and its bases are products of positive bases. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step6_multilinear_expansion
+    {ι F G : Type*} [Fintype ι]
+    [AddCommGroup F] [Module ℝ F] [AddCommGroup G] [Module ℝ G]
+    (f : MultilinearMap ℝ (fun _ : ι => F) G)
+    (s : ι → Finset ℝ) (m : ι → ℕ) (a : ι → ℝ → ℕ → F)
+    (hpos : ∀ i r, r ∈ s i → 0 < r) :
+    ∃ (t : Finset ℝ) (q : ℕ) (b : ℝ → ℕ → G),
+      (∀ r ∈ t, 0 < r) ∧ ∀ n : ℕ,
+        f (fun i => ∑ r ∈ s i, ∑ j ∈ Finset.range (m i),
+          (r ^ n * (n : ℝ) ^ j) • a i r j) =
+          ∑ r ∈ t, ∑ j ∈ Finset.range q, (r ^ n * (n : ℝ) ^ j) • b r j := by
+  classical
+  let A := fun i => (s i) ×ˢ Finset.range (m i)
+  let T := Fintype.piFinset A
+  let r := fun z : ι → ℝ × ℕ => ∏ i, (z i).1
+  let j := fun z : ι → ℝ × ℕ => ∑ i, (z i).2
+  let v := fun z : ι → ℝ × ℕ => f (fun i => a i (z i).1 (z i).2)
+  have hpos' (z : ι → ℝ × ℕ) (hz : z ∈ T) : 0 < r z := by
+    apply Finset.prod_pos
+    intro i hi
+    exact hpos i _ (Finset.mem_product.mp (Fintype.mem_piFinset.mp hz i)).1
+  obtain ⟨t, q, b, hb, heq⟩ := L_fixes_directions_sides_step2_spectral_limit_step5_collect_terms T r j v hpos'
+  refine ⟨t, q, b, hb, ?_⟩
+  intro n
+  rw [← heq]
+  have hsum : (fun i => ∑ r ∈ s i, ∑ j ∈ Finset.range (m i),
+      (r ^ n * (n : ℝ) ^ j) • a i r j) =
+      (fun i => ∑ z ∈ A i, (z.1 ^ n * (n : ℝ) ^ z.2) • a i z.1 z.2) := by
+    funext i
+    simp only [A, Finset.sum_product]
+  rw [hsum, f.map_sum_finset]
+  apply Finset.sum_congr rfl
+  intro z hz
+  rw [f.map_smul_univ]
+  congr 1
+  simp only [r, j, Finset.prod_mul_distrib, ← Finset.prod_pow, Finset.prod_pow_eq_pow_sum]
+
+open Filter Topology in
+/-- Step 7 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"let μ be the largest eigenvalue with nonzero component and s the
+largest Jordan index occurring there". After collecting equal bases and
+degrees, divide by μ^n n^s; every other term tends to zero and the surviving
+coefficient is nonzero. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step7_dominant_term
+    {F : Type*} [NormedAddCommGroup F] [NormedSpace ℝ F]
+    (s : Finset ℝ) (m : ℕ) (a : ℝ → ℕ → F)
+    (hpos : ∀ r ∈ s, 0 < r)
+    (hne : ∃ r ∈ s, ∃ j ∈ Finset.range m, a r j ≠ 0) :
+    ∃ μ : ℝ, 0 < μ ∧ ∃ k : ℕ, ∃ w : F, w ≠ 0 ∧
+      Tendsto (fun n : ℕ => (μ ^ n * (n : ℝ) ^ k)⁻¹ •
+        ∑ r ∈ s, ∑ j ∈ Finset.range m, (r ^ n * (n : ℝ) ^ j) • a r j)
+        atTop (𝓝 w) := by
+  classical
+  let t := s.filter (fun r => ∃ j ∈ Finset.range m, a r j ≠ 0)
+  have ht : t.Nonempty := by
+    obtain ⟨r, hr, j, hj, ha⟩ := hne
+    exact ⟨r, Finset.mem_filter.mpr ⟨hr, j, hj, ha⟩⟩
+  let μ := t.max' ht
+  have hμt : μ ∈ t := t.max'_mem ht
+  have hμs : μ ∈ s := (Finset.mem_filter.mp hμt).1
+  have hμ : 0 < μ := hpos μ hμs
+  let u := (Finset.range m).filter (fun j => a μ j ≠ 0)
+  have hu : u.Nonempty := by
+    obtain ⟨j, hj, ha⟩ := (Finset.mem_filter.mp hμt).2
+    exact ⟨j, Finset.mem_filter.mpr ⟨hj, ha⟩⟩
+  let k := u.max' hu
+  have hku : k ∈ u := u.max'_mem hu
+  have hkm : k ∈ Finset.range m := (Finset.mem_filter.mp hku).1
+  have hak : a μ k ≠ 0 := (Finset.mem_filter.mp hku).2
+  refine ⟨μ, hμ, k, a μ k, hak, ?_⟩
+  have hratio (r : ℝ) (j : ℕ) (hr : r ∈ s) (ha : a r j ≠ 0)
+      (hj : j ∈ Finset.range m) :
+      Tendsto (fun n : ℕ => (μ ^ n * (n : ℝ) ^ k)⁻¹ *
+        (r ^ n * (n : ℝ) ^ j)) atTop
+        (𝓝 (if r = μ ∧ j = k then (1 : ℝ) else 0)) := by
+    have hrμ : r ≤ μ := t.le_max' r (Finset.mem_filter.mpr ⟨hr, j, hj, ha⟩)
+    rcases hrμ.eq_or_lt with rfl | hrμ
+    · have hjk : j ≤ k := u.le_max' j (Finset.mem_filter.mpr ⟨hj, ha⟩)
+      rcases hjk.eq_or_lt with rfl | hjk
+      · simp only [and_self, ite_true]
+        apply tendsto_const_nhds.congr'
+        filter_upwards [eventually_ge_atTop 1] with n hn
+        have hn0 : (n : ℝ) ≠ 0 := by exact_mod_cast (show n ≠ 0 by omega)
+        exact (inv_mul_cancel₀ (mul_ne_zero (pow_ne_zero n hμ.ne') (pow_ne_zero k hn0))).symm
+      · simp only [true_and, ne_of_lt hjk, ite_false]
+        have ht0 := tendsto_const_div_pow 1 (k - j) (Nat.sub_ne_zero_of_lt hjk)
+        apply ht0.congr'
+        filter_upwards [eventually_ge_atTop 1] with n hn
+        have hn0 : (n : ℝ) ≠ 0 := by exact_mod_cast (show n ≠ 0 by omega)
+        have hk : (n : ℝ) ^ k = (n : ℝ) ^ j * (n : ℝ) ^ (k - j) := by
+          rw [← pow_add, Nat.add_sub_of_le hjk.le]
+        rw [hk]
+        field_simp
+    · have hlt : r / μ < 1 := (div_lt_one hμ).mpr hrμ
+      have hge : 0 ≤ r / μ := (div_pos (hpos r hr) hμ).le
+      have ht0 := tendsto_pow_const_mul_const_pow_of_lt_one j hge hlt
+      have hnorm : ∃ c : ℝ, Tendsto (fun n : ℕ => ((n : ℝ) ^ k)⁻¹)
+          atTop (𝓝 c) := by
+        by_cases hk : k = 0
+        · exact ⟨1, by simp [hk]⟩
+        · exact ⟨0, by simpa using tendsto_const_div_pow 1 k hk⟩
+      obtain ⟨c, hc⟩ := hnorm
+      have ht := ht0.mul hc
+      simp only [zero_mul] at ht
+      simp only [ne_of_lt hrμ, false_and, ite_false]
+      convert ht using 1
+      funext n
+      simp only [div_eq_mul_inv, mul_inv_rev]
+      ring
+  have hsum := tendsto_finset_sum s (fun r hr =>
+    tendsto_finset_sum (Finset.range m) (fun j hj => show
+      Tendsto (fun n : ℕ => (μ ^ n * (n : ℝ) ^ k)⁻¹ •
+        ((r ^ n * (n : ℝ) ^ j) • a r j)) atTop
+        (𝓝 (if r = μ ∧ j = k then a μ k else 0)) from by
+      by_cases ha : a r j = 0
+      · have hnot : ¬ (r = μ ∧ j = k) := by
+          rintro ⟨rfl, rfl⟩
+          exact hak ha
+        simp [ha, hnot]
+      · have ht := (hratio r j hr ha hj).smul_const (a r j)
+        by_cases h : r = μ ∧ j = k
+        · rcases h with ⟨rfl, rfl⟩
+          simpa only [and_self, ite_true, one_smul, smul_smul] using ht
+        · simpa only [h, ite_false, zero_smul, smul_smul] using ht))
+  simpa [Finset.smul_sum, ite_and, hμs, hkm] using hsum
+
+/-- Step 8 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"in the Plücker embedding" and "any nonzero vector u". The wedge of a
+linearly independent frame is nonzero, including the empty frame in degree zero. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step8_plucker_nonzero
+    {d k : ℕ} (v : Fin k → E d)
+    (hv : LinearIndependent ℝ v) : exteriorPower.ιMulti ℝ k v ≠ 0 := by
+  have hi := exteriorPower.ιMulti_family_linearIndependent_field (n := k) hv
+  have hn := hi.ne_zero (Set.powersetCard.ofFinEmbEquiv
+    (OrderEmbedding.ofStrictMono (fun i : Fin k => i) (fun _ _ h => h)))
+  simpa only [exteriorPower.ιMulti_family, Equiv.symm_apply_apply,
+    OrderEmbedding.coe_ofStrictMono, Function.comp_id] using hn
+
+/-- Step 9 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"in the Plücker embedding". Choose a nonzero exterior coordinate and
+contract against all but one of its covectors. The resulting k linear maps
+give an independent frame at that coordinate; on a decomposable vector,
+the frame lies in the subspace represented by the vector. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step9_plucker_chart
+    {d k : ℕ} (w : ⋀[ℝ]^k (E d)) (hw : w ≠ 0) :
+    ∃ B : (⋀[ℝ]^k (E d)) →ₗ[ℝ] (Fin k → E d),
+      LinearIndependent ℝ (B w) ∧
+      ∀ (v : Fin k → E d) (i : Fin k),
+        B (exteriorPower.ιMulti ℝ k v) i ∈ Submodule.span ℝ (Set.range v) := by
+  classical
+  let b := (EuclideanSpace.basisFun (Fin d) ℝ).toBasis
+  have hrepr : (b.exteriorPower k).repr w ≠ 0 :=
+    (b.exteriorPower k).repr.map_ne_zero_iff.mpr hw
+  obtain ⟨s, hs⟩ : ∃ s, (b.exteriorPower k).repr w s ≠ 0 := by
+    by_contra h
+    push_neg at h
+    exact hrepr (Finsupp.ext h)
+  let φ : Fin k → Module.Dual ℝ (E d) := fun i =>
+    b.coord (Set.powersetCard.ofFinEmbEquiv.symm s i)
+  let A := exteriorPower.alternatingMapToDual ℝ (E d) k
+  have hAw : A φ w ≠ 0 := by
+    simpa only [exteriorPower.basis_repr_apply, exteriorPower.ιMultiDual,
+      exteriorPower.ιMulti_family, exteriorPower.pairingDual,
+      exteriorPower.alternatingMapLinearEquiv_apply_ιMulti, φ, A] using hs
+  let C : Fin k → Module.Dual ℝ (E d) →ₗ[ℝ] Module.Dual ℝ (⋀[ℝ]^k (E d)) :=
+    fun i => A.toMultilinearMap.toLinearMap φ i
+  let B : (⋀[ℝ]^k (E d)) →ₗ[ℝ] (Fin k → E d) :=
+    LinearMap.pi (fun i => (Module.evalEquiv ℝ (E d)).symm.toLinearMap.comp (C i).flip)
+  have hB (x : ⋀[ℝ]^k (E d)) (i : Fin k) (ℓ : Module.Dual ℝ (E d)) :
+      ℓ (B x i) = A (Function.update φ i ℓ) x := by
+    simp only [B, LinearMap.pi_apply, LinearMap.comp_apply, LinearEquiv.coe_coe,
+      Module.apply_evalEquiv_symm_apply, LinearMap.flip_apply, C,
+      MultilinearMap.toLinearMap_apply]
+    rfl
+  refine ⟨B, ?_, ?_⟩
+  · apply LinearIndependent.of_pairwise_dual_eq_zero_one _
+      (fun i => (A φ w)⁻¹ • φ i)
+    · intro i j hij
+      rw [LinearMap.smul_apply, hB, A.map_update_self φ hij.symm]
+      simp
+    · intro i
+      rw [LinearMap.smul_apply, hB, Function.update_eq_self]
+      exact inv_mul_cancel₀ hAw
+  · intro v i
+    apply (Subspace.forall_mem_dualAnnihilator_apply_eq_zero_iff _ _).mp
+    intro ℓ hℓ
+    rw [hB]
+    change exteriorPower.alternatingMapToDual ℝ (E d) k
+      (Function.update φ i ℓ) (exteriorPower.ιMulti ℝ k v) = 0
+    rw [exteriorPower.alternatingMapToDual_apply_ιMulti]
+    apply Matrix.det_eq_zero_of_column_eq_zero i
+    intro j
+    simp only [Matrix.of_apply, Function.update_self]
+    exact (Submodule.mem_dualAnnihilator ℓ).mp hℓ _ (Submodule.subset_span ⟨j, rfl⟩)
+
+/-- Step 10 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"converges in the Grassmannian". The Gram operator f* f of an injective
+map is invertible, since its kernel equals the kernel of f. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step10_gram_unit
+    {d k : ℕ} (f : E k →L[ℝ] E d)
+    (hf : Function.Injective f) : IsUnit (f.adjoint.comp f) := by
+  have hinj : Function.Injective (f.adjoint.comp f) := by
+    apply LinearMap.ker_eq_bot.mp
+    apply LinearMap.ker_eq_bot'.mpr
+    intro x hx
+    change (f.adjoint.comp f) x = 0 at hx
+    apply hf
+    rw [map_zero]
+    apply (inner_self_eq_zero (𝕜 := ℝ)).mp
+    rw [← f.adjoint_inner_right x (f x)]
+    change inner ℝ x ((f.adjoint.comp f) x) = 0
+    rw [hx, inner_zero_right]
+  exact ContinuousLinearMap.isUnit_iff_bijective.mpr
+    ⟨hinj, LinearMap.injective_iff_surjective.mp hinj⟩
+
+/-- Step 11 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"converges in the Grassmannian". In frame coordinates the orthogonal
+projection onto the image of f is f (f* f)⁻¹ f*; the formula follows from
+its range and orthogonality properties. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step11_projection_gram
+    {d k : ℕ} (f : E k →L[ℝ] E d)
+    (hf : IsUnit (f.adjoint.comp f)) :
+    f.toLinearMap.range.starProjection =
+      f.comp ((Ring.inverse (f.adjoint.comp f)).comp f.adjoint) := by
+  apply ContinuousLinearMap.ext
+  intro x
+  apply Submodule.eq_starProjection_of_mem_of_inner_eq_zero
+  · exact ⟨_, rfl⟩
+  · rintro y ⟨z, rfl⟩
+    change inner ℝ (x - f (Ring.inverse (f.adjoint.comp f) (f.adjoint x))) (f z) = 0
+    rw [← f.adjoint_inner_left z]
+    have hcancel : (f.adjoint.comp f)
+        (Ring.inverse (f.adjoint.comp f) (f.adjoint x)) = f.adjoint x := by
+      exact congrArg (fun T : E k →L[ℝ] E k => T (f.adjoint x))
+        (Ring.mul_inverse_cancel _ hf)
+    change f.adjoint (f (Ring.inverse (f.adjoint.comp f) (f.adjoint x))) = f.adjoint x at hcancel
+    simp only [map_sub]
+    rw [hcancel, sub_self, inner_zero_left]
+
+open Filter Topology in
+/-- Step 12 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"converges in the Grassmannian". Invertible Gram operators form an open
+set and inversion is continuous there, so projections depend continuously
+in operator norm on an injective limiting map. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step12_projection_continuity
+    {d k : ℕ}
+    (f : ℕ → E k →L[ℝ] E d) (g : E k →L[ℝ] E d)
+    (hg : Function.Injective g) (hfg : Tendsto f atTop (𝓝 g)) :
+    Tendsto (fun n => (f n).toLinearMap.range.starProjection) atTop
+      (𝓝 g.toLinearMap.range.starProjection) := by
+  let G := fun f : E k →L[ℝ] E d => f.adjoint.comp f
+  let P := fun f : E k →L[ℝ] E d => f.comp ((Ring.inverse (G f)).comp f.adjoint)
+  have hG : Continuous G := ContinuousLinearMap.adjoint.continuous.clm_comp continuous_id
+  have hunit : IsUnit (G g) := L_fixes_directions_sides_step2_spectral_limit_step10_gram_unit g hg
+  have hinv : ContinuousAt Ring.inverse (G g) := by
+    simpa only [hunit.unit_spec] using NormedRing.inverse_continuousAt hunit.unit
+  have hP : ContinuousAt P g := continuousAt_id.clm_comp
+    ((hinv.comp hG.continuousAt).clm_comp ContinuousLinearMap.adjoint.continuous.continuousAt)
+  have hevent : ∀ᶠ n in atTop, IsUnit (G (f n)) :=
+    (hG.continuousAt.tendsto.comp hfg).eventually (Units.isOpen.mem_nhds hunit)
+  rw [L_fixes_directions_sides_step2_spectral_limit_step11_projection_gram g hunit]
+  apply (hP.tendsto.comp hfg).congr'
+  filter_upwards [hevent] with n hn
+  exact (L_fixes_directions_sides_step2_spectral_limit_step11_projection_gram (f n) hn).symm
+
+open Filter Topology in
+/-- Step 13 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"converges in the Grassmannian". Regard a frame as the columns of a
+linear map; convergence to an independent frame therefore implies
+operator-norm convergence of the projections onto its span. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step13_frame_projection_limit
+    {d k : ℕ}
+    (v : ℕ → Fin k → E d) (w : Fin k → E d)
+    (hw : LinearIndependent ℝ w) (hlim : Tendsto v atTop (𝓝 w)) :
+    Tendsto (fun n => (Submodule.span ℝ (Set.range (v n))).starProjection)
+      atTop (𝓝 (Submodule.span ℝ (Set.range w)).starProjection) := by
+  let b := (EuclideanSpace.basisFun (Fin k) ℝ).toBasis
+  let T : (Fin k → E d) ≃ₗ[ℝ] (E k →L[ℝ] E d) :=
+    (b.constr ℝ).trans LinearMap.toContinuousLinearMap
+  have hinj : Function.Injective (T w) := by
+    intro x y h
+    apply b.repr.injective
+    apply hw.finsuppLinearCombination_injective
+    change (b.constr ℝ w) x = (b.constr ℝ w) y at h
+    simpa only [Module.Basis.constr_apply, Finsupp.linearCombination_apply] using h
+  have hTlim : Tendsto (fun n => T (v n)) atTop (𝓝 (T w)) :=
+    T.continuous_of_finiteDimensional.continuousAt.tendsto.comp hlim
+  have h := L_fixes_directions_sides_step2_spectral_limit_step12_projection_continuity (fun n => T (v n)) (T w) hinj hTlim
+  simpa only [T, LinearEquiv.trans_apply, LinearMap.coe_toContinuousLinearMap,
+    Module.Basis.constr_range] using h
+
+open Filter Topology in
+/-- Step 14 of the V4 proof of `L_fixes_directions_sides_step2_spectral_limit` (V4 1.16(b)):
+"the limit of decomposable vectors is decomposable because the
+Grassmannian is closed". Apply a Plücker chart to the nonzero limiting
+vector. Its frames converge and are eventually independent; inclusion and
+equality of dimensions identify their spans with the original subspaces. -/
+private theorem L_fixes_directions_sides_step2_spectral_limit_step14_projection_limit
+    {d k : ℕ} {F : Type*}
+    [NormedAddCommGroup F] [NormedSpace ℝ F] [FiniteDimensional ℝ F]
+    (e : (⋀[ℝ]^k (E d)) ≃ₗ[ℝ] F)
+    (v : ℕ → Fin k → E d) (hv : ∀ n, LinearIndependent ℝ (v n))
+    (c : ℕ → ℝ) (w : F) (hw : w ≠ 0)
+    (hlim : Tendsto (fun n => c n • e (exteriorPower.ιMulti ℝ k (v n)))
+      atTop (𝓝 w)) :
+    ∃ P : E d →L[ℝ] E d,
+      Tendsto (fun n => (Submodule.span ℝ (Set.range (v n))).starProjection)
+        atTop (𝓝 P) := by
+  classical
+  obtain ⟨B, hB, hmem⟩ := L_fixes_directions_sides_step2_spectral_limit_step9_plucker_chart (e.symm w) (e.symm.map_ne_zero_iff.mpr hw)
+  let u := fun n => c n • B (exteriorPower.ιMulti ℝ k (v n))
+  have hu : Tendsto u atTop (𝓝 (B (e.symm w))) := by
+    have h := (B.comp e.symm.toLinearMap).continuous_of_finiteDimensional.continuousAt.tendsto.comp hlim
+    simpa only [Function.comp_def, LinearMap.comp_apply, LinearEquiv.coe_coe, map_smul,
+      LinearEquiv.symm_apply_apply] using h
+  have hevent : ∀ᶠ n in atTop, LinearIndependent ℝ (u n) := hu.eventually hB.eventually
+  have hspan : ∀ᶠ n in atTop,
+      Submodule.span ℝ (Set.range (u n)) = Submodule.span ℝ (Set.range (v n)) := by
+    filter_upwards [hevent] with n hn
+    apply Submodule.eq_of_le_of_finrank_eq
+    · apply Submodule.span_le.mpr
+      rintro _ ⟨i, rfl⟩
+      exact (Submodule.span ℝ (Set.range (v n))).smul_mem (c n) (hmem (v n) i)
+    · rw [finrank_span_eq_card hn, finrank_span_eq_card (hv n)]
+  refine ⟨(Submodule.span ℝ (Set.range (B (e.symm w)))).starProjection, ?_⟩
+  apply (L_fixes_directions_sides_step2_spectral_limit_step13_frame_projection_limit u (B (e.symm w)) hB hu).congr'
+  filter_upwards [hspan] with n hn
+  rw [hn]
+
+set_option maxHeartbeats 1600000 in
 omit [Fact (2 ≤ d)] in
 open Filter Topology in
 /-- Step 2 of the V4 proof of `L_fixes_directions_sides` (V4 1.16(b)):
@@ -246,7 +768,59 @@ private theorem L_fixes_directions_sides_step2_spectral_limit
       (tendsto_const_nhds : Tendsto
         (fun _ : ℕ => ContinuousLinearMap.id ℝ (E d))
         atTop (𝓝 (ContinuousLinearMap.id ℝ (E d))))⟩
-  sorry
+  classical
+  let k := Module.finrank ℝ V
+  let b := Module.finBasis ℝ V
+  let v : Fin k → E d := fun i => b i
+  have hv : LinearIndependent ℝ v :=
+    b.linearIndependent.map' V.subtype (Submodule.ker_subtype V)
+  have hspan : Submodule.span ℝ (Set.range v) = V := by
+    rw [show Set.range v = V.subtype '' Set.range b from Set.range_comp V.subtype b,
+      ← Submodule.map_span, b.span_eq, Submodule.map_subtype_top]
+  let X := Fin (Module.finrank ℝ (⋀[ℝ]^k (E d))) → ℝ
+  let e : (⋀[ℝ]^k (E d)) ≃ₗ[ℝ] X := (Module.finBasis ℝ _).equivFun
+  let f : MultilinearMap ℝ (fun _ : Fin k => E d) X :=
+    e.toLinearMap.compMultilinearMap (exteriorPower.ιMulti ℝ k).toMultilinearMap
+  have hne : f v ≠ 0 := e.map_ne_zero_iff.mpr
+    (L_fixes_directions_sides_step2_spectral_limit_step8_plucker_nonzero v hv)
+  obtain ⟨hsplit, hreal⟩ := L_fixes_directions_sides_step2_spectral_limit_step1_real_splitting L.toLinearMap hpos
+  choose s m a ha hexp using fun i =>
+    L_fixes_directions_sides_step2_spectral_limit_step4_jordan_expansion
+      L.toLinearMap hsplit hreal (v i)
+  obtain ⟨t, q, c, hc, hcexp⟩ := L_fixes_directions_sides_step2_spectral_limit_step6_multilinear_expansion f s m a ha
+  have hpow : ∀ n : ℕ, L.toLinearMap ^ n = (L ^ n).toLinearMap := by
+    intro n
+    induction n with
+    | zero => rfl
+    | succ n ih => rw [pow_succ, pow_succ, LinearEquiv.coe_toLinearMap_mul, ih]
+  have heq : ∀ n : ℕ, f (fun i => (L ^ n) (v i)) =
+      ∑ r ∈ t, ∑ j ∈ Finset.range q, (r ^ n * (n : ℝ) ^ j) • c r j := by
+    intro n
+    simpa only [← hexp, hpow] using hcexp n
+  have hcne : ∃ r ∈ t, ∃ j ∈ Finset.range q, c r j ≠ 0 := by
+    by_contra h
+    push_neg at h
+    apply hne
+    calc
+      f v = f (fun i => (L ^ 0) (v i)) := by simp
+      _ = ∑ r ∈ t, ∑ j ∈ Finset.range q, (r ^ 0 * ((0 : ℕ) : ℝ) ^ j) • c r j := heq 0
+      _ = 0 := Finset.sum_eq_zero fun r hr => Finset.sum_eq_zero fun j hj => by
+        rw [h r hr j hj, smul_zero]
+  obtain ⟨μ, hμ, p, w, hw, hlim⟩ := L_fixes_directions_sides_step2_spectral_limit_step7_dominant_term t q c hc hcne
+  have hlim' : Tendsto (fun n : ℕ => (μ ^ n * (n : ℝ) ^ p)⁻¹ •
+      e (exteriorPower.ιMulti ℝ k (fun i => (L ^ n) (v i)))) atTop (𝓝 w) := by
+    simpa only [← heq] using hlim
+  obtain ⟨P, hP⟩ := L_fixes_directions_sides_step2_spectral_limit_step14_projection_limit e (fun n i => (L ^ n) (v i))
+    (fun n => hv.map' (L ^ n).toLinearMap (LinearEquiv.ker _))
+    (fun n => (μ ^ n * (n : ℝ) ^ p)⁻¹) w hw hlim'
+  refine ⟨P, ?_⟩
+  have hspan' : ∀ n : ℕ, Submodule.span ℝ (Set.range (fun i => (L ^ n) (v i))) =
+      V.map (L ^ n).toLinearMap := by
+    intro n
+    rw [show Set.range (fun i => (L ^ n) (v i)) =
+      (L ^ n).toLinearMap '' Set.range v from Set.range_comp _ _,
+      ← Submodule.map_span, hspan]
+  simpa only [hspan'] using hP
 
 omit [Fact (2 ≤ d)] in
 /-- Step 3 of the V4 proof of `L_fixes_directions_sides` (V4 1.16(b)):

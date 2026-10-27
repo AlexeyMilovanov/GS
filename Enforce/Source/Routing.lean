@@ -2759,6 +2759,175 @@ private theorem birth_ascent_top_step3_birth_below_top {A : S.ι} (k : ℕ)
   rw [hn, ← hN]
   exact birth_ascent_top_step3_common_desc_compare A k (n + 1) b 0 N P L hstd hP.1 hLN hLP hle
 
+/-- Step 1 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
+"choose a point `y ∈ int P_b` near `p`". The full prototype frame preserves
+closedness and regular closedness, so every point of a node is approached by
+its interior points. -/
+private theorem birth_ascent_top_step4_exit_facet_step1_regular_closed
+    (N : FramedNode S) (n : ℕ) :
+    IsClosed (N.carrier n) ∧ IsRegularClosed (N.carrier n) := by
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hc : N.carrier n = H '' (S.proto N.ty).carrier := by
+    simp [H, FramedNode.prototypeFrame, FramedNode.carrier,
+      SubstSystem.supertile, placedSet, Set.image_image]
+  rw [hc]
+  refine ⟨H.isClosedMap _ (S.proto N.ty).compact.isClosed, ?_⟩
+  change closure (interior (H '' (S.proto N.ty).carrier)) = _
+  rw [← H.image_interior, ← H.image_closure, (S.proto N.ty).regularClosed]
+
+/-- Step 2 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
+"an `A`-owned native tile not in `P_b` (exists by minimality of `P₀`)".
+Raise such a native tile to the height of `P_b`; its ancestor is a different
+standard node through the point and is still below `P₀`. -/
+private theorem birth_ascent_top_step4_exit_facet_step2_other_node
+    {A : S.ι} (k : ℕ) (p : E d) (b : ℕ) (P : FramedNode S)
+    (hP : IsTopBirth A k p b P) (n : ℕ) (N : FramedNode S)
+    (hN : S.IsStandardNode A k n N) (hlt : n < b) :
+    ∃ M : FramedNode S, S.IsStandardNode A k n M ∧
+      M.IsDescendant n P b ∧ M ≠ N ∧ (S.σ ^ k) p ∈ M.carrier n := by
+  classical
+  have hex : ∃ w : S.RoleWord A k,
+      (S.σ ^ k) p ∈ (S.nativeTile A k w).carrier 0 ∧
+        ¬ (S.nativeTile A k w).IsDescendant 0 N n := by
+    by_contra h
+    have hcover : ∀ w : S.RoleWord A k,
+        (S.σ ^ k) p ∈ (S.nativeTile A k w).carrier 0 →
+          (S.nativeTile A k w).IsDescendant 0 N n := by
+      intro w hw
+      by_contra hn
+      exact h ⟨w, hw, hn⟩
+    exact (not_le_of_gt hlt) (hP.2.2 n N hN hcover)
+  obtain ⟨w, hpw, hwN⟩ := hex
+  have hwstd : S.IsStandardNode A k 0 (S.nativeTile A k w) :=
+    ⟨k, by omega, w, rfl⟩
+  have hnk : n ≤ k := by obtain ⟨j, hj, _⟩ := hN; omega
+  obtain ⟨M, hM, hwM⟩ := birth_ascent_top_step3_standard_raise A k 0 n
+    (S.nativeTile A k w) hwstd (Nat.zero_le n) hnk
+  refine ⟨M, hM, ?_, ?_, ?_⟩
+  · exact birth_ascent_top_step3_common_desc_compare A k n b 0 M P
+      (S.nativeTile A k w) hM hP.1 hwM (hP.2.1 w hpw) hlt.le
+  · intro heq
+    exact hwN (heq ▸ hwM)
+  · exact birth_ascent_top_step3_desc_subset _ M 0 n hwM hpw
+
+/-- Step 3 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
+"near a boundary point the polyhedral boundary separates a small ball into
+two sides and `int P₀` is one of them". This is the local connectedness
+assertion for a single polyhedral manifold domain, with no subdivision or
+facet selection. -/
+private theorem birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood
+    (D : PolyManifoldDomain d) (p : E d) (hp : p ∈ frontier D.carrier) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ r : ℝ, 0 < r → r < ε →
+      IsPreconnected (interior D.carrier ∩ Metric.ball p r) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
+"`int P₀ ∩ B(p,ρ)` is connected for small `ρ` ... near an interior point
+it is a ball". Transport the small connected interior neighborhood through
+the full affine frame; it can be chosen inside any prescribed open neighborhood. -/
+private theorem birth_ascent_top_step4_exit_facet_step4_interior_neighborhood
+    (N : FramedNode S) (n : ℕ) (p : E d) (hp : p ∈ N.carrier n)
+    (U : Set (E d)) (hU : IsOpen U) (hpU : p ∈ U) :
+    ∃ V : Set (E d), IsOpen V ∧ p ∈ V ∧ V ⊆ U ∧
+      IsPreconnected (interior (N.carrier n) ∩ V) := by
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hc : N.carrier n = H '' (S.proto N.ty).carrier := by
+    simp [H, FramedNode.prototypeFrame, FramedNode.carrier,
+      SubstSystem.supertile, placedSet, Set.image_image]
+  let q := H.symm p
+  have hq : q ∈ (S.proto N.ty).carrier := by
+    rw [hc] at hp
+    obtain ⟨z, hz, rfl⟩ := hp
+    simpa [q] using hz
+  have hqU : q ∈ H ⁻¹' U := by simpa [q] using hpU
+  obtain ⟨r, hr, hrU, hrconn⟩ : ∃ r : ℝ, 0 < r ∧
+      Metric.ball q r ⊆ H ⁻¹' U ∧
+        IsPreconnected (interior (S.proto N.ty).carrier ∩ Metric.ball q r) := by
+    by_cases hi : q ∈ interior (S.proto N.ty).carrier
+    · obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp
+        (isOpen_interior.inter (hU.preimage H.continuous)) q ⟨hi, hqU⟩
+      refine ⟨r, hr, fun x hx => (hball hx).2, ?_⟩
+      rw [inter_eq_right.mpr (fun x hx => (hball hx).1)]
+      exact (convex_ball q r).isPreconnected
+    · have hf : q ∈ frontier (S.proto N.ty).carrier :=
+        ⟨(S.proto N.ty).compact.isClosed.closure_eq.symm ▸ hq, hi⟩
+      obtain ⟨ε, hε, hconn⟩ :=
+        birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood
+          (S.proto N.ty) q hf
+      obtain ⟨δ, hδ, hball⟩ := Metric.isOpen_iff.mp (hU.preimage H.continuous) q hqU
+      let r := min ε δ / 2
+      have hr : 0 < r := by dsimp [r]; positivity
+      have hrε : r < ε := by dsimp [r]; linarith [min_le_left ε δ]
+      have hrδ : r ≤ δ := by dsimp [r]; linarith [min_le_right ε δ]
+      exact ⟨r, hr, (Metric.ball_subset_ball hrδ).trans hball, hconn r hr hrε⟩
+  refine ⟨H '' Metric.ball q r, H.isOpenMap _ Metric.isOpen_ball,
+    ⟨q, Metric.mem_ball_self hr, H.apply_symm_apply p⟩, ?_, ?_⟩
+  · rintro _ ⟨x, hx, rfl⟩
+    exact hrU hx
+  · have heq : interior (N.carrier n) ∩ H '' Metric.ball q r =
+        H '' (interior (S.proto N.ty).carrier ∩ Metric.ball q r) := by
+      rw [hc, ← H.image_interior, Set.image_inter H.injective]
+    rw [heq]
+    exact hrconn.image H H.continuous.continuousOn
+
+/-- Step 5 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
+"`ρ` smaller than the distance from `p` to all cells ... not containing `p`
+(finitely many)". Remove the finite closed union of facets missing the point. -/
+private theorem birth_ascent_top_step4_exit_facet_step5_avoid_facets
+    (N : FramedNode S) (n : ℕ) (p : E d) :
+    ∃ U : Set (E d), IsOpen U ∧ p ∈ U ∧
+      ∀ (e : FacetName S N.ty) (x : E d), x ∈ U → x ∈ N.cell n e.val →
+        p ∈ N.cell n e.val := by
+  classical
+  let bad := (S.cx N.ty).facets.filter (fun e => p ∉ N.cell n e)
+  let U := (⋃ e ∈ bad, N.cell n e)ᶜ
+  have hc (e : Cell d) : IsClosed (N.cell n e) :=
+    (e.flat.compact.image (N.prototypeFrame n).continuous_of_finiteDimensional).isClosed
+  refine ⟨U, (isClosed_biUnion_finset (fun e _ => hc e)).isOpen_compl, ?_, ?_⟩
+  · intro h
+    obtain ⟨e, he, hpe⟩ := Set.mem_iUnion₂.mp h
+    exact (Finset.mem_filter.mp he).2 hpe
+  · intro e x hx hxe
+    by_contra hpe
+    exact hx (Set.mem_iUnion₂.mpr ⟨e.val,
+      Finset.mem_filter.mpr ⟨e.property, hpe⟩, hxe⟩)
+
+/-- Step 6 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
+"At the first exit from `P_b`". A connected set meeting the interior and
+the complement of a closed set meets its frontier. -/
+private theorem birth_ascent_top_step4_exit_facet_step6_crossing
+    {K V : Set (E d)} (hK : IsClosed K) (hV : IsPreconnected V)
+    (hin : (V ∩ interior K).Nonempty) (hout : (V ∩ Kᶜ).Nonempty) :
+    (V ∩ frontier K).Nonempty := by
+  by_contra h
+  have hsplit : V ⊆ interior K ∪ Kᶜ := by
+    intro x hx
+    by_cases hxK : x ∈ K
+    · left
+      by_contra hi
+      exact h ⟨x, hx, hK.closure_eq.symm ▸ hxK, hi⟩
+    · exact Or.inr hxK
+  obtain ⟨x, _, hxi, hxo⟩ := hV (interior K) Kᶜ
+    isOpen_interior hK.isOpen_compl hsplit hin hout
+  exact hxo (interior_subset hxi)
+
+/-- Step 7 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
+"the path crosses a facet `e`". The closed facets of the finite boundary
+complex cover every frontier point, also after applying the node's full frame. -/
+private theorem birth_ascent_top_step4_exit_facet_step7_frontier_facets
+    (N : FramedNode S) (n : ℕ) {x : E d} (hx : x ∈ frontier (N.carrier n)) :
+    ∃ e : FacetName S N.ty, x ∈ N.cell n e.val := by
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hc : N.carrier n = H '' (S.proto N.ty).carrier := by
+    simp [H, FramedNode.prototypeFrame, FramedNode.carrier,
+      SubstSystem.supertile, placedSet, Set.image_image]
+  rw [hc, ← H.image_frontier] at hx
+  obtain ⟨y, hy, rfl⟩ := hx
+  obtain ⟨e, hye⟩ := Set.mem_iUnion.mp
+    (principal_component_step1_hull_geometry_step11_facets_cover
+      (S.proto N.ty) (S.cx N.ty) hy)
+  exact ⟨e, y, hye, rfl⟩
+
 /-- Step 4 of the V4 proof of `birth_ascent_top` (V4 1.25): "At the first
 exit from `P_b` the path crosses a facet `e` ... lying in `int P₀`"; choosing
 the ball smaller than the distances to cells not containing `p` ensures
@@ -2771,7 +2940,66 @@ private theorem birth_ascent_top_step4_exit_facet {A : S.ι} (k : ℕ)
     (hstrict : k - f.depth < b) :
     ∃ e : FacetName S f.birthType, p ∈ f.birthCell e.val ∧
       relint ((S.σ ^ k) '' f.birthCell e.val) ⊆ interior (P.carrier b) := by
-  sorry
+  let n := k - f.depth
+  let x := (S.σ ^ k) p
+  let N : FramedNode S := ⟨f.birthType, (f.birthNode k).frame⟩
+  have hN : N = f.birthNode k := by
+    apply FramedNode.ext
+    · exact (birth_ascent_top_step2_descendant_type A n f.depth f.word).symm
+    · rfl
+  have hstd : S.IsStandardNode A k n N := by
+    rw [hN]
+    exact ⟨f.depth, by dsimp [n]; omega, f.word, rfl⟩
+  have hNP : N.IsDescendant n P b := hN.symm ▸ hancestor
+  have hxN : x ∈ N.carrier n := by
+    obtain ⟨r, R, hr, hR, i, j, hij, hpi, hpj⟩ :=
+      birth_ascent_top_step3_primitive_two_children k f hf p hp
+    have hmem := birth_ascent_top_step3_child_subset R r i hpi
+    rwa [hR, ← hr, ← hN] at hmem
+  have hNsub := birth_ascent_top_step3_desc_subset N P n b hNP
+  obtain ⟨M, hM, hMP, hne, hxM⟩ :=
+    birth_ascent_top_step4_exit_facet_step2_other_node k p b P hP n N hstd hstrict
+  have hMsub := birth_ascent_top_step3_desc_subset M P n b hMP
+  obtain ⟨U, hU, hxU, hfacets⟩ :=
+    birth_ascent_top_step4_exit_facet_step5_avoid_facets N n x
+  obtain ⟨V, hV, hxV, hVU, hconn⟩ :=
+    birth_ascent_top_step4_exit_facet_step4_interior_neighborhood
+      P b x (hNsub hxN) U hU hxU
+  obtain ⟨hNclosed, hNreg⟩ := birth_ascent_top_step4_exit_facet_step1_regular_closed N n
+  obtain ⟨_, hMreg⟩ := birth_ascent_top_step4_exit_facet_step1_regular_closed M n
+  have hxNi : x ∈ closure (interior (N.carrier n)) := hNreg.symm ▸ hxN
+  have hxMi : x ∈ closure (interior (M.carrier n)) := hMreg.symm ▸ hxM
+  obtain ⟨y, hyV, hyN⟩ := mem_closure_iff.mp hxNi V hV hxV
+  obtain ⟨z, hzV, hzM⟩ := mem_closure_iff.mp hxMi V hV hxV
+  have hdisj : Disjoint (N.carrier n) (interior (M.carrier n)) := by
+    rw [← hNreg]
+    exact (birth_ascent_top_step3_standard_disjoint A k n N M hstd hM hne.symm).closure_left
+      isOpen_interior
+  have hzout : z ∉ N.carrier n := fun hzN => Set.disjoint_left.mp hdisj hzN hzM
+  obtain ⟨q, ⟨hqP, hqV⟩, hqfront⟩ :=
+    birth_ascent_top_step4_exit_facet_step6_crossing hNclosed hconn
+      ⟨y, ⟨interior_mono hNsub hyN, hyV⟩, hyN⟩
+      ⟨z, ⟨interior_mono hMsub hzM, hzV⟩, hzout⟩
+  obtain ⟨e, hqe⟩ := birth_ascent_top_step4_exit_facet_step7_frontier_facets N n hqfront
+  have hxe : x ∈ N.cell n e.val := hfacets e q (hVU hqV) hqe
+  have hinternal : relint (N.cell n e.val) ⊆ interior (P.carrier b) := by
+    rcases facet_dichotomy P N b n hNP e with hboundary | hi
+    · obtain ⟨F, hF, _⟩ := hboundary
+      exact False.elim ((birth_ascent_top_step2_cell_front P b F.val
+        (Finset.mem_filter.mp F.property).1 (hF hqe)).2 hqP)
+    · exact hi
+  have hcell : N.cell n e.val = (S.σ ^ k) '' f.birthCell e.val := by
+    change N.prototypeFrame n '' e.val.carrier =
+      (S.σ ^ k) '' (f.birthFrame '' e.val.carrier)
+    rw [Set.image_image]
+    apply Set.image_congr
+    intro a _
+    rw [hN]
+    exact (birth_ascent_top_step3_birth_frame f k hf.le a).symm
+  refine ⟨e, ?_, ?_⟩
+  · rw [hcell] at hxe
+    exact (S.σ ^ k).injective.mem_set_image.mp hxe
+  · rwa [← hcell]
 
 /-- Step 5 of the V4 proof of `birth_ascent_top` (V4 1.25):
 "`e` has a finite first provider `g` ... and `e ⊆ g`".

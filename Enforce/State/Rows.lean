@@ -3907,6 +3907,8 @@ private theorem honest_rows_step1_cont_geometry_step3_activity
     exact hF j
   · exact decide_eq_true_iff
 
+open private birth_ascent_routing_step3_desc_subset from Enforce.Source.Routing in
+
 /-- Step 4 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
 "both chains lie in the positioned flag ... with its orientations".
 The successive coface sides and the inward tile side of a descendant full
@@ -3922,7 +3924,27 @@ private theorem honest_rows_step1_cont_geometry_step4_sides
         tangentCone (S.proto t.2.val.ty).carrier (cellAnchor (c.cell facetIndex).val) =
       (B.2.val.prototypeFrame B.1).linear ''
         tangentCone (S.proto B.2.val.ty).carrier (cellAnchor (F.cell facetIndex).val) := by
-  sorry
+  have hfit (j : FlagIndex d) := honest_rows_step1_cont_geometry_step1_spans
+    (t.2.val.prototypeFrame t.1) (B.2.val.prototypeFrame B.1)
+    (c.cell j).val (F.cell j).val ((c.dimension j).trans (F.dimension j).symm) (hc j)
+  constructor
+  · intro j
+    exact actualCont_exists_step5_coface_side c F
+      (t.2.val.prototypeFrame t.1) (B.2.val.prototypeFrame B.1) j
+      (hfit _).2 (hfit _).2 (hfit _).1 (hfit _).1
+  · let f : FacetName S t.2.val.ty := ⟨(c.cell facetIndex).val,
+      Finset.mem_filter.mpr ⟨(c.cell facetIndex).property, c.dimension facetIndex⟩⟩
+    let g : FacetName S B.2.val.ty := ⟨(F.cell facetIndex).val,
+      Finset.mem_filter.mpr ⟨(F.cell facetIndex).property, F.dimension facetIndex⟩⟩
+    have hd := U.hierarchy.ancestor_descendant t (B.1 - t.1)
+    rw [hBt] at hd
+    have hsub := birth_ascent_routing_step3_desc_subset t.2.val B.2.val t.1 B.1 hd
+    apply actualCont_exists_step5_inward f g
+      (t.2.val.prototypeFrame t.1) (B.2.val.prototypeFrame B.1)
+    · simpa only [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+        SubstSystem.supertile, Set.image_image, AffineEquiv.coe_trans,
+        LinearEquiv.coe_toAffineEquiv, AffineIsometryEquiv.coe_toAffineEquiv] using hsub
+    · exact (hfit facetIndex).2
 
 /-- Step 4 of the V4 proof of `honest_rows_step1_cont_geometry` (V4 2.8):
 "both chains lie in the positioned flag ... with its orientations".

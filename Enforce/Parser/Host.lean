@@ -3503,6 +3503,620 @@ private theorem host_step_step2_strand_step2_terminal_counter
     (by simpa only [hfacet, hleaf] using hread) hc G
     (by simpa only [hportι] using hG) rfl hx hlocalray
 
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6, Step 2):
+"the terminal vertex". A nondegenerate segment has interval coordinates,
+with its two endpoints as its entire relative boundary. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step1_segment
+    (p q : E d) (hpq : p ≠ q) :
+    ∃ (φ : ℝ →ᵃⁱ[ℝ] E d) (L : ℝ), 0 < L ∧ φ 0 = p ∧ φ L = q ∧
+      segment ℝ p q = φ '' Icc 0 L ∧
+      relint (segment ℝ p q) = φ '' Ioo 0 L ∧
+      relfrontier (segment ℝ p q) = {p, q} := by
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let u := L⁻¹ • (q - p)
+  have hu : ‖u‖ = 1 := by
+    dsimp [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • u + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight u
+      map_vadd' := by
+        intro t s
+        change (s + t) • u + p = s • u + (t • u + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • u‖ = ‖t‖
+      rw [norm_smul, hu, mul_one] }
+  have hφ0 : φ 0 = p := by change (0 : ℝ) • u + p = p; simp
+  have hφL : φ L = q := by
+    change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+  have hseg : segment ℝ p q = φ '' Icc 0 L := by
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hrel : relint (segment ℝ p q) = φ '' Ioo 0 L := by
+    rw [hseg, relint, φ.image_intrinsicInterior,
+      host_step_step2_strand_step1_interval_relint 0 L hL]
+  refine ⟨φ, L, hL, hφ0, hφL, hseg, hrel, ?_⟩
+  have hclosed : IsClosed (segment ℝ p q) := by
+    rw [hseg]
+    exact (isCompact_Icc.image φ.continuous).isClosed
+  rw [relfrontier, ← closure_diff_intrinsicInterior, hclosed.closure_eq]
+  change segment ℝ p q \ relint (segment ℝ p q) = _
+  rw [hrel, hseg, ← Set.image_diff φ.injective]
+  have hd : Icc (0 : ℝ) L \ Ioo 0 L = {0, L} := by
+    ext x
+    simp only [mem_diff, mem_Icc, mem_Ioo, mem_insert_iff, mem_singleton_iff]
+    constructor
+    · rintro ⟨hx, hn⟩
+      by_cases h : x = 0
+      · exact Or.inl h
+      · exact Or.inr (by push_neg at hn; have := hn (lt_of_le_of_ne hx.1 (Ne.symm h)); linarith)
+    · rintro (rfl | rfl)
+      · exact ⟨⟨le_rfl, hL.le⟩, by simp⟩
+      · exact ⟨⟨hL.le, le_rfl⟩, by simp⟩
+  rw [hd, Set.image_pair, hφ0, hφL]
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6, Step 2):
+"given ... terminal vertex". Both endpoints of a listed edge are listed
+vertices, including flat subdivisions of the boundary complex. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step1_vertex
+    (A : S.ι) (e : PrototypeEdge S A) (p q : E d) (hpq : p ≠ q)
+    (he : e.val.carrier = segment ℝ p q) :
+    ∃ v : VertexName S A, v.val.carrier = {q} := by
+  classical
+  obtain ⟨φ, L, hL, hφ0, hφL, hseg, hrel, hfront⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step1_segment p q hpq
+  obtain ⟨cs, hcs, hcover⟩ := (S.cx A).boundary_union e.val
+    (Finset.mem_filter.mp e.property).1
+  have hq : q ∈ ⋃ c ∈ cs, c.carrier := by
+    rw [← hcover, he, hfront]
+    simp
+  obtain ⟨c, hc, hqc⟩ := mem_iUnion₂.mp hq
+  have hsub : c.carrier ⊆ {p, q} := by
+    intro x hx
+    rw [← hfront, ← he, hcover]
+    exact mem_iUnion₂.mpr ⟨c, hc, hx⟩
+  have hfinite : c.carrier.Finite := (Set.toFinite {p, q}).subset hsub
+  have hsingle : c.carrier.Subsingleton := by
+    by_contra h
+    exact (c.flat.connected.isPreconnected.infinite_of_nontrivial
+      (Set.not_subsingleton_iff.mp h)) hfinite
+  have hcq : c.carrier = {q} := Set.Subset.antisymm
+    (fun x hx => mem_singleton_iff.mpr (hsingle hx hqc)) (singleton_subset_iff.mpr hqc)
+  have hz : c.dim = 0 := by
+    rw [← c.flat.dimension, cellDirection, hcq]
+    simp [direction_affineSpan]
+  exact ⟨⟨c, Finset.mem_filter.mpr ⟨hcs hc, hz⟩⟩, hcq⟩
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6, Step 2):
+"the stratum ... is h or {p₀} or {p_N}". A listed cell contained in a
+listed edge is that edge or is zero-dimensional. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step1_subcell
+    (A : S.ι) (e : PrototypeEdge S A) (c : CellName S A)
+    (hce : c.val.carrier ⊆ e.val.carrier) : c.val = e.val ∨ c.val.dim = 0 := by
+  classical
+  obtain ⟨⟨p, q⟩, hpq, he⟩ := edge_endpoints_exist (⟨A, e⟩ : EdgeName S)
+  obtain ⟨φ, L, hL, hφ0, hφL, hseg, hrel, hfront⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step1_segment p q hpq
+  obtain ⟨x, hx⟩ := c.val.flat.relint_nonempty
+  have hxe : x ∈ e.val.carrier := hce (intrinsicInterior_subset hx)
+  by_cases h : c.val = e.val
+  · exact Or.inl h
+  right
+  have hnot : x ∉ relint e.val.carrier :=
+    Set.disjoint_left.mp ((S.cx A).relint_disjoint c.val c.property e.val
+      (Finset.mem_filter.mp e.property).1 h) hx
+  have hbound : x ∈ relfrontier e.val.carrier := by
+    rw [relfrontier, ← closure_diff_intrinsicInterior, e.val.flat.compact.isClosed.closure_eq]
+    exact ⟨hxe, hnot⟩
+  rw [he, hfront] at hbound
+  have endpoint (y z : E d) (hyz : y ≠ z)
+      (he' : e.val.carrier = segment ℝ y z) (hxz : x = z) : c.val.dim = 0 := by
+    obtain ⟨v, hv⟩ := host_step_step2_strand_step3_no_false_endpoint_step1_vertex A e y z hyz he'
+    have hxv : x ∈ relint v.val.carrier := by
+      rw [hv, relint, intrinsicInterior_singleton]
+      exact mem_singleton_iff.mpr hxz
+    have hcv : c.val = v.val := by
+      by_contra hh
+      exact Set.disjoint_left.mp ((S.cx A).relint_disjoint c.val c.property v.val
+        (Finset.mem_filter.mp v.property).1 hh) hx hxv
+    rw [hcv]
+    exact (Finset.mem_filter.mp v.property).2
+  rcases hbound with hxp | hxq
+  · exact endpoint q p hpq.symm (he.trans (segment_symm ℝ p q)) hxp
+  · exact endpoint p q hpq he hxq
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6, Step 2):
+"the stratum ... is a cell of g contained in h (as τ(e_m)=h)".
+Incidence preservation of the honest stratum map gives the endpoint dichotomy. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step1_stratum
+    (s : State P) (hs : s ∈ honestStates S P) (F : Cell d)
+    (r : FacetRecord P) (hr : stateRecordAt s F = some r)
+    (c : OrientedChain r.facet) (hc : c ∈ r.chains)
+    (v : VertexName S r.ty)
+    (hv : v.val.carrier ⊆ (host_step_edge ⟨r, c⟩).val.carrier) :
+    ∃ z : ProviderCell r.incidence.val, r.tauAt v.val = some z.val.val ∧
+      (z.val.val = ((P.flag r.incidence).flag.cell edgeIndex).val ∨ z.val.val.dim = 0) := by
+  classical
+  obtain ⟨U, q, rfl⟩ := hs
+  unfold stateRecordAt at hr
+  split at hr
+  · rename_i hF
+    change U.facetRecordOf P q ⟨F, hF⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    · rename_i hf
+      have hr' := Option.some.inj hr
+      subst r
+      let r := U.recordOf P q ⟨F, hF⟩ hf
+      have hvf : v.val.carrier ⊆ F.carrier := hv.trans (r.chain_cell_subset c edgeIndex)
+      let z := U.recordTau P q ⟨F, hF⟩ hf ⟨vertexCell v, hvf⟩
+      have hvτ := record_tau_spec U P q ⟨F, hF⟩ hf ⟨vertexCell v, hvf⟩
+      change U.providerPlacement P q ⟨F, hF⟩ hf '' z.val.val.carrier = _ at hvτ
+      obtain ⟨heF, heτ, _⟩ := ((record_chains_spec U P q ⟨F, hF⟩ hf c).mp hc).1 edgeIndex
+      have hmono := U.hierarchy.stratumMap_mono q ⟨F, hF⟩ hf (vertexCell v)
+        (c.chain.val.cell edgeIndex) (U.cellInFacet_placed q ⟨F, hF⟩ ⟨vertexCell v, hvf⟩)
+        heF hv
+      have hsub : z.val.val.carrier ⊆ ((P.flag r.incidence).flag.cell edgeIndex).val.carrier := by
+        intro x hx
+        apply (U.providerPlacement P q ⟨F, hF⟩ hf).injective.mem_set_image.mp
+        have hx' : U.providerPlacement P q ⟨F, hF⟩ hf x ∈
+            U.providerPlacement P q ⟨F, hF⟩ hf '' z.val.val.carrier := ⟨x, hx, rfl⟩
+        rw [hvτ] at hx'
+        change U.providerPlacement P q ⟨F, hF⟩ hf x ∈
+          U.providerPlacement P q ⟨F, hF⟩ hf ''
+            ((P.flag (U.recordIncidence P q ⟨F, hF⟩ hf)).flag.cell edgeIndex).val.carrier
+        rw [← heτ]
+        exact Set.image_mono hmono hx'
+      let e : PrototypeEdge S (S.child r.incidence.val.ty r.incidence.val.left).ty :=
+        ⟨((P.flag r.incidence).flag.cell edgeIndex).val,
+          Finset.mem_filter.mpr ⟨((P.flag r.incidence).flag.cell edgeIndex).property,
+            (P.flag r.incidence).flag.dimension edgeIndex⟩⟩
+      refine ⟨z, ?_, host_step_step2_strand_step3_no_false_endpoint_step1_subcell _ e z.val hsub⟩
+      have hvc : v.val ∈ (S.cx q.2.val.ty).cells := (vertexCell v).property
+      simp only [FacetRecord.tauAt, HonestSource.recordOf, dif_pos hvc, dif_pos hvf]
+      rfl
+  · contradiction
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(F2), S6):
+"u_s has an END slot ... with recorded header G′". A zero-dimensional
+provider stratum in an honest leaf has its S6 header on the same vertex and facet. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step1_header
+    (l : LeafType P) (F : Cell d) (r : FacetRecord P)
+    (hr : leafRecord l F = some r) (v : VertexName S r.ty)
+    (hv : v.val.carrier ⊆ r.facet.val.carrier)
+    (z : ProviderCell r.incidence.val) (hz : r.tauAt v.val = some z.val.val)
+    (hzero : z.val.val.dim = 0) :
+    ∃ G : State.Header P, leafHeader l v.val r.facet.val = some G := by
+  classical
+  have hs : l.prePattern.state ∈ honestStates S P :=
+    (prePattern_components_honest P l.prePattern
+      ((certificate_components_honest P l.1.val l.1.property).1 l.2)).1
+  obtain ⟨U, q, hs⟩ := hs
+  have hr' : stateRecordAt (stateOf U P q) F = some r := by rw [hs]; exact hr
+  unfold stateRecordAt at hr'
+  split at hr'
+  · rename_i hF
+    change U.facetRecordOf P q ⟨F, hF⟩ = some r at hr'
+    unfold HonestSource.facetRecordOf at hr'
+    split at hr'
+    · contradiction
+    · rename_i hf
+      have hrec := Option.some.inj hr'
+      subst r
+      have hvc : v.val ∈ (S.cx q.2.val.ty).cells := (vertexCell v).property
+      have hvv : v.val ∈ (S.cx q.2.val.ty).vertices := v.property
+      change v.val.carrier ⊆ F.carrier at hv
+      change F ∈ (S.cx q.2.val.ty).facets at hF
+      have hτ : (U.recordTau P q ⟨F, hF⟩ hf ⟨vertexCell v, hv⟩).val.val = z.val.val := by
+        simpa only [FacetRecord.tauAt, HonestSource.recordOf, dif_pos hvc, dif_pos hv,
+          Option.some.injEq] using hz
+      refine ⟨U.headerOf P q ⟨F, hF⟩ hf v, ?_⟩
+      unfold leafHeader
+      rw [← hs]
+      change (if hv' : v.val ∈ (S.cx q.2.val.ty).vertices then
+        if hf' : F ∈ (S.cx q.2.val.ty).facets then
+          U.headerRecordOf P q ⟨v.val, hv'⟩ ⟨F, hf'⟩ else none else none) = _
+      simp only [dif_pos hvv, dif_pos hF, HonestSource.headerRecordOf,
+        dif_pos hv, dif_neg hf]
+      change (if (U.recordTau P q ⟨F, hF⟩ hf ⟨vertexCell v, hv⟩).val.val.dim = 0 then
+        some (U.headerOf P q ⟨F, hF⟩ hf v) else none) = _
+      rw [hτ, hzero, if_pos rfl]
+  · contradiction
+
+/-- Step 1 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6, Step 2):
+"If it is h, u_m has a CONT slot ... If it is a vertex ... the sequence stops."
+This is the local slot alternative for one honest active port, before using
+any information about a decoded block or the position of the endpoint. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step1_slots
+    (l : LeafType P) (F : Cell d) (r : FacetRecord P)
+    (hr : leafRecord l F = some r) (c : OrientedChain r.facet) (hc : c ∈ r.chains) :
+    (∃ j : ContSlot l, j.record = r ∧ j.edge.val = (host_step_edge ⟨r, c⟩).val) ∨
+      ∃ j : EndSlot l, j.record = r ∧
+        vertexPoint j.vertex = (r.endpoints (host_step_edge ⟨r, c⟩)).2 := by
+  classical
+  let e := host_step_edge (⟨r, c⟩ : host_step_Chain P)
+  have hends : (r.endpoints e).1 ≠ (r.endpoints e).2 ∧
+      e.val.carrier = segment ℝ (r.endpoints e).1 (r.endpoints e).2 := by
+    have he := Classical.choose_spec (edge_endpoints_exist (⟨r.ty, e⟩ : EdgeName S))
+    unfold FacetRecord.endpoints
+    split
+    · exact he
+    · exact ⟨he.1.symm, he.2.trans (segment_symm ℝ _ _)⟩
+  obtain ⟨v, hv⟩ := host_step_step2_strand_step3_no_false_endpoint_step1_vertex
+    r.ty e (r.endpoints e).1 (r.endpoints e).2 hends.1 hends.2
+  have hvpoint : vertexPoint v = (r.endpoints e).2 := by
+    have h : vertexPoint v ∈ v.val.carrier := by rw [vertexPoint_spec]; simp
+    simpa only [hv, mem_singleton_iff] using h
+  have hve : v.val.carrier ⊆ e.val.carrier := by
+    rw [hv, hends.2]
+    exact singleton_subset_iff.mpr (right_mem_segment ℝ _ _)
+  have hvf : v.val.carrier ⊆ r.facet.val.carrier := hve.trans (r.chain_cell_subset c edgeIndex)
+  obtain ⟨hty, hf⟩ := host_step_step1_seed_step6_readout l F r hr
+  let f : FacetName S l.prototype := ⟨r.facet.val, hty ▸ r.facet.property⟩
+  have hrf : leafRecord l f.val = some r := by rw [show f.val = F from hf]; exact hr
+  obtain ⟨packet, hpacket⟩ := host_step_step1_seed_step6_packet l f.val r hrf
+  have hs : l.prePattern.state ∈ honestStates S P :=
+    (prePattern_components_honest P l.prePattern
+      ((certificate_components_honest P l.1.val l.1.property).1 l.2)).1
+  obtain ⟨z, hz, hez | hzero⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step1_stratum
+      l.prePattern.state hs F r hr c hc v hve
+  · let j : ContSlot l := {
+      facet := f
+      record := r
+      record_eq := hrf
+      type_eq := hty
+      facet_eq := rfl
+      edge := e
+      active := ⟨c, hc, rfl⟩
+      vertex := v
+      onFacet := hvf
+      terminal := hvpoint
+      tau_edge := hz.trans (congrArg some hez)
+      packet := packet
+      packet_eq := hpacket }
+    exact Or.inl ⟨j, rfl, rfl⟩
+  · obtain ⟨G, hG⟩ := host_step_step2_strand_step3_no_false_endpoint_step1_header
+      l F r hr v hvf z hz hzero
+    let j : EndSlot l := {
+      facet := f
+      record := r
+      record_eq := hrf
+      type_eq := hty
+      facet_eq := rfl
+      vertex := v
+      onFacet := hvf
+      providerVertex := z
+      tau_vertex := hz
+      provider_zero := hzero
+      header := G
+      header_eq := hG
+      packet := packet
+      packet_eq := hpacket }
+    exact Or.inr ⟨j, rfl, hvpoint⟩
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(F2), S6):
+"its recorded header G′ ... is realised by an honest configuration".
+The header records the tangent cone of this very record's primitive facet. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step2_header_cone
+    (l : LeafType P) (F : Cell d) (r : FacetRecord P)
+    (hr : leafRecord l F = some r) (v : VertexName S r.ty)
+    (hv : v.val.carrier ⊆ r.facet.val.carrier) (H : State.Header P)
+    (hH : leafHeader l v.val F = some H) :
+    ∃ G : Set (E d), H.primitiveCones r.incidence = some G := by
+  classical
+  have hs : l.prePattern.state ∈ honestStates S P :=
+    (prePattern_components_honest P l.prePattern
+      ((certificate_components_honest P l.1.val l.1.property).1 l.2)).1
+  obtain ⟨U, q, hs⟩ := hs
+  have hr' : stateRecordAt (stateOf U P q) F = some r := by rw [hs]; exact hr
+  unfold stateRecordAt at hr'
+  split at hr'
+  · rename_i hF
+    change U.facetRecordOf P q ⟨F, hF⟩ = some r at hr'
+    unfold HonestSource.facetRecordOf at hr'
+    split at hr'
+    · contradiction
+    · rename_i hf
+      have hrec := Option.some.inj hr'
+      subst r
+      have hvv : v.val ∈ (S.cx q.2.val.ty).vertices := v.property
+      change v.val.carrier ⊆ F.carrier at hv
+      change F ∈ (S.cx q.2.val.ty).facets at hF
+      unfold leafHeader at hH
+      rw [← hs] at hH
+      change (if hv' : v.val ∈ (S.cx q.2.val.ty).vertices then
+        if hf' : F ∈ (S.cx q.2.val.ty).facets then
+          U.headerRecordOf P q ⟨v.val, hv'⟩ ⟨F, hf'⟩ else none else none) = some H at hH
+      simp only [dif_pos hvv, dif_pos hF, HonestSource.headerRecordOf,
+        dif_pos hv, dif_neg hf] at hH
+      split at hH
+      · have hheader : U.headerOf P q ⟨F, hF⟩ hf v = H := Option.some.inj hH
+        subst H
+        let ι := U.recordIncidence P q ⟨F, hF⟩ hf
+        have hty : ι.val.ty = (U.hierarchy.birthParent q ⟨F, hF⟩ hf).2.val.ty :=
+          (P.canonical_spec (U.hierarchy.providerIncidence q ⟨F, hF⟩ hf)).1.symm.trans
+            (U.hierarchy.providerIncidence_spec q ⟨F, hF⟩ hf).1
+        have hp : q.2.val.prototypeFrame q.1 (vertexPoint v) ∈
+            relint (q.2.val.cell q.1 (vertexCell v).val) := by
+          simp only [FramedNode.cell, vertexCell, vertexPoint_spec, Set.image_singleton,
+            relint, intrinsicInterior_singleton, mem_singleton_iff]
+        have hstratum := U.hierarchy.stratumMap_spec q ⟨F, hF⟩ hf (vertexCell v)
+          (U.cellInFacet_placed q ⟨F, hF⟩ ⟨vertexCell v, hv⟩)
+        have hprovider := hstratum.2.2 (intrinsicInterior_subset (hstratum.1 hp))
+        rw [← record_provider_carrier U P q ⟨F, hF⟩ hf] at hprovider
+        change ∃ G, (U.headerOf P q ⟨F, hF⟩ hf v).primitiveCones ι = some G
+        unfold HonestSource.headerOf
+        dsimp only
+        rw [if_pos ⟨hty, hprovider⟩]
+        exact ⟨_, rfl⟩
+      · contradiction
+  · contradiction
+
+/-- Step 2 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(F1), 3.6(F2)):
+"the composite displacements from v backwards along e_s, then into relint s₂, ..."
+enter the recorded parent cone. Their intermediate facet points accumulate
+at v in both the known facet and the recorded primitive-facet cone. This is
+only the local geometric overlap; it asserts no actual template or leaf readout. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step2_sector_patch
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f) (u : host_step_Port C)
+    (hu : host_step_portValid Y n (proposedSibling D B hB f a)
+      a.record.incidence (!a.record.sideIndex) u)
+    (hsub : host_step_portEdge u ⊆ host_step_flagEdge (proposedSibling D B hB f a) n
+      a.record.incidence (!a.record.sideIndex))
+    (hterminal : (host_step_portEnds u).2 ∈
+      relint (host_step_flagEdge (proposedSibling D B hB f a) n
+        a.record.incidence (!a.record.sideIndex)))
+    (j : EndSlot (compilerLeaf C u.1)) (hrecord : j.record = u.2.1)
+    (hpoint : Compiler.endVertex (compilerFrame C u.1) j = (host_step_portEnds u).2) :
+    ∃ G : Set (E d), j.header.primitiveCones a.record.incidence = some G ∧
+      affineSpan ℝ (B.node.cell n f.val) =
+        affineSpan ℝ ((fun w => (host_step_portEnds u).2 +
+          (compilerFrame C u.1).linearIsometryEquiv w) '' G) ∧
+      (host_step_portEnds u).2 ∈ closure
+        (relint (B.node.cell n f.val) ∩
+          relint ((fun w => (host_step_portEnds u).2 +
+            (compilerFrame C u.1).linearIsometryEquiv w) '' G) ∩
+          interior (Compiler.endSector (compilerFrame C u.1) j)) := by
+  obtain ⟨G, hG⟩ := host_step_step2_strand_step3_no_false_endpoint_step2_header_cone
+    (compilerLeaf C u.1) j.facet.val j.record j.record_eq j.vertex j.onFacet j.header j.header_eq
+  have hι : j.record.incidence = a.record.incidence :=
+    (congrArg FacetRecord.incidence hrecord).trans hu.2.2.2.2.1
+  refine ⟨G, by simpa only [hι] using hG, ?_⟩
+  -- Realize this header and the active chain in the same honest leaf source.
+  -- The backward edge displacement and the successive recorded coface sides
+  -- enter both facets, and their common facet patch lies inside the parent cone.
+  sorry
+
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(2b), 3.3, 1.8):
+"among them is a tile t_B ... with a facet piece in f whose closure contains v";
+"the template geometry identifies t_B as a port". Hereditary facet coverage
+and finiteness select one piece from an accumulating primitive-facet patch.
+The conclusion identifies its exact geometric port and label, without applying (E1). -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_facet_port
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (B : Block Y n)
+    (f : FacetName S B.node.ty) (l : LeafType P) (j : EndSlot l)
+    (φ : Iso d) (T : EndTemplate j) (hactual : TemplateOccurs C Y φ T.configuration)
+    (ι : P.Incidence) (G : Set (E d)) (hG : j.header.primitiveCones ι = some G)
+    (hspan : affineSpan ℝ (B.node.cell n f.val) =
+      affineSpan ℝ ((fun w => Compiler.endVertex φ j + φ.linearIsometryEquiv w) '' G))
+    (hnear : Compiler.endVertex φ j ∈ closure
+      (relint (B.node.cell n f.val) ∩
+        relint ((fun w => Compiler.endVertex φ j + φ.linearIsometryEquiv w) '' G) ∩
+        interior (Compiler.endSector φ j))) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+      (v : VertexName S (tileNode t).ty),
+      Parser.IsFacetPiece Y n B.node f t g ∧ v.val.carrier ⊆ g.val.carrier ∧
+        compilerFrame C t (vertexPoint v) = Compiler.endVertex φ j ∧
+        ∃ b ∈ T.geometry.primitivePorts,
+          (b.tile, compilerLeaf C t) ∈ T.configuration.tiles ∧
+          b.facet.val = g.val ∧ b.vertex.val = v.val ∧
+          compilerFrame C t = b.tile.frame.trans φ := by
+  -- In the source realizing T.geometry, a small neighbourhood of the apex
+  -- identifies G with the first-generation facet. In the common affine span,
+  -- the intersection is relatively open. Apply finite hereditary facet covers
+  -- on both sides and actual-tile uniqueness, then select a pair accumulating
+  -- at the apex. Its common native facet is the required primitive port.
+  sorry
+
+/-- Step 3 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(2b), E1):
+"Row (E1) requires τ_{t_B}({v}) = {p′}, a vertex." The exact port-label
+identification transfers the END row to the actual native facet piece. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step3_vertex_readout
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (B : Block Y n)
+    (f : FacetName S B.node.ty) (l : LeafType P) (j : EndSlot l)
+    (φ : Iso d) (T : EndTemplate j) (hrow : endRow T)
+    (hactual : TemplateOccurs C Y φ T.configuration)
+    (ι : P.Incidence) (G : Set (E d)) (hG : j.header.primitiveCones ι = some G)
+    (hspan : affineSpan ℝ (B.node.cell n f.val) =
+      affineSpan ℝ ((fun w => Compiler.endVertex φ j + φ.linearIsometryEquiv w) '' G))
+    (hnear : Compiler.endVertex φ j ∈ closure
+      (relint (B.node.cell n f.val) ∩
+        relint ((fun w => Compiler.endVertex φ j + φ.linearIsometryEquiv w) '' G) ∩
+        interior (Compiler.endSector φ j))) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+      (v : VertexName S (tileNode t).ty),
+      Parser.IsFacetPiece Y n B.node f t g ∧ v.val.carrier ⊆ g.val.carrier ∧
+        compilerFrame C t (vertexPoint v) = Compiler.endVertex φ j ∧
+        ∃ r : FacetRecord P, leafRecord (compilerLeaf C t) g.val = some r ∧
+          ∃ z : Cell d, r.tauAt v.val = some z ∧ z.dim = 0 := by
+  obtain ⟨t, g, v, hpiece, hv, hvp, b, hb, hlabel, hfacet, hvertex, _⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_facet_port
+      Y n B f l j φ T hactual ι G hG hspan hnear
+  obtain ⟨r, hr, _, _, hτ, _⟩ := hrow.1.1 b hb (compilerLeaf C t) hlabel
+  exact ⟨t, g, v, hpiece, hv, hvp, r, hfacet ▸ hr,
+    b.providerVertex.val.val, hvertex ▸ hτ, b.provider_zero⟩
+
+/-- Step 4 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(2b)):
+"the cell ... containing v in its relative interior". Relative interiors
+commute with the full affine frames used in the restriction rule. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step4_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 4 of the V4 proof of `host_step_step2_strand_step3_no_false_endpoint` (V4 3.6(2b), 2.3):
+"by (I2) ... τ_{t_B}({v}) = τ_f(h) = h". On an actual native facet
+piece of the known block, a listed vertex in the open age-one flag edge has
+a one-dimensional provider stratum. This concerns only restriction on B's side. -/
+private theorem host_step_step2_strand_step3_no_false_endpoint_step4_restriction
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (D : DecodedLevel Y n) (hD : Inv D)
+    (B : Block Y n) (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : Parser.AgeOneFacet D B hB f) (p : E d)
+    (hp : p ∈ relint (host_step_flagEdge (proposedSibling D B hB f a) n
+      a.record.incidence (!a.record.sideIndex)))
+    (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+    (v : VertexName S (tileNode t).ty) (hpiece : Parser.IsFacetPiece Y n B.node f t g)
+    (hv : v.val.carrier ⊆ g.val.carrier) (hvp : compilerFrame C t (vertexPoint v) = p) :
+    ∃ r : FacetRecord P, leafRecord (compilerLeaf C t) g.val = some r ∧
+      ∃ z : Cell d, r.tauAt v.val = some z ∧ z.dim = 1 := by
+  classical
+  obtain ⟨U, hU, hs⟩ := host_step_step1_seed_step3_restricted_header_step1_realise
+    (D.blockState B hB) (hD.I1 B hB).1 B.node n
+    (hD.I1 B hB).2.1 (hD.I1 B hB).2.2
+  let q : U.Node := ⟨n, ⟨B.node, hU⟩⟩
+  have hread : U.facetRecordOf P q f = some a.record := by
+    have h := a.readout
+    rw [← hs] at h
+    simpa only [stateRecordAt, stateOf, dif_pos f.property] using h
+  have hf : ¬ U.hierarchy.IsFault q f := by
+    intro hf
+    simp only [HonestSource.facetRecordOf, dif_pos hf] at hread
+    contradiction
+  have hrecord : U.recordOf P q f hf = a.record := by
+    simpa only [HonestSource.facetRecordOf, dif_neg hf, Option.some.injEq] using hread
+  have hoff : (U.hierarchy.firstProvider q f hf).1 = 0 := by
+    have ha := a.age_one
+    rw [← hrecord] at ha
+    change min (U.hierarchy.age q f hf) P.C = 1 at ha
+    have := P.C_gt_one
+    have := (U.hierarchy.birthHeight_age_spec q f hf).2.1
+    omega
+  have hserv : U.hierarchy.servingChild q f hf = q := by
+    simp only [CoherentHierarchy.servingChild, hoff, CoherentHierarchy.ancestor,
+      Function.iterate_zero, id_eq]
+  have hrole : U.hierarchy.nodeRole q = firstRole D B hB := by
+    have h := congrArg (fun s : State P => s.address ⟨0, P.k_pos⟩) hs
+    simpa only [stateOf, CoherentHierarchy.ancestor, Function.iterate_zero,
+      id_eq, firstRole] using h
+  have hparent : (U.hierarchy.parentNode q).2.val = proposedParent D B hB := by
+    rw [host_step_step1_seed_step3_restricted_header_step4_parent, hrole]
+    rfl
+  obtain ⟨r, hr, w, htile⟩ := hpiece.2.1
+  have hrn : r = n := by omega
+  subst r
+  have hreal {k : ℕ} (hk : k = n) (hN : B.node ∈ D.geometry.nodes k)
+      (hU' : B.node ∈ U.hierarchy.nodes k) :
+      stateOf U P ⟨k, ⟨B.node, hU'⟩⟩ = D.stateAt k B.node hN := by
+    subst k
+    exact hs
+  have hnode {k : ℕ} (hk : k = n) (hU' : B.node ∈ U.hierarchy.nodes k) :
+      (⟨k, ⟨B.node, hU'⟩⟩ : U.Node) = q := by
+    subst k
+    rfl
+  have hdesc : ∃ (htD : tileNode t ∈ D.geometry.nodes 0)
+      (htU : tileNode t ∈ U.hierarchy.nodes 0),
+      stateOf U P ⟨0, ⟨tileNode t, htU⟩⟩ = D.stateAt 0 (tileNode t) htD ∧
+        U.hierarchy.ancestor ⟨0, ⟨tileNode t, htU⟩⟩ n = q := by
+    obtain ⟨htD, htU, htstate, hanc⟩ :=
+      host_step_step1_seed_step3_restricted_header_step2_descent D hD U 0 n B.node
+        (by simpa only [Nat.zero_add] using D.geometry.root_mem B hB)
+        (by simpa only [Nat.zero_add] using hU)
+        (hreal (Nat.zero_add n) _ _) w
+    rw [htile]
+    exact ⟨htD, htU, htstate, hanc.trans (hnode (Nat.zero_add n) _)⟩
+  obtain ⟨htD, htU, htstate, hanc⟩ := hdesc
+  let c : U.Node := ⟨0, ⟨tileNode t, htU⟩⟩
+  have hleaf : stateOf U P c = (compilerLeaf C t).prePattern.state :=
+    htstate.trans (hD.I2.2 (tileNode t) htD t hpiece.1 rfl)
+  obtain ⟨hg, hprovider, hbirth⟩ := U.hierarchy.provider_inherited q c n hanc f g hf hpiece.2.2
+  have hbirth' : U.hierarchy.birthParent c g hg = U.hierarchy.parentNode q := by
+    rw [hbirth, CoherentHierarchy.birthParent, hserv]
+  have hheight : U.hierarchy.birthHeight c g hg = n + 1 :=
+    congrArg (fun z : U.Node => z.1) hbirth'
+  have hι : U.recordIncidence P c g hg = a.record.incidence :=
+    (host_step_step1_seed_step3_restricted_header_step3_incidence P U c q g f hg hf
+      hbirth hprovider).trans (congrArg FacetRecord.incidence hrecord)
+  have hframe : U.providerPlacement P c g hg =
+      host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex) := by
+    rw [HonestSource.providerPlacement, hheight, hbirth', hparent, hι]
+    exact (host_step_step1_seed_step1_flag_frame (proposedParent D B hB) n
+      a.record.incidence (!a.record.sideIndex)).symm
+  have hflag : host_step_flagEdge (proposedSibling D B hB f a) n
+      a.record.incidence (!a.record.sideIndex) =
+      U.providerPlacement P c g hg ''
+        ((P.flag (U.recordIncidence P c g hg)).flag.cell edgeIndex).val.carrier := by
+    rw [hframe, hι, (P.flag a.record.incidence).edge_eq,
+      host_step_step2_strand_step1_flag_segment]
+    exact (image_segment ℝ
+      (host_step_flagFrame (proposedSibling D B hB f a) n a.record.incidence
+        (!a.record.sideIndex)).toAffineMap _ _).symm
+  let z := U.recordTau P c g hg ⟨vertexCell v, hv⟩
+  have hpoint : c.2.val.prototypeFrame c.1 (vertexPoint v) = p := hvp
+  have hpv : p ∈ relint (c.2.val.cell c.1 (vertexCell v).val) := by
+    simp only [FramedNode.cell, vertexCell, vertexPoint_spec, Set.image_singleton,
+      relint, intrinsicInterior_singleton, hpoint, mem_singleton_iff]
+  have hpz := (U.hierarchy.stratumMap_spec c g hg (vertexCell v)
+    (U.cellInFacet_placed c g ⟨vertexCell v, hv⟩)).1 hpv
+  have hτ := record_tau_spec U P c g hg ⟨vertexCell v, hv⟩
+  change U.providerPlacement P c g hg '' z.val.val.carrier = _ at hτ
+  rw [← hτ, host_step_step2_strand_step3_no_false_endpoint_step4_relint_image] at hpz
+  rw [hflag, host_step_step2_strand_step3_no_false_endpoint_step4_relint_image] at hp
+  obtain ⟨x, hx, hxp⟩ := hpz
+  have hxe : x ∈ relint ((P.flag (U.recordIncidence P c g hg)).flag.cell edgeIndex).val.carrier := by
+    rw [← hxp] at hp
+    exact (U.providerPlacement P c g hg).injective.mem_set_image.mp hp
+  have hze : z.val.val = ((P.flag (U.recordIncidence P c g hg)).flag.cell edgeIndex).val := by
+    by_contra hne
+    exact Set.disjoint_left.mp ((S.cx _).relint_disjoint z.val.val z.val.property
+      _ ((P.flag (U.recordIncidence P c g hg)).flag.cell edgeIndex).property hne) hx hxe
+  refine ⟨U.recordOf P c g hg, ?_, z.val.val, ?_, ?_⟩
+  · unfold leafRecord
+    rw [← hleaf]
+    simp only [stateRecordAt, stateOf, c, dif_pos g.property,
+      HonestSource.facetRecordOf, dif_neg hg]
+  · have hvc : v.val ∈ (S.cx (tileNode t).ty).cells := (vertexCell v).property
+    simp only [FacetRecord.tauAt, HonestSource.recordOf, c, dif_pos hvc, dif_pos hv]
+    rfl
+  · rw [hze]
+    exact (P.flag (U.recordIncidence P c g hg)).flag.dimension edgeIndex
+
 /-- Step 3 of the V4 proof of `host_step_step2_strand` (V4 3.6(2b)):
 "No false interior endpoint". An END record at an interior point would
 force a B-side tile's stratum to be a vertex by (E1), while (I2) restricts
@@ -3523,7 +4137,32 @@ private theorem host_step_step2_strand_step3_no_false_endpoint
         a.record.incidence (!a.record.sideIndex))) :
     ∃ j : ContSlot (compilerLeaf C u.1),
       j.record = u.2.1 ∧ j.edge.val = (host_step_edge u.2).val := by
-  sorry
+  classical
+  rcases host_step_step2_strand_step3_no_false_endpoint_step1_slots
+      (compilerLeaf C u.1) u.2.1.facet.val u.2.1 hu.2.1 u.2.2 hu.2.2.2.1 with
+      hcont | ⟨j, hjrecord, hjpoint⟩
+  · exact hcont
+  have hpoint : Compiler.endVertex (compilerFrame C u.1) j = (host_step_portEnds u).2 :=
+    congrArg (compilerFrame C u.1) hjpoint
+  obtain ⟨G, hG, hspan, hnear⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step2_sector_patch
+      Y n D hD B hB f a u hu hsub hterminal j hjrecord hpoint
+  obtain ⟨θ, hθ, _, hactual⟩ := compiler_events C Y hY u.1 hu.1 (.end_ j)
+  obtain ⟨T, rfl, hrow⟩ := hθ
+  obtain ⟨t, g, v, hpiece, hv, hvp, r, hr, z, hz, hzero⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step3_vertex_readout
+      Y n B f (compilerLeaf C u.1) j (compilerFrame C u.1) T hrow hactual
+      a.record.incidence G hG (by simpa only [hpoint] using hspan)
+      (by simpa only [hpoint] using hnear)
+  obtain ⟨r', hr', z', hz', hone⟩ :=
+    host_step_step2_strand_step3_no_false_endpoint_step4_restriction
+      Y n D hD B hB f a (host_step_portEnds u).2 hterminal
+      t g v hpiece hv (hvp.trans hpoint)
+  have hrr : r = r' := Option.some.inj (hr.symm.trans hr')
+  subst r'
+  have hzz : z = z' := Option.some.inj (hz.symm.trans hz')
+  rw [← hzz, hzero] at hone
+  contradiction
 
 /-- Step 4 of the V4 proof of `host_step_step2_strand` (V4 3.6, Step 2):
 "Theorem 2.17(b) gives a template: a tile u_{m+1} ... continuing e_m".

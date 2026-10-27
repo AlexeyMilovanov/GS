@@ -5429,6 +5429,117 @@ private theorem honest_rows_step6_end_E2 (U : HonestSource S) (P : Params S) (t 
     endRow_E2 T := by
   sorry
 
+/-- Step 1 of the V4 proof of `honest_rows_step7_end_E3` (V4 2.8):
+"the record of F in S(P) gives the provider g_F". A native leaf's packet readout
+is the packet extracted from that same hierarchy node. -/
+private theorem honest_rows_step7_end_E3_step1_readout (U : HonestSource S)
+    (P : Params S) (t : U.Node) (ht : t.1 = 0) (f : FacetName S t.2.val.ty) :
+    leafPacket (leafTypeOf U P t ht) f.val = U.facetPacket P t f := by
+  unfold leafPacket
+  rw [← prePattern_of_leafType U P t ht]
+  simp only [prePatternOf, dif_pos f.property]
+
+/-- Step 2 of the V4 proof of `honest_rows_step7_end_E3` (V4 2.8):
+"the actual star is the complete P-owned star". An actual configuration's label
+at a specified native node is that node's own leaf type. -/
+private theorem honest_rows_step7_end_E3_step2_label (U : HonestSource S)
+    (P : Params S) (t : U.Node) (ht : t.1 = 0) (θ : Template P)
+    (hθ : IsActualTemplate U P t ht θ) (q : U.Node) (hq : q.1 = 0)
+    (u : LeafType P) (hu : (q.2.val.move t.2.val.frame.symm, u) ∈ θ.tiles) :
+    u = leafTypeOf U P q hq := by
+  obtain ⟨q', hq', hnode, hlabel⟩ := hθ.2 _ hu
+  have heq : q.2.val = q'.2.val := by
+    apply FramedNode.ext
+    · have hty := congrArg (fun N : FramedNode S => N.ty) hnode
+      exact hty
+    · ext x : 1
+      exact t.2.val.frame.symm.injective
+        (congrArg (fun N : FramedNode S => N.frame x) hnode)
+  have hqq' : q = q' := by
+    rcases q with ⟨n, Q, hQ⟩
+    rcases q' with ⟨n', Q', hQ'⟩
+    dsimp only at hq hq' heq
+    subst n
+    subst n'
+    cases heq
+    rfl
+  cases hqq'
+  exact hlabel
+
+/-- Step 3 of the V4 proof of `honest_rows_step7_end_E3` (V4 2.8, 2.6(d)):
+"if F is a FAULT of P, all ports on F are NULL". Every actual boundary port
+inherits its parent facet's packet, including the NULL case. -/
+private theorem honest_rows_step7_end_E3_step3_boundary_packet (U : HonestSource S)
+    (P : Params S) (t : U.Node) (ht : t.1 = 0)
+    (slot : EndSlot (leafTypeOf U P t ht)) (T : EndTemplate slot)
+    (hT : IsActualTemplate U P t ht T.configuration)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty)
+    (hreal : EndGeometryRealizes U P t f hf v T.geometry)
+    (F : FacetName S (U.hierarchy.birthParent t f hf).2.val.ty)
+    (a : BoundaryPort P T.geometry.header.birthType)
+    (ha : a ∈ T.geometry.boundaryPorts) (haF : a.parentFacet.val = F.val)
+    (u : LeafType P) (hu : (a.tile, u) ∈ T.configuration.tiles) :
+    leafPacket u a.facet.val = U.facetPacket P (U.hierarchy.birthParent t f hf) F := by
+  classical
+  obtain ⟨q, hq, F', g, w, hw, hx, hsub, htile, hfacet, hvertex, hparent,
+    path, hpath, hop⟩ := (hreal.2.2.2.2.2 a).mp ha
+  have hq0 : q.1 = 0 := by
+    have hmem : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+        (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+      simpa only [ownedStar, Set.Finite.mem_toFinset] using hq
+    exact hmem.1
+  have hFF : F' = F := Subtype.ext (hparent.symm.trans haF)
+  subst F'
+  have hlu := honest_rows_step7_end_E3_step2_label U P t ht T.configuration hT q hq0 u
+    (by simpa only [htile] using hu)
+  rw [hlu, hfacet, honest_rows_step7_end_E3_step1_readout U P q hq0 g]
+  exact packet_inherited U P (U.hierarchy.birthParent t f hf) q _ hpath.2.1 F g hsub
+
+/-- Step 4 of the V4 proof of `honest_rows_step7_end_E3` (V4 2.8):
+"when delta_F < C the recorded age is the actual age". The provider's birth
+parent is the ancestor at the uncapped recorded age. -/
+private theorem honest_rows_step7_end_E3_step4_uncapped_birth (U : HonestSource S)
+    (P : Params S) (B : U.Node) (F : FacetName S B.2.val.ty)
+    (hF : ¬ U.hierarchy.IsFault B F) (hage : (U.recordOf P B F hF).age.val < P.C) :
+    U.hierarchy.birthParent B F hF =
+      U.hierarchy.ancestor B (U.recordOf P B F hF).age.val := by
+  have hbirth : U.hierarchy.birthParent B F hF =
+      U.hierarchy.ancestor B ((U.hierarchy.firstProvider B F hF).1 + 1) := by
+    simp only [CoherentHierarchy.birthParent, CoherentHierarchy.servingChild,
+      CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+  have hactual : U.hierarchy.age B F hF =
+      (U.hierarchy.firstProvider B F hF).1 + 1 := by
+    unfold CoherentHierarchy.age CoherentHierarchy.birthHeight
+    rw [hbirth, U.hierarchy.ancestor_height]
+    omega
+  have hrecorded : (U.recordOf P B F hF).age.val =
+      (U.hierarchy.firstProvider B F hF).1 + 1 := by
+    change min (U.hierarchy.age B F hF) P.C = _
+    change min (U.hierarchy.age B F hF) P.C < P.C at hage
+    omega
+  rw [hrecorded]
+  exact hbirth
+
+/-- Step 5 of the V4 proof of `honest_rows_step7_end_E3` (V4 2.8):
+"the slots of P(g_F) are the states of the ancestors ... shifted by delta_F".
+Packets whose birth nodes differ by delta agree at every pair of PRESENT slots
+whose indices differ by delta. -/
+private theorem honest_rows_step7_end_E3_step5_shift (U : HonestSource S)
+    (P : Params S) (g g' : PrimitiveOccurrence U P) (δ : ℕ)
+    (hbirth : g.birth = U.hierarchy.ancestor g'.birth δ) :
+    ShiftedAgree (packetOf U P g) (packetOf U P g') δ := by
+  classical
+  intro i j s s' hji hi hj
+  rw [decode_spec] at hi hj
+  split_ifs at hi with hmi
+  split_ifs at hj with hmj
+  have hsi := Option.some.inj hi
+  have hsj := Option.some.inj hj
+  rw [← hsi, ← hsj, hbirth, U.hierarchy.ancestor_add]
+  congr 2
+  omega
+
 /-- Step 7 of the V4 proof of `honest_rows` (V4 2.8): "(E3): when $\delta_F<C$ the recorded
 age is the actual age, so the record of $F$ in $S(P)$ gives the provider $g_F$ born in
 $P_{b+\delta_F}$ and the slots of $\mathcal P(g_F)$ are the states of the ancestors of
@@ -5441,7 +5552,46 @@ private theorem honest_rows_step7_end_E3 (U : HonestSource S) (P : Params S) (t 
     (hvv : v.val = slot.vertex.val)
     (hreal : EndGeometryRealizes U P t f hf v T.geometry) :
     endRow_E3 T := by
-  sorry
+  classical
+  let B := U.hierarchy.birthParent t f hf
+  let g := U.providerOccurrence P t f hf
+  have hpacket : slot.packet = packetOf U P g := by
+    have h := slot.packet_eq
+    rw [← hfv, honest_rows_step7_end_E3_step1_readout U P t ht f,
+      HonestSource.facetPacket, dif_neg hf] at h
+    exact (Option.some.inj h).symm
+  have hhead : slot.packet.head = stateOf U P B := by
+    rw [hpacket, packet_head]
+    rfl
+  have htype : T.geometry.header.birthType = B.2.val.ty :=
+    congrArg State.Header.birthType hreal.2.2.1
+  refine ⟨?_, ?_⟩
+  · rw [hhead]
+    exact htype.symm
+  · intro F hthrough
+    let F' : FacetName S B.2.val.ty := ⟨F.val, by rw [← htype]; exact F.property⟩
+    have hrecord : stateRecordAt slot.packet.head F.val = U.facetRecordOf P B F' := by
+      rw [hhead]
+      change stateRecordAt (stateOf U P B) F'.val = U.facetRecordOf P B F'
+      simp only [stateRecordAt, stateOf, dif_pos F'.property]
+    rw [hrecord]
+    by_cases hF : U.hierarchy.IsFault B F'
+    · simp only [HonestSource.facetRecordOf, dif_pos hF]
+      intro a ha haF u hu
+      rw [honest_rows_step7_end_E3_step3_boundary_packet U P t ht slot T hT f hf v
+        hreal F' a ha haF u hu]
+      exact dif_pos hF
+    · simp only [HonestSource.facetRecordOf, dif_neg hF]
+      let gF := U.providerOccurrence P B F' hF
+      refine ⟨packetOf U P gF, ⟨U, gF, rfl⟩, rfl, fun _ => Iff.rfl, ?_, ?_⟩
+      · intro a ha haF u hu
+        rw [honest_rows_step7_end_E3_step3_boundary_packet U P t ht slot T hT f hf v
+          hreal F' a ha haF u hu]
+        exact dif_neg hF
+      · intro hage
+        rw [hpacket]
+        exact honest_rows_step7_end_E3_step5_shift U P gF g _
+          (honest_rows_step7_end_E3_step4_uncapped_birth U P B F' hF hage)
 
 /-- Step 8 of the V4 proof of `honest_rows` (V4 2.8): "(E4): the heads of first-generation
 facets of $P$ are $S(P)$ and the slots are the ancestors' states." -/

@@ -525,13 +525,319 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     obtain ⟨y, hy, rfl⟩ := hxq
     exact ⟨y, Set.mem_iUnion₂.mpr ⟨p, hp, hy⟩, rfl⟩
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral` (V4 1.24):
+"a connected union of facets of `t`". Extend an affinely independent vertex set
+to an affine basis. Nonnegative barycentric coordinates, with zero coordinates
+outside the original set, give a finite closed halfspace presentation of the simplex. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step1_simplex_halfspaces
+    (s : Finset (E d)) (hs : AffineIndependent ℝ ((↑) : s → E d)) :
+    ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      convexHull ℝ (s : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨t, hst, ht, hspan⟩ := exists_subset_affineIndependent_affineSpan_eq_top hs
+  let b : AffineBasis t ℝ (E d) := ⟨(↑), ht, by simpa using hspan⟩
+  letI : Finite t := finite_of_fin_dim_affineIndependent ℝ ht
+  letI : Fintype t := Fintype.ofFinite t
+  let q : Finset (E d →ᵃ[ℝ] ℝ) :=
+    Finset.univ.image b.coord ∪
+      (Finset.univ.filter fun i : t => (i : E d) ∉ s).image (fun i => -b.coord i)
+  refine ⟨q, Set.Subset.antisymm ?_ ?_⟩
+  · intro x hx f hf
+    apply convexHull_min (t := {x | 0 ≤ f x}) ?_
+      (Convex.affine_preimage f (convex_Ici 0)) hx
+    intro y hy
+    let j : t := ⟨y, hst hy⟩
+    change 0 ≤ f (b j)
+    rcases Finset.mem_union.mp hf with hf | hf
+    · obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hf
+      simp only [b.coord_apply]
+      split_ifs <;> norm_num
+    · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hf
+      have hij : i ≠ j := by
+        intro hij
+        have := (Finset.mem_filter.mp hi).2
+        exact this (by simpa [hij, j] using hy)
+      simp [b.coord_apply_ne hij]
+  · intro x hx
+    have hpos (i : t) : 0 ≤ b.coord i x :=
+      hx _ (Finset.mem_union_left _ (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩))
+    have hzero (i : t) (hi : (i : E d) ∉ s) : b.coord i x = 0 := by
+      have hn := hx _ (Finset.mem_union_right _ (Finset.mem_image.mpr
+        ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩, rfl⟩))
+      have hn' : 0 ≤ -b.coord i x := hn
+      exact le_antisymm (by linarith) (hpos i)
+    let u : Finset t := Finset.univ.filter fun i : t => (i : E d) ∈ s
+    have hsum : ∑ i ∈ u, b.coord i x = 1 := by
+      rw [← b.sum_coord_apply_eq_one x]
+      apply Finset.sum_subset (Finset.subset_univ _)
+      intro i _ hi
+      exact hzero i (by simpa [u] using hi)
+    have hsumv : ∑ i ∈ u, b.coord i x • b i = x := by
+      calc
+        _ = ∑ i, b.coord i x • b i := by
+          apply Finset.sum_subset (Finset.subset_univ _)
+          intro i _ hi
+          rw [hzero i (by simpa [u] using hi), zero_smul]
+        _ = x := b.linear_combination_coord_eq_self x
+    rw [← hsumv]
+    apply (convex_convexHull ℝ (s : Set (E d))).sum_mem (fun i _ => hpos i) hsum
+    intro i hi
+    exact subset_convexHull ℝ (s : Set (E d)) (Finset.mem_filter.mp hi).2
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral` (V4 1.24):
+"a connected union of facets of `t`". Carathéodory's theorem expresses each
+finite convex hull as a finite union of simplices. Their affine inequalities give
+a finite union of intersections of closed halfspaces. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step2_halfspace_presentation
+    {K : Set (E d)} (hK : Polyhedron K) :
+    ∃ S : Finset (Finset (E d →ᵃ[ℝ] ℝ)),
+      K = ⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  have hrep (t : Finset (E d)) : ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      AffineIndependent ℝ ((↑) : t → E d) →
+        convexHull ℝ (t : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+    by_cases ht : AffineIndependent ℝ ((↑) : t → E d)
+    · obtain ⟨q, hq⟩ :=
+        principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step1_simplex_halfspaces t ht
+      exact ⟨q, fun _ => hq⟩
+    · exact ⟨∅, fun h => (ht h).elim⟩
+  choose q hq using hrep
+  let S := s.biUnion fun p =>
+    (p.powerset.filter fun t : Finset (E d) =>
+      AffineIndependent ℝ ((↑) : t → E d)).image q
+  refine ⟨S, ?_⟩
+  ext x
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨p, hp, hx⟩
+    rw [convexHull_eq_union] at hx
+    obtain ⟨t, htp, ht, hxt⟩ := by
+      simpa only [Set.mem_iUnion, exists_prop] using hx
+    refine ⟨q t, Finset.mem_biUnion.mpr ⟨p, hp, ?_⟩, ?_⟩
+    · exact Finset.mem_image.mpr ⟨t,
+        Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr htp, ht⟩, rfl⟩
+    · rwa [hq t ht] at hxt
+  · rintro ⟨r, hr, hx⟩
+    obtain ⟨p, hp, hr⟩ := Finset.mem_biUnion.mp hr
+    obtain ⟨t, ht, rfl⟩ := Finset.mem_image.mp hr
+    obtain ⟨htp, ht⟩ := Finset.mem_filter.mp ht
+    refine ⟨p, hp, convexHull_mono (Finset.mem_powerset.mp htp) ?_⟩
+    change x ∈ convexHull ℝ (t : Set (E d))
+    rwa [hq t ht]
+
+open scoped Topology in
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral` (V4 1.24):
+"a connected union of facets of `t`". An extreme point of a finite intersection
+of closed halfspaces is uniquely determined among feasible points by its active
+constraints: otherwise the line through another such point extends past it. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step3_active_unique
+    (q : Finset (E d →ᵃ[ℝ] ℝ)) {x y : E d}
+    (hx : x ∈ ({z | ∀ f ∈ q, 0 ≤ f z} : Set (E d)).extremePoints ℝ)
+    (hy : ∀ f ∈ q, 0 ≤ f y)
+    (hactive : ∀ f ∈ q, f x = 0 → f y = 0) : x = y := by
+  let L : ℝ →ᵃ[ℝ] E d := AffineMap.lineMap y x
+  have hnear : ∀ᶠ t in 𝓝 (1 : ℝ), ∀ f ∈ q, 0 ≤ f (L t) := by
+    apply (Filter.eventually_all_finset q).mpr
+    intro f hf
+    by_cases hfx : f x = 0
+    · have hfy := hactive f hf hfx
+      exact Filter.Eventually.of_forall fun t => by
+        simp [L, f.apply_lineMap, hfx, hfy]
+    · have hpos : 0 < f x := lt_of_le_of_ne (hx.1 f hf) (Ne.symm hfx)
+      have hc : Continuous (fun t => f (L t)) :=
+        f.continuous_of_finiteDimensional.comp L.continuous_of_finiteDimensional
+      have hp : 0 < f (L 1) := by simpa [L] using hpos
+      exact (hc.continuousAt.eventually_const_lt hp).mono fun _ ht => ht.le
+  obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.mp hnear
+  let t : ℝ := 1 + ε / 2
+  have ht : 1 < t := by dsimp [t]; linarith
+  have ht0 : 0 < t := lt_trans zero_lt_one ht
+  have hLt : ∀ f ∈ q, 0 ≤ f (L t) := hball (by
+    change dist t 1 < ε
+    rw [Real.dist_eq, abs_of_pos (by dsimp [t]; linarith)]
+    dsimp [t]
+    linarith)
+  apply Eq.symm
+  apply hx.2 hy hLt
+  have hmem := lineMap_mem_openSegment ℝ y (L t)
+    (show t⁻¹ ∈ Ioo (0 : ℝ) 1 from ⟨inv_pos.mpr ht0, inv_lt_one_of_one_lt₀ ht⟩)
+  simpa [L, AffineMap.lineMap_lineMap_right, ne_of_gt ht0] using hmem
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral` (V4 1.24):
+"a connected union of facets of `t`". A bounded intersection of finitely many
+closed halfspaces has finitely many extreme points, since their active constraint
+sets are distinct. Compactness and Krein–Milman express it as their convex hull. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step4_bounded_halfspaces
+    (q : Finset (E d →ᵃ[ℝ] ℝ))
+    (hb : Bornology.IsBounded {x | ∀ f ∈ q, 0 ≤ f x}) :
+    ∃ p : Finset (E d), {x | ∀ f ∈ q, 0 ≤ f x} = convexHull ℝ (p : Set (E d)) := by
+  classical
+  let C : Set (E d) := {x | ∀ f ∈ q, 0 ≤ f x}
+  let active (x : E d) := q.filter fun f => f x = 0
+  have hfinite : (C.extremePoints ℝ).Finite := by
+    apply Set.Finite.of_injOn (f := active) (t := (q.powerset : Set _))
+    · intro x _
+      exact Finset.mem_powerset.mpr (Finset.filter_subset _ _)
+    · intro x hx y hy hxy
+      apply principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step3_active_unique
+        q hx hy.1
+      intro f hf hfx
+      have hmem : f ∈ active x := Finset.mem_filter.mpr ⟨hf, hfx⟩
+      rw [hxy] at hmem
+      exact (Finset.mem_filter.mp hmem).2
+    · exact Finset.finite_toSet _
+  have hC : C = ⋂ f ∈ q, {x | 0 ≤ f x} := by ext x; simp [C]
+  have hclosed : IsClosed C := by
+    rw [hC]
+    exact isClosed_biInter fun f _ => isClosed_le continuous_const f.continuous_of_finiteDimensional
+  have hconv : Convex ℝ C := by
+    rw [hC]
+    exact convex_iInter fun f => convex_iInter fun _ =>
+      (convex_Ici (0 : ℝ)).affine_preimage f
+  refine ⟨hfinite.toFinset, ?_⟩
+  rw [Set.Finite.coe_toFinset]
+  exact (hfinite.isClosed_convexHull.closure_eq.symm.trans
+    (closure_convexHull_extremePoints
+      (Metric.isCompact_of_isClosed_isBounded hclosed hb) hconv)).symm
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral` (V4 1.24):
+"a connected union of facets of `t`". For a nonempty region defined by strict
+affine inequalities, its closure is obtained by making those inequalities weak.
+Segments from a strictly feasible point approximate every weakly feasible point. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step5_closure_strict
+    (q : Finset (E d →ᵃ[ℝ] ℝ))
+    (hne : ({x | ∀ f ∈ q, 0 < f x} : Set (E d)).Nonempty) :
+    closure {x | ∀ f ∈ q, 0 < f x} = {x | ∀ f ∈ q, 0 ≤ f x} := by
+  have hclosed : IsClosed {x : E d | ∀ f ∈ q, 0 ≤ f x} := by
+    simp only [Set.setOf_forall]
+    exact isClosed_biInter fun f _ => isClosed_le continuous_const f.continuous_of_finiteDimensional
+  apply Set.Subset.antisymm
+  · exact closure_minimal (fun x hx f hf => (hx f hf).le) hclosed
+  · obtain ⟨y, hy⟩ := hne
+    intro x hx
+    have hseg : openSegment ℝ y x ⊆ {z | ∀ f ∈ q, 0 < f z} := by
+      rw [openSegment_eq_image_lineMap]
+      rintro z ⟨t, ht, rfl⟩ f hf
+      rw [f.apply_lineMap, AffineMap.lineMap_apply_ring]
+      exact add_pos_of_pos_of_nonneg
+        (mul_pos (sub_pos.mpr ht.2) (hy f hf)) (mul_nonneg ht.1.le (hx f hf))
+    exact closure_mono hseg (segment_subset_closure_openSegment (right_mem_segment ℝ y x))
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral` (V4 1.24):
+"a connected union of facets of `t`". Finite De Morgan expansion expresses the
+complement of the closed halfspace pieces as a finite union of nonempty regions
+defined by strict affine inequalities. Discarding empty regions permits taking closures. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step6_complement_regions
+    (S : Finset (Finset (E d →ᵃ[ℝ] ℝ))) :
+    ∃ T : Finset (Finset (E d →ᵃ[ℝ] ℝ)),
+      (⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x})ᶜ = ⋃ t ∈ T, {x | ∀ f ∈ t, 0 < f x} ∧
+      ∀ t ∈ T, ({x | ∀ f ∈ t, 0 < f x} : Set (E d)).Nonempty := by
+  classical
+  let A := S.biUnion id
+  let T₀ := A.powerset.filter fun t =>
+    (∀ q ∈ S, ∃ f ∈ q, f ∈ t) ∧ ({x | ∀ f ∈ t, f x < 0} : Set (E d)).Nonempty
+  let neg (t : Finset (E d →ᵃ[ℝ] ℝ)) := t.image fun f => -f
+  have hneg (t : Finset (E d →ᵃ[ℝ] ℝ)) (x : E d) :
+      (∀ f ∈ neg t, 0 < f x) ↔ ∀ f ∈ t, f x < 0 := by
+    constructor
+    · intro hx f hf
+      have h := hx (-f) (Finset.mem_image.mpr ⟨f, hf, rfl⟩)
+      simpa using h
+    · intro hx f hf
+      obtain ⟨g, hg, rfl⟩ := Finset.mem_image.mp hf
+      simpa using hx g hg
+  refine ⟨T₀.image neg, ?_, ?_⟩
+  · ext x
+    constructor
+    · intro hx
+      have hviol : ∀ q ∈ S, ∃ f ∈ q, f x < 0 := by
+        intro q hq
+        by_contra hn
+        apply hx
+        refine Set.mem_iUnion₂.mpr ⟨q, hq, ?_⟩
+        intro f hf
+        by_contra hfx
+        exact hn ⟨f, hf, lt_of_not_ge hfx⟩
+      let t := A.filter fun f => f x < 0
+      have ht : t ∈ T₀ := by
+        refine Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr (Finset.filter_subset _ _), ?_, ?_⟩
+        · intro q hq
+          obtain ⟨f, hfq, hfx⟩ := hviol q hq
+          exact ⟨f, hfq, Finset.mem_filter.mpr
+            ⟨Finset.mem_biUnion.mpr ⟨q, hq, hfq⟩, hfx⟩⟩
+        · exact ⟨x, fun f hf => (Finset.mem_filter.mp hf).2⟩
+      refine Set.mem_iUnion₂.mpr ⟨neg t, Finset.mem_image.mpr ⟨t, ht, rfl⟩, ?_⟩
+      exact (hneg t x).mpr fun f hf => (Finset.mem_filter.mp hf).2
+    · intro hx hxS
+      obtain ⟨r, hr, hxr⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨t, ht, rfl⟩ := Finset.mem_image.mp hr
+      obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hxS
+      obtain ⟨f, hfq, hft⟩ := (Finset.mem_filter.mp ht).2.1 q hq
+      exact (not_lt_of_ge (hxq f hfq)) ((hneg t x).mp hxr f hft)
+  · intro r hr
+    obtain ⟨t, ht, rfl⟩ := Finset.mem_image.mp hr
+    obtain ⟨x, hx⟩ := (Finset.mem_filter.mp ht).2.2
+    exact ⟨x, (hneg t x).mpr hx⟩
+
 /-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "a connected union of facets of `t`". Subdividing the finitely many convex pieces along their
 supporting hyperplanes expresses the frontier as another finite union of convex
 hulls. This statement makes no manifold or separation assertion. -/
 private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral
     {Q : Set (E d)} (hQ : Polyhedron Q) : Polyhedron (frontier Q) := by
-  sorry
+  classical
+  have hcompact : IsCompact Q := by
+    obtain ⟨s, hs⟩ := hQ
+    rw [hs]
+    exact s.isCompact_biUnion fun p _ => p.finite_toSet.isCompact_convexHull
+  obtain ⟨S, hS⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step2_halfspace_presentation hQ
+  obtain ⟨T, hT, hne⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step6_complement_regions S
+  have hclosure : closure Qᶜ = ⋃ t ∈ T, {x | ∀ f ∈ t, 0 ≤ f x} := by
+    rw [hS, hT, Finset.closure_biUnion]
+    apply Set.iUnion_congr
+    intro t
+    apply Set.iUnion_congr
+    intro ht
+    exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step5_closure_strict
+      t (hne t ht)
+  let I := S.product T
+  have hrep (u : I) : ∃ p : Finset (E d),
+      {x | ∀ f ∈ u.val.1 ∪ u.val.2, 0 ≤ f x} = convexHull ℝ (p : Set (E d)) := by
+    apply principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step4_bounded_halfspaces
+    apply hcompact.isBounded.subset
+    intro x hx
+    rw [hS]
+    exact Set.mem_iUnion₂.mpr ⟨u.val.1, (Finset.mem_product.mp u.property).1,
+      fun f hf => hx f (Finset.mem_union_left _ hf)⟩
+  choose p hp using hrep
+  refine ⟨Finset.univ.image p, ?_⟩
+  ext x
+  rw [frontier_eq_closure_inter_closure, hcompact.isClosed.closure_eq, hclosure]
+  constructor
+  · rintro ⟨hxQ, hxT⟩
+    rw [hS] at hxQ
+    obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hxQ
+    obtain ⟨t, ht, hxt⟩ := Set.mem_iUnion₂.mp hxT
+    let u : I := ⟨(q, t), Finset.mem_product.mpr ⟨hq, ht⟩⟩
+    refine Set.mem_iUnion₂.mpr ⟨p u, Finset.mem_image.mpr ⟨u, Finset.mem_univ _, rfl⟩, ?_⟩
+    rw [← hp u]
+    intro f hf
+    rcases Finset.mem_union.mp hf with hf | hf
+    · exact hxq f hf
+    · exact hxt f hf
+  · intro hx
+    obtain ⟨v, hv, hxv⟩ := Set.mem_iUnion₂.mp hx
+    obtain ⟨u, _, rfl⟩ := Finset.mem_image.mp hv
+    rw [← hp u] at hxv
+    refine ⟨?_, ?_⟩
+    · rw [hS]
+      exact Set.mem_iUnion₂.mpr ⟨u.val.1, (Finset.mem_product.mp u.property).1,
+        fun f hf => hxv f (Finset.mem_union_left _ hf)⟩
+    · exact Set.mem_iUnion₂.mpr ⟨u.val.2, (Finset.mem_product.mp u.property).2,
+        fun f hf => hxv f (Finset.mem_union_right _ hf)⟩
 
 /-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "a connected component of a finite union of closed connected sets contains every

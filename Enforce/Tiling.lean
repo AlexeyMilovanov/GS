@@ -1462,13 +1462,821 @@ structure ScaleTailEquiv {S : SubstSystem d} (U V : HonestSource S)
         (J '' ((U.expansion ^ ((b : ℤ) - (a : ℤ))) '' K)) =
       (q.val.2.val.prototypeFrame q.val.1).symm '' K
 
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): "a tile `t = QRA' + τ` is mapped
+to `Λt`". An affine isometry is its linear part plus its value at the origin. -/
+private theorem inflate_step1_iso_apply (f : Iso d) (x : E d) :
+    f x = f.linearIsometryEquiv x + f 0 := by
+  have h := f.map_vadd 0 x
+  simpa [vadd_eq_add] using h
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): "`σRσ⁻¹` ... Lemma 1.10(a)".
+Conjugation by `σ` keeps elements of the compatible group orthogonal and in the group. -/
+private theorem inflate_step1_conj {S : SubstSystem d} (R : Ortho d) (hR : R ∈ S.rotGroup) :
+    ∃ R' ∈ S.rotGroup, ∀ x, R' x = S.σ (R (S.σ.symm x)) := by
+  have hmem : linearConj S.σ 1 R.toLinearEquiv ∈
+      (fun R : Ortho d => R.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+    rw [← S.rotGroup_conj]
+    exact ⟨R, hR, rfl⟩
+  obtain ⟨R', hR', heq⟩ := hmem
+  refine ⟨R', hR', fun x => ?_⟩
+  have h := congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) heq
+  simp only [linearConj, zpow_neg, zpow_one] at h
+  exact h
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): the linear part `Λ O σ⁻¹` of an
+inflated frame. -/
+private def inflate_step1_lin {S : SubstSystem d} (U : HonestSource S) (φ : Iso d) :
+    E d ≃ₗ[ℝ] E d :=
+  S.σ.symm.trans (φ.linearIsometryEquiv.toLinearEquiv.trans U.expansion)
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): the inflated frame
+`x ↦ Λ (φ (σ⁻¹ x))`, which is an isometry whenever `φ` has orthogonal part in `Q H`. -/
+private def inflate_step1_frame {S : SubstSystem d} (U : HonestSource S) (φ : Iso d) :
+    Iso d := by
+  classical
+  exact if h : ∀ x, ‖inflate_step1_lin U φ x‖ = ‖x‖ then
+    rigidMotion { inflate_step1_lin U φ with norm_map' := h } (U.expansion (φ 0)) else φ
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): "with orthogonal part
+`Q σ R σ⁻¹ ∈ Q H`". The linear part of the inflated frame. -/
+private theorem inflate_step1_lin_apply {S : SubstSystem d} (U : HonestSource S) (φ : Iso d)
+    (R R' : Ortho d) (he : φ.linearIsometryEquiv = U.coset * R)
+    (hR' : ∀ x, R' x = S.σ (R (S.σ.symm x))) (y : E d) :
+    inflate_step1_lin U φ y = U.coset (R' y) := by
+  rw [hR']
+  change U.expansion (φ.linearIsometryEquiv (S.σ.symm y)) = _
+  rw [he]
+  change U.coset (S.σ (U.coset.symm (U.coset (R (S.σ.symm y))))) = _
+  rw [LinearIsometryEquiv.symm_apply_apply]
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): "`Λt = ... + Λτ`, here
+`Λτ = QσQ⁻¹τ`". The inflated frame is `Λ ∘ φ ∘ σ⁻¹`. -/
+private theorem inflate_step1_frame_apply {S : SubstSystem d} (U : HonestSource S) (φ : Iso d)
+    (hφ : ∃ R ∈ S.rotGroup, φ.linearIsometryEquiv = U.coset * R) (x : E d) :
+    inflate_step1_frame U φ x = U.expansion (φ (S.σ.symm x)) := by
+  obtain ⟨R, hR, he⟩ := hφ
+  obtain ⟨R', _, hR'x⟩ := inflate_step1_conj (S := S) R hR
+  have h : ∀ y, ‖inflate_step1_lin U φ y‖ = ‖y‖ := by
+    intro y
+    rw [inflate_step1_lin_apply U φ R R' he hR'x]
+    simp
+  unfold inflate_step1_frame
+  rw [dif_pos h]
+  change inflate_step1_lin U φ x + U.expansion (φ 0) = _
+  rw [inflate_step1_iso_apply φ (S.σ.symm x), map_add]
+  rfl
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): "a placed copy of `σA'` with
+orthogonal part `QσRσ⁻¹ ∈ QH`". Inflated frames stay in the common coset. -/
+private theorem inflate_step1_frame_coset {S : SubstSystem d} (U : HonestSource S) (φ : Iso d)
+    (hφ : ∃ R ∈ S.rotGroup, φ.linearIsometryEquiv = U.coset * R) :
+    ∃ R ∈ S.rotGroup, (inflate_step1_frame U φ).linearIsometryEquiv = U.coset * R := by
+  obtain ⟨R, hR, he⟩ := hφ
+  obtain ⟨R', hR', hR'x⟩ := inflate_step1_conj (S := S) R hR
+  refine ⟨R', hR', ?_⟩
+  apply LinearIsometryEquiv.ext
+  intro y
+  have h1 := inflate_step1_iso_apply (inflate_step1_frame U φ) y
+  rw [inflate_step1_frame_apply U φ ⟨R, hR, he⟩, inflate_step1_frame_apply U φ ⟨R, hR, he⟩,
+    map_zero, inflate_step1_iso_apply φ (S.σ.symm y), map_add] at h1
+  have h2 := add_right_cancel h1
+  rw [← h2]
+  change inflate_step1_lin U φ y = _
+  rw [inflate_step1_lin_apply U φ R R' he hR'x]
+  rfl
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): an old node with its inflated frame. -/
+private def inflate_step1_node {S : SubstSystem d} (U : HonestSource S) (N : FramedNode S) :
+    FramedNode S :=
+  ⟨N.ty, inflate_step1_frame U N.frame⟩
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): "the old height-`n` nodes become
+height-`(n+1)` nodes": `Λ(N)` as a node of one more height. -/
+private theorem inflate_step1_carrier {S : SubstSystem d} (U : HonestSource S) (N : FramedNode S)
+    (hN : ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R) (n : ℕ) :
+    (inflate_step1_node U N).carrier (n + 1) = U.expansion '' N.carrier n := by
+  change inflate_step1_frame U N.frame '' ((S.σ ^ (n + 1)) '' (S.proto N.ty).carrier) =
+    U.expansion '' (N.frame '' ((S.σ ^ n) '' (S.proto N.ty).carrier))
+  rw [Set.image_image, Set.image_image, Set.image_image]
+  apply Set.image_congr
+  intro x _
+  rw [inflate_step1_frame_apply U N.frame hN, pow_succ', LinearEquiv.mul_apply,
+    LinearEquiv.symm_apply_apply]
+
+/-- Step 1 of the V4 proof of `inflate` (V4 1.13(a)): "(conjugated) frames": the
+prototype frame of the inflated node is `Λ` after the old prototype frame. -/
+private theorem inflate_step1_prototypeFrame {S : SubstSystem d} (U : HonestSource S)
+    (N : FramedNode S) (hN : ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R)
+    (n : ℕ) :
+    (inflate_step1_node U N).prototypeFrame (n + 1) =
+      (N.prototypeFrame n).trans U.expansion.toAffineEquiv := by
+  apply AffineEquiv.ext
+  intro x
+  change inflate_step1_frame U N.frame ((S.σ ^ (n + 1)) x) = U.expansion (N.frame ((S.σ ^ n) x))
+  rw [inflate_step1_frame_apply U N.frame hN, pow_succ', LinearEquiv.mul_apply,
+    LinearEquiv.symm_apply_apply]
+
+/-- Step 2 of the V4 proof of `inflate` (V4 1.13(a)): the placed child at height zero is
+the prescribed child frame. -/
+private theorem inflate_step2_placeChild_zero {S : SubstSystem d} {A : S.ι} (i : S.I A)
+    (x : E d) : S.placeChild 0 i x = (S.child A i).frame x := by
+  have h := exists_honest_step7_place_scaled (S := S) 0 i x
+  simpa using h
+
+/-- Step 2 of the V4 proof of `inflate` (V4 1.13(a)): "subdividing it by the
+substitution gives native tiles with frames in `QH` (1.10(b))". -/
+private theorem inflate_step2_child_coset {S : SubstSystem d} (U : HonestSource S)
+    (N : FramedNode S) (hN : ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R)
+    (n : ℕ) (i : S.I N.ty) :
+    ∃ R ∈ S.rotGroup, (N.child n i).frame.linearIsometryEquiv = U.coset * R := by
+  obtain ⟨R, hR, he⟩ := hN
+  refine ⟨R * S.childRotation n i, S.rotGroup.mul_mem hR (S.rotGroup_spec.1 ⟨n, N.ty, i, rfl⟩), ?_⟩
+  have h : (N.child n i).frame.linearIsometryEquiv =
+      N.frame.linearIsometryEquiv * S.childRotation n i := by
+    ext y
+    rfl
+  rw [h, he, mul_assoc]
+
+/-- Step 2 of the V4 proof of `inflate` (V4 1.13(a)): "the old height-`n` nodes become
+height-`(n+1)` nodes with the same roles, parents": inflation commutes with children. -/
+private theorem inflate_step2_child_succ {S : SubstSystem d} (U : HonestSource S)
+    (P : FramedNode S) (hP : ∃ R ∈ S.rotGroup, P.frame.linearIsometryEquiv = U.coset * R)
+    (n : ℕ) (i : S.I P.ty) :
+    (inflate_step1_node U P).child (n + 1) i = inflate_step1_node U (P.child n i) := by
+  refine FramedNode.ext ?_ ?_
+  · rfl
+  apply AffineIsometryEquiv.ext
+  intro x
+  change inflate_step1_frame U P.frame (S.placeChild (n + 1) i x) =
+    inflate_step1_frame U (P.child n i).frame x
+  rw [inflate_step1_frame_apply U P.frame hP,
+    inflate_step1_frame_apply U _ (inflate_step2_child_coset U P hP n i)]
+  have h := exists_honest_step7_place_shift (S := S) 1 n i (S.σ.symm x)
+  rw [Nat.add_comm 1 n, pow_one, LinearEquiv.apply_symm_apply] at h
+  rw [h, LinearEquiv.symm_apply_apply]
+  try rfl
+
+/-- Step 2 of the V4 proof of `inflate` (V4 1.13(a)): "`Λ` is invertible": inflation
+is injective on frames in the common coset. -/
+private theorem inflate_step2_injective {S : SubstSystem d} (U : HonestSource S)
+    (M N : FramedNode S) (hM : ∃ R ∈ S.rotGroup, M.frame.linearIsometryEquiv = U.coset * R)
+    (hN : ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R)
+    (h : inflate_step1_node U M = inflate_step1_node U N) : M = N := by
+  have hty : M.ty = N.ty := by
+    have h' := congrArg FramedNode.ty h
+    exact h'
+  have hfr := congrArg FramedNode.frame h
+  refine FramedNode.ext hty ?_
+  apply AffineIsometryEquiv.ext
+  intro x
+  have hx := congrArg (fun f : Iso d => f (S.σ x)) hfr
+  change inflate_step1_frame U M.frame (S.σ x) = inflate_step1_frame U N.frame (S.σ x) at hx
+  rw [inflate_step1_frame_apply U M.frame hM, inflate_step1_frame_apply U N.frame hN] at hx
+  simp only [LinearEquiv.symm_apply_apply] at hx
+  exact U.expansion.injective hx
+
+/-- Step 2 of the V4 proof of `inflate` (V4 1.13(a)): "disjoint interiors are
+preserved by the invertible linear map `Λ`". -/
+private theorem inflate_step2_image_disjoint {S : SubstSystem d} (U : HonestSource S)
+    (K L : Set (E d)) (h : Disjoint (interior K) (interior L)) :
+    Disjoint (interior (U.expansion '' K)) (interior (U.expansion '' L)) := by
+  let e := U.expansion.toContinuousLinearEquiv.toHomeomorph
+  change Disjoint (interior (e '' K)) (interior (e '' L))
+  rw [← e.image_interior, ← e.image_interior]
+  exact Set.disjoint_image_of_injective e.injective h
+
+/-- Step 2 of the V4 proof of `inflate` (V4 1.13(a)): a height-zero child carrier is the
+placed prototype of the prescribed child. -/
+private theorem inflate_step2_child_zero_carrier {S : SubstSystem d} (N : FramedNode S)
+    (i : S.I N.ty) :
+    (N.child 0 i).carrier 0 =
+      N.frame '' placedSet (S.child N.ty i).frame (S.proto (S.child N.ty i).ty).carrier := by
+  change ((S.placeChild 0 i).trans N.frame) '' (⇑(S.σ ^ 0) '' (S.proto (S.child N.ty i).ty).carrier) =
+    N.frame '' ((S.child N.ty i).frame '' (S.proto (S.child N.ty i).ty).carrier)
+  rw [Set.image_image, Set.image_image]
+  apply Set.image_congr
+  intro x _
+  change N.frame (S.placeChild 0 i ((S.σ ^ 0) x)) = N.frame ((S.child N.ty i).frame x)
+  rw [pow_zero]
+  exact congrArg N.frame (inflate_step2_placeChild_zero i x)
+
+/-- Step 2 of the V4 proof of `inflate` (V4 1.13(a)): "each node subdivided by the
+substitution": a height-one node is covered by its height-zero children. -/
+private theorem inflate_step2_carrier_one {S : SubstSystem d} (N : FramedNode S) :
+    N.carrier 1 ⊆ ⋃ i : S.I N.ty, (N.child 0 i).carrier 0 := by
+  rintro y ⟨z, ⟨x, hx, rfl⟩, rfl⟩
+  have hc : S.σ x ∈ S.σ '' (S.proto N.ty).carrier := ⟨x, hx, rfl⟩
+  rw [S.children_cover N.ty] at hc
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hc
+  refine Set.mem_iUnion.mpr ⟨i, ?_⟩
+  rw [inflate_step2_child_zero_carrier]
+  refine ⟨S.σ x, hi, ?_⟩
+  rw [pow_one]
+
+/-- Step 3 of the V4 proof of `inflate` (V4 1.13(a)): the hierarchy `Λ(𝒩_n)` at heights
+`n+1` and the new native ground tiles at height zero. -/
+private def inflate_step3_nodes {S : SubstSystem d} (U : HonestSource S) :
+    ℕ → Set (FramedNode S)
+  | 0 => {M | ∃ P : {P // P ∈ U.hierarchy.nodes 0}, ∃ i : S.I P.val.ty,
+      M = (inflate_step1_node U P.val).child 0 i}
+  | n + 1 => {M | ∃ P : {P // P ∈ U.hierarchy.nodes n}, M = inflate_step1_node U P.val}
+
+private theorem inflate_step3_mem_zero {S : SubstSystem d} (U : HonestSource S)
+    {M : FramedNode S} (h : M ∈ inflate_step3_nodes U 0) :
+    ∃ P : {P // P ∈ U.hierarchy.nodes 0}, ∃ i : S.I P.val.ty,
+      M = (inflate_step1_node U P.val).child 0 i := h
+
+private theorem inflate_step3_mem_succ {S : SubstSystem d} (U : HonestSource S) {n : ℕ}
+    {M : FramedNode S} (h : M ∈ inflate_step3_nodes U (n + 1)) :
+    ∃ P : {P // P ∈ U.hierarchy.nodes n}, M = inflate_step1_node U P.val := h
+
+private theorem inflate_step3_mem_zero_intro {S : SubstSystem d} (U : HonestSource S)
+    (P : {P // P ∈ U.hierarchy.nodes 0}) (i : S.I P.val.ty) :
+    (inflate_step1_node U P.val).child 0 i ∈ inflate_step3_nodes U 0 := by
+  show ∃ P' : {P // P ∈ U.hierarchy.nodes 0}, ∃ i' : S.I P'.val.ty,
+    (inflate_step1_node U P.val).child 0 i = (inflate_step1_node U P'.val).child 0 i'
+  exact ⟨P, i, rfl⟩
+
+private theorem inflate_step3_mem_succ_intro {S : SubstSystem d} (U : HonestSource S) {n : ℕ}
+    (P : {P // P ∈ U.hierarchy.nodes n}) :
+    inflate_step1_node U P.val ∈ inflate_step3_nodes U (n + 1) := by
+  show ∃ P' : {P // P ∈ U.hierarchy.nodes n},
+    inflate_step1_node U P.val = inflate_step1_node U P'.val
+  exact ⟨P, rfl⟩
+
+/-- Step 3 of the V4 proof of `inflate` (V4 1.13(a)): "The frame coset is `QH` again". -/
+private theorem inflate_step3_coset {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n N, N ∈ inflate_step3_nodes U n →
+      ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R := by
+  intro n N hN
+  cases n with
+  | zero =>
+    obtain ⟨P, i, rfl⟩ := inflate_step3_mem_zero U hN
+    exact inflate_step2_child_coset U (inflate_step1_node U P.val)
+      (inflate_step1_frame_coset U _ (U.frames_in_coset 0 P.val P.property)) 0 i
+  | succ n =>
+    obtain ⟨P, rfl⟩ := inflate_step3_mem_succ U hN
+    exact inflate_step1_frame_coset U _ (U.frames_in_coset n P.val P.property)
+
+/-- Step 3 of the V4 proof of `inflate` (V4 1.13(a)): "Coverage ... preserved by the
+invertible linear map `Λ`", including the new native subdivision. -/
+private theorem inflate_step3_cover {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n x, ∃ N ∈ inflate_step3_nodes U n, x ∈ N.carrier n := by
+  intro n x
+  cases n with
+  | zero =>
+    obtain ⟨P, hP, hx⟩ := U.hierarchy.cover 0 (U.expansion.symm x)
+    have hPc := U.frames_in_coset 0 P hP
+    have hx1 : x ∈ (inflate_step1_node U P).carrier 1 := by
+      rw [inflate_step1_carrier U P hPc 0]
+      exact ⟨_, hx, LinearEquiv.apply_symm_apply _ _⟩
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (inflate_step2_carrier_one _ hx1)
+    exact ⟨_, inflate_step3_mem_zero_intro U ⟨P, hP⟩ i, hi⟩
+  | succ n =>
+    obtain ⟨P, hP, hx⟩ := U.hierarchy.cover n (U.expansion.symm x)
+    refine ⟨inflate_step1_node U P, inflate_step3_mem_succ_intro U ⟨P, hP⟩, ?_⟩
+    rw [inflate_step1_carrier U P (U.frames_in_coset n P hP) n]
+    exact ⟨_, hx, LinearEquiv.apply_symm_apply _ _⟩
+
+/-- Step 3 of the V4 proof of `inflate` (V4 1.13(a)): a new ground tile lies in the
+inflation of its old parent tile. -/
+private theorem inflate_step3_zero_subset {S : SubstSystem d} (U : HonestSource S)
+    (P : FramedNode S) (hP : ∃ R ∈ S.rotGroup, P.frame.linearIsometryEquiv = U.coset * R)
+    (i : S.I P.ty) :
+    ((inflate_step1_node U P).child 0 i).carrier 0 ⊆ U.expansion '' P.carrier 0 := by
+  rw [← inflate_step1_carrier U P hP 0]
+  exact exists_honest_step7_child_subset (inflate_step1_node U P) 0 i
+
+/-- Step 3 of the V4 proof of `inflate` (V4 1.13(a)): "disjoint interiors are preserved
+by the invertible linear map `Λ`", also for the new native subdivision. -/
+private theorem inflate_step3_disjoint {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n, (inflate_step3_nodes U n).PairwiseDisjoint (fun N => interior (N.carrier n)) := by
+  intro n
+  cases n with
+  | zero =>
+    intro M hM M' hM' hne
+    obtain ⟨P, i, rfl⟩ := inflate_step3_mem_zero U hM
+    obtain ⟨P', i', rfl⟩ := inflate_step3_mem_zero U hM'
+    show Disjoint (interior (((inflate_step1_node U P.val).child 0 i).carrier 0))
+      (interior (((inflate_step1_node U P'.val).child 0 i').carrier 0))
+    by_cases hPP : P = P'
+    · subst hPP
+      have hii : i ≠ i' := fun h => hne (h ▸ rfl)
+      rw [inflate_step2_child_zero_carrier, inflate_step2_child_zero_carrier]
+      let e := (inflate_step1_node U P.val).frame.toHomeomorph
+      change Disjoint (interior (e '' _)) (interior (e '' _))
+      rw [← e.image_interior, ← e.image_interior]
+      exact Set.disjoint_image_of_injective e.injective
+        (S.children_disjoint (inflate_step1_node U P.val).ty hii)
+    · have hPv : P.val ≠ P'.val := fun h => hPP (Subtype.ext h)
+      have hd := inflate_step2_image_disjoint U _ _
+        (U.hierarchy.disjoint 0 P.property P'.property hPv)
+      exact hd.mono
+        (interior_mono (inflate_step3_zero_subset U P.val
+          (U.frames_in_coset 0 P.val P.property) i))
+        (interior_mono (inflate_step3_zero_subset U P'.val
+          (U.frames_in_coset 0 P'.val P'.property) i'))
+  | succ n =>
+    intro M hM M' hM' hne
+    obtain ⟨P, rfl⟩ := inflate_step3_mem_succ U hM
+    obtain ⟨P', rfl⟩ := inflate_step3_mem_succ U hM'
+    have hPv : P.val ≠ P'.val := fun h => hne (h ▸ rfl)
+    show Disjoint (interior ((inflate_step1_node U P.val).carrier (n + 1)))
+      (interior ((inflate_step1_node U P'.val).carrier (n + 1)))
+    rw [inflate_step1_carrier U P.val (U.frames_in_coset n P.val P.property),
+      inflate_step1_carrier U P'.val (U.frames_in_coset n P'.val P'.property)]
+    exact inflate_step2_image_disjoint U _ _ (U.hierarchy.disjoint n P.property P'.property hPv)
+
+/-- Step 4 of the V4 proof of `inflate` (V4 1.13(a)): the new tiling `Λ(T)` with the
+new native ground tiles. -/
+private def inflate_step4_tiling {S : SubstSystem d} (U : HonestSource S) : Tiling S where
+  tiles := {t | ∃ N ∈ inflate_step3_nodes U 0, N.toTile = t}
+  cover := by
+    intro x
+    obtain ⟨N, hN, hx⟩ := inflate_step3_cover U 0 x
+    refine ⟨N.toTile, ⟨N, hN, rfl⟩, ?_⟩
+    rw [← exists_honest_step7_zero_carrier]
+    exact hx
+  disjoint := by
+    rintro t ⟨N, hN, rfl⟩ u ⟨M, hM, rfl⟩ hne
+    have hNM : N ≠ M := fun h => hne (h ▸ rfl)
+    show Disjoint (interior N.toTile.carrier) (interior M.toTile.carrier)
+    rw [← exists_honest_step7_zero_carrier, ← exists_honest_step7_zero_carrier]
+    exact inflate_step3_disjoint U 0 hN hM hNM
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): "their parents in the new
+indexing, plus the new tiles' parents". -/
+private def inflate_step5_parent {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n, {N // N ∈ inflate_step3_nodes U n} → {P // P ∈ inflate_step3_nodes U (n + 1)}
+  | 0, N => ⟨inflate_step1_node U (Classical.choose (inflate_step3_mem_zero U N.2)).val,
+      inflate_step3_mem_succ_intro U (Classical.choose (inflate_step3_mem_zero U N.2))⟩
+  | n + 1, N => ⟨inflate_step1_node U
+        (U.hierarchy.parent n (Classical.choose (inflate_step3_mem_succ U N.2))).val,
+      inflate_step3_mem_succ_intro U
+        (U.hierarchy.parent n (Classical.choose (inflate_step3_mem_succ U N.2)))⟩
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): "the same roles". -/
+private def inflate_step5_role {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n N, S.I (inflate_step5_parent U n N).val.ty
+  | 0, N => Classical.choose (Classical.choose_spec (inflate_step3_mem_zero U N.2))
+  | n + 1, N => U.hierarchy.role n (Classical.choose (inflate_step3_mem_succ U N.2))
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): the chosen preimage of an inflated
+node is the node itself. -/
+private theorem inflate_step5_choose_succ {S : SubstSystem d} (U : HonestSource S) {n : ℕ}
+    (N₀ : {P // P ∈ U.hierarchy.nodes n})
+    (h : inflate_step1_node U N₀.val ∈ inflate_step3_nodes U (n + 1)) :
+    Classical.choose (inflate_step3_mem_succ U h) = N₀ := by
+  have hs := Classical.choose_spec (inflate_step3_mem_succ U h)
+  apply Subtype.ext
+  exact (inflate_step2_injective U _ _ (U.frames_in_coset n N₀.val N₀.property)
+    (U.frames_in_coset n _ (Classical.choose (inflate_step3_mem_succ U h)).property) hs).symm
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): "with the same ... parents". -/
+private theorem inflate_step5_parent_succ {S : SubstSystem d} (U : HonestSource S) {n : ℕ}
+    (N₀ : {P // P ∈ U.hierarchy.nodes n})
+    (h : inflate_step1_node U N₀.val ∈ inflate_step3_nodes U (n + 1)) :
+    inflate_step5_parent U (n + 1) ⟨_, h⟩ =
+      ⟨inflate_step1_node U (U.hierarchy.parent n N₀).val,
+        inflate_step3_mem_succ_intro U (U.hierarchy.parent n N₀)⟩ := by
+  apply Subtype.ext
+  show inflate_step1_node U
+    (U.hierarchy.parent n (Classical.choose (inflate_step3_mem_succ U h))).val = _
+  rw [inflate_step5_choose_succ U N₀ h]
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): "with the same roles". -/
+private theorem inflate_step5_role_succ {S : SubstSystem d} (U : HonestSource S) {n : ℕ}
+    (N₀ : {P // P ∈ U.hierarchy.nodes n})
+    (h : inflate_step1_node U N₀.val ∈ inflate_step3_nodes U (n + 1)) :
+    (⟨(inflate_step5_parent U (n + 1) ⟨_, h⟩).val.ty,
+        inflate_step5_role U (n + 1) ⟨_, h⟩⟩ : S.Role) =
+      ⟨(U.hierarchy.parent n N₀).val.ty, U.hierarchy.role n N₀⟩ := by
+  show (⟨(U.hierarchy.parent n (Classical.choose (inflate_step3_mem_succ U h))).val.ty,
+      U.hierarchy.role n (Classical.choose (inflate_step3_mem_succ U h))⟩ : S.Role) = _
+  rw [inflate_step5_choose_succ U N₀ h]
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): exact child equations. -/
+private theorem inflate_step5_child_eq {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n N, N.val = (inflate_step5_parent U n N).val.child n (inflate_step5_role U n N) := by
+  intro n N
+  cases n with
+  | zero =>
+    exact Classical.choose_spec (Classical.choose_spec (inflate_step3_mem_zero U N.2))
+  | succ n =>
+    let N₁ := Classical.choose (inflate_step3_mem_succ U N.2)
+    have hN₁ : N.val = inflate_step1_node U N₁.val :=
+      Classical.choose_spec (inflate_step3_mem_succ U N.2)
+    show N.val = (inflate_step1_node U (U.hierarchy.parent n N₁).val).child (n + 1)
+      (U.hierarchy.role n N₁)
+    rw [inflate_step2_child_succ U _ (U.frames_in_coset (n + 1) _
+      (U.hierarchy.parent n N₁).property), ← U.hierarchy.child_eq n N₁]
+    exact hN₁
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): all prescribed children occur. -/
+private theorem inflate_step5_children_mem {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n P, P ∈ inflate_step3_nodes U (n + 1) →
+      ∀ i : S.I P.ty, P.child n i ∈ inflate_step3_nodes U n := by
+  intro n P hP i
+  obtain ⟨P₀, rfl⟩ := inflate_step3_mem_succ U hP
+  cases n with
+  | zero => exact inflate_step3_mem_zero_intro U P₀ i
+  | succ n =>
+    rw [inflate_step2_child_succ U _ (U.frames_in_coset (n + 1) P₀.val P₀.property)]
+    exact inflate_step3_mem_succ_intro U
+      ⟨P₀.val.child n i, U.hierarchy.children_mem n P₀.val P₀.property i⟩
+
+/-- Step 5 of the V4 proof of `inflate` (V4 1.13(a)): a node belongs to only one parent. -/
+private theorem inflate_step5_parent_unique {S : SubstSystem d} (U : HonestSource S) :
+    ∀ n N P, P ∈ inflate_step3_nodes U (n + 1) →
+      (∃ i : S.I P.ty, N.val = P.child n i) → P = (inflate_step5_parent U n N).val := by
+  intro n N P hP hNP
+  obtain ⟨i, hi⟩ := hNP
+  obtain ⟨P₀, rfl⟩ := inflate_step3_mem_succ U hP
+  cases n with
+  | zero =>
+    let P₁ := Classical.choose (inflate_step3_mem_zero U N.2)
+    obtain ⟨i₁, hi₁⟩ := Classical.choose_spec (inflate_step3_mem_zero U N.2)
+    show inflate_step1_node U P₀.val = inflate_step1_node U P₁.val
+    by_contra hne
+    have hPv : P₀.val ≠ P₁.val := fun h => hne (h ▸ rfl)
+    have hd := inflate_step2_image_disjoint U _ _
+      (U.hierarchy.disjoint 0 P₀.property P₁.property hPv)
+    obtain ⟨x, hx⟩ := exists_honest_step7_tile_interior N.val.toTile
+    rw [← exists_honest_step7_zero_carrier] at hx
+    have hx₀ : x ∈ interior (U.expansion '' P₀.val.carrier 0) := by
+      apply interior_mono (inflate_step3_zero_subset U P₀.val
+        (U.frames_in_coset 0 P₀.val P₀.property) i)
+      rw [← hi]
+      exact hx
+    have hx₁ : x ∈ interior (U.expansion '' P₁.val.carrier 0) := by
+      apply interior_mono (inflate_step3_zero_subset U P₁.val
+        (U.frames_in_coset 0 P₁.val P₁.property) i₁)
+      rw [← hi₁]
+      exact hx
+    exact Set.disjoint_left.mp hd hx₀ hx₁
+  | succ n =>
+    let N₁ := Classical.choose (inflate_step3_mem_succ U N.2)
+    have hN₁ : N.val = inflate_step1_node U N₁.val :=
+      Classical.choose_spec (inflate_step3_mem_succ U N.2)
+    show inflate_step1_node U P₀.val = inflate_step1_node U (U.hierarchy.parent n N₁).val
+    rw [inflate_step2_child_succ U _ (U.frames_in_coset (n + 1) P₀.val P₀.property), hN₁] at hi
+    have hc := U.hierarchy.children_mem n P₀.val P₀.property i
+    have heq := inflate_step2_injective U _ _ (U.frames_in_coset n N₁.val N₁.property)
+      (U.frames_in_coset n _ hc) hi
+    rw [U.hierarchy.parent_unique n N₁ P₀.val P₀.property ⟨i, heq⟩]
+
+/-- Step 6 of the V4 proof of `inflate` (V4 1.13(a)): "each node subdivided by the
+substitution": every native framed tile of a node is a ground node. -/
+private theorem inflate_step6_native_mem {S : SubstSystem d} (nodes : ℕ → Set (FramedNode S))
+    (hc : ∀ n P, P ∈ nodes (n + 1) → ∀ i : S.I P.ty, P.child n i ∈ nodes n) :
+    ∀ (k h : ℕ) (N : FramedNode S), N ∈ nodes (h + k) → ∀ w : S.RoleWord N.ty k,
+      (S.descendantNode N.ty h k w).move N.frame ∈ nodes h := by
+  intro k
+  induction k with
+  | zero =>
+    intro h N hN w
+    have heq : (S.descendantNode N.ty h 0 w).move N.frame = N := by
+      refine FramedNode.ext ?_ ?_
+      · rfl
+      apply AffineIsometryEquiv.ext
+      intro x
+      rfl
+    rw [heq]
+    exact hN
+  | succ k ih =>
+    intro h N hN w
+    have heq : (S.descendantNode N.ty h (k + 1) w).move N.frame =
+        (S.descendantNode (N.child (h + k) w.1).ty h k w.2).move
+          (N.child (h + k) w.1).frame := by
+      refine FramedNode.ext ?_ ?_
+      · rfl
+      apply AffineIsometryEquiv.ext
+      intro x
+      rfl
+    rw [heq]
+    exact ih h (N.child (h + k) w.1) (hc (h + k) N hN w.1) w.2
+
+/-- Step 6 of the V4 proof of `inflate` (V4 1.13(a)): "The target's coherent native-tile
+condition prescribes the ground subdivision": the tiles inside a node are its native tiles. -/
+private theorem inflate_step6_native_tiles {S : SubstSystem d} (T : Tiling S)
+    (nodes : ℕ → Set (FramedNode S))
+    (hground : ∀ N ∈ nodes 0, N.toTile ∈ T.tiles)
+    (hc : ∀ n P, P ∈ nodes (n + 1) → ∀ i : S.I P.ty, P.child n i ∈ nodes n)
+    (n : ℕ) (N : FramedNode S) (hN : N ∈ nodes n) :
+    {t | t ∈ T.tiles ∧ t.carrier ⊆ N.carrier n} =
+      {t | ∃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile = t} := by
+  classical
+  have hleaves (w : S.RoleWord N.ty n) :
+      ((S.nativeTile N.ty n w).move N.frame).toTile ∈ T.tiles :=
+    hground _ (inflate_step6_native_mem nodes hc n 0 N (by simpa using hN) w)
+  ext t
+  constructor
+  · rintro ⟨ht, hsub⟩
+    let s := Finset.univ.image (fun w : S.RoleWord N.ty n =>
+      ((S.nativeTile N.ty n w).move N.frame).toTile)
+    have hs : (s : Set (PlacedTile S)) ⊆ T.tiles := by
+      rintro u hu
+      obtain ⟨w, _, rfl⟩ := Finset.mem_image.mp hu
+      exact hleaves w
+    have hsupp : t.carrier ⊆ ⋃ u ∈ s, u.carrier := by
+      intro x hx
+      have hxN := hsub hx
+      rw [exists_honest_step7_native_union] at hxN
+      obtain ⟨w, hxw⟩ := Set.mem_iUnion.mp hxN
+      exact Set.mem_iUnion.mpr ⟨_, Set.mem_iUnion.mpr
+        ⟨Finset.mem_image_of_mem _ (Finset.mem_univ w), hxw⟩⟩
+    obtain ⟨w, _, hw⟩ := Finset.mem_image.mp
+      (exists_honest_step7_saturation s T.tiles T.disjoint hs t ht hsupp)
+    exact ⟨w, hw⟩
+  · rintro ⟨w, rfl⟩
+    exact ⟨hleaves w, exists_honest_step4_native_subset N n w⟩
+
+/-- Step 6 of the V4 proof of `inflate` (V4 1.13(a)): the inflated coherent hierarchy. -/
+private def inflate_step6_hierarchy {S : SubstSystem d} (U : HonestSource S) :
+    CoherentHierarchy S (inflate_step4_tiling U) where
+  nodes := inflate_step3_nodes U
+  ground := rfl
+  cover := inflate_step3_cover U
+  disjoint := inflate_step3_disjoint U
+  parent := inflate_step5_parent U
+  role := inflate_step5_role U
+  child_eq := inflate_step5_child_eq U
+  children_mem := inflate_step5_children_mem U
+  parent_unique := inflate_step5_parent_unique U
+  native_tiles := inflate_step6_native_tiles (inflate_step4_tiling U) (inflate_step3_nodes U)
+    (fun N hN => show ∃ M ∈ inflate_step3_nodes U 0, M.toTile = N.toTile from ⟨N, hN, rfl⟩)
+    (inflate_step5_children_mem U)
+
+/-- Step 7 of the V4 proof of `inflate` (V4 1.13(a)): "a finite set of new nodes lies in
+the inflation of a finite set of old nodes (their parents in the new indexing, plus the
+new tiles' parents)". -/
+private theorem inflate_step7_pre {S : SubstSystem d} (U : HonestSource S)
+    (q : Σ n : ℕ, {N // N ∈ inflate_step3_nodes U n}) :
+    ∃ p : U.hierarchy.Node,
+      (q.1 = 0 ∧ p.1 = 0 ∧ ∃ i : S.I p.2.val.ty,
+        q.2.val = (inflate_step1_node U p.2.val).child 0 i) ∨
+      (q.1 = p.1 + 1 ∧ q.2.val = inflate_step1_node U p.2.val) := by
+  rcases q with ⟨_ | n, N⟩
+  · obtain ⟨P, i, hi⟩ := inflate_step3_mem_zero U N.2
+    exact ⟨⟨0, P⟩, Or.inl ⟨rfl, rfl, i, hi⟩⟩
+  · obtain ⟨P, hP⟩ := inflate_step3_mem_succ U N.2
+    exact ⟨⟨n, P⟩, Or.inr ⟨rfl, hP⟩⟩
+
+/-- Step 7 of the V4 proof of `inflate` (V4 1.13(a)): one height up, descendant frames
+are conjugated by `σ`. -/
+private theorem inflate_step7_desc_shift {S : SubstSystem d} (A : S.ι) (n k : ℕ)
+    (w : S.RoleWord A k) (z : E d) :
+    (S.descendantNode A (n + 1) k w).frame (S.σ z) =
+      S.σ ((S.descendantNode A n k w).frame z) := by
+  have h1 := exists_honest_step7_descendant_scaled A (n + 1) k w ((S.σ ^ n).symm z)
+  have h2 := exists_honest_step7_descendant_scaled A n k w ((S.σ ^ n).symm z)
+  rw [LinearEquiv.apply_symm_apply] at h2
+  rw [pow_succ', LinearEquiv.mul_apply, LinearEquiv.mul_apply,
+    LinearEquiv.apply_symm_apply] at h1
+  rw [h1, h2]
+
+/-- Step 7 of the V4 proof of `inflate` (V4 1.13(a)): "`σ^{n+1}A`" is `σ` of `σ^n A`. -/
+private theorem inflate_step7_supertile_succ {S : SubstSystem d} (h : ℕ) (A : S.ι) :
+    S.supertile (h + 1) A = S.σ '' S.supertile h A := by
+  unfold SubstSystem.supertile
+  rw [Set.image_image]
+  apply Set.image_congr
+  intro x _
+  rw [pow_succ', LinearEquiv.mul_apply]
+
+/-- Step 7 of the V4 proof of `inflate` (V4 1.13(a)): "the legal context for the inflated
+patch is `σ^{n+1}A` with the isometry `ψ' = σψΛ⁻¹`". -/
+private theorem inflate_step7_inflated {S : SubstSystem d} (U : HonestSource S)
+    (A : S.ι) (height n : ℕ) (ψ ψ' : Iso d)
+    (hψ' : ∀ y, ψ' (U.expansion y) = S.σ (ψ y)) (N : FramedNode S)
+    (hN : ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R)
+    (hstd : S.IsStandardNode A height n (N.move ψ))
+    (hint : ψ '' N.carrier n ⊆ interior (S.supertile height A)) :
+    S.IsStandardNode A (height + 1) (n + 1) ((inflate_step1_node U N).move ψ') ∧
+      ψ' '' (inflate_step1_node U N).carrier (n + 1) ⊆
+        interior (S.supertile (height + 1) A) := by
+  constructor
+  · obtain ⟨k, hk, w, hw⟩ := hstd
+    refine ⟨k, by omega, w, ?_⟩
+    apply FramedNode.ext
+    · have hty := congrArg FramedNode.ty hw
+      rw [exists_honest_step7_descendant_type] at hty ⊢
+      exact hty
+    · apply AffineIsometryEquiv.ext
+      intro x
+      have hfr := congrArg FramedNode.frame hw
+      change ψ' (inflate_step1_frame U N.frame x) = _
+      rw [inflate_step1_frame_apply U N.frame hN, hψ']
+      rw [show x = S.σ (S.σ.symm x) from (LinearEquiv.apply_symm_apply _ _).symm,
+        inflate_step7_desc_shift, LinearEquiv.symm_apply_apply, ← hfr]
+      rfl
+  · rw [inflate_step1_carrier U N hN n, Set.image_image]
+    have hf : (fun y => ψ' (U.expansion y)) = fun y => S.σ (ψ y) := funext hψ'
+    rw [hf, ← Set.image_image (fun y => S.σ y) ψ, inflate_step7_supertile_succ]
+    let e := S.σ.toContinuousLinearEquiv.toHomeomorph
+    change e '' (ψ '' N.carrier n) ⊆ interior (e '' S.supertile height A)
+    rw [← e.image_interior]
+    exact Set.image_mono hint
+
+/-- Step 7 of the V4 proof of `inflate` (V4 1.13(a)): "Interior legality: ... conjugating"
+gives a legal context for every finite set of new nodes. -/
+private theorem inflate_step7_contexts {S : SubstSystem d} (U : HonestSource S) :
+    ∀ F : Finset (inflate_step6_hierarchy U).Node,
+      Nonempty (LegalContext (inflate_step6_hierarchy U) F) := by
+  classical
+  intro F
+  choose pre hpre using inflate_step7_pre U
+  obtain ⟨B, hB, -⟩ := U.hierarchy.cover 0 0
+  have hBc := U.frames_in_coset 0 B hB
+  let b : U.hierarchy.Node := ⟨0, ⟨B, hB⟩⟩
+  let G : Finset U.hierarchy.Node := insert b (F.image pre)
+  obtain ⟨C⟩ := U.contexts G
+  obtain ⟨k, -, w, hw⟩ := C.standard b (Finset.mem_insert_self _ _)
+  let ψ' : Iso d :=
+    (inflate_step1_frame U B.frame).symm.trans (S.descendantNode C.ty 1 k w).frame
+  have hψ' : ∀ y, ψ' (U.expansion y) = S.σ (C.placement y) := by
+    intro y
+    have h1 : (inflate_step1_frame U B.frame).symm (U.expansion y) = S.σ (B.frame.symm y) := by
+      apply (inflate_step1_frame U B.frame).injective
+      rw [AffineIsometryEquiv.apply_symm_apply, inflate_step1_frame_apply U B.frame hBc,
+        LinearEquiv.symm_apply_apply, AffineIsometryEquiv.apply_symm_apply]
+    have h2 : (S.descendantNode C.ty 0 k w).frame (B.frame.symm y) = C.placement y := by
+      change (S.descendantNode C.ty 0 k w).frame (B.frame.symm y) = _
+      rw [← hw]
+      change C.placement (B.frame (B.frame.symm y)) = _
+      rw [AffineIsometryEquiv.apply_symm_apply]
+    change (S.descendantNode C.ty 1 k w).frame
+      ((inflate_step1_frame U B.frame).symm (U.expansion y)) = _
+    rw [h1, inflate_step7_desc_shift C.ty 0 k w, h2]
+  have key : ∀ q ∈ F,
+      S.IsStandardNode C.ty (C.height + 1) q.1 (q.2.val.move ψ') ∧
+        ψ' '' q.2.val.carrier q.1 ⊆ interior (S.supertile (C.height + 1) C.ty) := by
+    rintro ⟨n, N⟩ hq
+    have hc := hpre ⟨n, N⟩
+    have hmem : pre ⟨n, N⟩ ∈ G := Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ hq)
+    generalize pre ⟨n, N⟩ = p at hc hmem
+    rcases p with ⟨m, P⟩
+    rcases hc with ⟨hn, hm, i, hi⟩ | ⟨hn, hi⟩
+    · simp only at hn hm hi
+      subst hn
+      subst hm
+      have hinf := inflate_step7_inflated U C.ty C.height 0 C.placement ψ' hψ' P.val
+        (U.frames_in_coset 0 P.val P.property) (C.standard ⟨0, P⟩ hmem)
+        (C.interior ⟨0, P⟩ hmem)
+      show S.IsStandardNode C.ty (C.height + 1) 0 (N.val.move ψ') ∧
+        ψ' '' N.val.carrier 0 ⊆ interior (S.supertile (C.height + 1) C.ty)
+      rw [hi]
+      refine ⟨?_, ?_⟩
+      · rw [exists_honest_step7_move_child]
+        exact exists_honest_step7_standard_child _ _ 0 _ hinf.1 i
+      · exact (Set.image_mono (exists_honest_step7_child_subset
+          (inflate_step1_node U P.val) 0 i)).trans hinf.2
+    · simp only at hn hi
+      subst hn
+      have hinf := inflate_step7_inflated U C.ty C.height m C.placement ψ' hψ' P.val
+        (U.frames_in_coset m P.val P.property) (C.standard ⟨m, P⟩ hmem)
+        (C.interior ⟨m, P⟩ hmem)
+      show S.IsStandardNode C.ty (C.height + 1) (m + 1) (N.val.move ψ') ∧
+        ψ' '' N.val.carrier (m + 1) ⊆ interior (S.supertile (C.height + 1) C.ty)
+      rw [hi]
+      exact hinf
+  exact ⟨{
+    height := C.height + 1
+    ty := C.ty
+    placement := ψ'
+    standard := fun q hq => (key q hq).1
+    interior := fun q hq => (key q hq).2
+    edges := fun q _ _ => congrArg (fun N : FramedNode S => N.move ψ')
+      ((inflate_step6_hierarchy U).child_eq q.1 q.2) }⟩
+
+/-- Step 8 of the V4 proof of `inflate` (V4 1.13(a)): "Interior legality" of every finite
+patch follows from the legal contexts of its ground nodes. -/
+private theorem inflate_step8_species {S : SubstSystem d} {T : Tiling S}
+    (H : CoherentHierarchy S T) (hctx : ∀ F : Finset H.Node, Nonempty (LegalContext H F)) :
+    T ∈ S.Species := by
+  classical
+  intro P hP
+  have hnode : ∀ t ∈ P.tiles, ∃ N : {N // N ∈ H.nodes 0}, N.val.toTile = t := by
+    intro t ht
+    have h : t ∈ T.tiles := hP ht
+    rw [← H.ground] at h
+    obtain ⟨N, hN, rfl⟩ := h
+    exact ⟨⟨N, hN⟩, rfl⟩
+  choose f hf using hnode
+  let F : Finset H.Node := P.tiles.attach.image (fun t => ⟨0, f t.val t.property⟩)
+  obtain ⟨C⟩ := hctx F
+  have hq (t : PlacedTile S) (ht : t ∈ P.tiles) : (⟨0, f t ht⟩ : H.Node) ∈ F :=
+    Finset.mem_image.mpr ⟨⟨t, ht⟩, Finset.mem_attach _ _, rfl⟩
+  refine ⟨C.height, C.ty, C.placement, ?_, ?_⟩
+  · intro t ht
+    obtain ⟨w, hw⟩ := exists_honest_step7_standard_ground C.ty C.height _
+      (C.standard _ (hq t ht))
+    refine ⟨w, ?_⟩
+    rw [← hf t ht, ← exists_honest_step7_move_toTile]
+    exact congrArg FramedNode.toTile hw
+  · rintro y ⟨x, hx, rfl⟩
+    simp only [Patch.support, Set.mem_iUnion] at hx
+    obtain ⟨t, ht, hxt⟩ := hx
+    apply C.interior _ (hq t ht)
+    refine ⟨x, ?_, rfl⟩
+    show x ∈ (f t ht).val.carrier 0
+    rw [exists_honest_step7_zero_carrier, hf t ht]
+    exact hxt
+
+/-- Step 8 of the V4 proof of `inflate` (V4 1.13(a)): the inflated honest source. -/
+private def inflate_step8_source {S : SubstSystem d} (U : HonestSource S) : HonestSource S where
+  tiling := inflate_step4_tiling U
+  mem_species := inflate_step8_species (inflate_step6_hierarchy U) (inflate_step7_contexts U)
+  hierarchy := inflate_step6_hierarchy U
+  contexts := inflate_step7_contexts U
+  coset := U.coset
+  frames_in_coset := inflate_step3_coset U
+
+/-- Step 9 of the V4 proof of `inflate` (V4 1.13(a)): "the old height-`n` nodes become
+height-`(n+1)` nodes". -/
+private def inflate_step9_fwd {S : SubstSystem d} (U : HonestSource S)
+    (q : U.hierarchy.Tail 0) : (inflate_step8_source U).hierarchy.Tail 1 :=
+  ⟨⟨q.val.1 + 1, ⟨inflate_step1_node U q.val.2.val, inflate_step3_mem_succ_intro U q.val.2⟩⟩,
+    Nat.le_add_left 1 _⟩
+
+/-- Step 9 of the V4 proof of `inflate` (V4 1.13(a)): the correspondence of all surviving
+nodes is a bijection. -/
+private theorem inflate_step9_bij {S : SubstSystem d} (U : HonestSource S) :
+    Function.Bijective (inflate_step9_fwd U) := by
+  constructor
+  · rintro ⟨⟨n, N⟩, hn⟩ ⟨⟨m, M⟩, hm⟩ h
+    have h1 := congrArg Subtype.val h
+    obtain ⟨hnm, hNM⟩ := Sigma.mk.inj h1
+    have hnm' : n = m := Nat.succ_injective hnm
+    subst hnm'
+    have hv := congrArg Subtype.val (eq_of_heq hNM)
+    have hNM' : N = M := Subtype.ext (inflate_step2_injective U N.val M.val
+      (U.frames_in_coset n N.val N.property) (U.frames_in_coset n M.val M.property) hv)
+    subst hNM'
+    rfl
+  · rintro ⟨⟨m, M⟩, hm⟩
+    cases m with
+    | zero => exact (Nat.not_succ_le_zero 0 hm).elim
+    | succ n =>
+      obtain ⟨N₀, hN₀⟩ := inflate_step3_mem_succ U M.2
+      refine ⟨⟨⟨n, N₀⟩, Nat.zero_le _⟩, ?_⟩
+      apply Subtype.ext
+      refine Sigma.ext ?_ ?_
+      · rfl
+      apply heq_of_eq
+      apply Subtype.ext
+      exact hN₀.symm
+
+/-- Step 9 of the V4 proof of `inflate` (V4 1.13(a)): "with the same roles, parents and
+(conjugated) frames": the full tail correspondence. -/
+private theorem inflate_step9_tail {S : SubstSystem d} (U : HonestSource S) :
+    Nonempty (ScaleTailEquiv U (inflate_step8_source U) 0 1
+      (AffineIsometryEquiv.refl ℝ (E d))) := by
+  have hpf : ∀ q : U.hierarchy.Tail 0,
+      (inflate_step9_fwd U q).val.2.val.prototypeFrame (inflate_step9_fwd U q).val.1 =
+        (q.val.2.val.prototypeFrame q.val.1).trans U.expansion.toAffineEquiv := fun q =>
+    inflate_step1_prototypeFrame U _ (U.frames_in_coset _ _ q.val.2.property) q.val.1
+  have hexp : U.expansion ^ (((1 : ℕ) : ℤ) - ((0 : ℕ) : ℤ)) = U.expansion := by
+    simp
+  refine ⟨{
+    toEquiv := Equiv.ofBijective (inflate_step9_fwd U) (inflate_step9_bij U)
+    heights := fun q => rfl
+    types := fun q => rfl
+    frames := ?_
+    parents := ?_
+    roles := ?_
+    prototype_sets := ?_ }⟩
+  · intro q
+    rw [Equiv.ofBijective_apply, hpf q, hexp]
+    ext x
+    rfl
+  · intro q
+    rw [Equiv.ofBijective_apply, Equiv.ofBijective_apply]
+    apply Subtype.ext
+    refine Sigma.ext ?_ ?_
+    · rfl
+    apply heq_of_eq
+    exact (inflate_step5_parent_succ U q.val.2 _).symm
+  · intro q
+    rw [Equiv.ofBijective_apply]
+    exact inflate_step5_role_succ U q.val.2 _
+  · intro q K
+    rw [Equiv.ofBijective_apply, hpf q, hexp]
+    rw [AffineIsometryEquiv.coe_refl, Set.image_id, Set.image_image]
+    apply Set.image_congr
+    intro x _
+    dsimp only
+    refine ((q.val.2.val.prototypeFrame q.val.1).trans U.expansion.toAffineEquiv).injective ?_
+    rw [AffineEquiv.apply_symm_apply, AffineEquiv.trans_apply, AffineEquiv.apply_symm_apply]
+    try rfl
+
 /-- T9, V4 1.13(a): inflation by `Λ`, with new native ground tiles, remains
 honest. Every old node becomes a node one level higher, with exact framed data.
 The target's coherent native-tile condition prescribes the ground subdivision. -/
 theorem inflate {S : SubstSystem d} (U : HonestSource S) :
     ∃ V : HonestSource S,
-      Nonempty (ScaleTailEquiv U V 0 1 (AffineIsometryEquiv.refl ℝ (E d))) := by
-  sorry
+      Nonempty (ScaleTailEquiv U V 0 1 (AffineIsometryEquiv.refl ℝ (E d))) :=
+  ⟨inflate_step8_source U, inflate_step9_tail U⟩
 
 /-! Private construction for `coarsen` (V4 1.13(b)). -/
 

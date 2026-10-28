@@ -2063,6 +2063,14 @@ private theorem routing_constant_step3_same_parent_ports_step4_approaches
     exact ⟨hxt, hxO.1⟩
   exact ⟨x, ⟨hxt, hxint⟩, hxO.2⟩
 
+open private honest_rows_step1_cont_geometry_step1_spans
+  honest_rows_step4_cont_packet_step1_germ
+  honest_rows_step4_cont_packet_step3_relint_transfer
+  honest_rows_step6_end_E2_step3_placed_cell
+  restrictionOp_source_step5_cell_closure from Enforce.State.Rows in
+open private host_step_step1_seed_step5_trace_step5_placed_span
+  host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_identify
+  from Enforce.Parser.Host in
 /-- Step 5 of the V4 proof of `routing_constant_step3_same_parent_ports` (V4 8.3, 3.10):
 "the geometry of θ_q identifies f₁- and f₂-ports (faces of the recorded
 cones)". In a complete honest END geometry with the actual birth header,
@@ -2082,7 +2090,62 @@ private theorem routing_constant_step3_same_parent_ports_step5_identify_port
     (hdesc : (M.move φ).IsDescendant 0 g.leftNode (g.height - 1))
     (hfacet : (M.move φ).cell 0 e.val ⊆ g.carrier) :
     ∃ a ∈ Z.primitivePorts, a.tile = M ∧ a.facet.val = e.val := by
-  sorry
+  classical
+  have hheight : g.height - 1 + 1 = g.height := by have := g.positive; omega
+  let χ := P.incidencePlacement g.birth g.height g.incidence
+  let F : Cell d := g.incidence.val.leftFacet.val
+  let K : Set (E d) := χ '' F.carrier
+  let T : Set (E d) := tangentCone K p
+  have hK : g.carrier = K := rfl
+  have hpv : vertexPoint v ∈ e.val.carrier := by
+    apply hv
+    rw [vertexPoint_spec v]
+    exact Set.mem_singleton _
+  have hpcell : p ∈ (M.move φ).cell 0 e.val := by
+    rw [← hvp]
+    exact ⟨vertexPoint v, hpv, rfl⟩
+  have hpK : p ∈ K := hfacet hpcell
+  -- the primitive cone of the actual birth header
+  have hG : Z.header.primitiveCones g.incidence =
+      some (φ.linearIsometryEquiv.symm '' T) := by
+    rw [hheader]
+    simp only [routing_constant_step3_same_parent_ports_step3_header, hheight]
+    rw [if_pos ⟨g.parent_type, hpK⟩]
+  -- the translated cone agrees with the facet near `p`
+  have hgerm := honest_rows_step4_cont_packet_step1_germ
+    (honest_rows_step6_end_E2_step3_placed_cell χ F).1 p
+  obtain ⟨V, hVsub, hV, hpV⟩ := _root_.mem_nhds_iff.mp hgerm
+  let L : Set (E d) := (fun u => p + u) '' T
+  have heq : K ∩ V = L ∩ V := by
+    ext x
+    constructor
+    · rintro ⟨hx, hxV⟩
+      refine ⟨⟨x - p, (hVsub hxV).mp hx, by abel⟩, hxV⟩
+    · rintro ⟨⟨u, hu, rfl⟩, hxV⟩
+      refine ⟨(hVsub hxV).mpr ?_, hxV⟩
+      simpa only [add_sub_cancel_left] using hu
+  have hspan : affineSpan ℝ K = affineSpan ℝ L :=
+    (host_step_step1_seed_step5_trace_step5_placed_span χ F p hpK).symm
+  have hdim : e.val.dim = F.dim :=
+    (Finset.mem_filter.mp e.property).2.trans
+      (Finset.mem_filter.mp g.incidence.val.leftFacet.property).2.symm
+  have hrel : relint ((M.move φ).cell 0 e.val) ⊆ relint K :=
+    (honest_rows_step1_cont_geometry_step1_spans ((M.move φ).prototypeFrame 0) χ
+      e.val F hdim hfacet).2
+  have hcl : p ∈ closure (relint ((M.move φ).cell 0 e.val)) := by
+    rw [restrictionOp_source_step5_cell_closure]
+    exact hpcell
+  have hcone : (fun w => φ (vertexPoint Z.vertex) + φ.linearIsometryEquiv w) ''
+      (φ.linearIsometryEquiv.symm '' T) = L := by
+    rw [Set.image_image, hapex]
+    simp only [LinearIsometryEquiv.apply_symm_apply, L]
+  apply host_step_step2_strand_step3_no_false_endpoint_step3_facet_port_step3_identify
+    φ Z hZ g.incidence _ hG M hM e
+  rw [hcone, hapex, _root_.mem_closure_iff]
+  intro U hU hpU
+  obtain ⟨y, hyUV, hy⟩ := _root_.mem_closure_iff.mp hcl (U ∩ V) (hU.inter hV) ⟨hpU, hpV⟩
+  exact ⟨y, hyUV.1, hy,
+    honest_rows_step4_cont_packet_step3_relint_transfer hspan hV heq (hrel hy) hyUV.2⟩
 
 /-- Step 6 of the V4 proof of `routing_constant_step3_same_parent_ports` (V4 8.3, 2.17, 3.3):
 "Theorem 2.17 and Lemma 3.3 put the ports ... into the endpoint template".

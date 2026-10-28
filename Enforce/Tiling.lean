@@ -1470,12 +1470,598 @@ theorem inflate {S : SubstSystem d} (U : HonestSource S) :
       Nonempty (ScaleTailEquiv U V 0 1 (AffineIsometryEquiv.refl ℝ (E d))) := by
   sorry
 
+/-! Private construction for `coarsen` (V4 1.13(b)). -/
+
+/-- V4 1.13(b): the frame `φ` has orthogonal part in the coset `Q H`. -/
+private abbrev coarsen_InC {S : SubstSystem d} (U : HonestSource S) (φ : Iso d) : Prop :=
+  ∃ R ∈ S.rotGroup, φ.linearIsometryEquiv = U.coset * R
+
+private theorem coarsen_lin_apply (φ : Iso d) (v : E d) :
+    φ v = φ.linearIsometryEquiv v + φ 0 := by
+  have h := φ.map_vadd (0 : E d) v
+  simpa [vadd_eq_add] using h
+
+private theorem coarsen_rigid_apply (R : Ortho d) (t x : E d) :
+    rigidMotion R t x = R x + t := rfl
+
+/-- V4 1.13: `Λ^z = Q σ^z Q⁻¹`. -/
+private theorem coarsen_expansion_zpow {S : SubstSystem d} (U : HonestSource S) (z : ℤ)
+    (x : E d) : (U.expansion ^ z) x = U.coset ((S.σ ^ z) (U.coset.symm x)) := by
+  have h : U.expansion = MulAut.conj U.coset.toLinearEquiv S.σ := rfl
+  rw [h, ← map_zpow, MulAut.conj_apply]
+  rfl
+
+/-- V4 1.13(b): `Λ^{-j} ∘ φ ∘ σ^j` is an isometry with frame in `Q H`, by V4 1.10(a). -/
+private theorem coarsen_frame_exists {S : SubstSystem d} (U : HonestSource S) (j : ℕ)
+    (φ : Iso d) (hφ : coarsen_InC U φ) :
+    ∃ ψ : Iso d, (∀ x, ψ x = (U.expansion ^ (-(j : ℤ))) (φ ((S.σ ^ j) x))) ∧
+      coarsen_InC U ψ := by
+  obtain ⟨R, hR, hφR⟩ := hφ
+  obtain ⟨Q, hQ, hQeq⟩ := S.rotGroup_conj_zpow (-(j : ℤ)) R hR
+  have hQx : ∀ x, Q x = (S.σ ^ (-(j : ℤ))) (R ((S.σ ^ j) x)) := by
+    intro x
+    have := congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) hQeq
+    simp only [linearConj, LinearEquiv.mul_apply, neg_neg, zpow_natCast,
+      LinearIsometryEquiv.coe_toLinearEquiv] at this
+    exact this
+  refine ⟨rigidMotion (U.coset * Q) ((U.expansion ^ (-(j : ℤ))) (φ 0)), ?_, Q, hQ, ?_⟩
+  · intro x
+    rw [coarsen_rigid_apply, coarsen_lin_apply φ ((S.σ ^ j) x), map_add]
+    congr 1
+    rw [hφR, coarsen_expansion_zpow, LinearIsometryEquiv.coe_mul, LinearIsometryEquiv.coe_mul,
+      Function.comp_apply, Function.comp_apply, LinearIsometryEquiv.symm_apply_apply, hQx]
+  · apply LinearIsometryEquiv.ext
+    intro v
+    have h := coarsen_lin_apply (rigidMotion (U.coset * Q) ((U.expansion ^ (-(j : ℤ))) (φ 0))) v
+    have h1 : rigidMotion (U.coset * Q) ((U.expansion ^ (-(j : ℤ))) (φ 0)) v =
+        (U.coset * Q) v + (U.expansion ^ (-(j : ℤ))) (φ 0) := rfl
+    have h2 : rigidMotion (U.coset * Q) ((U.expansion ^ (-(j : ℤ))) (φ 0)) 0 =
+        (U.expansion ^ (-(j : ℤ))) (φ 0) := by
+      show (U.coset * Q) 0 + (U.expansion ^ (-(j : ℤ))) (φ 0) = _
+      rw [map_zero (U.coset * Q), zero_add]
+    rw [h1, h2] at h
+    exact (add_right_cancel h).symm
+
+open Classical in
+/-- V4 1.13(b): the coarsened framed node `Λ^{-j} N` (frame `Λ^{-j} ∘ φ_N ∘ σ^j`). -/
+private def coarsen_node {S : SubstSystem d} (U : HonestSource S) (j : ℕ)
+    (N : FramedNode S) : FramedNode S :=
+  ⟨N.ty, if h : ∃ ψ : Iso d, ∀ x, ψ x = (U.expansion ^ (-(j : ℤ))) (N.frame ((S.σ ^ j) x))
+    then Classical.choose h else N.frame⟩
+
+private theorem coarsen_node_apply {S : SubstSystem d} (U : HonestSource S) (j : ℕ)
+    (N : FramedNode S) (hN : coarsen_InC U N.frame) (x : E d) :
+    (coarsen_node U j N).frame x = (U.expansion ^ (-(j : ℤ))) (N.frame ((S.σ ^ j) x)) := by
+  obtain ⟨ψ, hψ, -⟩ := coarsen_frame_exists U j N.frame hN
+  have h : ∃ ψ : Iso d, ∀ x, ψ x = (U.expansion ^ (-(j : ℤ))) (N.frame ((S.σ ^ j) x)) :=
+    ⟨ψ, hψ⟩
+  simp only [coarsen_node, dif_pos h]
+  exact Classical.choose_spec h x
+
+private theorem coarsen_node_InC {S : SubstSystem d} (U : HonestSource S) (j : ℕ)
+    (N : FramedNode S) (hN : coarsen_InC U N.frame) :
+    coarsen_InC U (coarsen_node U j N).frame := by
+  obtain ⟨ψ, hψ, hψC⟩ := coarsen_frame_exists U j N.frame hN
+  have : (coarsen_node U j N).frame = ψ := by
+    apply AffineIsometryEquiv.ext
+    intro x
+    rw [coarsen_node_apply U j N hN, hψ]
+  rw [this]
+  exact hψC
+
+private theorem coarsen_node_inj {S : SubstSystem d} (U : HonestSource S) (j : ℕ)
+    {N M : FramedNode S} (hN : coarsen_InC U N.frame) (hM : coarsen_InC U M.frame)
+    (h : coarsen_node U j N = coarsen_node U j M) : N = M := by
+  apply FramedNode.ext
+  · have h' := congrArg FramedNode.ty h
+    exact h'
+  · apply AffineIsometryEquiv.ext
+    intro y
+    have := congrArg (fun P : FramedNode S => P.frame ((S.σ ^ j).symm y)) h
+    simp only [coarsen_node_apply U j N hN, coarsen_node_apply U j M hM,
+      LinearEquiv.apply_symm_apply] at this
+    exact (U.expansion ^ (-(j : ℤ))).injective this
+
+private theorem coarsen_interior_image (L : E d ≃ₗ[ℝ] E d) (X : Set (E d)) :
+    interior (L '' X) = L '' interior X :=
+  (L.toContinuousLinearEquiv.toHomeomorph.image_interior X).symm
+
+/-- V4 1.13(b): the support of `Λ^{-j} N` is `Λ^{-j}` of the support of `N`. -/
+private theorem coarsen_carrier {S : SubstSystem d} (U : HonestSource S) (j n : ℕ)
+    (N : FramedNode S) (hN : coarsen_InC U N.frame) :
+    (coarsen_node U j N).carrier n = (U.expansion ^ (-(j : ℤ))) '' N.carrier (j + n) := by
+  change (coarsen_node U j N).frame '' ((S.σ ^ n) '' (S.proto N.ty).carrier) =
+    (U.expansion ^ (-(j : ℤ))) '' (N.frame '' ((S.σ ^ (j + n)) '' (S.proto N.ty).carrier))
+  simp only [Set.image_image]
+  congr 1
+  funext x
+  rw [coarsen_node_apply U j N hN, pow_add, LinearEquiv.mul_apply]
+
+/-- V4 1.13(b): coarsening commutes with taking prescribed children. -/
+private theorem coarsen_child {S : SubstSystem d} (U : HonestSource S) (j n : ℕ)
+    (P : FramedNode S) (i : S.I P.ty)
+    (hP : coarsen_InC U P.frame) (hc : coarsen_InC U (P.child (j + n) i).frame) :
+    coarsen_node U j (P.child (j + n) i) = (coarsen_node U j P).child n i := by
+  apply FramedNode.ext
+  · rfl
+  · apply AffineIsometryEquiv.ext
+    intro x
+    rw [coarsen_node_apply U j _ hc]
+    show (U.expansion ^ (-(j : ℤ))) (P.frame (S.placeChild (j + n) i ((S.σ ^ j) x))) =
+      (coarsen_node U j P).frame (S.placeChild n i x)
+    rw [coarsen_node_apply U j P hP, exists_honest_step7_place_shift]
+
+/-- V4 1.13(b): coarsening a height-`j` descendant gives a native tile. -/
+private theorem coarsen_desc {S : SubstSystem d} (U : HonestSource S) (j n : ℕ)
+    (N : FramedNode S) (w : S.RoleWord N.ty n)
+    (hN : coarsen_InC U N.frame)
+    (hM : coarsen_InC U ((S.descendantNode N.ty j n w).move N.frame).frame) :
+    (S.nativeTile N.ty n w).move (coarsen_node U j N).frame =
+      coarsen_node U j ((S.descendantNode N.ty j n w).move N.frame) := by
+  apply FramedNode.ext
+  · exact (exists_honest_step7_descendant_type N.ty j n w).symm
+  · apply AffineIsometryEquiv.ext
+    intro x
+    rw [coarsen_node_apply U j _ hM]
+    show (coarsen_node U j N).frame ((S.nativeTile N.ty n w).frame x) = _
+    rw [coarsen_node_apply U j N hN]
+    show _ = (U.expansion ^ (-(j : ℤ)))
+      (N.frame ((S.descendantNode N.ty j n w).frame ((S.σ ^ j) x)))
+    rw [exists_honest_step7_descendant_scaled]
+
+private theorem coarsen_desc_shift {S : SubstSystem d} (A : S.ι) (h n k : ℕ)
+    (w : S.RoleWord A k) (x : E d) :
+    (S.descendantNode A (h + n) k w).frame ((S.σ ^ h) x) =
+      (S.σ ^ h) ((S.descendantNode A n k w).frame x) := by
+  induction k generalizing A with
+  | zero => rfl
+  | succ k ih =>
+    change S.placeChild (h + n + k) w.1
+      ((S.descendantNode (S.child A w.1).ty (h + n) k w.2).frame ((S.σ ^ h) x)) =
+      (S.σ ^ h) (S.placeChild (n + k) w.1
+        ((S.descendantNode (S.child A w.1).ty n k w.2).frame x))
+    rw [ih, Nat.add_assoc, exists_honest_step7_place_shift]
+
+private theorem coarsen_desc_succ {S : SubstSystem d} (j k : ℕ) (N : FramedNode S)
+    (w : S.RoleWord N.ty (k + 1)) :
+    (S.descendantNode N.ty j (k + 1) w).move N.frame =
+      (S.descendantNode (N.child (j + k) w.1).ty j k w.2).move (N.child (j + k) w.1).frame := by
+  simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child,
+    AffineIsometryEquiv.trans_assoc]
+
+private theorem coarsen_desc_zero {S : SubstSystem d} (j : ℕ) (N : FramedNode S)
+    (w : S.RoleWord N.ty 0) : (S.descendantNode N.ty j 0 w).move N.frame = N := by
+  apply FramedNode.ext
+  · rfl
+  · apply AffineIsometryEquiv.ext
+    intro x
+    rfl
+
+private theorem coarsen_desc_mem {S : SubstSystem d} {T : Tiling S}
+    (H : CoherentHierarchy S T) (j : ℕ) :
+    ∀ (k : ℕ) (N : FramedNode S), N ∈ H.nodes (j + k) → ∀ w : S.RoleWord N.ty k,
+      (S.descendantNode N.ty j k w).move N.frame ∈ H.nodes j := by
+  intro k
+  induction k with
+  | zero =>
+    intro N hN w
+    rw [coarsen_desc_zero]
+    exact hN
+  | succ k ih =>
+    intro N hN w
+    rw [coarsen_desc_succ]
+    exact ih (N.child (j + k) w.1) (H.children_mem (j + k) N hN w.1) w.2
+
+private theorem coarsen_desc_subset {S : SubstSystem d} (j : ℕ) :
+    ∀ (k : ℕ) (N : FramedNode S) (w : S.RoleWord N.ty k),
+      ((S.descendantNode N.ty j k w).move N.frame).carrier j ⊆ N.carrier (j + k) := by
+  intro k
+  induction k with
+  | zero =>
+    intro N w
+    rw [coarsen_desc_zero]
+    exact le_rfl
+  | succ k ih =>
+    intro N w
+    rw [coarsen_desc_succ]
+    exact (ih (N.child (j + k) w.1) w.2).trans
+      (exists_honest_step7_child_subset N (j + k) w.1)
+
+private theorem coarsen_desc_exists {S : SubstSystem d} {T : Tiling S}
+    (H : CoherentHierarchy S T) (j : ℕ) :
+    ∀ (k : ℕ) (M : FramedNode S), M ∈ H.nodes j → ∃ P ∈ H.nodes (j + k),
+      ∃ w : S.RoleWord P.ty k, M = (S.descendantNode P.ty j k w).move P.frame := by
+  intro k
+  induction k with
+  | zero =>
+    intro M hM
+    exact ⟨M, hM, (), (coarsen_desc_zero j M ()).symm⟩
+  | succ k ih =>
+    intro M hM
+    obtain ⟨P, hP, w, rfl⟩ := ih M hM
+    have key : ∃ Q ∈ H.nodes (j + k + 1), ∃ i : S.I Q.ty, P = Q.child (j + k) i :=
+      ⟨_, (H.parent (j + k) ⟨P, hP⟩).2, H.role (j + k) ⟨P, hP⟩, H.child_eq (j + k) ⟨P, hP⟩⟩
+    obtain ⟨Q, hQ, i, rfl⟩ := key
+    exact ⟨Q, hQ, ⟨i, w⟩, (coarsen_desc_succ j k Q ⟨i, w⟩).symm⟩
+
+private theorem coarsen_node_interior {S : SubstSystem d} (N : FramedNode S) (n : ℕ) :
+    (interior (N.carrier n)).Nonempty := by
+  have h1 : (interior (S.supertile n N.ty)).Nonempty := by
+    change (interior ((S.σ ^ n) '' (S.proto N.ty).carrier)).Nonempty
+    rw [coarsen_interior_image]
+    exact (S.proto N.ty).interior_nonempty.image _
+  change (interior (N.frame.toHomeomorph '' S.supertile n N.ty)).Nonempty
+  rw [← N.frame.toHomeomorph.image_interior]
+  exact h1.image _
+
+/-- V4 1.13(b): the height-`n` nodes of the coarsened hierarchy, `Λ^{-j} 𝒩_{j+n}`. -/
+private abbrev coarsen_nodes {S : SubstSystem d} (U : HonestSource S) (j n : ℕ) :
+    Set (FramedNode S) :=
+  coarsen_node U j '' U.hierarchy.nodes (j + n)
+
+private def coarsen_rep {S : SubstSystem d} (U : HonestSource S) (j n : ℕ)
+    (N' : {N' // N' ∈ coarsen_nodes U j n}) : FramedNode S :=
+  Classical.choose N'.2
+
+private theorem coarsen_rep_mem {S : SubstSystem d} (U : HonestSource S) (j n : ℕ)
+    (N' : {N' // N' ∈ coarsen_nodes U j n}) :
+    coarsen_rep U j n N' ∈ U.hierarchy.nodes (j + n) :=
+  (Classical.choose_spec N'.2).1
+
+private theorem coarsen_rep_eq {S : SubstSystem d} (U : HonestSource S) (j n : ℕ)
+    (N' : {N' // N' ∈ coarsen_nodes U j n}) :
+    coarsen_node U j (coarsen_rep U j n N') = N'.val :=
+  (Classical.choose_spec N'.2).2
+
+private theorem coarsen_inC_of_mem {S : SubstSystem d} (U : HonestSource S) {m : ℕ}
+    {N : FramedNode S} (hN : N ∈ U.hierarchy.nodes m) : coarsen_InC U N.frame :=
+  U.frames_in_coset m N hN
+
+private theorem coarsen_zpow_cancel {S : SubstSystem d} (U : HonestSource S) (j : ℕ)
+    (x : E d) : (U.expansion ^ (-(j : ℤ))) ((U.expansion ^ (j : ℤ)) x) = x := by
+  rw [← LinearEquiv.mul_apply, ← zpow_add, neg_add_cancel, zpow_zero]
+  rfl
+
+private theorem coarsen_cover {S : SubstSystem d} (U : HonestSource S) (j n : ℕ) (x : E d) :
+    ∃ N ∈ coarsen_nodes U j n, x ∈ N.carrier n := by
+  obtain ⟨N, hN, hx⟩ := U.hierarchy.cover (j + n) ((U.expansion ^ (j : ℤ)) x)
+  refine ⟨coarsen_node U j N, Set.mem_image_of_mem _ hN, ?_⟩
+  rw [coarsen_carrier U j n N (coarsen_inC_of_mem U hN)]
+  exact ⟨_, hx, coarsen_zpow_cancel U j x⟩
+
+private theorem coarsen_disjoint {S : SubstSystem d} (U : HonestSource S) (j n : ℕ) :
+    (coarsen_nodes U j n).PairwiseDisjoint (fun N => interior (N.carrier n)) := by
+  rintro _ ⟨N₁, h₁, rfl⟩ _ ⟨N₂, h₂, rfl⟩ hne
+  have hne' : N₁ ≠ N₂ := fun h => hne (h ▸ rfl)
+  have hd : Disjoint (interior (N₁.carrier (j + n))) (interior (N₂.carrier (j + n))) :=
+    U.hierarchy.disjoint (j + n) h₁ h₂ hne'
+  change Disjoint (interior ((coarsen_node U j N₁).carrier n))
+    (interior ((coarsen_node U j N₂).carrier n))
+  rw [coarsen_carrier U j n N₁ (coarsen_inC_of_mem U h₁),
+    coarsen_carrier U j n N₂ (coarsen_inC_of_mem U h₂),
+    coarsen_interior_image, coarsen_interior_image]
+  exact Set.disjoint_image_of_injective (U.expansion ^ (-(j : ℤ))).injective hd
+
+/-- V4 1.13(b): `Λ^{-j}(𝒩_j)` as a tiling. -/
+private def coarsen_tiling {S : SubstSystem d} (U : HonestSource S) (j : ℕ) : Tiling S where
+  tiles := {t | ∃ N ∈ coarsen_nodes U j 0, N.toTile = t}
+  cover := by
+    intro x
+    obtain ⟨N, hN, hx⟩ := coarsen_cover U j 0 x
+    exact ⟨N.toTile, ⟨N, hN, rfl⟩, by rwa [← exists_honest_step7_zero_carrier]⟩
+  disjoint := by
+    rintro _ ⟨N₁, h₁, rfl⟩ _ ⟨N₂, h₂, rfl⟩ hne
+    have hne' : N₁ ≠ N₂ := fun h => hne (h ▸ rfl)
+    have hd : Disjoint (interior (N₁.carrier 0)) (interior (N₂.carrier 0)) :=
+      coarsen_disjoint U j 0 h₁ h₂ hne'
+    rw [exists_honest_step7_zero_carrier, exists_honest_step7_zero_carrier] at hd
+    exact hd
+
+/-- V4 1.13(b): native tiles of a coarsened node are the coarsened height-`j`
+descendants of the original node. -/
+private theorem coarsen_native {S : SubstSystem d} (U : HonestSource S) (j n : ℕ)
+    (N : FramedNode S) (hN : N ∈ U.hierarchy.nodes (j + n)) :
+    {t | t ∈ (coarsen_tiling U j).tiles ∧ t.carrier ⊆ (coarsen_node U j N).carrier n} =
+      {t | ∃ w : S.RoleWord (coarsen_node U j N).ty n,
+        ((S.nativeTile (coarsen_node U j N).ty n w).move
+          (coarsen_node U j N).frame).toTile = t} := by
+  have hNC := coarsen_inC_of_mem U hN
+  ext t
+  constructor
+  · rintro ⟨⟨_, ⟨M, hM, rfl⟩, rfl⟩, hsub⟩
+    have hM' : M ∈ U.hierarchy.nodes j := hM
+    have hMC := coarsen_inC_of_mem U hM'
+    rw [← exists_honest_step7_zero_carrier, coarsen_carrier U j 0 M hMC,
+      coarsen_carrier U j n N hNC] at hsub
+    have hsub' : M.carrier (j + 0) ⊆ N.carrier (j + n) :=
+      (Set.image_subset_image_iff (U.expansion ^ (-(j : ℤ))).injective).mp hsub
+    obtain ⟨P, hP, w, rfl⟩ := coarsen_desc_exists U.hierarchy j n M hM'
+    have hPN : P = N := by
+      obtain ⟨x, hx⟩ := coarsen_node_interior ((S.descendantNode P.ty j n w).move P.frame) j
+      by_contra hne
+      exact Set.disjoint_left.mp (U.hierarchy.disjoint (j + n) hP hN hne)
+        (interior_mono (coarsen_desc_subset j n P w) hx) (interior_mono hsub' hx)
+    subst hPN
+    exact ⟨w, congrArg FramedNode.toTile (coarsen_desc U j n _ w hNC hMC)⟩
+  · rintro ⟨w, rfl⟩
+    have hM := coarsen_desc_mem U.hierarchy j n N hN w
+    have hMC := coarsen_inC_of_mem U hM
+    have heq := coarsen_desc U j n N w hNC hMC
+    refine ⟨(show ∃ N' ∈ coarsen_nodes U j 0, N'.toTile = _ from
+      ⟨_, Set.mem_image_of_mem _ hM, (congrArg FramedNode.toTile heq).symm⟩), ?_⟩
+    · rw [← exists_honest_step7_zero_carrier]
+      change ((S.nativeTile N.ty n w).move (coarsen_node U j N).frame).carrier 0 ⊆ _
+      rw [heq, coarsen_carrier U j 0 _ hMC, coarsen_carrier U j n N hNC]
+      exact Set.image_mono (coarsen_desc_subset j n N w)
+
+/-- V4 1.13(b): the inherited hierarchy `(Λ^{-j} 𝒩_{j+n})_n`. -/
+private def coarsen_hier {S : SubstSystem d} (U : HonestSource S) (j : ℕ) :
+    CoherentHierarchy S (coarsen_tiling U j) where
+  nodes := coarsen_nodes U j
+  ground := rfl
+  cover := coarsen_cover U j
+  disjoint := coarsen_disjoint U j
+  parent n N' := ⟨coarsen_node U j
+      (U.hierarchy.parent (j + n) ⟨coarsen_rep U j n N', coarsen_rep_mem U j n N'⟩).val,
+    Set.mem_image_of_mem _ (U.hierarchy.parent (j + n)
+      ⟨coarsen_rep U j n N', coarsen_rep_mem U j n N'⟩).2⟩
+  role n N' := U.hierarchy.role (j + n) ⟨coarsen_rep U j n N', coarsen_rep_mem U j n N'⟩
+  child_eq := by
+    intro n N'
+    have h1 := U.hierarchy.child_eq (j + n) ⟨coarsen_rep U j n N', coarsen_rep_mem U j n N'⟩
+    refine (coarsen_rep_eq U j n N').symm.trans ?_
+    refine (congrArg (coarsen_node U j) h1).trans ?_
+    apply coarsen_child
+    · exact coarsen_inC_of_mem U (U.hierarchy.parent (j + n) _).2
+    · rw [← h1]
+      exact coarsen_inC_of_mem U (coarsen_rep_mem U j n N')
+  children_mem := by
+    rintro n _ ⟨P, hP, rfl⟩ i
+    have hc := U.hierarchy.children_mem (j + n) P hP i
+    refine ⟨P.child (j + n) i, hc, ?_⟩
+    exact coarsen_child U j n P i (coarsen_inC_of_mem U hP) (coarsen_inC_of_mem U hc)
+  parent_unique := by
+    rintro n N' _ ⟨P, hP, rfl⟩ ⟨i, hi⟩
+    have hc := U.hierarchy.children_mem (j + n) P hP i
+    have h2 : coarsen_node U j (coarsen_rep U j n N') =
+        coarsen_node U j (P.child (j + n) i) := by
+      rw [coarsen_rep_eq, hi,
+        coarsen_child U j n P i (coarsen_inC_of_mem U hP) (coarsen_inC_of_mem U hc)]
+    have h3 : coarsen_rep U j n N' = P.child (j + n) i :=
+      coarsen_node_inj U j (coarsen_inC_of_mem U (coarsen_rep_mem U j n N'))
+        (coarsen_inC_of_mem U hc) h2
+    have h4 := U.hierarchy.parent_unique (j + n)
+      ⟨coarsen_rep U j n N', coarsen_rep_mem U j n N'⟩ P hP ⟨i, h3⟩
+    exact congrArg (coarsen_node U j) h4
+  native_tiles := by
+    rintro n _ ⟨N, hN, rfl⟩
+    exact coarsen_native U j n N hN
+
+private theorem coarsen_supertile_shift {S : SubstSystem d} (j k : ℕ) (A : S.ι) :
+    (S.σ ^ j).symm '' S.supertile (j + k) A = S.supertile k A := by
+  simp only [SubstSystem.supertile, Set.image_image, pow_add, LinearEquiv.mul_apply,
+    LinearEquiv.symm_apply_apply]
+
+/-- V4 1.13(b): every finite set of coarsened nodes has a legal context
+`σ^{-j} ψ Λ^j` in `σ^{n-j} A`, from the context `ψ` of the original nodes. -/
+private theorem coarsen_contexts {S : SubstSystem d} (U : HonestSource S) (j : ℕ)
+    (F' : Finset (coarsen_hier U j).Node) : Nonempty (LegalContext (coarsen_hier U j) F') := by
+  classical
+  obtain ⟨M₀, hM₀, -⟩ := U.hierarchy.cover j 0
+  let back : (coarsen_hier U j).Node → U.hierarchy.Node := fun r =>
+    ⟨j + r.1, ⟨coarsen_rep U j r.1 r.2, coarsen_rep_mem U j r.1 r.2⟩⟩
+  let F : Finset U.hierarchy.Node := insert ⟨j, ⟨M₀, hM₀⟩⟩ (F'.image back)
+  obtain ⟨ctx⟩ := U.contexts F
+  have h0 : (⟨j, ⟨M₀, hM₀⟩⟩ : U.hierarchy.Node) ∈ F := Finset.mem_insert_self _ _
+  obtain ⟨depth₀, hd₀, w₀, hw₀⟩ := ctx.standard _ h0
+  have hw₀' : M₀.move ctx.placement = S.descendantNode ctx.ty j depth₀ w₀ := hw₀
+  have hd₀' : ctx.height = j + depth₀ := hd₀
+  let ψ' : Iso d := (coarsen_node U j M₀).frame.symm.trans (S.nativeTile ctx.ty depth₀ w₀).frame
+  have hψ' : ∀ x, ψ' ((U.expansion ^ (-(j : ℤ))) x) = (S.σ ^ j).symm (ctx.placement x) := by
+    intro x
+    obtain ⟨z, hz⟩ : ∃ z, (coarsen_node U j M₀).frame z = (U.expansion ^ (-(j : ℤ))) x :=
+      ⟨_, AffineIsometryEquiv.apply_symm_apply _ _⟩
+    have hz' : M₀.frame ((S.σ ^ j) z) = x := by
+      rw [coarsen_node_apply U j M₀ (coarsen_inC_of_mem U hM₀)] at hz
+      exact (U.expansion ^ (-(j : ℤ))).injective hz
+    have hstep : ψ' ((U.expansion ^ (-(j : ℤ))) x) = (S.nativeTile ctx.ty depth₀ w₀).frame z := by
+      rw [← hz]
+      show (S.nativeTile ctx.ty depth₀ w₀).frame
+        ((coarsen_node U j M₀).frame.symm ((coarsen_node U j M₀).frame z)) = _
+      rw [AffineIsometryEquiv.symm_apply_apply]
+    have h2 : ctx.placement (M₀.frame ((S.σ ^ j) z)) =
+        (S.descendantNode ctx.ty j depth₀ w₀).frame ((S.σ ^ j) z) :=
+      congrArg (fun N : FramedNode S => N.frame ((S.σ ^ j) z)) hw₀'
+
+    rw [hstep, ← hz', h2, exists_honest_step7_descendant_scaled, LinearEquiv.symm_apply_apply]
+  have hback : ∀ r ∈ F', back r ∈ F := fun r hr =>
+    Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ hr)
+  refine ⟨{
+    height := ctx.height - j
+    ty := ctx.ty
+    placement := ψ'
+    standard := ?_
+    interior := ?_
+    edges := ?_ }⟩
+  · intro r hr
+    obtain ⟨depth, hd, w, hw⟩ := ctx.standard _ (hback r hr)
+    have hd' : ctx.height = j + r.1 + depth := hd
+    have hw' : (coarsen_rep U j r.1 r.2).move ctx.placement =
+        S.descendantNode ctx.ty (j + r.1) depth w := hw
+    refine ⟨depth, by omega, w, ?_⟩
+    rw [← coarsen_rep_eq U j r.1 r.2]
+    apply FramedNode.ext
+    · have := congrArg FramedNode.ty hw'
+      change (coarsen_rep U j r.1 r.2).ty = _
+      rw [show (coarsen_rep U j r.1 r.2).ty = (S.descendantNode ctx.ty (j + r.1) depth w).ty
+        from this, exists_honest_step7_descendant_type, exists_honest_step7_descendant_type]
+    · apply AffineIsometryEquiv.ext
+      intro x
+      show ψ' ((coarsen_node U j (coarsen_rep U j r.1 r.2)).frame x) = _
+      rw [coarsen_node_apply U j _ (coarsen_inC_of_mem U (coarsen_rep_mem U j r.1 r.2)), hψ']
+      have h3 : ctx.placement ((coarsen_rep U j r.1 r.2).frame ((S.σ ^ j) x)) =
+          (S.descendantNode ctx.ty (j + r.1) depth w).frame ((S.σ ^ j) x) :=
+        congrArg (fun N : FramedNode S => N.frame ((S.σ ^ j) x)) hw'
+
+      rw [h3, coarsen_desc_shift, LinearEquiv.symm_apply_apply]
+  · intro r hr
+    have hsub := ctx.interior _ (hback r hr)
+    change ctx.placement '' (coarsen_rep U j r.1 r.2).carrier (j + r.1) ⊆ _ at hsub
+    rw [hd₀'] at hsub
+    rw [hd₀', Nat.add_sub_cancel_left, ← coarsen_rep_eq U j r.1 r.2,
+      coarsen_carrier U j r.1 _ (coarsen_inC_of_mem U (coarsen_rep_mem U j r.1 r.2)),
+      Set.image_image]
+    calc (fun x => ψ' ((U.expansion ^ (-(j : ℤ))) x)) ''
+          (coarsen_rep U j r.1 r.2).carrier (j + r.1)
+        = (S.σ ^ j).symm '' (ctx.placement '' (coarsen_rep U j r.1 r.2).carrier (j + r.1)) := by
+          rw [Set.image_image]
+          congr 1
+          funext x
+          exact hψ' x
+      _ ⊆ (S.σ ^ j).symm '' interior (S.supertile (j + depth₀) ctx.ty) := Set.image_mono hsub
+      _ = interior (S.supertile depth₀ ctx.ty) := by
+          rw [← coarsen_interior_image, coarsen_supertile_shift]
+  · intro r _ _
+    exact congrArg (fun N : FramedNode S => N.move ψ') ((coarsen_hier U j).child_eq r.1 r.2)
+
+/-- Generic: a tiling carrying a hierarchy with legal contexts is in the species. -/
+private theorem coarsen_species_of_contexts {S : SubstSystem d} {T : Tiling S}
+    (H : CoherentHierarchy S T)
+    (hctx : ∀ F : Finset H.Node, Nonempty (LegalContext H F)) : T ∈ S.Species := by
+  classical
+  intro P hP
+  have hrep : ∀ t : P.tiles, ∃ N, N ∈ H.nodes 0 ∧ N.toTile = t.val := by
+    intro t
+    have : t.val ∈ {t | ∃ N ∈ H.nodes 0, N.toTile = t} := by
+      rw [H.ground]
+      exact hP t.property
+    obtain ⟨N, hN, h⟩ := this
+    exact ⟨N, hN, h⟩
+  choose rep hrepmem hrepeq using hrep
+  let F : Finset H.Node :=
+    Finset.univ.image (fun t : P.tiles => (⟨0, ⟨rep t, hrepmem t⟩⟩ : H.Node))
+  have hF : ∀ t : P.tiles, (⟨0, ⟨rep t, hrepmem t⟩⟩ : H.Node) ∈ F := fun t =>
+    Finset.mem_image_of_mem _ (Finset.mem_univ _)
+  obtain ⟨ctx⟩ := hctx F
+  refine ⟨ctx.height, ctx.ty, ctx.placement, ?_, ?_⟩
+  · intro t ht
+    obtain ⟨w, hw⟩ := exists_honest_step7_standard_ground _ _ _ (ctx.standard _ (hF ⟨t, ht⟩))
+    refine ⟨w, ?_⟩
+    have h1 := hrepeq ⟨t, ht⟩
+    calc t.move ctx.placement = (rep ⟨t, ht⟩).toTile.move ctx.placement := by rw [h1]
+      _ = ((rep ⟨t, ht⟩).move ctx.placement).toTile :=
+          (exists_honest_step7_move_toTile _ _).symm
+      _ = _ := congrArg FramedNode.toTile hw
+  · rintro _ ⟨x, hx, rfl⟩
+    simp only [Patch.support, Set.mem_iUnion] at hx
+    obtain ⟨t, ht, hxt⟩ := hx
+    refine ctx.interior _ (hF ⟨t, ht⟩) ⟨x, ?_, rfl⟩
+    change x ∈ (rep ⟨t, ht⟩).carrier 0
+    rw [exists_honest_step7_zero_carrier, hrepeq]
+    exact hxt
+
+/-- V4 1.13(b): the coarsened honest source. -/
+private def coarsen_source {S : SubstSystem d} (U : HonestSource S) (j : ℕ) :
+    HonestSource S where
+  tiling := coarsen_tiling U j
+  mem_species := coarsen_species_of_contexts (coarsen_hier U j) (coarsen_contexts U j)
+  hierarchy := coarsen_hier U j
+  contexts := coarsen_contexts U j
+  coset := U.coset
+  frames_in_coset := by
+    rintro n _ ⟨N, hN, rfl⟩
+    exact coarsen_node_InC U j N (coarsen_inC_of_mem U hN)
+
+private theorem coarsen_back_eq {S : SubstSystem d} (U : HonestSource S) (j m : ℕ)
+    (N : FramedNode S) (hN : N ∈ U.hierarchy.nodes m) (hm : j ≤ m)
+    (h' : coarsen_node U j N ∈ coarsen_nodes U j (m - j)) :
+    (⟨j + (m - j), ⟨coarsen_rep U j (m - j) ⟨coarsen_node U j N, h'⟩,
+      coarsen_rep_mem U j (m - j) _⟩⟩ : U.hierarchy.Node) = ⟨m, ⟨N, hN⟩⟩ := by
+  apply Sigma.subtype_ext
+  · exact Nat.add_sub_cancel' hm
+  · exact coarsen_node_inj U j (coarsen_inC_of_mem U (coarsen_rep_mem U j (m - j) _))
+      (coarsen_inC_of_mem U hN) (coarsen_rep_eq U j (m - j) _)
+
+private theorem coarsen_mem_shift {S : SubstSystem d} (U : HonestSource S) (j m : ℕ)
+    (N : FramedNode S) (hN : N ∈ U.hierarchy.nodes m) (hm : j ≤ m) :
+    coarsen_node U j N ∈ coarsen_nodes U j (m - j) := by
+  refine ⟨N, ?_, rfl⟩
+  rwa [Nat.add_sub_cancel' hm]
+
+/-- V4 1.13(b): the bijection of the surviving tails. -/
+private def coarsen_equiv {S : SubstSystem d} (U : HonestSource S) (j : ℕ) :
+    U.hierarchy.Tail j ≃ (coarsen_source U j).hierarchy.Tail 0 where
+  toFun q := ⟨⟨q.val.1 - j, ⟨coarsen_node U j q.val.2.val,
+    coarsen_mem_shift U j q.val.1 q.val.2.val q.val.2.property q.property⟩⟩, Nat.zero_le _⟩
+  invFun r := ⟨⟨j + r.val.1, ⟨coarsen_rep U j r.val.1 r.val.2,
+    coarsen_rep_mem U j r.val.1 r.val.2⟩⟩, Nat.le_add_right _ _⟩
+  left_inv q := Subtype.ext (coarsen_back_eq U j q.val.1 q.val.2.val q.val.2.property
+    q.property _)
+  right_inv r := Subtype.ext (Sigma.subtype_ext (Nat.add_sub_cancel_left j r.val.1)
+    (coarsen_rep_eq U j r.val.1 r.val.2))
+
+private theorem coarsen_frames {S : SubstSystem d} (U : HonestSource S) (j m : ℕ)
+    (N : FramedNode S) (hN : N ∈ U.hierarchy.nodes m) (hm : j ≤ m) :
+    (coarsen_node U j N).prototypeFrame (m - j) =
+      (N.prototypeFrame m).trans
+        (((U.expansion ^ (((0 : ℕ) : ℤ) - (j : ℤ))).toAffineEquiv).trans
+          (AffineIsometryEquiv.refl ℝ (E d)).toAffineEquiv) := by
+  have hz : ((0 : ℕ) : ℤ) - (j : ℤ) = -(j : ℤ) := by simp
+  rw [hz]
+  apply AffineEquiv.ext
+  intro x
+  change (coarsen_node U j N).frame ((S.σ ^ (m - j)) x) =
+    (U.expansion ^ (-(j : ℤ))) (N.frame ((S.σ ^ m) x))
+  rw [coarsen_node_apply U j N (coarsen_inC_of_mem U hN), ← LinearEquiv.mul_apply, ← pow_add,
+    Nat.add_sub_cancel' hm]
+
+private theorem coarsen_pullback (P P' : E d ≃ᵃ[ℝ] E d) (g₁ g₂ : E d → E d)
+    (h : ∀ x, P' x = g₁ (g₂ (P x))) (K : Set (E d)) :
+    P'.symm '' (g₁ '' (g₂ '' K)) = P.symm '' K := by
+  rw [Set.image_image g₁ g₂, Set.image_image]
+  congr 1
+  funext k
+  show P'.symm (g₁ (g₂ k)) = P.symm k
+  apply P'.injective
+  rw [AffineEquiv.apply_symm_apply, h, AffineEquiv.apply_symm_apply]
+
+/-- V4 1.13(b): exact correspondence of the tails under `Λ^{-j}`. -/
+private def coarsen_tail {S : SubstSystem d} (U : HonestSource S) (j : ℕ) :
+    ScaleTailEquiv U (coarsen_source U j) j 0 (AffineIsometryEquiv.refl ℝ (E d)) where
+  toEquiv := coarsen_equiv U j
+  heights q := by
+    show q.val.1 - j + j = q.val.1 + 0
+    have := q.property
+    omega
+  types q := rfl
+  frames q := coarsen_frames U j q.val.1 q.val.2.val q.val.2.property q.property
+  parents q := by
+    apply Subtype.ext
+    apply Sigma.subtype_ext
+    · show q.val.1 + 1 - j = q.val.1 - j + 1
+      have := q.property
+      omega
+    · show coarsen_node U j (U.hierarchy.parentNode q.val).2.val =
+        coarsen_node U j (U.hierarchy.parentNode ⟨j + (q.val.1 - j), ⟨coarsen_rep U j (q.val.1 - j)
+          ⟨coarsen_node U j q.val.2.val, coarsen_mem_shift U j q.val.1 q.val.2.val
+            q.val.2.property q.property⟩, coarsen_rep_mem U j _ _⟩⟩).2.val
+      rw [coarsen_back_eq U j q.val.1 q.val.2.val q.val.2.property q.property]
+  roles q := by
+    show U.hierarchy.nodeRole ⟨j + (q.val.1 - j), ⟨coarsen_rep U j (q.val.1 - j)
+          ⟨coarsen_node U j q.val.2.val, coarsen_mem_shift U j q.val.1 q.val.2.val
+            q.val.2.property q.property⟩, coarsen_rep_mem U j _ _⟩⟩ = _
+    rw [coarsen_back_eq U j q.val.1 q.val.2.val q.val.2.property q.property]
+  prototype_sets q K := by
+    refine coarsen_pullback _ _ _ _ (fun x => ?_) K
+    exact congrArg (fun f : E d ≃ᵃ[ℝ] E d => f x)
+      (coarsen_frames U j q.val.1 q.val.2.val q.val.2.property q.property)
+
 /-- T9, V4 1.13(b): for every positive `j`, coarsening the height-`j` nodes
 by `Λ⁻ʲ` gives an honest source and exactly its inherited hierarchy. -/
 theorem coarsen {S : SubstSystem d} (U : HonestSource S) (j : ℕ) (hj : 1 ≤ j) :
     ∃ V : HonestSource S,
       Nonempty (ScaleTailEquiv U V j 0 (AffineIsometryEquiv.refl ℝ (E d))) := by
-  sorry
+  exact ⟨coarsen_source U j, ⟨coarsen_tail U j⟩⟩
 
 /-- T9, V4 1.13(c): transfer any node to any specified nonnegative height,
 preserving the entire surviving hierarchy and all prototype-frame data.

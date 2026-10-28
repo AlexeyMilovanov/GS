@@ -1356,10 +1356,411 @@ theorem power_factorisation (S : SubstSystem d) [Nonempty S.ι] :
     power_factorisation_step6_normalizes (L₁ * L₁) hF hB,
     power_factorisation_step5_square_positive b L₁ hL⟩⟩
 
+section L_commutes_aux
+
+open Polynomial Module Filter Topology
+
+variable {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V] [FiniteDimensional ℝ V]
+
+/-! Auxiliary linear algebra for `L_commutes` (V4 1.16(a)). Instead of the polar decomposition
+and the spectrum of `Ad_L` we argue directly with generalized eigenspaces of `L`: on
+`G_ν ⊗ G_μ` the conjugates `L^n h L^{-n}` are `(μ/ν)^n` times a polynomial in `n`; boundedness
+for `n ≥ 0` and `n ≤ 0` kills the off-diagonal blocks and makes the diagonal ones constant. -/
+
+private theorem L_commutes_aux_poly_bdd_const (P : ℝ[X]) (M : ℝ) (hb : ∀ n : ℕ, |P.eval (n : ℝ)| ≤ M) :
+    P = Polynomial.C (P.coeff 0) := by
+  by_contra hne
+  have hdeg : 0 < P.degree := by
+    by_contra h
+    push_neg at h
+    exact hne (Polynomial.eq_C_of_degree_le_zero h)
+  have ht := (Polynomial.abs_tendsto_atTop P hdeg).comp tendsto_natCast_atTop_atTop
+  obtain ⟨n, hn⟩ := (ht.eventually_gt_atTop M).exists
+  exact absurd (hb n) (not_le.mpr hn)
+
+private theorem L_commutes_aux_scalar_key (r : ℝ) (hr : 0 < r) (P : ℝ[X]) (M : ℝ)
+    (hb : ∀ n : ℕ, |r ^ n * P.eval (n : ℝ)| ≤ M) :
+    (1 < r → P.eval 0 = 0) ∧ (r = 1 → P.eval 1 = P.eval 0) := by
+  constructor
+  · intro h1
+    have hb' : ∀ n : ℕ, |P.eval (n : ℝ)| ≤ M := by
+      intro n
+      have h1n : 1 ≤ r ^ n := one_le_pow₀ h1.le
+      calc |P.eval (n : ℝ)| = 1 * |P.eval (n : ℝ)| := by ring
+        _ ≤ r ^ n * |P.eval (n : ℝ)| := by gcongr
+        _ = |r ^ n * P.eval (n : ℝ)| := by
+          rw [abs_mul, abs_of_pos (pow_pos hr n)]
+        _ ≤ M := hb n
+    have hP := L_commutes_aux_poly_bdd_const P M hb'
+    set c := P.coeff 0
+    by_contra hc
+    have hc0 : c ≠ 0 := by
+      intro h0; apply hc; rw [hP]; simp [h0]
+    have ht := tendsto_pow_atTop_atTop_of_one_lt h1
+    obtain ⟨n, hn⟩ := (ht.eventually_gt_atTop (M / |c|)).exists
+    have := hb n
+    rw [hP, Polynomial.eval_C, abs_mul, abs_of_pos (pow_pos hr n)] at this
+    have hcpos : 0 < |c| := abs_pos.mpr hc0
+    rw [div_lt_iff₀ hcpos] at hn
+    linarith
+  · intro h1
+    subst h1
+    have hb' : ∀ n : ℕ, |P.eval (n : ℝ)| ≤ M := by
+      intro n; simpa using hb n
+    rw [L_commutes_aux_poly_bdd_const P M hb']
+    simp
+
+private theorem L_commutes_aux_choose_poly (a : ℕ) : ∃ Q : ℝ[X], ∀ n : ℕ, Q.eval (n : ℝ) = (n.choose a : ℝ) := by
+  refine ⟨Polynomial.C ((a.factorial : ℝ)⁻¹) * descPochhammer ℝ a, fun n => ?_⟩
+  rw [Polynomial.eval_mul, Polynomial.eval_C, descPochhammer_eval_eq_descFactorial,
+    Nat.descFactorial_eq_factorial_mul_choose]
+  have : (a.factorial : ℝ) ≠ 0 := by exact_mod_cast a.factorial_ne_zero
+  push_cast
+  field_simp
+
+private theorem L_commutes_aux_exp_lemma (A : Module.End ℝ V) (c : ℝ) (hc : c ≠ 0) (D : ℕ) (x : V)
+    (hx : ((A - c • 1) ^ D) x = 0) (n : ℕ) :
+    (A ^ n) x = c ^ n • ∑ k ∈ Finset.range D,
+      ((n.choose k : ℝ) * c⁻¹ ^ k) • ((A - c • 1) ^ k) x := by
+  set N := A - c • (1 : Module.End ℝ V) with hN
+  have hA : A = N + c • 1 := by simp [hN]
+  have hcomm : Commute N (c • (1 : Module.End ℝ V)) := (Commute.one_right N).smul_right c
+  have hzero : ∀ k, D ≤ k → (N ^ k) x = 0 := by
+    intro k hk
+    obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hk
+    rw [add_comm, pow_add, Module.End.mul_apply, hx, map_zero]
+  set T : ℕ → V := fun k => ((n.choose k : ℝ) * c ^ (n - k)) • (N ^ k) x with hT
+  have key : (A ^ n) x = ∑ k ∈ Finset.range (n + 1), T k := by
+    rw [hA, hcomm.add_pow, LinearMap.sum_apply]
+    refine Finset.sum_congr rfl fun k _ => ?_
+    simp only [hT, _root_.smul_pow, one_pow, Module.End.mul_apply, Module.End.natCast_apply,
+      LinearMap.smul_apply, Module.End.one_apply, map_smul, map_nsmul]
+    rw [← Nat.cast_smul_eq_nsmul ℝ]
+    module
+  have hT0 : ∀ k, (n + 1 ≤ k ∨ D ≤ k) → T k = 0 := by
+    intro k hk
+    rcases hk with hk | hk
+    · simp [hT, Nat.choose_eq_zero_of_lt (by omega : n < k)]
+    · simp [hT, hzero k hk]
+  have hTeq : ∀ k, ((c ^ n * ((n.choose k : ℝ) * c⁻¹ ^ k)) • (N ^ k) x) = T k := by
+    intro k
+    by_cases hk : k ≤ n
+    · simp only [hT]
+      congr 1
+      rw [pow_sub₀ c hc hk, inv_pow]
+      ring
+    · simp [hT, Nat.choose_eq_zero_of_lt (by omega : n < k)]
+  rw [key, Finset.smul_sum]
+  simp_rw [smul_smul, hTeq]
+  have h1 : ∑ k ∈ Finset.range (n + 1), T k = ∑ k ∈ Finset.range (max (n + 1) D), T k := by
+    apply Finset.sum_subset
+    · intro k hk; simp only [Finset.mem_range] at hk ⊢; omega
+    · intro k _ hk; simp only [Finset.mem_range] at hk; exact hT0 k (Or.inl (by omega))
+  have h2 : ∑ k ∈ Finset.range D, T k = ∑ k ∈ Finset.range (max (n + 1) D), T k := by
+    apply Finset.sum_subset
+    · intro k hk; simp only [Finset.mem_range] at hk ⊢; omega
+    · intro k _ hk; simp only [Finset.mem_range] at hk; exact hT0 k (Or.inr (by omega))
+  rw [h1, h2]
+
+
+private theorem L_commutes_aux_fam (A B Pi h : Module.End ℝ V) (α β : ℝ) (hα : α ≠ 0) (hβ : β ≠ 0)
+    (hαβ : 0 < α * β) (D : ℕ)
+    (hPi : ∀ u, ((A - α • 1) ^ D) (Pi u) = 0)
+    (hcomm : ∀ n : ℕ, ∀ u, Pi ((A ^ n) u) = (A ^ n) (Pi u))
+    (x : V) (hx : ((B - β • 1) ^ D) x = 0) (M : ℝ)
+    (hM : ∀ n : ℕ, ‖Pi ((A ^ n) (h ((B ^ n) x)))‖ ≤ M) :
+    (1 < α * β → Pi (h x) = 0) ∧ (α * β = 1 → Pi (A (h (B x))) = Pi (h x)) := by
+  have hpoly : ∀ y : V, ∃ P : ℝ[X], ∀ n : ℕ,
+      inner ℝ y (Pi ((A ^ n) (h ((B ^ n) x)))) = (α * β) ^ n * P.eval (n : ℝ) := by
+    intro y
+    choose Q hQ using L_commutes_aux_choose_poly
+    refine ⟨∑ b ∈ Finset.range D, ∑ a ∈ Finset.range D,
+      Polynomial.C (β⁻¹ ^ b * α⁻¹ ^ a *
+        inner ℝ y (((A - α • 1) ^ a) (Pi (h (((B - β • 1) ^ b) x))))) * Q b * Q a, ?_⟩
+    intro n
+    have hexpA : ∀ u, (A ^ n) (Pi u) = α ^ n • ∑ k ∈ Finset.range D,
+        ((n.choose k : ℝ) * α⁻¹ ^ k) • ((A - α • 1) ^ k) (Pi u) :=
+      fun u => L_commutes_aux_exp_lemma A α hα D _ (hPi u) n
+    rw [hcomm, L_commutes_aux_exp_lemma B β hβ D x hx n]
+    simp only [map_smul, map_sum, hexpA]
+    simp only [inner_smul_right, inner_sum, Polynomial.eval_finset_sum, Polynomial.eval_mul,
+      Polynomial.eval_C, hQ, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun b _ => Finset.sum_congr rfl fun a _ => ?_
+    ring
+  have hbd : ∀ y : V, ∀ n : ℕ, |inner ℝ y (Pi ((A ^ n) (h ((B ^ n) x))))| ≤ ‖y‖ * M := by
+    intro y n
+    calc _ ≤ ‖y‖ * ‖Pi ((A ^ n) (h ((B ^ n) x)))‖ := abs_real_inner_le_norm _ _
+      _ ≤ ‖y‖ * M := by gcongr; exact hM n
+  have hval : ∀ y : V, (1 < α * β → inner ℝ y (Pi (h x)) = 0) ∧
+      (α * β = 1 → inner ℝ y (Pi (A (h (B x)))) = inner ℝ y (Pi (h x))) := by
+    intro y
+    obtain ⟨P, hP⟩ := hpoly y
+    have hb : ∀ n : ℕ, |(α * β) ^ n * P.eval (n : ℝ)| ≤ ‖y‖ * M := by
+      intro n; rw [← hP n]; exact hbd y n
+    obtain ⟨k1, k2⟩ := L_commutes_aux_scalar_key (α * β) hαβ P _ hb
+    have h0 := hP 0
+    have h1 := hP 1
+    simp only [pow_zero, Module.End.one_apply, one_mul, Nat.cast_zero] at h0
+    simp only [pow_one, Nat.cast_one] at h1
+    refine ⟨fun hr => by rw [h0]; exact k1 hr, fun hr => ?_⟩
+    rw [h1, h0, hr, one_mul]
+    exact k2 hr
+  constructor
+  · intro hr
+    have := (hval (Pi (h x))).1 hr
+    exact inner_self_eq_zero.mp this
+  · intro hr
+    exact ext_inner_left ℝ fun y => (hval y).2 hr
+
+private theorem L_commutes_aux_card_roots_eq (p : ℝ[X])
+    (hp : ∀ z : ℂ, (p.map (algebraMap ℝ ℂ)).IsRoot z → z.im = 0) (hp0 : p ≠ 0) :
+    p.roots.card = p.natDegree := by
+  apply le_antisymm (Polynomial.card_roots' p)
+  have hsplit : (p.map (algebraMap ℝ ℂ)).roots.card = p.natDegree := by
+    rw [IsAlgClosed.card_roots_eq_natDegree, Polynomial.natDegree_map]
+  have hle : (p.map (algebraMap ℝ ℂ)).roots ≤ p.roots.map (algebraMap ℝ ℂ) := by
+    rw [Multiset.le_iff_count]
+    intro z
+    by_cases hz : z ∈ (p.map (algebraMap ℝ ℂ)).roots
+    · have hmap0 : p.map (algebraMap ℝ ℂ) ≠ 0 :=
+        Polynomial.map_ne_zero hp0
+      have hroot := (Polynomial.mem_roots hmap0).mp hz
+      have him := hp z hroot
+      have hzr : z = algebraMap ℝ ℂ z.re := by
+        apply Complex.ext <;> simp [him]
+      rw [hzr, Multiset.count_map_eq_count' _ _ (algebraMap ℝ ℂ).injective,
+        Polynomial.count_roots, Polynomial.count_roots,
+        ← Polynomial.eq_rootMultiplicity_map (algebraMap ℝ ℂ).injective]
+    · rw [Multiset.count_eq_zero_of_notMem hz]; exact Nat.zero_le _
+  have := Multiset.card_le_card hle
+  rw [Multiset.card_map, hsplit] at this
+  exact this
+
+private theorem L_commutes_aux_finrank_biSup_le (G : ℝ → Submodule ℝ V) (hG : iSupIndep G) (s : Finset ℝ) :
+    ∑ μ ∈ s, finrank ℝ (G μ) ≤ finrank ℝ (⨆ μ ∈ s, G μ : Submodule ℝ V) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert a s ha ih =>
+    rw [Finset.sum_insert ha]
+    have hdisj : Disjoint (G a) (⨆ μ ∈ s, G μ) := by
+      have := hG.disjoint_biSup (y := (s : Set ℝ)) (x := a) (by simpa using ha)
+      simpa using this
+    have hsup : (⨆ μ ∈ insert a s, G μ) = G a ⊔ ⨆ μ ∈ s, G μ := by
+      rw [Finset.iSup_insert]
+    rw [hsup]
+    have h := Submodule.finrank_sup_add_finrank_inf_eq (G a) (⨆ μ ∈ s, G μ)
+    rw [hdisj.eq_bot, finrank_bot, add_zero] at h
+    omega
+
+private theorem L_commutes_aux_core (f g h : Module.End ℝ V) (hfg : f * g = 1) (hgf : g * f = 1)
+    (hL : ∀ z : ℂ, (f.charpoly.map (algebraMap ℝ ℂ)).IsRoot z → z.im = 0 ∧ 0 < z.re)
+    (h1 : ∀ n : ℕ, ∀ x, ‖(f ^ n) (h ((g ^ n) x))‖ ≤ ‖x‖)
+    (h2 : ∀ n : ℕ, ∀ x, ‖(g ^ n) (h ((f ^ n) x))‖ ≤ ‖x‖) : f * h = h * f := by
+  classical
+  set s : Finset ℝ := f.charpoly.roots.toFinset with hs
+  set G : ℝ → Submodule ℝ V := fun μ => f.maxGenEigenspace μ with hGdef
+  set D : ℕ := finrank ℝ V with hD
+  have hcfg : Commute f g := hfg.trans hgf.symm
+  -- positivity of the eigenvalues
+  have hpos : ∀ μ ∈ s, 0 < μ := by
+    intro μ hμ
+    have hne : f.charpoly ≠ 0 := (LinearMap.charpoly_monic f).ne_zero
+    rw [hs, Multiset.mem_toFinset, Polynomial.mem_roots hne] at hμ
+    have hr : (f.charpoly.map (algebraMap ℝ ℂ)).IsRoot (algebraMap ℝ ℂ μ) := hμ.map
+    simpa using (hL _ hr).2
+  -- the generalized eigenspaces span
+  have hspan : (⨆ μ ∈ s, G μ) = ⊤ := by
+    apply Submodule.eq_top_of_finrank_eq
+    apply le_antisymm (Submodule.finrank_le _)
+    have hne : f.charpoly ≠ 0 := (LinearMap.charpoly_monic f).ne_zero
+    have hcard := L_commutes_aux_card_roots_eq f.charpoly (fun z hz => (hL z hz).1) hne
+    rw [LinearMap.charpoly_natDegree] at hcard
+    calc finrank ℝ V = f.charpoly.roots.card := hcard.symm
+      _ = ∑ μ ∈ s, f.charpoly.roots.count μ := (Multiset.toFinset_sum_count_eq _).symm
+      _ = ∑ μ ∈ s, finrank ℝ (G μ) := by
+        refine Finset.sum_congr rfl fun μ _ => ?_
+        rw [Polynomial.count_roots]
+        exact (LinearMap.finrank_maxGenEigenspace_eq f μ).symm
+      _ ≤ _ := L_commutes_aux_finrank_biSup_le G (Module.End.independent_maxGenEigenspace f) s
+  have hGker : ∀ μ, ∀ x ∈ G μ, ((f - μ • 1) ^ D) x = 0 := by
+    intro μ x hx
+    simp only [hGdef] at hx
+    rw [Module.End.maxGenEigenspace_eq_genEigenspace_finrank,
+      Module.End.mem_genEigenspace_nat] at hx
+    exact LinearMap.mem_ker.mp hx
+  have hGg : ∀ μ, μ ≠ 0 → ∀ x ∈ G μ, ((g - μ⁻¹ • 1) ^ D) x = 0 := by
+    intro μ hμ x hx
+    have heq : g - μ⁻¹ • (1 : Module.End ℝ V) = (-μ⁻¹) • (g * (f - μ • 1)) := by
+      rw [mul_sub, hgf, mul_smul_comm, mul_one, smul_sub, smul_smul, neg_mul,
+        inv_mul_cancel₀ hμ]
+      simp only [neg_smul, one_smul]
+      abel
+    have hc : Commute g (f - μ • 1) := hcfg.symm.sub_right ((Commute.one_right g).smul_right μ)
+    rw [heq, _root_.smul_pow, hc.mul_pow, LinearMap.smul_apply, Module.End.mul_apply, hGker μ x hx,
+      map_zero, smul_zero]
+  have hmapf : ∀ μ, ∀ x ∈ G μ, f x ∈ G μ := fun μ x hx =>
+    Module.End.mapsTo_maxGenEigenspace_of_comm (Commute.refl f) μ hx
+  have hmapg : ∀ μ, ∀ x ∈ G μ, g x ∈ G μ := fun μ x hx =>
+    Module.End.mapsTo_maxGenEigenspace_of_comm hcfg μ hx
+  have ext_on : ∀ A B : Module.End ℝ V, (∀ μ ∈ s, ∀ x ∈ G μ, A x = B x) → A = B := by
+    intro A B hAB
+    have hle : (⨆ μ ∈ s, G μ) ≤ LinearMap.ker (A - B) :=
+      iSup₂_le fun μ hμ x hx => by
+        simp [LinearMap.mem_ker, sub_eq_zero, hAB μ hμ x hx]
+    rw [hspan] at hle
+    ext x
+    have := hle (Submodule.mem_top (x := x))
+    simpa [LinearMap.mem_ker, sub_eq_zero] using this
+  -- projections
+  have hproj : ∀ μ ∈ s, ∃ π : Module.End ℝ V, (∀ x ∈ G μ, π x = x) ∧
+      (∀ ν ∈ s, ν ≠ μ → ∀ x ∈ G ν, π x = 0) ∧ (∀ u, π u ∈ G μ) := by
+    intro μ hμ
+    have hcompl : IsCompl (G μ) (⨆ ν ∈ s.erase μ, G ν) := by
+      constructor
+      · have := (Module.End.independent_maxGenEigenspace f).disjoint_biSup
+          (y := ((s.erase μ : Finset ℝ) : Set ℝ)) (x := μ) (by simp)
+        simpa [hGdef, and_comm] using this
+      · rw [codisjoint_iff, eq_top_iff, ← hspan]
+        refine iSup₂_le fun ν hν => ?_
+        by_cases hνμ : ν = μ
+        · subst hνμ; exact le_sup_left
+        · exact le_sup_of_le_right (le_iSup₂_of_le (f := fun ν (_ : ν ∈ s.erase μ) => G ν) ν
+            (Finset.mem_erase.mpr ⟨hνμ, hν⟩) le_rfl)
+    refine ⟨(G μ).subtype ∘ₗ Submodule.linearProjOfIsCompl _ _ hcompl, ?_, ?_, ?_⟩
+    · intro x hx
+      have := Submodule.linearProjOfIsCompl_apply_left hcompl ⟨x, hx⟩
+      exact congrArg Subtype.val this
+    · intro ν hν hνμ x hx
+      have hxq : x ∈ (⨆ ν ∈ s.erase μ, G ν) :=
+        (le_iSup₂_of_le (f := fun ν (_ : ν ∈ s.erase μ) => G ν) ν
+          (Finset.mem_erase.mpr ⟨hνμ, hν⟩) le_rfl) hx
+      simp only [LinearMap.comp_apply, Submodule.linearProjOfIsCompl_apply_right' hcompl x hxq,
+        map_zero]
+    · intro u; exact (Submodule.linearProjOfIsCompl _ _ hcompl u).2
+  choose! π hπ1 hπ2 hπ3 using hproj
+  have hsum : ∀ u, ∑ μ ∈ s, π μ u = u := by
+    have : (∑ μ ∈ s, π μ) = 1 := by
+      apply ext_on
+      intro ν hν x hx
+      rw [LinearMap.sum_apply, Finset.sum_eq_single ν]
+      · simp [hπ1 ν hν x hx]
+      · intro μ hμ hμν; exact hπ2 μ hμ ν hν (Ne.symm hμν) x hx
+      · intro h; exact absurd hν h
+    intro u
+    have := LinearMap.congr_fun this u
+    simpa [LinearMap.sum_apply] using this
+  have hcommA : ∀ μ ∈ s, ∀ A : Module.End ℝ V, (∀ ν, ∀ x ∈ G ν, A x ∈ G ν) →
+      π μ * A = A * π μ := by
+    intro μ hμ A hA
+    apply ext_on
+    intro ν hν x hx
+    simp only [Module.End.mul_apply]
+    by_cases hνμ : ν = μ
+    · subst hνμ; rw [hπ1 ν hμ x hx, hπ1 ν hμ _ (hA ν x hx)]
+    · rw [hπ2 μ hμ ν hν hνμ x hx, hπ2 μ hμ ν hν hνμ _ (hA ν x hx), map_zero]
+  have hcf : ∀ μ ∈ s, Commute (π μ) f := fun μ hμ => hcommA μ hμ f hmapf
+  have hcg : ∀ μ ∈ s, Commute (π μ) g := fun μ hμ => hcommA μ hμ g hmapg
+  have hbound : ∀ μ ∈ s, ∃ C : ℝ, 0 ≤ C ∧ ∀ u, ‖π μ u‖ ≤ C * ‖u‖ := fun μ _ =>
+    ⟨‖LinearMap.toContinuousLinearMap (π μ)‖, norm_nonneg _, fun u =>
+      (LinearMap.toContinuousLinearMap (π μ)).le_opNorm u⟩
+  -- off-diagonal blocks vanish
+  have hoff : ∀ ν ∈ s, ∀ x ∈ G ν, ∀ μ ∈ s, μ ≠ ν → π μ (h x) = 0 := by
+    intro ν hν x hx μ hμ hμν
+    have hν0 := hpos ν hν
+    have hμ0 := hpos μ hμ
+    obtain ⟨C, hC0, hC⟩ := hbound μ hμ
+    rcases lt_or_gt_of_ne hμν with hlt | hgt
+    · -- μ < ν : use g
+      have := (L_commutes_aux_fam g f (π μ) h μ⁻¹ ν (inv_ne_zero hμ0.ne') hν0.ne'
+        (mul_pos (inv_pos.mpr hμ0) hν0) D
+        (fun u => hGg μ hμ0.ne' _ (hπ3 μ hμ u))
+        (fun n u => LinearMap.congr_fun ((hcg μ hμ).pow_right n).eq u)
+        x (hGker ν x hx) (C * ‖x‖)
+        (fun n => (hC _).trans (mul_le_mul_of_nonneg_left (h2 n x) hC0))).1
+      apply this
+      rw [inv_mul_eq_div, one_lt_div hμ0]; exact hlt
+    · -- μ > ν : use f
+      have := (L_commutes_aux_fam f g (π μ) h μ ν⁻¹ hμ0.ne' (inv_ne_zero hν0.ne')
+        (mul_pos hμ0 (inv_pos.mpr hν0)) D
+        (fun u => hGker μ _ (hπ3 μ hμ u))
+        (fun n u => LinearMap.congr_fun ((hcf μ hμ).pow_right n).eq u)
+        x (hGg ν hν0.ne' x hx) (C * ‖x‖)
+        (fun n => (hC _).trans (mul_le_mul_of_nonneg_left (h1 n x) hC0))).1
+      apply this
+      rw [← div_eq_mul_inv, one_lt_div hν0]; exact hgt
+  have hinv : ∀ ν ∈ s, ∀ x ∈ G ν, h x ∈ G ν := by
+    intro ν hν x hx
+    rw [← hsum (h x), Finset.sum_eq_single ν]
+    · exact hπ3 ν hν _
+    · intro μ hμ hμν; exact hoff ν hν x hx μ hμ hμν
+    · intro h'; exact absurd hν h'
+  have hdiag : f * h * g = h := by
+    apply ext_on
+    intro ν hν x hx
+    have hν0 := hpos ν hν
+    obtain ⟨C, hC0, hC⟩ := hbound ν hν
+    have := (L_commutes_aux_fam f g (π ν) h ν ν⁻¹ hν0.ne' (inv_ne_zero hν0.ne')
+        (mul_pos hν0 (inv_pos.mpr hν0)) D
+        (fun u => hGker ν _ (hπ3 ν hν u))
+        (fun n u => LinearMap.congr_fun ((hcf ν hν).pow_right n).eq u)
+        x (hGg ν hν0.ne' x hx) (C * ‖x‖)
+        (fun n => (hC _).trans (mul_le_mul_of_nonneg_left (h1 n x) hC0))).2 (mul_inv_cancel₀ hν0.ne')
+    have hm1 : f (h (g x)) ∈ G ν := hmapf ν _ (hinv ν hν _ (hmapg ν x hx))
+    rw [hπ1 ν hν _ hm1, hπ1 ν hν _ (hinv ν hν x hx)] at this
+    simpa [Module.End.mul_apply] using this
+  calc f * h = f * h * (g * f) := by rw [hgf, mul_one]
+    _ = (f * h * g) * f := by simp only [mul_assoc]
+    _ = h * f := by rw [hdiag]
+
+end L_commutes_aux
+
+private theorem L_commutes_conj_mem (F : PowerFactorisation S) (h : Ortho d)
+    (hh : h ∈ S.rotGroup) (n : ℕ) :
+    (∃ k ∈ S.rotGroup, ∀ x, ((F.L.toLinearMap) ^ n) (h ((F.L.symm.toLinearMap ^ n) x)) = k x) ∧
+    (∃ k ∈ S.rotGroup, ∀ x, ((F.L.symm.toLinearMap) ^ n) (h ((F.L.toLinearMap ^ n) x)) = k x) := by
+  induction n with
+  | zero => exact ⟨⟨h, hh, fun x => by simp⟩, ⟨h, hh, fun x => by simp⟩⟩
+  | succ n ih =>
+    obtain ⟨⟨k, hk, hkx⟩, ⟨k', hk', hk'x⟩⟩ := ih
+    constructor
+    · have hmem : F.L * k.toLinearEquiv * F.L⁻¹ ∈
+          (fun h : Ortho d => h.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+        rw [← F.normalizes]; exact ⟨k, hk, rfl⟩
+      obtain ⟨j, hj, hjeq⟩ := hmem
+      refine ⟨j, hj, fun x => ?_⟩
+      rw [pow_succ' F.L.toLinearMap n, pow_succ F.L.symm.toLinearMap n, Module.End.mul_apply,
+        Module.End.mul_apply, hkx]
+      have := congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) hjeq
+      change j x = F.L (k (F.L.symm x)) at this
+      rw [this]
+      rfl
+    · have hmem : k'.toLinearEquiv ∈
+          (fun h : Ortho d => F.L * h.toLinearEquiv * F.L⁻¹) '' (S.rotGroup : Set (Ortho d)) := by
+        rw [F.normalizes]; exact ⟨k', hk', rfl⟩
+      obtain ⟨j, hj, hjeq⟩ := hmem
+      refine ⟨j, hj, fun x => ?_⟩
+      rw [pow_succ' F.L.symm.toLinearMap n, pow_succ F.L.toLinearMap n, Module.End.mul_apply,
+        Module.End.mul_apply, hk'x]
+      have := congrArg (fun e : E d ≃ₗ[ℝ] E d => e (F.L x)) hjeq
+      change F.L (j (F.L.symm (F.L x))) = k' (F.L x) at this
+      rw [LinearEquiv.symm_apply_apply] at this
+      change F.L.symm (k' (F.L x)) = j x
+      rw [← this, LinearEquiv.symm_apply_apply]
+
 /-- P11, V4 1.16(a): the positive factor centralizes the full compatible group. -/
 theorem L_commutes (F : PowerFactorisation S) (h : Ortho d) (hh : h ∈ S.rotGroup) :
     F.L * h.toLinearEquiv = h.toLinearEquiv * F.L := by
-  sorry
+  have hc := L_commutes_aux_core F.L.toLinearMap F.L.symm.toLinearMap
+    h.toLinearEquiv.toLinearMap
+    (by ext x; simp) (by ext x; simp) F.positive
+    (fun n x => by
+      obtain ⟨⟨k, _, hkx⟩, _⟩ := L_commutes_conj_mem F h hh n
+      exact le_of_eq ((congrArg norm (hkx x)).trans (k.norm_map x)))
+    (fun n x => by
+      obtain ⟨_, ⟨k, _, hkx⟩⟩ := L_commutes_conj_mem F h hh n
+      exact le_of_eq ((congrArg norm (hkx x)).trans (k.norm_map x)))
+  exact LinearEquiv.ext fun x => LinearMap.congr_fun hc x
 
 /-- Step 1 of the V4 proof of `L_fixes_directions_sides` (V4 1.16(b)):
 "There is q ≥ 1 with L^q V ∈ H V". Apply the finite permutation of direction

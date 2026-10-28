@@ -147,13 +147,1214 @@ structure PowerFactorisation (S : SubstSystem d) where
   /-- P10, V4 1.15: positive real spectrum without a diagonalizability assumption. -/
   positive : PositiveRealSpectrum L
 
+namespace CompatiblePatch
+
+variable (P : CompatiblePatch S)
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". Finitely many proper affine
+subspaces have dense complement. -/
+private theorem power_factorisation_aux_step10_dense_avoid
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    {ι : Type*} [Finite ι] (L : ι → AffineSubspace ℝ V) (hL : ∀ i, L i ≠ ⊤) :
+    Dense (⋂ i, ((L i : Set V)ᶜ)) := by
+  apply dense_iInter_of_isOpen (fun i => (L i).closed_of_finiteDimensional.isOpen_compl)
+  intro i
+  rw [← interior_eq_empty_iff_dense_compl]
+  apply Set.eq_empty_iff_forall_notMem.mpr
+  intro x hx
+  have ht := isOpen_interior.affineSpan_eq_top (⟨x, hx⟩ : (interior (L i : Set V)).Nonempty)
+  have hle : affineSpan ℝ (interior (L i : Set V)) ≤ L i :=
+    affineSpan_le.mpr interior_subset
+  rw [ht] at hle
+  exact hL i (top_unique hle)
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". A segment from a point
+outside an affine subspace avoids that subspace if its other endpoint
+avoids the affine span of the subspace and the first point. -/
+private theorem power_factorisation_aux_step10_segment_avoid
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V]
+    (L : AffineSubspace ℝ V) (x z : V) (hx : x ∉ L)
+    (hz : z ∉ affineSpan ℝ (insert x (L : Set V))) :
+    Disjoint (segment ℝ x z) (L : Set V) := by
+  apply Set.disjoint_left.mpr
+  intro w hw hwL
+  have hwline : w ∈ line[ℝ, x, z] :=
+    (line[ℝ, x, z]).convex.segment_subset (left_mem_affineSpan_pair ℝ x z)
+      (right_mem_affineSpan_pair ℝ x z) hw
+  have hwx : w ≠ x := by rintro rfl; exact hx hwL
+  have hline := affineSpan_pair_eq_of_right_mem_of_ne hwline hwx
+  have hle : line[ℝ, x, w] ≤ affineSpan ℝ (insert x (L : Set V)) :=
+    affineSpan_pair_le_of_mem_of_mem (mem_affineSpan ℝ (Set.mem_insert _ _))
+      (mem_affineSpan ℝ (Set.mem_insert_of_mem _ hwL))
+  rw [hline] at hle
+  exact hz (hle (right_mem_affineSpan_pair ℝ x z))
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". Removing finitely many
+affine subspaces of codimension at least two does not disconnect an
+open convex set: two segments through a generic intermediate point suffice. -/
+private theorem power_factorisation_aux_step10_avoid_connected
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    {ι : Type*} [Finite ι] (L : ι → AffineSubspace ℝ V)
+    (hL : ∀ i, Module.finrank ℝ (L i).direction + 1 < Module.finrank ℝ V)
+    (U : Set V) (hU : IsOpen U) (hc : Convex ℝ U) :
+    IsPreconnected (U ∩ ⋂ i, (L i : Set V)ᶜ) := by
+  apply isPreconnected_of_forall_pair
+  rintro x ⟨hxU, hx⟩ y ⟨hyU, hy⟩
+  let M : Bool × ι → AffineSubspace ℝ V := fun b =>
+    affineSpan ℝ (insert (if b.1 then x else y) (L b.2 : Set V))
+  have hM (b : Bool × ι) : M b ≠ ⊤ := by
+    intro heq
+    have hle := finrank_vectorSpan_insert_le (L b.2) (if b.1 then x else y)
+    rw [← direction_affineSpan] at hle
+    change Module.finrank ℝ (M b).direction ≤ Module.finrank ℝ (L b.2).direction + 1 at hle
+    rw [heq, AffineSubspace.direction_top, finrank_top] at hle
+    exact (hL b.2).not_ge hle
+  obtain ⟨z, hz, hzU⟩ := (power_factorisation_aux_step10_dense_avoid M hM).exists_mem_open hU ⟨x, hxU⟩
+  have hsx : segment ℝ x z ⊆ U ∩ ⋂ i, (L i : Set V)ᶜ := by
+    intro w hw
+    refine ⟨hc.segment_subset hxU hzU hw, Set.mem_iInter.mpr fun i => ?_⟩
+    exact Set.disjoint_left.mp (power_factorisation_aux_step10_segment_avoid (L i) x z
+      (Set.mem_iInter.mp hx i) (by simpa [M] using Set.mem_iInter.mp hz (true, i))) hw
+  have hsy : segment ℝ y z ⊆ U ∩ ⋂ i, (L i : Set V)ᶜ := by
+    intro w hw
+    refine ⟨hc.segment_subset hyU hzU hw, Set.mem_iInter.mpr fun i => ?_⟩
+    exact Set.disjoint_left.mp (power_factorisation_aux_step10_segment_avoid (L i) y z
+      (Set.mem_iInter.mp hy i) (by simpa [M] using Set.mem_iInter.mp hz (false, i))) hw
+  refine ⟨segment ℝ x z ∪ segment ℝ y z, Set.union_subset hsx hsy,
+    Or.inl (left_mem_segment ℝ x z), Or.inr (left_mem_segment ℝ y z), ?_⟩
+  exact (convex_segment (𝕜 := ℝ) x z).isPreconnected.union z
+    (right_mem_segment ℝ x z) (right_mem_segment ℝ y z)
+    (convex_segment (𝕜 := ℝ) y z).isPreconnected
+
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". A boundary of a regular
+closed set cannot locally lie in finitely many affine subspaces of
+codimension at least two: the complement connects the inside to the outside. -/
+private theorem power_factorisation_aux_step10_boundary_not_thin
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    (K : Set V) (hK : IsClosed K) (hreg : closure (interior K) = K)
+    (p : V) (hp : p ∈ frontier K)
+    {ι : Type*} [Finite ι] (L : ι → AffineSubspace ℝ V)
+    (hL : ∀ i, Module.finrank ℝ (L i).direction + 1 < Module.finrank ℝ V)
+    (r : ℝ) (hr : 0 < r) :
+    ¬ frontier K ∩ ball p r ⊆ ⋃ i, (L i : Set V) := by
+  intro hcover
+  have hproper (i : ι) : L i ≠ ⊤ := by
+    intro heq
+    have h := hL i
+    rw [heq, AffineSubspace.direction_top, finrank_top] at h
+    omega
+  have hdense := power_factorisation_aux_step10_dense_avoid L hproper
+  have hxcl : p ∈ closure (interior K) := by
+    rw [hreg]
+    exact hK.frontier_subset hp
+  have hycl : p ∈ closure Kᶜ := by
+    rw [frontier_eq_closure_inter_closure] at hp
+    exact hp.2
+  obtain ⟨x, hx, hxU, hxK⟩ := hdense.exists_mem_open (isOpen_ball.inter isOpen_interior)
+    (mem_closure_iff.mp hxcl (ball p r) isOpen_ball (mem_ball_self hr))
+  obtain ⟨y, hy, hyU, hyK⟩ := hdense.exists_mem_open (isOpen_ball.inter hK.isOpen_compl)
+    (mem_closure_iff.mp hycl (ball p r) isOpen_ball (mem_ball_self hr))
+  have hsides : ball p r ∩ ⋂ i, (L i : Set V)ᶜ ⊆ interior K ∪ Kᶜ := by
+    rintro z ⟨hzU, hz⟩
+    by_cases hzK : z ∈ K
+    · left
+      by_contra hzi
+      have hzf : z ∈ frontier K := by rw [hK.frontier_eq]; exact ⟨hzK, hzi⟩
+      obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hcover ⟨hzf, hzU⟩)
+      exact Set.mem_iInter.mp hz i hi
+    · exact Or.inr hzK
+  have hd : Disjoint (interior K) Kᶜ :=
+    Set.disjoint_left.mpr fun z hz hzc => hzc (interior_subset hz)
+  rcases (power_factorisation_aux_step10_avoid_connected L hL (ball p r)
+      isOpen_ball (convex_ball p r)).subset_or_subset isOpen_interior hK.isOpen_compl hd hsides with h | h
+  · exact hyK (interior_subset (h ⟨hyU, hy⟩))
+  · exact h ⟨hxU, hx⟩ (interior_subset hxK)
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"the boundary ... is covered by its facets". In a finite closed covering
+of a regular boundary by lower-dimensional pieces, the pieces of
+codimension one already cover the whole boundary. -/
+private theorem power_factorisation_aux_step10_boundary_facets
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    (K : Set V) (hK : IsClosed K) (hreg : closure (interior K) = K)
+    {ι : Type*} [Finite ι] (C : ι → Set V) (hC : ∀ i, IsClosed (C i))
+    (hcover : frontier K ⊆ ⋃ i, C i)
+    (hdim : ∀ i, Module.finrank ℝ (affineSpan ℝ (C i)).direction < Module.finrank ℝ V)
+    (p : V) (hp : p ∈ frontier K) :
+    ∃ i, p ∈ C i ∧ Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 = Module.finrank ℝ V := by
+  classical
+  by_contra hn
+  let J := {i : ι // Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 = Module.finrank ℝ V}
+  let H : Set V := ⋃ i : J, C i.val
+  have hH : IsClosed H := isClosed_iUnion_of_finite fun i : J => hC i.val
+  have hpH : p ∈ Hᶜ := by
+    intro hpH
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hpH
+    exact hn ⟨i.val, hi, i.property⟩
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hH.isOpen_compl p hpH
+  let I := {i : ι // Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 ≠ Module.finrank ℝ V}
+  have hlow (i : I) : Module.finrank ℝ (affineSpan ℝ (C i.val)).direction + 1 < Module.finrank ℝ V := by
+    have := hdim i.val
+    have := i.property
+    omega
+  apply power_factorisation_aux_step10_boundary_not_thin K hK hreg p hp
+    (fun i : I => affineSpan ℝ (C i.val)) hlow r hr
+  rintro x ⟨hxK, hxball⟩
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hcover hxK)
+  have hiI : Module.finrank ℝ (affineSpan ℝ (C i)).direction + 1 ≠ Module.finrank ℝ V := by
+    intro heq
+    exact hball hxball (Set.mem_iUnion.mpr ⟨⟨i, heq⟩, hi⟩)
+  exact Set.mem_iUnion.mpr ⟨⟨i, hiI⟩, mem_affineSpan ℝ hi⟩
+
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"facets of that cell". A set with nonempty intrinsic interior but empty
+ambient interior has strictly smaller affine dimension than the ambient space. -/
+private theorem power_factorisation_aux_step10_rank_lt
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [FiniteDimensional ℝ V]
+    (C : Set V) (hi : (intrinsicInterior ℝ C).Nonempty) (he : interior C = ∅) :
+    Module.finrank ℝ (affineSpan ℝ C).direction < Module.finrank ℝ V := by
+  by_contra hn
+  have hdir : (affineSpan ℝ C).direction = ⊤ :=
+    Submodule.eq_top_of_finrank_eq (le_antisymm (Submodule.finrank_le _) (by omega))
+  have hne : (affineSpan ℝ C : Set V).Nonempty :=
+    (hi.mono intrinsicInterior_subset).mono (subset_affineSpan ℝ C)
+  have hs : affineSpan ℝ C = ⊤ := (AffineSubspace.direction_eq_top_iff_of_nonempty hne).mp hdir
+  rw [intrinsicInterior, hs] at hi
+  have hopen : IsOpenMap ((↑) : (⊤ : AffineSubspace ℝ V) → V) :=
+    (show IsOpen ((⊤ : AffineSubspace ℝ V) : Set V) from isOpen_univ).isOpenMap_subtype_val
+  have hsub := (hopen.image_interior_subset (((↑) : (⊤ : AffineSubspace ℝ V) → V) ⁻¹' C)).trans
+    (interior_mono (Set.image_preimage_subset _ _))
+  have hh := hi.mono hsub
+  simpa [he] using hh
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"∂A is covered by its facets". Apply the boundary covering lemma to the
+finite listed prototype cells. -/
+private theorem power_factorisation_aux_step10_prototype_facets
+    (A : PolyManifoldDomain d) (K : CellComplex A) (p : E d)
+    (hp : p ∈ frontier A.carrier) :
+    ∃ e ∈ K.cells, e.dim = d - 1 ∧ p ∈ e.carrier := by
+  obtain ⟨e, he, hdim⟩ := power_factorisation_aux_step10_boundary_facets A.carrier
+    A.compact.isClosed A.regularClosed (fun e : {e // e ∈ K.cells} => e.val.carrier)
+    (fun e => e.val.flat.compact.isClosed) (by
+      intro x hx
+      rw [← K.carriers_cover] at hx
+      obtain ⟨e, he, hx⟩ := by simpa only [Set.mem_iUnion, exists_prop] using hx
+      exact Set.mem_iUnion.mpr ⟨⟨e, he⟩, hx⟩)
+    (fun e => by
+      change Module.finrank ℝ (cellDirection e.val.carrier) < Module.finrank ℝ (E d)
+      rw [e.val.flat.dimension]
+      simpa using K.dim_lt e.val e.property) p hp
+  refine ⟨e.val, e.property, ?_, he⟩
+  change Module.finrank ℝ (cellDirection e.val.carrier) + 1 = Module.finrank ℝ (E d) at hdim
+  rw [e.val.flat.dimension] at hdim
+  have hh : e.val.dim + 1 = d := by simpa using hdim
+  omega
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"the relative boundary of each cell is covered by the facets of that
+cell". Work in its direction space, using an affine isometry from that
+space onto its affine hull. -/
+private theorem power_factorisation_aux_step10_cell_facets
+    (A : PolyManifoldDomain d) (K : CellComplex A)
+    (e : Cell d) (he : e ∈ K.cells) (p : E d) (hp : p ∈ relfrontier e.carrier) :
+    ∃ f ∈ K.cells, f.dim + 1 = e.dim ∧ p ∈ f.carrier ∧ f.carrier ⊆ e.carrier := by
+  classical
+  let H := affineSpan ℝ e.carrier
+  have hpe : p ∈ e.carrier := intrinsicFrontier_subset e.flat.compact.isClosed hp
+  let q : H := ⟨p, mem_affineSpan ℝ hpe⟩
+  letI : Nonempty H := ⟨q⟩
+  let ψ : H.direction ≃ᵃⁱ[ℝ] H := AffineIsometryEquiv.vaddConst ℝ q
+  let φ : H.direction →ᵃⁱ[ℝ] E d := H.subtypeₐᵢ.comp ψ.toAffineIsometry
+  let C : Set H.direction := φ ⁻¹' e.carrier
+  have himage (D : Set (E d)) (hD : D ⊆ H) : φ '' (φ ⁻¹' D) = D := by
+    apply Set.image_preimage_eq_of_subset
+    intro x hx
+    exact ⟨ψ.symm ⟨x, hD hx⟩, by
+      change (ψ (ψ.symm ⟨x, hD hx⟩) : E d) = x
+      rw [ψ.apply_symm_apply]⟩
+  have heH : e.carrier ⊆ H := subset_affineSpan ℝ e.carrier
+  have hCimage : φ '' C = e.carrier := himage _ heH
+  have hinter : φ '' interior C = relint e.carrier := by
+    change (((↑) : H → E d) ∘ ψ.toHomeomorph) '' interior (ψ.toHomeomorph ⁻¹' (((↑) : H → E d) ⁻¹' e.carrier)) = _
+    rw [Set.image_comp, ψ.toHomeomorph.image_interior, ψ.toHomeomorph.image_preimage]
+    rfl
+  have hfront : φ '' frontier C = relfrontier e.carrier := by
+    change (((↑) : H → E d) ∘ ψ.toHomeomorph) '' frontier (ψ.toHomeomorph ⁻¹' (((↑) : H → E d) ⁻¹' e.carrier)) = _
+    rw [Set.image_comp, ψ.toHomeomorph.image_frontier, ψ.toHomeomorph.image_preimage]
+    rfl
+  have hCclosed : IsClosed C := e.flat.compact.isClosed.preimage φ.continuous
+  have hCreg : closure (interior C) = C := by
+    apply φ.injective.image_injective
+    rw [← φ.isometry.isClosedEmbedding.closure_image_eq, hinter, e.flat.regularClosed, hCimage]
+  obtain ⟨b, hb, hboundary⟩ := K.boundary_union e he
+  have hbsub (f : {f // f ∈ b}) : f.val.carrier ⊆ relfrontier e.carrier := by
+    intro x hx
+    rw [hboundary]
+    exact Set.mem_iUnion.mpr ⟨f.val, Set.mem_iUnion.mpr ⟨f.property, hx⟩⟩
+  have hbH (f : {f // f ∈ b}) : f.val.carrier ⊆ H :=
+    (hbsub f).trans ((intrinsicFrontier_subset e.flat.compact.isClosed).trans heH)
+  let D (f : {f // f ∈ b}) : Set H.direction := φ ⁻¹' f.val.carrier
+  have hDfront (f : {f // f ∈ b}) : D f ⊆ frontier C := by
+    intro x hx
+    have hh := hbsub f hx
+    rw [← hfront] at hh
+    exact φ.injective.mem_set_image.mp hh
+  have hDdim (f : {f // f ∈ b}) :
+      Module.finrank ℝ (affineSpan ℝ (D f)).direction = f.val.dim := by
+    have heq : (affineSpan ℝ f.val.carrier).direction =
+        ((affineSpan ℝ (D f)).direction).map H.direction.subtype := by
+      rw [← himage f.val.carrier (hbH f)]
+      change (affineSpan ℝ (φ.toAffineMap '' D f)).direction = _
+      rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+      rfl
+    have hh := f.val.flat.dimension
+    change Module.finrank ℝ (affineSpan ℝ f.val.carrier).direction = f.val.dim at hh
+    rw [heq, Submodule.finrank_map_subtype_eq] at hh
+    exact hh
+  have hDlow (f : {f // f ∈ b}) :
+      Module.finrank ℝ (affineSpan ℝ (D f)).direction < Module.finrank ℝ H.direction := by
+    apply power_factorisation_aux_step10_rank_lt
+    · have hh := f.val.flat.relint_nonempty
+      change (intrinsicInterior ℝ f.val.carrier).Nonempty at hh
+      rw [← himage f.val.carrier (hbH f), φ.image_intrinsicInterior, Set.image_nonempty] at hh
+      exact hh
+    · apply Set.eq_empty_iff_forall_notMem.mpr
+      intro x hx
+      have hh := interior_mono (hDfront f) hx
+      simpa [interior_frontier hCclosed] using hh
+  have hpC : ψ.symm q ∈ frontier C := by
+    apply φ.injective.mem_set_image.mp
+    rw [hfront]
+    simpa [φ] using hp
+  obtain ⟨f, hpf, hfdim⟩ := power_factorisation_aux_step10_boundary_facets C hCclosed hCreg D
+    (fun f => f.val.flat.compact.isClosed.preimage φ.continuous) (by
+      intro x hx
+      have hh : φ x ∈ relfrontier e.carrier := hfront ▸ Set.mem_image_of_mem φ hx
+      rw [hboundary] at hh
+      obtain ⟨f, hf, hxf⟩ := by simpa only [Set.mem_iUnion, exists_prop] using hh
+      exact Set.mem_iUnion.mpr ⟨⟨f, hf⟩, hxf⟩) hDlow (ψ.symm q) hpC
+  refine ⟨f.val, hb f.property, ?_, ?_,
+    (hbsub f).trans (intrinsicFrontier_subset e.flat.compact.isClosed)⟩
+  · rw [hDdim] at hfdim
+    exact hfdim.trans e.flat.dimension
+  · change φ (ψ.symm q) ∈ f.val.carrier at hpf
+    simpa [φ] using hpf
+
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15):
+"each still containing the vertex". A listed vertex in a positive-dimensional
+listed cell lies in that cell's relative boundary, since listed relative
+interiors are disjoint. -/
+private theorem power_factorisation_aux_step10_vertex_boundary
+    (A : PolyManifoldDomain d) (K : CellComplex A)
+    (v : Cell d) (hv : v ∈ K.vertices) (p : E d) (hp : p ∈ v.carrier)
+    (e : Cell d) (he : e ∈ K.cells) (hpe : p ∈ e.carrier) (hdim : 0 < e.dim) :
+    p ∈ relfrontier e.carrier := by
+  have hvdim : v.dim = 0 := (Finset.mem_filter.mp hv).2
+  have hvK : v ∈ K.cells := (Finset.mem_filter.mp hv).1
+  have hbot : cellDirection v.carrier = ⊥ :=
+    Submodule.finrank_eq_zero.mp (v.flat.dimension.trans hvdim)
+  have hsingle : v.carrier.Subsingleton := by
+    apply (vectorSpan_eq_bot_iff_subsingleton ℝ).mp
+    simpa only [cellDirection, direction_affineSpan] using hbot
+  have hvp : v.carrier = {p} := hsingle.eq_singleton_of_mem hp
+  have hpv : p ∈ relint v.carrier := by simp [relint, hvp]
+  have hne : v ≠ e := by
+    intro h
+    have := h ▸ hvdim
+    omega
+  have hnot : p ∉ relint e.carrier := fun hh =>
+    Set.disjoint_left.mp (K.relint_disjoint v hvK e he hne) hpv hh
+  change p ∈ intrinsicFrontier ℝ e.carrier
+  rw [← closure_diff_intrinsicInterior, e.flat.compact.isClosed.closure_eq]
+  exact ⟨hpe, hnot⟩
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, used in 1.17):
+"starting from a facet through the vertex one descends through incident
+facets of facets". Reversing this descending sequence gives the complete
+nested flag at the original listed vertex. -/
+private theorem power_factorisation_aux_step10_prototype_flag
+    (A : PolyManifoldDomain d) (K : CellComplex A)
+    (v : Cell d) (hv : v ∈ K.vertices) (p : E d) (hp : p ∈ v.carrier) :
+    ∃ f : CellFlag K, ∀ j, p ∈ (f.cell j).carrier := by
+  classical
+  have hpA : p ∈ frontier A.carrier := by
+    rw [← K.carriers_cover]
+    exact Set.mem_iUnion.mpr ⟨v, Set.mem_iUnion.mpr ⟨(Finset.mem_filter.mp hv).1, hp⟩⟩
+  obtain ⟨e, he, hdim, hpe⟩ := power_factorisation_aux_step10_prototype_facets A K p hpA
+  let I := {e : Cell d // e ∈ K.cells ∧ p ∈ e.carrier}
+  have hnext (e : I) (h : 0 < e.val.dim) :
+      ∃ f : I, f.val.dim + 1 = e.val.dim ∧ f.val.carrier ⊆ e.val.carrier := by
+    obtain ⟨f, hf, hfdim, hpf, hsub⟩ := power_factorisation_aux_step10_cell_facets A K e.val e.property.1 p
+      (power_factorisation_aux_step10_vertex_boundary A K v hv p hp e.val e.property.1 e.property.2 h)
+    exact ⟨⟨f, hf, hpf⟩, hfdim, hsub⟩
+  let next (e : I) : I := if h : 0 < e.val.dim then (hnext e h).choose else e
+  have next_dim (e : I) : (next e).val.dim = e.val.dim - 1 := by
+    by_cases h : 0 < e.val.dim
+    · have hh := (hnext e h).choose_spec.1
+      simp only [next, dif_pos h]
+      omega
+    · have hh : e.val.dim = 0 := by omega
+      simp [next, h, hh]
+  have next_sub (e : I) : (next e).val.carrier ⊆ e.val.carrier := by
+    by_cases h : 0 < e.val.dim
+    · simpa only [next, dif_pos h] using (hnext e h).choose_spec.2
+    · simp [next, h]
+  let c (n : ℕ) : I := next^[n] ⟨e, he, hpe⟩
+  have c_succ (n : ℕ) : c (n + 1) = next (c n) := Function.iterate_succ_apply' next n _
+  have c_dim (n : ℕ) : (c n).val.dim = d - 1 - n := by
+    induction n with
+    | zero => simpa [c] using hdim
+    | succ n ih => rw [c_succ, next_dim, ih]; omega
+  have c_anti : Antitone (fun n => (c n).val.carrier) := by
+    apply antitone_nat_of_succ_le
+    intro n
+    rw [c_succ]
+    exact next_sub (c n)
+  let f : CellFlag K :=
+    { cell := fun j => (c (d - 1 - j.val)).val
+      mem := fun j => (c (d - 1 - j.val)).property.1
+      dimension := fun j => by rw [c_dim]; omega
+      nested := fun i j hij => c_anti (by have := i.isLt; have := j.isLt; omega) }
+  exact ⟨f, fun j => (c (d - 1 - j.val)).property.2⟩
+
+/-- Step 10 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, used in 1.17):
+"the boundary complex of a polyhedral manifold has a full flag at every
+vertex". This is only the initial flag, before any substitution is applied. -/
+private theorem power_factorisation_aux_step10_vertex_flag
+    (t : FramedNode S) (p : E d) (hp : t.Lists 0 p) :
+    ∃ f : CellFlag (S.cx t.ty), ∀ j, p ∈ t.cell 0 (f.cell j) := by
+  obtain ⟨v, hv, x, hx, hxp⟩ := hp
+  obtain ⟨f, hf⟩ := power_factorisation_aux_step10_prototype_flag (S.proto t.ty) (S.cx t.ty) v hv x hx
+  exact ⟨f, fun j => ⟨x, hf j, hxp⟩⟩
+
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". Conjugated frames intertwine successive expansions. -/
+private theorem power_factorisation_aux_step11_conjugate_succ
+    (R : E d ≃ₗ[ℝ] E d) (n : ℕ) (x : E d) :
+    linearConj S.σ ((n + 1 : ℕ) : ℤ) R (S.σ x) =
+      S.σ (linearConj S.σ (n : ℤ) R x) := by
+  have heq : linearConj S.σ ((n + 1 : ℕ) : ℤ) R * S.σ =
+      S.σ * linearConj S.σ (n : ℤ) R := by
+    simp only [linearConj, Nat.cast_add, Nat.cast_one]
+    group
+  exact congrArg (fun L : E d ≃ₗ[ℝ] E d => L x) heq
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". The prescribed role frame has the same covariance. -/
+private theorem power_factorisation_aux_step11_placeChild_succ
+    {A : S.ι} (i : S.I A) (n : ℕ) (x : E d) :
+    S.placeChild (n + 1) i (S.σ x) = S.σ (S.placeChild n i x) := by
+  rw [S.placeChild_apply, S.placeChild_apply,
+    power_factorisation_aux_step11_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". At height zero the role frame is the prescribed child frame. -/
+private theorem power_factorisation_aux_step11_placeChild_zero
+    {A : S.ι} (i : S.I A) : S.placeChild 0 i = (S.child A i).frame := by
+  apply AffineIsometryEquiv.ext
+  intro x
+  change linearConj S.σ (0 : ℤ) (S.child A i).rotation.toLinearEquiv x +
+      (S.σ ^ 0) (S.child A i).offset =
+    (S.child A i).rotation x + (S.child A i).offset
+  simp [linearConj]
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". Append a child role to a native address,
+leaving its original patch root fixed. -/
+private def power_factorisation_aux_step11_append (S : SubstSystem d) :
+    (A : S.ι) → (n : ℕ) → (w : S.RoleWord A n) →
+      S.I (S.nativeTile A n w).ty → S.RoleWord A (n + 1)
+  | A, 0, _, i => ⟨i, ()⟩
+  | A, n + 1, w, i => ⟨w.1,
+      power_factorisation_aux_step11_append S (S.child A w.1).ty n w.2 i⟩
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the child t_{n+1}". Appending a role retains its prescribed child type. -/
+private theorem power_factorisation_aux_step11_append_type
+    (A : S.ι) (n : ℕ) (w : S.RoleWord A n) (i : S.I (S.nativeTile A n w).ty) :
+    (S.nativeTile A (n + 1) (power_factorisation_aux_step11_append S A n w i)).ty =
+      (S.child (S.nativeTile A n w).ty i).ty := by
+  induction n generalizing A with
+  | zero => rfl
+  | succ n ih => exact ih (S.child A w.1).ty w.2 i
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". Appending a role realizes subdivision after
+inflation, even though the native-address recursion reads roles from the root. -/
+private theorem power_factorisation_aux_step11_append_frame
+    (A : S.ι) (n : ℕ) (w : S.RoleWord A n) (i : S.I (S.nativeTile A n w).ty)
+    (x : E d) :
+    (S.nativeTile A (n + 1) (power_factorisation_aux_step11_append S A n w i)).frame x =
+      S.σ ((S.nativeTile A n w).frame (S.σ.symm ((S.child (S.nativeTile A n w).ty i).frame x))) := by
+  induction n generalizing A with
+  | zero =>
+    change S.placeChild 0 i x = S.σ (S.σ.symm ((S.child A i).frame x))
+    rw [S.σ.apply_symm_apply, power_factorisation_aux_step11_placeChild_zero]
+    rfl
+  | succ n ih =>
+    change S.placeChild (0 + (n + 1)) w.1
+      ((S.nativeTile (S.child A w.1).ty (n + 1)
+        (power_factorisation_aux_step11_append S (S.child A w.1).ty n w.2 i)).frame x) =
+      S.σ (S.placeChild (0 + n) w.1 ((S.nativeTile (S.child A w.1).ty n w.2).frame
+        (S.σ.symm ((S.child (S.nativeTile (S.child A w.1).ty n w.2).ty i).frame x))))
+    simp only [Nat.zero_add]
+    rw [ih, power_factorisation_aux_step11_placeChild_succ]
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". The patch's specified ground frame obeys the
+same covariance as a substitution role frame. -/
+private theorem power_factorisation_aux_step11_inflated_frame_succ
+    (t : FramedNode S) (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup)
+    (n : ℕ) (x : E d) :
+    compatibleInflatedFrame t ht (n + 1) (S.σ x) =
+      S.σ (compatibleInflatedFrame t ht n x) := by
+  have hQ (n : ℕ) (x : E d) :
+      (Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)) x =
+      linearConj S.σ (n : ℤ) t.frame.linearIsometryEquiv.toLinearEquiv x :=
+    congrArg (fun L : E d ≃ₗ[ℝ] E d => L x)
+      (Classical.choose_spec (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)).2
+  change (Classical.choose (S.rotGroup_conj_zpow ((n + 1 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) (S.σ x) + (S.σ ^ (n + 1)) (t.frame 0) =
+    S.σ ((Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+      t.frame.linearIsometryEquiv ht)) x + (S.σ ^ n) (t.frame 0))
+  rw [hQ, hQ, power_factorisation_aux_step11_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"the children of σ t_n". The appended address uses exactly the actual
+frame of the inflated patch tile followed by the prescribed child frame. -/
+private theorem power_factorisation_aux_step11_native_child
+    (P : CompatiblePatch S) (n : ℕ) (a : P.Address n) (i : S.I (P.native n a).ty) :
+    ∃ b : P.Address (n + 1),
+      (P.native (n + 1) b).ty = (S.child (P.native n a).ty i).ty ∧
+      ∀ x, (P.native (n + 1) b).frame x =
+        S.σ ((P.native n a).frame (S.σ.symm ((S.child (P.native n a).ty i).frame x))) := by
+  refine ⟨⟨a.1, power_factorisation_aux_step11_append S a.1.val.ty n a.2 i⟩,
+    power_factorisation_aux_step11_append_type a.1.val.ty n a.2 i, ?_⟩
+  intro x
+  change compatibleInflatedFrame a.1.val (P.compatible _ a.1.property) (n + 1)
+    ((S.nativeTile a.1.val.ty (n + 1)
+      (power_factorisation_aux_step11_append S a.1.val.ty n a.2 i)).frame x) = _
+  rw [power_factorisation_aux_step11_append_frame, power_factorisation_aux_step11_inflated_frame_succ]
+  rfl
+
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"cells of t_n". A ground cell is placed directly by its tile frame. -/
+private theorem power_factorisation_aux_step11_cell_zero (t : FramedNode S) (e : Cell d) :
+    t.cell 0 e = t.frame '' e.carrier := rfl
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"cells of t_n". The ground carrier is the isometric prototype carrier. -/
+private theorem power_factorisation_aux_step11_carrier_zero (t : FramedNode S) :
+    t.carrier 0 = t.frame '' (S.proto t.ty).carrier := by
+  simp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"cells of t_n". A listed cell is contained in its closed tile carrier. -/
+private theorem power_factorisation_aux_step11_cell_subset (t : FramedNode S)
+    (e : Cell d) (he : e ∈ (S.cx t.ty).cells) : t.cell 0 e ⊆ t.carrier 0 := by
+  rw [power_factorisation_aux_step11_cell_zero, power_factorisation_aux_step11_carrier_zero]
+  apply Set.image_mono
+  intro x hx
+  apply (S.proto t.ty).compact.isClosed.frontier_subset
+  rw [← (S.cx t.ty).carriers_cover]
+  exact Set.mem_iUnion.mpr ⟨e, Set.mem_iUnion.mpr ⟨he, hx⟩⟩
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"σ e is a union of placed j-cells of the children". An expanded incident
+cell has an incident native child cell of the same dimension; its carrier
+is contained in the expanded parent cell. No uniqueness is used in this step. -/
+private theorem power_factorisation_aux_step11_refinement
+    (P : CompatiblePatch S) (p : E d) (n : ℕ) (a : P.Incident p n)
+    (e : CellName S (P.native n a.val).ty)
+    (he : (S.σ ^ n) p ∈ (P.native n a.val).cell 0 e.val) :
+    ∃ (b : P.Incident p (n + 1)) (f : CellName S (P.native (n + 1) b.val).ty),
+      P.IncidentChild p n a b ∧ f.val.dim = e.val.dim ∧
+      (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b.val).cell 0 f.val ∧
+      (P.native (n + 1) b.val).cell 0 f.val ⊆
+        S.σ '' (P.native n a.val).cell 0 e.val := by
+  classical
+  rw [power_factorisation_aux_step11_cell_zero] at he
+  obtain ⟨x, hxe, hxp⟩ := he
+  obtain ⟨c, hc⟩ := S.heredity (P.native n a.val).ty e.val e.property
+  have hsx : S.σ x ∈ ⋃ q ∈ c, placedSet (S.child (P.native n a.val).ty q.1).frame q.2.val.carrier := by
+    rw [← hc]
+    exact Set.mem_image_of_mem S.σ hxe
+  obtain ⟨q, hq, y, hy, hyx⟩ := by
+    simpa only [Set.mem_iUnion, exists_prop, placedSet, Set.mem_image] using hsx
+  obtain ⟨b, hty, hframe⟩ := power_factorisation_aux_step11_native_child P n a.val q.1
+  have hmem : q.2.val ∈ (S.cx (P.native (n + 1) b).ty).cells := by
+    rw [hty]
+    exact q.2.property.1
+  have hpoint : (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b).cell 0 q.2.val := by
+    rw [power_factorisation_aux_step11_cell_zero]
+    refine ⟨y, hy, ?_⟩
+    rw [hframe, hyx, S.σ.symm_apply_apply, hxp, pow_succ']
+    rfl
+  have hinc : (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b).carrier 0 :=
+    power_factorisation_aux_step11_cell_subset _ _ hmem hpoint
+  have hsub : ∀ (K L : Set (E d)),
+      (S.child (P.native n a.val).ty q.1).frame '' K ⊆ S.σ '' L →
+      (P.native (n + 1) b).frame '' K ⊆ S.σ '' ((P.native n a.val).frame '' L) := by
+    intro K L h z hz
+    obtain ⟨u, hu, rfl⟩ := hz
+    obtain ⟨v, hv, hvu⟩ := h (Set.mem_image_of_mem _ hu)
+    refine ⟨(P.native n a.val).frame v, Set.mem_image_of_mem _ hv, ?_⟩
+    rw [hframe, ← hvu, S.σ.symm_apply_apply]
+  refine ⟨⟨b, hinc⟩, ⟨q.2.val, hmem⟩, ?_, q.2.property.2, hpoint, ?_⟩
+  · change (P.native (n + 1) b).carrier 0 ⊆ S.σ '' (P.native n a.val).carrier 0
+    rw [power_factorisation_aux_step11_carrier_zero, power_factorisation_aux_step11_carrier_zero, hty]
+    apply hsub
+    rw [S.children_cover]
+    exact Set.subset_iUnion (fun i => placedSet (S.child (P.native n a.val).ty i).frame
+      (S.proto (S.child (P.native n a.val).ty i).ty).carrier) q.1
+  · rw [power_factorisation_aux_step11_cell_zero, power_factorisation_aux_step11_cell_zero]
+    apply hsub
+    rw [hc]
+    intro z hz
+    exact Set.mem_iUnion.mpr ⟨q, Set.mem_iUnion.mpr ⟨hq, hz⟩⟩
+
+/-- Step 12 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.17):
+"regarded as the tuple of its direction spaces". Taking directions of a
+placed cell removes translation and retains the actual orthogonal frame. -/
+private theorem power_factorisation_aux_step12_frame_direction
+    (t : FramedNode S) (e : Cell d) :
+    cellDirection (t.cell 0 e) =
+      (cellDirection e.carrier).map t.frame.linearIsometryEquiv.toLinearEquiv.toLinearMap := by
+  change (affineSpan ℝ (t.frame.toAffineEquiv.toAffineMap '' e.carrier)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  rfl
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim):
+"its affine hull is σ aff e by dimension". Direction spaces commute
+with every invertible linear map, including the anisotropic expansion. -/
+private theorem power_factorisation_aux_step11_linear_direction
+    (L : E d ≃ₗ[ℝ] E d) (K : Set (E d)) :
+    cellDirection (L '' K) = (cellDirection K).map L.toLinearMap := by
+  change (affineSpan ℝ (L.toAffineEquiv.toAffineMap '' K)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  rfl
+
+/-- Step 11 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.15, Claim, used in 1.17):
+"some j-cell ... contains [the vertex] and lies in σ e". Heredity at a
+unique incident child preserves the direction of one listed cell.
+The uniqueness hypothesis excludes branching, and the cell must contain the anchor. -/
+private theorem power_factorisation_aux_step11_child_cell
+    (P : CompatiblePatch S) (p : E d) (n : ℕ)
+    (a : P.Incident p n) (b : P.Incident p (n + 1))
+    (hab : P.IncidentChild p n a b)
+    (hunique : ∀ b' : P.Incident p (n + 1), P.IncidentChild p n a b' → b' = b)
+    (e : CellName S (P.native n a.val).ty)
+    (he : (S.σ ^ n) p ∈ (P.native n a.val).cell 0 e.val) :
+    ∃ f : CellName S (P.native (n + 1) b.val).ty,
+      f.val.dim = e.val.dim ∧
+      (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b.val).cell 0 f.val ∧
+      cellDirection ((P.native (n + 1) b.val).cell 0 f.val) =
+        (cellDirection ((P.native n a.val).cell 0 e.val)).map S.σ.toLinearMap := by
+  obtain ⟨b', f, hb', hdim, hf, hsub⟩ := power_factorisation_aux_step11_refinement P p n a e he
+  obtain rfl := hunique b' hb'
+  refine ⟨f, hdim, hf, ?_⟩
+  have hle := AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
+  change cellDirection ((P.native (n + 1) b'.val).cell 0 f.val) ≤
+    cellDirection (S.σ '' (P.native n a.val).cell 0 e.val) at hle
+  rw [power_factorisation_aux_step11_linear_direction] at hle
+  apply Submodule.eq_of_le_of_finrank_eq hle
+  rw [power_factorisation_aux_step12_frame_direction, power_factorisation_aux_step12_frame_direction]
+  simp only [LinearEquiv.finrank_map_eq]
+  exact f.val.flat.dimension.trans (hdim.trans e.val.flat.dimension.symm)
+
+
+/-- Step 13 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.17):
+"the Claim in the proof of 1.15 ... gives a native flag". Iterate the
+single-cell transport along a nonbranching listing tail; the transported
+cells need not be nested, but their direction spaces are a complete flag. -/
+private theorem power_factorisation_aux_step13_tail_flag
+    (P : CompatiblePatch S) (p : E d) (N : ℕ) (t : P.IncidentTail p N)
+    (hunique : ∀ m (b : P.Incident p (N + m + 1)),
+      P.IncidentChild p (N + m) (t.node m) b → b = t.node (m + 1))
+    (hlisted : (P.native N (t.node 0).val).Lists 0 ((S.σ ^ N) p)) :
+    ∃ V : ℕ → Submodule ℝ (E d),
+      (∀ i ≤ d, Module.finrank ℝ (V i) = i) ∧
+      (∀ i < d, V i ≤ V (i + 1)) ∧
+      (∀ i ≤ d, V i ∈ S.hPi ∨ V i = ⊤) ∧
+      ∀ m i, i ≤ d →
+        ((V i).map (S.σ ^ m).toLinearMap).map
+          (P.native (N + m) (t.node m).val).frame.linearIsometryEquiv.symm.toLinearEquiv.toLinearMap
+          ∈ S.cellDirections ∪ {⊤} := by
+  classical
+  obtain ⟨f, hf⟩ := power_factorisation_aux_step10_vertex_flag _ _ hlisted
+  let V (i : ℕ) : Submodule ℝ (E d) :=
+    if hi : i < d then cellDirection ((P.native N (t.node 0).val).cell 0 (f.cell ⟨i, hi⟩))
+    else ⊤
+  have hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i := by
+    intro i hi
+    by_cases hid : i < d
+    · rw [show V i = cellDirection ((P.native N (t.node 0).val).cell 0 (f.cell ⟨i, hid⟩))
+          from dif_pos hid, power_factorisation_aux_step12_frame_direction, LinearEquiv.finrank_map_eq]
+      exact (f.cell ⟨i, hid⟩).flat.dimension.trans (f.dimension ⟨i, hid⟩)
+    · have heq : i = d := by omega
+      rw [show V i = ⊤ from dif_neg hid]
+      simp [heq]
+  have hmono : ∀ i < d, V i ≤ V (i + 1) := by
+    intro i hi
+    by_cases hj : i + 1 < d
+    · simp only [V, dif_pos hi, dif_pos hj, power_factorisation_aux_step12_frame_direction]
+      apply Submodule.map_mono
+      exact AffineSubspace.direction_le (affineSpan_mono ℝ
+        (f.nested ⟨i, hi⟩ ⟨i + 1, hj⟩ (by simp)))
+    · simp [V, hj]
+  have hV : ∀ i ≤ d, V i ∈ S.hPi ∨ V i = ⊤ := by
+    intro i hi
+    by_cases hid : i < d
+    · left
+      refine ⟨cellDirection (f.cell ⟨i, hid⟩).carrier,
+        ⟨(P.native N (t.node 0).val).ty, f.cell ⟨i, hid⟩, f.mem _, rfl⟩,
+        (P.native N (t.node 0).val).frame.linearIsometryEquiv,
+        P.native_compatible N (t.node 0).val, ?_⟩
+      simp only [V, dif_pos hid, power_factorisation_aux_step12_frame_direction]
+    · exact Or.inr (by simp [V, hid])
+  have hcell (i : ℕ) (hi : i < d) : ∀ m : ℕ,
+      ∃ e : CellName S (P.native (N + m) (t.node m).val).ty,
+        (S.σ ^ (N + m)) p ∈ (P.native (N + m) (t.node m).val).cell 0 e.val ∧
+        cellDirection ((P.native (N + m) (t.node m).val).cell 0 e.val) =
+          (V i).map (S.σ ^ m).toLinearMap := by
+    intro m
+    induction m with
+    | zero =>
+      refine ⟨⟨f.cell ⟨i, hi⟩, f.mem _⟩, hf _, ?_⟩
+      simp [V, hi]
+    | succ m ih =>
+      obtain ⟨e, he, hdir⟩ := ih
+      obtain ⟨e', _, he', hdir'⟩ := power_factorisation_aux_step11_child_cell P p
+        (N + m) (t.node m) (t.node (m + 1)) (t.step m) (hunique m) e he
+      refine ⟨e', he', ?_⟩
+      calc
+        _ = (cellDirection ((P.native (N + m) (t.node m).val).cell 0 e.val)).map
+            S.σ.toLinearMap := hdir'
+        _ = _ := by
+          rw [hdir, ← Submodule.map_comp]
+          simp [pow_succ', LinearEquiv.coe_toLinearMap_mul, Module.End.mul_eq_comp]
+  refine ⟨V, hdim, hmono, hV, ?_⟩
+  intro m i hi
+  by_cases hid : i < d
+  · obtain ⟨e, he, hdir⟩ := hcell i hid m
+    rw [← hdir, power_factorisation_aux_step12_frame_direction, ← Submodule.map_comp]
+    simp only [LinearIsometryEquiv.toLinearEquiv_symm, LinearEquiv.comp_coe,
+      LinearEquiv.self_trans_symm, LinearEquiv.refl_toLinearMap, Submodule.map_id]
+    exact Or.inl ⟨(P.native (N + m) (t.node m).val).ty, e.val, e.property, rfl⟩
+  · simp [V, hid, Submodule.map_top]
+
+/-- Step 15 (copied for `power_factorisation`) of the V4 proof of `header_finiteness` (V4 1.17):
+"beyond all branching". Starting at the unique-child cutoff, recursively
+choose the unique children. Every later incident tile belongs to one of
+these tails, indexed by the finite set of incident tiles at the cutoff. -/
+private theorem power_factorisation_aux_step15_tail_cover
+    (P : CompatiblePatch S) [Nonempty S.ι] (p : E d) :
+    ∃ (N : ℕ) (t : P.Incident p N → P.IncidentTail p N),
+      (∀ m, Function.Surjective (fun a => (t a).node m)) ∧
+      ∀ n, N ≤ n → ∀ a : P.Incident p n,
+        ∃! b : P.Incident p (n + 1), P.IncidentChild p n a b := by
+  classical
+  obtain ⟨_, _, N, hN⟩ := P.incidentForest p
+  let next (m : ℕ) (a : P.Incident p (N + m)) : P.Incident p (N + (m + 1)) :=
+    Classical.choose (hN (N + m) (by omega) a)
+  have hnext (m : ℕ) (a : P.Incident p (N + m)) :
+      P.IncidentChild p (N + m) a (next m a) :=
+    (Classical.choose_spec (hN (N + m) (by omega) a)).1
+  let node (a : P.Incident p N) : ∀ m, P.Incident p (N + m) :=
+    fun m => Nat.rec a (fun m b => next m b) m
+  let t (a : P.Incident p N) : P.IncidentTail p N :=
+    ⟨node a, fun m => hnext m (node a m)⟩
+  refine ⟨N, t, ?_, hN⟩
+  intro m
+  induction m with
+  | zero => exact fun a => ⟨a, rfl⟩
+  | succ m ih =>
+    intro b
+    let a := P.incidentParent p (N + m) b
+    obtain ⟨a₀, ha₀⟩ := ih a
+    refine ⟨a₀, ?_⟩
+    change next m (node a₀ m) = b
+    change node a₀ m = a at ha₀
+    rw [ha₀]
+    exact ExistsUnique.unique (hN (N + m) (by omega) a)
+      (hnext m a) (P.incidentParent_spec p (N + m) b)
+
+end CompatiblePatch
+
+open scoped Topology in
+/-- Copy of a step of the V4 proof of `packet_E_equality` (V4 3.12(b)), used for V4 1.15:
+"we may take q a vertex". An extreme point in the relative interior of
+one of the intersection's cells forces that cell to be a singleton. -/
+private theorem power_factorisation_aux_extreme_cell (K L : Set (E d)) (hLK : L ⊆ K)
+    (q : E d) (hq : q ∈ K.extremePoints ℝ) (hqL : q ∈ relint L) : L = {q} := by
+  obtain ⟨q', hq', rfl⟩ := mem_intrinsicInterior.mp hqL
+  have hqL : (q' : E d) ∈ L := (show q' ∈ Subtype.val ⁻¹' L from interior_subset hq')
+  apply Set.Subset.antisymm
+  · intro x hx
+    let γ : ℝ → affineSpan ℝ L := fun t =>
+      ⟨AffineMap.lineMap (q' : E d) x t,
+        AffineMap.lineMap_mem t q'.property (subset_affineSpan ℝ L hx)⟩
+    have hγ : Continuous γ := by fun_prop
+    have hsmall : ∀ᶠ t : ℝ in 𝓝 0,
+        (γ t : E d) ∈ L ∧ (γ (-t) : E d) ∈ L := by
+      have h₁ : Filter.Tendsto γ (𝓝 0) (𝓝 q') := by
+        simpa [γ] using hγ.tendsto 0
+      have h₂ : Filter.Tendsto (fun t => γ (-t)) (𝓝 0) (𝓝 q') := by
+        simpa [γ] using (hγ.comp continuous_neg).tendsto 0
+      exact Filter.Eventually.and (h₁ (mem_interior_iff_mem_nhds.mp hq'))
+        (h₂ (mem_interior_iff_mem_nhds.mp hq'))
+    obtain ⟨ε, hε, hεL⟩ := Metric.eventually_nhds_iff.mp hsmall
+    let t := ε / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have htε : dist t 0 < ε := by simp [t, abs_of_pos hε]; linarith
+    obtain ⟨hplus, hminus⟩ := hεL htε
+    have hseg : (q' : E d) ∈ openSegment ℝ (γ t : E d) (γ (-t) : E d) := by
+      refine ⟨(1 / 2 : ℝ), (1 / 2 : ℝ), by norm_num, by norm_num, by norm_num, ?_⟩
+      simp only [γ, AffineMap.lineMap_apply, vadd_eq_add, vsub_eq_sub]
+      module
+    have hplus_eq : (γ t : E d) = (q' : E d) := hq.2 (hLK hplus) (hLK hminus) hseg
+    have hzero : t • (x - (q' : E d)) = 0 := by
+      simpa [γ, AffineMap.lineMap_apply] using hplus_eq
+    have hxeq : x = (q' : E d) := sub_eq_zero.mp ((smul_eq_zero.mp hzero).resolve_left ht.ne')
+    exact Set.mem_singleton_iff.mpr hxeq
+  · exact singleton_subset_iff.mpr hqL
+
+/-- Step 1 of the V4 proof of `power_factorisation` (V4 1.15): "take any prototile `A`
+and vertex `v`". An extreme point of a closed set lies on its frontier. -/
+private theorem power_factorisation_aux_extreme_frontier (K : Set (E d)) (hK : IsClosed K)
+    (q : E d) (hq : q ∈ K.extremePoints ℝ) : q ∈ frontier K := by
+  refine ⟨subset_closure hq.1, fun hint => ?_⟩
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp isOpen_interior q hint
+  haveI : Nontrivial (E d) := by
+    apply Module.nontrivial_of_finrank_pos (R := ℝ)
+    rw [finrank_euclideanSpace_fin]
+    have := (Fact.out : 2 ≤ d)
+    omega
+  obtain ⟨v, hv⟩ := exists_norm_eq (E d) (le_of_lt (half_pos hε))
+  have h1 : q + v ∈ K := interior_subset (hball (by
+    rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, hv]
+    linarith))
+  have h2 : q - v ∈ K := interior_subset (hball (by
+    rw [Metric.mem_ball, dist_eq_norm, sub_sub_cancel_left, norm_neg, hv]
+    linarith))
+  have hseg : q ∈ openSegment ℝ (q + v) (q - v) := by
+    refine ⟨(1 / 2 : ℝ), (1 / 2 : ℝ), by norm_num, by norm_num, by norm_num, ?_⟩
+    module
+  have heq : q + v = q := hq.2 h1 h2 hseg
+  have hv0 : v = 0 := by
+    have := congrArg (fun x => x - q) heq
+    simpa using this
+  rw [hv0, norm_zero] at hv
+  linarith
+
+/-- Step 1 of the V4 proof of `power_factorisation` (V4 1.15): "take any prototile `A`
+and vertex `v`". Every prototype complex lists a vertex, with a point in it. -/
+private theorem power_factorisation_aux_vertex (A : PolyManifoldDomain d) (K : CellComplex A) :
+    ∃ v ∈ K.vertices, ∃ q : E d, q ∈ v.carrier := by
+  obtain ⟨q, hq⟩ := A.compact.extremePoints_nonempty
+    (A.interior_nonempty.mono interior_subset)
+  have hqP : q ∈ frontier A.carrier :=
+    power_factorisation_aux_extreme_frontier _ A.compact.isClosed q hq
+  have hv := K.minimalCell_mem q hqP
+  have hvsub : (K.minimalCell q hqP).carrier ⊆ A.carrier := by
+    intro x hx
+    have hx' : x ∈ frontier A.carrier := by
+      rw [← K.carriers_cover]
+      exact Set.mem_iUnion₂.mpr ⟨_, hv, hx⟩
+    exact A.compact.isClosed.frontier_subset hx'
+  have hvsing : (K.minimalCell q hqP).carrier = {q} :=
+    power_factorisation_aux_extreme_cell A.carrier _ hvsub q hq (K.mem_relint_minimalCell q hqP)
+  refine ⟨K.minimalCell q hqP, Finset.mem_filter.mpr ⟨hv, ?_⟩, q, by rw [hvsing]; rfl⟩
+  have hdim := (K.minimalCell q hqP).flat.dimension
+  rw [cellDirection, hvsing, direction_affineSpan, vectorSpan_singleton, finrank_bot] at hdim
+  exact hdim.symm
+
+/-- Step 1 of the V4 proof of `power_factorisation` (V4 1.15, Claim and 1.10(b)):
+"apply Lemma 1.14 to `Π = {A}`, `p = v`; choose a tail ... for every `m ≥ 0`,
+`σ^m 𝓕 ∈ B_{t_{N₀+m}} 𝔉`". A complete flag of direction spaces whose expansions are,
+up to compatible frames, tuples of prototype cell directions. -/
+private theorem power_factorisation_step1_tail_flag (S : SubstSystem d) [Nonempty S.ι] :
+    ∃ (V : ℕ → Submodule ℝ (E d)) (B : ℕ → Ortho d),
+      (∀ i ≤ d, Module.finrank ℝ (V i) = i) ∧ (∀ i < d, V i ≤ V (i + 1)) ∧
+      (∀ m, B m ∈ S.rotGroup) ∧
+      ∀ m i, i ≤ d →
+        ((V i).map (S.σ ^ m).toLinearMap).map (B m).symm.toLinearEquiv.toLinearMap ∈
+          S.cellDirections ∪ {⊤} := by
+  classical
+  let A : S.ι := Classical.arbitrary _
+  let t₀ : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have ht₀ : t₀.frame.linearIsometryEquiv ∈ S.rotGroup := by
+    have : t₀.frame.linearIsometryEquiv = 1 := by ext x; rfl
+    rw [this]
+    exact S.rotGroup.one_mem
+  let P : CompatiblePatch S :=
+    { tiles := {t₀}
+      disjoint := by
+        rw [Finset.coe_singleton]
+        exact Set.pairwiseDisjoint_singleton _ _
+      compatible := by
+        intro t ht
+        rw [Finset.mem_singleton.mp ht]
+        exact ht₀ }
+  obtain ⟨v, hv, q, hq⟩ := power_factorisation_aux_vertex (S.proto A) (S.cx A)
+  have hqA : q ∈ (S.proto A).carrier := by
+    have hv' := (Finset.mem_filter.mp hv).1
+    have hx' : q ∈ frontier (S.proto A).carrier := by
+      rw [← (S.cx A).carriers_cover]
+      exact Set.mem_iUnion₂.mpr ⟨_, hv', hq⟩
+    exact (S.proto A).compact.isClosed.frontier_subset hx'
+  have hlist0 : t₀.Lists 0 q := ⟨v, hv, q, hq, by simp [FramedNode.prototypeFrame, t₀]⟩
+  have hp : P.CommonListed q := by
+    intro t ht _
+    rw [Finset.mem_singleton.mp ht]
+    exact hlist0
+  have h0 : Nonempty (P.Incident q 0) := by
+    let a : P.Address 0 := ⟨⟨t₀, Finset.mem_singleton_self _⟩, ()⟩
+    have hg : ∀ y, compatibleInflatedFrame t₀ (P.compatible t₀ (Finset.mem_singleton_self _)) 0 y
+        = y := by
+      intro y
+      have hc := (Classical.choose_spec (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+        t₀.frame.linearIsometryEquiv (P.compatible t₀ (Finset.mem_singleton_self _)))).2
+      have hy := congrArg (fun e : E d ≃ₗ[ℝ] E d => e y) hc
+      simp only [linearConj, Nat.cast_zero, zpow_zero, neg_zero, one_mul, mul_one] at hy
+      show (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+        t₀.frame.linearIsometryEquiv (P.compatible t₀ (Finset.mem_singleton_self _)))) y +
+          (S.σ ^ 0) (t₀.frame 0) = y
+      rw [show t₀.frame 0 = 0 from rfl, map_zero, add_zero]
+      exact hy.trans rfl
+    refine ⟨⟨a, ?_⟩⟩
+    refine ⟨(S.σ ^ 0) q, ⟨q, hqA, rfl⟩, ?_⟩
+    change compatibleInflatedFrame t₀ (P.compatible t₀ (Finset.mem_singleton_self _)) 0
+      ((AffineIsometryEquiv.refl ℝ (E d)) ((S.σ ^ 0) q)) = (S.σ ^ 0) q
+    rw [hg]
+    rfl
+  have hne : ∀ n, Nonempty (P.Incident q n) := by
+    intro n
+    induction n with
+    | zero => exact h0
+    | succ n ih =>
+      obtain ⟨a⟩ := ih
+      obtain ⟨b, _⟩ := (P.incidentForest q).2.1 n a
+      exact ⟨b⟩
+  obtain ⟨N, t, _, hN⟩ := CompatiblePatch.power_factorisation_aux_step15_tail_cover P q
+  obtain ⟨a⟩ := hne N
+  have hunique : ∀ m (b : P.Incident q (N + m + 1)),
+      P.IncidentChild q (N + m) ((t a).node m) b → b = (t a).node (m + 1) :=
+    fun m b hb => ExistsUnique.unique (hN (N + m) (by omega) ((t a).node m)) hb ((t a).step m)
+  have hlisted := P.incident_commonListed q hp N ((t a).node 0)
+  obtain ⟨V, hdim, hmono, -, hframe⟩ :=
+    CompatiblePatch.power_factorisation_aux_step13_tail_flag P q N (t a) hunique hlisted
+  exact ⟨V, fun m => (P.native (N + m) ((t a).node m).val).frame.linearIsometryEquiv, hdim,
+    hmono, fun m => P.native_compatible (N + m) ((t a).node m).val, hframe⟩
+
+/-- Step 2 of the V4 proof of `power_factorisation` (V4 1.15): "the finite set of native
+flags". There are finitely many prototype cell directions. -/
+private theorem power_factorisation_step2_cellDirections_finite (S : SubstSystem d) :
+    S.cellDirections.Finite := by
+  apply (Set.finite_iUnion fun A : S.ι =>
+    ((S.cx A).cells.finite_toSet.image (fun e : Cell d => cellDirection e.carrier))).subset
+  rintro V ⟨A, e, he, rfl⟩
+  exact Set.mem_iUnion.mpr ⟨A, e, he, rfl⟩
+
+/-- Step 3 of the V4 proof of `power_factorisation` (V4 1.15): "there is `p₀ ≥ 1` with
+`𝖧 σ^{p₀} 𝓕 = 𝖧 𝓕`, i.e. `σ^{p₀} 𝓕 = R 𝓕` for some `R ∈ 𝖧`" (after replacing `𝓕` by a
+later expansion of it). Pigeonhole on the finitely many native flag tuples. -/
+private theorem power_factorisation_step3_recurrence (S : SubstSystem d) [Nonempty S.ι] :
+    ∃ (W : ℕ → Submodule ℝ (E d)) (p : ℕ) (R : Ortho d), 1 ≤ p ∧ R ∈ S.rotGroup ∧
+      (∀ i ≤ d, Module.finrank ℝ (W i) = i) ∧ (∀ i < d, W i ≤ W (i + 1)) ∧
+      ∀ i ≤ d, (W i).map (S.σ ^ p).toLinearMap = (W i).map R.toLinearEquiv.toLinearMap := by
+  classical
+  obtain ⟨V, B, hdim, hmono, hB, hframe⟩ := power_factorisation_step1_tail_flag S
+  let T : Set (Submodule ℝ (E d)) := S.cellDirections ∪ {⊤}
+  have hT : T.Finite :=
+    (power_factorisation_step2_cellDirections_finite S).union (Set.finite_singleton _)
+  haveI : Finite T := hT.to_subtype
+  let key : ℕ → (Fin (d + 1) → T) := fun m i =>
+    ⟨_, hframe m i (Nat.lt_succ_iff.mp i.isLt)⟩
+  have hmain : ∀ m n, m < n → key m = key n →
+      ∃ (W : ℕ → Submodule ℝ (E d)) (p : ℕ) (R : Ortho d), 1 ≤ p ∧ R ∈ S.rotGroup ∧
+        (∀ i ≤ d, Module.finrank ℝ (W i) = i) ∧ (∀ i < d, W i ≤ W (i + 1)) ∧
+        ∀ i ≤ d, (W i).map (S.σ ^ p).toLinearMap =
+          (W i).map R.toLinearEquiv.toLinearMap := by
+    intro m n hmn hkey
+    refine ⟨fun i => (V i).map (S.σ ^ m).toLinearMap, n - m, B n * (B m)⁻¹, by omega,
+      S.rotGroup.mul_mem (hB n) (S.rotGroup.inv_mem (hB m)), ?_, ?_, ?_⟩
+    · intro i hi
+      exact (LinearEquiv.finrank_map_eq _ _).trans (hdim i hi)
+    · intro i hi
+      exact Submodule.map_mono (hmono i hi)
+    · intro i hi
+      have hk : ((V i).map (S.σ ^ m).toLinearMap).map (B m).symm.toLinearEquiv.toLinearMap =
+          ((V i).map (S.σ ^ n).toLinearMap).map (B n).symm.toLinearEquiv.toLinearMap :=
+        congrArg (fun f : Fin (d + 1) → T => (f ⟨i, Nat.lt_succ_of_le hi⟩).val) hkey
+      have e1 : ((V i).map (S.σ ^ m).toLinearMap).map (S.σ ^ (n - m)).toLinearMap =
+          (V i).map (S.σ ^ n).toLinearMap := by
+        rw [← Submodule.map_comp]
+        congr 1
+        refine LinearMap.ext fun x => ?_
+        change (S.σ ^ (n - m) * S.σ ^ m) x = (S.σ ^ n) x
+        rw [← pow_add, Nat.sub_add_cancel hmn.le]
+      have e2 : ((V i).map (S.σ ^ m).toLinearMap).map
+          (B n * (B m)⁻¹).toLinearEquiv.toLinearMap = (V i).map (S.σ ^ n).toLinearMap := by
+        have h1 : (B n * (B m)⁻¹).toLinearEquiv.toLinearMap =
+            (B n).toLinearEquiv.toLinearMap ∘ₗ (B m).symm.toLinearEquiv.toLinearMap :=
+          LinearMap.ext fun x => rfl
+        have h2 : (B n).toLinearEquiv.toLinearMap ∘ₗ (B n).symm.toLinearEquiv.toLinearMap =
+            LinearMap.id := LinearMap.ext fun x => by simp
+        rw [h1, Submodule.map_comp, hk, ← Submodule.map_comp, h2, Submodule.map_id]
+      change ((V i).map (S.σ ^ m).toLinearMap).map (S.σ ^ (n - m)).toLinearMap =
+        ((V i).map (S.σ ^ m).toLinearMap).map (B n * (B m)⁻¹).toLinearEquiv.toLinearMap
+      rw [e1, e2]
+  obtain ⟨x, y, hxy, hk⟩ := Finite.exists_ne_map_eq_of_infinite key
+  rcases lt_or_gt_of_ne hxy with h | h
+  · exact hmain x y h hk
+  · exact hmain y x h hk.symm
+
+/-- Step 4 of the V4 proof of `power_factorisation` (V4 1.15): "block upper triangular
+in a basis adapted to the flag". A complete flag of subspaces has an adapted basis. -/
+private theorem power_factorisation_step4_adapted_basis (W : ℕ → Submodule ℝ (E d))
+    (hdim : ∀ i ≤ d, Module.finrank ℝ (W i) = i) (hmono : ∀ i < d, W i ≤ W (i + 1)) :
+    ∃ b : Module.Basis (Fin d) ℝ (E d), ∀ k ≤ d,
+      W k = Submodule.span ℝ (b '' {i : Fin d | (i : ℕ) < k}) := by
+  classical
+  have hex : ∀ i : Fin d, ∃ x ∈ W (i + 1), x ∉ W i := by
+    intro i
+    apply SetLike.exists_of_lt
+    refine lt_of_le_of_ne (hmono i i.isLt) ?_
+    intro h
+    have h1 := hdim i i.isLt.le
+    have h2 := hdim (i + 1) i.isLt
+    rw [h] at h1
+    omega
+  choose v hvW hvn using hex
+  have hspan : ∀ k ≤ d, Submodule.span ℝ (v '' {i : Fin d | (i : ℕ) < k}) = W k := by
+    intro k
+    induction k with
+    | zero =>
+      intro _
+      have h0 := hdim 0 (Nat.zero_le _)
+      rw [Submodule.finrank_eq_zero] at h0
+      rw [h0]
+      simp
+    | succ k ih =>
+      intro hk
+      have ih' := ih (by omega)
+      have hset : {i : Fin d | (i : ℕ) < k + 1} =
+          {i : Fin d | (i : ℕ) < k} ∪ {⟨k, by omega⟩} := by
+        ext i
+        simp only [Set.mem_setOf_eq, Set.mem_union, Set.mem_singleton_iff, Fin.ext_iff]
+        omega
+      rw [hset, Set.image_union, Submodule.span_union, ih', Set.image_singleton]
+      have hle : W k ⊔ Submodule.span ℝ {v ⟨k, by omega⟩} ≤ W (k + 1) := by
+        refine sup_le (hmono k (by omega)) ?_
+        rw [Submodule.span_le, Set.singleton_subset_iff]
+        exact hvW ⟨k, by omega⟩
+      apply Submodule.eq_of_le_of_finrank_eq hle
+      apply le_antisymm (Submodule.finrank_mono hle)
+      rw [hdim (k + 1) hk]
+      have hlt : W k < W k ⊔ Submodule.span ℝ {v ⟨k, by omega⟩} := by
+        refine lt_of_le_of_ne le_sup_left ?_
+        intro h
+        apply hvn ⟨k, by omega⟩
+        rw [h]
+        exact Submodule.mem_sup_right (Submodule.subset_span rfl)
+      have := Submodule.finrank_lt_finrank_of_lt hlt
+      rw [hdim k (by omega)] at this
+      omega
+  have htop : W d = ⊤ := by
+    apply Submodule.eq_top_of_finrank_eq
+    rw [hdim d le_rfl, finrank_euclideanSpace_fin]
+  have hle : (⊤ : Submodule ℝ (E d)) ≤ Submodule.span ℝ (Set.range v) := by
+    rw [← htop, ← hspan d le_rfl]
+    apply Submodule.span_mono
+    rintro _ ⟨i, _, rfl⟩
+    exact ⟨i, rfl⟩
+  let b := basisOfTopLeSpanOfCardEqFinrank v hle (by simp)
+  refine ⟨b, fun k hk => ?_⟩
+  have hb : (b : Fin d → E d) = v := coe_basisOfTopLeSpanOfCardEqFinrank v hle _
+  rw [hb]
+  exact (hspan k hk).symm
+
+/-- Step 5 of the V4 proof of `power_factorisation` (V4 1.15): "all its eigenvalues are
+real and nonzero ... `L := L_1^2` has positive spectrum". A map that is upper triangular
+in some basis has a square with positive real spectrum. -/
+private theorem power_factorisation_step5_square_positive (b : Module.Basis (Fin d) ℝ (E d))
+    (L₁ : E d ≃ₗ[ℝ] E d)
+    (hL : ∀ j : Fin d, L₁ (b j) ∈ Submodule.span ℝ (b '' {i : Fin d | (i : ℕ) < j + 1})) :
+    PositiveRealSpectrum (L₁ * L₁) := by
+  classical
+  let M := LinearMap.toMatrix b b L₁.toLinearMap
+  have hM : M.BlockTriangular id := by
+    intro i j hji
+    change LinearMap.toMatrix b b L₁.toLinearMap i j = 0
+    rw [LinearMap.toMatrix_apply]
+    have hs := (Module.Basis.mem_span_image b).mp (hL j)
+    by_contra hne
+    have hi := hs (Finsupp.mem_support_iff.mpr hne)
+    simp only [Set.mem_setOf_eq] at hi
+    have : (j : ℕ) < i := hji
+    omega
+  have hmul : LinearMap.toMatrix b b (L₁ * L₁).toLinearMap = M * M := by
+    rw [← LinearMap.toMatrix_mul]
+    rfl
+  have hdiag : ∀ i, (M * M) i i = M i i * M i i := by
+    intro i
+    rw [Matrix.mul_apply]
+    apply Finset.sum_eq_single i
+    · intro k _ hk
+      rcases lt_or_gt_of_ne hk with h | h
+      · rw [hM h, zero_mul]
+      · rw [hM h, mul_zero]
+    · intro h; exact absurd (Finset.mem_univ i) h
+  have hchar : (L₁ * L₁).toLinearMap.charpoly = ∏ i : Fin d, (Polynomial.X -
+      Polynomial.C (M i i * M i i)) := by
+    rw [← LinearMap.charpoly_toMatrix (L₁ * L₁).toLinearMap b, hmul,
+      Matrix.charpoly_of_upperTriangular _ (hM.mul hM)]
+    simp only [hdiag]
+  have hdet : ∀ i, M i i ≠ 0 := by
+    have h1 : M.det ≠ 0 := by
+      rw [LinearMap.det_toMatrix]
+      exact (LinearEquiv.isUnit_det' L₁).ne_zero
+    rw [Matrix.det_of_upperTriangular hM] at h1
+    exact fun i => (Finset.prod_ne_zero_iff.mp h1) i (Finset.mem_univ i)
+  intro z hz
+  rw [hchar, Polynomial.IsRoot, Polynomial.eval_map, Polynomial.eval₂_finset_prod,
+    Finset.prod_eq_zero_iff] at hz
+  obtain ⟨i, _, hi⟩ := hz
+  simp only [Polynomial.eval₂_sub, Polynomial.eval₂_X, Polynomial.eval₂_C] at hi
+  have hz' : z = ((M i i * M i i : ℝ) : ℂ) := by
+    rw [sub_eq_zero] at hi
+    simpa using hi
+  rw [hz']
+  refine ⟨Complex.ofReal_im _, ?_⟩
+  rw [Complex.ofReal_re]
+  exact mul_self_pos.mpr (hdet i)
+
+/-- Step 6 of the V4 proof of `power_factorisation` (V4 1.15, using 1.10(a)):
+"`L_1` normalises `H`". A linear map whose conjugations, and those of its inverse,
+preserve the compatible group normalises it as a set. -/
+private theorem power_factorisation_step6_normalizes (T : E d ≃ₗ[ℝ] E d)
+    (h1 : ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup, h'.toLinearEquiv = T * h.toLinearEquiv * T⁻¹)
+    (h2 : ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup,
+      h'.toLinearEquiv = T⁻¹ * h.toLinearEquiv * T⁻¹⁻¹) :
+    (fun h : Ortho d => T * h.toLinearEquiv * T⁻¹) '' (S.rotGroup : Set (Ortho d)) =
+      (fun h : Ortho d => h.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+  apply Set.Subset.antisymm
+  · rintro _ ⟨h, hh, rfl⟩
+    obtain ⟨h', hh', e⟩ := h1 h hh
+    exact ⟨h', hh', e⟩
+  · rintro _ ⟨h, hh, rfl⟩
+    obtain ⟨h', hh', e⟩ := h2 h hh
+    refine ⟨h', hh', ?_⟩
+    show T * h'.toLinearEquiv * T⁻¹ = h.toLinearEquiv
+    rw [e, inv_inv]
+    group
+
+/-- Step 6 of the V4 proof of `power_factorisation` (V4 1.10(a)): conjugation-invariance
+of the compatible group is preserved by products. -/
+private theorem power_factorisation_step6_conj_mul (T₁ T₂ : E d ≃ₗ[ℝ] E d)
+    (h1 : ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup, h'.toLinearEquiv = T₁ * h.toLinearEquiv * T₁⁻¹)
+    (h2 : ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup, h'.toLinearEquiv = T₂ * h.toLinearEquiv * T₂⁻¹) :
+    ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup,
+      h'.toLinearEquiv = (T₁ * T₂) * h.toLinearEquiv * (T₁ * T₂)⁻¹ := by
+  intro h hh
+  obtain ⟨h', hh', e'⟩ := h2 h hh
+  obtain ⟨h'', hh'', e''⟩ := h1 h' hh'
+  refine ⟨h'', hh'', ?_⟩
+  rw [e'', e', mul_inv_rev]
+  simp only [mul_assoc]
+
+/-- Step 6 of the V4 proof of `power_factorisation` (V4 1.10(a)): compatible rotations
+conjugate the compatible group into itself. -/
+private theorem power_factorisation_step6_conj_ortho (R : Ortho d) (hR : R ∈ S.rotGroup) :
+    ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup,
+      h'.toLinearEquiv = R.toLinearEquiv * h.toLinearEquiv * R.toLinearEquiv⁻¹ := by
+  intro h hh
+  exact ⟨R * h * R⁻¹, S.rotGroup.mul_mem (S.rotGroup.mul_mem hR hh) (S.rotGroup.inv_mem hR),
+    LinearEquiv.ext fun x => rfl⟩
+
+/-- Step 6 of the V4 proof of `power_factorisation` (V4 1.10(a)): integral powers of `σ`
+conjugate the compatible group into itself. -/
+private theorem power_factorisation_step6_conj_zpow (m : ℤ) :
+    ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup,
+      h'.toLinearEquiv = S.σ ^ m * h.toLinearEquiv * (S.σ ^ m)⁻¹ := by
+  intro h hh
+  obtain ⟨Q, hQ, e⟩ := S.rotGroup_conj_zpow m h hh
+  exact ⟨Q, hQ, by rw [e, linearConj, zpow_neg]⟩
+
 /-- P10, V4 1.15: a power admits the prescribed factorisation.
 DEVIATION: `Nonempty S.ι` is explicit because stage 1 allows an empty catalogue.
 V4's proof chooses a prototile and vertex; without any tiles an arbitrary expansion
 need not have a positive-spectrum power modulo the trivial compatible group. -/
 theorem power_factorisation (S : SubstSystem d) [Nonempty S.ι] :
     Nonempty (PowerFactorisation S) := by
-  sorry
+  classical
+  obtain ⟨W, p, R, hp, hR, hdim, hmono, hinv⟩ := power_factorisation_step3_recurrence S
+  obtain ⟨b, hb⟩ := power_factorisation_step4_adapted_basis W hdim hmono
+  let L₁ : E d ≃ₗ[ℝ] E d := (R⁻¹ : Ortho d).toLinearEquiv * S.σ ^ (p : ℤ)
+  have hL : ∀ j : Fin d,
+      L₁ (b j) ∈ Submodule.span ℝ (b '' {i : Fin d | (i : ℕ) < j + 1}) := by
+    intro j
+    have hj : (j : ℕ) + 1 ≤ d := j.isLt
+    rw [← hb _ hj]
+    have hbj : b j ∈ W (j + 1) := by
+      rw [hb _ hj]
+      exact Submodule.subset_span ⟨j, show (j : ℕ) < j + 1 by omega, rfl⟩
+    have hs : (S.σ ^ p) (b j) ∈ (W (j + 1)).map R.toLinearEquiv.toLinearMap := by
+      rw [← hinv _ hj]
+      exact Submodule.mem_map_of_mem hbj
+    obtain ⟨w, hw, hRw⟩ := Submodule.mem_map.mp hs
+    have h1 : L₁ (b j) = R.symm ((S.σ ^ p) (b j)) := by
+      simp only [L₁, zpow_natCast]
+      rfl
+    rw [h1, ← hRw]
+    convert hw
+    exact R.symm_apply_apply w
+  obtain ⟨Q, hQ, hQe⟩ := S.rotGroup_conj_zpow (p : ℤ) R hR
+  have e1 : (Q * R).toLinearEquiv = Q.toLinearEquiv * R.toLinearEquiv :=
+    LinearEquiv.ext fun x => rfl
+  have e2 : (R⁻¹ : Ortho d).toLinearEquiv = R.toLinearEquiv⁻¹ :=
+    LinearEquiv.ext fun x => rfl
+  have hfactor : S.σ ^ (p + p) = (Q * R).toLinearEquiv * (L₁ * L₁) := by
+    have e3 : S.σ ^ (p + p) = S.σ ^ ((p : ℤ) + (p : ℤ)) := by
+      rw [← Nat.cast_add, zpow_natCast]
+    rw [e3, e1, hQe, linearConj]
+    simp only [L₁, e2]
+    group
+  have hf1 := power_factorisation_step6_conj_mul (S := S) _ _
+    (power_factorisation_step6_conj_ortho R⁻¹ (S.rotGroup.inv_mem hR))
+    (power_factorisation_step6_conj_zpow (S := S) (p : ℤ))
+  have hb1 := power_factorisation_step6_conj_mul (S := S) _ _
+    (power_factorisation_step6_conj_zpow (S := S) (-(p : ℤ)))
+    (power_factorisation_step6_conj_ortho R hR)
+  have hLinv : L₁⁻¹ = S.σ ^ (-(p : ℤ)) * R.toLinearEquiv := by
+    simp only [L₁, mul_inv_rev, zpow_neg, e2, inv_inv]
+  have hf2 : ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup,
+      h'.toLinearEquiv = L₁⁻¹ * h.toLinearEquiv * L₁⁻¹⁻¹ := by
+    rw [hLinv]
+    exact hb1
+  have hF := power_factorisation_step6_conj_mul (S := S) L₁ L₁ hf1 hf1
+  have hB : ∀ h ∈ S.rotGroup, ∃ h' ∈ S.rotGroup,
+      h'.toLinearEquiv = (L₁ * L₁)⁻¹ * h.toLinearEquiv * (L₁ * L₁)⁻¹⁻¹ := by
+    rw [mul_inv_rev]
+    exact power_factorisation_step6_conj_mul (S := S) L₁⁻¹ L₁⁻¹ hf2 hf2
+  exact ⟨⟨p + p, by omega, Q * R, S.rotGroup.mul_mem hQ hR, L₁ * L₁, hfactor,
+    power_factorisation_step6_normalizes (L₁ * L₁) hF hB,
+    power_factorisation_step5_square_positive b L₁ hL⟩⟩
 
 /-- P11, V4 1.16(a): the positive factor centralizes the full compatible group. -/
 theorem L_commutes (F : PowerFactorisation S) (h : Ortho d) (hh : h ∈ S.rotGroup) :

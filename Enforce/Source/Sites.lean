@@ -186,12 +186,131 @@ def IsSite (A : S.ι) (F : FacetFlag S A) (r : ℕ) (q : E d) : Prop :=
       ∃ (j : ℕ) (P : FramedNode S), j < r ∧ S.IsStandardNode A r (r - j) P ∧
         a.tile.IsDescendant 0 P (r - j) ∧ b.tile.IsDescendant 0 P (r - j)
 
+/-- P18, V4 1.23(a): an owner change on the flag edge: a relative-interior point of
+the edge where two boundary edges of trace pieces with distinct owners meet from
+opposite sides. These are exactly the "junction points at which the owners differ". -/
+private def sitesExistOwnerChange (A : S.ι) (F : FacetFlag S A) (r : ℕ) (q : E d) : Prop :=
+  q ∈ relint (flagEdge A F r) ∧
+    ∃ (a b : TracePiece A F r) (K L : Set (E d)),
+      a.owner ≠ b.owner ∧ BoundaryTraceEdge a q K ∧ BoundaryTraceEdge b q L ∧
+      (∃ x ∈ relint K, ∃ y ∈ relint L, q ∈ openSegment ℝ x y)
+
+/-- Step 1 of the V4 proof of `sites_exist` (V4 1.23(a), (H3)): a one-dimensional
+cell, such as the prototype flag edge `h₀`, has two distinct points (so `|h₀| > 0`). -/
+private theorem sites_exist_step1_two_points (e : Cell d) (he : e.dim = 1) :
+    ∃ x ∈ e.carrier, ∃ y ∈ e.carrier, x ≠ y := by
+  by_contra hne
+  push_neg at hne
+  have hbot : cellDirection e.carrier = ⊥ := by
+    unfold cellDirection
+    rw [direction_affineSpan, vectorSpan_def, Submodule.span_eq_bot]
+    rintro z ⟨x, hx, y, hy, rfl⟩
+    rw [hne x hx y hy]
+    exact vsub_self y
+  have h1 : Module.finrank ℝ (cellDirection e.carrier) = 1 := e.flat.dimension.trans he
+  rw [hbot, finrank_bot] at h1
+  exact zero_ne_one h1
+
+/-- Step 1 of the V4 proof of `sites_exist` (V4 1.23(a), (7.1)/(H3)):
+"The length of `h` in `σ^r A` is `≥ c^r |h| → ∞` (H3)"; i.e.
+`|h_r| ≥ a b^r |h₀| → ∞`. For every bound `L`, from some depth on the flag edge
+contains two points at distance at least `L`. -/
+private theorem sites_exist_step1_long_edge (A : S.ι) (F : FacetFlag S A) (L : ℝ) :
+    ∃ r : ℕ, ∀ r' : ℕ, r ≤ r' →
+      ∃ x ∈ flagEdge A F r', ∃ y ∈ flagEdge A F r', L ≤ dist x y := by
+  have hc : 0 < S.c := lt_trans zero_lt_one S.c_gt_one
+  have hexpand : ∀ n : ℕ, ∀ x : E d, S.c ^ n * ‖x‖ ≤ ‖(S.σ ^ n) x‖ := by
+    intro n
+    induction n with
+    | zero => intro x; simp
+    | succ n ih =>
+      intro x
+      calc
+        S.c ^ (n + 1) * ‖x‖ = S.c * (S.c ^ n * ‖x‖) := by ring
+        _ ≤ S.c * ‖(S.σ ^ n) x‖ := mul_le_mul_of_nonneg_left (ih x) hc.le
+        _ ≤ ‖S.σ ((S.σ ^ n) x)‖ := S.expand _
+        _ = ‖(S.σ ^ (n + 1)) x‖ := by rw [pow_succ']; rfl
+  have hdist : ∀ n : ℕ, ∀ x y : E d,
+      S.c ^ n * dist x y ≤ dist ((S.σ ^ n) x) ((S.σ ^ n) y) := by
+    intro n x y
+    simpa only [dist_eq_norm, map_sub] using hexpand n (x - y)
+  obtain ⟨x, hx, y, hy, hxy⟩ := sites_exist_step1_two_points
+    (F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩).val (F.dimension _)
+  have hpos : 0 < dist x y := dist_pos.mpr hxy
+  obtain ⟨r, hr⟩ : ∃ r : ℕ, L / dist x y < S.c ^ r :=
+    ((tendsto_pow_atTop_atTop_of_one_lt S.c_gt_one).eventually
+      (Filter.eventually_gt_atTop _)).exists
+  refine ⟨r, fun r' hr' => ?_⟩
+  refine ⟨(S.σ ^ r') x, by unfold flagEdge; exact ⟨x, hx, rfl⟩,
+    (S.σ ^ r') y, by unfold flagEdge; exact ⟨y, hy, rfl⟩, ?_⟩
+  have hmono : S.c ^ r ≤ S.c ^ r' := pow_le_pow_right₀ S.c_gt_one.le hr'
+  calc
+    L ≤ S.c ^ r * dist x y := by
+      have := (div_lt_iff₀ hpos).mp hr
+      linarith
+    _ ≤ S.c ^ r' * dist x y := mul_le_mul_of_nonneg_right hmono hpos.le
+    _ ≤ _ := hdist r' x y
+
+/-- Step 2 of the V4 proof of `sites_exist` (V4 1.23(a), counting paragraph):
+"Let `D` bound native tile diameters. The recursive trace of Lemma 1.22 covers `h_r`
+by consecutive edges with recorded owners. Every maximal consecutive run with one
+owner has total length at most `D`, since that run lies in one native tile. Thus the
+number of changes of owner is at least `|h_r|/D - 1`." Concretely: there is a uniform
+`D` such that two points of the depth-`r` flag edge at distance `≥ (M+1) D` have at
+least `M` distinct owner changes (consecutive edges, `q ∈ relint h`, distinct owners)
+of the trace along the edge. -/
+private theorem sites_exist_step2_owner_changes (A : S.ι) (F : FacetFlag S A) :
+    ∃ D : ℝ, ∀ (r M : ℕ) (x y : E d), x ∈ flagEdge A F r → y ∈ flagEdge A F r →
+      ((M : ℝ) + 1) * D ≤ dist x y →
+      ∃ q : Finset (E d), M ≤ q.card ∧ ∀ p ∈ q, sitesExistOwnerChange A F r p := by
+  sorry
+
+/-- Step 3 of the V4 proof of `sites_exist` (V4 1.23(a), fan paragraph):
+"At such a change `q`, the adjacent trace polygons have distinct owners. For `d ≥ 3`,
+near `q` the two-dimensional flag cell is a half-plane ... Thus all trace polygons
+through `q` list it as a vertex. Their finite fan has different extreme members, so
+some separating edge enters the half-disc: this is the required inward arm. In `d = 2`
+the same argument uses the native tiles in the half-disc inside the node." -/
+private theorem sites_exist_step3_inward_arm (A : S.ι) (F : FacetFlag S A) (r : ℕ)
+    (q : E d) (hq : sitesExistOwnerChange A F r q) : InwardTraceArm A F r q := by
+  sorry
+
+/-- Step 4 of the V4 proof of `sites_exist` (V4 1.23(a)): "The distinct depth-`r`
+owners have a least common ancestor of depth less than `r`". Distinct role words force
+`r ≥ 1`, and the root `σ^r A` itself (depth `0 < r`) is a common standard ancestor. -/
+private theorem sites_exist_step4_common_root (A : S.ι) (F : FacetFlag S A) (r : ℕ)
+    (a b : TracePiece A F r) (hab : a.owner ≠ b.owner) :
+    ∃ (j : ℕ) (P : FramedNode S), j < r ∧ S.IsStandardNode A r (r - j) P ∧
+      a.tile.IsDescendant 0 P (r - j) ∧ b.tile.IsDescendant 0 P (r - j) := by
+  have hr : 0 < r := by
+    rcases Nat.eq_zero_or_pos r with h | h
+    · subst h
+      exact absurd (show (a.owner : Unit) = b.owner from rfl) hab
+    · exact h
+  let P : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hP (c : TracePiece A F r) : c.tile.IsDescendant 0 P (r - 0) := by
+    refine ⟨r, by omega, c.owner, ?_⟩
+    change S.nativeTile A r c.owner =
+      ⟨(S.descendantNode A 0 r c.owner).ty,
+        (S.descendantNode A 0 r c.owner).frame.trans (AffineIsometryEquiv.refl ℝ (E d))⟩
+    rw [AffineIsometryEquiv.trans_refl]
+    rfl
+  refine ⟨0, P, hr, ⟨0, by omega, (show S.RoleWord A 0 from ()), rfl⟩, hP a, hP b⟩
+
 /-- P18, V4 1.23(a): arbitrarily many ordinary sites occur from some depth on.
 The sites in the finite witness set are distinct; expansion provides the length. -/
 theorem sites_exist (A : S.ι) (F : FacetFlag S A) (N : ℕ) (hN : 1 ≤ N) :
     ∃ r : ℕ, ∀ r' : ℕ, r ≤ r' →
       ∃ q : Finset (E d), N ≤ q.card ∧ ∀ p ∈ q, IsSite A F r' p := by
-  sorry
+  obtain ⟨D, hD⟩ := sites_exist_step2_owner_changes A F
+  obtain ⟨r, hr⟩ := sites_exist_step1_long_edge A F (((N : ℝ) + 1) * D)
+  refine ⟨r, fun r' hr' => ?_⟩
+  obtain ⟨x, hx, y, hy, hxy⟩ := hr r' hr'
+  obtain ⟨q, hcard, hq⟩ := hD r' N x y hx hy hxy
+  refine ⟨q, hcard, fun p hp => ?_⟩
+  obtain ⟨hrel, a, b, K, L, hab, hK, hL, hseg⟩ := hq p hp
+  exact ⟨hrel, sites_exist_step3_inward_arm A F r' p (hq p hp), a, b, K, L, hab, hK, hL,
+    hseg, sites_exist_step4_common_root A F r' a b hab⟩
 
 /-- P18, V4 1.23(b): a selected-owner template records full relative frames,
 vertex names and all recorded coface names, together with the normalized site. -/

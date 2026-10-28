@@ -1479,6 +1479,416 @@ private theorem states_finite_step4_boundary_cone (A : S.ι) (F : FacetName S A)
     exact states_finite_step4_empty
 
 
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.0(H2)): the relative
+interior is the set of points with a small ball of the affine span inside the set. -/
+private lemma states_finite_step4_flag_halfspace_lem_relint {K : Set (E d)} {x : E d} :
+    x ∈ relint K ↔
+      x ∈ K ∧ ∃ ρ : ℝ, 0 < ρ ∧ ∀ y ∈ affineSpan ℝ K, dist y x < ρ → y ∈ K := by
+  constructor
+  · intro hx
+    obtain ⟨y, hy, rfl⟩ := mem_intrinsicInterior.mp hx
+    obtain ⟨ρ, hρ, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hy)
+    have hyK : y ∈ (Subtype.val ⁻¹' K : Set (affineSpan ℝ K)) := interior_subset hy
+    refine ⟨hyK, ρ, hρ, fun z hz hdist => ?_⟩
+    exact hball (show (⟨z, hz⟩ : affineSpan ℝ K) ∈ ball y ρ from hdist)
+  · rintro ⟨hxK, ρ, hρ, h⟩
+    refine mem_intrinsicInterior.mpr ⟨⟨x, subset_affineSpan ℝ K hxK⟩, ?_, rfl⟩
+    refine mem_interior_iff_mem_nhds.mpr (Metric.mem_nhds_iff.mpr ⟨ρ, hρ, fun z hz => ?_⟩)
+    exact h z z.2 hz
+
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.0(H2)(i)--(ii)):
+a listed cell through a relative-interior point of another listed cell contains it. -/
+private lemma states_finite_step4_flag_halfspace_lem_incidence
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e f : Cell d}
+    (he : e ∈ K.cells) (hf : f ∈ K.cells) {p : E d} (hp : p ∈ relint e.carrier)
+    (hpf : p ∈ f.carrier) : e.carrier ⊆ f.carrier := by
+  classical
+  let N (f : Cell d) := (K.cells.filter fun g => g.carrier ⊆ f.carrier).card
+  have main : ∀ n : ℕ, ∀ f : Cell d, f ∈ K.cells → N f = n → p ∈ f.carrier →
+      e.carrier ⊆ f.carrier := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+      intro f hf hN hpf
+      obtain ⟨b, hb, hboundary⟩ := K.boundary_union f hf
+      have hgb (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ relfrontier f.carrier := by
+        intro z hz
+        rw [hboundary]
+        exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+      have hgf (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ f.carrier :=
+        (hgb g hg).trans (intrinsicFrontier_subset f.flat.compact.isClosed)
+      have hsmall : ∀ g ∈ b, N g < N f := by
+        intro g hg
+        have hnfg : ¬ f.carrier ⊆ g.carrier := by
+          intro hfg
+          obtain ⟨z, hz⟩ := f.flat.relint_nonempty
+          have hzb := hgb g hg (hfg (intrinsicInterior_subset hz))
+          change z ∈ intrinsicFrontier ℝ f.carrier at hzb
+          rw [← closure_diff_intrinsicInterior] at hzb
+          exact hzb.2 hz
+        apply Finset.card_lt_card
+        apply (Finset.ssubset_iff_of_subset ?_).mpr
+        · refine ⟨f, Finset.mem_filter.mpr ⟨hf, Subset.rfl⟩, ?_⟩
+          intro hfg
+          exact hnfg (Finset.mem_filter.mp hfg).2
+        · intro g' hg'
+          obtain ⟨hg'K, hg'g⟩ := Finset.mem_filter.mp hg'
+          exact Finset.mem_filter.mpr ⟨hg'K, hg'g.trans (hgf g hg)⟩
+      by_cases hpi : p ∈ relint f.carrier
+      · have hef : e = f := by
+          by_contra hne
+          exact Set.disjoint_left.mp (K.relint_disjoint e he f hf hne) hp hpi
+        exact hef ▸ Subset.rfl
+      · have hpb : p ∈ relfrontier f.carrier := by
+          change p ∈ intrinsicFrontier ℝ f.carrier
+          rw [← closure_diff_intrinsicInterior, f.flat.compact.isClosed.closure_eq]
+          exact ⟨hpf, hpi⟩
+        rw [hboundary] at hpb
+        obtain ⟨g, hpg⟩ := mem_iUnion.mp hpb
+        obtain ⟨hg, hpg⟩ := mem_iUnion.mp hpg
+        exact (ih (N g) (by simpa only [hN] using hsmall g hg) g (hb hg) rfl hpg).trans
+          (hgf g hg)
+  exact main (N f) f hf rfl hpf
+
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.0(H2)): a cell inside the
+relative boundary of another cell has strictly smaller dimension. -/
+private lemma states_finite_step4_flag_halfspace_lem_frontier_dim {g C : Cell d}
+    (hg : g.carrier ⊆ relfrontier C.carrier) :
+    Module.finrank ℝ (cellDirection g.carrier) <
+      Module.finrank ℝ (cellDirection C.carrier) := by
+  have hgC : g.carrier ⊆ C.carrier :=
+    hg.trans (intrinsicFrontier_subset C.flat.compact.isClosed)
+  have hle : cellDirection g.carrier ≤ cellDirection C.carrier :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hgC)
+  by_contra hlt
+  have hdir : cellDirection g.carrier = cellDirection C.carrier :=
+    Submodule.eq_of_le_of_finrank_le hle (not_lt.mp hlt)
+  obtain ⟨z, hz⟩ := g.flat.relint_nonempty
+  have hzg : z ∈ g.carrier := intrinsicInterior_subset hz
+  have hspan : affineSpan ℝ g.carrier = affineSpan ℝ C.carrier :=
+    AffineSubspace.ext_of_direction_eq hdir
+      ⟨z, subset_affineSpan ℝ _ hzg, subset_affineSpan ℝ _ (hgC hzg)⟩
+  have hrel : relint g.carrier ⊆ relint C.carrier := by
+    unfold relint intrinsicInterior
+    rw [← hspan]
+    exact Set.image_mono (interior_mono (Set.preimage_mono hgC))
+  have hzb := hg hzg
+  change z ∈ intrinsicFrontier ℝ C.carrier at hzb
+  rw [← closure_diff_intrinsicInterior] at hzb
+  exact hzb.2 (hrel hz)
+
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.16(b)): a codimension-one
+pair `W ≤ V` is cut out in `V` by a functional taking the value `1` on a vector of `V`. -/
+private lemma states_finite_step4_flag_halfspace_lem_functional {V W : Submodule ℝ (E d)}
+    (hWV : W ≤ V) (hdim : Module.finrank ℝ V = Module.finrank ℝ W + 1) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ, ∃ n ∈ V, ℓ n = 1 ∧
+      {x | x ∈ V ∧ ℓ x = 0} = (W : Set (E d)) := by
+  have hlt : W < V := lt_of_le_of_ne hWV (by
+    intro h
+    rw [h] at hdim
+    omega)
+  obtain ⟨u, huV, huW⟩ := SetLike.exists_of_lt hlt
+  obtain ⟨f, hfu, hfW⟩ := Submodule.exists_dual_map_eq_bot_of_notMem huW inferInstance
+  have hWker : ∀ w ∈ W, f w = 0 := by
+    intro w hw
+    have h : f w ∈ W.map f := Submodule.mem_map_of_mem hw
+    rw [hfW] at h
+    exact (Submodule.mem_bot ℝ).mp h
+  have hsup : W ⊔ Submodule.span ℝ {u} = V := by
+    apply Submodule.eq_of_le_of_finrank_le
+      (sup_le hWV ((Submodule.span_singleton_le_iff_mem _ _).mpr huV))
+    have hlt' : W < W ⊔ Submodule.span ℝ {u} := lt_of_le_of_ne le_sup_left (by
+      intro h
+      apply huW
+      rw [h]
+      exact Submodule.mem_sup_right (Submodule.mem_span_singleton_self u))
+    have := Submodule.finrank_lt_finrank_of_lt hlt'
+    omega
+  refine ⟨(f u)⁻¹ • f, u, huV, by
+    rw [LinearMap.smul_apply, smul_eq_mul, inv_mul_cancel₀ hfu], ?_⟩
+  ext x
+  simp only [Set.mem_setOf_eq, SetLike.mem_coe, LinearMap.smul_apply, smul_eq_mul]
+  constructor
+  · rintro ⟨hxV, hx0⟩
+    rw [← hsup] at hxV
+    obtain ⟨w, hw, y, hy, rfl⟩ := Submodule.mem_sup.mp hxV
+    obtain ⟨c, rfl⟩ := Submodule.mem_span_singleton.mp hy
+    rw [map_add, map_smul, hWker w hw, zero_add, smul_eq_mul] at hx0
+    have hc : c = 0 := by
+      have h' : (f u)⁻¹ * (c * f u) = c := by
+        rw [mul_comm c, ← mul_assoc, inv_mul_cancel₀ hfu, one_mul]
+      rw [h'] at hx0
+      exact hx0
+    subst hc
+    simpa using hw
+  · intro hxW
+    exact ⟨hWV hxW, by rw [hWker x hxW, mul_zero]⟩
+
+open scoped Topology in
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.16(b)): near a listed
+codimension-one subcell, the relative boundary of the coface lies in the subcell's span. -/
+private lemma states_finite_step4_flag_halfspace_lem_local_frontier
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e C : Cell d}
+    (he : e ∈ K.cells) (hC : C ∈ K.cells) (hdim : C.dim = e.dim + 1)
+    {a : E d} (ha : a ∈ relint e.carrier) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball a r, x ∈ relfrontier C.carrier →
+      x ∈ affineSpan ℝ e.carrier := by
+  classical
+  obtain ⟨b, hb, hboundary⟩ := K.boundary_union C hC
+  have hev : ∀ g ∈ b, ∀ᶠ x in 𝓝 a, x ∈ g.carrier → x ∈ affineSpan ℝ e.carrier := by
+    intro g hg
+    by_cases hag : a ∈ g.carrier
+    · refine Filter.Eventually.of_forall (fun x hx => ?_)
+      have hgb : g.carrier ⊆ relfrontier C.carrier := by
+        intro z hz
+        rw [hboundary]
+        exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+      have heg := states_finite_step4_flag_halfspace_lem_incidence K he (hb hg) ha hag
+      have hlt := states_finite_step4_flag_halfspace_lem_frontier_dim hgb
+      have hle : cellDirection e.carrier ≤ cellDirection g.carrier :=
+        AffineSubspace.direction_le (affineSpan_mono ℝ heg)
+      have hdir : cellDirection e.carrier = cellDirection g.carrier := by
+        apply Submodule.eq_of_le_of_finrank_le hle
+        rw [C.flat.dimension, g.flat.dimension, hdim] at hlt
+        rw [e.flat.dimension, g.flat.dimension]
+        omega
+      have hspan : affineSpan ℝ e.carrier = affineSpan ℝ g.carrier :=
+        AffineSubspace.ext_of_direction_eq hdir
+          ⟨a, subset_affineSpan ℝ _ (intrinsicInterior_subset ha), subset_affineSpan ℝ _ hag⟩
+      rw [hspan]
+      exact subset_affineSpan ℝ _ hx
+    · filter_upwards [g.flat.compact.isClosed.isOpen_compl.mem_nhds hag] with x hx hxg
+      exact (hx hxg).elim
+  obtain ⟨r, hr, hball⟩ :=
+    Metric.eventually_nhds_iff.mp ((Filter.eventually_all_finset b).mpr hev)
+  refine ⟨r, hr, fun x hx hxf => ?_⟩
+  rw [hboundary] at hxf
+  obtain ⟨g, hxg⟩ := mem_iUnion.mp hxf
+  obtain ⟨hg, hxg⟩ := mem_iUnion.mp hxg
+  exact hball hx g hg hxg
+
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.16(b)): an open half-ball
+of the span avoiding the relative boundary lies inside or outside the closed set. -/
+private lemma states_finite_step4_flag_halfspace_lem_dichotomy {Cs : Set (E d)}
+    (hcl : IsClosed Cs) (ℓ : E d →ₗ[ℝ] ℝ) (a : E d) (r : ℝ)
+    (hint : ∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∈ Cs → x ∈ relint Cs) :
+    (∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∈ Cs) ∨
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∉ Cs) := by
+  let H : Set (E d) := ball a r ∩ ((affineSpan ℝ Cs : Set (E d)) ∩ {x | ℓ a < ℓ x})
+  have hconv : Convex ℝ H :=
+    (convex_ball a r).inter ((affineSpan ℝ Cs).convex.inter
+      (convex_halfSpace_gt ℓ.isLinear _))
+  let U : Set (E d) := {x | ∃ ρ : ℝ, 0 < ρ ∧ ∀ y ∈ affineSpan ℝ Cs, dist y x < ρ → y ∈ Cs}
+  have hU : IsOpen U := by
+    rw [Metric.isOpen_iff]
+    rintro x ⟨ρ, hρ, hx⟩
+    refine ⟨ρ / 2, half_pos hρ, fun z hz => ⟨ρ / 2, half_pos hρ, fun y hy hyz => hx y hy ?_⟩⟩
+    have := dist_triangle y z x
+    rw [mem_ball] at hz
+    linarith
+  have hcover : H ⊆ U ∪ Csᶜ := by
+    rintro x ⟨hx, hxs, hxl⟩
+    by_cases hxC : x ∈ Cs
+    · exact Or.inl (states_finite_step4_flag_halfspace_lem_relint.mp
+        (hint x hx hxs hxl hxC)).2
+    · exact Or.inr hxC
+  have hdisj : H ∩ (U ∩ Csᶜ) = ∅ := by
+    apply Set.eq_empty_of_forall_notMem
+    rintro x ⟨⟨_, hxs, _⟩, ⟨ρ, hρ, hρx⟩, hxC⟩
+    exact hxC (hρx x hxs (by simpa using hρ))
+  rcases (isPreconnected_iff_subset_of_disjoint.mp hconv.isPreconnected) U Csᶜ hU
+      hcl.isOpen_compl hcover hdisj with h | h
+  · left
+    intro x hx hxs hxl
+    obtain ⟨ρ, hρ, hρx⟩ := h ⟨hx, hxs, hxl⟩
+    exact hρx x hxs (by simpa using hρ)
+  · right
+    intro x hx hxs hxl
+    exact h ⟨hx, hxs, hxl⟩
+
+open scoped Topology in
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.16(b)): a closed set
+containing an open half-ball of its span contains the closed half-ball. -/
+private lemma states_finite_step4_flag_halfspace_lem_closure {Cs : Set (E d)}
+    (hcl : IsClosed Cs) (ℓ : E d →ₗ[ℝ] ℝ) (a n : E d) (r : ℝ)
+    (hn : n ∈ (affineSpan ℝ Cs).direction) (hℓn : ℓ n = 1)
+    (hpos : ∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∈ Cs)
+    {y : E d} (hy : y ∈ ball a r) (hys : y ∈ affineSpan ℝ Cs) (hyl : ℓ a ≤ ℓ y) :
+    y ∈ Cs := by
+  have ht : Filter.Tendsto (fun s : ℝ => y + s • n) (𝓝[>] 0) (𝓝 y) := by
+    have hc : Continuous (fun s : ℝ => y + s • n) := by fun_prop
+    simpa only [zero_smul, add_zero] using (hc.tendsto 0).mono_left nhdsWithin_le_nhds
+  apply hcl.mem_of_tendsto ht
+  filter_upwards [ht.eventually (isOpen_ball.mem_nhds hy), self_mem_nhdsWithin] with s hs hs0
+  apply hpos _ hs
+  · have := AffineSubspace.vadd_mem_of_mem_direction
+      ((affineSpan ℝ Cs).direction.smul_mem s hn) hys
+    simpa only [vadd_eq_add, add_comm] using this
+  · rw [map_add, map_smul, hℓn, smul_eq_mul, mul_one]
+    have : (0 : ℝ) < s := hs0
+    linarith
+
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.0(b), 1.16(b)): a closed set
+that is locally one closed half-ball of its span has that closed half-space as germ. -/
+private lemma states_finite_step4_flag_halfspace_lem_tangent {Cs : Set (E d)}
+    (hcl : IsClosed Cs) (ℓ : E d →ₗ[ℝ] ℝ) (a n : E d) (r : ℝ) (hr : 0 < r)
+    (ha : a ∈ Cs) (hn : n ∈ (affineSpan ℝ Cs).direction) (hℓn : ℓ n = 1)
+    (hpos : ∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∈ Cs)
+    (hneg : ∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ x < ℓ a → x ∉ Cs) :
+    tangentCone Cs a = {v | v ∈ (affineSpan ℝ Cs).direction ∧ 0 ≤ ℓ v} := by
+  have haS : a ∈ affineSpan ℝ Cs := subset_affineSpan ℝ Cs ha
+  have hstep (v : E d) (t : ℝ) (ht : 0 < t) (htv : t * ‖v‖ < r) : a + t • v ∈ ball a r := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.le]
+    exact htv
+  ext v
+  constructor
+  · rintro ⟨ε, hε, hray⟩
+    obtain ⟨t0, ht0, ht0r⟩ := exists_pos_mul_lt hr ‖v‖
+    let t := min t0 (ε / 2)
+    have ht : 0 < t := lt_min ht0 (half_pos hε)
+    have htε : t < ε := lt_of_le_of_lt (min_le_right _ _) (half_lt_self hε)
+    have htr : t * ‖v‖ < r := by
+      have h1 : t * ‖v‖ ≤ t0 * ‖v‖ :=
+        mul_le_mul_of_nonneg_right (min_le_left _ _) (norm_nonneg v)
+      linarith [mul_comm t0 ‖v‖]
+    have hx := hray t ht htε
+    have hxS : a + t • v ∈ affineSpan ℝ Cs := subset_affineSpan ℝ Cs hx
+    have htv : t • v ∈ (affineSpan ℝ Cs).direction := by
+      have := AffineSubspace.vsub_mem_direction hxS haS
+      simpa only [vsub_eq_sub, add_sub_cancel_left] using this
+    refine ⟨?_, ?_⟩
+    · have := (affineSpan ℝ Cs).direction.smul_mem t⁻¹ htv
+      rwa [smul_smul, inv_mul_cancel₀ ht.ne', one_smul] at this
+    · by_contra hlt
+      push_neg at hlt
+      apply hneg _ (hstep v t ht htr) hxS _ hx
+      rw [map_add, map_smul, smul_eq_mul]
+      nlinarith
+  · rintro ⟨hv, hlv⟩
+    refine ⟨r / (‖v‖ + 1), by positivity, fun t ht htε => ?_⟩
+    have htr' : t * (‖v‖ + 1) < r := by rwa [lt_div_iff₀ (by positivity)] at htε
+    have htr : t * ‖v‖ < r := by nlinarith
+    apply states_finite_step4_flag_halfspace_lem_closure hcl ℓ a n r hn hℓn hpos
+      (hstep v t ht htr)
+    · have := AffineSubspace.vadd_mem_of_mem_direction
+        ((affineSpan ℝ Cs).direction.smul_mem t hv) haS
+      simpa only [vadd_eq_add, add_comm] using this
+    · rw [map_add, map_smul, smul_eq_mul]
+      nlinarith
+
+/-- Auxiliary for `states_finite_step4_flag_halfspace` (V4 1.16(b)): at a relative-interior
+point of a listed codimension-one subcell, the coface germ is one closed side. -/
+private lemma states_finite_step4_flag_halfspace_lem_cell
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e C : Cell d}
+    (he : e ∈ K.cells) (hC : C ∈ K.cells) (hsub : e.carrier ⊆ C.carrier)
+    (hdim : C.dim = e.dim + 1) {a : E d} (ha : a ∈ relint e.carrier) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      {x | x ∈ cellDirection C.carrier ∧ ℓ x = 0} = (cellDirection e.carrier : Set (E d)) ∧
+      tangentCone C.carrier a = {v | v ∈ cellDirection C.carrier ∧ 0 ≤ ℓ v} := by
+  have hWV : cellDirection e.carrier ≤ cellDirection C.carrier :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
+  have hfin : Module.finrank ℝ (cellDirection C.carrier) =
+      Module.finrank ℝ (cellDirection e.carrier) + 1 := by
+    rw [C.flat.dimension, e.flat.dimension, hdim]
+  obtain ⟨ℓ, n, hnV, hℓn, hker⟩ := states_finite_step4_flag_halfspace_lem_functional hWV hfin
+  have hcl : IsClosed C.carrier := C.flat.compact.isClosed
+  have hae : a ∈ e.carrier := intrinsicInterior_subset ha
+  have haC : a ∈ C.carrier := hsub hae
+  have haeS : a ∈ affineSpan ℝ e.carrier := subset_affineSpan ℝ _ hae
+  have hne : e ≠ C := by
+    intro h
+    rw [h] at hdim
+    omega
+  have hnotint : a ∉ relint C.carrier := fun h =>
+    Set.disjoint_left.mp (K.relint_disjoint e he C hC hne) ha h
+  obtain ⟨r, hr, hloc⟩ := states_finite_step4_flag_halfspace_lem_local_frontier K he hC hdim ha
+  have hoff : ∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ x ≠ ℓ a → x ∈ C.carrier →
+      x ∈ relint C.carrier := by
+    intro x hx _ hxl hxC
+    by_contra hxi
+    have hxb : x ∈ relfrontier C.carrier := by
+      change x ∈ intrinsicFrontier ℝ C.carrier
+      rw [← closure_diff_intrinsicInterior, hcl.closure_eq]
+      exact ⟨hxC, hxi⟩
+    have hxe := hloc x hx hxb
+    have hW : x - a ∈ cellDirection e.carrier := by
+      simpa only [vsub_eq_sub] using AffineSubspace.vsub_mem_direction hxe haeS
+    have h0 : ℓ (x - a) = 0 := by
+      have h' : x - a ∈ {x | x ∈ cellDirection C.carrier ∧ ℓ x = 0} := by
+        rw [hker]
+        exact hW
+      exact h'.2
+    rw [map_sub, sub_eq_zero] at h0
+    exact hxl h0
+  have hd1 := states_finite_step4_flag_halfspace_lem_dichotomy hcl ℓ a r
+    (fun x hx hxS hxl hxC => hoff x hx hxS hxl.ne' hxC)
+  have hd2 := states_finite_step4_flag_halfspace_lem_dichotomy hcl (-ℓ) a r
+    (fun x hx hxS hxl hxC => hoff x hx hxS (by
+      simp only [LinearMap.neg_apply, neg_lt_neg_iff] at hxl
+      exact hxl.ne) hxC)
+  have hnS : n ∈ (affineSpan ℝ C.carrier).direction := hnV
+  have hnS' : -n ∈ (affineSpan ℝ C.carrier).direction :=
+    (affineSpan ℝ C.carrier).direction.neg_mem hnV
+  have hℓn' : (-ℓ) (-n) = 1 := by simp [hℓn]
+  have hnotboth : ¬ ((∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ a < ℓ x → x ∈ C.carrier) ∧
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → (-ℓ) a < (-ℓ) x → x ∈ C.carrier)) := by
+    rintro ⟨h1, h2⟩
+    apply hnotint
+    refine states_finite_step4_flag_halfspace_lem_relint.mpr ⟨haC, r, hr, fun y hy hyd => ?_⟩
+    rcases le_total (ℓ a) (ℓ y) with hle | hle
+    · exact states_finite_step4_flag_halfspace_lem_closure hcl ℓ a n r hnS hℓn h1 hyd hy hle
+    · exact states_finite_step4_flag_halfspace_lem_closure hcl (-ℓ) a (-n) r hnS' hℓn' h2
+        hyd hy (by simpa using hle)
+  have hnotnone : ¬ ((∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ a < ℓ x →
+        x ∉ C.carrier) ∧
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → (-ℓ) a < (-ℓ) x → x ∉ C.carrier)) := by
+    rintro ⟨h1, h2⟩
+    have hacl : a ∈ closure (relint C.carrier) := by
+      rw [C.flat.regularClosed]
+      exact haC
+    obtain ⟨z, hzr, hz⟩ :=
+      mem_closure_iff.mp hacl (ball a (r / 2)) isOpen_ball (mem_ball_self (half_pos hr))
+    obtain ⟨hzC, ρ, hρ, hzρ⟩ := states_finite_step4_flag_halfspace_lem_relint.mp hz
+    have hzS : z ∈ affineSpan ℝ C.carrier := subset_affineSpan ℝ _ hzC
+    rcases lt_or_ge (ℓ z) (ℓ a) with hlt | hle
+    · exact h2 z (ball_subset_ball (half_le_self hr.le) hzr) hzS (by simpa using hlt) hzC
+    · have hm : 0 < min ρ (r / 2) := lt_min hρ (half_pos hr)
+      obtain ⟨s, hs0, hsn⟩ := exists_pos_mul_lt hm ‖n‖
+      have hz'S : z + s • n ∈ affineSpan ℝ C.carrier := by
+        have := AffineSubspace.vadd_mem_of_mem_direction
+          ((affineSpan ℝ C.carrier).direction.smul_mem s hnS) hzS
+        simpa only [vadd_eq_add, add_comm] using this
+      have hdist : dist (z + s • n) z < min ρ (r / 2) := by
+        rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs0.le,
+          mul_comm]
+        exact hsn
+      have hz'C : z + s • n ∈ C.carrier :=
+        hzρ _ hz'S (lt_of_lt_of_le hdist (min_le_left _ _))
+      have hz'ball : z + s • n ∈ ball a r := by
+        rw [mem_ball] at hzr ⊢
+        have h1 := dist_triangle (z + s • n) z a
+        have h2 := min_le_right ρ (r / 2)
+        linarith
+      apply h1 _ hz'ball hz'S _ hz'C
+      rw [map_add, map_smul, hℓn, smul_eq_mul, mul_one]
+      linarith
+  rcases hd1 with h1 | h1
+  · rcases hd2 with h2 | h2
+    · exact (hnotboth ⟨h1, h2⟩).elim
+    · refine ⟨ℓ, hker, states_finite_step4_flag_halfspace_lem_tangent hcl ℓ a n r hr haC hnS
+        hℓn h1 ?_⟩
+      intro x hx hxS hxl
+      exact h2 x hx hxS (by simpa using hxl)
+  · rcases hd2 with h2 | h2
+    · refine ⟨-ℓ, ?_, states_finite_step4_flag_halfspace_lem_tangent hcl (-ℓ) a (-n) r hr haC
+        hnS' hℓn' h2 ?_⟩
+      · rw [← hker]
+        ext x
+        simp
+      · intro x hx hxS hxl
+        exact h1 x hx hxS (by simpa using hxl)
+    · exact (hnotnone ⟨h1, h2⟩).elim
+
 /-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
 "closed sides of such codimension-one pairs".
 At a relative-interior point of a listed codimension-one subcell, the coface germ is one closed side in its direction space. The compatible frame sends both listed direction spaces into S.hPi. -/
@@ -1486,7 +1896,48 @@ private theorem states_finite_step4_flag_halfspace (t : FramedNode S)
     (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (F : FacetFlag S t.ty)
     (j : FlagStep d) :
     IsClosedSide S.hPi (t.frame.toAffineEquiv.linear '' flagSide F j) := by
-  sorry
+  classical
+  let e := F.cell ⟨j.val, j.property.1, by omega⟩
+  let C := F.cell ⟨j.val + 1, by omega, j.property.2⟩
+  have hsub : e.val.carrier ⊆ C.val.carrier := F.nested _ _ (Nat.le_succ j.val)
+  have hdim : C.val.dim = e.val.dim + 1 := by
+    rw [F.dimension, F.dimension]
+  obtain ⟨ℓ, hker, htan⟩ := states_finite_step4_flag_halfspace_lem_cell (S.cx t.ty)
+    e.property C.property hsub hdim (cellAnchor_mem e.val)
+  have hflag : flagSide F j = {v | v ∈ cellDirection C.val.carrier ∧ 0 ≤ ℓ v} := htan
+  have hWV : cellDirection e.val.carrier ≤ cellDirection C.val.carrier :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
+  let L := t.frame.toAffineEquiv.linear
+  have hmem : ∀ U : Submodule ℝ (E d), U ∈ S.cellDirections →
+      U.map L.toLinearMap ∈ S.hPi := by
+    intro U hU
+    exact ⟨U, hU, t.frame.linearIsometryEquiv, ht, rfl⟩
+  refine ⟨(cellDirection C.val.carrier).map L.toLinearMap,
+    (cellDirection e.val.carrier).map L.toLinearMap,
+    Or.inl (hmem _ ⟨t.ty, C.val, C.property, rfl⟩),
+    Or.inl (hmem _ ⟨t.ty, e.val, e.property, rfl⟩),
+    Submodule.map_mono hWV, ?_, ℓ.comp L.symm.toLinearMap, ?_, ?_⟩
+  · rw [LinearEquiv.finrank_map_eq, LinearEquiv.finrank_map_eq, C.val.flat.dimension,
+      e.val.flat.dimension, hdim]
+  · ext y
+    have h := Set.ext_iff.mp hker (L.symm y)
+    simp only [Set.mem_setOf_eq, SetLike.mem_coe] at h
+    simp only [Set.mem_setOf_eq, SetLike.mem_coe, Submodule.mem_map_equiv,
+      LinearMap.comp_apply, LinearEquiv.coe_coe]
+    exact h
+  · rw [hflag]
+    ext y
+    constructor
+    · rintro ⟨v, ⟨hv, hl⟩, rfl⟩
+      refine ⟨Submodule.mem_map_of_mem hv, ?_⟩
+      change 0 ≤ ℓ (L.symm (L v))
+      rw [L.symm_apply_apply]
+      exact hl
+    · rintro ⟨hy, hl⟩
+      obtain ⟨v, hv, rfl⟩ := hy
+      refine ⟨v, ⟨hv, ?_⟩, rfl⟩
+      change 0 ≤ ℓ (L.symm (L v)) at hl
+      rwa [L.symm_apply_apply] at hl
 
 /-- Step 4 of the V4 proof of `states_finite` (V4 1.16(b), 2.2):
 "finite unions of H-Pi-cones ... are H-Pi-cones".

@@ -4611,6 +4611,664 @@ private theorem honest_rows_step2_cont_labels_step2_nested_sides
       Finset.mem_filter.mpr ⟨(b.cell facetIndex).property, b.dimension facetIndex⟩⟩
     exact actualCont_exists_step5_inward f g φ ψ howner (hrel facetIndex)
 
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"A is a polyhedron". A simplex, including a lower-dimensional one, is cut out by
+finitely many affine inequalities, using coordinates of an extended affine basis. -/
+private lemma honest_rows_step3_flag_overlap_aux_step1_simplex
+    (s : Finset (E d)) (hs : AffineIndependent ℝ ((↑) : s → E d)) :
+    ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      convexHull ℝ (s : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨t, hst, ht, hspan⟩ := exists_subset_affineIndependent_affineSpan_eq_top hs
+  let b : AffineBasis t ℝ (E d) := ⟨(↑), ht, by simpa using hspan⟩
+  letI : Finite t := finite_of_fin_dim_affineIndependent ℝ ht
+  letI : Fintype t := Fintype.ofFinite t
+  let q : Finset (E d →ᵃ[ℝ] ℝ) :=
+    Finset.univ.image b.coord ∪
+      (Finset.univ.filter fun i : t => (i : E d) ∉ s).image (fun i => -b.coord i)
+  refine ⟨q, Set.Subset.antisymm ?_ ?_⟩
+  · intro x hx f hf
+    apply convexHull_min (t := {x | 0 ≤ f x}) ?_
+      (Convex.affine_preimage f (convex_Ici 0)) hx
+    intro y hy
+    let j : t := ⟨y, hst hy⟩
+    change 0 ≤ f (b j)
+    rcases Finset.mem_union.mp hf with hf | hf
+    · obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hf
+      simp only [b.coord_apply]
+      split_ifs <;> norm_num
+    · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hf
+      have hij : i ≠ j := by
+        intro hij
+        have := (Finset.mem_filter.mp hi).2
+        exact this (by simpa [hij, j] using hy)
+      simp [b.coord_apply_ne hij]
+  · intro x hx
+    have hpos (i : t) : 0 ≤ b.coord i x :=
+      hx _ (Finset.mem_union_left _ (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩))
+    have hzero (i : t) (hi : (i : E d) ∉ s) : b.coord i x = 0 := by
+      have hn := hx _ (Finset.mem_union_right _ (Finset.mem_image.mpr
+        ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩, rfl⟩))
+      have hn' : 0 ≤ -b.coord i x := hn
+      exact le_antisymm (by linarith) (hpos i)
+    let u : Finset t := Finset.univ.filter fun i : t => (i : E d) ∈ s
+    have hsum : ∑ i ∈ u, b.coord i x = 1 := by
+      rw [← b.sum_coord_apply_eq_one x]
+      apply Finset.sum_subset (Finset.subset_univ _)
+      intro i _ hi
+      exact hzero i (by simpa [u] using hi)
+    have hsumv : ∑ i ∈ u, b.coord i x • b i = x := by
+      calc
+        _ = ∑ i, b.coord i x • b i := by
+          apply Finset.sum_subset (Finset.subset_univ _)
+          intro i _ hi
+          rw [hzero i (by simpa [u] using hi), zero_smul]
+        _ = x := b.linear_combination_coord_eq_self x
+    rw [← hsumv]
+    apply (convex_convexHull ℝ (s : Set (E d))).sum_mem (fun i _ => hpos i) hsum
+    intro i hi
+    exact subset_convexHull ℝ (s : Set (E d)) (Finset.mem_filter.mp hi).2
+
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"A is a polyhedron". Carathéodory's theorem gives a finite union of simplices,
+and hence a finite union of intersections of affine closed half-spaces. -/
+private lemma honest_rows_step3_flag_overlap_aux_step1_halfspaces
+    {K : Set (E d)} (hK : Polyhedron K) :
+    ∃ S : Finset (Finset (E d →ᵃ[ℝ] ℝ)),
+      K = ⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  have hrep (t : Finset (E d)) : ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      AffineIndependent ℝ ((↑) : t → E d) →
+        convexHull ℝ (t : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+    by_cases ht : AffineIndependent ℝ ((↑) : t → E d)
+    · obtain ⟨q, hq⟩ := honest_rows_step3_flag_overlap_aux_step1_simplex t ht
+      exact ⟨q, fun _ => hq⟩
+    · exact ⟨∅, fun h => (ht h).elim⟩
+  choose q hq using hrep
+  let S := s.biUnion fun p =>
+    (p.powerset.filter fun t : Finset (E d) =>
+      AffineIndependent ℝ ((↑) : t → E d)).image q
+  refine ⟨S, ?_⟩
+  ext x
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨p, hp, hx⟩
+    rw [convexHull_eq_union] at hx
+    obtain ⟨t, htp, ht, hxt⟩ := by
+      simpa only [Set.mem_iUnion, exists_prop] using hx
+    refine ⟨q t, Finset.mem_biUnion.mpr ⟨p, hp, ?_⟩, ?_⟩
+    · exact Finset.mem_image.mpr ⟨t,
+        Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr htp, ht⟩, rfl⟩
+    · rwa [hq t ht] at hxt
+  · rintro ⟨r, hr, hx⟩
+    obtain ⟨p, hp, hr⟩ := Finset.mem_biUnion.mp hr
+    obtain ⟨t, ht, rfl⟩ := Finset.mem_image.mp hr
+    obtain ⟨htp, ht⟩ := Finset.mem_filter.mp ht
+    refine ⟨p, hp, convexHull_mono (Finset.mem_powerset.mp htp) ?_⟩
+    change x ∈ convexHull ℝ (t : Set (E d))
+    rwa [hq t ht]
+
+open scoped Topology in
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"its tangent cone at any point is a polyhedral cone". Near the base point,
+inactive inequalities keep their sign and active inequalities become homogeneous. -/
+private lemma honest_rows_step3_flag_overlap_aux_step1_local_cone
+    (S : Finset (Finset (E d →ᵃ[ℝ] ℝ))) (p : E d) :
+    ∃ C : Set (E d), IsPolyhedralCone C ∧
+      ∀ᶠ x in 𝓝 p,
+        (x ∈ ⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x}) ↔ x - p ∈ C := by
+  classical
+  let Q (q : Finset (E d →ᵃ[ℝ] ℝ)) : Finset (E d →ₗ[ℝ] ℝ) :=
+    (q.filter fun f => f p = 0).image AffineMap.linear
+  let S₀ := S.filter fun q => ∀ f ∈ q, 0 ≤ f p
+  let C : Set (E d) := ⋃ r ∈ S₀.image Q, {v | ∀ l ∈ r, 0 ≤ l v}
+  have hC (v : E d) : v ∈ C ↔
+      ∃ q ∈ S, (∀ f ∈ q, 0 ≤ f p) ∧ ∀ f ∈ q, f p = 0 → 0 ≤ f.linear v := by
+    simp [C, S₀, Q]
+    constructor
+    · rintro ⟨q, ⟨hq, hpq⟩, hvq⟩
+      exact ⟨q, hq, hpq, fun f hf hf0 => hvq f.linear f hf hf0 rfl⟩
+    · rintro ⟨q, hq, hpq, hvq⟩
+      refine ⟨q, ⟨hq, hpq⟩, ?_⟩
+      rintro l f hf hf0 rfl
+      exact hvq f hf hf0
+  refine ⟨C, ⟨S₀.image Q, rfl⟩, ?_⟩
+  have hsign (f : E d →ᵃ[ℝ] ℝ) : ∀ᶠ x in 𝓝 p,
+      (f p < 0 → f x < 0) ∧ (0 < f p → 0 < f x) := by
+    have hc := f.continuous_of_finiteDimensional.continuousAt (x := p)
+    apply Filter.Eventually.and
+    · by_cases hf : f p < 0
+      · exact (hc.eventually_lt_const hf).mono fun x hx _ => hx
+      · exact Filter.Eventually.of_forall fun x h => (hf h).elim
+    · by_cases hf : 0 < f p
+      · exact (hc.eventually_const_lt hf).mono fun x hx _ => hx
+      · exact Filter.Eventually.of_forall fun x h => (hf h).elim
+  have hall : ∀ᶠ x in 𝓝 p, ∀ q ∈ S, ∀ f ∈ q,
+      (f p < 0 → f x < 0) ∧ (0 < f p → 0 < f x) :=
+    (Filter.eventually_all_finset S).mpr fun q _ =>
+      (Filter.eventually_all_finset q).mpr fun f _ => hsign f
+  filter_upwards [hall] with x hx
+  rw [hC]
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨q, hq, hxq⟩
+    refine ⟨q, hq, ?_, ?_⟩
+    · intro f hf
+      by_contra hn
+      exact (not_lt_of_ge (hxq f hf)) ((hx q hq f hf).1 (lt_of_not_ge hn))
+    · intro f hf hfp
+      have he : f.linear (x - p) = f x - f p := f.linearMap_vsub x p
+      rw [he, hfp, sub_zero]
+      exact hxq f hf
+  · rintro ⟨q, hq, hpq, hvq⟩
+    refine ⟨q, hq, ?_⟩
+    intro f hf
+    rcases eq_or_lt_of_le (hpq f hf) with hfp | hfp
+    · have hv := hvq f hf hfp.symm
+      have he : f.linear (x - p) = f x - f p := f.linearMap_vsub x p
+      simpa [he, hfp.symm] using hv
+    · exact ((hx q hq f hf).2 hfp).le
+
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"polyhedral cone". Homogeneous half-space inequalities are invariant under
+multiplication by a positive scalar, as is a finite union of their intersections. -/
+private lemma honest_rows_step3_flag_overlap_aux_step1_scaling
+    {C : Set (E d)} (hC : IsPolyhedralCone C) {r : ℝ} (hr : 0 < r) (v : E d) :
+    r • v ∈ C ↔ v ∈ C := by
+  obtain ⟨S, rfl⟩ := hC
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, map_smul, smul_eq_mul,
+    mul_nonneg_iff_of_pos_left hr]
+
+open scoped Topology in
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"its tangent cone at any point is a polyhedral cone". A local conical model
+equals the positive-time radial germ in the definition of `tangentCone`. -/
+private lemma honest_rows_step3_flag_overlap_aux_step1_radial
+    {K C : Set (E d)} (p : E d) (hC : IsPolyhedralCone C)
+    (hloc : ∀ᶠ x in 𝓝 p, x ∈ K ↔ x - p ∈ C) : tangentCone K p = C := by
+  ext v
+  have htend : Filter.Tendsto (fun t : ℝ => p + t • v) (𝓝 0) (𝓝 p) := by
+    have hc : Continuous (fun t : ℝ => p + t • v) := by fun_prop
+    simpa only [zero_smul, add_zero] using hc.tendsto (0 : ℝ)
+  have hev : ∀ᶠ t in 𝓝 (0 : ℝ), p + t • v ∈ K ↔ t • v ∈ C := by
+    simpa only [add_sub_cancel_left] using htend.eventually hloc
+  obtain ⟨δ, hδ, hδloc⟩ := Metric.eventually_nhds_iff.mp hev
+  constructor
+  · rintro ⟨ε, hε, hv⟩
+    let t := min ε δ / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have htε : t < ε := by dsimp [t]; linarith [min_le_left ε δ]
+    have htδ : t < δ := by dsimp [t]; linarith [min_le_right ε δ]
+    have hnear : dist t 0 < δ := by simpa [Real.dist_eq, abs_of_pos ht] using htδ
+    exact (honest_rows_step3_flag_overlap_aux_step1_scaling hC ht v).mp
+      ((hδloc hnear).mp (hv t ht htε))
+  · intro hv
+    refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+    have hnear : dist t 0 < δ := by simpa [Real.dist_eq, abs_of_pos ht] using htδ
+    exact (hδloc hnear).mpr
+      ((honest_rows_step3_flag_overlap_aux_step1_scaling hC ht v).mpr hv)
+
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(a)):
+"each component is inside or outside A". On a connected set on which boundary
+membership is constant, membership in a closed set is constant as well. -/
+private lemma honest_rows_step3_flag_overlap_aux_step2_membership
+    {X : Type*} [TopologicalSpace X] {S T : Set X}
+    (hS : IsClosed S) (hT : IsPreconnected T)
+    (hb : ∀ x ∈ T, ∀ y ∈ T, x ∈ frontier S ↔ y ∈ frontier S)
+    {x y : X} (hx : x ∈ T) (hy : y ∈ T) : x ∈ S ↔ y ∈ S := by
+  by_cases hxb : x ∈ frontier S
+  · exact iff_of_true (hS.frontier_subset hxb) (hS.frontier_subset ((hb x hx y hy).mp hxb))
+  have havoid : ∀ z ∈ T, z ∉ frontier S := by
+    intro z hz hzb
+    exact hxb ((hb x hx z hz).mpr hzb)
+  have hcover : T ⊆ interior S ∪ Sᶜ := by
+    intro z hz
+    by_cases hzs : z ∈ S
+    · left
+      by_contra hzi
+      exact havoid z hz (by rw [hS.frontier_eq]; exact ⟨hzs, hzi⟩)
+    · exact Or.inr hzs
+  have hdis : Disjoint (interior S) Sᶜ :=
+    Set.disjoint_left.mpr fun _ hi hc => hc (interior_subset hi)
+  rcases hT.subset_or_subset isOpen_interior hS.isOpen_compl hdis hcover with h | h
+  · exact iff_of_true (interior_subset (h hx)) (interior_subset (h hy))
+  · exact iff_of_false (h hx) (h hy)
+
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"the local structure is constant by (a) applied to the cell complex". Translation
+invariance of the relative boundary of a closed set extends to the set itself,
+provided the translations are parallel to its affine span. -/
+private lemma honest_rows_step3_flag_overlap_aux_step2_fill
+    {S : Set (E d)} (hS : IsClosed S) (V : Submodule ℝ (E d))
+    (hV : V ≤ (affineSpan ℝ S).direction) (p : E d) (r : ℝ)
+    (hb : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V →
+      (x ∈ relfrontier S ↔ y ∈ relfrontier S)) :
+    ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ S ↔ y ∈ S) := by
+  have hforward : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → x ∈ S → y ∈ S := by
+    intro x hx y hy hyx hxs
+    have hxaff : x ∈ affineSpan ℝ S := subset_affineSpan ℝ S hxs
+    let γ : ℝ → affineSpan ℝ S := fun t =>
+      ⟨t • (y - x) + x,
+        AffineSubspace.vadd_mem_of_mem_direction
+          ((affineSpan ℝ S).direction.smul_mem t (hV hyx)) hxaff⟩
+    have hγcont : Continuous γ := by
+      apply Continuous.subtype_mk
+      fun_prop
+    have hγball : ∀ t ∈ Icc (0 : ℝ) 1, (γ t : E d) ∈ ball p r := by
+      intro t ht
+      have hseg : (γ t : E d) ∈ segment ℝ x y := by
+        rw [segment_eq_image_lineMap]
+        exact ⟨t, ht, rfl⟩
+      exact (convex_ball p r).segment_subset hx hy hseg
+    have hfront (z : affineSpan ℝ S) :
+        z ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ↔ (z : E d) ∈ relfrontier S := by
+      change _ ↔ (z : E d) ∈ Subtype.val '' frontier _
+      exact (Subtype.val_injective.mem_set_image).symm
+    have hinv : ∀ a ∈ γ '' Icc (0 : ℝ) 1, ∀ b ∈ γ '' Icc (0 : ℝ) 1,
+        a ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ↔
+        b ∈ frontier ((↑) ⁻¹' S : Set (affineSpan ℝ S)) := by
+      rintro a ⟨s, hs, rfl⟩ b ⟨t, ht, rfl⟩
+      rw [hfront, hfront]
+      apply hb _ (hγball s hs) _ (hγball t ht)
+      change (t • (y - x) + x) - (s • (y - x) + x) ∈ V
+      simpa only [add_sub_add_right_eq_sub] using
+        V.sub_mem (V.smul_mem t hyx) (V.smul_mem s hyx)
+    have heq := honest_rows_step3_flag_overlap_aux_step2_membership
+      (hS.preimage continuous_subtype_val)
+      (isPreconnected_Icc.image γ hγcont.continuousOn) hinv
+      (mem_image_of_mem γ (left_mem_Icc.mpr (zero_le_one : (0 : ℝ) ≤ 1)))
+      (mem_image_of_mem γ (right_mem_Icc.mpr (zero_le_one : (0 : ℝ) ≤ 1)))
+    simpa [γ] using heq.mp (by simpa [γ] using hxs)
+  intro x hx y hy hyx
+  exact ⟨hforward x hx y hy hyx,
+    hforward y hy x hx (by simpa only [neg_sub] using V.neg_mem hyx)⟩
+
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(a)):
+"if p ∈ e ... then mc_A(p) ⊆ e". A listed cell meeting the relative interior
+of another listed cell contains the whole latter cell. -/
+private lemma honest_rows_step3_flag_overlap_aux_step2_incidence
+    {A : PolyManifoldDomain d} (K : CellComplex A)
+    {e f : Cell d} (he : e ∈ K.cells) (hf : f ∈ K.cells)
+    {p : E d} (hp : p ∈ relint e.carrier) (hpf : p ∈ f.carrier) :
+    e.carrier ⊆ f.carrier := by
+  have hpA : p ∈ frontier A.carrier := by
+    rw [← K.cover]
+    exact mem_iUnion.mpr ⟨e, mem_iUnion.mpr ⟨he, hp⟩⟩
+  have hmin : K.minimalCell p hpA = e := by
+    by_contra hne
+    exact Set.disjoint_left.mp
+      (K.relint_disjoint _ (K.minimalCell_mem p hpA) e he hne)
+      (K.mem_relint_minimalCell p hpA) hp
+  simpa only [hmin] using K.minimalCell_subset p hpA f hf hpf
+
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(a)):
+"Cells are closed and finitely many, so some ball U ...". Finitely many local
+translation invariances hold on a common ball, including for an empty family. -/
+private lemma honest_rows_step3_flag_overlap_aux_step2_common_ball
+    {ι : Type*} (s : Finset ι) (C : ι → Set (E d))
+    (V : Submodule ℝ (E d)) (p : E d)
+    (h : ∀ i ∈ s, ∃ r : ℝ, 0 < r ∧
+      ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ C i ↔ y ∈ C i)) :
+    ∃ r : ℝ, 0 < r ∧ ∀ i ∈ s,
+      ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ C i ↔ y ∈ C i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => exact ⟨1, zero_lt_one, by simp⟩
+  | @insert a s ha ih =>
+    obtain ⟨ra, hra, hca⟩ := h a (Finset.mem_insert_self a s)
+    obtain ⟨rs, hrs, hcs⟩ := ih (fun i hi => h i (Finset.mem_insert_of_mem hi))
+    refine ⟨min ra rs, lt_min hra hrs, ?_⟩
+    intro i hi x hx y hy hv
+    rcases Finset.mem_insert.mp hi with rfl | hi
+    · exact hca x (ball_subset_ball (min_le_left _ _) hx)
+        y (ball_subset_ball (min_le_left _ _) hy) hv
+    · exact hcs i hi x (ball_subset_ball (min_le_right _ _) hx)
+        y (ball_subset_ball (min_le_right _ _) hy) hv
+
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"the local structure is constant by (a) applied to the cell complex". Induction
+through relative boundaries makes every listed carrier locally invariant in the
+directions of the cell containing the base point in its relative interior. -/
+private lemma honest_rows_step3_flag_overlap_aux_step2_invariance
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e : Cell d) (he : e ∈ K.cells)
+    (p : E d) (hp : p ∈ relint e.carrier) (f : Cell d) (hf : f ∈ K.cells) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+      y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+  classical
+  let N (f : Cell d) := (K.cells.filter fun g => g.carrier ⊆ f.carrier).card
+  have main : ∀ n : ℕ, ∀ f : Cell d, f ∈ K.cells → N f = n →
+      ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+        y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+      intro f hf hN
+      by_cases hpf : p ∈ f.carrier
+      · have hef := honest_rows_step3_flag_overlap_aux_step2_incidence K he hf hp hpf
+        have hV : cellDirection e.carrier ≤ (affineSpan ℝ f.carrier).direction :=
+          AffineSubspace.direction_le (affineSpan_mono ℝ hef)
+        obtain ⟨b, hb, hboundary⟩ := K.boundary_union f hf
+        have hsmall : ∀ g ∈ b, N g < N f := by
+          intro g hg
+          have hgb : g.carrier ⊆ relfrontier f.carrier := by
+            intro z hz
+            rw [hboundary]
+            exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+          have hgf : g.carrier ⊆ f.carrier :=
+            hgb.trans (intrinsicFrontier_subset f.flat.compact.isClosed)
+          have hnfg : ¬ f.carrier ⊆ g.carrier := by
+            intro hfg
+            obtain ⟨z, hz⟩ := f.flat.relint_nonempty
+            have hzb := hgb (hfg (intrinsicInterior_subset hz))
+            change z ∈ intrinsicFrontier ℝ f.carrier at hzb
+            rw [← closure_diff_intrinsicInterior] at hzb
+            exact hzb.2 hz
+          apply Finset.card_lt_card
+          apply (Finset.ssubset_iff_of_subset ?_).mpr
+          · refine ⟨f, Finset.mem_filter.mpr ⟨hf, Subset.rfl⟩, ?_⟩
+            intro hfg
+            exact hnfg (Finset.mem_filter.mp hfg).2
+          · intro g' hg'
+            obtain ⟨hg'K, hg'g⟩ := Finset.mem_filter.mp hg'
+            exact Finset.mem_filter.mpr ⟨hg'K, hg'g.trans hgf⟩
+        obtain ⟨r, hr, hc⟩ := honest_rows_step3_flag_overlap_aux_step2_common_ball b
+          Cell.carrier (cellDirection e.carrier) p (fun g hg =>
+            ih (N g) (by simpa only [hN] using hsmall g hg) g (hb hg) rfl)
+        refine ⟨r, hr, honest_rows_step3_flag_overlap_aux_step2_fill f.flat.compact.isClosed
+          (cellDirection e.carrier) hV p r ?_⟩
+        intro x hx y hy hv
+        rw [hboundary]
+        simp only [mem_iUnion, exists_prop]
+        constructor
+        · rintro ⟨g, hg, hxg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mp hxg⟩
+        · rintro ⟨g, hg, hyg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mpr hyg⟩
+      · obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp f.flat.compact.isClosed.isOpen_compl p hpf
+        exact ⟨r, hr, fun x hx y hy _ => iff_of_false (hball hx) (hball hy)⟩
+  exact main (N f) f hf rfl
+
+open scoped Topology in
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"the local structure is constant". Equal translated germs give equal radial
+tangent cones; only sufficiently short positive portions of each ray matter. -/
+private lemma honest_rows_step3_flag_overlap_aux_step2_tangent_germ
+    (S : Set (E d)) (V : Submodule ℝ (E d)) (p q : E d)
+    (r : ℝ) (hr : 0 < r) (hq : q ∈ ball p r) (hv : q - p ∈ V)
+    (hloc : ∀ x ∈ ball p r, ∀ y ∈ ball p r, y - x ∈ V → (x ∈ S ↔ y ∈ S)) :
+    tangentCone S p = tangentCone S q := by
+  ext v
+  have hnear (a : E d) (ha : a ∈ ball p r) :
+      ∀ᶠ t : ℝ in 𝓝 0, a + t • v ∈ ball p r := by
+    have hc : Continuous (fun t : ℝ => a + t • v) := by fun_prop
+    have ht : Filter.Tendsto (fun t : ℝ => a + t • v) (𝓝 0) (𝓝 a) := by
+      simpa only [zero_smul, add_zero] using hc.tendsto (0 : ℝ)
+    exact ht.eventually (isOpen_ball.mem_nhds ha)
+  obtain ⟨δ, hδ, hδnear⟩ := Metric.eventually_nhds_iff.mp
+    ((hnear p (mem_ball_self hr)).and (hnear q hq))
+  have heq (t : ℝ) (ht : 0 < t) (htδ : t < δ) :
+      p + t • v ∈ S ↔ q + t • v ∈ S := by
+    have hdist : dist t 0 < δ := by
+      simpa only [Real.dist_eq, sub_zero, abs_of_pos ht] using htδ
+    have hpair := hδnear hdist
+    apply hloc _ hpair.1 _ hpair.2
+    simpa only [add_sub_add_right_eq_sub] using hv
+  constructor
+  · rintro ⟨ε, hε, hεray⟩
+    refine ⟨min ε δ, lt_min hε hδ, fun t ht htεδ => ?_⟩
+    exact (heq t ht (lt_of_lt_of_le htεδ (min_le_right _ _))).mp
+      (hεray t ht (lt_of_lt_of_le htεδ (min_le_left _ _)))
+  · rintro ⟨ε, hε, hεray⟩
+    refine ⟨min ε δ, lt_min hε hδ, fun t ht htεδ => ?_⟩
+    exact (heq t ht (lt_of_lt_of_le htεδ (min_le_right _ _))).mpr
+      (hεray t ht (lt_of_lt_of_le htεδ (min_le_left _ _)))
+
+open scoped Topology in
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"A is a polyhedron". Its radial tangent cone determines its entire local germ. -/
+private theorem honest_rows_step3_flag_overlap_aux_step1_germ
+    {K : Set (E d)} (hK : Polyhedron K) (p : E d) :
+    ∀ᶠ x in 𝓝 p, x ∈ K ↔ x - p ∈ tangentCone K p := by
+  obtain ⟨s, hs⟩ := honest_rows_step3_flag_overlap_aux_step1_halfspaces hK
+  obtain ⟨C, hC, hlocal⟩ := honest_rows_step3_flag_overlap_aux_step1_local_cone s p
+  rw [← hs] at hlocal
+  rwa [honest_rows_step3_flag_overlap_aux_step1_radial p hC hlocal]
+
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"the local structure" is transported by the full affine placement. -/
+private theorem honest_rows_step3_flag_overlap_aux_step1_placed_germ
+    {K : Set (E d)} (hK : Polyhedron K) (φ : E d ≃ᵃ[ℝ] E d) (p : E d) :
+    ∃ V : Set (E d), IsOpen V ∧ φ p ∈ V ∧ ∀ x ∈ V,
+      x ∈ φ '' K ↔ x - φ p ∈ φ.linear '' tangentCone K p := by
+  obtain ⟨r, hr, hlocal⟩ := Metric.eventually_nhds_iff.mp
+    (honest_rows_step3_flag_overlap_aux_step1_germ hK p)
+  refine ⟨φ '' ball p r, φ.toHomeomorphOfFiniteDimensional.isOpenMap _ isOpen_ball,
+    ⟨p, mem_ball_self hr, rfl⟩, ?_⟩
+  rintro _ ⟨x, hx, rfl⟩
+  have hdiff : φ.linear (x - p) = φ x - φ p := φ.toAffineMap.linearMap_vsub x p
+  rw [φ.injective.mem_set_image, ← hdiff,
+    φ.linear.injective.mem_set_image]
+  exact hlocal hx
+
+/-- Step 1 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"closure of its relative interior" is preserved by an affine placement. -/
+private theorem honest_rows_step3_flag_overlap_aux_step1_cell_closure
+    (e : Cell d) (φ : E d ≃ᵃ[ℝ] E d) :
+    closure (relint (φ '' e.carrier)) = φ '' e.carrier := by
+  rw [restrictionOp_source_step5_relint_image]
+  change closure (φ.toHomeomorphOfFiniteDimensional '' relint e.carrier) = _
+  rw [← Homeomorph.image_closure, e.flat.regularClosed]
+  rfl
+
+/-- Step 2 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"the local structure is constant" on the connected relative interior of a listed cell. -/
+private theorem honest_rows_step3_flag_overlap_aux_step2_cell_cone
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e f : Cell d)
+    (he : e ∈ K.cells) (hf : f ∈ K.cells) (p q : E d)
+    (hp : p ∈ relint e.carrier) (hq : q ∈ relint e.carrier) :
+    tangentCone f.carrier p = tangentCone f.carrier q := by
+  let cone : relint e.carrier → Set (E d) := fun x => tangentCone f.carrier x.val
+  have hloc : IsLocallyConstant cone := by
+    apply (IsLocallyConstant.iff_eventually_eq _).mpr
+    intro x
+    obtain ⟨r, hr, hball⟩ :=
+      honest_rows_step3_flag_overlap_aux_step2_invariance K e he x x.property f hf
+    have hnear : ∀ᶠ y : relint e.carrier in nhds x, (y : E d) ∈ ball (x : E d) r :=
+      continuous_subtype_val.continuousAt.eventually (isOpen_ball.mem_nhds (mem_ball_self hr))
+    filter_upwards [hnear] with y hy
+    apply (honest_rows_step3_flag_overlap_aux_step2_tangent_germ f.carrier
+      (cellDirection e.carrier) x y r hr hy ?_ hball).symm
+    exact AffineSubspace.vsub_mem_direction
+      (subset_affineSpan ℝ e.carrier (intrinsicInterior_subset y.property))
+      (subset_affineSpan ℝ e.carrier (intrinsicInterior_subset x.property))
+  letI : PreconnectedSpace (relint e.carrier) :=
+    isPreconnected_iff_preconnectedSpace.mp e.flat.relint_connected.isPreconnected
+  exact hloc.apply_eq_of_preconnectedSpace ⟨p, hp⟩ ⟨q, hq⟩
+
+/-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 2.8):
+"v in relint h" supplies a neighbourhood inside the supporting affine span. -/
+private theorem honest_rows_step3_flag_overlap_aux_step3_relint_ball
+    {K : Set (E d)} {p : E d} (hp : p ∈ relint K) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r,
+      x ∈ affineSpan ℝ K → x ∈ relint K := by
+  obtain ⟨q, hq, rfl⟩ := hp
+  obtain ⟨r, hr, hb⟩ := Metric.isOpen_iff.mp isOpen_interior q hq
+  refine ⟨r, hr, ?_⟩
+  intro x hx hxaff
+  exact ⟨⟨x, hxaff⟩, hb hx, rfl⟩
+
+/-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 2.8):
+"adjacent to h on the far side of v". A closed edge through an interior
+point of another edge has overlapping relative interiors in their common line. -/
+private theorem honest_rows_step3_flag_overlap_aux_step3_relint_overlap
+    {K L : Set (E d)} (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    (hreg : closure (relint K) = K) {p : E d} (hpK : p ∈ K) (hpL : p ∈ relint L) :
+    (relint K ∩ relint L).Nonempty := by
+  obtain ⟨r, hr, hball⟩ := honest_rows_step3_flag_overlap_aux_step3_relint_ball hpL
+  have hp : p ∈ closure (relint K) := hreg.symm ▸ hpK
+  obtain ⟨x, hx, hxp⟩ := Metric.mem_closure_iff.mp hp r hr
+  refine ⟨x, hx, hball x (by simpa only [mem_ball, dist_comm] using hxp) ?_⟩
+  rw [← hspan]
+  exact mem_affineSpan ℝ (intrinsicInterior_subset hx)
+
+/-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"the local structure" determines relative interior in a fixed affine span. -/
+private theorem honest_rows_step3_flag_overlap_aux_step3_relint_transfer
+    {K L V : Set (E d)} (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    (hV : IsOpen V) (heq : K ∩ V = L ∩ V) {p : E d}
+    (hp : p ∈ relint K) (hpV : p ∈ V) : p ∈ relint L := by
+  obtain ⟨q, hq, rfl⟩ := hp
+  have hpre : ((↑) ⁻¹' K : Set (affineSpan ℝ K)) ∩ (↑) ⁻¹' V =
+      ((↑) ⁻¹' L : Set (affineSpan ℝ K)) ∩ (↑) ⁻¹' V :=
+    congrArg (fun X : Set (E d) => (fun x : affineSpan ℝ K => x.val) ⁻¹' X) heq
+  have hi := congrArg interior hpre
+  rw [interior_inter, interior_inter,
+    (hV.preimage continuous_subtype_val).interior_eq] at hi
+  have hh : q ∈ interior ((↑) ⁻¹' L : Set (affineSpan ℝ K)) ∩ (↑) ⁻¹' V :=
+    hi ▸ ⟨hq, hpV⟩
+  rw [relint, intrinsicInterior, ← hspan]
+  exact ⟨q, hh.1, rfl⟩
+
+/-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 1.0(b)):
+"the local structure is constant". Equal local germs of regular closed
+cells in one affine span give an overlap of relative interiors. -/
+private theorem honest_rows_step3_flag_overlap_aux_step3_local_overlap
+    {K L V : Set (E d)} (hspan : affineSpan ℝ K = affineSpan ℝ L)
+    (hreg : closure (relint K) = K) (hV : IsOpen V) (heq : K ∩ V = L ∩ V)
+    {p : E d} (hpK : p ∈ K) (hpV : p ∈ V) :
+    (relint K ∩ relint L).Nonempty := by
+  have hp : (closure (relint K) ∩ V).Nonempty := ⟨p, hreg.symm ▸ hpK, hpV⟩
+  obtain ⟨x, hx, hxV⟩ := (closure_inter_open_nonempty_iff hV).mp hp
+  exact ⟨x, hx, honest_rows_step3_flag_overlap_aux_step3_relint_transfer hspan hV heq hx hxV⟩
+
+/-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 2.8):
+"both chains lie in the positioned flag ... with its orientations".
+At one consecutive pair of dimensions, equal coface sides extend a relative-interior
+intersection of the lower cells to one of the upper cells. -/
+private theorem honest_rows_step3_flag_overlap_aux_step3_coface_overlap
+    {A B : S.ι} (F : FacetFlag S A) (G : FacetFlag S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (k : FlagStep d)
+    (hlow : (relint (φ '' (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) ∩
+      relint (ψ '' (G.cell ⟨k.val, k.property.1, by omega⟩).val.carrier)).Nonempty)
+    (hspan : affineSpan ℝ
+        (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier))
+    (hside : φ.linear '' flagSide F k = ψ.linear '' flagSide G k) :
+    (relint (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) ∩
+      relint (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier)).Nonempty := by
+  let i : FlagIndex d := ⟨k.val, k.property.1, by have := k.property.2; omega⟩
+  let j : FlagIndex d := ⟨k.val + 1, by omega, k.property.2⟩
+  obtain ⟨p, hp, hq⟩ := hlow
+  rw [restrictionOp_source_step5_relint_image] at hp hq
+  obtain ⟨a, ha, rfl⟩ := hp
+  obtain ⟨b, hb, hba⟩ := hq
+  have hF := honest_rows_step3_flag_overlap_aux_step2_cell_cone (S.cx A)
+    (F.cell i).val (F.cell j).val (F.cell i).property (F.cell j).property
+    a (cellAnchor (F.cell i).val) ha (cellAnchor_mem _)
+  have hG := honest_rows_step3_flag_overlap_aux_step2_cell_cone (S.cx B)
+    (G.cell i).val (G.cell j).val (G.cell i).property (G.cell j).property
+    b (cellAnchor (G.cell i).val) hb (cellAnchor_mem _)
+  obtain ⟨V, hV, hpV, hVeq⟩ := honest_rows_step3_flag_overlap_aux_step1_placed_germ
+    (F.cell j).val.flat.polyhedral φ a
+  obtain ⟨W, hW, hpW, hWeq⟩ := honest_rows_step3_flag_overlap_aux_step1_placed_germ
+    (G.cell j).val.flat.polyhedral ψ b
+  rw [hF] at hVeq
+  rw [hG] at hWeq
+  change φ.linear '' tangentCone (F.cell j).val.carrier (cellAnchor (F.cell i).val) =
+    ψ.linear '' tangentCone (G.cell j).val.carrier (cellAnchor (G.cell i).val) at hside
+  have heq : (φ '' (F.cell j).val.carrier) ∩ (V ∩ W) =
+      (ψ '' (G.cell j).val.carrier) ∩ (V ∩ W) := by
+    ext x
+    constructor
+    · rintro ⟨hx, hxV, hxW⟩
+      refine ⟨(hWeq x hxW).mpr ?_, hxV, hxW⟩
+      rw [hba, ← hside]
+      exact (hVeq x hxV).mp hx
+    · rintro ⟨hx, hxV, hxW⟩
+      refine ⟨(hVeq x hxV).mpr ?_, hxV, hxW⟩
+      rw [hside, ← hba]
+      exact (hWeq x hxW).mp hx
+  exact honest_rows_step3_flag_overlap_aux_step3_local_overlap hspan
+    (honest_rows_step3_flag_overlap_aux_step1_cell_closure _ φ) (hV.inter hW) heq
+    ⟨a, F.nested i j (by dsimp [i, j]; omega) (intrinsicInterior_subset ha), rfl⟩
+    ⟨hpV, hba ▸ hpW⟩
+
+/-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 2.8):
+"both chains lie in the positioned flag ... with its orientations".
+Induction through the consecutive cofaces carries the edge intersection to the facets. -/
+private theorem honest_rows_step3_flag_overlap_aux_step3_flag_overlap
+    {A B : S.ι} (F : FacetFlag S A) (G : FacetFlag S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d)
+    (hspan : ∀ j, affineSpan ℝ (φ '' (F.cell j).val.carrier) =
+      affineSpan ℝ (ψ '' (G.cell j).val.carrier))
+    (hside : ∀ k, φ.linear '' flagSide F k = ψ.linear '' flagSide G k)
+    (p : E d) (hpF : p ∈ φ '' (F.cell edgeIndex).val.carrier)
+    (hpG : p ∈ relint (ψ '' (G.cell edgeIndex).val.carrier)) :
+    (relint (φ '' (F.cell facetIndex).val.carrier) ∩
+      relint (ψ '' (G.cell facetIndex).val.carrier)).Nonempty := by
+  have hbase := honest_rows_step3_flag_overlap_aux_step3_relint_overlap (hspan edgeIndex)
+    (honest_rows_step3_flag_overlap_aux_step1_cell_closure _ φ) hpF hpG
+  have hall : ∀ (n : ℕ) (hn : 1 ≤ n) (hnd : n < d),
+      (relint (φ '' (F.cell ⟨n, hn, hnd⟩).val.carrier) ∩
+        relint (ψ '' (G.cell ⟨n, hn, hnd⟩).val.carrier)).Nonempty := by
+    intro n hn
+    induction n, hn using Nat.le_induction with
+    | base => intro hnd; exact hbase
+    | succ n hn ih =>
+      intro hnd
+      exact honest_rows_step3_flag_overlap_aux_step3_coface_overlap F G φ ψ ⟨n, hn, hnd⟩
+        (ih (by omega)) (hspan _) (hside _)
+  exact hall (d - 1) facetIndex.property.1 facetIndex.property.2
+
+/-- Step 4 of the V4 proof of `honest_rows_step2_cont_labels_step3_flag_overlap` (V4 2.8):
+"same ... side". Overlapping facet interiors and equal inward cones force
+an overlap of the interiors of the two placed domains. -/
+private theorem honest_rows_step3_flag_overlap_aux_step4_inward_overlap
+    {A B : S.ι} (f : FacetName S A) (g : FacetName S B)
+    (φ ψ : E d ≃ᵃ[ℝ] E d)
+    (hmeet : (relint (φ '' f.val.carrier) ∩ relint (ψ '' g.val.carrier)).Nonempty)
+    (hside : φ.linear '' tangentCone (S.proto A).carrier (cellAnchor f.val) =
+      ψ.linear '' tangentCone (S.proto B).carrier (cellAnchor g.val)) :
+    (interior (φ '' (S.proto A).carrier) ∩
+      interior (ψ '' (S.proto B).carrier)).Nonempty := by
+  obtain ⟨p, hp, hq⟩ := hmeet
+  rw [restrictionOp_source_step5_relint_image] at hp hq
+  obtain ⟨a, ha, rfl⟩ := hp
+  obtain ⟨b, hb, hba⟩ := hq
+  have hF := actualCont_exists_step5_facet_cone A f a (cellAnchor f.val)
+    ha (cellAnchor_mem _)
+  have hG := actualCont_exists_step5_facet_cone B g b (cellAnchor g.val)
+    hb (cellAnchor_mem _)
+  obtain ⟨V, hV, hpV, hVeq⟩ := honest_rows_step3_flag_overlap_aux_step1_placed_germ
+    (S.proto A).polyhedral φ a
+  obtain ⟨W, hW, hpW, hWeq⟩ := honest_rows_step3_flag_overlap_aux_step1_placed_germ
+    (S.proto B).polyhedral ψ b
+  rw [hF] at hVeq
+  rw [hG] at hWeq
+  have hsub : interior (φ '' (S.proto A).carrier) ∩ (V ∩ W) ⊆
+      ψ '' (S.proto B).carrier := by
+    rintro x ⟨hx, hxV, hxW⟩
+    apply (hWeq x hxW).mpr
+    rw [hba, ← hside]
+    exact (hVeq x hxV).mp (interior_subset hx)
+  have hreg : closure (interior (φ '' (S.proto A).carrier)) =
+      φ '' (S.proto A).carrier := by
+    change closure (interior (φ.toHomeomorphOfFiniteDimensional ''
+      (S.proto A).carrier)) = _
+    rw [← Homeomorph.image_interior, ← Homeomorph.image_closure,
+      (S.proto A).regularClosed]
+    rfl
+  have hpK : φ a ∈ closure (interior (φ '' (S.proto A).carrier)) := by
+    rw [hreg]
+    exact ⟨a, actualCont_exists_step5_cell_subset A f.val
+      (Finset.mem_filter.mp f.property).1 (intrinsicInterior_subset ha), rfl⟩
+  obtain ⟨x, hx, hxV⟩ := (closure_inter_open_nonempty_iff (hV.inter hW)).mp
+    ⟨φ a, hpK, hpV, hba ▸ hpW⟩
+  exact ⟨x, hx, ((isOpen_interior.inter (hV.inter hW)).subset_interior_iff.mpr hsub)
+    ⟨hx, hxV⟩⟩
+
+
 /-- Step 3 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.8):
 "both chains lie in the positioned flag ... with its orientations". A common open
 edge portion and matching successive sides give overlapping coface interiors,
@@ -4632,7 +5290,15 @@ private theorem honest_rows_step2_cont_labels_step3_flag_overlap
   -- Starting at a common relative-interior edge point, pass up one coface at a time.
   -- Equal side cones give a common relative-interior point in the next cofaces.
   -- At the top facet, the matching inward sides give a point in both owner interiors.
-  sorry
+  obtain ⟨p, hpF, hpG⟩ := hedge
+  have hfacet := honest_rows_step3_flag_overlap_aux_step3_flag_overlap a b φ ψ hspan hside p
+    (intrinsicInterior_subset hpF) hpG
+  refine ⟨hfacet, ?_⟩
+  let f : FacetName S A := ⟨(a.cell facetIndex).val,
+    Finset.mem_filter.mpr ⟨(a.cell facetIndex).property, a.dimension facetIndex⟩⟩
+  let g : FacetName S B := ⟨(b.cell facetIndex).val,
+    Finset.mem_filter.mpr ⟨(b.cell facetIndex).property, b.dimension facetIndex⟩⟩
+  exact honest_rows_step3_flag_overlap_aux_step4_inward_overlap f g φ ψ hfacet hinward
 
 /-- Step 4 of the V4 proof of `honest_rows_step2_cont_labels` (V4 2.8):
 "v in relint h". A cell accumulating at an interior point of a cell in the same

@@ -521,12 +521,166 @@ theorem reaches_branching (A : S.ι) :
 end SubstSystem
 
 omit [Fact (2 ≤ d)] in
+/-- Step 1 of the V4 proof of `h4_finite_test` (V4 7.5): "Cayley–Hamilton, applied to
+`𝒜^m(I)`, gives `P_{m+s} + ∑_{j<s} c_j P_{m+j} = 0`".  In abstract form: for a linear
+operator `A` on a space of dimension at most `s`, every Krylov vector `A^m v` lies in the
+span of `v, A v, …, A^{s-1} v`. -/
+private theorem h4_finite_test_step1_krylov {V : Type*} [AddCommGroup V] [Module ℝ V]
+    [FiniteDimensional ℝ V] (A : V →ₗ[ℝ] V) (v : V) (s : ℕ)
+    (hs : Module.finrank ℝ V ≤ s) (m : ℕ) :
+    (A ^ m) v ∈ Submodule.span ℝ (Set.range fun j : Fin s => (A ^ (j : ℕ)) v) := by
+  classical
+  have hp : A.charpoly.Monic := LinearMap.charpoly_monic A
+  have hdeg : A.charpoly.natDegree = Module.finrank ℝ V := LinearMap.charpoly_natDegree A
+  have hAm : A ^ m = Polynomial.aeval A ((Polynomial.X ^ m : Polynomial ℝ) %ₘ A.charpoly) := by
+    have h0 := Polynomial.modByMonic_add_div (Polynomial.X ^ m : Polynomial ℝ) hp
+    have h1 : Polynomial.aeval A (Polynomial.X ^ m : Polynomial ℝ) = A ^ m := by simp
+    rw [← h1]
+    conv_lhs => rw [← h0]
+    rw [map_add, map_mul, LinearMap.aeval_self_charpoly, zero_mul, add_zero]
+  by_cases hr : (Polynomial.X ^ m : Polynomial ℝ) %ₘ A.charpoly = 0
+  · rw [hAm, hr, map_zero, LinearMap.zero_apply]
+    exact zero_mem _
+  · have hp1 : A.charpoly ≠ 1 := by
+      intro h1
+      exact hr (by rw [h1, Polynomial.modByMonic_one])
+    have hlt : ((Polynomial.X ^ m : Polynomial ℝ) %ₘ A.charpoly).natDegree < s := by
+      have := Polynomial.natDegree_modByMonic_lt (Polynomial.X ^ m : Polynomial ℝ) hp hp1
+      omega
+    rw [hAm, Polynomial.aeval_eq_sum_range' hlt, LinearMap.coe_sum, Finset.sum_apply]
+    refine Submodule.sum_mem _ (fun i hi => ?_)
+    rw [LinearMap.smul_apply]
+    exact Submodule.smul_mem _ _
+      (Submodule.subset_span ⟨⟨i, Finset.mem_range.mp hi⟩, rfl⟩)
+
+omit [Fact (2 ≤ d)] in
+/-- Step 2 of the V4 proof of `h4_finite_test` (V4 7.5): "On the `s`-dimensional real space
+`Sym_d` of symmetric matrices define `𝒜(X) = σᵀ X σ`, `P_m = 𝒜^m(I) = (σ^m)ᵀ σ^m`".
+Here `Sym_d` is realized as a finite-dimensional space of (symmetric bilinear) forms on
+`E d` of dimension at most `d(d+1)/2` (e.g. the forms `(x, y) ↦ ⟪x, M y⟫` with `M`
+self-adjoint), `A` is the pullback `B ↦ B(σ ·, σ ·)` and `v` is the inner product, so that
+the diagonal of `A^m v` is the quadratic form `x ↦ ‖σ^m x‖²`. -/
+private theorem h4_finite_test_step2_sym_model (σ : E d ≃ₗ[ℝ] E d) :
+    ∃ (V : Submodule ℝ (E d → E d → ℝ)) (_ : FiniteDimensional ℝ V) (A : V →ₗ[ℝ] V) (v : V),
+      Module.finrank ℝ V ≤ d * (d + 1) / 2 ∧
+        ∀ (m : ℕ) (x : E d), ((A ^ m) v : E d → E d → ℝ) x x = ‖(σ ^ m) x‖ ^ 2 := by
+  classical
+  -- the symmetric monomial forms `x_i y_j + x_j y_i`, indexed by unordered pairs
+  let g : Sym2 (Fin d) → (E d → E d → ℝ) :=
+    Sym2.lift ⟨fun i j => fun x y => x i * y j + x j * y i, by
+      intro i j; funext x y; ring⟩
+  have hg : ∀ i j : Fin d, g s(i, j) = fun x y => x i * y j + x j * y i := fun i j => rfl
+  let V : Submodule ℝ (E d → E d → ℝ) := Submodule.span ℝ (Set.range g)
+  -- the pullback `B ↦ B(σ ·, σ ·)`
+  let P : (E d → E d → ℝ) →ₗ[ℝ] (E d → E d → ℝ) :=
+    { toFun := fun B x y => B (σ x) (σ y)
+      map_add' := fun _ _ => rfl
+      map_smul' := fun _ _ => rfl }
+  have hσ : ∀ (x : E d) (i : Fin d),
+      (σ x) i = ∑ k, x k * (σ (EuclideanSpace.single k 1)) i := by
+    intro x i
+    conv_lhs => rw [← (EuclideanSpace.basisFun (Fin d) ℝ).sum_repr x]
+    simp [map_sum, map_smul]
+  have hinv : ∀ B ∈ V, P B ∈ V := by
+    intro B hB
+    have hle : V ≤ V.comap P := by
+      refine Submodule.span_le.mpr ?_
+      rintro _ ⟨z, rfl⟩
+      induction z using Sym2.ind with
+      | _ i j =>
+        show P (g s(i, j)) ∈ V
+        have heq : P (g s(i, j)) = ∑ k, ∑ l,
+            ((σ (EuclideanSpace.single k 1)) i * (σ (EuclideanSpace.single l 1)) j) •
+              g s(k, l) := by
+          funext x y
+          simp only [P, LinearMap.coe_mk, AddHom.coe_mk, hg, Finset.sum_apply, Pi.smul_apply,
+            smul_eq_mul]
+          rw [hσ x i, hσ y j, hσ x j, hσ y i, Finset.sum_mul_sum, Finset.sum_mul_sum]
+          simp only [mul_add, Finset.sum_add_distrib]
+          congr 1
+          · refine Finset.sum_congr rfl (fun k _ => Finset.sum_congr rfl (fun l _ => ?_))
+            ring
+          · rw [Finset.sum_comm]
+            refine Finset.sum_congr rfl (fun k _ => Finset.sum_congr rfl (fun l _ => ?_))
+            ring
+        rw [heq]
+        exact Submodule.sum_mem _ (fun k _ => Submodule.sum_mem _ (fun l _ =>
+          Submodule.smul_mem _ _ (Submodule.subset_span ⟨s(k, l), rfl⟩)))
+    exact hle hB
+  have hv : (fun x y : E d => inner ℝ x y) ∈ V := by
+    have heq : (fun x y : E d => inner ℝ x y) = ∑ i, (1 / 2 : ℝ) • g s(i, i) := by
+      funext x y
+      simp only [hg, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, PiLp.inner_apply,
+        RCLike.inner_apply, conj_trivial]
+      refine Finset.sum_congr rfl (fun i _ => ?_)
+      ring
+    rw [heq]
+    exact Submodule.sum_mem _ (fun i _ =>
+      Submodule.smul_mem _ _ (Submodule.subset_span ⟨s(i, i), rfl⟩))
+  refine ⟨V, FiniteDimensional.span_of_finite ℝ (Set.finite_range g), P.restrict hinv,
+    ⟨_, hv⟩, ?_, ?_⟩
+  · have h1 := finrank_range_le_card (R := ℝ) g
+    rw [Sym2.card, Fintype.card_fin, Nat.choose_two_right] at h1
+    have h2 : (d + 1) * (d + 1 - 1) / 2 = d * (d + 1) / 2 := by
+      rw [Nat.add_sub_cancel, Nat.mul_comm]
+    rw [h2] at h1
+    exact h1
+  · have hpow : ∀ m : ℕ, (((P.restrict hinv) ^ m) ⟨_, hv⟩ : E d → E d → ℝ) =
+        fun x y => inner ℝ ((σ ^ m) x) ((σ ^ m) y) := by
+      intro m
+      induction m with
+      | zero => rfl
+      | succ m ih =>
+        rw [pow_succ', Module.End.mul_apply, LinearMap.restrict_coe_apply, ih]
+        rfl
+    intro m x
+    rw [hpow m]
+    exact real_inner_self_eq_norm_sq _
+
+omit [Fact (2 ≤ d)] in
 /-- S7, V4 7.5: the finite test for all-power compatibility, independent of
 any substitution system. The test uses exponents `1,...,d(d+1)/2-1`. -/
 theorem h4_finite_test (σ : E d ≃ₗ[ℝ] E d) (R : Ortho d) :
     (∀ (m : ℕ) (x : E d), ‖linearConj σ (m : ℤ) R.toLinearEquiv x‖ = ‖x‖) ↔
       (∀ m : ℕ, 1 ≤ m → m < d * (d + 1) / 2 →
         ∀ x : E d, ‖linearConj σ (m : ℤ) R.toLinearEquiv x‖ = ‖x‖) := by
-  sorry
+  have conj_apply : ∀ (j : ℕ) (y : E d),
+      linearConj σ (j : ℤ) R.toLinearEquiv ((σ ^ j) y) = (σ ^ j) (R y) := by
+    intro j y
+    simp only [linearConj, zpow_neg, zpow_natCast]
+    show (σ ^ j) (R ((σ ^ j).symm ((σ ^ j) y))) = (σ ^ j) (R y)
+    rw [LinearEquiv.symm_apply_apply]
+  constructor
+  · intro h m _ _ x
+    exact h m x
+  · intro h m x
+    -- the tests, rewritten as invariance of the quadratic forms `‖σ^j ·‖²`
+    have hkey : ∀ j : ℕ, j < d * (d + 1) / 2 → ∀ y : E d,
+        ‖(σ ^ j) (R y)‖ ^ 2 = ‖(σ ^ j) y‖ ^ 2 := by
+      intro j hj y
+      rcases Nat.eq_zero_or_pos j with rfl | hpos
+      · simp
+      · rw [← conj_apply j y, h j hpos hj]
+    obtain ⟨V, hV, A, v, hdim, hev⟩ := h4_finite_test_step2_sym_model σ
+    obtain ⟨c, hc⟩ := (Submodule.mem_span_range_iff_exists_fun ℝ).mp
+      (h4_finite_test_step1_krylov A v _ hdim m)
+    have hq : ∀ y : E d, ‖(σ ^ m) y‖ ^ 2 =
+        ∑ i : Fin (d * (d + 1) / 2), c i * ‖(σ ^ (i : ℕ)) y‖ ^ 2 := by
+      intro y
+      rw [← hev m y, ← hc]
+      simp only [Submodule.coe_sum, Submodule.coe_smul, Finset.sum_apply, Pi.smul_apply,
+        smul_eq_mul, hev]
+    set y := (σ ^ (m : ℤ))⁻¹ x with hy
+    have hx : x = (σ ^ m) y := by
+      rw [hy, zpow_natCast]
+      show x = (σ ^ m) ((σ ^ m).symm x)
+      rw [LinearEquiv.apply_symm_apply]
+    rw [hx, conj_apply]
+    have h2 : ‖(σ ^ m) (R y)‖ ^ 2 = ‖(σ ^ m) y‖ ^ 2 := by
+      rw [hq, hq]
+      refine Finset.sum_congr rfl (fun i _ => ?_)
+      rw [hkey i i.isLt]
+    have := congrArg Real.sqrt h2
+    rwa [Real.sqrt_sq (norm_nonneg _), Real.sqrt_sq (norm_nonneg _)] at this
 
 end Enforce

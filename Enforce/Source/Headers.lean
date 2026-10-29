@@ -2680,13 +2680,773 @@ theorem L_fixes_HPiCones (F : PowerFactorisation S) (K : Set (E d))
     (hK : HPiCone S.hPi K) : F.L '' K = K := by
   sorry
 
+/-- Step 0 of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "the tangent cone
+at a vertex `p` of a cell `C` of a placed prototile ..., translated to the origin":
+placing by an isometric frame moves the tangent cone by the linear part of the frame. -/
+private theorem tangentCone_isHPiCone_step0_transport (φ : Iso d) (X : Set (E d)) (q : E d) :
+    tangentCone (φ '' X) (φ q) = φ.toAffineEquiv.linear '' tangentCone X q := by
+  set L := φ.toAffineEquiv.linear
+  have key : ∀ (s : ℝ) (v : E d), φ (q + s • v) = φ q + s • L v := by
+    intro s v
+    have h := φ.toAffineEquiv.map_vadd q (s • v)
+    simp only [vadd_eq_add, map_smul, AffineIsometryEquiv.coe_toAffineEquiv] at h
+    rw [add_comm, h, add_comm]
+  ext w
+  constructor
+  · rintro ⟨ε, hε, h⟩
+    refine ⟨L.symm w, ⟨ε, hε, fun s hs hsε => ?_⟩, L.apply_symm_apply w⟩
+    obtain ⟨x, hx, hxe⟩ := h s hs hsε
+    have : φ x = φ (q + s • L.symm w) := by rw [hxe, key, L.apply_symm_apply]
+    exact φ.injective this ▸ hx
+  · rintro ⟨v, ⟨ε, hε, h⟩, rfl⟩
+    exact ⟨ε, hε, fun s hs hsε => ⟨q + s • v, h s hs hsε, key s v⟩⟩
+
+/-- Step 1a of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "the facets of `C`
+through `p`": only finitely many listed cells exist and they are closed, so near `q` every
+listed prototype cell that meets a small ball around `q` passes through `q`. -/
+private theorem tangentCone_isHPiCone_step1a_local (A : S.ι) (q : E d) :
+    ∃ r : ℝ, 0 < r ∧ ∀ g ∈ (S.cx A).cells, ∀ x ∈ g.carrier, dist x q < r →
+      q ∈ g.carrier := by
+  classical
+  let B : Set (E d) :=
+    ⋃ g ∈ (S.cx A).cells.filter (fun g => q ∉ g.carrier), g.carrier
+  have hB : IsClosed B := isClosed_biUnion_finset fun g _ => g.flat.compact.isClosed
+  have hqB : q ∉ B := by
+    simp only [B, Set.mem_iUnion, Finset.mem_filter, exists_prop, not_exists, not_and]
+    intro g hg hq
+    exact hg.2 hq
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hB.isOpen_compl q hqB
+  refine ⟨r, hr, fun g hg x hx hxq => ?_⟩
+  by_contra hqg
+  have hxB : x ∈ B := Set.mem_iUnion₂.mpr ⟨g, Finset.mem_filter.mpr ⟨hg, hqg⟩, hx⟩
+  exact hball (mem_ball.mpr hxq) hxB
+
+/-- Step 1b-i of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b'), §1.0 (H2)): "the
+regular closed polyhedron `C` (within `aff C`)": a cell of the same dimension as `C`
+cannot lie in the relative boundary of `C`, since its relative interior would be open in
+`aff C` and hence inside the relative interior of `C`. -/
+private theorem tangentCone_isHPiCone_step1b_no_full {e g : Cell d}
+    (hge : g.carrier ⊆ relfrontier e.carrier) (hdim : g.dim = e.dim) : False := by
+  have hsub : g.carrier ⊆ e.carrier :=
+    hge.trans (intrinsicFrontier_subset e.flat.compact.isClosed)
+  obtain ⟨y, hy⟩ := g.flat.relint_nonempty
+  have hyg : y ∈ g.carrier := intrinsicInterior_subset hy
+  have hspan : affineSpan ℝ g.carrier = affineSpan ℝ e.carrier := by
+    apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le _
+      ⟨y, subset_affineSpan ℝ _ hyg⟩ (affineSpan_mono ℝ hsub)
+    apply Submodule.eq_of_le_of_finrank_eq
+      (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
+    change Module.finrank ℝ (cellDirection g.carrier) =
+      Module.finrank ℝ (cellDirection e.carrier)
+    rw [g.flat.dimension, e.flat.dimension, hdim]
+  obtain ⟨ρ, hρ, hball⟩ : ∃ ρ : ℝ, 0 < ρ ∧
+      ∀ z ∈ affineSpan ℝ g.carrier, dist z y < ρ → z ∈ g.carrier := by
+    obtain ⟨y', hy', rfl⟩ := mem_intrinsicInterior.mp hy
+    obtain ⟨ρ, hρ, hb⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hy')
+    exact ⟨ρ, hρ, fun z hz hdist =>
+      hb (show (⟨z, hz⟩ : affineSpan ℝ g.carrier) ∈ ball y' ρ from hdist)⟩
+  have hyrel : y ∈ relint e.carrier := by
+    refine mem_intrinsicInterior.mpr ⟨⟨y, subset_affineSpan ℝ _ (hsub hyg)⟩, ?_, rfl⟩
+    refine mem_interior_iff_mem_nhds.mpr (Metric.mem_nhds_iff.mpr ⟨ρ, hρ, fun z hz => ?_⟩)
+    exact hsub (hball z.1 (by rw [hspan]; exact z.2) hz)
+  have hyf := hge hyg
+  unfold relfrontier at hyf
+  rw [← intrinsicClosure_diff_intrinsicInterior] at hyf
+  exact hyf.2 hyrel
+
+/-- Step 1b-ii' of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "membership
+... is constant on the chambers" (connectedness): a segment in `aff K` from a point of a
+closed set `K` to a point outside `K` meets the relative boundary of `K`. -/
+private theorem tangentCone_isHPiCone_step1b_segment {K : Set (E d)} (hK : IsClosed K)
+    {a b : E d} (ha : a ∈ K) (hb : b ∈ affineSpan ℝ K) (hbK : b ∉ K) :
+    ∃ w ∈ segment ℝ a b, w ∈ relfrontier K := by
+  classical
+  by_contra hno
+  push_neg at hno
+  have hrel : ∀ x ∈ K, x ∉ relfrontier K → ∃ ρ : ℝ, 0 < ρ ∧
+      ∀ z ∈ affineSpan ℝ K, dist z x < ρ → z ∈ K := by
+    intro x hx hnf
+    have hx' : x ∈ closure K \ intrinsicFrontier ℝ K := ⟨subset_closure hx, hnf⟩
+    rw [closure_diff_intrinsicFrontier] at hx'
+    obtain ⟨y, hy, rfl⟩ := mem_intrinsicInterior.mp hx'
+    obtain ⟨ρ, hρ, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hy)
+    exact ⟨ρ, hρ, fun z hz hdist => hball (show (⟨z, hz⟩ : affineSpan ℝ K) ∈ ball y ρ from hdist)⟩
+  have hsegP : segment ℝ a b ⊆ affineSpan ℝ K :=
+    (AffineSubspace.convex _).segment_subset (subset_affineSpan ℝ K ha) hb
+  let O : Set (E d) := {y | ∃ x ∈ K, ∃ ρ : ℝ, 0 < ρ ∧
+    (∀ z ∈ affineSpan ℝ K, dist z x < ρ → z ∈ K) ∧ dist y x < ρ}
+  have hO : IsOpen O := by
+    rw [Metric.isOpen_iff]
+    rintro y ⟨x, hx, ρ, hρ, hball, hyx⟩
+    refine ⟨ρ - dist y x, by linarith, fun z hz => ⟨x, hx, ρ, hρ, hball, ?_⟩⟩
+    have := dist_triangle z y x
+    rw [mem_ball] at hz
+    linarith
+  have hOK : ∀ y ∈ O, y ∈ affineSpan ℝ K → y ∈ K := by
+    rintro y ⟨x, hx, ρ, hρ, hball, hyx⟩ hy
+    exact hball y hy hyx
+  have hcover : segment ℝ a b ⊆ O ∪ Kᶜ := by
+    intro x hx
+    by_cases hxK : x ∈ K
+    · obtain ⟨ρ, hρ, hball⟩ := hrel x hxK (hno x hx)
+      exact Or.inl ⟨x, hxK, ρ, hρ, hball, by rw [dist_self]; exact hρ⟩
+    · exact Or.inr hxK
+  obtain ⟨x, hx, hxO, hxK⟩ := (convex_segment a b).isPreconnected O Kᶜ hO hK.isOpen_compl
+    hcover ⟨a, left_mem_segment ℝ a b,
+      (hcover (left_mem_segment ℝ a b)).resolve_right (fun h => h ha)⟩
+    ⟨b, right_mem_segment ℝ a b, hbK⟩
+  exact hxK (hOK x hxO (hsegP hx))
+
+/-- Step 1b-ii of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b'), §1.0 (H2)(iii)):
+"the regular closed polyhedron `C` (within `aff C`)": subsets of codimension at least two
+do not separate, so near a relative boundary point of a set which is the closure of its
+relative interior, the relative boundary is not covered by finitely many affine subspaces
+of codimension `≥ 2` in `aff C`. -/
+private theorem tangentCone_isHPiCone_step1b_codim_two {K : Set (E d)}
+    (hreg : closure (relint K) = K) {x : E d} (hx : x ∈ relfrontier K) {m : ℕ}
+    (M : Fin m → AffineSubspace ℝ (E d)) (_hM : ∀ k, M k ≤ affineSpan ℝ K)
+    (hMdim : ∀ k, Module.finrank ℝ (M k).direction + 2 ≤
+      Module.finrank ℝ (cellDirection K))
+    {r : ℝ} (hr : 0 < r) (hcov : ∀ y ∈ relfrontier K, dist y x < r → ∃ k, y ∈ M k) :
+    False := by
+  classical
+  have hKc : IsClosed K := by
+    rw [← hreg]
+    exact isClosed_closure
+  have hxK : x ∈ K := intrinsicFrontier_subset hKc hx
+  have hxcl : x ∈ closure (relint K) := by
+    rw [hreg]
+    exact hxK
+  obtain ⟨z, hzrel, hxz⟩ := Metric.mem_closure_iff.mp hxcl (r / 2) (by linarith)
+  have hzK : z ∈ K := intrinsicInterior_subset hzrel
+  obtain ⟨y0, hy0P, hy0K, hy0x⟩ : ∃ y0 ∈ affineSpan ℝ K, y0 ∉ K ∧ dist y0 x < r / 2 := by
+    obtain ⟨x', hx', rfl⟩ := mem_intrinsicFrontier.mp hx
+    rw [frontier_eq_closure_inter_closure] at hx'
+    obtain ⟨b', hb', hdist⟩ := Metric.mem_closure_iff.mp hx'.2 (r / 2) (by linarith)
+    exact ⟨b'.1, b'.2, hb', by rw [dist_comm]; exact hdist⟩
+  obtain ⟨ε0, hε0, hball0⟩ := Metric.isOpen_iff.mp hKc.isOpen_compl y0 hy0K
+  obtain ⟨δ, hδ_def⟩ : ∃ δ : ℝ, δ = min ε0 (r / 2 - dist y0 x) := ⟨_, rfl⟩
+  have hδ : 0 < δ := by rw [hδ_def]; exact lt_min hε0 (by linarith)
+  let p : Fin m → E d := fun k => if h : (M k : Set (E d)).Nonempty then h.some else z
+  let D : Fin m → Submodule ℝ (E d) := fun k =>
+    (M k).direction ⊔ Submodule.span ℝ {p k - z}
+  have hDdim : ∀ k, Module.finrank ℝ (D k) + 1 ≤ Module.finrank ℝ (cellDirection K) := by
+    intro k
+    have h1 := Submodule.finrank_add_le_finrank_add_finrank (M k).direction
+      (Submodule.span ℝ {p k - z})
+    have h2 : Module.finrank ℝ (Submodule.span ℝ ({p k - z} : Set (E d))) ≤ 1 := by
+      have := finrank_span_le_card (R := ℝ) ({p k - z} : Set (E d))
+      simpa using this
+    have := hMdim k
+    have h3 : Module.finrank ℝ (D k) ≤ Module.finrank ℝ (M k).direction +
+        Module.finrank ℝ (Submodule.span ℝ ({p k - z} : Set (E d))) := h1
+    omega
+  obtain ⟨u, huV, hu⟩ : ∃ u ∈ cellDirection K, ∀ k, u ∉ D k := by
+    let q' : Fin m → Submodule ℝ (cellDirection K) := fun k =>
+      (D k).comap (cellDirection K).subtype
+    have h1 : ∀ k, q' k ≠ ⊤ := by
+      intro k htop
+      have hle : cellDirection K ≤ D k := by
+        intro v hv
+        have : (⟨v, hv⟩ : cellDirection K) ∈ q' k := htop ▸ Submodule.mem_top
+        exact this
+      have := Submodule.finrank_mono hle
+      have := hDdim k
+      omega
+    have h2 : (Finset.univ : Finset (Fin m)).card < ENat.card ℝ := by
+      rw [ENat.card_eq_top_of_infinite]
+      exact ENat.coe_lt_top _
+    have h3 := Submodule.iUnion_ssubset_of_forall_ne_top_of_card_lt Finset.univ q' h1 h2
+    obtain ⟨u, hu⟩ := (Set.ne_univ_iff_exists_notMem _).mp (Set.ssubset_univ_iff.mp h3)
+    refine ⟨u.1, u.2, fun k hk => hu ?_⟩
+    simp only [Set.mem_iUnion, SetLike.mem_coe]
+    exact ⟨k, Finset.mem_univ _, hk⟩
+  let sk : Fin m → ℝ := fun k =>
+    if h : ∃ s : ℝ, y0 + s • u - z ∈ D k then h.choose else 0
+  obtain ⟨s, hs, hsB⟩ := (Set.Ioo_infinite (div_pos hδ
+    (by positivity : (0 : ℝ) < ‖u‖ + 1))).exists_notMem_finset (Finset.univ.image sk)
+  obtain ⟨y, hy_def⟩ : ∃ y : E d, y = y0 + s • u := ⟨_, rfl⟩
+  have hyD : ∀ k, y - z ∉ D k := by
+    intro k hk
+    rw [hy_def] at hk
+    have hex : ∃ s : ℝ, y0 + s • u - z ∈ D k := ⟨s, hk⟩
+    have hsk : sk k = hex.choose := dif_pos hex
+    have hspec := hex.choose_spec
+    by_cases heq : s = hex.choose
+    · exact hsB (Finset.mem_image.mpr ⟨k, Finset.mem_univ _, by rw [hsk, heq]⟩)
+    · have hdiff : (s - hex.choose) • u ∈ D k := by
+        have := (D k).sub_mem hk hspec
+        have e : y0 + s • u - z - (y0 + hex.choose • u - z) = (s - hex.choose) • u := by
+          rw [sub_smul]
+          abel
+        rwa [e] at this
+      exact hu k ((Submodule.smul_mem_iff (D k) (sub_ne_zero.mpr heq)).mp hdiff)
+  have hyy0 : dist y y0 < δ := by
+    rw [hy_def, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs.1.le]
+    have h1 : s * (‖u‖ + 1) < δ := by
+      calc s * (‖u‖ + 1) < δ / (‖u‖ + 1) * (‖u‖ + 1) := by gcongr; exact hs.2
+        _ = δ := div_mul_cancel₀ _ (ne_of_gt (by positivity))
+    nlinarith [hs.1, norm_nonneg u]
+  have hyK : y ∉ K := hball0 (lt_of_lt_of_le hyy0 (by rw [hδ_def]; exact min_le_left _ _))
+  have hyx : dist y x < r / 2 := by
+    have h1 := dist_triangle y y0 x
+    have h2 : δ ≤ r / 2 - dist y0 x := by rw [hδ_def]; exact min_le_right _ _
+    linarith
+  have hyP : y ∈ affineSpan ℝ K := by
+    have := AffineSubspace.vadd_mem_of_mem_direction ((cellDirection K).smul_mem s huV) hy0P
+    rw [hy_def, add_comm]
+    simpa only [vadd_eq_add] using this
+  obtain ⟨w, hwseg, hwf⟩ := tangentCone_isHPiCone_step1b_segment hKc hzK hyP hyK
+  have hwx : dist w x < r / 2 := by
+    have hz' : z ∈ ball x (r / 2) := by rw [mem_ball, dist_comm]; exact hxz
+    have hy' : y ∈ ball x (r / 2) := hyx
+    exact (convex_ball x (r / 2)).segment_subset hz' hy' hwseg
+  obtain ⟨k, hwk⟩ := hcov w hwf (by linarith)
+  obtain ⟨a', b', ha', hb', hab', hw_eq⟩ := hwseg
+  have hwrel : w ∉ relint K := by
+    have hwf' := hwf
+    unfold relfrontier at hwf'
+    rw [← intrinsicClosure_diff_intrinsicInterior] at hwf'
+    exact hwf'.2
+  have hb0 : b' ≠ 0 := by
+    intro h0
+    apply hwrel
+    have ha1 : a' = 1 := by linarith
+    rw [← hw_eq, h0, ha1, one_smul, zero_smul, add_zero]
+    exact hzrel
+  have hwz : w - z = b' • (y - z) := by
+    rw [← hw_eq, show a' = 1 - b' by linarith]
+    module
+  have hne : (M k : Set (E d)).Nonempty := ⟨w, hwk⟩
+  have hpk : p k ∈ M k := by
+    simp only [p, dif_pos hne]
+    exact hne.some_mem
+  have hwD : w - z ∈ D k := by
+    have e : w - z = (w - p k) + (p k - z) := by abel
+    rw [e]
+    exact (D k).add_mem (le_sup_left (a := (M k).direction)
+        (AffineSubspace.vsub_mem_direction hwk hpk))
+      (le_sup_right (b := Submodule.span ℝ {p k - z}) (Submodule.mem_span_singleton_self _))
+  apply hyD k
+  have : y - z = b'⁻¹ • (w - z) := by
+    rw [hwz, smul_smul, inv_mul_cancel₀ hb0, one_smul]
+  rw [this]
+  exact (D k).smul_mem _ hwD
+
+/-- Step 1b of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b'), with V4 §1.0 (H2)):
+"the facets of `C` through `p`" (relative facet purity): the relative boundary of a listed
+`j`-cell `C` is a `(j-1)`-manifold which is a union of listed cells (H2(ii)), so every
+point of it lies on a listed codimension-one cell of `C`. -/
+private theorem tangentCone_isHPiCone_step1b_facet_purity (A : S.ι) (e : Cell d)
+    (he : e ∈ (S.cx A).cells) (x : E d) (hx : x ∈ relfrontier e.carrier) :
+    ∃ f ∈ (S.cx A).cells, f.carrier ⊆ e.carrier ∧ f.dim + 1 = e.dim ∧ x ∈ f.carrier := by
+  classical
+  by_contra hno
+  push_neg at hno
+  obtain ⟨b, hb, hbu⟩ := (S.cx A).boundary_union e he
+  let bs : Finset (Cell d) := b.filter (fun g => x ∈ g.carrier)
+  let eqv := bs.equivFin
+  have hgsub : ∀ g ∈ b, g.carrier ⊆ relfrontier e.carrier := fun g hg y hy => by
+    rw [hbu]
+    exact Set.mem_iUnion₂.mpr ⟨g, hg, hy⟩
+  have hfrontsub : relfrontier e.carrier ⊆ e.carrier :=
+    intrinsicFrontier_subset e.flat.compact.isClosed
+  obtain ⟨r, hr, hloc⟩ := tangentCone_isHPiCone_step1a_local A x
+  refine tangentCone_isHPiCone_step1b_codim_two e.flat.regularClosed hx
+    (fun k => affineSpan ℝ (eqv.symm k).1.carrier)
+    (fun k => affineSpan_mono ℝ
+      ((hgsub _ (Finset.mem_filter.mp (eqv.symm k).2).1).trans hfrontsub))
+    (fun k => ?_) hr (fun y hy hyx => ?_)
+  · obtain ⟨hgb, hxg⟩ := Finset.mem_filter.mp (eqv.symm k).2
+    have hge : (eqv.symm k).1.carrier ⊆ e.carrier := (hgsub _ hgb).trans hfrontsub
+    have hle : (eqv.symm k).1.dim ≤ e.dim := by
+      rw [← (eqv.symm k).1.flat.dimension, ← e.flat.dimension]
+      exact Submodule.finrank_mono (AffineSubspace.direction_le (affineSpan_mono ℝ hge))
+    have hne : (eqv.symm k).1.dim ≠ e.dim := fun h =>
+      tangentCone_isHPiCone_step1b_no_full (hgsub _ hgb) h
+    have hne' : (eqv.symm k).1.dim + 1 ≠ e.dim := fun h => hno _ (hb hgb) hge h hxg
+    change Module.finrank ℝ (cellDirection (eqv.symm k).1.carrier) + 2 ≤
+      Module.finrank ℝ (cellDirection e.carrier)
+    rw [e.flat.dimension, (eqv.symm k).1.flat.dimension]
+    omega
+  · have hy' := hy
+    rw [hbu] at hy'
+    obtain ⟨g, hgb, hyg⟩ := Set.mem_iUnion₂.mp hy'
+    have hxg : x ∈ g.carrier := hloc g (hb hgb) y hyg hyx
+    have hgbs : g ∈ bs := Finset.mem_filter.mpr ⟨hgb, hxg⟩
+    refine ⟨eqv ⟨g, hgbs⟩, ?_⟩
+    simp only [Equiv.symm_apply_apply]
+    exact subset_affineSpan ℝ _ hyg
+
+/-- Step 1c of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "the direction
+spaces of the facets of `C`" are codimension-one subspaces `W ≤ V`, each cut out in `V`
+by a linear functional. -/
+private theorem tangentCone_isHPiCone_step1c_functional {V W : Submodule ℝ (E d)}
+    (hWV : W ≤ V) (hdim : Module.finrank ℝ V = Module.finrank ℝ W + 1) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ, {x | x ∈ V ∧ ℓ x = 0} = (W : Set (E d)) := by
+  have hlt : W < V := lt_of_le_of_ne hWV (by
+    intro h
+    rw [h] at hdim
+    omega)
+  obtain ⟨u, huV, huW⟩ := SetLike.exists_of_lt hlt
+  obtain ⟨f, hfu, hfW⟩ := Submodule.exists_dual_map_eq_bot_of_notMem huW inferInstance
+  have hWker : ∀ w ∈ W, f w = 0 := by
+    intro w hw
+    have h : f w ∈ W.map f := Submodule.mem_map_of_mem hw
+    rw [hfW] at h
+    exact (Submodule.mem_bot ℝ).mp h
+  have hsup : W ⊔ Submodule.span ℝ {u} = V := by
+    apply Submodule.eq_of_le_of_finrank_le
+      (sup_le hWV ((Submodule.span_singleton_le_iff_mem _ _).mpr huV))
+    have hlt' : W < W ⊔ Submodule.span ℝ {u} := lt_of_le_of_ne le_sup_left (by
+      intro h
+      apply huW
+      rw [h]
+      exact Submodule.mem_sup_right (Submodule.mem_span_singleton_self u))
+    have := Submodule.finrank_lt_finrank_of_lt hlt'
+    omega
+  refine ⟨f, ?_⟩
+  ext x
+  simp only [Set.mem_setOf_eq, SetLike.mem_coe]
+  constructor
+  · rintro ⟨hxV, hx0⟩
+    rw [← hsup] at hxV
+    obtain ⟨w, hw, y, hy, rfl⟩ := Submodule.mem_sup.mp hxV
+    obtain ⟨c, rfl⟩ := Submodule.mem_span_singleton.mp hy
+    rw [map_add, map_smul, hWker w hw, zero_add, smul_eq_mul] at hx0
+    have hc : c = 0 := by
+      rcases mul_eq_zero.mp hx0 with h | h
+      · exact h
+      · exact absurd h hfu
+    subst hc
+    simpa using hw
+  · intro hxW
+    exact ⟨hWV hxW, hWker x hxW⟩
+
+/-- Step 1 of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "with `V` the
+direction space of `C`, membership in the regular closed polyhedron `C` (within `aff C`)
+is constant on the chambers of the arrangement in `V` of the direction spaces of the
+facets of `C` through `p`". Geometric input: near a point `q` of a listed prototype cell
+`e`, the relative boundary of `e` lies on the walls `q + W`, where `W` runs over the
+direction spaces of the listed codimension-one cells of `e` through `q`; each wall is cut
+out in `V` by a linear functional. Assembled from Steps 1a--1c. -/
+private theorem tangentCone_isHPiCone_step1_walls (A : S.ι) (e : Cell d)
+    (he : e ∈ (S.cx A).cells) (q : E d) (_hq : q ∈ e.carrier) :
+    ∃ (n : ℕ) (f : Fin n → Cell d) (ℓ : Fin n → E d →ₗ[ℝ] ℝ),
+      (∀ i, f i ∈ (S.cx A).cells ∧ (f i).carrier ⊆ e.carrier ∧ q ∈ (f i).carrier ∧
+        (f i).dim + 1 = e.dim ∧
+        {x | x ∈ cellDirection e.carrier ∧ ℓ i x = 0} =
+          (cellDirection (f i).carrier : Set (E d))) ∧
+      ∃ r : ℝ, 0 < r ∧ ∀ x ∈ relfrontier e.carrier, dist x q < r →
+        ∃ i, ℓ i (x - q) = 0 := by
+  classical
+  let Fs : Finset (Cell d) := (S.cx A).cells.filter
+    (fun f => f.carrier ⊆ e.carrier ∧ q ∈ f.carrier ∧ f.dim + 1 = e.dim)
+  let eqv := Fs.equivFin
+  let f : Fin Fs.card → Cell d := fun i => (eqv.symm i).1
+  have hfmem : ∀ i, f i ∈ Fs := fun i => (eqv.symm i).2
+  have hwall : ∀ i, ∃ ℓ : E d →ₗ[ℝ] ℝ, {x | x ∈ cellDirection e.carrier ∧ ℓ x = 0} =
+      (cellDirection (f i).carrier : Set (E d)) := by
+    intro i
+    obtain ⟨_, hsub, _, hdim⟩ := Finset.mem_filter.mp (hfmem i)
+    exact tangentCone_isHPiCone_step1c_functional
+      (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
+      (by rw [e.flat.dimension, (f i).flat.dimension]; omega)
+  choose ℓ hℓ using hwall
+  obtain ⟨r, hr, hloc⟩ := tangentCone_isHPiCone_step1a_local A q
+  refine ⟨Fs.card, f, ℓ, fun i => ?_, r, hr, fun x hx hxq => ?_⟩
+  · obtain ⟨hcell, hsub, hq', hdim⟩ := Finset.mem_filter.mp (hfmem i)
+    exact ⟨hcell, hsub, hq', hdim, hℓ i⟩
+  · obtain ⟨g, hg, hsub, hdim, hxg⟩ :=
+      tangentCone_isHPiCone_step1b_facet_purity A e he x hx
+    have hqg : q ∈ g.carrier := hloc g hg x hxg hxq
+    have hgF : g ∈ Fs := Finset.mem_filter.mpr ⟨hg, hsub, hqg, hdim⟩
+    refine ⟨eqv ⟨g, hgF⟩, ?_⟩
+    have hfi : f (eqv ⟨g, hgF⟩) = g := by simp [f]
+    have hmem : x - q ∈ cellDirection (f (eqv ⟨g, hgF⟩)).carrier := by
+      rw [hfi]
+      exact AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ _ hxg)
+        (subset_affineSpan ℝ _ hqg)
+    have : x - q ∈ ({x | x ∈ cellDirection e.carrier ∧
+        ℓ (eqv ⟨g, hgF⟩) x = 0} : Set (E d)) := by
+      rw [hℓ]
+      exact hmem
+    exact this.2
+
+/-- Step 2 of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "membership in
+the regular closed polyhedron `C` (within `aff C`) is constant on the chambers".
+Generic form: if near `q` the relative boundary of a closed set `K ∋ q` lies on the
+walls `ℓ i (x - q) = 0`, then membership of `q + v` in `K` is the same for all `v`
+of norm `< r` in one open chamber of the direction space of `K`. -/
+private theorem tangentCone_isHPiCone_step2_chamber_const {K : Set (E d)}
+    (hK : IsClosed K) {q : E d} (hq : q ∈ K) {n : ℕ} (ℓ : Fin n → E d →ₗ[ℝ] ℝ) {r : ℝ}
+    (hwall : ∀ x ∈ relfrontier K, dist x q < r → ∃ i, ℓ i (x - q) = 0)
+    (σ : Fin n → Bool) {v w : E d} (hv : v ∈ cellDirection K) (hw : w ∈ cellDirection K)
+    (hvσ : ∀ i, 0 < (if σ i then (1 : ℝ) else -1) * ℓ i v)
+    (hwσ : ∀ i, 0 < (if σ i then (1 : ℝ) else -1) * ℓ i w)
+    (hvr : ‖v‖ < r) (hwr : ‖w‖ < r) : q + v ∈ K ↔ q + w ∈ K := by
+  classical
+  have hrel : ∀ x ∈ K, x ∉ relfrontier K → ∃ ρ : ℝ, 0 < ρ ∧
+      ∀ z ∈ affineSpan ℝ K, dist z x < ρ → z ∈ K := by
+    intro x hx hnf
+    have hx' : x ∈ closure K \ intrinsicFrontier ℝ K := ⟨subset_closure hx, hnf⟩
+    rw [closure_diff_intrinsicFrontier] at hx'
+    obtain ⟨y, hy, rfl⟩ := mem_intrinsicInterior.mp hx'
+    obtain ⟨ρ, hρ, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hy)
+    exact ⟨ρ, hρ, fun z hz hdist => hball (show (⟨z, hz⟩ : affineSpan ℝ K) ∈ ball y ρ from hdist)⟩
+  have hseg : ∀ x ∈ segment ℝ (q + v) (q + w), x ∈ affineSpan ℝ K ∧ x ∉ relfrontier K := by
+    rintro x ⟨a, b, ha, hb, hab, rfl⟩
+    have hxq : a • (q + v) + b • (q + w) = (a • v + b • w) + q := by
+      have h1 : a • (q + v) + b • (q + w) = (a • v + b • w) + (a + b) • q := by module
+      rw [h1, hab, one_smul]
+    have huV : a • v + b • w ∈ cellDirection K :=
+      (cellDirection K).add_mem ((cellDirection K).smul_mem a hv) ((cellDirection K).smul_mem b hw)
+    have hur : ‖a • v + b • w‖ < r := by
+      have := (convex_ball (0 : E d) r) (mem_ball_zero_iff.mpr hvr) (mem_ball_zero_iff.mpr hwr)
+        ha hb hab
+      exact mem_ball_zero_iff.mp this
+    have huσ : ∀ i, ℓ i (a • v + b • w) ≠ 0 := by
+      intro i h0
+      have h1 := hvσ i
+      have h2 := hwσ i
+      have hlin : (if σ i then (1 : ℝ) else -1) * ℓ i (a • v + b • w) =
+          a * ((if σ i then (1 : ℝ) else -1) * ℓ i v) +
+            b * ((if σ i then (1 : ℝ) else -1) * ℓ i w) := by
+        rw [map_add, map_smul, map_smul, smul_eq_mul, smul_eq_mul]
+        ring
+      rw [h0, mul_zero] at hlin
+      by_cases ha0 : a = 0
+      · have hb1 : b = 1 := by linarith
+        rw [ha0, hb1] at hlin
+        linarith
+      · have := mul_pos (lt_of_le_of_ne ha (Ne.symm ha0)) h1
+        nlinarith [mul_nonneg hb h2.le]
+    refine ⟨?_, fun hf => ?_⟩
+    · rw [hxq]
+      have := AffineSubspace.vadd_mem_of_mem_direction huV (subset_affineSpan ℝ K hq)
+      simpa only [vadd_eq_add] using this
+    · obtain ⟨i, hi⟩ := hwall _ hf (by rw [hxq, dist_eq_norm, add_sub_cancel_right]; exact hur)
+      rw [hxq, add_sub_cancel_right] at hi
+      exact huσ i hi
+  let O : Set (E d) := {y | ∃ x ∈ K, ∃ ρ : ℝ, 0 < ρ ∧
+    (∀ z ∈ affineSpan ℝ K, dist z x < ρ → z ∈ K) ∧ dist y x < ρ}
+  have hO : IsOpen O := by
+    rw [Metric.isOpen_iff]
+    rintro y ⟨x, hx, ρ, hρ, hball, hyx⟩
+    refine ⟨ρ - dist y x, by linarith, fun z hz => ⟨x, hx, ρ, hρ, hball, ?_⟩⟩
+    have := dist_triangle z y x
+    rw [mem_ball] at hz
+    linarith
+  have hOK : ∀ y ∈ O, y ∈ affineSpan ℝ K → y ∈ K := by
+    rintro y ⟨x, hx, ρ, hρ, hball, hyx⟩ hy
+    exact hball y hy hyx
+  have hT := (convex_segment (q + v) (q + w)).isPreconnected
+  have hcover : segment ℝ (q + v) (q + w) ⊆ O ∪ Kᶜ := by
+    intro x hx
+    by_cases hxK : x ∈ K
+    · obtain ⟨ρ, hρ, hball⟩ := hrel x hxK (hseg x hx).2
+      exact Or.inl ⟨x, hxK, ρ, hρ, hball, by rw [dist_self]; exact hρ⟩
+    · exact Or.inr hxK
+  have key : ∀ x ∈ segment ℝ (q + v) (q + w), x ∈ O → x ∈ Kᶜ → False :=
+    fun x hx hxO hxK => hxK (hOK x hxO (hseg x hx).1)
+  have hvs := left_mem_segment ℝ (q + v) (q + w)
+  have hws := right_mem_segment ℝ (q + v) (q + w)
+  constructor
+  · intro hvK
+    by_contra hwK
+    obtain ⟨x, hx, hxO, hxK⟩ := hT O Kᶜ hO hK.isOpen_compl hcover
+      ⟨q + v, hvs, (hcover hvs).resolve_right (fun h => h hvK)⟩ ⟨q + w, hws, hwK⟩
+    exact key x hx hxO hxK
+  · intro hwK
+    by_contra hvK
+    obtain ⟨x, hx, hxO, hxK⟩ := hT O Kᶜ hO hK.isOpen_compl hcover
+      ⟨q + w, hws, (hcover hws).resolve_right (fun h => h hwK)⟩ ⟨q + v, hvs, hvK⟩
+    exact key x hx hxO hxK
+
+/-- Step 3 of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "so near `p` the
+cell is a union of such chambers, each a finite intersection of closed sides in `V`".
+Generic form: for a closed set `K ∋ q`, regular closed in its affine span, whose
+membership is constant on the open chambers (of radius `r`) of finitely many walls
+nondegenerate on the direction space `V`, the tangent cone at `q` is the union of the
+closed chambers whose open chamber meets `K - q` near `0`. -/
+private theorem tangentCone_isHPiCone_step3_cone_eq {K : Set (E d)} (hK : IsClosed K)
+    (hreg : closure (relint K) = K) {q : E d} (hq : q ∈ K) {n : ℕ}
+    (ℓ : Fin n → E d →ₗ[ℝ] ℝ) (hnd : ∀ i, ∃ u ∈ cellDirection K, ℓ i u ≠ 0)
+    {r : ℝ} (hr : 0 < r)
+    (hconst : ∀ (σ : Fin n → Bool) (v w : E d), v ∈ cellDirection K →
+      w ∈ cellDirection K →
+      (∀ i, 0 < (if σ i then (1 : ℝ) else -1) * ℓ i v) →
+      (∀ i, 0 < (if σ i then (1 : ℝ) else -1) * ℓ i w) →
+      ‖v‖ < r → ‖w‖ < r → (q + v ∈ K ↔ q + w ∈ K)) :
+    tangentCone K q = ⋃ (σ : Fin n → Bool) (_ : ∃ v ∈ cellDirection K,
+        (∀ i, 0 < (if σ i then (1 : ℝ) else -1) * ℓ i v) ∧ ‖v‖ < r ∧ q + v ∈ K),
+      {v | v ∈ cellDirection K ∧ ∀ i, 0 ≤ (if σ i then (1 : ℝ) else -1) * ℓ i v} := by
+  classical
+  have hdirK : ∀ x ∈ K, x - q ∈ cellDirection K := fun x hx =>
+    AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ K hx) (subset_affineSpan ℝ K hq)
+  have hgen : ∃ u ∈ cellDirection K, ∀ i, ℓ i u ≠ 0 := by
+    let p : Fin n → Submodule ℝ (cellDirection K) := fun i =>
+      LinearMap.ker ((ℓ i).comp (cellDirection K).subtype)
+    have h1 : ∀ i, p i ≠ ⊤ := by
+      intro i htop
+      obtain ⟨u, hu, hne⟩ := hnd i
+      have : (⟨u, hu⟩ : cellDirection K) ∈ p i := htop ▸ Submodule.mem_top
+      exact hne (by simpa [p] using this)
+    have h2 : (Finset.univ : Finset (Fin n)).card < ENat.card ℝ := by
+      rw [ENat.card_eq_top_of_infinite]
+      exact ENat.coe_lt_top _
+    have h3 := Submodule.iUnion_ssubset_of_forall_ne_top_of_card_lt Finset.univ p h1 h2
+    obtain ⟨u, hu⟩ := (Set.ne_univ_iff_exists_notMem _).mp (Set.ssubset_univ_iff.mp h3)
+    refine ⟨u.1, u.2, fun i hi => hu ?_⟩
+    simp only [Set.mem_iUnion, SetLike.mem_coe]
+    exact ⟨i, Finset.mem_univ _, by simpa [p] using hi⟩
+  ext v
+  constructor
+  · rintro ⟨ε, hε, h⟩
+    have hvV : v ∈ cellDirection K := by
+      have h1 := hdirK _ (h (ε / 2) (by linarith) (by linarith))
+      rw [add_sub_cancel_left] at h1
+      have h2 := (cellDirection K).smul_mem (ε / 2)⁻¹ h1
+      rwa [smul_smul, inv_mul_cancel₀ (by positivity), one_smul] at h2
+    obtain ⟨t, ht_def⟩ : ∃ t : ℝ, t = min (ε / 2) (r / (2 * (‖v‖ + 1))) := ⟨_, rfl⟩
+    have ht0 : 0 < t := by rw [ht_def]; exact lt_min (by linarith) (by positivity)
+    have htε : t < ε := by
+      rw [ht_def]; exact lt_of_le_of_lt (min_le_left _ _) (by linarith)
+    have htv : ‖t • v‖ < r := by
+      rw [norm_smul, Real.norm_of_nonneg ht0.le]
+      have h1 : t ≤ r / (2 * (‖v‖ + 1)) := by rw [ht_def]; exact min_le_right _ _
+      have h2 : t * (2 * (‖v‖ + 1)) ≤ r := by
+        calc t * (2 * (‖v‖ + 1)) ≤ r / (2 * (‖v‖ + 1)) * (2 * (‖v‖ + 1)) := by gcongr
+          _ = r := div_mul_cancel₀ _ (ne_of_gt (by positivity))
+      nlinarith [norm_nonneg v]
+    have hxK : q + t • v ∈ K := h t ht0 htε
+    let U : Set (E d) := ball q r ∩ ⋂ i, {y | ℓ i v ≠ 0 → 0 < ℓ i (y - q) * ℓ i v}
+    have hUo : IsOpen U := by
+      refine isOpen_ball.inter (isOpen_iInter_of_finite fun i => ?_)
+      by_cases hi : ℓ i v = 0
+      · simp [hi]
+      · simp only [ne_eq, hi, not_false_eq_true, true_implies]
+        exact isOpen_lt continuous_const
+          (((ℓ i).continuous_of_finiteDimensional.comp
+            (continuous_id.sub continuous_const)).mul continuous_const)
+    have hxU : q + t • v ∈ U := by
+      refine ⟨by rw [mem_ball, dist_eq_norm, add_sub_cancel_left]; exact htv, ?_⟩
+      simp only [Set.mem_iInter, Set.mem_setOf_eq, add_sub_cancel_left, map_smul, smul_eq_mul]
+      intro i hi
+      have : 0 < ℓ i v * ℓ i v := mul_self_pos.mpr hi
+      nlinarith
+    rw [← hreg] at hxK
+    obtain ⟨y, hyU, hyrel⟩ := mem_closure_iff.mp hxK U hUo hxU
+    obtain ⟨ρ, hρ, hball⟩ : ∃ ρ : ℝ, 0 < ρ ∧ ∀ z ∈ affineSpan ℝ K, dist z y < ρ → z ∈ K := by
+      obtain ⟨y', hy', rfl⟩ := mem_intrinsicInterior.mp hyrel
+      obtain ⟨ρ, hρ, hb⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hy')
+      exact ⟨ρ, hρ, fun z hz hdist =>
+        hb (show (⟨z, hz⟩ : affineSpan ℝ K) ∈ ball y' ρ from hdist)⟩
+    have hyK : y ∈ K := intrinsicInterior_subset hyrel
+    obtain ⟨ρ', hρ', hball'⟩ := Metric.isOpen_iff.mp hUo y hyU
+    obtain ⟨u, huV, hu⟩ := hgen
+    obtain ⟨η, hη_def⟩ : ∃ η : ℝ, η = min ρ ρ' / (‖u‖ + 1) := ⟨_, rfl⟩
+    have hη : 0 < η := by rw [hη_def]; exact div_pos (lt_min hρ hρ') (by positivity)
+    obtain ⟨s, hs, hsB⟩ := (Set.Ioo_infinite hη).exists_notMem_finset
+      (Finset.univ.image fun i => -ℓ i (y - q) / ℓ i u)
+    obtain ⟨z, hz_def⟩ : ∃ z : E d, z = y + s • u := ⟨_, rfl⟩
+    have hsu : s * ‖u‖ < min ρ ρ' := by
+      have h1 : s * (‖u‖ + 1) < min ρ ρ' := by
+        calc s * (‖u‖ + 1) < η * (‖u‖ + 1) := by gcongr; exact hs.2
+          _ = min ρ ρ' := by rw [hη_def]; exact div_mul_cancel₀ _ (ne_of_gt (by positivity))
+      nlinarith [hs.1]
+    have hzy : dist z y < min ρ ρ' := by
+      rw [hz_def, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs.1.le]
+      exact hsu
+    have hzspan : z ∈ affineSpan ℝ K := by
+      have := AffineSubspace.vadd_mem_of_mem_direction ((cellDirection K).smul_mem s huV)
+        (subset_affineSpan ℝ K hyK)
+      rw [hz_def, add_comm]
+      simpa only [vadd_eq_add] using this
+    have hzK : z ∈ K := hball z hzspan (lt_of_lt_of_le hzy (min_le_left _ _))
+    have hzU : z ∈ U := hball' (lt_of_lt_of_le hzy (min_le_right _ _))
+    have hzne : ∀ i, ℓ i (z - q) ≠ 0 := by
+      intro i h0
+      apply hsB
+      refine Finset.mem_image.mpr ⟨i, Finset.mem_univ _, ?_⟩
+      have h1 : ℓ i (z - q) = ℓ i (y - q) + s * ℓ i u := by
+        rw [hz_def, show y + s • u - q = (y - q) + s • u by abel, map_add, map_smul, smul_eq_mul]
+      rw [div_eq_iff (hu i)]
+      linarith
+    let σ' : Fin n → Bool := fun i => decide (0 < ℓ i (z - q))
+    have hσ' : ∀ i, 0 < (if σ' i then (1 : ℝ) else -1) * ℓ i (z - q) := by
+      intro i
+      by_cases hpos : 0 < ℓ i (z - q)
+      · rw [if_pos (show decide (0 < ℓ i (z - q)) = true from decide_eq_true hpos)]
+        linarith
+      · have hneg : ℓ i (z - q) < 0 := lt_of_le_of_ne (not_lt.mp hpos) (hzne i)
+        rw [if_neg (show ¬ (decide (0 < ℓ i (z - q)) = true) by
+          rw [decide_eq_true_eq]; exact hpos)]
+        linarith
+    simp only [Set.mem_iUnion]
+    refine ⟨σ', ⟨z - q, hdirK z hzK, hσ', ?_, by rwa [add_sub_cancel]⟩, hvV, fun i => ?_⟩
+    · have := hzU.1
+      rwa [mem_ball, dist_eq_norm] at this
+    · by_cases hi : ℓ i v = 0
+      · simp [hi]
+      · have h1 : 0 < ℓ i (z - q) * ℓ i v := by
+          have := hzU.2
+          simp only [Set.mem_iInter, Set.mem_setOf_eq] at this
+          exact this i hi
+        have h2 := hσ' i
+        nlinarith [mul_pos h2 h1, sq_nonneg (ℓ i (z - q))]
+  · simp only [Set.mem_iUnion]
+    rintro ⟨σ, ⟨w0, hw0V, hw0σ, hw0r, hw0K⟩, hvV, hvσ⟩
+    refine ⟨r / (‖v‖ + 1), by positivity, fun t ht htε => ?_⟩
+    have htv : t * ‖v‖ < r := by
+      have : t * (‖v‖ + 1) < r := by
+        calc t * (‖v‖ + 1) < r / (‖v‖ + 1) * (‖v‖ + 1) := by gcongr
+          _ = r := div_mul_cancel₀ _ (ne_of_gt (by positivity))
+      nlinarith
+    obtain ⟨δ, hδ_def⟩ : ∃ δ : ℝ, δ = (r - t * ‖v‖) / (‖w0‖ + 1) := ⟨_, rfl⟩
+    have hδ : 0 < δ := by rw [hδ_def]; exact div_pos (by linarith) (by positivity)
+    have hev : ∀ s ∈ Ioo (0 : ℝ) δ, q + (t • v + s • w0) ∈ K := by
+      rintro s ⟨hs0, hsδ⟩
+      have hmem : t • v + s • w0 ∈ cellDirection K :=
+        (cellDirection K).add_mem ((cellDirection K).smul_mem t hvV)
+          ((cellDirection K).smul_mem s hw0V)
+      have hσs : ∀ i, 0 < (if σ i then (1 : ℝ) else -1) * ℓ i (t • v + s • w0) := by
+        intro i
+        have hlin : (if σ i then (1 : ℝ) else -1) * ℓ i (t • v + s • w0) =
+            t * ((if σ i then (1 : ℝ) else -1) * ℓ i v) +
+              s * ((if σ i then (1 : ℝ) else -1) * ℓ i w0) := by
+          rw [map_add, map_smul, map_smul, smul_eq_mul, smul_eq_mul]
+          ring
+        rw [hlin]
+        exact add_pos_of_nonneg_of_pos (mul_nonneg ht.le (hvσ i)) (mul_pos hs0 (hw0σ i))
+      have hnorm : ‖t • v + s • w0‖ < r := by
+        have hs1 : s * (‖w0‖ + 1) < r - t * ‖v‖ := by
+          calc s * (‖w0‖ + 1) < δ * (‖w0‖ + 1) := by gcongr
+            _ = r - t * ‖v‖ := by rw [hδ_def]; exact div_mul_cancel₀ _ (ne_of_gt (by positivity))
+        calc ‖t • v + s • w0‖ ≤ ‖t • v‖ + ‖s • w0‖ := norm_add_le _ _
+          _ = t * ‖v‖ + s * ‖w0‖ := by
+            rw [norm_smul, norm_smul, Real.norm_of_nonneg ht.le, Real.norm_of_nonneg hs0.le]
+          _ < r := by nlinarith
+      exact (hconst σ _ w0 hmem hw0V hσs hw0σ hnorm hw0r).mpr hw0K
+    have hlim : Filter.Tendsto (fun s : ℝ => q + (t • v + s • w0))
+        (nhdsWithin 0 (Ioi 0)) (nhds (q + t • v)) := by
+      have hc : Continuous (fun s : ℝ => q + (t • v + s • w0)) := by fun_prop
+      have := hc.tendsto 0
+      simp only [zero_smul, add_zero] at this
+      exact this.mono_left nhdsWithin_le_nhds
+    exact hK.mem_of_tendsto hlim (Filter.mem_of_superset (Ioo_mem_nhdsGT hδ) hev)
+
+/-- Step 4 of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "each a finite
+intersection of closed sides in `V` of these codimension-one subspaces, all in `HΠ` by
+Lemma 1.10(b)": after the compatible frame, a finite union of closed chambers cut in a
+prototype cell direction by prototype codimension-one cell directions is an `HΠ`-cone. -/
+private theorem tangentCone_isHPiCone_step4_assemble (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) {V : Submodule ℝ (E d)}
+    (hV : V ∈ S.cellDirections) {n : ℕ} (W : Fin n → Submodule ℝ (E d))
+    (hW : ∀ i, W i ∈ S.cellDirections) (ℓ : Fin n → E d →ₗ[ℝ] ℝ)
+    (hℓ : ∀ i, {x | x ∈ V ∧ ℓ i x = 0} = (W i : Set (E d)))
+    (hdim : ∀ i, Module.finrank ℝ V = Module.finrank ℝ (W i) + 1)
+    (P : (Fin n → Bool) → Prop) :
+    HPiCone S.hPi (t.frame.toAffineEquiv.linear '' ⋃ (σ : Fin n → Bool) (_ : P σ),
+      {v | v ∈ V ∧ ∀ i, 0 ≤ (if σ i then (1 : ℝ) else -1) * ℓ i v}) := by
+  classical
+  set L := t.frame.toAffineEquiv.linear
+  have hmem : ∀ U : Submodule ℝ (E d), U ∈ S.cellDirections →
+      U.map L.toLinearMap ∈ S.hPi := by
+    intro U hU
+    exact ⟨U, hU, t.frame.linearIsometryEquiv, ht, rfl⟩
+  let fn : (Fin n → Bool) → Fin n → E d →ₗ[ℝ] ℝ := fun σ i =>
+    ((if σ i then (1 : ℝ) else -1) • ℓ i).comp L.symm.toLinearMap
+  have hfn : ∀ σ i v, fn σ i (L v) = (if σ i then (1 : ℝ) else -1) * ℓ i v := by
+    intro σ i v
+    simp only [fn, LinearMap.comp_apply, LinearMap.smul_apply, smul_eq_mul,
+      LinearEquiv.coe_coe, LinearEquiv.symm_apply_apply]
+  have hc : ∀ (σ : Fin n → Bool) i, (if σ i then (1 : ℝ) else -1) ≠ 0 := by
+    intro σ i
+    split_ifs <;> norm_num
+  let side : (Fin n → Bool) → Fin n → Set (E d) := fun σ i =>
+    {y | y ∈ V.map L.toLinearMap ∧ 0 ≤ fn σ i y}
+  let piece : (Fin n → Bool) → Finset (Set (E d)) := fun σ =>
+    insert ((V.map L.toLinearMap : Submodule ℝ (E d)) : Set (E d))
+      (Finset.univ.image (side σ))
+  refine ⟨(Finset.univ.filter P).image piece, ?_, ?_⟩
+  · rw [Finset.set_biUnion_finset_image]
+    ext y
+    simp only [piece, Finset.set_biInter_insert, Finset.set_biInter_finset_image,
+      Set.mem_image, Set.mem_iUnion, Set.mem_iInter, Finset.mem_filter, Finset.mem_univ,
+      true_and, exists_prop, Set.mem_inter_iff, Set.mem_setOf_eq, side, SetLike.mem_coe,
+      forall_const]
+    constructor
+    · rintro ⟨v, ⟨σ, hσ, hvV, hv⟩, rfl⟩
+      refine ⟨σ, hσ, Submodule.mem_map_of_mem hvV, fun i => ?_⟩
+      exact ⟨Submodule.mem_map_of_mem hvV, by rw [hfn]; exact hv i⟩
+    · rintro ⟨σ, hσ, hyV, hy⟩
+      obtain ⟨v, hv, rfl⟩ := Submodule.mem_map.mp hyV
+      refine ⟨v, ⟨σ, hσ, hv, fun i => ?_⟩, rfl⟩
+      have := (hy i).2
+      simpa only [LinearEquiv.coe_coe, hfn] using this
+  · intro pc hpc K hK
+    obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hpc
+    rcases Finset.mem_insert.mp hK with hK | hK
+    · exact Or.inl ⟨V.map L.toLinearMap, Or.inl (hmem V hV), hK⟩
+    · obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp hK
+      have hWV : W i ≤ V := by
+        intro x hx
+        have : x ∈ {x | x ∈ V ∧ ℓ i x = 0} := by
+          rw [hℓ i]
+          exact hx
+        exact this.1
+      refine Or.inr ⟨V.map L.toLinearMap, (W i).map L.toLinearMap, Or.inl (hmem V hV),
+        Or.inl (hmem (W i) (hW i)), Submodule.map_mono hWV, ?_, fn σ i, ?_, rfl⟩
+      · rw [LinearEquiv.finrank_map_eq, LinearEquiv.finrank_map_eq, hdim i]
+      · ext y
+        have h := Set.ext_iff.mp (hℓ i) (L.symm y)
+        simp only [Set.mem_setOf_eq, SetLike.mem_coe] at h
+        simp only [Set.mem_setOf_eq, SetLike.mem_coe, Submodule.mem_map_equiv]
+        rw [← h]
+        simp only [fn, LinearMap.comp_apply, LinearMap.smul_apply, smul_eq_mul,
+          LinearEquiv.coe_coe, mul_eq_zero, hc σ i, false_or]
+
 /-- P11, V4 1.16(b'): tangent cones of listed cells of compatible ground tiles
 at their listed vertices are `HΠ`-cones. This includes all lower dimensions. -/
 theorem tangentCone_isHPiCone (t : FramedNode S)
     (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (C : CellName S t.ty)
     (p : E d) (hp : t.Lists 0 p) (hpC : p ∈ t.cell 0 C.val) :
     HPiCone S.hPi (tangentCone (t.cell 0 C.val) p) := by
-  sorry
+  classical
+  have hcell : t.cell 0 C.val = t.frame '' C.val.carrier := by
+    ext x
+    simp [FramedNode.cell, FramedNode.prototypeFrame]
+  rw [hcell] at hpC ⊢
+  obtain ⟨q, hq, rfl⟩ := hpC
+  rw [tangentCone_isHPiCone_step0_transport]
+  obtain ⟨n, f, ℓ, hf, r, hr, hwall⟩ :=
+    tangentCone_isHPiCone_step1_walls t.ty C.val C.property q hq
+  have hdimf : ∀ i, Module.finrank ℝ (cellDirection C.val.carrier) =
+      Module.finrank ℝ (cellDirection (f i).carrier) + 1 := by
+    intro i
+    rw [C.val.flat.dimension, (f i).flat.dimension]
+    exact ((hf i).2.2.2.1).symm
+  have hnd : ∀ i, ∃ u ∈ cellDirection C.val.carrier, ℓ i u ≠ 0 := by
+    intro i
+    by_contra hcon
+    push_neg at hcon
+    have hsub : cellDirection C.val.carrier = cellDirection (f i).carrier := by
+      apply SetLike.coe_injective
+      rw [← (hf i).2.2.2.2]
+      ext x
+      simp only [SetLike.mem_coe, Set.mem_setOf_eq]
+      exact ⟨fun hx => ⟨hx, hcon x hx⟩, fun hx => hx.1⟩
+    have := hdimf i
+    rw [hsub] at this
+    omega
+  rw [tangentCone_isHPiCone_step3_cone_eq C.val.flat.compact.isClosed
+    C.val.flat.regularClosed hq ℓ hnd hr
+    (fun σ v w hv hw hvσ hwσ hvr hwr => tangentCone_isHPiCone_step2_chamber_const
+      C.val.flat.compact.isClosed hq ℓ hwall σ hv hw hvσ hwσ hvr hwr)]
+  exact tangentCone_isHPiCone_step4_assemble t ht ⟨t.ty, C.val, C.property, rfl⟩
+    (fun i => cellDirection (f i).carrier) (fun i => ⟨t.ty, f i, (hf i).1, rfl⟩) ℓ
+    (fun i => (hf i).2.2.2.2) hdimf _
 
 /-- P11, V4 1.16(b'): cones of finite unions of compatible cells at a listed
 anchor are `HΠ`-cones, as are full tile cones at listed vertices. -/

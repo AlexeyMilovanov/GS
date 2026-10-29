@@ -2749,11 +2749,159 @@ def contRow {P : Params S} {l : LeafType P} {slot : ContSlot l}
       slot.record.isSite slot.vertex = true ∧ T.record.isSite T.vertex = true) ∧
     leafPacket T.label T.record.facet.val = some slot.packet
 
+open private header_finiteness_step4_flag_transporters from Enforce.Source.Headers in
+/-- Step 1 of the V4 proof of `contTemplates_finite` (V4 §2.5): "the full oriented
+flag ... fix[es] each relative placement". Isometries carrying the affine spans of
+one complete named flag onto those of another, and one fixed point to another, form
+a finite set: their linear parts transport a complete flag of directions (a coset of
+the finite orthogonal flag stabilizer), and the image of one point fixes the
+translation. -/
+private theorem contTemplates_finite_step1_frames {A B : S.ι} (F : FacetFlag S A)
+    (G : FacetFlag S B) (x₀ p : E d) :
+    {φ : Iso d | (∀ j : FlagIndex d, affineSpan ℝ (F.cell j).val.carrier =
+      affineSpan ℝ (φ '' (G.cell j).val.carrier)) ∧ φ x₀ = p}.Finite := by
+  classical
+  let V : ℕ → Submodule ℝ (E d) := fun i =>
+    if h : 1 ≤ i ∧ i < d then cellDirection (G.cell ⟨i, h⟩).val.carrier
+    else if i = 0 then ⊥ else ⊤
+  let W : ℕ → Submodule ℝ (E d) := fun i =>
+    if h : 1 ≤ i ∧ i < d then cellDirection (F.cell ⟨i, h⟩).val.carrier
+    else if i = 0 then ⊥ else ⊤
+  have hV0 : V 0 = ⊥ := by
+    dsimp only [V]
+    rw [dif_neg (by omega), if_pos rfl]
+  have hW0 : W 0 = ⊥ := by
+    dsimp only [W]
+    rw [dif_neg (by omega), if_pos rfl]
+  have hVd : V d = ⊤ := by
+    have h2 : 2 ≤ d := Fact.out
+    dsimp only [V]
+    rw [dif_neg (by omega), if_neg (by omega)]
+  have hWd : W d = ⊤ := by
+    have h2 : 2 ≤ d := Fact.out
+    dsimp only [W]
+    rw [dif_neg (by omega), if_neg (by omega)]
+  have hVm : ∀ (i : ℕ) (h : 1 ≤ i ∧ i < d),
+      V i = cellDirection (G.cell ⟨i, h⟩).val.carrier := by
+    intro i h
+    dsimp only [V]
+    rw [dif_pos h]
+  have hWm : ∀ (i : ℕ) (h : 1 ≤ i ∧ i < d),
+      W i = cellDirection (F.cell ⟨i, h⟩).val.carrier := by
+    intro i h
+    dsimp only [W]
+    rw [dif_pos h]
+  have hdim : ∀ i ≤ d, Module.finrank ℝ (V i) = i := by
+    intro i hi
+    by_cases h : 1 ≤ i ∧ i < d
+    · rw [hVm i h, (G.cell ⟨i, h⟩).val.flat.dimension, G.dimension]
+    · by_cases h0 : i = 0
+      · subst h0
+        rw [hV0, finrank_bot]
+      · have hid : i = d := by omega
+        subst hid
+        rw [hVd, finrank_top, finrank_euclideanSpace_fin]
+  have hmono : ∀ i < d, V i ≤ V (i + 1) := by
+    intro i hi
+    by_cases h0 : i = 0
+    · subst h0
+      rw [hV0]
+      exact bot_le
+    · by_cases h1 : i + 1 < d
+      · rw [hVm i ⟨by omega, hi⟩, hVm (i + 1) ⟨by omega, h1⟩]
+        exact AffineSubspace.direction_le (affineSpan_mono ℝ
+          (G.nested ⟨i, by omega, hi⟩ ⟨i + 1, by omega, h1⟩ (by simp)))
+      · have hid : i + 1 = d := by omega
+        rw [hid, hVd]
+        exact le_top
+  have hT := header_finiteness_step4_flag_transporters V W hdim hmono
+  have key : ∀ (φ : Iso d) (K : Set (E d)),
+      (affineSpan ℝ (φ '' K)).direction =
+        (affineSpan ℝ K).direction.map φ.linearIsometryEquiv.toLinearEquiv.toLinearMap := by
+    intro φ K
+    calc (affineSpan ℝ (φ '' K)).direction =
+        ((affineSpan ℝ K).map φ.toAffineEquiv.toAffineMap).direction := by
+          rw [AffineSubspace.map_span]
+          rfl
+      _ = _ := AffineSubspace.map_direction _ _
+  apply Set.Finite.of_finite_image (f := fun φ : Iso d => φ.linearIsometryEquiv)
+    (hT.subset ?_) ?_
+  · rintro _ ⟨φ, ⟨hφ, -⟩, rfl⟩ i hi
+    by_cases h : 1 ≤ i ∧ i < d
+    · rw [hVm i h, hWm i h]
+      change (affineSpan ℝ (G.cell ⟨i, h⟩).val.carrier).direction.map _ =
+        (affineSpan ℝ (F.cell ⟨i, h⟩).val.carrier).direction
+      rw [hφ ⟨i, h⟩, key]
+    · by_cases h0 : i = 0
+      · subst h0
+        rw [hV0, hW0, Submodule.map_bot]
+      · have hid : i = d := by omega
+        subst hid
+        rw [hVd, hWd, Submodule.map_top, LinearEquiv.range]
+  · intro φ hφ ψ hψ heq
+    have heq' : φ.linearIsometryEquiv = ψ.linearIsometryEquiv := heq
+    ext x
+    rw [← vsub_vadd x x₀, φ.map_vadd, ψ.map_vadd, heq', hφ.2, hψ.2]
+
+/-- Step 2 of the V4 proof of `contTemplates_finite` (V4 §2.5): "finitely many CONT
+positioned templates". The continuing tile's type is its record's type, its frame
+aligns the two named full chains and sends the junction vertex to the slot vertex;
+records, chains and vertices range over finite alphabets, so by Step 1 only finitely
+many positioned continuing tiles occur. -/
+private theorem contTemplates_finite_step2_others (P : Params S) (l : LeafType P)
+    (slot : ContSlot l) :
+    (Set.range (fun T : ContTemplate slot => T.other)).Finite := by
+  classical
+  haveI := facetRecords_finite P
+  haveI : ∀ r : FacetRecord P, Finite (OrientedChain r.facet) :=
+    fun r => orientedChains_finite _
+  have hU : (⋃ (r : FacetRecord P) (c' : OrientedChain r.facet) (v : VertexName S r.ty)
+      (c : OrientedChain slot.record.facet),
+      (fun φ : Iso d => (⟨r.ty, φ⟩ : FramedNode S)) ''
+        {φ : Iso d | (∀ j : FlagIndex d, affineSpan ℝ (c.chain.val.cell j).val.carrier =
+          affineSpan ℝ (φ '' (c'.chain.val.cell j).val.carrier)) ∧
+          φ (vertexPoint v) = vertexPoint slot.vertex}).Finite :=
+    Set.finite_iUnion fun r => Set.finite_iUnion fun c' => Set.finite_iUnion fun v =>
+      Set.finite_iUnion fun c =>
+        (contTemplates_finite_step1_frames c.chain.val c'.chain.val _ _).image _
+  apply hU.subset
+  rintro _ ⟨T, rfl⟩
+  simp only [Set.mem_iUnion, Set.mem_image]
+  refine ⟨T.record, T.otherChain, T.vertex, T.centralChain, T.other.frame,
+    ⟨T.aligned.1, T.vertex_eq⟩, ?_⟩
+  rw [T.type_eq]
+
 /-- Q12, V4 §2.5: finitely many CONT positioned templates, with arbitrary matching
 leaf labels. The full oriented flag and inward side fix each relative placement. -/
 theorem contTemplates_finite (P : Params S) (l : LeafType P) (slot : ContSlot l) :
     (Set.range (fun T : ContTemplate slot => T.configuration)).Finite := by
-  sorry
+  classical
+  haveI := leafTypes_finite P
+  have hF : (Set.range (fun T : ContTemplate slot => (T.other, T.label))).Finite :=
+    ((contTemplates_finite_step2_others P l slot).prod
+      (Set.finite_univ : (Set.univ : Set (LeafType P)).Finite)).subset
+      (by rintro _ ⟨T, rfl⟩; exact ⟨⟨T, rfl⟩, trivial⟩)
+  have hext : ∀ C C' : Template P, C.central = C'.central → C.tiles = C'.tiles →
+      C.annotation = C'.annotation → C = C' := by
+    rintro ⟨a, b, _, _, _, e⟩ ⟨a', b', _, _, _, e'⟩ h1 h2 h3
+    dsimp only at h1 h2 h3
+    subst h1 h2 h3
+    rfl
+  have hdet : ∀ T T' : ContTemplate slot, (T.other, T.label) = (T'.other, T'.label) →
+      T.configuration = T'.configuration := by
+    intro T T' h
+    have h1 : T.other = T'.other := congrArg Prod.fst h
+    have h2 : T.label = T'.label := congrArg Prod.snd h
+    refine hext _ _ (T.central_eq.trans T'.central_eq.symm) ?_
+      (T.annotation_none.trans T'.annotation_none.symm)
+    rw [T.tiles_eq, T'.tiles_eq, h1, h2]
+  haveI := hF.to_subtype
+  apply (Set.finite_range (fun z : Set.range (fun T : ContTemplate slot => (T.other, T.label)) =>
+    (Classical.choose z.2).configuration)).subset
+  rintro _ ⟨T, rfl⟩
+  refine ⟨⟨(T.other, T.label), T, rfl⟩, ?_⟩
+  exact hdet _ _ (Classical.choose_spec
+    (⟨T, rfl⟩ : (T.other, T.label) ∈ Set.range (fun T : ContTemplate slot => (T.other, T.label))))
 
 /-- Q13, V4 §2.5: an END template uses a whole honest positioned annotated star
 with the central header, and arbitrary matching admissible leaf labels.

@@ -301,6 +301,439 @@ def parsedChild (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (parsedHierarchy Y hY).children_mem (q.1 - 1) q.2.val
       (by simpa only [Nat.sub_add_cancel hq] using q.2.property) i⟩⟩
 
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
+"fixed by position". Equal heights and frames identify hierarchy nodes. -/
+private theorem observer_transition_aux_step1_node_eq {T : Tiling S}
+    (H : CoherentHierarchy S T) {n m : ℕ} {N M : FramedNode S}
+    (hn : N ∈ H.nodes n) (hm : M ∈ H.nodes m) (h : n = m) (hNM : N = M) :
+    (⟨n, ⟨N, hn⟩⟩ : H.Node) = ⟨m, ⟨M, hm⟩⟩ := by
+  cases h
+  cases hNM
+  rfl
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
+"the K-ancestor B_t of t lies inside A". The parent of a prescribed child is its root. -/
+private theorem observer_transition_aux_step1_parent {T : Tiling S}
+    (H : CoherentHierarchy S T) (n : ℕ) (N : FramedNode S)
+    (hN : N ∈ H.nodes (n + 1)) (i : S.I N.ty)
+    (hc : N.child n i ∈ H.nodes n) :
+    H.parentNode ⟨n, ⟨N.child n i, hc⟩⟩ = ⟨n + 1, ⟨N, hN⟩⟩ := by
+  apply Sigma.ext
+  · rfl
+  · apply heq_of_eq
+    apply Subtype.ext
+    exact (H.parent_unique n _ N hN ⟨i, rfl⟩).symm
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
+"type and frame (fixed)". The affine prototype frame obeys the child equation. -/
+private theorem observer_transition_aux_step1_child_frame (N : FramedNode S)
+    (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).prototypeFrame n =
+      (rolePlacement (⟨N.ty, i⟩ : S.Role)).trans (N.prototypeFrame (n + 1)) := by
+  apply AffineEquiv.ext
+  intro x
+  change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    N.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child N.ty i).frame x)))
+  congr 1
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
+    LinearEquiv.mul_apply, ← map_add]
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
+"i_t ... (fixed by position)". Distinct roles have disjoint nonempty interiors. -/
+private theorem observer_transition_aux_step1_role_injective (N : FramedNode S) (n : ℕ) :
+    Function.Injective (N.child n) := by
+  intro i j h
+  have hty : (S.child N.ty i).ty = (S.child N.ty j).ty := congrArg FramedNode.ty h
+  have he := congrArg (fun M : FramedNode S => M.prototypeFrame n) h
+  dsimp only at he
+  rw [observer_transition_aux_step1_child_frame, observer_transition_aux_step1_child_frame] at he
+  have hframe : (S.child N.ty i).frame = (S.child N.ty j).frame := by
+    apply AffineIsometryEquiv.ext
+    intro x
+    have hx := congrArg (fun e : E d ≃ᵃ[ℝ] E d => e x) he
+    exact S.σ.symm.injective ((N.prototypeFrame (n + 1)).injective hx)
+  by_contra hij
+  have hd := S.children_disjoint N.ty hij
+  dsimp only at hd
+  rw [hty, hframe] at hd
+  have hn : (interior (placedSet (S.child N.ty j).frame
+      (S.proto (S.child N.ty j).ty).carrier)).Nonempty := by
+    change (interior ((S.child N.ty j).frame.toHomeomorph ''
+      (S.proto (S.child N.ty j).ty).carrier)).Nonempty
+    rw [← Homeomorph.image_interior]
+    exact (S.proto (S.child N.ty j).ty).interior_nonempty.image _
+  obtain ⟨x, hx⟩ := hn
+  exact Set.disjoint_left.mp hd hx hx
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
+"i_t ... (fixed by position)". A prescribed child's hierarchy role is its index. -/
+private theorem observer_transition_aux_step1_role {T : Tiling S}
+    (H : CoherentHierarchy S T) (n : ℕ) (N : FramedNode S)
+    (hN : N ∈ H.nodes (n + 1)) (i : S.I N.ty) (hc : N.child n i ∈ H.nodes n) :
+    H.nodeRole ⟨n, ⟨N.child n i, hc⟩⟩ = ⟨N.ty, i⟩ := by
+  have hp : (H.parent n ⟨N.child n i, hc⟩).val = N :=
+    (H.parent_unique n _ N hN ⟨i, rfl⟩).symm
+  have he := H.child_eq n ⟨N.child n i, hc⟩
+  have aux (M : FramedNode S) (j : S.I M.ty) (hM : M = N)
+      (h : N.child n i = M.child n j) : (⟨M.ty, j⟩ : S.Role) = ⟨N.ty, i⟩ := by
+    subst M
+    exact congrArg (Sigma.mk N.ty) ((observer_transition_aux_step1_role_injective N n h).symm)
+  exact aux _ _ hp he
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"all listed in Ĵ(A)". The compressed window shifts using its actual parent
+and role; the highest new state is the old offset w-2. -/
+private theorem observer_transition_aux_step2_window {T : Tiling S}
+    (H : CoherentHierarchy S T) (state : H.Node → State P) (c q : H.Node)
+    (r : S.Role) (hp : H.parentNode c = q) (hr : H.nodeRole c = r)
+    (hat : (ObserverWindow.ofHierarchy H state q).stateAt
+      ⟨P.w - 2, by have := P.observer_window_bound; omega⟩ =
+        state (H.ancestor q (P.w - 2))) :
+    ObserverWindow.ofHierarchy H state c = (ObserverWindow.ofHierarchy H state q).child r := by
+  apply ObserverWindow.ext
+  · change state (H.ancestor c (P.w - 1)) =
+      (ObserverWindow.ofHierarchy H state q).stateAt _
+    rw [hat]
+    have hw : P.w - 1 = P.w - 2 + 1 := by have := P.observer_window_bound; omega
+    rw [hw]
+    simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hp]
+  · funext j
+    change H.nodeRole (H.ancestor c j.val) =
+      if hj : j.val = 0 then r else H.nodeRole (H.ancestor q (j.val - 1))
+    by_cases hj : j.val = 0
+    · simp only [hj, dif_pos, CoherentHierarchy.ancestor, Function.iterate_zero, id_eq, hr]
+    · rw [dif_neg hj]
+      have he : H.ancestor c j.val = H.ancestor q (j.val - 1) := by
+        conv_lhs => rw [show j.val = (j.val - 1) + 1 by omega]
+        simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hp]
+      rw [he]
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"the attached packet is O_F(A)". Inherited containment is checked in the
+fixed first-generation coordinates. -/
+private theorem observer_transition_aux_step2_containment (N : FramedNode S)
+    (n : ℕ) (i : S.I N.ty) (f F : Cell d) :
+    (N.child n i).cell n f ⊆ N.cell (n + 1) F ↔
+      placedSet (S.child N.ty i).frame f.carrier ⊆ S.σ '' F.carrier := by
+  change (N.child n i).prototypeFrame n '' f.carrier ⊆
+    N.prototypeFrame (n + 1) '' F.carrier ↔ _
+  rw [observer_transition_aux_step1_child_frame]
+  change (N.prototypeFrame (n + 1) ∘ rolePlacement (⟨N.ty, i⟩ : S.Role)) ''
+    f.carrier ⊆ N.prototypeFrame (n + 1) '' F.carrier ↔ _
+  rw [Set.image_comp, Set.image_subset_image_iff (N.prototypeFrame (n + 1)).injective]
+  change (S.σ.symm ∘ (S.child N.ty i).frame) '' f.carrier ⊆ F.carrier ↔ _
+  rw [Set.image_comp]
+  constructor
+  · intro h x hx
+    exact ⟨S.σ.symm x, h ⟨x, hx, rfl⟩, S.σ.apply_symm_apply x⟩
+  · rintro h x ⟨y, hy, rfl⟩
+    obtain ⟨z, hz, he⟩ := h hy
+    simpa only [← he, S.σ.symm_apply_apply] using hz
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"μ determined by ι(g) and ... S(P_b)". An honest compressed packet is exactly
+the birth computation when the window supplies its highest state and roles. -/
+private theorem observer_transition_aux_step2_born_eq (a : Observer P) (p : Packet P)
+    (hp : p ∈ honestPackets S P) (hh : p.head = a.window.head)
+    (hs : p.sstar = a.window.stateAt
+      ⟨p.jstar.val, by have := p.jstar.isLt; rw [P.w_eq]; exact this⟩)
+    (hr : ∀ j : Fin p.jstar.val, p.roles j =
+      a.window.roles ⟨j.val, by have := p.jstar.isLt; have := j.isLt; rw [P.w_eq]; omega⟩) :
+    a.bornPacket p.incidence = some p := by
+  classical
+  let slots := Finset.univ.filter (packetMask P p.incidence a.window.head)
+  have hmem (j : Fin P.k) : j ∈ slots ↔ p.mask j := by
+    simp only [slots, Finset.mem_filter, Finset.mem_univ, true_and, Packet.mask, hh]
+  have hadm := honest_packet_admissible P p hp
+  have hn : slots.Nonempty := ⟨p.jstar, (hmem _).mpr hadm.2.2.1⟩
+  have hmax : slots.max' hn = p.jstar := by
+    apply le_antisymm
+    · exact Finset.max'_le _ _ _ (fun j hj => hadm.2.2.2.1 j ((hmem j).mp hj))
+    · exact Finset.le_max' _ _ ((hmem _).mpr hadm.2.2.1)
+  have hbuild (j : Fin P.k) (hj : j = p.jstar) :
+      ({ incidence := p.incidence
+         jstar := j
+         sstar := a.window.stateAt ⟨j.val, by rw [P.w_eq]; exact j.isLt⟩
+         roles := fun t => a.window.roles ⟨t.val, by
+           have := t.isLt; have := j.isLt; rw [P.w_eq]; omega⟩ } : Packet P) = p := by
+    cases hj
+    cases p with
+    | mk incidence jstar sstar roles =>
+        dsimp only at hs hr ⊢
+        congr 1
+        · exact hs.symm
+        · funext j
+          exact (hr j).symm
+  unfold Observer.bornPacket
+  change (if h : slots.Nonempty then some _ else none) = some p
+  rw [dif_pos hn]
+  exact congrArg some (hbuild (slots.max' hn) hmax)
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"by W4 (Theorem 3.13 in Y)". Calibration identifies the entire compressed
+primitive packet, including roles and the maximum PRESENT slot. -/
+private theorem observer_transition_aux_step2_output_born
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ (parsedHierarchy Y hY).nodes g.height) :
+    (observerOf Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)).bornPacket g.incidence =
+      parsedPrimitivePacket Y hY g hg := by
+  obtain ⟨hl, hr, _, p, hp, hhonest, hinc, hhead, hslots⟩ := calibration_W4 Y hY g hg
+  have hread : parsedPrimitivePacket Y hY g hg = some p := hp
+  rw [hread, ← hinc]
+  apply observer_transition_aux_step2_born_eq _ p hhonest
+  · exact hhead.trans (parsedWindow_at Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
+      ⟨0, by have := P.observer_window_bound; omega⟩).symm
+  · have ht := (packet_top_spec P p hhonest).1
+    have hm := (honest_packet_admissible P p hhonest).2.2.1
+    have hs := (hslots p.jstar).2 hm
+    have he := Option.some.inj (ht.symm.trans hs)
+    exact he.trans (parsedWindow_at Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
+      ⟨p.jstar.val, by have := p.jstar.isLt; rw [P.w_eq]; exact this⟩).symm
+  · intro j
+    rw [packet_roles_from_head P p hhonest j, hhead,
+      parsedState_address Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
+        ⟨j.val, lt_trans j.isLt p.jstar.isLt⟩]
+    rfl
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"which g ... is determined by the position". Canonical incidences of the
+same parent type and positioned facet coincide. -/
+private theorem observer_transition_aux_step2_incidence_eq (ι η : P.Incidence)
+    (ht : ι.val.ty = η.val.ty) (hp : ι.val.positioned = η.val.positioned) : ι = η :=
+  (P.canonical_idempotent ι).symm.trans (P.canonical_unique ι.val η ⟨ht, hp⟩)
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"which g, P_b ... is determined by the position". Equality of actual child
+and primitive carriers is equality in first-generation coordinates. -/
+private theorem observer_transition_aux_step2_positioned (N : FramedNode S)
+    (n : ℕ) (i : S.I N.ty) (f : Cell d) (ι : P.Incidence)
+    (h : P.incidencePlacement N (n + 1) ι '' ι.val.leftFacet.val.carrier =
+      (N.child n i).cell n f) :
+    ι.val.positioned = placedSet (S.child N.ty i).frame f.carrier := by
+  apply Set.image_injective.mpr S.σ.symm.injective
+  apply Set.image_injective.mpr (N.prototypeFrame (n + 1)).injective
+  rw [FramedNode.cell, observer_transition_aux_step1_child_frame] at h
+  simpa only [Params.incidencePlacement, PrimitiveIncidence.positioned, rolePlacement,
+    placedSet, Set.image_image, AffineEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
+    AffineIsometryEquiv.coe_toAffineEquiv, Function.comp_def] using h
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
+"fixed subdivision geometry". At native height the conjugated child frame is
+the original prescribed isometry. -/
+private theorem observer_transition_aux_step1_place_zero (A : S.ι) (i : S.I A) :
+    S.placeChild 0 i = (S.child A i).frame := by
+  apply AffineIsometryEquiv.ext
+  intro x
+  simp [SubstSystem.placeChild_apply, linearConj, Child.frame, rigidMotion]
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
+"which ... F is determined by the position". A cell's carrier fixes its
+dimension and hence its full cell name. -/
+private theorem observer_transition_aux_step1_cell_eq (e f : Cell d)
+    (h : e.carrier = f.carrier) : e = f := by
+  rcases e with ⟨K, j, hj⟩
+  rcases f with ⟨L, k, hk⟩
+  cases h
+  have hjk : j = k := hj.dimension.symm.trans hk.dimension
+  cases hjk
+  rfl
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"either in a primitive facet g ... or in a facet F of A". An internal
+first-generation facet has an honest age-one record in the child state. -/
+private theorem observer_transition_aux_step2_internal_record
+    (s : State P) (hs : s ∈ honestStates S P) (r : S.Role)
+    (hr : s.address ⟨0, P.k_pos⟩ = r) (f : FacetName S s.ty)
+    (hb : ¬ ∃ F : FacetName S r.1,
+      placedSet (S.child r.1 r.2).frame f.val.carrier ⊆ S.σ '' F.val.carrier) :
+    ∃ R : FacetRecord P, s.facetRecord f = some R ∧ AgeOneRecord s R := by
+  let N : FramedNode S := ⟨r.1, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have ht : (S.child r.1 r.2).ty = s.ty := by rw [← hr]; exact s.address_start
+  let f' : FacetName S (N.child 0 r.2).ty := ⟨f.val, by
+    change f.val ∈ (S.cx (S.child r.1 r.2).ty).facets
+    rw [ht]
+    exact f.property⟩
+  have hc (e : Cell d) : (N.child 0 r.2).cell 0 e =
+      placedSet (S.child r.1 r.2).frame e.carrier := by
+    simp [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child,
+      observer_transition_aux_step1_place_zero, N, placedSet]
+  have hF (e : Cell d) : N.cell 1 e = S.σ '' e.carrier := by
+    simp [FramedNode.cell, FramedNode.prototypeFrame, N]
+  have hint : s.InternalFacet f := by
+    rcases facet_dichotomy N (N.child 0 r.2) 1 0
+      (Parser.child_descendant N 0 r.2) f' with ⟨F, hF', _⟩ | hi
+    · exact False.elim (hb ⟨F, by simpa only [hc, hF] using hF'⟩)
+    · unfold State.InternalFacet
+      rw [hr]
+      simpa [hc, FramedNode.carrier, N, placedSet] using hi
+  exact (state_semantics_a P s hs f).1.mp hint
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"which g ... is determined by the position". Both canonical side names
+refer to the same positioned primitive facet. -/
+private theorem observer_transition_aux_step2_side_positioned (ι : P.Incidence) (b : Bool) :
+    ι.val.positioned = placedSet
+      (S.child (ι.val.sideRole b).1 (ι.val.sideRole b).2).frame
+      (ι.val.sideFacet b).val.carrier := by
+  cases b
+  · rfl
+  · exact ι.val.paired
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"which g, P_b ... is determined by the position". Honest age-one semantics
+identify the canonical side, including its actual facet name. -/
+private theorem observer_transition_aux_step2_record_side
+    (s : State P) (r : S.Role) (hr : s.address ⟨0, P.k_pos⟩ = r)
+    (f : FacetName S s.ty) (R : FacetRecord P) (hR : s.facetRecord f = some R)
+    (hA : AgeOneRecord s R) :
+    R.incidence.val.sideRole R.sideIndex = r ∧
+      R.incidence.val.positioned = placedSet (S.child r.1 r.2).frame f.val.carrier ∧
+      (R.incidence.val.sideFacet R.sideIndex).val = f.val := by
+  have hs : R.servingRole = r := hA.2.1.trans hr
+  have hrole : R.incidence.val.sideRole R.sideIndex = r := R.side_eq.symm.trans hs
+  have hpos : R.incidence.val.positioned = placedSet (S.child r.1 r.2).frame f.val.carrier := by
+    rw [hA.2.2.1, (s.facetRecord_valid f R hR).2,
+      congrArg (fun t : S.Role => (S.child t.1 t.2).frame) hs]
+  refine ⟨hrole, hpos, ?_⟩
+  apply observer_transition_aux_step1_cell_eq
+  apply Set.image_injective.mpr (S.child r.1 r.2).frame.injective
+  have hside := observer_transition_aux_step2_side_positioned R.incidence R.sideIndex
+  rw [hrole] at hside
+  exact hside.symm.trans hpos
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"the attached packet". Equal hierarchy nodes and equal facet names give
+the same parsed packet; membership proofs carry no extra data. -/
+private theorem observer_transition_aux_step2_output_packet_congr
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q q' : (parsedHierarchy Y hY).Node) (he : q = q')
+    (f : FacetName S q.2.val.ty) (f' : FacetName S q'.2.val.ty) (hf : f.val = f'.val) :
+    parsedFacetPacket Y hY q f = parsedFacetPacket Y hY q' f' := by
+  cases he
+  have hff : f = f' := Subtype.ext hf
+  cases hff
+  rfl
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"by W4 (Theorem 3.13 in Y)" or "O_F(A) by (I5)".
+One output child facet is computed without assigning providers to faults. -/
+private theorem observer_transition_aux_step2_output_packet
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q : (parsedHierarchy Y hY).Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
+    (f : FacetName S (parsedChild Y hY q hq i).2.val.ty) :
+    parsedFacetPacket Y hY (parsedChild Y hY q hq i) f =
+      (observerOf Y hY q).childPacket ⟨q.2.val.ty, i⟩ f.val := by
+  classical
+  rcases q with ⟨m, N, hN⟩
+  cases m with
+  | zero => change 1 ≤ 0 at hq; omega
+  | succ n =>
+      let H := parsedHierarchy Y hY
+      let hc := H.children_mem n N hN i
+      let c : H.Node := ⟨n, ⟨N.child n i, hc⟩⟩
+      let q : H.Node := ⟨n + 1, ⟨N, hN⟩⟩
+      change parsedFacetPacket Y hY c f = (observerOf Y hY q).childPacket ⟨N.ty, i⟩ f.val
+      by_cases hb : ∃ F : FacetName S N.ty,
+          placedSet (S.child N.ty i).frame f.val.carrier ⊆ S.σ '' F.val.carrier
+      · unfold Observer.childPacket
+        dsimp only [observerOf]
+        rw [dif_pos hb]
+        symm
+        apply parsedFacetPacket_inherited Y hY q c
+          (Parser.child_descendant N n i) (Classical.choose hb) f
+        exact (observer_transition_aux_step2_containment N n i f.val _).mpr (Classical.choose_spec hb)
+      · let s := parsedState Y hY c
+        have hsty : s.ty = (S.child N.ty i).ty := (parsedState_type_residue Y hY c).2.1
+        let fs : FacetName S s.ty := ⟨f.val, by rw [hsty]; exact f.property⟩
+        have hrole : s.address ⟨0, P.k_pos⟩ = (⟨N.ty, i⟩ : S.Role) :=
+          (parsedState_role Y hY c).trans (observer_transition_aux_step1_role H n N hN i hc)
+        obtain ⟨R, hR, hA⟩ := observer_transition_aux_step2_internal_record s
+          (parsedState_type_residue Y hY c).1 ⟨N.ty, i⟩ hrole fs hb
+        obtain ⟨hside, hpos, hfacet⟩ := observer_transition_aux_step2_record_side s
+          ⟨N.ty, i⟩ hrole fs R hR hA
+        have hty : R.incidence.val.ty = N.ty := congrArg Sigma.fst hside
+        let g : Parser.BornFacet P :=
+          ⟨n + 1, Nat.succ_le_succ (Nat.zero_le n), N, R.incidence, hty⟩
+        have hex : ∃ ι : P.Incidence, ι.val.ty = N.ty ∧
+            ι.val.positioned = placedSet (S.child N.ty i).frame f.val.carrier :=
+          ⟨R.incidence, hty, hpos⟩
+        unfold Observer.childPacket
+        dsimp only [observerOf]
+        rw [dif_neg hb, dif_pos hex]
+        have he : Classical.choose hex = R.incidence :=
+          observer_transition_aux_step2_incidence_eq _ _
+            ((Classical.choose_spec hex).1.trans hty.symm)
+            ((Classical.choose_spec hex).2.trans hpos.symm)
+        rw [he]
+        change parsedFacetPacket Y hY c f = (observerOf Y hY q).bornPacket g.incidence
+        have hborn := observer_transition_aux_step2_output_born Y hY g hN
+        change (observerOf Y hY q).bornPacket g.incidence = parsedPrimitivePacket Y hY g hN at hborn
+        rw [hborn]
+        cases hbside : R.sideIndex with
+        | false =>
+            have hnode : g.leftNode = N.child n i := by
+              have he := congrArg (fun r : S.Role =>
+                (⟨r.1, N.frame⟩ : FramedNode S).child n r.2) hside
+              simpa only [hbside, PrimitiveIncidence.sideRole, PrimitiveIncidence.sideIndex,
+                Bool.false_eq_true, ↓reduceIte] using he
+            exact observer_transition_aux_step2_output_packet_congr Y hY c
+              ⟨g.height - 1, ⟨g.leftNode, g.left_mem H hN⟩⟩
+              (observer_transition_aux_step1_node_eq H hc _ rfl hnode.symm) f
+              g.incidence.val.leftFacet (by
+                have h := hfacet.symm
+                rw [hbside] at h
+                exact h)
+        | true =>
+            have hnode : g.rightNode = N.child n i := by
+              have he := congrArg (fun r : S.Role =>
+                (⟨r.1, N.frame⟩ : FramedNode S).child n r.2) hside
+              simpa only [hbside, PrimitiveIncidence.sideRole, PrimitiveIncidence.sideIndex,
+                ↓reduceIte] using he
+            have hp := observer_transition_aux_step2_output_packet_congr Y hY c
+              ⟨g.height - 1, ⟨g.rightNode, g.right_mem H hN⟩⟩
+              (observer_transition_aux_step1_node_eq H hc _ rfl hnode.symm) f
+              g.incidence.val.rightFacet (by
+                have h := hfacet.symm
+                rw [hbside] at h
+                exact h)
+            exact hp.trans (parsedPrimitivePacket_spec Y hY g hN).1.symm
+
+/-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
+"by W4 (Theorem 3.13 in Y)" and "the attached packet is O_F(A) by (I5)".
+The one-step formula includes certificate-subdivision nodes below the floor. -/
+private theorem observer_transition_aux_step2_output_child
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q : (parsedHierarchy Y hY).Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty) :
+    observerOf Y hY (parsedChild Y hY q hq i) =
+      (observerOf Y hY q).transition ⟨q.2.val.ty, i⟩ := by
+  rcases q with ⟨m, N, hN⟩
+  cases m with
+  | zero => change 1 ≤ 0 at hq; omega
+  | succ n =>
+      let hc := (parsedHierarchy Y hY).children_mem n N hN i
+      let c : (parsedHierarchy Y hY).Node := ⟨n, ⟨N.child n i, hc⟩⟩
+      let q : (parsedHierarchy Y hY).Node := ⟨n + 1, ⟨N, hN⟩⟩
+      have hw := observer_transition_aux_step2_window (parsedHierarchy Y hY) (parsedState Y hY)
+        c q ⟨N.ty, i⟩
+        (observer_transition_aux_step1_parent (parsedHierarchy Y hY) n N hN i hc)
+        (observer_transition_aux_step1_role (parsedHierarchy Y hY) n N hN i hc)
+        (parsedWindow_at Y hY q ⟨P.w - 2, by have := P.observer_window_bound; omega⟩)
+      have hhead : ((observerOf Y hY q).window.child ⟨N.ty, i⟩).head.ty = (S.child N.ty i).ty := by
+        change ((ObserverWindow.ofHierarchy (parsedHierarchy Y hY) (parsedState Y hY) q).child
+          ⟨N.ty, i⟩).head.ty = _
+        rw [← hw]
+        exact parsedWindow_type Y hY c
+      change observerOf Y hY c = (observerOf Y hY q).transition ⟨N.ty, i⟩
+      unfold Observer.transition
+      rw [dif_pos ⟨rfl, hhead⟩]
+      apply Observer.ext
+      · rfl
+      · exact hw
+      · apply heq_of_eq
+        funext f
+        exact observer_transition_aux_step2_output_packet Y hY q hq i f
+
 /-- O4, V4 4.4: exact observer transition in an arbitrary proper output.
 This includes certificate nodes below K. W4 calibrates internal births, and I5
 copies inherited packets, including NULL and phantom fault packets. -/
@@ -308,7 +741,7 @@ theorem observer_transition (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (hq : P.H + 1 ≤ q.1) (i : S.I q.2.val.ty) :
     observerOf Y hY (parsedChild Y hY q (by omega) i) =
       (observerOf Y hY q).transition ⟨q.2.val.ty, i⟩ := by
-  sorry
+  exact observer_transition_aux_step2_output_child Y hY q (by omega) i
 
 /-- O5, V4 4.5: the entire observer of each height-H node occurs jointly in
 one honest source node. The window and facet packets are read from one honest

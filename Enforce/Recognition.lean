@@ -19,6 +19,239 @@ namespace Enforce
 variable {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} {P : Params S}
 variable {C : ClusterData S P}
 
+/-- Step 1 of the V4 proof of `node_is_WF` (V4 4.7): "the residue field of
+`S(Ã)=S(A')`". Actual ancestors sit exactly `r` levels higher. -/
+private theorem node_is_WF_step1_ancestor_height {T : Tiling S}
+    (H : CoherentHierarchy S T) (q : H.Node) (r : ℕ) :
+    (H.ancestor q r).1 = q.1 + r := by
+  induction r with
+  | zero => rfl
+  | succ r ih =>
+    change (H.parentNode^[r + 1] q).1 = q.1 + (r + 1)
+    rw [Function.iterate_succ_apply']
+    change (H.parentNode^[r] q).1 + 1 = q.1 + (r + 1)
+    change (H.ancestor q r).1 + 1 = q.1 + (r + 1)
+    rw [ih]
+    omega
+
+/-- Step 1 of the V4 proof of `node_is_WF` (V4 4.7): "The residue field of
+`S(Ã)=S(A')` gives `m ≡ n' (mod L)`". Equal observers have equal top-state residues. -/
+private theorem node_is_WF_step1_residue (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q : (parsedHierarchy Y hY).Node) (U : HonestSource S) (q₀ : U.Node)
+    (h : U.observerOf P q₀ = observerOf Y hY q) : q₀.1 % P.L = q.1 % P.L := by
+  have ht := congrArg (fun a : Observer P => a.window.top.residue.val) h
+  change (stateOf U P (U.hierarchy.ancestor q₀ (P.w - 1))).residue.val =
+    (parsedState Y hY ((parsedHierarchy Y hY).ancestor q (P.w - 1))).residue.val at ht
+  rw [(parsedState_type_residue Y hY _).2.2, state_semantics_f,
+    node_is_WF_step1_ancestor_height, node_is_WF_step1_ancestor_height] at ht
+  exact Nat.ModEq.add_right_cancel' (P.w - 1) ht
+
+open private state_scaleTransfer_step1_ancestor state_scaleTransfer_step1_tail_ancestor
+  state_scaleTransfer_step2_address from Enforce.State.State in
+/-- Step 2 of the V4 proof of `node_is_WF` (V4 4.7, 1.13(c)): "the whole hierarchy
+above `Ã` (all ancestors, with their ... strata) ... reproduced": the compressed
+window (top state and intervening roles) is literally preserved. -/
+private theorem node_is_WF_step2_window {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (hab : a % P.L = b % P.L) (t : U.hierarchy.Tail a) :
+    ObserverWindow.ofHierarchy V.hierarchy (stateOf V P) (e.toEquiv t).val =
+      ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) t.val := by
+  apply ObserverWindow.ext
+  · change stateOf V P (V.hierarchy.ancestor (e.toEquiv t).val (P.w - 1)) =
+      stateOf U P (U.hierarchy.ancestor t.val (P.w - 1))
+    rw [← state_scaleTransfer_step1_ancestor e t,
+      ← state_scaleTransfer_step1_tail_ancestor U.hierarchy a t]
+    exact (state_scaleTransfer P e hab _).symm
+  · funext j
+    exact (state_scaleTransfer_step2_address e t j.val).symm
+
+/-- Step 2 of the V4 proof of `node_is_WF` (V4 4.7, 8.1): packets are compared by
+their incidence, highest PRESENT slot, its state and the intervening roles. -/
+private theorem node_is_WF_step2_packet_ext {p p' : Packet P}
+    (hi : p.incidence = p'.incidence) (hj : p.jstar = p'.jstar) (hs : p.sstar = p'.sstar)
+    (hr : ∀ (j : ℕ) (h : j < p.jstar.val) (h' : j < p'.jstar.val),
+      p.roles ⟨j, h⟩ = p'.roles ⟨j, h'⟩) : p = p' := by
+  obtain ⟨i, j, s, r⟩ := p
+  obtain ⟨i', j', s', r'⟩ := p'
+  simp only at hi hj hs hr
+  subst hi hj hs
+  congr
+  funext x
+  exact hr x.val x.isLt x.isLt
+
+open private state_scaleTransfer_step1_ancestor state_scaleTransfer_step1_tail_ancestor
+  state_scaleTransfer_step2_address state_scaleTransfer_step4_side
+  state_scaleTransfer_step6_birth from Enforce.State.State in
+/-- Step 2 of the V4 proof of `node_is_WF` (V4 4.7, 1.13(c)): "providers of its
+facets — finite or persistent faults — ... their birth parents and ancestors" are
+reproduced, so every facet packet (or NULL) is literally preserved. -/
+private theorem node_is_WF_step2_packet {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (hab : a % P.L = b % P.L) (t : U.hierarchy.Tail a)
+    (f : FacetName S t.val.2.val.ty) (g : FacetName S (e.toEquiv t).val.2.val.ty)
+    (hfg : f.val = g.val) :
+    V.facetPacket P (e.toEquiv t).val g = U.facetPacket P t.val f := by
+  classical
+  by_cases hf : U.hierarchy.IsFault t.val f
+  · have hg := (e.faults t f g hfg).mp hf
+    unfold HonestSource.facetPacket
+    rw [dif_pos hf, dif_pos hg]
+  · have hg : ¬ V.hierarchy.IsFault (e.toEquiv t).val g :=
+      fun h => hf ((e.faults t f g hfg).mpr h)
+    unfold HonestSource.facetPacket
+    rw [dif_neg hf, dif_neg hg]
+    congr 1
+    obtain ⟨Z, hZU, hZV, -, -⟩ := state_scaleTransfer_step6_birth e t f g hfg hf hg
+    have hinc := (state_scaleTransfer_step4_side P e t f g hfg hf hg).1
+    let gU := U.providerOccurrence P t.val f hf
+    let gV := V.providerOccurrence P (e.toEquiv t).val g hg
+    have hbU : gU.birth = Z.val := hZU
+    have hbV : gV.birth = (e.toEquiv Z).val := hZV
+    have hstate : stateOf V P gV.birth = stateOf U P gU.birth := by
+      rw [hbU, hbV]
+      exact (state_scaleTransfer P e hab Z).symm
+    have hmask : ∀ j, mask V P gV j ↔ mask U P gU j := by
+      intro j
+      rw [packet_mask_fn, packet_mask_fn, hstate]
+      change packetMask P (V.recordIncidence P (e.toEquiv t).val g hg) _ j ↔
+        packetMask P (U.recordIncidence P t.val f hf) _ j
+      rw [hinc]
+    have hps : presentSlots V P gV = presentSlots U P gU := by
+      unfold presentSlots
+      ext j
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      exact hmask j
+    have key : ∀ (s s' : Finset (Fin P.k)) (hs : s.Nonempty) (hs' : s'.Nonempty),
+        s = s' → s.max' hs = s'.max' hs' := by
+      rintro s s' hs hs' rfl
+      rfl
+    have htop : topSlot V P gV = topSlot U P gU := key _ _ _ _ hps
+    change packetOf V P gV = packetOf U P gU
+    apply node_is_WF_step2_packet_ext
+    · exact hinc.symm
+    · exact htop
+    · change stateOf V P (V.hierarchy.ancestor gV.birth (topSlot V P gV).val) =
+        stateOf U P (U.hierarchy.ancestor gU.birth (topSlot U P gU).val)
+      rw [htop, hbU, hbV, ← state_scaleTransfer_step1_ancestor e Z,
+        ← state_scaleTransfer_step1_tail_ancestor U.hierarchy a Z]
+      exact (state_scaleTransfer P e hab _).symm
+    · intro j _ _
+      change V.hierarchy.nodeRole (V.hierarchy.ancestor gV.birth j) =
+        U.hierarchy.nodeRole (U.hierarchy.ancestor gU.birth j)
+      rw [hbU, hbV]
+      exact (state_scaleTransfer_step2_address e Z j).symm
+
+open private state_scaleTransfer_step7_heq_facet from Enforce.State.State in
+/-- Step 2 of the V4 proof of `node_is_WF` (V4 4.7, 1.13(c)): "By Lemma 1.13(c) with
+`n := n'` there is `(T',𝓗') ∈ 𝒮` with a node `Ã'` of height `n'` ... so it is
+reproduced: `Ĵ(Ã') = Ĵ(Ã)`", for any target height of the same residue. -/
+private theorem node_is_WF_step2_observer (U : HonestSource S) (q₀ : U.Node) (n : ℕ)
+    (hres : q₀.1 % P.L = n % P.L) :
+    ∃ (V : HonestSource S) (N' : {N // N ∈ V.hierarchy.nodes n}),
+      V.observerOf P ⟨n, N'⟩ = U.observerOf P q₀ := by
+  obtain ⟨m, ⟨N₀, hN₀⟩⟩ := q₀
+  change m % P.L = n % P.L at hres
+  have hshift : (m - n) % P.L = (n - m) % P.L := by
+    rcases le_total m n with h | h
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact (Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hres)).symm
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hres.symm)
+  obtain ⟨V, e, N', he⟩ := exactScaleTransfer U m N₀ hN₀ n
+    (AffineIsometryEquiv.refl ℝ (E d))
+  refine ⟨V, N', ?_⟩
+  let t : U.hierarchy.Tail (m - n) := ⟨⟨m, ⟨N₀, hN₀⟩⟩, Nat.sub_le m n⟩
+  have hv : (e.toEquiv t).val = ⟨n, N'⟩ := congrArg Subtype.val he
+  rw [← hv]
+  apply Observer.ext
+  · exact e.types t
+  · exact node_is_WF_step2_window e hshift t
+  · exact state_scaleTransfer_step7_heq_facet (e.types t) _ _
+      (fun g f hgf => node_is_WF_step2_packet e hshift t f g hgf.symm)
+
+/-- Step 3 of the V4 proof of `node_is_WF` (V4 4.7, 4.6, 4.2): "By Lemma 4.2 at height
+`n'` the normalised pattern of `A'` in `Y` equals `Rend_{n'}(Ĵ(A')) = Rend_{n'}(Ĵ(Ã'))`,
+the normalised pattern of `Ã'`". The case `n ≥ K`. -/
+private theorem node_is_WF_step3_high (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (N : FramedNode S)
+    (hN : N ∈ (parsedHierarchy Y hY).nodes n) :
+    IsWFConfig (sourceLanguage C) Y n N := by
+  obtain ⟨A, ψ⟩ := N
+  let q : (parsedHierarchy Y hY).Node := ⟨n, ⟨⟨A, ψ⟩, hN⟩⟩
+  have hH : P.H ≤ n := by
+    have h1 := P.H_eq
+    have h2 := P.K_eq
+    omega
+  obtain ⟨U, q₀, -, hq₀⟩ := saturation Y hY q hH
+  have hres := node_is_WF_step1_residue Y hY q U q₀ hq₀
+  obtain ⟨V, ⟨⟨A', φ⟩, hV⟩, hobs⟩ := node_is_WF_step2_observer U q₀ n hres
+  have hobs' := hobs.trans hq₀
+  have hA : A' = A := congrArg Observer.ty hobs'
+  subst hA
+  rw [IsWFConfig, sourceLanguage, Set.mem_setOf_eq]
+  refine ⟨V, φ, hV, ?_⟩
+  exact observedPattern_unique C n hn (observerOf Y hY q)
+    (normalisedPattern Y n A' ψ) (normalisedPattern (honestLift C V) n A' φ)
+    (Or.inr ⟨Y, hY, ψ, hN, rfl, rfl⟩) (Or.inl ⟨V, φ, hV, hobs', rfl⟩)
+
+/-- Step 4 of the V4 proof of `node_is_WF` (V4 4.7): "descendants of `A'`" lie in
+its closed supertile; every prescribed child lies in its closed parent. -/
+private theorem node_is_WF_step4_child_subset (N : FramedNode S) (n : ℕ)
+    (i : S.I N.ty) : (N.child n i).carrier n ⊆ N.carrier (n + 1) := by
+  have hplace (x : E d) : S.placeChild n i ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child N.ty i).frame x) := by
+    change linearConj S.σ (n : ℤ) (S.child N.ty i).rotation.toLinearEquiv
+        ((S.σ ^ n) x) + (S.σ ^ n) (S.child N.ty i).offset =
+      (S.σ ^ n) ((S.child N.ty i).rotation x + (S.child N.ty i).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  rintro z ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hmem : (S.child N.ty i).frame x ∈ S.σ '' (S.proto N.ty).carrier := by
+    rw [S.children_cover]
+    exact mem_iUnion.mpr ⟨i, ⟨x, hx, rfl⟩⟩
+  obtain ⟨y, hy, he⟩ := hmem
+  refine ⟨(S.σ ^ (n + 1)) y, ⟨y, hy, rfl⟩, ?_⟩
+  change N.frame ((S.σ ^ (n + 1)) y) = N.frame (S.placeChild n i ((S.σ ^ n) x))
+  rw [hplace, ← he, pow_succ]
+  rfl
+
+/-- Step 4 of the V4 proof of `node_is_WF` (V4 4.7): "the corresponding descendant
+`Ñ` of `Ã'` has the same normalised pattern (the pattern of a node determines the
+patterns of its descendants in their frames)", one generation at a time. -/
+private theorem node_is_WF_step4_child (Y : MarkedTiling (systemM S P C))
+    (n : ℕ) (M : FramedNode S) (i : S.I M.ty)
+    (hM : IsWFConfig (sourceLanguage C) Y (n + 1) M) :
+    IsWFConfig (sourceLanguage C) Y n (M.child n i) := by
+  rw [IsWFConfig, sourceLanguage, Set.mem_setOf_eq] at hM ⊢
+  obtain ⟨V, φ, hV, hpat⟩ := hM
+  refine ⟨V, (S.placeChild n i).trans φ,
+    V.hierarchy.children_mem n ⟨M.ty, φ⟩ hV i, ?_⟩
+  funext x
+  have hx : S.placeChild n i x ∈ S.supertile (n + 1) M.ty := by
+    have hh := node_is_WF_step4_child_subset
+      (⟨M.ty, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S) n i
+      (show S.placeChild n i x ∈
+        ((⟨M.ty, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S).child n i).carrier n from
+        ⟨x, x.property, rfl⟩)
+    obtain ⟨z, hz, he⟩ := hh
+    exact he ▸ hz
+  exact congrFun hpat ⟨S.placeChild n i x, hx⟩
+
+/-- Step 4 of the V4 proof of `node_is_WF` (V4 4.7): "If `n < K`, `N` is the
+descendant of `A'` with a certain role word": induct on the distance to `K`. -/
+private theorem node_is_WF_step4_low (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (j : ℕ) : ∀ (n : ℕ) (N : FramedNode S), n + j = P.K →
+      N ∈ (parsedHierarchy Y hY).nodes n → IsWFConfig (sourceLanguage C) Y n N := by
+  induction j with
+  | zero =>
+    intro n N hj hN
+    exact node_is_WF_step3_high Y hY n (by omega) N hN
+  | succ j ih =>
+    intro n N hj hN
+    let p := (parsedHierarchy Y hY).parent n ⟨N, hN⟩
+    have hp := ih (n + 1) p.val (by omega) p.property
+    have hc : N = p.val.child n ((parsedHierarchy Y hY).role n ⟨N, hN⟩) :=
+      (parsedHierarchy Y hY).child_eq n ⟨N, hN⟩
+    rw [hc]
+    exact node_is_WF_step4_child Y n p.val _ hp
+
 /-- O7, V4 4.7: every positive-height parsed node is a WF copy in the full
 source language, in its actual assigned frame. The proof obligation uses observer
 saturation, congruent exact-scale transfer and common rendering above K; lower
@@ -27,7 +260,9 @@ theorem node_is_WF (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (n : ℕ) (hn : 1 ≤ n) (N : FramedNode S)
     (hN : N ∈ (parsedHierarchy Y hY).nodes n) :
     IsWFConfig (sourceLanguage C) Y n N := by
-  sorry
+  rcases le_or_gt P.K n with h | h
+  · exact node_is_WF_step3_high Y hY n h N hN
+  · exact node_is_WF_step4_low Y hY (P.K - n) n N (by omega) hN
 
 /-- O8, V4 4.8: exact transport of the inner hierarchy of one framed node.
 The ambient comparison is `M.frame ∘ N.frame⁻¹`. The biconditional retains every

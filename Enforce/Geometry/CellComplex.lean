@@ -442,6 +442,227 @@ def multiplicityBound [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [Nonempty ι]
     (proto : ι → PolyManifoldDomain d) (cx : ∀ A, CellComplex (proto A)) : ℕ :=
   ⌊fullSolidAngle d / minimumAngle proto cx⌋₊
 
+/-- Step 1 of the V4 proof of `point_count_le` (V4 1.0(b)): "Disjoint interiors of
+tiles give disjoint interiors of tangent cones at a common point" uses the tangent
+cones of *placed* tiles. Placing by an isometry pulls the tangent cone back along
+the linear part of the inverse isometry. -/
+private lemma point_count_le_step1_tangentCone_placed (K : Set (E d)) (φ : Iso d)
+    (p : E d) :
+    tangentCone (placedSet φ K) p =
+      φ.symm.linearIsometryEquiv ⁻¹' tangentCone K (φ.symm p) := by
+  have key : ∀ (t : ℝ) (v : E d), p + t • v ∈ placedSet φ K ↔
+      φ.symm p + t • φ.symm.linearIsometryEquiv v ∈ K := by
+    intro t v
+    have hsymm : φ.symm (p + t • v) = φ.symm p + t • φ.symm.linearIsometryEquiv v := by
+      have h := φ.symm.map_vadd p (t • v)
+      simp only [vadd_eq_add, map_smul] at h
+      rw [add_comm p, h, add_comm]
+    rw [← hsymm]
+    constructor
+    · rintro ⟨x, hx, hxe⟩
+      rw [← hxe, φ.symm_apply_apply]
+      exact hx
+    · intro h
+      exact ⟨_, h, φ.apply_symm_apply _⟩
+  ext v
+  simp only [tangentCone, mem_preimage, mem_setOf_eq, key]
+
+open private tangentCone_polyhedral_step2_halfspace_presentation
+  tangentCone_polyhedral_step3_local_cone tangentCone_polyhedral_step5_radial_germ
+  from Enforce.Geometry.Polyhedral in
+/-- Step 2 of the V4 proof of `point_count_le` (V4 1.0(b)): "`A` is a polyhedron, so
+its tangent cone at any point is a polyhedral cone". The radial tangent cone of a
+prototile at any point is a finite union of closed convex cones, hence closed. -/
+private lemma point_count_le_step2_cone_closed (A : PolyManifoldDomain d) (x : E d) :
+    IsClosed (tangentCone A.carrier x) := by
+  obtain ⟨S, hS⟩ := tangentCone_polyhedral_step2_halfspace_presentation A.polyhedral
+  obtain ⟨C, hC, hloc⟩ := tangentCone_polyhedral_step3_local_cone S x
+  rw [← hS] at hloc
+  rw [tangentCone_polyhedral_step5_radial_germ x hC hloc]
+  obtain ⟨s, rfl⟩ := hC
+  refine isClosed_biUnion_finset fun q _ => ?_
+  have : {v : E d | ∀ ℓ ∈ q, 0 ≤ ℓ v} = ⋂ ℓ ∈ q, {v | 0 ≤ ℓ v} := by
+    ext v; simp
+  rw [this]
+  exact isClosed_biInter fun ℓ _ =>
+    isClosed_le continuous_const ℓ.continuous_of_finiteDimensional
+
+/-- Step 2' of the V4 proof of `point_count_le` (V4 1.0(b)): the tangent cone of a
+placed prototile is closed, hence (null-)measurable. -/
+private lemma point_count_le_step2_cone_measurable (A : PolyManifoldDomain d) (φ : Iso d)
+    (p : E d) :
+    MeasureTheory.NullMeasurableSet (tangentCone (placedSet φ A.carrier) p) := by
+  rw [point_count_le_step1_tangentCone_placed]
+  exact ((point_count_le_step2_cone_closed A _).preimage
+    φ.symm.linearIsometryEquiv.continuous).measurableSet.nullMeasurableSet
+
+/-- Step 2'' of the V4 proof of `point_count_le` (V4 1.0(b)): "the solid angle"
+is invariant under the isometric placement of a prototile. -/
+private lemma point_count_le_step2_solidAngle_placed (A : PolyManifoldDomain d)
+    (φ : Iso d) (p : E d) :
+    solidAngle (tangentCone (placedSet φ A.carrier) p) =
+      solidAngle (tangentCone A.carrier (φ.symm p)) := by
+  rw [point_count_le_step1_tangentCone_placed]
+  unfold solidAngle
+  congr 2
+  set L := φ.symm.linearIsometryEquiv
+  have hball : L ⁻¹' ball (0 : E d) 1 = ball 0 1 := by
+    ext v; simp [L]
+  conv_lhs => rw [← hball, ← preimage_inter]
+  exact (L.measurePreserving).measure_preimage
+    (((point_count_le_step2_cone_closed A _).measurableSet.inter
+      measurableSet_ball).nullMeasurableSet)
+
+/-- Step 3 of the V4 proof of `point_count_le` (V4 1.0(b)): "its solid angle depends
+only on `mc_A(p)`, and `β := min` over all prototiles and cells". At a point of a
+prototile the tangent cone has solid angle at least `β`: at a frontier point it is
+a catalogue angle (relative interior of the minimal cell); at an interior point the
+cone is everything, of full angle `ω_d ≥ β`. -/
+private lemma point_count_le_step3_angle_lower [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
+    [Nonempty ι] (proto : ι → PolyManifoldDomain d) (cx : ∀ A, CellComplex (proto A))
+    (A : ι) (x : E d) (hx : x ∈ (proto A).carrier) :
+    minimumAngle proto cx ≤ solidAngle (tangentCone (proto A).carrier x) := by
+  have hspec := (minimumAngle_spec proto cx).1
+  by_cases hfr : x ∈ frontier (proto A).carrier
+  · apply hspec.2
+    exact ⟨A, (cx A).minimalCell x hfr, (cx A).minimalCell_mem x hfr,
+      x, (cx A).mem_relint_minimalCell x hfr, rfl⟩
+  · have hint : x ∈ interior (proto A).carrier := by
+      rw [frontier, mem_diff, not_and, not_not] at hfr
+      exact hfr (subset_closure hx)
+    have huniv : tangentCone (proto A).carrier x = univ := by
+      ext v
+      simp only [mem_univ, iff_true]
+      obtain ⟨r, hr, hrb⟩ := Metric.isOpen_iff.mp isOpen_interior x hint
+      refine ⟨r / (‖v‖ + 1), by positivity, fun t ht htr => interior_subset (hrb ?_)⟩
+      rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.le]
+      have h1 : t * ‖v‖ ≤ t * (‖v‖ + 1) := by nlinarith
+      have h2 : t * (‖v‖ + 1) < r := by
+        rwa [lt_div_iff₀ (by positivity)] at htr
+      linarith
+    obtain ⟨B, e, he, y, hy, heq⟩ := hspec.1
+    rw [heq, huniv]
+    unfold solidAngle
+    apply mul_le_mul_of_nonneg_left _ (Nat.cast_nonneg d)
+    exact ENNReal.toReal_mono (by simpa using (MeasureTheory.measure_ball_lt_top (μ := MeasureTheory.volume) (x := (0 : E d)) (r := 1)).ne)
+      (MeasureTheory.measure_mono (by simp))
+
+/-- Step 4a of the V4 proof of `point_count_le` (V4 1.0(b)): "`A` is a polyhedron, so
+its tangent cone at any point is a polyhedral cone". A finite union of closed convex
+cones has null boundary, since each convex piece has null boundary. -/
+private lemma point_count_le_step4a_cone_frontier_null (A : PolyManifoldDomain d)
+    (x : E d) : MeasureTheory.volume (frontier (tangentCone A.carrier x)) = 0 := by
+  sorry
+
+/-- Step 4b of the V4 proof of `point_count_le` (V4 1.0(b)): the boundary of the
+tangent cone of a placed prototile is null (isometric pull-back of Step 4a). -/
+private lemma point_count_le_step4b_placed_frontier_null (A : PolyManifoldDomain d)
+    (φ : Iso d) (p : E d) :
+    MeasureTheory.volume (frontier (tangentCone (placedSet φ A.carrier) p)) = 0 := by
+  sorry
+
+/-- Step 4c of the V4 proof of `point_count_le` (V4 1.0(b)): "Disjoint interiors of
+tiles give disjoint interiors of tangent cones at a common point". (Near `p` each
+placed polyhedron coincides with `p` plus its tangent cone, so a common interior
+direction would give a common interior point of the two tiles.) -/
+private lemma point_count_le_step4c_cone_interiors_disjoint (A B : PolyManifoldDomain d)
+    (φ ψ : Iso d) (p : E d) (hpA : p ∈ placedSet φ A.carrier)
+    (hpB : p ∈ placedSet ψ B.carrier)
+    (hdisj : Disjoint (interior (placedSet φ A.carrier)) (interior (placedSet ψ B.carrier))) :
+    Disjoint (interior (tangentCone (placedSet φ A.carrier) p))
+      (interior (tangentCone (placedSet ψ B.carrier) p)) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `point_count_le` (V4 1.0(b)): "Disjoint interiors of
+tiles give disjoint interiors of tangent cones at a common point". Two placed
+prototiles with disjoint interiors, both containing `p`, have tangent cones at `p`
+meeting only in a null set (the cones are polyhedral, so their boundaries are null,
+and their interiors are disjoint). -/
+private lemma point_count_le_step4_cones_aedisjoint (A B : PolyManifoldDomain d)
+    (φ ψ : Iso d) (p : E d) (hpA : p ∈ placedSet φ A.carrier)
+    (hpB : p ∈ placedSet ψ B.carrier)
+    (hdisj : Disjoint (interior (placedSet φ A.carrier)) (interior (placedSet ψ B.carrier))) :
+    MeasureTheory.volume (tangentCone (placedSet φ A.carrier) p ∩
+      tangentCone (placedSet ψ B.carrier) p) = 0 := by
+  have hcA := point_count_le_step1_tangentCone_placed A.carrier φ p
+  have hclA : IsClosed (tangentCone (placedSet φ A.carrier) p) := by
+    rw [hcA]
+    exact (point_count_le_step2_cone_closed A _).preimage
+      φ.symm.linearIsometryEquiv.continuous
+  have hclB : IsClosed (tangentCone (placedSet ψ B.carrier) p) := by
+    rw [point_count_le_step1_tangentCone_placed B.carrier ψ p]
+    exact (point_count_le_step2_cone_closed B _).preimage
+      ψ.symm.linearIsometryEquiv.continuous
+  have hint := point_count_le_step4c_cone_interiors_disjoint A B φ ψ p hpA hpB hdisj
+  refine MeasureTheory.measure_mono_null (t := frontier (tangentCone (placedSet φ A.carrier) p) ∪
+    frontier (tangentCone (placedSet ψ B.carrier) p)) ?_ ?_
+  · rintro v ⟨hva, hvb⟩
+    by_cases hia : v ∈ interior (tangentCone (placedSet φ A.carrier) p)
+    · right
+      rw [hclB.frontier_eq]
+      exact ⟨hvb, fun hib => hint.le_bot ⟨hia, hib⟩⟩
+    · left
+      rw [hclA.frontier_eq]
+      exact ⟨hva, hia⟩
+  · exact MeasureTheory.measure_union_null (point_count_le_step4b_placed_frontier_null A φ p)
+      (point_count_le_step4b_placed_frontier_null B ψ p)
+
+/-- Step 5 of the V4 proof of `point_count_le` (V4 1.0(b)): "Consequently at most
+`M₀ := ⌊ω_d/β⌋` placed prototiles with disjoint interiors can contain a common point".
+Packing: finitely many tiles through `p` give a.e.-disjoint pieces of the unit ball of
+radial volume `≥ β/d` each, so their number `n` satisfies `n β ≤ ω_d`. -/
+private lemma point_count_le_step5_finset_card [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
+    [Nonempty ι] (proto : ι → PolyManifoldDomain d) (cx : ∀ A, CellComplex (proto A))
+    {α : Type*} (ty : α → ι) (φ : α → Iso d)
+    (hdisjoint : Pairwise (fun a b => Disjoint
+      (interior (placedSet (φ a) (proto (ty a)).carrier))
+      (interior (placedSet (φ b) (proto (ty b)).carrier)))) (p : E d) (T : Finset α)
+    (hT : ∀ a ∈ T, p ∈ placedSet (φ a) (proto (ty a)).carrier) :
+    T.card ≤ multiplicityBound proto cx := by
+  set C : α → Set (E d) := fun a =>
+    tangentCone (placedSet (φ a) (proto (ty a)).carrier) p ∩ ball 0 1 with hC
+  have hball : MeasureTheory.volume (ball (0 : E d) 1) ≠ ⊤ :=
+    (MeasureTheory.measure_ball_lt_top (μ := MeasureTheory.volume)).ne
+  have hfin : ∀ a, MeasureTheory.volume (C a) ≠ ⊤ := fun a =>
+    ne_top_of_le_ne_top hball (MeasureTheory.measure_mono inter_subset_right)
+  have hunion : MeasureTheory.volume (⋃ a ∈ T, C a) = ∑ a ∈ T, MeasureTheory.volume (C a) := by
+    refine MeasureTheory.measure_biUnion_finset₀ ?_ ?_
+    · intro a ha b hb hab
+      have h0 := point_count_le_step4_cones_aedisjoint (proto (ty a)) (proto (ty b)) (φ a) (φ b)
+        p (hT a ha) (hT b hb) (hdisjoint hab)
+      show MeasureTheory.volume (C a ∩ C b) = 0
+      exact MeasureTheory.measure_mono_null
+        (inter_subset_inter inter_subset_left inter_subset_left) h0
+    · intro a _
+      exact (point_count_le_step2_cone_measurable (proto (ty a)) (φ a) p).inter
+        measurableSet_ball.nullMeasurableSet
+  have hsum : ∑ a ∈ T, (MeasureTheory.volume (C a)).toReal ≤
+      (MeasureTheory.volume (ball (0 : E d) 1)).toReal := by
+    rw [← ENNReal.toReal_sum (fun a _ => hfin a), ← hunion]
+    exact ENNReal.toReal_mono hball
+      (MeasureTheory.measure_mono (iUnion₂_subset fun a _ => inter_subset_right))
+  have hβ := (minimumAngle_spec proto cx).2
+  have hlow : ∀ a ∈ T, minimumAngle proto cx ≤ (d : ℝ) * (MeasureTheory.volume (C a)).toReal :=
+    fun a ha => by
+      have h := point_count_le_step3_angle_lower proto cx (ty a) ((φ a).symm p) ?_
+      · rw [← point_count_le_step2_solidAngle_placed] at h
+        exact h
+      · obtain ⟨y, hy, hyp⟩ := hT a ha
+        rw [← hyp, (φ a).symm_apply_apply]
+        exact hy
+  have hcard : (T.card : ℝ) * minimumAngle proto cx ≤ fullSolidAngle d := by
+    calc (T.card : ℝ) * minimumAngle proto cx = ∑ a ∈ T, minimumAngle proto cx := by
+          rw [Finset.sum_const, nsmul_eq_mul]
+      _ ≤ ∑ a ∈ T, (d : ℝ) * (MeasureTheory.volume (C a)).toReal := Finset.sum_le_sum hlow
+      _ = (d : ℝ) * ∑ a ∈ T, (MeasureTheory.volume (C a)).toReal := by rw [Finset.mul_sum]
+      _ ≤ (d : ℝ) * (MeasureTheory.volume (ball (0 : E d) 1)).toReal :=
+          mul_le_mul_of_nonneg_left hsum (Nat.cast_nonneg d)
+      _ = fullSolidAngle d := rfl
+  unfold multiplicityBound
+  apply Nat.le_floor
+  rw [le_div_iff₀ hβ]
+  exact hcard
+
 /-- G7, V4 1.0(b): the common-point bound using precisely the minimum-angle
 constant, rather than an arbitrary positive lower estimate for the angles. -/
 theorem point_count_le [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [Nonempty ι]
@@ -453,7 +674,17 @@ theorem point_count_le [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [Nonempty ι]
     {a | p ∈ placedSet (φ a) (proto (ty a)).carrier}.Finite ∧
       Set.ncard {a | p ∈ placedSet (φ a) (proto (ty a)).carrier} ≤
         multiplicityBound proto cx := by
-  sorry
+  set S := {a | p ∈ placedSet (φ a) (proto (ty a)).carrier} with hS
+  have hS_fin : S.Finite := by
+    by_contra hinf
+    obtain ⟨T, hTS, hTcard⟩ :=
+      (Set.not_finite.mp hinf).exists_subset_card_eq (multiplicityBound proto cx + 1)
+    have := point_count_le_step5_finset_card proto cx ty φ hdisjoint p T (fun a ha => hTS ha)
+    omega
+  refine ⟨hS_fin, ?_⟩
+  rw [Set.ncard_eq_toFinset_card S hS_fin]
+  exact point_count_le_step5_finset_card proto cx ty φ hdisjoint p hS_fin.toFinset
+    (fun a ha => (Set.Finite.mem_toFinset hS_fin).mp ha)
 
 /-- G7, V4 1.0(b): a uniform positive lower bound for angles at boundary cells.
 The conclusion also covers an empty prototile catalogue (any positive bound works). -/

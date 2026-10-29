@@ -4470,10 +4470,415 @@ theorem newState_residue :
     (newState Y hY n hn D hD N A).residue.val = (n + 1) % P.L := by
   sorry
 
+
+section PacketConstancy
+
+omit hY hn hD A
+
+/-- Step 1 of the V4 proof of `packet_constancy` (V4 3.12(a), 1.1):
+"the facets of children of P contained in F tile F". A strict descendant
+of the parent passes through one immediate child, read off its role word. -/
+private theorem packet_constancy_step1_through_child (R Q : FramedNode S) (m b : ℕ)
+    (hdesc : Q.IsDescendant b R (m + 1)) (hb : b < m + 1) :
+    ∃ i : S.I R.ty, Q.IsDescendant b (R.child m i) m := by
+  obtain ⟨r, hr, w, hw⟩ := hdesc
+  have hrpos : 0 < r := by omega
+  obtain ⟨r, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hrpos)
+  have hm : m = b + r := by omega
+  refine ⟨w.1, r, hm, w.2, ?_⟩
+  simpa only [SubstSystem.descendantNode, FramedNode.child, FramedNode.move, hm,
+    AffineIsometryEquiv.trans_assoc] using hw
+
+/-- Step 1 of the V4 proof of `packet_constancy` (V4 3.12(a), 1.3, 1.8):
+"the facets of children of P contained in F tile F". A native piece on the
+parent facet F is a native piece on one child facet contained in F: facet
+dichotomy places it in a child facet, and the hereditary trace puts that
+whole child facet in F. -/
+private theorem packet_constancy_step1_piece_descends
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (N : FramedNode S) (F : FacetName S N.ty)
+    (t : PlacedMarkedTile (systemM S P C)) (g : FacetName S (tileNode t).ty)
+    (hpiece : Parser.IsFacetPiece Y (n + 1) N F t g) :
+    ∃ (i : S.I N.ty) (f : FacetName S (N.child n i).ty),
+      (N.child n i).cell n f.val ⊆ N.cell (n + 1) F.val ∧
+        Parser.IsFacetPiece Y n (N.child n i) f t g := by
+  obtain ⟨i, hi⟩ :=
+    packet_constancy_step1_through_child N (tileNode t) n 0 hpiece.2.1 (by omega)
+  have hne : (relint ((tileNode t).cell 0 g.val)).Nonempty := by
+    rw [FramedNode.cell, routing_constant_step4_inherited_record_step1_relint_image]
+    exact g.val.flat.relint_nonempty.image _
+  obtain ⟨x, hx⟩ := hne
+  have hxF : x ∈ N.cell (n + 1) F.val := hpiece.2.2 (intrinsicInterior_subset hx)
+  have hxfront : x ∈ closure (N.carrier (n + 1)) \ interior (N.carrier (n + 1)) :=
+    routing_constant_step4_inherited_record_step1_boundary N (n + 1) F hxF
+  rcases facet_dichotomy (N.child n i) (tileNode t) n 0 hi g with ⟨f, hf, _⟩ | hint
+  · have hxf := routing_constant_step4_inherited_record_step1_relint_mono _ _ _ _ g f hf hx
+    have hfF : (N.child n i).cell n f.val ⊆ N.cell (n + 1) F.val :=
+      hereditary_trace N (N.child n i) (n + 1) n (Parser.child_descendant N n i) F.val f.val
+        (facetCell F).property (facetCell f).property ⟨x, hxf, hxF⟩
+    exact ⟨i, f, hfF, hpiece.1, hi, hf⟩
+  · exact False.elim (hxfront.2 (interior_mono
+      (routing_constant_step4_ascent_ports_step6_child_subset N n i) (hint hx)))
+
+/-- Step 2 of the V4 proof of `packet_constancy` (V4 3.12(a), 3.7):
+"each child facet has a constant attached packet ((I5) for the children)".
+Every assembled child is an old decoded node, so (I5) applies to it. -/
+private theorem packet_constancy_step2_child_node {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (i : S.I N.ty) : N.child n i ∈ D.geometry.nodes n := by
+  rw [← A.child_eq i]
+  exact D.geometry.root_mem (A.children i).val (A.children i).property
+
+/-- Step 3 of the V4 proof of `packet_constancy` (V4 3.12(a), 2.3):
+"inherited facets lying in the same parent facet are related". A coalescence
+witness for the parent tracks lifts one level to the contained child tracks. -/
+private theorem packet_constancy_step3_tracks
+    (U : HonestSource S) (q c : U.Node) (hparent : U.hierarchy.parentNode c = q)
+    (F F' : FacetName S q.2.val.ty) (f f' : FacetName S c.2.val.ty)
+    (hf : c.2.val.cell c.1 f.val ⊆ q.2.val.cell q.1 F.val)
+    (hf' : c.2.val.cell c.1 f'.val ⊆ q.2.val.cell q.1 F'.val)
+    (hE : U.TracksCoalesce q F F') : U.TracksCoalesce c f f' := by
+  have hanc (a : ℕ) : U.hierarchy.ancestor c (a + 1) = U.hierarchy.ancestor q a := by
+    simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hparent]
+  obtain ⟨a, hboundary, G, hFG, hF'G⟩ := hE
+  let G' : FacetName S (U.hierarchy.ancestor c (a + 1)).2.val.ty :=
+    ⟨G.val, (congrArg (fun z : U.Node => z.2.val.ty) (hanc a).symm) ▸ G.property⟩
+  have hcell := congrArg (fun z : U.Node => z.2.val.cell z.1 G.val) (hanc a)
+  dsimp only at hcell
+  refine ⟨a + 1, ?_, G', ?_, ?_⟩
+  · intro j hj
+    cases j with
+    | zero =>
+      exact ⟨routing_constant_step4_inherited_record_step1_boundary c.2.val c.1 f,
+        routing_constant_step4_inherited_record_step1_boundary c.2.val c.1 f'⟩
+    | succ j =>
+      have hfront := congrArg (fun z : U.Node => frontier (z.2.val.carrier z.1)) (hanc j)
+      dsimp only at hfront
+      have hb := hboundary j (by omega)
+      constructor
+      · change c.2.val.cell c.1 f.val ⊆ _
+        rw [hfront]
+        exact hf.trans hb.1
+      · change c.2.val.cell c.1 f'.val ⊆ _
+        rw [hfront]
+        exact hf'.trans hb.2
+  · change c.2.val.cell c.1 f.val ⊆ (U.hierarchy.ancestor c (a + 1)).2.val.cell
+      (U.hierarchy.ancestor c (a + 1)).1 G.val
+    rw [hcell]
+    exact hf.trans hFG
+  · change c.2.val.cell c.1 f'.val ⊆ (U.hierarchy.ancestor c (a + 1)).2.val.cell
+      (U.hierarchy.ancestor c (a + 1)).1 G.val
+    rw [hcell]
+    exact hf'.trans hF'G
+
+/-- Step 3 of the V4 proof of `packet_constancy` (V4 3.12(a), 3.11):
+"S(C) = D_S(S(P),i) ... E_C is the relation computed from S(P)". Realize
+the honest parent state and use deterministic child descent. -/
+private theorem packet_constancy_step3_child_E
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N) (i : S.I N.ty)
+    (F F' : FacetName S N.ty) (f f' : FacetName S (N.child n i).ty)
+    (hf : (N.child n i).cell n f.val ⊆ N.cell (n + 1) F.val)
+    (hf' : (N.child n i).cell n f'.val ⊆ N.cell (n + 1) F'.val)
+    (hE : stateEAt (newState Y hY n hn D hD N A) F.val F'.val) :
+    stateEAt (childMap P (newState Y hY n hn D hD N A) ⟨N.ty, i⟩) f.val f'.val := by
+  obtain ⟨U, hU, hs⟩ := routing_constant_step2_source_realization
+    (newState Y hY n hn D hD N A) (newState_honest Y hY n hn D hD N A) N (n + 1)
+    (newState_type Y hY n hn D hD N A) (newState_residue Y hY n hn D hD N A)
+  let q : U.Node := ⟨n + 1, ⟨N, hU⟩⟩
+  change stateOf U P q = newState Y hY n hn D hD N A at hs
+  have hq : 1 ≤ q.1 := by change 1 ≤ n + 1; omega
+  let c := U.childNode q hq i
+  have hparent : U.hierarchy.parentNode c = q := by
+    apply Sigma.ext
+    · simp [c, q, HonestSource.childNode, CoherentHierarchy.parentNode]
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (U.hierarchy.parent_unique n _ N hU ⟨i, rfl⟩).symm
+  have htracks : U.TracksCoalesce q F F' := by
+    rw [← hs] at hE
+    obtain ⟨_, _, hE⟩ := hE
+    exact (U.mem_coalescenceTable q F F').mp hE
+  have hchild := packet_constancy_step3_tracks U q c hparent F F' f f' hf hf' htracks
+  have hEc : stateEAt (stateOf U P c) f.val f'.val :=
+    ⟨f.property, f'.property, (U.mem_coalescenceTable c f f').mpr hchild⟩
+  simpa only [c, childMap_spec U P q hq i, hs] using hEc
+
+/-- Step 3 of the V4 proof of `packet_constancy` (V4 3.12(a), 2.3, 3.11):
+"If C = C': both f, f' are inherited from F, so E_C(f,f') is true ...
+f ∩ f' ⊇ κ ≠ ∅; by (I5) for C, equal packets". The parent relation is
+reflexive, so the (S5) rule relates the two inherited child facets. -/
+private theorem packet_constancy_step3_same_child
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N) (i : S.I N.ty)
+    (F : FacetName S N.ty) (f f' : FacetName S (N.child n i).ty)
+    (hf : (N.child n i).cell n f.val ⊆ N.cell (n + 1) F.val)
+    (hf' : (N.child n i).cell n f'.val ⊆ N.cell (n + 1) F.val)
+    (hmeet : ((N.child n i).cell n f.val ∩ (N.child n i).cell n f'.val).Nonempty) :
+    attachedPacket (hD.boundaryPackets n (N.child n i)
+        (packet_constancy_step2_child_node D N A i)) f =
+      attachedPacket (hD.boundaryPackets n (N.child n i)
+        (packet_constancy_step2_child_node D N A i)) f' := by
+  have hB := packet_constancy_step2_child_node D N A i
+  have hstate : D.stateAt n (N.child n i) hB =
+      childMap P (newState Y hY n hn D hD N A) ⟨N.ty, i⟩ := by
+    simpa only [DecodedLevel.blockState, A.child_eq] using child_equations Y hY n hn D hD N A i
+  obtain ⟨hc, hEc⟩ := hD.I5 n (N.child n i) hB
+  have hF : F.val ∈ (S.cx (newState Y hY n hn D hD N A).ty).facets := by
+    rw [newState_type Y hY n hn D hD N A]
+    exact F.property
+  have hE : stateEAt (newState Y hY n hn D hD N A) F.val F.val :=
+    ⟨hF, hF, (newState Y hY n hn D hD N A).E_refl ⟨F.val, hF⟩⟩
+  have hEchild : stateEAt (D.stateAt n (N.child n i) hB) f.val f'.val := by
+    rw [hstate]
+    exact packet_constancy_step3_child_E Y hY n hn D hD N A i F F f f' hf hf' hE
+  exact hEc f f' hEchild hmeet
+/-- Step 4 of the V4 proof of `packet_constancy` (V4 3.12(a), 1.3):
+"a first-generation facet h of P". Normalize the internal child facet and
+assign its canonical primitive incidence, retaining the actual birth frame. -/
+private theorem packet_constancy_step4_birth
+    (N : FramedNode S) (n : ℕ) (i : S.I N.ty) (f : FacetName S (N.child n i).ty)
+    (hint : relint ((N.child n i).cell n f.val) ⊆ interior (N.carrier (n + 1))) :
+    ∃ g : Parser.BornFacet P, g.height = n + 1 ∧ g.birth = N ∧
+      g.carrier = (N.child n i).cell n f.val := by
+  let H := ((S.σ ^ n).toAffineEquiv.trans N.frame.toAffineEquiv).toHomeomorphOfFiniteDimensional
+  let K := placedSet (S.child N.ty i).frame f.val.carrier
+  have hf : (N.child n i).cell n f.val = H '' K := by
+    simp only [FramedNode.cell, Set.image_image, K, placedSet]
+    apply Set.image_congr
+    intro x _
+    exact congrArg N.frame (routing_constant_step4_ascent_ports_step1_child_scaled n i x)
+  have hN : N.carrier (n + 1) = H '' S.supertile 1 N.ty := by
+    simp [H, FramedNode.carrier, SubstSystem.supertile, placedSet, Set.image_image,
+      pow_succ, LinearEquiv.mul_apply]
+  have hlocal : relint K ⊆ interior (S.supertile 1 N.ty) := by
+    intro x hx
+    have hm := hint (hf.symm ▸ (routing_constant_step4_ascent_ports_step3_relint_image
+      ((S.σ ^ n).toAffineEquiv.trans N.frame.toAffineEquiv) K).symm ▸
+        Set.mem_image_of_mem H hx)
+    rw [hN, ← H.image_interior] at hm
+    exact H.injective.mem_set_image.mp hm
+  let f₀ : PrimitiveFacet S N.ty := ⟨0, (), K, ⟨i, f, rfl, hlocal⟩⟩
+  obtain ⟨a, hat, hac⟩ := routing_constant_step1_incidence (P := P) f₀
+  let g : Parser.BornFacet P := ⟨n + 1, by omega, N, a, hat⟩
+  refine ⟨g, rfl, rfl, ?_⟩
+  rw [routing_constant_step1_carrier]
+  change N.prototypeFrame (n + 1) '' (S.σ.symm '' a.val.positioned) = _
+  rw [hac]
+  change N.prototypeFrame (n + 1) '' (S.σ.symm '' K) = _
+  rw [hf]
+  simp only [Set.image_image]
+  apply Set.image_congr
+  intro x _
+  change N.frame ((S.σ ^ (n + 1)) (S.σ.symm x)) = N.frame ((S.σ ^ n) x)
+  rw [pow_succ]
+  simp
+
+open scoped Topology in
+/-- Step 5 of the V4 proof of `packet_constancy` (V4 3.12(a), 1.8):
+"a vertex q of κ". An extreme point in the relative interior of a cell
+forces that cell to be a singleton. -/
+private theorem packet_constancy_step5_extreme_cell (K L : Set (E d)) (hLK : L ⊆ K)
+    (q : E d) (hq : q ∈ K.extremePoints ℝ) (hqL : q ∈ relint L) : L = {q} := by
+  obtain ⟨q', hq', rfl⟩ := mem_intrinsicInterior.mp hqL
+  have hqL : (q' : E d) ∈ L := (show q' ∈ Subtype.val ⁻¹' L from interior_subset hq')
+  apply Set.Subset.antisymm
+  · intro x hx
+    let γ : ℝ → affineSpan ℝ L := fun t =>
+      ⟨AffineMap.lineMap (q' : E d) x t,
+        AffineMap.lineMap_mem t q'.property (subset_affineSpan ℝ L hx)⟩
+    have hγ : Continuous γ := by fun_prop
+    have hsmall : ∀ᶠ t : ℝ in 𝓝 0,
+        (γ t : E d) ∈ L ∧ (γ (-t) : E d) ∈ L := by
+      have h₁ : Filter.Tendsto γ (𝓝 0) (𝓝 q') := by
+        simpa [γ] using hγ.tendsto 0
+      have h₂ : Filter.Tendsto (fun t => γ (-t)) (𝓝 0) (𝓝 q') := by
+        simpa [γ] using (hγ.comp continuous_neg).tendsto 0
+      exact Filter.Eventually.and (h₁ (mem_interior_iff_mem_nhds.mp hq'))
+        (h₂ (mem_interior_iff_mem_nhds.mp hq'))
+    obtain ⟨ε, hε, hεL⟩ := Metric.eventually_nhds_iff.mp hsmall
+    let t := ε / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have htε : dist t 0 < ε := by simp [t, abs_of_pos hε]; linarith
+    obtain ⟨hplus, hminus⟩ := hεL htε
+    have hseg : (q' : E d) ∈ openSegment ℝ (γ t : E d) (γ (-t) : E d) := by
+      refine ⟨(1 / 2 : ℝ), (1 / 2 : ℝ), by norm_num, by norm_num, by norm_num, ?_⟩
+      simp only [γ, AffineMap.lineMap_apply, vadd_eq_add, vsub_eq_sub]
+      module
+    have hplus_eq : (γ t : E d) = (q' : E d) := hq.2 (hLK hplus) (hLK hminus) hseg
+    have hzero : t • (x - (q' : E d)) = 0 := by
+      simpa [γ, AffineMap.lineMap_apply] using hplus_eq
+    have hxeq : x = (q' : E d) := sub_eq_zero.mp ((smul_eq_zero.mp hzero).resolve_left ht.ne')
+    exact Set.mem_singleton_iff.mpr hxeq
+  · exact singleton_subset_iff.mpr hqL
+
+/-- Step 5 of the V4 proof of `packet_constancy` (V4 3.12(a), 1.8):
+"a vertex q of κ". Every listed cell contains a listed vertex. -/
+private theorem packet_constancy_step5_cell_vertex
+    (Q : PolyManifoldDomain d) (K : CellComplex Q) (e : Cell d) (he : e ∈ K.cells) :
+    ∃ v ∈ K.vertices, v.carrier ⊆ e.carrier := by
+  obtain ⟨q, hq⟩ := e.flat.compact.extremePoints_nonempty e.flat.connected.nonempty
+  have hqP : q ∈ frontier Q.carrier := by
+    rw [← K.carriers_cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hq.1⟩
+  let v := K.minimalCell q hqP
+  have hv := K.minimalCell_mem q hqP
+  have hvsub := K.minimalCell_subset q hqP e he hq.1
+  have hvsing : v.carrier = {q} := packet_constancy_step5_extreme_cell e.carrier v.carrier hvsub q hq
+    (K.mem_relint_minimalCell q hqP)
+  refine ⟨v, Finset.mem_filter.mpr ⟨hv, ?_⟩, hvsub⟩
+  have hdim := v.flat.dimension
+  rw [cellDirection, hvsing, direction_affineSpan, vectorSpan_singleton, finrank_bot] at hdim
+  exact hdim.symm
+
+/-- Step 5 of the V4 proof of `packet_constancy` (V4 3.12(a), 2.4, 3.10):
+"Tiles along h at q have END slots at q with recorded cone T_qP ... let
+θ_q be the template". The common-listed vertex q of a first-generation
+facet h of P carries an actual END event whose row holds. -/
+private theorem packet_constancy_step5_event
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N)
+    (p : E d)
+    (hcommon : ∀ i : S.I N.ty, p ∈ (N.child n i).carrier n → (N.child n i).Lists n p)
+    (g : Parser.BornFacet P) (hh : g.height = n + 1) (hb : g.birth = N)
+    (hpg : p ∈ g.carrier) :
+    ∃ t ∈ Y.tiles, ∃ (j : EndSlot (compilerLeaf C t)) (T : EndTemplate j),
+      Compiler.endVertex (compilerFrame C t) j = p ∧
+      j.header = routing_constant_step4_ascent_ports_step3_header
+        N (n + 1) (compilerFrame C t) p ∧
+      TemplateOccurs C Y (compilerFrame C t) T.configuration ∧ endRow T := by
+  have hdesc : g.birth.IsDescendant g.height N (n + 1) := by
+    rw [hh, hb]
+    exact Parser.descendant_refl N (n + 1)
+  have hL : g.leftNode ∈ D.geometry.nodes (g.height - 1) :=
+    Parser.assembled_inner_mem D N A _ _ (by omega)
+      (Parser.descendant_trans _ _ _ _ _ _ g.sides_descendant.1 hdesc)
+  have hl := hD.boundaryPackets _ _ hL
+  obtain ⟨q, hq, _, _⟩ := first_generation_head Y hY n hn D hD N A g hh hb hl
+  have hpf : p ∈ g.leftNode.cell (g.height - 1) g.incidence.val.leftFacet.val := by
+    rwa [g.sides_carrier.1]
+  have hpcar := routing_constant_step4_ascent_ports_step2_cell_carrier
+    g.leftNode (g.height - 1) g.incidence.val.leftFacet hpf
+  have hpL : g.leftNode.Lists (g.height - 1) p := by
+    obtain ⟨i, hi⟩ := routing_constant_step4_ascent_ports_step3_left_child g
+    rw [hi] at hpcar ⊢
+    have hh' : g.height - 1 = n := by omega
+    rw [hh'] at hpcar ⊢
+    subst hb
+    exact hcommon i hpcar
+  obtain ⟨t, f, v, hpiece, hv, hvp⟩ :=
+    routing_constant_step4_ascent_ports_step2_facet_at_vertex Y (g.height - 1)
+      ⟨g.leftNode, D.geometry.node_actual _ _ hL⟩ g.incidence.val.leftFacet p hpL hpf
+  obtain ⟨j, _, hjp, hjheader⟩ :=
+    routing_constant_step3_same_parent_ports_step3_inherited_slot D hD N A g hdesc p
+      hpL t f v hpiece hv hvp hl q hq
+  obtain ⟨T, hactual, hrow⟩ :=
+    routing_constant_step4_ascent_ports_step4_event Y hY t hpiece.1 j
+  refine ⟨t, hpiece.1, j, T, hjp, ?_, hactual, hrow⟩
+  rw [hh, hb] at hjheader
+  exact hjheader
+
+/-- Step 6 of the V4 proof of `packet_constancy` (V4 3.12(a), 1.8, 2.5):
+"If C ≠ C': Lemma 1.8 provides a first-generation facet h of P with κ ⊆ h
+and a vertex q of κ ... common-listed ... Row (E6) equates their packets".
+Adjacent facets of two different children carry equal attached packets. -/
+private theorem packet_constancy_step6_cross_child
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (N : FramedNode S) (A : Parser.AssembledParent D N) (F : FacetName S N.ty)
+    (a b : BoundaryFacet N n F) (hab : boundaryFacetAdjacent N n F a b)
+    (hchild : a.val.1 ≠ b.val.1) :
+    attachedPacket (hD.boundaryPackets n (N.child n a.val.1)
+        (packet_constancy_step2_child_node D N A a.val.1)) a.val.2 =
+      attachedPacket (hD.boundaryPackets n (N.child n b.val.1)
+        (packet_constancy_step2_child_node D N A b.val.1)) b.val.2 := by
+  obtain ⟨_, e, e', hed, _, hee', hea, he'b⟩ := id hab
+  have hκb : (N.child n a.val.1).cell n e.val ⊆ (N.child n b.val.1).cell n b.val.2.val :=
+    hee' ▸ he'b
+  obtain ⟨v, hv, hve⟩ :=
+    packet_constancy_step5_cell_vertex (S.proto (N.child n a.val.1).ty)
+      (S.cx (N.child n a.val.1).ty) e.val e.property
+  obtain ⟨x, hx⟩ := v.flat.connected.nonempty
+  have hpL : (N.child n a.val.1).Lists n ((N.child n a.val.1).prototypeFrame n x) :=
+    ⟨v, hv, x, hx, rfl⟩
+  have hpκ : (N.child n a.val.1).prototypeFrame n x ∈ (N.child n a.val.1).cell n e.val :=
+    ⟨x, hve hx, rfl⟩
+  obtain ⟨i₀, h, hint, _, hlist⟩ :=
+    adjacency_primitive_seed N n F a b hab hchild e hed hea hκb
+  obtain ⟨_, hph, hcommon⟩ := hlist _ hpL hpκ
+  obtain ⟨g, hh, hb, hg⟩ := packet_constancy_step4_birth (P := P) N n i₀ h hint
+  obtain ⟨t, ht, j, T, hjp, hjheader, hactual, hrow⟩ :=
+    packet_constancy_step5_event Y hY n hn D hD N A _ hcommon g hh hb (hg.symm ▸ hph)
+  have hBa := packet_constancy_step2_child_node D N A a.val.1
+  have hBb := packet_constancy_step2_child_node D N A b.val.1
+  have hpb : (N.child n a.val.1).prototypeFrame n x ∈ (N.child n b.val.1).cell n b.val.2.val :=
+    hκb hpκ
+  obtain ⟨u, fu, vu, hpu, hvu, hvpu⟩ :=
+    routing_constant_step4_ascent_ports_step2_facet_at_vertex Y n
+      ⟨N.child n a.val.1, D.geometry.node_actual _ _ hBa⟩ a.val.2 _ hpL (hea hpκ)
+  obtain ⟨u', fu', vu', hpu', hvu', hvpu'⟩ :=
+    routing_constant_step4_ascent_ports_step2_facet_at_vertex Y n
+      ⟨N.child n b.val.1, D.geometry.node_actual _ _ hBb⟩ b.val.2 _
+      (hcommon b.val.1 (routing_constant_step4_ascent_ports_step2_cell_carrier _ _ _ hpb)) hpb
+  have hNu : Parser.IsFacetPiece Y (n + 1) N F u fu :=
+    ⟨hpu.1, Parser.descendant_trans _ _ _ _ _ _ hpu.2.1 (Parser.child_descendant N n a.val.1),
+      hpu.2.2.trans a.property⟩
+  have hNu' : Parser.IsFacetPiece Y (n + 1) N F u' fu' :=
+    ⟨hpu'.1, Parser.descendant_trans _ _ _ _ _ _ hpu'.2.1 (Parser.child_descendant N n b.val.1),
+      hpu'.2.2.trans b.property⟩
+  obtain ⟨α, hα, hαu, hαF, hαf⟩ :=
+    routing_constant_step4_ascent_ports_step5_boundary_port Y hY (n + 1) N (by omega) A.actual
+      F _ t ht j hjp hjheader T hrow hactual u fu vu hNu hvu hvpu
+  obtain ⟨β, hβ, hβu, hβF, hβf⟩ :=
+    routing_constant_step4_ascent_ports_step5_boundary_port Y hY (n + 1) N (by omega) A.actual
+      F _ t ht j hjp hjheader T hrow hactual u' fu' vu' hNu' hvu' hvpu'
+  have hE6 := hrow.2.2.2.2.2 α hα β hβ (hαF.trans hβF.symm) _ _ hαu hβu
+  rw [hαf, hβf] at hE6
+  rw [attachedPacket_eq_leaf _ _ u fu hpu, attachedPacket_eq_leaf _ _ u' fu' hpu']
+  exact hE6
+
+end PacketConstancy
+
 /-- R11, V4 3.12(a): every boundary facet of the new parent has one constant
 actual native-packet readout. NULL is retained, so this also covers faults. -/
 theorem packet_constancy : Parser.BoundaryPackets Y (n + 1) N := by
-  sorry
+  intro F
+  let hc : ∀ i : S.I N.ty, Parser.BoundaryPackets Y n (N.child n i) := fun i =>
+    hD.boundaryPackets n (N.child n i) (packet_constancy_step2_child_node D N A i)
+  let val : BoundaryFacet N n F → Option (Packet P) := fun a =>
+    attachedPacket (hc a.val.1) a.val.2
+  have hadj : ∀ a b, boundaryFacetAdjacent N n F a b → val a = val b := by
+    intro a b hab
+    by_cases hchild : a.val.1 = b.val.1
+    · rcases a with ⟨⟨i, f⟩, hf⟩
+      rcases b with ⟨⟨i', f'⟩, hf'⟩
+      dsimp only at hchild hf hf'
+      subst hchild
+      obtain ⟨_, e, e', _, _, hee', hea, he'b⟩ := hab
+      obtain ⟨y, hy⟩ := e.val.flat.connected.nonempty
+      have hye : (N.child n i).prototypeFrame n y ∈ (N.child n i).cell n e.val := ⟨y, hy, rfl⟩
+      have hye' : (N.child n i).prototypeFrame n y ∈ (N.child n i).cell n e'.val := by
+        rw [← hee']
+        exact hye
+      exact packet_constancy_step3_same_child Y hY n hn D hD N A i F f f' hf hf'
+        ⟨_, hea hye, he'b hye'⟩
+    · exact packet_constancy_step6_cross_child Y hY n hn D hD N A F a b hab hchild
+  have hall : ∀ a b, Relation.ReflTransGen (boundaryFacetAdjacent N n F) a b →
+      val a = val b := by
+    intro a b h
+    induction h with
+    | refl => rfl
+    | tail _ hbc ih => exact ih.trans (hadj _ _ hbc)
+  obtain ⟨a₀⟩ := (boundary_facet_adjacency N n F).2.2.1
+  have hconst : Parser.ConstantPacket Y (n + 1) N F (val a₀) := by
+    intro t g hpiece
+    obtain ⟨i, f, hfF, hp⟩ := packet_constancy_step1_piece_descends Y n N F t g hpiece
+    exact (attachedPacket_eq_leaf (hc i) f t g hp).symm.trans
+      (hall ⟨⟨i, f⟩, hfF⟩ a₀ ((boundary_facet_adjacency N n F).2.2.2 _ _))
+  exact ⟨val a₀, hconst, fun q hq =>
+    Parser.constantPacket_unique Y (n + 1) N A.actual F q (val a₀) hq hconst⟩
 
 section PacketEEquality
 

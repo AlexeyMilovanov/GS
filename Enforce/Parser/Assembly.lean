@@ -5803,6 +5803,331 @@ private theorem all_height_hierarchy_step1_sequence (Y : MarkedTiling (systemM S
     rw [all_height_hierarchy_step1_aux_succ Y hY n hn]
     exact (Classical.choose_spec (forward_level Y hY n hn _ _)).2.2.1
 
+/-- Step 1 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 3.1):
+"The levels are nested by construction (each (n+1)-block is the union of its
+children)". Below the new root height, the inner nodes of the next level are
+exactly those of the previous one: a strict descendant of a new root passes
+through one of its prescribed children, which is an old chosen block. -/
+private theorem all_height_hierarchy_step2_hierarchy_step1_nodes_succ
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n)
+    (D' : DecodedLevel Y (n + 1)) (h : Parser.NestedLevels D D') (m : ℕ) (hm : m ≤ n) :
+    D'.geometry.nodes m = D.geometry.nodes m := by
+  apply Set.Subset.antisymm _ (h.nodes m)
+  rintro N ⟨B', hB', hdesc⟩
+  obtain ⟨i, hi⟩ := packet_constancy_step1_through_child B'.node N n m hdesc (by omega)
+  obtain ⟨B, hB, hBeq⟩ := h.children B' hB' i
+  refine ⟨B, hB, ?_⟩
+  show N.IsDescendant m B.node n
+  rw [hBeq]
+  exact hi
+
+/-- Step 1 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 3.1):
+"The levels are nested by construction". Iterating the one-step nesting, the
+height-m inner nodes do not change along the sequence from level n on. -/
+private theorem all_height_hierarchy_step2_hierarchy_step1_nodes_stable
+    {Y : MarkedTiling (systemM S P C)} (levels : ∀ n : ℕ, P.K ≤ n → DecodedLevel Y n)
+    (hnest : ∀ n hn, Parser.NestedLevels (levels n hn)
+      (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))))
+    (n : ℕ) (hn : P.K ≤ n) (k m : ℕ) (hm : m ≤ n) :
+    (levels (n + k) (Nat.le_trans hn (Nat.le_add_right n k))).geometry.nodes m =
+      (levels n hn).geometry.nodes m := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    exact (all_height_hierarchy_step2_hierarchy_step1_nodes_succ _ _
+      (hnest (n + k) (Nat.le_trans hn (Nat.le_add_right n k))) m (by omega)).trans ih
+
+/-- Step 1 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 3.1):
+"they define a coherent hierarchy": any two levels n, n' ≥ K with m ≤ n, n'
+have the same height-m inner nodes. -/
+private theorem all_height_hierarchy_step2_hierarchy_step1_nodes_eq
+    {Y : MarkedTiling (systemM S P C)} (levels : ∀ n : ℕ, P.K ≤ n → DecodedLevel Y n)
+    (hnest : ∀ n hn, Parser.NestedLevels (levels n hn)
+      (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))))
+    (n n' : ℕ) (hn : P.K ≤ n) (hn' : P.K ≤ n') (m : ℕ) (hm : m ≤ n) (hm' : m ≤ n') :
+    (levels n' hn').geometry.nodes m = (levels n hn).geometry.nodes m := by
+  rcases le_total n n' with h | h
+  · obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le h
+    exact all_height_hierarchy_step2_hierarchy_step1_nodes_stable levels hnest n hn k m hm
+  · obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le h
+    exact (all_height_hierarchy_step2_hierarchy_step1_nodes_stable levels hnest n' hn' k m
+      hm').symm
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §1.0, 3.1):
+"with nodes of height < K given by the certificate subdivisions". A descendant
+of depth r+1 is a prescribed child of the descendant of depth r one height up
+(peeling off the last letter of its role word). -/
+private theorem all_height_hierarchy_step2_hierarchy_step2_last_letter
+    (N : FramedNode S) (m r : ℕ) (w : S.RoleWord N.ty (r + 1)) :
+    ∃ (w' : S.RoleWord N.ty r)
+      (i : S.I ((S.descendantNode N.ty (m + 1) r w').move N.frame).ty),
+      (S.descendantNode N.ty m (r + 1) w).move N.frame =
+        ((S.descendantNode N.ty (m + 1) r w').move N.frame).child m i := by
+  induction r generalizing N with
+  | zero =>
+    obtain ⟨i, u⟩ := w
+    refine ⟨(), i, ?_⟩
+    apply FramedNode.ext
+    · rfl
+    · show ((AffineIsometryEquiv.refl ℝ (E d)).trans (S.placeChild m i)).trans N.frame =
+        (S.placeChild m i).trans ((AffineIsometryEquiv.refl ℝ (E d)).trans N.frame)
+      rw [AffineIsometryEquiv.refl_trans, AffineIsometryEquiv.refl_trans]
+  | succ r ih =>
+    obtain ⟨i, a⟩ := w
+    obtain ⟨a', j, h⟩ := ih (N.child (m + (r + 1)) i) a
+    refine ⟨⟨i, a'⟩, j, ?_⟩
+    have hp : S.placeChild (m + (r + 1)) i = S.placeChild (m + 1 + r) i := by
+      rw [show m + (r + 1) = m + 1 + r by omega]
+    refine h.trans ?_
+    apply FramedNode.ext
+    · rfl
+    · show (S.placeChild m j).trans ((S.descendantNode (S.child N.ty i).ty (m + 1) r a').frame.trans
+          ((S.placeChild (m + (r + 1)) i).trans N.frame)) =
+        (S.placeChild m j).trans ((S.descendantNode (S.child N.ty i).ty (m + 1) r a').frame.trans
+          ((S.placeChild (m + 1 + r) i).trans N.frame))
+      rw [hp]
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §1.0, 3.1):
+"each (n+1)-block is the union of its children". The height-m descendants of a
+node of height m+r cover it. -/
+private theorem all_height_hierarchy_step2_hierarchy_step2_cover_desc
+    (N : FramedNode S) (m r : ℕ) (x : E d) (hx : x ∈ N.carrier (m + r)) :
+    ∃ w : S.RoleWord N.ty r, x ∈ ((S.descendantNode N.ty m r w).move N.frame).carrier m := by
+  induction r generalizing N with
+  | zero =>
+    refine ⟨(), ?_⟩
+    simpa [SubstSystem.descendantNode, FramedNode.move] using hx
+  | succ r ih =>
+    have hx' : x ∈ N.carrier (m + r + 1) := hx
+    rw [assembly_step1_children_cover N (m + r)] at hx'
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hx'
+    obtain ⟨w, hw⟩ := ih (N.child (m + r) i) hi
+    exact ⟨⟨i, w⟩, hw⟩
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §1.0 (H3), 3.1):
+distinct children have disjoint interiors, hence distinct height-m descendants
+of one node have disjoint interiors. -/
+private theorem all_height_hierarchy_step2_hierarchy_step2_disjoint_desc
+    (N : FramedNode S) (m r : ℕ) (w w' : S.RoleWord N.ty r)
+    (hne : (S.descendantNode N.ty m r w).move N.frame ≠
+      (S.descendantNode N.ty m r w').move N.frame) :
+    Disjoint (interior (((S.descendantNode N.ty m r w).move N.frame).carrier m))
+      (interior (((S.descendantNode N.ty m r w').move N.frame).carrier m)) := by
+  induction r generalizing N with
+  | zero =>
+    cases w
+    cases w'
+    exact (hne rfl).elim
+  | succ r ih =>
+    obtain ⟨i, a⟩ := w
+    obtain ⟨j, b⟩ := w'
+    by_cases hij : i = j
+    · subst hij
+      exact ih (N.child (m + r) i) a b hne
+    · have hsi := routing_constant_step4_ascent_ports_step6_descendant_subset
+        ((S.descendantNode (N.child (m + r) i).ty m r a).move (N.child (m + r) i).frame)
+        (N.child (m + r) i) m (m + r) ⟨r, rfl, a, rfl⟩
+      have hsj := routing_constant_step4_ascent_ports_step6_descendant_subset
+        ((S.descendantNode (N.child (m + r) j).ty m r b).move (N.child (m + r) j).frame)
+        (N.child (m + r) j) m (m + r) ⟨r, rfl, b, rfl⟩
+      exact Disjoint.mono (interior_mono hsi) (interior_mono hsj)
+        (assembly_step1_children_disjoint N (m + r) i j hij)
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 3.1):
+"they define a coherent hierarchy": the height-m inner nodes of a geometric
+level cover space. -/
+private theorem all_height_hierarchy_step2_hierarchy_step2_level_cover
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n) (m : ℕ)
+    (hm : m ≤ n) (x : E d) : ∃ N ∈ G.nodes m, x ∈ N.carrier m := by
+  obtain ⟨B, hB, hxB⟩ := G.cover x
+  obtain ⟨r, hr⟩ := Nat.exists_eq_add_of_le hm
+  have hx : x ∈ B.node.carrier (m + r) := hr ▸ hxB
+  obtain ⟨w, hw⟩ := all_height_hierarchy_step2_hierarchy_step2_cover_desc B.node m r x hx
+  exact ⟨_, ⟨B, hB, r, hr, w, rfl⟩, hw⟩
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 3.1):
+"they define a coherent hierarchy": distinct height-m inner nodes of a
+geometric level have disjoint interiors (distinct blocks have disjoint
+interiors, distinct descendants of one block too). -/
+private theorem all_height_hierarchy_step2_hierarchy_step2_level_disjoint
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n) (m : ℕ) :
+    (G.nodes m).PairwiseDisjoint (fun N => interior (N.carrier m)) := by
+  rintro N ⟨B, hB, r, hr, w, rfl⟩ N' ⟨B', hB', r', hr', w', rfl⟩ hne
+  by_cases hBB : B = B'
+  · subst hBB
+    have hrr : r = r' := by omega
+    subst hrr
+    exact all_height_hierarchy_step2_hierarchy_step2_disjoint_desc B.node m r w w' hne
+  · have h1 := routing_constant_step4_ascent_ports_step6_descendant_subset _ B.node m n
+      ⟨r, hr, w, rfl⟩
+    have h2 := routing_constant_step4_ascent_ports_step6_descendant_subset _ B'.node m n
+      ⟨r', hr', w', rfl⟩
+    exact Disjoint.mono (interior_mono h1) (interior_mono h2) (G.disjoint hB hB' hBB)
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 3.1):
+"they define a coherent hierarchy": every inner node below the root height is
+a prescribed child of an inner node one height up. -/
+private theorem all_height_hierarchy_step2_hierarchy_step2_level_parent_exists
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n) (m : ℕ)
+    (N : FramedNode S) (hN : N ∈ G.nodes m) (hm : m < n) :
+    ∃ Q ∈ G.nodes (m + 1), ∃ i : S.I Q.ty, N = Q.child m i := by
+  obtain ⟨B, hB, r, hr, w, rfl⟩ := hN
+  obtain ⟨r, rfl⟩ : ∃ r', r = r' + 1 := ⟨r - 1, by omega⟩
+  obtain ⟨w', i, h⟩ := all_height_hierarchy_step2_hierarchy_step2_last_letter B.node m r w
+  exact ⟨_, ⟨B, hB, r, by omega, w', rfl⟩, i, h⟩
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §1.0, 3.1):
+"a node belongs to only one parent": two inner nodes of one height sharing a
+prescribed child coincide, since the child has nonempty interior inside both. -/
+private theorem all_height_hierarchy_step2_hierarchy_step2_level_parent_unique
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n) (m : ℕ)
+    (Q Q' : FramedNode S) (hQ : Q ∈ G.nodes (m + 1)) (hQ' : Q' ∈ G.nodes (m + 1))
+    (i : S.I Q.ty) (i' : S.I Q'.ty) (h : Q.child m i = Q'.child m i') : Q = Q' := by
+  by_contra hne
+  have hd : Disjoint (interior (Q.carrier (m + 1))) (interior (Q'.carrier (m + 1))) :=
+    all_height_hierarchy_step2_hierarchy_step2_level_disjoint G (m + 1) hQ hQ' hne
+  obtain ⟨x, hx⟩ := (assembly_step1_node_regular (Q.child m i) m).2.2.nonempty
+  have hx' : x ∈ interior ((Q'.child m i').carrier m) := by rw [← h]; exact hx
+  exact Set.disjoint_left.mp hd
+    (interior_mono (routing_constant_step4_ascent_ports_step6_child_subset Q m i) hx)
+    (interior_mono (routing_constant_step4_ascent_ports_step6_child_subset Q' m i') hx')
+
+/-- Step 3 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §3.0, F.2):
+a physical tile and its decoded ground node describe the same projected native tile. -/
+private theorem all_height_hierarchy_step2_hierarchy_step3_tileNode_toTile
+    (t : PlacedMarkedTile (systemM S P C)) :
+    (tileNode t).toTile = t.native (nativeDecoration S P C) := by
+  apply PlacedTile.ext
+  · rfl
+  · rw [PlacedMarkedTile.native_carrier]
+    exact (compilerFrame_carrier C t).symm
+
+/-- Step 3 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §3.0, 3.1):
+"the blocks [of a level] have disjoint interiors and cover", and each block is
+the union of its actual native tiles. Hence every physical tile of Y lies inside
+one block of the level: an open piece of its interior meets the interior of some
+block, hence of one of that block's actual leaf tiles, which by disjointness of
+the tile interiors of Y is the tile itself. -/
+private theorem all_height_hierarchy_step2_hierarchy_step3_tile_in_block
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) :
+    ∃ B ∈ G.blocks, t.carrier ⊆ B.carrier := by
+  classical
+  have hcar : ∀ u : PlacedMarkedTile (systemM S P C), (tileNode u).carrier 0 = u.carrier := by
+    intro u
+    rw [compilerFrame_carrier C u]
+    change placedSet (compilerFrame C u) (S.supertile 0 (compilerLeaf C u).prototype) = _
+    unfold SubstSystem.supertile
+    rw [pow_zero]
+    congr 1
+    first
+      | simp
+      | (ext z; simp)
+  obtain ⟨x₀, hx₀⟩ : (interior t.carrier).Nonempty := by
+    rw [← hcar t]
+    exact (assembly_step1_node_regular (tileNode t) 0).2.2.nonempty
+  have hUo : IsOpen (interior t.carrier ∩ Metric.ball x₀ 1) :=
+    isOpen_interior.inter Metric.isOpen_ball
+  have hUne : (interior t.carrier ∩ Metric.ball x₀ 1).Nonempty :=
+    ⟨x₀, hx₀, Metric.mem_ball_self one_pos⟩
+  have hfin := G.locallyFinite.2 (Metric.ball x₀ 1) Metric.isBounded_ball
+  haveI : Finite {B : Block Y n | B ∈ G.blocks ∧ (Metric.ball x₀ 1 ∩ B.carrier).Nonempty} :=
+    hfin.to_subtype
+  let f : Option (Σ B : {B : Block Y n | B ∈ G.blocks ∧ (Metric.ball x₀ 1 ∩ B.carrier).Nonempty},
+      S.RoleWord B.val.node.ty n) → Set (E d) := fun o =>
+    match o with
+    | none => (Metric.ball x₀ 1)ᶜ
+    | some q => ((S.nativeTile q.1.val.node.ty n q.2).move q.1.val.node.frame).carrier 0
+  have hc : ∀ o, IsClosed (f o) := by
+    rintro (_ | q)
+    · exact Metric.isOpen_ball.isClosed_compl
+    · exact (assembly_step1_node_regular _ 0).1
+  have hcov : ⋃ o, f o = Set.univ := by
+    apply Set.eq_univ_of_forall
+    intro y
+    by_cases hy : y ∈ Metric.ball x₀ 1
+    · obtain ⟨B, hB, hyB⟩ := G.cover y
+      have hy' : y ∈ B.node.carrier (0 + n) := by rw [Nat.zero_add]; exact hyB
+      obtain ⟨w, hw⟩ := all_height_hierarchy_step2_hierarchy_step2_cover_desc B.node 0 n y hy'
+      exact Set.mem_iUnion.mpr ⟨some ⟨⟨B, hB, y, hy, hyB⟩, w⟩, hw⟩
+    · exact Set.mem_iUnion.mpr ⟨none, hy⟩
+  obtain ⟨y, hyU, hy⟩ :=
+    (dense_iUnion_interior_of_closed hc hcov).inter_open_nonempty _ hUo hUne
+  obtain ⟨o, hyo⟩ := Set.mem_iUnion.mp hy
+  rcases o with _ | ⟨⟨B, hB, hBm⟩, w⟩
+  · exact absurd hyU.2 (interior_subset hyo)
+  · obtain ⟨t', ht', ht'eq⟩ := B.actual w
+    have hyt' : y ∈ interior t'.carrier := by
+      rw [← hcar t', ht'eq]
+      exact hyo
+    have htt : t' = t := by
+      by_contra hne
+      have hd : Disjoint (interior t'.carrier) (interior t.carrier) := Y.disjoint ht' ht hne
+      exact Set.disjoint_left.mp hd hyt' hyU.1
+    refine ⟨B, hB, ?_⟩
+    rw [← htt, ← hcar t', ht'eq]
+    exact routing_constant_step4_ascent_ports_step6_descendant_subset _ B.node 0 n
+      ⟨n, by omega, w, rfl⟩
+
+/-- Step 3 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §1.0, 3.1):
+"height zero is exactly the given physical tiling": the ground inner nodes of a
+level are exactly the projected tiles of Y. -/
+private theorem all_height_hierarchy_step2_hierarchy_step3_ground
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n) :
+    {t | ∃ N ∈ G.nodes 0, N.toTile = t} = (Y.project (nativeDecoration S P C)).tiles := by
+  have hproj : (Y.project (nativeDecoration S P C)).tiles =
+      (fun u => u.native (nativeDecoration S P C)) '' Y.tiles := rfl
+  rw [hproj]
+  ext t
+  constructor
+  · rintro ⟨N, hN, rfl⟩
+    obtain ⟨u, hu, hue⟩ := G.node_actual 0 N hN ()
+    have hN' : (S.nativeTile N.ty 0 ()).move N.frame = N := by
+      apply FramedNode.ext
+      · rfl
+      · show (AffineIsometryEquiv.refl ℝ (E d)).trans N.frame = N.frame
+        rw [AffineIsometryEquiv.refl_trans]
+    refine ⟨u, hu, ?_⟩
+    show u.native (nativeDecoration S P C) = N.toTile
+    rw [← all_height_hierarchy_step2_hierarchy_step3_tileNode_toTile, hue, hN']
+  · rintro ⟨u, hu, rfl⟩
+    obtain ⟨B, hB, hsub⟩ := all_height_hierarchy_step2_hierarchy_step3_tile_in_block G u hu
+    obtain ⟨_, w, hw⟩ := (Set.ext_iff.mp B.tiles_exact u).mp ⟨hu, hsub⟩
+    exact ⟨tileNode u, ⟨B, hB, n, by omega, w, hw⟩,
+      all_height_hierarchy_step2_hierarchy_step3_tileNode_toTile u⟩
+
+/-- Step 3 of the V4 proof of `all_height_hierarchy_step2_hierarchy` (V4 §1.0, 3.0):
+"physical tiles contained in a node are exactly its native tiles", for every
+inner node of a level, transported to the native projection. -/
+private theorem all_height_hierarchy_step2_hierarchy_step3_native_tiles
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (G : GeometricLevel Y n) (m : ℕ)
+    (N : FramedNode S) (hN : N ∈ G.nodes m) :
+    {t | t ∈ (Y.project (nativeDecoration S P C)).tiles ∧ t.carrier ⊆ N.carrier m} =
+      {t | ∃ w : S.RoleWord N.ty m, ((S.nativeTile N.ty m w).move N.frame).toTile = t} := by
+  have hproj : (Y.project (nativeDecoration S P C)).tiles =
+      (fun u => u.native (nativeDecoration S P C)) '' Y.tiles := rfl
+  have hex := (⟨N, G.node_actual m N hN⟩ : Block Y m).tiles_exact
+  rw [hproj]
+  ext t
+  constructor
+  · rintro ⟨⟨u, hu, rfl⟩, hsub⟩
+    have hc : u.carrier ⊆ N.carrier m := by
+      rw [← PlacedMarkedTile.native_carrier (nativeDecoration S P C) u]
+      exact hsub
+    obtain ⟨_, w, hw⟩ := (Set.ext_iff.mp hex u).mp ⟨hu, hc⟩
+    exact ⟨w, (congrArg FramedNode.toTile hw).symm.trans
+      (all_height_hierarchy_step2_hierarchy_step3_tileNode_toTile u)⟩
+  · rintro ⟨w, rfl⟩
+    obtain ⟨u, hu, hue⟩ := G.node_actual m N hN w
+    have hm := ((Set.ext_iff.mp hex u).mpr ⟨hu, w, hue⟩).2
+    have heq : ((S.nativeTile N.ty m w).move N.frame).toTile =
+        u.native (nativeDecoration S P C) := by
+      rw [← hue]
+      exact all_height_hierarchy_step2_hierarchy_step3_tileNode_toTile u
+    refine ⟨⟨u, hu, heq.symm⟩, ?_⟩
+    rw [heq, PlacedMarkedTile.native_carrier]
+    exact hm
+
 /-- Step 2 of the V4 proof of `all_height_hierarchy` (V4 3.1): "The levels are
 nested by construction (each (n+1)-block is the union of its children), so they
 define a coherent hierarchy on Y with nodes of height < K given by the
@@ -5822,7 +6147,63 @@ private theorem all_height_hierarchy_step2_hierarchy (Y : MarkedTiling (systemM 
       (∀ (n : ℕ) (hn : P.K ≤ n) (B : Block Y n)
         (hB : B ∈ (levels n hn).geometry.blocks) (hN : B.node ∈ H.nodes n),
           (H.parent n ⟨B.node, hN⟩).val = proposedParent (levels n hn) B hB) := by
-  sorry
+  classical
+  let Hn : ℕ → Set (FramedNode S) := fun m =>
+    (levels (max m P.K) (le_max_right m P.K)).geometry.nodes m
+  have hHn : ∀ (n m : ℕ) (hn : P.K ≤ n), m ≤ n → Hn m = (levels n hn).geometry.nodes m :=
+    fun n m hn hm => all_height_hierarchy_step2_hierarchy_step1_nodes_eq levels hnest n
+      (max m P.K) hn (le_max_right m P.K) m hm (le_max_left m P.K)
+  have hpex : ∀ (m : ℕ) (N : {N // N ∈ Hn m}),
+      ∃ Q : {Q // Q ∈ Hn (m + 1)}, ∃ i : S.I Q.val.ty, N.val = Q.val.child m i := by
+    intro m N
+    have hle : m ≤ max (m + 1) P.K := le_trans (Nat.le_succ m) (le_max_left _ _)
+    have hN : N.val ∈ (levels (max (m + 1) P.K) (le_max_right _ _)).geometry.nodes m :=
+      (Set.ext_iff.mp (hHn (max (m + 1) P.K) m (le_max_right _ _) hle) _).mp N.property
+    obtain ⟨Q, hQ, i, hi⟩ :=
+      all_height_hierarchy_step2_hierarchy_step2_level_parent_exists _ m N.val hN
+        (Nat.lt_of_lt_of_le (Nat.lt_succ_self m) (le_max_left _ _))
+    exact ⟨⟨Q, hQ⟩, i, hi⟩
+  have hunique : ∀ (m : ℕ) (Q Q' : FramedNode S), Q ∈ Hn (m + 1) → Q' ∈ Hn (m + 1) →
+      ∀ (i : S.I Q.ty) (i' : S.I Q'.ty), Q.child m i = Q'.child m i' → Q = Q' :=
+    fun m Q Q' hQ hQ' i i' h =>
+      all_height_hierarchy_step2_hierarchy_step2_level_parent_unique
+        (levels (max (m + 1) P.K) (le_max_right _ _)).geometry m Q Q' hQ hQ' i i' h
+  refine ⟨{
+    nodes := Hn
+    ground := all_height_hierarchy_step2_hierarchy_step3_ground
+      (levels (max 0 P.K) (le_max_right 0 P.K)).geometry
+    cover := fun m x => all_height_hierarchy_step2_hierarchy_step2_level_cover
+      (levels (max m P.K) (le_max_right m P.K)).geometry m (le_max_left m P.K) x
+    disjoint := fun m => all_height_hierarchy_step2_hierarchy_step2_level_disjoint
+      (levels (max m P.K) (le_max_right m P.K)).geometry m
+    parent := fun m N => Classical.choose (hpex m N)
+    role := fun m N => Classical.choose (Classical.choose_spec (hpex m N))
+    child_eq := fun m N => Classical.choose_spec (Classical.choose_spec (hpex m N))
+    children_mem := fun m Q hQ i => by
+      have h1 := (levels (max (m + 1) P.K) (le_max_right _ _)).geometry.child_mem m Q hQ i
+      exact (Set.ext_iff.mp (hHn (max (m + 1) P.K) m (le_max_right _ _)
+        (le_trans (Nat.le_succ m) (le_max_left _ _))) _).mpr h1
+    parent_unique := fun m N Q hQ ⟨i, hi⟩ =>
+      hunique m Q _ hQ (Classical.choose (hpex m N)).property i
+        (Classical.choose (Classical.choose_spec (hpex m N)))
+        (hi.symm.trans (Classical.choose_spec (Classical.choose_spec (hpex m N))))
+    native_tiles := fun m Q hQ => all_height_hierarchy_step2_hierarchy_step3_native_tiles
+      (levels (max m P.K) (le_max_right m P.K)).geometry m Q hQ }, ?_, ?_⟩
+  · exact fun n m hn hm => hHn n m hn hm
+  · intro n hn B hB hN
+    show (Classical.choose (hpex n ⟨B.node, hN⟩)).val = proposedParent (levels n hn) B hB
+    have hmem : proposedParent (levels n hn) B hB ∈
+        (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))).geometry.roots := by
+      rw [hroots n hn]
+      exact ⟨B, hB, rfl⟩
+    obtain ⟨B'', hB'', hB''eq⟩ := hmem
+    have hPP : proposedParent (levels n hn) B hB ∈ Hn (n + 1) := by
+      rw [hHn (n + 1) (n + 1) (Nat.le_trans hn (Nat.le_succ n)) le_rfl, ← hB''eq]
+      exact GeometricLevel.root_mem _ B'' hB''
+    have hj := Classical.choose_spec (Classical.choose_spec (hpex n ⟨B.node, hN⟩))
+    exact (hunique n _ _ hPP (Classical.choose (hpex n ⟨B.node, hN⟩)).property
+      (firstRole (levels n hn) B hB).2 _
+      ((Parser.proposedParent_child (levels n hn) (hinv n hn) B hB).trans hj)).symm
 
 /-- Step 3 of the V4 proof of `all_height_hierarchy` (V4 3.1): "(with 𝒩_n for
 n<K the nodes inside the K-blocks)" and, for the certificate tables, "for heights

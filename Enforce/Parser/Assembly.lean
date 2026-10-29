@@ -6382,6 +6382,7 @@ private theorem all_height_hierarchy_step3_low_levels (Y : MarkedTiling (systemM
         all_height_hierarchy_step3_low_levels_step5_factor R.node N m n P.K hm hn.le h
       exact ⟨⟨M, D.geometry.node_actual n M ⟨R, hR, hM⟩⟩, ⟨R, hR, hM⟩, hNM⟩
 
+open private exists_childMap_step2_role from Enforce.State.State in
 /-- Step 4 of the V4 proof of `all_height_hierarchy` (V4 3.1): "Consequently Y
 carries a coherent hierarchy (𝒩_n)_{n≥0} (with 𝒩_n for n<K the nodes inside the
 K-blocks) with states satisfying (I1),(I2),(I4),(I5) at every height." Given the
@@ -6409,7 +6410,138 @@ private theorem all_height_hierarchy_step4_realize (Y : MarkedTiling (systemM S 
         (hK : N ∈ (levels P.K le_rfl).geometry.nodes m),
           L.stateAt m N hL = (levels P.K le_rfl).stateAt m N hK) :
     Nonempty (Parser.HierarchyRealizes Y levels H) := by
-  sorry
+  classical
+  -- the full levels: the induction sequence above K, the low levels of Step 3 below K
+  let F : ∀ n : ℕ, DecodedLevel Y n := fun n =>
+    if h : P.K ≤ n then levels n h else Classical.choose (hlow n (lt_of_not_ge h))
+  have hFu : ∀ n (hn : P.K ≤ n), F n = levels n hn := fun n hn => dif_pos hn
+  have hFl : ∀ n (hn : ¬ P.K ≤ n), F n = Classical.choose (hlow n (lt_of_not_ge hn)) :=
+    fun n hn => dif_neg hn
+  -- transport of an inner state along an equality of decoded levels
+  have htr : ∀ {k : ℕ} {D D' : DecodedLevel Y k}, D = D' →
+      ∀ (m : ℕ) (N : FramedNode S) (h : N ∈ D.geometry.nodes m),
+        ∃ h' : N ∈ D'.geometry.nodes m, D.stateAt m N h = D'.stateAt m N h' := by
+    intro k D D' e m N h
+    subst e
+    exact ⟨h, rfl⟩
+  -- states agree along the nesting
+  have hmono : ∀ (a : ℕ) (ha : P.K ≤ a) (d m : ℕ) (N : FramedNode S)
+      (h : N ∈ (levels a ha).geometry.nodes m),
+        ∃ h' : N ∈ (levels (a + d) (le_trans ha (Nat.le_add_right a d))).geometry.nodes m,
+          (levels a ha).stateAt m N h =
+            (levels (a + d) (le_trans ha (Nat.le_add_right a d))).stateAt m N h' := by
+    intro a ha d
+    induction d with
+    | zero => intro m N h; exact ⟨h, rfl⟩
+    | succ d ih =>
+      intro m N h
+      obtain ⟨h1, e1⟩ := ih m N h
+      have hN := hnest (a + d) (le_trans ha (Nat.le_add_right a d))
+      exact ⟨hN.nodes m h1, e1.trans (hN.states m N h1 (hN.nodes m h1))⟩
+  have hagree : ∀ (a : ℕ) (ha : P.K ≤ a) (b : ℕ) (hb : P.K ≤ b) (m : ℕ) (N : FramedNode S)
+      (h : N ∈ (levels a ha).geometry.nodes m), m ≤ b →
+        ∃ h' : N ∈ (levels b hb).geometry.nodes m,
+          (levels a ha).stateAt m N h = (levels b hb).stateAt m N h' := by
+    intro a ha b hb m N h hmb
+    have hma := (levels a ha).geometry.nodes_height m N h
+    have h' : N ∈ (levels b hb).geometry.nodes m := by
+      rw [← hnodes b m hb hmb, hnodes a m ha hma]
+      exact h
+    rcases le_total a b with hab | hba
+    · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hab
+      exact hmono a ha d m N h
+    · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hba
+      obtain ⟨h2, e2⟩ := hmono b hb d m N h'
+      exact ⟨h', e2.symm⟩
+  -- every inner state of every full level is the state of one reference level
+  have hstate : ∀ (n m : ℕ) (N : FramedNode S) (h : N ∈ (F n).geometry.nodes m),
+      ∃ h' : N ∈ (levels (max P.K (m + 1)) (le_max_left _ _)).geometry.nodes m,
+        (F n).stateAt m N h =
+          (levels (max P.K (m + 1)) (le_max_left _ _)).stateAt m N h' := by
+    intro n m N h
+    have hmn : m ≤ n := (F n).geometry.nodes_height m N h
+    by_cases hn : P.K ≤ n
+    · obtain ⟨h1, e1⟩ := htr (hFu n hn) m N h
+      obtain ⟨h2, e2⟩ := hagree n hn _ (le_max_left _ _) m N h1
+        (le_trans (Nat.le_succ m) (le_max_right _ _))
+      exact ⟨h2, e1.trans e2⟩
+    · have hlt : n < P.K := lt_of_not_ge hn
+      have spec := Classical.choose_spec (hlow n hlt)
+      obtain ⟨h1, e1⟩ := htr (hFl n hn) m N h
+      have hK : N ∈ (levels P.K le_rfl).geometry.nodes m := by
+        rw [← spec.2.2.1 m hmn]
+        exact h1
+      have e2 := spec.2.2.2 m N h1 hK
+      obtain ⟨h3, e3⟩ := hagree P.K le_rfl _ (le_max_left _ _) m N hK
+        (le_trans (Nat.le_succ m) (le_max_right _ _))
+      exact ⟨h3, e1.trans (e2.trans e3)⟩
+  -- (I2) in one honest realization: the first letter of a child state is its role
+  have hrole_of : ∀ {k : ℕ} (D : DecodedLevel Y k) (hD : Inv D) (m : ℕ) (Q : FramedNode S)
+      (hQ : Q ∈ D.geometry.nodes (m + 1)) (i : S.I Q.ty),
+        (D.stateAt m (Q.child m i) (D.geometry.child_mem m Q hQ i)).address ⟨0, P.k_pos⟩ =
+          ⟨Q.ty, i⟩ := by
+    intro k D hD m Q hQ i
+    obtain ⟨U, hU, hs⟩ := routing_constant_step2_source_realization
+      (D.stateAt (m + 1) Q hQ) (D.state_honest _ _) Q (m + 1)
+      (hD.node_type_residue _ _ hQ).1 (hD.node_type_residue _ _ hQ).2
+    rw [hD.I2.1 m Q hQ i, ← hs]
+    have hc := childMap_spec U P ⟨m + 1, ⟨Q, hU⟩⟩ (by change 1 ≤ m + 1; omega) i
+    rw [show childMap P (stateOf U P ⟨m + 1, ⟨Q, hU⟩⟩) ⟨Q.ty, i⟩ =
+      stateOf U P (U.childNode ⟨m + 1, ⟨Q, hU⟩⟩ (by change 1 ≤ m + 1; omega) i)
+      from hc.symm]
+    exact exists_childMap_step2_role U ⟨m + 1, ⟨Q, hU⟩⟩ (by change 1 ≤ m + 1; omega) i
+  have hroles : ∀ (m : ℕ) (N : FramedNode S) (hN : N ∈ H.nodes m)
+      (h : N ∈ (F m).geometry.nodes m),
+        ((F m).stateAt m N h).address ⟨0, P.k_pos⟩ = H.nodeRole ⟨m, ⟨N, hN⟩⟩ := by
+    intro m N hN h
+    obtain ⟨h', he⟩ := hstate m m N h
+    rw [he]
+    have hr : P.K ≤ max P.K (m + 1) := le_max_left _ _
+    have hQ : (H.parent m ⟨N, hN⟩).val ∈
+        (levels (max P.K (m + 1)) hr).geometry.nodes (m + 1) := by
+      rw [← hnodes _ (m + 1) hr (le_max_right _ _)]
+      exact (H.parent m ⟨N, hN⟩).property
+    have key := hrole_of _ (hinv _ hr) m _ hQ (H.role m ⟨N, hN⟩)
+    have aux : ∀ (N' : FramedNode S) (h1 : N' ∈ (levels (max P.K (m + 1)) hr).geometry.nodes m),
+        N' = (H.parent m ⟨N, hN⟩).val.child m (H.role m ⟨N, hN⟩) →
+          ((levels (max P.K (m + 1)) hr).stateAt m N' h1).address ⟨0, P.k_pos⟩ =
+            ⟨(H.parent m ⟨N, hN⟩).val.ty, H.role m ⟨N, hN⟩⟩ := by
+      rintro _ h1 rfl
+      exact key
+    exact aux N h' (H.child_eq m ⟨N, hN⟩)
+  refine ⟨{
+    invariant := hinv
+    nested := hnest
+    base := hbase
+    fullLevels := F
+    full_invariant := ?_
+    upper_eq := hFu
+    roots := ?_
+    inner_nodes := ?_
+    below_K := fun n hn => hnodes P.K n le_rfl hn.le
+    states := ?_
+    parents := hpar
+    roles := ?_ }⟩
+  · intro n
+    by_cases hn : P.K ≤ n
+    · rw [hFu n hn]; exact hinv n hn
+    · rw [hFl n hn]; exact (Classical.choose_spec (hlow n (lt_of_not_ge hn))).1
+  · intro n
+    by_cases hn : P.K ≤ n
+    · rw [hFu n hn, ← (levels n hn).geometry.nodes_top, hnodes n n hn le_rfl]
+    · rw [hFl n hn, (Classical.choose_spec (hlow n (lt_of_not_ge hn))).2.1,
+        hnodes P.K n le_rfl (lt_of_not_ge hn).le]
+  · intro n m hmn
+    by_cases hn : P.K ≤ n
+    · rw [hFu n hn]; exact (hnodes n m hn hmn).symm
+    · rw [hFl n hn, (Classical.choose_spec (hlow n (lt_of_not_ge hn))).2.2.1 m hmn]
+      exact (hnodes P.K m le_rfl (le_trans hmn (lt_of_not_ge hn).le)).symm
+  · intro n m N hn hm
+    obtain ⟨h1, e1⟩ := hstate n m N hn
+    obtain ⟨h2, e2⟩ := hstate m m N hm
+    exact e1.trans e2.symm
+  · rintro ⟨m, ⟨N, hN⟩⟩
+    exact hroles m N hN _
 
 /-- R12, V4 3.1: one nested sequence of decoded levels exists for all n ≥ K,
 with Inv(n) and agreeing inner states, and realizes a coherent hierarchy on the

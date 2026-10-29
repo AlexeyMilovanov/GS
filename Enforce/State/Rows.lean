@@ -2257,6 +2257,188 @@ def EndGeometryRealizes (U : HonestSource S) (P : Params S) (t : U.Node)
     (∀ a, a ∈ G.primitivePorts ↔ IsSourcePrimitivePort U P t f hf v a) ∧
     ∀ a, a ∈ G.boundaryPorts ↔ IsSourceBoundaryPort U P t f hf v a
 
+/-- Step 1 of the V4 proof of `endGeometry_exists` (V4 1.6): "the ancestors `P_{b+j}`".
+An ancestor after `r` parent steps has height increased by exactly `r`. -/
+private theorem endGeometry_exists_step1_ancestor_height (U : HonestSource S) (q : U.Node)
+    (r : ℕ) : (U.hierarchy.ancestor q r).1 = q.1 + r := by
+  induction r with
+  | zero => rfl
+  | succ r ih =>
+    rw [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+    change (U.hierarchy.ancestor q r).1 + 1 = q.1 + (r + 1)
+    omega
+
+open private states_finite_step6_vertex_mem from Enforce.State.State in
+/-- Step 1 of the V4 proof of `endGeometry_exists` (V4 §2.5, 1.6): "the complete P-owned star
+at the event point". The distinguished tile itself is a native B-owned tile at that point. -/
+private theorem endGeometry_exists_step1_central (U : HonestSource S) (t : U.Node)
+    (ht : t.1 = 0) (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) :
+    t ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+      (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+  have hB : U.hierarchy.birthParent t f hf =
+      U.hierarchy.ancestor t ((U.hierarchy.firstProvider t f hf).1 + 1) := by
+    simp only [CoherentHierarchy.birthParent, CoherentHierarchy.servingChild,
+      CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+  have hh : (U.hierarchy.birthParent t f hf).1 = (U.hierarchy.firstProvider t f hf).1 + 1 := by
+    rw [hB, endGeometry_exists_step1_ancestor_height, ht, zero_add]
+  refine ⟨ht, ?_, ?_⟩
+  · rw [hh]
+    exact hB.symm
+  · have hcar : t.2.val.carrier t.1 =
+        t.2.val.prototypeFrame t.1 '' (S.proto t.2.val.ty).carrier := by
+      rw [FramedNode.carrier, placedSet, SubstSystem.supertile, Set.image_image]
+      rfl
+    rw [hcar]
+    exact Set.mem_image_of_mem _ (states_finite_step6_vertex_mem _ v)
+
+/-- Step 2 of the V4 proof of `endGeometry_exists` (V4 1.5(b)--(c)):
+"every child C of B". A node with parent `B` is a prescribed child of `B`. -/
+private theorem endGeometry_exists_step2_child (U : HonestSource S) (C B : U.Node)
+    (h : U.hierarchy.parentNode C = B) :
+    B.1 = C.1 + 1 ∧ ∃ j : S.I B.2.val.ty, C.2.val = B.2.val.child C.1 j := by
+  subst h
+  exact ⟨rfl, U.hierarchy.role C.1 C.2, U.hierarchy.child_eq C.1 C.2⟩
+
+/-- Step 2 of the V4 proof of `endGeometry_exists` (V4 2.2): "after rescaling by the frame
+of P". Membership in a composed affine image is membership of the pulled-back point. -/
+private theorem endGeometry_exists_step2_mem (g e : E d ≃ᵃ[ℝ] E d) (K : Set (E d))
+    (y : E d) : y ∈ (g.trans e) '' K ↔ e.symm y ∈ g '' K := by
+  constructor
+  · rintro ⟨z, hz, rfl⟩
+    exact ⟨z, hz, by simp⟩
+  · rintro ⟨z, hz, hzy⟩
+    exact ⟨z, hz, by rw [AffineEquiv.trans_apply, hzy, AffineEquiv.apply_symm_apply]⟩
+
+open private states_finite_step3_child states_finite_step5_birthFrame
+  states_finite_step5_child_frame from Enforce.State.State in
+/-- Step 2 of the V4 proof of `endGeometry_exists` (V4 2.2, 1.5(c)): "B is a native tile of
+sigma^(b-1) Pi", in the birth frame. Listedness and carriers of the actual children of the
+birth parent are those of the prototype first-generation patch, pulled back by the birth frame. -/
+private theorem endGeometry_exists_step2_transfer (N : FramedNode S) (b m : ℕ)
+    (hb : b = m + 1) (j : S.I N.ty) (y : E d) :
+    ((N.child m j).Lists m y ↔ (states_finite_step3_child N.ty j).Lists 0
+      ((states_finite_step5_birthFrame N b).symm y)) ∧
+    (y ∈ (N.child m j).carrier m ↔ (states_finite_step5_birthFrame N b).symm y ∈
+      (states_finite_step3_child N.ty j).carrier 0) := by
+  subst hb
+  have hpf : (N.child m j).prototypeFrame m =
+      (S.child N.ty j).frame.toAffineEquiv.trans (states_finite_step5_birthFrame N (m + 1)) := by
+    rw [states_finite_step5_child_frame]
+    rfl
+  have hpf0 : (states_finite_step3_child N.ty j).prototypeFrame 0 =
+      (S.child N.ty j).frame.toAffineEquiv := by
+    apply AffineEquiv.ext
+    intro z
+    change (S.child N.ty j).frame ((S.σ ^ 0) z) = (S.child N.ty j).frame z
+    rw [pow_zero]
+    rfl
+  have hcar (M : FramedNode S) (n : ℕ) :
+      M.carrier n = M.prototypeFrame n '' (S.proto M.ty).carrier := by
+    rw [FramedNode.carrier, placedSet, SubstSystem.supertile, Set.image_image]
+    rfl
+  have hmem (K : Set (E d)) : y ∈ (N.child m j).prototypeFrame m '' K ↔
+      (states_finite_step5_birthFrame N (m + 1)).symm y ∈
+        (states_finite_step3_child N.ty j).prototypeFrame 0 '' K := by
+    rw [hpf, hpf0]
+    exact endGeometry_exists_step2_mem _ _ K y
+  refine ⟨⟨fun ⟨c, hc, hy⟩ => ⟨c, hc, (hmem _).mp hy⟩,
+    fun ⟨c, hc, hy⟩ => ⟨c, hc, (hmem _).mpr hy⟩⟩, ?_⟩
+  rw [hcar, hcar]
+  exact hmem _
+
+open private states_finite_step6_provider_anchor states_finite_step3_patch
+  states_finite_step3_child states_finite_step3_point states_finite_step5_birthFrame
+  from Enforce.State.State in
+open private birth_ascent_routing_step3_desc_subset from Enforce.Source.Routing in
+/-- Step 2 of the V4 proof of `endGeometry_exists` (V4 1.5(b)--(c), 2.2): "p is common-listed".
+The provider-zero vertex is common-listed in the immediate subdivision of the birth parent
+(1.5(c)), and listedness passes to every containing descendant (1.5(b)); hence every tile
+of the complete owned star lists the event point. -/
+private theorem endGeometry_exists_step2_listed (U : HonestSource S) (P : Params S)
+    (t : U.Node) (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (v : VertexName S t.2.val.ty) (hv : v.val.carrier ⊆ f.val.carrier)
+    (hz : (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val.dim = 0) (q : U.Node)
+    (hq : q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+      (t.2.val.prototypeFrame t.1 (vertexPoint v))) :
+    q.2.val.Lists q.1 (t.2.val.prototypeFrame t.1 (vertexPoint v)) := by
+  classical
+  have hb : 1 ≤ (U.hierarchy.birthParent t f hf).1 := by
+    dsimp [CoherentHierarchy.birthParent, CoherentHierarchy.parentNode]
+    omega
+  obtain ⟨a, ha1, hap, hcl⟩ := states_finite_step6_provider_anchor P U t f hf v hv hz
+  obtain ⟨_, hanc, hxq⟩ := hq
+  rw [hap] at hcl
+  generalize hBdef : U.hierarchy.birthParent t f hf = B at hb ha1 hcl hanc
+  generalize hxdef : t.2.val.prototypeFrame t.1 (vertexPoint v) = x at hcl hxq ⊢
+  rw [ha1] at hcl
+  have hpar : U.hierarchy.parentNode (U.hierarchy.ancestor q (B.1 - 1)) = B := by
+    have h1 : U.hierarchy.ancestor q (B.1 - 1 + 1) =
+        U.hierarchy.parentNode (U.hierarchy.ancestor q (B.1 - 1)) :=
+      Function.iterate_succ_apply' _ _ _
+    rw [← h1, Nat.sub_add_cancel hb, hanc]
+  have hdesc := U.hierarchy.ancestor_descendant q (B.1 - 1)
+  generalize U.hierarchy.ancestor q (B.1 - 1) = C at hpar hdesc
+  obtain ⟨hBC, j, hj⟩ := endGeometry_exists_step2_child U C B hpar
+  rw [hj] at hdesc
+  have hxC : x ∈ (B.2.val.child C.1 j).carrier C.1 :=
+    birth_ascent_routing_step3_desc_subset _ _ _ _ hdesc hxq
+  have htr := endGeometry_exists_step2_transfer B.2.val B.1 C.1 hBC j x
+  have hl : (B.2.val.child C.1 j).Lists C.1 x :=
+    htr.1.mpr (hcl _ (Finset.mem_image.mpr ⟨j, Finset.mem_univ _, rfl⟩) (htr.2.mp hxC))
+  exact commonListed_inherited _ _ _ _ hdesc x hl hxq
+
+/-- Step 2 of the V4 proof of `endGeometry_exists` (V4 §2.5): "in the central frame".
+Moving a height-zero tile listing the event point to the central frame lists its prototype point. -/
+private theorem endGeometry_exists_step2_move_lists (q t : FramedNode S) (k m : ℕ)
+    (hk : k = 0) (hm : m = 0) (vt : VertexName S t.ty)
+    (h : q.Lists k (t.prototypeFrame m (vertexPoint vt))) :
+    (q.move t.frame.symm).Lists 0 (vertexPoint vt) := by
+  subst hk hm
+  have h0 (z : E d) : (S.σ ^ 0) z = z := by rw [pow_zero]; rfl
+  obtain ⟨c, hc, z, hz, hzx⟩ := h
+  refine ⟨c, hc, z, hz, ?_⟩
+  change t.frame.symm (q.frame ((S.σ ^ 0) z)) = vertexPoint vt
+  change q.frame ((S.σ ^ 0) z) = t.frame ((S.σ ^ 0) (vertexPoint vt)) at hzx
+  rw [hzx, h0]
+  exact t.frame.symm_apply_apply _
+
+/-- Step 4 of the V4 proof of `endGeometry_exists` (V4 2.2, (S6)): "the vertex p".
+A listed vertex point depends only on the underlying cell. -/
+private theorem endGeometry_exists_step4_vertexPoint_congr {A B : S.ι} (v : VertexName S A)
+    (w : VertexName S B) (h : v.val = w.val) : vertexPoint v = vertexPoint w := by
+  have h1 := vertexPoint_spec v
+  have h2 := vertexPoint_spec w
+  rw [h, h2] at h1
+  exact (Set.singleton_eq_singleton_iff.mp h1).symm
+
+/-- Step 4 of the V4 proof of `endGeometry_exists` (V4 §2.5): "anchored at the event point".
+A port of a moved star tile at the same physical vertex is anchored at the central vertex. -/
+private theorem endGeometry_exists_step4_anchor (q t N : FramedNode S) (k m : ℕ)
+    (hk : k = 0) (hm : m = 0) (vt : VertexName S t.ty) (w : VertexName S q.ty)
+    (w' : VertexName S N.ty) (hN : N = q.move t.frame.symm) (hw : w'.val = w.val)
+    (hx : t.prototypeFrame m (vertexPoint vt) = q.prototypeFrame k (vertexPoint w)) :
+    N.frame (vertexPoint w') = vertexPoint vt := by
+  subst hk hm hN
+  have h0 (z : E d) : (S.σ ^ 0) z = z := by rw [pow_zero]; rfl
+  rw [endGeometry_exists_step4_vertexPoint_congr w' w hw]
+  change t.frame ((S.σ ^ 0) (vertexPoint vt)) = q.frame ((S.σ ^ 0) (vertexPoint w)) at hx
+  rw [h0, h0] at hx
+  change t.frame.symm (q.frame (vertexPoint w)) = vertexPoint vt
+  rw [← hx]
+  exact t.frame.symm_apply_apply _
+
+/-- Step 3 of the V4 proof of `endGeometry_exists` (V4 §2.5, 1.17--1.18): "finite".
+Data over a finite set of base points, with finite fibres, form a finite set. -/
+private theorem endGeometry_exists_step3_sigma_finite {α : Type*} {T : α → Type*}
+    [∀ u, Finite (T u)] (s : Set α) (hs : s.Finite) :
+    {z : Σ u, T u | z.1 ∈ s}.Finite := by
+  have h : {z : Σ u, T u | z.1 ∈ s} = ⋃ u ∈ s, Set.range (Sigma.mk u) := by
+    ext ⟨u, y⟩
+    simp
+  rw [h]
+  exact hs.biUnion fun u _ => Set.finite_range _
+
 /-- Q13, V4 §2.5, 1.17--1.18: every provider-zero occurrence has its complete
 annotated positioned geometry. Nonemptiness is supplied by that actual occurrence. -/
 theorem endGeometry_exists (U : HonestSource S) (P : Params S) (t : U.Node)
@@ -2264,7 +2446,120 @@ theorem endGeometry_exists (U : HonestSource S) (P : Params S) (t : U.Node)
     (v : VertexName S t.2.val.ty) (hv : v.val.carrier ⊆ f.val.carrier)
     (hz : (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val.dim = 0) :
     ∃ G : EndGeometry P, EndGeometryRealizes U P t f hf v G := by
-  sorry
+  classical
+  let B := U.hierarchy.birthParent t f hf
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  let hd := U.headerOf P t f hf v
+  let tiles : Finset (FramedNode S) :=
+    (ownedStar U B x).image (fun q => q.2.val.move t.2.val.frame.symm)
+  have hstar (q : U.Node) (hq : q ∈ ownedStar U B x) : q ∈ ownedStarSet U B x := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset] using hq
+  have hprim : {a : PrimitivePort P | IsSourcePrimitivePort U P t f hf v a}.Finite := by
+    let φ : PrimitivePort P → Σ u : FramedNode S, FacetName S u.ty × VertexName S u.ty ×
+        Σ ι : P.Incidence, Bool × ProviderCell ι.val :=
+      fun a => ⟨a.tile, a.facet, a.vertex, a.incidence, a.sideIndex, a.providerVertex⟩
+    have hinj : Function.Injective φ := by
+      rintro ⟨t1, f1, v1, o1, i1, s1, d1, e1, p1, z1⟩
+        ⟨t2, f2, v2, o2, i2, s2, d2, e2, p2, z2⟩ h
+      simp only [φ, Sigma.mk.inj_iff] at h
+      obtain ⟨rfl, h⟩ := h
+      simp only [heq_eq_eq, Prod.mk.injEq, Sigma.mk.inj_iff] at h
+      obtain ⟨rfl, rfl, rfl, h⟩ := h
+      simp only [heq_eq_eq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      subst e1
+      subst e2
+      rfl
+    have hsub : φ '' {a | IsSourcePrimitivePort U P t f hf v a} ⊆
+        {z | z.1 ∈ (tiles : Set (FramedNode S))} := by
+      rintro _ ⟨a, ha, rfl⟩
+      obtain ⟨q, hq, g, hg, w, hw, hx, hbirth, htile, -⟩ := ha
+      exact Finset.mem_coe.mpr (Finset.mem_image.mpr ⟨q, hq, htile.symm⟩)
+    exact Set.Finite.of_finite_image
+      ((endGeometry_exists_step3_sigma_finite _ tiles.finite_toSet).subset hsub) hinj.injOn
+  have hbdry : {a : BoundaryPort P hd.birthType | IsSourceBoundaryPort U P t f hf v a}.Finite := by
+    haveI := facetRecords_finite P
+    let φ : BoundaryPort P hd.birthType → Σ u : FramedNode S, FacetName S u.ty ×
+        VertexName S u.ty × FacetName S hd.birthType × (FacetRecord P → FacetRecord P) :=
+      fun a => ⟨a.tile, a.facet, a.vertex, a.parentFacet, a.restriction⟩
+    have hinj : Function.Injective φ := by
+      rintro ⟨t1, f1, v1, o1, p1, r1⟩ ⟨t2, f2, v2, o2, p2, r2⟩ h
+      simp only [φ, Sigma.mk.inj_iff] at h
+      obtain ⟨rfl, h⟩ := h
+      simp only [heq_eq_eq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+      rfl
+    have hsub : φ '' {a | IsSourceBoundaryPort U P t f hf v a} ⊆
+        {z | z.1 ∈ (tiles : Set (FramedNode S))} := by
+      rintro _ ⟨a, ha, rfl⟩
+      obtain ⟨q, hq, F, g, w, hw, hx, hsub, htile, -⟩ := ha
+      exact Finset.mem_coe.mpr (Finset.mem_image.mpr ⟨q, hq, htile.symm⟩)
+    exact Set.Finite.of_finite_image
+      ((endGeometry_exists_step3_sigma_finite _ tiles.finite_toSet).subset hsub) hinj.injOn
+  have hcentral : t ∈ ownedStar U B x := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset] using
+      endGeometry_exists_step1_central U t ht f hf v
+  let G : EndGeometry P := {
+    centralType := t.2.val.ty
+    vertex := v
+    header := hd
+    tiles := tiles
+    central_mem := Finset.mem_image.mpr
+      ⟨t, hcentral, FramedNode.ext rfl (AffineIsometryEquiv.self_trans_symm _)⟩
+    disjoint := by
+      intro a ha b hb hne
+      obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp (Finset.mem_coe.mp ha)
+      obtain ⟨r, hr, rfl⟩ := Finset.mem_image.mp (Finset.mem_coe.mp hb)
+      apply Set.disjoint_left.mpr
+      intro z hza hzb
+      have hmove (N : FramedNode S) :
+          interior ((N.move t.2.val.frame.symm).carrier 0) =
+            t.2.val.frame.symm '' interior (N.carrier 0) := by
+        have hcarrier : (N.move t.2.val.frame.symm).carrier 0 =
+            t.2.val.frame.symm '' N.carrier 0 := by
+          simp [FramedNode.carrier, FramedNode.move, placedSet, Set.image_image]
+        rw [hcarrier]
+        exact (t.2.val.frame.symm.toHomeomorph.image_interior _).symm
+      dsimp only at hza hzb
+      rw [hmove] at hza hzb
+      obtain ⟨zp, hzp, hzp'⟩ := hza
+      obtain ⟨zr, hzr, hzr'⟩ := hzb
+      have hzz : zp = zr := t.2.val.frame.symm.injective (hzp'.trans hzr'.symm)
+      have hp0 := (hstar p hp).1
+      have hr0 := (hstar r hr).1
+      have hpr : p.2.val = r.2.val := U.hierarchy.same_height_disjoint 0 p.2.val r.2.val
+        (hp0 ▸ p.2.property) (hr0 ▸ r.2.property) zp hzp (hzz.symm ▸ hzr)
+      exact hne (congrArg (fun N : FramedNode S => N.move t.2.val.frame.symm) hpr)
+    listed := by
+      intro u hu
+      obtain ⟨q, hq, rfl⟩ := Finset.mem_image.mp hu
+      exact endGeometry_exists_step2_move_lists q.2.val t.2.val q.1 t.1 (hstar q hq).1 ht v
+        (endGeometry_exists_step2_listed U P t f hf v hv hz q (hstar q hq))
+    primitivePorts := hprim.toFinset
+    boundaryPorts := hbdry.toFinset
+    primitive_tiles := by
+      intro a ha
+      obtain ⟨q, hq, g, hg, w, hw, hx, hbirth, htile, -⟩ := hprim.mem_toFinset.mp ha
+      exact Finset.mem_image.mpr ⟨q, hq, htile.symm⟩
+    boundary_tiles := by
+      intro a ha
+      obtain ⟨q, hq, F, g, w, hw, hx, hsub, htile, -⟩ := hbdry.mem_toFinset.mp ha
+      exact Finset.mem_image.mpr ⟨q, hq, htile.symm⟩
+    primitive_anchor := by
+      intro a ha
+      obtain ⟨q, hq, g, hg, w, hw, hx, hbirth, htile, hfac, hvert, -⟩ :=
+        hprim.mem_toFinset.mp ha
+      exact endGeometry_exists_step4_anchor q.2.val t.2.val a.tile q.1 t.1 (hstar q hq).1 ht
+        v w a.vertex htile hvert hx
+    boundary_anchor := by
+      intro a ha
+      obtain ⟨q, hq, F, g, w, hw, hx, hsub, htile, hfac, hvert, -⟩ :=
+        hbdry.mem_toFinset.mp ha
+      exact endGeometry_exists_step4_anchor q.2.val t.2.val a.tile q.1 t.1 (hstar q hq).1 ht
+        v w a.vertex htile hvert hx }
+  refine ⟨G, ?_⟩
+  unfold EndGeometryRealizes
+  refine ⟨rfl, rfl, rfl, rfl, fun a => hprim.mem_toFinset, fun a => hbdry.mem_toFinset⟩
 
 /-- Q13, V4 §2.5: all complete honest positioned geometries, with their annotations. -/
 def honestEndGeometries (S : SubstSystem d) (P : Params S) : Set (EndGeometry P) :=

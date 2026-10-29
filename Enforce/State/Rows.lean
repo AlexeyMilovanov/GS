@@ -3068,6 +3068,491 @@ private theorem actualCont_exists_step2_vertex (U : HonestSource S) (P : Params 
   rw [← record_tau_spec U P q f hf ⟨vertexCell v, hv⟩] at h
   simpa only [HonestSource.recordOf, vertexCell, hτ] using h
 
+/-- Step 1 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8):
+"the polygons ... adjacent to h tile a neighbourhood of v in h". A point of the
+relative interior of a set can be pushed a little beyond itself along the
+direction from any other point of the set, staying in the set. -/
+private theorem actualCont_exists_step3_trace_successor_step1_ray (s : Set (E d))
+    (p v : E d) (hp : p ∈ s) (hv : v ∈ relint s) :
+    ∃ δ : ℝ, 0 < δ ∧ ∀ t : ℝ, 0 ≤ t → t < δ → v + t • (v - p) ∈ s := by
+  unfold relint at hv
+  obtain ⟨y, hy, rfl⟩ := mem_intrinsicInterior.mp hv
+  have hmem (t : ℝ) : (y : E d) + t • ((y : E d) - p) ∈ affineSpan ℝ s := by
+    have h1 : (y : E d) ∈ affineSpan ℝ s := y.property
+    have h2 : p ∈ affineSpan ℝ s := mem_affineSpan ℝ hp
+    have h := AffineSubspace.smul_vsub_vadd_mem (affineSpan ℝ s) t h1 h2 h1
+    simpa only [vsub_eq_sub, vadd_eq_add, add_comm] using h
+  let g : ℝ → affineSpan ℝ s := fun t => ⟨(y : E d) + t • ((y : E d) - p), hmem t⟩
+  have hg : Continuous g := by
+    apply Continuous.subtype_mk
+    fun_prop
+  have hg0 : g 0 = y := by
+    apply Subtype.ext
+    simp [g]
+  have hnhds : g ⁻¹' interior (((↑) : affineSpan ℝ s → E d) ⁻¹' s) ∈ nhds (0 : ℝ) := by
+    apply hg.continuousAt.preimage_mem_nhds
+    rw [hg0]
+    exact isOpen_interior.mem_nhds hy
+  obtain ⟨δ, hδ, hball⟩ := Metric.mem_nhds_iff.mp hnhds
+  refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+  have htb : t ∈ Metric.ball (0 : ℝ) δ := by
+    rw [Metric.mem_ball, Real.dist_eq, sub_zero, abs_of_nonneg ht]
+    exact htδ
+  have h1 : g t ∈ ((↑) : affineSpan ℝ s → E d) ⁻¹' s := interior_subset (hball htb)
+  exact h1
+
+/-- Step 1 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8):
+"initial endpoint v". An endpoint of a nondegenerate segment is not in its
+relative interior: pushing it beyond itself leaves the segment. -/
+private theorem actualCont_exists_step3_trace_successor_step1_endpoint (x y : E d)
+    (hxy : x ≠ y) : x ∉ relint (segment ℝ x y) := by
+  intro hx
+  obtain ⟨δ, hδ, hray⟩ := actualCont_exists_step3_trace_successor_step1_ray
+    (segment ℝ x y) y x (right_mem_segment ℝ x y) hx
+  obtain ⟨α, β, hα, hβ, hαβ, hh⟩ := hray (δ / 2) (by positivity) (by linarith)
+  have hα' : α = 1 - β := by linarith
+  rw [hα'] at hh
+  have h0 : (β + δ / 2) • (y - x) = 0 := by
+    calc (β + δ / 2) • (y - x) = ((1 - β) • x + β • y - x) - (δ / 2) • (x - y) := by module
+      _ = 0 := by rw [hh]; module
+  rcases smul_eq_zero.mp h0 with h | h
+  · linarith
+  · exact hxy (sub_eq_zero.mp h).symm
+
+/-- Step 1 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8):
+"v in the relative interior of its edge". Every point of the open segment of a
+nondegenerate segment lies in its relative interior (one-dimensional fact). -/
+private theorem actualCont_exists_step3_trace_successor_step1_open_relint (x y : E d)
+    (hxy : x ≠ y) : openSegment ℝ x y ⊆ relint (segment ℝ x y) := by
+  intro z hz
+  have hsp : affineSpan ℝ (segment ℝ x y) = line[ℝ, x, y] := by
+    rw [← convexHull_pair, affineSpan_convexHull]
+  rw [openSegment_eq_image_lineMap] at hz
+  obtain ⟨l, ⟨hl0, hl1⟩, rfl⟩ := hz
+  have hzs : AffineMap.lineMap x y l ∈ affineSpan ℝ (segment ℝ x y) := by
+    rw [hsp]
+    exact AffineMap.lineMap_mem_affineSpan_pair l x y
+  unfold relint
+  rw [mem_intrinsicInterior]
+  refine ⟨⟨_, hzs⟩, ?_, rfl⟩
+  rw [mem_interior_iff_mem_nhds, Metric.mem_nhds_iff]
+  have hd : 0 < dist x y := dist_pos.mpr hxy
+  refine ⟨min l (1 - l) * dist x y, mul_pos (lt_min hl0 (by linarith)) hd, ?_⟩
+  rintro ⟨w, hw⟩ hwb
+  have hw' := hw
+  rw [hsp] at hw'
+  have hdir := AffineSubspace.vsub_mem_direction hw' (left_mem_affineSpan_pair ℝ x y)
+  rw [direction_affineSpan, mem_vectorSpan_pair_rev] at hdir
+  obtain ⟨r, hr⟩ := hdir
+  have hwr : w = AffineMap.lineMap x y r := by
+    rw [AffineMap.lineMap_apply, hr, vsub_vadd]
+  subst hwr
+  rw [Metric.mem_ball, Subtype.dist_eq, dist_lineMap_lineMap] at hwb
+  have hrl : dist r l < min l (1 - l) := lt_of_mul_lt_mul_right hwb hd.le
+  rw [Real.dist_eq, abs_lt] at hrl
+  have h1 := min_le_left l (1 - l)
+  have h2 := min_le_right l (1 - l)
+  change AffineMap.lineMap x y r ∈ segment ℝ x y
+  rw [segment_eq_image_lineMap]
+  exact ⟨r, ⟨by linarith, by linarith⟩, rfl⟩
+
+/-- Step 1 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8):
+"after v". A point strictly beyond the endpoint `v` of the segment `[p, v]`
+is not in that segment. -/
+private theorem actualCont_exists_step3_trace_successor_step1_beyond (p v : E d)
+    (hne : p ≠ v) (t : ℝ) (ht : 0 < t) : v + t • (v - p) ∉ segment ℝ p v := by
+  rintro ⟨α, β, hα, hβ, hαβ, hh⟩
+  have hβ' : β = 1 - α := by linarith
+  rw [hβ'] at hh
+  have h0 : (α + t) • (p - v) = 0 := by
+    calc (α + t) • (p - v) = (α • p + (1 - α) • v) - (v + t • (v - p)) := by module
+      _ = 0 := by rw [hh]; module
+  rcases smul_eq_zero.mp h0 with h | h
+  · linarith
+  · exact hne (sub_eq_zero.mp h)
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 1.1, 1.22(a)):
+"edge heredity". Containment of placed cells bounds their dimensions;
+invertible affine placement preserves the dimension of each affine span. -/
+private theorem actualCont_exists_step3_trace_successor_step2_dim_le
+    (φ ψ : E d ≃ᵃ[ℝ] E d) (e f : Cell d)
+    (hsub : φ '' e.carrier ⊆ ψ '' f.carrier) : e.dim ≤ f.dim := by
+  have hdim (φ : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+      Module.finrank ℝ (affineSpan ℝ (φ '' e.carrier)).direction = e.dim := by
+    change Module.finrank ℝ (affineSpan ℝ (φ.toAffineMap '' e.carrier)).direction = e.dim
+    rw [← AffineSubspace.map_span φ.toAffineMap, AffineSubspace.map_direction]
+    exact (φ.linear.finrank_map_eq _).trans e.flat.dimension
+  have h := Submodule.finrank_mono (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
+  simpa only [hdim] using h
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 1.22(a)):
+"owner t'' of the polygon s_2''". The placed owner has the native owner's type. -/
+private theorem actualCont_exists_step3_trace_successor_step2_owner_ty (N : FramedNode S)
+    (n : ℕ) (F : FacetFlag S N.ty) (b : TracePiece N.ty F n) :
+    (placedTraceOwner N n n F b).ty = b.tile.ty := by
+  simp only [placedTraceOwner, FramedNode.move, Nat.sub_self, TracePiece.tile,
+    SubstSystem.nativeTile]
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 1.22(a)):
+"the polygon s_2'' of its owner". The placed trace piece is the placed bottom
+cell of its own owner. -/
+private theorem actualCont_exists_step3_trace_successor_step2_carrier (N : FramedNode S)
+    (n : ℕ) (F : FacetFlag S N.ty) (b : TracePiece N.ty F n) :
+    placedTraceCarrier N n n F b = (placedTraceOwner N n n F b).cell 0 b.bottom.val := by
+  have h := placedTraceOwner_cells N n n le_rfl F b b.bottom.val
+  rw [Nat.sub_self] at h
+  exact h.symm
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 1.1, 1.22(a)):
+"an edge e'' along h". Away from listed vertices of the owner, a point of a placed
+trace piece on the flag edge lies on a listed edge of the owner, contained both
+in the flag edge (Lemma 1.1) and in the trace piece. -/
+private theorem actualCont_exists_step3_trace_successor_step2_trace_edge
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (b : TracePiece N.ty F n) (z : E d)
+    (hzb : z ∈ placedTraceCarrier N n n F b)
+    (hzh : z ∈ N.cell n (F.cell edgeIndex).val)
+    (hnv : ¬ (placedTraceOwner N n n F b).Lists 0 z) :
+    ∃ e : PrototypeEdge S (placedTraceOwner N n n F b).ty,
+      z ∈ (placedTraceOwner N n n F b).cell 0 e.val ∧
+      (placedTraceOwner N n n F b).cell 0 e.val ⊆ N.cell n (F.cell edgeIndex).val ∧
+      (placedTraceOwner N n n F b).cell 0 e.val ⊆ placedTraceCarrier N n n F b := by
+  classical
+  have hty := actualCont_exists_step3_trace_successor_step2_owner_ty N n F b
+  have hcar := actualCont_exists_step3_trace_successor_step2_carrier N n F b
+  have hdesc : (placedTraceOwner N n n F b).IsDescendant 0 N n :=
+    ⟨n, (zero_add n).symm, b.owner, by simp only [placedTraceOwner, Nat.sub_self]⟩
+  rw [hcar] at hzb ⊢
+  generalize placedTraceOwner N n n F b = C at hty hdesc hnv hzb ⊢
+  have hbot : b.bottom.val ∈ (S.cx C.ty).cells := by
+    rw [hty]
+    exact b.bottom.property
+  obtain ⟨u, hu, rfl⟩ := hzb
+  have hu' : u ∈ frontier (S.proto C.ty).carrier := by
+    rw [← (S.cx C.ty).carriers_cover]
+    exact mem_iUnion₂.mpr ⟨b.bottom.val, hbot, hu⟩
+  let e := (S.cx C.ty).minimalCell u hu'
+  have he := (S.cx C.ty).minimalCell_mem u hu'
+  have hue := (S.cx C.ty).mem_relint_minimalCell u hu'
+  have hbottom : e.carrier ⊆ b.bottom.val.carrier :=
+    (S.cx C.ty).minimalCell_subset u hu' b.bottom.val hbot hu
+  have hzrel : C.prototypeFrame 0 u ∈ relint (C.cell 0 e) := by
+    change C.frame u ∈ intrinsicInterior ℝ (C.frame.toAffineIsometry '' e.carrier)
+    rw [C.frame.toAffineIsometry.image_intrinsicInterior]
+    exact Set.mem_image_of_mem _ hue
+  have hze : C.prototypeFrame 0 u ∈ C.cell 0 e := intrinsicInterior_subset hzrel
+  have hsub : C.cell 0 e ⊆ N.cell n (F.cell edgeIndex).val :=
+    hereditary_trace N C n 0 hdesc (F.cell edgeIndex).val e (F.cell edgeIndex).property he
+      ⟨C.prototypeFrame 0 u, hzrel, hzh⟩
+  have hdim : e.dim ≤ 1 := by
+    have hh := actualCont_exists_step3_trace_successor_step2_dim_le
+      (C.prototypeFrame 0) (N.prototypeFrame n) e (F.cell edgeIndex).val hsub
+    simpa only [F.dimension edgeIndex] using hh
+  have hnonzero : e.dim ≠ 0 := by
+    intro hz
+    exact hnv ⟨e, Finset.mem_filter.mpr ⟨he, hz⟩, hze⟩
+  exact ⟨⟨e, Finset.mem_filter.mpr ⟨he, by omega⟩⟩, hze, hsub, Set.image_mono hbottom⟩
+
+/-- Step 3 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8, 1.22(a)):
+"there is a polygon s_2'' adjacent to h on the far side of v ... with an edge
+e'' along h". Points just beyond `v` on the flag edge are covered by the finitely
+many trace pieces; avoiding the finitely many listed vertices and the closed edges
+missing `v`, one listed owner edge along `h` contains `v` and a point beyond it. -/
+private theorem actualCont_exists_step3_trace_successor_step3_edge_germ (N : FramedNode S)
+    (n : ℕ) (F : FacetFlag S N.ty) (p v : E d) (hne : p ≠ v)
+    (hp : p ∈ N.cell n (F.cell edgeIndex).val)
+    (hv : v ∈ relint (N.cell n (F.cell edgeIndex).val)) :
+    ∃ (b : TracePiece N.ty F n) (e : PrototypeEdge S (placedTraceOwner N n n F b).ty)
+      (t : ℝ), 0 < t ∧ v ∈ (placedTraceOwner N n n F b).cell 0 e.val ∧
+      v + t • (v - p) ∈ (placedTraceOwner N n n F b).cell 0 e.val ∧
+      (placedTraceOwner N n n F b).cell 0 e.val ⊆ N.cell n (F.cell edgeIndex).val ∧
+      (placedTraceOwner N n n F b).cell 0 e.val ⊆ placedTraceCarrier N n n F b := by
+  classical
+  letI : Finite (TracePiece N.ty F n) := tracePieces_finite N.ty F n
+  obtain ⟨δ, hδ, hray⟩ := actualCont_exists_step3_trace_successor_step1_ray
+    (N.cell n (F.cell edgeIndex).val) p v hp hv
+  let Good := {z : Σ b : TracePiece N.ty F n, PrototypeEdge S (placedTraceOwner N n n F b).ty //
+    (placedTraceOwner N n n F z.1).cell 0 z.2.val ⊆ N.cell n (F.cell edgeIndex).val ∧
+      (placedTraceOwner N n n F z.1).cell 0 z.2.val ⊆ placedTraceCarrier N n n F z.1}
+  let Far := {z : Good // v ∉ (placedTraceOwner N n n F z.val.1).cell 0 z.val.2.val}
+  let K : Set (E d) := ⋃ z : Far, (placedTraceOwner N n n F z.val.val.1).cell 0 z.val.val.2.val
+  let V : Set (E d) := ⋃ b : TracePiece N.ty F n,
+    ⋃ w : VertexName S (placedTraceOwner N n n F b).ty,
+      {(placedTraceOwner N n n F b).prototypeFrame 0 (vertexPoint w)}
+  have hK : IsClosed K := by
+    apply isClosed_iUnion_of_finite
+    intro z
+    exact (z.val.val.2.val.flat.compact.image
+      ((placedTraceOwner N n n F z.val.val.1).prototypeFrame 0).continuous_of_finiteDimensional
+      ).isClosed
+  have hvK : v ∉ K := by
+    intro h
+    obtain ⟨z, hz⟩ := Set.mem_iUnion.mp h
+    exact z.property hz
+  have hV : V.Finite := Set.finite_iUnion fun b =>
+    Set.finite_iUnion fun w => Set.finite_singleton _
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hK.isOpen_compl v hvK
+  let u := v - p
+  have hu : u ≠ 0 := sub_ne_zero.mpr hne.symm
+  let η := min δ (ε / (‖u‖ + 1))
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  have hη : 0 < η := lt_min hδ (div_pos hε hden)
+  let L : ℝ → E d := fun t => v + t • u
+  have hL : Function.Injective L := by
+    intro a b h
+    exact smul_left_injective ℝ hu (add_left_cancel h)
+  obtain ⟨t, ht, htv⟩ := (Set.Ioo_infinite hη).exists_notMem_finite (hV.preimage hL.injOn)
+  have htδ : t < δ := lt_of_lt_of_le ht.2 (min_le_left _ _)
+  have htε : t < ε / (‖u‖ + 1) := lt_of_lt_of_le ht.2 (min_le_right _ _)
+  have hzh : L t ∈ N.cell n (F.cell edgeIndex).val := hray t ht.1.le htδ
+  have hnear : L t ∈ ball v ε := by
+    change dist (v + t • u) v < ε
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht.1]
+    have := (lt_div_iff₀ hden).mp htε
+    nlinarith [norm_nonneg u]
+  have hz2 : L t ∈ N.cell n
+      (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val :=
+    Set.image_mono (F.nested edgeIndex
+      ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩ traceDimension_pos) hzh
+  rw [← (placed_recursiveTrace_tiles N n n le_rfl F).1] at hz2
+  obtain ⟨b, hzb⟩ := Set.mem_iUnion.mp hz2
+  have hnv : ¬ (placedTraceOwner N n n F b).Lists 0 (L t) := by
+    rintro ⟨w, hw, hzw⟩
+    let w' : VertexName S (placedTraceOwner N n n F b).ty := ⟨w, hw⟩
+    have hpoint : L t = (placedTraceOwner N n n F b).prototypeFrame 0 (vertexPoint w') := by
+      change L t ∈ (placedTraceOwner N n n F b).cell 0 w'.val at hzw
+      simpa only [FramedNode.cell, vertexPoint_spec w', Set.image_singleton,
+        Set.mem_singleton_iff] using hzw
+    exact htv (Set.mem_iUnion_of_mem b (Set.mem_iUnion_of_mem w' hpoint))
+  obtain ⟨e, hze, heh, heb⟩ :=
+    actualCont_exists_step3_trace_successor_step2_trace_edge N n F b (L t) hzb hzh hnv
+  refine ⟨b, e, t, ht.1, ?_, hze, heh, heb⟩
+  by_contra hve
+  exact hball hnear (Set.mem_iUnion_of_mem (⟨⟨⟨b, e⟩, heh, heb⟩, hve⟩ : Far) hze)
+
+/-- Step 4 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8):
+"after v in the orientation". A segment from `v` containing a point strictly
+beyond `v` along `u` has its other endpoint on the positive ray of `u`. -/
+private theorem actualCont_exists_step3_trace_successor_step4_direction (v w u : E d)
+    (t : ℝ) (ht : 0 < t) (hu : u ≠ 0) (h : v + t • u ∈ segment ℝ v w) :
+    ∃ k : ℝ, 0 < k ∧ w - v = k • u := by
+  obtain ⟨α, β, hα, hβ, hαβ, hvw⟩ := h
+  have hα' : α = 1 - β := by linarith
+  have hβu : β • (w - v) = t • u := by
+    have hh := congrArg (fun z : E d => z - v) hvw
+    simp only [add_sub_cancel_left] at hh
+    rw [← hh, hα']
+    module
+  have hβ0 : β ≠ 0 := by
+    intro h0
+    rw [h0, zero_smul] at hβu
+    exact hu ((smul_eq_zero.mp hβu.symm).resolve_left ht.ne')
+  have hβpos : 0 < β := lt_of_le_of_ne hβ (Ne.symm hβ0)
+  refine ⟨t / β, div_pos ht hβpos, ?_⟩
+  have hh := congrArg (fun z : E d => β⁻¹ • z) hβu
+  simp only [smul_smul, inv_mul_cancel₀ hβ0, one_smul] at hh
+  rw [hh, div_eq_inv_mul]
+
+/-- Step 5 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8, (H2)):
+"v is a vertex of s_2''", same-owner case. If the next edge belonged to the
+same owner as the edge `e` ending at `v`, a listed edge of that owner would
+contain `v` in its relative interior together with a point beyond `v`, so the
+two listed edges would share relative-interior points of `e` near `v`; by (H2)(i)
+they would coincide, but `e` ends at `v`. -/
+private theorem actualCont_exists_step3_trace_successor_step5_same_owner (C : FramedNode S)
+    (e e' : PrototypeEdge S C.ty) (p v x y : E d) (t : ℝ) (ht : 0 < t) (hne : p ≠ v)
+    (hseg : C.cell 0 e.val = segment ℝ p v) (hseg' : C.cell 0 e'.val = segment ℝ x y)
+    (hv : v ∈ openSegment ℝ x y) (hfwd : v + t • (v - p) ∈ segment ℝ x y) : False := by
+  have hxy : x ≠ y := by
+    rintro rfl
+    rw [openSegment_same, Set.mem_singleton_iff] at hv
+    rw [segment_same, Set.mem_singleton_iff, hv] at hfwd
+    have h0 : t • (x - p) = 0 := by
+      have hh := congrArg (fun z : E d => z - x) hfwd
+      simpa only [add_sub_cancel_left, sub_self] using hh
+    rcases smul_eq_zero.mp h0 with h | h
+    · exact ht.ne' h
+    · exact hne (hv ▸ (sub_eq_zero.mp h).symm)
+  have hvC : v ∈ intrinsicInterior ℝ (C.frame.toAffineIsometry '' e'.val.carrier) := by
+    have h := actualCont_exists_step3_trace_successor_step1_open_relint x y hxy hv
+    rw [← hseg'] at h
+    exact h
+  rw [C.frame.toAffineIsometry.image_intrinsicInterior] at hvC
+  obtain ⟨v0, hv0, hv0v⟩ := hvC
+  have hv0e : v0 ∈ e.val.carrier := by
+    have h : v ∈ C.cell 0 e.val := hseg ▸ right_mem_segment ℝ p v
+    obtain ⟨q, hq, hqv⟩ := h
+    have hq' : q = v0 := C.frame.injective (hqv.trans hv0v.symm)
+    exact hq' ▸ hq
+  have hec : e.val ∈ (S.cx C.ty).cells := (Finset.mem_filter.mp e.property).1
+  have he'c : e'.val ∈ (S.cx C.ty).cells := (Finset.mem_filter.mp e'.property).1
+  have hfr : v0 ∈ frontier (S.proto C.ty).carrier := by
+    rw [← (S.cx C.ty).carriers_cover]
+    exact mem_iUnion₂.mpr ⟨e.val, hec, hv0e⟩
+  have huniq := (S.cx C.ty).exists_unique_minimalCell v0 hfr
+  have hm : (S.cx C.ty).minimalCell v0 hfr = e'.val := by
+    have h := huniq.unique (Classical.choose_spec huniq).1
+      (show v0 ∈ relint (⟨e'.val, he'c⟩ : {f // f ∈ (S.cx C.ty).cells}).val.carrier from hv0)
+    exact congrArg Subtype.val h
+  have hsub := (S.cx C.ty).minimalCell_subset v0 hfr e.val hec hv0e
+  rw [hm] at hsub
+  have hsub' : segment ℝ x y ⊆ segment ℝ p v := by
+    rw [← hseg, ← hseg']
+    exact Set.image_mono hsub
+  exact actualCont_exists_step3_trace_successor_step1_beyond p v hne t ht (hsub' hfwd)
+
+/-- Step 6 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8, 1.0(a)):
+"a polygon containing v in the relative interior of its edge along h would fill a
+half-disc of F_2 at v". If a point lies in the relative interior of a listed owner
+edge which lies along the flag edge and in the trace piece, then near that point the
+relative interior of the trace piece coincides with the relative interior of the
+bottom flag cell `F_2` (for `d = 2`: of the flag edge `h` itself). -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill (N : FramedNode S)
+    (n : ℕ) (F : FacetFlag S N.ty) (a : TracePiece N.ty F n)
+    (e : PrototypeEdge S (placedTraceOwner N n n F a).ty) (z : E d)
+    (hbot : (placedTraceOwner N n n F a).cell 0 e.val ⊆ placedTraceCarrier N n n F a)
+    (hflag : (placedTraceOwner N n n F a).cell 0 e.val ⊆ N.cell n (F.cell edgeIndex).val)
+    (hz : z ∈ relint ((placedTraceOwner N n n F a).cell 0 e.val)) :
+    ∃ r : ℝ, 0 < r ∧ relint (placedTraceCarrier N n n F a) ∩ ball z r =
+      relint (N.cell n
+        (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) ∩ ball z r := by
+  sorry
+
+/-- Step 7 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8, 1.22(a)):
+"v is a vertex of s_2'': a polygon containing v in the relative interior of its
+edge along h would fill a half-disc of F_2 at v, overlapping s_2". Two distinct
+trace pieces cannot have listed edges along the flag edge, one ending at `v` and
+the other containing `v` in its relative interior: near `v` both pieces would
+contain the same half-disc (for `d = 2`, the same half-neighbourhood in `h`),
+contradicting the disjoint relative interiors of the trace. -/
+private theorem actualCont_exists_step3_trace_successor_step7_distinct_owner
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (a b : TracePiece N.ty F n)
+    (hab : a ≠ b) (e : PrototypeEdge S (placedTraceOwner N n n F a).ty)
+    (e' : PrototypeEdge S (placedTraceOwner N n n F b).ty) (p v x y : E d) (hne : p ≠ v)
+    (hseg : (placedTraceOwner N n n F a).cell 0 e.val = segment ℝ p v)
+    (hseg' : (placedTraceOwner N n n F b).cell 0 e'.val = segment ℝ x y)
+    (hbot : (placedTraceOwner N n n F a).cell 0 e.val ⊆ placedTraceCarrier N n n F a)
+    (hbot' : (placedTraceOwner N n n F b).cell 0 e'.val ⊆ placedTraceCarrier N n n F b)
+    (hflag : (placedTraceOwner N n n F a).cell 0 e.val ⊆ N.cell n (F.cell edgeIndex).val)
+    (hflag' : (placedTraceOwner N n n F b).cell 0 e'.val ⊆ N.cell n (F.cell edgeIndex).val)
+    (hxy : x ≠ y) (hv : v ∈ openSegment ℝ x y) : False := by
+  obtain ⟨rb, hrb, hfb⟩ := actualCont_exists_step3_trace_successor_step6_fill N n F b e' v
+    hbot' hflag' (hseg' ▸ actualCont_exists_step3_trace_successor_step1_open_relint x y hxy hv)
+  have hpv : 0 < ‖v - p‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hne.symm)
+  let s : ℝ := min (1 / 2) (rb / (2 * (‖v - p‖ + 1)))
+  have hden : 0 < 2 * (‖v - p‖ + 1) := by positivity
+  have hs0 : 0 < s := lt_min (by norm_num) (div_pos hrb hden)
+  have hs1 : s < 1 := lt_of_le_of_lt (min_le_left _ _) (by norm_num)
+  have hsr : s * ‖v - p‖ < rb / 2 := by
+    have h1 : s ≤ rb / (2 * (‖v - p‖ + 1)) := min_le_right _ _
+    have h2 : s * (2 * (‖v - p‖ + 1)) ≤ rb := (le_div_iff₀ hden).mp h1
+    nlinarith
+  let zs : E d := v - s • (v - p)
+  have hzs_open : zs ∈ openSegment ℝ p v :=
+    ⟨s, 1 - s, hs0, by linarith, by ring, by simp only [zs]; module⟩
+  have hzs_rel : zs ∈ relint ((placedTraceOwner N n n F a).cell 0 e.val) :=
+    hseg ▸ actualCont_exists_step3_trace_successor_step1_open_relint p v hne hzs_open
+  have hzs_v : dist zs v < rb / 2 := by
+    change dist (v - s • (v - p)) v < rb / 2
+    rw [dist_eq_norm, sub_sub_cancel_left, norm_neg, norm_smul, Real.norm_eq_abs,
+      abs_of_pos hs0]
+    exact hsr
+  obtain ⟨ra, hra, hfa⟩ := actualCont_exists_step3_trace_successor_step6_fill N n F a e zs
+    hbot hflag hzs_rel
+  have hzsC : zs ∈ placedTraceCarrier N n n F a := hbot (intrinsicInterior_subset hzs_rel)
+  rw [actualCont_exists_step3_trace_successor_step2_carrier N n F a] at hzsC
+  obtain ⟨z0, hz0, hz0e⟩ := hzsC
+  have hK := a.bottom.val.flat.regularClosed
+  rw [← hK] at hz0
+  obtain ⟨w0, hw0, hdist⟩ := Metric.mem_closure_iff.mp hz0 (min ra (rb / 2))
+    (lt_min hra (by linarith))
+  let C := placedTraceOwner N n n F a
+  have hwrel : C.frame w0 ∈ relint (placedTraceCarrier N n n F a) := by
+    rw [actualCont_exists_step3_trace_successor_step2_carrier N n F a]
+    change C.frame w0 ∈ intrinsicInterior ℝ (C.frame.toAffineIsometry '' a.bottom.val.carrier)
+    rw [C.frame.toAffineIsometry.image_intrinsicInterior]
+    exact Set.mem_image_of_mem _ hw0
+  have hdw : dist (C.frame w0) zs < min ra (rb / 2) := by
+    rw [← hz0e]
+    change dist (C.frame w0) (C.frame z0) < _
+    rw [C.frame.dist_map, dist_comm]
+    exact hdist
+  have hwX : C.frame w0 ∈ relint (N.cell n
+      (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) ∩ ball zs ra := by
+    rw [← hfa]
+    exact ⟨hwrel, lt_of_lt_of_le hdw (min_le_left _ _)⟩
+  have hwv : C.frame w0 ∈ ball v rb := by
+    have h1 := lt_of_lt_of_le hdw (min_le_right _ _)
+    change dist (C.frame w0) v < rb
+    linarith [dist_triangle (C.frame w0) zs v]
+  have hwb : C.frame w0 ∈ relint (placedTraceCarrier N n n F b) ∩ ball v rb := by
+    rw [hfb]
+    exact ⟨hwX.1, hwv⟩
+  exact Set.disjoint_left.mp ((placed_recursiveTrace_tiles N n n le_rfl F).2 hab) hwrel hwb.1
+
+/-- Step 8 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8, (H2)(ii)):
+"t'' is a native tile with v as a listed vertex (vertex of a cell)". An endpoint
+of a listed edge is a listed vertex: the relative boundary of the edge is its two
+endpoints and is a union of listed cells, which must be zero-cells. -/
+private theorem actualCont_exists_step3_trace_successor_step8_endpoint_vertex {A : S.ι}
+    (e : PrototypeEdge S A) (x y : E d) (hxy : x ≠ y)
+    (h : e.val.carrier = segment ℝ x y) : ∃ w : VertexName S A, vertexPoint w = x := by
+  classical
+  have hec : e.val ∈ (S.cx A).cells := (Finset.mem_filter.mp e.property).1
+  obtain ⟨bs, hbs, hunion⟩ := (S.cx A).boundary_union e.val hec
+  have hclosed : IsClosed (segment ℝ x y) := h ▸ e.val.flat.compact.isClosed
+  have hxf : x ∈ relfrontier (segment ℝ x y) := by
+    unfold relfrontier
+    rw [← intrinsicClosure_diff_intrinsicInterior]
+    exact ⟨subset_intrinsicClosure (left_mem_segment ℝ x y),
+      actualCont_exists_step3_trace_successor_step1_endpoint x y hxy⟩
+  have hfront : relfrontier (segment ℝ x y) ⊆ {x, y} := by
+    intro z hz
+    have hz' := hz
+    unfold relfrontier at hz'
+    rw [← intrinsicClosure_diff_intrinsicInterior] at hz'
+    have hzs : z ∈ segment ℝ x y := intrinsicFrontier_subset hclosed hz
+    by_contra hne
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff, not_or] at hne
+    exact hz'.2 (actualCont_exists_step3_trace_successor_step1_open_relint x y hxy
+      (mem_openSegment_of_ne_left_right (Ne.symm hne.1) (Ne.symm hne.2) hzs))
+  rw [← h] at hxf hfront
+  rw [hunion] at hxf hfront
+  obtain ⟨f, hf, hxf'⟩ := mem_iUnion₂.mp hxf
+  have hfsub : f.carrier ⊆ {x, y} := fun z hz => hfront (mem_iUnion₂.mpr ⟨f, hf, hz⟩)
+  have hfx : f.carrier = {x} := by
+    apply Set.Subset.antisymm _ (Set.singleton_subset_iff.mpr hxf')
+    intro z hz
+    rcases hfsub hz with hzx | hzy
+    · exact hzx
+    · exfalso
+      subst hzy
+      have hcon : IsPreconnected ((fun q : E d => dist q x) '' f.carrier) :=
+        f.flat.connected.isPreconnected.image _ (continuous_id.dist continuous_const).continuousOn
+      have hsub := hcon.Icc_subset (Set.mem_image_of_mem _ hxf') (Set.mem_image_of_mem _ hz)
+      have hpos : 0 < dist z x := dist_pos.mpr hxy.symm
+      have hmid : dist z x / 2 ∈ Set.Icc (dist x x) (dist z x) := by
+        rw [dist_self]
+        constructor <;> linarith
+      obtain ⟨q, hq, hqd⟩ := hsub hmid
+      rcases hfsub hq with rfl | rfl
+      · simp only [dist_self] at hqd
+        linarith
+      · simp only at hqd
+        linarith
+  have hdim : f.dim = 0 := by
+    have hd := f.flat.dimension
+    have h0 : Module.finrank ℝ (affineSpan ℝ ({x} : Set (E d))).direction = 0 := by
+      rw [direction_affineSpan, vectorSpan_singleton, finrank_bot]
+    rw [hfx] at hd
+    unfold cellDirection at hd
+    exact hd.symm.trans h0
+  let w : VertexName S A := ⟨f, Finset.mem_filter.mpr ⟨hbs hf, hdim⟩⟩
+  refine ⟨w, ?_⟩
+  have hw := vertexPoint_spec w
+  change f.carrier = {vertexPoint w} at hw
+  rw [hfx] at hw
+  exact (Set.singleton_eq_singleton_iff.mp hw).symm
+
 /-- Step 3 of the V4 proof of `actualCont_exists` (V4 2.8):
 "there is a polygon ... on the far side of v ... with an edge ... with initial
 endpoint v". In the recursive trace, a boundary edge ending inside the flag
@@ -3092,7 +3577,61 @@ private theorem actualCont_exists_step3_trace_successor (N : FramedNode S) (n : 
         placedTraceCarrier N n n F b ∧
       (placedTraceOwner N n n F b).cell 0 e'.val ⊆
         N.cell n (F.cell edgeIndex).val := by
-  sorry
+  classical
+  obtain ⟨b, e', t, ht, hve, hte, hflag', hbot'⟩ :=
+    actualCont_exists_step3_trace_successor_step3_edge_germ N n F p v hne
+      (hflag (hseg ▸ left_mem_segment ℝ p v)) hv
+  obtain ⟨⟨x0, y0⟩, hxy0, hseg0⟩ :=
+    edge_endpoints_exist (⟨(placedTraceOwner N n n F b).ty, e'⟩ : EdgeName S)
+  have hcell : (placedTraceOwner N n n F b).cell 0 e'.val =
+      segment ℝ ((placedTraceOwner N n n F b).prototypeFrame 0 x0)
+        ((placedTraceOwner N n n F b).prototypeFrame 0 y0) := by
+    change (placedTraceOwner N n n F b).prototypeFrame 0 '' e'.val.carrier = _
+    rw [hseg0]
+    exact image_segment ℝ ((placedTraceOwner N n n F b).prototypeFrame 0).toAffineMap x0 y0
+  have hframe (z : E d) : (placedTraceOwner N n n F b).prototypeFrame 0 z =
+      (placedTraceOwner N n n F b).frame z := rfl
+  rw [hframe, hframe] at hcell
+  have hnotopen : v ∉ openSegment ℝ ((placedTraceOwner N n n F b).frame x0)
+      ((placedTraceOwner N n n F b).frame y0) := by
+    intro hvo
+    by_cases hab : a = b
+    · subst hab
+      exact actualCont_exists_step3_trace_successor_step5_same_owner
+        (placedTraceOwner N n n F a) ⟨e, he⟩ e' p v _ _ t ht hne hseg hcell hvo
+        (hcell ▸ hte)
+    · exact actualCont_exists_step3_trace_successor_step7_distinct_owner N n F a b hab
+        ⟨e, he⟩ e' p v _ _ hne hseg hcell hbottom hbot' hflag hflag'
+        (fun h => hxy0 ((placedTraceOwner N n n F b).frame.injective h)) hvo
+  have hvseg := hcell ▸ hve
+  have hend : v = (placedTraceOwner N n n F b).frame x0 ∨
+      v = (placedTraceOwner N n n F b).frame y0 := by
+    by_contra hh
+    push_neg at hh
+    exact hnotopen (mem_openSegment_of_ne_left_right (Ne.symm hh.1) (Ne.symm hh.2) hvseg)
+  have hu : v - p ≠ 0 := sub_ne_zero.mpr hne.symm
+  rcases hend with hx | hy
+  · obtain ⟨w', hw'⟩ := actualCont_exists_step3_trace_successor_step8_endpoint_vertex
+      e' x0 y0 hxy0 hseg0
+    have hseg1 : (placedTraceOwner N n n F b).cell 0 e'.val =
+        segment ℝ v ((placedTraceOwner N n n F b).frame y0) := by rw [hcell, hx]
+    obtain ⟨k, hk, hkw⟩ := actualCont_exists_step3_trace_successor_step4_direction v _ (v - p)
+      t ht hu (hseg1 ▸ hte)
+    refine ⟨b, e', w', (placedTraceOwner N n n F b).frame y0, by rw [hw', hx], hseg1, ?_,
+      ⟨k, hk, hkw⟩, hbot', hflag'⟩
+    rw [hx]
+    exact fun h => hxy0 ((placedTraceOwner N n n F b).frame.injective h)
+  · obtain ⟨w', hw'⟩ := actualCont_exists_step3_trace_successor_step8_endpoint_vertex
+      e' y0 x0 (Ne.symm hxy0) (hseg0.trans (segment_symm ℝ x0 y0))
+    have hseg1 : (placedTraceOwner N n n F b).cell 0 e'.val =
+        segment ℝ v ((placedTraceOwner N n n F b).frame x0) := by
+      rw [hcell, hy, segment_symm]
+    obtain ⟨k, hk, hkw⟩ := actualCont_exists_step3_trace_successor_step4_direction v _ (v - p)
+      t ht hu (hseg1 ▸ hte)
+    refine ⟨b, e', w', (placedTraceOwner N n n F b).frame x0, by rw [hw', hy], hseg1, ?_,
+      ⟨k, hk, hkw⟩, hbot', hflag'⟩
+    rw [hy]
+    exact fun h => hxy0 ((placedTraceOwner N n n F b).frame.injective h).symm
 
 /-- Step 4 of the V4 proof of `actualCont_exists` (V4 2.8):
 "same ... serving child H". Reindexing the known height retains the exact

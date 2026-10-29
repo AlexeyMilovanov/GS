@@ -559,7 +559,14 @@ tangent cone of a placed prototile is null (isometric pull-back of Step 4a). -/
 private lemma point_count_le_step4b_placed_frontier_null (A : PolyManifoldDomain d)
     (φ : Iso d) (p : E d) :
     MeasureTheory.volume (frontier (tangentCone (placedSet φ A.carrier) p)) = 0 := by
-  sorry
+  rw [point_count_le_step1_tangentCone_placed]
+  set L := φ.symm.linearIsometryEquiv
+  have hfr : frontier (L ⁻¹' tangentCone A.carrier (φ.symm p)) =
+      L ⁻¹' frontier (tangentCone A.carrier (φ.symm p)) :=
+    (L.toHomeomorph.preimage_frontier _).symm
+  rw [hfr, (L.measurePreserving).measure_preimage
+    isClosed_frontier.measurableSet.nullMeasurableSet]
+  exact point_count_le_step4a_cone_frontier_null A _
 
 /-- Step 4c of the V4 proof of `point_count_le` (V4 1.0(b)): "Disjoint interiors of
 tiles give disjoint interiors of tangent cones at a common point". (Near `p` each

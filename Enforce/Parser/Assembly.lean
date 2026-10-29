@@ -6205,6 +6205,107 @@ private theorem all_height_hierarchy_step2_hierarchy (Y : MarkedTiling (systemM 
       (firstRole (levels n hn) B hB).2 _
       ((Parser.proposedParent_child (levels n hn) (hinv n hn) B hB).trans hj)).symm
 
+/-- Step 1 of the V4 proof of `all_height_hierarchy_step3_low_levels` (V4 3.1):
+"𝒩_n for n<K the nodes inside the K-blocks". The empty role word names the root. -/
+private theorem all_height_hierarchy_step3_low_levels_step1_move_zero (R : FramedNode S)
+    (n : ℕ) (u : S.RoleWord R.ty 0) :
+    (S.descendantNode R.ty n 0 u).move R.frame = R := by
+  rfl
+
+/-- Step 1 of the V4 proof of `all_height_hierarchy_step3_low_levels` (V4 3.1):
+"𝒩_n for n<K the nodes inside the K-blocks". Peeling the first letter of a role
+word: a depth-(k+1) descendant is a depth-k descendant of the prescribed child. -/
+private theorem all_height_hierarchy_step3_low_levels_step1_move_succ (R : FramedNode S)
+    (n k : ℕ) (u : S.RoleWord R.ty (k + 1)) :
+    (S.descendantNode R.ty n (k + 1) u).move R.frame =
+      (S.descendantNode (R.child (n + k) u.1).ty n k u.2).move
+        (R.child (n + k) u.1).frame := by
+  rfl
+
+open private exists_honest_step7_child_subset from Enforce.Tiling in
+/-- Step 2 of the V4 proof of `all_height_hierarchy_step3_low_levels` (V4 3.1):
+"the nodes inside the K-blocks". Every height-n inner node lies in its root. -/
+private theorem all_height_hierarchy_step3_low_levels_step2_subset (n : ℕ) :
+    ∀ (k : ℕ) (R : FramedNode S) (u : S.RoleWord R.ty k),
+      ((S.descendantNode R.ty n k u).move R.frame).carrier n ⊆ R.carrier (n + k) := by
+  intro k
+  induction k with
+  | zero =>
+    intro R u x hx
+    rw [all_height_hierarchy_step3_low_levels_step1_move_zero R n u] at hx
+    exact hx
+  | succ k ih =>
+    intro R u
+    rw [all_height_hierarchy_step3_low_levels_step1_move_succ R n k u]
+    exact (ih (R.child (n + k) u.1) u.2).trans
+      (exists_honest_step7_child_subset R (n + k) u.1)
+
+/-- Step 3 of the V4 proof of `all_height_hierarchy_step3_low_levels` (V4 3.1, 3.7):
+"the children tile it", iterated: the height-n inner nodes cover their root. -/
+private theorem all_height_hierarchy_step3_low_levels_step3_cover (n : ℕ) :
+    ∀ (k : ℕ) (R : FramedNode S), R.carrier (n + k) ⊆
+      ⋃ u : S.RoleWord R.ty k, ((S.descendantNode R.ty n k u).move R.frame).carrier n := by
+  intro k
+  induction k with
+  | zero =>
+    intro R x hx
+    refine Set.mem_iUnion.mpr ⟨(), ?_⟩
+    rw [all_height_hierarchy_step3_low_levels_step1_move_zero R n ()]
+    exact hx
+  | succ k ih =>
+    intro R x hx
+    have hx' : x ∈ R.carrier (n + k + 1) := hx
+    rw [assembly_step1_children_cover R (n + k)] at hx'
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hx'
+    obtain ⟨u, hu⟩ := Set.mem_iUnion.mp (ih (R.child (n + k) i) hi)
+    refine Set.mem_iUnion.mpr ⟨⟨i, u⟩, ?_⟩
+    rw [all_height_hierarchy_step3_low_levels_step1_move_succ R n k ⟨i, u⟩]
+    exact hu
+
+/-- Step 4 of the V4 proof of `all_height_hierarchy_step3_low_levels` (V4 3.1, 3.7):
+"the children tile it", iterated: distinct height-n inner nodes of one root have
+disjoint interiors. -/
+private theorem all_height_hierarchy_step3_low_levels_step4_disjoint (n : ℕ) :
+    ∀ (k : ℕ) (R : FramedNode S) (u v : S.RoleWord R.ty k),
+      (S.descendantNode R.ty n k u).move R.frame ≠
+          (S.descendantNode R.ty n k v).move R.frame →
+        Disjoint (interior (((S.descendantNode R.ty n k u).move R.frame).carrier n))
+          (interior (((S.descendantNode R.ty n k v).move R.frame).carrier n)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro R u v hne
+    exact (hne rfl).elim
+  | succ k ih =>
+    intro R u v hne
+    obtain ⟨i, u⟩ := u
+    obtain ⟨j, v⟩ := v
+    rw [all_height_hierarchy_step3_low_levels_step1_move_succ R n k ⟨i, u⟩,
+      all_height_hierarchy_step3_low_levels_step1_move_succ R n k ⟨j, v⟩] at hne ⊢
+    by_cases hij : i = j
+    · subst hij
+      exact ih (R.child (n + k) i) u v hne
+    · have h1 := all_height_hierarchy_step3_low_levels_step2_subset n k (R.child (n + k) i) u
+      have h2 := all_height_hierarchy_step3_low_levels_step2_subset n k (R.child (n + k) j) v
+      exact (assembly_step1_children_disjoint R (n + k) i j hij).mono
+        (interior_mono h1) (interior_mono h2)
+
+open private exists_honest_step7_split_word from Enforce.Tiling in
+/-- Step 5 of the V4 proof of `all_height_hierarchy_step3_low_levels` (V4 3.1):
+"𝒩_n for n<K the nodes inside the K-blocks": a lower inner node of a root lies
+inside one of its height-n inner nodes. -/
+private theorem all_height_hierarchy_step3_low_levels_step5_factor (R N : FramedNode S)
+    (m n K : ℕ) (hmn : m ≤ n) (hnK : n ≤ K) (h : N.IsDescendant m R K) :
+    ∃ M : FramedNode S, M.IsDescendant n R K ∧ N.IsDescendant m M n := by
+  obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hmn
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hnK
+  obtain ⟨r, hr, w, rfl⟩ := h
+  obtain rfl : r = j + k := by omega
+  obtain ⟨u, v, hv⟩ := exists_honest_step7_split_word R.ty m j k w
+  refine ⟨(S.descendantNode R.ty (m + j) k u).move R.frame, ⟨k, rfl, u, rfl⟩, j, rfl, v, ?_⟩
+  rw [hv]
+  rfl
+
 /-- Step 3 of the V4 proof of `all_height_hierarchy` (V4 3.1): "(with 𝒩_n for
 n<K the nodes inside the K-blocks)" and, for the certificate tables, "for heights
 <K the certificate tables" (V4 4.4(i)). For every height n < K, the height-n
@@ -6218,7 +6319,68 @@ private theorem all_height_hierarchy_step3_low_levels (Y : MarkedTiling (systemM
       (∀ m : ℕ, m ≤ n → L.geometry.nodes m = D.geometry.nodes m) ∧
       ∀ (m : ℕ) (N : FramedNode S) (hL : N ∈ L.geometry.nodes m)
         (hK : N ∈ D.geometry.nodes m), L.stateAt m N hL = D.stateAt m N hK := by
-  sorry
+  have hdisj : ({B : Block Y n | B.node ∈ D.geometry.nodes n}).PairwiseDisjoint
+      (fun B => interior B.carrier) := by
+    intro B1 hB1 B2 hB2 hne
+    obtain ⟨R1, hR1, k1, hk1, w1, he1⟩ := hB1
+    obtain ⟨R2, hR2, k2, hk2, w2, he2⟩ := hB2
+    have hne' : B1.node ≠ B2.node := fun h => hne (Block.ext h)
+    show Disjoint (interior (B1.node.carrier n)) (interior (B2.node.carrier n))
+    by_cases hR : R1 = R2
+    · subst hR
+      obtain rfl : k2 = k1 := by omega
+      rw [he1, he2] at hne' ⊢
+      exact all_height_hierarchy_step3_low_levels_step4_disjoint n _ R1.node w1 w2 hne'
+    · have h1 : B1.node.carrier n ⊆ R1.carrier := by
+        have h := all_height_hierarchy_step3_low_levels_step2_subset n k1 R1.node w1
+        rw [← hk1, ← he1] at h
+        exact h
+      have h2 : B2.node.carrier n ⊆ R2.carrier := by
+        have h := all_height_hierarchy_step3_low_levels_step2_subset n k2 R2.node w2
+        rw [← hk2, ← he2] at h
+        exact h
+      exact (D.geometry.disjoint hR1 hR2 hR).mono (interior_mono h1) (interior_mono h2)
+  have hcov : ∀ x : E d, ∃ B ∈ {B : Block Y n | B.node ∈ D.geometry.nodes n},
+      x ∈ B.carrier := by
+    intro x
+    obtain ⟨R, hR, hx⟩ := D.geometry.cover x
+    have hK : P.K = n + (P.K - n) := by omega
+    have hx' : x ∈ R.node.carrier (n + (P.K - n)) := by
+      rw [← hK]
+      exact hx
+    obtain ⟨u, hu⟩ := Set.mem_iUnion.mp
+      (all_height_hierarchy_step3_low_levels_step3_cover n (P.K - n) R.node hx')
+    have hM : (S.descendantNode R.node.ty n (P.K - n) u).move R.node.frame ∈
+        D.geometry.nodes n := ⟨R, hR, P.K - n, hK, u, rfl⟩
+    exact ⟨⟨_, D.geometry.node_actual n _ hM⟩, hM, hu⟩
+  have hGsub : ∀ (m : ℕ) (N : FramedNode S),
+      N ∈ (⟨_, hdisj, hcov⟩ : GeometricLevel Y n).nodes m → N ∈ D.geometry.nodes m := by
+    rintro m N ⟨B, hB, h⟩
+    exact D.geometry.descendant_mem n m B.node N hB h
+  refine ⟨⟨⟨_, hdisj, hcov⟩, fun m N => D.state m ⟨N.1, hGsub m N.1 N.2⟩,
+    fun m N => D.state_honest m _⟩, ⟨?_, ?_, ?_, ?_⟩, ?_, ?_, fun _ _ _ _ => rfl⟩
+  · intro B hB
+    have hB' : B.node ∈ D.geometry.nodes n := hB
+    exact ⟨D.state_honest n _, (hD.node_type_residue n B.node hB').1,
+      (hD.node_type_residue n B.node hB').2⟩
+  · exact ⟨fun m N hN i => hD.I2.1 m N (hGsub _ _ hN) i,
+      fun N hN t ht heq => hD.I2.2 N (hGsub _ _ hN) t ht heq⟩
+  · exact fun m N hN g hb hdepth hp => hD.I4 m N (hGsub _ _ hN) g hb hdepth hp
+  · exact fun m N hN => hD.I5 m N (hGsub _ _ hN)
+  · ext N
+    constructor
+    · rintro ⟨B, hB, rfl⟩
+      exact hB
+    · intro hN
+      exact ⟨⟨N, D.geometry.node_actual n N hN⟩, hN, rfl⟩
+  · intro m hm
+    ext N
+    constructor
+    · exact hGsub m N
+    · rintro ⟨R, hR, h⟩
+      obtain ⟨M, hM, hNM⟩ :=
+        all_height_hierarchy_step3_low_levels_step5_factor R.node N m n P.K hm hn.le h
+      exact ⟨⟨M, D.geometry.node_actual n M ⟨R, hR, hM⟩⟩, ⟨R, hR, hM⟩, hNM⟩
 
 /-- Step 4 of the V4 proof of `all_height_hierarchy` (V4 3.1): "Consequently Y
 carries a coherent hierarchy (𝒩_n)_{n≥0} (with 𝒩_n for n<K the nodes inside the

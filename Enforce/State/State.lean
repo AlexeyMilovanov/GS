@@ -5602,6 +5602,604 @@ theorem honest_E_finite_providers (U : HonestSource S) (P : Params S) (q : U.Nod
         U.hierarchy.providerCarrier q f hf = U.hierarchy.providerCarrier q g hg := by
   sorry
 
+/-! Private decomposition of `state_scaleTransfer` (V4 1.13(c), 2.2--2.3). -/
+
+/-- Step 1 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "the hierarchy above
+`N` (all ancestors of `N` with their roles ...)". Iterated retained-tail parents are
+exactly the actual ancestors. -/
+private theorem state_scaleTransfer_step1_tail_ancestor {T : Tiling S}
+    (H : CoherentHierarchy S T) (a : ℕ) (q : H.Tail a) (j : ℕ) :
+    ((H.tailParent a)^[j] q).val = H.ancestor q.val j := by
+  induction j with
+  | zero => rfl
+  | succ j ih =>
+    rw [Function.iterate_succ_apply']
+    show H.parentNode ((H.tailParent a)^[j] q).val = (H.parentNode)^[j+1] q.val
+    rw [Function.iterate_succ_apply', ih]
+    rfl
+
+/-- Step 1 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "the hierarchy above
+`N` ... correspond[s] to the hierarchy above `N'`". The tail bijection commutes with
+every iterate of the parent map. -/
+private theorem state_scaleTransfer_step1_ancestor {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a) (j : ℕ) :
+    (e.toEquiv ((U.hierarchy.tailParent a)^[j] q)).val =
+      V.hierarchy.ancestor (e.toEquiv q).val j := by
+  have hs : Function.Semiconj e.toEquiv (U.hierarchy.tailParent a)
+      (V.hierarchy.tailParent b) := e.parents
+  rw [hs.iterate_right j q, state_scaleTransfer_step1_tail_ancestor]
+
+/-- Step 2 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "all ancestors of `N`
+with their roles" correspond; hence the (S2) address roles agree at every offset. -/
+private theorem state_scaleTransfer_step2_address {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a) (j : ℕ) :
+    U.hierarchy.nodeRole (U.hierarchy.ancestor q.val j) =
+      V.hierarchy.nodeRole (V.hierarchy.ancestor (e.toEquiv q).val j) := by
+  rw [← state_scaleTransfer_step1_ancestor e q j, e.roles,
+    state_scaleTransfer_step1_tail_ancestor]
+
+/-- Step 3 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "if `n ≡ m (mod L)`
+the height residues modulo `L` of all corresponding nodes agree". -/
+private theorem state_scaleTransfer_step3_residue {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (L : ℕ)
+    (hab : a % L = b % L) (q : U.hierarchy.Tail a) :
+    (e.toEquiv q).val.1 % L = q.val.1 % L := by
+  have h1 : (e.toEquiv q).val.1 + a ≡ (e.toEquiv q).val.1 + b [MOD L] :=
+    Nat.ModEq.add_left _ hab
+  rw [e.heights q] at h1
+  exact (Nat.ModEq.add_right_cancel' b h1).symm
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "provider incidences
+and ages" correspond. The serving child is the ancestor at the common provider offset. -/
+private theorem state_scaleTransfer_step4_serving {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    ∃ k, U.hierarchy.servingChild q.val f hf = ((U.hierarchy.tailParent a)^[k] q).val ∧
+      V.hierarchy.servingChild (e.toEquiv q).val g hg =
+        (e.toEquiv ((U.hierarchy.tailParent a)^[k] q)).val := by
+  refine ⟨(U.hierarchy.firstProvider q.val f hf).1, ?_, ?_⟩
+  · rw [state_scaleTransfer_step1_tail_ancestor]
+    rfl
+  · rw [state_scaleTransfer_step1_ancestor, (e.providers q f g hfg hf hg).1]
+    rfl
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "provider incidences"
+are literally the same, hence so are the canonical (S4a) incidence and serving side. -/
+private theorem state_scaleTransfer_step4_side (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    U.recordIncidence P q.val f hf = V.recordIncidence P (e.toEquiv q).val g hg ∧
+      U.recordSide P q.val f hf = V.recordSide P (e.toEquiv q).val g hg := by
+  have hinc : U.recordIncidence P q.val f hf = V.recordIncidence P (e.toEquiv q).val g hg := by
+    unfold HonestSource.recordIncidence
+    rw [(e.providers q f g hfg hf hg).2.2.1]
+  refine ⟨hinc, ?_⟩
+  obtain ⟨k, hU, hV⟩ := state_scaleTransfer_step4_serving e q f g hfg hf hg
+  have hrole : U.hierarchy.nodeRole (U.hierarchy.servingChild q.val f hf) =
+      V.hierarchy.nodeRole (V.hierarchy.servingChild (e.toEquiv q).val g hg) := by
+    rw [hU, hV, e.roles]
+  have hspec := (Classical.choose_spec (U.recordSide_exists P q.val f hf)).1
+  have hspecV := Classical.choose_spec (V.recordSide_exists P (e.toEquiv q).val g hg)
+  show _ = Classical.choose (V.recordSide_exists P (e.toEquiv q).val g hg)
+  apply hspecV.2
+  rw [← hinc, ← hrole]
+  exact hspec
+
+/-- Step 5 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "the invertible
+linear map `Λ^{n-m}` carries the hierarchy above `N` ... to those of `N'`"; placed
+prototype sets of corresponding nodes differ by the common map `J ∘ Λ^(b-a)`. -/
+private theorem state_scaleTransfer_step5_frame {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (Y : U.hierarchy.Tail a)
+    (K : Set (E d)) :
+    (e.toEquiv Y).val.2.val.prototypeFrame (e.toEquiv Y).val.1 '' K =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+        (Y.val.2.val.prototypeFrame Y.val.1 '' K) := by
+  rw [e.frames Y, AffineEquiv.coe_trans, Set.image_comp]
+
+/-- Step 5 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): corresponding nodes
+have corresponding carriers (their types agree). -/
+private theorem state_scaleTransfer_step5_carrier {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (Y : U.hierarchy.Tail a) :
+    (e.toEquiv Y).val.2.val.carrier (e.toEquiv Y).val.1 =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+        (Y.val.2.val.carrier Y.val.1) := by
+  have hc : ∀ (N : FramedNode S) (n : ℕ),
+      N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    intro N n
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  rw [hc, hc, e.types Y, state_scaleTransfer_step5_frame]
+
+/-- Step 5 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "all ancestors of `N`
+with their ... cells" correspond, so a facet stays on the boundary of the `r`-th
+ancestor of `N` exactly when the same-named facet does for `N'`. -/
+private theorem state_scaleTransfer_step5_offsets {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (r : ℕ) :
+    r ∈ U.hierarchy.boundaryOffsets q.val f ↔
+      r ∈ V.hierarchy.boundaryOffsets (e.toEquiv q).val g := by
+  have hfr : ∀ K : Set (E d),
+      frontier ((((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans
+        J.toAffineEquiv) '' K) =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+        frontier K := by
+    intro K
+    exact ((((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans
+      J.toAffineEquiv).toHomeomorphOfFiniteDimensional.image_frontier K).symm
+  have hcellq : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+        (q.val.2.val.cell q.val.1 f.val) := by
+    unfold FramedNode.cell
+    rw [← hfg]
+    exact state_scaleTransfer_step5_frame e q _
+  show q.val.2.val.cell q.val.1 f.val ⊆
+      frontier ((U.hierarchy.ancestor q.val r).2.val.carrier
+        (U.hierarchy.ancestor q.val r).1) ↔
+    (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val ⊆
+      frontier ((V.hierarchy.ancestor (e.toEquiv q).val r).2.val.carrier
+        (V.hierarchy.ancestor (e.toEquiv q).val r).1)
+  rw [← state_scaleTransfer_step1_ancestor e q r,
+    ← state_scaleTransfer_step1_tail_ancestor U.hierarchy a q r, hcellq,
+    state_scaleTransfer_step5_carrier, hfr]
+  exact (Set.image_subset_image_iff
+    (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv).injective).symm
+
+/-- Step 5 of the V4 proof of `state_scaleTransfer` (V4 1.13(c), "the hierarchy above
+`N` (all ancestors of `N` with their ... cells)" corresponds via `J Λ^(n-m)`): two
+boundary tracks of `N` coalesce exactly when the same-named tracks of `N'` do. -/
+private theorem state_scaleTransfer_step5_coalesce {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f f' : FacetName S q.val.2.val.ty) (g g' : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hfg' : f'.val = g'.val) :
+    U.TracksCoalesce q.val f f' ↔ V.TracksCoalesce (e.toEquiv q).val g g' := by
+  have hc : ∀ (Y : U.hierarchy.Tail a) (X : Cell d),
+      (e.toEquiv Y).val.2.val.cell (e.toEquiv Y).val.1 X =
+        (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+          (Y.val.2.val.cell Y.val.1 X) :=
+    fun Y X => state_scaleTransfer_step5_frame e Y X.carrier
+  have hinj := (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans
+    J.toAffineEquiv).injective
+  unfold HonestSource.TracksCoalesce
+  apply exists_congr
+  intro r
+  apply and_congr
+  · apply forall_congr'
+    intro j
+    apply forall_congr'
+    intro _
+    exact and_congr (state_scaleTransfer_step5_offsets e q f g hfg j)
+      (state_scaleTransfer_step5_offsets e q f' g' hfg' j)
+  · rw [← state_scaleTransfer_step1_ancestor e q r,
+      ← state_scaleTransfer_step1_tail_ancestor U.hierarchy a q r]
+    constructor
+    · rintro ⟨F, h1, h2⟩
+      refine ⟨⟨F.val, by rw [e.types]; exact F.property⟩, ?_, ?_⟩
+      · rw [hc, hc, ← hfg]
+        exact Set.image_mono h1
+      · rw [hc, hc, ← hfg']
+        exact Set.image_mono h2
+    · rintro ⟨G, h1, h2⟩
+      refine ⟨⟨G.val, by rw [← e.types]; exact G.property⟩, ?_, ?_⟩
+      · rw [hc, hc, ← hfg] at h1
+        exact (Set.image_subset_image_iff hinj).mp h1
+      · rw [hc, hc, ← hfg'] at h2
+        exact (Set.image_subset_image_iff hinj).mp h2
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "every datum defined
+from these parts of the hierarchy and expressed in the prototype frame of `N`
+(... strata ...) is literally the same for `N'`". The canonical (S4c) stratum names
+agree cell by cell. -/
+private theorem state_scaleTransfer_step4_tau (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g)
+    (x : CellsInFacet q.val.2.val.ty f) (y : CellsInFacet (e.toEquiv q).val.2.val.ty g)
+    (hxy : x.val.val = y.val.val) :
+    (U.recordTau P q.val f hf x).val.val =
+      (V.recordTau P (e.toEquiv q).val g hg y).val.val := by
+  obtain ⟨hinc, -⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  obtain ⟨k, hU, hV⟩ := state_scaleTransfer_step4_serving e q f g hfg hf hg
+  have hserv : ∀ X : Cell d,
+      (V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.cell
+          (V.hierarchy.servingChild (e.toEquiv q).val g hg).1 X =
+        (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+          ((U.hierarchy.servingChild q.val f hf).2.val.cell
+            (U.hierarchy.servingChild q.val f hf).1 X) := by
+    intro X
+    rw [hU, hV]
+    exact state_scaleTransfer_step5_frame e _ X.carrier
+  have hpp : V.providerPlacement P (e.toEquiv q).val g hg =
+      (U.providerPlacement P q.val f hf).trans
+        (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) := by
+    have hB : V.hierarchy.birthParent (e.toEquiv q).val g hg =
+        (e.toEquiv (U.hierarchy.tailParent a ((U.hierarchy.tailParent a)^[k] q))).val := by
+      unfold CoherentHierarchy.birthParent
+      rw [hV, e.parents]
+      rfl
+    have hBU : U.hierarchy.birthParent q.val f hf =
+        (U.hierarchy.tailParent a ((U.hierarchy.tailParent a)^[k] q)).val := by
+      unfold CoherentHierarchy.birthParent
+      rw [hU]
+      rfl
+    unfold HonestSource.providerPlacement CoherentHierarchy.birthHeight
+    rw [hB, hBU, ← hinc]
+    unfold Params.incidencePlacement
+    rw [e.frames]
+    exact AffineEquiv.ext fun x => rfl
+  have hcast : ∀ {ι ι' : P.Incidence} (_ : ι = ι') (t : ProviderCell ι.val),
+      ∃ t' : ProviderCell ι'.val, t'.val.val = t.val.val := by
+    intro ι ι' h t
+    subst h
+    exact ⟨t, rfl⟩
+  obtain ⟨t', ht'⟩ := hcast hinc (U.recordTau P q.val f hf x)
+  have hspecU : U.providerPlacement P q.val f hf ''
+      (U.recordTau P q.val f hf x).val.val.carrier =
+        (U.hierarchy.servingChild q.val f hf).2.val.cell
+          (U.hierarchy.servingChild q.val f hf).1
+          (U.hierarchy.stratumMap q.val f hf x.val (U.cellInFacet_placed q.val f x)).val :=
+    (Classical.choose_spec (U.recordTau_exists P q.val f hf x)).1
+  have huniq := (Classical.choose_spec (V.recordTau_exists P (e.toEquiv q).val g hg y)).2
+  have hst := e.strata q f g hfg hf hg x.val y.val hxy (U.cellInFacet_placed q.val f x)
+    (V.cellInFacet_placed (e.toEquiv q).val g y)
+  have ht : t' = V.recordTau P (e.toEquiv q).val g hg y := by
+    apply huniq
+    rw [hpp, AffineEquiv.coe_trans, Set.image_comp, ht', hspecU, ← hserv, hst]
+  rw [← ht, ht']
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c), "cones, strata ...
+literally the same"; V4 §2.2 (S4e)): a full chain is active, with the same induced
+orientation, in `N` exactly when the literally same chain is active in `N'`. -/
+private theorem state_scaleTransfer_step4_active (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g)
+    (c : OrientedChain f) (c' : OrientedChain g) (hc : HEq c c') :
+    U.ActiveChain P q.val f hf c ↔ V.ActiveChain P (e.toEquiv q).val g hg c' := by
+  sorry
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c), "relative placements
+... literally the same"; V4 §2.2 (S4d)): the mature counter constants and endpoint
+site flags, computed in prototype coordinates of `N`, coincide with those of `N'`. -/
+private theorem state_scaleTransfer_step4_constants (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    HEq (U.constantProfile P q.val f hf) (V.constantProfile P (e.toEquiv q).val g hg) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S4)): a facet record is
+determined by its fields; dependent fields are compared heterogeneously. -/
+private theorem state_scaleTransfer_step4_record_ext {P : Params S} {r t : FacetRecord P}
+    (hty : r.ty = t.ty) (hfacet : r.facet.val = t.facet.val)
+    (hinc : r.incidence = t.incidence) (hside : r.sideIndex = t.sideIndex)
+    (hage : r.age = t.age) (hbeta : r.beta = t.beta) (htau : HEq r.tau t.tau)
+    (hch : HEq r.chains t.chains) (hco : HEq r.counter t.counter) : r = t := by
+  obtain ⟨ty, facet, inc, si, side, hs, age, beta, tau, ch, co⟩ := r
+  obtain ⟨ty', facet', inc', si', side', hs', age', beta', tau', ch', co'⟩ := t
+  dsimp only at hty hfacet hinc hside hage hbeta htau hch hco
+  subst hty
+  obtain rfl : facet = facet' := Subtype.ext hfacet
+  subst hinc hside hage hbeta hs hs'
+  cases htau
+  cases hch
+  cases hco
+  rfl
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S4c)): cellwise equality
+of stratum names gives equality of the (dependently typed) stratum maps. -/
+private theorem state_scaleTransfer_step4_tau_heq {P : Params S} {A A' : S.ι} (hA : A = A')
+    {f : FacetName S A} {g : FacetName S A'} (hfg : f.val = g.val)
+    {ι ι' : P.Incidence} (hι : ι = ι')
+    (F : CellsInFacet A f → ProviderCell ι.val) (G : CellsInFacet A' g → ProviderCell ι'.val)
+    (h : ∀ x y, x.val.val = y.val.val → (F x).val.val = (G y).val.val) : HEq F G := by
+  subst hA hι
+  obtain rfl : f = g := Subtype.ext hfg
+  exact heq_of_eq (funext fun x => Subtype.ext (Subtype.ext (h x x rfl)))
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S4e)): equal activity
+predicates give equal finite tables of active chains. -/
+private theorem state_scaleTransfer_step4_chains_heq {A A' : S.ι} (hA : A = A')
+    {f : FacetName S A} {g : FacetName S A'} (hfg : f.val = g.val)
+    (p : OrientedChain f → Prop) (p' : OrientedChain g → Prop)
+    {ip : DecidablePred p} {ip' : DecidablePred p'}
+    (h : ∀ c c', HEq c c' → (p c ↔ p' c')) :
+    HEq ((allOrientedChains f).filter p) ((allOrientedChains g).filter p') := by
+  subst hA
+  obtain rfl : f = g := Subtype.ext hfg
+  exact heq_of_eq (Finset.filter_congr (fun c _ => h c c HEq.rfl))
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S4d)): the two-branch
+counter profile, decided by the common provider depth and site depth, agrees; the
+shallow branch is the common role word. -/
+private theorem state_scaleTransfer_step4_counter (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    HEq (U.counterProfile P q.val f hf) (V.counterProfile P (e.toEquiv q).val g hg) := by
+  have hty : q.val.2.val.ty = (e.toEquiv q).val.2.val.ty := (e.types q).symm
+  have hk := (e.providers q f g hfg hf hg).1
+  obtain ⟨hinc, hside⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  have hr : P.siteDepth (U.recordIncidence P q.val f hf) (U.recordSide P q.val f hf) =
+      P.siteDepth (V.recordIncidence P (e.toEquiv q).val g hg)
+        (V.recordSide P (e.toEquiv q).val g hg) := by rw [hinc, hside]
+  have hc := state_scaleTransfer_step4_constants P e q f g hfg hf hg
+  have hinl : ∀ {A A' : S.ι} (_ : A = A') (c : ConstantProfile P A) (c' : ConstantProfile P A'),
+      HEq c c' → HEq (Sum.inl c : ConstantProfile P A ⊕ ShortProfile P)
+        (Sum.inl c' : ConstantProfile P A' ⊕ ShortProfile P) := by
+    intro A A' h c c' hcc
+    subst h
+    cases hcc
+    rfl
+  have hinr : ∀ {A A' : S.ι} (_ : A = A') (w w' : ShortProfile P), w.word = w'.word →
+      HEq (Sum.inr w : ConstantProfile P A ⊕ ShortProfile P)
+        (Sum.inr w' : ConstantProfile P A' ⊕ ShortProfile P) := by
+    intro A A' h w w' hw
+    subst h
+    obtain ⟨w, _⟩ := w
+    obtain ⟨w', _⟩ := w'
+    dsimp only at hw
+    subst hw
+    rfl
+  unfold HonestSource.counterProfile
+  dsimp only
+  split_ifs with h1 h2 h2
+  · apply hinr hty
+    show U.downRoles q.val _ = V.downRoles (e.toEquiv q).val _
+    rw [hk]
+    unfold HonestSource.downRoles
+    congr 2
+    funext j
+    exact state_scaleTransfer_step2_address e q j.val
+  · exact absurd (hk ▸ hr ▸ h1) h2
+  · exact absurd (hk ▸ hr ▸ h2) h1
+  · exact hinl hty _ _ hc
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "strata, provider
+incidences and ages" are literally the same; so is the whole (S4) record. -/
+private theorem state_scaleTransfer_step4_record (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (hab : a % P.L = b % P.L) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    U.recordOf P q.val f hf = V.recordOf P (e.toEquiv q).val g hg := by
+  obtain ⟨hinc, hside⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  apply state_scaleTransfer_step4_record_ext
+  · exact (e.types q).symm
+  · exact hfg
+  · exact hinc
+  · exact hside
+  · apply Fin.ext
+    show min (U.hierarchy.age q.val f hf) P.C = min (V.hierarchy.age (e.toEquiv q).val g hg) P.C
+    rw [(e.providers q f g hfg hf hg).2.2.2.1]
+  · apply Fin.ext
+    show (U.hierarchy.servingChild q.val f hf).1 % P.L =
+      (V.hierarchy.servingChild (e.toEquiv q).val g hg).1 % P.L
+    obtain ⟨k, hU, hV⟩ := state_scaleTransfer_step4_serving e q f g hfg hf hg
+    rw [hU, hV, state_scaleTransfer_step3_residue e P.L hab]
+  · exact state_scaleTransfer_step4_tau_heq (e.types q).symm hfg hinc _ _
+      (state_scaleTransfer_step4_tau P e q f g hfg hf hg)
+  · exact state_scaleTransfer_step4_chains_heq (e.types q).symm hfg _ _
+      (state_scaleTransfer_step4_active P e q f g hfg hf hg)
+  · exact state_scaleTransfer_step4_counter P e q f g hfg hf hg
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): faults and the whole
+finite-provider record transfer, so the total (S4) table agrees facet by facet. -/
+private theorem state_scaleTransfer_step4_facetRecord (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (hab : a % P.L = b % P.L) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) :
+    U.facetRecordOf P q.val f = V.facetRecordOf P (e.toEquiv q).val g := by
+  unfold HonestSource.facetRecordOf
+  by_cases hf : U.hierarchy.IsFault q.val f
+  · rw [dif_pos hf, dif_pos ((e.faults q f g hfg).mp hf)]
+  · have hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g :=
+      fun h => hf ((e.faults q f g hfg).mpr h)
+    rw [dif_neg hf, dif_neg hg, state_scaleTransfer_step4_record P e hab q f g hfg hf hg]
+
+/-- Step 6 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "a datum `X` in
+ambient coordinates transported to the prototype frame is `φ_N⁻¹(X)`, resp.
+`φ_{N'}⁻¹(Λ^{n-m}X) = φ_N⁻¹(X)`". The (S6) header is computed from the birth parent,
+its children, facets and first-generation placements at one point; if all of these
+and the point move by one affine map `M`, the normalized header is unchanged. -/
+private theorem state_scaleTransfer_step6_header_core (P : Params S) {U V : HonestSource S}
+    (q : U.Node) (q' : V.Node) (M : E d ≃ᵃ[ℝ] E d)
+    (hq : q'.2.val.prototypeFrame q'.1 = (q.2.val.prototypeFrame q.1).trans M)
+    (f : FacetName S q.2.val.ty) (g : FacetName S q'.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (hg : ¬ V.hierarchy.IsFault q' g)
+    (v : VertexName S q.2.val.ty) (w : VertexName S q'.2.val.ty)
+    (hx : q'.2.val.prototypeFrame q'.1 (vertexPoint w) =
+      M (q.2.val.prototypeFrame q.1 (vertexPoint v)))
+    (hB1 : 1 ≤ (U.hierarchy.birthParent q f hf).1)
+    (hB1' : 1 ≤ (V.hierarchy.birthParent q' g hg).1)
+    (hBty : (V.hierarchy.birthParent q' g hg).2.val.ty =
+      (U.hierarchy.birthParent q f hf).2.val.ty)
+    (hB : (V.hierarchy.birthParent q' g hg).2.val.prototypeFrame
+        (V.hierarchy.birthParent q' g hg).1 =
+      ((U.hierarchy.birthParent q f hf).2.val.prototypeFrame
+        (U.hierarchy.birthParent q f hf).1).trans M) :
+    U.headerOf P q f hf v = V.headerOf P q' g hg w := by
+  have hinj := M.injective
+  have hnorm : ∀ G : Set (E d), V.normalizeCone q' (M.linear '' G) = U.normalizeCone q G := by
+    intro G
+    unfold HonestSource.normalizeCone
+    rw [hq, Set.image_image]
+    congr 1
+    funext y
+    show ((q.2.val.prototypeFrame q.1).linear.trans M.linear).symm (M.linear y) = _
+    rw [LinearEquiv.symm_trans_apply, LinearEquiv.symm_apply_apply]
+  have hc : ∀ (N : FramedNode S) (n : ℕ),
+      N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    intro N n
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  unfold HonestSource.headerOf
+  dsimp only
+  rw [hx]
+  generalize U.hierarchy.birthParent q f hf = BU at hB1 hBty hB ⊢
+  generalize V.hierarchy.birthParent q' g hg = BV at hB1' hBty hB ⊢
+  obtain ⟨nU, NU, hNU⟩ := BU
+  obtain ⟨nV, ⟨tyV, frV⟩, hNV⟩ := BV
+  dsimp only at hB1 hB1' hBty hB ⊢
+  subst hBty
+  have hcell : ∀ X : Cell d, FramedNode.cell ⟨NU.ty, frV⟩ nV X = M '' NU.cell nU X := by
+    intro X
+    unfold FramedNode.cell
+    rw [hB, AffineEquiv.coe_trans, Set.image_comp]
+  have hchild : ∀ i : S.I NU.ty,
+      (FramedNode.child ⟨NU.ty, frV⟩ (nV - 1) i).carrier (nV - 1) =
+        M '' (NU.child (nU - 1) i).carrier (nU - 1) := by
+    intro i
+    rw [hc, hc, exists_childMap_step1_frame, exists_childMap_step1_frame,
+      Nat.sub_add_cancel hB1, Nat.sub_add_cancel hB1', hB]
+    simp only [AffineEquiv.coe_trans, Set.image_comp]
+    rfl
+  have hpos : ∀ ι : P.Incidence, P.incidencePlacement ⟨NU.ty, frV⟩ nV ι =
+      (P.incidencePlacement NU nU ι).trans M := by
+    intro ι
+    unfold Params.incidencePlacement
+    rw [hB]
+    exact AffineEquiv.ext fun _ => rfl
+  have hlin : ∀ (A : E d ≃ᵃ[ℝ] E d) (s : Set (E d)),
+      (A.trans M).linear '' s = M.linear '' (A.linear '' s) := by
+    intro A s
+    rw [Set.image_image]
+    rfl
+  have hcar : FramedNode.carrier ⟨NU.ty, frV⟩ nV = M '' NU.carrier nU := by
+    rw [hc, hc, hB, AffineEquiv.coe_trans, Set.image_comp]
+  have himg : ∀ (A : E d ≃ᵃ[ℝ] E d) (K : Set (E d)), ⇑(A.trans M) '' K = M '' (A '' K) := by
+    intro A K
+    rw [AffineEquiv.coe_trans, Set.image_comp]
+  have happ : ∀ (A : E d ≃ᵃ[ℝ] E d) (y : E d), (A.trans M) y = M (A y) := fun _ _ => rfl
+  congr 1
+  · rw [hcar, states_finite_step5_tangent_image, hnorm]
+  · funext i
+    rw [hchild, hinj.mem_set_image, states_finite_step5_tangent_image, hnorm]
+  · funext F
+    rw [hcell, hinj.mem_set_image, states_finite_step5_tangent_image, hnorm]
+  · funext ι
+    rw [hpos, AffineEquiv.coe_trans, Set.image_comp, hinj.mem_set_image,
+      states_finite_step5_tangent_image, hnorm]
+  · funext ι
+    rw [hpos]
+    split_ifs with h1 h2 h2
+    · simp only [himg]
+      simp only [happ, hinj.eq_iff, states_finite_step5_tangent_image, hnorm, hlin]
+      try rfl
+    · exfalso
+      apply h2
+      simpa only [happ, hinj.eq_iff] using h1
+    · exfalso
+      apply h1
+      simpa only [happ, hinj.eq_iff] using h2
+    · rfl
+
+/-- Step 6 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): the birth parent of a
+corresponding facet is the corresponding node, of positive height on both sides. -/
+private theorem state_scaleTransfer_step6_birth {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    ∃ Z : U.hierarchy.Tail a, U.hierarchy.birthParent q.val f hf = Z.val ∧
+      V.hierarchy.birthParent (e.toEquiv q).val g hg = (e.toEquiv Z).val ∧
+      1 ≤ Z.val.1 ∧ 1 ≤ (e.toEquiv Z).val.1 := by
+  obtain ⟨k, hU, hV⟩ := state_scaleTransfer_step4_serving e q f g hfg hf hg
+  refine ⟨U.hierarchy.tailParent a ((U.hierarchy.tailParent a)^[k] q), ?_, ?_, ?_, ?_⟩
+  · unfold CoherentHierarchy.birthParent
+    rw [hU]
+    rfl
+  · unfold CoherentHierarchy.birthParent
+    rw [hV, e.parents]
+    rfl
+  · show 1 ≤ _ + 1
+    omega
+  · rw [e.parents]
+    show 1 ≤ _ + 1
+    omega
+
+/-- Step 6 of the V4 proof of `state_scaleTransfer` (V4 1.13(c)): "a datum `X` in
+ambient coordinates transported to the prototype frame is `φ_N⁻¹(X)`, resp.
+`φ_{N'}⁻¹(Λ^{n-m}X) = φ_N⁻¹(X)`: literally the same"; applied to the birth-parent,
+child, facet and flag tangent cones of the (S6) header at a corresponding vertex. -/
+private theorem state_scaleTransfer_step6_header (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g)
+    (v : VertexName S q.val.2.val.ty) (w : VertexName S (e.toEquiv q).val.2.val.ty)
+    (hvw : v.val = w.val) :
+    U.headerOf P q.val f hf v = V.headerOf P (e.toEquiv q).val g hg w := by
+  obtain ⟨Z, hBU, hBV, hZ1, hZ1'⟩ := state_scaleTransfer_step6_birth e q f g hfg hf hg
+  have hvp : vertexPoint w = vertexPoint v := by
+    have h1 := vertexPoint_spec v
+    have h2 := vertexPoint_spec w
+    rw [hvw, h2] at h1
+    exact Set.singleton_eq_singleton_iff.mp h1
+  apply state_scaleTransfer_step6_header_core P q.val (e.toEquiv q).val
+    (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) (e.frames q)
+  · rw [e.frames q, hvp]
+    rfl
+  · rw [hBU]; exact hZ1
+  · rw [hBV]; exact hZ1'
+  · rw [hBU, hBV]; exact e.types Z
+  · rw [hBU, hBV]; exact e.frames Z
+
+/-- Step 6 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S6)): the header table,
+present exactly at provider-zero pairs, agrees at corresponding vertex/facet pairs. -/
+private theorem state_scaleTransfer_step6_headerRecord (P : Params S) {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (v : VertexName S q.val.2.val.ty) (w : VertexName S (e.toEquiv q).val.2.val.ty)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hvw : v.val = w.val) (hfg : f.val = g.val) :
+    U.headerRecordOf P q.val v f = V.headerRecordOf P (e.toEquiv q).val w g := by
+  unfold HonestSource.headerRecordOf
+  by_cases hv : v.val.carrier ⊆ f.val.carrier
+  · have hw : w.val.carrier ⊆ g.val.carrier := by rw [← hvw, ← hfg]; exact hv
+    rw [dif_pos hv, dif_pos hw]
+    by_cases hf : U.hierarchy.IsFault q.val f
+    · rw [dif_pos hf, dif_pos ((e.faults q f g hfg).mp hf)]
+    · have hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g :=
+        fun h => hf ((e.faults q f g hfg).mpr h)
+      rw [dif_neg hf, dif_neg hg,
+        state_scaleTransfer_step4_tau P e q f g hfg hf hg ⟨vertexCell v, hv⟩
+          ⟨vertexCell w, hw⟩ hvw,
+        state_scaleTransfer_step6_header P e q f g hfg hf hg v w hvw]
+  · have hw : ¬ w.val.carrier ⊆ g.val.carrier := by rw [← hvw, ← hfg]; exact hv
+    rw [dif_neg hv, dif_neg hw]
+
+/-- Step 7 of the V4 proof of `state_scaleTransfer` (V4 §2.2): tables keyed by facet
+names of equal prototypes agree when they agree at equal names. -/
+private theorem state_scaleTransfer_step7_heq_facet {β : Sort*} {A A' : S.ι} (h : A = A')
+    (F : FacetName S A → β) (G : FacetName S A' → β)
+    (hFG : ∀ f g, f.val = g.val → F f = G g) : HEq F G := by
+  subst h
+  exact heq_of_eq (funext fun f => hFG f f rfl)
+
+/-- Step 7 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S5)): binary facet tables. -/
+private theorem state_scaleTransfer_step7_heq_facet2 {β : Sort*} {A A' : S.ι} (h : A = A')
+    (F : FacetName S A → FacetName S A → β) (G : FacetName S A' → FacetName S A' → β)
+    (hFG : ∀ f f' g g', f.val = g.val → f'.val = g'.val → F f f' = G g g') : HEq F G := by
+  subst h
+  exact heq_of_eq (funext fun f => funext fun f' => hFG f f' f f' rfl rfl)
+
+/-- Step 7 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S6)): vertex/facet tables. -/
+private theorem state_scaleTransfer_step7_heq_vertex {β : Sort*} {A A' : S.ι} (h : A = A')
+    (F : VertexName S A → FacetName S A → β) (G : VertexName S A' → FacetName S A' → β)
+    (hFG : ∀ v w f g, v.val = w.val → f.val = g.val → F v f = G w g) : HEq F G := by
+  subst h
+  exact heq_of_eq (funext fun v => funext fun f => hFG v v f f rfl rfl)
+
 /-- Q3/Q6, V4 1.13(c), 2.2--2.3: exact scale transfer with congruent height
 shift preserves the entire state literally, including active orientations, counters,
 coalescence and the full normalized header cones. This permits raising ground
@@ -5610,7 +6208,20 @@ theorem state_scaleTransfer {U V : HonestSource S} (P : Params S)
     {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
     (hab : a % P.L = b % P.L) (q : U.hierarchy.Tail a) :
     stateOf U P q.val = stateOf V P (e.toEquiv q).val := by
-  sorry
+  apply exists_childMap_step7_state_ext
+  · exact (e.types q).symm
+  · funext j
+    exact state_scaleTransfer_step2_address e q j.val
+  · exact Fin.ext (state_scaleTransfer_step3_residue e P.L hab q).symm
+  · exact state_scaleTransfer_step7_heq_facet (e.types q).symm _ _
+      (fun f g hfg => state_scaleTransfer_step4_facetRecord P e hab q f g hfg)
+  · exact state_scaleTransfer_step7_heq_facet2 (e.types q).symm _ _
+      (fun f f' g g' hfg hfg' => propext (by
+        show (f, f') ∈ U.coalescenceTable q.val ↔ (g, g') ∈ V.coalescenceTable (e.toEquiv q).val
+        rw [HonestSource.mem_coalescenceTable, HonestSource.mem_coalescenceTable]
+        exact state_scaleTransfer_step5_coalesce e q f f' g g' hfg hfg'))
+  · exact state_scaleTransfer_step7_heq_vertex (e.types q).symm _ _
+      (fun v w f g hvw hfg => state_scaleTransfer_step6_headerRecord P e q v w f g hvw hfg)
 
 /-- Q5, V4 2.2: an actual honest source contributes a state at every height.
 This is the nonvacuity implication; existence of a source is not assumed globally. -/

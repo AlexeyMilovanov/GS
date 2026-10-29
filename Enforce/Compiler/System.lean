@@ -431,11 +431,262 @@ theorem HonestSource.move_trans (U : HonestSource S) (g h : Iso d) :
     (U.move g).move h = U.move (g.trans h) := by
   sorry
 
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d), 1.11): moving a framed node
+by `g` and then by `g⁻¹` returns it. -/
+private theorem leafTypeOf_move_step1_move_symm (N : FramedNode S) (g : Iso d) :
+    (N.move g).move g.symm = N :=
+  FramedNode.ext rfl (by ext x; simp [FramedNode.move])
+
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d), 1.11): moving by `g⁻¹` and
+then by `g` returns the node. -/
+private theorem leafTypeOf_move_step1_symm_move (N : FramedNode S) (g : Iso d) :
+    (N.move g.symm).move g = N :=
+  FramedNode.ext rfl (by ext x; simp [FramedNode.move])
+
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d), 1.11): every node of the
+moved source is the motion of a node of the original source. -/
+private theorem leafTypeOf_move_step1_inv_mem (U : HonestSource S) (g : Iso d) (n : ℕ)
+    (N : FramedNode S) (hN : N ∈ (U.move g).hierarchy.nodes n) :
+    N.move g.symm ∈ U.hierarchy.nodes n := by
+  rw [(U.move_spec g).nodes n] at hN
+  obtain ⟨M, hM, rfl⟩ := hN
+  rwa [leafTypeOf_move_step1_move_symm]
+
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d), 1.11: "parents ... are
+retained"): the parent of a moved node is the moved parent. -/
+private theorem leafTypeOf_move_step1_parent (U : HonestSource S) (g : Iso d)
+    (q : U.Node) :
+    (U.move g).hierarchy.parentNode (U.movedNode g q) =
+      U.movedNode g (U.hierarchy.parentNode q) :=
+  Sigma.ext rfl (heq_of_eq (Subtype.ext ((U.move_spec g).parents q.1 q.2 _)))
+
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d)): the ancestors of a moved
+node, in particular its K-ancestor, are the moved ancestors. -/
+private theorem leafTypeOf_move_step1_ancestor (U : HonestSource S) (g : Iso d)
+    (q : U.Node) (j : ℕ) :
+    (U.move g).hierarchy.ancestor (U.movedNode g q) j =
+      U.movedNode g (U.hierarchy.ancestor q j) := by
+  unfold CoherentHierarchy.ancestor
+  induction j with
+  | zero => rfl
+  | succ j ih =>
+    rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ih,
+      leafTypeOf_move_step1_parent]
+
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d), 1.11: "roles are
+retained"): a moved node keeps its role. -/
+private theorem leafTypeOf_move_step1_role (U : HonestSource S) (g : Iso d) (q : U.Node) :
+    (U.move g).hierarchy.nodeRole (U.movedNode g q) = U.hierarchy.nodeRole q :=
+  (U.move_spec g).roles q.1 q.2 _
+
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d)): the motion is a bijection
+of all hierarchy nodes, preserving heights. -/
+private def leafTypeOf_move_step1_equiv (U : HonestSource S) (g : Iso d) :
+    U.hierarchy.Tail 0 ≃ (U.move g).hierarchy.Tail 0 where
+  toFun q := ⟨U.movedNode g q.val, Nat.zero_le _⟩
+  invFun q := ⟨⟨q.val.1, ⟨q.val.2.val.move g.symm,
+    leafTypeOf_move_step1_inv_mem U g q.val.1 q.val.2.val q.val.2.property⟩⟩, Nat.zero_le _⟩
+  left_inv q := Subtype.ext (Sigma.ext rfl (heq_of_eq (Subtype.ext
+    (leafTypeOf_move_step1_move_symm q.val.2.val g))))
+  right_inv q := Subtype.ext (Sigma.ext rfl (heq_of_eq (Subtype.ext
+    (leafTypeOf_move_step1_symm_move q.val.2.val g))))
+
+/-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d), with V4 1.13(c) at zero
+cutoff): an isometric motion of an honest source is an exact scale transfer with
+`a = b = 0` and `J = g`. -/
+private def leafTypeOf_move_step1_scale (U : HonestSource S) (g : Iso d) :
+    ScaleTailEquiv U (U.move g) 0 0 g where
+  toEquiv := leafTypeOf_move_step1_equiv U g
+  heights _ := rfl
+  types _ := rfl
+  frames q := by
+    ext x
+    simp [leafTypeOf_move_step1_equiv, HonestSource.movedNode, FramedNode.prototypeFrame,
+      FramedNode.move]
+  parents q := Subtype.ext (leafTypeOf_move_step1_parent U g q.val).symm
+  roles q := leafTypeOf_move_step1_role U g q.val
+  prototype_sets q K := by
+    ext x
+    simp [leafTypeOf_move_step1_equiv, HonestSource.movedNode, FramedNode.prototypeFrame,
+      FramedNode.move, Set.mem_image]
+
+/-- Step 2 of the V4 proof of `leafTypeOf_move` (V4 2.14(d): "the leaf type of `t` is
+intrinsic to the hierarchy"; V4 1.13(c)): states are invariant under motion. -/
+private theorem leafTypeOf_move_step2_state (U : HonestSource S) (g : Iso d) (q : U.Node) :
+    stateOf (U.move g) P (U.movedNode g q) = stateOf U P q :=
+  (state_scaleTransfer P (leafTypeOf_move_step1_scale U g) rfl ⟨q, Nat.zero_le _⟩).symm
+
+/-- Step 3 of the V4 proof of `leafTypeOf_move` (V4 8.1): packets are determined by
+incidence, top slot, top state and role word. -/
+private theorem leafTypeOf_move_step3_packet_ext {p p' : Packet P}
+    (hi : p.incidence = p'.incidence) (hj : p.jstar = p'.jstar) (hs : p.sstar = p'.sstar)
+    (hr : ∀ (i : ℕ) (h : i < p.jstar.val) (h' : i < p'.jstar.val),
+      p.roles ⟨i, h⟩ = p'.roles ⟨i, h'⟩) : p = p' := by
+  obtain ⟨i, j, s, r⟩ := p
+  obtain ⟨i', j', s', r'⟩ := p'
+  dsimp only at hi hj hs hr
+  subst hi hj hs
+  congr
+  funext ⟨k, hk⟩
+  exact hr k hk hk
+
+/-- Step 3 of the V4 proof of `leafTypeOf_move` (V4 2.5, 2.6(a), 8.1): a primitive
+occurrence with moved birth node and the same incidence has the same packet. -/
+private theorem leafTypeOf_move_step3_packetOf (U : HonestSource S) (g : Iso d)
+    (γ : PrimitiveOccurrence U P) (γ' : PrimitiveOccurrence (U.move g) P)
+    (hb : γ'.birth = U.movedNode g γ.birth) (hi : γ'.incidence = γ.incidence) :
+    packetOf (U.move g) P γ' = packetOf U P γ := by
+  have hmask : ∀ j, mask (U.move g) P γ' j ↔ mask U P γ j := fun j => by
+    rw [packet_mask_fn, packet_mask_fn, hb, hi, leafTypeOf_move_step2_state]
+  have hpres : presentSlots (U.move g) P γ' = presentSlots U P γ := by
+    unfold presentSlots
+    classical
+    exact Finset.filter_congr (fun j _ => hmask j)
+  have htop : topSlot (U.move g) P γ' = topSlot U P γ := by
+    unfold topSlot
+    simp only [hpres]
+  have hanc : ∀ j, (U.move g).hierarchy.ancestor γ'.birth j =
+      U.movedNode g (U.hierarchy.ancestor γ.birth j) := fun j => by
+    rw [hb, leafTypeOf_move_step1_ancestor]
+  apply leafTypeOf_move_step3_packet_ext
+  · exact hi
+  · exact htop
+  · show stateOf (U.move g) P ((U.move g).hierarchy.ancestor γ'.birth
+        (topSlot (U.move g) P γ').val) =
+      stateOf U P (U.hierarchy.ancestor γ.birth (topSlot U P γ).val)
+    rw [htop, hanc, leafTypeOf_move_step2_state]
+  · intro i _ _
+    show (U.move g).hierarchy.nodeRole ((U.move g).hierarchy.ancestor γ'.birth i) =
+      U.hierarchy.nodeRole (U.hierarchy.ancestor γ.birth i)
+    rw [hanc, leafTypeOf_move_step1_role]
+
+/-- Step 3 of the V4 proof of `leafTypeOf_move` (V4 2.6, 1.13(c)): faults, provider
+incidences and birth parents move with the source, hence so do facet packets. -/
+private theorem leafTypeOf_move_step3_facetPacket (U : HonestSource S) (g : Iso d)
+    (t : U.Node) (f : FacetName S t.2.val.ty) :
+    (U.move g).facetPacket P (U.movedNode g t) f = U.facetPacket P t f := by
+  let e := leafTypeOf_move_step1_scale U g
+  let q : U.hierarchy.Tail 0 := ⟨t, Nat.zero_le _⟩
+  unfold HonestSource.facetPacket
+  by_cases hf : U.hierarchy.IsFault t f
+  · have hg : (U.move g).hierarchy.IsFault (U.movedNode g t) f :=
+      (e.faults q f f rfl).mp hf
+    rw [dif_pos hf, dif_pos hg]
+  · have hg : ¬ (U.move g).hierarchy.IsFault (U.movedNode g t) f :=
+      fun h => hf ((e.faults q f f rfl).mpr h)
+    rw [dif_neg hf, dif_neg hg]
+    congr 1
+    have hprov := e.providers q f f rfl hf hg
+    have hinc : (U.move g).recordIncidence P (U.movedNode g t) f hg =
+        U.recordIncidence P t f hf := by
+      have hι : (U.move g).hierarchy.providerIncidence (U.movedNode g t) f hg =
+          U.hierarchy.providerIncidence t f hf := hprov.2.2.1.symm
+      unfold HonestSource.recordIncidence
+      rw [hι]
+    have hb : (U.move g).hierarchy.birthParent (U.movedNode g t) f hg =
+        U.movedNode g (U.hierarchy.birthParent t f hf) := by
+      have hk : ((U.move g).hierarchy.firstProvider (U.movedNode g t) f hg).1 =
+          (U.hierarchy.firstProvider t f hf).1 := hprov.1.symm
+      unfold CoherentHierarchy.birthParent CoherentHierarchy.servingChild
+      rw [hk, leafTypeOf_move_step1_ancestor, leafTypeOf_move_step1_parent]
+    exact leafTypeOf_move_step3_packetOf U g _ _ hb hinc
+
+/-- Step 3 of the V4 proof of `leafTypeOf_move` (V4 §2.4): pre-patterns are determined
+by type, state and packets. -/
+private theorem leafTypeOf_move_step3_prePattern_ext {w w' : PrePattern P}
+    (hty : w.ty = w'.ty) (hs : w.state = w'.state) (hp : HEq w.packets w'.packets) :
+    w = w' := by
+  obtain ⟨ty, fm, hfm, st, hst, pk⟩ := w
+  obtain ⟨ty', fm', hfm', st', hst', pk'⟩ := w'
+  dsimp only at hty hs hp
+  subst hty hfm hfm' hs
+  cases hp
+  rfl
+
+/-- Step 3 of the V4 proof of `leafTypeOf_move` (V4 §2.4, 2.14(d)): the pre-pattern of
+a moved native tile is the same pre-pattern. -/
+private theorem leafTypeOf_move_step3_prePattern (U : HonestSource S) (g : Iso d)
+    (t : U.Node) (ht : t.1 = 0) (t' : (U.move g).Node) (ht' : t'.1 = 0)
+    (h : t' = U.movedNode g t) :
+    prePatternOf (U.move g) P t' ht' = prePatternOf U P t ht := by
+  subst h
+  exact leafTypeOf_move_step3_prePattern_ext rfl (leafTypeOf_move_step2_state U g t)
+    (heq_of_eq (funext fun f => leafTypeOf_move_step3_facetPacket U g t f))
+
+/-- Step 4 of the V4 proof of `leafTypeOf_move` (V4 2.7): standard descendants of a moved
+node are the moved descendants. -/
+private theorem leafTypeOf_move_step4_descendant (U : HonestSource S) (g : Iso d)
+    (q : U.Node) (a : ℕ) (ha : a ≤ q.1) (w : S.RoleWord q.2.val.ty a) :
+    (U.move g).descendant (U.movedNode g q) a ha w = U.movedNode g (U.descendant q a ha w) :=
+  Sigma.ext rfl (heq_of_eq (Subtype.ext (FramedNode.ext rfl (by
+    ext x
+    simp [HonestSource.descendant, HonestSource.movedNode, FramedNode.move]))))
+
+/-- Step 4 of the V4 proof of `leafTypeOf_move` (V4 2.7): certificates are determined by
+their type, leaf pre-patterns and state table. -/
+private theorem leafTypeOf_move_step4_cert_ext {D D' : Certificate P}
+    (hty : D.ty = D'.ty) (hl : HEq D.leaves D'.leaves) (ht : HEq D.table D'.table) :
+    D = D' := by
+  obtain ⟨ty, l, lt, t, tt⟩ := D
+  obtain ⟨ty', l', lt', t', tt'⟩ := D'
+  dsimp only at hty hl ht
+  subst hty
+  cases hl
+  cases ht
+  rfl
+
+/-- Step 4 of the V4 proof of `leafTypeOf_move` (V4 2.7, 2.14(d): "the leaf type of `t`
+is intrinsic to the hierarchy"): the joint certificate of a moved K-node is unchanged. -/
+private theorem leafTypeOf_move_step4_cert (U : HonestSource S) (g : Iso d)
+    (B : FramedNode S) (hB : B ∈ U.hierarchy.nodes P.K) (B' : FramedNode S)
+    (hB' : B' ∈ (U.move g).hierarchy.nodes P.K) (hBB : B' = B.move g) :
+    certOf (U.move g) P B' hB' = certOf U P B hB := by
+  subst hBB
+  refine leafTypeOf_move_step4_cert_ext (D := certOf (U.move g) P (B.move g) hB')
+    (D' := certOf U P B hB) rfl ?_ ?_
+  · refine heq_of_eq (funext fun w => ?_)
+    exact leafTypeOf_move_step3_prePattern U g _ (Nat.sub_self P.K) _ (Nat.sub_self P.K)
+      (leafTypeOf_move_step4_descendant U g ⟨P.K, ⟨B, hB⟩⟩ P.K le_rfl w)
+  · refine heq_of_eq (funext fun a => funext fun ha => funext fun w => ?_)
+    show stateOf (U.move g) P ((U.move g).descendant ⟨P.K, ⟨B.move g, hB'⟩⟩ a ha w) =
+      stateOf U P (U.descendant ⟨P.K, ⟨B, hB⟩⟩ a ha w)
+    exact (congrArg (stateOf (U.move g) P)
+      (leafTypeOf_move_step4_descendant U g ⟨P.K, ⟨B, hB⟩⟩ a ha w)).trans
+        (leafTypeOf_move_step2_state U g _)
+
+/-- Step 5 of the V4 proof of `leafTypeOf_move` (V4 2.7, 2.14(d): "the exact leaf
+address"): the unique role word placing the moved tile below the moved K-node is the
+original role word. -/
+private theorem leafTypeOf_move_step5_leafIndex (g : Iso d) (X Y t : FramedNode S)
+    (hXY : X = Y.move g) (w' : S.RoleWord X.ty P.K) (w : S.RoleWord Y.ty P.K)
+    (h' : (S.nativeTile X.ty P.K w').move X.frame = t.move g)
+    (huniq : ∀ v : S.RoleWord Y.ty P.K, (S.nativeTile Y.ty P.K v).move Y.frame = t → v = w) :
+    HEq w' w := by
+  subst hXY
+  refine heq_of_eq (huniq w' ?_)
+  have e1 : ((S.nativeTile Y.ty P.K w').move Y.frame).move g = t.move g := by
+    rw [← h']
+    exact FramedNode.ext rfl (by ext x; simp [FramedNode.move])
+  calc (S.nativeTile Y.ty P.K w').move Y.frame
+      = (((S.nativeTile Y.ty P.K w').move Y.frame).move g).move g.symm :=
+        (leafTypeOf_move_step1_move_symm _ g).symm
+    _ = (t.move g).move g.symm := by rw [e1]
+    _ = t := leafTypeOf_move_step1_move_symm t g
+
 /-- M6, V4 2.14(d): leaf types are intrinsic to the hierarchy under all isometries.
 The equality includes the whole joint certificate and the exact leaf address. -/
 theorem leafTypeOf_move (U : HonestSource S) (g : Iso d) (q : U.Node) (hq : q.1 = 0) :
     leafTypeOf (U.move g) P (U.movedNode g q) hq = leafTypeOf U P q hq := by
-  sorry
+  have hanc := leafTypeOf_move_step1_ancestor U g q P.K
+  have hX : ((U.move g).hierarchy.ancestor (U.movedNode g q) P.K).2.val =
+      (U.hierarchy.ancestor q P.K).2.val.move g := by rw [hanc]; rfl
+  unfold leafTypeOf
+  apply Sigma.ext
+  · apply Subtype.ext
+    exact leafTypeOf_move_step4_cert U g _ (U.certificateAncestor_mem P q hq) _ _ hX
+  · exact leafTypeOf_move_step5_leafIndex g _ _ q.2.val hX _ _
+      (Classical.choose_spec ((U.move g).leafIndex_exists P (U.movedNode g q) hq)).1
+      (Classical.choose_spec (U.leafIndex_exists P q hq)).2
 
 namespace Compiler
 

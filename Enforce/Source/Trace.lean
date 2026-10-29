@@ -36,13 +36,603 @@ def FramedNode.IsDescendant (C : FramedNode S) (h : ℕ)
   ∃ r : ℕ, n = h + r ∧ ∃ w : S.RoleWord P.ty r,
     C = (S.descendantNode P.ty h r w).move P.frame
 
+/-- Step 1 of the V4 proof of `hereditary_trace` (V4 1.1): relative interiors commute
+with the full invertible affine prototype frames. -/
+private theorem hereditary_trace_step1_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 1 of the V4 proof of `hereditary_trace` (V4 1.1): "`F ∩ C`", cells lie on the
+boundary: a listed cell lies in the frontier of its placed owner ((H2) transported
+through the prototype frame). -/
+private theorem hereditary_trace_step1_cell_frontier (N : FramedNode S) (n : ℕ)
+    (e : Cell d) (he : e ∈ (S.cx N.ty).cells) : N.cell n e ⊆ frontier (N.carrier n) := by
+  have hsub : e.carrier ⊆ frontier (S.proto N.ty).carrier := by
+    rw [← (S.cx N.ty).carriers_cover]
+    exact Set.subset_iUnion₂_of_subset e he (Set.Subset.refl _)
+  have hcarrier : N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  rw [hcarrier]
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  change H '' e.carrier ⊆ frontier (H '' (S.proto N.ty).carrier)
+  rw [← H.image_frontier]
+  exact Set.image_mono hsub
+
+/-- Step 1 of the V4 proof of `hereditary_trace` (V4 1.1): "`C ⊆ P`" — a listed cell
+lies in its closed placed owner. -/
+private theorem hereditary_trace_step1_cell_subset (N : FramedNode S) (n : ℕ)
+    (e : Cell d) (he : e ∈ (S.cx N.ty).cells) : N.cell n e ⊆ N.carrier n := by
+  have hc : IsClosed (N.carrier n) :=
+    (((S.proto N.ty).compact.image
+      (S.σ ^ n).toContinuousLinearEquiv.continuous).image N.frame.continuous).isClosed
+  exact (hereditary_trace_step1_cell_frontier N n e he).trans
+    (frontier_subset_iff_isClosed.mpr hc)
+
+/-- Step 1 of the V4 proof of `hereditary_trace` (V4 1.1): "every `p ∈ F ∩ C` lies in
+`relint mc_C(p)`" — every frontier point of a placed node lies in the relative interior
+of a listed placed cell ((H2)(i) transported through the affine prototype frame). -/
+private theorem hereditary_trace_step1_frontier_relint (N : FramedNode S) (n : ℕ) (p : E d)
+    (hp : p ∈ frontier (N.carrier n)) :
+    ∃ e ∈ (S.cx N.ty).cells, p ∈ relint (N.cell n e) := by
+  have hcarrier : N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  rw [hcarrier] at hp
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  change p ∈ frontier (H '' (S.proto N.ty).carrier) at hp
+  rw [← H.image_frontier] at hp
+  obtain ⟨q, hq, rfl⟩ := hp
+  rw [← (S.cx N.ty).cover] at hq
+  obtain ⟨e, he, hqe⟩ := mem_iUnion₂.mp hq
+  refine ⟨e, he, ?_⟩
+  rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+  exact ⟨q, hqe, rfl⟩
+
+/-- Step 1 of the V4 proof of `hereditary_trace` (V4 1.1): "`p ∈ relint g` ... hence
+`e₀ = g`" — distinct listed cells of one placed node have disjoint relative interiors
+((H2)(i) transported through the affine prototype frame). -/
+private theorem hereditary_trace_step1_relint_unique (N : FramedNode S) (n : ℕ)
+    (e f : Cell d) (he : e ∈ (S.cx N.ty).cells) (hf : f ∈ (S.cx N.ty).cells) (p : E d)
+    (hpe : p ∈ relint (N.cell n e)) (hpf : p ∈ relint (N.cell n f)) : e = f := by
+  rw [FramedNode.cell, hereditary_trace_step1_relint_image] at hpe hpf
+  obtain ⟨a, ha, rfl⟩ := hpe
+  obtain ⟨b, hb, hab⟩ := hpf
+  have hba : b = a := (N.prototypeFrame n).injective hab
+  subst hba
+  by_contra hne
+  exact Set.disjoint_left.mp ((S.cx N.ty).relint_disjoint e he f hf hne) ha hb
+
+/-- Step 1 of the V4 proof of `hereditary_trace` (V4 1.1): "Since `C ⊆ P`" — a placed
+child lies in its placed parent ((H3) children cover the expanded parent). -/
+private theorem hereditary_trace_step1_child_carrier (P : FramedNode S) (m : ℕ)
+    (i : S.I P.ty) : (P.child m i).carrier m ⊆ P.carrier (m + 1) := by
+  rintro z ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hmem : (S.child P.ty i).frame x ∈ S.σ '' (S.proto P.ty).carrier := by
+    rw [S.children_cover]
+    exact mem_iUnion.mpr ⟨i, ⟨x, hx, rfl⟩⟩
+  obtain ⟨y, hy, he⟩ := hmem
+  refine ⟨(S.σ ^ (m + 1)) y, ⟨y, hy, rfl⟩, ?_⟩
+  change P.frame ((S.σ ^ (m + 1)) y) = P.frame (S.placeChild m i ((S.σ ^ m) x))
+  have hplace : S.placeChild m i ((S.σ ^ m) x) =
+      (S.σ ^ m) ((S.child P.ty i).frame x) := by
+    change linearConj S.σ (m : ℤ) (S.child P.ty i).rotation.toLinearEquiv
+        ((S.σ ^ m) x) + (S.σ ^ m) (S.child P.ty i).offset =
+      (S.σ ^ m) ((S.child P.ty i).rotation x + (S.child P.ty i).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  rw [hplace, ← he, pow_succ]
+  rfl
+
+/-- Step 2 of the V4 proof of `hereditary_trace` (V4 1.1), "Case `p ∈ ∂F`": a subset with
+the same affine span has relative interior inside the larger relative interior. -/
+private theorem hereditary_trace_step2_relint_mono (s t : Set (E d)) (hst : s ⊆ t)
+    (hspan : affineSpan ℝ s = affineSpan ℝ t) :
+    intrinsicInterior ℝ s ⊆ intrinsicInterior ℝ t := by
+  intro x hx
+  rw [mem_intrinsicInterior] at hx ⊢
+  obtain ⟨y, hy, rfl⟩ := hx
+  let f : (affineSpan ℝ s) ≃ₜ (affineSpan ℝ t) :=
+    Homeomorph.setCongr (congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d))) hspan)
+  have himg : f '' interior ((↑) ⁻¹' s : Set (affineSpan ℝ s)) ⊆
+      interior ((↑) ⁻¹' t : Set (affineSpan ℝ t)) := by
+    rw [f.image_interior]
+    apply interior_mono
+    rintro _ ⟨z, hz, rfl⟩
+    exact hst hz
+  exact ⟨f y, himg ⟨y, hy, rfl⟩, rfl⟩
+
+/-- Step 2 of the V4 proof of `hereditary_trace` (V4 1.1), "Case `p ∈ ∂F`", in prototype
+coordinates: a point of `F` off its relative interior lies in a listed cell of the
+relative boundary, of smaller dimension ((H2)(ii)). -/
+private theorem hereditary_trace_step2_proto (A : PolyManifoldDomain d) (K : CellComplex A)
+    (F : Cell d) (hF : F ∈ K.cells) (a : E d) (haF : a ∈ F.carrier)
+    (hai : a ∉ relint F.carrier) :
+    ∃ F' ∈ K.cells, F'.dim < F.dim ∧ F'.carrier ⊆ F.carrier ∧ a ∈ F'.carrier := by
+  have hcl : IsClosed F.carrier := F.flat.compact.isClosed
+  have hfr : a ∈ relfrontier F.carrier := by
+    unfold relfrontier
+    rw [← closure_diff_intrinsicInterior, hcl.closure_eq]
+    exact ⟨haF, hai⟩
+  obtain ⟨b, hb, heq⟩ := K.boundary_union F hF
+  have hfr' := hfr
+  rw [heq] at hfr'
+  obtain ⟨f, hfb, haf⟩ := mem_iUnion₂.mp hfr'
+  have hfsub : f.carrier ⊆ relfrontier F.carrier := by
+    rw [heq]
+    exact subset_iUnion₂_of_subset f hfb Subset.rfl
+  have hrfF : relfrontier F.carrier ⊆ F.carrier := intrinsicFrontier_subset hcl
+  refine ⟨f, hb hfb, ?_, hfsub.trans hrfF, haf⟩
+  have hspanle : affineSpan ℝ f.carrier ≤ affineSpan ℝ F.carrier :=
+    affineSpan_mono ℝ (hfsub.trans hrfF)
+  have hle : cellDirection f.carrier ≤ cellDirection F.carrier :=
+    AffineSubspace.direction_le hspanle
+  rw [← f.flat.dimension, ← F.flat.dimension]
+  refine lt_of_le_of_ne (Submodule.finrank_mono hle) ?_
+  intro hdim
+  have hdir : cellDirection f.carrier = cellDirection F.carrier :=
+    Submodule.eq_of_le_of_finrank_eq hle hdim
+  obtain ⟨x, hx⟩ := f.flat.relint_nonempty
+  have hne : (affineSpan ℝ f.carrier : Set (E d)).Nonempty :=
+    ⟨x, subset_affineSpan ℝ _ (intrinsicInterior_subset hx)⟩
+  have hspan : affineSpan ℝ f.carrier = affineSpan ℝ F.carrier :=
+    AffineSubspace.eq_of_direction_eq_of_nonempty_of_le hdir hne hspanle
+  have hxF : x ∈ relint F.carrier :=
+    hereditary_trace_step2_relint_mono _ _ (hfsub.trans hrfF) hspan hx
+  have hxb : x ∈ relfrontier F.carrier := hfsub (intrinsicInterior_subset hx)
+  unfold relfrontier at hxb
+  rw [← intrinsicClosure_diff_intrinsicInterior] at hxb
+  exact hxb.2 hxF
+
+/-- Step 2 of the V4 proof of `hereditary_trace` (V4 1.1), "Case `p ∈ ∂F`": then `p` lies
+in a listed cell `F' ⊆ ∂F` of smaller dimension ((H2)(ii): the relative boundary is a
+union of listed cells, all of lower dimension). -/
+private theorem hereditary_trace_step2_boundary (N : FramedNode S) (n : ℕ) (F : Cell d)
+    (hF : F ∈ (S.cx N.ty).cells) (p : E d) (hpF : p ∈ N.cell n F)
+    (hpi : p ∉ relint (N.cell n F)) :
+    ∃ F' ∈ (S.cx N.ty).cells, F'.dim < F.dim ∧ N.cell n F' ⊆ N.cell n F ∧
+      p ∈ N.cell n F' := by
+  obtain ⟨a, haF, rfl⟩ := hpF
+  have hai : a ∉ relint F.carrier := by
+    intro ha
+    apply hpi
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact ⟨a, ha, rfl⟩
+  obtain ⟨F', hF', hlt, hsub, haF'⟩ :=
+    hereditary_trace_step2_proto (S.proto N.ty) (S.cx N.ty) F hF a haF hai
+  exact ⟨F', hF', hlt, Set.image_mono hsub, ⟨a, haF', rfl⟩⟩
+
+/-- Step 3 of the V4 proof of `hereditary_trace` (V4 1.1): the placed child frame at height
+`m` is the expanded prototype child frame (frames of (H3)). -/
+private theorem hereditary_trace_step3_place (P : FramedNode S) (m : ℕ) (j : S.I P.ty)
+    (x : E d) : S.placeChild m j ((S.σ ^ m) x) = (S.σ ^ m) ((S.child P.ty j).frame x) := by
+  change linearConj S.σ (m : ℤ) (S.child P.ty j).rotation.toLinearEquiv
+      ((S.σ ^ m) x) + (S.σ ^ m) (S.child P.ty j).offset =
+    (S.σ ^ m) ((S.child P.ty j).rotation x + (S.child P.ty j).offset)
+  simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+
+/-- Step 3 of the V4 proof of `hereditary_trace` (V4 1.1): a placed child cell is the
+height-`m` image of the prescribed child cell. -/
+private theorem hereditary_trace_step3_child_cell (P : FramedNode S) (m : ℕ) (j : S.I P.ty)
+    (e : Cell d) : (P.child m j).cell m e =
+      (fun y => P.frame ((S.σ ^ m) y)) '' placedSet (S.child P.ty j).frame e.carrier := by
+  unfold FramedNode.cell placedSet
+  rw [Set.image_image]
+  apply Set.image_congr
+  intro y _
+  change P.frame (S.placeChild m j ((S.σ ^ m) y)) = _
+  rw [hereditary_trace_step3_place]
+
+/-- Step 3 of the V4 proof of `hereditary_trace` (V4 1.1): a placed parent cell is the
+height-`m` image of the expanded prototype cell. -/
+private theorem hereditary_trace_step3_parent_cell (P : FramedNode S) (m : ℕ) (F : Cell d) :
+    P.cell (m + 1) F = (fun y => P.frame ((S.σ ^ m) y)) '' (S.σ '' F.carrier) := by
+  unfold FramedNode.cell
+  rw [Set.image_image]
+  apply Set.image_congr
+  intro y _
+  change P.frame ((S.σ ^ (m + 1)) y) = _
+  rw [pow_succ]
+  rfl
+
+/-- Step 3 of the V4 proof of `hereditary_trace` (V4 1.1): a listed subcell has no larger
+dimension. -/
+private theorem hereditary_trace_step3_dim_mono (e f : Cell d) (h : e.carrier ⊆ f.carrier) :
+    e.dim ≤ f.dim := by
+  rw [← e.flat.dimension, ← f.flat.dimension]
+  exact Submodule.finrank_mono (AffineSubspace.direction_le (affineSpan_mono ℝ h))
+
+/-- Step 3 of the V4 proof of `hereditary_trace` (V4 1.1), "Case `p ∈ relint F`,
+`dim F ≤ d-2`": by (H5) `F` is a union of placed `dim F`-cells of children; take `e₁ ⊆ F`
+of a child `B` through `p` and `e₀ = mc_B(p) ⊆ e₁`; if `B = C` then `e₀ = g`, otherwise
+(H6) makes `e₀` a cell of `C` with `p` in its relative interior, so again `e₀ = g ⊆ F`. -/
+private theorem hereditary_trace_step3_lowdim (P : FramedNode S) (m : ℕ) (i : S.I P.ty)
+    (F g : Cell d) (hF : F ∈ (S.cx P.ty).cells) (hg : g ∈ (S.cx (P.child m i).ty).cells)
+    (hlow : F.dim ≤ d - 2) (p : E d) (hpg : p ∈ relint ((P.child m i).cell m g))
+    (hpF : p ∈ relint (P.cell (m + 1) F)) :
+    (P.child m i).cell m g ⊆ P.cell (m + 1) F := by
+  let ψ : E d → E d := fun y => P.frame ((S.σ ^ m) y)
+  have hψ : Function.Injective ψ := fun a b hab =>
+    (S.σ ^ m).injective (P.frame.injective hab)
+  have hpF' : p ∈ P.cell (m + 1) F := intrinsicInterior_subset hpF
+  rw [hereditary_trace_step3_parent_cell] at hpF'
+  obtain ⟨_, ⟨a, haF, rfl⟩, hpa⟩ := hpF'
+  obtain ⟨fs, hfs⟩ := S.heredity P.ty F hF
+  have hsa : S.σ a ∈ ⋃ q ∈ fs, placedSet (S.child P.ty q.1).frame q.2.val.carrier := by
+    rw [← hfs]; exact ⟨a, haF, rfl⟩
+  obtain ⟨⟨j, e1, he1, hdim1⟩, hq, hx⟩ := mem_iUnion₂.mp hsa
+  obtain ⟨x, hx1, hxa⟩ := hx
+  -- the child cell `e₁` lies in `F`
+  have he1F : (P.child m j).cell m e1 ⊆ P.cell (m + 1) F := by
+    rw [hereditary_trace_step3_child_cell, hereditary_trace_step3_parent_cell, hfs]
+    exact Set.image_mono (subset_iUnion₂_of_subset ⟨j, e1, he1, hdim1⟩ hq Subset.rfl)
+  -- the minimal cell `e₀ = mc_B(p)`
+  have hxfr : x ∈ frontier (S.proto (S.child P.ty j).ty).carrier := by
+    rw [← (S.cx (S.child P.ty j).ty).carriers_cover]
+    exact mem_iUnion₂.mpr ⟨e1, he1, hx1⟩
+  let K := S.cx (S.child P.ty j).ty
+  let e0 := K.minimalCell x hxfr
+  have he0 : e0 ∈ K.cells := K.minimalCell_mem x hxfr
+  have hxe0 : x ∈ relint e0.carrier := K.mem_relint_minimalCell x hxfr
+  have he01 : e0.carrier ⊆ e1.carrier := K.minimalCell_subset x hxfr e1 he1 hx1
+  have hpx : (P.child m j).prototypeFrame m x = p := by
+    change P.frame (S.placeChild m j ((S.σ ^ m) x)) = p
+    rw [hereditary_trace_step3_place, hxa]
+    exact hpa
+  have hpe0 : p ∈ relint ((P.child m j).cell m e0) := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact ⟨x, hxe0, hpx⟩
+  have he0F : (P.child m j).cell m e0 ⊆ P.cell (m + 1) F :=
+    (Set.image_mono he01).trans he1F
+  by_cases hji : j = i
+  · subst hji
+    rw [hereditary_trace_step1_relint_unique (P.child m j) m g e0 hg he0 p hpg hpe0]
+    exact he0F
+  · -- (H6): `e₀` is a cell of `C`
+    have hpC : p ∈ (P.child m i).carrier m :=
+      hereditary_trace_step1_cell_subset _ m g hg (intrinsicInterior_subset hpg)
+    obtain ⟨_, ⟨y, hy, rfl⟩, hyp⟩ := hpC
+    have hyi : (S.child P.ty i).frame y = S.σ a := by
+      apply hψ
+      change P.frame ((S.σ ^ m) ((S.child P.ty i).frame y)) = P.frame ((S.σ ^ m) (S.σ a))
+      rw [← hereditary_trace_step3_place]
+      exact hyp.trans hpa.symm
+    have hlow0 : e0.dim ≤ d - 2 :=
+      (hereditary_trace_step3_dim_mono e0 e1 he01).trans (hdim1 ▸ hlow)
+    have hsymm : (S.child P.ty j).frame.symm (S.σ a) = x := by
+      rw [← hxa]; exact (S.child P.ty j).frame.symm_apply_apply x
+    obtain ⟨f, hf, hfe⟩ := S.sibling_conformity P.ty j i hji (S.σ a)
+      ⟨x, (S.proto (S.child P.ty j).ty).compact.isClosed.frontier_subset hxfr, hxa⟩
+      ⟨y, hy, hyi⟩ e0 he0 (by rw [hsymm]; exact hxe0) hlow0
+    have hcell : (P.child m j).cell m e0 = (P.child m i).cell m f := by
+      rw [hereditary_trace_step3_child_cell, hereditary_trace_step3_child_cell, hfe]
+    rw [hcell] at hpe0 he0F
+    rw [hereditary_trace_step1_relint_unique (P.child m i) m g f hg hf p hpg hpe0]
+    exact he0F
+
+/-- Step 4 of the V4 proof of `hereditary_trace` (V4 1.1), "Case `p ∈ relint F`,
+`dim F = d-1`", local part: "Let `U` be as in Lemma 1.0(a) for `P` and `F`: `P ∩ U` is the
+closed half-ball `U ∩ Π⁺` with `∂Π⁺ = aff F`. Since `C ⊆ P`, `g ∩ U ⊆ Π⁺` ... so
+`relint g ∩ U' ⊆ aff F ∩ U = F ∩ U` for a smaller ball `U' ∋ q`." -/
+private theorem hereditary_trace_step4_local (P : FramedNode S) (m : ℕ) (i : S.I P.ty)
+    (F g : Cell d) (hF : F ∈ (S.cx P.ty).cells) (hg : g ∈ (S.cx (P.child m i).ty).cells)
+    (hdim : F.dim = d - 1) (q : E d) (hqg : q ∈ relint ((P.child m i).cell m g))
+    (hqF : q ∈ relint (P.cell (m + 1) F)) :
+    ∃ r : ℝ, 0 < r ∧ relint ((P.child m i).cell m g) ∩ ball q r ⊆ P.cell (m + 1) F := by
+  let φ := P.prototypeFrame (m + 1)
+  let A := (S.proto P.ty).carrier
+  have hcarrier : P.carrier (m + 1) = φ '' A := by
+    simp [φ, A, FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  have hCA : (P.child m i).cell m g ⊆ φ '' A := by
+    rw [← hcarrier]
+    exact (hereditary_trace_step1_cell_subset _ m g hg).trans
+      (hereditary_trace_step1_child_carrier P m i)
+  have hqC : q ∈ (P.child m i).cell m g := intrinsicInterior_subset hqg
+  -- relative openness of `relint g` at `q`
+  have hε : ∃ ε > 0, ∀ z ∈ affineSpan ℝ ((P.child m i).cell m g), dist z q < ε →
+      z ∈ (P.child m i).cell m g := by
+    unfold relint at hqg
+    rw [mem_intrinsicInterior] at hqg
+    obtain ⟨y, hy, hyq⟩ := hqg
+    obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp isOpen_interior y hy
+    refine ⟨ε, hε, fun z hz hzq => ?_⟩
+    have hzb : (⟨z, hz⟩ : affineSpan ℝ ((P.child m i).cell m g)) ∈ ball y ε := by
+      rw [mem_ball, Subtype.dist_eq, hyq]
+      exact hzq
+    have h2 := interior_subset (hball hzb)
+    exact h2
+  obtain ⟨ε, hε, hεC⟩ := hε
+  -- the half-ball of Lemma 1.0(a)
+  rw [FramedNode.cell, hereditary_trace_step1_relint_image] at hqF
+  obtain ⟨a, ha, rfl⟩ := hqF
+  have hFf : F ∈ (S.cx P.ty).facets := by
+    unfold CellComplex.facets
+    exact Finset.mem_filter.mpr ⟨hF, hdim⟩
+  obtain ⟨r, hr, v, hv, hfront, hFb, hAb⟩ :=
+    facet_halfball (S.proto P.ty) (S.cx P.ty) F hFf a ha
+  obtain ⟨δ, hδ, hδr⟩ := Metric.continuousAt_iff.mp
+    (φ.symm.continuous_of_finiteDimensional.continuousAt (x := φ a)) r hr
+  refine ⟨min ε δ, lt_min hε hδ, ?_⟩
+  rintro x ⟨hxg, hxb⟩
+  have hxC : x ∈ (P.child m i).cell m g := intrinsicInterior_subset hxg
+  have hxε : dist x (φ a) < ε := lt_of_lt_of_le (mem_ball.mp hxb) (min_le_left _ _)
+  have hxδ : dist x (φ a) < δ := lt_of_lt_of_le (mem_ball.mp hxb) (min_le_right _ _)
+  set x' := AffineMap.lineMap x (φ a) (2 : ℝ) with hx'
+  have hx'span : x' ∈ affineSpan ℝ ((P.child m i).cell m g) :=
+    AffineMap.lineMap_mem 2 (subset_affineSpan ℝ _ hxC) (subset_affineSpan ℝ _ hqC)
+  have hdist : dist x' (φ a) = dist x (φ a) := by
+    rw [hx', dist_lineMap_right]
+    norm_num
+  have hx'C : x' ∈ (P.child m i).cell m g := hεC x' hx'span (hdist ▸ hxε)
+  have hx'δ : dist x' (φ a) < δ := hdist ▸ hxδ
+  obtain ⟨y, hyA, rfl⟩ := hCA hxC
+  have hy'A : AffineMap.lineMap y a (2 : ℝ) ∈ A := by
+    obtain ⟨y', hy'A, hy'⟩ := hCA hx'C
+    have : y' = AffineMap.lineMap y a (2 : ℝ) := by
+      apply φ.injective
+      rw [hy', hx']
+      exact (AffineMap.apply_lineMap φ.toAffineMap y a 2).symm
+    exact this ▸ hy'A
+  have hyr : dist y a < r := by
+    have := hδr hxδ
+    simpa using this
+  have hy'r : dist (AffineMap.lineMap y a (2 : ℝ)) a < r := by
+    rw [dist_lineMap_right]
+    norm_num
+    exact hyr
+  have hin1 : 0 ≤ inner ℝ v (y - a) := by
+    have : y ∈ A ∩ ball a r := ⟨hyA, mem_ball.mpr hyr⟩
+    rw [hAb] at this
+    exact this.1
+  have hin2 : 0 ≤ inner ℝ v (AffineMap.lineMap y a (2 : ℝ) - a) := by
+    have : AffineMap.lineMap y a (2 : ℝ) ∈ A ∩ ball a r := ⟨hy'A, mem_ball.mpr hy'r⟩
+    rw [hAb] at this
+    exact this.1
+  have hlin : AffineMap.lineMap y a (2 : ℝ) - a = (-1 : ℝ) • (y - a) := by
+    rw [← vsub_eq_sub, AffineMap.lineMap_vsub_right, vsub_eq_sub]
+    norm_num
+  rw [hlin, inner_smul_right] at hin2
+  have hzero : inner ℝ v (y - a) = 0 := by linarith
+  -- `y` is a frontier point of the prototile
+  have hyfr : y ∈ frontier A := by
+    refine ⟨subset_closure hyA, fun hint => ?_⟩
+    obtain ⟨ε2, hε2, hball2⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hint)
+    set t := min (ε2 / 2) ((r - dist y a) / 2) with ht
+    have htpos : 0 < t := lt_min (by linarith) (by linarith)
+    have hzy : dist (y - t • v) y = t := by
+      rw [dist_eq_norm, sub_sub_cancel_left, norm_neg, norm_smul, hv, mul_one,
+        Real.norm_of_nonneg htpos.le]
+    have hzA : y - t • v ∈ A := hball2 (by
+      rw [mem_ball, hzy]
+      exact lt_of_le_of_lt (min_le_left _ _) (by linarith))
+    have hza : dist (y - t • v) a < r := by
+      have h1 := dist_triangle (y - t • v) y a
+      have h2 : t ≤ (r - dist y a) / 2 := min_le_right _ _
+      linarith
+    have hz : y - t • v ∈ A ∩ ball a r := ⟨hzA, mem_ball.mpr hza⟩
+    rw [hAb] at hz
+    have hz1 : 0 ≤ inner ℝ v (y - t • v - a) := hz.1
+    have hcalc : inner ℝ v (y - t • v - a) = inner ℝ v (y - a) - t := by
+      rw [show y - t • v - a = (y - a) - t • v by abel, inner_sub_right, inner_smul_right,
+        real_inner_self_eq_norm_sq, hv]
+      ring
+    rw [hcalc, hzero] at hz1
+    linarith
+  have hyF : y ∈ F.carrier := by
+    have h1 : y ∈ frontier A ∩ ball a r := ⟨hyfr, mem_ball.mpr hyr⟩
+    rw [hfront, ← hFb] at h1
+    exact h1.1
+  exact ⟨y, hyF, rfl⟩
+
+/-- Step 4 of the V4 proof of `hereditary_trace` (V4 1.1), "Case `p ∈ relint F`,
+`dim F = d-1`": by Lemma 1.0(a) `P` is a closed half-ball near `p` bounded by `aff F`, and
+`C ⊆ P`, so `relint g ∩ F` is a neighbourhood of `p` in `relint g`; together with the
+boundary case (hypothesis `hbd`) the set `relint g ∩ F` is relatively clopen in the
+connected set `relint g`, hence `g = closure (relint g) ⊆ F`. -/
+private theorem hereditary_trace_step4_facet (P : FramedNode S) (m : ℕ) (i : S.I P.ty)
+    (F g : Cell d) (hF : F ∈ (S.cx P.ty).cells) (hg : g ∈ (S.cx (P.child m i).ty).cells)
+    (hdim : F.dim = d - 1)
+    (hbd : ∀ q, q ∈ relint ((P.child m i).cell m g) → q ∈ P.cell (m + 1) F →
+      q ∉ relint (P.cell (m + 1) F) → (P.child m i).cell m g ⊆ P.cell (m + 1) F)
+    (p : E d) (hpg : p ∈ relint ((P.child m i).cell m g))
+    (hpF : p ∈ relint (P.cell (m + 1) F)) :
+    (P.child m i).cell m g ⊆ P.cell (m + 1) F := by
+  by_cases hex : ∃ q, q ∈ relint ((P.child m i).cell m g) ∧ q ∈ P.cell (m + 1) F ∧
+      q ∉ relint (P.cell (m + 1) F)
+  · obtain ⟨q, h1, h2, h3⟩ := hex
+    exact hbd q h1 h2 h3
+  push_neg at hex
+  let φ := (P.child m i).prototypeFrame m
+  have hXimg : relint ((P.child m i).cell m g) = φ '' relint g.carrier := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+  have hconn : IsPreconnected (relint ((P.child m i).cell m g)) := by
+    rw [hXimg]
+    exact (g.flat.relint_connected.image _
+      φ.continuous_of_finiteDimensional.continuousOn).isPreconnected
+  have hclosedF : IsClosed (P.cell (m + 1) F) :=
+    (F.flat.compact.image (P.prototypeFrame (m + 1)).continuous_of_finiteDimensional).isClosed
+  have hsub : relint ((P.child m i).cell m g) ⊆ P.cell (m + 1) F := by
+    haveI := isPreconnected_iff_preconnectedSpace.mp hconn
+    let T : Set (relint ((P.child m i).cell m g)) := {x | x.val ∈ P.cell (m + 1) F}
+    have hTc : IsClosed T := hclosedF.preimage continuous_subtype_val
+    have hTo : IsOpen T := by
+      rw [isOpen_iff_mem_nhds]
+      intro x hx
+      obtain ⟨r, hr, hball⟩ := hereditary_trace_step4_local P m i F g hF hg hdim x.val
+        x.property (hex x.val x.property hx)
+      refine Filter.mem_of_superset
+        ((isOpen_ball.preimage continuous_subtype_val).mem_nhds (mem_ball_self hr)) ?_
+      intro y hy
+      exact hball ⟨y.property, hy⟩
+    have hTne : T.Nonempty :=
+      ⟨⟨p, hpg⟩, show p ∈ P.cell (m + 1) F from intrinsicInterior_subset hpF⟩
+    have huniv := IsClopen.eq_univ ⟨hTc, hTo⟩ hTne
+    intro x hx
+    have hxT : (⟨x, hx⟩ : relint ((P.child m i).cell m g)) ∈ T := huniv ▸ mem_univ _
+    exact hxT
+  have hcl : closure (relint ((P.child m i).cell m g)) = (P.child m i).cell m g := by
+    rw [hXimg]
+    let H := φ.toHomeomorphOfFiniteDimensional
+    change closure (H '' relint g.carrier) = H '' g.carrier
+    rw [← H.image_closure, g.flat.regularClosed]
+  rw [← hcl]
+  exact closure_minimal hsub hclosedF
+
+/-- Step 5 of the V4 proof of `hereditary_trace` (V4 1.1): the one-step statement for a
+child, by induction on `dim F` over the three cases. -/
+private theorem hereditary_trace_step5_child (P : FramedNode S) (m : ℕ) (i : S.I P.ty)
+    (F g : Cell d) (hF : F ∈ (S.cx P.ty).cells) (hg : g ∈ (S.cx (P.child m i).ty).cells)
+    (hmeet : (relint ((P.child m i).cell m g) ∩ P.cell (m + 1) F).Nonempty) :
+    (P.child m i).cell m g ⊆ P.cell (m + 1) F := by
+  suffices H : ∀ k, ∀ F : Cell d, F.dim = k → F ∈ (S.cx P.ty).cells → ∀ p,
+      p ∈ relint ((P.child m i).cell m g) → p ∈ P.cell (m + 1) F →
+      (P.child m i).cell m g ⊆ P.cell (m + 1) F by
+    obtain ⟨p, hpg, hpF⟩ := hmeet
+    exact H _ F rfl hF p hpg hpF
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+    intro F hk hF p hpg hpF
+    have hbd : ∀ q, q ∈ relint ((P.child m i).cell m g) → q ∈ P.cell (m + 1) F →
+        q ∉ relint (P.cell (m + 1) F) → (P.child m i).cell m g ⊆ P.cell (m + 1) F := by
+      intro q hqg hqF hqi
+      obtain ⟨F', hF', hlt, hsub, hqF'⟩ :=
+        hereditary_trace_step2_boundary P (m + 1) F hF q hqF hqi
+      exact (ih F'.dim (by omega) F' rfl hF' q hqg hqF').trans hsub
+    by_cases hpi : p ∈ relint (P.cell (m + 1) F)
+    · have hlt : F.dim < d := (S.cx P.ty).dim_lt F hF
+      by_cases hlow : F.dim ≤ d - 2
+      · exact hereditary_trace_step3_lowdim P m i F g hF hg hlow p hpg hpi
+      · exact hereditary_trace_step4_facet P m i F g hF hg (by omega) hbd p hpg hpi
+    · exact hbd p hpg hpF hpi
+
+/-- Step 6 of the V4 proof of `hereditary_trace` (V4 1.1): the same statement inside a
+single complex (descendant of depth zero), by induction on `dim F`. -/
+private theorem hereditary_trace_step6_same (N : FramedNode S) (n : ℕ) (F g : Cell d)
+    (hF : F ∈ (S.cx N.ty).cells) (hg : g ∈ (S.cx N.ty).cells)
+    (hmeet : (relint (N.cell n g) ∩ N.cell n F).Nonempty) :
+    N.cell n g ⊆ N.cell n F := by
+  suffices H : ∀ k, ∀ F : Cell d, F.dim = k → F ∈ (S.cx N.ty).cells → ∀ p,
+      p ∈ relint (N.cell n g) → p ∈ N.cell n F → N.cell n g ⊆ N.cell n F by
+    obtain ⟨p, hpg, hpF⟩ := hmeet
+    exact H _ F rfl hF p hpg hpF
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+    intro F hk hF p hpg hpF
+    by_cases hpi : p ∈ relint (N.cell n F)
+    · rw [hereditary_trace_step1_relint_unique N n g F hg hF p hpg hpi]
+    · obtain ⟨F', hF', hlt, hsub, hpF'⟩ :=
+        hereditary_trace_step2_boundary N n F hF p hpF hpi
+      exact (ih F'.dim (by omega) F' rfl hF' p hpg hpF').trans hsub
+
+/-- Step 7 of the V4 proof of `hereditary_trace` (V4 1.1): a descendant of depth zero is
+the node itself. -/
+private theorem hereditary_trace_step7_zero (P C : FramedNode S) (h : ℕ)
+    (hC : C.IsDescendant h P h) : C = P := by
+  obtain ⟨r, hr, w, rfl⟩ := hC
+  have h0 : r = 0 := by omega
+  subst h0
+  apply FramedNode.ext
+  · rfl
+  · ext x
+    rfl
+
+/-- Step 7 of the V4 proof of `hereditary_trace` (V4 1.1): "`C` is a child of `C'`" —
+a descendant of positive depth is a descendant of one child of the node. -/
+private theorem hereditary_trace_step7_peel (P C : FramedNode S) (h r : ℕ)
+    (hC : C.IsDescendant h P (h + (r + 1))) :
+    ∃ i : S.I P.ty, C.IsDescendant h (P.child (h + r) i) (h + r) := by
+  obtain ⟨r', hr', w, rfl⟩ := hC
+  have h1 : r' = r + 1 := by omega
+  subst h1
+  refine ⟨w.1, r, rfl, w.2, ?_⟩
+  apply FramedNode.ext
+  · rfl
+  · ext x
+    rfl
+
+/-- Step 7 of the V4 proof of `hereditary_trace` (V4 1.1): descendants lie in their
+ancestors. -/
+private theorem hereditary_trace_step7_carrier (P C : FramedNode S) (h r : ℕ)
+    (hC : C.IsDescendant h P (h + r)) : C.carrier h ⊆ P.carrier (h + r) := by
+  induction r generalizing P with
+  | zero =>
+    rw [hereditary_trace_step7_zero P C h hC]
+    exact Subset.rfl
+  | succ r ih =>
+    obtain ⟨i, hC'⟩ := hereditary_trace_step7_peel P C h r hC
+    exact (ih _ hC').trans (hereditary_trace_step1_child_carrier P (h + r) i)
+
+/-- Step 7 of the V4 proof of `hereditary_trace` (V4 1.1), "For deeper descendants":
+iterate the one-step statement through the intermediate descendant. -/
+private theorem hereditary_trace_step7_descend (C : FramedNode S) (h : ℕ) (g : Cell d)
+    (hg : g ∈ (S.cx C.ty).cells) (r : ℕ) :
+    ∀ (P : FramedNode S) (F : Cell d), C.IsDescendant h P (h + r) →
+      F ∈ (S.cx P.ty).cells → (relint (C.cell h g) ∩ P.cell (h + r) F).Nonempty →
+      C.cell h g ⊆ P.cell (h + r) F := by
+  induction r with
+  | zero =>
+    intro P F hC hF hmeet
+    have hCP := hereditary_trace_step7_zero P C h hC
+    subst hCP
+    exact hereditary_trace_step6_same C h F g hF hg hmeet
+  | succ r ih =>
+    intro P F hC hF hmeet
+    obtain ⟨i, hC'⟩ := hereditary_trace_step7_peel P C h r hC
+    obtain ⟨p, hpg, hpF⟩ := hmeet
+    have hpC : p ∈ C.carrier h :=
+      hereditary_trace_step1_cell_subset C h g hg (intrinsicInterior_subset hpg)
+    have hpP' : p ∈ (P.child (h + r) i).carrier (h + r) :=
+      hereditary_trace_step7_carrier _ C h r hC' hpC
+    have hfr : p ∈ frontier (P.carrier (h + (r + 1))) :=
+      hereditary_trace_step1_cell_frontier P _ F hF hpF
+    have hpfr : p ∈ frontier ((P.child (h + r) i).carrier (h + r)) := by
+      refine ⟨subset_closure hpP', fun hint => hfr.2 ?_⟩
+      exact interior_mono (hereditary_trace_step1_child_carrier P (h + r) i) hint
+    obtain ⟨g', hg', hpg'⟩ :=
+      hereditary_trace_step1_frontier_relint (P.child (h + r) i) (h + r) p hpfr
+    have h1 : (P.child (h + r) i).cell (h + r) g' ⊆ P.cell (h + r + 1) F :=
+      hereditary_trace_step5_child P (h + r) i F g' hF hg' ⟨p, hpg', hpF⟩
+    have h2 : C.cell h g ⊆ (P.child (h + r) i).cell (h + r) g' :=
+      ih _ g' hC' hg' ⟨p, hpg, intrinsicInterior_subset hpg'⟩
+    exact h2.trans h1
+
 /-- P1, V4 1.1: hereditary trace, for descendants of arbitrary depth. -/
 theorem hereditary_trace (P C : FramedNode S) (n h : ℕ)
     (hC : C.IsDescendant h P n) (F g : Cell d)
     (hF : F ∈ (S.cx P.ty).cells) (hg : g ∈ (S.cx C.ty).cells)
     (hmeet : (relint (C.cell h g) ∩ P.cell n F).Nonempty) :
     C.cell h g ⊆ P.cell n F := by
-  sorry
+  obtain ⟨r, rfl, -⟩ := id hC
+  exact hereditary_trace_step7_descend C h g hg r P F hC hF hmeet
 
 /-- P1, V4 1.1: the entire trace on a descendant is a union of its listed cells. -/
 theorem hereditary_trace_union (P C : FramedNode S) (n h : ℕ)

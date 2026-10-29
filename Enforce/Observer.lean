@@ -276,13 +276,233 @@ theorem range_raise (a : Observer P) (ha : a ∈ jointSourceRange S P) :
     ∃ (U : HonestSource S) (q : U.Node), P.H + 1 ≤ q.1 ∧ U.observerOf P q = a := by
   sorry
 
+open private exists_childMap_step2_parent exists_childMap_step2_role
+  from Enforce.State.State in
+/-- Step 1 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(i)):
+"the state tuple of C̃ is (D_S(S(Ã),i),S(Ã),…,S(Ã_{m+w-2}))" (Prop. 2.3).
+In compressed coordinates, the child's window is the parent's window shifted
+down by the role `(A,i)`. -/
+private theorem honest_observer_transition_step1_window (U : HonestSource S)
+    (P : Params S) (q : U.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty) :
+    ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) (U.childNode q hq i) =
+      (ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).child
+        ⟨q.2.val.ty, i⟩ := by
+  have hpar := exists_childMap_step2_parent U q hq i
+  have hanc : ∀ n : ℕ, U.hierarchy.ancestor (U.childNode q hq i) (n + 1) =
+      U.hierarchy.ancestor q n := by
+    intro n
+    simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hpar]
+  have hw := P.observer_window_bound
+  apply ObserverWindow.ext
+  · change stateOf U P (U.hierarchy.ancestor (U.childNode q hq i) (P.w - 1)) =
+      (ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).stateAt
+        ⟨P.w - 2, by omega⟩
+    rw [honestWindow_at]
+    have h := hanc (P.w - 2)
+    rw [show P.w - 2 + 1 = P.w - 1 by omega] at h
+    rw [h]
+  · funext j
+    change U.hierarchy.nodeRole (U.hierarchy.ancestor (U.childNode q hq i) j.val) =
+      (if h : j.val = 0 then (⟨q.2.val.ty, i⟩ : S.Role) else
+        U.hierarchy.nodeRole (U.hierarchy.ancestor q (j.val - 1)))
+    by_cases h : j.val = 0
+    · rw [dif_pos h, h]
+      exact exists_childMap_step2_role U q hq i
+    · rw [dif_neg h]
+      have h' := hanc (j.val - 1)
+      rw [show j.val - 1 + 1 = j.val by omega] at h'
+      rw [h']
+
+open private exists_childMap_step2_parent exists_childMap_step4_containment
+  from Enforce.State.State in
+/-- Step 2 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(ii)):
+"for a facet f of C̃ contained in a facet F of Ã: O_f(C̃)=O_F(Ã)" (Lemma 2.6(d)).
+The containment is tested in the normalized one-step geometry. -/
+private theorem honest_observer_transition_step2_inherited (U : HonestSource S)
+    (P : Params S) (q : U.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty) (F : FacetName S q.2.val.ty)
+    (hF : rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier) :
+    U.facetPacket P (U.childNode q hq i) f = U.facetPacket P q F :=
+  packet_inherited U P q (U.childNode q hq i) 1
+    (by simpa only [CoherentHierarchy.ancestor, Function.iterate_one] using
+      exists_childMap_step2_parent U q hq i)
+    F f ((exists_childMap_step4_containment U q hq i f.val F.val).mpr hF)
+
+/-- Step 3 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(ii)--(iii)):
+"a facet f of C̃ contained in a facet F of Ã" is the same test whether it is
+read in `σ A` or in the normalized parent prototype. -/
+private theorem honest_observer_transition_step3_test (r : S.Role) (X Y : Set (E d)) :
+    placedSet (S.child r.1 r.2).frame X ⊆ S.σ '' Y ↔ rolePlacement r '' X ⊆ Y := by
+  have h : rolePlacement r '' X = S.σ.symm '' placedSet (S.child r.1 r.2).frame X := by
+    rw [placedSet, Set.image_image]
+    rfl
+  rw [h]
+  constructor
+  · rintro hXY _ ⟨x, hx, rfl⟩
+    obtain ⟨y, hy, hyx⟩ := hXY hx
+    rw [← hyx, LinearEquiv.symm_apply_apply]
+    exact hy
+  · intro hXY x hx
+    exact ⟨S.σ.symm x, hXY ⟨x, hx, rfl⟩, LinearEquiv.apply_symm_apply _ _⟩
+
+open private exists_childMap_step2_role exists_childMap_step4_internal_provider
+  from Enforce.State.State in
+/-- Step 4 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(iii)):
+"for a facet f of C̃ internal to Ã (first-generation in Ã)" — Definition 2.5
+with `P_b = Ã`: its provider is born in Ã and its canonical incidence `ι(f)`
+has parent type `A` and positioned facet `f`. -/
+private theorem honest_observer_transition_step4_internal (U : HonestSource S)
+    (P : Params S) (q : U.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f)
+    (hint : ¬ ∃ F : FacetName S q.2.val.ty,
+      rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier) :
+    (U.providerOccurrence P (U.childNode q hq i) f hf).birth = q ∧
+      (U.recordIncidence P (U.childNode q hq i) f hf).val.ty = q.2.val.ty ∧
+      (U.recordIncidence P (U.childNode q hq i) f hf).val.positioned =
+        placedSet (S.child q.2.val.ty i).frame f.val.carrier := by
+  obtain ⟨hserv, hbirth, ha⟩ := exists_childMap_step4_internal_provider U q hq i f hf hint
+  have hfirst : (U.hierarchy.firstProvider (U.childNode q hq i) f hf).2.val = f.val := by
+    obtain ⟨hsub, ht⟩ := U.hierarchy.stratumMap_facet _ f hf (facetCell f) rfl
+    exact ht.symm.trans (U.hierarchy.stratumMap_age_one _ f hf ha (facetCell f) hsub)
+  let a := U.hierarchy.providerIncidence (U.childNode q hq i) f hf
+  have haspec := U.hierarchy.providerIncidence_spec (U.childNode q hq i) f hf
+  have harole : (⟨a.ty, a.left⟩ : S.Role) = ⟨q.2.val.ty, i⟩ :=
+    haspec.2.1.trans ((congrArg U.hierarchy.nodeRole hserv).trans
+      (exists_childMap_step2_role U q hq i))
+  have hafacet : a.leftFacet.val = f.val := haspec.2.2.1.trans hfirst
+  have hc := P.canonical_spec a
+  refine ⟨hbirth, ?_, ?_⟩
+  · exact hc.1.symm.trans (congrArg Sigma.fst harole)
+  · refine hc.2.symm.trans ?_
+    change placedSet (S.child a.ty a.left).frame a.leftFacet.val.carrier = _
+    rw [hafacet, congrArg (fun r : S.Role => (S.child r.1 r.2).frame) harole]
+
+/-- Step 5 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(iii), 8.1):
+"O_f(C̃)=(ι(f),μ,(S(Ã_{m+j}))_{j PRESENT}) with μ the mask determined by ι(f) and
+α(S(Ã)), all of whose entries are among the w states of Ĵ(Ã)". The compressed
+packet of a primitive occurrence is computed by `bornPacket` from the observer
+of its birth node. -/
+private theorem honest_observer_transition_step5_born (U : HonestSource S)
+    (P : Params S) (g : PrimitiveOccurrence U P) :
+    (U.observerOf P g.birth).bornPacket g.incidence = some (packetOf U P g) := by
+  classical
+  have hw := P.observer_window_bound
+  have hhead : (U.observerOf P g.birth).window.head = stateOf U P g.birth :=
+    honestWindow_at U P g.birth ⟨0, by omega⟩
+  have hslots : Finset.univ.filter
+      (packetMask P g.incidence (U.observerOf P g.birth).window.head) =
+      presentSlots U P g := by
+    ext j
+    simp only [presentSlots, Finset.mem_filter, Finset.mem_univ, true_and, hhead,
+      packet_mask_fn U P g j]
+  have hne : (Finset.univ.filter
+      (packetMask P g.incidence (U.observerOf P g.birth).window.head)).Nonempty := by
+    rw [hslots]
+    exact presentSlots_nonempty U P g
+  have hmax : ∀ (s t : Finset (Fin P.k)) (_ : s = t) (hs : s.Nonempty) (ht : t.Nonempty),
+      s.max' hs = t.max' ht := by
+    rintro s t rfl hs ht
+    rfl
+  have hb1 : ∀ j : Fin P.k, j.val < P.w := fun j => by
+    have := j.isLt
+    rw [P.w_eq]
+    omega
+  have hb2 : ∀ (j : Fin P.k) (t : Fin j.val), t.val < P.w - 1 := fun j t => by
+    have := j.isLt
+    have := t.isLt
+    rw [P.w_eq]
+    omega
+  have key : ∀ j : Fin P.k, j = topSlot U P g →
+      some (Packet.mk g.incidence j
+        ((U.observerOf P g.birth).window.stateAt ⟨j.val, hb1 j⟩)
+        (fun t => (U.observerOf P g.birth).window.roles ⟨t.val, hb2 j t⟩)) =
+        some (packetOf U P g) := by
+    rintro j rfl
+    simp only [packetOf]
+    have h : (U.observerOf P g.birth).window.stateAt ⟨(topSlot U P g).val, hb1 _⟩ =
+        stateOf U P (U.hierarchy.ancestor g.birth (topSlot U P g).val) :=
+      honestWindow_at U P g.birth _
+    rw [h]
+    rfl
+  unfold Observer.bornPacket
+  dsimp only
+  rw [dif_pos hne]
+  exact key _ (hmax _ _ hslots hne (presentSlots_nonempty U P g))
+
+open private exists_childMap_step4_fault from Enforce.State.State in
+/-- Step 6 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(ii)--(iii)):
+every facet of C̃ is either contained in a facet of Ã (case (ii)) or internal
+to Ã (case (iii)), and in both cases the explicit packet formula is the actual
+attached packet. -/
+private theorem honest_observer_transition_step6_packet (U : HonestSource S)
+    (P : Params S) (q : U.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
+    (f : FacetName S (U.childNode q hq i).2.val.ty) :
+    U.facetPacket P (U.childNode q hq i) f =
+      (U.observerOf P q).childPacket ⟨q.2.val.ty, i⟩ f.val := by
+  classical
+  unfold Observer.childPacket
+  by_cases h1 : ∃ F : FacetName S (U.observerOf P q).ty,
+      placedSet (S.child q.2.val.ty i).frame f.val.carrier ⊆ S.σ '' F.val.carrier
+  · rw [dif_pos h1]
+    exact honest_observer_transition_step2_inherited U P q hq i f _
+      ((honest_observer_transition_step3_test ⟨q.2.val.ty, i⟩ _ _).mp
+        (Classical.choose_spec h1))
+  · rw [dif_neg h1]
+    have hint : ¬ ∃ F : FacetName S q.2.val.ty,
+        rolePlacement ⟨q.2.val.ty, i⟩ '' f.val.carrier ⊆ F.val.carrier := by
+      rintro ⟨F, hF⟩
+      exact h1 ⟨F, (honest_observer_transition_step3_test ⟨q.2.val.ty, i⟩ _ _).mpr hF⟩
+    have hf : ¬ U.hierarchy.IsFault (U.childNode q hq i) f := by
+      rw [exists_childMap_step4_fault U q hq i f]
+      rintro ⟨F, hF, _⟩
+      exact hint ⟨F, hF⟩
+    obtain ⟨hbirth, hty, hpos⟩ :=
+      honest_observer_transition_step4_internal U P q hq i f hf hint
+    have hι : ∃ ι : P.Incidence, ι.val.ty = (U.observerOf P q).ty ∧
+        ι.val.positioned = placedSet (S.child q.2.val.ty i).frame f.val.carrier :=
+      ⟨_, hty, hpos⟩
+    rw [dif_pos hι]
+    have hchoose : Classical.choose hι = U.recordIncidence P (U.childNode q hq i) f hf := by
+      obtain ⟨h1', h2'⟩ := Classical.choose_spec hι
+      exact (P.incidence_complete (Classical.choose hι).val).unique ⟨rfl, rfl⟩
+        ⟨h1'.trans hty.symm, h2'.trans hpos.symm⟩
+    rw [hchoose]
+    have hb := honest_observer_transition_step5_born U P
+      (U.providerOccurrence P (U.childNode q hq i) f hf)
+    rw [hbirth] at hb
+    unfold HonestSource.facetPacket
+    rw [dif_neg hf]
+    exact hb.symm
+
 /-- O3, V4 4.3(1): the explicit transition computes every honest child's observer.
 The height hypothesis places both observers in the joint source range. -/
 theorem honest_observer_transition (U : HonestSource S) (P : Params S) (q : U.Node)
     (hq : P.H + 1 ≤ q.1) (i : S.I q.2.val.ty) :
     U.observerOf P (U.childNode q (by omega) i) =
       (U.observerOf P q).transition ⟨q.2.val.ty, i⟩ := by
-  sorry
+  classical
+  have hq1 : 1 ≤ q.1 := by omega
+  have hwin := honest_observer_transition_step1_window U P q hq1 i
+  have hhead : ((U.observerOf P q).window.child ⟨q.2.val.ty, i⟩).head.ty =
+      (S.child q.2.val.ty i).ty := by
+    change ((ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).child
+      ⟨q.2.val.ty, i⟩).head.ty = _
+    rw [← hwin]
+    exact honestWindow_type U P (U.childNode q hq1 i)
+  have hcond : (⟨q.2.val.ty, i⟩ : S.Role).1 = (U.observerOf P q).ty ∧
+      ((U.observerOf P q).window.child ⟨q.2.val.ty, i⟩).head.ty =
+        (S.child (⟨q.2.val.ty, i⟩ : S.Role).1 (⟨q.2.val.ty, i⟩ : S.Role).2).ty :=
+    ⟨rfl, hhead⟩
+  unfold Observer.transition
+  dsimp only
+  rw [dif_pos hcond]
+  apply Observer.ext
+  · rfl
+  · exact hwin
+  · apply heq_of_eq
+    funext f
+    exact honest_observer_transition_step6_packet U P q hq1 i f
 
 /-- O3, V4 4.3(0),(1): the joint source range is forward closed under the
 explicit transition, with the prescribed child type. Floor-only witnesses are

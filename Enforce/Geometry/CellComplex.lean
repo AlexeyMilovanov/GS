@@ -547,12 +547,35 @@ private lemma point_count_le_step3_angle_lower [Fact (2 ≤ d)] {ι : Type*} [Fi
     exact ENNReal.toReal_mono (by simpa using (MeasureTheory.measure_ball_lt_top (μ := MeasureTheory.volume) (x := (0 : E d)) (r := 1)).ne)
       (MeasureTheory.measure_mono (by simp))
 
+open private tangentCone_polyhedral_step2_halfspace_presentation
+  tangentCone_polyhedral_step3_local_cone tangentCone_polyhedral_step5_radial_germ
+  from Enforce.Geometry.Polyhedral in
 /-- Step 4a of the V4 proof of `point_count_le` (V4 1.0(b)): "`A` is a polyhedron, so
 its tangent cone at any point is a polyhedral cone". A finite union of closed convex
 cones has null boundary, since each convex piece has null boundary. -/
 private lemma point_count_le_step4a_cone_frontier_null (A : PolyManifoldDomain d)
     (x : E d) : MeasureTheory.volume (frontier (tangentCone A.carrier x)) = 0 := by
-  sorry
+  obtain ⟨S, hS⟩ := tangentCone_polyhedral_step2_halfspace_presentation A.polyhedral
+  obtain ⟨C, hC, hloc⟩ := tangentCone_polyhedral_step3_local_cone S x
+  rw [← hS] at hloc
+  rw [tangentCone_polyhedral_step5_radial_germ x hC hloc]
+  obtain ⟨s, rfl⟩ := hC
+  refine MeasureTheory.measure_mono_null
+    (t := ⋃ q ∈ s, frontier {v : E d | ∀ ℓ ∈ q, 0 ≤ ℓ v}) ?_ ?_
+  · intro v hv
+    have h1 : v ∈ ⋃ q ∈ s, closure {v : E d | ∀ ℓ ∈ q, 0 ≤ ℓ v} :=
+      (Finset.closure_biUnion s _).subset hv.1
+    obtain ⟨q, hq, hvq⟩ := mem_iUnion₂.mp h1
+    refine mem_iUnion₂.mpr ⟨q, hq, hvq, fun hint => hv.2 ?_⟩
+    exact interior_mono (fun w hw => mem_iUnion₂.mpr ⟨q, hq, hw⟩) hint
+  · refine le_antisymm ((MeasureTheory.measure_biUnion_finset_le s _).trans ?_) (zero_le _)
+    refine (Finset.sum_eq_zero fun q _ => ?_).le
+    refine Convex.addHaar_frontier _ ?_
+    intro a ha b hb α β hα hβ _
+    show ∀ ℓ ∈ q, 0 ≤ ℓ (α • a + β • b)
+    intro ℓ hℓ
+    rw [map_add, map_smul, map_smul]
+    exact add_nonneg (smul_nonneg hα (ha ℓ hℓ)) (smul_nonneg hβ (hb ℓ hℓ))
 
 /-- Step 4b of the V4 proof of `point_count_le` (V4 1.0(b)): the boundary of the
 tangent cone of a placed prototile is null (isometric pull-back of Step 4a). -/

@@ -1020,13 +1020,82 @@ theorem schur_locally_finite (G : Subgroup (Iso d))
 
 end Schur
 
+/-- V4 5.7, Step 4(iii) (affine glue): the linear part of an isometry maps
+differences of points to differences of images. -/
+private lemma locally_finite_fixed_point_linear_sub (f : Iso d) (x y : E d) :
+    f.toAffineEquiv.toAffineMap.linear (x - y) = f x - f y := by
+  have := AffineMap.linearMap_vsub f.toAffineEquiv.toAffineMap x y
+  simpa [vsub_eq_sub] using this
+
+/-- V4 5.7, Step 4(iii): "Each finite isometry group G_i fixes a point (the
+barycentre of any orbit)" -- here the barycentre of the orbit of 0. -/
+private lemma locally_finite_fixed_point_finite_fixed (H : Subgroup (Iso d))
+    (hH : (H : Set (Iso d)).Finite) : ∃ c : E d, ∀ h ∈ H, h c = c := by
+  classical
+  haveI : Finite H := hH.to_subtype
+  letI : Fintype H := Fintype.ofFinite H
+  refine ⟨(Fintype.card H : ℝ)⁻¹ • ∑ h : H, h.val 0, fun g hg => ?_⟩
+  set L := g.toAffineEquiv.toAffineMap.linear
+  have hdec : ∀ x : E d, g x = L x + g 0 := by
+    intro x
+    have := locally_finite_fixed_point_linear_sub g x 0
+    rw [sub_zero] at this
+    rw [this]; abel
+  have hcard : (Fintype.card H : ℝ) ≠ 0 := by
+    have : 0 < Fintype.card H := Fintype.card_pos
+    exact_mod_cast this.ne'
+  have hsum : ∑ h : H, g (h.val 0) = ∑ h : H, h.val 0 := by
+    have := Equiv.sum_comp (Equiv.mulLeft (⟨g, hg⟩ : H)) (fun h : H => h.val 0)
+    rw [← this]
+    rfl
+  rw [hdec, map_smul, map_sum]
+  have h2 : ∑ h : H, g (h.val 0) = ∑ h : H, L (h.val 0) + (Fintype.card H : ℝ) • g 0 := by
+    rw [Finset.sum_congr rfl (fun h _ => hdec (h.val 0)), Finset.sum_add_distrib,
+      Finset.sum_const, Finset.card_univ, ← Nat.cast_smul_eq_nsmul ℝ]
+  rw [← hsum, h2, smul_add, smul_smul, inv_mul_cancel₀ hcard, one_smul]
+
 /-- Y1, V4 5.7, Step 4(iii): a countable locally finite Euclidean isometry group
 has a common fixed point. Finite subgroup barycentres give nested nonempty affine
 fixed spaces, which stabilize in finite dimension. -/
 theorem locally_finite_fixed_point (G : Subgroup (Iso d)) [Countable G]
     (hlocal : IsLocallyFiniteGroup G) :
     ∃ c : E d, ∀ g : G, g.val c = c := by
-  sorry
+  -- Stabilization of the fixed spaces: choose a finite generating set whose
+  -- common linear fixed space has minimal dimension.
+  classical
+  let D : Finset (Iso d) → Submodule ℝ (E d) := fun F =>
+    ⨅ f ∈ F, LinearMap.ker (f.toAffineEquiv.toAffineMap.linear - LinearMap.id)
+  have hmemD : ∀ F x, x ∈ D F ↔ ∀ f ∈ F, f.toAffineEquiv.toAffineMap.linear x = x := by
+    intro F x
+    simp [D, Submodule.mem_iInf, LinearMap.mem_ker, sub_eq_zero]
+  have hex : ∃ n, ∃ F : Finset (Iso d), (F : Set (Iso d)) ⊆ G ∧
+      Module.finrank ℝ (D F) = n := ⟨_, ∅, by simp, rfl⟩
+  obtain ⟨F, hFG, hFmin⟩ := Nat.find_spec hex
+  obtain ⟨c, hc⟩ := locally_finite_fixed_point_finite_fixed (Subgroup.closure (F : Set (Iso d))) (hlocal F hFG)
+  refine ⟨c, fun g => ?_⟩
+  set F' := insert g.val F
+  have hF'G : (F' : Set (Iso d)) ⊆ G := by
+    simp only [F', Finset.coe_insert, Set.insert_subset_iff]
+    exact ⟨g.property, hFG⟩
+  obtain ⟨c', hc'⟩ := locally_finite_fixed_point_finite_fixed (Subgroup.closure (F' : Set (Iso d))) (hlocal F' hF'G)
+  have hle : D F' ≤ D F := by
+    intro x hx
+    rw [hmemD] at hx ⊢
+    exact fun f hf => hx f (Finset.mem_insert_of_mem hf)
+  have heq : D F' = D F := by
+    apply Submodule.eq_of_le_of_finrank_le hle
+    by_contra h
+    push_neg at h
+    exact Nat.find_min hex (hFmin ▸ h) ⟨F', hF'G, rfl⟩
+  have hmem : c - c' ∈ D F := by
+    rw [hmemD]
+    intro f hf
+    rw [locally_finite_fixed_point_linear_sub, hc f (Subgroup.subset_closure hf),
+      hc' f (Subgroup.subset_closure (Finset.mem_insert_of_mem hf))]
+  rw [← heq, hmemD] at hmem
+  have h1 := hmem g.val (Finset.mem_insert_self _ _)
+  rw [locally_finite_fixed_point_linear_sub, hc' g.val (Subgroup.subset_closure (Finset.mem_insert_self _ _))] at h1
+  simpa using h1
 
 /-- Y1, V4 5.7, Step 4(iii): all symmetries of a proper output fix one point.
 The point is obtained from the periodic-group and countability arguments, not

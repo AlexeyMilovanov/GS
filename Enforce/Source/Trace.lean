@@ -487,6 +487,146 @@ theorem boundary_facet_adjacency (P : FramedNode S) (n : ℕ)
         Relation.ReflTransGen (boundaryFacetAdjacent P n g) a b := by
   sorry
 
+/-- Step 3 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "the frame
+transports relative interiors". Relative interiors commute with every full affine
+frame, including the anisotropic inflation. -/
+private theorem adjacency_primitive_seed_step3_relint_image (e : E d ≃ᵃ[ℝ] E d)
+    (K : Set (E d)) : relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 3 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "`κ = mc(p)` and
+`p ∈ h`, so `κ ⊆ h`" (Lemma 1.1 / (H2)(ii)), in a prototype complex. -/
+private theorem adjacency_primitive_seed_step3_proto_minimal (A : S.ι) (e f : Cell d)
+    (he : e ∈ (S.cx A).cells) (hf : f ∈ (S.cx A).cells) (x : E d)
+    (hxe : x ∈ relint e.carrier) (hxf : x ∈ f.carrier) : e.carrier ⊆ f.carrier := by
+  have hfront : x ∈ frontier (S.proto A).carrier := by
+    rw [← (S.cx A).cover]
+    exact Set.mem_iUnion₂.2 ⟨e, he, hxe⟩
+  have heq : (S.cx A).minimalCell x hfront = e := by
+    have hu := (S.cx A).exists_unique_minimalCell x hfront
+    have := hu.unique
+      (y₁ := ⟨(S.cx A).minimalCell x hfront, (S.cx A).minimalCell_mem x hfront⟩)
+      (y₂ := ⟨e, he⟩) ((S.cx A).mem_relint_minimalCell x hfront) hxe
+    exact congrArg Subtype.val this
+  rw [← heq]
+  exact (S.cx A).minimalCell_subset x hfront f hf hxf
+
+/-- Step 3 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "`κ = mc(p)` and
+`p ∈ h`, so `κ ⊆ h`", for placed cells of a framed node. -/
+private theorem adjacency_primitive_seed_step3_placed_minimal (N : FramedNode S) (m : ℕ)
+    (e f : Cell d) (he : e ∈ (S.cx N.ty).cells) (hf : f ∈ (S.cx N.ty).cells) (p : E d)
+    (hpe : p ∈ relint (N.cell m e)) (hpf : p ∈ N.cell m f) : N.cell m e ⊆ N.cell m f := by
+  rw [FramedNode.cell, adjacency_primitive_seed_step3_relint_image] at hpe
+  obtain ⟨x, hx, rfl⟩ := hpe
+  have hxf : x ∈ f.carrier := by
+    obtain ⟨y, hy, hyx⟩ := hpf
+    rwa [(N.prototypeFrame m).injective hyx] at hy
+  exact Set.image_mono
+    (adjacency_primitive_seed_step3_proto_minimal N.ty e f he hf x hx hxf)
+
+/-- Step 4 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): relative interiors
+are monotone between sets with the same affine span. -/
+private theorem adjacency_primitive_seed_step4_relint_mono {s t : Set (E d)} (hst : s ⊆ t)
+    (hspan : affineSpan ℝ s = affineSpan ℝ t) : relint s ⊆ relint t := by
+  unfold relint intrinsicInterior
+  rw [hspan]
+  exact Set.image_mono (interior_mono (Set.preimage_mono hst))
+
+/-- Step 4 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "near `p`,
+`∂A = aff g`": a facet of the node containing a relative-interior point of the
+facet `g` is `g` itself. -/
+private theorem adjacency_primitive_seed_step4_facet_unique (P : FramedNode S) (m : ℕ)
+    (g F : FacetName S P.ty) (p : E d) (hpg : p ∈ relint (P.cell m g.val))
+    (hpF : p ∈ P.cell m F.val) : F = g := by
+  have hg := g.property
+  have hF := F.property
+  simp only [CellComplex.facets, Finset.mem_filter] at hg hF
+  rw [FramedNode.cell, adjacency_primitive_seed_step3_relint_image] at hpg
+  obtain ⟨x, hx, rfl⟩ := hpg
+  have hxF : x ∈ F.val.carrier := by
+    obtain ⟨y, hy, hyx⟩ := hpF
+    rwa [(P.prototypeFrame m).injective hyx] at hy
+  have hsub := adjacency_primitive_seed_step3_proto_minimal P.ty g.val F.val hg.1 hF.1 x hx hxF
+  have hle : affineSpan ℝ g.val.carrier ≤ affineSpan ℝ F.val.carrier := affineSpan_mono ℝ hsub
+  have hspan : affineSpan ℝ g.val.carrier = affineSpan ℝ F.val.carrier := by
+    apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le _ _ hle
+    · apply Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle)
+      have h1 := g.val.flat.dimension
+      have h2 := F.val.flat.dimension
+      unfold cellDirection at h1 h2
+      rw [h1, h2, hg.2, hF.2]
+    · exact (affineSpan_nonempty ℝ).2 ⟨x, intrinsicInterior_subset hx⟩
+  have hxF' : x ∈ relint F.val.carrier :=
+    adjacency_primitive_seed_step4_relint_mono hsub hspan hx
+  apply Subtype.ext
+  by_contra hne
+  exact Set.disjoint_left.mp ((S.cx P.ty).relint_disjoint F.val hF.1 g.val hg.1 hne) hxF' hx
+
+/-- Step 1 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "let
+`p ∈ relint κ` be generic ... `p ∈ relint g` since `κ ⊆ g` and `p` is in the
+relative interior of a `(d-2)`-cell of the child tiling of `g` which is not in
+`∂g` by Lemma 1.1 [... adjacency across a piece of `∂g` is impossible since both
+facets lie inside `g` on the same side]". -/
+private theorem adjacency_primitive_seed_step1_seed_point (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (a b : BoundaryFacet P n g) (hchild : a.val.1 ≠ b.val.1)
+    (κ : CellName S (P.child n a.val.1).ty) (hκ : κ.val.dim = d - 2)
+    (hκa : (P.child n a.val.1).cell n κ.val ⊆
+      (P.child n a.val.1).cell n a.val.2.val)
+    (hκb : (P.child n a.val.1).cell n κ.val ⊆
+      (P.child n b.val.1).cell n b.val.2.val) :
+    ∃ p, p ∈ relint ((P.child n a.val.1).cell n κ.val) ∧
+      p ∈ relint (P.cell (n + 1) g.val) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "the sectors of
+`C` and `C'` are both bounded by the ray `Π ∩ aff g` and lie on the `A`-side ...
+moving angularly towards the sector of `C'` we must cross at least one ray ...
+the trace of a facet `h` of a child of `A`, with `p ∈ h`, and `h` is not inside
+`g`". Taken at the extreme sector of the child `C` owning `a`: the second boundary
+sheet of `C` through `p` either leaves `g`, or (if `∂C` were flat at `p`) it lies
+in `g` on the side of `f'`, overlapping the relative interior of `f'`. -/
+private theorem adjacency_primitive_seed_step2_other_sheet (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (a b : BoundaryFacet P n g) (hchild : a.val.1 ≠ b.val.1)
+    (κ : CellName S (P.child n a.val.1).ty) (hκ : κ.val.dim = d - 2)
+    (hκa : (P.child n a.val.1).cell n κ.val ⊆
+      (P.child n a.val.1).cell n a.val.2.val)
+    (hκb : (P.child n a.val.1).cell n κ.val ⊆
+      (P.child n b.val.1).cell n b.val.2.val) (p : E d)
+    (hpκ : p ∈ relint ((P.child n a.val.1).cell n κ.val))
+    (hpg : p ∈ relint (P.cell (n + 1) g.val)) :
+    ∃ h : FacetName S (P.child n a.val.1).ty,
+      p ∈ (P.child n a.val.1).cell n h.val ∧
+      (¬ (P.child n a.val.1).cell n h.val ⊆ P.cell (n + 1) g.val ∨
+        (relint ((P.child n a.val.1).cell n h.val) ∩
+          relint ((P.child n b.val.1).cell n b.val.2.val)).Nonempty) := by
+  sorry
+
 /-- P8, V4 1.8 (moreover): distinct-child adjacency supplies a primitive facet
 containing the common cell, with all of that cell's vertices common-listed. -/
 theorem adjacency_primitive_seed (P : FramedNode S) (n : ℕ)
@@ -504,7 +644,44 @@ theorem adjacency_primitive_seed (P : FramedNode S) (n : ℕ)
         q ∈ (P.child n a.val.1).cell n κ.val →
         (P.child n i).Lists n q ∧ q ∈ (P.child n i).cell n h.val ∧
           ∀ j : S.I P.ty, q ∈ (P.child n j).carrier n → (P.child n j).Lists n q := by
-  sorry
+  obtain ⟨p, hpκ, hpg⟩ :=
+    adjacency_primitive_seed_step1_seed_point P n g a b hchild κ hκ hκa hκb
+  obtain ⟨h, hph, hcases⟩ :=
+    adjacency_primitive_seed_step2_other_sheet P n g a b hchild κ hκ hκa hκb p hpκ hpg
+  have hnot : ¬ (P.child n a.val.1).cell n h.val ⊆ P.cell (n + 1) g.val := by
+    intro hsub
+    rcases hcases with hc | hc
+    · exact hc hsub
+    · let c : BoundaryFacet P n g := ⟨⟨a.val.1, h⟩, hsub⟩
+      have hcb : c ≠ b := by
+        intro hcb
+        have h1 : c.val.1 = b.val.1 :=
+          congrArg (fun q : BoundaryFacet P n g => q.val.1) hcb
+        exact hchild h1
+      have hd := (boundary_facet_adjacency P n g).2.1 hcb
+      obtain ⟨x, hx1, hx2⟩ := hc
+      exact Set.disjoint_left.mp hd hx1 hx2
+  have hdesc : (P.child n a.val.1).IsDescendant n P (n + 1) := by
+    refine ⟨1, rfl, ⟨a.val.1, ()⟩, ?_⟩
+    simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child]
+  have hint : relint ((P.child n a.val.1).cell n h.val) ⊆ interior (P.carrier (n + 1)) := by
+    rcases facet_dichotomy P (P.child n a.val.1) (n + 1) n hdesc h with ⟨F, hF, -⟩ | hint
+    · exfalso
+      have hFg := adjacency_primitive_seed_step4_facet_unique P (n + 1) g F p hpg (hF hph)
+      rw [hFg] at hF
+      exact hnot hF
+    · exact hint
+  have hhcell : h.val ∈ (S.cx (P.child n a.val.1).ty).cells := by
+    have hh := h.property
+    simp only [CellComplex.facets, Finset.mem_filter] at hh
+    exact hh.1
+  have hκh : (P.child n a.val.1).cell n κ.val ⊆ (P.child n a.val.1).cell n h.val :=
+    adjacency_primitive_seed_step3_placed_minimal (P.child n a.val.1) n κ.val h.val
+      κ.property hhcell p hpκ hph
+  refine ⟨a.val.1, h, hint, hκh, ?_⟩
+  intro q hq hqκ
+  exact ⟨hq, hκh hqκ, fun j hj =>
+    primitive_vertex_listed P n a.val.1 h hint q hq (hκh hqκ) j hj⟩
 
 /-- P1/P2, V4 1.1--1.2: placed minimal cells exist uniquely at every boundary
 point, including at positive height. This extends the stage-1 prototype API. -/

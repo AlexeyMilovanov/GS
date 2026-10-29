@@ -5319,6 +5319,150 @@ end HierarchyRealizes
 
 end Parser
 
+/-- Step 1 of the V4 proof of `all_height_hierarchy` (V4 3.1): "Induction on
+n ≥ K: Lemma 3.2 gives the base. Given a decoded level n with Inv(n),
+Proposition 3.7 gives the level n+1 ...". The recursively chosen sequence of
+decoded levels with Inv, starting from the base level of Lemma 3.2 and
+continuing by the forward step. Heights below K never occur in a use. -/
+private def all_height_hierarchy_step1_aux (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) : (n : ℕ) → P.K ≤ n → {D : DecodedLevel Y n // Inv D}
+  | 0, h => cast (congrArg (fun k => {D : DecodedLevel Y k // Inv D})
+      (Nat.le_zero.mp h)) ⟨baseLevel Y hY, baseLevel_invariant Y hY⟩
+  | m + 1, h =>
+      if hm : P.K ≤ m then
+        ⟨Classical.choose (forward_level Y hY m hm
+            (all_height_hierarchy_step1_aux Y hY m hm).1
+            (all_height_hierarchy_step1_aux Y hY m hm).2),
+          (Classical.choose_spec (forward_level Y hY m hm
+            (all_height_hierarchy_step1_aux Y hY m hm).1
+            (all_height_hierarchy_step1_aux Y hY m hm).2)).1⟩
+      else cast (congrArg (fun k => {D : DecodedLevel Y k // Inv D})
+        (by omega : P.K = m + 1)) ⟨baseLevel Y hY, baseLevel_invariant Y hY⟩
+
+/-- Step 1 of the V4 proof of `all_height_hierarchy` (V4 3.1, Lemma 3.2):
+"Lemma 3.2 gives the base": the sequence starts at the certificate base. -/
+private theorem all_height_hierarchy_step1_aux_base (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) : ∀ (n : ℕ) (h : P.K ≤ n) (e : P.K = n),
+      all_height_hierarchy_step1_aux Y hY n h =
+        cast (congrArg (fun k => {D : DecodedLevel Y k // Inv D}) e)
+          ⟨baseLevel Y hY, baseLevel_invariant Y hY⟩ := by
+  intro n
+  cases n with
+  | zero => intro h e; rfl
+  | succ m =>
+      intro h e
+      have hm : ¬ P.K ≤ m := by omega
+      simp only [all_height_hierarchy_step1_aux, dif_neg hm]
+
+/-- Step 1 of the V4 proof of `all_height_hierarchy` (V4 3.1): "Given a decoded
+level n with Inv(n), Proposition 3.7 gives the level n+1": the successor term
+of the sequence is the forward level of the previous term. -/
+private theorem all_height_hierarchy_step1_aux_succ (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (n : ℕ) (hn : P.K ≤ n) (h : P.K ≤ n + 1) :
+    all_height_hierarchy_step1_aux Y hY (n + 1) h =
+      ⟨Classical.choose (forward_level Y hY n hn
+          (all_height_hierarchy_step1_aux Y hY n hn).1
+          (all_height_hierarchy_step1_aux Y hY n hn).2),
+        (Classical.choose_spec (forward_level Y hY n hn
+          (all_height_hierarchy_step1_aux Y hY n hn).1
+          (all_height_hierarchy_step1_aux Y hY n hn).2)).1⟩ := by
+  simp only [all_height_hierarchy_step1_aux, dif_pos hn]
+
+/-- Step 1 of the V4 proof of `all_height_hierarchy` (V4 3.1): "Induction on
+n ≥ K: Lemma 3.2 gives the base. Given a decoded level n with Inv(n),
+Proposition 3.7 gives the level n+1 geometrically; ... The levels are nested by
+construction (each (n+1)-block is the union of its children)". One nested
+sequence with Inv at every height n ≥ K, the certificate base at K, and roots
+of each next level equal to the proposed parents. -/
+private theorem all_height_hierarchy_step1_sequence (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) :
+    ∃ levels : ∀ n : ℕ, P.K ≤ n → DecodedLevel Y n,
+      (∀ n hn, Inv (levels n hn)) ∧
+      (∀ n hn, Parser.NestedLevels (levels n hn)
+        (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n)))) ∧
+      Parser.CertificateBase (levels P.K le_rfl) ∧
+      (∀ n hn, (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))).geometry.roots =
+        Parser.proposedParents (levels n hn)) := by
+  refine ⟨fun n hn => (all_height_hierarchy_step1_aux Y hY n hn).1,
+    fun n hn => (all_height_hierarchy_step1_aux Y hY n hn).2, ?_, ?_, ?_⟩
+  · intro n hn
+    show Parser.NestedLevels (all_height_hierarchy_step1_aux Y hY n hn).1
+      (all_height_hierarchy_step1_aux Y hY (n + 1) _).1
+    rw [all_height_hierarchy_step1_aux_succ Y hY n hn]
+    exact (Classical.choose_spec (forward_level Y hY n hn _ _)).2.1
+  · show Parser.CertificateBase (all_height_hierarchy_step1_aux Y hY P.K le_rfl).1
+    rw [all_height_hierarchy_step1_aux_base Y hY P.K le_rfl rfl]
+    exact baseLevel_certificates Y hY
+  · intro n hn
+    show (all_height_hierarchy_step1_aux Y hY (n + 1) _).1.geometry.roots = _
+    rw [all_height_hierarchy_step1_aux_succ Y hY n hn]
+    exact (Classical.choose_spec (forward_level Y hY n hn _ _)).2.2.1
+
+/-- Step 2 of the V4 proof of `all_height_hierarchy` (V4 3.1): "The levels are
+nested by construction (each (n+1)-block is the union of its children), so they
+define a coherent hierarchy on Y with nodes of height < K given by the
+certificate subdivisions." The hierarchy whose height-m nodes are the height-m
+inner nodes of every level n ≥ max m K, whose parents at heights ≥ K are the
+proposed parents (V4 3.2, 3.7). -/
+private theorem all_height_hierarchy_step2_hierarchy (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (levels : ∀ n : ℕ, P.K ≤ n → DecodedLevel Y n)
+    (hinv : ∀ n hn, Inv (levels n hn))
+    (hnest : ∀ n hn, Parser.NestedLevels (levels n hn)
+      (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))))
+    (hbase : Parser.CertificateBase (levels P.K le_rfl))
+    (hroots : ∀ n hn, (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))).geometry.roots =
+      Parser.proposedParents (levels n hn)) :
+    ∃ H : CoherentHierarchy S (Y.project (nativeDecoration S P C)),
+      (∀ (n m : ℕ) (hn : P.K ≤ n), m ≤ n → H.nodes m = (levels n hn).geometry.nodes m) ∧
+      (∀ (n : ℕ) (hn : P.K ≤ n) (B : Block Y n)
+        (hB : B ∈ (levels n hn).geometry.blocks) (hN : B.node ∈ H.nodes n),
+          (H.parent n ⟨B.node, hN⟩).val = proposedParent (levels n hn) B hB) := by
+  sorry
+
+/-- Step 3 of the V4 proof of `all_height_hierarchy` (V4 3.1): "(with 𝒩_n for
+n<K the nodes inside the K-blocks)" and, for the certificate tables, "for heights
+<K the certificate tables" (V4 4.4(i)). For every height n < K, the height-n
+inner nodes of the base level K, regarded as blocks with the restricted states
+of the base level, form a decoded level with Inv(n); its nodes of height m ≤ n
+are those of the base level and its states are the base states. -/
+private theorem all_height_hierarchy_step3_low_levels (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (D : DecodedLevel Y P.K) (hD : Inv D)
+    (hbase : Parser.CertificateBase D) (n : ℕ) (hn : n < P.K) :
+    ∃ L : DecodedLevel Y n, Inv L ∧ L.geometry.roots = D.geometry.nodes n ∧
+      (∀ m : ℕ, m ≤ n → L.geometry.nodes m = D.geometry.nodes m) ∧
+      ∀ (m : ℕ) (N : FramedNode S) (hL : N ∈ L.geometry.nodes m)
+        (hK : N ∈ D.geometry.nodes m), L.stateAt m N hL = D.stateAt m N hK := by
+  sorry
+
+/-- Step 4 of the V4 proof of `all_height_hierarchy` (V4 3.1): "Consequently Y
+carries a coherent hierarchy (𝒩_n)_{n≥0} (with 𝒩_n for n<K the nodes inside the
+K-blocks) with states satisfying (I1),(I2),(I4),(I5) at every height." Given the
+nested sequence, the hierarchy of Step 2 and the low levels of Step 3 (the
+restrictions of the K-level), the full decoded levels, the state agreement along
+the nesting and the first-letter roles (from (I2)) assemble the realization. -/
+private theorem all_height_hierarchy_step4_realize (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (levels : ∀ n : ℕ, P.K ≤ n → DecodedLevel Y n)
+    (H : CoherentHierarchy S (Y.project (nativeDecoration S P C)))
+    (hinv : ∀ n hn, Inv (levels n hn))
+    (hnest : ∀ n hn, Parser.NestedLevels (levels n hn)
+      (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))))
+    (hbase : Parser.CertificateBase (levels P.K le_rfl))
+    (hroots : ∀ n hn, (levels (n + 1) (Nat.le_trans hn (Nat.le_succ n))).geometry.roots =
+      Parser.proposedParents (levels n hn))
+    (hnodes : ∀ (n m : ℕ) (hn : P.K ≤ n), m ≤ n →
+      H.nodes m = (levels n hn).geometry.nodes m)
+    (hpar : ∀ (n : ℕ) (hn : P.K ≤ n) (B : Block Y n)
+        (hB : B ∈ (levels n hn).geometry.blocks) (hN : B.node ∈ H.nodes n),
+          (H.parent n ⟨B.node, hN⟩).val = proposedParent (levels n hn) B hB)
+    (hlow : ∀ n : ℕ, n < P.K → ∃ L : DecodedLevel Y n, Inv L ∧
+      L.geometry.roots = (levels P.K le_rfl).geometry.nodes n ∧
+      (∀ m : ℕ, m ≤ n → L.geometry.nodes m = (levels P.K le_rfl).geometry.nodes m) ∧
+      ∀ (m : ℕ) (N : FramedNode S) (hL : N ∈ L.geometry.nodes m)
+        (hK : N ∈ (levels P.K le_rfl).geometry.nodes m),
+          L.stateAt m N hL = (levels P.K le_rfl).stateAt m N hK) :
+    Nonempty (Parser.HierarchyRealizes Y levels H) := by
+  sorry
+
 /-- R12, V4 3.1: one nested sequence of decoded levels exists for all n ≥ K,
 with Inv(n) and agreeing inner states, and realizes a coherent hierarchy on the
 exact native projection of the arbitrary proper output Y. At heights below K,
@@ -5330,7 +5474,12 @@ theorem all_height_hierarchy (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     ∃ levels : ∀ n : ℕ, P.K ≤ n → DecodedLevel Y n,
       ∃ H : CoherentHierarchy S (Y.project (nativeDecoration S P C)),
         Nonempty (Parser.HierarchyRealizes Y levels H) := by
-  sorry
+  obtain ⟨levels, hinv, hnest, hbase, hroots⟩ := all_height_hierarchy_step1_sequence Y hY
+  obtain ⟨H, hnodes, hpar⟩ :=
+    all_height_hierarchy_step2_hierarchy Y hY levels hinv hnest hbase hroots
+  exact ⟨levels, H,
+    all_height_hierarchy_step4_realize Y hY levels H hinv hnest hbase hroots hnodes hpar
+      (fun n hn => all_height_hierarchy_step3_low_levels Y hY _ (hinv P.K le_rfl) hbase n hn)⟩
 
 /-- R12, V4 3.1: the chosen correlated induction sequence, from the single
 all-height existence theorem. Definitions contain no proof holes. -/

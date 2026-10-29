@@ -99,6 +99,733 @@ def recursiveTrace (A : S.ι) (F : FacetFlag S A) (r : ℕ) : Finset (TracePiece
   letI := Fintype.ofFinite (TracePiece A F r)
   exact Finset.univ
 
+/-- Step 0 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): "native tiles of the
+depth-`r` subdivision". A ground cell is placed directly by its tile frame. -/
+private theorem recursiveTrace_tiles_step0_cell_zero (C : FramedNode S) (e : Cell d) :
+    C.cell 0 e = C.frame '' e.carrier := by
+  simp [FramedNode.cell, FramedNode.prototypeFrame]
+
+/-- Step 0 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): relative interiors of
+placed ground cells are the placed relative interiors (the frame is an isometry). -/
+private theorem recursiveTrace_tiles_step0_relint_cell (C : FramedNode S) (e : Cell d) :
+    relint (C.cell 0 e) = C.frame '' relint e.carrier := by
+  rw [recursiveTrace_tiles_step0_cell_zero]
+  exact C.frame.toAffineIsometry.image_intrinsicInterior e.carrier
+
+/-- Step 0 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): the standard root
+`H` at height `r` places its cells by `σ^r`. -/
+private theorem recursiveTrace_tiles_step0_root_cell (A : S.ι) (r : ℕ) (e : Cell d) :
+    (⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S).cell r e =
+      (S.σ ^ r) '' e.carrier := by
+  first
+  | rfl
+  | simp [FramedNode.cell, FramedNode.prototypeFrame]
+
+/-- Step 0 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): "native tiles of the
+depth-`r` subdivision" are descendants of the standard root `H`. -/
+private theorem recursiveTrace_tiles_step0_native_desc (A : S.ι) (r : ℕ)
+    (w : S.RoleWord A r) :
+    (S.nativeTile A r w).IsDescendant 0
+      (⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S) r :=
+  ⟨r, (zero_add r).symm, w, by
+    simp [SubstSystem.nativeTile, FramedNode.move, AffineIsometryEquiv.trans_refl]⟩
+
+/-- Step 0 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), via (H2)): every node is
+its own depth-zero descendant, so Lemma 1.1 also applies inside one tile. -/
+private theorem recursiveTrace_tiles_step0_self_desc (C : FramedNode S) :
+    C.IsDescendant 0 C 0 :=
+  ⟨0, rfl, (), by
+    cases C
+    simp [SubstSystem.descendantNode, FramedNode.move, AffineIsometryEquiv.refl_trans]⟩
+
+/-- Step 0 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): affine equivalences
+preserve the dimension of affine hulls. -/
+private theorem recursiveTrace_tiles_step0_finrank_image (g : E d ≃ᵃ[ℝ] E d)
+    (K : Set (E d)) :
+    Module.finrank ℝ (cellDirection (g '' K)) = Module.finrank ℝ (cellDirection K) := by
+  change Module.finrank ℝ (affineSpan ℝ (g.toAffineMap '' K)).direction = _
+  rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+  exact LinearEquiv.finrank_map_eq g.linear (cellDirection K)
+
+/-- Step 1 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): "a recorded chain of
+cells ... with `G_j ⊆ F_j` and `aff G_j = aff F_j`". Containment and equality of
+dimensions give equality of affine hulls. -/
+private theorem recursiveTrace_tiles_step1_span {A : S.ι} {F : FacetFlag S A} {r : ℕ}
+    (a : TracePiece A F r) (i : ChainIndex d (traceDimension d)) :
+    affineSpan ℝ (a.tile.cell 0 (a.chain.cell i).val) =
+      affineSpan ℝ ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier) := by
+  have hsub : a.tile.cell 0 (a.chain.cell i).val ⊆ (S.σ ^ r) ''
+      (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier := a.chain.contained i
+  have hle : cellDirection (a.tile.cell 0 (a.chain.cell i).val) ≤
+      cellDirection ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier) := by
+    simpa only [cellDirection, direction_affineSpan] using vectorSpan_mono ℝ hsub
+  have hdir : cellDirection (a.tile.cell 0 (a.chain.cell i).val) =
+      cellDirection ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier) := by
+    apply Submodule.eq_of_le_of_finrank_eq hle
+    have hleft : Module.finrank ℝ (cellDirection
+        (a.tile.cell 0 (a.chain.cell i).val)) = i.val.val := by
+      rw [recursiveTrace_tiles_step0_cell_zero]
+      exact (recursiveTrace_tiles_step0_finrank_image a.tile.frame.toAffineEquiv _).trans
+        ((a.chain.cell i).val.flat.dimension.trans (a.chain.dimension i))
+    have hright : Module.finrank ℝ (cellDirection ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier)) = i.val.val :=
+      (recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).toAffineEquiv _).trans
+        ((F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.flat.dimension.trans
+          (F.dimension ⟨i.val.val, i.property.2, i.val.isLt⟩))
+    exact hleft.trans hright.symm
+  have hne : (a.tile.cell 0 (a.chain.cell i).val).Nonempty := by
+    obtain ⟨y, hy⟩ := (a.chain.cell i).val.flat.relint_nonempty
+    rw [recursiveTrace_tiles_step0_cell_zero]
+    exact ⟨_, Set.mem_image_of_mem _ (intrinsicInterior_subset hy)⟩
+  exact AffineSubspace.eq_of_direction_eq_of_nonempty_of_le hdir
+    ((affineSpan_nonempty ℝ).2 hne) (affineSpan_mono ℝ hsub)
+
+/-- Step 2 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), "or to the same one,
+excluded by (H2)"): two listed cells of one tile whose placed relative interiors meet
+are the same listed cell. -/
+private theorem recursiveTrace_tiles_step2_same_name (C : FramedNode S)
+    (e f : CellName S C.ty)
+    (h : (relint (C.cell 0 e.val) ∩ relint (C.cell 0 f.val)).Nonempty) : e = f := by
+  by_contra hne
+  have hd := (S.cx C.ty).relint_disjoint e.val e.property f.val f.property
+    (fun h => hne (Subtype.ext h))
+  obtain ⟨x, hx1, hx2⟩ := h
+  rw [recursiveTrace_tiles_step0_relint_cell] at hx1 hx2
+  obtain ⟨y, hy, rfl⟩ := hx1
+  obtain ⟨z, hz, hzy⟩ := hx2
+  rw [C.frame.injective hzy] at hz
+  exact Set.disjoint_left.1 hd hy hz
+
+/-- Step 3 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(c), step from `j+1` to `j`,
+also used in 1.22(a)): "suppose `x ∈ relint S_j ∩ relint S'_j` ... near `x` the cell
+`F_{j+1}` coincides with a closed half-space of `aff F_{j+1}` bounded by `aff F_j`
+(Lemma 1.0(a)) ... `S_j` is a facet of the `(j+1)`-cell `S_{j+1}`; by Lemma 1.0(a) for
+`S_{j+1}` at `x`, `S_{j+1}` coincides near `x` with the closed half-space of
+`aff F_{j+1}` bounded by `aff F_j` on the side of `F_{j+1}`. The same holds for
+`S'_{j+1}`. Hence `relint S_{j+1} ∩ relint S'_{j+1} ≠ ∅`." Here the two recorded chains
+may have the same or different owners. -/
+private theorem recursiveTrace_tiles_step3_halfspace_lift {A : S.ι} {F : FacetFlag S A}
+    {r : ℕ} (a b : TracePiece A F r) (i k : ChainIndex d (traceDimension d))
+    (hik : k.val.val = i.val.val + 1)
+    (h : (relint (a.tile.cell 0 (a.chain.cell i).val) ∩
+      relint (b.tile.cell 0 (b.chain.cell i).val)).Nonempty) :
+    (relint (a.tile.cell 0 (a.chain.cell k).val) ∩
+      relint (b.tile.cell 0 (b.chain.cell k).val)).Nonempty := by
+  sorry
+
+/-- Step 12 of the V4 proof of `recursiveTrace_tiles` (V4 1.0(a), used in 1.22(c) for
+`j = d-1`): "near a point of the relative interior of a facet the tile is a closed
+half-ball". At a relative-interior point of a placed ground facet, the tile coincides
+near the point with a closed half-space whose unit normal is orthogonal to the facet. -/
+private theorem recursiveTrace_tiles_step12_placed_halfball (C : FramedNode S)
+    (e : CellName S C.ty) (he : e.val.dim = d - 1) (y : E d)
+    (hy : y ∈ relint (C.cell 0 e.val)) :
+    ∃ ρ : ℝ, 0 < ρ ∧ ∃ u : E d, ‖u‖ = 1 ∧
+      (∀ w ∈ cellDirection (C.cell 0 e.val), inner ℝ u w = 0) ∧
+      ∀ z ∈ ball y ρ, (z ∈ C.carrier 0 ↔ 0 ≤ inner ℝ u (z - y)) := by
+  have hfacet : e.val ∈ (S.cx C.ty).facets := Finset.mem_filter.2 ⟨e.property, he⟩
+  rw [recursiveTrace_tiles_step0_relint_cell] at hy
+  obtain ⟨p, hp, rfl⟩ := hy
+  obtain ⟨ρ, hρ, v, hv, hfr, -, hA⟩ :=
+    facet_halfball (S.proto C.ty) (S.cx C.ty) e.val hfacet p hp
+  have hP : IsClosed (S.proto C.ty).carrier := (S.proto C.ty).compact.isClosed
+  have horth0 : ∀ w ∈ cellDirection e.val.carrier, inner ℝ v w = 0 := by
+    intro w hw
+    have hden : 0 < 2 * (‖w‖ + 1) := by positivity
+    have ht : 0 < ρ / (2 * (‖w‖ + 1)) := div_pos hρ hden
+    have hx_aff : (ρ / (2 * (‖w‖ + 1))) • w + p ∈
+        (affineSpan ℝ e.val.carrier : Set (E d)) :=
+      AffineSubspace.vadd_mem_of_mem_direction (Submodule.smul_mem _ _ hw)
+        (subset_affineSpan ℝ _ (intrinsicInterior_subset hp))
+    have hx_ball : (ρ / (2 * (‖w‖ + 1))) • w + p ∈ ball p ρ := by
+      rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_right, norm_smul, Real.norm_eq_abs,
+        abs_of_pos ht]
+      have h1 : ρ / (2 * (‖w‖ + 1)) * (2 * (‖w‖ + 1)) = ρ := div_mul_cancel₀ ρ hden.ne'
+      nlinarith [norm_nonneg w]
+    have hfront : (ρ / (2 * (‖w‖ + 1))) • w + p ∈ frontier (S.proto C.ty).carrier := by
+      have hmem : (ρ / (2 * (‖w‖ + 1))) • w + p ∈
+          (affineSpan ℝ e.val.carrier : Set (E d)) ∩ ball p ρ := ⟨hx_aff, hx_ball⟩
+      rw [← hfr] at hmem
+      exact hmem.1
+    have hval : inner ℝ v ((ρ / (2 * (‖w‖ + 1))) • w + p - p) =
+        ρ / (2 * (‖w‖ + 1)) * inner ℝ v w := by
+      rw [add_sub_cancel_right, real_inner_smul_right]
+    rcases lt_trichotomy (inner ℝ v w) 0 with hneg | hzero | hpos
+    · exfalso
+      have hin : (ρ / (2 * (‖w‖ + 1))) • w + p ∈ (S.proto C.ty).carrier ∩ ball p ρ :=
+        ⟨hP.frontier_subset hfront, hx_ball⟩
+      rw [hA] at hin
+      have h0 := hin.1
+      simp only [Set.mem_setOf_eq] at h0
+      rw [hval] at h0
+      nlinarith [mul_neg_of_pos_of_neg ht hneg]
+    · exact hzero
+    · exfalso
+      have hopen : IsOpen ({z : E d | 0 < inner ℝ v (z - p)} ∩ ball p ρ) :=
+        (isOpen_lt continuous_const
+          (continuous_const.inner (continuous_id.sub continuous_const))).inter isOpen_ball
+      have hsub : {z : E d | 0 < inner ℝ v (z - p)} ∩ ball p ρ ⊆
+          (S.proto C.ty).carrier := by
+        intro z hz
+        have hz' : z ∈ {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p ρ := ⟨show 0 ≤ inner ℝ v (z - p) from le_of_lt hz.1, hz.2⟩
+        rw [← hA] at hz'
+        exact hz'.1
+      have hint : (ρ / (2 * (‖w‖ + 1))) • w + p ∈ interior (S.proto C.ty).carrier := by
+        refine interior_maximal hsub hopen ⟨?_, hx_ball⟩
+        show 0 < inner ℝ v ((ρ / (2 * (‖w‖ + 1))) • w + p - p)
+        rw [hval]
+        exact mul_pos ht hpos
+      exact Set.disjoint_left.1 disjoint_interior_frontier hint hfront
+  have hdir : cellDirection (C.frame '' e.val.carrier) =
+      (cellDirection e.val.carrier).map C.frame.toAffineEquiv.toAffineMap.linear := by
+    change (affineSpan ℝ (C.frame.toAffineEquiv.toAffineMap '' e.val.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    rfl
+  have hvsub : ∀ z x : E d, C.frame z - C.frame x = C.frame.linearIsometryEquiv (z - x) :=
+    fun z x => (C.frame.toAffineEquiv.toAffineMap.linearMap_vsub z x).symm
+  have hcar : C.carrier 0 = C.frame '' (S.proto C.ty).carrier := by
+    simp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+  refine ⟨ρ, hρ, C.frame.linearIsometryEquiv v, by rw [LinearIsometryEquiv.norm_map, hv],
+    ?_, ?_⟩
+  · intro w hw
+    rw [recursiveTrace_tiles_step0_cell_zero, hdir] at hw
+    obtain ⟨w0, hw0, rfl⟩ := Submodule.mem_map.1 hw
+    rw [show C.frame.toAffineEquiv.toAffineMap.linear w0 = C.frame.linearIsometryEquiv w0
+      from rfl, LinearIsometryEquiv.inner_map_map]
+    exact horth0 w0 hw0
+  · intro z hz
+    obtain ⟨x, rfl⟩ : ∃ x, C.frame x = z := ⟨C.frame.symm z, C.frame.apply_symm_apply z⟩
+    have hxb : x ∈ ball p ρ := by
+      rw [Metric.mem_ball, ← C.frame.dist_map]
+      exact hz
+    rw [hcar, C.frame.injective.mem_set_image, hvsub, LinearIsometryEquiv.inner_map_map]
+    constructor
+    · intro hxP
+      have hm : x ∈ (S.proto C.ty).carrier ∩ ball p ρ := ⟨hxP, hxb⟩
+      rw [hA] at hm
+      exact hm.1
+    · intro hle
+      have hm : x ∈ {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p ρ := ⟨hle, hxb⟩
+      rw [← hA] at hm
+      exact hm.1
+
+/-- Step 4 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(c), base `j = d-1`, and
+Lemma 1.8): "Facets of distinct children inside one facet `e` ... have disjoint relative
+interiors". At native scale: two depth-`r` native facets inside the facet `σ^r F_{d-1}`
+of the root whose relative interiors meet have the same native owner (both owners fill
+the same inner half-ball there, contradicting disjoint native interiors). -/
+private theorem recursiveTrace_tiles_step4_top_owner {A : S.ι} {F : FacetFlag S A}
+    {r : ℕ} (a b : TracePiece A F r) (k : ChainIndex d (traceDimension d))
+    (hk : k.val.val = d - 1)
+    (h : (relint (a.tile.cell 0 (a.chain.cell k).val) ∩
+      relint (b.tile.cell 0 (b.chain.cell k).val)).Nonempty) :
+    a.owner = b.owner := by
+  classical
+  by_contra hne
+  have h2 : 2 ≤ d := Fact.out
+  obtain ⟨y, hya, hyb⟩ := h
+  have hdima : (a.chain.cell k).val.dim = d - 1 := (a.chain.dimension k).trans hk
+  have hdimb : (b.chain.cell k).val.dim = d - 1 := (b.chain.dimension k).trans hk
+  obtain ⟨ρa, hρa, ua, hua, horta, hhalfa⟩ :=
+    recursiveTrace_tiles_step12_placed_halfball a.tile (a.chain.cell k) hdima y hya
+  obtain ⟨ρb, hρb, ub, hub, hortb, hhalfb⟩ :=
+    recursiveTrace_tiles_step12_placed_halfball b.tile (b.chain.cell k) hdimb y hyb
+  have hspan : cellDirection (a.tile.cell 0 (a.chain.cell k).val) =
+      cellDirection (b.tile.cell 0 (b.chain.cell k).val) := by
+    unfold cellDirection
+    rw [recursiveTrace_tiles_step1_span a k, recursiveTrace_tiles_step1_span b k]
+  have hDfin : Module.finrank ℝ (cellDirection (a.tile.cell 0 (a.chain.cell k).val)) =
+      d - 1 := by
+    rw [recursiveTrace_tiles_step0_cell_zero]
+    exact (recursiveTrace_tiles_step0_finrank_image a.tile.frame.toAffineEquiv _).trans
+      ((a.chain.cell k).val.flat.dimension.trans hdima)
+  have huaD : ua ∈ (cellDirection (a.tile.cell 0 (a.chain.cell k).val))ᗮ :=
+    (Submodule.mem_orthogonal' _ ua).2 fun w hw => horta w hw
+  have hubD : ub ∈ (cellDirection (a.tile.cell 0 (a.chain.cell k).val))ᗮ :=
+    (Submodule.mem_orthogonal' _ ub).2 fun w hw => hortb w (by rw [← hspan]; exact hw)
+  have hperp : Module.finrank ℝ
+      (cellDirection (a.tile.cell 0 (a.chain.cell k).val))ᗮ = 1 := by
+    have hsum := Submodule.finrank_add_finrank_orthogonal
+      (cellDirection (a.tile.cell 0 (a.chain.cell k).val))
+    rw [finrank_euclideanSpace_fin, hDfin] at hsum
+    omega
+  have hnz : (⟨ua, huaD⟩ : (cellDirection (a.tile.cell 0 (a.chain.cell k).val))ᗮ) ≠ 0 := by
+    intro h0
+    have hu0 : ua = 0 := by simpa using congrArg Subtype.val h0
+    rw [hu0, norm_zero] at hua
+    norm_num at hua
+  obtain ⟨c, hc⟩ := (finrank_eq_one_iff_of_nonzero' _ hnz).1 hperp ⟨ub, hubD⟩
+  have hcu : c • ua = ub := congrArg Subtype.val hc
+  have hρ : 0 < min ρa ρb := lt_min hρa hρb
+  rcases le_or_gt c 0 with hc0 | hc0
+  · have hball : ball y (min ρa ρb) ⊆ S.supertile r A := by
+      intro z hz
+      rw [← S.native_cover A r]
+      by_cases hz0 : 0 ≤ inner ℝ ua (z - y)
+      · exact Set.mem_iUnion.2 ⟨a.owner,
+          (hhalfa z (Metric.ball_subset_ball (min_le_left _ _) hz)).2 hz0⟩
+      · refine Set.mem_iUnion.2 ⟨b.owner,
+          (hhalfb z (Metric.ball_subset_ball (min_le_right _ _) hz)).2 ?_⟩
+        rw [← hcu, real_inner_smul_left]
+        push_neg at hz0
+        exact mul_nonneg_of_nonpos_of_nonpos hc0 hz0.le
+    have hint : y ∈ interior (S.supertile r A) :=
+      interior_maximal hball Metric.isOpen_ball (Metric.mem_ball_self hρ)
+    have hyF : y ∈ frontier (S.supertile r A) := by
+      have hy1 : y ∈ a.tile.cell 0 (a.chain.cell k).val := intrinsicInterior_subset hya
+      obtain ⟨x, hx, rfl⟩ := a.chain.contained k hy1
+      have hxf : x ∈ frontier (S.proto A).carrier := by
+        rw [← (S.cx A).carriers_cover]
+        exact Set.mem_iUnion₂.2 ⟨_, (F.cell _).property, hx⟩
+      have hh := (S.σ ^ r).toContinuousLinearEquiv.toHomeomorph.image_frontier
+        (S.proto A).carrier
+      have hmem : (S.σ ^ r) x ∈ (S.σ ^ r).toContinuousLinearEquiv.toHomeomorph ''
+          frontier (S.proto A).carrier := ⟨x, hxf, rfl⟩
+      rw [hh] at hmem
+      exact hmem
+    exact Set.disjoint_left.1 disjoint_interior_frontier hint hyF
+  · have hopen : IsOpen ({z : E d | 0 < inner ℝ ua (z - y)} ∩ ball y (min ρa ρb)) :=
+      (isOpen_lt continuous_const
+        (continuous_const.inner (continuous_id.sub continuous_const))).inter
+          Metric.isOpen_ball
+    have hsubA : {z : E d | 0 < inner ℝ ua (z - y)} ∩ ball y (min ρa ρb) ⊆
+        a.tile.carrier 0 := fun z hz =>
+      (hhalfa z (Metric.ball_subset_ball (min_le_left _ _) hz.2)).2 hz.1.le
+    have hsubB : {z : E d | 0 < inner ℝ ua (z - y)} ∩ ball y (min ρa ρb) ⊆
+        b.tile.carrier 0 := by
+      intro z hz
+      refine (hhalfb z (Metric.ball_subset_ball (min_le_right _ _) hz.2)).2 ?_
+      rw [← hcu, real_inner_smul_left]
+      exact mul_nonneg hc0.le hz.1.le
+    have hz0 : (min ρa ρb / 2) • ua + y ∈
+        {z : E d | 0 < inner ℝ ua (z - y)} ∩ ball y (min ρa ρb) := by
+      refine ⟨?_, ?_⟩
+      · show 0 < inner ℝ ua ((min ρa ρb / 2) • ua + y - y)
+        rw [add_sub_cancel_right, real_inner_smul_right, real_inner_self_eq_norm_sq, hua]
+        linarith
+      · rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_right, norm_smul, hua,
+          Real.norm_eq_abs, abs_of_pos (half_pos hρ)]
+        linarith
+    exact Set.disjoint_left.1 (S.native_disjoint A r hne)
+      (interior_maximal hsubA hopen hz0) (interior_maximal hsubB hopen hz0)
+
+/-- Step 5 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): "two distinct cells ...
+with overlapping relative interiors would belong to two distinct cells of the tiling of
+`F_j` (or to the same one, excluded by (H2))". Lift the overlap to the top facet
+(Step 3), identify the owners there (Step 4), and then all recorded cells (Step 2). -/
+private theorem recursiveTrace_tiles_step5_disjoint (A : S.ι) (F : FacetFlag S A) (r : ℕ) :
+    Pairwise (fun a b : TracePiece A F r =>
+      Disjoint (relint a.carrier) (relint b.carrier)) := by
+  intro a b hab
+  rw [Set.disjoint_iff_inter_eq_empty, ← Set.not_nonempty_iff_eq_empty]
+  intro hx
+  have hall : ∀ n : ℕ, ∀ k : ChainIndex d (traceDimension d),
+      k.val.val = traceDimension d + n →
+      (relint (a.tile.cell 0 (a.chain.cell k).val) ∩
+        relint (b.tile.cell 0 (b.chain.cell k).val)).Nonempty := by
+    intro n
+    induction n with
+    | zero =>
+      intro k hk
+      have hkb : k = TracePiece.bottomIndex :=
+        Subtype.ext (Fin.ext (by simpa [TracePiece.bottomIndex] using hk))
+      subst hkb
+      exact hx
+    | succ n ih =>
+      intro k hk
+      have hi : traceDimension d + n < d := by have := k.val.isLt; omega
+      have hpos := traceDimension_pos (d := d)
+      exact recursiveTrace_tiles_step3_halfspace_lift a b
+        ⟨⟨traceDimension d + n, hi⟩, Nat.le_add_right _ _, by
+          show 1 ≤ traceDimension d + n; omega⟩ k
+        (by show k.val.val = traceDimension d + n + 1; omega) (ih _ rfl)
+  have htop : ∀ k : ChainIndex d (traceDimension d),
+      (relint (a.tile.cell 0 (a.chain.cell k).val) ∩
+        relint (b.tile.cell 0 (b.chain.cell k).val)).Nonempty := by
+    intro k
+    exact hall (k.val.val - traceDimension d) k (by have := k.property.1; omega)
+  have h2 : 2 ≤ d := Fact.out
+  have hlt := traceDimension_lt (d := d)
+  let T : ChainIndex d (traceDimension d) :=
+    ⟨⟨d - 1, by omega⟩, by show traceDimension d ≤ d - 1; omega, by
+      show 1 ≤ d - 1; omega⟩
+  have howner := recursiveTrace_tiles_step4_top_owner a b T rfl (htop T)
+  apply hab
+  obtain ⟨wa, ca⟩ := a
+  obtain ⟨wb, cb⟩ := b
+  change wa = wb at howner
+  subst howner
+  have hcell : ∀ k, ca.cell k = cb.cell k := fun k =>
+    recursiveTrace_tiles_step2_same_name (S.nativeTile A r wa) _ _ (htop k)
+  obtain ⟨c1, _, _, _⟩ := ca
+  obtain ⟨c2, _, _, _⟩ := cb
+  have hc : c1 = c2 := funext fun k => hcell k
+  subst hc
+  rfl
+
+/-- Step 6 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), first stage): "The
+facets of native tiles of the depth-`r` subdivision contained in `g` tile `g`" — every
+point of `σ^r F_{d-1}` lies in a native facet inside it (heredity (H5)), which is a
+one-element recorded chain. -/
+private theorem recursiveTrace_tiles_step6_top_cover (A : S.ι) (F : FacetFlag S A)
+    (r : ℕ) (hj : 1 ≤ d - 1) (hjd : d - 1 < d) (x : E d)
+    (hx : x ∈ (S.σ ^ r) '' (F.cell ⟨d - 1, hj, hjd⟩).val.carrier) :
+    ∃ (w : S.RoleWord A r) (c : ChainOccurrence A F r (S.nativeTile A r w) 0 (d - 1)),
+      x ∈ (S.nativeTile A r w).cell 0 (c.cell ⟨⟨d - 1, hjd⟩, le_rfl, hj⟩).val := by
+  classical
+  obtain ⟨f, hf⟩ := S.heredity_iter A r (F.cell ⟨d - 1, hj, hjd⟩).val
+    (F.cell ⟨d - 1, hj, hjd⟩).property
+  have hx' := hx
+  rw [hf] at hx'
+  obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.1 hx'
+  have hidx : ∀ i : ChainIndex d (d - 1),
+      (⟨i.val.val, i.property.2, i.val.isLt⟩ : {j : ℕ // 1 ≤ j ∧ j < d}) =
+        ⟨d - 1, hj, hjd⟩ := by
+    intro i
+    apply Subtype.ext
+    have := i.property.1
+    have := i.val.isLt
+    show i.val.val = d - 1
+    omega
+  refine ⟨q.1, ⟨fun _ => ⟨q.2.val, q.2.property.1⟩, ?_, ?_, ?_⟩, ?_⟩
+  · intro i
+    show q.2.val.dim = i.val.val
+    rw [q.2.property.2, F.dimension]
+    have := i.property.1
+    have := i.val.isLt
+    show d - 1 = i.val.val
+    omega
+  · intro i k _
+    exact Set.Subset.rfl
+  · intro i
+    rw [hidx i, hf, recursiveTrace_tiles_step0_cell_zero]
+    intro z hz
+    exact Set.mem_iUnion₂.2 ⟨q, hq, hz⟩
+  · rw [recursiveTrace_tiles_step0_cell_zero]
+    exact hxq
+
+/-- Step 7 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), restriction step): "the
+minimal cell of that point in the complex of the owning tile lies in `F_{j-1}` by Lemma
+1.1 and in the `j`-cell by (H2) ... The owner and chain are inherited." A `j`-cell of the
+owner whose relative interior meets `σ^r F_j` and the recorded `(j+1)`-cell extends the
+recorded chain. -/
+private theorem recursiveTrace_tiles_step7_extend {A : S.ι} {F : FacetFlag S A} {r : ℕ}
+    (w : S.RoleWord A r) (j : ℕ) (hj : 1 ≤ j) (hjd : j + 1 < d)
+    (c : ChainOccurrence A F r (S.nativeTile A r w) 0 (j + 1))
+    (e : CellName S (S.nativeTile A r w).ty) (he : e.val.dim = j) (x : E d)
+    (hxe : x ∈ relint ((S.nativeTile A r w).cell 0 e.val))
+    (hxc : x ∈ (S.nativeTile A r w).cell 0
+      (c.cell ⟨⟨j + 1, hjd⟩, le_rfl, Nat.le_add_left 1 j⟩).val)
+    (hxF : x ∈ (S.σ ^ r) '' (F.cell ⟨j, hj, by omega⟩).val.carrier) :
+    ∃ c' : ChainOccurrence A F r (S.nativeTile A r w) 0 j,
+      c'.cell ⟨⟨j, by omega⟩, le_rfl, hj⟩ = e := by
+  classical
+  let up : ∀ i : ChainIndex d j, i.val.val ≠ j → ChainIndex d (j + 1) :=
+    fun i hi => ⟨i.val, by have := i.property.1; omega, i.property.2⟩
+  let top : ChainIndex d (j + 1) := ⟨⟨j + 1, hjd⟩, le_rfl, Nat.le_add_left 1 j⟩
+  have hsubP : (S.nativeTile A r w).cell 0 e.val ⊆
+      (S.σ ^ r) '' (F.cell ⟨j, hj, by omega⟩).val.carrier := by
+    have := hereditary_trace ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩ (S.nativeTile A r w) r 0
+      (recursiveTrace_tiles_step0_native_desc A r w) (F.cell ⟨j, hj, by omega⟩).val
+      e.val (F.cell ⟨j, hj, by omega⟩).property e.property
+      ⟨x, hxe, by rw [recursiveTrace_tiles_step0_root_cell]; exact hxF⟩
+    rwa [recursiveTrace_tiles_step0_root_cell] at this
+  have hsubS : e.val.carrier ⊆ (c.cell top).val.carrier := by
+    have := hereditary_trace (S.nativeTile A r w) (S.nativeTile A r w) 0 0
+      (recursiveTrace_tiles_step0_self_desc _) (c.cell top).val
+      e.val (c.cell top).property e.property ⟨x, hxe, hxc⟩
+    rw [recursiveTrace_tiles_step0_cell_zero, recursiveTrace_tiles_step0_cell_zero] at this
+    exact (Set.image_subset_image_iff (S.nativeTile A r w).frame.injective).1 this
+  have key : ∀ l : {l : ℕ // 1 ≤ l ∧ l < d}, l.val = j →
+      (S.σ ^ r) '' (F.cell l).val.carrier =
+        (S.σ ^ r) '' (F.cell ⟨j, hj, by omega⟩).val.carrier := by
+    rintro ⟨l, hl⟩ rfl
+    rfl
+  refine ⟨⟨fun i => if hi : i.val.val = j then e else c.cell (up i hi), ?_, ?_, ?_⟩, ?_⟩
+  · intro i
+    by_cases hi : i.val.val = j
+    · dsimp only
+      rw [dif_pos hi, he, hi]
+    · dsimp only
+      rw [dif_neg hi]
+      exact c.dimension _
+  · intro i k hik
+    by_cases hi : i.val.val = j <;> by_cases hk : k.val.val = j
+    · simp only [dif_pos hi, dif_pos hk, subset_refl]
+    · dsimp only
+      rw [dif_pos hi, dif_neg hk]
+      exact hsubS.trans (c.nested top (up k hk)
+        (by show j + 1 ≤ k.val.val; have := k.property.1; omega))
+    · exfalso
+      have := i.property.1
+      omega
+    · dsimp only
+      rw [dif_neg hi, dif_neg hk]
+      exact c.nested _ _ hik
+  · intro i
+    by_cases hi : i.val.val = j
+    · dsimp only
+      rw [dif_pos hi, key ⟨i.val.val, i.property.2, i.val.isLt⟩ hi]
+      exact hsubP
+    · dsimp only
+      rw [dif_neg hi]
+      exact c.contained (up i hi)
+  · first
+    | exact dif_pos rfl
+    | simp
+
+/-- Step 8 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), restriction step): "the
+minimal cell of that point in the complex of the owning tile lies in `F_{j-1}` by Lemma
+1.1". At a point of `σ^r F_j` on the recorded `(j+1)`-cell that avoids all lower-dimensional
+cells of the owner, the minimal cell has dimension exactly `j`. -/
+private theorem recursiveTrace_tiles_step8_generic_minimal {A : S.ι} {F : FacetFlag S A}
+    {r : ℕ} (w : S.RoleWord A r) (j : ℕ) (hj : 1 ≤ j) (hjd : j + 1 < d)
+    (c : ChainOccurrence A F r (S.nativeTile A r w) 0 (j + 1)) (y : E d)
+    (hyc : y ∈ (S.nativeTile A r w).cell 0
+      (c.cell ⟨⟨j + 1, hjd⟩, le_rfl, Nat.le_add_left 1 j⟩).val)
+    (hyF : y ∈ (S.σ ^ r) '' (F.cell ⟨j, hj, by omega⟩).val.carrier)
+    (hgen : ∀ e : CellName S (S.nativeTile A r w).ty, e.val.dim < j →
+      y ∉ (S.nativeTile A r w).cell 0 e.val) :
+    ∃ e : CellName S (S.nativeTile A r w).ty, e.val.dim = j ∧
+      y ∈ relint ((S.nativeTile A r w).cell 0 e.val) := by
+  classical
+  have hcellfin : ∀ m : Cell d, Module.finrank ℝ
+      (cellDirection ((S.nativeTile A r w).cell 0 m)) = m.dim := by
+    intro m
+    rw [recursiveTrace_tiles_step0_cell_zero]
+    exact (recursiveTrace_tiles_step0_finrank_image
+      (S.nativeTile A r w).frame.toAffineEquiv _).trans m.flat.dimension
+  have hfront : y ∈ frontier ((S.nativeTile A r w).carrier 0) := by
+    have hcar : (S.nativeTile A r w).carrier 0 = (S.nativeTile A r w).frame ''
+        (S.proto (S.nativeTile A r w).ty).carrier := by
+      simp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+    have himg : (S.nativeTile A r w).frame ''
+        frontier (S.proto (S.nativeTile A r w).ty).carrier =
+        frontier ((S.nativeTile A r w).frame ''
+          (S.proto (S.nativeTile A r w).ty).carrier) :=
+      (S.nativeTile A r w).frame.toHomeomorph.image_frontier _
+    rw [hcar, ← himg]
+    rw [recursiveTrace_tiles_step0_cell_zero] at hyc
+    obtain ⟨z, hz, rfl⟩ := hyc
+    refine ⟨z, ?_, rfl⟩
+    rw [← (S.cx _).carriers_cover]
+    exact Set.mem_iUnion₂.2 ⟨_, (c.cell _).property, hz⟩
+  obtain ⟨m, hm, -⟩ := placedMinimalCell_exists_unique (S.nativeTile A r w) 0 y hfront
+  have hmF := hereditary_trace ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩ (S.nativeTile A r w)
+    r 0 (recursiveTrace_tiles_step0_native_desc A r w) (F.cell ⟨j, hj, by omega⟩).val
+    m.val (F.cell ⟨j, hj, by omega⟩).property m.property
+    ⟨y, hm, by rw [recursiveTrace_tiles_step0_root_cell]; exact hyF⟩
+  rw [recursiveTrace_tiles_step0_root_cell] at hmF
+  have h1 := Submodule.finrank_mono (show cellDirection ((S.nativeTile A r w).cell 0 m.val) ≤
+      cellDirection ((S.σ ^ r) '' (F.cell ⟨j, hj, by omega⟩).val.carrier) by
+    simpa only [cellDirection, direction_affineSpan] using vectorSpan_mono ℝ hmF)
+  have h2 : Module.finrank ℝ (cellDirection ((S.σ ^ r) ''
+      (F.cell ⟨j, hj, by omega⟩).val.carrier)) = j :=
+    (recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).toAffineEquiv _).trans
+      ((F.cell ⟨j, hj, by omega⟩).val.flat.dimension.trans
+        (F.dimension ⟨j, hj, by omega⟩))
+  have h3 := hcellfin m.val
+  have hle : m.val.dim ≤ j := by
+    simp only at h1
+    omega
+  have hge : j ≤ m.val.dim := by
+    by_contra hlt
+    exact hgen m (by omega) (intrinsicInterior_subset hm)
+  exact ⟨m, le_antisymm hle hge, hm⟩
+
+/-- Step 13 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), "the cells of the
+tiling that are contained in `F_{j-1}` cover it", genericity): near a point of a
+`j`-dimensional set at which it contains a relative ball, there are points of the set
+avoiding finitely many sets of affine dimension `< j` (move along a direction outside all
+their direction spaces; a real vector space is not a finite union of proper subspaces). -/
+private theorem recursiveTrace_tiles_step13_generic_avoid {ι : Type*} [Finite ι] (L : Set (E d))
+    (j : ℕ) (hL : Module.finrank ℝ (cellDirection L) = j) (N : ι → Set (E d))
+    (hN : ∀ i, Module.finrank ℝ (cellDirection (N i)) < j) (y : E d) (hy : y ∈ L)
+    (δ : ℝ) (hδ : 0 < δ) (hball : ∀ z ∈ affineSpan ℝ L, dist z y < δ → z ∈ L) :
+    ∃ z ∈ L, dist z y < δ ∧ ∀ i, z ∉ N i := by
+  classical
+  have hW : ∃ v : cellDirection L, ∀ i, v ∉ (cellDirection (N i)).comap
+      (cellDirection L).subtype := by
+    by_contra hcon
+    push_neg at hcon
+    have hcov : ⋃ i, (((cellDirection (N i)).comap (cellDirection L).subtype :
+        Submodule ℝ (cellDirection L)) : Set (cellDirection L)) = Set.univ := by
+      ext v
+      simp only [Set.mem_iUnion, SetLike.mem_coe, Set.mem_univ, iff_true]
+      exact hcon v
+    obtain ⟨i, hi⟩ := Subspace.exists_eq_top_of_iUnion_eq_univ hcov
+    have hle : cellDirection L ≤ cellDirection (N i) := by
+      intro v hv
+      have hmem : (⟨v, hv⟩ : cellDirection L) ∈
+          (cellDirection (N i)).comap (cellDirection L).subtype := by
+        rw [hi]
+        exact Submodule.mem_top
+      exact Submodule.mem_comap.1 hmem
+    have h1 := Submodule.finrank_mono hle
+    have h2 := hN i
+    omega
+  obtain ⟨⟨v, hvV⟩, hv⟩ := hW
+  have hv' : ∀ i, v ∉ cellDirection (N i) := fun i h => hv i (Submodule.mem_comap.2 h)
+  have hT : ∀ i, {t : ℝ | t • v + y ∈ N i}.Subsingleton := by
+    intro i t1 ht1 t2 ht2
+    by_contra hne
+    apply hv' i
+    have hsub : (t1 • v + y) - (t2 • v + y) ∈ cellDirection (N i) := by
+      simp only [cellDirection, direction_affineSpan]
+      exact vsub_mem_vectorSpan ℝ ht1 ht2
+    have heq : (t1 • v + y) - (t2 • v + y) = (t1 - t2) • v := by
+      rw [sub_smul]
+      abel
+    rw [heq] at hsub
+    have h12 : t1 - t2 ≠ 0 := sub_ne_zero.mpr hne
+    have := (cellDirection (N i)).smul_mem (t1 - t2)⁻¹ hsub
+    rwa [smul_smul, inv_mul_cancel₀ h12, one_smul] at this
+  have hfin : (⋃ i, {t : ℝ | t • v + y ∈ N i}).Finite :=
+    Set.finite_iUnion fun i => (hT i).finite
+  have hpos : 0 < ‖v‖ + 1 := by positivity
+  have hη : 0 < δ / (‖v‖ + 1) := div_pos hδ hpos
+  obtain ⟨t, ht, htn⟩ := (Set.Ioo_infinite hη).exists_notMem_finite hfin
+  have hdist : dist (t • v + y) y < δ := by
+    rw [dist_eq_norm, add_sub_cancel_right, norm_smul, Real.norm_eq_abs, abs_of_pos ht.1]
+    have h1 : t * ‖v‖ ≤ δ / (‖v‖ + 1) * ‖v‖ :=
+      mul_le_mul_of_nonneg_right ht.2.le (norm_nonneg v)
+    have h2 : δ / (‖v‖ + 1) * (‖v‖ + 1) = δ := div_mul_cancel₀ δ hpos.ne'
+    nlinarith [ht.2]
+  refine ⟨t • v + y, ?_, hdist, ?_⟩
+  · apply hball _ _ hdist
+    exact AffineSubspace.vadd_mem_of_mem_direction (Submodule.smul_mem _ t hvV)
+      (subset_affineSpan ℝ L hy)
+  · intro i hi
+    exact htn (Set.mem_iUnion.2 ⟨i, hi⟩)
+
+/-- Step 14 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), genericity): a flat
+`j`-cell is the closure of its points avoiding finitely many sets of affine dimension
+`< j` (it is the closure of its relative interior, (H2)(iii), and Step 13 applies there). -/
+private theorem recursiveTrace_tiles_step14_generic_closure {ι : Type*} [Finite ι] (L : Set (E d))
+    (j : ℕ) (hLcell : IsFlatCell j L) (N : ι → Set (E d))
+    (hN : ∀ i, Module.finrank ℝ (cellDirection (N i)) < j) :
+    L ⊆ closure (L \ ⋃ i, N i) := by
+  intro x hx
+  rw [Metric.mem_closure_iff]
+  intro ε hε
+  have hx' : x ∈ closure (relint L) := by
+    rw [hLcell.regularClosed]
+    exact hx
+  obtain ⟨y, hy, hxy⟩ := Metric.mem_closure_iff.1 hx' (ε / 2) (half_pos hε)
+  obtain ⟨y', hy', rfl⟩ := mem_intrinsicInterior.1 hy
+  obtain ⟨δ, hδ, hδball⟩ := Metric.mem_nhds_iff.1 (mem_interior_iff_mem_nhds.1 hy')
+  have hball : ∀ z ∈ affineSpan ℝ L, dist z (y' : E d) < δ → z ∈ L := by
+    intro z hz hzd
+    exact hδball (show (⟨z, hz⟩ : affineSpan ℝ L) ∈ Metric.ball y' δ from hzd)
+  obtain ⟨z, hzL, hzd, hzN⟩ := recursiveTrace_tiles_step13_generic_avoid L j hLcell.dimension N hN
+    y' (intrinsicInterior_subset hy) (min δ (ε / 2)) (lt_min hδ (half_pos hε))
+    (fun z hz hzd => hball z hz (lt_of_lt_of_le hzd (min_le_left _ _)))
+  refine ⟨z, ⟨hzL, by simpa using hzN⟩, ?_⟩
+  calc dist x z ≤ dist x (y' : E d) + dist (y' : E d) z := dist_triangle _ _ _
+    _ < ε / 2 + ε / 2 := add_lt_add hxy (by
+        rw [dist_comm]
+        exact lt_of_lt_of_le hzd (min_le_right _ _))
+    _ = ε := add_halves ε
+
+/-- Step 9 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a), "the cells of the tiling
+that are contained in `F_{j-1}` cover it"): the depth-`r` native cells of dimension `< j`
+form a finite union of compact sets of affine dimension `< j`, hence are nowhere dense in
+the `j`-cell `σ^r F_j`; so the points of `σ^r F_j` avoiding them are dense in it. -/
+private theorem recursiveTrace_tiles_step9_generic_dense (A : S.ι) (F : FacetFlag S A)
+    (r j : ℕ) (hj : 1 ≤ j) (hjd : j < d) :
+    (S.σ ^ r) '' (F.cell ⟨j, hj, hjd⟩).val.carrier ⊆
+      closure ((S.σ ^ r) '' (F.cell ⟨j, hj, hjd⟩).val.carrier \
+        ⋃ (w : S.RoleWord A r) (e : CellName S (S.nativeTile A r w).ty)
+          (_ : e.val.dim < j), (S.nativeTile A r w).cell 0 e.val) := by
+  classical
+  intro x hx
+  obtain ⟨x0, hx0, rfl⟩ := hx
+  let N : (Σ w : S.RoleWord A r,
+      {e : CellName S (S.nativeTile A r w).ty // e.val.dim < j}) → Set (E d) :=
+    fun q => (S.σ ^ r).symm.toAffineEquiv '' (S.nativeTile A r q.1).cell 0 q.2.val.val
+  have hN : ∀ q, Module.finrank ℝ (cellDirection (N q)) < j := by
+    intro q
+    have h1 := recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).symm.toAffineEquiv
+      ((S.nativeTile A r q.1).cell 0 q.2.val.val)
+    have h2 : Module.finrank ℝ (cellDirection ((S.nativeTile A r q.1).cell 0 q.2.val.val)) =
+        q.2.val.val.dim := by
+      rw [recursiveTrace_tiles_step0_cell_zero]
+      exact (recursiveTrace_tiles_step0_finrank_image
+        (S.nativeTile A r q.1).frame.toAffineEquiv _).trans q.2.val.val.flat.dimension
+    exact lt_of_eq_of_lt (h1.trans h2) q.2.property
+  have hflat : IsFlatCell j (F.cell ⟨j, hj, hjd⟩).val.carrier := by
+    have := (F.cell ⟨j, hj, hjd⟩).val.flat
+    rwa [F.dimension] at this
+  have hcl := recursiveTrace_tiles_step14_generic_closure _ j hflat N hN hx0
+  have hcont : Continuous (S.σ ^ r) :=
+    (S.σ ^ r).toLinearMap.continuous_of_finiteDimensional
+  refine closure_mono ?_ (image_closure_subset_closure_image hcont ⟨x0, hcl, rfl⟩)
+  rintro _ ⟨z, ⟨hzL, hzN⟩, rfl⟩
+  refine ⟨⟨z, hzL, rfl⟩, ?_⟩
+  intro hB
+  simp only [Set.mem_iUnion] at hB
+  obtain ⟨w, e, he, hze⟩ := hB
+  exact hzN (Set.mem_iUnion.2 ⟨⟨w, ⟨e, he⟩⟩, ⟨_, hze, by simp⟩⟩)
+
+/-- Step 10 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): the union of the
+recorded `j`-cells over the finitely many owners and cell names is closed. -/
+private theorem recursiveTrace_tiles_step10_closed (A : S.ι) (F : FacetFlag S A)
+    (r j : ℕ) (hj : 1 ≤ j) (hjd : j < d) :
+    IsClosed (⋃ (w : S.RoleWord A r) (e : CellName S (S.nativeTile A r w).ty)
+      (_ : ∃ c : ChainOccurrence A F r (S.nativeTile A r w) 0 j,
+        c.cell ⟨⟨j, hjd⟩, le_rfl, hj⟩ = e),
+      (S.nativeTile A r w).cell 0 e.val) := by
+  refine isClosed_iUnion_of_finite fun w => isClosed_iUnion_of_finite fun e =>
+    isClosed_iUnion_of_finite fun _ => ?_
+  rw [recursiveTrace_tiles_step0_cell_zero]
+  exact (e.val.flat.compact.image (S.nativeTile A r w).frame.continuous).isClosed
+
+/-- Step 11 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(a)): "iterating down to
+`F_2`": by downward induction from the facet, every point of `σ^r F_j` lies in the
+`j`-cell of a recorded chain from `j` to `d-1` (Steps 6--10). -/
+private theorem recursiveTrace_tiles_step11_cover (A : S.ι) (F : FacetFlag S A) (r : ℕ) :
+    ∀ n j : ℕ, ∀ (hj : 1 ≤ j) (hjd : j < d), j + n = d - 1 →
+      ∀ x ∈ (S.σ ^ r) '' (F.cell ⟨j, hj, hjd⟩).val.carrier,
+        ∃ (w : S.RoleWord A r) (c : ChainOccurrence A F r (S.nativeTile A r w) 0 j),
+          x ∈ (S.nativeTile A r w).cell 0 (c.cell ⟨⟨j, hjd⟩, le_rfl, hj⟩).val := by
+  intro n
+  induction n with
+  | zero =>
+    intro j hj hjd hjn x hx
+    obtain rfl : j = d - 1 := by omega
+    exact recursiveTrace_tiles_step6_top_cover A F r hj hjd x hx
+  | succ n ih =>
+    intro j hj hjd hjn
+    have hjd' : j + 1 < d := by omega
+    have hU := recursiveTrace_tiles_step10_closed A F r j hj hjd
+    have hG : ((S.σ ^ r) '' (F.cell ⟨j, hj, hjd⟩).val.carrier \
+        ⋃ (w : S.RoleWord A r) (e : CellName S (S.nativeTile A r w).ty)
+          (_ : e.val.dim < j), (S.nativeTile A r w).cell 0 e.val) ⊆
+        ⋃ (w : S.RoleWord A r) (e : CellName S (S.nativeTile A r w).ty)
+          (_ : ∃ c : ChainOccurrence A F r (S.nativeTile A r w) 0 j,
+            c.cell ⟨⟨j, hjd⟩, le_rfl, hj⟩ = e),
+          (S.nativeTile A r w).cell 0 e.val := by
+      rintro y ⟨hyF, hygen⟩
+      have hyF1 : y ∈ (S.σ ^ r) '' (F.cell ⟨j + 1, by omega, hjd'⟩).val.carrier :=
+        Set.image_mono (F.nested ⟨j, hj, hjd⟩ ⟨j + 1, by omega, hjd'⟩ (Nat.le_succ j)) hyF
+      obtain ⟨w, c, hyc⟩ := ih (j + 1) (by omega) hjd' (by omega) y hyF1
+      obtain ⟨e, he, hye⟩ := recursiveTrace_tiles_step8_generic_minimal w j hj hjd' c y hyc
+        hyF (fun e he hy => hygen (Set.mem_iUnion₂.2 ⟨w, e, Set.mem_iUnion.2 ⟨he, hy⟩⟩))
+      obtain ⟨c', hc'⟩ := recursiveTrace_tiles_step7_extend w j hj hjd' c e he y hye hyc hyF
+      exact Set.mem_iUnion₂.2 ⟨w, e, Set.mem_iUnion.2 ⟨⟨c', hc'⟩,
+        intrinsicInterior_subset hye⟩⟩
+    intro x hx
+    have hxU := (closure_minimal hG hU)
+      (recursiveTrace_tiles_step9_generic_dense A F r j hj hjd hx)
+    simp only [Set.mem_iUnion] at hxU
+    obtain ⟨w, e, ⟨c, hce⟩, hxe⟩ := hxU
+    refine ⟨w, c, ?_⟩
+    rw [hce]
+    exact hxe
+
 /-- P17, V4 1.22(a): the trace tiles the designated two-cell, or the edge when
 `d = 2`, and its distinct occurrences have disjoint relative interiors. -/
 theorem recursiveTrace_tiles (A : S.ι) (F : FacetFlag S A) (r : ℕ) :
@@ -111,7 +838,17 @@ theorem recursiveTrace_tiles (A : S.ι) (F : FacetFlag S A) (r : ℕ) :
       affineSpan ℝ (a.tile.cell 0 (a.chain.cell i).val) =
         affineSpan ℝ ((S.σ ^ r) ''
           (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier) := by
-  sorry
+  refine ⟨?_, recursiveTrace_tiles_step5_disjoint A F r,
+    fun a i => recursiveTrace_tiles_step1_span a i⟩
+  apply Set.Subset.antisymm
+  · refine Set.iUnion₂_subset fun a _ => ?_
+    exact a.chain.contained TracePiece.bottomIndex
+  · intro x hx
+    have hlt := traceDimension_lt (d := d)
+    obtain ⟨w, c, hxc⟩ := recursiveTrace_tiles_step11_cover A F r
+      (d - 1 - traceDimension d) (traceDimension d) traceDimension_pos traceDimension_lt
+      (by omega) x hx
+    exact Set.mem_iUnion₂.2 ⟨⟨w, c⟩, by simp [recursiveTrace], hxc⟩
 
 /-- P17, V4 1.22(b): all standard native frames are compatible. -/
 theorem nativeFrame_mem (A : S.ι) (r : ℕ) (w : S.RoleWord A r) :

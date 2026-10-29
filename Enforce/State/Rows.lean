@@ -2919,6 +2919,224 @@ private theorem actualCont_exists_step4_active (U : HonestSource S) (P : Params 
   exact chain_active_owner_converse U P q g hg F hF a ha htop (edgeCell e)
     (Finset.mem_filter.mp e.property).2 heB heh
 
+open private solidAngle_constant_on_cell_step2_fill solidAngle_constant_on_cell_step4_common_ball
+  from Enforce.Geometry.CellComplex in
+/-- Step 1 of the V4 proof of `actualCont_exists_step5_coface_side` (V4 1.0(b)):
+"the local structure is constant by (a) applied to the cell complex". Induction
+through the finite boundary complex proves both incidence and local translation
+invariance of a listed carrier in the directions of the cell containing the base point. -/
+private lemma actualCont_exists_step5_coface_side_step1_cell_invariance
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e : Cell d) (he : e ∈ K.cells)
+    (p : E d) (hp : p ∈ relint e.carrier) (f : Cell d) (hf : f ∈ K.cells) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+      y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+  classical
+  let N (f : Cell d) := (K.cells.filter fun g => g.carrier ⊆ f.carrier).card
+  have main : ∀ n : ℕ, ∀ f : Cell d, f ∈ K.cells → N f = n →
+      (p ∈ f.carrier → e.carrier ⊆ f.carrier) ∧
+      ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball p r, ∀ y ∈ ball p r,
+        y - x ∈ cellDirection e.carrier → (x ∈ f.carrier ↔ y ∈ f.carrier) := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+      intro f hf hN
+      by_cases hpf : p ∈ f.carrier
+      · obtain ⟨b, hb, hboundary⟩ := K.boundary_union f hf
+        have hgb (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ relfrontier f.carrier := by
+          intro z hz
+          rw [hboundary]
+          exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+        have hgf (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ f.carrier :=
+          (hgb g hg).trans (intrinsicFrontier_subset f.flat.compact.isClosed)
+        have hsmall : ∀ g ∈ b, N g < N f := by
+          intro g hg
+          have hnfg : ¬ f.carrier ⊆ g.carrier := by
+            intro hfg
+            obtain ⟨z, hz⟩ := f.flat.relint_nonempty
+            have hzb := hgb g hg (hfg (intrinsicInterior_subset hz))
+            change z ∈ intrinsicFrontier ℝ f.carrier at hzb
+            rw [← closure_diff_intrinsicInterior] at hzb
+            exact hzb.2 hz
+          apply Finset.card_lt_card
+          apply (Finset.ssubset_iff_of_subset ?_).mpr
+          · refine ⟨f, Finset.mem_filter.mpr ⟨hf, Subset.rfl⟩, ?_⟩
+            intro hfg
+            exact hnfg (Finset.mem_filter.mp hfg).2
+          · intro g' hg'
+            obtain ⟨hg'K, hg'g⟩ := Finset.mem_filter.mp hg'
+            exact Finset.mem_filter.mpr ⟨hg'K, hg'g.trans (hgf g hg)⟩
+        have hef : e.carrier ⊆ f.carrier := by
+          by_cases hpi : p ∈ relint f.carrier
+          · have hef : e = f := by
+              by_contra hne
+              exact Set.disjoint_left.mp (K.relint_disjoint e he f hf hne) hp hpi
+            exact hef ▸ Subset.rfl
+          · have hpb : p ∈ relfrontier f.carrier := by
+              change p ∈ intrinsicFrontier ℝ f.carrier
+              rw [← closure_diff_intrinsicInterior, f.flat.compact.isClosed.closure_eq]
+              exact ⟨hpf, hpi⟩
+            rw [hboundary] at hpb
+            obtain ⟨g, hpg⟩ := mem_iUnion.mp hpb
+            obtain ⟨hg, hpg⟩ := mem_iUnion.mp hpg
+            exact ((ih (N g) (by simpa only [hN] using hsmall g hg)
+              g (hb hg) rfl).1 hpg).trans (hgf g hg)
+        have hV : cellDirection e.carrier ≤ (affineSpan ℝ f.carrier).direction :=
+          AffineSubspace.direction_le (affineSpan_mono ℝ hef)
+        obtain ⟨r, hr, hc⟩ :=
+          solidAngle_constant_on_cell_step4_common_ball b
+            Cell.carrier (cellDirection e.carrier) p (fun g hg =>
+              (ih (N g) (by simpa only [hN] using hsmall g hg) g (hb hg) rfl).2)
+        refine ⟨fun _ => hef, r, hr,
+          solidAngle_constant_on_cell_step2_fill
+            f.flat.compact.isClosed (cellDirection e.carrier) hV p r ?_⟩
+        intro x hx y hy hv
+        rw [hboundary]
+        simp only [mem_iUnion, exists_prop]
+        constructor
+        · rintro ⟨g, hg, hxg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mp hxg⟩
+        · rintro ⟨g, hg, hyg⟩
+          exact ⟨g, hg, (hc g hg x hx y hy hv).mpr hyg⟩
+      · obtain ⟨r, hr, hball⟩ :=
+          Metric.isOpen_iff.mp f.flat.compact.isClosed.isOpen_compl p hpf
+        exact ⟨fun h => (hpf h).elim, r, hr,
+          fun x hx y hy _ => iff_of_false (hball hx) (hball hy)⟩
+  exact (main (N f) f hf rfl).2
+
+open private solidAngle_constant_on_cell_step8_tangent_germ
+  from Enforce.Geometry.CellComplex in
+/-- Step 2 of the V4 proof of `actualCont_exists_step5_coface_side` (V4 1.0(b), 3.6(F1)):
+"near a point of the relative interior of a codimension-one face, a polyhedral
+manifold cell is a half-space on the recorded side". The tangent of a coface is
+constant along the relative interior of its listed face, so the anchor of
+`flagSide` is immaterial. -/
+private theorem actualCont_exists_step5_coface_side_step2_coface
+    {A : S.ι} (F : FacetFlag S A) (k : FlagStep d) (x : E d)
+    (hx : x ∈ relint (F.cell ⟨k.val, k.property.1, by omega⟩).val.carrier) :
+    tangentCone (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier x =
+      flagSide F k := by
+  let e := (F.cell ⟨k.val, k.property.1, by omega⟩).val
+  let f := (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val
+  have he : e ∈ (S.cx A).cells := (F.cell _).property
+  have hf : f ∈ (S.cx A).cells := (F.cell _).property
+  have hloc : IsLocallyConstant (fun p : relint e.carrier => tangentCone f.carrier p) := by
+    apply (IsLocallyConstant.iff_eventually_eq _).mpr
+    intro p
+    obtain ⟨r, hr, hball⟩ :=
+      actualCont_exists_step5_coface_side_step1_cell_invariance
+        (S.cx A) e he p p.property f hf
+    have hnear : ∀ᶠ q : relint e.carrier in nhds p, (q : E d) ∈ ball (p : E d) r :=
+      continuous_subtype_val.continuousAt.eventually
+        (isOpen_ball.mem_nhds (mem_ball_self hr))
+    filter_upwards [hnear] with q hq
+    apply (solidAngle_constant_on_cell_step8_tangent_germ
+      f.carrier (cellDirection e.carrier) p q r hr hq ?_ hball).symm
+    exact AffineSubspace.vsub_mem_direction
+      (subset_affineSpan ℝ e.carrier (intrinsicInterior_subset q.property))
+      (subset_affineSpan ℝ e.carrier (intrinsicInterior_subset p.property))
+  have hconn : IsPreconnected (univ : Set (relint e.carrier)) :=
+    (Subtype.preconnectedSpace e.flat.relint_connected.isPreconnected).isPreconnected_univ
+  exact hloc.apply_eq_of_isPreconnected hconn
+    (x := ⟨x, hx⟩) (y := ⟨cellAnchor e, cellAnchor_mem e⟩) (mem_univ _) (mem_univ _)
+
+/-- Step 3 of the V4 proof of `actualCont_exists_step5_coface_side` (V4 2.8):
+"both chains lie in the positioned flag". Affine transport of a radial
+tangent cone uses exactly the linear part of the affine frame. -/
+private theorem actualCont_exists_step5_coface_side_step3_tangent_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) (x : E d) :
+    tangentCone (e '' K) (e x) = e.linear '' tangentCone K x := by
+  have hmap (y u : E d) (t : ℝ) : e (y + t • u) = e y + t • e.linear u := by
+    simpa only [vadd_eq_add, add_comm, map_smul] using e.map_vadd y (t • u)
+  ext u
+  constructor
+  · rintro ⟨ε, hε, hu⟩
+    refine ⟨e.linear.symm u, ⟨ε, hε, ?_⟩, e.linear.apply_symm_apply u⟩
+    intro t ht htε
+    apply e.injective.mem_set_image.mp
+    simpa only [hmap, e.linear.apply_symm_apply] using hu t ht htε
+  · rintro ⟨u, ⟨ε, hε, hu⟩, rfl⟩
+    refine ⟨ε, hε, ?_⟩
+    intro t ht htε
+    rw [← hmap]
+    exact Set.mem_image_of_mem e (hu t ht htε)
+
+open private states_finite_step4_flag_halfspace_lem_cell from Enforce.State.State in
+/-- Step 4 of the V4 proof of `actualCont_exists_step5_coface_side` (V4 3.6(F1)):
+"a polyhedral manifold cell is a half-space on the recorded side". The local
+side of a flag pair is a closed half-space of the upper direction space, cut
+by a functional that does not vanish on that direction space. -/
+private theorem actualCont_exists_step5_coface_side_step4_halfspace
+    {A : S.ι} (F : FacetFlag S A) (k : FlagStep d) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      flagSide F k = {v | v ∈ cellDirection
+        (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier ∧ 0 ≤ ℓ v} ∧
+      ∃ u ∈ cellDirection (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier,
+        ℓ u ≠ 0 := by
+  let e := F.cell ⟨k.val, k.property.1, by omega⟩
+  let C := F.cell ⟨k.val + 1, by omega, k.property.2⟩
+  have hsub : e.val.carrier ⊆ C.val.carrier := F.nested _ _ (Nat.le_succ k.val)
+  have hdim : C.val.dim = e.val.dim + 1 := by
+    rw [F.dimension, F.dimension]
+  obtain ⟨ℓ, hker, htan⟩ := states_finite_step4_flag_halfspace_lem_cell (S.cx A)
+    e.property C.property hsub hdim (cellAnchor_mem e.val)
+  refine ⟨ℓ, htan, ?_⟩
+  by_contra hno
+  push_neg at hno
+  have hle : cellDirection C.val.carrier ≤ cellDirection e.val.carrier := by
+    intro u hu
+    have hmem : u ∈ {x | x ∈ cellDirection C.val.carrier ∧ ℓ x = 0} := ⟨hu, hno u hu⟩
+    rw [hker] at hmem
+    exact hmem
+  have hfin := Submodule.finrank_mono hle
+  rw [C.val.flat.dimension, e.val.flat.dimension, hdim] at hfin
+  omega
+
+/-- Step 4 of the V4 proof of `actualCont_exists_step5_coface_side` (V4 3.6(F1)):
+"a half-space on the recorded side". A linear placement maps a half-space
+of a subspace to the half-space of the image subspace. -/
+private theorem actualCont_exists_step5_coface_side_step4_image
+    (L : E d ≃ₗ[ℝ] E d) (D : Submodule ℝ (E d)) (ℓ : E d →ₗ[ℝ] ℝ) :
+    L '' {v | v ∈ D ∧ 0 ≤ ℓ v} =
+      {w | w ∈ D.map L.toLinearMap ∧ 0 ≤ (ℓ.comp L.symm.toLinearMap) w} := by
+  ext y
+  constructor
+  · rintro ⟨v, ⟨hv, hl⟩, rfl⟩
+    exact ⟨Submodule.mem_map_of_mem hv, by simpa using hl⟩
+  · rintro ⟨⟨v, hv, rfl⟩, hl⟩
+    exact ⟨v, ⟨hv, by simpa using hl⟩, rfl⟩
+
+/-- Step 5 of the V4 proof of `actualCont_exists_step5_coface_side` (V4 3.6, Step 2):
+"same affine spans, orientation and sides". Inclusion of two proper linear
+half-spaces in one subspace forces equality: their defining functionals are
+positive scalar multiples on that subspace. -/
+private theorem actualCont_exists_step5_coface_side_step5_inclusion
+    (V : Submodule ℝ (E d)) (ℓ m : E d →ₗ[ℝ] ℝ)
+    (hℓ : ∃ u ∈ V, ℓ u ≠ 0) (hm : ∃ u ∈ V, m u ≠ 0)
+    (hsub : {u | u ∈ V ∧ 0 ≤ ℓ u} ⊆ {u | u ∈ V ∧ 0 ≤ m u}) :
+    {u | u ∈ V ∧ 0 ≤ ℓ u} = {u | u ∈ V ∧ 0 ≤ m u} := by
+  obtain ⟨v, hv, hvℓ⟩ := hℓ
+  let w := (ℓ v)⁻¹ • v
+  have hwV : w ∈ V := V.smul_mem _ hv
+  have hw : ℓ w = 1 := by simp [w, hvℓ]
+  have hmw : 0 ≤ m w := (hsub ⟨hwV, by simp [hw]⟩).2
+  have hscale (u : E d) (hu : u ∈ V) : m u = ℓ u * m w := by
+    have hz : ℓ (u - ℓ u • w) = 0 := by simp [hw]
+    have hV : u - ℓ u • w ∈ V := V.sub_mem hu (V.smul_mem _ hwV)
+    have h₁ := (hsub ⟨hV, by simp [hz]⟩).2
+    have h₂ := (hsub ⟨V.neg_mem hV, by rw [map_neg, hz]; simp⟩).2
+    simp only [map_sub, map_smul, map_neg, smul_eq_mul] at h₁ h₂
+    linarith
+  have hmwpos : 0 < m w := by
+    apply lt_of_le_of_ne hmw
+    intro hz
+    obtain ⟨u, hu, hmu⟩ := hm
+    exact hmu (by rw [hscale u hu, ← hz, mul_zero])
+  apply Set.Subset.antisymm hsub
+  rintro u ⟨hu, hmu⟩
+  refine ⟨hu, ?_⟩
+  rw [hscale u hu] at hmu
+  exact (mul_nonneg_iff_of_pos_right hmwpos).mp hmu
+
 /-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
 "both chains lie in the positioned flag". Refinement of a consecutive pair
 of flag cells, with the same affine spans, preserves the local coface side. -/
@@ -2934,7 +3152,55 @@ private theorem actualCont_exists_step5_coface_side {A B : S.ι}
         (φ '' (F.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier) =
       affineSpan ℝ (ψ '' (G.cell ⟨k.val + 1, by omega, k.property.2⟩).val.carrier)) :
     φ.linear '' flagSide F k = ψ.linear '' flagSide G k := by
-  sorry
+  classical
+  let low : FlagIndex d := ⟨k.val, k.property.1, by omega⟩
+  let high : FlagIndex d := ⟨k.val + 1, by omega, k.property.2⟩
+  let x := φ (cellAnchor (F.cell low).val)
+  have hx : x ∈ relint (ψ '' (G.cell low).val.carrier) := by
+    apply hlow
+    rw [restrictionOp_source_step5_relint_image]
+    exact Set.mem_image_of_mem φ (cellAnchor_mem _)
+  have hclosed (χ : E d ≃ᵃ[ℝ] E d) (e : Cell d) :
+      closure (relint (χ '' e.carrier)) = χ '' e.carrier := by
+    rw [restrictionOp_source_step5_relint_image]
+    change closure (χ.toHomeomorphOfFiniteDimensional '' relint e.carrier) =
+      χ.toHomeomorphOfFiniteDimensional '' e.carrier
+    rw [← Homeomorph.image_closure, e.flat.regularClosed]
+  have hsub : φ '' (F.cell high).val.carrier ⊆ ψ '' (G.cell high).val.carrier := by
+    simpa only [hclosed] using closure_mono hhigh
+  have hF : tangentCone (φ '' (F.cell high).val.carrier) x =
+      φ.linear '' flagSide F k := by
+    rw [actualCont_exists_step5_coface_side_step3_tangent_image]
+    rfl
+  have hG : tangentCone (ψ '' (G.cell high).val.carrier) x =
+      ψ.linear '' flagSide G k := by
+    rw [restrictionOp_source_step5_relint_image] at hx
+    obtain ⟨y, hy, hxy⟩ := hx
+    rw [← hxy, actualCont_exists_step5_coface_side_step3_tangent_image]
+    exact congrArg (fun K : Set (E d) => ψ.linear '' K)
+      (actualCont_exists_step5_coface_side_step2_coface G k y hy)
+  have hmono : tangentCone (φ '' (F.cell high).val.carrier) x ⊆
+      tangentCone (ψ '' (G.cell high).val.carrier) x := by
+    rintro u ⟨ε, hε, hu⟩
+    exact ⟨ε, hε, fun t ht htε => hsub (hu t ht htε)⟩
+  rw [hF, hG] at hmono
+  have hdirχ (χ : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+      (affineSpan ℝ (χ '' K)).direction =
+        (cellDirection K).map χ.linear.toLinearMap := by
+    change (affineSpan ℝ (χ.toAffineMap '' K)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    rfl
+  have hV := congrArg AffineSubspace.direction hspanhigh
+  rw [hdirχ, hdirχ] at hV
+  obtain ⟨ℓ, hℓ, u, hu, hℓu⟩ := actualCont_exists_step5_coface_side_step4_halfspace F k
+  obtain ⟨m, hm, v, hv, hmv⟩ := actualCont_exists_step5_coface_side_step4_halfspace G k
+  rw [hℓ, actualCont_exists_step5_coface_side_step4_image] at hmono ⊢
+  rw [hm, actualCont_exists_step5_coface_side_step4_image] at hmono ⊢
+  rw [← hV] at hmono ⊢
+  apply actualCont_exists_step5_coface_side_step5_inclusion _ _ _ ?_ ?_ hmono
+  · exact ⟨φ.linear u, Submodule.mem_map_of_mem hu, by simpa using hℓu⟩
+  · rw [hV]
+    exact ⟨ψ.linear v, Submodule.mem_map_of_mem hv, by simpa using hmv⟩
 
 /-- Step 5 of the V4 proof of `actualCont_exists` (V4 2.8):
 "with owner t''". Every listed cell of an owner lies in its closed tile. -/

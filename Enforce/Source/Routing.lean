@@ -971,6 +971,695 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
         exact nonpos_of_mul_nonpos_right hmul (sub_pos.mpr ha.2)
       · simpa only [if_neg hft] using hxf
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "taking barycentres of their nonempty
+faces". The cells of the subdivision: the nonempty convex extreme subsets (faces) of the
+given convex polytopes. This definition contains no proof. -/
+private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces (T : Finset (Finset (E d))) : Set (Set (E d)) :=
+  {F | ∃ p ∈ T, IsExtreme ℝ (convexHull ℝ (p : Set (E d))) F ∧ Convex ℝ F ∧ F.Nonempty}
+
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "convex polytopes". A convex face of
+`conv p` is the hull of the points of `p` it contains: every point of `p` carrying
+positive weight in a convex combination lies on an open segment through the point. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step1_face_eq_hull {p : Finset (E d)} {F : Set (E d)}
+    (hext : IsExtreme ℝ (convexHull ℝ (p : Set (E d))) F) (hconv : Convex ℝ F) :
+    F = convexHull ℝ (F ∩ (p : Set (E d))) := by
+  classical
+  apply Set.Subset.antisymm
+  · intro x hxF
+    obtain ⟨w, hw0, hw1, hwx⟩ := Finset.mem_convexHull'.mp (hext.1 hxF)
+    have hv : ∀ v ∈ p, 0 < w v → v ∈ F := by
+      intro v hv hwv
+      have hsplit := Finset.add_sum_erase p w hv
+      have hsplitx := Finset.add_sum_erase p (fun u => w u • u) hv
+      have hrest0 : ∀ u ∈ p.erase v, 0 ≤ w u := fun u hu => hw0 u (Finset.mem_of_mem_erase hu)
+      have hle : w v ≤ 1 := by
+        rw [← hw1, ← hsplit]
+        linarith [Finset.sum_nonneg hrest0]
+      rcases hle.lt_or_eq with hlt | heq
+      · set r : ℝ := 1 - w v with hr
+        have hrpos : 0 < r := by rw [hr]; linarith
+        have hsumr : ∑ u ∈ p.erase v, w u = r := by rw [hr, ← hw1, ← hsplit]; ring
+        let x' : E d := ∑ u ∈ p.erase v, (r⁻¹ * w u) • u
+        have hx' : x' ∈ convexHull ℝ (p : Set (E d)) := by
+          apply (convex_convexHull ℝ (p : Set (E d))).sum_mem
+          · intro u hu
+            exact mul_nonneg (inv_nonneg.mpr hrpos.le) (hrest0 u hu)
+          · rw [← Finset.mul_sum, hsumr, inv_mul_cancel₀ hrpos.ne']
+          · intro u hu
+            exact subset_convexHull ℝ _ (Finset.mem_coe.mpr (Finset.mem_of_mem_erase hu))
+        have hrx' : r • x' = ∑ u ∈ p.erase v, w u • u := by
+          simp only [x', Finset.smul_sum, smul_smul, ← mul_assoc, mul_inv_cancel₀ hrpos.ne',
+            one_mul]
+        have hseg : x ∈ openSegment ℝ v x' := by
+          refine ⟨w v, r, hwv, hrpos, by rw [hr]; ring, ?_⟩
+          rw [hrx', hsplitx]
+          exact hwx
+        exact hext.2 (subset_convexHull ℝ _ (Finset.mem_coe.mpr hv)) hx' hxF hseg
+      · have hrest : ∑ u ∈ p.erase v, w u = 0 := by
+          have := hsplit
+          rw [hw1, heq] at this
+          linarith
+        have hzero := (Finset.sum_eq_zero_iff_of_nonneg hrest0).mp hrest
+        have hz : ∑ u ∈ p.erase v, w u • u = 0 :=
+          Finset.sum_eq_zero (fun u hu => by rw [hzero u hu, zero_smul])
+        have hxv : x = v := by
+          rw [← hwx, ← hsplitx]
+          beta_reduce
+          rw [heq, one_smul, hz, add_zero]
+        exact hxv ▸ hxF
+    let q := p.filter (fun u => 0 < w u)
+    have hq : (q : Set (E d)) ⊆ F ∩ (p : Set (E d)) := by
+      intro u hu
+      obtain ⟨hup, hwu⟩ := Finset.mem_filter.mp hu
+      exact ⟨hv u hup hwu, hup⟩
+    refine convexHull_mono hq (Finset.mem_convexHull'.mpr ⟨w, ?_, ?_, ?_⟩)
+    · intro u hu
+      exact hw0 u (Finset.mem_filter.mp hu).1
+    · rw [Finset.sum_filter_of_ne]
+      · exact hw1
+      · intro u hu hne
+        exact lt_of_le_of_ne (hw0 u hu) (Ne.symm hne)
+    · rw [Finset.sum_filter_of_ne]
+      · exact hwx
+      · intro u hu hne
+        refine lt_of_le_of_ne (hw0 u hu) (Ne.symm ?_)
+        intro h0
+        exact hne (by rw [h0, zero_smul])
+  · exact convexHull_min Set.inter_subset_left hconv
+
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "a finite family of convex polytopes".
+Each face is the hull of a subset of a polytope's vertex set (previous step), hence
+there are finitely many faces. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step1_faces_finite (T : Finset (Finset (E d))) :
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T).Finite := by
+  classical
+  apply Set.Finite.subset (((T.biUnion fun p => p.powerset) : Set (Finset (E d))).toFinite.image
+    (fun q : Finset (E d) => convexHull ℝ (q : Set (E d))))
+  rintro F ⟨p, hp, hext, hconv, -⟩
+  refine ⟨p.filter (· ∈ F), ?_, ?_⟩
+  · exact Finset.mem_coe.mpr (Finset.mem_biUnion.mpr ⟨p, hp,
+      Finset.mem_powerset.mpr (Finset.filter_subset _ _)⟩)
+  · change convexHull ℝ ((p.filter (· ∈ F) : Finset (E d)) : Set (E d)) = F
+    conv_rhs => rw [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step1_face_eq_hull hext hconv]
+    congr 1
+    ext u
+    simp only [Finset.coe_filter, Set.mem_setOf_eq, Set.mem_inter_iff, Finset.mem_coe]
+    exact and_comm
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "convex polytopes meeting in common
+faces". If a face of one polytope lies in a face of another, it is a face of the
+latter: it is extreme in the common face `conv p ∩ conv q`, which is extreme in `conv q`. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step2_face_extreme (T : Finset (Finset (E d)))
+    (hface : ∀ p ∈ T, ∀ q ∈ T,
+      IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+        (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d))))
+    {F G : Set (E d)} (hF : F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T) (hG : G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T) (hFG : F ⊆ G) :
+    IsExtreme ℝ G F := by
+  obtain ⟨p, hp, hpF, -, -⟩ := hF
+  obtain ⟨q, hq, hqG, -, -⟩ := hG
+  have hFq : F ⊆ convexHull ℝ (q : Set (E d)) := hFG.trans hqG.1
+  have h1 : IsExtreme ℝ (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d))) F :=
+    hpF.mono Set.inter_subset_left (Set.subset_inter hpF.1 hFq)
+  have h2 := hface q hq p hp
+  rw [Set.inter_comm] at h2
+  exact (h2.trans h1).mono hqG.1 hFG
+
+open scoped Topology in
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "taking barycentres of their nonempty
+faces". From a relative-interior point `u` of a set, the line towards any point `v` of
+its affine span can be continued a little beyond `u` inside the set. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step3_extend_past {S : Set (E d)} {u v : E d}
+    (hu : u ∈ intrinsicInterior ℝ S) (hv : v ∈ affineSpan ℝ S) :
+    ∃ t : ℝ, 1 < t ∧ AffineMap.lineMap v u t ∈ S ∧
+      u ∈ openSegment ℝ v (AffineMap.lineMap v u t) := by
+  obtain ⟨y, hy, hyu⟩ := mem_intrinsicInterior.mp hu
+  have huA : u ∈ affineSpan ℝ S := subset_affineSpan ℝ S (intrinsicInterior_subset hu)
+  let γ : ℝ → affineSpan ℝ S := fun t =>
+    ⟨AffineMap.lineMap v u t, AffineMap.lineMap_mem t hv huA⟩
+  have hγ : Continuous γ :=
+    ((AffineMap.lineMap v u : ℝ →ᵃ[ℝ] E d).continuous_of_finiteDimensional).subtype_mk _
+  have hγ1 : γ 1 = y := Subtype.ext (by simp [γ, hyu])
+  have hnhds : interior ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ∈ 𝓝 (γ 1) := by
+    rw [hγ1]
+    exact isOpen_interior.mem_nhds hy
+  have hnear : γ ⁻¹' interior ((↑) ⁻¹' S : Set (affineSpan ℝ S)) ∈ 𝓝 (1 : ℝ) :=
+    hγ.continuousAt.preimage_mem_nhds hnhds
+  obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.mp hnear
+  let t : ℝ := 1 + ε / 2
+  have ht : 1 < t := by dsimp [t]; linarith
+  have ht0 : 0 < t := lt_trans zero_lt_one ht
+  have hin := hball (show t ∈ Metric.ball (1 : ℝ) ε by
+    change dist t 1 < ε
+    rw [Real.dist_eq, abs_of_pos (by dsimp [t]; linarith)]
+    dsimp [t]
+    linarith)
+  have hin' : γ t ∈ interior ((↑) ⁻¹' S : Set (affineSpan ℝ S)) := hin
+  refine ⟨t, ht, (interior_subset hin' : γ t ∈ ((↑) ⁻¹' S : Set (affineSpan ℝ S))), ?_⟩
+  have hmem := lineMap_mem_openSegment ℝ v (AffineMap.lineMap v u t)
+    (show t⁻¹ ∈ Ioo (0 : ℝ) 1 from ⟨inv_pos.mpr ht0, inv_lt_one_of_one_lt₀ ht⟩)
+  simpa [AffineMap.lineMap_lineMap_right, ne_of_gt ht0] using hmem
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "taking barycentres of their nonempty
+faces". A relative-interior point of a convex set is not in the affine span of a
+proper convex face: such a span meets the set only in the face, and a relative-interior
+point lying in a face forces the face to be everything. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step3_relint_not_mem_affineSpan {F G : Set (E d)} (hF : Convex ℝ F)
+    (hG : Convex ℝ G) (hFG : IsExtreme ℝ G F) (hne : F ≠ G) {x : E d}
+    (hx : x ∈ intrinsicInterior ℝ G) : x ∉ affineSpan ℝ F := by
+  intro hxF
+  have hxG : x ∈ G := intrinsicInterior_subset hx
+  rcases F.eq_empty_or_nonempty with rfl | hFne
+  · rw [AffineSubspace.span_empty] at hxF
+    exact Set.notMem_empty _ hxF
+  obtain ⟨u, hu⟩ := hFne.intrinsicInterior hF
+  have hxF' : x ∈ F := by
+    obtain ⟨t, -, hwF, hseg⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step3_extend_past hu hxF
+    exact hFG.2 hxG (hFG.1 hwF) (intrinsicInterior_subset hu) hseg
+  obtain ⟨y, hyG, hyF⟩ : ∃ y ∈ G, y ∉ F := by
+    by_contra h
+    push_neg at h
+    exact hne (Set.Subset.antisymm hFG.1 h)
+  obtain ⟨t, -, hwG, hseg⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step3_extend_past hx (subset_affineSpan ℝ G hyG)
+  exact hyF (hFG.2 hyG hwG hxF' hseg)
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "simplices indexed by chains of faces".
+A nonempty finite chain of sets has a largest member. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top {c : Finset (Set (E d))} (hne : c.Nonempty)
+    (hch : IsChain (· ⊆ ·) (c : Set (Set (E d)))) : ∃ G ∈ c, ∀ F ∈ c, F ⊆ G := by
+  obtain ⟨G, hG⟩ := c.exists_maximal hne
+  refine ⟨G, hG.1, fun F hF => ?_⟩
+  by_cases h : F = G
+  · exact h ▸ subset_rfl
+  · rcases hch (Finset.mem_coe.mpr hF) (Finset.mem_coe.mpr hG.1) h with h' | h'
+    · exact h'
+    · exact hG.2 hF h'
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "simplices indexed by chains of faces".
+The barycentres of a chain of faces are affinely independent: the barycentre of the
+top face is outside the affine span of the next face, which contains all the others. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step5_chain_indep (T : Finset (Finset (E d)))
+    (hface : ∀ p ∈ T, ∀ q ∈ T,
+      IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+        (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d))))
+    (b : Set (E d) → E d) (hb : ∀ F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T, b F ∈ intrinsicInterior ℝ F)
+    (c : Finset (Set (E d))) (hc : (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T)
+    (hch : IsChain (· ⊆ ·) (c : Set (Set (E d)))) :
+    AffineIndependent ℝ ((↑) : (b '' (c : Set (Set (E d)))) → E d) := by
+  classical
+  induction c using Finset.strongInduction with
+  | H c ih =>
+  rcases c.eq_empty_or_nonempty with rfl | hne
+  · haveI : Subsingleton (b '' ((∅ : Finset (Set (E d))) : Set (Set (E d)))) :=
+      ⟨fun ⟨_, F, hF, _⟩ => (Finset.notMem_empty F hF).elim⟩
+    exact affineIndependent_of_subsingleton ℝ _
+  obtain ⟨G, hGc, hsubG⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top hne hch
+  have hG : G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T := hc hGc
+  have hGconv : Convex ℝ G := by obtain ⟨_, _, _, h, _⟩ := hG; exact h
+  have hout : ∀ F ∈ c, F ≠ G → b G ∉ affineSpan ℝ F := by
+    intro F hF hFG
+    have hFf : F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T := hc hF
+    have hFconv : Convex ℝ F := by obtain ⟨_, _, _, h, _⟩ := hFf; exact h
+    exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step3_relint_not_mem_affineSpan hFconv hGconv
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step2_face_extreme T hface hFf hG (hsubG F hF)) hFG (hb G hG)
+  have hinj : ∀ F ∈ c, F ≠ G → b F ≠ b G := by
+    intro F hF hFG h
+    apply hout F hF hFG
+    rw [← h]
+    exact subset_affineSpan ℝ F (intrinsicInterior_subset (hb F (hc hF)))
+  let c' := c.erase G
+  have hc'c : (c' : Set (Set (E d))) ⊆ c := Finset.coe_subset.mpr (c.erase_subset G)
+  have ih' := ih c' (Finset.erase_ssubset hGc) (hc'c.trans hc) (hch.mono hc'c)
+  let i : (b '' (c : Set (Set (E d)))) := ⟨b G, Set.mem_image_of_mem b hGc⟩
+  apply AffineIndependent.affineIndependent_of_notMem_span (i := i)
+  · apply AffineIndependent.of_set_of_injective
+    · have hrange : Set.range (fun x : {y : (b '' (c : Set (Set (E d)))) // y ≠ i} =>
+          ((x : (b '' (c : Set (Set (E d))))) : E d)) = b '' (c' : Set (Set (E d))) := by
+        ext z
+        constructor
+        · rintro ⟨⟨⟨z, hz⟩, hzi⟩, rfl⟩
+          obtain ⟨F, hF, rfl⟩ := hz
+          have hFG : F ≠ G := by
+            rintro rfl
+            exact hzi rfl
+          exact ⟨F, Finset.mem_coe.mpr (Finset.mem_erase.mpr ⟨hFG, hF⟩), rfl⟩
+        · rintro ⟨F, hF, rfl⟩
+          obtain ⟨hFG, hF⟩ := Finset.mem_erase.mp hF
+          refine ⟨⟨⟨b F, Set.mem_image_of_mem b hF⟩, ?_⟩, rfl⟩
+          intro h
+          exact hinj F hF hFG (congrArg Subtype.val h)
+      rw [hrange]
+      exact ih'
+    · intro u v huv
+      exact Subtype.ext (Subtype.ext huv)
+  · intro hmem
+    have himg : ∀ z ∈ ((↑) : (b '' (c : Set (Set (E d)))) → E d) '' {x | x ≠ i},
+        ∃ F ∈ c', z = b F := by
+      rintro z ⟨⟨z, hz⟩, hzi, rfl⟩
+      obtain ⟨F, hF, rfl⟩ := hz
+      have hFG : F ≠ G := by
+        rintro rfl
+        exact hzi rfl
+      exact ⟨F, Finset.mem_erase.mpr ⟨hFG, hF⟩, rfl⟩
+    rcases c'.eq_empty_or_nonempty with hempty | hne'
+    · have hset : ((↑) : (b '' (c : Set (Set (E d)))) → E d) '' {x | x ≠ i} = ∅ := by
+        apply Set.eq_empty_of_forall_notMem
+        intro z hz
+        obtain ⟨F, hF, -⟩ := himg z hz
+        rw [hempty] at hF
+        exact Finset.notMem_empty F hF
+      rw [hset, AffineSubspace.span_empty] at hmem
+      exact Set.notMem_empty _ hmem
+    · obtain ⟨M, hMc', hsubM⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top hne' (hch.mono hc'c)
+      obtain ⟨hMG, hMc⟩ := Finset.mem_erase.mp hMc'
+      apply hout M hMc hMG
+      refine affineSpan_mono ℝ ?_ hmem
+      intro z hz
+      obtain ⟨F, hF, rfl⟩ := himg z hz
+      exact hsubM F hF (intrinsicInterior_subset (hb F (hc (hc'c hF))))
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "taking barycentres of their nonempty
+faces". Coning from a relative-interior point: every other point of a face lies on a
+segment from that point to a point of a proper face (the ray leaves the compact face
+through its relative boundary, which is covered by proper faces). -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step6_cone (T : Finset (Finset (E d))) {G : Set (E d)}
+    (hG : G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T) {z : E d} (hz : z ∈ intrinsicInterior ℝ G) {x : E d}
+    (hx : x ∈ G) :
+    x = z ∨ ∃ F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T, F ⊆ G ∧ F ≠ G ∧ ∃ y ∈ F, x ∈ segment ℝ z y := by
+  classical
+  by_cases hxz : x = z
+  · exact Or.inl hxz
+  right
+  have hGmem := hG
+  obtain ⟨p, hp, hpG, hGconv, -⟩ := hG
+  have hzG : z ∈ G := intrinsicInterior_subset hz
+  have hGclosed : IsClosed G := by
+    rw [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step1_face_eq_hull hpG hGconv]
+    exact (p.finite_toSet.subset Set.inter_subset_right).isClosed_convexHull
+  have hGbdd : Bornology.IsBounded G :=
+    (p.finite_toSet.isCompact_convexHull).isBounded.subset hpG.1
+  let L : ℝ → E d := fun t => t • (x - z) + z
+  have hLc : Continuous L := (continuous_id.smul continuous_const).add continuous_const
+  let Λ : Set ℝ := {t | 1 ≤ t ∧ L t ∈ G}
+  have hΛclosed : IsClosed Λ := isClosed_Ici.inter (hGclosed.preimage hLc)
+  have hΛne : Λ.Nonempty := ⟨1, le_rfl, by simpa [L] using hx⟩
+  have hΛbdd : BddAbove Λ := by
+    obtain ⟨C, hC⟩ := isBounded_iff_forall_norm_le.mp hGbdd
+    have hxz' : 0 < ‖x - z‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hxz)
+    refine ⟨(C + ‖z‖) / ‖x - z‖, fun t ht => ?_⟩
+    have h1 := hC _ ht.2
+    have h2 : ‖t • (x - z)‖ ≤ ‖L t‖ + ‖z‖ := by
+      have : t • (x - z) = L t - z := by simp [L]
+      rw [this]
+      exact norm_sub_le _ _
+    rw [norm_smul, Real.norm_of_nonneg (by linarith [ht.1])] at h2
+    rw [le_div_iff₀ hxz']
+    linarith
+  obtain ⟨t₀, ht₀def⟩ : ∃ t₀, t₀ = sSup Λ := ⟨_, rfl⟩
+  have ht₀Λ : t₀ ∈ Λ := ht₀def ▸ hΛclosed.csSup_mem hΛne hΛbdd
+  have hmax : ∀ t ∈ Λ, t ≤ t₀ := fun t ht => ht₀def ▸ le_csSup hΛbdd ht
+  have ht₀1 : 1 ≤ t₀ := ht₀Λ.1
+  obtain ⟨y, hydef⟩ : ∃ y, y = t₀ • (x - z) + z := ⟨_, rfl⟩
+  have hyG : y ∈ G := hydef ▸ ht₀Λ.2
+  let F : Set (E d) := {w | w ∈ G ∧ ∃ ε : ℝ, 0 < ε ∧ y + ε • (y - w) ∈ G}
+  have hshrink : ∀ {v : E d} {ε ε' : ℝ}, 0 < ε' → ε' ≤ ε → y + ε • v ∈ G →
+      y + ε' • v ∈ G := by
+    intro v ε ε' hε' hle hv
+    have hε : 0 < ε := lt_of_lt_of_le hε' hle
+    have hcomb := hGconv hyG hv
+      (show 0 ≤ 1 - ε' / ε by rw [sub_nonneg, div_le_one hε]; exact hle)
+      (show 0 ≤ ε' / ε by positivity) (by ring)
+    have heq : y + ε' • v = (1 - ε' / ε) • y + (ε' / ε) • (y + ε • v) := by
+      rw [smul_add, smul_smul, div_mul_cancel₀ _ hε.ne']
+      module
+    rw [heq]
+    exact hcomb
+  have hyF : y ∈ F := ⟨hyG, 1, one_pos, by simpa using hyG⟩
+  have hzF : z ∉ F := by
+    rintro ⟨-, ε, hε, hzε⟩
+    have hL : y + ε • (y - z) = (t₀ * (1 + ε)) • (x - z) + z := by
+      rw [hydef]
+      module
+    have hmem : t₀ * (1 + ε) ∈ Λ := ⟨by nlinarith, by
+      change (t₀ * (1 + ε)) • (x - z) + z ∈ G
+      rw [← hL]
+      exact hzε⟩
+    have := hmax _ hmem
+    nlinarith
+  have hFconv : Convex ℝ F := by
+    intro w₁ hw₁ w₂ hw₂ a b ha hb hab
+    obtain ⟨hw₁G, ε₁, hε₁, h₁⟩ := hw₁
+    obtain ⟨hw₂G, ε₂, hε₂, h₂⟩ := hw₂
+    refine ⟨hGconv hw₁G hw₂G ha hb hab, min ε₁ ε₂, lt_min hε₁ hε₂, ?_⟩
+    have h₁' := hshrink (lt_min hε₁ hε₂) (min_le_left _ _) h₁
+    have h₂' := hshrink (lt_min hε₁ hε₂) (min_le_right _ _) h₂
+    have hc := hGconv h₁' h₂' ha hb hab
+    have heq : y + min ε₁ ε₂ • (y - (a • w₁ + b • w₂)) =
+        a • (y + min ε₁ ε₂ • (y - w₁)) + b • (y + min ε₁ ε₂ • (y - w₂)) := by
+      have hb' : b = 1 - a := by linarith
+      subst hb'
+      module
+    rw [heq]
+    exact hc
+  have hFext : IsExtreme ℝ G F := by
+    refine ⟨fun w hw => hw.1, ?_⟩
+    intro a ha b hb w hwF hseg
+    obtain ⟨hwG, ε, hε, hu⟩ := hwF
+    obtain ⟨l₁, l₂, hl₁, hl₂, hl, hw⟩ := hseg
+    refine ⟨ha, ε * l₁ / (1 + ε * l₂), by positivity, ?_⟩
+    obtain ⟨D, hDdef⟩ : ∃ D : ℝ, D = 1 + ε * l₂ := ⟨_, rfl⟩
+    rw [← hDdef]
+    have hD : 0 < D := by rw [hDdef]; positivity
+    have hc := hGconv hu hb (show 0 ≤ 1 / D by positivity)
+      (show 0 ≤ ε * l₂ / D by positivity)
+      (by rw [div_add_div_same, div_eq_one_iff_eq hD.ne', hDdef])
+    have e1 : 1 / D * D = 1 := one_div_mul_cancel hD.ne'
+    have e2 : 1 / D * (ε * l₁) = ε * l₁ / D := by rw [div_mul_eq_mul_div, one_mul]
+    have e3 : 1 / D * (ε * l₂) = ε * l₂ / D := by rw [div_mul_eq_mul_div, one_mul]
+    have heq : y + (ε * l₁ / D) • (y - a) =
+        (1 / D) • (y + ε • (y - w)) + (ε * l₂ / D) • b := by
+      calc y + (ε * l₁ / D) • (y - a) = (1 / D) • (D • y + (ε * l₁) • (y - a)) := by
+            rw [smul_add, smul_smul, smul_smul, e1, e2, one_smul]
+        _ = (1 / D) • (y + ε • (y - w) + (ε * l₂) • b) := by
+            congr 1
+            rw [← hw, hDdef]
+            have hl₁' : l₁ = 1 - l₂ := by linarith
+            subst hl₁'
+            module
+        _ = (1 / D) • (y + ε • (y - w)) + (ε * l₂ / D) • b := by
+            rw [smul_add, smul_smul, e3]
+    rw [heq]
+    exact hc
+  refine ⟨F, ⟨p, hp, hpG.trans hFext, hFconv, ⟨y, hyF⟩⟩, fun w hw => hw.1,
+    fun h => hzF (by rw [h]; exact hzG), y, hyF, ?_⟩
+  have ht₀ne : t₀ ≠ 0 := by positivity
+  refine ⟨1 - t₀⁻¹, t₀⁻¹, by
+    rw [sub_nonneg]; exact inv_le_one_of_one_le₀ ht₀1, by positivity, by ring, ?_⟩
+  rw [hydef, smul_add, smul_smul, inv_mul_cancel₀ ht₀ne, one_smul]
+  module
+
+/-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "simplices indexed by chains of faces".
+The chain simplices cover every polytope: by induction on the number of subfaces,
+cone the subdivision of the proper faces from the barycentre (Step 6). -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step7_cover (T : Finset (Finset (E d)))
+    (b : Set (E d) → E d) (hb : ∀ F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T, b F ∈ intrinsicInterior ℝ F)
+    {p : Finset (E d)} (hp : p ∈ T) {x : E d} (hx : x ∈ convexHull ℝ (p : Set (E d))) :
+    ∃ c : Finset (Set (E d)), (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T ∧
+      IsChain (· ⊆ ·) (c : Set (Set (E d))) ∧
+      x ∈ convexHull ℝ (b '' (c : Set (Set (E d)))) := by
+  classical
+  have hfin := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step1_faces_finite T
+  have key : ∀ n : ℕ, ∀ G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T, {F | F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T ∧ F ⊆ G}.ncard = n →
+      ∀ x ∈ G, ∃ c : Finset (Set (E d)), (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T ∧
+        IsChain (· ⊆ ·) (c : Set (Set (E d))) ∧ (∀ F ∈ c, F ⊆ G) ∧
+        x ∈ convexHull ℝ (b '' (c : Set (Set (E d)))) := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | _ n ih =>
+    intro G hG hn x hx
+    rcases principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step6_cone T hG (hb G hG) hx with rfl | ⟨F, hF, hFG, hne, y, hy, hxy⟩
+    · refine ⟨{G}, by simpa using hG, ?_, by simp, ?_⟩
+      · rw [Finset.coe_singleton]
+        exact Set.subsingleton_singleton.isChain
+      · rw [Finset.coe_singleton, Set.image_singleton]
+        exact subset_convexHull ℝ _ (Set.mem_singleton _)
+    · have hlt : {F' | F' ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T ∧ F' ⊆ F}.ncard < n := by
+        rw [← hn]
+        apply Set.ncard_lt_ncard _ (hfin.subset (fun _ h => h.1))
+        refine ssubset_of_subset_not_subset (fun F' h => ⟨h.1, h.2.trans hFG⟩) ?_
+        intro hsub
+        exact hne (Set.Subset.antisymm hFG (hsub ⟨hG, subset_rfl⟩).2)
+      obtain ⟨c, hc, hch, hcF, hyc⟩ := ih _ hlt F hF rfl y hy
+      refine ⟨insert G c, ?_, ?_, ?_, ?_⟩
+      · rw [Finset.coe_insert]
+        exact Set.insert_subset hG hc
+      · rw [Finset.coe_insert]
+        exact hch.insert fun F' hF' _ => Or.inr ((hcF F' (Finset.mem_coe.mp hF')).trans hFG)
+      · intro F' hF'
+        rcases Finset.mem_insert.mp hF' with rfl | hF'
+        · exact subset_rfl
+        · exact (hcF F' hF').trans hFG
+      · apply (convex_convexHull ℝ _).segment_subset _ _ hxy
+        · exact subset_convexHull ℝ _ (Set.mem_image_of_mem b (by simp))
+        · refine convexHull_mono (Set.image_mono ?_) hyc
+          rw [Finset.coe_insert]
+          exact Set.subset_insert _ _
+  have hpF : convexHull ℝ (p : Set (E d)) ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T :=
+    ⟨p, hp, IsExtreme.rfl, convex_convexHull ℝ _, ⟨x, hx⟩⟩
+  obtain ⟨c, hc, hch, -, hxc⟩ := key _ _ hpF rfl x hx
+  exact ⟨c, hc, hch, hxc⟩
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "convex polytopes meeting in common
+faces". Two faces of the family meet in a face of each: inside the common face
+`conv p ∩ conv q`, the two intersections are faces, hence so is their intersection. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_inter_extreme (T : Finset (Finset (E d)))
+    (hface : ∀ p ∈ T, ∀ q ∈ T,
+      IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+        (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d))))
+    {F G : Set (E d)} (hF : F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T) (hG : G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T) :
+    IsExtreme ℝ F (F ∩ G) := by
+  obtain ⟨p, hp, hpF, -, -⟩ := hF
+  obtain ⟨q, hq, hqG, -, -⟩ := hG
+  have hCp := hface p hp q hq
+  have hCq := hface q hq p hp
+  rw [Set.inter_comm] at hCq
+  have h1 : IsExtreme ℝ (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d)))
+      (G ∩ (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d)))) :=
+    (hqG.inter hCq).mono Set.inter_subset_right Set.inter_subset_right
+  have h3 := hpF.inter (hCp.trans h1)
+  have heq : F ∩ (G ∩ (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d)))) =
+      F ∩ G := by
+    ext z
+    constructor
+    · rintro ⟨hzF, hzG, -⟩
+      exact ⟨hzF, hzG⟩
+    · rintro ⟨hzF, hzG⟩
+      exact ⟨hzF, hzG, hpF.1 hzF, hqG.1 hzG⟩
+  rw [heq] at h3
+  exact h3.mono hpF.1 Set.inter_subset_left
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "taking barycentres of their nonempty
+faces". A face of the family containing a relative-interior point of another face
+contains that whole face (Step 3 applied to the common face). -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_relint_subset (T : Finset (Finset (E d)))
+    (hface : ∀ p ∈ T, ∀ q ∈ T,
+      IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+        (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d))))
+    {F G : Set (E d)} (hF : F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T) (hG : G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T) {z : E d}
+    (hz : z ∈ intrinsicInterior ℝ F) (hzG : z ∈ G) : F ⊆ G := by
+  have hFconv : Convex ℝ F := by obtain ⟨_, _, _, h, _⟩ := hF; exact h
+  have hGconv : Convex ℝ G := by obtain ⟨_, _, _, h, _⟩ := hG; exact h
+  by_contra hsub
+  have hne : F ∩ G ≠ F := fun h => hsub (by rw [← h]; exact Set.inter_subset_right)
+  exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step3_relint_not_mem_affineSpan (hFconv.inter hGconv) hFconv
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_inter_extreme T hface hF hG) hne hz
+    (subset_affineSpan ℝ _ ⟨intrinsicInterior_subset hz, hzG⟩)
+
+open Classical in
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "simplices indexed by chains of faces".
+A point of a chain simplex is the top barycentre, a point of the simplex of the
+shorter chain, or lies strictly between the top barycentre and such a point. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_chain_split {b : Set (E d) → E d} {c : Finset (Set (E d))}
+    {G : Set (E d)} (hGc : G ∈ c) {x : E d}
+    (hx : x ∈ convexHull ℝ (b '' (c : Set (Set (E d))))) :
+    x = b G ∨ ∃ y ∈ convexHull ℝ (b '' ((c.erase G : Finset (Set (E d))) : Set (Set (E d)))),
+      x = y ∨ x ∈ openSegment ℝ (b G) y := by
+  classical
+  have himg : b '' (c : Set (Set (E d))) =
+      insert (b G) (b '' ((c.erase G : Finset (Set (E d))) : Set (Set (E d)))) := by
+    rw [Finset.coe_erase, ← Set.image_insert_eq, Set.insert_diff_singleton,
+      Set.insert_eq_of_mem (Finset.mem_coe.mpr hGc)]
+  rw [himg] at hx
+  rcases (b '' ((c.erase G : Finset (Set (E d))) : Set (Set (E d)))).eq_empty_or_nonempty
+    with he | hne
+  · left
+    rw [he] at hx
+    simpa using hx
+  · rw [convexHull_insert hne, mem_convexJoin] at hx
+    obtain ⟨a, ha, y, hy, hxy⟩ := hx
+    rw [Set.mem_singleton_iff] at ha
+    subst ha
+    rw [← insert_endpoints_openSegment] at hxy
+    rcases Set.mem_insert_iff.mp hxy with h | h
+    · exact Or.inl h
+    rcases Set.mem_insert_iff.mp h with h | h
+    · exact Or.inr ⟨y, hy, Or.inl h⟩
+    · exact Or.inr ⟨y, hy, Or.inr h⟩
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "simplices indexed by chains of faces".
+The ray from the barycentre through a point leaves the face only once: two points of
+proper faces beyond the same point on that ray coincide, since a nearer one would lie
+strictly between the barycentre and the farther one. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_ray_unique {G H₁ H₂ : Set (E d)} (h₁ : IsExtreme ℝ G H₁)
+    (h₂ : IsExtreme ℝ G H₂) {z x y₁ y₂ : E d} (hz : z ∈ G) (hz₁ : z ∉ H₁) (hz₂ : z ∉ H₂)
+    (hy₁ : y₁ ∈ H₁) (hy₂ : y₂ ∈ H₂)
+    (hx₁ : x ∈ openSegment ℝ z y₁) (hx₂ : x ∈ openSegment ℝ z y₂) : y₁ = y₂ := by
+  have hray : ∀ {y : E d}, x ∈ openSegment ℝ z y → ∃ r : ℝ, 0 ≤ r ∧ y = r • (x -ᵥ z) +ᵥ z := by
+    intro y hy
+    rw [openSegment_eq_image_lineMap] at hy
+    obtain ⟨t, ht, rfl⟩ := hy
+    refine ⟨t⁻¹, (inv_pos.mpr ht.1).le, ?_⟩
+    rw [AffineMap.lineMap_apply]
+    simp [smul_smul, inv_mul_cancel₀ ht.1.ne']
+  have key : ∀ {H H' : Set (E d)} {a a' : E d}, IsExtreme ℝ G H → z ∉ H → a ∈ H →
+      a' ∈ H' → H' ⊆ G → Wbtw ℝ z a a' → a = a' := by
+    intro H H' a a' hH hzH ha ha' hH' hw
+    by_contra hne
+    have hseg' : a ∈ segment ℝ z a' := mem_segment_iff_wbtw.mpr hw
+    rw [← insert_endpoints_openSegment] at hseg'
+    rcases Set.mem_insert_iff.mp hseg' with h | h
+    · exact hzH (h ▸ ha)
+    rcases Set.mem_insert_iff.mp h with h | h
+    · exact hne h
+    exact hzH (hH.left_mem_of_mem_openSegment hz (hH' ha') ha h)
+  obtain ⟨r₁, hr₁, hy₁e⟩ := hray hx₁
+  obtain ⟨r₂, hr₂, hy₂e⟩ := hray hx₂
+  rcases wbtw_or_wbtw_smul_vadd_of_nonneg z (x -ᵥ z) hr₁ hr₂ with hw | hw
+  · rw [← hy₁e, ← hy₂e] at hw
+    exact key h₁ hz₁ hy₁ hy₂ h₂.1 hw
+  · rw [← hy₁e, ← hy₂e] at hw
+    exact (key h₂ hz₂ hy₂ hy₁ h₁.1 hw).symm
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells` (V4 1.24): "simplices indexed by chains of faces".
+Two chain simplices meet in the simplex of the common subchain: by induction on the
+chain lengths, a common point either lies in a shorter chain simplex, or both top faces
+coincide (they contain each other's barycentres) and the ray from the common top
+barycentre reduces to a common point of the shorter chains. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_chain_inter (T : Finset (Finset (E d)))
+    (hface : ∀ p ∈ T, ∀ q ∈ T,
+      IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+        (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d))))
+    (b : Set (E d) → E d) (hb : ∀ F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T, b F ∈ intrinsicInterior ℝ F)
+    (c₁ c₂ : Finset (Set (E d))) (hc₁ : (c₁ : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T)
+    (hc₂ : (c₂ : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T)
+    (hch₁ : IsChain (· ⊆ ·) (c₁ : Set (Set (E d))))
+    (hch₂ : IsChain (· ⊆ ·) (c₂ : Set (Set (E d)))) :
+    convexHull ℝ (b '' (c₁ : Set (Set (E d)))) ∩ convexHull ℝ (b '' (c₂ : Set (Set (E d)))) ⊆
+      convexHull ℝ (b '' ((c₁ : Set (Set (E d))) ∩ c₂)) := by
+  classical
+  have hconvF : ∀ {F : Set (E d)}, F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T → Convex ℝ F := by
+    rintro F ⟨_, _, _, h, _⟩
+    exact h
+  have hin : ∀ {c : Finset (Set (E d))} {G : Set (E d)}, (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T →
+      (∀ F ∈ c, F ⊆ G) → Convex ℝ G → convexHull ℝ (b '' (c : Set (Set (E d)))) ⊆ G := by
+    intro c G hc hG hconv
+    refine convexHull_min ?_ hconv
+    rintro _ ⟨F, hF, rfl⟩
+    exact hG F hF (intrinsicInterior_subset (hb F (hc hF)))
+  suffices H : ∀ n : ℕ, ∀ c₁ c₂ : Finset (Set (E d)), c₁.card + c₂.card = n →
+      (c₁ : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T → (c₂ : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T →
+      IsChain (· ⊆ ·) (c₁ : Set (Set (E d))) → IsChain (· ⊆ ·) (c₂ : Set (Set (E d))) →
+      ∀ x, x ∈ convexHull ℝ (b '' (c₁ : Set (Set (E d)))) →
+        x ∈ convexHull ℝ (b '' (c₂ : Set (Set (E d)))) →
+        x ∈ convexHull ℝ (b '' ((c₁ : Set (Set (E d))) ∩ c₂)) by
+    rintro x ⟨hx₁, hx₂⟩
+    exact H _ c₁ c₂ rfl hc₁ hc₂ hch₁ hch₂ x hx₁ hx₂
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro c₁ c₂ hn hc₁ hc₂ hch₁ hch₂ x hx₁ hx₂
+  rcases c₁.eq_empty_or_nonempty with rfl | hne₁
+  · simp at hx₁
+  rcases c₂.eq_empty_or_nonempty with rfl | hne₂
+  · simp at hx₂
+  obtain ⟨G₁, hG₁c, hG₁⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top hne₁ hch₁
+  obtain ⟨G₂, hG₂c, hG₂⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top hne₂ hch₂
+  have hG₁f : G₁ ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T := hc₁ hG₁c
+  have hG₂f : G₂ ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T := hc₂ hG₂c
+  have hsub₁ : ((c₁.erase G₁ : Finset (Set (E d))) : Set (Set (E d))) ⊆ c₁ :=
+    Finset.coe_subset.mpr (c₁.erase_subset G₁)
+  have hsub₂ : ((c₂.erase G₂ : Finset (Set (E d))) : Set (Set (E d))) ⊆ c₂ :=
+    Finset.coe_subset.mpr (c₂.erase_subset G₂)
+  have hlt₁ := Finset.card_erase_lt_of_mem hG₁c
+  have hlt₂ := Finset.card_erase_lt_of_mem hG₂c
+  by_cases hr₁ : x ∈ convexHull ℝ (b '' ((c₁.erase G₁ : Finset (Set (E d))) : Set (Set (E d))))
+  · exact convexHull_mono (Set.image_mono (Set.inter_subset_inter_left _ hsub₁))
+      (ih _ (by omega) (c₁.erase G₁) c₂ rfl (hsub₁.trans hc₁) hc₂ (hch₁.mono hsub₁) hch₂
+        x hr₁ hx₂)
+  by_cases hr₂ : x ∈ convexHull ℝ (b '' ((c₂.erase G₂ : Finset (Set (E d))) : Set (Set (E d))))
+  · exact convexHull_mono (Set.image_mono (Set.inter_subset_inter_right _ hsub₂))
+      (ih _ (by omega) c₁ (c₂.erase G₂) rfl hc₁ (hsub₂.trans hc₂) hch₁ (hch₂.mono hsub₂)
+        x hx₁ hr₂)
+  have P₁ : x = b G₁ ∨ ∃ y ∈ convexHull ℝ
+      (b '' ((c₁.erase G₁ : Finset (Set (E d))) : Set (Set (E d)))),
+      x ∈ openSegment ℝ (b G₁) y := by
+    rcases principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_chain_split hG₁c hx₁ with h | ⟨y, hy, h | h⟩
+    · exact Or.inl h
+    · exact absurd (h ▸ hy) hr₁
+    · exact Or.inr ⟨y, hy, h⟩
+  have P₂ : x = b G₂ ∨ ∃ y ∈ convexHull ℝ
+      (b '' ((c₂.erase G₂ : Finset (Set (E d))) : Set (Set (E d)))),
+      x ∈ openSegment ℝ (b G₂) y := by
+    rcases principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_chain_split hG₂c hx₂ with h | ⟨y, hy, h | h⟩
+    · exact Or.inl h
+    · exact absurd (h ▸ hy) hr₂
+    · exact Or.inr ⟨y, hy, h⟩
+  have hxG₁ : x ∈ G₁ := hin hc₁ hG₁ (hconvF hG₁f) hx₁
+  have hxG₂ : x ∈ G₂ := hin hc₂ hG₂ (hconvF hG₂f) hx₂
+  have hcross : ∀ {G G' : Set (E d)} {y : E d}, G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T → G' ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T →
+      x ∈ G → x ∈ G' → y ∈ G → (x = b G ∨ x ∈ openSegment ℝ (b G) y) → G ⊆ G' := by
+    intro G G' y hG hG' hxG hxG' hyG h
+    apply principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_relint_subset T hface hG hG' (hb G hG)
+    rcases h with h | h
+    · exact h ▸ hxG'
+    · exact ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_inter_extreme T hface hG hG').left_mem_of_mem_openSegment
+        (intrinsicInterior_subset (hb G hG)) hyG ⟨hxG, hxG'⟩ h).2
+  have hside : ∀ {c : Finset (Set (E d))} {G : Set (E d)}, (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T →
+      G ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T → (∀ F ∈ c, F ⊆ G) → x ∈ G →
+      (x = b G ∨ ∃ y ∈ convexHull ℝ
+        (b '' ((c.erase G : Finset (Set (E d))) : Set (Set (E d)))),
+        x ∈ openSegment ℝ (b G) y) →
+      ∀ {G' : Set (E d)}, G' ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T → x ∈ G' → G ⊆ G' := by
+    intro c G hc hGf hG hxG P G' hG' hxG'
+    rcases P with h | ⟨y, hy, h⟩
+    · exact hcross hGf hG' hxG hxG' (intrinsicInterior_subset (hb G hGf)) (Or.inl h)
+    · have hsub : ((c.erase G : Finset (Set (E d))) : Set (Set (E d))) ⊆ c :=
+        Finset.coe_subset.mpr (c.erase_subset G)
+      have hyG : y ∈ G := hin (hsub.trans hc) (fun F hF => hG F (Finset.mem_of_mem_erase hF))
+        (hconvF hGf) hy
+      exact hcross hGf hG' hxG hxG' hyG (Or.inr h)
+  have hG12 : G₁ ⊆ G₂ := hside hc₁ hG₁f hG₁ hxG₁ P₁ hG₂f hxG₂
+  have hG21 : G₂ ⊆ G₁ := hside hc₂ hG₂f hG₂ hxG₂ P₂ hG₁f hxG₁
+  have hG : G₁ = G₂ := Set.Subset.antisymm hG12 hG21
+  subst hG
+  have hGboth : b G₁ ∈ b '' ((c₁ : Set (Set (E d))) ∩ c₂) := ⟨G₁, ⟨hG₁c, hG₂c⟩, rfl⟩
+  rcases P₁ with h | ⟨y₁, hy₁, h₁⟩
+  · rw [h]
+    exact subset_convexHull ℝ _ hGboth
+  rcases P₂ with h | ⟨y₂, hy₂, h₂⟩
+  · rw [h]
+    exact subset_convexHull ℝ _ hGboth
+  have htop : ∀ {c : Finset (Set (E d))} {y : E d}, (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T →
+      IsChain (· ⊆ ·) (c : Set (Set (E d))) → (∀ F ∈ c, F ⊆ G₁) →
+      y ∈ convexHull ℝ (b '' ((c.erase G₁ : Finset (Set (E d))) : Set (Set (E d)))) →
+      ∃ H : Set (E d), IsExtreme ℝ G₁ H ∧ b G₁ ∉ H ∧ y ∈ H := by
+    intro c y hc hch hG hy
+    have hsub : ((c.erase G₁ : Finset (Set (E d))) : Set (Set (E d))) ⊆ c :=
+      Finset.coe_subset.mpr (c.erase_subset G₁)
+    have hne : (c.erase G₁).Nonempty := by
+      rcases (c.erase G₁).eq_empty_or_nonempty with he | h
+      · rw [he] at hy
+        simp at hy
+      · exact h
+    obtain ⟨H, hHc, hH⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top hne (hch.mono hsub)
+    have hHf : H ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T := hc (hsub hHc)
+    have hHG : H ⊆ G₁ := hG H (Finset.mem_of_mem_erase hHc)
+    have hHne : H ≠ G₁ := Finset.ne_of_mem_erase hHc
+    have hext := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step2_face_extreme T hface hHf hG₁f hHG
+    refine ⟨H, hext, fun h => ?_, hin (hsub.trans hc) hH (hconvF hHf) hy⟩
+    exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step3_relint_not_mem_affineSpan (hconvF hHf) (hconvF hG₁f) hext hHne
+      (hb G₁ hG₁f) (subset_affineSpan ℝ _ h)
+  obtain ⟨H₁, hext₁, hz₁, hy₁H⟩ := htop hc₁ hch₁ hG₁ hy₁
+  obtain ⟨H₂, hext₂, hz₂, hy₂H⟩ := htop hc₂ hch₂ hG₂ hy₂
+  have hyy := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_ray_unique hext₁ hext₂ (intrinsicInterior_subset (hb G₁ hG₁f))
+    hz₁ hz₂ hy₁H hy₂H h₁ h₂
+  subst hyy
+  have hy := ih _ (by omega) (c₁.erase G₁) (c₂.erase G₁) rfl (hsub₁.trans hc₁)
+    (hsub₂.trans hc₂) (hch₁.mono hsub₁) (hch₂.mono hsub₂) y₁ hy₁ hy₂
+  have hy' : y₁ ∈ convexHull ℝ (b '' ((c₁ : Set (Set (E d))) ∩ c₂)) :=
+    convexHull_mono (Set.image_mono (Set.inter_subset_inter hsub₁ hsub₂)) hy
+  exact (convex_convexHull ℝ _).segment_subset (subset_convexHull ℝ _ hGboth) hy'
+    (openSegment_subset_segment ℝ _ _ h₁)
+
 /-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
 "a compact `(d-1)`-manifold". Subdivide a finite family of convex polytopes
 meeting in common faces by taking barycentres of their nonempty faces and simplices
@@ -982,7 +1671,85 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
         (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d)))) :
     ∃ K : Geometry.SimplicialComplex ℝ (E d), K.faces.Finite ∧
       K.space = ⋃ p ∈ T, convexHull ℝ (p : Set (E d)) := by
-  sorry
+  classical
+  have hrel : ∀ F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T, ∃ z, z ∈ intrinsicInterior ℝ F := by
+    rintro F ⟨_, _, _, hc, hne⟩
+    exact hne.intrinsicInterior hc
+  choose! b hb using hrel
+  let faces : Set (Finset (E d)) := {s | ∃ c : Finset (Set (E d)),
+    (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T ∧ c.Nonempty ∧ IsChain (· ⊆ ·) (c : Set (Set (E d))) ∧
+      (s : Set (E d)) = b '' (c : Set (Set (E d)))}
+  have hindep : ∀ {s : Finset (E d)}, s ∈ faces → AffineIndependent ℝ ((↑) : s → E d) := by
+    rintro s ⟨c, hc, -, hch, hs⟩
+    have h := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step5_chain_indep T hface b hb c hc hch
+    rw [← hs] at h
+    exact h
+  have hlower : IsRelLowerSet faces Finset.Nonempty := by
+    rintro s ⟨c, hc, hne, hch, hs⟩
+    refine ⟨?_, ?_⟩
+    · obtain ⟨F, hF⟩ := hne
+      have hmem : b F ∈ (s : Set (E d)) := hs ▸ Set.mem_image_of_mem b (Finset.mem_coe.mpr hF)
+      exact ⟨_, hmem⟩
+    · intro t hts htne
+      have hts' : ∀ z ∈ t, ∃ F ∈ c, b F = z := by
+        intro z hz
+        have hz' : z ∈ (s : Set (E d)) := Finset.mem_coe.mpr (hts hz)
+        rw [hs] at hz'
+        obtain ⟨F, hF, rfl⟩ := hz'
+        exact ⟨F, hF, rfl⟩
+      refine ⟨c.filter (fun F => b F ∈ t), ?_, ?_, ?_, ?_⟩
+      · exact (Finset.coe_subset.mpr (Finset.filter_subset _ _)).trans hc
+      · obtain ⟨z, hz⟩ := htne
+        obtain ⟨F, hF, rfl⟩ := hts' z hz
+        exact ⟨F, Finset.mem_filter.mpr ⟨hF, hz⟩⟩
+      · exact hch.mono (Finset.coe_subset.mpr (Finset.filter_subset _ _))
+      · ext z
+        constructor
+        · intro hz
+          obtain ⟨F, hF, rfl⟩ := hts' z hz
+          exact ⟨F, Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨hF, hz⟩), rfl⟩
+        · rintro ⟨F, hF, rfl⟩
+          exact (Finset.mem_filter.mp hF).2
+  have hinter : ∀ {s t : Finset (E d)}, s ∈ faces → t ∈ faces →
+      convexHull ℝ ↑s ∩ convexHull ℝ ↑t ⊆ convexHull ℝ (s ∩ t : Set (E d)) := by
+    rintro s t ⟨c₁, hc₁, -, hch₁, hs⟩ ⟨c₂, hc₂, -, hch₂, ht⟩
+    rw [hs, ht]
+    exact (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_chain_inter T hface b hb c₁ c₂ hc₁ hc₂ hch₁ hch₂).trans
+      (convexHull_mono (Set.image_inter_subset _ _ _))
+  let K : Geometry.SimplicialComplex ℝ (E d) :=
+    { faces := faces
+      indep := hindep
+      isRelLowerSet_faces := hlower
+      inter_subset_convexHull := hinter }
+  refine ⟨K, ?_, ?_⟩
+  · apply Set.Finite.subset
+      ((((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step1_faces_finite T).image b).finite_subsets).preimage
+        Finset.coe_injective.injOn)
+    rintro s ⟨c, hc, -, -, hs⟩
+    show (s : Set (E d)) ⊆ b '' principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T
+    rw [hs]
+    exact Set.image_mono hc
+  · apply Set.Subset.antisymm
+    · intro x hx
+      rw [Geometry.SimplicialComplex.mem_space_iff] at hx
+      obtain ⟨s, ⟨c, hc, hne, hch, hs⟩, hxs⟩ := hx
+      obtain ⟨G, hGc, hG⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top hne hch
+      obtain ⟨p, hp, hpG, hGconv, -⟩ := hc (Finset.mem_coe.mpr hGc)
+      refine Set.mem_iUnion₂.mpr ⟨p, hp, hpG.1 ?_⟩
+      rw [hs] at hxs
+      refine convexHull_min ?_ hGconv hxs
+      rintro z ⟨F, hF, rfl⟩
+      exact hG F hF (intrinsicInterior_subset (hb F (hc hF)))
+    · intro x hx
+      obtain ⟨p, hp, hxp⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨c, hc, hch, hxc⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step7_cover T b hb hp hxp
+      rw [Geometry.SimplicialComplex.mem_space_iff]
+      have hne : c.Nonempty := by
+        rcases c.eq_empty_or_nonempty with rfl | h
+        · simp at hxc
+        · exact h
+      refine ⟨c.image b, ⟨c, hc, hne, hch, by simp⟩, ?_⟩
+      simpa using hxc
 
 /-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
 "a compact `(d-1)`-manifold". Inside a maximal simplex, avoid the affine spans

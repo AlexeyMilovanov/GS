@@ -157,12 +157,256 @@ structure ClusterData (S : SubstSystem d) (P : Params S) where
   centre_clearance : ∀ l κ a, closedBall (centre l κ a) δ ⊆
     interior (S.proto l.prototype).carrier
 
+/-- Step 1 of the V4 proof of `clusterData_exists` (V4 2.10, with the frame marker of
+V4 §2.4): "In int A choose pairwise disjoint closed balls, all disjoint from the
+frame-marker balls". Since the finitely many closed marker balls lie in the open
+interior and are pairwise at positive distance, the interior of each prototype
+contains a closed ball of positive radius avoiding all marker balls. -/
+private theorem clusterData_exists_step1_room (S : SubstSystem d) (P : Params S) (A : S.ι) :
+    ∃ p : E d, ∃ r : ℝ, 0 < r ∧ closedBall p r ⊆ interior (S.proto A).carrier ∧
+      ∀ a, Disjoint (closedBall p r)
+        (closedBall ((P.marker A).centre a) (P.marker A).radius) := by
+  classical
+  set M := P.marker A with hM
+  have hd : 0 < d := lt_of_lt_of_le two_pos (Fact.out : 2 ≤ d)
+  let u : E d := EuclideanSpace.single (⟨0, hd⟩ : Fin d) (1 : ℝ)
+  have hu : ‖u‖ = 1 := by simp [u]
+  have hR := M.radius_pos
+  let y : E d := M.centre 0 + M.radius • u
+  have hy0 : y ∈ closedBall (M.centre 0) M.radius := by
+    rw [mem_closedBall, dist_eq_norm]
+    simp only [y]
+    rw [add_sub_cancel_left, norm_smul, hu, mul_one, Real.norm_of_nonneg hR.le]
+  let V : Set (E d) := interior (S.proto A).carrier ∩
+    ⋂ a ∈ {a : Fin (d + 1) | a ≠ 0}, (closedBall (M.centre a) M.radius)ᶜ
+  have hVo : IsOpen V := isOpen_interior.inter
+    ((Set.toFinite _).isOpen_biInter fun a _ => isClosed_closedBall.isOpen_compl)
+  have hyV : y ∈ V := by
+    refine ⟨M.inside 0 hy0, Set.mem_iInter₂.2 fun a ha hya => ?_⟩
+    exact Set.disjoint_left.1 (M.disjoint (Ne.symm ha)) hy0 hya
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hVo y hyV
+  have hk : (0 : ℝ) ≤ M.radius + ε / 2 := by linarith
+  have hsub : closedBall (M.centre 0 + (M.radius + ε / 2) • u) (ε / 4) ⊆ V := by
+    intro z hz
+    apply hball
+    rw [mem_ball]
+    rw [mem_closedBall] at hz
+    have h1 : dist (M.centre 0 + (M.radius + ε / 2) • u) y = ε / 2 := by
+      rw [dist_eq_norm]
+      simp only [y]
+      rw [add_sub_add_left_eq_sub, ← sub_smul, norm_smul, hu, mul_one,
+        show M.radius + ε / 2 - M.radius = ε / 2 by ring, Real.norm_of_nonneg (by positivity)]
+    have := dist_triangle z (M.centre 0 + (M.radius + ε / 2) • u) y
+    linarith
+  refine ⟨M.centre 0 + (M.radius + ε / 2) • u, ε / 4, by positivity,
+    hsub.trans Set.inter_subset_left, ?_⟩
+  intro a
+  by_cases ha : a = 0
+  · subst ha
+    apply closedBall_disjoint_closedBall
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, hu, mul_one, Real.norm_of_nonneg hk]
+    linarith
+  · rw [Set.disjoint_left]
+    intro z hz hz'
+    exact Set.mem_iInter₂.1 (hsub hz).2 a ha hz'
+
+/-- Step 2 of the V4 proof of `clusterData_exists` (V4 2.10): "choose pairwise
+disjoint closed balls" — a closed ball of positive radius in `E d` contains, for any
+finite index type, a family of pairwise disjoint closed balls of one common positive
+radius (one for the state ball and the CORE, READOUT and TRIGGER balls). -/
+private theorem clusterData_exists_step2_disjointBalls (K : Type) [Finite K] (p : E d)
+    (r : ℝ) (hr : 0 < r) :
+    ∃ c : K → E d, ∃ s : ℝ, 0 < s ∧ (∀ k, closedBall (c k) s ⊆ closedBall p r) ∧
+      Pairwise (fun k k' => Disjoint (closedBall (c k) s) (closedBall (c k') s)) := by
+  classical
+  obtain ⟨n, ⟨e⟩⟩ := Finite.exists_equiv_fin K
+  have hd : 0 < d := lt_of_lt_of_le two_pos (Fact.out : 2 ≤ d)
+  let u : E d := EuclideanSpace.single (⟨0, hd⟩ : Fin d) (1 : ℝ)
+  have hu : ‖u‖ = 1 := by simp [u]
+  set s : ℝ := r / (4 * ((n : ℝ) + 1)) with hs_def
+  have hn : (0 : ℝ) < 4 * ((n : ℝ) + 1) := by positivity
+  have hs : 0 < s := by positivity
+  have hrs : r = 4 * ((n : ℝ) + 1) * s := by rw [hs_def]; field_simp
+  refine ⟨fun k => p + (((e k : ℕ) : ℝ) * (4 * s)) • u, s, hs, ?_, ?_⟩
+  · intro k y hy
+    rw [mem_closedBall] at hy ⊢
+    have hk : ((e k : ℕ) : ℝ) + 1 ≤ n := by exact_mod_cast Nat.succ_le_of_lt (e k).isLt
+    have h1 : dist (p + (((e k : ℕ) : ℝ) * (4 * s)) • u) p = ((e k : ℕ) : ℝ) * (4 * s) := by
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul, hu, mul_one,
+        Real.norm_of_nonneg (by positivity)]
+    have h2 := dist_triangle y (p + (((e k : ℕ) : ℝ) * (4 * s)) • u) p
+    have h3 : ((e k : ℕ) : ℝ) * (4 * s) ≤ ((n : ℝ) - 1) * (4 * s) :=
+      mul_le_mul_of_nonneg_right (by linarith) (by positivity)
+    linarith
+  · intro k k' hkk'
+    apply closedBall_disjoint_closedBall
+    have hne : (e k : ℕ) ≠ e k' := fun h => hkk' (e.injective (Fin.ext h))
+    rw [dist_eq_norm, add_sub_add_left_eq_sub, ← sub_smul, norm_smul, hu, mul_one,
+      Real.norm_eq_abs]
+    rcases Nat.lt_or_gt_of_ne hne with h | h
+    · have h' : ((e k : ℕ) : ℝ) + 1 ≤ ((e k' : ℕ) : ℝ) := by exact_mod_cast h
+      rw [lt_abs]; right
+      nlinarith [mul_le_mul_of_nonneg_right h' (by positivity : (0 : ℝ) ≤ 4 * s)]
+    · have h' : ((e k' : ℕ) : ℝ) + 1 ≤ ((e k : ℕ) : ℝ) := by exact_mod_cast h
+      rw [lt_abs]; left
+      nlinarith [mul_le_mul_of_nonneg_right h' (by positivity : (0 : ℝ) ≤ 4 * s)]
+
+/-- Step 3 of the V4 proof of `clusterData_exists` (V4 2.10): "the d+1 affinely
+independent microball centres of each cluster within distance ε/2 of its anchor" —
+for every anchor `q` and scale `t > 0` there are `d+1` affinely independent points
+within distance `t` of `q`, pairwise at distance at least `t`. -/
+private theorem clusterData_exists_step3_affineCluster (q : E d) (t : ℝ) (ht : 0 < t) :
+    ∃ c : Fin (d + 1) → E d, AffineIndependent ℝ c ∧ (∀ a, dist (c a) q ≤ t) ∧
+      ∀ a b, a ≠ b → t ≤ dist (c a) (c b) := by
+  classical
+  let v : Fin (d + 1) → E d := fun a =>
+    if h : a = 0 then 0 else EuclideanSpace.single (a.pred h) (1 : ℝ)
+  refine ⟨fun a => q + t • v a, ?_, ?_, ?_⟩
+  · rw [affineIndependent_iff_linearIndependent_vsub ℝ _ (0 : Fin (d + 1))]
+    have hb := ((EuclideanSpace.basisFun (Fin d) ℝ).orthonormal.linearIndependent.comp
+      (fun x : {x : Fin (d + 1) // x ≠ 0} => x.1.pred x.2)
+      (fun x y hxy => Subtype.ext (Fin.pred_inj.1 hxy))).units_smul
+      (fun _ => Units.mk0 t ht.ne')
+    convert hb using 1
+    funext x
+    simp [v, x.2, Units.smul_def, Units.val_mk0, EuclideanSpace.basisFun_apply]
+  · intro a
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.le]
+    have : ‖v a‖ ≤ 1 := by
+      by_cases h : a = 0 <;> simp [v, h]
+    exact mul_le_of_le_one_right ht.le this
+  · intro a b hab
+    rw [dist_eq_norm, add_sub_add_left_eq_sub, ← smul_sub, norm_smul,
+      Real.norm_of_nonneg ht.le]
+    suffices h1 : 1 ≤ ‖v a - v b‖ by nlinarith
+    by_cases ha : a = 0
+    · have hb : b ≠ 0 := fun h => hab (ha.trans h.symm)
+      have := PiLp.norm_apply_le (v a - v b) (b.pred hb)
+      simpa [v, ha, hb] using this
+    · have := PiLp.norm_apply_le (v a - v b) (a.pred ha)
+      by_cases hb : b = 0
+      · simpa [v, ha, hb] using this
+      · have hne : a.pred ha ≠ b.pred hb := fun h => hab (Fin.pred_inj.1 h)
+        simpa [v, ha, hb, EuclideanSpace.single_apply, hne, hab] using this
+
+/-- Step 4 of the V4 proof of `clusterData_exists` (V4 2.10): "smaller than ... (over
+the finite catalogue)" — a finite family of positive reals has a positive lower bound;
+an empty family is bounded below by `1`. -/
+private theorem clusterData_exists_step4_lowerBound {α : Type*} [Finite α] (f : α → ℝ)
+    (hf : ∀ i, 0 < f i) : ∃ R : ℝ, 0 < R ∧ ∀ i, R ≤ f i := by
+  rcases isEmpty_or_nonempty α with h | h
+  · exact ⟨1, one_pos, fun i => (IsEmpty.false i).elim⟩
+  · obtain ⟨i, hi⟩ := Finite.exists_min f
+    exact ⟨f i, hf i, hi⟩
+
+/-- Step 5 of the V4 proof of `clusterData_exists` (V4 2.10): "every microball centre
+has clearance > δ from the leaf boundary" — a closed ball inside the interior is
+strictly closer to its centre than any frontier point. -/
+private theorem clusterData_exists_step5_frontier {s : Set (E d)} {x y : E d} {R : ℝ}
+    (hsub : closedBall x R ⊆ interior s) (hy : y ∈ frontier s) : R < dist x y := by
+  by_contra h
+  push_neg at h
+  exact hy.2 (hsub (mem_closedBall.2 (by rw [dist_comm]; exact h)))
+
 /-- M2, V4 2.10: all geometric choices exist over the finite catalogues.
 Prototype interiors provide room outside the finitely many disjoint marker balls;
 empty source catalogues cause no difficulty and require no extra hypotheses. -/
 theorem clusterData_exists (S : SubstSystem d) (P : Params S) :
     Nonempty (ClusterData S P) := by
-  sorry
+  classical
+  choose p r hr hin hmk using clusterData_exists_step1_room S P
+  choose c₀ s₀ hs₀ hsub₀ hdisj₀ using
+    fun A => clusterData_exists_step2_disjointBalls Bool (p A) (r A) (hr A)
+  choose c₁ s₁ hs₁ hsub₁ hdisj₁ using
+    fun l : LeafType P => clusterData_exists_step2_disjointBalls (ClusterKind l)
+      (c₀ l.prototype false) (s₀ l.prototype) (hs₀ _)
+  obtain ⟨R, hR, hRle⟩ := clusterData_exists_step4_lowerBound (fun l : LeafType P => s₁ l) hs₁
+  have ht : (0 : ℝ) < R / 256 := by positivity
+  choose m hmind hmnear hmsep using
+    fun (l : LeafType P) (κ : ClusterKind l) =>
+      clusterData_exists_step3_affineCluster (c₁ l κ) (R / 256) ht
+  -- the enclosing ball of radius `R` lies in the room ball of its prototype
+  have hbig : ∀ (l : LeafType P) (κ : ClusterKind l),
+      closedBall (c₁ l κ) R ⊆ closedBall (c₀ l.prototype false) (s₀ l.prototype) :=
+    fun l κ => (closedBall_subset_closedBall (hRle l)).trans (hsub₁ l κ)
+  have hint : ∀ (l : LeafType P) (κ : ClusterKind l),
+      closedBall (c₁ l κ) R ⊆ interior (S.proto l.prototype).carrier :=
+    fun l κ => ((hbig l κ).trans (hsub₀ _ false)).trans (hin _)
+  have hcen : ∀ (l : LeafType P) (κ : ClusterKind l) (a : Fin (d + 1)),
+      closedBall (m l κ a) (R / 8) ⊆ closedBall (c₁ l κ) R := by
+    intro l κ a y hy
+    rw [mem_closedBall] at hy ⊢
+    have := dist_triangle y (m l κ a) (c₁ l κ)
+    have := hmnear l κ a
+    linarith
+  refine ⟨{
+    stateCentre := fun A => c₀ A true
+    stateRadius := s₀
+    stateRadius_pos := hs₀
+    state_inside := fun A => ((hsub₀ A true).trans (hin A))
+    state_marker_disjoint := fun A a => (hmk A a).mono_left (hsub₀ A true)
+    enclosingCentre := c₁
+    enclosingRadius := fun _ _ => R
+    enclosingRadius_pos := fun _ _ => hR
+    enclosing_inside := hint
+    enclosing_disjoint := fun l κ η hκη =>
+      ((hdisj₁ l hκη).mono_left (closedBall_subset_closedBall (hRle l))).mono_right
+        (closedBall_subset_closedBall (hRle l))
+    enclosing_marker_disjoint := fun l κ a =>
+      (hmk l.prototype a).mono_left ((hbig l κ).trans (hsub₀ _ false))
+    enclosing_state_disjoint := fun l κ =>
+      ((hdisj₀ l.prototype (show (false : Bool) ≠ true by decide)).mono_left (hbig l κ))
+    anchor := c₁
+    anchor_inside := fun l κ => mem_ball_self hR
+    δ := R / 8
+    δ_pos := by positivity
+    anchor_boundary := fun l κ x hx => by
+      have := clusterData_exists_step5_frontier (hint l κ) hx
+      linarith
+    anchor_separation := fun l κ η hκη => by
+      have hd := (hdisj₁ l hκη).mono_left (closedBall_subset_closedBall (hRle l))
+      have hd' := hd.mono_right (closedBall_subset_closedBall (hRle l))
+      have : R < dist (c₁ l κ) (c₁ l η) := by
+        by_contra h
+        push_neg at h
+        exact Set.disjoint_left.1 hd'
+          (mem_closedBall.2 (by rw [dist_comm]; exact h)) (mem_closedBall_self hR.le)
+      linarith
+    ε := R / 64
+    ε_pos := by positivity
+    ε_lt := by linarith
+    centre := m
+    centre_near := fun l κ a => by
+      have := hmnear l κ a
+      linarith
+    independent := hmind
+    ρ := R / 1024
+    ρ_pos := by positivity
+    ρ_lt := by linarith
+    micro_inside := fun l κ a y hy => by
+      rw [mem_closedBall] at hy
+      rw [mem_ball]
+      have := dist_triangle y (m l κ a) (c₁ l κ)
+      have := hmnear l κ a
+      linarith
+    micro_disjoint := fun l κ a b hab => by
+      apply closedBall_disjoint_closedBall
+      have := hmsep l κ a b hab
+      linarith
+    cluster_diameter := fun l κ => by
+      have hsub : (⋃ a, closedBall (m l κ a) (R / 1024)) ⊆
+          closedBall (c₁ l κ) (R / 256 + R / 1024) := by
+        refine Set.iUnion_subset fun a y hy => ?_
+        rw [mem_closedBall] at hy ⊢
+        have := dist_triangle y (m l κ a) (c₁ l κ)
+        have := hmnear l κ a
+        linarith
+      have h1 := diam_mono hsub isBounded_closedBall
+      have h2 := diam_closedBall (x := c₁ l κ) (show (0 : ℝ) ≤ R / 256 + R / 1024 by positivity)
+      linarith
+    centre_boundary := fun l κ a x hx =>
+      clusterData_exists_step5_frontier ((hcen l κ a).trans (hint l κ)) hx
+    centre_clearance := fun l κ a => (hcen l κ a).trans (hint l κ) }⟩
 
 namespace ClusterData
 

@@ -250,7 +250,12 @@ theorem restrictionOp_append {P : Params S} (a b : List (RestrictionStep S))
 theorem restrictionOps_finite (P : Params S) :
     (Set.range (fun a : List (RestrictionStep S) =>
       (restrictionOp a : FacetRecord P → FacetRecord P))).Finite := by
-  sorry
+  haveI := facetRecords_finite P
+  haveI : Fintype (FacetRecord P) := Fintype.ofFinite (FacetRecord P)
+  classical
+  haveI : Fintype (FacetRecord P → FacetRecord P) := Pi.instFintype
+  exact (Set.finite_univ : (Set.univ : Set (FacetRecord P → FacetRecord P)).Finite).subset
+    (Set.subset_univ _)
 
 /-- Q13, V4 §2.5: a complete named path follows the actual downward roles,
 starts at F, ends at f, and matches intermediate facets. Every step is inherited. -/

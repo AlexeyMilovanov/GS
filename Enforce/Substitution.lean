@@ -495,13 +495,221 @@ def sideOrbit (K : Set (E d)) : Set (Set (E d)) :=
 def facetSideOrbits : Set (Set (Set (E d))) :=
   {O | ∃ K ∈ S.facetSides, O = S.sideOrbit K}
 
+/-- V4 1.10(c), finiteness of the oriented sides: two functionals with the same
+kernel define the same closed side, the opposite side, or (zero functional) everything. -/
+private theorem oriented_orbits_finite_side_trichotomy (ℓ ℓ₀ : E d →ₗ[ℝ] ℝ)
+    (h : LinearMap.ker ℓ = LinearMap.ker ℓ₀) :
+    {x | 0 ≤ ℓ x} = Set.univ ∨ {x | 0 ≤ ℓ x} = {x | 0 ≤ ℓ₀ x} ∨
+      {x | 0 ≤ ℓ x} = {x | ℓ₀ x ≤ 0} := by
+  by_cases hz : ∀ v, ℓ₀ v = 0
+  · left
+    ext x
+    have hx : x ∈ LinearMap.ker ℓ := by rw [h]; exact hz x
+    simp [LinearMap.mem_ker.mp hx]
+  · push_neg at hz
+    obtain ⟨v, hv⟩ := hz
+    set c : ℝ := ℓ v / ℓ₀ v with hc
+    have hlin : ∀ x, ℓ x = c * ℓ₀ x := by
+      intro x
+      have hy : x - (ℓ₀ x / ℓ₀ v) • v ∈ LinearMap.ker ℓ₀ := by
+        rw [LinearMap.mem_ker, map_sub, map_smul, smul_eq_mul, div_mul_cancel₀ _ hv, sub_self]
+      rw [← h, LinearMap.mem_ker, map_sub, map_smul, smul_eq_mul, sub_eq_zero] at hy
+      rw [hy, hc]
+      field_simp
+    rcases lt_trichotomy c 0 with hneg | hzero | hpos
+    · right; right
+      ext x
+      simp only [Set.mem_setOf_eq, hlin]
+      constructor
+      · intro hx; by_contra hx'; push_neg at hx'; nlinarith
+      · intro hx; nlinarith
+    · left
+      ext x
+      simp [hlin, hzero]
+    · right; left
+      ext x
+      simp only [Set.mem_setOf_eq, hlin]
+      constructor
+      · intro hx; by_contra hx'; push_neg at hx'; nlinarith
+      · intro hx; positivity
+
+/-- V4 1.10(c): "Π is the finite set ... for facets include the two oriented sides";
+the prototype catalogue has finitely many oriented facet sides. -/
+private theorem oriented_orbits_finite_sides_finite : S.facetSides.Finite := by
+  let T : S.ι → Cell d → Set (Set (E d)) := fun _ e =>
+    {K | ∃ ℓ : E d →ₗ[ℝ] ℝ, LinearMap.ker ℓ = cellDirection e.carrier ∧ K = {x | 0 ≤ ℓ x}}
+  have hT : ∀ A e, (T A e).Finite := by
+    intro A e
+    by_cases hne : (T A e).Nonempty
+    · obtain ⟨_, ℓ₀, hℓ₀, -⟩ := hne
+      refine Set.Finite.subset (Set.toFinite ({Set.univ, {x | 0 ≤ ℓ₀ x}, {x | ℓ₀ x ≤ 0}} :
+        Set (Set (E d)))) ?_
+      rintro K ⟨ℓ, hℓ, rfl⟩
+      rcases oriented_orbits_finite_side_trichotomy ℓ ℓ₀ (hℓ.trans hℓ₀.symm) with h1 | h1 | h1 <;>
+        simp [h1]
+    · rw [Set.not_nonempty_iff_eq_empty] at hne
+      rw [hne]
+      exact Set.finite_empty
+  have hsub : S.facetSides ⊆ ⋃ A, ⋃ e ∈ ((S.cx A).facets : Set (Cell d)), T A e := by
+    rintro K ⟨A, e, he, ℓ, hℓ, rfl⟩
+    simp only [Set.mem_iUnion]
+    exact ⟨A, e, he, ℓ, hℓ, rfl⟩
+  refine Set.Finite.subset (Set.finite_iUnion fun A => ?_) hsub
+  exact (Finset.finite_toSet _).biUnion fun e _ => hT A e
+
+/-- V4 1.10(c), the transport of one side: "by (H5) σe is a union of placed cells
+R_i e' + t_i; one of them has affine hull equal to aff σe, so σV = R_i V'"; the
+expanded side of a prototype facet is a group image of a prototype side. -/
+private theorem oriented_orbits_finite_side_transport {K : Set (E d)} (hK : K ∈ S.facetSides) :
+    ∃ R ∈ S.rotGroup, ∃ K' ∈ S.facetSides, S.σ '' K = R '' K' := by
+  obtain ⟨A, e, he, ℓ, hℓ, rfl⟩ := hK
+  have he' : e ∈ (S.cx A).cells ∧ e.dim = d - 1 := by
+    simpa [CellComplex.facets] using he
+  have hd : 2 ≤ d := Fact.out
+  obtain ⟨f, hf⟩ := S.heredity A e he'.1
+  have hne : e.carrier.Nonempty := by
+    by_contra h
+    rw [Set.not_nonempty_iff_eq_empty] at h
+    have hdim := e.flat.dimension
+    rw [h, he'.2] at hdim
+    rw [cellDirection, direction_affineSpan, vectorSpan_empty, finrank_bot] at hdim
+    omega
+  obtain ⟨x, hx⟩ := hne
+  have hσx : S.σ x ∈ ⋃ q ∈ f, placedSet (S.child A q.1).frame q.2.val.carrier := by
+    rw [← hf]; exact ⟨x, hx, rfl⟩
+  simp only [Set.mem_iUnion] at hσx
+  obtain ⟨q, hq, -⟩ := hσx
+  obtain ⟨i, e', he'c, he'd⟩ := q
+  set R : Ortho d := (S.child A i).rotation with hRdef
+  set t : E d := (S.child A i).offset
+  have hR : R ∈ S.rotGroup := by
+    apply S.rotGroup_spec.1
+    refine ⟨0, A, i, ?_⟩
+    refine LinearIsometryEquiv.ext fun y => ?_
+    change R y = linearConj S.σ ((0 : ℕ) : ℤ) R.toLinearEquiv y
+    simp [linearConj]
+  have hsub : placedSet (S.child A i).frame e'.carrier ⊆ S.σ '' e.carrier := by
+    rw [hf]
+    intro z hz
+    exact Set.mem_iUnion₂.mpr ⟨_, hq, hz⟩
+  let g : E d →ᵃ[ℝ] E d := R.toLinearEquiv.toLinearMap.toAffineMap + AffineMap.const ℝ (E d) t
+  have hg : placedSet (S.child A i).frame e'.carrier = g '' e'.carrier := by
+    apply Set.image_congr
+    intro y _
+    simp [g, Child.frame, rigidMotion, hRdef, t]
+  have hgl : g.linear = R.toLinearEquiv.toLinearMap := by
+    ext v
+    simp [g]
+  have hσimg : (cellDirection e.carrier).map S.σ.toLinearMap =
+      cellDirection (S.σ '' e.carrier) := by
+    simp only [cellDirection, direction_affineSpan]
+    have := AffineMap.map_vectorSpan (k := ℝ) S.σ.toLinearMap.toAffineMap (s := e.carrier)
+    simpa using this
+  have hgimg : (cellDirection e'.carrier).map R.toLinearEquiv.toLinearMap =
+      cellDirection (placedSet (S.child A i).frame e'.carrier) := by
+    rw [hg]
+    simp only [cellDirection, direction_affineSpan]
+    rw [← hgl, AffineMap.map_vectorSpan]
+  have hdir : (cellDirection e'.carrier).map R.toLinearEquiv.toLinearMap =
+      (cellDirection e.carrier).map S.σ.toLinearMap := by
+    apply Submodule.eq_of_le_of_finrank_eq
+    · rw [hgimg, hσimg]
+      simp only [cellDirection, direction_affineSpan]
+      exact vectorSpan_mono ℝ hsub
+    · rw [LinearEquiv.finrank_map_eq, LinearEquiv.finrank_map_eq, e'.flat.dimension,
+        e.flat.dimension, he'd]
+  let ℓ' : E d →ₗ[ℝ] ℝ := ℓ ∘ₗ (S.σ.symm.toLinearMap ∘ₗ R.toLinearEquiv.toLinearMap)
+  refine ⟨R, hR, {y | 0 ≤ ℓ' y}, ⟨(S.child A i).ty, e', ?_, ℓ', ?_, rfl⟩, ?_⟩
+  · simp only [CellComplex.facets, Finset.mem_filter]
+    exact ⟨he'c, he'd.trans he'.2⟩
+  · ext y
+    have key : y ∈ cellDirection e'.carrier ↔ S.σ.symm (R y) ∈ cellDirection e.carrier := by
+      rw [← Submodule.mem_map_equiv (e := S.σ)]
+      change _ ↔ R y ∈ (cellDirection e.carrier).map S.σ.toLinearMap
+      rw [← hdir]
+      rw [Submodule.mem_map_equiv]
+      simp
+    rw [key, ← hℓ, LinearMap.mem_ker, LinearMap.mem_ker]
+    simp [ℓ']
+  · ext z
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      refine ⟨R.symm (S.σ y), ?_, by simp⟩
+      simpa [ℓ'] using hy
+    · rintro ⟨y, hy, rfl⟩
+      refine ⟨S.σ.symm (R y), ?_, by simp⟩
+      simpa [ℓ'] using hy
+
+/-- V4 1.10(c): "σ(𝖧V) = (σ𝖧σ⁻¹)σV = 𝖧R_iV' = 𝖧V'", for oriented sides: the
+expanded orbit of a prototype side is again a prototype side orbit. -/
+private theorem oriented_orbits_finite_orbit_transport {K : Set (E d)} (hK : K ∈ S.facetSides) :
+    ∃ K' ∈ S.facetSides, (fun C => S.σ '' C) '' S.sideOrbit K = S.sideOrbit K' := by
+  obtain ⟨R, hR, K', hK', hσK⟩ := oriented_orbits_finite_side_transport S hK
+  refine ⟨K', hK', ?_⟩
+  have hconj : ∀ (Q : Ortho d) (C : Set (E d)),
+      S.σ '' (Q '' C) = (fun y => linearConj S.σ 1 Q.toLinearEquiv y) '' (S.σ '' C) := by
+    intro Q C
+    rw [Set.image_image, Set.image_image]
+    apply Set.image_congr
+    intro y _
+    simp [linearConj]
+  ext C
+  constructor
+  · rintro ⟨_, ⟨Q, hQ, rfl⟩, rfl⟩
+    obtain ⟨Q₁, hQ₁, hQeq⟩ : ∃ Q₁ ∈ S.rotGroup,
+        linearConj S.σ 1 Q.toLinearEquiv = Q₁.toLinearEquiv := by
+      have : linearConj S.σ 1 Q.toLinearEquiv ∈
+          (fun R : Ortho d => R.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+        rw [← S.rotGroup_conj]; exact ⟨Q, hQ, rfl⟩
+      obtain ⟨Q₁, hQ₁, h⟩ := this
+      exact ⟨Q₁, hQ₁, h.symm⟩
+    refine ⟨Q₁ * R, S.rotGroup.mul_mem hQ₁ hR, ?_⟩
+    change S.σ '' (Q '' K) = _
+    rw [hconj, hQeq, hσK, Set.image_image]
+    rfl
+  · rintro ⟨P, hP, rfl⟩
+    obtain ⟨Q, hQ, hQeq⟩ : ∃ Q ∈ S.rotGroup,
+        linearConj S.σ 1 Q.toLinearEquiv = (P * R⁻¹).toLinearEquiv := by
+      have : (P * R⁻¹).toLinearEquiv ∈
+          (fun R : Ortho d => linearConj S.σ 1 R.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+        rw [S.rotGroup_conj]
+        exact ⟨P * R⁻¹, S.rotGroup.mul_mem hP (S.rotGroup.inv_mem hR), rfl⟩
+      obtain ⟨Q, hQ, h⟩ := this
+      exact ⟨Q, hQ, h⟩
+    refine ⟨Q '' K, ⟨Q, hQ, rfl⟩, ?_⟩
+    change S.σ '' (Q '' K) = _
+    rw [hconj, hQeq, hσK, Set.image_image]
+    apply Set.image_congr
+    intro y _
+    change P (R⁻¹ (R y)) = P y
+    congr 1
+    exact LinearIsometryEquiv.symm_apply_apply R y
+
 /-- S6, V4 1.10(c): the oriented supplement to `orbits_finite`.
 There are finitely many prototype sides and finitely many group orbits, and `σ`
 permutes those orbits with their orientations, as required for half-space cones. -/
 theorem oriented_orbits_finite : S.facetSides.Finite ∧ S.facetSideOrbits.Finite ∧
     ∃ p : S.facetSideOrbits ≃ S.facetSideOrbits, ∀ O,
       (p O).val = (fun K => S.σ '' K) '' O.val := by
-  sorry
+  have hfin := oriented_orbits_finite_sides_finite S
+  have hOfin : S.facetSideOrbits.Finite := by
+    refine (hfin.image S.sideOrbit).subset ?_
+    rintro O ⟨K, hK, rfl⟩
+    exact ⟨K, hK, rfl⟩
+  refine ⟨hfin, hOfin, ?_⟩
+  have hmem : ∀ O : S.facetSideOrbits, (fun K => S.σ '' K) '' O.val ∈ S.facetSideOrbits := by
+    rintro ⟨O, K, hK, rfl⟩
+    obtain ⟨K', hK', h⟩ := oriented_orbits_finite_orbit_transport S hK
+    exact ⟨K', hK', h⟩
+  let g : S.facetSideOrbits → S.facetSideOrbits := fun O => ⟨_, hmem O⟩
+  have hσinj : Function.Injective (fun K : Set (E d) => S.σ '' K) :=
+    Set.image_injective.mpr S.σ.injective
+  have hginj : Function.Injective g := by
+    intro O₁ O₂ h
+    apply Subtype.ext
+    exact Set.image_injective.mpr hσinj (congrArg Subtype.val h)
+  haveI : Finite S.facetSideOrbits := hOfin.to_subtype
+  exact ⟨Equiv.ofBijective g (Finite.injective_iff_bijective.mp hginj), fun O => rfl⟩
 
 /-- C3, V4 1.28: a chain of one-child roles has at most `|ι|-1` steps.
 The role data identify the actual successive child types; no acyclicity is assumed. -/

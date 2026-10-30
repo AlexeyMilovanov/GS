@@ -5708,7 +5708,14 @@ theorem boundary_invariant (q : H.Node) :
       stateEAt (R.state q) F.val F'.val →
       (q.2.val.cell q.1 F.val ∩ q.2.val.cell q.1 F'.val).Nonempty →
         attachedPacket h F = attachedPacket h F' := by
-  sorry
+  have h_root : q.2.val ∈ (R.fullLevels q.1).geometry.roots := by
+    rw [R.roots q.1]
+    exact q.2.property
+  have h_node : q.2.val ∈ (R.fullLevels q.1).geometry.nodes q.1 := by
+    rw [(R.fullLevels q.1).geometry.nodes_top]
+    exact h_root
+  have h_I5 := (R.full_invariant q.1).I5 q.1 q.2.val h_node
+  exact h_I5
 
 /-- R12, V4 3.1 (I4): the global assignment satisfies the principal PRESENT-slot
 invariant at every height, including all certificate-subdivision nodes below K. -/

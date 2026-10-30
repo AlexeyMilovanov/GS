@@ -591,6 +591,67 @@ private lemma point_count_le_step4b_placed_frontier_null (A : PolyManifoldDomain
     isClosed_frontier.measurableSet.nullMeasurableSet]
   exact point_count_le_step4a_cone_frontier_null A _
 
+open private tangentCone_polyhedral_step2_halfspace_presentation
+  tangentCone_polyhedral_step3_local_cone tangentCone_polyhedral_step4_positive_scaling
+  tangentCone_polyhedral_step5_radial_germ from Enforce.Geometry.Polyhedral in
+/-- Step 4c(i) of the V4 proof of `point_count_le` (V4 1.0(b)): "Near `p` each
+polyhedron coincides with `p` plus its tangent cone". Hence an interior direction of
+the tangent cone of a prototile at `q` points into the interior of the prototile for
+all small positive times. -/
+private lemma point_count_le_step4c_interior_ray (A : PolyManifoldDomain d) (q v : E d)
+    (hv : v ∈ interior (tangentCone A.carrier q)) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ t : ℝ, 0 < t → t < ε → q + t • v ∈ interior A.carrier := by
+  obtain ⟨S, hS⟩ := tangentCone_polyhedral_step2_halfspace_presentation A.polyhedral
+  obtain ⟨C, hC, hloc⟩ := tangentCone_polyhedral_step3_local_cone S q
+  rw [← hS] at hloc
+  rw [tangentCone_polyhedral_step5_radial_germ q hC hloc] at hv
+  obtain ⟨δ, hδ, hball⟩ := Metric.eventually_nhds_iff.mp hloc
+  obtain ⟨η, hη, hηC⟩ := Metric.isOpen_iff.mp isOpen_interior v hv
+  refine ⟨δ / (‖v‖ + η), by positivity, fun t ht htε => ?_⟩
+  have htε' : t * (‖v‖ + η) < δ := by
+    rwa [lt_div_iff₀ (by positivity)] at htε
+  rw [mem_interior]
+  refine ⟨ball (q + t • v) (t * η), fun y hy => ?_, isOpen_ball,
+    mem_ball_self (by positivity)⟩
+  rw [mem_ball, dist_eq_norm] at hy
+  have hyq : dist y q < δ := by
+    have h1 : dist y q ≤ ‖y - (q + t • v)‖ + ‖t • v‖ := by
+      rw [dist_eq_norm]
+      have : y - q = (y - (q + t • v)) + t • v := by abel
+      rw [this]
+      exact norm_add_le _ _
+    rw [norm_smul, Real.norm_of_nonneg ht.le] at h1
+    nlinarith
+  refine (hball hyq).mpr ?_
+  have hw : t⁻¹ • (y - q) ∈ C := by
+    apply interior_subset
+    apply hηC
+    rw [mem_ball, dist_eq_norm]
+    have : t⁻¹ • (y - q) - v = t⁻¹ • (y - (q + t • v)) := by
+      rw [smul_sub (t⁻¹) y (q + t • v), smul_add, smul_smul, inv_mul_cancel₀ ht.ne',
+        one_smul, smul_sub]
+      abel
+    rw [this, norm_smul, norm_inv, Real.norm_of_nonneg ht.le]
+    rw [inv_mul_lt_iff₀ ht]
+    exact hy
+  have := (tangentCone_polyhedral_step4_positive_scaling hC ht (t⁻¹ • (y - q))).mpr hw
+  rwa [smul_smul, mul_inv_cancel₀ ht.ne', one_smul] at this
+
+/-- Step 4c(ii) of the V4 proof of `point_count_le` (V4 1.0(b)): placing by an
+isometry carries interior points of the prototile along the ray `q + t • L v` to
+interior points of the placed tile along the ray `p + t • v`. -/
+private lemma point_count_le_step4c_placed_ray (K : Set (E d)) (χ : Iso d) (p v : E d)
+    (t : ℝ) (h : χ.symm p + t • χ.symm.linearIsometryEquiv v ∈ interior K) :
+    p + t • v ∈ interior (placedSet χ K) := by
+  have hsymm : χ.symm (p + t • v) = χ.symm p + t • χ.symm.linearIsometryEquiv v := by
+    have h := χ.symm.map_vadd p (t • v)
+    simp only [vadd_eq_add, map_smul] at h
+    rw [add_comm p, h, add_comm]
+  have hopen : IsOpen (χ '' interior K) := by
+    simpa using χ.toHomeomorph.isOpenMap _ isOpen_interior
+  refine (hopen.subset_interior_iff.mpr (image_mono interior_subset)) ⟨_, h, ?_⟩
+  rw [← hsymm, χ.apply_symm_apply]
+
 /-- Step 4c of the V4 proof of `point_count_le` (V4 1.0(b)): "Disjoint interiors of
 tiles give disjoint interiors of tangent cones at a common point". (Near `p` each
 placed polyhedron coincides with `p` plus its tangent cone, so a common interior
@@ -601,7 +662,24 @@ private lemma point_count_le_step4c_cone_interiors_disjoint (A B : PolyManifoldD
     (hdisj : Disjoint (interior (placedSet φ A.carrier)) (interior (placedSet ψ B.carrier))) :
     Disjoint (interior (tangentCone (placedSet φ A.carrier) p))
       (interior (tangentCone (placedSet ψ B.carrier) p)) := by
-  sorry
+  rw [Set.disjoint_left]
+  intro v hvA hvB
+  have hint (χ : Iso d) (K : Set (E d)) (hv : v ∈ interior (tangentCone (placedSet χ K) p)) :
+      χ.symm.linearIsometryEquiv v ∈ interior (tangentCone K (χ.symm p)) := by
+    rw [point_count_le_step1_tangentCone_placed K χ p] at hv
+    change v ∈ interior (⇑(χ.symm.linearIsometryEquiv.toHomeomorph) ⁻¹'
+      tangentCone K (χ.symm p)) at hv
+    rw [← Homeomorph.preimage_interior] at hv
+    exact hv
+  obtain ⟨εA, hεA, hA⟩ := point_count_le_step4c_interior_ray A _ _ (hint φ A.carrier hvA)
+  obtain ⟨εB, hεB, hB⟩ := point_count_le_step4c_interior_ray B _ _ (hint ψ B.carrier hvB)
+  set t := min εA εB / 2 with ht_def
+  have ht : 0 < t := by positivity
+  have htA : t < εA := by have := min_le_left εA εB; linarith
+  have htB : t < εB := by have := min_le_right εA εB; linarith
+  exact Set.disjoint_left.mp hdisj
+    (point_count_le_step4c_placed_ray A.carrier φ p v t (hA t ht htA))
+    (point_count_le_step4c_placed_ray B.carrier ψ p v t (hB t ht htB))
 
 /-- Step 4 of the V4 proof of `point_count_le` (V4 1.0(b)): "Disjoint interiors of
 tiles give disjoint interiors of tangent cones at a common point". Two placed

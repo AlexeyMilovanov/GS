@@ -339,7 +339,11 @@ theorem tangentCone_polyhedral (A : PolyManifoldDomain d) (p : E d)
 
 /-- G1, V4 §1.0 (H1): the finite-convex-hull definition implies compactness. -/
 theorem Polyhedron.isCompact {K : Set (E d)} (hK : Polyhedron K) : IsCompact K := by
-  sorry
+  obtain ⟨s, rfl⟩ := hK
+  apply Set.Finite.isCompact_biUnion s.finite_toSet
+  intro p _
+  apply Set.Finite.isCompact_convexHull
+  exact Finset.finite_toSet p
 
 /-- Sym1, V4 5.6: the full group of Euclidean symmetries of a full-dimensional
 polyhedron is finite. No boundary manifold condition or orientation restriction

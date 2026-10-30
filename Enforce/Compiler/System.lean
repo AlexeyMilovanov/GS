@@ -1248,7 +1248,12 @@ theorem event_marks_readout_cluster (C : ClusterData S P) (e : EventIndex S P)
     (z : FramedNode S × LeafType P) (hz : z ∈ eventReadouts e) (x : E d)
     (hx : x ∈ C.cluster z.2 .readout) :
     eventColour C e (z.1.frame x) = augmentedColour C z.2 x := by
-  sorry
+  have h_encl : x ∈ C.enclosing z.2 .readout := C.cluster_subset_enclosing z.2 .readout hx
+  have h_reg : z.1.frame x ∈ readoutRegion C z := by
+    dsimp [readoutRegion, placedSet]
+    exact Set.mem_image_of_mem _ h_encl
+  rw [eventColour_readout C e z hz (z.1.frame x) h_reg]
+  simp
 
 /-- M6, V4 2.14(b): the actual event index of a native source slot.
 Choose an actual allowed configuration supplied by `honest_rows`, retaining both

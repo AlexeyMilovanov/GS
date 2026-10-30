@@ -3458,7 +3458,7 @@ theorem tangentCone_tile_isHPiCone (t : FramedNode S)
 /-- P11, V4 1.16(c): the factors commute. -/
 theorem RL_commute (F : PowerFactorisation S) :
     F.R.toLinearEquiv * F.L = F.L * F.R.toLinearEquiv := by
-  sorry
+  exact (L_commutes F F.R F.R_mem).symm
 
 /-- P11, V4 1.16(c): power decomposition and compatible residual rotations. -/
 theorem power_cone_formula (F : PowerFactorisation S) (a r : ℕ) (hr : r < F.power) :

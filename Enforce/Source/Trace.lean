@@ -1194,6 +1194,38 @@ private theorem adjacency_primitive_seed_step1_seed_point (P : FramedNode S) (n 
       p ∈ relint (P.cell (n + 1) g.val) := by
   sorry
 
+/-- Step 1 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet` (V4 1.8):
+"moving angularly towards the sector of C' we must cross at least one ray...
+the trace of a facet h of a child of A, with p ∈ h".
+There is another facet h of the child a distinct from a.val.2. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step1_ray (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (a : BoundaryFacet P n g)
+    (κ : CellName S (P.child n a.val.1).ty) (hκ : κ.val.dim = d - 2)
+    (hκa : (P.child n a.val.1).cell n κ.val ⊆ (P.child n a.val.1).cell n a.val.2.val)
+    (p : E d) (hpκ : p ∈ relint ((P.child n a.val.1).cell n κ.val)) :
+    ∃ h : FacetName S (P.child n a.val.1).ty, h ≠ a.val.2 ∧
+      p ∈ (P.child n a.val.1).cell n h.val := by
+  sorry
+
+/-- Step 2 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet` (V4 1.8):
+"the second boundary sheet of C through p either leaves g, or ... overlapping the relative interior of f'."
+A second facet h of the child through p satisfies the alternative. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (a b : BoundaryFacet P n g) (hchild : a.val.1 ≠ b.val.1)
+    (κ : CellName S (P.child n a.val.1).ty) (hκ : κ.val.dim = d - 2)
+    (hκa : (P.child n a.val.1).cell n κ.val ⊆
+      (P.child n a.val.1).cell n a.val.2.val)
+    (hκb : (P.child n a.val.1).cell n κ.val ⊆
+      (P.child n b.val.1).cell n b.val.2.val)
+    (p : E d) (hpκ : p ∈ relint ((P.child n a.val.1).cell n κ.val))
+    (hpg : p ∈ relint (P.cell (n + 1) g.val))
+    (h : FacetName S (P.child n a.val.1).ty) (h_neq : h ≠ a.val.2)
+    (hph : p ∈ (P.child n a.val.1).cell n h.val) :
+    ¬(P.child n a.val.1).cell n h.val ⊆ P.cell (n + 1) g.val ∨
+    (relint ((P.child n a.val.1).cell n h.val) ∩
+      relint ((P.child n b.val.1).cell n b.val.2.val)).Nonempty := by
+  sorry
+
 /-- Step 2 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "the sectors of
 `C` and `C'` are both bounded by the ray `Π ∩ aff g` and lie on the `A`-side ...
 moving angularly towards the sector of `C'` we must cross at least one ray ...
@@ -1215,7 +1247,10 @@ private theorem adjacency_primitive_seed_step2_other_sheet (P : FramedNode S) (n
       (¬ (P.child n a.val.1).cell n h.val ⊆ P.cell (n + 1) g.val ∨
         (relint ((P.child n a.val.1).cell n h.val) ∩
           relint ((P.child n b.val.1).cell n b.val.2.val)).Nonempty) := by
-  sorry
+  obtain ⟨h, h_neq, hph⟩ :=
+    adjacency_primitive_seed_step2_other_sheet_step1_ray P n g a κ hκ hκa p hpκ
+  refine ⟨h, hph, ?_⟩
+  exact adjacency_primitive_seed_step2_other_sheet_step2_cases P n g a b hchild κ hκ hκa hκb p hpκ hpg h h_neq hph
 
 /-- P8, V4 1.8 (moreover): distinct-child adjacency supplies a primitive facet
 containing the common cell, with all of that cell's vertices common-listed. -/

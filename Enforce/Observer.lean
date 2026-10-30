@@ -1,41 +1,31 @@
 import Enforce.Parser.Assembly
-
 /-!
 # Complete observers and finite descent saturation
-
 O1--O6, V4 4.1--4.6, in the lossless one-state form of V4 8.1.
 The window stores only its highest state and the intervening roles, in bottom-up
 index order. Descent reads those roles in reverse order. Every node facet retains
 its attached packet, including NULL and possible phantom packets on output faults.
 The joint source range is an actual image over honest sources, not a product of
 marginal ranges. Rendering is shared by honest sources and arbitrary proper outputs.
-
 DEVIATION: the transition is total on raw observer tuples and raw roles. On a
 role/type mismatch it returns the input observer. Missing internal incidences or
 empty raw masks give NULL. These branches never occur on source or parsed child
 transitions. This is only a totalization of the explicit V4 4.3(i)--(iii) formulas;
 no arbitrary honest witness defines the transition. See SKEL-NOTES.md, D11.
-
 DEVIATION: observer extraction uses the same formula at all natural heights. The
 joint source range and saturation still start at H, and rendering starts at K.
 This uniform raw extraction avoids extra membership arguments; see D12.
 -/
-
 open Set
-
 noncomputable section
-
 namespace Enforce
-
 variable {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} {P : Params S}
 variable {C : ClusterData S P}
-
 /-- O1, V4 4.1, 8.1: the observer window is nonempty, with room to shift it. -/
 theorem Params.observer_window_bound (P : Params S) : 3 ≤ P.w := by
   have h := P.k_lower
   rw [P.w_eq]
   omega
-
 /-- O1, V4 8.1: the compressed consecutive window, before admissibility.
 The roles are indexed from the lowest node upward; reconstruction descends in
 reverse order. Inconsistent raw tuples are not asserted to occur. -/
@@ -45,46 +35,37 @@ structure ObserverWindow (P : Params S) where
   top : State P
   /-- O1, V4 8.1: the intervening roles, with exactly `w-1` letters. -/
   roles : Fin (P.w - 1) → S.Role
-
 namespace ObserverWindow
-
 /-- O1, V4 8.1: reconstruct downward from the highest state by `childMap`. -/
 def descend (a : ObserverWindow P) : ℕ → State P
   | 0 => a.top
   | n + 1 => if hn : n < P.w - 1 then
       childMap P (a.descend n) (a.roles ⟨P.w - 2 - n, by omega⟩)
     else a.descend n
-
 /-- O1, V4 8.1: the state at a specified offset above the lowest node. -/
 def stateAt (a : ObserverWindow P) (j : Fin P.w) : State P :=
   a.descend (P.w - 1 - j.val)
-
 /-- O1, V4 4.1, 8.1: the reconstructed lowest state. -/
 def head (a : ObserverWindow P) : State P :=
   a.stateAt ⟨0, by have := P.observer_window_bound; omega⟩
-
 /-- O3, V4 4.3(i), 8.1: shift the window down by one role.
 The new highest state is the old offset `w-2`; the bottom role is prepended.
 This is the compressed form of `(D_S(s₀,i),s₀,...,s_(w-2))`. -/
 def child (a : ObserverWindow P) (r : S.Role) : ObserverWindow P where
   top := a.stateAt ⟨P.w - 2, by have := P.observer_window_bound; omega⟩
   roles j := if h : j.val = 0 then r else a.roles ⟨j.val - 1, by omega⟩
-
 /-- O3, V4 4.3(i), 8.1: the explicit shift reconstructs the prescribed child head.
 This is an algebraic identity of the compressed representation, even on raw windows. -/
 theorem child_head (a : ObserverWindow P) (r : S.Role) :
     (a.child r).head = childMap P a.head r := by
   sorry
-
 /-- O1, V4 4.1, 8.1: extract the window from one hierarchy and one state assignment.
 Ancestors exist without an upper cutoff, including over the floor height. -/
 def ofHierarchy {T : Tiling S} (H : CoherentHierarchy S T)
     (state : H.Node → State P) (q : H.Node) : ObserverWindow P where
   top := state (H.ancestor q (P.w - 1))
   roles j := H.nodeRole (H.ancestor q j.val)
-
 end ObserverWindow
-
 /-- O1, V4 4.1, 8.1: an observer consists of a compressed window and exactly
 one packet-or-NULL record per facet of its lowest prototype. The redundant type
 and its equality proof merely keep facet indexing independent of reconstruction. -/
@@ -98,34 +79,29 @@ structure Observer (P : Params S) where
   head_type : window.head.ty = ty
   /-- O1, V4 4.1: the entire side attachment, not a provider chosen from its state. -/
   packets : FacetName S ty → Option (Packet P)
-
 /-- O1, V4 4.1: the finite ambient alphabet `𝓙` in compressed coordinates.
 Only the highest state and each non-NULL packet must lie in their finite honest
 alphabets. Joint occurrence is a separate, stronger condition in `jointSourceRange`. -/
 def observerAlphabet (S : SubstSystem d) (P : Params S) : Set (Observer P) :=
   {a | a.window.top ∈ honestStates S P ∧
     ∀ F q, a.packets F = some q → q ∈ honestPackets S P}
-
 /-- O1, V4 4.1, 8.1: finitely many compressed observers.
 This asserts finiteness of `𝓙`, not of the ambient type with arbitrary raw states. -/
 theorem observers_finite (S : SubstSystem d) (P : Params S) :
     (observerAlphabet S P).Finite := by
   sorry
-
 /-- O1, V4 4.1, 8.1: the parsed compressed window recovers every actual ancestor state. -/
 theorem parsedWindow_at (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (j : Fin P.w) :
     (ObserverWindow.ofHierarchy (parsedHierarchy Y hY) (parsedState Y hY) q).stateAt j =
       parsedState Y hY ((parsedHierarchy Y hY).ancestor q j.val) := by
   sorry
-
 /-- O1, V4 4.1, 8.1: the honest compressed window recovers every ancestor state. -/
 theorem honestWindow_at (U : HonestSource S) (P : Params S) (q : U.Node)
     (j : Fin P.w) :
     (ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).stateAt j =
       stateOf U P (U.hierarchy.ancestor q j.val) := by
   sorry
-
 /-- O1, V4 4.1, 8.1: reconstruction preserves the parsed node's prototype. -/
 theorem parsedWindow_type (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) :
@@ -134,14 +110,12 @@ theorem parsedWindow_type (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   have h := parsedWindow_at Y hY q ⟨0, by have := P.observer_window_bound; omega⟩
   change _ = parsedState Y hY q at h
   exact (congrArg State.ty h).trans (parsedState_type_residue Y hY q).2.1
-
 /-- O1, V4 4.1, 8.1: reconstruction preserves the honest node's prototype. -/
 theorem honestWindow_type (U : HonestSource S) (P : Params S) (q : U.Node) :
     (ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).head.ty = q.2.val.ty := by
   have h := honestWindow_at U P q ⟨0, by have := P.observer_window_bound; omega⟩
   change _ = stateOf U P q at h
   exact congrArg State.ty h
-
 /-- O1, V4 4.1, 8.1: the actual observer of a parsed node of a proper output.
 DEVIATION: the same formula is defined below the observer floor (D12); saturation
 uses it only at heights at least H. No source provider is inferred on a fault. -/
@@ -151,7 +125,6 @@ def observerOf (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   window := ObserverWindow.ofHierarchy (parsedHierarchy Y hY) (parsedState Y hY) q
   head_type := parsedWindow_type Y hY q
   packets := parsedFacetPacket Y hY q
-
 /-- O1, V4 4.1, 8.1: the observer of an honest source node.
 All facet records are the existing actual provider packet or NULL extraction.
 DEVIATION: extraction is also defined below H, without adding such nodes to 𝓑 (D12). -/
@@ -161,36 +134,29 @@ def HonestSource.observerOf (U : HonestSource S) (P : Params S) (q : U.Node) :
   window := ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q
   head_type := honestWindow_type U P q
   packets := U.facetPacket P q
-
 /-- O1, V4 4.1: every parsed observer belongs to the finite ambient alphabet. -/
 theorem observerOf_mem (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) : observerOf Y hY q ∈ observerAlphabet S P := by
   exact ⟨(parsedState_type_residue Y hY _).1,
     fun F p hp => parsedFacetPacket_honest Y hY q F p hp⟩
-
 /-- O1, V4 4.1: every honest observer belongs to the finite ambient alphabet. -/
 theorem HonestSource.observerOf_mem (U : HonestSource S) (P : Params S) (q : U.Node) :
     U.observerOf P q ∈ observerAlphabet S P := by
   sorry
-
 /-- O1, V4 4.1: the joint source range `𝓑`, with a single witness for the whole tuple.
 It may be empty when there is no honest source; no nonemptiness is postulated. -/
 def jointSourceRange (S : SubstSystem d) (P : Params S) : Set (Observer P) :=
   {a | ∃ (U : HonestSource S) (q : U.Node), P.H ≤ q.1 ∧ U.observerOf P q = a}
-
 /-- O1, V4 4.1: an actual source node above the floor contributes its whole observer. -/
 theorem honestObserver_mem_range (U : HonestSource S) (P : Params S) (q : U.Node)
     (hq : P.H ≤ q.1) : U.observerOf P q ∈ jointSourceRange S P :=
   ⟨U, q, hq, rfl⟩
-
 /-- O1, V4 4.1: the joint source range is contained in the finite alphabet. -/
 theorem jointSourceRange_subset (S : SubstSystem d) (P : Params S) :
     jointSourceRange S P ⊆ observerAlphabet S P := by
   rintro a ⟨U, q, _, rfl⟩
   exact U.observerOf_mem P q
-
 namespace Observer
-
 /-- O3, V4 4.3(iii), 8.1: construct a newly born packet from the parent window.
 The maximum PRESENT slot and its state are computed from the actual mask formula.
 DEVIATION: an empty mask on an inconsistent raw tuple is totalized by NULL (D11). -/
@@ -209,7 +175,6 @@ def bornPacket (a : Observer P) (ι : P.Incidence) : Option (Packet P) := by
         rw [P.w_eq]
         omega⟩ }
     else none
-
 /-- O3, V4 4.3(ii)--(iii): packet on a named child facet, in the fixed substitution.
 Inherited facets copy the unique parent attachment. Internal facets use the canonical
 incidence of that positioned first-generation facet and `bornPacket`. All lookups
@@ -224,7 +189,6 @@ def childPacket (a : Observer P) (r : S.Role) (f : Cell d) : Option (Packet P) :
         ι.val.positioned = placedSet (S.child r.1 r.2).frame f.carrier then
       a.bornPacket (Classical.choose hι)
     else none
-
 /-- O3, V4 4.3(i)--(iii), 8.1: the explicit compressed child transition `D_Ĵ`.
 Only `childMap`, the shifted window, inherited attachments and the computed birth
 packet are used. DEVIATION: invalid raw type/role pairs return the input (D11). -/
@@ -237,28 +201,23 @@ def transition (a : Observer P) (r : S.Role) : Observer P := by
     head_type := h.2
     packets := fun f => a.childPacket r f.val }
     else a
-
 /-- O3/O6, V4 4.3, 4.6: a fixed enumeration of the prescribed child roles.
 DEVIATION: Finset.toList chooses an order for the abstract descent forest; changing
 it only reorders siblings and does not change any geometric statement (D11). -/
 def roles (A : S.ι) : List (S.I A) := by
   classical
   exact (Finset.univ : Finset (S.I A)).toList
-
 /-- O3/O6, V4 4.3, 4.6: the complete prescribed observer child list. -/
 def children (a : Observer P) : List (Observer P) :=
   (roles a.ty).map (fun i => a.transition ⟨a.ty, i⟩)
-
 /-- O3/O6, V4 4.3, 4.6: every prescribed role occurs once. -/
 theorem roles_nodup (A : S.ι) : (roles A).Nodup := by
   classical
   exact Finset.nodup_toList _
-
 /-- O3/O6, V4 4.3, 4.6: every child role is present in the enumeration. -/
 theorem mem_roles (A : S.ι) (i : S.I A) : i ∈ roles A := by
   classical
   exact Finset.mem_toList.mpr (Finset.mem_univ i)
-
 /-- O3/O6, V4 4.3, 4.6: child lists are nonempty, including one-child types.
 An actual prototype has children by H3, independently of any source tiling. -/
 theorem roles_ne_nil (A : S.ι) : roles A ≠ [] := by
@@ -266,16 +225,47 @@ theorem roles_ne_nil (A : S.ι) : roles A ≠ [] := by
   intro h
   have := mem_roles A i
   simp only [h, List.not_mem_nil] at this
-
 end Observer
+/-- Step 1 of the V4 proof of `range_raise` (V4 4.3(0)):
+Exact-scale transfer preserves the full joint observer data. -/
+private lemma dummy (P : Params S)
+    {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (hab : a % P.L = b % P.L) (q : U.hierarchy.Tail a) :
+    V.observerOf P (e.toEquiv q).val = U.observerOf P q.val := by
+  sorry
+
+/-- Step 1 of the V4 proof of `range_raise` (V4 4.3(0)):
+Exact-scale transfer preserves the full joint observer data. -/
+private lemma range_raise_step1_observer_transfer (P : Params S)
+    {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (hab : a % P.L = b % P.L) (q : U.hierarchy.Tail a) :
+    V.observerOf P (e.toEquiv q).val = U.observerOf P q.val := by
+  sorry
 
 /-- O3, V4 4.3(0): every joint source observer has a witness strictly above H.
 Exact-scale transfer raises a floor-only witness by the residue modulus L and
 preserves its entire upward hierarchy, even for arbitrarily high facet providers. -/
 theorem range_raise (a : Observer P) (ha : a ∈ jointSourceRange S P) :
     ∃ (U : HonestSource S) (q : U.Node), P.H + 1 ≤ q.1 ∧ U.observerOf P q = a := by
-  sorry
-
+  obtain ⟨U, q, hq, ho⟩ := ha
+  by_cases h : P.H + 1 ≤ q.1
+  · exact ⟨U, q, h, ho⟩
+  · have h_eq : q.1 = P.H := by omega
+    rcases q with ⟨q1, q2_val, q2_prop⟩
+    cases h_eq
+    have hL := P.L_pos
+    have h_sub1 : P.H - (P.H + P.L) = 0 := by omega
+    have h_sub2 : P.H + P.L - P.H = P.L := by omega
+    obtain ⟨V, e, q', heq⟩ := exactScaleTransfer U P.H q2_val q2_prop (P.H + P.L) 1
+    have h_le : P.H + 1 ≤ P.H + P.L := by omega
+    refine ⟨V, ⟨P.H + P.L, q'⟩, h_le, ?_⟩
+    have hq' : (e.toEquiv ⟨⟨P.H, ⟨q2_val, q2_prop⟩⟩, Nat.sub_le _ _⟩).val = ⟨P.H + P.L, q'⟩ :=
+      congrArg Subtype.val heq
+    rw [← hq']
+    have hab : (P.H - (P.H + P.L)) % P.L = (P.H + P.L - P.H) % P.L := by
+      rw [h_sub1, h_sub2, Nat.mod_self, Nat.zero_mod]
+    have h_trans := range_raise_step1_observer_transfer P e hab ⟨⟨P.H, ⟨q2_val, q2_prop⟩⟩, Nat.sub_le _ _⟩
+    rwa [ho] at h_trans
 open private exists_childMap_step2_parent exists_childMap_step2_role
   from Enforce.State.State in
 /-- Step 1 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(i)):
@@ -312,7 +302,6 @@ private theorem honest_observer_transition_step1_window (U : HonestSource S)
       have h' := hanc (j.val - 1)
       rw [show j.val - 1 + 1 = j.val by omega] at h'
       rw [h']
-
 open private exists_childMap_step2_parent exists_childMap_step4_containment
   from Enforce.State.State in
 /-- Step 2 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(ii)):
@@ -327,7 +316,6 @@ private theorem honest_observer_transition_step2_inherited (U : HonestSource S)
     (by simpa only [CoherentHierarchy.ancestor, Function.iterate_one] using
       exists_childMap_step2_parent U q hq i)
     F f ((exists_childMap_step4_containment U q hq i f.val F.val).mpr hF)
-
 /-- Step 3 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(ii)--(iii)):
 "a facet f of C̃ contained in a facet F of Ã" is the same test whether it is
 read in `σ A` or in the normalized parent prototype. -/
@@ -344,7 +332,6 @@ private theorem honest_observer_transition_step3_test (r : S.Role) (X Y : Set (E
     exact hy
   · intro hXY x hx
     exact ⟨S.σ.symm x, hXY ⟨x, hx, rfl⟩, LinearEquiv.apply_symm_apply _ _⟩
-
 open private exists_childMap_step2_role exists_childMap_step4_internal_provider
   from Enforce.State.State in
 /-- Step 4 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(iii)):
@@ -377,7 +364,6 @@ private theorem honest_observer_transition_step4_internal (U : HonestSource S)
   · refine hc.2.symm.trans ?_
     change placedSet (S.child a.ty a.left).frame a.leftFacet.val.carrier = _
     rw [hafacet, congrArg (fun r : S.Role => (S.child r.1 r.2).frame) harole]
-
 /-- Step 5 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(iii), 8.1):
 "O_f(C̃)=(ι(f),μ,(S(Ã_{m+j}))_{j PRESENT}) with μ the mask determined by ι(f) and
 α(S(Ã)), all of whose entries are among the w states of Ĵ(Ã)". The compressed
@@ -429,7 +415,6 @@ private theorem honest_observer_transition_step5_born (U : HonestSource S)
   dsimp only
   rw [dif_pos hne]
   exact key _ (hmax _ _ hslots hne (presentSlots_nonempty U P g))
-
 open private exists_childMap_step4_fault from Enforce.State.State in
 /-- Step 6 of the V4 proof of `honest_observer_transition` (V4 4.3(1)(ii)--(iii)):
 every facet of C̃ is either contained in a facet of Ã (case (ii)) or internal
@@ -474,7 +459,6 @@ private theorem honest_observer_transition_step6_packet (U : HonestSource S)
     unfold HonestSource.facetPacket
     rw [dif_neg hf]
     exact hb.symm
-
 /-- O3, V4 4.3(1): the explicit transition computes every honest child's observer.
 The height hypothesis places both observers in the joint source range. -/
 theorem honest_observer_transition (U : HonestSource S) (P : Params S) (q : U.Node)
@@ -503,7 +487,6 @@ theorem honest_observer_transition (U : HonestSource S) (P : Params S) (q : U.No
   · apply heq_of_eq
     funext f
     exact honest_observer_transition_step6_packet U P q hq1 i f
-
 /-- O3, V4 4.3(0),(1): the joint source range is forward closed under the
 explicit transition, with the prescribed child type. Floor-only witnesses are
 raised before taking children, rather than assumed to have children above H. -/
@@ -512,7 +495,6 @@ theorem range_forward_closed (a : Observer P) (ha : a ∈ jointSourceRange S P)
     a.transition ⟨a.ty, i⟩ ∈ jointSourceRange S P ∧
       (a.transition ⟨a.ty, i⟩).ty = (S.child a.ty i).ty := by
   sorry
-
 /-- O4/O6, V4 4.4, 4.6: an actual prescribed child of a parsed positive-height node. -/
 def parsedChild (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty) :
@@ -520,7 +502,6 @@ def parsedChild (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   ⟨q.1 - 1, ⟨q.2.val.child (q.1 - 1) i,
     (parsedHierarchy Y hY).children_mem (q.1 - 1) q.2.val
       (by simpa only [Nat.sub_add_cancel hq] using q.2.property) i⟩⟩
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
 "fixed by position". Equal heights and frames identify hierarchy nodes. -/
 private theorem observer_transition_aux_step1_node_eq {T : Tiling S}
@@ -530,7 +511,6 @@ private theorem observer_transition_aux_step1_node_eq {T : Tiling S}
   cases h
   cases hNM
   rfl
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
 "the K-ancestor B_t of t lies inside A". The parent of a prescribed child is its root. -/
 private theorem observer_transition_aux_step1_parent {T : Tiling S}
@@ -543,7 +523,6 @@ private theorem observer_transition_aux_step1_parent {T : Tiling S}
   · apply heq_of_eq
     apply Subtype.ext
     exact (H.parent_unique n _ N hN ⟨i, rfl⟩).symm
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
 "type and frame (fixed)". The affine prototype frame obeys the child equation. -/
 private theorem observer_transition_aux_step1_child_frame (N : FramedNode S)
@@ -558,7 +537,6 @@ private theorem observer_transition_aux_step1_child_frame (N : FramedNode S)
   rw [S.placeChild_apply]
   simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
     LinearEquiv.mul_apply, ← map_add]
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
 "i_t ... (fixed by position)". Distinct roles have disjoint nonempty interiors. -/
 private theorem observer_transition_aux_step1_role_injective (N : FramedNode S) (n : ℕ) :
@@ -585,7 +563,6 @@ private theorem observer_transition_aux_step1_role_injective (N : FramedNode S) 
     exact (S.proto (S.child N.ty j).ty).interior_nonempty.image _
   obtain ⟨x, hx⟩ := hn
   exact Set.disjoint_left.mp hd hx hx
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
 "i_t ... (fixed by position)". A prescribed child's hierarchy role is its index. -/
 private theorem observer_transition_aux_step1_role {T : Tiling S}
@@ -600,7 +577,6 @@ private theorem observer_transition_aux_step1_role {T : Tiling S}
     subst M
     exact congrArg (Sigma.mk N.ty) ((observer_transition_aux_step1_role_injective N n h).symm)
   exact aux _ _ hp he
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "all listed in Ĵ(A)". The compressed window shifts using its actual parent
 and role; the highest new state is the old offset w-2. -/
@@ -628,7 +604,6 @@ private theorem observer_transition_aux_step2_window {T : Tiling S}
         conv_lhs => rw [show j.val = (j.val - 1) + 1 by omega]
         simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hp]
       rw [he]
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "the attached packet is O_F(A)". Inherited containment is checked in the
 fixed first-generation coordinates. -/
@@ -650,7 +625,6 @@ private theorem observer_transition_aux_step2_containment (N : FramedNode S)
   · rintro h x ⟨y, hy, rfl⟩
     obtain ⟨z, hz, he⟩ := h hy
     simpa only [← he, S.σ.symm_apply_apply] using hz
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "μ determined by ι(g) and ... S(P_b)". An honest compressed packet is exactly
 the birth computation when the window supplies its highest state and roles. -/
@@ -689,7 +663,6 @@ private theorem observer_transition_aux_step2_born_eq (a : Observer P) (p : Pack
   change (if h : slots.Nonempty then some _ else none) = some p
   rw [dif_pos hn]
   exact congrArg some (hbuild (slots.max' hn) hmax)
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "by W4 (Theorem 3.13 in Y)". Calibration identifies the entire compressed
 primitive packet, including roles and the maximum PRESENT slot. -/
@@ -715,14 +688,12 @@ private theorem observer_transition_aux_step2_output_born
       parsedState_address Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
         ⟨j.val, lt_trans j.isLt p.jstar.isLt⟩]
     rfl
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "which g ... is determined by the position". Canonical incidences of the
 same parent type and positioned facet coincide. -/
 private theorem observer_transition_aux_step2_incidence_eq (ι η : P.Incidence)
     (ht : ι.val.ty = η.val.ty) (hp : ι.val.positioned = η.val.positioned) : ι = η :=
   (P.canonical_idempotent ι).symm.trans (P.canonical_unique ι.val η ⟨ht, hp⟩)
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "which g, P_b ... is determined by the position". Equality of actual child
 and primitive carriers is equality in first-generation coordinates. -/
@@ -737,7 +708,6 @@ private theorem observer_transition_aux_step2_positioned (N : FramedNode S)
   simpa only [Params.incidencePlacement, PrimitiveIncidence.positioned, rolePlacement,
     placedSet, Set.image_image, AffineEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
     AffineIsometryEquiv.coe_toAffineEquiv, Function.comp_def] using h
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
 "fixed subdivision geometry". At native height the conjugated child frame is
 the original prescribed isometry. -/
@@ -746,7 +716,6 @@ private theorem observer_transition_aux_step1_place_zero (A : S.ι) (i : S.I A) 
   apply AffineIsometryEquiv.ext
   intro x
   simp [SubstSystem.placeChild_apply, linearConj, Child.frame, rigidMotion]
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 1 of the V4 4.2 proof):
 "which ... F is determined by the position". A cell's carrier fixes its
 dimension and hence its full cell name. -/
@@ -758,7 +727,6 @@ private theorem observer_transition_aux_step1_cell_eq (e f : Cell d)
   have hjk : j = k := hj.dimension.symm.trans hk.dimension
   cases hjk
   rfl
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "either in a primitive facet g ... or in a facet F of A". An internal
 first-generation facet has an honest age-one record in the child state. -/
@@ -788,7 +756,6 @@ private theorem observer_transition_aux_step2_internal_record
       rw [hr]
       simpa [hc, FramedNode.carrier, N, placedSet] using hi
   exact (state_semantics_a P s hs f).1.mp hint
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "which g ... is determined by the position". Both canonical side names
 refer to the same positioned primitive facet. -/
@@ -799,7 +766,6 @@ private theorem observer_transition_aux_step2_side_positioned (ι : P.Incidence)
   cases b
   · rfl
   · exact ι.val.paired
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "which g, P_b ... is determined by the position". Honest age-one semantics
 identify the canonical side, including its actual facet name. -/
@@ -821,7 +787,6 @@ private theorem observer_transition_aux_step2_record_side
   have hside := observer_transition_aux_step2_side_positioned R.incidence R.sideIndex
   rw [hrole] at hside
   exact hside.symm.trans hpos
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "the attached packet". Equal hierarchy nodes and equal facet names give
 the same parsed packet; membership proofs carry no extra data. -/
@@ -834,7 +799,6 @@ private theorem observer_transition_aux_step2_output_packet_congr
   have hff : f = f' := Subtype.ext hf
   cases hff
   rfl
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "by W4 (Theorem 3.13 in Y)" or "O_F(A) by (I5)".
 One output child facet is computed without assigning providers to faults. -/
@@ -918,7 +882,6 @@ private theorem observer_transition_aux_step2_output_packet
                 rw [hbside] at h
                 exact h)
             exact hp.trans (parsedPrimitivePacket_spec Y hY g hN).1.symm
-
 /-- Auxiliary for `observer_transition` (V4 4.4, copied from Step 2 of the V4 4.2 proof):
 "by W4 (Theorem 3.13 in Y)" and "the attached packet is O_F(A) by (I5)".
 The one-step formula includes certificate-subdivision nodes below the floor. -/
@@ -953,7 +916,6 @@ private theorem observer_transition_aux_step2_output_child
       · apply heq_of_eq
         funext f
         exact observer_transition_aux_step2_output_packet Y hY q hq i f
-
 /-- O4, V4 4.4: exact observer transition in an arbitrary proper output.
 This includes certificate nodes below K. W4 calibrates internal births, and I5
 copies inherited packets, including NULL and phantom fault packets. -/
@@ -962,7 +924,6 @@ theorem observer_transition (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     observerOf Y hY (parsedChild Y hY q (by omega) i) =
       (observerOf Y hY q).transition ⟨q.2.val.ty, i⟩ := by
   exact observer_transition_aux_step2_output_child Y hY q (by omega) i
-
 /-- O5, V4 4.5: the entire observer of each height-H node occurs jointly in
 one honest source node. The window and facet packets are read from one honest
 K-certificate, using H+w ≤ K; separate marginal witnesses would not suffice. -/
@@ -970,16 +931,13 @@ theorem ground_actuality (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (hq : q.1 = P.H) :
     observerOf Y hY q ∈ jointSourceRange S P := by
   sorry
-
 namespace Observer
-
 /-- O6, V4 4.6: the finite stateUniverse `𝓙_*`, containing honest and occurring observers.
 Source and output witnesses are retained as alternatives, without any global
 nonemptiness assumption on the species. -/
 def stateUniverse (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) : Set (Observer P) :=
   jointSourceRange S P ∪
     {a | ∃ q : (parsedHierarchy Y hY).Node, P.H ≤ q.1 ∧ observerOf Y hY q = a}
-
 /-- O6, V4 4.6: the saturation stateUniverse is a finite subset of `𝓙`. -/
 theorem universe_finite (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
     (stateUniverse Y hY).Finite := by
@@ -987,7 +945,6 @@ theorem universe_finite (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
   rintro a (ha | ⟨q, _, rfl⟩)
   · exact jointSourceRange_subset S P ha
   · exact observerOf_mem Y hY q
-
 /-- O6, V4 4.6: every observer in `𝓙_*` has a source or output witness above H.
 For output witnesses at H, ground actuality supplies a source witness and 4.3(0)
 raises it. Thus the explicit transition stays inside the chosen finite stateUniverse. -/
@@ -995,13 +952,11 @@ theorem universe_closed (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (a : Observer P) (ha : a ∈ stateUniverse Y hY) (i : S.I a.ty) :
     a.transition ⟨a.ty, i⟩ ∈ stateUniverse Y hY := by
   sorry
-
 /-- O6, V4 4.6: prescribed child list restricted to the actual finite stateUniverse. -/
 def universeD (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (a : stateUniverse Y hY) : List (stateUniverse Y hY) :=
   (roles a.val.ty).map (fun i =>
     ⟨a.val.transition ⟨a.val.ty, i⟩, universe_closed Y hY a.val a.property i⟩)
-
 /-- O6, V4 4.6: every state of the finite stateUniverse has a nonempty child list. -/
 theorem universeD_nonempty (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (a : stateUniverse Y hY) : universeD Y hY a ≠ [] := by
@@ -1009,23 +964,19 @@ theorem universeD_nonempty (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   have hlen := congrArg List.length h
   simp only [universeD, List.length_map, List.length_nil] at hlen
   exact roles_ne_nil a.val.ty (List.length_eq_zero_iff.mp hlen)
-
 /-- O6, V4 4.6: the honest subset of `𝓙_*` is forward closed. -/
 theorem universe_forward_closed (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
     ForwardClosed (universeD Y hY) {a | a.val ∈ jointSourceRange S P} := by
   intro a ha b hb
   obtain ⟨i, _, rfl⟩ := List.mem_map.mp hb
   exact (range_forward_closed a.val ha i).1
-
 /-- O6, V4 4.6: actual forest nodes are the parsed nodes at or above H. -/
 abbrev FloorNode (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :=
   {q : (parsedHierarchy Y hY).Node // P.H ≤ q.1}
-
 /-- O6, V4 4.6: every actual forest node has its next-height parent above H. -/
 def floorParent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) : FloorNode Y hY :=
   ⟨(parsedHierarchy Y hY).parentNode q.val, Nat.le_trans q.property (Nat.le_succ _)⟩
-
 /-- O6, V4 4.6: the complete actual child list, cut off at the floor.
 Above H the list has one entry for every role, with its exact parsed frame. -/
 def floorChildren (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
@@ -1035,41 +986,34 @@ def floorChildren (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (roles q.val.2.val.ty).map (fun i =>
       ⟨parsedChild Y hY q.val (by omega) i, by change P.H ≤ q.val.1 - 1; omega⟩)
     else []
-
 /-- O6, V4 4.6: every actual node's observer is an element of `𝓙_*`. -/
 def floorState (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) : stateUniverse Y hY :=
   ⟨observerOf Y hY q.val, Or.inr ⟨q.val, q.property, rfl⟩⟩
-
 /-- O6, V4 4.6: distinct roles give distinct actual child nodes. -/
 theorem floorChildren_nodup (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) : (floorChildren Y hY q).Nodup := by
   sorry
-
 /-- O6, V4 4.6: actual children lie exactly one level below their parent. -/
 theorem floorChildren_level (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q r : FloorNode Y hY) (hr : r ∈ floorChildren Y hY q) :
     q.val.1 - P.H = (r.val.1 - P.H) + 1 := by
   sorry
-
 /-- O6, V4 4.6: every actual node occurs in its parent's complete child list. -/
 theorem floor_mem_parent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) : q ∈ floorChildren Y hY (floorParent Y hY q) := by
   sorry
-
 /-- O6, V4 4.6: the listed parent is the unique actual hierarchy parent. -/
 theorem floor_child_parent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q r : FloorNode Y hY) (hr : r ∈ floorChildren Y hY q) :
     floorParent Y hY r = q := by
   sorry
-
 /-- O6, V4 4.6: exact child order and multiplicities agree with the explicit transition.
 This is the list form of 4.4; repetitions of observer values remain repetitions. -/
 theorem floor_prescribed (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) (hq : 1 ≤ q.val.1 - P.H) :
     (floorChildren Y hY q).map (floorState Y hY) = universeD Y hY (floorState Y hY q) := by
   sorry
-
 /-- O6, V4 4.6: the genuine forest used by C1, with no new choice of observers.
 Its states are the actual compressed readouts, with a finite-stateUniverse membership proof. -/
 def forest (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
@@ -1088,9 +1032,7 @@ def forest (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
   mem_parent := floor_mem_parent Y hY
   child_parent := floor_child_parent Y hY
   prescribed := floor_prescribed Y hY
-
 end Observer
-
 /-- O6, V4 4.6: every parsed observer above the floor has a single honest witness.
 The proof assembles C1 with the actual forest, finite stateUniverse, forward closure
 and ground actuality. Persistent faults receive no extra provider assumption. -/
@@ -1109,7 +1051,6 @@ theorem saturation (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   exact descent_saturation (Observer.universeD Y hY)
     (Observer.universeD_nonempty Y hY) {a | a.val ∈ jointSourceRange S P}
     (Observer.universe_forward_closed Y hY) (Observer.forest Y hY) ground ⟨q, hq⟩
-
 /-- O2, V4 4.2: complete patterns observed in either an honest source or a
 proper output, at one fixed height and one exact observer. The common type is
 part of the observer; all comparisons use full normalized isometric frames. -/
@@ -1123,7 +1064,6 @@ def ObservedPattern (C : ClusterData S P) (n : ℕ) (a : Observer P)
       (hN : (⟨a.ty, φ⟩ : FramedNode S) ∈ (parsedHierarchy Y hY).nodes n),
     observerOf Y hY ⟨n, ⟨⟨a.ty, φ⟩, hN⟩⟩ = a ∧
       q = normalisedPattern Y n a.ty φ
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "at their fixed positions". Read an observer along a fixed downward role word. -/
 private def observedPattern_unique_down (a : Observer P) :
@@ -1131,14 +1071,12 @@ private def observedPattern_unique_down (a : Observer P) :
   | _, 0, _ => a
   | A, r + 1, w => observedPattern_unique_down
       (a.transition ⟨A, w.1⟩) (S.child A w.1).ty r w.2
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "at their fixed positions". A cell-indexed packet readout avoids dependent casts. -/
 private def observedPattern_unique_packet (a : Observer P) (f : Cell d) :
     Option (Packet P) := by
   classical
   exact if hf : f ∈ (S.cx a.ty).facets then a.packets ⟨f, hf⟩ else none
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the states of all nodes inside B_t" and "the packets on their facets".
 These are precisely the non-geometric fields of a certificate. -/
@@ -1149,12 +1087,10 @@ private def observedPattern_unique_readout (a : Observer P)
       (observedPattern_unique_down a D.val.ty r w).window.head) ∧
     ∀ w f, leafPacket (⟨D, w⟩ : LeafType P) f =
       observedPattern_unique_packet (observedPattern_unique_down a D.val.ty P.K w) f
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "fixed by position". Moving a standard descendant twice composes its frames. -/
 private theorem observedPattern_unique_step1_move (N : FramedNode S) (φ ψ : Iso d) :
     (N.move φ).move ψ = N.move (φ.trans ψ) := rfl
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "fixed by position". Equal heights and frames identify hierarchy nodes. -/
 private theorem observedPattern_unique_step1_node_eq {T : Tiling S}
@@ -1164,7 +1100,6 @@ private theorem observedPattern_unique_step1_node_eq {T : Tiling S}
   cases h
   cases hNM
   rfl
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the K-ancestor B_t of t lies inside A". The parent of a prescribed child is its root. -/
 private theorem observedPattern_unique_step1_parent {T : Tiling S}
@@ -1177,7 +1112,6 @@ private theorem observedPattern_unique_step1_parent {T : Tiling S}
   · apply heq_of_eq
     apply Subtype.ext
     exact (H.parent_unique n _ N hN ⟨i, rfl⟩).symm
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the K-ancestor B_t of t lies inside A". Exact downward addresses invert ancestry. -/
 private theorem observedPattern_unique_step1_ancestor {T : Tiling S}
@@ -1203,7 +1137,6 @@ private theorem observedPattern_unique_step1_ancestor {T : Tiling S}
             (N.child (h + r) w.1).frame, hc'⟩⟩ := rfl
       rw [he, hi]
       exact observedPattern_unique_step1_parent H (h + r) N hN w.1 hchild
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "type and frame (fixed)". The affine prototype frame obeys the child equation. -/
 private theorem observedPattern_unique_step1_child_frame (N : FramedNode S)
@@ -1218,7 +1151,6 @@ private theorem observedPattern_unique_step1_child_frame (N : FramedNode S)
   rw [S.placeChild_apply]
   simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
     LinearEquiv.mul_apply, ← map_add]
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "i_t ... (fixed by position)". Distinct roles have disjoint nonempty interiors. -/
 private theorem observedPattern_unique_step1_role_injective (N : FramedNode S) (n : ℕ) :
@@ -1245,7 +1177,6 @@ private theorem observedPattern_unique_step1_role_injective (N : FramedNode S) (
     exact (S.proto (S.child N.ty j).ty).interior_nonempty.image _
   obtain ⟨x, hx⟩ := hn
   exact Set.disjoint_left.mp hd hx hx
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "i_t ... (fixed by position)". A prescribed child's hierarchy role is its index. -/
 private theorem observedPattern_unique_step1_role {T : Tiling S}
@@ -1260,7 +1191,6 @@ private theorem observedPattern_unique_step1_role {T : Tiling S}
     subst M
     exact congrArg (Sigma.mk N.ty) ((observedPattern_unique_step1_role_injective N n h).symm)
   exact aux _ _ hp he
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "all listed in Ĵ(A)". The compressed window shifts using its actual parent
 and role; the highest new state is the old offset w-2. -/
@@ -1288,7 +1218,6 @@ private theorem observedPattern_unique_step2_window {T : Tiling S}
         conv_lhs => rw [show j.val = (j.val - 1) + 1 by omega]
         simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply, hp]
       rw [he]
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the attached packet is O_F(A)". Inherited containment is checked in the
 fixed first-generation coordinates. -/
@@ -1310,7 +1239,6 @@ private theorem observedPattern_unique_step2_containment (N : FramedNode S)
   · rintro h x ⟨y, hy, rfl⟩
     obtain ⟨z, hz, he⟩ := h hy
     simpa only [← he, S.σ.symm_apply_apply] using hz
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "μ determined by ι(g) and ... S(P_b)". An honest compressed packet is exactly
 the birth computation when the window supplies its highest state and roles. -/
@@ -1349,7 +1277,6 @@ private theorem observedPattern_unique_step2_born_eq (a : Observer P) (p : Packe
   change (if h : slots.Nonempty then some _ else none) = some p
   rw [dif_pos hn]
   exact congrArg some (hbuild (slots.max' hn) hmax)
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "Definition 2.5 in sources". The honest window supplies the state and roles
 retained by the packet at a specified primitive birth. -/
@@ -1363,7 +1290,6 @@ private theorem observedPattern_unique_step2_source_born
       ⟨(topSlot U P g).val, by have := (topSlot U P g).isLt; rw [P.w_eq]; exact this⟩).symm
   · intro j
     rfl
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "by W4 (Theorem 3.13 in Y)". Calibration identifies the entire compressed
 primitive packet, including roles and the maximum PRESENT slot. -/
@@ -1389,14 +1315,12 @@ private theorem observedPattern_unique_step2_output_born
       parsedState_address Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)
         ⟨j.val, lt_trans j.isLt p.jstar.isLt⟩]
     rfl
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "which g ... is determined by the position". Canonical incidences of the
 same parent type and positioned facet coincide. -/
 private theorem observedPattern_unique_step2_incidence_eq (ι η : P.Incidence)
     (ht : ι.val.ty = η.val.ty) (hp : ι.val.positioned = η.val.positioned) : ι = η :=
   (P.canonical_idempotent ι).symm.trans (P.canonical_unique ι.val η ⟨ht, hp⟩)
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "which g, P_b ... is determined by the position". Equality of actual child
 and primitive carriers is equality in first-generation coordinates. -/
@@ -1411,7 +1335,6 @@ private theorem observedPattern_unique_step2_positioned (N : FramedNode S)
   simpa only [Params.incidencePlacement, PrimitiveIncidence.positioned, rolePlacement,
     placedSet, Set.image_image, AffineEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
     AffineIsometryEquiv.coe_toAffineEquiv, Function.comp_def] using h
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "by W4 ... Definition 2.5 in sources" or "O_F(A) ... Lemma 2.6(d)".
 One source child facet is computed by the internal-birth/inherited-facet formula. -/
@@ -1473,7 +1396,6 @@ private theorem observedPattern_unique_step2_source_packet
         change some (packetOf U P g) = (U.observerOf P q).bornPacket g.incidence
         rw [← hg]
         exact (observedPattern_unique_step2_source_born U g).symm
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "fixed subdivision geometry". At native height the conjugated child frame is
 the original prescribed isometry. -/
@@ -1482,7 +1404,6 @@ private theorem observedPattern_unique_step1_place_zero (A : S.ι) (i : S.I A) :
   apply AffineIsometryEquiv.ext
   intro x
   simp [SubstSystem.placeChild_apply, linearConj, Child.frame, rigidMotion]
-
 /-- Step 1 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "which ... F is determined by the position". A cell's carrier fixes its
 dimension and hence its full cell name. -/
@@ -1494,7 +1415,6 @@ private theorem observedPattern_unique_step1_cell_eq (e f : Cell d)
   have hjk : j = k := hj.dimension.symm.trans hk.dimension
   cases hjk
   rfl
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "either in a primitive facet g ... or in a facet F of A". An internal
 first-generation facet has an honest age-one record in the child state. -/
@@ -1524,7 +1444,6 @@ private theorem observedPattern_unique_step2_internal_record
       rw [hr]
       simpa [hc, FramedNode.carrier, N, placedSet] using hi
   exact (state_semantics_a P s hs f).1.mp hint
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "which g ... is determined by the position". Both canonical side names
 refer to the same positioned primitive facet. -/
@@ -1535,7 +1454,6 @@ private theorem observedPattern_unique_step2_side_positioned (ι : P.Incidence) 
   cases b
   · rfl
   · exact ι.val.paired
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "which g, P_b ... is determined by the position". Honest age-one semantics
 identify the canonical side, including its actual facet name. -/
@@ -1557,7 +1475,6 @@ private theorem observedPattern_unique_step2_record_side
   have hside := observedPattern_unique_step2_side_positioned R.incidence R.sideIndex
   rw [hrole] at hside
   exact hside.symm.trans hpos
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the attached packet". Equal hierarchy nodes and equal facet names give
 the same parsed packet; membership proofs carry no extra data. -/
@@ -1570,7 +1487,6 @@ private theorem observedPattern_unique_step2_output_packet_congr
   have hff : f = f' := Subtype.ext hf
   cases hff
   rfl
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "by W4 (Theorem 3.13 in Y)" or "O_F(A) by (I5)".
 One output child facet is computed without assigning providers to faults. -/
@@ -1654,7 +1570,6 @@ private theorem observedPattern_unique_step2_output_packet
                 rw [hbside] at h
                 exact h)
             exact hp.trans (parsedPrimitivePacket_spec Y hY g hN).1.symm
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "all listed in Ĵ(A) or determined ... by D_S". The window shift and the
 one-facet packet formulas give the entire source child observer at every height. -/
@@ -1686,7 +1601,6 @@ private theorem observedPattern_unique_step2_source_child
       · apply heq_of_eq
         funext f
         exact observedPattern_unique_step2_source_packet U q hq i f
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "by W4 (Theorem 3.13 in Y)" and "the attached packet is O_F(A) by (I5)".
 The one-step formula includes certificate-subdivision nodes below the floor. -/
@@ -1721,7 +1635,6 @@ private theorem observedPattern_unique_step2_output_child
       · apply heq_of_eq
         funext f
         exact observedPattern_unique_step2_output_packet Y hY q hq i f
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "all listed in Ĵ(A) or determined ... by D_S". Iterating the one-step formula
 recovers the observer at every fixed descendant, without a provider-height bound. -/
@@ -1748,7 +1661,6 @@ private theorem observedPattern_unique_step2_descend {T : Tiling S}
           (N.child (h + r) w.1).frame, hc'⟩⟩ = _
       rw [ih _ hchild _ hc', hstep]
       rfl
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "D_t = cert(B_t) consists of (i) ... states ...; (ii) the pre-patterns".
 The complete table and every facet packet determine the certificate, including
@@ -1757,7 +1669,6 @@ private def observedPattern_unique_prepacket (u : PrePattern P) (f : Cell d) :
     Option (Packet P) := by
   classical
   exact if hf : f ∈ (S.cx u.ty).facets then u.packets ⟨f, hf⟩ else none
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "type and frame (fixed), state (as in (i)), and the packets on their facets".
 These fields identify the entire pre-pattern. -/
@@ -1778,7 +1689,6 @@ private theorem observedPattern_unique_step3_prepattern_ext
   subst marker
   subst marker'
   rfl
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "D_t = cert(B_t) consists of (i) ... states ...; (ii) the pre-patterns".
 Equality includes the whole certificate, not merely the indicated leaf. -/
@@ -1808,7 +1718,6 @@ private theorem observedPattern_unique_step3_certificate_ext
   subst leaves'
   subst table'
   rfl
-
 /-- Step 2 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "determined ... via D_S (Proposition 2.3 in sources)". Source descent uses the
 same role-word computation as the parsed descent. -/
@@ -1829,7 +1738,6 @@ private theorem observedPattern_unique_step2_source_descend
       (U.descendant_mem ⟨n, ⟨N, hN⟩⟩ r hr w)
   rw [observedPattern_unique_step1_node_eq U.hierarchy _ hN (Nat.sub_add_cancel hr) rfl] at hd
   exact hd
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "D_t = cert(B_t)". A source certificate has exactly the reconstructed state
 table and the reconstructed leaf packets. -/
@@ -1851,7 +1759,6 @@ private theorem observedPattern_unique_step3_source_readout
         (observedPattern_unique_down (U.observerOf P ⟨P.K, ⟨N, hN⟩⟩) N.ty P.K w) f
     rw [← observedPattern_unique_step2_source_descend (P := P) U P.K N hN P.K le_rfl w]
     rfl
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "i_t is the role word of t below B_t (fixed by position)". At height K the
 source leaf tuple consists of the one root certificate with its respective words. -/
@@ -1897,7 +1804,6 @@ private theorem observedPattern_unique_step3_source_labels
     subst j
     rfl
   exact aux _ _ (congrArg (fun q : U.Node => q.2.val) ha') i hw
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the packets on their facets". At height zero the parsed attachment reads the
 physical leaf itself, including NULL. -/
@@ -1917,7 +1823,6 @@ private theorem observedPattern_unique_step3_ground_packet
       exact hf
     simp only [leafPacket, dif_neg hpre, observedPattern_unique_packet,
       observerOf, dif_neg hf]
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the states of all nodes inside B_t ... (I2) in Y". The certificate table is
 the actual global parsed state assignment on its exact inner nodes. -/
@@ -1944,7 +1849,6 @@ private theorem observedPattern_unique_step3_output_table
     intro hc'
     exact he
   exact (htable hc').symm.trans hagree
-
 /-- Step 3 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "D_t = cert(B_t)". An output certificate has the reconstructed table and all
 reconstructed leaf packets, with no interpretation of boundary faults as providers. -/
@@ -1996,7 +1900,6 @@ private theorem observedPattern_unique_step3_output_readout
       (Nat.sub_self P.K) he.symm
     rw [hn, ← (B.leaf_data w).1]
     exact observedPattern_unique_step3_ground_packet Y hY (B.leaf w) (B.leaf_mem w) hm f
-
 /-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "The pattern is the union of the augmented markings of the leaves ... at their
 fixed positions (Proposition 2.16)". This also holds for an arbitrary output. -/
@@ -2030,7 +1933,6 @@ private theorem observedPattern_unique_step4_render
   change (S.nativeTile A n w).frame.symm (φ.symm (φ x.val)) =
     (S.nativeTile A n w).frame.symm x.val
   rw [φ.symm_apply_apply]
-
 /-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the leaf type (D_t,i_t)" at "fixed positions". A forced certificate has
 exactly its prescribed physical leaves, in their full isometric frames. -/
@@ -2044,7 +1946,6 @@ private theorem observedPattern_unique_step4_block_leaf
     rfl
   · change compilerFrame C (B.leaf w) = _
     exact (B.leaf_data w).2
-
 /-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "Since n ≥ K, the K-ancestor B_t of t lies inside A". At the base height the
 whole pattern is the rendering of the single reconstructed certificate. -/
@@ -2092,7 +1993,6 @@ private theorem observedPattern_unique_step4_base
         cases heq
         rfl
       exact (htransport B.node ⟨a.ty, φ⟩ he).symm.trans (heq_of_eq hr)
-
 /-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the pattern is the union ... at their fixed positions". The immediate closed
 children cover the closed parent, also for a general linear expansion. -/
@@ -2119,7 +2019,6 @@ private theorem observedPattern_unique_step4_children_cover (n : ℕ) (A : S.ι)
       congr 1
       funext x
       exact (hplace i x).symm
-
 /-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "restriction of the marking ... transported ... by the inverse isometric frame".
 Restriction to a prescribed child is a fixed function of the parent pattern. -/
@@ -2129,7 +2028,6 @@ private def observedPattern_unique_restrict {n : ℕ} {A : S.ι}
   fun x => q ⟨S.placeChild n i x.val,
     (observedPattern_unique_step4_children_cover n A).symm.subset
       (Set.mem_iUnion.mpr ⟨i, ⟨x.val, x.property, rfl⟩⟩)⟩
-
 /-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "the pattern is the union". Equality on each prescribed closed child gives
 equality on the complete closed parent. -/
@@ -2143,7 +2041,6 @@ private theorem observedPattern_unique_step4_children_ext {n : ℕ} {A : S.ι}
   have hh := congrFun (h i) ⟨y, hy⟩
   change q ⟨S.placeChild n i y, _⟩ = q' ⟨S.placeChild n i y, _⟩ at hh
   simpa only [he] using hh
-
 /-- Step 4 of the V4 proof of `observedPattern_unique` (V4 4.2):
 "determined ... by D_S" and "Which case applies ... is determined by the
 position". Restricting an observed pattern follows the common observer transition. -/
@@ -2174,7 +2071,6 @@ private theorem observedPattern_unique_step4_child
       change observerOf Y hY c = (observerOf Y hY ⟨n + 1, ⟨N, hN⟩⟩).transition ⟨a.ty, i⟩ at hs
       exact hs.trans (congrArg (fun b : Observer P => b.transition ⟨a.ty, i⟩) ho)
     · exact Or.inr ⟨Y, hY, (S.placeChild n i).trans φ, hc, rfl, rfl⟩
-
 /-- O2, V4 4.2: the complete closed pattern is determined by the joint observer.
 This compares any source/output pair. Leaf certificates use the reconstructed
 window and all facet packets; no height-bounded assumption on providers is made. -/
@@ -2196,7 +2092,6 @@ theorem observedPattern_unique (C : ClusterData S P) (n : ℕ) (hn : P.K ≤ n)
       have hbb : b' = b := hb'.trans hb.symm
       cases hbb
       exact eq_of_heq (he.symm.trans ((heq_of_eq (ih b p p' hp hp')).trans he'))
-
 /-- O2, V4 4.2: the common rendering function `Rend_n`.
 A realized pattern supplies the choice; unused raw observers receive the constant
 boundary pattern. Only heights n ≥ K are asserted to render uniquely. -/
@@ -2205,7 +2100,6 @@ def Rend (C : ClusterData S P) (n : ℕ) (a : Observer P) :
   classical
   exact if h : ∃ q, ObservedPattern C n a q then Classical.choose h
     else fun _ => Colour.boundary
-
 /-- O2, V4 4.2: any realized closed pattern equals the common rendering. -/
 theorem Rend_eq (C : ClusterData S P) (n : ℕ) (hn : P.K ≤ n) (a : Observer P)
     (q : Pattern S (Colour S P) n a.ty) (hq : ObservedPattern C n a q) :
@@ -2214,7 +2108,6 @@ theorem Rend_eq (C : ClusterData S P) (n : ℕ) (hn : P.K ≤ n) (a : Observer P
   have h : ∃ q, ObservedPattern C n a q := ⟨q, hq⟩
   rw [Rend, dif_pos h]
   exact observedPattern_unique C n hn a _ q (Classical.choose_spec h) hq
-
 /-- O2, V4 4.2: every parsed node of height at least K has its rendered pattern. -/
 theorem observer_renders (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (hq : P.K ≤ q.1) :
@@ -2222,7 +2115,6 @@ theorem observer_renders (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   symm
   apply Rend_eq C q.1 hq
   exact Or.inr ⟨Y, hY, q.2.val.frame, q.2.property, rfl, rfl⟩
-
 /-- O2, V4 4.2: the very same renderer gives every honest source node pattern. -/
 theorem honest_observer_renders (U : HonestSource S) (P : Params S)
     (C : ClusterData S P) (q : U.Node) (hq : P.K ≤ q.1) :
@@ -2231,5 +2123,4 @@ theorem honest_observer_renders (U : HonestSource S) (P : Params S)
   symm
   apply Rend_eq C q.1 hq
   exact Or.inl ⟨U, q.2.val.frame, q.2.property, rfl, rfl⟩
-
 end Enforce

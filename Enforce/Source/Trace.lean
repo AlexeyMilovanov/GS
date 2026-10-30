@@ -1387,7 +1387,9 @@ variable {T : Tiling S} (H : CoherentHierarchy S T)
 /-- P6, V4 1.6: ancestor iteration is additive, including zero parent steps. -/
 theorem ancestor_add (q : H.Node) (r s : ℕ) :
     H.ancestor (H.ancestor q r) s = H.ancestor q (r + s) := by
-  sorry
+  dsimp [ancestor]
+  rw [← Function.iterate_add_apply]
+  rw [add_comm s r]
 
 /-- P6, V4 1.6: boundary offsets are downward closed and contain zero. -/
 theorem boundaryOffsets_downward (q : H.Node) (f : FacetName S q.2.val.ty) :

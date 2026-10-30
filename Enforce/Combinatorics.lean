@@ -179,7 +179,10 @@ theorem translated_pattern {X : Type} (ρ : HonestSource S → E d → X)
     (n : ℕ) (A : S.ι) (φ : Iso d) :
     honestPattern ρ (U.translate v) n A (φ.trans (translation v)) =
       honestPattern ρ U n A φ := by
-  sorry
+  ext x
+  dsimp [honestPattern]
+  have h := hρ U v (φ x)
+  exact h
 
 /-- C2, V4 1.27: indexed pattern requests retain both height and type,
 even when equal underlying functions occur at different indices. -/

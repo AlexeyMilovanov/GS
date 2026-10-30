@@ -199,6 +199,463 @@ private theorem recursiveTrace_tiles_step2_same_name (C : FramedNode S)
   rw [C.frame.injective hzy] at hz
   exact Set.disjoint_left.1 hd hy hz
 
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.0(H2)): the relative
+interior is the set of points with a small ball of the affine span inside the set. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_relint {K : Set (E d)} {x : E d} :
+    x ∈ relint K ↔
+      x ∈ K ∧ ∃ ρ : ℝ, 0 < ρ ∧ ∀ y ∈ affineSpan ℝ K, dist y x < ρ → y ∈ K := by
+  constructor
+  · intro hx
+    obtain ⟨y, hy, rfl⟩ := mem_intrinsicInterior.mp hx
+    obtain ⟨ρ, hρ, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hy)
+    have hyK : y ∈ (Subtype.val ⁻¹' K : Set (affineSpan ℝ K)) := interior_subset hy
+    refine ⟨hyK, ρ, hρ, fun z hz hdist => ?_⟩
+    exact hball (show (⟨z, hz⟩ : affineSpan ℝ K) ∈ ball y ρ from hdist)
+  · rintro ⟨hxK, ρ, hρ, h⟩
+    refine mem_intrinsicInterior.mpr ⟨⟨x, subset_affineSpan ℝ K hxK⟩, ?_, rfl⟩
+    refine mem_interior_iff_mem_nhds.mpr (Metric.mem_nhds_iff.mpr ⟨ρ, hρ, fun z hz => ?_⟩)
+    exact h z z.2 hz
+
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.0(H2)(i)--(ii)):
+a listed cell through a relative-interior point of another listed cell contains it. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_incidence
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e f : Cell d}
+    (he : e ∈ K.cells) (hf : f ∈ K.cells) {p : E d} (hp : p ∈ relint e.carrier)
+    (hpf : p ∈ f.carrier) : e.carrier ⊆ f.carrier := by
+  classical
+  let N (f : Cell d) := (K.cells.filter fun g => g.carrier ⊆ f.carrier).card
+  have main : ∀ n : ℕ, ∀ f : Cell d, f ∈ K.cells → N f = n → p ∈ f.carrier →
+      e.carrier ⊆ f.carrier := by
+    intro n
+    induction n using Nat.strong_induction_on with
+    | h n ih =>
+      intro f hf hN hpf
+      obtain ⟨b, hb, hboundary⟩ := K.boundary_union f hf
+      have hgb (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ relfrontier f.carrier := by
+        intro z hz
+        rw [hboundary]
+        exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+      have hgf (g : Cell d) (hg : g ∈ b) : g.carrier ⊆ f.carrier :=
+        (hgb g hg).trans (intrinsicFrontier_subset f.flat.compact.isClosed)
+      have hsmall : ∀ g ∈ b, N g < N f := by
+        intro g hg
+        have hnfg : ¬ f.carrier ⊆ g.carrier := by
+          intro hfg
+          obtain ⟨z, hz⟩ := f.flat.relint_nonempty
+          have hzb := hgb g hg (hfg (intrinsicInterior_subset hz))
+          change z ∈ intrinsicFrontier ℝ f.carrier at hzb
+          rw [← closure_diff_intrinsicInterior] at hzb
+          exact hzb.2 hz
+        apply Finset.card_lt_card
+        apply (Finset.ssubset_iff_of_subset ?_).mpr
+        · refine ⟨f, Finset.mem_filter.mpr ⟨hf, Subset.rfl⟩, ?_⟩
+          intro hfg
+          exact hnfg (Finset.mem_filter.mp hfg).2
+        · intro g' hg'
+          obtain ⟨hg'K, hg'g⟩ := Finset.mem_filter.mp hg'
+          exact Finset.mem_filter.mpr ⟨hg'K, hg'g.trans (hgf g hg)⟩
+      by_cases hpi : p ∈ relint f.carrier
+      · have hef : e = f := by
+          by_contra hne
+          exact Set.disjoint_left.mp (K.relint_disjoint e he f hf hne) hp hpi
+        exact hef ▸ Subset.rfl
+      · have hpb : p ∈ relfrontier f.carrier := by
+          change p ∈ intrinsicFrontier ℝ f.carrier
+          rw [← closure_diff_intrinsicInterior, f.flat.compact.isClosed.closure_eq]
+          exact ⟨hpf, hpi⟩
+        rw [hboundary] at hpb
+        obtain ⟨g, hpg⟩ := mem_iUnion.mp hpb
+        obtain ⟨hg, hpg⟩ := mem_iUnion.mp hpg
+        exact (ih (N g) (by simpa only [hN] using hsmall g hg) g (hb hg) rfl hpg).trans
+          (hgf g hg)
+  exact main (N f) f hf rfl hpf
+
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.0(H2)): a cell inside the
+relative boundary of another cell has strictly smaller dimension. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_frontier_dim {g C : Cell d}
+    (hg : g.carrier ⊆ relfrontier C.carrier) :
+    Module.finrank ℝ (cellDirection g.carrier) <
+      Module.finrank ℝ (cellDirection C.carrier) := by
+  have hgC : g.carrier ⊆ C.carrier :=
+    hg.trans (intrinsicFrontier_subset C.flat.compact.isClosed)
+  have hle : cellDirection g.carrier ≤ cellDirection C.carrier :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hgC)
+  by_contra hlt
+  have hdir : cellDirection g.carrier = cellDirection C.carrier :=
+    Submodule.eq_of_le_of_finrank_le hle (not_lt.mp hlt)
+  obtain ⟨z, hz⟩ := g.flat.relint_nonempty
+  have hzg : z ∈ g.carrier := intrinsicInterior_subset hz
+  have hspan : affineSpan ℝ g.carrier = affineSpan ℝ C.carrier :=
+    AffineSubspace.ext_of_direction_eq hdir
+      ⟨z, subset_affineSpan ℝ _ hzg, subset_affineSpan ℝ _ (hgC hzg)⟩
+  have hrel : relint g.carrier ⊆ relint C.carrier := by
+    unfold relint intrinsicInterior
+    rw [← hspan]
+    exact Set.image_mono (interior_mono (Set.preimage_mono hgC))
+  have hzb := hg hzg
+  change z ∈ intrinsicFrontier ℝ C.carrier at hzb
+  rw [← closure_diff_intrinsicInterior] at hzb
+  exact hzb.2 (hrel hz)
+
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.16(b)): a codimension-one
+pair `W ≤ V` is cut out in `V` by a functional taking the value `1` on a vector of `V`. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_functional {V W : Submodule ℝ (E d)}
+    (hWV : W ≤ V) (hdim : Module.finrank ℝ V = Module.finrank ℝ W + 1) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ, ∃ n ∈ V, ℓ n = 1 ∧
+      {x | x ∈ V ∧ ℓ x = 0} = (W : Set (E d)) := by
+  have hlt : W < V := lt_of_le_of_ne hWV (by
+    intro h
+    rw [h] at hdim
+    omega)
+  obtain ⟨u, huV, huW⟩ := SetLike.exists_of_lt hlt
+  obtain ⟨f, hfu, hfW⟩ := Submodule.exists_dual_map_eq_bot_of_notMem huW inferInstance
+  have hWker : ∀ w ∈ W, f w = 0 := by
+    intro w hw
+    have h : f w ∈ W.map f := Submodule.mem_map_of_mem hw
+    rw [hfW] at h
+    exact (Submodule.mem_bot ℝ).mp h
+  have hsup : W ⊔ Submodule.span ℝ {u} = V := by
+    apply Submodule.eq_of_le_of_finrank_le
+      (sup_le hWV ((Submodule.span_singleton_le_iff_mem _ _).mpr huV))
+    have hlt' : W < W ⊔ Submodule.span ℝ {u} := lt_of_le_of_ne le_sup_left (by
+      intro h
+      apply huW
+      rw [h]
+      exact Submodule.mem_sup_right (Submodule.mem_span_singleton_self u))
+    have := Submodule.finrank_lt_finrank_of_lt hlt'
+    omega
+  refine ⟨(f u)⁻¹ • f, u, huV, by
+    rw [LinearMap.smul_apply, smul_eq_mul, inv_mul_cancel₀ hfu], ?_⟩
+  ext x
+  simp only [Set.mem_setOf_eq, SetLike.mem_coe, LinearMap.smul_apply, smul_eq_mul]
+  constructor
+  · rintro ⟨hxV, hx0⟩
+    rw [← hsup] at hxV
+    obtain ⟨w, hw, y, hy, rfl⟩ := Submodule.mem_sup.mp hxV
+    obtain ⟨c, rfl⟩ := Submodule.mem_span_singleton.mp hy
+    rw [map_add, map_smul, hWker w hw, zero_add, smul_eq_mul] at hx0
+    have hc : c = 0 := by
+      have h' : (f u)⁻¹ * (c * f u) = c := by
+        rw [mul_comm c, ← mul_assoc, inv_mul_cancel₀ hfu, one_mul]
+      rw [h'] at hx0
+      exact hx0
+    subst hc
+    simpa using hw
+  · intro hxW
+    exact ⟨hWV hxW, by rw [hWker x hxW, mul_zero]⟩
+
+open scoped Topology in
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.16(b)): near a listed
+codimension-one subcell, the relative boundary of the coface lies in the subcell's span. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_local_frontier
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e C : Cell d}
+    (he : e ∈ K.cells) (hC : C ∈ K.cells) (hdim : C.dim = e.dim + 1)
+    {a : E d} (ha : a ∈ relint e.carrier) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball a r, x ∈ relfrontier C.carrier →
+      x ∈ affineSpan ℝ e.carrier := by
+  classical
+  obtain ⟨b, hb, hboundary⟩ := K.boundary_union C hC
+  have hev : ∀ g ∈ b, ∀ᶠ x in 𝓝 a, x ∈ g.carrier → x ∈ affineSpan ℝ e.carrier := by
+    intro g hg
+    by_cases hag : a ∈ g.carrier
+    · refine Filter.Eventually.of_forall (fun x hx => ?_)
+      have hgb : g.carrier ⊆ relfrontier C.carrier := by
+        intro z hz
+        rw [hboundary]
+        exact mem_iUnion.mpr ⟨g, mem_iUnion.mpr ⟨hg, hz⟩⟩
+      have heg := recursiveTrace_tiles_step3_halfspace_lift_lem_incidence K he (hb hg) ha hag
+      have hlt := recursiveTrace_tiles_step3_halfspace_lift_lem_frontier_dim hgb
+      have hle : cellDirection e.carrier ≤ cellDirection g.carrier :=
+        AffineSubspace.direction_le (affineSpan_mono ℝ heg)
+      have hdir : cellDirection e.carrier = cellDirection g.carrier := by
+        apply Submodule.eq_of_le_of_finrank_le hle
+        rw [C.flat.dimension, g.flat.dimension, hdim] at hlt
+        rw [e.flat.dimension, g.flat.dimension]
+        omega
+      have hspan : affineSpan ℝ e.carrier = affineSpan ℝ g.carrier :=
+        AffineSubspace.ext_of_direction_eq hdir
+          ⟨a, subset_affineSpan ℝ _ (intrinsicInterior_subset ha), subset_affineSpan ℝ _ hag⟩
+      rw [hspan]
+      exact subset_affineSpan ℝ _ hx
+    · filter_upwards [g.flat.compact.isClosed.isOpen_compl.mem_nhds hag] with x hx hxg
+      exact (hx hxg).elim
+  obtain ⟨r, hr, hball⟩ :=
+    Metric.eventually_nhds_iff.mp ((Filter.eventually_all_finset b).mpr hev)
+  refine ⟨r, hr, fun x hx hxf => ?_⟩
+  rw [hboundary] at hxf
+  obtain ⟨g, hxg⟩ := mem_iUnion.mp hxf
+  obtain ⟨hg, hxg⟩ := mem_iUnion.mp hxg
+  exact hball hx g hg hxg
+
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.16(b)): an open half-ball
+of the span avoiding the relative boundary lies inside or outside the closed set. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_dichotomy {Cs : Set (E d)}
+    (hcl : IsClosed Cs) (ℓ : E d →ₗ[ℝ] ℝ) (a : E d) (r : ℝ)
+    (hint : ∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∈ Cs → x ∈ relint Cs) :
+    (∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∈ Cs) ∨
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∉ Cs) := by
+  let H : Set (E d) := ball a r ∩ ((affineSpan ℝ Cs : Set (E d)) ∩ {x | ℓ a < ℓ x})
+  have hconv : Convex ℝ H :=
+    (convex_ball a r).inter ((affineSpan ℝ Cs).convex.inter
+      (convex_halfSpace_gt ℓ.isLinear _))
+  let U : Set (E d) := {x | ∃ ρ : ℝ, 0 < ρ ∧ ∀ y ∈ affineSpan ℝ Cs, dist y x < ρ → y ∈ Cs}
+  have hU : IsOpen U := by
+    rw [Metric.isOpen_iff]
+    rintro x ⟨ρ, hρ, hx⟩
+    refine ⟨ρ / 2, half_pos hρ, fun z hz => ⟨ρ / 2, half_pos hρ, fun y hy hyz => hx y hy ?_⟩⟩
+    have := dist_triangle y z x
+    rw [mem_ball] at hz
+    linarith
+  have hcover : H ⊆ U ∪ Csᶜ := by
+    rintro x ⟨hx, hxs, hxl⟩
+    by_cases hxC : x ∈ Cs
+    · exact Or.inl (recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mp
+        (hint x hx hxs hxl hxC)).2
+    · exact Or.inr hxC
+  have hdisj : H ∩ (U ∩ Csᶜ) = ∅ := by
+    apply Set.eq_empty_of_forall_notMem
+    rintro x ⟨⟨_, hxs, _⟩, ⟨ρ, hρ, hρx⟩, hxC⟩
+    exact hxC (hρx x hxs (by simpa using hρ))
+  rcases (isPreconnected_iff_subset_of_disjoint.mp hconv.isPreconnected) U Csᶜ hU
+      hcl.isOpen_compl hcover hdisj with h | h
+  · left
+    intro x hx hxs hxl
+    obtain ⟨ρ, hρ, hρx⟩ := h ⟨hx, hxs, hxl⟩
+    exact hρx x hxs (by simpa using hρ)
+  · right
+    intro x hx hxs hxl
+    exact h ⟨hx, hxs, hxl⟩
+
+open scoped Topology in
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.16(b)): a closed set
+containing an open half-ball of its span contains the closed half-ball. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_closure {Cs : Set (E d)}
+    (hcl : IsClosed Cs) (ℓ : E d →ₗ[ℝ] ℝ) (a n : E d) (r : ℝ)
+    (hn : n ∈ (affineSpan ℝ Cs).direction) (hℓn : ℓ n = 1)
+    (hpos : ∀ x ∈ ball a r, x ∈ affineSpan ℝ Cs → ℓ a < ℓ x → x ∈ Cs)
+    {y : E d} (hy : y ∈ ball a r) (hys : y ∈ affineSpan ℝ Cs) (hyl : ℓ a ≤ ℓ y) :
+    y ∈ Cs := by
+  have ht : Filter.Tendsto (fun s : ℝ => y + s • n) (𝓝[>] 0) (𝓝 y) := by
+    have hc : Continuous (fun s : ℝ => y + s • n) := by fun_prop
+    simpa only [zero_smul, add_zero] using (hc.tendsto 0).mono_left nhdsWithin_le_nhds
+  apply hcl.mem_of_tendsto ht
+  filter_upwards [ht.eventually (isOpen_ball.mem_nhds hy), self_mem_nhdsWithin] with s hs hs0
+  apply hpos _ hs
+  · have := AffineSubspace.vadd_mem_of_mem_direction
+      ((affineSpan ℝ Cs).direction.smul_mem s hn) hys
+    simpa only [vadd_eq_add, add_comm] using this
+  · rw [map_add, map_smul, hℓn, smul_eq_mul, mul_one]
+    have : (0 : ℝ) < s := hs0
+    linarith
+
+
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.0(a), "which applies
+to every cell by (H2)"): at a relative-interior point `a` of a listed codimension-one
+subcell `e` of a listed cell `C`, the cell `C` coincides near `a` with one closed
+half-space of `aff C` bounded by `aff e`: the open side `ℓ a < ℓ x` lies in `relint C`
+and the opposite open side misses `C`. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_side
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e C : Cell d}
+    (he : e ∈ K.cells) (hC : C ∈ K.cells) (hsub : e.carrier ⊆ C.carrier)
+    (hdim : C.dim = e.dim + 1) {a : E d} (ha : a ∈ relint e.carrier) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      (∀ v ∈ cellDirection C.carrier, ℓ v = 0 → v ∈ cellDirection e.carrier) ∧
+      ∃ r : ℝ, 0 < r ∧
+        (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ a < ℓ x → x ∈ relint C.carrier) ∧
+        (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ x < ℓ a → x ∉ C.carrier) := by
+  have hWV : cellDirection e.carrier ≤ cellDirection C.carrier :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
+  have hfin : Module.finrank ℝ (cellDirection C.carrier) =
+      Module.finrank ℝ (cellDirection e.carrier) + 1 := by
+    rw [C.flat.dimension, e.flat.dimension, hdim]
+  obtain ⟨ℓ, n, hnV, hℓn, hker⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_functional hWV hfin
+  have hcl : IsClosed C.carrier := C.flat.compact.isClosed
+  have hae : a ∈ e.carrier := intrinsicInterior_subset ha
+  have haC : a ∈ C.carrier := hsub hae
+  have haeS : a ∈ affineSpan ℝ e.carrier := subset_affineSpan ℝ _ hae
+  have hne : e ≠ C := by
+    intro h
+    rw [h] at hdim
+    omega
+  have hnotint : a ∉ relint C.carrier := fun h =>
+    Set.disjoint_left.mp (K.relint_disjoint e he C hC hne) ha h
+  obtain ⟨r, hr, hloc⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_local_frontier K he hC hdim ha
+  have hoff : ∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ x ≠ ℓ a → x ∈ C.carrier →
+      x ∈ relint C.carrier := by
+    intro x hx _ hxl hxC
+    by_contra hxi
+    have hxb : x ∈ relfrontier C.carrier := by
+      change x ∈ intrinsicFrontier ℝ C.carrier
+      rw [← closure_diff_intrinsicInterior, hcl.closure_eq]
+      exact ⟨hxC, hxi⟩
+    have hxe := hloc x hx hxb
+    have hW : x - a ∈ cellDirection e.carrier := by
+      simpa only [vsub_eq_sub] using AffineSubspace.vsub_mem_direction hxe haeS
+    have h0 : ℓ (x - a) = 0 := by
+      have h' : x - a ∈ {x | x ∈ cellDirection C.carrier ∧ ℓ x = 0} := by
+        rw [hker]
+        exact hW
+      exact h'.2
+    rw [map_sub, sub_eq_zero] at h0
+    exact hxl h0
+  have hd1 := recursiveTrace_tiles_step3_halfspace_lift_lem_dichotomy hcl ℓ a r
+    (fun x hx hxS hxl hxC => hoff x hx hxS hxl.ne' hxC)
+  have hd2 := recursiveTrace_tiles_step3_halfspace_lift_lem_dichotomy hcl (-ℓ) a r
+    (fun x hx hxS hxl hxC => hoff x hx hxS (by
+      simp only [LinearMap.neg_apply, neg_lt_neg_iff] at hxl
+      exact hxl.ne) hxC)
+  have hnS : n ∈ (affineSpan ℝ C.carrier).direction := hnV
+  have hnS' : -n ∈ (affineSpan ℝ C.carrier).direction :=
+    (affineSpan ℝ C.carrier).direction.neg_mem hnV
+  have hℓn' : (-ℓ) (-n) = 1 := by simp [hℓn]
+  have hnotboth : ¬ ((∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ a < ℓ x → x ∈ C.carrier) ∧
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → (-ℓ) a < (-ℓ) x → x ∈ C.carrier)) := by
+    rintro ⟨h1, h2⟩
+    apply hnotint
+    refine recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mpr ⟨haC, r, hr, fun y hy hyd => ?_⟩
+    rcases le_total (ℓ a) (ℓ y) with hle | hle
+    · exact recursiveTrace_tiles_step3_halfspace_lift_lem_closure hcl ℓ a n r hnS hℓn h1 hyd hy hle
+    · exact recursiveTrace_tiles_step3_halfspace_lift_lem_closure hcl (-ℓ) a (-n) r hnS' hℓn' h2
+        hyd hy (by simpa using hle)
+  have hnotnone : ¬ ((∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ a < ℓ x →
+        x ∉ C.carrier) ∧
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → (-ℓ) a < (-ℓ) x → x ∉ C.carrier)) := by
+    rintro ⟨h1, h2⟩
+    have hacl : a ∈ closure (relint C.carrier) := by
+      rw [C.flat.regularClosed]
+      exact haC
+    obtain ⟨z, hzr, hz⟩ :=
+      mem_closure_iff.mp hacl (ball a (r / 2)) isOpen_ball (mem_ball_self (half_pos hr))
+    obtain ⟨hzC, ρ, hρ, hzρ⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mp hz
+    have hzS : z ∈ affineSpan ℝ C.carrier := subset_affineSpan ℝ _ hzC
+    rcases lt_or_ge (ℓ z) (ℓ a) with hlt | hle
+    · exact h2 z (ball_subset_ball (half_le_self hr.le) hzr) hzS (by simpa using hlt) hzC
+    · have hm : 0 < min ρ (r / 2) := lt_min hρ (half_pos hr)
+      obtain ⟨s, hs0, hsn⟩ := exists_pos_mul_lt hm ‖n‖
+      have hz'S : z + s • n ∈ affineSpan ℝ C.carrier := by
+        have := AffineSubspace.vadd_mem_of_mem_direction
+          ((affineSpan ℝ C.carrier).direction.smul_mem s hnS) hzS
+        simpa only [vadd_eq_add, add_comm] using this
+      have hdist : dist (z + s • n) z < min ρ (r / 2) := by
+        rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs0.le,
+          mul_comm]
+        exact hsn
+      have hz'C : z + s • n ∈ C.carrier :=
+        hzρ _ hz'S (lt_of_lt_of_le hdist (min_le_left _ _))
+      have hz'ball : z + s • n ∈ ball a r := by
+        rw [mem_ball] at hzr ⊢
+        have h1 := dist_triangle (z + s • n) z a
+        have h2 := min_le_right ρ (r / 2)
+        linarith
+      apply h1 _ hz'ball hz'S _ hz'C
+      rw [map_add, map_smul, hℓn, smul_eq_mul, mul_one]
+      linarith
+  have hk : ∀ v ∈ cellDirection C.carrier, ℓ v = 0 → v ∈ cellDirection e.carrier := by
+    intro v hv h0
+    have hv' : v ∈ {x | x ∈ cellDirection C.carrier ∧ ℓ x = 0} := ⟨hv, h0⟩
+    rw [hker] at hv'
+    exact hv'
+  rcases hd1 with h1 | h1
+  · rcases hd2 with h2 | h2
+    · exact (hnotboth ⟨h1, h2⟩).elim
+    · refine ⟨ℓ, hk, r, hr, fun x hx hxS hxl => hoff x hx hxS hxl.ne' (h1 x hx hxS hxl), ?_⟩
+      intro x hx hxS hxl
+      exact h2 x hx hxS (by simpa using hxl)
+  · rcases hd2 with h2 | h2
+    · refine ⟨-ℓ, fun v hv h0 => hk v hv (by simpa using h0), r, hr, fun x hx hxS hxl =>
+        hoff x hx hxS (by simp only [LinearMap.neg_apply, neg_lt_neg_iff] at hxl; exact hxl.ne)
+          (h2 x hx hxS hxl), ?_⟩
+      intro x hx hxS hxl
+      exact h1 x hx hxS (by simpa using hxl)
+    · exact (hnotnone ⟨h1, h2⟩).elim
+
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.0(a) for a placed
+cell): the half-space description of `lem_side`, transported by an affine equivalence `g`
+and stated along rays `g p + t • v`, `v` in the direction of the placed cell. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_placed
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e C : Cell d}
+    (he : e ∈ K.cells) (hC : C ∈ K.cells) (hsub : e.carrier ⊆ C.carrier)
+    (hdim : C.dim = e.dim + 1) (g : E d ≃ᵃ[ℝ] E d) {p : E d} (hp : p ∈ relint e.carrier) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ,
+      (∀ v ∈ cellDirection (g '' C.carrier), ℓ v = 0 →
+        v ∈ cellDirection (g '' e.carrier)) ∧
+      (∀ v ∈ cellDirection (g '' C.carrier), 0 < ℓ v → ∃ ε : ℝ, 0 < ε ∧
+        ∀ t : ℝ, 0 < t → t < ε → g p + t • v ∈ g '' relint C.carrier) ∧
+      (∀ v ∈ cellDirection (g '' C.carrier), ℓ v < 0 → ∃ ε : ℝ, 0 < ε ∧
+        ∀ t : ℝ, 0 < t → t < ε → g p + t • v ∉ g '' C.carrier) := by
+  obtain ⟨ℓ, hk, r, hr, hpos, hneg⟩ :=
+    recursiveTrace_tiles_step3_halfspace_lift_lem_side K he hC hsub hdim hp
+  have hdir : ∀ X : Set (E d),
+      cellDirection (g '' X) = (cellDirection X).map g.linear.toLinearMap := by
+    intro X
+    change (affineSpan ℝ (g.toAffineMap '' X)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    rfl
+  have hpC : p ∈ C.carrier := hsub (intrinsicInterior_subset hp)
+  have hray : ∀ v0 : E d, v0 ∈ cellDirection C.carrier → ∀ t : ℝ, 0 < t →
+      t < r / (‖v0‖ + 1) →
+      t • v0 + p ∈ ball p r ∧ t • v0 + p ∈ affineSpan ℝ C.carrier ∧
+        ℓ (t • v0 + p) = ℓ p + t * ℓ v0 ∧ g (t • v0 + p) = g p + t • g.linear v0 := by
+    intro v0 hv0 t ht htε
+    have htr' : t * (‖v0‖ + 1) < r := by rwa [lt_div_iff₀ (by positivity)] at htε
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [mem_ball, dist_eq_norm, add_sub_cancel_right, norm_smul, Real.norm_of_nonneg ht.le]
+      nlinarith [norm_nonneg v0]
+    · exact AffineSubspace.vadd_mem_of_mem_direction (Submodule.smul_mem _ t hv0)
+        (subset_affineSpan ℝ _ hpC)
+    · rw [map_add, map_smul, smul_eq_mul, add_comm]
+    · have h := g.map_vadd p (t • v0)
+      rw [vadd_eq_add, vadd_eq_add, map_smul] at h
+      rw [add_comm (g p)]
+      exact h
+  refine ⟨ℓ.comp g.linear.symm.toLinearMap, ?_, ?_, ?_⟩
+  · intro v hv h0
+    rw [hdir] at hv ⊢
+    obtain ⟨v0, hv0, rfl⟩ := Submodule.mem_map.mp hv
+    have h0' : ℓ v0 = 0 := by simpa using h0
+    exact Submodule.mem_map.mpr ⟨v0, hk v0 hv0 h0', rfl⟩
+  · intro v hv hlv
+    rw [hdir] at hv
+    obtain ⟨v0, hv0, rfl⟩ := Submodule.mem_map.mp hv
+    have hlv' : 0 < ℓ v0 := by simpa using hlv
+    refine ⟨r / (‖v0‖ + 1), by positivity, fun t ht htε => ?_⟩
+    obtain ⟨hb, hs, hl, hg⟩ := hray v0 hv0 t ht htε
+    show g p + t • g.linear v0 ∈ g '' relint C.carrier
+    rw [← hg]
+    refine ⟨_, hpos _ hb hs ?_, rfl⟩
+    rw [hl]
+    nlinarith
+  · intro v hv hlv
+    rw [hdir] at hv
+    obtain ⟨v0, hv0, rfl⟩ := Submodule.mem_map.mp hv
+    have hlv' : ℓ v0 < 0 := by simpa using hlv
+    refine ⟨r / (‖v0‖ + 1), by positivity, fun t ht htε => ?_⟩
+    obtain ⟨hb, hs, hl, hg⟩ := hray v0 hv0 t ht htε
+    show g p + t • g.linear v0 ∉ g '' C.carrier
+    rw [← hg]
+    rintro ⟨z, hz, hzg⟩
+    rw [g.injective hzg] at hz
+    refine hneg _ hb hs ?_ hz
+    rw [hl]
+    nlinarith
+
+/-- Auxiliary for `recursiveTrace_tiles_step3_halfspace_lift` (V4 1.0(H2)): relative
+interiors pull back along affine equivalences. -/
+private lemma recursiveTrace_tiles_step3_halfspace_lift_lem_relint_preimage
+    (g : E d ≃ᵃ[ℝ] E d) {K : Set (E d)} {q : E d} (hq : g q ∈ relint (g '' K)) :
+    q ∈ relint K := by
+  obtain ⟨hqK, ρ, hρ, h⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mp hq
+  have hcont : Continuous g := g.toAffineMap.continuous_of_finiteDimensional
+  obtain ⟨δ, hδ, hδρ⟩ := Metric.continuous_iff.mp hcont q ρ hρ
+  refine recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mpr
+    ⟨g.injective.mem_set_image.mp hqK, δ, hδ, fun y hy hyq => ?_⟩
+  have hgy : g y ∈ affineSpan ℝ (g '' K) := by
+    have hm : g y ∈ (affineSpan ℝ K).map g.toAffineMap :=
+      AffineSubspace.mem_map.mpr ⟨y, hy, rfl⟩
+    rw [AffineSubspace.map_span] at hm
+    exact hm
+  exact g.injective.mem_set_image.mp (h (g y) hgy (hδρ y hyq))
+
 /-- Step 3 of the V4 proof of `recursiveTrace_tiles` (V4 1.22(c), step from `j+1` to `j`,
 also used in 1.22(a)): "suppose `x ∈ relint S_j ∩ relint S'_j` ... near `x` the cell
 `F_{j+1}` coincides with a closed half-space of `aff F_{j+1}` bounded by `aff F_j`
@@ -214,7 +671,127 @@ private theorem recursiveTrace_tiles_step3_halfspace_lift {A : S.ι} {F : FacetF
       relint (b.tile.cell 0 (b.chain.cell i).val)).Nonempty) :
     (relint (a.tile.cell 0 (a.chain.cell k).val) ∩
       relint (b.tile.cell 0 (b.chain.cell k).val)).Nonempty := by
-  sorry
+  classical
+  obtain ⟨x, hxa0, hxb0⟩ := h
+  have hle : i.val.val ≤ k.val.val := by omega
+  have hdim_a : (a.chain.cell k).val.dim = (a.chain.cell i).val.dim + 1 := by
+    rw [a.chain.dimension, a.chain.dimension, hik]
+  have hdim_b : (b.chain.cell k).val.dim = (b.chain.cell i).val.dim + 1 := by
+    rw [b.chain.dimension, b.chain.dimension, hik]
+  have hxa := hxa0
+  have hxb := hxb0
+  rw [recursiveTrace_tiles_step0_relint_cell] at hxa hxb
+  obtain ⟨pa, hpa, hpax⟩ := hxa
+  obtain ⟨pb, hpb, hpbx⟩ := hxb
+  obtain ⟨ℓa, hka, hposa, -⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_placed _
+    (a.chain.cell i).property (a.chain.cell k).property (a.chain.nested i k hle) hdim_a
+    a.tile.frame.toAffineEquiv hpa
+  obtain ⟨ℓb, hkb, hposb, -⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_placed _
+    (b.chain.cell i).property (b.chain.cell k).property (b.chain.nested i k hle) hdim_b
+    b.tile.frame.toAffineEquiv hpb
+  -- the flag cells `F_j ⊆ F_{j+1}` of the root, placed by `σ^r`
+  let jF : {j : ℕ // 1 ≤ j ∧ j < d} := ⟨i.val.val, i.property.2, i.val.isLt⟩
+  let kF : {j : ℕ // 1 ≤ j ∧ j < d} := ⟨k.val.val, k.property.2, k.val.isLt⟩
+  have hsubF : (F.cell jF).val.carrier ⊆ (F.cell kF).val.carrier := F.nested jF kF hle
+  have hdimF : (F.cell kF).val.dim = (F.cell jF).val.dim + 1 := by
+    rw [F.dimension, F.dimension]
+    exact hik
+  let g : E d ≃ᵃ[ℝ] E d := (S.σ ^ r).toAffineEquiv
+  have hxF : x ∈ relint (g '' (F.cell jF).val.carrier) := by
+    obtain ⟨hxe, ρ, hρ, hball⟩ :=
+      recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mp hxa0
+    refine recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mpr
+      ⟨a.chain.contained i hxe, ρ, hρ, fun y hy hyx => a.chain.contained i
+        (hball y ?_ hyx)⟩
+    rw [recursiveTrace_tiles_step1_span a i]
+    exact hy
+  have hgq : g ((S.σ ^ r).symm x) = x := (S.σ ^ r).apply_symm_apply x
+  have hq : (S.σ ^ r).symm x ∈ relint (F.cell jF).val.carrier := by
+    apply recursiveTrace_tiles_step3_halfspace_lift_lem_relint_preimage g
+    rw [hgq]
+    exact hxF
+  obtain ⟨ℓF, hkF, -, hnegF⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_placed _
+    (F.cell jF).property (F.cell kF).property hsubF hdimF g hq
+  rw [hgq] at hnegF
+  rw [show a.tile.frame.toAffineEquiv pa = x from hpax] at hposa
+  rw [show b.tile.frame.toAffineEquiv pb = x from hpbx] at hposb
+  -- direction spaces
+  let M := cellDirection (g '' (F.cell kF).val.carrier)
+  let W := cellDirection (g '' (F.cell jF).val.carrier)
+  have hdir : ∀ (c : TracePiece A F r) (m : ChainIndex d (traceDimension d)),
+      cellDirection (c.tile.frame.toAffineEquiv '' (c.chain.cell m).val.carrier) =
+        cellDirection (g '' (F.cell ⟨m.val.val, m.property.2, m.val.isLt⟩).val.carrier) := by
+    intro c m
+    have h1 := congrArg AffineSubspace.direction (recursiveTrace_tiles_step1_span c m)
+    rw [recursiveTrace_tiles_step0_cell_zero] at h1
+    exact h1
+  have hMa := hdir a k
+  have hMb := hdir b k
+  have hWa := hdir a i
+  have hWb := hdir b i
+  have hWM : W ≤ M := AffineSubspace.direction_le (affineSpan_mono ℝ (Set.image_mono hsubF))
+  have hfin : ∀ j : {j : ℕ // 1 ≤ j ∧ j < d},
+      Module.finrank ℝ (cellDirection (g '' (F.cell j).val.carrier)) = j.val := fun j =>
+    (recursiveTrace_tiles_step0_finrank_image g _).trans
+      ((F.cell j).val.flat.dimension.trans (F.dimension j))
+  have hlt : W < M := lt_of_le_of_ne hWM (fun hWMeq =>
+    absurd ((hfin jF).symm.trans
+      ((congrArg (fun U : Submodule ℝ (E d) => Module.finrank ℝ U) hWMeq).trans (hfin kF)))
+      (by show i.val.val ≠ k.val.val; omega))
+  obtain ⟨n0, hn0M, hn0W⟩ := SetLike.exists_of_lt hlt
+  -- the lift, for a direction on the positive side of the first chain
+  have key : ∀ n ∈ M, n ∉ W → 0 < ℓa n →
+      (relint (a.tile.cell 0 (a.chain.cell k).val) ∩
+        relint (b.tile.cell 0 (b.chain.cell k).val)).Nonempty := by
+    intro n hnM hnW hpos
+    have hnb : ℓb n ≠ 0 := fun h0 => hnW (by
+      have := hkb n (by rw [hMb]; exact hnM) h0
+      rw [hWb] at this
+      exact this)
+    have hnF : ℓF n ≠ 0 := fun h0 => hnW (hkF n hnM h0)
+    obtain ⟨εa, hεa, hA⟩ := hposa n (by rw [hMa]; exact hnM) hpos
+    have hinA : ∀ t, 0 < t → t < εa → x + t • n ∈ g '' (F.cell kF).val.carrier := by
+      intro t ht htε
+      obtain ⟨z, hz, hzx⟩ := hA t ht htε
+      have hmem : x + t • n ∈ a.tile.cell 0 (a.chain.cell k).val := by
+        rw [recursiveTrace_tiles_step0_cell_zero, ← hzx]
+        exact Set.mem_image_of_mem _ (intrinsicInterior_subset hz)
+      exact a.chain.contained k hmem
+    rcases lt_or_gt_of_ne hnb with hbneg | hbpos
+    · -- opposite sides: impossible, since `F_{j+1}` lies on one side of `aff F_j`
+      exfalso
+      obtain ⟨εb, hεb, hB⟩ := hposb (-n) (by rw [hMb]; exact M.neg_mem hnM)
+        (by rw [map_neg]; linarith)
+      have hinB : ∀ t, 0 < t → t < εb → x + t • (-n) ∈ g '' (F.cell kF).val.carrier := by
+        intro t ht htε
+        obtain ⟨z, hz, hzx⟩ := hB t ht htε
+        have hmem : x + t • (-n) ∈ b.tile.cell 0 (b.chain.cell k).val := by
+          rw [recursiveTrace_tiles_step0_cell_zero, ← hzx]
+          exact Set.mem_image_of_mem _ (intrinsicInterior_subset hz)
+        exact b.chain.contained k hmem
+      rcases lt_or_gt_of_ne hnF with hFneg | hFpos
+      · obtain ⟨εF, hεF, hC⟩ := hnegF n hnM hFneg
+        have ht : 0 < min εa εF / 2 := half_pos (lt_min hεa hεF)
+        exact hC _ ht (by linarith [min_le_right εa εF])
+          (hinA _ ht (by linarith [min_le_left εa εF]))
+      · obtain ⟨εF, hεF, hC⟩ := hnegF (-n) (M.neg_mem hnM) (by rw [map_neg]; linarith)
+        have ht : 0 < min εb εF / 2 := half_pos (lt_min hεb hεF)
+        exact hC _ ht (by linarith [min_le_right εb εF])
+          (hinB _ ht (by linarith [min_le_left εb εF]))
+    · -- same side: a common point of both relative interiors
+      obtain ⟨εb, hεb, hB⟩ := hposb n (by rw [hMb]; exact hnM) hbpos
+      have ht : 0 < min εa εb / 2 := half_pos (lt_min hεa hεb)
+      rw [recursiveTrace_tiles_step0_relint_cell, recursiveTrace_tiles_step0_relint_cell]
+      exact ⟨x + (min εa εb / 2) • n, hA _ ht (by linarith [min_le_left εa εb]),
+        hB _ ht (by linarith [min_le_right εa εb])⟩
+  have hna : ℓa n0 ≠ 0 := fun h0 => hn0W (by
+    have := hka n0 (by rw [hMa]; exact hn0M) h0
+    rw [hWa] at this
+    exact this)
+  rcases lt_or_gt_of_ne hna with hneg | hpos
+  · exact key (-n0) (M.neg_mem hn0M) (fun h' => hn0W (by simpa using W.neg_mem h'))
+      (by rw [map_neg]; linarith)
+  · exact key n0 hn0M hn0W hpos
 
 /-- Step 12 of the V4 proof of `recursiveTrace_tiles` (V4 1.0(a), used in 1.22(c) for
 `j = d-1`): "near a point of the relative interior of a facet the tile is a closed

@@ -63,7 +63,18 @@ inductive ClusterKind {P : Params S} (l : LeafType P)
 /-- M2, V4 2.10: the enclosing-region index type is finite. -/
 theorem clusterKinds_finite {P : Params S} (l : LeafType P) :
     Finite (ClusterKind l) := by
-  sorry
+  let f : Option (Option (EventSlot l)) → ClusterKind l := fun x =>
+    match x with
+    | none => .core
+    | some none => .readout
+    | some (some j) => .trigger j
+  have hf : Function.Surjective f := by
+    intro y
+    cases y
+    · exact ⟨none, rfl⟩
+    · exact ⟨some none, rfl⟩
+    · exact ⟨some (some ‹_›), rfl⟩
+  exact Finite.of_surjective f hf
 
 /-- M2, V4 2.10: enumeration of enclosing-region kinds. -/
 instance clusterKindFintype {P : Params S} (l : LeafType P) :

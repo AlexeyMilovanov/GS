@@ -555,7 +555,17 @@ theorem augmentedMarking_projection {P : Params S} (C : ClusterData S P)
 theorem augmentedMarking_boundary {P : Params S} (C : ClusterData S P)
     (l : LeafType P) (x : E d) (hx : x ∈ frontier (S.proto l.prototype).carrier) :
     augmentedColour C l x = Colour.boundary := by
-  sorry
+  unfold augmentedColour
+  split_ifs with h1 _ _ _
+  · exfalso
+    exact Set.disjoint_left.mp disjoint_interior_frontier h1 hx
+  · exfalso
+    exact Set.disjoint_left.mp disjoint_interior_frontier h1 hx
+  · exfalso
+    exact Set.disjoint_left.mp disjoint_interior_frontier h1 hx
+  · exfalso
+    exact Set.disjoint_left.mp disjoint_interior_frontier h1 hx
+  · rfl
 
 /-- M2/M3, V4 2.10--2.11: an augmented physical prototype has the native carrier. -/
 def augmentedLeaf {P : Params S} (C : ClusterData S P) (l : LeafType P) :

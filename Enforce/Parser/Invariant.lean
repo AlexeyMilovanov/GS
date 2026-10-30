@@ -74,7 +74,17 @@ theorem child_descendant (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
 /-- R3, V4 §3.2: every actual prototype has at least one child.
 The nonempty prototype interior and substitution cover supply this nonemptiness. -/
 theorem roles_nonempty (A : S.ι) : Nonempty (S.I A) := by
-  sorry
+  have h := (S.proto A).interior_nonempty
+  have hc := S.children_cover A
+  by_contra h_empty
+  have _ : IsEmpty (S.I A) := ⟨not_nonempty_iff_imp_false.mp h_empty⟩
+  have h_union : (⋃ i : S.I A, placedSet (S.child A i).frame (S.proto (S.child A i).ty).carrier) = ∅ := by
+    exact Set.iUnion_of_empty _
+  rw [h_union] at hc
+  have h_nonempty : ((S.proto A).carrier).Nonempty := h.mono interior_subset
+  have h_image_nonempty : (S.σ '' (S.proto A).carrier).Nonempty := h_nonempty.image S.σ
+  rw [hc] at h_image_nonempty
+  exact Set.not_nonempty_empty h_image_nonempty
 
 /-- R1/R12, V4 §3.0, 3.1: exact descendants of an actual hierarchy node
 belong to that hierarchy, without requiring an honest source or species membership. -/

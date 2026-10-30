@@ -804,7 +804,11 @@ def honestLiftTiles (C : ClusterData S P) (U : HonestSource S) :
 /-- M6, V4 2.14: each lifted tile has exactly its source tile's carrier. -/
 theorem honestTile_carrier (C : ClusterData S P) (U : HonestSource S) (t : GroundNode U) :
     (honestTile C U t).carrier = t.val.toTile.carrier := by
-  sorry
+  dsimp [honestTile, placedLeaf, augmentedLeaf, FramedNode.toTile]
+  show (MarkedSet.move _ t.val.frame).carrier = (PlacedTile.ofFrame _ _).carrier
+  dsimp [MarkedSet.move, PlacedTile.ofFrame, placedSet]
+  congr 3
+  exact leafTypeOf_type U P ⟨0, t.val, t.property⟩ rfl
 
 /-- M6, V4 2.14: the proposed lift covers the whole space by source ground coverage. -/
 theorem honestLift_cover (C : ClusterData S P) (U : HonestSource S) (x : E d) :

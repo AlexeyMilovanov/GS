@@ -3548,6 +3548,504 @@ private theorem actualCont_exists_step3_trace_successor_step5_same_owner (C : Fr
     exact Set.image_mono hsub
   exact actualCont_exists_step3_trace_successor_step1_beyond p v hne t ht (hsub' hfwd)
 
+/-- Step 1 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.22(a)): "the recorded chain s_2 ⊂ ⋯ lies in the fixed successive cofaces": the
+placed trace polygon (edge for `d = 2`) lies in the placed bottom flag cell `F_2`. -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step1_subset
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (a : TracePiece N.ty F n) :
+    placedTraceCarrier N n n F a ⊆
+      N.cell n (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val := by
+  have h := a.chain.contained TracePiece.bottomIndex
+  rintro x ⟨y, hy, rfl⟩
+  obtain ⟨q, hq, hqy⟩ := h hy
+  refine ⟨q, hq, ?_⟩
+  show N.frame ((S.σ ^ n) q) = N.frame ((S.σ ^ (n - n)) y)
+  rw [Nat.sub_self, pow_zero, hqy]
+  rfl
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.0, (H2)): "s_2 has aff = aff F_2". Affine equivalences preserve the dimension of
+the affine span. -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step2_finrank_image
+    (g : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    Module.finrank ℝ (affineSpan ℝ (g '' K)).direction =
+      Module.finrank ℝ (affineSpan ℝ K).direction := by
+  change Module.finrank ℝ (affineSpan ℝ (g.toAffineMap '' K)).direction = _
+  rw [← AffineSubspace.map_span g.toAffineMap K, AffineSubspace.map_direction]
+  exact LinearEquiv.finrank_map_eq g.linear _
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.0, (H2)): a nonempty subset of no smaller affine dimension has the same span. -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step2_span_of_finrank
+    {K L : Set (E d)} (hKL : K ⊆ L) (hK : K.Nonempty)
+    (hdim : Module.finrank ℝ (affineSpan ℝ L).direction ≤
+      Module.finrank ℝ (affineSpan ℝ K).direction) :
+    affineSpan ℝ K = affineSpan ℝ L := by
+  obtain ⟨z, hz⟩ := hK
+  have hle := AffineSubspace.direction_le (affineSpan_mono ℝ hKL)
+  have hdir := Submodule.eq_of_le_of_finrank_le hle hdim
+  exact AffineSubspace.ext_of_direction_eq hdir
+    ⟨z, subset_affineSpan ℝ _ hz, subset_affineSpan ℝ _ (hKL hz)⟩
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.0, (H2)): relative interiors are monotone between sets with the same span. -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step2_relint_mono
+    {K L : Set (E d)} (hKL : K ⊆ L) (hspan : affineSpan ℝ K = affineSpan ℝ L) :
+    relint K ⊆ relint L := by
+  unfold relint intrinsicInterior
+  rw [← hspan]
+  exact Set.image_mono (interior_mono (Set.preimage_mono hKL))
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.22(a)): "aff s_2 = aff F_2": the placed trace piece and the placed bottom flag
+cell have the same affine span (both have dimension `traceDimension d`). -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step2_span
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (a : TracePiece N.ty F n) :
+    affineSpan ℝ (placedTraceCarrier N n n F a) =
+      affineSpan ℝ (N.cell n
+        (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) := by
+  apply actualCont_exists_step3_trace_successor_step6_fill_step2_span_of_finrank
+    (actualCont_exists_step3_trace_successor_step6_fill_step1_subset N n F a)
+  · obtain ⟨w, hw⟩ := a.bottom.val.flat.relint_nonempty
+    rw [actualCont_exists_step3_trace_successor_step2_carrier N n F a]
+    exact ⟨_, Set.mem_image_of_mem ((placedTraceOwner N n n F a).prototypeFrame 0)
+      (intrinsicInterior_subset hw)⟩
+  · rw [actualCont_exists_step3_trace_successor_step2_carrier N n F a]
+    unfold FramedNode.cell
+    rw [actualCont_exists_step3_trace_successor_step6_fill_step2_finrank_image,
+      actualCont_exists_step3_trace_successor_step6_fill_step2_finrank_image]
+    have h1 := a.bottom.val.flat.dimension
+    have h2 := (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.flat.dimension
+    have hb : a.bottom.val.dim = traceDimension d := a.chain.dimension TracePiece.bottomIndex
+    have hf : (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.dim =
+      traceDimension d := F.dimension _
+    unfold cellDirection at h1 h2
+    omega
+
+/-- Step 2 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.1): "its edge along h": a listed owner edge inside the flag edge spans the
+same line as the flag edge. -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step2_edge_span
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (a : TracePiece N.ty F n)
+    (e : PrototypeEdge S (placedTraceOwner N n n F a).ty)
+    (hflag : (placedTraceOwner N n n F a).cell 0 e.val ⊆ N.cell n (F.cell edgeIndex).val) :
+    affineSpan ℝ ((placedTraceOwner N n n F a).cell 0 e.val) =
+      affineSpan ℝ (N.cell n (F.cell edgeIndex).val) := by
+  apply actualCont_exists_step3_trace_successor_step6_fill_step2_span_of_finrank hflag
+  · obtain ⟨w, hw⟩ := e.val.flat.relint_nonempty
+    exact ⟨_, Set.mem_image_of_mem ((placedTraceOwner N n n F a).prototypeFrame 0)
+      (intrinsicInterior_subset hw)⟩
+  · unfold FramedNode.cell
+    rw [actualCont_exists_step3_trace_successor_step6_fill_step2_finrank_image,
+      actualCont_exists_step3_trace_successor_step6_fill_step2_finrank_image]
+    have h1 := e.val.flat.dimension
+    have h2 := (F.cell edgeIndex).val.flat.dimension
+    have he1 : e.val.dim = 1 := (Finset.mem_filter.mp e.property).2
+    have hf : (F.cell edgeIndex).val.dim = 1 := F.dimension edgeIndex
+    unfold cellDirection at h1 h2
+    omega
+
+open private states_finite_step4_flag_halfspace_lem_relint
+  states_finite_step4_flag_halfspace_lem_local_frontier from Enforce.State.State in
+/-- Step 3 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 2.8, (H2)(ii)): "a polygon containing v in the relative interior of its edge along
+h": near a relative-interior point `z` of a listed owner edge `e` lying along the flag
+edge `h` inside the trace polygon `s_2`, the relative boundary of `s_2` is the edge `e`
+itself (the relative boundary is a union of listed cells, and the only listed cells
+through `z` contain `e`); `e` lies in `h`, whose relative interior is disjoint from that
+of `F_2`. Hence a point of `s_2` near `z` in the relative interior of `F_2` is in the
+relative interior of `s_2`. (For `d = 2`, `s_2` is an edge containing `z` in its
+relative interior.) -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step3_owner_frontier
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (a : TracePiece N.ty F n)
+    (e : PrototypeEdge S (placedTraceOwner N n n F a).ty) (z : E d)
+    (hbot : (placedTraceOwner N n n F a).cell 0 e.val ⊆ placedTraceCarrier N n n F a)
+    (hflag : (placedTraceOwner N n n F a).cell 0 e.val ⊆ N.cell n (F.cell edgeIndex).val)
+    (hz : z ∈ relint ((placedTraceOwner N n n F a).cell 0 e.val)) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball z r, x ∈ placedTraceCarrier N n n F a →
+      x ∈ relint (N.cell n
+        (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) →
+      x ∈ relint (placedTraceCarrier N n n F a) := by
+  classical
+  have hX : placedTraceCarrier N n n F a = (placedTraceOwner N n n F a).cell 0 a.bottom.val :=
+    actualCont_exists_step3_trace_successor_step2_carrier N n F a
+  have hd2 : 2 ≤ d := Fact.out
+  have hb : a.bottom.val.dim = traceDimension d := a.chain.dimension TracePiece.bottomIndex
+  have he1 : e.val.dim = 1 := (Finset.mem_filter.mp e.property).2
+  rcases Nat.lt_or_ge 2 d with hd | hd
+  · have htd : traceDimension d = 2 := by unfold traceDimension; omega
+    have hbC : a.bottom.val ∈ (S.cx (placedTraceOwner N n n F a).ty).cells := by
+      rw [actualCont_exists_step3_trace_successor_step2_owner_ty N n F a]
+      exact a.bottom.property
+    have heC : e.val ∈ (S.cx (placedTraceOwner N n n F a).ty).cells :=
+      (Finset.mem_filter.mp e.property).1
+    have hdim : a.bottom.val.dim = e.val.dim + 1 := by omega
+    have hhF : Disjoint (relint (N.cell n (F.cell edgeIndex).val))
+        (relint (N.cell n
+          (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val)) := by
+      have hne : (F.cell edgeIndex).val ≠
+          (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val := by
+        intro heq
+        have h1 : (F.cell edgeIndex).val.dim = 1 := F.dimension edgeIndex
+        have h2 : (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.dim =
+          traceDimension d := F.dimension _
+        rw [heq] at h1
+        omega
+      have hdj := (S.cx N.ty).relint_disjoint _ (F.cell edgeIndex).property _
+        (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).property hne
+      rw [FramedNode.cell, FramedNode.cell, restrictionOp_source_step5_relint_image,
+        restrictionOp_source_step5_relint_image]
+      exact (Set.disjoint_image_iff (N.prototypeFrame n).injective).mpr hdj
+    have hEH := actualCont_exists_step3_trace_successor_step6_fill_step2_relint_mono hflag
+      (actualCont_exists_step3_trace_successor_step6_fill_step2_edge_span N n F a e hflag)
+    have hz' := hz
+    rw [FramedNode.cell, restrictionOp_source_step5_relint_image] at hz'
+    obtain ⟨z0, hz0, rfl⟩ := hz'
+    obtain ⟨r, hr, hloc⟩ :=
+      states_finite_step4_flag_halfspace_lem_local_frontier (S.cx _) heC hbC hdim hz0
+    obtain ⟨-, ρ, hρ, hρe⟩ := states_finite_step4_flag_halfspace_lem_relint.mp hz0
+    refine ⟨min r (ρ / 2), lt_min hr (half_pos hρ), fun x hx hxX hxY => ?_⟩
+    by_contra hxi
+    rw [hX] at hxX hxi
+    obtain ⟨x0, hx0, rfl⟩ := hxX
+    have hd0 : dist x0 z0 < min r (ρ / 2) := by
+      have h0 : dist ((placedTraceOwner N n n F a).frame x0)
+          ((placedTraceOwner N n n F a).frame z0) < min r (ρ / 2) := hx
+      rwa [(placedTraceOwner N n n F a).frame.dist_map] at h0
+    have hx0i : x0 ∉ relint a.bottom.val.carrier := fun h => hxi (by
+      rw [FramedNode.cell, restrictionOp_source_step5_relint_image]
+      exact Set.mem_image_of_mem _ h)
+    have hx0f : x0 ∈ relfrontier a.bottom.val.carrier := by
+      change x0 ∈ intrinsicFrontier ℝ _
+      rw [← closure_diff_intrinsicInterior, a.bottom.val.flat.compact.isClosed.closure_eq]
+      exact ⟨hx0, hx0i⟩
+    have hx0s := hloc x0 (lt_of_lt_of_le hd0 (min_le_left _ _)) hx0f
+    have hx0r : x0 ∈ relint e.val.carrier := by
+      refine states_finite_step4_flag_halfspace_lem_relint.mpr
+        ⟨hρe x0 hx0s ?_, ρ / 2, half_pos hρ, fun y hy hyd => hρe y hy ?_⟩
+      · linarith [min_le_right r (ρ / 2)]
+      · linarith [dist_triangle y x0 z0, min_le_right r (ρ / 2)]
+    have hxE : (placedTraceOwner N n n F a).prototypeFrame 0 x0 ∈
+        relint ((placedTraceOwner N n n F a).cell 0 e.val) := by
+      rw [FramedNode.cell, restrictionOp_source_step5_relint_image]
+      exact Set.mem_image_of_mem _ hx0r
+    exact Set.disjoint_left.mp hhF (hEH hxE) hxY
+  · have htd : traceDimension d = 1 := by unfold traceDimension; omega
+    have hspan : affineSpan ℝ ((placedTraceOwner N n n F a).cell 0 e.val) =
+        affineSpan ℝ (placedTraceCarrier N n n F a) := by
+      apply actualCont_exists_step3_trace_successor_step6_fill_step2_span_of_finrank hbot
+        ⟨z, intrinsicInterior_subset hz⟩
+      rw [hX]
+      unfold FramedNode.cell
+      rw [actualCont_exists_step3_trace_successor_step6_fill_step2_finrank_image,
+        actualCont_exists_step3_trace_successor_step6_fill_step2_finrank_image]
+      have h1 := a.bottom.val.flat.dimension
+      have h2 := e.val.flat.dimension
+      unfold cellDirection at h1 h2
+      omega
+    have hzX := actualCont_exists_step3_trace_successor_step6_fill_step2_relint_mono hbot hspan hz
+    obtain ⟨-, ρ, hρ, hρX⟩ := states_finite_step4_flag_halfspace_lem_relint.mp hzX
+    refine ⟨ρ / 2, half_pos hρ, fun x hx hxX _ => states_finite_step4_flag_halfspace_lem_relint.mpr
+      ⟨hxX, ρ / 2, half_pos hρ, fun y hy hyd => hρX y hy ?_⟩⟩
+    have := dist_triangle y x z
+    rw [mem_ball] at hx
+    linarith
+
+open private states_finite_step4_flag_halfspace_lem_relint
+  states_finite_step4_flag_halfspace_lem_local_frontier
+  states_finite_step4_flag_halfspace_lem_functional
+  states_finite_step4_flag_halfspace_lem_dichotomy
+  states_finite_step4_flag_halfspace_lem_closure from Enforce.State.State in
+/-- Step 4 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.0(a), (H2)): "a half-disc", in prototype coordinates: near a relative-interior
+point `a` of a listed codimension-one subcell `e` of a listed cell `C`, the relative
+interior of `C` is exactly one open side of `aff e` in `aff C` (as in
+`states_finite_step4_flag_halfspace_lem_cell`). -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step4_proto_side
+    {A : PolyManifoldDomain d} (K : CellComplex A) {e C : Cell d}
+    (he : e ∈ K.cells) (hC : C ∈ K.cells) (hsub : e.carrier ⊆ C.carrier)
+    (hdim : C.dim = e.dim + 1) {a : E d} (ha : a ∈ relint e.carrier) :
+    ∃ ℓ : E d →ₗ[ℝ] ℝ, ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball a r,
+      (x ∈ relint C.carrier ↔ x ∈ affineSpan ℝ C.carrier ∧ ℓ a < ℓ x) := by
+  have hWV : cellDirection e.carrier ≤ cellDirection C.carrier :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
+  have hfin : Module.finrank ℝ (cellDirection C.carrier) =
+      Module.finrank ℝ (cellDirection e.carrier) + 1 := by
+    rw [C.flat.dimension, e.flat.dimension, hdim]
+  obtain ⟨ℓ, n, hnV, hℓn, hker⟩ := states_finite_step4_flag_halfspace_lem_functional hWV hfin
+  have hcl : IsClosed C.carrier := C.flat.compact.isClosed
+  have hae : a ∈ e.carrier := intrinsicInterior_subset ha
+  have haC : a ∈ C.carrier := hsub hae
+  have haeS : a ∈ affineSpan ℝ e.carrier := subset_affineSpan ℝ _ hae
+  have haCS : a ∈ affineSpan ℝ C.carrier := subset_affineSpan ℝ _ haC
+  have hne : e ≠ C := by
+    intro h
+    rw [h] at hdim
+    omega
+  have hdisj := K.relint_disjoint e he C hC hne
+  have hnotint : a ∉ relint C.carrier := fun h => Set.disjoint_left.mp hdisj ha h
+  obtain ⟨r, hr, hloc⟩ := states_finite_step4_flag_halfspace_lem_local_frontier K he hC hdim ha
+  obtain ⟨-, ρ, hρ, hρe⟩ := states_finite_step4_flag_halfspace_lem_relint.mp ha
+  have hoff : ∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ x ≠ ℓ a → x ∈ C.carrier →
+      x ∈ relint C.carrier := by
+    intro x hx _ hxl hxC
+    by_contra hxi
+    have hxb : x ∈ relfrontier C.carrier := by
+      change x ∈ intrinsicFrontier ℝ C.carrier
+      rw [← closure_diff_intrinsicInterior, hcl.closure_eq]
+      exact ⟨hxC, hxi⟩
+    have hxe := hloc x hx hxb
+    have hW : x - a ∈ cellDirection e.carrier := by
+      simpa only [vsub_eq_sub] using AffineSubspace.vsub_mem_direction hxe haeS
+    have h0 : ℓ (x - a) = 0 := by
+      have h' : x - a ∈ {x | x ∈ cellDirection C.carrier ∧ ℓ x = 0} := by
+        rw [hker]
+        exact hW
+      exact h'.2
+    rw [map_sub, sub_eq_zero] at h0
+    exact hxl h0
+  have hline : ∀ x ∈ ball a (ρ / 2), x ∈ affineSpan ℝ C.carrier → ℓ x = ℓ a →
+      x ∉ relint C.carrier := by
+    intro x hx hxS hxl hxi
+    have hxa : dist x a < ρ / 2 := hx
+    have hW : x - a ∈ cellDirection e.carrier := by
+      have h' : x - a ∈ {x | x ∈ cellDirection C.carrier ∧ ℓ x = 0} :=
+        ⟨by simpa only [vsub_eq_sub] using AffineSubspace.vsub_mem_direction hxS haCS,
+          by rw [map_sub, hxl, sub_self]⟩
+      rw [hker] at h'
+      exact h'
+    have hxe : x ∈ affineSpan ℝ e.carrier := by
+      have := AffineSubspace.vadd_mem_of_mem_direction hW haeS
+      simpa only [vadd_eq_add, sub_add_cancel] using this
+    have hxr : x ∈ relint e.carrier := states_finite_step4_flag_halfspace_lem_relint.mpr
+      ⟨hρe x hxe (by linarith), ρ / 2, half_pos hρ, fun y hy hyd =>
+        hρe y hy (by linarith [dist_triangle y x a])⟩
+    exact Set.disjoint_left.mp hdisj hxr hxi
+  have hd1 := states_finite_step4_flag_halfspace_lem_dichotomy hcl ℓ a r
+    (fun x hx hxS hxl hxC => hoff x hx hxS hxl.ne' hxC)
+  have hd2 := states_finite_step4_flag_halfspace_lem_dichotomy hcl (-ℓ) a r
+    (fun x hx hxS hxl hxC => hoff x hx hxS (by
+      simp only [LinearMap.neg_apply, neg_lt_neg_iff] at hxl
+      exact hxl.ne) hxC)
+  have hnS : n ∈ (affineSpan ℝ C.carrier).direction := hnV
+  have hnS' : -n ∈ (affineSpan ℝ C.carrier).direction :=
+    (affineSpan ℝ C.carrier).direction.neg_mem hnV
+  have hℓn' : (-ℓ) (-n) = 1 := by simp [hℓn]
+  have hnotboth : ¬ ((∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ a < ℓ x → x ∈ C.carrier) ∧
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → (-ℓ) a < (-ℓ) x → x ∈ C.carrier)) := by
+    rintro ⟨h1, h2⟩
+    apply hnotint
+    refine states_finite_step4_flag_halfspace_lem_relint.mpr ⟨haC, r, hr, fun y hy hyd => ?_⟩
+    rcases le_total (ℓ a) (ℓ y) with hle | hle
+    · exact states_finite_step4_flag_halfspace_lem_closure hcl ℓ a n r hnS hℓn h1 hyd hy hle
+    · exact states_finite_step4_flag_halfspace_lem_closure hcl (-ℓ) a (-n) r hnS' hℓn' h2
+        hyd hy (by simpa using hle)
+  have hnotnone : ¬ ((∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → ℓ a < ℓ x →
+        x ∉ C.carrier) ∧
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → (-ℓ) a < (-ℓ) x → x ∉ C.carrier)) := by
+    rintro ⟨h1, h2⟩
+    have hacl : a ∈ closure (relint C.carrier) := by
+      rw [C.flat.regularClosed]
+      exact haC
+    obtain ⟨z, hzr, hz⟩ :=
+      mem_closure_iff.mp hacl (ball a (r / 2)) isOpen_ball (mem_ball_self (half_pos hr))
+    obtain ⟨hzC, ρ, hρ, hzρ⟩ := states_finite_step4_flag_halfspace_lem_relint.mp hz
+    have hzS : z ∈ affineSpan ℝ C.carrier := subset_affineSpan ℝ _ hzC
+    rcases lt_or_ge (ℓ z) (ℓ a) with hlt | hle
+    · exact h2 z (ball_subset_ball (half_le_self hr.le) hzr) hzS (by simpa using hlt) hzC
+    · have hm : 0 < min ρ (r / 2) := lt_min hρ (half_pos hr)
+      obtain ⟨s, hs0, hsn⟩ := exists_pos_mul_lt hm ‖n‖
+      have hz'S : z + s • n ∈ affineSpan ℝ C.carrier := by
+        have := AffineSubspace.vadd_mem_of_mem_direction
+          ((affineSpan ℝ C.carrier).direction.smul_mem s hnS) hzS
+        simpa only [vadd_eq_add, add_comm] using this
+      have hdist : dist (z + s • n) z < min ρ (r / 2) := by
+        rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs0.le,
+          mul_comm]
+        exact hsn
+      have hz'C : z + s • n ∈ C.carrier :=
+        hzρ _ hz'S (lt_of_lt_of_le hdist (min_le_left _ _))
+      have hz'ball : z + s • n ∈ ball a r := by
+        rw [mem_ball] at hzr ⊢
+        have h1 := dist_triangle (z + s • n) z a
+        have h2 := min_le_right ρ (r / 2)
+        linarith
+      apply h1 _ hz'ball hz'S _ hz'C
+      rw [map_add, map_smul, hℓn, smul_eq_mul, mul_one]
+      linarith
+  have key : ∀ m : E d →ₗ[ℝ] ℝ, (∀ x, m x = m a ↔ ℓ x = ℓ a) →
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → m a < m x → x ∈ C.carrier) →
+      (∀ x ∈ ball a r, x ∈ affineSpan ℝ C.carrier → m x < m a → x ∉ C.carrier) →
+      ∃ ℓ : E d →ₗ[ℝ] ℝ, ∃ r : ℝ, 0 < r ∧ ∀ x ∈ ball a r,
+        (x ∈ relint C.carrier ↔ x ∈ affineSpan ℝ C.carrier ∧ ℓ a < ℓ x) := by
+    intro m hm hpos hneg
+    refine ⟨m, min r (ρ / 2), lt_min hr (half_pos hρ), fun x hx => ⟨fun hxi => ?_, ?_⟩⟩
+    · have hxC := intrinsicInterior_subset hxi
+      have hxS : x ∈ affineSpan ℝ C.carrier := subset_affineSpan ℝ _ hxC
+      refine ⟨hxS, ?_⟩
+      rcases lt_trichotomy (m a) (m x) with h | h | h
+      · exact h
+      · exact absurd hxi (hline x (ball_subset_ball (min_le_right _ _) hx) hxS
+          ((hm x).mp h.symm))
+      · exact absurd hxC (hneg x (ball_subset_ball (min_le_left _ _) hx) hxS h)
+    · rintro ⟨hxS, hxl⟩
+      have hxb := ball_subset_ball (min_le_left _ _) hx
+      exact hoff x hxb hxS (fun h => hxl.ne' ((hm x).mpr h)) (hpos x hxb hxS hxl)
+  rcases hd1 with h1 | h1
+  · rcases hd2 with h2 | h2
+    · exact (hnotboth ⟨h1, h2⟩).elim
+    · exact key ℓ (fun x => Iff.rfl) h1 (fun x hx hxS hxl => h2 x hx hxS (by simpa using hxl))
+  · rcases hd2 with h2 | h2
+    · exact key (-ℓ) (fun x => by simp) h2 (fun x hx hxS hxl => h1 x hx hxS (by simpa using hxl))
+    · exact (hnotnone ⟨h1, h2⟩).elim
+
+/-- Step 4 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.0(a), (H2)): "a half-disc of F_2 at v", case `d ≥ 3` (`F_2` is a polygon): at a
+relative-interior point `z` of the flag edge `h`, the polygon `F_2` is locally a closed
+half-disc of its plane bounded by the line of `h` (the relative boundary of `F_2` near
+`z` is `h`, and each of the two open half-discs is inside or outside `F_2`, as in
+`states_finite_step4_flag_halfspace_lem_cell`; not both, since `relint h` is disjoint
+from `relint F_2`, and not neither, since `F_2` is the closure of its relative
+interior). Hence `relint F_2` meets small balls at `z` in a convex (affine image of an
+open half-disc) and so connected set. -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step4_polygon_halfdisc
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (z : E d) (hd : 2 < d)
+    (hzh : z ∈ relint (N.cell n (F.cell edgeIndex).val)) :
+    ∃ r0 : ℝ, 0 < r0 ∧ ∀ r : ℝ, 0 < r → r ≤ r0 →
+      IsPreconnected (relint (N.cell n
+        (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) ∩ ball z r) := by
+  classical
+  have hd2 : 2 ≤ d := Fact.out
+  have htd : traceDimension d = 2 := by unfold traceDimension; omega
+  have hhC : (F.cell edgeIndex).val ∈ (S.cx N.ty).cells := (F.cell edgeIndex).property
+  have hPC := (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).property
+  have hsub : (F.cell edgeIndex).val.carrier ⊆
+      (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.carrier :=
+    F.nested _ _ traceDimension_pos
+  have hdim : (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.dim =
+      (F.cell edgeIndex).val.dim + 1 := by
+    have h1 : (F.cell edgeIndex).val.dim = 1 := F.dimension edgeIndex
+    have h2 : (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.dim =
+      traceDimension d := F.dimension _
+    omega
+  have hz' := hzh
+  rw [FramedNode.cell, restrictionOp_source_step5_relint_image] at hz'
+  obtain ⟨z0, hz0, rfl⟩ := hz'
+  obtain ⟨ℓ, r, hr, hloc⟩ :=
+    actualCont_exists_step3_trace_successor_step6_fill_step4_proto_side (S.cx N.ty) hhC hPC
+      hsub hdim hz0
+  have hcont : Continuous (N.prototypeFrame n).symm :=
+    (N.prototypeFrame n).symm.toHomeomorphOfFiniteDimensional.continuous
+  obtain ⟨δ, hδ, hδr⟩ := Metric.continuous_iff.mp hcont (N.prototypeFrame n z0) r hr
+  have hback : ∀ x : E d, dist (N.prototypeFrame n x) (N.prototypeFrame n z0) < δ →
+      x ∈ ball z0 r := by
+    intro x hx
+    have := hδr (N.prototypeFrame n x) hx
+    simpa using this
+  refine ⟨δ, hδ, fun s hs hsδ => ?_⟩
+  have heq : relint (N.cell n
+      (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) ∩
+        ball (N.prototypeFrame n z0) s =
+      (N.prototypeFrame n).toAffineMap ''
+        ({x | x ∈ affineSpan ℝ
+          (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.carrier ∧
+            ℓ z0 < ℓ x} ∩
+          (N.prototypeFrame n).toAffineMap ⁻¹' ball (N.prototypeFrame n z0) s) := by
+    rw [FramedNode.cell, restrictionOp_source_step5_relint_image]
+    ext y
+    constructor
+    · rintro ⟨⟨x, hx, rfl⟩, hyb⟩
+      have hxb := hback x (lt_of_lt_of_le hyb hsδ)
+      exact ⟨x, ⟨(hloc x hxb).mp hx, hyb⟩, rfl⟩
+    · rintro ⟨x, ⟨hxA, hxb⟩, rfl⟩
+      have hxb' := hback x (lt_of_lt_of_le hxb hsδ)
+      exact ⟨⟨x, (hloc x hxb').mpr hxA, rfl⟩, hxb⟩
+  rw [heq]
+  apply Convex.isPreconnected
+  apply Convex.affine_image
+  exact ((affineSpan ℝ _).convex.inter (convex_halfSpace_gt ℓ.isLinear _)).inter
+    ((convex_ball _ _).affine_preimage _)
+
+open private states_finite_step4_flag_halfspace_lem_relint from Enforce.State.State in
+/-- Step 4 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 1.0(a), (H2)): "a half-disc of F_2 at v": at a relative-interior point of the flag
+edge `h`, the bottom flag cell `F_2` is locally a closed half-disc of its plane bounded
+by the line of `h` (by the dichotomy of the two open half-discs, as for
+`states_finite_step4_flag_halfspace`), so its relative interior meets small balls in
+an open half-disc, which is connected. (For `d = 2`, `F_2 = h` and the intersection
+is an open segment.) -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step4_flag_halfdisc
+    (N : FramedNode S) (n : ℕ) (F : FacetFlag S N.ty) (z : E d)
+    (hzh : z ∈ relint (N.cell n (F.cell edgeIndex).val)) :
+    ∃ r0 : ℝ, 0 < r0 ∧ ∀ r : ℝ, 0 < r → r ≤ r0 →
+      IsPreconnected (relint (N.cell n
+        (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) ∩ ball z r) := by
+  have hd2 : 2 ≤ d := Fact.out
+  rcases Nat.lt_or_ge 2 d with hd | hd
+  · exact actualCont_exists_step3_trace_successor_step6_fill_step4_polygon_halfdisc N n F z hd hzh
+  · have hidx : (⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩ : FlagIndex d) =
+        edgeIndex := Subtype.ext (show traceDimension d = 1 by unfold traceDimension; omega)
+    rw [hidx]
+    obtain ⟨-, ρ, hρ, hρY⟩ := states_finite_step4_flag_halfspace_lem_relint.mp hzh
+    refine ⟨ρ / 2, half_pos hρ, fun r hr hrρ => ?_⟩
+    have heq : relint (N.cell n (F.cell edgeIndex).val) ∩ ball z r =
+        (affineSpan ℝ (N.cell n (F.cell edgeIndex).val) : Set (E d)) ∩ ball z r := by
+      apply Set.Subset.antisymm
+      · exact fun x hx => ⟨subset_affineSpan ℝ _ (intrinsicInterior_subset hx.1), hx.2⟩
+      · rintro x ⟨hxs, hxb⟩
+        have hxb' : dist x z < r := hxb
+        refine ⟨states_finite_step4_flag_halfspace_lem_relint.mpr ⟨hρY x hxs (by linarith),
+          ρ / 2, half_pos hρ, fun y hy hyd => hρY y hy ?_⟩, hxb⟩
+        linarith [dist_triangle y x z]
+    rw [heq]
+    exact ((affineSpan ℝ _).convex.inter (convex_ball z r)).isPreconnected
+
+open private states_finite_step4_flag_halfspace_lem_relint from Enforce.State.State in
+/-- Step 5 of the V4 proof of `actualCont_exists_step3_trace_successor_step6_fill`
+(V4 2.8): "would fill a half-disc of F_2 at v": if a closed piece `X ⊆ Y` of the same
+span has no relative boundary inside `relint Y` near `z`, meets every ball at `z` in
+its relative interior, and `relint Y` is connected near `z`, then the two relative
+interiors coincide near `z` (a clopen argument). -/
+private theorem actualCont_exists_step3_trace_successor_step6_fill_step5_clopen
+    {X Y : Set (E d)} {z : E d} {r : ℝ}
+    (hsub : X ⊆ Y) (hspan : affineSpan ℝ X = affineSpan ℝ Y) (hcl : IsClosed X)
+    (hX : ∀ x ∈ ball z r, x ∈ X → x ∈ relint Y → x ∈ relint X)
+    (hconn : IsPreconnected (relint Y ∩ ball z r))
+    (hdense : ∃ w ∈ relint X, dist w z < r) :
+    relint X ∩ ball z r = relint Y ∩ ball z r := by
+  have hrel : relint X ⊆ relint Y :=
+    actualCont_exists_step3_trace_successor_step6_fill_step2_relint_mono hsub hspan
+  refine Set.Subset.antisymm (fun x hx => ⟨hrel hx.1, hx.2⟩) ?_
+  let U : Set (E d) := {x | ∃ ρ : ℝ, 0 < ρ ∧ ∀ y ∈ affineSpan ℝ X, dist y x < ρ → y ∈ X}
+  have hU : IsOpen U := by
+    rw [Metric.isOpen_iff]
+    rintro x ⟨ρ, hρ, hx⟩
+    refine ⟨ρ / 2, half_pos hρ, fun q hq => ⟨ρ / 2, half_pos hρ, fun y hy hyq => hx y hy ?_⟩⟩
+    have := dist_triangle y q x
+    rw [mem_ball] at hq
+    linarith
+  have hspanY : ∀ x ∈ relint Y, x ∈ affineSpan ℝ X := by
+    intro x hx
+    rw [hspan]
+    exact subset_affineSpan ℝ _ (intrinsicInterior_subset hx)
+  obtain ⟨w, hw, hwz⟩ := hdense
+  have hcover : relint Y ∩ ball z r ⊆ U ∪ Xᶜ := by
+    rintro x ⟨hxY, hxb⟩
+    by_cases hxX : x ∈ X
+    · exact Or.inl (states_finite_step4_flag_halfspace_lem_relint.mp (hX x hxb hxX hxY)).2
+    · exact Or.inr hxX
+  have hdisj : relint Y ∩ ball z r ∩ (U ∩ Xᶜ) = ∅ := by
+    apply Set.eq_empty_of_forall_notMem
+    rintro x ⟨⟨hxY, _⟩, ⟨ρ, hρ, hρx⟩, hxX⟩
+    exact hxX (hρx x (hspanY x hxY) (by simpa using hρ))
+  rcases (isPreconnected_iff_subset_of_disjoint.mp hconn) U Xᶜ hU hcl.isOpen_compl hcover
+      hdisj with h | h
+  · rintro x ⟨hxY, hxb⟩
+    obtain ⟨ρ, hρ, hρx⟩ := h ⟨hxY, hxb⟩
+    exact ⟨hX x hxb (hρx x (hspanY x hxY) (by simpa using hρ)) hxY, hxb⟩
+  · exact absurd (intrinsicInterior_subset hw) (h ⟨hrel hw, by rwa [mem_ball]⟩)
+
+
 /-- Step 6 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8, 1.0(a)):
 "a polygon containing v in the relative interior of its edge along h would fill a
 half-disc of F_2 at v". If a point lies in the relative interior of a listed owner
@@ -3563,7 +4061,46 @@ private theorem actualCont_exists_step3_trace_successor_step6_fill (N : FramedNo
     ∃ r : ℝ, 0 < r ∧ relint (placedTraceCarrier N n n F a) ∩ ball z r =
       relint (N.cell n
         (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val) ∩ ball z r := by
-  sorry
+  classical
+  have hzh : z ∈ relint (N.cell n (F.cell edgeIndex).val) := by
+    have hspanE := actualCont_exists_step3_trace_successor_step6_fill_step2_edge_span N n F a e
+      hflag
+    exact actualCont_exists_step3_trace_successor_step6_fill_step2_relint_mono hflag hspanE hz
+  have hzX : z ∈ placedTraceCarrier N n n F a := hbot (intrinsicInterior_subset hz)
+  have hcl : IsClosed (placedTraceCarrier N n n F a) := by
+    rw [actualCont_exists_step3_trace_successor_step2_carrier N n F a]
+    change IsClosed ((placedTraceOwner N n n F a).frame '' a.bottom.val.carrier)
+    exact (a.bottom.val.flat.compact.image (placedTraceOwner N n n F a).frame.continuous).isClosed
+  have hdense : ∀ ε : ℝ, 0 < ε →
+      ∃ w ∈ relint (placedTraceCarrier N n n F a), dist w z < ε := by
+    intro ε hε
+    have hzC := hzX
+    rw [actualCont_exists_step3_trace_successor_step2_carrier N n F a] at hzC ⊢
+    obtain ⟨z0, hz0, hz0e⟩ := hzC
+    have hK := a.bottom.val.flat.regularClosed
+    rw [← hK] at hz0
+    obtain ⟨w0, hw0, hdist⟩ := Metric.mem_closure_iff.mp hz0 ε hε
+    let C := placedTraceOwner N n n F a
+    refine ⟨C.frame w0, ?_, ?_⟩
+    · change C.frame w0 ∈ intrinsicInterior ℝ (C.frame.toAffineIsometry '' a.bottom.val.carrier)
+      rw [C.frame.toAffineIsometry.image_intrinsicInterior]
+      exact Set.mem_image_of_mem _ hw0
+    · rw [← hz0e]
+      change dist (C.frame w0) (C.frame z0) < ε
+      rw [C.frame.dist_map, dist_comm]
+      exact hdist
+  obtain ⟨r1, hr1, hX⟩ :=
+    actualCont_exists_step3_trace_successor_step6_fill_step3_owner_frontier N n F a e z
+      hbot hflag hz
+  obtain ⟨r0, hr0, hconn⟩ :=
+    actualCont_exists_step3_trace_successor_step6_fill_step4_flag_halfdisc N n F z hzh
+  have hr : 0 < min r0 r1 := lt_min hr0 hr1
+  refine ⟨min r0 r1, hr, ?_⟩
+  exact actualCont_exists_step3_trace_successor_step6_fill_step5_clopen
+    (actualCont_exists_step3_trace_successor_step6_fill_step1_subset N n F a)
+    (actualCont_exists_step3_trace_successor_step6_fill_step2_span N n F a) hcl
+    (fun x hx => hX x (ball_subset_ball (min_le_right _ _) hx))
+    (hconn _ hr (min_le_left _ _)) (hdense _ hr)
 
 /-- Step 7 of the V4 proof of `actualCont_exists_step3_trace_successor` (V4 2.8, 1.22(a)):
 "v is a vertex of s_2'': a polygon containing v in the relative interior of its

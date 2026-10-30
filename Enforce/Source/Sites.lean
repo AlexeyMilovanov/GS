@@ -1565,6 +1565,484 @@ private theorem sites_exist_step1_long_edge (A : S.ι) (F : FacetFlag S A) (L : 
     _ ≤ S.c ^ r' * dist x y := mul_le_mul_of_nonneg_right hmono hpos.le
     _ ≤ _ := hdist r' x y
 
+/-- Step 1 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a)): "Let `D`
+bound native tile diameters ... since that run lies in one native tile". Trace pieces
+with the same owner lie in one native tile, an isometric copy of one of the finitely
+many prototiles, so all their points are within a uniform distance `D`. -/
+private theorem sites_exist_step2_owner_changes_step1_diameter (A : S.ι) (F : FacetFlag S A) :
+    ∃ D : ℝ, ∀ (r : ℕ) (a b : TracePiece A F r), a.owner = b.owner →
+      ∀ u ∈ a.carrier, ∀ v ∈ b.carrier, dist u v ≤ D := by
+  have hB : Bornology.IsBounded (⋃ T : S.ι, (S.proto T).carrier) :=
+    Bornology.isBounded_iUnion.2 fun T => (S.proto T).compact.isBounded
+  obtain ⟨C, hC⟩ := Metric.isBounded_iff.1 hB
+  refine ⟨C, fun r a b hab u hu v hv => ?_⟩
+  have key : ∀ c : TracePiece A F r,
+      c.carrier ⊆ c.tile.frame '' (S.proto c.tile.ty).carrier := by
+    intro c
+    have he : relint c.bottom.val.carrier ⊆ frontier (S.proto c.tile.ty).carrier := by
+      rw [← (S.cx c.tile.ty).cover]
+      exact Set.subset_iUnion_of_subset c.bottom.val
+        (Set.subset_iUnion_of_subset c.bottom.property (Set.Subset.refl _))
+    have hsub : c.bottom.val.carrier ⊆ (S.proto c.tile.ty).carrier := by
+      calc c.bottom.val.carrier = closure (relint c.bottom.val.carrier) :=
+          c.bottom.val.flat.regularClosed.symm
+        _ ⊆ closure (frontier (S.proto c.tile.ty).carrier) := closure_mono he
+        _ = frontier (S.proto c.tile.ty).carrier := isClosed_frontier.closure_eq
+        _ ⊆ closure (S.proto c.tile.ty).carrier := frontier_subset_closure
+        _ = (S.proto c.tile.ty).carrier :=
+          (S.proto c.tile.ty).compact.isClosed.closure_eq
+    rw [TracePiece.carrier, recursiveTrace_tiles_step0_cell_zero]
+    exact Set.image_mono hsub
+  have htile : a.tile = b.tile := by
+    unfold TracePiece.tile
+    rw [hab]
+  have hv' := key b hv
+  rw [← htile] at hv'
+  obtain ⟨u', hu', rfl⟩ := key a hu
+  obtain ⟨v', hv'', rfl⟩ := hv'
+  rw [a.tile.frame.dist_map]
+  exact hC (Set.mem_iUnion.2 ⟨_, hu'⟩) (Set.mem_iUnion.2 ⟨_, hv''⟩)
+
+/-- Step 2 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a), (H2)): "the
+prototype flag edge `h_0`". A one-dimensional compact connected flat cell is a
+nondegenerate segment. -/
+private theorem sites_exist_step2_owner_changes_step2_cell_segment (e : Cell d)
+    (he : e.dim = 1) : ∃ a b : E d, a ≠ b ∧ e.carrier = segment ℝ a b := by
+  obtain ⟨a₀, ha₀, b₀, hb₀, hab⟩ := sites_exist_step1_two_points e he
+  set w : E d := b₀ - a₀ with hw_def
+  have hw : w ≠ 0 := sub_ne_zero.2 (Ne.symm hab)
+  have hwn : ‖w‖ ^ 2 ≠ 0 := pow_ne_zero 2 (norm_ne_zero_iff.2 hw)
+  let ℓ : E d → ℝ := fun z => inner ℝ (z - a₀) w / ‖w‖ ^ 2
+  let g : ℝ →ᵃ[ℝ] E d := AffineMap.lineMap a₀ b₀
+  have hV : Module.finrank ℝ (cellDirection e.carrier) = 1 := e.flat.dimension.trans he
+  have hcoord : ∀ z ∈ e.carrier, g (ℓ z) = z := by
+    intro z hz
+    have hzV : z -ᵥ a₀ ∈ cellDirection e.carrier := by
+      unfold cellDirection
+      rw [direction_affineSpan]
+      exact vsub_mem_vectorSpan ℝ hz ha₀
+    have hwV : b₀ -ᵥ a₀ ∈ cellDirection e.carrier := by
+      unfold cellDirection
+      rw [direction_affineSpan]
+      exact vsub_mem_vectorSpan ℝ hb₀ ha₀
+    have hwV0 : (⟨b₀ -ᵥ a₀, hwV⟩ : cellDirection e.carrier) ≠ 0 := by
+      intro h
+      apply hw
+      have := congrArg Subtype.val h
+      simpa [hw_def] using this
+    obtain ⟨c, hc⟩ := (finrank_eq_one_iff_of_nonzero' _ hwV0).1 hV ⟨z -ᵥ a₀, hzV⟩
+    have hc' : c • w = z - a₀ := by
+      have := congrArg Subtype.val hc
+      simpa [hw_def] using this
+    have hℓ : ℓ z = c := by
+      change inner ℝ (z - a₀) w / ‖w‖ ^ 2 = c
+      rw [← hc', real_inner_smul_left, real_inner_self_eq_norm_sq]
+      field_simp
+    rw [hℓ]
+    change AffineMap.lineMap a₀ b₀ c = z
+    rw [AffineMap.lineMap_apply, vsub_eq_sub, vadd_eq_add]
+    change c • w + a₀ = z
+    rw [hc']
+    abel
+  have hcont : Continuous ℓ :=
+    ((continuous_id.sub continuous_const).inner continuous_const).div_const _
+  set T := ℓ '' e.carrier with hT_def
+  have hTc : IsCompact T := e.flat.compact.image hcont
+  have hTp : IsPreconnected T :=
+    e.flat.connected.isPreconnected.image ℓ hcont.continuousOn
+  have hne : T.Nonempty := ⟨ℓ a₀, a₀, ha₀, rfl⟩
+  have hm : sInf T ∈ T := hTc.sInf_mem hne
+  have hM : sSup T ∈ T := hTc.sSup_mem hne
+  have hTeq : T = Icc (sInf T) (sSup T) := by
+    apply Set.Subset.antisymm
+    · intro t ht
+      exact ⟨csInf_le hTc.bddBelow ht, le_csSup hTc.bddAbove ht⟩
+    · exact hTp.Icc_subset hm hM
+  have hK : e.carrier = g '' T := by
+    ext z
+    constructor
+    · intro hz
+      exact ⟨ℓ z, ⟨z, hz, rfl⟩, hcoord z hz⟩
+    · rintro ⟨_, ⟨z, hz, rfl⟩, rfl⟩
+      rw [hcoord z hz]
+      exact hz
+  have hℓa : ℓ a₀ = 0 := by
+    change inner ℝ (a₀ - a₀) w / ‖w‖ ^ 2 = 0
+    simp
+  have hℓb : ℓ b₀ = 1 := by
+    change inner ℝ (b₀ - a₀) w / ‖w‖ ^ 2 = 1
+    rw [← hw_def, real_inner_self_eq_norm_sq, div_self hwn]
+  have hmM : sInf T < sSup T := by
+    have h0 : sInf T ≤ 0 := hℓa ▸ csInf_le hTc.bddBelow ⟨a₀, ha₀, rfl⟩
+    have h1 : 1 ≤ sSup T := hℓb ▸ le_csSup hTc.bddAbove ⟨b₀, hb₀, rfl⟩
+    linarith
+  refine ⟨g (sInf T), g (sSup T), ?_, ?_⟩
+  · exact (AffineMap.lineMap_injective ℝ hab).ne hmM.ne
+  · have hgT : g '' T = segment ℝ (g (sInf T)) (g (sSup T)) := by
+      rw [← image_segment, segment_eq_Icc hmM.le, ← hTeq]
+    rw [hK, hgT]
+
+/-- Step 2 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a)): "Let
+`h_r = σ^r h_0`". The depth-`r` flag edge, the image of the one-dimensional compact
+connected flag cell `h_0` under the linear equivalence `σ^r`, is a nondegenerate
+segment. -/
+private theorem sites_exist_step2_owner_changes_step2_flag_segment (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) :
+    ∃ p₀ p₁ : E d, p₀ ≠ p₁ ∧ flagEdge A F r = segment ℝ p₀ p₁ := by
+  obtain ⟨a, b, hab, hK⟩ := sites_exist_step2_owner_changes_step2_cell_segment
+    (F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩).val (F.dimension _)
+  refine ⟨(S.σ ^ r) a, (S.σ ^ r) b, (S.σ ^ r).injective.ne hab, ?_⟩
+  unfold flagEdge
+  rw [hK]
+  exact image_segment ℝ (S.σ ^ r).toLinearMap.toAffineMap a b
+
+/-- Step 3 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a), with
+Lemma 1.22(a)): "The recursive trace of Lemma 1.22 covers `h_r` by consecutive edges
+with recorded owners" ("the polygons adjacent to `h` along `h` (those having an edge
+contained in `h`) cover `h` by their edges along `h` ... consecutive edges meet at a
+point of `relint h` which is a vertex of both polygons"). Concretely: finitely many
+nondegenerate boundary edges `[u, v]` of trace pieces, with both endpoints listed by
+the owner, cover the flag edge and have pairwise disjoint open segments. -/
+private theorem sites_exist_step2_owner_changes_step3_edge_cover (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) :
+    ∃ s : Finset (TracePiece A F r × E d × E d),
+      (∀ t ∈ s, t.2.1 ≠ t.2.2 ∧ BoundaryTraceEdge t.1 t.2.1 (segment ℝ t.2.1 t.2.2) ∧
+        BoundaryTraceEdge t.1 t.2.2 (segment ℝ t.2.1 t.2.2)) ∧
+      flagEdge A F r ⊆ ⋃ t ∈ s, segment ℝ t.2.1 t.2.2 ∧
+      (∀ t ∈ s, ∀ t' ∈ s, t ≠ t' →
+        Disjoint (openSegment ℝ t.2.1 t.2.2) (openSegment ℝ t'.2.1 t'.2.2)) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a)): "the
+recursive trace covers `h_r` by consecutive edges". In coordinates on `[0, 1]`: a finite
+closed cover by intervals `[a t, b t]` has, at every `ξ < 1`, a piece starting at or
+before `ξ` and ending after it. -/
+private theorem sites_exist_step2_owner_changes_step4_right_piece {ι : Type*}
+    (s : Finset ι) (a b : ι → ℝ)
+    (hcov : ∀ τ ∈ Icc (0 : ℝ) 1, ∃ t ∈ s, τ ∈ Icc (a t) (b t))
+    (ξ : ℝ) (hξ0 : 0 ≤ ξ) (hξ1 : ξ < 1) :
+    ∃ t ∈ s, a t ≤ ξ ∧ ξ < b t := by
+  classical
+  by_contra hcon
+  push_neg at hcon
+  let C : Set ℝ := ⋃ t ∈ s.filter (fun t => ξ < a t), Icc (a t) (b t)
+  have hC : IsClosed C := isClosed_biUnion_finset (fun t _ => isClosed_Icc)
+  have hξC : ξ ∉ C := by
+    intro h
+    obtain ⟨t, ht, hξt⟩ := Set.mem_iUnion₂.1 h
+    exact absurd hξt.1 (not_le.2 (Finset.mem_filter.1 ht).2)
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hC.isOpen_compl ξ hξC
+  set τ := ξ + min (ε / 2) (1 - ξ) with hτ
+  have hpos : 0 < min (ε / 2) (1 - ξ) := lt_min (by linarith) (by linarith)
+  have hτ1 : τ ≤ 1 := by
+    have := min_le_right (ε / 2) (1 - ξ)
+    linarith
+  obtain ⟨t, ht, hτt⟩ := hcov τ ⟨by linarith, hτ1⟩
+  by_cases hat : ξ < a t
+  · have hτC : τ ∈ C := Set.mem_iUnion₂.2 ⟨t, Finset.mem_filter.2 ⟨ht, hat⟩, hτt⟩
+    have hτb : τ ∈ Metric.ball ξ ε := by
+      rw [Metric.mem_ball, Real.dist_eq, abs_lt]
+      have := min_le_left (ε / 2) (1 - ξ)
+      constructor <;> linarith
+    exact hball hτb hτC
+  · have := hcon t ht (not_lt.1 hat)
+    have := hτt.2
+    linarith
+
+/-- Step 4 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a)): "Every
+maximal consecutive run with one owner has total length at most `D`". In coordinates:
+starting at `ξ` with `ξ + D < 1`, the run of the owner of the piece leaving `ξ` ends at
+a junction `p ∈ (ξ, ξ + D]` where a piece of that owner ends and a piece of another owner
+starts. -/
+private theorem sites_exist_step2_owner_changes_step4_first_junction {ι α : Type*}
+    (s : Finset ι) (a b : ι → ℝ) (o : ι → α) (D : ℝ)
+    (hab : ∀ t ∈ s, a t < b t)
+    (hcov : ∀ τ ∈ Icc (0 : ℝ) 1, ∃ t ∈ s, τ ∈ Icc (a t) (b t))
+    (hdisj : ∀ t ∈ s, ∀ t' ∈ s, t ≠ t' → Disjoint (Ioo (a t) (b t)) (Ioo (a t') (b t')))
+    (hdiam : ∀ t ∈ s, ∀ t' ∈ s, o t = o t' →
+      ∀ z ∈ Icc (a t) (b t), ∀ w ∈ Icc (a t') (b t'), |z - w| ≤ D)
+    (ξ : ℝ) (hξ0 : 0 ≤ ξ) (hξD : ξ + D < 1) :
+    ∃ p : ℝ, ξ < p ∧ p ≤ ξ + D ∧
+      ∃ t ∈ s, ∃ t' ∈ s, o t ≠ o t' ∧ b t = p ∧ a t' = p := by
+  classical
+  have hD : 0 ≤ D := by
+    obtain ⟨t, ht, hτ⟩ := hcov 0 ⟨le_rfl, zero_le_one⟩
+    have := hdiam t ht t ht rfl 0 hτ 0 hτ
+    simpa using this
+  obtain ⟨t₀, ht₀, hat₀, hbt₀⟩ :=
+    sites_exist_step2_owner_changes_step4_right_piece s a b hcov ξ hξ0 (by linarith)
+  let sc := s.filter (fun t => o t = o t₀ ∧ ξ < b t)
+  have ht₀c : t₀ ∈ sc := Finset.mem_filter.2 ⟨ht₀, rfl, hbt₀⟩
+  obtain ⟨t₁, ht₁c, hmax⟩ := sc.exists_max_image b ⟨t₀, ht₀c⟩
+  obtain ⟨ht₁, ho₁, hb₁⟩ := Finset.mem_filter.1 ht₁c
+  have hpD : b t₁ ≤ ξ + D := by
+    have := hdiam t₁ ht₁ t₀ ht₀ ho₁ (b t₁) ⟨(hab t₁ ht₁).le, le_rfl⟩ ξ ⟨hat₀, hbt₀.le⟩
+    rw [abs_le] at this
+    linarith [this.2]
+  obtain ⟨t', ht', hat', hbt'⟩ :=
+    sites_exist_step2_owner_changes_step4_right_piece s a b hcov (b t₁)
+      (by linarith) (by linarith)
+  have ho' : o t' ≠ o t₀ := by
+    intro h
+    have := hmax t' (Finset.mem_filter.2 ⟨ht', h, by linarith⟩)
+    linarith
+  have hne : t₁ ≠ t' := by
+    rintro rfl
+    exact ho' ho₁
+  have ha' : a t' = b t₁ := by
+    by_contra hlt
+    have hlt' : a t' < b t₁ := lt_of_le_of_ne hat' hlt
+    have h1 := hab t₁ ht₁
+    set z := (max (a t₁) (a t') + b t₁) / 2 with hz
+    have hm1 := le_max_left (a t₁) (a t')
+    have hm2 := le_max_right (a t₁) (a t')
+    have hm3 : max (a t₁) (a t') < b t₁ := max_lt h1 hlt'
+    have hz1 : z ∈ Ioo (a t₁) (b t₁) := ⟨by linarith, by linarith⟩
+    have hz2 : z ∈ Ioo (a t') (b t') := ⟨by linarith, by linarith⟩
+    exact Set.disjoint_left.1 (hdisj t₁ ht₁ t' ht' hne) hz1 hz2
+  refine ⟨b t₁, by linarith, hpD, t₁, ht₁, t', ht', ?_, rfl, ha'⟩
+  rw [ho₁]
+  exact fun h => ho' h.symm
+
+/-- Step 4 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a)): "Thus the
+number of changes of owner is at least `|h_r|/D - 1`". In coordinates on `[0, 1]`: an
+interval `[ξ, η]` of length `≥ (M+1) D` contains `M` distinct owner junctions in its
+interior (iterate the first junction, each within `D` of the previous one). -/
+private theorem sites_exist_step2_owner_changes_step4_real_count {ι α : Type*}
+    (s : Finset ι) (a b : ι → ℝ) (o : ι → α) (D : ℝ) (hD : 0 < D)
+    (hab : ∀ t ∈ s, a t < b t)
+    (hcov : ∀ τ ∈ Icc (0 : ℝ) 1, ∃ t ∈ s, τ ∈ Icc (a t) (b t))
+    (hdisj : ∀ t ∈ s, ∀ t' ∈ s, t ≠ t' → Disjoint (Ioo (a t) (b t)) (Ioo (a t') (b t')))
+    (hdiam : ∀ t ∈ s, ∀ t' ∈ s, o t = o t' →
+      ∀ z ∈ Icc (a t) (b t), ∀ w ∈ Icc (a t') (b t'), |z - w| ≤ D)
+    (η : ℝ) (hη : η ≤ 1) :
+    ∀ (M : ℕ) (ξ : ℝ), 0 ≤ ξ → ξ + ((M : ℝ) + 1) * D ≤ η →
+      ∃ q : Finset ℝ, M ≤ q.card ∧ ∀ p ∈ q, ξ < p ∧ p < η ∧
+        ∃ t ∈ s, ∃ t' ∈ s, o t ≠ o t' ∧ b t = p ∧ a t' = p := by
+  classical
+  intro M
+  induction M with
+  | zero => exact fun _ _ _ => ⟨∅, le_rfl, by simp⟩
+  | succ M ih =>
+    intro ξ hξ0 hξη
+    push_cast at hξη
+    have hMD : 0 ≤ (M : ℝ) * D := mul_nonneg (Nat.cast_nonneg M) hD.le
+    obtain ⟨p, hξp, hpD, hj⟩ := sites_exist_step2_owner_changes_step4_first_junction
+      s a b o D hab hcov hdisj hdiam ξ hξ0 (by nlinarith)
+    obtain ⟨q, hq, hqp⟩ := ih p (by linarith) (by nlinarith)
+    have hpq : p ∉ q := fun h => lt_irrefl p (hqp p h).1
+    refine ⟨insert p q, ?_, ?_⟩
+    · rw [Finset.card_insert_of_notMem hpq]
+      omega
+    · intro p' hp'
+      rcases Finset.mem_insert.1 hp' with rfl | hp'
+      · exact ⟨hξp, by nlinarith, hj⟩
+      · obtain ⟨h1, h2, h3⟩ := hqp p' hp'
+        exact ⟨by linarith, h2, h3⟩
+
+/-- Step 4 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a)): "Every
+maximal consecutive run with one owner has total length at most `D` ... Thus the
+number of changes of owner is at least `|h_r|/D - 1`." Pure one-dimensional counting:
+if finitely many nondegenerate labelled subsegments with disjoint open parts cover the
+segment `[p₀, p₁]`, and same-label pieces stay within distance `D > 0`, then between
+two points at distance `≥ (M+1) D` there are `M` distinct junctions, each a common
+endpoint of two pieces with distinct labels lying on opposite sides. -/
+private theorem sites_exist_step2_owner_changes_step4_count {ι α : Type*}
+    (s : Finset ι) (u v : ι → E d) (o : ι → α) (D : ℝ) (hD : 0 < D)
+    (p₀ p₁ x y : E d) (M : ℕ)
+    (huv : ∀ t ∈ s, u t ≠ v t)
+    (hsub : ∀ t ∈ s, segment ℝ (u t) (v t) ⊆ segment ℝ p₀ p₁)
+    (hcov : segment ℝ p₀ p₁ ⊆ ⋃ t ∈ s, segment ℝ (u t) (v t))
+    (hdisj : ∀ t ∈ s, ∀ t' ∈ s, t ≠ t' →
+      Disjoint (openSegment ℝ (u t) (v t)) (openSegment ℝ (u t') (v t')))
+    (hdiam : ∀ t ∈ s, ∀ t' ∈ s, o t = o t' →
+      ∀ z ∈ segment ℝ (u t) (v t), ∀ w ∈ segment ℝ (u t') (v t'), dist z w ≤ D)
+    (hx : x ∈ segment ℝ p₀ p₁) (hy : y ∈ segment ℝ p₀ p₁)
+    (hxy : ((M : ℝ) + 1) * D ≤ dist x y) :
+    ∃ q : Finset (E d), M ≤ q.card ∧ ∀ p ∈ q, p ∈ openSegment ℝ p₀ p₁ ∧
+      ∃ t ∈ s, ∃ t' ∈ s, o t ≠ o t' ∧ (p = u t ∨ p = v t) ∧ (p = u t' ∨ p = v t') ∧
+        ∃ z ∈ openSegment ℝ (u t) (v t), ∃ w ∈ openSegment ℝ (u t') (v t'),
+          p ∈ openSegment ℝ z w := by
+  classical
+  have hMD : 0 < ((M : ℝ) + 1) * D := by positivity
+  have hLxy : 0 < dist x y := lt_of_lt_of_le hMD hxy
+  have hp01 : p₀ ≠ p₁ := by
+    rintro rfl
+    rw [segment_same, Set.mem_singleton_iff] at hx hy
+    rw [hx, hy, dist_self] at hLxy
+    exact lt_irrefl _ hLxy
+  set w : E d := p₁ - p₀ with hw_def
+  have hw : w ≠ 0 := sub_ne_zero.2 (Ne.symm hp01)
+  have hwn : ‖w‖ ^ 2 ≠ 0 := pow_ne_zero 2 (norm_ne_zero_iff.2 hw)
+  let g : ℝ →ᵃ[ℝ] E d := AffineMap.lineMap p₀ p₁
+  let ℓ : E d → ℝ := fun z => inner ℝ (z - p₀) w / ‖w‖ ^ 2
+  have hgapp : ∀ τ : ℝ, g τ = τ • w + p₀ := by
+    intro τ
+    change AffineMap.lineMap p₀ p₁ τ = τ • w + p₀
+    rw [AffineMap.lineMap_apply, vsub_eq_sub, vadd_eq_add]
+  have hℓg : ∀ τ : ℝ, ℓ (g τ) = τ := by
+    intro τ
+    change inner ℝ (g τ - p₀) w / ‖w‖ ^ 2 = τ
+    rw [hgapp, add_sub_cancel_right, real_inner_smul_left, real_inner_self_eq_norm_sq]
+    field_simp
+  have hginj : Function.Injective g := fun τ τ' h => by
+    rw [← hℓg τ, ← hℓg τ', h]
+  have hseg : segment ℝ p₀ p₁ = g '' Icc 0 1 := segment_eq_image_lineMap ℝ p₀ p₁
+  have hgℓ : ∀ z ∈ segment ℝ p₀ p₁, g (ℓ z) = z ∧ ℓ z ∈ Icc (0 : ℝ) 1 := by
+    intro z hz
+    rw [hseg] at hz
+    obtain ⟨τ, hτ, rfl⟩ := hz
+    rw [hℓg]
+    exact ⟨rfl, hτ⟩
+  have hdist : ∀ τ τ' : ℝ, dist (g τ) (g τ') = |τ - τ'| * dist p₀ p₁ := by
+    intro τ τ'
+    change dist (AffineMap.lineMap p₀ p₁ τ) (AffineMap.lineMap p₀ p₁ τ') = _
+    rw [dist_lineMap_lineMap, Real.dist_eq]
+  have hL : 0 < dist p₀ p₁ := dist_pos.2 hp01
+  let α : ι → ℝ := fun t => ℓ (u t)
+  let β : ι → ℝ := fun t => ℓ (v t)
+  have hu : ∀ t ∈ s, g (α t) = u t ∧ α t ∈ Icc (0 : ℝ) 1 := fun t ht =>
+    hgℓ _ (hsub t ht (left_mem_segment ℝ _ _))
+  have hv : ∀ t ∈ s, g (β t) = v t ∧ β t ∈ Icc (0 : ℝ) 1 := fun t ht =>
+    hgℓ _ (hsub t ht (right_mem_segment ℝ _ _))
+  have hαβ : ∀ t ∈ s, α t ≠ β t := by
+    intro t ht h
+    apply huv t ht
+    rw [← (hu t ht).1, ← (hv t ht).1, h]
+  have hseg_t : ∀ t ∈ s,
+      segment ℝ (u t) (v t) = g '' Icc (min (α t) (β t)) (max (α t) (β t)) := by
+    intro t ht
+    have e1 := (hu t ht).1
+    have e2 := (hv t ht).1
+    rw [← e1, ← e2, ← image_segment, segment_eq_uIcc]
+    rfl
+  have hopen_t : ∀ t ∈ s,
+      openSegment ℝ (u t) (v t) = g '' Ioo (min (α t) (β t)) (max (α t) (β t)) := by
+    intro t ht
+    have e1 := (hu t ht).1
+    have e2 := (hv t ht).1
+    rw [← e1, ← e2, ← image_openSegment, openSegment_eq_Ioo' (hαβ t ht)]
+  have hopen01 : openSegment ℝ p₀ p₁ = g '' Ioo 0 1 := by
+    rw [← openSegment_eq_Ioo (zero_lt_one' ℝ), image_openSegment]
+    simp [g]
+  obtain ⟨hxg, hxI⟩ := hgℓ x hx
+  obtain ⟨hyg, hyI⟩ := hgℓ y hy
+  have hD' : 0 < D / dist p₀ p₁ := div_pos hD hL
+  have hlen : min (ℓ x) (ℓ y) + ((M : ℝ) + 1) * (D / dist p₀ p₁) ≤ max (ℓ x) (ℓ y) := by
+    have h1 : dist x y = |ℓ x - ℓ y| * dist p₀ p₁ := by
+      rw [← hdist, hxg, hyg]
+    have h2 : ((M : ℝ) + 1) * (D / dist p₀ p₁) ≤ |ℓ x - ℓ y| := by
+      rw [← mul_div_assoc, div_le_iff₀ hL, ← h1]
+      exact hxy
+    have h3 : max (ℓ x) (ℓ y) - min (ℓ x) (ℓ y) = |ℓ x - ℓ y| := by
+      rw [max_sub_min_eq_abs, abs_sub_comm]
+    linarith
+  obtain ⟨q', hq'card, hq'⟩ := sites_exist_step2_owner_changes_step4_real_count s
+    (fun t => min (α t) (β t)) (fun t => max (α t) (β t)) o (D / dist p₀ p₁) hD'
+    (fun t ht => min_lt_max.2 (hαβ t ht))
+    (by
+      intro τ hτ
+      have hgτ : g τ ∈ segment ℝ p₀ p₁ := by
+        rw [hseg]
+        exact Set.mem_image_of_mem g hτ
+      obtain ⟨t, ht, hτt⟩ := Set.mem_iUnion₂.1 (hcov hgτ)
+      rw [hseg_t t ht] at hτt
+      obtain ⟨τ', hτ', he⟩ := hτt
+      exact ⟨t, ht, hginj he ▸ hτ'⟩)
+    (by
+      intro t ht t' ht' hne
+      rw [Set.disjoint_left]
+      intro τ h1 h2
+      have k1 : g τ ∈ openSegment ℝ (u t) (v t) := by
+        rw [hopen_t t ht]
+        exact Set.mem_image_of_mem g h1
+      have k2 : g τ ∈ openSegment ℝ (u t') (v t') := by
+        rw [hopen_t t' ht']
+        exact Set.mem_image_of_mem g h2
+      exact Set.disjoint_left.1 (hdisj t ht t' ht' hne) k1 k2)
+    (by
+      intro t ht t' ht' ho z hz w' hw'
+      have k1 : g z ∈ segment ℝ (u t) (v t) := by
+        rw [hseg_t t ht]
+        exact Set.mem_image_of_mem g hz
+      have k2 : g w' ∈ segment ℝ (u t') (v t') := by
+        rw [hseg_t t' ht']
+        exact Set.mem_image_of_mem g hw'
+      have := hdiam t ht t' ht' ho _ k1 _ k2
+      rw [hdist] at this
+      rw [le_div_iff₀ hL]
+      exact this)
+    (max (ℓ x) (ℓ y)) (max_le hxI.2 hyI.2) M (min (ℓ x) (ℓ y)) (le_min hxI.1 hyI.1) hlen
+  refine ⟨q'.image g, ?_, ?_⟩
+  · rw [Finset.card_image_of_injective _ hginj]
+    exact hq'card
+  · intro p hp
+    obtain ⟨p', hp', rfl⟩ := Finset.mem_image.1 hp
+    obtain ⟨hξp, hpη, t, ht, t', ht', hne, hb, ha⟩ := hq' p' hp'
+    have hp'0 : 0 < p' := lt_of_le_of_lt (le_min hxI.1 hyI.1) hξp
+    have hp'1 : p' < 1 := lt_of_lt_of_le hpη (max_le hxI.2 hyI.2)
+    have hlt : min (α t) (β t) < max (α t) (β t) := min_lt_max.2 (hαβ t ht)
+    have hlt' : min (α t') (β t') < max (α t') (β t') := min_lt_max.2 (hαβ t' ht')
+    have hb : max (α t) (β t) = p' := hb
+    have ha : min (α t') (β t') = p' := ha
+    refine ⟨?_, t, ht, t', ht', hne, ?_, ?_, g ((min (α t) (β t) + p') / 2), ?_,
+      g ((p' + max (α t') (β t')) / 2), ?_, ?_⟩
+    · rw [hopen01]
+      exact Set.mem_image_of_mem g ⟨hp'0, hp'1⟩
+    · rcases max_choice (α t) (β t) with h | h
+      · left
+        rw [← hb, h, (hu t ht).1]
+      · right
+        rw [← hb, h, (hv t ht).1]
+    · rcases min_choice (α t') (β t') with h | h
+      · left
+        rw [← ha, h, (hu t' ht').1]
+      · right
+        rw [← ha, h, (hv t' ht').1]
+    · rw [hopen_t t ht]
+      exact Set.mem_image_of_mem g ⟨by linarith, by linarith⟩
+    · rw [hopen_t t' ht']
+      exact Set.mem_image_of_mem g ⟨by linarith, by linarith⟩
+    · rw [← image_openSegment, openSegment_eq_Ioo (by linarith)]
+      exact Set.mem_image_of_mem g ⟨by linarith, by linarith⟩
+
+/-- Step 5 of the V4 proof of `sites_exist_step2_owner_changes` (V4 1.23(a)):
+"consecutive edges meet at a point of `relint h`". Every point of the open segment of a
+nondegenerate segment lies in its relative interior (one-dimensional fact). -/
+private theorem sites_exist_step2_owner_changes_step5_open_relint (x y : E d)
+    (hxy : x ≠ y) : openSegment ℝ x y ⊆ relint (segment ℝ x y) := by
+  intro z hz
+  have hsp : affineSpan ℝ (segment ℝ x y) = line[ℝ, x, y] := by
+    rw [← convexHull_pair, affineSpan_convexHull]
+  rw [openSegment_eq_image_lineMap] at hz
+  obtain ⟨l, ⟨hl0, hl1⟩, rfl⟩ := hz
+  have hzs : AffineMap.lineMap x y l ∈ affineSpan ℝ (segment ℝ x y) := by
+    rw [hsp]
+    exact AffineMap.lineMap_mem_affineSpan_pair l x y
+  unfold relint
+  rw [mem_intrinsicInterior]
+  refine ⟨⟨_, hzs⟩, ?_, rfl⟩
+  rw [mem_interior_iff_mem_nhds, Metric.mem_nhds_iff]
+  have hd : 0 < dist x y := dist_pos.mpr hxy
+  refine ⟨min l (1 - l) * dist x y, mul_pos (lt_min hl0 (by linarith)) hd, ?_⟩
+  rintro ⟨w, hw⟩ hwb
+  have hw' := hw
+  rw [hsp] at hw'
+  have hdir := AffineSubspace.vsub_mem_direction hw' (left_mem_affineSpan_pair ℝ x y)
+  rw [direction_affineSpan, mem_vectorSpan_pair_rev] at hdir
+  obtain ⟨r, hr⟩ := hdir
+  have hwr : w = AffineMap.lineMap x y r := by
+    rw [AffineMap.lineMap_apply, hr, vsub_vadd]
+  subst hwr
+  rw [Metric.mem_ball, Subtype.dist_eq, dist_lineMap_lineMap] at hwb
+  have hrl : dist r l < min l (1 - l) := lt_of_mul_lt_mul_right hwb hd.le
+  rw [Real.dist_eq, abs_lt] at hrl
+  have h1 := min_le_left l (1 - l)
+  have h2 := min_le_right l (1 - l)
+  change AffineMap.lineMap x y r ∈ segment ℝ x y
+  rw [segment_eq_image_lineMap]
+  exact ⟨r, ⟨by linarith, by linarith⟩, rfl⟩
+
 /-- Step 2 of the V4 proof of `sites_exist` (V4 1.23(a), counting paragraph):
 "Let `D` bound native tile diameters. The recursive trace of Lemma 1.22 covers `h_r`
 by consecutive edges with recorded owners. Every maximal consecutive run with one
@@ -1577,7 +2055,42 @@ private theorem sites_exist_step2_owner_changes (A : S.ι) (F : FacetFlag S A) :
     ∃ D : ℝ, ∀ (r M : ℕ) (x y : E d), x ∈ flagEdge A F r → y ∈ flagEdge A F r →
       ((M : ℝ) + 1) * D ≤ dist x y →
       ∃ q : Finset (E d), M ≤ q.card ∧ ∀ p ∈ q, sitesExistOwnerChange A F r p := by
-  sorry
+  obtain ⟨C, hC⟩ := sites_exist_step2_owner_changes_step1_diameter A F
+  refine ⟨max C 1, ?_⟩
+  intro r M x y hx hy hxy
+  obtain ⟨p₀, p₁, hp, hflag⟩ := sites_exist_step2_owner_changes_step2_flag_segment A F r
+  obtain ⟨s, hs, hcov, hdisj⟩ := sites_exist_step2_owner_changes_step3_edge_cover A F r
+  have hcarrier : ∀ t ∈ s, segment ℝ t.2.1 t.2.2 ⊆ t.1.carrier := by
+    intro t ht
+    obtain ⟨_, _, _, hK, _⟩ := (hs t ht).2.1
+    exact hK
+  have hedge : ∀ t ∈ s, segment ℝ t.2.1 t.2.2 ⊆ segment ℝ p₀ p₁ := by
+    intro t ht
+    obtain ⟨_, _, _, _, hK, _⟩ := (hs t ht).2.1
+    rw [← hflag]
+    exact hK
+  rw [hflag] at hx hy hcov
+  obtain ⟨q, hcard, hq⟩ := sites_exist_step2_owner_changes_step4_count s
+    (fun t => t.2.1) (fun t => t.2.2) (fun t => t.1.owner) (max C 1)
+    (lt_of_lt_of_le zero_lt_one (le_max_right C 1)) p₀ p₁ x y M
+    (fun t ht => (hs t ht).1) hedge hcov hdisj
+    (fun t ht t' ht' ho z hz w hw =>
+      (hC r t.1 t'.1 ho z (hcarrier t ht hz) w (hcarrier t' ht' hw)).trans
+        (le_max_left C 1))
+    hx hy hxy
+  refine ⟨q, hcard, fun p hp' => ?_⟩
+  obtain ⟨hp01, t, ht, t', ht', hne, hpt, hpt', z, hz, w, hw, hpzw⟩ := hq p hp'
+  refine ⟨?_, t.1, t'.1, segment ℝ t.2.1 t.2.2, segment ℝ t'.2.1 t'.2.2, hne, ?_, ?_,
+    z, sites_exist_step2_owner_changes_step5_open_relint _ _ (hs t ht).1 hz,
+    w, sites_exist_step2_owner_changes_step5_open_relint _ _ (hs t' ht').1 hw, hpzw⟩
+  · rw [hflag]
+    exact sites_exist_step2_owner_changes_step5_open_relint _ _ hp hp01
+  · rcases hpt with h | h
+    · rw [h]; exact (hs t ht).2.1
+    · rw [h]; exact (hs t ht).2.2
+  · rcases hpt' with h | h
+    · rw [h]; exact (hs t' ht').2.1
+    · rw [h]; exact (hs t' ht').2.2
 
 open private hereditary_trace_step6_same hereditary_trace_step1_relint_unique
   hereditary_trace_step2_relint_mono hereditary_trace_step3_dim_mono

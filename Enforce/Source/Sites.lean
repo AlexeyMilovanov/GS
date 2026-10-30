@@ -1002,6 +1002,817 @@ private theorem sites_exist_step2_owner_changes (A : S.ι) (F : FacetFlag S A) :
       ∃ q : Finset (E d), M ≤ q.card ∧ ∀ p ∈ q, sitesExistOwnerChange A F r p := by
   sorry
 
+open private hereditary_trace_step6_same hereditary_trace_step1_relint_unique
+  hereditary_trace_step2_relint_mono hereditary_trace_step3_dim_mono
+  from Enforce.Source.Trace in
+/-- Step 1 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), via (H2)):
+"`F₂` ... near `q` is a half-plane, by Lemma 1.0(a) applied to its boundary edge" uses
+that the only listed cell of dimension `≤ 1` of the root `H` through a relative-interior
+point `q` of the flag edge `h` is `h` itself (relative interiors are disjoint). -/
+private theorem sites_exist_step3_inward_arm_step1_edge_cell (A : S.ι) (F : FacetFlag S A)
+    (r : ℕ) (q : E d) (hq : q ∈ relint (flagEdge A F r)) (G : CellName S A)
+    (hG : G.val.dim ≤ 1) (hqG : q ∈ (S.σ ^ r) '' G.val.carrier) :
+    G.val = (F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩).val := by
+  set h := F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩ with hh
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hR : ∀ e : Cell d, R.cell r e = (S.σ ^ r) '' e.carrier :=
+    recursiveTrace_tiles_step0_root_cell A r
+  have hqh : q ∈ relint (R.cell r h.val) := by rw [hR]; exact hq
+  have hsubI : R.cell r h.val ⊆ R.cell r G.val :=
+    hereditary_trace_step6_same R r G.val h.val G.property h.property
+      ⟨q, hqh, by rw [hR]; exact hqG⟩
+  have hsub : h.val.carrier ⊆ G.val.carrier := by
+    have h' := hsubI
+    rw [hR, hR, Set.image_subset_image_iff (S.σ ^ r).injective] at h'
+    exact h'
+  have hdim : G.val.dim = 1 := le_antisymm hG
+    ((F.dimension _).symm.le.trans (hereditary_trace_step3_dim_mono _ _ hsub))
+  have hdir : cellDirection (R.cell r h.val) = cellDirection (R.cell r G.val) := by
+    apply Submodule.eq_of_le_of_finrank_eq
+    · simpa only [cellDirection, direction_affineSpan] using vectorSpan_mono ℝ hsubI
+    · have h1 : Module.finrank ℝ (cellDirection (R.cell r h.val)) = 1 := by
+        rw [hR]
+        exact (recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).toAffineEquiv _).trans
+          (h.val.flat.dimension.trans (F.dimension _))
+      have h2 : Module.finrank ℝ (cellDirection (R.cell r G.val)) = 1 := by
+        rw [hR]
+        exact (recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).toAffineEquiv _).trans
+          (G.val.flat.dimension.trans hdim)
+      rw [h1, h2]
+  have hspan : affineSpan ℝ (R.cell r h.val) = affineSpan ℝ (R.cell r G.val) :=
+    AffineSubspace.eq_of_direction_eq_of_nonempty_of_le hdir
+      ((affineSpan_nonempty ℝ).2 ⟨q, intrinsicInterior_subset hqh⟩) (affineSpan_mono ℝ hsubI)
+  have hqG' : q ∈ relint (R.cell r G.val) :=
+    hereditary_trace_step2_relint_mono _ _ hsubI hspan hqh
+  exact (hereditary_trace_step1_relint_unique R r h.val G.val h.property G.property q
+    hqh hqG').symm
+
+open private hereditary_trace_step2_boundary from Enforce.Source.Trace in
+/-- Step 2 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), with Lemma 1.1):
+"some separating edge enters the half-disc: this is the required inward arm". An edge of
+a trace polygon through `q` that does not lie along the flag edge has its whole relative
+interior in `relint F₂`: otherwise, by heredity (Lemma 1.1), it would lie in a cell of
+`H` of dimension `≤ 1` through `q`, i.e. in `h` itself (Step 1). -/
+private theorem sites_exist_step3_inward_arm_step2_heredity_plane (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) (q : E d) (hq : q ∈ relint (flagEdge A F r))
+    (c : TracePiece A F r) (e : CellName S c.tile.ty) (hqe : q ∈ c.tile.cell 0 e.val)
+    (hsub : c.tile.cell 0 e.val ⊆ c.carrier)
+    (hne : ¬ c.tile.cell 0 e.val ⊆ flagEdge A F r) :
+    relint (c.tile.cell 0 e.val) ⊆ relint ((S.σ ^ r) '' (F.cell ⟨traceDimension d,
+      traceDimension_pos, traceDimension_lt⟩).val.carrier) := by
+  intro x hx
+  by_contra hxF
+  set T := F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩ with hT
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hR : ∀ e : Cell d, R.cell r e = (S.σ ^ r) '' e.carrier :=
+    recursiveTrace_tiles_step0_root_cell A r
+  have hxT : x ∈ R.cell r T.val := by
+    rw [hR]
+    exact c.chain.contained TracePiece.bottomIndex (hsub (intrinsicInterior_subset hx))
+  obtain ⟨G, hG, hlt, -, hxG⟩ := hereditary_trace_step2_boundary R r T.val T.property x hxT
+    (by rw [hR]; exact hxF)
+  have hcG : c.tile.cell 0 e.val ⊆ R.cell r G :=
+    hereditary_trace R c.tile r 0 (recursiveTrace_tiles_step0_native_desc A r c.owner)
+      G e.val hG e.property ⟨x, hx, hxG⟩
+  have hTd : T.val.dim = traceDimension d := F.dimension _
+  have hG1 : G.dim ≤ 1 := by
+    have : traceDimension d ≤ 2 := min_le_left _ _
+    omega
+  have hqG : q ∈ (S.σ ^ r) '' G.carrier := by rw [← hR]; exact hcG hqe
+  have hGh := sites_exist_step3_inward_arm_step1_edge_cell A F r q hq ⟨G, hG⟩ hG1 hqG
+  apply hne
+  intro y hy
+  have hy' := hcG hy
+  rw [hR] at hy'
+  unfold flagEdge
+  change y ∈ (S.σ ^ r) '' (⟨G, hG⟩ : CellName S A).val.carrier at hy'
+  rw [hGh] at hy'
+  exact hy'
+
+open private hereditary_trace_step1_frontier_relint hereditary_trace_step1_cell_subset
+  hereditary_trace_step7_carrier from Enforce.Source.Trace in
+/-- Step 3 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), dimension two,
+with Lemma 1.1): "In `d = 2` the same argument uses the native tiles in the half-disc
+inside the node." An edge of a native tile through `q` not lying along the flag edge
+has its relative interior in the interior of the node: a frontier point in its relative
+interior would put it, by heredity, in a boundary cell of `H` through `q`, i.e. in `h`. -/
+private theorem sites_exist_step3_inward_arm_step3_heredity_domain (hd : d = 2) (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) (q : E d) (hq : q ∈ relint (flagEdge A F r))
+    (w : S.RoleWord A r) (e : CellName S (S.nativeTile A r w).ty)
+    (hqe : q ∈ (S.nativeTile A r w).cell 0 e.val)
+    (hne : ¬ (S.nativeTile A r w).cell 0 e.val ⊆ flagEdge A F r) :
+    relint ((S.nativeTile A r w).cell 0 e.val) ⊆ interior (S.supertile r A) := by
+  intro x hx
+  by_contra hxi
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hR : ∀ e : Cell d, R.cell r e = (S.σ ^ r) '' e.carrier :=
+    recursiveTrace_tiles_step0_root_cell A r
+  have hRc : R.carrier r = S.supertile r A := by
+    simp [R, FramedNode.carrier, placedSet]
+  have hC : (S.nativeTile A r w).IsDescendant 0 R (0 + r) := by
+    rw [zero_add]; exact recursiveTrace_tiles_step0_native_desc A r w
+  have hxS : x ∈ R.carrier r := by
+    have := hereditary_trace_step7_carrier R (S.nativeTile A r w) 0 r hC
+      (hereditary_trace_step1_cell_subset _ 0 e.val e.property (intrinsicInterior_subset hx))
+    rwa [zero_add] at this
+  have hfr : x ∈ frontier (R.carrier r) := by
+    refine ⟨subset_closure hxS, ?_⟩
+    rw [hRc]; exact hxi
+  obtain ⟨G, hG, hxG⟩ := hereditary_trace_step1_frontier_relint R r x hfr
+  have hcG : (S.nativeTile A r w).cell 0 e.val ⊆ R.cell r G :=
+    hereditary_trace R (S.nativeTile A r w) r 0 (recursiveTrace_tiles_step0_native_desc A r w)
+      G e.val hG e.property ⟨x, hx, intrinsicInterior_subset hxG⟩
+  have hG1 : G.dim ≤ 1 := by
+    have := (S.cx A).dim_lt G hG
+    omega
+  have hqG : q ∈ (S.σ ^ r) '' G.carrier := by rw [← hR]; exact hcG hqe
+  have hGh := sites_exist_step3_inward_arm_step1_edge_cell A F r q hq ⟨G, hG⟩ hG1 hqG
+  apply hne
+  intro y hy
+  have hy' := hcG hy
+  rw [hR] at hy'
+  unfold flagEdge
+  change y ∈ (S.σ ^ r) '' (⟨G, hG⟩ : CellName S A).val.carrier at hy'
+  rw [hGh] at hy'
+  exact hy'
+
+/-- Step 11 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), (H2)): "the
+finitely many polygons ... containing `q`": listed cells of a tile missing `q` are at
+positive distance from `q`, so near `q` only listed cells through `q` are met. -/
+private theorem sites_exist_step3_inward_arm_step11_local_cells (C : FramedNode S) (q : E d)
+    (P : Set (E d)) (Φ : Cell d → Prop)
+    (hall : ∀ e ∈ (S.cx C.ty).cells, Φ e → q ∈ C.cell 0 e → C.cell 0 e ⊆ P) :
+    ∃ ρ > 0, ∀ x ∈ ball q ρ, ∀ e ∈ (S.cx C.ty).cells, Φ e → x ∈ C.cell 0 e → x ∈ P := by
+  classical
+  let U : Set (E d) := ⋃ e ∈ (S.cx C.ty).cells.filter (fun e => q ∉ C.cell 0 e), C.cell 0 e
+  have hU : IsClosed U := by
+    refine isClosed_biUnion_finset fun e _ => ?_
+    rw [recursiveTrace_tiles_step0_cell_zero]
+    exact (e.flat.compact.image C.frame.continuous).isClosed
+  have hqU : q ∉ U := by
+    intro h
+    obtain ⟨e, he, hqe⟩ := Set.mem_iUnion₂.1 h
+    exact (Finset.mem_filter.1 he).2 hqe
+  obtain ⟨ρ, hρ, hball⟩ := Metric.isOpen_iff.1 hU.isOpen_compl q hqU
+  refine ⟨ρ, hρ, fun x hx e he hΦ hxe => ?_⟩
+  by_cases hqe : q ∈ C.cell 0 e
+  · exact hall e he hΦ hqe hxe
+  · exact (hball hx (Set.mem_iUnion₂.2 ⟨e, Finset.mem_filter.2 ⟨he, hqe⟩, hxe⟩)).elim
+
+/-- Step 12 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), (H2)): a listed
+vertex is a single point ("the listed vertices through `q` are `{q}`"). -/
+private theorem sites_exist_step3_inward_arm_step12_point (C : FramedNode S) (e : Cell d)
+    (he : e.dim = 0) {x y : E d} (hx : x ∈ C.cell 0 e) (hy : y ∈ C.cell 0 e) : x = y := by
+  have h0 : Module.finrank ℝ (cellDirection (C.cell 0 e)) = 0 := by
+    rw [recursiveTrace_tiles_step0_cell_zero]
+    exact (recursiveTrace_tiles_step0_finrank_image C.frame.toAffineEquiv _).trans
+      (e.flat.dimension.trans he)
+  have hbot : cellDirection (C.cell 0 e) = ⊥ := Submodule.finrank_eq_zero.1 h0
+  have hv : x -ᵥ y ∈ cellDirection (C.cell 0 e) := by
+    unfold cellDirection
+    rw [direction_affineSpan]
+    exact vsub_mem_vectorSpan ℝ hx hy
+  rw [hbot, Submodule.mem_bot] at hv
+  exact vsub_eq_zero_iff_eq.1 hv
+
+open private hereditary_trace_step2_boundary from Enforce.Source.Trace in
+/-- Step 4 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), fan paragraph):
+"A trace polygon containing `q` in an edge interior would have that edge along the
+boundary line". If every listed edge of a trace polygon (or trace edge) through `q`
+lies along the flag edge, then near `q` its whole relative boundary lies along the flag
+edge: the relative boundary is a finite union of listed cells (H2)(ii); those missing
+`q` are at positive distance, the listed vertices through `q` are `{q}`, and a listed
+cell inside the relative boundary of a polygon has dimension `≤ 1`. -/
+private theorem sites_exist_step3_inward_arm_step4_flat_plane (A : S.ι) (F : FacetFlag S A)
+    (r : ℕ) (q : E d) (c : TracePiece A F r) (hqF : q ∈ flagEdge A F r)
+    (hall : ∀ e : CellName S c.tile.ty, e.val.dim = 1 → q ∈ c.tile.cell 0 e.val →
+      c.tile.cell 0 e.val ⊆ c.carrier → c.tile.cell 0 e.val ⊆ flagEdge A F r) :
+    ∃ ρ > 0, relfrontier c.carrier ∩ ball q ρ ⊆ flagEdge A F r := by
+  obtain ⟨ρ, hρ, hloc⟩ := sites_exist_step3_inward_arm_step11_local_cells c.tile q
+    (flagEdge A F r) (fun e => e.dim ≤ 1 ∧ c.tile.cell 0 e ⊆ c.carrier) (by
+      rintro e he ⟨hdim, hsub⟩ hqe
+      rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hdim with h0 | h1
+      · intro y hy
+        rw [sites_exist_step3_inward_arm_step12_point c.tile e h0 hy hqe]
+        exact hqF
+      · exact hall ⟨e, he⟩ h1 hqe hsub)
+  refine ⟨ρ, hρ, fun x hx => ?_⟩
+  obtain ⟨hxf, hxb⟩ := hx
+  have hcl : IsClosed c.carrier := by
+    unfold TracePiece.carrier
+    rw [recursiveTrace_tiles_step0_cell_zero]
+    exact (c.bottom.val.flat.compact.image c.tile.frame.continuous).isClosed
+  have hxc : x ∈ c.carrier ∧ x ∉ relint c.carrier := by
+    unfold relfrontier at hxf
+    rw [← closure_diff_intrinsicInterior, hcl.closure_eq] at hxf
+    exact hxf
+  obtain ⟨G, hG, hlt, hsubG, hxG⟩ := hereditary_trace_step2_boundary c.tile 0 c.bottom.val
+    c.bottom.property x hxc.1 hxc.2
+  have hbd : c.bottom.val.dim = traceDimension d := c.chain.dimension TracePiece.bottomIndex
+  have h2 : traceDimension d ≤ 2 := min_le_left _ _
+  exact hloc x hxb G hG ⟨by omega, hsubG⟩ hxG
+
+open private hereditary_trace_step2_relint_mono from Enforce.Source.Trace in
+/-- Step 6 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), fan paragraph):
+"... overlapping one of the two adjacent polygons". Every trace polygon through `q` has
+relative-interior points arbitrarily close to `q` (its cell is the closure of its
+relative interior, (H2)(iii)), and these lie in `relint F₂` (`G₂ ⊆ F₂`,
+`aff G₂ = aff F₂`). -/
+private theorem sites_exist_step3_inward_arm_step6_overlap_plane (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) (q : E d) (b : TracePiece A F r) (hqb : q ∈ b.carrier)
+    (ρ : ℝ) (hρ : 0 < ρ) :
+    (relint b.carrier ∩ ball q ρ).Nonempty ∧
+      relint b.carrier ⊆ relint ((S.σ ^ r) '' (F.cell ⟨traceDimension d,
+        traceDimension_pos, traceDimension_lt⟩).val.carrier) := by
+  refine ⟨?_, ?_⟩
+  · have hcl : closure (relint b.carrier) = b.carrier := by
+      unfold TracePiece.carrier
+      rw [recursiveTrace_tiles_step0_relint_cell, recursiveTrace_tiles_step0_cell_zero]
+      have h := b.tile.frame.toHomeomorph.image_closure (relint b.bottom.val.carrier)
+      rw [AffineIsometryEquiv.coe_toHomeomorph] at h
+      rw [← h, b.bottom.val.flat.regularClosed]
+    have hq' : q ∈ closure (relint b.carrier) := by rw [hcl]; exact hqb
+    obtain ⟨y, hy, hyq⟩ := Metric.mem_closure_iff.1 hq' ρ hρ
+    exact ⟨y, hy, by rw [mem_ball, dist_comm]; exact hyq⟩
+  · exact hereditary_trace_step2_relint_mono _ _ (b.chain.contained TracePiece.bottomIndex)
+      (recursiveTrace_tiles_step1_span b TracePiece.bottomIndex)
+
+/-- Step 14 of the V4 proof of `sites_exist_step3_inward_arm` (linear algebra behind
+"near `q` the two-dimensional flag cell is a half-plane"): a line `L` inside a plane
+`P` through `q` is the zero set in `P` of a linear functional, nonzero on `P`. -/
+private theorem sites_exist_step3_inward_arm_step14_functional (L P : AffineSubspace ℝ (E d))
+    (q : E d) (hqL : q ∈ L) (hLP : L ≤ P) (hdimL : Module.finrank ℝ L.direction = 1)
+    (hdimP : Module.finrank ℝ P.direction = 2) :
+    ∃ f : E d →ₗ[ℝ] ℝ, ∃ v ∈ P.direction, f v ≠ 0 ∧
+      (∀ x ∈ P, f x = f q → x ∈ L) ∧ (∀ x ∈ L, f x = f q) := by
+  have hqP : q ∈ P := hLP hqL
+  have hdirle := AffineSubspace.direction_le hLP
+  have hlt : L.direction < P.direction := by
+    refine lt_of_le_of_ne hdirle fun h => ?_
+    rw [h] at hdimL
+    omega
+  obtain ⟨v, hvP, hvL⟩ := SetLike.exists_of_lt hlt
+  obtain ⟨f, hfv, hfL⟩ := Submodule.exists_dual_map_eq_bot_of_notMem hvL inferInstance
+  have hfL' : ∀ l ∈ L.direction, f l = 0 := fun l hl => by
+    have hm : f l ∈ L.direction.map f := Submodule.mem_map_of_mem hl
+    rw [hfL] at hm
+    exact (Submodule.mem_bot ℝ).1 hm
+  have hvle : ℝ ∙ v ≤ P.direction := (Submodule.span_singleton_le_iff_mem _ _).2 hvP
+  have hsup : L.direction ⊔ ℝ ∙ v = P.direction := by
+    apply Submodule.eq_of_le_of_finrank_eq (sup_le hdirle hvle)
+    have hlt2 : L.direction < L.direction ⊔ ℝ ∙ v := by
+      refine lt_of_le_of_ne le_sup_left fun h => hvL ?_
+      rw [h]
+      exact Submodule.mem_sup_right (Submodule.mem_span_singleton_self v)
+    have h1 := Submodule.finrank_lt_finrank_of_lt hlt2
+    have h3 := Submodule.finrank_mono (sup_le hdirle hvle)
+    try simp only at h3
+    omega
+  refine ⟨f, v, hvP, hfv, ?_, ?_⟩
+  · intro x hx hfx
+    have hxq : x -ᵥ q ∈ P.direction := AffineSubspace.vsub_mem_direction hx hqP
+    rw [← hsup, Submodule.mem_sup] at hxq
+    obtain ⟨y, hy, z, hz, hyz⟩ := hxq
+    obtain ⟨t, rfl⟩ := Submodule.mem_span_singleton.1 hz
+    have hfxq : f (x -ᵥ q) = t * f v := by
+      rw [← hyz, map_add, hfL' y hy, map_smul, smul_eq_mul, zero_add]
+    have h0 : t * f v = 0 := by
+      rw [← hfxq, vsub_eq_sub, map_sub, hfx, sub_self]
+    have ht : t = 0 := (mul_eq_zero.1 h0).resolve_right hfv
+    subst ht
+    rw [zero_smul, add_zero] at hyz
+    rw [hyz] at hy
+    exact (AffineSubspace.vsub_right_mem_direction_iff_mem hqL x).1 hy
+  · intro x hx
+    have hxq : x -ᵥ q ∈ L.direction := AffineSubspace.vsub_mem_direction hx hqL
+    have := hfL' _ hxq
+    rw [vsub_eq_sub, map_sub, sub_eq_zero] at this
+    exact this
+
+/-- Step 15 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), Lemma 1.0(a)
+for the flag cell, topological part): if near `q` the relative boundary of a closed
+plane cell `T` lies on the line `{f = f q}` of its plane, and that line misses
+`relint T`, then near `q` the relative interior of `T` is one of the two open half-discs
+(or empty), hence convex: each half-disc is connected and misses the relative boundary,
+and both cannot lie in `T` since `q ∉ relint T`. -/
+private theorem sites_exist_step3_inward_arm_step15_core (T E0 : Set (E d)) (q : E d)
+    (f : E d →ₗ[ℝ] ℝ) (v : E d) (hvP : v ∈ (affineSpan ℝ T).direction) (hfv : f v ≠ 0)
+    (hTcl : IsClosed T) (hqE : q ∈ E0) (hqP : q ∈ affineSpan ℝ T)
+    (hEdisj : ∀ p ∈ E0, p ∉ relint T) (hLf : ∀ x ∈ E0, f x = f q)
+    (O : Set (E d)) (hO : IsOpen O) (hOeq : relint T = O ∩ (affineSpan ℝ T : Set (E d)))
+    (ρ : ℝ) (hρ : 0 < ρ)
+    (hloc : ∀ x ∈ ball q ρ, x ∈ T → x ∉ relint T → x ∈ E0)
+    (hlineK : ∀ x ∈ ball q ρ, x ∈ affineSpan ℝ T → f x = f q → x ∈ E0) :
+    ∃ ρ' > 0, Convex ℝ (relint T ∩ ball q ρ') := by
+  have hsep : ∀ Hs : Set (E d), Convex ℝ Hs → Hs ⊆ affineSpan ℝ T → Hs ⊆ ball q ρ →
+      (∀ x ∈ Hs, f x ≠ f q) → Hs ⊆ relint T ∨ Hs ⊆ Tᶜ := by
+    intro Hs hHc hHP hHb hHf
+    have hcover : Hs ⊆ O ∪ Tᶜ := by
+      intro x hx
+      by_cases hxT : x ∈ T
+      · left
+        by_cases hxr : x ∈ relint T
+        · rw [hOeq] at hxr
+          exact hxr.1
+        · exact (hHf x hx (hLf x (hloc x (hHb hx)
+            hxT hxr))).elim
+      · exact Or.inr hxT
+    have hempty : ¬ (Hs ∩ (O ∩ Tᶜ)).Nonempty := by
+      rintro ⟨x, hx, hxO, hxT⟩
+      have hxr : x ∈ relint T := by rw [hOeq]; exact ⟨hxO, hHP hx⟩
+      exact hxT (intrinsicInterior_subset hxr)
+    rcases (isPreconnected_iff_subset_of_disjoint.1 hHc.isPreconnected) O Tᶜ hO
+        hTcl.isOpen_compl hcover (Set.not_nonempty_iff_eq_empty.1 hempty) with h | h
+    · left
+      intro x hx
+      rw [hOeq]
+      exact ⟨h hx, hHP hx⟩
+    · exact Or.inr h
+  let Hp : Set (E d) := {x | f q < f x} ∩ (affineSpan ℝ T : Set (E d)) ∩ ball q ρ
+  let Hm : Set (E d) := {x | f x < f q} ∩ (affineSpan ℝ T : Set (E d)) ∩ ball q ρ
+  have hHpc : Convex ℝ Hp :=
+    ((convex_halfSpace_gt f.isLinear (f q)).inter (affineSpan ℝ T).convex).inter
+      (convex_ball q ρ)
+  have hHmc : Convex ℝ Hm :=
+    ((convex_halfSpace_lt f.isLinear (f q)).inter (affineSpan ℝ T).convex).inter
+      (convex_ball q ρ)
+  have hsplit : relint T ∩ ball q ρ ⊆ Hp ∪ Hm := by
+    rintro x ⟨hxr, hxb⟩
+    have hxP : x ∈ affineSpan ℝ T := mem_affineSpan ℝ (intrinsicInterior_subset hxr)
+    rcases lt_trichotomy (f x) (f q) with h | h | h
+    · exact Or.inr ⟨⟨h, hxP⟩, hxb⟩
+    · exact (hEdisj x (hlineK x hxb hxP h) hxr).elim
+    · exact Or.inl ⟨⟨h, hxP⟩, hxb⟩
+  rcases hsep Hp hHpc (fun x hx => hx.1.2) (fun x hx => hx.2) (fun x hx => hx.1.1.ne') with
+    hp | hp <;>
+  rcases hsep Hm hHmc (fun x hx => hx.1.2) (fun x hx => hx.2) (fun x hx => hx.1.1.ne) with
+    hm | hm
+  · -- both half-discs are inside: then `q ∈ relint F₂`, impossible
+    exfalso
+    have hPT : ∀ x ∈ affineSpan ℝ T, x ∈ ball q ρ → x ∈ T := by
+      intro x hxP hxb
+      rcases lt_trichotomy (f x) (f q) with h | h | h
+      · exact intrinsicInterior_subset (hm ⟨⟨h, hxP⟩, hxb⟩)
+      · rw [← hTcl.closure_eq, Metric.mem_closure_iff]
+        intro ε hε
+        have hδ : 0 < min ε (ρ - dist x q) := lt_min hε (sub_pos.2 (mem_ball.1 hxb))
+        set s := min ε (ρ - dist x q) / (2 * (‖v‖ + 1)) with hs
+        have hs0 : 0 < s := div_pos hδ (by positivity)
+        have hsv : s * ‖v‖ < min ε (ρ - dist x q) := by
+          rw [hs, div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+          nlinarith [norm_nonneg v]
+        have hy1 : dist x (x + s • v) = s * ‖v‖ := by
+          rw [dist_eq_norm, sub_add_cancel_left, norm_neg, norm_smul, Real.norm_of_nonneg hs0.le]
+        have hyP : x + s • v ∈ affineSpan ℝ T := by
+          have : s • v +ᵥ x ∈ affineSpan ℝ T :=
+            AffineSubspace.vadd_mem_of_mem_direction (Submodule.smul_mem _ s hvP) hxP
+          rwa [vadd_eq_add, add_comm] at this
+        have hyb : x + s • v ∈ ball q ρ := by
+          rw [mem_ball]
+          calc dist (x + s • v) q ≤ dist (x + s • v) x + dist x q := dist_triangle _ _ _
+            _ = s * ‖v‖ + dist x q := by rw [dist_comm, hy1]
+            _ < ρ := by have := min_le_right ε (ρ - dist x q); linarith
+        have hfy : f (x + s • v) ≠ f q := by
+          rw [map_add, map_smul, smul_eq_mul, h]
+          intro h'
+          have : s * f v = 0 := by linarith
+          exact hfv ((mul_eq_zero.1 this).resolve_left hs0.ne')
+        refine ⟨x + s • v, ?_, ?_⟩
+        · rcases lt_or_gt_of_ne hfy with h' | h'
+          · exact intrinsicInterior_subset (hm ⟨⟨h', hyP⟩, hyb⟩)
+          · exact intrinsicInterior_subset (hp ⟨⟨h', hyP⟩, hyb⟩)
+        · rw [hy1]
+          exact lt_of_lt_of_le hsv (min_le_left _ _)
+      · exact intrinsicInterior_subset (hp ⟨⟨h, hxP⟩, hxb⟩)
+    have hsubB : (Subtype.val ⁻¹' ball q ρ : Set (affineSpan ℝ T)) ⊆
+        Subtype.val ⁻¹' T := by
+      intro y hy
+      rw [Set.mem_preimage] at hy ⊢
+      exact hPT y.1 y.2 hy
+    have hopenB : IsOpen (Subtype.val ⁻¹' ball q ρ : Set (affineSpan ℝ T)) :=
+      isOpen_ball.preimage continuous_subtype_val
+    have hqB : (⟨q, hqP⟩ : affineSpan ℝ T) ∈ (Subtype.val ⁻¹' ball q ρ : Set (affineSpan ℝ T)) := by
+      rw [Set.mem_preimage]
+      exact mem_ball_self hρ
+    have hint : (⟨q, hqP⟩ : affineSpan ℝ T) ∈
+        interior (Subtype.val ⁻¹' T : Set (affineSpan ℝ T)) :=
+      interior_maximal hsubB hopenB hqB
+    have hqr : q ∈ intrinsicInterior ℝ T := mem_intrinsicInterior.2 ⟨⟨q, hqP⟩, hint, rfl⟩
+    exact hEdisj q hqE hqr
+  · refine ⟨ρ, hρ, ?_⟩
+    have : relint T ∩ ball q ρ = Hp := by
+      apply Set.Subset.antisymm
+      · intro x hx
+        rcases hsplit hx with h | h
+        · exact h
+        · exact (hm h (intrinsicInterior_subset hx.1)).elim
+      · intro x hx
+        exact ⟨hp hx, hx.2⟩
+    rw [this]
+    exact hHpc
+  · refine ⟨ρ, hρ, ?_⟩
+    have : relint T ∩ ball q ρ = Hm := by
+      apply Set.Subset.antisymm
+      · intro x hx
+        rcases hsplit hx with h | h
+        · exact (hp h (intrinsicInterior_subset hx.1)).elim
+        · exact h
+      · intro x hx
+        exact ⟨hm hx, hx.2⟩
+    rw [this]
+    exact hHmc
+  · refine ⟨ρ, hρ, ?_⟩
+    have : relint T ∩ ball q ρ = ∅ := by
+      apply Set.eq_empty_of_forall_notMem
+      intro x hx
+      rcases hsplit hx with h | h
+      · exact hp h (intrinsicInterior_subset hx.1)
+      · exact hm h (intrinsicInterior_subset hx.1)
+    rw [this]
+    exact convex_empty
+
+open private hereditary_trace_step6_same hereditary_trace_step3_dim_mono
+  hereditary_trace_step2_boundary from Enforce.Source.Trace in
+set_option maxHeartbeats 1600000 in
+/-- Step 13 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), Lemma 1.0(a)
+for the flag cell): "For `d ≥ 3`, near `q` the two-dimensional flag cell is a
+half-plane, by Lemma 1.0(a) applied to its boundary edge." Hence, near `q ∈ relint h`,
+the relative interior of `F₂` is an open half-disc, in particular convex. -/
+private theorem sites_exist_step3_inward_arm_step13_half_disc (hd : d ≠ 2) (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) (q : E d) (hq : q ∈ relint (flagEdge A F r)) :
+    ∃ ρ > 0, Convex ℝ (relint ((S.σ ^ r) '' (F.cell ⟨traceDimension d, traceDimension_pos,
+      traceDimension_lt⟩).val.carrier) ∩ ball q ρ) := by
+  classical
+  have h2 : 2 ≤ d := Fact.out
+  have htd : traceDimension d = 2 := by unfold traceDimension; omega
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hR : ∀ e : Cell d, R.cell r e = (S.σ ^ r) '' e.carrier :=
+    recursiveTrace_tiles_step0_root_cell A r
+  set T := (S.σ ^ r) '' (F.cell ⟨traceDimension d, traceDimension_pos,
+    traceDimension_lt⟩).val.carrier with hT
+  have hqE : q ∈ flagEdge A F r := intrinsicInterior_subset hq
+  have hET : flagEdge A F r ⊆ T :=
+    Set.image_mono (F.nested ⟨1, le_rfl, by omega⟩
+      ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩ (by show 1 ≤ traceDimension d; omega))
+  have hTcl : IsClosed T :=
+    ((F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.flat.compact.image
+      (S.σ ^ r).toContinuousLinearEquiv.continuous).isClosed
+  -- the flag edge misses `relint F₂`
+  have hEdisj : ∀ p ∈ flagEdge A F r, p ∉ relint T := by
+    intro p hp hpT
+    have hsub := hereditary_trace_step6_same R r
+      (F.cell ⟨1, le_rfl, by omega⟩).val
+      (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val
+      (F.cell _).property (F.cell _).property
+      ⟨p, by rw [hR]; exact hpT, by rw [hR]; exact hp⟩
+    rw [hR, hR, Set.image_subset_image_iff (S.σ ^ r).injective] at hsub
+    have hle := hereditary_trace_step3_dim_mono _ _ hsub
+    have h1 : (F.cell ⟨1, le_rfl, by omega⟩).val.dim = 1 := F.dimension _
+    have h2' : (F.cell ⟨traceDimension d, traceDimension_pos,
+        traceDimension_lt⟩).val.dim = traceDimension d := F.dimension _
+    omega
+  -- near `q`, the relative boundary of `F₂` lies in the flag edge
+  obtain ⟨ρ1, hρ1, hloc⟩ : ∃ ρ1 > 0, ∀ x ∈ ball q ρ1, x ∈ T → x ∉ relint T →
+      x ∈ flagEdge A F r := by
+    let U : Set (E d) := ⋃ G ∈ (S.cx A).cells.filter
+      (fun G => q ∉ (S.σ ^ r) '' G.carrier), (S.σ ^ r) '' G.carrier
+    have hU : IsClosed U := isClosed_biUnion_finset fun G _ =>
+      (G.flat.compact.image (S.σ ^ r).toContinuousLinearEquiv.continuous).isClosed
+    have hqU : q ∉ U := by
+      intro h
+      obtain ⟨G, hG, hqG⟩ := Set.mem_iUnion₂.1 h
+      exact (Finset.mem_filter.1 hG).2 hqG
+    obtain ⟨ρ1, hρ1, hball⟩ := Metric.isOpen_iff.1 hU.isOpen_compl q hqU
+    refine ⟨ρ1, hρ1, fun x hx hxT hxr => ?_⟩
+    obtain ⟨G, hG, hlt, -, hxG⟩ := hereditary_trace_step2_boundary R r
+      (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val
+      (F.cell _).property x (by rw [hR]; exact hxT) (by rw [hR]; exact hxr)
+    rw [hR] at hxG
+    by_cases hqG : q ∈ (S.σ ^ r) '' G.carrier
+    · have hGd : G.dim ≤ 1 := by
+        have : (F.cell ⟨traceDimension d, traceDimension_pos,
+          traceDimension_lt⟩).val.dim = traceDimension d := F.dimension _
+        omega
+      have hGh := sites_exist_step3_inward_arm_step1_edge_cell A F r q hq ⟨G, hG⟩ hGd hqG
+      change x ∈ (S.σ ^ r) '' (⟨G, hG⟩ : CellName S A).val.carrier at hxG
+      rw [hGh] at hxG
+      exact hxG
+    · exact (hball hx (Set.mem_iUnion₂.2 ⟨G, Finset.mem_filter.2 ⟨hG, hqG⟩, hxG⟩)).elim
+  -- near `q`, the line of the flag edge lies in the flag edge
+  obtain ⟨ρ2, hρ2, hline⟩ : ∃ ρ2 > 0, ∀ x ∈ ball q ρ2,
+      x ∈ (affineSpan ℝ (flagEdge A F r) : Set (E d)) → x ∈ flagEdge A F r := by
+    have hopen := (isOpen_interior : IsOpen (interior
+      ((↑) ⁻¹' flagEdge A F r : Set (affineSpan ℝ (flagEdge A F r)))))
+    obtain ⟨O, hO, hpre⟩ := isOpen_induced_iff.1 hopen
+    have hq' := hq
+    rw [relint, mem_intrinsicInterior] at hq'
+    obtain ⟨y, hy, hyq⟩ := hq'
+    have hqO : q ∈ O := by
+      rw [← hpre] at hy
+      rw [← hyq]
+      exact hy
+    obtain ⟨ρ2, hρ2, hb⟩ := Metric.isOpen_iff.1 hO q hqO
+    refine ⟨ρ2, hρ2, fun x hx hxA => ?_⟩
+    have hxi : (⟨x, hxA⟩ : affineSpan ℝ (flagEdge A F r)) ∈
+        interior ((↑) ⁻¹' flagEdge A F r : Set (affineSpan ℝ (flagEdge A F r))) := by
+      rw [← hpre]
+      exact hb hx
+    have hxm := interior_subset hxi
+    exact hxm
+  -- `relint F₂` is open in the plane `aff F₂`
+  obtain ⟨O, hO, hOeq⟩ : ∃ O : Set (E d), IsOpen O ∧
+      relint T = O ∩ (affineSpan ℝ T : Set (E d)) := by
+    have hopen := (isOpen_interior :
+      IsOpen (interior ((↑) ⁻¹' T : Set (affineSpan ℝ T))))
+    obtain ⟨O, hO, hpre⟩ := isOpen_induced_iff.1 hopen
+    refine ⟨O, hO, ?_⟩
+    ext x
+    constructor
+    · intro hx
+      rw [relint, mem_intrinsicInterior] at hx
+      obtain ⟨y, hy, rfl⟩ := hx
+      rw [← hpre] at hy
+      exact ⟨hy, y.property⟩
+    · rintro ⟨hxO, hxA⟩
+      rw [relint, mem_intrinsicInterior]
+      refine ⟨⟨x, hxA⟩, ?_, rfl⟩
+      rw [← hpre]
+      exact hxO
+  obtain ⟨f, v, hvP, hfv, hK, hLf⟩ := sites_exist_step3_inward_arm_step14_functional
+    (affineSpan ℝ (flagEdge A F r)) (affineSpan ℝ T) q (mem_affineSpan ℝ hqE)
+    (affineSpan_mono ℝ hET)
+    ((recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).toAffineEquiv _).trans
+      ((F.cell ⟨1, le_rfl, by omega⟩).val.flat.dimension.trans (F.dimension _)))
+    ((recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).toAffineEquiv _).trans
+      ((F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.flat.dimension.trans
+        ((F.dimension _).trans htd)))
+  exact sites_exist_step3_inward_arm_step15_core T (flagEdge A F r) q f v hvP hfv hTcl hqE
+    (mem_affineSpan ℝ (hET hqE)) hEdisj (fun x hx => hLf x (mem_affineSpan ℝ hx)) O hO hOeq (min ρ1 ρ2) (lt_min hρ1 hρ2)
+    (fun x hx hxT hxr => hloc x (ball_subset_ball (min_le_left _ _) hx) hxT hxr)
+    (fun x hx hxP hfx => hline x (ball_subset_ball (min_le_right _ _) hx) (hK x hxP hfx))
+
+open private hereditary_trace_step6_same hereditary_trace_step3_dim_mono
+  from Enforce.Source.Trace in
+/-- Step 5 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), fan paragraph,
+`d ≥ 3`): "near `q` the two-dimensional flag cell is a half-plane, by Lemma 1.0(a)
+applied to its boundary edge. A trace polygon ... would ... occupy a whole half-disc".
+A trace polygon through `q` whose relative boundary near `q` lies along the flag edge
+contains, near `q`, the whole open half-disc `relint F₂` (connectedness of the half-disc,
+which misses the relative boundary of the polygon and meets its relative interior). -/
+private theorem sites_exist_step3_inward_arm_step5_fill_plane (hd : d ≠ 2) (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) (q : E d) (hq : q ∈ relint (flagEdge A F r))
+    (c : TracePiece A F r) (hqc : q ∈ c.carrier) (ρ : ℝ) (hρ : 0 < ρ)
+    (hfl : relfrontier c.carrier ∩ ball q ρ ⊆ flagEdge A F r) :
+    ∃ ρ' > 0, relint ((S.σ ^ r) '' (F.cell ⟨traceDimension d, traceDimension_pos,
+      traceDimension_lt⟩).val.carrier) ∩ ball q ρ' ⊆ relint c.carrier := by
+  obtain ⟨ρ0, hρ0, hconv⟩ := sites_exist_step3_inward_arm_step13_half_disc hd A F r q hq
+  set T := (S.σ ^ r) '' (F.cell ⟨traceDimension d, traceDimension_pos,
+    traceDimension_lt⟩).val.carrier with hT
+  refine ⟨min ρ0 ρ, lt_min hρ0 hρ, ?_⟩
+  have hDc : Convex ℝ (relint T ∩ ball q (min ρ0 ρ)) := by
+    have hD : relint T ∩ ball q (min ρ0 ρ) =
+        (relint T ∩ ball q ρ0) ∩ ball q (min ρ0 ρ) := by
+      ext x
+      constructor
+      · rintro ⟨h1, h2⟩
+        exact ⟨⟨h1, ball_subset_ball (min_le_left _ _) h2⟩, h2⟩
+      · rintro ⟨⟨h1, -⟩, h2⟩
+        exact ⟨h1, h2⟩
+    rw [hD]
+    exact hconv.inter (convex_ball _ _)
+  have hEdisj : ∀ p ∈ flagEdge A F r, p ∉ relint T := by
+    intro p hp hpT
+    let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+    have hR : ∀ e : Cell d, R.cell r e = (S.σ ^ r) '' e.carrier :=
+      recursiveTrace_tiles_step0_root_cell A r
+    have hsub := hereditary_trace_step6_same R r
+      (F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩).val
+      (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val
+      (F.cell _).property (F.cell _).property
+      ⟨p, by rw [hR]; exact hpT, by rw [hR]; exact hp⟩
+    rw [hR, hR, Set.image_subset_image_iff (S.σ ^ r).injective] at hsub
+    have hle := hereditary_trace_step3_dim_mono _ _ hsub
+    have h1 : (F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩).val.dim = 1 :=
+      F.dimension _
+    have h2 : (F.cell ⟨traceDimension d, traceDimension_pos,
+        traceDimension_lt⟩).val.dim = traceDimension d := F.dimension _
+    have h3 : traceDimension d = 2 := by
+      unfold traceDimension
+      have := (Fact.out : 2 ≤ d)
+      omega
+    omega
+  have hccl : IsClosed c.carrier := by
+    unfold TracePiece.carrier
+    rw [recursiveTrace_tiles_step0_cell_zero]
+    exact (c.bottom.val.flat.compact.image c.tile.frame.continuous).isClosed
+  obtain ⟨O, hO, hOeq⟩ : ∃ O : Set (E d), IsOpen O ∧
+      relint c.carrier = O ∩ (affineSpan ℝ c.carrier : Set (E d)) := by
+    have hopen := (isOpen_interior :
+      IsOpen (interior ((↑) ⁻¹' c.carrier : Set (affineSpan ℝ c.carrier))))
+    obtain ⟨O, hO, hpre⟩ := isOpen_induced_iff.1 hopen
+    refine ⟨O, hO, ?_⟩
+    ext x
+    constructor
+    · intro hx
+      rw [relint, mem_intrinsicInterior] at hx
+      obtain ⟨y, hy, rfl⟩ := hx
+      rw [← hpre] at hy
+      exact ⟨hy, y.property⟩
+    · rintro ⟨hxO, hxA⟩
+      rw [relint, mem_intrinsicInterior]
+      refine ⟨⟨x, hxA⟩, ?_, rfl⟩
+      rw [← hpre]
+      exact hxO
+  have hspan : affineSpan ℝ c.carrier = affineSpan ℝ T :=
+    recursiveTrace_tiles_step1_span c TracePiece.bottomIndex
+  have hDA : ∀ x ∈ relint T ∩ ball q (min ρ0 ρ),
+      x ∈ (affineSpan ℝ c.carrier : Set (E d)) := by
+    intro x hx
+    rw [hspan]
+    exact mem_affineSpan ℝ (intrinsicInterior_subset hx.1)
+  have hcover : relint T ∩ ball q (min ρ0 ρ) ⊆ O ∪ c.carrierᶜ := by
+    intro x hx
+    by_cases hxc : x ∈ c.carrier
+    · left
+      by_cases hxr : x ∈ relint c.carrier
+      · rw [hOeq] at hxr
+        exact hxr.1
+      · exfalso
+        have hxf : x ∈ relfrontier c.carrier := by
+          unfold relfrontier
+          rw [← closure_diff_intrinsicInterior, hccl.closure_eq]
+          exact ⟨hxc, hxr⟩
+        exact hEdisj x (hfl ⟨hxf, ball_subset_ball (min_le_right _ _) hx.2⟩) hx.1
+    · exact Or.inr hxc
+  have hempty : ¬ (relint T ∩ ball q (min ρ0 ρ) ∩ (O ∩ c.carrierᶜ)).Nonempty := by
+    rintro ⟨x, hxD, hxO, hxc⟩
+    have hxr : x ∈ relint c.carrier := by rw [hOeq]; exact ⟨hxO, hDA x hxD⟩
+    exact hxc (intrinsicInterior_subset hxr)
+  rcases (isPreconnected_iff_subset_of_disjoint.1 hDc.isPreconnected) O c.carrierᶜ hO
+      hccl.isOpen_compl hcover (Set.not_nonempty_iff_eq_empty.1 hempty) with hsub | hsub
+  · intro x hx
+    rw [hOeq]
+    exact ⟨hsub hx, hDA x hx⟩
+  · obtain ⟨⟨y, hyc, hyb⟩, hcF⟩ := sites_exist_step3_inward_arm_step6_overlap_plane A F r q c
+      hqc (min ρ0 ρ) (lt_min hρ0 hρ)
+    exact (hsub ⟨hcF hyc, hyb⟩ (intrinsicInterior_subset hyc)).elim
+
+
+open private hereditary_trace_step1_frontier_relint from Enforce.Source.Trace in
+/-- Step 7 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), dimension two):
+"the same argument uses the native tiles in the half-disc inside the node". If every
+listed edge through `q` of a native tile lies along the flag edge, then near `q` the
+whole frontier of the tile lies along the flag edge ((H2): the frontier is the finite
+union of listed cells, of dimension `≤ 1 = d - 1`). -/
+private theorem sites_exist_step3_inward_arm_step7_flat_domain (hd : d = 2) (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) (q : E d) (w : S.RoleWord A r) (hqF : q ∈ flagEdge A F r)
+    (hall : ∀ e : CellName S (S.nativeTile A r w).ty, e.val.dim = 1 →
+      q ∈ (S.nativeTile A r w).cell 0 e.val →
+      (S.nativeTile A r w).cell 0 e.val ⊆ flagEdge A F r) :
+    ∃ ρ > 0, frontier ((S.nativeTile A r w).carrier 0) ∩ ball q ρ ⊆ flagEdge A F r := by
+  obtain ⟨ρ, hρ, hloc⟩ := sites_exist_step3_inward_arm_step11_local_cells
+    (S.nativeTile A r w) q (flagEdge A F r) (fun e => e.dim ≤ 1) (by
+      intro e he hdim hqe
+      rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hdim with h0 | h1
+      · intro y hy
+        rw [sites_exist_step3_inward_arm_step12_point _ e h0 hy hqe]
+        exact hqF
+      · exact hall ⟨e, he⟩ h1 hqe)
+  refine ⟨ρ, hρ, fun x hx => ?_⟩
+  obtain ⟨hxf, hxb⟩ := hx
+  obtain ⟨G, hG, hxG⟩ := hereditary_trace_step1_frontier_relint _ 0 x hxf
+  have hlt := (S.cx (S.nativeTile A r w).ty).dim_lt G hG
+  exact hloc x hxb G hG (by omega) (intrinsicInterior_subset hxG)
+
+open private hereditary_trace_step7_carrier from Enforce.Source.Trace in
+/-- Step 9 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), dimension two):
+"overlapping one of the two adjacent" tiles. A native tile through `q` has interior
+points of the node arbitrarily close to `q` ((H1): the tile is regular closed and lies
+in the node). -/
+private theorem sites_exist_step3_inward_arm_step9_overlap_domain (A : S.ι) (r : ℕ)
+    (q : E d) (w : S.RoleWord A r) (hqC : q ∈ (S.nativeTile A r w).carrier 0) (ρ : ℝ)
+    (hρ : 0 < ρ) :
+    (interior ((S.nativeTile A r w).carrier 0) ∩ interior (S.supertile r A) ∩
+      ball q ρ).Nonempty := by
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hRc : R.carrier r = S.supertile r A := by
+    simp [R, FramedNode.carrier, placedSet]
+  have hC : (S.nativeTile A r w).IsDescendant 0 R (0 + r) := by
+    rw [zero_add]; exact recursiveTrace_tiles_step0_native_desc A r w
+  have hsub : (S.nativeTile A r w).carrier 0 ⊆ S.supertile r A := by
+    have := hereditary_trace_step7_carrier R (S.nativeTile A r w) 0 r hC
+    rwa [zero_add, hRc] at this
+  let φ := ((S.nativeTile A r w).prototypeFrame 0).toHomeomorphOfFiniteDimensional
+  have hcar0 : (S.nativeTile A r w).carrier 0 = (S.nativeTile A r w).prototypeFrame 0 ''
+      (S.proto (S.nativeTile A r w).ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  have hcar : (S.nativeTile A r w).carrier 0 = φ '' (S.proto (S.nativeTile A r w).ty).carrier :=
+    hcar0
+  have hreg : closure (interior ((S.nativeTile A r w).carrier 0)) =
+      (S.nativeTile A r w).carrier 0 := by
+    rw [hcar, ← φ.image_interior, ← φ.image_closure,
+      (S.proto (S.nativeTile A r w).ty).regularClosed]
+  have hq' : q ∈ closure (interior ((S.nativeTile A r w).carrier 0)) := by
+    rw [hreg]; exact hqC
+  obtain ⟨y, hy, hyq⟩ := Metric.mem_closure_iff.1 hq' ρ hρ
+  exact ⟨y, ⟨hy, interior_mono hsub hy⟩, by rw [mem_ball, dist_comm]; exact hyq⟩
+
+open private hereditary_trace_step1_relint_image hereditary_trace_step1_cell_frontier
+  from Enforce.Source.Trace in
+/-- Step 8 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a), dimension two,
+Lemma 1.0(a)): near `q ∈ relint h` the node is a closed half-disc bounded by the flag
+edge; a native tile through `q` whose frontier near `q` lies along the flag edge fills
+the open half-disc (it is connected, misses the tile frontier and meets its interior). -/
+private theorem sites_exist_step3_inward_arm_step8_fill_domain (hd : d = 2) (A : S.ι)
+    (F : FacetFlag S A) (r : ℕ) (q : E d) (hq : q ∈ relint (flagEdge A F r))
+    (w : S.RoleWord A r) (hqC : q ∈ (S.nativeTile A r w).carrier 0) (ρ : ℝ) (hρ : 0 < ρ)
+    (hfl : frontier ((S.nativeTile A r w).carrier 0) ∩ ball q ρ ⊆ flagEdge A F r) :
+    ∃ ρ' > 0, interior (S.supertile r A) ∩ ball q ρ' ⊆
+      interior ((S.nativeTile A r w).carrier 0) := by
+  set h := F.cell ⟨1, le_rfl, by have := (Fact.out : 2 ≤ d); omega⟩ with hh
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hR : ∀ e : Cell d, R.cell r e = (S.σ ^ r) '' e.carrier :=
+    recursiveTrace_tiles_step0_root_cell A r
+  have hRc : R.carrier r = S.supertile r A := by
+    simp [R, FramedNode.carrier, placedSet]
+  have hEF : flagEdge A F r ⊆ frontier (S.supertile r A) := by
+    have := hereditary_trace_step1_cell_frontier R r h.val h.property
+    rw [hR, hRc] at this
+    exact this
+  have himg : relint (flagEdge A F r) = (S.σ ^ r) '' relint h.val.carrier :=
+    hereditary_trace_step1_relint_image (S.σ ^ r).toAffineEquiv h.val.carrier
+  rw [himg] at hq
+  obtain ⟨q0, hq0, rfl⟩ := hq
+  have hF : h.val ∈ (S.cx A).facets := by
+    unfold CellComplex.facets
+    have h1 : h.val.dim = 1 := F.dimension _
+    exact Finset.mem_filter.2 ⟨h.property, by omega⟩
+  obtain ⟨r0, hr0, v, -, -, -, hAb⟩ := facet_halfball (S.proto A) (S.cx A) h.val hF q0 hq0
+  let φ := (S.σ ^ r).toContinuousLinearEquiv.toHomeomorph
+  have hsup : S.supertile r A = φ '' (S.proto A).carrier := rfl
+  have hHc : Convex ℝ {x : E d | 0 ≤ inner ℝ v (x - q0)} := by
+    intro x hx y hy a b ha hb hab
+    simp only [Set.mem_setOf_eq] at hx hy ⊢
+    have heq : a • x + b • y - q0 = a • (x - q0) + b • (y - q0) := by
+      rw [smul_sub, smul_sub, sub_add_sub_comm, ← add_smul, hab, one_smul]
+    rw [heq, inner_add_right, inner_smul_right, inner_smul_right]
+    exact add_nonneg (mul_nonneg ha hx) (mul_nonneg hb hy)
+  have hIc : Convex ℝ (interior (S.proto A).carrier ∩ ball q0 r0) := by
+    have hI : interior (S.proto A).carrier ∩ ball q0 r0 =
+        interior ({x : E d | 0 ≤ inner ℝ v (x - q0)} ∩ ball q0 r0) := by
+      rw [← hAb, interior_inter, isOpen_ball.interior_eq]
+    rw [hI]
+    exact (hHc.inter (convex_ball q0 r0)).interior
+  have hWo : IsOpen (φ '' ball q0 r0) := φ.isOpenMap _ isOpen_ball
+  obtain ⟨ρ1, hρ1, hball1⟩ := Metric.isOpen_iff.1 hWo (φ q0) ⟨q0, mem_ball_self hr0, rfl⟩
+  refine ⟨min ρ1 ρ, lt_min hρ1 hρ, ?_⟩
+  have hDeq : interior (S.supertile r A) ∩ ball ((S.σ ^ r) q0) (min ρ1 ρ) =
+      φ '' (interior (S.proto A).carrier ∩ ball q0 r0) ∩ ball ((S.σ ^ r) q0) (min ρ1 ρ) := by
+    ext x
+    constructor
+    · rintro ⟨hxi, hxb⟩
+      obtain ⟨z, hz, rfl⟩ := hball1 (ball_subset_ball (min_le_left _ _) hxb)
+      refine ⟨⟨z, ⟨?_, hz⟩, rfl⟩, hxb⟩
+      rw [hsup, ← φ.image_interior] at hxi
+      obtain ⟨z', hz', hzz⟩ := hxi
+      rwa [← φ.injective hzz]
+    · rintro ⟨⟨z, ⟨hzi, hz⟩, rfl⟩, hxb⟩
+      refine ⟨?_, hxb⟩
+      rw [hsup, ← φ.image_interior]
+      exact ⟨z, hzi, rfl⟩
+  have hDc : Convex ℝ (interior (S.supertile r A) ∩ ball ((S.σ ^ r) q0) (min ρ1 ρ)) := by
+    rw [hDeq]
+    exact (hIc.linear_image (S.σ ^ r).toLinearMap).inter (convex_ball _ _)
+  have hCcl : IsClosed ((S.nativeTile A r w).carrier 0) :=
+    (((S.proto _).compact.image (S.σ ^ 0).toContinuousLinearEquiv.continuous).image
+      (S.nativeTile A r w).frame.continuous).isClosed
+  have hcover : interior (S.supertile r A) ∩ ball ((S.σ ^ r) q0) (min ρ1 ρ) ⊆
+      interior ((S.nativeTile A r w).carrier 0) ∪ ((S.nativeTile A r w).carrier 0)ᶜ := by
+    intro x hx
+    by_cases hxC : x ∈ (S.nativeTile A r w).carrier 0
+    · left
+      by_contra hxi
+      have hxf : x ∈ frontier ((S.nativeTile A r w).carrier 0) := by
+        rw [hCcl.frontier_eq]; exact ⟨hxC, hxi⟩
+      have hxE := hfl ⟨hxf, ball_subset_ball (min_le_right _ _) hx.2⟩
+      exact (hEF hxE).2 hx.1
+    · exact Or.inr hxC
+  rcases hDc.isPreconnected.subset_or_subset isOpen_interior hCcl.isOpen_compl
+      (Set.disjoint_left.2 fun _ hi hc => hc (interior_subset hi)) hcover with hsub | hsub
+  · exact hsub
+  · obtain ⟨y, ⟨hyC, hyS⟩, hyb⟩ := sites_exist_step3_inward_arm_step9_overlap_domain A r _ w
+      hqC (min ρ1 ρ) (lt_min hρ1 hρ)
+    exact ((hsub ⟨hyS, hyb⟩) (interior_subset hyC)).elim
+
+open private hereditary_trace_step1_cell_subset from Enforce.Source.Trace in
+/-- Step 10 of the V4 proof of `sites_exist_step3_inward_arm` (V4 1.23(a)): "the polygons
+of `C₁`, `C₂`" lie in their owners: a trace carrier lies in the native owner tile. -/
+private theorem sites_exist_step3_inward_arm_step10_carrier (A : S.ι) (F : FacetFlag S A)
+    (r : ℕ) (a : TracePiece A F r) :
+    a.carrier ⊆ (S.nativeTile A r a.owner).carrier 0 :=
+  hereditary_trace_step1_cell_subset a.tile 0 a.bottom.val a.bottom.property
+
 /-- Step 3 of the V4 proof of `sites_exist` (V4 1.23(a), fan paragraph):
 "At such a change `q`, the adjacent trace polygons have distinct owners. For `d ≥ 3`,
 near `q` the two-dimensional flag cell is a half-plane ... Thus all trace polygons
@@ -1010,7 +1821,44 @@ some separating edge enters the half-disc: this is the required inward arm. In `
 the same argument uses the native tiles in the half-disc inside the node." -/
 private theorem sites_exist_step3_inward_arm (A : S.ι) (F : FacetFlag S A) (r : ℕ)
     (q : E d) (hq : sitesExistOwnerChange A F r q) : InwardTraceArm A F r q := by
-  sorry
+  obtain ⟨hqrel, a, b, K, L, hab, ⟨eK, heK, rfl, hKa, hKF, hqK, hlist⟩,
+    ⟨eL, heL, rfl, hLb, hLF, hqL, hlistb⟩, -⟩ := hq
+  have hqF : q ∈ flagEdge A F r := intrinsicInterior_subset hqrel
+  unfold InwardTraceArm
+  by_cases hd : d = 2
+  · rw [if_pos hd]
+    by_cases hex : ∃ e : CellName S a.tile.ty, e.val.dim = 1 ∧ q ∈ a.tile.cell 0 e.val ∧
+        ¬ a.tile.cell 0 e.val ⊆ flagEdge A F r
+    · obtain ⟨e, he, hqe, hne⟩ := hex
+      exact ⟨a.owner, e, he, hlist, hqe,
+        sites_exist_step3_inward_arm_step3_heredity_domain hd A F r q hqrel a.owner e hqe hne⟩
+    · push_neg at hex
+      have hqa : q ∈ (S.nativeTile A r a.owner).carrier 0 :=
+        sites_exist_step3_inward_arm_step10_carrier A F r a (hKa hqK)
+      have hqb : q ∈ (S.nativeTile A r b.owner).carrier 0 :=
+        sites_exist_step3_inward_arm_step10_carrier A F r b (hLb hqL)
+      obtain ⟨ρ, hρ, hfl⟩ :=
+        sites_exist_step3_inward_arm_step7_flat_domain hd A F r q a.owner hqF hex
+      obtain ⟨ρ', hρ', hfill⟩ :=
+        sites_exist_step3_inward_arm_step8_fill_domain hd A F r q hqrel a.owner hqa ρ hρ hfl
+      obtain ⟨y, ⟨hyb, hyS⟩, hyball⟩ :=
+        sites_exist_step3_inward_arm_step9_overlap_domain A r q b.owner hqb ρ' hρ'
+      exact (Set.disjoint_left.1 (S.native_disjoint A r hab) (hfill ⟨hyS, hyball⟩) hyb).elim
+  · rw [if_neg hd]
+    by_cases hex : ∃ e : CellName S a.tile.ty, e.val.dim = 1 ∧ q ∈ a.tile.cell 0 e.val ∧
+        a.tile.cell 0 e.val ⊆ a.carrier ∧ ¬ a.tile.cell 0 e.val ⊆ flagEdge A F r
+    · obtain ⟨e, he, hqe, hsub, hne⟩ := hex
+      exact ⟨a, e, he, hlist, hqe, hsub,
+        sites_exist_step3_inward_arm_step2_heredity_plane A F r q hqrel a e hqe hsub hne⟩
+    · push_neg at hex
+      obtain ⟨ρ, hρ, hfl⟩ := sites_exist_step3_inward_arm_step4_flat_plane A F r q a hqF hex
+      obtain ⟨ρ', hρ', hfill⟩ :=
+        sites_exist_step3_inward_arm_step5_fill_plane hd A F r q hqrel a (hKa hqK) ρ hρ hfl
+      obtain ⟨⟨y, hyb, hyball⟩, hbF⟩ :=
+        sites_exist_step3_inward_arm_step6_overlap_plane A F r q b (hLb hqL) ρ' hρ'
+      have hneq : a ≠ b := fun h => hab (h ▸ rfl)
+      exact (Set.disjoint_left.1 ((recursiveTrace_tiles A F r).2.1 hneq)
+        (hfill ⟨hbF hyb, hyball⟩) hyb).elim
 
 /-- Step 4 of the V4 proof of `sites_exist` (V4 1.23(a)): "The distinct depth-`r`
 owners have a least common ancestor of depth less than `r`". Distinct role words force

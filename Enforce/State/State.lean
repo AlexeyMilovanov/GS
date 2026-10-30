@@ -6079,6 +6079,224 @@ private theorem state_scaleTransfer_step4_active (P : Params S) {U V : HonestSou
       state_scaleTransfer_step4_active_step5_orient _ _ _ _ _ (hline hsp)] at hO'
     exact hO'
 
+/-- Step 1 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 1.13(c)):
+"`φ_{N'} = J Λ^{n-m} φ_N`"; the provider placements of corresponding facets differ by
+the common map `J ∘ Λ^(b-a)` (same birth parent offset and incidence). -/
+private theorem state_scaleTransfer_step4_constants_step1_placement (P : Params S)
+    {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    V.providerPlacement P (e.toEquiv q).val g hg =
+      (U.providerPlacement P q.val f hf).trans
+        (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) := by
+  obtain ⟨hinc, -⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  obtain ⟨k, hU, hV⟩ := state_scaleTransfer_step4_serving e q f g hfg hf hg
+  have hB : V.hierarchy.birthParent (e.toEquiv q).val g hg =
+      (e.toEquiv (U.hierarchy.tailParent a ((U.hierarchy.tailParent a)^[k] q))).val := by
+    unfold CoherentHierarchy.birthParent
+    rw [hV, e.parents]
+    rfl
+  have hBU : U.hierarchy.birthParent q.val f hf =
+      (U.hierarchy.tailParent a ((U.hierarchy.tailParent a)^[k] q)).val := by
+    unfold CoherentHierarchy.birthParent
+    rw [hU]
+    rfl
+  unfold HonestSource.providerPlacement CoherentHierarchy.birthHeight
+  rw [hB, hBU, ← hinc]
+  unfold Params.incidencePlacement
+  rw [e.frames]
+  exact AffineEquiv.ext fun x => rfl
+
+/-- Step 1 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 1.13(c)): the
+selected sites (the same canonical sites of the same incidence and side) are carried
+by `J ∘ Λ^(b-a)`. -/
+private theorem state_scaleTransfer_step4_constants_step1_site (P : Params S)
+    {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) (x : Fin P.N) :
+    V.sitePoint P (e.toEquiv q).val g hg x =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv)
+        (U.sitePoint P q.val f hf x) := by
+  obtain ⟨hinc, hside⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  unfold HonestSource.sitePoint
+  rw [state_scaleTransfer_step4_constants_step1_placement P e q f g hfg hf hg, ← hinc, ← hside]
+  rfl
+
+/-- Step 1 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 1.13(c)): the
+counter direction is carried by the linear part of `J ∘ Λ^(b-a)`. -/
+private theorem state_scaleTransfer_step4_constants_step1_direction (P : Params S)
+    {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    V.counterDirection P (e.toEquiv q).val g hg =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv).linear
+        (U.counterDirection P q.val f hf) := by
+  obtain ⟨hinc, -⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  unfold HonestSource.counterDirection
+  rw [state_scaleTransfer_step4_constants_step1_placement P e q f g hfg hf hg, ← hinc]
+  rfl
+
+/-- Step 2 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.1 (P3), §2.2
+(S4d)): on a chain-active edge, the sites and the anchor of the edge lie on one line
+parallel to the counter direction (the sites lie on the placed flag edge, whose affine
+span is that of the active edge). -/
+private theorem state_scaleTransfer_step4_constants_step2_collinear (P : Params S)
+    (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (c : OrientedChain f) (hc : U.ActiveChain P q f hf c) (x : Fin P.N) :
+    ∃ t : ℝ, U.sitePoint P q f hf x -
+        q.2.val.prototypeFrame q.1 (cellAnchor (c.chain.val.cell edgeIndex).val) =
+      t • U.counterDirection P q f hf := by
+  set pp := U.providerPlacement P q f hf with hpp
+  set ι := U.recordIncidence P q f hf with hι
+  set bs := U.recordSide P q f hf with hbs
+  set F := P.flag ι with hF
+  have hs : P.canonicalSite ι bs x ∈ segment ℝ F.initial F.terminal := by
+    rw [← F.edge_eq]
+    have h1 := P.sites_relint ι bs x
+    have h2 : (S.child ι.val.ty (ι.val.sideIndex bs)).frame (P.sites ι bs x) ∈
+        placedSet (S.child ι.val.ty ι.val.left).frame ((F.flag.cell edgeIndex).val.carrier) := by
+      rw [← P.sideFlag_eq ι bs edgeIndex]
+      exact ⟨_, intrinsicInterior_subset h1, rfl⟩
+    obtain ⟨y, hy, hyeq⟩ := h2
+    unfold Params.canonicalSite
+    rw [← hyeq, AffineIsometryEquiv.symm_apply_apply]
+    exact hy
+  rw [segment_eq_image_lineMap] at hs
+  obtain ⟨s, -, hs⟩ := hs
+  have hsite : U.sitePoint P q f hf x =
+      AffineMap.lineMap (pp F.initial) (pp F.terminal) s := by
+    show pp (P.canonicalSite ι bs x) = _
+    rw [← hs, AffineEquiv.apply_lineMap]
+  obtain ⟨-, -, hspan⟩ := hc.1 edgeIndex
+  have hX : q.2.val.prototypeFrame q.1 (cellAnchor (c.chain.val.cell edgeIndex).val) ∈
+      affineSpan ℝ (q.2.val.cell q.1 (c.chain.val.cell edgeIndex).val) :=
+    subset_affineSpan ℝ _ ⟨_, intrinsicInterior_subset (cellAnchor_mem _), rfl⟩
+  rw [hspan] at hX
+  have hle : affineSpan ℝ (pp '' ((F.flag.cell edgeIndex).val.carrier)) ≤
+      line[ℝ, pp F.initial, pp F.terminal] := by
+    rw [affineSpan_le]
+    rintro y ⟨z, hz, rfl⟩
+    rw [F.edge_eq, segment_eq_image_lineMap] at hz
+    obtain ⟨r, -, rfl⟩ := hz
+    rw [AffineEquiv.apply_lineMap]
+    exact AffineMap.lineMap_mem_affineSpan_pair r _ _
+  obtain ⟨r, hr⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp (hle hX)
+  refine ⟨s - r, ?_⟩
+  rw [hsite, ← hr, AffineMap.lineMap_apply, AffineMap.lineMap_apply]
+  have hd : U.counterDirection P q f hf = pp F.terminal -ᵥ pp F.initial := by
+    show pp.linear (F.terminal - F.initial) = _
+    exact pp.toAffineMap.linearMap_vsub F.terminal F.initial
+  rw [hd, vadd_eq_add, vadd_eq_add, sub_smul]
+  abel
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 1.13(c)): for
+vectors on one line through the origin, the sign of the inner product with its
+direction ("before" along the counter direction) is preserved by an invertible linear
+map, although `Λ` is not conformal. -/
+private theorem state_scaleTransfer_step4_constants_step3_inner {u w : E d}
+    (L : E d ≃ₗ[ℝ] E d) (hu : u ≠ 0) (t : ℝ) (hw : w = t • u) :
+    inner ℝ (L u) (L w) < 0 ↔ inner ℝ u w < 0 := by
+  subst hw
+  rw [map_smul, real_inner_smul_right, real_inner_smul_right, real_inner_self_eq_norm_sq,
+    real_inner_self_eq_norm_sq]
+  have h1 : 0 < ‖u‖ ^ 2 := by positivity
+  have h2 : 0 < ‖L u‖ ^ 2 := by
+    have : L u ≠ 0 := (LinearEquiv.map_ne_zero_iff L).mpr hu
+    positivity
+  have key : ∀ y : ℝ, 0 < y → (t * y < 0 ↔ t < 0) := fun y hy =>
+    ⟨fun h => by by_contra h'; push_neg at h'; nlinarith, fun h => mul_neg_of_neg_of_pos h hy⟩
+  rw [key _ h1, key _ h2]
+
+/-- Step 3 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.1 (P2)): the
+counter direction is nonzero (the oriented flag edge is nondegenerate). -/
+private theorem state_scaleTransfer_step4_constants_step3_direction_ne (P : Params S)
+    (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
+    U.counterDirection P q f hf ≠ 0 :=
+  (LinearEquiv.map_ne_zero_iff _).mpr
+    (sub_ne_zero.mpr (P.flag (U.recordIncidence P q f hf)).distinct.symm)
+
+/-- Step 3 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.2 (S4d)): the
+number of sites before two points agrees when the "before" tests agree site by site. -/
+private theorem state_scaleTransfer_step4_constants_step3_sitesBefore (P : Params S)
+    (U V : HonestSource S) (q : U.Node)
+    (q' : V.Node) (f : FacetName S q.2.val.ty) (g : FacetName S q'.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (hg : ¬ V.hierarchy.IsFault q' g) (x y : E d)
+    (h : ∀ a, inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a - x) < 0 ↔
+      inner ℝ (V.counterDirection P q' g hg) (V.sitePoint P q' g hg a - y) < 0) :
+    U.sitesBefore P q f hf x = V.sitesBefore P q' g hg y := by
+  unfold HonestSource.sitesBefore
+  apply Fin.ext
+  dsimp only
+  congr 1
+  exact Finset.filter_congr (fun a _ => h a)
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.2 (S4d)): a
+constant profile is determined by its two tables; names are compared by their cells. -/
+private theorem state_scaleTransfer_step4_constants_step4_heq {P : Params S} {A A' : S.ι}
+    (hA : A = A') (c : ConstantProfile P A) (c' : ConstantProfile P A')
+    (hv : ∀ (x : CellName S A) (x' : CellName S A'), x.val = x'.val → c.value x = c'.value x')
+    (hs : ∀ (v : VertexName S A) (v' : VertexName S A'), v.val = v'.val →
+      c.endpointSite v = c'.endpointSite v') : HEq c c' := by
+  subst hA
+  obtain ⟨cv, cs⟩ := c
+  obtain ⟨cv', cs'⟩ := c'
+  have h1 : cv = cv' := funext fun x => hv x x rfl
+  have h2 : cs = cs' := funext fun v => hs v v rfl
+  subst h1 h2
+  rfl
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.2 (S4e)): every
+oriented chain of `f` is literally a chain of the equally named facet `g`. -/
+private theorem state_scaleTransfer_step4_constants_step4_chain {A A' : S.ι} (hA : A = A')
+    {f : FacetName S A} {g : FacetName S A'} (hfg : f.val = g.val) (c : OrientedChain f) :
+    ∃ c' : OrientedChain g, HEq c c' := by
+  subst hA
+  obtain rfl : f = g := Subtype.ext hfg
+  exact ⟨c, HEq.rfl⟩
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.2 (S4e)):
+literally equal chains have the same edge cell. -/
+private theorem state_scaleTransfer_step4_constants_step4_edge {A A' : S.ι} (hA : A = A')
+    {f : FacetName S A} {g : FacetName S A'} (hfg : f.val = g.val) (c : OrientedChain f)
+    (c' : OrientedChain g) (h : HEq c c') :
+    (c.chain.val.cell edgeIndex).val = (c'.chain.val.cell edgeIndex).val := by
+  subst hA
+  obtain rfl : f = g := Subtype.ext hfg
+  obtain rfl := eq_of_heq h
+  rfl
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.2 (S4e)): the
+recorded chains are exactly the active ones. -/
+private theorem state_scaleTransfer_step4_constants_step4_mem (P : Params S)
+    (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) (c : OrientedChain f) :
+    c ∈ U.recordChains P q f hf ↔ U.ActiveChain P q f hf c := by
+  classical
+  unfold HonestSource.recordChains
+  simp only [Finset.mem_filter, and_iff_right_iff_imp]
+  intro _
+  unfold allOrientedChains
+  letI := orientedChains_finite f
+  letI := Fintype.ofFinite (OrientedChain f)
+  exact Finset.mem_univ _
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer_step4_constants` (V4 §2.2 (S6)):
+vertex names with the same cell name the same point. -/
+private theorem state_scaleTransfer_step4_constants_step4_vertex {A A' : S.ι}
+    (v : VertexName S A) (v' : VertexName S A') (h : v.val = v'.val) :
+    vertexPoint v = vertexPoint v' := by
+  apply Set.singleton_injective
+  rw [← vertexPoint_spec, ← vertexPoint_spec, h]
+
 /-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c), "relative placements
 ... literally the same"; V4 §2.2 (S4d)): the mature counter constants and endpoint
 site flags, computed in prototype coordinates of `N`, coincide with those of `N'`. -/
@@ -6088,7 +6306,66 @@ private theorem state_scaleTransfer_step4_constants (P : Params S) {U V : Honest
     (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
     (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
     HEq (U.constantProfile P q.val f hf) (V.constantProfile P (e.toEquiv q).val g hg) := by
-  sorry
+  have hA : q.val.2.val.ty = (e.toEquiv q).val.2.val.ty := (e.types q).symm
+  have hE : ∀ Pr : Cell d → Prop,
+      (∃ c ∈ U.recordChains P q.val f hf, Pr (c.chain.val.cell edgeIndex).val) ↔
+        (∃ c ∈ V.recordChains P (e.toEquiv q).val g hg,
+          Pr (c.chain.val.cell edgeIndex).val) := by
+    intro Pr
+    constructor
+    · rintro ⟨c, hc, hPr⟩
+      obtain ⟨c', hcc'⟩ := state_scaleTransfer_step4_constants_step4_chain hA hfg c
+      refine ⟨c', ?_, ?_⟩
+      · rw [state_scaleTransfer_step4_constants_step4_mem] at hc ⊢
+        exact (state_scaleTransfer_step4_active P e q f g hfg hf hg c c' hcc').mp hc
+      · rw [← state_scaleTransfer_step4_constants_step4_edge hA hfg c c' hcc']
+        exact hPr
+    · rintro ⟨c', hc', hPr⟩
+      obtain ⟨c, hcc'⟩ := state_scaleTransfer_step4_constants_step4_chain hA.symm hfg.symm c'
+      refine ⟨c, ?_, ?_⟩
+      · rw [state_scaleTransfer_step4_constants_step4_mem] at hc' ⊢
+        exact (state_scaleTransfer_step4_active P e q f g hfg hf hg c c' hcc'.symm).mpr hc'
+      · rw [state_scaleTransfer_step4_constants_step4_edge hA hfg c c' hcc'.symm]
+        exact hPr
+  have hsite := state_scaleTransfer_step4_constants_step1_site P e q f g hfg hf hg
+  have hdir := state_scaleTransfer_step4_constants_step1_direction P e q f g hfg hf hg
+  have hfr := e.frames q
+  generalize (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) = M
+    at hsite hdir hfr
+  have hsub : ∀ p p' : E d, M p - M p' = M.linear (p - p') := fun p p' =>
+    (M.toAffineMap.linearMap_vsub p p').symm
+  apply state_scaleTransfer_step4_constants_step4_heq hA
+  · intro x x' hxx'
+    unfold HonestSource.constantProfile
+    dsimp only
+    rw [← hxx']
+    split_ifs with h1 h2 h2
+    · congr 1
+      obtain ⟨c, hc, hce⟩ := h1
+      apply state_scaleTransfer_step4_constants_step3_sitesBefore
+      intro i
+      rw [hdir, hsite, hfr, AffineEquiv.trans_apply, hsub, ← hce]
+      obtain ⟨t, ht⟩ := state_scaleTransfer_step4_constants_step2_collinear P U q.val f hf c
+        ((state_scaleTransfer_step4_constants_step4_mem P U q.val f hf c).mp hc) i
+      exact (state_scaleTransfer_step4_constants_step3_inner _
+        (state_scaleTransfer_step4_constants_step3_direction_ne P U q.val f hf) t ht).symm
+    · exact absurd ((hE (fun C => C = x.val)).mp h1) h2
+    · exact absurd ((hE (fun C => C = x.val)).mpr h2) h1
+    · rfl
+  · intro v v' hvv'
+    have hvp := state_scaleTransfer_step4_constants_step4_vertex v v' hvv'
+    unfold HonestSource.constantProfile
+    dsimp only
+    rw [← hvp]
+    split_ifs with h1 h2 h2
+    · congr 1
+      congr 1
+      funext i
+      rw [hsite i, hfr, AffineEquiv.trans_apply]
+      simp only [EmbeddingLike.apply_eq_iff_eq]
+    · exact absurd ((hE (fun C => vertexPoint v ∈ C.carrier)).mp h1) h2
+    · exact absurd ((hE (fun C => vertexPoint v ∈ C.carrier)).mpr h2) h1
+    · rfl
 
 /-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 §2.2 (S4)): a facet record is
 determined by its fields; dependent fields are compared heterogeneously. -/

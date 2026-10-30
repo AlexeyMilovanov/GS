@@ -447,12 +447,39 @@ def CertificateBase (D : DecodedLevel Y P.K) : Prop :=
 
 end Parser
 
+/-- Step 1 of the V4 proof of `base_level` (V4 3.2): The K-blocks of Theorem 2.17(a), with the states given by the honest S-tables of their certificates, form a decoded level K. -/
+private lemma base_level_step1_decoded (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
+    ∃ D : DecodedLevel Y P.K, Parser.CertificateBase D := by
+  sorry
+
+/-- Step 2 of the V4 proof of `base_level` (V4 3.2): (I1): the table's state of the root has the block's type, and its residue is K mod L because the certificate is the S-table of an honest node of height exactly K. -/
+private lemma base_level_step2_I1 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I1 D := by
+  sorry
+
+/-- Step 3 of the V4 proof of `base_level` (V4 3.2): (I2): the table is the S-table of an honest node, so Proposition 2.3 gives the child equations, and the leaf pre-patterns are those of the honest leaves. -/
+private lemma base_level_step3_I2 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I2 D := by
+  sorry
+
+/-- Step 4 of the V4 proof of `base_level` (V4 3.2): (I4): for every node N inside the certificate and f in E_N born inside N, in the honest source mu_{slot of N} = PRESENT with slot value S(N), and these packets are the ones in the leaves' pre-patterns inside D. -/
+private lemma base_level_step4_I4 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I4 D := by
+  sorry
+
+/-- Step 5 of the V4 proof of `base_level` (V4 3.2): (I5): for a node N inside the certificate and a facet F of N, the tiles inside N with pieces in F are leaves of D carrying the honest packets, which are constant along F and equal for E-related facets. -/
+private lemma base_level_step5_I5 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I5 D := by
+  sorry
+
 /-- R2, V4 3.2: the forced K-blocks with their honest tables form the base
 decoded level. An arbitrary proper Y supplies the actual certificates, so no
 nonempty-species assumption or pre-existing hierarchy is used. -/
 theorem base_level (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
     ∃ D : DecodedLevel Y P.K, Inv D ∧ Parser.CertificateBase D := by
-  sorry
+  obtain ⟨D, hD⟩ := base_level_step1_decoded Y hY
+  exact ⟨D, ⟨base_level_step2_I1 Y hY D hD, base_level_step3_I2 Y hY D hD,
+    base_level_step4_I4 Y hY D hD, base_level_step5_I5 Y hY D hD⟩, hD⟩
 
 /-- R2, V4 3.2: the certificate base level selected from the base existence
 theorem. Properness supplies the actual certificates and their joint tables. -/

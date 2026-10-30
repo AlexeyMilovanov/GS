@@ -949,7 +949,18 @@ theorem providerIncidence_spec (q : H.Node) (f : FacetName S q.2.val.ty)
 theorem provider_unique (q : H.Node) (f : FacetName S q.2.val.ty)
     (v w : H.ProviderCandidate q) (hv : H.IsProvider q f v) (hw : H.IsProvider q f w) :
     v = w := by
-  sorry
+  have hf : ¬ H.IsFault q f := by
+    intro hfault
+    have h : H.boundaryOffsets q f = Set.univ := Set.ext (fun x => ⟨fun _ => trivial, fun _ => hfault x⟩)
+    have hv1 := hv.1
+    rw [h] at hv1
+    have h2 : Set.univ = {r : ℕ | r < v.fst + 1} := hv1
+    have contra : v.fst + 1 ∈ Set.univ := Set.mem_univ _
+    rw [h2] at contra
+    simp at contra
+  have h1 := (Classical.choose_spec (H.provider_exists_unique q f hf)).2 v hv
+  have h2 := (Classical.choose_spec (H.provider_exists_unique q f hf)).2 w hw
+  rw [h1, h2]
 
 /-- P7, V4 1.7(a): restriction to any contained descendant facet preserves the
 provider carrier and the exact birth parent; existence of the restricted provider

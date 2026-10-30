@@ -723,6 +723,41 @@ theorem sibling_facet_eq (P : FramedNode S) (n : ℕ)
             {x | inner ℝ v (x - p) ≤ 0} ∩ ball p r := by
   sorry
 
+/-- Step 1 of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): relint(F) is a subset of the macro-tile interior. -/
+private lemma internal_facet_pairing_step1_relint_subset
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (f : FacetName S (P.child n i).ty)
+    (hint : (relint ((P.child n i).cell n f.val) ∩
+      interior (P.carrier (n + 1))).Nonempty) :
+    relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1)) := by sorry
+
+/-- Step 2a of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): coverage provides a child having the internal facet as a facet. -/
+private lemma internal_facet_pairing_step2a_existence
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (f : FacetName S (P.child n i).ty)
+    (hint : relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1))) :
+    ∃ j : S.I P.ty, j ≠ i ∧
+      ∃ g : FacetName S (P.child n j).ty,
+        (P.child n j).cell n g.val = (P.child n i).cell n f.val := by sorry
+
+/-- Step 2b of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): children not having it as a facet meet it in lower cells, of measure zero. -/
+private lemma internal_facet_pairing_step2b_nullity
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (f : FacetName S (P.child n i).ty)
+    (l : S.I P.ty) (hl : l ≠ i)
+    (hl' : ∀ g : FacetName S (P.child n l).ty, (P.child n l).cell n g.val ≠ (P.child n i).cell n f.val) :
+    MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ)
+      ((P.child n l).carrier n ∩ (P.child n i).cell n f.val) = 0 := by sorry
+
+/-- Step 2c of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): there is exactly one child (other than i) having F as a facet. -/
+private lemma internal_facet_pairing_step2c_uniqueness
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (f : FacetName S (P.child n i).ty)
+    (j k : S.I P.ty) (hj : j ≠ i) (hk : k ≠ i)
+    (g_j : FacetName S (P.child n j).ty) (heq_j : (P.child n j).cell n g_j.val = (P.child n i).cell n f.val)
+    (g_k : FacetName S (P.child n k).ty) (heq_k : (P.child n k).cell n g_k.val = (P.child n i).cell n f.val) :
+    j = k := by sorry
+
 /-- P4, V4 1.4(c): an internal facet has one other owning child;
 all remaining children have zero facet measure on it. Existence comes from coverage. -/
 theorem internal_facet_pairing (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
@@ -736,7 +771,17 @@ theorem internal_facet_pairing (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
           ∀ l : S.I P.ty, l ≠ i → l ≠ j →
             MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ)
               ((P.child n l).carrier n ∩ (P.child n i).cell n f.val) = 0 := by
-  sorry
+  have h1 := internal_facet_pairing_step1_relint_subset P n i f hint
+  refine ⟨h1, ?_⟩
+  obtain ⟨j, hj, g, hg⟩ := internal_facet_pairing_step2a_existence P n i f h1
+  use j
+  refine ⟨⟨hj, g, hg, ?_⟩, ?_⟩
+  · intro l hli hlj
+    apply internal_facet_pairing_step2b_nullity P n i f l hli
+    intro g_l heq_l
+    exact hlj (internal_facet_pairing_step2c_uniqueness P n i f j l hj hli g hg g_l heq_l).symm
+  · rintro k ⟨hki, g_k, hgk, -⟩
+    exact internal_facet_pairing_step2c_uniqueness P n i f k j hki hj g_k hgk g hg
 
 /-- P5, V4 1.5(a): listed vertices pass to every containing child. -/
 theorem vertex_inherited (P : FramedNode S) (n : ℕ) (p : E d)

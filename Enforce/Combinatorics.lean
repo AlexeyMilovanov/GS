@@ -257,6 +257,19 @@ theorem honestLanguage_eq_empty_iff {X : Type} (ρ : HonestSource S → E d → 
     honestLanguage ρ n A = ∅ ↔
       ¬ ∃ (U : HonestSource S) (φ : Iso d),
         (⟨A, φ⟩ : FramedNode S) ∈ U.hierarchy.nodes n := by
-  sorry
+  dsimp [honestLanguage]
+  constructor
+  · intro h
+    rintro ⟨U, φ, hU⟩
+    have : honestPattern ρ U n A φ ∈ (∅ : Set (Pattern S X n A)) := by
+      rw [← h]
+      simp only [Set.mem_setOf_eq]
+      exact ⟨U, φ, hU, rfl⟩
+    exact this
+  · intro h
+    ext q
+    simp only [Set.mem_empty_iff_false, Set.mem_setOf_eq, iff_false, not_exists, not_and]
+    intro U φ hU hq
+    exact h ⟨U, φ, hU⟩
 
 end Enforce

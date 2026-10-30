@@ -1449,6 +1449,57 @@ theorem trace_refines (A : S.ι) (F : FacetFlag S A) (r s : ℕ)
           (S.σ ^ s) '' (a.tile.cell 0 (a.chain.cell i).val) := by
   sorry
 
+/-- Step 1 of the V4 proof of `chain_occurrences_disjoint` (V4 1.22(c)): For j=d-1, facets of
+distinct children have disjoint relative interiors by containment in facets of P and Lemma 1.8. -/
+private lemma chain_occurrences_disjoint_step1_top {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
+    (A : S.ι) (F : FacetFlag S A) (r h : ℕ)
+    (P : FramedNode S) (hP : S.IsStandardNode A r (h + 1) P)
+    (i l : S.I P.ty) (hil : i ≠ l) (j0 : ℕ)
+    (a : ChainOccurrence A F r (P.child h i) h j0)
+    (b : ChainOccurrence A F r (P.child h l) h j0)
+    (k : ℕ) (hjk : j0 ≤ k) (hk1 : 1 ≤ k) (hkd : k < d) (htop : k + 1 = d) :
+    Disjoint (relint ((P.child h i).cell h (a.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val))
+             (relint ((P.child h l).cell h (b.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val)) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `chain_occurrences_disjoint` (V4 1.22(c)): Step from j+1 to j.
+If the relative interiors of the j-cells intersect, half-space geometry implies that the
+relative interiors of the (j+1)-cells also intersect, contradicting the induction hypothesis. -/
+private theorem chain_occurrences_disjoint_step2_down {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
+    (A : S.ι) (F : FacetFlag S A) (r h : ℕ)
+    (P : FramedNode S) (hP : S.IsStandardNode A r (h + 1) P)
+    (i l : S.I P.ty) (hil : i ≠ l) (j0 : ℕ)
+    (a : ChainOccurrence A F r (P.child h i) h j0)
+    (b : ChainOccurrence A F r (P.child h l) h j0)
+    (k : ℕ) (hjk : j0 ≤ k) (hk1 : 1 ≤ k) (hkd : k < d) (hkd' : k + 1 < d)
+    (hjk1 : j0 ≤ k + 1) (hk11 : 1 ≤ k + 1)
+    (ih : Disjoint (relint ((P.child h i).cell h (a.cell ⟨⟨k+1, hkd'⟩, hjk1, hk11⟩).val))
+                   (relint ((P.child h l).cell h (b.cell ⟨⟨k+1, hkd'⟩, hjk1, hk11⟩).val))) :
+    Disjoint (relint ((P.child h i).cell h (a.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val))
+             (relint ((P.child h l).cell h (b.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val)) := by
+  sorry
+
+private theorem chain_occurrences_disjoint_aux {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
+    (A : S.ι) (F : FacetFlag S A) (r h : ℕ)
+    (P : FramedNode S) (hP : S.IsStandardNode A r (h + 1) P)
+    (i l : S.I P.ty) (hil : i ≠ l) (j0 : ℕ)
+    (a : ChainOccurrence A F r (P.child h i) h j0)
+    (b : ChainOccurrence A F r (P.child h l) h j0) (n : ℕ) :
+    ∀ (k : ℕ) (hjk : j0 ≤ k) (hk1 : 1 ≤ k) (hkd : k < d), k + n = d - 1 →
+    Disjoint (relint ((P.child h i).cell h (a.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val))
+             (relint ((P.child h l).cell h (b.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val)) := by
+  induction n with
+  | zero =>
+    intro k hjk hk1 hkd hn
+    exact chain_occurrences_disjoint_step1_top A F r h P hP i l hil j0 a b k hjk hk1 hkd (by omega)
+  | succ n ih =>
+    intro k hjk hk1 hkd hn
+    have hkd' : k + 1 < d := by omega
+    have hjk1 : j0 ≤ k + 1 := by omega
+    have hk11 : 1 ≤ k + 1 := by omega
+    exact chain_occurrences_disjoint_step2_down A F r h P hP i l hil j0 a b k hjk hk1 hkd hkd'
+      hjk1 hk11 (ih (k + 1) hjk1 hk11 hkd' (by omega))
+
 /-- P17, V4 1.22(c): disjointness is asserted only for children with the full
 coface chain, including zero-trace sectors correctly by excluding chainless cells. -/
 theorem chain_occurrences_disjoint (A : S.ι) (F : FacetFlag S A) (r h : ℕ)
@@ -1459,7 +1510,7 @@ theorem chain_occurrences_disjoint (A : S.ι) (F : FacetFlag S A) (r h : ℕ)
     Disjoint (relint ((P.child h i).cell h
       (a.cell ⟨⟨j, hjd⟩, le_rfl, hj⟩).val))
       (relint ((P.child h l).cell h (b.cell ⟨⟨j, hjd⟩, le_rfl, hj⟩).val)) := by
-  sorry
+  exact chain_occurrences_disjoint_aux A F r h P hP i l hil j a b (d - 1 - j) j le_rfl hj hjd (by omega)
 
 /-- P18, V4 1.23: the original flag edge at native scale after `r` expansions. -/
 def flagEdge (A : S.ι) (F : FacetFlag S A) (r : ℕ) : Set (E d) :=

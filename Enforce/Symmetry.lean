@@ -733,7 +733,36 @@ theorem node_stabilizer_finite (n : ℕ) (N : FramedNode S) :
 This is the group-theoretic consequence of its finite setwise stabilizer. -/
 theorem finite_order_of_fixes_node (n : ℕ) (N : FramedNode S) (g : Iso d)
     (hg : g '' N.carrier n = N.carrier n) : IsOfFinOrder g := by
-  sorry
+  have h_stab_fin : {h : Iso d | h '' N.carrier n = N.carrier n}.Finite :=
+    node_stabilizer_finite n N
+  have h_pow_mem : ∀ k : ℕ, (g ^ k) '' N.carrier n = N.carrier n := by
+    intro k
+    induction k with
+    | zero => simp
+    | succ k ih => rw [pow_succ, AffineIsometryEquiv.coe_mul, Set.image_comp, hg, ih]
+  have h_pow_in_stab : ∀ k : ℕ, g ^ k ∈ {h : Iso d | h '' N.carrier n = N.carrier n} := h_pow_mem
+  have h_not_inj : ¬ Function.Injective (fun k : ℕ => g ^ k) := by
+    intro h_inj
+    have h_inf := Set.infinite_range_of_injective h_inj
+    have h_sub : Set.range (fun k : ℕ => g ^ k) ⊆ {h : Iso d | h '' N.carrier n = N.carrier n} := by
+      rintro _ ⟨k, rfl⟩
+      exact h_pow_in_stab k
+    have h_fin := Set.Finite.subset h_stab_fin h_sub
+    exact h_inf h_fin
+  rw [Function.Injective] at h_not_inj
+  push_neg at h_not_inj
+  obtain ⟨a, b, hab, hneq⟩ := h_not_inj
+  wlog hlt : a < b generalizing a b
+  · rcases lt_or_eq_of_le (not_lt.mp hlt) with hlt' | heq
+    · exact this b a hab.symm hneq.symm hlt'
+    · exact False.elim (hneq heq.symm)
+  · exact isOfFinOrder_iff_pow_eq_one.mpr ⟨b - a, by omega, by
+      have h_eq : g ^ a * g ^ (b - a) = g ^ a * 1 := by
+        calc g ^ a * g ^ (b - a) = g ^ (a + (b - a)) := (pow_add g a (b - a)).symm
+          _ = g ^ b := by rw [add_tsub_cancel_of_le (by omega)]
+          _ = g ^ a := hab.symm
+          _ = g ^ a * 1 := (mul_one (g ^ a)).symm
+      exact mul_left_cancel h_eq⟩
 
 /-- Y1, V4 5.7, Steps 1--3: every symmetry is periodic, before the group finiteness
 argument. A positive power preserves a node and lies in its finite stabilizer. -/

@@ -5718,7 +5718,11 @@ theorem principal_invariant (q : H.Node) (g : BornFacet P)
     ∃ hleft : BoundaryPackets Y (g.height - 1) g.leftNode, ∃ p : Packet P,
       g.packet hleft = some p ∧
         decode p ⟨q.1 - g.height, hdepth⟩ = some (R.state q) := by
-  sorry
+  have hI4 := (R.full_invariant q.1).I4
+  have hN : q.2.val ∈ (R.fullLevels q.1).geometry.nodes q.1 := by
+    rw [(R.fullLevels q.1).geometry.nodes_top, R.roots q.1]
+    exact q.2.property
+  exact hI4 q.1 q.2.val hN g hbirth hdepth hprincipal
 
 end HierarchyRealizes
 

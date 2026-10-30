@@ -5852,6 +5852,119 @@ private theorem state_scaleTransfer_step4_tau (P : Params S) {U V : HonestSource
     rw [hpp, AffineEquiv.coe_trans, Set.image_comp, ht', hspecU, ← hserv, hst]
   rw [← ht, ht']
 
+/-- Step 1 of the V4 proof of `state_scaleTransfer_step4_active` (V4 1.13(c)): "the
+invertible linear map `Λ^{n-m}` carries the hierarchy above `N` ... to those of `N'`".
+One common affine map `J ∘ Λ^(b-a)` relates the provider placements, the frames,
+the placed cells and the serving children's placed cells. -/
+private theorem state_scaleTransfer_step4_active_step1_transfer (P : Params S)
+    {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty) (g : FacetName S (e.toEquiv q).val.2.val.ty)
+    (hfg : f.val = g.val) (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    ∃ T : E d ≃ᵃ[ℝ] E d,
+      V.providerPlacement P (e.toEquiv q).val g hg =
+          (U.providerPlacement P q.val f hf).trans T ∧
+      (e.toEquiv q).val.2.val.prototypeFrame (e.toEquiv q).val.1 =
+          (q.val.2.val.prototypeFrame q.val.1).trans T ∧
+      (∀ X : Cell d, (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 X =
+          T '' q.val.2.val.cell q.val.1 X) ∧
+      ∀ X : Cell d,
+        (V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.cell
+            (V.hierarchy.servingChild (e.toEquiv q).val g hg).1 X =
+          T '' ((U.hierarchy.servingChild q.val f hf).2.val.cell
+            (U.hierarchy.servingChild q.val f hf).1 X) := by
+  obtain ⟨hinc, -⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  obtain ⟨k, hU, hV⟩ := state_scaleTransfer_step4_serving e q f g hfg hf hg
+  refine ⟨((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv,
+    ?_, e.frames q, fun X => state_scaleTransfer_step5_frame e q X.carrier, ?_⟩
+  · have hB : V.hierarchy.birthParent (e.toEquiv q).val g hg =
+        (e.toEquiv (U.hierarchy.tailParent a ((U.hierarchy.tailParent a)^[k] q))).val := by
+      unfold CoherentHierarchy.birthParent
+      rw [hV, e.parents]
+      rfl
+    have hBU : U.hierarchy.birthParent q.val f hf =
+        (U.hierarchy.tailParent a ((U.hierarchy.tailParent a)^[k] q)).val := by
+      unfold CoherentHierarchy.birthParent
+      rw [hU]
+      rfl
+    unfold HonestSource.providerPlacement CoherentHierarchy.birthHeight
+    rw [hB, hBU, ← hinc]
+    unfold Params.incidencePlacement
+    rw [e.frames]
+    exact AffineEquiv.ext fun x => rfl
+  · intro X
+    rw [hU, hV]
+    exact state_scaleTransfer_step5_frame e _ X.carrier
+
+/-- Step 2 of the V4 proof of `state_scaleTransfer_step4_active` (V4 1.13(c)): "the
+literally same chain". Heterogeneously equal chains of the same-named facet have the
+same cells, the same orientation bit and the same selected edge endpoints. -/
+private theorem state_scaleTransfer_step4_active_step2_data {A A' : S.ι} (hA : A' = A)
+    {f : FacetName S A} {g : FacetName S A'} (hfg : f.val = g.val)
+    {c : OrientedChain f} {c' : OrientedChain g} (hc : HEq c c') :
+    (∀ j, (c'.chain.val.cell j).val = (c.chain.val.cell j).val) ∧
+      c'.forward = c.forward ∧
+      ∀ (h : (c.chain.val.cell edgeIndex).val ∈ (S.cx A).edges)
+        (h' : (c'.chain.val.cell edgeIndex).val ∈ (S.cx A').edges),
+        Classical.choose (edge_endpoints_exist (⟨A', ⟨_, h'⟩⟩ : EdgeName S)) =
+          Classical.choose (edge_endpoints_exist (⟨A, ⟨_, h⟩⟩ : EdgeName S)) := by
+  subst hA
+  obtain rfl : f = g := Subtype.ext hfg
+  obtain rfl := eq_of_heq hc
+  exact ⟨fun _ => rfl, rfl, fun _ _ => rfl⟩
+
+/-- Step 3 of the V4 proof of `state_scaleTransfer_step4_active` (V4 1.13(c)):
+"expressed in the prototype frame ... literally the same". A common affine map
+cancels from equality of affine spans. -/
+private theorem state_scaleTransfer_step4_active_step3_span
+    (T : E d ≃ᵃ[ℝ] E d) (K L : Set (E d)) :
+    affineSpan ℝ (T '' K) = affineSpan ℝ (T '' L) ↔
+      affineSpan ℝ K = affineSpan ℝ L := by
+  change affineSpan ℝ (T.toAffineMap '' K) = affineSpan ℝ (T.toAffineMap '' L) ↔ _
+  rw [← AffineSubspace.map_span, ← AffineSubspace.map_span]
+  constructor
+  · intro h
+    apply SetLike.coe_injective
+    apply T.injective.image_injective
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d))) h
+  · exact congrArg (AffineSubspace.map T.toAffineMap)
+
+/-- Step 4 of the V4 proof of `state_scaleTransfer_step4_active` (V4 §2.2 (S4e),
+"equal affine spans"): the direction of a placed segment is spanned by the placed
+difference of its endpoints. -/
+private theorem state_scaleTransfer_step4_active_step4_segment
+    (T : E d ≃ᵃ[ℝ] E d) (x y : E d) :
+    (affineSpan ℝ (T '' segment ℝ x y)).direction =
+      Submodule.span ℝ {T.linear (y - x)} := by
+  change (affineSpan ℝ (T.toAffineMap '' segment ℝ x y)).direction = _
+  rw [← AffineSubspace.map_span T.toAffineMap,
+    AffineSubspace.map_direction, direction_affineSpan, vectorSpan_segment,
+    Submodule.map_span, Set.image_singleton]
+  rfl
+
+/-- Step 5 of the V4 proof of `state_scaleTransfer_step4_active` (V4 §2.2 (S4e),
+"with the same induced orientation"): for two vectors on a common line, the sign of
+their inner product is unchanged by a common invertible linear map. -/
+private theorem state_scaleTransfer_step4_active_step5_orient
+    (T A B : E d ≃ᵃ[ℝ] E d) (u v : E d)
+    (hl : A.linear u ∈ Submodule.span ℝ {B.linear v}) :
+    inner ℝ ((A.trans T).linear u) ((B.trans T).linear v) > 0 ↔
+      inner ℝ (A.linear u) (B.linear v) > 0 := by
+  obtain ⟨t, ht⟩ := Submodule.mem_span_singleton.mp hl
+  have h1 : (A.trans T).linear u = T.linear (A.linear u) := rfl
+  have h2 : (B.trans T).linear v = T.linear (B.linear v) := rfl
+  rw [h1, h2, ← ht, map_smul, real_inner_smul_left, real_inner_smul_left]
+  rcases eq_or_ne (B.linear v) 0 with h0 | h0
+  · simp [h0]
+  · have hp : 0 < inner ℝ (B.linear v) (B.linear v) := real_inner_self_pos.mpr h0
+    have hT0 : T.linear (B.linear v) ≠ 0 := fun h =>
+      h0 (T.linear.injective (h.trans (map_zero _).symm))
+    have hp' : 0 < inner ℝ (T.linear (B.linear v)) (T.linear (B.linear v)) :=
+      real_inner_self_pos.mpr hT0
+    simp only [gt_iff_lt]
+    rw [mul_pos_iff_of_pos_right hp, mul_pos_iff_of_pos_right hp']
+
 /-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c), "cones, strata ...
 literally the same"; V4 §2.2 (S4e)): a full chain is active, with the same induced
 orientation, in `N` exactly when the literally same chain is active in `N'`. -/
@@ -5862,7 +5975,109 @@ private theorem state_scaleTransfer_step4_active (P : Params S) {U V : HonestSou
     (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g)
     (c : OrientedChain f) (c' : OrientedChain g) (hc : HEq c c') :
     U.ActiveChain P q.val f hf c ↔ V.ActiveChain P (e.toEquiv q).val g hg c' := by
-  sorry
+  classical
+  obtain ⟨hinc, -⟩ := state_scaleTransfer_step4_side P e q f g hfg hf hg
+  obtain ⟨T, hpp, hfr, hcV, hserv⟩ :=
+    state_scaleTransfer_step4_active_step1_transfer P e q f g hfg hf hg
+  obtain ⟨hcell, hfw, hpts⟩ := state_scaleTransfer_step4_active_step2_data (e.types q) hfg hc
+  have hinj := T.injective
+  have hppimg : ∀ X : Set (E d), V.providerPlacement P (e.toEquiv q).val g hg '' X =
+      T '' (U.providerPlacement P q.val f hf '' X) := by
+    intro X
+    rw [hpp, AffineEquiv.coe_trans, Set.image_comp]
+  have hmemU : (c.chain.val.cell edgeIndex).val ∈ (S.cx q.val.2.val.ty).edges := by
+    simp only [CellComplex.edges, Finset.mem_filter]
+    exact ⟨(c.chain.val.cell edgeIndex).property, c.chain.val.dimension edgeIndex⟩
+  have hgeo : ∀ j : FlagIndex d,
+      (∃ hs : q.val.2.val.cell q.val.1 (c.chain.val.cell j).val ⊆
+          q.val.2.val.cell q.val.1 f.val,
+        (U.hierarchy.servingChild q.val f hf).2.val.cell
+            (U.hierarchy.servingChild q.val f hf).1
+            (U.hierarchy.stratumMap q.val f hf (c.chain.val.cell j) hs).val =
+          U.providerPlacement P q.val f hf ''
+            ((P.flag (U.recordIncidence P q.val f hf)).flag.cell j).val.carrier ∧
+        affineSpan ℝ (q.val.2.val.cell q.val.1 (c.chain.val.cell j).val) =
+          affineSpan ℝ (U.providerPlacement P q.val f hf ''
+            ((P.flag (U.recordIncidence P q.val f hf)).flag.cell j).val.carrier)) ↔
+      (∃ hs : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 (c'.chain.val.cell j).val ⊆
+          (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val,
+        (V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.cell
+            (V.hierarchy.servingChild (e.toEquiv q).val g hg).1
+            (V.hierarchy.stratumMap (e.toEquiv q).val g hg (c'.chain.val.cell j) hs).val =
+          V.providerPlacement P (e.toEquiv q).val g hg ''
+            ((P.flag (V.recordIncidence P (e.toEquiv q).val g hg)).flag.cell j).val.carrier ∧
+        affineSpan ℝ ((e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1
+            (c'.chain.val.cell j).val) =
+          affineSpan ℝ (V.providerPlacement P (e.toEquiv q).val g hg ''
+            ((P.flag (V.recordIncidence P (e.toEquiv q).val g hg)).flag.cell j).val.carrier)) := by
+    intro j
+    have hfl : ((P.flag (V.recordIncidence P (e.toEquiv q).val g hg)).flag.cell j).val.carrier =
+        ((P.flag (U.recordIncidence P q.val f hf)).flag.cell j).val.carrier := by
+      rw [hinc]
+    rw [hfl, hppimg]
+    constructor
+    · rintro ⟨hs, h1, h2⟩
+      have hs' : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 (c'.chain.val.cell j).val ⊆
+          (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val := by
+        rw [hcV, hcV, hcell j, ← hfg]
+        exact Set.image_mono hs
+      refine ⟨hs', ?_, ?_⟩
+      · rw [hserv, ← e.strata q f g hfg hf hg (c.chain.val.cell j) (c'.chain.val.cell j)
+          (hcell j).symm hs hs', h1]
+      · rw [hcV, hcell j, state_scaleTransfer_step4_active_step3_span]
+        exact h2
+    · rintro ⟨hs', h1, h2⟩
+      have hs : q.val.2.val.cell q.val.1 (c.chain.val.cell j).val ⊆
+          q.val.2.val.cell q.val.1 f.val := by
+        have h := hs'
+        rw [hcV, hcV, hcell j, ← hfg] at h
+        exact (Set.image_subset_image_iff hinj).mp h
+      refine ⟨hs, ?_, ?_⟩
+      · rw [hserv, ← e.strata q f g hfg hf hg (c.chain.val.cell j) (c'.chain.val.cell j)
+          (hcell j).symm hs hs'] at h1
+        exact hinj.image_injective h1
+      · rw [hcV, hcell j, state_scaleTransfer_step4_active_step3_span] at h2
+        exact h2
+  have hline : affineSpan ℝ (q.val.2.val.cell q.val.1 (c.chain.val.cell edgeIndex).val) =
+        affineSpan ℝ (U.providerPlacement P q.val f hf ''
+          ((P.flag (U.recordIncidence P q.val f hf)).flag.cell edgeIndex).val.carrier) →
+      (U.providerPlacement P q.val f hf).linear
+          (P.flag (U.recordIncidence P q.val f hf)).direction ∈
+        Submodule.span ℝ {(q.val.2.val.prototypeFrame q.val.1).linear
+          ((Classical.choose (edge_endpoints_exist
+              (⟨q.val.2.val.ty, ⟨_, hmemU⟩⟩ : EdgeName S))).2 -
+            (Classical.choose (edge_endpoints_exist
+              (⟨q.val.2.val.ty, ⟨_, hmemU⟩⟩ : EdgeName S))).1)} := by
+    intro hspan
+    have he : (c.chain.val.cell edgeIndex).val.carrier =
+        segment ℝ (Classical.choose (edge_endpoints_exist
+            (⟨q.val.2.val.ty, ⟨_, hmemU⟩⟩ : EdgeName S))).1
+          (Classical.choose (edge_endpoints_exist
+            (⟨q.val.2.val.ty, ⟨_, hmemU⟩⟩ : EdgeName S))).2 :=
+      (Classical.choose_spec (edge_endpoints_exist
+        (⟨q.val.2.val.ty, ⟨_, hmemU⟩⟩ : EdgeName S))).2
+    have hd := congrArg AffineSubspace.direction hspan
+    unfold FramedNode.cell at hd
+    rw [he, (P.flag (U.recordIncidence P q.val f hf)).edge_eq,
+      state_scaleTransfer_step4_active_step4_segment,
+      state_scaleTransfer_step4_active_step4_segment] at hd
+    rw [hd]
+    exact Submodule.mem_span_singleton_self _
+  unfold HonestSource.ActiveChain
+  constructor
+  · rintro ⟨hG, hO⟩
+    refine ⟨fun j => (hgeo j).mp (hG j), ?_⟩
+    obtain ⟨_, _, hsp⟩ := hG edgeIndex
+    rw [hfw, hpp, ← hinc, hfr, hpts hmemU,
+      state_scaleTransfer_step4_active_step5_orient _ _ _ _ _ (hline hsp)]
+    exact hO
+  · rintro ⟨hG', hO'⟩
+    have hG := fun j => (hgeo j).mpr (hG' j)
+    refine ⟨hG, ?_⟩
+    obtain ⟨_, _, hsp⟩ := hG edgeIndex
+    rw [hfw, hpp, ← hinc, hfr, hpts hmemU,
+      state_scaleTransfer_step4_active_step5_orient _ _ _ _ _ (hline hsp)] at hO'
+    exact hO'
 
 /-- Step 4 of the V4 proof of `state_scaleTransfer` (V4 1.13(c), "relative placements
 ... literally the same"; V4 §2.2 (S4d)): the mature counter constants and endpoint

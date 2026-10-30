@@ -849,7 +849,8 @@ theorem honestLift_proper (C : ClusterData S P) (U : HonestSource S) :
 /-- M6, V4 2.14(c): exact old marking at every point, including the boundary skeleton. -/
 theorem honestLift_projection (C : ClusterData S P) (U : HonestSource S) (x : E d) :
     π S P ((honestLift C U).marking x) = oldMarking U.tiling x := by
-  sorry
+  rw [← honestLift_tiles C U]
+  exact (honestLift C U).project_marking (nativeDecoration S P C) x
 
 /-- M6, V4 2.14(c): pointwise projection also as equality of total functions. -/
 theorem honestLift_projection_eq (C : ClusterData S P) (U : HonestSource S) :

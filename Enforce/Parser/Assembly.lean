@@ -5700,7 +5700,13 @@ theorem state_child (q : H.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
 theorem state_ground (q : H.Node) (hq : q.1 = 0)
     (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
     (heq : tileNode t = q.2.val) : R.state q = (compilerLeaf C t).prePattern.state := by
-  sorry
+  obtain ⟨_ | n, N⟩ := q
+  · have hm_node : N.val ∈ (R.fullLevels 0).geometry.nodes 0 := by
+      rw [(R.fullLevels 0).geometry.nodes_top, R.roots 0]
+      exact N.property
+    change (R.fullLevels 0).stateAt 0 N.val hm_node = (compilerLeaf C t).prePattern.state
+    exact (R.full_invariant 0).I2.2 N.val hm_node t ht heq
+  · contradiction
 
 /-- R12, V4 3.1: the assigned state's first role is the actual parent role. -/
 theorem state_role (q : H.Node) : (R.state q).address ⟨0, P.k_pos⟩ = H.nodeRole q :=

@@ -538,6 +538,103 @@ theorem component_contains_cone (Y : MarkedTiling (systemM S P C)) (hY : MProper
     (component_contains_cone_step3_inballs Y hY q hq) u b hu
   exact component_contains_cone_step6_cone u b hchamber v hv hdir
 
+/-- Step 1 of the V4 proof of `power_fixes_component` (V4 5.7, Step 2):
+"Write g(x)=Rx+τ". The orthogonal part of a product of isometries is the
+product of their orthogonal parts. -/
+private theorem power_fixes_component_step1_linear_mul (e e' : Iso d) (v : E d) :
+    (e * e').linearIsometryEquiv v =
+      e.linearIsometryEquiv (e'.linearIsometryEquiv v) := by
+  have h1 := (e * e').map_vsub v 0
+  have h2 := e'.map_vsub v 0
+  have h3 := e.map_vsub (e' v) (e' 0)
+  simp only [vsub_eq_sub, sub_zero, AffineIsometryEquiv.coe_mul,
+    Function.comp_apply] at h1 h2 h3
+  rw [h1, h2, h3]
+
+/-- Step 2 of the V4 proof of `power_fixes_component` (V4 5.7, Step 2):
+"The powers of R in the compact group O(d) have a subsequence converging to the
+identity, so some R^k (k ≥ 1) is close enough to I". Here only the orbit of one
+direction is needed: it lies in a compact sphere. -/
+private theorem power_fixes_component_step2_recurrence (g : Iso d) (w : E d)
+    {δ : ℝ} (hδ : 0 < δ) :
+    ∃ k : ℕ, 1 ≤ k ∧ ‖(g ^ k).linearIsometryEquiv w - w‖ < δ := by
+  let a : ℕ → E d := fun n => (g ^ n).linearIsometryEquiv w
+  have ha : ∀ n, a n ∈ Metric.closedBall (0 : E d) ‖w‖ := by
+    intro n
+    simp [a, Metric.mem_closedBall, dist_zero_right]
+  obtain ⟨b, -, φ, hφ, hlim⟩ := (isCompact_closedBall (0 : E d) ‖w‖).tendsto_subseq ha
+  obtain ⟨N, hN⟩ := Metric.cauchySeq_iff'.1 hlim.cauchySeq δ hδ
+  have hlt : φ N < φ (N + 1) := hφ (Nat.lt_succ_self N)
+  refine ⟨φ (N + 1) - φ N, by omega, ?_⟩
+  have hd := hN (N + 1) (Nat.le_succ N)
+  have hsplit : g ^ φ (N + 1) = g ^ φ N * g ^ (φ (N + 1) - φ N) := by
+    rw [← pow_add]
+    congr 1
+    omega
+  simp only [Function.comp_apply, a, hsplit, power_fixes_component_step1_linear_mul,
+    dist_eq_norm] at hd
+  rw [← map_sub, LinearIsometryEquiv.norm_map] at hd
+  exact hd
+
+/-- Step 3 of the V4 proof of `power_fixes_component` (V4 5.7): "g maps nodes to
+nodes of the same height; it preserves containment, hence parents". -/
+private theorem power_fixes_component_step3_parent_move
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (h : Iso d)
+    (hh : Y.IsSymmetry h) (n : ℕ) (a b : {N // N ∈ (parsedHierarchy Y hY).nodes n})
+    (hab : b.val = a.val.move h) :
+    ((parsedHierarchy Y hY).parent n b).val =
+      ((parsedHierarchy Y hY).parent n a).val.move h := by
+  symm
+  refine (parsedHierarchy Y hY).parent_unique n b _
+    (parsed_node_move_mem Y hY h hh (n + 1) _ ((parsedHierarchy Y hY).parent n a).property)
+    ⟨(parsedHierarchy Y hY).role n a, ?_⟩
+  rw [hab]
+  conv_lhs => rw [(parsedHierarchy Y hY).child_eq n a]
+  exact FramedNode.move_child _ _ _ _
+
+/-- Step 4 of the V4 proof of `power_fixes_component` (V4 5.7, Step 2):
+"g^k maps the ancestor chain of t to that of g^k t". -/
+private theorem power_fixes_component_step4_ancestor_move
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (h : Iso d)
+    (hh : Y.IsSymmetry h) (q q' : (parsedHierarchy Y hY).Node) (h1 : q'.1 = q.1)
+    (h2 : q'.2.val = q.2.val.move h) (r : ℕ) :
+    ((parsedHierarchy Y hY).ancestor q' r).1 = ((parsedHierarchy Y hY).ancestor q r).1 ∧
+      ((parsedHierarchy Y hY).ancestor q' r).2.val =
+        ((parsedHierarchy Y hY).ancestor q r).2.val.move h := by
+  induction r with
+  | zero => exact ⟨h1, h2⟩
+  | succ r ih =>
+    obtain ⟨i1, i2⟩ := ih
+    simp only [CoherentHierarchy.ancestor] at i1 i2 ⊢
+    rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
+    generalize (parsedHierarchy Y hY).parentNode^[r] q' = A at i1 i2 ⊢
+    generalize (parsedHierarchy Y hY).parentNode^[r] q = B at i1 i2 ⊢
+    obtain ⟨m, A⟩ := A
+    obtain ⟨n, B⟩ := B
+    simp only at i1 i2
+    subst i1
+    exact ⟨rfl, power_fixes_component_step3_parent_move Y hY h hh m B A i2⟩
+
+/-- Step 5 of the V4 proof of `power_fixes_component` (V4 5.7, Step 2):
+"g^k C(t) is the component of g^k t". -/
+private theorem power_fixes_component_step5_component_move
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (h : Iso d)
+    (hh : Y.IsSymmetry h) (q q' : (parsedHierarchy Y hY).Node) (h1 : q'.1 = q.1)
+    (h2 : q'.2.val = q.2.val.move h) :
+    component Y hY q' = h '' component Y hY q := by
+  simp only [component, Set.image_iUnion]
+  refine Set.iUnion_congr fun r => ?_
+  obtain ⟨e1, e2⟩ := power_fixes_component_step4_ancestor_move Y hY h hh q q' h1 h2 r
+  generalize (parsedHierarchy Y hY).ancestor q' r = A at e1 e2 ⊢
+  generalize (parsedHierarchy Y hY).ancestor q r = B at e1 e2 ⊢
+  obtain ⟨m, A⟩ := A
+  obtain ⟨n, B⟩ := B
+  simp only at e1 e2 ⊢
+  subst e1
+  rw [e2]
+  simp only [FramedNode.carrier, FramedNode.move, placedSet,
+    AffineIsometryEquiv.coe_trans, Set.image_comp]
+
 /-- Y1, V4 5.7, Step 2: a positive power of any symmetry fixes a ground component.
 Compact recurrence of its orthogonal part produces intersecting solid cones;
 translations of the cone apices do not affect the large-distance intersection. -/
@@ -545,7 +642,71 @@ theorem power_fixes_component (Y : MarkedTiling (systemM S P C)) (hY : MProper Y
     (g : Iso d) (hg : Y.IsSymmetry g) (q : (parsedHierarchy Y hY).Node)
     (hq : q.1 = 0) :
     ∃ k : ℕ, 1 ≤ k ∧ (g ^ k) '' component Y hY q = component Y hY q := by
-  sorry
+  obtain ⟨p, K, -, ⟨w, hw⟩, hcone, hsub⟩ := component_contains_cone Y hY q hq
+  obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.1 (mem_interior_iff_mem_nhds.1 hw)
+  obtain ⟨k, hk, hrec⟩ :=
+    power_fixes_component_step2_recurrence g w (by positivity : (0 : ℝ) < ε / 4)
+  refine ⟨k, hk, ?_⟩
+  set h := g ^ k with hh_def
+  have hh : Y.IsSymmetry h :=
+    (Y.mem_symmetryGroup h).1 (Subgroup.pow_mem _ ((Y.mem_symmetryGroup g).2 hg) k)
+  let q' : (parsedHierarchy Y hY).Node :=
+    ⟨q.1, ⟨q.2.val.move h, parsed_node_move_mem Y hY h hh q.1 q.2.val q.2.property⟩⟩
+  have hcomp : component Y hY q' = h '' component Y hY q :=
+    power_fixes_component_step5_component_move Y hY h hh q q' rfl rfl
+  rw [← hcomp]
+  by_contra hne
+  have hdis := components_disjoint Y hY q q' hq hq (fun e => hne e.symm)
+  set L := h.linearIsometryEquiv
+  set c := dist p (h p) with hc
+  have hc0 : 0 ≤ c := dist_nonneg
+  set s : ℝ := 4 * (c + 1) / ε with hs_def
+  have hs : 0 < s := by positivity
+  have hsε : s * ε = 4 * (c + 1) := by
+    rw [hs_def]
+    field_simp
+  set x0 : E d := p + s • w with hx0_def
+  have hx0 : h x0 = s • L w + h p := by
+    have : x0 = (s • w) +ᵥ p := by rw [vadd_eq_add, add_comm]
+    rw [this, h.map_vadd, vadd_eq_add, map_smul]
+  have hdist : dist x0 (h x0) < s * ε / 2 := by
+    rw [dist_eq_norm, hx0]
+    have e : p + s • w - (s • L w + h p) = (p - h p) - s • (L w - w) := by
+      rw [smul_sub]
+      abel
+    rw [e]
+    calc ‖(p - h p) - s • (L w - w)‖ ≤ ‖p - h p‖ + ‖s • (L w - w)‖ := norm_sub_le _ _
+      _ = c + s * ‖L w - w‖ := by
+        rw [norm_smul, Real.norm_of_nonneg hs.le, ← dist_eq_norm]
+      _ < c + s * (ε / 4) := by gcongr
+      _ ≤ s * ε / 2 := by nlinarith
+  have hB : Metric.ball x0 (s * ε) ⊆ component Y hY q := by
+    intro z hz
+    rw [Metric.mem_ball] at hz
+    have hv : s⁻¹ • (z - p) ∈ K := by
+      apply hball
+      rw [Metric.mem_ball, dist_eq_norm]
+      have e : s⁻¹ • (z - x0) = s⁻¹ • (z - p) - w := by
+        rw [show z - x0 = (z - p) - s • w by rw [hx0_def]; abel, smul_sub, smul_smul,
+          inv_mul_cancel₀ hs.ne', one_smul]
+      rw [← e, norm_smul, Real.norm_of_nonneg (inv_nonneg.2 hs.le), ← dist_eq_norm,
+        inv_mul_lt_iff₀ hs]
+      linarith
+    have hv' := hcone s hs.le _ hv
+    rw [smul_smul, mul_inv_cancel₀ hs.ne', one_smul] at hv'
+    exact hsub ⟨z - p, hv', by simp⟩
+  have hx1 : x0 ∈ interior (component Y hY q) :=
+    mem_interior.2 ⟨_, hB, Metric.isOpen_ball, Metric.mem_ball_self (by positivity)⟩
+  have hB' : Metric.ball x0 (s * ε / 2) ⊆ component Y hY q' := by
+    intro z hz
+    rw [Metric.mem_ball] at hz
+    rw [hcomp]
+    refine ⟨h.symm z, hB ?_, h.apply_symm_apply z⟩
+    rw [Metric.mem_ball, ← h.dist_map, h.apply_symm_apply]
+    linarith [dist_triangle z x0 (h x0)]
+  have hx2 : x0 ∈ interior (component Y hY q') :=
+    mem_interior.2 ⟨_, hB', Metric.isOpen_ball, Metric.mem_ball_self (by positivity)⟩
+  exact Set.disjoint_left.1 hdis hx1 hx2
 
 /-- Y1, V4 5.7, Step 3: a positive power of any symmetry preserves an actual
 bounded full-dimensional hierarchy node. Common ancestry is obtained from the

@@ -1224,7 +1224,20 @@ theorem core_marks_core_cluster (C : ClusterData S P) (D : CertificateSymbol S P
     (hx : x ∈ C.cluster (⟨D, w⟩ : LeafType P) .core) :
     certificateColour C D ((LeafType.position (⟨D, w⟩ : LeafType P)) x) =
       augmentedColour C (⟨D, w⟩ : LeafType P) x := by
-  sorry
+  have h_leaf := certificateColour_leaf C D w ((LeafType.position (⟨D, w⟩ : LeafType P)) x)
+  have hc : x ∈ (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier := by
+    have h1 : C.cluster (⟨D, w⟩ : LeafType P) .core ⊆ (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier := by
+      calc C.cluster (⟨D, w⟩ : LeafType P) .core ⊆ C.enclosing (⟨D, w⟩ : LeafType P) .core := C.cluster_subset_enclosing (⟨D, w⟩ : LeafType P) .core
+      _ = Metric.closedBall (C.enclosingCentre (⟨D, w⟩ : LeafType P) .core) (C.enclosingRadius (⟨D, w⟩ : LeafType P) .core) := rfl
+      _ ⊆ interior (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier := C.enclosing_inside (⟨D, w⟩ : LeafType P) .core
+      _ ⊆ (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier := interior_subset
+    exact h1 hx
+  have hp : ((LeafType.position (⟨D, w⟩ : LeafType P)) x) ∈ placedSet (LeafType.position (⟨D, w⟩ : LeafType P)) (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier := by
+    exact Set.mem_image_of_mem _ hc
+  have h_eq : certificateColour C D ((LeafType.position (⟨D, w⟩ : LeafType P)) x) = augmentedColour C (⟨D, w⟩ : LeafType P) ((LeafType.position (⟨D, w⟩ : LeafType P)).symm ((LeafType.position (⟨D, w⟩ : LeafType P)) x)) := h_leaf hp
+  have h_symm : (LeafType.position (⟨D, w⟩ : LeafType P)).symm ((LeafType.position (⟨D, w⟩ : LeafType P)) x) = x := by
+    exact Equiv.symm_apply_apply _ x
+  rwa [h_symm] at h_eq
 
 /-- M3/M5, V4 2.11, 2.13: an EVENT support contains the entire central TRIG cluster. -/
 theorem event_contains_trigger_cluster (C : ClusterData S P) (e : EventIndex S P) :

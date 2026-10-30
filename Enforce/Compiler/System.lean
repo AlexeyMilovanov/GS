@@ -304,6 +304,44 @@ theorem colour_disjointness_iii (C : ClusterData S P)
         (compilerFrame C u (C.centre l κ a)) := by
   sorry
 
+/-- Step 1 of the V4 proof of `cluster_rigidity` (V4 2.13): Each source microball ψ(B̄(c_a, ρ))
+is connected and coloured (κ,D,i,a) throughout, so it lies in the set of points of Y with that colour. -/
+private lemma cluster_rigidity_step1_microball_contained (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) (l : LeafType P) (κ : ClusterKind l) (ψ : Iso d)
+    (h : ∀ x ∈ C.cluster l κ, Y.marking (ψ x) = augmentedColour C l x) (a : Fin (d + 1)) :
+    ψ '' (C.microball l κ a) ⊆ {x | Y.marking x = microColour l κ a} := by
+  sorry
+
+/-- Step 2 of the V4 proof of `cluster_rigidity` (V4 2.13): a connected set lies in one of the
+pairwise disjoint closed balls of radius ρ. A closed ball of radius ρ contained in a closed ball of
+radius ρ coincides with it. So ψ(c_a) = c'_a, the centre of the a-th microball of the κ-cluster
+of some tile t_a of type l. -/
+private lemma cluster_rigidity_step2_microball_eq (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) (l : LeafType P) (κ : ClusterKind l) (ψ : Iso d)
+    (a : Fin (d + 1)) (hsub : ψ '' (C.microball l κ a) ⊆ {x | Y.marking x = microColour l κ a}) :
+    ∃ t ∈ Y.tiles, compilerLeaf C t = l ∧
+      ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a) := by
+  sorry
+
+/-- Step 3 of the V4 proof of `cluster_rigidity` (V4 2.13): The d+1 points ψ(c_a) are within
+ε < 2δ of each other, while centres in distinct tiles are ≥ 2δ apart; so all t_a equal one tile t.
+Within t the cluster of kind κ is unique, so ψ(c_a) = φ_t(c_a) for a = 0, ..., d. -/
+private lemma cluster_rigidity_step3_same_tile (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) (l : LeafType P) (κ : ClusterKind l) (ψ : Iso d)
+    (h_centers : ∀ a, ∃ t ∈ Y.tiles, compilerLeaf C t = l ∧
+      ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a)) :
+    ∃ t ∈ Y.tiles, compilerLeaf C t = l ∧
+      ∀ a, ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `cluster_rigidity` (V4 2.13): An isometry is determined by its values
+on d+1 affinely independent points, so ψ = φ_t. -/
+private lemma cluster_rigidity_step4_affine_span (C : ClusterData S P)
+    (l : LeafType P) (κ : ClusterKind l) (ψ φ : Iso d)
+    (h_centers : ∀ a, ψ (C.centre l κ a) = φ (C.centre l κ a)) :
+    ψ = φ := by
+  sorry
+
 /-- M5, V4 2.13: agreement on an entire cluster forces one actual tile of the
 exact leaf type in the exact source frame. This applies to every marked tiling,
 without properness, and equality is of full isometries, including reflections. -/
@@ -311,7 +349,13 @@ theorem cluster_rigidity (C : ClusterData S P) (Y : MarkedTiling (systemM S P C)
     (l : LeafType P) (κ : ClusterKind l) (ψ : Iso d)
     (h : ∀ x ∈ C.cluster l κ, Y.marking (ψ x) = augmentedColour C l x) :
     ∃ t ∈ Y.tiles, compilerLeaf C t = l ∧ ψ = compilerFrame C t := by
-  sorry
+  have h1 : ∀ a, ψ '' (C.microball l κ a) ⊆ {x | Y.marking x = microColour l κ a} :=
+    fun a => cluster_rigidity_step1_microball_contained C Y l κ ψ h a
+  have h2 : ∀ a, ∃ t ∈ Y.tiles, compilerLeaf C t = l ∧
+      ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a) :=
+    fun a => cluster_rigidity_step2_microball_eq C Y l κ ψ a (h1 a)
+  obtain ⟨t, ht_tiles, ht_leaf, ht_centers⟩ := cluster_rigidity_step3_same_tile C Y l κ ψ h2
+  exact ⟨t, ht_tiles, ht_leaf, cluster_rigidity_step4_affine_span C l κ ψ (compilerFrame C t) ht_centers⟩
 
 section MarkedMotion
 

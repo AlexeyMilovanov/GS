@@ -327,7 +327,15 @@ theorem canonical_idempotent (ι : P.Incidence) : P.canonical ι.val = ι :=
 Their strict oriented order, rather than an arbitrary enumeration, ensures this. -/
 theorem sites_injective (ι : P.Incidence) (b : Bool) :
     Function.Injective (P.sites ι b) := by
-  sorry
+  intro a a' h
+  rcases lt_trichotomy a a' with hlt | heq | hgt
+  · have ho := P.sites_order ι b a a' hlt
+    rw [h] at ho
+    simp at ho
+  · exact heq
+  · have ho := P.sites_order ι b a' a hgt
+    rw [h.symm] at ho
+    simp at ho
 
 end Params
 

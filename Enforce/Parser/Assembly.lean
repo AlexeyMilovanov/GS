@@ -5682,7 +5682,12 @@ decoded level containing that framed node, not an independent marginal choice. -
 theorem state_agrees (n m : ℕ) (N : FramedNode S)
     (hN : N ∈ (R.fullLevels n).geometry.nodes m) (hm : N ∈ H.nodes m) :
     (R.fullLevels n).stateAt m N hN = R.state ⟨m, ⟨N, hm⟩⟩ := by
-  sorry
+  have hm_root : N ∈ (R.fullLevels m).geometry.roots := by
+    rwa [R.roots m]
+  have hm_node : N ∈ (R.fullLevels m).geometry.nodes m := by
+    rwa [(R.fullLevels m).geometry.nodes_top]
+  change (R.fullLevels n).stateAt m N hN = (R.fullLevels m).stateAt m N hm_node
+  exact R.states n m N hN hm_node
 
 /-- R12, V4 3.1: the global state assignment obeys every actual child equation. -/
 theorem state_child (q : H.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)

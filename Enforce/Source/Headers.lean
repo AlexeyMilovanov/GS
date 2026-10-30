@@ -4675,6 +4675,23 @@ theorem tangentCone_union_isHPiCone (P : CompatiblePatch S)
     HPiCone S.hPi (tangentCone (⋃ q ∈ Q, q.1.val.cell 0 q.2.val) p) := by
   sorry
 
+/-- Step 1 of the V4 proof of `uniform_prototype_cone_radius` (V4 1.19): For a prototile A
+and a vertex v there is ρ>0 with exact cone intersection; take r₀ the minimum over the finite catalogue. -/
+private lemma uniform_prototype_cone_radius_step1_min_radius (S : SubstSystem d) :
+    ∃ r₀ : ℝ, 0 < r₀ ∧ ∀ (A : S.ι) (e : Cell d), e ∈ (S.cx A).vertices → ∀ v ∈ e.carrier,
+      (S.proto A).carrier ∩ ball v r₀ =
+        ((fun x => v + x) '' tangentCone (S.proto A).carrier v) ∩ ball v r₀ := by
+  sorry
+
+/-- Step 2 of the V4 proof of `uniform_prototype_cone_radius` (V4 1.19): the cone equality
+is invariant under isometric placement. -/
+private lemma uniform_prototype_cone_radius_step2_placed {K : Set (E d)} {v : E d} {r : ℝ}
+    (h : K ∩ ball v r = ((fun x => v + x) '' tangentCone K v) ∩ ball v r) (g : E d ≃ᵃ[ℝ] E d)
+    (hg : Isometry g) :
+    (g '' K) ∩ ball (g v) r =
+      ((fun x => g v + x) '' tangentCone (g '' K) (g v)) ∩ ball (g v) r := by
+  sorry
+
 /-- P14, V4 1.19: a single prototype-catalogue radius works for every placed
 ground tile at every listed vertex, independently of patches and their depth.
 An empty catalogue admits any positive radius. -/
@@ -4682,7 +4699,22 @@ theorem uniform_prototype_cone_radius (S : SubstSystem d) :
     ∃ r₀ : ℝ, 0 < r₀ ∧ ∀ (t : FramedNode S) (p : E d), t.Lists 0 p →
       t.carrier 0 ∩ ball p r₀ =
         ((fun v => p + v) '' tangentCone (t.carrier 0) p) ∩ ball p r₀ := by
-  sorry
+  obtain ⟨r₀, hr₀, hmin⟩ := uniform_prototype_cone_radius_step1_min_radius S
+  refine ⟨r₀, hr₀, fun t p hlists => ?_⟩
+  rcases hlists with ⟨e, he, hp⟩
+  have hc : t.carrier 0 = t.prototypeFrame 0 '' (S.proto t.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet, SubstSystem.supertile]
+  have hce : t.cell 0 e = t.prototypeFrame 0 '' e.carrier := rfl
+  rw [hce] at hp
+  rcases hp with ⟨y, hy, hy_eq⟩
+  have h_base := hmin t.ty e he _ hy
+  have h_iso : Isometry (t.prototypeFrame 0) := by
+    have : t.prototypeFrame 0 = (S.σ ^ 0).toAffineEquiv.trans t.frame.toAffineEquiv := rfl
+    rw [this, pow_zero]
+    exact t.frame.isometry
+  have h_trans := uniform_prototype_cone_radius_step2_placed h_base (t.prototypeFrame 0) h_iso
+  rw [hy_eq] at h_trans
+  rwa [hc]
 
 namespace CompatiblePatch
 

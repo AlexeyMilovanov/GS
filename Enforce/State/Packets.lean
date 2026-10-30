@@ -155,7 +155,11 @@ theorem decode_spec (U : HonestSource S) (P : Params S)
 /-- Q8, V4 8.1: the packet head is exactly the state of its birth parent. -/
 theorem packet_head (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) :
     (packetOf U P g).head = stateOf U P g.birth := by
-  sorry
+  have hk : NeZero P.k := ⟨ne_of_gt P.k_pos⟩
+  have h := reconstructed_spec U P g ⟨0, P.k_pos⟩ (Fin.zero_le _)
+  have h2 : U.hierarchy.ancestor g.birth 0 = g.birth := rfl
+  rw [h2] at h
+  exact h
 
 /-- Q8, V4 2.5, 8.1: admissible packets are exactly the honest compressed image. -/
 def honestPackets (S : SubstSystem d) (P : Params S) : Set (Packet P) :=

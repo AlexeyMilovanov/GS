@@ -384,7 +384,12 @@ def PlacedMarkedTile.move (t : PlacedMarkedTile M) (g : Iso d) : PlacedMarkedTil
 /-- M6, V4 2.14(d): moving a marked tiling preserves coverage. -/
 theorem MarkedTiling.move_cover (Y : MarkedTiling M) (g : Iso d) (x : E d) :
     ∃ t ∈ (fun t : PlacedMarkedTile M => t.move g) '' Y.tiles, x ∈ t.carrier := by
-  sorry
+  obtain ⟨u, hu_tiles, hx_in_u⟩ := Y.cover (g.symm x)
+  use u.move g
+  refine ⟨Set.mem_image_of_mem _ hu_tiles, ?_⟩
+  dsimp [PlacedMarkedTile.move, MarkedSet.move]
+  use g.symm x
+  exact ⟨hx_in_u, g.apply_symm_apply x⟩
 
 /-- M6, V4 2.14(d): moving a marked tiling preserves interior disjointness. -/
 theorem MarkedTiling.move_disjoint (Y : MarkedTiling M) (g : Iso d) :

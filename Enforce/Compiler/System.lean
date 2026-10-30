@@ -433,11 +433,55 @@ structure MovedSource (U V : HonestSource S) (g : Iso d) : Prop where
     (hN : N.val.move g ∈ V.hierarchy.nodes n),
     V.hierarchy.nodeRole ⟨n, ⟨N.val.move g, hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩
 
+/-- Step 1 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): the moved tiling belongs to the species. -/
+private lemma honest_move_exists_step1_species (U : HonestSource S) (g : Iso d) :
+    U.tiling.move g ∈ S.Species :=
+  sorry
+
+/-- Step 2 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving the entire coherent hierarchy preserves coherence. -/
+private lemma honest_move_exists_step2_hierarchy (U : HonestSource S) (g : Iso d) :
+    ∃ H : CoherentHierarchy S (U.tiling.move g),
+      (∀ n, H.nodes n = (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ H.nodes n),
+        (H.parent n ⟨N.val.move g, hN⟩).val = (U.hierarchy.parent n N).val.move g) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ H.nodes n),
+        H.nodeRole ⟨n, ⟨N.val.move g, hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :=
+  sorry
+
+/-- Step 3 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving a legal context yields a legal context for the moved finite node set. -/
+private lemma honest_move_exists_step3_contexts (U : HonestSource S) (g : Iso d)
+    (H : CoherentHierarchy S (U.tiling.move g))
+    (hNodes : ∀ n, H.nodes n = (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n)
+    (hParents : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ H.nodes n),
+        (H.parent n ⟨N.val.move g, hN⟩).val = (U.hierarchy.parent n N).val.move g)
+    (hRoles : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ H.nodes n),
+        H.nodeRole ⟨n, ⟨N.val.move g, hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :
+    ∀ F : Finset H.Node, Nonempty (LegalContext H F) :=
+  sorry
+
+/-- Step 4 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): frames of the moved hierarchy lie in the rotated common coset. -/
+private lemma honest_move_exists_step4_coset (U : HonestSource S) (g : Iso d)
+    (H : CoherentHierarchy S (U.tiling.move g))
+    (hNodes : ∀ n, H.nodes n = (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n)
+    (n : ℕ) (N : FramedNode S) (hN : N ∈ H.nodes n) :
+    ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv =
+      (g.linearIsometryEquiv * U.coset) * R :=
+  sorry
+
 /-- M6, V4 2.14(d), 1.11: moving every frame and every legal context gives
 an honest source. The input source supplies nonemptiness of the transport problem. -/
 theorem honest_move_exists (U : HonestSource S) (g : Iso d) :
     ∃ V : HonestSource S, MovedSource U V g := by
-  sorry
+  obtain ⟨H, hNodes, hParents, hRoles⟩ := honest_move_exists_step2_hierarchy U g
+  let V : HonestSource S := {
+    tiling := U.tiling.move g
+    mem_species := honest_move_exists_step1_species U g
+    hierarchy := H
+    contexts := honest_move_exists_step3_contexts U g H hNodes hParents hRoles
+    coset := g.linearIsometryEquiv * U.coset
+    frames_in_coset := honest_move_exists_step4_coset U g H hNodes
+  }
+  exact ⟨V, rfl, hNodes, rfl, hParents, hRoles⟩
 
 /-- M6, V4 2.14(d): move an honest source using the exact transport specification.
 Only the existing, geometrically specified transported source is selected. -/

@@ -431,7 +431,12 @@ def cluster (l : LeafType P) (κ : ClusterKind l) : Set (E d) :=
 /-- M2, V4 2.10: all cluster points lie in the physical leaf interior. -/
 theorem cluster_inside (l : LeafType P) (κ : ClusterKind l) :
     C.cluster l κ ⊆ interior (S.proto l.prototype).carrier := by
-  sorry
+  intro x hx
+  dsimp [cluster, microball] at hx
+  obtain ⟨a, hx_ball⟩ := Set.mem_iUnion.mp hx
+  have h1 := C.micro_inside l κ a hx_ball
+  have h2 := ball_subset_closedBall h1
+  exact C.enclosing_inside l κ h2
 
 /-- M2, V4 2.10: all microballs in a leaf, across all kinds, are disjoint. -/
 theorem all_microballs_disjoint (l : LeafType P) :

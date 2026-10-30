@@ -257,7 +257,7 @@ theorem placedLeaf_decode (C : ClusterData S P)
 /-- M3/M5, V4 2.11, 2.13: augmented physical placements determine label and frame. -/
 theorem placedLeaf_injective (C : ClusterData S P) (l u : LeafType P) (φ ψ : Iso d)
     (h : placedLeaf C l φ = placedLeaf C u ψ) : l = u ∧ φ = ψ := by
-  sorry
+  exact augmentedLeaf_rigid C l u φ ψ (congrArg PlacedMarkedTile.toMarkedSet h)
 
 /-- M3/M5, V4 2.11, 2.13: the decoded pair is unique, not a representative ambiguity. -/
 theorem compiler_decode_unique (C : ClusterData S P) (l : LeafType P) (φ : Iso d) :

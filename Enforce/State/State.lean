@@ -5528,7 +5528,8 @@ theorem record_chains_spec (U : HonestSource S) (P : Params S) (q : U.Node)
     (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
     (c : OrientedChain f) :
     c ∈ (U.recordOf P q f hf).chains ↔ U.ActiveChain P q f hf c := by
-  sorry
+  classical
+  simp [HonestSource.recordOf, HonestSource.recordChains, allOrientedChains]
 
 /-- Q3/Q7, V4 §2.2 (S4d), 2.4(c): the shallow branch occurs precisely before
 site maturity, and retains the actual complete serving-child role word. -/

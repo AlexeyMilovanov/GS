@@ -44,7 +44,7 @@ def edgeGraph (S : SubstSystem d) (e f : EdgeName S) : Prop :=
 
 /-- P15, V4 1.20: finite graph vertex set, including the empty-catalogue case. -/
 theorem edgeNames_finite (S : SubstSystem d) : Finite (EdgeName S) := by
-  sorry
+  infer_instance
 
 /-- P15, V4 1.20: the length of an edge after a common power of the expansion. -/
 def expandedEdgeLength (r : ℕ) (e : EdgeName S) : ℝ := ‖(S.σ ^ r) (edgeVector e)‖

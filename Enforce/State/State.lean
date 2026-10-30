@@ -5556,7 +5556,14 @@ theorem mature_counter_spec (U : HonestSource S) (P : Params S) (q : U.Node)
       (U.hierarchy.firstProvider q f hf).1) (e : CellName S q.2.val.ty) :
     ((U.constantProfile P q f hf).value e).isSome = true ↔
       (U.recordOf P q f hf).ChainActive e := by
-  sorry
+  have _ := hmature
+  unfold HonestSource.constantProfile
+  unfold FacetRecord.ChainActive
+  unfold HonestSource.recordOf
+  dsimp
+  split_ifs with h
+  · exact iff_of_true rfl h
+  · exact iff_of_false (by simp) h
 
 /-- Q3, V4 §2.2 (S4d): on a chain-active edge the stored mature constant is the
 common counter value at every point of the relative interior of the placed edge;

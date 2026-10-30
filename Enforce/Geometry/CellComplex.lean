@@ -95,6 +95,255 @@ structure CellFlag {A : PolyManifoldDomain d} (K : CellComplex A) where
   /-- G3, V4 1.15: cells in increasing order are nested. -/
   nested : ∀ i j, i ≤ j → (cell i).carrier ⊆ (cell j).carrier
 
+/-- Step 1 of the V4 proof of `facet_halfball` (V4 1.0(a)): "`p ∈ relint F`, so for
+small `U`, `F ∩ U = aff(F) ∩ U`". A relative-interior point has a ball whose trace
+on the affine span lies in the set. -/
+private lemma facet_halfball_step1_relint_ball {S : Set (E d)} {p : E d}
+    (hp : p ∈ relint S) :
+    ∃ r : ℝ, 0 < r ∧ (affineSpan ℝ S : Set (E d)) ∩ ball p r ⊆ S := by
+  rw [relint, mem_intrinsicInterior] at hp
+  obtain ⟨y, hy, rfl⟩ := hp
+  rw [mem_interior_iff_mem_nhds, mem_nhds_subtype] at hy
+  obtain ⟨u, hu, hsub⟩ := hy
+  obtain ⟨r, hr, hball⟩ := Metric.mem_nhds_iff.mp hu
+  refine ⟨r, hr, ?_⟩
+  rintro x ⟨hxA, hxB⟩
+  exact hsub (show (⟨x, hxA⟩ : affineSpan ℝ S) ∈ Subtype.val ⁻¹' u from hball hxB)
+
+/-- Step 1' of the V4 proof of `facet_halfball` (V4 1.0(a)): the converse of step 1.
+A point of the affine span with a ball whose trace on the span lies in the set is a
+relative-interior point. -/
+private lemma facet_halfball_step1_mem_relint {S : Set (E d)} {p : E d} {r : ℝ}
+    (hr : 0 < r) (hpS : p ∈ affineSpan ℝ S)
+    (hsub : (affineSpan ℝ S : Set (E d)) ∩ ball p r ⊆ S) : p ∈ relint S := by
+  rw [relint, mem_intrinsicInterior]
+  refine ⟨⟨p, hpS⟩, ?_, rfl⟩
+  rw [mem_interior_iff_mem_nhds, mem_nhds_subtype]
+  refine ⟨ball p r, ball_mem_nhds p hr, ?_⟩
+  intro y hy
+  exact hsub ⟨y.2, hy⟩
+
+/-- Step 2 of the V4 proof of `facet_halfball` (V4 1.0(a)): "`p` lies in no cell other
+than `F`: if `p ∈ e ≠ F` then `mc_A(p) ⊆ e` and `mc_A(p) = F` forces `F ⊆ e` ... a
+`(d-1)`-cell inside `e` with `dim e ≤ d-1` forces `e = F`". -/
+private lemma facet_halfball_step2_unique_cell {A : PolyManifoldDomain d}
+    (K : CellComplex A) (F : Cell d) (hF : F ∈ K.facets) (p : E d)
+    (hp : p ∈ relint F.carrier) (e : Cell d) (he : e ∈ K.cells) (hpe : p ∈ e.carrier) :
+    e = F := by
+  classical
+  have hFc : F ∈ K.cells := (Finset.mem_filter.mp hF).1
+  have hFd : F.dim = d - 1 := (Finset.mem_filter.mp hF).2
+  have hpfr : p ∈ frontier A.carrier := by
+    rw [← K.cover]; exact Set.mem_iUnion₂.mpr ⟨F, hFc, hp⟩
+  have hmin : K.minimalCell p hpfr = F := by
+    by_contra hne
+    exact Set.disjoint_left.mp (K.relint_disjoint _ (K.minimalCell_mem p hpfr) F hFc hne)
+      (K.mem_relint_minimalCell p hpfr) hp
+  have hsub : F.carrier ⊆ e.carrier := by
+    have := K.minimalCell_subset p hpfr e he hpe
+    rwa [hmin] at this
+  by_contra hne
+  have hle : affineSpan ℝ F.carrier ≤ affineSpan ℝ e.carrier := affineSpan_mono ℝ hsub
+  have hdir : (affineSpan ℝ F.carrier).direction ≤ (affineSpan ℝ e.carrier).direction :=
+    AffineSubspace.direction_le hle
+  have hFr : Module.finrank ℝ (affineSpan ℝ F.carrier).direction = d - 1 :=
+    F.flat.dimension.trans hFd
+  have her : Module.finrank ℝ (affineSpan ℝ e.carrier).direction = e.dim := e.flat.dimension
+  have hedim : e.dim < d := K.dim_lt e he
+  have hdeq : (affineSpan ℝ F.carrier).direction = (affineSpan ℝ e.carrier).direction :=
+    Submodule.eq_of_le_of_finrank_le hdir (by rw [hFr, her]; omega)
+  have hpF : p ∈ affineSpan ℝ F.carrier :=
+    subset_affineSpan ℝ _ (intrinsicInterior_subset hp)
+  have hspan : affineSpan ℝ F.carrier = affineSpan ℝ e.carrier :=
+    AffineSubspace.ext_of_direction_eq hdeq ⟨p, hpF, hle hpF⟩
+  obtain ⟨r, hr, hball⟩ := facet_halfball_step1_relint_ball hp
+  have hpe' : p ∈ relint e.carrier :=
+    facet_halfball_step1_mem_relint hr (hle hpF) (by rw [← hspan]; exact hball.trans hsub)
+  exact Set.disjoint_left.mp (K.relint_disjoint e he F hFc hne) hpe' hp
+
+/-- Step 3 of the V4 proof of `facet_halfball` (V4 1.0(a)): listed cells lie in `∂A`,
+since each cell is the closure of its relative interior and these cover `∂A`. -/
+private lemma facet_halfball_step3_carrier_frontier {A : PolyManifoldDomain d}
+    (K : CellComplex A) (e : Cell d) (he : e ∈ K.cells) :
+    e.carrier ⊆ frontier A.carrier := by
+  rw [← e.flat.regularClosed]
+  refine closure_minimal ?_ isClosed_frontier
+  intro x hx
+  rw [← K.cover]
+  exact Set.mem_iUnion₂.mpr ⟨e, he, hx⟩
+
+/-- Step 4 of the V4 proof of `facet_halfball` (V4 1.0(a)): "Cells are closed and
+finitely many, so some ball `U` around `p` meets no other cell"; hence `∂A ∩ U ⊆ F`. -/
+private lemma facet_halfball_step4_isolate {A : PolyManifoldDomain d}
+    (K : CellComplex A) (F : Cell d) (hF : F ∈ K.facets) (p : E d)
+    (hp : p ∈ relint F.carrier) :
+    ∃ r : ℝ, 0 < r ∧ frontier A.carrier ∩ ball p r ⊆ F.carrier := by
+  classical
+  set C : Set (E d) := ⋃ e ∈ K.cells.erase F, e.carrier with hCdef
+  have hC : IsClosed C := isClosed_biUnion_finset (fun e _ => e.flat.compact.isClosed)
+  have hpC : p ∉ C := by
+    intro h
+    obtain ⟨e, he, hpe⟩ := Set.mem_iUnion₂.mp h
+    exact (Finset.mem_erase.mp he).1
+      (facet_halfball_step2_unique_cell K F hF p hp e (Finset.mem_erase.mp he).2 hpe)
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hC.isOpen_compl p hpC
+  refine ⟨r, hr, ?_⟩
+  rintro x ⟨hx, hxB⟩
+  rw [← K.cover] at hx
+  obtain ⟨e, he, hxe⟩ := Set.mem_iUnion₂.mp hx
+  have hxe' : x ∈ e.carrier := by
+    rw [← e.flat.regularClosed]; exact subset_closure hxe
+  by_cases heF : e = F
+  · exact heF ▸ hxe'
+  · exact absurd (Set.mem_iUnion₂.mpr ⟨e, Finset.mem_erase.mpr ⟨heF, he⟩, hxe'⟩) (hball hxB)
+
+/-- Step 5 of the V4 proof of `facet_halfball` (V4 1.0(a)): "one side of `aff F`".
+An affine subspace of codimension one through `p` is the zero set of
+`x ↦ ⟪v, x - p⟫` for a unit normal `v`. -/
+private lemma facet_halfball_step5_normal [Fact (2 ≤ d)] (S : AffineSubspace ℝ (E d))
+    (p : E d) (hp : p ∈ S) (hS : Module.finrank ℝ S.direction = d - 1) :
+    ∃ v : E d, ‖v‖ = 1 ∧ ∀ x, x ∈ S ↔ inner ℝ v (x - p) = 0 := by
+  have hd : 2 ≤ d := Fact.out
+  have hE : Module.finrank ℝ (E d) = d := finrank_euclideanSpace_fin
+  have hperp : Module.finrank ℝ S.directionᗮ = 1 := by
+    have := Submodule.finrank_add_finrank_orthogonal S.direction
+    omega
+  have hne : S.directionᗮ ≠ ⊥ := by
+    intro h; rw [h, finrank_bot] at hperp; exact zero_ne_one hperp
+  obtain ⟨w, hw, hw0⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hne
+  set v : E d := (‖w‖⁻¹ : ℝ) • w with hvdef
+  have hv : ‖v‖ = 1 := norm_smul_inv_norm hw0
+  have hvperp : v ∈ S.directionᗮ := Submodule.smul_mem _ _ hw
+  have hv0 : v ≠ 0 := by intro h; rw [h, norm_zero] at hv; exact zero_ne_one hv
+  have hdir : S.direction = (ℝ ∙ v)ᗮ := by
+    apply Submodule.eq_of_le_of_finrank_eq
+    · intro y hy
+      rw [Submodule.mem_orthogonal_singleton_iff_inner_right]
+      exact Submodule.inner_left_of_mem_orthogonal hy hvperp
+    · have h1 := Submodule.finrank_add_finrank_orthogonal (ℝ ∙ v)
+      rw [finrank_span_singleton hv0] at h1
+      omega
+  refine ⟨v, hv, fun x => ?_⟩
+  rw [← AffineSubspace.vsub_right_mem_direction_iff_mem hp x, hdir,
+    Submodule.mem_orthogonal_singleton_iff_inner_right]
+  rfl
+
+/-- Step 6 of the V4 proof of `facet_halfball` (V4 1.0(a)): "`U \ aff F` has two
+components; each is inside or outside `A`. Not both inside (then `p ∈ int A`), not both
+outside (then `A ∩ U ⊆ aff F` has empty interior, contradicting regular closedness)". -/
+private lemma facet_halfball_step6_side (S : Set (E d)) (hS : IsRegularClosed S)
+    (p v : E d) (hv : ‖v‖ = 1) (r : ℝ) (hr : 0 < r) (hpS : p ∈ frontier S)
+    (hfr : frontier S ∩ ball p r = {x | inner ℝ v (x - p) = 0} ∩ ball p r) :
+    ∃ s : E d, ‖s‖ = 1 ∧ S ∩ ball p r = {x | 0 ≤ inner ℝ s (x - p)} ∩ ball p r := by
+  have hSc : IsClosed S := by rw [← hS]; exact isClosed_closure
+  have hH : ∀ x ∈ ball p r, inner ℝ v (x - p) = 0 → x ∈ S := by
+    intro x hx h0
+    have : x ∈ frontier S ∩ ball p r := by rw [hfr]; exact ⟨h0, hx⟩
+    exact hSc.frontier_subset this.1
+  have hnf : ∀ x ∈ ball p r, inner ℝ v (x - p) ≠ 0 → x ∉ frontier S := by
+    intro x hx h0 hxf
+    have : x ∈ {x | inner ℝ v (x - p) = 0} ∩ ball p r := by rw [← hfr]; exact ⟨hxf, hx⟩
+    exact h0 this.1
+  have hconn : ∀ w : E d, IsPreconnected ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) := by
+    intro w
+    refine (Convex.inter ?_ (convex_ball p r)).isPreconnected
+    intro x hx y hy a b ha hb hab
+    simp only [mem_setOf_eq] at hx hy ⊢
+    have hlin : inner ℝ w (a • x + b • y - p) =
+        a * inner ℝ w (x - p) + b * inner ℝ w (y - p) := by
+      simp only [inner_sub_right, inner_add_right, inner_smul_right]
+      linear_combination (inner ℝ w p) * hab
+    rw [hlin]
+    by_cases ha0 : a = 0
+    · subst ha0
+      have hb1 : b = 1 := by linarith
+      subst hb1
+      linarith
+    · have hapos : 0 < a := lt_of_le_of_ne ha (Ne.symm ha0)
+      have := mul_pos hapos hx
+      have := mul_nonneg hb hy.le
+      linarith
+  have hdis : Disjoint (interior S) Sᶜ :=
+    Set.disjoint_left.mpr fun _ hi hc => hc (interior_subset hi)
+  have hdich : ∀ w : E d, (∀ x ∈ ball p r, 0 < inner ℝ w (x - p) → inner ℝ v (x - p) ≠ 0) →
+      ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ S ∨
+        ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ Sᶜ := by
+    intro w hw
+    have hcover : ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ interior S ∪ Sᶜ := by
+      rintro z ⟨hz, hzB⟩
+      by_cases hzs : z ∈ S
+      · left
+        by_contra hzi
+        exact hnf z hzB (hw z hzB hz) (by rw [hSc.frontier_eq]; exact ⟨hzs, hzi⟩)
+      · exact Or.inr hzs
+    rcases (hconn w).subset_or_subset isOpen_interior hSc.isOpen_compl hdis hcover with h | h
+    · exact Or.inl (h.trans interior_subset)
+    · exact Or.inr h
+  have hPv := hdich v (fun x _ h => h.ne')
+  have hMv := hdich (-v) (fun x _ h => by
+    rw [inner_neg_left] at h; linarith)
+  have hpint : p ∉ interior S := hpS.2
+  have hpA : p ∈ S := hSc.frontier_subset hpS
+  rcases hPv with hP | hP <;> rcases hMv with hM | hM
+  · -- both sides inside: `p` would be interior
+    exfalso
+    apply hpint
+    refine interior_maximal ?_ isOpen_ball (mem_ball_self hr)
+    intro x hx
+    rcases lt_trichotomy (inner ℝ v (x - p)) 0 with h | h | h
+    · exact hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hx⟩
+    · exact hH x hx h
+    · exact hP ⟨h, hx⟩
+  · refine ⟨v, hv, ?_⟩
+    ext x
+    constructor
+    · rintro ⟨hxS, hxB⟩
+      refine ⟨?_, hxB⟩
+      by_contra hneg
+      simp only [mem_setOf_eq, not_le] at hneg
+      exact hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hxB⟩ hxS
+    · rintro ⟨h0, hxB⟩
+      rcases (show (0:ℝ) ≤ inner ℝ v (x - p) from h0).eq_or_lt with h | h
+      · exact ⟨hH x hxB h.symm, hxB⟩
+      · exact ⟨hP ⟨h, hxB⟩, hxB⟩
+  · refine ⟨-v, by rw [norm_neg, hv], ?_⟩
+    ext x
+    constructor
+    · rintro ⟨hxS, hxB⟩
+      refine ⟨?_, hxB⟩
+      by_contra hneg
+      simp only [mem_setOf_eq, not_le, inner_neg_left] at hneg
+      exact hP ⟨by simp only [mem_setOf_eq]; linarith, hxB⟩ hxS
+    · rintro ⟨h0, hxB⟩
+      have h0' : 0 ≤ inner ℝ (-v) (x - p) := h0
+      rw [inner_neg_left] at h0'
+      rcases (show inner ℝ v (x - p) ≤ 0 by linarith).eq_or_lt with h | h
+      · exact ⟨hH x hxB h, hxB⟩
+      · exact ⟨hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hxB⟩, hxB⟩
+  · -- both sides outside: `A ∩ U` lies in the hyperplane, against regular closedness
+    exfalso
+    have hcl : p ∈ closure (interior S) := by rw [hS]; exact hpA
+    obtain ⟨y, hyB, hyI⟩ := mem_closure_iff.mp hcl (ball p r) isOpen_ball (mem_ball_self hr)
+    obtain ⟨ε, hε, hεsub⟩ :=
+      Metric.isOpen_iff.mp (isOpen_interior.inter isOpen_ball) y ⟨hyI, hyB⟩
+    have hy0 : inner ℝ v (y - p) = 0 := by
+      rcases lt_trichotomy (inner ℝ v (y - p)) 0 with h | h | h
+      · exact absurd (interior_subset hyI)
+          (hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hyB⟩)
+      · exact h
+      · exact absurd (interior_subset hyI) (hP ⟨h, hyB⟩)
+    set z : E d := y + (ε / 2) • v with hz
+    have hzy : z ∈ ball y ε := by
+      rw [mem_ball, dist_eq_norm, hz, add_sub_cancel_left, norm_smul, hv, mul_one,
+        Real.norm_eq_abs, abs_of_pos (half_pos hε)]
+      linarith
+    obtain ⟨hzI, hzB⟩ := hεsub hzy
+    have hzv : inner ℝ v (z - p) = ε / 2 := by
+      have : z - p = (y - p) + (ε / 2) • v := by rw [hz]; abel
+      rw [this, inner_add_right, inner_smul_right, hy0, real_inner_self_eq_norm_sq, hv]
+      ring
+    exact hP ⟨by rw [mem_setOf_eq, hzv]; exact half_pos hε, hzB⟩ (interior_subset hzI)
+
 /-- G6, V4 1.0(a): near a relative-interior facet point, the frontier and the
 facet agree with their affine hyperplane, and the domain is a closed half-ball.
 The normal may point to either side, so no orientation is imposed. -/
@@ -105,7 +354,43 @@ theorem facet_halfball [Fact (2 ≤ d)] (A : PolyManifoldDomain d) (K : CellComp
         (affineSpan ℝ F.carrier : Set (E d)) ∩ ball p r ∧
       F.carrier ∩ ball p r = (affineSpan ℝ F.carrier : Set (E d)) ∩ ball p r ∧
       A.carrier ∩ ball p r = {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r := by
-  sorry
+  classical
+  have hFc : F ∈ K.cells := (Finset.mem_filter.mp hF).1
+  have hFd : F.dim = d - 1 := (Finset.mem_filter.mp hF).2
+  obtain ⟨r1, hr1, h1⟩ := facet_halfball_step4_isolate K F hF p hp
+  obtain ⟨r2, hr2, h2⟩ := facet_halfball_step1_relint_ball hp
+  have hpF : p ∈ affineSpan ℝ F.carrier :=
+    subset_affineSpan ℝ _ (intrinsicInterior_subset hp)
+  obtain ⟨v, hv, hvS⟩ := facet_halfball_step5_normal (affineSpan ℝ F.carrier) p hpF
+    (F.flat.dimension.trans hFd)
+  have hr : 0 < min r1 r2 := lt_min hr1 hr2
+  have hFball : F.carrier ∩ ball p (min r1 r2) =
+      (affineSpan ℝ F.carrier : Set (E d)) ∩ ball p (min r1 r2) := by
+    ext x
+    constructor
+    · rintro ⟨hx, hxB⟩
+      exact ⟨subset_affineSpan ℝ _ hx, hxB⟩
+    · rintro ⟨hx, hxB⟩
+      exact ⟨h2 ⟨hx, ball_subset_ball (min_le_right _ _) hxB⟩, hxB⟩
+  have hfrball : frontier A.carrier ∩ ball p (min r1 r2) =
+      (affineSpan ℝ F.carrier : Set (E d)) ∩ ball p (min r1 r2) := by
+    rw [← hFball]
+    ext x
+    constructor
+    · rintro ⟨hx, hxB⟩
+      exact ⟨h1 ⟨hx, ball_subset_ball (min_le_left _ _) hxB⟩, hxB⟩
+    · rintro ⟨hx, hxB⟩
+      exact ⟨facet_halfball_step3_carrier_frontier K F hFc hx, hxB⟩
+  have hpfr : p ∈ frontier A.carrier :=
+    facet_halfball_step3_carrier_frontier K F hFc (intrinsicInterior_subset hp)
+  have hH : frontier A.carrier ∩ ball p (min r1 r2) =
+      {x | inner ℝ v (x - p) = 0} ∩ ball p (min r1 r2) := by
+    rw [hfrball]
+    ext x
+    simp only [mem_inter_iff, SetLike.mem_coe, mem_setOf_eq, hvS]
+  obtain ⟨s, hs, hside⟩ :=
+    facet_halfball_step6_side A.carrier A.regularClosed p v hv (min r1 r2) hr hpfr hH
+  exact ⟨min r1 r2, hr, s, hs, hfrball, hFball, hside⟩
 
 /-- Step 1 of the V4 proof of `solidAngle_constant_on_cell` (V4 1.0(a)):
 "each component is inside or outside A". On a connected set on which boundary

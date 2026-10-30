@@ -9711,7 +9711,11 @@ theorem required_principal_component (A : S.ι) (k₀ : ℕ) :
 /-- P19, V4 1.24: normalized skeletons increase under further subdivision. -/
 theorem internalSkeleton_mono (A : S.ι) (k l : ℕ) (hkl : k ≤ l) :
     internalSkeleton S A k ⊆ internalSkeleton S A l := by
-  sorry
+  rw [internalSkeleton_eq_primitives, internalSkeleton_eq_primitives]
+  intro x hx
+  simp only [Set.mem_iUnion, Subtype.exists] at hx ⊢
+  rcases hx with ⟨f, hfk, hx⟩
+  exact ⟨f, lt_of_lt_of_le hfk hkl, hx⟩
 
 /-- P19/P21, V4 1.24--1.25: the normalized birth frame is exactly the full
 prototype frame of the actual standard birth node pulled back by `σ⁻ᵏ`. -/

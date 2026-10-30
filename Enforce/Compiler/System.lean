@@ -200,7 +200,13 @@ theorem decoration_interior (C : ClusterData S P)
     (Q : {Q // Q ∈ (systemM S P C).physical}) (x : Q.val.carrier)
     (hx : x.val ∈ interior Q.val.carrier) :
     π S P (Q.val.mark x) = some (physicalLeaf C Q).prototype := by
-  sorry
+  obtain ⟨Q_val, hQ⟩ := Q
+  generalize hl : physicalLeaf C ⟨Q_val, hQ⟩ = l
+  have hs : Q_val = augmentedLeaf C l := by
+    rw [← hl]
+    exact (physicalLeaf_spec C ⟨Q_val, hQ⟩).symm
+  subst hs
+  exact augmentedMarking_projection C l x.val hx
 
 /-- M3, V4 2.11: every catalogue member projects to @ on its entire frontier. -/
 theorem decoration_frontier (C : ClusterData S P)

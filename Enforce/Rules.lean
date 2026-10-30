@@ -174,7 +174,14 @@ def native {S : SubstSystem d} {π : X → Option S.ι} (D : NativeDecoration S 
 theorem native_carrier {S : SubstSystem d} {π : X → Option S.ι}
     (D : NativeDecoration S M π) (t : PlacedMarkedTile M) :
     (t.native D).carrier = t.carrier := by
-  sorry
+  dsimp [native, PlacedTile.ofFrame]
+  have h_eq := D.carrier_eq t.prototype
+  have h2 := Classical.choose_spec t.realization
+  have h3 := Classical.choose_spec h2.2
+  have h_carrier := h3.1
+  dsimp [prototype, placement] at h_eq ⊢
+  rw [← h_eq]
+  exact h_carrier.symm
 
 end PlacedMarkedTile
 

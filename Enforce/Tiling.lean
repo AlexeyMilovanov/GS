@@ -235,7 +235,9 @@ theorem same_height_disjoint (n : ℕ) (N P : FramedNode S)
     (hN : N ∈ H.nodes n) (hP : P ∈ H.nodes n) (x : E d)
     (hxN : x ∈ interior (N.carrier n)) (hxP : x ∈ interior (P.carrier n)) :
     N = P := by
-  sorry
+  by_contra h
+  have hd := H.disjoint n hN hP h
+  exact Set.disjoint_left.mp hd hxN hxP
 
 end CoherentHierarchy
 

@@ -5597,7 +5597,145 @@ theorem forward_level (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
       ∀ (B' : Block Y (n + 1)) (hB' : B' ∈ D'.geometry.blocks),
         ∃ A : Parser.AssembledParent D B'.node,
           D'.blockState B' hB' = newState Y hY n hn D hD B'.node A := by
-  sorry
+  classical
+  let G := Parser.assembledGeometry Y hY n hn D hD
+  have hspec := Parser.assembledGeometry_spec Y hY n hn D hD
+  have hroot_of_block : ∀ B' ∈ G.blocks, B'.node ∈ G.roots :=
+    fun B' hB' => ⟨B', hB', rfl⟩
+  have hold : ∀ (m : ℕ) (M : FramedNode S), M ∈ G.nodes m → m < n + 1 →
+      M ∈ D.geometry.nodes m := by
+    rintro m M ⟨B', hB', hc⟩ hm
+    exact Parser.assembled_inner_mem D B'.node
+      (Parser.assembledParent Y hY n hn D hD B'.node (hroot_of_block B' hB')) m M hm hc
+  have hnew : ∀ (m : ℕ) (M : FramedNode S), M ∈ G.nodes m → ¬ m < n + 1 →
+      M ∈ G.roots := by
+    intro m M hM hm
+    have hle := G.nodes_height m M hM
+    obtain rfl : m = n + 1 := by omega
+    rw [G.nodes_top] at hM
+    exact hM
+  let st : ∀ m : ℕ, {M // M ∈ G.nodes m} → State P := fun m M =>
+    if h : m < n + 1 then D.stateAt m M.1 (hold m M.1 M.2 h)
+    else newState Y hY n hn D hD M.1
+      (Parser.assembledParent Y hY n hn D hD M.1 (hnew m M.1 M.2 h))
+  have hst_honest : ∀ m M, st m M ∈ honestStates S P := by
+    intro m M
+    by_cases h : m < n + 1
+    · simp only [st, dif_pos h]
+      exact D.state_honest m _
+    · simp only [st, dif_neg h]
+      exact newState_honest Y hY n hn D hD _ _
+  let D' : DecodedLevel Y (n + 1) := ⟨G, st, hst_honest⟩
+  have hD'old : ∀ (m : ℕ) (M : FramedNode S) (hM : M ∈ D'.geometry.nodes m)
+      (h : m < n + 1), D'.stateAt m M hM = D.stateAt m M (hold m M hM h) := by
+    intro m M hM h
+    change st m ⟨M, hM⟩ = _
+    simp only [st, dif_pos h]
+  have hD'new : ∀ (M : FramedNode S) (hM : M ∈ D'.geometry.nodes (n + 1)),
+      D'.stateAt (n + 1) M hM = newState Y hY n hn D hD M
+        (Parser.assembledParent Y hY n hn D hD M (hnew (n + 1) M hM (lt_irrefl _))) := by
+    intro M hM
+    change st (n + 1) ⟨M, hM⟩ = _
+    simp only [st, dif_neg (lt_irrefl (n + 1))]
+  have hD'block : ∀ (B' : Block Y (n + 1)) (hB' : B' ∈ D'.geometry.blocks),
+      D'.blockState B' hB' = newState Y hY n hn D hD B'.node
+        (Parser.assembledParent Y hY n hn D hD B'.node (hroot_of_block B' hB')) :=
+    fun B' hB' => hD'new B'.node _
+  have hstateAt_congr : ∀ (m : ℕ) (M M' : FramedNode S) (hM : M ∈ D.geometry.nodes m)
+      (hM' : M' ∈ D.geometry.nodes m), M = M' → D.stateAt m M hM = D.stateAt m M' hM' := by
+    rintro m M M' hM hM' rfl
+    rfl
+  -- nesting of old nodes
+  have hparent_block : ∀ (B : Block Y n) (hB : B ∈ D.geometry.blocks),
+      ∃ B' ∈ G.blocks, B'.node = proposedParent D B hB := by
+    intro B hB
+    have hmem : proposedParent D B hB ∈ G.roots := by
+      rw [hspec.roots_eq]
+      exact ⟨B, hB, rfl⟩
+    obtain ⟨B', hB', hB'eq⟩ := hmem
+    exact ⟨B', hB', hB'eq⟩
+  have hnodes : ∀ m : ℕ, D.geometry.nodes m ⊆ D'.geometry.nodes m := by
+    rintro m M ⟨B, hB, hc⟩
+    obtain ⟨i, hi⟩ := hspec.old_child B hB
+    obtain ⟨B', hB', hB'eq⟩ := hparent_block B hB
+    refine ⟨B', hB', ?_⟩
+    have hchild : B.node.IsDescendant n B'.node (n + 1) := by
+      rw [hi, hB'eq]
+      exact Parser.child_descendant _ n i
+    exact Parser.descendant_trans M B.node B'.node m n (n + 1) hc hchild
+  have hnested : Parser.NestedLevels D D' := by
+    refine ⟨?_, ?_, hnodes, ?_⟩
+    · intro B' hB' i
+      obtain ⟨A⟩ := hspec.children B'.node (hroot_of_block B' hB')
+      exact ⟨(A.children i).val, (A.children i).property, A.child_eq i⟩
+    · intro B hB
+      obtain ⟨i, hi⟩ := hspec.old_child B hB
+      obtain ⟨⟨N', act⟩, hB', hB'eq⟩ := hparent_block B hB
+      dsimp only at hB'eq
+      subst hB'eq
+      refine ⟨⟨⟨_, act⟩, hB'⟩, ⟨i, hi⟩, ?_⟩
+      · rintro ⟨B'', hB''⟩ ⟨j, hj⟩
+        obtain ⟨A⟩ := hspec.children B''.node (hroot_of_block B'' hB'')
+        have hcB : (A.children j).val = B := by
+          apply Block.ext
+          exact (A.child_eq j).trans hj.symm
+        have hpe := A.parent_eq j
+        have hPP : proposedParent D (A.children j).val (A.children j).property =
+            proposedParent D B hB := by
+          subst hcB
+          rfl
+        apply Subtype.ext
+        apply Block.ext
+        change B''.node = proposedParent D B hB
+        rw [← hpe, hPP]
+    · intro m M hM hM'
+      have hm : m < n + 1 := Nat.lt_succ_of_le (D.geometry.nodes_height m M hM)
+      exact (hD'old m M hM' hm).symm
+  -- invariants
+  have hI1 : Parser.I1 D' := by
+    intro B' hB'
+    rw [hD'block B' hB']
+    exact ⟨newState_honest Y hY n hn D hD _ _, newState_type Y hY n hn D hD _ _,
+      newState_residue Y hY n hn D hD _ _⟩
+  have hI2 : Parser.I2 D' := by
+    refine ⟨?_, ?_⟩
+    · intro m N hN i
+      by_cases hm : m + 1 < n + 1
+      · rw [hD'old m _ _ (by omega), hD'old (m + 1) N hN hm]
+        exact hD.I2.1 m N (hold (m + 1) N hN hm) i
+      · have hle := G.nodes_height (m + 1) N hN
+        obtain rfl : n = m := by omega
+        rw [hD'old n _ _ (Nat.lt_succ_self n), hD'new N hN]
+        set A := Parser.assembledParent Y hY n hn D hD N (hnew (n + 1) N hN (lt_irrefl _))
+        rw [← child_equations Y hY n hn D hD N A i]
+        exact hstateAt_congr n _ _ _ _ (A.child_eq i).symm
+    · intro N hN t ht htN
+      rw [hD'old 0 N hN (Nat.succ_pos n)]
+      exact hD.I2.2 N _ t ht htN
+  have hI4 : Parser.I4 D' := by
+    intro m N hN g hbirth hdepth hprin
+    by_cases hm : m < n + 1
+    · rw [hD'old m N hN hm]
+      exact hD.I4 m N (hold m N hN hm) g hbirth hdepth hprin
+    · have hle := G.nodes_height m N hN
+      obtain rfl : m = n + 1 := by omega
+      rw [hD'new N hN]
+      obtain ⟨hl, q, hq, -, hdec⟩ := routing_constant Y hY n hn D hD N _ g hbirth hdepth hprin
+      exact ⟨hl, q, hq, hdec⟩
+  have hI5 : Parser.I5 D' := by
+    intro m N hN
+    by_cases hm : m < n + 1
+    · rw [hD'old m N hN hm]
+      exact hD.I5 m N (hold m N hN hm)
+    · have hle := G.nodes_height m N hN
+      obtain rfl : m = n + 1 := by omega
+      rw [hD'new N hN]
+      set A := Parser.assembledParent Y hY n hn D hD N (hnew (n + 1) N hN (lt_irrefl _))
+      have hc := packet_constancy Y hY n hn D hD N A
+      exact ⟨hc, fun F F' hE hmeet => packet_E_equality Y hY n hn D hD N A F F' hE hmeet hc⟩
+  refine ⟨D', ⟨hI1, hI2, hI4, hI5⟩, hnested, hspec.roots_eq, ?_⟩
+  intro B' hB'
+  exact ⟨_, hD'block B' hB'⟩
 
 namespace DecodedLevel
 

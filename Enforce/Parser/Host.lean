@@ -54,6 +54,224 @@ theorem trigger_coverage (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
       ∃ T : EndTemplate j, T.configuration = θ ∧ endRow T := by
   sorry
 
+/-- Step 1 of the V4 proof of `two_sided_constancy` (V4 3.4): "Let `P_b` be a
+node inside a block ... and `g` a first-generation facet of `P_b` shared by its
+children `C, C'`". Both prescribed children of an inner birth are inner nodes
+of the decoded level, one height lower. -/
+private theorem two_sided_constancy_step1_sides_mem {Y : MarkedTiling (systemM S P C)}
+    {n : ℕ} (D : DecodedLevel Y n) (g : Parser.BornFacet P)
+    (hg : g.birth ∈ D.geometry.nodes g.height) :
+    g.leftNode ∈ D.geometry.nodes (g.height - 1) ∧
+      g.rightNode ∈ D.geometry.nodes (g.height - 1) := by
+  obtain ⟨h, hpos, ⟨A, φ⟩, ι, hty⟩ := g
+  dsimp only at hg hty
+  subst hty
+  have hh : h = h - 1 + 1 := by omega
+  rw [hh] at hg
+  exact ⟨D.geometry.child_mem (h - 1) _ hg ι.val.left,
+    D.geometry.child_mem (h - 1) _ hg ι.val.right⟩
+
+/-- Step 2 of the V4 proof of `two_sided_constancy` (V4 3.4, 2.5, 2.7):
+"the attached packet ... is honest". A non-NULL packet read on a facet of a
+labelled leaf comes from that leaf's honest pre-pattern, so it is the packet
+of an actual primitive occurrence of an honest source. -/
+private theorem two_sided_constancy_step2_leaf_honest (l : LeafType P) (f : Cell d)
+    (q : Packet P) (hq : leafPacket l f = some q) : q ∈ honestPackets S P := by
+  classical
+  obtain ⟨U, t, ht, hw⟩ := (certificate_components_honest P l.1.val l.1.property).1 l.2
+  change prePatternOf U P t ht = l.prePattern at hw
+  unfold leafPacket at hq
+  rw [← hw] at hq
+  split at hq
+  next hf =>
+    change U.facetPacket P t ⟨f, hf⟩ = some q at hq
+    unfold HonestSource.facetPacket at hq
+    split at hq
+    · contradiction
+    next hn => exact ⟨U, _, Option.some.inj hq⟩
+  · contradiction
+
+/-- Step 3 of the V4 proof of `two_sided_constancy` (V4 3.4, 2.1 (P5), 8.3):
+"by (I4) for `N = P_b` its head slot is `S(P_b)`" -- this needs the facet to be
+principal at depth zero. A first-generation facet (depth `0`) belongs to the
+required list `Req'(A)`, hence to `E_A`; its placed carrier is `g.carrier`. -/
+private theorem two_sided_constancy_step3_principal (g : Parser.BornFacet P) :
+    P.InPrincipal g.birth g.height g.carrier := by
+  obtain ⟨h, hpos, ⟨A, φ⟩, ι, hty⟩ := g
+  dsimp only at hty
+  subst hty
+  let f : PrimitiveFacet S ι.val.ty :=
+    { depth := 0
+      word := ()
+      localCarrier := placedSet (S.child ι.val.ty ι.val.left).frame
+        ι.val.leftFacet.val.carrier
+      realization := ⟨ι.val.left, ι.val.leftFacet, rfl, ι.val.internal⟩ }
+  have hbf : ∀ y, f.birthFrame y = y := by
+    intro y
+    simp [f, PrimitiveFacet.birthFrame, prototypeDescendantFrame, SubstSystem.nativeTile,
+      SubstSystem.descendantNode]
+    rfl
+  refine ⟨f, P.required_mem _ f ?_, ?_⟩
+  · rw [P.required_eq, mem_required_list]
+    exact Or.inl rfl
+  · simp only [PrimitiveFacet.carrier, Parser.BornFacet.carrier, Set.image_image, hbf]
+    have hloc : f.localCarrier =
+        (S.child ι.val.ty ι.val.left).frame '' ι.val.leftFacet.val.carrier := rfl
+    rw [hloc, Set.image_image]
+    rfl
+
+/-- Step 4 of the V4 proof of `two_sided_constancy` (V4 3.4, 8.1): the head slot
+of a packet is its reconstructed slot `0`; when `decode` reports slot `0` as
+PRESENT with state `s`, the head is `s`. -/
+private theorem two_sided_constancy_step4_head (q : Packet P) (s : State P)
+    (h : decode q ⟨0, P.k_pos⟩ = some s) : q.head = s := by
+  classical
+  unfold decode at h
+  split at h
+  · exact Option.some.inj h
+  · contradiction
+
+/-- Step 5 of the V4 proof of `two_sided_constancy` (V4 3.4, (I2), Cor. 2.4(a),
+2.6(c)): "by (I2) their record for that piece is the restriction of `S(C)`'s
+record of `g`, which by Corollary 2.4(a) is the age-1 record". Hence a non-NULL
+packet read on any native piece of `g` inside the left child has the canonical
+incidence of `g`. -/
+private theorem two_sided_constancy_step5_piece_incidence
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (t : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode t).ty)
+    (hpiece : Parser.IsFacetPiece Y (g.height - 1) g.leftNode
+      g.incidence.val.leftFacet t f)
+    (q : Packet P) (hq : leafPacket (compilerLeaf C t) f.val = some q) :
+    q.incidence = g.incidence := by
+  sorry
+
+/-- The actual (S6) header of a birth parent `Q` of height `m` at a point `p`,
+normalized to the frame `φ` of a native tile (V4 2.2 (S6), Prop. 2.3): parent
+cone, cones of the children through `p`, boundary and first-generation cones,
+and the flag tangent data. Used by Steps 6--8 of `two_sided_constancy`. -/
+private def two_sided_constancy_header (Q : FramedNode S) (m : ℕ)
+    (φ : Iso d) (p : E d) : State.Header P := by
+  classical
+  let normalize := fun K : Set (E d) => φ.linearIsometryEquiv.symm '' K
+  let pos := fun ι : P.Incidence => P.incidencePlacement Q m ι
+  exact {
+    birthType := Q.ty
+    parentCone := normalize (tangentCone (Q.carrier m) p)
+    childCones := fun i =>
+      let N := Q.child (m - 1) i
+      if p ∈ N.carrier (m - 1) then some (normalize (tangentCone (N.carrier (m - 1)) p))
+        else none
+    boundaryCones := fun F => if p ∈ Q.cell m F.val then
+      some (normalize (tangentCone (Q.cell m F.val) p)) else none
+    primitiveCones := fun ι => if ι.val.ty = Q.ty ∧
+        p ∈ pos ι '' ι.val.leftFacet.val.carrier then
+      some (normalize (tangentCone (pos ι '' ι.val.leftFacet.val.carrier) p)) else none
+    flagTangent := fun ι => if ι.val.ty = Q.ty ∧
+        (p = pos ι (P.flag ι).initial ∨ p = pos ι (P.flag ι).terminal) then
+      some {
+        cones := fun j => normalize
+          (tangentCone (pos ι '' ((P.flag ι).flag.cell j).val.carrier) p)
+        initial := decide (p = pos ι (P.flag ι).initial)
+        sides := fun j => normalize ((pos ι).linear '' (P.flag ι).sides j) }
+      else none }
+
+/-- Step 6 of the V4 proof of `two_sided_constancy` (V4 3.4, 1.8, Cor. 2.4(a),
+Prop. 2.3): "Let `q` be a vertex of `g`. Tiles inside `C` with a piece in `g`
+containing `q` exist ..., so `τ({q}) = {q}` is a vertex of the provider and the
+tile has an END slot at `(q, ·)` with recorded cone `G = T_q P_b` (the (S6)
+record of an age-one facet is the header of the immediate parent at `q`)".
+The END slot sits on a native piece of the left child on `g`, at a point of `g`,
+and its header is the actual header of the birth node at that point. -/
+private theorem two_sided_constancy_step6_left_end
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height) :
+    ∃ p ∈ g.carrier, ∃ (t : PlacedMarkedTile (systemM S P C))
+      (j : EndSlot (compilerLeaf C t)),
+      Parser.IsFacetPiece Y (g.height - 1) g.leftNode g.incidence.val.leftFacet t j.facet ∧
+        Compiler.endVertex (compilerFrame C t) j = p ∧
+        j.header = two_sided_constancy_header g.birth g.height (compilerFrame C t) p := by
+  sorry
+
+/-- Step 7 of the V4 proof of `two_sided_constancy` (V4 3.4, 1.8, 1.0(b)):
+"Tiles inside `C'` with pieces in `g` near `q` have interior points in
+`int(q + T_q P_b)` near `q` (both sides of `relint g` lie in `int P_b` near `g`;
+at `q`, directions into `relint g` are interior to `T_q P_b`)". Some native piece
+of the right child on `g` contains the point and approaches that sector. -/
+private theorem two_sided_constancy_step7_right_approach
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (p : E d) (hp : p ∈ g.carrier) :
+    ∃ (u : PlacedMarkedTile (systemM S P C)) (f' : FacetName S (tileNode u).ty),
+      Parser.IsFacetPiece Y (g.height - 1) g.rightNode g.incidence.val.rightFacet u f' ∧
+        p ∈ (tileNode u).cell 0 f'.val ∧
+        Parser.ApproachesSector u p
+          ((fun v => p + v) '' tangentCone (g.birth.carrier g.height) p) := by
+  sorry
+
+/-- Step 8 of the V4 proof of `two_sided_constancy` (V4 3.4, 2.5 (E2), 2.17(b)):
+"so by Lemma 3.3 they belong to `θ`, as do the tiles inside `C` with pieces in
+`g` at `q`. Row (E2) equates the packets on all ports on `g` in `θ`". Given the
+END slot of Step 6 with its actual header, its occurring END template, and a
+right-side piece of `g` through the event point realized in that template, the
+right piece and the central left piece are ports of `g` and read equal packets. -/
+private theorem two_sided_constancy_step8_e2
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (p : E d) (hp : p ∈ g.carrier)
+    (t : PlacedMarkedTile (systemM S P C)) (j : EndSlot (compilerLeaf C t))
+    (hleft : Parser.IsFacetPiece Y (g.height - 1) g.leftNode
+      g.incidence.val.leftFacet t j.facet)
+    (hvertex : Compiler.endVertex (compilerFrame C t) j = p)
+    (hheader : j.header = two_sided_constancy_header g.birth g.height (compilerFrame C t) p)
+    (T : EndTemplate j) (hrow : endRow T)
+    (hocc : TemplateOccurs C Y (compilerFrame C t) T.configuration)
+    (u : PlacedMarkedTile (systemM S P C)) (f' : FacetName S (tileNode u).ty)
+    (hright : Parser.IsFacetPiece Y (g.height - 1) g.rightNode
+      g.incidence.val.rightFacet u f')
+    (hpu : p ∈ (tileNode u).cell 0 f'.val)
+    (z : FramedNode S × LeafType P) (hz : z ∈ T.configuration.tiles)
+    (hu : u = placedLeaf C z.2 (z.1.frame.trans (compilerFrame C t))) :
+    leafPacket (compilerLeaf C u) f'.val = leafPacket (compilerLeaf C t) j.facet.val := by
+  sorry
+
+/-- Step 9 of the V4 proof of `two_sided_constancy` (V4 3.4): "Combined with
+(I5) for `C` and `C'` (constancy along `g` on each side) the two attached
+packets coincide". Assembly of Steps 6--8 with Theorem 2.17(b) and Lemma 3.3. -/
+private theorem two_sided_constancy_step9_attached_eq
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (hleft : Parser.BoundaryPackets Y (g.height - 1) g.leftNode)
+    (hright : Parser.BoundaryPackets Y (g.height - 1) g.rightNode) :
+    attachedPacket hleft g.incidence.val.leftFacet =
+      attachedPacket hright g.incidence.val.rightFacet := by
+  obtain ⟨p, hp, t, j, hpiece, hvertex, hheader⟩ :=
+    two_sided_constancy_step6_left_end Y hY n hn D hD g hg
+  obtain ⟨θ, hθ, -, hocc⟩ := compiler_events C Y hY t hpiece.1 (.end_ j)
+  have hθ' := hθ
+  obtain ⟨T, rfl, hrow⟩ := hθ'
+  obtain ⟨u, f', hupiece, hpu, happ⟩ :=
+    two_sided_constancy_step7_right_approach Y hY n hn D hD g hg p hp
+  have hsec : Compiler.endSector (compilerFrame C t) j =
+      (fun v => p + v) '' tangentCone (g.birth.carrier g.height) p := by
+    simp only [Compiler.endSector, hvertex, hheader, two_sided_constancy_header,
+      Set.image_image, LinearIsometryEquiv.apply_symm_apply]
+  have hnear : Parser.ApproachesSector u (Compiler.endVertex (compilerFrame C t) j)
+      (Compiler.endSector (compilerFrame C t) j) := by
+    rw [hsec, hvertex]
+    exact happ
+  obtain ⟨⟨z, hz, hu⟩, -, -⟩ :=
+    trigger_coverage Y hY t hpiece.1 j T.configuration hθ hocc u hupiece.1 hnear
+  have he := two_sided_constancy_step8_e2 Y hY n hn D hD g hg p hp t j hpiece hvertex
+    hheader T hrow hocc u f' hupiece hpu z hz hu
+  rw [attachedPacket_eq_leaf hleft _ t j.facet hpiece,
+    attachedPacket_eq_leaf hright _ u f' hupiece, he]
+
 /-- R5, V4 3.4 (first clause): at a primitive birth inside any decoded block,
 the two child-side constant packets coincide. They are non-NULL, honest, have
 the prescribed incidence, and their head slot is the birth node's assigned state.
@@ -69,7 +287,29 @@ theorem two_sided_constancy (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
           g.packet hleft = some q ∧
           decode q ⟨0, P.k_pos⟩ = some (D.stateAt g.height g.birth hg) ∧
           q.head = D.stateAt g.height g.birth hg := by
-  sorry
+  obtain ⟨hlmem, hrmem⟩ := two_sided_constancy_step1_sides_mem D g hg
+  have hleft := hD.boundaryPackets (g.height - 1) g.leftNode hlmem
+  have hright := hD.boundaryPackets (g.height - 1) g.rightNode hrmem
+  refine ⟨hleft, hright,
+    two_sided_constancy_step9_attached_eq Y hY n hn D hD g hg hleft hright, ?_⟩
+  have hdepth : g.height - g.height < P.k := by
+    rw [Nat.sub_self]
+    exact P.k_pos
+  obtain ⟨h, q, hpq, hdec⟩ := hD.I4 g.height g.birth hg g
+    (Parser.descendant_refl g.birth g.height) hdepth
+    (two_sided_constancy_step3_principal g)
+  have hpq' : g.packet hleft = some q := hpq
+  have hfin : (⟨g.height - g.height, hdepth⟩ : Fin P.k) = ⟨0, P.k_pos⟩ :=
+    Fin.ext (Nat.sub_self _)
+  rw [hfin] at hdec
+  obtain ⟨t, f, hpiece⟩ := Parser.facet_piece_exists Y (g.height - 1) g.leftNode
+    (D.geometry.node_actual _ _ hlmem) g.incidence.val.leftFacet
+  have hleaf : leafPacket (compilerLeaf C t) f.val = some q := by
+    rw [← attachedPacket_eq_leaf hleft _ t f hpiece]
+    exact hpq'
+  exact ⟨q, two_sided_constancy_step2_leaf_honest _ _ q hleaf,
+    two_sided_constancy_step5_piece_incidence Y hY n hn D hD g hg t f hpiece q hleaf,
+    hpq', hdec, two_sided_constancy_step4_head q _ hdec⟩
 
 /-- R5, V4 3.4 (second clause): the same equality holds for a placed parent
 whose prescribed children are level-n blocks with the correct first address

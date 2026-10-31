@@ -1517,8 +1517,15 @@ theorem stratum_exists_unique (q : H.Node) (f : FacetName S q.2.val.ty)
     ∃! t : CellName S (H.servingChild q f hf).2.val.ty,
       relint (q.2.val.cell q.1 s.val) ⊆
         relint ((H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1 t.val) := by
-  sorry
-
+  have H_anc := H.ancestor_descendant q (H.firstProvider q f hf).1
+  have H_prov := H.firstProvider_spec q f hf
+  have H_boundary_eq : H.boundaryOffsets q f = {r | r < (H.firstProvider q f hf).1 + 1} := H_prov.1
+  have H_mem : (H.firstProvider q f hf).1 ∈ H.boundaryOffsets q f := by
+    rw [H_boundary_eq]
+    simp only [Set.mem_setOf_eq, lt_add_iff_pos_right, zero_lt_one]
+  have H_boundary : q.2.val.cell q.1 f.val ⊆ frontier ((H.servingChild q f hf).2.val.carrier (H.servingChild q f hf).1) := H_mem
+  exact ancestralStratum_exists_unique (H.servingChild q f hf).2.val q.2.val (H.servingChild q f hf).1 q.1 H_anc s
+    (Set.Subset.trans hs H_boundary)
 /-- P7, V4 1.7(b): the provider stratum map `τ_f`, defined by unique existence. -/
 def stratumMap (q : H.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ H.IsFault q f) (s : CellName S q.2.val.ty)

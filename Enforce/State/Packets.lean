@@ -41,10 +41,34 @@ def mask (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P)
   P.InPrincipal (U.hierarchy.ancestor g.birth j.val).2.val
     (U.hierarchy.ancestor g.birth j.val).1 g.carrier
 
+private def depthZeroFacet {A : S.ι} (ι : PrimitiveIncidence S) (h : ι.ty = A) :
+    PrimitiveFacet S A := by
+  subst h
+  exact
+    { depth := 0
+      word := ()
+      localCarrier := placedSet (S.child ι.ty ι.left).frame ι.leftFacet.val.carrier
+      realization := ⟨ι.left, ι.leftFacet, rfl, ι.internal⟩ }
+
+private lemma depthZeroFacet_depth {A : S.ι} (ι : PrimitiveIncidence S) (h : ι.ty = A) :
+    (depthZeroFacet ι h).depth = 0 := by
+  subst h; rfl
+
+private theorem depthZeroFacet_image {A : S.ι} (P : Params S) (ι : P.Incidence)
+    (h : ι.val.ty = A) (B : FramedNode S) (n : ℕ) :
+    (B.prototypeFrame n) '' (depthZeroFacet ι.val h).carrier =
+      P.incidencePlacement B n ι '' ι.val.leftFacet.val.carrier := by
+  sorry
+
 /-- Q8, V4 2.5: slot zero is PRESENT because all first-generation facets are required. -/
 theorem mask_zero (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) :
     mask U P g ⟨0, P.k_pos⟩ := by
-  sorry
+  show P.InPrincipal g.birth.2.val g.birth.1 g.carrier
+  let f := depthZeroFacet g.incidence.val g.parent_type
+  have hreq : f ∈ P.required g.birth.2.val.ty := by
+    rw [P.required_eq, mem_required_list]
+    exact Or.inl (depthZeroFacet_depth _ _)
+  exact ⟨f, P.required_mem _ f hreq, depthZeroFacet_image P g.incidence g.parent_type _ _⟩
 
 /-- Q8, V4 2.5, 8.1: the actual finite set of PRESENT slots. -/
 def presentSlots (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) :

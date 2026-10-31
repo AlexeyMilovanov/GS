@@ -100,7 +100,19 @@ theorem move_cover : ∀ x : E d,
 theorem move_disjoint :
     ((fun t : PlacedTile S => t.move g) '' T.tiles).PairwiseDisjoint
       (fun t => interior t.carrier) := by
-  sorry
+  rintro _ ⟨t, ht, rfl⟩ _ ⟨u, hu, rfl⟩ h_neq
+  dsimp [Function.onFun]
+  have ht_neq_u : t ≠ u := by
+    intro h
+    apply h_neq
+    rw [h]
+  have h_disj := T.disjoint ht hu ht_neq_u
+  dsimp [Function.onFun] at h_disj
+  rw [PlacedTile.move_carrier, PlacedTile.move_carrier]
+  let e := g.toHomeomorph
+  change Disjoint (interior (e '' t.carrier)) (interior (e '' u.carrier))
+  rw [← e.image_interior, ← e.image_interior]
+  exact Set.disjoint_image_of_injective e.injective h_disj
 
 /-- T1, V4 §1.0 (H7): the action of all Euclidean isometries on physical tilings. -/
 def move : Tiling S where

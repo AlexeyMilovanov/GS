@@ -1602,7 +1602,17 @@ theorem restriction_det_fault (c : H.Node)
     (hf : H.IsFault (H.parentNode c) f)
     (hsub : c.2.val.cell c.1 g.val ⊆
       (H.parentNode c).2.val.cell (H.parentNode c).1 f.val) : H.IsFault c g := by
-  sorry
+  intro r
+  cases r with
+  | zero =>
+    have hg : g.val ∈ (S.cx c.2.val.ty).cells :=
+      (Finset.mem_filter.mp g.property).1
+    exact hereditary_trace_step1_cell_frontier c.2.val c.1 g.val hg
+  | succ r =>
+    have h1 : (H.parentNode c).2.val.cell (H.parentNode c).1 f.val ⊆
+        frontier ((H.ancestor (H.parentNode c) r).2.val.carrier
+          (H.ancestor (H.parentNode c) r).1) := hf r
+    exact hsub.trans h1
 
 end CoherentHierarchy
 

@@ -2101,6 +2101,133 @@ theorem states_finite (S : SubstSystem d) (P : Params S) :
   rintro s ⟨U, q, rfl⟩ v f h hh
   exact ⟨U, q, v, f, hh⟩
 
+/-- Step 1 of the V4 proof of `chain_active_owner` (V4 Rem 2.1): "a point of relint s_j
+has a neighbourhood in aff F_j". Relative interiors commute with full affine frames. -/
+private theorem chain_active_owner_step1_relint_image (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 1 of the V4 proof of `chain_active_owner` (V4 Rem 2.1): "s_j ⊆ F_j".
+A placed cell is the closure of its relative interior, so containment of relative
+interiors of placed cells gives containment of the cells. -/
+private theorem chain_active_owner_step1_subset_of_relint (N M : FramedNode S) (n m : ℕ)
+    (e g : Cell d) (h : relint (N.cell n e) ⊆ relint (M.cell m g)) :
+    N.cell n e ⊆ M.cell m g := by
+  have hcl : ∀ (K : FramedNode S) (k : ℕ) (x : Cell d),
+      closure (relint (K.cell k x)) = K.cell k x := by
+    intro K k x
+    rw [FramedNode.cell, chain_active_owner_step1_relint_image]
+    change closure ((K.prototypeFrame k).toHomeomorphOfFiniteDimensional '' relint x.carrier) = _
+    rw [← Homeomorph.image_closure, x.flat.regularClosed]
+    rfl
+  calc N.cell n e = closure (relint (N.cell n e)) := (hcl N n e).symm
+    _ ⊆ closure (relint (M.cell m g)) := closure_mono h
+    _ = M.cell m g := hcl M m g
+
+/-- Step 2 of the V4 proof of `chain_active_owner` (V4 Rem 2.1): "aff s_j = aff F_j".
+Two cells with affinely equivalent carriers have the same dimension. -/
+private theorem chain_active_owner_step2_dim_eq (e g : E d ≃ᵃ[ℝ] E d) (X Y : Cell d)
+    (h : e '' X.carrier = g '' Y.carrier) : X.dim = Y.dim := by
+  have hfin : ∀ (a : E d ≃ᵃ[ℝ] E d) (K : Set (E d)),
+      Module.finrank ℝ (cellDirection (a '' K)) = Module.finrank ℝ (cellDirection K) := by
+    intro a K
+    have hm := AffineSubspace.map_span a.toAffineMap K
+    unfold cellDirection
+    rw [show (a '' K) = (a.toAffineMap '' K) from rfl, ← hm, AffineSubspace.map_direction]
+    exact LinearEquiv.finrank_map_eq a.linear _
+  rw [← X.flat.dimension, ← Y.flat.dimension, ← hfin e X.carrier, h, hfin]
+
+/-- Step 3 of the V4 proof of `chain_active_owner` (V4 Rem 2.1): the placed-child map
+commutes with the scale normalization `σ^h`. -/
+private theorem chain_active_owner_step3_conj (σ R : E d ≃ₗ[ℝ] E d) (h r : ℕ) :
+    linearConj σ ((h + r : ℕ) : ℤ) R * σ ^ h = σ ^ h * linearConj σ ((0 + r : ℕ) : ℤ) R := by
+  unfold linearConj
+  rw [← zpow_natCast σ h]
+  push_cast
+  group
+
+/-- Step 3 of the V4 proof of `chain_active_owner` (V4 Rem 2.1): "restricting
+recursively along the chain". The height-`h` descendant at a role word is the native
+tile of that word, rescaled by `σ^h`, with the same type. -/
+private theorem chain_active_owner_step3_descendant_frame :
+    ∀ (r : ℕ) (A : S.ι) (h : ℕ) (w : S.RoleWord A r),
+      (S.descendantNode A h r w).ty = (S.nativeTile A r w).ty ∧
+      ∀ x, (S.descendantNode A h r w).frame ((S.σ ^ h) x) =
+        (S.σ ^ h) ((S.nativeTile A r w).frame x)
+  | 0, A, h, w => ⟨rfl, fun x => rfl⟩
+  | r + 1, A, h, w => by
+      obtain ⟨ih1, ih2⟩ :=
+        chain_active_owner_step3_descendant_frame r (S.child A w.1).ty h w.2
+      refine ⟨ih1, fun x => ?_⟩
+      change S.placeChild (h + r) w.1
+          ((S.descendantNode (S.child A w.1).ty h r w.2).frame ((S.σ ^ h) x)) =
+        (S.σ ^ h) (S.placeChild (0 + r) w.1
+          ((S.nativeTile (S.child A w.1).ty r w.2).frame x))
+      rw [ih2, SubstSystem.placeChild_apply, SubstSystem.placeChild_apply, map_add]
+      congr 1
+      · exact congrArg (fun φ : E d ≃ₗ[ℝ] E d => φ ((S.nativeTile (S.child A w.1).ty r w.2).frame x))
+          (chain_active_owner_step3_conj S.σ (S.child A w.1).rotation.toLinearEquiv h r)
+      · rw [zero_add, ← LinearEquiv.mul_apply, ← pow_add]
+
+/-- Step 3 of the V4 proof of `chain_active_owner` (V4 Rem 2.1): a placed cell of the
+descendant is the rescaled and placed cell of the native tile. -/
+private theorem chain_active_owner_step3_cell_scaling (A : S.ι) (h r : ℕ)
+    (w : S.RoleWord A r) (G : Iso d) (X : Cell d) :
+    ((S.descendantNode A h r w).move G).cell h X =
+      G '' ((S.σ ^ h) '' ((S.nativeTile A r w).cell 0 X)) := by
+  have key : ∀ x, ((S.descendantNode A h r w).move G).prototypeFrame h x =
+      G ((S.σ ^ h) ((S.nativeTile A r w).prototypeFrame 0 x)) := by
+    intro x
+    change G ((S.descendantNode A h r w).frame ((S.σ ^ h) x)) =
+      G ((S.σ ^ h) ((S.nativeTile A r w).frame ((S.σ ^ 0) x)))
+    rw [pow_zero, (chain_active_owner_step3_descendant_frame r A h w).2 x]
+    rfl
+  unfold FramedNode.cell
+  rw [Set.image_image, Set.image_image]
+  exact Set.image_congr (fun x _ => key x)
+
+/-- Step 4 of the V4 proof of `chain_active_owner` (V4 Rem 2.1): "with owner B".
+The original node is the descendant of its serving child at the provider offset. -/
+private theorem chain_active_owner_step4_owner (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
+    ∃ w : S.RoleWord (U.hierarchy.servingChild q f hf).2.val.ty
+        (U.hierarchy.firstProvider q f hf).1,
+      q.2.val = (S.descendantNode (U.hierarchy.servingChild q f hf).2.val.ty q.1
+        (U.hierarchy.firstProvider q f hf).1 w).move
+          (U.hierarchy.servingChild q f hf).2.val.frame := by
+  obtain ⟨r, hr, w, hw⟩ :=
+    U.hierarchy.ancestor_descendant q (U.hierarchy.firstProvider q f hf).1
+  have hh := U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q f hf).1
+  have hr' : r = (U.hierarchy.firstProvider q f hf).1 := by omega
+  subst hr'
+  exact ⟨w, hw⟩
+
 /-- Q4, V4 Remark 2.1: each chain-active edge belongs to a selected owner of the
 recursive coface trace, with its entire recorded chain (including the planar case).
 The converse in `chain_active_owner_converse` retains all coface information. -/
@@ -2120,7 +2247,73 @@ theorem chain_active_owner (U : HonestSource S) (P : Params S) (q : U.Node)
       ∀ j : ChainIndex d (traceDimension d),
         (a.chain.cell j).val =
           (c.chain.val.cell ⟨j.val.val, j.property.2, j.val.isLt⟩).val := by
-  sorry
+  classical
+  have hact : U.ActiveChain P q f hf c := (Finset.mem_filter.mp hc).2
+  have hcarr := fun j => (hact.1 j).choose_spec.1
+  have hn : (U.hierarchy.servingChild q f hf).1 = q.1 + (U.hierarchy.firstProvider q f hf).1 :=
+    U.hierarchy.ancestor_height q _
+  let F : FacetFlag S (U.hierarchy.servingChild q f hf).2.val.ty :=
+    { cell := fun j => U.hierarchy.stratumMap q f hf (c.chain.val.cell j) (hact.1 j).choose
+      dimension := fun j =>
+        (chain_active_owner_step2_dim_eq _ (U.providerPlacement P q f hf) _ _ (hcarr j)).trans
+          ((P.flag (U.recordIncidence P q f hf)).flag.dimension j)
+      nested := fun i k hik => by
+        apply (Set.image_subset_image_iff ((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+          (U.hierarchy.servingChild q f hf).1).injective).mp
+        change (U.hierarchy.servingChild q f hf).2.val.cell (U.hierarchy.servingChild q f hf).1 _ ⊆
+          (U.hierarchy.servingChild q f hf).2.val.cell (U.hierarchy.servingChild q f hf).1 _
+        rw [hcarr i, hcarr k]
+        exact Set.image_mono ((P.flag (U.recordIncidence P q f hf)).flag.nested i k hik) }
+  obtain ⟨w, hw⟩ := chain_active_owner_step4_owner U q f hf
+  have hframe := chain_active_owner_step3_descendant_frame (U.hierarchy.firstProvider q f hf).1
+    (U.hierarchy.servingChild q f hf).2.val.ty q.1 w
+  have hty : q.2.val.ty = (S.nativeTile (U.hierarchy.servingChild q f hf).2.val.ty
+      (U.hierarchy.firstProvider q f hf).1 w).ty :=
+    (congrArg FramedNode.ty hw).trans hframe.1
+  have hqcell : ∀ X : Cell d, q.2.val.cell q.1 X =
+      (U.hierarchy.servingChild q f hf).2.val.frame ''
+        ((S.σ ^ q.1) '' ((S.nativeTile (U.hierarchy.servingChild q f hf).2.val.ty
+          (U.hierarchy.firstProvider q f hf).1 w).cell 0 X)) := by
+    intro X
+    rw [hw]
+    exact chain_active_owner_step3_cell_scaling _ _ _ w _ X
+  have hscell : ∀ Y : Cell d,
+      (U.hierarchy.servingChild q f hf).2.val.cell (U.hierarchy.servingChild q f hf).1 Y =
+      (U.hierarchy.servingChild q f hf).2.val.frame ''
+        ((S.σ ^ q.1) '' ((S.σ ^ (U.hierarchy.firstProvider q f hf).1) '' Y.carrier)) := by
+    intro Y
+    unfold FramedNode.cell
+    rw [Set.image_image, Set.image_image]
+    refine Set.image_congr (fun x _ => ?_)
+    change (U.hierarchy.servingChild q f hf).2.val.frame
+        ((S.σ ^ (U.hierarchy.servingChild q f hf).1) x) =
+      (U.hierarchy.servingChild q f hf).2.val.frame
+        ((S.σ ^ q.1) ((S.σ ^ (U.hierarchy.firstProvider q f hf).1) x))
+    rw [show S.σ ^ (U.hierarchy.servingChild q f hf).1 =
+        S.σ ^ q.1 * S.σ ^ (U.hierarchy.firstProvider q f hf).1 by rw [hn, pow_add]]
+    rfl
+  refine ⟨F, ⟨w,
+    ⟨fun j => ⟨(c.chain.val.cell ⟨j.val.val, j.property.2, j.val.isLt⟩).val,
+        hty ▸ (c.chain.val.cell ⟨j.val.val, j.property.2, j.val.isLt⟩).property⟩,
+      fun i => c.chain.val.dimension _,
+      fun i k hik => c.chain.val.nested _ _ hik,
+      fun i => ?_⟩⟩, fun j => hcarr j, ?_, fun j => rfl⟩
+  · have hsub := chain_active_owner_step1_subset_of_relint _ _ _ _ _ _
+      (U.hierarchy.stratumMap_spec q f hf
+        (c.chain.val.cell ⟨i.val.val, i.property.2, i.val.isLt⟩)
+        (hact.1 ⟨i.val.val, i.property.2, i.val.isLt⟩).choose).1
+    have h2 := ((hqcell _).symm.trans_subset hsub).trans_eq (hscell _)
+    exact (Set.image_subset_image_iff (S.σ ^ q.1).injective).mp
+      ((Set.image_subset_image_iff
+        (U.hierarchy.servingChild q f hf).2.val.frame.injective).mp h2)
+  · have hsub : (U.hierarchy.servingChild q f hf).1 - (U.hierarchy.firstProvider q f hf).1 =
+        q.1 := by omega
+    change (S.descendantNode (U.hierarchy.servingChild q f hf).2.val.ty
+      ((U.hierarchy.servingChild q f hf).1 - (U.hierarchy.firstProvider q f hf).1)
+      (U.hierarchy.firstProvider q f hf).1 w).move
+        (U.hierarchy.servingChild q f hf).2.val.frame = q.2.val
+    rw [hsub]
+    exact hw.symm
 
 /-- Q4, V4 Remark 2.1: top coface of a selected owner's recorded trace chain. -/
 def traceTopIndex : ChainIndex d (traceDimension d) :=

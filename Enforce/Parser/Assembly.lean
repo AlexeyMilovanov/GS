@@ -7204,7 +7204,8 @@ theorem parsedPrimitivePacket_spec (Y : MarkedTiling (systemM S P C)) (hY : MPro
         g.incidence.val.rightFacet ∧
       ∃ p : Packet P, parsedPrimitivePacket Y hY g hg = some p ∧
         p ∈ honestPackets S P ∧ p.incidence = g.incidence := by
-  sorry
+  obtain ⟨hleft, hright, heq, q, hq1, hq2, hq3, _⟩ := calibration_W4 Y hY g hg
+  exact ⟨heq, q, hq1, hq2, hq3⟩
 
 /-- R13, V4 3.13: W4 for a specified actual packet readout. Its complete mask
 and every PRESENT slot refer to the actual ancestors and their assigned states. -/

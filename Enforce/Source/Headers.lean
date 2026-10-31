@@ -2678,7 +2678,82 @@ theorem L_fixes_directions_sides (F : PowerFactorisation S) :
 /-- P11, V4 1.16(b): every finite union/intersection `HΠ`-cone is fixed. -/
 theorem L_fixes_HPiCones (F : PowerFactorisation S) (K : Set (E d))
     (hK : HPiCone S.hPi K) : F.L '' K = K := by
-  sorry
+  obtain ⟨s, rfl, h_prop⟩ := hK
+  have h_inner : ∀ p ∈ s, F.L '' ⋂ C ∈ p, C = ⋂ C ∈ p, C := by
+    intro p hp
+    have h_eq : (F.L '' ⋂ C ∈ p, C) = ⋂ C ∈ p, F.L '' C := by
+      ext x
+      simp only [Set.mem_image, Set.mem_iInter]
+      constructor
+      · rintro ⟨y, hy, rfl⟩ C hC
+        exact ⟨y, hy C hC, rfl⟩
+      · intro h
+        exact ⟨F.L.symm x, fun C hC => by
+          have h_mem := h C hC
+          rcases h_mem with ⟨y, hy, hy_eq⟩
+          have h_eq2 : y = F.L.symm x := by
+            apply F.L.injective
+            simp [hy_eq]
+          rwa [← h_eq2], by simp⟩
+    rw [h_eq]
+    apply le_antisymm
+    · intro x hx
+      simp only [Set.mem_iInter] at hx ⊢
+      intro C hC
+      have hxC := hx C hC
+      rcases h_prop p hp C hC with ⟨V, hV, rfl⟩ | hC_side
+      · rcases hV with hV_in | rfl
+        · have hfix := (L_fixes_directions_sides F).1 V hV_in
+          have h_eq : Submodule.map F.L.toLinearMap V = V := hfix
+          rcases hxC with ⟨y, hy, rfl⟩
+          have h_mem : F.L y ∈ V := by
+            rw [← h_eq]
+            exact Submodule.mem_map_of_mem hy
+          exact h_mem
+        · trivial
+      · have hfix := (L_fixes_directions_sides F).2 C hC_side
+        have hxC2 : x ∈ F.L '' C := hxC
+        rwa [hfix] at hxC2
+    · intro x hx
+      simp only [Set.mem_iInter] at hx ⊢
+      intro C hC
+      have hxC := hx C hC
+      rcases h_prop p hp C hC with ⟨V, hV, rfl⟩ | hC_side
+      · rcases hV with hV_in | rfl
+        · have hfix := (L_fixes_directions_sides F).1 V hV_in
+          have h_eq : Submodule.map F.L.toLinearMap V = V := hfix
+          have hx_map : x ∈ Submodule.map F.L.toLinearMap V := by
+            rw [h_eq]
+            exact hxC
+          rcases hx_map with ⟨y, hy, hy_eq⟩
+          exact ⟨y, hy, hy_eq⟩
+        · exact ⟨F.L.symm x, trivial, F.L.apply_symm_apply x⟩
+      · have hfix := (L_fixes_directions_sides F).2 C hC_side
+        have hxC2 : x ∈ C := hxC
+        rw [← hfix] at hxC2
+        exact hxC2
+  have h_eq : (F.L '' ⋃ p ∈ s, ⋂ C ∈ p, C) = ⋃ p ∈ s, F.L '' ⋂ C ∈ p, C := by
+    ext x
+    simp only [Set.mem_image, Set.mem_iUnion]
+    constructor
+    · rintro ⟨y, ⟨p, hp, hy_in⟩, rfl⟩
+      exact ⟨p, hp, ⟨y, hy_in, rfl⟩⟩
+    · rintro ⟨p, hp, y, hy, rfl⟩
+      exact ⟨y, ⟨p, hp, hy⟩, rfl⟩
+  rw [h_eq]
+  ext x
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨p, hp, hx⟩
+    have h_p := h_inner p hp
+    have hx_in : x ∈ F.L '' ⋂ C ∈ p, C := hx
+    rw [h_p] at hx_in
+    exact ⟨p, hp, hx_in⟩
+  · rintro ⟨p, hp, hx⟩
+    have h_p := h_inner p hp
+    have hx_in : x ∈ ⋂ C ∈ p, C := hx
+    rw [← h_p] at hx_in
+    exact ⟨p, hp, hx_in⟩
 
 /-- Step 0 of the V4 proof of `tangentCone_isHPiCone` (V4 1.16(b')): "the tangent cone
 at a vertex `p` of a cell `C` of a placed prototile ..., translated to the origin":

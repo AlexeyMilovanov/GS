@@ -5670,7 +5670,47 @@ theorem state_semantics_e (P : Params S) (s : State P) (hs : s ∈ honestStates 
     (f : FacetName S s.ty) (r : FacetRecord P) (hr : s.facetRecord f = some r)
     (huncapped : r.age.val < P.C) :
     r.beta.val = (s.residue.val + r.age.val - 1) % P.L := by
-  sorry
+  obtain ⟨U, q, rfl⟩ := mem_honestStates P s |>.mp hs
+  dsimp [stateOf] at hr
+  change (by classical exact if hf : U.hierarchy.IsFault q f then none else some (U.recordOf P q f hf)) = some r at hr
+  by_cases hf : U.hierarchy.IsFault q f
+  · rw [dif_pos hf] at hr; contradiction
+  · rw [dif_neg hf] at hr
+    have hr_eq := Option.some.inj hr
+    subst hr_eq
+    
+    have h_age_eq : (U.recordOf P q f hf).age.val = U.hierarchy.age q f hf := by
+      have h_age_def : (U.recordOf P q f hf).age.val = min (U.hierarchy.age q f hf) P.C := rfl
+      have h1 : min (U.hierarchy.age q f hf) P.C < P.C := huncapped
+      omega
+    
+    have h_serving : (U.hierarchy.servingChild q f hf).1 = q.1 + U.hierarchy.age q f hf - 1 := by
+      have h_age_val : U.hierarchy.age q f hf = U.hierarchy.birthHeight q f hf - q.1 := rfl
+      have h_birth : U.hierarchy.birthHeight q f hf = (U.hierarchy.servingChild q f hf).1 + 1 := by
+        change (U.hierarchy.parentNode (U.hierarchy.servingChild q f hf)).1 = (U.hierarchy.servingChild q f hf).1 + 1
+        exact U.hierarchy.ancestor_height (U.hierarchy.servingChild q f hf) 1
+      have h_serving_child : (U.hierarchy.servingChild q f hf).1 = q.1 + (U.hierarchy.firstProvider q f hf).1 := by
+        change (U.hierarchy.ancestor q (U.hierarchy.firstProvider q f hf).1).1 = q.1 + (U.hierarchy.firstProvider q f hf).1
+        exact U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q f hf).1
+      omega
+      
+    change (U.hierarchy.servingChild q f hf).1 % P.L = (q.1 % P.L + (U.recordOf P q f hf).age.val - 1) % P.L
+    rw [h_age_eq, h_serving]
+    
+    have H : (q.1 + U.hierarchy.age q f hf - 1) ≡ (q.1 % P.L + U.hierarchy.age q f hf - 1) [MOD P.L] := by
+      have h_age_val : U.hierarchy.age q f hf = U.hierarchy.birthHeight q f hf - q.1 := rfl
+      have h_birth : U.hierarchy.birthHeight q f hf = (U.hierarchy.servingChild q f hf).1 + 1 := by
+        change (U.hierarchy.parentNode (U.hierarchy.servingChild q f hf)).1 = (U.hierarchy.servingChild q f hf).1 + 1
+        exact U.hierarchy.ancestor_height (U.hierarchy.servingChild q f hf) 1
+      have h_serving_child : (U.hierarchy.servingChild q f hf).1 = q.1 + (U.hierarchy.firstProvider q f hf).1 := by
+        change (U.hierarchy.ancestor q (U.hierarchy.firstProvider q f hf).1).1 = q.1 + (U.hierarchy.firstProvider q f hf).1
+        exact U.hierarchy.ancestor_height q (U.hierarchy.firstProvider q f hf).1
+      
+      have H1 : (q.1 + U.hierarchy.age q f hf - 1) = q.1 + (U.hierarchy.age q f hf - 1) := by omega
+      have H2 : (q.1 % P.L + U.hierarchy.age q f hf - 1) = q.1 % P.L + (U.hierarchy.age q f hf - 1) := by omega
+      rw [H1, H2]
+      exact Nat.ModEq.add_right (U.hierarchy.age q f hf - 1) (Nat.mod_modEq q.1 P.L).symm
+    exact H
 
 /-- Q7, V4 2.4(e), all ages: serving residue is the honest serving-child height. -/
 theorem state_semantics_e_realisation (U : HonestSource S) (P : Params S)

@@ -651,7 +651,30 @@ def leafTypeOf (U : HonestSource S) (P : Params S) (t : U.Node) (ht : t.1 = 0) :
 theorem prePattern_of_leafType (U : HonestSource S) (P : Params S)
     (t : U.Node) (ht : t.1 = 0) :
     prePatternOf U P t ht = (leafTypeOf U P t ht).prePattern := by
-  sorry
+  have node_ext : ∀ a b : U.Node, a.1 = b.1 → a.2.val = b.2.val → a = b := by
+    rintro ⟨n, x, hx⟩ ⟨m, y, hy⟩ h1 h2
+    dsimp only at h1 h2
+    subst h1; subst h2; rfl
+  have cong : ∀ (a b : U.Node) (hab : a = b) (ha : a.1 = 0) (hb : b.1 = 0),
+      prePatternOf U P a ha = prePatternOf U P b hb := by
+    intro a b hab ha hb; subst hab; rfl
+  have h := (Classical.choose_spec (U.leafIndex_exists P t ht)).1
+  show prePatternOf U P t ht =
+    prePatternOf U P (U.descendant ⟨P.K, ⟨(U.hierarchy.ancestor t P.K).2.val,
+      U.certificateAncestor_mem P t ht⟩⟩ P.K le_rfl (U.leafIndex P t ht)) (Nat.sub_self P.K)
+  refine cong _ _ ?_ _ _
+  symm
+  apply node_ext
+  · show P.K - P.K = t.1
+    rw [ht]; exact Nat.sub_self P.K
+  · change (S.descendantNode _ (P.K - P.K) P.K _).move _ = t.2.val
+    have h_rw : (S.descendantNode _ (P.K - P.K) P.K (U.leafIndex P t ht)).move (U.hierarchy.ancestor t P.K).2.val.frame = (S.nativeTile _ P.K (U.leafIndex P t ht)).move (U.hierarchy.ancestor t P.K).2.val.frame := by
+      have hh : ∀ m, m = 0 → ∀ A n (w : S.RoleWord A n), S.descendantNode A m n w = S.nativeTile A n w := by
+        rintro m rfl A n w; rfl
+      exact congrArg (fun (x : FramedNode S) => x.move (U.hierarchy.ancestor t P.K).2.val.frame) (hh (P.K - P.K) (Nat.sub_self P.K) (U.hierarchy.ancestor t P.K).2.val.ty P.K (U.leafIndex P t ht))
+    dsimp only [HonestSource.leafIndex] at h_rw
+    change (S.nativeTile _ P.K (Classical.choose (U.leafIndex_exists P t ht))).move _ = _ at h
+    exact h_rw.trans h
 
 /-- Q11, V4 2.7: the actual leaf type retains its native prototype. -/
 theorem leafTypeOf_type (U : HonestSource S) (P : Params S)

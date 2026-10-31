@@ -52,7 +52,11 @@ namespace Parser
 
 /-- R1, V4 §3.0: the root itself is a depth-zero descendant. -/
 theorem descendant_refl (N : FramedNode S) (n : ℕ) : N.IsDescendant n N n := by
-  sorry
+  refine ⟨0, rfl, (), ?_⟩
+  cases N with
+  | mk ty frame =>
+    show (⟨ty, frame⟩ : FramedNode S) = ⟨ty, (AffineIsometryEquiv.refl ℝ (E d)).trans frame⟩
+    rw [AffineIsometryEquiv.refl_trans]
 
 /-- R1, V4 §3.0: descendant inclusion composes with exact frames and heights. -/
 theorem descendant_trans (A B D : FramedNode S) (a b e : ℕ)

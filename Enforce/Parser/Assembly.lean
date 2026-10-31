@@ -6780,7 +6780,15 @@ theorem parsedFacetPacket_inherited (Y : MarkedTiling (systemM S P C)) (hY : MPr
     (F : FacetName S q.2.val.ty) (f : FacetName S c.2.val.ty)
     (hsub : c.2.val.cell c.1 f.val ⊆ q.2.val.cell q.1 F.val) :
     parsedFacetPacket Y hY q F = parsedFacetPacket Y hY c f := by
-  sorry
+  have hblock : IsBlock Y c.1 c.2.val := by
+    have h1 : c.2.val ∈ (parsedHierarchy Y hY).nodes c.1 := c.2.property
+    have h2 : (parsedHierarchy Y hY).nodes c.1 = (parsedDecodedLevel Y hY c.1).geometry.roots := (parsedHierarchy_nodes Y hY c.1).symm
+    have h3 : (parsedDecodedLevel Y hY c.1).geometry.roots = (parsedDecodedLevel Y hY c.1).geometry.nodes c.1 := (parsedDecodedLevel Y hY c.1).geometry.nodes_top.symm
+    have h4 : c.2.val ∈ (parsedDecodedLevel Y hY c.1).geometry.nodes c.1 := by
+      rwa [← h3, ← h2]
+    exact (parsedDecodedLevel Y hY c.1).geometry.node_actual c.1 c.2.val h4
+  exact Parser.boundaryPacket_inherited Y q.1 c.1 q.2.val c.2.val hblock hdesc F f hsub
+    (parsedBoundaryPackets Y hY q) (parsedBoundaryPackets Y hY c)
 
 namespace Parser.BornFacet
 

@@ -5613,7 +5613,15 @@ theorem mature_counter_value (U : HonestSource S) (P : Params S) (q : U.Node)
     (he : (U.recordOf P q f hf).ChainActive e) (x : E d)
     (hx : x ∈ relint (q.2.val.cell q.1 e.val)) :
     (U.constantProfile P q f hf).value e = some (U.sitesBefore P q f hf x) := by
-  sorry
+  classical
+  have hc := he
+  change ∃ z ∈ U.recordChains P q f hf, (z.chain.val.cell edgeIndex).val = e.val at hc
+  change (if _ then some _ else none) = _
+  rw [if_pos hc]
+  congr 1
+  apply exists_childMap_step4_profile_step7_mature_constant P U q f hf hmature e he _ x _ hx
+  rw [FramedNode.cell, exists_childMap_step5_relint_image]
+  exact Set.mem_image_of_mem _ (cellAnchor_mem e.val)
 
 /-- Q3, V4 §2.2 (S4d): the two one-sided germs differ by precisely the number
 of chosen sites in the relative interior of the active edge, even before maturity. -/

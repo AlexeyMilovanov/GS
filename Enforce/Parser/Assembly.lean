@@ -6949,6 +6949,169 @@ def parsedPrimitivePacket (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   parsedFacetPacket Y hY ⟨g.height - 1, ⟨g.leftNode, g.left_mem (parsedHierarchy Y hY) hg⟩⟩
     g.incidence.val.leftFacet
 
+/-- Step 1 of the V4 proof of `calibration_W4` (V4 3.13 proof, (I2) at all
+heights): "the address of `S(P_b)` lists the actual ancestors' types and roles".
+The slot prototype read from the parsed state's address at index `j` is the type
+of the actual `j`-th ancestor. -/
+private theorem calibration_W4_step1_slotType (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (q : (parsedHierarchy Y hY).Node) (j : Fin P.k) :
+    slotType (parsedState Y hY q) j = ((parsedHierarchy Y hY).ancestor q j.val).2.val.ty := by
+  have key : ∀ r : ℕ, ((parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor q r)).1 =
+      ((parsedHierarchy Y hY).ancestor q (r + 1)).2.val.ty := by
+    intro r
+    have h : (parsedHierarchy Y hY).ancestor q (r + 1) =
+        (parsedHierarchy Y hY).parentNode ((parsedHierarchy Y hY).ancestor q r) :=
+      Function.iterate_succ_apply' _ _ _
+    rw [h]
+    rfl
+  unfold slotType
+  by_cases hj : j.val = 0
+  · rw [dif_pos hj]
+    have h0 : (parsedHierarchy Y hY).ancestor q j.val = q := by
+      rw [hj]
+      rfl
+    rw [h0]
+    exact (parsedState_type_residue Y hY q).2.1
+  · rw [dif_neg hj, parsedState_address]
+    have h := key (j.val - 1)
+    rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero hj)] at h
+    exact h
+
+/-- Step 2 of the V4 proof of `calibration_W4` (V4 3.13 proof, (I2) at all
+heights): "`D_S` sets the address to the actual role word". The downward role
+list from slot `j` of the parsed state is the list of actual roles of the first
+`j` ancestors, top-down. -/
+private theorem calibration_W4_step2_slotRoles (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (q : (parsedHierarchy Y hY).Node) (j : Fin P.k) :
+    slotRoles (parsedState Y hY q) j =
+      (List.ofFn (fun a : Fin j.val =>
+        (parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor q a.val))).reverse := by
+  simp only [slotRoles, parsedState_address]
+
+/-- Step 3a of the V4 proof of `calibration_W4` (V4 §1.0 Frames, V4 2.3): one
+level of normalized carrier transport. Placing a point by a child role in the
+unexpanded parent and then by the parent's prototype frame equals placing it by
+the child's own prototype frame. -/
+private theorem calibration_W4_step3a_frame_child (p : FramedNode S) (m : ℕ)
+    (i : S.I p.ty) (y : E d) :
+    p.prototypeFrame (m + 1) (rolePlacement (⟨p.ty, i⟩ : S.Role) y) =
+      (p.child m i).prototypeFrame m y := by
+  have h1 : ∀ z : E d, (S.σ ^ (m + 1)) (S.σ.symm z) = (S.σ ^ m) z := by
+    intro z
+    rw [pow_succ, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply]
+  have h2 : ∀ z : E d, (S.σ ^ (-(m : ℤ))) ((S.σ ^ (m : ℤ)) z) = z := by
+    intro z
+    rw [← LinearEquiv.mul_apply, ← zpow_add, neg_add_cancel, zpow_zero]
+    rfl
+  simp only [FramedNode.prototypeFrame, rolePlacement, FramedNode.child, AffineEquiv.trans_apply,
+    AffineIsometryEquiv.coe_toAffineEquiv, AffineIsometryEquiv.coe_trans, Function.comp_apply,
+    LinearEquiv.coe_toAffineEquiv]
+  congr 1
+  rw [h1, SubstSystem.placeChild_apply]
+  simp only [Child.frame, rigidMotion, AffineIsometryEquiv.coe_trans, Function.comp_apply,
+    LinearIsometryEquiv.coe_toAffineIsometryEquiv, AffineIsometryEquiv.coe_vaddConst,
+    vadd_eq_add, map_add, linearConj, LinearEquiv.mul_apply, zpow_natCast]
+  rw [← zpow_natCast, h2]
+  rfl
+
+/-- Step 3b of the V4 proof of `calibration_W4` (V4 §1.0 Frames, V4 2.3):
+normalized carrier transport along the actual ancestry. Normalizing by the
+actual role word of the first `r` ancestors and placing by the `r`-th ancestor's
+prototype frame is the birth node's own prototype frame. -/
+private theorem calibration_W4_step3b_word_frame (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (q : (parsedHierarchy Y hY).Node) (r : ℕ) (x : E d) :
+    (((parsedHierarchy Y hY).ancestor q r).2.val.prototypeFrame
+        ((parsedHierarchy Y hY).ancestor q r).1)
+      (wordPlacement (List.ofFn (fun a : Fin r =>
+        (parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor q a.val))).reverse x) =
+      q.2.val.prototypeFrame q.1 x := by
+  induction r with
+  | zero =>
+    rw [List.ofFn_zero]
+    rfl
+  | succ r ih =>
+    simp only [List.ofFn_succ', List.concat_eq_append, List.reverse_append,
+      List.reverse_singleton, List.singleton_append, Fin.val_castSucc, Fin.val_last]
+    have hpar : (parsedHierarchy Y hY).ancestor q (r + 1) =
+        (parsedHierarchy Y hY).parentNode ((parsedHierarchy Y hY).ancestor q r) :=
+      Function.iterate_succ_apply' _ _ _
+    rw [hpar]
+    have hc := (parsedHierarchy Y hY).child_eq ((parsedHierarchy Y hY).ancestor q r).1
+      ((parsedHierarchy Y hY).ancestor q r).2
+    have h := calibration_W4_step3a_frame_child
+      ((parsedHierarchy Y hY).parent ((parsedHierarchy Y hY).ancestor q r).1
+        ((parsedHierarchy Y hY).ancestor q r).2).val
+      ((parsedHierarchy Y hY).ancestor q r).1
+      ((parsedHierarchy Y hY).role ((parsedHierarchy Y hY).ancestor q r).1
+        ((parsedHierarchy Y hY).ancestor q r).2)
+      (wordPlacement (List.ofFn (fun a : Fin r =>
+        (parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor q a.val))).reverse x)
+    rw [← hc] at h
+    rw [← ih]
+    exact h
+
+/-- Step 3 of the V4 proof of `calibration_W4` (V4 3.13 proof via Lemma 2.6(a);
+normalized carrier transport, V4 1.24): "the mask is the honest function of the
+head's address and `ι(f)` ... hence `μ_j = PRESENT` iff `f ∈ E_{P_{b+j}}` for the
+actual ancestor". Purely geometric: the positioned primitive facet of the
+incidence, normalized along the actual role word of the ancestors, is the
+normalized carrier of a facet of `E_A` of the `j`-th ancestor's type exactly when
+the placed carrier of the birth is principal in that actual ancestor. No state or
+packet occurs. -/
+private theorem calibration_W4_step3_normalized_carrier (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (g : Parser.BornFacet P)
+    (hg : g.birth ∈ (parsedHierarchy Y hY).nodes g.height) (j : Fin P.k) :
+    (∃ f ∈ P.E_A ((parsedHierarchy Y hY).ancestor
+          (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).2.val.ty,
+        f.carrier = wordPlacement (List.ofFn (fun a : Fin j.val =>
+          (parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor
+            (g.hierarchyBirth (parsedHierarchy Y hY) hg) a.val))).reverse ''
+          (S.σ.symm '' g.incidence.val.positioned)) ↔
+      P.InPrincipal
+        ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).2.val
+        ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).1
+        g.carrier := by
+  set q := g.hierarchyBirth (parsedHierarchy Y hY) hg with hq
+  set W := wordPlacement (List.ofFn (fun a : Fin j.val =>
+    (parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor q a.val))).reverse with hW
+  set Φ := ((parsedHierarchy Y hY).ancestor q j.val).2.val.prototypeFrame
+    ((parsedHierarchy Y hY).ancestor q j.val).1 with hΦ
+  have hcar : g.carrier = Φ '' (W '' (S.σ.symm '' g.incidence.val.positioned)) := by
+    rw [Set.image_image, Set.image_image]
+    have hfun : (fun x => Φ (W (S.σ.symm x))) =
+        fun x => g.birth.prototypeFrame g.height (S.σ.symm x) := by
+      funext x
+      exact calibration_W4_step3b_word_frame Y hY q j.val (S.σ.symm x)
+    rw [hfun]
+    simp only [Parser.BornFacet.carrier, Params.incidencePlacement, PrimitiveIncidence.positioned,
+      placedSet, Set.image_image, AffineEquiv.trans_apply, AffineIsometryEquiv.coe_toAffineEquiv,
+      LinearEquiv.coe_toAffineEquiv]
+  constructor
+  · rintro ⟨f, hf, hfc⟩
+    exact ⟨f, hf, by rw [hfc, ← hcar]⟩
+  · rintro ⟨f, hf, hfc⟩
+    refine ⟨f, hf, ?_⟩
+    rw [hcar] at hfc
+    exact (Set.image_injective.mpr Φ.injective) hfc
+
+/-- Step 4 of the V4 proof of `calibration_W4` (V4 3.13 proof, Lemma 2.6(a) and
+(I2)): "Its mask is the honest function of the head's address and `ι(f)`; the
+address of `S(P_b)` lists the actual ancestors' types and roles ...; hence
+`μ_j = PRESENT` iff `f ∈ E_{P_{b+j}}` for the actual ancestor." Stated for the
+mask function `packetMask` evaluated at the actual incidence and the parsed birth
+state; it combines Steps 1--3. -/
+private theorem calibration_W4_step4_mask_address (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (g : Parser.BornFacet P)
+    (hg : g.birth ∈ (parsedHierarchy Y hY).nodes g.height) (j : Fin P.k) :
+    packetMask P g.incidence (parsedState Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg)) j ↔
+      P.InPrincipal
+        ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).2.val
+        ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).1
+        g.carrier := by
+  unfold packetMask
+  rw [calibration_W4_step1_slotType, calibration_W4_step2_slotRoles]
+  exact calibration_W4_step3_normalized_carrier Y hY g hg j
+
 /-- R13, V4 3.13 (W4): for every actual finite primitive birth in the parsed
 hierarchy, the attached packet is two-sided, honest and has that birth's state
 as head. At each index 0 ≤ j ≤ k-1 its mask is PRESENT exactly when its carrier
@@ -6969,7 +7132,51 @@ theorem calibration_W4 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
               (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val
             (q.mask j ↔ P.InPrincipal ancestor.2.val ancestor.1 g.carrier) ∧
               (q.mask j → decode q j = some (parsedState Y hY ancestor)) := by
-  sorry
+  classical
+  -- Lemma 3.4 at a high decoded level containing the birth (Theorem 3.1).
+  have hD := parsedHierarchy_invariant Y hY (max P.K g.height)
+  have hgD : g.birth ∈ (parsedDecodedLevel Y hY (max P.K g.height)).geometry.nodes g.height := by
+    rw [parsedHierarchy_inner_nodes Y hY (max P.K g.height) g.height (le_max_right _ _)]
+    exact hg
+  obtain ⟨hl, hr, htwo, p, hhon, hinc, hp, _, hheadD⟩ :=
+    two_sided_constancy Y hY (max P.K g.height) (le_max_left _ _)
+      (parsedDecodedLevel Y hY (max P.K g.height)) hD g hgD
+  have hhead : p.head = parsedState Y hY (g.hierarchyBirth (parsedHierarchy Y hY) hg) := by
+    rw [hheadD]
+    exact parsedState_agrees Y hY (max P.K g.height) g.height g.birth hgD hg
+  refine ⟨hl, hr, htwo, p, hp, hhon, hinc, hhead, ?_⟩
+  intro j
+  have hmask : p.mask j ↔ P.InPrincipal
+      ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).2.val
+      ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).1
+      g.carrier := by
+    show packetMask P p.incidence p.head j ↔ _
+    rw [hinc, hhead]
+    exact calibration_W4_step4_mask_address Y hY g hg j
+  refine ⟨hmask, fun hm => ?_⟩
+  have hanc := (parsedHierarchy Y hY).ancestor_height
+    (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val
+  have hdepth : ((parsedHierarchy Y hY).ancestor
+      (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).1 - g.height < P.k := by
+    rw [hanc]
+    show g.height + j.val - g.height < P.k
+    omega
+  obtain ⟨hl', p', hp', hdec⟩ := parsedState_principal Y hY
+    ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val) g
+    ((parsedHierarchy Y hY).ancestor_descendant
+      (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val) hdepth (hmask.1 hm)
+  have hpp' : p' = p := Option.some.inj (hp'.symm.trans hp)
+  subst hpp'
+  have hfin : (⟨((parsedHierarchy Y hY).ancestor
+      (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).1 - g.height, hdepth⟩ : Fin P.k) = j := by
+    apply Fin.ext
+    show ((parsedHierarchy Y hY).ancestor
+      (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).1 - g.height = j.val
+    rw [hanc]
+    show g.height + j.val - g.height = j.val
+    omega
+  rw [hfin] at hdec
+  exact hdec
 
 /-- R13, V4 3.13: every finite primitive birth has a non-NULL honest attached
 packet of its actual incidence, and the canonical left/right readouts are equal. -/

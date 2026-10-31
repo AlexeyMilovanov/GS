@@ -4984,6 +4984,928 @@ private theorem packet_E_equality_step2_child_disjoint
   rw [hc i, hc j, ← H.image_interior, ← H.image_interior]
   exact Set.disjoint_image_of_injective H.injective (S.children_disjoint N.ty hij)
 
+open private tangentCone_polyhedral_step2_halfspace_presentation
+  tangentCone_polyhedral_step3_local_cone from Enforce.Geometry.Polyhedral in
+/-- Step 1 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 1.0(b), 3.12(b)):
+"near q the polyhedral domain P coincides with q + T_qP". A polyhedron agrees,
+on a small ball about any point, with the translate of a polyhedral cone. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step1_local_cone
+    (Q : PolyManifoldDomain d) (p : E d) :
+    ∃ C : Set (E d), IsPolyhedralCone C ∧ ∃ δ : ℝ, 0 < δ ∧
+      ∀ x ∈ ball p δ, (x ∈ Q.carrier ↔ x - p ∈ C) := by
+  obtain ⟨S, hS⟩ := tangentCone_polyhedral_step2_halfspace_presentation Q.polyhedral
+  obtain ⟨C, hC, hloc⟩ := tangentCone_polyhedral_step3_local_cone S p
+  rw [← hS] at hloc
+  obtain ⟨δ, hδ, hball⟩ := Metric.eventually_nhds_iff.mp hloc
+  exact ⟨C, hC, δ, hδ, fun x hx => hball (mem_ball.mp hx)⟩
+
+/-- Step 2 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1)):
+"the boundary of P is a (d-1)-manifold", and this property is invariant under
+the translation moving q to the origin: the image of a locally Euclidean set
+under an ambient homeomorphism is locally Euclidean. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step2_manifold_image
+    {n : ℕ} (h : E d ≃ₜ E d) {A : Set (E d)} (hA : IsLocallyEuclidean n A) :
+    IsLocallyEuclidean n (h '' A) := by
+  intro q
+  let e := h.image A
+  obtain ⟨U, hU, hqU, V, hV, ⟨φ⟩⟩ := hA (e.symm q)
+  exact ⟨e '' U, e.isOpenMap U hU, ⟨e.symm q, hqU, e.apply_symm_apply q⟩, V, hV,
+    ⟨(e.image U).symm.trans φ⟩⟩
+
+/-- Step 3a of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1)):
+"the boundary of P is a (d-1)-manifold" is a local chart condition, and charts
+pull back along open embeddings: the preimage of a chart domain is again
+homeomorphic to an open subset of `E n`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step3a_chart_pullback
+    {n : ℕ} {X Y : Type*} [TopologicalSpace X] [TopologicalSpace Y] {j : Y → X}
+    (hj : Topology.IsOpenEmbedding j) {U : Set X} {V : Set (E n)} (hV : IsOpen V)
+    (φ : U ≃ₜ V) :
+    ∃ V' : Set (E n), IsOpen V' ∧ Nonempty (↥(j ⁻¹' U) ≃ₜ V') := by
+  have hm : Topology.IsOpenEmbedding (U.restrictPreimage j) :=
+    U.restrictPreimage_isOpenEmbedding hj
+  have hf : Topology.IsOpenEmbedding
+      ((Subtype.val : V → E n) ∘ φ ∘ U.restrictPreimage j) :=
+    hV.isOpenEmbedding_subtypeVal.comp (φ.isOpenEmbedding.comp hm)
+  exact ⟨_, hf.isOpen_range, ⟨hf.isEmbedding.toHomeomorph⟩⟩
+
+/-- Step 3b of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1)):
+"the boundary of P is a (d-1)-manifold", restricted to an open piece: a relatively
+open subset of a locally Euclidean set is locally Euclidean. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step3b_manifold_open_inter
+    {n : ℕ} {A O : Set (E d)} (hA : IsLocallyEuclidean n A) (hO : IsOpen O) :
+    IsLocallyEuclidean n (A ∩ O) := by
+  intro q
+  let j : ↥(A ∩ O) → A := Set.inclusion Set.inter_subset_left
+  have hj : Topology.IsOpenEmbedding j := by
+    refine ⟨Topology.IsEmbedding.inclusion _, ?_⟩
+    rw [Set.range_inclusion]
+    have h : {x : A | (x : E d) ∈ A ∩ O} = Subtype.val ⁻¹' O := by
+      ext x
+      simp
+    rw [h]
+    exact hO.preimage continuous_subtype_val
+  obtain ⟨U, hU, hqU, V, hV, ⟨φ⟩⟩ := hA (j q)
+  obtain ⟨V', hV', hψ⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step3a_chart_pullback hj hV φ
+  exact ⟨j ⁻¹' U, hU.preimage hj.continuous, hqU, V', hV', hψ⟩
+
+/-- Step 3c of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1)):
+"(d-1)-manifold" is a local condition: a set which is locally Euclidean near
+each of its points (on an open piece containing it) is locally Euclidean. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step3c_manifold_of_local
+    {n : ℕ} {A : Set (E d)}
+    (h : ∀ q ∈ A, ∃ O : Set (E d), IsOpen O ∧ q ∈ O ∧ IsLocallyEuclidean n (A ∩ O)) :
+    IsLocallyEuclidean n A := by
+  intro q
+  obtain ⟨O, hO, hqO, hAO⟩ := h q q.2
+  let j : ↥(A ∩ O) → A := Set.inclusion Set.inter_subset_left
+  have hj : Topology.IsOpenEmbedding j := by
+    refine ⟨Topology.IsEmbedding.inclusion _, ?_⟩
+    rw [Set.range_inclusion]
+    have h : {x : A | (x : E d) ∈ A ∩ O} = Subtype.val ⁻¹' O := by
+      ext x
+      simp
+    rw [h]
+    exact hO.preimage continuous_subtype_val
+  obtain ⟨U, hU, hqU, V, hV, ⟨φ⟩⟩ := hAO ⟨q, q.2, hqO⟩
+  exact ⟨j '' U, hj.isOpenMap U hU, ⟨⟨q, q.2, hqO⟩, hqU, rfl⟩, V, hV,
+    ⟨(hj.isEmbedding.homeomorphImage U).symm.trans φ⟩⟩
+
+/-- Step 3d of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 1.0(b)):
+"near q, P coincides with q + T_qP", so their boundaries coincide near q:
+frontiers of two sets agreeing on an open set agree on it. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step3d_frontier_local
+    {A B O : Set (E d)} (hO : IsOpen O) (h : A ∩ O = B ∩ O) :
+    frontier A ∩ O = frontier B ∩ O := by
+  have hcl : ∀ {A B : Set (E d)}, A ∩ O = B ∩ O → ∀ x ∈ closure A ∩ O, x ∈ closure B := by
+    intro A B h x hx
+    have := hO.closure_inter (s := A) hx
+    rw [h] at this
+    exact closure_mono Set.inter_subset_left this
+  have hint : interior A ∩ O = interior B ∩ O := by
+    rw [← hO.interior_eq, ← interior_inter, ← interior_inter, h]
+  ext x
+  simp only [frontier, Set.mem_inter_iff, Set.mem_diff]
+  constructor
+  · rintro ⟨⟨hc, hi⟩, hx⟩
+    refine ⟨⟨hcl h x ⟨hc, hx⟩, fun hb => hi ?_⟩, hx⟩
+    exact ((Set.ext_iff.mp hint x).mpr ⟨hb, hx⟩).1
+  · rintro ⟨⟨hc, hi⟩, hx⟩
+    refine ⟨⟨hcl h.symm x ⟨hc, hx⟩, fun hb => hi ?_⟩, hx⟩
+    exact ((Set.ext_iff.mp hint x).mp ⟨hb, hx⟩).1
+
+open private tangentCone_polyhedral_step4_positive_scaling from Enforce.Geometry.Polyhedral in
+/-- Step 3 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1), 1.0(b)):
+"the boundary of P is a (d-1)-manifold", read on the tangent cone: if `K` has a
+topological `(d-1)`-manifold frontier and agrees near `0` with a polyhedral cone
+`C`, then the frontier of `C` is a `(d-1)`-manifold (near `0` it is an open piece
+of the frontier of `K`, and positive scalings carry every point there). -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step3_cone_frontier_manifold
+    (K C : Set (E d)) (hC : IsPolyhedralCone C)
+    (hman : IsLocallyEuclidean (d - 1) (frontier K))
+    (δ : ℝ) (hδ : 0 < δ) (hloc : K ∩ ball 0 δ = C ∩ ball 0 δ) :
+    IsLocallyEuclidean (d - 1) (frontier C) := by
+  have hY : IsLocallyEuclidean (d - 1) (frontier C ∩ ball 0 δ) := by
+    rw [← packet_E_equality_step2_boundary_neighborhood_step3d_frontier_local isOpen_ball hloc]
+    exact packet_E_equality_step2_boundary_neighborhood_step3b_manifold_open_inter hman
+      isOpen_ball
+  have hfr : ∀ t : ℝ, 0 < t → ∀ x, t • x ∈ frontier C ↔ x ∈ frontier C := by
+    intro t ht x
+    have himg : (Homeomorph.smulOfNeZero t ht.ne') '' C = C := by
+      ext y
+      constructor
+      · rintro ⟨w, hw, rfl⟩
+        show t • w ∈ C
+        exact (tangentCone_polyhedral_step4_positive_scaling hC ht w).mpr hw
+      · intro hy
+        refine ⟨t⁻¹ • y,
+          (tangentCone_polyhedral_step4_positive_scaling hC (inv_pos.mpr ht) y).mpr hy, ?_⟩
+        show t • (t⁻¹ • y) = y
+        rw [smul_smul, mul_inv_cancel₀ ht.ne', one_smul]
+    have hf := (Homeomorph.smulOfNeZero t ht.ne').image_frontier C
+    rw [himg] at hf
+    constructor
+    · intro hx
+      rw [← hf] at hx
+      obtain ⟨w, hw, hwx⟩ := hx
+      have hwx' : t • w = t • x := hwx
+      have : w = x := smul_right_injective (E d) ht.ne' hwx'
+      exact this ▸ hw
+    · intro hx
+      rw [← hf]
+      exact ⟨x, hx, rfl⟩
+  apply packet_E_equality_step2_boundary_neighborhood_step3c_manifold_of_local
+  intro q _
+  obtain ⟨t, ht, htq⟩ : ∃ t : ℝ, 0 < t ∧ ‖t • q‖ < δ := by
+    refine ⟨δ / (2 * (‖q‖ + 1)), by positivity, ?_⟩
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (by positivity), div_mul_eq_mul_div,
+      div_lt_iff₀ (by positivity)]
+    nlinarith [norm_nonneg q, mul_nonneg hδ.le (norm_nonneg q)]
+  refine ⟨(fun x => t • x) ⁻¹' ball 0 δ, isOpen_ball.preimage (continuous_const_smul t),
+    by simpa [mem_ball_zero_iff] using htq, ?_⟩
+  have heq : frontier C ∩ (fun x => t • x) ⁻¹' ball 0 δ =
+      (Homeomorph.smulOfNeZero t ht.ne').symm '' (frontier C ∩ ball 0 δ) := by
+    rw [Homeomorph.image_symm]
+    ext x
+    show (x ∈ frontier C ∧ t • x ∈ ball 0 δ) ↔ (t • x ∈ frontier C ∧ t • x ∈ ball 0 δ)
+    rw [hfr t ht x]
+  rw [heq]
+  exact packet_E_equality_step2_boundary_neighborhood_step2_manifold_image _ hY
+
+/-- Step 4 (component glue) of the V4 proof of
+`packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b)): "a generic short
+path in int P near q ... crosses": a preconnected subset of `F` which meets the
+connected component of `F` through `x` lies in that component. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step4_sub_component
+    {F T : Set (E d)} {x w : E d} (hT : IsPreconnected T) (hTF : T ⊆ F) (hw : w ∈ T)
+    (hwU : w ∈ connectedComponentIn F x) : T ⊆ connectedComponentIn F x := by
+  rw [connectedComponentIn_eq hwU]
+  exact hT.subset_connectedComponentIn hw hTF
+
+/-- Step 4a of the V4 proof of `packet_E_equality_step2_boundary_neighborhood`
+(V4 3.12(b)): "interior points of the children near q are joined to the boundary":
+every connected component of the interior of a closed set `C` with nonempty
+complement has, in its closure, a frontier point of `C` outside a set `Z ⊆ C`
+disjoint from `int C` whose complement is preconnected (in Step 5, `Z` is the
+lineality space of the cone, of codimension `≥ 2`). -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step4a_component_exit
+    {C Z : Set (E d)} (hCcl : IsClosed C) (hZC : Z ⊆ C) (hZi : ∀ v ∈ Z, v ∉ interior C)
+    (hZc : IsPreconnected Zᶜ) {z : E d} (hz : z ∉ C) {x : E d} (hx : x ∈ interior C) :
+    ∃ y ∈ frontier C, y ∉ Z ∧ y ∈ closure (connectedComponentIn (interior C) x) := by
+  set U := connectedComponentIn (interior C) x with hU
+  have hUo : IsOpen U := isOpen_interior.connectedComponentIn
+  have hUi : U ⊆ interior C := connectedComponentIn_subset _ _
+  have hxU : x ∈ U := mem_connectedComponentIn hx
+  by_contra hcon
+  push_neg at hcon
+  have hsub : Zᶜ ⊆ U := by
+    refine hZc.subset_left_of_subset_union hUo isClosed_closure.isOpen_compl
+      (Set.disjoint_left.mpr fun v hv hvc => hvc (subset_closure hv)) ?_
+      ⟨x, fun h => hZi x h hx, hxU⟩
+    intro y hy
+    by_cases hyc : y ∈ closure U
+    · left
+      by_contra hyU
+      have hyC : y ∈ C := hCcl.closure_subset_iff.mpr
+        (hUi.trans interior_subset) hyc
+      have hyi : y ∉ interior C := by
+        intro hyi
+        obtain ⟨ρ, hρ, hball⟩ := Metric.isOpen_iff.mp isOpen_interior y hyi
+        obtain ⟨w, hwU, hw⟩ := Metric.mem_closure_iff.mp hyc ρ hρ
+        have hwb : w ∈ ball y ρ := by rw [mem_ball, dist_comm]; exact hw
+        exact hyU (packet_E_equality_step2_boundary_neighborhood_step4_sub_component
+          (convex_ball y ρ).isPreconnected hball hwb hwU (mem_ball_self hρ))
+      exact hcon y (by rw [hCcl.frontier_eq]; exact ⟨hyC, hyi⟩) hy hyc
+    · right
+      exact hyc
+  exact hz (interior_subset (hUi (hsub fun h => hz (hZC h))))
+
+/-- Step 4c of the V4 proof of `packet_E_equality_step2_boundary_neighborhood`
+(V4 §1.0 (H1), used in 3.12(b)): "the boundary of P is a (d-1)-manifold";
+removing the apex does not disconnect it. A connected topological manifold of
+dimension `d - 1 ≥ 2` stays connected after removing one point (a chart ball
+minus its centre is connected). -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step4c_puncture
+    (hd : 3 ≤ d) {X : Set (E d)} (hX : IsConnected X)
+    (hman : IsLocallyEuclidean (d - 1) X) (x₀ : E d) :
+    IsPreconnected (X \ {x₀}) := by
+  classical
+  by_cases hx₀ : x₀ ∉ X
+  · rw [Set.diff_singleton_eq_self hx₀]; exact hX.isPreconnected
+  push_neg at hx₀
+  obtain ⟨U, hU, hx₀U, V, hV, ⟨φ⟩⟩ := hman ⟨x₀, hx₀⟩
+  set a : E (d - 1) := (φ ⟨⟨x₀, hx₀⟩, hx₀U⟩ : E (d - 1)) with ha
+  obtain ⟨r, hr, hrV⟩ := Metric.isOpen_iff.mp hV a (φ ⟨⟨x₀, hx₀⟩, hx₀U⟩).2
+  -- the punctured chart ball is preconnected (`d - 1 ≥ 2`)
+  have hB' : IsPreconnected (ball a r \ {a}) := by
+    have hrank : 1 < Module.rank ℝ (E (d - 1)) := by
+      have h : Module.rank ℝ (E (d - 1)) = (d - 1 : ℕ) := by rw [← Module.finrank_eq_rank, finrank_euclideanSpace_fin]
+      rw [h]
+      exact_mod_cast (by omega : 1 < d - 1)
+    have hS := (isConnected_compl_singleton_of_one_lt_rank hrank (0 : E (d - 1))).isPreconnected
+    let f : E (d - 1) → E (d - 1) := fun v => a + (r / (1 + ‖v‖)) • v
+    have hf : Continuous f := continuous_const.add ((continuous_const.div
+      (continuous_const.add continuous_norm) (fun x => (by positivity : (0:ℝ) < 1 + ‖x‖).ne')).smul continuous_id)
+    have himg : f '' {0}ᶜ = ball a r \ {a} := by
+      ext y
+      constructor
+      · rintro ⟨v, hv, rfl⟩
+        have h1 : (0 : ℝ) < 1 + ‖v‖ := by positivity
+        have hv0 : v ≠ 0 := hv
+        refine ⟨?_, ?_⟩
+        · rw [mem_ball, dist_eq_norm]
+          simp only [f, add_sub_cancel_left, norm_smul, Real.norm_eq_abs,
+            abs_of_pos (div_pos hr h1)]
+          rw [div_mul_eq_mul_div, div_lt_iff₀ h1]
+          nlinarith [norm_nonneg v]
+        · intro hy
+          have hy' : f v = a := hy
+          have hz : (r / (1 + ‖v‖)) • v = 0 := by
+            have := congrArg (fun z => z - a) hy'
+            simpa [f] using this
+          rcases smul_eq_zero.mp hz with h | h
+          · exact (div_pos hr h1).ne' h
+          · exact hv0 h
+      · rintro ⟨hy, hya⟩
+        obtain ⟨w, rfl⟩ : ∃ w, y = a + w := ⟨y - a, by abel⟩
+        have hw : ‖w‖ < r := by
+          rw [mem_ball, dist_eq_norm, add_sub_cancel_left] at hy
+          exact hy
+        have hw0 : w ≠ 0 := by
+          intro h
+          apply hya
+          simp [h]
+        have hpos : 0 < r - ‖w‖ := by linarith
+        refine ⟨(1 / (r - ‖w‖)) • w, ?_, ?_⟩
+        · intro h
+          rcases smul_eq_zero.mp (show (1 / (r - ‖w‖)) • w = 0 from h) with h | h
+          · exact (by positivity : (0 : ℝ) < 1 / (r - ‖w‖)).ne' h
+          · exact hw0 h
+        · have hn : ‖(1 / (r - ‖w‖)) • w‖ = ‖w‖ / (r - ‖w‖) := by
+            rw [norm_smul, Real.norm_eq_abs, abs_of_pos (by positivity)]
+            ring
+          simp only [f, hn, smul_smul]
+          have h2 : r / (1 + ‖w‖ / (r - ‖w‖)) * (1 / (r - ‖w‖)) = 1 := by
+            field_simp
+            ring
+          rw [h2, one_smul]
+    rw [← himg]
+    exact hS.image f hf.continuousOn
+  -- the chart inverse, as a map into `E d`
+  let G : E (d - 1) → E d := fun b =>
+    if h : b ∈ V then (((φ.symm ⟨b, h⟩ : U) : X) : E d) else x₀
+  have hGc : ContinuousOn G V := by
+    rw [continuousOn_iff_continuous_restrict]
+    have hres : V.restrict G = fun b : V => (((φ.symm b : U) : X) : E d) := by
+      funext b
+      simp [G, Set.restrict, b.2]
+    rw [hres]
+    exact continuous_subtype_val.comp (continuous_subtype_val.comp φ.symm.continuous)
+  have hGmem : ∀ b (hb : b ∈ V), G b = (((φ.symm ⟨b, hb⟩ : U) : X) : E d) := by
+    intro b hb
+    simp [G, hb]
+  set W := G '' (ball a r \ {a}) with hWdef
+  have hWpre : IsPreconnected W :=
+    hB'.image G (hGc.mono fun b hb => hrV hb.1)
+  have hWY : W ⊆ X \ {x₀} := by
+    rintro _ ⟨b, ⟨hb, hba⟩, rfl⟩
+    have hbV : b ∈ V := hrV hb
+    rw [hGmem b hbV]
+    refine ⟨(φ.symm ⟨b, hbV⟩ : X).2, fun h => hba ?_⟩
+    have h1 : φ.symm ⟨b, hbV⟩ = ⟨⟨x₀, hx₀⟩, hx₀U⟩ := Subtype.ext (Subtype.ext h)
+    have h2 := congrArg (fun q => ((φ q : V) : E (d - 1))) h1
+    simpa [ha] using h2
+  -- a neighbourhood of `x₀` in `X` covered by the chart ball
+  let N : Set X := Subtype.val '' (φ ⁻¹' (Subtype.val ⁻¹' ball a r))
+  have hN : IsOpen N :=
+    hU.isOpenMap_subtype_val _ (isOpen_ball.preimage (continuous_subtype_val.comp φ.continuous))
+  obtain ⟨O, hO, hON⟩ := isOpen_induced_iff.mp hN
+  have hx₀O : x₀ ∈ O := by
+    have hmem : (⟨x₀, hx₀⟩ : X) ∈ N :=
+      ⟨⟨⟨x₀, hx₀⟩, hx₀U⟩, by simp [ha, mem_ball_self hr], rfl⟩
+    rw [← hON] at hmem
+    exact hmem
+  have hOW : ∀ p ∈ X, p ∈ O → p ≠ x₀ → p ∈ W := by
+    intro p hp hpO hpx
+    have hmem : (⟨p, hp⟩ : X) ∈ N := by rw [← hON]; exact hpO
+    obtain ⟨q, hqb, hq⟩ := hmem
+    refine ⟨(φ q : E (d - 1)), ⟨hqb, fun hqa => hpx ?_⟩, ?_⟩
+    · have h1 : φ q = φ ⟨⟨x₀, hx₀⟩, hx₀U⟩ := Subtype.ext hqa
+      have h2 := φ.injective h1
+      have h3 := congrArg (fun q : U => ((q : X) : E d)) h2
+      simp only at h3
+      rw [hq] at h3
+      exact h3
+    · rw [hGmem _ (φ q).2]
+      simp [hq]
+  -- the gluing argument
+  have key : ∀ u v : Set (E d), IsOpen u → IsOpen v → X \ {x₀} ⊆ u ∪ v →
+      ((X \ {x₀}) ∩ v).Nonempty → (X \ {x₀}) ∩ (u ∩ v) = ∅ → (∀ w ∈ W, w ∉ v) → False := by
+    intro u v hu hv hcov hvne huv hWv
+    obtain ⟨q, hqY, hqv⟩ := hvne
+    obtain ⟨s, hsX, hsuO, hsv, hsx⟩ := hX.isPreconnected (u ∪ O) (v ∩ {x₀}ᶜ)
+      (hu.union hO) (hv.inter isOpen_compl_singleton)
+      (by
+        intro p hp
+        by_cases hpx : p = x₀
+        · exact Or.inl (Or.inr (hpx ▸ hx₀O))
+        · rcases hcov ⟨hp, hpx⟩ with h | h
+          · exact Or.inl (Or.inl h)
+          · exact Or.inr ⟨h, hpx⟩)
+      ⟨x₀, hx₀, Or.inr hx₀O⟩ ⟨q, hqY.1, hqv, hqY.2⟩
+    rcases hsuO with hsu | hsO
+    · have : s ∈ (X \ {x₀}) ∩ (u ∩ v) := ⟨⟨hsX, hsx⟩, hsu, hsv⟩
+      rw [huv] at this
+      exact this
+    · exact hWv s (hOW s hsX hsO hsx) hsv
+  intro u v hu hv hcov hune hvne
+  by_contra hne
+  have huv : (X \ {x₀}) ∩ (u ∩ v) = ∅ := Set.not_nonempty_iff_eq_empty.mp hne
+  by_cases hWv : ∃ w ∈ W, w ∈ v
+  · by_cases hWu : ∃ w ∈ W, w ∈ u
+    · obtain ⟨w, hwW, hwu⟩ := hWu
+      obtain ⟨w', hwW', hwv⟩ := hWv
+      obtain ⟨t, htW, htuv⟩ := hWpre u v hu hv (hWY.trans hcov) ⟨w, hwW, hwu⟩ ⟨w', hwW', hwv⟩
+      have : t ∈ (X \ {x₀}) ∩ (u ∩ v) := ⟨hWY htW, htuv⟩
+      rw [huv] at this
+      exact this
+    · push_neg at hWu
+      exact key v u hv hu (fun p hp => (hcov hp).symm) hune
+        (by rw [Set.inter_comm v u]; exact huv) hWu
+  · push_neg at hWv
+    exact key u v hu hv hcov hvne huv hWv
+
+open private tangentCone_polyhedral_step4_positive_scaling from Enforce.Geometry.Polyhedral in
+/-- Step 6 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b)):
+"choose the path inside a ball around q": a connected open cone stays connected
+after intersection with any ball about its apex, by the radial retraction
+`x ↦ (r / (1 + ‖x‖)) • x` of the cone onto its truncation. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step6_radial_ball
+    {C : Set (E d)} (hC : IsPolyhedralCone C) (hconn : IsPreconnected (interior C))
+    {r : ℝ} (hr : 0 < r) : IsPreconnected (interior C ∩ ball 0 r) := by
+  have hscale : ∀ t : ℝ, 0 < t → ∀ x, x ∈ interior C → t • x ∈ interior C := by
+    intro t ht x hx
+    have hsub : (Homeomorph.smulOfNeZero t ht.ne') '' interior C ⊆ C := by
+      rintro _ ⟨y, hy, rfl⟩
+      exact (tangentCone_polyhedral_step4_positive_scaling hC ht y).mpr (interior_subset hy)
+    exact interior_maximal hsub
+      ((Homeomorph.smulOfNeZero t ht.ne').isOpenMap _ isOpen_interior)
+      (show t • x ∈ (Homeomorph.smulOfNeZero t ht.ne') '' interior C from ⟨x, hx, rfl⟩)
+  let f : E d → E d := fun x => (r / (1 + ‖x‖)) • x
+  have hf : Continuous f := by
+    refine Continuous.smul ?_ continuous_id
+    exact continuous_const.div (continuous_const.add continuous_norm)
+      (fun x => by positivity)
+  have himg : f '' interior C = interior C ∩ ball 0 r := by
+    ext y
+    constructor
+    · rintro ⟨x, hx, rfl⟩
+      refine ⟨hscale _ (by positivity) x hx, ?_⟩
+      rw [mem_ball_zero_iff]
+      have h1 : (0 : ℝ) < 1 + ‖x‖ := by positivity
+      simp only [f, norm_smul, Real.norm_eq_abs, abs_of_pos (div_pos hr h1)]
+      rw [div_mul_eq_mul_div, div_lt_iff₀ h1]
+      nlinarith [norm_nonneg x]
+    · rintro ⟨hy, hyr⟩
+      rw [mem_ball_zero_iff] at hyr
+      have hpos : 0 < r - ‖y‖ := by linarith
+      refine ⟨(1 / (r - ‖y‖)) • y, hscale _ (by positivity) y hy, ?_⟩
+      have hn : ‖(1 / (r - ‖y‖)) • y‖ = ‖y‖ / (r - ‖y‖) := by
+        rw [norm_smul, Real.norm_eq_abs, abs_of_pos (by positivity)]
+        ring
+      simp only [f, hn, smul_smul]
+      have h2 : r / (1 + ‖y‖ / (r - ‖y‖)) * (1 / (r - ‖y‖)) = 1 := by
+        field_simp
+        ring
+      rw [h2, one_smul]
+  rw [← himg]
+  exact hconn.image f hf.continuousOn
+
+/-- Step 7 (lineality) of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 1.0(b), 3.12(b)):
+"near q, P coincides with q + T_qP", and the tangent cone at a non-apex point
+of a cone contains the line through that point. The lineality space of `C`:
+the directions `v` such that `x + t • v ∈ C ↔ x ∈ C` for all `x` and `t`. -/
+private def packet_E_equality_step2_boundary_neighborhood_step7_lin (C : Set (E d)) : Submodule ℝ (E d) where
+  carrier := {v | ∀ (x : E d) (t : ℝ), (x + t • v ∈ C ↔ x ∈ C)}
+  add_mem' := by
+    intro u v hu hv
+    simp only [Set.mem_setOf_eq] at hu hv ⊢
+    intro x t
+    rw [smul_add, ← add_assoc]
+    exact (hv _ t).trans (hu x t)
+  zero_mem' := by
+    simp
+  smul_mem' := by
+    intro c v hv
+    simp only [Set.mem_setOf_eq] at hv ⊢
+    intro x t
+    rw [smul_smul]
+    exact hv x (t * c)
+
+/-- Step 7 (lineality, membership) of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b)):
+unfolding the lineality space of Step 7. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7_mem_lin {C : Set (E d)} {v : E d} :
+    v ∈ packet_E_equality_step2_boundary_neighborhood_step7_lin C ↔ ∀ (x : E d) (t : ℝ), (x + t • v ∈ C ↔ x ∈ C) :=
+  Iff.rfl
+
+/-- Step 7 (lineality and boundary) of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b)):
+"the boundary of P is a (d-1)-manifold" is read on the tangent cone, whose
+frontier is invariant under translations along its lineality space. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7_lin_frontier {C : Set (E d)} {v : E d}
+    (hv : v ∈ packet_E_equality_step2_boundary_neighborhood_step7_lin C) (x : E d) : x + v ∈ frontier C ↔ x ∈ frontier C := by
+  have hpre : (Homeomorph.addRight v) ⁻¹' C = C := by
+    ext y
+    have := (packet_E_equality_step2_boundary_neighborhood_step7_mem_lin.mp hv) y 1
+    rw [one_smul] at this
+    exact this
+  have h := (Homeomorph.addRight v).preimage_frontier C
+  rw [hpre] at h
+  have := Set.ext_iff.mp h x
+  first
+  | simpa [Set.mem_preimage] using this
+  | exact this
+
+open private tangentCone_polyhedral_step3_local_cone from Enforce.Geometry.Polyhedral in
+/-- Step 7a of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 1.0(b)): "near q the polyhedral domain
+P coincides with q + T_qP", applied to a polyhedral cone at any of its points `w`:
+near `w`, the cone coincides with `w` plus a polyhedral cone. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7a_cone_local_cone {C : Set (E d)} (hC : IsPolyhedralCone C)
+    (w : E d) :
+    ∃ Cw : Set (E d), IsPolyhedralCone Cw ∧ ∃ δ : ℝ, 0 < δ ∧
+      ∀ x ∈ ball w δ, (x ∈ C ↔ x - w ∈ Cw) := by
+  classical
+  obtain ⟨s, rfl⟩ := hC
+  obtain ⟨Cw, hCw, hloc⟩ := tangentCone_polyhedral_step3_local_cone
+    (s.image fun p => p.image LinearMap.toAffineMap) w
+  have heq : (⋃ q ∈ s.image (fun p => p.image LinearMap.toAffineMap),
+      {x : E d | ∀ f ∈ q, 0 ≤ f x}) = ⋃ p ∈ s, {v : E d | ∀ ℓ ∈ p, 0 ≤ ℓ v} := by
+    ext x
+    first
+    | simp
+    | simp only [Set.mem_iUnion, Finset.mem_image, exists_prop, Set.mem_setOf_eq]
+      constructor
+      · rintro ⟨q, ⟨p, hp, rfl⟩, hq⟩
+        exact ⟨p, hp, fun ℓ hℓ => by simpa using hq _ (Finset.mem_image_of_mem _ hℓ)⟩
+      · rintro ⟨p, hp, hpx⟩
+        refine ⟨_, ⟨p, hp, rfl⟩, fun f hf => ?_⟩
+        obtain ⟨ℓ, hℓ, rfl⟩ := Finset.mem_image.mp hf
+        simpa using hpx ℓ hℓ
+  rw [heq] at hloc
+  obtain ⟨δ, hδ, hball⟩ := Metric.eventually_nhds_iff.mp hloc
+  exact ⟨Cw, hCw, δ, hδ, fun x hx => hball (mem_ball.mp hx)⟩
+
+open private tangentCone_polyhedral_step4_positive_scaling from Enforce.Geometry.Polyhedral in
+/-- Step 7b of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 1.0(b)): "near q, P coincides with
+q + T_qP": a direction lies in the local cone at `w` iff a short step from `w`
+along it stays in `C`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7b_scaled_mem {C Cw : Set (E d)} (hCw : IsPolyhedralCone Cw)
+    {w : E d} {δ : ℝ} (hloc : ∀ x ∈ ball w δ, (x ∈ C ↔ x - w ∈ Cw)) {x : E d} {s : ℝ}
+    (hs : 0 < s) (hsx : ‖s • x‖ < δ) : x ∈ Cw ↔ w + s • x ∈ C := by
+  rw [hloc (w + s • x) (by rw [mem_ball, dist_eq_norm, add_sub_cancel_left]; exact hsx),
+    add_sub_cancel_left]
+  exact (tangentCone_polyhedral_step4_positive_scaling hCw hs x).symm
+
+/-- Step 7c of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b)): "choose the path inside a
+small ball": a curve continuous at `0` with value `0` stays in any ball about `0`
+for all small positive times. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7c_eventually_small (f : ℝ → E d) (hf : ContinuousAt f 0)
+    (hf0 : f 0 = 0) {δ : ℝ} (hδ : 0 < δ) : ∀ᶠ s in nhdsWithin (0 : ℝ) (Set.Ioi 0), ‖f s‖ < δ := by
+  have h : ∀ᶠ s in nhds (0 : ℝ), f s ∈ ball (0 : E d) δ :=
+    hf.eventually_mem (by rw [hf0]; exact ball_mem_nhds 0 hδ)
+  exact nhdsWithin_le_nhds (h.mono fun s hs => by simpa [mem_ball_zero_iff] using hs)
+
+/-- Step 7d of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 1.0(b)): the local cone `T_w C` of a
+cone `C` contains the lineality space of `C`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7d_lin_mono {C Cw : Set (E d)} (hCw : IsPolyhedralCone Cw)
+    {w : E d} {δ : ℝ} (hδ : 0 < δ) (hloc : ∀ x ∈ ball w δ, (x ∈ C ↔ x - w ∈ Cw)) :
+    packet_E_equality_step2_boundary_neighborhood_step7_lin C ≤ packet_E_equality_step2_boundary_neighborhood_step7_lin Cw := by
+  intro v hv
+  rw [packet_E_equality_step2_boundary_neighborhood_step7_mem_lin] at hv ⊢
+  intro x t
+  have h1 := packet_E_equality_step2_boundary_neighborhood_step7c_eventually_small (fun s : ℝ => s • x) (by fun_prop) (by simp) hδ
+  have h2 := packet_E_equality_step2_boundary_neighborhood_step7c_eventually_small (fun s : ℝ => s • (x + t • v)) (by fun_prop)
+    (by simp) hδ
+  have hI : ∀ᶠ s in nhdsWithin (0 : ℝ) (Set.Ioi 0), s ∈ Set.Ioi (0 : ℝ) :=
+    self_mem_nhdsWithin
+  obtain ⟨s, hs, hs1, hs2⟩ := (Filter.Eventually.and hI (h1.and h2)).exists
+  have hs1' : ‖s • x‖ < δ := hs1
+  have hs2' : ‖s • (x + t • v)‖ < δ := hs2
+  have hs0 : (0 : ℝ) < s := hs
+  rw [packet_E_equality_step2_boundary_neighborhood_step7b_scaled_mem hCw hloc hs0 hs2',
+    packet_E_equality_step2_boundary_neighborhood_step7b_scaled_mem hCw hloc hs0 hs1',
+    smul_add, smul_smul, ← add_assoc]
+  exact hv (w + s • x) (s * t)
+
+open private tangentCone_polyhedral_step4_positive_scaling from Enforce.Geometry.Polyhedral in
+/-- Step 7e of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 1.0(b)): at a point `w` of a cone `C`,
+the local cone `T_w C` is invariant under translation along `ℝ w`
+(`w + s (x + t w) = (1 + s t) (w + (s / (1 + s t)) x)` and `C` is a cone). -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7e_mem_lin_self {C Cw : Set (E d)} (hC : IsPolyhedralCone C)
+    (hCw : IsPolyhedralCone Cw) {w : E d} {δ : ℝ} (hδ : 0 < δ)
+    (hloc : ∀ x ∈ ball w δ, (x ∈ C ↔ x - w ∈ Cw)) : w ∈ packet_E_equality_step2_boundary_neighborhood_step7_lin Cw := by
+  rw [packet_E_equality_step2_boundary_neighborhood_step7_mem_lin]
+  intro x t
+  have hc : ContinuousAt (fun s : ℝ => 1 + s * t) 0 := by fun_prop
+  have hpos : ∀ᶠ s in nhds (0 : ℝ), 0 < 1 + s * t :=
+    Filter.Tendsto.eventually hc (lt_mem_nhds (by simp : (0 : ℝ) < 1 + 0 * t))
+  have hc2 : ContinuousAt (fun s : ℝ => (s / (1 + s * t)) • x) 0 := by
+    first
+    | fun_prop (disch := simp)
+    | exact ((continuousAt_id.div (by fun_prop) (by simp)).smul continuousAt_const)
+  have h1 := packet_E_equality_step2_boundary_neighborhood_step7c_eventually_small (fun s : ℝ => (s / (1 + s * t)) • x) hc2
+    (by simp) hδ
+  have h2 := packet_E_equality_step2_boundary_neighborhood_step7c_eventually_small (fun s : ℝ => s • (x + t • w)) (by fun_prop)
+    (by simp) hδ
+  have hI : ∀ᶠ s in nhdsWithin (0 : ℝ) (Set.Ioi 0), s ∈ Set.Ioi (0 : ℝ) :=
+    self_mem_nhdsWithin
+  have hpos2 : ∀ᶠ s in nhdsWithin (0 : ℝ) (Set.Ioi 0), 0 < 1 + s * t :=
+    nhdsWithin_le_nhds hpos
+  obtain ⟨s, hs, hpos', hs1, hs2⟩ :=
+    (Filter.Eventually.and hI (hpos2.and (h1.and h2))).exists
+  have hs1' : ‖(s / (1 + s * t)) • x‖ < δ := hs1
+  have hs2' : ‖s • (x + t • w)‖ < δ := hs2
+  have hs0 : (0 : ℝ) < s := hs
+  have hs' : 0 < s / (1 + s * t) := div_pos hs0 hpos'
+  rw [packet_E_equality_step2_boundary_neighborhood_step7b_scaled_mem hCw hloc hs0 hs2',
+    packet_E_equality_step2_boundary_neighborhood_step7b_scaled_mem hCw hloc hs' hs1']
+  have hne : 1 + s * t ≠ 0 := hpos'.ne'
+  have hmul : (1 + s * t) * (s / (1 + s * t)) = s := by
+    first
+    | field_simp
+    | rw [mul_div_assoc', mul_div_cancel_left₀ s hne]
+  have hid : w + s • (x + t • w) = (1 + s * t) • (w + (s / (1 + s * t)) • x) := by
+    rw [smul_add (1 + s * t), smul_smul, hmul]
+    first
+    | module
+    | (simp only [smul_add, add_smul, one_smul, smul_smul]; abel)
+  rw [hid]
+  exact tangentCone_polyhedral_step4_positive_scaling hC hpos' _
+
+/-- Step 7f of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b)): "near q, P coincides with
+q + T_qP", so the interior of `P` near `q` is the translate of the interior of
+the cone near `0`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7f_transfer {A Cw : Set (E d)} {w : E d} {δ : ℝ}
+    (hloc : ∀ x ∈ ball w δ, (x ∈ A ↔ x - w ∈ Cw)) {r : ℝ} (hr : r ≤ δ) :
+    interior A ∩ ball w r =
+      (Homeomorph.addRight (-w)) ⁻¹' (interior Cw ∩ ball 0 r) := by
+  set h : E d ≃ₜ E d := Homeomorph.addRight (-w) with hhdef
+  have hh : ∀ x, h x = x - w := fun x => (sub_eq_add_neg x w).symm
+  have hb : ∀ ρ, h ⁻¹' ball 0 ρ = ball w ρ := by
+    intro ρ
+    ext x
+    simp only [Set.mem_preimage, hh, mem_ball, dist_eq_norm, sub_zero]
+  have h1 : A ∩ ball w δ = h ⁻¹' (Cw ∩ ball 0 δ) := by
+    rw [Set.preimage_inter, hb]
+    ext x
+    simp only [Set.mem_inter_iff, Set.mem_preimage, hh]
+    constructor
+    · rintro ⟨hx, hxb⟩
+      exact ⟨(hloc x hxb).mp hx, hxb⟩
+    · rintro ⟨hx, hxb⟩
+      exact ⟨(hloc x hxb).mpr hx, hxb⟩
+  have h2 : interior A ∩ ball w δ = h ⁻¹' (interior Cw ∩ ball 0 δ) := by
+    calc interior A ∩ ball w δ = interior (A ∩ ball w δ) := by
+          rw [interior_inter, isOpen_ball.interior_eq]
+      _ = interior (h ⁻¹' (Cw ∩ ball 0 δ)) := by rw [h1]
+      _ = h ⁻¹' interior (Cw ∩ ball 0 δ) := (h.preimage_interior _).symm
+      _ = h ⁻¹' (interior Cw ∩ ball 0 δ) := by
+          rw [interior_inter, isOpen_ball.interior_eq]
+  calc interior A ∩ ball w r = (interior A ∩ ball w δ) ∩ ball w r := by
+        rw [Set.inter_assoc, Set.inter_eq_right.mpr (ball_subset_ball hr)]
+    _ = h ⁻¹' (interior Cw ∩ ball 0 δ) ∩ h ⁻¹' ball 0 r := by rw [h2, hb]
+    _ = h ⁻¹' (interior Cw ∩ ball 0 r) := by
+        rw [← Set.preimage_inter, Set.inter_assoc,
+          Set.inter_eq_right.mpr (ball_subset_ball hr)]
+
+/-- Step 7g of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b), the inductive step): "the
+interior link of P at q is connected", at a frontier point `w` of the cone `C`
+outside its lineality space. Near `w` the cone is `w + T_w C` (Step 7a); `T_w C`
+satisfies the hypotheses of Step 5 and has strictly larger lineality space (it
+contains that of `C` and the line `ℝ w`, Steps 7d, 7e), so by the induction
+hypothesis its interior is connected, and so is its intersection with a ball
+about the apex (Step 6), which is the translate of `int C ∩ ball w δ` (Step 7f). -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step7g_local_at {C : Set (E d)} (hC : IsPolyhedralCone C)
+    (hCreg : IsRegularClosed C) (hman : IsLocallyEuclidean (d - 1) (frontier C))
+    {w : E d} (hw : w ∈ frontier C) (hwL : w ∉ packet_E_equality_step2_boundary_neighborhood_step7_lin C)
+    (IH : ∀ K Cw : Set (E d), IsPolyhedralCone Cw → IsRegularClosed K →
+      IsLocallyEuclidean (d - 1) (frontier K) → (0 : E d) ∈ frontier K → ∀ δ : ℝ, 0 < δ →
+      K ∩ ball 0 δ = Cw ∩ ball 0 δ →
+      Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C) < Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin Cw) →
+      IsPreconnected (interior Cw)) :
+    ∃ ρ : ℝ, 0 < ρ ∧ IsPreconnected (interior C ∩ ball w ρ) := by
+  obtain ⟨Cw, hCw, δ, hδ, hloc⟩ := packet_E_equality_step2_boundary_neighborhood_step7a_cone_local_cone hC w
+  set h : E d ≃ₜ E d := Homeomorph.addRight w with hhdef
+  have hh : ∀ x, h x = x + w := fun x => rfl
+  have hCreg' : closure (interior C) = C := hCreg
+  have hKreg : IsRegularClosed (h ⁻¹' C) := by
+    unfold IsRegularClosed
+    rw [← h.preimage_interior, ← h.preimage_closure, hCreg']
+  have hKman : IsLocallyEuclidean (d - 1) (frontier (h ⁻¹' C)) := by
+    rw [← h.preimage_frontier, ← h.image_symm]
+    exact packet_E_equality_step2_boundary_neighborhood_step2_manifold_image h.symm hman
+  have hK0 : (0 : E d) ∈ frontier (h ⁻¹' C) := by
+    rw [← h.preimage_frontier, Set.mem_preimage, hh, zero_add]
+    exact hw
+  have hlocK : h ⁻¹' C ∩ ball 0 δ = Cw ∩ ball 0 δ := by
+    ext y
+    simp only [Set.mem_inter_iff, Set.mem_preimage, hh]
+    have hyb : y ∈ ball (0 : E d) δ → y + w ∈ ball w δ := fun hy => by
+      rw [mem_ball, dist_eq_norm, add_sub_cancel_right]
+      simpa using hy
+    constructor
+    · rintro ⟨hy, hyδ⟩
+      refine ⟨?_, hyδ⟩
+      have := (hloc (y + w) (hyb hyδ)).mp hy
+      simpa using this
+    · rintro ⟨hy, hyδ⟩
+      exact ⟨(hloc (y + w) (hyb hyδ)).mpr (by simpa using hy), hyδ⟩
+  have hle := packet_E_equality_step2_boundary_neighborhood_step7d_lin_mono hCw hδ hloc
+  have hwmem := packet_E_equality_step2_boundary_neighborhood_step7e_mem_lin_self hC hCw hδ hloc
+  have hlt : packet_E_equality_step2_boundary_neighborhood_step7_lin C < packet_E_equality_step2_boundary_neighborhood_step7_lin Cw :=
+    lt_of_le_of_ne hle (fun heq => hwL (by rw [heq]; exact hwmem))
+  have hconn := IH _ Cw hCw hKreg hKman hK0 δ hδ hlocK
+    (Submodule.finrank_lt_finrank_of_lt hlt)
+  have hball := packet_E_equality_step2_boundary_neighborhood_step6_radial_ball hCw hconn hδ
+  refine ⟨δ, hδ, ?_⟩
+  rw [packet_E_equality_step2_boundary_neighborhood_step7f_transfer hloc le_rfl, ← Homeomorph.image_symm]
+  exact hball.image _ (Homeomorph.continuous _).continuousOn
+
+/-- Step 5a of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b), base of the induction): "the
+interior link of P at q is connected (P is a polyhedral manifold domain)", for a
+cone whose lineality space `L` has codimension `≤ 2`. Then `C = L ⊕ C'` with `C'`
+a polyhedral cone in a plane (or a line), i.e. `C'` is a finite union of closed
+angular sectors. Since `frontier C = L × ∂C'` is a `(d-1)`-manifold through `0`,
+`∂C'` cannot consist of `≥ 3` rays from `0` (an `L`-book with `≥ 3` pages is not a
+manifold along its spine), so `int C'` is one open sector (or a half-plane, or a
+half-line, or empty) and `int C = L × int C'` is connected. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim {C : Set (E d)} (hC : IsPolyhedralCone C)
+    (hreg : frontier C ⊆ closure (interior C))
+    (hman : IsLocallyEuclidean (d - 1) (frontier C)) (h0 : (0 : E d) ∈ frontier C)
+    (hcodim : d - Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C) ≤ 2) :
+    IsPreconnected (interior C) := by
+  sorry
+
+/-- Step 5b of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1), used in 3.12(b)): "the
+boundary of P is a (d-1)-manifold", read on a tangent cone `C` with nonzero
+lineality space `L` of codimension `m ≥ 3`. Then `frontier C = L × ∂C'` with `∂C'`
+a cone in the `m`-dimensional complement; the manifold condition along `L`
+forces the link of `∂C'` to be connected (a manifold of dimension `d - 1` is not
+separated near a point of `L` by removing the codimension-`≥ 2` subspace `L`), so
+`∂C' \ {0}` and hence `frontier C \ L = L × (∂C' \ {0})` are connected. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality {C : Set (E d)} (hC : IsPolyhedralCone C)
+    (hreg : frontier C ⊆ closure (interior C))
+    (hman : IsLocallyEuclidean (d - 1) (frontier C)) (h0 : (0 : E d) ∈ frontier C)
+    (hcodim : 3 ≤ d - Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C)) (hL : packet_E_equality_step2_boundary_neighborhood_step7_lin C ≠ ⊥) :
+    IsPreconnected (frontier C \ (packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d))) := by
+  sorry
+
+/-- Step 5c of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1), used in 3.12(b)): "the
+boundary of P is a (d-1)-manifold"; removing the lineality space of the tangent
+cone does not disconnect its (star-shaped, hence connected) frontier. For the
+trivial lineality space this is Step 4c (a connected manifold of dimension
+`≥ 2` minus a point); otherwise it is Step 5b. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5c_frontier_off_lineality_all {C : Set (E d)}
+    (hC : IsPolyhedralCone C) (hreg : frontier C ⊆ closure (interior C))
+    (hman : IsLocallyEuclidean (d - 1) (frontier C)) (h0 : (0 : E d) ∈ frontier C)
+    (hcodim : 3 ≤ d - Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C)) (hX : IsConnected (frontier C)) :
+    IsPreconnected (frontier C \ (packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d))) := by
+  by_cases hL : packet_E_equality_step2_boundary_neighborhood_step7_lin C = ⊥
+  · have hr0 : Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C) = 0 := by
+      exact Submodule.finrank_eq_zero.mpr hL
+    have hd : 3 ≤ d := by omega
+    rw [hL, Submodule.bot_coe]
+    exact packet_E_equality_step2_boundary_neighborhood_step4c_puncture hd hX hman 0
+  · exact packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality hC hreg hman h0 hcodim hL
+
+open private tangentCone_polyhedral_step4_positive_scaling from Enforce.Geometry.Polyhedral in
+/-- Step 5 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b)): "the interior link of P at q is
+connected (P is a polyhedral manifold domain)", in its conical form: if a regular
+closed set `K` whose frontier is a topological `(d-1)`-manifold has `0` on its
+frontier and agrees near `0` with a polyhedral cone `C`, then the interior of `C`
+is connected. Induction on the codimension `m` of the lineality space `L` of `C`.
+For `m ≤ 2` this is Step 5a. For `m ≥ 3`: every component of `int C` reaches a
+frontier point outside `L` (Step 4a; `E d \ L` is connected); the frontier minus
+`L` is connected (Step 5c); near every frontier point outside `L` the interior is
+locally connected (Step 7g, by the induction hypothesis), so the set of those
+frontier points reached by a fixed component is open and closed in
+`frontier C \ L`, hence all of it, and all components coincide. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5_cone_interior_connected
+    (K C : Set (E d)) (hC : IsPolyhedralCone C) (hK : IsRegularClosed K)
+    (hman : IsLocallyEuclidean (d - 1) (frontier K)) (h0 : (0 : E d) ∈ frontier K)
+    (δ : ℝ) (hδ : 0 < δ) (hloc : K ∩ ball 0 δ = C ∩ ball 0 δ) :
+    IsPreconnected (interior C) := by
+  suffices H : ∀ m : ℕ, ∀ K C : Set (E d), IsPolyhedralCone C → IsRegularClosed K →
+      IsLocallyEuclidean (d - 1) (frontier K) → (0 : E d) ∈ frontier K → ∀ δ : ℝ, 0 < δ →
+      K ∩ ball 0 δ = C ∩ ball 0 δ → d - Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C) = m →
+      IsPreconnected (interior C) from
+    H _ K C hC hK hman h0 δ hδ hloc rfl
+  intro m
+  refine Nat.strong_induction_on m ?_
+  intro m IH K C hC hK hman h0 δ hδ hloc hm
+  have hK' : closure (interior K) = K := hK
+  have hCcl : IsClosed C := by
+    obtain ⟨S, hS⟩ := hC
+    rw [hS]
+    refine isClosed_biUnion_finset fun q _ => ?_
+    have hq : {v : E d | ∀ ℓ ∈ q, 0 ≤ ℓ v} = ⋂ ℓ ∈ q, {v | 0 ≤ ℓ v} := by
+      ext v; simp
+    rw [hq]
+    exact isClosed_biInter fun ℓ _ =>
+      isClosed_le continuous_const (LinearMap.continuous_of_finiteDimensional ℓ)
+  have hscale : ∀ t : ℝ, 0 < t → ∀ x, x ∈ interior C → t • x ∈ interior C := by
+    intro t ht x hx
+    have hsub : (Homeomorph.smulOfNeZero t ht.ne') '' interior C ⊆ C := by
+      rintro _ ⟨y, hy, rfl⟩
+      exact (tangentCone_polyhedral_step4_positive_scaling hC ht y).mpr (interior_subset hy)
+    exact interior_maximal hsub
+      ((Homeomorph.smulOfNeZero t ht.ne').isOpenMap _ isOpen_interior)
+      (show t • x ∈ (Homeomorph.smulOfNeZero t ht.ne') '' interior C from ⟨x, hx, rfl⟩)
+  have hfront : ∀ t : ℝ, 0 < t → ∀ x ∈ frontier C, t • x ∈ frontier C := by
+    intro t ht x hx
+    rw [hCcl.frontier_eq] at hx ⊢
+    refine ⟨(tangentCone_polyhedral_step4_positive_scaling hC ht x).mpr hx.1, fun hti => hx.2 ?_⟩
+    have := hscale t⁻¹ (inv_pos.mpr ht) _ hti
+    rwa [smul_smul, inv_mul_cancel₀ ht.ne', one_smul] at this
+  have hKcl : IsClosed K := by
+    have h := isClosed_closure (s := interior K)
+    rwa [hK'] at h
+  have hK0 : (0 : E d) ∈ K := hKcl.frontier_subset h0
+  have hball0 : (0 : E d) ∈ ball (0 : E d) δ := mem_ball_self hδ
+  have hC0 : (0 : E d) ∈ C := ((Set.ext_iff.mp hloc 0).mp ⟨hK0, hball0⟩).1
+  have hintC0 : (0 : E d) ∉ interior C := by
+    intro h
+    apply h0.2
+    have hsub : interior C ∩ ball 0 δ ⊆ K := fun y hy =>
+      ((Set.ext_iff.mp hloc y).mpr ⟨interior_subset hy.1, hy.2⟩).1
+    exact interior_maximal hsub (isOpen_interior.inter isOpen_ball) ⟨h, hball0⟩
+  have hC0f : (0 : E d) ∈ frontier C := by
+    rw [hCcl.frontier_eq]
+    exact ⟨hC0, hintC0⟩
+  obtain ⟨z, hz⟩ : ∃ z, z ∉ C := by
+    by_contra hcon
+    push_neg at hcon
+    apply hintC0
+    rw [Set.eq_univ_of_forall hcon, interior_univ]
+    trivial
+  have hstar : StarConvex ℝ (0 : E d) (frontier C) := by
+    intro y hy a b _ hb _
+    rw [smul_zero, zero_add]
+    rcases hb.eq_or_lt with hb0 | hbpos
+    · rw [← hb0, zero_smul]
+      exact hC0f
+    · exact hfront b hbpos y hy
+  have hXconn : IsConnected (frontier C) := (hstar.isPathConnected hC0f).isConnected
+  have hXman :=
+    packet_E_equality_step2_boundary_neighborhood_step3_cone_frontier_manifold
+      K C hC hman δ hδ hloc
+  have hintK : interior K ∩ ball 0 δ = interior C ∩ ball 0 δ := by
+    rw [← isOpen_ball.interior_eq, ← interior_inter, ← interior_inter, hloc]
+  -- the frontier of `C` lies in the closure of its interior (scale into `ball 0 δ`)
+  have hreg : frontier C ⊆ closure (interior C) := by
+    intro w hw
+    have hwC : w ∈ C := hCcl.frontier_subset hw
+    obtain ⟨t, ht, htw⟩ : ∃ t : ℝ, 0 < t ∧ ‖t • w‖ < δ := by
+      refine ⟨δ / (2 * (‖w‖ + 1)), by positivity, ?_⟩
+      rw [norm_smul, Real.norm_eq_abs, abs_of_pos (by positivity), div_mul_eq_mul_div,
+        div_lt_iff₀ (by positivity)]
+      nlinarith [norm_nonneg w, mul_nonneg hδ.le (norm_nonneg w)]
+    have htwb : t • w ∈ ball (0 : E d) δ := by rwa [mem_ball_zero_iff]
+    have htwK : t • w ∈ K := ((Set.ext_iff.mp hloc _).mpr
+      ⟨(tangentCone_polyhedral_step4_positive_scaling hC ht w).mpr hwC, htwb⟩).1
+    have htwcl : t • w ∈ closure (interior C) := by
+      rw [← hK'] at htwK
+      rw [_root_.mem_closure_iff] at htwK ⊢
+      intro o ho hwo
+      obtain ⟨v, hvo, hvK⟩ := htwK (o ∩ ball 0 δ) (ho.inter isOpen_ball) ⟨hwo, htwb⟩
+      exact ⟨v, hvo.1, ((Set.ext_iff.mp hintK v).mp ⟨hvK, hvo.2⟩).1⟩
+    have := map_mem_closure (continuous_const_smul t⁻¹) htwcl
+      (fun v hv => hscale t⁻¹ (inv_pos.mpr ht) v hv)
+    rwa [smul_smul, inv_mul_cancel₀ ht.ne', one_smul] at this
+
+  have hCreg : IsRegularClosed C := by
+    unfold IsRegularClosed
+    refine Set.Subset.antisymm (hCcl.closure_subset_iff.mpr interior_subset) fun y hy => ?_
+    by_cases hyi : y ∈ interior C
+    · exact subset_closure hyi
+    · exact hreg (by rw [hCcl.frontier_eq]; exact ⟨hy, hyi⟩)
+  by_cases hm3 : m ≤ 2
+  · exact packet_E_equality_step2_boundary_neighborhood_step5a_low_codim hC hreg hXman hC0f (by omega)
+  -- `m ≥ 3`: glue along the frontier minus the lineality space
+  have hLfr : ∀ v ∈ packet_E_equality_step2_boundary_neighborhood_step7_lin C, v ∈ frontier C := fun v hv => by
+    simpa using (packet_E_equality_step2_boundary_neighborhood_step7_lin_frontier hv 0).mpr hC0f
+  have hZC : (packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d)) ⊆ C := fun v hv => hCcl.frontier_subset (hLfr v hv)
+  have hZi : ∀ v ∈ (packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d)), v ∉ interior C := fun v hv => (hLfr v hv).2
+  have hquot : Module.finrank ℝ (E d ⧸ packet_E_equality_step2_boundary_neighborhood_step7_lin C) + Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C) = d := by
+    rw [Submodule.finrank_quotient_add_finrank, finrank_euclideanSpace_fin]
+  have hZc : IsPreconnected ((packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d))ᶜ) :=
+    (isConnected_compl_of_one_lt_codim (by
+      rw [← Module.finrank_eq_rank]
+      exact_mod_cast (by omega : 1 < Module.finrank ℝ (E d ⧸ packet_E_equality_step2_boundary_neighborhood_step7_lin C)))).isPreconnected
+  have IH' : ∀ K' Cw : Set (E d), IsPolyhedralCone Cw → IsRegularClosed K' →
+      IsLocallyEuclidean (d - 1) (frontier K') → (0 : E d) ∈ frontier K' → ∀ δ' : ℝ, 0 < δ' →
+      K' ∩ ball 0 δ' = Cw ∩ ball 0 δ' →
+      Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C) < Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin Cw) →
+      IsPreconnected (interior Cw) := by
+    intro K' Cw hCw hK'' hman' h0' δ' hδ' hloc' hlt
+    have hle : Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin Cw) ≤ d := by
+      have := Submodule.finrank_le (packet_E_equality_step2_boundary_neighborhood_step7_lin Cw)
+      rwa [finrank_euclideanSpace_fin] at this
+    exact IH (d - Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin Cw)) (by omega) K' Cw hCw hK'' hman' h0'
+      δ' hδ' hloc' rfl
+  rcases (interior C).eq_empty_or_nonempty with hE | ⟨x, hx⟩
+  · rw [hE]; exact isPreconnected_empty
+  set U := connectedComponentIn (interior C) x with hU
+  have hUi : U ⊆ interior C := connectedComponentIn_subset _ _
+  have hXp := packet_E_equality_step2_boundary_neighborhood_step5c_frontier_off_lineality_all hC hreg hXman hC0f (by omega) hXconn
+  -- a component reaching a frontier point `w` contains the local interior at `w`
+  have hreach : ∀ {w : E d} {ρ : ℝ} (x' : E d), IsPreconnected (interior C ∩ ball w ρ) →
+      w ∈ closure (connectedComponentIn (interior C) x') → 0 < ρ →
+      interior C ∩ ball w ρ ⊆ connectedComponentIn (interior C) x' ∧
+        (interior C ∩ ball w ρ).Nonempty := by
+    intro w ρ x' hpre hw hρ
+    obtain ⟨v, hvU, hv⟩ := Metric.mem_closure_iff.mp hw ρ hρ
+    have hvb : v ∈ interior C ∩ ball w ρ :=
+      ⟨connectedComponentIn_subset _ _ hvU, by rw [mem_ball, dist_comm]; exact hv⟩
+    exact ⟨packet_E_equality_step2_boundary_neighborhood_step4_sub_component hpre
+      Set.inter_subset_left hvb hvU, ⟨v, hvb⟩⟩
+  let good : Set (E d) := {v | ∃ w ρ, 0 < ρ ∧ IsPreconnected (interior C ∩ ball w ρ) ∧
+    interior C ∩ ball w ρ ⊆ U ∧ v ∈ ball w ρ}
+  let bad : Set (E d) := {v | ∃ w ρ, 0 < ρ ∧ IsPreconnected (interior C ∩ ball w ρ) ∧
+    ¬ (interior C ∩ ball w ρ ⊆ U) ∧ v ∈ ball w ρ}
+  have hgood : IsOpen good := by
+    rw [isOpen_iff_mem_nhds]
+    rintro v ⟨w, ρ, hρ, hpre, hsub, hv⟩
+    exact Filter.mem_of_superset (isOpen_ball.mem_nhds hv)
+      fun u hu => ⟨w, ρ, hρ, hpre, hsub, hu⟩
+  have hbad : IsOpen bad := by
+    rw [isOpen_iff_mem_nhds]
+    rintro v ⟨w, ρ, hρ, hpre, hsub, hv⟩
+    exact Filter.mem_of_superset (isOpen_ball.mem_nhds hv)
+      fun u hu => ⟨w, ρ, hρ, hpre, hsub, hu⟩
+  have hcover : frontier C \ (packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d)) ⊆ good ∪ bad := by
+    rintro w ⟨hw, hw0⟩
+    obtain ⟨ρ, hρ, hpre⟩ :=
+      packet_E_equality_step2_boundary_neighborhood_step7g_local_at hC hCreg hXman hw hw0 IH'
+    by_cases hs : interior C ∩ ball w ρ ⊆ U
+    · exact Or.inl ⟨w, ρ, hρ, hpre, hs, mem_ball_self hρ⟩
+    · exact Or.inr ⟨w, ρ, hρ, hpre, hs, mem_ball_self hρ⟩
+  have hnotboth : ∀ v ∈ frontier C, v ∉ good ∩ bad := by
+    rintro v hv ⟨⟨w₁, ρ₁, hρ₁, hpre₁, hs₁, hv₁⟩, ⟨w₂, ρ₂, hρ₂, hpre₂, hs₂, hv₂⟩⟩
+    obtain ⟨u, hu, huC⟩ := _root_.mem_closure_iff.mp (hreg hv) _
+      (isOpen_ball.inter isOpen_ball) ⟨hv₁, hv₂⟩
+    exact hs₂ (packet_E_equality_step2_boundary_neighborhood_step4_sub_component hpre₂
+      Set.inter_subset_left ⟨huC, hu.2⟩ (hs₁ ⟨huC, hu.1⟩))
+  obtain ⟨y, hyf, hy0, hyU⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step4a_component_exit hCcl hZC hZi hZc hz hx
+  have hy_good : y ∈ good := by
+    obtain ⟨ρ, hρ, hpre⟩ :=
+      packet_E_equality_step2_boundary_neighborhood_step7g_local_at hC hCreg hXman hyf hy0 IH'
+    exact ⟨y, ρ, hρ, hpre, (hreach x hpre hyU hρ).1, mem_ball_self hρ⟩
+  have hnobad : ∀ w ∈ frontier C \ (packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d)), w ∉ bad := by
+    intro w hw hwb
+    obtain ⟨v, hv, hvgb⟩ := hXp good bad hgood hbad hcover ⟨y, ⟨hyf, hy0⟩, hy_good⟩
+      ⟨w, hw, hwb⟩
+    exact hnotboth v hv.1 hvgb
+  have hall : interior C ⊆ U := by
+    intro x' hx'
+    obtain ⟨y', hyf', hy0', hyU'⟩ :=
+      packet_E_equality_step2_boundary_neighborhood_step4a_component_exit hCcl hZC hZi hZc hz hx'
+    obtain ⟨ρ, hρ, hpre⟩ :=
+      packet_E_equality_step2_boundary_neighborhood_step7g_local_at hC hCreg hXman hyf' hy0' IH'
+    obtain ⟨hsub', v, hv⟩ := hreach x' hpre hyU' hρ
+    have hsubU : interior C ∩ ball y' ρ ⊆ U := by
+      by_contra hns
+      exact hnobad y' ⟨hyf', hy0'⟩ ⟨y', ρ, hρ, hpre, hns, mem_ball_self hρ⟩
+    have h1 : connectedComponentIn (interior C) x' = connectedComponentIn (interior C) v :=
+      connectedComponentIn_eq (hsub' hv)
+    have h2 : U = connectedComponentIn (interior C) v := connectedComponentIn_eq (hsubU hv)
+    have hx'U : x' ∈ connectedComponentIn (interior C) x' := mem_connectedComponentIn hx'
+    rw [h1, ← h2] at hx'U
+    exact hx'U
+  have heq : interior C = U := Set.Subset.antisymm hall hUi
+  rw [heq]
+  exact isPreconnected_connectedComponentIn
+
 /-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
 "the interior link of P at q is connected (P is a polyhedral manifold
  domain)". A sufficiently small ball about a boundary point has connected
@@ -4993,7 +5915,66 @@ private theorem packet_E_equality_step2_boundary_neighborhood
     (Q : PolyManifoldDomain d) (p : E d) (hp : p ∈ frontier Q.carrier) :
     ∃ ε : ℝ, 0 < ε ∧ ∀ r : ℝ, 0 < r → r < ε →
       IsPreconnected (interior Q.carrier ∩ ball p r) := by
-  sorry
+  obtain ⟨C, hC, δ, hδ, hloc⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step1_local_cone Q p
+  let h : E d ≃ₜ E d := Homeomorph.addRight (-p)
+  have hh : ∀ x, h x = x - p := fun x => (sub_eq_add_neg x p).symm
+  let K := h '' Q.carrier
+  have hmemK : ∀ y, y ∈ K ↔ y + p ∈ Q.carrier := by
+    intro y
+    constructor
+    · rintro ⟨x, hx, rfl⟩
+      simpa [hh] using hx
+    · intro hy
+      exact ⟨y + p, hy, by simp [hh]⟩
+  have hlocK : K ∩ ball 0 δ = C ∩ ball 0 δ := by
+    ext y
+    simp only [mem_inter_iff, mem_ball_zero_iff, hmemK]
+    constructor
+    · rintro ⟨hy, hyδ⟩
+      refine ⟨?_, hyδ⟩
+      have := (hloc (y + p) (by simpa [mem_ball, dist_eq_norm] using hyδ)).mp hy
+      simpa using this
+    · rintro ⟨hy, hyδ⟩
+      refine ⟨(hloc (y + p) (by simpa [mem_ball, dist_eq_norm] using hyδ)).mpr
+        (by simpa using hy), hyδ⟩
+  have hKreg : IsRegularClosed K := by
+    unfold IsRegularClosed
+    rw [← h.image_interior, ← h.image_closure, Q.regularClosed]
+  have hKman : IsLocallyEuclidean (d - 1) (frontier K) := by
+    rw [← h.image_frontier]
+    exact packet_E_equality_step2_boundary_neighborhood_step2_manifold_image h
+      Q.frontier_manifold
+  have hK0 : (0 : E d) ∈ frontier K := by
+    rw [← h.image_frontier]
+    exact ⟨p, hp, by simp [hh]⟩
+  have hconn := packet_E_equality_step2_boundary_neighborhood_step5_cone_interior_connected
+    K C hC hKreg hKman hK0 δ hδ hlocK
+  have hintK : interior K ∩ ball 0 δ = interior C ∩ ball 0 δ := by
+    rw [← isOpen_ball.interior_eq, ← interior_inter, ← interior_inter, hlocK]
+  refine ⟨δ, hδ, fun r hr hrδ => ?_⟩
+  have heq : interior Q.carrier ∩ ball p r = h ⁻¹' (interior C ∩ ball 0 r) := by
+    ext x
+    have hxδ : ‖x - p‖ < r → x - p ∈ ball (0 : E d) δ := fun hx => by
+      rw [mem_ball_zero_iff]; linarith
+    simp only [mem_inter_iff, mem_preimage, mem_ball, dist_eq_norm, hh, sub_zero]
+    constructor
+    · rintro ⟨hx, hxr⟩
+      refine ⟨?_, hxr⟩
+      have hxK : x - p ∈ interior K := by
+        rw [← h.image_interior]; exact ⟨x, hx, hh x⟩
+      exact ((Set.ext_iff.mp hintK (x - p)).mp ⟨hxK, hxδ hxr⟩).1
+    · rintro ⟨hx, hxr⟩
+      refine ⟨?_, hxr⟩
+      have hxK := ((Set.ext_iff.mp hintK (x - p)).mpr ⟨hx, hxδ hxr⟩).1
+      rw [← h.image_interior] at hxK
+      obtain ⟨z, hz, hzx⟩ := hxK
+      rw [hh] at hzx
+      have : z = x := by simpa using hzx
+      exact this ▸ hz
+  rw [heq, ← h.image_symm]
+  exact (packet_E_equality_step2_boundary_neighborhood_step6_radial_ball hC hconn hr).image
+    h.symm h.symm.continuous.continuousOn
 
 /-- Step 2 of the V4 proof of `packet_E_equality` (V4 3.12(b)):
 "the interior link of P at q is connected (P is a polyhedral manifold

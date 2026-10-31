@@ -55,7 +55,15 @@ instance eventIndexFintype (S : SubstSystem d) (P : Params S) :
 /-- M3, V4 2.11: every allowed template has the prescribed central label. -/
 theorem allowedTemplate_central (l : LeafType P) (j : EventSlot l) (θ : Template P)
     (hθ : θ ∈ allowedTemplates j) : θ.central = l := by
-  sorry
+  cases j with
+  | cont s =>
+    rcases hθ with ⟨T, hT_eq, _⟩
+    rw [← hT_eq]
+    exact T.central_eq
+  | end_ s =>
+    rcases hθ with ⟨T, hT_eq, _⟩
+    rw [← hT_eq]
+    exact T.central_eq
 
 /-- M3, V4 2.11: the distinguished positioned labelled tile. -/
 def centralPair (l : LeafType P) : FramedNode S × LeafType P :=

@@ -12157,6 +12157,29 @@ theorem required_list_nonempty (A : S.ι) : (required_list A).Nonempty := by
 facets to the parent's list, retaining the initial role of that child. -/
 theorem required_child_firstBranching (A : S.ι) (i : S.I A) :
     ∃ f ∈ required_list A, f.birthAddress = childFirstBranchingAddress A i := by
-  sorry
+  obtain ⟨f, hf⟩ := firstBranchingFacets_nonempty (S.child A i).ty
+  let f' : PrimitiveFacet S A := {
+    depth := f.depth + 1
+    word := ⟨i, f.word⟩
+    localCarrier := f.localCarrier
+    realization := by
+      obtain ⟨j, fac, h1, h2⟩ := f.realization
+      use j, fac
+      exact ⟨h1, h2⟩
+  }
+  use f'
+  rw [mem_required_list]
+  have hf_addr : f.birthAddress = firstBranching (S.child A i).ty := hf
+  have hf_eq : (⟨f'.depth, f'.word⟩ : Σ n, S.RoleWord A n) = childFirstBranchingAddress A i := by
+    dsimp [f', PrimitiveFacet.birthAddress, childFirstBranchingAddress]
+    have : (⟨f.depth, f.word⟩ : Σ n, S.RoleWord (S.child A i).ty n) = firstBranching (S.child A i).ty := hf_addr
+    revert this
+    generalize hx : firstBranching (S.child A i).ty = x
+    intro this
+    cases this
+    rfl
+  constructor
+  · exact Or.inr (Or.inr ⟨i, hf_eq⟩)
+  · exact hf_eq
 
 end Enforce

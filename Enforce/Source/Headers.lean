@@ -4747,7 +4747,7 @@ theorem header_occurs (p : E d) {s : ℕ} (G : Fin s → Set (E d)) (n : ℕ)
     (⟨(P.native n a.val).ty, v,
       fun j => (P.native n a.val).frame.linearIsometryEquiv.symm ''
         ((S.σ ^ n) '' G j)⟩ : Header S s) ∈ P.headers p G := by
-  sorry
+  exact ⟨n, a, hv, rfl, fun _ => rfl⟩
 
 end CompatiblePatch
 

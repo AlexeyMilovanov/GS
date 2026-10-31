@@ -4855,6 +4855,478 @@ theorem site_fan_finite (S : SubstSystem d) : (siteTemplates S).Finite := by
         ⟨Set.mem_univ _, hframes A F r q hq anchor a hanchor ha⟩, rfl⟩
     · exact hlabels A F r a v hv
 
+/-- Step 1 of the V4 proof of `site_fan_geometry` (V4 1.0(b), tangent cones of polyhedra):
+"A is a polyhedron". A simplex, including a lower-dimensional one, is cut out by
+finitely many affine inequalities, using coordinates of an extended affine basis. -/
+private lemma site_fan_geometry_step1_simplex_halfspaces
+    (s : Finset (E d)) (hs : AffineIndependent ℝ ((↑) : s → E d)) :
+    ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      convexHull ℝ (s : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨t, hst, ht, hspan⟩ := exists_subset_affineIndependent_affineSpan_eq_top hs
+  let b : AffineBasis t ℝ (E d) := ⟨(↑), ht, by simpa using hspan⟩
+  letI : Finite t := finite_of_fin_dim_affineIndependent ℝ ht
+  letI : Fintype t := Fintype.ofFinite t
+  let q : Finset (E d →ᵃ[ℝ] ℝ) :=
+    Finset.univ.image b.coord ∪
+      (Finset.univ.filter fun i : t => (i : E d) ∉ s).image (fun i => -b.coord i)
+  refine ⟨q, Set.Subset.antisymm ?_ ?_⟩
+  · intro x hx f hf
+    apply convexHull_min (t := {x | 0 ≤ f x}) ?_
+      (Convex.affine_preimage f (convex_Ici 0)) hx
+    intro y hy
+    let j : t := ⟨y, hst hy⟩
+    change 0 ≤ f (b j)
+    rcases Finset.mem_union.mp hf with hf | hf
+    · obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hf
+      simp only [b.coord_apply]
+      split_ifs <;> norm_num
+    · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hf
+      have hij : i ≠ j := by
+        intro hij
+        have := (Finset.mem_filter.mp hi).2
+        exact this (by simpa [hij, j] using hy)
+      simp [b.coord_apply_ne hij]
+  · intro x hx
+    have hpos (i : t) : 0 ≤ b.coord i x :=
+      hx _ (Finset.mem_union_left _ (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩))
+    have hzero (i : t) (hi : (i : E d) ∉ s) : b.coord i x = 0 := by
+      have hn := hx _ (Finset.mem_union_right _ (Finset.mem_image.mpr
+        ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩, rfl⟩))
+      have hn' : 0 ≤ -b.coord i x := hn
+      exact le_antisymm (by linarith) (hpos i)
+    let u : Finset t := Finset.univ.filter fun i : t => (i : E d) ∈ s
+    have hsum : ∑ i ∈ u, b.coord i x = 1 := by
+      rw [← b.sum_coord_apply_eq_one x]
+      apply Finset.sum_subset (Finset.subset_univ _)
+      intro i _ hi
+      exact hzero i (by simpa [u] using hi)
+    have hsumv : ∑ i ∈ u, b.coord i x • b i = x := by
+      calc
+        _ = ∑ i, b.coord i x • b i := by
+          apply Finset.sum_subset (Finset.subset_univ _)
+          intro i _ hi
+          rw [hzero i (by simpa [u] using hi), zero_smul]
+        _ = x := b.linear_combination_coord_eq_self x
+    rw [← hsumv]
+    apply (convex_convexHull ℝ (s : Set (E d))).sum_mem (fun i _ => hpos i) hsum
+    intro i hi
+    exact subset_convexHull ℝ (s : Set (E d)) (Finset.mem_filter.mp hi).2
+
+/-- Step 2 of the V4 proof of `site_fan_geometry` (V4 1.0(b), tangent cones of polyhedra):
+"A is a polyhedron". Carathéodory's theorem gives a finite union of simplices,
+and hence a finite union of intersections of affine closed half-spaces. -/
+private lemma site_fan_geometry_step2_halfspace_presentation
+    {K : Set (E d)} (hK : Polyhedron K) :
+    ∃ S : Finset (Finset (E d →ᵃ[ℝ] ℝ)),
+      K = ⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x} := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  have hrep (t : Finset (E d)) : ∃ q : Finset (E d →ᵃ[ℝ] ℝ),
+      AffineIndependent ℝ ((↑) : t → E d) →
+        convexHull ℝ (t : Set (E d)) = {x | ∀ f ∈ q, 0 ≤ f x} := by
+    by_cases ht : AffineIndependent ℝ ((↑) : t → E d)
+    · obtain ⟨q, hq⟩ := site_fan_geometry_step1_simplex_halfspaces t ht
+      exact ⟨q, fun _ => hq⟩
+    · exact ⟨∅, fun h => (ht h).elim⟩
+  choose q hq using hrep
+  let S := s.biUnion fun p =>
+    (p.powerset.filter fun t : Finset (E d) =>
+      AffineIndependent ℝ ((↑) : t → E d)).image q
+  refine ⟨S, ?_⟩
+  ext x
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨p, hp, hx⟩
+    rw [convexHull_eq_union] at hx
+    obtain ⟨t, htp, ht, hxt⟩ := by
+      simpa only [Set.mem_iUnion, exists_prop] using hx
+    refine ⟨q t, Finset.mem_biUnion.mpr ⟨p, hp, ?_⟩, ?_⟩
+    · exact Finset.mem_image.mpr ⟨t,
+        Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr htp, ht⟩, rfl⟩
+    · rwa [hq t ht] at hxt
+  · rintro ⟨r, hr, hx⟩
+    obtain ⟨p, hp, hr⟩ := Finset.mem_biUnion.mp hr
+    obtain ⟨t, ht, rfl⟩ := Finset.mem_image.mp hr
+    obtain ⟨htp, ht⟩ := Finset.mem_filter.mp ht
+    refine ⟨p, hp, convexHull_mono (Finset.mem_powerset.mp htp) ?_⟩
+    change x ∈ convexHull ℝ (t : Set (E d))
+    rwa [hq t ht]
+
+open scoped Topology in
+/-- Step 3 of the V4 proof of `site_fan_geometry` (V4 1.0(b), tangent cones of polyhedra):
+"its tangent cone at any point is a polyhedral cone". Near the base point,
+inactive inequalities keep their sign and active inequalities become homogeneous. -/
+private lemma site_fan_geometry_step3_local_cone
+    (S : Finset (Finset (E d →ᵃ[ℝ] ℝ))) (p : E d) :
+    ∃ C : Set (E d), IsPolyhedralCone C ∧
+      ∀ᶠ x in 𝓝 p,
+        (x ∈ ⋃ q ∈ S, {x | ∀ f ∈ q, 0 ≤ f x}) ↔ x - p ∈ C := by
+  classical
+  let Q (q : Finset (E d →ᵃ[ℝ] ℝ)) : Finset (E d →ₗ[ℝ] ℝ) :=
+    (q.filter fun f => f p = 0).image AffineMap.linear
+  let S₀ := S.filter fun q => ∀ f ∈ q, 0 ≤ f p
+  let C : Set (E d) := ⋃ r ∈ S₀.image Q, {v | ∀ l ∈ r, 0 ≤ l v}
+  have hC (v : E d) : v ∈ C ↔
+      ∃ q ∈ S, (∀ f ∈ q, 0 ≤ f p) ∧ ∀ f ∈ q, f p = 0 → 0 ≤ f.linear v := by
+    simp [C, S₀, Q]
+    constructor
+    · rintro ⟨q, ⟨hq, hpq⟩, hvq⟩
+      exact ⟨q, hq, hpq, fun f hf hf0 => hvq f.linear f hf hf0 rfl⟩
+    · rintro ⟨q, hq, hpq, hvq⟩
+      refine ⟨q, ⟨hq, hpq⟩, ?_⟩
+      rintro l f hf hf0 rfl
+      exact hvq f hf hf0
+  refine ⟨C, ⟨S₀.image Q, rfl⟩, ?_⟩
+  have hsign (f : E d →ᵃ[ℝ] ℝ) : ∀ᶠ x in 𝓝 p,
+      (f p < 0 → f x < 0) ∧ (0 < f p → 0 < f x) := by
+    have hc := f.continuous_of_finiteDimensional.continuousAt (x := p)
+    apply Filter.Eventually.and
+    · by_cases hf : f p < 0
+      · exact (hc.eventually_lt_const hf).mono fun x hx _ => hx
+      · exact Filter.Eventually.of_forall fun x h => (hf h).elim
+    · by_cases hf : 0 < f p
+      · exact (hc.eventually_const_lt hf).mono fun x hx _ => hx
+      · exact Filter.Eventually.of_forall fun x h => (hf h).elim
+  have hall : ∀ᶠ x in 𝓝 p, ∀ q ∈ S, ∀ f ∈ q,
+      (f p < 0 → f x < 0) ∧ (0 < f p → 0 < f x) :=
+    (Filter.eventually_all_finset S).mpr fun q _ =>
+      (Filter.eventually_all_finset q).mpr fun f _ => hsign f
+  filter_upwards [hall] with x hx
+  rw [hC]
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+  constructor
+  · rintro ⟨q, hq, hxq⟩
+    refine ⟨q, hq, ?_, ?_⟩
+    · intro f hf
+      by_contra hn
+      exact (not_lt_of_ge (hxq f hf)) ((hx q hq f hf).1 (lt_of_not_ge hn))
+    · intro f hf hfp
+      have he : f.linear (x - p) = f x - f p := f.linearMap_vsub x p
+      rw [he, hfp, sub_zero]
+      exact hxq f hf
+  · rintro ⟨q, hq, hpq, hvq⟩
+    refine ⟨q, hq, ?_⟩
+    intro f hf
+    rcases eq_or_lt_of_le (hpq f hf) with hfp | hfp
+    · have hv := hvq f hf hfp.symm
+      have he : f.linear (x - p) = f x - f p := f.linearMap_vsub x p
+      simpa [he, hfp.symm] using hv
+    · exact ((hx q hq f hf).2 hfp).le
+
+/-- Step 4 of the V4 proof of `site_fan_geometry` (V4 1.0(b), tangent cones of polyhedra):
+"polyhedral cone". Homogeneous half-space inequalities are invariant under
+multiplication by a positive scalar, as is a finite union of their intersections. -/
+private lemma site_fan_geometry_step4_positive_scaling
+    {C : Set (E d)} (hC : IsPolyhedralCone C) {r : ℝ} (hr : 0 < r) (v : E d) :
+    r • v ∈ C ↔ v ∈ C := by
+  obtain ⟨S, rfl⟩ := hC
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, map_smul, smul_eq_mul,
+    mul_nonneg_iff_of_pos_left hr]
+
+open scoped Topology in
+/-- Step 5 of the V4 proof of `site_fan_geometry` (V4 1.0(b), tangent cones of polyhedra):
+"its tangent cone at any point is a polyhedral cone". A local conical model
+equals the positive-time radial germ in the definition of `tangentCone`. -/
+private lemma site_fan_geometry_step5_radial_germ
+    {K C : Set (E d)} (p : E d) (hC : IsPolyhedralCone C)
+    (hloc : ∀ᶠ x in 𝓝 p, x ∈ K ↔ x - p ∈ C) : tangentCone K p = C := by
+  ext v
+  have htend : Filter.Tendsto (fun t : ℝ => p + t • v) (𝓝 0) (𝓝 p) := by
+    have hc : Continuous (fun t : ℝ => p + t • v) := by fun_prop
+    simpa only [zero_smul, add_zero] using hc.tendsto (0 : ℝ)
+  have hev : ∀ᶠ t in 𝓝 (0 : ℝ), p + t • v ∈ K ↔ t • v ∈ C := by
+    simpa only [add_sub_cancel_left] using htend.eventually hloc
+  obtain ⟨δ, hδ, hδloc⟩ := Metric.eventually_nhds_iff.mp hev
+  constructor
+  · rintro ⟨ε, hε, hv⟩
+    let t := min ε δ / 2
+    have ht : 0 < t := by dsimp [t]; positivity
+    have htε : t < ε := by dsimp [t]; linarith [min_le_left ε δ]
+    have htδ : t < δ := by dsimp [t]; linarith [min_le_right ε δ]
+    have hnear : dist t 0 < δ := by simpa [Real.dist_eq, abs_of_pos ht] using htδ
+    exact (site_fan_geometry_step4_positive_scaling hC ht v).mp
+      ((hδloc hnear).mp (hv t ht htε))
+  · intro hv
+    refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+    have hnear : dist t 0 < δ := by simpa [Real.dist_eq, abs_of_pos ht] using htδ
+    exact (hδloc hnear).mpr
+      ((site_fan_geometry_step4_positive_scaling hC ht v).mpr hv)
+
+
+open scoped Topology in
+/-- Step 6 of the V4 proof of `site_fan_geometry` (V4 1.0(b)): "its tangent cone at any
+point is a polyhedral cone" in the strong local form: near the base point a polyhedron
+coincides with the translate of its own radial tangent cone. -/
+private theorem site_fan_geometry_step6_local {K : Set (E d)} (hK : Polyhedron K) (p : E d) :
+    ∀ᶠ x in 𝓝 p, x ∈ K ↔ x - p ∈ tangentCone K p := by
+  obtain ⟨T, hT⟩ := site_fan_geometry_step2_halfspace_presentation hK
+  obtain ⟨C, hC, hloc⟩ := site_fan_geometry_step3_local_cone T p
+  rw [← hT] at hloc
+  rw [site_fan_geometry_step5_radial_germ p hC hloc]
+  exact hloc
+
+/-- Step 7 of the V4 proof of `site_fan_geometry` (V4 1.0(H1)): affine images of
+polyhedra are polyhedra (images of convex hulls are convex hulls of images). -/
+private theorem site_fan_geometry_step7_polyhedron_image {K : Set (E d)} (hK : Polyhedron K)
+    (g : E d →ᵃ[ℝ] E d) : Polyhedron (g '' K) := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  refine ⟨s.image (fun p => p.image g), ?_⟩
+  rw [Set.image_iUnion₂]
+  ext x
+  simp only [Set.mem_iUnion, exists_prop, Finset.mem_image]
+  constructor
+  · rintro ⟨p, hp, hx⟩
+    refine ⟨p.image g, ⟨p, hp, rfl⟩, ?_⟩
+    rw [Finset.coe_image, ← AffineMap.image_convexHull]
+    exact hx
+  · rintro ⟨p', ⟨p, hp, rfl⟩, hx⟩
+    refine ⟨p, hp, ?_⟩
+    rw [Finset.coe_image, ← AffineMap.image_convexHull] at hx
+    exact hx
+
+/-- Step 8 of the V4 proof of `site_fan_geometry` (V4 1.22(a)): a trace polygon is a
+placed cell of its owner, hence a polyhedron. -/
+private theorem site_fan_geometry_step8_carrier_polyhedron {A : S.ι} {F : FacetFlag S A}
+    {r : ℕ} (a : TracePiece A F r) : Polyhedron a.carrier := by
+  rw [TracePiece.carrier, recursiveTrace_tiles_step0_cell_zero]
+  exact site_fan_geometry_step7_polyhedron_image a.bottom.val.flat.polyhedral
+    a.tile.frame.toAffineIsometry.toAffineMap
+
+/-- Step 8 of the V4 proof of `site_fan_geometry` (V4 1.22(a), (H2)(iii)): a trace polygon
+is the closure of its relative interior. -/
+private theorem site_fan_geometry_step8_closure_relint {A : S.ι} {F : FacetFlag S A}
+    {r : ℕ} (a : TracePiece A F r) : closure (relint a.carrier) = a.carrier := by
+  rw [TracePiece.carrier, recursiveTrace_tiles_step0_relint_cell,
+    recursiveTrace_tiles_step0_cell_zero]
+  have h := a.tile.frame.toHomeomorph.image_closure (relint a.bottom.val.carrier)
+  simp only [AffineIsometryEquiv.coe_toHomeomorph] at h
+  rw [← h, a.bottom.val.flat.regularClosed]
+
+/-- Step 9 of the V4 proof of `site_fan_geometry` (V4 1.0(b)): the radial tangent cone
+is invariant under positive scaling. -/
+private theorem site_fan_geometry_step9_smul {K : Set (E d)} {p v : E d} {s : ℝ}
+    (hs : 0 < s) (hv : v ∈ tangentCone K p) : s • v ∈ tangentCone K p := by
+  obtain ⟨ε, hε, h⟩ := hv
+  refine ⟨ε / s, div_pos hε hs, fun t ht hts => ?_⟩
+  have := h (t * s) (mul_pos ht hs) (by rwa [lt_div_iff₀ hs] at hts)
+  rwa [smul_smul]
+
+open scoped Topology in
+/-- Step 10 of the V4 proof of `site_fan_geometry` (V4 1.23(b), via Lemma 1.22(a)):
+"the half-disc of `F₂` at `q` is tiled by the finitely many polygons containing `q`".
+Near `q` the cell `F₂` is the union of the pieces through `q`, and each piece coincides
+with the translate of its tangent cone. -/
+private theorem site_fan_geometry_step10_germ (A : S.ι) (F : FacetFlag S A) (r : ℕ)
+    (q : E d) :
+    ∀ᶠ x in 𝓝 q, (x ∈ (S.σ ^ r) '' (F.cell ⟨traceDimension d, traceDimension_pos,
+          traceDimension_lt⟩).val.carrier ↔
+        ∃ a : TracePiece A F r, q ∈ a.carrier ∧ x ∈ a.carrier) ∧
+      ∀ a : TracePiece A F r, (x ∈ a.carrier ↔ x - q ∈ tangentCone a.carrier q) := by
+  haveI := tracePieces_finite A F r
+  have hfar : ∀ᶠ x in 𝓝 q, ∀ a : TracePiece A F r, q ∉ a.carrier → x ∉ a.carrier := by
+    rw [Filter.eventually_all]
+    intro a
+    by_cases hqa : q ∈ a.carrier
+    · exact Filter.Eventually.of_forall fun x h => (h hqa).elim
+    · have hclosed : IsClosed a.carrier :=
+        (site_fan_geometry_step8_carrier_polyhedron a).isCompact.isClosed
+      exact Filter.mem_of_superset (hclosed.isOpen_compl.mem_nhds hqa) fun x hx _ => hx
+  have hloc : ∀ᶠ x in 𝓝 q, ∀ a : TracePiece A F r,
+      (x ∈ a.carrier ↔ x - q ∈ tangentCone a.carrier q) :=
+    Filter.eventually_all.2 fun a =>
+      site_fan_geometry_step6_local (site_fan_geometry_step8_carrier_polyhedron a) q
+  filter_upwards [hfar, hloc] with x hx hx'
+  refine ⟨⟨fun hxF => ?_, ?_⟩, hx'⟩
+  · rw [← (recursiveTrace_tiles A F r).1] at hxF
+    obtain ⟨a, -, hxa⟩ := Set.mem_iUnion₂.1 hxF
+    by_cases hqa : q ∈ a.carrier
+    · exact ⟨a, hqa, hxa⟩
+    · exact (hx a hqa hxa).elim
+  · rintro ⟨a, -, hxa⟩
+    exact a.chain.contained TracePiece.bottomIndex hxa
+
+open scoped Topology in
+/-- Step 11 of the V4 proof of `site_fan_geometry` (V4 1.23(b), (H2)(iii)): at a point of a
+regular closed cell, its tangent cone spans the whole direction space of the cell. -/
+private theorem site_fan_geometry_step11_direction {K : Set (E d)} {q : E d}
+    (hloc : ∀ᶠ x in 𝓝 q, x ∈ K ↔ x - q ∈ tangentCone K q) (hqK : q ∈ K)
+    (hcl : q ∈ closure (relint K)) :
+    ∀ w ∈ (affineSpan ℝ K).direction, w ∈ affineSpan ℝ (tangentCone K q) := by
+  obtain ⟨δ, hδ, hball⟩ := Metric.eventually_nhds_iff.1 hloc
+  obtain ⟨z, hzrel, hzq⟩ := Metric.mem_closure_iff.1 hcl (δ / 2) (by linarith)
+  obtain ⟨hzK, ρ, hρ, hzball⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_relint.1 hzrel
+  have hzq' : dist z q < δ / 2 := by rwa [dist_comm]
+  have hz0 : z - q ∈ tangentCone K q := (hball (by linarith : dist z q < δ)).1 hzK
+  have h0T : (0 : E d) ∈ tangentCone K q :=
+    ⟨1, one_pos, fun t _ _ => by simpa using hqK⟩
+  have h0 : (0 : E d) ∈ affineSpan ℝ (tangentCone K q) := subset_affineSpan ℝ _ h0T
+  intro w hw
+  obtain ⟨ρ', hρ', hρ'ρ, hρ'δ⟩ : ∃ ρ' : ℝ, 0 < ρ' ∧ ρ' ≤ ρ ∧ ρ' ≤ δ / 2 :=
+    ⟨min ρ (δ / 2), lt_min hρ (by linarith), min_le_left _ _, min_le_right _ _⟩
+  have hpos : 0 < 2 * (‖w‖ + 1) := by linarith [norm_nonneg w]
+  obtain ⟨s, hs, hsw⟩ : ∃ s : ℝ, 0 < s ∧ s * ‖w‖ < ρ' :=
+    ⟨ρ' / (2 * (‖w‖ + 1)), div_pos hρ' hpos, by
+      rw [div_mul_eq_mul_div, div_lt_iff₀ hpos]; nlinarith [norm_nonneg w]⟩
+  have hy_span : z + s • w ∈ affineSpan ℝ K := by
+    have := AffineSubspace.vadd_mem_of_mem_direction (Submodule.smul_mem _ s hw)
+      (subset_affineSpan ℝ K hzK)
+    rwa [vadd_eq_add, add_comm] at this
+  have hyz : dist (z + s • w) z < ρ' := by
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs.le]
+    exact hsw
+  have hyK : z + s • w ∈ K := hzball _ hy_span (lt_of_lt_of_le hyz hρ'ρ)
+  have hyq : dist (z + s • w) q < δ := by
+    have := dist_triangle (z + s • w) z q
+    linarith
+  have hy0 : z + s • w - q ∈ tangentCone K q := (hball hyq).1 hyK
+  have hdiff : s • w ∈ (affineSpan ℝ (tangentCone K q)).direction := by
+    have := AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ _ hy0)
+      (subset_affineSpan ℝ _ hz0)
+    have e : z + s • w - q - (z - q) = s • w := by abel
+    rwa [vsub_eq_sub, e] at this
+  have hw' : w ∈ (affineSpan ℝ (tangentCone K q)).direction := by
+    have := Submodule.smul_mem _ s⁻¹ hdiff
+    rwa [smul_smul, inv_mul_cancel₀ hs.ne', one_smul] at this
+  have := (AffineSubspace.vsub_right_mem_direction_iff_mem h0 w).1
+    (by rwa [vsub_eq_sub, sub_zero])
+  exact this
+
+/-- Step 12 of the V4 proof of `site_fan_geometry` (V4 1.23(b)): a direction in the
+relative interior of the tangent cone points into the relative interior of the cell. -/
+private theorem site_fan_geometry_step12_point {K : Set (E d)} {q v : E d} {t ρ δ : ℝ}
+    (ht : 0 < t) (hρ : 0 < ρ) (htδ : t * (‖v‖ + ρ) < δ)
+    (hloc : ∀ y, dist y q < δ → (y ∈ K ↔ y - q ∈ tangentCone K q))
+    (hdir : ∀ w ∈ (affineSpan ℝ K).direction, w ∈ affineSpan ℝ (tangentCone K q))
+    (hqK : q ∈ K) (hvT : v ∈ tangentCone K q)
+    (hv : ∀ u ∈ affineSpan ℝ (tangentCone K q), dist u v < ρ → u ∈ tangentCone K q) :
+    q + t • v ∈ relint K := by
+  have hx0q : dist (q + t • v) q = t * ‖v‖ := by
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.le]
+  have hρt : 0 < t * ρ := mul_pos ht hρ
+  refine recursiveTrace_tiles_step3_halfspace_lift_lem_relint.2 ⟨?_, t * ρ, hρt, ?_⟩
+  · refine (hloc _ (by rw [hx0q]; nlinarith)).2 ?_
+    rw [add_sub_cancel_left]
+    exact site_fan_geometry_step9_smul ht hvT
+  · intro y hy hyx
+    have hyq_dir : y - q ∈ (affineSpan ℝ K).direction := by
+      have := AffineSubspace.vsub_mem_direction hy (subset_affineSpan ℝ K hqK)
+      rwa [vsub_eq_sub] at this
+    have hu_span : t⁻¹ • (y - q) ∈ affineSpan ℝ (tangentCone K q) :=
+      hdir _ (Submodule.smul_mem _ _ hyq_dir)
+    have key : t⁻¹ • (y - q) - v = t⁻¹ • (y - (q + t • v)) := by
+      rw [show y - (q + t • v) = (y - q) - t • v by abel, smul_sub (t⁻¹) (y - q) (t • v),
+        smul_smul, inv_mul_cancel₀ ht.ne', one_smul]
+    have hudist : dist (t⁻¹ • (y - q)) v < ρ := by
+      rw [dist_eq_norm, key, norm_smul, Real.norm_of_nonneg (inv_nonneg.2 ht.le),
+        ← dist_eq_norm, inv_mul_lt_iff₀ ht]
+      exact hyx
+    have huT := hv _ hu_span hudist
+    have htu : t • t⁻¹ • (y - q) = y - q := by
+      rw [smul_smul, mul_inv_cancel₀ ht.ne', one_smul]
+    have hyq : dist y q < δ := by
+      have := dist_triangle y (q + t • v) q
+      rw [hx0q] at this
+      nlinarith
+    refine (hloc y hyq).2 ?_
+    rw [← htu]
+    exact site_fan_geometry_step9_smul ht huT
+
+/-- Step 13 of the V4 proof of `site_fan_geometry` (V4 1.23(b)): "the polygons ... meeting
+`q` form a finite planar fan": two cells through `q` with disjoint relative interiors have
+tangent cones at `q` with disjoint relative interiors. -/
+private theorem site_fan_geometry_step13_disjoint {K L : Set (E d)} {q : E d}
+    (hK : Polyhedron K) (hL : Polyhedron L) (hqK : q ∈ K) (hqL : q ∈ L)
+    (hKc : q ∈ closure (relint K)) (hLc : q ∈ closure (relint L))
+    (hdisj : Disjoint (relint K) (relint L)) :
+    Disjoint (relint (tangentCone K q)) (relint (tangentCone L q)) := by
+  rw [Set.disjoint_left]
+  intro v hvK hvL
+  obtain ⟨hvTK, ρK, hρK, hK'⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_relint.1 hvK
+  obtain ⟨hvTL, ρL, hρL, hL'⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_relint.1 hvL
+  have hlocK := site_fan_geometry_step6_local hK q
+  have hlocL := site_fan_geometry_step6_local hL q
+  obtain ⟨δK, hδK, hbK⟩ := Metric.eventually_nhds_iff.1 hlocK
+  obtain ⟨δL, hδL, hbL⟩ := Metric.eventually_nhds_iff.1 hlocL
+  obtain ⟨ρ, hρ, hρK', hρL'⟩ : ∃ ρ : ℝ, 0 < ρ ∧ ρ ≤ ρK ∧ ρ ≤ ρL :=
+    ⟨min ρK ρL, lt_min hρK hρL, min_le_left _ _, min_le_right _ _⟩
+  obtain ⟨δ, hδ, hδK', hδL'⟩ : ∃ δ : ℝ, 0 < δ ∧ δ ≤ δK ∧ δ ≤ δL :=
+    ⟨min δK δL, lt_min hδK hδL, min_le_left _ _, min_le_right _ _⟩
+  have hpos : 0 < ‖v‖ + ρ + 1 := by linarith [norm_nonneg v]
+  obtain ⟨t, ht, htδ⟩ : ∃ t : ℝ, 0 < t ∧ t * (‖v‖ + ρ) < δ :=
+    ⟨δ / (‖v‖ + ρ + 1), div_pos hδ hpos, by
+      rw [div_mul_eq_mul_div, div_lt_iff₀ hpos]; nlinarith⟩
+  have hxK := site_fan_geometry_step12_point ht hρ (lt_of_lt_of_le htδ hδK')
+    (fun y hy => hbK hy) (site_fan_geometry_step11_direction hlocK hqK hKc) hqK hvTK
+    (fun u hu hd => hK' u hu (lt_of_lt_of_le hd hρK'))
+  have hxL := site_fan_geometry_step12_point ht hρ (lt_of_lt_of_le htδ hδL')
+    (fun y hy => hbL hy) (site_fan_geometry_step11_direction hlocL hqL hLc) hqL hvTL
+    (fun u hu hd => hL' u hu (lt_of_lt_of_le hd hρL'))
+  exact Set.disjoint_left.1 hdisj hxK hxL
+
+/-- Step 14 of the V4 proof of `site_fan_geometry` (V4 1.23(b), 1.0(c)): "there are at most
+... of them": a trace piece through `q` is an owner through `q` (finitely many, uniformly
+bounded by the multiplicity bound) together with a chain of named cells of its type
+(finitely many per type, and there are finitely many types). -/
+private theorem site_fan_geometry_step14_card (S : SubstSystem d) :
+    ∃ M : ℕ, ∀ (A : S.ι) (F : FacetFlag S A) (r : ℕ) (q : E d),
+      Nat.card {a : TracePiece A F r // q ∈ a.carrier} ≤ M := by
+  classical
+  obtain ⟨β, -, -, -, hbound⟩ := point_multiplicity_bound S.proto S.cx
+  let Kmax : ℕ := Finset.univ.sup fun τ : S.ι =>
+    Fintype.card (ChainIndex d (traceDimension d) → CellName S τ)
+  have hK : ∀ τ : S.ι,
+      Fintype.card (ChainIndex d (traceDimension d) → CellName S τ) ≤ Kmax := fun τ =>
+    Finset.le_sup (f := fun τ : S.ι =>
+      Fintype.card (ChainIndex d (traceDimension d) → CellName S τ)) (Finset.mem_univ τ)
+  refine ⟨⌊fullSolidAngle d / β⌋₊ * Kmax, ?_⟩
+  intro A F r q
+  have hdisj : Pairwise (fun a b : S.RoleWord A r => Disjoint
+      (interior (placedSet (S.nativeTile A r a).frame
+        (S.proto (S.nativeTile A r a).ty).carrier))
+      (interior (placedSet (S.nativeTile A r b).frame
+        (S.proto (S.nativeTile A r b).ty).carrier))) := by
+    simpa [FramedNode.carrier, SubstSystem.supertile] using S.native_disjoint A r
+  obtain ⟨hfinite, hcard⟩ := hbound (S.RoleWord A r)
+    (fun w => (S.nativeTile A r w).ty) (fun w => (S.nativeTile A r w).frame) hdisj q
+  let I : Set (S.RoleWord A r) := {w | q ∈ placedSet (S.nativeTile A r w).frame
+    (S.proto (S.nativeTile A r w).ty).carrier}
+  haveI : Finite I := hfinite.to_subtype
+  have hmem : ∀ a : {a : TracePiece A F r // q ∈ a.carrier}, a.val.owner ∈ I := by
+    intro a
+    have hc := site_fan_finite_step7_carrier_subset a.val a.property
+    simpa [I, TracePiece.tile, FramedNode.carrier, SubstSystem.supertile] using hc
+  let f : {a : TracePiece A F r // q ∈ a.carrier} →
+      Σ w : I, (ChainIndex d (traceDimension d) → CellName S (S.nativeTile A r w.val).ty) :=
+    fun a => ⟨⟨a.val.owner, hmem a⟩, a.val.chain.cell⟩
+  have hf : Function.Injective f := by
+    rintro ⟨⟨o1, c1⟩, h1⟩ ⟨⟨o2, c2⟩, h2⟩ h
+    simp only [f, Sigma.mk.injEq, Subtype.mk.injEq] at h
+    obtain ⟨rfl, hc⟩ := h
+    have hc' : c1.cell = c2.cell := eq_of_heq hc
+    cases c1
+    cases c2
+    simp only at hc'
+    subst hc'
+    rfl
+  let g : (Σ w : I, (ChainIndex d (traceDimension d) →
+      CellName S (S.nativeTile A r w.val).ty)) → I × Fin Kmax :=
+    fun x => (x.1, Fin.castLE (hK _) (Fintype.equivFin _ x.2))
+  have hg : Function.Injective g := by
+    rintro ⟨w1, c1⟩ ⟨w2, c2⟩ h
+    simp only [g, Prod.mk.injEq] at h
+    obtain ⟨rfl, h⟩ := h
+    have := (Fintype.equivFin _).injective (Fin.castLE_injective _ h)
+    subst this
+    rfl
+  calc Nat.card {a : TracePiece A F r // q ∈ a.carrier}
+      ≤ Nat.card (I × Fin Kmax) := Nat.card_le_card_of_injective (g ∘ f) (hg.comp hf)
+    _ = I.ncard * Kmax := by
+        rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Fin Kmax), Fintype.card_fin,
+          Nat.card_coe_set_eq]
+    _ ≤ ⌊fullSolidAngle d / β⌋₊ * Kmax := Nat.mul_le_mul_right _ hcard
+
 /-- P18, V4 1.23(b): the actual trace pieces at a site form a finite fan:
 their direction cones cover the outer half-plane (half-line when `d=2`) and have
 disjoint relative interiors. Their number has one uniform bound over all depths. -/
@@ -4869,7 +5341,41 @@ theorem site_fan_geometry (S : SubstSystem d) :
       Pairwise (fun a b : {a : TracePiece A F r // q ∈ a.carrier} =>
         Disjoint (relint (tangentCone a.val.carrier q))
           (relint (tangentCone b.val.carrier q))) := by
-  sorry
+  obtain ⟨M, hM⟩ := site_fan_geometry_step14_card S
+  refine ⟨M, fun A F r q _hq => ⟨hM A F r q, ?_, ?_⟩⟩
+  · apply Set.Subset.antisymm
+    · refine Set.iUnion_subset fun a => ?_
+      rintro v ⟨ε, hε, hv⟩
+      exact ⟨ε, hε, fun t ht htε => a.val.chain.contained TracePiece.bottomIndex (hv t ht htε)⟩
+    · intro v hv
+      obtain ⟨ε, hε, hvε⟩ := hv
+      obtain ⟨δ, hδ, hgerm⟩ := Metric.eventually_nhds_iff.1 (site_fan_geometry_step10_germ A F r q)
+      have hpos : 0 < ‖v‖ + 1 := by linarith [norm_nonneg v]
+      obtain ⟨t, ht, htε, htδ⟩ : ∃ t : ℝ, 0 < t ∧ t < ε ∧ t * ‖v‖ < δ := by
+        refine ⟨min (ε / 2) (δ / (‖v‖ + 1)), lt_min (by linarith) (div_pos hδ hpos),
+          lt_of_le_of_lt (min_le_left _ _) (by linarith), ?_⟩
+        calc min (ε / 2) (δ / (‖v‖ + 1)) * ‖v‖ ≤ (δ / (‖v‖ + 1)) * ‖v‖ :=
+              mul_le_mul_of_nonneg_right (min_le_right _ _) (norm_nonneg _)
+          _ < δ := by
+              rw [div_mul_eq_mul_div, div_lt_iff₀ hpos]; nlinarith [norm_nonneg v]
+      have hdist : dist (q + t • v) q < δ := by
+        rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.le]
+        exact htδ
+      obtain ⟨hF, hloc⟩ := hgerm hdist
+      obtain ⟨a, hqa, hxa⟩ := hF.1 (hvε t ht htε)
+      have hta : t • v ∈ tangentCone a.carrier q := by
+        have := (hloc a).1 hxa
+        rwa [add_sub_cancel_left] at this
+      have hva := site_fan_geometry_step9_smul (inv_pos.2 ht) hta
+      rw [smul_smul, inv_mul_cancel₀ ht.ne', one_smul] at hva
+      exact Set.mem_iUnion.2 ⟨⟨a, hqa⟩, hva⟩
+  · intro a b hab
+    have hab' : a.val ≠ b.val := fun h => hab (Subtype.ext h)
+    exact site_fan_geometry_step13_disjoint (site_fan_geometry_step8_carrier_polyhedron a.val)
+      (site_fan_geometry_step8_carrier_polyhedron b.val) a.property b.property
+      (by rw [site_fan_geometry_step8_closure_relint]; exact a.property)
+      (by rw [site_fan_geometry_step8_closure_relint]; exact b.property)
+      ((recursiveTrace_tiles A F r).2.1 hab')
 
 /-- P18, V4 1.23(c): every deeper trace polygon meeting a fixed site lists it,
 as does its selected owner. Native-scale positions are compared by `σˢ`. -/

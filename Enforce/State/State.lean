@@ -5539,7 +5539,24 @@ theorem record_shallow_iff (U : HonestSource S) (P : Params S) (q : U.Node)
       w.word = U.downRoles q (U.hierarchy.firstProvider q f hf).1) ↔
       (U.hierarchy.firstProvider q f hf).1 <
         P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) := by
-  sorry
+  dsimp [HonestSource.recordOf, HonestSource.counterProfile]
+  split_ifs with h
+  · constructor
+    · intro _
+      exact h
+    · intro _
+      use {
+        word := U.downRoles q (U.hierarchy.firstProvider q f hf).1
+        length_lt := by
+          simp only [HonestSource.downRoles, List.length_reverse, List.length_ofFn]
+          exact lt_trans h (P.siteDepth_lt _ _)
+      }
+  · constructor
+    · intro h_ex
+      rcases h_ex with ⟨w, hw1, hw2⟩
+      contradiction
+    · intro h_lt
+      contradiction
 
 /-- Q3, V4 §2.2 (S4d): the mature branch is exactly the geometric constant table. -/
 theorem record_mature_iff (U : HonestSource S) (P : Params S) (q : U.Node)
@@ -5547,7 +5564,18 @@ theorem record_mature_iff (U : HonestSource S) (P : Params S) (q : U.Node)
     (U.recordOf P q f hf).counter = .inl (U.constantProfile P q f hf) ↔
       P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
         (U.hierarchy.firstProvider q f hf).1 := by
-  sorry
+  dsimp [HonestSource.recordOf, HonestSource.counterProfile]
+  split_ifs with h
+  · constructor
+    · intro h_eq
+      contradiction
+    · intro h_lt
+      omega
+  · constructor
+    · intro _
+      omega
+    · intro _
+      rfl
 
 /-- Q3, V4 §2.2 (S4d): a mature counter exists at exactly the chain-active edges.
 Its value is identified in `mature_counter_value` below. -/

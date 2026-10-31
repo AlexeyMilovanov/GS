@@ -5877,7 +5877,17 @@ theorem record_provider_carrier (U : HonestSource S) (P : Params S) (q : U.Node)
     (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
     U.providerPlacement P q f hf '' (U.recordIncidence P q f hf).val.leftFacet.val.carrier =
       U.hierarchy.providerCarrier q f hf := by
-  sorry
+  have hc := U.hierarchy.providerIncidence_spec q f hf
+  have hs := P.canonical_spec (U.hierarchy.providerIncidence q f hf)
+  have hd := hs.2.symm
+  dsimp [HonestSource.providerPlacement, Params.incidencePlacement]
+  rw [Set.image_comp, Set.image_comp]
+  change _ '' (_ '' placedSet _ _) = _
+  unfold PrimitiveIncidence.positioned at hd
+  unfold CoherentHierarchy.RealizesProviderIncidence at hc
+  obtain ⟨_, _, _, hp⟩ := hc
+  rw [hp, ← hd]
+  rfl
 
 /-- Q3, V4 §2.2 (S4e): the finite chain table records exactly geometric activity
 with induced orientation; it has no unrecorded active full chains. -/

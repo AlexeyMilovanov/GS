@@ -6541,7 +6541,21 @@ theorem packet_E_equality (F F' : FacetName S N.ty)
 including every choice of facet in its first branching descendant. -/
 theorem readable_parent_state (i : S.I N.ty) (r : Parser.ReadableFacet D N A i) :
     r.parentState = newState Y hY n hn D hD N A := by
-  sorry
+  have hchild : (A.children i).val.node.IsDescendant n N (n + 1) := by
+    rw [A.child_eq i]
+    exact Parser.child_descendant N n i
+  have hbirth : r.birthFacet.birth.IsDescendant r.birthFacet.height N (n + 1) :=
+    Parser.descendant_trans _ _ _ _ _ _ r.inside_child hchild
+  have hdepth : n + 1 - r.birthFacet.height < P.k := by
+    have := r.parentSlot.isLt
+    rwa [r.parentSlot_eq] at this
+  obtain ⟨hl, q, hq, -, hdec⟩ := routing_constant Y hY n hn D hD N A r.birthFacet hbirth hdepth r.parent_principal
+  have hq' : q = r.packet := Option.some.inj (hq.symm.trans (by simpa using r.attached))
+  rw [hq'] at hdec
+  have hs : r.parentSlot = ⟨n + 1 - r.birthFacet.height, hdepth⟩ := Fin.ext r.parentSlot_eq
+  have hd2 := r.parent_decode
+  rw [hs] at hd2
+  exact Option.some.inj (hd2.symm.trans hdec)
 
 end Forward
 

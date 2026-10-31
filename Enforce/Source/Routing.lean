@@ -12081,7 +12081,30 @@ depth at most `p+1`, where `p = |T|-1`. -/
 theorem requiredSet_finite (A : S.ι) :
     (requiredSet A).Finite ∧
       ∀ f ∈ requiredSet A, f.depth ≤ (Fintype.card S.ι - 1) + 1 := by
-  sorry
+  have H : ∀ f ∈ requiredSet A, f.depth ≤ (Fintype.card S.ι - 1) + 1 := by
+    intro f hf
+    rcases hf with h0 | h1 | h2
+    · rw [h0]
+      exact Nat.zero_le _
+    · have h_addr : f.birthAddress = firstBranching A := h1
+      have h_depth : f.depth = (firstBranching A).1 := congrArg Sigma.fst h_addr
+      have h_spec := firstBranching_spec A
+      have h_card : 1 ≤ Fintype.card S.ι := Fintype.card_pos_iff.mpr ⟨A⟩
+      omega
+    · rcases h2 with ⟨i, hi⟩
+      have h_depth : f.depth = (firstBranching (S.child A i).ty).1 + 1 := congrArg Sigma.fst hi
+      have h_spec := firstBranching_spec (S.child A i).ty
+      have h_card : 1 ≤ Fintype.card S.ι := Fintype.card_pos_iff.mpr ⟨A⟩
+      omega
+  refine ⟨?_, H⟩
+  have H2 : requiredSet A ⊆ {f | f.depth < (Fintype.card S.ι - 1) + 2} := by
+    intro f hf
+    have := H f hf
+    have : f.depth < Fintype.card S.ι - 1 + 2 := by omega
+    exact this
+
+  exact Set.Finite.subset (primitiveFacets_finite S A _) H2
+
 
 /-- P22, V4 8.3: the actual finite required list `Req′(A)`.
 No selected site arm and no propagation of a selected arm through placeholders occurs. -/

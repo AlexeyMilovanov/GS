@@ -903,7 +903,14 @@ theorem honestLift_covariant (C : ClusterData S P) (U : HonestSource S) (g : Iso
 translation-covariance hypothesis on the whole honest class. -/
 theorem honestLift_translationCovariant (C : ClusterData S P) :
     TranslationCovariant (fun U : HonestSource S => (honestLift C U).marking) := by
-  sorry
+  intro U v x
+  have hx : x + v = translation v x := rfl
+  have h1 : honestLift C (U.translate v) = (honestLift C U).move (translation v) := by
+    rw [← HonestSource.move_translation U v]
+    exact honestLift_covariant C U (translation v)
+  change (honestLift C (U.translate v)).marking (x + v) = (honestLift C U).marking x
+  rw [h1, hx]
+  exact MarkedTiling.move_marking (honestLift C U) (translation v) x
 
 /-- M7, V4 2.15: complete closed normalized patterns over all honest sources.
 DEVIATION: the same definition includes height zero, for the all-height requests

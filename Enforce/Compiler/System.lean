@@ -493,7 +493,22 @@ theorem MarkedTiling.move_marking (Y : MarkedTiling M) (g : Iso d) (x : E d) :
 /-- M6, V4 2.14(d): properness is invariant under every Euclidean isometry. -/
 theorem MProper.move (Y : MarkedTiling M) (hY : MProper Y) (g : Iso d) :
     MProper (Y.move g) := by
-  sorry
+  intro x
+  obtain ⟨R, hR, ψ, h_mem, h_eq⟩ := hY (g.symm x)
+  use R, hR, ψ.trans g
+  constructor
+  · rw [placedSet] at h_mem ⊢
+    obtain ⟨p, hp, hp_eq⟩ := h_mem
+    use p, hp
+    show g (ψ p) = x
+    rw [hp_eq]
+    exact AffineIsometryEquiv.apply_symm_apply g x
+  · intro p
+    have h1 := h_eq p
+    have h2 := MarkedTiling.move_marking Y g (ψ p)
+    show (Y.move g).marking (g (ψ p)) = R.mark p
+    rw [h2]
+    exact h1
 
 end MarkedMotion
 

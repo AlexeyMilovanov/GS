@@ -192,7 +192,10 @@ abbrev PatternRequest {X : Type} (ρ : HonestSource S → E d → X) :=
 /-- C2, V4 1.27: finite languages make the full request set countable. -/
 theorem patternRequests_countable {X : Type} (ρ : HonestSource S → E d → X)
     (hfinite : ∀ n A, (honestLanguage ρ n A).Finite) : Countable (PatternRequest ρ) := by
-  sorry
+  have _inst1 : Fintype S.ι := S.types_finite
+  have _inst2 : Countable S.ι := inferInstance
+  have _inst3 (n A) : Countable {q // q ∈ honestLanguage ρ n A} := (hfinite n A).countable.to_subtype
+  exact @instCountableSigma _ _ inferInstance (fun n => @instCountableSigma _ _ _inst2 (fun A => _inst3 n A))
 
 /-- C2, V4 1.27: the translation stabilizer of a physical tiling. -/
 def translationStabilizer (T : Tiling S) : Set (E d) :=

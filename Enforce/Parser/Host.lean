@@ -99,7 +99,8 @@ theorem primitive_packet_honest (hY : MProper Y) (hn : P.K ≤ n)
     (hleft : BoundaryPackets Y (g.height - 1) g.leftNode) :
     ∃ q : Packet P, g.packet hleft = some q ∧
       q ∈ honestPackets S P ∧ q.incidence = g.incidence := by
-  sorry
+  obtain ⟨_, _, _, q, hq, hinc, hpk, -, -⟩ := two_sided_constancy Y hY n hn D hD g hg
+  exact ⟨q, hpk, hq, hinc⟩
 
 /-- R6, V4 3.6: the open half-ball opposite the known block at x.
 At a relative-interior facet point, tangentCone is the closed inward half-space;

@@ -693,6 +693,37 @@ theorem sibling_minimalCell_eq (P : FramedNode S) (n : ℕ)
     (P.child n i).cell n e.val = (P.child n j).cell n f.val := by
   sorry
 
+private theorem sibling_intersection_cells_step1_child_carrier (P : FramedNode S) (n : ℕ) (i : S.I P.ty) :
+    (P.child n i).carrier n = P.prototypeFrame n ''
+      placedSet (S.child P.ty i).frame (S.proto (S.child P.ty i).ty).carrier := by
+  unfold FramedNode.carrier placedSet SubstSystem.supertile
+  rw [Set.image_image, Set.image_image]
+  apply Set.image_congr
+  intro y _
+  change P.frame (S.placeChild n i ((S.σ ^ n) y)) = P.frame ((S.σ ^ n) ((S.child P.ty i).frame y))
+  rw [hereditary_trace_step3_place]
+
+private theorem sibling_intersection_cells_step1_disjoint (P : FramedNode S) (n : ℕ)
+    (i j : S.I P.ty) (hij : i ≠ j) :
+    Disjoint (interior ((P.child n i).carrier n)) (interior ((P.child n j).carrier n)) := by
+  rw [sibling_intersection_cells_step1_child_carrier, sibling_intersection_cells_step1_child_carrier]
+  let H := (P.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  change Disjoint (interior (H '' _)) (interior (H '' _))
+  rw [← H.image_interior, ← H.image_interior]
+  exact Set.disjoint_image_of_injective H.injective (S.children_disjoint P.ty hij)
+
+private theorem sibling_intersection_cells_step1_reg (N : FramedNode S) (n : ℕ) :
+    IsClosed (N.carrier n) ∧ closure (interior (N.carrier n)) = N.carrier n := by
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hcar : N.carrier n = H '' (S.proto N.ty).carrier := by
+    dsimp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet, SubstSystem.supertile]
+    rw [Set.image_image]
+    rfl
+  rw [hcar]
+  refine ⟨((S.proto N.ty).compact.image H.continuous).isClosed, ?_⟩
+  change closure (interior (H '' (S.proto N.ty).carrier)) = _
+  rw [← H.image_interior, ← H.image_closure, (S.proto N.ty).regularClosed]
+
 /-- P4, V4 1.4(a): sibling intersections are unions of common listed cells. -/
 theorem sibling_intersection_cells (P : FramedNode S) (n : ℕ)
     (i j : S.I P.ty) (hij : i ≠ j) :
@@ -701,7 +732,36 @@ theorem sibling_intersection_cells (P : FramedNode S) (n : ℕ)
         ⋃ f : CellName S (P.child n j).ty,
           ⋃ (_ : (P.child n i).cell n e.val = (P.child n j).cell n f.val),
             (P.child n i).cell n e.val := by
-  sorry
+  obtain ⟨hci, hri⟩ := sibling_intersection_cells_step1_reg (P.child n i) n
+  obtain ⟨hcj, hrj⟩ := sibling_intersection_cells_step1_reg (P.child n j) n
+  have hdisj := sibling_intersection_cells_step1_disjoint P n i j hij
+  ext x
+  constructor
+  · rintro ⟨hxi, hxj⟩
+    have hfront_i : x ∈ frontier ((P.child n i).carrier n) := by
+      rw [hci.frontier_eq]
+      refine ⟨hxi, fun hxint => ?_⟩
+      have hd := hdisj.closure_right isOpen_interior
+      rw [hrj] at hd
+      exact Set.disjoint_left.mp hd hxint hxj
+    have hfront_j : x ∈ frontier ((P.child n j).carrier n) := by
+      rw [hcj.frontier_eq]
+      refine ⟨hxj, fun hxint => ?_⟩
+      have hd := hdisj.symm.closure_right isOpen_interior
+      rw [hri] at hd
+      exact Set.disjoint_left.mp hd hxint hxi
+    obtain ⟨e, he, hxe⟩ := hereditary_trace_step1_frontier_relint (P.child n i) n x hfront_i
+    obtain ⟨f, hf, hxf⟩ := hereditary_trace_step1_frontier_relint (P.child n j) n x hfront_j
+    have heq := sibling_minimalCell_eq P n i j hij x ⟨e, he⟩ ⟨f, hf⟩ hxe hxf
+    simp only [Set.mem_iUnion]
+    exact ⟨⟨e, he⟩, ⟨f, hf⟩, heq, intrinsicInterior_subset hxe⟩
+  · rintro hx
+    simp only [Set.mem_iUnion] at hx
+    obtain ⟨e, f, heq, hx⟩ := hx
+    have hx_i := hereditary_trace_step1_cell_subset (P.child n i) n e.val e.property hx
+    rw [heq] at hx
+    have hx_j := hereditary_trace_step1_cell_subset (P.child n j) n f.val f.property hx
+    exact ⟨hx_i, hx_j⟩
 
 /-- P4, V4 1.4(b): positive facet measure, expressed by Hausdorff measure. -/
 def PositiveFacetOverlap (K L : Set (E d)) : Prop :=

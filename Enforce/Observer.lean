@@ -936,13 +936,565 @@ theorem observer_transition (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     observerOf Y hY (parsedChild Y hY q (by omega) i) =
       (observerOf Y hY q).transition ⟨q.2.val.ty, i⟩ := by
   exact observer_transition_aux_step2_output_child Y hY q (by omega) i
+/-- Step 1 of the V4 proof of `ground_actuality` (V4 4.5): "Let B be the
+K-ancestor of A in Y's hierarchy". One more parent step extends an exact
+downward address by its top letter, the role of the old ancestor. -/
+private theorem ground_actuality_step1_address_extend (h r n : ℕ) (N M : FramedNode S)
+    (i : S.I N.ty) (hM : M = N.child n i) (hn : n = h + r) (w : S.RoleWord M.ty r) :
+    ∃ w' : S.RoleWord N.ty (r + 1),
+      (S.descendantNode N.ty h (r + 1) w').move N.frame =
+        (S.descendantNode M.ty h r w).move M.frame := by
+  subst hM
+  subst hn
+  exact ⟨⟨i, w⟩, rfl⟩
+/-- Step 1 of the V4 proof of `ground_actuality` (V4 4.5): "Let B be the
+K-ancestor of A in Y's hierarchy". Every node sits at an exact downward role-word
+address inside its r-th ancestor, in any coherent hierarchy. -/
+private theorem ground_actuality_step1_address {T : Tiling S}
+    (H : CoherentHierarchy S T) (c : H.Node) (r : ℕ) :
+    ∃ w : S.RoleWord (H.ancestor c r).2.val.ty r,
+      (S.descendantNode (H.ancestor c r).2.val.ty c.1 r w).move
+        (H.ancestor c r).2.val.frame = c.2.val := by
+  induction r with
+  | zero =>
+      refine ⟨(), ?_⟩
+      apply FramedNode.ext
+      · rfl
+      · apply AffineIsometryEquiv.ext
+        intro x
+        rfl
+  | succ r ih =>
+      obtain ⟨w, hw⟩ := ih
+      have hanc : H.ancestor c (r + 1) = H.parentNode (H.ancestor c r) := by
+        rw [← H.ancestor_add c r 1]
+        rfl
+      rw [hanc]
+      obtain ⟨w', hw'⟩ := ground_actuality_step1_address_extend c.1 r (H.ancestor c r).1
+        (H.parentNode (H.ancestor c r)).2.val (H.ancestor c r).2.val
+        (H.role (H.ancestor c r).1 (H.ancestor c r).2)
+        (H.child_eq (H.ancestor c r).1 (H.ancestor c r).2)
+        (H.ancestor_height c r) w
+      exact ⟨w', hw'.trans hw⟩
+/-- Step 1 of the V4 proof of `ground_actuality` (V4 4.5): "Let B be the
+K-ancestor of A in Y's hierarchy (a K-block, Theorem 2.17(a))". The ancestor at
+height K is a certificate block, and the node is at an exact address inside it. -/
+private theorem ground_actuality_step1_K_block (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (c : (parsedHierarchy Y hY).Node) (r : ℕ) (hcr : c.1 + r = P.K) :
+    ∃ (B : KBlock Y) (w : S.RoleWord B.certificate.val.ty r),
+      (S.descendantNode B.certificate.val.ty c.1 r w).move B.frame = c.2.val := by
+  set a := (parsedHierarchy Y hY).ancestor c r with ha_def
+  have ha : a.1 = P.K := by
+    rw [ha_def, CoherentHierarchy.ancestor_height]
+    exact hcr
+  have hmem : a.2.val ∈ (parsedHierarchy Y hY).nodes P.K := ha ▸ a.2.property
+  have hroot : a.2.val ∈ Set.range (fun B : KBlock Y => B.node) := by
+    rw [← (parsedHierarchy_base Y hY).1, ← parsedDecodedLevel_upper Y hY P.K le_rfl,
+      parsedHierarchy_nodes]
+    exact hmem
+  obtain ⟨B, hB⟩ := hroot
+  have key : ∀ M : FramedNode S, B.node = M →
+      (∃ w : S.RoleWord M.ty r, (S.descendantNode M.ty c.1 r w).move M.frame = c.2.val) →
+      ∃ w : S.RoleWord B.certificate.val.ty r,
+        (S.descendantNode B.certificate.val.ty c.1 r w).move B.frame = c.2.val := by
+    intro M hM h
+    subst hM
+    exact h
+  exact ⟨B, key a.2.val hB (ground_actuality_step1_address (parsedHierarchy Y hY) c r)⟩
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "the corresponding
+node Ã inside B̃". Moving from the frame of B to the frame of B̃ composes frames. -/
+private theorem ground_actuality_step2_move (X : FramedNode S) (φ ψ : Iso d) :
+    (X.move φ).move (φ.symm.trans ψ) = X.move ψ := by
+  apply FramedNode.ext
+  · rfl
+  · apply AffineIsometryEquiv.ext
+    intro x
+    simp [FramedNode.move]
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "fixed by position".
+Exact downward addresses invert ancestry (copied from Step 1 of the V4 4.2 proof). -/
+private theorem ground_actuality_step2_root_ancestor {T : Tiling S}
+    (H : CoherentHierarchy S T) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ H.nodes (h + r)) (w : S.RoleWord N.ty r)
+    (hc : (S.descendantNode N.ty h r w).move N.frame ∈ H.nodes h) :
+    H.ancestor ⟨h, ⟨(S.descendantNode N.ty h r w).move N.frame, hc⟩⟩ r =
+      ⟨h + r, ⟨N, hN⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+      simp [CoherentHierarchy.ancestor, SubstSystem.descendantNode, FramedNode.move]
+  | succ r ih =>
+      have hchild := H.children_mem (h + r) N (by simpa [Nat.add_assoc] using hN) w.1
+      have hc' : (S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+          (N.child (h + r) w.1).frame ∈ H.nodes h := by
+        have e : (S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+            (N.child (h + r) w.1).frame = (S.descendantNode N.ty h (r + 1) w).move N.frame :=
+          rfl
+        rw [e]
+        exact hc
+      have hi := ih (N.child (h + r) w.1) hchild w.2 hc'
+      rw [← H.ancestor_add]
+      change H.parentNode (H.ancestor _ r) = _
+      have he : (⟨h, ⟨(S.descendantNode N.ty h (r + 1) w).move N.frame, hc⟩⟩ :
+          H.Node) = ⟨h, ⟨(S.descendantNode (N.child (h + r) w.1).ty h r w.2).move
+            (N.child (h + r) w.1).frame, hc'⟩⟩ := rfl
+      rw [he, hi]
+      exact observer_transition_aux_step1_parent H (h + r) N hN w.1 hchild
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "inside B".
+A node whose ancestor is the K-block B has an exact address inside B. -/
+private theorem ground_actuality_step2_block_address (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (B : KBlock Y) (c : (parsedHierarchy Y hY).Node) (s : ℕ)
+    (hanc : ((parsedHierarchy Y hY).ancestor c s).2.val = B.node) :
+    ∃ w : S.RoleWord B.certificate.val.ty s,
+      (S.descendantNode B.certificate.val.ty c.1 s w).move B.frame = c.2.val := by
+  have key : ∀ M : FramedNode S, M = B.node →
+      (∃ w : S.RoleWord M.ty s, (S.descendantNode M.ty c.1 s w).move M.frame = c.2.val) →
+      ∃ w : S.RoleWord B.certificate.val.ty s,
+        (S.descendantNode B.certificate.val.ty c.1 s w).move B.frame = c.2.val := by
+    intro M hM h
+    subst hM
+    exact h
+  exact key _ hanc (ground_actuality_step1_address (parsedHierarchy Y hY) c s)
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "the corresponding
+node Ã inside B̃". Every node inside B, moved to the frame of B̃, is a source node. -/
+private theorem ground_actuality_step2_source_mem (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (B : KBlock Y) (U : HonestSource S) (ψ : Iso d)
+    (hN : (⟨B.certificate.val.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (c : (parsedHierarchy Y hY).Node) (s : ℕ) (hcs : c.1 + s = P.K)
+    (hanc : ((parsedHierarchy Y hY).ancestor c s).2.val = B.node) :
+    c.2.val.move (B.frame.symm.trans ψ) ∈ U.hierarchy.nodes c.1 := by
+  obtain ⟨w, hw⟩ := ground_actuality_step2_block_address Y hY B c s hanc
+  have hs : s ≤ P.K := by omega
+  have hm : (S.descendantNode B.certificate.val.ty (P.K - s) s w).move ψ ∈
+      U.hierarchy.nodes (P.K - s) :=
+    U.descendant_mem ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ s hs w
+  have hh : P.K - s = c.1 := by omega
+  rw [← hw, ground_actuality_step2_move]
+  rw [hh] at hm
+  exact hm
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "same table".
+The S-table of a certificate of an honest node lists its descendants' states. -/
+private theorem ground_actuality_step2_table (U : HonestSource S) (ψ : Iso d)
+    (D : Certificate P) (hN : (⟨D.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P ⟨D.ty, ψ⟩ hN = D) (s : ℕ) (hs : s ≤ P.K)
+    (w : S.RoleWord D.ty s) :
+    D.table s hs w = stateOf U P (U.descendant ⟨P.K, ⟨⟨D.ty, ψ⟩, hN⟩⟩ s hs w) := by
+  have aux : ∀ X Z : Certificate P, X = Z → ∀ (h : X.ty = Z.ty) (v : S.RoleWord X.ty s),
+      X.table s hs v = Z.table s hs (h ▸ v) := by
+    intro X Z e h v
+    subst e
+    rfl
+  exact (aux _ _ hcert rfl w).symm
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "The states of nodes
+inside B are the table entries of D (Lemma 3.2)" (copied from Step 3 of the
+V4 4.2 proof). -/
+private theorem ground_actuality_step2_output_table
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (B : KBlock Y)
+    (r : ℕ) (hr : r ≤ P.K) (w : S.RoleWord B.certificate.val.ty r) :
+    ∃ hc : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r),
+      B.table r hr w = parsedState Y hY ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ := by
+  obtain ⟨hc, he⟩ := (parsedHierarchy_base Y hY).2 B r hr w
+  have hc' : B.innerNode r hr w ∈
+      (parsedDecodedLevel Y hY P.K).geometry.nodes (P.K - r) := by
+    rw [parsedDecodedLevel_upper Y hY P.K le_rfl]
+    exact hc
+  have hm : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r) := by
+    rw [← parsedHierarchy_inner_nodes Y hY P.K (P.K - r) (Nat.sub_le _ _)]
+    exact hc'
+  refine ⟨hm, ?_⟩
+  have hagree := parsedState_agrees Y hY P.K (P.K - r) (B.innerNode r hr w) hc' hm
+  have htable : ∀ hc' : B.innerNode r hr w ∈
+      (parsedDecodedLevel Y hY P.K).geometry.nodes (P.K - r),
+      (parsedDecodedLevel Y hY P.K).stateAt (P.K - r) (B.innerNode r hr w) hc' =
+        B.table r hr w := by
+    rw [parsedDecodedLevel_upper Y hY P.K le_rfl]
+    intro hc'
+    exact he
+  exact (htable hc').symm.trans hagree
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "Hence Ĵ(A) equals
+Ĵ(Ã) ... (same table)". Corresponding nodes inside B and B̃ have equal states. -/
+private theorem ground_actuality_step2_state (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (B : KBlock Y) (U : HonestSource S) (ψ : Iso d)
+    (hN : (⟨B.certificate.val.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P ⟨B.certificate.val.ty, ψ⟩ hN = B.certificate.val)
+    (e : (parsedHierarchy Y hY).Node) (e' : U.Node) (s : ℕ) (hes : e.1 + s = P.K)
+    (hanc : ((parsedHierarchy Y hY).ancestor e s).2.val = B.node)
+    (h1 : e'.1 = e.1) (h2 : e'.2.val = e.2.val.move (B.frame.symm.trans ψ)) :
+    parsedState Y hY e = stateOf U P e' := by
+  obtain ⟨w, hw⟩ := ground_actuality_step2_block_address Y hY B e s hanc
+  have hs : s ≤ P.K := by omega
+  obtain ⟨hm, ht⟩ := ground_actuality_step2_output_table Y hY B s hs w
+  have hh : P.K - s = e.1 := by omega
+  have hY1 : e = ⟨P.K - s, ⟨B.innerNode s hs w, hm⟩⟩ := by
+    obtain ⟨n, E, hE⟩ := e
+    apply observer_transition_aux_step1_node_eq (parsedHierarchy Y hY) hE hm hh.symm
+    show E = (S.descendantNode B.certificate.val.ty (P.K - s) s w).move B.frame
+    rw [hh]
+    exact hw.symm
+  have hU1 : e' = U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ s hs w := by
+    obtain ⟨n, E, hE⟩ := e'
+    dsimp only at h1 h2
+    apply observer_transition_aux_step1_node_eq U.hierarchy hE _ (h1.trans hh.symm)
+    show E = (S.descendantNode B.certificate.val.ty (P.K - s) s w).move ψ
+    rw [h2, ← hw, ground_actuality_step2_move, hh]
+  rw [hY1, hU1, ← ht]
+  exact ground_actuality_step2_table U ψ B.certificate.val hN hcert s hs w
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "the nodes
+A_H, ..., A_{H+w-1} all lie inside B". The parent and role of corresponding
+nodes inside B and B̃ correspond. -/
+private theorem ground_actuality_step2_parent (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (B : KBlock Y) (U : HonestSource S) (ψ : Iso d)
+    (hN : (⟨B.certificate.val.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (c : (parsedHierarchy Y hY).Node) (c' : U.Node) (s : ℕ) (hcs : c.1 + 1 + s = P.K)
+    (hanc : ((parsedHierarchy Y hY).ancestor
+      ((parsedHierarchy Y hY).parentNode c) s).2.val = B.node)
+    (h1 : c'.1 = c.1) (h2 : c'.2.val = c.2.val.move (B.frame.symm.trans ψ)) :
+    (U.hierarchy.parentNode c').2.val =
+        ((parsedHierarchy Y hY).parentNode c).2.val.move (B.frame.symm.trans ψ) ∧
+      U.hierarchy.nodeRole c' = (parsedHierarchy Y hY).nodeRole c := by
+  have hmem := ground_actuality_step2_source_mem Y hY B U ψ hN
+    ((parsedHierarchy Y hY).parentNode c) s hcs hanc
+  have hmem' : ((parsedHierarchy Y hY).parentNode c).2.val.move (B.frame.symm.trans ψ) ∈
+      U.hierarchy.nodes (c'.1 + 1) := by
+    rw [h1]
+    exact hmem
+  have hchild : c'.2.val = (((parsedHierarchy Y hY).parentNode c).2.val.move
+      (B.frame.symm.trans ψ)).child c'.1 ((parsedHierarchy Y hY).role c.1 c.2) := by
+    rw [h2, h1, (parsedHierarchy Y hY).child_eq c.1 c.2]
+    rfl
+  have hpar := U.hierarchy.parent_unique c'.1 c'.2 _ hmem' ⟨_, hchild⟩
+  refine ⟨hpar.symm, ?_⟩
+  have hc'' : (((parsedHierarchy Y hY).parentNode c).2.val.move
+      (B.frame.symm.trans ψ)).child c'.1 ((parsedHierarchy Y hY).role c.1 c.2) ∈
+        U.hierarchy.nodes c'.1 := hchild ▸ c'.2.property
+  have hnode : c' = ⟨c'.1, ⟨_, hc''⟩⟩ := by
+    obtain ⟨n, E, hE⟩ := c'
+    exact observer_transition_aux_step1_node_eq U.hierarchy hE hc'' rfl hchild
+  rw [hnode, observer_transition_aux_step1_role U.hierarchy c'.1 _ hmem' _ hc'']
+  rfl
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "the nodes
+A_H, ..., A_{H+w-1} all lie inside B". Ancestors of corresponding nodes, up to
+the height of B, correspond. -/
+private theorem ground_actuality_step2_ancestor (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (B : KBlock Y) (U : HonestSource S) (ψ : Iso d)
+    (hN : (⟨B.certificate.val.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (c : (parsedHierarchy Y hY).Node) (c' : U.Node) (s : ℕ) (hcs : c.1 + s = P.K)
+    (hanc : ((parsedHierarchy Y hY).ancestor c s).2.val = B.node)
+    (h1 : c'.1 = c.1) (h2 : c'.2.val = c.2.val.move (B.frame.symm.trans ψ))
+    (j : ℕ) (hj : j ≤ s) :
+    (U.hierarchy.ancestor c' j).2.val =
+      ((parsedHierarchy Y hY).ancestor c j).2.val.move (B.frame.symm.trans ψ) := by
+  induction j with
+  | zero => exact h2
+  | succ j ih =>
+      have ih := ih (by omega)
+      have hYa : (parsedHierarchy Y hY).ancestor c (j + 1) =
+          (parsedHierarchy Y hY).parentNode ((parsedHierarchy Y hY).ancestor c j) := by
+        rw [← CoherentHierarchy.ancestor_add (parsedHierarchy Y hY) c j 1]
+        rfl
+      have hUa : U.hierarchy.ancestor c' (j + 1) =
+          U.hierarchy.parentNode (U.hierarchy.ancestor c' j) := by
+        rw [← U.hierarchy.ancestor_add c' j 1]
+        rfl
+      have hpa : ((parsedHierarchy Y hY).ancestor
+          ((parsedHierarchy Y hY).parentNode ((parsedHierarchy Y hY).ancestor c j))
+            (s - (j + 1))).2.val = B.node := by
+        rw [← hYa, CoherentHierarchy.ancestor_add,
+          show j + 1 + (s - (j + 1)) = s by omega]
+        exact hanc
+      have hk : ((parsedHierarchy Y hY).ancestor c j).1 + 1 + (s - (j + 1)) = P.K := by
+        rw [CoherentHierarchy.ancestor_height]
+        omega
+      have hh : (U.hierarchy.ancestor c' j).1 = ((parsedHierarchy Y hY).ancestor c j).1 := by
+        rw [CoherentHierarchy.ancestor_height, CoherentHierarchy.ancestor_height, h1]
+      rw [hYa, hUa]
+      exact (ground_actuality_step2_parent Y hY B U ψ hN _ _ (s - (j + 1)) hk hpa hh ih).1
+/-- Step 2 of the V4 proof of `ground_actuality` (V4 4.5): "Since K ≥ H+w, the
+nodes A=A_H, A_{H+1}, ..., A_{H+w-1} all lie inside B ... The states of nodes
+inside B are the table entries of D (Lemma 3.2)". For an inner node of a K-block
+at depth r ≥ w, the compressed window (highest state and intervening roles) is
+the window of the same-address node below the honest node whose certificate is D. -/
+private theorem ground_actuality_step2_window (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (B : KBlock Y) (U : HonestSource S) (ψ : Iso d)
+    (hN : (⟨B.certificate.val.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P ⟨B.certificate.val.ty, ψ⟩ hN = B.certificate.val)
+    (r : ℕ) (hr : r ≤ P.K) (hwr : P.w ≤ r) (w : S.RoleWord B.certificate.val.ty r)
+    (hc : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r)) :
+    ObserverWindow.ofHierarchy (parsedHierarchy Y hY) (parsedState Y hY)
+        ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ =
+      ObserverWindow.ofHierarchy U.hierarchy (stateOf U P)
+        (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w) := by
+  have hBK : B.node ∈ (parsedHierarchy Y hY).nodes P.K := by
+    have h0 : B.node ∈ Set.range (fun B : KBlock Y => B.node) := ⟨B, rfl⟩
+    rw [← (parsedHierarchy_base Y hY).1, ← parsedDecodedLevel_upper Y hY P.K le_rfl,
+      parsedHierarchy_nodes] at h0
+    exact h0
+  have hBK' : B.node ∈ (parsedHierarchy Y hY).nodes (P.K - r + r) := by
+    rw [Nat.sub_add_cancel hr]
+    exact hBK
+  have hanc0 := ground_actuality_step2_root_ancestor (parsedHierarchy Y hY) (P.K - r) r
+    B.node hBK' w hc
+  have hanc : ((parsedHierarchy Y hY).ancestor
+      ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ r).2.val = B.node := by
+    have e : (⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ : (parsedHierarchy Y hY).Node) =
+        ⟨P.K - r, ⟨(S.descendantNode B.node.ty (P.K - r) r w).move B.node.frame, hc⟩⟩ :=
+      rfl
+    rw [e, hanc0]
+  have h2 : (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.val =
+      (B.innerNode r hr w).move (B.frame.symm.trans ψ) :=
+    (ground_actuality_step2_move _ _ _).symm
+  have hcs : (P.K - r) + r = P.K := Nat.sub_add_cancel hr
+  have hcorr := ground_actuality_step2_ancestor Y hY B U ψ hN
+    ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩
+    (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w) r hcs hanc rfl h2
+  have hw3 := P.observer_window_bound
+  apply ObserverWindow.ext
+  · show parsedState Y hY ((parsedHierarchy Y hY).ancestor
+        ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ (P.w - 1)) =
+      stateOf U P (U.hierarchy.ancestor
+        (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w) (P.w - 1))
+    apply ground_actuality_step2_state Y hY B U ψ hN hcert _ _ (r - (P.w - 1))
+    · rw [CoherentHierarchy.ancestor_height]
+      dsimp only
+      omega
+    · rw [CoherentHierarchy.ancestor_add, show P.w - 1 + (r - (P.w - 1)) = r by omega]
+      exact hanc
+    · rw [CoherentHierarchy.ancestor_height, CoherentHierarchy.ancestor_height]
+      rfl
+    · exact hcorr (P.w - 1) (by omega)
+  · funext j
+    show (parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor
+        ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ j.val) =
+      U.hierarchy.nodeRole (U.hierarchy.ancestor
+        (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w) j.val)
+    have hj := j.isLt
+    refine (ground_actuality_step2_parent Y hY B U ψ hN _ _ (r - (j.val + 1)) ?_ ?_ ?_
+      (hcorr j.val (by omega))).2.symm
+    · rw [CoherentHierarchy.ancestor_height]
+      dsimp only
+      omega
+    · have hYa : (parsedHierarchy Y hY).parentNode ((parsedHierarchy Y hY).ancestor
+          ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ j.val) = (parsedHierarchy Y hY).ancestor
+          ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ (j.val + 1) := by
+        rw [← CoherentHierarchy.ancestor_add (parsedHierarchy Y hY) _ j.val 1]
+        rfl
+      rw [hYa, CoherentHierarchy.ancestor_add,
+        show j.val + 1 + (r - (j.val + 1)) = r by omega]
+      exact hanc
+    · rw [CoherentHierarchy.ancestor_height, CoherentHierarchy.ancestor_height]
+      rfl
+/-- Step 3 of the V4 proof of `ground_actuality` (V4 4.5): "the corresponding
+node Ã inside B̃". Moving a node moves each of its named cells. -/
+private theorem ground_actuality_step3_cell_move (N : FramedNode S) (n : ℕ)
+    (F : Cell d) (γ : Iso d) : (N.move γ).cell n F = γ '' N.cell n F := by
+  simp only [FramedNode.cell, Set.image_image]
+  rfl
+/-- Step 3 of the V4 proof of `ground_actuality` (V4 4.5): "the packets on the
+tiles inside B are those of the leaf pre-patterns of D". The leaf pre-patterns of
+the certificate of an honest node are those of its native descendants. -/
+private theorem ground_actuality_step3_leaves (U : HonestSource S) (ψ : Iso d)
+    (D : Certificate P) (hN : (⟨D.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P ⟨D.ty, ψ⟩ hN = D) (v : S.RoleWord D.ty P.K) :
+    D.leaves v = prePatternOf U P (U.descendant ⟨P.K, ⟨⟨D.ty, ψ⟩, hN⟩⟩ P.K le_rfl v)
+      (Nat.sub_self P.K) := by
+  have aux : ∀ X Z : Certificate P, X = Z → ∀ (h : X.ty = Z.ty)
+      (v : S.RoleWord X.ty P.K), X.leaves v = Z.leaves (h ▸ v) := by
+    intro X Z e h v
+    subst e
+    rfl
+  exact (aux _ _ hcert rfl v).symm
+/-- Step 3 of the V4 proof of `ground_actuality` (V4 4.5): "all tiles inside A
+with pieces on the facets of A" lie inside B, and the actual tiles inside the
+K-block B are its prescribed leaves (Theorem 2.17(a)): an actual tile whose
+decoded native node is a ground descendant of B is one of B's leaves. -/
+private theorem ground_actuality_step3_tile_leaf {Y : MarkedTiling (systemM S P C)}
+    (B : KBlock Y) (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (htd : (tileNode t).IsDescendant 0 B.node P.K) :
+    ∃ v : S.RoleWord B.certificate.val.ty P.K, t = B.leaf v := by
+  obtain ⟨r', hr', v, hv⟩ := htd
+  have hr'' : r' = P.K := by omega
+  subst hr''
+  refine ⟨v, ?_⟩
+  have hleaf : tileNode (B.leaf v) =
+      (S.descendantNode B.certificate.val.ty 0 P.K v).move B.frame := by
+    apply FramedNode.ext
+    · change (compilerLeaf C (B.leaf v)).prototype = _
+      rw [(B.leaf_data v).1]
+      rfl
+    · change compilerFrame C (B.leaf v) = _
+      rw [(B.leaf_data v).2]
+      rfl
+  have hsame : tileNode t = tileNode (B.leaf v) := hv.trans hleaf.symm
+  have hcar : t.carrier = (B.leaf v).carrier := by
+    rw [compilerFrame_carrier C t, compilerFrame_carrier C (B.leaf v)]
+    have h1 : compilerFrame C t = compilerFrame C (B.leaf v) :=
+      congrArg FramedNode.frame hsame
+    have h2 : (compilerLeaf C t).prototype = (compilerLeaf C (B.leaf v)).prototype := by
+      have h3 := congrArg FramedNode.ty hsame
+      exact h3
+    rw [h1, h2]
+  by_contra hne
+  have hd := Y.disjoint ht (B.leaf_mem v) hne
+  change Disjoint (interior t.carrier) (interior (B.leaf v).carrier) at hd
+  rw [hcar] at hd
+  have hn : (interior (B.leaf v).carrier).Nonempty := by
+    rw [compilerFrame_carrier C (B.leaf v)]
+    change (interior ((compilerFrame C (B.leaf v)).toHomeomorph ''
+      (S.proto (compilerLeaf C (B.leaf v)).prototype).carrier)).Nonempty
+    rw [← Homeomorph.image_interior]
+    exact (S.proto _).interior_nonempty.image _
+  obtain ⟨x, hx⟩ := hn
+  exact Set.disjoint_left.mp hd hx hx
+/-- Step 3 of the V4 proof of `ground_actuality` (V4 4.5): "so do all tiles
+inside A with pieces on the facets of A (only these enter O_F(A)) ... the packets
+on the tiles inside B are those of the leaf pre-patterns of D". Every facet
+packet of an inner node of a K-block equals the honest facet packet of the
+same-address node below the honest node whose certificate is D (NULL included). -/
+private theorem ground_actuality_step3_packets (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (B : KBlock Y) (U : HonestSource S) (ψ : Iso d)
+    (hN : (⟨B.certificate.val.ty, ψ⟩ : FramedNode S) ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P ⟨B.certificate.val.ty, ψ⟩ hN = B.certificate.val)
+    (r : ℕ) (hr : r ≤ P.K) (w : S.RoleWord B.certificate.val.ty r)
+    (hc : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r))
+    (F : FacetName S (B.innerNode r hr w).ty) :
+    parsedFacetPacket Y hY ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ F =
+      U.facetPacket P (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w) F := by
+  classical
+  have hblock : IsBlock Y (P.K - r) (B.innerNode r hr w) := by
+    have h1 : B.innerNode r hr w ∈ (parsedHierarchy Y hY).nodes (P.K - r) := hc
+    rw [← parsedHierarchy_nodes,
+      ← (parsedDecodedLevel Y hY (P.K - r)).geometry.nodes_top] at h1
+    exact (parsedDecodedLevel Y hY (P.K - r)).geometry.node_actual (P.K - r) _ h1
+  obtain ⟨t, f, ht, htd, htf⟩ := Parser.facet_piece_exists Y (P.K - r) _ hblock F
+  have hread := parsedFacetPacket_spec Y hY ⟨P.K - r, ⟨B.innerNode r hr w, hc⟩⟩ F t f
+    ⟨ht, htd, htf⟩
+  have htB : (tileNode t).IsDescendant 0 B.node P.K :=
+    Parser.descendant_trans _ _ _ 0 (P.K - r) P.K htd
+      ⟨r, (Nat.sub_add_cancel hr).symm, w, rfl⟩
+  obtain ⟨v, rfl⟩ := ground_actuality_step3_tile_leaf B t ht htB
+  rw [← hread, (B.leaf_data v).1]
+  have he : tileNode (B.leaf v) = B.innerNode P.K le_rfl v := by
+    apply FramedNode.ext
+    · change (compilerLeaf C (B.leaf v)).prototype = _
+      rw [(B.leaf_data v).1]
+      simp only [LeafType.prototype, KBlock.innerNode, Nat.sub_self,
+        FramedNode.move, SubstSystem.nativeTile]
+    · change compilerFrame C (B.leaf v) = _
+      rw [(B.leaf_data v).2]
+      simp only [LeafType.position, KBlock.innerNode, Nat.sub_self,
+        FramedNode.move, SubstSystem.nativeTile]
+  have hℓnode : (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).2.val =
+      (tileNode (B.leaf v)).move (B.frame.symm.trans ψ) := by
+    rw [he]
+    exact (ground_actuality_step2_move _ _ _).symm
+  have hty : (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).2.val.ty =
+      (tileNode (B.leaf v)).ty := by
+    have h3 := congrArg FramedNode.ty hℓnode
+    exact h3
+  have hfl : f.val ∈ (S.cx (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩
+      P.K le_rfl v).2.val.ty).facets := by
+    rw [hty]
+    exact f.property
+  have hlp : leafPacket (⟨B.certificate, v⟩ : LeafType P) f.val =
+      U.facetPacket P (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v)
+        ⟨f.val, hfl⟩ := by
+    unfold leafPacket
+    have hl := ground_actuality_step3_leaves U ψ B.certificate.val hN hcert v
+    rw [show LeafType.prePattern (⟨B.certificate, v⟩ : LeafType P) = _ from hl]
+    split_ifs with h
+    · rfl
+    · exact absurd hfl h
+  rw [hlp]
+  obtain ⟨r1, hr1, u, hu⟩ := htd
+  have hc'node : (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.val =
+      (B.innerNode r hr w).move (B.frame.symm.trans ψ) :=
+    (ground_actuality_step2_move _ _ _).symm
+  have hc'mem : (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.val ∈
+      U.hierarchy.nodes (0 + r1) := by
+    rw [← hr1]
+    exact (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.property
+  have hX : (S.descendantNode (B.innerNode r hr w).ty 0 r1 u).move
+      (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.val.frame =
+        (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).2.val := by
+    rw [hℓnode, hu, hc'node]
+    rfl
+  have hXm : (S.descendantNode (B.innerNode r hr w).ty 0 r1 u).move
+      (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.val.frame ∈
+        U.hierarchy.nodes 0 := by
+    have h0 : (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).2.val ∈
+        U.hierarchy.nodes (P.K - P.K) :=
+      (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).2.property
+    rw [Nat.sub_self] at h0
+    rw [hX]
+    exact h0
+  have hroot := ground_actuality_step2_root_ancestor U.hierarchy 0 r1
+    (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.val hc'mem u hXm
+  have hℓ : U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v =
+      ⟨0, ⟨_, hXm⟩⟩ :=
+    observer_transition_aux_step1_node_eq U.hierarchy
+      (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).2.property hXm
+      (Nat.sub_self P.K) hX.symm
+  have hc' : (⟨0 + r1, ⟨_, hc'mem⟩⟩ : U.Node) =
+      U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w :=
+    observer_transition_aux_step1_node_eq U.hierarchy hc'mem
+      (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.property hr1.symm rfl
+  have hca : U.hierarchy.ancestor
+      (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v) r1 =
+        U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w := by
+    rw [hℓ]
+    exact hroot.trans hc'
+  have hgf : (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).2.val.cell
+      (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ P.K le_rfl v).1 f.val ⊆
+        (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).2.val.cell
+          (U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ r hr w).1 F.val := by
+    show _ ⊆ _
+    rw [hℓnode, hc'node, ground_actuality_step3_cell_move, ground_actuality_step3_cell_move]
+    show (B.frame.symm.trans ψ) '' (tileNode (B.leaf v)).cell (P.K - P.K) f.val ⊆
+      (B.frame.symm.trans ψ) '' (B.innerNode r hr w).cell (P.K - r) F.val
+    rw [Nat.sub_self]
+    exact Set.image_mono htf
+  exact packet_inherited U P _ _ r1 hca F ⟨f.val, hfl⟩ hgf
 /-- O5, V4 4.5: the entire observer of each height-H node occurs jointly in
 one honest source node. The window and facet packets are read from one honest
 K-certificate, using H+w ≤ K; separate marginal witnesses would not suffice. -/
 theorem ground_actuality (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (hq : q.1 = P.H) :
     observerOf Y hY q ∈ jointSourceRange S P := by
-  sorry
+  obtain ⟨n, Q, hQ⟩ := q
+  dsimp only at hq
+  subst hq
+  have hHK : P.H + P.w ≤ P.K := P.K_window
+  obtain ⟨B, w, hw⟩ := ground_actuality_step1_K_block Y hY ⟨P.H, ⟨Q, hQ⟩⟩ (P.K - P.H)
+    (by dsimp only; omega)
+  obtain ⟨U, ⟨A, ψ⟩, hN, hcert⟩ := B.honest_table
+  have hA : A = B.certificate.val.ty := congrArg Certificate.ty hcert
+  subst hA
+  have hr : P.K - P.H ≤ P.K := Nat.sub_le _ _
+  have hh : P.K - (P.K - P.H) = P.H := by omega
+  have hc : B.innerNode (P.K - P.H) hr w ∈
+      (parsedHierarchy Y hY).nodes (P.K - (P.K - P.H)) := by
+    show (S.descendantNode B.certificate.val.ty (P.K - (P.K - P.H)) (P.K - P.H) w).move
+      B.frame ∈ _
+    rw [hh]
+    dsimp only at hw
+    rw [hw]
+    exact hQ
+  have hq' : (⟨P.H, ⟨Q, hQ⟩⟩ : (parsedHierarchy Y hY).Node) =
+      ⟨P.K - (P.K - P.H), ⟨B.innerNode (P.K - P.H) hr w, hc⟩⟩ := by
+    apply observer_transition_aux_step1_node_eq (parsedHierarchy Y hY) hQ hc hh.symm
+    show Q = (S.descendantNode B.certificate.val.ty (P.K - (P.K - P.H)) (P.K - P.H) w).move
+      B.frame
+    rw [hh]
+    exact hw.symm
+  refine ⟨U, U.descendant ⟨P.K, ⟨⟨B.certificate.val.ty, ψ⟩, hN⟩⟩ (P.K - P.H) hr w,
+    ?_, ?_⟩
+  · show P.H ≤ P.K - (P.K - P.H)
+    omega
+  · rw [hq']
+    apply Observer.ext
+    · rfl
+    · exact (ground_actuality_step2_window Y hY B U ψ hN hcert (P.K - P.H) hr
+        (by omega) w hc).symm
+    · apply heq_of_eq
+      funext F
+      exact (ground_actuality_step3_packets Y hY B U ψ hN hcert (P.K - P.H) hr w hc F).symm
 namespace Observer
 /-- O6, V4 4.6: the finite stateUniverse `𝓙_*`, containing honest and occurring observers.
 Source and output witnesses are retained as alternatives, without any global

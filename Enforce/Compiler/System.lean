@@ -1648,7 +1648,34 @@ theorem compiler_microcentres_separated (C : ClusterData S P)
     (η : ClusterKind (compilerLeaf C u)) (a b : Fin (d + 1)) :
     2 * C.δ ≤ dist (compilerFrame C t (C.centre (compilerLeaf C t) κ a))
       (compilerFrame C u (C.centre (compilerLeaf C u) η b)) := by
-  sorry
+  have h_int_t : Metric.ball (compilerFrame C t (C.centre (compilerLeaf C t) κ a)) C.δ ⊆ interior t.carrier := by
+    rw [compilerFrame_carrier C t]
+    have h_clear := C.centre_ball_inside (compilerLeaf C t) κ a
+    change Metric.ball ((compilerFrame C t) (C.centre (compilerLeaf C t) κ a)) C.δ ⊆ interior (⇑(compilerFrame C t).toHomeomorph '' _)
+    rw [← (compilerFrame C t).toHomeomorph.image_interior]
+    intro x hx
+    have h1 : (compilerFrame C t).symm x ∈ Metric.ball (C.centre (compilerLeaf C t) κ a) C.δ := by
+      rw [Metric.mem_ball, ← (compilerFrame C t).isometry.dist_eq (compilerFrame C t |>.symm x) (C.centre (compilerLeaf C t) κ a)]
+      rw [AffineIsometryEquiv.apply_symm_apply]
+      exact hx
+    use (compilerFrame C t).symm x
+    exact ⟨h_clear h1, AffineIsometryEquiv.apply_symm_apply _ _⟩
+  have h_int_u : Metric.ball (compilerFrame C u (C.centre (compilerLeaf C u) η b)) C.δ ⊆ interior u.carrier := by
+    rw [compilerFrame_carrier C u]
+    have h_clear := C.centre_ball_inside (compilerLeaf C u) η b
+    change Metric.ball ((compilerFrame C u) (C.centre (compilerLeaf C u) η b)) C.δ ⊆ interior (⇑(compilerFrame C u).toHomeomorph '' _)
+    rw [← (compilerFrame C u).toHomeomorph.image_interior]
+    intro x hx
+    have h1 : (compilerFrame C u).symm x ∈ Metric.ball (C.centre (compilerLeaf C u) η b) C.δ := by
+      rw [Metric.mem_ball, ← (compilerFrame C u).isometry.dist_eq (compilerFrame C u |>.symm x) (C.centre (compilerLeaf C u) η b)]
+      rw [AffineIsometryEquiv.apply_symm_apply]
+      exact hx
+    use (compilerFrame C u).symm x
+    exact ⟨h_clear h1, AffineIsometryEquiv.apply_symm_apply _ _⟩
+  have h_disj : Disjoint (interior t.carrier) (interior u.carrier) := Y.disjoint ht hu hne
+  have h_disj_balls : Disjoint (Metric.ball (compilerFrame C t (C.centre (compilerLeaf C t) κ a)) C.δ) (Metric.ball (compilerFrame C u (C.centre (compilerLeaf C u) η b)) C.δ) := h_disj.mono h_int_t h_int_u
+  have hdist := (disjoint_ball_ball_iff C.δ_pos C.δ_pos).mp h_disj_balls
+  linarith
 
 /-- M4, V4 2.12(iii): the placed physical family is locally finite, including
 its closed carriers; every bounded set meets only finitely many tiles. -/

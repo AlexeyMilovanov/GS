@@ -96,6 +96,18 @@ theorem opposite_root_edges_bound (B : EdgeBounds S) (n : ℕ)
 /-- P16, V4 1.21: the bound is positive whenever a root edge is present. -/
 theorem oppositeRootBound_pos (B : EdgeBounds S) (e : EdgeName S) :
     1 ≤ oppositeRootBound B := by
-  sorry
+  dsimp [oppositeRootBound]
+  have h_bound := (B.bounds e e Relation.ReflTransGen.refl 0).1
+  have h_len_pos : expandedEdgeLength 0 e ≠ 0 := by
+    dsimp [expandedEdgeLength]
+    intro h_eq
+    have h_ne := (edgeVector_spec e).1
+    have h1 : (S.σ ^ 0) (edgeVector e) = edgeVector e := rfl
+    rw [h1] at h_eq
+    exact h_ne (norm_eq_zero.mp h_eq)
+  have h_eq : expandedEdgeLength 0 e / expandedEdgeLength 0 e = 1 := div_self h_len_pos
+  rw [h_eq] at h_bound
+  have h1 : 1 ≤ 1 / B.lower := one_le_div B.lower_pos |>.mpr h_bound
+  exact Nat.le_floor (by exact_mod_cast h1)
 
 end Enforce

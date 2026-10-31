@@ -2580,6 +2580,185 @@ theorem endTemplates_finite (S : SubstSystem d) (P : Params S) :
     (honestEndGeometries S P).Finite := by
   sorry
 
+open private states_finite_step5_child_frame states_finite_step5_parent_frame
+  from Enforce.State.State in
+/-- Step 1 of the V4 proof of `endGeometry_coverage` (V4 §1.0 (H3)): "the children cover the
+expanded parent". Every point of a placed height-`m+1` node lies in one of its prescribed children. -/
+private theorem endGeometry_coverage_step1_child (N : FramedNode S) (m : ℕ) (y : E d)
+    (hy : y ∈ N.carrier (m + 1)) : ∃ i : S.I N.ty, y ∈ (N.child m i).carrier m := by
+  obtain ⟨z, ⟨a, ha, rfl⟩, rfl⟩ := hy
+  have hσ : S.σ a ∈ S.σ '' (S.proto N.ty).carrier := ⟨a, ha, rfl⟩
+  rw [S.children_cover] at hσ
+  obtain ⟨i, hi⟩ := mem_iUnion.mp hσ
+  obtain ⟨b, hb, hba⟩ := hi
+  refine ⟨i, (S.σ ^ m) b, ⟨b, hb, rfl⟩, ?_⟩
+  have h1 : (N.child m i).frame ((S.σ ^ m) b) = (N.child m i).prototypeFrame m b := rfl
+  rw [h1, states_finite_step5_child_frame]
+  have h2 : N.frame ((S.σ ^ (m + 1)) a) = N.prototypeFrame (m + 1) a := rfl
+  rw [h2, states_finite_step5_parent_frame N (m + 1) (by omega)]
+  change N.frame ((S.σ ^ m) ((S.child N.ty i).frame b)) =
+    N.frame ((S.σ ^ (m + 1 - 1)) (S.σ a))
+  rw [hba, Nat.add_sub_cancel]
+
+/-- Step 2 of the V4 proof of `endGeometry_coverage` (V4 §1.0, 1.18): "B-owned native tiles".
+The carrier of a hierarchy node is covered by its height-zero descendants. -/
+private theorem endGeometry_coverage_step2_cover (U : HonestSource S) (B : U.Node)
+    (y : E d) (hy : y ∈ B.2.val.carrier B.1) :
+    ∃ q : U.Node, q.1 = 0 ∧ U.hierarchy.ancestor q B.1 = B ∧ y ∈ q.2.val.carrier q.1 := by
+  obtain ⟨m, N, hN⟩ := B
+  dsimp only at hy ⊢
+  induction m generalizing N y with
+  | zero => exact ⟨⟨0, N, hN⟩, rfl, rfl, hy⟩
+  | succ m ih =>
+    obtain ⟨i, hi⟩ := endGeometry_coverage_step1_child N m y hy
+    have hC := U.hierarchy.children_mem m N hN i
+    obtain ⟨q, hq0, hqa, hyq⟩ := ih (y := y) (N := N.child m i) (hN := hC) hi
+    refine ⟨q, hq0, ?_, hyq⟩
+    change (U.hierarchy.parentNode^[m + 1]) q = _
+    rw [Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor q m) = _
+    rw [hqa]
+    have hpu := U.hierarchy.parent_unique m ⟨N.child m i, hC⟩ N hN ⟨i, rfl⟩
+    exact Sigma.ext rfl (heq_of_eq (Subtype.ext hpu.symm))
+
+open private birth_ascent_routing_step3_desc_subset from Enforce.Source.Routing in
+/-- Step 3 of the V4 proof of `endGeometry_coverage` (V4 1.0(d), 1.18): "a complete owned star
+is finite". A node has finitely many height-zero descendants (local finiteness of level 0). -/
+private theorem endGeometry_coverage_step3_finite (U : HonestSource S) (B : U.Node) :
+    {q : U.Node | q.1 = 0 ∧ U.hierarchy.ancestor q B.1 = B}.Finite := by
+  have hBc : IsCompact (B.2.val.carrier B.1) :=
+    ((S.proto B.2.val.ty).compact.image
+      (S.σ ^ B.1).toLinearMap.continuous_of_finiteDimensional).image B.2.val.frame.continuous
+  have hfin := (U.hierarchy.nodes_locallyFinite 0).2 _ hBc.isBounded
+  refine (hfin.image (fun N => (⟨0, N⟩ : U.Node))).subset ?_
+  rintro ⟨n, N, hN⟩ ⟨hn, hanc⟩
+  dsimp only at hn
+  subst hn
+  refine ⟨⟨N, hN⟩, ?_, rfl⟩
+  have hdesc := U.hierarchy.ancestor_descendant ⟨0, N, hN⟩ B.1
+  rw [hanc] at hdesc
+  have hsub := birth_ascent_routing_step3_desc_subset _ _ _ _ hdesc
+  obtain ⟨z, hz⟩ := (S.proto N.ty).interior_nonempty
+  have hzN : N.frame ((S.σ ^ 0) z) ∈ N.carrier 0 :=
+    ⟨(S.σ ^ 0) z, ⟨z, interior_subset hz, rfl⟩, rfl⟩
+  exact ⟨_, hsub hzN, hzN⟩
+
+/-- Step 4 of the V4 proof of `endGeometry_coverage` (V4 1.18--1.19): "near the event point only
+the owned tiles containing it matter". Small balls meet the birth parent only in its owned star. -/
+private theorem endGeometry_coverage_step4_local_star (U : HonestSource S) (B : U.Node)
+    (x : E d) :
+    ∃ r : ℝ, 0 < r ∧ B.2.val.carrier B.1 ∩ ball x r ⊆
+      ⋃ q ∈ ownedStarSet U B x, q.2.val.carrier q.1 := by
+  set D := {q : U.Node | q.1 = 0 ∧ U.hierarchy.ancestor q B.1 = B} with hD
+  have hfin : D.Finite := endGeometry_coverage_step3_finite U B
+  set F := {q | q ∈ D ∧ x ∉ q.2.val.carrier q.1} with hF
+  have hFfin : F.Finite := hfin.subset (fun q hq => hq.1)
+  have hcl : IsClosed (⋃ q ∈ F, q.2.val.carrier q.1) := by
+    refine hFfin.isClosed_biUnion (fun q _ => ?_)
+    exact (((S.proto q.2.val.ty).compact.image
+      (S.σ ^ q.1).toLinearMap.continuous_of_finiteDimensional).image
+        q.2.val.frame.continuous).isClosed
+  have hxF : x ∈ (⋃ q ∈ F, q.2.val.carrier q.1)ᶜ := by
+    simp only [mem_compl_iff, mem_iUnion, not_exists]
+    intro q hq hx
+    exact hq.2 hx
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hcl.isOpen_compl x hxF
+  refine ⟨r, hr, ?_⟩
+  rintro y ⟨hyB, hyr⟩
+  obtain ⟨q, hq0, hqa, hyq⟩ := endGeometry_coverage_step2_cover U B y hyB
+  have hxq : x ∈ q.2.val.carrier q.1 := by
+    by_contra hx
+    exact hball hyr (mem_iUnion₂.mpr ⟨q, ⟨⟨hq0, hqa⟩, hx⟩, hyq⟩)
+  exact mem_iUnion₂.mpr ⟨q, ⟨hq0, hqa, hxq⟩, hyq⟩
+
+/-- Step 5 of the V4 proof of `endGeometry_coverage` (V4 1.0(b), 1.19): "the parent-cone sector".
+A tangent direction of the birth parent enters some star tile at a small positive time. -/
+private theorem endGeometry_coverage_step5_germ (U : HonestSource S) (B : U.Node)
+    (x w : E d) (hw : w ∈ tangentCone (B.2.val.carrier B.1) x) :
+    ∃ s : ℝ, 0 < s ∧ s ≤ 1 ∧ ∃ q ∈ ownedStarSet U B x, x + s • w ∈ q.2.val.carrier q.1 := by
+  obtain ⟨r, hr, hcov⟩ := endGeometry_coverage_step4_local_star U B x
+  obtain ⟨ε, hε, hK⟩ := hw
+  set s : ℝ := min (ε / 2) (min 1 (r / (2 * (‖w‖ + 1)))) with hs
+  have hn : 0 < ‖w‖ + 1 := by positivity
+  have hs0 : 0 < s := by
+    simp only [hs, lt_min_iff]
+    exact ⟨by positivity, one_pos, by positivity⟩
+  have hsε : s < ε := lt_of_le_of_lt (min_le_left _ _) (by linarith)
+  have hs1 : s ≤ 1 := le_trans (min_le_right _ _) (min_le_left _ _)
+  have hsr : s ≤ r / (2 * (‖w‖ + 1)) := le_trans (min_le_right _ _) (min_le_right _ _)
+  have hmem : x + s • w ∈ B.2.val.carrier B.1 ∩ ball x r := by
+    refine ⟨hK s hs0 hsε, ?_⟩
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hs0.le]
+    have h1 : s * ‖w‖ ≤ r / (2 * (‖w‖ + 1)) * ‖w‖ :=
+      mul_le_mul_of_nonneg_right hsr (norm_nonneg _)
+    have h2 : r / (2 * (‖w‖ + 1)) * ‖w‖ < r := by
+      rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+      nlinarith [norm_nonneg w]
+    linarith
+  have := hcov hmem
+  simp only [mem_iUnion] at this
+  obtain ⟨q, hq, hx⟩ := this
+  exact ⟨s, hs0, hs1, q, hq, hx⟩
+
+/-- Step 6 of the V4 proof of `endGeometry_coverage` (V4 1.19): "one positive native radius".
+Within the uniform prototype cone radius, a direction entering a listed tile stays in it. -/
+private theorem endGeometry_coverage_step6_scale {r₀ : ℝ}
+    (hr : ∀ (t : FramedNode S) (p : E d), t.Lists 0 p →
+      t.carrier 0 ∩ ball p r₀ =
+        ((fun v => p + v) '' tangentCone (t.carrier 0) p) ∩ ball p r₀)
+    (N : FramedNode S) (k : ℕ) (hk : k = 0) (x w : E d) (hl : N.Lists k x)
+    (hw : ‖w‖ < r₀) (s : ℝ) (hs : 0 < s) (hs1 : s ≤ 1) (hx : x + s • w ∈ N.carrier k) :
+    x + w ∈ N.carrier k := by
+  subst hk
+  have hball : ∀ c : ℝ, 0 ≤ c → c ≤ 1 → x + c • w ∈ ball x r₀ := by
+    intro c hc hc1
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg hc]
+    nlinarith [norm_nonneg w]
+  have h1 : x + s • w ∈ ((fun v => x + v) '' tangentCone (N.carrier 0) x) ∩ ball x r₀ := by
+    rw [← hr N x hl]
+    exact ⟨hx, hball s hs.le hs1⟩
+  obtain ⟨⟨v, hv, hveq⟩, -⟩ := h1
+  have hv' : v = s • w := add_left_cancel hveq
+  subst hv'
+  obtain ⟨ε, hε, hK⟩ := hv
+  have hw' : w ∈ tangentCone (N.carrier 0) x := by
+    refine ⟨ε * s, mul_pos hε hs, fun c hc hcε => ?_⟩
+    have := hK (c / s) (div_pos hc hs) (by rw [div_lt_iff₀ hs]; linarith)
+    rwa [smul_smul, div_mul_cancel₀ c hs.ne'] at this
+  have h2 : x + w ∈ ((fun v => x + v) '' tangentCone (N.carrier 0) x) ∩ ball x r₀ :=
+    ⟨⟨w, hw', rfl⟩, by simpa using hball 1 zero_le_one le_rfl⟩
+  rw [← hr N x hl] at h2
+  exact h2.1
+
+/-- Step 7 of the V4 proof of `endGeometry_coverage` (V4 2.2 (S6)): "normalized by the inverse
+frame". At height zero the normalized cone transports isometrically through the central frame. -/
+private theorem endGeometry_coverage_step7_frame (N : FramedNode S) (p w : E d) :
+    N.frame (p + (N.prototypeFrame 0).linear.symm w) = N.prototypeFrame 0 p + w ∧
+      ‖(N.prototypeFrame 0).linear.symm w‖ = ‖w‖ := by
+  have h0 : N.prototypeFrame 0 = N.frame.toAffineEquiv := by
+    apply AffineEquiv.ext
+    intro z
+    change N.frame ((S.σ ^ 0) z) = N.frame z
+    rw [pow_zero]
+    rfl
+  rw [h0]
+  change N.frame (p + N.frame.linearIsometryEquiv.symm w) = N.frame p + w ∧
+    ‖N.frame.linearIsometryEquiv.symm w‖ = ‖w‖
+  refine ⟨?_, LinearIsometryEquiv.norm_map _ _⟩
+  rw [add_comm p, ← vadd_eq_add, N.frame.map_vadd, LinearIsometryEquiv.apply_symm_apply,
+    vadd_eq_add, add_comm]
+
+/-- Step 8 of the V4 proof of `endGeometry_coverage` (V4 §2.5): "in the central frame".
+Points of the star carrier pull back to the moved template tiles. -/
+private theorem endGeometry_coverage_step8_move (M N : FramedNode S) (k : ℕ) (hk : k = 0)
+    (z : E d) (h : N.frame z ∈ M.carrier k) : z ∈ (M.move N.frame.symm).carrier 0 := by
+  subst hk
+  obtain ⟨a, ha, hae⟩ := h
+  refine ⟨a, ha, ?_⟩
+  change N.frame.symm (M.frame a) = z
+  rw [hae]
+  exact N.frame.symm_apply_apply z
+
 /-- Q13, V4 §2.5, 1.19: one positive native radius works for all END geometries.
 The entire parent-cone sector is covered by the complete owned star. -/
 theorem endGeometry_coverage (S : SubstSystem d) (P : Params S) :
@@ -2587,7 +2766,34 @@ theorem endGeometry_coverage (S : SubstSystem d) (P : Params S) :
       ((fun u => vertexPoint G.vertex + u) '' G.header.parentCone) ∩
           ball (vertexPoint G.vertex) r₀ ⊆
         ⋃ u ∈ G.tiles, u.carrier 0 := by
-  sorry
+  obtain ⟨r₀, hr₀, hr⟩ := uniform_prototype_cone_radius S
+  refine ⟨r₀, hr₀, ?_⟩
+  rintro G ⟨U, ⟨n, N, hN⟩, ht, f, hf, v, hv, hz, hcen, hvert, hhead, htiles, -⟩ y
+    ⟨⟨c, hc, rfl⟩, hy⟩
+  dsimp only at ht
+  subst ht
+  have hp : vertexPoint G.vertex = vertexPoint v :=
+    endGeometry_exists_step4_vertexPoint_congr G.vertex v hvert
+  rw [hhead] at hc
+  obtain ⟨w, hw, rfl⟩ := hc
+  obtain ⟨s, hs, hs1, q, hq, hqx⟩ := endGeometry_coverage_step5_germ U _ _ w hw
+  have hl := endGeometry_exists_step2_listed U P ⟨0, N, hN⟩ f hf v hv hz q hq
+  obtain ⟨h4, h4n⟩ := endGeometry_coverage_step7_frame N (vertexPoint v) w
+  have hwr : ‖w‖ < r₀ := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left] at hy
+    rw [← h4n]
+    exact hy
+  have hxw := endGeometry_coverage_step6_scale hr q.2.val q.1 hq.1 _ w hl hwr s hs hs1 hqx
+  rw [htiles]
+  simp only [mem_iUnion]
+  refine ⟨q.2.val.move N.frame.symm,
+    Finset.mem_image.mpr ⟨q, by simpa only [ownedStar, Set.Finite.mem_toFinset] using hq, rfl⟩,
+    ?_⟩
+  apply endGeometry_coverage_step8_move q.2.val N q.1 hq.1
+  rw [hp]
+  change N.frame (vertexPoint v + (N.prototypeFrame 0).linear.symm w) ∈ _
+  rw [h4]
+  exact hxw
 
 /-- Q12/Q13, V4 §2.5: finite framed native configuration relative to its central tile.
 END annotations are part of template identity, so different restriction operators

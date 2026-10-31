@@ -649,7 +649,22 @@ def block : Block Y (n + 1) := ⟨N, A.actual⟩
 /-- R7, V4 3.7: every chosen child proposes this same parent, including its frame. -/
 theorem parent_eq (i : S.I N.ty) :
     proposedParent D (A.children i).val (A.children i).property = N := by
-  sorry
+  have hl := A.first_letters i
+  have hc := A.child_eq i
+  dsimp [proposedParent]
+  dsimp [FramedNode.child] at hc
+  rw [hl]
+  dsimp
+  have h_frame := congrArg FramedNode.frame hc
+  dsimp at h_frame
+  apply FramedNode.ext
+  · rfl
+  · rw [h_frame]
+    dsimp
+    rw [AffineIsometryEquiv.trans_assoc]
+    rw [AffineIsometryEquiv.symm_trans_self]
+    rw [AffineIsometryEquiv.refl_trans]
+
 
 /-- R7, V4 3.7: the parent is the union of its chosen children. -/
 theorem union_children :

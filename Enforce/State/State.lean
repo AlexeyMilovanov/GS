@@ -467,7 +467,16 @@ def TracksCoalesce (q : U.Node) (f g : FacetName S q.2.val.ty) : Prop :=
 /-- Q3, V4 §2.2 (S5): a track coalesces with itself at offset zero. -/
 theorem tracksCoalesce_refl (q : U.Node) (f : FacetName S q.2.val.ty) :
     U.TracksCoalesce q f f := by
-  sorry
+  use 0
+  constructor
+  · intro j hj
+    have hj_zero : j = 0 := by omega
+    subst hj_zero
+    exact ⟨(U.hierarchy.boundaryOffsets_downward q f).1, (U.hierarchy.boundaryOffsets_downward q f).1⟩
+  · use f
+    constructor
+    · rfl
+    · rfl
 
 /-- Q3, V4 §2.2 (S5): the finite coalescence table. -/
 def coalescenceTable (q : U.Node) :

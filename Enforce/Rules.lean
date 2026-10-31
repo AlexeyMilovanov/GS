@@ -203,7 +203,15 @@ theorem project_cover (x : E d) :
 /-- M1/F, V4 §F.2: projection preserves disjointness of tile interiors. -/
 theorem project_disjoint :
     ((fun u => u.native D) '' Y.tiles).PairwiseDisjoint (fun t => interior t.carrier) := by
-  sorry
+  rintro _ ⟨u, hu, rfl⟩ _ ⟨v, hv, rfl⟩ hneq
+  have h_disj := Y.disjoint hu hv
+  dsimp [Function.onFun]
+  dsimp [Function.onFun] at h_disj
+  rw [PlacedMarkedTile.native_carrier D u, PlacedMarkedTile.native_carrier D v]
+  apply h_disj
+  intro h_eq
+  apply hneq
+  rw [h_eq]
 
 /-- M1/F, V4 §F.2: the tile-faithful native projection of a marked output.
 It is a tiling; it is deliberately not required to be a member of `S.Species`. -/

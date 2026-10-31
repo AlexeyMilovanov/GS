@@ -34,7 +34,14 @@ def edgeVector (e : EdgeName S) : E d :=
 theorem edgeVector_spec (e : EdgeName S) :
     edgeVector e ≠ 0 ∧
       Metric.diam e.2.val.carrier = ‖edgeVector e‖ := by
-  sorry
+  obtain ⟨hne, hcar⟩ := Classical.choose_spec (edge_endpoints_exist e)
+  refine ⟨?_, ?_⟩
+  · unfold edgeVector
+    exact sub_ne_zero.mpr (Ne.symm hne)
+  · unfold edgeVector
+    have key : ∀ a b : E d, Metric.diam (segment ℝ a b) = ‖b - a‖ := fun a b => by
+      rw [← convexHull_pair, convexHull_diam, Metric.diam_pair, dist_comm, dist_eq_norm]
+    exact (congrArg Metric.diam hcar).trans (key _ _)
 
 /-- P15, V4 1.20: the finite directed hereditary graph `Γ`.
 An arrow records an actual child edge occurrence in the expanded source edge. -/

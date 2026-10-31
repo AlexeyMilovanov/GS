@@ -306,7 +306,23 @@ def InPrincipal (B : FramedNode S) (n : ℕ) (g : Set (E d)) : Prop :=
 /-- Q1, V4 §2.1 (P5): the required list belongs to the selected principal set. -/
 theorem required_mem (A : S.ι) (f : PrimitiveFacet S A) (hf : f ∈ P.required A) :
     f ∈ P.E_A A := by
-  sorry
+  rw [← Finset.mem_coe, P.E_A_eq]
+  have h_req : f ∈ required_list A := by
+    rwa [← P.required_eq]
+  have h_depth : f.depth ≤ (Fintype.card S.ι - 1) + 1 :=
+    (requiredSet_finite A).2 f (mem_required_list A f |>.mp h_req)
+  have h_p : P.p = Fintype.card S.ι - 1 := P.p_eq
+  have h_k : P.p + P.H_site + 3 ≤ P.k := P.k_lower
+  have h1 : f.depth < P.k := by omega
+  have h_sub : f.carrier ⊆ P.component A := P.required_inside A f hf
+  have h_nonempty : f.carrier.Nonempty := by
+    obtain ⟨i, f', hc, _⟩ := f.realization
+    dsimp [PrimitiveFacet.carrier]
+    rw [hc]
+    have h_cell_ne : f'.val.carrier.Nonempty :=
+      f'.val.flat.relint_nonempty.mono intrinsicInterior_subset
+    exact h_cell_ne.image _ |>.image _ |>.image _
+  exact ⟨h1, h_nonempty.mono (Set.subset_inter Set.Subset.rfl h_sub)⟩
 
 /-- Q1, V4 §2.1 (P5): the principal set has the exact depth cap. -/
 theorem principal_depth (A : S.ι) (f : PrimitiveFacet S A) (hf : f ∈ P.E_A A) :

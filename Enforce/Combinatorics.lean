@@ -122,7 +122,36 @@ theorem bad_parent_rank_increases {α : Type u} (D : α → List α) (B : Set α
     F.state (F.parent x) ∉ B ∧
       descentRank D B (F.state x) ha + 1 ≤
         descentRank D B (F.state (F.parent x)) hp := by
-  sorry
+  have h_child_in_D : F.state x ∈ D (F.state (F.parent x)) := by
+    have h1 := F.mem_parent x
+    have h_level : 1 ≤ F.level (F.parent x) := by
+      rw [F.parent_level x]
+      exact Nat.le_add_left 1 (F.level x)
+    have h_presc := F.prescribed (F.parent x) h_level
+    have h_mem_map : F.state x ∈ List.map F.state (F.children (F.parent x)) := by
+      apply List.mem_map_of_mem
+      exact h1
+    rw [h_presc] at h_mem_map
+    exact h_mem_map
+  constructor
+  · intro hp_in_B
+    have h_child_in_B := hB (F.state (F.parent x)) hp_in_B (F.state x) h_child_in_D
+    exact hx h_child_in_B
+  · have hp_prop := (descentRank_spec D B (F.state (F.parent x)) hp).1
+    generalize h_hp_rank : descentRank D B (F.state (F.parent x)) hp = hp_rank
+    rw [h_hp_rank] at hp_prop
+    cases hp_rank with
+    | zero =>
+      have hp_in_B : F.state (F.parent x) ∈ B := hp_prop
+      have h_child_in_B := hB (F.state (F.parent x)) hp_in_B (F.state x) h_child_in_D
+      exact (hx h_child_in_B).elim
+    | succ r =>
+      have h_child_in_rank : F.state x ∈ rankSets D B r := by
+        exact hp_prop (F.state x) h_child_in_D
+      have h_child_rank_le : descentRank D B (F.state x) ha ≤ r := by
+        exact (descentRank_spec D B (F.state x) ha).2 r h_child_in_rank
+      have h_ineq : descentRank D B (F.state x) ha + 1 ≤ r + 1 := Nat.add_le_add_right h_child_rank_le 1
+      exact h_hp_rank ▸ h_ineq
 
 /-- C1, V4 1.26, rank proof V4 8.2: finite descent saturation, abstract over
 all finite alphabets, nonempty ordered transition lists, forward-closed sets, and

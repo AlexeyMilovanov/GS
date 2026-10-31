@@ -207,6 +207,200 @@ def facetPacket (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty) :
 
 end HonestSource
 
+/-- Step 1 of the V4 proof of `packet_attached` (V4 2.6(c), via 1.0 native ownership):
+"every native tile `t` with a facet piece `f_t ⊆ g`" lies in the birth parent of `g`:
+since `relint g` is interior to the birth parent, the tile meets that interior and
+is one of its native tiles, so its ancestor at the birth height is the birth parent. -/
+private theorem packet_attached_step1_owner (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) (t : U.Node) (ht : t.1 = 0)
+    (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) :
+    U.hierarchy.ancestor t g.birth.1 = g.birth := by
+  sorry
+
+/-- Step 2 of the V4 proof of `packet_attached` (V4 2.6(c), sibling pairing of 1.6):
+"on either side": the child of the birth parent containing the native tile is one of
+the two paired children of the incidence, and the primitive facet `g` is a whole listed
+facet of that child (its left facet name, or the paired right facet name). -/
+private theorem packet_attached_step2_serving_facet (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) (t : U.Node) (ht : t.1 = 0)
+    (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) :
+    ∃ e : FacetName S (U.hierarchy.ancestor t (g.birth.1 - 1)).2.val.ty,
+      (U.hierarchy.ancestor t (g.birth.1 - 1)).2.val.cell
+        (U.hierarchy.ancestor t (g.birth.1 - 1)).1 e.val = g.carrier := by
+  sorry
+
+omit [Fact (2 ≤ d)] in
+/-- Step 4 of the V4 proof of `packet_attached` (V4 1.6, used in 2.6(c)): relative
+interiors commute with invertible affine maps. -/
+private theorem packet_attached_step4_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 4 of the V4 proof of `packet_attached` (V4 1.6): the positioned primitive
+facet is the placed side-independent positioned facet of its incidence. -/
+private theorem packet_attached_step4_carrier_eq (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) :
+    g.carrier = g.birth.2.val.prototypeFrame g.birth.1 ''
+      (S.σ.symm '' g.incidence.val.positioned) := by
+  ext y
+  simp [PrimitiveOccurrence.carrier, Params.incidencePlacement,
+    PrimitiveIncidence.positioned, placedSet]
+
+/-- Step 4 of the V4 proof of `packet_attached` (V4 1.6, internality of the
+primitive incidence): `relint g` lies in the interior of its birth parent. -/
+private theorem packet_attached_step4_internal (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) :
+    relint g.carrier ⊆ interior (g.birth.2.val.carrier g.birth.1) := by
+  let G : E d ≃ᵃ[ℝ] E d :=
+    S.σ.symm.toAffineEquiv.trans (g.birth.2.val.prototypeFrame g.birth.1)
+  have hg : g.carrier = G '' g.incidence.val.positioned := by
+    rw [packet_attached_step4_carrier_eq U P g, Set.image_image]
+    rfl
+  have hB : g.birth.2.val.carrier g.birth.1 = G '' S.supertile 1 g.incidence.val.ty := by
+    rw [g.parent_type]
+    ext y
+    simp [G, FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile]
+  rw [hg, hB, packet_attached_step4_relint_image]
+  let H := G.toHomeomorphOfFiniteDimensional
+  change H '' relint _ ⊆ interior (H '' _)
+  rw [← H.image_interior]
+  exact Set.image_mono g.incidence.val.internal
+
+/-- Step 5 of the V4 proof of `packet_attached` (V4 1.1, (H2)): a listed facet of a
+placed node lies on the frontier of that node. -/
+private theorem packet_attached_step5_cell_frontier (N : FramedNode S) (n : ℕ)
+    (e : Cell d) (he : e ∈ (S.cx N.ty).cells) : N.cell n e ⊆ frontier (N.carrier n) := by
+  have hsub : e.carrier ⊆ frontier (S.proto N.ty).carrier := by
+    rw [← (S.cx N.ty).carriers_cover]
+    exact Set.subset_iUnion₂_of_subset e he (Set.Subset.refl _)
+  have hcarrier : N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  rw [hcarrier]
+  let H := (N.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  change H '' e.carrier ⊆ frontier (H '' (S.proto N.ty).carrier)
+  rw [← H.image_frontier]
+  exact Set.image_mono hsub
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `packet_attached` (V4 1.6): affine images keep the
+dimension of the affine span. -/
+private theorem packet_attached_step3_finrank_image (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    Module.finrank ℝ (affineSpan ℝ (e '' K)).direction =
+      Module.finrank ℝ (affineSpan ℝ K).direction := by
+  have h' : affineSpan ℝ (e '' K) = (affineSpan ℝ K).map e.toAffineMap :=
+    (AffineSubspace.map_span e.toAffineMap K).symm
+  rw [h', AffineSubspace.map_direction]
+  exact LinearEquiv.finrank_map_eq e.linear _
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `packet_attached` (V4 2.6(c)): a placed cell inside a
+placed cell of the same dimension meets the relative interior of the larger one. -/
+private theorem packet_attached_step3_meets_geom (e₁ e₂ : E d ≃ᵃ[ℝ] E d) (c₁ c₂ : Cell d)
+    (hdim : c₁.dim = c₂.dim) (hsub : e₁ '' c₁.carrier ⊆ e₂ '' c₂.carrier) :
+    ∃ x ∈ e₁ '' c₁.carrier, x ∈ relint (e₂ '' c₂.carrier) := by
+  obtain ⟨y, hy⟩ := c₁.flat.relint_nonempty
+  have hyK : y ∈ c₁.carrier := intrinsicInterior_subset hy
+  have hle : affineSpan ℝ (e₁ '' c₁.carrier) ≤ affineSpan ℝ (e₂ '' c₂.carrier) :=
+    affineSpan_mono ℝ hsub
+  have hfin : Module.finrank ℝ (affineSpan ℝ (e₁ '' c₁.carrier)).direction =
+      Module.finrank ℝ (affineSpan ℝ (e₂ '' c₂.carrier)).direction := by
+    rw [packet_attached_step3_finrank_image, packet_attached_step3_finrank_image]
+    have h1 := c₁.flat.dimension
+    have h2 := c₂.flat.dimension
+    simp only [cellDirection] at h1 h2
+    rw [h1, h2, hdim]
+  have hdir : (affineSpan ℝ (e₁ '' c₁.carrier)).direction =
+      (affineSpan ℝ (e₂ '' c₂.carrier)).direction :=
+    Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle) hfin
+  have hspan : affineSpan ℝ (e₁ '' c₁.carrier) = affineSpan ℝ (e₂ '' c₂.carrier) := by
+    apply AffineSubspace.ext_of_direction_eq hdir
+    refine ⟨e₁ y, subset_affineSpan ℝ _ ⟨y, hyK, rfl⟩,
+      subset_affineSpan ℝ _ (hsub ⟨y, hyK, rfl⟩)⟩
+  have key : ∀ (V W : AffineSubspace ℝ (E d)), V = W → ∀ A B : Set (E d), A ⊆ B →
+      (((↑) : V → E d) '' interior ((↑) ⁻¹' A : Set V) : Set (E d)) ⊆
+        ((↑) : W → E d) '' interior ((↑) ⁻¹' B : Set W) := by
+    rintro V W rfl A B hAB
+    exact Set.image_mono (interior_mono (Set.preimage_mono hAB))
+  have hrel : relint (e₁ '' c₁.carrier) ⊆ relint (e₂ '' c₂.carrier) :=
+    key _ _ hspan _ _ hsub
+  refine ⟨e₁ y, ⟨y, hyK, rfl⟩, hrel ?_⟩
+  rw [packet_attached_step4_relint_image]
+  exact ⟨y, hy, rfl⟩
+
+/-- Step 3 of the V4 proof of `packet_attached` (V4 2.6(c)): "a native facet piece
+`f_t ⊆ g`" is a full-dimensional piece of the flat facet `g`, so it meets `relint g`. -/
+private theorem packet_attached_step3_meets_relint (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) (t : U.Node)
+    (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) :
+    ∃ x ∈ t.2.val.cell t.1 f.val, x ∈ relint g.carrier := by
+  have hfdim : f.val.dim = d - 1 := (Finset.mem_filter.mp f.2).2
+  have hgdim : g.incidence.val.leftFacet.val.dim = d - 1 :=
+    (Finset.mem_filter.mp g.incidence.val.leftFacet.2).2
+  exact packet_attached_step3_meets_geom (t.2.val.prototypeFrame t.1)
+    (P.incidencePlacement g.birth.2.val g.birth.1 g.incidence) f.val
+    g.incidence.val.leftFacet.val (hfdim.trans hgdim.symm) hfg
+
+/-- Step 6 of the V4 proof of `packet_attached` (V4 2.6(c), side-independent
+incidence): once the provider has the birth parent and the carrier of `g`, its
+canonical incidence is the incidence of `g`. -/
+private theorem packet_attached_step6_record_incidence (U : HonestSource S)
+    (P : Params S) (g : PrimitiveOccurrence U P) (t : U.Node)
+    (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+    (hbirth : U.hierarchy.birthParent t f hf = g.birth)
+    (hcarrier : U.hierarchy.providerCarrier t f hf = g.carrier) :
+    U.recordIncidence P t f hf = g.incidence := by
+  obtain ⟨hty, -, -, hpc⟩ := U.hierarchy.providerIncidence_spec t f hf
+  apply P.canonical_unique
+  refine ⟨?_, ?_⟩
+  · rw [hty, hbirth]
+    exact g.parent_type.symm
+  · unfold CoherentHierarchy.birthHeight at hpc
+    rw [hbirth, hcarrier, packet_attached_step4_carrier_eq U P g] at hpc
+    have h1 := (g.birth.2.val.prototypeFrame g.birth.1).injective.image_injective hpc
+    have h2 := S.σ.symm.injective.image_injective h1
+    exact h2.symm
+
+/-- Step 7 of the V4 proof of `packet_attached` (V4 2.5): a primitive occurrence is
+determined by its birth node and its incidence. -/
+private theorem packet_attached_step7_occurrence_ext (U : HonestSource S) (P : Params S)
+    (g₁ g₂ : PrimitiveOccurrence U P) (h1 : g₁.birth = g₂.birth)
+    (h2 : g₁.incidence = g₂.incidence) : g₁ = g₂ := by
+  obtain ⟨b₁, p₁, i₁, t₁⟩ := g₁
+  obtain ⟨b₂, p₂, i₂, t₂⟩ := g₂
+  dsimp only at h1 h2
+  subst h1
+  subst h2
+  rfl
+
 /-- Q9, V4 2.6(c): every native facet piece on either side of a primitive facet
 has its canonical incidence and carries that primitive facet's single packet. -/
 theorem packet_attached (U : HonestSource S) (P : Params S)
@@ -215,7 +409,67 @@ theorem packet_attached (U : HonestSource S) (P : Params S)
     (∃ hf : ¬ U.hierarchy.IsFault t f,
       (U.recordOf P t f hf).incidence = g.incidence) ∧
       U.facetPacket P t f = some (packetOf U P g) := by
-  sorry
+  classical
+  have hpos := g.positive
+  have hown := packet_attached_step1_owner U P g t ht f hfg
+  obtain ⟨e, he⟩ := packet_attached_step2_serving_facet U P g t ht f hfg
+  have hint := packet_attached_step4_internal U P g
+  obtain ⟨x, hxc, hxg⟩ := packet_attached_step3_meets_relint U P g t f hfg
+  have hsucc : g.birth.1 - 1 + 1 = g.birth.1 := Nat.sub_add_cancel hpos
+  have hnot : g.birth.1 ∉ U.hierarchy.boundaryOffsets t f := by
+    intro hmem
+    have hmem' : t.2.val.cell t.1 f.val ⊆
+        frontier ((U.hierarchy.ancestor t g.birth.1).2.val.carrier
+          (U.hierarchy.ancestor t g.birth.1).1) := hmem
+    rw [hown] at hmem'
+    exact (hmem' hxc).2 (hint hxg)
+  have hf : ¬ U.hierarchy.IsFault t f := fun hfault => hnot (hfault _)
+  have hprev : g.birth.1 - 1 ∈ U.hierarchy.boundaryOffsets t f := by
+    have hfr := packet_attached_step5_cell_frontier
+      (U.hierarchy.ancestor t (g.birth.1 - 1)).2.val
+      (U.hierarchy.ancestor t (g.birth.1 - 1)).1 e.val
+      (Finset.mem_filter.mp e.2).1
+    rw [he] at hfr
+    exact hfg.trans hfr
+  have hoff : U.hierarchy.boundaryOffsets t f = {r | r < g.birth.1 - 1 + 1} := by
+    rcases U.hierarchy.boundaryOffsets_initial t f with ⟨b, _, hb⟩ | hfault
+    · rw [hb] at hnot hprev
+      simp only [Set.mem_setOf_eq, not_lt] at hnot hprev
+      have hbh : b = g.birth.1 - 1 + 1 := by omega
+      rw [hb, hbh]
+    · exact absurd hfault hf
+  have hprov : U.hierarchy.IsProvider t f ⟨g.birth.1 - 1, e⟩ := by
+    refine ⟨hoff, ?_, ?_⟩
+    · show t.2.val.cell t.1 f.val ⊆ (U.hierarchy.ancestor t (g.birth.1 - 1)).2.val.cell
+        (U.hierarchy.ancestor t (g.birth.1 - 1)).1 e.val
+      rw [he]
+      exact hfg
+    · show relint ((U.hierarchy.ancestor t (g.birth.1 - 1)).2.val.cell
+          (U.hierarchy.ancestor t (g.birth.1 - 1)).1 e.val) ⊆
+        interior ((U.hierarchy.ancestor t (g.birth.1 - 1 + 1)).2.val.carrier
+          (U.hierarchy.ancestor t (g.birth.1 - 1 + 1)).1)
+      rw [he, hsucc, hown]
+      exact hint
+  have hfirst : U.hierarchy.firstProvider t f hf = ⟨g.birth.1 - 1, e⟩ :=
+    U.hierarchy.provider_unique t f _ _ (U.hierarchy.firstProvider_spec t f hf) hprov
+  have hanc : U.hierarchy.ancestor t (g.birth.1 - 1 + 1) =
+      U.hierarchy.parentNode (U.hierarchy.ancestor t (g.birth.1 - 1)) :=
+    Function.iterate_succ_apply' _ _ _
+  have hbirth : U.hierarchy.birthParent t f hf = g.birth := by
+    unfold CoherentHierarchy.birthParent CoherentHierarchy.servingChild
+    rw [hfirst]
+    show U.hierarchy.parentNode (U.hierarchy.ancestor t (g.birth.1 - 1)) = g.birth
+    rw [← hanc, hsucc, hown]
+  have hcarrier : U.hierarchy.providerCarrier t f hf = g.carrier := by
+    unfold CoherentHierarchy.providerCarrier CoherentHierarchy.servingChild
+    rw [hfirst]
+    exact he
+  have hinc := packet_attached_step6_record_incidence U P g t f hf hbirth hcarrier
+  have hocc : U.providerOccurrence P t f hf = g :=
+    packet_attached_step7_occurrence_ext U P _ _ hbirth hinc
+  refine ⟨⟨hf, hinc⟩, ?_⟩
+  unfold HonestSource.facetPacket
+  rw [dif_neg hf, hocc]
 
 /-- Q9, V4 2.6(d): packets restrict unchanged along inherited facet tracks. -/
 theorem packet_inherited (U : HonestSource S) (P : Params S) (q c : U.Node)

@@ -123,7 +123,12 @@ def RoleWord : S.ι → ℕ → Type
 
 /-- S2, V4 §1.0 (H3): there are finitely many role words of each fixed depth. -/
 theorem roleWord_finite (A : S.ι) (n : ℕ) : Finite (S.RoleWord A n) := by
-  sorry
+  induction' n with n ih generalizing A
+  · dsimp [RoleWord]
+    exact inferInstance
+  · dsimp [RoleWord]
+    haveI (B : S.ι) : Finite (S.RoleWord B n) := ih B
+    exact inferInstance
 
 /-- S2, V4 §1.0 (H3): a finite enumeration of well-typed role words. -/
 instance roleWordFintype (A : S.ι) (n : ℕ) : Fintype (S.RoleWord A n) := by

@@ -1,5 +1,6 @@
 import Enforce.Source.Headers
 import Enforce.Source.Edges
+open private coarsen_desc_mem from Enforce.Tiling
 
 /-!
 # Recursive coface traces and ordinary sites
@@ -6620,7 +6621,10 @@ theorem CoherentHierarchy.placedTraceOwner_mem {T : Tiling S}
     (H : CoherentHierarchy S T) (N : FramedNode S) (n r : ℕ)
     (hN : N ∈ H.nodes n) (hr : r ≤ n) (F : FacetFlag S N.ty)
     (a : TracePiece N.ty F r) : placedTraceOwner N n r F a ∈ H.nodes (n - r) := by
-  sorry
+  dsimp [placedTraceOwner]
+  have h_eq : n = (n - r) + r := by omega
+  have hN' : N ∈ H.nodes ((n - r) + r) := by rwa [← h_eq]
+  exact coarsen_desc_mem H (n - r) r N hN' a.owner
 
 /-- P18, V4 1.23(c): persistence in one placed source node, at every deeper
 subdivision still available in that node. The same ambient point is used at each

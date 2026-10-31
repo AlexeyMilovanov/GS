@@ -142,7 +142,19 @@ theorem observerOf_mem (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
 /-- O1, V4 4.1: every honest observer belongs to the finite ambient alphabet. -/
 theorem HonestSource.observerOf_mem (U : HonestSource S) (P : Params S) (q : U.Node) :
     U.observerOf P q ∈ observerAlphabet S P := by
-  sorry
+  dsimp [observerAlphabet, HonestSource.observerOf]
+  constructor
+  · exact stateOf_mem U P (U.hierarchy.ancestor q (P.w - 1))
+  · intro F p hp
+    dsimp [HonestSource.facetPacket] at hp
+    by_cases hf : U.hierarchy.IsFault q F
+    · rw [dif_pos hf] at hp
+      cases hp
+    · rw [dif_neg hf] at hp
+      injection hp with hp_eq
+      subst hp_eq
+      unfold honestPackets
+      exact ⟨U, U.providerOccurrence P q F hf, rfl⟩
 /-- O1, V4 4.1: the joint source range `𝓑`, with a single witness for the whole tuple.
 It may be empty when there is no honest source; no nonemptiness is postulated. -/
 def jointSourceRange (S : SubstSystem d) (P : Params S) : Set (Observer P) :=

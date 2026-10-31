@@ -1363,7 +1363,8 @@ theorem sourceLanguage_card_le (C : ClusterData S P) (n : ℕ) (A : S.ι) :
 theorem certificate_leaf_state (D : CertificateSymbol S P)
     (w : S.RoleWord D.val.ty P.K) :
     D.val.table P.K le_rfl w = (D.val.leaves w).state := by
-  sorry
+  obtain ⟨val, ⟨U, B, hB, rfl⟩⟩ := D
+  rfl
 
 namespace KBlock
 

@@ -933,7 +933,9 @@ theorem sourceLeafTypes_type (U : HonestSource S) (P : Params S)
     (n : ℕ) (A : S.ι) (φ : Iso d)
     (hN : (⟨A, φ⟩ : FramedNode S) ∈ U.hierarchy.nodes n) (w : S.RoleWord A n) :
     (sourceLeafTypes U P n A φ hN w).prototype = (S.nativeTile A n w).ty := by
-  sorry
+  dsimp [sourceLeafTypes]
+  rw [leafTypeOf_type]
+  exact HonestSource.descendant_type U ⟨n, ⟨⟨A, φ⟩, hN⟩⟩ n le_rfl w
 
 /-- M7, V4 2.16: render an arbitrary finite leaf tuple in the fixed native positions.
 Actual source tuples have the required prototype at each address. The total ambient

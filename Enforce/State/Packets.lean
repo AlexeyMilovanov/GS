@@ -150,7 +150,39 @@ theorem decode_spec (U : HonestSource S) (P : Params S)
       classical
       exact if mask U P g j then
         some (stateOf U P (U.hierarchy.ancestor g.birth j.val)) else none) := by
-  sorry
+  have hk : NeZero P.k := ⟨ne_of_gt P.k_pos⟩
+  have h_packet_head : (packetOf U P g).head = stateOf U P g.birth := by
+    have hh := reconstructed_spec U P g ⟨0, P.k_pos⟩ (Fin.zero_le _)
+    have h2 : U.hierarchy.ancestor g.birth 0 = g.birth := rfl
+    rw [h2] at hh
+    exact hh
+  have hm : Packet.mask (packetOf U P g) j ↔ mask U P g j := by
+    dsimp [Packet.mask]
+    rw [h_packet_head]
+    exact (packet_mask_fn U P g j).symm
+  have hj : mask U P g j → j ≤ topSlot U P g := by
+    classical
+    intro h
+    have hmem : j ∈ presentSlots U P g := Finset.mem_filter.mpr ⟨Finset.mem_univ j, h⟩
+    exact Finset.le_max' (presentSlots U P g) j hmem
+  by_cases hm2 : mask U P g j
+  · have h1 : j.val ≤ (packetOf U P g).jstar.val := hj hm2
+    have h2 : (packetOf U P g).mask j := hm.mpr hm2
+    change (by classical exact if h : j.val ≤ (packetOf U P g).jstar.val ∧ (packetOf U P g).mask j then some ((packetOf U P g).reconstructed j) else none) = _
+    have h_decide : j.val ≤ (packetOf U P g).jstar.val ∧ (packetOf U P g).mask j := ⟨h1, h2⟩
+    rw [dif_pos h_decide]
+    change _ = (by classical exact if h : mask U P g j then some (stateOf U P (U.hierarchy.ancestor g.birth j.val)) else none)
+    rw [dif_pos hm2]
+    congr 1
+    exact reconstructed_spec U P g j h1
+  · have h_not_decide : ¬ (j.val ≤ (packetOf U P g).jstar.val ∧ (packetOf U P g).mask j) := by
+      intro h
+      apply hm2
+      exact hm.mp h.2
+    change (by classical exact if h : j.val ≤ (packetOf U P g).jstar.val ∧ (packetOf U P g).mask j then some ((packetOf U P g).reconstructed j) else none) = _
+    rw [dif_neg h_not_decide]
+    change none = (by classical exact if h : mask U P g j then some (stateOf U P (U.hierarchy.ancestor g.birth j.val)) else none)
+    rw [dif_neg hm2]
 
 /-- Q8, V4 8.1: the packet head is exactly the state of its birth parent. -/
 theorem packet_head (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) :

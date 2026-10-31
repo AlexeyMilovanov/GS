@@ -1382,7 +1382,8 @@ theorem leaf_injective : Function.Injective B.leaf := by
 /-- M8, V4 2.17(a): the standard native leaf interiors form a disjoint subdivision. -/
 theorem leaves_disjoint : Pairwise (fun v w : S.RoleWord B.certificate.val.ty P.K =>
     Disjoint (interior (B.leaf v).carrier) (interior (B.leaf w).carrier)) := by
-  sorry
+  intro v w hvw
+  exact Y.disjoint (B.leaf_mem v) (B.leaf_mem w) (B.leaf_injective.ne hvw)
 
 /-- M8, V4 2.17(a): the full closed block carrier is compact and regular closed. -/
 theorem carrier_regular : IsCompact B.carrier ∧ IsRegularClosed B.carrier := by

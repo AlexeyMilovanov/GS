@@ -70,7 +70,18 @@ theorem forest_state_mem_rankSet {α : Type u} (D : α → List α) (B : Set α)
     (F : DescentForest.{u, v} α D)
     (ground : ∀ x, F.level x = 0 → F.state x ∈ B) (x : F.Node) :
     F.state x ∈ rankSets D B (F.level x) := by
-  sorry
+  generalize h_lvl : F.level x = l
+  induction' l with l ih generalizing x
+  · exact ground x h_lvl
+  · dsimp [rankSets]
+    intro b hb
+    have h_presc := F.prescribed x (by omega)
+    rw [← h_presc] at hb
+    rcases List.mem_map.mp hb with ⟨y, hy_mem, hy_eq⟩
+    subst hy_eq
+    have h_lvl_child := F.child_level x y hy_mem
+    have h_lvl_y : F.level y = l := by omega
+    exact ih y h_lvl_y
 
 /-- C1, V4 8.2: rank of a state known to occur in the union of the rank sets.
 The least index is a genuine `Nat.find` definition, with explicit existence. -/

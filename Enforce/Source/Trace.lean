@@ -2833,7 +2833,10 @@ point, including at positive height. This extends the stage-1 prototype API. -/
 theorem placedMinimalCell_exists_unique (N : FramedNode S) (n : ℕ) (p : E d)
     (hp : p ∈ frontier (N.carrier n)) :
     ∃! e : CellName S N.ty, p ∈ relint (N.cell n e.val) := by
-  sorry
+  obtain ⟨e, he, hpe⟩ := hereditary_trace_step1_frontier_relint N n p hp
+  refine ⟨⟨e, he⟩, hpe, ?_⟩
+  rintro ⟨f, hf⟩ hpf
+  exact Subtype.ext (hereditary_trace_step1_relint_unique N n f e hf he p hpf hpe)
 
 /-- P1/P2, V4 1.1--1.2: the unique placed minimal cell, retaining its prototype name. -/
 def placedMinimalCell (N : FramedNode S) (n : ℕ) (p : E d)

@@ -1527,7 +1527,21 @@ raises it. Thus the explicit transition stays inside the chosen finite stateUniv
 theorem universe_closed (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (a : Observer P) (ha : a ∈ stateUniverse Y hY) (i : S.I a.ty) :
     a.transition ⟨a.ty, i⟩ ∈ stateUniverse Y hY := by
-  sorry
+  cases ha with
+  | inl h_source =>
+      exact Or.inl (range_forward_closed a h_source i).1
+  | inr h_output =>
+      obtain ⟨q, hq, rfl⟩ := h_output
+      by_cases h_strict : P.H + 1 ≤ q.1
+      · apply Or.inr
+        use parsedChild Y hY q (by omega) i
+        constructor
+        · change P.H ≤ q.1 - 1
+          omega
+        · exact observer_transition Y hY q h_strict i
+      · have h_eq_H : q.1 = P.H := by omega
+        have h_ground := ground_actuality Y hY q h_eq_H
+        exact Or.inl (range_forward_closed (observerOf Y hY q) h_ground i).1
 /-- O6, V4 4.6: prescribed child list restricted to the actual finite stateUniverse. -/
 def universeD (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (a : stateUniverse Y hY) : List (stateUniverse Y hY) :=

@@ -392,7 +392,13 @@ theorem prePattern_of_leafType (U : HonestSource S) (P : Params S)
 /-- Q11, V4 2.7: the actual leaf type retains its native prototype. -/
 theorem leafTypeOf_type (U : HonestSource S) (P : Params S)
     (t : U.Node) (ht : t.1 = 0) : (leafTypeOf U P t ht).prototype = t.2.val.ty := by
-  sorry
+  dsimp [leafTypeOf, LeafType.prototype]
+  have h := Classical.choose_spec (U.leafIndex_exists P t ht)
+  have h1 := h.1
+  dsimp [HonestSource.leafIndex]
+  have eq := congrArg FramedNode.ty h1
+  dsimp [FramedNode.move] at eq
+  exact eq
 
 /-- Q11, V4 2.7 (S-table): every honest table obeys the deterministic child equation.
 The role-word constructors are the original typed `S.RoleWord` constructors. -/

@@ -250,7 +250,13 @@ theorem placedLeaf_realization (C : ClusterData S P) (l : LeafType P) (φ : Iso 
         ∀ (x : Q.carrier)
           (hx : ψ x ∈ ((augmentedLeaf C l).toMarkedSet.move φ).carrier),
           ((augmentedLeaf C l).toMarkedSet.move φ).mark ⟨ψ x, hx⟩ = Q.mark x := by
-  sorry
+  have H : augmentedLeaf C l ∈ (systemM S P C).physical := by
+    simp only [systemM, Compiler.physicalCatalogue, Finset.mem_image, Finset.mem_univ, true_and]
+    exact ⟨l, rfl⟩
+  refine ⟨augmentedLeaf C l, H, φ, rfl, ?_⟩
+  intro x hx
+  change (augmentedLeaf C l).toMarkedSet.mark ⟨φ.symm (φ x.val), _⟩ = _
+  simp only [φ.symm_apply_apply]
 
 end Compiler
 

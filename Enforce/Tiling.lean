@@ -248,7 +248,29 @@ theorem nodes_locallyFinite (n : ℕ) :
 /-- T6, V4 1.0(d): a node is the union of the physical tiles it contains. -/
 theorem node_union_tiles (n : ℕ) (N : FramedNode S) (hN : N ∈ H.nodes n) :
     N.carrier n = ⋃ t ∈ {t | t ∈ T.tiles ∧ t.carrier ⊆ N.carrier n}, t.carrier := by
-  sorry
+  rw [H.native_tiles n N hN]
+  have h1 : N.carrier n = ⋃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile.carrier := by
+    change N.frame '' S.supertile n N.ty = _
+    rw [← S.native_cover N.ty n, Set.image_iUnion]
+    congr 1
+    ext w x
+    simp only [Set.mem_image]
+    dsimp [FramedNode.move, FramedNode.toTile, PlacedTile.ofFrame, placedSet]
+    change x ∈ N.frame '' (S.nativeTile N.ty n w).carrier 0 ↔ x ∈ ((S.nativeTile N.ty n w).frame.trans N.frame) '' (S.proto (S.nativeTile N.ty n w).ty).carrier
+    dsimp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+    constructor
+    · rintro ⟨y, ⟨z, ⟨z0, hz0, rfl⟩, rfl⟩, rfl⟩
+      exact ⟨z0, hz0, rfl⟩
+    · rintro ⟨z, hz, rfl⟩
+      exact ⟨(S.nativeTile N.ty n w).frame z, ⟨z, ⟨z, hz, rfl⟩, rfl⟩, rfl⟩
+  rw [h1]
+  ext x
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨w, hw⟩
+    exact ⟨((S.nativeTile N.ty n w).move N.frame).toTile, ⟨w, rfl⟩, hw⟩
+  · rintro ⟨t, ⟨w, rfl⟩, hw⟩
+    exact ⟨w, hw⟩
 
 /-- T6, V4 §1.0, Hierarchies: same-height nodes sharing an interior point
 coincide as framed nodes, including their type and isometric frame. -/

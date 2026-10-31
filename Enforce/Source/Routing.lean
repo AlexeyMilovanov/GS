@@ -1843,6 +1843,686 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
       have hz := interior_subset hzU
       exact hz
 
+/-- Vertex `m` (`0 ≤ m ≤ k`) of the Kuhn simplex with base point `x : Fin k → Fin M` and
+permutation `σ` of the grid `{0,…,M}^k`: `x + Σ_{σ j < m} e_j` (coordinate `j` is raised at
+step `σ j`). Part of the proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex`. -/
+private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex {k M : ℕ} (s : (Fin k → Fin M) × Equiv.Perm (Fin k)) (m : Fin (k + 1)) :
+    Fin k → Fin (M + 1) :=
+  fun j => ⟨(s.1 j : ℕ) + if ((s.2 j : Fin k) : ℕ) < (m : ℕ) then 1 else 0, by
+    have := (s.1 j).isLt; split_ifs <;> omega⟩
+
+/-- The labelling induced on the face `z 0 = M` of the grid `{0,…,M}^(k+1)`: the label of
+`Fin.cons M y`, with the colour `some i.succ` renamed to `some i` (the colour `some 0` does
+not occur on that face under the Sperner boundary condition and is sent to `none`). Part
+of the proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex`. -/
+private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel {k M : ℕ} (ℓ : (Fin (k + 1) → Fin (M + 1)) → Option (Fin (k + 1))) :
+    (Fin k → Fin (M + 1)) → Option (Fin k) :=
+  fun y => (ℓ (Fin.cons (α := fun _ => Fin (M + 1)) (Fin.last M) y)).bind
+    (fun i => if h : i = 0 then none else some (i.pred h))
+
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+Door count in one simplex: for `f : Fin (n+1) → α` with `|α| = n+1` and a label `a`, the
+number of facets (omitted index `m`) whose labels are exactly `α ∖ {a}` is odd iff `f` is
+surjective (it is `1` when `f` is a bijection, and `0` or `2` otherwise). -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step1_local_doors {n : ℕ} {α : Type*} [Fintype α] [DecidableEq α]
+    (f : Fin (n + 1) → α) (hα : Fintype.card α = n + 1) (a : α) :
+    Odd (Finset.univ.filter
+      (fun m => (Finset.univ.erase m).image f = Finset.univ.erase a)).card ↔
+      Function.Surjective f := by
+  classical
+  constructor
+  · intro hodd
+    by_contra hns
+    apply (Nat.not_even_iff_odd.mpr hodd)
+    set S := Finset.univ.filter
+      (fun m => (Finset.univ.erase m).image f = Finset.univ.erase a) with hS
+    rcases S.eq_empty_or_nonempty with h0 | ⟨m, hm⟩
+    · rw [h0]; exact ⟨0, rfl⟩
+    · have hm' : (Finset.univ.erase m).image f = Finset.univ.erase a :=
+        (Finset.mem_filter.mp hm).2
+      have hfm : f m ≠ a := by
+        intro hfa; apply hns; intro b
+        by_cases hb : b = a
+        · exact ⟨m, hfa.trans hb.symm⟩
+        · have : b ∈ (Finset.univ.erase m).image f := by rw [hm']; simp [hb]
+          obtain ⟨m0, -, h⟩ := Finset.mem_image.mp this
+          exact ⟨m0, h⟩
+      have hfm2 : f m ∈ (Finset.univ.erase m).image f := by rw [hm']; simp [hfm]
+      obtain ⟨m', hm'1, hm'2⟩ := Finset.mem_image.mp hfm2
+      have hmm' : m' ≠ m := Finset.ne_of_mem_erase hm'1
+      have hinj : ∀ x ∈ S, Set.InjOn f ↑(Finset.univ.erase x) := by
+        intro x hx
+        have hx' := (Finset.mem_filter.mp hx).2
+        rw [← Finset.card_image_iff, hx']
+        simp [Finset.card_erase_of_mem, hα]
+      have himg : ∀ x, x = m ∨ x = m' →
+          (Finset.univ.erase x).image f = Finset.univ.image f := by
+        intro x hx
+        apply Finset.Subset.antisymm (Finset.image_subset_image (Finset.erase_subset _ _))
+        intro b hb
+        obtain ⟨y, -, rfl⟩ := Finset.mem_image.mp hb
+        by_cases hyx : y = x
+        · rcases hx with hx | hx
+          · rw [hyx, hx]
+            exact Finset.mem_image.mpr
+              ⟨m', Finset.mem_erase.mpr ⟨hmm', Finset.mem_univ _⟩, hm'2⟩
+          · rw [hyx, hx]
+            exact Finset.mem_image.mpr
+              ⟨m, Finset.mem_erase.mpr ⟨hmm'.symm, Finset.mem_univ _⟩, hm'2.symm⟩
+        · exact Finset.mem_image_of_mem f (Finset.mem_erase.mpr ⟨hyx, Finset.mem_univ _⟩)
+      have hS2 : S = {m, m'} := by
+        ext x
+        simp only [Finset.mem_insert, Finset.mem_singleton]
+        constructor
+        · intro hx
+          by_contra hxx
+          push_neg at hxx
+          exact hmm' (hinj x hx
+            (Finset.mem_coe.mpr (Finset.mem_erase.mpr ⟨hxx.2.symm, Finset.mem_univ _⟩))
+            (Finset.mem_coe.mpr (Finset.mem_erase.mpr ⟨hxx.1.symm, Finset.mem_univ _⟩)) hm'2)
+        · rintro (h | h)
+          · rw [h]; exact hm
+          · rw [h, hS, Finset.mem_filter]
+            refine ⟨Finset.mem_univ _, ?_⟩
+            rw [himg _ (Or.inr rfl), ← himg m (Or.inl rfl), hm']
+      rw [hS2, Finset.card_pair hmm'.symm]
+      exact even_two
+  · intro hsurj
+    have hbij : Function.Bijective f := by
+      rw [Fintype.bijective_iff_surjective_and_card]
+      exact ⟨hsurj, by simp [hα]⟩
+    obtain ⟨m0, hm0⟩ := hsurj a
+    have hS1 : Finset.univ.filter
+        (fun m => (Finset.univ.erase m).image f = Finset.univ.erase a) = {m0} := by
+      ext m
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+      rw [Finset.image_erase hbij.1, Finset.image_univ_of_surjective hsurj]
+      constructor
+      · intro h
+        apply hbij.1
+        rw [hm0]
+        by_contra hne
+        have hmem : f m ∈ Finset.univ.erase a := Finset.mem_erase.mpr ⟨hne, Finset.mem_univ _⟩
+        rw [← h] at hmem
+        simp at hmem
+      · intro h
+        rw [h, hm0]
+    rw [hS1, Finset.card_singleton]
+    exact odd_one
+
+/-- The pivot map of the Kuhn triangulation on pairs (Kuhn simplex of `{0,…,M}^(k+1)`,
+omitted vertex index `m`): it returns the other Kuhn simplex through the same facet and the
+index of its omitted vertex. For `m = 0` the base point moves up along the first step
+(which becomes the last one), for `m = k + 1` it moves down along the last step (which
+becomes the first one), otherwise the steps `m - 1` and `m` of the permutation are swapped
+(coordinates are truncated so that the map is total). Part of the proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex`. -/
+private def principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap {k M : ℕ} (p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2)) :
+    ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) :=
+  if h0 : (p.2 : ℕ) = 0 then
+    ((fun j => if j = p.1.2.symm 0 then
+        ⟨min ((p.1.1 j : ℕ) + 1) (M - 1), by have := (p.1.1 j).isLt; omega⟩ else p.1.1 j,
+      p.1.2.trans (finRotate (k + 1)).symm), Fin.last (k + 1))
+  else if hl : (p.2 : ℕ) = k + 1 then
+    ((fun j => if j = p.1.2.symm (Fin.last k) then
+        ⟨(p.1.1 j : ℕ) - 1, by have := (p.1.1 j).isLt; omega⟩ else p.1.1 j,
+      p.1.2.trans (finRotate (k + 1))), 0)
+  else
+    ((p.1.1, p.1.2.trans (Equiv.swap ⟨(p.2 : ℕ) - 1, by have := p.2.isLt; omega⟩
+      ⟨p.2, by have := p.2.isLt; omega⟩)), p.2)
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+The pivot map at an omitted first vertex (`m = 0`): the new omitted index is the last one,
+the permutation is rotated, the base point is raised (truncated) along the first step. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step2_pivot_first {k M : ℕ} (p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2))
+    (h0 : (p.2 : ℕ) = 0) :
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 = Fin.last (k + 1) ∧ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.2 = p.1.2.trans (finRotate (k + 1)).symm ∧
+      ∀ j, ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.1 j : ℕ) =
+        if j = p.1.2.symm 0 then min ((p.1.1 j : ℕ) + 1) (M - 1) else p.1.1 j := by
+  unfold principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap
+  rw [dif_pos h0]
+  refine ⟨rfl, rfl, fun j => ?_⟩
+  try dsimp only
+  split_ifs <;> rfl
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+The pivot map at an omitted last vertex (`m = k + 1`): the new omitted index is `0`, the
+permutation is rotated back, the base point is lowered along the last step. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step3_pivot_last {k M : ℕ} (p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2))
+    (h0 : ¬ (p.2 : ℕ) = 0) (hl : (p.2 : ℕ) = k + 1) :
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 = 0 ∧ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.2 = p.1.2.trans (finRotate (k + 1)) ∧
+      ∀ j, ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.1 j : ℕ) =
+        if j = p.1.2.symm (Fin.last k) then (p.1.1 j : ℕ) - 1 else p.1.1 j := by
+  unfold principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap
+  rw [dif_neg h0, dif_pos hl]
+  refine ⟨rfl, rfl, fun j => ?_⟩
+  try dsimp only
+  split_ifs <;> rfl
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+The pivot map at an inner omitted vertex (`0 < m < k + 1`): the steps `m - 1` and `m` of the
+permutation are exchanged; base point and omitted index stay. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step4_pivot_swap {k M : ℕ} (p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2))
+    (h0 : ¬ (p.2 : ℕ) = 0) (hl : ¬ (p.2 : ℕ) = k + 1) :
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 = p.2 ∧ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.1 = p.1.1 ∧
+      ∀ j, (((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.2 j : Fin (k + 1)) : ℕ) =
+        if ((p.1.2 j : Fin (k + 1)) : ℕ) = (p.2 : ℕ) - 1 then (p.2 : ℕ)
+        else if ((p.1.2 j : Fin (k + 1)) : ℕ) = p.2 then (p.2 : ℕ) - 1
+        else ((p.1.2 j : Fin (k + 1)) : ℕ) := by
+  unfold principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap
+  rw [dif_neg h0, dif_neg hl]
+  refine ⟨rfl, rfl, fun j => ?_⟩
+  try dsimp only
+  rw [Equiv.trans_apply, Equiv.swap_apply_def]
+  have := p.2.isLt
+  split_ifs <;> (try simp only [Fin.ext_iff, Fin.val_mk] at *) <;> omega
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+Pairing of interior doors (the pseudomanifold property of the Kuhn triangulation): under
+the Sperner conditions, the doors (facets of Kuhn simplices labelled with all labels except
+`some 0`) that do not lie on the face `z 0 = M` come in pairs, so their number is even. The
+partner of a door is the other Kuhn simplex through the same facet (swap two consecutive
+steps of `σ`, or shift the base point along the first/last step); a door on another
+boundary face is impossible: on `z j = M` (`j ≠ 0`) the label `some j` is excluded, on
+`z j = 0` the label `none` is excluded. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step5_pivot_pairs (k M : ℕ) (ℓ : (Fin (k + 1) → Fin (M + 1)) → Option (Fin (k + 1)))
+    (hsome : ∀ z i, ℓ z = some i → (z i : ℕ) < M)
+    (hnone : ∀ z, ℓ z = none → ∀ j, 0 < (z j : ℕ)) :
+    Even (Finset.univ.filter
+      (fun p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) =>
+        (Finset.univ.erase p.2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)) =
+            Finset.univ.erase (some 0) ∧
+          ¬ ∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m 0 : ℕ) = M)).card := by
+  classical
+  let F : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) →
+      Finset (Fin (k + 1) → Fin (M + 1)) :=
+    fun p => (Finset.univ.erase p.2).image (fun m => principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)
+  have hdoorF : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (Finset.univ.erase p.2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)) = (F p).image ℓ := by
+    intro p
+    simp only [F, Finset.image_image]
+    rfl
+  have hfaceF : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m 0 : ℕ) = M) ↔ ∀ v ∈ F p, (v 0 : ℕ) = M := by
+    intro p
+    simp only [F, Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true]
+    constructor
+    · rintro h v ⟨m, hm, rfl⟩
+      exact h m hm
+    · intro h m hm
+      exact h _ ⟨m, hm, rfl⟩
+  have hkv : ∀ (s : (Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) (m : Fin (k + 2)) j,
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s m j : ℕ) = (s.1 j : ℕ) + if ((s.2 j : Fin (k + 1)) : ℕ) < (m : ℕ) then 1 else 0 :=
+    fun _ _ _ => rfl
+  have hrot : ∀ a : Fin (k + 1), (a : ℕ) =
+      if (finRotate (k + 1)).symm a = Fin.last k then 0
+      else ((finRotate (k + 1)).symm a : ℕ) + 1 := by
+    intro a
+    conv_lhs => rw [← Equiv.apply_symm_apply (finRotate (k + 1)) a]
+    exact coe_finRotate _
+  -- case B: vertices
+  have hvB : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (p.2 : ℕ) = 0 → (p.1.1 (p.1.2.symm 0) : ℕ) + 1 < M →
+      ∀ i : Fin (k + 1), principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1 i.castSucc = principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 i.succ := by
+    intro p h0 hx i
+    obtain ⟨-, hσ, hxv⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step2_pivot_first p h0
+    funext j
+    apply Fin.ext
+    rw [hkv, hkv, hxv j, hσ, Equiv.trans_apply, Fin.val_castSucc, Fin.val_succ]
+    have hr := hrot (p.1.2 j)
+    have hi := i.isLt
+    by_cases hj : j = p.1.2.symm 0
+    · rw [if_pos hj]
+      have hσv : ((p.1.2 j : Fin (k + 1)) : ℕ) = 0 := by rw [hj, Equiv.apply_symm_apply]; rfl
+      have hxj : (p.1.1 j : ℕ) + 1 < M := by rw [hj]; exact hx
+      split_ifs at hr with hrl
+      · have : (((finRotate (k + 1)).symm (p.1.2 j) : Fin (k + 1)) : ℕ) = k := by
+          rw [hrl, Fin.val_last]
+        split_ifs <;> omega
+      · omega
+    · rw [if_neg hj]
+      have hσv : ((p.1.2 j : Fin (k + 1)) : ℕ) ≠ 0 := by
+        intro h
+        apply hj
+        rw [Equiv.eq_symm_apply]
+        exact Fin.ext h
+      split_ifs at hr with hrl
+      · omega
+      · split_ifs <;> omega
+  have hFB : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (p.2 : ℕ) = 0 → (p.1.1 (p.1.2.symm 0) : ℕ) + 1 < M → F (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) = F p := by
+    intro p h0 hx
+    have h2 := (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step2_pivot_first p h0).1
+    have hp0 : p.2 = 0 := Fin.ext h0
+    ext v
+    simp only [F, Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true, h2, hp0]
+    constructor
+    · rintro ⟨i, hi, rfl⟩
+      refine ⟨(i.castPred hi).succ, Fin.succ_ne_zero _, ?_⟩
+      rw [← hvB p h0 hx, Fin.castSucc_castPred]
+    · rintro ⟨i, hi, rfl⟩
+      refine ⟨(i.pred hi).castSucc, (Fin.castSucc_lt_last _).ne, ?_⟩
+      rw [hvB p h0 hx, Fin.succ_pred]
+  -- involution, case B
+  have hinvB : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (p.2 : ℕ) = 0 → (p.1.1 (p.1.2.symm 0) : ℕ) + 1 < M → principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) = p := by
+    intro p h0 hx
+    obtain ⟨h2, hσ, hxv⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step2_pivot_first p h0
+    have hq0 : ¬ ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 : ℕ) = 0 := by rw [h2, Fin.val_last]; omega
+    have hql : ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 : ℕ) = k + 1 := by rw [h2, Fin.val_last]
+    obtain ⟨h2', hσ', hxv'⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step3_pivot_last (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) hq0 hql
+    have hj1 : (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.2.symm (Fin.last k) = p.1.2.symm 0 := by
+      rw [hσ, Equiv.symm_trans_apply, Equiv.symm_symm, finRotate_last]
+    refine Prod.ext (Prod.ext ?_ ?_) ?_
+    · funext j
+      apply Fin.ext
+      rw [hxv', hj1, hxv j]
+      by_cases hj : j = p.1.2.symm 0
+      · rw [if_pos hj, if_pos hj]
+        have : (p.1.1 j : ℕ) + 1 < M := by rw [hj]; exact hx
+        omega
+      · rw [if_neg hj, if_neg hj]
+    · rw [hσ', hσ]
+      ext j
+      simp
+    · rw [h2', Fin.ext_iff, h0]; rfl
+  -- case C
+  have hinvC : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      ¬ (p.2 : ℕ) = 0 → (p.2 : ℕ) = k + 1 → 1 ≤ (p.1.1 (p.1.2.symm (Fin.last k)) : ℕ) →
+      ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 : ℕ) = 0 ∧ ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.1 ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.2.symm 0) : ℕ) + 1 < M ∧ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) = p := by
+    intro p h0 hl hx
+    obtain ⟨h2, hσ, hxv⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step3_pivot_last p h0 hl
+    have hq0 : ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 : ℕ) = 0 := by rw [h2]; rfl
+    obtain ⟨h2', hσ', hxv'⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step2_pivot_first (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) hq0
+    have hj0 : (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).1.2.symm 0 = p.1.2.symm (Fin.last k) := by
+      rw [Equiv.symm_apply_eq, hσ, Equiv.trans_apply, Equiv.apply_symm_apply, finRotate_last]
+    refine ⟨hq0, ?_, ?_⟩
+    · rw [hj0, hxv, if_pos rfl]
+      have := (p.1.1 (p.1.2.symm (Fin.last k))).isLt
+      omega
+    · refine Prod.ext (Prod.ext ?_ ?_) ?_
+      · funext j
+        apply Fin.ext
+        rw [hxv', hj0, hxv j]
+        by_cases hj : j = p.1.2.symm (Fin.last k)
+        · rw [if_pos hj, if_pos hj]
+          have h1 : 1 ≤ (p.1.1 j : ℕ) := by rw [hj]; exact hx
+          have := (p.1.1 j).isLt
+          omega
+        · rw [if_neg hj, if_neg hj]
+      · rw [hσ', hσ]
+        ext j
+        simp
+      · rw [h2', Fin.ext_iff, hl, Fin.val_last]
+  -- case A
+  have hvA : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      ¬ (p.2 : ℕ) = 0 → ¬ (p.2 : ℕ) = k + 1 → F (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) = F p := by
+    intro p h0 hl
+    obtain ⟨h2, hx, hσ⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step4_pivot_swap p h0 hl
+    simp only [F, h2]
+    apply Finset.image_congr
+    intro i hi
+    have hi' : i ≠ p.2 := Finset.ne_of_mem_erase (Finset.mem_coe.mp hi)
+    have hiv : (i : ℕ) ≠ p.2 := fun h => hi' (Fin.ext h)
+    funext j
+    apply Fin.ext
+    rw [hkv, hkv, hx, hσ j]
+    split_ifs <;> omega
+  have hinvA : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      ¬ (p.2 : ℕ) = 0 → ¬ (p.2 : ℕ) = k + 1 → principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) = p ∧ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p ≠ p := by
+    intro p h0 hl
+    obtain ⟨h2, hx, hσ⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step4_pivot_swap p h0 hl
+    have h0' : ¬ ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 : ℕ) = 0 := by rw [h2]; exact h0
+    have hl' : ¬ ((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p).2 : ℕ) = k + 1 := by rw [h2]; exact hl
+    obtain ⟨h22, hx2, hσ2⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step4_pivot_swap (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) h0' hl'
+    refine ⟨Prod.ext (Prod.ext (by rw [hx2, hx]) ?_) (by rw [h22, h2]), ?_⟩
+    · ext j
+      rw [hσ2 j, hσ j, h2]
+      split_ifs <;> omega
+    · intro he
+      have hlt := p.2.isLt
+      have key := hσ (p.1.2.symm ⟨(p.2 : ℕ) - 1, by omega⟩)
+      rw [he, Equiv.apply_symm_apply] at key
+      simp only [Fin.val_mk] at key
+      split_ifs at key <;> omega
+  -- saturation
+  have hsatB : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (p.2 : ℕ) = 0 →
+      (Finset.univ.erase p.2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)) = Finset.univ.erase (some 0) →
+      (¬ ∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m 0 : ℕ) = M) →
+      (p.1.1 (p.1.2.symm 0) : ℕ) + 1 < M := by
+    intro p h0 hd hf
+    by_contra hcon
+    have hxlt := (p.1.1 (p.1.2.symm 0)).isLt
+    have hall : ∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m (p.1.2.symm 0) : ℕ) = M := by
+      intro m hm
+      have hm0 : (m : ℕ) ≠ 0 := fun h => hm (Fin.ext (by rw [h, h0]))
+      rw [hkv, Equiv.apply_symm_apply]
+      simp only [Fin.val_zero]
+      split_ifs <;> omega
+    by_cases hj : p.1.2.symm 0 = 0
+    · apply hf
+      intro m hm
+      have := hall m hm
+      rw [hj] at this
+      exact this
+    · have hmem : some (p.1.2.symm 0) ∈ Finset.univ.erase (some 0) := by
+        simp [hj]
+      rw [← hd, Finset.mem_image] at hmem
+      obtain ⟨m, hm, hlab⟩ := hmem
+      have := hsome _ _ hlab
+      rw [hall m (Finset.ne_of_mem_erase hm)] at this
+      omega
+  have hsatC : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (p.2 : ℕ) = k + 1 →
+      (Finset.univ.erase p.2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)) = Finset.univ.erase (some 0) →
+      1 ≤ (p.1.1 (p.1.2.symm (Fin.last k)) : ℕ) := by
+    intro p hl hd
+    by_contra hcon
+    have hmem : (none : Option (Fin (k + 1))) ∈ Finset.univ.erase (some 0) := by simp
+    rw [← hd, Finset.mem_image] at hmem
+    obtain ⟨m, hm, hlab⟩ := hmem
+    have := hnone _ hlab (p.1.2.symm (Fin.last k))
+    have hm' : (m : ℕ) ≠ k + 1 := fun h => Finset.ne_of_mem_erase hm (Fin.ext (by rw [h, hl]))
+    have hmlt := m.isLt
+    rw [hkv, Equiv.apply_symm_apply, Fin.val_last] at this
+    split_ifs at this <;> omega
+  -- the set and the involution
+  set S := Finset.univ.filter
+      (fun p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) =>
+        (Finset.univ.erase p.2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)) =
+            Finset.univ.erase (some 0) ∧
+          ¬ ∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m 0 : ℕ) = M) with hS
+  have htrans : ∀ p q, F q = F p → p ∈ S → q ∈ S := by
+    intro p q hFq hp
+    rw [hS, Finset.mem_filter] at hp ⊢
+    refine ⟨Finset.mem_univ _, ?_, ?_⟩
+    · rw [hdoorF, hFq, ← hdoorF]; exact hp.2.1
+    · rw [hfaceF, hFq, ← hfaceF]; exact hp.2.2
+  have hmemS : ∀ p ∈ S, F (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) = F p ∧ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) = p ∧ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p ≠ p := by
+    intro p hp
+    have hp' := hp
+    rw [hS, Finset.mem_filter] at hp'
+    by_cases h0 : (p.2 : ℕ) = 0
+    · have hx := hsatB p h0 hp'.2.1 hp'.2.2
+      refine ⟨hFB p h0 hx, hinvB p h0 hx, ?_⟩
+      intro he
+      have := (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step2_pivot_first p h0).1
+      rw [he] at this
+      have := congrArg Fin.val this
+      rw [Fin.val_last] at this
+      omega
+    · by_cases hl : (p.2 : ℕ) = k + 1
+      · have hx := hsatC p hl hp'.2.1
+        obtain ⟨hq0, hqx, hinv⟩ := hinvC p h0 hl hx
+        refine ⟨?_, hinv, ?_⟩
+        · have := hFB (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) hq0 hqx
+          rw [hinv] at this
+          exact this.symm
+        · intro he
+          rw [he] at hq0
+          exact h0 hq0
+      · exact ⟨hvA p h0 hl, (hinvA p h0 hl).1, (hinvA p h0 hl).2⟩
+  have hsum : ∑ p ∈ S, (1 : ZMod 2) = 0 := by
+    refine Finset.sum_involution (fun p _ => principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) (fun _ _ => rfl)
+      (fun p hp _ => (hmemS p hp).2.2)
+      (fun p hp => htrans p (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_pivotMap p) (hmemS p hp).1 hp)
+      (fun p hp => (hmemS p hp).2.1)
+  rw [Finset.sum_const, nsmul_eq_mul, mul_one] at hsum
+  exact (ZMod.natCast_eq_zero_iff_even).mp hsum
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+Doors on the face `z 0 = M` are exactly the facets `{v 1, …, v (k+1)}` of the Kuhn
+simplices with `x 0 = M - 1`, `σ 0 = 0`, and they correspond bijectively to the fully
+labelled Kuhn simplices of the face, labelled by the induced face labelling. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step6_face_doors (k M : ℕ) (ℓ : (Fin (k + 1) → Fin (M + 1)) → Option (Fin (k + 1)))
+    (hsome : ∀ z i, ℓ z = some i → (z i : ℕ) < M) (hM : 0 < M) :
+    (Finset.univ.filter
+      (fun p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) =>
+        (Finset.univ.erase p.2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)) =
+            Finset.univ.erase (some 0) ∧
+          ∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m 0 : ℕ) = M)).card =
+      (Finset.univ.filter (fun s : (Fin k → Fin M) × Equiv.Perm (Fin k) =>
+        ∀ o : Option (Fin k), ∃ m, principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s m) = o)).card := by
+  classical
+  let x0 : Fin M := ⟨M - 1, by omega⟩
+  let jmap : (Fin k → Fin M) × Equiv.Perm (Fin k) →
+      ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) :=
+    fun t => ((Fin.cons x0 t.1, Equiv.Perm.decomposeFin.symm (0, t.2)), 0)
+  let imap : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) →
+      (Fin k → Fin M) × Equiv.Perm (Fin k) :=
+    fun p => (Fin.tail p.1.1, (Equiv.Perm.decomposeFin p.1.2).2)
+  have hvert : ∀ t : (Fin k → Fin M) × Equiv.Perm (Fin k), ∀ m : Fin (k + 1),
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex (jmap t).1 m.succ = Fin.cons (α := fun _ => Fin (M + 1)) (Fin.last M) (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex t m) := by
+    intro t m
+    funext j
+    refine Fin.cases ?_ (fun j => ?_) j
+    · apply Fin.ext
+      simp only [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex, jmap, x0, Fin.cons_zero, Equiv.Perm.decomposeFin_symm_apply_zero,
+        Fin.val_succ, Fin.val_zero, Fin.val_last]
+      split_ifs <;> omega
+    · apply Fin.ext
+      simp only [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex, jmap, Fin.cons_succ, Equiv.Perm.decomposeFin_symm_apply_succ,
+        Equiv.swap_self, Equiv.refl_apply, Fin.val_succ]
+      split_ifs <;> omega
+  have hfl : ∀ u : Option (Fin (k + 1)), u ≠ some 0 → ∀ o : Option (Fin k),
+      (u.bind (fun i => if h : i = 0 then none else some (i.pred h)) = o ↔
+        u = o.map Fin.succ) := by
+    intro u hu o
+    cases u with
+    | none => cases o <;> simp
+    | some i =>
+      have hi : i ≠ 0 := fun h => hu (by rw [h])
+      cases o with
+      | none => simp [hi]
+      | some o' => simp [hi, Fin.pred_eq_iff_eq_succ]
+  have hg0 : ∀ y : Fin k → Fin (M + 1),
+      ℓ (Fin.cons (α := fun _ => Fin (M + 1)) (Fin.last M) y) ≠ some 0 := by
+    intro y h
+    have := hsome _ _ h
+    rw [Fin.cons_zero] at this
+    simp at this
+  have hdoor : ∀ t : (Fin k → Fin M) × Equiv.Perm (Fin k),
+      ((Finset.univ.erase (jmap t).2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex (jmap t).1 m)) =
+          Finset.univ.erase (some 0)) ↔
+        ∀ o : Option (Fin k), ∃ m, principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex t m) = o := by
+    intro t
+    have himg : ∀ o', o' ∈ (Finset.univ.erase (jmap t).2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex (jmap t).1 m)) ↔
+        ∃ m : Fin (k + 1), ℓ (Fin.cons (α := fun _ => Fin (M + 1)) (Fin.last M) (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex t m)) = o' := by
+      intro o'
+      simp only [Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true]
+      constructor
+      · rintro ⟨m, hm, h⟩
+        refine ⟨m.pred hm, ?_⟩
+        rw [← hvert, Fin.succ_pred]
+        exact h
+      · rintro ⟨m, h⟩
+        exact ⟨m.succ, Fin.succ_ne_zero m, by rw [hvert]; exact h⟩
+    have hfl' : ∀ m o, principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex t m) = o ↔
+        ℓ (Fin.cons (α := fun _ => Fin (M + 1)) (Fin.last M) (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex t m)) = o.map Fin.succ :=
+      fun m o => hfl _ (hg0 _) o
+    rw [Finset.ext_iff]
+    simp only [himg, hfl', Finset.mem_erase, Finset.mem_univ, and_true]
+    constructor
+    · intro h o
+      exact (h (o.map Fin.succ)).2 (by cases o <;> simp [Fin.succ_ne_zero])
+    · intro h o'
+      constructor
+      · rintro ⟨m, hm⟩
+        rw [← hm]
+        exact hg0 _
+      · intro ho'
+        cases o' with
+        | none => obtain ⟨m, hm⟩ := h none; exact ⟨m, hm⟩
+        | some i =>
+          have hi : i ≠ 0 := fun hh => ho' (by rw [hh])
+          obtain ⟨m, hm⟩ := h (some (i.pred hi))
+          refine ⟨m, ?_⟩
+          rw [hm]
+          simp
+  have hfst : ∀ σ : Equiv.Perm (Fin (k + 1)), (Equiv.Perm.decomposeFin σ).1 = σ 0 := by
+    intro σ
+    have := Equiv.Perm.decomposeFin_symm_apply_zero (Equiv.Perm.decomposeFin σ).1
+      (Equiv.Perm.decomposeFin σ).2
+    rw [Prod.mk.eta, Equiv.symm_apply_apply] at this
+    exact this.symm
+  have hshape : ∀ p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2),
+      (∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m 0 : ℕ) = M) → jmap (imap p) = p := by
+    rintro ⟨⟨x, σ⟩, m⟩ hf
+    have hx := (x 0).isLt
+    have hm0 : m = 0 := by
+      by_contra hm
+      have := hf 0 (Ne.symm hm)
+      simp only [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex, Fin.val_zero] at this
+      split_ifs at this <;> omega
+    subst hm0
+    have h1 := hf 1 (by simp)
+    simp only [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex, Fin.val_one] at h1
+    have hσ : σ 0 = 0 := by
+      by_contra hne
+      have : (1 : ℕ) ≤ (σ 0 : ℕ) := Nat.one_le_iff_ne_zero.mpr (fun h => hne (Fin.ext h))
+      split_ifs at h1 <;> omega
+    have hx0 : x 0 = x0 := by
+      apply Fin.ext
+      show (x 0 : ℕ) = M - 1
+      split_ifs at h1 <;> omega
+    simp only [jmap, imap]
+    refine Prod.ext (Prod.ext ?_ ?_) rfl
+    · show Fin.cons x0 (Fin.tail x) = x
+      rw [← hx0, Fin.cons_self_tail]
+    · show Equiv.Perm.decomposeFin.symm (0, (Equiv.Perm.decomposeFin σ).2) = σ
+      rw [← hσ, ← hfst σ, Prod.mk.eta, Equiv.symm_apply_apply]
+  apply Finset.card_nbij' imap jmap
+  · intro p hp
+    rw [Finset.mem_coe, Finset.mem_filter] at hp
+    rw [Finset.mem_coe, Finset.mem_filter]
+    refine ⟨Finset.mem_univ _, ?_⟩
+    rw [← hdoor, hshape p hp.2.2]
+    exact hp.2.1
+  · intro t ht
+    rw [Finset.mem_coe, Finset.mem_filter] at ht
+    rw [Finset.mem_coe, Finset.mem_filter]
+    refine ⟨Finset.mem_univ _, (hdoor t).2 ht.2, ?_⟩
+    intro m hm
+    have hm' : m ≠ 0 := hm
+    rw [← Fin.succ_pred m hm', hvert, Fin.cons_zero, Fin.val_last]
+  · intro p hp
+    rw [Finset.mem_coe, Finset.mem_filter] at hp
+    exact hshape p hp.2.2
+  · intro t _
+    simp only [jmap, imap, Fin.tail_cons, Equiv.apply_symm_apply]
+
+/-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+Kuhn's cubical Sperner lemma, counting form: under the boundary conditions (a label
+`some i` only off the face `z i = M`, the label `none` only off all faces `z j = 0`) the
+number of fully labelled Kuhn simplices of `{0,…,M}^k` is odd. Induction on `k` by door
+counting (Steps 1–3). -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step7_odd_count (k M : ℕ) : ∀ (ℓ : (Fin k → Fin (M + 1)) → Option (Fin k)),
+    (∀ z i, ℓ z = some i → (z i : ℕ) < M) →
+    (∀ z, ℓ z = none → ∀ j, 0 < (z j : ℕ)) →
+    Odd (Finset.univ.filter (fun s : (Fin k → Fin M) × Equiv.Perm (Fin k) =>
+      ∀ o : Option (Fin k), ∃ m, ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s m) = o)).card := by
+  induction k with
+  | zero =>
+    intro ℓ _ _
+    rw [Finset.filter_true_of_mem]
+    · simp
+    · intro s _ o
+      refine ⟨0, ?_⟩
+      cases o with
+      | none =>
+        cases h : ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s 0) with
+        | none => rfl
+        | some i => exact i.elim0
+      | some i => exact i.elim0
+  | succ k ih =>
+    intro ℓ hsome hnone
+    rcases Nat.eq_zero_or_pos M with hM | hM
+    · subst hM
+      exfalso
+      cases h : ℓ (fun _ => 0) with
+      | none => have := hnone _ h 0; simp at this
+      | some i => have := hsome _ i h; simp at this
+    have hsome' : ∀ y i, principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel ℓ y = some i → (y i : ℕ) < M := by
+      intro y i h
+      simp only [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel, Option.bind_eq_some_iff] at h
+      obtain ⟨i', hi', h2⟩ := h
+      split_ifs at h2 with h0
+      obtain rfl := Option.some.inj h2
+      have := hsome _ _ hi'
+      rw [← Fin.succ_pred i' h0, Fin.cons_succ] at this
+      exact this
+    have hnone' : ∀ y, principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel ℓ y = none → ∀ j, 0 < (y j : ℕ) := by
+      intro y h j
+      cases h' : ℓ (Fin.cons (α := fun _ => Fin (M + 1)) (Fin.last M) y) with
+      | none =>
+        have := hnone _ h' j.succ
+        rw [Fin.cons_succ] at this
+        exact this
+      | some i' =>
+        simp only [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel, h', Option.bind_some] at h
+        split_ifs at h with h0
+        have := hsome _ _ h'
+        rw [h0, Fin.cons_zero] at this
+        simp at this
+    have hface := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step6_face_doors k M ℓ hsome hM
+    have hpiv := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step5_pivot_pairs k M ℓ hsome hnone
+    have hIH := ih (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_faceLabel ℓ) hsome' hnone'
+    have hDsplit := Finset.card_filter_add_card_filter_not
+      (s := Finset.univ.filter
+        (fun p : ((Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1))) × Fin (k + 2) =>
+          (Finset.univ.erase p.2).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m)) =
+            Finset.univ.erase (some 0)))
+      (fun p => ∀ m, m ≠ p.2 → (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex p.1 m 0 : ℕ) = M)
+    rw [Finset.filter_filter, Finset.filter_filter, hface] at hDsplit
+    have hDodd := hDsplit ▸ hIH.add_even hpiv
+    rw [Finset.card_filter, Fintype.sum_prod_type] at hDodd
+    simp only [← Finset.card_filter] at hDodd
+    rw [Finset.odd_sum_iff_odd_card_odd] at hDodd
+    have hcongr : (Finset.univ.filter (fun s : (Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1)) =>
+        ∀ o : Option (Fin (k + 1)), ∃ m, ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s m) = o)) =
+        Finset.univ.filter (fun s : (Fin (k + 1) → Fin M) × Equiv.Perm (Fin (k + 1)) =>
+          Odd (Finset.univ.filter (fun m : Fin (k + 2) =>
+            (Finset.univ.erase m).image (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s m)) =
+              Finset.univ.erase (some 0))).card) := by
+      ext s
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      exact (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step1_local_doors (fun m => ℓ (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s m)) (by simp) (some 0)).symm
+    rw [hcongr]
+    convert hDodd
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of dimension; Gale's Hex theorem, proved here
+through Kuhn's cubical Sperner lemma).
+Existence form of Kuhn's cubical Sperner lemma: some chain `v 0 ≤ … ≤ v k` of grid points
+with differences in `{0,1}^k` carries all `k + 1` labels. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step8_kuhn_sperner (k M : ℕ) (ℓ : (Fin k → Fin (M + 1)) → Option (Fin k))
+    (hsome : ∀ z i, ℓ z = some i → (z i : ℕ) < M)
+    (hnone : ∀ z, ℓ z = none → ∀ j, 0 < (z j : ℕ)) :
+    ∃ v : Fin (k + 1) → (Fin k → Fin (M + 1)),
+      (∀ a b : Fin (k + 1), a ≤ b → ∀ j, (v a j : ℕ) ≤ v b j ∧ (v b j : ℕ) ≤ v a j + 1) ∧
+      ∀ o : Option (Fin k), ∃ a, ℓ (v a) = o := by
+  obtain ⟨s, hs⟩ := Finset.card_pos.mp (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step7_odd_count k M ℓ hsome hnone).pos
+  rw [Finset.mem_filter] at hs
+  refine ⟨principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex s, ?_, hs.2⟩
+  intro a b hab j
+  have hab' : (a : ℕ) ≤ b := hab
+  simp only [principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_kuhnVertex]
+  split_ifs <;> omega
+
 /-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
 "a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
 local dimension of the manifold). The combinatorial core, Gale's `k`-dimensional Hex
@@ -1857,7 +2537,131 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
       ((p 0 i : ℕ) = 0) ∧ ((p L i : ℕ) = N) ∧ (∀ t ≤ L, c (p t) = i) ∧
       ∀ t < L, (∀ j, (p t j : ℕ) ≤ p (t + 1) j ∧ (p (t + 1) j : ℕ) ≤ p t j + 1) ∨
         (∀ j, (p (t + 1) j : ℕ) ≤ p t j ∧ (p t j : ℕ) ≤ p (t + 1) j + 1) := by
-  sorry
+  classical
+  by_contra hcon
+  let sh : (Fin k → Fin (N + 2)) → (Fin k → Fin (N + 1)) :=
+    fun z j => ⟨(z j : ℕ) - 1, by omega⟩
+  have hsh : ∀ z j, ((sh z j : Fin (N + 1)) : ℕ) = (z j : ℕ) - 1 := fun _ _ => rfl
+  let col : (Fin k → Fin (N + 2)) → Fin k := fun z =>
+    if h : ∃ j, (z j : ℕ) = 0 then h.choose else c (sh z)
+  have hcol_virt : ∀ z i, col z = i → (∃ j, (z j : ℕ) = 0) → (z i : ℕ) = 0 := by
+    intro z i hzi h
+    simp only [col, dif_pos h] at hzi
+    subst hzi
+    exact h.choose_spec
+  have hcol_real : ∀ z, (∀ j, 0 < (z j : ℕ)) → col z = c (sh z) := by
+    intro z hz
+    have : ¬ ∃ j, (z j : ℕ) = 0 := fun ⟨j, hj⟩ => by have := hz j; omega
+    simp only [col, dif_neg this]
+  let Adj : (Fin k → Fin (N + 2)) → (Fin k → Fin (N + 2)) → Prop := fun a b =>
+    (∀ j, (a j : ℕ) ≤ b j ∧ (b j : ℕ) ≤ a j + 1) ∨
+      (∀ j, (b j : ℕ) ≤ a j ∧ (a j : ℕ) ≤ b j + 1)
+  let R : Fin k → (Fin k → Fin (N + 2)) → Prop := fun i z =>
+    ∃ L : ℕ, ∃ p : ℕ → (Fin k → Fin (N + 2)), (p 0 i : ℕ) = 0 ∧ p L = z ∧
+      (∀ t ≤ L, col (p t) = i) ∧ ∀ t < L, Adj (p t) (p (t + 1))
+  have htop : ∀ i z, R i z → (z i : ℕ) < N + 1 := by
+    rintro i z ⟨L, p, h0, hL, hc, ha⟩
+    by_contra hz
+    have hzN : (z i : ℕ) = N + 1 := by have := (z i).isLt; omega
+    have hvirt : ∀ t ≤ L, ¬ (∀ j, 0 < (p t j : ℕ)) → (p t i : ℕ) = 0 := by
+      intro t ht hnr
+      push_neg at hnr
+      obtain ⟨j, hj⟩ := hnr
+      exact hcol_virt _ _ (hc t ht) ⟨j, by omega⟩
+    set s := Nat.findGreatest (fun t => ¬ ∀ j, 0 < (p t j : ℕ)) L with hs_def
+    have hs0 : ¬ ∀ j, 0 < (p s j : ℕ) := by
+      apply Nat.findGreatest_spec (P := fun t => ¬ ∀ j, 0 < (p t j : ℕ)) (m := 0)
+        (Nat.zero_le _)
+      intro h; have := h i; omega
+    have hsL : s ≤ L := Nat.findGreatest_le L
+    have hsi : (p s i : ℕ) = 0 := hvirt s hsL hs0
+    have hslt : s < L := by
+      rcases Nat.lt_or_ge s L with h | h
+      · exact h
+      · have hsL' : s = L := le_antisymm hsL h
+        rw [hsL', hL] at hsi; omega
+    have hreal : ∀ t, s < t → t ≤ L → ∀ j, 0 < (p t j : ℕ) := by
+      intro t h1 h2
+      by_contra hn
+      have := Nat.le_findGreatest (P := fun t => ¬ ∀ j, 0 < (p t j : ℕ)) h2 hn
+      omega
+    apply hcon
+    refine ⟨i, L - (s + 1), fun t => sh (p (s + 1 + t)), ?_, ?_, ?_, ?_⟩
+    · rw [hsh]
+      have h1 := hreal (s + 1) (by omega) (by omega) i
+      rcases ha s hslt with h2 | h2
+      · have := (h2 i).2; simp only [Nat.add_zero]; omega
+      · have := (h2 i).1; simp only [Nat.add_zero]; omega
+    · rw [hsh]
+      have e : s + 1 + (L - (s + 1)) = L := by omega
+      rw [e, hL]; omega
+    · intro t ht
+      rw [← hcol_real _ (hreal _ (by omega) (by omega))]
+      exact hc _ (by omega)
+    · intro t ht
+      have h1 := hreal (s + 1 + t) (by omega) (by omega)
+      have h2 := hreal (s + 1 + (t + 1)) (by omega) (by omega)
+      have h3 := ha (s + 1 + t) (by omega)
+      have e : s + 1 + t + 1 = s + 1 + (t + 1) := by omega
+      rw [e] at h3
+      rcases h3 with h3 | h3
+      · left; intro j
+        have := h3 j; have := h1 j; have := h2 j
+        simp only [hsh]; omega
+      · right; intro j
+        have := h3 j; have := h1 j; have := h2 j
+        simp only [hsh]; omega
+  let ℓ : (Fin k → Fin (N + 2)) → Option (Fin k) := fun z =>
+    if R (col z) z then some (col z) else none
+  have hsome : ∀ z i, ℓ z = some i → (z i : ℕ) < N + 1 := by
+    intro z i h
+    simp only [ℓ] at h
+    split_ifs at h with hR
+    obtain rfl := Option.some.inj h
+    exact htop _ _ hR
+  have hnone : ∀ z, ℓ z = none → ∀ j, 0 < (z j : ℕ) := by
+    intro z h j
+    by_contra hj
+    have hz : ∃ j, (z j : ℕ) = 0 := ⟨j, by omega⟩
+    have hR : R (col z) z :=
+      ⟨0, fun _ => z, hcol_virt z _ rfl hz, rfl, fun _ _ => rfl,
+        fun t ht => absurd ht (Nat.not_lt_zero _)⟩
+    simp only [ℓ, if_pos hR] at h
+    cases h
+  obtain ⟨v, hv, hlab⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex_step8_kuhn_sperner k (N + 1) ℓ hsome hnone
+  obtain ⟨a, ha⟩ := hlab none
+  have hnR : ¬ R (col (v a)) (v a) := by
+    intro hR
+    simp only [ℓ, if_pos hR] at ha
+    cases ha
+  obtain ⟨b, hb⟩ := hlab (some (col (v a)))
+  have hRb : R (col (v b)) (v b) := by
+    by_contra hR
+    simp only [ℓ, if_neg hR] at hb
+    cases hb
+  have hcb : col (v b) = col (v a) := by
+    simp only [ℓ, if_pos hRb] at hb
+    exact Option.some.inj hb
+  rw [hcb] at hRb
+  obtain ⟨L, p, h0, hL, hc, hadj⟩ := hRb
+  apply hnR
+  refine ⟨L + 1, fun t => if t ≤ L then p t else v a, ?_, ?_, ?_, ?_⟩
+  · simp only [if_pos (Nat.zero_le L)]; exact h0
+  · simp only [if_neg (show ¬ L + 1 ≤ L by omega)]
+  · intro t ht
+    by_cases htL : t ≤ L
+    · simp only [if_pos htL]; exact hc t htL
+    · simp only [if_neg htL]
+  · intro t ht
+    by_cases htL : t < L
+    · simp only [if_pos htL.le, if_pos (show t + 1 ≤ L by omega)]
+      exact hadj t htL
+    · have htL' : t = L := by omega
+      subst htL'
+      simp only [le_refl, if_true, if_neg (show ¬ t + 1 ≤ t by omega), hL]
+      rcases le_total a b with hab | hba
+      · right; intro j; exact hv a b hab j
+      · left; intro j; exact hv b a hba j
 
 /-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
 "a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the

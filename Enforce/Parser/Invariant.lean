@@ -883,7 +883,26 @@ include A
 
 /-- R7, V4 3.7: all actual child subdivisions combine to the parent's native subdivision. -/
 theorem actual : IsBlock Y (n + 1) N := by
-  sorry
+  intro w
+  rcases w with ⟨i, w_child⟩
+  have h_child_eq := A.child_eq i
+  have h1 : (S.nativeTile N.ty (n + 1) ⟨i, w_child⟩).move N.frame = (S.nativeTile (S.child N.ty i).ty n w_child).move (N.child n i).frame := by
+    apply FramedNode.ext
+    · rfl
+    · ext x : 1
+      dsimp [SubstSystem.nativeTile, SubstSystem.descendantNode, FramedNode.child, FramedNode.move]
+      rw [Nat.zero_add]
+  have h_actual := (A.children i).val.actual
+  revert h_actual
+  generalize h_node : (A.children i).val.node = node
+  rw [h_node] at h_child_eq
+  subst h_child_eq
+  intro h_actual
+  have h_actual_inst := h_actual w_child
+  rcases h_actual_inst with ⟨t, ht, ht_eq⟩
+  use t, ht
+  rw [h1]
+  exact ht_eq
 
 /-- R7, V4 3.7: the assembled framed parent, regarded as a genuine height-(n+1) block. -/
 def block : Block Y (n + 1) := ⟨N, A.actual⟩

@@ -292,7 +292,15 @@ theorem boundaryPacket_inherited (n m : ℕ) (N M : FramedNode S)
     (hsub : M.cell m f.val ⊆ N.cell n F.val)
     (hNpacket : BoundaryPackets Y n N) (hMpacket : BoundaryPackets Y m M) :
     Classical.choose (hNpacket F) = Classical.choose (hMpacket f) := by
-  sorry
+  obtain ⟨t, f', h_piece⟩ := facet_piece_exists Y m M hM f
+  have h_piece_N : IsFacetPiece Y n N F t f' := ⟨
+    h_piece.1,
+    descendant_trans (tileNode t) M N 0 m n h_piece.2.1 hdesc,
+    h_piece.2.2.trans hsub
+  ⟩
+  have h1 := (Classical.choose_spec (hMpacket f)).1 t f' h_piece
+  have h2 := (Classical.choose_spec (hNpacket F)).1 t f' h_piece_N
+  exact h2.symm.trans h1
 
 end Parser
 

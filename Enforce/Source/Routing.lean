@@ -9102,11 +9102,25 @@ theorem principalFacets_spec (A : S.ι) (k : ℕ) (E₀ : Set (E d))
       E₀ = ⋃ f ∈ principalFacets S A k E₀, f.carrier := by
   sorry
 
+/-- Step 1 of the V4 proof of `principal_component_refines` (V4 1.24): the
+internal skeleton increases with the depth (it is the union of the primitive
+facets born before that depth). -/
+private theorem principal_component_refines_step1_skeleton_mono (A : S.ι) (k l : ℕ)
+    (hkl : k ≤ l) : internalSkeleton S A k ⊆ internalSkeleton S A l := by
+  rw [internalSkeleton_eq_primitives, internalSkeleton_eq_primitives]
+  intro x hx
+  simp only [Set.mem_iUnion, Subtype.exists] at hx ⊢
+  rcases hx with ⟨f, hfk, hx⟩
+  exact ⟨f, lt_of_lt_of_le hfk hkl, hx⟩
+
 /-- P20, V4 1.24: principal-component choices persist under further refinement. -/
 theorem principal_component_refines (A : S.ι) (k l : ℕ) (hkl : k ≤ l)
     (E₀ : Set (E d)) (hE : IsSkeletonComponent S A k E₀) :
     ∃ E₁ : Set (E d), IsSkeletonComponent S A l E₁ ∧ E₀ ⊆ E₁ := by
-  sorry
+  obtain ⟨x, hx, rfl⟩ := hE
+  have hmono := principal_component_refines_step1_skeleton_mono (S := S) A k l hkl
+  exact ⟨connectedComponentIn (internalSkeleton S A l) x, ⟨x, hmono hx, rfl⟩,
+    connectedComponentIn_mono x hmono⟩
 
 /-- P21, V4 1.25: same-parent links include a common-listed vertex of both facets. -/
 def SameParentLink {A : S.ι} (f g : PrimitiveFacet S A) : Prop :=

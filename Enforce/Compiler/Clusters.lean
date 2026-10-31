@@ -453,7 +453,17 @@ theorem cluster_inside (l : LeafType P) (κ : ClusterKind l) :
 theorem all_microballs_disjoint (l : LeafType P) :
     Pairwise (fun u v : ClusterKind l × Fin (d + 1) =>
       Disjoint (C.microball l u.1 u.2) (C.microball l v.1 v.2)) := by
-  sorry
+  rintro ⟨k1, a1⟩ ⟨k2, a2⟩ hneq
+  by_cases hk : k1 = k2
+  · subst hk
+    have ha : a1 ≠ a2 := fun ha => hneq (Prod.ext rfl ha)
+    exact C.micro_disjoint l k1 ha
+  · have hd := C.enclosing_disjoint l hk
+    have hsub1 : C.microball l k1 a1 ⊆ C.enclosing l k1 := (C.micro_inside l k1 a1).trans Metric.ball_subset_closedBall
+    have hsub2 : C.microball l k2 a2 ⊆ C.enclosing l k2 := (C.micro_inside l k2 a2).trans Metric.ball_subset_closedBall
+    exact hd.mono hsub1 hsub2
+
+
 
 end ClusterData
 

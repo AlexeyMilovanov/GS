@@ -1911,7 +1911,16 @@ theorem leaves_disjoint : Pairwise (fun v w : S.RoleWord B.certificate.val.ty P.
 
 /-- M8, V4 2.17(a): the full closed block carrier is compact and regular closed. -/
 theorem carrier_regular : IsCompact B.carrier ∧ IsRegularClosed B.carrier := by
-  sorry
+  have hcar : B.carrier = B.node.prototypeFrame P.K '' (S.proto B.node.ty).carrier := by
+    simp only [carrier, FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+      placedSet, Set.image_image]
+    rfl
+  let e := (B.node.prototypeFrame P.K).toHomeomorphOfFiniteDimensional
+  have hcar' : B.carrier = e '' (S.proto B.node.ty).carrier := hcar
+  rw [hcar']
+  refine ⟨(S.proto B.node.ty).compact.image e.continuous, ?_⟩
+  change closure (interior (e '' (S.proto B.node.ty).carrier)) = _
+  rw [← e.image_interior, ← e.image_closure, (S.proto B.node.ty).regularClosed]
 
 /-- M8, V4 2.17(a): the block has genuine full-dimensional connected interior. -/
 theorem carrier_interior : IsConnected (interior B.carrier) ∧

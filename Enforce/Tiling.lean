@@ -83,7 +83,14 @@ variable {S : SubstSystem d} (T : Tiling S) (g : Iso d)
 /-- T1, V4 §1.0 (H7): isometrically moved physical tiles still cover space. -/
 theorem move_cover : ∀ x : E d,
     ∃ t ∈ (fun t : PlacedTile S => t.move g) '' T.tiles, x ∈ t.carrier := by
-  sorry
+  intro x
+  have h := T.cover (g.symm x)
+  rcases h with ⟨t, ht_in, hx_in_t⟩
+  use t.move g
+  constructor
+  · exact Set.mem_image_of_mem (fun t => t.move g) ht_in
+  · rw [PlacedTile.move_carrier]
+    exact ⟨g.symm x, hx_in_t, by simp⟩
 
 /-- T1, V4 §1.0 (H7): isometric motion preserves disjoint tile interiors. -/
 theorem move_disjoint :

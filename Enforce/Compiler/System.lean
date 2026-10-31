@@ -1377,7 +1377,11 @@ theorem leaf_state (w : S.RoleWord B.certificate.val.ty P.K) :
 
 /-- M8, V4 2.17(a): no address occurs twice in the actual block subdivision. -/
 theorem leaf_injective : Function.Injective B.leaf := by
-  sorry
+  intro v w h
+  have h_inj := placedLeaf_injective C _ _ _ _ h
+  have h_eq := h_inj.1
+  cases h_eq
+  rfl
 
 /-- M8, V4 2.17(a): the standard native leaf interiors form a disjoint subdivision. -/
 theorem leaves_disjoint : Pairwise (fun v w : S.RoleWord B.certificate.val.ty P.K =>

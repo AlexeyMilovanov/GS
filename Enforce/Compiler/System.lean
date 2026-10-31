@@ -972,7 +972,50 @@ theorem honestLift_tile_data (C : ClusterData S P) (U : HonestSource S)
 /-- M6, V4 2.14(a),(c): forgetting augmented markings preserves the exact typed tiling. -/
 theorem honestLift_tiles (C : ClusterData S P) (U : HonestSource S) :
     (honestLift C U).project (nativeDecoration S P C) = U.tiling := by
-  sorry
+  have key : ∀ T1 T2 : Tiling S, T1.tiles = T2.tiles → T1 = T2 := by
+    rintro ⟨a, ca, da⟩ ⟨b, cb, db⟩ h
+    cases h
+    rfl
+  have h_tiles : ((honestLift C U).project (nativeDecoration S P C)).tiles = U.tiling.tiles := by
+    dsimp [MarkedTiling.project]
+    ext u
+    constructor
+    · rintro ⟨v, hv, rfl⟩
+      dsimp [honestLift, Compiler.honestLiftTiles] at hv
+      obtain ⟨t, rfl⟩ := hv
+      have ht : PlacedMarkedTile.native (nativeDecoration S P C) (Compiler.honestTile C U t) = t.val.toTile := by
+        apply PlacedTile.ext
+        · have h1 : (PlacedMarkedTile.native (nativeDecoration S P C) (Compiler.honestTile C U t)).ty = (compilerLeaf C (Compiler.honestTile C U t)).prototype := rfl
+          have h2 := (honestLift_tile_data C U t).1
+          have hl := leafTypeOf_type U P ⟨0, t.val, t.property⟩ rfl
+          rw [h1, h2, hl]
+          rfl
+        · rw [PlacedMarkedTile.native_carrier (nativeDecoration S P C) (Compiler.honestTile C U t)]
+          exact Compiler.honestTile_carrier C U t
+      show PlacedMarkedTile.native (nativeDecoration S P C) (Compiler.honestTile C U t) ∈ U.tiling.tiles
+      rw [ht]
+      have hground := U.hierarchy.ground
+      rw [← hground]
+      exact ⟨t.val, t.property, rfl⟩
+    · intro hu
+      have hu' : u ∈ {t | ∃ N ∈ U.hierarchy.nodes 0, N.toTile = t} := by
+        have hground := U.hierarchy.ground
+        rw [hground]
+        exact hu
+      obtain ⟨N, hN, rfl⟩ := hu'
+      let t : Compiler.GroundNode U := ⟨N, hN⟩
+      refine ⟨Compiler.honestTile C U t, ?_, ?_⟩
+      · exact ⟨t, rfl⟩
+      · show PlacedMarkedTile.native (nativeDecoration S P C) (Compiler.honestTile C U t) = N.toTile
+        apply PlacedTile.ext
+        · have h1 : (PlacedMarkedTile.native (nativeDecoration S P C) (Compiler.honestTile C U t)).ty = (compilerLeaf C (Compiler.honestTile C U t)).prototype := rfl
+          have h2 := (honestLift_tile_data C U t).1
+          have hl := leafTypeOf_type U P ⟨0, t.val, t.property⟩ rfl
+          rw [h1, h2, hl]
+          rfl
+        · rw [PlacedMarkedTile.native_carrier (nativeDecoration S P C) (Compiler.honestTile C U t)]
+          exact Compiler.honestTile_carrier C U t
+  exact key _ _ h_tiles
 
 /-- M6, V4 2.14(b): the honest lift is proper, by CORE coverage and honest event rows. -/
 theorem honestLift_proper (C : ClusterData S P) (U : HonestSource S) :

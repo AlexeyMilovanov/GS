@@ -5865,6 +5865,656 @@ theorem mature_counter_value (U : HonestSource S) (P : Params S) (q : U.Node)
   rw [FramedNode.cell, exists_childMap_step5_relint_image]
   exact Set.mem_image_of_mem _ (cellAnchor_mem e.val)
 
+/-- Step 1 of the V4 proof of `honest_counter_jump_count` (V4 §2.2 (S4d), mature branch):
+"mature differences vanish because sites are listed vertices, including flat subdivisions" —
+at mature depth no chosen site lies in the relative interior of a chain-active placed edge. -/
+private theorem honest_counter_jump_count_step1_mature_no_interior_site
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : PrototypeEdge S q.2.val.ty) (he : (U.recordOf P q f hf).ChainActive (edgeCell e))
+    (hmature : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
+      (U.hierarchy.firstProvider q f hf).1) (a : Fin P.N) :
+    U.sitePoint P q f hf a ∉ relint (q.2.val.cell q.1 e.val) := by
+  classical
+  intro hs
+  have he' := he
+  obtain ⟨c, hc, hce⟩ := he'
+  have hce' : (c.chain.val.cell edgeIndex).val = e.val := hce
+  have hact := (record_chains_spec U P q f hf c).1 hc
+  obtain ⟨-, -, hspan⟩ := hact.1 edgeIndex
+  rw [hce'] at hspan
+  have hT : U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).terminal ∈
+      U.providerPlacement P q f hf ''
+        ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier :=
+    ⟨_, by rw [(P.flag (U.recordIncidence P q f hf)).edge_eq]; exact right_mem_segment _ _ _,
+      rfl⟩
+  have hI : U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).initial ∈
+      U.providerPlacement P q f hf ''
+        ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier :=
+    ⟨_, by rw [(P.flag (U.recordIncidence P q f hf)).edge_eq]; exact left_mem_segment _ _ _,
+      rfl⟩
+  have hDeq : U.counterDirection P q f hf =
+      U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).terminal -
+        U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).initial := by
+    have h := (U.providerPlacement P q f hf).toAffineMap.linearMap_vsub
+      (P.flag (U.recordIncidence P q f hf)).terminal (P.flag (U.recordIncidence P q f hf)).initial
+    simpa [HonestSource.counterDirection, OrientedFullFlag.direction] using h
+  have hDmem : U.counterDirection P q f hf ∈
+      (affineSpan ℝ (q.2.val.cell q.1 e.val)).direction := by
+    rw [hspan, hDeq]
+    exact AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ _ hT)
+      (subset_affineSpan ℝ _ hI)
+  have hD0 : U.counterDirection P q f hf ≠ 0 := by
+    rw [hDeq]
+    exact sub_ne_zero.mpr ((U.providerPlacement P q f hf).injective.ne
+      (P.flag (U.recordIncidence P q f hf)).distinct.symm)
+  obtain ⟨y, hy, hyx⟩ := mem_intrinsicInterior.mp hs
+  let φ : ℝ → affineSpan ℝ (q.2.val.cell q.1 e.val) := fun t =>
+    ⟨t • U.counterDirection P q f hf +ᵥ (y : E d),
+      AffineSubspace.vadd_mem_of_mem_direction (Submodule.smul_mem _ t hDmem) y.2⟩
+  have hφc : Continuous φ := Continuous.subtype_mk (by fun_prop) _
+  have hopen : IsOpen (φ ⁻¹' interior ((↑) ⁻¹' (q.2.val.cell q.1 e.val) :
+      Set (affineSpan ℝ (q.2.val.cell q.1 e.val)))) := isOpen_interior.preimage hφc
+  have hφ0 : φ 0 = y := Subtype.ext (by simp [φ])
+  have h0 : (0 : ℝ) ∈ φ ⁻¹' interior ((↑) ⁻¹' (q.2.val.cell q.1 e.val) :
+      Set (affineSpan ℝ (q.2.val.cell q.1 e.val))) := by
+    rw [Set.mem_preimage, hφ0]
+    exact hy
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hopen 0 h0
+  have hmemt : ∀ t : ℝ, |t| < ε →
+      t • U.counterDirection P q f hf + (y : E d) ∈ relint (q.2.val.cell q.1 e.val) := by
+    intro t ht
+    have hb : t ∈ Metric.ball (0 : ℝ) ε := by simpa [Metric.mem_ball, Real.dist_eq] using ht
+    exact mem_intrinsicInterior.mpr ⟨φ t, hball hb, rfl⟩
+  have hval : ∀ t : ℝ, |t| < ε →
+      (U.constantProfile P q f hf).value (edgeCell e) =
+        some (U.sitesBefore P q f hf (t • U.counterDirection P q f hf + (y : E d))) :=
+    fun t ht => mature_counter_value U P q f hf hmature (edgeCell e) he _ (hmemt t ht)
+  have ht : |ε / 2| < ε := by rw [abs_of_pos (by linarith)]; linarith
+  have ht' : |-(ε / 2)| < ε := by rw [abs_neg]; exact ht
+  have heq := Option.some.inj ((hval _ ht').symm.trans (hval _ ht))
+  have hcard : ∀ x : E d, (U.sitesBefore P q f hf x).val =
+      (Finset.univ.filter (fun b : Fin P.N =>
+        inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf b - x) < 0)).card :=
+    fun x => rfl
+  have hc2 := congrArg Fin.val heq
+  rw [hcard, hcard] at hc2
+  have hk : 0 < inner ℝ (U.counterDirection P q f hf) (U.counterDirection P q f hf) :=
+    real_inner_self_pos.mpr hD0
+  have hexp : ∀ (z : E d) (t : ℝ),
+      inner ℝ (U.counterDirection P q f hf) (z - (t • U.counterDirection P q f hf + (y : E d))) =
+        inner ℝ (U.counterDirection P q f hf) (z - y) -
+          t * inner ℝ (U.counterDirection P q f hf) (U.counterDirection P q f hf) := by
+    intro z t
+    rw [show z - (t • U.counterDirection P q f hf + (y : E d)) =
+      (z - y) - t • U.counterDirection P q f hf by abel, inner_sub_right, real_inner_smul_right]
+  have hsub : (Finset.univ.filter (fun b : Fin P.N =>
+        inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf b - (-(ε / 2) • U.counterDirection P q f hf + (y : E d))) < 0)) ⊂
+      Finset.univ.filter (fun b : Fin P.N =>
+        inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf b - ((ε / 2) • U.counterDirection P q f hf + (y : E d))) < 0) := by
+    rw [Finset.ssubset_iff_of_subset]
+    · refine ⟨a, ?_, ?_⟩
+      · simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+        rw [hexp, ← hyx, sub_self, inner_zero_right]
+        nlinarith
+      · simp only [Finset.mem_filter, Finset.mem_univ, true_and, not_lt]
+        rw [hexp, ← hyx, sub_self, inner_zero_right]
+        nlinarith
+    · intro b hb
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hb ⊢
+      rw [hexp] at hb ⊢
+      nlinarith
+  exact absurd hc2 (Finset.card_lt_card hsub).ne
+
+/-- Step 3 of the V4 proof of `honest_counter_jump_count` (V4 2.3):
+"re-expressed in C's frame". A child frame factors through its normalized role. -/
+private theorem honest_counter_jump_count_step3_child_frame
+    (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).prototypeFrame n =
+      (rolePlacement ⟨N.ty, i⟩).trans (N.prototypeFrame (n + 1)) := by
+  apply AffineEquiv.ext
+  intro x
+  change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    N.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child N.ty i).frame x)))
+  congr 1
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
+    LinearEquiv.mul_apply, ← map_add]
+
+/-- Step 3 of the V4 proof of `honest_counter_jump_count` (V4 2.3):
+"re-expressed in C's frame". The honest parent relation has that same factorization. -/
+private theorem honest_counter_jump_count_step3_parent_frame
+    (U : HonestSource S) (q : U.Node) :
+    q.2.val.prototypeFrame q.1 =
+      (rolePlacement (U.hierarchy.nodeRole q)).trans
+        ((U.hierarchy.parentNode q).2.val.prototypeFrame
+          (U.hierarchy.parentNode q).1) := by
+  conv_lhs => rw [U.hierarchy.child_eq q.1 q.2]
+  exact honest_counter_jump_count_step3_child_frame _ _ _
+
+/-- Step 3 of the V4 proof of `honest_counter_jump_count` (V4 2.3):
+"re-expressed in C's frame". Iterating the role placements gives the full ancestor frame. -/
+private theorem honest_counter_jump_count_step3_word_frame
+    (U : HonestSource S) (q : U.Node) (a : ℕ) :
+    q.2.val.prototypeFrame q.1 =
+      (wordPlacement (U.downRoles q a)).trans
+        ((U.hierarchy.ancestor q a).2.val.prototypeFrame
+          (U.hierarchy.ancestor q a).1) := by
+  induction a with
+  | zero =>
+    simp [HonestSource.downRoles, CoherentHierarchy.ancestor, wordPlacement]
+  | succ a ih =>
+    have hroles : U.downRoles q (a + 1) =
+        U.hierarchy.nodeRole (U.hierarchy.ancestor q a) :: U.downRoles q a := by
+      unfold HonestSource.downRoles
+      rw [List.ofFn_succ']
+      simp only [List.concat_eq_append, List.reverse_append, List.reverse_singleton,
+        List.singleton_append, Fin.val_last, Fin.val_castSucc]
+    have ha : U.hierarchy.ancestor q (a + 1) =
+        U.hierarchy.parentNode (U.hierarchy.ancestor q a) := by
+      exact Function.iterate_succ_apply' _ _ _
+    rw [hroles, wordPlacement, ha, AffineEquiv.trans_assoc,
+      ← honest_counter_jump_count_step3_parent_frame]
+    exact ih
+
+/-- Step 3 of the V4 proof of `honest_counter_jump_count` (V4 3.6(2c)):
+"a site ... recorded in u_m's profile". The canonical site is placed by the
+serving child's full frame, on its recorded side. -/
+private theorem honest_counter_jump_count_step3_site_frame {P : Params S}
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (a : Fin P.N) :
+    U.sitePoint P q f hf a =
+      (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1
+        (P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a) := by
+  have hr : (U.recordIncidence P q f hf).val.sideRole (U.recordSide P q f hf) =
+      U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf) :=
+    (Classical.choose_spec (U.recordSide_exists P q f hf)).1
+  rw [honest_counter_jump_count_step3_parent_frame]
+  change _ = (U.hierarchy.birthParent q f hf).2.val.prototypeFrame
+    (U.hierarchy.birthHeight q f hf)
+    (rolePlacement (U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf))
+      (P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a))
+  rw [← hr]
+  simp [HonestSource.sitePoint, HonestSource.providerPlacement, Params.incidencePlacement,
+    Params.canonicalSite, rolePlacement, PrimitiveIncidence.sideRole]
+
+/-- Step 3 of the V4 proof of `honest_counter_jump_count` (V4 3.6):
+"restrictions of the profile of c". An invertible affine frame preserves
+order along a line when its direction is transported by the linear part. -/
+private theorem honest_counter_jump_count_step3_line_order
+    {d : ℕ} (φ : E d ≃ᵃ[ℝ] E d) (p q : E d) (hpq : p ≠ q)
+    (x y : E d) (hx : x ∈ affineSpan ℝ ({p, q} : Set (E d)))
+    (hy : y ∈ affineSpan ℝ ({p, q} : Set (E d))) :
+    (inner ℝ (φ.linear (q - p)) (φ x - φ y) ≤ 0 ↔ inner ℝ (q - p) (x - y) ≤ 0) ∧
+    (inner ℝ (φ.linear (q - p)) (φ x - φ y) < 0 ↔ inner ℝ (q - p) (x - y) < 0) := by
+  obtain ⟨a, rfl⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hx
+  obtain ⟨b, rfl⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hy
+  have hsub : AffineMap.lineMap p q a - AffineMap.lineMap p q b = (a - b) • (q - p) := by
+    simp only [AffineMap.lineMap_apply_module']
+    module
+  have hmap : φ (AffineMap.lineMap p q a) - φ (AffineMap.lineMap p q b) =
+      (a - b) • φ.linear (q - p) := by
+    have hm := φ.toAffineMap.linearMap_vsub (AffineMap.lineMap p q a) (AffineMap.lineMap p q b)
+    change φ.linear (AffineMap.lineMap p q a - AffineMap.lineMap p q b) = _ at hm
+    rw [hsub, map_smul] at hm
+    exact hm.symm
+  have hv : 0 < inner ℝ (q - p) (q - p) := real_inner_self_pos.mpr (sub_ne_zero.mpr hpq.symm)
+  have hw : 0 < inner ℝ (φ.linear (q - p)) (φ.linear (q - p)) :=
+    real_inner_self_pos.mpr (φ.linear.map_ne_zero_iff.mpr (sub_ne_zero.mpr hpq.symm))
+  rw [hmap, hsub, real_inner_smul_right, real_inner_smul_right]
+  constructor <;> constructor <;> intro hh
+  · have hc : a - b ≤ 0 := by nlinarith
+    exact mul_nonpos_of_nonpos_of_nonneg hc hv.le
+  · have hc : a - b ≤ 0 := by nlinarith
+    exact mul_nonpos_of_nonpos_of_nonneg hc hw.le
+  · have hc : a - b < 0 := by nlinarith
+    exact mul_neg_of_neg_of_pos hc hv
+  · have hc : a - b < 0 := by nlinarith
+    exact mul_neg_of_neg_of_pos hc hw
+
+/-- Step 4 of the V4 proof of `honest_counter_jump_count` (V4 3.6):
+"in relint c". The open affine interpolation parameterizes precisely the
+relative interior of a nondegenerate edge. -/
+private theorem honest_counter_jump_count_step4_segment_relint
+    {d : ℕ} (p q : E d) (hpq : p ≠ q) :
+    relint (segment ℝ p q) = AffineMap.lineMap p q '' Ioo (0 : ℝ) 1 := by
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let u := L⁻¹ • (q - p)
+  have hu : ‖u‖ = 1 := by
+    dsimp [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • u + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight u
+      map_vadd' := by
+        intro t s
+        change (s + t) • u + p = s • u + (t • u + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • u‖ = ‖t‖
+      rw [norm_smul, hu, mul_one] }
+  have hφ0 : φ 0 = p := by change (0 : ℝ) • u + p = p; simp
+  have hφL : φ L = q := by
+    change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+  have hseg : segment ℝ p q = φ '' Icc 0 L := by
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hir : intrinsicInterior ℝ (Icc (0 : ℝ) L) = Ioo 0 L := by
+    have hspan : affineSpan ℝ (Icc (0 : ℝ) L) = ⊤ :=
+      (convex_Icc 0 L).interior_nonempty_iff_affineSpan_eq_top.mp
+        (by rw [interior_Icc]; exact nonempty_Ioo.mpr hL)
+    rw [intrinsicInterior, hspan]
+    change (Homeomorph.Set.univ ℝ) ''
+      interior ((Homeomorph.Set.univ ℝ) ⁻¹' Icc 0 L) = Ioo 0 L
+    rw [(Homeomorph.Set.univ ℝ).image_interior]
+    simp
+  rw [hseg, relint, φ.image_intrinsicInterior, hir]
+  ext x
+  constructor
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t / L, ⟨div_pos ht.1 hL, (div_lt_one hL).mpr ht.2⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L (t / L)
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL, hL.ne'] using he.symm
+  · rintro ⟨t, ht, rfl⟩
+    refine ⟨t * L, ⟨mul_pos ht.1 hL, by nlinarith [ht.2]⟩, ?_⟩
+    have he := φ.toAffineMap.apply_lineMap (0 : ℝ) L t
+    simpa [AffineMap.lineMap_apply_ring, hφ0, hφL] using he
+
+/-- Step 3 of the V4 proof of `honest_counter_jump_count` (V4 3.6, 2.3):
+"the restriction of S(B)'s profile". The serving child's full frame factors
+through its side's isometry to the canonical provider coordinates. -/
+private theorem honest_counter_jump_count_step3_serving_frame {P : Params S}
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) :
+    (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1 =
+      (S.child (U.recordIncidence P q f hf).val.ty
+        ((U.recordIncidence P q f hf).val.sideIndex (U.recordSide P q f hf))).frame.toAffineEquiv.trans
+      ((S.child (U.recordIncidence P q f hf).val.ty
+        (U.recordIncidence P q f hf).val.left).frame.symm.toAffineEquiv.trans
+        (U.providerPlacement P q f hf)) := by
+  have hr := (Classical.choose_spec (U.recordSide_exists P q f hf)).1
+  rw [honest_counter_jump_count_step3_parent_frame]
+  change (rolePlacement (U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf))).trans
+    ((U.hierarchy.birthParent q f hf).2.val.prototypeFrame (U.hierarchy.birthHeight q f hf)) = _
+  rw [← hr]
+  ext x
+  simp [rolePlacement, HonestSource.providerPlacement, Params.incidencePlacement,
+    PrimitiveIncidence.sideRole, HonestSource.recordSide]
+
+set_option maxHeartbeats 800000 in
+/-- Step 3 of the V4 proof of `honest_counter_jump_count` (V4 3.6, §2.2(S4d)):
+"the germs ... are restrictions of the profile of c". The shallow word's
+endpoint counts equal the counts of physical source sites. Active-chain
+alignment puts all compared points on the same line, so arbitrary invertible
+expansion preserves the signs used by both counters. -/
+private theorem honest_counter_jump_count_step3_shallow_germs {P : Params S}
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (e : PrototypeEdge S q.2.val.ty)
+    (he : (U.recordOf P q f hf).ChainActive (edgeCell e))
+    (w : ShortProfile P) (hw : (U.recordOf P q f hf).counter = .inr w) :
+    (U.recordOf P q f hf).kappaMinus e =
+      (Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q f hf)
+        (U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) ≤ 0)).card ∧
+    (U.recordOf P q f hf).kappaPlus e =
+      (Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q f hf)
+        (U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2) < 0)).card := by
+  classical
+  let ι := U.recordIncidence P q f hf
+  let b := U.recordSide P q f hf
+  let F := P.flag ι
+  let K : Iso d := (S.child ι.val.ty (ι.val.sideIndex b)).frame.trans
+    (S.child ι.val.ty ι.val.left).frame.symm
+  let p₀ := K.symm F.initial
+  let p₁ := K.symm F.terminal
+  let Ψ := K.toAffineEquiv.trans (U.providerPlacement P q f hf)
+  have hp : p₀ ≠ p₁ := fun h => F.distinct (K.symm.injective h)
+  have hdir : p₁ - p₀ = (U.recordOf P q f hf).servingDirection := by
+    have hh := K.symm.toAffineEquiv.toAffineMap.linearMap_vsub F.terminal F.initial
+    change K.symm.linearIsometryEquiv (F.terminal - F.initial) = p₁ - p₀ at hh
+    exact hh.symm
+  have hdir' : Ψ.linear (p₁ - p₀) = U.counterDirection P q f hf := by
+    change (U.providerPlacement P q f hf).linear (K.linearIsometryEquiv (p₁ - p₀)) = _
+    have hh := K.toAffineEquiv.toAffineMap.linearMap_vsub p₁ p₀
+    change K.linearIsometryEquiv (p₁ - p₀) = K p₁ - K p₀ at hh
+    rw [hh]
+    simp [p₀, p₁, HonestSource.counterDirection, F, ι, OrientedFullFlag.direction]
+  have hserv : (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+      (U.hierarchy.servingChild q f hf).1 = Ψ := by
+    apply AffineEquiv.ext
+    intro x
+    exact congrArg (fun g : E d ≃ᵃ[ℝ] E d => g x)
+      (honest_counter_jump_count_step3_serving_frame (P := P) U q f hf)
+  have hword : w.word = U.downRoles q (U.hierarchy.firstProvider q f hf).1 := by
+    change U.counterProfile P q f hf = .inr w at hw
+    unfold HonestSource.counterProfile at hw
+    dsimp only at hw
+    split at hw
+    · cases Sum.inr.inj hw
+      rfl
+    · contradiction
+  have hframe : q.2.val.prototypeFrame q.1 = (wordPlacement w.word).trans Ψ := by
+    rw [hword, honest_counter_jump_count_step3_word_frame]
+    exact congrArg (fun g => (wordPlacement (U.downRoles q
+      (U.hierarchy.firstProvider q f hf).1)).trans g) hserv
+  have hsite (a : Fin P.N) : U.sitePoint P q f hf a = Ψ (P.sites ι b a) := by
+    rw [honest_counter_jump_count_step3_site_frame, hserv]
+  have hside : ((P.sideFlag ι b).cell edgeIndex).val.carrier = segment ℝ p₀ p₁ := by
+    have hh := congrArg (fun A : Set (E d) =>
+      (S.child ι.val.ty ι.val.left).frame.symm '' A) (P.sideFlag_eq ι b edgeIndex)
+    have hK : K '' ((P.sideFlag ι b).cell edgeIndex).val.carrier =
+        (F.flag.cell edgeIndex).val.carrier := by
+      simpa [placedSet, Set.image_image, K, F] using hh
+    have hh := congrArg (fun A : Set (E d) => K.symm '' A) hK
+    simp only [Set.image_image, K.symm_apply_apply, Set.image_id'] at hh
+    rw [F.edge_eq] at hh
+    exact hh.trans (image_segment ℝ K.symm.toAffineEquiv.toAffineMap F.initial F.terminal)
+  have hs (a : Fin P.N) : P.sites ι b a ∈ affineSpan ℝ ({p₀, p₁} : Set (E d)) := by
+    have hh := intrinsicInterior_subset (P.sites_relint ι b a)
+    rw [hside] at hh
+    simpa only [← convexHull_pair, affineSpan_convexHull] using
+      (subset_affineSpan ℝ (segment ℝ p₀ p₁) hh)
+  obtain ⟨c, hc, hce⟩ := he
+  have hspan : affineSpan ℝ (q.2.val.cell q.1 e.val) =
+      affineSpan ℝ (Ψ '' segment ℝ p₀ p₁) := by
+    obtain ⟨_, _, hh⟩ := ((record_chains_spec U P q f hf c).mp hc).1 edgeIndex
+    rw [hce] at hh
+    have hfedge : U.providerPlacement P q f hf '' (F.flag.cell edgeIndex).val.carrier =
+        Ψ '' segment ℝ p₀ p₁ := by
+      rw [F.edge_eq]
+      change (U.providerPlacement P q f hf).toAffineMap '' segment ℝ F.initial F.terminal =
+        Ψ.toAffineMap '' segment ℝ p₀ p₁
+      rw [image_segment, image_segment]
+      simp [Ψ, p₀, p₁]
+    exact hh.trans (congrArg (affineSpan ℝ) hfedge)
+  have hmem (y : E d) (hy : y ∈ e.val.carrier) :
+      wordPlacement w.word y ∈ affineSpan ℝ ({p₀, p₁} : Set (E d)) := by
+    have hh := subset_affineSpan ℝ (q.2.val.cell q.1 e.val) (Set.mem_image_of_mem _ hy)
+    rw [hspan] at hh
+    change q.2.val.prototypeFrame q.1 y ∈
+      affineSpan ℝ (Ψ.toAffineMap '' segment ℝ p₀ p₁) at hh
+    rw [← AffineSubspace.map_span] at hh
+    change q.2.val.prototypeFrame q.1 y ∈ Ψ ''
+      (affineSpan ℝ (segment ℝ p₀ p₁) : Set (E d)) at hh
+    rw [hframe] at hh
+    have hh := Ψ.injective.mem_set_image.mp hh
+    simpa only [← convexHull_pair, affineSpan_convexHull] using hh
+  have hends : ((U.recordOf P q f hf).endpoints e).1 ∈ e.val.carrier ∧
+      ((U.recordOf P q f hf).endpoints e).2 ∈ e.val.carrier := by
+    have hh := (Classical.choose_spec (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S))).2
+    rw [hh]
+    unfold FacetRecord.endpoints
+    split
+    · exact ⟨left_mem_segment ℝ _ _, right_mem_segment ℝ _ _⟩
+    · exact ⟨right_mem_segment ℝ _ _, left_mem_segment ℝ _ _⟩
+  have horder (a : Fin P.N) (y : E d) (hy : y ∈ e.val.carrier) :
+      (inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 y) ≤ 0 ↔
+        inner ℝ (U.recordOf P q f hf).servingDirection
+          (P.sites ι b a - wordPlacement w.word y) ≤ 0) ∧
+      (inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf a - q.2.val.prototypeFrame q.1 y) < 0 ↔
+        inner ℝ (U.recordOf P q f hf).servingDirection
+          (P.sites ι b a - wordPlacement w.word y) < 0) := by
+    have hh := honest_counter_jump_count_step3_line_order Ψ p₀ p₁ hp
+      (P.sites ι b a) (wordPlacement w.word y) (hs a) (hmem y hy)
+    rw [hdir', hdir] at hh
+    simpa only [hsite, hframe, AffineEquiv.trans_apply] using hh
+  constructor
+  · rw [FacetRecord.kappaMinus, hw]
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro a _
+    exact (horder a _ hends.1).1.symm
+  · rw [FacetRecord.kappaPlus, hw]
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro a _
+    exact (horder a _ hends.2).2.symm
+
+/-- Step 2 of the V4 proof of `honest_counter_jump_count` (V4 §2.2 (S4d), (S4e)):
+"the active edge lies on the placed flag edge" — the counter direction is a nonzero
+direction of the affine span of a chain-active placed edge. -/
+private theorem honest_counter_jump_count_step2_direction
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : PrototypeEdge S q.2.val.ty) (he : (U.recordOf P q f hf).ChainActive (edgeCell e)) :
+    U.counterDirection P q f hf ∈ (affineSpan ℝ (q.2.val.cell q.1 e.val)).direction ∧
+      U.counterDirection P q f hf ≠ 0 := by
+  classical
+  have he' := he
+  obtain ⟨c, hc, hce⟩ := he'
+  have hce' : (c.chain.val.cell edgeIndex).val = e.val := hce
+  have hact := (record_chains_spec U P q f hf c).1 hc
+  obtain ⟨-, -, hspan⟩ := hact.1 edgeIndex
+  rw [hce'] at hspan
+  have hT : U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).terminal ∈
+      U.providerPlacement P q f hf ''
+        ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier :=
+    ⟨_, by rw [(P.flag (U.recordIncidence P q f hf)).edge_eq]; exact right_mem_segment _ _ _,
+      rfl⟩
+  have hI : U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).initial ∈
+      U.providerPlacement P q f hf ''
+        ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier :=
+    ⟨_, by rw [(P.flag (U.recordIncidence P q f hf)).edge_eq]; exact left_mem_segment _ _ _,
+      rfl⟩
+  have hDeq : U.counterDirection P q f hf =
+      U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).terminal -
+        U.providerPlacement P q f hf (P.flag (U.recordIncidence P q f hf)).initial := by
+    have h := (U.providerPlacement P q f hf).toAffineMap.linearMap_vsub
+      (P.flag (U.recordIncidence P q f hf)).terminal (P.flag (U.recordIncidence P q f hf)).initial
+    simpa [HonestSource.counterDirection, OrientedFullFlag.direction] using h
+  refine ⟨?_, ?_⟩
+  · rw [hspan, hDeq]
+    exact AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ _ hT)
+      (subset_affineSpan ℝ _ hI)
+  · rw [hDeq]
+    exact sub_ne_zero.mpr ((U.providerPlacement P q f hf).injective.ne
+      (P.flag (U.recordIncidence P q f hf)).distinct.symm)
+
+/-- Step 2 of the V4 proof of `honest_counter_jump_count` (V4 §2.2 (S4d)):
+"the active edge is the oriented placed segment" — the placed edge is the closed
+segment between its two distinct recorded endpoints, placed in the source. -/
+private theorem honest_counter_jump_count_step2_segment
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : PrototypeEdge S q.2.val.ty) :
+    q.2.val.cell q.1 e.val = segment ℝ
+        (q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1)
+        (q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2) ∧
+      q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1 ≠
+        q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2 := by
+  classical
+  obtain ⟨AB, hABdef⟩ : ∃ AB, AB =
+      Classical.choose (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S)) := ⟨_, rfl⟩
+  have hab : AB.1 ≠ AB.2 ∧ e.val.carrier = segment ℝ AB.1 AB.2 := by
+    rw [hABdef]
+    exact Classical.choose_spec (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S))
+  have hseg : q.2.val.cell q.1 e.val =
+      segment ℝ (q.2.val.prototypeFrame q.1 AB.1) (q.2.val.prototypeFrame q.1 AB.2) := by
+    change (q.2.val.prototypeFrame q.1) '' e.val.carrier = _
+    rw [hab.2]
+    change (q.2.val.prototypeFrame q.1).toAffineMap '' _ = _
+    rw [image_segment]
+    rfl
+  have hgoal : (U.recordOf P q f hf).endpoints e =
+      if (U.recordOf P q f hf).edgeForward e then AB else (AB.2, AB.1) := by
+    rw [hABdef]
+    rfl
+  rw [hgoal]
+  split_ifs
+  · exact ⟨hseg, (q.2.val.prototypeFrame q.1).injective.ne hab.1⟩
+  · exact ⟨hseg.trans (segment_symm ℝ _ _),
+      ((q.2.val.prototypeFrame q.1).injective.ne hab.1).symm⟩
+
+/-- Step 2 of the V4 proof of `honest_counter_jump_count` (V4 §2.2 (S4d), (S4e)):
+"the induced orientation of the active edge agrees with the common counter direction" —
+the recorded oriented endpoints of a chain-active edge, placed in the source, increase
+strictly along the counter direction. -/
+private theorem honest_counter_jump_count_step2_orientation
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : PrototypeEdge S q.2.val.ty) (he : (U.recordOf P q f hf).ChainActive (edgeCell e)) :
+    0 < inner ℝ (U.counterDirection P q f hf)
+      (q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2 -
+        q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) := by
+  classical
+  obtain ⟨hDmem, hD0⟩ := honest_counter_jump_count_step2_direction U P q f hf e he
+  have he' := he
+  obtain ⟨c, hc, hce⟩ := he'
+  have hce' : (c.chain.val.cell edgeIndex).val = e.val := hce
+  obtain ⟨AB, hABdef⟩ : ∃ AB, AB =
+      Classical.choose (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S)) := ⟨_, rfl⟩
+  have hab : AB.1 ≠ AB.2 ∧ e.val.carrier = segment ℝ AB.1 AB.2 := by
+    rw [hABdef]
+    exact Classical.choose_spec (edge_endpoints_exist (⟨q.2.val.ty, e⟩ : EdgeName S))
+  have hseg : q.2.val.cell q.1 e.val =
+      segment ℝ (q.2.val.prototypeFrame q.1 AB.1) (q.2.val.prototypeFrame q.1 AB.2) := by
+    change (q.2.val.prototypeFrame q.1) '' e.val.carrier = _
+    rw [hab.2]
+    change (q.2.val.prototypeFrame q.1).toAffineMap '' _ = _
+    rw [image_segment]
+    rfl
+  have hlin : ∀ x y : E d, (q.2.val.prototypeFrame q.1).linear (x - y) =
+      q.2.val.prototypeFrame q.1 x - q.2.val.prototypeFrame q.1 y := fun x y => by
+    have h := (q.2.val.prototypeFrame q.1).toAffineMap.linearMap_vsub x y
+    simpa using h
+  have hfwd : ∀ c' ∈ (U.recordOf P q f hf).chains, (c'.chain.val.cell edgeIndex).val = e.val →
+      (c'.forward = true ↔ 0 < inner ℝ (U.counterDirection P q f hf)
+        (q.2.val.prototypeFrame q.1 AB.2 - q.2.val.prototypeFrame q.1 AB.1)) := by
+    intro c' hc' hce''
+    have h := ((record_chains_spec U P q f hf c').1 hc').2
+    have key : ∀ (x) (hx : x ∈ (S.cx q.2.val.ty).edges), x = e.val →
+        Classical.choose (edge_endpoints_exist (⟨q.2.val.ty, ⟨x, hx⟩⟩ : EdgeName S)) = AB := by
+      rintro x hx rfl
+      rw [hABdef]
+    rw [key _ _ hce'', hlin] at h
+    exact h
+  have hne : inner ℝ (U.counterDirection P q f hf)
+      (q.2.val.prototypeFrame q.1 AB.2 - q.2.val.prototypeFrame q.1 AB.1) ≠ 0 := by
+    rw [hseg, ← convexHull_pair, affineSpan_convexHull, direction_affineSpan,
+      vectorSpan_pair] at hDmem
+    obtain ⟨μ, hμ⟩ := Submodule.mem_span_singleton.mp hDmem
+    have hμ0 : μ ≠ 0 := by
+      rintro rfl
+      exact hD0 (by rw [← hμ, zero_smul])
+    have hxy : q.2.val.prototypeFrame q.1 AB.2 - q.2.val.prototypeFrame q.1 AB.1 ≠ 0 :=
+      sub_ne_zero.mpr ((q.2.val.prototypeFrame q.1).injective.ne hab.1.symm)
+    rw [← hμ, vsub_eq_sub, real_inner_smul_left, ← neg_sub, inner_neg_left]
+    have hpos := real_inner_self_pos.mpr hxy
+    intro h0
+    rcases mul_eq_zero.mp h0 with h | h
+    · exact hμ0 h
+    · linarith
+  have hgoal : (U.recordOf P q f hf).endpoints e =
+      if (U.recordOf P q f hf).edgeForward e then AB else (AB.2, AB.1) := by
+    rw [hABdef]
+    rfl
+  rw [hgoal]
+  split_ifs with hF
+  · unfold FacetRecord.edgeForward at hF
+    simp only [List.any_eq_true, Bool.and_eq_true, decide_eq_true_eq,
+      Finset.mem_toList] at hF
+    obtain ⟨c', hc', hce'', hfw⟩ := hF
+    exact (hfwd c' hc' hce'').1 hfw
+  · have hcf : c.forward = false := by
+      by_contra hcf'
+      apply hF
+      unfold FacetRecord.edgeForward
+      simp only [List.any_eq_true, Bool.and_eq_true, decide_eq_true_eq, Finset.mem_toList]
+      exact ⟨c, hc, hce', by simpa using hcf'⟩
+    have hle : ¬ 0 < inner ℝ (U.counterDirection P q f hf)
+        (q.2.val.prototypeFrame q.1 AB.2 - q.2.val.prototypeFrame q.1 AB.1) := by
+      intro h
+      have h' := (hfwd c hc hce').2 h
+      rw [hcf] at h'
+      exact Bool.false_ne_true h'
+    show 0 < inner ℝ (U.counterDirection P q f hf)
+      (q.2.val.prototypeFrame q.1 AB.1 - q.2.val.prototypeFrame q.1 AB.2)
+    rw [← neg_sub, inner_neg_right]
+    have := lt_of_le_of_ne (not_lt.mp hle) hne
+    linarith
+
+/-- Step 4 of the V4 proof of `honest_counter_jump_count` (V4 §2.2 (S4d)):
+"shallow threshold differences count interior sites" — every chosen site lies on the
+line of the placed active edge, so it is in the relative interior of that edge exactly
+when it lies strictly after the initial and strictly before the terminal placed endpoint
+along the counter direction. -/
+private theorem honest_counter_jump_count_step4_relint_iff
+    (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (e : PrototypeEdge S q.2.val.ty) (he : (U.recordOf P q f hf).ChainActive (edgeCell e))
+    (a : Fin P.N) :
+    U.sitePoint P q f hf a ∈ relint (q.2.val.cell q.1 e.val) ↔
+      (0 < inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) ∧
+        inner ℝ (U.counterDirection P q f hf) (U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2) < 0) := by
+  classical
+  obtain ⟨hK, hX⟩ := honest_counter_jump_count_step2_segment U P q f hf e
+  have hk := honest_counter_jump_count_step2_orientation U P q f hf e he
+  have hon : U.sitePoint P q f hf a ∈ affineSpan ℝ (q.2.val.cell q.1 e.val) := by
+    have he' := he
+    obtain ⟨c, hc, hce⟩ := he'
+    have hce' : (c.chain.val.cell edgeIndex).val = e.val := hce
+    obtain ⟨-, -, hspan⟩ := ((record_chains_spec U P q f hf c).1 hc).1 edgeIndex
+    rw [hce'] at hspan
+    rw [hspan]
+    apply subset_affineSpan
+    refine ⟨P.canonicalSite (U.recordIncidence P q f hf) (U.recordSide P q f hf) a, ?_, rfl⟩
+    have hside := P.sideFlag_eq (U.recordIncidence P q f hf) (U.recordSide P q f hf) edgeIndex
+    have hmem := intrinsicInterior_subset
+      (P.sites_relint (U.recordIncidence P q f hf) (U.recordSide P q f hf) a)
+    have h2 : (S.child (U.recordIncidence P q f hf).val.ty
+          ((U.recordIncidence P q f hf).val.sideIndex (U.recordSide P q f hf))).frame
+          (P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a) ∈
+        placedSet (S.child (U.recordIncidence P q f hf).val.ty
+          ((U.recordIncidence P q f hf).val.sideIndex (U.recordSide P q f hf))).frame
+          ((P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).cell
+            edgeIndex).val.carrier := ⟨_, hmem, rfl⟩
+    rw [hside] at h2
+    obtain ⟨z, hz, hzeq⟩ := h2
+    unfold Params.canonicalSite
+    rw [← hzeq]
+    simpa using hz
+  set X1 := q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1 with hX1
+  set X2 := q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2 with hX2
+  set D := U.counterDirection P q f hf with hD
+  rw [hK] at hon ⊢
+  rw [← convexHull_pair, affineSpan_convexHull] at hon
+  obtain ⟨t, ht⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp hon
+  rw [honest_counter_jump_count_step4_segment_relint _ _ hX, ← ht]
+  have h1 : AffineMap.lineMap X1 X2 t - X1 = t • (X2 - X1) := by
+    simp only [AffineMap.lineMap_apply_module']
+    module
+  have h2 : AffineMap.lineMap X1 X2 t - X2 = (t - 1) • (X2 - X1) := by
+    simp only [AffineMap.lineMap_apply_module']
+    module
+  rw [h1, h2, real_inner_smul_right, real_inner_smul_right]
+  constructor
+  · rintro ⟨u, hu, hueq⟩
+    have hut : u = t := AffineMap.lineMap_injective (k := ℝ) hX hueq
+    rw [hut] at hu
+    exact ⟨mul_pos hu.1 hk, mul_neg_of_neg_of_pos (by linarith [hu.2]) hk⟩
+  · rintro ⟨hl, hr⟩
+    refine ⟨t, ⟨?_, ?_⟩, rfl⟩
+    · by_contra hn
+      push_neg at hn
+      nlinarith
+    · by_contra hn
+      push_neg at hn
+      nlinarith
+
 /-- Q3, V4 §2.2 (S4d): the two one-sided germs differ by precisely the number
 of chosen sites in the relative interior of the active edge, even before maturity. -/
 theorem honest_counter_jump_count (U : HonestSource S) (P : Params S) (q : U.Node)
@@ -5875,7 +6525,46 @@ theorem honest_counter_jump_count (U : HonestSource S) (P : Params S) (q : U.Nod
         classical
         exact (Finset.univ.filter (fun a : Fin P.N =>
           U.sitePoint P q f hf a ∈ relint (q.2.val.cell q.1 e.val))).card) := by
-  sorry
+  classical
+  rcases hc : (U.recordOf P q f hf).counter with c | w
+  · have hmat : P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) ≤
+        (U.hierarchy.firstProvider q f hf).1 := by
+      by_contra h
+      push_neg at h
+      obtain ⟨w, hw, -⟩ := (record_shallow_iff U P q f hf).2 h
+      rw [hc] at hw
+      cases hw
+    have h0 : (U.recordOf P q f hf).kappaPlus e - (U.recordOf P q f hf).kappaMinus e = 0 := by
+      simp only [FacetRecord.kappaPlus, FacetRecord.kappaMinus, hc, Nat.sub_self]
+    rw [h0]
+    exact (Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun a _ =>
+      honest_counter_jump_count_step1_mature_no_interior_site U P q f hf e he hmat a)).symm
+  · obtain ⟨hm, hp⟩ := honest_counter_jump_count_step3_shallow_germs (P := P) U q f hf e he w hc
+    have h2 := honest_counter_jump_count_step2_orientation U P q f hf e he
+    have h3 := honest_counter_jump_count_step4_relint_iff U P q f hf e he
+    rw [hm, hp]
+    have hsub : (Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf a -
+            q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) ≤ 0)) ⊆
+        Finset.univ.filter (fun a : Fin P.N => inner ℝ (U.counterDirection P q f hf)
+          (U.sitePoint P q f hf a -
+            q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2) < 0) := by
+      intro a ha
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha ⊢
+      rw [show U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2 =
+        (U.sitePoint P q f hf a -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) -
+        (q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).2 -
+          q.2.val.prototypeFrame q.1 ((U.recordOf P q f hf).endpoints e).1) by abel,
+        inner_sub_right]
+      linarith
+    rw [← Finset.card_sdiff_of_subset hsub]
+    congr 1
+    ext a
+    simp only [Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and, not_le]
+    rw [h3 a]
+    tauto
 
 /-- Q3, V4 §2.2 (S4d): endpoint site flags refer to equality of physical points,
 not to separate vertex names in different tiles. -/

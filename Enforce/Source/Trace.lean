@@ -1396,7 +1396,11 @@ theorem ancestralStratum_eq_minimalCell (P C : FramedNode S) (n h : ℕ)
     (hg : C.cell h g.val ⊆ frontier (P.carrier n)) (p : E d)
     (hp : p ∈ relint (C.cell h g.val)) (hpP : p ∈ frontier (P.carrier n)) :
     ancestralStratum P C n h hC g hg = placedMinimalCell P n p hpP := by
-  sorry
+  obtain ⟨e, _, he_unique⟩ := placedMinimalCell_exists_unique P n p hpP
+  have h1 := he_unique (ancestralStratum P C n h hC g hg) ((ancestralStratum_spec P C n h hC g hg).1 hp)
+  have h2 := he_unique (placedMinimalCell P n p hpP) (placedMinimalCell_spec P n p hpP)
+  rw [h1, h2]
+
 
 namespace CoherentHierarchy
 

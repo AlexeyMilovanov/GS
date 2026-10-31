@@ -1633,12 +1633,41 @@ theorem stratumMap_mono (q : H.Node) (f : FacetName S q.2.val.ty)
       (H.stratumMap q f hf t ht).val.carrier := by
   sorry
 
+/-- Step 1 of the V4 proof of stratumMap_facet: same dimension plus subset implies equal. -/
+private lemma stratumMap_facet_step1_cell_eq_of_subset_dim {A : PolyManifoldDomain d}
+    (K : CellComplex A) (e f : Cell d) (he : e ∈ K.cells) (hf : f ∈ K.cells)
+    (hsub : e.carrier ⊆ f.carrier) (hdim : e.dim = f.dim) : e = f := by
+  sorry
+
+private lemma stratumMap_facet_step0_facet {A : S.ι} (e : FacetName S A) :
+    e.val ∈ (S.cx A).cells ∧ e.val.dim = d - 1 := by
+  have h := e.property
+  dsimp [CellComplex.facets] at h
+  exact Finset.mem_filter.mp h
+
 /-- P7, V4 1.7(b): the facet itself maps to the whole first provider. -/
 theorem stratumMap_facet (q : H.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ H.IsFault q f) (s : CellName S q.2.val.ty) (hs : s.val = f.val) :
     ∃ hsub : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val,
       (H.stratumMap q f hf s hsub).val = (H.firstProvider q f hf).2.val := by
-  sorry
+  have hsub : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val := by rw [hs]
+  refine ⟨hsub, ?_⟩
+  have hspec := H.stratumMap_spec q f hf s hsub
+  have hP := stratumMap_facet_step0_facet (H.firstProvider q f hf).2
+  have hF := stratumMap_facet_step0_facet f
+  have hM := (H.stratumMap q f hf s hsub).property
+  have hsub2 : (H.stratumMap q f hf s hsub).val.carrier ⊆ (H.firstProvider q f hf).2.val.carrier := by
+    have h1 := hspec.2.2
+    dsimp [providerCarrier, FramedNode.cell] at h1
+    exact (Set.image_subset_image_iff ((H.servingChild q f hf).2.val.prototypeFrame (H.servingChild q f hf).1).injective).mp h1
+  have hdim_eq : (H.stratumMap q f hf s hsub).val.dim = (H.firstProvider q f hf).2.val.dim := by
+    have hs_dim : s.val.dim = d - 1 := by rw [hs]; exact hF.2
+    have hl1 := hspec.2.1
+    rw [hs_dim] at hl1
+    have hle2 := hereditary_trace_step3_dim_mono _ _ hsub2
+    rw [hP.2] at hle2
+    omega
+  exact stratumMap_facet_step1_cell_eq_of_subset_dim (S.cx (H.servingChild q f hf).2.val.ty) _ _ hM hP.1 hsub2 hdim_eq
 
 /-- P7, V4 1.7(c): an internal child facet is its own provider, of age one. -/
 theorem restriction_det_internal (c : H.Node) (f : FacetName S c.2.val.ty)

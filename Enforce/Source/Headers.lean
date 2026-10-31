@@ -4630,11 +4630,218 @@ def positionedStars (Y : Type) (p : E d) :
   {s | ∃ (n : ℕ) (anchor : P.Incident p n) (label : P.Incident p n → Y),
     s = P.positionedStar p n anchor label}
 
+/-- Step 1 of the V4 proof of `positioned_stars_finite` (V4 1.18): "the relative
+orthogonal placement `B_{t^{i₀}_n}⁻¹ B_{t^i_n}` carries this native flag to
+`B_{t^{i₀}_n}⁻¹ σ^{n-N} 𝓕_i`, which lies in a finite set; so the relative placement
+lies in a finite set". Along two fixed nonbranching listing tails, the relative
+linear placements take finitely many values. -/
+private theorem positioned_stars_finite_step1_tail_rotations
+    (F : PowerFactorisation S) (p : E d) (N : ℕ) (t₀ t₁ : P.IncidentTail p N)
+    (hunique₀ : ∀ m (b : P.Incident p (N + m + 1)),
+      P.IncidentChild p (N + m) (t₀.node m) b → b = t₀.node (m + 1))
+    (hlisted₀ : (P.native N (t₀.node 0).val).Lists 0 ((S.σ ^ N) p))
+    (hunique₁ : ∀ m (b : P.Incident p (N + m + 1)),
+      P.IncidentChild p (N + m) (t₁.node m) b → b = t₁.node (m + 1))
+    (hlisted₁ : (P.native N (t₁.node 0).val).Lists 0 ((S.σ ^ N) p)) :
+    (Set.range (fun m => (P.native (N + m) (t₁.node m).val).frame.linearIsometryEquiv.trans
+      (P.native (N + m) (t₀.node m).val).frame.linearIsometryEquiv.symm)).Finite := by
+  classical
+  obtain ⟨V, hdim, hmono, hV, hframe⟩ :=
+    header_finiteness_step13_tail_flag P p N t₁ hunique₁ hlisted₁
+  let B₀ : ℕ → Ortho d := fun m => (P.native (N + m) (t₀.node m).val).frame.linearIsometryEquiv
+  let B₁ : ℕ → Ortho d := fun m => (P.native (N + m) (t₁.node m).val).frame.linearIsometryEquiv
+  let W (i : ℕ) := (V i).map ((S.σ ^ N)⁻¹).toLinearMap
+  let G : Fin (d + 1) → Set (E d) := fun j => (W j.val : Set (E d))
+  have hG : ∀ j, HPiCone S.hPi (G j) := by
+    intro j
+    apply header_finiteness_step7_subspace_cone
+    rcases hV j.val (by omega) with h | h
+    · exact Or.inl (header_finiteness_step8_inverse_directions N (V j.val) h)
+    · exact Or.inr (by simp [W, h])
+  have hK := header_finiteness_step14_listing_tail P F p N t₀ hunique₀ hlisted₀ G hG
+  have heq : ∀ m i, (W i).map (S.σ ^ (N + m)).toLinearMap =
+      (V i).map (S.σ ^ m).toLinearMap := by
+    intro m i
+    simp only [W, ← Submodule.map_comp, ← Module.End.mul_eq_comp,
+      ← LinearEquiv.coe_toLinearMap_mul]
+    rw [Nat.add_comm N m, pow_add, mul_inv_cancel_right]
+  let Z (m i : ℕ) : Submodule ℝ (E d) :=
+    ((V i).map (S.σ ^ m).toLinearMap).map (B₀ m).symm.toLinearEquiv.toLinearMap
+  have hZ : ∀ m (j : Fin (d + 1)), ((Z m j.val : Submodule ℝ (E d)) : Set (E d)) =
+      (B₀ m).symm '' ((S.σ ^ (N + m)) '' G j) := by
+    intro m j
+    have h1 : ((S.σ ^ (N + m)) '' G j) = (((W j.val).map (S.σ ^ (N + m)).toLinearMap :
+        Submodule ℝ (E d)) : Set (E d)) := (Submodule.map_coe _ _).symm
+    rw [h1, heq]
+    exact Submodule.map_coe _ _
+  let Ztr (m : ℕ) (i : ℕ) : Submodule ℝ (E d) := if i ≤ d then Z m i else ⊥
+  let Φ : (Fin (d + 1) → Set (E d)) → ℕ → Submodule ℝ (E d) := fun K i =>
+    if h : i ≤ d then Submodule.span ℝ (K ⟨i, by omega⟩) else ⊥
+  have hZfin : (Set.range Ztr).Finite := by
+    apply (hK.image Φ).subset
+    rintro _ ⟨m, rfl⟩
+    refine ⟨_, ⟨m, rfl⟩, ?_⟩
+    funext i
+    by_cases h : i ≤ d
+    · rw [show Ztr m i = Z m i from if_pos h]
+      change (if h : i ≤ d then Submodule.span ℝ _ else ⊥) = _
+      rw [dif_pos h]
+      show Submodule.span ℝ ((B₀ m).symm '' ((S.σ ^ (N + m)) '' G ⟨i, by omega⟩)) = Z m i
+      rw [← hZ m ⟨i, by omega⟩, Submodule.span_eq]
+    · rw [show Ztr m i = ⊥ from if_neg h]
+      change (if h : i ≤ d then Submodule.span ℝ _ else ⊥) = _
+      rw [dif_neg h]
+  have hdim' : ∀ m, ∀ i ≤ d, Module.finrank ℝ (Ztr m i) = i := by
+    intro m i hi
+    rw [show Ztr m i = Z m i from if_pos hi]
+    rw [LinearEquiv.finrank_map_eq, LinearEquiv.finrank_map_eq]
+    exact hdim i hi
+  have hmono' : ∀ m, ∀ i < d, Ztr m i ≤ Ztr m (i + 1) := by
+    intro m i hi
+    rw [show Ztr m i = Z m i from if_pos (show i ≤ d by omega),
+      show Ztr m (i + 1) = Z m (i + 1) from if_pos (show i + 1 ≤ d by omega)]
+    exact Submodule.map_mono (Submodule.map_mono (hmono i hi))
+  let Q (m : ℕ) : Ortho d := (B₀ m).trans (B₁ m).symm
+  have hQ : ∀ m, Q m ∈ {R : Ortho d | ∀ i ≤ d,
+      (Ztr m i).map R.toLinearEquiv.toLinearMap ∈ S.cellDirections ∪ {⊤}} := by
+    intro m i hi
+    rw [show Ztr m i = Z m i from if_pos hi]
+    change Submodule.map _ (Submodule.map _ _) ∈ _
+    rw [← Submodule.map_comp]
+    convert hframe m i hi using 2
+    ext x
+    simp [Q, B₀, B₁]
+  have hU := Set.Finite.biUnion hZfin (t := fun Zf => {R : Ortho d | ∀ i ≤ d,
+      (Zf i).map R.toLinearEquiv.toLinearMap ∈ S.cellDirections ∪ {⊤}}) (by
+    rintro _ ⟨m, rfl⟩
+    exact header_finiteness_step5_catalogue_transporters _ header_finiteness_step6_directions
+      (Ztr m) (hdim' m) (hmono' m))
+  apply (hU.image (fun R : Ortho d => R.symm)).subset
+  rintro _ ⟨m, rfl⟩
+  exact ⟨Q m, Set.mem_iUnion₂.mpr ⟨Ztr m, ⟨m, rfl⟩, hQ m⟩, rfl⟩
+
+/-- Step 2 of the V4 proof of `positioned_stars_finite` (V4 1.18): "Choose `N` as in
+the proof of 1.17 (all tails list `σⁿp` since `p` is common-listed)". The finite prefix
+below the splitting cutoff and the finitely many pairs of tails beyond it give finitely
+many relative linear placements of two incident tiles at a common depth. -/
+private theorem positioned_stars_finite_step2_rotations [Nonempty S.ι] (p : E d)
+    (hp : P.CommonListed p) :
+    {L : Ortho d | ∃ (n : ℕ) (a b : P.Incident p n),
+      L = (P.native n a.val).frame.linearIsometryEquiv.trans
+        (P.native n b.val).frame.linearIsometryEquiv.symm}.Finite := by
+  classical
+  obtain ⟨F⟩ := power_factorisation S
+  obtain ⟨N, t, hcover, hN⟩ := header_finiteness_step15_tail_cover P p
+  have hfin : ∀ n, Finite (P.Incident p n) := fun n => ((P.incidentForest p).1 n).1
+  have hpref : (⋃ n : Fin N, Set.range (fun ab : P.Incident p n.val × P.Incident p n.val =>
+      (P.native n.val ab.1.val).frame.linearIsometryEquiv.trans
+        (P.native n.val ab.2.val).frame.linearIsometryEquiv.symm)).Finite := by
+    refine Set.finite_iUnion fun n => ?_
+    haveI := hfin n.val
+    exact Set.finite_range _
+  have hunique : ∀ (a : P.Incident p N) m (b : P.Incident p (N + m + 1)),
+      P.IncidentChild p (N + m) ((t a).node m) b → b = (t a).node (m + 1) :=
+    fun a m b hb => ExistsUnique.unique (hN (N + m) (by omega) ((t a).node m)) hb ((t a).step m)
+  have hlisted : ∀ a : P.Incident p N,
+      (P.native N ((t a).node 0).val).Lists 0 ((S.σ ^ N) p) :=
+    fun a => P.incident_commonListed p hp N ((t a).node 0)
+  have htail : (⋃ ab : P.Incident p N × P.Incident p N, Set.range (fun m =>
+      (P.native (N + m) ((t ab.1).node m).val).frame.linearIsometryEquiv.trans
+        (P.native (N + m) ((t ab.2).node m).val).frame.linearIsometryEquiv.symm)).Finite := by
+    haveI := hfin N
+    exact Set.finite_iUnion fun ab =>
+      positioned_stars_finite_step1_tail_rotations P F p N (t ab.2) (t ab.1)
+        (hunique ab.2) (hlisted ab.2) (hunique ab.1) (hlisted ab.1)
+  apply (hpref.union htail).subset
+  rintro L ⟨n, a, b, rfl⟩
+  rcases lt_or_ge n N with hn | hn
+  · exact Or.inl (Set.mem_iUnion.mpr ⟨⟨n, hn⟩, ⟨(a, b), rfl⟩⟩)
+  · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hn
+    obtain ⟨a₀, rfl⟩ := hcover m a
+    obtain ⟨b₀, rfl⟩ := hcover m b
+    exact Or.inr (Set.mem_iUnion.mpr ⟨(a₀, b₀), ⟨m, rfl⟩⟩)
+
+/-- Step 3 of the V4 proof of `positioned_stars_finite` (V4 1.18): "Translations are
+fixed because every `t ∈ I_n` has its named vertex at the common point". A relative
+frame is determined by its finitely many linear parts and by the two prototype
+vertex points sent to each other. -/
+private theorem positioned_stars_finite_step3_frames [Nonempty S.ι] (p : E d)
+    (hp : P.CommonListed p) :
+    {g : Iso d | ∃ (n : ℕ) (a b : P.Incident p n),
+      g = (P.native n a.val).frame.trans (P.native n b.val).frame.symm}.Finite := by
+  classical
+  have hsing : ∀ (A : S.ι) (v : Cell d), v ∈ (S.cx A).vertices → v.carrier.Subsingleton := by
+    intro A v hv
+    have hvdim : v.dim = 0 := (Finset.mem_filter.mp hv).2
+    have hbot : cellDirection v.carrier = ⊥ :=
+      Submodule.finrank_eq_zero.mp (v.flat.dimension.trans hvdim)
+    apply (vectorSpan_eq_bot_iff_subsingleton ℝ).mp
+    simpa only [cellDirection, direction_affineSpan] using hbot
+  let Pts : Set (E d) := ⋃ A : S.ι, ⋃ v ∈ (S.cx A).vertices, v.carrier
+  have hPts : Pts.Finite := Set.finite_iUnion fun A =>
+    (S.cx A).vertices.finite_toSet.biUnion fun v hv => (hsing A v hv).finite
+  have hL := positioned_stars_finite_step2_rotations P p hp
+  have hT := (hL.prod (hPts.prod hPts)).image
+    (fun z : Ortho d × E d × E d => z.2.2 - z.1 z.2.1)
+  have hinj : Function.Injective (fun g : Iso d => (g.linearIsometryEquiv, g 0)) := by
+    intro g h hgh
+    simp only [Prod.mk.injEq] at hgh
+    ext z
+    have hg := g.map_vsub z 0
+    have hh := h.map_vsub z 0
+    simp only [vsub_eq_sub, sub_zero] at hg hh
+    have h1 : g z = g.linearIsometryEquiv z + g 0 := by rw [hg]; abel
+    have h2 : h z = h.linearIsometryEquiv z + h 0 := by rw [hh]; abel
+    rw [h1, h2, hgh.1, hgh.2]
+  refine Set.Finite.of_finite_image ((hL.prod hT).subset ?_) hinj.injOn
+  rintro _ ⟨g, ⟨n, a, b, rfl⟩, rfl⟩
+  obtain ⟨v, hv, hpv⟩ := P.incident_commonListed p hp n a
+  obtain ⟨w, hw, hpw⟩ := P.incident_commonListed p hp n b
+  rw [header_finiteness_step11_cell_zero] at hpv hpw
+  obtain ⟨x, hx, hxp⟩ := hpv
+  obtain ⟨y, hy, hyp⟩ := hpw
+  have hlin : ((P.native n a.val).frame.trans (P.native n b.val).frame.symm).linearIsometryEquiv =
+      (P.native n a.val).frame.linearIsometryEquiv.trans
+        (P.native n b.val).frame.linearIsometryEquiv.symm := rfl
+  have hgx : ((P.native n a.val).frame.trans (P.native n b.val).frame.symm) x = y := by
+    simp only [AffineIsometryEquiv.coe_trans, Function.comp_apply, hxp, ← hyp,
+      AffineIsometryEquiv.symm_apply_apply]
+  have hvs := ((P.native n a.val).frame.trans (P.native n b.val).frame.symm).map_vsub x 0
+  simp only [vsub_eq_sub, sub_zero] at hvs
+  refine ⟨⟨n, a, b, hlin⟩, ⟨((P.native n a.val).frame.linearIsometryEquiv.trans
+        (P.native n b.val).frame.linearIsometryEquiv.symm, x, y),
+      ⟨⟨n, a, b, rfl⟩, Set.mem_iUnion.mpr ⟨_, Set.mem_iUnion₂.mpr ⟨v, hv, hx⟩⟩,
+        Set.mem_iUnion.mpr ⟨_, Set.mem_iUnion₂.mpr ⟨w, hw, hy⟩⟩⟩, ?_⟩⟩
+  change y - ((P.native n a.val).frame.trans (P.native n b.val).frame.symm).linearIsometryEquiv x =
+    ((P.native n a.val).frame.trans (P.native n b.val).frame.symm) 0
+  rw [hvs, hgx]
+  abel
+
 /-- P13, V4 1.18: finitely many full positioned stars, with an arbitrary finite
 label alphabet. This includes the unlabelled case by taking `Y = Unit`. -/
 theorem positioned_stars_finite (Y : Type) [Finite Y] (p : E d)
     (hp : P.CommonListed p) : (P.positionedStars Y p).Finite := by
-  sorry
+  classical
+  cases isEmpty_or_nonempty S.ι with
+  | inl h =>
+    letI := h
+    refine Set.finite_empty.subset ?_
+    rintro s ⟨n, anchor, label, rfl⟩
+    exact isEmptyElim anchor.val.1.val.ty
+  | inr h =>
+    letI := h
+    have hFr := positioned_stars_finite_step3_frames P p hp
+    have hVs : (⋃ A : S.ι, ((S.cx A).vertices : Set (Cell d))).Finite :=
+      Set.finite_iUnion fun A => (S.cx A).vertices.finite_toSet
+    have hU := (((Set.finite_univ : (Set.univ : Set S.ι).Finite).prod hFr).prod
+      (hVs.prod (Set.finite_univ : (Set.univ : Set Y).Finite))).image
+      (fun z : (S.ι × Iso d) × Cell d × Y =>
+        ((⟨z.1.1, z.1.2⟩ : FramedNode S), z.2.1, z.2.2))
+    apply hU.finite_subsets.subset
+    rintro s ⟨n, anchor, label, rfl⟩ z ⟨a, v, hv, -, rfl⟩
+    exact ⟨(((P.native n a.val).ty,
+        (P.native n a.val).frame.trans (P.native n anchor.val).frame.symm), v, label a),
+      ⟨⟨trivial, n, a, anchor, rfl⟩, Set.mem_iUnion.mpr ⟨_, hv⟩, trivial⟩, rfl⟩
 
 /-- P14, V4 1.19: uniform native-scale cone radius and the union formula for
 any selected collection of original tiles whose cones form the chosen cone.

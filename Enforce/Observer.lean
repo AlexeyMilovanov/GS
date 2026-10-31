@@ -998,7 +998,14 @@ theorem floorChildren_nodup (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
 theorem floorChildren_level (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q r : FloorNode Y hY) (hr : r ∈ floorChildren Y hY q) :
     q.val.1 - P.H = (r.val.1 - P.H) + 1 := by
-  sorry
+  unfold floorChildren at hr
+  by_cases h : P.H < q.val.1
+  · rw [dif_pos h] at hr
+    obtain ⟨i, _, rfl⟩ := List.mem_map.mp hr
+    show q.val.1 - P.H = (q.val.1 - 1 - P.H) + 1
+    omega
+  · rw [dif_neg h] at hr
+    simp at hr
 /-- O6, V4 4.6: every actual node occurs in its parent's complete child list. -/
 theorem floor_mem_parent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) : q ∈ floorChildren Y hY (floorParent Y hY q) := by

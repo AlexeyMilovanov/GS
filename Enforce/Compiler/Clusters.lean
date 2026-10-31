@@ -561,7 +561,20 @@ def augmentedMarking {P : Params S} (C : ClusterData S P) (l : LeafType P) :
 theorem augmentedMarking_microball {P : Params S} (C : ClusterData S P)
     (l : LeafType P) (κ : ClusterKind l) (a : Fin (d + 1)) (x : E d)
     (hx : x ∈ C.microball l κ a) : augmentedColour C l x = microColour l κ a := by
-  sorry
+  unfold augmentedColour
+  have h_int : x ∈ interior (S.proto l.prototype).carrier := by
+    apply C.cluster_inside l κ
+    apply Set.mem_iUnion.mpr
+    exact ⟨a, hx⟩
+  rw [if_pos h_int]
+  have hm : ∃ z : ClusterKind l × Fin (d + 1), x ∈ C.microball l z.1 z.2 := ⟨(κ, a), hx⟩
+  rw [dif_pos hm]
+  have h_choose := Classical.choose_spec hm
+  have h_eq : Classical.choose hm = (κ, a) := by
+    by_contra h_neq
+    have h_disj := C.all_microballs_disjoint l h_neq
+    exact Set.disjoint_left.mp h_disj h_choose hx
+  rw [h_eq]
 
 /-- M2, V4 2.10: a microball colour occurs precisely on that one closed microball.
 The statement includes all points of the ambient extension and all source leaves. -/

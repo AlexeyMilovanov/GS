@@ -179,8 +179,15 @@ These properties follow from the existing provider incidence and birth-height AP
 theorem providerOccurrence_data (P : Params S) (q : U.Node)
     (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
     1 ≤ (U.hierarchy.birthParent q f hf).1 ∧
-      (U.recordIncidence P q f hf).val.ty = (U.hierarchy.birthParent q f hf).2.val.ty :=
-  by sorry
+      (U.recordIncidence P q f hf).val.ty = (U.hierarchy.birthParent q f hf).2.val.ty := by
+  constructor
+  · dsimp [CoherentHierarchy.birthParent, CoherentHierarchy.parentNode]
+    omega
+  · have h1 : (U.recordIncidence P q f hf).val.ty = (U.hierarchy.providerIncidence q f hf).ty :=
+      (P.canonical_spec (U.hierarchy.providerIncidence q f hf)).1.symm
+    have h2 : (U.hierarchy.providerIncidence q f hf).ty = (U.hierarchy.birthParent q f hf).2.val.ty :=
+      (U.hierarchy.providerIncidence_spec q f hf).1
+    exact Eq.trans h1 h2
 
 /-- Q8/Q9, V4 2.5--2.6: the canonical primitive occurrence of a finite provider. -/
 def providerOccurrence (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)

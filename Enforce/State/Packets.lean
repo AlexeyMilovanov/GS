@@ -767,7 +767,16 @@ theorem prePattern_components_honest (P : Params S) (w : PrePattern P)
     (hw : w ∈ honestPrePatterns S P) :
     w.state ∈ honestStates S P ∧
       ∀ f q, w.packets f = some q → q ∈ honestPackets S P := by
-  sorry
+  obtain ⟨U, t, ht, rfl⟩ := hw
+  constructor
+  · exact stateOf_mem U P t
+  · intro f q hfq
+    change (by classical exact if hf : U.hierarchy.IsFault t f then none else some (packetOf U P (U.providerOccurrence P t f hf))) = some q at hfq
+    by_cases hf : U.hierarchy.IsFault t f
+    · rw [dif_pos hf] at hfq
+      contradiction
+    · rw [dif_neg hf] at hfq
+      exact ⟨U, U.providerOccurrence P t f hf, Option.some.inj hfq⟩
 
 /-- Q11, V4 2.7: each honest certificate component has its actual source meaning.
 The certificate itself, not independent component membership, records their joint witness. -/

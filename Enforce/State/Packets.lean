@@ -354,7 +354,10 @@ end LeafType
 
 /-- Q11, V4 2.7: finitely many leaf types, even though the ambient state type is infinite. -/
 theorem leafTypes_finite (P : Params S) : Finite (LeafType P) := by
-  sorry
+  haveI : Finite {D // D ∈ honestCerts S P} := (certs_finite S P).to_subtype
+  haveI (D : {D // D ∈ honestCerts S P}) : Finite (S.RoleWord D.val.ty P.K) :=
+    S.roleWord_finite D.val.ty P.K
+  infer_instance
 
 namespace HonestSource
 

@@ -842,7 +842,14 @@ def ancestor (q : H.Node) (r : ℕ) : H.Node := (H.parentNode^[r]) q
 
 /-- P6, V4 1.6: the height of an ancestor is the original height plus its offset. -/
 theorem ancestor_height (q : H.Node) (r : ℕ) : (H.ancestor q r).1 = q.1 + r := by
-  sorry
+  induction' r with r ih generalizing q
+  · rfl
+  · have ih' := ih (H.parentNode q)
+    change (H.parentNode^[r] (H.parentNode q)).1 = q.1 + (r + 1)
+    dsimp [ancestor] at ih'
+    rw [ih']
+    dsimp [parentNode]
+    omega
 
 /-- P6, V4 1.6: actual ancestors satisfy the recursive framed descendant relation. -/
 theorem ancestor_descendant (q : H.Node) (r : ℕ) :

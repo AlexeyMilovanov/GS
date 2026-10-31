@@ -1430,7 +1430,16 @@ theorem recursiveTrace_tiles (A : S.ι) (F : FacetFlag S A) (r : ℕ) :
 /-- P17, V4 1.22(b): all standard native frames are compatible. -/
 theorem nativeFrame_mem (A : S.ι) (r : ℕ) (w : S.RoleWord A r) :
     (S.nativeTile A r w).frame.linearIsometryEquiv ∈ S.rotGroup := by
-  sorry
+  have hd := S.descendant_frames A 0 r w (AffineIsometryEquiv.refl ℝ (E d))
+  obtain ⟨R, hR, eq⟩ := hd
+  have h_eq : (S.nativeTile A r w).frame.linearIsometryEquiv = R := by
+    dsimp [SubstSystem.nativeTile]
+    have hz : (AffineIsometryEquiv.refl ℝ (E d)).linearIsometryEquiv = 1 := rfl
+    rw [hz, one_mul] at eq
+    dsimp [FramedNode.move] at eq
+    exact eq
+  rw [h_eq]
+  exact hR
 
 /-- P17, V4 1.22(b): inflate a native owner to a height-`s` node, keeping its
 entire native subdivision, rather than choosing a geometric containing tile. -/

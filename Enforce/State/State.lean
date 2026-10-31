@@ -80,8 +80,17 @@ structure OrientedChain {A : S.ι} (f : FacetName S A) where
 /-- Q3, V4 §2.2 (S4e): the chain alphabet is finite before honesty is imposed. -/
 theorem orientedChains_finite {A : S.ι} (f : FacetName S A) :
     Finite (OrientedChain f) := by
-  sorry
-
+  letI : Finite {j : ℕ // 1 ≤ j ∧ j < d} :=
+    Finite.of_injective (fun j => (⟨j.val, j.property.2⟩ : Fin d))
+      (by intro i j h; exact Subtype.ext (congrArg Fin.val h))
+  letI : Finite (FacetFlag S A) := Finite.of_injective (fun F : FacetFlag S A => F.cell)
+    (by intro F G h; cases F; cases G; cases h; rfl)
+  apply Finite.of_injective (fun c : OrientedChain f => (c.chain, c.forward))
+  intro c1 c2 h
+  cases c1
+  cases c2
+  cases h
+  rfl
 /-- Q3, V4 §2.2 (S4e): all oriented chains as a finite catalogue. -/
 def allOrientedChains {A : S.ι} (f : FacetName S A) : Finset (OrientedChain f) := by
   classical

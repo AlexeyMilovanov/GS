@@ -7199,7 +7199,14 @@ theorem calibration_W4_readout (Y : MarkedTiling (systemM S P C)) (hY : MProper 
       (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val
     (p.mask j ↔ P.InPrincipal ancestor.2.val ancestor.1 g.carrier) ∧
       (p.mask j → decode p j = some (parsedState Y hY ancestor)) := by
-  sorry
+  obtain ⟨hl, hr, _, q, hq, _, _, _, hslots⟩ := calibration_W4 Y hY g hg
+  have hp_eq : q = p := by
+    change attachedPacket hl g.incidence.val.leftFacet = some p at hp
+    change attachedPacket hl g.incidence.val.leftFacet = some q at hq
+    rw [hq] at hp
+    exact Option.some.inj hp
+  subst hp_eq
+  exact hslots j
 
 /-- R13, V4 3.13: slots outside the actual principal set are ABSENT, as
 required by the one-state packet decoder; this is the other direction of W4. -/

@@ -482,7 +482,25 @@ inductive Colour (S : SubstSystem d) (P : Params S)
 
 /-- M2, V4 2.10: finiteness follows from pre-patterns, leaf types and slot finiteness. -/
 theorem colours_finite (S : SubstSystem d) (P : Params S) : Finite (Colour S P) := by
-  sorry
+  let f : PrePatternSymbol S P ⊕ (S.ι × Fin (d+1)) ⊕ PrePatternSymbol S P ⊕ (LeafType P × Fin (d+1)) ⊕ (LeafType P × Fin (d+1)) ⊕ (Σ (l : LeafType P), EventSlot l × Fin (d+1)) ⊕ Unit → Colour S P :=
+    fun x => match x with
+      | Sum.inl a => Colour.inside a
+      | Sum.inr (Sum.inl (A, i)) => Colour.frame A i
+      | Sum.inr (Sum.inr (Sum.inl a)) => Colour.state a
+      | Sum.inr (Sum.inr (Sum.inr (Sum.inl (l, i)))) => Colour.core l i
+      | Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inl (l, i))))) => Colour.readout l i
+      | Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inl ⟨l, j, i⟩))))) => Colour.trigger l j i
+      | Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inr ()))))) => Colour.boundary
+  apply Finite.of_surjective f
+  intro c
+  cases c
+  · exact ⟨Sum.inl ‹_›, rfl⟩
+  · exact ⟨Sum.inr (Sum.inl (‹_›, ‹_›)), rfl⟩
+  · exact ⟨Sum.inr (Sum.inr (Sum.inl ‹_›)), rfl⟩
+  · exact ⟨Sum.inr (Sum.inr (Sum.inr (Sum.inl (‹_›, ‹_›)))), rfl⟩
+  · exact ⟨Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inl (‹_›, ‹_›))))), rfl⟩
+  · exact ⟨Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inl ⟨‹_›, ‹_›, ‹_›⟩))))), rfl⟩
+  · exact ⟨Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inr (Sum.inr ()))))), rfl⟩
 
 /-- M2, V4 2.10: a noncomputable finite enumeration of all tagged colours. -/
 instance colourFintype (S : SubstSystem d) (P : Params S) : Fintype (Colour S P) := by

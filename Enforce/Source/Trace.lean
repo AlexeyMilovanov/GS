@@ -2871,7 +2871,31 @@ theorem after_birth_interior (q : H.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ H.IsFault q f) (r : ℕ) (hr : (H.firstProvider q f hf).1 < r) :
     relint (q.2.val.cell q.1 f.val) ⊆
       interior ((H.ancestor q r).2.val.carrier (H.ancestor q r).1) := by
-  sorry
+  have H_spec := H.firstProvider_spec q f hf
+  have H_initial := H_spec.1
+  have hr_not_in : r ∉ H.boundaryOffsets q f := by
+    rw [H_initial]
+    intro hr'
+    have : r < (H.firstProvider q f hf).1 + 1 := hr'
+    omega
+  have hdesc := H.ancestor_descendant q r
+  have h_dicho := facet_dichotomy (H.ancestor q r).2.val q.2.val (H.ancestor q r).1 q.1 hdesc f
+  cases h_dicho with
+  | inl h_dicho_l =>
+    obtain ⟨F, hF, _⟩ := h_dicho_l
+    exfalso
+    apply hr_not_in
+    change q.2.val.cell q.1 f.val ⊆ frontier ((H.ancestor q r).2.val.carrier (H.ancestor q r).1)
+    intro x hx
+    have hx_in_F := hF hx
+    have F_prop_cells : F.val ∈ (S.cx (H.ancestor q r).2.val.ty).cells := by
+      have hh := F.property
+      simp only [CellComplex.facets, Finset.mem_filter] at hh
+      exact hh.1
+    have hx_front := hereditary_trace_step1_cell_frontier (H.ancestor q r).2.val (H.ancestor q r).1 _ F_prop_cells
+    exact hx_front hx_in_F
+  | inr h_dicho_r =>
+    exact h_dicho_r
 
 /-- P6, V4 1.6: birth height and age are exactly the serving offset plus one. -/
 theorem birthHeight_age_spec (q : H.Node) (f : FacetName S q.2.val.ty)

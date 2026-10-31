@@ -5675,7 +5675,8 @@ theorem state_honest (q : H.Node) : R.state q ∈ honestStates S P :=
 /-- R12, V4 3.1: every assigned hierarchy state has the node type and height residue. -/
 theorem state_type_residue (q : H.Node) :
     (R.state q).ty = q.2.val.ty ∧ (R.state q).residue.val = q.1 % P.L := by
-  sorry
+  dsimp [state, DecodedLevel.rootState]
+  exact Inv.node_type_residue (R.full_invariant q.1) q.1 q.2.val _
 
 /-- R12, V4 3.1: the hierarchy state is the existing inner state in every
 decoded level containing that framed node, not an independent marginal choice. -/

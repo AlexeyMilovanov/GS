@@ -3084,7 +3084,15 @@ theorem endPositionedTemplates_finite (P : Params S) (l : LeafType P) (slot : En
 /-- Q12/Q13, V4 §2.5: every event slot has a finite allowed template catalogue. -/
 theorem allowedTemplates_finite (P : Params S) (l : LeafType P) (slot : EventSlot l) :
     (allowedTemplates slot).Finite := by
-  sorry
+  cases slot with
+  | cont s =>
+    refine (contTemplates_finite P l s).subset ?_
+    rintro θ ⟨T, rfl, _⟩
+    exact Set.mem_range_self T
+  | end_ s =>
+    refine (endPositionedTemplates_finite P l s).subset ?_
+    rintro θ ⟨T, rfl, _⟩
+    exact Set.mem_range_self T
 
 /-- Q12/Q13, V4 §2.5: a native leaf has only finitely many CONT and END slots.
 The header and packet data are readouts fixed by the leaf type, not free choices. -/

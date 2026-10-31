@@ -151,7 +151,14 @@ def eventColour (C : ClusterData S P) (e : EventIndex S P) (x : E d) : Colour S 
 /-- M3, V4 2.11: all EVENT supports are finite unions of compact closed balls. -/
 theorem eventCarrier_compact (C : ClusterData S P) (e : EventIndex S P) :
     IsCompact (eventCarrier C e) := by
-  sorry
+  dsimp [eventCarrier]
+  apply IsCompact.union
+  · exact isCompact_closedBall (C.enclosingCentre e.leaf (.trigger e.slot)) (C.enclosingRadius e.leaf (.trigger e.slot))
+  · apply Finset.isCompact_biUnion
+    intro z _
+    dsimp [readoutRegion, placedSet]
+    apply IsCompact.image (isCompact_closedBall _ _)
+    exact z.1.frame.continuous
 
 /-- M3, V4 2.11: agreement with the central trigger marking, including its sphere. -/
 theorem eventColour_trigger (C : ClusterData S P) (e : EventIndex S P) (x : E d)

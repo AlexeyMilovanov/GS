@@ -4659,7 +4659,30 @@ end CompatiblePatch
 /-- P11, V4 1.16(b): the cone language is closed under arbitrary finite unions. -/
 theorem HPiCone_finite_union {α : Type} [Finite α] (K : α → Set (E d))
     (hK : ∀ a, HPiCone S.hPi (K a)) : HPiCone S.hPi (⋃ a, K a) := by
-  sorry
+  classical
+  cases nonempty_fintype α
+  choose s_f s_eq s_prop using hK
+  let big_s := Finset.biUnion (Finset.univ : Finset α) s_f
+  use big_s
+  constructor
+  · ext x
+    simp only [big_s, Set.mem_iUnion, Finset.mem_biUnion, Set.mem_iInter, Finset.mem_univ, true_and]
+    constructor
+    · intro ⟨a, ha⟩
+      rw [s_eq a] at ha
+      simp only [Set.mem_iUnion, Set.mem_iInter] at ha
+      rcases ha with ⟨p, hp1, hp2⟩
+      exact ⟨p, ⟨a, hp1⟩, hp2⟩
+    · intro ⟨p, ⟨a, hp1⟩, hp2⟩
+      use a
+      rw [s_eq a]
+      simp only [Set.mem_iUnion, Set.mem_iInter]
+      exact ⟨p, hp1, hp2⟩
+  · intro p hp C hC
+    simp only [big_s, Finset.mem_biUnion, Finset.mem_univ, true_and] at hp
+    rcases hp with ⟨a, ha⟩
+    exact s_prop a p ha C hC
+
 
 /-- P11, V4 1.16(b): the cone language is closed under arbitrary finite intersections. -/
 theorem HPiCone_finite_inter {α : Type} [Finite α] (K : α → Set (E d))

@@ -7919,7 +7919,27 @@ asserts admissibility of the readout, not actuality of its claimed provider. -/
 theorem parsedFacetPacket_honest (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (F : FacetName S q.2.val.ty) (p : Packet P)
     (hp : parsedFacetPacket Y hY q F = some p) : p ∈ honestPackets S P := by
-  sorry
+  have h_root : q.2.val ∈ (parsedDecodedLevel Y hY q.1).geometry.roots := by
+    rw [parsedHierarchy_nodes Y hY q.1]
+    exact q.2.property
+  have h_node : q.2.val ∈ (parsedDecodedLevel Y hY q.1).geometry.nodes q.1 := by
+    rw [(parsedDecodedLevel Y hY q.1).geometry.nodes_top]
+    exact h_root
+  have h_block : IsBlock Y q.1 q.2.val :=
+    (parsedDecodedLevel Y hY q.1).geometry.node_actual q.1 q.2.val h_node
+  obtain ⟨t, f, h_piece⟩ := Parser.facet_piece_exists Y q.1 q.2.val h_block F
+  have h_const := parsedFacetPacket_spec Y hY q F
+  rw [hp] at h_const
+  have h_leaf := h_const t f h_piece
+  by_cases hf : f.val ∈ (S.cx (compilerLeaf C t).prePattern.ty).facets
+  · dsimp [leafPacket] at h_leaf
+    rw [dif_pos hf] at h_leaf
+    have h_cert := (compilerLeaf C t).1.property
+    have h_leaves := (certificate_components_honest P (compilerLeaf C t).1.val h_cert).1 (compilerLeaf C t).2
+    exact (prePattern_components_honest P (compilerLeaf C t).prePattern h_leaves).2 ⟨f.val, hf⟩ p h_leaf
+  · dsimp [leafPacket] at h_leaf
+    rw [dif_neg hf] at h_leaf
+    contradiction
 
 /-- R12, V4 3.1 (I5): a boundary track retains the same attached packet in
 every descendant facet piece. The assertion includes NULL and phantom packets. -/

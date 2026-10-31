@@ -2824,6 +2824,61 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
   have : 0 < δ / 2 * inner ℝ b b := mul_pos (half_pos hδ) hbb
   linarith
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood` (V4 1.24):
+"each relative interior point of that face". A relative-interior point has a ball whose
+trace on the affine span lies in the set. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step1_relint_ball {S : Set (E d)} {p : E d}
+    (hp : p ∈ relint S) :
+    ∃ r : ℝ, 0 < r ∧ (affineSpan ℝ S : Set (E d)) ∩ Metric.ball p r ⊆ S := by
+  rw [relint, mem_intrinsicInterior] at hp
+  obtain ⟨y, hy, rfl⟩ := hp
+  rw [mem_interior_iff_mem_nhds, mem_nhds_subtype] at hy
+  obtain ⟨u, hu, hsub⟩ := hy
+  obtain ⟨r, hr, hball⟩ := Metric.mem_nhds_iff.mp hu
+  refine ⟨r, hr, ?_⟩
+  rintro x ⟨hxA, hxB⟩
+  exact hsub (show (⟨x, hxA⟩ : affineSpan ℝ S) ∈ Subtype.val ⁻¹' u from hball hxB)
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood` (V4 1.24):
+"unfold two simplices sharing a codimension-one face to a Euclidean patch". On one
+side of the ridge the unfolding `(h, t) ↦ (1 - t) • h + t • (c - p)` is injective,
+since the apex direction `c - p` is transverse to the ridge direction. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step2_same_side {H : Submodule ℝ (E d)} {c p : E d} (hc : c - p ∉ H)
+    {h h' : E d} (hh : h ∈ H) (hh' : h' ∈ H) {t t' : ℝ} (ht : t < 1)
+    (heq : (1 - t) • h + t • (c - p) = (1 - t') • h' + t' • (c - p)) :
+    t = t' ∧ h = h' := by
+  have hmem : (t - t') • (c - p) ∈ H := by
+    have : (t - t') • (c - p) = (1 - t') • h' - (1 - t) • h := by
+      rw [← sub_eq_zero] at heq ⊢
+      rw [← heq]; module
+    rw [this]
+    exact H.sub_mem (H.smul_mem _ hh') (H.smul_mem _ hh)
+  have htt : t = t' := by
+    by_contra hne
+    apply hc
+    have h0 : t - t' ≠ 0 := sub_ne_zero.mpr hne
+    have := H.smul_mem (t - t')⁻¹ hmem
+    rwa [smul_smul, inv_mul_cancel₀ h0, one_smul] at this
+  subst htt
+  refine ⟨rfl, ?_⟩
+  have h1 : (1 - t) • h = (1 - t) • h' := add_right_cancel heq
+  exact smul_right_injective _ (by linarith : (1 - t) ≠ 0) h1
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood` (V4 1.24):
+"unfold two simplices sharing a codimension-one face to a Euclidean patch". A point of
+one half of the patch lying in the ridge direction has height `0` over the ridge. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step3_on_ridge {H : Submodule ℝ (E d)} {c p : E d} (hc : c - p ∉ H)
+    {h : E d} (hh : h ∈ H) {t : ℝ}
+    (hmem : (1 - t) • h + t • (c - p) ∈ H) : t = 0 := by
+  by_contra hne
+  apply hc
+  have h2 : t • (c - p) ∈ H := by
+    have := H.sub_mem hmem (H.smul_mem (1 - t) hh)
+    simpa using this
+  have := H.smul_mem t⁻¹ h2
+  rwa [smul_smul, inv_mul_cancel₀ hne, one_smul] at this
+
+
 /-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
 "each a closed hypersurface". Unfold two simplices sharing a codimension-one
 face to a Euclidean patch. Invariance of domain in a chart of the containing
@@ -2842,7 +2897,248 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
     {p : E d} (hp : p ∈ relint (convexHull ℝ ((f ∩ g : Finset (E d)) : Set (E d)))) :
     ∃ O : Set (E d), IsOpen O ∧ p ∈ O ∧
       Q ∩ O ⊆ convexHull ℝ (f : Set (E d)) ∪ convexHull ℝ (g : Set (E d)) := by
-  sorry
+  classical
+  have hd : 2 ≤ d := Fact.out
+  set s : Finset (E d) := f ∩ g with hs_def
+  set A : AffineSubspace ℝ (E d) := affineSpan ℝ (s : Set (E d)) with hA_def
+  set H : Submodule ℝ (E d) := A.direction with hH_def
+  -- the two apexes
+  have hapex : ∀ (u v : Finset (E d)), AffineIndependent ℝ ((↑) : u → E d) →
+      u.card = d → (u ∩ v).card = d - 1 →
+      ∃ a ∈ u, a ∉ v ∧ a ∉ affineSpan ℝ (((u ∩ v : Finset (E d)) : Set (E d))) := by
+    intro u v hu huc huvc
+    have hex : ∃ a ∈ u, a ∉ v := by
+      by_contra hcon
+      push_neg at hcon
+      have : u ∩ v = u := Finset.inter_eq_left.mpr hcon
+      rw [this] at huvc
+      omega
+    obtain ⟨a, hau, hav⟩ := hex
+    refine ⟨a, hau, hav, ?_⟩
+    have hni := hu.notMem_affineSpan_diff ⟨a, hau⟩ {x : u | (x : E d) ∈ v}
+    intro hmem
+    apply hni
+    refine affineSpan_mono ℝ ?_ hmem
+    intro y hy
+    simp only [Finset.coe_inter, Set.mem_inter_iff, Finset.mem_coe] at hy
+    refine ⟨⟨y, hy.1⟩, ⟨hy.2, ?_⟩, rfl⟩
+    intro hya
+    simp only [Set.mem_singleton_iff, Subtype.mk.injEq] at hya
+    exact hav (hya ▸ hy.2)
+  obtain ⟨a, haf, hag, haA⟩ := hapex f g hf hfc hfgc
+  obtain ⟨b, hbg, hbf, hbA⟩ := hapex g f hg hgc (by rw [Finset.inter_comm]; exact hfgc)
+  rw [Finset.inter_comm g f] at hbA
+  -- the base point
+  have hpS : p ∈ convexHull ℝ (s : Set (E d)) := intrinsicInterior_subset hp
+  have hpA : p ∈ A := convexHull_subset_affineSpan _ hpS
+  have hsf : convexHull ℝ (s : Set (E d)) ⊆ convexHull ℝ (f : Set (E d)) :=
+    convexHull_mono (by simp [s])
+  have hsg : convexHull ℝ (s : Set (E d)) ⊆ convexHull ℝ (g : Set (E d)) :=
+    convexHull_mono (by simp [s])
+  have hpQ : p ∈ Q := hfQ (hsf hpS)
+  have haH : a - p ∉ H := by
+    intro h
+    apply haA
+    have h' : (a - p) +ᵥ p ∈ A := AffineSubspace.vadd_mem_of_mem_direction h hpA
+    rw [vadd_eq_add, sub_add_cancel] at h'
+    exact h'
+  have hbH : b - p ∉ H := by
+    intro h
+    apply hbA
+    have h' : (b - p) +ᵥ p ∈ A := AffineSubspace.vadd_mem_of_mem_direction h hpA
+    rw [vadd_eq_add, sub_add_cancel] at h'
+    exact h'
+  obtain ⟨ε, hε, hball⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step1_relint_ball hp
+  rw [affineSpan_convexHull] at hball
+  -- dimension count
+  have hsind : AffineIndependent ℝ ((↑) : s → E d) :=
+    hf.mono (s := (s : Set (E d))) (t := (f : Set (E d))) (by simp [s])
+  have hHrank : Module.finrank ℝ H = d - 2 := by
+    have h1 := hsind.finrank_vectorSpan (n := d - 2) (by simp only [Fintype.card_coe]; omega)
+    have h2 : Set.range ((↑) : s → E d) = (s : Set (E d)) := by ext; simp
+    rw [h2] at h1
+    rw [hH_def, hA_def, direction_affineSpan]
+    exact h1
+  have hXrank : Module.finrank ℝ (E (d - 1)) = Module.finrank ℝ (H × ℝ) := by
+    rw [Module.finrank_prod, Module.finrank_self, hHrank, finrank_euclideanSpace_fin]
+    omega
+  let L : E (d - 1) ≃L[ℝ] (H × ℝ) :=
+    (LinearEquiv.ofFinrankEq (E (d - 1)) (H × ℝ) hXrank).toContinuousLinearEquiv
+  -- the unfolding map
+  let F : H × ℝ → E d := fun x =>
+    p + (x.1 : E d) + max x.2 0 • (a - (p + x.1)) + max (-x.2) 0 • (b - (p + x.1))
+  have hFc : Continuous F := by
+    have h1 : Continuous fun x : H × ℝ => (x.1 : E d) :=
+      continuous_subtype_val.comp continuous_fst
+    exact ((continuous_const.add h1).add
+      ((continuous_snd.max continuous_const).smul (continuous_const.sub
+        (continuous_const.add h1)))).add
+      ((continuous_snd.neg.max continuous_const).smul (continuous_const.sub
+        (continuous_const.add h1)))
+  have hF0 : F 0 = p := by simp [F]
+  have hFpos : ∀ x : H × ℝ, 0 ≤ x.2 →
+      F x = p + ((1 - x.2) • (x.1 : E d) + x.2 • (a - p)) := by
+    intro x hx
+    simp only [F, max_eq_left hx, max_eq_right (neg_nonpos.mpr hx), zero_smul, add_zero]
+    module
+  have hFneg : ∀ x : H × ℝ, x.2 ≤ 0 →
+      F x = p + ((1 - -x.2) • (x.1 : E d) + (-x.2) • (b - p)) := by
+    intro x hx
+    simp only [F, max_eq_right hx, max_eq_left (neg_nonneg.mpr hx), zero_smul, add_zero]
+    module
+  have hbase : ∀ x : H × ℝ, ‖(x.1 : E d)‖ < ε →
+      p + (x.1 : E d) ∈ convexHull ℝ (s : Set (E d)) := by
+    intro x hx
+    apply hball
+    refine ⟨?_, ?_⟩
+    · have := AffineSubspace.vadd_mem_of_mem_direction x.1.2 hpA
+      simpa [add_comm] using this
+    · rw [Metric.mem_ball, dist_eq_norm]
+      simpa using hx
+  have hFf : ∀ x : H × ℝ, ‖(x.1 : E d)‖ < ε → 0 ≤ x.2 → x.2 ≤ 1 →
+      F x ∈ convexHull ℝ (f : Set (E d)) := by
+    intro x hx h0 h1
+    have : F x = (p + x.1) + x.2 • (a - (p + x.1)) := by
+      simp only [F, max_eq_left h0, max_eq_right (neg_nonpos.mpr h0), zero_smul, add_zero]
+    rw [this]
+    exact (convex_convexHull ℝ _).add_smul_sub_mem (hsf (hbase x hx))
+      (subset_convexHull ℝ _ (by simpa using haf)) ⟨h0, h1⟩
+  have hFg : ∀ x : H × ℝ, ‖(x.1 : E d)‖ < ε → x.2 ≤ 0 → -1 ≤ x.2 →
+      F x ∈ convexHull ℝ (g : Set (E d)) := by
+    intro x hx h0 h1
+    have : F x = (p + x.1) + (-x.2) • (b - (p + x.1)) := by
+      simp only [F, max_eq_right h0, max_eq_left (neg_nonneg.mpr h0), zero_smul, add_zero]
+    rw [this]
+    exact (convex_convexHull ℝ _).add_smul_sub_mem (hsg (hbase x hx))
+      (subset_convexHull ℝ _ (by simpa using hbg)) ⟨by linarith, by linarith⟩
+  -- the region where the unfolding is an injective patch
+  let R : Set (H × ℝ) := {x | ‖(x.1 : E d)‖ < ε ∧ |x.2| < 1}
+  have hFR : ∀ x ∈ R, F x ∈ convexHull ℝ (f : Set (E d)) ∪ convexHull ℝ (g : Set (E d)) := by
+    rintro x ⟨hx1, hx2⟩
+    rw [abs_lt] at hx2
+    rcases le_total 0 x.2 with h | h
+    · exact Or.inl (hFf x hx1 h hx2.2.le)
+    · exact Or.inr (hFg x hx1 h hx2.1.le)
+  have hridge : ∀ x ∈ R, F x ∈ convexHull ℝ (f : Set (E d)) →
+      F x ∈ convexHull ℝ (g : Set (E d)) → x.2 = 0 := by
+    rintro x ⟨hx1, hx2⟩ hxf hxg
+    have hxs : F x ∈ A := by
+      have : F x ∈ convexHull ℝ (s : Set (E d)) := by rw [← hinter]; exact ⟨hxf, hxg⟩
+      exact convexHull_subset_affineSpan _ this
+    have hdir : F x - p ∈ H := by
+      have := AffineSubspace.vsub_mem_direction hxs hpA
+      simpa using this
+    rcases le_total 0 x.2 with h | h
+    · rw [hFpos x h, add_sub_cancel_left] at hdir
+      exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step3_on_ridge haH x.1.2 hdir
+    · rw [hFneg x h, add_sub_cancel_left] at hdir
+      have := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step3_on_ridge hbH x.1.2 hdir
+      linarith
+  have hFinj : ∀ x ∈ R, ∀ y ∈ R, F x = F y → x = y := by
+    intro x hx y hy hxy
+    have hx' := hx; have hy' := hy
+    obtain ⟨hx1, hx2⟩ := hx'
+    obtain ⟨hy1, hy2⟩ := hy'
+    rw [abs_lt] at hx2 hy2
+    have key : x.2 = y.2 ∧ (x.1 : E d) = y.1 := by
+      rcases le_total 0 x.2 with h | h <;> rcases le_total 0 y.2 with h' | h'
+      · rw [hFpos x h, hFpos y h'] at hxy
+        exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step2_same_side haH x.1.2 y.1.2 hx2.2 (add_left_cancel hxy)
+      · have hxf := hFf x hx1 h hx2.2.le
+        have hyg := hFg y hy1 h' hy2.1.le
+        have e1 : x.2 = 0 := hridge x hx hxf (hxy ▸ hyg)
+        have e2 : y.2 = 0 := hridge y hy (hxy ▸ hxf) hyg
+        rw [hFpos x h, hFpos y (le_of_eq e2.symm)] at hxy
+        exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step2_same_side haH x.1.2 y.1.2 hx2.2 (add_left_cancel hxy)
+      · have hxg := hFg x hx1 h hx2.1.le
+        have hyf := hFf y hy1 h' hy2.2.le
+        have e1 : x.2 = 0 := hridge x hx (hxy ▸ hyf) hxg
+        rw [hFpos x (le_of_eq e1.symm), hFpos y h'] at hxy
+        exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step2_same_side haH x.1.2 y.1.2 hx2.2 (add_left_cancel hxy)
+      · rw [hFneg x h, hFneg y h'] at hxy
+        obtain ⟨k1, k2⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood_step2_same_side hbH x.1.2 y.1.2 (by linarith) (add_left_cancel hxy)
+        exact ⟨by linarith, k2⟩
+    exact Prod.ext (Subtype.ext key.2) key.1
+  -- the chart at `p`
+  obtain ⟨U, hU, hpU, V, hV, ⟨φ⟩⟩ := hQ ⟨p, hpQ⟩
+  obtain ⟨U', hU'o, hU'eq⟩ := isOpen_induced_iff.mp hU
+  have hpU' : p ∈ U' := by
+    have : (⟨p, hpQ⟩ : Q) ∈ Subtype.val ⁻¹' U' := by rw [hU'eq]; exact hpU
+    exact this
+  let N : Set (H × ℝ) := R ∩ F ⁻¹' U'
+  have hNo : IsOpen N := by
+    refine IsOpen.inter ?_ (hU'o.preimage hFc)
+    exact (isOpen_lt ((continuous_norm.comp (continuous_subtype_val.comp continuous_fst)))
+      continuous_const).inter (isOpen_lt (continuous_abs.comp continuous_snd) continuous_const)
+  have h0N : (0 : H × ℝ) ∈ N := ⟨⟨by simpa using hε, by simp⟩, by rw [Set.mem_preimage, hF0]; exact hpU'⟩
+  obtain ⟨ρ, hρ, hρball⟩ := Metric.isOpen_iff.mp (hNo.preimage L.continuous) 0
+    (by simpa using h0N)
+  have hmemN : ∀ z : Metric.closedBall (0 : E (d - 1)) 1, L ((ρ / 2) • (z : E (d - 1))) ∈ N := by
+    intro z
+    apply hρball
+    have hz : ‖(z : E (d - 1))‖ ≤ 1 := by
+      have := z.property
+      rwa [Metric.mem_closedBall, dist_zero_right] at this
+    rw [Metric.mem_ball, dist_zero_right, norm_smul, Real.norm_of_nonneg (by positivity)]
+    nlinarith
+  let g0 : Metric.closedBall (0 : E (d - 1)) 1 → E d := fun z => F (L ((ρ / 2) • (z : E (d - 1))))
+  have hg0c : Continuous g0 :=
+    hFc.comp (L.continuous.comp (continuous_const.smul continuous_subtype_val))
+  have hg0P : ∀ z, g0 z ∈ convexHull ℝ (f : Set (E d)) ∪ convexHull ℝ (g : Set (E d)) :=
+    fun z => hFR _ (hmemN z).1
+  have hg0Q : ∀ z, g0 z ∈ Q := fun z => (hg0P z).elim (fun h => hfQ h) (fun h => hgQ h)
+  have hg0U : ∀ z, (⟨g0 z, hg0Q z⟩ : Q) ∈ U := by
+    intro z
+    rw [← hU'eq]
+    exact (hmemN z).2
+  have hg0inj : Function.Injective g0 := by
+    intro z z' hzz
+    have h1 := hFinj _ (hmemN z).1 _ (hmemN z').1 hzz
+    have h2 := L.injective h1
+    exact Subtype.ext (smul_right_injective _ (by positivity : ρ / 2 ≠ 0) h2)
+  let gU : Metric.closedBall (0 : E (d - 1)) 1 → U := fun z => ⟨⟨g0 z, hg0Q z⟩, hg0U z⟩
+  have hgUc : Continuous gU := (hg0c.subtype_mk _).subtype_mk _
+  let ψ : Metric.closedBall (0 : E (d - 1)) 1 → E (d - 1) := fun z => (φ (gU z) : E (d - 1))
+  have hψc : Continuous ψ := continuous_subtype_val.comp (φ.continuous.comp hgUc)
+  have hψinj : Function.Injective ψ := by
+    intro z z' hzz
+    have h1 : gU z = gU z' := φ.injective (Subtype.ext hzz)
+    apply hg0inj
+    have := congrArg (fun u : U => ((u : Q) : E d)) h1
+    exact this
+  have hDIψ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step7_domain_invariance (d - 1)
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step5_zero_stability (d - 1)
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed (d - 1))) ψ hψc hψinj
+  have hgU0 : gU ⟨0, Metric.mem_closedBall_self zero_le_one⟩ = ⟨⟨p, hpQ⟩, hpU⟩ := by
+    apply Subtype.ext; apply Subtype.ext
+    show F (L ((ρ / 2) • (0 : E (d - 1)))) = p
+    rw [smul_zero, map_zero, hF0]
+  -- the neighbourhood
+  let S : Set U := {u | (φ u : E (d - 1)) ∈ interior (range ψ)}
+  have hSo : IsOpen S :=
+    isOpen_interior.preimage (continuous_subtype_val.comp φ.continuous)
+  have hTo : IsOpen (Subtype.val '' S : Set Q) := hU.isOpenMap_subtype_val S hSo
+  obtain ⟨O, hOo, hOeq⟩ := isOpen_induced_iff.mp hTo
+  refine ⟨O, hOo, ?_, ?_⟩
+  · have : (⟨p, hpQ⟩ : Q) ∈ Subtype.val ⁻¹' O := by
+      rw [hOeq]
+      refine ⟨⟨⟨p, hpQ⟩, hpU⟩, ?_, rfl⟩
+      show (φ ⟨⟨p, hpQ⟩, hpU⟩ : E (d - 1)) ∈ interior (range ψ)
+      rw [← hgU0]
+      exact hDIψ
+    exact this
+  · rintro y ⟨hyQ, hyO⟩
+    have : (⟨y, hyQ⟩ : Q) ∈ Subtype.val ⁻¹' O := hyO
+    rw [hOeq] at this
+    obtain ⟨u, huS, hu⟩ := this
+    obtain ⟨z, hz⟩ := interior_subset huS
+    have h1 : gU z = u := φ.injective (Subtype.ext hz)
+    have h2 : g0 z = y := by
+      have h3 : g0 z = ((u : Q) : E d) := congrArg (fun v : U => ((v : Q) : E d)) h1
+      have hy : ((u : Q) : E d) = y := by rw [hu]
+      exact h3.trans hy
+    rw [← h2]
+    exact hg0P z
 
 /-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
 "a connected union of facets". Two distinct pure facets containing a ridge

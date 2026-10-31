@@ -368,7 +368,14 @@ theorem sides_carrier :
 theorem sides_descendant :
     g.leftNode.IsDescendant (g.height - 1) g.birth g.height ∧
       g.rightNode.IsDescendant (g.height - 1) g.birth g.height := by
-  sorry
+  dsimp [leftNode, rightNode]
+  have hpos : g.height = g.height - 1 + 1 := (Nat.sub_add_cancel g.positive).symm
+  have heq : (⟨g.incidence.val.ty, g.birth.frame⟩ : FramedNode S) = g.birth := by
+    ext
+    · exact g.parent_type
+    · rfl
+  exact ⟨heq ▸ hpos ▸ child_descendant ⟨g.incidence.val.ty, g.birth.frame⟩ (g.height - 1) g.incidence.val.left,
+    heq ▸ hpos ▸ child_descendant ⟨g.incidence.val.ty, g.birth.frame⟩ (g.height - 1) g.incidence.val.right⟩
 
 /-- R1/R5/R12, V4 §3.0, 3.4, 3.1: the left owner of an actual hierarchy
 birth is an actual hierarchy node, with its prescribed frame. -/

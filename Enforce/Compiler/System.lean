@@ -597,10 +597,51 @@ theorem HonestSource.move_translation (U : HonestSource S) (v : E d) :
   · exact h_trans.parents
   · exact h_trans.roles
 
+
+/-- Step 1 of the V4 proof of `move_refl` (V4 2.14(d)): tiling equality -/
+private lemma move_refl_step1_tiling (U : HonestSource S) :
+    U.tiling = U.tiling.move (AffineIsometryEquiv.refl ℝ (E d)) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `move_refl` (V4 2.14(d)): nodes equality -/
+private lemma move_refl_step2_nodes (U : HonestSource S) (n : ℕ) :
+    U.hierarchy.nodes n = (fun N : FramedNode S => N.move (AffineIsometryEquiv.refl ℝ (E d))) '' U.hierarchy.nodes n := by
+  sorry
+
+/-- Step 3 of the V4 proof of `move_refl` (V4 2.14(d)): coset equality -/
+private lemma move_refl_step3_coset (U : HonestSource S) :
+    U.coset = (AffineIsometryEquiv.refl ℝ (E d)).linearIsometryEquiv * U.coset := by
+  sorry
+
+/-- Step 4 of the V4 proof of `move_refl` (V4 2.14(d)): parents equality -/
+private lemma move_refl_step4_parents (U : HonestSource S) (n : ℕ) (N : {N // N ∈ U.hierarchy.nodes n})
+    (hN : N.val.move (AffineIsometryEquiv.refl ℝ (E d)) ∈ U.hierarchy.nodes n) :
+    (U.hierarchy.parent n ⟨N.val.move (AffineIsometryEquiv.refl ℝ (E d)), hN⟩).val =
+      (U.hierarchy.parent n N).val.move (AffineIsometryEquiv.refl ℝ (E d)) := by
+  sorry
+
+/-- Step 5 of the V4 proof of `move_refl` (V4 2.14(d)): roles equality -/
+private lemma move_refl_step5_roles (U : HonestSource S) (n : ℕ) (N : {N // N ∈ U.hierarchy.nodes n})
+    (hN : N.val.move (AffineIsometryEquiv.refl ℝ (E d)) ∈ U.hierarchy.nodes n) :
+    U.hierarchy.nodeRole ⟨n, ⟨N.val.move (AffineIsometryEquiv.refl ℝ (E d)), hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩ := by
+  sorry
+
+/-- Step 6 of the V4 proof of `move_refl` (V4 2.14(d)): moved source equality -/
+private lemma move_refl_step6_movedSource (U : HonestSource S) :
+    MovedSource U U (AffineIsometryEquiv.refl ℝ (E d)) := by
+  constructor
+  · exact (move_refl_step1_tiling U)
+  · exact (move_refl_step2_nodes U)
+  · exact (move_refl_step3_coset U)
+  · intro n N hN
+    exact (move_refl_step4_parents U n N hN)
+  · intro n N hN
+    exact (move_refl_step5_roles U n N hN)
+
 /-- M6, V4 2.14(d): identity motion preserves the entire honest hierarchy. -/
 theorem HonestSource.move_refl (U : HonestSource S) :
-    U.move (AffineIsometryEquiv.refl ℝ (E d)) = U := by
-  sorry
+    U.move (AffineIsometryEquiv.refl ℝ (E d)) = U :=
+  MovedSource.unique (U.move_spec (AffineIsometryEquiv.refl ℝ (E d))) (move_refl_step6_movedSource U)
 
 /-- M6, V4 2.14(d): successive motions compose on full honest sources. -/
 theorem HonestSource.move_trans (U : HonestSource S) (g h : Iso d) :

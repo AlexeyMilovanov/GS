@@ -6604,6 +6604,7 @@ theorem placedTraceOwner_cells (N : FramedNode S) (n r : ℕ) (hr : r ≤ n)
       tracePlacement N n r '' (a.tile.cell 0 e) := by
   sorry
 
+open private hereditary_trace_step1_relint_image from Enforce.Source.Trace in
 /-- P17, V4 1.22(a): recursive traces tile the prescribed cell of every placed
 node, with disjoint relative interiors, for every permitted subdivision depth. -/
 theorem placed_recursiveTrace_tiles (N : FramedNode S) (n r : ℕ) (hr : r ≤ n)
@@ -6613,7 +6614,49 @@ theorem placed_recursiveTrace_tiles (N : FramedNode S) (n r : ℕ) (hr : r ≤ n
     Pairwise (fun a b : TracePiece N.ty F r =>
       Disjoint (relint (placedTraceCarrier N n r F a))
         (relint (placedTraceCarrier N n r F b))) := by
-  sorry
+  have H := recursiveTrace_tiles N.ty F r
+  have h1 : (⋃ a : TracePiece N.ty F r, placedTraceCarrier N n r F a) =
+    (⋃ a : TracePiece N.ty F r, tracePlacement N n r '' a.carrier) := rfl
+  have h_rec_eq : (⋃ (a : TracePiece N.ty F r), a.carrier) = ⋃ a ∈ recursiveTrace N.ty F r, a.carrier := by
+    ext x; simp [recursiveTrace]
+  have h2 : (⋃ (a : TracePiece N.ty F r), a.carrier) = (S.σ ^ r) '' (F.cell ⟨traceDimension d, traceDimension_pos, traceDimension_lt⟩).val.carrier := by
+    rw [h_rec_eq]
+    exact H.1
+  constructor
+  · rw [h1, ← Set.image_iUnion, h2]
+    unfold tracePlacement
+    unfold FramedNode.cell
+    dsimp [FramedNode.prototypeFrame]
+    ext x
+    simp only [Set.mem_image, Function.comp_apply]
+    constructor
+    · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+      use z
+      refine ⟨hz, ?_⟩
+      have h3 : (S.σ ^ (n - r)) ((S.σ ^ r) z) = (S.σ ^ n) z := by
+        change ((S.σ ^ (n - r)) * (S.σ ^ r)) z = _
+        rw [← pow_add]
+        have h_add : n - r + r = n := Nat.sub_add_cancel hr
+        rw [h_add]
+      rw [h3]
+    · rintro ⟨y, hy, rfl⟩
+      use (S.σ ^ r) y
+      refine ⟨⟨y, hy, rfl⟩, ?_⟩
+      have h3 : (S.σ ^ (n - r)) ((S.σ ^ r) y) = (S.σ ^ n) y := by
+        change ((S.σ ^ (n - r)) * (S.σ ^ r)) y = _
+        rw [← pow_add]
+        have h_add : n - r + r = n := Nat.sub_add_cancel hr
+        rw [h_add]
+      rw [h3]
+  · intro a b hab
+    have H_disj := H.2.1 hab
+    unfold placedTraceCarrier
+    have h_relint1 : relint (tracePlacement N n r '' a.carrier) = tracePlacement N n r '' relint a.carrier := by
+      exact hereditary_trace_step1_relint_image (tracePlacement N n r) a.carrier
+    have h_relint2 : relint (tracePlacement N n r '' b.carrier) = tracePlacement N n r '' relint b.carrier := by
+      exact hereditary_trace_step1_relint_image (tracePlacement N n r) b.carrier
+    rw [h_relint1, h_relint2]
+    exact Set.disjoint_image_of_injective (tracePlacement N n r).injective H_disj
 
 /-- P17, V4 1.22(a): a selected trace owner is an actual node of the fixed
 coherent hierarchy, rather than merely a congruent tile in an unrelated source. -/

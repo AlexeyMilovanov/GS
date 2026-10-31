@@ -1104,6 +1104,60 @@ theorem point_multiplicity_bound [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
             ⌊fullSolidAngle d / β⌋₊ := by
   sorry
 
+/-- Step 1 of the V4 proof of `locallyFinite_disjointInteriors` (V4 1.0(c)): "`v_min =
+min_A vol A`" is positive. We use the measure-free form: the interior of every prototile
+is nonempty and open, so it contains an open ball. -/
+private lemma locallyFinite_disjointInteriors_step1_ball (A : PolyManifoldDomain d) :
+    ∃ x : E d, ∃ r : ℝ, 0 < r ∧ ball x r ⊆ interior A.carrier := by
+  obtain ⟨x, hx⟩ := A.interior_nonempty
+  obtain ⟨r, hr, h⟩ := Metric.isOpen_iff.mp isOpen_interior x hx
+  exact ⟨x, r, hr, h⟩
+
+/-- Step 2 of the V4 proof of `locallyFinite_disjointInteriors` (V4 1.0(c)): placed copies
+keep their size. An isometry moves a ball inside `K` to a ball of the same radius inside
+the interior of the placed set. -/
+private lemma locallyFinite_disjointInteriors_step2_placed_ball (φ : Iso d)
+    {K : Set (E d)} {x : E d} {r : ℝ} (h : ball x r ⊆ K) :
+    ball (φ x) r ⊆ interior (placedSet φ K) := by
+  refine interior_maximal ?_ isOpen_ball
+  intro y hy
+  refine ⟨φ.symm y, h ?_, φ.apply_symm_apply y⟩
+  rw [mem_ball] at hy ⊢
+  calc dist (φ.symm y) x = dist (φ.symm y) (φ.symm (φ x)) := by rw [φ.symm_apply_apply]
+    _ = dist y (φ x) := φ.symm.dist_map _ _
+    _ < r := hy
+
+/-- Step 3 of the V4 proof of `locallyFinite_disjointInteriors` (V4 1.0(c)): "a tile meeting
+a bounded set `B` lies in the `D`-neighbourhood of `B`". An isometry moves a set inside a
+closed ball to a set inside the closed ball of the same radius around the image centre. -/
+private lemma locallyFinite_disjointInteriors_step3_placed_closedBall (φ : Iso d)
+    {K : Set (E d)} {x : E d} {R : ℝ} (h : K ⊆ closedBall x R) :
+    placedSet φ K ⊆ closedBall (φ x) R := by
+  rintro _ ⟨y, hy, rfl⟩
+  rw [mem_closedBall, φ.dist_map]
+  exact h hy
+
+/-- Step 4 of the V4 proof of `locallyFinite_disjointInteriors` (V4 1.0(c)): "disjoint
+interiors of volume `≥ v_min` bound their number". Packing form: pairwise disjoint sets,
+each containing a ball of a fixed radius `r` whose centre lies in a bounded set, are
+finitely many. -/
+private lemma locallyFinite_disjointInteriors_step4_packing {β : Type*} (c : β → E d)
+    (U : β → Set (E d)) {r : ℝ} (hr : 0 < r)
+    (hU : Pairwise (fun a b => Disjoint (U a) (U b))) (S : Set β)
+    (hc : ∀ a ∈ S, ball (c a) r ⊆ U a) (hS : Bornology.IsBounded (c '' S)) :
+    S.Finite := by
+  obtain ⟨t, ht, hcov⟩ :=
+    Metric.totallyBounded_iff.mp (hS.isCompact_closure.totallyBounded.subset subset_closure) r hr
+  have hsub : S ⊆ ⋃ y ∈ t, {a | a ∈ S ∧ c a ∈ ball y r} := by
+    intro a ha
+    obtain ⟨y, hy, hay⟩ := mem_iUnion₂.mp (hcov (mem_image_of_mem c ha))
+    exact mem_iUnion₂.mpr ⟨y, hy, ha, hay⟩
+  refine Set.Finite.subset (ht.biUnion fun y _ => Set.Subsingleton.finite ?_) hsub
+  intro a ha b hb
+  by_contra hab
+  exact Set.disjoint_left.mp (hU hab) (hc a ha.1 (mem_ball_comm.mp ha.2))
+    (hc b hb.1 (mem_ball_comm.mp hb.2))
+
 /-- G8, V4 1.0(c): a family of placed prototiles with pairwise disjoint
 interiors is locally finite, and every bounded set meets only finitely many. -/
 theorem locallyFinite_disjointInteriors {ι : Type*} [Fintype ι]
@@ -1114,7 +1168,37 @@ theorem locallyFinite_disjointInteriors {ι : Type*} [Fintype ι]
     LocallyFinite (fun a => placedSet (φ a) (proto (ty a)).carrier) ∧
       ∀ B : Set (E d), Bornology.IsBounded B →
         {a | (B ∩ placedSet (φ a) (proto (ty a)).carrier).Nonempty}.Finite := by
-  sorry
+  classical
+  have hbdd : ∀ B : Set (E d), Bornology.IsBounded B →
+      {a | (B ∩ placedSet (φ a) (proto (ty a)).carrier).Nonempty}.Finite := by
+    intro B hB
+    have hsplit : {a | (B ∩ placedSet (φ a) (proto (ty a)).carrier).Nonempty} ⊆
+        ⋃ i, {a | ty a = i ∧ (B ∩ placedSet (φ a) (proto (ty a)).carrier).Nonempty} := by
+      intro a ha
+      exact mem_iUnion.mpr ⟨ty a, rfl, ha⟩
+    refine Set.Finite.subset (Set.finite_iUnion fun i => ?_) hsplit
+    obtain ⟨x, r, hr, hball⟩ := locallyFinite_disjointInteriors_step1_ball (proto i)
+    obtain ⟨R, hR⟩ :=
+      (Metric.isBounded_iff_subset_closedBall x).mp (proto i).compact.isBounded
+    obtain ⟨ρ, hρ⟩ := (Metric.isBounded_iff_subset_closedBall (0 : E d)).mp hB
+    refine locallyFinite_disjointInteriors_step4_packing (fun a => φ a x)
+      (fun a => interior (placedSet (φ a) (proto (ty a)).carrier)) hr hdisjoint _ ?_ ?_
+    · rintro a ⟨hai, -⟩
+      subst hai
+      exact locallyFinite_disjointInteriors_step2_placed_ball (φ a)
+        (hball.trans interior_subset)
+    · refine (isBounded_closedBall (x := (0 : E d)) (r := ρ + R)).subset ?_
+      rintro _ ⟨a, ⟨hai, z, hzB, hzP⟩, rfl⟩
+      subst hai
+      have h1 : dist z (φ a x) ≤ R :=
+        mem_closedBall.mp (locallyFinite_disjointInteriors_step3_placed_closedBall (φ a) hR hzP)
+      have h2 : dist z 0 ≤ ρ := mem_closedBall.mp (hρ hzB)
+      rw [mem_closedBall]
+      calc dist (φ a x) 0 ≤ dist (φ a x) z + dist z 0 := dist_triangle _ _ _
+        _ ≤ R + ρ := by rw [dist_comm]; exact add_le_add h1 h2
+        _ = ρ + R := add_comm _ _
+  refine ⟨fun x => ⟨ball x 1, ball_mem_nhds x one_pos, ?_⟩, hbdd⟩
+  exact (hbdd _ isBounded_ball).subset fun a ha => ha.mono fun y hy => ⟨hy.2, hy.1⟩
 
 /-- G9, V4 1.16(b): one closed side of a codimension-one pair `W ≤ V`.
 The kernel condition determines the wall inside `V`, not in all of `E`. -/

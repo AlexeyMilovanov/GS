@@ -459,7 +459,22 @@ def MarkedTiling.move (Y : MarkedTiling M) (g : Iso d) : MarkedTiling M where
 /-- M6, V4 2.14(d): the transported global function has the expected pointwise value. -/
 theorem MarkedTiling.move_marking (Y : MarkedTiling M) (g : Iso d) (x : E d) :
     (Y.move g).marking (g x) = Y.marking x := by
-  sorry
+  have Hcov := (Y.move g).cover (g x)
+  obtain ⟨t, ht, hxt⟩ := Hcov
+  rw [MarkedTiling.marking_eq_tile (Y.move g) t ht (g x) hxt]
+  dsimp [MarkedTiling.move] at ht
+  obtain ⟨u, hu, rfl⟩ := ht
+  have hxu : x ∈ u.carrier := by
+    dsimp [PlacedMarkedTile.move, MarkedSet.move] at hxt
+    obtain ⟨y, hy, heq⟩ := hxt
+    have h1 : g y = g x := heq
+    have h2 : y = x := g.injective h1
+    rwa [h2] at hy
+  rw [MarkedTiling.marking_eq_tile Y u hu x hxu]
+  dsimp [PlacedMarkedTile.move, MarkedSet.move]
+  congr 1
+  ext
+  simp
 
 /-- M6, V4 2.14(d): properness is invariant under every Euclidean isometry. -/
 theorem MProper.move (Y : MarkedTiling M) (hY : MProper Y) (g : Iso d) :

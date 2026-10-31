@@ -713,7 +713,45 @@ theorem packet_roles_from_head (P : Params S) (q : Packet P)
 theorem packet_top_spec (P : Params S) (q : Packet P) (hq : q ∈ honestPackets S P) :
     decode q q.jstar = some q.sstar ∧
       ∀ j : Fin P.k, q.jstar < j → decode q j = none := by
-  sorry
+  obtain ⟨U, g, rfl⟩ := hq
+  constructor
+  · unfold decode
+    split_ifs with h
+    · congr
+      change (packetOf U P g).descend (↑(topSlot U P g) - ↑(topSlot U P g)) = _
+      have : (topSlot U P g).val - (topSlot U P g).val = 0 := Nat.sub_self _
+      rw [this]
+      rfl
+    · exfalso
+      have h1 : ¬ (↑(packetOf U P g).jstar ≤ ↑(packetOf U P g).jstar ∧ (packetOf U P g).mask (packetOf U P g).jstar) := h
+      simp only [le_refl, true_and] at h1
+      have h2 : (packetOf U P g).mask (packetOf U P g).jstar := by
+        change packetMask P g.incidence (packetOf U P g).head (topSlot U P g)
+        have h_head : (packetOf U P g).head = stateOf U P (U.hierarchy.ancestor g.birth 0) := by
+          dsimp [Packet.head]
+          have h0 : (⟨0, P.k_pos⟩ : Fin P.k) ≤ topSlot U P g := by
+            have : NeZero P.k := ⟨P.k_pos.ne'⟩
+            exact Fin.zero_le _
+          exact reconstructed_spec U P g ⟨0, P.k_pos⟩ h0
+        rw [h_head]
+        have h_birth : U.hierarchy.ancestor g.birth 0 = g.birth := rfl
+        rw [h_birth]
+        rw [← packet_mask_fn]
+        dsimp [topSlot]
+        have h3 : (presentSlots U P g).max' (presentSlots_nonempty U P g) ∈ presentSlots U P g :=
+          Finset.max'_mem (presentSlots U P g) (presentSlots_nonempty U P g)
+        have h4 : mask U P g ((presentSlots U P g).max' (presentSlots_nonempty U P g)) := by
+          classical
+          exact (Finset.mem_filter.mp h3).2
+        exact h4
+      exact h1 h2
+  · intro j hj
+    unfold decode
+    split_ifs with h
+    · exfalso
+      have h1 : j.val ≤ (packetOf U P g).jstar.val := h.1
+      omega
+    · rfl
 
 /-- Q8/Q9, V4 8.1: decoding is injective on the honest compressed alphabet.
 Together with `decode_spec` this is the lossless equivalence with Definition 2.5;

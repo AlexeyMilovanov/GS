@@ -1448,7 +1448,14 @@ theorem core_rule_agree (x : (Compiler.coreRule C B.certificate).carrier) :
 theorem frame_from_leaf (w : S.RoleWord B.certificate.val.ty P.K) :
     (compilerLeaf C (B.leaf w)).position.symm.trans (compilerFrame C (B.leaf w)) =
       B.frame := by
-  sorry
+  have hw : B.leaf w = placedLeaf C ⟨B.certificate, w⟩
+    ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).trans B.frame) := rfl
+  have h2 := placedLeaf_decode C (B.leaf w)
+  rw [hw] at h2
+  have ⟨hl, hφ⟩ := placedLeaf_injective C _ _ _ _ h2
+  rw [hw, hl, hφ]
+  ext
+  simp
 
 end KBlock
 

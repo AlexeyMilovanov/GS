@@ -1843,6 +1843,453 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
       have hz := interior_subset hzU
       exact hz
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). The combinatorial core, Gale's `k`-dimensional Hex
+theorem (D. Gale, "The game of Hex and the Brouwer fixed-point theorem", 1979): colour
+every point of the grid `{0,…,N}^k` with one of `k` colours; then for some colour `i`
+there is a chain of `i`-coloured grid points, consecutive ones Hex-adjacent (their
+difference lies in `{0,1}^k` or in `{0,-1}^k`; repetitions allowed), running from the face
+`z i = 0` to the opposite face `z i = N`. (`k = 0`: no colouring exists; `N = 0`: a
+one-point chain.) A finite statement about colourings, with no topology. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex (k N : ℕ) (c : (Fin k → Fin (N + 1)) → Fin k) :
+    ∃ i : Fin k, ∃ L : ℕ, ∃ p : ℕ → (Fin k → Fin (N + 1)),
+      ((p 0 i : ℕ) = 0) ∧ ((p L i : ℕ) = N) ∧ (∀ t ≤ L, c (p t) = i) ∧
+      ∀ t < L, (∀ j, (p t j : ℕ) ≤ p (t + 1) j ∧ (p (t + 1) j : ℕ) ≤ p t j + 1) ∨
+        (∀ j, (p (t + 1) j : ℕ) ≤ p t j ∧ (p t j : ℕ) ≤ p (t + 1) j + 1) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). Approximate fixed points from Hex (Gale's argument): a
+continuous self-map `G` of the unit cube `[0,1]^k` has, for every `ε > 0`, a point moved by
+less than `ε` in every coordinate. Otherwise colour each grid point `z / N` by a coordinate
+`i` moved by at least `ε`; along the Hex chain of colour `i` the sign of `G_i - x_i` goes
+from `+` (face `x_i = 0`) to `-` (face `x_i = 1`), and at the switch two adjacent grid
+points contradict uniform continuity. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step2_approx_fixed (k : ℕ) (G : (Fin k → ℝ) → (Fin k → ℝ))
+    (hG : ContinuousOn G (Set.pi univ fun _ => Icc (0 : ℝ) 1))
+    (hmaps : MapsTo G (Set.pi univ fun _ => Icc (0 : ℝ) 1) (Set.pi univ fun _ => Icc (0 : ℝ) 1))
+    {ε : ℝ} (hε : 0 < ε) :
+    ∃ x ∈ Set.pi univ (fun _ => Icc (0 : ℝ) 1), ∀ i, |G x i - x i| < ε := by
+  classical
+  set C : Set (Fin k → ℝ) := Set.pi univ fun _ => Icc (0 : ℝ) 1 with hC
+  by_contra hcon
+  push_neg at hcon
+  have hCc : IsCompact C := isCompact_univ_pi fun _ => isCompact_Icc
+  obtain ⟨δ, hδ, hδG⟩ := Metric.uniformContinuousOn_iff_le.mp
+    (hCc.uniformContinuousOn_of_continuous hG) (ε / 4) (by positivity)
+  obtain ⟨N, hN⟩ := exists_nat_gt (max (1 / δ) (4 / ε))
+  have hNd : 1 < (N : ℝ) * δ := (div_lt_iff₀ hδ).mp (lt_of_le_of_lt (le_max_left _ _) hN)
+  have hNe : 4 < (N : ℝ) * ε := (div_lt_iff₀ hε).mp (lt_of_le_of_lt (le_max_right _ _) hN)
+  have hNpos : (0 : ℝ) < N := by
+    rcases (Nat.cast_nonneg N : (0 : ℝ) ≤ N).lt_or_eq with h | h
+    · exact h
+    · rw [← h] at hNd; simp at hNd; linarith
+  have h1δ : (1 : ℝ) / N ≤ δ := by rw [div_le_iff₀ hNpos]; linarith
+  have h1ε : (1 : ℝ) / N ≤ ε / 4 := by rw [div_le_iff₀ hNpos]; linarith
+  let e : (Fin k → Fin (N + 1)) → (Fin k → ℝ) := fun z j => ((z j : ℕ) : ℝ) / N
+  have he : ∀ z, e z ∈ C := by
+    intro z j _
+    have hz : ((z j : ℕ) : ℝ) ≤ N := by exact_mod_cast Nat.lt_succ_iff.mp (z j).isLt
+    refine ⟨by positivity, ?_⟩
+    show ((z j : ℕ) : ℝ) / N ≤ 1
+    rw [div_le_one hNpos]; exact hz
+  let c : (Fin k → Fin (N + 1)) → Fin k := fun z => Classical.choose (hcon (e z) (he z))
+  have hc : ∀ z, ε ≤ |G (e z) (c z) - e z (c z)| := fun z =>
+    Classical.choose_spec (hcon (e z) (he z))
+  obtain ⟨i, L, p, h0, hL, hcol, hadj⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step1_hex k N c
+  let D : ℕ → ℝ := fun t => G (e (p t)) i - e (p t) i
+  have hDabs : ∀ t ≤ L, ε ≤ |D t| := by
+    intro t ht
+    have := hc (p t)
+    rwa [hcol t ht] at this
+  have hD0 : ε ≤ D 0 := by
+    have hx : e (p 0) i = 0 := by simp [e, h0]
+    have hGi := (hmaps (he (p 0)) i (mem_univ _)).1
+    rcases le_abs.mp (hDabs 0 (Nat.zero_le _)) with h | h
+    · exact h
+    · simp only [D, hx] at h hGi ⊢; linarith
+  have hDL : ¬ ε ≤ D L := by
+    have hx : e (p L) i = 1 := by
+      simp only [e, hL]; exact div_self hNpos.ne'
+    have hGi := (hmaps (he (p L)) i (mem_univ _)).2
+    simp only [D, hx]; linarith
+  have ivt : ∀ (P : ℕ → Prop) (L : ℕ), P 0 → ¬ P L → ∃ t < L, P t ∧ ¬ P (t + 1) := by
+    intro P L hP0 hPL
+    induction L with
+    | zero => exact absurd hP0 hPL
+    | succ L ih =>
+      by_cases hP : P L
+      · exact ⟨L, Nat.lt_succ_self L, hP, hPL⟩
+      · obtain ⟨t, ht, h⟩ := ih hP
+        exact ⟨t, Nat.lt_succ_of_lt ht, h⟩
+  obtain ⟨t, ht, hpos, hneg⟩ := ivt (fun t => ε ≤ D t) L hD0 hDL
+  have hneg' : D (t + 1) ≤ -ε := by
+    rcases le_abs.mp (hDabs (t + 1) ht) with h | h
+    · exact absurd h hneg
+    · linarith
+  have hstep : ∀ j, |e (p t) j - e (p (t + 1)) j| ≤ 1 / N := by
+    intro j
+    have hj : ((p t j : ℕ) : ℝ) ≤ (p (t + 1) j : ℕ) + 1 ∧
+        ((p (t + 1) j : ℕ) : ℝ) ≤ (p t j : ℕ) + 1 := by
+      have hn : (p t j : ℕ) ≤ (p (t + 1) j : ℕ) + 1 ∧ (p (t + 1) j : ℕ) ≤ (p t j : ℕ) + 1 := by
+        rcases hadj t ht with h | h
+        · obtain ⟨h1, h2⟩ := h j; exact ⟨by omega, h2⟩
+        · obtain ⟨h1, h2⟩ := h j; exact ⟨h2, by omega⟩
+      exact ⟨by exact_mod_cast hn.1, by exact_mod_cast hn.2⟩
+    simp only [e]
+    rw [← sub_div, abs_div, abs_of_pos hNpos]
+    exact div_le_div_of_nonneg_right
+      (abs_sub_le_iff.mpr ⟨by linarith [hj.1], by linarith [hj.2]⟩) hNpos.le
+  have hdist : dist (e (p t)) (e (p (t + 1))) ≤ δ :=
+    (dist_pi_le_iff hδ.le).mpr fun j => by rw [Real.dist_eq]; exact (hstep j).trans h1δ
+  have hGd := (dist_le_pi_dist _ _ i).trans (hδG _ (he _) _ (he _) hdist)
+  rw [Real.dist_eq] at hGd
+  have hA := (abs_le.mp hGd).2
+  have hB := (abs_le.mp ((hstep i).trans h1ε)).1
+  simp only [D] at hpos hneg'
+  linarith
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). Brouwer's fixed point theorem for the cube `[0,1]^k`, from
+the approximate fixed points of Step 2 by compactness: otherwise `x ↦ dist (G x) x` has a
+positive minimum on the cube, and Step 2 with that `ε` gives a contradiction. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step3_cube_fixed (k : ℕ) (G : (Fin k → ℝ) → (Fin k → ℝ))
+    (hG : ContinuousOn G (Set.pi univ fun _ => Icc (0 : ℝ) 1))
+    (hmaps : MapsTo G (Set.pi univ fun _ => Icc (0 : ℝ) 1) (Set.pi univ fun _ => Icc (0 : ℝ) 1)) :
+    ∃ x ∈ Set.pi univ (fun _ => Icc (0 : ℝ) 1), G x = x := by
+  by_contra hcon
+  push_neg at hcon
+  have hCc : IsCompact (Set.pi univ fun _ : Fin k => Icc (0 : ℝ) 1) :=
+    isCompact_univ_pi fun _ => isCompact_Icc
+  have hCne : (Set.pi univ fun _ : Fin k => Icc (0 : ℝ) 1).Nonempty :=
+    ⟨fun _ => 0, fun _ _ => ⟨le_refl _, zero_le_one⟩⟩
+  have hdc : ContinuousOn (fun x => dist (G x) x) (Set.pi univ fun _ : Fin k => Icc (0 : ℝ) 1) :=
+    continuous_dist.comp_continuousOn (hG.prodMk continuousOn_id)
+  obtain ⟨x0, hx0, hmin⟩ := hCc.exists_isMinOn hCne hdc
+  have hm : 0 < dist (G x0) x0 := dist_pos.mpr (hcon x0 hx0)
+  obtain ⟨x, hx, hxε⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step2_approx_fixed k G hG hmaps hm
+  have hlt : dist (G x) x < dist (G x0) x0 :=
+    (dist_pi_lt_iff hm).mpr fun i => by rw [Real.dist_eq]; exact hxε i
+  have h3 : dist (G x0) x0 ≤ dist (G x) x := hmin hx
+  exact (not_le.mpr hlt) h3
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). Brouwer's fixed point theorem for the closed unit ball of
+`E k`, from Step 3: rescale the cube `[0,1]^k` onto `[-1,1]^k ⊇ closedBall 0 1`, compose `F`
+with the radial retraction `x ↦ x / max 1 ‖x‖` onto the ball, and rescale back. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed (k : ℕ) (F : E k → E k)
+    (hF : ContinuousOn F (Metric.closedBall 0 1))
+    (hmaps : MapsTo F (Metric.closedBall 0 1) (Metric.closedBall 0 1)) :
+    ∃ x ∈ Metric.closedBall (0 : E k) 1, F x = x := by
+  let ι : (Fin k → ℝ) → E k := fun y => WithLp.toLp 2 (fun j => 2 * y j - 1)
+  let ρ : E k → E k := fun x => (max 1 ‖x‖)⁻¹ • x
+  have hmax : ∀ x : E k, 0 < max 1 ‖x‖ := fun x => lt_of_lt_of_le one_pos (le_max_left _ _)
+  have hρ : ∀ x, ρ x ∈ Metric.closedBall (0 : E k) 1 := by
+    intro x
+    rw [Metric.mem_closedBall, dist_zero_right]
+    show ‖(max 1 ‖x‖)⁻¹ • x‖ ≤ 1
+    rw [norm_smul, norm_inv, Real.norm_of_nonneg (hmax x).le, inv_mul_le_iff₀ (hmax x), mul_one]
+    exact le_max_right _ _
+  have hρid : ∀ x ∈ Metric.closedBall (0 : E k) 1, ρ x = x := by
+    intro x hx
+    rw [Metric.mem_closedBall, dist_zero_right] at hx
+    show (max 1 ‖x‖)⁻¹ • x = x
+    rw [max_eq_left hx, inv_one, one_smul]
+  have hρc : Continuous ρ :=
+    ((continuous_const.max continuous_norm).inv₀ fun x => (hmax x).ne').smul continuous_id
+  have hιc : Continuous ι := by
+    refine (PiLp.continuous_toLp 2 _).comp (continuous_pi fun j => ?_)
+    exact (continuous_const.mul (continuous_apply j)).sub continuous_const
+  have hcomp : Continuous fun y => F (ρ (ι y)) :=
+    hF.comp_continuous (hρc.comp hιc) fun y => hρ _
+  let G : (Fin k → ℝ) → (Fin k → ℝ) := fun y j => (F (ρ (ι y)) j + 1) / 2
+  have hGc : Continuous G := by
+    refine continuous_pi fun j => ?_
+    exact (((EuclideanSpace.proj (𝕜 := ℝ) j).continuous.comp hcomp).add
+      continuous_const).div_const 2
+  have hGm : MapsTo G (Set.pi univ fun _ => Icc (0 : ℝ) 1) (Set.pi univ fun _ => Icc (0 : ℝ) 1) := by
+    intro y _ j _
+    have hb := hmaps (hρ (ι y))
+    rw [Metric.mem_closedBall, dist_zero_right] at hb
+    have hj := (abs_le.mp ((Real.norm_eq_abs _).symm.le.trans
+      ((PiLp.norm_apply_le (F (ρ (ι y))) j).trans hb)))
+    show (F (ρ (ι y)) j + 1) / 2 ∈ Icc (0 : ℝ) 1
+    constructor <;> linarith [hj.1, hj.2]
+  obtain ⟨y, _, hy⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step3_cube_fixed k G hGc.continuousOn hGm
+  have hfix : F (ρ (ι y)) = ι y := by
+    ext j
+    have := congrFun hy j
+    simp only [G] at this
+    show F (ρ (ι y)) j = 2 * y j - 1
+    linarith
+  have hin : ι y ∈ Metric.closedBall (0 : E k) 1 := hfix ▸ hmaps (hρ (ι y))
+  refine ⟨ι y, hin, ?_⟩
+  have h2 := hfix
+  rwa [hρid _ hin] at h2
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). Stability of zeros, from Brouwer (Step 4): a continuous map on the
+closed unit ball that moves no point by more than `1` has a zero (apply the fixed point
+theorem to `x ↦ x - F x`). -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step5_zero_stability (k : ℕ)
+    (hB : ∀ F : E k → E k, ContinuousOn F (Metric.closedBall 0 1) →
+      MapsTo F (Metric.closedBall 0 1) (Metric.closedBall 0 1) →
+      ∃ x ∈ Metric.closedBall (0 : E k) 1, F x = x)
+    (F : E k → E k) (hF : ContinuousOn F (Metric.closedBall 0 1))
+    (hclose : ∀ x ∈ Metric.closedBall (0 : E k) 1, ‖F x - x‖ ≤ 1) :
+    ∃ x ∈ Metric.closedBall (0 : E k) 1, F x = 0 := by
+  obtain ⟨x, hx, hfix⟩ := hB (fun x => x - F x) (continuousOn_id.sub hF) (by
+    intro x hx
+    rw [Metric.mem_closedBall, dist_zero_right, ← norm_neg, neg_sub]
+    exact hclose x hx)
+  exact ⟨x, hx, by simpa using hfix⟩
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). Perturbation off zero on a sphere: a continuous map
+`E k → E k` can be changed by less than `δ` on a compact set so that it has no zero on a
+given sphere (smooth approximation; the smooth image of the null sphere is null, so a small
+translate misses `0`). -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step6_avoid_zero_on_sphere (k : ℕ) (G : E k → E k) (hG : Continuous G) {K : Set (E k)}
+    (hK : IsCompact K) (c : E k) {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ) :
+    ∃ G' : E k → E k, Continuous G' ∧ (∀ y ∈ K, ‖G' y - G y‖ < δ) ∧
+      ∀ y ∈ Metric.sphere c ε, G' y ≠ 0 := by
+  rcases Nat.eq_zero_or_pos k with rfl | hk
+  · refine ⟨G, hG, fun y _ => by simpa using hδ, fun y hy => ?_⟩
+    exfalso
+    have hyc : y = c := by
+      ext i
+      exact i.elim0
+    rw [Metric.mem_sphere, hyc, dist_self] at hy
+    exact hε.ne hy
+  haveI : Nontrivial (E k) := ⟨⟨0, EuclideanSpace.single ⟨0, hk⟩ 1, by
+    intro h
+    have := congrArg (fun z : E k => z ⟨0, hk⟩) h
+    simp at this⟩⟩
+  have hL : IsCompact (Metric.cthickening 1 K) := hK.cthickening
+  obtain ⟨r0, hr0, hr0G⟩ := Metric.uniformContinuousOn_iff_le.mp
+    (hL.uniformContinuousOn_of_continuous hG.continuousOn) (δ / 2) (half_pos hδ)
+  have hr : 0 < min r0 1 := lt_min hr0 one_pos
+  obtain ⟨H, hHc, hHG⟩ := hG.exists_contDiff_dist_le_of_forall_mem_ball_dist_le hr
+  have hHK : ∀ a ∈ K, ‖H a - G a‖ ≤ δ / 2 := by
+    intro a ha
+    rw [← dist_eq_norm]
+    refine hHG a (δ / 2) fun x hx => ?_
+    have hxa : dist x a < min r0 1 := hx
+    have m1 := min_le_left r0 1
+    have m2 := min_le_right r0 1
+    exact hr0G x (Metric.mem_cthickening_of_dist_le x a 1 K ha (by linarith))
+      a (Metric.mem_cthickening_of_dist_le a a 1 K ha (by simp)) (by linarith)
+  have hnull : MeasureTheory.volume (H '' Metric.sphere c ε) = 0 :=
+    MeasureTheory.addHaar_image_eq_zero_of_differentiableOn_of_addHaar_eq_zero
+      MeasureTheory.volume (hHc.differentiable (by simp)).differentiableOn
+      (MeasureTheory.Measure.addHaar_sphere MeasureTheory.volume c ε)
+  obtain ⟨v, hv, hvH⟩ : ∃ v ∈ Metric.ball (0 : E k) (δ / 2), v ∉ H '' Metric.sphere c ε := by
+    by_contra hcon
+    push_neg at hcon
+    have hle := MeasureTheory.measure_mono (μ := MeasureTheory.volume)
+      (show Metric.ball (0 : E k) (δ / 2) ⊆ H '' Metric.sphere c ε from hcon)
+    rw [hnull] at hle
+    exact (Metric.measure_ball_pos MeasureTheory.volume (0 : E k) (half_pos hδ)).ne'
+      (le_antisymm hle (zero_le _))
+  refine ⟨fun y => H y - v, hHc.continuous.sub continuous_const, fun y hy => ?_,
+    fun y hy h0 => hvH ⟨y, hy, sub_eq_zero.mp h0⟩⟩
+  have h1 := hHK y hy
+  have h2 : ‖v‖ < δ / 2 := by simpa using hv
+  calc ‖H y - v - G y‖ = ‖(H y - G y) - v‖ := by congr 1; abel
+    _ ≤ ‖H y - G y‖ + ‖v‖ := norm_sub_le _ _
+    _ < δ := by linarith
+
+/-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). Local invariance of domain from stability of zeros
+(Tao's argument: Tietze-extend the inverse of `g`, push the image off a hypothetical missing
+value onto a small sphere, perturb off zero there with Step 6, contradict Step 5): a continuous
+injective map from the closed unit ball of `E k` to `E k` sends the centre to an interior point
+of its image. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step7_domain_invariance (k : ℕ)
+    (hZ : ∀ F : E k → E k, ContinuousOn F (Metric.closedBall 0 1) →
+      (∀ x ∈ Metric.closedBall (0 : E k) 1, ‖F x - x‖ ≤ 1) →
+      ∃ x ∈ Metric.closedBall (0 : E k) 1, F x = 0)
+    (g : Metric.closedBall (0 : E k) 1 → E k) (hg : Continuous g)
+    (hinj : Function.Injective g) :
+    g ⟨0, Metric.mem_closedBall_self zero_le_one⟩ ∈ interior (range g) := by
+  classical
+  haveI : CompactSpace (Metric.closedBall (0 : E k) 1) :=
+    isCompact_iff_compactSpace.mp (isCompact_closedBall 0 1)
+  have hce : Topology.IsClosedEmbedding g := hg.isClosedEmbedding hinj
+  obtain ⟨G, hGg⟩ := (⟨Subtype.val, continuous_subtype_val⟩ :
+    C(Metric.closedBall (0 : E k) 1, E k)).exists_extension' hce
+  have hGx : ∀ x, G (g x) = (x : E k) := fun x => congrFun hGg x
+  set x0 : Metric.closedBall (0 : E k) 1 := ⟨0, Metric.mem_closedBall_self zero_le_one⟩
+    with hx0
+  set p := g x0 with hp
+  have hGp : G p = 0 := hGx x0
+  obtain ⟨η, hη, hηG⟩ := Metric.continuous_iff.mp G.continuous p (1 / 10) (by norm_num)
+  have hGsmall : ∀ y, dist y p < η → ‖G y‖ < 1 / 10 := by
+    intro y hy
+    have := hηG y hy
+    rwa [hGp, dist_zero_right] at this
+  set ε := η / 3 with hεdef
+  have hε : 0 < ε := by positivity
+  rw [mem_interior]
+  refine ⟨Metric.ball p ε, ?_, Metric.isOpen_ball, Metric.mem_ball_self hε⟩
+  intro c hc
+  rw [Metric.mem_ball] at hc
+  by_contra hcr
+  set S1 : Set (E k) := range g ∩ {y | ε ≤ dist y c} with hS1
+  have hS1c : IsCompact S1 :=
+    (isCompact_range hg).inter_right
+      (isClosed_le continuous_const (continuous_id.dist continuous_const))
+  have hGne : ∀ y ∈ S1, G y ≠ 0 := by
+    rintro y ⟨⟨x, rfl⟩, hy⟩ h0
+    rw [hGx] at h0
+    have hx : g x = p := by rw [show x = x0 from Subtype.ext h0]
+    simp only [mem_setOf_eq, hx] at hy
+    rw [dist_comm] at hy
+    linarith
+  obtain ⟨δ, hδ, hδle⟩ : ∃ δ > 0, ∀ y ∈ S1, δ ≤ ‖G y‖ := by
+    rcases S1.eq_empty_or_nonempty with h | h
+    · exact ⟨1, one_pos, by simp [h]⟩
+    · obtain ⟨y0, hy0, hmin⟩ :=
+        hS1c.exists_isMinOn h (continuous_norm.comp G.continuous).continuousOn
+      exact ⟨‖G y0‖, norm_pos_iff.mpr (hGne y0 hy0), fun y hy => hmin hy⟩
+  set δ' := min δ (1 / 10) with hδ'def
+  have hδ' : 0 < δ' := lt_min hδ (by norm_num)
+  have hδ'1 : δ' ≤ δ := min_le_left _ _
+  have hδ'2 : δ' ≤ 1 / 10 := min_le_right _ _
+  obtain ⟨G', hG'c, hG'close, hG'ne⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step6_avoid_zero_on_sphere k G G.continuous (hS1c.union (isCompact_sphere c ε)) c hε hδ'
+  have hcne : ∀ x, g x - c ≠ 0 := fun x h => hcr ⟨x, sub_eq_zero.mp h⟩
+  let Φ : E k → E k := fun y => c + max (ε / ‖y - c‖) 1 • (y - c)
+  have hΦc : Continuous fun x => Φ (g x) := by
+    refine continuous_const.add (Continuous.smul ?_ (hg.sub continuous_const))
+    exact (continuous_const.div (continuous_norm.comp (hg.sub continuous_const))
+      (fun x => norm_ne_zero_iff.mpr (hcne x))).max continuous_const
+  have key : ∀ x, G' (Φ (g x)) ≠ 0 ∧ ‖G' (Φ (g x)) - x‖ ≤ 1 := by
+    intro x
+    have hpos : 0 < ‖g x - c‖ := norm_pos_iff.mpr (hcne x)
+    by_cases hfar : ε ≤ dist (g x) c
+    · have hmax : max (ε / ‖g x - c‖) 1 = 1 := by
+        apply max_eq_right
+        rw [div_le_one hpos]
+        rwa [dist_eq_norm] at hfar
+      have hΦ : Φ (g x) = g x := by
+        show c + max (ε / ‖g x - c‖) 1 • (g x - c) = g x
+        rw [hmax, one_smul, add_sub_cancel]
+      have hmem : g x ∈ S1 := ⟨⟨x, rfl⟩, hfar⟩
+      have hcl := hG'close (g x) (Or.inl hmem)
+      rw [hΦ]
+      constructor
+      · intro h0
+        have := hδle _ hmem
+        rw [h0, zero_sub, norm_neg] at hcl
+        linarith
+      · rw [hGx] at hcl
+        linarith
+    · push_neg at hfar
+      have hd : ‖g x - c‖ < ε := by rwa [dist_eq_norm] at hfar
+      have hmax : max (ε / ‖g x - c‖) 1 = ε / ‖g x - c‖ := by
+        apply max_eq_left
+        rw [le_div_iff₀ hpos]
+        linarith
+      have hsph : Φ (g x) ∈ Metric.sphere c ε := by
+        rw [Metric.mem_sphere, dist_eq_norm]
+        show ‖c + max (ε / ‖g x - c‖) 1 • (g x - c) - c‖ = ε
+        rw [hmax, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg (by positivity),
+          div_mul_cancel₀ _ hpos.ne']
+      have hcl := hG'close _ (Or.inr hsph)
+      refine ⟨hG'ne _ hsph, ?_⟩
+      have h1 : dist (Φ (g x)) p < η := by
+        have := dist_triangle (Φ (g x)) c p
+        rw [Metric.mem_sphere] at hsph
+        linarith
+      have h2 : dist (g x) p < η := by
+        have := dist_triangle (g x) c p
+        linarith
+      have hA := hGsmall _ h1
+      have hB := hGsmall _ h2
+      rw [hGx] at hB
+      have e1 := norm_sub_le (G' (Φ (g x))) (x : E k)
+      have e2 := norm_sub_norm_le (G' (Φ (g x))) (G (Φ (g x)))
+      linarith
+  let F : E k → E k := fun z =>
+    if h : z ∈ Metric.closedBall (0 : E k) 1 then G' (Φ (g ⟨z, h⟩)) else 0
+  have hFc : ContinuousOn F (Metric.closedBall 0 1) := by
+    rw [continuousOn_iff_continuous_restrict]
+    have : (Metric.closedBall (0 : E k) 1).restrict F = fun x => G' (Φ (g x)) := by
+      funext x
+      simp only [restrict_apply, F, dif_pos x.2]
+    rw [this]
+    exact hG'c.comp hΦc
+  obtain ⟨z, hz, hFz⟩ := hZ F hFc (fun z hz => by
+    have := (key ⟨z, hz⟩).2
+    simpa only [F, dif_pos hz] using this)
+  exact (key ⟨z, hz⟩).1 (by simpa only [F, dif_pos hz] using hFz)
+
+/-- Step 8 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). A closed `k`-ball does not embed continuously into
+`E j` for `j < k`: composing with the coordinate inclusion `E j → E k`, the image would lie
+in a proper coordinate hyperplane (empty interior), contradicting Step 7. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step8_ball_embedding_le {k j : ℕ} (g : Metric.closedBall (0 : E k) 1 → E j)
+    (hg : Continuous g) (hinj : Function.Injective g) : k ≤ j := by
+  by_contra hjk
+  push_neg at hjk
+  let ι : E j → E k := fun y =>
+    WithLp.toLp 2 (fun i : Fin k => if h : (i : ℕ) < j then y ⟨i, h⟩ else 0)
+  have hιc : Continuous ι := by
+    refine (PiLp.continuous_toLp 2 _).comp (continuous_pi fun i => ?_)
+    by_cases h : (i : ℕ) < j
+    · simp only [h, dif_pos]
+      exact (EuclideanSpace.proj (𝕜 := ℝ) (⟨i, h⟩ : Fin j)).continuous
+    · simp only [h, dif_neg, not_false_eq_true]
+      exact continuous_const
+  have hιi : Function.Injective ι := by
+    intro y y' hyy
+    ext i
+    have := congrArg (fun z : E k => z (Fin.castLE hjk.le i)) hyy
+    simpa [ι] using this
+  let j' : Fin k := ⟨j, hjk⟩
+  let S : Submodule ℝ (E k) := LinearMap.ker (EuclideanSpace.proj (𝕜 := ℝ) j').toLinearMap
+  have hrange : range (ι ∘ g) ⊆ (S : Set (E k)) := by
+    rintro _ ⟨x, rfl⟩
+    simp [S, ι, j']
+  have hint := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step7_domain_invariance k (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step5_zero_stability k (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed k)) (ι ∘ g) (hιc.comp hg) (hιi.comp hinj)
+  have hS : S = ⊤ :=
+    S.eq_top_of_nonempty_interior' ⟨_, interior_mono hrange hint⟩
+  have hmem : EuclideanSpace.single j' (1 : ℝ) ∈ S := by rw [hS]; trivial
+  simp [S] at hmem
+
+/-- Step 9 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension` (V4 1.24):
+"a compact `(d-1)`-manifold" (invariance of Euclidean dimension, used to read off the
+local dimension of the manifold). A nonempty open subset of `E a` admitting a continuous
+injection into `E b` forces `a ≤ b`: restrict to a small closed ball and apply Step 8. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step9_open_embedding_le {a b : ℕ} {W : Set (E a)} (hW : IsOpen W) (hne : W.Nonempty)
+    (ψ : W → E b) (hψ : Continuous ψ) (hinj : Function.Injective ψ) : a ≤ b := by
+  obtain ⟨w, hw⟩ := hne
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hW w hw
+  have hr : 0 < ε / 2 := half_pos hε
+  have hmem (z : Metric.closedBall (0 : E a) 1) : w + (ε / 2) • (z : E a) ∈ W := by
+    apply hball
+    rw [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hr.le]
+    have hz : ‖(z : E a)‖ ≤ 1 := by
+      have := z.property
+      rwa [Metric.mem_closedBall, dist_zero_right] at this
+    nlinarith
+  refine principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step8_ball_embedding_le (fun z => ψ ⟨w + (ε / 2) • (z : E a), hmem z⟩)
+    (hψ.comp (Continuous.subtype_mk (by fun_prop) _)) ?_
+  intro z z' hzz
+  have h1 := Subtype.mk.inj (hinj hzz)
+  have h2 : (ε / 2) • (z : E a) = (ε / 2) • (z' : E a) := add_left_cancel h1
+  exact Subtype.ext (smul_right_injective _ hr.ne' h2)
+
 /-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
 "a compact `(d-1)`-manifold". Invariance of Euclidean dimension: nonempty
 open subsets of two Euclidean spaces can be homeomorphic only when their
@@ -1851,7 +2298,15 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
     {m n : ℕ} {U : Set (E m)} {V : Set (E n)}
     (hU : IsOpen U) (hV : IsOpen V) (hne : U.Nonempty)
     (h : Nonempty (U ≃ₜ V)) : m = n := by
-  sorry
+  obtain ⟨φ⟩ := h
+  obtain ⟨u, hu⟩ := hne
+  refine le_antisymm
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step9_open_embedding_le hU ⟨u, hu⟩
+      (fun x => (φ x : E n)) (by fun_prop)
+      (fun x y hxy => φ.injective (Subtype.ext hxy)))
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step9_open_embedding_le hV ⟨_, (φ ⟨u, hu⟩).property⟩
+      (fun y => (φ.symm y : E m)) (by fun_prop)
+      (fun x y hxy => φ.symm.injective (Subtype.ext hxy)))
 
 /-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation` (V4 1.24):
 "a compact `(d-1)`-manifold". Restrict a manifold chart to a nonempty open

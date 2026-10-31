@@ -5652,7 +5652,72 @@ theorem state_semantics_c (P : Params S) (s : State P) (hs : s ∈ honestStates 
     ∃ w : ShortProfile P, r.counter = .inr w ∧
       w.word.length < P.siteDepth r.incidence r.sideIndex ∧
       r.age.val = w.word.length + 1 ∧ r.age.val ≤ P.H_site ∧ r.age.val < P.C := by
-  sorry
+  obtain ⟨U, q, rfl⟩ := mem_honestStates P s |>.mp hs
+  have hr' : U.facetRecordOf P q f = some r := hr
+  change (by classical exact if hf : U.hierarchy.IsFault q f then none else some (U.recordOf P q f hf)) = some r at hr'
+  by_cases hf : U.hierarchy.IsFault q f
+  · rw [dif_pos hf] at hr'
+    contradiction
+  · rw [dif_neg hf] at hr'
+    have hr_eq : r = U.recordOf P q f hf := Option.some.inj hr' |>.symm
+    subst hr_eq
+    let a := (U.hierarchy.firstProvider q f hf).1
+    let r_depth := P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf)
+    have h_cp : (U.recordOf P q f hf).counter = (by classical exact if h : a < r_depth then (Sum.inr {
+        word := U.downRoles q a,
+        length_lt := by
+          simp only [HonestSource.downRoles, List.length_reverse, List.length_ofFn]
+          exact lt_trans h (P.siteDepth_lt _ _) } : ConstantProfile P (U.recordOf P q f hf).ty ⊕ ShortProfile P)
+        else (Sum.inl (U.constantProfile P q f hf) : ConstantProfile P (U.recordOf P q f hf).ty ⊕ ShortProfile P)) := rfl
+    by_cases h : a < r_depth
+    · rw [dif_pos h] at h_cp
+      use {
+        word := U.downRoles q a,
+        length_lt := by
+          simp only [HonestSource.downRoles, List.length_reverse, List.length_ofFn]
+          exact lt_trans h (P.siteDepth_lt _ _) }
+      have h1 : U.hierarchy.age q f hf = a + 1 := by
+        dsimp [CoherentHierarchy.age, CoherentHierarchy.birthHeight, CoherentHierarchy.birthParent]
+        change (U.hierarchy.parentNode (U.hierarchy.servingChild q f hf)).1 - q.1 = a + 1
+        dsimp [CoherentHierarchy.parentNode, CoherentHierarchy.servingChild]
+        rw [CoherentHierarchy.ancestor_height]
+        omega
+      have h_min : min (U.hierarchy.age q f hf) P.C = a + 1 := by
+        rw [h1]
+        have h3 : P.H_site ≤ P.C := by
+          rw [P.C_eq]
+          omega
+        have h2 := P.siteDepth_lt (U.recordIncidence P q f hf) (U.recordSide P q f hf)
+        apply min_eq_left
+        omega
+      refine ⟨h_cp, ?_, ?_, ?_, ?_⟩
+      · dsimp
+        simp only [HonestSource.downRoles, List.length_reverse, List.length_ofFn]
+        exact h
+      · show min (U.hierarchy.age q f hf) P.C = (U.downRoles q a).length + 1
+        rw [h_min]
+        dsimp [HonestSource.downRoles]
+        simp only [List.length_reverse, List.length_ofFn]
+      · show min (U.hierarchy.age q f hf) P.C ≤ P.H_site
+        rw [h_min]
+        have h2 := P.siteDepth_lt (U.recordIncidence P q f hf) (U.recordSide P q f hf)
+        omega
+      · show min (U.hierarchy.age q f hf) P.C < P.C
+        rw [h_min]
+        have h2 := P.siteDepth_lt (U.recordIncidence P q f hf) (U.recordSide P q f hf)
+        have h3 : P.H_site ≤ P.C := by
+          rw [P.C_eq]
+          omega
+        have h4 : P.H_site < P.C := by
+          rw [P.C_eq]
+          omega
+        omega
+    · rw [dif_neg h] at h_cp
+      exfalso
+      apply hjump
+      change FacetRecord.kappaPlus (U.recordOf P q f hf) e = FacetRecord.kappaMinus (U.recordOf P q f hf) e
+      dsimp [FacetRecord.kappaPlus, FacetRecord.kappaMinus]
+      rw [h_cp]
 
 /-- Q7, V4 2.4(d): every active edge type is reachable from the serving flag edge.
 The graph is the existing hereditary edge graph of V4 1.20. -/

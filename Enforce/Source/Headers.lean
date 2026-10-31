@@ -4733,10 +4733,26 @@ theorem native_subdivision (n : ℕ) :
         (S.σ ^ n) '' (⋃ t ∈ P.tiles, t.carrier 0) := by
   sorry
 
+/-- Step 1 of the V4 proof of `incident_width_monotone` (V4 1.14):
+"every element of I_n has at least one child in I_{n+1}" -/
+private theorem incident_width_monotone_step1_child_exists
+    (P : CompatiblePatch S) (p : E d) (n : ℕ) (a : P.Incident p n) :
+    ∃ b : P.Incident p (n + 1), P.IncidentChild p n a b := by
+  sorry
+
 /-- P9, V4 1.14: the number of incident tiles never decreases with depth. -/
 theorem incident_width_monotone (p : E d) (n : ℕ) :
     Nat.card (P.Incident p n) ≤ Nat.card (P.Incident p (n + 1)) := by
-  sorry
+  by_cases h : IsEmpty (P.Incident p n)
+  · have h0 : Nat.card (P.Incident p n) = 0 := Nat.card_eq_zero.mpr (Or.inl h)
+    rw [h0]
+    exact Nat.zero_le _
+  · haveI : Nonempty (P.Incident p n) := not_isEmpty_iff.mp h
+    let f : P.Incident p (n + 1) → P.Incident p n := fun b => P.incidentParent p n b
+    have hsurj : Function.Surjective f := fun a =>
+      let ⟨b, hb⟩ := incident_width_monotone_step1_child_exists P p n a
+      ⟨b, ExistsUnique.unique (P.incident_parent_exists_unique p n b) (P.incidentParent_spec p n b) hb⟩
+    exact Nat.card_le_card_of_surjective f hsurj
 
 /-- P12, V4 1.17: every incident tile listing the anchor contributes its full
 header, with the actual named vertex. This supplies witnesses to the header set. -/

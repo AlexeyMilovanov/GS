@@ -212,7 +212,14 @@ theorem decoration_interior (C : ClusterData S P)
 theorem decoration_frontier (C : ClusterData S P)
     (Q : {Q // Q ∈ (systemM S P C).physical}) (x : Q.val.carrier)
     (hx : x.val ∈ frontier Q.val.carrier) : π S P (Q.val.mark x) = none := by
-  sorry
+  have h_spec := physicalLeaf_spec C Q
+  revert x hx
+  rw [← h_spec]
+  intro x hx
+  have h_bound := augmentedMarking_boundary C (physicalLeaf C Q) x.val hx
+  change π S P (augmentedColour C (physicalLeaf C Q) x.val) = none
+  rw [h_bound]
+  rfl
 
 end Compiler
 

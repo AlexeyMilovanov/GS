@@ -12168,7 +12168,22 @@ theorem AscentLink.birthHeight_lt {A : S.ι} (k : ℕ) (f g : PrimitiveFacet S A
 original type already has at least two children. -/
 theorem firstBranching_zero_iff (A : S.ι) :
     (firstBranching A).1 = 0 ↔ 2 ≤ Fintype.card (S.I A) := by
-  sorry
+  have h := firstBranching_spec A
+  revert h
+  generalize firstBranching A = a
+  obtain ⟨n, w⟩ := a
+  cases n with
+  | zero =>
+    intro h
+    exact ⟨fun _ => h.2.1, fun _ => rfl⟩
+  | succ m =>
+    intro h
+    have h1 : Fintype.card (S.I A) = 1 := h.1.1
+    constructor
+    · intro h0
+      exact absurd h0 (Nat.succ_ne_zero m)
+    · intro h2
+      omega
 
 /-- P22, V4 8.3: the replacement required list is never empty for an actual type. -/
 theorem required_list_nonempty (A : S.ι) : (required_list A).Nonempty := by

@@ -1656,6 +1656,830 @@ def boundaryFacetAdjacent (P : FramedNode S) (n : ℕ) (g : FacetName S P.ty)
     (P.child n a.val.1).cell n e.val ⊆ (P.child n a.val.1).cell n a.val.2.val ∧
     (P.child n b.val.1).cell n f.val ⊆ (P.child n b.val.1).cell n b.val.2.val
 
+/-- Step 1 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "transported by
+the frame". The height-`n` frame of the child of role `i` is the parent's
+height-`n+1` frame after the prescribed child frame and `σ⁻¹`. -/
+private theorem boundary_facet_adjacency_step1_child_frame (N : FramedNode S)
+    (n : ℕ) (i : S.I N.ty) (x : E d) :
+    (N.child n i).prototypeFrame n x =
+      N.prototypeFrame (n + 1) (S.σ.symm ((S.child N.ty i).frame x)) := by
+  change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    N.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child N.ty i).frame x)))
+  congr 1
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
+    LinearEquiv.mul_apply, ← map_add]
+
+/-- Step 1 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "Covering:
+`g = φ(F)` ... by (H5) `σF` is a union of placed `(d-1)`-cells of the children ...;
+transported by the frame, `g` is a union of facets of children of `A`, each
+contained in `g`." -/
+private theorem boundary_facet_adjacency_step1_cover (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) :
+    (⋃ a : BoundaryFacet P n g, (P.child n a.val.1).cell n a.val.2.val) =
+        P.cell (n + 1) g.val := by
+  apply Set.Subset.antisymm
+  · exact Set.iUnion_subset fun a => a.property
+  · rintro x ⟨y, hy, rfl⟩
+    have hg := Finset.mem_filter.mp g.property
+    obtain ⟨f, hf⟩ := S.heredity P.ty g.val hg.1
+    have hσy : S.σ y ∈ S.σ '' g.val.carrier := ⟨y, hy, rfl⟩
+    rw [hf] at hσy
+    obtain ⟨q, hqf, hq⟩ := Set.mem_iUnion₂.mp hσy
+    obtain ⟨z, hz, hzy⟩ := hq
+    have hqfac : q.2.val ∈ (S.cx (P.child n q.1).ty).facets := by
+      refine Finset.mem_filter.mpr ⟨q.2.property.1, ?_⟩
+      rw [q.2.property.2, hg.2]
+    have hsub : (P.child n q.1).cell n q.2.val ⊆ P.cell (n + 1) g.val := by
+      rintro w ⟨u, hu, rfl⟩
+      have hmem : (S.child P.ty q.1).frame u ∈ S.σ '' g.val.carrier := by
+        rw [hf]
+        exact Set.mem_iUnion₂.mpr ⟨q, hqf, ⟨u, hu, rfl⟩⟩
+      obtain ⟨v, hv, hvu⟩ := hmem
+      refine ⟨v, hv, ?_⟩
+      rw [boundary_facet_adjacency_step1_child_frame, ← hvu, S.σ.symm_apply_apply]
+    refine Set.mem_iUnion.mpr ⟨⟨⟨q.1, ⟨q.2.val, hqfac⟩⟩, hsub⟩, ⟨z, hz, ?_⟩⟩
+    change (P.child n q.1).prototypeFrame n z = P.prototypeFrame (n + 1) y
+    rw [boundary_facet_adjacency_step1_child_frame]
+    rw [hzy, S.σ.symm_apply_apply]
+
+omit [Fact (2 ≤ d)] in
+/-- Step 2 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "transported by
+the frame". Relative interiors commute with invertible affine maps. -/
+private theorem boundary_facet_adjacency_step2_relint_image (e : E d ≃ᵃ[ℝ] E d)
+    (K : Set (E d)) : relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 4 of the V4 proof of `boundary_facet_adjacency` (V4 1.8, via 1.1): a
+listed cell whose relative interior meets a listed cell is contained in it
+(it is the minimal cell of the meeting point). -/
+private theorem boundary_facet_adjacency_step4_minimal {A : PolyManifoldDomain d}
+    (K : CellComplex A) (e f : Cell d) (he : e ∈ K.cells) (hf : f ∈ K.cells)
+    (x : E d) (hx : x ∈ relint e.carrier) (hxf : x ∈ f.carrier) :
+    e.carrier ⊆ f.carrier := by
+  have hfr : x ∈ frontier A.carrier := by
+    rw [← K.cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hx⟩
+  have hmin : K.minimalCell x hfr = e := by
+    have hu := (K.exists_unique_minimalCell x hfr).unique
+      (y₁ := ⟨K.minimalCell x hfr, K.minimalCell_mem x hfr⟩) (y₂ := ⟨e, he⟩)
+      (K.mem_relint_minimalCell x hfr) hx
+    exact congrArg Subtype.val hu
+  rw [← hmin]
+  exact K.minimalCell_subset x hfr f hf hxf
+
+omit [Fact (2 ≤ d)] in
+/-- Step 4 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): a common cell
+of two children has one dimension (isometries preserve affine dimension). -/
+private theorem boundary_facet_adjacency_step4_dim (φ ψ : Iso d) (e f : Cell d)
+    (h : φ '' e.carrier = ψ '' f.carrier) : e.dim = f.dim := by
+  have key : ∀ (χ : Iso d) (K : Set (E d)), Module.finrank ℝ (cellDirection (χ '' K)) =
+      Module.finrank ℝ (cellDirection K) := by
+    intro χ K
+    have hs : affineSpan ℝ (χ '' K) =
+        (affineSpan ℝ K).map (χ.toAffineEquiv : E d →ᵃ[ℝ] E d) :=
+      (AffineSubspace.map_span (χ.toAffineEquiv : E d →ᵃ[ℝ] E d) K).symm
+    unfold cellDirection
+    rw [hs, AffineSubspace.map_direction]
+    exact LinearEquiv.finrank_map_eq χ.toAffineEquiv.linear _
+  rw [← e.flat.dimension, ← f.flat.dimension, ← key φ e.carrier, ← key ψ f.carrier, h]
+
+/-- Step 2 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "two child
+facets inside `g` from the same child have disjoint relative interiors by (H2)".
+Distinct listed facets of one child have disjoint placed relative interiors. -/
+private theorem boundary_facet_adjacency_step2_same_child (P : FramedNode S) (n : ℕ)
+    (i : S.I P.ty) (e f : FacetName S (P.child n i).ty) (hef : e ≠ f) :
+    Disjoint (relint ((P.child n i).cell n e.val))
+      (relint ((P.child n i).cell n f.val)) := by
+  change Disjoint (relint ((P.child n i).prototypeFrame n '' e.val.carrier))
+    (relint ((P.child n i).prototypeFrame n '' f.val.carrier))
+  rw [boundary_facet_adjacency_step2_relint_image,
+    boundary_facet_adjacency_step2_relint_image,
+    Set.disjoint_image_iff ((P.child n i).prototypeFrame n).injective]
+  exact (S.cx _).relint_disjoint _ (Finset.mem_filter.mp e.property).1 _
+    (Finset.mem_filter.mp f.property).1 (fun h => hef (Subtype.ext h))
+
+omit [Fact (2 ≤ d)] in
+/-- Step 2 of the V4 proof of `boundary_facet_adjacency` (V4 1.8, via Lemma 1.0(a)):
+"a common relative-interior point would make both children lie on the same side ...
+contradicting disjoint interiors" — the local point-reflection argument. Two closed sets
+which near `q` are closed half-balls `{0 ≤ fₖ}` (with `fₖ` odd under the point reflection
+at `q`) and have disjoint interiors cover a ball around `q`: a point outside both would
+reflect to a point inside both interiors. Hence `q` is interior to any common superset. -/
+private theorem boundary_facet_adjacency_step2_reflect_cover (W C₁ C₂ : Set (E d))
+    (q : E d) (r₁ r₂ : ℝ) (hr₁ : 0 < r₁) (hr₂ : 0 < r₂) (f₁ f₂ : E d → ℝ)
+    (hf₁ : Continuous f₁) (hf₂ : Continuous f₂)
+    (ho₁ : ∀ y, f₁ (q + (q - y)) = - f₁ y) (ho₂ : ∀ y, f₂ (q + (q - y)) = - f₂ y)
+    (hs₁ : C₁ ∩ ball q r₁ = {y | 0 ≤ f₁ y} ∩ ball q r₁)
+    (hs₂ : C₂ ∩ ball q r₂ = {y | 0 ≤ f₂ y} ∩ ball q r₂)
+    (h₁W : C₁ ⊆ W) (h₂W : C₂ ⊆ W) (hdisj : Disjoint (interior C₁) (interior C₂)) :
+    q ∈ interior W := by
+  have hr : 0 < min r₁ r₂ := lt_min hr₁ hr₂
+  have hb₁ : ball q (min r₁ r₂) ⊆ ball q r₁ := ball_subset_ball (min_le_left _ _)
+  have hb₂ : ball q (min r₁ r₂) ⊆ ball q r₂ := ball_subset_ball (min_le_right _ _)
+  have hin₁ : ∀ y ∈ ball q (min r₁ r₂), 0 ≤ f₁ y → y ∈ C₁ := by
+    intro y hy h
+    have hy1 : y ∈ C₁ ∩ ball q r₁ := by
+      rw [hs₁]
+      exact ⟨h, hb₁ hy⟩
+    exact hy1.1
+  have hin₂ : ∀ y ∈ ball q (min r₁ r₂), 0 ≤ f₂ y → y ∈ C₂ := by
+    intro y hy h
+    have hy2 : y ∈ C₂ ∩ ball q r₂ := by
+      rw [hs₂]
+      exact ⟨h, hb₂ hy⟩
+    exact hy2.1
+  rw [mem_interior]
+  refine ⟨ball q (min r₁ r₂), ?_, isOpen_ball, mem_ball_self hr⟩
+  intro y hy
+  by_contra hyW
+  have h₁ : f₁ y < 0 := not_le.mp fun h => hyW (h₁W (hin₁ y hy h))
+  have h₂ : f₂ y < 0 := not_le.mp fun h => hyW (h₂W (hin₂ y hy h))
+  have hy'b : q + (q - y) ∈ ball q (min r₁ r₂) := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, ← dist_eq_norm, dist_comm]
+    exact hy
+  let U : Set (E d) := ({z | 0 < f₁ z} ∩ {z | 0 < f₂ z}) ∩ ball q (min r₁ r₂)
+  have hU : IsOpen U :=
+    ((isOpen_lt continuous_const hf₁).inter (isOpen_lt continuous_const hf₂)).inter
+      isOpen_ball
+  have hy'U : q + (q - y) ∈ U := by
+    refine ⟨⟨?_, ?_⟩, hy'b⟩
+    · show 0 < f₁ (q + (q - y))
+      rw [ho₁]
+      linarith
+    · show 0 < f₂ (q + (q - y))
+      rw [ho₂]
+      linarith
+  have hU₁ : U ⊆ C₁ := fun z hz => hin₁ z hz.2 hz.1.1.le
+  have hU₂ : U ⊆ C₂ := fun z hz => hin₂ z hz.2 hz.1.2.le
+  exact Set.disjoint_left.mp hdisj (interior_maximal hU₁ hU hy'U)
+    (interior_maximal hU₂ hU hy'U)
+
+/-- Step 2 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "Lemma 1.0(a) ...
+at a point of `relint`" of a facet, transported by an isometric child frame: near the
+image of a relative-interior facet point, the placed prototile is a closed half-ball
+`{0 ≤ f}` with `f` continuous and odd under the point reflection at that point. -/
+private theorem boundary_facet_adjacency_step2_child_halfball (A : S.ι) (φ : Iso d)
+    (F : Cell d) (hF : F ∈ (S.cx A).facets) (x : E d) (hx : x ∈ relint F.carrier) :
+    ∃ r : ℝ, 0 < r ∧ ∃ f : E d → ℝ, Continuous f ∧
+      (∀ y, f (φ x + (φ x - y)) = - f y) ∧
+      placedSet φ (S.proto A).carrier ∩ ball (φ x) r = {y | 0 ≤ f y} ∩ ball (φ x) r := by
+  obtain ⟨r, hr, v, -, -, -, hside⟩ := facet_halfball (S.proto A) (S.cx A) F hF x hx
+  refine ⟨r, hr, fun y => inner ℝ v (φ.symm y - x), ?_, ?_, ?_⟩
+  · exact continuous_const.inner (φ.symm.continuous.sub continuous_const)
+  · intro y
+    show inner ℝ v (φ.symm (φ x + (φ x - y)) - x) = - inner ℝ v (φ.symm y - x)
+    rw [← inner_neg_right]
+    congr 1
+    have k1 := (φ.symm.toAffineEquiv.toAffineMap).linearMap_vsub (φ x + (φ x - y)) (φ x)
+    have k2 := (φ.symm.toAffineEquiv.toAffineMap).linearMap_vsub y (φ x)
+    simp only [vsub_eq_sub, add_sub_cancel_left, AffineEquiv.coe_toAffineMap,
+      AffineIsometryEquiv.coe_toAffineEquiv, AffineIsometryEquiv.symm_apply_apply] at k1 k2
+    rw [← k1, ← k2, ← map_neg, neg_sub]
+  · ext y
+    constructor
+    · rintro ⟨⟨w, hw, rfl⟩, hwB⟩
+      have hwB' : w ∈ ball x r := by
+        rw [mem_ball, ← φ.dist_map w x]
+        exact hwB
+      have hw2 : w ∈ (S.proto A).carrier ∩ ball x r := ⟨hw, hwB'⟩
+      rw [hside] at hw2
+      refine ⟨?_, hwB⟩
+      show 0 ≤ inner ℝ v (φ.symm (φ w) - x)
+      rw [φ.symm_apply_apply]
+      exact hw2.1
+    · rintro ⟨hy0, hyB⟩
+      have hwB' : φ.symm y ∈ ball x r := by
+        rw [mem_ball, ← φ.dist_map (φ.symm y) x, φ.apply_symm_apply]
+        exact hyB
+      have hw2 : φ.symm y ∈ {z | 0 ≤ inner ℝ v (z - x)} ∩ ball x r := ⟨hy0, hwB'⟩
+      rw [← hside] at hw2
+      exact ⟨⟨φ.symm y, hw2.1, φ.apply_symm_apply y⟩, hyB⟩
+
+/-- Step 2 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "from distinct
+children `C, C'` a common relative-interior point would make both children lie on
+the same side of `aff g` as `A` (Lemma 1.0(a) for `A` at a point of `relint g`, and
+`C, C' ⊆ A`), contradicting disjoint interiors." -/
+private theorem boundary_facet_adjacency_step2_distinct_children (P : FramedNode S)
+    (n : ℕ) (g : FacetName S P.ty) (a b : BoundaryFacet P n g)
+    (hab : a.val.1 ≠ b.val.1) :
+    Disjoint (relint ((P.child n a.val.1).cell n a.val.2.val))
+      (relint ((P.child n b.val.1).cell n b.val.2.val)) := by
+  obtain ⟨⟨i, F⟩, hF⟩ := a
+  obtain ⟨⟨j, G⟩, hG⟩ := b
+  dsimp only at hab hF hG ⊢
+  rw [Set.disjoint_left]
+  intro p hpF hpG
+  change p ∈ relint ((P.child n i).prototypeFrame n '' F.val.carrier) at hpF
+  change p ∈ relint ((P.child n j).prototypeFrame n '' G.val.carrier) at hpG
+  rw [boundary_facet_adjacency_step2_relint_image] at hpF hpG
+  obtain ⟨x, hx, rfl⟩ := hpF
+  obtain ⟨z, hz, hzx⟩ := hpG
+  have hzx' : (S.child P.ty j).frame z = (S.child P.ty i).frame x := by
+    change (P.child n j).prototypeFrame n z = (P.child n i).prototypeFrame n x at hzx
+    rw [boundary_facet_adjacency_step1_child_frame,
+      boundary_facet_adjacency_step1_child_frame] at hzx
+    exact S.σ.symm.injective ((P.prototypeFrame (n + 1)).injective hzx)
+  obtain ⟨r₁, hr₁, f₁, hf₁, ho₁, hs₁⟩ := boundary_facet_adjacency_step2_child_halfball
+    (P.child n i).ty (S.child P.ty i).frame F.val F.property x hx
+  obtain ⟨r₂, hr₂, f₂, hf₂, ho₂, hs₂⟩ := boundary_facet_adjacency_step2_child_halfball
+    (P.child n j).ty (S.child P.ty j).frame G.val G.property z hz
+  rw [hzx'] at ho₂ hs₂
+  have hsubW : ∀ k : S.I P.ty, placedSet (S.child P.ty k).frame
+      (S.proto (S.child P.ty k).ty).carrier ⊆ S.σ '' (S.proto P.ty).carrier := by
+    intro k
+    rw [S.children_cover]
+    exact Set.subset_iUnion (fun l : S.I P.ty =>
+      placedSet (S.child P.ty l).frame (S.proto (S.child P.ty l).ty).carrier) k
+  have hint := boundary_facet_adjacency_step2_reflect_cover (S.σ '' (S.proto P.ty).carrier)
+    _ _ _ r₁ r₂ hr₁ hr₂ f₁ f₂ hf₁ hf₂ ho₁ ho₂ hs₁ hs₂ (hsubW i) (hsubW j)
+    (S.children_disjoint P.ty hab)
+  have hpg : (P.child n i).prototypeFrame n x ∈ P.cell (n + 1) g.val :=
+    hF ⟨x, intrinsicInterior_subset hx, rfl⟩
+  obtain ⟨y, hy, hyx⟩ := hpg
+  rw [boundary_facet_adjacency_step1_child_frame] at hyx
+  have hyq : S.σ y = (S.child P.ty i).frame x := by
+    rw [(P.prototypeFrame (n + 1)).injective hyx]
+    exact S.σ.apply_symm_apply _
+  have hgc : g.val ∈ (S.cx P.ty).cells := (Finset.mem_filter.mp g.property).1
+  have hyfr : y ∈ frontier (S.proto P.ty).carrier := by
+    rw [← (S.cx P.ty).carriers_cover]
+    exact Set.mem_iUnion₂.mpr ⟨g.val, hgc, hy⟩
+  have hfr : S.σ y ∈ frontier (S.σ '' (S.proto P.ty).carrier) := by
+    let H := S.σ.toContinuousLinearEquiv.toHomeomorph
+    change H y ∈ frontier (H '' (S.proto P.ty).carrier)
+    rw [← H.image_frontier]
+    exact ⟨y, hyfr, rfl⟩
+  rw [hyq] at hfr
+  exact Set.disjoint_left.mp disjoint_interior_frontier hint hfr
+
+/-- Step 4 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "Each crossing
+passes between two child facets sharing a relatively open piece of a `(d-2)`-cell."
+If `p` is in the relative interior of a `(d-2)`-cell `e ⊆ a` of `a`'s child and
+`p` lies in `b`, then `e` is (by minimality, and by (H6) for a different child) a
+common listed `(d-2)`-cell of both facets. -/
+private theorem boundary_facet_adjacency_step4_crossing (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (a b : BoundaryFacet P n g) (hab : a ≠ b)
+    (e : CellName S (P.child n a.val.1).ty) (he : e.val.dim = d - 2)
+    (hea : (P.child n a.val.1).cell n e.val ⊆ (P.child n a.val.1).cell n a.val.2.val)
+    (p : E d) (hp : p ∈ relint ((P.child n a.val.1).cell n e.val))
+    (hpb : p ∈ (P.child n b.val.1).cell n b.val.2.val) :
+    boundaryFacetAdjacent P n g a b := by
+  obtain ⟨⟨i, F⟩, hF⟩ := a
+  obtain ⟨⟨j, G⟩, hG⟩ := b
+  dsimp only at e he hea hp hpb ⊢
+  change p ∈ relint ((P.child n i).prototypeFrame n '' e.val.carrier) at hp
+  rw [boundary_facet_adjacency_step2_relint_image] at hp
+  obtain ⟨x, hx, rfl⟩ := hp
+  obtain ⟨z, hz, hzx⟩ := hpb
+  have hGc := (Finset.mem_filter.mp G.property).1
+  by_cases hij : i = j
+  · subst hij
+    have hxG : x ∈ G.val.carrier := by
+      rw [((P.child n i).prototypeFrame n).injective hzx] at hz
+      exact hz
+    refine ⟨hab, e, e, he, he, rfl, hea, ?_⟩
+    have hsub := boundary_facet_adjacency_step4_minimal _ _ _ e.property hGc x hx hxG
+    rintro _ ⟨u, hu, rfl⟩
+    exact ⟨u, hsub hu, rfl⟩
+  · have hzx' : (S.child P.ty j).frame z = (S.child P.ty i).frame x := by
+      change (P.child n j).prototypeFrame n z = (P.child n i).prototypeFrame n x at hzx
+      rw [boundary_facet_adjacency_step1_child_frame,
+        boundary_facet_adjacency_step1_child_frame] at hzx
+      exact S.σ.symm.injective ((P.prototypeFrame (n + 1)).injective hzx)
+    have hfront : ∀ (k : S.ι) (c : Cell d), c ∈ (S.cx k).cells →
+        c.carrier ⊆ (S.proto k).carrier := by
+      intro k c hc w hw
+      apply (S.proto k).compact.isClosed.frontier_subset
+      rw [← (S.cx k).carriers_cover]
+      exact Set.mem_iUnion₂.mpr ⟨c, hc, hw⟩
+    have hxA := hfront _ e.val e.property (intrinsicInterior_subset hx)
+    have hzA := hfront _ G.val hGc hz
+    have hxe : (S.child P.ty i).frame.symm ((S.child P.ty i).frame x) ∈
+        relint e.val.carrier := by
+      rw [(S.child P.ty i).frame.symm_apply_apply]
+      exact hx
+    obtain ⟨f, hf, hfe⟩ := S.sibling_conformity P.ty i j hij ((S.child P.ty i).frame x)
+      ⟨x, hxA, rfl⟩ ⟨z, hzA, hzx'⟩ e.val e.property hxe (le_of_eq he)
+    have himg : ∀ (k : S.I P.ty) (c : Cell d), (P.child n k).cell n c =
+        (fun w => P.prototypeFrame (n + 1) (S.σ.symm w)) ''
+          placedSet (S.child P.ty k).frame c.carrier := by
+      intro k c
+      ext w
+      constructor
+      · rintro ⟨u, hu, rfl⟩
+        exact ⟨_, ⟨u, hu, rfl⟩, (boundary_facet_adjacency_step1_child_frame P n k u).symm⟩
+      · rintro ⟨_, ⟨u, hu, rfl⟩, rfl⟩
+        exact ⟨u, hu, boundary_facet_adjacency_step1_child_frame P n k u⟩
+    have hcell : (P.child n i).cell n e.val = (P.child n j).cell n f := by
+      rw [himg, himg, hfe]
+    have hfdim : f.dim = d - 2 := by
+      rw [← boundary_facet_adjacency_step4_dim _ _ _ _ hfe, he]
+    have hrel : (S.child P.ty i).frame.toAffineEquiv '' relint e.val.carrier =
+        (S.child P.ty j).frame.toAffineEquiv '' relint f.carrier := by
+      rw [← boundary_facet_adjacency_step2_relint_image,
+        ← boundary_facet_adjacency_step2_relint_image]
+      exact congrArg relint hfe
+    have hzf : z ∈ relint f.carrier := by
+      have hm : (S.child P.ty j).frame.toAffineEquiv z ∈
+          (S.child P.ty j).frame.toAffineEquiv '' relint f.carrier := by
+        rw [← hrel]
+        exact ⟨x, hx, hzx'.symm⟩
+      exact (S.child P.ty j).frame.toAffineEquiv.injective.mem_set_image.mp hm
+    refine ⟨hab, e, ⟨f, hf⟩, he, hfdim, hcell, hea, ?_⟩
+    have hsub := boundary_facet_adjacency_step4_minimal _ _ _ hf hGc z hzf hz
+    rintro _ ⟨u, hu, rfl⟩
+    exact ⟨u, hsub hu, rfl⟩
+
+/-- Step 2 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "Disjointness of
+relative interiors": the same-child case (H2) and the distinct-children case combined. -/
+private theorem boundary_facet_adjacency_step2_pairwise (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) :
+    Pairwise (fun a b : BoundaryFacet P n g => Disjoint
+      (relint ((P.child n a.val.1).cell n a.val.2.val))
+      (relint ((P.child n b.val.1).cell n b.val.2.val))) := by
+  intro a b hab
+  by_cases hi : a.val.1 = b.val.1
+  · obtain ⟨⟨i, e⟩, hae⟩ := a
+    obtain ⟨⟨j, f⟩, hbf⟩ := b
+    dsimp only at hi
+    subst hi
+    have hef : e ≠ f := by
+      intro h
+      subst h
+      exact hab rfl
+    exact boundary_facet_adjacency_step2_same_child P n i e f hef
+  · exact boundary_facet_adjacency_step2_distinct_children P n g a b hi
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "The lower-dimensional
+cells of the child facets form a finite polyhedral set `Z` of dimension `≤ d-2` in the
+`(d-1)`-dimensional `relint g`" — affine dimensions are invariant under the full affine
+frames (including the anisotropic inflation). -/
+private theorem boundary_facet_adjacency_step3_finrank_image (φ : E d ≃ᵃ[ℝ] E d)
+    (K : Set (E d)) :
+    Module.finrank ℝ (cellDirection (φ '' K)) = Module.finrank ℝ (cellDirection K) := by
+  have hs : affineSpan ℝ (φ '' K) = (affineSpan ℝ K).map (φ : E d →ᵃ[ℝ] E d) :=
+    (AffineSubspace.map_span (φ : E d →ᵃ[ℝ] E d) K).symm
+  unfold cellDirection
+  rw [hs, AffineSubspace.map_direction]
+  exact LinearEquiv.finrank_map_eq φ.linear _
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8, (H2)): `relint g` is
+open in `aff g`: a point of the relative interior has a ball in the affine hull around it
+inside the relative interior. -/
+private theorem boundary_facet_adjacency_step3_relint_ball (K : Set (E d)) (u : E d)
+    (hu : u ∈ relint K) :
+    ∃ δ > 0, ∀ z ∈ affineSpan ℝ K, dist z u < δ → z ∈ relint K := by
+  rw [relint, mem_intrinsicInterior] at hu
+  obtain ⟨y, hy, hyu⟩ := hu
+  obtain ⟨δ, hδ, hball⟩ := Metric.isOpen_iff.mp isOpen_interior y hy
+  refine ⟨δ, hδ, fun z hz hzd => ?_⟩
+  show z ∈ intrinsicInterior ℝ K
+  rw [mem_intrinsicInterior]
+  refine ⟨⟨z, hz⟩, hball ?_, rfl⟩
+  rw [Metric.mem_ball, Subtype.dist_eq, hyu]
+  exact hzd
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "generic
+perturbation" — near any point `y` of an affine subspace `A` there is a point of `A`
+outside finitely many affine hulls of dimension below `dim A` (move along a line of `A`
+whose direction lies in none of their directions; each hull meets it at most once). -/
+private theorem boundary_facet_adjacency_step3_generic_point {ι : Type*} [Finite ι]
+    (A : AffineSubspace ℝ (E d)) (y : E d) (hy : y ∈ A) (ε : ℝ) (hε : 0 < ε)
+    (M : ι → Set (E d))
+    (hM : ∀ i, Module.finrank ℝ (cellDirection (M i)) < Module.finrank ℝ A.direction) :
+    ∃ c ∈ A, dist c y < ε ∧ ∀ i, c ∉ affineSpan ℝ (M i) := by
+  obtain ⟨w, hw⟩ := Submodule.exists_forall_notMem_of_forall_ne_top
+    (fun i => (affineSpan ℝ (M i)).direction.comap A.direction.subtype)
+    (fun i htop => by
+      have hle : A.direction ≤ (affineSpan ℝ (M i)).direction := by
+        intro u hu
+        have hmem : (⟨u, hu⟩ : A.direction) ∈
+            (affineSpan ℝ (M i)).direction.comap A.direction.subtype := by
+          have htop' : (affineSpan ℝ (M i)).direction.comap A.direction.subtype = ⊤ := htop
+          rw [htop']
+          exact Submodule.mem_top
+        simpa using hmem
+      have h1 := Submodule.finrank_mono hle
+      have h2 := hM i
+      unfold cellDirection at h2
+      omega)
+  have hvZ : ∀ i, (w : E d) ∉ (affineSpan ℝ (M i)).direction := fun i h =>
+    hw i (by simpa using h)
+  have hbad : ∀ i, {t : ℝ | t • (w : E d) + y ∈ affineSpan ℝ (M i)}.Subsingleton := by
+    intro i s hs t ht
+    have hs' : s • (w : E d) + y ∈ affineSpan ℝ (M i) := hs
+    have ht' : t • (w : E d) + y ∈ affineSpan ℝ (M i) := ht
+    by_contra hst
+    have hdir := AffineSubspace.vsub_mem_direction hs' ht'
+    have heq : (s • (w : E d) + y) -ᵥ (t • (w : E d) + y) = (s - t) • (w : E d) := by
+      rw [vsub_eq_sub, sub_smul]
+      abel
+    rw [heq] at hdir
+    apply hvZ i
+    have hm := Submodule.smul_mem _ (s - t)⁻¹ hdir
+    rwa [smul_smul, inv_mul_cancel₀ (sub_ne_zero.mpr hst), one_smul] at hm
+  have hfin : {t : ℝ | ∃ i, t • (w : E d) + y ∈ affineSpan ℝ (M i)}.Finite := by
+    have hU : {t : ℝ | ∃ i, t • (w : E d) + y ∈ affineSpan ℝ (M i)} =
+        ⋃ i, {t : ℝ | t • (w : E d) + y ∈ affineSpan ℝ (M i)} := by
+      ext t
+      simp
+    rw [hU]
+    exact Set.finite_iUnion fun i => (hbad i).finite
+  have hn0 : 0 < ‖(w : E d)‖ + 1 := by positivity
+  have hη0 : 0 < ε / (‖(w : E d)‖ + 1) := div_pos hε hn0
+  obtain ⟨t, ⟨ht0, htη⟩, htbad⟩ := ((Set.Ioo_infinite hη0).diff hfin).nonempty
+  have hdist : dist (t • (w : E d) + y) y < ε := by
+    rw [dist_eq_norm, add_sub_cancel_right, norm_smul, Real.norm_of_nonneg ht0.le]
+    have h1 : t * ‖(w : E d)‖ ≤ t * (‖(w : E d)‖ + 1) := by
+      nlinarith [norm_nonneg (w : E d)]
+    have h2 : t * (‖(w : E d)‖ + 1) < ε / (‖(w : E d)‖ + 1) * (‖(w : E d)‖ + 1) :=
+      mul_lt_mul_of_pos_right htη hn0
+    rw [div_mul_cancel₀ _ hn0.ne'] at h2
+    linarith
+  exact ⟨t • (w : E d) + y,
+    AffineSubspace.vadd_mem_of_mem_direction (Submodule.smul_mem _ t w.property) hy,
+    hdist, fun i hi => htbad ⟨i, hi⟩⟩
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): the join of a point
+and a set has affine dimension at most one more. -/
+private theorem boundary_facet_adjacency_step3_join_finrank (y : E d) (s : Set (E d)) :
+    Module.finrank ℝ (cellDirection (insert y s)) ≤
+      Module.finrank ℝ (cellDirection s) + 1 := by
+  unfold cellDirection
+  rcases s.eq_empty_or_nonempty with rfl | ⟨p, hp⟩
+  · rw [insert_empty_eq, direction_affineSpan, vectorSpan_singleton, finrank_bot]
+    omega
+  · rw [← affineSpan_insert_affineSpan,
+      AffineSubspace.direction_affineSpan_insert (mem_affineSpan ℝ hp)]
+    have h1 := Submodule.finrank_sup_add_finrank_inf_eq (Submodule.span ℝ {y -ᵥ p})
+      (affineSpan ℝ s).direction
+    have h2 : Module.finrank ℝ (Submodule.span ℝ ({y -ᵥ p} : Set (E d))) ≤ 1 :=
+      (finrank_span_le_card ({y -ᵥ p} : Set (E d))).trans (by simp)
+    omega
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "its subset of
+dimension `≤ d-3` can be avoided by a generic perturbation" — genericity: a finite union
+of sets whose affine hulls have dimension below `dim aff K` is nowhere dense in
+`relint K`, so the points of `relint K` off that union are dense in `relint K`.
+(No convexity is needed: `relint K` is open in `aff K` and each `aff Zᵢ ∩ aff K` is a
+proper affine subspace of `aff K`.) -/
+private theorem boundary_facet_adjacency_step3_generic_dense {ι : Type*} [Finite ι]
+    (K : Set (E d)) (Z : ι → Set (E d))
+    (hZ : ∀ i, Module.finrank ℝ (cellDirection (Z i)) <
+      Module.finrank ℝ (cellDirection K)) :
+    relint K ⊆ closure (relint K \ ⋃ i, Z i) := by
+  intro x hx
+  obtain ⟨δ, hδ, hball⟩ := boundary_facet_adjacency_step3_relint_ball K x hx
+  rw [Metric.mem_closure_iff]
+  intro ε hε
+  have hxA : x ∈ affineSpan ℝ K := subset_affineSpan ℝ K (intrinsicInterior_subset hx)
+  obtain ⟨c, hcA, hcd, hcZ⟩ := boundary_facet_adjacency_step3_generic_point
+    (affineSpan ℝ K) x hxA (min δ ε) (lt_min hδ hε) Z hZ
+  refine ⟨c, ⟨hball c hcA (lt_of_lt_of_le hcd (min_le_left _ _)), ?_⟩, ?_⟩
+  · intro h
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp h
+    exact hcZ i (subset_affineSpan ℝ _ hi)
+  · rw [dist_comm]
+    exact lt_of_lt_of_le hcd (min_le_right _ _)
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "Join two points ...
+by a polygonal path in `relint g`" — the path is assembled from local pieces: a dense
+subset `W` of a connected set `U` is connected as soon as every point of `U` has an open
+neighbourhood meeting `W` in a connected set (pure topology). -/
+private theorem boundary_facet_adjacency_step3_local_to_global {X : Type*}
+    [TopologicalSpace X] (U W : Set X) (hWU : W ⊆ U) (hUW : U ⊆ closure W)
+    (hU : IsPreconnected U)
+    (hloc : ∀ u ∈ U, ∃ O : Set X, IsOpen O ∧ u ∈ O ∧ IsPreconnected (O ∩ W)) :
+    IsPreconnected W := by
+  intro u v hu hv hcov hWu hWv
+  by_contra hne
+  rw [Set.not_nonempty_iff_eq_empty] at hne
+  have hside : ∀ O : Set X, IsPreconnected (O ∩ W) → O ∩ W ⊆ u ∨ O ∩ W ⊆ v := by
+    intro O hO
+    refine (isPreconnected_iff_subset_of_disjoint.mp hO) u v hu hv
+      (fun z hz => hcov hz.2) ?_
+    rw [Set.eq_empty_iff_forall_notMem]
+    intro z hz
+    have hz' : z ∈ W ∩ (u ∩ v) := ⟨hz.1.2, hz.2⟩
+    rw [hne] at hz'
+    exact hz'
+  let U₁ : Set X := ⋃₀ {O | IsOpen O ∧ IsPreconnected (O ∩ W) ∧ O ∩ W ⊆ u}
+  let U₂ : Set X := ⋃₀ {O | IsOpen O ∧ IsPreconnected (O ∩ W) ∧ O ∩ W ⊆ v}
+  have hU₁ : IsOpen U₁ := isOpen_sUnion fun O hO => hO.1
+  have hU₂ : IsOpen U₂ := isOpen_sUnion fun O hO => hO.1
+  have hmem : ∀ x ∈ U, x ∈ U₁ ∨ x ∈ U₂ := by
+    intro x hx
+    obtain ⟨O, hO, hxO, hOW⟩ := hloc x hx
+    rcases hside O hOW with h | h
+    · exact Or.inl (Set.mem_sUnion.mpr ⟨O, ⟨hO, hOW, h⟩, hxO⟩)
+    · exact Or.inr (Set.mem_sUnion.mpr ⟨O, ⟨hO, hOW, h⟩, hxO⟩)
+  have hcontra : ∀ w ∈ W, w ∈ u → w ∈ v → False := by
+    intro w hw hwu hwv
+    have hw' : w ∈ W ∩ (u ∩ v) := ⟨hw, hwu, hwv⟩
+    rw [hne] at hw'
+    exact hw'
+  obtain ⟨x, hxU, hx₁, hx₂⟩ := hU U₁ U₂ hU₁ hU₂ (fun x hx => hmem x hx)
+    (by
+      obtain ⟨w, hwW, hwu⟩ := hWu
+      refine ⟨w, hWU hwW, ?_⟩
+      rcases hmem w (hWU hwW) with h | h
+      · exact h
+      · obtain ⟨O, ⟨-, -, hOv⟩, hwO⟩ := Set.mem_sUnion.mp h
+        exact (hcontra w hwW hwu (hOv ⟨hwO, hwW⟩)).elim)
+    (by
+      obtain ⟨w, hwW, hwv⟩ := hWv
+      refine ⟨w, hWU hwW, ?_⟩
+      rcases hmem w (hWU hwW) with h | h
+      · obtain ⟨O, ⟨-, -, hOu⟩, hwO⟩ := Set.mem_sUnion.mp h
+        exact (hcontra w hwW (hOu ⟨hwO, hwW⟩) hwv).elim
+      · exact h)
+  obtain ⟨O₁, ⟨hO₁, -, hO₁u⟩, hxO₁⟩ := Set.mem_sUnion.mp hx₁
+  obtain ⟨O₂, ⟨hO₂, -, hO₂v⟩, hxO₂⟩ := Set.mem_sUnion.mp hx₂
+  obtain ⟨w, ⟨hw₁, hw₂⟩, hwW⟩ :=
+    mem_closure_iff.mp (hUW hxU) _ (hO₁.inter hO₂) ⟨hxO₁, hxO₂⟩
+  exact hcontra w hwW (hO₁u ⟨hw₁, hwW⟩) (hO₂v ⟨hw₂, hwW⟩)
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "its subset of
+dimension `≤ d-3` can be avoided by a generic perturbation of the path" — the local,
+convex case: a ball of an affine subspace `A`, minus finitely many sets whose affine hulls
+have codimension at least two in `A`, is connected (join any two of its points through a
+generic centre `c`; the segments `[x, c]`, `[c, y]` miss the removed sets because `c`
+avoids the joins `aff(x ∪ Zᵢ)`, which are proper in `A`). -/
+private theorem boundary_facet_adjacency_step3_ball_avoid {ι : Type*} [Finite ι]
+    (A : AffineSubspace ℝ (E d)) (x : E d) (δ : ℝ) (Z : ι → Set (E d))
+    (hZ : ∀ i, Module.finrank ℝ (cellDirection (Z i)) + 2 ≤
+      Module.finrank ℝ A.direction) :
+    IsPreconnected ((Metric.ball x δ ∩ (A : Set (E d))) \ ⋃ i, Z i) := by
+  apply isPreconnected_of_forall_pair
+  intro y hy z hz
+  have hyb : y ∈ Metric.ball x δ := hy.1.1
+  have hε : 0 < δ - dist y x := sub_pos.mpr (Metric.mem_ball.mp hyb)
+  obtain ⟨c, hcA, hcd, hcM⟩ := boundary_facet_adjacency_step3_generic_point A y hy.1.2
+    (δ - dist y x) hε
+    (Sum.elim (fun i => insert y (Z i)) (fun i => insert z (Z i))) (fun q => by
+      cases q with
+      | inl i =>
+        have h1 := boundary_facet_adjacency_step3_join_finrank y (Z i)
+        have h2 := hZ i
+        simp only [Sum.elim_inl]
+        omega
+      | inr i =>
+        have h1 := boundary_facet_adjacency_step3_join_finrank z (Z i)
+        have h2 := hZ i
+        simp only [Sum.elim_inr]
+        omega)
+  have hcb : c ∈ Metric.ball x δ := by
+    rw [Metric.mem_ball]
+    have := dist_triangle c y x
+    linarith
+  have hconv : Convex ℝ (Metric.ball x δ ∩ (A : Set (E d))) :=
+    (convex_ball x δ).inter A.convex
+  have hseg : ∀ p, p ∈ (Metric.ball x δ ∩ (A : Set (E d))) \ ⋃ i, Z i →
+      (∀ i, c ∉ affineSpan ℝ (insert p (Z i))) →
+      segment ℝ p c ⊆ (Metric.ball x δ ∩ (A : Set (E d))) \ ⋃ i, Z i := by
+    intro p hp hpc q hq
+    refine ⟨hconv.segment_subset hp.1 ⟨hcb, hcA⟩ hq, ?_⟩
+    intro hqZ
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hqZ
+    obtain ⟨a, b, ha, hb, hab, rfl⟩ := hq
+    by_cases hb0 : b = 0
+    · subst hb0
+      have ha1 : a = 1 := by linarith
+      subst ha1
+      apply hp.2
+      exact Set.mem_iUnion.mpr ⟨i, by simpa using hi⟩
+    · apply hpc i
+      have hpS : p ∈ affineSpan ℝ (insert p (Z i)) :=
+        subset_affineSpan ℝ _ (Set.mem_insert _ _)
+      have hqS : a • p + b • c ∈ affineSpan ℝ (insert p (Z i)) :=
+        subset_affineSpan ℝ _ (Set.mem_insert_of_mem _ hi)
+      have hdir := AffineSubspace.vsub_mem_direction hqS hpS
+      have hm := Submodule.smul_mem _ b⁻¹ hdir
+      have heq : b⁻¹ • ((a • p + b • c) -ᵥ p) +ᵥ p = c := by
+        rw [vsub_eq_sub, vadd_eq_add]
+        have ha' : a = 1 - b := by linarith
+        subst ha'
+        rw [show (1 - b) • p + b • c - p = b • (c - p) by
+          rw [sub_smul, one_smul, smul_sub]
+          abel]
+        rw [smul_smul, inv_mul_cancel₀ hb0, one_smul, sub_add_cancel]
+      rw [← heq]
+      exact AffineSubspace.vadd_mem_of_mem_direction hm hpS
+  refine ⟨segment ℝ y c ∪ segment ℝ c z, Set.union_subset
+    (hseg y hy fun i => hcM (Sum.inl i)) ?_, Or.inl (left_mem_segment ℝ y c),
+    Or.inr (right_mem_segment ℝ c z), ?_⟩
+  · rw [segment_symm]
+    exact hseg z hz fun i => hcM (Sum.inr i)
+  · exact (convex_segment y c).isPreconnected.union c (right_mem_segment ℝ y c)
+      (left_mem_segment ℝ c z) (convex_segment c z).isPreconnected
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "`relint g` is
+connected (H2). Join two points `x, y` ... by a polygonal path in `relint g`. ... its
+subset of dimension `≤ d-3` can be avoided by a generic perturbation of the path" —
+removing from a connected relatively open set finitely many sets whose affine hulls have
+codimension at least two (in `aff K`) keeps it connected. -/
+private theorem boundary_facet_adjacency_step3_codim_two_connected {ι : Type*} [Finite ι]
+    (K : Set (E d)) (hK : IsPreconnected (relint K)) (Z : ι → Set (E d))
+    (hZ : ∀ i, Module.finrank ℝ (cellDirection (Z i)) + 2 ≤
+      Module.finrank ℝ (cellDirection K)) :
+    IsPreconnected (relint K \ ⋃ i, Z i) := by
+  have hdense := boundary_facet_adjacency_step3_generic_dense K Z (fun i => by
+    have := hZ i
+    omega)
+  refine boundary_facet_adjacency_step3_local_to_global (relint K) (relint K \ ⋃ i, Z i)
+    Set.diff_subset hdense hK ?_
+  intro u hu
+  obtain ⟨δ, hδ, hball⟩ := boundary_facet_adjacency_step3_relint_ball K u hu
+  refine ⟨Metric.ball u δ, Metric.isOpen_ball, Metric.mem_ball_self hδ, ?_⟩
+  have heq : Metric.ball u δ ∩ (relint K \ ⋃ i, Z i) =
+      (Metric.ball u δ ∩ (affineSpan ℝ K : Set (E d))) \ ⋃ i, Z i := by
+    ext z
+    constructor
+    · rintro ⟨hz1, hz2, hz3⟩
+      exact ⟨⟨hz1, subset_affineSpan ℝ K (intrinsicInterior_subset hz2)⟩, hz3⟩
+    · rintro ⟨⟨hz1, hz2⟩, hz3⟩
+      exact ⟨hz1, hball z hz2 (Metric.mem_ball.mp hz1), hz3⟩
+  rw [heq]
+  exact boundary_facet_adjacency_step3_ball_avoid _ u δ Z hZ
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): the avoiding paths may
+start and end at arbitrary points of `g` off the codimension-two set: a regular closed
+cell with connected relative interior stays connected after removing finitely many sets
+of codimension at least two (they are nowhere dense, so `K \ Z` lies between
+`relint K \ Z` and its closure). -/
+private theorem boundary_facet_adjacency_step3_closed_connected {ι : Type*} [Finite ι]
+    (K : Set (E d)) (hreg : closure (relint K) = K) (hK : IsPreconnected (relint K))
+    (Z : ι → Set (E d))
+    (hZ : ∀ i, Module.finrank ℝ (cellDirection (Z i)) + 2 ≤
+      Module.finrank ℝ (cellDirection K)) :
+    IsPreconnected (K \ ⋃ i, Z i) := by
+  have h1 := boundary_facet_adjacency_step3_codim_two_connected K hK Z hZ
+  have h2 := boundary_facet_adjacency_step3_generic_dense K Z (fun i => by
+    have := hZ i
+    omega)
+  refine h1.subset_closure ?_ ?_
+  · exact Set.diff_subset_diff_left intrinsicInterior_subset
+  · intro x hx
+    have hx' : x ∈ closure (relint K) := by
+      rw [hreg]
+      exact hx.1
+    exact closure_minimal h2 isClosed_closure hx'
+
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): placed cells keep the
+geometric facts used by the path argument: connected relative interior (H2), regular
+closedness (H2)(iii) and affine dimension, transported by a full affine frame. -/
+private theorem boundary_facet_adjacency_step3_placed (φ : E d ≃ᵃ[ℝ] E d) (c : Cell d) :
+    closure (relint (φ '' c.carrier)) = φ '' c.carrier ∧
+      IsPreconnected (relint (φ '' c.carrier)) ∧
+      Module.finrank ℝ (cellDirection (φ '' c.carrier)) = c.dim ∧
+      (relint (φ '' c.carrier)).Nonempty := by
+  let h := φ.toHomeomorphOfFiniteDimensional
+  have hrel : relint (φ '' c.carrier) = h '' relint c.carrier :=
+    hereditary_trace_step1_relint_image φ c.carrier
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [hrel, ← h.image_closure, c.flat.regularClosed]
+    rfl
+  · rw [hrel]
+    exact c.flat.relint_connected.isPreconnected.image _ h.continuous.continuousOn
+  · rw [boundary_facet_adjacency_step3_finrank_image, c.flat.dimension]
+  · rw [hrel]
+    exact c.flat.relint_nonempty.image _
+
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8, via 1.1): a point of a
+child facet lies in the relative interior of its minimal cell in that child, a listed
+cell contained in the facet. -/
+private theorem boundary_facet_adjacency_step3_lift (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (x : BoundaryFacet P n g) (p : E d)
+    (hp : p ∈ (P.child n x.val.1).cell n x.val.2.val) :
+    ∃ e : CellName S (P.child n x.val.1).ty,
+      e.val.carrier ⊆ x.val.2.val.carrier ∧
+        p ∈ relint ((P.child n x.val.1).cell n e.val) := by
+  obtain ⟨z, hz, rfl⟩ := hp
+  have hxc := (Finset.mem_filter.mp x.val.2.property).1
+  have hzA : z ∈ frontier (S.proto (P.child n x.val.1).ty).carrier := by
+    rw [← (S.cx _).carriers_cover]
+    exact Set.mem_iUnion₂.mpr ⟨_, hxc, hz⟩
+  refine ⟨⟨(S.cx _).minimalCell z hzA, (S.cx _).minimalCell_mem z hzA⟩,
+    (S.cx _).minimalCell_subset z hzA _ hxc hz, ?_⟩
+  change _ ∈ relint ((P.child n x.val.1).prototypeFrame n '' _)
+  rw [hereditary_trace_step1_relint_image]
+  exact ⟨z, (S.cx _).mem_relint_minimalCell z hzA, rfl⟩
+
+/-- Step 3 of the V4 proof of `boundary_facet_adjacency` (V4 1.8, via (H2)): a listed
+cell contained in a listed cell of the same dimension is that cell (same affine hull, so
+their relative interiors meet). -/
+private theorem boundary_facet_adjacency_step3_cell_eq {A : PolyManifoldDomain d}
+    (K : CellComplex A) (e f : Cell d) (he : e ∈ K.cells) (hf : f ∈ K.cells)
+    (hef : e.carrier ⊆ f.carrier) (hdim : e.dim = f.dim) : e = f := by
+  have hle : affineSpan ℝ e.carrier ≤ affineSpan ℝ f.carrier := affineSpan_mono ℝ hef
+  obtain ⟨x, hx⟩ := e.flat.relint_nonempty
+  have hspan : affineSpan ℝ e.carrier = affineSpan ℝ f.carrier := by
+    refine AffineSubspace.eq_of_direction_eq_of_nonempty_of_le ?_
+      ((affineSpan_nonempty (k := ℝ)).mpr ⟨x, intrinsicInterior_subset hx⟩) hle
+    apply Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle)
+    have h1 := e.flat.dimension
+    have h2 := f.flat.dimension
+    unfold cellDirection at h1 h2
+    rw [h1, h2, hdim]
+  by_contra hne
+  have hxf : x ∈ relint f.carrier :=
+    hereditary_trace_step2_relint_mono _ _ hef hspan hx
+  exact Set.disjoint_left.mp (K.relint_disjoint e he f hf hne) hx hxf
+
+/-- Step 4 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): adjacency is
+symmetric. -/
+private theorem boundary_facet_adjacency_step4_symm (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (a b : BoundaryFacet P n g)
+    (h : boundaryFacetAdjacent P n g a b) : boundaryFacetAdjacent P n g b a := by
+  obtain ⟨hab, e, f, he, hf, hef, hea, hfb⟩ := h
+  exact ⟨Ne.symm hab, f, e, hf, he, hef.symm, hfb, hea⟩
+
+/-- Step 4 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "Each crossing passes
+between two child facets sharing a relatively open piece of a `(d-2)`-cell." At a point
+`p` of a facet `x`, off all child cells of dimension `≤ d-3`, the minimal cell of `p` in
+`x`'s child has dimension `d-2` (then `x` is adjacent to every other facet through `p`)
+or `d-1` (then it is `x` and `p ∈ relint x`). -/
+private theorem boundary_facet_adjacency_step4_relint_or_cross (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (x y : BoundaryFacet P n g) (hxy : x ≠ y) (p : E d)
+    (hpx : p ∈ (P.child n x.val.1).cell n x.val.2.val)
+    (hpy : p ∈ (P.child n y.val.1).cell n y.val.2.val)
+    (hpZ : ∀ (k : S.I P.ty) (c : CellName S (P.child n k).ty), c.val.dim + 3 ≤ d →
+      p ∉ (P.child n k).cell n c.val) :
+    p ∈ relint ((P.child n x.val.1).cell n x.val.2.val) ∨
+      boundaryFacetAdjacent P n g x y := by
+  obtain ⟨e, hex, hpe⟩ := boundary_facet_adjacency_step3_lift P n g x p hpx
+  have hxc := Finset.mem_filter.mp x.val.2.property
+  have hle : e.val.dim ≤ d - 1 := by
+    rw [← hxc.2]
+    exact hereditary_trace_step3_dim_mono _ _ hex
+  have hge : ¬ e.val.dim + 3 ≤ d := fun h => hpZ _ e h (intrinsicInterior_subset hpe)
+  by_cases h2 : e.val.dim = d - 2
+  · right
+    exact boundary_facet_adjacency_step4_crossing P n g x y hxy e h2
+      (Set.image_mono hex) p hpe hpy
+  · left
+    have hd : e.val.dim = x.val.2.val.dim := by
+      rw [hxc.2]
+      omega
+    have hee := boundary_facet_adjacency_step3_cell_eq (S.cx _) _ _ e.property hxc.1 hex hd
+    rwa [hee] at hpe
+
+/-- Step 4 of the V4 proof of `boundary_facet_adjacency` (V4 1.8): "Each crossing passes
+between two child facets sharing a relatively open piece of a `(d-2)`-cell": two distinct
+child facets inside `g` meeting at a point off the codimension-`≥ 3` child cells are
+adjacent (a common relative-interior point is excluded by the disjointness of Step 2). -/
+private theorem boundary_facet_adjacency_step4_meet (P : FramedNode S) (n : ℕ)
+    (g : FacetName S P.ty) (x y : BoundaryFacet P n g) (hxy : x ≠ y) (p : E d)
+    (hpx : p ∈ (P.child n x.val.1).cell n x.val.2.val)
+    (hpy : p ∈ (P.child n y.val.1).cell n y.val.2.val)
+    (hpZ : ∀ (k : S.I P.ty) (c : CellName S (P.child n k).ty), c.val.dim + 3 ≤ d →
+      p ∉ (P.child n k).cell n c.val) :
+    boundaryFacetAdjacent P n g x y := by
+  rcases boundary_facet_adjacency_step4_relint_or_cross P n g x y hxy p hpx hpy hpZ with
+    h | h
+  · rcases boundary_facet_adjacency_step4_relint_or_cross P n g y x (Ne.symm hxy) p hpy hpx
+      hpZ with h' | h'
+    · exact absurd (boundary_facet_adjacency_step2_pairwise P n g hxy)
+        (Set.not_disjoint_iff.mpr ⟨p, h, h'⟩)
+    · exact boundary_facet_adjacency_step4_symm P n g y x h'
+  · exact h
+
 /-- P8, V4 1.8: the boundary tiling and connected adjacency graph.
 The nonempty facet guarantees at least one graph vertex. -/
 theorem boundary_facet_adjacency (P : FramedNode S) (n : ℕ)
@@ -1668,7 +2492,93 @@ theorem boundary_facet_adjacency (P : FramedNode S) (n : ℕ)
       Nonempty (BoundaryFacet P n g) ∧
       ∀ a b : BoundaryFacet P n g,
         Relation.ReflTransGen (boundaryFacetAdjacent P n g) a b := by
-  sorry
+  have hcover := boundary_facet_adjacency_step1_cover P n g
+  have hpair := boundary_facet_adjacency_step2_pairwise P n g
+  refine ⟨hcover, hpair, ?_, ?_⟩
+  · obtain ⟨x, hx⟩ := g.val.flat.relint_nonempty
+    have hx' : P.prototypeFrame (n + 1) x ∈ P.cell (n + 1) g.val :=
+      ⟨x, intrinsicInterior_subset hx, rfl⟩
+    rw [← hcover] at hx'
+    obtain ⟨a, _⟩ := Set.mem_iUnion.mp hx'
+    exact ⟨a⟩
+  · intro a b
+    classical
+    by_contra hab
+    let Z : (Σ k : S.I P.ty, {c : CellName S (P.child n k).ty // c.val.dim + 3 ≤ d}) →
+        Set (E d) := fun q => (P.child n q.1).cell n q.2.val.val
+    have hZdim : ∀ q, Module.finrank ℝ (cellDirection (Z q)) = q.2.val.val.dim :=
+      fun q => (boundary_facet_adjacency_step3_placed _ q.2.val.val).2.2.1
+    have hgfac := Finset.mem_filter.mp g.property
+    have hgP := boundary_facet_adjacency_step3_placed (P.prototypeFrame (n + 1)) g.val
+    have hgreg : closure (relint (P.cell (n + 1) g.val)) = P.cell (n + 1) g.val := hgP.1
+    have hgcon : IsPreconnected (relint (P.cell (n + 1) g.val)) := hgP.2.1
+    have hgdim : Module.finrank ℝ (cellDirection (P.cell (n + 1) g.val)) = g.val.dim :=
+      hgP.2.2.1
+    have hK : IsPreconnected (P.cell (n + 1) g.val \ ⋃ q, Z q) :=
+      boundary_facet_adjacency_step3_closed_connected _ hgreg hgcon Z (fun q => by
+        rw [hZdim, hgdim, hgfac.2]
+        have := q.2.property
+        omega)
+    have hoff : ∀ x : BoundaryFacet P n g, ∃ w ∈ (P.child n x.val.1).cell n x.val.2.val,
+        w ∉ ⋃ q, Z q := by
+      intro x
+      have hxfac := Finset.mem_filter.mp x.val.2.property
+      have hxP := boundary_facet_adjacency_step3_placed
+        ((P.child n x.val.1).prototypeFrame n) x.val.2.val
+      have hxdim : Module.finrank ℝ (cellDirection ((P.child n x.val.1).cell n
+          x.val.2.val)) = x.val.2.val.dim := hxP.2.2.1
+      have hxne : (relint ((P.child n x.val.1).cell n x.val.2.val)).Nonempty := hxP.2.2.2
+      have hd := boundary_facet_adjacency_step3_generic_dense
+        ((P.child n x.val.1).cell n x.val.2.val) Z (fun q => by
+          rw [hZdim, hxdim, hxfac.2]
+          have := q.2.property
+          omega)
+      by_contra hno
+      push_neg at hno
+      have hempty : relint ((P.child n x.val.1).cell n x.val.2.val) \ ⋃ q, Z q = ∅ := by
+        ext w
+        simp only [Set.mem_diff, Set.mem_empty_iff_false, iff_false, not_and, not_not]
+        exact fun hw => hno w (intrinsicInterior_subset hw)
+      obtain ⟨w, hw⟩ := hxne
+      have hw' := hd hw
+      rw [hempty, closure_empty] at hw'
+      exact hw'
+    let R : BoundaryFacet P n g → Prop := fun x =>
+      Relation.ReflTransGen (boundaryFacetAdjacent P n g) a x
+    have hclosed : ∀ x : BoundaryFacet P n g,
+        IsClosed ((P.child n x.val.1).cell n x.val.2.val) := fun x =>
+      (x.val.2.val.flat.compact.image
+        ((P.child n x.val.1).prototypeFrame n).toHomeomorphOfFiniteDimensional.continuous).isClosed
+    have hU : IsClosed (⋃ x : {x // R x}, (P.child n x.val.val.1).cell n x.val.val.2.val) :=
+      isClosed_iUnion_of_finite fun x => hclosed x.val
+    have hV : IsClosed (⋃ x : {x // ¬ R x},
+        (P.child n x.val.val.1).cell n x.val.val.2.val) :=
+      isClosed_iUnion_of_finite fun x => hclosed x.val
+    have hsub : P.cell (n + 1) g.val \ ⋃ q, Z q ⊆
+        (⋃ x : {x // R x}, (P.child n x.val.val.1).cell n x.val.val.2.val) ∪
+          ⋃ x : {x // ¬ R x}, (P.child n x.val.val.1).cell n x.val.val.2.val := by
+      intro w hw
+      have hw1 := hw.1
+      rw [← hcover] at hw1
+      obtain ⟨x, hwx⟩ := Set.mem_iUnion.mp hw1
+      by_cases hx : R x
+      · exact Or.inl (Set.mem_iUnion.mpr ⟨⟨x, hx⟩, hwx⟩)
+      · exact Or.inr (Set.mem_iUnion.mpr ⟨⟨x, hx⟩, hwx⟩)
+    obtain ⟨wa, hwa, hwaZ⟩ := hoff a
+    obtain ⟨wb, hwb, hwbZ⟩ := hoff b
+    obtain ⟨p, ⟨-, hpZ⟩, hpU, hpV⟩ := isPreconnected_closed_iff.mp hK _ _ hU hV hsub
+      ⟨wa, ⟨a.property hwa, hwaZ⟩,
+        Set.mem_iUnion.mpr ⟨⟨a, Relation.ReflTransGen.refl⟩, hwa⟩⟩
+      ⟨wb, ⟨b.property hwb, hwbZ⟩, Set.mem_iUnion.mpr ⟨⟨b, hab⟩, hwb⟩⟩
+    obtain ⟨⟨x, hx⟩, hpx⟩ := Set.mem_iUnion.mp hpU
+    obtain ⟨⟨y, hy⟩, hpy⟩ := Set.mem_iUnion.mp hpV
+    have hxy : x ≠ y := by
+      rintro rfl
+      exact hy hx
+    have hpZ' : ∀ (k : S.I P.ty) (c : CellName S (P.child n k).ty), c.val.dim + 3 ≤ d →
+        p ∉ (P.child n k).cell n c.val := fun k c hc hpc =>
+      hpZ (Set.mem_iUnion.mpr ⟨⟨k, ⟨c, hc⟩⟩, hpc⟩)
+    exact hy (hx.tail (boundary_facet_adjacency_step4_meet P n g x y hxy p hpx hpy hpZ'))
 
 /-- Step 3 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "the frame
 transports relative interiors". Relative interiors commute with every full affine

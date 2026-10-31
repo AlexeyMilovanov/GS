@@ -221,7 +221,9 @@ theorem project_marking (x : E d) :
 theorem project_carriers :
     (fun t : PlacedTile S => t.carrier) '' (Y.project D).tiles =
       (fun t : PlacedMarkedTile M => t.carrier) '' Y.tiles := by
-  sorry
+  show (fun t : PlacedTile S => t.carrier) '' ((fun u => u.native D) '' Y.tiles) = _
+  rw [Set.image_image]
+  exact Set.image_congr (fun t _ => PlacedMarkedTile.native_carrier D t)
 
 end MarkedTiling
 

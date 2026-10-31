@@ -423,7 +423,18 @@ theorem MarkedTiling.move_agree (Y : MarkedTiling M) (g : Iso d) :
     ∀ t ∈ (fun t : PlacedMarkedTile M => t.move g) '' Y.tiles,
       ∀ u ∈ (fun t : PlacedMarkedTile M => t.move g) '' Y.tiles,
         ∀ x (ht : x ∈ t.carrier) (hu : x ∈ u.carrier), t.mark ⟨x, ht⟩ = u.mark ⟨x, hu⟩ := by
-  sorry
+  rintro _ ⟨t, ht, rfl⟩ _ ⟨u, hu, rfl⟩ x hx_t hx_u
+  have hxt_orig : g.symm x ∈ t.carrier := by
+    obtain ⟨y, hy, heq⟩ := hx_t
+    rw [← heq, g.symm_apply_apply]
+    exact hy
+  have hxu_orig : g.symm x ∈ u.carrier := by
+    obtain ⟨y, hy, heq⟩ := hx_u
+    rw [← heq, g.symm_apply_apply]
+    exact hy
+  have h_agree := Y.agreement t ht u hu (g.symm x) hxt_orig hxu_orig
+  change t.mark ⟨g.symm x, hxt_orig⟩ = u.mark ⟨g.symm x, hxu_orig⟩
+  exact h_agree
 
 /-- M6, V4 2.14(d): the full isometry action on pointwise marked tilings. -/
 def MarkedTiling.move (Y : MarkedTiling M) (g : Iso d) : MarkedTiling M where

@@ -173,7 +173,25 @@ theorem root_mem (B : Block Y n) (hB : B ∈ G.blocks) : B.node ∈ G.nodes n :=
 
 /-- R1, V4 §3.0: all states at height n belong exactly to the chosen roots. -/
 theorem nodes_top : G.nodes n = G.roots := by
-  sorry
+  ext N
+  constructor
+  · intro h
+    obtain ⟨B, hB, hBN⟩ := h
+    have hBN' : N = B.node := by
+      obtain ⟨r, hr, w, eq⟩ := hBN
+      have : r = 0 := by omega
+      subst r
+      have h1 : S.descendantNode B.node.ty n 0 w = ⟨B.node.ty, 1⟩ := rfl
+      rw [h1] at eq
+      have h2 : (⟨B.node.ty, 1⟩ : FramedNode S).move B.node.frame = B.node := by
+        cases B.node
+        rfl
+      rw [h2] at eq
+      exact eq
+    rw [hBN']
+    exact ⟨B, hB, rfl⟩
+  · rintro ⟨B, hB, rfl⟩
+    exact G.root_mem B hB
 
 /-- R1, V4 §3.0: every node in the level is itself a genuine block. -/
 theorem node_actual (m : ℕ) (N : FramedNode S) (hN : N ∈ G.nodes m) : IsBlock Y m N := by

@@ -5025,9 +5025,105 @@ namespace CompatiblePatch
 
 variable (P : CompatiblePatch S)
 
+/-- Step 1 of the V4 proof of `native_injective` (V4 1.14): "σⁿΠ consists of placed
+prototiles with frames in H": the inflated frame of a compatible tile intertwines `σⁿ`
+with the original frame. -/
+private theorem native_injective_step1_inflated_frame (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (n : ℕ) (x : E d) :
+    compatibleInflatedFrame t ht n ((S.σ ^ n) x) = (S.σ ^ n) (t.frame x) := by
+  induction n with
+  | zero =>
+    have hc := (Classical.choose_spec (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)).2
+    have hy := congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) hc
+    simp only [linearConj, Nat.cast_zero, zpow_zero, neg_zero, one_mul, mul_one] at hy
+    have hdec : t.frame x = t.frame.linearIsometryEquiv x + t.frame 0 := by
+      have h := t.frame.map_vadd (0 : E d) x
+      rw [vadd_eq_add, add_zero, vadd_eq_add] at h
+      exact h
+    show (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) ((S.σ ^ 0) x) + (S.σ ^ 0) (t.frame 0) =
+        (S.σ ^ 0) (t.frame x)
+    rw [pow_zero]
+    change (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) x + (t.frame 0) = t.frame x
+    rw [hdec]
+    exact congrArg (· + t.frame 0) hy
+  | succ n ih =>
+    rw [pow_succ']
+    change compatibleInflatedFrame t ht (n + 1) (S.σ ((S.σ ^ n) x)) =
+      S.σ ((S.σ ^ n) (t.frame x))
+    rw [power_factorisation_aux_step11_inflated_frame_succ, ih]
+
+/-- Step 2 of the V4 proof of `native_injective` (V4 1.14): "the native tiles of σⁿΠ":
+every native tile at an address lies in the expansion `σⁿ t` of its base tile. -/
+private theorem native_injective_step2_subset (P : CompatiblePatch S) (n : ℕ)
+    (a : P.Address n) :
+    (P.native n a).carrier 0 ⊆ (S.σ ^ n) '' (a.1.val.carrier 0) := by
+  rintro x ⟨y, hy, rfl⟩
+  have hy' : (S.nativeTile a.1.val.ty n a.2).frame y ∈ S.supertile n a.1.val.ty := by
+    rw [← S.native_cover a.1.val.ty n]
+    refine Set.mem_iUnion.mpr ⟨a.2, ?_⟩
+    exact Set.mem_image_of_mem _ hy
+  obtain ⟨z, hz, hzeq⟩ := hy'
+  rw [power_factorisation_aux_step11_carrier_zero]
+  refine ⟨a.1.val.frame z, ⟨z, hz, rfl⟩, ?_⟩
+  change (S.σ ^ n) (a.1.val.frame z) = compatibleInflatedFrame a.1.val
+    (P.compatible a.1.val a.1.property) n ((S.nativeTile a.1.val.ty n a.2).frame y)
+  rw [← hzeq, native_injective_step1_inflated_frame]
+
+/-- Step 3 of the V4 proof of `native_injective` (V4 1.14): "placed prototiles":
+every framed ground tile has nonempty interior. -/
+private theorem native_injective_step3_interior (N : FramedNode S) :
+    (interior (N.carrier 0)).Nonempty := by
+  rw [power_factorisation_aux_step11_carrier_zero]
+  change (interior (N.frame.toHomeomorph '' (S.proto N.ty).carrier)).Nonempty
+  rw [← N.frame.toHomeomorph.image_interior]
+  exact (S.proto N.ty).interior_nonempty.image _
+
 /-- P9, V4 1.14: the native subdivision has no repeated framed tile occurrences. -/
 theorem native_injective (n : ℕ) : Function.Injective (P.native n) := by
-  sorry
+  rintro ⟨t, v⟩ ⟨s, w⟩ hab
+  by_cases hts : t = s
+  · subst hts
+    by_contra hvw
+    have hne : v ≠ w := fun h => hvw (h ▸ rfl)
+    have hN : S.nativeTile t.val.ty n v = S.nativeTile t.val.ty n w := by
+      have hfr := congrArg FramedNode.frame hab
+      have hty := congrArg FramedNode.ty hab
+      refine FramedNode.ext hty ?_
+      refine AffineIsometryEquiv.ext fun y => ?_
+      have h1 := congrArg (fun φ : Iso d => φ y) hfr
+      have h2 : compatibleInflatedFrame t.val (P.compatible t.val t.property) n
+            ((S.nativeTile t.val.ty n v).frame y) =
+          compatibleInflatedFrame t.val (P.compatible t.val t.property) n
+            ((S.nativeTile t.val.ty n w).frame y) := h1
+      exact congrArg (fun z : E d => z)
+        ((compatibleInflatedFrame t.val (P.compatible t.val t.property) n).injective h2)
+    have hd : Disjoint (interior ((S.nativeTile t.val.ty n v).carrier 0))
+        (interior ((S.nativeTile t.val.ty n w).carrier 0)) := S.native_disjoint t.val.ty n hne
+    rw [hN] at hd
+    obtain ⟨y, hy⟩ := native_injective_step3_interior (S.nativeTile t.val.ty n w)
+    exact Set.disjoint_left.mp hd hy hy
+  · exfalso
+    obtain ⟨x, hx⟩ := native_injective_step3_interior (P.native n ⟨t, v⟩)
+    have hne : t.val ≠ s.val := fun h => hts (Subtype.ext h)
+    have hd : Disjoint (interior (t.val.carrier 0)) (interior (s.val.carrier 0)) :=
+      P.disjoint t.property s.property hne
+    let h : E d ≃ₜ E d := (S.σ ^ n).toContinuousLinearEquiv.toHomeomorph
+    have himg : ∀ C : Set (E d), (S.σ ^ n) '' C = h '' C := fun C => rfl
+    have hxt : x ∈ interior ((S.σ ^ n) '' (t.val.carrier 0)) :=
+      interior_mono (native_injective_step2_subset P n ⟨t, v⟩) hx
+    have hxs : x ∈ interior ((S.σ ^ n) '' (s.val.carrier 0)) := by
+      rw [hab] at hx
+      exact interior_mono (native_injective_step2_subset P n ⟨s, w⟩) hx
+    rw [himg, ← h.image_interior] at hxt
+    rw [himg, ← h.image_interior] at hxs
+    obtain ⟨y₁, hy₁, rfl⟩ := hxt
+    obtain ⟨y₂, hy₂, hy⟩ := hxs
+    have : y₂ = y₁ := h.injective hy
+    subst this
+    exact Set.disjoint_left.mp hd hy₁ hy₂
 
 /-- P9, V4 1.14: all native tiles have disjoint interiors, with no side-to-side
 hypothesis, and they cover exactly the ambient expansion of the original patch. -/

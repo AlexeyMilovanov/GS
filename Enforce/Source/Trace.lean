@@ -1420,7 +1420,32 @@ theorem birthHeight_age_spec (q : H.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ H.IsFault q f) :
     H.birthHeight q f hf = q.1 + (H.firstProvider q f hf).1 + 1 ∧
       H.age q f hf = (H.firstProvider q f hf).1 + 1 ∧ 1 ≤ H.age q f hf := by
-  sorry
+  have ancestor_height (r : ℕ) : (H.ancestor q r).1 = q.1 + r := by
+    induction r with
+    | zero => rfl
+    | succ r ih =>
+      rw [← ancestor_add H q r 1]
+      dsimp [ancestor]
+      have : (H.parentNode (H.parentNode^[r] q)).1 = (H.parentNode^[r] q).1 + 1 := rfl
+      rw [this]
+      change (H.ancestor q r).1 + 1 = q.1 + (r + 1)
+      rw [ih]
+      omega
+  
+  have h_serve : (H.servingChild q f hf).1 = q.1 + (H.firstProvider q f hf).1 := by
+    dsimp [servingChild]
+    rw [ancestor_height]
+  
+  have h_birth : H.birthHeight q f hf = q.1 + (H.firstProvider q f hf).1 + 1 := by
+    change (H.servingChild q f hf).1 + 1 = _
+    rw [h_serve]
+
+  have h_age : H.age q f hf = (H.firstProvider q f hf).1 + 1 := by
+    change H.birthHeight q f hf - q.1 = _
+    rw [h_birth]
+    omega
+
+  exact ⟨h_birth, h_age, by rw [h_age]; omega⟩
 
 /-- P6, V4 1.6: a total provider record, using `none = NULL` on persistent faults. -/
 def providerOrNull (q : H.Node) (f : FacetName S q.2.val.ty) :

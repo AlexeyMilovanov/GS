@@ -12122,7 +12122,34 @@ at any prescribed lower bound on `k`. Existence uses the nonempty `F(A)`. -/
 theorem required_principal_component (A : S.ι) (k₀ : ℕ) :
     ∃ k : ℕ, k₀ ≤ k ∧ ∃ E₀ : Set (E d), IsSkeletonComponent S A k E₀ ∧
       ∀ f ∈ required_list A, f ∈ principalFacets S A k E₀ := by
-  sorry
+  let r := max ((Fintype.card S.ι - 1) + 2) (k₀ + 1)
+  have h_bound : ∀ f ∈ required_list A, f.depth < r := by
+    intro f hf
+    have h_depth : f.depth ≤ (Fintype.card S.ι - 1) + 1 := by
+      have H := (requiredSet_finite A).2 f (by simpa [required_list] using hf)
+      exact H
+    omega
+  obtain ⟨k, hk_r, hk_pos, E₀, hE₀, h_subset⟩ := principal_component A r (required_list A) h_bound
+  use k
+  refine ⟨by omega, E₀, hE₀, ?_⟩
+  intro f hf
+  have h_sub := h_subset f hf
+  have H_nonempty : (f.carrier).Nonempty := by
+    obtain ⟨i, e, h_loc, h_rel⟩ := f.realization
+    have he : (e.val.carrier).Nonempty := e.val.flat.relint_nonempty.mono intrinsicInterior_subset
+    have h1 : (f.localCarrier).Nonempty := by
+      rw [h_loc, placedSet]
+      exact he.image _
+    have h2 : (f.carrier).Nonempty := by
+      change (f.birthFrame '' (S.σ.symm '' f.localCarrier)).Nonempty
+      exact (h1.image _).image _
+    exact h2
+  have H_inter : (f.carrier ∩ E₀).Nonempty := H_nonempty.mono (Set.subset_inter_iff.mpr ⟨Set.Subset.refl _, h_sub⟩)
+  have h_k_depth : f.depth < k := by
+    have h_depth : f.depth ≤ (Fintype.card S.ι - 1) + 1 := (requiredSet_finite A).2 f (by simpa [required_list] using hf)
+    have hr : r = max ((Fintype.card S.ι - 1) + 2) (k₀ + 1) := rfl
+    omega
+  exact ⟨h_k_depth, H_inter⟩
 
 /-- P19, V4 1.24: normalized skeletons increase under further subdivision. -/
 theorem internalSkeleton_mono (A : S.ι) (k l : ℕ) (hkl : k ≤ l) :

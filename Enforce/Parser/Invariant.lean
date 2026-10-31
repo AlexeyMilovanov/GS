@@ -490,10 +490,252 @@ def CertificateBase (D : DecodedLevel Y P.K) : Prop :=
 
 end Parser
 
+/-- Step 0 of the V4 proof of `base_level_step1_decoded` (V4 2.17(a)): "each is a placed
+σ^K A whose standard subdivision consists of actual tiles"; a whole certificate is an
+actual height-K parser block. -/
+private lemma base_level_step1_decoded_step0_isBlock {Y : MarkedTiling (systemM S P C)}
+    (B : KBlock Y) : IsBlock Y P.K B.node := by
+  intro w
+  refine ⟨B.leaf w, B.leaf_mem w, ?_⟩
+  apply FramedNode.ext
+  · change (compilerLeaf C (B.leaf w)).prototype = _
+    rw [(B.leaf_data w).1]
+    rfl
+  · exact (B.leaf_data w).2
+
+/-- Step 0 of the V4 proof of `base_level_step1_decoded` (V4 2.17(a)): a whole certificate
+regarded as an ordinary parser block. -/
+private def base_level_step1_decoded_step0_toBlock {Y : MarkedTiling (systemM S P C)}
+    (B : KBlock Y) : Block Y P.K :=
+  ⟨B.node, base_level_step1_decoded_step0_isBlock B⟩
+
+/-- Step 1 of the V4 proof of `base_level_step1_decoded` (V4 3.2, 2.17(a)): "each is a
+placed σ^K A whose standard subdivision consists of actual tiles". For a level whose
+blocks are the K-blocks, the nodes at height m are exactly the inner nodes of the
+certificates at depth K - m. -/
+private lemma base_level_step1_decoded_step1_mem_iff {Y : MarkedTiling (systemM S P C)}
+    (G : GeometricLevel Y P.K) (hG : G.blocks = Set.range base_level_step1_decoded_step0_toBlock)
+    (m : ℕ) (N : FramedNode S) :
+    N ∈ G.nodes m ↔ ∃ (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K)
+      (w : S.RoleWord B.certificate.val.ty a), P.K - a = m ∧ B.innerNode a ha w = N := by
+  constructor
+  · rintro ⟨Bk, hBk, r, hr, w, hw⟩
+    rw [hG] at hBk
+    obtain ⟨B, rfl⟩ := hBk
+    have hm : P.K - r = m := by omega
+    refine ⟨B, r, by omega, w, hm, ?_⟩
+    rw [hw]
+    change (S.descendantNode B.certificate.val.ty (P.K - r) r w).move B.frame = _
+    rw [hm]
+    rfl
+  · rintro ⟨B, a, ha, w, hm, rfl⟩
+    refine ⟨(base_level_step1_decoded_step0_toBlock B), hG ▸ ⟨B, rfl⟩, a, by omega, w, ?_⟩
+    change (S.descendantNode B.certificate.val.ty (P.K - a) a w).move B.frame = _
+    rw [hm]
+    rfl
+
+/-- Step 2 of the V4 proof of `base_level_step1_decoded` (V4 §1.0, H3): a prescribed child
+lies in its closed parent (the substitution cover `σ(A) = ⋃ children`). -/
+private lemma base_level_step1_decoded_step2_child_subset (N : FramedNode S) (n : ℕ)
+    (i : S.I N.ty) : (N.child n i).carrier n ⊆ N.carrier (n + 1) := by
+  have hplace (x : E d) : S.placeChild n i ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child N.ty i).frame x) := by
+    change linearConj S.σ (n : ℤ) (S.child N.ty i).rotation.toLinearEquiv
+        ((S.σ ^ n) x) + (S.σ ^ n) (S.child N.ty i).offset =
+      (S.σ ^ n) ((S.child N.ty i).rotation x + (S.child N.ty i).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  rintro z ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hmem : (S.child N.ty i).frame x ∈ S.σ '' (S.proto N.ty).carrier := by
+    rw [S.children_cover]
+    exact mem_iUnion.mpr ⟨i, ⟨x, hx, rfl⟩⟩
+  obtain ⟨y, hy, he⟩ := hmem
+  refine ⟨(S.σ ^ (n + 1)) y, ⟨y, hy, rfl⟩, ?_⟩
+  change N.frame ((S.σ ^ (n + 1)) y) = N.frame (S.placeChild n i ((S.σ ^ n) x))
+  rw [hplace, ← he, pow_succ]
+  rfl
+
+/-- Step 2 of the V4 proof of `base_level_step1_decoded` (V4 §1.0, H3): a descendant node
+lies in the closed carrier of its root. -/
+private lemma base_level_step1_decoded_step2_descendant_subset (D N : FramedNode S)
+    (m n : ℕ) (h : D.IsDescendant m N n) : D.carrier m ⊆ N.carrier n := by
+  obtain ⟨r, rfl, w, rfl⟩ := h
+  induction r generalizing N with
+  | zero => simp [SubstSystem.descendantNode, FramedNode.move]
+  | succ r ih =>
+    have he : (S.descendantNode N.ty m (r + 1) w).move N.frame =
+        (S.descendantNode (N.child (m + r) w.1).ty m r w.2).move
+          (N.child (m + r) w.1).frame := rfl
+    rw [he]
+    exact (ih (N.child (m + r) w.1) w.2).trans
+      (base_level_step1_decoded_step2_child_subset N (m + r) w.1)
+
+/-- Step 2 of the V4 proof of `base_level_step1_decoded` (V4 2.17(a)): "the K-blocks of Y
+(one per tile, with repetitions identified) have pairwise disjoint interiors". Two
+K-blocks sharing an inner node at the same height coincide. -/
+private lemma base_level_step1_decoded_step2_block_unique {Y : MarkedTiling (systemM S P C)}
+    (B B' : KBlock Y) (a a' : ℕ) (ha : a ≤ P.K) (ha' : a' ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a) (w' : S.RoleWord B'.certificate.val.ty a')
+    (hm : P.K - a = P.K - a') (h : B.innerNode a ha w = B'.innerNode a' ha' w') :
+    B = B' := by
+  have hd : (B.innerNode a ha w).IsDescendant (P.K - a) (base_level_step1_decoded_step0_toBlock B).node P.K :=
+    ⟨a, by omega, w, rfl⟩
+  have hd' : (B.innerNode a ha w).IsDescendant (P.K - a) B'.node P.K := by
+    rw [h, hm]
+    exact ⟨a', by omega, w', rfl⟩
+  obtain ⟨x, hx⟩ := ((base_level_step1_decoded_step0_toBlock B).innerBlock (P.K - a) _ hd).carrier_regular.2.2
+  apply B.eq_of_interior_meet B'
+  refine ⟨x, interior_mono ?_ hx, interior_mono ?_ hx⟩
+  · exact base_level_step1_decoded_step2_descendant_subset _ _ _ _ hd
+  · exact base_level_step1_decoded_step2_descendant_subset _ _ _ _ hd'
+
+/-- Step 3 of the V4 proof of `base_level_step1_decoded` (V4 §1.0, H3): a placed child
+carrier is the image of the placed child prototype under the parent's prototype frame. -/
+private lemma base_level_step1_decoded_step3_child_carrier (N : FramedNode S) (n : ℕ)
+    (i : S.I N.ty) : (N.child n i).carrier n = N.prototypeFrame n ''
+      placedSet (S.child N.ty i).frame (S.proto (S.child N.ty i).ty).carrier := by
+  have hi (x : E d) : S.placeChild n i ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child N.ty i).frame x) := by
+    rw [S.placeChild_apply]
+    simp [linearConj, Child.frame, rigidMotion, zpow_neg, LinearEquiv.mul_apply,
+      ← map_add]
+  ext z
+  constructor
+  · rintro ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+    refine ⟨_, ⟨x, hx, rfl⟩, ?_⟩
+    change N.frame ((S.σ ^ n) ((S.child N.ty i).frame x)) =
+      N.frame (S.placeChild n i ((S.σ ^ n) x))
+    rw [hi]
+  · rintro ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+    refine ⟨_, ⟨x, hx, rfl⟩, ?_⟩
+    change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+      N.frame ((S.σ ^ n) ((S.child N.ty i).frame x))
+    rw [hi]
+
+/-- Step 3 of the V4 proof of `base_level_step1_decoded` (V4 §1.0): every framed node
+has a carrier with nonempty interior (nonempty prototype interiors). -/
+private lemma base_level_step1_decoded_step3_interior_nonempty (D : FramedNode S) (h : ℕ) :
+    (interior (D.carrier h)).Nonempty := by
+  have hc : D.carrier h = D.prototypeFrame h '' (S.proto D.ty).carrier := by
+    ext z
+    constructor
+    · rintro ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+      exact ⟨x, hx, rfl⟩
+    · rintro ⟨x, hx, rfl⟩
+      exact ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hi : interior (D.prototypeFrame h '' (S.proto D.ty).carrier) =
+      D.prototypeFrame h '' interior (S.proto D.ty).carrier :=
+    ((D.prototypeFrame h).toHomeomorphOfFiniteDimensional.image_interior _).symm
+  rw [hc, hi]
+  exact (S.proto D.ty).interior_nonempty.image _
+
+/-- Step 3 of the V4 proof of `base_level_step1_decoded` (V4 §1.0, H3): distinct
+children of a framed node have disjoint interiors. -/
+private lemma base_level_step1_decoded_step3_children_disjoint (N : FramedNode S) (n : ℕ)
+    (i j : S.I N.ty) (hij : i ≠ j) :
+    Disjoint (interior ((N.child n i).carrier n)) (interior ((N.child n j).carrier n)) := by
+  have hi (k : S.I N.ty) : interior ((N.child n k).carrier n) = N.prototypeFrame n ''
+      interior (placedSet (S.child N.ty k).frame (S.proto (S.child N.ty k).ty).carrier) := by
+    rw [base_level_step1_decoded_step3_child_carrier]
+    exact ((N.prototypeFrame n).toHomeomorphOfFiniteDimensional.image_interior _).symm
+  rw [hi, hi]
+  exact (Set.disjoint_image_iff (N.prototypeFrame n).injective).mpr
+    (S.children_disjoint N.ty hij)
+
+/-- Step 3 of the V4 proof of `base_level_step1_decoded` (V4 §1.0, H3--H4): distinct role
+words of one depth name distinct framed descendants of a node. -/
+private lemma base_level_step1_decoded_step3_descendant_injective (h a : ℕ) :
+    ∀ (N : FramedNode S) (w w' : S.RoleWord N.ty a),
+      (S.descendantNode N.ty h a w).move N.frame =
+        (S.descendantNode N.ty h a w').move N.frame → w = w' := by
+  induction a with
+  | zero =>
+    intro N w w' _
+    exact Subsingleton.elim (α := Unit) w w'
+  | succ a ih =>
+    intro N w w' hw
+    obtain ⟨i, u⟩ := w
+    obtain ⟨j, u'⟩ := w'
+    have he : ∀ (k : S.I N.ty) (v : S.RoleWord (S.child N.ty k).ty a),
+        (S.descendantNode N.ty h (a + 1) ⟨k, v⟩).move N.frame =
+          (S.descendantNode (N.child (h + a) k).ty h a v).move
+            (N.child (h + a) k).frame := fun _ _ => rfl
+    rw [he, he] at hw
+    by_cases hij : i = j
+    · subst hij
+      rw [ih (N.child (h + a) i) u u' hw]
+    · exfalso
+      have h1 := base_level_step1_decoded_step2_descendant_subset _
+        (N.child (h + a) i) h (h + a) ⟨a, rfl, u, rfl⟩
+      have h2 := base_level_step1_decoded_step2_descendant_subset _
+        (N.child (h + a) j) h (h + a) ⟨a, rfl, u', hw⟩
+      obtain ⟨x, hx⟩ := base_level_step1_decoded_step3_interior_nonempty
+        ((S.descendantNode (N.child (h + a) i).ty h a u).move (N.child (h + a) i).frame) h
+      exact Set.disjoint_left.mp
+        (base_level_step1_decoded_step3_children_disjoint N (h + a) i j hij)
+        (interior_mono h1 hx) (interior_mono h2 hx)
+
+/-- Step 3 of the V4 proof of `base_level_step1_decoded` (V4 §1.0, H3--H4): in the standard
+subdivision of one K-block, distinct role words of the same depth name distinct
+framed inner nodes (children of a node have disjoint interiors). -/
+private lemma base_level_step1_decoded_step3_word_unique {Y : MarkedTiling (systemM S P C)}
+    (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K) (w w' : S.RoleWord B.certificate.val.ty a)
+    (h : B.innerNode a ha w = B.innerNode a ha w') : w = w' :=
+  base_level_step1_decoded_step3_descendant_injective (P.K - a) a B.node w w' h
+
+/-- Step 4 of the V4 proof of `base_level_step1_decoded` (V4 3.2): the honest S-table
+state of an inner node does not depend on the certificate presenting it. -/
+private lemma base_level_step1_decoded_step4_table_eq {Y : MarkedTiling (systemM S P C)}
+    (B B' : KBlock Y) (a a' : ℕ) (ha : a ≤ P.K) (ha' : a' ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a) (w' : S.RoleWord B'.certificate.val.ty a')
+    (hm : P.K - a = P.K - a') (h : B.innerNode a ha w = B'.innerNode a' ha' w') :
+    B.table a ha w = B'.table a' ha' w' := by
+  have hB := base_level_step1_decoded_step2_block_unique B B' a a' ha ha' w w' hm h
+  subst hB
+  have haa : a = a' := by omega
+  subst haa
+  have hw := base_level_step1_decoded_step3_word_unique B a ha w w' h
+  subst hw
+  rfl
+
 /-- Step 1 of the V4 proof of `base_level` (V4 3.2): The K-blocks of Theorem 2.17(a), with the states given by the honest S-tables of their certificates, form a decoded level K. -/
 private lemma base_level_step1_decoded (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
     ∃ D : DecodedLevel Y P.K, Parser.CertificateBase D := by
-  sorry
+  obtain ⟨-, hdisj, hcov, -⟩ := compiler_certificates C Y hY
+  let G : GeometricLevel Y P.K :=
+    { blocks := Set.range base_level_step1_decoded_step0_toBlock
+      disjoint := by
+        rintro _ ⟨B₁, rfl⟩ _ ⟨B₂, rfl⟩ hne
+        exact hdisj (fun h => hne (h ▸ rfl))
+      cover := fun x => by
+        obtain ⟨B, hB⟩ := hcov x
+        exact ⟨(base_level_step1_decoded_step0_toBlock B), ⟨B, rfl⟩, hB⟩ }
+  have hG : G.blocks = Set.range base_level_step1_decoded_step0_toBlock := rfl
+  have hex : ∀ (m : ℕ) (N : {N // N ∈ G.nodes m}), ∃ s : State P,
+      ∃ (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K) (w : S.RoleWord B.certificate.val.ty a),
+        P.K - a = m ∧ B.innerNode a ha w = N.1 ∧ s = B.table a ha w := by
+    intro m N
+    obtain ⟨B, a, ha, w, hm, hN⟩ :=
+      (base_level_step1_decoded_step1_mem_iff G hG m N.1).1 N.2
+    exact ⟨_, B, a, ha, w, hm, hN, rfl⟩
+  refine ⟨⟨G, fun m N => (hex m N).choose, fun m N => ?_⟩, ?_, ?_⟩
+  · obtain ⟨B, a, ha, w, -, -, hs⟩ := (hex m N).choose_spec
+    show (hex m N).choose ∈ honestStates S P
+    rw [hs]
+    exact B.table_mem a ha w
+  · ext N
+    constructor
+    · rintro ⟨_, ⟨B, rfl⟩, rfl⟩
+      exact ⟨B, rfl⟩
+    · rintro ⟨B, rfl⟩
+      exact ⟨(base_level_step1_decoded_step0_toBlock B), ⟨B, rfl⟩, rfl⟩
+  · intro B a ha w
+    have hN : B.innerNode a ha w ∈ G.nodes (P.K - a) :=
+      (base_level_step1_decoded_step1_mem_iff G hG _ _).2 ⟨B, a, ha, w, rfl, rfl⟩
+    refine ⟨hN, ?_⟩
+    obtain ⟨B', a', ha', w', hm, hn, hs⟩ := (hex (P.K - a) ⟨_, hN⟩).choose_spec
+    change (hex (P.K - a) ⟨_, hN⟩).choose = _
+    rw [hs]
+    exact base_level_step1_decoded_step4_table_eq B' B a' a ha' ha w' w hm hn
 
 /-- Step 2 of the V4 proof of `base_level` (V4 3.2): (I1): the table's state of the root has the block's type, and its residue is K mod L because the certificate is the S-table of an honest node of height exactly K. -/
 private lemma base_level_step2_I1 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

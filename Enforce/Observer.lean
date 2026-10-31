@@ -1573,7 +1573,35 @@ theorem floorChildren_level (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
 /-- O6, V4 4.6: every actual node occurs in its parent's complete child list. -/
 theorem floor_mem_parent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) : q ∈ floorChildren Y hY (floorParent Y hY q) := by
-  sorry
+  obtain ⟨⟨n, ⟨N, hN⟩⟩, h_floor⟩ := q
+  unfold floorChildren
+  have h_lt : P.H < (floorParent Y hY ⟨⟨n, ⟨N, hN⟩⟩, h_floor⟩).val.1 := by
+    change P.H < n + 1
+    change P.H ≤ n at h_floor
+    omega
+  rw [dif_pos h_lt]
+  apply List.mem_map.mpr
+  let H := parsedHierarchy Y hY
+  let i := H.role n ⟨N, hN⟩
+  have hi : i ∈ roles ((floorParent Y hY ⟨⟨n, ⟨N, hN⟩⟩, h_floor⟩).val.2.val.ty) :=
+    mem_roles _ i
+  use i
+  refine ⟨hi, ?_⟩
+  apply Subtype.ext
+  dsimp [parsedChild]
+  have he : (H.parent n ⟨N, hN⟩).val.child n i = N := by
+    have := H.child_eq n ⟨N, hN⟩
+    exact this.symm
+  apply Sigma.ext
+  · change n + 1 - 1 = n
+    omega
+  · change HEq (⟨(H.parent n ⟨N, hN⟩).val.child (n + 1 - 1) i, _⟩ : {M // M ∈ H.nodes (n + 1 - 1)}) (⟨N, hN⟩ : {M // M ∈ H.nodes n})
+    revert he
+    change (H.parent n ⟨N, hN⟩).val.child (n + 1 - 1) i = N → _
+    intro he
+    apply heq_of_eq
+    apply Subtype.ext
+    exact he
 /-- O6, V4 4.6: the listed parent is the unique actual hierarchy parent. -/
 theorem floor_child_parent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q r : FloorNode Y hY) (hr : r ∈ floorChildren Y hY q) :

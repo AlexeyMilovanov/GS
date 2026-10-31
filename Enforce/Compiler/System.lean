@@ -1633,7 +1633,23 @@ This estimate counts all leaf assignments, so no joint-honesty assumption is use
 theorem sourceLanguage_card_le (C : ClusterData S P) (n : ℕ) (A : S.ι) :
     (sourceLanguage C n A).ncard ≤
       Fintype.card (LeafType P) ^ Fintype.card (S.RoleWord A n) := by
-  sorry
+  letI : Fintype (LeafType P) := leafTypeFintype P
+  letI : Fintype (S.RoleWord A n) := SubstSystem.roleWordFintype S A n
+  classical
+  letI : Fintype (S.RoleWord A n → LeafType P) := Pi.instFintype
+  have h1 := sourceLanguage_subset_render C n A
+  have h2 : (Set.range (renderLeafTuple C n A)).ncard ≤ Fintype.card (S.RoleWord A n → LeafType P) := by
+    have h_fin : (Set.univ : Set (S.RoleWord A n → LeafType P)).Finite := Set.finite_univ
+    have h_eq : Set.range (renderLeafTuple C n A) = renderLeafTuple C n A '' Set.univ := by ext; simp
+    rw [h_eq]
+    have h_le : (renderLeafTuple C n A '' Set.univ).ncard ≤ Set.univ.ncard := Set.ncard_image_le h_fin
+    rw [Set.ncard_univ, Nat.card_eq_fintype_card] at h_le
+    exact h_le
+  have h3 : Fintype.card (S.RoleWord A n → LeafType P) = Fintype.card (LeafType P) ^ Fintype.card (S.RoleWord A n) := Fintype.card_fun
+  rw [← h3]
+  have h4 := Set.ncard_le_ncard h1 (Set.finite_range (renderLeafTuple C n A))
+  exact le_trans h4 h2
+
 
 /-- M8, V4 2.17(a): an honest certificate's leaf state is its depth-K table entry. -/
 theorem certificate_leaf_state (D : CertificateSymbol S P)

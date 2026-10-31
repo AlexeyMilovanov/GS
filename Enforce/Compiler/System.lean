@@ -1479,7 +1479,53 @@ theorem compilerBlock_exists_unique (C : ClusterData S P)
     (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) :
     ∃! B : KBlock Y, ∃ w : S.RoleWord B.certificate.val.ty P.K, B.leaf w = t := by
-  sorry
+  obtain ⟨H, _, _, _⟩ := compiler_certificates C Y hY
+  obtain ⟨B, hcert, hframe, heq, _⟩ := H t ht
+  use B
+  dsimp
+  constructor
+  · have h1 : (compilerLeaf C t).1 = B.certificate := hcert.symm
+    use h1 ▸ (compilerLeaf C t).2
+    dsimp [KBlock.leaf]
+    have hw : (⟨B.certificate, h1 ▸ (compilerLeaf C t).2⟩ : LeafType P) = compilerLeaf C t := by
+      exact Sigma.ext hcert (by simp)
+    have ht_eq : placedLeaf C (compilerLeaf C t) ((compilerLeaf C t).position.trans B.frame) = t := heq.symm
+    rw [hw]
+    exact ht_eq
+  · rintro D ⟨wD, hwD⟩
+    have h1 : (compilerLeaf C t).1 = B.certificate := hcert.symm
+    let w : S.RoleWord B.certificate.val.ty P.K := h1 ▸ (compilerLeaf C t).2
+    have ht_eq : B.leaf w = t := by
+      dsimp [KBlock.leaf]
+      have hw : (⟨B.certificate, h1 ▸ (compilerLeaf C t).2⟩ : LeafType P) = compilerLeaf C t := by
+        exact Sigma.ext hcert (by simp)
+      rw [hw]
+      exact heq.symm
+    have hwD_eq : D.leaf wD = B.leaf w := by
+      rw [hwD, ht_eq]
+      
+    dsimp [KBlock.leaf] at hwD_eq
+    have h_inj := placedLeaf_injective C _ _ _ _ hwD_eq
+    have h_cert_eq : D.certificate = B.certificate := congrArg Sigma.fst h_inj.1
+    have h_frame_eq : D.frame = B.frame := by
+      have h_leaf_eq : (⟨D.certificate, wD⟩ : LeafType P) = ⟨B.certificate, w⟩ := h_inj.1
+      have hφ := h_inj.2
+      have h_pos_eq : LeafType.position (⟨D.certificate, wD⟩ : LeafType P) = LeafType.position (⟨B.certificate, w⟩ : LeafType P) := by
+        rw [h_leaf_eq]
+      rw [h_pos_eq] at hφ
+      ext x
+      have h_apply := congrArg (fun (f : Iso d) => f ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).symm x)) hφ
+      dsimp at h_apply
+      have h_symm : (LeafType.position (⟨B.certificate, w⟩ : LeafType P)) ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).symm x) = x := by
+        exact (LeafType.position (⟨B.certificate, w⟩ : LeafType P)).apply_symm_apply x
+      rw [h_symm] at h_apply
+      rw [h_apply]
+    obtain ⟨cD, fD, lD⟩ := D
+    obtain ⟨cB, fB, lB⟩ := B
+    dsimp at h_cert_eq h_frame_eq ⊢
+    subst h_cert_eq
+    subst h_frame_eq
+    rfl
 
 /-- M8, V4 2.17(b): every listed template tile occurs in the output with exactly
 its listed label and the composite frame φ_central ∘ φ_template. -/

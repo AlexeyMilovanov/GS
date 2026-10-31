@@ -428,7 +428,9 @@ upward address on the honest packet alphabet. It is not free auxiliary ancestry.
 theorem packet_roles_from_head (P : Params S) (q : Packet P)
     (hq : q ∈ honestPackets S P) (j : Fin q.jstar.val) :
     q.roles j = q.head.address ⟨j.val, lt_trans j.isLt q.jstar.isLt⟩ := by
-  sorry
+  obtain ⟨U, g, rfl⟩ := hq
+  rw [packet_head]
+  rfl
 
 /-- Q8, V4 8.1: the highest state is retained, and every higher slot is ABSENT. -/
 theorem packet_top_spec (P : Params S) (q : Packet P) (hq : q ∈ honestPackets S P) :

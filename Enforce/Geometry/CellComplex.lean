@@ -54,7 +54,28 @@ def vertices : Finset (Cell d) := by
 interior. The existence is used to define `minimalCell`, without partial choices. -/
 theorem exists_unique_minimalCell (p : E d) (hp : p ∈ frontier A.carrier) :
     ∃! e : {e // e ∈ K.cells}, p ∈ relint e.val.carrier := by
-  sorry
+  have h_cov := K.cover
+  have hp_in : p ∈ ⋃ e ∈ K.cells, relint e.carrier := by
+    rw [h_cov]
+    exact hp
+  simp only [Set.mem_iUnion] at hp_in
+  obtain ⟨e, hp_in2⟩ := hp_in
+  obtain ⟨he_in, hp_relint⟩ := hp_in2
+  use ⟨e, he_in⟩
+  dsimp
+  refine ⟨hp_relint, ?_⟩
+  rintro ⟨f, hf_in⟩ hp_f
+  dsimp at hp_f
+  have h_disj := K.relint_disjoint
+  have h_neq_val : e = f ∨ e ≠ f := Classical.em (e = f)
+  cases' h_neq_val with heq hneq
+  · subst heq
+    rfl
+  · have h_disj_ef := h_disj e he_in f hf_in hneq
+    have h_inter : p ∈ (relint e.carrier) ∩ (relint f.carrier) := ⟨hp_relint, hp_f⟩
+    have hempty := Set.disjoint_iff_inter_eq_empty.mp h_disj_ef
+    rw [hempty] at h_inter
+    exact False.elim h_inter
 
 /-- G3, V4 §1.0 (H2): the unique cell whose relative interior contains `p`.
 It is defined only on the frontier; the existence theorem supplies the choice. -/

@@ -1267,7 +1267,15 @@ theorem event_contains_trigger_cluster (C : ClusterData S P) (e : EventIndex S P
 theorem event_contains_readout_cluster (C : ClusterData S P) (e : EventIndex S P)
     (z : FramedNode S × LeafType P) (hz : z ∈ eventReadouts e) :
     placedSet z.1.frame (C.cluster z.2 .readout) ⊆ eventCarrier C e := by
-  sorry
+  have h1 : C.cluster z.2 .readout ⊆ C.enclosing z.2 .readout := C.cluster_subset_enclosing z.2 .readout
+  have h2 : placedSet z.1.frame (C.cluster z.2 .readout) ⊆ placedSet z.1.frame (C.enclosing z.2 .readout) :=
+    Set.image_mono h1
+  have h3 : placedSet z.1.frame (C.enclosing z.2 .readout) = readoutRegion C z := rfl
+  have h4 : readoutRegion C z ⊆ eventCarrier C e := by
+    unfold eventCarrier
+    apply Set.subset_union_of_subset_right
+    apply Set.subset_biUnion_of_mem hz
+  exact h2.trans (by rw [h3]; exact h4)
 
 /-- M3/M5, V4 2.11, 2.13: central TRIG pinning reads the entire correct cluster. -/
 theorem event_marks_trigger_cluster (C : ClusterData S P) (e : EventIndex S P)

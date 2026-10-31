@@ -2924,7 +2924,33 @@ theorem stratumMap_age_one (q : H.Node) (f : FacetName S q.2.val.ty)
     (s : CellName S q.2.val.ty)
     (hs : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val) :
     (H.stratumMap q f hf s hs).val = s.val := by
-  sorry
+  have h_prov_len : (H.firstProvider q f hf).1 = 0 := by
+    have h := H.birthHeight_age_spec q f hf
+    omega
+  have hc : (H.servingChild q f hf) = q := by
+    dsimp [CoherentHierarchy.servingChild, CoherentHierarchy.ancestor]
+    rw [h_prov_len]
+    rfl
+  dsimp [CoherentHierarchy.stratumMap]
+  have hd := Classical.choose_spec (H.stratum_exists_unique q f hf s hs)
+  obtain ⟨hd1, hd2⟩ := hd
+  have H2 : ∀ (c : H.Node) (h : c = q), (cast (by rw [h]) s : CellName S c.2.val.ty).val = s.val := by
+    intro c h
+    subst h
+    rfl
+  have heq2 : (cast (by rw [hc]) s : CellName S (H.servingChild q f hf).2.val.ty).val = s.val := H2 (H.servingChild q f hf) hc
+
+  have H3 : ∀ (c : H.Node) (h : c = q), relint (q.2.val.cell q.1 s.val) ⊆ relint (c.2.val.cell c.1 (cast (by rw [h]) s : CellName S c.2.val.ty).val) := by
+    intro c h
+    subst h
+    exact subset_rfl
+  have heq3 : relint (q.2.val.cell q.1 s.val) ⊆ relint ((H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1 (cast (by rw [hc]) s : CellName S (H.servingChild q f hf).2.val.ty).val) := H3 (H.servingChild q f hf) hc
+
+  have heq4 := hd2 _ heq3
+  have heq5 : (Classical.choose (H.stratum_exists_unique q f hf s hs)).val = (cast (by rw [hc]) s : CellName S (H.servingChild q f hf).2.val.ty).val := by
+    rw [heq4]
+  rw [heq5]
+  exact heq2
 
 /-- P7, V4 1.7(d), final clause: an active edge lies in an edge of every
 intermediate ancestor, with the same one-dimensional provider stratum. -/

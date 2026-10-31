@@ -5833,7 +5833,23 @@ theorem state_child (q : H.Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty)
     (hc : q.2.val.child (q.1 - 1) i ∈ H.nodes (q.1 - 1)) :
     R.state ⟨q.1 - 1, ⟨q.2.val.child (q.1 - 1) i, hc⟩⟩ =
       childMap P (R.state q) ⟨q.2.val.ty, i⟩ := by
-  sorry
+  have heq : q.1 - 1 + 1 = q.1 := Nat.sub_add_cancel hq
+  have hm_node_raw : q.2.val ∈ (R.fullLevels q.1).geometry.nodes q.1 := by
+    rw [(R.fullLevels q.1).geometry.nodes_top, R.roots q.1]
+    exact q.2.property
+  have hm_node : q.2.val ∈ (R.fullLevels q.1).geometry.nodes (q.1 - 1 + 1) := by
+    rwa [heq]
+  have hc_node : q.2.val.child (q.1 - 1) i ∈ (R.fullLevels q.1).geometry.nodes (q.1 - 1) := by
+    exact (R.fullLevels q.1).geometry.child_mem (q.1 - 1) q.2.val hm_node i
+  have h_I2 := (R.full_invariant q.1).I2.1 (q.1 - 1) q.2.val hm_node i
+  have h_agree1 : (R.fullLevels q.1).stateAt (q.1 - 1 + 1) q.2.val hm_node = R.state q := by
+    have h_agree_raw := R.state_agrees q.1 q.1 q.2.val hm_node_raw q.2.property
+    have h_congr : (R.fullLevels q.1).stateAt (q.1 - 1 + 1) q.2.val hm_node = (R.fullLevels q.1).stateAt q.1 q.2.val hm_node_raw := by
+      change (R.fullLevels q.1).stateAt (q.1 - 1 + 1) q.2.val hm_node = _
+      congr
+    rw [h_congr, h_agree_raw]
+  have h_agree2 := R.state_agrees q.1 (q.1 - 1) (q.2.val.child (q.1 - 1) i) hc_node hc
+  rw [←h_agree2, h_I2, h_agree1]
 
 /-- R12, V4 3.1: ground hierarchy states are the actual output leaf states. -/
 theorem state_ground (q : H.Node) (hq : q.1 = 0)

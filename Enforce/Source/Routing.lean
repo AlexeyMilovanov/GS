@@ -8192,6 +8192,101 @@ private theorem birth_ascent_routing_step4_facet_neighborhood
   simpa only [interior_inter, Metric.isOpen_ball.interior_eq] using
     hconv.interior.isPreconnected
 
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
+(V4 1.25, using (H1) of V4 §1.0): "the polyhedral boundary separates a small
+ball into two sides" — at a codimension-two cell. Ridge degree: since
+`∂P₀` is a topological `(d-1)`-manifold, a listed boundary cell `g` of
+dimension `d-2` lies in exactly two listed facets (near `relint g` the frontier
+is a book of half-hyperplanes bounded by `aff g`; a book with `k ≠ 2` pages is
+not a `(d-1)`-manifold, `k ≤ 1` being excluded already by regular closedness).
+This is the cell-complex analogue of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree`. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets
+    (D : PolyManifoldDomain d) (C : CellComplex D) (g : Cell d) (hg : g ∈ C.cells)
+    (hgd : g.dim + 2 = d) :
+    {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}.ncard = 2 := by
+  sorry
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
+(V4 1.25): "the polyhedral boundary separates a small ball into two sides and
+`int P₀` is one of them" — at a relative interior point `y` of a codimension-two
+cell `g` lying in exactly two facets. Elementary geometry, no manifold
+hypothesis: near `y` the only cells are `g` and its two facets, each a
+half-hyperplane bounded by `aff g` (relative interiors are disjoint and
+`closure (relint f) = f`); the two distinct half-hyperplanes cut a small ball
+into two open wedges, each inside `int P₀` or inside the exterior; not both
+inside (`y` is a frontier point) and not both outside (`P₀` is regular closed).
+So `int P₀ ∩ B(y, δ)` is one wedge, which is path connected. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ
+    (D : PolyManifoldDomain d) (C : CellComplex D) (g : Cell d) (hg : g ∈ C.cells)
+    (hgd : g.dim + 2 = d)
+    (htwo : {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}.ncard = 2)
+    (y : E d) (hy : y ∈ relint g.carrier) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ δ : ℝ, 0 < δ → δ < ε →
+      IsPreconnected (interior D.carrier ∩ Metric.ball y δ) := by
+  sorry
+
+/-- Step 3 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
+(V4 1.25): "join them by a path ... in general position (avoiding the
+`(d-2)`-skeleton ... and crossing facets transversally)". Every component `Q`
+of `int P₀ ∩ B(p,r)` has in its closure a frontier point of the ball that lies
+on no listed cell of dimension `≤ d-3`, i.e. a point of the relative interior
+of a facet or of a codimension-two cell. Proof: `Q ≠ B(p,r)` as `p ∉ int P₀`,
+the points of `closure Q ∩ B(p,r) \ Q` are frontier points of `P₀`; if all of
+them lay on the codimension `≥ 3` skeleton `Z`, then `Q` would be clopen in the
+connected set `B(p,r) \ Z` (a finite union of flat cells of codimension `≥ 2`
+does not separate a ball), so `B(p,r) ⊆ closure Q ⊆ P₀`, contradicting
+`p ∈ ∂P₀`. No manifold hypothesis is used. Cell-complex analogue of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet`. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step3_reach_wall
+    (D : PolyManifoldDomain d) (C : CellComplex D) (p : E d)
+    (hp : p ∈ frontier D.carrier) (r : ℝ) (hr : 0 < r) (x : E d)
+    (hx : x ∈ interior D.carrier ∩ Metric.ball p r) :
+    ∃ y ∈ frontier D.carrier ∩ Metric.ball p r,
+      (∀ c ∈ C.cells, y ∈ c.carrier → d ≤ c.dim + 2) ∧
+      y ∈ closure (connectedComponentIn (interior D.carrier ∩ Metric.ball p r) x) := by
+  sorry
+
+/-- Step 4 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
+(V4 1.25, using (H1) of V4 §1.0): "the polyhedral boundary ... a small ball".
+Strong connectivity of the boundary near `p`: for small `r`, the part of
+`∂P₀ ∩ B(p,r)` off the listed cells of dimension `≤ d-3` (the union of the
+relative interiors of the facets and codimension-two cells through `p`) is
+connected. This is a statement about the frontier only (no interior side):
+`∂P₀ ∩ B(p,r)` is a cone over the link of `p`, which is connected because
+`∂P₀` is a `(d-1)`-manifold, and a codimension-two polyhedral subset does not
+disconnect a polyhedral manifold. Local analogue of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains`. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected
+    (D : PolyManifoldDomain d) (C : CellComplex D) (p : E d)
+    (hp : p ∈ frontier D.carrier) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ r : ℝ, 0 < r → r < ε →
+      IsPreconnected {y | y ∈ frontier D.carrier ∩ Metric.ball p r ∧
+        ∀ c ∈ C.cells, y ∈ c.carrier → d ≤ c.dim + 2} := by
+  sorry
+
+/-- Step 5 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
+(V4 1.25): "near a boundary point the polyhedral boundary separates a small ball
+into two sides and `int P₀` is one of them", at the wall points (facet or
+codimension-two relative interiors): the facet half-ball case
+(`birth_ascent_routing_step4_facet_neighborhood`) and Steps 1–2. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step5_wall_germ
+    (D : PolyManifoldDomain d) (C : CellComplex D) (y : E d)
+    (hy : y ∈ frontier D.carrier) (hyc : ∀ c ∈ C.cells, y ∈ c.carrier → d ≤ c.dim + 2) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ δ : ℝ, 0 < δ → δ < ε →
+      IsPreconnected (interior D.carrier ∩ Metric.ball y δ) := by
+  rw [← C.cover] at hy
+  obtain ⟨c, hc, hyc'⟩ := Set.mem_iUnion₂.mp hy
+  have h1 := hyc c hc (intrinsicInterior_subset hyc')
+  have h2 := C.dim_lt c hc
+  by_cases hcd : c.dim = d - 1
+  · exact birth_ascent_routing_step4_facet_neighborhood D C c
+      (Finset.mem_filter.mpr ⟨hc, hcd⟩) y hyc'
+  · have hcd' : c.dim + 2 = d := by omega
+    exact birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ D C c hc hcd'
+      (birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets D C c hc hcd')
+      y hyc'
+
 /-- Step 4 of the V4 proof of `birth_ascent_routing` (V4 1.25):
 "near a boundary point the polyhedral boundary separates a small ball into
 two sides and `int P₀` is one of them". This is only the remaining local
@@ -8203,7 +8298,115 @@ private theorem birth_ascent_routing_step4_lower_cell_neighborhood
     (p : E d) (hp : p ∈ relint e.carrier) :
     ∃ ε : ℝ, 0 < ε ∧ ∀ r : ℝ, 0 < r → r < ε →
       IsPreconnected (interior D.carrier ∩ Metric.ball p r) := by
-  sorry
+  have hpf : p ∈ frontier D.carrier := by
+    rw [← C.cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hp⟩
+  obtain ⟨ε, hε, hwall⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected D C p hpf
+  refine ⟨ε, hε, fun r hr hrε => ?_⟩
+  set I := interior D.carrier ∩ Metric.ball p r with hIdef
+  set Y := {y | y ∈ frontier D.carrier ∩ Metric.ball p r ∧
+    ∀ c ∈ C.cells, y ∈ c.carrier → d ≤ c.dim + 2} with hYdef
+  have hYconn : IsPreconnected Y := hwall r hr hrε
+  have hIopen : IsOpen I := isOpen_interior.inter Metric.isOpen_ball
+  -- a preconnected interior germ at every wall point, inside the ball
+  have hgerm : ∀ y ∈ Y, ∃ δ : ℝ, 0 < δ ∧ Metric.ball y δ ⊆ Metric.ball p r ∧
+      IsPreconnected (interior D.carrier ∩ Metric.ball y δ) := by
+    rintro y ⟨⟨hyf, hyb⟩, hyc⟩
+    obtain ⟨η, hη, hconn⟩ :=
+      birth_ascent_routing_step4_lower_cell_neighborhood_step5_wall_germ D C y hyf hyc
+    have hyr : 0 < r - dist y p := by
+      rw [Metric.mem_ball] at hyb
+      linarith
+    have hpos : 0 < min (η / 2) (r - dist y p) := lt_min (by linarith) hyr
+    refine ⟨min (η / 2) (r - dist y p), hpos, ?_, hconn _ hpos ?_⟩
+    · exact Metric.ball_subset_ball' (by linarith [min_le_right (η / 2) (r - dist y p)])
+    · linarith [min_le_left (η / 2) (r - dist y p)]
+  choose! δ hδpos hδsub hδconn using hgerm
+  -- wall points are adherent to the interior
+  have hDcl : ∀ y ∈ Y, ∀ s : Set (E d), IsOpen s → y ∈ s →
+      (s ∩ interior D.carrier).Nonempty := by
+    rintro y ⟨⟨hyf, -⟩, -⟩ s hs hys
+    have hyD : y ∈ closure (interior D.carrier) := by
+      rw [D.regularClosed]
+      exact (frontier_subset_iff_isClosed.mpr D.compact.isClosed) hyf
+    exact mem_closure_iff.mp hyD s hs hys
+  -- a germ meeting a component lies in it
+  have hsub : ∀ x₀ : E d, ∀ y ∈ Y, ∀ z ∈ Metric.ball y (δ y),
+      z ∈ connectedComponentIn I x₀ →
+        interior D.carrier ∩ Metric.ball y (δ y) ⊆ connectedComponentIn I x₀ := by
+    intro x₀ y hy z hzb hzQ
+    have hzI : z ∈ I := connectedComponentIn_subset _ _ hzQ
+    have hSI : interior D.carrier ∩ Metric.ball y (δ y) ⊆ I :=
+      fun w hw => ⟨hw.1, hδsub y hy hw.2⟩
+    have h := (hδconn y hy).subset_connectedComponentIn ⟨hzI.1, hzb⟩ hSI
+    rwa [← connectedComponentIn_eq hzQ] at h
+  -- a component adherent to a wall point contains its germ
+  have hgermsub : ∀ x₀ : E d, ∀ y ∈ Y, y ∈ closure (connectedComponentIn I x₀) →
+      interior D.carrier ∩ Metric.ball y (δ y) ⊆ connectedComponentIn I x₀ := by
+    intro x₀ y hy hcl
+    obtain ⟨z, hzb, hzQ⟩ := mem_closure_iff.mp hcl (Metric.ball y (δ y)) Metric.isOpen_ball
+      (Metric.mem_ball_self (hδpos y hy))
+    exact hsub x₀ y hy z hzb hzQ
+  -- adherence propagates to nearby wall points
+  have hnear : ∀ x₀ : E d, ∀ y ∈ Y, y ∈ closure (connectedComponentIn I x₀) →
+      ∀ w ∈ Y, w ∈ Metric.ball y (δ y) → w ∈ closure (connectedComponentIn I x₀) := by
+    intro x₀ y hy hcl w hw hwb
+    have hS := hgermsub x₀ y hy hcl
+    refine mem_closure_iff.mpr fun s hs hws => ?_
+    obtain ⟨z, ⟨hzs, hzb⟩, hzD⟩ :=
+      hDcl w hw (s ∩ Metric.ball y (δ y)) (hs.inter Metric.isOpen_ball) ⟨hws, hwb⟩
+    exact ⟨z, hzs, hS ⟨hzD, hzb⟩⟩
+  have hback : ∀ x₀ : E d, ∀ b ∈ Y, ∀ w ∈ Y, w ∈ Metric.ball b (δ b) →
+      w ∈ closure (connectedComponentIn I x₀) → b ∈ closure (connectedComponentIn I x₀) := by
+    intro x₀ b hb w hw hwb hcl
+    obtain ⟨z, hzb, hzQ⟩ := mem_closure_iff.mp hcl (Metric.ball b (δ b)) Metric.isOpen_ball hwb
+    have hS := hsub x₀ b hb z hzb hzQ
+    refine mem_closure_iff.mpr fun s hs hbs => ?_
+    obtain ⟨u, ⟨hus, hub⟩, huD⟩ :=
+      hDcl b hb (s ∩ Metric.ball b (δ b)) (hs.inter Metric.isOpen_ball)
+        ⟨hbs, Metric.mem_ball_self (hδpos b hb)⟩
+    exact ⟨u, hus, hS ⟨huD, hub⟩⟩
+  -- every component is adherent to every wall point
+  have hall : ∀ x₀ ∈ I, ∀ y ∈ Y, y ∈ closure (connectedComponentIn I x₀) := by
+    intro x₀ hx₀
+    obtain ⟨y₀, hy₀, hy₀c, hy₀cl⟩ :=
+      birth_ascent_routing_step4_lower_cell_neighborhood_step3_reach_wall D C p hpf r hr x₀ hx₀
+    have hy₀Y : y₀ ∈ Y := ⟨hy₀, hy₀c⟩
+    by_contra hne
+    push_neg at hne
+    obtain ⟨y₁, hy₁Y, hy₁⟩ := hne
+    let u := ⋃ y ∈ {y | y ∈ Y ∧ y ∈ closure (connectedComponentIn I x₀)},
+      Metric.ball y (δ y)
+    let v := ⋃ y ∈ {y | y ∈ Y ∧ y ∉ closure (connectedComponentIn I x₀)},
+      Metric.ball y (δ y)
+    have hu : IsOpen u := isOpen_biUnion fun _ _ => Metric.isOpen_ball
+    have hv : IsOpen v := isOpen_biUnion fun _ _ => Metric.isOpen_ball
+    have hcov : Y ⊆ u ∪ v := by
+      intro y hy
+      by_cases hyc : y ∈ closure (connectedComponentIn I x₀)
+      · exact Or.inl (Set.mem_biUnion ⟨hy, hyc⟩ (Metric.mem_ball_self (hδpos y hy)))
+      · exact Or.inr (Set.mem_biUnion ⟨hy, hyc⟩ (Metric.mem_ball_self (hδpos y hy)))
+    obtain ⟨w, hwY, hwu, hwv⟩ := hYconn u v hu hv hcov
+      ⟨y₀, hy₀Y, Set.mem_biUnion ⟨hy₀Y, hy₀cl⟩ (Metric.mem_ball_self (hδpos y₀ hy₀Y))⟩
+      ⟨y₁, hy₁Y, Set.mem_biUnion ⟨hy₁Y, hy₁⟩ (Metric.mem_ball_self (hδpos y₁ hy₁Y))⟩
+    obtain ⟨a, ⟨haY, hacl⟩, hwa⟩ := Set.mem_iUnion₂.mp hwu
+    obtain ⟨b, ⟨hbY, hbcl⟩, hwb⟩ := Set.mem_iUnion₂.mp hwv
+    exact hbcl (hback x₀ b hbY w hwY hwb (hnear x₀ a haY hacl w hwY hwa))
+  refine isPreconnected_of_forall_pair fun x hx x' hx' => ?_
+  refine ⟨connectedComponentIn I x, connectedComponentIn_subset _ _,
+    mem_connectedComponentIn hx, ?_, isPreconnected_connectedComponentIn⟩
+  obtain ⟨y', hy', hy'c, hy'cl⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step3_reach_wall D C p hpf r hr x' hx'
+  have hy'Y : y' ∈ Y := ⟨hy', hy'c⟩
+  have hS := hgermsub x y' hy'Y (hall x hx y' hy'Y)
+  have hS' := hgermsub x' y' hy'Y hy'cl
+  obtain ⟨z, hzb, hzD⟩ := hDcl y' hy'Y (Metric.ball y' (δ y')) Metric.isOpen_ball
+    (Metric.mem_ball_self (hδpos y' hy'Y))
+  have hzQ := hS ⟨hzD, hzb⟩
+  have hzQ' := hS' ⟨hzD, hzb⟩
+  rw [connectedComponentIn_eq hzQ, ← connectedComponentIn_eq hzQ']
+  exact mem_connectedComponentIn hx'
 
 /-- Step 4 of the V4 proof of `birth_ascent_routing` (V4 1.25):
 "`int P₀ ∩ B(p,ρ)` is connected for small `ρ`". The relative-interior

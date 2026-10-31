@@ -110,7 +110,20 @@ theorem certificateColour_leaf (C : ClusterData S P) (D : CertificateSymbol S P)
 /-- M3, V4 2.11: CORE supports are compact, as closed subsets of supertiles. -/
 theorem coreCarrier_compact (C : ClusterData S P) (D : CertificateSymbol S P) :
     IsCompact (coreCarrier C D) := by
-  sorry
+  dsimp [Compiler.coreCarrier, SubstSystem.supertile]
+  apply IsCompact.diff
+  · apply IsCompact.image (S.proto D.val.ty).compact
+    exact ContinuousLinearEquiv.continuous (S.σ ^ P.K).toContinuousLinearEquiv
+  · apply isOpen_iUnion
+    intro w
+    apply isOpen_iUnion
+    intro j
+    have hl : IsOpen (C.openTrigger ⟨D, w⟩ j) := by
+      dsimp [ClusterData.openTrigger]
+      exact Metric.isOpen_ball
+    dsimp [placedSet]
+    rw [← Homeomorph.isOpen_image (LeafType.position (⟨D, w⟩ : LeafType P)).toHomeomorph] at hl
+    exact hl
 
 /-- M3, V4 2.11: the compact certificate rule CORE_D. -/
 def coreRule (C : ClusterData S P) (D : CertificateSymbol S P) :

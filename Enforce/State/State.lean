@@ -49,7 +49,35 @@ def vertexCell {A : S.ι} (v : VertexName S A) : CellName S A :=
 /-- Q3, V4 §2.2 (S6): a listed zero-cell is exactly one point. -/
 theorem vertexPoint_exists {A : S.ι} (v : VertexName S A) :
     ∃! p : E d, v.val.carrier = {p} := by
-  sorry
+  have hv : v.val ∈ (S.cx A).vertices := v.property
+  have h_dim : v.val.dim = 0 := by
+    have h_mem := Finset.mem_filter.mp hv
+    exact h_mem.right
+  have h_flat : IsFlatCell 0 v.val.carrier := by
+    have h : IsFlatCell v.val.dim v.val.carrier := v.val.flat
+    exact h_dim ▸ h
+  have hd : Module.finrank ℝ (cellDirection v.val.carrier) = 0 := h_flat.dimension
+  have hc : (cellDirection v.val.carrier) = ⊥ := Submodule.finrank_eq_zero.mp hd
+  have hl : (affineSpan ℝ v.val.carrier).direction = ⊥ := hc
+  have hk_sub : v.val.carrier ⊆ (affineSpan ℝ v.val.carrier) := subset_affineSpan ℝ v.val.carrier
+  have h_ne : v.val.carrier.Nonempty := by
+    have h_relint : (relint v.val.carrier).Nonempty := h_flat.relint_nonempty
+    exact h_relint.mono intrinsicInterior_subset
+  obtain ⟨p, hp⟩ := h_ne
+  use p
+  constructor
+  · apply subset_antisymm
+    · intro x hx
+      have hx_span : x ∈ (affineSpan ℝ v.val.carrier) := hk_sub hx
+      have hp_span : p ∈ (affineSpan ℝ v.val.carrier) := hk_sub hp
+      have hd_vec : x -ᵥ p ∈ (affineSpan ℝ v.val.carrier).direction := AffineSubspace.vsub_mem_direction hx_span hp_span
+      rw [hl, Submodule.mem_bot] at hd_vec
+      rw [mem_singleton_iff, ← vsub_eq_zero_iff_eq]
+      exact hd_vec
+    · rw [singleton_subset_iff]
+      exact hp
+  · intro y hy
+    exact (mem_singleton_iff.mp (by rw [← hy]; exact hp)).symm
 
 /-- Q3, V4 §2.2 (S6): the actual point of a listed vertex. -/
 def vertexPoint {A : S.ι} (v : VertexName S A) : E d :=

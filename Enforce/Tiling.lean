@@ -2899,6 +2899,13 @@ theorem ScaleTailEquiv.residues {S : SubstSystem d} {U V : HonestSource S}
     {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
     (L : ℕ) (hL : 0 < L) (hab : a % L = b % L) (q : U.hierarchy.Tail a) :
     (e.toEquiv q).val.1 % L = q.val.1 % L := by
-  sorry
+  have h := e.heights q
+  have h_mod : ((e.toEquiv q).val.1 + a) % L = (q.val.1 + b) % L := by rw [h]
+  have h2a : ((e.toEquiv q).val.1 + a) % L = ((e.toEquiv q).val.1 % L + a % L) % L := Nat.add_mod _ _ _
+  have h1b : (q.val.1 + b) % L = (q.val.1 % L + b % L) % L := Nat.add_mod _ _ _
+  rw [h2a, h1b, ← hab] at h_mod
+  have h_mod_eq : (e.toEquiv q).val.1 % L + a % L ≡ q.val.1 % L + a % L [MOD L] := h_mod
+  have h_xy : (e.toEquiv q).val.1 % L ≡ q.val.1 % L [MOD L] := Nat.ModEq.add_right_cancel' (a % L) h_mod_eq
+  exact Nat.ModEq.eq_of_lt_of_lt h_xy (Nat.mod_lt _ hL) (Nat.mod_lt _ hL)
 
 end Enforce

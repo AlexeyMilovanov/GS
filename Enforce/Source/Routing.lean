@@ -2587,6 +2587,137 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
   exact ⟨(Set.inclusion hsub) ⁻¹' U, hU.preimage hi.continuous, hqU,
     Set.range g, hg.isOpen_range, ⟨hg.isEmbedding.toHomeomorph⟩⟩
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary` (V4 1.24):
+"each a closed hypersurface". Local invariance of domain (Brouwer): a continuous
+map injective on a closed ball of `E n` sends the centre to an interior point of
+the image of the ball. Rescale the ball to the unit ball and apply the local invariance of
+domain already derived (via Brouwer from Gale's Hex theorem) in the
+`step7_pure_triangulation_step4_invariance_dimension` chain above. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary_step1_local_invariance
+    {n : ℕ} {x : E n} {r : ℝ} (hr : 0 < r) (g : E n → E n)
+    (hg : ContinuousOn g (Metric.closedBall x r))
+    (hinj : Set.InjOn g (Metric.closedBall x r)) :
+    g x ∈ interior (g '' Metric.closedBall x r) := by
+  have hmem (z : Metric.closedBall (0 : E n) 1) : x + r • (z : E n) ∈ Metric.closedBall x r := by
+    rw [Metric.mem_closedBall, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hr.le]
+    have hz : ‖(z : E n)‖ ≤ 1 := by
+      have := z.property
+      rwa [Metric.mem_closedBall, dist_zero_right] at this
+    nlinarith
+  let h : Metric.closedBall (0 : E n) 1 → E n := fun z => g (x + r • (z : E n))
+  have hc : Continuous h := by
+    have hk : Continuous fun z : Metric.closedBall (0 : E n) 1 =>
+        (⟨x + r • (z : E n), hmem z⟩ : Metric.closedBall x r) :=
+      Continuous.subtype_mk (by fun_prop) _
+    exact (continuousOn_iff_continuous_restrict.mp hg).comp hk
+  have hi : Function.Injective h := by
+    intro z z' hzz
+    have h1 := hinj (hmem z) (hmem z') hzz
+    have h2 : r • (z : E n) = r • (z' : E n) := add_left_cancel h1
+    exact Subtype.ext (smul_right_injective _ hr.ne' h2)
+  have hint := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step7_domain_invariance n
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step5_zero_stability n (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed n)) h hc hi
+  have hrange : Set.range h ⊆ g '' Metric.closedBall x r := by
+    rintro _ ⟨z, rfl⟩
+    exact ⟨_, hmem z, rfl⟩
+  have h0 : h ⟨0, Metric.mem_closedBall_self zero_le_one⟩ = g x := by
+    show g (x + r • (0 : E n)) = g x
+    rw [smul_zero, add_zero]
+  rw [← h0]
+  exact interior_mono hrange hint
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary` (V4 1.24):
+"each a closed hypersurface". Invariance of domain: a continuous map injective
+on an open subset of `E n` has an open image, by the local statement on small
+closed balls. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary_step2_invariance_domain
+    {n : ℕ} {V : Set (E n)} (hV : IsOpen V) (g : E n → E n)
+    (hg : ContinuousOn g V) (hinj : Set.InjOn g V) :
+    IsOpen (g '' V) := by
+  rw [isOpen_iff_mem_nhds]
+  rintro _ ⟨x, hx, rfl⟩
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hV x hx
+  have hsub : Metric.closedBall x (r / 2) ⊆ V :=
+    (Metric.closedBall_subset_ball (by linarith)).trans hball
+  have hint :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary_step1_local_invariance
+      (half_pos hr) g (hg.mono hsub) (hinj.mono hsub)
+  exact Filter.mem_of_superset (mem_interior_iff_mem_nhds.mp hint) (Set.image_mono hsub)
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary` (V4 1.24):
+"each a closed hypersurface". At a point of a proper facet the simplex lies in a
+closed half-space of its affine span: the normal is the component of the
+omitted vertex orthogonal to the facet. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary_step3_supporting_normal
+    (f s : Finset (E d)) (hf : AffineIndependent ℝ ((↑) : f → E d))
+    {v : E d} (hvf : v ∈ f) (hvs : v ∉ s) (hfs : ∀ y ∈ f, y ∈ s ∨ y = v) (hsf : s ⊆ f)
+    {p : E d} (hp : p ∈ convexHull ℝ (s : Set (E d))) :
+    ∃ b ∈ vectorSpan ℝ (f : Set (E d)), b ≠ 0 ∧
+      ∀ x ∈ convexHull ℝ (f : Set (E d)), 0 ≤ inner ℝ b (x - p) := by
+  classical
+  set D := (affineSpan ℝ (s : Set (E d))).direction with hD
+  have hpaff : p ∈ affineSpan ℝ (s : Set (E d)) := convexHull_subset_affineSpan _ hp
+  set b := (v - p) - D.starProjection (v - p) with hb
+  have hbD : b ∈ Dᗮ := D.sub_starProjection_mem_orthogonal (v - p)
+  have hvspan : v ∉ affineSpan ℝ (s : Set (E d)) := by
+    have himage : (Subtype.val : f → E d) '' {i : f | i.val ∈ s} = (s : Set (E d)) := by
+      ext y
+      constructor
+      · rintro ⟨i, hi, rfl⟩
+        exact hi
+      · intro hy
+        exact ⟨⟨y, hsf hy⟩, hy, rfl⟩
+    have hiff := hf.mem_affineSpan_iff (⟨v, hvf⟩ : f) {i : f | i.val ∈ s}
+    rw [himage] at hiff
+    exact fun hv => hvs (hiff.mp hv)
+  have hpf : p ∈ affineSpan ℝ (f : Set (E d)) :=
+    convexHull_subset_affineSpan _ (convexHull_mono (Finset.coe_subset.mpr hsf) hp)
+  have hDf : D ≤ vectorSpan ℝ (f : Set (E d)) := by
+    rw [hD, direction_affineSpan]
+    exact vectorSpan_mono ℝ (Finset.coe_subset.mpr hsf)
+  refine ⟨b, ?_, ?_, ?_⟩
+  · have h1 : v - p ∈ vectorSpan ℝ (f : Set (E d)) := by
+      rw [← direction_affineSpan]
+      exact AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ _ (Finset.mem_coe.mpr hvf)) hpf
+    exact Submodule.sub_mem _ h1 (hDf (D.starProjection_apply_mem (v - p)))
+  · intro hb0
+    apply hvspan
+    have hmem : v - p ∈ D := by
+      have : v - p = D.starProjection (v - p) := by
+        rw [hb] at hb0
+        exact sub_eq_zero.mp hb0
+      rw [this]
+      exact D.starProjection_apply_mem (v - p)
+    have := AffineSubspace.vadd_mem_of_mem_direction hmem hpaff
+    simpa [vadd_eq_add] using this
+  · have hconv : Convex ℝ {x : E d | inner ℝ b p ≤ inner ℝ b x} :=
+      convex_halfSpace_ge (innerₛₗ ℝ b).isLinear _
+    have hsubset : convexHull ℝ (f : Set (E d)) ⊆ {x : E d | inner ℝ b p ≤ inner ℝ b x} := by
+      apply convexHull_min _ hconv
+      intro y hy
+      simp only [Set.mem_setOf_eq]
+      rcases hfs y (Finset.mem_coe.mp hy) with hys | rfl
+      · have hyD : y - p ∈ D :=
+          AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ _ (Finset.mem_coe.mpr hys)) hpaff
+        have h0 : inner ℝ b (y - p) = 0 := Submodule.inner_left_of_mem_orthogonal hyD hbD
+        rw [inner_sub_right] at h0
+        linarith
+      · have hPD : D.starProjection (y - p) ∈ D := D.starProjection_apply_mem (y - p)
+        have h0 : inner ℝ b (D.starProjection (y - p)) = 0 :=
+          Submodule.inner_left_of_mem_orthogonal hPD hbD
+        have h1 : inner ℝ b (y - p) = inner ℝ b b := by
+          have : y - p = b + D.starProjection (y - p) := by rw [hb]; abel
+          rw [this, inner_add_right, h0, add_zero]
+        have h2 : 0 ≤ inner ℝ b b := real_inner_self_nonneg
+        rw [inner_sub_right] at h1
+        linarith
+    intro x hx
+    have := hsubset hx
+    simp only [Set.mem_setOf_eq] at this
+    rw [inner_sub_right]
+    linarith
+
 /-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
 "each a closed hypersurface". A neighbourhood of a point on a proper facet of
 one `(d-1)`-simplex has boundary and cannot be locally Euclidean of dimension
@@ -2597,7 +2728,101 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
     {p : E d} (hp : p ∈ convexHull ℝ (s : Set (E d)))
     {O : Set (E d)} (hO : IsOpen O) (hpO : p ∈ O) :
     ¬ IsLocallyEuclidean (d - 1) (convexHull ℝ (f : Set (E d)) ∩ O) := by
-  sorry
+  classical
+  intro hloc
+  have hd : 2 ≤ d := Fact.out
+  have hcard1 : (f \ s).card = 1 := by
+    rw [Finset.card_sdiff_of_subset hsf, hfc, hsc]
+    omega
+  obtain ⟨v, hv⟩ := Finset.card_eq_one.mp hcard1
+  have hvfs : v ∈ f \ s := by rw [hv]; exact Finset.mem_singleton_self v
+  have hvf : v ∈ f := (Finset.mem_sdiff.mp hvfs).1
+  have hvs : v ∉ s := (Finset.mem_sdiff.mp hvfs).2
+  have hfs : ∀ y ∈ f, y ∈ s ∨ y = v := by
+    intro y hy
+    by_cases hys : y ∈ s
+    · exact Or.inl hys
+    · right
+      have : y ∈ f \ s := Finset.mem_sdiff.mpr ⟨hy, hys⟩
+      rw [hv] at this
+      exact Finset.mem_singleton.mp this
+  obtain ⟨b, hbspan, hb0, hbpos⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary_step3_supporting_normal
+      f s hf hvf hvs hfs hsf hp
+  set Dir := vectorSpan ℝ (f : Set (E d)) with hDir
+  have hfin : Module.finrank ℝ Dir = d - 1 := by
+    have hrange : Set.range ((↑) : f → E d) = (f : Set (E d)) := Subtype.range_val
+    have h := hf.finrank_vectorSpan (n := d - 1) (by rw [Fintype.card_coe, hfc]; omega)
+    rw [hrange] at h
+    exact h
+  let L : Dir ≃L[ℝ] E (d - 1) :=
+    ContinuousLinearEquiv.ofFinrankEq (by rw [hfin, finrank_euclideanSpace_fin])
+  have hpΔ : p ∈ convexHull ℝ (f : Set (E d)) := convexHull_mono (Finset.coe_subset.mpr hsf) hp
+  have hpf : p ∈ affineSpan ℝ (f : Set (E d)) := convexHull_subset_affineSpan _ hpΔ
+  have hmemDir (z : ↥(convexHull ℝ (f : Set (E d)) ∩ O)) : (z : E d) - p ∈ Dir := by
+    rw [hDir, ← direction_affineSpan]
+    exact AffineSubspace.vsub_mem_direction (convexHull_subset_affineSpan _ z.property.1) hpf
+  obtain ⟨U, hU, hpU, V, hV, ⟨e⟩⟩ := hloc ⟨p, hpΔ, hpO⟩
+  let φ : V → E (d - 1) := fun y => L ⟨((e.symm y : U) : E d) - p, hmemDir _⟩
+  have hφc : Continuous φ := by
+    apply L.continuous.comp
+    apply Continuous.subtype_mk
+    fun_prop
+  let g : E (d - 1) → E (d - 1) := fun y => if h : y ∈ V then φ ⟨y, h⟩ else 0
+  have hgV : V.restrict g = φ := by
+    funext y
+    simp [g, Set.restrict, y.property]
+  have hgc : ContinuousOn g V := by
+    rw [continuousOn_iff_continuous_restrict, hgV]
+    exact hφc
+  have hginj : Set.InjOn g V := by
+    intro y₁ h₁ y₂ h₂ heq
+    have heq' : φ ⟨y₁, h₁⟩ = φ ⟨y₂, h₂⟩ := by simpa [g, h₁, h₂] using heq
+    have h3 := L.injective heq'
+    have h4 : ((e.symm ⟨y₁, h₁⟩ : U) : E d) = ((e.symm ⟨y₂, h₂⟩ : U) : E d) := by
+      have := congrArg Subtype.val h3
+      simpa using this
+    have h5 : e.symm ⟨y₁, h₁⟩ = e.symm ⟨y₂, h₂⟩ := Subtype.ext (Subtype.ext h4)
+    have h6 := congrArg Subtype.val (e.symm.injective h5)
+    simpa using h6
+  have hopen :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step6_simplex_boundary_step2_invariance_domain
+      hV g hgc hginj
+  -- the base point
+  let y₀ : V := e ⟨⟨p, hpΔ, hpO⟩, hpU⟩
+  have hgy₀ : g y₀ = 0 := by
+    have : φ y₀ = 0 := by
+      simp only [φ, y₀, Homeomorph.symm_apply_apply, sub_self]
+      exact map_eq_zero_iff L L.injective |>.mpr rfl
+    simpa [g, y₀.property] using this
+  have h0mem : (0 : E (d - 1)) ∈ g '' V := ⟨y₀, y₀.property, hgy₀⟩
+  -- a path of directions leaving the half-space
+  let ψ : ℝ → E (d - 1) := fun t => L ⟨-(t • b), Submodule.neg_mem _ (Submodule.smul_mem _ t hbspan)⟩
+  have hψc : Continuous ψ := by
+    apply L.continuous.comp
+    apply Continuous.subtype_mk
+    fun_prop
+  have hψ0 : ψ 0 = 0 := by
+    simp only [ψ, zero_smul, neg_zero]
+    exact map_eq_zero_iff L L.injective |>.mpr rfl
+  have hpre : IsOpen (ψ ⁻¹' (g '' V)) := hopen.preimage hψc
+  obtain ⟨δ, hδ, hδsub⟩ := Metric.isOpen_iff.mp hpre 0 (by simpa [hψ0] using h0mem)
+  have htmem : δ / 2 ∈ Metric.ball (0 : ℝ) δ := by
+    rw [Metric.mem_ball, Real.dist_eq, sub_zero, abs_of_pos (half_pos hδ)]
+    linarith
+  obtain ⟨y, hyV, hy⟩ := hδsub htmem
+  have hy' : φ ⟨y, hyV⟩ = ψ (δ / 2) := by simpa [g, hyV] using hy
+  have h3 := L.injective hy'
+  have h4 : ((e.symm ⟨y, hyV⟩ : U) : E d) - p = -((δ / 2) • b) := by
+    have := congrArg Subtype.val h3
+    simpa using this
+  have hxΔ : ((e.symm ⟨y, hyV⟩ : U) : E d) ∈ convexHull ℝ (f : Set (E d)) :=
+    ((e.symm ⟨y, hyV⟩ : U) : ↥(convexHull ℝ (f : Set (E d)) ∩ O)).property.1
+  have hnn := hbpos _ hxΔ
+  rw [h4, inner_neg_right, inner_smul_right] at hnn
+  have hbb : 0 < inner ℝ b b := real_inner_self_pos.mpr hb0
+  have : 0 < δ / 2 * inner ℝ b b := mul_pos (half_pos hδ) hbb
+  linarith
 
 /-- Step 7 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree` (V4 1.24):
 "each a closed hypersurface". Unfold two simplices sharing a codimension-one

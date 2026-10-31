@@ -988,7 +988,9 @@ No global existence of a tiling is presumed. -/
 theorem sourceLanguage_eq_empty_iff (C : ClusterData S P) (n : ℕ) (A : S.ι) :
     sourceLanguage C n A = ∅ ↔ ¬ ∃ (U : HonestSource S) (φ : Iso d),
       (⟨A, φ⟩ : FramedNode S) ∈ U.hierarchy.nodes n := by
-  sorry
+  rw [sourceLanguage_eq_honestLanguage]
+  exact honestLanguage_eq_empty_iff (fun U => (honestLift C U).marking) n A
+
 
 /-- M8, V4 2.17(a): a placed whole certificate with every prescribed leaf actual.
 The certificate belongs to the joint honest catalogue. Its entire S-table is thus

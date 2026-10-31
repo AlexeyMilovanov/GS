@@ -9756,7 +9756,9 @@ theorem firstBranching_zero_iff (A : S.ι) :
 
 /-- P22, V4 8.3: the replacement required list is never empty for an actual type. -/
 theorem required_list_nonempty (A : S.ι) : (required_list A).Nonempty := by
-  sorry
+  obtain ⟨f, hf⟩ := firstBranchingFacets_nonempty A
+  refine ⟨f, (mem_required_list A f).mpr ?_⟩
+  exact Or.inr (Or.inl hf)
 
 /-- P22, V4 8.3: every child contributes its own positioned first-branching
 facets to the parent's list, retaining the initial role of that child. -/

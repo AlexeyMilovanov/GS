@@ -4452,7 +4452,8 @@ theorem first_generation_head (g : Parser.BornFacet P)
 
 /-- R9, V4 3.10: the new parent state belongs to the honest state alphabet. -/
 theorem newState_honest : newState Y hY n hn D hD N A ∈ honestStates S P := by
-  sorry
+  let r := Parser.readableFacet Y hY n hn D hD N A (Parser.firstChild N.ty)
+  exact (honest_packet_admissible P r.packet r.honest).2.2.2.2 r.parentSlot _ r.parent_decode
 
 /-- R9, V4 3.10: the new state has the assembled parent's actual prototype. -/
 theorem newState_type : (newState Y hY n hn D hD N A).ty = N.ty := by

@@ -193,7 +193,12 @@ variable {S : SubstSystem d} {M : C1System d X} {π : X → Option S.ι}
 /-- M1/F, V4 §F.2: the projected native tiles cover space. -/
 theorem project_cover (x : E d) :
     ∃ t ∈ (fun u => u.native D) '' Y.tiles, x ∈ t.carrier := by
-  sorry
+  obtain ⟨u, hu, hx⟩ := Y.cover x
+  use u.native D
+  constructor
+  · exact Set.mem_image_of_mem _ hu
+  · rw [PlacedMarkedTile.native_carrier D u]
+    exact hx
 
 /-- M1/F, V4 §F.2: projection preserves disjointness of tile interiors. -/
 theorem project_disjoint :

@@ -1359,9 +1359,27 @@ structure PrimitiveIncidence (S : SubstSystem d) where
   internal : relint (placedSet (S.child ty left).frame leftFacet.val.carrier) ⊆
     interior (S.supertile 1 ty)
 
+private def primitiveIncidenceEquiv {d : ℕ} [Fact (2 ≤ d)] (S : SubstSystem d) :
+    PrimitiveIncidence S → Σ ty : S.ι, Σ left : S.I ty, Σ right : S.I ty,
+      FacetName S (S.child ty left).ty × FacetName S (S.child ty right).ty :=
+  fun p => ⟨p.ty, p.left, p.right, p.leftFacet, p.rightFacet⟩
+
+private theorem primitiveIncidence_injective {d : ℕ} [Fact (2 ≤ d)] (S : SubstSystem d) :
+    Function.Injective (primitiveIncidenceEquiv S) := by
+  intro p1 p2 h
+  cases p1
+  cases p2
+  dsimp [primitiveIncidenceEquiv] at h
+  obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.mp h
+  obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.mp (eq_of_heq h)
+  obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.mp (eq_of_heq h)
+  have h_eq := eq_of_heq h
+  obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp h_eq
+  rfl
+
 /-- P6, V4 1.6: the catalogue of primitive incidences is finite. -/
-theorem primitiveIncidence_finite (S : SubstSystem d) : Finite (PrimitiveIncidence S) := by
-  sorry
+theorem primitiveIncidence_finite (S : SubstSystem d) : Finite (PrimitiveIncidence S) :=
+  Finite.of_injective _ (primitiveIncidence_injective S)
 
 namespace CoherentHierarchy
 

@@ -79,7 +79,32 @@ theorem minimalCell_subset (p : E d) (hp : p ∈ frontier A.carrier)
 
 /-- G3, V4 §1.0 (H2): the closed cell carriers also cover the frontier. -/
 theorem carriers_cover : (⋃ e ∈ K.cells, e.carrier) = frontier A.carrier := by
-  sorry
+  ext x
+  simp only [mem_iUnion, exists_prop]
+  constructor
+  · rintro ⟨e, he, hx⟩
+    have h1 : closure (relint e.carrier) = e.carrier := e.flat.regularClosed
+    rw [← h1] at hx
+    have h2 : relint e.carrier ⊆ frontier A.carrier := by
+      intro y hy
+      have hy_mem : y ∈ ⋃ e ∈ K.cells, relint e.carrier := by
+        simp only [mem_iUnion, exists_prop]
+        exact ⟨e, he, hy⟩
+      rwa [K.cover] at hy_mem
+    have h3 : closure (relint e.carrier) ⊆ closure (frontier A.carrier) := closure_mono h2
+    have h4 : closure (frontier A.carrier) = frontier A.carrier := isClosed_frontier.closure_eq
+    rw [h4] at h3
+    exact h3 hx
+  · intro hx
+    have h_cover : x ∈ ⋃ e ∈ K.cells, relint e.carrier := by
+      rw [K.cover]
+      exact hx
+    simp only [mem_iUnion, exists_prop] at h_cover
+    rcases h_cover with ⟨e, he, hx_relint⟩
+    use e, he
+    have h1 : closure (relint e.carrier) = e.carrier := e.flat.regularClosed
+    rw [← h1]
+    exact subset_closure hx_relint
 
 end CellComplex
 

@@ -455,7 +455,12 @@ theorem certificate_components_honest (P : Params S) (D : Certificate P)
     (hD : D ∈ honestCerts S P) :
     (∀ w, D.leaves w ∈ honestPrePatterns S P) ∧
       ∀ a ha w, D.table a ha w ∈ honestStates S P := by
-  sorry
+  obtain ⟨U, B, hB, rfl⟩ := hD
+  constructor
+  · intro w
+    exact ⟨U, U.descendant ⟨P.K, B, hB⟩ P.K le_rfl w, Nat.sub_self P.K, rfl⟩
+  · intro a ha w
+    exact ⟨U, U.descendant ⟨P.K, B, hB⟩ a ha w, rfl⟩
 
 /-- Q10, V4 §2.4 (frame marker): preserving every labelled marker ball fixes the
 entire Euclidean frame, including its orientation. Reflections are allowed in the

@@ -71,10 +71,159 @@ structure EdgeBounds (S : SubstSystem d) where
     ∀ r : ℕ, lower ≤ expandedEdgeLength r f / expandedEdgeLength r e ∧
       expandedEdgeLength r f / expandedEdgeLength r e ≤ upper
 
+/-- Step 1 of the V4 proof of `edge_ratio_bounds` (V4 1.20, (H4)):
+"`|σ^r R x| = |σ^r R σ^{-r} σ^r x| = |σ^r x|`". -/
+private theorem edge_ratio_bounds_step1_norm_conj (S : SubstSystem d) (r : ℕ) (A : S.ι)
+    (i : S.I A) (x : E d) :
+    ‖(S.σ ^ r) ((S.child A i).rotation x)‖ = ‖(S.σ ^ r) x‖ := by
+  have h := S.h4 r A i ((S.σ ^ r) x)
+  have hinv : (S.σ ^ r)⁻¹ ((S.σ ^ r) x) = x := by
+    rw [← LinearEquiv.mul_apply, inv_mul_cancel]; rfl
+  rw [linearConj, zpow_neg, zpow_natCast, LinearEquiv.mul_apply, LinearEquiv.mul_apply,
+    hinv] at h
+  exact h
+
+/-- Step 2 of the V4 proof of `edge_ratio_bounds` (V4 1.20):
+"For an arrow `e → f` realised by a child with placement `R` and length ratio
+`c_ef > 0`: `R v_f = ± c_ef σ v_e`; ... `|σ^r v_f| = c_ef |σ^{r+1} v_e|`". -/
+private theorem edge_ratio_bounds_step2_arrow {e f : EdgeName S} (h : edgeGraph S e f) :
+    ∃ c : ℝ, 0 < c ∧ ∀ r : ℕ,
+      expandedEdgeLength r f = c * expandedEdgeLength (r + 1) e := by
+  obtain ⟨i, -, hsub⟩ := h
+  have hf := Classical.choose_spec (edge_endpoints_exist f)
+  have he := Classical.choose_spec (edge_endpoints_exist e)
+  set a := (Classical.choose (edge_endpoints_exist f)).1 with ha
+  set b := (Classical.choose (edge_endpoints_exist f)).2 with hb
+  set a' := (Classical.choose (edge_endpoints_exist e)).1 with ha'
+  set b' := (Classical.choose (edge_endpoints_exist e)).2 with hb'
+  have hvf : edgeVector f = b - a := rfl
+  have hve : edgeVector e = b' - a' := rfl
+  set R := (S.child e.1 i).rotation with hR
+  set φ := (S.child e.1 i).frame with hφ
+  have hφapp : ∀ x, φ x = R x + (S.child e.1 i).offset := fun x => rfl
+  -- images of endpoints lie in `σ '' segment a' b'`
+  have hmem : ∀ x ∈ segment ℝ a b, ∃ t : ℝ, φ x = S.σ a' + t • S.σ (b' - a') := by
+    intro x hx
+    have : φ x ∈ S.σ '' e.2.val.carrier := hsub ⟨x, by rw [hf.2]; exact hx, rfl⟩
+    rw [he.2, segment_eq_image'] at this
+    obtain ⟨y, ⟨t, -, rfl⟩, hy⟩ := this
+    exact ⟨t, by rw [← hy, map_add, map_smul]⟩
+  obtain ⟨t1, h1⟩ := hmem a (left_mem_segment ℝ a b)
+  obtain ⟨t2, h2⟩ := hmem b (right_mem_segment ℝ a b)
+  have hRv : R (edgeVector f) = (t2 - t1) • S.σ (edgeVector e) := by
+    have : φ b - φ a = R (b - a) := by rw [hφapp, hφapp, map_sub]; abel
+    rw [hvf, ← this, h1, h2, hve, sub_smul]; abel
+  have hvf0 : edgeVector f ≠ 0 := sub_ne_zero.mpr (Ne.symm hf.1)
+  have hlam : t2 - t1 ≠ 0 := by
+    intro h0
+    rw [h0, zero_smul] at hRv
+    exact hvf0 (R.map_eq_zero_iff.mp hRv)
+  refine ⟨|t2 - t1|, abs_pos.mpr hlam, fun r => ?_⟩
+  have := edge_ratio_bounds_step1_norm_conj S r e.1 i (edgeVector f)
+  rw [← hR, hRv, map_smul, norm_smul, Real.norm_eq_abs] at this
+  rw [expandedEdgeLength, expandedEdgeLength, ← this, pow_succ, LinearEquiv.mul_apply]
+
+/-- Step 3 of the V4 proof of `edge_ratio_bounds` (V4 1.20):
+"Along a path `e = e_0 → ⋯ → e_s = f`: `|σ^r v_f| = C |σ^{r+s} v_e|` with
+`C = ∏ c_{e_i e_{i+1}}`" (the empty path gives `C = 1`, `s = 0`). -/
+private theorem edge_ratio_bounds_step3_path {e f : EdgeName S}
+    (h : Relation.ReflTransGen (edgeGraph S) e f) :
+    ∃ C : ℝ, 0 < C ∧ ∃ s : ℕ, ∀ r : ℕ,
+      expandedEdgeLength r f = C * expandedEdgeLength (r + s) e := by
+  induction h with
+  | refl => exact ⟨1, one_pos, 0, fun r => by simp⟩
+  | tail _ hgf ih =>
+    obtain ⟨C, hC, s, hs⟩ := ih
+    obtain ⟨c, hc, hcr⟩ := edge_ratio_bounds_step2_arrow hgf
+    refine ⟨c * C, mul_pos hc hC, s + 1, fun r => ?_⟩
+    rw [hcr, hs, mul_assoc]
+    congr 3
+    omega
+
+/-- Step 4 of the V4 proof of `edge_ratio_bounds` (V4 1.20):
+"`C a^s ≤ |σ^r v_f| / |σ^r v_e| ≤ C b^s` with `a = s_min(σ)`, `b = ‖σ‖`"
+(here `a ≥ c > 1`, so the lower bound `C` suffices). -/
+private theorem edge_ratio_bounds_step4_growth (S : SubstSystem d) :
+    ∃ β : ℝ, 0 < β ∧ ∀ (e : EdgeName S) (r s : ℕ),
+      expandedEdgeLength r e ≤ expandedEdgeLength (r + s) e ∧
+        expandedEdgeLength (r + s) e ≤ β ^ s * expandedEdgeLength r e := by
+  set T := LinearMap.toContinuousLinearMap (S.σ : E d →ₗ[ℝ] E d)
+  have hT : (0 : ℝ) ≤ ‖T‖ := norm_nonneg T
+  refine ⟨‖T‖ + 1, by linarith, fun e r s => ?_⟩
+  have hup : ∀ x : E d, ‖S.σ x‖ ≤ (‖T‖ + 1) * ‖x‖ := fun x =>
+    (T.le_opNorm x).trans (by nlinarith [norm_nonneg x])
+  have hlo : ∀ x : E d, ‖x‖ ≤ ‖S.σ x‖ := fun x =>
+    le_trans (le_mul_of_one_le_left (norm_nonneg x) S.c_gt_one.le) (S.expand x)
+  have key : ∀ (s : ℕ) (y : E d), ‖y‖ ≤ ‖(S.σ ^ s) y‖ ∧
+      ‖(S.σ ^ s) y‖ ≤ (‖T‖ + 1) ^ s * ‖y‖ := by
+    intro s
+    induction s with
+    | zero =>
+      intro y
+      rw [pow_zero, pow_zero, one_mul]
+      exact ⟨le_rfl, le_rfl⟩
+    | succ s ih =>
+      intro y
+      rw [pow_succ', LinearEquiv.mul_apply]
+      refine ⟨(ih y).1.trans (hlo _), (hup _).trans ?_⟩
+      rw [pow_succ', mul_assoc]
+      exact mul_le_mul_of_nonneg_left (ih y).2 (by linarith)
+  have hsplit : (S.σ ^ (r + s)) (edgeVector e) = (S.σ ^ s) ((S.σ ^ r) (edgeVector e)) := by
+    rw [add_comm, pow_add, LinearEquiv.mul_apply]
+  unfold expandedEdgeLength
+  rw [hsplit]
+  exact key s _
+
+/-- Step 5 of the V4 proof of `edge_ratio_bounds` (V4 1.20): edge lengths stay positive,
+since the edge vector is nonzero and `σ^r` is invertible. -/
+private theorem edge_ratio_bounds_step5_pos (r : ℕ) (e : EdgeName S) :
+    0 < expandedEdgeLength r e := by
+  have he := Classical.choose_spec (edge_endpoints_exist e)
+  have hv : edgeVector e ≠ 0 := sub_ne_zero.mpr (Ne.symm he.1)
+  unfold expandedEdgeLength
+  exact norm_pos_iff.mpr (fun h0 => hv ((S.σ ^ r).map_eq_zero_iff.mp h0))
+
+/-- Step 6 of the V4 proof of `edge_ratio_bounds` (V4 1.20): for one reachable pair,
+the chosen path gives `C ≤ |σ^r v_f| / |σ^r v_e| ≤ C β^s` for all `r`. -/
+private theorem edge_ratio_bounds_step6_pair (S : SubstSystem d) (e f : EdgeName S) :
+    ∃ lo hi : ℝ, 0 < lo ∧ (Relation.ReflTransGen (edgeGraph S) e f → ∀ r : ℕ,
+      lo ≤ expandedEdgeLength r f / expandedEdgeLength r e ∧
+        expandedEdgeLength r f / expandedEdgeLength r e ≤ hi) := by
+  by_cases h : Relation.ReflTransGen (edgeGraph S) e f
+  · obtain ⟨C, hC, s, hs⟩ := edge_ratio_bounds_step3_path h
+    obtain ⟨β, -, hβ⟩ := edge_ratio_bounds_step4_growth S
+    refine ⟨C, C * β ^ s, hC, fun _ r => ?_⟩
+    have hpos := edge_ratio_bounds_step5_pos r e
+    obtain ⟨h1, h2⟩ := hβ e r s
+    rw [hs, le_div_iff₀ hpos, div_le_iff₀ hpos]
+    constructor
+    · exact mul_le_mul_of_nonneg_left h1 hC.le
+    · rw [mul_assoc]; exact mul_le_mul_of_nonneg_left h2 hC.le
+  · exact ⟨1, 1, one_pos, fun h' => absurd h' h⟩
+
 /-- P15, V4 1.20: uniform hereditary edge ratio bounds exist.
 Even an empty graph admits positive constants; no source tiling is assumed. -/
 theorem edge_ratio_bounds (S : SubstSystem d) : Nonempty (EdgeBounds S) := by
-  sorry
+  choose lo hi hlo hb using edge_ratio_bounds_step6_pair S
+  have hfin : Finite (EdgeName S × EdgeName S) := inferInstance
+  obtain ⟨M, hM⟩ := (Set.finite_range (fun p : EdgeName S × EdgeName S => hi p.1 p.2)).bddAbove
+  obtain ⟨K, hK⟩ :=
+    (Set.finite_range (fun p : EdgeName S × EdgeName S => 1 / lo p.1 p.2)).bddAbove
+  have hK1 : (0 : ℝ) < max K 1 := lt_of_lt_of_le one_pos (le_max_right _ _)
+  have hle : 1 / max K 1 ≤ max M 1 :=
+    calc 1 / max K 1 ≤ 1 := by rw [div_le_one hK1]; exact le_max_right _ _
+      _ ≤ max M 1 := le_max_right _ _
+  have hbd : ∀ e f : EdgeName S, Relation.ReflTransGen (edgeGraph S) e f →
+      ∀ r : ℕ, 1 / max K 1 ≤ expandedEdgeLength r f / expandedEdgeLength r e ∧
+        expandedEdgeLength r f / expandedEdgeLength r e ≤ max M 1 := by
+    intro e f hef r
+    obtain ⟨h1, h2⟩ := hb e f hef r
+    refine ⟨le_trans ?_ h1, h2.trans ((hM ⟨(e, f), rfl⟩).trans (le_max_left _ _))⟩
+    have hk : 1 / lo e f ≤ max K 1 := (hK ⟨(e, f), rfl⟩).trans (le_max_left _ _)
+    rw [div_le_iff₀ hK1]
+    rw [div_le_iff₀ (hlo e f)] at hk
+    linarith [mul_comm (lo e f) (max K 1)]
+  exact ⟨⟨1 / max K 1, max M 1, div_pos one_pos hK1, hle, hbd⟩⟩
 
 /-- P16, V4 1.21: the exact paper bound `M = floor (1 / ℓ)`. -/
 def oppositeRootBound (B : EdgeBounds S) : ℕ := ⌊1 / B.lower⌋₊

@@ -707,6 +707,526 @@ theorem sibling_intersection_cells (P : FramedNode S) (n : ℕ)
 def PositiveFacetOverlap (K L : Set (E d)) : Prop :=
   0 < MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ) (K ∩ L)
 
+/-- Step 0 of the V4 proof of `sibling_facet_eq` (V4 1.4(b)): a listed facet name is a
+listed cell of dimension `d-1` ((H2), facets are the `(d-1)`-cells). -/
+private theorem sibling_facet_eq_step0_facet {N : FramedNode S} (e : FacetName S N.ty) :
+    e.val ∈ (S.cx N.ty).cells ∧ e.val.dim = d - 1 := by
+  have h := e.property
+  unfold CellComplex.facets at h
+  exact Finset.mem_filter.mp h
+
+/-- Step 0 of the V4 proof of `sibling_facet_eq` (V4 1.4(b)): "by dimension" — the
+dimension of the affine hull is invariant under the invertible affine prototype frames. -/
+private theorem sibling_facet_eq_step0_finrank_image (φ : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    Module.finrank ℝ (cellDirection (φ '' K)) = Module.finrank ℝ (cellDirection K) := by
+  unfold cellDirection
+  have h := AffineSubspace.map_span φ.toAffineMap K
+  rw [show φ '' K = φ.toAffineMap '' K from rfl, ← h, AffineSubspace.map_direction]
+  exact LinearEquiv.finrank_map_eq φ.linear _
+
+/-- Step 1a of the V4 proof of `sibling_facet_eq` (V4 1.4(b)): "positive overlap minus
+the null sets `∂g_B ∪ ∂g_C`" — a placed listed cell of dimension at most `d-2` lies in an
+affine subspace of dimension at most `d-2`, hence has `(d-1)`-dimensional Hausdorff
+measure zero. -/
+private theorem sibling_facet_eq_step1_lowcell_null (N : FramedNode S) (n : ℕ) (g : Cell d)
+    (hg : g.dim ≤ d - 2) :
+    MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ) (N.cell n g) = 0 := by
+  have hfin : Module.finrank ℝ (affineSpan ℝ (N.cell n g)).direction = g.dim := by
+    change Module.finrank ℝ (cellDirection (N.cell n g)) = g.dim
+    rw [← g.flat.dimension]
+    exact sibling_facet_eq_step0_finrank_image (N.prototypeFrame n) g.carrier
+  by_cases hne : (N.cell n g).Nonempty
+  · obtain ⟨p0, hp0⟩ := hne
+    have hp0Q : p0 ∈ affineSpan ℝ (N.cell n g) := subset_affineSpan ℝ _ hp0
+    let ι : (affineSpan ℝ (N.cell n g)).direction → E d := fun v => (v : E d) + p0
+    have hι : Isometry ι := Isometry.of_dist_eq fun x y => by
+      simp only [ι, dist_add_right]
+      rfl
+    have hsub : N.cell n g ⊆ ι '' univ := by
+      intro x hx
+      refine ⟨⟨x -ᵥ p0, AffineSubspace.vsub_mem_direction
+        (subset_affineSpan ℝ _ hx) hp0Q⟩, trivial, ?_⟩
+      simp [ι]
+    have hdim : dimH (N.cell n g) ≤ (g.dim : ENNReal) := by
+      calc dimH (N.cell n g) ≤ dimH (ι '' univ) := dimH_mono hsub
+        _ = dimH (univ : Set (affineSpan ℝ (N.cell n g)).direction) := hι.dimH_image univ
+        _ = (Module.finrank ℝ (affineSpan ℝ (N.cell n g)).direction : ENNReal) :=
+          Real.dimH_univ_eq_finrank _
+        _ = g.dim := by rw [hfin]
+    have hd2 : 2 ≤ d := Fact.out
+    have hdR : (2 : ℝ) ≤ d := by exact_mod_cast hd2
+    let D : NNReal := ⟨(d : ℝ) - 1, by linarith⟩
+    have hgR : (g.dim : ℝ) + 2 ≤ d := by
+      have : g.dim + 2 ≤ d := by omega
+      exact_mod_cast this
+    have hlt : dimH (N.cell n g) < (D : ENNReal) := by
+      refine lt_of_le_of_lt hdim ?_
+      have h1 : ((g.dim : NNReal)) < D := by
+        rw [← NNReal.coe_lt_coe]
+        change (g.dim : ℝ) < (d : ℝ) - 1
+        linarith
+      exact_mod_cast h1
+    have key : MeasureTheory.Measure.hausdorffMeasure ((D : NNReal) : ℝ) (N.cell n g) = 0 :=
+      hausdorffMeasure_of_dimH_lt hlt
+    have hD : ((D : NNReal) : ℝ) = (d : ℝ) - 1 := rfl
+    rw [hD] at key
+    exact key
+  · rw [Set.not_nonempty_iff_eq_empty.mp hne]
+    exact MeasureTheory.measure_empty
+
+/-- Step 1 of the V4 proof of `sibling_facet_eq` (V4 1.4(b)): "It is nonempty (positive
+overlap minus the null sets `∂g_B ∪ ∂g_C`)" — a positive-measure overlap of two placed
+facets contains a point of both relative interiors. -/
+private theorem sibling_facet_eq_step1_common_relint (P : FramedNode S) (n : ℕ)
+    (i j : S.I P.ty) (e : FacetName S (P.child n i).ty) (f : FacetName S (P.child n j).ty)
+    (hover : PositiveFacetOverlap ((P.child n i).cell n e.val)
+      ((P.child n j).cell n f.val)) :
+    ∃ p, p ∈ relint ((P.child n i).cell n e.val) ∧
+      p ∈ relint ((P.child n j).cell n f.val) := by
+  by_contra hno
+  push_neg at hno
+  have hnull : ∀ N : FramedNode S, MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ)
+      (⋃ F' ∈ (S.cx N.ty).cells.filter (fun F' => F'.dim ≤ d - 2), N.cell n F') = 0 := by
+    intro N
+    refine le_antisymm ((MeasureTheory.measure_biUnion_finset_le _ _).trans
+      (Finset.sum_eq_zero fun F' hF' => ?_).le) (zero_le _)
+    exact sibling_facet_eq_step1_lowcell_null N n F' (Finset.mem_filter.mp hF').2
+  have hlow : ∀ (N : FramedNode S) (g : FacetName S N.ty) (x : E d), x ∈ N.cell n g.val →
+      x ∉ relint (N.cell n g.val) →
+      x ∈ ⋃ F' ∈ (S.cx N.ty).cells.filter (fun F' => F'.dim ≤ d - 2), N.cell n F' := by
+    intro N g x hx hxi
+    obtain ⟨hgc, hgd⟩ := sibling_facet_eq_step0_facet g
+    obtain ⟨F', hF', hlt, -, hxF'⟩ := hereditary_trace_step2_boundary N n g.val hgc x hx hxi
+    exact mem_iUnion₂.mpr ⟨F', Finset.mem_filter.mpr ⟨hF', by omega⟩, hxF'⟩
+  have hsub : (P.child n i).cell n e.val ∩ (P.child n j).cell n f.val ⊆
+      (⋃ F' ∈ (S.cx (P.child n i).ty).cells.filter (fun F' => F'.dim ≤ d - 2),
+        (P.child n i).cell n F') ∪
+      (⋃ F' ∈ (S.cx (P.child n j).ty).cells.filter (fun F' => F'.dim ≤ d - 2),
+        (P.child n j).cell n F') := by
+    rintro x ⟨hxe, hxf⟩
+    by_cases hx : x ∈ relint ((P.child n i).cell n e.val)
+    · exact Or.inr (hlow _ f x hxf (hno x hx))
+    · exact Or.inl (hlow _ e x hxe hx)
+  have hzero := MeasureTheory.measure_mono_null hsub
+    (MeasureTheory.measure_union_null (hnull _) (hnull _))
+  unfold PositiveFacetOverlap at hover
+  exact hover.ne' hzero
+
+/-- Step 2 of the V4 proof of `sibling_facet_eq` (V4 1.4(b)): "Claim:
+`relint g_B ∩ ∂g_C = ∅`. If `p` were in it, `e := mc_C(p) ⊆ ∂g_C` has `dim e ≤ d-2` and
+`p ∈ relint e ∩ B`, so by (H6) `e` is a cell of `B` with `p ∈ relint e`, forcing
+`e = mc_B(p) = g_B`, impossible by dimension." -/
+private theorem sibling_facet_eq_step2_no_boundary (P : FramedNode S) (n : ℕ)
+    (i j : S.I P.ty) (hij : i ≠ j) (e : FacetName S (P.child n i).ty) (g : Cell d)
+    (hg : g ∈ (S.cx (P.child n j).ty).cells) (p : E d)
+    (hpe : p ∈ relint ((P.child n i).cell n e.val)) (hpg : p ∈ (P.child n j).cell n g) :
+    p ∈ relint ((P.child n j).cell n g) := by
+  by_contra hpi
+  have hd2 : 2 ≤ d := Fact.out
+  obtain ⟨heC, heD⟩ := sibling_facet_eq_step0_facet e
+  obtain ⟨F', hF', hlt, -, hpF'⟩ :=
+    hereditary_trace_step2_boundary (P.child n j) n g hg p hpg hpi
+  have hgd : g.dim < d := (S.cx (P.child n j).ty).dim_lt g hg
+  obtain ⟨x, hxF', hpx⟩ := hpF'
+  let K := S.cx (S.child P.ty j).ty
+  have hxfr : x ∈ frontier (S.proto (S.child P.ty j).ty).carrier := by
+    rw [← K.carriers_cover]
+    exact mem_iUnion₂.mpr ⟨F', hF', hxF'⟩
+  have hex : ∃ e0 ∈ K.cells, x ∈ relint e0.carrier ∧ e0.carrier ⊆ F'.carrier :=
+    ⟨K.minimalCell x hxfr, K.minimalCell_mem x hxfr, K.mem_relint_minimalCell x hxfr,
+      K.minimalCell_subset x hxfr F' hF' hxF'⟩
+  obtain ⟨e0, he0, hxe0, he0F'⟩ := hex
+  have hlow0 : e0.dim ≤ d - 2 := by
+    have := hereditary_trace_step3_dim_mono e0 F' he0F'
+    omega
+  have hpe0 : p ∈ relint ((P.child n j).cell n e0) := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact ⟨x, hxe0, hpx⟩
+  have hpB : p ∈ (P.child n i).carrier n :=
+    hereditary_trace_step1_cell_subset _ n e.val heC (intrinsicInterior_subset hpe)
+  obtain ⟨_, ⟨y, hy, rfl⟩, hyp⟩ := hpB
+  have hψ : Function.Injective (fun y => P.frame ((S.σ ^ n) y)) := fun a b hab =>
+    (S.σ ^ n).injective (P.frame.injective hab)
+  have hyx : (S.child P.ty i).frame y = (S.child P.ty j).frame x := by
+    apply hψ
+    change P.frame ((S.σ ^ n) ((S.child P.ty i).frame y)) =
+      P.frame ((S.σ ^ n) ((S.child P.ty j).frame x))
+    rw [← hereditary_trace_step3_place P n i, ← hereditary_trace_step3_place P n j]
+    exact hyp.trans hpx.symm
+  have hsymm : (S.child P.ty j).frame.symm ((S.child P.ty j).frame x) = x :=
+    (S.child P.ty j).frame.symm_apply_apply x
+  obtain ⟨f', hf', hfe⟩ := S.sibling_conformity P.ty j i hij.symm ((S.child P.ty j).frame x)
+    ⟨x, (S.proto (S.child P.ty j).ty).compact.isClosed.frontier_subset hxfr, rfl⟩
+    ⟨y, hy, hyx⟩ e0 he0 (by rw [hsymm]; exact hxe0) hlow0
+  have hcell : (P.child n j).cell n e0 = (P.child n i).cell n f' := by
+    rw [hereditary_trace_step3_child_cell, hereditary_trace_step3_child_cell, hfe]
+  have hpf' : p ∈ relint ((P.child n i).cell n f') := hcell ▸ hpe0
+  have hef := hereditary_trace_step1_relint_unique (P.child n i) n e.val f' heC hf' _ hpe hpf'
+  have hdims : e.val.dim = e0.dim := by
+    rw [← e.val.flat.dimension, ← e0.flat.dimension,
+      ← sibling_facet_eq_step0_finrank_image ((P.child n i).prototypeFrame n) e.val.carrier,
+      ← sibling_facet_eq_step0_finrank_image ((P.child n j).prototypeFrame n) e0.carrier]
+    change Module.finrank ℝ (cellDirection ((P.child n i).cell n e.val)) =
+      Module.finrank ℝ (cellDirection ((P.child n j).cell n e0))
+    rw [hcell, hef]
+  omega
+
+/-- Step 3a of the V4 proof of `sibling_facet_eq` (V4 1.0(a), used in 1.4(b)): in
+prototype coordinates, near a relative-interior facet point the domain is the closed
+half-ball `{⟪v, x - a⟫ ≥ 0}` and the facet is the bounding hyperplane piece. -/
+private theorem sibling_facet_eq_step3a_proto_halfball (A : PolyManifoldDomain d)
+    (K : CellComplex A) (F : Cell d) (hF : F ∈ K.facets) (a : E d)
+    (ha : a ∈ relint F.carrier) :
+    ∃ r : ℝ, 0 < r ∧ ∃ v : E d, ‖v‖ = 1 ∧
+      A.carrier ∩ ball a r = {x | 0 ≤ inner ℝ v (x - a)} ∩ ball a r ∧
+      F.carrier ∩ ball a r = {x | inner ℝ v (x - a) = 0} ∩ ball a r := by
+  obtain ⟨r, hr, v, hv, hfront, hFb, hAb⟩ := facet_halfball A K F hF a ha
+  refine ⟨r, hr, v, hv, hAb, ?_⟩
+  have hFc : F ∈ K.cells := by
+    unfold CellComplex.facets at hF
+    exact (Finset.mem_filter.mp hF).1
+  have haF : a ∈ F.carrier := intrinsicInterior_subset ha
+  have haS : a ∈ affineSpan ℝ F.carrier := subset_affineSpan ℝ _ haF
+  have hFA : F.carrier ⊆ A.carrier := fun x hx => by
+    have hfr : x ∈ frontier A.carrier := by
+      rw [← K.carriers_cover]
+      exact mem_iUnion₂.mpr ⟨F, hFc, hx⟩
+    exact A.compact.isClosed.frontier_subset hfr
+  ext x
+  constructor
+  · rintro ⟨hxF, hxb⟩
+    refine ⟨?_, hxb⟩
+    have hx' : AffineMap.lineMap x a (2 : ℝ) ∈ F.carrier ∩ ball a r := by
+      rw [hFb]
+      refine ⟨AffineMap.lineMap_mem 2 (subset_affineSpan ℝ _ hxF) haS, ?_⟩
+      rw [mem_ball] at hxb ⊢
+      have hdist : dist (AffineMap.lineMap x a (2 : ℝ)) a = dist x a := by
+        rw [dist_lineMap_right]
+        norm_num
+      rw [hdist]
+      exact hxb
+    have h1 : x ∈ A.carrier ∩ ball a r := ⟨hFA hxF, hxb⟩
+    have h2 : AffineMap.lineMap x a (2 : ℝ) ∈ A.carrier ∩ ball a r := ⟨hFA hx'.1, hx'.2⟩
+    rw [hAb] at h1 h2
+    have hin1 : 0 ≤ inner ℝ v (x - a) := h1.1
+    have hin2 : 0 ≤ inner ℝ v (AffineMap.lineMap x a (2 : ℝ) - a) := h2.1
+    have hlin : AffineMap.lineMap x a (2 : ℝ) - a = (-1 : ℝ) • (x - a) := by
+      rw [← vsub_eq_sub, AffineMap.lineMap_vsub_right, vsub_eq_sub]
+      norm_num
+    rw [hlin, inner_smul_right] at hin2
+    show inner ℝ v (x - a) = 0
+    linarith
+  · rintro ⟨hx0, hxb⟩
+    have hx0' : inner ℝ v (x - a) = 0 := hx0
+    have hxA : x ∈ A.carrier := by
+      have : x ∈ {x | 0 ≤ inner ℝ v (x - a)} ∩ ball a r := ⟨le_of_eq hx0'.symm, hxb⟩
+      rw [← hAb] at this
+      exact this.1
+    have hxfr : x ∈ frontier A.carrier := by
+      refine ⟨subset_closure hxA, fun hint => ?_⟩
+      obtain ⟨ε, hε, hεA⟩ := Metric.isOpen_iff.mp isOpen_interior x hint
+      have hxr : dist x a < r := mem_ball.mp hxb
+      set t := min (ε / 2) ((r - dist x a) / 2) with ht
+      have htpos : 0 < t := lt_min (half_pos hε) (by linarith)
+      have hzx : dist (x - t • v) x = t := by
+        rw [dist_eq_norm, sub_sub_cancel_left, norm_neg, norm_smul, hv, mul_one,
+          Real.norm_of_nonneg htpos.le]
+      have hzI : x - t • v ∈ interior A.carrier := hεA (by
+        rw [mem_ball, hzx]
+        exact lt_of_le_of_lt (min_le_left _ _) (half_lt_self hε))
+      have hzb : x - t • v ∈ ball a r := by
+        rw [mem_ball]
+        have h1 := dist_triangle (x - t • v) x a
+        have h2 : t ≤ (r - dist x a) / 2 := min_le_right _ _
+        linarith
+      have hzA : x - t • v ∈ A.carrier ∩ ball a r := ⟨interior_subset hzI, hzb⟩
+      rw [hAb] at hzA
+      have hz : inner ℝ v (x - t • v - a) = -t := by
+        rw [show x - t • v - a = (x - a) - t • v by abel, inner_sub_right, inner_smul_right,
+          real_inner_self_eq_norm_sq, hv, hx0']
+        ring
+      have := hzA.1
+      simp only [mem_setOf_eq] at this
+      linarith
+    have : x ∈ frontier A.carrier ∩ ball a r := ⟨hxfr, hxb⟩
+    rw [hfront, ← hFb] at this
+    exact this
+
+/-- Step 3 of the V4 proof of `sibling_facet_eq` (V4 1.0(a), used in 1.4(b)): "By 1.0(a)
+`B` is a closed half-ball near `p` bounded by `aff g_B`", transported to a placed node
+through its invertible affine prototype frame (the normal is renormalised). -/
+private theorem sibling_facet_eq_step3_halfball (N : FramedNode S) (n : ℕ)
+    (F : FacetName S N.ty) (p : E d) (hp : p ∈ relint (N.cell n F.val)) :
+    ∃ r : ℝ, 0 < r ∧ ∃ v : E d, ‖v‖ = 1 ∧
+      N.carrier n ∩ ball p r = {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r ∧
+      N.cell n F.val ∩ ball p r = {x | inner ℝ v (x - p) = 0} ∩ ball p r := by
+  have hcarrier : N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  have hcell : N.cell n F.val = N.prototypeFrame n '' F.val.carrier := rfl
+  rw [hcarrier, hcell]
+  rw [FramedNode.cell, hereditary_trace_step1_relint_image] at hp
+  obtain ⟨a, ha, rfl⟩ := hp
+  obtain ⟨r, hr, s, hs, hA, hFb⟩ :=
+    sibling_facet_eq_step3a_proto_halfball (S.proto N.ty) (S.cx N.ty) F.val F.property a ha
+  set ψ := N.prototypeFrame n with hψdef
+  let L : E d →ₗ[ℝ] E d := ψ.symm.toAffineMap.linear
+  have hL : ∀ x, ψ.symm x - a = L (x - ψ a) := by
+    intro x
+    have h := ψ.symm.toAffineMap.linearMap_vsub x (ψ a)
+    simp only [vsub_eq_sub, AffineEquiv.coe_toAffineMap, AffineEquiv.symm_apply_apply] at h
+    exact h.symm
+  let s' := LinearMap.adjoint L s
+  have hs' : ∀ x, inner ℝ s (ψ.symm x - a) = inner ℝ s' (x - ψ a) := by
+    intro x
+    rw [hL, LinearMap.adjoint_inner_left]
+  have hs'0 : s' ≠ 0 := by
+    intro h0
+    have h := hs' (ψ (a + s))
+    rw [ψ.symm_apply_apply, add_sub_cancel_left, h0, inner_zero_left,
+      real_inner_self_eq_norm_sq, hs] at h
+    norm_num at h
+  have hn : 0 < ‖s'‖ := norm_pos_iff.mpr hs'0
+  have key : ∀ x, inner ℝ (‖s'‖⁻¹ • s') (x - ψ a) =
+      ‖s'‖⁻¹ * inner ℝ s (ψ.symm x - a) := by
+    intro x
+    rw [real_inner_smul_left, hs']
+  have hmem : ∀ (X : Set (E d)) x, x ∈ ψ '' X ↔ ψ.symm x ∈ X := fun X x =>
+    ⟨by rintro ⟨y, hy, rfl⟩; rwa [ψ.symm_apply_apply],
+      fun h => ⟨_, h, ψ.apply_symm_apply x⟩⟩
+  obtain ⟨δ, hδ, hδr⟩ := Metric.continuousAt_iff.mp
+    (ψ.symm.continuous_of_finiteDimensional.continuousAt (x := ψ a)) r hr
+  have hball : ∀ x, x ∈ ball (ψ a) δ → ψ.symm x ∈ ball a r := fun x hx => by
+    have h := hδr (mem_ball.mp hx)
+    rw [ψ.symm_apply_apply] at h
+    exact h
+  have hinv : 0 < ‖s'‖⁻¹ := inv_pos.mpr hn
+  refine ⟨δ, hδ, ‖s'‖⁻¹ • s', ?_, ?_, ?_⟩
+  · rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hn.ne']
+  · ext x
+    constructor
+    · rintro ⟨hx, hxb⟩
+      refine ⟨?_, hxb⟩
+      have h : ψ.symm x ∈ (S.proto N.ty).carrier ∩ ball a r :=
+        ⟨(hmem _ x).mp hx, hball x hxb⟩
+      rw [hA] at h
+      show 0 ≤ inner ℝ (‖s'‖⁻¹ • s') (x - ψ a)
+      rw [key]
+      exact mul_nonneg hinv.le h.1
+    · rintro ⟨hx, hxb⟩
+      refine ⟨(hmem _ x).mpr ?_, hxb⟩
+      have hx' : 0 ≤ inner ℝ (‖s'‖⁻¹ • s') (x - ψ a) := hx
+      rw [key] at hx'
+      have h : ψ.symm x ∈ {y | 0 ≤ inner ℝ s (y - a)} ∩ ball a r :=
+        ⟨(mul_nonneg_iff_of_pos_left hinv).mp hx', hball x hxb⟩
+      rw [← hA] at h
+      exact h.1
+  · ext x
+    constructor
+    · rintro ⟨hx, hxb⟩
+      refine ⟨?_, hxb⟩
+      have h : ψ.symm x ∈ F.val.carrier ∩ ball a r := ⟨(hmem _ x).mp hx, hball x hxb⟩
+      rw [hFb] at h
+      show inner ℝ (‖s'‖⁻¹ • s') (x - ψ a) = 0
+      rw [key]
+      have h1 : inner ℝ s (ψ.symm x - a) = 0 := h.1
+      rw [h1, mul_zero]
+    · rintro ⟨hx, hxb⟩
+      refine ⟨(hmem _ x).mpr ?_, hxb⟩
+      have hx' : inner ℝ (‖s'‖⁻¹ • s') (x - ψ a) = 0 := hx
+      rw [key, mul_eq_zero] at hx'
+      have h0 : inner ℝ s (ψ.symm x - a) = 0 := hx'.resolve_left hinv.ne'
+      have h : ψ.symm x ∈ {y | inner ℝ s (y - a) = 0} ∩ ball a r := ⟨h0, hball x hxb⟩
+      rw [← hFb] at h
+      exact h.1
+
+/-- Step 4 of the V4 proof of `sibling_facet_eq` (V4 1.4(a),(b)): "If the hyperplanes
+differed, the two open half-balls would intersect in an open set near `p` ...,
+contradicting disjoint interiors; so ... the children lie on opposite sides": two
+closed half-balls at `p` with disjoint interiors have opposite unit normals. -/
+private theorem sibling_facet_eq_step4_opposite (X Y : Set (E d)) (p v w : E d) (r : ℝ)
+    (hr : 0 < r) (hv : ‖v‖ = 1) (hw : ‖w‖ = 1)
+    (hX : X ∩ ball p r = {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r)
+    (hY : Y ∩ ball p r = {x | 0 ≤ inner ℝ w (x - p)} ∩ ball p r)
+    (hXY : Disjoint (interior X) (interior Y)) : w = -v := by
+  by_contra hne
+  have hu0 : v + w ≠ 0 := by
+    intro h
+    apply hne
+    rw [eq_neg_iff_add_eq_zero, add_comm]
+    exact h
+  have hnu : 0 < ‖v + w‖ := norm_pos_iff.mpr hu0
+  have hcomm : inner ℝ w v = inner ℝ v w := real_inner_comm v w
+  have hsq : ‖v + w‖ ^ 2 = 2 + 2 * inner ℝ v w := by
+    rw [← real_inner_self_eq_norm_sq, inner_add_left, inner_add_right, inner_add_right,
+      real_inner_self_eq_norm_sq, real_inner_self_eq_norm_sq, hv, hw, hcomm]
+    ring
+  have hpos : 0 < 1 + inner ℝ v w := by nlinarith [sq_pos_of_pos hnu]
+  have hvu : 0 < inner ℝ v (v + w) := by
+    rw [inner_add_right, real_inner_self_eq_norm_sq, hv]
+    linarith
+  have hwu : 0 < inner ℝ w (v + w) := by
+    rw [inner_add_right, real_inner_self_eq_norm_sq, hw, hcomm]
+    linarith
+  set t := r / (2 * ‖v + w‖) with ht
+  have htpos : 0 < t := div_pos hr (by positivity)
+  let O := {x : E d | 0 < inner ℝ v (x - p)} ∩ {x | 0 < inner ℝ w (x - p)} ∩ ball p r
+  have hO : IsOpen O := by
+    refine ((isOpen_lt continuous_const ?_).inter (isOpen_lt continuous_const ?_)).inter
+      isOpen_ball
+    · exact continuous_const.inner (continuous_id.sub continuous_const)
+    · exact continuous_const.inner (continuous_id.sub continuous_const)
+  have hOX : O ⊆ X := by
+    rintro x ⟨⟨h1, -⟩, hb⟩
+    have : x ∈ {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r :=
+      ⟨show 0 ≤ inner ℝ v (x - p) from le_of_lt h1, hb⟩
+    rw [← hX] at this
+    exact this.1
+  have hOY : O ⊆ Y := by
+    rintro x ⟨⟨-, h2⟩, hb⟩
+    have : x ∈ {x | 0 ≤ inner ℝ w (x - p)} ∩ ball p r :=
+      ⟨show 0 ≤ inner ℝ w (x - p) from le_of_lt h2, hb⟩
+    rw [← hY] at this
+    exact this.1
+  have hx0 : p + t • (v + w) ∈ O := by
+    refine ⟨⟨?_, ?_⟩, ?_⟩
+    · show 0 < inner ℝ v (p + t • (v + w) - p)
+      rw [add_sub_cancel_left, inner_smul_right]
+      exact mul_pos htpos hvu
+    · show 0 < inner ℝ w (p + t • (v + w) - p)
+      rw [add_sub_cancel_left, inner_smul_right]
+      exact mul_pos htpos hwu
+    · rw [mem_ball, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_of_nonneg htpos.le]
+      have : t * ‖v + w‖ = r / 2 := by
+        rw [ht, div_mul_eq_mul_div, div_eq_div_iff (by positivity) (by norm_num)]
+        ring
+      rw [this]
+      linarith
+  exact Set.disjoint_left.mp hXY (interior_maximal hOX hO hx0) (interior_maximal hOY hO hx0)
+
+/-- Step 5 of the V4 proof of `sibling_facet_eq` (V4 1.4, (H3)): a placed child carrier is
+the height-`n` image of the prescribed child placement. -/
+private theorem sibling_facet_eq_step5_child_carrier (P : FramedNode S) (n : ℕ)
+    (i : S.I P.ty) :
+    (P.child n i).carrier n = P.prototypeFrame n ''
+      placedSet (S.child P.ty i).frame (S.proto (S.child P.ty i).ty).carrier := by
+  unfold FramedNode.carrier placedSet SubstSystem.supertile
+  rw [Set.image_image, Set.image_image]
+  apply Set.image_congr
+  intro y _
+  change P.frame (S.placeChild n i ((S.σ ^ n) y)) =
+    P.frame ((S.σ ^ n) ((S.child P.ty i).frame y))
+  rw [hereditary_trace_step3_place]
+
+/-- Step 5 of the V4 proof of `sibling_facet_eq` (V4 1.4, (H3)): "contradicting disjoint
+interiors" — distinct placed children have disjoint interiors. -/
+private theorem sibling_facet_eq_step5_disjoint (P : FramedNode S) (n : ℕ)
+    (i j : S.I P.ty) (hij : i ≠ j) :
+    Disjoint (interior ((P.child n i).carrier n)) (interior ((P.child n j).carrier n)) := by
+  rw [sibling_facet_eq_step5_child_carrier, sibling_facet_eq_step5_child_carrier]
+  let H := (P.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  change Disjoint (interior (H '' _)) (interior (H '' _))
+  rw [← H.image_interior, ← H.image_interior]
+  exact Set.disjoint_image_of_injective H.injective (S.children_disjoint P.ty hij)
+
+/-- Step 6 of the V4 proof of `sibling_facet_eq` (V4 1.4(a),(b)): at a point of both
+relative interiors, "`B` and `C` are closed half-balls near `p` bounded by `aff g_B`,
+`aff g_C`", the normals are opposite, hence the hyperplanes and the facets agree near `p`
+and the children lie on opposite sides. -/
+private theorem sibling_facet_eq_step6_local (P : FramedNode S) (n : ℕ)
+    (i j : S.I P.ty) (hij : i ≠ j)
+    (e : FacetName S (P.child n i).ty) (f : FacetName S (P.child n j).ty) (q : E d)
+    (hqe : q ∈ relint ((P.child n i).cell n e.val))
+    (hqf : q ∈ relint ((P.child n j).cell n f.val)) :
+    ∃ r : ℝ, 0 < r ∧ ∃ v : E d, ‖v‖ = 1 ∧
+      (P.child n i).carrier n ∩ ball q r = {x | 0 ≤ inner ℝ v (x - q)} ∩ ball q r ∧
+      (P.child n j).carrier n ∩ ball q r = {x | inner ℝ v (x - q) ≤ 0} ∩ ball q r ∧
+      (P.child n i).cell n e.val ∩ ball q r = (P.child n j).cell n f.val ∩ ball q r := by
+  obtain ⟨r1, hr1, v, hv, hB, hgB⟩ := sibling_facet_eq_step3_halfball (P.child n i) n e q hqe
+  obtain ⟨r2, hr2, w, hw, hC, hgC⟩ := sibling_facet_eq_step3_halfball (P.child n j) n f q hqf
+  have hr : 0 < min r1 r2 := lt_min hr1 hr2
+  have shrink : ∀ {X Y : Set (E d)} {ρ : ℝ}, min r1 r2 ≤ ρ →
+      X ∩ ball q ρ = Y ∩ ball q ρ → X ∩ ball q (min r1 r2) = Y ∩ ball q (min r1 r2) := by
+    intro X Y ρ hρ h
+    ext x
+    constructor
+    · rintro ⟨hx, hxb⟩
+      have : x ∈ X ∩ ball q ρ := ⟨hx, ball_subset_ball hρ hxb⟩
+      rw [h] at this
+      exact ⟨this.1, hxb⟩
+    · rintro ⟨hx, hxb⟩
+      have : x ∈ Y ∩ ball q ρ := ⟨hx, ball_subset_ball hρ hxb⟩
+      rw [← h] at this
+      exact ⟨this.1, hxb⟩
+  have hB' := shrink (min_le_left _ _) hB
+  have hC' := shrink (min_le_right _ _) hC
+  have hgB' := shrink (min_le_left _ _) hgB
+  have hgC' := shrink (min_le_right _ _) hgC
+  have hwv : w = -v := sibling_facet_eq_step4_opposite _ _ q v w _ hr hv hw hB' hC'
+    (sibling_facet_eq_step5_disjoint P n i j hij)
+  subst hwv
+  refine ⟨min r1 r2, hr, v, hv, hB', ?_, ?_⟩
+  · rw [hC']
+    ext x
+    simp [inner_neg_left]
+  · rw [hgB', hgC']
+    ext x
+    simp [inner_neg_left]
+
+/-- Step 7 of the V4 proof of `sibling_facet_eq` (V4 1.4(b)): "Hence
+`g_C ∩ relint g_B = relint g_C ∩ relint g_B`, which is relatively closed in `relint g_B`
+... and relatively open ... It is nonempty ... By connectedness `relint g_B ⊆ relint g_C`";
+closures then give `g_B ⊆ g_C`. -/
+private theorem sibling_facet_eq_step7_subset (P : FramedNode S) (n : ℕ)
+    (i j : S.I P.ty) (hij : i ≠ j)
+    (e : FacetName S (P.child n i).ty) (f : FacetName S (P.child n j).ty) (p : E d)
+    (hpe : p ∈ relint ((P.child n i).cell n e.val))
+    (hpf : p ∈ (P.child n j).cell n f.val) :
+    (P.child n i).cell n e.val ⊆ (P.child n j).cell n f.val := by
+  let φ := (P.child n i).prototypeFrame n
+  have hXimg : relint ((P.child n i).cell n e.val) = φ '' relint e.val.carrier := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+  have hconn : IsPreconnected (relint ((P.child n i).cell n e.val)) := by
+    rw [hXimg]
+    exact (e.val.flat.relint_connected.image _
+      φ.continuous_of_finiteDimensional.continuousOn).isPreconnected
+  have hclosedF : IsClosed ((P.child n j).cell n f.val) :=
+    (f.val.flat.compact.image
+      ((P.child n j).prototypeFrame n).continuous_of_finiteDimensional).isClosed
+  have hfC : f.val ∈ (S.cx (P.child n j).ty).cells := (sibling_facet_eq_step0_facet f).1
+  have hsub : relint ((P.child n i).cell n e.val) ⊆ (P.child n j).cell n f.val := by
+    haveI := isPreconnected_iff_preconnectedSpace.mp hconn
+    let T : Set (relint ((P.child n i).cell n e.val)) :=
+      {x | x.val ∈ (P.child n j).cell n f.val}
+    have hTc : IsClosed T := hclosedF.preimage continuous_subtype_val
+    have hTo : IsOpen T := by
+      rw [isOpen_iff_mem_nhds]
+      intro x hx
+      have hxf := sibling_facet_eq_step2_no_boundary P n i j hij e f.val hfC x.val
+        x.property hx
+      obtain ⟨r, hr, v, -, -, -, hball⟩ :=
+        sibling_facet_eq_step6_local P n i j hij e f x.val x.property hxf
+      refine Filter.mem_of_superset
+        ((isOpen_ball.preimage continuous_subtype_val).mem_nhds (mem_ball_self hr)) ?_
+      intro y hy
+      have : y.val ∈ (P.child n i).cell n e.val ∩ ball x.val r :=
+        ⟨intrinsicInterior_subset y.property, hy⟩
+      rw [hball] at this
+      exact this.1
+    have hTne : T.Nonempty := ⟨⟨p, hpe⟩, hpf⟩
+    have huniv := IsClopen.eq_univ ⟨hTc, hTo⟩ hTne
+    intro x hx
+    have hxT : (⟨x, hx⟩ : relint ((P.child n i).cell n e.val)) ∈ T := huniv ▸ mem_univ _
+    exact hxT
+  have hcl : closure (relint ((P.child n i).cell n e.val)) = (P.child n i).cell n e.val := by
+    rw [hXimg]
+    let H := φ.toHomeomorphOfFiniteDimensional
+    change closure (H '' relint e.val.carrier) = H '' e.val.carrier
+    rw [← H.image_closure, e.val.flat.regularClosed]
+  rw [← hcl]
+  exact closure_minimal hsub hclosedF
+
 /-- P4, V4 1.4(b): positive-measure sibling facet overlap forces whole equality,
 and the children occupy opposite closed half-balls at every relative-interior point. -/
 theorem sibling_facet_eq (P : FramedNode S) (n : ℕ)
@@ -721,7 +1241,17 @@ theorem sibling_facet_eq (P : FramedNode S) (n : ℕ)
             {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r ∧
           (P.child n j).carrier n ∩ ball p r =
             {x | inner ℝ v (x - p) ≤ 0} ∩ ball p r := by
-  sorry
+  obtain ⟨p, hpe, hpf⟩ := sibling_facet_eq_step1_common_relint P n i j e f hover
+  have heq : (P.child n i).cell n e.val = (P.child n j).cell n f.val :=
+    Set.Subset.antisymm
+      (sibling_facet_eq_step7_subset P n i j hij e f p hpe (intrinsicInterior_subset hpf))
+      (sibling_facet_eq_step7_subset P n j i hij.symm f e p hpf (intrinsicInterior_subset hpe))
+  refine ⟨heq, fun q hq => ?_⟩
+  have hqf : q ∈ relint ((P.child n j).cell n f.val) := by
+    rw [← heq]
+    exact hq
+  obtain ⟨r, hr, v, hv, hB, hC, -⟩ := sibling_facet_eq_step6_local P n i j hij e f q hq hqf
+  exact ⟨r, hr, v, hv, hB, hC⟩
 
 /-- Step 1 of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): relint(F) is a subset of the macro-tile interior. -/
 private lemma internal_facet_pairing_step1_relint_subset

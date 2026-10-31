@@ -550,7 +550,17 @@ def HonestSource.movedNode (U : HonestSource S) (g : Iso d) (q : U.Node) :
 /-- M6, V4 2.14(d): general source motion extends the established translation action. -/
 theorem HonestSource.move_translation (U : HonestSource S) (v : E d) :
     U.move (translation v) = U.translate v := by
-  sorry
+  have h_move : MovedSource U (U.move (translation v)) (translation v) := U.move_spec (translation v)
+  have h_trans : TranslatedSource U (U.translate v) v := U.translate_spec v
+  apply MovedSource.unique h_move
+  constructor
+  · exact h_trans.tiling
+  · exact h_trans.nodes
+  · have h_lin : (translation v).linearIsometryEquiv = 1 := rfl
+    rw [h_lin, one_mul]
+    exact h_trans.coset
+  · exact h_trans.parents
+  · exact h_trans.roles
 
 /-- M6, V4 2.14(d): identity motion preserves the entire honest hierarchy. -/
 theorem HonestSource.move_refl (U : HonestSource S) :

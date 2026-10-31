@@ -1759,7 +1759,29 @@ The prescribed label identifies D and i; its full frame identifies the block fra
 theorem unique_at_leaf (D : KBlock Y)
     (v : S.RoleWord B.certificate.val.ty P.K) (w : S.RoleWord D.certificate.val.ty P.K)
     (h : B.leaf v = D.leaf w) : B = D := by
-  sorry
+  have h_inj := placedLeaf_injective C _ _ _ _ h
+  obtain ⟨h_cert_w, h_frame⟩ := h_inj
+  have h_cert : B.certificate = D.certificate := congrArg (fun x => x.1) h_cert_w
+  cases B with | mk cB fB hB =>
+  cases D with | mk cD fD hD =>
+  dsimp at h_cert h_cert_w h_frame
+  subst h_cert
+  have h_w : HEq v w := by
+    cases h_cert_w
+    rfl
+  have h_w_eq : v = w := eq_of_heq h_w
+  subst h_w_eq
+  have h_frame_eq : fB = fD := by
+    calc fB
+      _ = (AffineIsometryEquiv.refl ℝ (E d)).trans fB := by rw [AffineIsometryEquiv.refl_trans]
+      _ = ((LeafType.position ⟨cB, v⟩).symm.trans (LeafType.position ⟨cB, v⟩)).trans fB := by rw [AffineIsometryEquiv.symm_trans_self]
+      _ = (LeafType.position ⟨cB, v⟩).symm.trans ((LeafType.position ⟨cB, v⟩).trans fB) := by rw [AffineIsometryEquiv.trans_assoc]
+      _ = (LeafType.position ⟨cB, v⟩).symm.trans ((LeafType.position ⟨cB, v⟩).trans fD) := by rw [h_frame]
+      _ = ((LeafType.position ⟨cB, v⟩).symm.trans (LeafType.position ⟨cB, v⟩)).trans fD := by rw [AffineIsometryEquiv.trans_assoc]
+      _ = (AffineIsometryEquiv.refl ℝ (E d)).trans fD := by rw [AffineIsometryEquiv.symm_trans_self]
+      _ = fD := by rw [AffineIsometryEquiv.refl_trans]
+  subst h_frame_eq
+  rfl
 
 /-- M8, V4 2.17(a): actual whole certificate blocks with intersecting interiors coincide.
 This uses only the actual-leaf subdivision witnesses and the physical tiling. -/

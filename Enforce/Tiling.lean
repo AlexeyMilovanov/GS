@@ -58,7 +58,11 @@ def move (t : PlacedTile S) (g : Iso d) : PlacedTile S :=
 /-- T1, V4 §1.0 (H7): moving a tile acts geometrically on its carrier. -/
 theorem move_carrier (t : PlacedTile S) (g : Iso d) :
     (t.move g).carrier = g '' t.carrier := by
-  sorry
+  dsimp [move, ofFrame]
+  rw [frame_carrier]
+  dsimp [placedSet]
+  rw [Set.image_image]
+  rfl
 
 end PlacedTile
 

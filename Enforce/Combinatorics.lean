@@ -93,7 +93,23 @@ theorem descentRank_bounded {α : Type u} [Finite α] (D : α → List α)
     (B : Set α) (hB : ForwardClosed D B) :
     ∃ R : ℕ, ∀ (a : α) (ha : ∃ r, a ∈ rankSets D B r),
       descentRank D B a ha ≤ R := by
-  sorry
+  obtain ⟨h_mono, ⟨R, h_stab⟩⟩ := rankSets_mono_stabilizes D B hB
+  use R
+  intro a ha
+  have hR : a ∈ rankSets D B R := by
+    obtain ⟨r, hr⟩ := ha
+    by_cases h : r ≤ R
+    · induction' k : R - r with n ih generalizing r
+      · have : r = R := by omega
+        subst this
+        exact hr
+      · have h_le : r + 1 ≤ R := by omega
+        have hr_next : a ∈ rankSets D B (r + 1) := h_mono r hr
+        have h_k_next : R - (r + 1) = n := by omega
+        exact ih (r + 1) hr_next h_le h_k_next
+    · have heq := h_stab r (by omega)
+      rwa [heq] at hr
+  exact (descentRank_spec D B a ha).2 R hR
 
 /-- C1, V4 8.2: a bad node has a bad parent of strictly larger rank.
 Together with bounded ranks this rules out an infinite chain of bad ancestors. -/

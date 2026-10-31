@@ -69,7 +69,11 @@ theorem descendant_height_le (A B : FramedNode S) (a b : ℕ)
 /-- R1, V4 §3.0: an immediate prescribed child is a descendant. -/
 theorem child_descendant (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
     (N.child n i).IsDescendant n N (n + 1) := by
-  sorry
+  use 1
+  constructor
+  · rfl
+  · use ⟨i, ()⟩
+    rfl
 
 /-- R3, V4 §3.2: every actual prototype has at least one child.
 The nonempty prototype interior and substitution cover supply this nonemptiness. -/

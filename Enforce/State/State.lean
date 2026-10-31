@@ -296,7 +296,20 @@ theorem address_data (P : Params S) (q : U.Node) :
         (U.hierarchy.nodeRole (U.hierarchy.ancestor q j)).1 =
           (S.child (U.hierarchy.nodeRole (U.hierarchy.ancestor q (j + 1))).1
             (U.hierarchy.nodeRole (U.hierarchy.ancestor q (j + 1))).2).ty := by
-  sorry
+  constructor
+  · have hc := U.hierarchy.child_eq q.1 q.2
+    exact (congrArg FramedNode.ty hc).symm
+  · intro j _
+    have h1 : (U.hierarchy.nodeRole (U.hierarchy.ancestor q j)).1 = (U.hierarchy.ancestor q (j + 1)).2.val.ty := by
+      have h : U.hierarchy.ancestor q (j + 1) = U.hierarchy.parentNode (U.hierarchy.ancestor q j) := 
+        Function.iterate_succ_apply' U.hierarchy.parentNode j q
+      change (U.hierarchy.parentNode (U.hierarchy.ancestor q j)).2.val.ty = (U.hierarchy.ancestor q (j + 1)).2.val.ty
+      rw [h]
+    have h2 : (S.child (U.hierarchy.nodeRole (U.hierarchy.ancestor q (j + 1))).1
+              (U.hierarchy.nodeRole (U.hierarchy.ancestor q (j + 1))).2).ty = (U.hierarchy.ancestor q (j + 1)).2.val.ty := by
+      have hc := U.hierarchy.child_eq (U.hierarchy.ancestor q (j + 1)).1 (U.hierarchy.ancestor q (j + 1)).2
+      exact (congrArg FramedNode.ty hc).symm
+    rw [h1, h2]
 
 /-- Q3, V4 §2.2 (S4a): canonical side-independent provider incidence. -/
 def recordIncidence (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)

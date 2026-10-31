@@ -572,7 +572,22 @@ theorem augmentedMarking_state {P : Params S} (C : ClusterData S P)
     (l : LeafType P) (x : E d)
     (hx : x ∈ closedBall (C.stateCentre l.prototype) (C.stateRadius l.prototype)) :
     augmentedColour C l x = Colour.state l.symbol := by
-  sorry
+  dsimp [augmentedColour]
+  have hint : x ∈ interior (S.proto l.prototype).carrier := by
+    exact C.state_inside l.prototype hx
+  rw [if_pos hint]
+  have hf : ¬ ∃ a, x ∈ closedBall ((P.marker l.prototype).centre a) (P.marker l.prototype).radius := by
+    intro ⟨a, ha⟩
+    have hd := C.state_marker_disjoint l.prototype a
+    exact Set.disjoint_left.mp hd hx ha
+  have hm : ¬ ∃ z : ClusterKind l × Fin (d + 1), x ∈ C.microball l z.1 z.2 := by
+    intro ⟨⟨κ, a⟩, h_micro⟩
+    have hd := C.enclosing_state_disjoint l κ
+    have h_micro_sub := C.micro_inside l κ a
+    have h_enc : x ∈ closedBall (C.enclosingCentre l κ) (C.enclosingRadius l κ) := by
+      exact Metric.ball_subset_closedBall (h_micro_sub h_micro)
+    exact Set.disjoint_left.mp hd h_enc hx
+  rw [dif_neg hm, dif_neg hf, if_pos hx]
 
 /-- M2, V4 2.10: projection is the native type at every interior point. -/
 theorem augmentedMarking_projection {P : Params S} (C : ClusterData S P)

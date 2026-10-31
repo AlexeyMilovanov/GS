@@ -1083,6 +1083,250 @@ theorem table_child (a : ℕ) (ha : a + 1 ≤ P.K)
 
 end KBlock
 
+/-- Step 1 of the V4 proof of `compiler_certificates` (V4 2.17(a), using 2.12(i)): "Let x be
+the centre of the CORE microball a=0 of t; λ_Y(x)=(CORE,D,i,0). Some rule copy ψ(Λ,m) covers x
+with m=λ_Y∘ψ on Λ. By Lemma 2.12(i) it is a CORE rule, CORE_{D'}, whose marking takes the value
+(CORE,D,i,0) at ψ⁻¹(x); CORE colours in CORE_{D'} are (CORE,D',i',a), so D'=D", and that colour
+occurs in CORE_D only on the microball 0 of leaf i. So some copy of CORE_D agrees with Y and
+ψ⁻¹(x) lies in the native image of the CORE microball 0 of leaf i. -/
+private lemma compiler_certificates_step1_core_rule (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) :
+    ∃ ψ : Iso d,
+      (∀ p : (Compiler.coreRule C (compilerLeaf C t).1).carrier,
+        Y.marking (ψ p) = (Compiler.coreRule C (compilerLeaf C t).1).mark p) ∧
+      ψ.symm (compilerFrame C t (C.centre (compilerLeaf C t) .core 0)) ∈
+        placedSet (compilerLeaf C t).position (C.microball (compilerLeaf C t) .core 0) := by
+  set l := compilerLeaf C t with hl_def
+  set x := compilerFrame C t (C.centre l .core 0) with hx_def
+  have hxm : Y.marking x = Colour.core l 0 := by
+    have hmem : x ∈ {x | Y.marking x = microColour l .core 0} := by
+      rw [(colour_disjointness_iii C Y l .core 0).1]
+      exact Set.mem_iUnion.mpr ⟨⟨t, ht, rfl⟩, Metric.mem_closedBall_self C.ρ_pos.le⟩
+    exact hmem
+  obtain ⟨R, hR, ψ, hxR, hcons⟩ := hY x
+  obtain ⟨q, hq, hqx⟩ := hxR
+  have hR' : R ∈ Compiler.ruleCatalogue C := hR
+  simp only [Compiler.ruleCatalogue, Finset.mem_union, Finset.mem_image, Finset.mem_univ,
+    true_and] at hR'
+  rcases hR' with ⟨D', rfl⟩ | ⟨e, rfl⟩
+  · have hc : Y.marking (ψ q) = _ := hcons ⟨q, hq⟩
+    rw [hqx, hxm] at hc
+    have hc' : Compiler.certificateColour C D' q = Colour.core l 0 := hc.symm
+    unfold Compiler.certificateColour at hc'
+    split_ifs at hc' with hex
+    · have hmi := (augmentedColour_micro_iff C l _ .core 0 _).1 hc'
+      obtain ⟨hl, hqm⟩ := hmi
+      have hD : D' = l.1 := congrArg Sigma.fst hl
+      subst hD
+      refine ⟨ψ, hcons, ?_⟩
+      have hpos : LeafType.position (⟨l.1, Classical.choose hex⟩ : LeafType P) =
+          l.position := by rw [hl]
+      rw [hpos] at hqm
+      rw [← hqx, AffineIsometryEquiv.symm_apply_apply]
+      exact ⟨_, hqm, AffineIsometryEquiv.apply_symm_apply _ _⟩
+  · exfalso
+    have hc := hcons ⟨q, hq⟩
+    rw [hqx, hxm] at hc
+    exact colour_disjointness_i C e l 0 ⟨q, hq⟩ hc.symm
+
+/-- Step 2 of the V4 proof of `compiler_certificates` (V4 2.17(a)): "The carrier Λ_D contains
+the entire CORE cluster of leaf i (CORE balls are disjoint from trigger balls)". -/
+private lemma compiler_certificates_step2_core_cluster_inside (C : ClusterData S P)
+    (D : CertificateSymbol S P) (w : S.RoleWord D.val.ty P.K) :
+    placedSet (LeafType.position (⟨D, w⟩ : LeafType P))
+      (C.cluster (⟨D, w⟩ : LeafType P) .core) ⊆ Compiler.coreCarrier C D := by
+  have hsup0 : ∀ A : S.ι, S.supertile 0 A = (S.proto A).carrier := by
+    intro A; simp [SubstSystem.supertile]
+  have hint : ∀ (v : S.RoleWord D.val.ty P.K) (y : E d),
+      y ∈ interior (S.proto (S.nativeTile D.val.ty P.K v).ty).carrier →
+      (S.nativeTile D.val.ty P.K v).frame y ∈
+        interior ((S.nativeTile D.val.ty P.K v).carrier 0) := by
+    intro v y hy
+    have hc : (S.nativeTile D.val.ty P.K v).carrier 0 = (S.nativeTile D.val.ty P.K v).frame ''
+        (S.proto (S.nativeTile D.val.ty P.K v).ty).carrier := by
+      show placedSet _ (S.supertile 0 _) = _
+      rw [hsup0]; rfl
+    rw [hc]
+    have := (S.nativeTile D.val.ty P.K v).frame.toHomeomorph.image_interior
+      (S.proto (S.nativeTile D.val.ty P.K v).ty).carrier
+    simp only [AffineIsometryEquiv.coe_toHomeomorph] at this
+    rw [← this]
+    exact Set.mem_image_of_mem _ hy
+  rintro _ ⟨x, hx, rfl⟩
+  have hxi : x ∈ interior (S.proto (S.nativeTile D.val.ty P.K w).ty).carrier :=
+    C.cluster_inside (⟨D, w⟩ : LeafType P) .core hx
+  refine ⟨?_, ?_⟩
+  · rw [← S.native_cover]
+    exact Set.mem_iUnion.mpr ⟨w, interior_subset (hint w x hxi)⟩
+  · intro hmem
+    simp only [Set.mem_iUnion] at hmem
+    obtain ⟨w', j, z, hz, hzx⟩ := hmem
+    have hzc : z ∈ closedBall (C.enclosingCentre (⟨D, w'⟩ : LeafType P) (.trigger j))
+        (C.enclosingRadius (⟨D, w'⟩ : LeafType P) (.trigger j)) := Metric.ball_subset_closedBall hz
+    by_cases hw : w' = w
+    · subst hw
+      have hzx' : z = x := (LeafType.position (⟨D, w'⟩ : LeafType P)).injective hzx
+      subst hzx'
+      have hxe := C.cluster_subset_enclosing (⟨D, w'⟩ : LeafType P) .core hx
+      exact Set.disjoint_left.mp (C.enclosing_disjoint (⟨D, w'⟩ : LeafType P)
+        (show (ClusterKind.core : ClusterKind (⟨D, w'⟩ : LeafType P)) ≠ .trigger j from
+          by intro h; cases h)) hxe hzc
+    · have hz' := hint w' z (C.enclosing_inside (⟨D, w'⟩ : LeafType P) (.trigger j) hzc)
+      have hx' := hint w x hxi
+      have hzx'' : (S.nativeTile D.val.ty P.K w').frame z =
+          (S.nativeTile D.val.ty P.K w).frame x := hzx
+      rw [hzx''] at hz'
+      exact Set.disjoint_left.mp (S.native_disjoint D.val.ty P.K hw) hz' hx'
+
+/-- Step 3 of the V4 proof of `compiler_certificates` (V4 2.17(a)): "on [the CORE cluster of
+leaf i] λ_Y∘ψ equals the augmented marking of (D,i) transported by φ_(D,i)" — the CORE_D
+marking restricted to a native CORE cluster is the augmented leaf marking. -/
+private lemma compiler_certificates_step3_core_marks (C : ClusterData S P)
+    (D : CertificateSymbol S P) (w : S.RoleWord D.val.ty P.K) (x : E d)
+    (hx : x ∈ C.cluster (⟨D, w⟩ : LeafType P) .core) :
+    Compiler.certificateColour C D ((LeafType.position (⟨D, w⟩ : LeafType P)) x) =
+      augmentedColour C (⟨D, w⟩ : LeafType P) x := by
+  have hc : x ∈ (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier :=
+    interior_subset (C.cluster_inside _ _ hx)
+  have h := Compiler.certificateColour_leaf C D w
+    ((LeafType.position (⟨D, w⟩ : LeafType P)) x) (Set.mem_image_of_mem _ hc)
+  rwa [AffineIsometryEquiv.symm_apply_apply] at h
+
+/-- Step 4 of the V4 proof of `compiler_certificates` (V4 2.17(a), using 2.13): "For every
+leaf i' of D, Λ_D contains its entire CORE cluster, so Lemma 2.13 gives a tile t_{i'} of type
+(D,i') with frame ψ∘φ_(D,i')" — for any copy ψ of CORE_D agreeing with Y. -/
+private lemma compiler_certificates_step4_leaf_pinned (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) (D : CertificateSymbol S P) (ψ : Iso d)
+    (hψ : ∀ p : (Compiler.coreRule C D).carrier,
+      Y.marking (ψ p) = (Compiler.coreRule C D).mark p)
+    (w : S.RoleWord D.val.ty P.K) :
+    ∃ t' ∈ Y.tiles, compilerLeaf C t' = (⟨D, w⟩ : LeafType P) ∧
+      (LeafType.position (⟨D, w⟩ : LeafType P)).trans ψ = compilerFrame C t' := by
+  refine cluster_rigidity C Y (⟨D, w⟩ : LeafType P) .core _ ?_
+  intro x hx
+  have hc := compiler_certificates_step2_core_cluster_inside C D w (Set.mem_image_of_mem _ hx)
+  have h := hψ ⟨_, hc⟩
+  rw [AffineIsometryEquiv.coe_trans, Function.comp_apply, h]
+  exact compiler_certificates_step3_core_marks C D w x hx
+
+/-- Interior points of a prototype go to interior points of each actual tile. -/
+private lemma compiler_certificates_frame_interior (C : ClusterData S P)
+    (u : PlacedMarkedTile (systemM S P C)) (y : E d)
+    (hy : y ∈ interior (S.proto (compilerLeaf C u).prototype).carrier) :
+    compilerFrame C u y ∈ interior u.carrier := by
+  have hu := placedLeaf_decode C u
+  have hcar : u.carrier = compilerFrame C u ''
+      (S.proto (compilerLeaf C u).prototype).carrier :=
+    calc u.carrier = (placedLeaf C (compilerLeaf C u) (compilerFrame C u)).carrier := by rw [hu]
+      _ = _ := rfl
+  rw [hcar]
+  have := (compilerFrame C u).toHomeomorph.image_interior
+    (S.proto (compilerLeaf C u).prototype).carrier
+  simp only [AffineIsometryEquiv.coe_toHomeomorph] at this
+  rw [← this]
+  exact Set.mem_image_of_mem _ hy
+
+/-- Step 5 of the V4 proof of `compiler_certificates` (V4 2.17(a), using 2.13): "there is a
+tile t' of type (D,i) with ψ∘φ_(D,i)=φ_{t'}; the point x lies in the image under ψ of this CORE
+microball, which by Lemma 2.13 is a microball of t' and lies in int t'; since also x ∈ int t and
+distinct tiles have disjoint interiors, t'=t ... Hence ψ=φ_t∘φ_(D,i)⁻¹ is determined by t." -/
+private lemma compiler_certificates_step5_frame (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) :
+    ∀ p : (Compiler.coreRule C (compilerLeaf C t).1).carrier,
+      Y.marking (((compilerLeaf C t).position.symm.trans (compilerFrame C t)) p) =
+        (Compiler.coreRule C (compilerLeaf C t).1).mark p := by
+  obtain ⟨ψ, hψ, hx⟩ := compiler_certificates_step1_core_rule C Y hY t ht
+  obtain ⟨t', ht', hl, hf⟩ := compiler_certificates_step4_leaf_pinned C Y
+    (compilerLeaf C t).1 ψ hψ (compilerLeaf C t).2
+  obtain ⟨m, hm, hpm⟩ := hx
+  have hmi : m ∈ C.cluster (compilerLeaf C t) .core := Set.mem_iUnion_of_mem 0 hm
+  have hx' : compilerFrame C t (C.centre (compilerLeaf C t) .core 0) =
+      compilerFrame C t' m := by
+    rw [← hf, AffineIsometryEquiv.coe_trans, Function.comp_apply, hpm,
+      AffineIsometryEquiv.apply_symm_apply]
+  have hint_t : compilerFrame C t (C.centre (compilerLeaf C t) .core 0) ∈ interior t.carrier :=
+    compiler_certificates_frame_interior C t _
+      (C.cluster_inside _ _ (Set.mem_iUnion_of_mem 0 (Metric.mem_closedBall_self C.ρ_pos.le)))
+  have hint_t' : compilerFrame C t' m ∈ interior t'.carrier := by
+    refine compiler_certificates_frame_interior C t' m ?_
+    rw [hl]
+    exact C.cluster_inside _ _ hmi
+  have htt : t = t' := by
+    by_contra hne
+    exact Set.disjoint_left.mp (Y.disjoint ht ht' hne) hint_t (hx' ▸ hint_t')
+  subst htt
+  have hψ' : ψ = (compilerLeaf C t).position.symm.trans (compilerFrame C t) := by
+    rw [← hf]; ext y; simp
+  rw [← hψ']
+  exact hψ
+
+/-- An open set inside a finite union of closed sets meets the interior of one of them. -/
+private lemma compiler_certificates_open_meets_interior {ι : Type} [Finite ι]
+    (f : ι → Set (E d)) (hc : ∀ i, IsClosed (f i)) (O : Set (E d)) (hO : IsOpen O)
+    (hne : O.Nonempty) (hsub : O ⊆ ⋃ i, f i) : ∃ i, (O ∩ interior (f i)).Nonempty := by
+  let g : Option ι → Set (E d) := fun o => o.elim Oᶜ f
+  have hgc : ∀ o, IsClosed (g o) := by
+    intro o; cases o with
+    | none => exact hO.isClosed_compl
+    | some i => exact hc i
+  have hgU : ⋃ o, g o = Set.univ := by
+    refine Set.eq_univ_of_forall fun y => ?_
+    by_cases hy : y ∈ O
+    · obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hsub hy)
+      exact Set.mem_iUnion.mpr ⟨some i, hi⟩
+    · exact Set.mem_iUnion.mpr ⟨none, hy⟩
+  have hd := dense_iUnion_interior_of_closed hgc hgU
+  obtain ⟨y, hyO, hy⟩ := hd.inter_open_nonempty O hO hne
+  obtain ⟨o, ho⟩ := Set.mem_iUnion.mp hy
+  cases o with
+  | none => exact absurd hyO (interior_subset ho)
+  | some i => exact ⟨i, y, hyO, ho⟩
+
+/-- Leaf carriers of a block are closed. -/
+private lemma compiler_certificates_leaf_closed {C : ClusterData S P}
+    {Y : MarkedTiling (systemM S P C)} (B : KBlock Y)
+    (w : S.RoleWord B.certificate.val.ty P.K) : IsClosed (B.leaf w).carrier :=
+  ((augmentedLeaf C (⟨B.certificate, w⟩ : LeafType P)).compact.image
+    (AffineIsometryEquiv.continuous _)).isClosed
+
+/-- Step 6 of the V4 proof of `compiler_certificates` (V4 2.17(a)): "If two such K-blocks β,β'
+have a common interior point, pick one outside the (nowhere dense) union of all tile
+boundaries: it lies in int u ∩ int u' for leaves u of β and u' of β'; so u=u', and the block
+determined by u is unique, so β=β'." -/
+private lemma compiler_certificates_step6_disjoint (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) :
+    Pairwise (fun B D : KBlock Y => Disjoint (interior B.carrier) (interior D.carrier)) := by
+  intro B D hBD
+  rw [Set.disjoint_iff_inter_eq_empty]
+  by_contra hne
+  have hO : (interior B.carrier ∩ interior D.carrier).Nonempty :=
+    Set.nonempty_iff_ne_empty.mpr hne
+  have hOo : IsOpen (interior B.carrier ∩ interior D.carrier) :=
+    isOpen_interior.inter isOpen_interior
+  obtain ⟨w, hw⟩ := compiler_certificates_open_meets_interior (fun w => (B.leaf w).carrier)
+    (compiler_certificates_leaf_closed B) _ hOo hO
+    (by rw [KBlock.union_leaves]; exact fun y hy => interior_subset hy.1)
+  obtain ⟨w', hw'⟩ := compiler_certificates_open_meets_interior (fun w => (D.leaf w).carrier)
+    (compiler_certificates_leaf_closed D) _ (hOo.inter isOpen_interior) hw
+    (by rw [KBlock.union_leaves]; exact fun y hy => interior_subset hy.1.2)
+  obtain ⟨y, ⟨⟨_, hyB⟩, hyD⟩⟩ := hw'
+  have hleaf : B.leaf w = D.leaf w' := by
+    by_contra hne'
+    exact Set.disjoint_left.mp (Y.disjoint (B.leaf_mem w) (D.leaf_mem w') hne') hyB hyD
+  obtain ⟨hl, hφ⟩ := placedLeaf_injective C _ _ _ _ hleaf
+  apply hBD
+  have hc : B.certificate = D.certificate := congrArg Sigma.fst hl
+  have hpos : LeafType.position (⟨B.certificate, w⟩ : LeafType P) =
+      LeafType.position (⟨D.certificate, w'⟩ : LeafType P) := by rw [hl]
+  rw [hpos] at hφ
+  refine KBlock.ext hc (AffineIsometryEquiv.ext fun y => ?_)
+  have := congrArg (fun φ : Iso d => φ
+    ((LeafType.position (⟨D.certificate, w'⟩ : LeafType P)).symm y)) hφ
+  simpa using this
+
+
 /-- M8, V4 2.17(a): complete certificates are forced in a proper output.
 Every tile determines its certificate and the block frame φ_t ∘ φ_(D,i)⁻¹.
 All resulting blocks, with repetitions identified, cover space and have disjoint
@@ -1098,7 +1342,39 @@ theorem compiler_certificates (C : ClusterData S P) (Y : MarkedTiling (systemM S
     (∀ x : E d, ∃ B : KBlock Y, x ∈ B.carrier) ∧
     ∀ B : KBlock Y, ∃ (U : HonestSource S) (N : FramedNode S)
       (hN : N ∈ U.hierarchy.nodes P.K), certOf U P N hN = B.certificate.val := by
-  sorry
+  have h1 : ∀ t ∈ Y.tiles, ∃ B : KBlock Y,
+      B.certificate = (compilerLeaf C t).1 ∧
+      B.frame = (compilerLeaf C t).position.symm.trans (compilerFrame C t) ∧
+      t = placedLeaf C (compilerLeaf C t) ((compilerLeaf C t).position.trans B.frame) ∧
+      t.carrier ⊆ B.carrier := by
+    intro t ht
+    have hψ := compiler_certificates_step5_frame C Y hY t ht
+    let B : KBlock Y :=
+      { certificate := (compilerLeaf C t).1
+        frame := (compilerLeaf C t).position.symm.trans (compilerFrame C t)
+        leaves_actual := fun w => by
+          obtain ⟨t', ht', hl, hf⟩ := compiler_certificates_step4_leaf_pinned C Y
+            (compilerLeaf C t).1 _ hψ w
+          have hd := placedLeaf_decode C t'
+          rw [hl] at hd
+          rw [hf, hd]
+          exact ht' }
+    have he : (compilerLeaf C t).position.trans B.frame = compilerFrame C t := by
+      ext y; simp [B]
+    have hteq : t = B.leaf (compilerLeaf C t).2 := by
+      change t = placedLeaf C (compilerLeaf C t) ((compilerLeaf C t).position.trans B.frame)
+      rw [he, placedLeaf_decode]
+    refine ⟨B, rfl, rfl, ?_, ?_⟩
+    · rw [he, placedLeaf_decode]
+    · calc t.carrier = (B.leaf (compilerLeaf C t).2).carrier := congrArg (·.carrier) hteq
+        _ ⊆ B.carrier := by
+          rw [← KBlock.union_leaves]
+          exact Set.subset_iUnion (fun w => (B.leaf w).carrier) _
+  refine ⟨h1, compiler_certificates_step6_disjoint C Y, ?_, fun B => B.certificate.property⟩
+  intro x
+  obtain ⟨t, ht, hx⟩ := Y.cover x
+  obtain ⟨B, -, -, -, hsub⟩ := h1 t ht
+  exact ⟨B, hsub hx⟩
 
 /-- M8, V4 2.17(a): a tile lies in a unique whole certificate block with its address.
 Existence comes from properness; uniqueness is of certificate and frame, not support alone. -/

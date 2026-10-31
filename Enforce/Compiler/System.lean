@@ -436,7 +436,14 @@ theorem MarkedTiling.move_cover (Y : MarkedTiling M) (g : Iso d) (x : E d) :
 theorem MarkedTiling.move_disjoint (Y : MarkedTiling M) (g : Iso d) :
     ((fun t : PlacedMarkedTile M => t.move g) '' Y.tiles).PairwiseDisjoint
       (fun t => interior t.carrier) := by
-  sorry
+  rintro _ ⟨u, hu, rfl⟩ _ ⟨v, hv, rfl⟩ hneq
+  have h_disj := Y.disjoint hu hv (by intro h_eq; apply hneq; rw [h_eq])
+  dsimp [Function.onFun] at *
+  have hu_c : (u.move g).carrier = g.toHomeomorph '' u.carrier := rfl
+  have hv_c : (v.move g).carrier = g.toHomeomorph '' v.carrier := rfl
+  rw [hu_c, hv_c]
+  rw [← g.toHomeomorph.image_interior, ← g.toHomeomorph.image_interior]
+  exact Set.disjoint_image_of_injective g.injective h_disj
 
 /-- M6, V4 2.14(d): moving a marked tiling preserves agreement at every shared point. -/
 theorem MarkedTiling.move_agree (Y : MarkedTiling M) (g : Iso d) :

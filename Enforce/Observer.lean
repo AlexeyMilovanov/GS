@@ -506,7 +506,19 @@ theorem range_forward_closed (a : Observer P) (ha : a ∈ jointSourceRange S P)
     (i : S.I a.ty) :
     a.transition ⟨a.ty, i⟩ ∈ jointSourceRange S P ∧
       (a.transition ⟨a.ty, i⟩).ty = (S.child a.ty i).ty := by
-  sorry
+  obtain ⟨U, q, hq, ho⟩ := range_raise a ha
+  subst ho
+  have H2 := honest_observer_transition U P q hq i
+  constructor
+  · change (U.observerOf P q).transition ⟨q.2.val.ty, i⟩ ∈ _
+    rw [← H2]
+    have hq_pos : 1 ≤ q.1 := by omega
+    have h_child_height : (U.childNode q hq_pos i).1 = q.1 - 1 := rfl
+    have hc : P.H ≤ (U.childNode q hq_pos i).1 := by omega
+    exact honestObserver_mem_range U P (U.childNode q hq_pos i) hc
+  · change ((U.observerOf P q).transition ⟨q.2.val.ty, i⟩).ty = _
+    rw [← H2]
+    rfl
 /-- O4/O6, V4 4.4, 4.6: an actual prescribed child of a parsed positive-height node. -/
 def parsedChild (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (hq : 1 ≤ q.1) (i : S.I q.2.val.ty) :

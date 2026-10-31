@@ -6856,6 +6856,11 @@ theorem calibration_W4_absent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y
       ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).2.val
       ((parsedHierarchy Y hY).ancestor (g.hierarchyBirth (parsedHierarchy Y hY) hg) j.val).1
       g.carrier) : decode p j = none := by
-  sorry
+  have H := calibration_W4_readout Y hY g hg p hp j
+  have hmask : ¬ p.mask j := mt H.1.mp habsent
+  dsimp [decode]
+  split_ifs with h
+  · exact False.elim (hmask h.2)
+  · rfl
 
 end Enforce

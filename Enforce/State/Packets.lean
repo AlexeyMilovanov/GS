@@ -544,7 +544,17 @@ def descendant (q : U.Node) (a : ℕ) (ha : a ≤ q.1) (w : S.RoleWord q.2.val.t
 theorem descendant_type (q : U.Node) (a : ℕ) (ha : a ≤ q.1)
     (w : S.RoleWord q.2.val.ty a) :
     (U.descendant q a ha w).2.val.ty = (S.nativeTile q.2.val.ty a w).ty := by
-  sorry
+  dsimp [HonestSource.descendant, FramedNode.move]
+  have H : ∀ (A : S.ι) (rem : ℕ) (a : ℕ) (w : S.RoleWord A a), (S.descendantNode A rem a w).ty = (S.nativeTile A a w).ty := by
+    intro A rem a
+    induction' a with a ih generalizing A
+    · intro _
+      rfl
+    · intro w
+      dsimp [SubstSystem.RoleWord] at w
+      dsimp [SubstSystem.descendantNode, SubstSystem.nativeTile]
+      apply ih
+  apply H
 
 end HonestSource
 

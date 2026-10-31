@@ -1125,6 +1125,25 @@ theorem point_count_le [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [Nonempty ι]
   exact point_count_le_step5_finset_card proto cx ty φ hdisjoint p hS_fin.toFinset
     (fun a ha => (Set.Finite.mem_toFinset hS_fin).mp ha)
 
+open MeasureTheory
+open Metric
+
+private lemma solidAngle_le_fullSolidAngle {d : ℕ} (K : Set (E d)) :
+    solidAngle K ≤ fullSolidAngle d := by
+  dsimp [solidAngle, fullSolidAngle]
+  apply mul_le_mul_of_nonneg_left
+  · refine ENNReal.toReal_mono measure_ball_lt_top.ne ?_
+    exact measure_mono Set.inter_subset_right
+  · exact Nat.cast_nonneg d
+
+private lemma fullSolidAngle_pos {d : ℕ} [hd : Fact (2 ≤ d)] : 0 < fullSolidAngle d := by
+  dsimp [fullSolidAngle]
+  apply mul_pos
+  · exact Nat.cast_pos.mpr (by exact lt_of_lt_of_le (by decide) hd.out)
+  · apply ENNReal.toReal_pos
+    · exact (measure_ball_pos volume 0 zero_lt_one).ne'
+    · exact measure_ball_lt_top.ne
+
 /-- G7, V4 1.0(b): a uniform positive lower bound for angles at boundary cells.
 The conclusion also covers an empty prototile catalogue (any positive bound works). -/
 theorem uniform_solidAngle [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
@@ -1132,7 +1151,19 @@ theorem uniform_solidAngle [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
     ∃ β : ℝ, 0 < β ∧ β ≤ fullSolidAngle d ∧
       ∀ A e, e ∈ (cx A).cells → ∀ p ∈ relint e.carrier,
         β ≤ solidAngle (tangentCone (proto A).carrier p) := by
-  sorry
+  by_cases h : Nonempty ι
+  · use minimumAngle proto cx
+    refine ⟨(minimumAngle_spec proto cx).2, ?_, ?_⟩
+    · obtain ⟨⟨A, e, he, p, hp, hp_eq⟩, _⟩ := (minimumAngle_spec proto cx).1
+      rw [hp_eq]
+      exact solidAngle_le_fullSolidAngle _
+    · intro A e he p hp
+      apply (minimumAngle_spec proto cx).1.2
+      exact ⟨A, e, he, p, hp, rfl⟩
+  · use fullSolidAngle d
+    refine ⟨fullSolidAngle_pos, le_rfl, ?_⟩
+    intro A
+    exact False.elim (h ⟨A⟩)
 
 /-- G7, V4 1.0(b): at most `floor (ω_d / β)` disjoint placed prototiles
 contain any one point. This includes points in the interiors of prototiles. -/

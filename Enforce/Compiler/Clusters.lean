@@ -603,7 +603,17 @@ theorem augmentedMarking_state {P : Params S} (C : ClusterData S P)
 theorem augmentedMarking_projection {P : Params S} (C : ClusterData S P)
     (l : LeafType P) (x : E d) (hx : x ∈ interior (S.proto l.prototype).carrier) :
     π S P (augmentedColour C l x) = some l.prototype := by
-  sorry
+  unfold augmentedColour
+  rw [if_pos hx]
+  split_ifs with h1 h2 h3
+  · cases (Classical.choose h1).1 <;> rfl
+  · rfl
+  · change some l.symbol.val.ty = some l.prototype
+    have H : l.symbol.val.ty = l.prePattern.ty := rfl
+    rw [H, LeafType.prePattern_type l]
+  · change some l.symbol.val.ty = some l.prototype
+    have H : l.symbol.val.ty = l.prePattern.ty := rfl
+    rw [H, LeafType.prePattern_type l]
 
 /-- M2, V4 2.10: all physical boundary points have the common colour @. -/
 theorem augmentedMarking_boundary {P : Params S} (C : ClusterData S P)

@@ -176,7 +176,17 @@ def oldMarking {S : SubstSystem d} (T : Tiling S) (x : E d) : Option S.ι := by
 theorem oldMarking_interior {S : SubstSystem d} (T : Tiling S)
     (t : PlacedTile S) (ht : t ∈ T.tiles) (x : E d) (hx : x ∈ interior t.carrier) :
     oldMarking T x = some t.ty := by
-  sorry
+  have H : ∃ t ∈ T.tiles, x ∈ interior t.carrier := ⟨t, ht, hx⟩
+  dsimp [oldMarking]
+  rw [dif_pos H]
+  have h2 := Classical.choose_spec H
+  obtain ⟨h_in, h_mem⟩ := h2
+  have h_eq : Classical.choose H = t := by
+    by_contra hc
+    have h_disj := T.disjoint h_in ht hc
+    have h_mem_inter : x ∈ interior (Classical.choose H).carrier ∩ interior t.carrier := ⟨h_mem, hx⟩
+    exact Set.disjoint_iff.mp h_disj h_mem_inter
+  rw [h_eq]
 
 /-- T4, V4 §1.0 (H7): a point on any tile boundary receives `@`. -/
 theorem oldMarking_frontier {S : SubstSystem d} (T : Tiling S)

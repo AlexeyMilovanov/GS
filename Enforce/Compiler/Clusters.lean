@@ -700,6 +700,22 @@ Heterogeneous kind equality retains the dependent slot index when the kind is TR
 theorem microColour_injective (l u : LeafType P) (κ : ClusterKind l) (η : ClusterKind u)
     (a b : Fin (d + 1)) (h : microColour l κ a = microColour u η b) :
     l = u ∧ HEq κ η ∧ a = b := by
-  sorry
+  cases κ <;> cases η <;> dsimp [microColour] at h
+  · injection h with hl ha
+    subst hl
+    exact ⟨rfl, HEq.rfl, ha⟩
+  · contradiction
+  · contradiction
+  · contradiction
+  · injection h with hl ha
+    subst hl
+    exact ⟨rfl, HEq.rfl, ha⟩
+  · contradiction
+  · contradiction
+  · contradiction
+  · injection h with hl hj ha
+    subst hl
+    subst hj
+    exact ⟨rfl, HEq.rfl, ha⟩
 
 end Enforce

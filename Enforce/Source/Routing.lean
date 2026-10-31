@@ -4117,6 +4117,381 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
         exact ⟨hg, hsg⟩
   rw [heq, Set.ncard_pair hfg]
 
+/-- Step 1 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
+"a connected union of facets". In a finite closed cover of a preconnected
+set, every member meeting the set is reached from every other member through
+meeting members: the unions of reachable and unreachable members would
+otherwise separate the set. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step1_closed_cover
+    {X ι : Type*} [TopologicalSpace X] [Finite ι]
+    (C : ι → Set X) (hclosed : ∀ i, IsClosed (C i))
+    {U : Set X} (hconn : IsPreconnected U) (hcover : U ⊆ ⋃ i, C i)
+    (hne : ∀ i, (U ∩ C i).Nonempty) (R : ι → ι → Prop)
+    (hmeet : ∀ i j, (U ∩ (C i ∩ C j)).Nonempty → i = j ∨ R i j) :
+    ∀ i j, Relation.ReflTransGen R i j := by
+  classical
+  intro a b
+  by_contra hn
+  let A := {i : ι // Relation.ReflTransGen R a i}
+  let B := {i : ι // ¬ Relation.ReflTransGen R a i}
+  let F : Set X := ⋃ i : A, C i.val
+  let G : Set X := ⋃ i : B, C i.val
+  have hF : IsClosed F := isClosed_iUnion_of_finite fun i : A => hclosed i.val
+  have hG : IsClosed G := isClosed_iUnion_of_finite fun i : B => hclosed i.val
+  have hcov : U ⊆ F ∪ G := by
+    intro x hx
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hcover hx)
+    by_cases hai : Relation.ReflTransGen R a i
+    · exact Or.inl (Set.mem_iUnion.mpr ⟨⟨i, hai⟩, hi⟩)
+    · exact Or.inr (Set.mem_iUnion.mpr ⟨⟨i, hai⟩, hi⟩)
+  have hUF : (U ∩ F).Nonempty := by
+    obtain ⟨x, hxU, hxa⟩ := hne a
+    exact ⟨x, hxU, Set.mem_iUnion.mpr ⟨⟨a, Relation.ReflTransGen.refl⟩, hxa⟩⟩
+  have hUG : (U ∩ G).Nonempty := by
+    obtain ⟨x, hxU, hxb⟩ := hne b
+    exact ⟨x, hxU, Set.mem_iUnion.mpr ⟨⟨b, hn⟩, hxb⟩⟩
+  obtain ⟨x, hxU, hxF, hxG⟩ :=
+    isPreconnected_closed_iff.mp hconn F G hF hG hcov hUF hUG
+  obtain ⟨i, hxi⟩ := Set.mem_iUnion.mp hxF
+  obtain ⟨j, hxj⟩ := Set.mem_iUnion.mp hxG
+  apply j.property
+  rcases hmeet i.val j.val ⟨x, hxU, hxi, hxj⟩ with heq | hR
+  · exact heq ▸ i.property
+  · exact i.property.tail hR
+
+/-- Step 2 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
+"a connected union of facets". The closed facets of a finite complex cover its
+connected space, so any two facets are joined by a chain of facets in which
+consecutive members share at least one vertex. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step2_meet_chains
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hconn : IsConnected K.space) :
+    ∀ f g : K.facets, Relation.ReflTransGen
+      (fun u v : K.facets => (u.val ∩ v.val).Nonempty) f g := by
+  classical
+  letI : Finite K.facets := (hfin.subset K.facets_subset).to_subtype
+  have hcover :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover K hfin
+  refine principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step1_closed_cover
+    (fun f : K.facets => convexHull ℝ (f.val : Set (E d)))
+    (fun f => f.val.finite_toSet.isCompact_convexHull.isClosed) hconn.isPreconnected
+    hcover.subset ?_ _ ?_
+  · intro f
+    obtain ⟨x, hx⟩ : (convexHull ℝ (f.val : Set (E d))).Nonempty :=
+      convexHull_nonempty_iff.mpr
+        (Finset.coe_nonempty.mpr (K.nonempty_of_mem_faces f.property.1))
+    exact ⟨x, K.convexHull_subset_space f.property.1 hx, hx⟩
+  · rintro f g ⟨x, -, hxf, hxg⟩
+    right
+    have hxi : x ∈ convexHull ℝ ((f.val : Set (E d)) ∩ (g.val : Set (E d))) :=
+      K.inter_subset_convexHull f.property.1 g.property.1 ⟨hxf, hxg⟩
+    have hh : (convexHull ℝ ((f.val ∩ g.val : Finset (E d)) : Set (E d))).Nonempty :=
+      ⟨x, by simpa using hxi⟩
+    exact Finset.coe_nonempty.mp (convexHull_nonempty_iff.mp hh)
+
+/-- Step 3 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
+"`∂t` is a compact `(d-1)`-manifold". A chart of dimension at least two gives
+arbitrarily small relative neighbourhoods of a point whose punctured versions are
+preconnected: they are chart images of punctured round balls. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step3_punctured_charts
+    {n : ℕ} (hn : 2 ≤ n) {X : Set (E d)} (hX : IsLocallyEuclidean n X)
+    {v : E d} (hv : v ∈ X) {r : ℝ} (hr : 0 < r) :
+    ∃ W : Set (E d), W ⊆ X ∩ Metric.ball v r ∧ (∃ ε > 0, X ∩ Metric.ball v ε ⊆ W) ∧
+      IsPreconnected (W \ {v}) := by
+  classical
+  obtain ⟨U, hUo, hvU, V, hVo, ⟨φ⟩⟩ := hX ⟨v, hv⟩
+  let u₀ : U := ⟨⟨v, hv⟩, hvU⟩
+  let c : E n := (φ u₀ : E n)
+  let ψ : V → E d := fun y => ((φ.symm y : U) : X).val
+  have hψ : Continuous ψ :=
+    continuous_subtype_val.comp (continuous_subtype_val.comp φ.symm.continuous)
+  have hψc : ψ (φ u₀) = v := by simp [ψ, u₀]
+  have hψinj : Function.Injective ψ := by
+    intro a b hab
+    exact φ.symm.injective (Subtype.ext (Subtype.ext hab))
+  let S : Set V := ψ ⁻¹' Metric.ball v r
+  have hSo : IsOpen S := Metric.isOpen_ball.preimage hψ
+  have hSo' : IsOpen (Subtype.val '' S : Set (E n)) := hVo.isOpenMap_subtype_val S hSo
+  have hcS : c ∈ (Subtype.val '' S : Set (E n)) :=
+    ⟨φ u₀, by simp [S, hψc, hr], rfl⟩
+  obtain ⟨δ, hδ, hδS⟩ := Metric.isOpen_iff.mp hSo' c hcS
+  let T : Set V := Subtype.val ⁻¹' Metric.ball c δ
+  have hTo : IsOpen T := Metric.isOpen_ball.preimage continuous_subtype_val
+  have hTS : T ⊆ S := by
+    intro y hy
+    obtain ⟨z, hz, hzy⟩ := hδS hy
+    have : z = y := Subtype.ext hzy
+    exact this ▸ hz
+  refine ⟨ψ '' T, ?_, ?_, ?_⟩
+  · rintro x ⟨y, hy, rfl⟩
+    exact ⟨((φ.symm y : U) : X).property, hTS hy⟩
+  · let W' : Set X := Subtype.val '' (φ ⁻¹' T)
+    have hW'o : IsOpen W' := hUo.isOpenMap_subtype_val _ (hTo.preimage φ.continuous)
+    obtain ⟨O, hOo, hOW⟩ := isOpen_induced_iff.mp hW'o
+    have hvW' : (⟨v, hv⟩ : X) ∈ W' :=
+      ⟨u₀, by simp [T, c, hδ], rfl⟩
+    have hvO : v ∈ O := by
+      have : (⟨v, hv⟩ : X) ∈ Subtype.val ⁻¹' O := hOW ▸ hvW'
+      exact this
+    obtain ⟨ε, hε, hεO⟩ := Metric.isOpen_iff.mp hOo v hvO
+    refine ⟨ε, hε, ?_⟩
+    rintro x ⟨hxX, hxε⟩
+    have hx : (⟨x, hxX⟩ : X) ∈ W' := by
+      rw [← hOW]
+      exact hεO hxε
+    obtain ⟨u, hu, hux⟩ := hx
+    refine ⟨φ u, hu, ?_⟩
+    simp only [ψ, Homeomorph.symm_apply_apply, hux]
+  · have hpT : φ u₀ ∈ T := by simp [T, c, hδ]
+    have himg : ψ '' T \ {v} = ψ '' (T \ {φ u₀}) := by
+      rw [Set.image_diff hψinj, Set.image_singleton, hψc]
+    rw [himg]
+    apply IsPreconnected.image _ _ hψ.continuousOn
+    rw [← Topology.IsInducing.subtypeVal.isPreconnected_image]
+    have hball : ∀ y ∈ Metric.ball c δ, y ∈ V := by
+      intro y hy
+      obtain ⟨z, -, hz⟩ := hδS hy
+      exact hz ▸ z.property
+    have heq : (Subtype.val '' (T \ {φ u₀}) : Set (E n)) =
+        (OpenPartialHomeomorph.univBall c δ) '' ({0}ᶜ) := by
+      ext z
+      constructor
+      · rintro ⟨y, ⟨hyT, hyp⟩, rfl⟩
+        have hyb : (y : E n) ∈ (OpenPartialHomeomorph.univBall c δ).target := by
+          rw [OpenPartialHomeomorph.univBall_target c hδ]
+          exact hyT
+        refine ⟨(OpenPartialHomeomorph.univBall c δ).symm y, ?_,
+          (OpenPartialHomeomorph.univBall c δ).right_inv hyb⟩
+        intro h0
+        apply hyp
+        apply Subtype.ext
+        have := (OpenPartialHomeomorph.univBall c δ).right_inv hyb
+        rw [Set.mem_singleton_iff.mp h0, OpenPartialHomeomorph.univBall_apply_zero] at this
+        exact this.symm
+      · rintro ⟨y, hy0, rfl⟩
+        have hyb : (OpenPartialHomeomorph.univBall c δ) y ∈ Metric.ball c δ := by
+          rw [← OpenPartialHomeomorph.univBall_target c hδ]
+          exact (OpenPartialHomeomorph.univBall c δ).map_source
+            (by rw [OpenPartialHomeomorph.univBall_source]; trivial)
+        refine ⟨⟨_, hball _ hyb⟩, ⟨hyb, ?_⟩, rfl⟩
+        intro hyc
+        apply hy0
+        have hyc' : (OpenPartialHomeomorph.univBall c δ) y = c := congrArg Subtype.val hyc
+        have h1 := (OpenPartialHomeomorph.univBall c δ).left_inv
+          (x := y) (by rw [OpenPartialHomeomorph.univBall_source]; trivial)
+        rw [hyc', OpenPartialHomeomorph.univBall_symm_apply_center] at h1
+        exact h1.symm
+    rw [heq]
+    have hrank : 1 < Module.rank ℝ (E n) := by
+      rw [← Module.finrank_eq_rank, finrank_euclideanSpace_fin]
+      exact_mod_cast (by omega : 1 < n)
+    exact ((isConnected_compl_singleton_of_one_lt_rank hrank 0).isPreconnected.image _
+      (OpenPartialHomeomorph.continuous_univBall c δ).continuousOn)
+
+/-- Step 4 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
+"`∂t` is a compact `(d-1)`-manifold ... a connected union of facets". Vertex
+links: in a finite pure triangulation of a `(d-1)`-manifold with `d - 1 ≥ 2`, the
+facets through a vertex `v` are joined by chains of facets through `v` in which
+consecutive members share a vertex other than `v`. Otherwise the reachable and the
+unreachable facets through `v` form two closed sets meeting only at `v`; a small
+punctured chart neighbourhood of `v` (Step 3) lies in their union, meets both, and
+would be separated. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step4_vertex_links
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hman : IsLocallyEuclidean (d - 1) K.space)
+    {σ : Finset (E d)} (hσ : σ ∈ K.faces) (hσc : σ.card = 1) (hσd : σ.card + 2 ≤ d) :
+    ∀ f g : K.facets, σ ⊆ f.val → σ ⊆ g.val → Relation.ReflTransGen
+      (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧ σ.card < (u.val ∩ v.val).card) f g := by
+  classical
+  letI : Finite K.facets := (hfin.subset K.facets_subset).to_subtype
+  obtain ⟨v, rfl⟩ := Finset.card_eq_one.mp hσc
+  rw [Finset.card_singleton] at hσd
+  intro f g hf hg
+  by_contra hfg
+  let R := fun u w : K.facets => ({v} : Finset (E d)) ⊆ u.val ∧
+    ({v} : Finset (E d)) ⊆ w.val ∧ ({v} : Finset (E d)).card < (u.val ∩ w.val).card
+  have hvf : v ∈ f.val := Finset.singleton_subset_iff.mp hf
+  have hvg : v ∈ g.val := Finset.singleton_subset_iff.mp hg
+  let P : Set (E d) := ⋃ h : {h : K.facets // Relation.ReflTransGen R f h},
+    convexHull ℝ (h.val.val : Set (E d))
+  let Q : Set (E d) := ⋃ h : {h : K.facets // v ∈ h.val ∧ ¬ Relation.ReflTransGen R f h},
+    convexHull ℝ (h.val.val : Set (E d))
+  let Fr : Set (E d) := ⋃ h : {h : K.facets // v ∉ h.val}, convexHull ℝ (h.val.val : Set (E d))
+  have hcl : ∀ h : K.facets, IsClosed (convexHull ℝ (h.val : Set (E d))) :=
+    fun h => h.val.finite_toSet.isCompact_convexHull.isClosed
+  have hP : IsClosed P := isClosed_iUnion_of_finite fun h => hcl h.val
+  have hQ : IsClosed Q := isClosed_iUnion_of_finite fun h => hcl h.val
+  have hFr : IsClosed Fr := isClosed_iUnion_of_finite fun h => hcl h.val
+  have hreach_v : ∀ h : K.facets, Relation.ReflTransGen R f h → v ∈ h.val := by
+    intro h hh
+    induction hh with
+    | refl => exact hvf
+    | tail _ hst _ => exact Finset.singleton_subset_iff.mp hst.2.1
+  have hvhull : v ∈ convexHull ℝ ((({v} : Finset (E d)) : Set (E d))) :=
+    subset_convexHull ℝ _ (by simp)
+  have hvFr : v ∉ Fr := by
+    intro hx
+    obtain ⟨h, hxh⟩ := Set.mem_iUnion.mp hx
+    have hxi := K.inter_subset_convexHull h.val.property.1 hσ ⟨hxh, hvhull⟩
+    have hempty : ((h.val.val : Set (E d)) ∩ (({v} : Finset (E d)) : Set (E d))) = ∅ := by
+      ext y
+      simp only [Finset.coe_singleton, Set.mem_inter_iff, Finset.mem_coe,
+        Set.mem_singleton_iff, Set.mem_empty_iff_false, iff_false, not_and]
+      rintro hy rfl
+      exact h.property hy
+    rw [hempty, convexHull_empty] at hxi
+    exact hxi
+  obtain ⟨r, hr, hrFr⟩ := Metric.isOpen_iff.mp hFr.isOpen_compl v hvFr
+  have hd2 : 2 ≤ d - 1 := by omega
+  obtain ⟨W, hWsub, ⟨ε, hε, hεW⟩, hWc⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step3_punctured_charts
+      hd2 hman (K.convexHull_subset_space hσ hvhull) hr
+  have hcover :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover K hfin
+  have hWPQ : W \ {v} ⊆ P ∪ Q := by
+    rintro x ⟨hxW, -⟩
+    have hxK := (hWsub hxW).1
+    rw [hcover] at hxK
+    obtain ⟨h, hxh⟩ := Set.mem_iUnion.mp hxK
+    by_cases hvh : v ∈ h.val
+    · by_cases hrh : Relation.ReflTransGen R f h
+      · exact Or.inl (Set.mem_iUnion.mpr ⟨⟨h, hrh⟩, hxh⟩)
+      · exact Or.inr (Set.mem_iUnion.mpr ⟨⟨h, hvh, hrh⟩, hxh⟩)
+    · exact absurd (Set.mem_iUnion.mpr ⟨⟨h, hvh⟩, hxh⟩) (hrFr (hWsub hxW).2)
+  have hPQ : P ∩ Q ⊆ {v} := by
+    rintro x ⟨hxP, hxQ⟩
+    obtain ⟨h, hxh⟩ := Set.mem_iUnion.mp hxP
+    obtain ⟨h', hxh'⟩ := Set.mem_iUnion.mp hxQ
+    have hxi := K.inter_subset_convexHull h.val.property.1 h'.val.property.1 ⟨hxh, hxh'⟩
+    have hvh := hreach_v h.val h.property
+    have hmem : v ∈ h.val.val ∩ h'.val.val := Finset.mem_inter.mpr ⟨hvh, h'.property.1⟩
+    have hcard : (h.val.val ∩ h'.val.val).card ≤ 1 := by
+      by_contra hc
+      apply h'.property.2
+      exact h.property.tail ⟨Finset.singleton_subset_iff.mpr hvh,
+        Finset.singleton_subset_iff.mpr h'.property.1, by rw [Finset.card_singleton]; omega⟩
+    have heq : h.val.val ∩ h'.val.val = {v} :=
+      Finset.eq_singleton_iff_unique_mem.mpr
+        ⟨hmem, fun y hy => Finset.card_le_one.mp hcard y hy v hmem⟩
+    have hs : ((h.val.val : Set (E d)) ∩ (h'.val.val : Set (E d))) = {v} := by
+      rw [← Finset.coe_inter, heq, Finset.coe_singleton]
+    rw [hs, convexHull_singleton] at hxi
+    exact hxi
+  have hnear : ∀ h : K.facets, v ∈ h.val →
+      ∃ p ∈ convexHull ℝ (h.val : Set (E d)), p ≠ v ∧ dist p v < ε := by
+    intro h hvh
+    have h1 : 1 < h.val.card := by rw [hpure h.val h.property]; omega
+    obtain ⟨w, hw, hwv⟩ := Finset.exists_mem_ne h1 v
+    have hdist : 0 < dist v w := dist_pos.mpr (Ne.symm hwv)
+    let t : ℝ := min (1 / 2) (ε / (2 * dist v w))
+    have ht0 : 0 < t := lt_min (by norm_num) (div_pos hε (by positivity))
+    have ht1 : t ≤ 1 := (min_le_left _ _).trans (by norm_num)
+    have htε : t * dist v w < ε := by
+      calc t * dist v w ≤ ε / (2 * dist v w) * dist v w :=
+            mul_le_mul_of_nonneg_right (min_le_right _ _) hdist.le
+        _ = ε / 2 := by field_simp
+        _ < ε := by linarith
+    refine ⟨AffineMap.lineMap v w t, ?_, ?_, ?_⟩
+    · apply segment_subset_convexHull (Finset.mem_coe.mpr hvh) (Finset.mem_coe.mpr hw)
+      rw [segment_eq_image_lineMap]
+      exact ⟨t, ⟨ht0.le, ht1⟩, rfl⟩
+    · intro heq
+      have hd := dist_lineMap_left v w t
+      rw [heq, dist_self, Real.norm_eq_abs, abs_of_pos ht0] at hd
+      have : 0 < t * dist v w := mul_pos ht0 hdist
+      linarith
+    · rw [dist_lineMap_left, Real.norm_eq_abs, abs_of_pos ht0]
+      exact htε
+  obtain ⟨p, hpf, hpv, hpε⟩ := hnear f hvf
+  obtain ⟨q, hqg, hqv, hqε⟩ := hnear g hvg
+  have hpW : p ∈ W \ {v} :=
+    ⟨hεW ⟨K.convexHull_subset_space f.property.1 hpf, Metric.mem_ball.mpr hpε⟩, hpv⟩
+  have hqW : q ∈ W \ {v} :=
+    ⟨hεW ⟨K.convexHull_subset_space g.property.1 hqg, Metric.mem_ball.mpr hqε⟩, hqv⟩
+  obtain ⟨x, hxW, hxP, hxQ⟩ := isPreconnected_closed_iff.mp hWc P Q hP hQ hWPQ
+    ⟨p, hpW, Set.mem_iUnion.mpr ⟨⟨f, Relation.ReflTransGen.refl⟩, hpf⟩⟩
+    ⟨q, hqW, Set.mem_iUnion.mpr ⟨⟨g, hvg, hfg⟩, hqg⟩⟩
+  exact hxW.2 (hPQ ⟨hxP, hxQ⟩)
+
+/-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
+"`∂t` is a compact `(d-1)`-manifold ... a connected union of facets". Links of
+higher faces: for a face `σ` with `2 ≤ |σ|` and `|σ| + 2 ≤ d` (dimension at most
+`(d-1) - 2`, at least `1`) of a finite pure triangulation of a `(d-1)`-manifold, the
+facets containing `σ` are joined by chains of facets containing `σ` in which
+consecutive members share a vertex outside `σ` (the link of `σ` is connected).
+Standard proof: the open star of `σ` is `relint σ × cone(Lk σ)`; local homology of
+the manifold at a point of `relint σ` makes `Lk σ` a homology sphere of dimension
+`d - 1 - |σ| ≥ 1`, hence connected. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hman : IsLocallyEuclidean (d - 1) K.space)
+    {σ : Finset (E d)} (hσ : σ ∈ K.faces) (hσc : 2 ≤ σ.card) (hσd : σ.card + 2 ≤ d) :
+    ∀ f g : K.facets, σ ⊆ f.val → σ ⊆ g.val → Relation.ReflTransGen
+      (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧ σ.card < (u.val ∩ v.val).card) f g := by
+  sorry
+
+/-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
+"a connected union of facets". Connected links of all faces of codimension at
+least two turn meeting facets into ridge chains: by downward induction on the size
+of the common face `f ∩ g`, a link chain around `f ∩ g` consists of steps with
+strictly larger common faces. -/
+private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step6_ridge_of_meet
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hlink : ∀ σ ∈ K.faces, σ.card + 2 ≤ d → ∀ f g : K.facets, σ ⊆ f.val → σ ⊆ g.val →
+      Relation.ReflTransGen
+        (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧ σ.card < (u.val ∩ v.val).card) f g) :
+    ∀ f g : K.facets, (f.val ∩ g.val).Nonempty → Relation.ReflTransGen
+      (fun u v : K.facets => (u.val ∩ v.val).card = d - 1) f g := by
+  classical
+  suffices h : ∀ n : ℕ, ∀ f g : K.facets, d - (f.val ∩ g.val).card ≤ n →
+      (f.val ∩ g.val).Nonempty → Relation.ReflTransGen
+        (fun u v : K.facets => (u.val ∩ v.val).card = d - 1) f g by
+    intro f g hne
+    exact h _ f g le_rfl hne
+  intro n
+  induction n with
+  | zero =>
+    intro f g hn _
+    have hle : (f.val ∩ g.val).card ≤ f.val.card :=
+      Finset.card_le_card Finset.inter_subset_left
+    have hfc := hpure f.val f.property
+    have heq : f.val ∩ g.val = f.val :=
+      Finset.eq_of_subset_of_card_le Finset.inter_subset_left (by omega)
+    have hfg : f = g := by
+      apply Subtype.ext
+      apply f.property.2 g.property.1
+      rw [← heq]
+      exact Finset.inter_subset_right
+    subst hfg
+    exact Relation.ReflTransGen.refl
+  | succ n ih =>
+    intro f g hn hne
+    by_cases hbig : d - (f.val ∩ g.val).card ≤ n
+    · exact ih f g hbig hne
+    by_cases hridge : (f.val ∩ g.val).card = d - 1
+    · exact Relation.ReflTransGen.single hridge
+    have hle : (f.val ∩ g.val).card ≤ d := by
+      have := Finset.card_le_card (Finset.inter_subset_left (s₁ := f.val) (s₂ := g.val))
+      rw [hpure f.val f.property] at this
+      exact this
+    have hσd : (f.val ∩ g.val).card + 2 ≤ d := by omega
+    have hσ : f.val ∩ g.val ∈ K.faces :=
+      K.down_closed f.property.1 Finset.inter_subset_left hne
+    have hch := hlink _ hσ hσd f g Finset.inter_subset_left Finset.inter_subset_right
+    have h2 : Relation.ReflTransGen (Relation.ReflTransGen
+        (fun u v : K.facets => (u.val ∩ v.val).card = d - 1)) f g := by
+      refine Relation.ReflTransGen.mono ?_ hch
+      rintro u v ⟨hu, hv, hlt⟩
+      have hule : (u.val ∩ v.val).card ≤ d := by
+        have := Finset.card_le_card (Finset.inter_subset_left (s₁ := u.val) (s₂ := v.val))
+        rw [hpure u.val u.property] at this
+        exact this
+      exact ih u v (by omega) (hne.mono (Finset.subset_inter hu hv))
+    rwa [Relation.reflTransGen_idem] at h2
+
 /-- Step 11 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "a connected union of facets". The facets in a finite triangulation of a connected
 manifold are joined by chains across ridges. This concerns the manifold itself,
@@ -4127,7 +4502,28 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     (hconn : IsConnected K.space) (hman : IsLocallyEuclidean (d - 1) K.space) :
     ∀ f g : K.facets, Relation.ReflTransGen
       (fun u v : K.facets => (u.val ∩ v.val).card = d - 1) f g := by
-  sorry
+  classical
+  have hmeet :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step2_meet_chains
+      K hfin hconn
+  have hlink : ∀ σ ∈ K.faces, σ.card + 2 ≤ d → ∀ f g : K.facets, σ ⊆ f.val → σ ⊆ g.val →
+      Relation.ReflTransGen
+        (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧ σ.card < (u.val ∩ v.val).card) f g := by
+    intro σ hσ hσd
+    rcases Nat.lt_or_ge σ.card 2 with h | h
+    · have h1 : σ.card = 1 := by
+        have := (K.nonempty_of_mem_faces hσ).card_pos
+        omega
+      exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step4_vertex_links
+        K hfin hpure hman hσ h1 hσd
+    · exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links
+        K hfin hpure hman hσ h hσd
+  have hridge :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step6_ridge_of_meet
+      K hpure hlink
+  intro f g
+  have h2 := Relation.ReflTransGen.mono (fun u v huv => hridge u v huv) (hmeet f g)
+  rwa [Relation.reflTransGen_idem] at h2
 
 /-- Step 12 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer` (V4 1.24):
 "crosses them transversally at finitely many points". A regular segment has

@@ -13723,7 +13723,48 @@ def firstBranchingFacets (A : S.ι) : Set (PrimitiveFacet S A) :=
 This explicit nonemptiness prevents a vacuous required-list construction. -/
 theorem firstBranchingFacets_nonempty (A : S.ι) :
     (firstBranchingFacets A).Nonempty := by
-  sorry
+  classical
+  let B := (S.nativeTile A (firstBranching A).1 (firstBranching A).2).ty
+  have hbranch : 1 < Fintype.card (S.I B) := (firstBranching_spec A).2.1
+  obtain ⟨i, j, hij⟩ := Fintype.one_lt_card_iff.mp hbranch
+  let P : FramedNode S := ⟨B, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hconn : IsConnected (interior (P.carrier 1)) := by
+    let H := (P.prototypeFrame 1).toHomeomorphOfFiniteDimensional
+    have hc : P.carrier 1 = H '' (S.proto P.ty).carrier := by
+      simp [H, FramedNode.prototypeFrame, FramedNode.carrier,
+        SubstSystem.supertile, placedSet, Set.image_image]
+    rw [hc, ← H.image_interior]
+    exact (S.proto P.ty).interior_connected.image H H.continuous.continuousOn
+  have hsubi := birth_ascent_top_step3_child_subset P 0 i
+  have hsubj := birth_ascent_top_step3_child_subset P 0 j
+  obtain ⟨hclosed, hreg⟩ := birth_ascent_routing_step4_regular_closed (P.child 0 i) 0
+  have hdisj : Disjoint ((P.child 0 i).carrier 0)
+      (interior ((P.child 0 j).carrier 0)) := by
+    rw [← hreg]
+    apply Disjoint.closure_left _ isOpen_interior
+    simpa only [P, birth_ascent_top_step2_child_support_zero] using
+      S.children_disjoint B hij
+  obtain ⟨y, hy⟩ := birth_ascent_top_step3_node_interior_nonempty (P.child 0 i) 0
+  obtain ⟨z, hz⟩ := birth_ascent_top_step3_node_interior_nonempty (P.child 0 j) 0
+  -- A proper child has a boundary point inside the connected parent interior.
+  obtain ⟨q, hqP, hqfront⟩ := birth_ascent_routing_step4_crossing hclosed
+    hconn.isPreconnected ⟨y, interior_mono hsubi hy, hy⟩
+    ⟨z, interior_mono hsubj hz, fun hzi => Set.disjoint_left.mp hdisj hzi hz⟩
+  obtain ⟨e, hqe⟩ := birth_ascent_routing_step4_frontier_facets (P.child 0 i) 0 hqfront
+  -- A facet through this point cannot be inherited from the parent boundary.
+  have hint : relint ((P.child 0 i).cell 0 e.val) ⊆ interior (P.carrier 1) := by
+    rcases facet_dichotomy P (P.child 0 i) 1 0
+      (birth_ascent_top_step2_child_desc P 0 i) e with hboundary | hint
+    · obtain ⟨F, hF, -⟩ := hboundary
+      exact False.elim ((birth_ascent_top_step2_cell_front P 1 F.val
+        (Finset.mem_filter.mp F.property).1 (hF hqe)).2 hqP)
+    · exact hint
+  have hlocal : relint (placedSet (S.child B i).frame e.val.carrier) ⊆
+      interior (S.supertile 1 B) := by
+    simpa only [P, birth_ascent_top_step2_child_cell_zero, FramedNode.carrier,
+      placedSet, AffineIsometryEquiv.coe_refl, Set.image_id] using hint
+  exact ⟨⟨(firstBranching A).1, (firstBranching A).2,
+    placedSet (S.child B i).frame e.val.carrier, ⟨i, e, rfl, hlocal⟩⟩, rfl⟩
 
 /-- P22, V4 8.3: placement of the child's first branching address in the parent.
 The initial role is retained, so different child occurrences stay distinguished. -/

@@ -172,7 +172,26 @@ theorem descent_saturation {α : Type u} [Finite α] (D : α → List α)
     (F : DescentForest.{u, v} α D)
     (ground : ∀ x, F.level x = 0 → F.state x ∈ B) :
     ∀ x : F.Node, F.state x ∈ B := by
-  sorry
+  obtain ⟨R, hR⟩ := descentRank_bounded D B hB
+  intro x
+  by_contra hx
+  have H : ∀ k y, R - descentRank D B (F.state y) ⟨F.level y, forest_state_mem_rankSet D B F ground y⟩ = k → F.state y ∉ B → False := by
+    intro k
+    induction' k using Nat.strong_induction_on with k ih
+    intro y hk hy
+    have ha_y : ∃ r, F.state y ∈ rankSets D B r := ⟨F.level y, forest_state_mem_rankSet D B F ground y⟩
+    have hp_y : ∃ r, F.state (F.parent y) ∈ rankSets D B r := ⟨F.level (F.parent y), forest_state_mem_rankSet D B F ground (F.parent y)⟩
+    have ⟨hp_bad, h_inc⟩ := bad_parent_rank_increases D B hB F ground y hy ha_y hp_y
+    have h_bound_y := hR (F.state y) ha_y
+    have h_bound_py := hR (F.state (F.parent y)) hp_y
+    have h_diff_py_lt_y : R - descentRank D B (F.state (F.parent y)) hp_y < R - descentRank D B (F.state y) ha_y := by
+      omega
+    apply ih (R - descentRank D B (F.state (F.parent y)) hp_y)
+    · rw [← hk]
+      exact h_diff_py_lt_y
+    · rfl
+    · exact hp_bad
+  exact H (R - descentRank D B (F.state x) ⟨F.level x, forest_state_mem_rankSet D B F ground x⟩) x rfl hx
 
 variable {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
 

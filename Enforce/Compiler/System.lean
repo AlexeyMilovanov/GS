@@ -1054,10 +1054,18 @@ theorem honestTile_carrier (C : ClusterData S P) (U : HonestSource S) (t : Groun
   congr 3
   exact leafTypeOf_type U P ⟨0, t.val, t.property⟩ rfl
 
+open private exists_honest_step7_zero_carrier from Enforce.Tiling in
 /-- M6, V4 2.14: the proposed lift covers the whole space by source ground coverage. -/
 theorem honestLift_cover (C : ClusterData S P) (U : HonestSource S) (x : E d) :
     ∃ t ∈ honestLiftTiles C U, x ∈ t.carrier := by
-  sorry
+  obtain ⟨N, hN, hx⟩ := U.hierarchy.cover 0 x
+  let t : GroundNode U := ⟨N, hN⟩
+  use honestTile C U t
+  constructor
+  · exact Set.mem_range_self t
+  · rw [honestTile_carrier C U t]
+    rw [← exists_honest_step7_zero_carrier]
+    exact hx
 
 open private exists_honest_step7_zero_carrier from Enforce.Tiling in
 /-- M6, V4 2.14: the proposed lifted physical tiles have disjoint interiors. -/

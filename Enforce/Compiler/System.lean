@@ -2725,6 +2725,35 @@ private lemma compiler_events_step1_rule (C : ClusterData S P) (Y : MarkedTiling
   subst heq2
   exact ⟨θ, h_allowed, hy_mark⟩
 
+/-- Step 1 of the V4 proof of `compiler_events_step2_readout`
+(V4 2.17b): the event marking agrees on each entire readout cluster. -/
+private lemma compiler_events_step2_readout_step1_agree
+    (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
+    (e : Compiler.EventIndex S P) (φ : Iso d)
+    (hr : ∀ p : Compiler.eventCarrier C e,
+      Y.marking (φ p.val) = Compiler.eventColour C e p.val)
+    (z : FramedNode S × LeafType P)
+    (hz : z ∈ Compiler.eventReadouts e) :
+    ∀ x ∈ C.cluster z.2 .readout,
+      Y.marking ((z.1.frame.trans φ) x) = augmentedColour C z.2 x := by
+  intro x hx
+  have hreg : z.1.frame x ∈ Compiler.readoutRegion C z :=
+    Set.mem_image_of_mem _ (C.cluster_subset_enclosing z.2 .readout hx)
+  have hcar : z.1.frame x ∈ Compiler.eventCarrier C e := by
+    change z.1.frame x ∈ C.enclosing e.leaf (.trigger e.slot) ∪
+      ⋃ w ∈ Compiler.eventReadouts e, Compiler.readoutRegion C w
+    exact Or.inr (Set.mem_iUnion_of_mem z
+      (Set.mem_iUnion_of_mem hz hreg))
+  change Y.marking (φ (z.1.frame x)) = _
+  calc
+    _ = Compiler.eventColour C e (z.1.frame x) :=
+      hr ⟨z.1.frame x, hcar⟩
+    _ = augmentedColour C z.2 (z.1.frame.symm (z.1.frame x)) :=
+      Compiler.eventColour_readout C e z hz _ hreg
+    _ = augmentedColour C z.2 x := by
+      rw [AffineIsometryEquiv.symm_apply_apply]
+
+set_option maxHeartbeats 1600000 in
 /-- Step 2 of the V4 proof of `compiler_events` (V4 2.17b): Each readout ball of θ at template tile u ... gives an actual tile of Y. -/
 private lemma compiler_events_step2_readout (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
     (hY : MProper Y) (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
@@ -2732,7 +2761,30 @@ private lemma compiler_events_step2_readout (C : ClusterData S P) (Y : MarkedTil
     (h_rule : ∀ (x : (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).carrier), 
         Y.marking ((compilerFrame C t) ↑x) = (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).mark x) :
     TemplateOccurs C Y (compilerFrame C t) θ := by
-  sorry
+  classical
+  let e : Compiler.EventIndex S P :=
+    ⟨compilerLeaf C t, j, θ, h_allowed⟩
+  have hr : ∀ p : Compiler.eventCarrier C e,
+      Y.marking (compilerFrame C t p.val) =
+        Compiler.eventColour C e p.val := by
+    intro p
+    exact h_rule p
+  intro z hz
+  by_cases hc : z = Compiler.centralPair e.leaf
+  · subst z
+    simpa only [Compiler.centralPair, e,
+      AffineIsometryEquiv.refl_trans, placedLeaf_decode] using ht
+  · have hzro : z ∈ Compiler.eventReadouts e :=
+      Finset.mem_filter.mpr ⟨hz, hc⟩
+    obtain ⟨u, hu, hl, hf⟩ := cluster_rigidity C Y z.2 .readout
+      (z.1.frame.trans (compilerFrame C t))
+      (compiler_events_step2_readout_step1_agree C Y e
+        (compilerFrame C t) hr z hzro)
+    have hd := placedLeaf_decode C u
+    rw [hl, ← hf] at hd
+    rw [hd]
+    exact hu
+
 
 /-- M8, V4 2.17(b): every output event contains an allowed positioned configuration.
 Catalogue membership includes the CONT row or all six END rows on these actual labels. -/

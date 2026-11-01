@@ -823,6 +823,10 @@ private theorem two_sided_constancy_step6_left_end
     Y n D hD g hg p hlisted t f v hpiece hv hvp
   exact ⟨p, hp, t, j, hj.symm ▸ hpiece, hjp, hjheader⟩
 
+open private base_level_step1_decoded_step2_descendant_subset from Enforce.Parser.Invariant in
+open private hereditary_trace_step1_cell_subset from Enforce.Source.Trace in
+open private honest_rows_step6_end_E2_step3_local_cone from Enforce.State.Rows in
+open private states_finite_step4_polyhedron_image from Enforce.State.State in
 /-- Step 7 of the V4 proof of `two_sided_constancy` (V4 3.4, 1.8, 1.0(b)):
 "Tiles inside `C'` with pieces in `g` near `q` have interior points in
 `int(q + T_q P_b)` near `q` (both sides of `relint g` lie in `int P_b` near `g`;
@@ -838,7 +842,52 @@ private theorem two_sided_constancy_step7_right_approach
         p ∈ (tileNode u).cell 0 f'.val ∧
         Parser.ApproachesSector u p
           ((fun v => p + v) '' tangentCone (g.birth.carrier g.height) p) := by
-  sorry
+  have hr : g.rightNode ∈ D.geometry.nodes (g.height - 1) :=
+    D.geometry.descendant_mem _ _ _ _ hg g.sides_descendant.2
+  obtain ⟨u, f, hpiece, hpf⟩ := two_sided_constancy_step6_left_end_step2_piece Y
+    (g.height - 1) g.rightNode (D.geometry.node_actual _ _ hr)
+    g.incidence.val.rightFacet p (g.sides_carrier.2.symm ▸ hp)
+  refine ⟨u, f, hpiece, hpf, ?_⟩
+  have hcar : u.carrier = (tileNode u).carrier 0 := by
+    rw [compilerFrame_carrier C u]
+    simp [tileNode, FramedNode.carrier, SubstSystem.supertile, placedSet]
+  have hsub : u.carrier ⊆ g.birth.carrier g.height := by
+    rw [hcar]
+    exact base_level_step1_decoded_step2_descendant_subset _ _ _ _
+      (Parser.descendant_trans _ _ _ _ _ _ hpiece.2.1 g.sides_descendant.2)
+  have hpu : p ∈ u.carrier := by
+    rw [hcar]
+    exact hereditary_trace_step1_cell_subset _ _ f.val
+      (Finset.mem_filter.mp f.property).1 hpf
+  have hpoly : Polyhedron u.carrier := by
+    rw [compilerFrame_carrier C u]
+    exact states_finite_step4_polyhedron_image (compilerFrame C u).toAffineEquiv
+      (S.proto (compilerLeaf C u).prototype).polyhedral
+  have hreg : closure (interior u.carrier) = u.carrier := by
+    rw [compilerFrame_carrier C u]
+    change closure (interior ((compilerFrame C u).toHomeomorph ''
+      (S.proto (compilerLeaf C u).prototype).carrier)) = _
+    rw [← Homeomorph.image_interior, ← Homeomorph.image_closure,
+      (S.proto (compilerLeaf C u).prototype).regularClosed]
+    rfl
+  obtain ⟨r, hr, hcone⟩ := Metric.eventually_nhds_iff.mp
+    (honest_rows_step6_end_E2_step3_local_cone hpoly p)
+  intro ε hε
+  let U := interior u.carrier ∩ ball p (min ε r)
+  have hUopen : IsOpen U := isOpen_interior.inter isOpen_ball
+  have hpcl : p ∈ closure (interior u.carrier) := hreg.symm ▸ hpu
+  obtain ⟨y, hy, hyp⟩ := Metric.mem_closure_iff.mp hpcl (min ε r) (lt_min hε hr)
+  have hyU : y ∈ U := ⟨hy, by simpa only [mem_ball, dist_comm] using hyp⟩
+  have hUS : U ⊆ (fun v => p + v) '' tangentCone (g.birth.carrier g.height) p := by
+    intro z hz
+    have hzr : z ∈ ball p r := (ball_subset_ball (min_le_right ε r)) hz.2
+    have hc : z - p ∈ tangentCone u.carrier p :=
+      (hcone hzr).mp (interior_subset hz.1)
+    refine ⟨z - p, ?_, add_sub_cancel _ _⟩
+    obtain ⟨δ, hδ, hd⟩ := hc
+    exact ⟨δ, hδ, fun a ha haδ => hsub (hd a ha haδ)⟩
+  exact ⟨y, ⟨hy, (hUopen.subset_interior_iff.mpr hUS) hyU⟩,
+    (ball_subset_ball (min_le_left ε r)) hyU.2⟩
 
 /-- Step 1 of the V4 proof of `two_sided_constancy_step8_e2` (V4 3.4):
 "Row (E2) equates the packets on all ports on g in θ" (left port). -/

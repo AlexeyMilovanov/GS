@@ -2807,6 +2807,62 @@ def honestEventIndex (U : HonestSource S) (t : U.Node) (ht : t.1 = 0)
   template := Classical.choose (honest_rows U P t ht j)
   allowed := (Classical.choose_spec (honest_rows U P t ht j)).2
 
+private theorem honestLift_core_agree_step1_kblock
+    (C : ClusterData S P) (U : HonestSource S)
+    (B : FramedNode S) (hB : B ∈ U.hierarchy.nodes P.K) :
+    ∃ B' : KBlock (honestLift C U),
+      B'.certificate =
+        (⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩ : CertificateSymbol S P) ∧
+      B'.frame = B.frame := by
+  sorry
+
+/-- Step 2 of the V4 proof of `honestLift_core_agree` (V4 2.14(b)):
+actual prescribed leaves give the CORE marking throughout its carrier. -/
+private theorem honestLift_core_agree_step2_actual_core
+    (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
+    (B : KBlock Y)
+    (x : (coreRule C B.certificate).carrier) :
+    Y.marking (B.frame x) = (coreRule C B.certificate).mark x := by
+  have hx := x.property
+  have ht_x : ↑x ∈ Compiler.coreCarrier C B.certificate := hx
+  have hx_cov : ↑x ∈ S.supertile P.K B.certificate.val.ty := by
+    exact Set.diff_subset hx
+  rw [← SubstSystem.native_cover] at hx_cov
+  simp only [Set.mem_iUnion] at hx_cov
+  obtain ⟨w, hw⟩ := hx_cov
+  have hw2 : ↑x ∈ placedSet (LeafType.position (⟨B.certificate, w⟩ : LeafType P))
+        (S.proto (LeafType.prototype (⟨B.certificate, w⟩ : LeafType P))).carrier := by
+    change ↑x ∈ (S.nativeTile B.certificate.val.ty P.K w).carrier 0 at hw
+    dsimp [FramedNode.carrier, placedSet] at hw
+    have h_c_0 : S.supertile 0 (S.nativeTile B.certificate.val.ty P.K w).ty = (S.proto (S.nativeTile B.certificate.val.ty P.K w).ty).carrier := by
+      ext y
+      dsimp [SubstSystem.supertile]
+      simp
+    change ↑x ∈ placedSet (S.nativeTile B.certificate.val.ty P.K w).frame (S.proto (S.nativeTile B.certificate.val.ty P.K w).ty).carrier
+    rw [← h_c_0]
+    exact hw
+  have ht := B.leaf_mem w
+  have hx_t : B.frame ↑x ∈ (B.leaf w).carrier := by
+    change B.frame ↑x ∈ placedSet ((LeafType.position ⟨B.certificate, w⟩).trans B.frame) (S.proto (LeafType.prototype ⟨B.certificate, w⟩)).carrier
+    dsimp [placedSet]
+    dsimp [placedSet] at hw2
+    obtain ⟨y, hy, hy_eq⟩ := hw2
+    exact ⟨y, hy, by change B.frame ((LeafType.position ⟨B.certificate, w⟩) y) = B.frame ↑x; rw [hy_eq]⟩
+  have h_eq1 : Y.marking (B.frame ↑x) = (B.leaf w).mark ⟨B.frame ↑x, hx_t⟩ := Y.marking_eq_tile (B.leaf w) ht (B.frame ↑x) hx_t
+  rw [h_eq1]
+  change _ = Compiler.certificateColour C B.certificate x
+  have h_eq2 : Compiler.certificateColour C B.certificate x = augmentedColour C (⟨B.certificate, w⟩ : LeafType P) ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).symm ↑x) := by
+    exact Compiler.certificateColour_leaf C B.certificate w ↑x hw2
+  rw [h_eq2]
+  have h_eq3 : (B.leaf w).mark ⟨B.frame ↑x, hx_t⟩ = augmentedColour C (⟨B.certificate, w⟩ : LeafType P) ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).symm ↑x) := by
+    change (placedLeaf C ⟨B.certificate, w⟩ ((LeafType.position ⟨B.certificate, w⟩).trans B.frame)).mark ⟨B.frame ↑x, hx_t⟩ = _
+    change augmentedColour C ⟨B.certificate, w⟩ ((AffineIsometryEquiv.trans (LeafType.position ⟨B.certificate, w⟩) B.frame).symm (B.frame ↑x)) = _
+    have h_symm : (AffineIsometryEquiv.trans (LeafType.position ⟨B.certificate, w⟩) B.frame).symm (B.frame ↑x) = ((LeafType.position ⟨B.certificate, w⟩).symm ↑x) := by
+      show (LeafType.position ⟨B.certificate, w⟩).symm (B.frame.symm (B.frame ↑x)) = _
+      rw [AffineIsometryEquiv.symm_apply_apply]
+    rw [h_symm]
+  exact h_eq3
+
 /-- M6, V4 2.14(b): the CORE copy in an actual height-K source node agrees everywhere. -/
 theorem honestLift_core_agree (C : ClusterData S P) (U : HonestSource S)
     (B : FramedNode S) (hB : B ∈ U.hierarchy.nodes P.K)
@@ -2815,7 +2871,11 @@ theorem honestLift_core_agree (C : ClusterData S P) (U : HonestSource S)
     (honestLift C U).marking (B.frame x) =
       (coreRule C (⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩ :
         CertificateSymbol S P)).mark x := by
-  sorry
+  obtain ⟨B', hcert, hframe⟩ :=
+    honestLift_core_agree_step1_kblock C U B hB
+  have h := honestLift_core_agree_step2_actual_core C (honestLift C U) B'
+  rw [hcert, hframe] at h
+  exact h x
 
 private theorem honestLift_event_agree_step1_occurs (C : ClusterData S P) (U : HonestSource S)
     (t : U.Node) (ht : t.1 = 0) (j : EventSlot (leafTypeOf U P t ht)) :

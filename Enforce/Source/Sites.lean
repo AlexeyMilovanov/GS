@@ -1474,6 +1474,12 @@ theorem trace_refines (A : S.ι) (F : FacetFlag S A) (r s : ℕ)
           (S.σ ^ s) '' (a.tile.cell 0 (a.chain.cell i).val) := by
   sorry
 
+open private ancestor_descendant_child
+  hereditary_trace_step7_carrier hereditary_trace_step1_cell_frontier
+  facet_dichotomy_step1c_unique_sub hereditary_trace_step2_relint_mono
+  hereditary_trace_step1_relint_unique
+  boundary_facet_adjacency_step2_distinct_children
+  from Enforce.Source.Trace in
 /-- Step 1 of the V4 proof of `chain_occurrences_disjoint` (V4 1.22(c)): For j=d-1, facets of
 distinct children have disjoint relative interiors by containment in facets of P and Lemma 1.8. -/
 private lemma chain_occurrences_disjoint_step1_top {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
@@ -1485,7 +1491,60 @@ private lemma chain_occurrences_disjoint_step1_top {d : ℕ} [Fact (2 ≤ d)] {S
     (k : ℕ) (hjk : j0 ≤ k) (hk1 : 1 ≤ k) (hkd : k < d) (htop : k + 1 = d) :
     Disjoint (relint ((P.child h i).cell h (a.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val))
              (relint ((P.child h l).cell h (b.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val)) := by
-  sorry
+  let q : ChainIndex d j0 := ⟨⟨k, hkd⟩, hjk, hk1⟩
+  let fa : FacetName S (P.child h i).ty :=
+    ⟨(a.cell q).val, Finset.mem_filter.mpr
+      ⟨(a.cell q).property, by
+        have hd := a.dimension q
+        change (a.cell q).val.dim = k at hd
+        omega⟩⟩
+  let fb : FacetName S (P.child h l).ty :=
+    ⟨(b.cell q).val, Finset.mem_filter.mpr
+      ⟨(b.cell q).property, by
+        have hd := b.dimension q
+        change (b.cell q).val.dim = k at hd
+        omega⟩⟩
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hPR : P.carrier (h+1) ⊆ R.carrier r := by
+    obtain ⟨t, ht, w, hw⟩ := hP
+    have ht_eq : h + 1 + t = r := by omega
+    have h_desc : P.IsDescendant (h + 1) R (h + 1 + t) := by
+      refine ⟨t, rfl, w, ?_⟩
+      simpa [R, FramedNode.move] using hw
+    have H1 := hereditary_trace_step7_carrier R P (h + 1) t h_desc
+    rwa [ht_eq] at H1
+  rw [Set.disjoint_left]
+  intro x hxa hxb
+  have hxR : x ∈ frontier (R.carrier r) := by
+    apply hereditary_trace_step1_cell_frontier R r
+      (F.cell ⟨k,hk1,hkd⟩).val (F.cell ⟨k,hk1,hkd⟩).property
+    rw [recursiveTrace_tiles_step0_root_cell]
+    exact a.contained q (intrinsicInterior_subset hxa)
+  have lift (u : S.I P.ty) (f : FacetName S (P.child h u).ty)
+      (hx : x ∈ relint ((P.child h u).cell h f.val)) :
+      ∃ e : FacetName S P.ty,
+        (P.child h u).cell h f.val ⊆ P.cell (h+1) e.val := by
+    rcases facet_dichotomy P (P.child h u) (h+1) h
+        (ancestor_descendant_child P h u) f with he | hint
+    · obtain ⟨e, he, _⟩ := he
+      exact ⟨e, he⟩
+    · exact False.elim (Set.disjoint_left.mp disjoint_interior_frontier
+        (interior_mono hPR (hint hx)) hxR)
+  obtain ⟨e, ha⟩ := lift i fa hxa
+  obtain ⟨e', hb⟩ := lift l fb hxb
+  have hxe := hereditary_trace_step2_relint_mono _ _ ha
+    (facet_dichotomy_step1c_unique_sub P (P.child h i) (h+1) h fa e ha) hxa
+  have hxe' := hereditary_trace_step2_relint_mono _ _ hb
+    (facet_dichotomy_step1c_unique_sub P (P.child h l) (h+1) h fb e' hb) hxb
+  have he : e = e' := Subtype.ext
+    (hereditary_trace_step1_relint_unique P (h+1) e.val e'.val
+      (Finset.mem_filter.mp e.property).1
+      (Finset.mem_filter.mp e'.property).1 x hxe hxe')
+  subst e'
+  let aa : BoundaryFacet P h e := ⟨⟨i,fa⟩,ha⟩
+  let bb : BoundaryFacet P h e := ⟨⟨l,fb⟩,hb⟩
+  exact Set.disjoint_left.mp
+    (boundary_facet_adjacency_step2_distinct_children P h e aa bb hil) hxa hxb
 
 /-- Step 2 of the V4 proof of `chain_occurrences_disjoint` (V4 1.22(c)): Step from j+1 to j.
 If the relative interiors of the j-cells intersect, half-space geometry implies that the

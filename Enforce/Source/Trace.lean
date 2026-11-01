@@ -821,13 +821,28 @@ private theorem facet_dichotomy_step1c_unique_sub (P C : FramedNode S) (n h : �
     affineSpan ℝ (C.cell h f.val) = affineSpan ℝ (P.cell n F.val) := by
   have hd_eq : Module.finrank ℝ (affineSpan ℝ (C.cell h f.val)).direction =
                  Module.finrank ℝ (affineSpan ℝ (P.cell n F.val)).direction := by
-    sorry
+    have hdF : F.val.dim = d - 1 := (Finset.mem_filter.mp F.property).2
+    have hdf : f.val.dim = d - 1 := (Finset.mem_filter.mp f.property).2
+    have h_dim1 : Module.finrank ℝ (affineSpan ℝ (C.cell h f.val)).direction = f.val.dim := by
+      dsimp [FramedNode.cell]
+      change Module.finrank ℝ (affineSpan ℝ ((C.prototypeFrame h).toAffineMap '' f.val.carrier)).direction = _
+      rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+      exact (LinearEquiv.finrank_map_eq (C.prototypeFrame h).linear _).trans f.val.flat.dimension
+    have h_dim2 : Module.finrank ℝ (affineSpan ℝ (P.cell n F.val)).direction = F.val.dim := by
+      dsimp [FramedNode.cell]
+      change Module.finrank ℝ (affineSpan ℝ ((P.prototypeFrame n).toAffineMap '' F.val.carrier)).direction = _
+      rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+      exact (LinearEquiv.finrank_map_eq (P.prototypeFrame n).linear _).trans F.val.flat.dimension
+    omega
   have hle : (affineSpan ℝ (C.cell h f.val)).direction ≤ (affineSpan ℝ (P.cell n F.val)).direction :=
     AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
   have heq : (affineSpan ℝ (C.cell h f.val)).direction = (affineSpan ℝ (P.cell n F.val)).direction :=
     Submodule.eq_of_le_of_finrank_eq hle hd_eq
   have hnonempty : (C.cell h f.val).Nonempty := by
-    sorry
+    have hd : (relint f.val.carrier).Nonempty := f.val.flat.relint_nonempty
+    have h1 : f.val.carrier.Nonempty := hd.mono intrinsicInterior_subset
+    dsimp [FramedNode.cell]
+    exact h1.image _
   obtain ⟨x, hx⟩ := hnonempty
   have hx_span_f : x ∈ affineSpan ℝ (C.cell h f.val) := subset_affineSpan _ _ hx
   have hx_span_F : x ∈ affineSpan ℝ (P.cell n F.val) := subset_affineSpan _ _ (hsub hx)

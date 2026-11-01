@@ -96,7 +96,55 @@ theorem mem_relint_minimalCell (p : E d) (hp : p ∈ frontier A.carrier) :
 theorem minimalCell_subset (p : E d) (hp : p ∈ frontier A.carrier)
     (e : Cell d) (he : e ∈ K.cells) (hpe : p ∈ e.carrier) :
     (K.minimalCell p hp).carrier ⊆ e.carrier := by
-  sorry
+  classical
+  suffices h : ∀ n : ℕ, ∀ e : Cell d, e ∈ K.cells → p ∈ e.carrier →
+      (K.cells.filter (fun g => g.carrier ⊆ e.carrier)).card = n →
+      (K.minimalCell p hp).carrier ⊆ e.carrier from h _ e he hpe rfl
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+  intro e he hpe hn
+  by_cases hrel : p ∈ relint e.carrier
+  · -- `p ∈ relint e`: by uniqueness `e` is the minimal cell.
+    have hmin : K.minimalCell p hp = e := by
+      by_contra hne
+      exact Set.disjoint_left.mp (K.relint_disjoint _ (K.minimalCell_mem p hp) e he hne)
+        (K.mem_relint_minimalCell p hp) hrel
+    rw [hmin]
+  · -- `p` is on the relative boundary, a union of listed cells strictly inside `e`.
+    have hcl : IsClosed e.carrier := e.flat.compact.isClosed
+    have hpf : p ∈ relfrontier e.carrier := by
+      have h1 : p ∈ closure e.carrier \ relint e.carrier := ⟨subset_closure hpe, hrel⟩
+      rw [relint, closure_diff_intrinsicInterior] at h1
+      exact h1
+    obtain ⟨b, hb, hbeq⟩ := K.boundary_union e he
+    have hpf2 : p ∈ ⋃ f ∈ b, f.carrier := hbeq ▸ hpf
+    obtain ⟨f, hfb, hpf'⟩ := Set.mem_iUnion₂.mp hpf2
+    have hfc : f ∈ K.cells := hb hfb
+    have hfsub_fr : f.carrier ⊆ relfrontier e.carrier := by
+      intro x hx
+      rw [hbeq]
+      exact Set.mem_iUnion₂.mpr ⟨f, hfb, hx⟩
+    have hfr_sub : relfrontier e.carrier ⊆ e.carrier := intrinsicFrontier_subset hcl
+    have hfe : f.carrier ⊆ e.carrier := hfsub_fr.trans hfr_sub
+    have hef : ¬ e.carrier ⊆ f.carrier := by
+      intro h
+      obtain ⟨x, hx⟩ := e.flat.relint_nonempty
+      have hx2 : x ∈ relfrontier e.carrier := hfsub_fr (h (intrinsicInterior_subset hx))
+      have hx3 : x ∈ closure e.carrier \ intrinsicFrontier ℝ e.carrier := by
+        rw [closure_diff_intrinsicFrontier]
+        exact hx
+      exact hx3.2 hx2
+    have hlt : (K.cells.filter (fun g => g.carrier ⊆ f.carrier)).card < n := by
+      rw [← hn]
+      apply Finset.card_lt_card
+      rw [Finset.ssubset_iff_of_subset]
+      · exact ⟨e, Finset.mem_filter.mpr ⟨he, subset_rfl⟩,
+          fun h => hef (Finset.mem_filter.mp h).2⟩
+      · intro g hg
+        obtain ⟨hg1, hg2⟩ := Finset.mem_filter.mp hg
+        exact Finset.mem_filter.mpr ⟨hg1, hg2.trans hfe⟩
+    exact (ih _ hlt f hfc hpf' rfl).trans hfe
 
 /-- G3, V4 §1.0 (H2): the closed cell carriers also cover the frontier. -/
 theorem carriers_cover : (⋃ e ∈ K.cells, e.carrier) = frontier A.carrier := by

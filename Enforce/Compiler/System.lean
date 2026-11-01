@@ -1840,10 +1840,67 @@ theorem union_leaves :
   rw [← S.native_cover]
   simp only [placedSet, Set.image_iUnion]
 
+/-- Step 1 of the V4 proof of `tiles_exact` (V4 2.17(a)): "pick one outside the
+(nowhere dense) union of all tile boundaries". A nonempty open set covered by finitely
+many closed carriers meets the interior of one of them. -/
+private theorem tiles_exact_step1_open_meets_interior {ι : Type} [Finite ι]
+    (f : ι → Set (E d)) (hc : ∀ i, IsClosed (f i)) (O : Set (E d)) (hO : IsOpen O)
+    (hne : O.Nonempty) (hsub : O ⊆ ⋃ i, f i) : ∃ i, (O ∩ interior (f i)).Nonempty := by
+  let g : Option ι → Set (E d) := fun o => o.elim Oᶜ f
+  have hgc : ∀ o, IsClosed (g o) := by
+    intro o
+    cases o with
+    | none => exact hO.isClosed_compl
+    | some i => exact hc i
+  have hgU : ⋃ o, g o = Set.univ := by
+    refine Set.eq_univ_of_forall fun y => ?_
+    by_cases hy : y ∈ O
+    · obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hsub hy)
+      exact Set.mem_iUnion.mpr ⟨some i, hi⟩
+    · exact Set.mem_iUnion.mpr ⟨none, hy⟩
+  have hd := dense_iUnion_interior_of_closed hgc hgU
+  obtain ⟨y, hyO, hy⟩ := hd.inter_open_nonempty O hO hne
+  obtain ⟨o, ho⟩ := Set.mem_iUnion.mp hy
+  cases o with
+  | none => exact absurd hyO (interior_subset ho)
+  | some i => exact ⟨i, y, hyO, ho⟩
+
 /-- M8, V4 2.17(a): actual tiles contained in a block are exactly its native leaves. -/
 theorem tiles_exact :
     {t | t ∈ Y.tiles ∧ t.carrier ⊆ B.carrier} = Set.range B.leaf := by
-  sorry
+  classical
+  apply Set.Subset.antisymm
+  · rintro t ⟨ht, hsub⟩
+    have hcar : t.carrier = compilerFrame C t ''
+        (S.proto (compilerLeaf C t).prototype).carrier := by
+      calc
+        t.carrier =
+            (placedLeaf C (compilerLeaf C t) (compilerFrame C t)).carrier := by
+          rw [placedLeaf_decode C t]
+        _ = _ := rfl
+    have hn : (interior t.carrier).Nonempty := by
+      rw [hcar]
+      change (interior ((compilerFrame C t).toHomeomorph ''
+        (S.proto (compilerLeaf C t).prototype).carrier)).Nonempty
+      rw [← (compilerFrame C t).toHomeomorph.image_interior]
+      exact (S.proto (compilerLeaf C t).prototype).interior_nonempty.image _
+    have hc : ∀ w : S.RoleWord B.certificate.val.ty P.K,
+        IsClosed (B.leaf w).carrier := by
+      intro w
+      exact ((augmentedLeaf C (⟨B.certificate, w⟩ : LeafType P)).compact.image
+        (AffineIsometryEquiv.continuous _)).isClosed
+    obtain ⟨w, x, hxt, hxw⟩ := tiles_exact_step1_open_meets_interior
+      (fun w => (B.leaf w).carrier) hc (interior t.carrier)
+      isOpen_interior hn
+      (by rw [B.union_leaves]; exact fun y hy => hsub (interior_subset hy))
+    have heq : t = B.leaf w := by
+      by_contra hne
+      exact Set.disjoint_left.mp (Y.disjoint ht (B.leaf_mem w) hne) hxt hxw
+    exact ⟨w, heq.symm⟩
+  · rintro t ⟨w, rfl⟩
+    refine ⟨B.leaf_mem w, ?_⟩
+    rw [← B.union_leaves]
+    exact Set.subset_iUnion (fun w => (B.leaf w).carrier) w
 
 /-- M8, V4 2.17(a): every inner node, positioned by the fixed standard subdivision. -/
 def innerNode (a : ℕ) (_ha : a ≤ P.K) (w : S.RoleWord B.certificate.val.ty a) :

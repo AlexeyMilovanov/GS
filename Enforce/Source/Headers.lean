@@ -3557,6 +3557,52 @@ theorem RL_commute (F : PowerFactorisation S) :
     F.R.toLinearEquiv * F.L = F.L * F.R.toLinearEquiv := by
   exact (L_commutes F F.R F.R_mem).symm
 
+/-- Step 1 of the V4 proof of `power_cone_formula` (V4 1.16(c)): "$\sigma^{ap_0}=R^aL^a$ and $\sigma^n=\sigma^rR^aL^a$". -/
+private theorem power_cone_formula_step1_expansion (F : PowerFactorisation S) (a r : ℕ) :
+    S.σ ^ (a * F.power + r) = S.σ ^ r * F.R.toLinearEquiv ^ a * F.L ^ a := by
+  have h1 : a * F.power + r = r + F.power * a := by
+    rw [Nat.mul_comm, Nat.add_comm]
+  rw [h1, pow_add, pow_mul, F.factor]
+  have hcomm : Commute F.R.toLinearEquiv F.L := RL_commute F
+  rw [Commute.mul_pow hcomm a]
+  rw [mul_assoc]
+
+/-- Step 2 of the V4 proof of `power_cone_formula` (V4 1.16(c)): "$\sigma^rR^a\sigma^{-r}\in\mathsf H$, so that $\sigma^nG=R_n\sigma^rG$". -/
+private theorem power_cone_formula_step2_rotation (F : PowerFactorisation S) (a r : ℕ) :
+    ∃ Q ∈ S.rotGroup, Q.toLinearEquiv = linearConj S.σ (r : ℤ) (F.R.toLinearEquiv ^ a) := by
+  sorry
+
+/-- Step 3 of the V4 proof of `power_cone_formula` (V4 1.16(c)): "$\sigma^nG=\sigma^rR^aG=(\sigma^rR^a\sigma^{-r})\sigma^rG$". -/
+private theorem power_cone_formula_step3_image (F : PowerFactorisation S) (a r : ℕ)
+    (Q : Ortho d) (hQ_eq : Q.toLinearEquiv = linearConj S.σ (r : ℤ) (F.R.toLinearEquiv ^ a))
+    (K : Set (E d)) (hK : HPiCone S.hPi K) :
+    (S.σ ^ (a * F.power + r)) '' K = Q '' ((S.σ ^ r) '' K) := by
+  have L_fixes : ⇑(F.L ^ a) '' K = K := by
+    clear hQ_eq Q
+    induction' a with n ih
+    · simp
+    · change ⇑(F.L ^ n * F.L) '' K = K
+      have heq : ⇑(F.L ^ n * F.L) = ⇑(F.L ^ n) ∘ ⇑(F.L) := rfl
+      rw [heq, Set.image_comp]
+      rw [L_fixes_HPiCones F K hK]
+      exact ih
+  rw [power_cone_formula_step1_expansion F a r]
+  have hcomp2 : ⇑(S.σ ^ r * F.R.toLinearEquiv ^ a * F.L ^ a) = ⇑(S.σ ^ r * F.R.toLinearEquiv ^ a) ∘ ⇑(F.L ^ a) := rfl
+  rw [hcomp2, Set.image_comp, L_fixes]
+  have hQ : Q.toLinearEquiv * (S.σ ^ r) = S.σ ^ r * F.R.toLinearEquiv ^ a := by
+    have eq1 : Q.toLinearEquiv * (S.σ ^ r) = linearConj S.σ (r : ℤ) (F.R.toLinearEquiv ^ a) * (S.σ ^ r) := by rw [hQ_eq]
+    rw [eq1]
+    change S.σ ^ (r : ℤ) * F.R.toLinearEquiv ^ a * S.σ ^ (-(r : ℤ)) * S.σ ^ r = _
+    have eq2 : S.σ ^ (-(r : ℤ)) * S.σ ^ r = 1 := by
+      rw [← zpow_natCast]
+      rw [← zpow_add]
+      have : -(r : ℤ) + (r : ℤ) = 0 := by omega
+      rw [this, zpow_zero]
+    rw [mul_assoc (S.σ ^ (r : ℤ) * _), eq2, mul_one, zpow_natCast]
+  have hcomp3 : ⇑(Q.toLinearEquiv * (S.σ ^ r)) = ⇑(S.σ ^ r * F.R.toLinearEquiv ^ a) := by rw [hQ]
+  have hcomp4 : ⇑(Q.toLinearEquiv * (S.σ ^ r)) = ⇑Q ∘ ⇑(S.σ ^ r) := rfl
+  rw [← hcomp3, hcomp4, Set.image_comp]
+
 /-- P11, V4 1.16(c): power decomposition and compatible residual rotations. -/
 theorem power_cone_formula (F : PowerFactorisation S) (a r : ℕ) (hr : r < F.power) :
     S.σ ^ (a * F.power + r) = S.σ ^ r * F.R.toLinearEquiv ^ a * F.L ^ a ∧
@@ -3564,7 +3610,12 @@ theorem power_cone_formula (F : PowerFactorisation S) (a r : ℕ) (hr : r < F.po
         linearConj S.σ (r : ℤ) (F.R.toLinearEquiv ^ a) ∧
         ∀ K : Set (E d), HPiCone S.hPi K →
           (S.σ ^ (a * F.power + r)) '' K = Q '' ((S.σ ^ r) '' K) := by
-  sorry
+  have h1 := power_cone_formula_step1_expansion F a r
+  refine ⟨h1, ?_⟩
+  have ⟨Q, hQ, hQ_eq⟩ := power_cone_formula_step2_rotation F a r
+  refine ⟨Q, hQ, hQ_eq, ?_⟩
+  intro K hK
+  exact power_cone_formula_step3_image F a r Q hQ_eq K hK
 
 /-- P12, V4 1.17: a header is a literal tuple of cones, a type, and a vertex name. -/
 structure Header (S : SubstSystem d) (s : ℕ) where

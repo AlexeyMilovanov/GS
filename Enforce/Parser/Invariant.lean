@@ -1392,7 +1392,7 @@ private lemma base_level_step5_I5_step1_boundary_step2_certificate
     ∃ (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K)
       (w : S.RoleWord B.certificate.val.ty a),
       P.K - a = m ∧ B.innerNode a ha w = N := by
-  sorry
+  exact base_level_step3_I2_step1_certificate_node D.geometry hbase.1 m N hN
 
 /-- Step 3 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 2.17(a)): actual tiles inside the block are prescribed leaves. -/
 private lemma base_level_step5_I5_step1_boundary_step3_leaf

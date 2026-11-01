@@ -136,7 +136,59 @@ structure MarkerData (S : SubstSystem d) (A : S.ι) where
 /-- Q10, V4 §2.4: markers exist because each prototype has nonempty interior.
 This is conditional on an actual prototype and imposes no source nonemptiness. -/
 theorem markerData_exist (A : S.ι) : Nonempty (MarkerData S A) := by
-  sorry
+  obtain ⟨b⟩ := AffineBasis.exists_affineBasis_of_finiteDimensional (ι := Fin (d+1)) (k := ℝ) (V := E d) (P := E d) (by simp [finrank_euclideanSpace])
+  obtain ⟨p, hp⟩ := (S.proto A).interior_nonempty
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp isOpen_interior p hp
+  have hRpos : 0 < 1 + ∑ i, ‖b i - p‖ := by positivity
+  obtain ⟨R, hR⟩ : ∃ R, R = 1 + ∑ i, ‖b i - p‖ := ⟨_, rfl⟩
+  rw [← hR] at hRpos
+  have hbR : ∀ i, ‖b i - p‖ ≤ R := fun i => by
+    have := Finset.single_le_sum (f := fun j => ‖b j - p‖) (fun j _ => norm_nonneg _) (Finset.mem_univ i)
+    have h0 : 0 ≤ ∑ j, ‖b j - p‖ := Finset.sum_nonneg (fun j _ => norm_nonneg _)
+    linarith
+  obtain ⟨t, ht⟩ : ∃ t : ℝ, t = ε / (4 * R) := ⟨_, rfl⟩
+  have htpos : 0 < t := by rw [ht]; positivity
+  have htR : t * R = ε / 4 := by rw [ht]; field_simp
+  let f : E d →ᵃ[ℝ] E d := AffineMap.homothety p t
+  have hfa : ∀ x, f x = t • (x - p) + p := fun x => by
+    simp [f, AffineMap.homothety_apply, vsub_eq_sub, vadd_eq_add]
+  have hf : Function.Injective f := by
+    intro x y h
+    rw [hfa, hfa] at h
+    exact sub_left_injective (smul_right_injective _ htpos.ne' (add_right_cancel h))
+  have hind : AffineIndependent ℝ (f ∘ b) := b.ind.map' f hf
+  have hdistp : ∀ i, dist ((f ∘ b) i) p ≤ ε / 4 := fun i => by
+    rw [Function.comp_apply, hfa, dist_eq_norm, add_sub_cancel_right, norm_smul, Real.norm_of_nonneg htpos.le, ← htR]
+    exact mul_le_mul_of_nonneg_left (hbR i) htpos.le
+  have hsep : ∃ δ : ℝ, 0 < δ ∧ ∀ i j, i ≠ j → δ ≤ dist ((f ∘ b) i) ((f ∘ b) j) := by
+    obtain ⟨T, hT⟩ : ∃ T : ℝ, T = ∑ i, ∑ j, (dist ((f ∘ b) i) ((f ∘ b) j))⁻¹ := ⟨_, rfl⟩
+    have hT0 : 0 ≤ T := by rw [hT]; exact Finset.sum_nonneg (fun i _ => Finset.sum_nonneg (fun j _ => inv_nonneg.mpr dist_nonneg))
+    refine ⟨1 / (1 + T), by positivity, fun i j hij => ?_⟩
+    have hd : 0 < dist ((f ∘ b) i) ((f ∘ b) j) := dist_pos.mpr (fun h => hij (hind.injective h))
+    have h1 : (dist ((f ∘ b) i) ((f ∘ b) j))⁻¹ ≤ ∑ j', (dist ((f ∘ b) i) ((f ∘ b) j'))⁻¹ := Finset.single_le_sum (f := fun j' => (dist ((f ∘ b) i) ((f ∘ b) j'))⁻¹) (fun _ _ => inv_nonneg.mpr dist_nonneg) (Finset.mem_univ j)
+    have h2 : ∑ j', (dist ((f ∘ b) i) ((f ∘ b) j'))⁻¹ ≤ T := by
+      rw [hT]
+      exact Finset.single_le_sum (f := fun i' => ∑ j', (dist ((f ∘ b) i') ((f ∘ b) j'))⁻¹) (fun _ _ => Finset.sum_nonneg (fun _ _ => inv_nonneg.mpr dist_nonneg)) (Finset.mem_univ i)
+    have h3 := h1.trans h2
+    rw [div_le_iff₀ (by positivity)]
+    have := mul_le_mul_of_nonneg_left h3 hd.le
+    rw [mul_inv_cancel₀ hd.ne'] at this
+    nlinarith
+  obtain ⟨δ, hδ, hδsep⟩ := hsep
+  have hrε : min (ε/4) (δ/3) ≤ ε/4 := min_le_left _ _
+  have hrδ : min (ε/4) (δ/3) ≤ δ/3 := min_le_right _ _
+  refine ⟨⟨f ∘ b, hind, min (ε/4) (δ/3), lt_min (by positivity) (by positivity), ?_, ?_⟩⟩
+  · intro a x hx
+    apply hball
+    rw [Metric.mem_ball]
+    have h1 := dist_triangle x ((f ∘ b) a) p
+    have h2 := hdistp a
+    rw [Metric.mem_closedBall] at hx
+    linarith
+  · intro a c hac
+    apply Metric.closedBall_disjoint_closedBall
+    have := hδsep a c hac
+    linarith
 
 /-- Q1, V4 §2.1 (P1)--(P6), V4 8.3: data and admissibility of all parameters.
 The incidence catalogue is exhaustive even if there is no honest source. For an

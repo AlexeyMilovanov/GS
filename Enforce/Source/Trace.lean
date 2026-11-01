@@ -3730,6 +3730,43 @@ theorem ScaleTailEquiv.providers {U V : HonestSource S} {a b : ℕ} {J : Iso d}
   sorry
 
 /-- Step 1 of the V4 proof of `strata` (V4 1.13(c)): exact-scale transfer preserves the types and the cell collections of the serving child. -/
+private lemma strata_step1_cell_step1_tailParent_ancestor {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a) (r : ℕ) :
+    e.toEquiv ((U.hierarchy.tailParent a)^[r] q) = (V.hierarchy.tailParent b)^[r] (e.toEquiv q) := by
+  have hs : Function.Semiconj e.toEquiv (U.hierarchy.tailParent a)
+      (V.hierarchy.tailParent b) := e.parents
+  exact Function.Semiconj.iterate_right hs r q
+
+private lemma strata_step1_cell_step2_ancestor_val {T : Tiling S} (H : CoherentHierarchy S T) (a : ℕ) (q : H.Tail a) (r : ℕ) :
+    ((H.tailParent a)^[r] q).val = H.ancestor q.val r := by
+  induction' r with r hr generalizing q
+  · rfl
+  · dsimp [Function.iterate_succ, CoherentHierarchy.ancestor]
+    rw [hr]
+    rfl
+
+private lemma strata_step1_cell_step3_eq_servingChild {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty)
+    (g : FacetName S (e.toEquiv q).val.2.val.ty) (hfg : f.val = g.val)
+    (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g) :
+    (V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.ty = (U.hierarchy.servingChild q.val f hf).2.val.ty := by
+  have hp := e.providers q f g hfg hf hg
+  have h_prov := hp.1
+  dsimp [CoherentHierarchy.servingChild]
+  have ht := e.types ((U.hierarchy.tailParent a)^[(U.hierarchy.firstProvider ↑q f hf).fst] q)
+  have h_val_U := strata_step1_cell_step2_ancestor_val U.hierarchy a q (U.hierarchy.firstProvider ↑q f hf).fst
+  have h_val_V := strata_step1_cell_step2_ancestor_val V.hierarchy b (e.toEquiv q) (V.hierarchy.firstProvider (e.toEquiv q).val g hg).1
+  rw [← h_val_U]
+  rw [← h_val_V]
+  rw [← h_prov]
+  have ht' : (((U.hierarchy.tailParent a)^[(U.hierarchy.firstProvider ↑q f hf).fst] q).val.2.val).ty = 
+    ((e.toEquiv ((U.hierarchy.tailParent a)^[(U.hierarchy.firstProvider ↑q f hf).fst] q)).val.2.val).ty := ht.symm
+  rw [strata_step1_cell_step1_tailParent_ancestor] at ht'
+  exact ht'.symm
+
+/-- Step 1 of the V4 proof of `strata` (V4 1.13(c)): exact-scale transfer preserves the types and the cell collections of the serving child. -/
 private theorem strata_step1_cell {U V : HonestSource S} {a b : ℕ} {J : Iso d}
     (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
     (f : FacetName S q.val.2.val.ty)
@@ -3742,8 +3779,10 @@ private theorem strata_step1_cell {U V : HonestSource S} {a b : ℕ} {J : Iso d}
     (ht : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 t.val ⊆
       (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val) :
     (U.hierarchy.stratumMap q.val f hf s hs).val ∈ (S.cx (V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.ty).cells := by
-  sorry
-
+  have H1 := strata_step1_cell_step3_eq_servingChild e q f g hfg hf hg
+  have H2 := (U.hierarchy.stratumMap q.val f hf s hs).property
+  rw [H1]
+  exact H2
 /-- Step 2 of the V4 proof of `strata` (V4 1.13(c)): exact-scale transfer preserves relative interior containments expressed in the prototype frame. -/
 private theorem strata_step2_subset {U V : HonestSource S} {a b : ℕ} {J : Iso d}
     (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)

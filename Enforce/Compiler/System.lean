@@ -2770,7 +2770,9 @@ private lemma compiler_events_step1_rule_step2_covering (C : ClusterData S P) (Y
     (hY : MProper Y) (l : LeafType P) (j : EventSlot l) (x : E d) (hx_mark : Y.marking x = Colour.trigger l j 0) :
     ∃ (R : CompactRule d (Colour S P)) (hR : R ∈ (systemM S P C).rules) (ψ : Iso d) 
       (y : R.carrier), ψ ↑y = x ∧ ∀ z : R.carrier, Y.marking (ψ ↑z) = R.mark z := by
-  sorry
+  obtain ⟨R, hR, ψ, hx_placed, hy_mark⟩ := hY x
+  obtain ⟨y, hy, hy_eq⟩ := hx_placed
+  exact ⟨R, hR, ψ, ⟨y, hy⟩, hy_eq, hy_mark⟩
 
 /-- Step 3 of the V4 proof of `compiler_events_step1_rule` (V4 2.17b): The covering rule copy is an EVENT rule. -/
 private lemma compiler_events_step1_rule_step3_event_rule (C : ClusterData S P)

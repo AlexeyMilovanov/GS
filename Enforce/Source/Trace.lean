@@ -656,6 +656,38 @@ theorem hereditary_trace_union (P C : FramedNode S) (n h : ℕ)
     obtain ⟨hsub, hpe⟩ := Set.mem_iUnion.mp hp
     exact ⟨hsub hpe, hereditary_trace_step1_cell_subset C h e he hpe⟩
 
+private theorem ancestralStratum_step_mc' (N : FramedNode S) (n : ℕ) (e e' : Cell d)
+    (he : e ∈ (S.cx N.ty).cells) (he' : e' ∈ (S.cx N.ty).cells) (p : E d)
+    (hp : p ∈ relint (N.cell n e)) (hp' : p ∈ N.cell n e') : e.dim ≤ e'.dim := by
+  have hp2 : p ∈ N.prototypeFrame n '' relint e.carrier := by
+    have h1 : p ∈ relint (N.cell n e) := hp
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image] at h1
+    exact h1
+  obtain ⟨a_e, ha_relint, hpa_e⟩ := hp2
+  have hp3 : p ∈ N.cell n e' := hp'
+  rw [FramedNode.cell] at hp3
+  obtain ⟨a_e', ha', hpa_e'⟩ := hp3
+  have heq : a_e' = a_e := (N.prototypeFrame n).injective (hpa_e'.trans hpa_e.symm)
+  subst a_e'
+  have ha_fr : a_e ∈ frontier (S.proto N.ty).carrier := by
+    rw [← (S.cx N.ty).carriers_cover]
+    exact Set.mem_iUnion.mpr ⟨e, Set.mem_iUnion.mpr ⟨he, intrinsicInterior_subset ha_relint⟩⟩
+  set K := S.cx N.ty
+  have hm : K.minimalCell a_e ha_fr = e := by
+    by_contra hne
+    have h1 := K.mem_relint_minimalCell a_e ha_fr
+    have h2 := K.minimalCell_mem a_e ha_fr
+    have h_disj := K.relint_disjoint _ h2 e he hne
+    exact Set.disjoint_left.mp h_disj h1 ha_relint
+  have hsub := K.minimalCell_subset a_e ha_fr e' he' ha'
+  rw [hm] at hsub
+  exact hereditary_trace_step3_dim_mono _ _ hsub
+
+private theorem ancestralStratum_pmc_exists_unique (N : FramedNode S) (n : ℕ) (p : E d)
+    (hp : p ∈ frontier (N.carrier n)) :
+    ∃! e : CellName S N.ty, p ∈ relint (N.cell n e.val) := by
+  sorry
+
 /-- P2, V4 1.2: existence and uniqueness of the ancestral stratum.
 Nonempty relative interior of the listed cell supplies an actual point. -/
 theorem ancestralStratum_exists_unique (P C : FramedNode S) (n h : ℕ)
@@ -663,7 +695,35 @@ theorem ancestralStratum_exists_unique (P C : FramedNode S) (n h : ℕ)
     (hg : C.cell h g.val ⊆ frontier (P.carrier n)) :
     ∃! F : CellName S P.ty,
       relint (C.cell h g.val) ⊆ relint (P.cell n F.val) := by
-  sorry
+  have hne : (relint (C.cell h g.val)).Nonempty := by
+    have h1 := g.val.flat.relint_nonempty
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact h1.image _
+  obtain ⟨p, hp⟩ := hne
+  have hpP : p ∈ frontier (P.carrier n) := hg (intrinsicInterior_subset hp)
+  have he_unique_full := ancestralStratum_pmc_exists_unique P n p hpP
+  set e := Classical.choose he_unique_full
+  have he_prop : p ∈ relint (P.cell n e.val) := (Classical.choose_spec he_unique_full).1
+  have hsubE : C.cell h g.val ⊆ P.cell n e.val :=
+    hereditary_trace P C n h hC e.val g.val e.property g.property ⟨p, hp, intrinsicInterior_subset he_prop⟩
+  use e
+  constructor
+  · intro q hq
+    by_contra hqn
+    obtain ⟨e', he', hlt, -, hqe'⟩ := hereditary_trace_step2_boundary P n e.val e.property q (hsubE (intrinsicInterior_subset hq)) hqn
+    have hp_e' : p ∈ P.cell n e' := by
+      have hmeet : (relint (C.cell h ↑g) ∩ P.cell n e').Nonempty := ⟨q, hq, hqe'⟩
+      have hsub_e' := hereditary_trace P C n h hC e' g.val he' g.property hmeet
+      exact hsub_e' (intrinsicInterior_subset hp)
+    have H : e.val.dim ≤ e'.dim := ancestralStratum_step_mc' P n e.val e' e.property he' p he_prop hp_e'
+    omega
+  · intro F hF
+    have hp_F : p ∈ relint (P.cell n F.val) := hF hp
+    obtain ⟨e'', he''_prop, he_unique⟩ := he_unique_full
+    have h1 := he_unique e he_prop
+    have h2 := he_unique F hp_F
+    have h_eq : F.val = e.val := by rw [h2, ← h1]
+    exact Subtype.ext h_eq
 
 /-- P2, V4 1.2: the unique ancestral stratum, chosen from the existence lemma. -/
 def ancestralStratum (P C : FramedNode S) (n h : ℕ)
@@ -3376,6 +3436,33 @@ theorem adjacency_primitive_seed (P : FramedNode S) (n : ℕ)
   intro q hq hqκ
   exact ⟨hq, hκh hqκ, fun j hj =>
     primitive_vertex_listed P n a.val.1 h hint q hq (hκh hqκ) j hj⟩
+
+private theorem ancestralStratum_step_mc (N : FramedNode S) (n : ℕ) (e e' : Cell d)
+    (he : e ∈ (S.cx N.ty).cells) (he' : e' ∈ (S.cx N.ty).cells) (p : E d)
+    (hp : p ∈ relint (N.cell n e)) (hp' : p ∈ N.cell n e') : e.dim ≤ e'.dim := by
+  have hp2 : p ∈ N.prototypeFrame n '' relint e.carrier := by
+    have h1 : p ∈ relint (N.cell n e) := hp
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image] at h1
+    exact h1
+  obtain ⟨a_e, ha_relint, hpa_e⟩ := hp2
+  have hp3 : p ∈ N.cell n e' := hp'
+  rw [FramedNode.cell] at hp3
+  obtain ⟨a_e', ha', hpa_e'⟩ := hp3
+  have heq : a_e' = a_e := (N.prototypeFrame n).injective (hpa_e'.trans hpa_e.symm)
+  subst a_e'
+  have ha_fr : a_e ∈ frontier (S.proto N.ty).carrier := by
+    rw [← (S.cx N.ty).carriers_cover]
+    exact Set.mem_iUnion.mpr ⟨e, Set.mem_iUnion.mpr ⟨he, intrinsicInterior_subset ha_relint⟩⟩
+  set K := S.cx N.ty
+  have hm : K.minimalCell a_e ha_fr = e := by
+    by_contra hne
+    have h1 := K.mem_relint_minimalCell a_e ha_fr
+    have h2 := K.minimalCell_mem a_e ha_fr
+    have h_disj := K.relint_disjoint _ h2 e he hne
+    exact Set.disjoint_left.mp h_disj h1 ha_relint
+  have hsub := K.minimalCell_subset a_e ha_fr e' he' ha'
+  rw [hm] at hsub
+  exact hereditary_trace_step3_dim_mono _ _ hsub
 
 /-- P1/P2, V4 1.1--1.2: placed minimal cells exist uniquely at every boundary
 point, including at positive height. This extends the stage-1 prototype API. -/

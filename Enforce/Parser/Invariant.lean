@@ -271,8 +271,32 @@ Nonemptiness comes from the facet and the hereditary native subdivision. -/
 theorem facet_piece_exists (m : ℕ) (N : FramedNode S) (hN : IsBlock Y m N)
     (F : FacetName S N.ty) :
     ∃ (t : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode t).ty),
-      IsFacetPiece Y m N F t f := by
-  sorry
+    IsFacetPiece Y m N F t f := by
+  classical
+  obtain ⟨parts, hparts⟩ := S.heredity_iter N.ty m F.val (Finset.mem_filter.mp F.property).1
+  have hF : (F.val.carrier : Set (E d)).Nonempty := F.val.flat.relint_nonempty.mono intrinsicInterior_subset
+  obtain ⟨x, hxf⟩ := hF
+  have hσx : (S.σ ^ m) x ∈ (S.σ ^ m) '' F.val.carrier := ⟨x, hxf, rfl⟩
+  rw [hparts] at hσx
+  obtain ⟨q, hq, y, hy, hxy⟩ := Set.mem_iUnion₂.mp hσx
+  obtain ⟨t, ht, hnode⟩ := hN q.1
+  let g : FacetName S (tileNode t).ty := ⟨q.2.val, by
+    rw [hnode]
+    exact Finset.mem_filter.mpr ⟨q.2.property.1,
+      q.2.property.2.trans (Finset.mem_filter.mp F.property).2⟩⟩
+  have hdesc : (tileNode t).IsDescendant 0 N m := ⟨m, by omega, q.1, hnode⟩
+  have hsub : (tileNode t).cell 0 g.val ⊆ N.cell m F.val := by
+    rintro z ⟨w, hw, rfl⟩
+    have hmem : (S.nativeTile N.ty m q.1).frame w ∈ (S.σ ^ m) '' F.val.carrier := by
+      rw [hparts]
+      exact Set.mem_iUnion₂.mpr ⟨q, hq, w, hw, rfl⟩
+    obtain ⟨z, hz, he⟩ := hmem
+    refine ⟨z, hz, ?_⟩
+    rw [hnode]
+    change N.frame ((S.σ ^ m) z) = N.frame ((S.nativeTile N.ty m q.1).frame w)
+    exact congrArg N.frame he
+  exact ⟨t, g, ht, hdesc, hsub⟩
+
 
 /-- R1, V4 §3.0 (I5): one genuine facet piece identifies a constant packet.
 The piece is supplied by heredity, so equality does not follow from an empty

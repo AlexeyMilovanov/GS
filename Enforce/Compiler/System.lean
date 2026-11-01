@@ -802,10 +802,14 @@ theorem HonestSource.move_refl (U : HonestSource S) :
     U.move (AffineIsometryEquiv.refl ℝ (E d)) = U :=
   MovedSource.unique (U.move_spec (AffineIsometryEquiv.refl ℝ (E d))) (move_refl_step6_movedSource U)
 
+open private Tiling.move_move from Enforce.Combinatorics in
 /-- Step 1 of the V4 proof of `move_trans` (V4 2.14(d)): transported physical tiling. -/
 private lemma move_trans_step1_tiling (U : HonestSource S) (g h : Iso d) :
-    ((U.move g).move h).tiling = U.tiling.move (g.trans h) :=
-  sorry
+    ((U.move g).move h).tiling = U.tiling.move (g.trans h) := by
+  have H1 := (U.move g).move_spec h
+  have H2 := U.move_spec g
+  rw [H1.tiling, H2.tiling]
+  exact Tiling.move_move U.tiling g h
 
 /-- Step 2 of the V4 proof of `move_trans` (V4 2.14(d)): transported framed nodes. -/
 private lemma move_trans_step2_nodes (U : HonestSource S) (g h : Iso d) :

@@ -767,8 +767,21 @@ private lemma honest_move_exists_step4_coset (U : HonestSource S) (g : Iso d)
     (hNodes : ∀ n, H.nodes n = (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n)
     (n : ℕ) (N : FramedNode S) (hN : N ∈ H.nodes n) :
     ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv =
-      (g.linearIsometryEquiv * U.coset) * R :=
-  sorry
+      (g.linearIsometryEquiv * U.coset) * R := by
+  have H2 := hNodes n
+  rw [H2] at hN
+  rcases hN with ⟨M, hM, rfl⟩
+  rcases U.frames_in_coset n M hM with ⟨R, hR, H3⟩
+  use R, hR
+  dsimp [FramedNode.move]
+  have H4 : (AffineIsometryEquiv.trans M.frame g).linearIsometryEquiv =
+      M.frame.linearIsometryEquiv.trans g.linearIsometryEquiv := by
+    ext x
+    rfl
+  rw [H4]
+  rw [H3]
+  ext x
+  simp
 
 /-- M6, V4 2.14(d), 1.11: moving every frame and every legal context gives
 an honest source. The input source supplies nonemptiness of the transport problem. -/

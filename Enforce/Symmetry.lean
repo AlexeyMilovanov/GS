@@ -45,12 +45,37 @@ theorem component_eq_iff (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
         (parsedHierarchy Y hY).ancestor r n := by
   sorry
 
+/-- Step 1 of the V4 proof of `components_disjoint` (V4 5.7):
+"a point of the open set ... chosen outside the nowhere dense union of all tile boundaries lies in the interior of a tile" -/
+private lemma components_disjoint_step1_tile_interior (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (U : Set (E d)) (hU_open : IsOpen U) (hU_nonempty : U.Nonempty) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (_ : t ∈ Y.tiles), (U ∩ interior t.carrier).Nonempty := by
+  sorry
+
+/-- Step 1 of the V4 proof of `components_disjoint` (V4 5.7):
+"at the common height max(n,n') the two ancestors share a tile, hence coincide, so t,t' have a common ancestor." -/
+private lemma components_disjoint_step2_common_ancestor (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q r : (parsedHierarchy Y hY).Node) (hq : q.1 = 0) (hr : r.1 = 0)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) (x : E d) (hx : x ∈ interior t.carrier)
+    (hx_q : x ∈ interior (component Y hY q)) (hx_r : x ∈ interior (component Y hY r)) :
+    component Y hY q = component Y hY r := by
+  sorry
+
 /-- Y1, V4 5.7, Step 1: different ground components have disjoint interiors. -/
 theorem components_disjoint (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q r : (parsedHierarchy Y hY).Node) (hq : q.1 = 0) (hr : r.1 = 0)
     (hne : component Y hY q ≠ component Y hY r) :
     Disjoint (interior (component Y hY q)) (interior (component Y hY r)) := by
-  sorry
+  rw [Set.disjoint_iff_inter_eq_empty]
+  by_contra h_nonempty
+  have hU_nonempty : (interior (component Y hY q) ∩ interior (component Y hY r)).Nonempty :=
+    Set.nonempty_iff_ne_empty.mpr h_nonempty
+  have hU_open : IsOpen (interior (component Y hY q) ∩ interior (component Y hY r)) :=
+    IsOpen.inter isOpen_interior isOpen_interior
+  obtain ⟨t, ht, x, hx⟩ := components_disjoint_step1_tile_interior Y hY _ hU_open hU_nonempty
+  have heq : component Y hY q = component Y hY r :=
+    components_disjoint_step2_common_ancestor Y hY q r hq hr t ht x hx.2 hx.1.1 hx.1.2
+  exact hne heq
 
 /-- Step 1 of the V4 proof of `component_contains_cone` (V4 5.7):
 "invertible linear maps preserve the given finite facet lists". More generally,

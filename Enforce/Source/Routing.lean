@@ -9984,6 +9984,43 @@ private theorem birth_ascent_routing_step4_facet_neighborhood
   simpa only [interior_inter, Metric.isOpen_ball.interior_eq] using
     hconv.interior.isPreconnected
 
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets` (V4 1.25, using (H1)–(H2) of V4 §1.0): "near a boundary point the polyhedral boundary separates a small ball into two sides" — refined simultaneous polyhedral subdivision to a compatible triangulation of the frontier. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation
+    (D : PolyManifoldDomain d) (C : CellComplex D)
+    (g : Cell d) (hg : g ∈ C.cells) (hgd : g.dim + 2 = d) :
+    ∃ K : Geometry.SimplicialComplex ℝ (E d),
+      K.faces.Finite ∧ K.space = frontier D.carrier ∧
+      (∀ f ∈ K.facets, f.card = d) ∧
+      (∀ e ∈ C.cells, ∀ x ∈ e.carrier,
+        ∃ t ∈ K.faces,
+          x ∈ convexHull ℝ (t : Set (E d)) ∧
+          convexHull ℝ (t : Set (E d)) ⊆ e.carrier) ∧
+      ∃ s ∈ K.faces, s.card = d - 1 ∧
+        convexHull ℝ (s : Set (E d)) ⊆ g.carrier ∧
+        relint (convexHull ℝ (s : Set (E d))) ⊆ relint g.carrier := by
+  sorry
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets` (V4 1.25, using (H1)–(H2) of V4 §1.0): "near a boundary point the polyhedral boundary separates a small ball into two sides" — incidence transfer establishing a bijection between original listed cell facets and the simplex cofacets in the compatible triangulation. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv
+    (D : PolyManifoldDomain d) (C : CellComplex D)
+    (g : Cell d) (hg : g ∈ C.cells) (hgd : g.dim + 2 = d)
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hfin : K.faces.Finite) (hspace : K.space = frontier D.carrier)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hcompat : ∀ e ∈ C.cells, ∀ x ∈ e.carrier,
+      ∃ t ∈ K.faces,
+        x ∈ convexHull ℝ (t : Set (E d)) ∧
+        convexHull ℝ (t : Set (E d)) ⊆ e.carrier)
+    (s : Finset (E d)) (hs : s ∈ K.faces)
+    (hsc : s.card = d - 1)
+    (hsg : convexHull ℝ (s : Set (E d)) ⊆ g.carrier)
+    (hrel : relint (convexHull ℝ (s : Set (E d))) ⊆ relint g.carrier) :
+    Nonempty
+      ({f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧
+          g.carrier ⊆ f.carrier} ≃
+       {t ∈ K.facets | s ⊆ t}) := by
+  sorry
+
 /-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25, using (H1) of V4 §1.0): "the polyhedral boundary separates a small
 ball into two sides" — at a codimension-two cell. Ridge degree: since
@@ -9997,7 +10034,15 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
     (D : PolyManifoldDomain d) (C : CellComplex D) (g : Cell d) (hg : g ∈ C.cells)
     (hgd : g.dim + 2 = d) :
     {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}.ncard = 2 := by
-  sorry
+  obtain ⟨K, hfin, hspace, hpure, hcompat, s, hs, hsc, hsg, hrel⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation D C g hg hgd
+  have hman : IsLocallyEuclidean (d - 1) K.space := by
+    rw [hspace]
+    exact D.frontier_manifold
+  obtain ⟨e⟩ := birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv D C g hg hgd K hfin hspace hpure hcompat s hs hsc hsg hrel
+  exact (Set.ncard_congr' e).trans
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree
+      K hfin hpure hman s hs hsc)
 
 /-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25): "the polyhedral boundary separates a small ball into two sides and

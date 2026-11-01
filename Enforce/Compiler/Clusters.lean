@@ -581,7 +581,36 @@ The statement includes all points of the ambient extension and all source leaves
 theorem augmentedColour_micro_iff {P : Params S} (C : ClusterData S P)
     (l u : LeafType P) (κ : ClusterKind l) (a : Fin (d + 1)) (x : E d) :
     augmentedColour C u x = microColour l κ a ↔ u = l ∧ x ∈ C.microball l κ a := by
-  sorry
+  have hinj (v w : LeafType P) (η : ClusterKind v) (θ : ClusterKind w)
+      (b c : Fin (d + 1)) (h : microColour v η b = microColour w θ c) :
+      v = w ∧ HEq η θ ∧ b = c := by
+    cases η <;> cases θ <;> dsimp [microColour] at h <;> try contradiction
+    · injection h with hv hb
+      subst hv
+      exact ⟨rfl, HEq.rfl, hb⟩
+    · injection h with hv hb
+      subst hv
+      exact ⟨rfl, HEq.rfl, hb⟩
+    · injection h with hv hj hb
+      subst hv
+      subst hj
+      exact ⟨rfl, HEq.rfl, hb⟩
+  constructor
+  · intro h
+    unfold augmentedColour at h
+    split_ifs at h with hint hm hf hs
+    · obtain ⟨rfl, hkind, rfl⟩ :=
+        hinj u l (Classical.choose hm).1 κ (Classical.choose hm).2 a h
+      have hmem := Classical.choose_spec hm
+      have heq : (Classical.choose hm).1 = κ := eq_of_heq hkind
+      rw [heq] at hmem
+      exact ⟨rfl, hmem⟩
+    · cases κ <;> contradiction
+    · cases κ <;> contradiction
+    · cases κ <;> contradiction
+    · cases κ <;> contradiction
+  · rintro ⟨rfl, hx⟩
+    exact augmentedMarking_microball C u κ a x hx
 
 /-- M2, V4 §2.4, 2.10: the prescribed frame-marker balls retain their colours. -/
 theorem augmentedMarking_frame {P : Params S} (C : ClusterData S P)

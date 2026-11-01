@@ -717,11 +717,54 @@ theorem power_fixes_node (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
       N ∈ (parsedHierarchy Y hY).nodes n ∧ (g ^ k) '' N.carrier n = N.carrier n := by
   sorry
 
+omit [Fact (2 ≤ d)] in
+private lemma node_polyhedron_full_step1_polyhedron {K : Set (E d)} (hK : Polyhedron K) (f : E d ≃ᵃ[ℝ] E d) :
+    Polyhedron (f '' K) := by
+  obtain ⟨s, hs⟩ := hK
+  use s.image (Finset.image f)
+  rw [hs]
+  ext x
+  simp only [Set.mem_image, Set.mem_iUnion, exists_prop, Finset.mem_image]
+  constructor
+  · rintro ⟨y, ⟨p, hp, hyp⟩, rfl⟩
+    use p.image f
+    constructor
+    · exact ⟨p, hp, rfl⟩
+    · rw [Finset.coe_image]
+      have H : f y ∈ f '' (convexHull ℝ ↑p) := Set.mem_image_of_mem _ hyp
+      have eq : f '' (convexHull ℝ ↑p) = (convexHull ℝ) (f '' ↑p) :=
+        AffineMap.image_convexHull f.toAffineMap ↑p
+      rwa [eq] at H
+  · rintro ⟨p', ⟨p, hp, rfl⟩, hx⟩
+    rw [Finset.coe_image] at hx
+    have eq : f '' (convexHull ℝ ↑p) = (convexHull ℝ) (f '' ↑p) :=
+      AffineMap.image_convexHull f.toAffineMap ↑p
+    rw [← eq] at hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    use y
+    exact ⟨⟨p, hp, hy⟩, rfl⟩
+
+omit [Fact (2 ≤ d)] in
+private lemma node_polyhedron_full_step2_interior {K : Set (E d)} (hK : (interior K).Nonempty) (f : E d ≃ₜ E d) :
+    (interior (f '' K)).Nonempty := by
+  have heq := f.image_interior K
+  rw [← heq]
+  obtain ⟨x, hx⟩ := hK
+  use f x
+  exact Set.mem_image_of_mem f hx
+
 /-- Y1/Sym1, V4 5.6, 5.7: every placed node is a full-dimensional polyhedron.
 Invertible linear powers of σ and arbitrary isometric frames preserve these facts. -/
 theorem node_polyhedron_full (n : ℕ) (N : FramedNode S) :
     Polyhedron (N.carrier n) ∧ (interior (N.carrier n)).Nonempty := by
-  sorry
+  dsimp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+  have hpoly := (S.proto N.ty).polyhedral
+  have hinterior := (S.proto N.ty).interior_nonempty
+  have Hpoly1 := node_polyhedron_full_step1_polyhedron hpoly (S.σ ^ n).toAffineEquiv
+  have Hpoly2 := node_polyhedron_full_step1_polyhedron Hpoly1 N.frame.toAffineEquiv
+  have Hinterior1 := node_polyhedron_full_step2_interior hinterior (S.σ ^ n).toContinuousLinearEquiv.toHomeomorph
+  have Hinterior2 := node_polyhedron_full_step2_interior Hinterior1 N.frame.toHomeomorph
+  exact ⟨Hpoly2, Hinterior2⟩
 
 /-- Y1/Sym1, V4 5.6: the full setwise stabilizer of a node is finite. -/
 theorem node_stabilizer_finite (n : ℕ) (N : FramedNode S) :

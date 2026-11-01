@@ -889,7 +889,30 @@ theorem assembled_inner_mem {Y : MarkedTiling (systemM S P C)} {n : ℕ}
     (D : DecodedLevel Y n) (N : FramedNode S) (A : AssembledParent D N)
     (m : ℕ) (M : FramedNode S) (hm : m < n + 1)
     (hM : M.IsDescendant m N (n + 1)) : M ∈ D.geometry.nodes m := by
-  sorry
+  have hm_le : m ≤ n := by omega
+  obtain ⟨r, hr, w, hw⟩ := hM
+  have hr_pos : 0 < r := by omega
+  obtain ⟨r', rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hr_pos)
+  have hw_eq : n + 1 = m + (r' + 1) := hr
+  let i := w.1
+  have h_child_desc : (N.child n i).IsDescendant n N (n + 1) := Parser.child_descendant N n i
+  have h_child_mem : N.child n i ∈ D.geometry.nodes n := by
+    rw [← A.child_eq i]
+    exact D.geometry.root_mem (A.children i).val (A.children i).property
+  have h_M_desc : M.IsDescendant m (N.child n i) n := by
+    use r'
+    constructor
+    · omega
+    · use w.2
+      have heq : n = m + r' := by omega
+      rw [hw]
+      dsimp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child]
+      have hp : S.placeChild (m + r') i = S.placeChild n i := by
+        congr 1
+        omega
+      rw [hp]
+      rfl
+  exact D.geometry.descendant_mem n m (N.child n i) M h_child_mem h_M_desc
 
 /-- R8, V4 3.8, replacement V4 8.3: a readable facet for one assembled child.
 It belongs to F(A_C), has a positive birth inside C, belongs to both E_C and

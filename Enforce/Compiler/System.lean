@@ -715,7 +715,12 @@ private lemma move_refl_step1_tiling (U : HonestSource S) :
 /-- Step 2 of the V4 proof of `move_refl` (V4 2.14(d)): nodes equality -/
 private lemma move_refl_step2_nodes (U : HonestSource S) (n : ℕ) :
     U.hierarchy.nodes n = (fun N : FramedNode S => N.move (AffineIsometryEquiv.refl ℝ (E d))) '' U.hierarchy.nodes n := by
-  sorry
+  have h_move : ∀ N : FramedNode S, N.move (AffineIsometryEquiv.refl ℝ (E d)) = N := by
+    intro N
+    ext
+    · rfl
+    · simp [FramedNode.move]
+  rw [show (fun N : FramedNode S => N.move (AffineIsometryEquiv.refl ℝ (E d))) = id from funext h_move, Set.image_id]
 
 /-- Step 3 of the V4 proof of `move_refl` (V4 2.14(d)): coset equality -/
 private lemma move_refl_step3_coset (U : HonestSource S) :

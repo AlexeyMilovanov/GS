@@ -4480,7 +4480,30 @@ theorem newState_honest : newState Y hY n hn D hD N A ∈ honestStates S P := by
 
 /-- R9, V4 3.10: the new state has the assembled parent's actual prototype. -/
 theorem newState_type : (newState Y hY n hn D hD N A).ty = N.ty := by
-  sorry
+  let r := Parser.readableFacet Y hY n hn D hD N A (Parser.firstChild N.ty)
+  have hslot : r.parentSlot.val = r.childSlot.val + 1 := by
+    have := r.childSlot_eq
+    have := r.parentSlot_eq
+    have := r.height_eq
+    have := r.depth_lt
+    omega
+  have htype :
+      ((D.blockState (A.children (Parser.firstChild N.ty)).val
+        (A.children (Parser.firstChild N.ty)).property).address ⟨0, P.k_pos⟩).1 =
+      r.parentState.ty := by
+    obtain ⟨U, g, hpacket⟩ := r.honest
+    have hc := r.child_decode
+    have hp := r.parent_decode
+    rw [← hpacket, decode_spec] at hc hp
+    split_ifs at hc with hchild
+    split_ifs at hp with hparent
+    rw [← Option.some.inj hc, ← Option.some.inj hp]
+    change (U.hierarchy.nodeRole (U.hierarchy.ancestor g.birth r.childSlot.val)).1 =
+      (U.hierarchy.ancestor g.birth r.parentSlot.val).2.val.ty
+    unfold CoherentHierarchy.ancestor
+    rw [hslot, Function.iterate_succ_apply']
+    rfl
+  exact htype.symm.trans (congrArg Sigma.fst (A.first_letters (Parser.firstChild N.ty)))
 
 /-- V4 3.10 (routing): every readable child sees the same parent slot value.
 This is exactly the same statement as `readable_parent_state`. -/

@@ -2540,6 +2540,151 @@ def traceTopIndex : ChainIndex d (traceDimension d) :=
     have := (Fact.out : 2 ≤ d)
     omega⟩
 
+/-- Step 1 of the V4 proof of `chain_active_owner_converse` (V4 1.22(a), Remark 2.1):
+"with its recorded chain". Transport the native cofaces and bottom carrier to
+the actual owner, preserving their containment in the placed flag. -/
+private theorem chain_active_owner_converse_step1_transport
+    (N C : FramedNode S) (n r h : ℕ) (hn : n = h + r)
+    (F : FacetFlag S N.ty) (a : TracePiece N.ty F r)
+    (ha : placedTraceOwner N n r F a = C) :
+    (∀ i, (a.chain.cell i).val ∈ (S.cx C.ty).cells ∧
+      C.cell h (a.chain.cell i).val ⊆
+        N.cell n (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val) ∧
+    C.cell h a.bottom.val = placedTraceCarrier N n r F a := by
+  have hr : r ≤ n := by omega
+  have hh : n - r = h := by omega
+  have hcty := congrArg (fun K : FramedNode S => K.ty) ha
+  have hty : a.tile.ty = C.ty :=
+    (chain_active_owner_step3_descendant_frame r N.ty (n - r) a.owner).1.symm.trans
+      hcty
+  have hcell (X : Cell d) :
+      C.cell h X = tracePlacement N n r '' (a.tile.cell 0 X) := by
+    have hc := placedTraceOwner_cells N n r hr F a X
+    rwa [ha, hh] at hc
+  have hroot (X : Cell d) :
+      tracePlacement N n r '' ((S.σ ^ r) '' X.carrier) = N.cell n X := by
+    rw [tracePlacement, Set.image_image]
+    unfold FramedNode.cell FramedNode.prototypeFrame
+    apply Set.image_congr
+    intro x _
+    change N.frame ((S.σ ^ (n - r)) ((S.σ ^ r) x)) = N.frame ((S.σ ^ n) x)
+    rw [← LinearEquiv.mul_apply, ← pow_add, Nat.sub_add_cancel hr]
+  refine ⟨?_, hcell _⟩
+  intro i
+  refine ⟨hty ▸ (a.chain.cell i).property, ?_⟩
+  rw [hcell, ← hroot]
+  exact Set.image_mono (a.chain.contained i)
+
+open private stratumMap_facet_step1_cell_eq_of_subset_dim from Enforce.Source.Trace in
+
+/-- Step 2 of the V4 proof of `chain_active_owner_converse` (V4 Remark 2.1):
+"the 1-cells of G₂ along h". Adjoin a listed edge of the bottom trace cell to
+the recorded cofaces; for d = 2 the contained edge equals the bottom segment. -/
+private theorem chain_active_owner_converse_step2_extend {A : S.ι}
+    (s : ChainIndex d (traceDimension d) → CellName S A)
+    (hdim : ∀ i, (s i).val.dim = i.val.val)
+    (hnested : ∀ i k, i.val.val ≤ k.val.val → (s i).val.carrier ⊆ (s k).val.carrier)
+    (e : CellName S A) (he : e.val.dim = 1)
+    (heB : e.val.carrier ⊆ (s TracePiece.bottomIndex).val.carrier) :
+    ∃ G : FacetFlag S A, (G.cell edgeIndex).val = e.val ∧
+      ∀ (j : FlagIndex d) (hj : traceDimension d ≤ j.val),
+        (G.cell j).val = (s ⟨⟨j.val, j.property.2⟩, hj, j.property.1⟩).val := by
+  classical
+  let G : FacetFlag S A :=
+    { cell := fun j => if hj : traceDimension d ≤ j.val then
+          s ⟨⟨j.val, j.property.2⟩, hj, j.property.1⟩ else e
+      dimension := fun j => by
+        split_ifs with hj
+        · exact hdim _
+        · have htrace : traceDimension d ≤ 2 := min_le_left _ _
+          have hj1 := j.property.1
+          have : j.val = 1 := by omega
+          exact he.trans this.symm
+      nested := by
+        intro i k hik
+        by_cases hi : traceDimension d ≤ i.val
+        · by_cases hk : traceDimension d ≤ k.val
+          · simp only [dif_pos hi, dif_pos hk]
+            exact hnested _ _ hik
+          · omega
+        · by_cases hk : traceDimension d ≤ k.val
+          · simp only [dif_neg hi, dif_pos hk]
+            exact heB.trans (hnested TracePiece.bottomIndex _ hk)
+          · simp only [dif_neg hi, dif_neg hk]
+            exact Set.Subset.rfl }
+  refine ⟨G, ?_, fun j hj => by simp only [G, dif_pos hj]⟩
+  dsimp only [G]
+  split_ifs with h
+  · have hb : traceDimension d = 1 := by
+      have := traceDimension_pos (d := d)
+      change traceDimension d ≤ 1 at h
+      omega
+    have hi : (⟨⟨(edgeIndex (d := d)).val, (edgeIndex (d := d)).property.2⟩, h,
+        (edgeIndex (d := d)).property.1⟩ : ChainIndex d (traceDimension d)) =
+        TracePiece.bottomIndex := by
+      apply Subtype.ext
+      apply Fin.ext
+      exact hb.symm
+    rw [hi]
+    symm
+    apply stratumMap_facet_step1_cell_eq_of_subset_dim (S.cx A) _ _
+      e.property (s TracePiece.bottomIndex).property heB
+    rw [he, hdim]
+    exact hb.symm
+  · rfl
+
+/-- Step 3 of the V4 proof of `chain_active_owner_converse` (V4 Remark 2.1):
+"relint G_j ⊆ relint F_j". Equal-dimensional contained placed cells have the
+same affine span. -/
+private theorem chain_active_owner_converse_step3_span
+    (N M : FramedNode S) (n m : ℕ) (s t : Cell d)
+    (hdim : s.dim = t.dim) (hsub : N.cell n s ⊆ M.cell m t) :
+    affineSpan ℝ (N.cell n s) = affineSpan ℝ (M.cell m t) := by
+  have hfin (K : FramedNode S) (k : ℕ) (x : Cell d) :
+      Module.finrank ℝ (cellDirection (K.cell k x)) = x.dim := by
+    unfold FramedNode.cell cellDirection
+    rw [show (K.prototypeFrame k '' x.carrier) =
+        (K.prototypeFrame k).toAffineMap '' x.carrier from rfl,
+      ← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq (K.prototypeFrame k).linear _).trans x.flat.dimension
+  have hle := affineSpan_mono ℝ hsub
+  have hdir : (affineSpan ℝ (N.cell n s)).direction =
+      (affineSpan ℝ (M.cell m t)).direction := by
+    apply Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle)
+    change Module.finrank ℝ (cellDirection (N.cell n s)) =
+      Module.finrank ℝ (cellDirection (M.cell m t))
+    rw [hfin, hfin, hdim]
+  apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le hdir _ hle
+  obtain ⟨x, hx⟩ := s.flat.relint_nonempty
+  exact ⟨N.prototypeFrame n x, subset_affineSpan ℝ _
+    (Set.mem_image_of_mem _ (intrinsicInterior_subset hx))⟩
+
+open private hereditary_trace_step2_relint_mono from Enforce.Source.Trace in
+
+/-- Step 4 of the V4 proof of `chain_active_owner_converse` (V4 Remark 2.1):
+"τ_f(G_j) = F_j". The unique provider stratum is the equal-dimensional flag
+cell containing the owner's coface. -/
+private theorem chain_active_owner_converse_step4_stratum
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f)
+    (s : CellName S q.2.val.ty)
+    (t : CellName S (U.hierarchy.servingChild q f hf).2.val.ty)
+    (hs : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val)
+    (hdim : s.val.dim = t.val.dim)
+    (hsub : q.2.val.cell q.1 s.val ⊆
+      (U.hierarchy.servingChild q f hf).2.val.cell
+        (U.hierarchy.servingChild q f hf).1 t.val) :
+    (U.hierarchy.stratumMap q f hf s hs).val = t.val ∧
+      affineSpan ℝ (q.2.val.cell q.1 s.val) =
+        affineSpan ℝ ((U.hierarchy.servingChild q f hf).2.val.cell
+          (U.hierarchy.servingChild q f hf).1 t.val) := by
+  have hspan := chain_active_owner_converse_step3_span _ _ _ _ _ _ hdim hsub
+  refine ⟨?_, hspan⟩
+  apply congrArg Subtype.val
+  symm
+  apply (Classical.choose_spec (U.hierarchy.stratum_exists_unique q f hf s hs)).2
+  exact hereditary_trace_step2_relint_mono _ _ hsub hspan
+
 /-- Q4, V4 Remark 2.1 (converse): the selected owner with its recorded coface
 chain ending at f has all of its trace-boundary edges chain-active at that f.
 The top-cell equality is needed when one tile has several facets in the provider. -/
@@ -2563,7 +2708,77 @@ theorem chain_active_owner_converse (U : HonestSource S) (P : Params S) (q : U.N
     (heh : q.2.val.cell q.1 e.val ⊆ U.providerPlacement P q f hf ''
       ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier) :
     (U.recordOf P q f hf).ChainActive e := by
-  sorry
+  classical
+  have hn : (U.hierarchy.servingChild q f hf).1 =
+      q.1 + (U.hierarchy.firstProvider q f hf).1 := U.hierarchy.ancestor_height q _
+  obtain ⟨hc, hbottom⟩ := chain_active_owner_converse_step1_transport
+    (U.hierarchy.servingChild q f hf).2.val q.2.val
+    (U.hierarchy.servingChild q f hf).1 (U.hierarchy.firstProvider q f hf).1 q.1
+    hn F a ha
+  let s : ChainIndex d (traceDimension d) → CellName S q.2.val.ty :=
+    fun i => ⟨(a.chain.cell i).val, (hc i).1⟩
+  have heB' : e.val.carrier ⊆ (s TracePiece.bottomIndex).val.carrier := by
+    apply (Set.image_subset_image_iff (q.2.val.prototypeFrame q.1).injective).mp
+    change q.2.val.cell q.1 e.val ⊆ q.2.val.cell q.1 a.bottom.val
+    rwa [hbottom]
+  obtain ⟨G, hGe, hGs⟩ := chain_active_owner_converse_step2_extend s
+    (fun i => a.chain.dimension i) (fun i k hik => a.chain.nested i k hik) e he heB'
+  have htopdim : traceDimension d ≤ facetIndex.val := min_le_right _ _
+  have htop : (G.cell facetIndex).val = f.val :=
+    (hGs facetIndex htopdim).trans ha_top
+  have hsub (j : FlagIndex d) : q.2.val.cell q.1 (G.cell j).val ⊆
+      (U.hierarchy.servingChild q f hf).2.val.cell
+        (U.hierarchy.servingChild q f hf).1 (F.cell j).val := by
+    by_cases hj : traceDimension d ≤ j.val
+    · rw [hGs j hj]
+      exact (hc _).2
+    · have hj1 : j = edgeIndex := by
+        apply Subtype.ext
+        have htrace : traceDimension d ≤ 2 := min_le_left _ _
+        have := j.property.1
+        change j.val = 1
+        omega
+      subst j
+      rw [hGe, hF]
+      exact heh
+  have hgeom : ∀ j, ∃ hs : q.2.val.cell q.1 (G.cell j).val ⊆
+      q.2.val.cell q.1 f.val,
+      (U.hierarchy.servingChild q f hf).2.val.cell
+          (U.hierarchy.servingChild q f hf).1
+          (U.hierarchy.stratumMap q f hf (G.cell j) hs).val =
+        U.providerPlacement P q f hf ''
+          ((P.flag (U.recordIncidence P q f hf)).flag.cell j).val.carrier ∧
+      affineSpan ℝ (q.2.val.cell q.1 (G.cell j).val) =
+        affineSpan ℝ (U.providerPlacement P q f hf ''
+          ((P.flag (U.recordIncidence P q f hf)).flag.cell j).val.carrier) := by
+    intro j
+    have hs : q.2.val.cell q.1 (G.cell j).val ⊆ q.2.val.cell q.1 f.val := by
+      rw [← htop]
+      exact Set.image_mono (G.nested j facetIndex (by
+        have := j.property.2
+        change j.val ≤ d - 1
+        omega))
+    obtain ⟨hτ, hspan⟩ := chain_active_owner_converse_step4_stratum U q f hf
+      (G.cell j) (F.cell j) hs ((G.dimension j).trans (F.dimension j).symm) (hsub j)
+    refine ⟨hs, ?_, ?_⟩
+    · rw [hτ]
+      exact hF j
+    · rwa [hF j] at hspan
+  let T : FlagChain f := ⟨G, htop⟩
+  have horient : ∃ c : OrientedChain f, c.chain = T ∧ U.ActiveChain P q f hf c := by
+    by_cases h : U.ActiveChain P q f hf ⟨T, true⟩
+    · exact ⟨⟨T, true⟩, rfl, h⟩
+    · refine ⟨⟨T, false⟩, rfl, hgeom, ?_⟩
+      simp only [Bool.false_eq_true, false_iff]
+      intro hh
+      exact h ⟨hgeom, by simpa using hh⟩
+  obtain ⟨c, hcT, hact⟩ := horient
+  refine ⟨c, ?_, ?_⟩
+  · change c ∈ U.recordChains P q f hf
+    simp only [HonestSource.recordChains, Finset.mem_filter]
+    exact ⟨by simp [allOrientedChains], hact⟩
+  · rw [hcT]
+    exact hGe
 
 /-- Step 7 of the V4 proof of `exists_childMap` (V4 2.3): (S1)--(S6): "We describe S(C) from S(B) and i." Equality of all data fields gives equality of states; decidability witnesses are subsingletons. -/
 private theorem exists_childMap_step7_state_ext {P : Params S} {s t : State P}

@@ -1564,6 +1564,80 @@ private lemma internal_facet_pairing_step1_relint_subset
     exact Set.disjoint_left.mp disjoint_interior_frontier hp2 h_front
   · exact hint2
 
+/-- Step 1 of the V4 proof of `internal_facet_pairing_step2a_existence` (V4 1.0 (H3), used
+in 1.4(c)): "Points of `U` ... lie in `int σA`, hence in children" — the children of a placed
+node cover its carrier. -/
+private lemma internal_facet_pairing_step2a_existence_step1_cover (P : FramedNode S) (n : ℕ) :
+    P.carrier (n + 1) ⊆ ⋃ j : S.I P.ty, (P.child n j).carrier n := by
+  rintro _ ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+  have hmem : S.σ y ∈ ⋃ i : S.I P.ty,
+      placedSet (S.child P.ty i).frame (S.proto (S.child P.ty i).ty).carrier := by
+    rw [← S.children_cover]
+    exact ⟨y, hy, rfl⟩
+  obtain ⟨j, hj⟩ := mem_iUnion.mp hmem
+  refine mem_iUnion.mpr ⟨j, ?_⟩
+  rw [sibling_facet_eq_step5_child_carrier]
+  refine ⟨S.σ y, hj, ?_⟩
+  change P.frame ((S.σ ^ n) (S.σ y)) = P.frame ((S.σ ^ (n + 1)) y)
+  rw [pow_succ]
+  rfl
+
+/-- Step 2 of the V4 proof of `internal_facet_pairing_step2a_existence` (V4 1.4(c)): "Let
+`p ∈ relint F` and `U` a ball as in 1.0(a) for `B`. Points of `U` on the side of `aff F`
+opposite to `B` lie in `int σA` (shrinking `U`), hence in children other than `B`; as these
+are finitely many and closed, every `p ∈ relint F` lies in some child `C ≠ B`." -/
+private lemma internal_facet_pairing_step2a_existence_step2_other_child
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (f : FacetName S (P.child n i).ty) (q : E d)
+    (hq : q ∈ relint ((P.child n i).cell n f.val))
+    (hqint : q ∈ interior (P.carrier (n + 1))) :
+    ∃ j : S.I P.ty, j ≠ i ∧ q ∈ (P.child n j).carrier n := by
+  classical
+  by_contra hno
+  push_neg at hno
+  let Z : Set (E d) := ⋃ j ∈ Finset.univ.filter (fun j : S.I P.ty => j ≠ i),
+    (P.child n j).carrier n
+  have hZ : IsClosed Z :=
+    isClosed_biUnion_finset fun j _ => (sibling_intersection_cells_step1_reg (P.child n j) n).1
+  have hqZ : q ∉ Z := by
+    intro h
+    obtain ⟨j, hj, hqj⟩ := mem_iUnion₂.mp h
+    exact hno j (Finset.mem_filter.mp hj).2 hqj
+  obtain ⟨ε₁, hε₁, hb₁⟩ := Metric.isOpen_iff.mp hZ.isOpen_compl q hqZ
+  obtain ⟨ε₂, hε₂, hb₂⟩ := Metric.isOpen_iff.mp isOpen_interior q hqint
+  obtain ⟨r, hr, v, hv, hB, -⟩ := sibling_facet_eq_step3_halfball (P.child n i) n f q hq
+  set t := min (min ε₁ ε₂) r / 2 with ht
+  have htpos : 0 < t := by
+    have := lt_min (lt_min hε₁ hε₂) hr
+    positivity
+  have htle : t < min (min ε₁ ε₂) r := half_lt_self (lt_min (lt_min hε₁ hε₂) hr)
+  set x := q - t • v with hx
+  have hdist : dist x q = t := by
+    rw [hx, dist_eq_norm, sub_sub_cancel_left, norm_neg, norm_smul, hv, mul_one,
+      Real.norm_of_nonneg htpos.le]
+  have hx₁ : x ∈ ball q ε₁ := by
+    rw [mem_ball, hdist]
+    exact lt_of_lt_of_le htle ((min_le_left _ _).trans (min_le_left _ _))
+  have hx₂ : x ∈ ball q ε₂ := by
+    rw [mem_ball, hdist]
+    exact lt_of_lt_of_le htle ((min_le_left _ _).trans (min_le_right _ _))
+  have hxr : x ∈ ball q r := by
+    rw [mem_ball, hdist]
+    exact lt_of_lt_of_le htle (min_le_right _ _)
+  have hxP : x ∈ P.carrier (n + 1) := interior_subset (hb₂ hx₂)
+  obtain ⟨j, hxj⟩ := mem_iUnion.mp (internal_facet_pairing_step2a_existence_step1_cover P n hxP)
+  by_cases hji : j = i
+  · subst hji
+    have h : x ∈ (P.child n j).carrier n ∩ ball q r := ⟨hxj, hxr⟩
+    rw [hB] at h
+    have h1 : 0 ≤ inner ℝ v (x - q) := h.1
+    have h2 : inner ℝ v (x - q) = -t := by
+      rw [hx, show q - t • v - q = -(t • v) by abel, inner_neg_right, inner_smul_right,
+        real_inner_self_eq_norm_sq, hv]
+      ring
+    linarith
+  · exact hb₁ hx₁ (mem_iUnion₂.mpr ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hji⟩, hxj⟩)
+
 /-- Step 2a of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): coverage provides a child having the internal facet as a facet. -/
 private lemma internal_facet_pairing_step2a_existence
     (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
@@ -1571,7 +1645,37 @@ private lemma internal_facet_pairing_step2a_existence
     (hint : relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1))) :
     ∃ j : S.I P.ty, j ≠ i ∧
       ∃ g : FacetName S (P.child n j).ty,
-        (P.child n j).cell n g.val = (P.child n i).cell n f.val := by sorry
+        (P.child n j).cell n g.val = (P.child n i).cell n f.val := by
+  have heqf : relint ((P.child n i).cell n f.val) =
+      (P.child n i).prototypeFrame n '' relint f.val.carrier :=
+    hereditary_trace_step1_relint_image _ _
+  obtain ⟨q, hq⟩ : (relint ((P.child n i).cell n f.val)).Nonempty := by
+    rw [heqf]; exact f.val.flat.relint_nonempty.image _
+  obtain ⟨hfc, hfd⟩ := sibling_facet_eq_step0_facet f
+  obtain ⟨j, hji, hqj⟩ :=
+    internal_facet_pairing_step2a_existence_step2_other_child P n i f q hq (hint hq)
+  have hqi : q ∈ (P.child n i).carrier n :=
+    hereditary_trace_step1_cell_subset (P.child n i) n f.val hfc (intrinsicInterior_subset hq)
+  obtain ⟨-, hri⟩ := sibling_intersection_cells_step1_reg (P.child n i) n
+  obtain ⟨hcj, -⟩ := sibling_intersection_cells_step1_reg (P.child n j) n
+  have hfront_j : q ∈ frontier ((P.child n j).carrier n) := by
+    rw [hcj.frontier_eq]
+    refine ⟨hqj, fun hxint => ?_⟩
+    have hd := (sibling_intersection_cells_step1_disjoint P n i j
+      (Ne.symm hji)).symm.closure_right isOpen_interior
+    rw [hri] at hd
+    exact Set.disjoint_left.mp hd hxint hqi
+  obtain ⟨e, he, hqe⟩ := hereditary_trace_step1_frontier_relint (P.child n j) n q hfront_j
+  have heq : (P.child n i).cell n f.val = (P.child n j).cell n e :=
+    sibling_minimalCell_eq P n i j (Ne.symm hji) q ⟨f.val, hfc⟩ ⟨e, he⟩ hq hqe
+  have hdims : f.val.dim = e.dim := by
+    rw [← f.val.flat.dimension, ← e.flat.dimension,
+      ← sibling_facet_eq_step0_finrank_image ((P.child n i).prototypeFrame n) f.val.carrier,
+      ← sibling_facet_eq_step0_finrank_image ((P.child n j).prototypeFrame n) e.carrier]
+    change Module.finrank ℝ (cellDirection ((P.child n i).cell n f.val)) =
+      Module.finrank ℝ (cellDirection ((P.child n j).cell n e))
+    rw [heq]
+  refine ⟨j, hji, ⟨e, Finset.mem_filter.mpr ⟨he, by rw [← hdims, hfd]⟩⟩, heq.symm⟩
 
 /-- Step 2b of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): children not having it as a facet meet it in lower cells, of measure zero. -/
 private lemma internal_facet_pairing_step2b_nullity

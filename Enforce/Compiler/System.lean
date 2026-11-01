@@ -913,8 +913,29 @@ private lemma move_trans_step1_tiling (U : HonestSource S) (g h : Iso d) :
 /-- Step 2 of the V4 proof of `move_trans` (V4 2.14(d)): transported framed nodes. -/
 private lemma move_trans_step2_nodes (U : HonestSource S) (g h : Iso d) :
     ∀ n, ((U.move g).move h).hierarchy.nodes n =
-      (fun N : FramedNode S => N.move (g.trans h)) '' U.hierarchy.nodes n :=
-  sorry
+      (fun N : FramedNode S => N.move (g.trans h)) '' U.hierarchy.nodes n := by
+  intro n
+  have key (N : FramedNode S) :
+      (N.move g).move h = N.move (g.trans h) := by
+    apply FramedNode.ext
+    · rfl
+    · change (N.frame.trans g).trans h = N.frame.trans (g.trans h)
+      exact (AffineIsometryEquiv.trans_assoc N.frame g h).symm
+  calc
+    ((U.move g).move h).hierarchy.nodes n =
+        (fun N : FramedNode S => N.move h) ''
+          (U.move g).hierarchy.nodes n :=
+      ((U.move g).move_spec h).nodes n
+    _ = (fun N : FramedNode S => N.move h) ''
+        ((fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n) :=
+      congrArg (fun A : Set (FramedNode S) =>
+        (fun N : FramedNode S => N.move h) '' A)
+        ((U.move_spec g).nodes n)
+    _ = (fun N : FramedNode S => (N.move g).move h) ''
+        U.hierarchy.nodes n := Set.image_image _ _ _
+    _ = (fun N : FramedNode S => N.move (g.trans h)) ''
+        U.hierarchy.nodes n :=
+      congrArg (fun f : FramedNode S → FramedNode S => f '' U.hierarchy.nodes n) (funext key)
 
 /-- Step 3 of the V4 proof of `move_trans` (V4 2.14(d)): correctly rotated common frame coset. -/
 private lemma move_trans_step3_coset (U : HonestSource S) (g h : Iso d) :

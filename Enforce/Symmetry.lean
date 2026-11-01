@@ -45,12 +45,52 @@ theorem component_eq_iff (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
         (parsedHierarchy Y hY).ancestor r n := by
   sorry
 
+open private compiler_certificates_open_meets_interior from Enforce.Compiler.System
+
 /-- Step 1 of the V4 proof of `components_disjoint` (V4 5.7):
 "a point of the open set ... chosen outside the nowhere dense union of all tile boundaries lies in the interior of a tile" -/
 private lemma components_disjoint_step1_tile_interior (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (U : Set (E d)) (hU_open : IsOpen U) (hU_nonempty : U.Nonempty) :
     ∃ (t : PlacedMarkedTile (systemM S P C)) (_ : t ∈ Y.tiles), (U ∩ interior t.carrier).Nonempty := by
-  sorry
+  have _ := hY
+  have H := compiler_tiles_locallyFinite C Y
+  obtain ⟨x, hx⟩ := hU_nonempty
+  let B := Metric.ball x 1
+  have hB_open : IsOpen B := Metric.isOpen_ball
+  let U' := U ∩ B
+  have hU'_open : IsOpen U' := hU_open.inter hB_open
+  have hU'_nonempty : U'.Nonempty := ⟨x, hx, Metric.mem_ball_self zero_lt_one⟩
+  
+  have h_bound : Bornology.IsBounded B := Metric.isBounded_ball
+  have H_fin := H.2 B h_bound
+  
+  let F_tiles := {t : PlacedMarkedTile (systemM S P C) | t ∈ Y.tiles ∧ (B ∩ t.carrier).Nonempty}
+  have hF_finite : F_tiles.Finite := H_fin
+  
+  haveI : Finite F_tiles := hF_finite.to_subtype
+
+  have hc := Y.cover
+  have h_sub : U' ⊆ ⋃ (t : F_tiles), t.val.carrier := by
+    intro y hy
+    have h_cov := hc y
+    obtain ⟨t, ht, hy_in_t⟩ := h_cov
+    have ht_in_F : t ∈ F_tiles := by
+      exact ⟨ht, ⟨y, hy.2, hy_in_t⟩⟩
+    exact Set.mem_iUnion.mpr ⟨⟨t, ht_in_F⟩, hy_in_t⟩
+  
+  have h_closed : ∀ (t : F_tiles), IsClosed t.val.carrier := by
+    intro t
+    have h_real := t.val.realization
+    obtain ⟨P, _, φ, h_carrier, _⟩ := h_real
+    rw [h_carrier]
+    have h_P_compact := P.compact
+    exact (h_P_compact.image φ.continuous).isClosed
+    
+  have H_open_meets := compiler_certificates_open_meets_interior (fun t : F_tiles => t.val.carrier) h_closed U' hU'_open hU'_nonempty h_sub
+  obtain ⟨t, ht⟩ := H_open_meets
+  refine ⟨t.val, t.property.1, ?_⟩
+  obtain ⟨y, hy⟩ := ht
+  exact ⟨y, hy.1.1, hy.2⟩
 
 /-- Step 1 of the V4 proof of `components_disjoint` (V4 5.7):
 "at the common height max(n,n') the two ancestors share a tile, hence coincide, so t,t' have a common ancestor." -/

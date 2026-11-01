@@ -997,6 +997,42 @@ theorem certificate_components_honest (P : Params S) (D : Certificate P)
   · intro a ha w
     exact ⟨U, U.descendant ⟨P.K, B, hB⟩ a ha w, rfl⟩
 
+private lemma frameMarker_rigid_step1_center_aux (φ : Iso d) (c : E d) (r : ℝ) (hr : 0 < r)
+    (hφ : φ '' Metric.closedBall c r = Metric.closedBall c r) : φ c = c := by
+  sorry
+
+private lemma frameMarker_rigid_step1_center (P : Params S) (A : S.ι) (φ : Iso d)
+    (hφ : ∀ a : Fin (d + 1),
+      φ '' Metric.closedBall ((P.marker A).centre a) (P.marker A).radius =
+        Metric.closedBall ((P.marker A).centre a) (P.marker A).radius) :
+    ∀ a : Fin (d + 1), φ ((P.marker A).centre a) = (P.marker A).centre a := by
+  intro a
+  let c := ((P.marker A).centre a)
+  let r := (P.marker A).radius
+  have hr : 0 < r := (P.marker A).radius_pos
+  have eq1 : φ '' Metric.closedBall c r = Metric.closedBall c r := hφ a
+  exact frameMarker_rigid_step1_center_aux φ c r hr eq1
+
+private lemma frameMarker_rigid_step2_span (P : Params S) (A : S.ι) :
+    affineSpan ℝ (Set.range (P.marker A).centre) = ⊤ := by
+  have hindep := (P.marker A).independent
+  have H : affineSpan ℝ (Set.range (P.marker A).centre) = ⊤ ↔ Fintype.card (Fin (d + 1)) = Module.finrank ℝ (E d) + 1 := by
+    exact AffineIndependent.affineSpan_eq_top_iff_card_eq_finrank_add_one hindep
+  have H2 : Fintype.card (Fin (d + 1)) = d + 1 := Fintype.card_fin (d + 1)
+  have H3 : Module.finrank ℝ (E d) = d := finrank_euclideanSpace_fin
+  rw [H2, H3] at H
+  exact H.mpr rfl
+
+omit [Fact (2 ≤ d)] in
+private lemma frameMarker_rigid_step3_ext (φ : Iso d) (c : Fin (d+1) → E d)
+    (hspan : affineSpan ℝ (Set.range c) = ⊤) (hfix : ∀ a, φ (c a) = c a) :
+    φ = AffineIsometryEquiv.refl ℝ (E d) := by
+  have h : φ.toAffineEquiv = (AffineIsometryEquiv.refl ℝ (E d)).toAffineEquiv :=
+    AffineEquiv.ext_on hspan _ _ (by
+      rintro _ ⟨a, rfl⟩
+      simpa using hfix a)
+  exact AffineIsometryEquiv.toAffineEquiv_injective h
+
 /-- Q10, V4 §2.4 (frame marker): preserving every labelled marker ball fixes the
 entire Euclidean frame, including its orientation. Reflections are allowed in the
 isometry group; affine independence rules out every nonidentity stabilizer. -/
@@ -1005,7 +1041,9 @@ theorem frameMarker_rigid (P : Params S) (A : S.ι) (φ : Iso d)
       φ '' closedBall ((P.marker A).centre a) (P.marker A).radius =
         closedBall ((P.marker A).centre a) (P.marker A).radius) :
     φ = AffineIsometryEquiv.refl ℝ (E d) := by
-  sorry
+  have h1 := frameMarker_rigid_step1_center P A φ (fun a => hφ a)
+  have h2 := frameMarker_rigid_step2_span P A
+  exact frameMarker_rigid_step3_ext φ (P.marker A).centre h2 h1
 
 /-- Q11, V4 2.7: an actual source supplies certificates at the fixed certificate
 height. No global nonemptiness of the species is imposed. -/

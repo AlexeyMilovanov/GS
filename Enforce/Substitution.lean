@@ -780,11 +780,90 @@ theorem one_child_runs (s : ℕ) (A : Fin (s + 1) → S.ι)
     s ≤ Fintype.card S.ι - 1 := by
   sorry
 
+private theorem I_nonempty (A : S.ι) : Nonempty (S.I A) := by
+  obtain ⟨x, hx⟩ := (S.proto A).interior_nonempty
+  have h : S.σ x ∈ S.σ '' (S.proto A).carrier := ⟨x, interior_subset hx, rfl⟩
+  rw [S.children_cover A] at h
+  obtain ⟨i, -⟩ := Set.mem_iUnion.mp h
+  exact ⟨i⟩
+
+private theorem nativeTile_ty_zero (A : S.ι) (w : S.RoleWord A 0) :
+    (S.nativeTile A 0 w).ty = A := rfl
+
+private theorem nativeTile_ty_succ (A : S.ι) (n : ℕ) (i : S.I A) (w : S.RoleWord (S.child A i).ty n) :
+    (S.nativeTile A (n+1) ⟨i, w⟩).ty = (S.nativeTile (S.child A i).ty n w).ty := rfl
+
+private theorem exists_one_child_chain (s : ℕ) : ∀ (A : S.ι),
+    (∀ m < s, ∀ w : S.RoleWord A m, Fintype.card (S.I (S.nativeTile A m w).ty) = 1) →
+    ∃ (T : ℕ → S.ι) (i : ∀ j, S.I (T j)),
+      T 0 = A ∧ (∀ j < s, Fintype.card (S.I (T j)) = 1) ∧
+      (∀ j < s, (S.child (T j) (i j)).ty = T (j+1)) := by
+  induction s with
+  | zero =>
+    intro A _
+    use (fun _ => A), (fun _ => Classical.choice (I_nonempty S A))
+    refine ⟨rfl, fun j hj => by omega, fun j hj => by omega⟩
+  | succ s ih =>
+    intro A h
+    have hcard : Fintype.card (S.I A) = 1 := by
+      have H := h 0 (by omega) ()
+      exact H
+    obtain ⟨i0, hi0⟩ := Fintype.card_eq_one_iff.mp hcard
+    let A' := (S.child A i0).ty
+    have h' : ∀ m < s, ∀ w : S.RoleWord A' m, Fintype.card (S.I (S.nativeTile A' m w).ty) = 1 := by
+      intro m hm w
+      have H := h (m+1) (by omega) ⟨i0, w⟩
+      exact H
+    obtain ⟨T', i', hT'0, hT'card, hT'child⟩ := ih A' h'
+    let T : ℕ → S.ι := fun j => match j with
+      | 0 => A
+      | j+1 => T' j
+    let i : ∀ j, S.I (T j) := fun j => match j with
+      | 0 => i0
+      | j+1 => i' j
+    use T, i
+    refine ⟨rfl, ?_, ?_⟩
+    · intro j hj
+      cases j
+      · exact hcard
+      · exact hT'card _ (by omega)
+    · intro j hj
+      cases j
+      · change (S.child A i0).ty = T' 0
+        rw [hT'0]
+      · change (S.child (T' _) (i' _)).ty = T' _
+        exact hT'child _ (by omega)
+
+private theorem exists_one_child_chain_Fin (s : ℕ) (A : S.ι)
+    (h : ∀ m < s, ∀ w : S.RoleWord A m, Fintype.card (S.I (S.nativeTile A m w).ty) = 1) :
+    ∃ (T : Fin (s+1) → S.ι) (i : ∀ j : Fin s, S.I (T j.castSucc)),
+      T 0 = A ∧ (∀ j : Fin s, Fintype.card (S.I (T j.castSucc)) = 1) ∧
+      (∀ j : Fin s, (S.child (T j.castSucc) (i j)).ty = T j.succ) := by
+  obtain ⟨T', i', hT'0, hT'card, hT'child⟩ := exists_one_child_chain S s A h
+  let T : Fin (s+1) → S.ι := fun j => T' j.val
+  let i : ∀ j : Fin s, S.I (T j.castSucc) := fun j => i' j.val
+  use T, i
+  refine ⟨?_, ?_, ?_⟩
+  · exact hT'0
+  · intro j
+    exact hT'card j.val j.isLt
+  · intro j
+    exact hT'child j.val j.isLt
+
 /-- C3, V4 1.28: every type reaches a branching type within `|ι|-1` roles. -/
 theorem reaches_branching (A : S.ι) :
     ∃ n ≤ Fintype.card S.ι - 1, ∃ w : S.RoleWord A n,
       2 ≤ Fintype.card (S.I (S.nativeTile A n w).ty) := by
-  sorry
+  by_contra hcon
+  push_neg at hcon
+  have hpos : 0 < Fintype.card S.ι := Fintype.card_pos_iff.mpr ⟨A⟩
+  obtain ⟨T, i, hT0, hu, hc⟩ := exists_one_child_chain_Fin S (Fintype.card S.ι) A (fun m hm w => by
+    have h1 := hcon m (by omega) w
+    have h2 := Fintype.card_pos_iff.mpr (I_nonempty S (S.nativeTile A m w).ty)
+    omega)
+  have hc2 : ∀ j : Fin (Fintype.card S.ι), (S.child (T j.castSucc) (i j)).ty = T j.succ := hc
+  have := S.one_child_runs (Fintype.card S.ι) T i hu hc
+  omega
 
 end SubstSystem
 

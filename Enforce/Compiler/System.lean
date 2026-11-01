@@ -415,7 +415,32 @@ theorem PlacedMarkedTile.move_realization (t : PlacedMarkedTile M) (g : Iso d) :
       (t.toMarkedSet.move g).carrier = placedSet φ Q.carrier ∧
         ∀ (x : Q.carrier) (hx : φ x ∈ (t.toMarkedSet.move g).carrier),
           (t.toMarkedSet.move g).mark ⟨φ x, hx⟩ = Q.mark x := by
-  sorry
+  obtain ⟨P, hP, φ, hc, hm⟩ := t.realization
+  use P, hP, g * φ
+  constructor
+  · dsimp [MarkedSet.move, placedSet]
+    rw [hc]
+    exact Set.image_image g φ P.carrier
+  · intro x hx
+    dsimp [MarkedSet.move]
+    have ht_mem : φ x ∈ t.toMarkedSet.carrier := by
+      have h1 : g.symm ((g * φ) x) = φ x := g.symm_apply_apply (φ x)
+      have h2 : (g * φ) x ∈ (t.toMarkedSet.move g).carrier := hx
+      dsimp [MarkedSet.move] at h2
+      obtain ⟨y, hy, h_eq⟩ := h2
+      have h_eq2 : (g * φ) x = g y := h_eq.symm
+      have h_symm : g.symm ((g * φ) x) = y := by rw [h_eq2, g.symm_apply_apply]
+      rw [h1] at h_symm
+      rw [h_symm]
+      exact hy
+    have hm_x := hm x ht_mem
+    have heq2 : (⟨g.symm (g (φ x)), (by
+      obtain ⟨y, hy, he⟩ := hx
+      have h_subst : g y = g (φ x) := he
+      rw [← h_subst, g.symm_apply_apply]
+      exact hy)⟩ : t.toMarkedSet.carrier) = ⟨φ x, ht_mem⟩ := Subtype.ext (g.symm_apply_apply (φ x))
+    rw [heq2]
+    exact hm_x
 
 /-- M6, V4 2.14(d): actual isometric motion of a marked carrier. -/
 def PlacedMarkedTile.move (t : PlacedMarkedTile M) (g : Iso d) : PlacedMarkedTile M where

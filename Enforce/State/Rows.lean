@@ -2140,7 +2140,16 @@ def ownedStarSet (U : HonestSource S) (B : U.Node) (x : E d) : Set U.Node :=
 /-- Q13, V4 §2.5, 1.18: a complete owned star is finite at every occurrence. -/
 theorem ownedStarSet_finite (U : HonestSource S) (B : U.Node) (x : E d) :
     (ownedStarSet U B x).Finite := by
-  sorry
+  have h_loc := (U.hierarchy.nodes_locallyFinite 0).2 {x} Bornology.isBounded_singleton
+  have h_sub : ownedStarSet U B x ⊆
+    (fun N : {N // N ∈ U.hierarchy.nodes 0} => (⟨0, N⟩ : U.Node)) ''
+      {N : {N // N ∈ U.hierarchy.nodes 0} | ({x} ∩ N.val.carrier 0).Nonempty} := by
+    rintro ⟨n, N, hN⟩ ⟨hn, hanc, hx⟩
+    subst hn
+    dsimp at hanc hx
+    refine ⟨⟨N, hN⟩, ?_, rfl⟩
+    exact ⟨x, rfl, hx⟩
+  exact (h_loc.image _).subset h_sub
 
 /-- Q13, V4 §2.5: the actual complete finite B-owned star. -/
 def ownedStar (U : HonestSource S) (B : U.Node) (x : E d) : Finset U.Node :=

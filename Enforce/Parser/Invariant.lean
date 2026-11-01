@@ -857,7 +857,14 @@ variable {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n)
 /-- R3, V4 §3.2: the proposed parent has B as its prescribed child, with equal frame. -/
 theorem proposedParent_child (h : Inv D) (B : Block Y n) (hB : B ∈ D.geometry.blocks) :
     (proposedParent D B hB).child n (firstRole D B hB).2 = B.node := by
-  sorry
+  ext
+  · dsimp [proposedParent, FramedNode.child]
+    have H := h.node_type_residue n B.node (D.geometry.root_mem B hB)
+    have H2 := (D.blockState B hB).address_start
+    dsimp [firstRole, DecodedLevel.blockState] at *
+    rw [H2, H.1]
+  · change (((S.placeChild n (firstRole D B hB).2).trans ((S.placeChild n (firstRole D B hB).2).symm.trans B.node.frame)) _ : E d).ofLp _ = _
+    rw [AffineIsometryEquiv.trans_assoc, AffineIsometryEquiv.self_trans_symm, AffineIsometryEquiv.refl_trans]
 
 /-- R3, V4 §3.2, 2.4(a): age-one incidence, serving role, and geometry agree
 with the first address and the named block facet. -/

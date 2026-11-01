@@ -2139,7 +2139,49 @@ theorem stratumMap_mono (q : H.Node) (f : FacetName S q.2.val.ty)
 private lemma stratumMap_facet_step1_cell_eq_of_subset_dim {A : PolyManifoldDomain d}
     (K : CellComplex A) (e f : Cell d) (he : e ∈ K.cells) (hf : f ∈ K.cells)
     (hsub : e.carrier ⊆ f.carrier) (hdim : e.dim = f.dim) : e = f := by
-  sorry
+  have hd_e : e.dim = Module.finrank ℝ (cellDirection e.carrier) := e.flat.dimension.symm
+  have hd_f : f.dim = Module.finrank ℝ (cellDirection f.carrier) := f.flat.dimension.symm
+  have hsub_span : affineSpan ℝ e.carrier ≤ affineSpan ℝ f.carrier := affineSpan_mono ℝ hsub
+  have hsub_dir : cellDirection e.carrier ≤ cellDirection f.carrier := AffineSubspace.direction_le hsub_span
+  have heq_dir : cellDirection e.carrier = cellDirection f.carrier := by
+    apply Submodule.eq_of_le_of_finrank_eq hsub_dir
+    rw [← hd_e, ← hd_f, hdim]
+  have he_nonempty : (affineSpan ℝ e.carrier : Set (E d)).Nonempty := by
+    have : (relint e.carrier).Nonempty := e.flat.relint_nonempty
+    obtain ⟨x, hx⟩ := this
+    exact ⟨x, subset_affineSpan ℝ e.carrier (intrinsicInterior_subset hx)⟩
+  have heq_span : affineSpan ℝ e.carrier = affineSpan ℝ f.carrier := by
+    apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le heq_dir he_nonempty hsub_span
+  
+  have heq_span_set : (affineSpan ℝ e.carrier : Set (E d)) = (affineSpan ℝ f.carrier : Set (E d)) := by
+    rw [heq_span]
+    
+  have h_int_sub : relint e.carrier ⊆ relint f.carrier := by
+    intro x hx
+    rw [relint, intrinsicInterior] at hx ⊢
+    obtain ⟨y, hy, rfl⟩ := hx
+    let eqv : (affineSpan ℝ e.carrier : Set (E d)) ≃ₜ (affineSpan ℝ f.carrier : Set (E d)) := Homeomorph.setCongr heq_span_set
+    use eqv y
+    constructor
+    · have hy2 : eqv y ∈ eqv '' interior ((↑) ⁻¹' e.carrier : Set (affineSpan ℝ e.carrier)) := by
+        exact Set.mem_image_of_mem eqv hy
+      rw [eqv.image_interior] at hy2
+      have hsub2 : eqv '' ((↑) ⁻¹' e.carrier : Set (affineSpan ℝ e.carrier)) ⊆ ((↑) ⁻¹' f.carrier : Set (affineSpan ℝ f.carrier)) := by
+        intro z hz
+        obtain ⟨z', hz', rfl⟩ := hz
+        exact hsub hz'
+      exact interior_mono hsub2 hy2
+    · exact rfl
+
+  by_contra hneq
+  have hdisj : Disjoint (relint e.carrier) (relint f.carrier) := K.relint_disjoint e he f hf hneq
+  have he_relint_nonempty : (relint e.carrier).Nonempty := e.flat.relint_nonempty
+  have hinter_nonempty : (relint e.carrier ∩ relint f.carrier).Nonempty := by
+    obtain ⟨x, hx⟩ := he_relint_nonempty
+    exact ⟨x, ⟨hx, h_int_sub hx⟩⟩
+  have hd_inter : relint e.carrier ∩ relint f.carrier = ∅ := hdisj.eq_bot
+  rw [hd_inter] at hinter_nonempty
+  exact Set.not_nonempty_empty hinter_nonempty
 
 private lemma stratumMap_facet_step0_facet {A : S.ι} (e : FacetName S A) :
     e.val ∈ (S.cx A).cells ∧ e.val.dim = d - 1 := by

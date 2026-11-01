@@ -23,7 +23,79 @@ abbrev EdgeName (S : SubstSystem d) := Σ A : S.ι, {e // e ∈ (S.cx A).edges}
 Connectedness and regular closedness in its one-dimensional affine span give this. -/
 theorem edge_endpoints_exist (e : EdgeName S) :
     ∃ ab : E d × E d, ab.1 ≠ ab.2 ∧ e.2.val.carrier = segment ℝ ab.1 ab.2 := by
-  sorry
+  let K := e.2.val.carrier
+  have hdim1 : e.2.val.dim = 1 := by
+    have h := e.2.property
+    unfold CellComplex.edges at h
+    simpa [Finset.mem_filter] using (Finset.mem_filter.mp h).2
+  have hdim : Module.finrank ℝ (affineSpan ℝ K).direction = 1 := by
+    have h2 := e.2.val.flat.dimension
+    rwa [hdim1] at h2
+  have hd := hdim
+  have hne : K.Nonempty := e.2.val.flat.connected.nonempty
+  have hc : IsCompact K := e.2.val.flat.compact
+  have hconn : IsConnected K := e.2.val.flat.connected
+  obtain ⟨p, hp⟩ := hne
+  obtain ⟨u, hu0, hu⟩ := finrank_eq_one_iff'.mp hd
+  set u' : E d := (u : E d)
+  have hu' : u' ≠ 0 := fun h => hu0 (Subtype.ext h)
+  have hcoord : ∀ x ∈ K, ∃ c : ℝ, x = p + c • u' := by
+    intro x hx
+    have h := AffineSubspace.vsub_mem_direction (subset_affineSpan ℝ K hx) (subset_affineSpan ℝ K hp)
+    rw [vsub_eq_sub] at h
+    obtain ⟨c, hc_eq⟩ := hu ⟨x - p, h⟩
+    exact ⟨c, by have := congrArg Subtype.val hc_eq; simp at this; rw [this]; abel⟩
+  let f : ℝ →ᵃ[ℝ] E d := AffineMap.lineMap p (p + u')
+  have hf : ∀ t, f t = p + t • u' := by
+    intro t; simp [f, AffineMap.lineMap_apply, add_comm]
+  let ℓ : E d → ℝ := fun x => inner ℝ u' (x - p) / ‖u'‖ ^ 2
+  have hn : ‖u'‖ ≠ 0 := norm_ne_zero_iff.mpr hu'
+  have hℓ : ∀ t, ℓ (f t) = t := by
+    intro t
+    dsimp [ℓ]
+    have H : (p + t • u') - p = t • u' := by
+      exact add_sub_cancel_left p (t • u')
+    rw [hf, H, inner_smul_right, real_inner_self_eq_norm_sq]
+    have H2 : t * ‖u'‖ ^ 2 / ‖u'‖ ^ 2 = t := by
+      exact mul_div_cancel_right₀ t (pow_ne_zero 2 hn)
+    exact H2
+  have hcont : Continuous ℓ := by fun_prop
+  have hfl : ∀ x ∈ K, f (ℓ x) = x := by
+    intro x hx; obtain ⟨c, rfl⟩ := hcoord x hx; rw [← hf, hℓ]
+  set T := ℓ '' K
+  have hTc : IsCompact T := hc.image hcont
+  have hTp : IsPreconnected T := hconn.isPreconnected.image ℓ hcont.continuousOn
+  have hTo : T.OrdConnected := isPreconnected_iff_ordConnected.mp hTp
+  have hne : T.Nonempty := hconn.nonempty.image ℓ
+  obtain ⟨a, ha⟩ := hTc.exists_isLeast hne
+  obtain ⟨b, hb⟩ := hTc.exists_isGreatest hne
+  have hTI : T = Set.Icc a b :=
+    Set.Subset.antisymm (fun t ht => ⟨ha.2 ht, hb.2 ht⟩) (hTo.out ha.1 hb.1)
+  have hab : a ≤ b := ha.2 hb.1
+  have hKT : K = f '' T := by
+    ext x; constructor
+    · intro hx; exact ⟨ℓ x, ⟨x, hx, rfl⟩, hfl x hx⟩
+    · rintro ⟨t, ⟨y, hy, rfl⟩, rfl⟩; rw [hfl y hy]; exact hy
+  have hseg : K = segment ℝ (f a) (f b) := by
+    have H : f '' Set.Icc a b = segment ℝ (f a) (f b) := by
+      rw [← segment_eq_Icc hab]
+      exact image_segment ℝ f a b
+    rw [hKT, hTI, H]
+  refine ⟨(f a, f b), ?_, hseg⟩
+  intro hEq
+  simp only at hEq
+  have hsub : K ⊆ {f a} := by
+    rw [hseg, hEq, segment_same]
+  have h0 : (affineSpan ℝ K).direction = ⊥ := by
+    rw [direction_affineSpan]
+    have h1 : vectorSpan ℝ K ≤ vectorSpan ℝ {f a} := vectorSpan_mono ℝ hsub
+    rw [vectorSpan_singleton] at h1
+    exact le_bot_iff.mp h1
+  have h_bot : Module.finrank ℝ (affineSpan ℝ K).direction = 0 := by
+    rw [h0]
+    exact finrank_bot ℝ (E d)
+  rw [h_bot] at hdim
+  contradiction
 
 /-- P15, V4 1.20: an arbitrary orientation of the actual edge vector. -/
 def edgeVector (e : EdgeName S) : E d :=

@@ -889,7 +889,16 @@ private lemma honest_move_exists_step2_hierarchy_step1_ground (U : HonestSource 
 private lemma honest_move_exists_step2_hierarchy_step2_cover (U : HonestSource S) (g : Iso d) :
     let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
     ∀ n x, ∃ N ∈ nodes' n, x ∈ N.carrier n := by
-  sorry
+  intro nodes' n x
+  obtain ⟨N, hN, hx⟩ := U.hierarchy.cover n (g.symm x)
+  use N.move g
+  refine ⟨⟨N, hN, rfl⟩, ?_⟩
+  have hp : (N.move g).carrier n = g '' N.carrier n := by
+    dsimp [FramedNode.carrier, FramedNode.move, placedSet]
+    ext y
+    simp
+  rw [hp]
+  exact ⟨g.symm x, hx, by simp⟩
 
 private lemma honest_move_exists_step2_hierarchy_step3_disjoint (U : HonestSource S) (g : Iso d) :
     let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;

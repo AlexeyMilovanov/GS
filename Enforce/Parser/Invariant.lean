@@ -1346,12 +1346,56 @@ private lemma ageOneFacet_semantics_step3_types (h : Inv D) (B : Block Y n)
     rfl
   exact ⟨h2, h3⟩
 
+open private incidentForest_step1_placeChild_pow from Enforce.Source.Headers in
 /-- Step 4 of the V4 proof of `ageOneFacet_semantics` (V4 3.2): the paired facet is correctly placed as a child cell. -/
 private lemma ageOneFacet_semantics_step4_cell (h : Inv D) (B : Block Y n)
     (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
     (a : AgeOneFacet D B hB f) :
     (proposedSibling D B hB f a).cell n (a.record.incidence.val.sideFacet (!a.record.sideIndex)).val =
-      B.node.cell n f.val := by sorry
+      B.node.cell n f.val := by
+  classical
+  let N := proposedParent D B hB
+  let T : E d → E d := fun x => N.frame ((S.σ ^ n) x)
+  have hA := ageOneFacet_semantics_step2_internal D h B hB f a
+  have hfacet : a.record.facet.val = f.val := by
+    have hr := a.readout
+    unfold stateRecordAt at hr
+    split at hr
+    next hf =>
+      exact ((D.blockState B hB).facetRecord_valid
+        ⟨f.val, hf⟩ a.record hr).2
+    next hf => contradiction
+  have hrole : a.record.servingRole = firstRole D B hB := hA.2.1
+  have hgeo := hA.2.2.1
+  rw [hrole, hfacet] at hgeo
+  have hc (A : S.ι) (i : S.I A) (e : Cell d) :
+      (⟨(S.child A i).ty, (S.placeChild n i).trans N.frame⟩ :
+        FramedNode S).cell n e =
+      T '' placedSet (S.child A i).frame e.carrier := by
+    change (fun x : E d =>
+      N.frame (S.placeChild n i ((S.σ ^ n) x))) '' e.carrier =
+      T '' ((S.child A i).frame '' e.carrier)
+    rw [Set.image_image]
+    congr 1
+    funext x
+    exact congrArg N.frame
+      (incidentForest_step1_placeChild_pow i n x)
+  have hp (b : Bool) :
+      placedSet
+        (S.child a.record.incidence.val.ty
+          (a.record.incidence.val.sideIndex b)).frame
+        (a.record.incidence.val.sideFacet b).val.carrier =
+      a.record.incidence.val.positioned := by
+    cases b with
+    | false => rfl
+    | true => exact a.record.incidence.val.paired.symm
+  calc (proposedSibling D B hB f a).cell n ((a.record.incidence.val.sideFacet (!a.record.sideIndex)).val)
+    _ = T '' placedSet (S.child a.record.incidence.val.ty (a.record.incidence.val.sideIndex (!a.record.sideIndex))).frame (a.record.incidence.val.sideFacet (!a.record.sideIndex)).val.carrier := hc _ _ _
+    _ = T '' a.record.incidence.val.positioned := congrArg (fun K : Set (E d) => T '' K) (hp _)
+    _ = T '' placedSet (S.child (firstRole D B hB).1 (firstRole D B hB).2).frame f.val.carrier := congrArg (fun K : Set (E d) => T '' K) hgeo
+    _ = (⟨(S.child (firstRole D B hB).1 (firstRole D B hB).2).ty, (S.placeChild n (firstRole D B hB).2).trans N.frame⟩ : FramedNode S).cell n f.val := (hc _ _ _).symm
+    _ = (N.child n (firstRole D B hB).2).cell n f.val := rfl
+    _ = B.node.cell n f.val := congrArg (fun M : FramedNode S => M.cell n f.val) (proposedParent_child D h B hB)
 
 theorem ageOneFacet_semantics (h : Inv D) (B : Block Y n)
     (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)

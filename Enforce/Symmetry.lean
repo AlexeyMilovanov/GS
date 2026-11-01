@@ -147,6 +147,28 @@ private lemma components_disjoint_step1_tile_interior (Y : MarkedTiling (systemM
   obtain ⟨y, hy⟩ := ht
   exact ⟨y, hy.1.1, hy.2⟩
 
+/-- Step 1 of the V4 proof of `components_disjoint_step2_common_ancestor` (V4 5.7):
+A tile intersecting the interior of a component is entirely contained in some ancestor. -/
+private lemma components_disjoint_step2_common_ancestor_step1_contain
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q : (parsedHierarchy Y hY).Node) (hq : q.1 = 0)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) (x : E d) (hx : x ∈ interior t.carrier)
+    (hx_q : x ∈ interior (component Y hY q)) :
+    ∃ n : ℕ, t.carrier ⊆ ((parsedHierarchy Y hY).ancestor q n).2.val.carrier ((parsedHierarchy Y hY).ancestor q n).1 := by
+  sorry
+
+/-- Step 2 of the V4 proof of `components_disjoint_step2_common_ancestor` (V4 5.7):
+Two ancestors containing the same tile must coincide at their maximum height. -/
+private lemma components_disjoint_step2_common_ancestor_step2_coincide
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q r : (parsedHierarchy Y hY).Node) (hq : q.1 = 0) (hr : r.1 = 0)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (x : E d) (hx : x ∈ interior t.carrier)
+    (nq : ℕ) (hnq : t.carrier ⊆ ((parsedHierarchy Y hY).ancestor q nq).2.val.carrier ((parsedHierarchy Y hY).ancestor q nq).1)
+    (nr : ℕ) (hnr : t.carrier ⊆ ((parsedHierarchy Y hY).ancestor r nr).2.val.carrier ((parsedHierarchy Y hY).ancestor r nr).1) :
+    ∃ n : ℕ, (parsedHierarchy Y hY).ancestor q n = (parsedHierarchy Y hY).ancestor r n := by
+  sorry
+
 /-- Step 1 of the V4 proof of `components_disjoint` (V4 5.7):
 "at the common height max(n,n') the two ancestors share a tile, hence coincide, so t,t' have a common ancestor." -/
 private lemma components_disjoint_step2_common_ancestor (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
@@ -154,7 +176,10 @@ private lemma components_disjoint_step2_common_ancestor (Y : MarkedTiling (syste
     (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) (x : E d) (hx : x ∈ interior t.carrier)
     (hx_q : x ∈ interior (component Y hY q)) (hx_r : x ∈ interior (component Y hY r)) :
     component Y hY q = component Y hY r := by
-  sorry
+  obtain ⟨nq, hnq⟩ := components_disjoint_step2_common_ancestor_step1_contain Y hY q hq t ht x hx hx_q
+  obtain ⟨nr, hnr⟩ := components_disjoint_step2_common_ancestor_step1_contain Y hY r hr t ht x hx hx_r
+  have h_anc := components_disjoint_step2_common_ancestor_step2_coincide Y hY q r hq hr t ht x hx nq hnq nr hnr
+  exact (component_eq_iff Y hY q r hq hr).mpr h_anc
 
 /-- Y1, V4 5.7, Step 1: different ground components have disjoint interiors. -/
 theorem components_disjoint (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

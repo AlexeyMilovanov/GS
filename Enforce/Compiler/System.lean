@@ -810,7 +810,63 @@ theorem HonestSource.move_spec (U : HonestSource S) (g : Iso d) :
 /-- M6, V4 2.14(d): exact transport specifies a unique honest source. -/
 theorem MovedSource.unique {U V W : HonestSource S} {g : Iso d}
     (hV : MovedSource U V g) (hW : MovedSource U W g) : V = W := by
-  sorry
+  have Htiling : V.tiling = W.tiling := Eq.trans hV.tiling hW.tiling.symm
+  have Hcoset : V.coset = W.coset := Eq.trans hV.coset hW.coset.symm
+  have Hnodes : ∀ n, V.hierarchy.nodes n = W.hierarchy.nodes n := by
+    intro n
+    exact Eq.trans (hV.nodes n) (hW.nodes n).symm
+  have Hparent : ∀ n N hNV hNW, (V.hierarchy.parent n ⟨N, hNV⟩).val = (W.hierarchy.parent n ⟨N, hNW⟩).val := by
+    intro n N hNV hNW
+    have h1 : N ∈ (fun N_U => N_U.move g) '' U.hierarchy.nodes n := by
+      rw [← hV.nodes n]
+      exact hNV
+    obtain ⟨N_U, hNU_mem, hNU_eq⟩ := h1
+    subst hNU_eq
+    have hV_parent := hV.parents n ⟨N_U, hNU_mem⟩ hNV
+    have hW_parent := hW.parents n ⟨N_U, hNU_mem⟩ hNW
+    dsimp at hV_parent hW_parent
+    rw [hV_parent, hW_parent]
+  have Hrole : ∀ n N hNV hNW, HEq (V.hierarchy.role n ⟨N, hNV⟩) (W.hierarchy.role n ⟨N, hNW⟩) := by
+    intro n N hNV hNW
+    have h1 : N ∈ (fun N_U => N_U.move g) '' U.hierarchy.nodes n := by
+      rw [← hV.nodes n]
+      exact hNV
+    obtain ⟨N_U, hNU_mem, hNU_eq⟩ := h1
+    subst hNU_eq
+    have hV_role := hV.roles n ⟨N_U, hNU_mem⟩ hNV
+    have hW_role := hW.roles n ⟨N_U, hNU_mem⟩ hNW
+    dsimp at hV_role hW_role
+    have H_V_role : V.hierarchy.nodeRole ⟨n, ⟨N_U.move g, hNV⟩⟩ = ⟨(V.hierarchy.parent n ⟨N_U.move g, hNV⟩).val.ty, V.hierarchy.role n ⟨N_U.move g, hNV⟩⟩ := rfl
+    have H_W_role : W.hierarchy.nodeRole ⟨n, ⟨N_U.move g, hNW⟩⟩ = ⟨(W.hierarchy.parent n ⟨N_U.move g, hNW⟩).val.ty, W.hierarchy.role n ⟨N_U.move g, hNW⟩⟩ := rfl
+    rw [H_V_role] at hV_role
+    rw [H_W_role] at hW_role
+    have H_eq : (⟨(V.hierarchy.parent n ⟨N_U.move g, hNV⟩).val.ty, V.hierarchy.role n ⟨N_U.move g, hNV⟩⟩ : S.Role) = ⟨(W.hierarchy.parent n ⟨N_U.move g, hNW⟩).val.ty, W.hierarchy.role n ⟨N_U.move g, hNW⟩⟩ := by
+      rw [hV_role, hW_role]
+    exact (Sigma.ext_iff.mp H_eq).2
+  rcases V with ⟨Vtiling, Vmem_species, Vhierarchy, Vcontexts, Vcoset, Vframes_in_coset⟩
+  rcases W with ⟨Wtiling, Wmem_species, Whierarchy, Wcontexts, Wcoset, Wframes_in_coset⟩
+  dsimp at Htiling Hcoset Hnodes Hparent Hrole
+  subst Htiling Hcoset
+  have Hhier : Vhierarchy = Whierarchy := by
+    rcases Vhierarchy with ⟨Vnodes, Vground, Vcover, Vdisjoint, Vparent, Vrole, Vchild_eq, Vchildren_mem, Vparent_unique, Vnative_tiles⟩
+    rcases Whierarchy with ⟨Wnodes, Wground, Wcover, Wdisjoint, Wparent, Wrole, Wchild_eq, Wchildren_mem, Wparent_unique, Wnative_tiles⟩
+    dsimp at Hnodes Hparent Hrole
+    have Hnodes' : Vnodes = Wnodes := by funext n; exact Hnodes n
+    subst Hnodes'
+    have Hparent' : Vparent = Wparent := by
+      funext n N
+      apply Subtype.ext
+      exact Hparent n N.val N.property N.property
+    subst Hparent'
+    have Hrole' : HEq Vrole Wrole := by
+      apply heq_of_eq
+      funext n N
+      have H := Hrole n N.val N.property N.property
+      exact eq_of_heq H
+    subst Hrole'
+    rfl
+  subst Hhier
+  rfl
 
 /-- M6, V4 2.14(d): the actual transported hierarchy node, retaining its height. -/
 def HonestSource.movedNode (U : HonestSource S) (g : Iso d) (q : U.Node) :

@@ -332,6 +332,30 @@ def facetPacket (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty) :
 
 end HonestSource
 
+open private exists_honest_step7_child_subset exists_honest_step7_tile_regular exists_honest_step7_zero_carrier from Enforce.Tiling in
+private theorem packet_attached_step1_owner_step1_anc_subset (U : HonestSource S) (q : U.Node) (r : ℕ) : 
+  q.2.val.carrier q.1 ⊆ (U.hierarchy.ancestor q r).2.val.carrier (U.hierarchy.ancestor q r).1 := by
+  induction' r with r ih generalizing q
+  · exact Subset.rfl
+  · have ih' := ih (U.hierarchy.parentNode q)
+    change q.2.val.carrier q.1 ⊆ (U.hierarchy.parentNode^[r] (U.hierarchy.parentNode q)).2.val.carrier _
+    have h1 : q.2.val.carrier q.1 ⊆ (U.hierarchy.parentNode q).2.val.carrier (q.1 + 1) := by
+      let P := U.hierarchy.parentNode q
+      have H_child := U.hierarchy.child_eq q.1 q.2
+      have h_q_eq : q.2.val = (P.2.val.child q.1 (U.hierarchy.role q.1 q.2)) := H_child
+      rw [h_q_eq]
+      exact exists_honest_step7_child_subset P.2.val q.1 _
+    have h2 : (U.hierarchy.parentNode q).2.val.carrier (U.hierarchy.parentNode q).1 ⊆ (U.hierarchy.ancestor (U.hierarchy.parentNode q) r).2.val.carrier (U.hierarchy.ancestor (U.hierarchy.parentNode q) r).1 := by
+      exact ih (U.hierarchy.parentNode q)
+    have hp_height : (U.hierarchy.parentNode q).1 = q.1 + 1 := rfl
+    have h2_rw : (U.hierarchy.parentNode q).2.val.carrier (q.1 + 1) ⊆ (U.hierarchy.ancestor (U.hierarchy.parentNode q) r).2.val.carrier (U.hierarchy.ancestor (U.hierarchy.parentNode q) r).1 := by
+      exact hp_height ▸ h2
+    exact h1.trans h2_rw
+
+private theorem packet_attached_step1_owner_hint (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) : relint g.carrier ⊆ interior (g.birth.2.val.carrier g.birth.1) := by sorry
+private theorem packet_attached_step1_owner_hxc (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) (t : U.Node) (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) : ∃ x ∈ t.2.val.cell t.1 f.val, x ∈ relint g.carrier := by sorry
+private theorem packet_attached_step1_owner_hfront (U : HonestSource S) (t : U.Node) (f : FacetName S t.2.val.ty) : ∀ x ∈ t.2.val.cell t.1 f.val, x ∈ frontier (t.2.val.carrier t.1) := by sorry
+
 /-- Step 1 of the V4 proof of `packet_attached` (V4 2.6(c), via 1.0 native ownership):
 "every native tile `t` with a facet piece `f_t ⊆ g`" lies in the birth parent of `g`:
 since `relint g` is interior to the birth parent, the tile meets that interior and
@@ -340,7 +364,72 @@ private theorem packet_attached_step1_owner (U : HonestSource S) (P : Params S)
     (g : PrimitiveOccurrence U P) (t : U.Node) (ht : t.1 = 0)
     (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) :
     U.hierarchy.ancestor t g.birth.1 = g.birth := by
-  sorry
+  let a := U.hierarchy.ancestor t g.birth.1
+  have ha : a.1 = g.birth.1 := by
+    dsimp only [a]
+    rw [U.hierarchy.ancestor_height, ht, Nat.zero_add]
+  have hsub : t.2.val.carrier t.1 ⊆ a.2.val.carrier a.1 := by
+    exact packet_attached_step1_owner_step1_anc_subset U t g.birth.1
+  
+  have hint := packet_attached_step1_owner_hint U P g
+  have hxc := packet_attached_step1_owner_hxc U P g t f hfg
+  have hxt_front := packet_attached_step1_owner_hfront U t f
+
+  obtain ⟨x, hxc_x, hxg_x⟩ := hxc
+  have hxt_front_x : x ∈ frontier (t.2.val.carrier t.1) := hxt_front x hxc_x
+  
+  have ht_closed : IsClosed (t.2.val.carrier t.1) := by
+    have h_c_eq : t.2.val.carrier t.1 = (t.2.val.prototypeFrame t.1) '' (S.proto t.2.val.ty).carrier := by
+      simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet, SubstSystem.supertile, Set.image_image]
+    rw [h_c_eq]
+    have h_c := (S.proto t.2.val.ty).compact
+    exact (h_c.image ((t.2.val.prototypeFrame t.1).toHomeomorphOfFiniteDimensional).continuous).isClosed
+  have hxt : x ∈ t.2.val.carrier t.1 := by
+    have h_closure : x ∈ closure (t.2.val.carrier t.1) := frontier_subset_closure hxt_front_x
+    rwa [IsClosed.closure_eq ht_closed] at h_closure
+
+  have hx_interior_birth : x ∈ interior (g.birth.2.val.carrier g.birth.1) := hint hxg_x
+
+  have ht_reg : closure (interior (t.2.val.carrier t.1)) = t.2.val.carrier t.1 := by
+    have h_c_eq : t.2.val.carrier t.1 = (t.2.val.prototypeFrame t.1) '' (S.proto t.2.val.ty).carrier := by
+      simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet, SubstSystem.supertile, Set.image_image]
+    rw [h_c_eq]
+    have h_r := (S.proto t.2.val.ty).regularClosed
+    let f' := (t.2.val.prototypeFrame t.1).toHomeomorphOfFiniteDimensional
+    change closure (interior (f' '' _)) = f' '' _
+    rw [← f'.image_interior, ← f'.image_closure, h_r]
+  
+  have hx_closure_int_t : x ∈ closure (interior (t.2.val.carrier t.1)) := by
+    rwa [ht_reg]
+  
+  have hz : (interior (g.birth.2.val.carrier g.birth.1) ∩ interior (t.2.val.carrier t.1)).Nonempty := 
+    mem_closure_iff.mp hx_closure_int_t (interior (g.birth.2.val.carrier g.birth.1)) isOpen_interior hx_interior_birth
+
+  obtain ⟨y, hy_birth, hy_t⟩ := hz
+  have hya : y ∈ interior (a.2.val.carrier a.1) := interior_mono hsub hy_t
+  
+  have H_eq : ∀ n : ℕ, ∀ A B : FramedNode S, A ∈ U.hierarchy.nodes n → B ∈ U.hierarchy.nodes n → 
+    (interior (A.carrier n) ∩ interior (B.carrier n)).Nonempty → A = B := by
+    intro n A B hA hB ⟨z, hzA, hzB⟩
+    exact U.hierarchy.same_height_disjoint n A B hA hB z hzA hzB
+    
+  have H_nodes_a : a.2.val ∈ U.hierarchy.nodes a.1 := a.2.property
+  have hb_prop := g.birth.2.property
+  have H_nodes_b : g.birth.2.val ∈ U.hierarchy.nodes a.1 := by
+    rw [ha]
+    exact hb_prop
+  
+  have ha_eq_b : a.2.val = g.birth.2.val := by
+    have h_hy_birth_a : y ∈ interior (g.birth.2.val.carrier a.1) := by rwa [ha]
+    exact H_eq a.1 a.2.val g.birth.2.val H_nodes_a H_nodes_b ⟨y, hya, h_hy_birth_a⟩
+  
+  have key : ∀ a b : U.Node, a.1 = b.1 → a.2.val = b.2.val → a = b := by
+    rintro ⟨n, A, hA⟩ ⟨m, B, hB⟩ h1 h2
+    dsimp only at h1 h2
+    subst h1
+    subst h2
+    rfl
+  exact key a g.birth ha ha_eq_b
 
 /-- Step 2 of the V4 proof of `packet_attached` (V4 2.6(c), sibling pairing of 1.6):
 "on either side": the child of the birth parent containing the native tile is one of

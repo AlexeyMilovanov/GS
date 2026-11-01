@@ -205,12 +205,47 @@ theorem parsedWindow_at (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   have H_descend := h_descend (P.w - 1 - j.val) (by omega)
   rw [H_descend]
   rw [h_j]
+private theorem stateOf_eq_childMap_parent (U : HonestSource S) (P : Params S)
+    (q : U.Node) :
+    stateOf U P q = childMap P (stateOf U P (U.hierarchy.parentNode q))
+      (U.hierarchy.nodeRole q) := by
+  have hq : 1 ≤ (U.hierarchy.parentNode q).1 := Nat.le_add_left 1 q.1
+  have hc : U.childNode (U.hierarchy.parentNode q) hq
+      (U.hierarchy.role q.1 q.2) = q := by
+    obtain ⟨n, N, hN⟩ := q
+    exact Sigma.subtype_ext rfl (U.hierarchy.child_eq n ⟨N, hN⟩).symm
+  have h := childMap_spec U P (U.hierarchy.parentNode q) hq
+    (U.hierarchy.role q.1 q.2)
+  simpa only [hc] using h
+
 /-- O1, V4 4.1, 8.1: the honest compressed window recovers every ancestor state. -/
 theorem honestWindow_at (U : HonestSource S) (P : Params S) (q : U.Node)
     (j : Fin P.w) :
     (ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).stateAt j =
       stateOf U P (U.hierarchy.ancestor q j.val) := by
-  sorry
+  have hdesc : ∀ (n jv : ℕ), jv + n = P.w - 1 →
+      (ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) q).descend n =
+        stateOf U P (U.hierarchy.ancestor q jv) := by
+    intro n
+    induction n with
+    | zero =>
+      intro jv hjv
+      have hj : jv = P.w - 1 := by omega
+      subst jv
+      rfl
+    | succ n ih =>
+      intro jv hjv
+      have hn : n < P.w - 1 := by omega
+      rw [ObserverWindow.descend, dif_pos hn, ih (jv + 1) (by omega)]
+      have hidx : P.w - 2 - n = jv := by omega
+      have hparent : U.hierarchy.parentNode (U.hierarchy.ancestor q jv) =
+          U.hierarchy.ancestor q (jv + 1) := by
+        simp only [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+      change childMap P (stateOf U P (U.hierarchy.ancestor q (jv + 1)))
+        (U.hierarchy.nodeRole (U.hierarchy.ancestor q (P.w - 2 - n))) = _
+      rw [hidx, ← hparent]
+      exact (stateOf_eq_childMap_parent U P (U.hierarchy.ancestor q jv)).symm
+  exact hdesc (P.w - 1 - j.val) j.val (by have := j.isLt; omega)
 /-- O1, V4 4.1, 8.1: reconstruction preserves the parsed node's prototype. -/
 theorem parsedWindow_type (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) :

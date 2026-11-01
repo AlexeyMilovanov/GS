@@ -3146,6 +3146,38 @@ theorem ScaleTailEquiv.providers {U V : HonestSource S} {a b : ℕ} {J : Iso d}
           V.hierarchy.providerCarrier (e.toEquiv q).val g hg := by
   sorry
 
+/-- Step 1 of the V4 proof of `strata` (V4 1.13(c)): exact-scale transfer preserves the types and the cell collections of the serving child. -/
+private theorem strata_step1_cell {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty)
+    (g : FacetName S (e.toEquiv q).val.2.val.ty) (hfg : f.val = g.val)
+    (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g)
+    (s : CellName S q.val.2.val.ty) (t : CellName S (e.toEquiv q).val.2.val.ty)
+    (hst : s.val = t.val)
+    (hs : q.val.2.val.cell q.val.1 s.val ⊆ q.val.2.val.cell q.val.1 f.val)
+    (ht : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 t.val ⊆
+      (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val) :
+    (U.hierarchy.stratumMap q.val f hf s hs).val ∈ (S.cx (V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.ty).cells := by
+  sorry
+
+/-- Step 2 of the V4 proof of `strata` (V4 1.13(c)): exact-scale transfer preserves relative interior containments expressed in the prototype frame. -/
+private theorem strata_step2_subset {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (q : U.hierarchy.Tail a)
+    (f : FacetName S q.val.2.val.ty)
+    (g : FacetName S (e.toEquiv q).val.2.val.ty) (hfg : f.val = g.val)
+    (hf : ¬ U.hierarchy.IsFault q.val f)
+    (hg : ¬ V.hierarchy.IsFault (e.toEquiv q).val g)
+    (s : CellName S q.val.2.val.ty) (t : CellName S (e.toEquiv q).val.2.val.ty)
+    (hst : s.val = t.val)
+    (hs : q.val.2.val.cell q.val.1 s.val ⊆ q.val.2.val.cell q.val.1 f.val)
+    (ht : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 t.val ⊆
+      (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val) :
+    relint ((e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 t.val) ⊆
+      relint ((V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.cell
+        (V.hierarchy.servingChild (e.toEquiv q).val g hg).1 (U.hierarchy.stratumMap q.val f hf s hs).val) := by
+  sorry
+
 /-- P7/T9, V4 1.7(b), 1.13(c): provider strata retain literal prototype names
 under the same full-tail transfer as the nodes and the provider incidences. -/
 theorem ScaleTailEquiv.strata {U V : HonestSource S} {a b : ℕ} {J : Iso d}
@@ -3161,6 +3193,14 @@ theorem ScaleTailEquiv.strata {U V : HonestSource S} {a b : ℕ} {J : Iso d}
       (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val) :
     (U.hierarchy.stratumMap q.val f hf s hs).val =
       (V.hierarchy.stratumMap (e.toEquiv q).val g hg t ht).val := by
-  sorry
+  have H_U_in := strata_step1_cell e q f g hfg hf hg s t hst hs ht
+  have H_sub := strata_step2_subset e q f g hfg hf hg s t hst hs ht
+  have H_ex := Classical.choose_spec (V.hierarchy.stratum_exists_unique (e.toEquiv q).val g hg t ht)
+  obtain ⟨_, H_ex_uniq⟩ := H_ex
+  let x : CellName S (V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.ty :=
+    ⟨(U.hierarchy.stratumMap q.val f hf s hs).val, H_U_in⟩
+  have H_x_sub : relint ((e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 t.val) ⊆
+      relint ((V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.cell (V.hierarchy.servingChild (e.toEquiv q).val g hg).1 x.val) := H_sub
+  exact congrArg Subtype.val (H_ex_uniq x H_x_sub)
 
 end Enforce

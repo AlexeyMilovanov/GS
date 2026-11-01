@@ -741,7 +741,63 @@ By H5, an expanded prototype cell direction equals a compatible
 rotation of another prototype cell direction. -/
 private theorem orbits_finite_step3_transport {V : Submodule ℝ (E d)} (hV : V ∈ S.cellDirections) :
     ∃ R ∈ S.rotGroup, ∃ V' ∈ S.cellDirections, V.map S.σ.toLinearMap = V'.map R.toLinearEquiv.toLinearMap := by
-  sorry
+  obtain ⟨A, e, he, rfl⟩ := hV
+  obtain ⟨f, hf⟩ := S.heredity A e he
+  have hne : e.carrier.Nonempty := by
+    obtain ⟨x, hx⟩ := e.flat.relint_nonempty
+    exact ⟨x, intrinsicInterior_subset hx⟩
+  obtain ⟨x, hx⟩ := hne
+  have hσx : S.σ x ∈ ⋃ q ∈ f, placedSet (S.child A q.1).frame q.2.val.carrier := by
+    rw [← hf]; exact ⟨x, hx, rfl⟩
+  simp only [Set.mem_iUnion] at hσx
+  obtain ⟨q, hq, -⟩ := hσx
+  obtain ⟨i, e', he'c, he'd⟩ := q
+  set R : Ortho d := (S.child A i).rotation with hRdef
+  set t : E d := (S.child A i).offset
+  have hR : R ∈ S.rotGroup := by
+    apply S.rotGroup_spec.1
+    refine ⟨0, A, i, ?_⟩
+    refine LinearIsometryEquiv.ext fun y => ?_
+    change R y = linearConj S.σ ((0 : ℕ) : ℤ) R.toLinearEquiv y
+    simp [linearConj]
+  have hsub : placedSet (S.child A i).frame e'.carrier ⊆ S.σ '' e.carrier := by
+    rw [hf]
+    intro z hz
+    exact Set.mem_iUnion₂.mpr ⟨_, hq, hz⟩
+  let g : E d →ᵃ[ℝ] E d := R.toLinearEquiv.toLinearMap.toAffineMap + AffineMap.const ℝ (E d) t
+  have hg : placedSet (S.child A i).frame e'.carrier = g '' e'.carrier := by
+    apply Set.image_congr
+    intro y _
+    simp [g, Child.frame, rigidMotion, hRdef, t]
+  have hσimg : (cellDirection e.carrier).map S.σ.toLinearMap =
+      cellDirection (S.σ '' e.carrier) := by
+    simp only [cellDirection, direction_affineSpan]
+    change Submodule.map S.σ.toLinearMap.toAffineMap.linear (vectorSpan ℝ e.carrier) = vectorSpan ℝ (⇑S.σ.toLinearMap.toAffineMap '' e.carrier)
+    rw [AffineMap.map_vectorSpan]
+  have hgimg : (cellDirection e'.carrier).map R.toLinearEquiv.toLinearMap =
+      cellDirection (placedSet (S.child A i).frame e'.carrier) := by
+    simp only [cellDirection, direction_affineSpan, hg]
+    have hgl : g.linear = R.toLinearEquiv.toLinearMap := by ext v; simp [g]
+    rw [← hgl]
+    change Submodule.map g.linear (vectorSpan ℝ e'.carrier) = vectorSpan ℝ (⇑g '' e'.carrier)
+    rw [AffineMap.map_vectorSpan]
+  have hdir : (cellDirection e'.carrier).map R.toLinearEquiv.toLinearMap =
+      (cellDirection e.carrier).map S.σ.toLinearMap := by
+    rw [hσimg, hgimg]
+    have h1 : cellDirection (placedSet (S.child A i).frame e'.carrier) ≤
+        cellDirection (S.σ '' e.carrier) := by
+      apply AffineSubspace.direction_le
+      exact affineSpan_mono ℝ hsub
+    have hdime : Module.finrank ℝ (cellDirection e.carrier) = e.dim := e.flat.dimension
+    have hdime' : Module.finrank ℝ (cellDirection e'.carrier) = e'.dim := e'.flat.dimension
+    have eqdim : e'.dim = e.dim := he'd
+    have hfinrank_eq : Module.finrank ℝ (cellDirection (placedSet (S.child A i).frame e'.carrier)) =
+        Module.finrank ℝ (cellDirection (S.σ '' e.carrier)) := by
+      rw [← hgimg, ← hσimg]
+      rw [LinearEquiv.finrank_map_eq, LinearEquiv.finrank_map_eq, hdime, hdime', eqdim]
+    exact Submodule.eq_of_le_of_finrank_eq h1 hfinrank_eq
+  refine ⟨R, hR, cellDirection e'.carrier, ?_, hdir.symm⟩
+  exact ⟨(S.child A i).ty, e', he'c, rfl⟩
 
 /-- S6, V4 1.10(c): `σ` preserves `HΠ` and permutes its finitely many orbits. -/
 theorem orbits_finite : S.directionOrbits.Finite ∧

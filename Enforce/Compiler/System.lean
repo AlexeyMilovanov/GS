@@ -831,8 +831,34 @@ private lemma move_trans_step4_parents (U : HonestSource S) (g h : Iso d) :
     ∀ n (N : {N // N ∈ U.hierarchy.nodes n})
       (hN : N.val.move (g.trans h) ∈ ((U.move g).move h).hierarchy.nodes n),
       (((U.move g).move h).hierarchy.parent n ⟨N.val.move (g.trans h), hN⟩).val =
-        (U.hierarchy.parent n N).val.move (g.trans h) :=
-  sorry
+        (U.hierarchy.parent n N).val.move (g.trans h) := by
+  intro n N hN
+  have H1 := U.move_spec g
+  have H2 := (U.move g).move_spec h
+  have h_move : N.val.move (g.trans h) = (N.val.move g).move h := by
+    dsimp [FramedNode.move]
+    ext x
+    · rfl
+    · rfl
+  have hN_g_nodes : N.val.move g ∈ (U.move g).hierarchy.nodes n := by
+    rw [H1.nodes n]
+    exact Set.mem_image_of_mem (fun N : FramedNode S => N.move g) N.property
+  have hN_h_nodes : (N.val.move g).move h ∈ ((U.move g).move h).hierarchy.nodes n := by
+    rw [← h_move]
+    exact hN
+  have h_parent_move : (((U.hierarchy.parent n N).val).move g).move h = (U.hierarchy.parent n N).val.move (g.trans h) := by
+    dsimp [FramedNode.move]
+    ext x
+    · rfl
+    · rfl
+  have H2_parent := H2.parents n ⟨N.val.move g, hN_g_nodes⟩ hN_h_nodes
+  rw [H1.parents n N hN_g_nodes] at H2_parent
+  revert hN
+  rw [h_move]
+  intro hN
+  have hN_eq : hN = hN_h_nodes := rfl
+  rw [hN_eq, H2_parent, h_parent_move]
+
 
 /-- Step 5 of the V4 proof of `move_trans` (V4 2.14(d)): exact role preservation. -/
 private lemma move_trans_step5_roles (U : HonestSource S) (g h : Iso d) :

@@ -2356,13 +2356,43 @@ theorem honestLift_core_agree (C : ClusterData S P) (U : HonestSource S)
         CertificateSymbol S P)).mark x := by
   sorry
 
+private theorem honestLift_event_agree_step1_occurs (C : ClusterData S P) (U : HonestSource S)
+    (t : U.Node) (ht : t.1 = 0) (j : EventSlot (leafTypeOf U P t ht)) :
+    TemplateOccurs C (honestLift C U) t.2.val.frame (honestEventIndex U t ht j).template := by
+  intro z hz
+  have h_rows := Classical.choose_spec (honest_rows U P t ht j)
+  have h_act : IsActualTemplate U P t ht (honestEventIndex U t ht j).template := h_rows.1
+  dsimp [IsActualTemplate] at h_act
+  have h_tiles := h_act.2 z hz
+  obtain ⟨⟨qn, qN⟩, hq, h_frame, h_leaf⟩ := h_tiles
+  obtain rfl : qn = 0 := hq
+  have h_tile := honestLift_tile C U ⟨qN, qN.property⟩
+  dsimp [honestTile] at h_tile
+  rw [h_leaf, h_frame]
+  have h_trans : (qN.val.move t.2.val.frame.symm).frame.trans t.2.val.frame = qN.val.frame := by
+    change (qN.val.frame.trans t.2.val.frame.symm).trans t.2.val.frame = qN.val.frame
+    ext x
+    change (t.2.val.frame (t.2.val.frame.symm (qN.val.frame x))).ofLp _ = (qN.val.frame x).ofLp _
+    rw [AffineIsometryEquiv.apply_symm_apply t.2.val.frame (qN.val.frame x)]
+  rw [h_trans]
+  exact h_tile
+
+/-- M8 duplicate of `TemplateOccurs.event_rule_agree`; to be replaced by it when the file is reordered. -/
+private theorem honestLift_event_agree_step2_rule_agree (C : ClusterData S P)
+    (Y : MarkedTiling (systemM S P C)) (φ : Iso d) (e : EventIndex S P)
+    (h : TemplateOccurs C Y φ e.template) (x : (eventRule C e).carrier) :
+    Y.marking (φ x) = (eventRule C e).mark x := by
+  sorry
+
 /-- M6, V4 2.14(b): the actual allowed EVENT copy agrees on its entire compact support. -/
 theorem honestLift_event_agree (C : ClusterData S P) (U : HonestSource S)
     (t : U.Node) (ht : t.1 = 0) (j : EventSlot (leafTypeOf U P t ht))
     (x : (eventRule C (honestEventIndex U t ht j)).carrier) :
     (honestLift C U).marking (t.2.val.frame x) =
       (eventRule C (honestEventIndex U t ht j)).mark x := by
-  sorry
+  exact honestLift_event_agree_step2_rule_agree C (honestLift C U) t.2.val.frame
+    (honestEventIndex U t ht j)
+    (honestLift_event_agree_step1_occurs C U t ht j) x
 
 end Compiler
 

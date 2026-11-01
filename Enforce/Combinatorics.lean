@@ -300,9 +300,84 @@ theorem TranslatedSource.unique {U V W : HonestSource S} {v : E d}
     (hV : TranslatedSource U V v) (hW : TranslatedSource U W v) : V = W := by
   sorry
 
+private lemma translate_zero_identity {d : ℕ} [Fact (2 ≤ d)] :
+    translation (0 : E d) = AffineIsometryEquiv.refl ℝ (E d) := by
+  ext x
+  simp [translation, vadd_eq_add]
+
+private lemma translate_zero_PlacedTile_move_refl {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (t : PlacedTile S) :
+    t.move (translation 0) = t := by
+  rw [translate_zero_identity]
+  ext
+  · rfl
+  · dsimp [PlacedTile.move, PlacedTile.ofFrame]
+    have h : t.frame.trans (AffineIsometryEquiv.refl ℝ (E d)) = t.frame := by ext; rfl
+    rw [h, ← t.frame_carrier]
+
+private lemma translate_zero_Tiling_move_refl {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (T : Tiling S) :
+    T.move (translation 0) = T := by
+  cases T
+  dsimp [Tiling.move]
+  congr 1
+  have h : (fun t : PlacedTile S => t.move (translation 0)) = id := by
+    funext t
+    exact translate_zero_PlacedTile_move_refl t
+  rw [h, Set.image_id]
+
+private lemma translate_zero_FramedNode_move_refl {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (N : FramedNode S) :
+    N.move (translation 0) = N := by
+  rw [translate_zero_identity]
+  cases N
+  rfl
+
+/-- Step 1 of the V4 proof of `translate_zero` (V4 1.27): moving tiling by zero is identity. -/
+private lemma translate_zero_step1_tiling (U : HonestSource S) :
+    U.tiling = U.tiling.move (translation 0) := by
+  rw [translate_zero_Tiling_move_refl]
+
+/-- Step 2 of the V4 proof of `translate_zero` (V4 1.27): moving nodes by zero is identity. -/
+private lemma translate_zero_step2_nodes (U : HonestSource S) :
+    ∀ n, U.hierarchy.nodes n = (fun N : FramedNode S => N.move (translation 0)) '' U.hierarchy.nodes n := by
+  intro n
+  have h : (fun N : FramedNode S => N.move (translation 0)) = id := by
+    funext N
+    exact translate_zero_FramedNode_move_refl N
+  rw [h, Set.image_id]
+
+/-- Step 3 of the V4 proof of `translate_zero` (V4 1.27): coset is preserved. -/
+private lemma translate_zero_step3_coset (U : HonestSource S) :
+    U.coset = U.coset := rfl
+
+/-- Step 4 of the V4 proof of `translate_zero` (V4 1.27): parents commute with zero translation. -/
+private lemma translate_zero_step4_parents (U : HonestSource S) :
+    ∀ n (N : {N // N ∈ U.hierarchy.nodes n})
+      (hN : N.val.move (translation 0) ∈ U.hierarchy.nodes n),
+      (U.hierarchy.parent n ⟨N.val.move (translation 0), hN⟩).val =
+        (U.hierarchy.parent n N).val.move (translation 0) := by
+  intro n N hN
+  have h : N.val.move (translation 0) = N.val := translate_zero_FramedNode_move_refl N.val
+  rw [show (⟨N.val.move (translation 0), hN⟩ : {N // N ∈ U.hierarchy.nodes n}) = N from Subtype.ext h]
+  rw [translate_zero_FramedNode_move_refl]
+
+/-- Step 5 of the V4 proof of `translate_zero` (V4 1.27): roles are preserved by zero translation. -/
+private lemma translate_zero_step5_roles (U : HonestSource S) :
+    ∀ n (N : {N // N ∈ U.hierarchy.nodes n})
+      (hN : N.val.move (translation 0) ∈ U.hierarchy.nodes n),
+      U.hierarchy.nodeRole ⟨n, ⟨N.val.move (translation 0), hN⟩⟩ =
+        U.hierarchy.nodeRole ⟨n, N⟩ := by
+  intro n N hN
+  have h : N.val.move (translation 0) = N.val := translate_zero_FramedNode_move_refl N.val
+  rw [show (⟨N.val.move (translation 0), hN⟩ : {N // N ∈ U.hierarchy.nodes n}) = N from Subtype.ext h]
+
+/-- Step 6 of the V4 proof of `translate_zero` (V4 1.27): collect fields to form TranslatedSource. -/
+private lemma translate_zero_step6_translatedSource (U : HonestSource S) :
+    TranslatedSource U U (0 : E d) :=
+  ⟨translate_zero_step1_tiling U, translate_zero_step2_nodes U, translate_zero_step3_coset U,
+   translate_zero_step4_parents U, translate_zero_step5_roles U⟩
+
 /-- C2, V4 1.27: translating by zero retains the complete original source. -/
 theorem HonestSource.translate_zero (U : HonestSource S) : U.translate 0 = U := by
-  sorry
+  exact TranslatedSource.unique (U.translate_spec 0) (translate_zero_step6_translatedSource U)
 
 /-- C2, V4 1.27: the chosen exact transports form the ordinary translation action. -/
 theorem HonestSource.translate_add (U : HonestSource S) (v w : E d) :

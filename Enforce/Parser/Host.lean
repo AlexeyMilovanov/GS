@@ -11795,7 +11795,24 @@ theorem host_parent_eq (hY : MProper Y) (hn : P.K ≤ n) (D : DecodedLevel Y n)
     (hsibling : B'.node = proposedSibling D B hB f a)
     (hrole : firstRole D B' hB' = a.record.incidence.val.sideRole (!a.record.sideIndex)) :
     proposedParent D B' hB' = proposedParent D B hB := by
-  sorry
+  have hsem := Parser.ageOneFacet_semantics D hD B hB f a
+  have hown : firstRole D B hB = a.record.incidence.val.sideRole a.record.sideIndex :=
+    hsem.2.2.1.symm.trans a.record.side_eq
+  have hframe : B'.node.frame = (proposedSibling D B hB f a).frame :=
+    congrArg FramedNode.frame hsibling
+  apply FramedNode.ext
+  · show (firstRole D B' hB').1 = (firstRole D B hB).1
+    rw [hrole, hown]
+    rfl
+  · show (S.placeChild n (firstRole D B' hB').2).symm.trans B'.node.frame =
+      (S.placeChild n (firstRole D B hB).2).symm.trans B.node.frame
+    rw [hframe, hrole]
+    show (S.placeChild n (a.record.incidence.val.sideIndex (!a.record.sideIndex))).symm.trans
+        ((S.placeChild n (a.record.incidence.val.sideIndex (!a.record.sideIndex))).trans
+          (proposedParent D B hB).frame) = _
+    rw [AffineIsometryEquiv.trans_assoc, AffineIsometryEquiv.symm_trans_self,
+      AffineIsometryEquiv.refl_trans]
+    all_goals rfl
 
 end Parser
 

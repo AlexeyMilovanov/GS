@@ -5212,7 +5212,53 @@ theorem native_subdivision (n : ℕ) :
 private theorem incident_width_monotone_step1_child_exists
     (P : CompatiblePatch S) (p : E d) (n : ℕ) (a : P.Incident p n) :
     ∃ b : P.Incident p (n + 1), P.IncidentChild p n a b := by
-  sorry
+  have hs_hp : (S.σ ^ (n + 1)) p ∈ S.σ '' (P.native n a.val).carrier 0 := by
+    rw [pow_succ']
+    exact Set.mem_image_of_mem _ a.property
+  have hcov : S.σ '' (P.native n a.val).carrier 0 ⊆ ⋃ (i : S.I (P.native n a.val).ty), (P.native (n + 1) (power_factorisation_aux_step11_native_child P n a.val i).choose).carrier 0 := by
+    rw [power_factorisation_aux_step11_carrier_zero]
+    intro x hx
+    obtain ⟨y, hy, rfl⟩ := hx
+    obtain ⟨z, hz, rfl⟩ := hy
+    have h_child_cover : S.σ z ∈ ⋃ i, placedSet (S.child (P.native n a.val).ty i).frame (S.proto (S.child (P.native n a.val).ty i).ty).carrier := by
+      rw [← S.children_cover (P.native n a.val).ty]
+      exact Set.mem_image_of_mem _ hz
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp h_child_cover
+    obtain ⟨u, hu, hu_eq⟩ := hi
+    rw [Set.mem_iUnion]
+    use i
+    let b := (power_factorisation_aux_step11_native_child P n a.val i).choose
+    have hb := (power_factorisation_aux_step11_native_child P n a.val i).choose_spec
+    rw [power_factorisation_aux_step11_carrier_zero]
+    have hu2 : u ∈ (S.proto (P.native (n + 1) b).ty).carrier := by
+      rw [hb.1]
+      exact hu
+    refine ⟨u, hu2, ?_⟩
+    rw [hb.2 u, hu_eq]
+    simp
+  have h_child := hcov hs_hp
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp h_child
+  let b := (power_factorisation_aux_step11_native_child P n a.val i).choose
+  use ⟨b, hi⟩
+  change (P.native (n + 1) b).carrier 0 ⊆ S.σ '' (P.native n a.val).carrier 0
+  have hb := (power_factorisation_aux_step11_native_child P n a.val i).choose_spec
+  rw [power_factorisation_aux_step11_carrier_zero, power_factorisation_aux_step11_carrier_zero]
+  intro x hx
+  obtain ⟨y, hy, rfl⟩ := hx
+  rw [hb.2 y]
+  have hy2 : y ∈ (S.proto (S.child (P.native n a.val).ty i).ty).carrier := by
+    rw [← hb.1]
+    exact hy
+  have h_child_cover2 : placedSet (S.child (P.native n a.val).ty i).frame (S.proto (S.child (P.native n a.val).ty i).ty).carrier ⊆ S.σ '' (S.proto (P.native n a.val).ty).carrier := by
+    rw [S.children_cover (P.native n a.val).ty]
+    exact Set.subset_iUnion (fun i => placedSet (S.child (P.native n a.val).ty i).frame (S.proto (S.child (P.native n a.val).ty i).ty).carrier) i
+  have hy3 := h_child_cover2 ⟨y, hy2, rfl⟩
+  obtain ⟨z, hz, hz_eq⟩ := hy3
+  use (P.native n a.val).frame z
+  constructor
+  · exact ⟨z, hz, rfl⟩
+  · rw [← hz_eq]
+    simp
 
 /-- P9, V4 1.14: the number of incident tiles never decreases with depth. -/
 theorem incident_width_monotone (p : E d) (n : ℕ) :

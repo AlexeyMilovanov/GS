@@ -159,6 +159,124 @@ private theorem two_sided_constancy_step4_head (q : Packet P) (s : State P)
   · exact Option.some.inj h
   · contradiction
 
+/-- Step 1 of the V4 proof of `two_sided_constancy_step5_piece_incidence`
+(V4 1.13(c), 3.4): "by (I2) their record ... is the restriction".
+Realize an honest decoded state at its prescribed height and full frame. -/
+private theorem two_sided_constancy_step5_piece_incidence_step1_realise
+    (s : State P) (hs : s ∈ honestStates S P) (N : FramedNode S) (n : ℕ)
+    (hty : s.ty = N.ty) (hres : s.residue.val = n % P.L) :
+    ∃ (U : HonestSource S) (hN : N ∈ U.hierarchy.nodes n),
+      stateOf U P ⟨n, ⟨N, hN⟩⟩ = s := by
+  obtain ⟨U, q, rfl⟩ := hs
+  have hmod : q.1 % P.L = n % P.L := hres
+  have hshift : (q.1 - n) % P.L = (n - q.1) % P.L := by
+    rcases le_total q.1 n with h | h
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact (Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod)).symm
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod.symm)
+  obtain ⟨V, e, N', he⟩ := exactScaleTransfer U q.1 q.2.val q.2.property n
+    (AffineIsometryEquiv.refl ℝ (E d))
+  have hs' : stateOf V P ⟨n, N'⟩ = stateOf U P q := by
+    have h := state_scaleTransfer P e hshift ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.symm
+  have hty' : N'.val.ty = N.ty := by
+    have h := e.types ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.trans hty
+  let J := N'.val.frame.symm.trans N.frame
+  obtain ⟨W, f, N'', hf⟩ := exactScaleTransfer V n N'.val N'.property n J
+  have hs'' : stateOf W P ⟨n, N''⟩ = stateOf V P ⟨n, N'⟩ := by
+    have h := state_scaleTransfer P f rfl ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+    rw [hf] at h
+    exact h.symm
+  have hnode : N''.val = N := by
+    apply FramedNode.ext
+    · have h := f.types ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      exact h.trans hty'
+    · have h := f.frames ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      apply AffineIsometryEquiv.ext
+      intro x
+      have hx := congrArg (fun g : E d ≃ᵃ[ℝ] E d => g ((S.σ ^ n).symm x)) h
+      simpa [FramedNode.prototypeFrame, J] using hx
+  obtain ⟨N'', hN''⟩ := N''
+  dsimp only at hnode
+  subst N''
+  exact ⟨W, hN'', hs''.trans hs'⟩
+
+/-- Step 2 of the V4 proof of `two_sided_constancy_step5_piece_incidence`
+(V4 2.3, 3.4): "by (I2) their record for that piece is the restriction".
+The child equations identify every native descendant state in a fixed honest source. -/
+private theorem two_sided_constancy_step5_piece_incidence_step2_descent
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (U : HonestSource S) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ D.geometry.nodes (h + r)) (hU : N ∈ U.hierarchy.nodes (h + r))
+    (hs : stateOf U P ⟨h + r, ⟨N, hU⟩⟩ = D.stateAt (h + r) N hN)
+    (w : S.RoleWord N.ty r) :
+    let M := (S.descendantNode N.ty h r w).move N.frame
+    ∃ (hM : M ∈ D.geometry.nodes h) (hMU : M ∈ U.hierarchy.nodes h),
+      stateOf U P ⟨h, ⟨M, hMU⟩⟩ = D.stateAt h M hM := by
+  induction r generalizing N with
+  | zero =>
+    have hnode : (S.descendantNode N.ty h 0 w).move N.frame = N := by
+      cases N
+      simp [SubstSystem.descendantNode, FramedNode.move]
+    simp only [hnode]
+    exact ⟨hN, hU, hs⟩
+  | succ r ih =>
+    let i := w.1
+    let N' := N.child (h + r) i
+    have hN' : N' ∈ D.geometry.nodes (h + r) := D.geometry.child_mem _ N hN i
+    have hU' : N' ∈ U.hierarchy.nodes (h + r) := U.hierarchy.children_mem _ N hU i
+    have hs' : stateOf U P ⟨h + r, ⟨N', hU'⟩⟩ = D.stateAt (h + r) N' hN' := by
+      rw [hD.I2.1 (h + r) N hN i]
+      simp only [Nat.add_assoc]
+      rw [← hs]
+      have hc := childMap_spec U P ⟨h + r + 1, ⟨N, hU⟩⟩
+        (by change 1 ≤ h + r + 1; omega) i
+      simpa [HonestSource.childNode, N'] using hc
+    obtain ⟨hM, hMU, hstate⟩ := ih N' hN' hU' hs' w.2
+    have hnode : (S.descendantNode N.ty h (r + 1) w).move N.frame =
+        (S.descendantNode N'.ty h r w.2).move N'.frame := by
+      simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child, N', i,
+        AffineIsometryEquiv.trans_assoc]
+    simp only [hnode]
+    exact ⟨hM, hMU, hstate⟩
+
+/-- Step 3 of the V4 proof of `two_sided_constancy_step5_piece_incidence`
+(V4 2.5, 2.6(c)): "their record for that piece". In an honest leaf pre-pattern,
+a finite facet record and the packet on the same port have the same incidence. -/
+private theorem two_sided_constancy_step5_piece_incidence_step3_leaf_incidence
+    (l : LeafType P) (f : Cell d) (r : FacetRecord P)
+    (hr : leafRecord l f = some r) (q : Packet P)
+    (hq : leafPacket l f = some q) : q.incidence = r.incidence := by
+  classical
+  obtain ⟨U, t, ht, hw⟩ := (certificate_components_honest P l.1.val l.1.property).1 l.2
+  change prePatternOf U P t ht = l.prePattern at hw
+  unfold leafRecord at hr
+  rw [← hw] at hr
+  change stateRecordAt (stateOf U P t) f = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  next hf =>
+    change f ∈ (S.cx t.2.val.ty).facets at hf
+    change U.facetRecordOf P t ⟨f, hf⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    next hn =>
+      have hrecord : U.recordOf P t ⟨f, hf⟩ hn = r := Option.some.inj hr
+      unfold leafPacket at hq
+      rw [← hw] at hq
+      simp only [prePatternOf, dif_pos hf, HonestSource.facetPacket,
+        dif_neg hn, Option.some.injEq] at hq
+      rw [← hq, ← hrecord]
+      rfl
+  · contradiction
+
 /-- Step 5 of the V4 proof of `two_sided_constancy` (V4 3.4, (I2), Cor. 2.4(a),
 2.6(c)): "by (I2) their record for that piece is the restriction of `S(C)`'s
 record of `g`, which by Corollary 2.4(a) is the age-1 record". Hence a non-NULL
@@ -173,7 +291,49 @@ private theorem two_sided_constancy_step5_piece_incidence
       g.incidence.val.leftFacet t f)
     (q : Packet P) (hq : leafPacket (compilerLeaf C t) f.val = some q) :
     q.incidence = g.incidence := by
-  sorry
+  classical
+  obtain ⟨htype, hres⟩ := hD.node_type_residue g.height g.birth hg
+  obtain ⟨U, hb, hs⟩ := two_sided_constancy_step5_piece_incidence_step1_realise
+    (D.stateAt g.height g.birth hg) (D.state_honest _ ⟨g.birth, hg⟩)
+    g.birth g.height htype hres
+  have hdesc := Parser.descendant_trans (tileNode t) g.leftNode g.birth
+    0 (g.height - 1) g.height hpiece.2.1 g.sides_descendant.1
+  obtain ⟨r, hr, w, htile⟩ := hdesc
+  have hrheight : r = g.height := by omega
+  subst r
+  have hreal {k : ℕ} (hk : k = g.height)
+      (hN : g.birth ∈ D.geometry.nodes k) (hU : g.birth ∈ U.hierarchy.nodes k) :
+      stateOf U P ⟨k, ⟨g.birth, hU⟩⟩ = D.stateAt k g.birth hN := by
+    subst k
+    exact hs
+  have hdescstate : ∃ (htD : tileNode t ∈ D.geometry.nodes 0)
+      (htU : tileNode t ∈ U.hierarchy.nodes 0),
+      stateOf U P ⟨0, ⟨tileNode t, htU⟩⟩ = D.stateAt 0 (tileNode t) htD := by
+    obtain ⟨htD, htU, htstate⟩ :=
+      two_sided_constancy_step5_piece_incidence_step2_descent D hD U 0 g.height g.birth
+        (by simpa only [Nat.zero_add] using hg)
+        (by simpa only [Nat.zero_add] using hb)
+        (hreal (Nat.zero_add g.height) _ _) w
+    rw [htile]
+    exact ⟨htD, htU, htstate⟩
+  obtain ⟨htD, htU, htstate⟩ := hdescstate
+  let c : U.Node := ⟨0, ⟨tileNode t, htU⟩⟩
+  let G : PrimitiveOccurrence U P := ⟨⟨g.height, ⟨g.birth, hb⟩⟩,
+    g.positive, g.incidence, g.parent_type⟩
+  have hsub : c.2.val.cell c.1 f.val ⊆ G.carrier := by
+    change (tileNode t).cell 0 f.val ⊆ g.carrier
+    rw [← g.sides_carrier.1]
+    exact hpiece.2.2
+  obtain ⟨⟨hf, hinc⟩, -⟩ := packet_attached U P G c rfl f hsub
+  have hleaf : stateOf U P c = (compilerLeaf C t).prePattern.state :=
+    htstate.trans (hD.I2.2 (tileNode t) htD t hpiece.1 rfl)
+  have hrecord : leafRecord (compilerLeaf C t) f.val = some (U.recordOf P c f hf) := by
+    unfold leafRecord
+    rw [← hleaf]
+    simp only [stateRecordAt, stateOf, c, dif_pos f.property,
+      HonestSource.facetRecordOf, dif_neg hf]
+  exact (two_sided_constancy_step5_piece_incidence_step3_leaf_incidence
+    (compilerLeaf C t) f.val (U.recordOf P c f hf) hrecord q hq).trans hinc
 
 /-- The actual (S6) header of a birth parent `Q` of height `m` at a point `p`,
 normalized to the frame `φ` of a native tile (V4 2.2 (S6), Prop. 2.3): parent

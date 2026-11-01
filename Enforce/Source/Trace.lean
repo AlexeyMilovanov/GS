@@ -1617,10 +1617,58 @@ theorem ancestor_height (q : H.Node) (r : ℕ) : (H.ancestor q r).1 = q.1 + r :=
     dsimp [parentNode]
     omega
 
+private theorem ancestor_descendant_refl {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (N : FramedNode S) (n : ℕ) : N.IsDescendant n N n := by
+  refine ⟨0, by omega, ⟨⟩, ?_⟩
+  simp [SubstSystem.descendantNode, FramedNode.move]
+
+private theorem ancestor_descendant_child {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :
+    (N.child n i).IsDescendant n N (n + 1) := by
+  refine ⟨1, rfl, ⟨i, ()⟩, ?_⟩
+  simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child]
+
+private theorem ancestor_descendant_join_words {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (A : S.ι) (h m j : ℕ) (u : S.RoleWord A j)
+    (v : S.RoleWord (S.descendantNode A (h + m) j u).ty m) :
+    ∃ w : S.RoleWord A (m + j),
+      S.descendantNode A h (m + j) w =
+        (S.descendantNode (S.descendantNode A (h + m) j u).ty h m v).move
+          (S.descendantNode A (h + m) j u).frame := by
+  induction j generalizing A with
+  | zero =>
+    refine ⟨v, ?_⟩
+    simp [SubstSystem.descendantNode, FramedNode.move]
+  | succ j ih =>
+    obtain ⟨w, hw⟩ := ih (S.child A u.1).ty u.2 v
+    refine ⟨⟨u.1, w⟩, ?_⟩
+    change (S.descendantNode (S.child A u.1).ty h (m + j) w).move
+      (S.placeChild (h + (m + j)) u.1) = _
+    rw [hw]
+    simp [SubstSystem.descendantNode, FramedNode.move, Nat.add_assoc,
+      ← AffineIsometryEquiv.trans_assoc]
+
+private theorem ancestor_descendant_trans {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (L N P : FramedNode S) (a b c : ℕ)
+    (hLN : L.IsDescendant a N b) (hNP : N.IsDescendant b P c) : L.IsDescendant a P c := by
+  obtain ⟨m, rfl, v, rfl⟩ := hLN
+  obtain ⟨j, rfl, u, rfl⟩ := hNP
+  obtain ⟨w, hw⟩ := ancestor_descendant_join_words P.ty a m j u v
+  refine ⟨m + j, by omega, w, ?_⟩
+  rw [hw]
+  rfl
+
 /-- P6, V4 1.6: actual ancestors satisfy the recursive framed descendant relation. -/
 theorem ancestor_descendant (q : H.Node) (r : ℕ) :
     q.2.val.IsDescendant q.1 (H.ancestor q r).2.val (H.ancestor q r).1 := by
-  sorry
+  induction r generalizing q with
+  | zero => exact ancestor_descendant_refl q.2.val q.1
+  | succ n ih =>
+    have hstep : q.2.val.IsDescendant q.1 (H.parentNode q).2.val (q.1 + 1) := by
+      have hc := ancestor_descendant_child (H.parent q.1 q.2).val q.1 (H.role q.1 q.2)
+      have e := H.child_eq q.1 q.2
+      exact (e ▸ hc)
+    have hih := ih (H.parentNode q)
+    have hanc : H.ancestor q (n + 1) = H.ancestor (H.parentNode q) n := rfl
+    rw [hanc]
+    exact ancestor_descendant_trans _ _ _ _ _ _ hstep hih
+
 
 /-- P6, V4 1.6: offsets for which the original facet remains on the boundary. -/
 def boundaryOffsets (q : H.Node) (f : FacetName S q.2.val.ty) : Set ℕ :=

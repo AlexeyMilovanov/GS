@@ -860,6 +860,79 @@ theorem oriented_orbits_finite : S.facetSides.Finite ∧ S.facetSideOrbits.Finit
   haveI : Finite S.facetSideOrbits := hOfin.to_subtype
   exact ⟨Equiv.ofBijective g (Finite.injective_iff_bijective.mp hginj), fun O => rfl⟩
 
+/-- Step 1 of the V4 proof of `one_child_runs` (V4 1.28): an isometric child frame
+preserves volume, so the placed child prototype has the volume of the prototype. -/
+private theorem one_child_runs_step1_placed_volume (R : Ortho d) (t : E d) (K : Set (E d)) :
+    MeasureTheory.volume (placedSet (rigidMotion R t) K) = MeasureTheory.volume K := by
+  have h1 : placedSet (rigidMotion R t) K = (fun x => x + t) '' (R '' K) := by
+    ext x; simp [placedSet, rigidMotion, Set.image_image]
+  have h2 : R '' K = R.symm ⁻¹' K := by
+    ext x; constructor
+    · rintro ⟨y, hy, rfl⟩; simpa using hy
+    · intro hx; exact ⟨_, hx, by simp⟩
+  rw [h1, Set.image_add_right, MeasureTheory.measure_preimage_add_right, h2]
+  exact R.symm.measurePreserving.measure_preimage_emb R.symm.toHomeomorph.measurableEmbedding K
+
+/-- Step 2 of the V4 proof of `one_child_runs` (V4 1.28): `|det σ| ≥ c^d > 1`. -/
+private theorem one_child_runs_step2_det_gt_one :
+    1 < |LinearMap.det (S.σ : E d →ₗ[ℝ] E d)| := by
+  have hd : 2 ≤ d := Fact.out
+  have hc := S.c_gt_one
+  have hc0 : 0 ≤ S.c := by linarith
+  haveI : Nontrivial (E d) :=
+    Module.nontrivial_of_finrank_pos (R := ℝ) (by rw [finrank_euclideanSpace_fin]; omega)
+  have hsub : Metric.ball (0 : E d) S.c ⊆ (S.σ : E d →ₗ[ℝ] E d) '' Metric.ball 0 1 := by
+    intro y hy
+    refine ⟨S.σ.symm y, ?_, by simp⟩
+    rw [mem_ball_zero_iff] at hy ⊢
+    have := S.expand (S.σ.symm y)
+    simp only [LinearEquiv.apply_symm_apply] at this
+    by_contra h
+    push_neg at h
+    nlinarith
+  have hm := MeasureTheory.measure_mono (μ := (MeasureTheory.volume : MeasureTheory.Measure (E d))) hsub
+  rw [MeasureTheory.Measure.addHaar_image_linearMap, MeasureTheory.Measure.addHaar_ball _ _ hc0,
+    finrank_euclideanSpace_fin] at hm
+  have hB0 : MeasureTheory.volume (Metric.ball (0 : E d) 1) ≠ 0 :=
+    (Metric.measure_ball_pos _ _ one_pos).ne'
+  have hBt : MeasureTheory.volume (Metric.ball (0 : E d) 1) ≠ ⊤ :=
+    MeasureTheory.measure_ball_lt_top.ne
+  have hle : ENNReal.ofReal (S.c ^ d) ≤ ENNReal.ofReal |LinearMap.det (S.σ : E d →ₗ[ℝ] E d)| :=
+    (ENNReal.mul_le_mul_iff_left hB0 hBt).mp hm
+  rw [ENNReal.ofReal_le_ofReal_iff (abs_nonneg _)] at hle
+  have : 1 < S.c ^ d := one_lt_pow₀ hc (by omega)
+  linarith
+
+/-- Step 3 of the V4 proof of `one_child_runs` (V4 1.28): if `A'` is the unique child type
+of `A`, then `vol A' = |det σ| vol A > vol A`. -/
+private theorem one_child_runs_step3_volume_lt (A : S.ι) (j : S.I A)
+    (h : Fintype.card (S.I A) = 1) :
+    MeasureTheory.volume (S.proto A).carrier <
+      MeasureTheory.volume (S.proto (S.child A j).ty).carrier := by
+  have hall : ∀ k : S.I A, k = j := fun k =>
+    Fintype.card_le_one_iff.mp (le_of_eq h) k j
+  have hcov := S.children_cover A
+  have hU : (⋃ k : S.I A, placedSet (S.child A k).frame (S.proto (S.child A k).ty).carrier) =
+      placedSet (S.child A j).frame (S.proto (S.child A j).ty).carrier := by
+    ext x; simp only [Set.mem_iUnion]
+    constructor
+    · rintro ⟨k, hk⟩; rw [hall k] at hk; exact hk
+    · intro hx; exact ⟨j, hx⟩
+  rw [hU] at hcov
+  have hvol := congrArg (MeasureTheory.volume : Set (E d) → ENNReal) hcov
+  have hσ : S.σ '' (S.proto A).carrier = (S.σ : E d →ₗ[ℝ] E d) '' (S.proto A).carrier := rfl
+  rw [hσ, MeasureTheory.Measure.addHaar_image_linearMap, Child.frame,
+    one_child_runs_step1_placed_volume] at hvol
+  rw [← hvol]
+  have h0 : MeasureTheory.volume (S.proto A).carrier ≠ 0 := by
+    have := (S.proto A).interior_nonempty
+    exact (lt_of_lt_of_le (isOpen_interior.measure_pos _ this)
+      (MeasureTheory.measure_mono interior_subset)).ne'
+  have ht : MeasureTheory.volume (S.proto A).carrier ≠ ⊤ := (S.proto A).compact.measure_lt_top.ne
+  calc MeasureTheory.volume (S.proto A).carrier
+      = 1 * MeasureTheory.volume (S.proto A).carrier := (one_mul _).symm
+    _ < _ := (ENNReal.mul_lt_mul_iff_left h0 ht).mpr (by simpa using S.one_child_runs_step2_det_gt_one)
+
 /-- C3, V4 1.28: a chain of one-child roles has at most `|ι|-1` steps.
 The role data identify the actual successive child types; no acyclicity is assumed. -/
 theorem one_child_runs (s : ℕ) (A : Fin (s + 1) → S.ι)
@@ -867,7 +940,16 @@ theorem one_child_runs (s : ℕ) (A : Fin (s + 1) → S.ι)
     (hunique : ∀ j : Fin s, Fintype.card (S.I (A j.castSucc)) = 1)
     (hchild : ∀ j : Fin s, (S.child (A j.castSucc) (i j)).ty = A j.succ) :
     s ≤ Fintype.card S.ι - 1 := by
-  sorry
+  have hmono : StrictMono (fun j => MeasureTheory.volume (S.proto (A j)).carrier) := by
+    rw [Fin.strictMono_iff_lt_succ]
+    intro j
+    have := S.one_child_runs_step3_volume_lt (A j.castSucc) (i j) (hunique j)
+    simp only [hchild j] at this
+    exact this
+  have hinj : Function.Injective A := fun a b hab => hmono.injective (by simp only [hab])
+  have := Fintype.card_le_of_injective A hinj
+  simp only [Fintype.card_fin] at this
+  omega
 
 private theorem I_nonempty (A : S.ι) : Nonempty (S.I A) := by
   obtain ⟨x, hx⟩ := (S.proto A).interior_nonempty

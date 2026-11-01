@@ -134,12 +134,405 @@ def internalSkeleton (S : SubstSystem d) (A : S.ι) (k : ℕ) : Set (E d) :=
     ¬ (S.nativeTile A k w).cell 0 f.val ⊆ frontier (S.supertile k A) ∧
       (S.σ ^ k) x ∈ (S.nativeTile A k w).cell 0 f.val}
 
+section InternalSkeletonPrimitives
+
+open private hereditary_trace_step1_relint_image hereditary_trace_step1_cell_frontier
+  hereditary_trace_step2_relint_mono facet_dichotomy_step1c_unique_sub
+  ancestor_descendant_child ancestor_descendant_trans from Enforce.Source.Trace
+open private site_fan_finite_step5_listed_step2_join_words
+  site_fan_finite_step5_listed_step2_descendant_subset
+  site_fan_finite_step5_listed_step2_standard_child
+  site_fan_finite_step5_listed_step2_place_scaled from Enforce.Source.Sites
+
+/-- Step 1 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"after inflating by `σ^k`": child placements at two base heights are
+related by the exact expansion conjugacy. -/
+private theorem internalSkeleton_eq_primitives_step1_place_shift (h k : ℕ) {A : S.ι} (i : S.I A) (x : E d) :
+    S.placeChild (h + k) i ((S.σ ^ h) x) = (S.σ ^ h) (S.placeChild k i x) := by
+  have h₁ := site_fan_finite_step5_listed_step2_place_scaled (h + k) i ((S.σ ^ k).symm x)
+  have h₂ := site_fan_finite_step5_listed_step2_place_scaled k i ((S.σ ^ k).symm x)
+  simp only [pow_add, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply] at h₁ h₂
+  rw [← h₂] at h₁
+  exact h₁
+
+/-- Step 1 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"the standard subdivision of `σ^k A`": the entire descendant frame
+obeys the same conjugacy, with no similarity assumption. -/
+private theorem internalSkeleton_eq_primitives_step1_descendant_frame (A : S.ι) (h j : ℕ)
+    (w : S.RoleWord A j) (x : E d) :
+    (S.descendantNode A h j w).frame ((S.σ ^ h) x) =
+      (S.σ ^ h) ((S.nativeTile A j w).frame x) := by
+  induction j generalizing A with
+  | zero => rfl
+  | succ j ih =>
+    change S.placeChild (h + j) w.1
+      ((S.descendantNode (S.child A w.1).ty h j w.2).frame ((S.σ ^ h) x)) =
+      (S.σ ^ h) (S.placeChild (0 + j) w.1
+        ((S.nativeTile (S.child A w.1).ty j w.2).frame x))
+    rw [ih, internalSkeleton_eq_primitives_step1_place_shift, Nat.zero_add]
+
+/-- Step 1 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"depth-`k` native tiles": changing base height preserves the final
+prototype type of a role word. -/
+private theorem internalSkeleton_eq_primitives_step1_descendant_type (A : S.ι) (h j : ℕ) (w : S.RoleWord A j) :
+    (S.descendantNode A h j w).ty = (S.nativeTile A j w).ty := by
+  induction j generalizing A with
+  | zero => rfl
+  | succ j ih => exact ih (S.child A w.1).ty w.2
+
+/-- Step 1 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"after inflating by `σ^k`": expansion of the normalized birth frame
+is precisely the standard birth node's full prototype frame. -/
+private theorem internalSkeleton_eq_primitives_step1_birth_frame {A : S.ι} (f : PrimitiveFacet S A) (k : ℕ)
+    (hf : f.depth ≤ k) (x : E d) :
+    (S.σ ^ k) (f.birthFrame x) = (f.birthNode k).prototypeFrame (k - f.depth) x := by
+  change (S.σ ^ k) ((S.σ ^ f.depth).symm ((S.nativeTile A f.depth f.word).frame x)) =
+    (S.descendantNode A (k - f.depth) f.depth f.word).frame ((S.σ ^ (k - f.depth)) x)
+  rw [internalSkeleton_eq_primitives_step1_descendant_frame]
+  have hp : S.σ ^ k = (S.σ ^ (k - f.depth)) * (S.σ ^ f.depth) := by
+    rw [← pow_add, Nat.sub_add_cancel hf]
+  rw [hp]
+  simp
+
+/-- Step 2 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"depth-`k` native tiles": split a role word at an intermediate
+ancestor, preserving its complete frame. -/
+private theorem internalSkeleton_eq_primitives_step2_split_word (A : S.ι) (h m j : ℕ) (w : S.RoleWord A (m + j)) :
+    ∃ u : S.RoleWord A j, ∃ v : S.RoleWord (S.descendantNode A (h + m) j u).ty m,
+      S.descendantNode A h (m + j) w =
+        (S.descendantNode (S.descendantNode A (h + m) j u).ty h m v).move
+          (S.descendantNode A (h + m) j u).frame := by
+  induction j generalizing A with
+  | zero =>
+    refine ⟨(), w, ?_⟩
+    simp [SubstSystem.descendantNode, FramedNode.move]
+  | succ j ih =>
+    obtain ⟨u, v, hv⟩ := ih (S.child A w.1).ty w.2
+    refine ⟨⟨w.1, u⟩, v, ?_⟩
+    change (S.descendantNode (S.child A w.1).ty h (m + j) w.2).move
+      (S.placeChild (h + (m + j)) w.1) = _
+    rw [hv]
+    simp [SubstSystem.descendantNode, FramedNode.move, Nat.add_assoc,
+      ← AffineIsometryEquiv.trans_assoc]
+
+/-- Step 2 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"the standard subdivision": descendants of a standard node are
+standard nodes of the same root. -/
+private theorem internalSkeleton_eq_primitives_step2_standard_descendant (A : S.ι) (k a b : ℕ) (N P : FramedNode S)
+    (hP : S.IsStandardNode A k b P) (hN : N.IsDescendant a P b) :
+    S.IsStandardNode A k a N := by
+  obtain ⟨m, rfl, v, rfl⟩ := hN
+  obtain ⟨j, hj, u, rfl⟩ := hP
+  obtain ⟨w, hw⟩ := site_fan_finite_step5_listed_step2_join_words A a m j u v
+  exact ⟨m + j, by omega, w, hw.symm⟩
+
+/-- Step 2 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"relative interior": a placed facet has a nonempty relative interior,
+so it cannot be both a boundary facet and internal. -/
+private theorem internalSkeleton_eq_primitives_step2_cell_relint_nonempty (N : FramedNode S) (n : ℕ) (e : Cell d) :
+    (relint (N.cell n e)).Nonempty := by
+  rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+  exact e.flat.relint_nonempty.image _
+
+/-- Step 2 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"depth-`k` native tiles": a strict descendant has an immediate predecessor
+on its recorded path to the given standard ancestor. -/
+private theorem internalSkeleton_eq_primitives_step2_parent (A : S.ι) (k h b : ℕ)
+    (N P : FramedNode S) (_hN : S.IsStandardNode A k h N)
+    (hP : S.IsStandardNode A k b P) (hNP : N.IsDescendant h P b) (hlt : h < b) :
+    ∃ Q : FramedNode S, S.IsStandardNode A k (h + 1) Q ∧
+      Q.IsDescendant (h + 1) P b ∧ ∃ i : S.I Q.ty, N = Q.child h i := by
+  obtain ⟨r, hr, w, hw⟩ := hNP
+  obtain ⟨j, hj⟩ : ∃ j, r = 1 + j := ⟨r - 1, by omega⟩
+  subst r
+  obtain ⟨u, v, hv⟩ := internalSkeleton_eq_primitives_step2_split_word P.ty h 1 j w
+  let Q := (S.descendantNode P.ty (h + 1) j u).move P.frame
+  have hQP : Q.IsDescendant (h + 1) P b := ⟨j, by omega, u, rfl⟩
+  refine ⟨Q, internalSkeleton_eq_primitives_step2_standard_descendant A k (h + 1) b Q P hP hQP,
+    hQP, v.1, ?_⟩
+  rw [hw, hv]
+  simp [Q, SubstSystem.descendantNode, FramedNode.move, FramedNode.child,
+    ← AffineIsometryEquiv.trans_assoc]
+
+/-- Step 3 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"primitive facets ... at depths < r": an internal immediate-child facet
+defines a primitive facet at that exact birth address, with the exact expanded carrier. -/
+private theorem internalSkeleton_eq_primitives_step3_birth (A : S.ι) (k n : ℕ) (Q : FramedNode S)
+    (hQ : S.IsStandardNode A k (n + 1) Q) (i : S.I Q.ty)
+    (e : FacetName S (Q.child n i).ty)
+    (hint : relint ((Q.child n i).cell n e.val) ⊆ interior (Q.carrier (n + 1))) :
+    ∃ g : PrimitiveFacet S A, k - g.depth = n + 1 ∧ g.birthNode k = Q ∧
+      (S.σ ^ k) '' g.carrier = (Q.child n i).cell n e.val := by
+  obtain ⟨j, hk, w, hQ⟩ := hQ
+  have hty : (S.nativeTile A j w).ty = Q.ty :=
+    (internalSkeleton_eq_primitives_step1_descendant_type A (n + 1) j w).symm.trans (congrArg FramedNode.ty hQ.symm)
+  let F := placedSet (S.child Q.ty i).frame e.val.carrier
+  let T : E d ≃ᵃ[ℝ] E d := (S.σ ^ n).toAffineEquiv.trans Q.frame.toAffineEquiv
+  have hcell : (Q.child n i).cell n e.val = T '' F := by
+    simp only [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child,
+      AffineEquiv.coe_trans, AffineIsometryEquiv.coe_toAffineEquiv,
+      AffineIsometryEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
+      T, F, placedSet, Set.image_image]
+    congr 1
+    funext x
+    exact congrArg Q.frame (site_fan_finite_step5_listed_step2_place_scaled n i x)
+  have hcarrier : Q.carrier (n + 1) = T '' S.supertile 1 Q.ty := by
+    simp [FramedNode.carrier, SubstSystem.supertile, placedSet, T,
+      Set.image_image, pow_succ, LinearEquiv.mul_apply]
+  have hlocal : relint F ⊆ interior (S.supertile 1 Q.ty) := by
+    intro x hx
+    have hh : T x ∈ interior (Q.carrier (n + 1)) := by
+      apply hint
+      rw [hcell, hereditary_trace_step1_relint_image]
+      exact Set.mem_image_of_mem T hx
+    rw [hcarrier] at hh
+    let H := T.toHomeomorphOfFiniteDimensional
+    change H x ∈ interior (H '' S.supertile 1 Q.ty) at hh
+    rw [← H.image_interior] at hh
+    exact H.injective.mem_set_image.mp hh
+  have hreal : ∃ (i : S.I (S.nativeTile A j w).ty)
+      (e : FacetName S (S.child (S.nativeTile A j w).ty i).ty),
+      F = placedSet (S.child (S.nativeTile A j w).ty i).frame e.val.carrier ∧
+        relint F ⊆ interior (S.supertile 1 (S.nativeTile A j w).ty) := by
+    rw [hty]
+    exact ⟨i, e, rfl, hlocal⟩
+  let g : PrimitiveFacet S A := ⟨j, w, F, hreal⟩
+  have hg : k - g.depth = n + 1 := by change k - j = n + 1; omega
+  have hgj : g.depth < k := by change j < k; omega
+  have hnode : g.birthNode k = Q := by
+    change S.descendantNode A (k - j) j w = Q
+    rw [show k - j = n + 1 by omega]
+    exact hQ.symm
+  refine ⟨g, hg, hnode, ?_⟩
+  rw [hcell]
+  change (S.σ ^ k) '' (g.birthFrame '' (S.σ.symm '' F)) = T '' F
+  rw [Set.image_image, Set.image_image]
+  apply Set.image_congr
+  intro x _
+  change (S.σ ^ k) (g.birthFrame (S.σ.symm x)) = T x
+  rw [internalSkeleton_eq_primitives_step1_birth_frame g k hgj.le, hg, hnode]
+  change Q.frame ((S.σ ^ (n + 1)) (S.σ.symm x)) = Q.frame ((S.σ ^ n) x)
+  rw [pow_succ]
+  simp
+
+/-- Step 4 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"primitive facets": ascend through inherited boundary facets until
+the first internal facet; induction on the finite ancestor distance terminates. -/
+private theorem internalSkeleton_eq_primitives_step4_finite_ascent (A : S.ι) (k b : ℕ) (P : FramedNode S)
+    (hP : S.IsStandardNode A k b P) (h : ℕ) (N : FramedNode S)
+    (hN : S.IsStandardNode A k h N) (hNP : N.IsDescendant h P b)
+    (e : FacetName S N.ty)
+    (hint : relint (N.cell h e.val) ⊆ interior (P.carrier b)) :
+    ∃ g : PrimitiveFacet S A, g.depth < k ∧ h < k - g.depth ∧
+      N.IsDescendant h (g.birthNode k) (k - g.depth) ∧
+      N.cell h e.val ⊆ (S.σ ^ k) '' g.carrier := by
+  have aux : ∀ r h : ℕ, b = h + r → ∀ N : FramedNode S,
+      S.IsStandardNode A k h N → N.IsDescendant h P b →
+      ∀ e : FacetName S N.ty, relint (N.cell h e.val) ⊆ interior (P.carrier b) →
+      ∃ g : PrimitiveFacet S A, g.depth < k ∧ h < k - g.depth ∧
+        N.IsDescendant h (g.birthNode k) (k - g.depth) ∧
+        N.cell h e.val ⊆ (S.σ ^ k) '' g.carrier := by
+    intro r
+    induction r with
+    | zero =>
+      intro h hb N hN hNP e hint
+      have hbh : b = h := by omega
+      subst b
+      obtain ⟨r, hr, w, hw⟩ := hNP
+      have hr0 : r = 0 := by omega
+      subst r
+      have hNP : N = P := by simpa [SubstSystem.descendantNode, FramedNode.move] using hw
+      subst N
+      obtain ⟨x, hx⟩ := internalSkeleton_eq_primitives_step2_cell_relint_nonempty P h e.val
+      exact False.elim ((hereditary_trace_step1_cell_frontier P h e.val (Finset.mem_filter.mp e.property).1
+        (intrinsicInterior_subset hx)).2 (hint hx))
+    | succ r ih =>
+      intro h hb N hN hNP e hint
+      obtain ⟨Q, hQ, hQP, i, rfl⟩ := internalSkeleton_eq_primitives_step2_parent A k h b N P hN hP hNP (by omega)
+      rcases facet_dichotomy Q (Q.child h i) (h + 1) h (ancestor_descendant_child Q h i) e with hboundary | hinternal
+      · obtain ⟨F, hF, -⟩ := hboundary
+        have hFint : relint (Q.cell (h + 1) F.val) ⊆ interior (P.carrier b) := by
+          rcases facet_dichotomy P Q b (h + 1) hQP F with hboundary' | hinternal'
+          · obtain ⟨F₀, hF₀, -⟩ := hboundary'
+            obtain ⟨x, hx⟩ := internalSkeleton_eq_primitives_step2_cell_relint_nonempty (Q.child h i) h e.val
+            exact False.elim ((hereditary_trace_step1_cell_frontier P b F₀.val (Finset.mem_filter.mp F₀.property).1
+              (hF₀ (hF (intrinsicInterior_subset hx)))).2 (hint hx))
+          · exact hinternal'
+        obtain ⟨g, hg, hheight, hQg, hFg⟩ := ih (h + 1) (by omega) Q hQ hQP F hFint
+        exact ⟨g, hg, by omega, ancestor_descendant_trans _ _ _ h (h + 1) (k - g.depth)
+          (ancestor_descendant_child Q h i) hQg, hF.trans hFg⟩
+      · obtain ⟨g, hg, hnode, hcell⟩ := internalSkeleton_eq_primitives_step3_birth A k h Q hQ i e hinternal
+        refine ⟨g, by omega, by omega, ?_, ?_⟩
+        · rw [hg, hnode]
+          exact ancestor_descendant_child Q h i
+        · rw [hcell]
+  have hNP' := hNP
+  obtain ⟨r, hr, _⟩ := hNP'
+  exact aux r h hr N hN hNP e hint
+
+/-- Step 5 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"a union of native facets (heredity)": one application of (H5) covers a
+parent facet by immediate-child facets of the same dimension, with their
+actual height-dependent placements. -/
+private theorem internalSkeleton_eq_primitives_step5_refine_once (N : FramedNode S) (n : ℕ)
+    (F : FacetName S N.ty) (x : E d) (hx : x ∈ N.cell (n + 1) F.val) :
+    ∃ (i : S.I N.ty) (e : FacetName S (N.child n i).ty),
+      (N.child n i).cell n e.val ⊆ N.cell (n + 1) F.val ∧
+        x ∈ (N.child n i).cell n e.val := by
+  classical
+  obtain ⟨parts, hparts⟩ := S.heredity N.ty F.val (Finset.mem_filter.mp F.property).1
+  obtain ⟨z, hz, hzx⟩ := hx
+  have hz' : S.σ z ∈ S.σ '' F.val.carrier := ⟨z, hz, rfl⟩
+  rw [hparts] at hz'
+  obtain ⟨q, hq, y, hy, hyz⟩ := Set.mem_iUnion₂.mp hz'
+  let e : FacetName S (N.child n q.1).ty := ⟨q.2.val, Finset.mem_filter.mpr
+    ⟨q.2.property.1, q.2.property.2.trans (Finset.mem_filter.mp F.property).2⟩⟩
+  refine ⟨q.1, e, ?_, ?_⟩
+  · rintro w ⟨v, hv, rfl⟩
+    have hv' : (S.child N.ty q.1).frame v ∈ S.σ '' F.val.carrier := by
+      rw [hparts]
+      exact Set.mem_iUnion₂.mpr ⟨q, hq, v, hv, rfl⟩
+    obtain ⟨u, hu, huv⟩ := hv'
+    refine ⟨u, hu, ?_⟩
+    change N.frame ((S.σ ^ (n + 1)) u) = N.frame (S.placeChild n q.1 ((S.σ ^ n) v))
+    rw [site_fan_finite_step5_listed_step2_place_scaled, ← huv, pow_succ]
+    rfl
+  · refine ⟨y, hy, ?_⟩
+    change N.frame (S.placeChild n q.1 ((S.σ ^ n) y)) = x
+    rw [site_fan_finite_step5_listed_step2_place_scaled, hyz]
+    exact hzx
+
+/-- Step 5 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"a union of native facets (heredity)": iterate one-generation refinement
+to cover each placed facet by ground facets on its exact descendant paths. -/
+private theorem internalSkeleton_eq_primitives_step5_refine (N : FramedNode S) (n : ℕ)
+    (F : FacetName S N.ty) (x : E d) (hx : x ∈ N.cell n F.val) :
+    ∃ L : FramedNode S, L.IsDescendant 0 N n ∧
+      ∃ e : FacetName S L.ty, L.cell 0 e.val ⊆ N.cell n F.val ∧ x ∈ L.cell 0 e.val := by
+  induction n generalizing N with
+  | zero =>
+    refine ⟨N, ⟨0, rfl, (), ?_⟩, F, Set.Subset.rfl, hx⟩
+    simp [SubstSystem.descendantNode, FramedNode.move]
+  | succ n ih =>
+    obtain ⟨i, e, hsub, hxe⟩ := internalSkeleton_eq_primitives_step5_refine_once N n F x hx
+    obtain ⟨L, hLC, g, hg, hxg⟩ := ih (N.child n i) e hxe
+    exact ⟨L, ancestor_descendant_trans L (N.child n i) N 0 n (n + 1) hLC
+      (ancestor_descendant_child N n i), g, hg.trans hsub, hxg⟩
+
+/-- Step 6 of the V4 proof of `internalSkeleton_eq_primitives` (V4 1.24):
+"after inflating by `σ^k`": a primitive facet is an internal immediate-child
+facet of its standard birth node at every height above its birth. -/
+private theorem internalSkeleton_eq_primitives_step6_realize {A : S.ι}
+    (f : PrimitiveFacet S A) (k : ℕ) (hf : f.depth < k) :
+    ∃ (n : ℕ) (N : FramedNode S) (i : S.I N.ty)
+      (e : FacetName S (N.child n i).ty),
+      k - f.depth = n + 1 ∧ N = f.birthNode k ∧
+      (S.σ ^ k) '' f.carrier = (N.child n i).cell n e.val ∧
+      relint ((N.child n i).cell n e.val) ⊆ interior (N.carrier (n + 1)) := by
+  obtain ⟨n, hn⟩ : ∃ n, k - f.depth = n + 1 := ⟨k - f.depth - 1, by omega⟩
+  let N : FramedNode S := ⟨f.birthType, (f.birthNode k).frame⟩
+  have hN : N = f.birthNode k := by
+    apply FramedNode.ext
+    · exact (internalSkeleton_eq_primitives_step1_descendant_type A (k - f.depth)
+        f.depth f.word).symm
+    · rfl
+  obtain ⟨i, e, hF, hint⟩ := f.realization
+  let T : E d ≃ᵃ[ℝ] E d := (S.σ ^ n).toAffineEquiv.trans N.frame.toAffineEquiv
+  have hcell : (N.child n i).cell n e.val = T '' f.localCarrier := by
+    rw [hF]
+    simp only [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child,
+      AffineEquiv.coe_trans, AffineIsometryEquiv.coe_toAffineEquiv,
+      AffineIsometryEquiv.coe_trans, LinearEquiv.coe_toAffineEquiv,
+      T, placedSet, Set.image_image]
+    congr 1
+    funext x
+    exact congrArg N.frame (site_fan_finite_step5_listed_step2_place_scaled n i x)
+  have hcarrier : N.carrier (n + 1) = T '' S.supertile 1 N.ty := by
+    simp [FramedNode.carrier, SubstSystem.supertile, placedSet, T,
+      Set.image_image, pow_succ, LinearEquiv.mul_apply]
+  refine ⟨n, N, i, e, hn, hN, ?_, ?_⟩
+  · rw [hcell]
+    change (S.σ ^ k) '' (f.birthFrame '' (S.σ.symm '' f.localCarrier)) = T '' f.localCarrier
+    rw [Set.image_image, Set.image_image]
+    apply Set.image_congr
+    intro x _
+    change (S.σ ^ k) (f.birthFrame (S.σ.symm x)) = T x
+    rw [internalSkeleton_eq_primitives_step1_birth_frame f k hf.le, hn, ← hN]
+    change N.frame ((S.σ ^ (n + 1)) (S.σ.symm x)) = N.frame ((S.σ ^ n) x)
+    rw [pow_succ]
+    simp
+  · rw [hcell, hereditary_trace_step1_relint_image, hcarrier]
+    let H := T.toHomeomorphOfFiniteDimensional
+    change H '' relint f.localCarrier ⊆ interior (H '' S.supertile 1 N.ty)
+    rw [← H.image_interior]
+    exact Set.image_mono hint
+
 /-- P19, V4 1.24, preceding definition: the internal skeleton is exactly the
 union of primitive facets born before depth `k`. -/
 theorem internalSkeleton_eq_primitives (S : SubstSystem d) (A : S.ι) (k : ℕ) :
     internalSkeleton S A k = ⋃ f : {f : PrimitiveFacet S A // f.depth < k},
       f.val.carrier := by
-  sorry
+  classical
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hR : S.IsStandardNode A k k R := ⟨0, by omega, (), rfl⟩
+  have hRcarrier : R.carrier k = S.supertile k A := by
+    simp [R, FramedNode.carrier, placedSet]
+  apply Set.Subset.antisymm
+  · rintro x ⟨w, e, hnot, hx⟩
+    have hN : S.IsStandardNode A k 0 (S.nativeTile A k w) := ⟨k, by omega, w, rfl⟩
+    have hNR : (S.nativeTile A k w).IsDescendant 0 R k := by
+      refine ⟨k, by omega, w, ?_⟩
+      simp [R, SubstSystem.nativeTile, FramedNode.move]
+    have hint : relint ((S.nativeTile A k w).cell 0 e.val) ⊆ interior (R.carrier k) := by
+      rcases facet_dichotomy R (S.nativeTile A k w) k 0 hNR e with ⟨F, hF, -⟩ | hi
+      · apply False.elim
+        apply hnot
+        rw [← hRcarrier]
+        exact hF.trans (hereditary_trace_step1_cell_frontier R k F.val
+          (Finset.mem_filter.mp F.property).1)
+      · exact hi
+    obtain ⟨f, hf, -, -, hsub⟩ :=
+      internalSkeleton_eq_primitives_step4_finite_ascent A k k R hR 0
+        (S.nativeTile A k w) hN hNR e hint
+    exact Set.mem_iUnion.mpr ⟨⟨f, hf⟩, (S.σ ^ k).injective.mem_set_image.mp (hsub hx)⟩
+  · intro x hx
+    obtain ⟨⟨f, hf⟩, hxf⟩ := Set.mem_iUnion.mp hx
+    obtain ⟨n, N, i, e, hn, hN, hcell, hint⟩ :=
+      internalSkeleton_eq_primitives_step6_realize f k hf
+    have hNstd : S.IsStandardNode A k (n + 1) N := by
+      rw [hN, ← hn]
+      exact ⟨f.depth, by omega, f.word, rfl⟩
+    have hCstd : S.IsStandardNode A k n (N.child n i) :=
+      site_fan_finite_step5_listed_step2_standard_child A k n N hNstd i
+    have hxcell : (S.σ ^ k) x ∈ (N.child n i).cell n e.val :=
+      hcell ▸ Set.mem_image_of_mem (S.σ ^ k) hxf
+    obtain ⟨L, hLC, g, hg, hxg⟩ :=
+      internalSkeleton_eq_primitives_step5_refine (N.child n i) n e _ hxcell
+    have hLstd : S.IsStandardNode A k 0 L :=
+      internalSkeleton_eq_primitives_step2_standard_descendant A k 0 n L (N.child n i) hCstd hLC
+    have hNR : N.IsDescendant (n + 1) R k := by
+      obtain ⟨j, hj, w, rfl⟩ := hNstd
+      refine ⟨j, hj, w, ?_⟩
+      simp [R, FramedNode.move]
+    have hNsub : N.carrier (n + 1) ⊆ R.carrier k :=
+      site_fan_finite_step5_listed_step2_descendant_subset R N k (n + 1) hNR
+    have hrel : relint (L.cell 0 g.val) ⊆ interior (R.carrier k) :=
+      (hereditary_trace_step2_relint_mono _ _ hg
+        (facet_dichotomy_step1c_unique_sub (N.child n i) L n 0 g e hg)).trans
+        (hint.trans (interior_mono hNsub))
+    have hnot : ¬ L.cell 0 g.val ⊆ frontier (S.supertile k A) := by
+      intro hsub
+      obtain ⟨p, hp⟩ := internalSkeleton_eq_primitives_step2_cell_relint_nonempty L 0 g.val
+      have hpf := hsub (intrinsicInterior_subset hp)
+      rw [← hRcarrier] at hpf
+      exact hpf.2 (hrel hp)
+    obtain ⟨j, hj, w, hL⟩ := hLstd
+    have hjk : j = k := by omega
+    subst j
+    subst L
+    exact ⟨w, g, hnot, hxg⟩
+
+end InternalSkeletonPrimitives
 
 /-- P20, V4 1.24: a nonempty actual connected component of the internal skeleton. -/
 def IsSkeletonComponent (S : SubstSystem d) (A : S.ι) (k : ℕ)

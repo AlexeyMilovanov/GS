@@ -1403,7 +1403,23 @@ private lemma base_level_step5_I5_step1_boundary_step3_leaf
     (hdesc : (tileNode t).IsDescendant 0
       (B.innerNode a ha w) (P.K - a)) :
     ∃ v : S.RoleWord B.certificate.val.ty P.K, B.leaf v = t := by
-  sorry
+  have hin : (B.innerNode a ha w).IsDescendant (P.K - a)
+      B.node P.K :=
+    ⟨a, by omega, w, rfl⟩
+  have hroot : (tileNode t).IsDescendant 0 B.node P.K :=
+    Parser.descendant_trans (tileNode t) (B.innerNode a ha w)
+      B.node 0 (P.K - a) P.K hdesc hin
+  have hcar : t.carrier = (tileNode t).carrier 0 := by
+    rw [compilerFrame_carrier C t]
+    simp [tileNode, FramedNode.carrier, SubstSystem.supertile, placedSet]
+  have hsub : t.carrier ⊆ B.carrier := by
+    rw [hcar]
+    exact base_level_step1_decoded_step2_descendant_subset
+      (tileNode t) B.node 0 P.K hroot
+  have hmem : t ∈ Set.range B.leaf := by
+    rw [← B.tiles_exact]
+    exact ⟨ht, hsub⟩
+  exact hmem
 
 /-- Step 4 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 2.6(c),(d)): honest packet constancy for prescribed leaves. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest

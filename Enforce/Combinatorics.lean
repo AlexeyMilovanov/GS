@@ -500,13 +500,125 @@ theorem translation_stabilizer_discrete (T : Tiling S) :
   letI := hdiscrete
   exact ⟨hdiscrete, TopologicalSpace.separableSpace_iff_countable.mp inferInstance⟩
 
+/-- Step 1 of the V4 proof of `translated_witnesses_distinct` (V4 1.27):
+translations of physical tilings compose by addition of their vectors. -/
+private lemma translated_witnesses_distinct_step1_move_add (T : Tiling S) (v w : E d) :
+    (T.move (translation v)).move (translation w) = T.move (translation (v + w)) := by
+  have ht : ∀ t : PlacedTile S,
+      (t.move (translation v)).move (translation w) = t.move (translation (v + w)) := by
+    intro t
+    have hg : (fun y : E d => translation w (translation v y)) =
+        (fun y => translation (v + w) y) := by
+      funext y
+      change (y + v) + w = y + (v + w)
+      exact add_assoc y v w
+    ext x
+    · rfl
+    · rw [PlacedTile.move_carrier, PlacedTile.move_carrier,
+        PlacedTile.move_carrier, Set.image_image, hg]
+  obtain ⟨tiles, c, dj⟩ := T
+  dsimp [Tiling.move]
+  congr 1
+  ext t
+  simp only [Set.mem_image]
+  constructor
+  · rintro ⟨u, ⟨s, hs, rfl⟩, rfl⟩
+    exact ⟨s, hs, (ht s).symm⟩
+  · rintro ⟨s, hs, rfl⟩
+    exact ⟨s.move (translation v), ⟨s, hs, rfl⟩, ht s⟩
+
+/-- Step 2 of the V4 proof of `translated_witnesses_distinct` (V4 1.27):
+"the set of v with T_i + v = T_j is empty or a coset of the stabiliser ...,
+hence countable". Subtracting one such vector embeds this set in the stabilizer. -/
+private lemma translated_witnesses_distinct_step2_fiber_countable (T U : Tiling S) :
+    {v : E d | T.move (translation v) = U}.Countable := by
+  classical
+  by_cases h : ∃ w : E d, T.move (translation w) = U
+  · obtain ⟨w, hw⟩ := h
+    have hm : Set.MapsTo (fun v : E d => v - w)
+        {v : E d | T.move (translation v) = U} (translationStabilizer U) := by
+      intro v hv
+      change U.move (translation (v - w)) = U
+      rw [← hw, translated_witnesses_distinct_step1_move_add]
+      have he : w + (v - w) = v := by abel
+      rw [he]
+      exact hv.trans hw.symm
+    exact hm.countable_of_injOn (by
+      intro v _ z _ hvz
+      exact sub_left_injective hvz) (translation_stabilizer_discrete U).2
+  · have he : {v : E d | T.move (translation v) = U} = ∅ := by
+      ext v
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      intro hv
+      exact h ⟨v, hv⟩
+    rw [he]
+    exact Set.countable_empty
+
+/-- Step 3 of the V4 proof of `translated_witnesses_distinct` (V4 1.27):
+"all but countably many v make T_i + v distinct" from the prescribed tilings.
+A line in positive-dimensional Euclidean space supplies uncountably many vectors. -/
+private lemma translated_witnesses_distinct_step3_avoid {β : Type} [Countable β]
+    (T : Tiling S) (forbidden : β → Tiling S) :
+    ∃ v : E d, ∀ j, T.move (translation v) ≠ forbidden j := by
+  classical
+  have hd : 0 < d := lt_of_lt_of_le (by decide : 0 < 2) Fact.out
+  let e : ℝ → E d := fun r => (WithLp.equiv 2 (Fin d → ℝ)).symm (fun _ => r)
+  have he : Function.Injective e := by
+    intro r s hrs
+    exact congrFun (congrArg (WithLp.equiv 2 (Fin d → ℝ)) hrs) ⟨0, hd⟩
+  haveI : Uncountable (E d) := he.uncountable
+  have hc : (⋃ j, {v : E d | T.move (translation v) = forbidden j}).Countable :=
+    Set.countable_iUnion fun j => translated_witnesses_distinct_step2_fiber_countable T (forbidden j)
+  have hn : ∃ v : E d, v ∉ ⋃ j, {v : E d | T.move (translation v) = forbidden j} := by
+    by_contra h
+    push_neg at h
+    exact Set.not_countable_univ (hc.mono (fun v _ => h v))
+  obtain ⟨v, hv⟩ := hn
+  refine ⟨v, ?_⟩
+  intro j hj
+  exact hv (Set.mem_iUnion.mpr ⟨j, hj⟩)
+
 /-- C2, V4 1.27: any countable family of honest witnesses can be translated
 so that their underlying physical tilings are pairwise distinct. Translated sources
 exist because the given witnesses are honest; an empty family is harmless. -/
 theorem translated_witnesses_distinct {α : Type} [Countable α]
     (witness : α → HonestSource S) :
     ∃ v : α → E d, Function.Injective (fun i => ((witness i).translate (v i)).tiling) := by
-  sorry
+  classical
+  cases isEmpty_or_nonempty α
+  · exact ⟨fun a => isEmptyElim a, fun a => isEmptyElim a⟩
+  · obtain ⟨g, hg⟩ := exists_surjective_nat α
+    have hchoose (n : ℕ) (previous : ∀ m, m < n → E d) :
+        ∃ v : E d, ∀ j : Fin n,
+          ((witness (g n)).translate v).tiling ≠
+            ((witness (g j)).translate (previous j j.isLt)).tiling := by
+      obtain ⟨v, hv⟩ := translated_witnesses_distinct_step3_avoid
+        (witness (g n)).tiling
+        (fun j : Fin n => ((witness (g j)).translate (previous j j.isLt)).tiling)
+      refine ⟨v, ?_⟩
+      intro j
+      rw [((witness (g n)).translate_spec v).tiling]
+      exact hv j
+    let step : ∀ n : ℕ, (∀ m, m < n → E d) → E d :=
+      fun n previous => Classical.choose (hchoose n previous)
+    let v : ℕ → E d := Nat.strongRec' step
+    have hv (n : ℕ) : ∀ j : Fin n,
+        ((witness (g n)).translate (v n)).tiling ≠
+          ((witness (g j)).translate (v j)).tiling := by
+      have hs : v n = step n (fun m _ => v m) := Nat.strongRec'_spec step
+      rw [hs]
+      exact Classical.choose_spec (hchoose n (fun m _ => v m))
+    have hinj : Function.Injective (fun n => ((witness (g n)).translate (v n)).tiling) := by
+      intro i j hij
+      rcases lt_trichotomy i j with h | h | h
+      · exact (hv j ⟨i, h⟩ hij.symm).elim
+      · exact h
+      · exact (hv i ⟨j, h⟩ hij).elim
+    choose f hf using hg
+    refine ⟨fun a => v (f a), ?_⟩
+    intro a b hab
+    have h : f a = f b := hinj (by simpa only [hf] using hab)
+    exact (hf a).symm.trans ((congrArg g h).trans (hf b))
 
 /-- C2, V4 1.27: the language contributed by one chosen honest source per
 species member. The domain is the actual species subtype, including an empty species. -/

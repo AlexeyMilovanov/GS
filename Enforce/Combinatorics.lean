@@ -62,7 +62,33 @@ theorem rankSets_mono_stabilizes {α : Type u} [Finite α] (D : α → List α)
     (B : Set α) (hB : ForwardClosed D B) :
     (∀ r, rankSets D B r ⊆ rankSets D B (r + 1)) ∧
       ∃ R : ℕ, ∀ r : ℕ, R ≤ r → rankSets D B r = rankSets D B R := by
-  sorry
+  classical
+  have hmono : ∀ r, rankSets D B r ⊆ rankSets D B (r + 1) := by
+    intro r
+    induction r with
+    | zero => exact hB
+    | succ r ih =>
+      intro a ha b hb
+      exact ih (ha b hb)
+  have hfixed : ∃ R, rankSets D B R = rankSets D B (R + 1) := by
+    by_contra h
+    have hstrict : StrictMono (rankSets D B) := by
+      apply strictMono_nat_of_lt_succ
+      intro r
+      apply lt_of_le_of_ne (hmono r)
+      intro heq
+      exact h ⟨r, heq⟩
+    exact not_injective_infinite_finite (rankSets D B) hstrict.injective
+  obtain ⟨R, hR⟩ := hfixed
+  refine ⟨hmono, R, ?_⟩
+  intro r hr
+  induction r, hr using Nat.le_induction with
+  | base => rfl
+  | succ r hr ih =>
+    calc
+      rankSets D B (r + 1) = rankSets D B (R + 1) :=
+        congrArg (fun T : Set α => {a | ∀ b ∈ D a, b ∈ T}) ih
+      _ = rankSets D B R := hR.symm
 
 /-- C1, V4 8.2, second rank lemma: induction on the actual forest level puts
 every occurring state in its level's rank set. This uses exact prescribed children. -/

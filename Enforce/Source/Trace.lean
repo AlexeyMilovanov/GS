@@ -686,7 +686,10 @@ private theorem ancestralStratum_step_mc' (N : FramedNode S) (n : ℕ) (e e' : C
 private theorem ancestralStratum_pmc_exists_unique (N : FramedNode S) (n : ℕ) (p : E d)
     (hp : p ∈ frontier (N.carrier n)) :
     ∃! e : CellName S N.ty, p ∈ relint (N.cell n e.val) := by
-  sorry
+  obtain ⟨e, he, hpe⟩ := hereditary_trace_step1_frontier_relint N n p hp
+  refine ⟨⟨e, he⟩, hpe, ?_⟩
+  rintro ⟨f, hf⟩ hpf
+  exact Subtype.ext (hereditary_trace_step1_relint_unique N n f e hf he p hpf hpe)
 
 /-- P2, V4 1.2: existence and uniqueness of the ancestral stratum.
 Nonempty relative interior of the listed cell supplies an actual point. -/

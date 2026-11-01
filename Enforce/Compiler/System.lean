@@ -955,10 +955,27 @@ theorem honestLift_cover (C : ClusterData S P) (U : HonestSource S) (x : E d) :
     ∃ t ∈ honestLiftTiles C U, x ∈ t.carrier := by
   sorry
 
+open private exists_honest_step7_zero_carrier from Enforce.Tiling in
 /-- M6, V4 2.14: the proposed lifted physical tiles have disjoint interiors. -/
 theorem honestLift_disjoint (C : ClusterData S P) (U : HonestSource S) :
     (honestLiftTiles C U).PairwiseDisjoint (fun t => interior t.carrier) := by
-  sorry
+  rintro _ ⟨t1, rfl⟩ _ ⟨t2, rfl⟩ hne
+  have ht1_c : (honestTile C U t1).carrier = t1.val.toTile.carrier :=
+    honestTile_carrier C U t1
+  have ht2_c : (honestTile C U t2).carrier = t2.val.toTile.carrier :=
+    honestTile_carrier C U t2
+  dsimp only [Function.onFun]
+  rw [ht1_c, ht2_c]
+  have hne_val : t1.val ≠ t2.val := by
+    intro h
+    apply hne
+    congr 1
+    apply Subtype.ext
+    exact h
+  have ht_c1 : t1.val.toTile.carrier = t1.val.carrier 0 := (exists_honest_step7_zero_carrier t1.val).symm
+  have ht_c2 : t2.val.toTile.carrier = t2.val.carrier 0 := (exists_honest_step7_zero_carrier t2.val).symm
+  rw [ht_c1, ht_c2]
+  exact U.hierarchy.disjoint 0 t1.property t2.property hne_val
 
 end Compiler
 

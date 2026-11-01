@@ -812,13 +812,37 @@ theorem packet_attached (U : HonestSource S) (P : Params S)
   unfold HonestSource.facetPacket
   rw [dif_neg hf, hocc]
 
+
+/-- Step 1 of the V4 proof of `packet_inherited` (V4 2.6(d)): faults restrict to faults and non-faults to non-faults along inherited facet tracks. -/
+private theorem packet_inherited_step1_fault (U : HonestSource S) (P : Params S) (q c : U.Node)
+    (a : ℕ) (hca : U.hierarchy.ancestor c a = q)
+    (f : FacetName S q.2.val.ty) (g : FacetName S c.2.val.ty)
+    (hgf : c.2.val.cell c.1 g.val ⊆ q.2.val.cell q.1 f.val) :
+    U.hierarchy.IsFault q f ↔ U.hierarchy.IsFault c g := by
+  sorry
+
+/-- Step 2 of the V4 proof of `packet_inherited` (V4 2.6(d)): the provider occurrence is unchanged along inherited facet tracks. -/
+private theorem packet_inherited_step2_occurrence (U : HonestSource S) (P : Params S) (q c : U.Node)
+    (a : ℕ) (hca : U.hierarchy.ancestor c a = q)
+    (f : FacetName S q.2.val.ty) (g : FacetName S c.2.val.ty)
+    (hgf : c.2.val.cell c.1 g.val ⊆ q.2.val.cell q.1 f.val)
+    (hq : ¬ U.hierarchy.IsFault q f) (hc : ¬ U.hierarchy.IsFault c g) :
+    U.providerOccurrence P c g hc = U.providerOccurrence P q f hq := by
+  sorry
 /-- Q9, V4 2.6(d): packets restrict unchanged along inherited facet tracks. -/
 theorem packet_inherited (U : HonestSource S) (P : Params S) (q c : U.Node)
     (a : ℕ) (hca : U.hierarchy.ancestor c a = q)
     (f : FacetName S q.2.val.ty) (g : FacetName S c.2.val.ty)
     (hgf : c.2.val.cell c.1 g.val ⊆ q.2.val.cell q.1 f.val) :
     U.facetPacket P c g = U.facetPacket P q f := by
-  sorry
+  unfold HonestSource.facetPacket
+  by_cases hq : U.hierarchy.IsFault q f
+  · have hc : U.hierarchy.IsFault c g := (packet_inherited_step1_fault U P q c a hca f g hgf).mp hq
+    rw [dif_pos hq, dif_pos hc]
+  · have hc : ¬ U.hierarchy.IsFault c g := mt (packet_inherited_step1_fault U P q c a hca f g hgf).mpr hq
+    rw [dif_neg hq, dif_neg hc]
+    congr 2
+    exact packet_inherited_step2_occurrence U P q c a hca f g hgf hq hc
 
 /-- Q8/Q9, V4 2.5, 8.1: every honest non-NULL packet has a PRESENT head and
 its top index is exactly the maximum reconstructed mask index. -/

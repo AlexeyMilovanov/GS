@@ -949,10 +949,163 @@ private lemma base_level_step2_I1 (Y : MarkedTiling (systemM S P C)) (hY : MProp
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I1 D := by
   sorry
 
+/-- Step 1 of the V4 proof of `base_level_step3_I2` (V4 3.2): "the K-blocks ...
+form a decoded level K". Every inner node of a level with the forced roots has
+an exact role-word address in a certificate. -/
+private lemma base_level_step3_I2_step1_certificate_node
+    {Y : MarkedTiling (systemM S P C)}
+    (G : GeometricLevel Y P.K)
+    (hroots : G.roots = Set.range (fun B : KBlock Y => B.node))
+    (m : ℕ) (N : FramedNode S) (hN : N ∈ G.nodes m) :
+    ∃ (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K)
+      (w : S.RoleWord B.certificate.val.ty a),
+      P.K - a = m ∧ B.innerNode a ha w = N := by
+  obtain ⟨Bk, hBk, hdesc⟩ := hN
+  have hroot : Bk.node ∈ G.roots :=
+    G.nodes_top ▸ G.root_mem Bk hBk
+  rw [hroots] at hroot
+  obtain ⟨B, hB⟩ := hroot
+  change N.IsDescendant m Bk.node P.K at hdesc
+  rw [← hB] at hdesc
+  obtain ⟨a, ha, w, hw⟩ := hdesc
+  have hm : P.K - a = m := by omega
+  refine ⟨B, a, by omega, w, hm, ?_⟩
+  rw [hw]
+  change (S.descendantNode B.certificate.val.ty (P.K - a) a w).move B.frame = _
+  rw [hm]
+  rfl
+
+/-- Step 2 of the V4 proof of `base_level_step3_I2` (V4 3.2, 2.3): "the table
+is the S-table of an honest node ... so Proposition 2.3 gives the child equations".
+The honest source identifies both the child's exact address and its table state. -/
+private lemma base_level_step3_I2_step2_certificate_child
+    (D : Certificate P) (hD : D ∈ honestCerts S P)
+    (a m : ℕ) (ham : m + 1 + a = P.K) (w : S.RoleWord D.ty a)
+    (i : S.I (S.descendantNode D.ty (m + 1) a w).ty) :
+    ∃ w' : S.RoleWord D.ty (a + 1),
+      S.descendantNode D.ty m (a + 1) w' =
+        (S.descendantNode D.ty (m + 1) a w).child m i ∧
+      D.table (a + 1) (by omega) w' =
+        childMap P (D.table a (by omega) w)
+          ⟨(S.descendantNode D.ty (m + 1) a w).ty, i⟩ := by
+  obtain ⟨U, R, hR, rfl⟩ := hD
+  let Q := (S.descendantNode R.ty (m + 1) a w).move R.frame
+  have hQ : Q.IsDescendant (m + 1) R P.K := ⟨a, ham.symm, w, rfl⟩
+  have hchild := Parser.descendant_trans (Q.child m i) Q R m (m + 1) P.K
+    (Parser.child_descendant Q m i) hQ
+  obtain ⟨r, hr, v, hv⟩ := hchild
+  have hr' : r = a + 1 := by omega
+  subst r
+  have hrel : S.descendantNode R.ty m (a + 1) v =
+      (S.descendantNode R.ty (m + 1) a w).child m i := by
+    apply FramedNode.ext
+    · exact (congrArg FramedNode.ty hv).symm
+    · apply AffineIsometryEquiv.ext
+      intro x
+      apply R.frame.injective
+      exact congrArg (fun N : FramedNode S => N.frame x) hv.symm
+  refine ⟨v, hrel, ?_⟩
+  let q : U.Node := ⟨m + 1, ⟨Q,
+    Parser.hierarchy_descendant_mem U.hierarchy P.K (m + 1) R Q hR hQ⟩⟩
+  have hparent : U.descendant ⟨P.K, ⟨R, hR⟩⟩ a (by change a ≤ P.K; omega) w = q := by
+    apply Sigma.subtype_ext
+    · change P.K - a = m + 1
+      omega
+    · change (S.descendantNode R.ty (P.K - a) a w).move R.frame = Q
+      rw [show P.K - a = m + 1 by omega]
+  have hstate := childMap_spec U P q (by change 1 ≤ m + 1; omega) i
+  have heq : U.descendant ⟨P.K, ⟨R, hR⟩⟩ (a + 1) (by change a + 1 ≤ P.K; omega) v =
+      U.childNode q (by change 1 ≤ m + 1; omega) i := by
+    apply Sigma.subtype_ext
+    · change P.K - (a + 1) = (m + 1) - 1
+      omega
+    · change (S.descendantNode R.ty (P.K - (a + 1)) (a + 1) v).move R.frame =
+        Q.child ((m + 1) - 1) i
+      rw [show P.K - (a + 1) = m by omega, show (m + 1) - 1 = m by omega]
+      exact hv.symm
+  change stateOf U P (U.descendant ⟨P.K, ⟨R, hR⟩⟩ (a + 1) _ v) =
+    childMap P (stateOf U P (U.descendant ⟨P.K, ⟨R, hR⟩⟩ a _ w)) ⟨_, i⟩
+  rw [heq, hparent]
+  exact hstate
+
+/-- Step 3 of the V4 proof of `base_level_step3_I2` (V4 3.2): "the leaf
+pre-patterns are those of the honest leaves". Disjoint tile interiors identify
+an actual tile with the prescribed certificate leaf at its framed node. -/
+private lemma base_level_step3_I2_step3_tile_unique
+    {Y : MarkedTiling (systemM S P C)}
+    (t u : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) (hu : u ∈ Y.tiles)
+    (h : tileNode t = tileNode u) : t = u := by
+  have hc (v : PlacedMarkedTile (systemM S P C)) :
+      v.carrier = (tileNode v).carrier 0 := by
+    rw [compilerFrame_carrier C v]
+    simp [tileNode, FramedNode.carrier, SubstSystem.supertile, placedSet]
+  have hcar : t.carrier = u.carrier := by rw [hc t, hc u, h]
+  have hn : (interior t.carrier).Nonempty := by
+    rw [compilerFrame_carrier C t]
+    change (interior ((compilerFrame C t).toHomeomorph ''
+      (S.proto (compilerLeaf C t).prototype).carrier)).Nonempty
+    rw [← (compilerFrame C t).toHomeomorph.image_interior]
+    exact (S.proto _).interior_nonempty.image _
+  obtain ⟨x, hx⟩ := hn
+  by_contra hne
+  have hxu : x ∈ interior u.carrier := by
+    rw [← hcar]
+    exact hx
+  exact Set.disjoint_left.mp (Y.disjoint ht hu hne) hx hxu
+
 /-- Step 3 of the V4 proof of `base_level` (V4 3.2): (I2): the table is the S-table of an honest node, so Proposition 2.3 gives the child equations, and the leaf pre-patterns are those of the honest leaves. -/
 private lemma base_level_step3_I2 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I2 D := by
-  sorry
+  have state_eq (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K)
+      (w : S.RoleWord B.certificate.val.ty a)
+      (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m)
+      (hm : P.K - a = m) (hnode : B.innerNode a ha w = N) :
+      D.stateAt m N hN = B.table a ha w := by
+    obtain ⟨hcert, heq⟩ := hbase.2 B a ha w
+    subst m
+    subst N
+    exact heq
+  constructor
+  · intro m N hN i
+    obtain ⟨B, a, ha, w, hm, hnode⟩ :=
+      base_level_step3_I2_step1_certificate_node D.geometry hbase.1 (m + 1) N hN
+    have hparent := state_eq B a ha w (m + 1) N hN hm hnode
+    have ham : m + 1 + a = P.K := by omega
+    have hn : (S.descendantNode B.certificate.val.ty (m + 1) a w).move B.frame = N := by
+      simpa only [KBlock.innerNode, hm] using hnode
+    cases hn
+    obtain ⟨w', hw', htable⟩ := base_level_step3_I2_step2_certificate_child B.certificate.val
+      B.certificate.property a m ham w i
+    have hchild : B.innerNode (a + 1) (by omega) w' =
+        ((S.descendantNode B.certificate.val.ty (m + 1) a w).move B.frame).child m i := by
+      have he := congrArg (fun M : FramedNode S => M.move B.frame) hw'
+      change (S.descendantNode B.certificate.val.ty (P.K - (a + 1)) (a + 1) w').move
+        B.frame = _
+      rw [show P.K - (a + 1) = m by omega]
+      simpa only [FramedNode.move, FramedNode.child, AffineIsometryEquiv.trans_assoc] using he
+    rw [state_eq B (a + 1) (by omega) w' m _
+      (D.geometry.child_mem m _ hN i) (by omega) hchild, hparent]
+    exact htable
+  · intro N hN t ht htN
+    obtain ⟨B, a, ha, w, hm, hnode⟩ :=
+      base_level_step3_I2_step1_certificate_node D.geometry hbase.1 0 N hN
+    have haK : a = P.K := by omega
+    subst a
+    have hleaf : tileNode (B.leaf w) = B.innerNode P.K le_rfl w := by
+      apply FramedNode.ext
+      · change (compilerLeaf C (B.leaf w)).prototype = _
+        rw [(B.leaf_data w).1]
+        simp only [KBlock.innerNode, Nat.sub_self]
+        rfl
+      · change compilerFrame C (B.leaf w) = _
+        rw [(B.leaf_data w).2]
+        simp only [KBlock.innerNode, Nat.sub_self]
+        rfl
+    have htleaf : t = B.leaf w :=
+      base_level_step3_I2_step3_tile_unique t (B.leaf w) ht (B.leaf_mem w)
+        (htN.trans (hleaf.trans hnode).symm)
+    rw [state_eq B P.K le_rfl w 0 N hN (Nat.sub_self _) hnode, htleaf]
+    exact (B.leaf_state w).symm
 
 /-- Step 4 of the V4 proof of `base_level` (V4 3.2): (I4): for every node N inside the certificate and f in E_N born inside N, in the honest source mu_{slot of N} = PRESENT with slot value S(N), and these packets are the ones in the leaves' pre-patterns inside D. -/
 private lemma base_level_step4_I4 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

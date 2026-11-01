@@ -815,8 +815,12 @@ private lemma move_trans_step2_nodes (U : HonestSource S) (g h : Iso d) :
 
 /-- Step 3 of the V4 proof of `move_trans` (V4 2.14(d)): correctly rotated common frame coset. -/
 private lemma move_trans_step3_coset (U : HonestSource S) (g h : Iso d) :
-    ((U.move g).move h).coset = (g.trans h).linearIsometryEquiv * U.coset :=
-  sorry
+    ((U.move g).move h).coset = (g.trans h).linearIsometryEquiv * U.coset := by
+  have H1 := (U.move_spec g).coset
+  have H2 := ((U.move g).move_spec h).coset
+  rw [H2, H1]
+  change _ = (h.linearIsometryEquiv * g.linearIsometryEquiv) * U.coset
+  rw [mul_assoc]
 
 /-- Step 4 of the V4 proof of `move_trans` (V4 2.14(d)): exact parent preservation. -/
 private lemma move_trans_step4_parents (U : HonestSource S) (g h : Iso d) :

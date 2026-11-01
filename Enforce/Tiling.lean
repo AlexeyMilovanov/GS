@@ -161,12 +161,60 @@ def SubstSystem.Species (S : SubstSystem d) : Set (Tiling S) :=
   {T | ∀ P : Patch S, P.IsPatchOf T → InteriorLegal P}
 
 
+/-- Step 4 of the V4 proof of `species_eq_legal_step1_collar`
+(V4 7.4, using 1.0(c)): only finitely many tiles meet the bounded collar. -/
+private theorem species_eq_legal_step1_collar_step4_tiles
+    {S : SubstSystem d} (T : Tiling S)
+    (K : Set (E d)) (hK : Bornology.IsBounded K) :
+    {t : T.tiles | (K ∩ t.val.carrier).Nonempty}.Finite := by
+  have hd : Pairwise (fun t u : T.tiles => Disjoint
+      (interior (placedSet t.val.frame (S.proto t.val.ty).carrier))
+      (interior (placedSet u.val.frame (S.proto u.val.ty).carrier))) := by
+    intro t u htu
+    rw [← t.val.frame_carrier, ← u.val.frame_carrier]
+    exact T.disjoint t.property u.property
+      (fun h => htu (Subtype.ext h))
+  have h := (locallyFinite_disjointInteriors S.proto
+    (fun t : T.tiles => t.val.ty)
+    (fun t : T.tiles => t.val.frame) hd).2 K hK
+  simpa only [← PlacedTile.frame_carrier] using h
+
 /-- Step 1 of the V4 proof of `species_eq_legal` (V4 7.4): a finite patch can be extended to cover the epsilon-thickening of its support. -/
 private theorem species_eq_legal_step1_collar {S : SubstSystem d} (T : Tiling S)
     (P : Patch S) (hP : P.IsPatchOf T) {ε : ℝ} (_ : 0 < ε) :
     ∃ P' : Patch S, P'.IsPatchOf T ∧ P.tiles ⊆ P'.tiles ∧
       Metric.cthickening ε P.support ⊆ P'.support := by
-  sorry
+  classical
+  have hPc : IsCompact P.support := by
+    apply P.tiles.finite_toSet.isCompact_biUnion
+    intro t _
+    rw [t.frame_carrier]
+    exact (S.proto t.ty).compact.image t.frame.toHomeomorph.continuous
+  let K := Metric.cthickening ε P.support
+  have hf := species_eq_legal_step1_collar_step4_tiles T K
+    hPc.isBounded.cthickening
+  let F := P.tiles ∪ hf.toFinset.image Subtype.val
+  have hFT : (F : Set (PlacedTile S)) ⊆ T.tiles := by
+    intro t ht
+    rcases Finset.mem_union.mp ht with ht | ht
+    · exact hP ht
+    · obtain ⟨u, _, rfl⟩ := Finset.mem_image.mp ht
+      exact u.property
+  let Q : Patch S := ⟨F, by
+    intro t ht u hu hne
+    exact T.disjoint (hFT ht) (hFT hu) hne⟩
+  refine ⟨Q, hFT, ?_, ?_⟩
+  · intro t ht
+    exact Finset.mem_union_left _ ht
+  · intro x hx
+    obtain ⟨t, ht, hxt⟩ := T.cover x
+    have hb : (⟨t, ht⟩ : T.tiles) ∈ hf.toFinset := by
+      apply hf.mem_toFinset.mpr
+      exact ⟨x, hx, hxt⟩
+    have htF : t ∈ F := Finset.mem_union_right _
+      (Finset.mem_image.mpr ⟨⟨t, ht⟩, hb, rfl⟩)
+    change x ∈ ⋃ u ∈ F, u.carrier
+    exact Set.mem_iUnion.mpr ⟨t, Set.mem_iUnion.mpr ⟨htF, hxt⟩⟩
 
 /-- Step 3 of the V4 proof of `species_eq_legal` (V4 7.4): legality of a larger patch implies legality of a subpatch. -/
 private theorem species_eq_legal_step3_subset {S : SubstSystem d} {P P' : Patch S}

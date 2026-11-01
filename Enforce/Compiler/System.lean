@@ -2027,7 +2027,40 @@ theorem allowedEnd_coverage (C : ClusterData S P) (l : LeafType P) (j : EndSlot 
     (θ : Template P) (hθ : θ ∈ allowedTemplates (.end_ j)) (φ : Iso d) :
     endSector φ j ∩ ball (endVertex φ j) (coneRadius S P) ⊆
       templateSupport C φ θ := by
-  sorry
+  obtain ⟨T, rfl, _⟩ := hθ
+  have hv : vertexPoint T.geometry.vertex = vertexPoint j.vertex := by
+    have h := vertexPoint_spec T.geometry.vertex
+    rw [T.vertex_eq, vertexPoint_spec j.vertex] at h
+    exact (Set.singleton_eq_singleton_iff.mp h).symm
+  have hcover := (coneRadius_spec S P).2 T.geometry T.honest_geometry
+  rw [hv, T.header_eq] at hcover
+  intro x hx
+  have hsector : φ.symm x ∈
+      (fun u => vertexPoint j.vertex + u) '' j.header.parentCone := by
+    obtain ⟨u, hu, hux⟩ := hx.1
+    refine ⟨u, hu, ?_⟩
+    apply φ.injective
+    rw [φ.apply_symm_apply, ← hux]
+    change φ (vertexPoint j.vertex + u) =
+      φ (vertexPoint j.vertex) + φ.linearIsometryEquiv u
+    simpa only [vadd_eq_add, add_comm] using φ.map_vadd (vertexPoint j.vertex) u
+  have hball : φ.symm x ∈ ball (vertexPoint j.vertex) (coneRadius S P) := by
+    rw [Metric.mem_ball, ← φ.dist_map, φ.apply_symm_apply]
+    exact hx.2
+  obtain ⟨u, hxu⟩ := Set.mem_iUnion.mp (hcover ⟨hsector, hball⟩)
+  obtain ⟨hu, hxu⟩ := Set.mem_iUnion.mp hxu
+  rw [← T.tiles_eq] at hu
+  obtain ⟨z, hz, rfl⟩ := Finset.mem_image.mp hu
+  refine Set.mem_iUnion.mpr ⟨z, Set.mem_iUnion.mpr ⟨hz, ?_⟩⟩
+  have htype := T.configuration.types_match z hz
+  simp only [FramedNode.carrier, placedSet, SubstSystem.supertile, pow_zero,
+    LinearEquiv.coe_one, Set.image_id] at hxu
+  obtain ⟨y, hy, hxy⟩ := hxu
+  change x ∈ (z.1.frame.trans φ) '' (S.proto z.2.prototype).carrier
+  refine ⟨y, ?_, ?_⟩
+  · simpa only [htype] using hy
+  · change φ (z.1.frame y) = x
+    rw [hxy, φ.apply_symm_apply]
 
 end Compiler
 

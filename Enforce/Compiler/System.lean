@@ -178,12 +178,33 @@ theorem eventColour_trigger (C : ClusterData S P) (e : EventIndex S P) (x : E d)
   classical
   simp only [eventColour, if_pos hx]
 
+/-- Step 1 of the V4 proof of `eventColour_readout` (V4 2.11): trigger disjointness. -/
+private theorem eventColour_readout_step1_trigger_disjoint (C : ClusterData S P) (e : EventIndex S P)
+    (z : FramedNode S × LeafType P) (hz : z ∈ eventReadouts e) (x : E d)
+    (hx : x ∈ readoutRegion C z) :
+    x ∉ C.enclosing e.leaf (.trigger e.slot) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `eventColour_readout` (V4 2.11): readout disjointness. -/
+private theorem eventColour_readout_step2_readout_disjoint (C : ClusterData S P) (e : EventIndex S P)
+    (z1 z2 : FramedNode S × LeafType P) (hz1 : z1 ∈ eventReadouts e) (hz2 : z2 ∈ eventReadouts e)
+    (x : E d) (hx1 : x ∈ readoutRegion C z1) (hx2 : x ∈ readoutRegion C z2) :
+    z1 = z2 := by
+  sorry
+
 /-- M3, V4 2.11: agreement with every other tile's whole closed readout ball. -/
 theorem eventColour_readout (C : ClusterData S P) (e : EventIndex S P)
     (z : FramedNode S × LeafType P) (hz : z ∈ eventReadouts e) (x : E d)
     (hx : x ∈ readoutRegion C z) :
     eventColour C e x = augmentedColour C z.2 (z.1.frame.symm x) := by
-  sorry
+  classical
+  unfold eventColour
+  have h_not_trigger := eventColour_readout_step1_trigger_disjoint C e z hz x hx
+  rw [if_neg h_not_trigger]
+  have h_exists : ∃ z' ∈ eventReadouts e, x ∈ readoutRegion C z' := ⟨z, hz, hx⟩
+  rw [dif_pos h_exists]
+  have h_choose := eventColour_readout_step2_readout_disjoint C e (Classical.choose h_exists) z (Classical.choose_spec h_exists).1 hz x (Classical.choose_spec h_exists).2 hx
+  rw [h_choose]
 
 /-- M3, V4 2.11: the compact event rule EV_(leaf,slot,template). -/
 def eventRule (C : ClusterData S P) (e : EventIndex S P) :

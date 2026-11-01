@@ -688,9 +688,66 @@ def honestPrePatterns (S : SubstSystem d) (P : Params S) : Set (PrePattern P) :=
   {w | ∃ (U : HonestSource S) (t : U.Node) (ht : t.1 = 0), prePatternOf U P t ht = w}
 
 /-- Q10, V4 §2.4: the pre-pattern alphabet is finite. -/
+private def prePattern_inj (S : SubstSystem d) (P : Params S) (w : PrePattern P) :
+    Sigma (fun ty : S.ι => State P × (FacetName S ty → Option (Packet P))) :=
+  ⟨w.ty, w.state, w.packets⟩
+
+private theorem prePattern_inj_injective (S : SubstSystem d) (P : Params S) :
+    Function.Injective (prePattern_inj S P) := by
+  rintro ⟨ty1, fm1, fmeq1, state1, state_type1, pkts1⟩ ⟨ty2, fm2, fmeq2, state2, state_type2, pkts2⟩ h
+  dsimp [prePattern_inj] at h
+  have hty : ty1 = ty2 := congrArg Sigma.fst h
+  subst hty
+  have hrest : (state1, pkts1) = (state2, pkts2) := by
+    exact eq_of_heq (Sigma.mk.inj h).2
+  have hstate : state1 = state2 := congrArg Prod.fst hrest
+  subst hstate
+  have hpkts : pkts1 = pkts2 := congrArg Prod.snd hrest
+  subst hpkts
+  cases fmeq1
+  cases fmeq2
+  rfl
+
+private theorem prePattern_state_mem (S : SubstSystem d) (P : Params S)
+    {w : PrePattern P} (hw : w ∈ honestPrePatterns S P) :
+    w.state ∈ honestStates S P := by
+  obtain ⟨U, t, ht, rfl⟩ := hw
+  exact stateOf_mem U P t
+
+private theorem prePattern_packets_mem (S : SubstSystem d) (P : Params S)
+    {w : PrePattern P} (hw : w ∈ honestPrePatterns S P) (f : FacetName S w.ty)
+    (q : Packet P) (h : w.packets f = some q) :
+    q ∈ honestPackets S P := by
+  obtain ⟨U, t, ht, rfl⟩ := hw
+  dsimp [prePatternOf, HonestSource.facetPacket] at h
+  revert h
+  split_ifs with hf
+  · intro hc; cases hc
+  · intro hc
+    injection hc with hc
+    subst hc
+    exact ⟨U, _, rfl⟩
+
 theorem prePatterns_finite (S : SubstSystem d) (P : Params S) :
     (honestPrePatterns S P).Finite := by
-  sorry
+  classical
+  have hst : (honestStates S P).Finite := states_finite S P
+  have hpk : (honestPackets S P).Finite := packets_finite S P
+  refine Set.Finite.of_finite_image (f := prePattern_inj S P) ?_ (prePattern_inj_injective S P).injOn
+  have hB : (insert (none : Option (Packet P)) (some '' honestPackets S P)).Finite := (hpk.image _).insert _
+  haveI : Fintype S.ι := S.types_finite
+  refine Set.Finite.subset (Set.finite_iUnion (fun ty : S.ι => ((hst.prod (Set.Finite.pi (t := fun _ : FacetName S ty => _) (fun _ => hB))).image (Sigma.mk ty)))) ?_
+  rintro _ ⟨w, hw, rfl⟩
+  simp only [Set.mem_iUnion, Set.mem_image, Set.mem_prod, Set.mem_pi, Set.mem_insert_iff]
+  refine ⟨w.ty, ⟨w.state, w.packets⟩, ⟨prePattern_state_mem S P hw, ?_⟩, rfl⟩
+  intro f _
+  have h_eq : w.packets f = w.packets f := rfl
+  rcases h : w.packets f with _ | q
+  · left
+    exact h
+  · right
+    refine ⟨q, prePattern_packets_mem S P hw f q h, ?_⟩
+    exact h.symm
 
 namespace HonestSource
 

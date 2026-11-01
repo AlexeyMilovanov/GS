@@ -474,7 +474,14 @@ private theorem packet_attached_step1_owner_hint (U : HonestSource S) (P : Param
   exact Set.image_mono g.incidence.val.internal
 
 private theorem packet_attached_step1_owner_hxc (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) (t : U.Node) (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) : ∃ x ∈ t.2.val.cell t.1 f.val, x ∈ relint g.carrier := by sorry
-private theorem packet_attached_step1_owner_hfront (U : HonestSource S) (t : U.Node) (f : FacetName S t.2.val.ty) : ∀ x ∈ t.2.val.cell t.1 f.val, x ∈ frontier (t.2.val.carrier t.1) := by sorry
+open private hereditary_trace_step1_cell_frontier from Enforce.Source.Trace in
+private theorem packet_attached_step1_owner_hfront (U : HonestSource S) (t : U.Node) (f : FacetName S t.2.val.ty) : ∀ x ∈ t.2.val.cell t.1 f.val, x ∈ frontier (t.2.val.carrier t.1) := by
+  intro x hx
+  have he : f.val ∈ (S.cx t.2.val.ty).cells := by
+    have hf := f.property
+    exact (Finset.mem_filter.mp hf).1
+  exact hereditary_trace_step1_cell_frontier t.2.val t.1 f.val he hx
+
 
 /-- Step 1 of the V4 proof of `packet_attached` (V4 2.6(c), via 1.0 native ownership):
 "every native tile `t` with a facet piece `f_t ⊆ g`" lies in the birth parent of `g`:

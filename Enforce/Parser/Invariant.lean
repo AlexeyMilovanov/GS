@@ -645,7 +645,29 @@ theorem boundaryPackets (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.node
 private lemma node_type_residue_step2_predecessor_exists (m : ℕ) (N : FramedNode S)
     (hN : N ∈ D.geometry.nodes m) (hm : m < n) :
     ∃ (M : FramedNode S) (hM : M ∈ D.geometry.nodes (m + 1)) (i : S.I M.ty), N = M.child m i := by
-  sorry
+  have predecessor : ∀ (X R : FramedNode S) (a b : ℕ),
+      a < b → X.IsDescendant a R b →
+      ∃ M : FramedNode S, M.IsDescendant (a + 1) R b ∧
+        ∃ i : S.I M.ty, X = M.child a i := by
+    intro X R a b hab hXR
+    obtain ⟨r, rfl, w, rfl⟩ := hXR
+    induction r generalizing R with
+    | zero => omega
+    | succ r ih =>
+      cases r with
+      | zero =>
+        refine ⟨R, Parser.descendant_refl R (a + 1), w.1, ?_⟩
+        rfl
+      | succ r =>
+        obtain ⟨M, hM, i, hi⟩ :=
+          ih (R.child (a + (r + 1)) w.1) (by omega) w.2
+        exact ⟨M, Parser.descendant_trans M _ R (a + 1)
+          (a + (r + 1)) (a + (r + 1 + 1)) hM
+          (Parser.child_descendant R _ w.1), i, hi⟩
+  obtain ⟨B, hB, hNB⟩ := hN
+  change N.IsDescendant m B.node n at hNB
+  obtain ⟨M, hM, i, hi⟩ := predecessor N B.node m n hm hNB
+  exact ⟨M, ⟨B, hB, hM⟩, i, hi⟩
 
 private lemma node_type_residue_step1_childMap_residue (m : ℕ) (M : FramedNode S)
     (i : S.I M.ty) (s : State P) (hs : s ∈ honestStates S P)

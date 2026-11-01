@@ -1955,7 +1955,48 @@ theorem core_contains_core_clusters (C : ClusterData S P) (D : CertificateSymbol
     (w : S.RoleWord D.val.ty P.K) :
     placedSet (LeafType.position (⟨D, w⟩ : LeafType P))
       (C.cluster (⟨D, w⟩ : LeafType P) .core) ⊆ coreCarrier C D := by
-  sorry
+  have hsup0 : ∀ A : S.ι, S.supertile 0 A = (S.proto A).carrier := by
+    intro A; simp [SubstSystem.supertile]
+  have hint : ∀ (v : S.RoleWord D.val.ty P.K) (y : E d),
+      y ∈ interior (S.proto (S.nativeTile D.val.ty P.K v).ty).carrier →
+      (S.nativeTile D.val.ty P.K v).frame y ∈
+        interior ((S.nativeTile D.val.ty P.K v).carrier 0) := by
+    intro v y hy
+    have hc : (S.nativeTile D.val.ty P.K v).carrier 0 = (S.nativeTile D.val.ty P.K v).frame ''
+        (S.proto (S.nativeTile D.val.ty P.K v).ty).carrier := by
+      show placedSet _ (S.supertile 0 _) = _
+      rw [hsup0]; rfl
+    rw [hc]
+    have := (S.nativeTile D.val.ty P.K v).frame.toHomeomorph.image_interior
+      (S.proto (S.nativeTile D.val.ty P.K v).ty).carrier
+    simp only [AffineIsometryEquiv.coe_toHomeomorph] at this
+    rw [← this]
+    exact Set.mem_image_of_mem _ hy
+  rintro _ ⟨x, hx, rfl⟩
+  have hxi : x ∈ interior (S.proto (S.nativeTile D.val.ty P.K w).ty).carrier :=
+    C.cluster_inside (⟨D, w⟩ : LeafType P) .core hx
+  refine ⟨?_, ?_⟩
+  · rw [← S.native_cover]
+    exact Set.mem_iUnion.mpr ⟨w, interior_subset (hint w x hxi)⟩
+  · intro hmem
+    simp only [Set.mem_iUnion] at hmem
+    obtain ⟨w', j, z, hz, hzx⟩ := hmem
+    have hzc : z ∈ closedBall (C.enclosingCentre (⟨D, w'⟩ : LeafType P) (.trigger j))
+        (C.enclosingRadius (⟨D, w'⟩ : LeafType P) (.trigger j)) := Metric.ball_subset_closedBall hz
+    by_cases hw : w' = w
+    · subst hw
+      have hzx' : z = x := (LeafType.position (⟨D, w'⟩ : LeafType P)).injective hzx
+      subst hzx'
+      have hxe := C.cluster_subset_enclosing (⟨D, w'⟩ : LeafType P) .core hx
+      exact Set.disjoint_left.mp (C.enclosing_disjoint (⟨D, w'⟩ : LeafType P)
+        (show (ClusterKind.core : ClusterKind (⟨D, w'⟩ : LeafType P)) ≠ .trigger j from
+          by intro h; cases h)) hxe hzc
+    · have hz' := hint w' z (C.enclosing_inside (⟨D, w'⟩ : LeafType P) (.trigger j) hzc)
+      have hx' := hint w x hxi
+      have hzx'' : (S.nativeTile D.val.ty P.K w').frame z =
+          (S.nativeTile D.val.ty P.K w).frame x := hzx
+      rw [hzx''] at hz'
+      exact Set.disjoint_left.mp (S.native_disjoint D.val.ty P.K hw) hz' hx'
 
 /-- M3/M5, V4 2.11, 2.13: on every surviving CORE cluster the rule is the leaf marking. -/
 theorem core_marks_core_cluster (C : ClusterData S P) (D : CertificateSymbol S P)

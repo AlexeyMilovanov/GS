@@ -23,6 +23,8 @@ open Set Metric
 
 noncomputable section
 
+open private incidentForest_step1_placeChild_pow from Enforce.Source.Headers
+
 namespace Enforce
 
 variable {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} {P : Params S}
@@ -489,7 +491,51 @@ def rightNode : FramedNode S :=
 theorem sides_carrier :
     g.leftNode.cell (g.height - 1) g.incidence.val.leftFacet.val = g.carrier ∧
       g.rightNode.cell (g.height - 1) g.incidence.val.rightFacet.val = g.carrier := by
-  sorry
+  have H_paired := g.incidence.val.paired
+  dsimp [placedSet] at H_paired
+  constructor
+  · have h_leftNode : g.leftNode.prototypeFrame (g.height - 1) = P.incidencePlacement g.birth g.height g.incidence := by
+      ext1 x
+      dsimp [BornFacet.leftNode, Params.incidencePlacement, FramedNode.prototypeFrame, FramedNode.child]
+      have h_pow : g.height - 1 + 1 = g.height := Nat.sub_add_cancel g.positive
+      change g.birth.frame (S.placeChild (g.height - 1) g.incidence.val.left ((S.σ ^ (g.height - 1)) x)) =
+        g.birth.frame ((S.σ ^ g.height) (S.σ.symm ((S.child g.incidence.val.ty g.incidence.val.left).frame x)))
+      congr 1
+      rw [incidentForest_step1_placeChild_pow]
+      have H_symm := S.σ.apply_symm_apply ((S.child g.incidence.val.ty g.incidence.val.left).frame x)
+      nth_rw 2 [← h_pow]
+      rw [pow_add, pow_one]
+      change (S.σ ^ (g.height - 1)) ((S.child g.incidence.val.ty g.incidence.val.left).frame x) =
+        (S.σ ^ (g.height - 1)) (S.σ (S.σ.symm ((S.child g.incidence.val.ty g.incidence.val.left).frame x)))
+      rw [H_symm]
+    have h_leftNode' : ⇑(g.leftNode.prototypeFrame (g.height - 1)) = ⇑(P.incidencePlacement g.birth g.height g.incidence) := by
+      rw [h_leftNode]
+    rw [BornFacet.carrier, FramedNode.cell, h_leftNode']
+  · dsimp [BornFacet.carrier, FramedNode.cell, Params.incidencePlacement]
+    have H_paired2 : ⇑(S.child g.incidence.val.ty g.incidence.val.right).frame '' g.incidence.val.rightFacet.val.carrier =
+      ⇑(S.child g.incidence.val.ty g.incidence.val.left).frame '' g.incidence.val.leftFacet.val.carrier := H_paired.symm
+    have h_rightNode : ⇑(g.rightNode.prototypeFrame (g.height - 1)) = (⇑(g.birth.prototypeFrame g.height) ∘ ⇑S.σ.symm) ∘ ⇑(S.child g.incidence.val.ty g.incidence.val.right).frame := by
+      ext1 x
+      dsimp [BornFacet.rightNode, FramedNode.prototypeFrame, FramedNode.child]
+      have h_pow : g.height - 1 + 1 = g.height := Nat.sub_add_cancel g.positive
+      change g.birth.frame (S.placeChild (g.height - 1) g.incidence.val.right ((S.σ ^ (g.height - 1)) x)) =
+        g.birth.frame ((S.σ ^ g.height) (S.σ.symm ((S.child g.incidence.val.ty g.incidence.val.right).frame x)))
+      congr 1
+      rw [incidentForest_step1_placeChild_pow]
+      have H_symm := S.σ.apply_symm_apply ((S.child g.incidence.val.ty g.incidence.val.right).frame x)
+      nth_rw 2 [← h_pow]
+      rw [pow_add, pow_one]
+      change (S.σ ^ (g.height - 1)) ((S.child g.incidence.val.ty g.incidence.val.right).frame x) =
+        (S.σ ^ (g.height - 1)) (S.σ (S.σ.symm ((S.child g.incidence.val.ty g.incidence.val.right).frame x)))
+      rw [H_symm]
+    rw [h_rightNode]
+    have h_image : (⇑(g.birth.prototypeFrame g.height) ∘ ⇑S.σ.symm) ∘ ⇑(S.child g.incidence.val.ty g.incidence.val.right).frame '' g.incidence.val.rightFacet.val.carrier =
+      (⇑(g.birth.prototypeFrame g.height) ∘ ⇑S.σ.symm) '' (⇑(S.child g.incidence.val.ty g.incidence.val.right).frame '' g.incidence.val.rightFacet.val.carrier) := Set.image_comp _ _ _
+    rw [h_image]
+    have h_image2 : (⇑(g.birth.prototypeFrame g.height) ∘ ⇑S.σ.symm) ∘ ⇑(S.child g.incidence.val.ty g.incidence.val.left).frame '' g.incidence.val.leftFacet.val.carrier =
+      (⇑(g.birth.prototypeFrame g.height) ∘ ⇑S.σ.symm) '' (⇑(S.child g.incidence.val.ty g.incidence.val.left).frame '' g.incidence.val.leftFacet.val.carrier) := Set.image_comp _ _ _
+    rw [h_image2]
+    rw [H_paired2]
 
 /-- R1/R5, V4 §3.0, 3.4: both owning children are actual descendants of the birth. -/
 theorem sides_descendant :

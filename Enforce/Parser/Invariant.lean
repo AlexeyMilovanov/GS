@@ -916,6 +916,49 @@ theorem proposedParent_child (h : Inv D) (B : Block Y n) (hB : B ∈ D.geometry.
 
 /-- R3, V4 §3.2, 2.4(a): age-one incidence, serving role, and geometry agree
 with the first address and the named block facet. -/
+private lemma ageOneFacet_semantics_step2_internal (h : Inv D) (B : Block Y n)
+    (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : AgeOneFacet D B hB f) :
+    AgeOneRecord (D.blockState B hB) a.record := by
+  have hs := (h.I1 B hB).1
+  have hty := (h.I1 B hB).2.1
+  have hf2 : f.val ∈ (S.cx (D.blockState B hB).ty).facets := by
+    have h1 := f.property
+    rwa [hty]
+  let f' : FacetName S (D.blockState B hB).ty := ⟨f.val, hf2⟩
+  have hr : (D.blockState B hB).facetRecord f' = some a.record := by
+    have hr' := a.readout
+    change stateRecordAt (D.blockState B hB) f.val = some a.record at hr'
+    unfold stateRecordAt at hr'
+    split_ifs at hr'
+    · convert hr'
+  exact (state_semantics_a P (D.blockState B hB) hs f').2 a.record hr a.age_one |>.2
+
+private lemma ageOneFacet_semantics_step3_types (h : Inv D) (B : Block Y n)
+    (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : AgeOneFacet D B hB f) :
+    a.record.incidence.val.ty = (proposedParent D B hB).ty ∧
+    a.record.servingRole = firstRole D B hB := by
+  have hA := ageOneFacet_semantics_step2_internal D h B hB f a
+  have h3 : a.record.servingRole = firstRole D B hB := hA.2.1
+  have h2 : a.record.incidence.val.ty = (proposedParent D B hB).ty := by
+    have h_side := a.record.side_eq
+    have h_ty : a.record.servingRole.1 = a.record.incidence.val.ty := by
+      change a.record.side.1 = a.record.incidence.val.ty
+      have H := (congrArg Sigma.fst h_side).symm
+      change _ = a.record.side.1 at H
+      exact H.symm
+    rw [← h_ty, h3]
+    rfl
+  exact ⟨h2, h3⟩
+
+/-- Step 4 of the V4 proof of `ageOneFacet_semantics` (V4 3.2): the paired facet is correctly placed as a child cell. -/
+private lemma ageOneFacet_semantics_step4_cell (h : Inv D) (B : Block Y n)
+    (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
+    (a : AgeOneFacet D B hB f) :
+    (proposedSibling D B hB f a).cell n (a.record.incidence.val.sideFacet (!a.record.sideIndex)).val =
+      B.node.cell n f.val := by sorry
+
 theorem ageOneFacet_semantics (h : Inv D) (B : Block Y n)
     (hB : B ∈ D.geometry.blocks) (f : FacetName S B.node.ty)
     (a : AgeOneFacet D B hB f) :
@@ -925,7 +968,10 @@ theorem ageOneFacet_semantics (h : Inv D) (B : Block Y n)
       (proposedSibling D B hB f a).cell n
         (a.record.incidence.val.sideFacet (!a.record.sideIndex)).val =
           B.node.cell n f.val := by
-  sorry
+  exact ⟨ageOneFacet_semantics_step2_internal D h B hB f a,
+         (ageOneFacet_semantics_step3_types D h B hB f a).1,
+         (ageOneFacet_semantics_step3_types D h B hB f a).2,
+         ageOneFacet_semantics_step4_cell D h B hB f a⟩
 
 /-- R5/R7, V4 3.4 (second clause), 3.7: an assembled parent before its state
 is defined. Every prescribed child is a level-n block and has the correct first

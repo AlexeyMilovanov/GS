@@ -2637,7 +2637,38 @@ theorem TemplateOccurs.event_rule_agree (C : ClusterData S P)
     (Y : MarkedTiling (systemM S P C)) (φ : Iso d) (e : Compiler.EventIndex S P)
     (h : TemplateOccurs C Y φ e.template) (x : (Compiler.eventRule C e).carrier) :
     Y.marking (φ x) = (Compiler.eventRule C e).mark x := by
-  sorry
+  classical
+  have hmark (z : FramedNode S × LeafType P) (hz : z ∈ e.template.tiles)
+      (y : E d) (hy : y ∈ placedSet z.1.frame (S.proto z.2.prototype).carrier) :
+      Y.marking (φ y) = augmentedColour C z.2 (z.1.frame.symm y) := by
+    obtain ⟨u, hu, rfl⟩ := hy
+    have hplaced : φ (z.1.frame u) ∈
+        (placedLeaf C z.2 (z.1.frame.trans φ)).carrier := ⟨u, hu, rfl⟩
+    rw [Y.marking_eq_tile _ (h z hz) _ hplaced]
+    change augmentedColour C z.2 (z.1.frame.symm (φ.symm (φ (z.1.frame u)))) = _
+    rw [φ.symm_apply_apply]
+  change Y.marking (φ x.val) = Compiler.eventColour C e x.val
+  unfold Compiler.eventColour
+  split_ifs with hx hreadout
+  · have hc : Compiler.centralPair e.leaf ∈ e.template.tiles := by
+      have hcentral := e.template.central_mem
+      rw [Compiler.allowedTemplate_central e.leaf e.slot e.template e.allowed] at hcentral
+      exact hcentral
+    have hproto : x.val ∈ (S.proto e.leaf.prototype).carrier :=
+      interior_subset (C.enclosing_inside e.leaf (.trigger e.slot) hx)
+    simpa [Compiler.centralPair, placedSet] using
+      hmark (Compiler.centralPair e.leaf) hc x.val (by simpa [Compiler.centralPair,
+        placedSet] using hproto)
+  · let z := Classical.choose hreadout
+    have hz := (Classical.choose_spec hreadout).1
+    have hxz := (Classical.choose_spec hreadout).2
+    have hproto : x.val ∈ placedSet z.1.frame (S.proto z.2.prototype).carrier :=
+      Set.image_mono ((C.enclosing_inside z.2 .readout).trans interior_subset) hxz
+    exact hmark z (Finset.mem_filter.mp hz).1 x.val hproto
+  · exfalso
+    rcases x.property with htrigger | hreadouts
+    · exact hx htrigger
+    · exact hreadout (by simpa only [Set.mem_iUnion, exists_prop] using hreadouts)
 
 /-- M8, V4 2.17(b)--(c): the END event needed by the parser, with the actual
 allowed template, cone coverage and all meeting tiles in one existence statement.

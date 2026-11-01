@@ -24,10 +24,11 @@ variable {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
 
 attribute [local instance] Classical.decEq
 
+open private states_finite_step1_records from Enforce.State.State in
 /-- Q13, V4 §2.5 (annotation): the entire raw (S4) alphabet is finite.
 This claim concerns facet records, which have no header cones, not whole states. -/
 theorem facetRecords_finite (P : Params S) : Finite (FacetRecord P) := by
-  sorry
+  exact states_finite_step1_records P
 
 /-- Q12/Q13, V4 §2.5: read a record using a listed cell name, without dependent casts. -/
 def stateRecordAt {P : Params S} (s : State P) (f : Cell d) : Option (FacetRecord P) := by

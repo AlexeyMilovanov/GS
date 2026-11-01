@@ -740,12 +740,88 @@ def boundaryAngles {ι : Type*} (proto : ι → PolyManifoldDomain d)
   {θ | ∃ (A : ι) (e : Cell d), e ∈ (cx A).cells ∧
     ∃ p ∈ relint e.carrier, θ = solidAngle (tangentCone (proto A).carrier p)}
 
+/-- Step 1 of the V4 proof of `boundaryAngles_finite` (V4 1.0(b)): "its solid angle
+depends only on `mc_A(p)`", so a single listed cell contributes at most one angle. -/
+private lemma boundaryAngles_finite_step1_cell_finite [Fact (2 ≤ d)]
+    (A : PolyManifoldDomain d) (cx : CellComplex A) (e : Cell d) (he : e ∈ cx.cells) :
+    ({θ | ∃ p ∈ relint e.carrier, θ = solidAngle (tangentCone A.carrier p)} : Set ℝ).Finite := by
+  by_cases h : (relint e.carrier).Nonempty
+  · obtain ⟨p, hp⟩ := h
+    refine (Set.finite_singleton (solidAngle (tangentCone A.carrier p))).subset ?_
+    rintro θ ⟨q, hq, rfl⟩
+    exact solidAngle_constant_on_cell A cx e he q p hq hp
+  · refine Set.finite_empty.subset ?_
+    rintro θ ⟨q, hq, -⟩
+    exact (h ⟨q, hq⟩).elim
+
+open MeasureTheory Pointwise in
+/-- Step 2 of the V4 proof of `boundaryAngles_finite` (V4 1.0(b)): "the tangent cone
+`T_pA` is a polyhedral cone with nonempty interior", hence it meets the unit ball in a
+set of positive volume. -/
+private lemma boundaryAngles_finite_step2_vol_pos
+    (K : Set (E d)) (h_poly : IsPolyhedralCone K) (h_int : (interior K).Nonempty) :
+    0 < volume (K ∩ ball 0 1) := by
+  have h_inter_int : (interior (K ∩ ball 0 1)).Nonempty := by
+    rw [interior_inter, isOpen_ball.interior_eq]
+    obtain ⟨x, hx_int⟩ := h_int
+    set t : ℝ := 1 / (2 * (‖x‖ + 1)) with ht_def
+    have ht_pos : 0 < t := by positivity
+    have ht_open : IsOpen (t • interior K) := isOpen_interior.smul₀ ht_pos.ne'
+    have ht_sub : t • interior K ⊆ K := by
+      rintro _ ⟨z, hz, rfl⟩
+      have hz_K : z ∈ K := interior_subset hz
+      obtain ⟨s, hs⟩ := h_poly
+      rw [hs] at hz_K ⊢
+      simp only [Set.mem_iUnion, Set.mem_setOf_eq] at hz_K ⊢
+      obtain ⟨p, hp, hp_K⟩ := hz_K
+      refine ⟨p, hp, fun l hl => ?_⟩
+      rw [LinearMap.map_smul, smul_eq_mul]
+      exact mul_nonneg ht_pos.le (hp_K l hl)
+    have hy_K : t • x ∈ interior K := interior_maximal ht_sub ht_open ⟨x, hx_int, rfl⟩
+    refine ⟨t • x, hy_K, ?_⟩
+    rw [mem_ball_zero_iff, norm_smul, Real.norm_of_nonneg ht_pos.le, ht_def]
+    have hx0 : 0 ≤ ‖x‖ := norm_nonneg x
+    rw [div_mul_eq_mul_div, one_mul, div_lt_one (by positivity)]
+    linarith
+  exact lt_of_lt_of_le (isOpen_interior.measure_pos volume h_inter_int)
+    (measure_mono interior_subset)
+
+open MeasureTheory in
+/-- Step 3 of the V4 proof of `boundaryAngles_finite` (V4 1.0(b)): "`β` ... is positive":
+the solid angle of `A` at every frontier point is positive. -/
+private lemma boundaryAngles_finite_step3_pos_at_point [Fact (2 ≤ d)]
+    (A : PolyManifoldDomain d) (p : E d) (hp : p ∈ frontier A.carrier) :
+    0 < solidAngle (tangentCone A.carrier p) := by
+  have h_cone := tangentCone_polyhedral A p hp
+  have h_vol := boundaryAngles_finite_step2_vol_pos _ h_cone.1 h_cone.2
+  unfold solidAngle
+  have hd : (0 : ℝ) < (d : ℝ) := by
+    have hd_fact : 2 ≤ d := Fact.out
+    exact_mod_cast (show 0 < d by omega)
+  have hv : (0 : ℝ) < (volume (tangentCone A.carrier p ∩ ball 0 1)).toReal := by
+    refine ENNReal.toReal_pos (ne_of_gt h_vol) ?_
+    exact ne_top_of_le_ne_top measure_ball_lt_top.ne (measure_mono Set.inter_subset_right)
+  exact mul_pos hd hv
+
 /-- G7, V4 1.0(b): finitely many boundary angles, all strictly positive. -/
 theorem boundaryAngles_finite [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
     (proto : ι → PolyManifoldDomain d) (cx : ∀ A, CellComplex (proto A)) :
     (boundaryAngles proto cx).Finite ∧
       ∀ θ ∈ boundaryAngles proto cx, 0 < θ := by
-  sorry
+  constructor
+  · have h_union : boundaryAngles proto cx = ⋃ (A : ι) (e ∈ (cx A).cells),
+        {θ | ∃ p ∈ relint e.carrier, θ = solidAngle (tangentCone (proto A).carrier p)} := by
+      ext θ
+      simp only [boundaryAngles, Set.mem_setOf_eq, Set.mem_iUnion, exists_prop]
+    rw [h_union]
+    refine Set.finite_iUnion fun A => ?_
+    exact Set.Finite.biUnion (Finset.finite_toSet _) fun e he =>
+      boundaryAngles_finite_step1_cell_finite (proto A) (cx A) e he
+  · rintro θ ⟨A, e, he, p, hp, rfl⟩
+    have h_front : p ∈ frontier (proto A).carrier := by
+      rw [← (cx A).cover]
+      exact Set.mem_biUnion he hp
+    exact boundaryAngles_finite_step3_pos_at_point (proto A) p h_front
 
 /-- Step 1 of the V4 proof of `minimum_solidAngle` (V4 1.0(b)): Frontier nonempty. -/
 private lemma minimum_solidAngle_step1_frontier_nonempty [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [Nonempty ι]

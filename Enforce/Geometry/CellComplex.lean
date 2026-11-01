@@ -1220,6 +1220,30 @@ theorem uniform_solidAngle [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
     intro A
     exact False.elim (h ⟨A⟩)
 
+private lemma point_multiplicity_bound_step1_solidAngle_le_fullSolidAngle [Fact (2 ≤ d)] (K : Set (E d)) :
+    solidAngle K ≤ fullSolidAngle d := by
+  unfold solidAngle fullSolidAngle
+  have hd : 0 ≤ (d:ℝ) := by positivity
+  refine mul_le_mul_of_nonneg_left ?_ hd
+  refine ENNReal.toReal_mono MeasureTheory.measure_ball_lt_top.ne ?_
+  exact MeasureTheory.measure_mono (Set.inter_subset_right)
+
+private lemma point_multiplicity_bound_step3_uniform_solidAngle_empty [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [IsEmpty ι]
+    (proto : ι → PolyManifoldDomain d) (cx : ∀ A, CellComplex (proto A)) :
+    ∃ β : ℝ, 0 < β ∧ β ≤ fullSolidAngle d ∧
+      ∀ A e, e ∈ (cx A).cells → ∀ p ∈ relint e.carrier,
+        β ≤ solidAngle (tangentCone (proto A).carrier p) := by
+  use fullSolidAngle d
+  have hd : (0:ℝ) < d := by
+    have : 2 ≤ d := Fact.out
+    norm_cast
+    omega
+  have hvol : (0:ℝ) < (MeasureTheory.volume (Metric.ball (0 : E d) 1)).toReal := by
+    refine ENNReal.toReal_pos (Metric.isOpen_ball.measure_pos MeasureTheory.volume (Metric.nonempty_ball.mpr (by norm_num))).ne' MeasureTheory.measure_ball_lt_top.ne
+  refine ⟨by unfold fullSolidAngle; exact mul_pos hd hvol, le_refl _, ?_⟩
+  intro A
+  exact isEmptyElim A
+
 /-- G7, V4 1.0(b): at most `floor (ω_d / β)` disjoint placed prototiles
 contain any one point. This includes points in the interiors of prototiles. -/
 theorem point_multiplicity_bound [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
@@ -1234,7 +1258,37 @@ theorem point_multiplicity_bound [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
         ∀ p : E d, {a | p ∈ placedSet (φ a) (proto (ty a)).carrier}.Finite ∧
           Set.ncard {a | p ∈ placedSet (φ a) (proto (ty a)).carrier} ≤
             ⌊fullSolidAngle d / β⌋₊ := by
-  sorry
+  by_cases h : Nonempty ι
+  · use minimumAngle proto cx
+    have h1 := minimumAngle_spec proto cx
+    refine ⟨h1.2, ?_, ?_, ?_⟩
+    · have hb : minimumAngle proto cx ∈ boundaryAngles proto cx := h1.1.1
+      rcases hb with ⟨A, e, he, p, hp, heq⟩
+      rw [heq]
+      exact point_multiplicity_bound_step1_solidAngle_le_fullSolidAngle _
+    · intro A e he p hp
+      have hd : solidAngle (tangentCone (proto A).carrier p) ∈ boundaryAngles proto cx := by
+        dsimp [boundaryAngles]
+        exact ⟨A, e, he, p, hp, rfl⟩
+      exact h1.1.2 hd
+    · intro α ty φ hdisjoint p
+      exact point_count_le proto cx ty φ hdisjoint p
+  · haveI : IsEmpty ι := ⟨not_nonempty_iff_imp_false.mp h⟩
+    obtain ⟨β, hβ_pos, hβ_le, hβ_spec⟩ := point_multiplicity_bound_step3_uniform_solidAngle_empty proto cx
+    use β
+    refine ⟨hβ_pos, hβ_le, hβ_spec, ?_⟩
+    intro α ty φ hdisjoint p
+    have h_emp : IsEmpty α := by
+      constructor
+      intro a
+      exact isEmptyElim (ty a)
+    have S_empty : {a | p ∈ placedSet (φ a) (proto (ty a)).carrier} = ∅ := by
+      ext a
+      exact isEmptyElim a
+    rw [S_empty]
+    refine ⟨Set.finite_empty, ?_⟩
+    rw [Set.ncard_empty]
+    exact Nat.zero_le _
 
 /-- Step 1 of the V4 proof of `locallyFinite_disjointInteriors` (V4 1.0(c)): "`v_min =
 min_A vol A`" is positive. We use the measure-free form: the interior of every prototile

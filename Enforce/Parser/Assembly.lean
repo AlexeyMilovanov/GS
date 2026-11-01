@@ -8017,13 +8017,27 @@ theorem parsedState_principal (Y : MarkedTiling (systemM S P C)) (hY : MProper Y
         decode p ⟨q.1 - g.height, hdepth⟩ = some (parsedState Y hY q) :=
   (parsedRealization Y hY).principal_invariant q g hbirth hdepth hprincipal
 
+/-- V4 3.1 (I2): the address of a parent's child is the parent's address shifted by one. -/
+private theorem parsedState_address_step1_shift (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (q : (parsedHierarchy Y hY).Node) (j : Fin P.k) (hj : j.val + 1 < P.k) :
+    (parsedState Y hY q).address ⟨j.val + 1, hj⟩ =
+      (parsedState Y hY ((parsedHierarchy Y hY).parentNode q)).address j := by
+  sorry
+
 /-- R12/R13, V4 3.1, 3.13: every letter in the assigned upward address is
 the actual globally distinct role of the indicated hierarchy ancestor. -/
 theorem parsedState_address (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (j : Fin P.k) :
     (parsedState Y hY q).address j =
       (parsedHierarchy Y hY).nodeRole ((parsedHierarchy Y hY).ancestor q j.val) := by
-  sorry
+  obtain ⟨jv, hjv⟩ := j
+  induction jv generalizing q with
+  | zero =>
+    simpa [CoherentHierarchy.ancestor] using parsedState_role Y hY q
+  | succ n ih =>
+    rw [parsedState_address_step1_shift Y hY q ⟨n, by omega⟩ hjv,
+      ih ((parsedHierarchy Y hY).parentNode q) (by omega)]
+    simp [CoherentHierarchy.ancestor, Function.iterate_succ_apply]
 
 /-- R12, V4 3.1, §3.2: the actual high-level parent is the proposed parent
 computed from the old block's first address letter, with the exact full frame. -/

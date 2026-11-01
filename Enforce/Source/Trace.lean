@@ -3123,7 +3123,19 @@ theorem ancestor_add (q : H.Node) (r s : ℕ) :
 theorem boundaryOffsets_downward (q : H.Node) (f : FacetName S q.2.val.ty) :
     0 ∈ H.boundaryOffsets q f ∧
       ∀ r s : ℕ, r ≤ s → s ∈ H.boundaryOffsets q f → r ∈ H.boundaryOffsets q f := by
-  sorry
+  have h_init := H.boundaryOffsets_initial q f
+  rcases h_init with ⟨b, hb_pos, hb_eq⟩ | h_fault
+  · constructor
+    · rw [hb_eq]
+      exact hb_pos
+    · intro r s hrs hs
+      rw [hb_eq] at hs ⊢
+      dsimp at hs ⊢
+      omega
+  · constructor
+    · exact h_fault 0
+    · intro r s _ _
+      exact h_fault r
 
 /-- P6, V4 1.6: all offsets from the finite birth on are interior alternatives. -/
 theorem after_birth_interior (q : H.Node) (f : FacetName S q.2.val.ty)

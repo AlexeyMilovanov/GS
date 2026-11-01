@@ -12201,7 +12201,12 @@ theorem PrimitiveFacet.birthFrame_spec {A : S.ι} (f : PrimitiveFacet S A)
     (f.birthNode k).ty = f.birthType ∧
       ((f.birthNode k).prototypeFrame (k - f.depth)).trans
         (S.σ ^ k).symm.toAffineEquiv = f.birthFrame := by
-  sorry
+  refine ⟨birth_ascent_routing_step2_descendant_type A (k - f.depth) f.depth f.word, ?_⟩
+  refine AffineEquiv.ext fun x => ?_
+  have h := birth_ascent_routing_step3_birth_frame f k hf x
+  show (S.σ ^ k).symm ((f.birthNode k).prototypeFrame (k - f.depth) x) = f.birthFrame x
+  rw [← h]
+  exact (S.σ ^ k).symm_apply_apply _
 
 /-- P21, V4 1.25: meeting first-generation facets of one birth node always
 have the common-listed vertex needed for a same-parent link. -/

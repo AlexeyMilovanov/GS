@@ -160,11 +160,65 @@ theorem packet_mask_fn (U : HonestSource S) (P : Params S)
     mask U P g j ↔ packetMask P g.incidence (stateOf U P g.birth) j := by
   sorry
 
+private lemma childNode_parentNode (U : HonestSource S) (N : U.Node)
+    (hq : 1 ≤ (U.hierarchy.parentNode N).1) :
+    U.childNode (U.hierarchy.parentNode N) hq (U.hierarchy.role N.1 N.2) = N := by
+  obtain ⟨n, N, hN⟩ := N
+  exact Sigma.subtype_ext rfl (U.hierarchy.child_eq n ⟨N, hN⟩).symm
+
+private lemma stateOf_childMap_step (U : HonestSource S) (P : Params S) (N : U.Node)
+    (hq : 1 ≤ (U.hierarchy.parentNode N).1) :
+    stateOf U P N = childMap P (stateOf U P (U.hierarchy.parentNode N))
+      (U.hierarchy.nodeRole N) := by
+  have hc := childMap_spec U P (U.hierarchy.parentNode N) hq (U.hierarchy.role N.1 N.2)
+  exact (congrArg (stateOf U P) (childNode_parentNode U N hq)).symm.trans hc
+
+private lemma descend_eq (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) (a : ℕ) (ha : a ≤ (topSlot U P g).val) :
+    (packetOf U P g).descend a =
+      stateOf U P (U.hierarchy.ancestor g.birth ((topSlot U P g).val - a)) := by
+  induction a with
+  | zero => rfl
+  | succ a ih =>
+    set J := (topSlot U P g).val
+    have hlt : a < J := by omega
+    have h_dif : a < (packetOf U P g).jstar.val := hlt
+    rw [Packet.descend, dif_pos h_dif, ih (by omega)]
+    set N := U.hierarchy.ancestor g.birth (J - (a + 1))
+    have hidx : J - 1 - a = J - (a + 1) := by omega
+    have hp : U.hierarchy.parentNode N = U.hierarchy.ancestor g.birth (J - a) := by
+      have e : J - (a + 1) + 1 = J - a := by omega
+      have hc : U.hierarchy.ancestor g.birth (J - a) = U.hierarchy.parentNode (U.hierarchy.ancestor g.birth (J - (a + 1))) := by
+        rw [← e]
+        change (U.hierarchy.parentNode^[J - (a + 1) + 1]) g.birth = _
+        rw [Function.iterate_succ_apply']
+        rfl
+      exact hc.symm
+    have hq : 1 ≤ (U.hierarchy.parentNode N).1 := Nat.le_add_left 1 N.1
+    have hstep := stateOf_childMap_step U P N hq
+    rw [hp] at hstep
+    have hroles : (packetOf U P g).roles ⟨(packetOf U P g).jstar.val - 1 - a, by omega⟩ = U.hierarchy.nodeRole N := by
+      dsimp [packetOf]
+      have this : U.hierarchy.ancestor g.birth (J - 1 - a) = U.hierarchy.ancestor g.birth (J - (a + 1)) := by
+        have h_idx_eq : J - 1 - a = J - (a + 1) := hidx
+        rw [h_idx_eq]
+      rw [this]
+    rw [hroles]
+    exact hstep.symm
+
 /-- Q8/Q9, V4 8.1: descent reconstructs even the intermediate ABSENT states. -/
 theorem reconstructed_spec (U : HonestSource S) (P : Params S)
     (g : PrimitiveOccurrence U P) (j : Fin P.k) (hj : j ≤ topSlot U P g) :
-    (packetOf U P g).reconstructed j = stateOf U P (U.hierarchy.ancestor g.birth j.val) :=
-  by sorry
+    (packetOf U P g).reconstructed j = stateOf U P (U.hierarchy.ancestor g.birth j.val) := by
+  show (packetOf U P g).descend ((packetOf U P g).jstar.val - j.val) = _
+  have hjstar : (packetOf U P g).jstar.val = (topSlot U P g).val := rfl
+  rw [hjstar]
+  have h := descend_eq U P g ((topSlot U P g).val - j.val) (Nat.sub_le _ _)
+  have hj' : j.val ≤ (topSlot U P g).val := hj
+  have e : (topSlot U P g).val - ((topSlot U P g).val - j.val) = j.val :=
+    Nat.sub_sub_self hj'
+  rw [e] at h
+  exact h
 
 /-- Q8/Q9, V4 8.1: lossless decoding, with precisely the geometric mask.
 This replaces a separate D-path invariant: it identifies every retained slot state. -/

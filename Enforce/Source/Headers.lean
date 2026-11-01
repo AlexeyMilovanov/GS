@@ -3939,12 +3939,136 @@ theorem tangentCone_isHPiCone (t : FramedNode S)
     (fun i => cellDirection (f i).carrier) (fun i => ⟨t.ty, f i, (hf i).1, rfl⟩) ℓ
     (fun i => (hf i).2.2.2.2) hdimf _
 
+/-- Step 0 of the V4 proof of `tangentCone_tile_isHPiCone`
+(V4 1.16(b')): the full tile is regular closed in ambient space. -/
+private theorem tangentCone_tile_isHPiCone_step0_ambient (A : S.ι) :
+    cellDirection (S.proto A).carrier = ⊤ ∧
+    closure (relint (S.proto A).carrier) = (S.proto A).carrier ∧
+    relfrontier (S.proto A).carrier = frontier (S.proto A).carrier := by
+  sorry
+
+/-- Step 1 of the V4 proof of `tangentCone_tile_isHPiCone`
+(V4 1.16(b')): near the anchor, the boundary lies on the
+hyperplanes of incident listed facets. -/
+private theorem tangentCone_tile_isHPiCone_step1_walls
+    (A : S.ι) (q : E d) :
+    ∃ (n : ℕ) (f : Fin n → Cell d)
+      (ℓ : Fin n → E d →ₗ[ℝ] ℝ),
+      (∀ i, f i ∈ (S.cx A).cells ∧ q ∈ (f i).carrier ∧
+        (f i).dim + 1 = d ∧
+        {x | ℓ i x = 0} =
+          (cellDirection (f i).carrier : Set (E d))) ∧
+      ∃ r : ℝ, 0 < r ∧
+        ∀ x ∈ frontier (S.proto A).carrier, dist x q < r →
+          ∃ i, ℓ i (x - q) = 0 := by
+  sorry
+
+/-- Step 2 of the V4 proof of `tangentCone_tile_isHPiCone`
+(V4 1.16(b')): finite unions of ambient closed chambers
+bounded by compatible facet directions are HΠ-cones. -/
+private theorem tangentCone_tile_isHPiCone_step2_assemble
+    (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup)
+    {n : ℕ} (W : Fin n → Submodule ℝ (E d))
+    (hW : ∀ i, W i ∈ S.cellDirections)
+    (ℓ : Fin n → E d →ₗ[ℝ] ℝ)
+    (hℓ : ∀ i, {x | ℓ i x = 0} = (W i : Set (E d)))
+    (hdim : ∀ i, d = Module.finrank ℝ (W i) + 1)
+    (P : (Fin n → Bool) → Prop) :
+    HPiCone S.hPi (t.frame.toAffineEquiv.linear ''
+      ⋃ (σ : Fin n → Bool) (_ : P σ),
+        {v | ∀ i,
+          0 ≤ (if σ i then (1 : ℝ) else -1) * ℓ i v}) := by
+  sorry
+
 /-- P11, V4 1.16(b'): cones of finite unions of compatible cells at a listed
 anchor are `HΠ`-cones, as are full tile cones at listed vertices. -/
 theorem tangentCone_tile_isHPiCone (t : FramedNode S)
     (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (p : E d) (hp : t.Lists 0 p) :
     HPiCone S.hPi (tangentCone (t.carrier 0) p) := by
-  sorry
+  classical
+  obtain ⟨e, he, hp_in_e⟩ := hp
+  have h_carrier : t.carrier 0 = t.frame '' (S.proto t.ty).carrier := by
+    dsimp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+    ext x
+    simp only [Set.mem_image, _root_.pow_zero]
+    constructor
+    · rintro ⟨y, ⟨z, hz, h1⟩, rfl⟩
+      have : z = y := by 
+        change (S.σ ^ 0).toAffineEquiv z = y at h1
+        exact h1
+      rw [← this]
+      exact ⟨z, hz, rfl⟩
+    · rintro ⟨y, hy, rfl⟩
+      exact ⟨y, ⟨y, hy, rfl⟩, rfl⟩
+  rw [h_carrier]
+  have hp_in : p ∈ t.frame '' (S.proto t.ty).carrier := by
+    dsimp [FramedNode.cell] at hp_in_e
+    rcases hp_in_e with ⟨x, hx, rfl⟩
+    have hsub : e.carrier ⊆ frontier (S.proto t.ty).carrier := by
+      have hc := (S.cx t.ty).carriers_cover
+      intro y hy
+      rw [← hc]
+      simp only [Set.mem_iUnion, exists_prop]
+      have he_cells : e ∈ (S.cx t.ty).cells := by
+        have := Finset.mem_filter.mp he
+        exact this.1
+      exact ⟨e, he_cells, hy⟩
+    have hsub2 : frontier (S.proto t.ty).carrier ⊆ (S.proto t.ty).carrier := by
+      exact (S.proto t.ty).compact.isClosed.frontier_subset
+    exact ⟨x, hsub2 (hsub hx), rfl⟩
+  obtain ⟨q, hq, rfl⟩ := hp_in
+  rw [tangentCone_isHPiCone_step0_transport]
+  obtain ⟨n, f, ℓ, hf, r, hr, hwall⟩ :=
+    tangentCone_tile_isHPiCone_step1_walls t.ty q
+  have h0 := tangentCone_tile_isHPiCone_step0_ambient t.ty
+  have hnd : ∀ i, ∃ u ∈ cellDirection (S.proto t.ty).carrier, ℓ i u ≠ 0 := by
+    intro i
+    rcases hf i with ⟨hmem, hinc, hcodim, hker⟩
+    rw [h0.1]
+    by_contra hcon
+    push_neg at hcon
+    have htop : cellDirection (f i).carrier = ⊤ := by
+      apply SetLike.coe_injective
+      rw [← hker]
+      ext x
+      simp only [Set.mem_setOf_eq, SetLike.mem_coe, Submodule.mem_top, iff_true]
+      exact hcon x (Submodule.mem_top)
+    have hdim : (f i).dim = d := by
+      calc
+        (f i).dim = Module.finrank ℝ (cellDirection (f i).carrier) := (f i).flat.dimension.symm
+        _ = d := by
+          rw [htop, finrank_top]
+          exact finrank_euclideanSpace_fin
+    omega
+  have hwall' : ∀ x ∈ relfrontier (S.proto t.ty).carrier, dist x q < r → ∃ i, ℓ i (x - q) = 0 := by
+    intro x hx hdist
+    rw [h0.2.2] at hx
+    exact hwall x hx hdist
+  rw [tangentCone_isHPiCone_step3_cone_eq (S.proto t.ty).compact.isClosed h0.2.1 hq ℓ hnd hr]
+  · have h_assemble := tangentCone_tile_isHPiCone_step2_assemble t ht (fun i => cellDirection (f i).carrier) 
+      (fun i => ⟨t.ty, f i, (hf i).1, rfl⟩) ℓ (fun i => (hf i).2.2.2) (fun i => by
+        have hd1 := (hf i).2.2.1
+        have hd2 : Module.finrank ℝ (cellDirection (f i).carrier) = (f i).dim := (f i).flat.dimension
+        rw [hd2]
+        exact hd1.symm) (fun σ => ∃ v ∈ cellDirection (S.proto t.ty).carrier, (∀ i, 0 < (if σ i then (1 : ℝ) else -1) * ℓ i v) ∧ ‖v‖ < r ∧ q + v ∈ (S.proto t.ty).carrier)
+    have heq_ambient : (cellDirection (S.proto t.ty).carrier : Set (E d)) = (⊤ : Set (E d)) := by
+      rw [h0.1]
+      rfl
+    have h_convert : (⋃ (σ : Fin n → Bool) (H : ∃ v ∈ cellDirection (S.proto t.ty).carrier, (∀ (i : Fin n), 0 < (if σ i = true then 1 else -1) * (ℓ i) v) ∧ ‖v‖ < r ∧ q + v ∈ (S.proto t.ty).carrier), {v | v ∈ cellDirection (S.proto t.ty).carrier ∧ ∀ (i : Fin n), 0 ≤ (if σ i = true then 1 else -1) * (ℓ i) v}) = ⋃ (σ : Fin n → Bool) (x : ∃ v ∈ cellDirection (S.proto t.ty).carrier, (∀ (i : Fin n), 0 < (if σ i = true then 1 else -1) * (ℓ i) v) ∧ ‖v‖ < r ∧ q + v ∈ (S.proto t.ty).carrier), {v | ∀ (i : Fin n), 0 ≤ (if σ i = true then 1 else -1) * (ℓ i) v} := by
+      ext x
+      simp only [Set.mem_iUnion, Set.mem_setOf_eq]
+      apply exists_congr
+      intro σ
+      apply exists_congr
+      intro H
+      have hx_top : x ∈ (⊤ : Set (E d)) := Set.mem_univ x
+      rw [← heq_ambient] at hx_top
+      exact ⟨fun h => h.2, fun h => ⟨hx_top, h⟩⟩
+    rw [h_convert]
+    exact h_assemble
+  · intro σ v w hv hw hvσ hwσ hvr hwr
+    exact tangentCone_isHPiCone_step2_chamber_const (S.proto t.ty).compact.isClosed hq ℓ hwall' σ hv hw hvσ hwσ hvr hwr
 
 /-- P11, V4 1.16(c): the factors commute. -/
 theorem RL_commute (F : PowerFactorisation S) :

@@ -3351,10 +3351,64 @@ theorem allowedTemplates_finite (P : Params S) (l : LeafType P) (slot : EventSlo
     rintro θ ⟨T, rfl, _⟩
     exact Set.mem_range_self T
 
+private theorem contSlots_finite (P : Params S) (l : LeafType P) : Finite (ContSlot l) := by
+  classical
+  haveI := facetRecords_finite P
+  let key : ContSlot l → FacetName S l.prototype × Σ r : FacetRecord P, PrototypeEdge S r.ty × VertexName S r.ty :=
+    fun s => (s.facet, ⟨s.record, s.edge, s.vertex⟩)
+  refine Finite.of_injective key ?_
+  intro s s' h
+  cases s with
+  | mk f r h1 h2 h3 e a v o t te p hp =>
+    cases s' with
+    | mk f' r' g1 g2 g3 e' a' v' o' t' te' p' gp =>
+      simp only [key, Prod.mk.injEq, Sigma.mk.injEq] at h
+      obtain ⟨h_f, h_r, h_rest⟩ := h
+      subst h_f
+      subst h_r
+      rw [heq_iff_eq, Prod.mk.injEq] at h_rest
+      obtain ⟨h_e, h_v⟩ := h_rest
+      subst h_e
+      subst h_v
+      have h_p : p = p' := Option.some.inj (hp.symm.trans gp)
+      subst h_p
+      rfl
+
+private theorem endSlots_finite (P : Params S) (l : LeafType P) : Finite (EndSlot l) := by
+  classical
+  haveI := facetRecords_finite P
+  let key : EndSlot l → FacetName S l.prototype × Σ r : FacetRecord P, VertexName S r.ty × ProviderCell r.incidence.val :=
+    fun s => (s.facet, ⟨s.record, s.vertex, s.providerVertex⟩)
+  refine Finite.of_injective key ?_
+  intro s s' h
+  cases s with
+  | mk f r h1 h2 h3 v o pv tv pz hd hde p hp =>
+    cases s' with
+    | mk f' r' g1 g2 g3 v' o' pv' tv' pz' hd' hde' p' gp =>
+      simp only [key, Prod.mk.injEq, Sigma.mk.injEq] at h
+      obtain ⟨h_f, h_r, h_rest⟩ := h
+      subst h_f
+      subst h_r
+      rw [heq_iff_eq, Prod.mk.injEq] at h_rest
+      obtain ⟨h_v, h_pv⟩ := h_rest
+      subst h_v
+      subst h_pv
+      have h_hd : hd = hd' := Option.some.inj (hde.symm.trans hde')
+      have h_p : p = p' := Option.some.inj (hp.symm.trans gp)
+      subst h_hd
+      subst h_p
+      rfl
+
 /-- Q12/Q13, V4 §2.5: a native leaf has only finitely many CONT and END slots.
 The header and packet data are readouts fixed by the leaf type, not free choices. -/
 theorem eventSlots_finite (P : Params S) (l : LeafType P) : Finite (EventSlot l) := by
-  sorry
+  haveI := contSlots_finite P l
+  haveI := endSlots_finite P l
+  refine Finite.of_surjective (fun x : ContSlot l ⊕ EndSlot l => Sum.elim EventSlot.cont EventSlot.end_ x) ?_
+  intro e
+  cases e with
+  | cont c => exact ⟨Sum.inl c, rfl⟩
+  | end_ c => exact ⟨Sum.inr c, rfl⟩
 
 /-- Q14, V4 2.8: a positioned labelled configuration consists of actual native tiles
 with their actual leaf types and exact relative frames. END completeness is retained

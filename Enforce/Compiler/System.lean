@@ -183,7 +183,61 @@ private theorem eventColour_readout_step1_trigger_disjoint (C : ClusterData S P)
     (z : FramedNode S × LeafType P) (hz : z ∈ eventReadouts e) (x : E d)
     (hx : x ∈ readoutRegion C z) :
     x ∉ C.enclosing e.leaf (.trigger e.slot) := by
-  sorry
+  intro h_contra
+  have hz_neq : z ≠ centralPair e.leaf := (Finset.mem_filter.mp hz).2
+  dsimp [readoutRegion, placedSet] at hx
+  rcases hx with ⟨y, hy, hxy⟩
+  
+  have hz_mem_tiles : z ∈ e.template.tiles := (Finset.mem_filter.mp hz).1
+  have hc_mem_tiles : centralPair e.leaf ∈ e.template.tiles := by
+    have h1 := e.template.central_mem
+    have h2 : e.template.central = e.leaf := allowedTemplate_central e.leaf e.slot e.template e.allowed
+    dsimp [centralPair]
+    rwa [←h2]
+  have h_disj := e.template.disjoint hz_mem_tiles hc_mem_tiles hz_neq
+  
+  have hz_inside : y ∈ interior (S.proto z.2.prototype).carrier := by
+    have h_sub := C.enclosing_inside z.2 .readout
+    exact h_sub hy
+  have hc_inside : x ∈ interior (S.proto e.leaf.prototype).carrier := by
+    have h_sub := C.enclosing_inside e.leaf (.trigger e.slot)
+    exact h_sub h_contra
+    
+  have hz_carrier : x ∈ interior (z.1.carrier 0) := by
+    rw [←hxy]
+    have hz_type_match := e.template.types_match z hz_mem_tiles
+    dsimp [FramedNode.carrier, SubstSystem.supertile, placedSet]
+    have eq1 : interior (⇑z.1.frame '' (⇑(S.σ ^ 0) '' (S.proto z.1.ty).carrier)) =
+        z.1.frame '' interior (⇑(S.σ ^ 0) '' (S.proto z.1.ty).carrier) := by
+      have h3 := Homeomorph.image_interior z.1.frame.toHomeomorph (⇑(S.σ ^ 0) '' (S.proto z.1.ty).carrier)
+      exact h3.symm
+    rw [eq1]
+    apply Set.mem_image_of_mem
+    have eq2 : interior (⇑(S.σ ^ 0) '' (S.proto z.1.ty).carrier) = ⇑(S.σ ^ 0) '' interior (S.proto z.1.ty).carrier := by
+      have h3 := Homeomorph.image_interior (S.σ ^ 0).toContinuousLinearEquiv.toHomeomorph (S.proto z.1.ty).carrier
+      exact h3.symm
+    rw [eq2]
+    apply Set.mem_image_of_mem
+    rwa [hz_type_match]
+  
+  have hc_carrier : x ∈ interior ((centralPair e.leaf).1.carrier 0) := by
+    dsimp [centralPair, FramedNode.carrier, SubstSystem.supertile, placedSet]
+    have eq2 : interior (⇑(S.σ ^ 0) '' (S.proto e.leaf.prototype).carrier) = ⇑(S.σ ^ 0) '' interior (S.proto e.leaf.prototype).carrier := by
+      have h3 := Homeomorph.image_interior (S.σ ^ 0).toContinuousLinearEquiv.toHomeomorph (S.proto e.leaf.prototype).carrier
+      exact h3.symm
+    have eq3 : interior (id '' (⇑(S.σ ^ 0) '' (S.proto e.leaf.prototype).carrier)) =
+        id '' interior (⇑(S.σ ^ 0) '' (S.proto e.leaf.prototype).carrier) := by
+      have h3 := Homeomorph.image_interior (Homeomorph.refl (E d)) (⇑(S.σ ^ 0) '' (S.proto e.leaf.prototype).carrier)
+      exact h3.symm
+    rw [eq3, eq2]
+    apply Set.mem_image_of_mem
+    apply Set.mem_image_of_mem
+    exact hc_inside
+
+  have h_disj_inter := Set.disjoint_iff_inter_eq_empty.mp h_disj
+  have hx_in_inter : x ∈ interior (z.1.carrier 0) ∩ interior ((centralPair e.leaf).1.carrier 0) := ⟨hz_carrier, hc_carrier⟩
+  rw [h_disj_inter] at hx_in_inter
+  exact Set.mem_empty_iff_false x |>.mp hx_in_inter
 
 /-- Step 2 of the V4 proof of `eventColour_readout` (V4 2.11): readout disjointness. -/
 private theorem eventColour_readout_step2_readout_disjoint (C : ClusterData S P) (e : EventIndex S P)

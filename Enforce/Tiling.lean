@@ -160,12 +160,44 @@ extra hypothesis. Its members are exactly the tilings with interior-legal patche
 def SubstSystem.Species (S : SubstSystem d) : Set (Tiling S) :=
   {T | ∀ P : Patch S, P.IsPatchOf T → InteriorLegal P}
 
+
+/-- Step 1 of the V4 proof of `species_eq_legal` (V4 7.4): a finite patch can be extended to cover the epsilon-thickening of its support. -/
+private theorem species_eq_legal_step1_collar {S : SubstSystem d} (T : Tiling S)
+    (P : Patch S) (hP : P.IsPatchOf T) {ε : ℝ} (_ : 0 < ε) :
+    ∃ P' : Patch S, P'.IsPatchOf T ∧ P.tiles ⊆ P'.tiles ∧
+      Metric.cthickening ε P.support ⊆ P'.support := by
+  sorry
+
+/-- Step 3 of the V4 proof of `species_eq_legal` (V4 7.4): legality of a larger patch implies legality of a subpatch. -/
+private theorem species_eq_legal_step3_subset {S : SubstSystem d} {P P' : Patch S}
+    (h : P.tiles ⊆ P'.tiles) (hl : IsLegal P') : IsLegal P := by
+  rcases hl with ⟨n, A, ψ, h1⟩
+  use n, A, ψ
+  intro t ht
+  exact h1 t (h ht)
+
+/-- Step 4 of the V4 proof of `species_eq_legal` (V4 7.4): interior legality follows from legality of a patch covering an epsilon-thickening. -/
+private theorem species_eq_legal_step4_interior {S : SubstSystem d} {P P' : Patch S}
+    {ε : ℝ} (hε : 0 < ε) (hsub : P.tiles ⊆ P'.tiles)
+    (hcov : Metric.cthickening ε P.support ⊆ P'.support) (hl : IsLegal P') :
+    InteriorLegal P := by
+  sorry
+
 /-- T3, V4 7.4: ordinary legality and interior legality give exactly the
 same whole-space species. The equivalence is asserted for all finite patches of
 a tiling, rather than incorrectly for an isolated finite patch. -/
 theorem species_eq_legal {S : SubstSystem d} (T : Tiling S) :
     T ∈ S.Species ↔ ∀ P : Patch S, P.IsPatchOf T → IsLegal P := by
-  sorry
+  constructor
+  · intro hT P hP
+    have hInt : InteriorLegal P := hT P hP
+    rcases hInt with ⟨n, A, ψ, h1, h2⟩
+    exact ⟨n, A, ψ, h1⟩
+  · intro hLeg P hP
+    have he : (0:ℝ) < 1 := zero_lt_one
+    obtain ⟨P', hP', hsub, hcov⟩ := species_eq_legal_step1_collar T P hP he
+    have hl : IsLegal P' := hLeg P' hP'
+    exact species_eq_legal_step4_interior he hsub hcov hl
 
 /-- T2, V4 §1.0 (H7): the defined species is invariant under every Euclidean
 isometry, including reflections. This does not impose covariance on a chosen lift. -/

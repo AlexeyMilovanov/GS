@@ -345,12 +345,134 @@ theorem Polyhedron.isCompact {K : Set (E d)} (hK : Polyhedron K) : IsCompact K :
   apply Set.Finite.isCompact_convexHull
   exact Finset.finite_toSet p
 
+/-- Step 1 of the V4 proof of `polyhedron_symmetries_finite`
+(V4 5.6): "the finitely many extreme points of conv Q". -/
+private lemma polyhedron_symmetries_finite_step1_finite
+    (K : Set (E d)) (hK : Polyhedron K) :
+    ((convexHull ℝ K).extremePoints ℝ).Finite := by
+  obtain ⟨S, hS⟩ := hK
+  let s := S.biUnion id
+  have hs : K ⊆ convexHull ℝ (s : Set (E d)) := by
+    rw [hS]
+    intro x hx
+    simp only [mem_iUnion, exists_prop] at hx
+    rcases hx with ⟨p, hp, hx⟩
+    apply convexHull_mono (show (p : Set (E d)) ⊆ s from _) hx
+    intro y hy
+    simp [s]
+    exact ⟨p, hp, hy⟩
+  have hk2 : convexHull ℝ K = convexHull ℝ (s : Set (E d)) := by
+    apply Subset.antisymm
+    · exact convexHull_min hs (convex_convexHull ℝ (s : Set (E d)))
+    · apply convexHull_mono
+      intro x hx
+      simp [s] at hx
+      rcases hx with ⟨p, hp, hx⟩
+      rw [hS]
+      simp
+      use p, hp
+      exact subset_convexHull ℝ (p : Set (E d)) hx
+  rw [hk2]
+  exact s.finite_toSet.subset extremePoints_convexHull_subset
+
+/-- Step 2 of the V4 proof of `polyhedron_symmetries_finite`
+(V4 5.6): "which affinely span ℝ^d". -/
+private lemma polyhedron_symmetries_finite_step2_span
+    (K : Set (E d)) (hK : Polyhedron K)
+    (hfull : (interior K).Nonempty) :
+    affineSpan ℝ ((convexHull ℝ K).extremePoints ℝ) = ⊤ := by
+  have hfin := polyhedron_symmetries_finite_step1_finite K hK
+  have hK_conv : Convex ℝ (convexHull ℝ K) := convex_convexHull ℝ K
+  have hK_comp : IsCompact (convexHull ℝ K) := by
+    obtain ⟨S, hS⟩ := hK
+    let s := S.biUnion id
+    have hs : K ⊆ convexHull ℝ (s : Set (E d)) := by
+      rw [hS]
+      intro x hx
+      simp only [mem_iUnion, exists_prop] at hx
+      rcases hx with ⟨p, hp, hx⟩
+      apply convexHull_mono (show (p : Set (E d)) ⊆ s from _) hx
+      intro y hy
+      simp [s]
+      exact ⟨p, hp, hy⟩
+    have hk2 : convexHull ℝ K = convexHull ℝ (s : Set (E d)) := by
+      apply Subset.antisymm
+      · exact convexHull_min hs (convex_convexHull ℝ (s : Set (E d)))
+      · apply convexHull_mono
+        intro x hx
+        simp [s] at hx
+        rcases hx with ⟨p, hp, hx⟩
+        rw [hS]
+        simp
+        use p, hp
+        exact subset_convexHull ℝ (p : Set (E d)) hx
+    rw [hk2]
+    exact s.finite_toSet.isCompact_convexHull
+  have hclosure := closure_convexHull_extremePoints hK_comp hK_conv
+  have h_ex_comp : IsCompact (convexHull ℝ ((convexHull ℝ K).extremePoints ℝ)) :=
+    hfin.isCompact_convexHull
+  rw [h_ex_comp.isClosed.closure_eq] at hclosure
+  have : (interior (convexHull ℝ ((convexHull ℝ K).extremePoints ℝ))).Nonempty := by
+    rw [hclosure]
+    exact hfull.mono (interior_mono (subset_convexHull ℝ K))
+  exact affineSpan_eq_top_of_nonempty_interior this
+
+/-- Step 3 of the V4 proof of `polyhedron_symmetries_finite`
+(V4 5.6): "Such an isometry permutes" the extreme points. -/
+private lemma polyhedron_symmetries_finite_step3_preserve
+    (K : Set (E d)) (g : Iso d) (hg : g '' K = K)
+    {x : E d} (hx : x ∈ (convexHull ℝ K).extremePoints ℝ) :
+    g x ∈ (convexHull ℝ K).extremePoints ℝ := by
+  let C := convexHull ℝ K
+  have hC : g '' C = C := by
+    change g '' convexHull ℝ K = convexHull ℝ K
+    calc
+      _ = convexHull ℝ (g '' K) :=
+        g.toAffineEquiv.toAffineMap.image_convexHull K
+      _ = convexHull ℝ K := by rw [hg]
+  have hc : Convex ℝ C := convex_convexHull ℝ K
+  change x ∈ C.extremePoints ℝ at hx
+  change g x ∈ C.extremePoints ℝ
+  rw [hc.mem_extremePoints_iff_convex_diff] at hx ⊢
+  refine ⟨?_, ?_⟩
+  · rw [← hC]
+    exact Set.mem_image_of_mem g hx.1
+  · have him : Convex ℝ (g '' (C \ {x})) :=
+      Convex.affine_image g.toAffineEquiv.toAffineMap hx.2
+    simpa only [Set.image_diff g.injective,
+      Set.image_singleton, hC] using him
+
 /-- Sym1, V4 5.6: the full group of Euclidean symmetries of a full-dimensional
 polyhedron is finite. No boundary manifold condition or orientation restriction
 is needed, and the nonempty interior rules out lower-dimensional stabilizers. -/
 theorem polyhedron_symmetries_finite (K : Set (E d)) (hK : Polyhedron K)
     (hfull : (interior K).Nonempty) :
     {g : Iso d | g '' K = K}.Finite := by
-  sorry
+  classical
+  let X : Set (E d) := (convexHull ℝ K).extremePoints ℝ
+  let G : Set (Iso d) := {g | g '' K = K}
+  have hfin : X.Finite :=
+    polyhedron_symmetries_finite_step1_finite K hK
+  letI : Finite X := hfin.to_subtype
+  have hspan : affineSpan ℝ X = ⊤ :=
+    polyhedron_symmetries_finite_step2_span K hK hfull
+  let R : G → (X → X) := fun g x =>
+    ⟨g.val x.val, polyhedron_symmetries_finite_step3_preserve
+      K g.val g.property x.property⟩
+  have hR : Function.Injective R := by
+    intro g h heq
+    have hm : g.val.toAffineEquiv.toAffineMap =
+        h.val.toAffineEquiv.toAffineMap := by
+      apply AffineMap.ext_on hspan
+      intro x hx
+      have hp := congrArg Subtype.val (congrFun heq ⟨x, hx⟩)
+      change g.val x = h.val x at hp
+      exact hp
+    apply Subtype.ext
+    apply AffineIsometryEquiv.ext
+    intro x
+    exact congrArg (fun f : E d →ᵃ[ℝ] E d => f x) hm
+  change G.Finite
+  exact Set.finite_coe_iff.mp (Finite.of_injective R hR)
 
 end Enforce

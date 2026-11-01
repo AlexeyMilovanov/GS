@@ -1340,12 +1340,54 @@ theorem common_fixed_point (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :
     (schur_locally_finite Y.symmetryGroup (fun g => periodic Y hY g.val g.property))
   exact ⟨c, fun g hg => hc ⟨g, hg⟩⟩
 
+/-- Step 1 of the V4 proof of `point_stabilizer_finite` (V4 5.7, Step 4(i)):
+The number of tiles in the tiling containing the point `c` is finite. -/
+private lemma point_stabilizer_finite_step1_finite_tiles (Y : MarkedTiling (systemM S P C)) (c : E d) :
+    {t : PlacedMarkedTile (systemM S P C) | t ∈ Y.tiles ∧ c ∈ t.carrier}.Finite := by
+  have h := compiler_tiles_locallyFinite C Y
+  have hb : Bornology.IsBounded ({c} : Set (E d)) := Bornology.isBounded_singleton
+  have h2 := h.2 {c} hb
+  apply h2.subset
+  rintro t ⟨ht, hc⟩
+  exact ⟨ht, ⟨c, Set.mem_singleton c, hc⟩⟩
+
+/-- Step 2 of the V4 proof of `point_stabilizer_finite` (V4 5.7, Step 4(i)):
+For any two tiles, the set of isometries mapping the marked tile of one to the other is finite.
+The frame markers break continuous symmetries. -/
+private lemma point_stabilizer_finite_step2_finite_isometries (t u : PlacedMarkedTile (systemM S P C)) :
+    {g : Iso d | t.toMarkedSet.move g = u.toMarkedSet}.Finite := by
+  sorry
+
 /-- Y1, V4 5.7, Step 4(i),(iv): the symmetry stabilizer of any fixed point is finite.
 The marked tile frame isolates the identity; the point stabilizer in the full
 Euclidean group is compact. This holds even without properness. -/
 theorem point_stabilizer_finite (Y : MarkedTiling (systemM S P C)) (c : E d) :
     {g : Iso d | Y.IsSymmetry g ∧ g c = c}.Finite := by
-  sorry
+  have hc_cover := Y.cover c
+  obtain ⟨t, ht, htc⟩ := hc_cover
+  let S_c := {u : PlacedMarkedTile (systemM S P C) | u ∈ Y.tiles ∧ c ∈ u.carrier}
+  have h_finite_tiles : S_c.Finite := point_stabilizer_finite_step1_finite_tiles Y c
+  have h_subset : {g : Iso d | Y.IsSymmetry g ∧ g c = c} ⊆ ⋃ u ∈ S_c, {g : Iso d | t.toMarkedSet.move g = u.toMarkedSet} := by
+    intro g hg
+    have h_symm := hg.1
+    have h_gc := hg.2
+    have ht_mc : t.toMarkedSet ∈ Y.markedCarriers := Set.mem_image_of_mem _ ht
+    have h_moved_mc : t.toMarkedSet.move g ∈ Y.markedCarriers := by
+      rw [← h_symm]
+      exact Set.mem_image_of_mem _ ht_mc
+    obtain ⟨u, hu, hu_eq⟩ := h_moved_mc
+    simp only [S_c, Set.mem_iUnion, Set.mem_setOf_eq, exists_prop]
+    refine ⟨u, ⟨hu, ?_⟩, ?_⟩
+    · have h1 : c = g c := h_gc.symm
+      have h2 : c ∈ g '' t.carrier := by
+        rw [h1]
+        exact Set.mem_image_of_mem g htc
+      have h3 : (t.toMarkedSet.move g).carrier = u.toMarkedSet.carrier := congrArg (fun P => P.carrier) hu_eq.symm
+      change g '' t.carrier = u.carrier at h3
+      rw [h3] at h2
+      exact h2
+    · exact hu_eq.symm
+  exact (h_finite_tiles.biUnion (fun u _ => point_stabilizer_finite_step2_finite_isometries t u)).subset h_subset
 
 end Symmetry
 

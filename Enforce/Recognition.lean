@@ -972,6 +972,38 @@ theorem parsed_nodes_iff (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     exact (WF_is_node Y hY n hn N.ty N.frame
       (normalisedPattern Y n N.ty N.frame) h rfl).1
 
+/-- Step 1 of the V4 proof of `parsed_node_through_interior` (V4 4.9):
+"$x\in\operatorname{int}t$ for a tile $t$; $t$ lies inside a unique node $N$ of height $n$
+(nodes of a level partition $\mathbb R^d$ into unions of tiles), and
+$x\in\operatorname{int}t\subseteq\operatorname{int}N$". A parsed node whose closed
+support contains a tile-interior point contains it in its interior. -/
+private theorem parsed_node_through_interior_step1_interior_mem
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) (n : ℕ) (x : E d)
+    (hx : Y.IsTileInterior x) (N : FramedNode S)
+    (hN : N ∈ (parsedHierarchy Y hY).nodes n) (hxN : x ∈ N.carrier n) :
+    x ∈ interior (N.carrier n) := by
+  obtain ⟨t, ht, hxt⟩ := hx
+  have ht' : t.native (nativeDecoration S P C) ∈
+      (Y.project (nativeDecoration S P C)).tiles := Set.mem_image_of_mem _ ht
+  have hxt' : x ∈ interior (t.native (nativeDecoration S P C)).carrier := by
+    rw [PlacedMarkedTile.native_carrier]; exact hxt
+  rw [(parsedHierarchy Y hY).node_union_tiles n N hN] at hxN
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop] at hxN
+  obtain ⟨u, ⟨hu, husub⟩, hxu⟩ := hxN
+  by_cases hEq : u = t.native (nativeDecoration S P C)
+  · subst hEq
+    exact interior_mono husub hxt'
+  · exfalso
+    have hd := (Y.project (nativeDecoration S P C)).disjoint hu ht' hEq
+    have hreg : closure (interior u.carrier) = u.carrier := by
+      rw [u.frame_carrier]
+      change closure (interior (u.frame.toHomeomorph '' _)) = u.frame.toHomeomorph '' _
+      rw [← u.frame.toHomeomorph.image_interior, ← u.frame.toHomeomorph.image_closure,
+        (S.proto u.ty).regularClosed]
+    rw [← hreg] at hxu
+    obtain ⟨y, hy1, hy2⟩ := mem_closure_iff.mp hxu _ isOpen_interior hxt'
+    exact Set.disjoint_left.mp hd hy2 hy1
+
 /-- O9, V4 4.9, 1.0(d): exactly one parsed node contains any physical
  tile-interior point, using closed node supports in the containment test.
 Regular closedness rules out an additional node touching the point only on its
@@ -979,7 +1011,12 @@ boundary. The unique node includes its type and assigned frame. -/
 theorem parsed_node_through_interior (Y : MarkedTiling (systemM S P C))
     (hY : MProper Y) (n : ℕ) (x : E d) (hx : Y.IsTileInterior x) :
     ∃! N : FramedNode S, x ∈ N.carrier n ∧ N ∈ (parsedHierarchy Y hY).nodes n := by
-  sorry
+  obtain ⟨N, hN, hxN⟩ := (parsedHierarchy Y hY).cover n x
+  refine ⟨N, ⟨hxN, hN⟩, ?_⟩
+  rintro M ⟨hxM, hM⟩
+  exact (parsedHierarchy Y hY).same_height_disjoint n M N hM hN x
+    (parsed_node_through_interior_step1_interior_mem Y hY n x hx M hM hxM)
+    (parsed_node_through_interior_step1_interior_mem Y hY n x hx N hN hxN)
 
 /-- O9, V4 4.9: every tile-interior point lies in exactly one framed WF copy
 at each positive height. Closed containment is used, and uniqueness includes both

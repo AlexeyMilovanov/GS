@@ -252,14 +252,67 @@ private lemma honest_translate_exists_step1_tiling_mem_species (U : HonestSource
   rw [Enforce.species_move_iff]
   exact U.mem_species
 
+open private exists_honest_step7_move_toTile exists_honest_step7_node_move_carrier from Enforce.Tiling in
 /-- Step 1 of the V4 proof of `honest_translate_exists_step2_translated_hierarchy` (V4 1.27):
 translated nodes generate the translated ground tiles natively. -/
 private lemma honest_translate_exists_step2_translated_hierarchy_step1_tiles (U : HonestSource S) (v : E d) :
   ({t | ∃ N ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes 0, N.toTile = t} = (U.tiling.move (translation v)).tiles) ∧
   (∀ n N, N ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n →
     {t | t ∈ (U.tiling.move (translation v)).tiles ∧ t.carrier ⊆ N.carrier n} =
-      {t | ∃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile = t}) :=
-  sorry
+      {t | ∃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile = t}) := by
+  constructor
+  · ext t
+    simp only [Set.mem_setOf_eq]
+    constructor
+    · rintro ⟨N, ⟨M, hM, rfl⟩, rfl⟩
+      have h := U.hierarchy.ground
+      rw [exists_honest_step7_move_toTile M (translation v)]
+      have h1 : M.toTile ∈ U.tiling.tiles := by
+        rw [← h]
+        exact ⟨M, hM, rfl⟩
+      exact ⟨M.toTile, h1, rfl⟩
+    · rintro ⟨t', ht', rfl⟩
+      have h := U.hierarchy.ground
+      rw [← h] at ht'
+      rcases ht' with ⟨M, hM, rfl⟩
+      refine ⟨M.move (translation v), ⟨M, hM, rfl⟩, ?_⟩
+      rw [exists_honest_step7_move_toTile M (translation v)]
+  · intro n N hN
+    rcases hN with ⟨M, hM, rfl⟩
+    let ψ : Iso d := translation v
+    have he (w : S.RoleWord M.ty n) :
+        ((S.nativeTile (M.move ψ).ty n w).move
+          (M.move ψ).frame).toTile =
+        ((S.nativeTile M.ty n w).move M.frame).toTile.move ψ :=
+      exists_honest_step7_move_toTile
+        ((S.nativeTile M.ty n w).move M.frame) ψ
+    apply Set.ext
+    intro t
+    change (t ∈ (fun u : PlacedTile S => u.move ψ) ''
+      U.tiling.tiles ∧ t.carrier ⊆ (M.move ψ).carrier n) ↔ _
+    constructor
+    · rintro ⟨⟨u, hu, rfl⟩, hsub⟩
+      have hs : u.carrier ⊆ M.carrier n := by
+        apply (Set.image_subset_image_iff ψ.injective).mp
+        simpa only [PlacedTile.move_carrier,
+          exists_honest_step7_node_move_carrier] using hsub
+      have hn : ∃ w : S.RoleWord M.ty n,
+          ((S.nativeTile M.ty n w).move M.frame).toTile = u :=
+        (Set.ext_iff.mp (U.hierarchy.native_tiles n M hM) u).mp
+          ⟨hu, hs⟩
+      obtain ⟨w, hw⟩ := hn
+      exact ⟨w, (he w).trans
+        (congrArg (fun u : PlacedTile S => u.move ψ) hw)⟩
+    · rintro ⟨w, rfl⟩
+      rw [he w]
+      let u := ((S.nativeTile M.ty n w).move M.frame).toTile
+      have hu : u ∈ U.tiling.tiles ∧ u.carrier ⊆ M.carrier n :=
+        (Set.ext_iff.mp (U.hierarchy.native_tiles n M hM) u).mpr
+          ⟨w, rfl⟩
+      refine ⟨⟨u, hu.1, rfl⟩, ?_⟩
+      simpa only [PlacedTile.move_carrier,
+        exists_honest_step7_node_move_carrier] using
+        (Set.image_mono hu.2 : ψ '' u.carrier ⊆ ψ '' M.carrier n)
 
 /-- Step 2 of the V4 proof of `honest_translate_exists_step2_translated_hierarchy` (V4 1.27):
 translated nodes cover the space and have disjoint interiors. -/

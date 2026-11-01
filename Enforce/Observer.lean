@@ -1632,7 +1632,21 @@ theorem floor_mem_parent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
 theorem floor_child_parent (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q r : FloorNode Y hY) (hr : r ∈ floorChildren Y hY q) :
     floorParent Y hY r = q := by
-  sorry
+  have key : ∀ (m : (parsedHierarchy Y hY).Node) (hm : 1 ≤ m.1) (i : S.I m.2.val.ty),
+      (parsedHierarchy Y hY).parentNode (parsedChild Y hY m hm i) = m := by
+    intro m hm i
+    rcases m with ⟨k, N, hN⟩
+    cases k with
+    | zero => change 1 ≤ 0 at hm; omega
+    | succ n =>
+        exact observer_transition_aux_step1_parent (parsedHierarchy Y hY) n N hN i ((parsedHierarchy Y hY).children_mem n N hN i)
+  unfold floorChildren at hr
+  by_cases h : P.H < q.val.1
+  · rw [dif_pos h] at hr
+    obtain ⟨i, _, rfl⟩ := List.mem_map.mp hr
+    exact Subtype.ext (key q.val (by omega) i)
+  · rw [dif_neg h] at hr
+    simp at hr
 /-- O6, V4 4.6: exact child order and multiplicities agree with the explicit transition.
 This is the list form of 4.4; repetitions of observer values remain repetitions. -/
 theorem floor_prescribed (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

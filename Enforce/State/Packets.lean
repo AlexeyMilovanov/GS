@@ -553,7 +553,54 @@ theorem honest_packet_admissible (P : Params S) (q : Packet P)
     decode q ⟨0, P.k_pos⟩ = some q.head ∧ q.head.ty = q.incidence.val.ty ∧
       q.mask q.jstar ∧ (∀ j, q.mask j → j ≤ q.jstar) ∧
       ∀ j s, decode q j = some s → s ∈ honestStates S P := by
-  sorry
+  obtain ⟨U, g, rfl⟩ := hq
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · classical
+    have h_mask := mask_zero U P g
+    have h_dec := decode_spec U P g ⟨0, P.k_pos⟩
+    have h_head := packet_head U P g
+    have h_pos : (if mask U P g ⟨0, P.k_pos⟩ then
+        some (stateOf U P (U.hierarchy.ancestor g.birth 0)) else none) =
+        some (stateOf U P g.birth) := by
+      rw [if_pos h_mask]
+      rfl
+    rw [h_pos] at h_dec
+    rw [h_dec, h_head]
+  · have h_head := packet_head U P g
+    rw [h_head]
+    dsimp [stateOf]
+    have h_pt := g.parent_type
+    exact h_pt.symm
+  · classical
+    have hm : mask U P g (topSlot U P g) := by
+      have h_max := Finset.max'_mem _ (presentSlots_nonempty U P g)
+      exact (Finset.mem_filter.mp h_max).2
+    change packetMask P g.incidence (packetOf U P g).head (topSlot U P g)
+    rw [packet_head U P g]
+    rw [← packet_mask_fn U P g (topSlot U P g)]
+    exact hm
+  · classical
+    intro j hj
+    have hm : mask U P g j := by
+      rw [packet_mask_fn U P g j]
+      change packetMask P g.incidence (packetOf U P g).head j at hj
+      rw [packet_head U P g] at hj
+      exact hj
+    have h_mem : j ∈ presentSlots U P g := by
+      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hm⟩
+    exact Finset.le_max' _ _ h_mem
+  · intro j s hs
+    have h_dec := decode_spec U P g j
+    revert hs
+    split at h_dec
+    · rw [h_dec]
+      intro hs
+      injection hs with hs'
+      rw [← hs']
+      exact ⟨U, _, rfl⟩
+    · rw [h_dec]
+      intro hs
+      contradiction
 
 /-- Q10, V4 §2.4: the pre-pattern symbol, before marker clusters are added.
 Its marker is the fixed marker of its prototype; the state and packets may be raw.

@@ -714,12 +714,131 @@ def hPi : Set (Submodule ℝ (E d)) :=
 def directionOrbits : Set (Set (Submodule ℝ (E d))) :=
   {O | ∃ V ∈ S.cellDirections, O = S.directionOrbit V}
 
+/-- Step 1 of the V4 proof of `orbits_finite` (V4 1.10(c)):
+The prototype catalogue has finitely many cell directions. -/
+private theorem orbits_finite_step1_cellDirections_finite : S.cellDirections.Finite := by
+  let T : S.ι → Cell d → Set (Submodule ℝ (E d)) := fun _ e => {V | V = cellDirection e.carrier}
+  have hT : ∀ A e, (T A e).Finite := by
+    intro A e
+    exact Set.finite_singleton _
+  have hsub : S.cellDirections ⊆ ⋃ A, ⋃ e ∈ ((S.cx A).cells : Set (Cell d)), T A e := by
+    rintro V ⟨A, e, he, rfl⟩
+    simp only [Set.mem_iUnion]
+    exact ⟨A, e, he, rfl⟩
+  refine Set.Finite.subset (Set.finite_iUnion fun A => ?_) hsub
+  exact (Finset.finite_toSet _).biUnion fun e _ => hT A e
+
+/-- Step 2 of the V4 proof of `orbits_finite` (V4 1.10(c)):
+There are finitely many direction orbits. -/
+private theorem orbits_finite_step2_directionOrbits_finite : S.directionOrbits.Finite := by
+  have hfin := orbits_finite_step1_cellDirections_finite S
+  refine (hfin.image S.directionOrbit).subset ?_
+  rintro O ⟨V, hV, rfl⟩
+  exact ⟨V, hV, rfl⟩
+
+/-- Step 3 of the V4 proof of `orbits_finite` (V4 1.10(c)):
+By H5, an expanded prototype cell direction equals a compatible
+rotation of another prototype cell direction. -/
+private theorem orbits_finite_step3_transport {V : Submodule ℝ (E d)} (hV : V ∈ S.cellDirections) :
+    ∃ R ∈ S.rotGroup, ∃ V' ∈ S.cellDirections, V.map S.σ.toLinearMap = V'.map R.toLinearEquiv.toLinearMap := by
+  sorry
+
 /-- S6, V4 1.10(c): `σ` preserves `HΠ` and permutes its finitely many orbits. -/
 theorem orbits_finite : S.directionOrbits.Finite ∧
     (∀ V ∈ S.hPi, V.map S.σ.toLinearMap ∈ S.hPi) ∧
     ∃ p : S.directionOrbits ≃ S.directionOrbits, ∀ O,
       (p O).val = (fun V => V.map S.σ.toLinearMap) '' O.val := by
-  sorry
+  have hfin := orbits_finite_step2_directionOrbits_finite S
+  
+  have hconj : ∀ (Q : Ortho d) (V : Submodule ℝ (E d)),
+      (V.map Q.toLinearEquiv.toLinearMap).map S.σ.toLinearMap =
+      (V.map S.σ.toLinearMap).map (linearConj S.σ 1 Q.toLinearEquiv).toLinearMap := by
+    intro Q V
+    have eq : S.σ.toLinearMap.comp Q.toLinearEquiv.toLinearMap = (linearConj S.σ 1 Q.toLinearEquiv).toLinearMap.comp S.σ.toLinearMap := by
+      ext x
+      simp [linearConj]
+    rw [← Submodule.map_comp, eq, Submodule.map_comp]
+
+  have h_map_map : ∀ (f g : E d →ₗ[ℝ] E d) (M : Submodule ℝ (E d)),
+    (M.map g).map f = M.map (f.comp g) := by
+    intro f g M
+    exact (Submodule.map_comp g f M).symm
+
+  have hmem : ∀ V ∈ S.hPi, V.map S.σ.toLinearMap ∈ S.hPi := by
+    rintro W ⟨V, hV, hW_orb⟩
+    obtain ⟨R_O, hR_O, rfl⟩ := hW_orb
+    obtain ⟨R_T, hR_T, V', hV', hT⟩ := orbits_finite_step3_transport S hV
+    rw [hconj R_O V]
+    have h_conj_mem : ∃ Q ∈ S.rotGroup, linearConj S.σ 1 R_O.toLinearEquiv = Q.toLinearEquiv := by
+      have : linearConj S.σ 1 R_O.toLinearEquiv ∈
+          (fun R : Ortho d => R.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+        rw [← S.rotGroup_conj]
+        exact ⟨R_O, hR_O, rfl⟩
+      obtain ⟨Q, hQ, hQeq⟩ := this
+      exact ⟨Q, hQ, hQeq.symm⟩
+    obtain ⟨Q, hQ, hQeq⟩ := h_conj_mem
+    rw [hQeq, hT]
+    rw [h_map_map]
+    refine ⟨V', hV', ?_⟩
+    refine ⟨Q * R_T, Subgroup.mul_mem S.rotGroup hQ hR_T, ?_⟩
+    have hc : Q.toLinearEquiv.toLinearMap.comp R_T.toLinearEquiv.toLinearMap = (Q * R_T).toLinearEquiv.toLinearMap := by rfl
+    rw [hc]
+    
+  refine ⟨hfin, hmem, ?_⟩
+  
+  have h_map_orb : ∀ (O : S.directionOrbits), (fun V => V.map S.σ.toLinearMap) '' O.val ∈ S.directionOrbits := by
+    rintro ⟨O, V, hV, rfl⟩
+    obtain ⟨R_T, hR_T, V', hV', hT⟩ := orbits_finite_step3_transport S hV
+    change ∃ U ∈ S.cellDirections, (fun W => W.map S.σ.toLinearMap) '' S.directionOrbit V = S.directionOrbit U
+    refine ⟨V', hV', ?_⟩
+    ext W
+    constructor
+    · rintro ⟨W_prev, ⟨R_O, hR_O, rfl⟩, rfl⟩
+      change (V.map R_O.toLinearEquiv.toLinearMap).map S.σ.toLinearMap ∈ S.directionOrbit V'
+      rw [hconj R_O V]
+      have h_conj_mem : ∃ Q ∈ S.rotGroup, linearConj S.σ 1 R_O.toLinearEquiv = Q.toLinearEquiv := by
+        have : linearConj S.σ 1 R_O.toLinearEquiv ∈
+            (fun R : Ortho d => R.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+          rw [← S.rotGroup_conj]
+          exact ⟨R_O, hR_O, rfl⟩
+        obtain ⟨Q, hQ, hQeq⟩ := this
+        exact ⟨Q, hQ, hQeq.symm⟩
+      obtain ⟨Q, hQ, hQeq⟩ := h_conj_mem
+      rw [hQeq, hT]
+      rw [h_map_map]
+      refine ⟨Q * R_T, Subgroup.mul_mem S.rotGroup hQ hR_T, ?_⟩
+      have hc : Q.toLinearEquiv.toLinearMap.comp R_T.toLinearEquiv.toLinearMap = (Q * R_T).toLinearEquiv.toLinearMap := by rfl
+      rw [hc]
+    · rintro ⟨R, hR, rfl⟩
+      have H_inv : ∃ Q ∈ S.rotGroup, linearConj S.σ 1 Q.toLinearEquiv = (R * R_T⁻¹).toLinearEquiv := by
+        have : (R * R_T⁻¹).toLinearEquiv ∈
+            (fun R : Ortho d => linearConj S.σ 1 R.toLinearEquiv) '' (S.rotGroup : Set (Ortho d)) := by
+          rw [S.rotGroup_conj]
+          exact ⟨R * R_T⁻¹, Subgroup.mul_mem S.rotGroup hR (Subgroup.inv_mem S.rotGroup hR_T), rfl⟩
+        obtain ⟨Q, hQ, hQeq⟩ := this
+        exact ⟨Q, hQ, hQeq⟩
+      obtain ⟨Q, hQ, hQeq⟩ := H_inv
+      refine ⟨V.map Q.toLinearEquiv.toLinearMap, ⟨Q, hQ, rfl⟩, ?_⟩
+      change (V.map Q.toLinearEquiv.toLinearMap).map S.σ.toLinearMap = V'.map R.toLinearEquiv.toLinearMap
+      rw [hconj Q V, hQeq, hT]
+      rw [h_map_map]
+      have hc : (R * R_T⁻¹).toLinearEquiv.toLinearMap.comp R_T.toLinearEquiv.toLinearMap = R.toLinearEquiv.toLinearMap := by
+        ext x
+        simp
+      rw [hc]
+
+  let g : S.directionOrbits → S.directionOrbits := fun O => ⟨_, h_map_orb O⟩
+  have hσinj : Function.Injective (fun V : Submodule ℝ (E d) => V.map S.σ.toLinearMap) := by
+    intro V₁ V₂ h
+    have h_inj : Function.Injective S.σ.toLinearMap := by
+      exact S.σ.injective
+    exact Submodule.map_injective_of_injective h_inj h
+  have hginj : Function.Injective g := by
+    intro O₁ O₂ h
+    apply Subtype.ext
+    exact Set.image_injective.mpr hσinj (congrArg Subtype.val h)
+  haveI : Finite S.directionOrbits := hfin.to_subtype
+  exact ⟨Equiv.ofBijective g (Finite.injective_iff_bijective.mp hginj), fun O => rfl⟩
 
 /-- S6, V4 1.10(c): both oriented sides of every prototype facet direction.
 Scaling a nonzero defining functional by a positive scalar gives the same side,

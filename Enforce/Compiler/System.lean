@@ -547,6 +547,22 @@ private lemma cluster_rigidity_step2_microball_eq (C : ClusterData S P)
       ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a) := by
   sorry
 
+/-- Step 1 of the V4 proof of `cluster_rigidity_step3_same_tile` (V4 2.13): The d+1 points ψ(c_a) are within ε < 2δ of each other. -/
+private lemma cluster_rigidity_step3_same_tile_step1_dist (C : ClusterData S P) (l : LeafType P) (κ : ClusterKind l) (a b : Fin (d + 1)) :
+    dist (C.centre l κ a) (C.centre l κ b) < C.ε := by
+  have h_in_a : C.centre l κ a ∈ ⋃ (i : Fin (d + 1)), closedBall (C.centre l κ i) C.ρ :=
+    Set.mem_iUnion.mpr ⟨a, Metric.mem_closedBall_self C.ρ_pos.le⟩
+  have h_in_b : C.centre l κ b ∈ ⋃ (i : Fin (d + 1)), closedBall (C.centre l κ i) C.ρ :=
+    Set.mem_iUnion.mpr ⟨b, Metric.mem_closedBall_self C.ρ_pos.le⟩
+  have h_comp : IsCompact (⋃ (i : Fin (d + 1)), closedBall (C.centre l κ i) C.ρ) := by
+    apply isCompact_iUnion
+    intro i
+    exact isCompact_closedBall _ _
+  have h_bound := h_comp.isBounded
+  have h_diam := C.cluster_diameter l κ
+  have h_le := Metric.dist_le_diam_of_mem h_bound h_in_a h_in_b
+  linarith
+
 /-- Step 3 of the V4 proof of `cluster_rigidity` (V4 2.13): The d+1 points ψ(c_a) are within
 ε < 2δ of each other, while centres in distinct tiles are ≥ 2δ apart; so all t_a equal one tile t.
 Within t the cluster of kind κ is unique, so ψ(c_a) = φ_t(c_a) for a = 0, ..., d. -/
@@ -556,7 +572,58 @@ private lemma cluster_rigidity_step3_same_tile (C : ClusterData S P)
       ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a)) :
     ∃ t ∈ Y.tiles, compilerLeaf C t = l ∧
       ∀ a, ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a) := by
-  sorry
+  have H : ∃ (t : PlacedMarkedTile (systemM S P C)), ∀ a, ∃ ht : t ∈ Y.tiles,
+      compilerLeaf C t = l ∧ ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a) := by
+    obtain ⟨t0, ht0, hleaf0, hcenter0⟩ := h_centers 0
+    use t0
+    intro a
+    obtain ⟨ta, hta, hleafa, hcentera⟩ := h_centers a
+    have h_eq : t0 = ta := by
+      by_contra h_neq
+      have h_dist_tiles := colour_disjointness_iii C Y l κ a
+      have h_dist_tiles2 := h_dist_tiles.2 t0 ht0 ta hta hleaf0 hleafa h_neq
+      
+      have h_dist_centers : dist (C.centre l κ 0) (C.centre l κ a) < C.ε := 
+        cluster_rigidity_step3_same_tile_step1_dist C l κ 0 a
+        
+      have h_tri1 : dist (compilerFrame C t0 (C.centre l κ a)) (compilerFrame C ta (C.centre l κ a)) ≤ 
+        dist (compilerFrame C t0 (C.centre l κ a)) (compilerFrame C t0 (C.centre l κ 0)) + dist (compilerFrame C t0 (C.centre l κ 0)) (compilerFrame C ta (C.centre l κ a)) := dist_triangle _ _ _
+        
+      have h_replace1 : compilerFrame C t0 (C.centre l κ 0) = ψ (C.centre l κ 0) := hcenter0.symm
+      rw [h_replace1] at h_tri1
+      
+      have h_replace2 : compilerFrame C ta (C.centre l κ a) = ψ (C.centre l κ a) := hcentera.symm
+      
+      have h_iso_t0 : dist (compilerFrame C t0 (C.centre l κ a)) (ψ (C.centre l κ 0)) = dist (C.centre l κ a) (C.centre l κ 0) := by
+        rw [← h_replace1]
+        exact (compilerFrame C t0).isometry.dist_eq _ _
+      rw [h_iso_t0] at h_tri1
+      
+      rw [h_replace2] at h_dist_tiles2
+      rw [h_replace2] at h_tri1
+      
+      have h_iso_psi : dist (ψ (C.centre l κ 0)) (ψ (C.centre l κ a)) = dist (C.centre l κ 0) (C.centre l κ a) := by
+        exact ψ.isometry.dist_eq _ _
+      
+      rw [h_iso_psi] at h_tri1
+      
+      have h_symm : dist (C.centre l κ a) (C.centre l κ 0) = dist (C.centre l κ 0) (C.centre l κ a) := dist_comm _ _
+      rw [h_symm] at h_tri1
+      
+      have h_eps_lt : C.ε < C.δ / 4 := C.ε_lt
+      have h_pos_delta : 0 < C.δ := C.δ_pos
+      
+      have h_contra_1 : dist (C.centre l κ 0) (C.centre l κ a) + dist (C.centre l κ 0) (C.centre l κ a) < C.ε + C.ε := by linarith
+      have h_contra_2 : C.ε + C.ε < C.δ / 4 + C.δ / 4 := by linarith
+      have h_contra_3 : C.δ / 4 + C.δ / 4 < 2 * C.δ := by linarith
+      
+      have h_contra_4 : dist (compilerFrame C t0 (C.centre l κ a)) (ψ (C.centre l κ a)) < 2 * C.δ := by linarith
+      
+      exact lt_irrefl _ (lt_of_le_of_lt h_dist_tiles2 h_contra_4)
+    rw [h_eq]
+    exact ⟨hta, hleafa, hcentera⟩
+  obtain ⟨t, ht⟩ := H
+  exact ⟨t, (ht 0).1, (ht 0).2.1, fun a => (ht a).2.2⟩
 
 /-- Step 4 of the V4 proof of `cluster_rigidity` (V4 2.13): An isometry is determined by its values
 on d+1 affinely independent points, so ψ = φ_t. -/

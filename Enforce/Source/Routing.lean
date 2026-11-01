@@ -10099,6 +10099,367 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
     (principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree
       K hfin hpure hman s hs hsc)
 
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "near `y` the only cells are `g` and its two facets". Finiteness and minimal-cell containment give a ball avoiding every cell not containing `g`. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step1_isolation
+    (D : PolyManifoldDomain d) (C : CellComplex D) (g : Cell d) (hg : g ∈ C.cells)
+    (y : E d) (hy : y ∈ relint g.carrier) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ c ∈ C.cells, ¬ g.carrier ⊆ c.carrier →
+      Disjoint c.carrier (Metric.ball y ε) := by
+  classical
+  have hyf : y ∈ frontier D.carrier := by
+    rw [← C.cover]
+    exact Set.mem_iUnion₂.mpr ⟨g, hg, hy⟩
+  have hmin : C.minimalCell y hyf = g := by
+    by_contra hne
+    exact Set.disjoint_left.mp
+      (C.relint_disjoint _ (C.minimalCell_mem y hyf) g hg hne)
+      (C.mem_relint_minimalCell y hyf) hy
+  let bad := C.cells.filter fun c => ¬ g.carrier ⊆ c.carrier
+  let T : Set (E d) := ⋃ c ∈ bad, c.carrier
+  have hT : IsClosed T := isClosed_biUnion_finset fun c _ => c.flat.compact.isClosed
+  have hyT : y ∉ T := by
+    intro h
+    obtain ⟨c, hc, hyc⟩ := Set.mem_iUnion₂.mp h
+    obtain ⟨hcC, hcnot⟩ := Finset.mem_filter.mp hc
+    apply hcnot
+    simpa only [hmin] using C.minimalCell_subset y hyf c hcC hyc
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hT.isOpen_compl y hyT
+  refine ⟨ε, hε, ?_⟩
+  intro c hc hcg
+  apply Set.disjoint_left.mpr
+  intro x hxc hxb
+  exact hball hxb (Set.mem_iUnion₂.mpr ⟨c, Finset.mem_filter.mpr ⟨hc, hcg⟩, hxc⟩)
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "relative interiors are disjoint". A proper inclusion between listed cells strictly increases dimension: equal affine dimensions would make a relative-interior point of the smaller cell a relative-interior point of both. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step2_strict_dimension
+    (D : PolyManifoldDomain d) (C : CellComplex D) (a b : Cell d)
+    (ha : a ∈ C.cells) (hb : b ∈ C.cells) (hab : a.carrier ⊆ b.carrier) :
+    a = b ∨ a.dim < b.dim := by
+  by_cases heq : a = b
+  · exact Or.inl heq
+  right
+  have hle := AffineSubspace.direction_le (affineSpan_mono ℝ hab)
+  have har : Module.finrank ℝ (affineSpan ℝ a.carrier).direction = a.dim := a.flat.dimension
+  have hbr : Module.finrank ℝ (affineSpan ℝ b.carrier).direction = b.dim := b.flat.dimension
+  have hdim : a.dim ≤ b.dim := by simpa only [har, hbr] using Submodule.finrank_mono hle
+  by_contra hlt
+  have hdeq : (affineSpan ℝ a.carrier).direction = (affineSpan ℝ b.carrier).direction :=
+    Submodule.eq_of_le_of_finrank_le hle (by rw [har, hbr]; omega)
+  obtain ⟨z, hz⟩ := a.flat.relint_nonempty
+  have hzA : z ∈ affineSpan ℝ a.carrier :=
+    subset_affineSpan ℝ _ (intrinsicInterior_subset hz)
+  have hspan : affineSpan ℝ a.carrier = affineSpan ℝ b.carrier :=
+    AffineSubspace.ext_of_direction_eq hdeq ⟨z, hzA, (affineSpan_mono ℝ hab) hzA⟩
+  obtain ⟨z', hz', hzz⟩ := mem_intrinsicInterior.mp hz
+  have hzb : z ∈ relint b.carrier := by
+    rw [relint, mem_intrinsicInterior]
+    refine ⟨⟨z, hspan ▸ hzA⟩, ?_, rfl⟩
+    rw [mem_interior_iff_mem_nhds, mem_nhds_subtype] at hz' ⊢
+    obtain ⟨u, hu, husub⟩ := hz'
+    refine ⟨u, by simpa only [hzz] using hu, ?_⟩
+    intro x hx
+    apply hab
+    have hxA : (x : E d) ∈ affineSpan ℝ a.carrier := hspan.symm ▸ x.property
+    exact husub (show (⟨(x : E d), hxA⟩ : affineSpan ℝ a.carrier) ∈ Subtype.val ⁻¹' u from hx)
+  exact Set.disjoint_left.mp (C.relint_disjoint a ha b hb heq) hz hzb
+
+/-- Step 3 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "near `y` the only cells are `g` and its two facets". Equal-dimensional incident cells coincide, so the isolated frontier is exactly the union of the two facet carriers. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step3_two_facet_star
+    (D : PolyManifoldDomain d) (C : CellComplex D) (g : Cell d) (hg : g ∈ C.cells)
+    (hgd : g.dim + 2 = d)
+    (f₁ f₂ : Cell d)
+    (hpair : {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier} = {f₁, f₂})
+    (y : E d) (hy : y ∈ relint g.carrier)
+    (ε : ℝ) (hiso : ∀ c ∈ C.cells, ¬ g.carrier ⊆ c.carrier →
+      Disjoint c.carrier (Metric.ball y ε)) :
+    frontier D.carrier ∩ Metric.ball y ε =
+      (f₁.carrier ∪ f₂.carrier) ∩ Metric.ball y ε := by
+  have hf₁ : f₁ ∈ C.cells ∧ f₁.dim = d - 1 ∧ g.carrier ⊆ f₁.carrier := by
+    change f₁ ∈ {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}
+    rw [hpair]
+    exact Set.mem_insert _ _
+  have hf₂ : f₂ ∈ C.cells ∧ f₂.dim = d - 1 ∧ g.carrier ⊆ f₂.carrier := by
+    change f₂ ∈ {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}
+    rw [hpair]
+    exact Set.mem_insert_of_mem _ (Set.mem_singleton _)
+  have hclass (c : Cell d) (hc : c ∈ C.cells) (hgc : g.carrier ⊆ c.carrier) :
+      c = g ∨ c.dim = d - 1 := by
+    rcases birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step2_strict_dimension
+        D C g c hg hc hgc with heq | hlt
+    · exact Or.inl heq.symm
+    · right
+      have := C.dim_lt c hc
+      omega
+  ext x
+  constructor
+  · rintro ⟨hxf, hxb⟩
+    rw [← C.carriers_cover] at hxf
+    obtain ⟨c, hc, hxc⟩ := Set.mem_iUnion₂.mp hxf
+    have hgc : g.carrier ⊆ c.carrier := by
+      by_contra hn
+      exact Set.disjoint_left.mp (hiso c hc hn) hxc hxb
+    refine ⟨?_, hxb⟩
+    rcases hclass c hc hgc with rfl | hcd
+    · exact Or.inl (hf₁.2.2 hxc)
+    · have hcp : c ∈ {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier} :=
+        ⟨hc, hcd, hgc⟩
+      rw [hpair, Set.mem_insert_iff, Set.mem_singleton_iff] at hcp
+      rcases hcp with rfl | rfl
+      · exact Or.inl hxc
+      · exact Or.inr hxc
+  · rintro ⟨hxf | hxf, hxb⟩
+    · refine ⟨?_, hxb⟩
+      rw [← C.carriers_cover]
+      exact Set.mem_iUnion₂.mpr ⟨f₁, hf₁.1, hxf⟩
+    · refine ⟨?_, hxb⟩
+      rw [← C.carriers_cover]
+      exact Set.mem_iUnion₂.mpr ⟨f₂, hf₂.1, hxf⟩
+
+/-- Step 4 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "each a half-hyperplane bounded by `aff g`". In an isolated ridge neighborhood, the relative boundary of every incident facet agrees with the affine span of the ridge. This follows from the listed boundary cells and strict dimension increase, before identifying either side of that hyperplane. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step4_facet_boundary
+    (D : PolyManifoldDomain d) (C : CellComplex D) (g : Cell d) (hg : g ∈ C.cells)
+    (hgd : g.dim + 2 = d) (y : E d) (hy : y ∈ relint g.carrier)
+    (r : ℝ) (hr : 0 < r)
+    (hiso : ∀ c ∈ C.cells, ¬ g.carrier ⊆ c.carrier →
+      Disjoint c.carrier (Metric.ball y r)) :
+    ∃ ε : ℝ, 0 < ε ∧ ε ≤ r ∧ ∀ f ∈ C.facets, g.carrier ⊆ f.carrier →
+      relfrontier f.carrier ∩ Metric.ball y ε =
+        (affineSpan ℝ g.carrier : Set (E d)) ∩ Metric.ball y ε := by
+  have hball_exists : ∃ s : ℝ, 0 < s ∧
+      (affineSpan ℝ g.carrier : Set (E d)) ∩ Metric.ball y s ⊆ g.carrier := by
+    obtain ⟨z, hz, rfl⟩ := mem_intrinsicInterior.mp hy
+    rw [mem_interior_iff_mem_nhds, mem_nhds_subtype] at hz
+    obtain ⟨u, hu, hsub⟩ := hz
+    obtain ⟨s, hs, hball⟩ := Metric.mem_nhds_iff.mp hu
+    refine ⟨s, hs, ?_⟩
+    rintro x ⟨hxA, hxB⟩
+    exact hsub (show (⟨x, hxA⟩ : affineSpan ℝ g.carrier) ∈ Subtype.val ⁻¹' u from hball hxB)
+  obtain ⟨s, hs, hsg⟩ := hball_exists
+  refine ⟨min r s, lt_min hr hs, min_le_left _ _, ?_⟩
+  intro f hf hgf
+  obtain ⟨hfc, hfd⟩ := Finset.mem_filter.mp hf
+  have hgfne : g ≠ f := by
+    intro h
+    have := congrArg Cell.dim h
+    have := C.dim_lt g hg
+    omega
+  have hgfr : g.carrier ⊆ relfrontier f.carrier := by
+    rw [← g.flat.regularClosed]
+    apply closure_minimal ?_
+      (isClosed_intrinsicFrontier (affineSpan ℝ f.carrier).closed_of_finiteDimensional)
+    intro x hx
+    change x ∈ intrinsicFrontier ℝ f.carrier
+    rw [← closure_diff_intrinsicInterior]
+    exact ⟨subset_closure (hgf (intrinsicInterior_subset hx)),
+      fun hxf => Set.disjoint_left.mp (C.relint_disjoint g hg f hfc hgfne) hx hxf⟩
+  ext x
+  constructor
+  · rintro ⟨hxfr, hxb⟩
+    obtain ⟨b, hb, hbd⟩ := C.boundary_union f hfc
+    rw [hbd] at hxfr
+    obtain ⟨c, hcb, hxc⟩ := Set.mem_iUnion₂.mp hxfr
+    have hcC : c ∈ C.cells := hb hcb
+    have hcfr : c.carrier ⊆ relfrontier f.carrier := by
+      intro z hz
+      rw [hbd]
+      exact Set.mem_iUnion₂.mpr ⟨c, hcb, hz⟩
+    have hcf : c.carrier ⊆ f.carrier := hcfr.trans (intrinsicFrontier_subset f.flat.compact.isClosed)
+    have hcfne : c ≠ f := by
+      intro heq
+      obtain ⟨z, hz⟩ := f.flat.relint_nonempty
+      have hzfr : z ∈ relfrontier f.carrier := hcfr (heq.symm ▸ intrinsicInterior_subset hz)
+      rw [relfrontier, ← closure_diff_intrinsicInterior] at hzfr
+      exact hzfr.2 hz
+    have hcfdim : c.dim < f.dim :=
+      (birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step2_strict_dimension
+        D C c f hcC hfc hcf).resolve_left hcfne
+    have hgc : g.carrier ⊆ c.carrier := by
+      by_contra hn
+      exact Set.disjoint_left.mp (hiso c hcC hn) hxc
+        (Metric.ball_subset_ball (min_le_left r s) hxb)
+    have hgc_eq : g = c := by
+      rcases birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step2_strict_dimension
+          D C g c hg hcC hgc with heq | hlt
+      · exact heq
+      · omega
+    refine ⟨subset_affineSpan ℝ _ (hgc_eq.symm ▸ hxc), hxb⟩
+  · rintro ⟨hxG, hxb⟩
+    exact ⟨hgfr (hsg ⟨hxG, Metric.ball_subset_ball (min_le_right r s) hxb⟩), hxb⟩
+
+/-- Step 5 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "each a half-hyperplane bounded by `aff g` (relative interiors are disjoint and `closure (relint f) = f`)". The union of the two incident facets has an affine two-page normal form. In the coplanar case the two forms can coincide; otherwise they are oriented to be nonnegative on the other page. A common strictly negative direction records that the reentrant sector is nondegenerate. No assertion about the domain interior or about connectedness is made here. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes
+    (g f₁ f₂ : Cell d) (hgd : g.dim + 2 = d)
+    (hf₁d : f₁.dim = d - 1) (hf₂d : f₂.dim = d - 1)
+    (hgf₁ : g.carrier ⊆ f₁.carrier) (hgf₂ : g.carrier ⊆ f₂.carrier)
+    (hdis : Disjoint (relint f₁.carrier) (relint f₂.carrier))
+    (y : E d) (hy : y ∈ relint g.carrier) (r : ℝ) (hr : 0 < r)
+    (hbd₁ : relfrontier f₁.carrier ∩ Metric.ball y r =
+      (affineSpan ℝ g.carrier : Set (E d)) ∩ Metric.ball y r)
+    (hbd₂ : relfrontier f₂.carrier ∩ Metric.ball y r =
+      (affineSpan ℝ g.carrier : Set (E d)) ∩ Metric.ball y r) :
+    ∃ ε : ℝ, 0 < ε ∧ ε ≤ r ∧ ∃ L M : E d →ᵃ[ℝ] ℝ,
+      L y = 0 ∧ M y = 0 ∧
+      (∃ v : E d, L.linear v < 0 ∧ M.linear v < 0) ∧
+      (f₁.carrier ∪ f₂.carrier) ∩ Metric.ball y ε =
+        {x | (L x = 0 ∧ 0 ≤ M x) ∨ (M x = 0 ∧ 0 ≤ L x)} ∩
+          Metric.ball y ε := by
+  sorry
+
+/-- Step 6 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "the two distinct half-hyperplanes cut a small ball into two open wedges". In affine normal coordinates the wedges are explicitly `L > 0 ∧ M > 0` and `L < 0 ∨ M < 0`. The first is convex; the second is the union of two convex sets meeting along the common negative direction. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step6_sectors
+    (L M : E d →ᵃ[ℝ] ℝ) (y : E d) (hLy : L y = 0) (hMy : M y = 0)
+    (hneg : ∃ v : E d, L.linear v < 0 ∧ M.linear v < 0)
+    (r : ℝ) (hr : 0 < r) :
+    IsOpen (Metric.ball y r ∩ {x | 0 < L x ∧ 0 < M x}) ∧
+    IsOpen (Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0}) ∧
+    Disjoint (Metric.ball y r ∩ {x | 0 < L x ∧ 0 < M x})
+      (Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0}) ∧
+    IsConnected (Metric.ball y r ∩ {x | 0 < L x ∧ 0 < M x}) ∧
+    IsConnected (Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0}) ∧
+    Metric.ball y r \ {x | (L x = 0 ∧ 0 ≤ M x) ∨ (M x = 0 ∧ 0 ≤ L x)} =
+      (Metric.ball y r ∩ {x | 0 < L x ∧ 0 < M x}) ∪
+        (Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0}) := by
+  have hP : IsPreconnected (Metric.ball y r ∩ {x | 0 < L x ∧ 0 < M x}) :=
+    ((convex_ball y r).inter (((convex_Ioi (0 : ℝ)).affine_preimage L).inter
+      ((convex_Ioi (0 : ℝ)).affine_preimage M))).isPreconnected
+  have hN₁ : IsPreconnected (Metric.ball y r ∩ {x | L x < 0}) :=
+    ((convex_ball y r).inter ((convex_Iio (0 : ℝ)).affine_preimage L)).isPreconnected
+  have hN₂ : IsPreconnected (Metric.ball y r ∩ {x | M x < 0}) :=
+    ((convex_ball y r).inter ((convex_Iio (0 : ℝ)).affine_preimage M)).isPreconnected
+  obtain ⟨v, hLv, hMv⟩ := hneg
+  have hc : Continuous (fun t : ℝ => y + t • v) := by fun_prop
+  have hcm : Continuous (fun t : ℝ => y - t • v) := by fun_prop
+  have hnear : ∀ᶠ t in nhds (0 : ℝ),
+      y + t • v ∈ Metric.ball y r ∧ y - t • v ∈ Metric.ball y r := by
+    exact (hc.continuousAt.eventually
+      (by simpa using Metric.isOpen_ball.mem_nhds (Metric.mem_ball_self hr))).and
+      (hcm.continuousAt.eventually
+        (by simpa using Metric.isOpen_ball.mem_nhds (Metric.mem_ball_self hr)))
+  obtain ⟨t, ht, htb, htmb⟩ := hnear.exists_gt
+  have hLval : L (y + t • v) = t * L.linear v := by
+    simpa [vadd_eq_add, add_comm, hLy] using L.map_vadd y (t • v)
+  have hMval : M (y + t • v) = t * M.linear v := by
+    simpa [vadd_eq_add, add_comm, hMy] using M.map_vadd y (t • v)
+  have hN : IsPreconnected (Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0}) := by
+    have heq : Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0} =
+        (Metric.ball y r ∩ {x | L x < 0}) ∪ (Metric.ball y r ∩ {x | M x < 0}) := by
+      ext x
+      simp only [Set.mem_inter_iff, Set.mem_union, Set.mem_setOf_eq]
+      tauto
+    rw [heq]
+    exact hN₁.union (y + t • v)
+      ⟨htb, by change L (y + t • v) < 0; rw [hLval]; exact mul_neg_of_pos_of_neg ht hLv⟩
+      ⟨htb, by change M (y + t • v) < 0; rw [hMval]; exact mul_neg_of_pos_of_neg ht hMv⟩ hN₂
+  have hLm : L (y - t • v) = -(t * L.linear v) := by
+    simpa [vadd_eq_add, add_comm, sub_eq_add_neg, neg_smul, hLy, mul_comm] using L.map_vadd y ((-t) • v)
+  have hMm : M (y - t • v) = -(t * M.linear v) := by
+    simpa [vadd_eq_add, add_comm, sub_eq_add_neg, neg_smul, hMy, mul_comm] using M.map_vadd y ((-t) • v)
+  have hPo : IsOpen (Metric.ball y r ∩ {x | 0 < L x ∧ 0 < M x}) :=
+    Metric.isOpen_ball.inter ((isOpen_lt continuous_const L.continuous_of_finiteDimensional).inter
+      (isOpen_lt continuous_const M.continuous_of_finiteDimensional))
+  have hNo : IsOpen (Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0}) :=
+    Metric.isOpen_ball.inter ((isOpen_lt L.continuous_of_finiteDimensional continuous_const).union
+      (isOpen_lt M.continuous_of_finiteDimensional continuous_const))
+  have hdis : Disjoint (Metric.ball y r ∩ {x | 0 < L x ∧ 0 < M x})
+      (Metric.ball y r ∩ {x | L x < 0 ∨ M x < 0}) := by
+    apply Set.disjoint_left.mpr
+    rintro x ⟨-, hL, hM⟩ ⟨-, hnL | hnM⟩
+    · exact (not_lt_of_ge hL.le) hnL
+    · exact (not_lt_of_ge hM.le) hnM
+  refine ⟨hPo, hNo, hdis, ⟨?_, hP⟩, ⟨?_, hN⟩, ?_⟩
+  · refine ⟨y - t • v, htmb, ?_, ?_⟩
+    · change 0 < L (y - t • v)
+      rw [hLm]
+      exact neg_pos.mpr (mul_neg_of_pos_of_neg ht hLv)
+    · change 0 < M (y - t • v)
+      rw [hMm]
+      exact neg_pos.mpr (mul_neg_of_pos_of_neg ht hMv)
+  · refine ⟨y + t • v, htb, Or.inl ?_⟩
+    change L (y + t • v) < 0
+    rw [hLval]
+    exact mul_neg_of_pos_of_neg ht hLv
+  · ext x
+    simp only [Set.mem_diff, Set.mem_setOf_eq, Set.mem_union, Set.mem_inter_iff]
+    constructor
+    · rintro ⟨hxb, hx⟩
+      by_cases hL : L x < 0
+      · exact Or.inr ⟨hxb, Or.inl hL⟩
+      by_cases hM : M x < 0
+      · exact Or.inr ⟨hxb, Or.inr hM⟩
+      left
+      refine ⟨hxb, ?_, ?_⟩
+      · have hL0 : L x ≠ 0 := fun h => hx (Or.inl ⟨h, le_of_not_gt hM⟩)
+        exact lt_of_le_of_ne (le_of_not_gt hL) (Ne.symm hL0)
+      · have hM0 : M x ≠ 0 := fun h => hx (Or.inr ⟨h, le_of_not_gt hL⟩)
+        exact lt_of_le_of_ne (le_of_not_gt hM) (Ne.symm hM0)
+    · rintro (⟨hxb, hL, hM⟩ | ⟨hxb, hL | hM⟩)
+      · refine ⟨hxb, ?_⟩
+        rintro (⟨hL0, -⟩ | ⟨hM0, -⟩)
+        · exact (ne_of_gt hL) hL0
+        · exact (ne_of_gt hM) hM0
+      · refine ⟨hxb, ?_⟩
+        rintro (⟨hL0, -⟩ | ⟨-, hL0⟩)
+        · exact (ne_of_lt hL) hL0
+        · exact not_lt_of_ge hL0 hL
+      · refine ⟨hxb, ?_⟩
+        rintro (⟨-, hM0⟩ | ⟨hM0, -⟩)
+        · exact not_lt_of_ge hM0 hM
+        · exact (ne_of_lt hM) hM0
+
+/-- Step 7 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "each inside `int P₀` or inside the exterior; not both inside ... and not both outside". This purely topological step identifies the interior with one of any two preconnected regions partitioning the complement of the frontier in a ball. Regular closedness excludes two exterior regions. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step7_choose_side
+    (K : Set (E d)) (hK : IsRegularClosed K) (y : E d) (hy : y ∈ frontier K)
+    (r : ℝ) (hr : 0 < r) (U V : Set (E d))
+    (hU : IsPreconnected U) (hV : IsPreconnected V)
+    (hcover : Metric.ball y r \ frontier K = U ∪ V) :
+    interior K ∩ Metric.ball y r = U ∨ interior K ∩ Metric.ball y r = V := by
+  have hKc : IsClosed K := by rw [← hK]; exact isClosed_closure
+  have hsub : U ∪ V ⊆ Metric.ball y r \ frontier K := by rw [hcover]
+  have hdis : Disjoint (interior K) Kᶜ :=
+    Set.disjoint_left.mpr fun _ hi hc => hc (interior_subset hi)
+  have hdich (T : Set (E d)) (hT : IsPreconnected T)
+      (hTsub : T ⊆ U ∪ V) : T ⊆ interior K ∨ T ⊆ Kᶜ := by
+    apply hT.subset_or_subset isOpen_interior hKc.isOpen_compl hdis
+    intro z hz
+    by_cases hzK : z ∈ K
+    · left
+      by_contra hzi
+      exact (hsub (hTsub hz)).2 (by rw [hKc.frontier_eq]; exact ⟨hzK, hzi⟩)
+    · exact Or.inr hzK
+  have hIcover : interior K ∩ Metric.ball y r ⊆ U ∪ V := by
+    intro z hz
+    rw [← hcover]
+    exact ⟨hz.2, fun hzf => hzf.2 hz.1⟩
+  rcases hdich U hU Set.subset_union_left with hUi | hUo <;>
+    rcases hdich V hV Set.subset_union_right with hVi | hVo
+  · exfalso
+    apply hy.2
+    refine interior_maximal ?_ Metric.isOpen_ball (Metric.mem_ball_self hr)
+    intro z hz
+    by_cases hzf : z ∈ frontier K
+    · exact hKc.frontier_subset hzf
+    · have hzUV : z ∈ U ∪ V := by rw [← hcover]; exact ⟨hz, hzf⟩
+      exact hzUV.elim (fun h => interior_subset (hUi h)) (fun h => interior_subset (hVi h))
+  · left
+    apply Set.Subset.antisymm
+    · intro z hz
+      exact (hIcover hz).elim id (fun hzV => (hVo hzV (interior_subset hz.1)).elim)
+    · intro z hz
+      exact ⟨hUi hz, (hsub (Or.inl hz)).1⟩
+  · right
+    apply Set.Subset.antisymm
+    · intro z hz
+      exact (hIcover hz).elim (fun hzU => (hUo hzU (interior_subset hz.1)).elim) id
+    · intro z hz
+      exact ⟨hVi hz, (hsub (Or.inr hz)).1⟩
+  · exfalso
+    have hycl : y ∈ closure (interior K) := by rw [hK]; exact hKc.frontier_subset hy
+    obtain ⟨z, hzb, hzi⟩ := mem_closure_iff.mp hycl (Metric.ball y r)
+      Metric.isOpen_ball (Metric.mem_ball_self hr)
+    exact (hIcover ⟨hzi, hzb⟩).elim
+      (fun hzU => hUo hzU (interior_subset hzi))
+      (fun hzV => hVo hzV (interior_subset hzi))
+
 /-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25): "the polyhedral boundary separates a small ball into two sides and
 `int P₀` is one of them" — at a relative interior point `y` of a codimension-two
@@ -10116,7 +10477,66 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_ger
     (y : E d) (hy : y ∈ relint g.carrier) :
     ∃ ε : ℝ, 0 < ε ∧ ∀ δ : ℝ, 0 < δ → δ < ε →
       IsPreconnected (interior D.carrier ∩ Metric.ball y δ) := by
-  sorry
+  obtain ⟨f₁, f₂, hne, hpair⟩ := Set.ncard_eq_two.mp htwo
+  have hf₁ : f₁ ∈ C.cells ∧ f₁.dim = d - 1 ∧ g.carrier ⊆ f₁.carrier := by
+    change f₁ ∈ {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}
+    rw [hpair]
+    exact Set.mem_insert _ _
+  have hf₂ : f₂ ∈ C.cells ∧ f₂.dim = d - 1 ∧ g.carrier ⊆ f₂.carrier := by
+    change f₂ ∈ {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}
+    rw [hpair]
+    exact Set.mem_insert_of_mem _ (Set.mem_singleton _)
+  obtain ⟨η, hη, hiso⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step1_isolation D C g hg y hy
+  have hstar :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step3_two_facet_star
+      D C g hg hgd f₁ f₂ hpair y hy η hiso
+  obtain ⟨ρ, hρ, hρη, hbd⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step4_facet_boundary
+      D C g hg hgd y hy η hη hiso
+  have hf₁F : f₁ ∈ C.facets := Finset.mem_filter.mpr ⟨hf₁.1, hf₁.2.1⟩
+  have hf₂F : f₂ ∈ C.facets := Finset.mem_filter.mpr ⟨hf₂.1, hf₂.2.1⟩
+  obtain ⟨ε, hε, hερ, L, M, hLy, hMy, hneg, hpages⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes
+      g f₁ f₂ hgd hf₁.2.1 hf₂.2.1 hf₁.2.2 hf₂.2.2
+      (C.relint_disjoint f₁ hf₁.1 f₂ hf₂.1 hne) y hy ρ hρ
+      (hbd f₁ hf₁F hf₁.2.2) (hbd f₂ hf₂F hf₂.2.2)
+  have hεη : ε ≤ η := hερ.trans hρη
+  refine ⟨ε, hε, fun δ hδ hδε => ?_⟩
+  have hδεsub := Metric.ball_subset_ball hδε.le (x := y)
+  have hδηsub := Metric.ball_subset_ball (hδε.le.trans hεη) (x := y)
+  have hboundary : frontier D.carrier ∩ Metric.ball y δ =
+      {x | (L x = 0 ∧ 0 ≤ M x) ∨ (M x = 0 ∧ 0 ≤ L x)} ∩ Metric.ball y δ := by
+    ext x
+    constructor
+    · rintro ⟨hxf, hxb⟩
+      have hxpages := hstar.subset ⟨hxf, hδηsub hxb⟩
+      exact ⟨(hpages.subset ⟨hxpages.1, hδεsub hxb⟩).1, hxb⟩
+    · rintro ⟨hxw, hxb⟩
+      have hxpages := hpages.symm.subset ⟨hxw, hδεsub hxb⟩
+      exact ⟨(hstar.symm.subset ⟨hxpages.1, hδηsub hxb⟩).1, hxb⟩
+  obtain ⟨_, _, _, hP, hN, hPN⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step6_sectors
+      L M y hLy hMy hneg δ hδ
+  have hcover : Metric.ball y δ \ frontier D.carrier =
+      (Metric.ball y δ ∩ {x | 0 < L x ∧ 0 < M x}) ∪
+        (Metric.ball y δ ∩ {x | L x < 0 ∨ M x < 0}) := by
+    rw [← hPN]
+    ext x
+    constructor
+    · rintro ⟨hxb, hxf⟩
+      exact ⟨hxb, fun hxw => hxf (hboundary.symm.subset ⟨hxw, hxb⟩).1⟩
+    · rintro ⟨hxb, hxw⟩
+      exact ⟨hxb, fun hxf => hxw (hboundary.subset ⟨hxf, hxb⟩).1⟩
+  have hyf : y ∈ frontier D.carrier := by
+    rw [← C.cover]
+    exact Set.mem_iUnion₂.mpr ⟨g, hg, hy⟩
+  rcases birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step7_choose_side
+      D.carrier D.regularClosed y hyf δ hδ _ _ hP.isPreconnected hN.isPreconnected hcover with hI | hI
+  · rw [hI]
+    exact hP.isPreconnected
+  · rw [hI]
+    exact hN.isPreconnected
 
 /-- Step 3 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25): "join them by a path ... in general position (avoiding the

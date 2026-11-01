@@ -2303,6 +2303,93 @@ theorem restriction_det_internal (c : H.Node) (f : FacetName S c.2.val.ty)
         H.birthParent c f hf = H.parentNode c ∧ H.age c f hf = 1 := by
   sorry
 
+/-- Step 1 of the V4 proof of `restriction_det_inherited` (V4 1.7(c)): "`f'` has provider
+`g`, birth parent `A_b`, age one more": once the birth parents agree, the age of the child
+facet exceeds that of the parent facet by one, since the birth parent of `f` lies strictly
+above the parent node `B`. -/
+private theorem restriction_det_inherited_step1_age (c : H.Node)
+    (f : FacetName S (H.parentNode c).2.val.ty) (g : FacetName S c.2.val.ty)
+    (hf : ¬ H.IsFault (H.parentNode c) f) (hg : ¬ H.IsFault c g)
+    (hbp : H.birthParent c g hg = H.birthParent (H.parentNode c) f hf) :
+    H.age c g hg = H.age (H.parentNode c) f hf + 1 := by
+  have hb : H.birthParent (H.parentNode c) f hf =
+      H.ancestor (H.parentNode c) ((H.firstProvider (H.parentNode c) f hf).1 + 1) := by
+    simp only [birthParent, servingChild, ancestor, Function.iterate_succ_apply']
+  have h1 : (H.birthParent (H.parentNode c) f hf).1 =
+      (H.parentNode c).1 + ((H.firstProvider (H.parentNode c) f hf).1 + 1) := by
+    rw [hb]
+    exact H.ancestor_height _ _
+  have h2 : (H.parentNode c).1 = c.1 + 1 := H.ancestor_height c 1
+  unfold age birthHeight
+  rw [hbp]
+  omega
+
+/-- Step 2 of the V4 proof of `restriction_det_inherited` (V4 1.7(c)): "the initial segment
+for `f'` is `{n,…,b-1}` and the provider is `g`": with the same birth parent, the serving
+child of `f'` is the same node `A_{b-1}` as the serving child of `f`. -/
+private theorem restriction_det_inherited_step2_serving (c : H.Node)
+    (f : FacetName S (H.parentNode c).2.val.ty) (g : FacetName S c.2.val.ty)
+    (hf : ¬ H.IsFault (H.parentNode c) f) (hg : ¬ H.IsFault c g)
+    (hbp : H.birthParent c g hg = H.birthParent (H.parentNode c) f hf) :
+    H.servingChild c g hg = H.servingChild (H.parentNode c) f hf := by
+  have hb1 : H.birthParent c g hg = H.ancestor c ((H.firstProvider c g hg).1 + 1) := by
+    simp only [birthParent, servingChild, ancestor, Function.iterate_succ_apply']
+  have hb2 : H.birthParent (H.parentNode c) f hf =
+      H.ancestor (H.parentNode c) ((H.firstProvider (H.parentNode c) f hf).1 + 1) := by
+    simp only [birthParent, servingChild, ancestor, Function.iterate_succ_apply']
+  have hk : (H.firstProvider c g hg).1 = (H.firstProvider (H.parentNode c) f hf).1 + 1 := by
+    have h := congrArg (fun x : H.Node => x.1) hbp
+    simp only at h
+    rw [hb1, hb2, H.ancestor_height, H.ancestor_height] at h
+    have h2 : (H.parentNode c).1 = c.1 + 1 := H.ancestor_height c 1
+    omega
+  show H.ancestor c (H.firstProvider c g hg).1 =
+    H.ancestor c ((H.firstProvider (H.parentNode c) f hf).1 + 1)
+  rw [hk]
+
+/-- Step 3 of the V4 proof of `restriction_det_inherited` (V4 1.7(c)): "`t` is the unique
+cell of `B` with `relint s' ⊆ relint t` (which exists by Corollary 1.2 applied to the pair
+`(B,C)`)", and `t ⊆ f` by the hereditary trace (Lemma 1.1), since `relint t` meets `f`. -/
+private theorem restriction_det_inherited_step3_parentCell (c : H.Node)
+    (f : FacetName S (H.parentNode c).2.val.ty) (g : FacetName S c.2.val.ty)
+    (hsub : c.2.val.cell c.1 g.val ⊆
+      (H.parentNode c).2.val.cell (H.parentNode c).1 f.val)
+    (s : CellName S c.2.val.ty) (hs : c.2.val.cell c.1 s.val ⊆ c.2.val.cell c.1 g.val) :
+    ∃ t : CellName S (H.parentNode c).2.val.ty,
+      (H.parentNode c).2.val.cell (H.parentNode c).1 t.val ⊆
+          (H.parentNode c).2.val.cell (H.parentNode c).1 f.val ∧
+        relint (c.2.val.cell c.1 s.val) ⊆
+          relint ((H.parentNode c).2.val.cell (H.parentNode c).1 t.val) := by
+  have hC : c.2.val.IsDescendant c.1 (H.parentNode c).2.val (H.parentNode c).1 :=
+    H.ancestor_descendant c 1
+  have hf' : f.val ∈ (S.cx (H.parentNode c).2.val.ty).cells :=
+    (Finset.mem_filter.mp f.property).1
+  have hfr : c.2.val.cell c.1 s.val ⊆
+      frontier ((H.parentNode c).2.val.carrier (H.parentNode c).1) :=
+    hs.trans (hsub.trans (hereditary_trace_step1_cell_frontier _ _ f.val hf'))
+  obtain ⟨t, ht, -⟩ := ancestralStratum_exists_unique (H.parentNode c).2.val c.2.val
+    (H.parentNode c).1 c.1 hC s hfr
+  refine ⟨t, ?_, ht⟩
+  obtain ⟨p, hp⟩ : (relint (c.2.val.cell c.1 s.val)).Nonempty := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact s.val.flat.relint_nonempty.image _
+  exact hereditary_trace _ _ _ _ (ancestor_descendant_refl _ _) f.val t.val hf' t.property
+    ⟨p, ht hp, hsub (hs (intrinsicInterior_subset hp))⟩
+
+/-- Step 4 of the V4 proof of `restriction_det_inherited` (V4 1.7(c)): "`relint s' ⊆ relint t`
+and `relint t ⊆ relint τ_f(t)`, so `τ_{f'}(s') = τ_f(t)` by uniqueness in 1.2": two listed
+cells of the same node whose relative interiors both contain a nonempty set are the same
+placed cell (stated for two names of one node, to transport along the node equality). -/
+private theorem restriction_det_inherited_step4_cell_eq (N₁ N₂ : H.Node) (hN : N₁ = N₂)
+    (a : CellName S N₁.2.val.ty) (b : CellName S N₂.2.val.ty) (X : Set (E d))
+    (hX : X.Nonempty) (ha : X ⊆ relint (N₁.2.val.cell N₁.1 a.val))
+    (hb : X ⊆ relint (N₂.2.val.cell N₂.1 b.val)) :
+    N₁.2.val.cell N₁.1 a.val = N₂.2.val.cell N₂.1 b.val := by
+  subst hN
+  obtain ⟨p, hp⟩ := hX
+  rw [hereditary_trace_step1_relint_unique N₁.2.val N₁.1 a.val b.val a.property b.property p
+    (ha hp) (hb hp)]
+
 /-- P7, V4 1.7(c): inherited finite facets retain provider and birth, gain one
 unit of age, and their strata compose with the immediate ancestral strata. -/
 theorem restriction_det_inherited (c : H.Node)
@@ -2326,7 +2413,18 @@ theorem restriction_det_inherited (c : H.Node)
           (H.servingChild (H.parentNode c) f hf).2.val.cell
             (H.servingChild (H.parentNode c) f hf).1
             (H.stratumMap (H.parentNode c) f hf t ht).val := by
-  sorry
+  obtain ⟨hg, hcar, hbp⟩ := H.provider_inherited (H.parentNode c) c 1 rfl f g hf hsub
+  have hser := restriction_det_inherited_step2_serving H c f g hf hg hbp
+  refine ⟨hg, hcar, hbp, restriction_det_inherited_step1_age H c f g hf hg hbp, ?_⟩
+  intro s hs
+  obtain ⟨t, ht, hst⟩ := restriction_det_inherited_step3_parentCell H c f g hsub s hs
+  refine ⟨t, ht, hst, ?_⟩
+  have hne : (relint (c.2.val.cell c.1 s.val)).Nonempty := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact s.val.flat.relint_nonempty.image _
+  exact restriction_det_inherited_step4_cell_eq H _ _ hser _ _ _ hne
+    (stratumMap_spec_step1_spec c g hg s hs)
+    (hst.trans (stratumMap_spec_step1_spec (H.parentNode c) f hf t ht))
 
 /-- P7, V4 1.7(c): faults restrict to faults. -/
 theorem restriction_det_fault (c : H.Node)

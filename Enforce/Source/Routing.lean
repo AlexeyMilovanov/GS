@@ -10377,6 +10377,337 @@ private theorem birth_ascent_routing_step4_facet_neighborhood
   simpa only [interior_inter, Metric.isOpen_ball.interior_eq] using
     hconv.interior.isPreconnected
 
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation` (V4 1.25, using (H2) of V4 §1.0):
+"the polyhedral boundary". Cut all convex pieces of a finite family by all their
+defining hyperplanes at once. The resulting polytopes meet in common faces, and
+each member of the original family is covered by polytopes contained in it. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation_step1_common_refinement
+    {ι : Type*} [Fintype ι] (Q : ι → Set (E d)) (hQ : ∀ i, Polyhedron (Q i)) :
+    ∃ T : Finset (Finset (E d)),
+      (⋃ i, Q i) = ⋃ p ∈ T, convexHull ℝ (p : Set (E d)) ∧
+      (∀ p ∈ T, ∀ q ∈ T,
+        IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+          (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d)))) ∧
+      ∀ i, ∀ x ∈ Q i, ∃ p ∈ T, x ∈ convexHull ℝ (p : Set (E d)) ∧
+        convexHull ℝ (p : Set (E d)) ⊆ Q i := by
+  classical
+  have hcompact : IsCompact (⋃ i, Q i) := isCompact_iUnion fun i => (hQ i).isCompact
+  choose S hS₀ using fun i =>
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step2_halfspace_presentation (hQ i)
+  let U := Finset.univ.biUnion S
+  have hS : (⋃ i, Q i) = ⋃ q ∈ U, {x | ∀ f ∈ q, 0 ≤ f x} := by
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨i, hxi⟩ := Set.mem_iUnion.mp hx
+      rw [hS₀ i] at hxi
+      obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hxi
+      exact Set.mem_iUnion₂.mpr ⟨q, Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _, hq⟩, hxq⟩
+    · intro hx
+      obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨i, -, hqi⟩ := Finset.mem_biUnion.mp hq
+      apply Set.mem_iUnion.mpr ⟨i, ?_⟩
+      rw [hS₀ i]
+      exact Set.mem_iUnion₂.mpr ⟨q, hqi, hxq⟩
+  let A := U.biUnion id
+  let T := A.powerset.filter fun t => ∃ q ∈ U, q ⊆ t
+  let C (t : Finset (E d →ᵃ[ℝ] ℝ)) : Set (E d) :=
+    {x | ∀ f ∈ A, if f ∈ t then 0 ≤ f x else f x ≤ 0}
+  have hsub (t : T) : C t.val ⊆ ⋃ i, Q i := by
+    obtain ⟨q, hq, hqt⟩ := (Finset.mem_filter.mp t.property).2
+    intro x hx
+    rw [hS]
+    refine Set.mem_iUnion₂.mpr ⟨q, hq, ?_⟩
+    intro f hf
+    have hfA : f ∈ A := Finset.mem_biUnion.mpr ⟨q, hq, hf⟩
+    simpa only [if_pos (hqt hf)] using hx f hfA
+  have hrep (t : T) : ∃ p : Finset (E d), C t.val = convexHull ℝ (p : Set (E d)) := by
+    let q := t.val ∪ (A \ t.val).image (fun f => -f)
+    have hC : C t.val = {x | ∀ f ∈ q, 0 ≤ f x} := by
+      ext x
+      constructor
+      · intro hx f hf
+        rcases Finset.mem_union.mp hf with hf | hf
+        · have hfA := Finset.mem_powerset.mp (Finset.mem_filter.mp t.property).1 hf
+          simpa only [if_pos hf] using hx f hfA
+        · obtain ⟨g, hg, rfl⟩ := Finset.mem_image.mp hf
+          obtain ⟨hgA, hgt⟩ := Finset.mem_sdiff.mp hg
+          have hgx := hx g hgA
+          simpa only [if_neg hgt, AffineMap.coe_neg, Pi.neg_apply, neg_nonneg] using hgx
+      · intro hx f hfA
+        by_cases hft : f ∈ t.val
+        · simpa only [if_pos hft] using hx f (Finset.mem_union_left _ hft)
+        · have hneg := hx (-f) (Finset.mem_union_right _
+            (Finset.mem_image.mpr ⟨f, Finset.mem_sdiff.mpr ⟨hfA, hft⟩, rfl⟩))
+          simpa only [if_neg hft, AffineMap.coe_neg, Pi.neg_apply, neg_nonneg] using hneg
+    rw [hC]
+    apply principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral_step4_bounded_halfspaces
+    rw [← hC]
+    exact hcompact.isBounded.subset (hsub t)
+  choose p hp using hrep
+  refine ⟨Finset.univ.image p, ?_, ?_, ?_⟩
+  · apply Set.Subset.antisymm
+    · intro x hx
+      let t := A.filter fun f => 0 ≤ f x
+      have ht : t ∈ T := by
+        refine Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr (Finset.filter_subset _ _), ?_⟩
+        rw [hS] at hx
+        obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hx
+        refine ⟨q, hq, fun f hf => ?_⟩
+        exact Finset.mem_filter.mpr ⟨Finset.mem_biUnion.mpr ⟨q, hq, hf⟩, hxq f hf⟩
+      let u : T := ⟨t, ht⟩
+      refine Set.mem_iUnion₂.mpr ⟨p u, Finset.mem_image.mpr ⟨u, Finset.mem_univ _, rfl⟩, ?_⟩
+      rw [← hp u]
+      intro f hfA
+      by_cases hfx : 0 ≤ f x
+      · simp only [u, t, Finset.mem_filter, hfA, hfx, and_self, if_true]
+      · simp only [u, t, Finset.mem_filter, hfA, hfx, and_false, if_false]
+        exact (lt_of_not_ge hfx).le
+    · intro x hx
+      obtain ⟨r, hr, hxr⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨t, _, rfl⟩ := Finset.mem_image.mp hr
+      exact hsub t (by rwa [hp t])
+  · intro r hr s hs
+    obtain ⟨t, _, rfl⟩ := Finset.mem_image.mp hr
+    obtain ⟨u, _, rfl⟩ := Finset.mem_image.mp hs
+    rw [← hp t, ← hp u]
+    refine ⟨Set.inter_subset_left, ?_⟩
+    intro x hx y hy z hz hseg
+    refine ⟨hx, ?_⟩
+    rw [openSegment_eq_image_lineMap] at hseg
+    obtain ⟨a, ha, rfl⟩ := hseg
+    intro f hfA
+    have hxf := hx f hfA
+    have hyf := hy f hfA
+    have hzf := hz.2 f hfA
+    rw [f.apply_lineMap, AffineMap.lineMap_apply_ring] at hzf
+    by_cases hfu : f ∈ u.val
+    · simp only [if_pos hfu] at hzf ⊢
+      by_cases hft : f ∈ t.val
+      · simpa only [if_pos hft] using hxf
+      · simp only [if_neg hft] at hxf hyf
+        have hmul : 0 ≤ (1 - a) * f x := by
+          nlinarith [mul_nonpos_of_nonneg_of_nonpos ha.1.le hyf]
+        exact (mul_nonneg_iff_of_pos_left (sub_pos.mpr ha.2)).mp hmul
+    · simp only [if_neg hfu] at hzf ⊢
+      by_cases hft : f ∈ t.val
+      · simp only [if_pos hft] at hxf hyf
+        have hmul : (1 - a) * f x ≤ 0 := by
+          nlinarith [mul_nonneg ha.1.le hyf]
+        exact nonpos_of_mul_nonpos_right hmul (sub_pos.mpr ha.2)
+      · simpa only [if_neg hft] using hxf
+
+  · intro i x hx
+    rw [hS₀ i] at hx
+    obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hx
+    have hqU : q ∈ U := Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _, hq⟩
+    let t := A.filter fun f => 0 ≤ f x
+    have hqt : q ⊆ t := by
+      intro f hf
+      exact Finset.mem_filter.mpr ⟨Finset.mem_biUnion.mpr ⟨q, hqU, hf⟩, hxq f hf⟩
+    have ht : t ∈ T := Finset.mem_filter.mpr
+      ⟨Finset.mem_powerset.mpr (Finset.filter_subset _ _), q, hqU, hqt⟩
+    let u : T := ⟨t, ht⟩
+    refine ⟨p u, Finset.mem_image.mpr ⟨u, Finset.mem_univ _, rfl⟩, ?_, ?_⟩
+    · rw [← hp u]
+      intro f hfA
+      by_cases hfx : 0 ≤ f x
+      · simp only [u, t, Finset.mem_filter, hfA, hfx, and_self, if_true]
+      · simp only [u, t, Finset.mem_filter, hfA, hfx, and_false, if_false]
+        exact (lt_of_not_ge hfx).le
+    · intro y hy
+      rw [← hp u] at hy
+      rw [hS₀ i]
+      refine Set.mem_iUnion₂.mpr ⟨q, hq, ?_⟩
+      intro f hf
+      have hfA : f ∈ A := Finset.mem_biUnion.mpr ⟨q, hqU, hf⟩
+      have hfu : f ∈ u.val := hqt hf
+      simpa only [if_pos hfu] using hy f hfA
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation` (V4 1.25, using (H2) of V4 §1.0):
+"the polyhedral boundary". Barycentric subdivision of polytopes meeting in
+common faces preserves each polytope as a union of simplices. Choose one relative
+interior point per face, with the same choices on all shared faces. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation_step2_subdivide_cells
+    (T : Finset (Finset (E d)))
+    (hface : ∀ p ∈ T, ∀ q ∈ T,
+      IsExtreme ℝ (convexHull ℝ (p : Set (E d)))
+        (convexHull ℝ (p : Set (E d)) ∩ convexHull ℝ (q : Set (E d)))) :
+    ∃ K : Geometry.SimplicialComplex ℝ (E d), K.faces.Finite ∧
+      K.space = ⋃ p ∈ T, convexHull ℝ (p : Set (E d)) ∧
+      ∀ p ∈ T, ∀ x ∈ convexHull ℝ (p : Set (E d)), ∃ s ∈ K.faces,
+        x ∈ convexHull ℝ (s : Set (E d)) ∧
+        convexHull ℝ (s : Set (E d)) ⊆ convexHull ℝ (p : Set (E d)) := by
+  classical
+  have hrel : ∀ F ∈ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T, ∃ z, z ∈ intrinsicInterior ℝ F := by
+    rintro F ⟨_, _, _, hc, hne⟩
+    exact hne.intrinsicInterior hc
+  choose! b hb using hrel
+  let faces : Set (Finset (E d)) := {s | ∃ c : Finset (Set (E d)),
+    (c : Set (Set (E d))) ⊆ principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T ∧ c.Nonempty ∧ IsChain (· ⊆ ·) (c : Set (Set (E d))) ∧
+      (s : Set (E d)) = b '' (c : Set (Set (E d)))}
+  have hindep : ∀ {s : Finset (E d)}, s ∈ faces → AffineIndependent ℝ ((↑) : s → E d) := by
+    rintro s ⟨c, hc, -, hch, hs⟩
+    have h := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step5_chain_indep T hface b hb c hc hch
+    rw [← hs] at h
+    exact h
+  have hlower : IsRelLowerSet faces Finset.Nonempty := by
+    rintro s ⟨c, hc, hne, hch, hs⟩
+    refine ⟨?_, ?_⟩
+    · obtain ⟨F, hF⟩ := hne
+      have hmem : b F ∈ (s : Set (E d)) := hs ▸ Set.mem_image_of_mem b (Finset.mem_coe.mpr hF)
+      exact ⟨_, hmem⟩
+    · intro t hts htne
+      have hts' : ∀ z ∈ t, ∃ F ∈ c, b F = z := by
+        intro z hz
+        have hz' : z ∈ (s : Set (E d)) := Finset.mem_coe.mpr (hts hz)
+        rw [hs] at hz'
+        obtain ⟨F, hF, rfl⟩ := hz'
+        exact ⟨F, hF, rfl⟩
+      refine ⟨c.filter (fun F => b F ∈ t), ?_, ?_, ?_, ?_⟩
+      · exact (Finset.coe_subset.mpr (Finset.filter_subset _ _)).trans hc
+      · obtain ⟨z, hz⟩ := htne
+        obtain ⟨F, hF, rfl⟩ := hts' z hz
+        exact ⟨F, Finset.mem_filter.mpr ⟨hF, hz⟩⟩
+      · exact hch.mono (Finset.coe_subset.mpr (Finset.filter_subset _ _))
+      · ext z
+        constructor
+        · intro hz
+          obtain ⟨F, hF, rfl⟩ := hts' z hz
+          exact ⟨F, Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨hF, hz⟩), rfl⟩
+        · rintro ⟨F, hF, rfl⟩
+          exact (Finset.mem_filter.mp hF).2
+  have hinter : ∀ {s t : Finset (E d)}, s ∈ faces → t ∈ faces →
+      convexHull ℝ ↑s ∩ convexHull ℝ ↑t ⊆ convexHull ℝ (s ∩ t : Set (E d)) := by
+    rintro s t ⟨c₁, hc₁, -, hch₁, hs⟩ ⟨c₂, hc₂, -, hch₂, ht⟩
+    rw [hs, ht]
+    exact (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step8_chain_inter T hface b hb c₁ c₂ hc₁ hc₂ hch₁ hch₂).trans
+      (convexHull_mono (Set.image_inter_subset _ _ _))
+  let K : Geometry.SimplicialComplex ℝ (E d) :=
+    { faces := faces
+      indep := hindep
+      isRelLowerSet_faces := hlower
+      inter_subset_convexHull := hinter }
+  refine ⟨K, ?_, ?_, ?_⟩
+  · apply Set.Finite.subset
+      ((((principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step1_faces_finite T).image b).finite_subsets).preimage
+        Finset.coe_injective.injOn)
+    rintro s ⟨c, hc, -, -, hs⟩
+    show (s : Set (E d)) ⊆ b '' principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T
+    rw [hs]
+    exact Set.image_mono hc
+  · apply Set.Subset.antisymm
+    · intro x hx
+      rw [Geometry.SimplicialComplex.mem_space_iff] at hx
+      obtain ⟨s, ⟨c, hc, hne, hch, hs⟩, hxs⟩ := hx
+      obtain ⟨G, hGc, hG⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step4_chain_top hne hch
+      obtain ⟨p, hp, hpG, hGconv, -⟩ := hc (Finset.mem_coe.mpr hGc)
+      refine Set.mem_iUnion₂.mpr ⟨p, hp, hpG.1 ?_⟩
+      rw [hs] at hxs
+      refine convexHull_min ?_ hGconv hxs
+      rintro z ⟨F, hF, rfl⟩
+      exact hG F hF (intrinsicInterior_subset (hb F (hc hF)))
+    · intro x hx
+      obtain ⟨p, hp, hxp⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨c, hc, hch, hxc⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step7_cover T b hb hp hxp
+      rw [Geometry.SimplicialComplex.mem_space_iff]
+      have hne : c.Nonempty := by
+        rcases c.eq_empty_or_nonempty with rfl | h
+        · simp at hxc
+        · exact h
+      refine ⟨c.image b, ⟨c, hc, hne, hch, by simp⟩, ?_⟩
+      simpa using hxc
+
+  · intro p hp x hx
+    have hfaces : principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces {p} ⊆
+        principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_faces T := by
+      rintro F ⟨q, hq, hF⟩
+      have hqp : q = p := Finset.mem_singleton.mp hq
+      subst q
+      exact ⟨p, hp, hF⟩
+    obtain ⟨c, hc, hch, hxc⟩ :=
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step2_subdivide_cells_step7_cover
+        {p} b (fun F hF => hb F (hfaces hF)) (Finset.mem_singleton_self p) hx
+    have hne : c.Nonempty := by
+      rcases c.eq_empty_or_nonempty with rfl | h
+      · simp at hxc
+      · exact h
+    refine ⟨c.image b, ⟨c, hc.trans hfaces, hne, hch, by simp⟩, by simpa using hxc, ?_⟩
+    apply convexHull_min _ (convex_convexHull ℝ _)
+    intro z hz
+    obtain ⟨F, hFc, rfl⟩ := Finset.mem_image.mp hz
+    obtain ⟨q, hq, hext, -, -⟩ := hc hFc
+    have hqp : q = p := Finset.mem_singleton.mp hq
+    subst q
+    exact hext.1 (intrinsicInterior_subset (hb F (hfaces (hc hFc))))
+
+/-- Step 3 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation` (V4 1.25, using (H2) of V4 §1.0):
+"avoiding the `(d-2)`-skeleton of `P_b`'s complex". A finite simplicial cover
+of a flat cell contains a simplex spanning its affine hull: finitely many proper
+affine subspaces cannot cover the nonempty relative interior. In that common
+affine hull, monotonicity of interior gives the relative-interior containment. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation_step3_full_simplex
+    (g : Cell d) (K : Geometry.SimplicialComplex ℝ (E d))
+    (hfin : K.faces.Finite)
+    (hcover : ∀ x ∈ g.carrier, ∃ s ∈ K.faces,
+      x ∈ convexHull ℝ (s : Set (E d)) ∧
+        convexHull ℝ (s : Set (E d)) ⊆ g.carrier) :
+    ∃ s ∈ K.faces, s.card = g.dim + 1 ∧
+      convexHull ℝ (s : Set (E d)) ⊆ g.carrier ∧
+      relint (convexHull ℝ (s : Set (E d))) ⊆ relint g.carrier := by
+  classical
+  let A := affineSpan ℝ g.carrier
+  obtain ⟨p, hp⟩ := g.flat.relint_nonempty
+  letI : Nonempty A := ⟨⟨p, subset_affineSpan ℝ _ (intrinsicInterior_subset hp)⟩⟩
+  letI : CompleteSpace A := A.closed_of_finiteDimensional.completeSpace_coe
+  let T : Set (Finset (E d)) :=
+    {s | s ∈ K.faces ∧ convexHull ℝ (s : Set (E d)) ⊆ g.carrier}
+  have hTfin : T.Finite := hfin.subset fun _ h => h.1
+  let L (s : Finset (E d)) : AffineSubspace ℝ A :=
+    (affineSpan ℝ (s : Set (E d))).comap A.subtype
+  have hfull : ∃ s ∈ T, L s = ⊤ := by
+    by_contra! hproper
+    have hLdense (s : Finset (E d)) (hs : s ∈ T) : Dense ((L s : Set A)ᶜ) := by
+      apply interior_eq_empty_iff_dense_compl.mp
+      apply Set.eq_empty_iff_forall_notMem.mpr
+      intro x hx
+      have htop := isOpen_interior.affineSpan_eq_top ⟨x, hx⟩
+      apply hproper s hs
+      apply top_unique
+      rw [← htop]
+      exact affineSpan_le.mpr interior_subset
+    have hdense : Dense (⋂ s ∈ T, (L s : Set A)ᶜ) :=
+      dense_biInter_of_isOpen (fun s _ => (L s).closed_of_finiteDimensional.isOpen_compl)
+        hTfin.countable hLdense
+    have hri : (interior ((↑) ⁻¹' g.carrier : Set A)).Nonempty := by
+      have h := g.flat.relint_nonempty
+      rw [relint, intrinsicInterior, Set.image_nonempty] at h
+      exact h
+    obtain ⟨x, hxri, hxavoid⟩ := hdense.inter_open_nonempty _ isOpen_interior hri
+    have hxg : x ∈ ((↑) ⁻¹' g.carrier : Set A) := interior_subset hxri
+    obtain ⟨s, hs, hxs, hsg⟩ := hcover x hxg
+    have hxL : x ∈ L s := convexHull_subset_affineSpan _ hxs
+    exact (Set.mem_iInter₂.mp hxavoid s ⟨hs, hsg⟩) hxL
+  obtain ⟨s, hs, hLs⟩ := hfull
+  have hspan : affineSpan ℝ (s : Set (E d)) = A := by
+    apply le_antisymm
+    · apply affineSpan_le.mpr
+      exact (subset_convexHull ℝ _).trans (hs.2.trans (subset_affineSpan ℝ _))
+    · intro z hz
+      have hzL : (⟨z, hz⟩ : A) ∈ L s := by rw [hLs]; trivial
+      exact hzL
+  refine ⟨s, hs.1, ?_, hs.2, ?_⟩
+  · have hcard :=
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step6_simplex_cardinality K s hs.1
+    rw [hspan] at hcard
+    have hdim : Module.finrank ℝ A.direction = g.dim := g.flat.dimension
+    omega
+  · change intrinsicInterior ℝ (convexHull ℝ (s : Set (E d))) ⊆
+      intrinsicInterior ℝ g.carrier
+    unfold intrinsicInterior
+    rw [affineSpan_convexHull, hspan]
+    exact Set.image_mono (interior_mono (Set.preimage_mono hs.2))
+
 /-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets` (V4 1.25, using (H1)–(H2) of V4 §1.0): "near a boundary point the polyhedral boundary separates a small ball into two sides" — refined simultaneous polyhedral subdivision to a compatible triangulation of the frontier. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation
     (D : PolyManifoldDomain d) (C : CellComplex D)
@@ -10391,7 +10722,37 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
       ∃ s ∈ K.faces, s.card = d - 1 ∧
         convexHull ℝ (s : Set (E d)) ⊆ g.carrier ∧
         relint (convexHull ℝ (s : Set (E d))) ⊆ relint g.carrier := by
-  sorry
+  classical
+  obtain ⟨T, hT, hface, hcompatT⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation_step1_common_refinement
+      (fun e : C.cells => e.val.carrier) (fun e => e.val.flat.polyhedral)
+  obtain ⟨K, hfin, hK, hsub⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation_step2_subdivide_cells T hface
+  have hcarriers : (⋃ e : C.cells, e.val.carrier) = frontier D.carrier := by
+    simpa only [iUnion_subtype] using C.carriers_cover
+  have hspace : K.space = frontier D.carrier := hK.trans (hT.symm.trans hcarriers)
+  have hcompat : ∀ e ∈ C.cells, ∀ x ∈ e.carrier, ∃ t ∈ K.faces,
+      x ∈ convexHull ℝ (t : Set (E d)) ∧
+        convexHull ℝ (t : Set (E d)) ⊆ e.carrier := by
+    intro e he x hx
+    obtain ⟨p, hp, hxp, hpe⟩ := hcompatT ⟨e, he⟩ x hx
+    obtain ⟨t, ht, hxt, htp⟩ := hsub p hp x hxp
+    exact ⟨t, ht, hxt, htp.trans hpe⟩
+  obtain ⟨s, hs, hsc, hsg, hrel⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step1_compatible_triangulation_step3_full_simplex
+      g K hfin (hcompat g hg)
+  refine ⟨K, hfin, hspace, ?_, hcompat, s, hs, by omega, hsg, hrel⟩
+  intro f hf
+  have hman : IsLocallyEuclidean (d - 1) K.space := hspace.symm ▸ D.frontier_manifold
+  obtain ⟨W, hW, hne, hmodel⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step3_facet_patch K hfin f hf
+  have hdim :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step5_local_dimension
+      hman (affineSpan ℝ (f : Set (E d))) W hW hne hmodel
+  have hcard :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step6_simplex_cardinality K f hf.1
+  have hd : 2 ≤ d := Fact.out
+  omega
 
 /-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv` (V4 1.25): incidence transfer from cell facets to simplex cofacets. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t

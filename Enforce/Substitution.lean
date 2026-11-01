@@ -246,12 +246,38 @@ theorem native_cover (A : S.ι) (n : ℕ) :
     dsimp [linearConj]
     simp
 
+/-- Step 1 of the V4 proof of `native_disjoint` (V4 §1.0): distinct parent children are disjoint. -/
+private lemma native_disjoint_step1_diff_child {d : ℕ} [Fact (2 ≤ d)] (S : SubstSystem d) (A : S.ι) (n : ℕ)
+    (i j : S.I A) (v' : S.RoleWord (S.child A i).ty n) (w' : S.RoleWord (S.child A j).ty n)
+    (hij : i ≠ j) :
+    Disjoint (interior ((S.nativeTile A (n + 1) ⟨i, v'⟩).carrier 0))
+             (interior ((S.nativeTile A (n + 1) ⟨j, w'⟩).carrier 0)) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `native_disjoint` (V4 §1.0): equal first roles reduce by induction through an isometry. -/
+private lemma native_disjoint_step2_same_child {d : ℕ} [Fact (2 ≤ d)] (S : SubstSystem d) (A : S.ι) (n : ℕ)
+    (i : S.I A) (v' w' : S.RoleWord (S.child A i).ty n)
+    (hvw : v' ≠ w')
+    (ih : Disjoint (interior ((S.nativeTile (S.child A i).ty n v').carrier 0))
+                   (interior ((S.nativeTile (S.child A i).ty n w').carrier 0))) :
+    Disjoint (interior ((S.nativeTile A (n + 1) ⟨i, v'⟩).carrier 0))
+             (interior ((S.nativeTile A (n + 1) ⟨i, w'⟩).carrier 0)) := by
+  sorry
+
 /-- S3, V4 §1.0 (H3)--(H4): distinct role words have disjoint native interiors. -/
 theorem native_disjoint (A : S.ι) (n : ℕ) :
     Pairwise (fun v w : S.RoleWord A n => Disjoint
       (interior ((S.nativeTile A n v).carrier 0))
       (interior ((S.nativeTile A n w).carrier 0))) := by
-  sorry
+  induction' n with n ih generalizing A
+  · rintro ⟨⟩ ⟨⟩ h
+    exact (h rfl).elim
+  · rintro ⟨i, v'⟩ ⟨j, w'⟩ h
+    rcases eq_or_ne i j with rfl | hij
+    · have h_vw : v' ≠ w' := by
+        intro H; apply h; subst H; rfl
+      exact native_disjoint_step2_same_child S A n i v' w' h_vw (ih (S.child A i).ty h_vw)
+    · exact native_disjoint_step1_diff_child S A n i j v' w' hij
 
 /-- S4, V4 §1.0 (H5): iterated heredity in every boundary dimension. -/
 theorem heredity_iter (A : S.ι) (n : ℕ) (e : Cell d) (he : e ∈ (S.cx A).cells) :

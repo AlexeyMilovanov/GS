@@ -644,10 +644,52 @@ def honestCerts (S : SubstSystem d) (P : Params S) : Set (Certificate P) :=
   {D | ∃ (U : HonestSource S) (B : FramedNode S) (hB : B ∈ U.hierarchy.nodes P.K),
     certOf U P B hB = D}
 
+
+private def CertEncoding (P : Params S) :=
+  Σ ty : S.ι,
+    (S.RoleWord ty P.K → {w // w ∈ honestPrePatterns S P}) ×
+    ((a : Fin (P.K + 1)) → (w : S.RoleWord ty a.val) → {s // s ∈ honestStates S P})
+
+private def toCertEncoding (P : Params S)
+    (C : Certificate P)
+    (h_leaf : ∀ w, C.leaves w ∈ honestPrePatterns S P)
+    (h_table : ∀ a ha w, C.table a ha w ∈ honestStates S P) : CertEncoding P :=
+  ⟨C.ty, (fun w => ⟨C.leaves w, h_leaf w⟩), (fun a w => ⟨C.table a.val (Nat.le_of_lt_succ a.isLt) w, h_table a.val (Nat.le_of_lt_succ a.isLt) w⟩)⟩
+
+private theorem toCertEncoding_injective (P : Params S) :
+    ∀ C₁ C₂ (h_leaf₁ h_table₁ h_leaf₂ h_table₂),
+      toCertEncoding P C₁ h_leaf₁ h_table₁ = toCertEncoding P C₂ h_leaf₂ h_table₂ → C₁ = C₂ := by
+  rintro ⟨ty₁, leaves₁, ht1, table₁, htt1⟩ ⟨ty₂, leaves₂, ht2, table₂, htt2⟩ h_leaf₁ h_table₁ h_leaf₂ h_table₂ h
+  injection h with h_ty h_rest
+  subst h_ty
+  have h_rest2 := eq_of_heq h_rest
+  injection h_rest2 with h_leaves h_table
+  congr 1
+  · ext w
+    apply congrArg Subtype.val (congrFun h_leaves w)
+  · ext a ha w
+    apply congrArg Subtype.val (congrFun (congrFun h_table ⟨a, by omega⟩) w)
+
 /-- Q11, V4 2.7: the finite certificate catalogue. -/
 theorem certs_finite (S : SubstSystem d) (P : Params S) :
     (honestCerts S P).Finite := by
-  sorry
+  haveI h1 : Finite {w // w ∈ honestPrePatterns S P} := (prePatterns_finite S P).to_subtype
+  haveI h2 : Finite {s // s ∈ honestStates S P} := (states_finite S P).to_subtype
+  haveI : Fintype {w // w ∈ honestPrePatterns S P} := Fintype.ofFinite _
+  haveI : Fintype {s // s ∈ honestStates S P} := Fintype.ofFinite _
+  haveI (ty : S.ι) (a : Fin (P.K + 1)) : Fintype (S.RoleWord ty a.val) := S.roleWordFintype ty a.val
+  haveI (ty : S.ι) : Fintype (S.RoleWord ty P.K) := S.roleWordFintype ty P.K
+  haveI : Fintype S.ι := inferInstance
+  haveI (ty : S.ι) (a : Fin (P.K + 1)) : DecidableEq (S.RoleWord ty a.val) := Classical.decEq _
+  haveI (ty : S.ι) : DecidableEq (S.RoleWord ty P.K) := Classical.decEq _
+  haveI (ty : S.ι) (a : Fin (P.K + 1)) : Fintype ((w : S.RoleWord ty a.val) → {s // s ∈ honestStates S P}) := Pi.instFintype
+  haveI (ty : S.ι) : Fintype ((a : Fin (P.K + 1)) → (w : S.RoleWord ty a.val) → {s // s ∈ honestStates S P}) := Pi.instFintype
+  haveI (ty : S.ι) : Fintype (S.RoleWord ty P.K → {w // w ∈ honestPrePatterns S P}) := Pi.instFintype
+  haveI (ty : S.ι) : Fintype ((S.RoleWord ty P.K → {w // w ∈ honestPrePatterns S P}) × ((a : Fin (P.K + 1)) → (w : S.RoleWord ty a.val) → {s // s ∈ honestStates S P})) := inferInstance
+  haveI : Fintype (CertEncoding P) := Sigma.instFintype
+  apply Finite.of_injective (fun (⟨C, hC⟩ : {C // C ∈ honestCerts S P}) => toCertEncoding P C (by rintro w; obtain ⟨U, B, hB, rfl⟩ := hC; exact ⟨U, U.descendant ⟨P.K, ⟨B, hB⟩⟩ P.K le_rfl w, Nat.sub_self P.K, rfl⟩) (by rintro a ha w; obtain ⟨U, B, hB, rfl⟩ := hC; exact ⟨U, U.descendant ⟨P.K, ⟨B, hB⟩⟩ a ha w, rfl⟩))
+  intro ⟨C₁, hC₁⟩ ⟨C₂, hC₂⟩ h
+  exact Subtype.ext (toCertEncoding_injective P C₁ C₂ _ _ _ _ h)
 
 /-- Q11, V4 2.7: a certificate with one of its exact depth-K leaf addresses. -/
 abbrev LeafType (P : Params S) :=

@@ -158,11 +158,71 @@ def decode {P : Params S} (q : Packet P) (j : Fin P.k) : Option (State P) := by
   classical
   exact if j.val ≤ q.jstar.val ∧ q.mask j then some (q.reconstructed j) else none
 
+open private honest_counter_jump_count_step3_word_frame from Enforce.State.State in
+/-- Step 2 of the V4 proof of `packet_mask_fn` (V4 2.6(a)):
+"the role word from each down to P_b" transports the normalized
+birth carrier into the ancestor prototype. -/
+private theorem packet_mask_fn_step2_geometry
+    (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) (j : Fin P.k)
+    (K : Set (E d)) :
+    (U.hierarchy.ancestor g.birth j.val).2.val.prototypeFrame
+        (U.hierarchy.ancestor g.birth j.val).1 '' K = g.carrier ↔
+      K = wordPlacement (slotRoles (stateOf U P g.birth) j) ''
+        (S.σ.symm '' g.incidence.val.positioned) := by
+  let A := (U.hierarchy.ancestor g.birth j.val).2.val.prototypeFrame
+    (U.hierarchy.ancestor g.birth j.val).1
+  let W := wordPlacement (slotRoles (stateOf U P g.birth) j)
+  let T := ⇑W '' (⇑S.σ.symm '' g.incidence.val.positioned)
+  have hw : slotRoles (stateOf U P g.birth) j =
+      U.downRoles g.birth j.val := rfl
+  have hf : g.birth.2.val.prototypeFrame g.birth.1 = W.trans A := by
+    simpa only [← hw] using
+      honest_counter_jump_count_step3_word_frame U g.birth j.val
+  have hc : g.carrier = ⇑A '' T := by
+    calc
+      g.carrier = ⇑(g.birth.2.val.prototypeFrame g.birth.1) ''
+          (⇑S.σ.symm '' g.incidence.val.positioned) := by
+        ext y
+        simp [PrimitiveOccurrence.carrier, Params.incidencePlacement,
+          PrimitiveIncidence.positioned, placedSet]
+      _ = ⇑A '' T := by
+        rw [hf]
+        simp only [T, Set.image_image, AffineEquiv.trans_apply]
+  change ⇑A '' K = g.carrier ↔ K = T
+  rw [hc]
+  exact Set.image_eq_image A.injective
+
 /-- Q9, V4 2.6(a): the geometric mask is a function of incidence and birth state. -/
 theorem packet_mask_fn (U : HonestSource S) (P : Params S)
     (g : PrimitiveOccurrence U P) (j : Fin P.k) :
     mask U P g j ↔ packetMask P g.incidence (stateOf U P g.birth) j := by
-  sorry
+  dsimp [mask, Params.InPrincipal, packetMask]
+  have h_type : (U.hierarchy.ancestor g.birth j.val).2.val.ty = slotType (stateOf U P g.birth) j := by
+    dsimp [slotType]
+    split_ifs with hj
+    · rw [hj]
+      dsimp [stateOf]
+      rfl
+    · dsimp [stateOf, CoherentHierarchy.nodeRole]
+      have h_anc : U.hierarchy.ancestor g.birth j.val = U.hierarchy.parentNode (U.hierarchy.ancestor g.birth (j.val - 1)) := by
+        change (U.hierarchy.parentNode^[j.val]) g.birth = U.hierarchy.parentNode ((U.hierarchy.parentNode^[j.val - 1]) g.birth)
+        have hj_pos : 0 < j.val := by omega
+        have e : j.val = j.val - 1 + 1 := by omega
+        nth_rw 1 [e]
+        rw [Function.iterate_succ_apply']
+      rw [h_anc]
+      rfl
+  revert h_type
+  generalize hA1 : (U.hierarchy.ancestor g.birth j.val).2.val.ty = A1
+  generalize hA2 : slotType (stateOf U P g.birth) j = A2
+  intro h_type
+  subst h_type
+  have h_geom := packet_mask_fn_step2_geometry U P g j
+  apply exists_congr
+  intro f
+  apply and_congr Iff.rfl
+  exact h_geom f.carrier
 
 private lemma childNode_parentNode (U : HonestSource S) (N : U.Node)
     (hq : 1 ≤ (U.hierarchy.parentNode N).1) :

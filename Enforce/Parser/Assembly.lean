@@ -4594,7 +4594,30 @@ theorem child_equations (i : S.I N.ty) :
 /-- R9/R10, V4 3.10--3.11, 3.1 (I1): child descent fixes the new height residue. -/
 theorem newState_residue :
     (newState Y hY n hn D hD N A).residue.val = (n + 1) % P.L := by
-  sorry
+  let r := Parser.readableFacet Y hY n hn D hD N A (Parser.firstChild N.ty)
+  have hnext : r.parentSlot.val = r.childSlot.val + 1 := by
+    have := r.childSlot_eq
+    have := r.parentSlot_eq
+    have := r.height_eq
+    omega
+  obtain ⟨U, g, hpacket⟩ := r.honest
+  have hc := r.child_decode
+  have hp := r.parent_decode
+  rw [← hpacket] at hc hp
+  unfold decode at hc hp
+  split_ifs at hc with hchild
+  split_ifs at hp with hparent
+  rw [reconstructed_spec U P g r.childSlot hchild.1] at hc
+  rw [reconstructed_spec U P g r.parentSlot hparent.1] at hp
+  have hres := congrArg (fun s : State P => s.residue.val) (Option.some.inj hc)
+  simp only [state_semantics_f, U.hierarchy.ancestor_height] at hres
+  have hcres := hres.trans
+    (hD.I1 (A.children (Parser.firstChild N.ty)).val
+      (A.children (Parser.firstChild N.ty)).property).2.2
+  change r.parentState.residue.val = (n + 1) % P.L
+  rw [← Option.some.inj hp, state_semantics_f, U.hierarchy.ancestor_height,
+    hnext, ← Nat.add_assoc]
+  rw [Nat.add_mod, hcres, ← Nat.add_mod]
 
 
 section PacketConstancy

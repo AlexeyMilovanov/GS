@@ -881,7 +881,33 @@ private lemma honest_move_exists_step2_hierarchy_step2_cover (U : HonestSource S
 private lemma honest_move_exists_step2_hierarchy_step3_disjoint (U : HonestSource S) (g : Iso d) :
     let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
     ∀ n, (nodes' n).PairwiseDisjoint (fun N => interior (N.carrier n)) := by
-  sorry
+  intro nodes' n N1 hN1 N2 hN2 hN1N2
+  rcases hN1 with ⟨M1, hM1, rfl⟩
+  rcases hN2 with ⟨M2, hM2, rfl⟩
+  have hdisj : Disjoint (interior (M1.carrier n)) (interior (M2.carrier n)) := by
+    apply U.hierarchy.disjoint n hM1 hM2
+    intro h
+    subst h
+    exact hN1N2 rfl
+  have h_c : ∀ M : Enforce.FramedNode S, (M.move g).carrier n = (g.toHomeomorph) '' M.carrier n := by
+    intro M
+    dsimp [Enforce.FramedNode.carrier]
+    dsimp [Enforce.placedSet]
+    dsimp [Enforce.FramedNode.move]
+    ext x
+    simp only [mem_image]
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      use M.frame y
+      exact ⟨⟨y, hy, rfl⟩, rfl⟩
+    · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+      use z
+      exact ⟨hz, rfl⟩
+  dsimp [Function.onFun]
+  rw [h_c M1, h_c M2]
+  rw [← Homeomorph.image_interior, ← Homeomorph.image_interior]
+  apply Set.disjoint_image_of_injective g.toHomeomorph.injective
+  exact hdisj
 
 private lemma honest_move_exists_step2_hierarchy_step4_tree_move_inj (g : Iso d) :
     Function.Injective (fun N : FramedNode S => N.move g) := by

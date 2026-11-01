@@ -558,6 +558,68 @@ private theorem packet_attached_step1_owner (U : HonestSource S) (P : Params S)
     rfl
   exact key a g.birth ha ha_eq_b
 
+open private hereditary_trace_step3_child_cell from Enforce.Source.Trace in
+/-- Step 1 of the V4 proof of `packet_attached_step2_serving_facet` (V4 1.6):
+the left facet named by an incidence is a whole facet of its placed child. -/
+private theorem packet_attached_step2_serving_facet_step1_incidence_cell
+    (B : FramedNode S) (n : ℕ) (ι : PrimitiveIncidence S) (hι : ι.ty = B.ty) :
+    ∃ (i : S.I B.ty) (e : FacetName S (B.child n i).ty),
+      (B.child n i).cell n e.val =
+        B.prototypeFrame (n + 1) '' (S.σ.symm '' ι.positioned) := by
+  obtain ⟨A, φ⟩ := B
+  dsimp only at hι
+  subst A
+  refine ⟨ι.left, ι.leftFacet, ?_⟩
+  rw [hereditary_trace_step3_child_cell]
+  simp only [PrimitiveIncidence.positioned, Set.image_image]
+  apply Set.image_congr
+  intro y hy
+  change φ ((S.σ ^ n) y) = φ ((S.σ ^ (n + 1)) (S.σ.symm y))
+  rw [pow_succ, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply]
+
+open private hereditary_trace_step1_cell_subset hereditary_trace_step1_frontier_relint
+  sibling_intersection_cells_step1_reg sibling_intersection_cells_step1_disjoint
+  sibling_facet_eq_step0_finrank_image from Enforce.Source.Trace in
+/-- Step 2 of the V4 proof of `packet_attached_step2_serving_facet` (V4 1.4(a)):
+at a relative-interior point of a sibling facet, the containing child's minimal
+cell is the same whole cell, and hence is itself a facet. -/
+private theorem packet_attached_step2_serving_facet_step2_sibling_cell
+    (B : FramedNode S) (n : ℕ) (i j : S.I B.ty)
+    (f : FacetName S (B.child n i).ty) (x : E d)
+    (hxf : x ∈ relint ((B.child n i).cell n f.val))
+    (hxj : x ∈ (B.child n j).carrier n) :
+    ∃ e : FacetName S (B.child n j).ty,
+      (B.child n j).cell n e.val = (B.child n i).cell n f.val := by
+  by_cases hji : j = i
+  · subst j
+    exact ⟨f, rfl⟩
+  have hfc := (Finset.mem_filter.mp f.property).1
+  have hfd := (Finset.mem_filter.mp f.property).2
+  have hxi : x ∈ (B.child n i).carrier n :=
+    hereditary_trace_step1_cell_subset (B.child n i) n f.val hfc
+      (intrinsicInterior_subset hxf)
+  obtain ⟨-, hri⟩ := sibling_intersection_cells_step1_reg (B.child n i) n
+  obtain ⟨hcj, -⟩ := sibling_intersection_cells_step1_reg (B.child n j) n
+  have hfront : x ∈ frontier ((B.child n j).carrier n) := by
+    rw [hcj.frontier_eq]
+    refine ⟨hxj, fun hxint => ?_⟩
+    have hd := (sibling_intersection_cells_step1_disjoint B n j i hji).closure_right
+      isOpen_interior
+    rw [hri] at hd
+    exact Set.disjoint_left.mp hd hxint hxi
+  obtain ⟨e, he, hxe⟩ := hereditary_trace_step1_frontier_relint (B.child n j) n x hfront
+  have heq : (B.child n i).cell n f.val = (B.child n j).cell n e :=
+    sibling_minimalCell_eq B n i j (Ne.symm hji) x ⟨f.val, hfc⟩ ⟨e, he⟩ hxf hxe
+  have hdim : f.val.dim = e.dim := by
+    rw [← f.val.flat.dimension, ← e.flat.dimension,
+      ← sibling_facet_eq_step0_finrank_image ((B.child n i).prototypeFrame n) f.val.carrier,
+      ← sibling_facet_eq_step0_finrank_image ((B.child n j).prototypeFrame n) e.carrier]
+    change Module.finrank ℝ (cellDirection ((B.child n i).cell n f.val)) =
+      Module.finrank ℝ (cellDirection ((B.child n j).cell n e))
+    rw [heq]
+  exact ⟨⟨e, Finset.mem_filter.mpr ⟨he, by rw [← hdim, hfd]⟩⟩, heq.symm⟩
+
+open private hereditary_trace_step1_cell_subset from Enforce.Source.Trace in
 /-- Step 2 of the V4 proof of `packet_attached` (V4 2.6(c), sibling pairing of 1.6):
 "on either side": the child of the birth parent containing the native tile is one of
 the two paired children of the incidence, and the primitive facet `g` is a whole listed
@@ -568,7 +630,44 @@ private theorem packet_attached_step2_serving_facet (U : HonestSource S) (P : Pa
     ∃ e : FacetName S (U.hierarchy.ancestor t (g.birth.1 - 1)).2.val.ty,
       (U.hierarchy.ancestor t (g.birth.1 - 1)).2.val.cell
         (U.hierarchy.ancestor t (g.birth.1 - 1)).1 e.val = g.carrier := by
-  sorry
+  let n := g.birth.1 - 1
+  let a := U.hierarchy.ancestor t n
+  have hn : n + 1 = g.birth.1 := Nat.sub_add_cancel g.positive
+  have ha : a.1 = n := by
+    dsimp only [a]
+    rw [U.hierarchy.ancestor_height, ht, Nat.zero_add]
+  have hp : U.hierarchy.parentNode a = g.birth := by
+    have hanc : U.hierarchy.ancestor t (n + 1) = U.hierarchy.parentNode a :=
+      Function.iterate_succ_apply' _ _ _
+    rw [← hanc, hn]
+    exact packet_attached_step1_owner U P g t ht f hfg
+  have hchild : ∃ j : S.I (U.hierarchy.parentNode a).2.val.ty,
+      a.2.val = (U.hierarchy.parentNode a).2.val.child a.1 j :=
+    ⟨U.hierarchy.role a.1 a.2, U.hierarchy.child_eq a.1 a.2⟩
+  rw [hp] at hchild
+  simp only [ha] at hchild
+  obtain ⟨j, hj⟩ := hchild
+  obtain ⟨i, e, he⟩ := packet_attached_step2_serving_facet_step1_incidence_cell
+    g.birth.2.val n g.incidence.val g.parent_type
+  have heg : (g.birth.2.val.child n i).cell n e.val = g.carrier := by
+    rw [he, hn]
+    exact (packet_attached_step1_owner_hint_step2_carrier_eq U P g).symm
+  obtain ⟨x, hxf, hxg⟩ := packet_attached_step1_owner_hxc U P g t f hfg
+  have hxa : x ∈ a.2.val.carrier a.1 :=
+    packet_attached_step1_owner_step1_anc_subset U t n
+      (hereditary_trace_step1_cell_subset t.2.val t.1 f.val
+        (Finset.mem_filter.mp f.property).1 hxf)
+  have hxj : x ∈ (g.birth.2.val.child n j).carrier n := by
+    simpa only [ha, hj] using hxa
+  have hxe : x ∈ relint ((g.birth.2.val.child n i).cell n e.val) := by
+    rwa [heg]
+  obtain ⟨e', he'⟩ := packet_attached_step2_serving_facet_step2_sibling_cell
+    g.birth.2.val n i j e x hxe hxj
+  change ∃ e : FacetName S a.2.val.ty, a.2.val.cell a.1 e.val = g.carrier
+  have hfacet : ∃ e : FacetName S a.2.val.ty, a.2.val.cell n e.val = g.carrier := by
+    rw [hj]
+    exact ⟨e', he'.trans heg⟩
+  simpa only [ha] using hfacet
 
 omit [Fact (2 ≤ d)] in
 /-- Step 4 of the V4 proof of `packet_attached` (V4 1.6, used in 2.6(c)): relative

@@ -720,7 +720,9 @@ private lemma move_refl_step2_nodes (U : HonestSource S) (n : ℕ) :
 /-- Step 3 of the V4 proof of `move_refl` (V4 2.14(d)): coset equality -/
 private lemma move_refl_step3_coset (U : HonestSource S) :
     U.coset = (AffineIsometryEquiv.refl ℝ (E d)).linearIsometryEquiv * U.coset := by
-  sorry
+  have h_refl : (AffineIsometryEquiv.refl ℝ (E d)).linearIsometryEquiv = 1 := rfl
+  rw [h_refl]
+  exact one_mul U.coset
 
 /-- Step 4 of the V4 proof of `move_refl` (V4 2.14(d)): parents equality -/
 private lemma move_refl_step4_parents (U : HonestSource S) (n : ℕ) (N : {N // N ∈ U.hierarchy.nodes n})

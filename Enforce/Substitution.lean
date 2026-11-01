@@ -346,13 +346,72 @@ theorem native_disjoint (A : S.ι) (n : ℕ) :
       exact native_disjoint_step2_same_child S A n i v' w' h_vw (ih (S.child A i).ty h_vw)
     · exact native_disjoint_step1_diff_child S A n i j v' w' hij
 
+/-- Step 1 of the V4 proof of `heredity_iter` (V4 §1.0, Frames): expanding a
+placed child cell is equivalent to placing its expansion by the conjugate frame. -/
+private lemma heredity_iter_step1_frame_image (n : ℕ) {A : S.ι} (i : S.I A)
+    (K : Set (E d)) :
+    (S.σ ^ n) '' placedSet (S.child A i).frame K =
+      S.placeChild n i '' ((S.σ ^ n) '' K) := by
+  dsimp [placedSet]
+  rw [← Set.image_comp, ← Set.image_comp]
+  congr 1
+  ext x
+  dsimp
+  rw [placeChild_apply]
+  have hz : (S.child A i).frame = S.placeChild 0 i := rfl
+  rw [hz, placeChild_apply]
+  simp
+  dsimp [linearConj]
+  simp
+
+/-- Step 2 of the V4 proof of `heredity_iter` (V4 §1.0, (H3)): prefixing a
+role word composes its native cell placement with the placed-child frame. -/
+private lemma heredity_iter_step2_native_cell_image (A : S.ι) (n : ℕ) (i : S.I A)
+    (w : S.RoleWord (S.child A i).ty n) (K : Set (E d)) :
+    S.placeChild n i '' placedSet (S.nativeTile (S.child A i).ty n w).frame K =
+      placedSet (S.nativeTile A (n + 1) ⟨i, w⟩).frame K := by
+  dsimp [nativeTile, descendantNode, FramedNode.move, placedSet]
+  rw [← Set.image_comp]
+  simp only [Nat.zero_add]
+
 /-- S4, V4 §1.0 (H5): iterated heredity in every boundary dimension. -/
 theorem heredity_iter (A : S.ι) (n : ℕ) (e : Cell d) (he : e ∈ (S.cx A).cells) :
     ∃ f : Finset (Σ w : S.RoleWord A n, {e' : Cell d //
         e' ∈ (S.cx (S.nativeTile A n w).ty).cells ∧ e'.dim = e.dim}),
       (S.σ ^ n) '' e.carrier =
         ⋃ q ∈ f, placedSet (S.nativeTile A n q.1).frame q.2.val.carrier := by
-  sorry
+  classical
+  induction' n with n ih generalizing A e
+  · refine ⟨{⟨(), ⟨e, he, rfl⟩⟩}, ?_⟩
+    simp [nativeTile, descendantNode, placedSet]
+  · obtain ⟨f, hf⟩ := S.heredity A e he
+    let Q := Σ i : S.I A, {e' : Cell d //
+      e' ∈ (S.cx (S.child A i).ty).cells ∧ e'.dim = e.dim}
+    have hrec (q : Q) := ih (S.child A q.1).ty q.2.val q.2.property.1
+    choose g hg using hrec
+    let lift (q : Q)
+        (r : Σ w : S.RoleWord (S.child A q.1).ty n,
+          {e' : Cell d // e' ∈ (S.cx (S.nativeTile (S.child A q.1).ty n w).ty).cells ∧
+            e'.dim = q.2.val.dim}) :
+        Σ w : S.RoleWord A (n + 1), {e' : Cell d //
+          e' ∈ (S.cx (S.nativeTile A (n + 1) w).ty).cells ∧ e'.dim = e.dim} :=
+      ⟨⟨q.1, r.1⟩, ⟨r.2.val, r.2.property.1,
+        r.2.property.2.trans q.2.property.2⟩⟩
+    refine ⟨f.biUnion (fun q => (g q).image (lift q)), ?_⟩
+    have hpow : ⇑(S.σ ^ (n + 1)) = (S.σ ^ n) ∘ S.σ := rfl
+    rw [hpow, Set.image_comp, hf]
+    simp_rw [Set.image_iUnion]
+    simp_rw [heredity_iter_step1_frame_image S, hg]
+    simp_rw [Set.image_iUnion]
+    ext x
+    simp only [Set.mem_iUnion, Finset.mem_biUnion, Finset.mem_image]
+    constructor
+    · rintro ⟨q, hq, r, hr, hx⟩
+      refine ⟨lift q r, ⟨q, hq, r, hr, rfl⟩, ?_⟩
+      exact (heredity_iter_step2_native_cell_image S A n q.1 r.1 r.2.val.carrier) ▸ hx
+    · rintro ⟨s, ⟨q, hq, r, hr, rfl⟩, hx⟩
+      refine ⟨q, hq, r, hr, ?_⟩
+      exact (heredity_iter_step2_native_cell_image S A n q.1 r.1 r.2.val.carrier).symm ▸ hx
 
 /-- S5, V4 1.9: the prescribed compatible orthogonal generators. -/
 def rotationGenerators : Set (Ortho d) :=

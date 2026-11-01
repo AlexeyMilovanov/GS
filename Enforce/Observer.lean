@@ -1635,7 +1635,16 @@ def floorState (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
 /-- O6, V4 4.6: distinct roles give distinct actual child nodes. -/
 theorem floorChildren_nodup (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) : (floorChildren Y hY q).Nodup := by
-  sorry
+  unfold floorChildren
+  split_ifs with h
+  · apply List.Nodup.map
+    · intro i j heq
+      have heq1 : parsedChild Y hY q.val (by omega) i = parsedChild Y hY q.val (by omega) j := Subtype.mk.inj heq
+      have heq2 : (parsedChild Y hY q.val (by omega) i).2.val = (parsedChild Y hY q.val (by omega) j).2.val :=
+        congrArg (fun (x : (parsedHierarchy Y hY).Node) => x.2.val) heq1
+      exact observer_transition_aux_step1_role_injective _ _ heq2
+    · exact roles_nodup q.val.2.val.ty
+  · exact List.nodup_nil
 /-- O6, V4 4.6: actual children lie exactly one level below their parent. -/
 theorem floorChildren_level (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q r : FloorNode Y hY) (hr : r ∈ floorChildren Y hY q) :

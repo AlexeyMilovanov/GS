@@ -89,7 +89,22 @@ end TracePiece
 /-- P17, V4 1.22(a): only finitely many owner/chain occurrences at a fixed depth. -/
 theorem tracePieces_finite (A : S.ι) (F : FacetFlag S A) (r : ℕ) :
     Finite (TracePiece A F r) := by
-  sorry
+  haveI := S.roleWord_finite A r
+  let f : TracePiece A F r →
+      Σ w : S.RoleWord A r,
+        (ChainIndex d (traceDimension d) → CellName S (S.nativeTile A r w).ty) :=
+    fun a => ⟨a.owner, a.chain.cell⟩
+  have hf : Function.Injective f := by
+    rintro ⟨o1, c1⟩ ⟨o2, c2⟩ h
+    simp only [f, Sigma.mk.injEq] at h
+    obtain ⟨rfl, hc⟩ := h
+    have hc' : c1.cell = c2.cell := eq_of_heq hc
+    cases c1
+    cases c2
+    simp only at hc'
+    subst hc'
+    rfl
+  exact Finite.of_injective f hf
 
 /-- P17, V4 1.22(a): the recursive trace `𝓟₂`, with owners and full recorded chains.
 All chains are required to lie inside the fixed successive cofaces. The geometric

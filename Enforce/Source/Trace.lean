@@ -1484,7 +1484,79 @@ private lemma internal_facet_pairing_step2c_uniqueness
     (j k : S.I P.ty) (hj : j ≠ i) (hk : k ≠ i)
     (g_j : FacetName S (P.child n j).ty) (heq_j : (P.child n j).cell n g_j.val = (P.child n i).cell n f.val)
     (g_k : FacetName S (P.child n k).ty) (heq_k : (P.child n k).cell n g_k.val = (P.child n i).cell n f.val) :
-    j = k := by sorry
+    j = k := by
+  by_contra hjk
+  have heqf : relint ((P.child n i).cell n f.val) = (P.child n i).prototypeFrame n '' relint f.val.carrier :=
+    hereditary_trace_step1_relint_image _ _
+  obtain ⟨q, hq⟩ : (relint ((P.child n i).cell n f.val)).Nonempty := by
+    rw [heqf]; exact f.val.flat.relint_nonempty.image _
+  
+  have hqj : q ∈ relint ((P.child n j).cell n g_j.val) := by rw [heq_j]; exact hq
+  have hqk : q ∈ relint ((P.child n k).cell n g_k.val) := by rw [heq_k]; exact hq
+
+  obtain ⟨rj, hrj, vj, hvj, hXij, hYij, _⟩ := sibling_facet_eq_step6_local P n i j hj.symm f g_j q hq hqj
+  obtain ⟨rk, hrk, vk, hvk, hXik, hYik, _⟩ := sibling_facet_eq_step6_local P n i k hk.symm f g_k q hq hqk
+
+  let r := min rj rk
+  have hr : 0 < r := lt_min hrj hrk
+  have hsub_j : Metric.ball q r ⊆ Metric.ball q rj := Metric.ball_subset_ball (min_le_left _ _)
+  have hsub_k : Metric.ball q r ⊆ Metric.ball q rk := Metric.ball_subset_ball (min_le_right _ _)
+
+  have hXi_j : (P.child n i).carrier n ∩ Metric.ball q r = {x | 0 ≤ inner ℝ vj (x - q)} ∩ Metric.ball q r := by
+    calc
+      (P.child n i).carrier n ∩ Metric.ball q r = (P.child n i).carrier n ∩ Metric.ball q rj ∩ Metric.ball q r := by
+        rw [Set.inter_assoc, Set.inter_eq_self_of_subset_right hsub_j]
+      _ = {x | 0 ≤ inner ℝ vj (x - q)} ∩ Metric.ball q rj ∩ Metric.ball q r := by rw [hXij]
+      _ = {x | 0 ≤ inner ℝ vj (x - q)} ∩ Metric.ball q r := by
+        rw [Set.inter_assoc, Set.inter_eq_self_of_subset_right hsub_j]
+
+  have hXj : (P.child n j).carrier n ∩ Metric.ball q r = {x | 0 ≤ inner ℝ (-vj) (x - q)} ∩ Metric.ball q r := by
+    calc
+      (P.child n j).carrier n ∩ Metric.ball q r = (P.child n j).carrier n ∩ Metric.ball q rj ∩ Metric.ball q r := by
+        rw [Set.inter_assoc, Set.inter_eq_self_of_subset_right hsub_j]
+      _ = {x | inner ℝ vj (x - q) ≤ 0} ∩ Metric.ball q rj ∩ Metric.ball q r := by rw [hYij]
+      _ = {x | inner ℝ vj (x - q) ≤ 0} ∩ Metric.ball q r := by
+        rw [Set.inter_assoc, Set.inter_eq_self_of_subset_right hsub_j]
+      _ = {x | 0 ≤ inner ℝ (-vj) (x - q)} ∩ Metric.ball q r := by
+        congr; ext x; simp [inner_neg_left]
+
+  have hXk : (P.child n k).carrier n ∩ Metric.ball q r = {x | 0 ≤ inner ℝ (-vk) (x - q)} ∩ Metric.ball q r := by
+    calc
+      (P.child n k).carrier n ∩ Metric.ball q r = (P.child n k).carrier n ∩ Metric.ball q rk ∩ Metric.ball q r := by
+        rw [Set.inter_assoc, Set.inter_eq_self_of_subset_right hsub_k]
+      _ = {x | inner ℝ vk (x - q) ≤ 0} ∩ Metric.ball q rk ∩ Metric.ball q r := by rw [hYik]
+      _ = {x | inner ℝ vk (x - q) ≤ 0} ∩ Metric.ball q r := by
+        rw [Set.inter_assoc, Set.inter_eq_self_of_subset_right hsub_k]
+      _ = {x | 0 ≤ inner ℝ (-vk) (x - q)} ∩ Metric.ball q r := by
+        congr; ext x; simp [inner_neg_left]
+
+  have hvj_norm : ‖-vj‖ = 1 := by simp [hvj]
+  have hvk_norm : ‖-vk‖ = 1 := by simp [hvk]
+  
+  have h1 : -vk = -vj := sibling_facet_eq_step4_opposite ((P.child n i).carrier n) ((P.child n k).carrier n) q vj (-vk) r hr hvj hvk_norm hXi_j hXk (sibling_facet_eq_step5_disjoint P n i k hk.symm)
+
+  have h2 : -vk = -(-vj) := sibling_facet_eq_step4_opposite ((P.child n j).carrier n) ((P.child n k).carrier n) q (-vj) (-vk) r hr hvj_norm hvk_norm hXj hXk (sibling_facet_eq_step5_disjoint P n j k hjk)
+
+  have h3 : -vj = vj := by
+    calc
+      -vj = -vk := h1.symm
+      _ = vj := by simp at h2; exact h2
+  
+  have h4 : (2 : ℝ) • vj = 0 := by
+    calc
+      (2 : ℝ) • vj = vj + vj := by rw [two_smul]
+      _ = -vj + vj := by rw [h3]
+      _ = 0 := neg_add_cancel vj
+
+  have h5 : vj = 0 := by
+    cases smul_eq_zero.mp h4 with
+    | inl h => norm_num at h
+    | inr h => exact h
+
+  have h6 : ‖vj‖ = 0 := by rw [h5, norm_zero]
+  
+  rw [hvj] at h6
+  norm_num at h6
 
 /-- P4, V4 1.4(c): an internal facet has one other owning child;
 all remaining children have zero facet measure on it. Existence comes from coverage. -/

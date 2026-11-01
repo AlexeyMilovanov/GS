@@ -298,6 +298,88 @@ def sectionLanguage {X : Type} (ρ : HonestSource S → E d → X)
     (⟨A, φ⟩ : FramedNode S) ∈ (s Z).hierarchy.nodes n ∧
       q = honestPattern ρ (s Z) n A φ}
 
+/-- Step 1 of the V4 proof of `translated_witness_section` (V4 1.27):
+"Enumerate the indexed requests (n,A,q) with q ∈ L_n(A) ... and choose witnesses (T_i, H_i) ∈ S
+realising ρ_i at a node of the requested height and type". -/
+private lemma translated_witness_section_step1_witnesses {X : Type}
+    (ρ : HonestSource S → E d → X) :
+    ∃ (witness : PatternRequest ρ → HonestSource S) (node : ∀ _i : PatternRequest ρ, Iso d),
+      ∀ i, (⟨i.2.1, node i⟩ : FramedNode S) ∈ (witness i).hierarchy.nodes i.1 ∧
+        honestPattern ρ (witness i) i.1 i.2.1 (node i) = i.2.2.val := by
+  have H : ∀ i : PatternRequest ρ, ∃ U φ, (⟨i.2.1, φ⟩ : FramedNode S) ∈ U.hierarchy.nodes i.1 ∧ i.2.2.val = honestPattern ρ U i.1 i.2.1 φ := by
+    intro i
+    exact i.2.2.property
+  choose witness node hw using H
+  refine ⟨witness, node, ?_⟩
+  intro i
+  exact ⟨(hw i).1, (hw i).2.symm⟩
+
+/-- Step 2 of the V4 proof of `translated_witness_section` (V4 1.27):
+"We translate them so that the underlying tilings become pairwise distinct...
+Translation covariance means the normalised pattern at the translated node is still q_i". -/
+private lemma translated_witness_section_step2_translation {X : Type}
+    (ρ : HonestSource S → E d → X)
+    (hρ : TranslationCovariant ρ)
+    (hfinite : ∀ n A, (honestLanguage ρ n A).Finite)
+    (witness : PatternRequest ρ → HonestSource S)
+    (node : ∀ _i : PatternRequest ρ, Iso d)
+    (hwit : ∀ i, (⟨i.2.1, node i⟩ : FramedNode S) ∈ (witness i).hierarchy.nodes i.1 ∧
+      honestPattern ρ (witness i) i.1 i.2.1 (node i) = i.2.2.val) :
+    ∃ (witness_trans : PatternRequest ρ → HonestSource S) (node_trans : ∀ _i : PatternRequest ρ, Iso d),
+      Function.Injective (fun i => (witness_trans i).tiling) ∧
+      ∀ i, (⟨i.2.1, node_trans i⟩ : FramedNode S) ∈ (witness_trans i).hierarchy.nodes i.1 ∧
+        honestPattern ρ (witness_trans i) i.1 i.2.1 (node_trans i) = i.2.2.val := by
+  have _inst_countable : Countable (PatternRequest ρ) := patternRequests_countable ρ hfinite
+  obtain ⟨v, hinj⟩ := translated_witnesses_distinct witness
+  let witness_trans i := (witness i).translate (v i)
+  let node_trans i := (node i).trans (translation (v i))
+  refine ⟨witness_trans, node_trans, hinj, ?_⟩
+  intro i
+  have ht := (witness i).translate_spec (v i)
+  constructor
+  · rw [ht.nodes i.1]
+    refine ⟨⟨i.2.1, node i⟩, (hwit i).1, ?_⟩
+    rfl
+  · rw [translated_pattern ρ hρ (witness i) (v i) i.1 i.2.1 (node i)]
+    exact (hwit i).2
+
+/-- Step 3 of the V4 proof of `translated_witness_section` (V4 1.27):
+"Define s(T_i) = (T_i, H_i) for the (now distinct) T_i, and s(T) arbitrary in S
+over T for all other T (Lemma 1.12)". -/
+private lemma translated_witness_section_step3_extend {X : Type}
+    (ρ : HonestSource S → E d → X)
+    (witness_trans : PatternRequest ρ → HonestSource S)
+    (hinj : Function.Injective (fun i => (witness_trans i).tiling))
+    (node_trans : ∀ _i : PatternRequest ρ, Iso d)
+    (h_wit_trans : ∀ i, (⟨i.2.1, node_trans i⟩ : FramedNode S) ∈ (witness_trans i).hierarchy.nodes i.1 ∧
+      honestPattern ρ (witness_trans i) i.1 i.2.1 (node_trans i) = i.2.2.val) :
+    ∃ s : S.Species → HonestSource S,
+      (∀ Z, (s Z).tiling = Z.val) ∧
+      ∀ i : PatternRequest ρ,
+        (⟨i.2.1, node_trans i⟩ : FramedNode S) ∈ (s ⟨(witness_trans i).tiling, (witness_trans i).mem_species⟩).hierarchy.nodes i.1 ∧
+        honestPattern ρ (s ⟨(witness_trans i).tiling, (witness_trans i).mem_species⟩) i.1 i.2.1 (node_trans i) = i.2.2.val := by
+  classical
+  let s : S.Species → HonestSource S := fun Z =>
+    if h : ∃ i, (witness_trans i).tiling = Z.val then
+      witness_trans (Classical.choose h)
+    else
+      Classical.choose (exists_honest Z.val Z.property)
+  refine ⟨s, ?_, ?_⟩
+  · intro Z
+    dsimp [s]
+    split_ifs with h
+    · exact Classical.choose_spec h
+    · exact Classical.choose_spec (exists_honest Z.val Z.property)
+  · intro i
+    have heq : s ⟨(witness_trans i).tiling, (witness_trans i).mem_species⟩ = witness_trans i := by
+      dsimp [s]
+      have h : ∃ j, (witness_trans j).tiling = (witness_trans i).tiling := ⟨i, rfl⟩
+      rw [dif_pos h]
+      have h_inj : Classical.choose h = i := hinj (Classical.choose_spec h)
+      rw [h_inj]
+    rw [heq]
+    exact h_wit_trans i
+
 /-- C2, V4 1.27: there is a section over every source tiling realizing every
 pattern of every finite honest language, including height zero. Onto projection
 is supplied by stage-1 `exists_honest`; no existence of a species member is assumed.
@@ -311,7 +393,28 @@ theorem translated_witness_section {X : Type} (ρ : HonestSource S → E d → X
         ∃ (Z : S.Species) (φ : Iso d),
           (⟨A, φ⟩ : FramedNode S) ∈ (s Z).hierarchy.nodes n ∧
             honestPattern ρ (s Z) n A φ = q := by
-  sorry
+  obtain ⟨witness, node, hwit⟩ := translated_witness_section_step1_witnesses ρ
+  obtain ⟨witness_trans, node_trans, hinj, hwit_trans⟩ := translated_witness_section_step2_translation ρ hρ hfinite witness node hwit
+  obtain ⟨s, hs_tiling, hs_wit⟩ := translated_witness_section_step3_extend ρ witness_trans hinj node_trans hwit_trans
+  refine ⟨s, hs_tiling, ?_, ?_⟩
+  · intro n A
+    ext q
+    constructor
+    · intro hq
+      obtain ⟨Z, φ, hZ, hq_eq⟩ := hq
+      dsimp [honestLanguage]
+      exact ⟨s Z, φ, hZ, hq_eq⟩
+    · intro hq
+      let i : PatternRequest ρ := ⟨n, ⟨A, ⟨q, hq⟩⟩⟩
+      have hi := hs_wit i
+      dsimp [sectionLanguage]
+      refine ⟨⟨(witness_trans i).tiling, (witness_trans i).mem_species⟩, node_trans i, hi.1, ?_⟩
+      exact hi.2.symm
+  · intro n A q hq
+    let i : PatternRequest ρ := ⟨n, ⟨A, ⟨q, hq⟩⟩⟩
+    have hi := hs_wit i
+    refine ⟨⟨(witness_trans i).tiling, (witness_trans i).mem_species⟩, node_trans i, hi.1, ?_⟩
+    exact hi.2
 
 /-- C2, V4 1.27: exact translation data determine one honest source, including
 the hierarchy parents, child roles, and fixed orthogonal coset representative. -/

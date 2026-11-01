@@ -1,4 +1,5 @@
 import Enforce.Basic
+import Enforce.Topology.CellSeparation
 import Enforce.Geometry.Polyhedral
 import Enforce.Geometry.CellComplex
 import Enforce.Substitution

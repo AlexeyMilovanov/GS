@@ -1,4 +1,5 @@
 import Enforce.Source.Sites
+import Enforce.Topology.CellSeparation
 
 /-!
 # Internal skeletons, principal components, birth-ascent routing, and Req′
@@ -4830,6 +4831,84 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     ⟨q, hqW, Set.mem_iUnion.mpr ⟨⟨g, hvg, hfg⟩, hqg⟩⟩
   exact hxW.2 (hPQ ⟨hxP, hxQ⟩)
 
+/-- Step 1 of the V4 proof of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
+(V4 1.24): the centroid of a face
+lies in its convex hull and misses the convex hull of every face not containing it. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step1_centroid_relint
+    (K : Geometry.SimplicialComplex ℝ (E d)) {σ : Finset (E d)} (hσ : σ ∈ K.faces) :
+    let x := Finset.centroid ℝ σ id
+    x ∈ convexHull ℝ (σ : Set (E d)) ∧
+      ∀ τ ∈ K.faces, ¬ σ ⊆ τ → x ∉ convexHull ℝ (τ : Set (E d)) := by
+  sorry
+
+/-- Step 2 of the V4 proof of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
+(V4 1.24): a small ball about the
+centroid meets only faces containing the given face. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step2_star_radius
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    {σ : Finset (E d)} (hσ : σ ∈ K.faces) :
+    let x := Finset.centroid ℝ σ id
+    ∃ r > 0, ∀ τ ∈ K.faces,
+      (convexHull ℝ (τ : Set (E d)) ∩ Metric.ball x r).Nonempty → σ ⊆ τ := by
+  sorry
+
+/-- Step 3 of the V4 proof of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
+(V4 1.24): a manifold chart at the
+centroid is continuous, injective, and open on relative open subsets of its domain. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step3_chart
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hman : IsLocallyEuclidean (d - 1) K.space)
+    {σ : Finset (E d)} (hσ : σ ∈ K.faces) :
+    let x := Finset.centroid ℝ σ id
+    ∃ W : Set (E d), IsOpen W ∧ x ∈ W ∧ ∃ φ : E d → E (d - 1),
+      ContinuousOn φ (K.space ∩ W) ∧ Set.InjOn φ (K.space ∩ W) ∧
+      IsOpen (φ '' (K.space ∩ W)) ∧
+      ∀ O : Set (E d), IsOpen O → IsOpen (φ '' (K.space ∩ W ∩ O)) := by
+  sorry
+
+/-- Step 4 of the V4 proof of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
+(V4 1.24): sufficiently small positive
+closed-ball sections of the face at its centroid are round cells of dimension `|σ| - 1`,
+with the open ball inside and the boundary sphere on the section's sphere. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step4_round_cell
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    {σ : Finset (E d)} (hσ : σ ∈ K.faces) (hσc : 2 ≤ σ.card) :
+    let x := Finset.centroid ℝ σ id
+    ∃ r₁ > 0, ∀ r' : ℝ, 0 < r' → r' ≤ r₁ →
+      ∃ e₀ : C(↥(Metric.closedBall (0 : E (σ.card - 1)) 1), E d),
+        Function.Injective e₀ ∧
+        range e₀ = convexHull ℝ (σ : Set (E d)) ∩ Metric.closedBall x r' ∧
+        (∀ y : ↥(Metric.closedBall (0 : E (σ.card - 1)) 1),
+          ‖(y : E (σ.card - 1))‖ < 1 → e₀ y ∈ Metric.ball x r') ∧
+        (∀ y : ↥(Metric.closedBall (0 : E (σ.card - 1)) 1),
+          ‖(y : E (σ.card - 1))‖ = 1 → e₀ y ∈ Metric.sphere x r') := by
+  sorry
+
+/-- Step 5 of the V4 proof of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
+(V4 1.24): unreachable facets would
+separate the chart neighbourhood minus its properly embedded round cell. Apply CS14,
+using Steps 1–4, Brouwer in dimension `d - 1`, and `(|σ| - 1) + 2 ≤ d - 1`. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step5_separation
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hman : IsLocallyEuclidean (d - 1) K.space)
+    {σ : Finset (E d)} (hσ : σ ∈ K.faces) (hσc : 2 ≤ σ.card)
+    (hσd : σ.card + 2 ≤ d) (hkn : (σ.card - 1) + 2 ≤ d - 1)
+    (hB : ∀ F : E (d - 1) → E (d - 1),
+      ContinuousOn F (Metric.closedBall 0 1) →
+      MapsTo F (Metric.closedBall 0 1) (Metric.closedBall 0 1) →
+      ∃ x ∈ Metric.closedBall (0 : E (d - 1)) 1, F x = x)
+    (f g : K.facets) (hf : σ ⊆ f.val) (hg : σ ⊆ g.val)
+    (hfg : ¬ Relation.ReflTransGen
+      (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧
+        σ.card < (u.val ∩ v.val).card) f g) : False := by
+  sorry
+
 /-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
 "`∂t` is a compact `(d-1)`-manifold ... a connected union of facets". Links of
 higher faces: for a face `σ` with `2 ≤ |σ|` and `|σ| + 2 ≤ d` (dimension at most
@@ -4846,7 +4925,16 @@ private theorem principal_component_step1_hull_geometry_step10_jordan_brouwer_st
     {σ : Finset (E d)} (hσ : σ ∈ K.faces) (hσc : 2 ≤ σ.card) (hσd : σ.card + 2 ≤ d) :
     ∀ f g : K.facets, σ ⊆ f.val → σ ⊆ g.val → Relation.ReflTransGen
       (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧ σ.card < (u.val ∩ v.val).card) f g := by
-  sorry
+  let k := σ.card - 1
+  let n := d - 1
+  have hkn : k + 2 ≤ n := by dsimp [k, n]; omega
+  intro f g hf hg
+  by_contra hfg
+  exact
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step5_separation
+      K hfin hpure hman hσ hσc hσd hkn
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed
+        n) f g hf hg hfg
 
 /-- Step 6 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
 "a connected union of facets". Connected links of all faces of codimension at

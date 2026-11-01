@@ -222,8 +222,9 @@ structure TranslatedSource (U V : HonestSource S) (v : E d) : Prop where
 /-- Step 1 of the V4 proof of `honest_translate_exists` (V4 1.27):
 the translated physical tiling is legal. -/
 private lemma honest_translate_exists_step1_tiling_mem_species (U : HonestSource S) (v : E d) :
-    U.tiling.move (translation v) ∈ S.Species :=
-  sorry
+    U.tiling.move (translation v) ∈ S.Species := by
+  rw [Enforce.species_move_iff]
+  exact U.mem_species
 
 /-- Step 2 of the V4 proof of `honest_translate_exists` (V4 1.27):
 the translated hierarchy is coherent. We state this as the existence of a coherent hierarchy

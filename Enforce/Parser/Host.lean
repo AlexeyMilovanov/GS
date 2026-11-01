@@ -52,7 +52,35 @@ theorem trigger_coverage (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (∃ z ∈ θ.tiles, u = placedLeaf C z.2 (z.1.frame.trans (compilerFrame C t))) ∧
       (tileNode u).Lists 0 (Compiler.endVertex (compilerFrame C t) j) ∧
       ∃ T : EndTemplate j, T.configuration = θ ∧ endRow T := by
-  sorry
+  classical
+  obtain ⟨T, rfl, hrow⟩ := hθ
+  obtain ⟨-, hcov⟩ := compiler_coverage C Y hY t ht j T.configuration ⟨T, rfl, hrow⟩ hactual
+  have hr : 0 < Compiler.coneRadius S P := (Compiler.coneRadius_spec S P).1
+  have hz := hcov u hu (by exact hnear _ hr)
+  refine ⟨hz, ?_, T, rfl, hrow⟩
+  obtain ⟨⟨N, l'⟩, hNl, hplaced⟩ := hz
+  have hleaf : compilerLeaf C u = l' := by rw [hplaced]; exact (compiler_decode_unique C _ _).1
+  have hφ : compilerFrame C u = N.frame.trans (compilerFrame C t) := by rw [hplaced]; exact (compiler_decode_unique C _ _).2
+  have hnode : tileNode u = N.move (compilerFrame C t) := by
+    apply FramedNode.ext
+    · change (compilerLeaf C u).prototype = N.ty
+      rw [hleaf]
+      exact (T.configuration.types_match _ hNl).symm
+    · exact hφ
+  have hN : N ∈ T.geometry.tiles := by rw [← T.tiles_eq]; exact Finset.mem_image.mpr ⟨(N, l'), hNl, rfl⟩
+  have hvertex : vertexPoint T.geometry.vertex = vertexPoint j.vertex := by
+    apply Set.singleton_injective
+    exact (vertexPoint_spec _).symm.trans ((congrArg Cell.carrier T.vertex_eq).trans (vertexPoint_spec _))
+  obtain ⟨c, hc, z, hz', hzx⟩ := T.geometry.listed N hN
+  rw [hnode]
+  refine ⟨c, hc, z, hz', ?_⟩
+  change (N.frame.trans (compilerFrame C t)) ((S.σ ^ 0) z) = Compiler.endVertex (compilerFrame C t) j
+  change (compilerFrame C t) (N.frame ((S.σ ^ 0) z)) = _
+  have hzero : (S.σ ^ 0) z = z := by rw [pow_zero]; rfl
+  rw [hzero]
+  change (compilerFrame C t) (N.prototypeFrame 0 z) = _
+  rw [hzx, hvertex]
+  rfl
 
 /-- Step 1 of the V4 proof of `two_sided_constancy` (V4 3.4): "Let `P_b` be a
 node inside a block ... and `g` a first-generation facet of `P_b` shared by its

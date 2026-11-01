@@ -5841,7 +5841,119 @@ theorem actualEnd_exists (U : HonestSource S) (P : Params S) (t : U.Node)
         (v : VertexName S t.2.val.ty),
         f.val = slot.facet.val ∧ v.val = slot.vertex.val ∧
           EndGeometryRealizes U P t f hf v T.geometry := by
-  sorry
+  classical
+  rcases slot with ⟨facet, r, hread, htype, hfacet, v, hvf, pv, htau, hpz, hd, hhd,
+    packet, hpacket⟩
+  obtain ⟨f, hf, hfname, hr⟩ := actualCont_exists_step1_record U P t ht facet.val r hread
+  subst r
+  have hv : v.val.carrier ⊆ f.val.carrier := hvf
+  have hz : (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val.dim = 0 := by
+    have h2 : (U.recordOf P t f hf).tauAt v.val =
+        some (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val := by
+      unfold FacetRecord.tauAt
+      split_ifs
+      all_goals first
+        | rfl
+        | exact absurd hv (by assumption)
+        | exact absurd (vertexCell v).property (by assumption)
+    rw [h2] at htau
+    rw [Option.some.inj htau]
+    exact hpz
+  have hhead : leafHeader (leafTypeOf U P t ht) v.val facet.val =
+      some (U.headerOf P t f hf v) := by
+    rw [← hfname]
+    unfold leafHeader
+    rw [← prePattern_of_leafType U P t ht]
+    dsimp only
+    split_ifs with h1 h2
+    · change U.headerRecordOf P t ⟨v.val, h1⟩ ⟨f.val, h2⟩ = _
+      unfold HonestSource.headerRecordOf
+      split_ifs
+      all_goals first
+        | rfl
+        | exact absurd hz (by assumption)
+        | exact (hf (by assumption)).elim
+        | exact absurd hv (by assumption)
+    · exact absurd f.property h2
+    · exact absurd v.property h1
+  rw [hhead] at hhd
+  have hhd' : U.headerOf P t f hf v = hd := Option.some.inj hhd
+  obtain ⟨G, hreal⟩ := endGeometry_exists U P t ht f hf v hv hz
+  have hGt := hreal.2.2.2.1
+  let B := U.hierarchy.birthParent t f hf
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  have hlev : ∀ q ∈ ownedStar U B x, q.1 = 0 := fun q hq =>
+    (by simpa only [ownedStar, Set.Finite.mem_toFinset] using hq : q ∈ ownedStarSet U B x).1
+  have hcent : t ∈ ownedStar U B x := by
+    simpa only [ownedStar, Set.Finite.mem_toFinset] using
+      endGeometry_exists_step1_central U t ht f hf v
+  have node_ext : ∀ a b : U.Node, a.1 = b.1 → a.2.val = b.2.val → a = b := by
+    rintro ⟨n, y, hy⟩ ⟨m, z, hz⟩ h1 h2
+    dsimp only at h1 h2
+    subst h1; subst h2; rfl
+  let lab : {q // q ∈ ownedStar U B x} → FramedNode S × LeafType P :=
+    fun q => (q.1.2.val.move t.2.val.frame.symm, leafTypeOf U P q.1 (hlev q.1 q.2))
+  let tiles := (ownedStar U B x).attach.image lab
+  have hmemG : ∀ p : {q // q ∈ ownedStar U B x},
+      p.1.2.val.move t.2.val.frame.symm ∈ (G.tiles : Set (FramedNode S)) := by
+    intro p
+    rw [Finset.mem_coe, hGt]
+    exact Finset.mem_image_of_mem _ p.2
+  let θ : Template P := {
+    central := leafTypeOf U P t ht
+    tiles := tiles
+    types_match := by
+      intro z hz
+      obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hz
+      exact (leafTypeOf_type U P q.1 _).symm
+    disjoint := by
+      intro a ha b hb hne
+      obtain ⟨p, -, rfl⟩ := Finset.mem_image.mp (Finset.mem_coe.mp ha)
+      obtain ⟨r, -, rfl⟩ := Finset.mem_image.mp (Finset.mem_coe.mp hb)
+      by_cases hpr : p.1.2.val.move t.2.val.frame.symm = r.1.2.val.move t.2.val.frame.symm
+      · exfalso
+        apply hne
+        have h1 := congrArg FramedNode.ty hpr
+        have h2 := congrArg FramedNode.frame hpr
+        have hval : p.1.2.val = r.1.2.val := by
+          refine FramedNode.ext h1 ?_
+          apply AffineIsometryEquiv.ext
+          intro y
+          have h3 := congrArg (fun g : Iso d => g y) h2
+          exact t.2.val.frame.symm.injective h3
+        have hpq : p.1 = r.1 := node_ext _ _ ((hlev _ p.2).trans (hlev _ r.2).symm) hval
+        exact congrArg lab (Subtype.ext hpq)
+      · exact G.disjoint (hmemG p) (hmemG r) hpr
+    central_mem := by
+      refine Finset.mem_image.mpr ⟨⟨t, hcent⟩, Finset.mem_attach _ _, ?_⟩
+      refine Prod.ext ?_ rfl
+      exact FramedNode.ext (leafTypeOf_type U P t ht).symm
+        (AffineIsometryEquiv.self_trans_symm _)
+    annotation := some G }
+  have hfst : θ.tiles.image Prod.fst = G.tiles := by
+    rw [hGt]
+    ext z
+    constructor
+    · intro hz
+      obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp hz
+      obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp ha
+      exact Finset.mem_image_of_mem _ q.2
+    · intro hz
+      obtain ⟨q, hq, rfl⟩ := Finset.mem_image.mp hz
+      exact Finset.mem_image.mpr ⟨lab ⟨q, hq⟩,
+        Finset.mem_image_of_mem _ (Finset.mem_attach _ _), rfl⟩
+  refine ⟨{ geometry := G
+            honest_geometry := ⟨U, t, ht, f, hf, v, hv, hz, hreal⟩
+            type_eq := hreal.1.trans (leafTypeOf_type U P t ht).symm
+            vertex_eq := hreal.2.1
+            header_eq := hreal.2.2.1.trans hhd'
+            configuration := θ
+            central_eq := rfl
+            tiles_eq := hfst
+            annotation_eq := rfl }, ⟨rfl, ?_⟩, f, hf, v, hfname, rfl, hreal⟩
+  intro z hz
+  obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hz
+  exact ⟨q.1, hlev q.1 q.2, rfl, rfl⟩
 
 /-- Q14, V4 2.8: choose the actual positioned continuation, or the actual complete
 endpoint star, using the geometry-only existence lemmas. Rows are not used in the choice. -/

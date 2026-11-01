@@ -4019,6 +4019,493 @@ private lemma adjacency_primitive_seed_step2_other_sheet_step1_ray (P : FramedNo
       p ∈ (P.child n a.val.1).cell n h.val := by
   sorry
 
+/-- Step 1 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8,
+via 1.1): "`κ = mc(p)`". Near a relative-interior ridge point, the relative boundary
+of any incident facet agrees with the affine hull of the ridge. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases_step1_boundary
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e F : Cell d)
+    (he : e ∈ K.cells) (hF : F ∈ K.cells) (hdim : e.dim + 1 = F.dim)
+    (p : E d) (hpe : p ∈ relint e.carrier) (hpF : p ∈ F.carrier) :
+    ∃ r > 0, relfrontier F.carrier ∩ ball p r =
+      (affineSpan ℝ e.carrier : Set (E d)) ∩ ball p r := by
+  classical
+  have hef := boundary_facet_adjacency_step4_minimal K e F he hF p hpe hpF
+  have heb : e.carrier ⊆ relfrontier F.carrier := by
+    intro x hx
+    rw [relfrontier, ← closure_diff_intrinsicInterior, F.flat.compact.isClosed.closure_eq]
+    refine ⟨hef hx, ?_⟩
+    intro hxF
+    have hFe := boundary_facet_adjacency_step4_minimal K F e hF he x hxF hx
+    have := hereditary_trace_step3_dim_mono F e hFe
+    omega
+  obtain ⟨b, hb, hbF⟩ := K.boundary_union F hF
+  have hsmall : ∀ f ∈ b, f.dim < F.dim := by
+    intro f hf
+    have hfbd : f.carrier ⊆ relfrontier F.carrier := by
+      rw [hbF]
+      exact subset_iUnion₂_of_subset f hf Subset.rfl
+    have hfF := hfbd.trans (intrinsicFrontier_subset F.flat.compact.isClosed)
+    have hle := hereditary_trace_step3_dim_mono f F hfF
+    refine lt_of_le_of_ne hle ?_
+    intro hdim'
+    have heq := boundary_facet_adjacency_step3_cell_eq K f F (hb hf) hF hfF hdim'
+    obtain ⟨x, hx⟩ := F.flat.relint_nonempty
+    have hxb := hfbd (heq.symm ▸ intrinsicInterior_subset hx)
+    rw [relfrontier, ← closure_diff_intrinsicInterior] at hxb
+    exact hxb.2 hx
+  have hincident : ∀ f ∈ b, p ∈ f.carrier → f = e := by
+    intro f hf hpf
+    have hef' := boundary_facet_adjacency_step4_minimal K e f he (hb hf) p hpe hpf
+    have hle := hereditary_trace_step3_dim_mono e f hef'
+    have hlt := hsmall f hf
+    have heqdim : e.dim = f.dim := by omega
+    exact (boundary_facet_adjacency_step3_cell_eq K e f he (hb hf) hef' heqdim).symm
+  let Z : Set (E d) := ⋃ f ∈ b.erase e, f.carrier
+  have hZ : IsClosed Z := isClosed_biUnion_finset fun f _ => f.flat.compact.isClosed
+  have hpZ : p ∉ Z := by
+    intro hpZ
+    obtain ⟨f, hf, hpf⟩ := Set.mem_iUnion₂.mp hpZ
+    exact (Finset.mem_erase.mp hf).1 (hincident f (Finset.mem_erase.mp hf).2 hpf)
+  obtain ⟨r₁, hr₁, hball₁⟩ := Metric.isOpen_iff.mp hZ.isOpen_compl p hpZ
+  obtain ⟨r₂, hr₂, hball₂⟩ := boundary_facet_adjacency_step3_relint_ball e.carrier p hpe
+  refine ⟨min r₁ r₂, lt_min hr₁ hr₂, Set.Subset.antisymm ?_ ?_⟩
+  · rintro x ⟨hxb, hxball⟩
+    rw [hbF] at hxb
+    obtain ⟨f, hf, hxf⟩ := Set.mem_iUnion₂.mp hxb
+    have hfe : f = e := by
+      by_contra hne
+      exact hball₁ (ball_subset_ball (min_le_left _ _) hxball)
+        (Set.mem_iUnion₂.mpr ⟨f, Finset.mem_erase.mpr ⟨hne, hf⟩, hxf⟩)
+    exact ⟨subset_affineSpan ℝ _ (hfe ▸ hxf), hxball⟩
+  · rintro x ⟨hxa, hxball⟩
+    exact ⟨heb (intrinsicInterior_subset (hball₂ x hxa
+      (ball_subset_ball (min_le_right _ _) hxball))), hxball⟩
+
+/-- Step 2 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8,
+via 1.0(a)): "the sectors ... lie on the `A`-side". A regular closed set whose frontier
+is locally a hyperplane is locally one of its two closed half-spaces. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases_step2_side
+    {X : Type*} [NormedAddCommGroup X] [InnerProductSpace ℝ X]
+    (S : Set X) (hS : closure (interior S) = S)
+    (p v : X) (hv : ‖v‖ = 1) (r : ℝ) (hr : 0 < r) (hpS : p ∈ frontier S)
+    (hfr : frontier S ∩ ball p r = {x | inner ℝ v (x - p) = 0} ∩ ball p r) :
+    ∃ s : X, ‖s‖ = 1 ∧ S ∩ ball p r = {x | 0 ≤ inner ℝ s (x - p)} ∩ ball p r := by
+  have hSc : IsClosed S := by rw [← hS]; exact isClosed_closure
+  have hH : ∀ x ∈ ball p r, inner ℝ v (x - p) = 0 → x ∈ S := by
+    intro x hx h0
+    have : x ∈ frontier S ∩ ball p r := by rw [hfr]; exact ⟨h0, hx⟩
+    exact hSc.frontier_subset this.1
+  have hnf : ∀ x ∈ ball p r, inner ℝ v (x - p) ≠ 0 → x ∉ frontier S := by
+    intro x hx h0 hxf
+    have : x ∈ {x | inner ℝ v (x - p) = 0} ∩ ball p r := by rw [← hfr]; exact ⟨hxf, hx⟩
+    exact h0 this.1
+  have hconn : ∀ w : X, IsPreconnected ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) := by
+    intro w
+    refine (Convex.inter ?_ (convex_ball p r)).isPreconnected
+    intro x hx y hy a b ha hb hab
+    simp only [mem_setOf_eq] at hx hy ⊢
+    have hlin : inner ℝ w (a • x + b • y - p) =
+        a * inner ℝ w (x - p) + b * inner ℝ w (y - p) := by
+      simp only [inner_sub_right, inner_add_right, inner_smul_right]
+      linear_combination (inner ℝ w p) * hab
+    rw [hlin]
+    by_cases ha0 : a = 0
+    · subst ha0
+      have hb1 : b = 1 := by linarith
+      subst hb1
+      linarith
+    · have hapos : 0 < a := lt_of_le_of_ne ha (Ne.symm ha0)
+      have := mul_pos hapos hx
+      have := mul_nonneg hb hy.le
+      linarith
+  have hdis : Disjoint (interior S) Sᶜ :=
+    Set.disjoint_left.mpr fun _ hi hc => hc (interior_subset hi)
+  have hdich : ∀ w : X, (∀ x ∈ ball p r, 0 < inner ℝ w (x - p) → inner ℝ v (x - p) ≠ 0) →
+      ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ S ∨
+        ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ Sᶜ := by
+    intro w hw
+    have hcover : ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ interior S ∪ Sᶜ := by
+      rintro z ⟨hz, hzB⟩
+      by_cases hzs : z ∈ S
+      · left
+        by_contra hzi
+        exact hnf z hzB (hw z hzB hz) (by rw [hSc.frontier_eq]; exact ⟨hzs, hzi⟩)
+      · exact Or.inr hzs
+    rcases (hconn w).subset_or_subset isOpen_interior hSc.isOpen_compl hdis hcover with h | h
+    · exact Or.inl (h.trans interior_subset)
+    · exact Or.inr h
+  have hPv := hdich v (fun x _ h => h.ne')
+  have hMv := hdich (-v) (fun x _ h => by
+    rw [inner_neg_left] at h; linarith)
+  have hpint : p ∉ interior S := hpS.2
+  have hpA : p ∈ S := hSc.frontier_subset hpS
+  rcases hPv with hP | hP <;> rcases hMv with hM | hM
+  · -- both sides inside: `p` would be interior
+    exfalso
+    apply hpint
+    refine interior_maximal ?_ isOpen_ball (mem_ball_self hr)
+    intro x hx
+    rcases lt_trichotomy (inner ℝ v (x - p)) 0 with h | h | h
+    · exact hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hx⟩
+    · exact hH x hx h
+    · exact hP ⟨h, hx⟩
+  · refine ⟨v, hv, ?_⟩
+    ext x
+    constructor
+    · rintro ⟨hxS, hxB⟩
+      refine ⟨?_, hxB⟩
+      by_contra hneg
+      simp only [mem_setOf_eq, not_le] at hneg
+      exact hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hxB⟩ hxS
+    · rintro ⟨h0, hxB⟩
+      rcases (show (0:ℝ) ≤ inner ℝ v (x - p) from h0).eq_or_lt with h | h
+      · exact ⟨hH x hxB h.symm, hxB⟩
+      · exact ⟨hP ⟨h, hxB⟩, hxB⟩
+  · refine ⟨-v, by rw [norm_neg, hv], ?_⟩
+    ext x
+    constructor
+    · rintro ⟨hxS, hxB⟩
+      refine ⟨?_, hxB⟩
+      by_contra hneg
+      simp only [mem_setOf_eq, not_le, inner_neg_left] at hneg
+      exact hP ⟨by simp only [mem_setOf_eq]; linarith, hxB⟩ hxS
+    · rintro ⟨h0, hxB⟩
+      have h0' : 0 ≤ inner ℝ (-v) (x - p) := h0
+      rw [inner_neg_left] at h0'
+      rcases (show inner ℝ v (x - p) ≤ 0 by linarith).eq_or_lt with h | h
+      · exact ⟨hH x hxB h, hxB⟩
+      · exact ⟨hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hxB⟩, hxB⟩
+  · -- both sides outside: `A ∩ U` lies in the hyperplane, against regular closedness
+    exfalso
+    have hcl : p ∈ closure (interior S) := by rw [hS]; exact hpA
+    obtain ⟨y, hyB, hyI⟩ := mem_closure_iff.mp hcl (ball p r) isOpen_ball (mem_ball_self hr)
+    obtain ⟨ε, hε, hεsub⟩ :=
+      Metric.isOpen_iff.mp (isOpen_interior.inter isOpen_ball) y ⟨hyI, hyB⟩
+    have hy0 : inner ℝ v (y - p) = 0 := by
+      rcases lt_trichotomy (inner ℝ v (y - p)) 0 with h | h | h
+      · exact absurd (interior_subset hyI)
+          (hM ⟨by simp only [mem_setOf_eq, inner_neg_left]; linarith, hyB⟩)
+      · exact h
+      · exact absurd (interior_subset hyI) (hP ⟨h, hyB⟩)
+    set z : X := y + (ε / 2) • v with hz
+    have hzy : z ∈ ball y ε := by
+      rw [mem_ball, dist_eq_norm, hz, add_sub_cancel_left, norm_smul, hv, mul_one,
+        Real.norm_eq_abs, abs_of_pos (half_pos hε)]
+      linarith
+    obtain ⟨hzI, hzB⟩ := hεsub hzy
+    have hzv : inner ℝ v (z - p) = ε / 2 := by
+      have : z - p = (y - p) + (ε / 2) • v := by rw [hz]; abel
+      rw [this, inner_add_right, inner_smul_right, hy0, real_inner_self_eq_norm_sq, hv]
+      ring
+    exact hP ⟨by rw [mem_setOf_eq, hzv]; exact half_pos hε, hzB⟩ (interior_subset hzI)
+
+/-- Step 3 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8):
+"the sectors ... lie on the `A`-side". Two local half-spaces with disjoint interiors
+fill a neighborhood of their common base point: otherwise point reflection puts
+an omitted point in both interiors. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases_step3_reflect
+    {X : Type*} [NormedAddCommGroup X] [NormedSpace ℝ X]
+    (W C₁ C₂ : Set X)
+    (q : X) (r₁ r₂ : ℝ) (hr₁ : 0 < r₁) (hr₂ : 0 < r₂) (f₁ f₂ : X → ℝ)
+    (hf₁ : Continuous f₁) (hf₂ : Continuous f₂)
+    (ho₁ : ∀ y, f₁ (q + (q - y)) = - f₁ y) (ho₂ : ∀ y, f₂ (q + (q - y)) = - f₂ y)
+    (hs₁ : C₁ ∩ ball q r₁ = {y | 0 ≤ f₁ y} ∩ ball q r₁)
+    (hs₂ : C₂ ∩ ball q r₂ = {y | 0 ≤ f₂ y} ∩ ball q r₂)
+    (h₁W : C₁ ⊆ W) (h₂W : C₂ ⊆ W) (hdisj : Disjoint (interior C₁) (interior C₂)) :
+    q ∈ interior W := by
+  have hr : 0 < min r₁ r₂ := lt_min hr₁ hr₂
+  have hb₁ : ball q (min r₁ r₂) ⊆ ball q r₁ := ball_subset_ball (min_le_left _ _)
+  have hb₂ : ball q (min r₁ r₂) ⊆ ball q r₂ := ball_subset_ball (min_le_right _ _)
+  have hin₁ : ∀ y ∈ ball q (min r₁ r₂), 0 ≤ f₁ y → y ∈ C₁ := by
+    intro y hy h
+    have hy1 : y ∈ C₁ ∩ ball q r₁ := by
+      rw [hs₁]
+      exact ⟨h, hb₁ hy⟩
+    exact hy1.1
+  have hin₂ : ∀ y ∈ ball q (min r₁ r₂), 0 ≤ f₂ y → y ∈ C₂ := by
+    intro y hy h
+    have hy2 : y ∈ C₂ ∩ ball q r₂ := by
+      rw [hs₂]
+      exact ⟨h, hb₂ hy⟩
+    exact hy2.1
+  rw [mem_interior]
+  refine ⟨ball q (min r₁ r₂), ?_, isOpen_ball, mem_ball_self hr⟩
+  intro y hy
+  by_contra hyW
+  have h₁ : f₁ y < 0 := not_le.mp fun h => hyW (h₁W (hin₁ y hy h))
+  have h₂ : f₂ y < 0 := not_le.mp fun h => hyW (h₂W (hin₂ y hy h))
+  have hy'b : q + (q - y) ∈ ball q (min r₁ r₂) := by
+    rw [mem_ball, dist_eq_norm, add_sub_cancel_left, ← dist_eq_norm, dist_comm]
+    exact hy
+  let U : Set (X) := ({z | 0 < f₁ z} ∩ {z | 0 < f₂ z}) ∩ ball q (min r₁ r₂)
+  have hU : IsOpen U :=
+    ((isOpen_lt continuous_const hf₁).inter (isOpen_lt continuous_const hf₂)).inter
+      isOpen_ball
+  have hy'U : q + (q - y) ∈ U := by
+    refine ⟨⟨?_, ?_⟩, hy'b⟩
+    · show 0 < f₁ (q + (q - y))
+      rw [ho₁]
+      linarith
+    · show 0 < f₂ (q + (q - y))
+      rw [ho₂]
+      linarith
+  have hU₁ : U ⊆ C₁ := fun z hz => hin₁ z hz.2 hz.1.1.le
+  have hU₂ : U ⊆ C₂ := fun z hz => hin₂ z hz.2 hz.1.2.le
+  exact Set.disjoint_left.mp hdisj (interior_maximal hU₁ hU hy'U)
+    (interior_maximal hU₂ hU hy'U)
+
+/-- Step 4 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8):
+"a `2`-plane ... orthogonal to `aff κ`". Inside the facet direction space, the ridge
+direction is the kernel of a unit normal functional. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases_step4_normal
+    {X : Type*} [NormedAddCommGroup X] [InnerProductSpace ℝ X] [FiniteDimensional ℝ X]
+    (W : Submodule ℝ X) (hW : Module.finrank ℝ W + 1 = Module.finrank ℝ X) :
+    ∃ v : X, ‖v‖ = 1 ∧ ∀ z, z ∈ W ↔ inner ℝ v z = 0 := by
+  have hperp : Module.finrank ℝ Wᗮ = 1 := by
+    have := Submodule.finrank_add_finrank_orthogonal W
+    omega
+  have hne : Wᗮ ≠ ⊥ := by
+    intro h
+    rw [h, finrank_bot] at hperp
+    exact zero_ne_one hperp
+  obtain ⟨w, hw, hw0⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hne
+  let v : X := (‖w‖⁻¹ : ℝ) • w
+  have hv : ‖v‖ = 1 := norm_smul_inv_norm hw0
+  have hvperp : v ∈ Wᗮ := Submodule.smul_mem _ _ hw
+  have hv0 : v ≠ 0 := by
+    intro h
+    rw [h, norm_zero] at hv
+    exact zero_ne_one hv
+  have hdir : W = (ℝ ∙ v)ᗮ := by
+    apply Submodule.eq_of_le_of_finrank_eq
+    · intro z hz
+      rw [Submodule.mem_orthogonal_singleton_iff_inner_right]
+      exact Submodule.inner_left_of_mem_orthogonal hz hvperp
+    · have h1 := Submodule.finrank_add_finrank_orthogonal (ℝ ∙ v)
+      rw [finrank_span_singleton hv0] at h1
+      omega
+  refine ⟨v, hv, fun z => ?_⟩
+  rw [hdir, Submodule.mem_orthogonal_singleton_iff_inner_right]
+
+/-- Step 5 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8):
+"if `∂C` were flat at `p`". In one proper boundary complex, two distinct coplanar
+facets through a relative-interior ridge point together contain a neighborhood of
+that point in their common affine hyperplane. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases_step5_coplanar
+    {A : PolyManifoldDomain d} (K : CellComplex A) (e F H : Cell d)
+    (he : e ∈ K.cells) (hF : F ∈ K.facets) (hH : H ∈ K.facets)
+    (hdim : e.dim = d - 2) (hFH : F ≠ H)
+    (hspan : affineSpan ℝ F.carrier = affineSpan ℝ H.carrier)
+    (x : E d) (hxe : x ∈ relint e.carrier)
+    (hxF : x ∈ F.carrier) (hxH : x ∈ H.carrier) :
+    x ∈ relint (F.carrier ∪ H.carrier) := by
+  classical
+  have hFc := (Finset.mem_filter.mp hF).1
+  have hHc := (Finset.mem_filter.mp hH).1
+  have hFd := (Finset.mem_filter.mp hF).2
+  have hHd := (Finset.mem_filter.mp hH).2
+  have hd : 2 ≤ d := Fact.out
+  have heF := boundary_facet_adjacency_step4_minimal K e F he hFc x hxe hxF
+  have hdimF : e.dim + 1 = F.dim := by omega
+  have hdimH : e.dim + 1 = H.dim := by omega
+  obtain ⟨rF, hrF, hbF⟩ :=
+    adjacency_primitive_seed_step2_other_sheet_step2_cases_step1_boundary
+      K e F he hFc hdimF x hxe hxF
+  obtain ⟨rH, hrH, hbH⟩ :=
+    adjacency_primitive_seed_step2_other_sheet_step2_cases_step1_boundary
+      K e H he hHc hdimH x hxe hxH
+  let V := cellDirection F.carrier
+  have hxV : x ∈ affineSpan ℝ F.carrier := subset_affineSpan ℝ _ hxF
+  letI : Nonempty (affineSpan ℝ F.carrier) := ⟨⟨x, hxV⟩⟩
+  let T : V ≃ₜ affineSpan ℝ F.carrier :=
+    (AffineIsometryEquiv.vaddConst ℝ (⟨x, hxV⟩ : affineSpan ℝ F.carrier)).toHomeomorph
+  let φ : V → E d := fun z => (z : E d) + x
+  have hφ : Isometry φ := Isometry.of_dist_eq fun a b => by
+    simp only [φ, dist_add_right]
+    rfl
+  have himg (s : Set (E d)) (hsp : affineSpan ℝ s = affineSpan ℝ F.carrier) :
+      φ '' interior (φ ⁻¹' s) = relint s := by
+    unfold relint intrinsicInterior
+    rw [hsp]
+    change ((Subtype.val : affineSpan ℝ F.carrier → E d) ∘ T) ''
+      interior (T ⁻¹' ((↑) ⁻¹' s)) = _
+    rw [Set.image_comp, ← T.preimage_interior, T.image_preimage]
+  have hfrimg (s : Set (E d)) (hsp : affineSpan ℝ s = affineSpan ℝ F.carrier) :
+      φ '' frontier (φ ⁻¹' s) = relfrontier s := by
+    unfold relfrontier intrinsicFrontier
+    rw [hsp]
+    change ((Subtype.val : affineSpan ℝ F.carrier → E d) ∘ T) ''
+      frontier (T ⁻¹' ((↑) ⁻¹' s)) = _
+    rw [Set.image_comp, ← T.preimage_frontier, T.image_preimage]
+  have hreg (s : Set (E d)) (hsp : affineSpan ℝ s = affineSpan ℝ F.carrier)
+      (hs : closure (relint s) = s) : closure (interior (φ ⁻¹' s)) = φ ⁻¹' s := by
+    rw [hφ.isEmbedding.isInducing.closure_eq_preimage_closure_image, himg s hsp, hs]
+  have hWe : cellDirection e.carrier ≤ V :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ heF)
+  let W : Submodule ℝ V := (cellDirection e.carrier).comap V.subtype
+  have hWdim : Module.finrank ℝ W = Module.finrank ℝ (cellDirection e.carrier) :=
+    (Submodule.comapSubtypeEquivOfLe hWe).finrank_eq
+  have hW : Module.finrank ℝ W + 1 = Module.finrank ℝ V := by
+    rw [hWdim, e.flat.dimension, show Module.finrank ℝ V = F.dim from F.flat.dimension]
+    exact hdimF
+  obtain ⟨v, hv, hvker⟩ :=
+    adjacency_primitive_seed_step2_other_sheet_step2_cases_step4_normal W hW
+  have hker (z : V) : φ z ∈ affineSpan ℝ e.carrier ↔ inner ℝ v z = 0 := by
+    rw [← hvker z]
+    change φ z ∈ affineSpan ℝ e.carrier ↔ (z : E d) ∈ cellDirection e.carrier
+    rw [← AffineSubspace.vsub_right_mem_direction_iff_mem
+      (subset_affineSpan ℝ _ (intrinsicInterior_subset hxe)) (φ z)]
+    simp only [φ, vsub_eq_sub, add_sub_cancel_right, cellDirection]
+  have hball (z : V) (r : ℝ) : φ z ∈ ball x r ↔ z ∈ ball (0 : V) r := by
+    simp [Metric.mem_ball, φ, dist_eq_norm]
+  have hfront (G : Cell d) (hsp : affineSpan ℝ G.carrier = affineSpan ℝ F.carrier)
+      (r : ℝ) (hbd : relfrontier G.carrier ∩ ball x r =
+        (affineSpan ℝ e.carrier : Set (E d)) ∩ ball x r) :
+      frontier (φ ⁻¹' G.carrier) ∩ ball (0 : V) r =
+        {z | inner ℝ v z = 0} ∩ ball (0 : V) r := by
+    ext z
+    constructor
+    · rintro ⟨hz, hzb⟩
+      have hzfr : φ z ∈ relfrontier G.carrier := by
+        rw [← hfrimg G.carrier hsp]
+        exact ⟨z, hz, rfl⟩
+      have hz' : φ z ∈ (affineSpan ℝ e.carrier : Set (E d)) ∩ ball x r := by
+        rw [← hbd]
+        exact ⟨hzfr, (hball z r).mpr hzb⟩
+      exact ⟨(hker z).mp hz'.1, hzb⟩
+    · rintro ⟨hz, hzb⟩
+      have hzfr : φ z ∈ relfrontier G.carrier := by
+        have hz' : φ z ∈ (affineSpan ℝ e.carrier : Set (E d)) ∩ ball x r :=
+          ⟨(hker z).mpr hz, (hball z r).mpr hzb⟩
+        rw [← hbd] at hz'
+        exact hz'.1
+      refine ⟨hφ.injective.mem_set_image.mp ?_, hzb⟩
+      rw [hfrimg G.carrier hsp]
+      exact hzfr
+  have hfrF := hfront F rfl rF hbF
+  have hfrH := hfront H hspan.symm rH hbH
+  have hzeroF : (0 : V) ∈ frontier (φ ⁻¹' F.carrier) := by
+    have hz : (0 : V) ∈ frontier (φ ⁻¹' F.carrier) ∩ ball (0 : V) rF := by
+      rw [hfrF]
+      simp [hrF]
+    exact hz.1
+  have hzeroH : (0 : V) ∈ frontier (φ ⁻¹' H.carrier) := by
+    have hz : (0 : V) ∈ frontier (φ ⁻¹' H.carrier) ∩ ball (0 : V) rH := by
+      rw [hfrH]
+      simp [hrH]
+    exact hz.1
+  obtain ⟨vF, -, hsF⟩ := adjacency_primitive_seed_step2_other_sheet_step2_cases_step2_side
+    (φ ⁻¹' F.carrier) (hreg F.carrier rfl F.flat.regularClosed)
+    0 v hv rF hrF hzeroF (by simpa only [sub_zero] using hfrF)
+  obtain ⟨vH, -, hsH⟩ := adjacency_primitive_seed_step2_other_sheet_step2_cases_step2_side
+    (φ ⁻¹' H.carrier) (hreg H.carrier hspan.symm H.flat.regularClosed)
+    0 v hv rH hrH hzeroH (by simpa only [sub_zero] using hfrH)
+  have hdis : Disjoint (interior (φ ⁻¹' F.carrier)) (interior (φ ⁻¹' H.carrier)) := by
+    apply Set.disjoint_left.mpr
+    intro z hzF hzH
+    apply Set.disjoint_left.mp (K.relint_disjoint F hFc H hHc hFH)
+    · rw [← himg F.carrier rfl]
+      exact ⟨z, hzF, rfl⟩
+    · rw [← himg H.carrier hspan.symm]
+      exact ⟨z, hzH, rfl⟩
+  have hzero : (0 : V) ∈ interior ((φ ⁻¹' F.carrier) ∪ (φ ⁻¹' H.carrier)) := by
+    apply adjacency_primitive_seed_step2_other_sheet_step2_cases_step3_reflect
+      _ _ _ 0 rF rH hrF hrH (fun z => inner ℝ vF (z - 0))
+      (fun z => inner ℝ vH (z - 0))
+      (by fun_prop) (by fun_prop) (by intro z; simp) (by intro z; simp)
+      hsF hsH subset_union_left subset_union_right hdis
+  have hsu : affineSpan ℝ (F.carrier ∪ H.carrier) = affineSpan ℝ F.carrier := by
+    rw [AffineSubspace.span_union, hspan.symm, sup_idem]
+  have hx : φ 0 ∈ relint (F.carrier ∪ H.carrier) := by
+    rw [← himg _ hsu, Set.preimage_union]
+    exact ⟨0, hzero, rfl⟩
+  simpa [φ] using hx
+
+/-- Step 6 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8):
+"it lies in `g` on the side of `f'`, overlapping the relative interior of `f'`".
+The topological part: if two sets fill a relative neighborhood and a third regular
+closed set meets its center, disjointness from the first relative interior forces
+an overlap with the second. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases_step6_overlap
+    (s t u : Set (E d)) (hs : closure (relint s) = s) (hu : closure (relint u) = u)
+    (hts : affineSpan ℝ t = affineSpan ℝ s) (hus : affineSpan ℝ u = affineSpan ℝ s)
+    (hdis : Disjoint (relint s) (relint u)) (p : E d)
+    (hp : p ∈ relint (s ∪ t)) (hpu : p ∈ u) :
+    (relint t ∩ relint u).Nonempty := by
+  have hsu : affineSpan ℝ (s ∪ t) = affineSpan ℝ s := by
+    rw [AffineSubspace.span_union, hts, sup_idem]
+  let V := affineSpan ℝ s
+  let s' : Set V := (↑) ⁻¹' s
+  let t' : Set V := (↑) ⁻¹' t
+  let u' : Set V := (↑) ⁻¹' u
+  have hs' : closure (interior s') = s' := by
+    rw [Topology.IsInducing.subtypeVal.closure_eq_preimage_closure_image]
+    change (Subtype.val : V → E d) ⁻¹' closure (relint s) = _
+    rw [hs]
+  have hu' : closure (interior u') = u' := by
+    rw [Topology.IsInducing.subtypeVal.closure_eq_preimage_closure_image]
+    have heq : (Subtype.val : V → E d) '' interior u' = relint u := by
+      unfold relint intrinsicInterior
+      rw [hus]
+    change (Subtype.val : V → E d) ⁻¹' closure ((Subtype.val : V → E d) '' interior u') = _
+    rw [heq, hu]
+  have hdis' : Disjoint (interior s') (interior u') := by
+    apply Set.disjoint_left.mpr
+    intro x hx hy
+    apply Set.disjoint_left.mp hdis (show (x : E d) ∈ relint s from ⟨x, hx, rfl⟩)
+    show (x : E d) ∈ relint u
+    unfold relint intrinsicInterior
+    rw [hus]
+    exact ⟨x, hy, rfl⟩
+  have hdis'' : Disjoint s' (interior u') := by
+    rw [← hs']
+    exact hdis'.closure_left isOpen_interior
+  have hp' : ∃ q : V, q ∈ interior (s' ∪ t') ∧ (q : E d) = p := by
+    unfold relint intrinsicInterior at hp
+    rw [hsu, Set.preimage_union] at hp
+    exact hp
+  obtain ⟨q, hq, hqp⟩ := hp'
+  have hqu : q ∈ closure (interior u') := by
+    rw [hu']
+    change (q : E d) ∈ u
+    rwa [hqp]
+  obtain ⟨z, hz, hzu⟩ := mem_closure_iff.mp hqu (interior (s' ∪ t'))
+    isOpen_interior hq
+  have hsub : interior (s' ∪ t') ∩ interior u' ⊆ t' := by
+    rintro y ⟨hy, hyu⟩
+    exact (interior_subset hy).resolve_left (fun hys =>
+      Set.disjoint_left.mp hdis'' hys hyu)
+  have hzt : z ∈ interior t' :=
+    interior_maximal hsub (isOpen_interior.inter isOpen_interior) ⟨hz, hzu⟩
+  refine ⟨z, ?_, ?_⟩
+  · unfold relint intrinsicInterior
+    rw [hts]
+    exact ⟨z, hzt, rfl⟩
+  · unfold relint intrinsicInterior
+    rw [hus]
+    exact ⟨z, hzu, rfl⟩
+
+/-- Step 7 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8):
+"the ray `Π ∩ aff g`". A facet contained in another facet has the same affine
+hyperplane, since full affine frames preserve their common dimension `d-1`. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases_step7_span
+    (N M : FramedNode S) (m k : ℕ) (F : FacetName S N.ty) (G : FacetName S M.ty)
+    (hsub : N.cell m F.val ⊆ M.cell k G.val) :
+    affineSpan ℝ (N.cell m F.val) = affineSpan ℝ (M.cell k G.val) := by
+  have hle := affineSpan_mono ℝ hsub
+  apply AffineSubspace.eq_of_direction_eq_of_nonempty_of_le _ _ hle
+  · apply Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle)
+    have h₁ := (boundary_facet_adjacency_step3_placed (N.prototypeFrame m) F.val).2.2.1
+    have h₂ := (boundary_facet_adjacency_step3_placed (M.prototypeFrame k) G.val).2.2.1
+    change Module.finrank ℝ (cellDirection (N.cell m F.val)) = _ at h₁
+    change Module.finrank ℝ (cellDirection (M.cell k G.val)) = _ at h₂
+    change Module.finrank ℝ (cellDirection (N.cell m F.val)) =
+      Module.finrank ℝ (cellDirection (M.cell k G.val))
+    rw [h₁, h₂, (Finset.mem_filter.mp F.property).2, (Finset.mem_filter.mp G.property).2]
+  · obtain ⟨x, hx⟩ := (boundary_facet_adjacency_step3_placed
+      (N.prototypeFrame m) F.val).2.2.2
+    exact ⟨x, subset_affineSpan ℝ _ (intrinsicInterior_subset hx)⟩
+
 /-- Step 2 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet` (V4 1.8):
 "the second boundary sheet of C through p either leaves g, or ... overlapping the relative interior of f'."
 A second facet h of the child through p satisfies the alternative. -/
@@ -4036,7 +4523,54 @@ private lemma adjacency_primitive_seed_step2_other_sheet_step2_cases (P : Framed
     ¬(P.child n a.val.1).cell n h.val ⊆ P.cell (n + 1) g.val ∨
     (relint ((P.child n a.val.1).cell n h.val) ∩
       relint ((P.child n b.val.1).cell n b.val.2.val)).Nonempty := by
-  sorry
+  classical
+  by_cases hsub : (P.child n a.val.1).cell n h.val ⊆ P.cell (n + 1) g.val
+  · right
+    have ha := adjacency_primitive_seed_step2_other_sheet_step2_cases_step7_span
+      (P.child n a.val.1) P n (n + 1) a.val.2 g a.property
+    have hh := adjacency_primitive_seed_step2_other_sheet_step2_cases_step7_span
+      (P.child n a.val.1) P n (n + 1) h g hsub
+    have hb := adjacency_primitive_seed_step2_other_sheet_step2_cases_step7_span
+      (P.child n b.val.1) P n (n + 1) b.val.2 g b.property
+    have hsame : affineSpan ℝ a.val.2.val.carrier = affineSpan ℝ h.val.carrier := by
+      have heq := ha.trans hh.symm
+      change affineSpan ℝ ((P.child n a.val.1).prototypeFrame n '' a.val.2.val.carrier) =
+        affineSpan ℝ ((P.child n a.val.1).prototypeFrame n '' h.val.carrier) at heq
+      change affineSpan ℝ (((P.child n a.val.1).prototypeFrame n).toAffineMap ''
+        a.val.2.val.carrier) = affineSpan ℝ
+        (((P.child n a.val.1).prototypeFrame n).toAffineMap '' h.val.carrier) at heq
+      rw [← AffineSubspace.map_span, ← AffineSubspace.map_span] at heq
+      have heq' := congrArg (fun V => V.comap
+        ((P.child n a.val.1).prototypeFrame n).toAffineMap) heq
+      simpa only [AffineSubspace.comap_map_eq_of_injective
+        (f := ((P.child n a.val.1).prototypeFrame n).toAffineMap)
+        ((P.child n a.val.1).prototypeFrame n).injective] using heq'
+    have hpah : p ∈ relint ((P.child n a.val.1).cell n a.val.2.val ∪
+        (P.child n a.val.1).cell n h.val) := by
+      rw [FramedNode.cell, adjacency_primitive_seed_step3_relint_image] at hpκ
+      obtain ⟨x, hx, rfl⟩ := hpκ
+      have hxa : x ∈ a.val.2.val.carrier := by
+        apply ((P.child n a.val.1).prototypeFrame n).injective.mem_set_image.mp
+        exact hκa ⟨x, intrinsicInterior_subset hx, rfl⟩
+      have hxh : x ∈ h.val.carrier :=
+        ((P.child n a.val.1).prototypeFrame n).injective.mem_set_image.mp hph
+      have hxah := adjacency_primitive_seed_step2_other_sheet_step2_cases_step5_coplanar
+        (S.cx (P.child n a.val.1).ty) κ.val a.val.2.val h.val κ.property
+        a.val.2.property h.property hκ (fun heq => h_neq (Subtype.ext heq.symm))
+        hsame x hx hxa hxh
+      change _ ∈ relint (((P.child n a.val.1).prototypeFrame n '' a.val.2.val.carrier) ∪
+        ((P.child n a.val.1).prototypeFrame n '' h.val.carrier))
+      rw [← Set.image_union, adjacency_primitive_seed_step3_relint_image]
+      exact ⟨x, hxah, rfl⟩
+    exact adjacency_primitive_seed_step2_other_sheet_step2_cases_step6_overlap
+      _ _ _ (boundary_facet_adjacency_step3_placed
+        ((P.child n a.val.1).prototypeFrame n) a.val.2.val).1
+      (boundary_facet_adjacency_step3_placed
+        ((P.child n b.val.1).prototypeFrame n) b.val.2.val).1
+      (hh.trans ha.symm) (hb.trans ha.symm)
+      (boundary_facet_adjacency_step2_distinct_children P n g a b hchild)
+      p hpah (hκb (intrinsicInterior_subset hpκ))
+  · exact Or.inl hsub
 
 /-- Step 2 of the V4 proof of `adjacency_primitive_seed` (V4 1.8): "the sectors of
 `C` and `C'` are both bounded by the ray `Π ∩ aff g` and lie on the `A`-side ...

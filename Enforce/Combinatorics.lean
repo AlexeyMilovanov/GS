@@ -398,10 +398,70 @@ private lemma translate_zero_step6_translatedSource (U : HonestSource S) :
 theorem HonestSource.translate_zero (U : HonestSource S) : U.translate 0 = U := by
   exact TranslatedSource.unique (U.translate_spec 0) (translate_zero_step6_translatedSource U)
 
+private lemma PlacedTile.move_move (t : PlacedTile S) (g h : Iso d) :
+  (t.move g).move h = t.move (g.trans h) := by
+  ext x
+  · rfl
+  · rw [PlacedTile.move_carrier, PlacedTile.move_carrier, PlacedTile.move_carrier, Set.image_image]
+    rfl
+
+private lemma Tiling.move_move (T : Tiling S) (g h : Iso d) :
+  (T.move g).move h = T.move (g.trans h) := by
+  obtain ⟨tiles, c, dj⟩ := T
+  dsimp [Tiling.move]
+  congr 1
+  ext x
+  simp only [Set.mem_image]
+  constructor
+  · rintro ⟨y, ⟨z, hz, rfl⟩, rfl⟩
+    exact ⟨z, hz, (PlacedTile.move_move z g h).symm⟩
+  · rintro ⟨z, hz, rfl⟩
+    exact ⟨z.move g, ⟨z, hz, rfl⟩, PlacedTile.move_move z g h⟩
+
+omit [Fact (2 ≤ d)] in
+private lemma translation_add (v w : E d) :
+  translation (v + w) = (translation v).trans (translation w) := by
+  ext x
+  dsimp [translation, AffineIsometryEquiv.vaddConst, AffineIsometryEquiv.trans]
+  abel
+
+private lemma FramedNode.move_move (N : FramedNode S) (g h : Iso d) :
+  (N.move g).move h = N.move (g.trans h) := by
+  rcases N with ⟨ty, fr⟩
+  rfl
+
+private theorem translatedSource_comp {U V W : HonestSource S} {v w : E d}
+    (h1 : TranslatedSource U V v) (h2 : TranslatedSource V W w) :
+    TranslatedSource U W (v + w) := by
+  have mm : ∀ N : FramedNode S, (N.move (translation v)).move (translation w) = N.move (translation (v + w)) := by
+    intro N; rw [FramedNode.move_move, ← translation_add]
+  have hmem : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}), N.val.move (translation v) ∈ V.hierarchy.nodes n := by
+    intro n N; rw [h1.nodes n]; exact ⟨N.val, N.property, rfl⟩
+  have hmem2 : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation (v + w)) ∈ W.hierarchy.nodes n), (N.val.move (translation v)).move (translation w) ∈ W.hierarchy.nodes n := by
+    intro n N hN; rw [mm]; exact hN
+  have e : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation (v + w)) ∈ W.hierarchy.nodes n), (⟨N.val.move (translation (v + w)), hN⟩ : {N // N ∈ W.hierarchy.nodes n}) = ⟨(N.val.move (translation v)).move (translation w), hmem2 n N hN⟩ := fun n N hN => Subtype.ext (mm N.val).symm
+  refine ⟨?tiling, ?nodes, h2.coset.trans h1.coset, ?parents, ?roles⟩
+  case tiling => rw [h2.tiling, h1.tiling, Tiling.move_move, ← translation_add]
+  case nodes =>
+    intro n
+    rw [h2.nodes n, h1.nodes n, ← Set.image_comp]
+    exact congrArg (fun f => f '' U.hierarchy.nodes n) (funext mm)
+  case parents =>
+    intro n N hN
+    have c := congrArg (fun q : {N // N ∈ W.hierarchy.nodes n} => (W.hierarchy.parent n q).val) (e n N hN)
+    have p2 := h2.parents n ⟨N.val.move (translation v), hmem n N⟩ (hmem2 n N hN)
+    have p1 := h1.parents n N (hmem n N)
+    exact c.trans (p2.trans ((congrArg (fun x => x.move (translation w)) p1).trans (mm _)))
+  case roles =>
+    intro n N hN
+    have c := congrArg (fun q : {N // N ∈ W.hierarchy.nodes n} => W.hierarchy.nodeRole ⟨n, q⟩) (e n N hN)
+    exact c.trans ((h2.roles n ⟨N.val.move (translation v), hmem n N⟩ (hmem2 n N hN)).trans (h1.roles n N (hmem n N)))
+
 /-- C2, V4 1.27: the chosen exact transports form the ordinary translation action. -/
 theorem HonestSource.translate_add (U : HonestSource S) (v w : E d) :
     (U.translate v).translate w = U.translate (v + w) := by
-  sorry
+  exact TranslatedSource.unique (translatedSource_comp (U.translate_spec v) ((U.translate v).translate_spec w)) (U.translate_spec (v + w))
+
 
 /-- C2, V4 1.27: a source language is empty exactly when its height and type
 have no honest node. No finiteness or covariance assumption is needed for this fact. -/

@@ -46,7 +46,10 @@ def native (n : ℕ) (a : P.Address n) : FramedNode S :=
 /-- P9, V4 1.14: every native frame is still compatible. -/
 theorem native_compatible (n : ℕ) (a : P.Address n) :
     (P.native n a).frame.linearIsometryEquiv ∈ S.rotGroup := by
-  sorry
+  dsimp [native, SubstSystem.nativeTile]
+  obtain ⟨R, hR, h_eq⟩ := S.descendant_frames a.1.val.ty 0 n a.2 (compatibleInflatedFrame a.1.val (P.compatible a.1.val a.1.property) n)
+  rw [h_eq]
+  exact Subgroup.mul_mem S.rotGroup (Classical.choose_spec (S.rotGroup_conj_zpow (n : ℤ) a.1.val.frame.linearIsometryEquiv (P.compatible a.1.val a.1.property))).1 hR
 
 /-- P9, V4 1.14: incident native tiles, with their unambiguous addresses. -/
 abbrev Incident (p : E d) (n : ℕ) :=

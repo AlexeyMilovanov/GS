@@ -920,6 +920,24 @@ private theorem packet_inherited_step1_fault (U : HonestSource S) (P : Params S)
     U.hierarchy.IsFault q f ↔ U.hierarchy.IsFault c g := by
   sorry
 
+/-- Step 1 of the V4 proof of `packet_inherited_step2_occurrence`: by induction on a, the
+provider carrier and birth parent of the inherited facet match those of the original facet. -/
+private theorem packet_inherited_step2_occurrence_step1_induction (U : HonestSource S) (P : Params S) (q c : U.Node)
+    (a : ℕ) (hca : U.hierarchy.ancestor c a = q)
+    (f : FacetName S q.2.val.ty) (g : FacetName S c.2.val.ty)
+    (hgf : c.2.val.cell c.1 g.val ⊆ q.2.val.cell q.1 f.val)
+    (hq : ¬ U.hierarchy.IsFault q f) (hc : ¬ U.hierarchy.IsFault c g) :
+    U.hierarchy.providerCarrier c g hc = U.hierarchy.providerCarrier q f hq ∧
+    U.hierarchy.birthParent c g hc = U.hierarchy.birthParent q f hq := by
+  sorry
+
+/-- Step 2 of the V4 proof of `packet_inherited_step2_occurrence`: the carrier of the constructed
+provider occurrence is equal to the hierarchy's provider carrier. -/
+private theorem packet_inherited_step2_occurrence_step2_carrier (U : HonestSource S) (P : Params S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hq : ¬ U.hierarchy.IsFault q f) :
+    (U.providerOccurrence P q f hq).carrier = U.hierarchy.providerCarrier q f hq := by
+  sorry
+
 /-- Step 2 of the V4 proof of `packet_inherited` (V4 2.6(d)): the provider occurrence is unchanged along inherited facet tracks. -/
 private theorem packet_inherited_step2_occurrence (U : HonestSource S) (P : Params S) (q c : U.Node)
     (a : ℕ) (hca : U.hierarchy.ancestor c a = q)
@@ -927,7 +945,13 @@ private theorem packet_inherited_step2_occurrence (U : HonestSource S) (P : Para
     (hgf : c.2.val.cell c.1 g.val ⊆ q.2.val.cell q.1 f.val)
     (hq : ¬ U.hierarchy.IsFault q f) (hc : ¬ U.hierarchy.IsFault c g) :
     U.providerOccurrence P c g hc = U.providerOccurrence P q f hq := by
-  sorry
+  let G := U.providerOccurrence P q f hq
+  obtain ⟨hcar, hbp⟩ := packet_inherited_step2_occurrence_step1_induction U P q c a hca f g hgf hq hc
+  have hcar' : U.hierarchy.providerCarrier c g hc = G.carrier := by
+    rw [hcar]
+    exact (packet_inherited_step2_occurrence_step2_carrier U P q f hq).symm
+  have hinc := packet_attached_step6_record_incidence U P G c g hc hbp hcar'
+  exact packet_attached_step7_occurrence_ext U P _ _ hbp hinc
 /-- Q9, V4 2.6(d): packets restrict unchanged along inherited facet tracks. -/
 theorem packet_inherited (U : HonestSource S) (P : Params S) (q c : U.Node)
     (a : ℕ) (hca : U.hierarchy.ancestor c a = q)

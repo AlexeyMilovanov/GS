@@ -913,10 +913,25 @@ private lemma base_level_step4_I4 (Y : MarkedTiling (systemM S P C)) (hY : MProp
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I4 D := by
   sorry
 
+/-- Step 1 of the V4 proof of `base_level_step5_I5` (V4 3.2): constant packets existence for boundary packets. -/
+private lemma base_level_step5_I5_step1_boundary (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m) :
+    ∃ h : Parser.BoundaryPackets Y m N, True := by
+  sorry
+
+/-- Step 2 of the V4 proof of `base_level_step5_I5` (V4 3.2): equality of packets for E-related facets. -/
+private lemma base_level_step5_I5_step2_equality (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m)
+    (h : Parser.BoundaryPackets Y m N) (F F' : FacetName S N.ty) (he : stateEAt (D.stateAt m N hN) F.val F'.val)
+    (hne : (N.cell m F.val ∩ N.cell m F'.val).Nonempty) : attachedPacket h F = attachedPacket h F' := by
+  sorry
+
 /-- Step 5 of the V4 proof of `base_level` (V4 3.2): (I5): for a node N inside the certificate and a facet F of N, the tiles inside N with pieces in F are leaves of D carrying the honest packets, which are constant along F and equal for E-related facets. -/
 private lemma base_level_step5_I5 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I5 D := by
-  sorry
+  intro m N hN
+  obtain ⟨h, _⟩ := base_level_step5_I5_step1_boundary Y hY D hbase m N hN
+  exact ⟨h, base_level_step5_I5_step2_equality Y hY D hbase m N hN h⟩
 
 /-- R2, V4 3.2: the forced K-blocks with their honest tables form the base
 decoded level. An arbitrary proper Y supplies the actual certificates, so no

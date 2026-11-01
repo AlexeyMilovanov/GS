@@ -1540,7 +1540,38 @@ private lemma base_level_step5_I5_step2_equality (Y : MarkedTiling (systemM S P 
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m)
     (h : Parser.BoundaryPackets Y m N) (F F' : FacetName S N.ty) (he : stateEAt (D.stateAt m N hN) F.val F'.val)
     (hne : (N.cell m F.val ∩ N.cell m F'.val).Nonempty) : attachedPacket h F = attachedPacket h F' := by
-  sorry
+  obtain ⟨B, a, ha, w, hm, hnode⟩ :=
+    base_level_step3_I2_step1_certificate_node D.geometry hbase.1 m N hN
+  obtain ⟨U, hB, hcert⟩ := base_level_step4_I4_step1_source B
+  have hNB : N.IsDescendant m B.node P.K := by
+    rw [← hnode, ← hm]
+    exact ⟨a, by omega, w, rfl⟩
+  have hNU := Parser.hierarchy_descendant_mem U.hierarchy P.K m B.node N hB hNB
+  have hstate : D.stateAt m N hN = stateOf U P ⟨m, ⟨N, hNU⟩⟩ := by
+    subst m
+    subst N
+    exact (hbase.2 B a ha w).choose_spec.trans
+      (base_level_step4_I4_step3_table B U hB hcert a ha w)
+  have hread : ∀ G : FacetName S N.ty,
+      attachedPacket h G = U.facetPacket P ⟨m, ⟨N, hNU⟩⟩ G := by
+    intro G
+    obtain ⟨t, f, ht⟩ := Parser.facet_piece_exists Y m N
+      (D.geometry.node_actual m N hN) G
+    have htB := Parser.descendant_trans (tileNode t) N B.node 0 m P.K ht.2.1 hNB
+    have htU := Parser.hierarchy_descendant_mem U.hierarchy P.K 0 B.node (tileNode t) hB htB
+    rw [attachedPacket_eq_leaf h G t f ht,
+      base_level_step4_I4_step4_leaf B U hB hcert t ht.1 htB f htU]
+    exact packet_inherited U P ⟨m, ⟨N, hNU⟩⟩ ⟨0, ⟨tileNode t, htU⟩⟩ m
+      (base_level_step4_I4_step2_ancestor_node U.hierarchy
+        ⟨0, ⟨tileNode t, htU⟩⟩ ⟨m, ⟨N, hNU⟩⟩ ht.2.1) G f ht.2.2
+  rw [hstate] at he
+  obtain ⟨_, _, hE⟩ := he
+  obtain ⟨r, _, G, hF, hF'⟩ := (U.mem_coalescenceTable ⟨m, ⟨N, hNU⟩⟩ F F').mp hE
+  rw [hread F, hread F']
+  exact (packet_inherited U P (U.hierarchy.ancestor ⟨m, ⟨N, hNU⟩⟩ r)
+    ⟨m, ⟨N, hNU⟩⟩ r rfl G F hF).trans
+      (packet_inherited U P (U.hierarchy.ancestor ⟨m, ⟨N, hNU⟩⟩ r)
+        ⟨m, ⟨N, hNU⟩⟩ r rfl G F' hF').symm
 
 /-- Step 5 of the V4 proof of `base_level` (V4 3.2): (I5): for a node N inside the certificate and a facet F of N, the tiles inside N with pieces in F are leaves of D carrying the honest packets, which are constant along F and equal for E-related facets. -/
 private lemma base_level_step5_I5 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

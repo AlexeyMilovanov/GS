@@ -2727,12 +2727,137 @@ def RealizesProviderIncidence (q : H.Node) (f : FacetName S q.2.val.ty)
       (H.birthParent q f hf).2.val.prototypeFrame (H.birthHeight q f hf) ''
         (S.σ.symm '' placedSet (S.child ι.ty ι.left).frame ι.leftFacet.val.carrier)
 
+/-- Step 1 of the V4 proof of `provider_incidence_exists` (V4 1.6): the serving
+facet is placed by the full birth-parent frame after pulling back by `σ`. -/
+private theorem provider_incidence_exists_step1_child_frame
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty) (e : Cell d) :
+    (P.child n i).cell n e = P.prototypeFrame (n + 1) ''
+      (S.σ.symm '' placedSet (S.child P.ty i).frame e.carrier) := by
+  rw [hereditary_trace_step3_child_cell, Set.image_image]
+  apply Set.image_congr
+  intro y _
+  change P.frame ((S.σ ^ n) y) = P.frame ((S.σ ^ (n + 1)) (S.σ.symm y))
+  rw [pow_succ]
+  simp only [LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply]
+
+/-- Step 2 of the V4 proof of `provider_incidence_exists` (V4 1.6): "`g` is a
+primitive (first-generation internal) facet of `A_b`". Internalness pulls back
+through the height-`n` affine frame to the prescribed subdivision of `σ A`. -/
+private theorem provider_incidence_exists_step2_internal
+    (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
+    (f : FacetName S (P.child n i).ty)
+    (hint : relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1))) :
+    relint (placedSet (S.child P.ty i).frame f.val.carrier) ⊆
+      interior (S.supertile 1 P.ty) := by
+  let φ := (P.prototypeFrame n).toHomeomorphOfFiniteDimensional
+  have hcell : (P.child n i).cell n f.val =
+      φ '' placedSet (S.child P.ty i).frame f.val.carrier :=
+    hereditary_trace_step3_child_cell P n i f.val
+  have hparent : P.carrier (n + 1) = φ '' S.supertile 1 P.ty := by
+    simp only [FramedNode.carrier, placedSet, SubstSystem.supertile, pow_one,
+      Set.image_image]
+    apply Set.image_congr
+    intro y _
+    change P.frame ((S.σ ^ (n + 1)) y) = P.frame ((S.σ ^ n) (S.σ y))
+    rw [pow_succ]
+    rfl
+  have hrel : relint ((P.child n i).cell n f.val) =
+      φ '' relint (placedSet (S.child P.ty i).frame f.val.carrier) := by
+    rw [hcell]
+    exact hereditary_trace_step1_relint_image _ _
+  rw [hrel, hparent, ← φ.image_interior] at hint
+  exact (Set.image_subset_image_iff φ.injective).mp hint
+
+/-- Step 3 of the V4 proof of `provider_incidence_exists` (V4 1.6): the "unique
+sibling `C` sharing `g`" fixes the opposite role, and disjoint relative interiors
+of listed cells fix its facet name. -/
+private theorem provider_incidence_exists_step3_unique
+    (a b : PrimitiveIncidence S)
+    (hrole : (⟨a.ty, a.left⟩ : S.Role) = ⟨b.ty, b.left⟩)
+    (hfacet : a.leftFacet.val = b.leftFacet.val) : a = b := by
+  rcases a with ⟨A, i, j, hij, f, g, hfg, hint⟩
+  rcases b with ⟨B, i', k, hik, f', g', hfg', hint'⟩
+  obtain ⟨rfl, hi⟩ := Sigma.mk.inj_iff.mp hrole
+  have hi' : i = i' := eq_of_heq hi
+  subst i'
+  have hf' : f = f' := Subtype.ext hfacet
+  subst f'
+  let P : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hcell (l : S.I A) (e : FacetName S (P.child 0 l).ty) :
+      (P.child 0 l).cell 0 e.val = placedSet (S.child A l).frame e.val.carrier := by
+    rw [hereditary_trace_step3_child_cell]
+    simp [P]
+  have hj : (P.child 0 j).cell 0 g.val = (P.child 0 i).cell 0 f.val := by
+    rw [hcell, hcell]
+    exact hfg.symm
+  have hk : (P.child 0 k).cell 0 g'.val = (P.child 0 i).cell 0 f.val := by
+    rw [hcell, hcell]
+    exact hfg'.symm
+  have hjk : j = k := internal_facet_pairing_step2c_uniqueness P 0 i f j k
+    hij.symm hik.symm g hj g' hk
+  subst k
+  have hg : g = g' := by
+    apply Subtype.ext
+    have heq : g.val.carrier = g'.val.carrier :=
+      (Set.image_injective.mpr (S.child A j).frame.injective) (hfg.symm.trans hfg')
+    obtain ⟨p, hp⟩ := g.val.flat.relint_nonempty
+    have hp' : p ∈ relint g'.val.carrier := by rwa [← heq]
+    by_contra hne
+    exact Set.disjoint_left.mp ((S.cx (S.child A j).ty).relint_disjoint
+      g.val (Finset.mem_filter.mp g.property).1
+      g'.val (Finset.mem_filter.mp g'.property).1 hne) hp hp'
+  subst g'
+  rfl
+
 /-- P6, V4 1.6: the actual paired children and their two cell names determine
 one primitive incidence. Existence is supplied by whole-facet sibling pairing. -/
 theorem provider_incidence_exists (q : H.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ H.IsFault q f) :
     ∃! ι : PrimitiveIncidence S, H.RealizesProviderIncidence q f hf ι := by
-  sorry
+  let v := H.firstProvider q f hf
+  let c := H.servingChild q f hf
+  let P := (H.parent c.1 c.2).val
+  let i := H.role c.1 c.2
+  have hc : c.2.val = P.child c.1 i := H.child_eq c.1 c.2
+  let g : FacetName S (P.child c.1 i).ty := ⟨v.2.val, by
+    rw [← hc]
+    exact v.2.property⟩
+  have hnext : H.ancestor q (v.1 + 1) = H.parentNode c := by
+    simp only [v, c, servingChild, ancestor, Function.iterate_succ_apply']
+  have hint : relint ((P.child c.1 i).cell c.1 g.val) ⊆
+      interior (P.carrier (c.1 + 1)) := by
+    have hp := (H.firstProvider_spec q f hf).2.2
+    change relint (c.2.val.cell c.1 v.2.val) ⊆ _ at hp
+    rw [hnext] at hp
+    change relint ((P.child c.1 i).cell c.1 v.2.val) ⊆ _
+    rw [← hc]
+    exact hp
+  have hne : (relint ((P.child c.1 i).cell c.1 g.val) ∩
+      interior (P.carrier (c.1 + 1))).Nonempty := by
+    have hn : (relint ((P.child c.1 i).cell c.1 g.val)).Nonempty := by
+      rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+      exact g.val.flat.relint_nonempty.image _
+    obtain ⟨p, hp⟩ := hn
+    exact ⟨p, hp, hint hp⟩
+  obtain ⟨j, ⟨hji, g', hpair, -⟩, -⟩ :=
+    (internal_facet_pairing P c.1 i g hne).2
+  have hpair' : placedSet (S.child P.ty i).frame g.val.carrier =
+      placedSet (S.child P.ty j).frame g'.val.carrier := by
+    apply Set.image_injective.mpr (P.prototypeFrame c.1).injective
+    exact (hereditary_trace_step3_child_cell P c.1 i g.val).symm.trans
+      (hpair.symm.trans (hereditary_trace_step3_child_cell P c.1 j g'.val))
+  let ι : PrimitiveIncidence S := ⟨P.ty, i, j, hji.symm, g, g', hpair',
+    provider_incidence_exists_step2_internal P c.1 i g hint⟩
+  have hι : H.RealizesProviderIncidence q f hf ι := by
+    refine ⟨rfl, rfl, rfl, ?_⟩
+    change c.2.val.cell c.1 v.2.val = P.prototypeFrame (c.1 + 1) ''
+      (S.σ.symm '' placedSet (S.child P.ty i).frame g.val.carrier)
+    rw [hc]
+    exact provider_incidence_exists_step1_child_frame P c.1 i g.val
+  refine ⟨ι, hι, ?_⟩
+  intro ι' hι'
+  exact provider_incidence_exists_step3_unique ι' ι (hι'.2.1.trans hι.2.1.symm)
+    (hι'.2.2.1.trans hι.2.2.1.symm)
 
 /-- P6, V4 1.6: the finite primitive incidence with its distinguished serving side. -/
 def providerIncidence (q : H.Node) (f : FacetName S q.2.val.ty)

@@ -5721,7 +5721,34 @@ theorem native_subdivision (n : ℕ) :
       (interior ((P.native n a).carrier 0)) (interior ((P.native n b).carrier 0))) ∧
       (⋃ a : P.Address n, (P.native n a).carrier 0) =
         (S.σ ^ n) '' (⋃ t ∈ P.tiles, t.carrier 0) := by
-  sorry
+  refine ⟨?_, Set.Subset.antisymm ?_ ?_⟩
+  · simpa only [incidentForest_step1_carrier_zero, placedSet] using
+      incidentForest_step1_native_disjoint P n
+  · intro x hx
+    obtain ⟨a, ha⟩ := Set.mem_iUnion.mp hx
+    rw [incidentForest_step1_carrier_zero] at ha
+    obtain ⟨y, hy, rfl⟩ := incidentForest_step1_native_subset P n a ha
+    rw [← incidentForest_step1_carrier_zero] at hy
+    exact Set.mem_image_of_mem _
+      (Set.mem_iUnion.mpr ⟨a.1.val, Set.mem_iUnion.mpr ⟨a.1.property, hy⟩⟩)
+  · rintro x ⟨y, hy, rfl⟩
+    obtain ⟨t, hyt⟩ := Set.mem_iUnion.mp hy
+    obtain ⟨ht, hytile⟩ := Set.mem_iUnion.mp hyt
+    rw [incidentForest_step1_carrier_zero] at hytile
+    obtain ⟨z, hz, rfl⟩ := hytile
+    have hcov : (S.σ ^ n) z ∈
+        ⋃ w : S.RoleWord t.ty n, (S.nativeTile t.ty n w).carrier 0 := by
+      rw [S.native_cover]
+      exact Set.mem_image_of_mem _ hz
+    obtain ⟨w, hw⟩ := Set.mem_iUnion.mp hcov
+    rw [incidentForest_step1_carrier_zero] at hw
+    obtain ⟨u, hu, hzu⟩ := hw
+    refine Set.mem_iUnion.mpr ⟨⟨⟨t, ht⟩, w⟩, ?_⟩
+    rw [incidentForest_step1_carrier_zero]
+    refine ⟨u, hu, ?_⟩
+    change compatibleInflatedFrame t (P.compatible t ht) n
+      ((S.nativeTile t.ty n w).frame u) = (S.σ ^ n) (t.frame z)
+    rw [hzu, incidentForest_step1_inflated_pow]
 
 /-- Step 1 of the V4 proof of `incident_width_monotone` (V4 1.14):
 "every element of I_n has at least one child in I_{n+1}" -/

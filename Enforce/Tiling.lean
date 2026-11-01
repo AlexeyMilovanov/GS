@@ -169,9 +169,252 @@ theorem species_eq_legal {S : SubstSystem d} (T : Tiling S) :
 
 /-- T2, V4 §1.0 (H7): the defined species is invariant under every Euclidean
 isometry, including reflections. This does not impose covariance on a chosen lift. -/
+
+private theorem pt_move_move {S : SubstSystem d} (t : PlacedTile S) (g h : Iso d) :
+    (t.move g).move h = t.move (g.trans h) := by
+  ext
+  · simp [PlacedTile.move, PlacedTile.ofFrame]
+  · rw [PlacedTile.move_carrier, PlacedTile.move_carrier, PlacedTile.move_carrier, Set.image_image]
+    rfl
+
+private theorem pt_move_refl {S : SubstSystem d} (t : PlacedTile S) :
+    t.move (AffineIsometryEquiv.refl ℝ (E d)) = t := by
+  ext
+  · simp [PlacedTile.move, PlacedTile.ofFrame]
+  · rw [PlacedTile.move_carrier]
+    simp
+
+private noncomputable def moveEquiv {S : SubstSystem d} (g : Iso d) : PlacedTile S ≃ PlacedTile S :=
+  ⟨(·.move g), (·.move g.symm),
+   fun t => by
+     change (t.move g).move g.symm = t
+     rw [pt_move_move]
+     have h : g.trans g.symm = AffineIsometryEquiv.refl ℝ (E d) := by
+       ext x
+       simp
+     rw [h, pt_move_refl],
+   fun t => by
+     change (t.move g.symm).move g = t
+     rw [pt_move_move]
+     have h : g.symm.trans g = AffineIsometryEquiv.refl ℝ (E d) := by
+       ext x
+       simp
+     rw [h, pt_move_refl]⟩
+
+private theorem move_interior_disjoint {S : SubstSystem d} (t s : PlacedTile S) (g : Iso d) :
+  Disjoint (interior (t.move g).carrier) (interior (s.move g).carrier) ↔
+  Disjoint (interior t.carrier) (interior s.carrier) := by
+  rw [PlacedTile.move_carrier, PlacedTile.move_carrier]
+  have h1 : interior (⇑g '' t.carrier) = ⇑g.toHomeomorph '' interior t.carrier := by
+    exact (Homeomorph.image_interior g.toHomeomorph t.carrier).symm
+  have h2 : interior (⇑g '' s.carrier) = ⇑g.toHomeomorph '' interior s.carrier := by
+    exact (Homeomorph.image_interior g.toHomeomorph s.carrier).symm
+  rw [h1, h2]
+  exact Set.disjoint_image_iff g.toHomeomorph.injective
+
+private noncomputable def movePatch {S : SubstSystem d} (P : Patch S) (g : Iso d) : Patch S where
+  tiles := P.tiles.map (moveEquiv g).toEmbedding
+  disjoint := by
+    intro a ha b hb hab
+    simp only [Finset.coe_map, Set.mem_image, Equiv.coe_toEmbedding, Finset.mem_coe] at ha hb
+    obtain ⟨t, ht, rfl⟩ := ha
+    obtain ⟨s, hs, rfl⟩ := hb
+    have hneq : t ≠ s := fun h => hab (by rw [h])
+    change Disjoint (interior (t.move g).carrier) (interior (s.move g).carrier)
+    rw [move_interior_disjoint]
+    exact P.disjoint ht hs hneq
+
+private theorem movePatch_mem {S : SubstSystem d} (P : Patch S) (g : Iso d) (t : PlacedTile S) :
+  t ∈ (movePatch P g).tiles ↔ ∃ t' ∈ P.tiles, t'.move g = t := by
+  change t ∈ P.tiles.map (moveEquiv g).toEmbedding ↔ _
+  simp only [Finset.mem_map, Equiv.coe_toEmbedding]
+  constructor
+  · rintro ⟨t', ht', rfl⟩
+    exact ⟨t', ht', rfl⟩
+  · rintro ⟨t', ht', rfl⟩
+    exact ⟨t', ht', rfl⟩
+
+private theorem movePatch_support {S : SubstSystem d} (P : Patch S) (g : Iso d) :
+  (movePatch P g).support = g '' P.support := by
+  dsimp [Patch.support, movePatch]
+  ext x
+  constructor
+  · intro hx
+    have ⟨t_moved, ht_moved, hx2⟩ := Set.mem_iUnion₂.mp hx
+    simp only [Finset.mem_map, Equiv.coe_toEmbedding] at ht_moved
+    obtain ⟨t, ht, rfl⟩ := ht_moved
+    change x ∈ (t.move g).carrier at hx2
+    rw [PlacedTile.move_carrier] at hx2
+    obtain ⟨y, hy, rfl⟩ := hx2
+    exact ⟨y, Set.mem_iUnion₂.mpr ⟨t, ht, hy⟩, rfl⟩
+  · rintro ⟨y, hy, rfl⟩
+    have ⟨t, ht, hy2⟩ := Set.mem_iUnion₂.mp hy
+    apply Set.mem_iUnion₂.mpr
+    use t.move g
+    have hmem : t.move g ∈ P.tiles.map (moveEquiv g).toEmbedding := by
+      rw [Finset.mem_map]
+      exact ⟨t, ht, rfl⟩
+    exact ⟨hmem, by rw [PlacedTile.move_carrier]; exact ⟨y, hy2, rfl⟩⟩
+
+private theorem movePatch_mem_symm {S : SubstSystem d} (P : Patch S) (g : Iso d) (t : PlacedTile S) :
+  t ∈ (movePatch P g).tiles ↔ t.move g.symm ∈ P.tiles := by
+  rw [movePatch_mem]
+  constructor
+  · rintro ⟨t', ht', rfl⟩
+    have h : (t'.move g).move g.symm = t' := by
+      rw [pt_move_move]
+      have h2 : g.trans g.symm = AffineIsometryEquiv.refl ℝ (E d) := by
+        ext x
+        simp
+      rw [h2, pt_move_refl]
+    rw [h]
+    exact ht'
+  · intro ht
+    use t.move g.symm
+    refine ⟨ht, ?_⟩
+    change (t.move g.symm).move g = t
+    rw [pt_move_move]
+    have h : g.symm.trans g = AffineIsometryEquiv.refl ℝ (E d) := by
+      ext x
+      simp
+    rw [h, pt_move_refl]
+
+private theorem movePatch_isPatchOf {S : SubstSystem d} (P : Patch S) (T : Tiling S) (g : Iso d) :
+  P.IsPatchOf T → (movePatch P g).IsPatchOf (T.move g) := by
+  intro hP
+  dsimp [Patch.IsPatchOf]
+  intro t ht
+  have hmem : t ∈ (movePatch P g).tiles := ht
+  rw [movePatch_mem] at hmem
+  obtain ⟨t', ht', rfl⟩ := hmem
+  have hmem_T : t' ∈ T.tiles := hP ht'
+  change t'.move g ∈ (T.move g).tiles
+  dsimp [Tiling.move]
+  exact Set.mem_image_of_mem _ hmem_T
+
+private theorem movePatch_movePatch {S : SubstSystem d} (P : Patch S) (g : Iso d) :
+  movePatch (movePatch P g) g.symm = P := by
+  have heq : (movePatch (movePatch P g) g.symm).tiles = P.tiles := by
+    ext t
+    rw [movePatch_mem_symm]
+    rw [movePatch_mem_symm]
+    have h0 : g.symm.symm = g := by
+      ext x
+      simp
+    have h1 : t.move g.symm.symm = t.move g := by
+      rw [h0]
+    rw [h1]
+    have h2 : (t.move g).move g.symm = t := by
+      rw [pt_move_move]
+      have h3 : g.trans g.symm = AffineIsometryEquiv.refl ℝ (E d) := by
+        ext x
+        simp
+      rw [h3, pt_move_refl]
+    rw [h2]
+  cases P
+  dsimp at heq
+  dsimp [movePatch]
+  congr
+
+private theorem interiorLegal_move {S : SubstSystem d} (P : Patch S) (g : Iso d) :
+    InteriorLegal P → InteriorLegal (movePatch P g) := by
+  rintro ⟨n, A, ψ, h1, h2⟩
+  use n, A, g.symm.trans ψ
+  constructor
+  · intro t ht
+    have hmem : t ∈ (movePatch P g).tiles := ht
+    rw [movePatch_mem] at hmem
+    obtain ⟨t', ht', rfl⟩ := hmem
+    obtain ⟨w, hw⟩ := h1 t' ht'
+    use w
+    rw [← hw]
+    rw [pt_move_move]
+    have h : g.trans (g.symm.trans ψ) = ψ := by
+      ext x
+      simp
+    rw [h]
+  · rw [movePatch_support]
+    change (g.symm.trans ψ) '' (g '' P.support) ⊆ interior (S.supertile n A)
+    have h : (g.symm.trans ψ) '' (g '' P.support) = ψ '' P.support := by
+      rw [← Set.image_comp]
+      have h_eq : ⇑((AffineIsometryEquiv.symm g).trans ψ) ∘ ⇑g = ⇑ψ := by
+        ext x
+        simp
+      rw [h_eq]
+    rw [h]
+    exact h2
+
+private theorem species_move_mp {S : SubstSystem d} (T : Tiling S) (g : Iso d) (h : T ∈ S.Species) : T.move g ∈ S.Species := by
+  dsimp [SubstSystem.Species]
+  intro P hP
+  let Q := movePatch P g.symm
+  have hQ : Q.IsPatchOf T := by
+    dsimp [Patch.IsPatchOf]
+    intro t ht
+    have hmem : t ∈ Q.tiles := ht
+    change t ∈ (movePatch P g.symm).tiles at hmem
+    rw [movePatch_mem] at hmem
+    obtain ⟨t', ht', rfl⟩ := hmem
+    have ht'_in_T_move : t' ∈ (T.move g).tiles := hP ht'
+    dsimp [Tiling.move] at ht'_in_T_move
+    obtain ⟨t0, ht0, ht0_eq⟩ := ht'_in_T_move
+    have h_eq : t0.move g = t' := ht0_eq
+    rw [← h_eq]
+    have h_move : (t0.move g).move g.symm = t0 := by
+      rw [pt_move_move]
+      have hh : g.trans g.symm = AffineIsometryEquiv.refl ℝ (E d) := by
+        ext x
+        simp
+      rw [hh, pt_move_refl]
+    rw [h_move]
+    exact ht0
+  have h_legal_Q := h Q hQ
+  have h_legal_Q_moved := interiorLegal_move Q g h_legal_Q
+  have h_Q_moved_eq : movePatch Q g = P := by
+    change movePatch (movePatch P g.symm) g = P
+    have h_symm : g.symm.symm = g := by
+      ext x
+      simp
+    have eq := movePatch_movePatch P g.symm
+    rw [h_symm] at eq
+    exact eq
+  rw [h_Q_moved_eq] at h_legal_Q_moved
+  exact h_legal_Q_moved
+
 theorem species_move_iff {S : SubstSystem d} (T : Tiling S) (g : Iso d) :
     T.move g ∈ S.Species ↔ T ∈ S.Species := by
-  sorry
+  constructor
+  · intro h
+    have h1 := species_move_mp (T.move g) g.symm h
+    have heq : (T.move g).move g.symm = T := by
+      cases T
+      dsimp [Tiling.move]
+      congr 1
+      ext t
+      simp only [Set.mem_image]
+      constructor
+      · rintro ⟨t', ⟨t0, ht0, rfl⟩, rfl⟩
+        have h_move : (t0.move g).move g.symm = t0 := by
+          rw [pt_move_move]
+          have hh : g.trans g.symm = AffineIsometryEquiv.refl ℝ (E d) := by
+            ext x
+            simp
+          rw [hh, pt_move_refl]
+        rw [h_move]
+        exact ht0
+      · rintro ht
+        use t.move g
+        constructor
+        · exact ⟨t, ht, rfl⟩
+        · rw [pt_move_move]
+          have hh : g.trans g.symm = AffineIsometryEquiv.refl ℝ (E d) := by
+            ext x
+            simp
+          rw [hh, pt_move_refl]
+    rw [heq] at h1
+    exact h1
+  · intro h
+    exact species_move_mp T g h
 
 /-- T4, V4 §1.0 (H7): a point is in the interior of a physical tile. -/
 def Tiling.IsTileInterior {S : SubstSystem d} (T : Tiling S) (x : E d) : Prop :=

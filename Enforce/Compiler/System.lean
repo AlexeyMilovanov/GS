@@ -327,7 +327,36 @@ theorem compiler_decode_unique (C : ClusterData S P) (l : LeafType P) (φ : Iso 
 theorem colour_disjointness_i (C : ClusterData S P) (e : Compiler.EventIndex S P)
     (l : LeafType P) (a : Fin (d + 1)) (x : (Compiler.eventRule C e).carrier) :
     (Compiler.eventRule C e).mark x ≠ Colour.core l a := by
-  sorry
+  change Compiler.eventColour C e x.val ≠ Colour.core l a
+  dsimp [Compiler.eventColour]
+  split_ifs with h1 h2
+  · intro h
+    have h_micro := (augmentedColour_micro_iff C l e.leaf .core a x.val).mp (by exact h)
+    have heq : e.leaf = l := h_micro.1
+    have h_in_micro := h_micro.2
+    have h_in_cluster : x.val ∈ C.cluster e.leaf .core := by
+      exact Set.subset_iUnion (fun a => C.microball e.leaf .core a) a (heq ▸ h_in_micro)
+    have h_disj := C.cluster_disjoint_enclosing e.leaf .core (.trigger e.slot) (by intro H; cases H)
+    exact Set.disjoint_left.mp h_disj h_in_cluster h1
+  · intro h
+    let z := Classical.choose h2
+    have hz_prop := Classical.choose_spec h2
+    have h_micro := (augmentedColour_micro_iff C l z.2 .core a (z.1.frame.symm x.val)).mp (by exact h)
+    have heq : z.2 = l := h_micro.1
+    have h_in_micro := h_micro.2
+    have h_in_cluster : z.1.frame.symm x.val ∈ C.cluster z.2 .core := by
+      exact Set.subset_iUnion (fun a => C.microball z.2 .core a) a (heq ▸ h_in_micro)
+    have h_disj := C.cluster_disjoint_enclosing z.2 .core .readout (by intro H; cases H)
+    have h_in_encl : z.1.frame.symm x.val ∈ C.enclosing z.2 .readout := by
+      dsimp [Compiler.readoutRegion, placedSet] at hz_prop
+      obtain ⟨y, hy1, hy2⟩ := hz_prop.2
+      have heq2 : y = z.1.frame.symm x.val := by
+        calc y = z.1.frame.symm (z.1.frame y) := by rw [AffineIsometryEquiv.symm_apply_apply]
+             _ = z.1.frame.symm x.val := by rw [hy2]
+      rwa [← heq2]
+    exact Set.disjoint_left.mp h_disj h_in_cluster h_in_encl
+  · intro h
+    contradiction
 
 /-- M4, V4 2.12(ii): TRIG colours occur in no CORE rule or EVENT readout ball,
 and an EVENT occurrence identifies exactly its central leaf and slot.
